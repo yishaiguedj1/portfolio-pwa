@@ -100,6 +100,9 @@ print('✓ ' + cmd)
 '''
 
 
+GREF = '1\n00:00:00,500 --> 00:00:03,000\nשלום עולם, זו בדיקה\n\n2\n00:00:03,500 --> 00:00:06,000\n(צחוק)\n'.encode('utf-8')
+
+
 class Fake:
     """השרתון ו־Drive במקום אחד (כתובת מקומית — job.py מקבל רק localhost בבדיקות)."""
 
@@ -121,6 +124,7 @@ class Fake:
         self.gloss = None                                             # v380: קובץ המילון ב־Drive (bytes) — None = אין
         self.notes, self.note_next = [], None                         # v382: הערות שנקראו (בלקיחה) והערה שתימסר בנקודת השמירה הבאה
         self.gl = None                                                # 11/10: המילון מ־R2 בתשובת הלקיחה (None = לא נשלח)
+        self.gref = None                                              # פריט 15: הייחוס של סט הזהב (מזהה הקובץ בלקיחה)
         self.token_err = ''                                           # 15/10: Drive לא מחובר (עבודה ב־R2) — 'not_connected'
         self.gate_ans, self.gate_after, self.gate_polls = None, 1, 0  # v367: התשובה לשער ('go'/'stop') ואחרי כמה בדיקות
         fake = self
@@ -172,7 +176,7 @@ class Fake:
                     return self._send(200, {'ok': True, 'job': {'id': JOB, 'kind': fake.kind, 'state': 'running', 'spec': fake.spec,
                                                                   'folder': 'FOLDER00001', 'files': files, 'qa': fake.qa, 'ck': fake.ck,
                                                                   'nm': fake.nm, 'fb': fake.fb, 'ls': fake.ls, 'fm': fake.fm,
-                                                                  'rl': fake.rl, 'bx': fake.bx, 'u0': fake.u0, 'notes': fake.notes, 'gl': fake.gl},
+                                                                  'rl': fake.rl, 'bx': fake.bx, 'u0': fake.u0, 'notes': fake.notes, 'gl': fake.gl, 'gref': fake.gref},
                                             'drive': {'error': fake.token_err} if fake.token_err else {'token': TOKEN}, 'pir': fake.pir})
                 if op == 'token':
                     return self._send(200, {'ok': True, 'drive': {'error': fake.token_err} if fake.token_err else {'token': TOKEN}})
@@ -214,6 +218,8 @@ class Fake:
                     return self._send(200, raw=fake.gloss or b'')
                 if self.path.startswith('/drive/v3/files/QREQ0000001?alt=media'):
                     return self._send(200, raw=AIREQ)
+                if self.path.startswith('/drive/v3/files/GREF0000001?alt=media'):   # פריט 15
+                    return self._send(200, raw=GREF)
                 if self.path.startswith('/drive/v3/files/CUES0000001?alt=media'):
                     return self._send(200, raw=CUES)
                 if self.path.startswith('/drive/v3/files/AUDIO000001?alt=media'):
@@ -987,6 +993,25 @@ class TestWorker(unittest.TestCase):
         n_srt = [u for u in self.fake.uploads.values() if str(u['meta'].get('name', '')).endswith('.he.srt')]
         self.assertEqual(len(n_srt), 1)
 
+    def test_gold_score_by_worker(self):
+        """פריט 15: הרצה של סט הזהב — העובד מוריד את הייחוס ושולח את הציון (gq) בדיווח האחרון; בלי ייחוס — בלי gq"""
+        self.fake.gref = 'GREF0000001'
+        self.take()
+        self.assertEqual(self.job('prepare')[0], 0)
+        self.assertEqual(self.job('align')[0], 0)
+        code, out = self.job('finish')
+        self.assertEqual(code, 0, out)
+        gq = self.fake.reports[-1].get('gq')
+        self.assertTrue(gq and gq['n'] == 1 and 0 <= gq['s'] <= 100 and 0 <= gq['tm'] <= 100, gq)
+        self.assertIn('סט הזהב: chrF++', out)
+
+    def test_gold_score_absent(self):
+        self.take()
+        self.job('prepare'); self.job('align')
+        code, out = self.job('finish')
+        self.assertEqual(code, 0, out)
+        self.assertIsNone(self.fake.reports[-1].get('gq'))
+
     def test_render_gate_go(self):
         # v367: אישור לפני צריבה — "לצרוב": צורבים כרגיל
         out, cmds, kinds = self.finish_with_gate('go')
@@ -1171,6 +1196,14 @@ class TestWorker(unittest.TestCase):
         self.assertEqual([c['x'] for c in cues], ['שורה 0 שנייה', 'שורה 3 שנייה', 'שורה 6 שנייה', 'שורה 8 שנייה', 'שורה 11 שנייה'])
         self.assertEqual(cues[0]['t'], '0:05')
         self.assertEqual(J.srt_samples(self.tmp / 'none.srt'), ([], 0))
+        # 21/10/2026: המקור באנגלית של אותו זמן (en.reference.srt) — לכל כתובית לדוגמה
+        en = self.tmp / 'en.srt'
+        en.write_text('\n\n'.join('%d\n%02d:%02d:05,000 --> %02d:%02d:07,000\nline %d' % (i + 1, i // 60, i % 60, i // 60, i % 60, i)
+                                  for i in range(12)) + '\n', encoding='utf-8')
+        cues, n = J.srt_samples(p, en=en)
+        self.assertEqual([c.get('e') for c in cues], ['line 0', 'line 3', 'line 6', 'line 8', 'line 11'])
+        cues, n = J.srt_samples(p, en=self.tmp / 'none.srt')
+        self.assertTrue(all('e' not in c for c in cues), 'בלי קובץ אנגלית — בלי e')
 
     def test_ops_events(self):
         # v365: אירועים למגדל הפיקוח — Drive שהתאושש אחרי ניתוק (ok), ו־vt שנכשל (תמלול) — רק סוגים מהקטלוג, בלי טקסט

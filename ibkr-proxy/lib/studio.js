@@ -50,6 +50,10 @@ const OUT_KINDS = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 
 const OUT_MAX = 10;
 const MAX_SIZE = 64 * 1024 ** 3;            // 64GB — הרבה מעל כל ראיון (Drive מקבל עד 5TB)
 const MAX_ACTIVE = 5;                       // עבודות פתוחות בבת אחת למשתמש
+// 21/10/2026 (בקשת המשתמש — מבחני עומס של 2–4 סרטונים ארוכים במקביל): למנהל אין מגבלה מעשית. המשאבים ממילא לא לפי משתמש:
+// השרת לוקח עבודות מהתור לפי הסדר, לפי הליבות והזיכרון שלו — עבודות של משתמש אחד = אותו דבר כמו של כמה משתמשים
+const MAX_ACTIVE_ADMIN = 50;
+const maxActive = (admin) => (admin ? MAX_ACTIVE_ADMIN : MAX_ACTIVE);
 const MAX_STORED = 100;                     // מעבר לזה — הישנות שהסתיימו נמחקות
 const FIRE_HOUR = 20;                       // הפעלות בשעה למשתמש (ל־Routine מותר 30 — שומרים מרווח לתיקונים ול"הפעל עכשיו")
 const TEST_GAP = 60e3;                      // בדיקת חיבור — לכל היותר פעם בדקה
@@ -61,13 +65,22 @@ const STALE_MS = 2 * 3600e3;                // "רצה" בלי שום דיווח
 /* v368: המתנה לפני כישלון — תקלה חולפת (Drive / רשת) מקבלת חלון התאוששות, ואז "המשך" אוטומטי אחד מנקודת השמירה.
    רק אז "נכשלה" באמת. ההפעלה נספרת במכסה כמו כל הפעלה — לכן פעם אחת לעבודה (החלטה 1 בתוכנית) */
 const RECOVER_WAIT = 3 * 60e3, AUTO_RESUME_MAX = 1;
+/* 21/10/2026 (סבב הייעול, 12): נפילה בדקות הראשונות אחרי הלקיחה = כמעט תמיד תשתית (עדכון של העובד בדיוק בלקיחה, רשת) —
+   ממשיכים אחרי 15 שנ׳ ולא אחרי 3 דק׳. "המשך" אוטומטי עדיין פעם אחת לעבודה (AUTO_RESUME_MAX) */
+const EARLY_FAIL_MS = 4 * 60e3, EARLY_WAIT = 15e3;
+function recoverWait(job, now) {
+  const t0 = job && (job.claimed || job.c0);
+  if (!t0 || now - t0 < 0 || now - t0 >= EARLY_FAIL_MS) return RECOVER_WAIT;
+  // נשמרה נקודה בהפעלה הזו — העבודה כבר התקדמה; זו לא תקלת תשתית של הרגע הראשון
+  return (Array.isArray(job.ck) ? job.ck : []).some((c) => c && c.at >= t0) ? RECOVER_WAIT : EARLY_WAIT;
+}
 const TRANSIENT_ERRS = ['net', 'drive', 'drive_net', 'store_net', 'api_network', 'api_timeout', 'api_rate', 'api_overloaded', 'worker_lost'];   // 14/10/2026: worker_lost = השרת הופעל מחדש באמצע (עדכון / כיבוי) — ממשיכים מנקודת השמירה   // 11/10: store_net = ניתוק מול R2 / Drive   // הסקירה: גם רשת/קצב/עומס מול Anthropic במצב API
 /* 11/10/2026 (ביקורת העמידות): כשל דטרמיניסטי — אותה בקשה תיכשל שוב. לא "חולף" גם כשבמקרה נשארה פתוחה התראת Drive
    ישנה מאותה עבודה (קודם: max_tokens אחרי התראת הורדה ישנה קיבל "המשך" אוטומטי ששילם שוב על אותו כשל) */
 const DET_ERRS = ['worker_oom', 'store_fail', 'max_tokens', 'check_errors', 'model_refusal', 'api_bad_request', 'no_api_key', 'sdk_missing', 'mode_unknown', 'cp_empty', 'cp_timeout'];
 const TRANSIENT_KINDS = ['drive:dl_retry', 'drive:up_retry', 'drive:dl_fail', 'drive:up_fail'];
 /* עצירה מכוונת — אף פעם לא "חולפת", גם כשבמקרה הייתה תקלת Drive פתוחה (המגדל / התקציב / מתג החירום / ההחלטה שלך) */
-const STOP_ERRS = ['tower_stop', 'budget_stop', 'halted', 'upload_timeout', 'lang_unsupported', 'worker_unknown_kind', 'budget_cap', 'api_auth', 'api_model', 'no_api_key'];
+const STOP_ERRS = ['tower_stop', 'budget_stop', 'halted', 'upload_timeout', 'lang_unsupported', 'worker_unknown_kind', 'budget_cap', 'api_auth', 'api_quota', 'api_model', 'no_api_key'];
 /* האם הכישלון חולף: קוד השגיאה שהעובד דיווח, או התראת Drive פתוחה של העבודה הזו ברגע הכישלון */
 function isTransient(err, openKinds) {
   const e = String(err || '');
@@ -520,7 +533,8 @@ function normGate(g, id) {
   } else {
     // 5 כתוביות לדוגמה מהתרגום — תוכן מהסרטון: בטלפון רק כטקסט
     const cues = (Array.isArray(g.cues) ? g.cues : []).slice(0, 20)
-      .map((c) => ({ t: CUE_T_RE.test(String((c && c.t) || '')) ? c.t : '', x: clean(c && c.x, 140) })).filter((c) => c.x).slice(0, 5);
+      .map((c) => Object.assign({ t: CUE_T_RE.test(String((c && c.t) || '')) ? c.t : '', x: clean(c && c.x, 140) },
+        clean(c && c.e, 160) ? { e: clean(c && c.e, 160) } : {})).filter((c) => c.x).slice(0, 5);   // 21/10: e = המקור באנגלית של אותו זמן
     n = { cues, cnt: Math.max(0, Math.min(1e5, Math.floor(Number(g.cnt) || 0))) };
   }
   return { id, g: g.k, q: '', o: ['go', 'stop'], d: 1, w: GATE_WAIT, n };
@@ -631,7 +645,7 @@ function publicJob(job, now) {
     gl: normGl(job.gl),                             // v380: מונחים מהמילון שלך שימשו + מונחים חדשים להצעה
     nt: noteView(job),                              // v382: הערה לעובד — מחכה לנקודת השמירה הבאה / נקראה
     sla: SLA.slaView(job, now),                     // v377: יעד זמן ותקציב (השעון עוצר כשמחכים לך)
-    gd: normGd(job.gd), gs: JOB_RE.test(String(job.gs || '')) ? job.gs : '', gq: normGq(job.gq),   // v387: סט הזהב — ייחוס, מקור ההרצה, הציון
+    gd: normGd(job.gd), gs: JOB_RE.test(String(job.gs || '')) ? job.gs : '', gq: normGq(job.gq), sm: job.sm ? 1 : 0,   // v387: סט הזהב — ייחוס, מקור ההרצה, הציון
     hl: normHl(job.hl, job.fv && job.fv.id),       // איכויות הצפייה (הראשונה = המקור עצמו)
   };
 }
@@ -725,9 +739,22 @@ function aiJob(parent, fq, mode, id, uid, now) {
     spec: { name: sp.name || '', size: sp.size || 0, type: '', dur: 0, from: sp.from || 'auto', to: sp.to || ['he'], mode: modeNow(mode || DEFAULT_MODE), out: [], style: STYLES[0], terms: '',
       ...(sp.eng === 'api' ? { eng: 'api', cap: CAP_MIN_JOB } : {}) } };
 }
-function goldClone(src, id, uid, now) {
+/* פריט 15 (21/10/2026, "ריצת מבחן"): mode = מצב אחר מזה של המקור (השוואה בין מצבים על אותו סרטון); gr = קובץ הייחוס
+   (באותה תיקייה) — העובד מחשב את הציון בעצמו בסוף (translator/goldscore.py), בלי שהטלפון פתוח */
+function goldClone(src, id, uid, now, mode) {
   const out = Array.from(new Set((Array.isArray(src.spec && src.spec.out) ? src.spec.out : []).concat(['srt'])));   // ההשוואה צריכה SRT
-  return { id, uid, kind: 'tr', state: 'new', created: now, updated: now, spec: Object.assign({}, src.spec, { out }), fa: src.fa || null, fv: src.fv || null, folder: src.folder, gs: src.id };
+  const gd = normGd(src.gd), spec = Object.assign({}, src.spec, { out }, mode ? { mode: modeNow(mode) } : {});
+  return { id, uid, kind: 'tr', state: 'new', created: now, updated: now, spec, fa: src.fa || null, fv: src.fv || null, folder: src.folder, gs: src.id, gr: gd ? gd.r : '' };
+}
+/* פריט 13 (21/10/2026): עבודת בדיקה אחרי עדכון של העובד — הדקה הראשונה של עבודת הזהב, רק SRT, במצב ברירת המחדל.
+   sm = 1: לא בסט הזהב, לא במדדים (gs — כמו הרצה של סט הזהב), בלי ציון (בלי gr). רק עבודת זהב של השרת (eng api) ובלי חיתוך משלה */
+const SMOKE_S = 60;
+function smokeJob(src, id, uid, now) {
+  const sp = src && src.spec;
+  if (!sp || sp.eng !== 'api' || sp.edl || !(sp.dur > SMOKE_S + 5)) return null;
+  const c = goldClone(src, id, uid, now, DEFAULT_MODE);
+  c.spec = Object.assign({}, c.spec, { out: ['srt'], dur: SMOKE_S, edl: { k: [[0, SMOKE_S]], ar: 'src', x: 0.5 } });
+  return Object.assign(c, { gr: '', sm: 1 });
 }
 /* v373: עקיבה מהעובד (מהיומנים, בלי טוקנים): לכל סוכן n פעולות, e שנכשלו, s שניות; וקבוצות [מפתח, n, e].
    רק מספרים ומפתחות בצורה קבועה (שם כלי, או job:/vt: + פקודה) — בלי טקסט חופשי. לא תקין — נזרק כולו */
@@ -914,6 +941,7 @@ function workerJob(job, nm, fb, fm, rl, gl) {
     ck: Array.isArray(job.ck) ? job.ck.map((c) => ({ s: c.s, id: c.id, size: c.size })) : [],   // v361: להמשך (מהאחרונה)
     sh: job.sh && job.sh.n > 0 ? { n: job.sh.n, old: job.sh.old || null } : null,   // v384: מצב צל — המגדל אוכף את הספים הישנים
     notes: (Array.isArray(job.nh) ? job.nh : []).map((x) => normNoteText(x && x.t)).filter(Boolean).slice(-NOTE_MAX),
+    gref: job.gs && FILE_ID_RE.test(String(job.gr || '')) ? job.gr : null,   // פריט 15: הייחוס של סט הזהב — העובד מחשב את הציון
     cp: cpWorker(job.cp) };   // סבב 10: העתק־הדבק   // v382: ההערות שכבר נקראו — להמשך בסשן חדש
 }
 /* 21/10/2026: כמה זמן (ms) כבר הושקע בשלב בסשנים קודמים — הצבור (a) ועוד הקטע שנסגר */
@@ -1097,10 +1125,10 @@ function fromFields(f) {
   return o;
 }
 
-module.exports = { UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
+module.exports = { MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
-  GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,
+  GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normFil, FIL_MAX, normSty, normOv, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
@@ -1108,7 +1136,7 @@ module.exports = { UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_M
   RULE_BUDGET_MAX, normRules, modeOver, usdOf, GATE_KINDS, GATE_MAX, GATE_WAIT, newGateId, normGate,
   NORM_MIN, NORM_DEF, NORM_FIXED, NORM_DEF_API, NORM_FIXED_API, normDef, normFixed, engKey, normSample, addSample, learnedNorm, normsView,
   FB_MAX, FIX_MAX, normFixText, fbList, fbNumber, cheaperModes, COST_STOP, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide, fbRemove,
-  CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
+  CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, EARLY_FAIL_MS, EARLY_WAIT, recoverWait, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, resumeProg, stgSpent, excludeWait, toFields, fromFields, normFit, peakNeed,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, BAD_AUTH_GAP, badAuthDue, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
   serverMatches, normHb, normEv, SRV_EV, parkable, PARK_MAX, serverView, monthKey, monthUsed, addMonth, jobCap,

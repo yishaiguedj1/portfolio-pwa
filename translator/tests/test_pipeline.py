@@ -155,6 +155,25 @@ class PureTests(unittest.TestCase):
         self.assertEqual(sorted(d.split(':')[0] for d in dropped), ['amb'], 'רק "said" נזרק (מילה נפוצה שחוזרת)')
         self.assertIn('THAT', out, '"that" מופיע פעם אחת — מוחל כרגיל')
 
+    def test_patch_model_format(self):
+        """21/10/2026 (עבודת הבקרה): Haiku עוטף בגרשיים הפוכים / מוסיף תבליט, מספר, חץ אחר או מירכאות — עדיין תיקון"""
+        edit = '[S? 0:00] We met Appleton in Tel Aviv and the CFO Mat said hello.\n[S? 0:20] Later the ad network grew 30 percent.\n'
+        patch = ('`Appleton => AppLovin`\n'
+                 '- the CFO Mat => the CFO Matt\n'
+                 '2. "ad network grew" => "ad network grew"\n'
+                 '3) 30 percent -> 30%\n'
+                 '* Tel Aviv → Tel-Aviv\n'
+                 'no arrow here\n')
+        ok, dropped = P.valid_patch(edit, patch)
+        from vt.transcript import apply_patch
+        out, errs = apply_patch(edit, '\n'.join(ok))
+        self.assertEqual(errs, [])
+        for w in ('AppLovin', 'the CFO Matt', '30%', 'Tel-Aviv'):
+            self.assertIn(w, out)
+        self.assertEqual([d.split(':')[0] for d in dropped], ['bad'], 'רק השורה בלי חץ')
+        self.assertEqual(P.patch_line('`a` => `b`'), 'a => b')
+        self.assertEqual(P.patch_line('it’s “fine” => ok'), 'it’s “fine” => ok', 'מירכאות באמצע — לא נוגעים')
+
     def test_source_answers_issues(self):
         head, parts = P.parse_source(SOURCE)
         self.assertIn('המקור לתרגום', head)

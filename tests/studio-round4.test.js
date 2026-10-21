@@ -65,7 +65,7 @@ print(json.dumps(job.fillers(d)))`));
   ok(JSON.stringify(fil) === '[[0.46,0.94],[6.36,6.84]]', 'fillers: um עם מרווח קטן, בלי לגעת במילה השכנה; קצר מדי (Uh 0.05 שנ׳) וארוך מדי (hmm 3.5 שנ׳) — לא; בלי סוף — הערכה');
   ok(py('print(job.fillers(__import__("pathlib").Path("/nonexistent")))').trim() === '[]', 'fillers: בלי תמלול — רשימה ריקה');
   const jp = read('translator/job.py');
-  ok(/rvf, fil = review_flags_file\(ctx\.pdir\), fillers\(ctx\.pdir\)/.test(jp) && /rvf=rvf or None, fil=fil or None\)/.test(jp), 'finish שולח את הסימונים ואת מילות המילוי (תקלה בהם לא מפילה את סוף העבודה)');
+  ok(/rvf, fil = review_flags_file\(ctx\.pdir\), fillers\(ctx\.pdir\)/.test(jp) && /rvf=rvf or None, fil=fil or None[,)]/.test(jp), 'finish שולח את הסימונים ואת מילות המילוי (תקלה בהם לא מפילה את סוף העבודה)');
   const pp = read('translator/pipeline.py');
   ok(/`!#מספר קוד`/.test(pp) && /review' \/ 'flags\.txt'/.test(pp) && /str\(f\[0\]\) not in got/.test(pp), 'מצב השרת: הביקורת מסמנת באותה תשובה (בלי קריאה נוספת), כתובית שתוקנה — לא מסומנת');
   ok(/review\/flags\.txt/.test(read('translator/REVIEW.md')) && /`g`.*`s`.*`t`/.test(read('translator/REVIEW.md')), 'REVIEW.md (Routine): אותם קודים, לאותו קובץ');

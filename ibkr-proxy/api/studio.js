@@ -959,6 +959,30 @@ async function queueApi(deps, uid, job, now) {
 const capWhy = (job, st, now) => (S.jobCap(job.spec, 0, USER_MONTH(), S.usdOf(job.use0)) ? 'month_cap' : 'budget_cap');
 const apiJob = (job) => (job.kind === 'tr' || job.kind === 'rr' || job.kind === 'ai') && job.spec && job.spec.eng === 'api';   // מ2 · מ7: הפקה מחדש וגיליון ה־AI — באותו מנוע כמו המקור   // מ2: הפקה מחדש — באותו מנוע כמו המקור
 
+/* 21/10/2026 (סבב הייעול, 9 — "חלון עדכון"): עבודה שנלקחה בדיוק כשהעובד מתעדכן נהרגה (worker_lost פעמיים). אחרי קידום
+   של תמונת עובד ל־prod (ריצת worker-image מוצלחת על main — מה־API הציבורי של GitHub, מטמון 2 דק׳), עובד שעוד בגרסה
+   הקודמת (hb.v ≠ ה־SHA החדש) לא מקבל עבודה חדשה UPD_WIN — snb-update בודק כל 15 דק׳. אחרי החלון — עבודה כרגיל גם אם
+   העדכון לא קרה (לא תוקעים את התור). כל תקלה בבדיקה = אין חלון */
+const UPD_WIN = 20 * 60e3, UPD_TTL = 2 * 60e3;
+let _upd = { at: 0, sha: '', t: 0 };
+async function latestWorker(deps, now) {
+  if (deps.workerRelease) return deps.workerRelease(now);
+  if (now - _upd.at < UPD_TTL) return _upd;
+  _upd = { at: now, sha: _upd.sha, t: _upd.t };
+  try {
+    const r = await (deps.fetch || fetch)('https://api.github.com/repos/yishaiguedj1/portfolio-pwa/actions/workflows/worker-image.yml/runs?branch=main&status=success&per_page=1',
+      { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'snb-studio' }, signal: AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined });
+    const run = r.status === 200 ? ((await r.json()).workflow_runs || [])[0] : null;
+    if (run && /^[0-9a-f]{40}$/.test(String(run.head_sha)) && Date.parse(run.updated_at) > 0) _upd = { at: now, sha: run.head_sha, t: Date.parse(run.updated_at) };
+  } catch (e) {}
+  return _upd;
+}
+async function updatePending(deps, ver, now) {
+  if (!/^[0-9a-f]{12}$/.test(String(ver || ''))) return false;      // dev / לא ידוע — בלי חלון
+  const w = await latestWorker(deps, now);
+  return !!(w && w.sha && w.t && now - w.t >= 0 && now - w.t < UPD_WIN && !w.sha.startsWith(ver));
+}
+
 async function server(req, res, body, deps) {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -991,9 +1015,14 @@ async function server(req, res, body, deps) {
       await patchDoc(deps, 'studioServers', p.sid, seen);
       return res.status(200).json({ ok: true, job: null, paused: srv.paused === true, now });
     }
+    if (await updatePending(deps, hb.v, now).catch(() => false)) {
+      await patchDoc(deps, 'studioServers', p.sid, seen);
+      return res.status(200).json({ ok: true, job: null, upd: true, now });   // חלון עדכון — העובד מתחלף בדקות הקרובות
+    }
     // 20/10/2026: הסוכן עלה (boot) — עבודה שהשרת הזה לקח ועוד "רצה" נקטעה בהפעלה מחדש. עד היום רק הסוכן דיווח עליה
     // (report_lost), אבל מצב העבודה שלו ב־/state (tmpfs) נמחק בהפעלה מחדש — והעבודה "רצה" שעתיים בלי שאף אחד עובד עליה
     if (body.boot === true) await lostOnBoot(deps, p.sid, now).catch(() => {});
+    if (body.boot === true) await smokeAfterUpdate(deps, srv, p.sid, hb.v, now).catch(() => {});   // פריט 13: עבודת בדיקה אחרי עדכון
     // poll: העבודה הוותיקה ביותר שמחכה לשרת
     const qd = (await query(deps, 'studioJobs', { state: 'queued', eng: 'api', sid: '' }, 30)).sort((a, b) => (a.fired || 0) - (b.fired || 0));
     // 21/10/2026: השרת כבר מריץ עבודה ושואל אם יש עוד — רק עבודה שהשיא הצפוי שלה נכנס בזיכרון שנשאר לו (fit).
@@ -1027,6 +1056,21 @@ async function server(req, res, body, deps) {
   }
 }
 
+/* פריט 13 (סבב הייעול, 21/10/2026): הסוכן עלה בגרסה חדשה של העובד (hb.v ≠ smv) — עבודת בדיקה של דקה (S.smokeJob) למי
+   שהוסיף את השרת, מעבודת הזהב שלו, לתור הרגיל (רצה כשיש מקום — לא עוצרת עבודה). נכשלה = ההתראות הרגילות של עבודה שנכשלה.
+   הפעם הראשונה של שרת רק נרשמת; smv נכתב בתנאי — בדיקה אחת לגרסה. STUDIO_SMOKE=off מכבה */
+async function smokeAfterUpdate(deps, srv, sid, v, now) {
+  if (process.env.STUDIO_SMOKE === 'off' || !/^[0-9a-f]{12}$/.test(String(v || '')) || srv.smv === v) return;
+  const mine = await patchIf(deps, 'studioServers', sid, { smv: v, updated: now }, srv._ut).catch(() => false);
+  if (!mine || !srv.smv || !UID_RE.test(String(srv.by || ''))) return;
+  const all = await listJobs(deps, srv.by);
+  if (all.some((j) => j.sm && S.ACTIVE.includes(S.effState(j, now).state))) return;
+  const src = S.goldSources(all).sort((a, b) => (b.created || 0) - (a.created || 0))[0];
+  const c = src && S.smokeJob(src, S.newJobId(), srv.by, now);
+  if (!c) return;
+  await patchJob(deps, c.id, c);
+  await queueApi(deps, srv.by, c, now);
+}
 /* 20/10/2026: העבודה שהשרת הזה עבד עליה כשהסוכן עלה מחדש — כמו דיווח fail: worker_lost של העובד (תקלה חולפת: חלון
    התאוששות ואז "המשך" אוטומטי מנקודת השמירה). רק עבודה שבאמת אצלו (sid) ושעוד רצה; המפתח מת — עובד ישן לא ממשיך לכתוב */
 async function lostOnBoot(deps, sid, now) {
@@ -1035,7 +1079,7 @@ async function lostOnBoot(deps, sid, now) {
     if (!apiJob(job) || S.effState(job, now).state !== 'running') continue;
     const up = S.applyReport(job, { fail: true, err: 'worker_lost', msg: 'השרת הופעל מחדש באמצע העבודה' }, now);
     up.kh = ''; up.kx = 0;
-    if (job.kind === 'tr' && (job.ar || 0) < S.AUTO_RESUME_MAX) up.rw = now + S.RECOVER_WAIT;
+    if (job.kind === 'tr' && (job.ar || 0) < S.AUTO_RESUME_MAX) up.rw = now + S.recoverWait(job, now);
     if (job.kind === 'tr') up.eh = (Array.isArray(job.eh) ? job.eh : []).concat([{ e: 'worker_lost', s: (up.prog && up.prog.st) || '', at: now }]).slice(-10);
     if (await patchIf(deps, 'studioJobs', job.id, up, job._ut).catch(() => false)) n++;
   }
@@ -1453,6 +1497,7 @@ async function worker(req, res, body, deps) {
     if (body.quality != null) { const q = S.normQuality(body.quality); if (q) up.q = q; }   // v374: מדד האיכות — לא תקין נזרק בשקט
     if (body.inj != null) { const ij = S.normInj(body.inj); if (ij) up.ij = ij; }          // v374: שומר ההזרקות
     if (body.judge != null) { const jd = S.normJudge(body.judge); if (jd) up.jd = jd; }    // v375: שופט האיכות
+    if (body.gq != null && (job.gs || S.normGd(job.gd))) { const gq = S.normGq(Object.assign({}, body.gq, { at: now })); if (gq) up.gq = gq; }   // פריט 15: הציון מול הייחוס — מהעובד
     if (body.gl != null) { const gl = S.normGl(body.gl); if (gl) up.gl = gl; }            // v380: זיכרון המונחים
     if (body.rvf != null) { const v = S.normRvf(body.rvf); if (v) up.rvf = v; }          // סבב 4: סימונים מהביקורת
     if (body.fil != null) { const v = S.normFil(body.fil); if (v) up.fil = v; }          // סבב 4: מילות מילוי
@@ -1517,7 +1562,7 @@ async function worker(req, res, body, deps) {
       // v368: תקלה חולפת (Drive / רשת) — חלון התאוששות, ואז "המשך" אוטומטי אחד
       let kinds = [];
       try { kinds = O.opsView(((await readDoc(deps, 'studioOps', job.uid)) || {}).al, now).open.filter((a) => a.j === id).map((a) => a.c + ':' + a.k); } catch (e) {}
-      if (S.isTransient(up.err, kinds.concat(O.normEvents(body.ev).filter((e) => !e.ok).map((e) => e.c + ':' + e.k)))) up.rw = now + S.RECOVER_WAIT;
+      if (S.isTransient(up.err, kinds.concat(O.normEvents(body.ev).filter((e) => !e.ok).map((e) => e.c + ':' + e.k)))) up.rw = now + S.recoverWait(job, now);
     }
     if (up.state === 'failed' && job.kind === 'tr') {
       // 14/10/2026: היסטוריית הכשלים של העבודה — גם עבודה שהצליחה אחרי "המשך" מלמדת על מה שנכשל בדרך (למאגר הלמידה)
@@ -1733,7 +1778,8 @@ async function handler(req, res, deps = {}) {
       // 15/10/2026: התראות לטלפון — כמה מכשירים רשומים אצלך, והאם ההתראות של המערכת נשלחות אליך (בעל הגיבוי, sysBackup/cfg.uid)
       const myst = await readStats(deps, uid).catch(() => ({}));
       const push = { n: W.normSubs(myst.wp).length, me: !!(backup && backup.uid === uid) };
-      return res.status(200).json({ ok: true, push, ov: AO.overview(Object.assign({ now, servers: srvs, backup: bk, sites: sites ? { sd: sites.sd || '' } : null }, ext)) });
+      const jobs = await listJobs(deps, uid).catch(() => []);   // פריט 16: ריצת מבחן מומלצת (סט הזהב שלך)
+      return res.status(200).json({ ok: true, push, ov: AO.overview(Object.assign({ now, servers: srvs, backup: bk, sites: sites ? { sd: sites.sd || '' } : null, jobs }, ext)) });
     }
     if (op === 'adminAi') {
       // 15/10/2026: מרכז הניהול ← AI ועלויות. מנהל בלבד. רק מספרים: קריאות AI ליום (Academy), כמה קוראים (מספר, בלי זהות),
@@ -2162,7 +2208,7 @@ async function handler(req, res, deps = {}) {
       const sbc = await sysBlock(deps, { kind: 'tr', spec }, now, false, isAdmin(user));   // 15/10/2026: לפני שמעלים כמה GB
       if (sbc) return res.status(409).json(Object.assign({ ok: false }, sbc));
       const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
-      if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.MAX_ACTIVE) return res.status(409).json({ ok: false, error: 'too_many' });
+      if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.maxActive(isAdmin(user))) return res.status(409).json({ ok: false, error: 'too_many' });
       for (const old of all.filter((j) => S.FINAL.includes(S.effState(j, now).state)).slice(S.MAX_STORED - 1)) { await learnSave(deps, old, now); await delDoc(deps, 'studioJobs', old.id); }
       const job = { id: S.newJobId(), uid, kind: 'tr', state: 'new', created: now, updated: now, spec };
       if (apiJob(job) && R2.config().ok) job.folder = SR.folderFor(job.id);   // ת4: עבודה במצב שרת — הקבצים ב־R2 (Routine נשאר ב־Drive)
@@ -2198,13 +2244,18 @@ async function handler(req, res, deps = {}) {
       if (body.ok !== true) return res.status(400).json({ ok: false, error: 'confirm' });
       if ((await readStats(deps, uid)).halt) return res.status(409).json({ ok: false, error: 'halted' });
       const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
-      const src = S.goldSources(all).slice(0, S.GOLD_MAX);
+      // פריט 15 ("ריצת מבחן"): src = עבודת זהב אחת, modes = כמה מצבים עליה (השוואה בין מצבים על אותו סרטון)
+      const modes = Array.isArray(body.modes) ? Array.from(new Set(body.modes.map((m) => S.modeNow(m)))).filter((m) => S.MODES.includes(m)).slice(0, S.GOLD_MAX) : [];
+      if (Array.isArray(body.modes) && (!modes.length || !body.src)) return res.status(400).json({ ok: false, error: 'bad_params' });
+      for (const m of modes) if (await modeLocked(m)) return res.status(403).json({ ok: false, error: 'mode_locked' });
+      const gsrc = S.goldSources(all).filter((j) => !body.src || j.id === body.src);
+      const src = (modes.length ? modes.map((m) => [gsrc[0], m]) : gsrc.map((j) => [j, null])).filter((x) => x[0]).slice(0, S.GOLD_MAX);
       if (!src.length) return res.status(400).json({ ok: false, error: 'no_gold' });
       if (all.some((j) => j.gs && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'gold_busy' });   // הרצה קודמת עוד פתוחה
-      if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length + src.length > S.MAX_ACTIVE) return res.status(409).json({ ok: false, error: 'too_many' });   // הסקירה: לא לעקוף את MAX_ACTIVE
+      if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length + src.length > S.maxActive(isAdmin(user))) return res.status(409).json({ ok: false, error: 'too_many' });   // הסקירה: לא לעקוף את MAX_ACTIVE
       for (const old of all.filter((j) => S.FINAL.includes(S.effState(j, now).state) && !j.gd).slice(S.MAX_STORED - src.length)) await delDoc(deps, 'studioJobs', old.id);
       const made = [];
-      for (const j of src) { const c = S.goldClone(j, S.newJobId(), uid, now); await patchJob(deps, c.id, c); made.push(view(c)); }
+      for (const [j, m] of src) { const c = S.goldClone(j, S.newJobId(), uid, now, m); await patchJob(deps, c.id, c); made.push(view(c)); }
       return res.status(200).json({ ok: true, jobs: made });
     }
     let job = await mine(body.job);
@@ -2356,7 +2407,7 @@ async function handler(req, res, deps = {}) {
       if ((await readStats(deps, uid)).halt) return res.status(409).json({ ok: false, error: 'halted' });
       const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
       if (all.some((j) => j.kind === 'rr' && j.rp === job.id && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'rr_busy' });
-      if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.MAX_ACTIVE) return res.status(409).json({ ok: false, error: 'too_many' });
+      if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.maxActive(isAdmin(user))) return res.status(409).json({ ok: false, error: 'too_many' });
       const prv = body.prv === true;                 // סבב 10: צריבה לבדיקה מחליפה רק בדיקה קודמת (לא את ההפקה המלאה), ולהפך
       for (const old of all.filter((j) => j.kind === 'rr' && j.rp === job.id && !!(j.spec && j.spec.prv) === prv && S.FINAL.includes(S.effState(j, now).state))) await delDoc(deps, 'studioJobs', old.id);   // רק ההפקה האחרונה נשמרת
       const r = S.rrJob(job, body, S.newJobId(), uid, now);
@@ -2371,7 +2422,7 @@ async function handler(req, res, deps = {}) {
       if (!S.FILE_ID_RE.test(q)) return res.status(400).json({ ok: false, error: 'bad_params' });
       const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
       if (all.some((j) => j.kind === 'ai' && j.rp === job.id && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'ai_busy' });
-      if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.MAX_ACTIVE) return res.status(409).json({ ok: false, error: 'too_many' });
+      if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.maxActive(isAdmin(user))) return res.status(409).json({ ok: false, error: 'too_many' });
       const fq = await driveFileInFolder(deps, uid, job.folder, q);
       if (fq && fq.error) return res.status(200).json({ ok: false, error: fq.error });
       if (!fq || !(fq.size > 0 && fq.size <= S.AI_Q_MAX)) return res.status(400).json({ ok: false, error: 'file_bad' });
@@ -2462,4 +2513,5 @@ async function handler(req, res, deps = {}) {
 
 module.exports = (req, res) => handler(req, res);
 module.exports._handler = handler;
-module.exports._reset = () => { hits.clear(); cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; };
+module.exports._reset = () => { hits.clear(); cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; _upd = { at: 0, sha: '', t: 0 }; };
+module.exports._updatePending = updatePending;

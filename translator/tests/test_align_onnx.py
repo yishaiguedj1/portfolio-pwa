@@ -149,6 +149,11 @@ class Build(unittest.TestCase):
             self.assertTrue(O.use_arena(O.ARENA_NEED_MB + 1))
             self.assertFalse(O.use_arena(O.ARENA_NEED_MB - 1), "מעט זיכרון — מצב חיסכון")
             self.assertTrue(O.use_arena(None), "לא ידוע — כמו קודם")
+            # 21/10 ערב: הסף עולה עם אורך הסרטון — בפנוי של עובד הייצור (~7978MB): 20 ו־60 דק׳ עם arena, 87 ו־103 בלי
+            self.assertTrue(O.use_arena(7978, 20))
+            self.assertTrue(O.use_arena(7978, 60))
+            self.assertFalse(O.use_arena(7978, 87))
+            self.assertFalse(O.use_arena(7978, 103), "103 דק׳ נפל עם arena בייצור")
             os.environ["SNB_ALIGN_ARENA"] = "on"
             self.assertTrue(O.use_arena(10))
             os.environ["SNB_ALIGN_ARENA"] = "off"

@@ -346,6 +346,7 @@ def run(args):
                     'ls': ls,
                     'pir': pir_valid(got.get('pir')),                                    # v379: דוח אחרי תקלה שמחכה לסיכום
                     'full': got.get('full') == 1,                                        # 15/10: האיסוף המלא (הדגל learn_full + הנוסח נקרא)
+                    'gref': job.get('gref') if FILE_ID_RE.match(str(job.get('gref') or '')) else None,   # פריט 15: הייחוס של סט הזהב
                     'notes': notes_valid(job.get('notes')),                              # v382: הערות שלך שכבר נקראו (להמשך)
                     'gl': [list(r) for r in gl_rows(job.get('gl'))] if gl_rows(job.get('gl')) is not None else None,   # 11/10: המילון מ־R2 (None = מ־Drive)
                     'cap': job.get('cap') if isinstance(job.get('cap'), (int, float)) and 0 < job.get('cap') <= 100 else None})   # מצב API: תקרת העבודה ($)
@@ -1667,6 +1668,7 @@ def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
     """מריץ פקודת vt. שורת סיכום לכל פקודה; אחוזים מהפלט הולכים לשרתון כהתקדמות השלב."""
     t0 = time.time()
     held = ladder_hold() if args and args[0] in LADDER_HOLD_CMDS else None
+    eh = early_shots_hold(True) if args and args[0] in EARLY_HOLD_CMDS else False
     stop = threading.Event()
     if args and args[0] == 'align' and ctx is not None:
         threading.Thread(target=align_ck_watch, args=(ctx, stop), daemon=True).start()
@@ -1693,6 +1695,8 @@ def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
                 os.environ[restore[0]] = restore[1]
         if held:
             ladder_start(ctx, held)
+        if eh:
+            early_shots_hold(False)
 
 
 ALIGN_CK_EVERY = float(os.environ.get('SNB_ALIGN_CK', '240'))
@@ -1909,6 +1913,13 @@ def wait_video(ctx, stage, msg):
     בשרת שלנו — אחרי PARK_AFTER בלי סרטון: Park (העבודה חוזרת לתור, השרת לא תפוס עד 12 שעות)."""
     poll = float(os.environ.get('SNB_POLL', '30'))
     n, t0, park = 0, time.time(), can_park(ctx)
+    if not (ctx.st.get('files') or {}).get('v'):
+        # 21/10/2026 (יומני הייצור — בשלוש עבודות TED בדיוק 40 שנ׳ "מחכה שהסרטון יסיים לעלות"): הסרטון כבר עלה וירד ברקע
+        # (video_prefetch עדכן רק את העותק שלו), אבל כאן ישנו 30 שנ׳ לפני הבדיקה הראשונה מול השרתון. עכשיו — בודקים מיד
+        try:
+            ctx.refresh()
+        except (SystemExit, Exception):           # noqa: BLE001 — רשת רגעית: הלולאה הרגילה תנסה שוב
+            pass
     while not (ctx.st.get('files') or {}).get('v'):
         if park and time.time() - t0 >= park_after():
             raise Park()
@@ -2134,6 +2145,7 @@ def video_prefetch(ctx, stop):
             t0 = time.time()
             fetch_input(q, v['id'], in_path(q, v, 'v'), int(v.get('size') or 0))
             note_timing(q, 'prefetch', t0, time.time())     # 21/10/2026: מתי ההורדה ברקע רצה (מול היישור) וכמה זמן לקחה
+            early_shots_start(q, in_path(q, v, 'v'))
             return v
         stop.wait(poll)
         if stop.is_set():
@@ -2192,14 +2204,112 @@ def attach_late(ctx):
 _SHOTS_BG = {}
 
 
+# 21/10/2026 (עבודת הבקרה: השוטים עדיין עיכבו את הסוף ב־2.5 דק׳ — הביקורת נגמרה ב־14:32:53, השוטים ב־14:35:24): הזיהוי
+# מתחיל כבר כשהסרטון ירד ברקע (video_prefetch), על הקובץ עצמו — בזמן ההגהה המעבד מחכה ל־Claude. מושהה (SIGSTOP) בזמן
+# התמלול והיישור, שעל המעבד הן הנתיב הקריטי, וממשיך אחריהם. הזמנים = ציר הזמן של הסרטון = של הפרויקט אחרי הצירוף.
+# חיתוך לפני התרגום (edl) — לא (המקור משתנה); SNB_EARLY_SHOTS=off מכבה. תקלה כלשהי = vt shots כמו קודם.
+EARLY_HOLD_CMDS = ('asr', 'align')
+_EARLY = {'p': None, 'out': None, 't0': 0.0, 'hold': 0}
+_EARLY_LOCK = threading.Lock()
+EARLY_SHOTS_PY = (
+    'import json,os,sys,pathlib\n'
+    'from vt import media\n'
+    'th=float(sys.argv[3])\n'
+    's=media.detect_shots(pathlib.Path(sys.argv[1]),th)\n'
+    't=sys.argv[2]+".tmp"\n'
+    'json.dump({"threshold":th,"shots":s},open(t,"w"))\n'
+    'os.replace(t,sys.argv[2])\n')
+
+
+def _signal_group(p, sig):
+    try:
+        os.killpg(p.pid, sig)
+    except (OSError, AttributeError):
+        pass
+
+
+def early_shots_start(q, src):
+    if os.environ.get('SNB_EARLY_SHOTS') == 'off' or (q.st.get('spec') or {}).get('edl') or not Path(src).exists():
+        return False
+    try:
+        th = float((json.loads((q.pdir / 'project.json').read_text(encoding='utf-8')).get('settings') or {}).get('shot_threshold') or 10.0)
+    except (OSError, ValueError):
+        th = 10.0
+    out = q.pdir / 'shots.early.json'
+    try:
+        out.unlink()
+    except OSError:
+        pass
+
+    def idle():
+        try:
+            os.nice(15)
+            os.sched_setscheduler(0, os.SCHED_IDLE, os.sched_param(0))
+        except (AttributeError, OSError):
+            pass
+    with _EARLY_LOCK:
+        if _EARLY['p'] is not None:
+            return False
+        try:
+            p = subprocess.Popen([VT_PY, '-c', EARLY_SHOTS_PY, str(src), str(out), str(th)], cwd=str(HERE), env=vt_env(),
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
+                                 start_new_session=True, preexec_fn=idle)
+        except OSError:
+            return False
+        _EARLY.update(p=p, out=out, t0=time.time())
+        if _EARLY['hold'] > 0:                    # התחיל בזמן תמלול / יישור — מחכה להם
+            _signal_group(p, signal.SIGSTOP)
+    return True
+
+
+def early_shots_hold(on):
+    """on=True לפני פקודה כבדה (מושהה), False אחריה (ממשיך). מונה — שתי פקודות כבדות במקביל לא משחררות זו את זו."""
+    with _EARLY_LOCK:
+        _EARLY['hold'] = max(0, _EARLY['hold'] + (1 if on else -1))
+        p = _EARLY['p']
+        if p is not None and p.poll() is None and (_EARLY['hold'] == 1 and on or _EARLY['hold'] == 0 and not on):
+            _signal_group(p, signal.SIGSTOP if on else signal.SIGCONT)
+    return True
+
+
+def early_shots_take(ctx):
+    """אחרי הצירוף: מחכים לזיהוי המוקדם (כבר לא מושהה) ומעתיקים אותו ל־shots.json. True = יש שוטים; False = vt shots."""
+    with _EARLY_LOCK:
+        p, out, t0 = _EARLY['p'], _EARLY['out'], _EARLY['t0']
+        _EARLY.update(p=None, out=None)
+    if p is None:
+        return False
+    _signal_group(p, signal.SIGCONT)
+    try:
+        rc = p.wait()
+        d = json.loads(out.read_text(encoding='utf-8')) if rc == 0 else None
+    except (OSError, ValueError):
+        d = None
+    if not isinstance(d, dict) or not isinstance(d.get('shots'), list):
+        return False
+    (ctx.pdir / 'shots.json').write_text(json.dumps(d, ensure_ascii=False), encoding='utf-8')
+    try:
+        out.unlink()
+    except OSError:
+        pass
+    subprocess.run([VT_PY, '-c', 'import sys\nfrom vt.project import Project\nProject(sys.argv[1]).mark("shots", count=int(sys.argv[2]), early=1)',
+                    ctx.name, str(len(d['shots']))], cwd=str(HERE), env=vt_env(), capture_output=True)
+    note_timing(ctx, 'shots', t0, time.time())
+    print('✓ חילופי שוטים: %d (זוהו ברקע מרגע שהסרטון ירד)' % len(d['shots']))
+    return True
+
+
 def shots_bg(ctx):
     if os.environ.get('SNB_SHOTS_BG') == 'off' or not hasattr(ctx, 'quiet'):
-        vt(ctx, ['shots', ctx.name])
+        if not early_shots_take(ctx):
+            vt(ctx, ['shots', ctx.name])
         return
     q, box = ctx.quiet(), {}
 
     def run():
         try:
+            if early_shots_take(q):
+                return
             vt(q, ['shots', ctx.name])
         except BaseException as e:          # noqa: BLE001 — נזרק (או נוסה שוב) ב־shots_join, בתהליכון הראשי
             box['err'] = e
@@ -2575,28 +2685,43 @@ def gate_cmd(args):
 SRT_TIME_RE = re.compile(r'^(\d{2}):(\d{2}):(\d{2})[,.]\d{3}\s*-->')
 
 
-def srt_samples(path, n=5):
-    """v367: כמה כתוביות לדוגמה, מפוזרות לאורך הסרטון (זמן + טקסט בלי תגיות), ומספר הכתוביות."""
+def _srt_spans(path):
+    """[(התחלה, סוף בשניות, טקסט בלי תגיות ובלי סימני כיווניות)] — ריק כשאין קובץ."""
     try:
         txt = Path(path).read_text(encoding='utf-8-sig', errors='replace')
     except OSError:
-        return [], 0
-    cues = []
+        return []
+    out = []
     for blk in re.split(r'\n\s*\n', txt.replace('\r', '')):
         lines = [x for x in blk.strip().split('\n') if x.strip()]
-        ti = next((i for i, x in enumerate(lines) if SRT_TIME_RE.match(x.strip())), -1)
+        ti = next((i for i, x in enumerate(lines) if SRT_SPAN_RE.match(x.strip())), -1)
         if ti < 0:
             continue
-        m = SRT_TIME_RE.match(lines[ti].strip())
-        h, mi, se = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        t = '%d:%02d:%02d' % (h, mi, se) if h else '%d:%02d' % (mi, se)
-        x = re.sub(r'\s+', ' ', re.sub(r'<[^>]*>|\{[^}]*\}', '', ' '.join(lines[ti + 1:]))).strip()
+        g = [int(v) for v in SRT_SPAN_RE.match(lines[ti].strip()).groups()]
+        a, b = g[0] * 3600 + g[1] * 60 + g[2] + g[3] / 1000, g[4] * 3600 + g[5] * 60 + g[6] + g[7] / 1000
+        x = re.sub(r'\s+', ' ', re.sub(r'<[^>]*>|\{[^}]*\}|[\u200e\u200f\u202a-\u202e\u2066-\u2069]', '', ' '.join(lines[ti + 1:]))).strip()
         if x:
-            cues.append({'t': t, 'x': x[:140]})
-    if len(cues) <= n:
-        return cues, len(cues)
-    step = (len(cues) - 1) / (n - 1)
-    return [cues[round(i * step)] for i in range(n)], len(cues)
+            out.append((a, b, x))
+    return out
+
+
+def srt_samples(path, n=5, en=None):
+    """v367: כמה כתוביות לדוגמה, מפוזרות לאורך הסרטון (זמן + טקסט בלי תגיות), ומספר הכתוביות.
+    21/10/2026 (בקשת המשתמש): עם en (en.reference.srt) — לכל כתובית גם המקור באנגלית של אותו זמן (`e`), להשוואה ישירה."""
+    spans = _srt_spans(path)
+    if not spans:
+        return [], 0
+    pick = spans if len(spans) <= n else [spans[round(i * (len(spans) - 1) / (n - 1))] for i in range(n)]
+    ens = _srt_spans(en) if en else []
+    cues = []
+    for a, b, x in pick:
+        s = int(a)
+        c = {'t': '%d:%02d:%02d' % (s // 3600, s // 60 % 60, s % 60) if s >= 3600 else '%d:%02d' % (s // 60, s % 60), 'x': x[:140]}
+        e = ' '.join(t for (ea, eb, t) in ens if min(b, eb) - max(a, ea) > 0.05)   # חופפת בזמן (גם כתובית שאוחדה)
+        if e:
+            c['e'] = e[:160]
+        cues.append(c)
+    return cues, len(spans)
 
 
 SRT_SPAN_RE = re.compile(r'^(\d{2}):(\d{2}):(\d{2})[,.](\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})[,.](\d{3})')
@@ -2829,7 +2954,7 @@ def judge(args):
 
 def approve_render(ctx, wait=None):
     """v367: חוק "אישור לפני צריבה" — 5 כתוביות לדוגמה בטלפון; "לצרוב" / "רק קובץ כתוביות". בלי תשובה בזמן — רק כתוביות."""
-    cues, cnt = srt_samples(ctx.pdir / 'out' / 'he.srt')
+    cues, cnt = srt_samples(ctx.pdir / 'out' / 'he.srt', en=ctx.pdir / 'out' / 'en.reference.srt')
     ctx.report('bn', 0, 'מחכים לאישור שלך לפני הצריבה', force=True)
     try:
         gid = ctx.c.call('report', gate={'k': 'r', 'cues': cues, 'cnt': cnt}).get('gate') or ''
@@ -3199,7 +3324,7 @@ def early_text_outputs(ctx, title):
             early[k] = {'id': fid, 'sha': _sha(p), 'name': name}
             out.append({'id': fid, 'name': name, 'size': p.stat().st_size, 'k': k})
         if out:
-            ctx.report('bn', 0, 'הכתוביות מוכנות — אפשר לצפות בנגן בזמן שהסרטון נצרב', out=out, force=True)
+            ctx.report('bn', None, 'הכתוביות מוכנות — אפשר לצפות בנגן בזמן שהסרטון נצרב', out=out, force=True)   # p=None: לא מחזירים את פס הצריבה לאפס
             print('✓ הכתוביות עלו לפני הצריבה (' + ', '.join(o['k'] for o in out) + ')')
     except Stop:
         raise
@@ -3370,6 +3495,8 @@ def ladder_finish(ctx):
         time.sleep(5)
         waited += 5
         st = ladder_state() or {}
+    if waited:
+        note_timing(ctx, 'sv-ladder-wait', time.time() - waited, time.time())   # כמה מזה היה רק המתנה לקידוד
     if st.get('s') != 'ok':
         ladder_stop()
         print('· בלי איכויות צפייה (' + str(st.get('why') or 'time') + ') — הנגן מנגן את המקור כמו שהוא.')
@@ -3420,14 +3547,23 @@ def finish(args):
         print('· בלי צריבה (המשתמש בחר רק קובץ כתוביות, או לא ענה בזמן) — מעלים את קובץ הכתוביות.')
         want = []
     title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120]
-    early = early_text_outputs(ctx, title) if want and os.environ.get('SNB_EARLY_SUBS', 'on') != 'off' else {}
+    # 21/10/2026 (יומני הייצור: 27 שנ׳ בין build לצריבה — גל הקול ושבעה קבצים בטור): ההעלאה המוקדמת רצה ברקע, במקביל לצריבה
+    early, eth = {}, None
+    if want and os.environ.get('SNB_EARLY_SUBS', 'on') != 'off':
+        eth = threading.Thread(target=lambda: early.update(early_text_outputs(ctx, title)), name='early', daemon=True)
+        eth.start()
     if want:
         ctx.report('bn', 0, 'מוסיפים את הכתוביות לסרטון', force=True)
         flags = (['--compact'] if 'compact' in want else []) + (['--burn'] if 'same' in want else []) + (['--mkv'] if 'mkv' in want else [])
         if 'small' in want:                      # סבב 8: העותק לוואטסאפ נבנה מסרטון צרוב — בלי צרוב שנבחר, הדחוס (לא עולה)
             flags += (['--compact'] if 'compact' not in want and 'same' not in want else []) + ['--small', str(SMALL_MB)]
         vt(ctx, ['render', ctx.name] + flags, 'bn', 0.0, 1.0)
+    t_sv = time.time()
+    if eth is not None:
+        eth.join()
+        note_timing(ctx, 'sv-early', t_sv, time.time())    # 21/10/2026: מדידה לכל חלק בשלב השמירה (3.5 דק׳ בסרטון של 20 דק׳)
     ctx.report('sv', 0, 'שומרים את התוצרים', force=True)
+    t_up = time.time()
     out, total = [], 0
     files = []
     for k, fname, suffix, mime in OUT_FILES:
@@ -3479,14 +3615,46 @@ def finish(args):
         raise
     except (SystemExit, Exception):              # noqa: BLE001 — רק הקדמה; הדיווח האחרון שולח אותם בכל מקרה
         pass
+    gq = gold_score(ctx)                         # פריט 15: הציון מול התרגום האנושי (רק בהרצה של סט הזהב)
+    note_timing(ctx, 'sv-upload', t_up, time.time())
+    t_l = time.time()
     hl = ladder_finish(ctx)                      # איכויות הצפייה (אם מוכנות) — המקור מוחלף בגרסה הארוזה
+    note_timing(ctx, 'sv-ladder', t_l, time.time())
+    t_l = time.time()
     learn_put(ctx)                               # 15/10/2026 (מ׳2): קורפוס הטקסט למאגר הלמידה — לפני הדיווח האחרון (אחריו המפתח מת)
     learn_media(ctx)                             # מ׳4: הקול ועותק ב־240p (רק כשהשרתון מבקש) — גם לפני הדיווח האחרון
+    note_timing(ctx, 'sv-learn', t_l, time.time())
     ctx.report(done=True, out=out, msg='התרגום מוכן', force=True, lx=learn_safe(ctx), usage=usage_safe(), trace=trace_safe(), quality=q,
                judge=ctx.st.get('jd'), gl=gl, hl=hl and hl['hl'], vs=hl and hl['vs'],      # v375: שופט האיכות (Haiku) — אם רץ
-               rvf=rvf or None, fil=fil or None)
+               rvf=rvf or None, fil=fil or None, gq=gq)
     print('✓ העבודה הסתיימה: ' + ', '.join(o['name'] for o in out))
     return 0
+
+
+def gold_score(ctx):
+    """פריט 15 (21/10/2026): הרצה של סט הזהב — הציון מול התרגום האנושי מחושב כאן (translator/goldscore.py = goldCompare
+    של הטלפון), כך ש"ריצת מבחן" מקבלת ציון בלי שהטלפון פתוח. כל תקלה = בלי ציון (הטלפון עדיין יכול לחשב), העבודה לא נופלת."""
+    ref = ctx.st.get('gref')
+    srt = ctx.pdir / 'out' / 'he.srt'
+    if not ref or not srt.exists():
+        return None
+    try:
+        from goldscore import gold_compare
+        dest = ctx.pdir / 'judge' / 'ref.srt'
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.unlink(missing_ok=True)             # הורדה קודמת (המשך) — לא להוסיף לסופה
+        fetch_input(ctx, ref, dest, 0)
+        if dest.stat().st_size > 2 * 1024 * 1024:
+            return None
+        gq = gold_compare(srt.read_text(encoding='utf-8', errors='replace'), dest.read_text(encoding='utf-8', errors='replace'))
+        if gq:
+            print('· סט הזהב: chrF++ ' + str(gq['s']) + ' · כיסוי זמן ' + str(gq['tm']) + '% · ' + str(gq['n']) + ' כתוביות בייחוס')
+        return gq
+    except Stop:
+        raise
+    except (SystemExit, Exception) as e:   # noqa: BLE001 — מידע משני
+        print('· סט הזהב: לא חושב ציון (' + type(e).__name__ + ')')
+        return None
 
 
 # ---------------------------------------------------------------- נקודות שמירה (v361)

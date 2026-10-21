@@ -36,6 +36,13 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const m = { dur: 600, w: 1920, h: 1080, audio: 'aac', lang: '', lead: 2, trail: 3, db: -20 };
   const ctx = { from: 'auto', to: ['he'], name: 'talk.mp4', size: 100, jobs: [] };
   ok(st.sourceAdvice(m, ctx).length === 0, 'סרטון רגיל — בלי הצעות');
+  {   // 21/10/2026 (סבב הייעול, 1): סרטון ארוך עם צריבה — הצעה לוותר עליה (נגן + כתוביות)
+    const lng = Object.assign({}, m, { dur: 87 * 60 });
+    const b = st.sourceAdvice(lng, Object.assign({}, ctx, { out: { same: true } })).find((x) => x.k === 'burn');
+    ok(b && b.act === 'noburn' && b.sev === 'tip' && b.save === Math.round(87 * st.BURN_MIN_PER_MIN), 'סרטון של 87 דק׳ עם צריבה — הצעה לחסוך ~23 דק׳');
+    ok(!st.sourceAdvice(lng, Object.assign({}, ctx, { out: { same: false, compact: false } })).some((x) => x.k === 'burn'), 'בלי צריבה — בלי הצעה');
+    ok(!st.sourceAdvice(m, Object.assign({}, ctx, { out: { same: true } })).some((x) => x.k === 'burn'), 'סרטון קצר — בלי הצעה');
+  }
   const ed = st.sourceAdvice(Object.assign({}, m, { lead: 25, trail: 14 }), ctx);
   ok(ed.length === 1 && ed[0].k === 'edges' && ed[0].a === 24 && ed[0].b === 587 && ed[0].save === 37 && ed[0].act === 'cut', 'שקט בקצוות → חיתוך (שנייה מרווח בכל צד)');
   ok(st.sourceAdvice(Object.assign({}, m, { lead: 25 }), ctx)[0].b === 600, 'שקט רק בהתחלה — הסוף נשאר');

@@ -23,7 +23,7 @@ const ERR_INFO = {
   tower_stop: ['claude', 2], budget_stop: ['claude', 3], worker_step: ['claude', 2], store_fail: ['drive', 2], store_net: ['drive', 3], stale: ['claude', 2], worker: ['claude', 2],
   lang_unsupported: ['claude', 4], upload_timeout: ['phone', 3], net: ['drive', 3], drive: ['drive', 3], drive_net: ['drive', 3],
   // מצב API (llm.py / pipeline.py): מפתח שנדחה / מודל שלא קיים = שום עבודת API לא תעבוד עד שמתקנים → P1
-  api_auth: ['claude', 1], api_model: ['claude', 1], api_rate: ['claude', 3], api_network: ['claude', 3], api_timeout: ['claude', 3],
+  api_auth: ['claude', 1], api_quota: ['claude', 1], api_model: ['claude', 1], api_rate: ['claude', 3], api_network: ['claude', 3], api_timeout: ['claude', 3],
   api_bad_request: ['claude', 2], api_error: ['claude', 2], budget_cap: ['claude', 3], model_refusal: ['claude', 3], check_errors: ['claude', 3],
   cp_timeout: ['claude', 4], cp_empty: ['claude', 4],   // סבב 10: העתק־הדבק — לא הודבקה תשובה (בחירה של המשתמש, לא תקלה)
   // 11/10/2026: התשובה של Claude נקטעה בתקרת האורך (גם אחרי ניסיון בתקרת המודל); עומס באמצע הזרם; מפתח/ספרייה חסרים בשרת
@@ -59,7 +59,7 @@ function jobFacts(job, eff, stale) {
    11/10/2026: בתקלת max_tokens השורש היה "אחרי שינוי בסביבה · 100%" — נכון טכנית (הייתה פריסה), אבל מטעה:
    כשקוד השגיאה עצמו אומר מה קרה, הוא קודם לשינוי סביבה. */
 const CODE_SELF = ['store_fail', 'max_tokens', 'model_refusal', 'check_errors', 'api_bad_request', 'budget_cap', 'budget_stop', 'tower_stop',
-  'api_auth', 'api_model', 'month_cap', 'lang_unsupported', 'upload_timeout', 'worker_oom'];
+  'api_auth', 'api_quota', 'api_model', 'month_cap', 'lang_unsupported', 'upload_timeout', 'worker_oom'];
 function rootCauses(inc, f, al, others, prevEv, fb) {
   const out = [];
   if (f.fp && Array.isArray(fb) && fb.some((x) => x && x.fp === f.fp && x.fix)) out.push({ t: 'known', c: inc.c, k: f.fp, w: 75 });

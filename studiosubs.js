@@ -463,6 +463,15 @@ function b(cls, label, fn, k, iconK) {
 
 /* opts: { cues (normCues), T, issueName(k), getTime(), seek(t), play(), flash(msg), onChange(cues, ver) }.
    מחזיר { el, cues(), ver(), time(t), setSaved(ver), destroy }. כתובית אחת פתוחה לעריכה בכל רגע (תיבת טקסט אחת — קל גם ל־1,500 כתוביות) */
+/* 21/10/2026 (בקשת המשתמש): לכל כתובית גם המקור באנגלית של אותו קטע — קטן ואפור, משמאל לימין, עם תווית EN
+   (אותה צורה כמו בבדיקה לפני הצריבה ב־studio.js; העיצוב ב־studio.css: .st-src) */
+function srcLine(e, label) {
+  const d = el('div', 'st-src'); d.dir = 'ltr'; d.lang = 'en';
+  const tag = el('span', 'st-src-l', 'EN'); tag.setAttribute('aria-label', label);
+  d.append(tag, el('span', 'st-src-x', String(e)));
+  return d;
+}
+
 export function createSubsEditor(opts) {
   const issMemo = new WeakMap();                       // מ9: הבדיקות לכל אובייקט כתובית — פעם אחת (בכל הקשה סופרים את כולן)
   const flags = opts.flags instanceof Map ? opts.flags : new Map();   // סבב 4: מזהה → { t: הטקסט המקורי, k: [סוגים] }
@@ -634,7 +643,9 @@ export function createSubsEditor(opts) {
         paintBar();
         if (opts.onChange) opts.onChange(hist.cur, hist.ver);
       });
-      body.append(ta, el('div', 'st-se-mrow'));
+      body.append(ta);
+      if (c.en) body.append(srcLine(c.en, T('studioSrcEn')));
+      body.append(el('div', 'st-se-mrow'));
       body.lastChild.append(mt, chips);
       body.append(actions(k, ta));
       setTimeout(() => { try { if (document.activeElement !== ta && opts.autofocus !== false) ta.focus({ preventScroll: true }); } catch (e) {} }, 0);
@@ -642,6 +653,7 @@ export function createSubsEditor(opts) {
       const tx = el('div', 'st-se-tx'); tx.dir = 'rtl';
       for (const x of c.lines) tx.append(el('div', null, x));
       body.append(tx);
+      if (c.en) body.append(srcLine(c.en, T('studioSrcEn')));
       const iss = issOf(c);
       if (iss.length) { const w = el('span', 'st-se-warn'); w.append(icon('warn')); w.setAttribute('aria-label', iss.map(iname).join(', ')); body.append(w); }
       r.addEventListener('click', () => { const i = idxOf(c); if (i >= 0) choose(i); });

@@ -165,6 +165,7 @@ function itemRow(x) {
     case 'date_brk13f': return row({ c, ic: '⧗', t: t('admItBrk'), s: fmt(t('admItDate'), { d: v.d }), v: v.left, tr: t('admDays') });
     case 'date_sec_txt': return row({ c, ic: '⧗', t: t('admItSec'), s: fmt(t('admItDate'), { d: v.d }), v: v.left, tr: t('admDays') });
     case 'date_drill': return row({ c, ic: '⧗', t: t('admItDrill'), s: fmt(t('admItDate'), { d: v.d }), v: v.left, tr: t('admDays') });
+    case 'gold_due': return row({ c: 'orange', ic: '◎', t: t('admItGold'), s: v.r === 'ver' ? t('admItGoldVer') : v.at ? fmt(t('admItLast'), { a: ago(v.at) }) : t('admItGoldNever'), on: () => go('gold') });
     case 'release_due': return row({ c: 'gray', ic: '⇪', t: t('admItRel'), s: fmt(t('admItRelS'), { p: v.p, s: v.s }) });
     default: return null;
   }
@@ -839,7 +840,60 @@ page('imp', { tab: 'imp', title: () => t('admTabImp'), render(p) {
   p.append(list(
     row({ c: 'purple', ic: '✦', t: t('admLabT'), s: top ? insName(top.k) : t('admLabNone'), v: v ? (v.ins || []).length : '', tr: t('admInsShort'), on: () => go('lab') }),
     row({ c: 'blue', ic: '◇', t: t('admClaudeT'), s: t('admClaudeShort'), on: () => go('claude') }),
+    row({ c: 'orange', ic: '◎', t: t('admGoldT'), s: t('admGoldShort'), on: () => go('gold') }),
     row({ c: 'gray', ic: '⇄', t: t('admTeam'), s: D.tk && D.tk.tk ? fmt(t('admTeamS'), { n: D.tk.tk.items.length, w: D.tk.tk.items.filter((x) => x.w).length }) : '', on: () => go('team') })));
+} });
+/* ---- ריצת מבחן (פריט 15 בסבב הייעול, 21/10/2026): עבודת זהב (תרגום אנושי לייחוס) × כמה מצבים, על השרת של המערכת.
+   אומדן ואישור לפני; העבודות נוצרות ב־goldRun ומתחילות ב־start (כל השמירות הרגילות); הציון (chrF++, כיסוי זמן) — מהעובד ---- */
+const GOLD_MODES = ['haiku-medium', 'haiku-high', 'sonnet-low', 'sonnet-medium', 'sonnet-high', 'opus-medium'];
+const jobUsd = (j) => (Array.isArray(j.use) ? j.use : []).reduce((a, r) => a + (r && typeof r.usd === 'number' ? r.usd : 0), 0);
+async function needGold(force) {
+  if (D.gj && !force && Date.now() - D.gjAt < 30000) return;
+  const [j, s] = await Promise.all([api('jobs'), api('status')]);
+  D.gj = j.ok ? { jobs: j.jobs || [], nA: (s && s.normA) || {} } : { err: true }; D.gjAt = Date.now();
+  if (cur === 'gold') paint();
+}
+function goldEst(src, m) {
+  const ph = D.gj && D.gj.nA[m] && typeof D.gj.nA[m].ph === 'number' ? D.gj.nA[m].ph : null;
+  const dur = (src && src.spec && +src.spec.dur) || 0;
+  return ph == null || !dur ? null : ph * dur / 3600 + 0.05;
+}
+page('gold', { tab: 'imp', parent: 'imp', title: () => t('admGoldT'), render(p) {
+  if (!D.gj) { needGold(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  if (D.gj.err) { p.append(h('p', 'adm-note', t('admErr'))); return; }
+  const jobs = D.gj.jobs.filter((j) => !j.sm), srcs = jobs.filter((j) => j.gd && j.state === 'done' && !j.gs);
+  p.append(h('p', 'adm-sub', t('admGoldSub')));
+  if (!srcs.length) { p.append(list(row({ c: 'gray', ic: '◎', t: t('admGoldNone'), s: t('admGoldNoneS') }))); return; }
+  if (!srcs.some((j) => j.id === D.gSrc)) D.gSrc = srcs[0].id;
+  if (!D.gModes) D.gModes = new Set(['haiku-high']);
+  const src = srcs.find((j) => j.id === D.gSrc);
+  p.append(grp(t('admGoldSrc')), list(...srcs.map((j) => row({ c: j.id === D.gSrc ? 'orange' : 'gray', ic: j.id === D.gSrc ? '●' : '○',
+    t: (j.spec && j.spec.name) || j.id, s: modeName(j.spec && j.spec.mode) + (j.gq ? ' · chrF++ ' + j.gq.s : ''), on: () => { D.gSrc = j.id; paint(); } }))));
+  p.append(grp(t('admGoldModes')), list(...GOLD_MODES.map((m) => { const e = goldEst(src, m); return row({ c: D.gModes.has(m) ? 'blue' : 'gray', ic: D.gModes.has(m) ? '✓' : '',
+    t: modeName(m), v: e == null ? '' : '≈' + usd(e), on: () => { if (D.gModes.has(m)) D.gModes.delete(m); else D.gModes.add(m); paint(); } }); })));
+  const sel = GOLD_MODES.filter((m) => D.gModes.has(m)), tot = sel.reduce((a, m) => a + (goldEst(src, m) || 0), 0);
+  const runs = jobs.filter((j) => j.gs === D.gSrc);
+  const busy = runs.some((j) => ['new', 'queued', 'running'].includes(j.state));
+  const go1 = h('button', 'btn', fmt(t('admGoldRun'), { n: sel.length, u: usd(tot) })); go1.type = 'button'; go1.disabled = !sel.length || busy;
+  go1.addEventListener('click', () => askConfirm(fmt(t('admGoldQ'), { n: sel.length, u: usd(tot) }), async () => {
+    go1.disabled = true;
+    const r = await api('goldRun', { ok: true, src: D.gSrc, modes: sel });
+    if (!r.ok) { flash(t('admErr') + ' · ' + (r.error || '')); go1.disabled = false; return; }
+    let bad = 0;
+    for (const j of r.jobs || []) { const s2 = await api('start', { job: j.id }); if (!s2.ok) bad++; }
+    flash(bad ? fmt(t('admGoldStartBad'), { n: bad }) : t('admGoldStarted'));
+    needGold(true);
+  }));
+  const br = h('div', 'btn-row'); br.append(go1);
+  p.append(br);
+  if (busy) p.append(h('p', 'adm-foot', t('admGoldBusy')));
+  if (runs.length) {
+    const stTxt = (j) => (j.state === 'done' ? (j.gq ? 'chrF++ ' + j.gq.s + ' · ' + fmt(t('admGoldTm'), { n: j.gq.tm }) : t('admGoldNoScore')) : j.state === 'failed' ? t('admGoldFailed') : t('admGoldRunning'));
+    p.append(grp(t('admGoldRes'), [t('admGoldRefresh'), () => needGold(true)]), list(...runs.sort((a, b) => (b.created || 0) - (a.created || 0)).slice(0, 18).map((j) =>
+      row({ c: j.state === 'done' ? (j.gq ? 'green' : 'gray') : j.state === 'failed' ? 'red' : 'blue', ic: '◎', t: modeName(j.spec && j.spec.mode) + ' · ' + day(j.created), s: stTxt(j),
+        v: jobUsd(j) ? usd(jobUsd(j)) : '' }))));
+  }
+  p.append(h('p', 'adm-foot', t('admGoldFoot')));
 } });
 /* ---- סשנים ומשימות (15/10/2026): משימות-פתוחות.md מהריפו — מה בעבודה ובידי איזה סשן, מה עם תאריך, PR פתוחים ---- */
 async function needTasks() {
@@ -1251,7 +1305,7 @@ function imName(k) {
     case 'tr': return t('admImM_tr'); case 'al': return t('admImM_al'); case 'rv': return t('admImM_rv'); case 'bn': return t('admImM_bn'); case 'sv': return t('admImM_sv');
     case 'ok': return t('admImM_ok'); case 'crash': return t('admImM_crash'); case 'fail': return t('admImM_fail');
     case 'cpm': return t('admImM_cpm'); case 'tpm': return t('admImM_tpm');
-    case 'q': return t('admImM_q'); case 'jd': return t('admImM_jd'); case 'ht': return t('admImM_ht'); case 'num': return t('admImM_num'); case 'glm': return t('admImM_glm');
+    case 'q': return t('admImM_q'); case 'jd': return t('admImM_jd'); case 'ht': return t('admImM_ht'); case 'wok': return t('admImM_wok'); case 'num': return t('admImM_num'); case 'glm': return t('admImM_glm');
     default: return k;
   }
 }
@@ -1261,7 +1315,7 @@ function imFam(f) {
 function imSrc(s) {
   switch (s) { case 'devlog': return t('admImSrcDev'); case 'lab': return t('admImSrcLab'); case 'user': return t('admImSrcUser'); case 'ops': return t('admImSrcOps'); default: return s; }
 }
-const IM_FMT = { eta: pcTxt, cpm: (x) => usdTxt(x, 3), ok: pcTxt, crash: pcTxt, fail: pcTxt, ht: pcTxt, num: pcTxt, glm: pcTxt, q: numTxt, jd: numTxt, tpm: numTxt };
+const IM_FMT = { eta: pcTxt, wok: pcTxt, cpm: (x) => usdTxt(x, 3), ok: pcTxt, crash: pcTxt, fail: pcTxt, ht: pcTxt, num: pcTxt, glm: pcTxt, q: numTxt, jd: numTxt, tpm: numTxt };
 const imVal = (k, x) => (IM_FMT[k] || ((y) => (nz(y) ? numTxt(y) + ' ' + t('admImSec') : '—')))(x);
 const imLtr = (x) => '\u2066' + x + '\u2069';      // סימן לפני המספר גם בעברית (בלי זה "15%−")
 const imSign = (x) => (Math.abs(x) < 1e-9 ? '' : x > 0 ? '+' : '−');

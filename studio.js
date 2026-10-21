@@ -243,7 +243,10 @@ function estText(e, apiOn) {
 }
 /* ---------- סבב 2: הצעות לפני ההתחלה — מהבדיקה של הסרטון בטלפון (חינם). לכל הצעה פעולה אחת ----------
    bad = כנראה אין מה לתרגם (אין קול / שקט), warn = כדאי לבדוק (שפה, כבר תורגם), tip = חוסך זמן וכסף (שקט בקצוות) */
-export const EDGE_MIN = 10;      // שניות של שקט בהתחלה / בסוף שמצדיקות הצעה לחתוך
+export const EDGE_MIN = 10;
+// 21/10/2026 (סבב הייעול, 1): בסרטון ארוך הצריבה היא החלק הכבד בסוף (23 דק׳ מתוך 68 בסרטון של 87 דק׳ — 0.26 דק׳ לכל דקה).
+// הצעה לוותר עליה: הנגן מציג את הכתוביות מעל המקור, ואפשר לצרוב אחר כך ב"הפקה מחדש"
+export const LONG_BURN_S = 30 * 60, BURN_MIN_PER_MIN = 0.26;      // שניות של שקט בהתחלה / בסוף שמצדיקות הצעה לחתוך
 const ADV_ORDER = { bad: 0, warn: 1, tip: 2 };
 export function sourceAdvice(m, ctx) {
   const out = [], c = ctx || {};
@@ -263,6 +266,7 @@ export function sourceAdvice(m, ctx) {
       const a = lead >= EDGE_MIN ? Math.max(0, lead - 1) : 0, b = trail >= EDGE_MIN ? Math.min(m.dur, m.dur - trail + 1) : m.dur;
       out.push({ k: 'edges', sev: 'tip', act: 'cut', a: Math.round(a * 10) / 10, b: Math.round(b * 10) / 10, save: Math.round(a + (m.dur - b)) });
     }
+    if (m.dur >= LONG_BURN_S && c.out && OUTS.some((k) => c.out[k])) out.push({ k: 'burn', sev: 'tip', act: 'noburn', save: Math.round(m.dur / 60 * BURN_MIN_PER_MIN) });
   }
   return out.sort((x, y) => ADV_ORDER[x.sev] - ADV_ORDER[y.sev]);
 }
@@ -329,7 +333,8 @@ export function normQa(q) {
     out.n = g === 'b' ? { usd: usd(n.usd), cap: usd(n.cap) } : {
       cnt: Math.min(num(n.cnt), 1e5),
       cues: (Array.isArray(n.cues) ? n.cues : []).filter((c) => c && typeof c.x === 'string' && c.x).slice(0, 5)
-        .map((c) => ({ t: /^\d{1,2}:\d{2}(?::\d{2})?$/.test(String(c.t || '')) ? c.t : '', x: c.x.slice(0, 140) })) };
+        .map((c) => Object.assign({ t: /^\d{1,2}:\d{2}(?::\d{2})?$/.test(String(c.t || '')) ? c.t : '', x: c.x.slice(0, 140) },
+          typeof c.e === 'string' && c.e ? { e: c.e.slice(0, 160) } : {})) };   // 21/10: e = המקור באנגלית של אותו זמן
   } else if (q.nb === 1) {
     // 20/10/2026: שאלה שלא עוצרת את העבודה. u = לפי מה התרגום נעשה (מספר, ‎-1 שיקול דעת, ‎-2 התשובה הפתוחה; אין = עוד לא התחיל)
     out.nb = 1;
@@ -968,6 +973,7 @@ function errText(code, extra) {
     case 'major': return T('studioErrMajor');   // v371
     case 'mode': return T('studioErrMode');   // v376
     case 'budget_stop': case 'budget_cap': return T('studioErrBudgetStop');
+    case 'api_quota': return T('studioErrApiQuota');   // 21/10/2026
     case 'api_auth': case 'api_model': case 'no_api_key': return T('studioErrApiKey');   // הסקירה: קודי מצב API
     case 'api_network': case 'api_timeout': case 'api_rate': case 'api_overloaded': return T('studioErrApiNet');
     case 'model_refusal': return T('studioErrRefusal');
@@ -1138,6 +1144,7 @@ async function refreshJobs(force) {
   const rr = new Map(), pv = new Map();
   for (const sj of j.jobs) {
     if (!sj || !JOB_RE.test(String(sj.id || ''))) continue;
+    if (sj.sm === 1) continue;   // פריט 13: עבודת הבדיקה אחרי עדכון של העובד — רק במרכז הניהול ובהתראות, לא ברשימה
     if (sj.kind === 'rr') { const x = normJob({ id: sj.id, srv: sj }); if (x && x.srv.rp) (sj.spec && sj.spec.prv === 1 ? pv : rr).set(x.srv.rp, x); continue; }   // מ2; סבב 10: צריבה לבדיקה — בנפרד
     ids.add(sj.id);
     const loc = have.get(sj.id);
@@ -2282,6 +2289,7 @@ function heroState(rec, run, ph) {
     : T('studioReadyRange', { a: fmtClock(now + m.left * 1000), b: fmtClock(now + m.left90 * 1000) });
   return { pct: m.pct, big: T('studioLeftBig', { t: fmtLeft(Math.max(0, (end - now) / 1000)) }), sub };
 }
+const SRV_DIED = new Set(['worker_lost', 'worker_crash', 'worker_oom']);
 /* מה קורה עכשיו — משפט אחד */
 function nowLine(rec, run, ph) {
   if (ph === 'wait') return run.wait === 'wifi' ? T('studioWaitWifi') : T('studioWaitNet');
@@ -2298,7 +2306,8 @@ function nowLine(rec, run, ph) {
   if (ph === 'queued') return rec.srv && rec.srv.vw ? T('studioNowParked') : rec.srv && rec.srv.eng === 'api' ? T('studioNowQueuedApi') : T('studioNowQueued');
   if (ph === 'running') return (rec.srv && rec.srv.prog && rec.srv.prog.msg) || T('studioNowRunning');
   if (ph === 'done') return T('studioNowDone');
-  if (ph === 'failed') return recovering(rec) ? T('studioRecLine') : cardMsg(rec, ph) || errText(rec.srv && rec.srv.err);
+  // 21/10/2026: נפילה של השרת (לרוב זיכרון ביישור) הוצגה כ"הקשר עם האחסון או עם הרשת נקטע" — מטעה; לכשל כזה ההודעה שלו
+  if (ph === 'failed') return recovering(rec) ? (SRV_DIED.has(rec.srv && rec.srv.err) ? errText(rec.srv.err) : T('studioRecLine')) : cardMsg(rec, ph) || errText(rec.srv && rec.srv.err);
   if (ph === 'stuck') return T('studioNowStuck');
   return rec.srv && rec.srv.err === 'halted' ? T('studioErrHalted') : T('studioNowCancelled');
 }
@@ -2461,12 +2470,13 @@ function advText(a) {
     case 'silent': return [T('studioAdvSilent'), T('studioAdvRepickS')];
     case 'same': return [T('studioAdvSame', { l: langName(a.lang, uiLang()) }), T('studioAdvSameS')];
     case 'lang': return [T('studioAdvLang', { l: langName(a.lang, uiLang()) }), T('studioAdvLangS')];
+    case 'burn': return [T('studioAdvBurn', { m: a.save }), T('studioAdvBurnS')];
     default: return [T('studioAdvEdges', { t: fmtDur(a.save) }), T('studioAdvEdgesS')];
   }
 }
 function advRows(f, pick) {
   const sa = f.sa && f.sa.st === 'ok' ? f.sa.m : null;
-  const list0 = sourceAdvice(sa, { name: f.file && f.file.name, size: f.file && f.file.size, from: f.from, to: f.to, edl: f.edl, jobs: store.jobs })
+  const list0 = sourceAdvice(sa, { name: f.file && f.file.name, size: f.file && f.file.size, from: f.from, to: f.to, edl: f.edl, out: f.out, jobs: store.jobs })
     .filter((a) => !(f.saX && f.saX.includes(a.k)));
   if (!list0.length) return null;
   return list(...list0.map((a) => {
@@ -2476,8 +2486,9 @@ function advRows(f, pick) {
     r.append(tile(a.sev === 'tip' ? 'spark' : 'alert', a.sev === 'bad' ? 'red' : a.sev === 'warn' ? 'orange' : 'green'), rowTxt(t1, t2));
     const go2 = a.act === 'open' ? () => go('job', a.id)
       : a.act === 'cut' ? () => { f.edl = normEdl({ k: [[a.a, a.b]], ar: 'src', x: 0.5 }, sa.dur); flashSafe(T('studioAdvCutOk')); render('none'); }
+      : a.act === 'noburn' ? () => { for (const k of OUTS) f.out[k] = false; flashSafe(T('studioAdvBurnOk')); render('none'); }
       : pick;
-    const lbl = a.act === 'open' ? T('studioAdvOpen') : a.act === 'cut' ? T('studioAdvCut') : T('studioReplace');
+    const lbl = a.act === 'open' ? T('studioAdvOpen') : a.act === 'cut' ? T('studioAdvCut') : a.act === 'noburn' ? T('studioAdvNoBurn') : T('studioReplace');
     const b = btn('st-mini tint', lbl, go2, 'adv-go:' + a.k);
     const x = btn('st-advx', null, () => { f.saX = (f.saX || []).concat(a.k); render('none'); }, 'adv-x:' + a.k);
     x.setAttribute('aria-label', T('studioAdvHide')); x.append(ico('x'));
@@ -3279,6 +3290,7 @@ function incTitle(e) {
     case 'month_cap': return T('studioIncMonth');
     case 'tower_stop': return T('studioIncTower');
     case 'budget_stop': case 'budget_cap': return T('studioIncBudget');
+    case 'api_quota': return T('studioIncApiQuota');
     case 'api_auth': case 'api_model': case 'no_api_key': return T('studioIncApiKey');
     case 'api_network': case 'api_timeout': case 'api_rate': case 'api_overloaded': return T('studioIncApiNet');
     case 'stale': return T('studioIncStale');
@@ -4446,6 +4458,14 @@ function pageRules(p) {
     rowRadio({ label: T('studioFmAuto'), sub: T('studioFmAutoS'), on: fm === 'auto', onClick: () => setFixMode('auto'), k: 'fm:auto', disabled: blocked() })));
 }
 /* v367: שער — הגענו לתקציב / לפני הצריבה. הטקסט מהקטלוג; הכתוביות לדוגמה (מהתרגום) — רק כטקסט */
+/* 21/10/2026 (בקשת המשתמש): המקור באנגלית של אותה כתובית — מתחת לתרגום, קטן ואפור, משמאל לימין (מיושר לצד השני),
+   עם תווית EN קטנה: ברור שזו שפה אחרת, וברור שזה אותו קטע (באותה שורה). אותה צורה בבדיקה לפני הצריבה ובעורך */
+function srcLine(e) {
+  const d = h('div', 'st-src'); d.dir = 'ltr'; d.lang = 'en';
+  const tag = h('span', 'st-src-l', 'EN'); tag.setAttribute('aria-label', T('studioSrcEn'));
+  d.append(tag, h('span', 'st-src-x', e));
+  return d;
+}
 function gateCard(rec, qa) {
   const b = qa.g === 'b';
   const c = h('div', 'st-ask st-gate' + (qa.a ? ' done' : ''));
@@ -4465,8 +4485,11 @@ function gateCard(rec, qa) {
     for (const cu of qa.n.cues) {
       const r = h('div', 'st-cue');
       const tm = h('bdi', 'st-cue-t', cu.t); tm.dir = 'ltr';
+      const tx = h('div', 'st-cue-b');
       const x = h('span', 'st-cue-x', cu.x); x.dir = 'auto';
-      r.append(tm, x);
+      tx.append(x);
+      if (cu.e) tx.append(srcLine(cu.e));      // 21/10 (בקשת המשתמש): המקור באנגלית מתחת לתרגום — השוואה ישירה
+      r.append(tm, tx);
       cl.append(r);
     }
     c.append(cl);
