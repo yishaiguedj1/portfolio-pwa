@@ -2198,34 +2198,60 @@ function badgeFor(ph) {
 }
 
 /* ---------------- דפים ---------------- */
-/* 21/10/2026 (בקשת המשתמש): בבית רק 5 העבודות האחרונות — הכרטיס בגובה של 5 שורות ונגלל בתוכו (העמוד עצמו לא נגלל בגללו),
-   ו"עבודות קודמות" גולל בתוך הכרטיס לישנות יותר. מקום הגלילה נשמר בין ציורים (ui.jobsY) */
-export const JOBS_SHOWN = 5;
+/* 21/10/2026 (בקשת המשתמש): בבית הכרטיס של העבודות בגובה של המסך — כמה עבודות שנכנסות בשלמותן (לפחות JOBS_MIN, עד JOBS_MAX),
+   כך שהעמוד כולו סטטי ו"עבודות קודמות" תמיד גלוי בלי לגלול. הכרטיס נגלל בתוכו באצבע ונעצר בתחילת שורה (scroll-snap).
+   מקום הגלילה נשמר בין ציורים (ui.jobsY); שינוי גודל (סיבוב / מקלדת) — מחשבים מחדש */
+export const JOBS_MIN = 2, JOBS_MAX = 8;
+export function jobsFit(heights, avail) {   // טהורה: כמה שורות נכנסות בשלמותן בגובה הפנוי
+  let n = 0, sum = 0;
+  for (const x of heights) { if (sum + x > avail + 0.5) break; sum += x; n++; }
+  return Math.max(Math.min(JOBS_MIN, heights.length), Math.min(n, JOBS_MAX));
+}
 function jobsCard(rows) {
   const l = list(...rows);
-  if (rows.length <= JOBS_SHOWN) return l;
+  if (rows.length <= 3) return l;   // עד 3 עבודות — תמיד נכנסות, בלי כרטיס נגלל
   l.classList.add('st-jobs');
   const wrap = h('div', 'st-jobs-w');
-  /* "עבודות קודמות": השורה האחרונה שנראית עולה לראש הכרטיס — 4 עבודות חדשות ועוד אחת להמשכיות (כמו דפדוף ב־iOS).
-     הגלילה באצבע עובדת גם בלי הכפתור, ונעצרת תמיד על תחילת שורה (scroll-snap ב־CSS) */
+  /* "עבודות קודמות": השורה האחרונה שנראית עולה לראש הכרטיס (עבודות חדשות + אחת להמשכיות, כמו דפדוף ב־iOS);
+     בסוף הרשימה הכפתור לא נעלם — "חזרה לאחרונות" גולל לראש הכרטיס */
   const more = btn('st-jobs-more', '', () => {
+    const max = l.scrollHeight - l.clientHeight;
+    if (l.scrollTop >= max - 2) { l.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     const lt = l.getBoundingClientRect().top, lb = lt + l.clientHeight;
     const last = rows.filter((r) => r.getBoundingClientRect().top < lb - 4).pop();
     const to = last ? l.scrollTop + last.getBoundingClientRect().top - lt : l.scrollTop + l.clientHeight;
-    l.scrollTo({ top: Math.min(to, l.scrollHeight - l.clientHeight), behavior: 'smooth' });
+    l.scrollTo({ top: Math.min(to, max), behavior: 'smooth' });
   }, 'jobs-more');
   const paint = () => {
     const lb = l.getBoundingClientRect().bottom;
     const left = rows.filter((r) => r.getBoundingClientRect().bottom > lb + 2).length;   // שורות שעוד לא נראו במלואן (מתחת לנראה)
-    more.textContent = T('studioJobsMore', { n: left });
-    more.hidden = !left;
+    more.textContent = left ? T('studioJobsMore', { n: left }) : T('studioJobsTop');
+    more.hidden = l.scrollHeight <= l.clientHeight + 2;   // הכל נכנס — אין לאן לגלול
   };
+  const fit = () => {
+    if (!l.isConnected) { removeEventListener('resize', onRs); return; }
+    const sc = l.closest('.st-root') || document.scrollingElement || document.documentElement;
+    const st = sc === document.scrollingElement ? 0 : sc.getBoundingClientRect().top;
+    const top = l.getBoundingClientRect().top - st + (sc.scrollTop || 0);   // מראש העמוד, בלי תלות בגלילה
+    const pb = parseFloat(getComputedStyle(sc).paddingBottom) || 0;   // הריפוד בתחתית השכבה (28px + אזור הבטוח)
+    const mb = (more.offsetHeight || 37) + 8;   // הכפתור והרווח שמעליו
+    const avail = (sc.clientHeight || innerHeight) - top - mb - Math.max(16, pb);
+    const n = jobsFit(rows.map((r) => r.offsetHeight), avail);
+    let hh = 0;
+    for (let i = 0; i < n && i < rows.length; i++) hh += rows[i].offsetHeight;
+    l.style.maxHeight = hh + 'px';
+    paint();
+  };
+  let rsT = 0;
+  const onRs = () => { clearTimeout(rsT); rsT = setTimeout(fit, 120); };
+  addEventListener('resize', onRs);
+  // גובה השורות משתנה אחרי הציור (הגופן נטען, שם שנשבר לשתי שורות) — מחשבים שוב, אחרת עבודה אחת יותר מדי והעמוד נגלל
+  if (typeof ResizeObserver === 'function') { const ro = new ResizeObserver(() => { if (!l.isConnected) { ro.disconnect(); return; } onRs(); }); rows.forEach((r) => ro.observe(r)); }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (l.isConnected) fit(); });
   l.addEventListener('scroll', () => { ui.jobsY = l.scrollTop; paint(); }, { passive: true });
   requestAnimationFrame(() => {
     if (!l.isConnected) return;
-    let hh = 0;
-    for (let i = 0; i < JOBS_SHOWN; i++) hh += rows[i].offsetHeight;
-    l.style.maxHeight = hh + 'px';
+    fit();
     if (ui.jobsY) l.scrollTop = ui.jobsY;
     paint();
   });
