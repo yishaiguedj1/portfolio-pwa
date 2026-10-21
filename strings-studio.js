@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1552 מפתחות מתוך 3542) */
+/* המחרוזות של studio (1553 מפתחות מתוך 3608) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -788,6 +788,7 @@ he: {
   "studioNowCancelled": "העבודה בוטלה",
   "studioNowDone": "התרגום מוכן!",
   "studioNowExtract": "מוציאים את הקול מהסרטון",
+  "studioNowExtractPar": "מוציאים את הקול · הסרטון המלא כבר עולה ({p}%)",
   "studioNowParked": "מחכה שהסרטון יסיים לעלות — ממשיך לבד כשיגיע",
   "studioNowQueued": "Claude נפתח בענן ומתחיל לעבוד",
   "studioNowQueuedApi": "בתור לשרת — מתחיל ברגע שהוא פנוי",
@@ -2342,6 +2343,7 @@ en: {
   "studioNowCancelled": "The job was cancelled",
   "studioNowDone": "Translation ready!",
   "studioNowExtract": "Taking the audio out of the video",
+  "studioNowExtractPar": "Taking the audio out · the full video is already uploading ({p}%)",
   "studioNowParked": "Waiting for the video to finish uploading — continues on its own",
   "studioNowQueued": "Claude is starting up in the cloud",
   "studioNowQueuedApi": "In the server queue — starts as soon as it is free",

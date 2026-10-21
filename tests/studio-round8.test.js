@@ -43,7 +43,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
     'בעורך: שורת EBU STL בייצוא (קובץ בינארי — בלי charset)');
 
   /* ---------- 2. טיוטות העורך ---------- */
-  const STUBS = Object.assign({}, P, SB, { createNet: () => ({}), probeVideo: async () => ({}), extractAudio: async () => ({}), stageEstimates: () => ({}),
+  const STUBS = Object.assign({}, P, SB, { createNet: () => ({}), probeVideo: async () => ({}), extractAudio: async () => ({}), uploadBoth: async () => {}, stageEstimates: () => ({}),
     progressModel: () => ({ stages: [], left: 0, pct: 0 }), createBackup: () => ({}), waitOAuthCode: () => {} });
   const body = st.replace(/^export (const|function|async function) /gm, '$1 ').replace(/^import \{([^}]+)\} from '[^']+';$/gm, 'const {$1} = __stubs;')
     .replace(/^import \* as (\w+) from '[^']+';$/gm, 'const $1 = __stubs;');

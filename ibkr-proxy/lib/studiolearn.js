@@ -1,4 +1,5 @@
 'use strict';
+const { impactView } = require('./learnimpact');
 /* מאגר הלמידה של סטודיו התרגום (14/10/2026, בקשת המשתמש: "החלק הכי חשוב — לשפר כל הזמן יכולות, יעילות, איכות וחיסכון בטוקנים").
    טהור, בלי קריאות. שלושה חלקים:
    1. normLx — העובדות שהעובד שולח בסוף כל הפעלה (job.py learn_facts): רק מספרים וקודים בצורה קבועה, בלי טקסט.
@@ -52,6 +53,9 @@ function normLx(o) {
     if (/^[a-z0-9_]{1,16}$/.test(String(o.env.arch || ''))) e.arch = o.env.arch;
     if (o.env.gv != null) e.gv = o.env.gv ? 1 : 0;
     if (isNum(o.env.mem) && o.env.mem > 0 && o.env.mem < 1e7) e.mem = Math.round(o.env.mem);   // MB
+    // 21/10/2026: גרסת התמונה והספריות (anthropic / onnxruntime / httpx) — כדי לייחס שינוי בהתנהגות לגרסה
+    if (/^[0-9a-f]{7,12}$/.test(String(o.env.img || ''))) e.img = o.env.img;
+    for (const k of ['an', 'ort', 'hx']) if (/^[0-9][0-9a-z.+-]{0,19}$/.test(String(o.env[k] || ''))) e[k] = o.env[k];
     if (Object.keys(e).length) out.env = e;
   }
   if (o.vid && typeof o.vid === 'object') {                                           // 20/10/2026: רזולוציה, פריימים, קצב — לצפי הצריבה
@@ -147,8 +151,14 @@ function useRows(use) {
 const usdSum = (rows) => r4(rows.reduce((s, r) => s + (isNum(r.usd) ? r.usd : 0), 0));
 const priced = (rows) => rows.length > 0 && rows.every((r) => isNum(r.usd));
 function stageSecs(prog) {
+  // 21/10/2026: כולל את הזמן שנצבר בשלב לפני "המשך" (a) — כמו stgSpent ב־lib/studio.js
   const out = {}, stg = (prog && prog.stg) || {};
-  for (const k of STAGES) { const x = stg[k]; if (x && x.s > 0 && x.e > x.s) out[k] = Math.round((x.e - x.s) / 1000); }
+  for (const k of STAGES) {
+    const x = stg[k];
+    if (!x) continue;
+    const ms = (isNum(x.a) ? x.a : 0) + (x.s > 0 && x.e > x.s ? x.e - x.s : 0);
+    if (ms > 0) out[k] = Math.round(ms / 1000);
+  }
   return out;
 }
 function edlInfo(e, dur) {
@@ -228,6 +238,8 @@ function learnRec(job, now, effState) {
     pv: job.pv && typeof job.pv === 'object' ? Object.fromEntries(Object.entries(job.pv).filter(([k, v]) => /^[a-z]{2,4}$/.test(k) && /^[0-9a-f]{8}$/.test(String(v)))) : null,
     lx: normLx(job.lx),
     ux: normUx(job.ux),
+    // 21/10/2026: מדידת ההעלאה מהטלפון (חילוץ, העלאה, זמן ברקע — op upTel, כבר מנורמל בכתיבה): רק מספרים
+    ut: job.utl && typeof job.utl === 'object' && !Array.isArray(job.utl) ? Object.fromEntries(Object.entries(job.utl).filter(([k, v]) => /^[a-z0-9]{1,4}$/.test(k) && isNum(v))) : null,
   };
   return rec;
 }
@@ -424,6 +436,15 @@ function verMetric(k, dir, tol, A, B, seed) {
   const v = lo > 0 && hi > t * 0.5 ? 'up' : hi < 0 && lo < -t * 0.5 ? 'dn' : lo >= -t && hi <= t ? 'eq' : '?';
   return Object.assign(out, { d: rnd(x.d, 4), lo: rnd(x.lo, 4), hi: rnd(x.hi, 4), v });
 }
+const stratOf = (r) => (r.mode || '?') + '|' + (r.eng || '?');
+function verStratum(la, lb) {
+  const ca = {}, cb = {};
+  for (const r of la) ca[stratOf(r)] = (ca[stratOf(r)] || 0) + 1;
+  for (const r of lb) cb[stratOf(r)] = (cb[stratOf(r)] || 0) + 1;
+  let best = '', bv = 0;
+  for (const k of Object.keys(ca)) { const v = Math.min(ca[k], cb[k] || 0); if (v > bv || (v === bv && v > 0 && ca[k] > (ca[best] || 0))) { best = k; bv = v; } }
+  return best || null;              // אין שכבה משותפת — null = "few" (לא משווים תפוחים לתפוזים)
+}
 function versionsView(all) {
   const tr = all.filter((r) => r.k === 'tr' && !r.gold && (r.st === 'done' || r.st === 'failed'));
   const out = [];
@@ -433,13 +454,16 @@ function versionsView(all) {
     const vs = Object.entries(by).map(([g, l]) => ({ g, l: l.sort((x, y) => x.at - y.at), at: Math.min(...l.map((r) => r.at || 0)) })).sort((x, y) => y.at - x.at);
     if (vs.length < 2) continue;
     const [A, B] = vs, seed = dim + '|' + A.g + '|' + B.g;
-    const la = A.l.slice(-VER_LAST), lb = B.l.slice(-VER_LAST);
+    // 21/10/2026 (ניתוח הייצור): השוואה בין גרסאות רק באותו מצב ואותו מנוע — אחרת "גרסה גרועה יותר" = מודל זול יותר
+    // (ההנחיות החדשות רצו על Haiku, הקודמות על Sonnet/Opus). השכבה = זו שבה יש הכי הרבה עבודות בשני הצדדים (min)
+    const sk = verStratum(A.l.slice(-VER_LAST * 3), B.l.slice(-VER_LAST * 3));
+    const la = sk ? A.l.filter((r) => stratOf(r) === sk).slice(-VER_LAST) : [], lb = sk ? B.l.filter((r) => stratOf(r) === sk).slice(-VER_LAST) : [];
     const m = VER_MET.map(([k, dir, tol]) => verMetric(k, dir, tol, la, lb, seed)).filter((x) => x.na || x.nb);
     const core = m.filter((x) => VER_MET.find((y) => y[0] === x.k)[3]);
     const v = la.length < VER_MIN || lb.length < VER_MIN ? 'few'
       : core.some((x) => x.v === 'dn') ? 'dn' : m.some((x) => x.v === 'up') && !m.some((x) => x.v === 'dn') ? 'up'
       : m.some((x) => x.v === 'dn') ? 'mix' : m.length && m.every((x) => x.v === 'eq' || x.v === 'few') && m.some((x) => x.v === 'eq') ? 'eq' : '?';
-    out.push({ d: dim, a: A.g, b: B.g, at: A.at, na: la.length, nb: lb.length, v, m });
+    out.push({ d: dim, a: A.g, b: B.g, at: A.at, na: la.length, nb: lb.length, v, m, sk: sk || '' });
   }
   return out.sort((x, y) => y.at - x.at);
 }
@@ -465,7 +489,9 @@ function insights(rs, k30, roles, stages, fails, jc, qf, modes, now, mx, ver) {
   // טוקנים ועלות
   for (const x of roles) {
     if (x.k === 'jg' || x.k === 'sub') continue;
-    if (x.ch != null && x.ch < 0.6 && x.calls >= 6 && x.sav > 0.02) out.push({ k: 'cache_low', sev: x.ch < 0.3 ? 1 : 2, imp: rnd(perMonth(x.sav, rs), 2), v: { r: x.k, p: x.ch, usd: x.sav } });
+    // 21/10/2026 (ניתוח הייצור): "פספוס מטמון" של $0.07 לחודש דורג sev 1 — מעל באגים אמיתיים. החומרה לפי ההשפעה בדולרים
+    const im = perMonth(x.sav, rs);
+    if (x.ch != null && x.ch < 0.6 && x.calls >= 6 && x.sav > 0.02) out.push({ k: 'cache_low', sev: im >= 5 ? 1 : im >= 1 ? 2 : 3, imp: rnd(im, 2), v: { r: x.k, p: x.ch, usd: x.sav } });
   }
   if (roles.length && roles[0].sh >= 0.5 && roles[0].usd > 0.5) out.push({ k: 'cost_role', sev: 3, imp: rnd(perMonth(roles[0].usd, rs) * 0.2, 2), v: { r: roles[0].k, p: roles[0].sh, m: roles[0].m } });
   const thinkRows = rs.map((r) => r.lx && r.lx.en && r.lx.en.th).filter(Boolean);
@@ -477,6 +503,9 @@ function insights(rs, k30, roles, stages, fails, jc, qf, modes, now, mx, ver) {
   }
   const trunc = sum(rs.map((r) => r.lx && r.lx.en && r.lx.en.tc));
   if (trunc > 0) out.push({ k: 'truncated', sev: 2, imp: 0, v: { n: trunc, j: rs.filter((r) => r.lx && r.lx.en && r.lx.en.tc > 0).length } });
+  /* 21/10/2026 (תוכנית השיפור 3.10א): כתוביות שכנראה לא עברו ביקורת (קטע שנקטע) — מתוך כל מה שהגיע לביקורת */
+  const rvN = sum(rs.map((r) => r.lx && r.lx.en && r.lx.en.rvn)), rvU = sum(rs.map((r) => r.lx && r.lx.en && r.lx.en.rvu));
+  if (rvN > 0 && rvU / rvN >= 0.02) out.push({ k: 'rv_unrev', sev: rvU / rvN >= 0.1 ? 1 : 2, imp: 0, v: { p: rnd(rvU / rvN, 3), n: rvU, j: rs.filter((r) => r.lx && r.lx.en && r.lx.en.rvu > 0).length } });
   const cw = sum(rs.map((r) => r.lx && r.lx.en && r.lx.en.cw));
   if (cw >= 3) out.push({ k: 'cache_miss', sev: 2, imp: 0, v: { n: cw } });
   // תהליך התרגום: כמה תיקונים צריך אחרי התרגום הראשון, וכמה הביקורת משנה
@@ -504,6 +533,10 @@ function insights(rs, k30, roles, stages, fails, jc, qf, modes, now, mx, ver) {
   const pzSh = sum(done.map((r) => r.t.pz)) / Math.max(1, sum(done.map((r) => r.t.run)));
   if (done.length >= 3 && pzSh >= 0.2) out.push({ k: 'wait_user', sev: 3, imp: 0, v: { p: rnd(pzSh, 3) } });
   const over = done.filter((r) => r.tg && r.tg.t > 0 && runSec(r) != null && runSec(r) > r.tg.t);
+  /* טעות הצפי (21/10/2026): הצפי בלקיחה (ep.t) מול הזמן בפועל בלי ההמתנות — רק עבודות בהפעלה אחת */
+  const etaErr = done.filter((r) => r.ep && r.ep.t > 0 && r.t && isNum(r.t.run) && (r.fires || 0) <= 1)
+    .map((r) => Math.abs(Math.max(0, r.t.run - (r.t.pz || 0)) - r.ep.t) / r.ep.t).sort((a, b) => a - b);
+  if (etaErr.length >= 4) { const med = etaErr[Math.floor(etaErr.length / 2)]; if (med >= 0.25) out.push({ k: 'eta_off', sev: med >= 0.5 ? 2 : 3, imp: 0, v: { p: rnd(med, 3), n: etaErr.length } }); }
   if (done.length >= 4 && over.length / done.length >= 0.25) out.push({ k: 'sla_over', sev: 2, imp: 0, v: { p: rnd(over.length / done.length, 3) } });
   // התמלול והיישור
   const prf = done.filter((r) => r.lx && r.lx.ps && isNum(r.lx.ps['edit_import.equal']));
@@ -558,7 +591,10 @@ function learnView(records, now) {
   const rs = all.filter((r) => r.at >= now - 90 * DAY);
   const cur = all.filter((r) => r.at >= now - WIN), prev = all.filter((r) => r.at >= now - 2 * WIN && r.at < now - WIN);
   const k30 = kpis(cur), kp = kpis(prev);
-  const roles = costRoles(rs), stages = stageTime(rs.filter((r) => r.k === 'tr' && r.st === 'done'));
+  // 21/10/2026: זמן לפי שלב — רק עבודות "נקיות" (הפעלה אחת, המתנה למשתמש מתחת ל־20% מהריצה). עבודה של 5 דק׳ שחיכתה
+  // 8 שעות לתשובה רשמה את כל ההמתנה על "תמלול", והמסקנה slow_stage הצביעה על השלב הלא נכון
+  const clean = (r) => (r.fires || 0) <= 1 && !(r.t && r.t.run > 0 && (r.t.pz || 0) / r.t.run > 0.2);
+  const roles = costRoles(rs), stages = stageTime(rs.filter((r) => r.k === 'tr' && r.st === 'done' && clean(r)));
   const fails = failures(rs), jc = judgeCodes(rs), qf = qualityFails(rs), modes = modeTable(rs), mx = mxView(rs), ver = versionsView(all);
   const tk = rs.map(tokOf);
   return {
@@ -569,6 +605,7 @@ function learnView(records, now) {
     eng: ['api', 'sub'].map((e) => ({ e, ...kpis(rs.filter((r) => r.eng === e)) })).filter((x) => x.n),
     follow: { rr: rs.filter((r) => r.k === 'rr').length, ai: rs.filter((r) => r.k === 'ai').length, ed: rs.filter((r) => r.k === 'tr' && (r.ed > 0)).length, gold: rs.filter((r) => r.gold).length, ux: uxSum(rs.filter((r) => r.k === 'tr')) },
     ins: insights(rs, k30, roles, stages, fails, jc, qf, modes, now, mx, ver),
+    im: impactView(all, now),            // 21/10/2026: השפעת המאגר לאורך זמן (lib/learnimpact.js) — הבסיס מול עכשיו, לכל שיפור
     recent: all.filter((r) => r.k === 'tr').sort((a, b) => b.at - a.at).slice(0, 12).map((r) => ({ id: r.id.slice(0, 8), at: r.at, st: r.st, err: r.err, mode: r.mode, eng: r.eng,
       dur: r.dur, usd: r.usd, pr: r.pr, q: r.q ? r.q.s : null, jd: r.jd ? r.jd.s : null, run: runSec(r), fires: r.fires, ch: (() => { const t = tokOf(r); return inTok(t) ? rnd(t.cr / inTok(t), 3) : null; })() })),
   };
@@ -584,7 +621,7 @@ const INS_HE = {
   cost_role: 'תפקיד אחד לוקח את רוב העלות', think_heavy: 'חשיבה כבדה', truncated: 'תשובות שנקטעו', cache_miss: 'פספוסי מטמון',
   fix_heavy: 'הרבה סבבי תיקון', rv_idle: 'המבקר כמעט לא משנה', rv_heavy: 'המבקר משנה הרבה', judge_top: 'הבעיה שהשופט מסמן הכי הרבה',
   q_metric: 'מדד איכות שנכשל הרבה', edits_after: 'עריכות ידניות אחרי העבודה', ai_after: 'שימוש בגיליון ה־AI אחרי העבודה',
-  slow_stage: 'שלב איטי מהצפוי', wait_user: 'זמן המתנה למשתמש', sla_over: 'חריגה מיעד הזמן', asr_weak: 'תמלול חלש',
+  slow_stage: 'שלב איטי מהצפוי', wait_user: 'זמן המתנה למשתמש', sla_over: 'חריגה מיעד הזמן', eta_off: 'טעות בצפי הזמן', rv_unrev: 'כתוביות בלי ביקורת', asr_weak: 'תמלול חלש',
   align_weak: 'יישור חלש', sync_low: 'סנכרון קול־וידאו לא ודאי', mode_value: 'מצב זול יותר כמעט באותה איכות',
   num_drop: 'מספרים שנעלמו בתרגום', omit_cues: 'כתוביות שנראות מושמטות', tm_late: 'כתוביות שעולות מאוחר / יורדות מוקדם',
   shot_near: 'גבולות קרובים לחילוף שוט', name_var: 'שם אחד בכמה איותים', gl_miss: 'מונחים מהמילון שלא נשמרו',
@@ -645,6 +682,13 @@ function learnBrief(view, now) {
   sec('לפי מנוע', v.eng);
   sec('מה קרה אחרי העבודה', v.follow);
   sec('מגמה שבועית (8 שבועות)', v.wk);
+  // 21/10/2026: השפעת המאגר — לכל שיפור שנפרס: לפני/אחרי (שכבות מצב·מנוע, רווח סמך 90%), והבסיס מול "הכל מאז"
+  if (v.im) sec('השפעת המאגר — start = השיפור הראשון שנפרס; imps: לכל שיפור c = מדדים (a לפני, b אחרי, d, lo–hi, v פסק, tg = המדד שכוונו אליו); all = הבסיס מול כל מה שמאז', {
+    start: v.im.start, vol: v.im.vol,
+    imps: (v.im.imps || []).map((x) => ({ id: x.id, at: x.at, st: x.st, m: x.m, he: x.he && x.he[0], c: (x.c || []).filter((c) => c.v !== 'few').map((c) => ({ k: c.k, a: c.a, b: c.b, d: c.d, lo: c.lo, hi: c.hi, v: c.v, tg: c.tg })) })),
+    all: v.im.cmp && v.im.cmp.all ? v.im.cmp.all.m.filter((c) => c.v !== 'few').map((c) => ({ k: c.k, a: c.a, b: c.b, rel: c.rel, v: c.v })) : null,
+    dec: v.im.dec,
+  });
   L.push('');
   L.push('## מילון השדות ברשומות (בקובץ records.json)');
   for (const [f, he] of FIELDS) L.push('- `' + f + '` — ' + he);

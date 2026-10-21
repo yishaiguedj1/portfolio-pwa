@@ -763,6 +763,12 @@ def learn_facts(ctx):
         e = env_facts()
         out['env'] = {'cpus': int(e.get('cpus') or 0), 'arch': re.sub(r'[^a-z0-9_]', '', str(e.get('arch') or '').lower())[:16],
                       'gv': 1 if e.get('gvisor') else 0, 'mem': _mem_mb()}
+        img = re.sub(r'[^0-9a-f]', '', str(e.get('img') or ''))[:12]
+        if img:
+            out['env']['img'] = img
+        for k, v in (e.get('lib') or {}).items():
+            if re.match(r'^[0-9][0-9a-z.+-]{0,19}$', str(v)):
+                out['env'][{'anthropic': 'an', 'onnxruntime': 'ort', 'httpx': 'hx'}.get(k, k[:3])] = str(v)
     except Exception:            # noqa: BLE001
         pass
     pd = ctx.pdir
@@ -841,6 +847,9 @@ def learn_facts(ctx):
         if isinstance(th, dict):
             x['th'] = {k: v for k, v in th.items() if _LX_KEY.match(str(k)) and _num_ok(v)}
         out['en'] = x
+    rvx = ctx.st.get('rvx')                      # 21/10/2026: הביקורת — כתוביות, קטעים, נקטעו, לא נבדקו (pipeline.review)
+    if isinstance(rvx, dict):
+        out.setdefault('en', {}).update({k: v for k, v in rvx.items() if _LX_KEY.match(str(k)) and _num_ok(v)})
     sy = ctx.st.get('sync')
     if isinstance(sy, dict) and _num_ok(sy.get('conf')):
         out['sy'] = {'c': sy.get('conf'), 'o': sy.get('off') if _num_ok(sy.get('off')) else 0}
@@ -1040,6 +1049,9 @@ LM_ENC = {
     'a': ['-vn', '-ac', '1', '-c:a', 'libopus', '-b:a', '32k'],
     'v': ['-vf', 'scale=-2:240', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '30', '-ac', '1', '-c:a', 'libopus', '-b:a', '32k'],
 }
+# 21/10/2026 (מהיומנים של הייצור): הקידוד ל־240p של סרטון של שעה וחצי לקח כ־6 דק׳ בסוף העבודה (91% מעבד, אחרי שהתוצרים כבר עלו).
+# כשאיכויות הצפייה כבר בנו 240p (אותו x264 veryfast, CRF 30) — מעתיקים את הווידאו כמו שהוא ומקודדים רק את הקול (שניות)
+LM_COPY_V = ['-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'copy', '-ac', '1', '-c:a', 'libopus', '-b:a', '32k']
 LM_TIMEOUT = {'a': 900, 'v': 2400}
 LM_VIDEO_EXT = ('.mp4', '.mov', '.mkv', '.webm', '.m4v', '.avi')
 _LM_HEX = re.compile(r'^[0-9a-f]{32}$')
@@ -1048,6 +1060,21 @@ _LM_HEX = re.compile(r'^[0-9a-f]{32}$')
 def _lm_source(pd):
     for p in sorted(pd.glob('source.*')):
         if p.suffix.lower() in LM_VIDEO_EXT and p.is_file():
+            return p
+    return None
+
+
+def _lm_ladder240(ctx):
+    """הקובץ של 240p מאיכויות הצפייה של העבודה הזו (אם נבנו והקובץ עוד בדיסק), אחרת None"""
+    try:
+        st = ladder_state() or {}
+    except Exception:        # noqa: BLE001
+        return None
+    if st.get('s') != 'ok' or not st.get('job') or st.get('job') != ctx.st.get('job'):
+        return None
+    for r in st.get('rungs') or []:
+        p = Path(str(r.get('f') or ''))
+        if min(int(r.get('w') or 0), int(r.get('h') or 0)) == 240 and p.is_file():
             return p
     return None
 
@@ -1089,12 +1116,20 @@ def learn_media(ctx):
                 continue                                     # השרתון לא מבקש (מתג / הודעה / דלי / כבר נשמר)
             work.mkdir(parents=True, exist_ok=True)
             dst = work / (k + '.mp4')
-            cmd = (['ffmpeg', '-v', 'error', '-nostdin', '-y', '-i', str(src)] + LM_ENC[k]
-                   + ['-encryption_scheme', 'cenc-aes-ctr', '-encryption_key', key, '-encryption_kid', kid, '-movflags', '+faststart', str(dst)])
-            try:
-                subprocess.run(cmd, env=vt_env(), timeout=LM_TIMEOUT[k], check=True, stdin=subprocess.DEVNULL,
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, preexec_fn=_lm_nice)
-            except (subprocess.SubprocessError, OSError):
+            lad = _lm_ladder240(ctx) if k == 'v' else None
+            ways = ([(lad, LM_COPY_V)] if lad else []) + [(src, LM_ENC[k])]
+            ok = False
+            for inp, enc in ways:
+                cmd = (['ffmpeg', '-v', 'error', '-nostdin', '-y', '-i', str(inp)] + enc
+                       + ['-encryption_scheme', 'cenc-aes-ctr', '-encryption_key', key, '-encryption_kid', kid, '-movflags', '+faststart', str(dst)])
+                try:
+                    subprocess.run(cmd, env=vt_env(), timeout=LM_TIMEOUT[k], check=True, stdin=subprocess.DEVNULL,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, preexec_fn=_lm_nice)
+                    ok = True
+                    break
+                except (subprocess.SubprocessError, OSError):
+                    dst.unlink(missing_ok=True)              # ההעתקה נכשלה — מקודדים מהמקור כמו קודם
+            if not ok:
                 continue                                     # אין רצועה כזו / ffmpeg נכשל — בלי
             size = dst.stat().st_size if dst.exists() else 0
             if 0 < size <= int(j.get('max') or 0) and 200 <= _lm_put(url, dst) < 300:
@@ -1274,6 +1309,7 @@ class QuietCtx(Ctx):
 # ---------------------------------------------------------------- Drive
 def drive_download(ctx, fid, dest, size, on_progress=None):
     """הורדה בזרם, עם המשך מאותו בייט אחרי ניתוק (Range) וגישה חדשה כשפגה."""
+    import store                                 # drop_cache — אותו מנגנון של ההורדה מ־R2
     dest.parent.mkdir(parents=True, exist_ok=True)
     tries = 0
     while True:
@@ -1287,12 +1323,14 @@ def drive_download(ctx, fid, dest, size, on_progress=None):
         try:
             with urllib.request.urlopen(req, timeout=60) as r, open(dest, 'ab' if have and r.status == 206 else 'wb') as f:
                 got = have if r.status == 206 else 0
+                dropped = got
                 while True:
                     b = r.read(8 * 1024 * 1024)
                     if not b:
                         break
                     f.write(b)
                     got += len(b)
+                    dropped = store.drop_cache(f, got, dropped)     # 21/10/2026: מטמון הקבצים בזמן היישור (store.py)
                     if on_progress and size:
                         on_progress(got / size)
             if not size or dest.stat().st_size >= size:
@@ -1477,10 +1515,38 @@ def env_facts():
     except (AttributeError, OSError):
         aff = os.cpu_count() or 0
     return {'cpus': aff, 'cpu_max': rd('/sys/fs/cgroup/cpu.max', 40), 'arch': os.uname().machine,
-            'gvisor': 'gvisor' in (rd('/proc/version', 200) + rd('/proc/self/cgroup', 200)).lower() or os.path.exists('/proc/gvisor')}
+            'gvisor': 'gvisor' in (rd('/proc/version', 200) + rd('/proc/self/cgroup', 200)).lower() or os.path.exists('/proc/gvisor'),
+            'img': os.environ.get('SNB_VERSION', '')[:12], 'lib': lib_versions()}
 
 
-def note_timing(ctx, cmd, t0, t1):
+def lib_versions():
+    """21/10/2026: גרסת התמונה והספריות שקובעות התנהגות (מהניתוח: הקריסה של anthropic 1.x — httpx.Timeout — הייתה מוסברת מיד
+    עם תווית כזו). רק שם וגרסה."""
+    out = {}
+    try:
+        from importlib import metadata
+        for n in ('anthropic', 'onnxruntime', 'httpx'):
+            try:
+                out[n] = metadata.version(n)[:20]
+            except Exception:    # noqa: BLE001
+                pass
+    except Exception:            # noqa: BLE001
+        pass
+    return out
+
+
+def busy_slots():
+    """21/10/2026: כמה עבודות רצו בשרת ברגע הזה (הקובץ ‎/work/.busy של הסוכן — שורה לכל עבודה). בלי משבצות — 1.
+    "איטי" מול "חלק את המעבד עם עבודה אחרת" — בלי זה אי אפשר להבחין."""
+    if not os.environ.get('SNB_SLOT'):
+        return 1
+    try:
+        return max(1, len([x for x in (VT_WORK.parent / '.busy').read_text().splitlines() if x.strip()]))
+    except OSError:
+        return 1
+
+
+def note_timing(ctx, cmd, t0, t1, rss=0):
     """מדידה (10/10/2026, קיצור היישור): כמה זמן לקחה כל פקודת vt → snb-timing.json בפרויקט, שנכנס לנקודת השמירה.
     רק שם הפקודה ומספרים. כשל בכתיבה לא נוגע בעבודה."""
     try:
@@ -1492,7 +1558,7 @@ def note_timing(ctx, cmd, t0, t1):
                 d = json.loads(p.read_text(encoding='utf-8'))
             except (OSError, ValueError):
                 d = {'env': env_facts(), 'vt': []}
-            d['vt'] = (d.get('vt') or [])[-200:] + [[cmd, round(t0, 1), round(t1 - t0, 2), threading.current_thread().name[:12]]]
+            d['vt'] = (d.get('vt') or [])[-200:] + [[cmd, round(t0, 1), round(t1 - t0, 2), threading.current_thread().name[:12], int(rss or 0), busy_slots()]]
             p.write_text(json.dumps(d), encoding='utf-8')
     except Exception:          # noqa: BLE001 — מדידה בלבד
         pass
@@ -1561,6 +1627,41 @@ class RenderProg:
         return self.best
 
 
+# 21/10/2026 (מהיומנים של הייצור: שלוש נפילות ברצף ביישור של אותה עבודה — כל "המשך" חזר על אותו דבר בדיוק).
+# סימן לפני שלב כבד בזיכרון, בדיסק שלא נמחק בעלייה (/cache — רק מזהה עבודה ומספר, בלי תוכן); הצליח = נמחק.
+# סימן שנשאר = התהליך מת באמצע (לרוב נגמר הזיכרון, והקונטיינר הופעל מחדש) → בניסוי הבא: מצב חיסכון (בלי arena של ONNX,
+# 5.0→2.8GB, ‎+32% זמן — vt/align_onnx.py). כך "המשך" אוטומטי אחרי נפילה כזו מצליח במקום ליפול שוב.
+HEAVY_DIR = Path(os.environ.get('SNB_HEAVY_DIR', '/cache/snb-heavy'))
+HEAVY_ENV = {'align': ('SNB_ALIGN_ARENA', 'off')}
+HEAVY_TTL = 3 * 86400
+
+
+def heavy_mark(ctx, cmd):
+    """כמה פעמים השלב הזה של העבודה הזו כבר התחיל ולא הסתיים (0 = ניסיון ראשון). כותב את הסימן לניסיון הנוכחי."""
+    try:
+        HEAVY_DIR.mkdir(parents=True, exist_ok=True)
+        now = time.time()
+        for f in HEAVY_DIR.glob('*.json'):
+            try:
+                if now - f.stat().st_mtime > HEAVY_TTL:
+                    f.unlink()
+            except OSError:
+                pass
+        f = HEAVY_DIR / (vt_slug(ctx.st['job']) + '.' + cmd + '.json')
+        n = int((_read_json(f) or {}).get('n') or 0)
+        f.write_text(json.dumps({'n': n + 1, 'at': int(now)}), encoding='utf-8')
+        return n
+    except Exception:            # noqa: BLE001 — מדידה/הגנה בלבד
+        return 0
+
+
+def heavy_clear(ctx, cmd):
+    try:
+        (HEAVY_DIR / (vt_slug(ctx.st['job']) + '.' + cmd + '.json')).unlink()
+    except Exception:            # noqa: BLE001
+        pass
+
+
 def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
     """מריץ פקודת vt. שורת סיכום לכל פקודה; אחוזים מהפלט הולכים לשרתון כהתקדמות השלב."""
     t0 = time.time()
@@ -1568,10 +1669,27 @@ def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
     stop = threading.Event()
     if args and args[0] == 'align' and ctx is not None:
         threading.Thread(target=align_ck_watch, args=(ctx, stop), daemon=True).start()
+    heavy = args[0] if args and args[0] in HEAVY_ENV and ctx is not None and isinstance(getattr(ctx, 'st', None), dict) and ctx.st.get('job') else ''
+    restore = None
+    if heavy and heavy_mark(ctx, heavy) > 0:
+        k, v = HEAVY_ENV[heavy]
+        restore = (k, os.environ.get(k))
+        os.environ[k] = v
+        print('· הניסיון הקודם של השלב הזה נקטע באמצע (כנראה נגמר הזיכרון) — עכשיו במצב חיסכון: איטי יותר, בלי סכנת קריסה')
+    ok = False
     try:
-        return _vt(ctx, args, stage, lo, hi, t0)
+        r = _vt(ctx, args, stage, lo, hi, t0)
+        ok = True
+        return r
     finally:
         stop.set()
+        if heavy and ok:
+            heavy_clear(ctx, heavy)
+        if restore:
+            if restore[1] is None:
+                os.environ.pop(restore[0], None)
+            else:
+                os.environ[restore[0]] = restore[1]
         if held:
             ladder_start(ctx, held)
 
@@ -1613,7 +1731,14 @@ def _vt(ctx, args, stage, lo, hi, t0):
             except Stop:
                 proc.kill()
                 raise
-    rc = proc.wait()
+    rss = 0
+    try:                                         # 21/10/2026: שיא הזיכרון של הפקודה עצמה (כולל הצאצאים שחיכתה להם) — לא דגימה לדקה
+        _, stt, ru = os.wait4(proc.pid, 0)
+        rc = os.waitstatus_to_exitcode(stt)
+        proc.returncode = rc
+        rss = int(ru.ru_maxrss / 1024)          # KB → MB
+    except (ChildProcessError, OSError, AttributeError, ValueError):
+        rc = proc.wait()
     if rc != 0:
         print('\n'.join(tail))
         ctx.event('vt', VT_KIND.get(args[0], 'other'))
@@ -1623,7 +1748,7 @@ def _vt(ctx, args, stage, lo, hi, t0):
             # 21/10/2026: קוד משלו — עד היום worker_step, ועם התראת אחסון ישנה פתוחה זה הוצג כ"ניתוק מהרשת" (חולף)
             raise StepError('✗ vt ' + args[0] + ' נכשל (קוד ' + str(rc) + why + ').', 'worker_oom')
         raise SystemExit('✗ vt ' + args[0] + ' נכשל (קוד ' + str(rc) + ').')
-    note_timing(ctx, args[0], t0, time.time())
+    note_timing(ctx, args[0], t0, time.time(), rss)
     if args[0] == 'ingest':
         report_px(ctx)
     print('✓ vt ' + args[0] + (': ' + tail[-1] if tail else ''))
@@ -2005,7 +2130,9 @@ def video_prefetch(ctx, stop):
     while not stop.is_set():
         v = (q.st.get('files') or {}).get('v') or {}
         if v.get('id'):
+            t0 = time.time()
             fetch_input(q, v['id'], in_path(q, v, 'v'), int(v.get('size') or 0))
+            note_timing(q, 'prefetch', t0, time.time())     # 21/10/2026: מתי ההורדה ברקע רצה (מול היישור) וכמה זמן לקחה
             return v
         stop.wait(poll)
         if stop.is_set():
@@ -2052,10 +2179,46 @@ def attach_late(ctx):
         print('· ההיסט בין הקול לסרטון לא ודאי (%.2f) — מיישרים מחדש על הקול של הסרטון (בלי טוקנים)' % conf)
         vt(ctx, ['align', ctx.name])
         vt(ctx, ['retime', ctx.name])
-    vt(ctx, ['shots', ctx.name])
+    shots_bg(ctx)                                # 21/10/2026: ברקע, בזמן הביקורת — נחוץ רק לבנייה הסופית (finish → shots_join)
     ctx.st['src'] = 'v'
     ctx.st['sync'] = {'off': round(off, 4), 'conf': round(conf, 3)}
     save_state(ctx.st)
+
+
+# 21/10/2026 (מהיומנים של הייצור): זיהוי השוטים בסרטון של 87 דק׳ — 8.5 דק׳ ב־97% מעבד, ובמסלול "הקול קודם" הוא היה על
+# הנתיב הקריטי (לפני הביקורת). השוטים משמשים רק לתזמון בבנייה (הצמדה לחיתוכים); הביקורת והשופט עוסקים בטקסט, והם בעיקר
+# מחכים ל־Claude — המעבד פנוי. לכן: ברקע מהצירוף, ו־finish מחכה לו לפני הבנייה הסופית. SNB_SHOTS_BG=off = כמו קודם.
+_SHOTS_BG = {}
+
+
+def shots_bg(ctx):
+    if os.environ.get('SNB_SHOTS_BG') == 'off' or not hasattr(ctx, 'quiet'):
+        vt(ctx, ['shots', ctx.name])
+        return
+    q, box = ctx.quiet(), {}
+
+    def run():
+        try:
+            vt(q, ['shots', ctx.name])
+        except BaseException as e:          # noqa: BLE001 — נזרק (או נוסה שוב) ב־shots_join, בתהליכון הראשי
+            box['err'] = e
+    th = threading.Thread(target=run, name='shots', daemon=True)
+    th.start()
+    _SHOTS_BG[ctx.name] = (th, box)
+
+
+def shots_join(ctx):
+    """לפני הבנייה הסופית: מחכים לזיהוי שרץ ברקע. נכשל ברקע / לא רץ בתהליך הזה (המשך מנקודת שמירה לפני שהסתיים) — עכשיו."""
+    bg = _SHOTS_BG.pop(ctx.name, None)
+    if bg:
+        th, box = bg
+        if th.is_alive():
+            ctx.report('rv', None, 'מסיימים לזהות את חילופי השוטים')
+            th.join()
+        if 'err' not in box:
+            return
+    if ctx.st.get('src') == 'v' and not (ctx.pdir / 'shots.json').exists():
+        vt(ctx, ['shots', ctx.name])
 
 
 # ---------------------------------------------------------------- v380: זיכרון מונחים
@@ -2182,6 +2345,7 @@ def attach_late_cmd(args):
         print('· הסרטון כבר המקור — אין מה לצרף.')
         return 0
     attach_late(ctx)
+    shots_join(ctx)                              # פקודה בפני עצמה — לא יוצאים לפני שהשוטים (ברקע) הסתיימו
     return 0
 
 
@@ -3209,6 +3373,7 @@ def finish(args):
     errs = re.findall(r'שגיאות (\d+)', '\n'.join(vt(ctx, ['tr-check', ctx.name])))
     if (not errs or int(errs[-1]) > 0) and not args.force:
         raise SystemExit('✗ tr-check מצא שגיאות — לתקן ב־tr/fixes_zfinal.txt ולהריץ שוב: grep -A2 "שגיא" ' + str(ctx.pdir / 'tr' / 'check.md'))
+    shots_join(ctx)                              # 21/10/2026: השוטים רצו ברקע בזמן הביקורת — לפני הנקודה (שתכלול אותם) והבנייה
     save_ck(ctx, 'rv')                           # התרגום אחרי הביקורת — אם הצריבה או ההעלאה נקטעות, ממשיכים מכאן
     vt(ctx, ['tr-merge', ctx.name])
     vt(ctx, ['build', ctx.name, '--style', vt_style(ctx.st.get('spec'))])

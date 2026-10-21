@@ -8,7 +8,7 @@
    כשהדפדפן תומך — כדי להמשיך העלאה אחרי רענון בלי לבחור שוב.
    "חזור" של המכשיר: עם CloseWatcher — רשומה אחת ומחסנית דפים בזיכרון; בלי — רשומה לכל דף (סעיף 18 ב־CLAUDE.md).
    מחרוזות: t() של app.js (STRINGS.he/en, מפתחות studio*) — כל מפתח כתוב כאן מילולית, והבדיקות מאמתות שהוא קיים בשתי השפות. */
-import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, monoPct, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX, inspectSource, QUIET_DB } from './studionet.js';
+import { createNet, probeVideo, extractAudio, uploadBoth, stageEstimates, progressModel, monoPct, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX, inspectSource, QUIET_DB } from './studionet.js';
 import { createBackup, waitOAuthCode } from './libbackup.js';
 // ת4: מזהים של R2 (העלאה ותוצרים בעבודה במצב שרת)
 import { isR2Folder, isR2Id } from './studiostore.js';
@@ -170,7 +170,8 @@ export function normJob(j) {
     noAudio: typeof u.noAudio === 'string' ? u.noAudio.slice(0, 20) : '', started: num(u.started),
     wait: typeof u.wait === 'string' ? u.wait.slice(0, 40) : '', took: num(u.took),
     ext: u.ext === true, extReg: u.extReg === true,   // מקור מ־Drive: בלי העלאה; extReg = נרשם בשרתון
-    dx: u.dx && FID_RE.test(String(u.dx.f || '')) ? { f: u.dx.f, n: String(u.dx.n || '').slice(0, 120), at: num(u.dx.at) } : null };   // התוצר נשמר בתיקייה שבחרת ב־Drive
+    dx: u.dx && FID_RE.test(String(u.dx.f || '')) ? { f: u.dx.f, n: String(u.dx.n || '').slice(0, 120), at: num(u.dx.at) } : null,   // התוצר נשמר בתיקייה שבחרת ב־Drive
+    tl: normUtl(u.tl) };
   const fp = j.fp && typeof j.fp === 'object' ? { name: String(j.fp.name || '').slice(0, 200), size: num(j.fp.size), lm: num(j.fp.lm) } : null;
   const s = j.srv && typeof j.srv === 'object' ? j.srv : null;
   const srv = s ? {
@@ -1339,13 +1340,58 @@ async function pickWithHandle() {
   } catch (e) { return e && e.name === 'AbortError' ? { cancel: true } : null; }
 }
 
+/* ---------------- 21/10/2026: מדידת ההעלאה מהטלפון (פרויקט השיפור המתמיד) ----------------
+   הצילום של המשתמש: "מוציאים את הקול ושולחים אותו קודם" — 17 דק׳, בזמן שהסרטון המלא עלה אחר כך ב־4–6MB/שנ׳. בלי מדידה
+   מהטלפון אי אפשר לדעת אם זה החילוץ, דף מואט ברקע או משהו אחר. רק מספרים (בלי שמות) → op:'upTel' → job.utl.
+   **UTL_KEYS זהה ל־UTL_KEYS בשרתון (lib/studio.js)** */
+export const UTL_KEYS = ['c2s', 'ex', 'ab', 'a', 'v', 'vb', 'hid', 'hn', 'rs', 'wt', 'wl', 'wlr', 'nt', 'dl', 'dm', 'hc', 'vf'];
+export function normUtl(o) {
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+  const out = {};
+  for (const k of UTL_KEYS) { const v = Number(o[k]); if (Number.isFinite(v) && v >= 0 && v <= 1e11) out[k] = Math.round(v); }
+  return Object.keys(out).length ? out : null;
+}
+const NET_CODE = { wifi: 1, cellular: 2, ethernet: 3 };
+function utlOf(rec) {
+  const tl = rec.up.tl || (rec.up.tl = {});
+  try {
+    const c = navigator.connection;
+    if (c) { tl.nt = NET_CODE[c.type] || (c.type ? 4 : 0); if (c.downlink > 0) tl.dl = Math.round(c.downlink * 10); }
+    if (navigator.deviceMemory) tl.dm = Math.round(navigator.deviceMemory * 10);
+    if (navigator.hardwareConcurrency) tl.hc = navigator.hardwareConcurrency;
+  } catch (e) {}
+  return tl;
+}
+function utlAdd(rec, k, v) { const tl = utlOf(rec); tl[k] = Math.round((tl[k] || 0) + v); }
+function utlSend(id) {
+  const rec = jobRec(id), tl = rec && normUtl(rec.up.tl);
+  if (tl) { try { Promise.resolve(net.api('upTel', { job: id, tl })).catch(() => {}); } catch (e) {} }
+}
+let wlDenied = false;
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('visibilitychange', () => {        // כמה זמן הדף היה ברקע בזמן העלאה (Chrome מאט / עוצר דף מוסתר)
+    const now = Date.now();
+    for (const [id, r] of runs) {
+      if (!r || !r.active) continue;
+      if (document.visibilityState === 'hidden') r.hid0 = now;
+      else if (r.hid0) { const rec = jobRec(id); if (rec) { utlAdd(rec, 'hid', now - r.hid0); utlAdd(rec, 'hn', 1); } r.hid0 = 0; }
+    }
+  });
+}
+
 /* ---------------- ההעלאה — רצה ברקע גם כשיוצאים מהסטודיו (כל עוד האפליקציה פתוחה) ---------------- */
 const runs = new Map();           // id → { active, phase, p, sent, total, rate, wait, err, need, ctl, file, t0 }
 let wl = null, wlWant = false;    // מסך דולק בזמן העלאה (אנדרואיד משהה לשוניות ברקע)
 async function wakeOn() {
   wlWant = true;
   if (wl || typeof navigator === 'undefined' || !navigator.wakeLock || document.visibilityState !== 'visible') return;
-  try { wl = await navigator.wakeLock.request('screen'); wl.addEventListener('release', () => { wl = null; }); } catch (e) { wl = null; }
+  try {
+    wl = await navigator.wakeLock.request('screen');
+    wl.addEventListener('release', () => {
+      wl = null;
+      for (const [id, r] of runs) if (r && r.active) { const rec = jobRec(id); if (rec) utlAdd(rec, 'wlr', 1); }   // המסך יכול לכבות באמצע
+    });
+  } catch (e) { wl = null; wlDenied = true; }
 }
 function wakeOffIfIdle() {
   if ([...runs.values()].some((r) => r.active)) return;
@@ -1450,6 +1496,8 @@ async function runJob(id, run) {
   if (!rec) { run.active = false; return; }
   const up = rec.up, file = run.file, sig = run.ctl.signal;
   wakeOn(); paintSoon();
+  { const tl = utlOf(rec); tl.rs = (tl.rs || 0) + 1; if (!tl.c2s && rec.created) tl.c2s = Math.max(0, run.t0 - rec.created); }
+  const onWaitT = () => { utlAdd(rec, 'wt', 1); paintSoon(); };
   try {
     if (!up.folder) { up.folder = await net.jobFolder(id, fileTitle(rec.spec.name)); save(); }
     if (up.ext) {   // סרטון מ־Drive: נשאר במקומו — רק רישום בשרתון (מאומת מול Drive: קיים, בגודל, סרטון) והתחלה
@@ -1459,42 +1507,63 @@ async function runJob(id, run) {
       run.phase = 'done';
       return;
     }
-    // 1. הקול — מחולץ בטלפון בלי קידוד ועולה ראשון (Claude מתחיל לעבוד בזמן שהסרטון עולה)
-    if (!up.a.done && !up.noAudio) {
-      run.phase = 'extract'; run.p = 0; paintSoon();
-      let ex;
-      try { ex = await extractAudio(file, { onProgress: (p) => { run.p = p; paintSoon(); }, signal: sig }); }
-      catch (e) { if (isAbortErr(e)) throw e; ex = { none: 'extract' }; }
-      if (ex.none) { up.noAudio = ex.none; save(); }
-      else {
+    // 1+2. הקול והסרטון — uploadBoth (studionet.js): הסרטון מתחיל מיד במקביל לחילוץ, הקול עולה ראשון כשהוא מוכן, והסרטון
+    // שסיים לפני החילוץ עוצר אותו (21/10/2026 — "הקול לקח 17 דק׳")
+    let tx = 0, ta = 0, tv = 0;
+    await uploadBoth({
+      signal: sig, gate: () => gate(run),
+      needAudio: !up.a.done && !up.noAudio, needVideo: !up.v.done,
+      onPhase: (ph) => {
+        run.phase = ph; run.p = 0; run.rs = null;
+        if (ph === 'video') { run.total = file.size; run.sent = up.v.sent || 0; run.p = run.sent / file.size; }
+        paintSoon();
+      },
+      extract: (signal) => {
+        tx = Date.now();
+        return extractAudio(file, { onProgress: (p) => { if (run.phase === 'extract') { run.p = p; paintSoon(); } }, signal })
+          .finally(() => utlAdd(rec, 'ex', Date.now() - tx));
+      },
+      noAudio: (why, videoFirst) => { up.noAudio = why; if (videoFirst) utlOf(rec).vf = 1; save(); },
+      upAudio: (ex) => {
         const size = ex.blob.size;
-        run.phase = 'audio'; run.p = 0; run.sent = 0; run.total = size; run.rs = null; paintSoon();
-        const f = await net.upload({ blob: ex.blob, size, mime: ex.blob.type, signal: sig, gate: () => gate(run),
+        run.sent = 0; run.total = size;
+        utlOf(rec).ab = size;
+        ta = Date.now();
+        return net.upload({ blob: ex.blob, size, mime: ex.blob.type, signal: sig, gate: () => gate(run),
           r2: up.a.r2, onR2: (x) => { up.a.r2 = x; save(); },
           meta: { name: fileTitle(rec.spec.name) + ' — ' + T('studioAudioFile') + '.' + ex.ext, parents: [up.folder], appProperties: { snbJob: id, snbPart: 'a' } },
           onProgress: (b) => { run.sent = b; run.p = b / size; tickRate(run, b); paintSoon(); },
-          onWait: () => paintSoon() });
+          onWait: onWaitT }).finally(() => utlAdd(rec, 'a', Date.now() - ta));
+      },
+      audioDone: async (f, ex) => {
         await register(id, 'a', f.id, up.folder);
-        up.a = { done: true, id: f.id, size: Number(f.size) || size, uri: '', sent: size };
+        up.a = { done: true, id: f.id, size: Number(f.size) || ex.blob.size, uri: '', sent: ex.blob.size };
         up.took = Math.round((Date.now() - run.t0) / 1000);
         save();
-      }
-    }
-    if (up.a.done) await tryStart(id);
-    // 2. הסרטון המלא — אותו קובץ בדיוק (השרתון מאמת את הגודל מול Drive)
-    if (!up.v.done) {
-      run.phase = 'video'; run.total = file.size; run.sent = up.v.sent || 0; run.p = run.sent / file.size; run.rs = null; paintSoon();
-      const f = await net.upload({ blob: file, size: file.size, mime: file.type || 'application/octet-stream', signal: sig, gate: () => gate(run),
-        uri: up.v.uri || '', onUri: (u) => { up.v.uri = u; save(); }, r2: up.v.r2, onR2: (x) => { up.v.r2 = x; save(); },
-        meta: { name: rec.spec.name, parents: [up.folder], appProperties: { snbJob: id, snbPart: 'v' } },
-        onProgress: (b) => { up.v.sent = b; run.sent = b; run.p = b / file.size; tickRate(run, b); paintSoon(); saveSoon(); },
-        onWait: () => paintSoon() });
-      await register(id, 'v', f.id, up.folder);
-      up.v = { done: true, id: f.id, size: Number(f.size) || file.size, uri: '', sent: file.size };
-      if (!up.took) up.took = Math.round((Date.now() - run.t0) / 1000);
-      save();
-      handleOp('del', id);
-    }
+        utlSend(id);                           // כבר עכשיו — גם אם הסרטון ייתקע, יודעים כמה לקח הקול
+      },
+      start: () => (up.a.done ? tryStart(id) : null),
+      upVideo: (vGate) => {
+        utlOf(rec).vb = file.size;
+        tv = Date.now();
+        return net.upload({ blob: file, size: file.size, mime: file.type || 'application/octet-stream', signal: sig, gate: vGate,
+          uri: up.v.uri || '', onUri: (u) => { up.v.uri = u; save(); }, r2: up.v.r2, onR2: (x) => { up.v.r2 = x; save(); },
+          meta: { name: rec.spec.name, parents: [up.folder], appProperties: { snbJob: id, snbPart: 'v' } },
+          onProgress: (b) => {
+            up.v.sent = b;
+            if (run.phase === 'video') { run.sent = b; run.p = b / file.size; tickRate(run, b); }
+            paintSoon(); saveSoon();
+          },
+          onWait: onWaitT }).finally(() => utlAdd(rec, 'v', Date.now() - tv));
+      },
+      videoDone: async (f) => {
+        await register(id, 'v', f.id, up.folder);
+        up.v = { done: true, id: f.id, size: Number(f.size) || file.size, uri: '', sent: file.size };
+        if (!up.took) up.took = Math.round((Date.now() - run.t0) / 1000);
+        save();
+        handleOp('del', id);
+      },
+    });
     if (!up.started) await tryStart(id);
     run.phase = 'done'; run.file = null;
     if (run.evd) opsEvent(id, [{ c: 'phone', k: 'upload', ok: true }, { c: 'phone', k: 'stall', ok: true }]);   // v365: ההעלאה הצליחה — ההתראות נסגרות
@@ -1508,7 +1577,10 @@ async function runJob(id, run) {
     }
   } finally {
     run.active = false; run.wait = '';
+    if (run.hid0) { utlAdd(rec, 'hid', Date.now() - run.hid0); run.hid0 = 0; }
+    { const tl = utlOf(rec); tl.wl = wl ? 1 : wlDenied ? 2 : 0; }
     save(); wakeOffIfIdle(); repaint();
+    utlSend(id);
   }
 }
 /* v365: אירוע למגדל הפיקוח מהטלפון — בלי לחכות ובלי לעצור כלום אם נכשל */
@@ -2213,7 +2285,10 @@ function heroState(rec, run, ph) {
 /* מה קורה עכשיו — משפט אחד */
 function nowLine(rec, run, ph) {
   if (ph === 'wait') return run.wait === 'wifi' ? T('studioWaitWifi') : T('studioWaitNet');
-  if (ph === 'extract') return T('studioNowExtract');
+  if (ph === 'extract') {             // 21/10/2026: הסרטון עולה במקביל לחילוץ (uploadBoth)
+    const vp = rec.spec && rec.spec.size > 0 && rec.up.v.sent > 0 ? Math.min(99, Math.floor(100 * rec.up.v.sent / rec.spec.size)) : 0;
+    return vp > 0 ? T('studioNowExtractPar', { p: vp }) : T('studioNowExtract');
+  }
   if (ph === 'audio') return T('studioNowAudio');
   if (ph === 'video') return rec.up.noAudio ? T('studioNowVideoOnly') : T('studioNowVideo');
   if (ph === 'need') return T('studioNeedFile');
@@ -5792,7 +5867,7 @@ function pageJob(p) {
     kvRow(T('studioSecMode'), modeName(modeById(rec.spec.mode))),
     kvRow(T('studioSecOut'), rec.spec.out.concat('srt').map(outShort).join(' + ')),
     kvRow(T('studioSecStyle'), styleName(rec.spec.style)),
-    rec.up.a.done ? kvRow(T('studioAudioK'), fmtSize(rec.up.a.size)) : rec.up.noAudio ? kvRow(T('studioAudioK'), T('studioNoAudio')) : null,
+    rec.up.a.done ? kvRow(T('studioAudioK'), fmtSize(rec.up.a.size)) : rec.up.noAudio && rec.up.noAudio !== 'video_first' ? kvRow(T('studioAudioK'), T('studioNoAudio')) : null,
     kvRow(T('studioCreated'), fmtDate(rec.created)),
     kvRow(T('studioJobId'), rec.id, true),
     rec.srv && rec.srv.ed ? kvRow(T('studioErrCodeL'), rec.srv.ed, true) : null,

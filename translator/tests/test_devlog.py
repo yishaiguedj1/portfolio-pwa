@@ -121,7 +121,62 @@ class Agent(unittest.TestCase):
         A.cpu_pct()
         s = A.met_sample()
         self.assertIn('t', s)
-        self.assertTrue(all(k in ('t', 'cpu', 'mem', 'disk', 'free', 'load', 'j', 'st', 'p', 'rss') for k in s))
+        self.assertTrue(all(k in ('t', 'cpu', 'mem', 'disk', 'free', 'load', 'j', 'st', 'p', 'rss', 'mx', 'av', 'psi', 'sl', 'top', 'ma', 'mf', 'msh') for k in s))
+        self.assertTrue(s.get('mx', 0) > 0, '21/10/2026: התקרה בכל דגימה (בלי זה "100%" לא אומר כמה GB)')
+
+    def test_metrics_per_slot_rss(self):
+        """21/10/2026: במשבצות rss היה תמיד 0 — עכשיו לכל משבצת עם השלב שלה"""
+        A = self.A
+        p = subprocess.Popen([sys.executable, '-c', 'import time; b=bytearray(30*1024*1024); time.sleep(5)'])
+        try:
+            time.sleep(0.5)
+            sl = A.Slot(1, {'id': 'j' + 'S' * 20, 'kind': 'tr', 'dur': 60})
+            sl.p = p
+            sl.state.mkdir(parents=True, exist_ok=True)
+            (sl.state / 'prog.json').write_text(json.dumps({'st': 'al', 'p': 0.4}))
+            A._slots[1] = sl
+            try:
+                s = A.met_sample()
+            finally:
+                A._slots.clear()
+            self.assertEqual([(x['j'], x['st'], x['p']) for x in s['sl']], [('j' + 'S' * 20, 'al', 0.4)])
+            self.assertGreaterEqual(s['sl'][0]['rss'], 25, 'MB של עץ התהליכים של המשבצת')
+        finally:
+            p.kill()
+            p.wait()
+
+    def test_top_procs_no_cmdline(self):
+        top = self.A.top_procs(3)
+        self.assertTrue(top and all(set(x) == {'c', 'r'} for x in top), 'רק שם התהליך ו־MB')
+
+    def test_flight_recorder_survives_crash(self):
+        """21/10/2026 (שלוש נפילות ביישור בלי שורת יומן): הקופסה השחורה נכתבת בזמן העבודה ונשלחת בעלייה הבאה, ואז נמחקת"""
+        A, J = self.A, self.J
+        jid = 'j' + 'F' * 20
+        J.save_state({'job': jid, 'key': 'K' * 43, 'server': 'http://localhost:1', 'full': True})
+        with A._tail_lock:
+            A._tail.clear()
+            A._tail.extend(['✓ vt align: התחיל', 'עוד שורה'])
+        self.assertTrue(A.flight_write(jid))
+        self.assertTrue((A.FLIGHT_DIR / (jid + '.json')).exists())
+        self.assertEqual(oct((A.FLIGHT_DIR / (jid + '.json')).stat().st_mode & 0o777), '0o600')
+        sent = []
+        with mock.patch.object(A, 'dev_send', lambda s, t, op, d: sent.append((op, d)) or {'saved': True}):
+            self.assertEqual(A.flight_send('http://localhost:1', 'tok'), 1)
+        self.assertEqual(sent[0][0], 'devLog')
+        self.assertEqual((sent[0][1]['t'], sent[0][1]['rc']), ('lost', -9))
+        self.assertIn('vt align', sent[0][1]['tail'])
+        self.assertFalse(list(A.FLIGHT_DIR.glob('*')), 'נמחקה אחרי השליחה')
+
+    def test_flight_only_in_full_mode_and_cleared(self):
+        A, J = self.A, self.J
+        jid = 'j' + 'G' * 20
+        J.save_state({'job': jid, 'key': 'K' * 43, 'server': 'http://localhost:1', 'full': False})
+        self.assertFalse(A.flight_write(jid), 'בלי ההסכמה למצב המלא — כלום על הדיסק')
+        J.save_state({'job': jid, 'key': 'K' * 43, 'server': 'http://localhost:1', 'full': True})
+        self.assertTrue(A.flight_write(jid))
+        A.flight_clear(jid)
+        self.assertFalse((A.FLIGHT_DIR / (jid + '.json')).exists(), 'עבודה שהסתיימה כרגיל — נמחקת')
 
 
 class JobSide(unittest.TestCase):
