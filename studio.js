@@ -2206,7 +2206,14 @@ function jobsCard(rows) {
   if (rows.length <= JOBS_SHOWN) return l;
   l.classList.add('st-jobs');
   const wrap = h('div', 'st-jobs-w');
-  const more = btn('st-jobs-more', '', () => l.scrollBy({ top: Math.max(60, l.clientHeight - 24), behavior: 'smooth' }), 'jobs-more');
+  /* "עבודות קודמות": השורה האחרונה שנראית עולה לראש הכרטיס — 4 עבודות חדשות ועוד אחת להמשכיות (כמו דפדוף ב־iOS).
+     הגלילה באצבע עובדת גם בלי הכפתור, ונעצרת תמיד על תחילת שורה (scroll-snap ב־CSS) */
+  const more = btn('st-jobs-more', '', () => {
+    const lt = l.getBoundingClientRect().top, lb = lt + l.clientHeight;
+    const last = rows.filter((r) => r.getBoundingClientRect().top < lb - 4).pop();
+    const to = last ? l.scrollTop + last.getBoundingClientRect().top - lt : l.scrollTop + l.clientHeight;
+    l.scrollTo({ top: Math.min(to, l.scrollHeight - l.clientHeight), behavior: 'smooth' });
+  }, 'jobs-more');
   const paint = () => {
     const lb = l.getBoundingClientRect().bottom;
     const left = rows.filter((r) => r.getBoundingClientRect().bottom > lb + 2).length;   // שורות שעוד לא נראו במלואן (מתחת לנראה)

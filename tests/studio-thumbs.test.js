@@ -34,7 +34,8 @@ ok(v.poster === 'data:image/jpeg;base64,AAAA', 'setPoster — תמונה מקו�
 
 ok(/export const JOBS_SHOWN = 5;/.test(st) && /function jobsCard\(rows\)/.test(st) && /jobsCard\(rows\)\)/.test(st), 'בבית — 5 העבודות האחרונות, בכרטיס משלהן');
 ok(/\.st-list\.st-jobs \{ overflow-y: auto; overscroll-behavior: contain;/.test(css), 'הכרטיס נגלל בתוכו, והגלילה לא עוברת לעמוד');
-ok(/l\.scrollBy\(\{ top: Math\.max\(60, l\.clientHeight - 24\), behavior: 'smooth' \}\)/.test(st) && /more\.hidden = !left/.test(st), '"עבודות קודמות" גולל בתוך הכרטיס, ונעלם כשאין עוד');
+ok(/l\.scrollTo\(\{ top: Math\.min\(to, l\.scrollHeight - l\.clientHeight\), behavior: 'smooth' \}\)/.test(st) && /more\.hidden = !left/.test(st), '"עבודות קודמות" — השורה האחרונה שנראית עולה לראש הכרטיס, והכפתור נעלם כשאין עוד');
+ok(/scroll-snap-type: y proximity/.test(css) && /\.st-list\.st-jobs > \.st-proj \{ scroll-snap-align: start; \}/.test(css) && /touch-action: pan-y/.test(css), 'גלילה באצבע בתוך הכרטיס — נעצרת על תחילת שורה');
 
 const D = 86400e3, now = Date.UTC(2026, 9, 21), F = 'R2_j' + 'a'.repeat(20);
 ok(SC.expiredJob({ kind: 'tr', state: 'done', folder: F, ended: now - 31 * D }, now), 'אחרי חודש — עבודה ב־R2 נמחקת');
