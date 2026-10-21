@@ -241,6 +241,9 @@ export function createPlayer(opts) {
   let cc = opts.burned ? 'off' : 'he', hideT = 0, lastTap = 0, tapT = 0, dragging = false, destroyed = false;
   const wrap = el('div', 'st-pl'); wrap.dir = 'ltr';
   const v = el('video', 'st-pl-v'); v.playsInline = true; v.preload = 'metadata'; v.setAttribute('playsinline', '');
+  // 21/10/2026 (בקשת המשתמש — כמו ב־YouTube): תמונה לפני הניגון. קפיצה לנקודה (seek) מורידה אותה ומציגה את הפריים של הנקודה
+  const setPoster = (u) => { if (typeof u === 'string' && /^(data:image\/(jpeg|png|webp);base64,|blob:)/.test(u)) v.poster = u; };
+  setPoster(opts.poster);
   const sub = el('div', 'st-pl-sub'); sub.dir = 'rtl'; sub.setAttribute('aria-live', 'off');
   const ui = el('div', 'st-pl-ui');
   const top = el('div', 'st-pl-top'), mid = el('div', 'st-pl-mid'), bot = el('div', 'st-pl-bot');
@@ -535,6 +538,7 @@ export function createPlayer(opts) {
   return {
     el: wrap, video: v,
     seek: seekTo,
+    setPoster,
     play() { const p = v.play(); if (p && p.catch) p.catch(() => {}); },
     pause() { v.pause(); },
     setCues(c, iss) { cues = c || []; issues = iss || issuesList(cues); shown = -2; paintSub(); paintHeat(); },

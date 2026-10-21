@@ -172,8 +172,16 @@ function scanView(sc) {
   return { at: sc.at, s: Math.max(0, Math.min(100, Math.round(Number(sc.s) || 0))), n: Math.max(0, Math.min(CHECKS.length, Number(sc.n) || 0)),
     ok: (Array.isArray(sc.ok) ? sc.ok : []).filter((k) => CHECK_KEYS.includes(k)), f, fb: Math.max(0, Number(sc.fb) || 0), pass: PASS };
 }
+/* 21/10/2026 (בקשת המשתמש): עבודה שהקבצים שלה ב־R2 שלנו נשמרת חודש מהסיום, ואז נמחקת לבד (רשומה + קבצים).
+   לא נמחקות: עבודת זהב (gd — הייחוס לבדיקות), עבודה שעוד רצה, ועבודה שהקבצים שלה ב־Drive של המשתמש (שם הם שלו) */
+const JOB_TTL = 30 * DAY;
+function expiredJob(j, now) {
+  return !!(j && j.kind === 'tr' && !j.gd && FINAL.includes(j.state) && R2_FOLDER_RE.test(String(j.folder || ''))
+    && (j.ended || j.updated || 0) > 0 && now - (j.ended || j.updated) > JOB_TTL);
+}
 
 module.exports = {
+  JOB_TTL, expiredJob,
   DAY, GB, PEN, PASS, STALE_OK, OLD_JOB, QUOTA_LOW, QUOTA_CRIT, FIRES_WARN, MAX_FOLDERS, R2_GRACE, CHECKS, CHECK_KEYS, KINDS, CLEAN_KINDS,
-  orphanFolders, dupeFolders, r2Folders, r2Orphans, doneCheckpoints, oldJobs, scanFindings, scanView,
+  FINAL, orphanFolders, dupeFolders, r2Folders, r2Orphans, doneCheckpoints, oldJobs, scanFindings, scanView,
 };
