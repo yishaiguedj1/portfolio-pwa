@@ -1618,6 +1618,13 @@ def vt_frac(cmd, line):
 RENDER_W = {'mkv': 0.03, 'same': 1.0, 'compact': 0.75, 'small1': 0.12, 'small2': 0.2}
 
 
+def rr_render_flags(want):
+    """22/10/2026: המעברים של rerender.py (באותו סדר) בשפה של RenderProg — בלי זה הפס בהפקה מחדש חזר לאפס בכל מעבר."""
+    w = set(want or [])
+    return (['--mkv'] if 'mkv' in w else []) + (['--burn'] if 'same' in w else []) + \
+        (['--compact'] if 'compact' in w or ('small' in w and 'same' not in w) else []) + (['--small'] if 'small' in w else [])
+
+
 class RenderProg:
     """התקדמות של vt render לפי המעברים שהפקודה תריץ (בסדר של cmd_render ב־vt/cli.py)."""
     BURN = re.compile(r'צורב → ')
@@ -3264,18 +3271,22 @@ RR_STYLES = ('bold', 'classic')
 OV_LG_RE = re.compile(r'^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})\Z')   # סבב 7: הלוגו — כמו normOv (\Z, לא $)
 
 
-def script(ctx, path, args, stage, lo=0.0, hi=1.0):
-    """סקריפט Python בסביבת vt (כמו vt()) — אחוזים מהפלט הולכים לשרתון."""
+def script(ctx, path, args, stage, lo=0.0, hi=1.0, prog=None):
+    """סקריפט Python בסביבת vt (כמו vt()) — אחוזים מהפלט הולכים לשרתון. prog = RenderProg כשיש כמה מעברים."""
     proc = subprocess.Popen([VT_PY, str(HERE / path)] + args, cwd=str(HERE), env=vt_env(),
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
     tail = []
     for line in proc.stdout:
         line = line.rstrip()
         tail = (tail + [line])[-12:]
-        m = re.search(r'(\d{1,3}(?:\.\d)?)%', line)
-        if m:
+        if prog is not None:
+            f = prog.feed(line)
+        else:
+            m = re.search(r'(\d{1,3}(?:\.\d)?)%', line)
+            f = min(1.0, float(m.group(1)) / 100) if m else None
+        if f is not None:
             try:
-                ctx.report(stage, lo + (hi - lo) * min(1.0, float(m.group(1)) / 100))
+                ctx.report(stage, lo + (hi - lo) * f)
             except Stop:
                 proc.kill()
                 raise
@@ -3331,7 +3342,8 @@ def render(args):
             eds += ['--logo', str(logo)]
         eds += ['--ov', json.dumps({k: v for k, v in ov.items() if k != 'lg'}, ensure_ascii=False, separators=(',', ':'))]
     script(ctx, 'rerender.py', ['--src', str(src), '--cues', str(cues), '--out', str(od), '--name', ctx.name,
-                                '--style', style, '--want', ','.join(want), '--work', str(work / 'overlay')] + eds, 'bn')
+                                '--style', style, '--want', ','.join(want), '--work', str(work / 'overlay')] + eds, 'bn',
+           prog=RenderProg(rr_render_flags(want)))
     ctx.report('sv', 0, 'שומרים', force=True)
     title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120] + (' — קטע לבדיקה' if spec.get('prv') == 1 else '')   # סבב 10
     out = []

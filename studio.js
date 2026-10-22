@@ -5415,6 +5415,18 @@ function pageSubs(p) {
   }
 }
 /* ---------- הפקה מחדש ---------- */
+/* 22/10/2026: מה קורה עכשיו בהפקה מחדש (טהורה): wait = בתור, start = נלקחה ועוד לא דיווחה, up/bn/sv = מורידים / צורבים /
+   שומרים, עם אחוז וזמן שנשאר בשלב לפי הקצב (מ־3% ואחרי 20 שנ׳ — לפני זה המספר קופץ) */
+export function rrNow(srv, now) {
+  const st = (srv && srv.state) || '', pr = (srv && srv.prog) || {};
+  const p = typeof pr.p === 'number' && pr.p >= 0 ? Math.min(1, pr.p) : 0;
+  if (st !== 'running') return { k: 'wait', p: 0, left: null };
+  const k = ['up', 'bn', 'sv'].includes(pr.st) ? pr.st : 'start';
+  if (k === 'start') return { k, p: 0, left: null };
+  const s0 = pr.stg && pr.stg[k] && pr.stg[k].s, el = s0 ? (now - s0) / 1000 : 0;
+  const left = p >= 0.03 && p < 1 && el >= 20 ? el / p * (1 - p) : null;
+  return { k, p, left };
+}
 function rrSub(rec) {
   const r = rrJobs.get(rec.id);
   if (!r) return T('studioRrSub');
@@ -5720,10 +5732,13 @@ function pageRr(p) {
   p.append(navBar({ back: fileTitle(rec.spec.name) || T('studioUntitled') }), large(T('studioRrTitle')));
   const r = rrJobs.get(rec.id), st = r ? r.srv.state : '';
   if (r && (st === 'new' || st === 'queued' || st === 'running')) {
-    const pr = r.srv.prog || {}, stg = pr.st === 'up' ? T('studioRrStUp') : pr.st === 'sv' ? T('studioRrStSv') : st === 'running' ? T('studioRrStBn') : T('studioRrStWait');
+    // 22/10/2026: המצב האמיתי — עד היום "צורבים" הופיע גם כשהעבודה רק נלקחה או עוד הורידה את הסרטון, והפס עמד על 0
+    const n = rrNow(r.srv, Date.now());
+    const stg = n.k === 'up' ? T('studioRrStUp') : n.k === 'sv' ? T('studioRrStSv') : n.k === 'bn' ? T('studioRrStBn') : n.k === 'start' ? T('studioRrStStart') : T('studioRrStWait');
     const c = h('div', 'st-nowc'), ic = h('span', 'st-nowic'), l = h('span', 'st-l'), pb = h('span', 'st-pbar'), pi = h('i');
-    pb.append(pi); pi.style.width = Math.round(100 * (typeof pr.p === 'number' ? pr.p : 0)) + '%';
-    ic.append(ico('redo')); l.append(h('b', null, stg), pb); c.append(ic, l);
+    pb.append(pi); pi.style.width = Math.round(100 * n.p) + '%';
+    const sub = n.k === 'wait' || n.k === 'start' ? '' : '\u2066' + Math.round(100 * n.p) + '%\u2069' + (n.left != null ? ' · ' + T('studioLeftShort', { t: fmtLeft(n.left) }) : '');
+    ic.append(ico('redo')); l.append(h('b', null, stg), pb); if (sub) l.append(h('span', 'st-s', sub)); c.append(ic, l);
     p.append(c);
     if (st === 'new' && !rrBusy) p.append(btn('st-btn wide', T('studioStartAnyway'), () => rrKick(r), 'rr-kick'));   // 20/10/2026: נחסמה בתקלה רחבה
     if (!rrBusy) p.append(btn('st-btn danger wide', T('studioRrCancel'), () => rrCancel(r), 'rr-cancel'));   // 20/10/2026: אפשר לעצור הפקה (ממתינה / רצה)
