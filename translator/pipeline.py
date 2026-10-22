@@ -367,6 +367,22 @@ PROOF_TASK = """המשימה: הגהה של תמליל אנגלי אוטומטי
 מערך JSON של לכל היותר 2 שאלות למשתמש, רק ספק אמיתי שאי אפשר להכריע מהתמליל (כתיב שם של דובר, מגדר של דובר):
 [{"q": "שאלה קצרה", "opts": ["אפשרות", "אפשרות"], "default": 0}]. אין ספק כזה — כותבים [] בלבד."""
 
+SUBS_TASK = """המשימה: הכנה לתרגום של קובץ כתוביות אנגלי קיים (נכתב בידי אדם — לא תמלול אוטומטי, לא מגיהים אותו).
+כתוב שלושה מקטעים, כל אחד אחרי שורת סימון משלו:
+
+=== BRIEF ===
+התדריך למתרגם, לפי התבנית המצורפת (מלא, בעברית): נושא, דמויות ודוברים (שם בכתיב עברי מקובל, תפקיד, מגדר,
+משלב, ומי פונה למי — בעברית המגדר של הדובר ושל הנמען משנה את הפעלים), חברות ומוצרים, מונחים, טון, דברים מסוכנים לתרגום,
+ספקות. אין בקובץ קול: המגדר נקבע מהשמות, מהכינויים ומההקשר — כשאי אפשר לדעת, כתוב זאת במפורש.
+הערה: קבצים שהומרו מכתוביות טלוויזיה מגיעים לעתים בלי אותיות גדולות בשמות ("glenn sterns") — השם הנכון בתדריך ובמילון.
+
+=== GLOSSARY ===
+מונחים ושמות שחייבים להיות עקביים: שורה לכל מונח, `אנגלית<TAB>עברית` (חלופות מותרות מופרדות ב־/).
+
+=== QUESTIONS ===
+מערך JSON של לכל היותר 2 שאלות למשתמש, רק ספק אמיתי שאי אפשר להכריע מהטקסט (מגדר של דמות מרכזית, כתיב של שם):
+[{"q": "שאלה קצרה", "opts": ["אפשרות", "אפשרות"], "default": 0}]. אין ספק כזה — כותבים [] בלבד."""
+
 TL_TASK = """אתה מתרגם מקצועי של כתוביות מאנגלית לעברית — כמו מתרגם אנושי שקרא את כל הראיון והבין אותו.
 התשובה: שורה לכל כתובית בחלק המבוקש, `#מספר טקסט`, ולא שום דבר אחר.
 - כל כתובית בחלק מקבלת שורה. `=` = מתאחדת עם הקודמת (כשסדר המילים בעברית מחייב); `∅` = בלי כתובית.
@@ -480,6 +496,38 @@ class Pipeline:
               + f' · מילון: {len(gl.splitlines()) if gl else 0} מונחים')
         if dropped and not ok:                    # כולם נזרקו — שתי דוגמאות קצרות ליומן (לאבחון הפורמט, בלי כל התמליל)
             print('· דוגמאות שנזרקו: ' + ' | '.join(repr(d[:48]) for d in dropped[:2]))
+        return parse_questions(sec.get('QUESTIONS', ''))
+
+    def brief_subs(self) -> list[dict]:
+        """22/10/2026: קובץ כתוביות קיים — במקום ההגהה: תדריך (דמויות, מגדר, מי פונה למי), מילון ושאלות. בלי PATCH:
+        הטקסט נכתב בידי אדם, והזמנים שלו הם התבנית (template). שמות מתוויות ה־SDH מגיעים כנתונים."""
+        ctx = self.ctx
+        text = (self.pd / 'en.subs.txt').read_text(encoding='utf-8')
+        terms = str((ctx.st.get('spec') or {}).get('terms') or '').strip()
+        try:
+            names = (json.loads((self.pd / 'project.json').read_text(encoding='utf-8')).get('subs') or {}).get('names') or []
+        except (OSError, ValueError):
+            names = []
+        ctx.report('tr', 0.3, 'Claude קורא את הכתוביות ומכין תדריך', force=True)
+        fixed = '\n\n'.join([RULES, SUBS_TASK, block('style_guide', guide_text()),
+                              block('brief_template', (HERE / 'templates' / 'brief.md').read_text(encoding='utf-8'))])
+        prompt = '\n\n'.join(x for x in [
+            block('user_terms', terms) if terms else '',
+            block('speaker_labels', ', '.join(str(n) for n in names[:40])) if names else '',
+            block('subtitles', text)] if x)
+        if not self.eng.fits_card(fixed, prompt):
+            print(f'· {self.eng.spec.model}: הקובץ מעל סף 100K הטוקנים — התדריך יתומחר בכרטיס היקר')
+        res = self.eng.complete('main', fixed, prompt, max_tokens=64000)
+        self.save_usage()
+        sec = split_sections(res.text)
+        td = self.pd / 'tr'
+        td.mkdir(parents=True, exist_ok=True)
+        if sec.get('BRIEF', '').strip():
+            (td / 'brief.md').write_text(sec['BRIEF'].strip() + '\n', encoding='utf-8')
+        gl = clean_glossary(sec.get('GLOSSARY', ''))
+        head = (HERE / 'templates' / 'glossary.tsv').read_text(encoding='utf-8').rstrip('\n')
+        (td / 'glossary.tsv').write_text(head + ('\n' + gl if gl else '') + '\n', encoding='utf-8')
+        print(f'✓ תדריך מהכתוביות · מילון: {len(gl.splitlines()) if gl else 0} מונחים')
         return parse_questions(sec.get('QUESTIONS', ''))
 
     # -------------------------------------------------------------- 3. שאלות למשתמש
@@ -933,6 +981,54 @@ def post_incident(J, eng) -> None:
         print('· שליחת הסיכום לדוח התקלה נכשלה (' + str(e)[:60] + ') — ממשיכים.')
 
 
+def run_subs(J, eng, ns) -> int:
+    """22/10/2026: קובץ כתוביות קיים (spec.src = 'subs') — בלי תמלול, בלי יישור ובלי סרטון.
+    ייבוא (הזמנים נשמרים) → תדריך ומילון → tr-prep → תרגום → ביקורת → שופט → finish (SRT + VTT + ASS).
+    אותן נקודות שמירה של המסלול הרגיל: asr = הקובץ יובא (+pr = התדריך שולם), al = מוכן לתרגום, tl, rv."""
+    st = J.load_state()
+    done = None
+    if st.get('ck'):
+        if J.restore(ns) != 0:
+            return 1
+        done = J.load_state().get('resumed')
+    order = (None, 'asr', 'al', 'tl', 'rv')
+    after = order.index(done) if done in order else 0
+    if after < 1 and J.prepare_subs(ns) != 0:
+        return 1
+    ctx = J.Ctx(J.load_state())
+    pl = Pipeline(ctx, J, eng)
+    if after < 2:
+        if not (done == 'asr' and ctx.st.get('proofed')):
+            qs = pl.brief_subs()
+            if qs:
+                pl.ask(qs)
+            J.save_ck(pl.ctx, 'asr', {'pr': 1})
+        else:
+            print('· התדריך והמילון כבר בנקודת השמירה — לא משלמים עליהם שוב.')
+        J.subs_prep(ctx)
+        J.save_ck(ctx, 'al')
+    if after < 3:
+        pl.ask_late()
+        try:
+            pl.translate()
+        except llm.LLMError:
+            try:
+                J.save_ck(ctx, 'al')                # החלקים שכבר תורגמו נשמרים — "המשך" לא משלם עליהם שוב
+            except Exception:                       # noqa: BLE001
+                pass
+            raise
+        J.save_ck(ctx, 'tl')
+    if after < 4:
+        fixed, left = pl.review()
+        print(f'✓ תרגום וביקורת: {fixed} תיקוני ביקורת · נשארו {left} שגיאות')
+        pl.save_usage()
+        if left:
+            raise llm.LLMError('check_errors', f'נשארו {left} שגיאות בבדיקה האוטומטית אחרי התיקונים')
+        pl.judge()
+    pl.save_usage()
+    return J.finish(SimpleNamespace(force=False))
+
+
 def run_auto(jobmod, args) -> int:
     """הכל, מקצה לקצה. נקרא מ־job.py auto (אחרי run)."""
     J = jobmod
@@ -949,6 +1045,8 @@ def run_auto(jobmod, args) -> int:
     ns = SimpleNamespace(force=False)
     post_incident(J, eng)                          # דוח אחרי תקלה שמחכה לסיכום (מהלקיחה) — לפני העבודה עצמה
     try:
+        if (st.get('spec') or {}).get('src') == 'subs' and hasattr(J, 'prepare_subs'):
+            return run_subs(J, eng, ns)            # 22/10/2026: קובץ כתוביות קיים — מסלול משלו (בלי קול וסרטון)
         # המשך: השרת כבה/התעדכן באמצע עבודה, או שהמשתמש לחץ "המשך" — משחזרים מנקודת השמירה האחרונה
         # ב־Drive ומדלגים על מה שכבר שולם (תמלול / הגהה / תרגום / ביקורת).
         done = None

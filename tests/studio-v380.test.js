@@ -46,7 +46,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
   /* ---------- 3. העובד ---------- */
   const job = read('translator/job.py');
-  ok((job.match(/vt\(ctx, \['tr-prep', ctx\.name\]\)\n    gl_merge\(ctx\)/g) || []).length === 2, 'job.py: המילון נכנס אחרי tr-prep — גם ב־align וגם ב־align_prep (מצב API)');
+  ok((job.match(/vt\(ctx, \['tr-prep', ctx\.name\]\)\n    gl_merge\(ctx\)/g) || []).length === 3, 'job.py: המילון נכנס אחרי tr-prep — ב־align, ב־align_prep (מצב API) וב־subs_prep (קובץ כתוביות)');
   ok(/gl = gl_suggest\(ctx\)/.test(job) && /judge=ctx\.st\.get\('jd'\), gl=gl[,)]/.test(job), 'job.py: ההצעות נשלחות בסוף העבודה');
   ok(/def gl_load\(ctx\)[\s\S]*?except \(SystemExit, Exception\):[\s\S]*?return None/.test(job), 'job.py: מילון שלא נטען לא מפיל עבודה (גם "אין גישה ל־Drive" — SystemExit, 15/10/2026)');
   ok(/GL_MARK = '# — מהמילון שלך/.test(job) && /מהמילון שלך/.test(read('translator/RUNBOOK.md')) && /מהמילון שלך/.test(read('translator/TRANSLATE.md')),

@@ -250,6 +250,37 @@ def cmd_retime(a):
         f"מעל 0.3: {st['moved_over_300ms']} · מרבי {st['max_moved_s']} שנ׳ (הריצו tr-check ו־build)")
 
 
+def cmd_import_subs(a):
+    """22/10/2026: קובץ כתוביות קיים (SRT/VTT/ASS) במקום תמלול — הזמנים נשמרים (template), בלי סרטון.
+
+    כותב: cues.en.json (עם tpl ותקציבים), en.subs.txt (הטקסט לתדריך), media.json בלי וידאו (קצב פריימים לגריד),
+    והדוברים מתוויות ה־SDH. הפענוח עצמו — translator/subsimport.py (זהה לטלפון)."""
+    import sys
+    from .segment import budgets
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from subsimport import import_subs, to_vt, transcript
+    pr = Project(a.name)
+    meta = pr.load() if pr.exists() else pr.create("subs:" + Path(a.file).name, a.name)
+    imp = import_subs(Path(a.file).read_bytes(), sdh=not a.keep_sdh)
+    if not imp["cues"]:
+        die("לא נמצאו כתוביות בקובץ (" + (imp["fmt"] or "פורמט לא מוכר") + ")")
+    cues, spk = to_vt(imp)
+    budgets(cues, C.timing_rules(meta["settings"].get("timing")), C.text_rules(meta["settings"].get("text")))
+    write_json(pr.p("cues.en.json"), cues)
+    write_text(pr.p("en.subs.txt"), transcript(imp))
+    write_json(pr.p("media.json"), {"video": None, "audio": None, "fps": a.fps, "duration": imp["stats"]["dur"] / 1000})
+    meta = pr.load()
+    meta["src"] = "subs"
+    meta["subs"] = dict(imp["stats"], names=[n for n, _ in imp["names"][:40]])
+    for k, v in spk.items():
+        meta.setdefault("speakers", {}).setdefault(k, {}).update(v)
+    pr.save(meta)
+    st = imp["stats"]
+    log(f"יובאו {st['n']} כתוביות ({st['fmt']}, {st['enc']}) · פרסומות {st['ads']} · SDH {st['sdh']} · "
+        f"דוברים {st['names']} · בהטיה {st['it']} · בראש המסך {st['top']}")
+    pr.mark("import_subs", cues=st["n"], fmt=st["fmt"])
+
+
 def cmd_shots(a):
     from . import media
     pr = Project(a.name)
@@ -355,8 +386,10 @@ def build(pr: Project, style_name: str | None = None) -> dict:
     tr = C.timing_rules(meta["settings"].get("timing"))
     tx = C.text_rules(meta["settings"].get("text"))
     grid = grid_from(info)
-    words = _words_for_plan(pr)
     cues = read_json(pr.p("cues.en.json"))
+    # 22/10/2026: קובץ כתוביות בלי סרטון (tpl) — אין תמליל; בדיקת "דיבור בלי כתובית" לא רלוונטית
+    words = [] if (meta.get("src") == "subs" and not pr.p("en.aligned.json").exists()
+                   and not pr.p("en.words.json").exists()) else _words_for_plan(pr)
     he = read_json(pr.p("he.json"))
     shots_raw = read_json(pr.p("shots.json"))["shots"] if pr.p("shots.json").exists() else []
     shots = sorted({grid.frame_at(s["t"]) for s in shots_raw})
@@ -402,7 +435,7 @@ def build(pr: Project, style_name: str | None = None) -> dict:
     en_cues = [dict(c, en_lines=[c["en"]]) for c in final]
     write_text(od / "en.reference.srt", write_srt(en_cues, with_rlm=False, key="en_lines"))
     keep = ("id", "spk", "speech_s", "speech_e", "si", "so", "fi", "fo", "start", "end", "lines", "chars",
-            "cps", "flags", "en", "he", "snap_in", "snap_out", "chained", "merged", "cps_merged")
+            "cps", "flags", "en", "he", "snap_in", "snap_out", "chained", "merged", "cps_merged", "it", "top", "tpl")
     write_json(od / "cues.final.json", [{k: c[k] for k in keep if k in c} for c in final])
     rep, stats = run_qc(final, words, tr, tx, grid.fps_f, shots, meas, st.max_line_px)
     extra = []
@@ -669,6 +702,10 @@ def main(argv=None):
     p.add_argument("--device", default="cpu")
     p.add_argument("--no-ctc", action="store_true", help="בלי המנוע השני (מהיר יותר, פחות עמיד)")
     add("retime", cmd_retime, "name", help="זמנים חדשים לכתוביות קיימות אחרי יישור משופר")
+    p = add("import-subs", cmd_import_subs, "name", help="קובץ כתוביות קיים במקום תמלול (בלי סרטון)")
+    p.add_argument("--file", required=True)
+    p.add_argument("--keep-sdh", action="store_true", help="להשאיר תיאורי צלילים ותוויות דובר")
+    p.add_argument("--fps", default="24000/1001", help="קצב הפריימים לגריד התזמון (בלי סרטון)")
     p = add("shots", cmd_shots, "name", help="חילופי שוטים")
     p.add_argument("--threshold", type=float)
     add("plan", cmd_plan, "name", help="תכנון כתוביות")

@@ -1986,11 +1986,11 @@ def edl_src(ctx, src, kind):
 
 def in_path(ctx, f, kind):
     """הקובץ שהורד מ־Drive: הסרטון ב־_in/<שם>.<סיומת>, הקול ב־_in/<שם>.audio.<סיומת> (שניהם יכולים להיות שם יחד)."""
-    default = '.mp4' if kind == 'v' else '.m4a'
+    default = {'v': '.mp4', 's': '.srt'}.get(kind, '.m4a')
     ext = (os.path.splitext(f.get('name') or '')[1] or default).lower()
     if not re.match(r'^\.[a-z0-9]{2,5}$', ext):
         ext = default
-    return VT_WORK / '_in' / (ctx.name + ('.audio' if kind == 'a' else '') + ext)
+    return VT_WORK / '_in' / (ctx.name + {'a': '.audio', 's': '.subs'}.get(kind, '') + ext)
 
 
 # v374: שומר ההזרקות — טקסט בתמליל שנראה כמו הוראה למודל (הסרטון = תוכן לא מהימן). [קוד, ביטוי]; רק קודים יוצאים מהסשן
@@ -2014,10 +2014,10 @@ def inject_scan(text):
     return out
 
 
-def inject_guard(ctx):
+def inject_guard(ctx, fname='en.edit.txt'):
     """אחרי התמלול: מסמן את השורות ב־inject.txt (מספר שורה + סוג), מזהיר את הסשן ומדווח למגדל — רק קודים ומספרים."""
     try:
-        hits = inject_scan((ctx.pdir / 'en.edit.txt').read_text(encoding='utf-8', errors='replace'))
+        hits = inject_scan((ctx.pdir / fname).read_text(encoding='utf-8', errors='replace'))
     except OSError:
         return []
     path = ctx.pdir / 'inject.txt'
@@ -2075,6 +2075,47 @@ def prepare(args):
     print('ההגהה: ' + str(ctx.pdir / 'en.edit.txt') + '  →  תיקונים ב־' + str(ctx.pdir / 'en.patch.txt'))
     print('אחר כך (ברקע): python3 translator/job.py align')
     return 0
+
+
+SUBS_FPS = ('24000/1001', '24', '25', '30000/1001', '30')   # הגריד לתזמון בלי סרטון (קובץ כתוביות קיים)
+
+
+def subs_fps(spec):
+    v = str((spec or {}).get('fps') or '')
+    return v if v in SUBS_FPS else SUBS_FPS[0]
+
+
+def prepare_subs(args):
+    """22/10/2026: קובץ כתוביות קיים (SRT/VTT/ASS) במקום תמלול — הורדה (קובץ קטן), ייבוא ל־vt, בלי סרטון.
+    הזמנים של הקובץ נשמרים (template); SDH מוסר כברירת מחדל ושמות הדוברים נשמרים לתדריך."""
+    ctx = Ctx(load_state())
+    spec = ctx.st.get('spec') or {}
+    s = (ctx.st.get('files') or {}).get('s')
+    if not (s or {}).get('id'):
+        raise SystemExit('✗ אין קובץ כתוביות בעבודה הזו.')
+    src = in_path(ctx, dict(s, name=spec.get('name') or ''), 's')
+    ctx.report('tr', 0, 'מוריד את קובץ הכתוביות', force=True)
+    fetch_input(ctx, s['id'], src, int(s.get('size') or 0))
+    ensure_env(ctx)
+    title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120]
+    vt(ctx, ['new', ctx.name, '--source', 'subs:' + src.name, '--title', title, '--force'])
+    vt(ctx, ['import-subs', ctx.name, '--file', str(src), '--fps', subs_fps(spec)]
+       + (['--keep-sdh'] if spec.get('sdh') == 'keep' else []))
+    inject_guard(ctx, 'en.subs.txt')
+    ctx.st['src'] = 's'
+    save_state(ctx.st)
+    save_ck(ctx, 'asr')
+    ctx.report('tr', 0.3, 'הכתוביות נקראו — Claude מכין תדריך', force=True)
+    print('✓ קובץ הכתוביות יובא (הזמנים נשמרים).')
+    return 0
+
+
+def subs_prep(ctx):
+    """קובץ כתוביות: המקור לתרגום (tr/source.md) + המילון שלך + הערות — במקום plan/align (הכתוביות כבר מחולקות)."""
+    vt(ctx, ['tr-prep', ctx.name])
+    gl_merge(ctx)
+    apply_notes(ctx)
+    ctx.report('al', 1, 'הכתוביות מוכנות לתרגום (הזמנים מהקובץ)', force=True)
 
 
 def set_source(pd, src):
@@ -3940,6 +3981,16 @@ def restore(args):
     apply_notes(ctx)                             # v382: הערות שכבר נקראו בסשן הקודם → לתדריך המשוחזר
     ctx.refresh()
     files = ctx.st.get('files') or {}
+    if info.get('src') == 's' or (ctx.st.get('spec') or {}).get('src') == 'subs':
+        # 22/10/2026: קובץ כתוביות — אין מדיה להוריד; הפרויקט ששוחזר כבר כולל את הכתוביות המיובאות
+        ensure_env(ctx, st_next)
+        ctx.st['src'] = 's'
+        ctx.st['resumed'] = used
+        ctx.st['proofed'] = bool(info.get('pr'))
+        save_state(ctx.st)
+        ctx.report(st_next, 0, 'ממשיכים מאותה נקודה', force=True)
+        print('✓ הפרויקט שוחזר מנקודת השמירה: אחרי ' + CK_LABEL[used] + '.')
+        return 0
     kind = 'a' if info.get('src') == 'a' and (files.get('a') or {}).get('id') else 'v'
     f = files['a'] if kind == 'a' else wait_video(ctx, st_next, 'מחכה שהסרטון יסיים לעלות')
     src = in_path(ctx, f, kind)

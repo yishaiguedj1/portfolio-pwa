@@ -39,7 +39,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   /* ---------- 3. העובד ---------- */
   const job = read('translator/job.py');
   ok(/'notes': notes_valid\(job\.get\('notes'\)\)/.test(job) && /if isinstance\(r, dict\) and r\.get\('note'\):\n\s+note_receive\(ctx, r\['note'\]\)/.test(job), 'job.py: ההערות מהלקיחה, והחדשה מתשובת נקודת השמירה');
-  ok((job.match(/gl_merge\(ctx\)[^\n]*\n    apply_notes\(ctx\)/g) || []).length === 2 && /apply_notes\(ctx\)[^\n]*\n    ctx\.refresh\(\)/.test(job), 'job.py: לתדריך — ב־align, ב־align_prep ובהמשך מנקודת שמירה');
+  ok((job.match(/gl_merge\(ctx\)[^\n]*\n    apply_notes\(ctx\)/g) || []).length === 3 && /apply_notes\(ctx\)[^\n]*\n    ctx\.refresh\(\)/.test(job), 'job.py: לתדריך — ב־align, ב־align_prep ובהמשך מנקודת שמירה');
   ok(/הערה מהמשתמש באמצע העבודה/.test(read('translator/RUNBOOK.md')), 'RUNBOOK: מה עושים עם הערה שהגיעה');
 
   /* ---------- 4. הטלפון ---------- */
