@@ -149,5 +149,13 @@ class Fallback(unittest.TestCase):
         self.assertTrue(np.isfinite(f).all())
 
 
+class Image(unittest.TestCase):
+    def test_dockerfile_has_model(self):
+        d = (Path(__file__).resolve().parents[2] / "infra/worker/Dockerfile").read_text(encoding="utf-8")
+        self.assertIn(D.MODEL_SHA256, d, "אותו sha256 בתמונה ובקוד")
+        self.assertIn("COPY --from=speaker /opt/speaker /opt/speaker", d)
+        self.assertRegex(d, r"find /app /opt/aligner /opt/speaker -type f -exec chmod 644", "קריאה למשתמש של העובד")
+
+
 if __name__ == "__main__":
     unittest.main()

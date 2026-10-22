@@ -131,7 +131,7 @@ class Build(unittest.TestCase):
         self.assertIn("FROM deps AS aligner", d)
         self.assertIn("aligner_export.py /opt/aligner", d)
         self.assertIn("COPY --from=aligner /opt/aligner /opt/aligner", d)
-        self.assertIn("find /app /opt/aligner -type f -exec chmod 644", d, "קריאה למשתמש של העובד")
+        self.assertRegex(d, r"find /app /opt/aligner[ /a-z]* -type f -exec chmod 644", "קריאה למשתמש של העובד")
         for lock in ("requirements.lock", "requirements-arm64.lock"):
             self.assertRegex(read("infra/worker/" + lock), r"(?m)^onnx==\S+ \\$", "onnx נעול עם hash: " + lock)
 
