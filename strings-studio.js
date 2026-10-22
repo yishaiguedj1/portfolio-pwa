@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1618 מפתחות מתוך 3696) */
+/* המחרוזות של studio (1618 מפתחות מתוך 3698) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",

@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (978 מפתחות מתוך 3696) */
+/* המחרוזות של admin (980 מפתחות מתוך 3698) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -266,6 +266,8 @@ he: {
   "admFlStAutoS": "ממשיך לבד אחרי תקלה חולפת",
   "admFlStRt": "תרגום ב־Claude שבמנוי",
   "admFlStRtS": "עבודות במנוי שלך",
+  "admFlStUrl": "הורדה מקישור",
+  "admFlStUrlS": "יוטיוב ואתרים אחרים — העובד מוריד",
   "admFlagsAll": "הכל דולק",
   "admFlagsOffN": "{n} כבויים",
   "admGoldBusy": "ריצה קודמת על הסרטון הזה עוד פתוחה — מחכים שתסתיים.",
@@ -1246,6 +1248,8 @@ en: {
   "admFlStAutoS": "Continues by itself after a passing failure",
   "admFlStRt": "Translation in your Claude plan",
   "admFlStRtS": "Jobs in your plan",
+  "admFlStUrl": "Download from a link",
+  "admFlStUrlS": "YouTube and other sites — downloaded by the worker",
   "admFlagsAll": "All on",
   "admFlagsOffN": "{n} off",
   "admGoldBusy": "A previous run of this video is still open — waiting for it to finish.",
