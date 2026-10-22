@@ -486,9 +486,11 @@ async function learnCorpusView(deps, items) {
    - e: שגיאות JavaScript מהטלפון (Academy, Studio) — רק של המנהל.
    משיכה לקריאה בלבד: devPull בטוקן הניתוח (tools/dev-pull.js). בלי Firestore — כל פריט = קובץ אחד בדלי. */
 const LRN_FV = 4;   // **זהה ל־LRN_TV ב־studio.js** — הנוסח שאומר שבתקופת הפיתוח נשמר הכל (שם הקובץ, הטקסט המלא, הלוגים)
+const FULL_KINDS = ['tr', 'rr', 'ai'];   // עבודות שהיומן שלהן נאסף במצב המלא (הקורפוס — רק תרגום, learnPut)
 async function learnFull(deps, job, st) {
   try {
-    if (!(await flagOn(deps, 'learn_full')) || job.kind !== 'tr' || (await learnSkip(deps, job))) return false;
+    // 22/10/2026: גם הפקה מחדש וגיליון ה־AI — הפקה ש"נלקחה ולא רצה" (באג agent.AUTO_KINDS) לא השאירה שורת יומן אחת
+    if (!(await flagOn(deps, 'learn_full')) || !FULL_KINDS.includes(job.kind) || (await learnSkip(deps, job))) return false;
     const s = st || (await readDoc(deps, 'studioStats', job.uid)) || {};
     return +s.lrf > 0;
   } catch (e) { return false; }
@@ -1045,6 +1047,7 @@ async function server(req, res, body, deps) {
     // 20/10/2026: הסוכן עלה (boot) — עבודה שהשרת הזה לקח ועוד "רצה" נקטעה בהפעלה מחדש. עד היום רק הסוכן דיווח עליה
     // (report_lost), אבל מצב העבודה שלו ב־/state (tmpfs) נמחק בהפעלה מחדש — והעבודה "רצה" שעתיים בלי שאף אחד עובד עליה
     if (body.boot === true) await lostOnBoot(deps, p.sid, now).catch(() => {});
+    else if (hb.nj === 0) await lostOnBoot(deps, p.sid, now, true).catch(() => {});   // שרת פנוי — עבודה "רצה" אצלו = יתומה
     if (body.boot === true) await smokeAfterUpdate(deps, srv, p.sid, hb.v, now).catch(() => {});   // פריט 13: עבודת בדיקה אחרי עדכון
     // poll: העבודה הוותיקה ביותר שמחכה לשרת
     const qd = (await query(deps, 'studioJobs', { state: 'queued', eng: 'api', sid: '' }, 30)).sort((a, b) => (a.fired || 0) - (b.fired || 0));
@@ -1096,11 +1099,16 @@ async function smokeAfterUpdate(deps, srv, sid, v, now) {
 }
 /* 20/10/2026: העבודה שהשרת הזה עבד עליה כשהסוכן עלה מחדש — כמו דיווח fail: worker_lost של העובד (תקלה חולפת: חלון
    התאוששות ואז "המשך" אוטומטי מנקודת השמירה). רק עבודה שבאמת אצלו (sid) ושעוד רצה; המפתח מת — עובד ישן לא ממשיך לכתוב */
-async function lostOnBoot(deps, sid, now) {
+/* 22/10/2026 (הפקה מחדש "צורבים" עם פס ריק, השרת ב־0% — באג agent.AUTO_KINDS): שרת שמדווח שאין אצלו אף עבודה (hb.nj = 0)
+   ועבודה רשומה "רצה" אצלו יותר מ־ORPHAN_MS — אף אחד לא עובד עליה. כמו בעלייה מחדש: worker_lost (+ "המשך" אוטומטי לתרגום),
+   במקום לחכות לשעתיים של STALE_MS. רק סוכן שמדווח nj (מ־21/10) */
+const ORPHAN_MS = 3 * 60 * 1000;
+async function lostOnBoot(deps, sid, now, idle) {
   let n = 0;
   for (const job of await query(deps, 'studioJobs', { sid, state: 'running' }, 20)) {
     if (!apiJob(job) || S.effState(job, now).state !== 'running') continue;
-    const up = S.applyReport(job, { fail: true, err: 'worker_lost', msg: 'השרת הופעל מחדש באמצע העבודה' }, now);
+    if (idle && !(now - (+job.pk || +job.claimed || now) > ORPHAN_MS)) continue;   // נלקחה ממש עכשיו — עוד לא נרשמה במשבצת
+    const up = S.applyReport(job, { fail: true, err: 'worker_lost', msg: idle ? 'השרת לא עבד על העבודה' : 'השרת הופעל מחדש באמצע העבודה' }, now);
     up.kh = ''; up.kx = 0;
     if (job.kind === 'tr' && (job.ar || 0) < S.AUTO_RESUME_MAX) up.rw = now + S.recoverWait(job, now);
     if (job.kind === 'tr') up.eh = (Array.isArray(job.eh) ? job.eh : []).concat([{ e: 'worker_lost', s: (up.prog && up.prog.st) || '', at: now }]).slice(-10);
@@ -1434,7 +1442,7 @@ async function worker(req, res, body, deps) {
       if (job.kind === 'tr' && R2.config().ok) {
         try { const t = await R2.getText(R2.config(), r2deps(deps), S.glKey(job.uid), 256 * 1024); if (t != null) gl = S.glParse(t); } catch (e) { gl = null; }
       }
-      const full = job.kind === 'tr' && (await learnFull(deps, job, stats)) ? 1 : 0;   // האיסוף המלא: העובד שולח גם את קבצי הטקסט ואת יומן הקריאות
+      const full = (await learnFull(deps, job, stats)) ? 1 : 0;   // האיסוף המלא: העובד שולח גם את קבצי הטקסט ואת יומן הקריאות
       return res.status(200).json({ ok: true, job: S.workerJob(job, nm, S.fbForWorker(stats.fb), stats.fm, stats.rl, gl), drive: await driveFor(), pir, full, now });
     }
     if (body.op === 'token') return res.status(200).json({ ok: true, drive: await driveFor(), now });

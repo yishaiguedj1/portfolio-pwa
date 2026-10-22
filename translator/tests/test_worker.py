@@ -458,6 +458,22 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertNotIn('hl', self.fake.reports[-1])
 
+    def test_ladder_gate(self):
+        # 22/10/2026 (אפשרות א׳): כשיש צריבה — התהליך שברקע מקבל --gate, והדגל נוצר רק אחרי הצריבה
+        self.assertEqual(self.take()[0], 0)
+        self.assertEqual(self.job('prepare')[0], 0)
+        self.assertEqual(self.job('align')[0], 0)
+        self.seed_ladder()
+        go = self.tmp / 'work' / '_ladder' / 'go'
+        self.assertFalse(go.exists())
+        code, out = self.job('finish')
+        self.assertEqual(code, 0, out)
+        self.assertTrue(go.exists(), 'finish משחרר את הנמוכות')
+        src = (HERE / 'job.py').read_text(encoding='utf-8')
+        fin = src[src.index('def finish('):src.index('def gold_score(')]
+        self.assertLess(fin.index("vt(ctx, ['render'"), fin.index('ladder_go()  ', fin.index("vt(ctx, ['render'")), 'הדגל אחרי הצריבה')
+        self.assertIn("['--gate'] if gate", src)
+
     # ---------------------------------------------------------------- v361: נקודות שמירה והמשך
     def cks(self):
         return [r['ck'] for r in self.fake.reports if r.get('ck')]

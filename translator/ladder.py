@@ -335,8 +335,10 @@ def verify_same(src, top, ffprobe='ffprobe'):
     return v1 > 0 and v1 == v2 and a1 == a2 and abs(d1 - d2) <= 0.25
 
 
-def build(src, outdir, edl=False, ffmpeg='ffmpeg', ffprobe='ffprobe', log=print):
-    """הכל: בדיקה, אריזת המקור, האיכויות הנמוכות, תיאור לכל קובץ. מחזיר {'ok', 'why', 'top', 'rungs'}."""
+def build(src, outdir, edl=False, ffmpeg='ffmpeg', ffprobe='ffprobe', log=print, gate=None):
+    """הכל: בדיקה, אריזת המקור, האיכויות הנמוכות, תיאור לכל קובץ. מחזיר {'ok', 'why', 'top', 'rungs'}.
+    gate (22/10/2026, אפשרות א׳): נקרא אחרי שהמקור נארז ונבדק ולפני הקידוד של הנמוכות — מחכה לסוף הצריבה,
+    כך שהקידוד הכבד לא מתחרה בה על המעבד (בפרק של 92 דק׳ הצריבה לקחה 32 דק׳ עם האיכויות ו־19 בלעדיהן)."""
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     try:
@@ -352,6 +354,9 @@ def build(src, outdir, edl=False, ffmpeg='ffmpeg', ffprobe='ffprobe', log=print)
         return {'ok': False, 'why': 'remux'}
     if not verify_same(src, top, ffprobe):
         return {'ok': False, 'why': 'verify'}
+    if gate is not None:
+        log('איכויות: המקור ארוז — הנמוכות מחכות לסוף הצריבה')
+        gate()
     log('איכויות: ' + ' · '.join('%dp' % r[0] for r in pl['rungs']))
     if subprocess.run(low_cmd(src, outdir, pl['rungs'], sm['na'] > 0, ffmpeg)).returncode != 0:
         return {'ok': False, 'why': 'encode'}
