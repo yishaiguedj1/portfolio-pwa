@@ -63,17 +63,16 @@ async function main() {
   fs.writeFileSync(path.join(out, 'checks.json'), JSON.stringify(j.checks || [], null, 1));
   const cp = j.corpus || {};
   if (cp.items) fs.writeFileSync(path.join(out, 'corpus.json'), JSON.stringify(cp.items));
-  // הקול: הורדה מהקישור החתום ופענוח ב־ffmpeg (המפתח רק בזיכרון — לא נכתב לקובץ)
+  // הקול: ffmpeg קורא ישירות מהקישור החתום ומפענח (המפתח רק בזיכרון — לא נכתב לקובץ). שם הקובץ — רק ממזהה תקין
   for (const [lid, m] of Object.entries(j.media || {})) {
-    for (const [k, x] of Object.entries(m)) {
+    if (!/^[0-9a-f]{20}$/.test(lid)) continue;
+    for (const k of ['a', 'v']) {
+      const x = m && m[k];
+      if (!x || !/^https:\/\//.test(String(x.url)) || !/^[0-9a-f]{32}$/.test(String(x.key))) continue;
       const dir = path.join(out, 'media'); fs.mkdirSync(dir, { recursive: true });
-      const enc = path.join(dir, lid + '.' + k + '.enc.mp4'), dec = path.join(dir, lid + '.' + k + (k === 'a' ? '.m4a' : '.mp4'));
-      const r = await fetch(x.url);
-      if (!r.ok) { console.error('הורדה נכשלה: ' + lid + '.' + k + ' ' + r.status); continue; }
-      fs.writeFileSync(enc, Buffer.from(await r.arrayBuffer()));
-      const p = require('child_process').spawnSync('ffmpeg', ['-v', 'error', '-y', '-decryption_key', x.key, '-i', enc, '-c', 'copy', dec]);
-      fs.unlinkSync(enc);
-      console.log(p.status === 0 ? 'נשמר: ' + dec : 'הפענוח נכשל: ' + lid + '.' + k);
+      const dec = path.join(dir, lid + '.' + k + (k === 'a' ? '.m4a' : '.mp4'));
+      const p = require('child_process').spawnSync('ffmpeg', ['-v', 'error', '-y', '-decryption_key', x.key, '-i', x.url, '-c', 'copy', dec]);
+      console.log(p.status === 0 ? 'נשמר: ' + dec : 'ההורדה/הפענוח נכשלו: ' + lid + '.' + k);
     }
   }
   const v = j.view || {};
