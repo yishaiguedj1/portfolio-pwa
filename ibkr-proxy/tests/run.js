@@ -3243,6 +3243,38 @@ function stubFetch(text, status = 200) {
     ok(rr.payload.api.month === 7.25 && rr.payload.api.cap === 12 && rr.payload.api.admin === true && rr.payload.api.online === 1,
       'מצב API: התקציב החודשי = העלות שדווחה, בלי לספור פעמיים (דיווח מצטבר)');
     {
+      // 22/10/2026: קובץ כתוביות קיים (spec.src = 'subs') — רק במצב השרת, בלי תוצרי וידאו; הקובץ נרשם כ־s ועובר לעובד
+      const SN = require('../lib/studio');
+      const base = { name: 'Movie.en.srt', size: 140000, to: ['he'], from: 'en', mode: 'haiku-high', src: 'subs', out: ['same', 'mkv'] };
+      ok(SN.normSpec(base) === null, 'subs: בלי מצב השרת — נדחה (ה־Routine לא מכיר את המסלול)');
+      ok(SN.normSpec(Object.assign({}, base, { eng: 'api', size: SN.SUBS_MAX + 1 })) === null, 'subs: קובץ גדול מ־5MB — נדחה');
+      const ns = SN.normSpec(Object.assign({}, base, { eng: 'api', cap: 5, sdh: 'keep', fps: '25', edl: { k: [[0, 10]] } }));
+      ok(ns && ns.src === 'subs' && ns.sdh === 'keep' && ns.fps === '25' && ns.out.length === 0 && !ns.edl, 'subs: בלי תוצרי וידאו ובלי חיתוך; SDH וקצב פריימים נשמרים');
+      ok(SN.normSpec(Object.assign({}, base, { eng: 'api', fps: '99' })).fps === undefined && SN.normSpec(Object.assign({}, base, { eng: 'api' })).sdh === 'rm', 'subs: ברירות מחדל — להסיר SDH, קצב לא מוכר נזרק');
+      driveFiles.set('sub1234567890', { id: 'sub1234567890', name: 'Movie.en.srt', size: '140000', mimeType: 'application/x-subrip', parents: ['fold1234567890'], trashed: false });
+      rr = await run({ op: 'create', idToken: OWNER, spec: Object.assign({}, base, { eng: 'api', cap: 5 }) });
+      const JS_ = rr.payload.job.id;
+      rr = await run({ op: 'start', idToken: OWNER, job: JS_ });
+      ok(rr.payload.error === 'no_files', 'subs: בלי קובץ הכתוביות — לא מתחילים');
+      rr = await run({ op: 'file', idToken: OWNER, job: JS_, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      ok(rr.payload.error === 'bad_params', 'subs: קול/סרטון לא נרשמים בעבודת כתוביות');
+      rr = await run({ op: 'file', idToken: OWNER, job: JS_, which: 's', id: 'sub1234567890', folder: 'fold1234567890' });
+      ok(rr.payload.ok && rr.payload.job.files.s.id === 'sub1234567890' && !rr.payload.job.files.v, 'subs: הקובץ נרשם (s), בגודל של המקור');
+      rr = await run({ op: 'start', idToken: OWNER, job: JS_ });
+      ok(rr.payload.ok && rr.payload.job.state === 'queued', 'subs: מתחילה בלי סרטון — לתור של השרת');
+      rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+      const KS = rr.payload.job && rr.payload.job.key;
+      ok(rr.payload.job && rr.payload.job.id === JS_, 'subs: השרת לוקח את העבודה');
+      rr = await wrk({ op: 'claim', job: JS_, key: KS });
+      ok(rr.payload.ok && rr.payload.job.files.s && rr.payload.job.files.s.id === 'sub1234567890' && rr.payload.job.spec.src === 'subs', 'subs: העובד מקבל את הקובץ ואת המסלול');
+      const st1 = (db.get('studioStats/ownerUid0001') || { fields: {} }).fields;
+      await wrk({ op: 'report', job: JS_, key: KS, done: true, usage: [{ k: 'tl', m: 'claude-haiku-5-5', n: 1, i: 10, o: 10, cr: 0, c5: 0, c1: 0, usd: 0 }] });   // 0 — לא נוגע בתקציב החודשי של הבדיקות הבאות
+      const st2 = (db.get('studioStats/ownerUid0001') || { fields: {} }).fields;
+      ok(JSON.stringify(st1.et || null) === JSON.stringify(st2.et || null) && JSON.stringify(st1.ns || null) === JSON.stringify(st2.ns || null),
+        'subs: עבודת כתוביות לא מלמדת את הצפי ואת "הרגיל" של עבודות מסרטון');
+      await run({ op: 'remove', idToken: OWNER, job: JS_ });
+    }
+    {
       // 15/10/2026: עבודה שמחכה לסרטון לא תופסת את השרת — חוזרת לתור (park) עד שהסרטון נרשם, ואז ממשיכה
       rr = await run({ op: 'create', idToken: OWNER, spec: SPECA });
       const JP = rr.payload.job.id;

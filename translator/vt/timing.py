@@ -59,10 +59,13 @@ def time_cues(cues: list[dict], grid: FrameGrid, shots: list[int] | None,
         c.setdefault("flags", [])
         c["so"] = grid.frame_ceil(c["speech_e"])           # סוף הדיבור (לא כולל)
         c["si"] = grid.frame_floor(c["speech_s"])          # הפריים שבו הדיבור מתחיל
-        c["fi"] = max(0, c["si"] - rules.lead_frames)
+        # 22/10/2026: כתובית מקובץ קיים (tpl) — הזמנים הם כבר זמני התצוגה של מתרגם: בלי הקדמה ובלי השהיה;
+        # מאריכים רק כשהעברית צריכה יותר זמן קריאה, ורק לתוך הרווח (החפיפות נחתכות למטה)
+        tpl = bool(c.get("tpl"))
+        c["fi"] = max(0, c["si"] - (0 if tpl else rules.lead_frames))
         need = max(MIN, int(math.ceil(c.get("chars", 0) / rules.cps_max * grid.fps_f)))
         c["need"] = need
-        fo = c["so"] + L
+        fo = c["so"] + (0 if tpl else L)
         if fo - c["fi"] < need:
             fo = c["fi"] + need
         if c["so"] - c["fi"] > MAX:

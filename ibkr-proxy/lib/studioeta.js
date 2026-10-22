@@ -147,6 +147,14 @@ function etaPlan(model, mode, durSec, fx) {
   const bn = (mdl.st && mdl.st.bn) || PRIOR.a.bn;
   return { s: p.s, t: p.t, q: mdl.q, n: mdl.n, bn: [bn[0], bn[1]], f: fNorm(fx) };
 }
+/* 22/10/2026: קובץ כתוביות קיים — אין תמלול, יישור וצריבה: השלבים האלה קצרים (ייבוא + תדריך, tr-prep, בניית הקבצים).
+   התרגום והביקורת — כמו בתוכנית. SUBS_STG זהה ב־studionet.js (subsPlan) */
+const SUBS_STG = { tr: 60, al: 10, bn: 15, sv: 30 };
+function subsPlan(ep) {
+  if (!ep || !ep.s) return ep;
+  const s = Object.assign({}, ep.s, SUBS_STG);
+  return Object.assign({}, ep, { s, t: STAGES.reduce((a, k) => a + (s[k] || 0), 0) });
+}
 /* העובד מדווח px אמיתי (אחרי הקליטה): שלב הצריבה בתוכנית מחושב מחדש, השאר כמו שהיה */
 function replanPx(ep, durSec, px) {
   if (!ep || !ep.s || !num(px, 0.02, 16) || !(durSec > 0)) return null;
@@ -178,6 +186,6 @@ function normEp(ep) {
   return { s, t, q, n: num(ep.n, 0, 1000) ? Math.round(ep.n) : 0 };   // רק מה שהטלפון צריך — bn/f נשארים בשרתון
 }
 
-module.exports = { STAGES, PRIOR, MODE_MIN, LAMBDA, HALF_LIFE, SIGMA0, NQ, ET_MAX, ET_G_MAX, etSamplesFor,
+module.exports = { SUBS_STG, subsPlan, STAGES, PRIOR, MODE_MIN, LAMBDA, HALF_LIFE, SIGMA0, NQ, ET_MAX, ET_G_MAX, etSamplesFor,
   etaSample, normEtSamples, addEtSample, fitStage, etaModel, etaPlan, etaTarget, etaView, normEp, planOf,
   CPU_ST, REF_CPUS, CPU_EXP, PX_EXP, CC_K, jobFactors, replanPx, pxOf };

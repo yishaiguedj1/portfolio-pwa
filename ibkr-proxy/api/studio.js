@@ -1383,6 +1383,7 @@ async function worker(req, res, body, deps) {
       if (job.kind === 'tr' && !ep && job.spec && job.spec.dur > 0) {
         const ge = job.eng === 'api' ? ((await readDoc(deps, 'studioEta', 'a').catch(() => null)) || {}).et : null;
         ep = ETA.etaPlan(ETA.etaModel(ETA.etSamplesFor(stats.et, ge, job.eng === 'api' ? 'a' : 'r'), job.eng === 'api' ? 'a' : 'r', now), job.spec.mode, job.spec.dur, ETA.jobFactors(job));
+        if (job.spec.src === 'subs') ep = ETA.subsPlan(ep);   // 22/10/2026: קובץ כתוביות — בלי תמלול, יישור וצריבה
         patch.ep = ep;
       }
       if (job.kind === 'tr' && !job.tg) {
@@ -1615,8 +1616,9 @@ async function worker(req, res, body, deps) {
       const kind = up.state === 'done' ? 'done' : up.state === 'failed' && !up.rw ? 'fail' : gateId ? 'gate' : body.ask != null && up.qa ? 'ask' : up.cp ? 'cp' : '';
       if (kind) await notify(deps, job.uid, kind, id, now);
     }
-    if (job.kind === 'tr' && up.state === 'done') {
+    if (job.kind === 'tr' && up.state === 'done' && !(job.spec && job.spec.src === 'subs')) {
       // v363: עבודה שהסתיימה מלמדת את המגדל מה "רגיל" אצלך. תקלה כאן לא מפילה את סוף העבודה
+      // 22/10/2026: קובץ כתוביות (בלי תמלול ויישור) לא מלמד את הצפי ואת "הרגיל" של עבודות מסרטון — שלבים וזמנים אחרים
       const smp = S.normSample(job, up.use || job.use, now);
       // 10/10/2026: וגם כמה לקח כל שלב — מזה נלמד הצפי (studioeta.js)
       const es = ETA.etaSample(Object.assign({}, job, up), now);
@@ -2300,7 +2302,10 @@ async function handler(req, res, deps = {}) {
       // 21/10/2026 (עבודה אמיתית): הסרטון סיים לעלות בדיוק כשהעבודה נכשלה (השרת התעדכן — worker_lost) — 'state' השאיר
       // את הסרטון בלי רישום, וה"המשך" האוטומטי היה מחכה לו עד upload_timeout. עבודה שנכשלה עוד ממשיכה — רושמים
       if (job.kind !== 'tr' || !['new', 'queued', 'running', 'failed'].includes(st)) return res.status(409).json({ ok: false, error: 'state' });
-      const which = body.which === 'v' ? 'v' : body.which === 'a' ? 'a' : '';
+      // 22/10/2026: s = קובץ כתוביות קיים (spec.src = 'subs') — נשמר ב־fsu, בגודל של המקור ועד SUBS_MAX
+      const subs = !!(job.spec && job.spec.src === 'subs');
+      const which = subs ? (body.which === 's' ? 's' : '') : body.which === 'v' ? 'v' : body.which === 'a' ? 'a' : '';
+      const fkey = which === 's' ? 'fsu' : 'f' + which;
       const fid = String(body.id || ''), folder = String(body.folder || ''), ext = body.ext === true && which === 'v';   // ext: סרטון שבחרת ב־Drive (Picker) — נשאר במקומו
       if (!which || !S.FILE_ID_RE.test(fid) || !S.FILE_ID_RE.test(folder) || (job.folder && job.folder !== folder)) return res.status(400).json({ ok: false, error: 'bad_params' });
       if (SR.isFolder(folder) && !ext) {
@@ -2308,12 +2313,12 @@ async function handler(req, res, deps = {}) {
         if (folder !== job.folder) return res.status(400).json({ ok: false, error: 'bad_params' });
         const m = await driveFileInFolder(deps, uid, folder, fid);
         if (m && m.error) return res.status(200).json({ ok: false, error: m.error });
-        const f = m && S.normFile({ id: fid, name: m.name || (which === 'v' ? 'video' : 'audio'), size: m.size, mimeType: m.mime });
+        const f = m && S.normFile({ id: fid, name: m.name || (which === 'v' ? 'video' : which === 's' ? 'subs' : 'audio'), size: m.size, mimeType: m.mime });
         if (!f) return res.status(400).json({ ok: false, error: 'file_bad' });
-        if (which === 'v' && job.spec && f.size !== job.spec.size) return res.status(400).json({ ok: false, error: 'file_size' });
+        if ((which === 'v' || which === 's') && job.spec && f.size !== job.spec.size) return res.status(400).json({ ok: false, error: 'file_size' });
         f.at = now;
-        await patchJob(deps, job.id, { ['f' + which]: f, updated: now });
-        job['f' + which] = f;
+        await patchJob(deps, job.id, { [fkey]: f, updated: now });
+        job[fkey] = f;
         return res.status(200).json({ ok: true, job: view(job) });
       }
       // מאמתים מול Drive עצמו: הקובץ קיים, בתיקיית העבודה, והווידאו בגודל של המקור — העובד יוריד בדיוק את זה
@@ -2326,15 +2331,16 @@ async function handler(req, res, deps = {}) {
       const f = S.normFile(meta);
       if (!f || meta.trashed || (ext ? !S.extVideoOk(meta) : !(Array.isArray(meta.parents) && meta.parents.includes(folder)))) return res.status(400).json({ ok: false, error: 'file_bad' });
       if (ext) f.ext = true;
-      if (which === 'v' && job.spec && f.size !== job.spec.size) return res.status(400).json({ ok: false, error: 'file_size' });
+      if ((which === 'v' || which === 's') && job.spec && f.size !== job.spec.size) return res.status(400).json({ ok: false, error: 'file_size' });
       f.at = now;
-      await patchJob(deps, job.id, { ['f' + which]: f, folder, updated: now });
-      job['f' + which] = f; job.folder = folder;
+      await patchJob(deps, job.id, { [fkey]: f, folder, updated: now });
+      job[fkey] = f; job.folder = folder;
       return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'start') {
       if (!['tr', 'rr', 'ai'].includes(job.kind) || st !== 'new') return res.status(409).json({ ok: false, error: 'state', job: view(job) });
-      if (job.kind === 'ai' ? !job.fq : !job.fa && !job.fv || job.kind === 'rr' && !(job.fv && job.fc)) return res.status(409).json({ ok: false, error: 'no_files' });
+      const subsJob = !!(job.spec && job.spec.src === 'subs');
+      if (job.kind === 'ai' ? !job.fq : subsJob ? !job.fsu : !job.fa && !job.fv || job.kind === 'rr' && !(job.fv && job.fc)) return res.status(409).json({ ok: false, error: 'no_files' });
       if (job.kind === 'tr' && !S.langReady(job.spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported', job: view(job) });
       if (job.kind !== 'rr' && await modeLocked(job.spec && job.spec.mode)) return res.status(403).json({ ok: false, error: 'mode_locked', job: view(job) });   // גם עבודה שנוצרה לפני שהרשימה השתנתה / סט הזהב
       if (!S.WORKER_KINDS.includes(job.kind)) return res.status(200).json({ ok: false, error: 'worker_not_ready', job: view(job) });

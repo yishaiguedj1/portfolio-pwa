@@ -64,7 +64,8 @@ def probe(path: Path) -> dict:
 def grid_from(info: dict) -> FrameGrid:
     v = info.get("video")
     if not v:
-        return FrameGrid(Fraction(25), 0.0)
+        # 22/10/2026: קובץ כתוביות בלי סרטון — קצב הפריימים לפי מה שנשמר (ברירת מחדל 23.976 — סרט)
+        return FrameGrid(Fraction(info.get("fps") or 25), 0.0)
     return FrameGrid(Fraction(v["fps"]), v.get("t0", 0.0))
 
 

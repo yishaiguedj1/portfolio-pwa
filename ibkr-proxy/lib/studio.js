@@ -48,6 +48,8 @@ const STYLES = ['bold', 'classic', 'karaoke'];
 const OUTS = ['same', 'compact', 'mkv', 'small'];   // סבב 8: small = עותק לוואטסאפ גם בעבודה עצמה
 const OUT_KINDS = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta', 'thumb'];   // סבב 6: meta = גל הקול וחילופי השוטים; סבב 7: thumb = תמונה ממוזערת   // מ7: aiout = תשובת גיליון ה־AI   // v358: תוצרים שהעובד מעלה; מ1: קבצי עזר (הנגן והעורך), small = עותק לוואטסאפ
 const OUT_MAX = 10;
+const SUBS_MAX = 5 * 1024 * 1024;           // 22/10/2026: קובץ כתוביות קיים (SRT/VTT/ASS) — סרט של שלוש שעות ≈ 300KB
+const SUBS_FPS = ['24000/1001', '24', '25', '30000/1001', '30'];   // = SUBS_FPS ב־job.py (הגריד לתזמון בלי סרטון)
 const MAX_SIZE = 64 * 1024 ** 3;            // 64GB — הרבה מעל כל ראיון (Drive מקבל עד 5TB)
 const MAX_ACTIVE = 5;                       // עבודות פתוחות בבת אחת למשתמש
 // 21/10/2026 (בקשת המשתמש — מבחני עומס של 2–4 סרטונים ארוכים במקביל): למנהל אין מגבלה מעשית. המשאבים ממילא לא לפי משתמש:
@@ -174,6 +176,9 @@ function normSpec(s) {
   if (!name || !(size > 0) || size > MAX_SIZE) return null;
   const to = uniq(s.to, (c) => LANGS.includes(c)).slice(0, 12);
   if (!to.length) return null;
+  // 22/10/2026: קובץ כתוביות קיים — רק במצב השרת (ה־Routine לא מכיר את המסלול), בלי חיתוך ובלי תוצרי וידאו
+  const subs = s.src === 'subs';
+  if (subs && (s.eng !== 'api' || size > SUBS_MAX)) return null;
   return Object.assign({
     name, size,
     type: String(s.type || '').slice(0, 60).replace(/[^\w.+/-]/g, ''),
@@ -181,10 +186,11 @@ function normSpec(s) {
     from: s.from === 'auto' || LANGS.includes(s.from) ? s.from : 'auto',
     to,
     mode: modeNow(s.mode),
-    out: uniq(s.out, (k) => OUTS.includes(k)),                                  // SRT תמיד; ריק = SRT בלבד
+    out: subs ? [] : uniq(s.out, (k) => OUTS.includes(k)),                      // SRT תמיד; ריק = SRT בלבד (+ VTT/ASS כעזר)
     style: STYLES.includes(s.style) ? s.style : STYLES[0],
     terms: String(s.terms || '').replace(/\u0000/g, '').slice(0, 1000),
-  }, edlPre(normEdl(s.edl)) ? { edl: edlPre(normEdl(s.edl)) } : {},   // מ4: חיתוך לפני התרגום (dur = האורך אחרי החיתוך)
+  }, subs ? Object.assign({ src: 'subs', sdh: s.sdh === 'keep' ? 'keep' : 'rm' }, SUBS_FPS.includes(String(s.fps)) ? { fps: String(s.fps) } : {}) : {},
+  !subs && edlPre(normEdl(s.edl)) ? { edl: edlPre(normEdl(s.edl)) } : {},   // מ4: חיתוך לפני התרגום (dur = האורך אחרי החיתוך)
   // 21/10/2026: פיקסלים לשנייה ביחס ל־1080p30 (מהמידות שהטלפון קרא; העובד מתקן אחרי הקליטה) — לצפי של הצריבה
   Number.isFinite(+s.px) && +s.px >= 0.02 && +s.px <= 16 ? { px: Math.round(+s.px * 1000) / 1000 } : {},
   s.eng === 'api' ? Object.assign({ eng: 'api', cap: normCap(s.cap) }, s.cp === 1 ? { cp: 1 } : {}) : {});   // מצב API של המערכת — עם תקרת עבודה ($); סבב 10: cp = העתק־הדבק (Claude של המשתמש)
@@ -620,7 +626,7 @@ function publicJob(job, now) {
   return {
     id: job.id, kind: job.kind, state: e.state, err: e.err, created: job.created || 0, updated: job.updated || 0,
     fired: job.fired || 0, claimed: job.claimed || 0, ended: job.ended || e.at || 0,
-    spec: job.spec || null, files: { a: fileView(job.fa), v: fileView(job.fv), o: Array.isArray(job.fo) ? job.fo : [], c: fileView(job.fc), q: fileView(job.fq) },
+    spec: job.spec || null, files: { a: fileView(job.fa), v: fileView(job.fv), s: fileView(job.fsu), o: Array.isArray(job.fo) ? job.fo : [], c: fileView(job.fc), q: fileView(job.fq) },
     folder: FILE_ID_RE.test(String(job.folder || '')) ? job.folder : '',
     rp: job.rp || '', ev: job.ev || 0, vh: Array.isArray(job.vh) ? job.vh.map((x) => (x && x.at) || 0) : [],   // מ2: הפקה מחדש (העבודה המקורית), גרסת הכתוביות, מתי נשמרה כל גרסה קודמת
     sess: job.sess && job.sess.url ? { url: job.sess.url } : null,
@@ -936,7 +942,7 @@ function workerJob(job, nm, fb, fm, rl, gl) {
     fb: fb || [],            // v364: ספר התיקונים — תקלות מוכרות עם התיקון שלהן
     ls: job.ls && FP_RE.test(String(job.ls.fp || '')) ? job.ls : null,   // v364: העצירה שלפני ההמשך (לאבחון)
     cap: job.eng === 'api' && job.capc > 0 ? job.capc / 100 : null,   // מצב API: תקרת העבודה ($; נשמרת בסנטים) — כבר אחרי התקציב החודשי שנשאר
-    id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv), c: fileView(job.fc), q: fileView(job.fq) },
+    id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv), s: fileView(job.fsu), c: fileView(job.fc), q: fileView(job.fq) },
     qa: job.qa && job.qa.id ? { id: job.qa.id, q: job.qa.q, a: job.qa.a || null, g: job.qa.g || '' } : null,   // v361: גם השאלה — להמשך בסשן חדש
     ck: Array.isArray(job.ck) ? job.ck.map((c) => ({ s: c.s, id: c.id, size: c.size })) : [],   // v361: להמשך (מהאחרונה)
     sh: job.sh && job.sh.n > 0 ? { n: job.sh.n, old: job.sh.old || null } : null,   // v384: מצב צל — המגדל אוכף את הספים הישנים
@@ -1041,7 +1047,7 @@ function normFit(f) {
 /* השיא הצפוי של עבודה (MB) לפי המודל של השרת: תרגום / הפקה מחדש לפי האורך, גיליון AI — קבוע */
 function peakNeed(job, fit) {
   const m = ((job && job.spec && job.spec.dur) || 3600) / 60;
-  if (job && job.kind === 'ai') return fit.ai;
+  if (job && (job.kind === 'ai' || (job.spec && job.spec.src === 'subs'))) return fit.ai;   // 22/10/2026: קובץ כתוביות — בלי מודלים כבדים
   if (job && job.kind === 'rr') return fit.ra + fit.rb * m;
   return fit.a + fit.b * m;
 }
@@ -1098,7 +1104,7 @@ function normUtl(o) {
   for (const k of UTL_KEYS) { const v = Number(o[k]); if (Number.isFinite(v) && v >= 0 && v <= 1e11) out[k] = Math.round(v); }
   return Object.keys(out).length ? out : null;
 }
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl'];   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl'];   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -1125,7 +1131,7 @@ function fromFields(f) {
   return o;
 }
 
-module.exports = { MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
+module.exports = { SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,

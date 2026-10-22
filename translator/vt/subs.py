@@ -76,13 +76,16 @@ def write_ass(cues: list[dict], style: Style, width: int, height: int, title: st
         lines = c["lines"]
         a, b = _ass_time(c["start"]), _ass_time(c["end"])
         n = len(lines)
+        top = bool(c.get("top"))                      # 22/10/2026: מקובץ קיים — בראש המסך (טקסט על המסך) ובהטיה
+        an = 8 if top else 2
+        ital = "\\i1" if c.get("it") else ""
         for li, line in enumerate(lines):
-            y = st.bottom_y - (n - 1 - li) * st.line_pitch
+            y = (height - st.bottom_y) + li * st.line_pitch if top else st.bottom_y - (n - 1 - li) * st.line_pitch
             txt = _ass_escape(rtl(line))
-            tag = f"{{\\an2\\pos({x:.1f},{y:.1f})" + (f"\\blur{st.blur:.2f}" if st.blur > 0 else "") + "}"
+            tag = f"{{\\an{an}\\pos({x:.1f},{y:.1f}){ital}" + (f"\\blur{st.blur:.2f}" if st.blur > 0 else "") + "}"
             ev.append(f"Dialogue: 0,{a},{b},Main,{c['id']},0,0,0,,{tag}{txt}")
             if st.faux_bold > 0:
-                ev.append(f"Dialogue: 1,{a},{b},Fill,{c['id']},0,0,0,,{{\\an2\\pos({x:.1f},{y:.1f})}}{txt}")
+                ev.append(f"Dialogue: 1,{a},{b},Fill,{c['id']},0,0,0,,{{\\an{an}\\pos({x:.1f},{y:.1f}){ital}}}{txt}")
     _ = k
     return "\n".join(head + ev) + "\n"
 
@@ -113,7 +116,8 @@ def write_ass_compat(cues: list[dict], style: Style, width: int, height: int, ti
     ]
     blur = f"{{\\blur{st.blur:.2f}}}" if st.blur > 0 else ""
     ev = [f"Dialogue: 0,{_ass_time(c['start'])},{_ass_time(c['end'])},Default,,0,0,0,,"
-          + blur + "\\N".join(_ass_escape(rtl(x)) for x in c["lines"]) for c in cues]
+          + blur + ("{\\an8}" if c.get("top") else "") + ("{\\i1}" if c.get("it") else "")
+          + "\\N".join(_ass_escape(rtl(x)) for x in c["lines"]) for c in cues]
     return "\n".join(head + ev) + "\n"
 
 
@@ -123,6 +127,10 @@ def write_srt(cues: list[dict], with_rlm: bool = True, key: str = "lines") -> st
         lines = c[key] if isinstance(c[key], list) else [c[key]]
         if with_rlm:
             lines = [rtl(x) for x in lines]
+        if key == "lines" and c.get("it"):
+            lines = ["<i>" + x + "</i>" for x in lines]
+        if key == "lines" and c.get("top") and lines:
+            lines = ["{\\an8}" + lines[0]] + lines[1:]
         out.append(f"{n}\n{_srt_time(c['start'])} --> {_srt_time(c['end'])}\n" + "\n".join(lines) + "\n")
     return "\n".join(out)
 
@@ -131,7 +139,10 @@ def write_vtt(cues: list[dict], with_rlm: bool = True) -> str:
     out = ["WEBVTT", ""]
     for n, c in enumerate(cues, start=1):
         lines = [rtl(x) for x in c["lines"]] if with_rlm else c["lines"]
-        out.append(f"{n}\n{_vtt_time(c['start'])} --> {_vtt_time(c['end'])}\n" + "\n".join(lines) + "\n")
+        if c.get("it"):
+            lines = ["<i>" + x + "</i>" for x in lines]
+        pos = " line:0" if c.get("top") else ""
+        out.append(f"{n}\n{_vtt_time(c['start'])} --> {_vtt_time(c['end'])}{pos}\n" + "\n".join(lines) + "\n")
     return "\n".join(out)
 
 

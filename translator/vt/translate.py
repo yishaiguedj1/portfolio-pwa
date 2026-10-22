@@ -331,7 +331,7 @@ def apply_merges(cues: list[dict], he: dict[str, str], max_dur: float) -> tuple[
                 warns.append(f"#{c['id']}: איחוד עם #{p['id']} יוצר כתובית ארוכה מ־{max_dur} שניות")
             p["speech_e"] = max(p["speech_e"], c["speech_e"])
             p["en"] = (p["en"] + " " + c["en"]).strip()
-            p["w1"] = c["w1"]
+            p["w1"] = c.get("w1", p.get("w1"))   # כתובית מקובץ קיים (tpl) — בלי מילים
             p.setdefault("merged", []).append(c["id"])
             continue
         d = dict(c)

@@ -95,6 +95,6 @@ const ID = '1AbCdEfGhIjKlMnOpQrStUvWxYz0123';
     'ביטול = ביטול; Google לא הציג בורר = זוכרים ועוברים לבורר הנוכחי בלי לחיצה נוספת');
   ok(/net\._forget\(\)/.test(dp) && /net\.driveMeta\(ids\[0\]\)/.test(dp), 'אחרי הבחירה — גישה חדשה ופרטי הקובץ מ־Drive');
   ok(/x\.meta \|\| await net\.driveMeta\(x\.id\)/.test(sj) && /dest = await drivePick\('folder'\)/.test(sj), 'משיכת סרטון ושמירה בתיקייה — שתיהן דרך הבורר החדש');
-  ok(/if \(canPick\(\)\) p\.append\(list\(rowNav\(\{ tile: tile\('cloud', 'teal'\)/.test(sj) && /canPick\(\) && outs\.some/.test(sj), 'השורות מוצגות גם בלי מפתח Picker');
+  ok(/canPick\(\) \? rowNav\(\{ tile: tile\('cloud', 'teal'\)/.test(sj) && /canPick\(\) && outs\.some/.test(sj), 'השורות מוצגות גם בלי מפתח Picker');
   console.log('# ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL - ' + (e && e.stack || e)); process.exit(1); });

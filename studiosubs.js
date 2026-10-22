@@ -954,3 +954,237 @@ export function suber(hyp, ref) {
   const { sb, sr } = suberCounts(hyp, ref);
   return sr ? Math.round(100000 * sb / sr) / 1000 : (sb ? 100 : 0);
 }
+
+/* ---------- ייבוא קובץ כתוביות קיים (22/10/2026) — port זהה ל־translator/subsimport.py ----------
+   הטלפון מציג "מה מצאנו בקובץ" (קידוד, פרסומות, SDH, שמות דוברים, הטיה ומיקום) עם אותם מספרים שהעובד יראה.
+   שינוי כאן = גם שם (tests/subs-import.test.js מריץ את שניהם על אותם קבצים ומשווה). */
+function imDecode(raw) {
+  const b = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
+  const dec = (enc, x, fatal) => new TextDecoder(enc, fatal ? { fatal: true } : undefined).decode(x);
+  if (b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) return { text: dec('utf-8', b.subarray(3)), enc: 'utf-8', fixed: false };
+  if (b[0] === 0xff && b[1] === 0xfe) return { text: dec('utf-16le', b.subarray(2)), enc: 'utf-16', fixed: true };
+  if (b[0] === 0xfe && b[1] === 0xff) return { text: dec('utf-16be', b.subarray(2)), enc: 'utf-16', fixed: true };
+  const head = b.subarray(0, 400);
+  if (head.length >= 4) {
+    let odd = 0, even = 0;
+    for (let i = 1; i < head.length; i += 2) if (head[i] === 0) odd++;
+    for (let i = 0; i < head.length; i += 2) if (head[i] === 0) even++;
+    const half = Math.floor(head.length / 4);
+    if (odd > half) return { text: dec('utf-16le', b), enc: 'utf-16', fixed: true };
+    if (even > half) return { text: dec('utf-16be', b), enc: 'utf-16', fixed: true };
+  }
+  try { return { text: dec('utf-8', b, true), enc: 'utf-8', fixed: false }; }
+  catch (e) { return { text: dec('windows-1252', b), enc: 'windows-1252', fixed: true }; }
+}
+const IM_SRT_T = /(\d{1,3}):(\d{1,2}):(\d{1,2})[,.](\d{1,3})\s*-->\s*(\d{1,3}):(\d{1,2}):(\d{1,2})[,.](\d{1,3})/;
+const IM_VTS = '(?:(\\d{1,3}):)?(\\d{1,2}):(\\d{1,2})\\.(\\d{1,3})';
+const IM_VTT_T = new RegExp(IM_VTS + '\\s*-->\\s*' + IM_VTS + '(.*)$');
+const IM_ASS_T = /^(\d{1,2}):(\d{1,2}):(\d{1,2})[.:](\d{1,3})$/;
+const IM_TOP = /\\an([789])|\\a([5679]|1[01])(?![0-9])/;
+const imMs = (h, m, s, f) => ((Number(h || 0) * 60 + Number(m)) * 60 + Number(s)) * 1000 + Number((f + '00').slice(0, 3));
+const pyStrip = (s) => s.trim();
+const lstripBom = (t) => (t.charAt(0) === '\ufeff' ? t.slice(1) : t);
+export function subsDetect(text) {
+  const t = text.replace(/^[\ufeff \t\r\n]+/, '');
+  if (t.startsWith('WEBVTT')) return 'vtt';
+  if (/^\s*\[(Script Info|Events|V4\+? Styles)\]/im.test(t) || /^Dialogue:/m.test(t)) return 'ass';
+  if (IM_SRT_T.test(t)) return 'srt';
+  return '';
+}
+function imBlocks(text) {
+  const out = []; let cur = [];
+  for (const ln of text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')) {
+    if (pyStrip(ln) === '') { if (cur.length) { out.push(cur); cur = []; } }
+    else cur.push(ln.replace(/\s+$/, ''));
+  }
+  if (cur.length) out.push(cur);
+  return out;
+}
+function imSrt(text) {
+  const cues = [];
+  for (const b of imBlocks(lstripBom(text))) {
+    const i = b.slice(0, 3).findIndex((ln) => IM_SRT_T.test(ln));
+    if (i < 0) continue;
+    const g = IM_SRT_T.exec(b[i]).slice(1);
+    let body = b.slice(i + 1);
+    const cut = body.findIndex((ln) => IM_SRT_T.test(ln));
+    let rest = [];
+    if (cut >= 0) {
+      const num = cut > 0 && /^\d+$/.test(pyStrip(body[cut - 1]));
+      rest = body.slice(num ? cut - 1 : cut);
+      body = body.slice(0, num ? cut - 1 : cut);
+    }
+    cues.push({ s: imMs(...g.slice(0, 4)), e: imMs(...g.slice(4)), raw: body });
+    if (rest.length) cues.push(...imSrt(rest.join('\n')));
+  }
+  return cues;
+}
+function imVtt(text) {
+  const cues = [];
+  for (const b of imBlocks(lstripBom(text))) {
+    if (/^(WEBVTT|NOTE|STYLE|REGION)/.test(b[0]) && !b.slice(0, 2).some((x) => x.includes('-->'))) continue;
+    const i = b.slice(0, 3).findIndex((ln) => ln.includes('-->'));
+    if (i < 0) continue;
+    const m = IM_VTT_T.exec(b[i]);
+    if (!m) continue;
+    const g = m.slice(1);
+    const sett = g[8] || '';
+    let top = false;
+    const lm = /\bline:(-?\d+(?:\.\d+)?)(%?)/.exec(sett);
+    if (lm) { const v = parseFloat(lm[1]); top = lm[2] ? v < 50 : (v >= 0 && v <= 3); }
+    let raw = b.slice(i + 1);
+    if (top && raw.length) raw = ['{\\an8}' + raw[0]].concat(raw.slice(1));
+    cues.push({ s: imMs(...g.slice(0, 4)), e: imMs(...g.slice(4, 8)), raw });
+  }
+  return cues;
+}
+function splitN(s, sep, max) {                       // str.split(sep, max) של Python — השארית נשמרת
+  const out = []; let i = 0;
+  while (out.length < max) { const j = s.indexOf(sep, i); if (j < 0) break; out.push(s.slice(i, j)); i = j + sep.length; }
+  out.push(s.slice(i));
+  return out;
+}
+function imAss(text) {
+  const cues = []; let fmt = null, inEv = false;
+  for (const ln of lstripBom(text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')).split('\n')) {
+    const s = pyStrip(ln);
+    if (s.startsWith('[')) { inEv = s.toLowerCase() === '[events]'; continue; }
+    if (!inEv) continue;
+    if (s.toLowerCase().startsWith('format:')) { fmt = splitN(s, ':', 1)[1].split(',').map((x) => pyStrip(x).toLowerCase()); continue; }
+    if (!s.toLowerCase().startsWith('dialogue:')) continue;
+    const f = fmt || ['layer', 'start', 'end', 'style', 'name', 'marginl', 'marginr', 'marginv', 'effect', 'text'];
+    const parts = splitN(splitN(s, ':', 1)[1], ',', f.length - 1);
+    if (parts.length < f.length) continue;
+    const row = {}; f.forEach((k, j) => { row[k] = k !== 'text' ? pyStrip(parts[j]) : parts[j]; });
+    const a = IM_ASS_T.exec(row.start || ''), z = IM_ASS_T.exec(row.end || '');
+    if (!a || !z) continue;
+    let t = row.text || '';
+    if (/\\p[1-9]/.test(t)) continue;
+    t = t.split('\\N').join('\n').split('\\n').join('\n').split('\\h').join(' ');
+    cues.push({ s: imMs(...a.slice(1)), e: imMs(...z.slice(1)), raw: t.split('\n'), ass: 1, name: pyStrip(row.name || '') });
+  }
+  return cues;
+}
+const IM_HTML = /<\/?[A-Za-z][^>]*>/g, IM_BRACE = /\{[^}]*\}/g, IM_VTT_TAG = /<\d{1,2}:\d{2}(?::\d{2})?\.\d{1,3}>/g;
+const IM_LETTER = /[A-Za-z\u00C0-\u024F\u0590-\u05FF\u0600-\u06FF\u0400-\u04FF]/;
+function imItalic(line, it) {
+  const out = []; let nIt = 0, nAll = 0, i = 0;
+  while (i < line.length) {
+    const ch = line[i];
+    if (ch === '<') {
+      const j = line.indexOf('>', i);
+      if (j > 0) { const tag = pyStrip(line.slice(i + 1, j)).toLowerCase(); if (tag === 'i') it = true; else if (tag === '/i') it = false; i = j + 1; continue; }
+    }
+    if (ch === '{') {
+      const j = line.indexOf('}', i);
+      if (j > 0) { const tag = line.slice(i, j + 1); if (/\\i1/.test(tag)) it = true; else if (/\\i0|\\r/.test(tag)) it = false; i = j + 1; continue; }
+    }
+    out.push(ch);
+    if (IM_LETTER.test(ch)) { nAll++; if (it) nIt++; }
+    i++;
+  }
+  return [out.join(''), nIt, nAll, it];
+}
+const imWs = (s) => pyStrip(s.replace(/[ \t\u00a0]+/g, ' '));
+const IM_AD = /(subtitles?|subs|captions?|captioning|synced?|sync|resync(?:ed)?|corrected|ripped|encoded|transcript|timing)\s*(?:&\s*\w+\s*)?(by|:)|opensubtitles|addic7ed|subscene|podnapisi|yts\.|yify|\bwww\.|https?:\/\/|[a-z0-9-]+\.(?:com|org|net|tv|io)\b|support us|become (?:a )?vip|advertise your|osdb\.link/i;
+const IM_LABEL = /^([-\u2013\u2014]\s*)?([A-Z][A-Z0-9'\u2019.\- ]{0,24}?)(\s*\([^)]{0,30}\))?\s*:\s+(?=\S)/;
+const IM_MUSIC = /^[\s\u266a\u266b#*]+$/;
+const isUpperCh = (c) => c === c.toUpperCase() && c !== c.toLowerCase();
+const isAlphaCh = (c) => /\p{L}/u.test(c);
+function imSpans(lines, op, cl) {
+  const text = lines.join('\n'); const out = []; let n = 0, i = 0;
+  const nl = (a, b) => { let k = 0; for (let x = a; x < b; x++) if (text[x] === '\n') k++; return k; };
+  while (i < text.length) {
+    const j = text.indexOf(op, i);
+    if (j < 0) { out.push(text.slice(i)); break; }
+    out.push(text.slice(i, j));
+    const k = text.indexOf(cl, j + 1);
+    if (k < 0 || nl(j, k) > 2) { out.push(text.slice(j)); break; }
+    n++;
+    out.push('\n'.repeat(nl(j, k)));
+    i = k + 1;
+  }
+  return [out.join('').split('\n'), n];
+}
+function imLabel(line) {
+  const m = IM_LABEL.exec(line);
+  if (!m) return [line, ''];
+  const label = pyStrip(m[2]), rest = line.slice(m[0].length);
+  const words = label.split(/\s+/).filter(Boolean);
+  if (!words.length || words.length > 3 || !/[A-Z]/.test(label)) return [line, ''];
+  const letters = [...rest].filter(isAlphaCh);
+  if (letters.length && letters.every(isUpperCh)) return [line, ''];
+  return [(m[1] || '') + rest, label];
+}
+const imTitle = (name) => name.split(/\s+/).filter(Boolean).map((w) => (w === w.toUpperCase() && w !== w.toLowerCase() ? w.slice(0, 1).toUpperCase() + w.slice(1).toLowerCase() : w)).join(' ');
+const IM_DASH = /^[-\u2013\u2014]\s*/;
+export function importSubs(raw, opt) {
+  const sdh = !opt || opt.sdh !== false;
+  const d = imDecode(raw);
+  const fmt = subsDetect(d.text);
+  let cues = fmt === 'vtt' ? imVtt(d.text) : fmt === 'ass' ? imAss(d.text) : fmt === 'srt' ? imSrt(d.text) : [];
+  const st = { fmt, enc: d.enc, fixed: d.fixed, n_in: cues.length, ads: 0, empty: 0, dups: 0, overlaps: 0, sorted: 0, it: 0, pit: 0, top: 0, sdh: 0, sdh_cues: 0, labels: 0, dual: 0 };
+  const names = new Map();
+  const order = cues.map((_, k) => k).sort((a, b) => cues[a].s - cues[b].s || a - b);
+  if (order.some((x, k) => x !== k)) st.sorted = 1;
+  cues = order.map((k) => cues[k]);
+  const out = [];
+  for (const c of cues) {
+    let top = false, nIt = 0, nAll = 0, itx = false;
+    let lines = [];
+    for (let ln of c.raw) {
+      if (IM_TOP.test(ln)) top = true;
+      ln = ln.replace(IM_VTT_TAG, '').replace(/<v(?:\.[^ >]*)?\s+([^>]*)>/g, '');
+      const r = imItalic(ln, itx); nIt += r[1]; nAll += r[2]; itx = r[3];
+      lines.push(imWs(r[0].replace(IM_HTML, '').replace(IM_BRACE, '')));
+    }
+    lines = lines.filter(Boolean);
+    const whole = lines.join(' ');
+    if (!lines.length) { st.empty++; continue; }
+    if (IM_AD.test(whole) && whole.length <= 120) { st.ads++; continue; }
+    if (c.e <= c.s) { st.empty++; continue; }
+    let spk = c.ass ? (c.name || '') : '';
+    const spks = [];
+    if (sdh) {
+      const before = lines.slice();
+      let n1, n2;
+      [lines, n1] = imSpans(lines, '[', ']');
+      [lines, n2] = imSpans(lines, '(', ')');
+      const kept = [];
+      for (let ln of lines) {
+        ln = imWs(ln);
+        if (ln && IM_MUSIC.test(ln)) continue;
+        let [ln2, label] = imLabel(ln);
+        let nm = '';
+        if (label) { st.labels++; nm = imTitle(label); names.set(nm, (names.get(nm) || 0) + 1); }
+        ln2 = imWs(ln2);
+        if (ln2 && /[A-Za-z0-9\u00C0-\u024F]/.test(ln2)) { kept.push(ln2); spks.push(nm); }
+      }
+      const removed = n1 + n2;
+      const same = kept.length === before.length && kept.every((x, k) => x === imWs(before[k]));
+      if (removed || !same) { st.sdh += removed; st.sdh_cues++; }
+      lines = kept;
+      if (spks.length && spks[0] && !spk) spk = spks[0];
+      if (!lines.length) continue;
+      if (lines.length === 1 && IM_DASH.test(lines[0])) lines[0] = lines[0].replace(IM_DASH, '');
+    }
+    const it = nAll > 0 && nIt * 10 >= nAll * 9;
+    const dash = lines.length === 2 && lines.every((x) => /^[-\u2013\u2014]\s*\S/.test(x));
+    const cur = { s: c.s, e: c.e, lines, it, pit: !!nIt && !it, top, spk, spk2: dash && spks.length > 1 ? spks[1] : '', dash };
+    const prev = out.length ? out[out.length - 1] : null;
+    if (prev && prev.lines.length === lines.length && prev.lines.every((x, k) => x === lines[k]) && cur.s < prev.e) {
+      prev.e = Math.max(prev.e, cur.e); st.dups++; continue;
+    }
+    if (prev && prev.e > cur.s) {
+      prev.e = cur.s; st.overlaps++;
+      if (prev.e <= prev.s) { out.pop(); st.empty++; }
+    }
+    out.push(cur);
+  }
+  for (const c of out) { st.it += c.it ? 1 : 0; st.pit += c.pit ? 1 : 0; delete c.pit; st.top += c.top ? 1 : 0; st.dual += c.dash ? 1 : 0; }
+  st.n = out.length;
+  st.dur = out.length ? out[out.length - 1].e : 0;
+  st.names = names.size;
+  const nameList = [...names.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  return { fmt, enc: d.enc, fixed: d.fixed, cues: out, stats: st, names: nameList };
+}
