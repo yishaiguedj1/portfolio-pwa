@@ -184,6 +184,13 @@ const { fakeR2, ACC } = require('./_r2fake');
   ok((await mcall('learnMedia', 'x')).skip === true, 'סוג לא מוכר — לא');
   const lpm = await call({ op: 'learnPull', at: tokA }, true);
   ok(lpm.j.corpus.na === 1 && lpm.j.corpus.nv === 0 && lpm.j.corpus.mb === 5000, 'בלוח: כמה קול / 240p ו־MB');
+  // 22/10/2026: משיכת הקול בטוקן הניתוח — קישור קריאה חתום + המפתח הגלוי (רק לטוקן), עד 4 עבודות
+  const lpa = await call({ op: 'learnPull', at: tokA, mi: [lidM, 'zz', 'f'.repeat(20)] }, true);
+  const ma2 = lpa.j.media && lpa.j.media[lidM] && lpa.j.media[lidM].a;
+  ok(ma2 && ma2.key === ma.key && /X-Amz-Signature=/.test(ma2.url) && ma2.url.includes('/m/2026-10/' + lidM + '.a.mp4') && !lpa.j.media[lidM].v && Object.keys(lpa.j.media).length === 1, 'learnPull mi: הקול — קישור חתום והמפתח; מזהה לא תקין / בלי קול — לא');
+  const got = await R.fetch(ma2.url);
+  ok(got.status === 200 && Buffer.from(await got.arrayBuffer()).length === 5000, 'הקישור החתום מוריד את הקובץ');
+  ok(!('media' in (await call({ op: 'learnPull', at: tokA }, true)).j), 'בלי mi — בלי מדיה');
   NOW = Date.UTC(2028, 11, 2, 12); R.now = NOW;
   await call({}, false, true);
   ok((await keysIn('m/')).length === 0, 'הקול וה־240p — נמחקים אחרי 24 חודשים');

@@ -47,6 +47,12 @@ TL_ATTEMPTS = 6        # ניסיונות לחלק אחד (כל עוד יש הת
 FIX_BATCH = 40         # כתוביות לבקשת תיקון אחת (קודם — הכל בבקשה אחת של 16K)
 
 LINE_RE = re.compile(r'^#(\d+)\s?(.*)$')
+# **זהה ל־ECHO_RE ב־vt/translate.py** (tests/test_pipeline משווה): הד של סימון הקלט ("≤84") בתחילת התשובה — נמחק
+ECHO_RE = re.compile(r"^(?:\s*(?:≤\s*\d+|\[שני דוברים\]|\d{1,2}:\d{2}(?:\.\d+)?\s*·\s*[\d.]+ש׳\s*·?)\s*)+")
+
+
+def clean_answer(v: str) -> str:
+    return ECHO_RE.sub('', v).strip()
 PART_RE = re.compile(r'^## חלק (\d+)/(\d+) → (batch_\d{3}\.he\.txt)\s*$')
 ISSUE_RE = re.compile(r'^- #(\d+): (.*)$')
 # בעיות שחייבות תיקון (שגיאה/חסר) מול הערות שכדאי לשקול (מעל תקציב, מספר, מילון, שאלה)
@@ -255,7 +261,7 @@ def answer_lines(text: str, allowed: set[str]) -> dict[str, str]:
     for raw in text.splitlines():
         m = LINE_RE.match(raw.strip())
         if m and m.group(1) in allowed:
-            out[m.group(1)] = m.group(2).strip()
+            out[m.group(1)] = clean_answer(m.group(2))   # 22/10/2026: בלי "≤84" שהמודל העתיק מהקלט
     return out
 
 
@@ -729,7 +735,7 @@ class Pipeline:
             for raw in f.read_text(encoding='utf-8').splitlines():
                 m = LINE_RE.match(raw.strip())
                 if m:
-                    he[m.group(1)] = m.group(2).strip()
+                    he[m.group(1)] = clean_answer(m.group(2))
         return he
 
     def fix_round(self, fname: str, fixed, k: str, rounds: int = FIX_ROUNDS) -> int:

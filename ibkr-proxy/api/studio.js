@@ -254,10 +254,33 @@ async function learnPull(req, res, body, deps) {
     const checks = Object.entries(await checkAnswers(deps)).map(([id, x]) => ({ id, t: x.t, st: x.st, n: x.n, at: x.at }));
     // מ׳2: קורפוס הטקסט — המספרים תמיד; הפריטים עצמם (עד 20) רק כשהסשן ביקש (ci) — לניתוח ב־Claude שבמנוי
     const corpus = await learnCorpusView(deps, Math.max(0, Math.min(20, Math.floor(+body.ci || 0)))).catch(() => ({ on: false, error: 'r2' }));
-    return res.status(200).json({ ok: true, v: LR.LR_V, at: now, brief: LR.learnBrief(view, now), view, records: recs, checks, corpus });
+    // 22/10/2026 (בקשת המשתמש — מעבר דקה־דקה על הסרטונים): הקול / ה־240p של עד 4 עבודות — קישור קריאה חתום לשעה + המפתח
+    const media = Array.isArray(body.mi) ? await learnMediaPull(deps, body.mi, body.mv === true).catch(() => ({})) : undefined;
+    return res.status(200).json(Object.assign({ ok: true, v: LR.LR_V, at: now, brief: LR.learnBrief(view, now), view, records: recs, checks, corpus }, media ? { media } : {}));
   } catch (e) {
     return res.status(502).json({ ok: false, error: /^fs_http_/.test(String(e.message)) ? String(e.message).slice(0, 20) : 'failed' });
   }
+}
+/* הקול (ותמיד רק כשביקשו — גם ה־240p) של עבודות מהמאגר, לניתוח בסשן של Claude Code בטוקן הניתוח: קישור GET חתום לשעה
+   ומפתח ה־CENC (פתיחת הכספת כאן — המפתח לא נשמר גלוי בדלי). עד 4 עבודות בבקשה */
+async function learnMediaPull(deps, ids, withVideo) {
+  const c = learnCfg();
+  if (!c.ok) return {};
+  const rd = r2deps(deps);
+  const want = ids.filter((x) => LC.LID_RE.test(String(x))).slice(0, 4);
+  const keys = await R2.list(c, rd, 'm/', 50000);
+  const out = {};
+  for (const lid of want) {
+    for (const k of withVideo ? ['a', 'v'] : ['a']) {
+      const mk = keys.map((x) => LC.parseKey(x.key)).find((p) => p && p.kind === 'm' && p.lid === lid && p.mk === k && p.part === 'mp4');
+      if (!mk) continue;
+      const kw = vault.open(await R2.getText(c, rd, LC.mKey(mk.month, lid, k, 'key'), 4096).catch(() => ''), 'learn|' + lid + '|' + k);
+      if (!kw || !/^[0-9a-f]{32}$/.test(String(kw.k || ''))) continue;
+      const url = await R2.presign(c, rd, { method: 'GET', key: LC.mKey(mk.month, lid, k, 'mp4'), expires: 3600 });
+      (out[lid] = out[lid] || {})[k] = { url, key: kw.k };
+    }
+  }
+  return out;
 }
 /* 14/10/2026 (בקשת המשתמש): המתג "שיפור התרגום בעזרת העבודות שלי" בהגדרות — כבוי (studioStats.lo = 1) = העבודות של
    המשתמש לא נכנסות למאגר מעכשיו. 15/10 (מ׳1): "מחק את התרומות שלי" (studioStats.lf = מתי) — עבודה שנוצרה עד אז לא נכנסת שוב.

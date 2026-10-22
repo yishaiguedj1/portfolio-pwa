@@ -1212,3 +1212,14 @@ class SubsFlow(unittest.TestCase):
         self.assertEqual(self.flow(ck, 'al'), ['restore', 'translate', 'ck:tl', 'review', 'judge', 'finish'])
         self.assertEqual(self.flow(ck, 'tl'), ['restore', 'review', 'judge', 'finish'])
         self.assertEqual(self.flow(ck, 'rv'), ['restore', 'finish'])
+
+
+class EchoClean(unittest.TestCase):
+    """22/10/2026 (ניתוח המאגר): המודל העתיק לתשובה את "≤84" משורת הקלט — 109 כתוביות ב־Uber יצאו כך לצופה."""
+
+    def test_echo_removed_same_in_vt(self):
+        from vt import translate as T
+        self.assertEqual(P.ECHO_RE.pattern, T.ECHO_RE.pattern)
+        self.assertEqual(T.parse_answer("#5 ≤84 כולנו, בין אם\n#6 ≤24 [שני דוברים] כן || לא")["5"], "כולנו, בין אם")
+        self.assertEqual(P.answer_lines("#6 ≤24 [שני דוברים] כן || לא", {"6"})["6"], "כן || לא")
+        self.assertEqual(P.clean_answer("מחיר ≤50 נשאר"), "מחיר ≤50 נשאר")   # באמצע המשפט — תוכן

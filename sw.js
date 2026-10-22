@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v474';
+const CACHE_NAME = 'portfolio-pwa-v475';
 const HASHES = {
   "./": "2dc9c89cee293d86a4de945e5e0fb5a6",
   "./index.html": "2dc9c89cee293d86a4de945e5e0fb5a6",
   "./styles.css": "1f578fd7c392342171dbdf3870a4f718",
-  "./app.js": "f8e3721492b23a53acfcbe44ff786d9c",
+  "./app.js": "9b8da8dcd6cedb192bddbfe8cbede3e1",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "39bf52f7bb220ecf474e77b2572386d3",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -57,8 +57,8 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "e7f536140456bdf6163ff1f094fcfec2",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
-  "./strings-academy.js": "0b8f962fda7b3dc2dab112e223929931",
-  "./core.js": "14bceb32b75267cef9319c70aded7f78",
+  "./strings-academy.js": "69c2a940a722820e8bd0ef692351b88a",
+  "./core.js": "c728af64977eec24c2a7067cb15ee0d3",
   "./auth.js": "556d7250a03993819af63e6ade4382b1",
   "./shell.js": "76e0a41a1583a981587d8c8f44e77b94",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -67,17 +67,18 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "013d224e397c2193c16fa41cce180c56",
+  "./studio.js": "1cd74e2e189c1954dca30963166ac952",
   "./studio.css": "39131846ad566ce2a44ae396c7532fb0",
   "./studionet.js": "aa8bbf2c834dee5fb4862e0732912fac",
   "./studioplay.js": "c67d4ebfeab85699aefd358b354b97f3",
   "./studiosubs.js": "65c3e22404cc9bfa5ea0b610a33f4633",
+  "./studiotracks.js": "4e0d939e06e16a1f63491c845475821b",
   "./studioedl.js": "6374ccc5beb6a6addf0b8e1ac10ac56f",
   "./studioai.js": "e0a43e7a48c70e3bf5028813acebbf3e",
   "./studiostore.js": "633c4083aebf82cdc389813e65ecee16",
   "./studio.html": "e797e443dfa76398884be3d9f012d250",
   "./studio-app.js": "2a975c06b16cda53cc2be46c920235a7",
-  "./strings-studio.js": "3e1e87d1dd7ddacd507ea5ec64e45696",
+  "./strings-studio.js": "849eb6f371e780c325eb41af9fc96378",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
@@ -121,7 +122,7 @@ const LIB_SHELL = [
 /* v354: סטודיו התרגום — אותו דבר: נטען מראש בעדכון רק אצל מי שכבר נכנס אליו (studio.js במטמון הקודם).
    v355: גם studionet.js ו־libbackup.js (המודולים שהסטודיו מייבא) — בלעדיהם הסטודיו לא נפתח אופליין.
    Mediabunny (vendor/mediabunny) לא כאן: חילוץ הקול צריך רשת בכל מקרה (ההעלאה), והוא נשמר במטמון בשימוש הראשון */
-const STUDIO_SHELL = ['./studio.js', './studio.css', './studionet.js', './libbackup.js', './studioplay.js', './studiosubs.js', './studioedl.js', './studioai.js', './studiostore.js',
+const STUDIO_SHELL = ['./studio.js', './studio.css', './studionet.js', './libbackup.js', './studioplay.js', './studiosubs.js', './studiotracks.js', './studioedl.js', './studioai.js', './studiostore.js',
   './studio.html', './studio-app.js', './strings-studio.js', './core.js', './auth.js', './shell.js', './logo-studio.webp', './logo-studio-lg.webp', './face-studio.webp', './snow-far-light.png', './snow-mid-light.png', './snow-near-light.png', './snow-far-dark.png', './snow-mid-dark.png', './snow-near-dark.png', './icon-studio-192.png', './apple-touch-studio.png', './favicon-studio-48.png'];   // שלב 3ד: Studio כדף עצמאי   // מ1: הנגן · מ2: עורך הכתוביות · מ4: עורך הווידאו · מ7: גיליון ה־AI · ת4: studiostore.js (מזהי R2)
 
 /* 12/10/2026 (פס פריסה אחד): קובץ מהרשת רק אם הוא בדיוק הקובץ שהגרסה הזו נבנתה ממנו.

@@ -110,9 +110,6 @@ class ToVt(unittest.TestCase):
         self.assertIn("[0:00:06 Michael] Where were you last night?", t)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class VtBuild(unittest.TestCase):
     """vt import-subs → tr-merge → build, בלי סרטון: הזמנים נשמרים, ההטיה והמיקום יוצאים בקבצים."""
@@ -160,3 +157,24 @@ class VtBuild(unittest.TestCase):
                     os.environ.pop("VT_WORK", None)
                 else:
                     os.environ["VT_WORK"] = old
+
+
+class Streams(unittest.TestCase):
+    """שלב 4: vt ingest רושם ב־media.json את כל הזרמים — גם רצועות הכתוביות שבתוך הסרטון (שפה, שם, דגלים)."""
+
+    def test_probe_streams(self):
+        import shutil
+        if not (shutil.which("ffprobe")):
+            self.skipTest("אין ffprobe")
+        from vt.media import probe
+        raw = json.loads((HERE.parent.parent / "tests" / "fixtures" / "tracks.json").read_text())["s.mkv"]
+        f = FX / "s.mkv"
+        f.write_bytes(base64.b64decode(raw))
+        st = probe(f)["streams"]
+        subs = [s for s in st if s["type"] == "subtitle"]
+        self.assertEqual([s["codec"] for s in subs], ["subrip", "ass", "webvtt"])
+        self.assertEqual((subs[1]["lang"], subs[1]["title"], subs[1]["forced"]), ("heb", "Hebrew Full", True))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -25,6 +25,13 @@ from .hebrew import normalize_he, visible_len, has_latin, latin_runs, numbers_in
 from .util import fmt_ts
 
 LINE_RE = re.compile(r"^#(\d+)\s?(.*)$")
+# 22/10/2026 (ניתוח המאגר): המודל מעתיק לפעמים לתשובה את הסימון של שורת הקלט ("≤84", "[שני דוברים]") —
+# ב־Uber ‏109 כתוביות יצאו לצופה עם "≤84" בתחילתן. מסירים כל הד כזה של הקלט מתחילת התשובה
+ECHO_RE = re.compile(r"^(?:\s*(?:≤\s*\d+|\[שני דוברים\]|\d{1,2}:\d{2}(?:\.\d+)?\s*·\s*[\d.]+ש׳\s*·?)\s*)+")
+
+
+def clean_answer(v: str) -> str:
+    return ECHO_RE.sub("", v).strip()
 # תווי ניקוד בלבד (בלי פיסוק עברי שבאותו טווח: מקף 05BE, פסק 05C0, סוף פסוק 05C3, נו״ן הפוכה 05C6).
 # כתוביות עבריות נכתבות בכתיב מלא בלי ניקוד (הנוהג המקצועי; ניקוד גם מכפיל טוקנים פי 2–4).
 NIKUD_RE = re.compile(r"[ְ-ׇֽֿׁׂׅׄ]")
@@ -94,7 +101,7 @@ def parse_answer(text: str) -> dict[str, str]:
         m = LINE_RE.match(line)
         if not m:
             continue
-        out[m.group(1)] = m.group(2).strip()
+        out[m.group(1)] = clean_answer(m.group(2))
     return out
 
 
@@ -211,17 +218,52 @@ def gl_found(opt: str, txt: str) -> bool:
     return True
 
 
+# 22/10/2026 (ניתוח המאגר): "הזזה" — המודל ממזג שתי שורות מקור לשורת תשובה אחת וממשיך כשכל תרגום שייך לכתובית
+# הבאה (AppLovin: 93 כתוביות ברצף, הביקורת והשופט לא תפסו). אורך התרגום עוקב אחרי אורך המקור — חלון שבו אורכי
+# התרגום מתואמים הרבה יותר עם המקור של השכנה (±1) מאשר עם המקור שלהם = הזזה. בלי מודל ובלי טוקנים.
+DRIFT_W, DRIFT_STEP, DRIFT_GAIN = 24, 6, 0.25
+
+
+def _corr(a: list[float], b: list[float]) -> float:
+    n = len(a)
+    if n < 3:
+        return 0.0
+    ma, mb = sum(a) / n, sum(b) / n
+    sa = sum((x - ma) ** 2 for x in a) ** 0.5
+    sb = sum((y - mb) ** 2 for y in b) ** 0.5
+    return sum((x - ma) * (y - mb) for x, y in zip(a, b)) / (sa * sb) if sa and sb else 0.0
+
+
+def drift_ids(cues: list[dict], he: dict[str, str]) -> dict[str, int]:
+    """מזהה כתובית → כיוון ההזזה (+1: התרגום שייך לבאה, ‎-1: לקודמת)."""
+    hl = [float(len(str(he.get(str(c["id"]), "")).replace("||", " "))) for c in cues]
+    el = [float(len(c.get("en") or "")) for c in cues]
+    out: dict[str, int] = {}
+    n, W = len(cues), DRIFT_W
+    for i in range(0, max(0, n - W - 2), DRIFT_STEP):
+        a, b = i + 2, i + W
+        base = _corr(hl[a:b], el[a:b])
+        for o in (1, -1):
+            if a + o < 0 or b + o > n:
+                continue
+            if _corr(hl[a:b], el[a + o:b + o]) - base > DRIFT_GAIN:
+                for c in cues[a:b]:
+                    out.setdefault(str(c["id"]), o)
+    return out
+
+
 def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[str]]],
           max_chars: int = 84) -> tuple[list[str], dict]:
     """בדיקת התרגום מול התכנון. מחזיר (שורות דוח, סיכום)."""
     issues: list[str] = []
     stats = {"total": len(cues), "translated": 0, "missing": 0, "over_budget": 0,
-             "numbers": 0, "latin": 0, "glossary": 0, "questions": 0, "short": 0, "style": 0, "errors": 0}
+             "numbers": 0, "latin": 0, "glossary": 0, "questions": 0, "short": 0, "style": 0, "errors": 0, "drift": 0}
     ids = {str(c["id"]) for c in cues}
     for k in he:
         if k not in ids:
             issues.append(f"- #{k}: מספר לא קיים בתכנון")
             stats["errors"] += 1
+    drift = drift_ids(cues, he)
     prev_text = None
     # תקציב אפקטיבי: כתובית שאחריה באות כתוביות '=' מקבלת גם את הזמן שלהן
     eff_budget = {}
@@ -247,6 +289,11 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
             continue
         prev_text = t
         stats["translated"] += 1
+        if k in drift:
+            issues.append(f"- #{k}: נראה שהתרגום שייך לכתובית {'הבאה' if drift[k] > 0 else 'הקודמת'} (הזזה) — "
+                          "לתרגם מחדש בדיוק את שורת המקור של הכתובית הזו")
+            stats["errors"] += 1
+            stats["drift"] += 1
         txt = normalize_he(t.replace("||", " ").replace("|", " "))
         n = visible_len(txt)
         if c.get("parts") and "||" not in t:
