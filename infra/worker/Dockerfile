@@ -54,6 +54,14 @@ COPY translator/aligner_export.py /tmp/aligner_export.py
 RUN HF_HOME=/tmp/hf HF_HUB_DISABLE_TELEMETRY=1 /opt/vt/bin/python /tmp/aligner_export.py /opt/aligner \
  && rm -rf /tmp/hf
 
+# ---------------------------------------------------------------- זיהוי דוברים (22/10/2026, translator/vt/diarize.py)
+# WeSpeaker ResNet34-LM ‏(ONNX, ‏CC-BY-4.0) — מהריפו הרשמי בגרסה נעולה, נבדק מול sha256. בלי המודל: בלי דוברים, כמו קודם.
+FROM deps AS speaker
+RUN HF_HOME=/tmp/hf HF_HUB_DISABLE_TELEMETRY=1 /opt/vt/bin/python -c \
+    "from huggingface_hub import hf_hub_download as d; d('Wespeaker/wespeaker-voxceleb-resnet34-LM', 'voxceleb_resnet34_LM.onnx', revision='f0c48c298fd835726c27956a5d617bad7115627e', local_dir='/opt/speaker')" \
+ && echo "7bb2f06e9df17cdf1ef14ee8a15ab08ed28e8d0ef5054ee135741560df2ec068  /opt/speaker/voxceleb_resnet34_LM.onnx" | sha256sum -c - \
+ && rm -rf /tmp/hf /opt/speaker/.cache
+
 # ---------------------------------------------------------------- התמונה הסופית
 FROM ${PY_IMAGE}
 ARG FFMPEG_SHA256_AMD64
@@ -73,12 +81,13 @@ RUN apt-get update -qq \
 COPY --from=ffmpeg /opt/ffmpeg /opt/ffmpeg
 COPY --from=deps /opt/vt /opt/vt
 COPY --from=aligner /opt/aligner /opt/aligner
+COPY --from=speaker /opt/speaker /opt/speaker
 COPY --chown=root:root translator /app/translator
 # 16/10/2026: הגדרת השרת לעדכון ידני בלי שרת חדש — נתונים בלבד, שום דבר לא מריץ אותם לבד (infra/worker/snb-host-apply)
 COPY --chown=root:root infra/host/snb-common.sh infra/compose.yaml /opt/snb-host/
 COPY --chown=root:root --chmod=755 infra/worker/snb-host-apply /opt/snb-host/apply
 RUN rm -rf /app/translator/tests /app/translator/research /app/translator/__pycache__ \
- && find /app /opt/aligner -type d -exec chmod 755 {} + && find /app /opt/aligner -type f -exec chmod 644 {} + \
+ && find /app /opt/aligner /opt/speaker -type d -exec chmod 755 {} + && find /app /opt/aligner /opt/speaker -type f -exec chmod 644 {} + \
  && chmod 644 /opt/snb-host/snb-common.sh /opt/snb-host/compose.yaml
 # 20/10/2026: בדיקת עשן מול הספריות האמיתיות שבתמונה (הבדיקות ב־CI רצות בלי anthropic) — בניית הלקוח של Claude
 # בלי רשת. anthropic 1.x עבר ל־httpx2 ודחה httpx.Timeout ב־TypeError: כל עבודה בשרת קרסה בקריאה הראשונה, והבנייה עברה
