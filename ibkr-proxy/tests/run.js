@@ -1571,6 +1571,18 @@ function stubFetch(text, status = 200) {
       r = await run({ op: 'job', idToken: OWNER, job: JT });
       ok(r.payload.job.hl.length === 3 && r.payload.job.hl[0].id === 'vid1234567890' && r.payload.job.hl[2].h === 360 && r.payload.job.files.v.size === VS,
         'סטודיו (איכויות): נשמרות, והגודל של המקור מתעדכן (ההורדה הבאה של העובד לפי הגודל החדש)');
+      // 22/10/2026: עותק הקול לנגן (Opus) — הקול המקורי (ec-3) נשאר במקור; העותק מאומת בתיקייה ובגודל
+      const topE = Object.assign({}, top, { c: 'avc1.640028,ec-3' }), ha = { id: 'alt1234567890a', c: 'opus', bw: 330000, abw: 300000, ch: 6, size: 9000000 };
+      r = await wrk({ op: 'report', job: JT, key: Kb, st: 'sv', p: 1, hl: [topE, r7, r3], vs: VS, hla: ha });
+      r = await run({ op: 'job', idToken: OWNER, job: JT });
+      ok(r.payload.job.hl[0].c === 'avc1.640028,ec-3' && r.payload.job.hla === null, 'סטודיו (קול לנגן): עותק שלא בתיקיית העבודה — מתעלמים ממנו, האיכויות נשמרות');
+      driveFiles.set('alt1234567890a', { id: 'alt1234567890a', name: 'x (קול לנגן).mp4', size: '9000000', parents: ['fold1234567890'], trashed: false });
+      r = await wrk({ op: 'report', job: JT, key: Kb, st: 'sv', p: 1, hl: [topE, r7, r3], vs: VS, hla: Object.assign({}, ha, { size: 5 }) });
+      r = await run({ op: 'job', idToken: OWNER, job: JT });
+      ok(r.payload.job.hla === null, 'סטודיו (קול לנגן): גודל שלא תואם — מתעלמים');
+      r = await wrk({ op: 'report', job: JT, key: Kb, st: 'sv', p: 1, hl: [topE, r7, r3], vs: VS, hla: ha });
+      r = await run({ op: 'job', idToken: OWNER, job: JT });
+      ok(r.payload.job.hla && r.payload.job.hla.id === 'alt1234567890a' && r.payload.job.hla.ch === 6 && r.payload.job.hla.c === 'opus', 'סטודיו (קול לנגן): נשמר ומגיע לטלפון');
       driveFiles.get('vid1234567890').size = old;
       studio._reset();   // הקריאות הנוספות כאן — לא על חשבון מגבלת הדקה של הבדיקות שאחרי
     }

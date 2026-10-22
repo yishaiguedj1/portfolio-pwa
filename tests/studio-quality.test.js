@@ -84,7 +84,7 @@ function sidx(refs, ts, ver = 0, fo = 0) {
   const js = fs.readFileSync(path.join(root, 'vendor/hls/hls.light.min.js'));
   const ver = read('vendor/hls/VERSION');
   ok(ver.includes(crypto.createHash('sha256').update(js).digest('hex')) && /Apache License/.test(read('vendor/hls/LICENSE')), 'hls.js המוטמע = הגרסה שנבדקה (sha256) + הרישיון (Apache-2.0)');
-  ok(/import\(opts\.hlsUrl \|\| '\.\/vendor\/hls\/hls\.light\.min\.js'\)/.test(pl), 'נטען רק כשיש איכויות (import דינמי מהעותק בריפו — script-src self)');
+  ok(/import\(alt \? full : \(opts\.hlsUrl \|\| '\.\/vendor\/hls\/hls\.light\.min\.js'\)\)/.test(pl), 'נטען רק כשיש איכויות (import דינמי מהעותק בריפו — script-src self; המלא רק עם עותק קול לנגן)');
 
   /* ---------- sw.js: טווח מפורש שלם (שלב ה־sw בפרוטוקול) ---------- */
   const sw = read('sw.js');

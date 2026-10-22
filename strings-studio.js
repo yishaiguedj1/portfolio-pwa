@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1618 מפתחות מתוך 3696) */
+/* המחרוזות של studio (1619 מפתחות מתוך 3698) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -834,7 +834,9 @@ he: {
   "studioOpsOpenT": "התראות פתוחות",
   "studioOutCompact": "דחוס",
   "studioOutCompactS": "כחצי מהגודל, כמעט זהה בעין · ‏1080p",
+  "studioOutDlStart": "ההורדה התחילה — הקובץ יופיע בהורדות",
   "studioOutDown": "הורדה",
+  "studioOutDx": "שמירה ב־Google Drive",
   "studioOutEarly": "הקבצים מוכנים. ברקע מכינים עוד את איכויות הצפייה לנגן — העבודה תסומן כגמורה בסוף.",
   "studioOutEarlySubs": "הכתוביות מוכנות — אפשר כבר לצפות בנגן. הסרטון עם הכתוביות הצרובות יגיע בסוף.",
   "studioOutEn": "כתוביות בשפת המקור (SRT)",
@@ -1071,7 +1073,6 @@ he: {
   "studioRrOuts": "מה להפיק",
   "studioRrPick": "בחרו לפחות קובץ אחד",
   "studioRrPvGo": "קודם {n} שניות לבדיקה",
-  "studioRrPvReady": "הקטע לבדיקה",
   "studioRrPvRun": "צורבים קטע לבדיקה",
   "studioRrReady": "מה שהופק",
   "studioRrRunning": "בהפקה…",
@@ -2454,7 +2455,9 @@ en: {
   "studioOpsOpenT": "Open alerts",
   "studioOutCompact": "Compact",
   "studioOutCompactS": "About half the size, nearly identical to the eye · 1080p",
+  "studioOutDlStart": "Download started — the file will appear in Downloads",
   "studioOutDown": "Download",
+  "studioOutDx": "Save to Google Drive",
   "studioOutEarly": "Your files are ready. Viewing qualities for the player are still being prepared — the job will show as done at the end.",
   "studioOutEarlySubs": "The subtitles are ready — you can watch in the player now. The video with burned-in subtitles comes at the end.",
   "studioOutEn": "Source-language subtitles (SRT)",
@@ -2691,7 +2694,6 @@ en: {
   "studioRrOuts": "What to render",
   "studioRrPick": "Pick at least one file",
   "studioRrPvGo": "Try {n} seconds first",
-  "studioRrPvReady": "Test clip",
   "studioRrPvRun": "Rendering a test clip",
   "studioRrReady": "Rendered files",
   "studioRrRunning": "Rendering…",
