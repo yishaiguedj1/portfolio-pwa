@@ -25,6 +25,13 @@ from .hebrew import normalize_he, visible_len, has_latin, latin_runs, numbers_in
 from .util import fmt_ts
 
 LINE_RE = re.compile(r"^#(\d+)\s?(.*)$")
+# 22/10/2026 (ניתוח המאגר): המודל מעתיק לפעמים לתשובה את הסימון של שורת הקלט ("≤84", "[שני דוברים]") —
+# ב־Uber ‏109 כתוביות יצאו לצופה עם "≤84" בתחילתן. מסירים כל הד כזה של הקלט מתחילת התשובה
+ECHO_RE = re.compile(r"^(?:\s*(?:≤\s*\d+|\[שני דוברים\]|\d{1,2}:\d{2}(?:\.\d+)?\s*·\s*[\d.]+ש׳\s*·?)\s*)+")
+
+
+def clean_answer(v: str) -> str:
+    return ECHO_RE.sub("", v).strip()
 # תווי ניקוד בלבד (בלי פיסוק עברי שבאותו טווח: מקף 05BE, פסק 05C0, סוף פסוק 05C3, נו״ן הפוכה 05C6).
 # כתוביות עבריות נכתבות בכתיב מלא בלי ניקוד (הנוהג המקצועי; ניקוד גם מכפיל טוקנים פי 2–4).
 NIKUD_RE = re.compile(r"[ְ-ׇֽֿׁׂׅׄ]")
@@ -94,7 +101,7 @@ def parse_answer(text: str) -> dict[str, str]:
         m = LINE_RE.match(line)
         if not m:
             continue
-        out[m.group(1)] = m.group(2).strip()
+        out[m.group(1)] = clean_answer(m.group(2))
     return out
 
 
