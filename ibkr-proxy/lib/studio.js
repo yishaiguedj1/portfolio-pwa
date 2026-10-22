@@ -77,10 +77,11 @@ function recoverWait(job, now) {
   // נשמרה נקודה בהפעלה הזו — העבודה כבר התקדמה; זו לא תקלת תשתית של הרגע הראשון
   return (Array.isArray(job.ck) ? job.ck : []).some((c) => c && c.at >= t0) ? RECOVER_WAIT : EARLY_WAIT;
 }
-const TRANSIENT_ERRS = ['net', 'drive', 'drive_net', 'store_net', 'api_network', 'api_timeout', 'api_rate', 'api_overloaded', 'worker_lost'];   // 14/10/2026: worker_lost = השרת הופעל מחדש באמצע (עדכון / כיבוי) — ממשיכים מנקודת השמירה   // 11/10: store_net = ניתוק מול R2 / Drive   // הסקירה: גם רשת/קצב/עומס מול Anthropic במצב API
+const TRANSIENT_ERRS = ['net', 'drive', 'drive_net', 'store_net', 'url_net', 'url_timeout', 'api_network', 'api_timeout', 'api_rate', 'api_overloaded', 'worker_lost'];   // 14/10/2026: worker_lost = השרת הופעל מחדש באמצע (עדכון / כיבוי) — ממשיכים מנקודת השמירה   // 11/10: store_net = ניתוק מול R2 / Drive   // הסקירה: גם רשת/קצב/עומס מול Anthropic במצב API
 /* 11/10/2026 (ביקורת העמידות): כשל דטרמיניסטי — אותה בקשה תיכשל שוב. לא "חולף" גם כשבמקרה נשארה פתוחה התראת Drive
    ישנה מאותה עבודה (קודם: max_tokens אחרי התראת הורדה ישנה קיבל "המשך" אוטומטי ששילם שוב על אותו כשל) */
-const DET_ERRS = ['worker_oom', 'store_fail', 'max_tokens', 'check_errors', 'model_refusal', 'api_bad_request', 'no_api_key', 'sdk_missing', 'mode_unknown', 'cp_empty', 'cp_timeout'];
+const DET_ERRS = ['worker_oom', 'store_fail', 'max_tokens', 'check_errors', 'model_refusal', 'api_bad_request', 'no_api_key', 'sdk_missing', 'mode_unknown', 'cp_empty', 'cp_timeout',
+  'url_login', 'url_gone', 'url_geo', 'url_drm', 'url_live', 'url_unsupported', 'url_playlist', 'url_no_video', 'url_private', 'url_bad_url', 'url_dns', 'url_blocked'];   // 22/10/2026: הורדה מקישור — אותו ניסיון ייכשל שוב
 const TRANSIENT_KINDS = ['drive:dl_retry', 'drive:up_retry', 'drive:dl_fail', 'drive:up_fail'];
 /* עצירה מכוונת — אף פעם לא "חולפת", גם כשבמקרה הייתה תקלת Drive פתוחה (המגדל / התקציב / מתג החירום / ההחלטה שלך) */
 const STOP_ERRS = ['tower_stop', 'budget_stop', 'halted', 'upload_timeout', 'lang_unsupported', 'worker_unknown_kind', 'budget_cap', 'api_auth', 'api_quota', 'api_model', 'no_api_key'];

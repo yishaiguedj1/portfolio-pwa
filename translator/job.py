@@ -1933,7 +1933,8 @@ class Park(Exception):
 def can_park(ctx) -> bool:
     """רק בשרת שלנו (ב־Routine הסשן הוא של המשתמש ואין תור), ורק לעבודת תרגום."""
     sp = ctx.st.get('spec') or {}
-    return sp.get('eng') == 'api' and ctx.st.get('kind', 'tr') == 'tr' and park_after() > 0
+    # 22/10/2026: מקישור — הסרטון יורד כאן, לא מהטלפון: אין למה לחזור לתור
+    return sp.get('eng') == 'api' and sp.get('src') != 'url' and ctx.st.get('kind', 'tr') == 'tr' and park_after() > 0
 
 
 def park_after() -> float:
@@ -1955,7 +1956,13 @@ def wait_video(ctx, stage, msg):
             ctx.refresh()
         except (SystemExit, Exception):           # noqa: BLE001 — רשת רגעית: הלולאה הרגילה תנסה שוב
             pass
+    if url_spec(ctx) and not (ctx.st.get('files') or {}).get('v') and not (_URL_BG['t'] and _URL_BG['t'].is_alive()) and not _URL_BG['err']:
+        url_fetch(ctx)                             # המשך / תהליך חדש — ההורדה ברקע לא רצה בו
     while not (ctx.st.get('files') or {}).get('v'):
+        if _URL_BG['err'] is not None:
+            e, _URL_BG['err'] = _URL_BG['err'], None
+            ctx.report(fail=True, err=e.err, force=True)
+            raise e
         if park and time.time() - t0 >= park_after():
             raise Park()
         if n == 0:
@@ -2045,11 +2052,80 @@ def inject_guard(ctx, fname='en.edit.txt'):
     return hits
 
 
+# 22/10/2026: הורדה מקישור (spec.src = 'url', בקשת המשתמש: "כל וידאו שקיים בתוך לינק" — כמו IDM). העובד מוריד בעצמו
+# (fetchurl.py — yt-dlp): קודם רק הקול (שניות עד דקה) — התמלול מתחיל מיד, כמו "הקול קודם" מהטלפון; הסרטון יורד
+# ברקע. כל קובץ עולה לתיקייה של העבודה ב־R2 ונרשם (op:'srcFile') כאילו הטלפון העלה — כך המשך, נגן ואיכויות הצפייה
+# לא יודעים שהמקור היה קישור. העותק המקומי נשאר במקום ש־fetch_input מחפש (בגודל המלא = בלי הורדה חוזרת מ־R2).
+_URL_BG = {'t': None, 'err': None}
+
+
+def url_spec(ctx):
+    sp = ctx.st.get('spec') or {}
+    return sp if sp.get('src') == 'url' and sp.get('url') else None
+
+
+def url_err(code):
+    import fetchurl as F
+    code = code if re.match(r'^[a-z_]{2,20}$', str(code or '')) else 'fail'
+    return StepError('✗ ההורדה מהקישור נכשלה (' + code + ').', 'url_' + code), F
+
+
+def url_get(ctx, kind, on_progress=None):
+    """מוריד (kind a/v), מעלה ל־R2 ורושם. מחזיר את רשומת הקובץ מהשרתון."""
+    import fetchurl as F
+    sp = url_spec(ctx)
+    pick = sp.get('pick') or {}
+    out_dir = VT_WORK / '_dl'
+    out_dir.mkdir(parents=True, exist_ok=True)
+    tmpl = str(out_dir / (ctx.name + ('.audio' if kind == 'a' else '') + '.%(ext)s'))
+    try:
+        path = Path(F.download(sp['url'], pick, tmpl, kind, section=pick.get('sec'), on_progress=on_progress))
+    except ValueError as e:
+        raise url_err(str(e))[0]
+    title = re.sub(r'[\\/:*?"<>|\x00-\x1f]', ' ', str(sp.get('name') or ctx.name)).strip()[:120] or ctx.name
+    name = title + ('.audio' if kind == 'a' else '') + path.suffix
+    mime = {'.m4a': 'audio/mp4', '.webm': 'video/webm', '.opus': 'audio/ogg', '.mp3': 'audio/mpeg', '.mkv': 'video/x-matroska',
+            '.mp4': 'video/mp4'}.get(path.suffix.lower(), 'application/octet-stream')
+    fid = put_output(ctx, path, name, 'src', mime, prop='snbSrc')
+    ctx.c.call('srcFile', which=kind, id=fid)
+    f = {'id': fid, 'name': name, 'size': path.stat().st_size}
+    dest = in_path(ctx, f, kind)                    # מה ש־fetch_input יחפש — כבר כאן, בגודל המלא
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if dest != path:
+        shutil.move(str(path), str(dest))
+    return f
+
+
+def url_fetch(ctx):
+    """תחילת עבודה מקישור: הקול עכשיו, הסרטון ברקע (פעם אחת לעבודה; המשך — רק מה שעוד לא נרשם)."""
+    if not url_spec(ctx):
+        return
+    files = ctx.st.get('files') or {}
+    if not (files.get('a') or {}).get('id'):
+        ctx.report('tr', 0, 'מוריד את הקול מהקישור', force=True)
+        url_get(ctx, 'a', lambda f, got, tot: ctx.report('tr', 0.04 * f, 'מוריד את הקול מהקישור'))
+    if not (files.get('v') or {}).get('id') and not (_URL_BG['t'] and _URL_BG['t'].is_alive()):
+        q = QuietCtx(dict(ctx.st))
+
+        def bg():
+            try:
+                url_get(q, 'v')
+            except StepError as e:
+                _URL_BG['err'] = e
+            except (SystemExit, Exception) as e:     # noqa: BLE001 — מדווח דרך wait_video, לא מפיל את התהליכון הראשי
+                _URL_BG['err'] = StepError('✗ הורדת הסרטון מהקישור נכשלה (' + type(e).__name__ + ').', 'url_fail')
+        _URL_BG['err'] = None
+        _URL_BG['t'] = threading.Thread(target=bg, daemon=True)
+        _URL_BG['t'].start()
+    ctx.refresh()
+
+
 @guarded
 def prepare(args):
     """v360: התמלול מתחיל מהקול שהטלפון העלה ראשון — בלי לחכות לסרטון (שממשיך לעלות במקביל).
     הסרטון מצטרף ב־align (attach_video). אין קובץ קול (קודק שאי אפשר להעתיק) — מחכים לסרטון כמו קודם."""
     ctx = Ctx(load_state())
+    url_fetch(ctx)                                 # 22/10/2026: הורדה מקישור — הקול עכשיו, הסרטון ברקע
     files = ctx.st.get('files') or {}
     a = files.get('a') if (files.get('a') or {}).get('id') else None
     if a:

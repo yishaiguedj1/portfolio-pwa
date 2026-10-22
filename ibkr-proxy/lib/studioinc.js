@@ -28,6 +28,10 @@ const ERR_INFO = {
   cp_timeout: ['claude', 4], cp_empty: ['claude', 4],   // סבב 10: העתק־הדבק — לא הודבקה תשובה (בחירה של המשתמש, לא תקלה)
   // 11/10/2026: התשובה של Claude נקטעה בתקרת האורך (גם אחרי ניסיון בתקרת המודל); עומס באמצע הזרם; מפתח/ספרייה חסרים בשרת
   max_tokens: ['claude', 2], api_overloaded: ['claude', 3], no_api_key: ['server', 1], sdk_missing: ['server', 1], mode_unknown: ['claude', 3],
+  // 22/10/2026: הורדה מקישור — יוטיוב חוסם את השרת (P2: כל עבודה מיוטיוב תיכשל עד שיש פתרון), השאר — הסרטון עצמו
+  url_blocked: ['server', 2], url_net: ['server', 3], url_timeout: ['server', 3], url_fail: ['server', 3], url_no_tool: ['server', 1],
+  url_login: ['phone', 4], url_gone: ['phone', 4], url_geo: ['phone', 4], url_drm: ['phone', 4], url_live: ['phone', 4], url_unsupported: ['phone', 4],
+  url_playlist: ['phone', 4], url_no_video: ['phone', 4], url_private: ['phone', 4], url_bad_url: ['phone', 4], url_dns: ['phone', 4],
 };
 const errInfo = (e) => ERR_INFO[e] || (/^routine_/.test(e) ? ['routine', 2] : ['claude', 2]);
 /* רכיבים שכשל בהם פוגע בכל עבודה (תקלה רחבה גם בהתראה אחת שפוגעת בשתי עבודות, עוד לפני שיש "נכשלה") */
