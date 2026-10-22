@@ -24,8 +24,10 @@ GAP_S = 0.25        # שקט שמפריד בין קטעים
 WIN_S = 2.0         # קטע ארוך מחולק לחלונות באורך הזה (החלפת דובר באמצע משפט)
 MIN_EMB_S = 1.0     # קטע קצר מזה — מוכפל עד האורך הזה לפני הטביעה
 STRONG_S = 1.2      # רק קטעים באורך הזה ומעלה בונים את האשכולות
-THRESH = 0.62       # מרחק קוסינוס לחיתוך העץ (נקבע על דוברים ידועים — ראו tests/test_diarize.py)
+THRESH = 0.68       # מרחק קוסינוס לחיתוך העץ — VoxConverse: 1.5% (קצרות) ו־2.1% (13–16 דק׳) שגיאת דובר ברמת מילה
 MIN_SPK_S = 4.0     # דובר עם פחות דיבור מזה מצורף לקרוב אליו
+BATCH = 32          # קטעים בהרצה אחת של המודל
+SNAP_W = 3          # החלפת דובר בלי הפסקה — לסוף המשפט הקרוב, עד כמה מילים מהגבול
 
 
 def model_path() -> Path | None:
@@ -91,10 +93,28 @@ class Embedder:
         self.s = ort.InferenceSession(str(path), so, providers=["CPUExecutionProvider"])
 
     def __call__(self, x: np.ndarray) -> np.ndarray:
-        if len(x) < MIN_EMB_S * SR:
-            x = np.tile(x, int(np.ceil(MIN_EMB_S * SR / max(1, len(x)))))[:int(MIN_EMB_S * SR)]
-        e = self.s.run(None, {"feats": fbank(x)[None]})[0][0]
-        return e / (np.linalg.norm(e) + 1e-9)
+        return self.many([x])[0]
+
+    def many(self, xs: list[np.ndarray], batch: int | None = None) -> np.ndarray:
+        """קטעים באותו מספר פריימים בדיוק — בהרצה אחת. בלי חיתוך ובלי ריפוד: חיתוך לאורך משותף הוסיף
+        ~3 נקודות לשגיאת הדובר (VoxConverse), וריפוד מעוות את ה־pooling."""
+        batch = batch or int(BATCH)
+
+        def fix(x):
+            if len(x) < MIN_EMB_S * SR:
+                x = np.tile(x, int(np.ceil(MIN_EMB_S * SR / max(1, len(x)))))[:int(MIN_EMB_S * SR)]
+            return fbank(x)
+        feats = [fix(x) for x in xs]
+        groups: dict[int, list[int]] = {}
+        for i, f in enumerate(feats):
+            groups.setdefault(len(f), []).append(i)
+        out = np.zeros((len(feats), 256), dtype=np.float32)
+        for ix_all in groups.values():
+            for k in range(0, len(ix_all), batch):
+                ix = ix_all[k:k + batch]
+                e = self.s.run(None, {"feats": np.stack([feats[i] for i in ix])})[0]
+                out[ix] = e / (np.linalg.norm(e, axis=1, keepdims=True) + 1e-9)
+        return out
 
 
 # --- קטעים מהמילים ---
@@ -123,7 +143,8 @@ def units(words: list[dict]) -> list[tuple[int, int, int]]:
 
 # --- אשכול היררכי average linkage (NN-chain, ‏O(n²)) ---
 
-def cluster(emb: np.ndarray, thresh: float = THRESH) -> np.ndarray:
+def cluster(emb: np.ndarray, thresh: float | None = None) -> np.ndarray:
+    thresh = THRESH if thresh is None else thresh
     n = len(emb)
     if n == 0:
         return np.zeros(0, dtype=int)
@@ -181,8 +202,9 @@ def assign(words: list[dict], audio: np.ndarray, embed) -> dict:
     if not us:
         return {"speakers": 0}
     dur = np.array([words[b - 1]["e"] - words[a]["s"] for a, b, _ in us])
-    E = np.stack([embed(audio[int(words[a]["s"] * SR):max(int(words[a]["s"] * SR) + 160, int(words[b - 1]["e"] * SR))])
-                  for a, b, _ in us])
+    clips = [audio[int(words[a]["s"] * SR):max(int(words[a]["s"] * SR) + 160, int(words[b - 1]["e"] * SR))]
+             for a, b, _ in us]
+    E = embed.many(clips) if hasattr(embed, "many") else np.stack([embed(x) for x in clips])
     strong = np.flatnonzero(dur >= STRONG_S)
     if len(strong) < 2:
         strong = np.arange(len(us))
@@ -209,6 +231,18 @@ def assign(words: list[dict], audio: np.ndarray, embed) -> dict:
     for (a, b, _), c in zip(us, who):
         for w in words[a:b]:
             w["spk"] = name[int(c)]
+    # החלון חותך משפט ארוך כל WIN_S שנ׳ — החלפת דובר שנפלה באמצעו זזה לסוף המשפט הקרוב ("let you | know. But…")
+    for k in range(1, len(us)):
+        (a0, b0, r0), (a1, b1, r1) = us[k - 1], us[k]
+        if r0 != r1 or who[k - 1] == who[k] or not SNAP_W:
+            continue
+        ends = [j for j in range(max(a0, b0 - int(SNAP_W)), min(b1, b0 + int(SNAP_W)))
+                if words[j]["w"][-1:] in ".?!" and j != b0 - 1]
+        if ends:
+            j = min(ends, key=lambda j: abs(j + 1 - b0))
+            lab = name[int(who[k - 1])] if j >= b0 else name[int(who[k])]
+            for w in words[min(j + 1, b0):max(j + 1, b0)]:
+                w["spk"] = lab
     talk = {}
     for (a, b, _), c, d in zip(us, who, dur):
         talk[name[int(c)]] = round(talk.get(name[int(c)], 0.0) + float(d), 1)

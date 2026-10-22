@@ -96,6 +96,25 @@ class Assign(unittest.TestCase):
         ok = sum(m[t] == g for t, g in zip(truth, got))
         self.assertGreaterEqual(ok / len(ws), 0.95)
 
+    def test_switch_snaps_to_sentence_end(self):
+        """'we're going to let you | know. But…' — החלון נחתך באמצע; ההחלפה זזה לסוף המשפט"""
+        ws, truth = talk([("A", 7, 0.0), ("B", 9, 0.0), ("A", 14, 0.6), ("B", 14, 0.6)])
+        ws[6]["w"] = "know."
+        audio = np.zeros(int((ws[-1]["e"] + 1) * D.SR), dtype=np.float32)
+        us = D.units(ws)
+        r = np.random.default_rng(5)
+        base = {k: v / np.linalg.norm(v) for k, v in (("A", r.normal(size=32)), ("B", r.normal(size=32)))}
+
+        def e(x, _it=iter(us)):
+            a, b, _ = next(_it)
+            maj = max("AB", key=lambda k: sum(truth[i] == k for i in range(a, b)))
+            v = base[maj] + 0.05 * r.normal(size=32)
+            return v / np.linalg.norm(v)
+        D.assign(ws, audio, e)
+        m = {ws[0]["spk"]: "A"}
+        m.update({x: "B" for x in {w["spk"] for w in ws} if x not in m})
+        self.assertEqual([m[w["spk"]] for w in ws[:16]], truth[:16])
+
 
 class Fallback(unittest.TestCase):
     def test_no_model_leaves_words(self):
