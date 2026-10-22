@@ -14,6 +14,7 @@ import { createBackup, waitOAuthCode } from './libbackup.js';
 import { isR2Folder, isR2Id } from './studiostore.js';
 import { createPlayer, normCues, issuesList, fmtT, normLadder, normPq, normChapters, normSty, STY_COLORS, STY_Y } from './studioplay.js';
 import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, toStl, termIssues, flagIndex, normMeta, createTimeline, editDiff, editStats, importSubs } from './studiosubs.js';
+import { listTracks, extractTracks, cuesToFile } from './studiotracks.js';
 import { createEdlEditor, normEdl, edlPre, edlDur, outDur, silenceSegs, removeRange, addRange, segAt, intersectSegs, cutFillers, normOv, OV_T_MAX, OV_LG_MAX, OV_POS, previewEdl, PV_LEN } from './studioedl.js';
 import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, AI_NOTE_MAX, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges, parseChapters } from './studioai.js';
 
@@ -210,7 +211,8 @@ export function normJob(j) {
   } : null;
   const chap = normChapters(j.chap);   // פרקים בנגן (מ"רעיונות"); נשמרים בטלפון עם העבודה
   const vm = j.vm && num(j.vm.w) > 0 && num(j.vm.h) > 0 ? { w: Math.min(num(j.vm.w), 16384), h: Math.min(num(j.vm.h), 16384) } : null;   // סבב 2: מידות הסרטון (מהבדיקה בטלפון)
-  return { id: j.id, created: num(j.created), spec, up, fp, srv, ...(chap.length ? { chap } : {}), ...(vm ? { vm } : {}) };
+  const gref = FID_RE.test(String(j.gref || '')) ? j.gref : '';   // שלב 4: רצועת ההשוואה מהסרטון (בתיקיית העבודה) — לסט הזהב כשהעבודה מסתיימת
+  return { id: j.id, created: num(j.created), spec, up, fp, srv, ...(chap.length ? { chap } : {}), ...(vm ? { vm } : {}), ...(gref ? { gref } : {}) };
 }
 /* v387: סט הזהב — אותה בדיקה כמו בשרתון (lib/studio.js normGd / normGq) */
 const FID_GD = /^[A-Za-z0-9_-]{10,100}$/;
@@ -1021,7 +1023,7 @@ function freshForm(d) {
     from: d ? d.from : 'auto',
     to: s.to.slice(), mode: s.mode, out: Object.assign({}, s.out), style: s.style,
     terms: d ? d.terms : '',
-    subs: null, sdh: 'rm',   // 22/10/2026: קובץ כתוביות קיים (בזיכרון בלבד — בלי טיוטה) ומה עושים עם SDH
+    subs: null, sdh: 'rm', trk: null,   // שלב 4: רצועות הכתוביות שבתוך הסרטון (רק בזיכרון)   // 22/10/2026: קובץ כתוביות קיים (בזיכרון בלבד — בלי טיוטה) ומה עושים עם SDH
   };
 }
 /* "עברית, אנגלית" / "עברית ועוד 2" — בלי סימן פלוס שמתהפך ב־RTL */
@@ -1167,6 +1169,7 @@ async function refreshJobs(force) {
   save();
   // v371: התקלה הרחבה עברה — עבודות שחיכו לה מתחילות לבד
   if (ui.inc && !majorOn(ui.inc)) for (const r of store.jobs.filter((x) => x.up.wait === 'major' && !x.up.started)) { r.up.wait = ''; tryStart(r.id); }
+  goldAuto();   // שלב 4
   repaint();
 }
 /* תשובה עדכנית יותר בלבד (status ו־jobs יכולים לחזור בסדר הפוך) */
@@ -1705,7 +1708,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 }
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
-  if ((v === 'lang' && p !== 'def') || v === 'cutsrc') { v = 'new'; p = null; }   // הטופס (והקובץ) לא שורדים רענון
+  if ((v === 'lang' && p !== 'def') || v === 'tracks' || v === 'cutsrc') { v = 'new'; p = null; }   // הטופס (והקובץ) לא שורדים רענון
   const parent = (x, y) => (x === 'home' ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : (x === 'lang' || x === 'tower' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'towerx' || x === 'rlb' || x === 'rlm' ? ['tower', null] : x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['towerx', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
@@ -1794,7 +1797,7 @@ function onPop(e) {
    עמודים ראשיים = הבית ← מגדל הפיקוח ← הגדרות (כמו הלשוניות וההגדרות ב־Invest); בעמוד משנה — החלקה אחורה = "חזור"
    (כמו האפשרויות המתקדמות ב־Invest). בלי "החלקה קצרה" לטאבים (בקשת המשתמש) — פרטים · ציר · קשורות רק בלחיצה */
 const ST_SIB = ['home', 'tower', 'settings'];
-const ST_NOSWIPE = ['play', 'subs', 'cut', 'cutsrc', 'sty', 'ov', 'new', 'edit', 'lang', 'connect', 'ai', 'rr'];   // עורכים, נגן וטפסים — בלי
+const ST_NOSWIPE = ['play', 'subs', 'cut', 'cutsrc', 'tracks', 'sty', 'ov', 'new', 'edit', 'lang', 'connect', 'ai', 'rr'];   // עורכים, נגן וטפסים — בלי
 const ST_TAB_KEYS = ['d', 't', 'r'];
 let swipePop = 0;
 function stSibOk() {              // דף ראשי שהבית נמצא ישר מתחתיו
@@ -2537,6 +2540,7 @@ function pageForm(p, editing) {
   const took = (file, handle) => {
     f.fileObj = file; f.handle = handle || null; f.drive = null; f.file = { name: file.name, size: file.size, type: file.type || '' };
     f.edl = null; f.dur = 0; inspectFor(f, file);   // סבב 2: קובץ חדש — חיתוך ישן לא שייך לו; בדיקה ברקע (חינם)
+    tracksFor(f, file);   // שלב 4: רצועות כתוביות בתוך הסרטון
     render('none');
   };
   inp.addEventListener('change', () => { const file = inp.files && inp.files[0]; if (file) took(file, null); });
@@ -2565,6 +2569,8 @@ function pageForm(p, editing) {
     const subsRow = rowNav({ tile: tile('cc', 'orange'), label: T('studioSubsPick'), sub: subsOk() ? T('studioSubsPickS') : T('studioSubsApiOnly'), onClick: () => pickSubs(f), k: 'subs-pick' });
     p.append(list(subsRow, canPick() ? rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'),
       onClick: () => pickSourceFromDrive(f), k: 'from-drive' }) : null));   // סרטון שכבר ב־Drive — בלי העלאה
+    const tk = f.trk && f.trk.tracks.length ? f.trk.tracks : null;   // שלב 4
+    if (tk) p.append(list(rowNav({ tile: tile('cc', 'orange'), label: T('studioTrkRow'), value: T('studioTrkN', { n: fmtNum(tk.length) }), sub: T('studioTrkRowS'), onClick: () => go('tracks'), k: 'tracks' })));
     const adv = advRows(f, pick);
     if (adv) p.append(h('div', 'st-gap sm'), adv);
     if (f.fileObj || f.drive) p.append(list(rowNav({ tile: tile('film', 'blue'), label: T('studioEdBefore'), value: f.edl ? edlSum(f.edl, f.dur || 0) : T('studioEdOptional'), onClick: () => go('cutsrc'), k: 'cutsrc' })));   // מ4
@@ -2645,6 +2651,8 @@ function startSubs(f) {
     store.jobs.unshift(rec);
     save();
     const blob = new Blob([s.bytes], { type: s.type || 'text/plain' });
+    const refText = trkRefSrt(f);   // שלב 4: רצועת ההשוואה — לתיקיית העבודה; בסוף העבודה → סט הזהב
+    if (refText) await refUpload(rec, refText);
     form = null;
     if (!root) { startRun(rec.id, blob); return; }
     replaceView('job', rec.id);
@@ -2670,7 +2678,7 @@ function pickSubs(f) {
     if (!imp.stats.n) { flashSafe(T('studioSubsBad')); return; }
     f.subs = { name: file.name, size: file.size, type: file.type || '', bytes, imp };
     f.file = { name: file.name, size: file.size, type: file.type || '' };
-    f.fileObj = null; f.handle = null; f.drive = null; f.edl = null; f.sa = null;
+    f.fileObj = null; f.handle = null; f.drive = null; f.edl = null; f.sa = null; f.trk = null;
     if (f.from === 'auto') f.from = 'en';
     render('none');
   });
@@ -2688,6 +2696,11 @@ function subsSection(p, f) {
   txt.append(nm, sz, h('small', 'st-ok', st.fmt.toUpperCase() + (st.fixed ? ' · ' + T('studioSubsEncFixed') : '')));
   card.append(th, txt);
   p.append(secT(T('studioSecSubs')), card);
+  if (s.trk && f.trk) {   // שלב 4: מרצועה שבתוך הסרטון — רצועה אחרת / השוואה
+    const ref = f.trk.ref != null ? f.trk.tracks.find((t) => t.id === f.trk.ref) : null;
+    p.append(list(rowNav({ tile: tile('cc', 'orange'), label: T('studioTrkFrom'), value: trkLabel(f.trk.tracks.find((t) => t.id === f.trk.src) || {}), sub: f.file ? f.trk.vname : '', onClick: () => go('tracks'), k: 'tracks' }),
+      rowNav({ tile: tile('check', 'green'), label: T('studioTrkCmp'), value: ref ? trkLabel(ref) : T('studioTrkRefNone'), onClick: () => go('tracks'), k: 'tracks-ref' })));
+  }
   // הסרטון — שלב הבא (צריבה, סנכרון ומין הדוברים מהקול)
   const vr = h('div', 'st-row st-ric st-muted'); vr.append(tile('film', 'blue'), rowTxt(T('studioSubsAddVideo'), T('studioSubsAddVideoS')));
   p.append(secT(T('studioSubsVideoT')), list(vr));
@@ -2709,6 +2722,132 @@ function subsSection(p, f) {
   }
   if (rows.length) p.append(secT(T('studioSubsFound')), list(...rows));
   p.append(note(T('studioSubsGenderNote')));
+}
+/* ---------------- שלב 4 (22/10/2026): כתוביות בתוך הסרטון (MKV / MP4) ----------------
+   הרשימה נקראת מתחילת הקובץ מיד אחרי הבחירה; החילוץ — מעבר אחד על הקובץ, בטלפון (studiotracks.js). רצועה לתרגום
+   הופכת את הטופס למסלול "קובץ כתוביות"; רצועת השוואה עולה לתיקיית העבודה ונכנסת לסט הזהב בסוף (goldAuto) */
+function tracksFor(f, file) {
+  f.trk = null;
+  if (!/\.(mkv|mk3d|webm|mp4|m4v|mov)$/i.test(file.name || '')) return;
+  listTracks(file).then((L) => {
+    if (form !== f || f.fileObj !== file || !L || !L.tracks.length) return;
+    f.trk = { file, vname: file.name, tracks: L.tracks, x: {}, src: null, ref: null, p: 0, busy: false };
+    render('none');
+  }, () => {});
+}
+function trkLabel(t) {
+  if (!t || t.id == null) return '';
+  const l = t.lang ? langName(t.lang, uiLang()) : T('studioTrkUnd');
+  return l + (t.name ? ' · ' + t.name : '');
+}
+function trkSub(f, t) {
+  const x = f.trk.x[t.id];
+  const flags = [t.kind === 'text' ? t.fmt.toUpperCase() : t.codec, t.def ? T('studioTrkDef') : '', t.forced ? T('studioTrkForced') : '', t.sdh ? 'SDH' : ''].filter(Boolean).join(' · ');
+  if (t.kind === 'image') return flags + ' · ' + T('studioTrkImage');
+  if (t.kind !== 'text') return flags + ' · ' + T('studioTrkOther');
+  if (x && x.st === 'run') return T('studioTrkX', { p: Math.round(f.trk.p * 100) });
+  if (x && x.st === 'ok') return flags + ' · ' + T('studioSubsCount', { n: fmtNum(x.n) });
+  if (x && x.st === 'err') return T('studioTrkErr');
+  return flags;
+}
+/* חילוץ של מה שחסר — מעבר אחד על הקובץ לכל הרצועות שביקשו */
+async function trkEnsure(f, ids) {
+  const k = f.trk;
+  const need = ids.filter((id) => !k.x[id] || k.x[id].st === 'err');
+  if (!need.length || k.busy) return;
+  k.busy = true; k.p = 0;
+  for (const id of need) k.x[id] = { st: 'run' };
+  render('none');
+  let lastR = 0;
+  try {
+    const X = await extractTracks(k.file, need, (p) => { k.p = p; if (p - lastR > 0.04) { lastR = p; if (form === f) render('none'); } });
+    for (const t of X.tracks) if (need.includes(t.id)) k.x[t.id] = t.text ? { st: 'ok', text: t.text, n: t.n } : { st: 'err' };
+  } catch (e) { for (const id of need) k.x[id] = { st: 'err' }; }
+  k.busy = false;
+  if (k.src != null && k.x[k.src] && k.x[k.src].st === 'ok' && !f.subs) trkApply(f);
+  if (form === f) render('none');
+}
+const trkBytes = (x) => new TextEncoder().encode(x.text);
+function trkApply(f) {
+  const k = f.trk, t = k.tracks.find((x) => x.id === k.src), x = k.x[k.src];
+  if (!t || !x || x.st !== 'ok') return;
+  const bytes = trkBytes(x), imp = importSubs(bytes, { sdh: f.sdh !== 'keep' });
+  if (!imp.stats.n) { k.x[k.src] = { st: 'err' }; k.src = null; flashSafe(T('studioSubsBad')); return; }
+  const base = String(fileTitle(k.vname) || 'video').slice(0, 120);
+  f.subs = { name: base + '.' + (t.lang || 'und') + '.' + t.fmt, size: bytes.length, type: 'text/plain', bytes, imp, trk: t.id };
+  if (t.lang && SOURCE_LANGS.includes(t.lang)) f.from = t.lang;
+  else if (f.from === 'auto') f.from = 'en';
+}
+function trkChooseSrc(f, id) {
+  const k = f.trk;
+  if (id == null) { k.src = null; f.subs = null; render('none'); return; }   // חזרה לתמלול מהקול
+  if (!subsOk()) { flashSafe(T('studioSubsApiOnly')); return; }
+  k.src = id; if (k.ref === id) k.ref = null;
+  f.subs = null;
+  if (k.x[id] && k.x[id].st === 'ok') { trkApply(f); render('none'); return; }
+  trkEnsure(f, [id]);
+}
+function trkChooseRef(f, id) {
+  const k = f.trk;
+  k.ref = id;
+  if (id != null) trkEnsure(f, [id]); else render('none');
+}
+/* רצועת ההשוואה כ־SRT (סט הזהב משווה SRT) — אחרי אותו מפענח, עם הסרת SDH */
+function trkRefSrt(f) {
+  const k = f && f.trk;
+  const x = k && k.ref != null ? k.x[k.ref] : null;
+  if (!x || x.st !== 'ok') return '';
+  const imp = importSubs(trkBytes(x), { sdh: true });
+  const txt = cuesToFile('srt', imp.cues.map((c) => ({ s: c.s, e: c.e, t: c.lines.join('\n') })));
+  return txt.length <= GOLD_REF_MAX ? txt : '';
+}
+async function refUpload(rec, text) {
+  try {
+    const folder = rec.up.folder || await net.jobFolder(rec.id, fileTitle(rec.spec.name));
+    if (!rec.up.folder && folder) rec.up.folder = folder;
+    rec.gref = await net.goldUpload(folder, text);
+    save();
+  } catch (e) { /* ההשוואה רשות — העבודה ממשיכה בלעדיה */ }
+}
+async function trkSave(f, t) {
+  await trkEnsure(f, [t.id]);
+  const x = f.trk && f.trk.x[t.id];
+  if (!x || x.st !== 'ok') return;
+  const name = String(fileTitle(f.trk.vname) || 'video').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 80) + '.' + (t.lang || 'und') + '.' + t.fmt;
+  const file = new File([x.text], name, { type: 'text/plain' });
+  try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  const u = URL.createObjectURL(file), a = document.createElement('a');
+  a.href = u; a.download = name; document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(u), 5000);
+}
+function pageTracks(p) {
+  const f = form;
+  if (!f || !f.trk) { back(); return; }
+  const k = f.trk, text = k.tracks.filter((t) => t.kind === 'text');
+  p.append(navBar({ back: f.id ? T('studioEditT') : T('studioNew'), title: T('studioTrkRow') }));
+  p.append(note(k.vname));
+  if (text.length) {
+    p.append(secT(T('studioTrkSrcT')), list(
+      rowRadio({ on: k.src == null, label: T('studioTrkAudio'), sub: T('studioTrkAudioS'), onClick: () => trkChooseSrc(f, null), k: 'trk-src:a' }),
+      ...text.map((t) => rowRadio({ on: k.src === t.id, label: trkLabel(t), sub: trkSub(f, t), disabled: !subsOk() || k.busy, onClick: () => trkChooseSrc(f, t.id), k: 'trk-src:' + t.id }))));
+    if (!subsOk()) p.append(note(T('studioSubsApiOnly')));
+    p.append(secT(T('studioTrkRefT')), list(
+      rowRadio({ on: k.ref == null, label: T('studioTrkRefNone'), onClick: () => trkChooseRef(f, null), k: 'trk-ref:0' }),
+      ...text.filter((t) => t.id !== k.src).map((t) => rowRadio({ on: k.ref === t.id, label: trkLabel(t), sub: trkSub(f, t), disabled: k.busy, onClick: () => trkChooseRef(f, t.id), k: 'trk-ref:' + t.id }))),
+      note(T('studioTrkRefNote')));
+  }
+  p.append(secT(T('studioTrkAllT')), list(...k.tracks.map((t) => {
+    const r = h('div', 'st-row st-ric'); r.dataset.k = 'trk:' + t.id;
+    r.append(tile('cc', t.kind === 'text' ? 'orange' : 'blue'), rowTxt(trkLabel(t) || T('studioTrkUnd'), trkSub(f, t)));
+    if (t.kind === 'text') {
+      const b = btn('st-outb', null, () => trkSave(f, t), 'trk-save:' + t.id);
+      b.setAttribute('aria-label', T('studioTrkSave') + ' · ' + trkLabel(t));
+      b.disabled = k.busy;
+      b.append(ico('share'));
+      r.append(b);
+    }
+    return r;
+  })));
 }
 function saveForm() {
   const f = form;
@@ -4864,14 +5003,28 @@ function goldMark(rec) {
     goldBusy = rec.id; render('none');
     try {
       const folder = rec.up.folder || await net.jobFolder(rec.id, fileTitle(rec.spec.name));
-      const ref = await net.goldUpload(folder, text);
-      const j = await net.api('gold', { job: rec.id, ref });
-      if (j.job) rec.srv = normJob({ id: rec.id, srv: j.job }).srv;
-      if (!j.ok) { flashSafe(errText(j.error)); return; }
-      save();
-      await goldScore(rec, true);
+      await goldAttach(rec, await net.goldUpload(folder, text));
     } catch (e) { flashSafe(T('studioGoldErr')); } finally { goldBusy = ''; render('none'); }
   });
+}
+async function goldAttach(rec, ref, quiet) {
+  const j = await net.api('gold', { job: rec.id, ref });
+  if (j.job) rec.srv = normJob({ id: rec.id, srv: j.job }).srv;
+  if (!j.ok) { if (!quiet) flashSafe(errText(j.error)); return; }
+  save();
+  await goldScore(rec, true);
+}
+/* שלב 4: רצועת ההשוואה מהסרטון עלתה עם העבודה (rec.gref) — כשהעבודה מסתיימת עם SRT, היא נכנסת לסט הזהב ומקבלת ציון. פעם אחת לכל עבודה */
+const goldTried = new Set();
+function goldAuto() {
+  for (const rec of store.jobs) {
+    const s = rec.srv;
+    if (!rec.gref || !s || s.state !== 'done' || s.gd || !srtOut(rec) || goldBusy || goldTried.has(rec.id)) continue;
+    goldTried.add(rec.id);
+    goldBusy = rec.id;
+    goldAttach(rec, rec.gref, true).catch(() => {}).finally(() => { goldBusy = ''; repaint(); });
+    return;
+  }
 }
 async function goldScore(rec, inner) {
   const src = rec.srv && rec.srv.gs ? jobRec(rec.srv.gs) : rec;
@@ -6695,6 +6848,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'guide') pageGuide(p);         // מ9: מדריך
   else if (ui.view === 'adv') pageAdvanced(p);       // אפשרויות מתקדמות (כמו ב־Invest)
   else if (ui.view === 'cutsrc') pageCut(p, true);    // מ4: חיתוך לפני התרגום
+  else if (ui.view === 'tracks') pageTracks(p);      // שלב 4: כתוביות בתוך הסרטון
   else if (ui.view === 'settings') pageSettings(p);
   else if (ui.view === 'eng') pageEng(p);             // 13/10/2026: עמודי המשנה של ההגדרות
   else if (ui.view === 'defs') pageDefs(p);
@@ -6781,7 +6935,7 @@ async function pollNow() {
     if (ui.view === 'job' && JOB_RE.test(String(ui.param || ''))) {
       const id = ui.param, j = await net.api('job', { job: id });
       const r = jobRec(id);
-      if (j.ok && j.job && r) { r.srv = normJob({ id, srv: j.job }).srv; save(); }
+      if (j.ok && j.job && r) { r.srv = normJob({ id, srv: j.job }).srv; save(); goldAuto(); }
     } else if (ui.view === 'rr' && (rrJobs.get(ui.param) || rrPv.get(ui.param))) {
       for (const x of [rrJobs.get(ui.param), rrPv.get(ui.param)].filter(rrRunning)) {
         const j = await net.api('job', { job: x.id });

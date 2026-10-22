@@ -51,6 +51,13 @@ def probe(path: Path) -> dict:
                          "channels": int(a.get("channels", 0) or 0),
                          "start": float(a.get("start_time", 0) or 0),
                          "bitrate": int(a.get("bit_rate", 0) or 0)}
+    # 22/10/2026 (שלב 4): כל הזרמים בקובץ — כתוביות מוצמדות (שפה, שם, דגלים), עוד רצועות קול, תמונות מצורפות
+    info["streams"] = [{
+        "index": s.get("index"), "type": s.get("codec_type", ""), "codec": s.get("codec_name", ""),
+        "lang": (s.get("tags") or {}).get("language", ""), "title": (s.get("tags") or {}).get("title", "")[:120],
+        "default": bool((s.get("disposition") or {}).get("default")), "forced": bool((s.get("disposition") or {}).get("forced")),
+        "sdh": bool((s.get("disposition") or {}).get("hearing_impaired")),
+    } for s in d.get("streams", [])][:64]
     starts = [info["start"]] + [x["start"] for x in (info.get("video"), info.get("audio")) if x]
     base = min(starts) if starts else 0.0
     info["timeline_base"] = base
