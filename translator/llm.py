@@ -234,12 +234,15 @@ class Engine:
         if self.spec.provider != 'anthropic':
             raise LLMError('provider_unknown', self.spec.provider)
         _tl.k, _tl.a = k, 0                  # יומן הקריאות: השלב של הקריאה (לחוט הזה)
-        res = self._call_retrying(system_fixed, system_extra, prompt, max_tokens, on_first_token)
+        # 21/10/2026: המספר לפי סדר ההתחלה, לא הסיום. במקביל הקריאה הראשונה (שכותבת את המטמון) ארוכה ומסתיימת
+        # רביעית — לפי הסיום היא נספרה "קריאה 4 בלי מטמון": אזהרת שווא בכל עבודה, ומסקנת cache_miss שגויה במאגר.
         fh = hashlib.sha1(system_fixed.encode('utf-8')).hexdigest()
+        with self._lock:
+            n_fixed = self._fixed_calls[fh] = self._fixed_calls.get(fh, 0) + 1
+        res = self._call_retrying(system_fixed, system_extra, prompt, max_tokens, on_first_token)
         with self._lock:
             self.ledger.add(k, self.spec.model, res.usage, res.usd)  # גם קריאה שנכשלה בסוף עלתה כסף — נרשמת קודם
             self.think[k] = self.think.get(k, 0) + res.think_chars
-            n_fixed = self._fixed_calls[fh] = self._fixed_calls.get(fh, 0) + 1
         if res.stop == 'refusal':
             # ניסיון אחד בניסוח מחדש (אחרי נקודת המטמון) — באותו מודל. סירוב שני = כשל גלוי, כמו קודם.
             print(f'· המודל סירב (שלב {k}) — ניסיון אחד עם מסגור מפורש של משימת התרגום')

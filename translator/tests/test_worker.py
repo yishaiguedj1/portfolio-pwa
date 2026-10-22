@@ -1525,3 +1525,47 @@ class TestWorker(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class JudgeSampleSize(unittest.TestCase):
+    """21/10/2026: מדגם השופט גדל עם אורך הסרטון (40 → עד 100) — 40 כתוביות מ־1,600 = רעש של ‎±3 נקודות"""
+
+    def test_judge_n(self):
+        sys.path.insert(0, str(HERE))
+        import job
+        self.assertEqual(job.judge_n(300), 40)
+        self.assertEqual(job.judge_n(600), 40)
+        self.assertEqual(job.judge_n(1000), 66)
+        self.assertEqual(job.judge_n(1616), 100)
+        pkg = '\n'.join('#%d hello %d\n→ שלום %d' % (i, i, i) for i in range(1, 1617))
+        pick, total = job.judge_pick(pkg, job.judge_n(1616))
+        self.assertEqual((len(pick), total), (100, 1616))
+
+
+class LearnMediaEarly(unittest.TestCase):
+    """22/10/2026: העותק למאגר הלמידה מקודד בזמן הביקורת — רק בלי איכויות צפייה, עם סרטון, ואחרי השוטים"""
+
+    def test_conditions(self):
+        sys.path.insert(0, str(HERE))
+        import job
+        from types import SimpleNamespace as NS
+        calls = []
+        orig_lm, orig_ls = job.learn_media, job.ladder_state
+        job.learn_media = lambda ctx: calls.append(ctx.st['job'])
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                pd = Path(d)
+                ctx = NS(st={'job': 'jEarly1'}, pdir=pd)
+                job.ladder_state = lambda: None
+                self.assertFalse(job.learn_media_early(ctx), 'בלי סרטון — לא')
+                (pd / 'source.mp4').write_bytes(b'x')
+                self.assertFalse(job.learn_media_early(ctx), 'לפני שהשוטים הסתיימו — לא')
+                (pd / 'shots.json').write_text('{}')
+                job.ladder_state = lambda: {'job': 'jEarly1'}
+                self.assertFalse(job.learn_media_early(ctx), 'יש איכויות צפייה — 240p מהן, בלי קידוד')
+                job.ladder_state = lambda: None
+                self.assertTrue(job.learn_media_early(ctx))
+                job._LM_EARLY.pop('jEarly1').join(5)
+                self.assertEqual(calls, ['jEarly1'])
+        finally:
+            job.learn_media, job.ladder_state = orig_lm, orig_ls

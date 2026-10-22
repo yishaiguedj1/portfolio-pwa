@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -1076,3 +1077,24 @@ class QuietCtxWorker(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class SoftOrder(unittest.TestCase):
+    """21/10/2026: הערות "לשקול" לתיקון — לפי חומרה ולא לפי סדר הכתוביות; התקרה לפי אורך הסרטון"""
+
+    def test_order_by_severity(self):
+        soft = {'3': ['20 תווים מול תקציב 18 (קצב קריאה) — לשקול קיצור'],
+                '9': ['30 תווים מול תקציב 15 (קצב קריאה) — לשקול קיצור'],
+                '50': ['המספר 12 מהמקור לא מופיע בתרגום'],
+                '40': ["מונח 'Uber' — לפי המילון: אובר"],
+                '7': ['סמל מטבע — לשקול']}
+        self.assertEqual(P.soft_order(soft), ['50', '40', '9', '3', '7'])
+
+    def test_cap_grows_with_length(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(P.soft_cap(d), P.SOFT_MIN)
+            (Path(d) / 'cues.en.json').write_text(json.dumps([{}] * 1616))
+            self.assertEqual(P.soft_cap(d), 160)
+            (Path(d) / 'cues.en.json').write_text(json.dumps([{}] * 300))
+            self.assertEqual(P.soft_cap(d), P.SOFT_MIN)

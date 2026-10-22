@@ -1081,6 +1081,34 @@ def _lm_ladder240(ctx):
     return None
 
 
+_LM_EARLY = {}
+
+
+def learn_media_early(ctx):
+    """22/10/2026 (עבודה בלי צריבה, 46 דק׳: "הסתיימה" חיכתה 3 דק׳ לקידוד 240p למאגר הלמידה): בזמן הביקורת והשופט
+    המעבד כמעט פנוי — הקידוד מתחיל שם. רק כשאין איכויות צפייה (אחרת 240p מהן, בלי קידוד), כשהסרטון כבר כאן,
+    ואחרי שהשוטים הסתיימו (הם ב־SCHED_IDLE — קידוד ב־nice היה מרעיב אותם, והבנייה מחכה להם)."""
+    try:
+        job = ctx.st.get('job')
+        if not job or job in _LM_EARLY or (ladder_state() or {}).get('job') == job:
+            return False
+        if not _lm_source(ctx.pdir) or not (ctx.pdir / 'shots.json').exists():
+            return False
+        th = threading.Thread(target=_learn_media_safe, args=(ctx,), daemon=True)
+        th.start()
+        _LM_EARLY[job] = th
+        return True
+    except Exception:            # noqa: BLE001 — מידע משני
+        return False
+
+
+def _learn_media_safe(ctx):
+    try:
+        learn_media(ctx)
+    except Exception:            # noqa: BLE001 — מידע משני; לא מפיל את סוף העבודה
+        pass
+
+
 def _lm_nice():
     try:
         os.nice(10)
@@ -2776,6 +2804,11 @@ def quality(path, chk_ok=True):
 
 # v375: שופט האיכות (Haiku) — מדגם של JG_N כתוביות מחבילת הביקורת; לכל אחת ציון 1–5 וקוד קבוע. רק מספרים וקודים חוזרים לשרתון
 JG_N = 40
+JG_N_MAX = 100   # 21/10/2026: בסרטון ארוך 40 כתוביות = ‎±3 נקודות רעש (ההבדל בין מצבים נבלע); עד 100, כתובית אחת לכל 15
+
+
+def judge_n(total):
+    return JG_N if total <= JG_N * 15 else min(JG_N_MAX, total // 15)
 JG_CODES = ('ok', 'mean', 'omit', 'add', 'gram', 'flu', 'term')
 JG_F_MAX = 40   # **זהה ל־JG_F_MAX בשרתון ובטלפון** — כמה מספרי כתוביות מסומנות נשלחים
 _JG_LINE = re.compile(r'^#(\d{1,6})\s+([1-5])\s+([a-z]{2,4})\s*$')
@@ -2916,6 +2949,8 @@ def judge_prep(args):
     except OSError:
         raise SystemExit('✗ חבילת הביקורת לא נוצרה — מדלגים על השופט ל־finish.')
     pick, total = judge_pick(pkg)
+    if total > JG_N * 15:
+        pick, total = judge_pick(pkg, judge_n(total))
     if len(pick) < 10:
         print('· פחות מ־10 כתוביות — בלי שופט; ממשיכים ל־finish.')
         return 0
@@ -3564,6 +3599,12 @@ def finish(args):
         note_timing(ctx, 'sv-early', t_sv, time.time())    # 21/10/2026: מדידה לכל חלק בשלב השמירה (3.5 דק׳ בסרטון של 20 דק׳)
     ctx.report('sv', 0, 'שומרים את התוצרים', force=True)
     t_up = time.time()
+    # 22/10/2026 (פירוק השמירה, פרק של 92 דק׳ בלי איכויות צפייה): העותק למאגר הלמידה (קידוד 240p, ‏6 דק׳) רץ אחרי ההעלאה
+    # (10 דק׳) — אחד על המעבד והשני על הרשת. בלי איכויות צפייה הוא לא תלוי בכלום — רץ במקביל להעלאה.
+    lm_th = _LM_EARLY.pop(ctx.st.get('job'), None)
+    if lm_th is None and (ladder_state() or {}).get('job') != ctx.st.get('job'):
+        lm_th = threading.Thread(target=_learn_media_safe, args=(ctx,), daemon=True)
+        lm_th.start()
     out, total = [], 0
     files = []
     for k, fname, suffix, mime in OUT_FILES:
@@ -3622,7 +3663,10 @@ def finish(args):
     note_timing(ctx, 'sv-ladder', t_l, time.time())
     t_l = time.time()
     learn_put(ctx)                               # 15/10/2026 (מ׳2): קורפוס הטקסט למאגר הלמידה — לפני הדיווח האחרון (אחריו המפתח מת)
-    learn_media(ctx)                             # מ׳4: הקול ועותק ב־240p (רק כשהשרתון מבקש) — גם לפני הדיווח האחרון
+    if lm_th is not None:
+        lm_th.join()                             # רץ במקביל להעלאה — לפני הדיווח האחרון (אחריו המפתח מת)
+    else:
+        learn_media(ctx)                         # מ׳4: הקול ועותק ב־240p (רק כשהשרתון מבקש) — מ־240p של איכויות הצפייה
     note_timing(ctx, 'sv-learn', t_l, time.time())
     ctx.report(done=True, out=out, msg='התרגום מוכן', force=True, lx=learn_safe(ctx), usage=usage_safe(), trace=trace_safe(), quality=q,
                judge=ctx.st.get('jd'), gl=gl, hl=hl and hl['hl'], vs=hl and hl['vs'],      # v375: שופט האיכות (Haiku) — אם רץ

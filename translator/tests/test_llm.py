@@ -164,6 +164,31 @@ class AnthropicTests(unittest.TestCase):
         e.complete('tl', 'X', '3')                       # קריאת מטמון תקינה — בלי אזהרה נוספת
         self.assertEqual(e.cache_warns, 1)
 
+    def test_cache_writer_finishing_last_is_not_a_miss(self):
+        """21/10/2026: במקביל — הקריאה הראשונה (כותבת את המטמון) מסתיימת אחרונה. לפי סדר הסיום היא נספרה
+        "קריאה 2 בלי מטמון" — אזהרת שווא בכל עבודה. המספור לפי סדר ההתחלה."""
+        import threading
+        gate, started = threading.Event(), threading.Event()
+        base = FakeClient([fake_msg(cr=0), fake_msg(cr=700)])
+        orig = base.stream
+
+        def stream(**kw):
+            first = not base.calls
+            s = orig(**kw)
+            if first:
+                started.set()
+                gate.wait(5)                             # הכותבת "ארוכה" — מסתיימת אחרי השנייה
+            return s
+        base.stream = stream
+        e = llm.Engine(llm.Spec.of('opus-medium'), client=base)
+        t = threading.Thread(target=lambda: e.complete('tl', 'X', '1'))
+        t.start()
+        started.wait(5)
+        e.complete('tl', 'X', '2')                       # השנייה מסתיימת ראשונה, עם קריאה מהמטמון
+        gate.set()
+        t.join(5)
+        self.assertEqual(e.cache_warns, 0, 'הכותבת שמסתיימת אחרונה — לא החטאה')
+
     def test_on_first_token_fires_once(self):
         c = FakeClient([fake_msg()])
         e = llm.Engine(llm.Spec.of('opus-medium'), client=c)

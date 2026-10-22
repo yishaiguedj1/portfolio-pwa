@@ -425,6 +425,9 @@ def _pct(vals, q):
     return v[min(len(v) - 1, int(q * (len(v) - 1) + 0.5))]
 
 
+GAP_FRAMES = 2       # = TimingRules.min_gap_frames ב־vt/config.py
+
+
 def timing_metrics(fin, words, shots=None, fps=None):
     """מתי הכתובית עולה ויורדת מול הדיבור שבתוכה (מילים שהאמצע שלהן בתוך הכתובית), ומרחק הגבולות מחילוף שוט"""
     out = {}
@@ -463,13 +466,17 @@ def timing_metrics(fin, words, shots=None, fps=None):
         if st:
             import bisect
             for c in cues:
-                for t in (c['s'], c['e']):
+                for t, is_end in ((c['s'], False), (c['e'], True)):
                     p = bisect.bisect_left(st, t)
                     d = min(abs(t - st[q]) for q in (p - 1, p) if 0 <= q < len(st))
                     fr = d * fps
                     if fr < 11.5:
                         near += 1
-                        if fr >= 0.5:
+                        # 21/10/2026: יציאה GAP_FRAMES פריימים לפני חילוף = ההיצמדות של vt (timing.py: fo = S − min_gap,
+                        # הכלל של נטפליקס) — לא "רע". עד היום נספרה כרעה, ו־sh.bad היה מנופח (675/1355 בתוכנית ריאליטי).
+                        snapped = is_end and abs(fr - GAP_FRAMES) < 0.75 and any(
+                            0 <= q < len(st) and st[q] > t for q in (p - 1, p))
+                        if fr >= 0.5 and not snapped:
                             bad += 1                            # 1–11 פריימים מחילוף — היה צריך להיצמד אליו
         out['sh.near'] = near
         out['sh.bad'] = bad

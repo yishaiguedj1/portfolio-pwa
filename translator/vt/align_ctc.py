@@ -240,13 +240,28 @@ def consensus(words: list[dict]) -> dict:
         if len(ss) == 3:
             s = statistics.median(ss)
             st["median3"] += 1
+        pick = None                        # מקור אחד שנבחר — גם הסוף ממנו
+        if len(ss) == 3:
+            s = statistics.median(ss)
+            st["median3"] += 1
         elif len(ss) == 2:
-            s = sum(ss) / 2 if abs(ss[0] - ss[1]) <= 0.25 else (w.get("s_ctc") or ss[0])
+            if abs(ss[0] - ss[1]) <= 0.25:
+                s = sum(ss) / 2
+            else:
+                pick = "ctc" if w.get("s_ctc") is not None else ("qwen" if w.get("s_qwen") is not None else "asr")
+                s = w.get("s_" + pick)
             st["two"] += 1
         else:
             s = ss[0]
             st["one"] += 1
-        e = statistics.median(es) if len(es) == 3 else (max(es) if es else s + 0.1)
+        if pick:
+            # 22/10/2026 (מהקורפוס: "So" של 13 שנ׳, "years." של 11 — retime הזיז כתובית ב־12.8 שנ׳): שני מקורות שלא מסכימים
+            # על ההתחלה — ההתחלה מאחד והסוף (max) מהשני הרכיבו מילה שמתפרשת על פני השתיקה. הסוף מאותו מקור.
+            e = {"ctc": w.get("e_ctc"), "qwen": w.get("e_qwen"), "asr": e_asr}.get(pick)
+            if e is None:
+                e = min(es) if es else s + 0.1
+        else:
+            e = statistics.median(es) if len(es) == 3 else (max(es) if es else s + 0.1)
         if abs(s - w["s"]) > 0.1:
             st["moved_100ms"] += 1
         w["s"], w["e"] = round(s, 3), round(max(e, s + 0.04), 3)

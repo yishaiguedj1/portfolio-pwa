@@ -54,6 +54,11 @@ class JobMetrics(unittest.TestCase):
         self.assertEqual(tm['late'], 1)                           # הראשונה עולה 0.3 שנ׳ אחרי שהמילה a התחילה
         self.assertEqual(tm['cut'], 1)                            # והיא יורדת כש־c נאמרת עוד 0.7 שנ׳ (השנייה עולה מוקדם — תקין)
         self.assertEqual((tm['sh.near'], tm['sh.bad']), (1, 1))  # 1.0 — חמישה פריימים לפני השוט ב־1.2
+        # 21/10/2026: יציאה 2 פריימים לפני חילוף = ההיצמדות של vt — "קרוב" אבל לא "רע"; כניסה 2 פריימים לפניו — רעה
+        tm2 = L.timing_metrics([{'s': 0.0, 'e': 1.12}], wd, shots=[1.2, 30.0], fps=25)
+        self.assertEqual((tm2['sh.near'], tm2['sh.bad']), (1, 0))
+        tm3 = L.timing_metrics([{'s': 1.12, 'e': 2.5}], [[ 'x', 1.2, 2.4]], shots=[1.2, 30.0], fps=25)
+        self.assertEqual((tm3['sh.near'], tm3['sh.bad']), (1, 1))
 
     def test_consistency(self):
         cu = [row(1, 'Then Michael said', 'ואז מייקל אמר'), row(2, 'and Michael left', 'ומייקל הלך'), row(3, 'I told Michael', 'אמרתי למיקל'),

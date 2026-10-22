@@ -144,6 +144,33 @@ class TestStore(unittest.TestCase):
         self.assertEqual(prog[-1], 1.0)
         self.assertTrue(all(len(v) == 8 for k, v in r.parts.items() if k < 8))
 
+    def test_upload_parts_in_parallel(self):
+        """22/10/2026: חלקים במקביל (UP_PAR) — התוכן זהה, וכמה חלקים באוויר באותו רגע"""
+        import threading
+        data = os.urandom(8 * 12)
+        p = self.d / 'big.mp4'
+        p.write_bytes(data)
+        r = FakeR2(ps=8)
+        lock, live, peak = threading.Lock(), [0], [0]
+        orig = r.opener
+
+        def opener(req, *a, **k):
+            if 'put?' not in str(getattr(req, 'full_url', req)):
+                return orig(req, *a, **k)
+            with lock:
+                live[0] += 1
+                peak[0] = max(peak[0], live[0])
+            try:
+                import time as _t
+                _t.sleep(0.02)
+                return orig(req, *a, **k)
+            finally:
+                with lock:
+                    live[0] -= 1
+        store.upload(r.call, p, opener=opener, sleep=lambda s: None)
+        self.assertEqual(r.obj, data)
+        self.assertGreater(peak[0], 1, 'יותר מחלק אחד באוויר')
+
     def test_upload_already_done(self):
         data = b'abc'
         p = self.d / 'x'

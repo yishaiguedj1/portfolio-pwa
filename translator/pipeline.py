@@ -274,6 +274,35 @@ def parse_issues(check_md: str) -> tuple[dict[str, list[str]], dict[str, list[st
     return hard, soft
 
 
+# 21/10/2026 (מהיומנים): ההערות "לשקול" נכנסו לתיקון לפי סדר הכתוביות עד 60 — בסרטון ארוך רק תחילת הסרטון קיבלה תיקונים
+# (Uber, ‏1,616 כתוביות: 123→101→72 מעל תקציב הקריאה; שאר הסרטון לא נשלח). עכשיו לפי חומרה, והתקרה גדלה עם האורך.
+SOFT_MIN, SOFT_MAX = 60, 160          # כתוביות "לשקול" בסבב; בין לבין — עשירית מהכתוביות
+SOFT_RANK = (('המספר', 0), ('מונח', 1), ('סימן שאלה', 2), ('קצר מאוד', 3), ('תקציב', 4))
+_OVER_RE = re.compile(r'(\d+) תווים מול תקציב (\d+)')
+
+
+def soft_order(soft: dict[str, list[str]]) -> list[str]:
+    """מספרי הכתוביות לפי חומרה: מספר שנעלם › מונח › שאלה › קיצור חשוד › קצב קריאה (החריגה היחסית הגדולה קודם) › השאר"""
+    def key(kk):
+        msgs = soft[kk]
+        rank = min((r for m in msgs for w, r in SOFT_RANK if w in m), default=5)
+        over = 0.0
+        for m in msgs:
+            mo = _OVER_RE.search(m)
+            if mo and int(mo.group(2)) > 0:
+                over = max(over, int(mo.group(1)) / int(mo.group(2)))
+        return (rank, -over, int(kk))
+    return sorted(soft, key=key)
+
+
+def soft_cap(pd) -> int:
+    try:
+        n = len(json.loads((Path(pd) / 'cues.en.json').read_text(encoding='utf-8')))
+    except Exception:            # noqa: BLE001 — בלי הקובץ: התקרה הקודמת
+        n = 0
+    return max(SOFT_MIN, min(SOFT_MAX, n // 10))
+
+
 def fmt_lines(d: dict[str, str]) -> str:
     return '\n'.join(f'#{k} {v}' for k, v in sorted(d.items(), key=lambda kv: int(kv[0])))
 
@@ -663,10 +692,8 @@ class Pipeline:
         while r < rounds:
             r += 1
             todo = dict(hard)
-            for kk, v in soft.items():
-                if len(todo) >= 60:
-                    break
-                todo.setdefault(kk, []).extend(v)
+            for kk in soft_order(soft)[:max(0, soft_cap(self.pd) - len(todo))]:
+                todo.setdefault(kk, []).extend(soft[kk])
             if not todo:
                 return 0
             cur = self.current()
@@ -719,7 +746,7 @@ class Pipeline:
         jeng = llm.Engine(js, client=self.eng._client)
         try:
             res = jeng.complete('jg', '\n\n'.join([RULES, JG_TASK]),
-                                block('judge_sample', sample.read_text(encoding='utf-8')), max_tokens=16000)
+                                block('judge_sample', sample.read_text(encoding='utf-8')), max_tokens=32000, partial_ok=True)
         except llm.LLMError as e:
             print('· השופט נכשל (' + e.code + ') — ממשיכים בלעדיו.')
             for r in jeng.ledger.list():                      # גם כשל עלה כסף — נרשם בספר הראשי
@@ -729,7 +756,7 @@ class Pipeline:
         self.save_usage()
         jd = self.pd / 'judge'
         jd.mkdir(exist_ok=True)
-        (jd / 'verdict.txt').write_text(res.text.strip() + '\n', encoding='utf-8')
+        (jd / 'verdict.txt').write_text(kept_text(res).strip() + '\n', encoding='utf-8')
         self.J.judge(SimpleNamespace())
         self.adopt('jd')
 
@@ -1029,6 +1056,8 @@ def run_auto(jobmod, args) -> int:
             J.attach_late(J.Ctx(J.load_state()))
             ctx = J.Ctx(J.load_state())
             pl = Pipeline(ctx, J, eng)
+        if hasattr(J, 'learn_media_early'):
+            J.learn_media_early(J.Ctx(J.load_state()))   # העותק למאגר הלמידה בזמן הביקורת (המעבד כמעט פנוי)
         if after < 4:
             fixed, left = pl.review()
             print(f'✓ תרגום וביקורת: {fixed} תיקוני ביקורת · נשארו {left} שגיאות')

@@ -158,6 +158,59 @@ def load_glossary(path: Path) -> list[tuple[str, list[str]]]:
     return out
 
 
+
+# 22/10/2026 (מהקורפוס של הייצור: מתוך 195 "מונחים שלא נשמרו" כמחצית — צורה אחרת של אותה מילה, ועוד התרעות שווא):
+# כל התרעה כזו נשלחת לסבב התיקונים כ"לשקול" — טוקנים, ולפעמים "תיקון" של משהו תקין.
+_URL_RE = re.compile(r"(?:https?://|www\.)\S+|\b[\w.-]+@[\w-]+\.[\w.]+|\b[\w-]+(?:\.[\w-]+)*\.(?:com|co|org|net|io|ai|app|uk|us|me|tv|gov)\b(?:/\S*)?", re.I)
+_HE_PREFIX = re.compile(r"^(?:ו?(?:ש|כש|מש|לכש)?[הבלמכ]?)")
+_HE_SUFFIX = re.compile(r"(?:ים|ות|יות|ה|ת|י|יים)$")
+
+
+def term_in_en(term: str, en: str) -> bool:
+    """המונח מופיע במקור — לא בתוך כתובת/דומיין (נשארים בלועזית); מונח באותיות גדולות (MAX, ROI) — רק כמו שהוא כתוב"""
+    text = _URL_RE.sub(" ", en)
+    caps = len(term) >= 2 and term.upper() == term and any(ch.isalpha() for ch in term)
+    if caps:
+        return re.search(r"(?<![A-Za-z])" + re.escape(term) + r"(?![A-Za-z])", text) is not None
+    return re.search(r"(?<![a-z])" + re.escape(term.lower()) + r"(?![a-z])", text.lower()) is not None
+
+
+def _he_stem(w: str) -> str:
+    b = _HE_SUFFIX.sub("", w) if len(w) > 3 else w
+    return b
+
+
+def gl_found(opt: str, txt: str) -> bool:
+    """הנוסח מהמילון בתרגום — גם עם אותיות שימוש ("לאובר", "והפד") ובנטייה ("תגמולים" ל"תגמול")"""
+    if opt in txt:
+        return True
+    bare = re.sub(r"\s*\([^)]*\)", "", opt).strip()   # "אלפא (יתרון)", "מנכ\"ל (CEO)" — הסוגריים הם הסבר במילון, לא חלק מהנוסח
+    if bare and bare != opt:
+        return gl_found(bare, txt)
+    ow = re.findall(r"[א-ת'\"״׳]+|[A-Za-z0-9]+", opt)
+    if not ow or not any(re.match(r"[א-ת]", w) for w in ow):
+        return False
+    words = re.findall(r"[א-ת'\"״׳]+|[A-Za-z0-9]+", txt)
+    cands = set()
+    for w in words:
+        cands.add(w)
+        cands.add(_HE_PREFIX.sub("", w, count=1) or w)
+    stems = {_he_stem(c) for c in cands if c}
+    for w in ow:
+        if not re.match(r"[א-ת]", w):
+            if w not in words:
+                return False
+            continue
+        st = _he_stem(w)
+        pool = stems | cands
+        if len(st) < 3:                     # מילה קצרה (אדם, פד) — רק כמו שהיא, עם אותיות שימוש
+            if w not in pool and st not in pool:
+                return False
+        elif not any(c.startswith(st) and len(c) - len(st) <= 3 for c in pool):
+            return False
+    return True
+
+
 def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[str]]],
           max_chars: int = 84) -> tuple[list[str], dict]:
     """בדיקת התרגום מול התכנון. מחזיר (שורות דוח, סיכום)."""
@@ -179,7 +232,7 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
             b += cues[j]["budget"]
             j += 1
         eff_budget[str(c["id"])] = min(b, max_chars)
-    for c in cues:
+    for ci, c in enumerate(cues):
         k = str(c["id"])
         if k not in he:
             issues.append(f"- #{k}: חסר תרגום")
@@ -237,10 +290,10 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
         if en.rstrip().endswith("?") and not txt.rstrip().endswith(("?", "?!", "!?")) and not c.get("parts"):
             issues.append(f"- #{k}: שאלה במקור — בתרגום אין סימן שאלה")
             stats["questions"] += 1
-        low = en.lower()
+        near = " ".join(normalize_he(str(he.get(str(x["id"]), ""))) for x in cues[max(0, ci - 1):ci + 2])
         for term, opts in glossary:
-            if re.search(r"(?<![a-z])" + re.escape(term.lower()) + r"(?![a-z])", low):
-                if not any(o in txt for o in opts):
+            if term_in_en(term, en):
+                if not any(gl_found(o, txt) or gl_found(o, near) for o in opts):
                     issues.append(f"- #{k}: מונח '{term}' — לפי המילון: {' / '.join(opts)}")
                     stats["glossary"] += 1
         if "..." in t:
