@@ -179,6 +179,97 @@ export function stripFragAudio(buf, ids) {
   }
   return rm.length ? bcut(c, rm) : b;
 }
+/* ---- פענוח Dolby בדפדפן לסרטון שכבר עובד (22/10/2026, בקשת המשתמש) ----
+   סרטון עם קול AC-3/E-AC-3 שהטלפון לא מנגן (MKV/MP4 "WEB-DL") מתנגן בלי קול. לעבודות חדשות העובד בונה עותק Opus
+   (ladder.py — `hla`); לעבודות שכבר הסתיימו: הנגן מפענח את הקול כאן — @mediabunny/ac3 (FFmpeg ב־WebAssembly, ב־Worker
+   מקובץ קבוע — vendor/mediabunny, tools/mb-ac3-vendor.js) — ומנגן אותו ב־Web Audio, מסונכרן לשעון של הווידאו.
+   הסנכרון: עוגן (זמן ב־AudioContext ↔ זמן בסרטון) בכל התחלה, וכל קטע מתוזמן לפיו פחות העיכוב של הפלט (outputLatency —
+   כולל אוזניות בלוטות' כשהדפדפן מדווח). סטייה מעל AB_DRIFT — עוגן חדש. עצירה / קפיצה / טעינה — הכל נעצר ומתחיל מחדש. */
+export const AB_AHEAD = 2;          // שניות קול מתוזמנות מראש
+export const AB_DRIFT = 0.12;       // סטייה בין הקול לווידאו שמצדיקה עוגן חדש
+export const AB_CODECS = { ac3: 'ac-3', eac3: 'ec-3' };
+/* האם צריך לפענח בעצמנו: קודק Dolby שהדפדפן לא מכיר */
+export function needAudioBridge(codec, isType) {
+  const c = AB_CODECS[codec];
+  if (!c) return false;
+  try { return !isType('audio/mp4; codecs="' + c + '"'); } catch (e) { return true; }
+}
+/* טהורה: מתי (בשעון ה־AudioContext) ומאיזה היסט בקטע מתחילים, לפי העוגן */
+export function abWhen(anchor, ts, rate, now) {
+  const when = anchor.c + (ts - anchor.v) / rate - anchor.lat;
+  if (when >= now) return { when, off: 0 };
+  return { when: now, off: (now - when) * rate };
+}
+/* v = אלמנט הווידאו, open() = Promise ל־{ buffers(start) } (איטרטור של {buffer, timestamp}), mkCtx = () => AudioContext */
+export function createAudioBridge(v, open, mkCtx, opt = {}) {
+  const sleep = opt.sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
+  let ctx = null, gain = null, gen = 0, nodes = new Set(), anchor = null, sink = null, dead = false, timer = 0;
+  const stop = () => {
+    gen++; anchor = null;
+    for (const n of nodes) { try { n.stop(); } catch (e) {} try { n.disconnect(); } catch (e) {} }
+    nodes.clear();
+  };
+  const vol = () => { if (gain) gain.gain.value = v.muted ? 0 : (v.volume == null ? 1 : v.volume); };
+  async function run() {
+    stop();
+    if (dead || v.paused || v.ended || v.seeking) return;
+    const g = gen;
+    if (!ctx) { ctx = mkCtx(); gain = ctx.createGain(); gain.connect(ctx.destination); vol(); }
+    try { if (ctx.state === 'suspended') await ctx.resume(); } catch (e) {}
+    if (!sink) sink = await open();
+    if (g !== gen) return;
+    const rate = v.playbackRate || 1, t0 = v.currentTime;
+    anchor = { c: ctx.currentTime, v: t0, lat: Math.max(0, Number(ctx.outputLatency) || Number(ctx.baseLatency) || 0), rate };
+    try {
+      for await (const { buffer, timestamp } of sink.buffers(Math.max(0, t0 - 0.05))) {
+        if (g !== gen) return;
+        const end = timestamp + buffer.duration;
+        if (end <= t0) continue;
+        const w = abWhen(anchor, timestamp, rate, ctx.currentTime);
+        if (w.off >= buffer.duration) continue;
+        const n = ctx.createBufferSource();
+        n.buffer = buffer; n.playbackRate.value = rate; n.connect(gain);
+        n.onended = () => { nodes.delete(n); try { n.disconnect(); } catch (e) {} };
+        n.start(w.when, w.off);
+        nodes.add(n);
+        while (g === gen && abWhen(anchor, end, rate, 0).when - ctx.currentTime > AB_AHEAD) await sleep(200);
+      }
+    } catch (e) { if (opt.onError) opt.onError(e); }
+  }
+  function check() {   // סטייה בין הקול לווידאו — עוגן חדש
+    if (!anchor || v.paused || v.seeking || !ctx) return;
+    const want = anchor.v + (ctx.currentTime - anchor.c) * anchor.rate;
+    if (Math.abs(v.currentTime - want) > AB_DRIFT) run();
+  }
+  const on = { playing: run, seeked: run, ratechange: run, pause: stop, waiting: stop, seeking: stop, emptied: stop, ended: stop, volumechange: vol };
+  for (const k of Object.keys(on)) v.addEventListener(k, on[k]);
+  timer = setInterval(check, 1000);
+  if (!v.paused) run();
+  return {
+    destroy() {
+      dead = true; stop(); clearInterval(timer);
+      for (const k of Object.keys(on)) v.removeEventListener(k, on[k]);
+      try { if (ctx) ctx.close(); } catch (e) {}
+    },
+    state: () => ({ on: !!anchor, nodes: nodes.size, ctx: !!ctx }),
+  };
+}
+
+/* ברירת המחדל: Mediabunny + @mediabunny/ac3 מ־vendor (נטענים רק כשיש קול כזה) */
+let abReg = null;
+export async function decodeDolby(url) {
+  if (typeof window === 'undefined' || !window.AudioContext) return null;
+  const MB = await import('./vendor/mediabunny/mediabunny.min.mjs');
+  const input = new MB.Input({ source: new MB.UrlSource(url), formats: MB.ALL_FORMATS });
+  const tr = await input.getPrimaryAudioTrack();
+  const isType = (t) => !!(window.MediaSource && MediaSource.isTypeSupported(t));
+  if (!tr || !needAudioBridge(tr.codec, isType)) return null;
+  if (!abReg) abReg = import('./vendor/mediabunny/mediabunny-ac3.min.mjs').then((m) => m.registerAc3Decoder());
+  await abReg;
+  if (!(await tr.canDecode())) return null;
+  return { open: async () => new MB.AudioBufferSink(tr), ctx: () => new AudioContext({ latencyHint: 'playback' }) };
+}
+
 /* "1080p" — לפי הצלע הקצרה (אנכי 1080×1920 הוא 1080p, כמו ב־YouTube) */
 export const qShort = (l) => Math.min(l.w || l.width || 0, l.h || l.height || 0);
 export const qLabel = (l) => qShort(l) + 'p';
@@ -649,6 +740,21 @@ export function createPlayer(opts) {
   paintCc(); paintPlay(); paintBar(); paintChap();
   if (opts.burned) ccB.disabled = true;
   if (ladder && !opts.burned) startHls(); else v.src = opts.src || opts.fallback || '';
+  // 22/10/2026: קול Dolby שהטלפון לא מנגן — פענוח בדפדפן (רק כשמנגנים קובץ, לא hls — שם יש עותק Opus)
+  let bridge = null, bridgeSrc = '';
+  async function audioFix() {
+    const dec = opts.decodeAudio === undefined ? decodeDolby : opts.decodeAudio;
+    if (!dec || destroyed || mode !== 'file' || !v.currentSrc || bridgeSrc === v.currentSrc) return;
+    bridgeSrc = v.currentSrc;
+    if (bridge) { bridge.destroy(); bridge = null; }
+    try {
+      const D = await dec(v.currentSrc);
+      if (!D || destroyed || bridgeSrc !== v.currentSrc) return;
+      bridge = createAudioBridge(v, D.open, D.ctx, { onError: () => {} });
+      wrap.classList.add('ab');
+    } catch (e) {}
+  }
+  v.addEventListener('loadedmetadata', audioFix);
   return {
     el: wrap, video: v,
     seek: seekTo,
@@ -667,8 +773,10 @@ export function createPlayer(opts) {
     setChapters(c) { chs = normChapters(c); chNow = -2; paintChap(); paintMarks(); if (!menu.hidden && menu.dataset.p === 'c') openMenu('c'); },
     chapters: () => chs.slice(),   // QA ובדיקות
     quality: () => ({ mode, pq, levels: levels.map(qLabel), now: qNow() }),   // QA ובדיקות
+    audioBridge: () => (bridge ? bridge.state() : null),                      // QA ובדיקות
     destroy() {
       if (destroyed) return; destroyed = true; clearTimeout(hideT); clearTimeout(tapT);
+      if (bridge) { bridge.destroy(); bridge = null; }
       if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
       menu.remove();
       try { v.pause(); v.removeAttribute('src'); v.load(); } catch (e) {}
