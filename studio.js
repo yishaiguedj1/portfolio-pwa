@@ -12,7 +12,7 @@ import { createNet, probeVideo, extractAudio, uploadBoth, stageEstimates, progre
 import { createBackup, waitOAuthCode } from './libbackup.js';
 // ת4: מזהים של R2 (העלאה ותוצרים בעבודה במצב שרת)
 import { isR2Folder, isR2Id } from './studiostore.js';
-import { createPlayer, normCues, issuesList, fmtT, normLadder, normPq, normChapters, normSty, STY_COLORS, STY_Y } from './studioplay.js';
+import { createPlayer, normCues, issuesList, fmtT, normLadder, normAlt, normPq, normChapters, normSty, STY_COLORS, STY_Y } from './studioplay.js';
 import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, toStl, termIssues, flagIndex, normMeta, createTimeline, editDiff, editStats, importSubs } from './studiosubs.js';
 import { listTracks, extractTracks, cuesToFile } from './studiotracks.js';
 import { createEdlEditor, normEdl, edlPre, edlDur, outDur, silenceSegs, removeRange, addRange, segAt, intersectSegs, cutFillers, normOv, OV_T_MAX, OV_LG_MAX, OV_POS, previewEdl, PV_LEN } from './studioedl.js';
@@ -207,6 +207,7 @@ export function normJob(j) {
     ev: num(s.ev), vh: (Array.isArray(s.vh) ? s.vh : []).slice(0, 20).map(num),   // מ2: גרסת הכתוביות, ומתי נשמרה כל גרסה קודמת
     folder: FID_RE.test(String(s.folder || '')) ? s.folder : '',
     hl: normLadder(s.hl),                     // איכויות הצפייה (הראשונה = המקור עצמו)
+    hla: s.hl ? normAlt(s.hla) : null,        // 22/10/2026: עותק הקול לנגן (הקול המקורי — Dolby/DTS… — נשאר במקור)
     cp: normCp(s.cp),                         // סבב 10: העתק־הדבק — בקשה שמחכה לתשובה שלך
   } : null;
   const chap = normChapters(j.chap);   // פרקים בנגן (מ"רעיונות"); נשמרים בטלפון עם העבודה
@@ -2002,19 +2003,58 @@ function watchTrack(rec, v) {
     if (seen && seen.length && secs) uxAdd(rec, 'pl', 'cov', secs / seen.length);
   };
 }
-/* סבב 1: שורת תוצר — נגיעה פותחת ב־Drive; הכפתור בצד: כתוביות — שיתוף כקובץ (WhatsApp, "שמירה בקבצים"…) או הורדה,
-   סרטון — הורדה מ־Drive (קובץ של כמה GB לא נטען לזיכרון של הדף) */
+/* סבב 1: שורת תוצר. 22/10/2026 (דיווח המשתמש: "חלון של Drive עם שגיאה ולא קורה כלום" — הקבצים ב־R2, והקישור היה תמיד ל־Drive):
+   נגיעה = הורדה לטלפון (R2 — קישור חתום עם שם הקובץ להורדה; Drive — כמו קודם); הכפתור בצד: כתוביות ועותק לוואטסאפ — שיתוף,
+   סרטון — שמירה בתיקייה שבוחרים ב־Drive (רק כשהבורר של Drive זמין; אחרת הורדה) */
 const isTextOut = (k) => k === 'srt' || k === 'en';
 function rowOut(rec, o) {
   const r = h('div', 'st-row st-ric st-outr');
-  const a = h('a', 'st-outa'); a.href = 'https://drive.google.com/file/d/' + o.id + '/view'; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.dataset.k = 'out:' + o.k;
-  a.append(tile(isTextOut(o.k) ? 'globe' : 'film', isTextOut(o.k) ? 'blue' : 'green'), rowTxt(outShort(o.k), o.size ? fmtSize(o.size) : ''));
-  const b = btn('st-outb', null, () => shareOut(rec, o), 'out-sh:' + o.k);
+  const a = h('a', 'st-outa'); a.dataset.k = 'out:' + o.k;
+  if (isR2Id(o.id)) {
+    a.href = '#'; a.setAttribute('role', 'button');
+    a.addEventListener('click', (e) => { e.preventDefault(); downloadOut(rec, o); });
+  } else { a.href = 'https://drive.google.com/file/d/' + o.id + '/view'; a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+  const busy = dxOne === o.id;
+  a.append(tile(isTextOut(o.k) ? 'globe' : 'film', isTextOut(o.k) ? 'blue' : 'green'), rowTxt(outShort(o.k), busy ? T('studioDxBusy') : o.size ? fmtSize(o.size) : ''));
   const sh = isTextOut(o.k) || o.k === 'small';   // סבב 8: העותק לוואטסאפ — שיתוף, לא הורדה
-  b.setAttribute('aria-label', (sh ? T('studioOutShare') : T('studioOutDown')) + ' · ' + outShort(o.k));
-  b.append(ico(sh ? 'share' : 'down'));
+  const dx = !sh && canPick();                     // סרטון — שמירה ב־Drive
+  const b = btn('st-outb', null, () => (dx ? saveOutDrive(rec, o) : shareOut(rec, o)), (dx ? 'out-dx:' : 'out-sh:') + o.k);
+  b.setAttribute('aria-label', (sh ? T('studioOutShare') : dx ? T('studioOutDx') : T('studioOutDown')) + ' · ' + outShort(o.k));
+  b.append(ico(sh ? 'share' : dx ? 'cloud' : 'down'));
   r.append(a, b);
   return r;
+}
+/* שם הקובץ בהורדה: כתוביות — "שם.he.srt"; סרטון — "שם — <סוג>.mp4" */
+function outDlName(rec, o) {
+  if (isTextOut(o.k)) return outFileName(rec, o.k);
+  if (o.k === 'small') return shareVideoName(rec);
+  return shareVideoName(rec).replace(/\.mp4$/, '') + ' — ' + outShort(o.k) + (o.k === 'mkv' ? '.mkv' : '.mp4');
+}
+/* הורדה לטלפון: קישור חתום (שעה) עם Content-Disposition: attachment — הדפדפן מוריד (מנהל ההורדות), הדף נשאר */
+async function downloadOut(rec, o) {
+  uxAdd(rec, 'o', 'dl');   // מ׳3
+  if (!isR2Id(o.id)) { window.open('https://drive.google.com/uc?export=download&id=' + encodeURIComponent(o.id), '_blank', 'noopener'); return; }
+  try {
+    const g = await net.r2Get(o.id, outDlName(rec, o));
+    flashSafe(T('studioOutDlStart'));
+    location.href = g.url;
+  } catch (e) { flashSafe(T('studioOutErr')); }
+}
+/* שמירה של תוצר אחד בתיקייה שבוחרים ב־Drive (R2 — עותק בזרם; Drive — העתקה) */
+let dxOne = '';
+async function saveOutDrive(rec, o) {
+  if (dxOne) return;
+  let dest;
+  try { dest = await drivePick('folder'); } catch (e) { flashSafe(errText(e && e.code || 'drive')); return; }
+  if (!dest) return;
+  dxOne = o.id; render('none');
+  try {
+    if (isR2Id(o.id)) await net.r2ToDrive(o.id, dest.id, outDlName(rec, o));
+    else await net.driveCopy(o.id, dest.id, outDlName(rec, o));
+    uxAdd(rec, 'o', 'dx');
+    flashSafe(T('studioDxDone', { n: dest.name }));
+  } catch (e) { flashSafe(T('studioDxErr')); }
+  finally { dxOne = ''; render('none'); }
 }
 export function outFileName(rec, k) {   // "שם הסרטון.he.srt" — בלי תווים שמערכות קבצים לא מקבלות
   const base = String(fileTitle(rec && rec.spec && rec.spec.name) || 'video').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'video';
@@ -2043,9 +2083,10 @@ async function shareSmall(rec, o) {
   setTimeout(() => URL.revokeObjectURL(u), 5000);
 }
 async function shareOut(rec, o) {
-  uxAdd(rec, 'o', isTextOut(o.k) || o.k === 'small' ? 'sh' : 'dl');   // מ׳3
+  if (!isTextOut(o.k) && o.k !== 'small') return downloadOut(rec, o);
+  uxAdd(rec, 'o', 'sh');   // מ׳3
   if (o.k === 'small') return shareSmall(rec, o);
-  if (!isTextOut(o.k)) { window.open('https://drive.google.com/uc?export=download&id=' + encodeURIComponent(o.id), '_blank', 'noopener'); return; }
+  if (!isTextOut(o.k)) { downloadOut(rec, o); return; }
   let txt;
   try { txt = await net.driveText(o.id); } catch (e) { flashSafe(T('studioOutErr')); return; }
   const name = outFileName(rec, o.k), f = new File([txt], name, { type: 'text/plain' });
@@ -5173,6 +5214,13 @@ function ladderOf(rec) {
   for (const l of hl) { const u = net.mediaUrl(l.id); if (!u) return null; out.push(Object.assign({}, l, { url: new URL(u, location.href).href })); }
   return out;
 }
+/* 22/10/2026: עותק הקול לנגן (Opus) — הנגן משתמש בו רק כשהטלפון לא מנגן את הקול המקורי */
+function altOf(rec) {
+  const a = rec && rec.srv && rec.srv.hla;
+  if (!a || !ladderOf(rec)) return null;
+  const u = net.mediaUrl(a.id);
+  return u ? Object.assign({}, a, { url: new URL(u, location.href).href }) : null;
+}
 const pqSave = (q) => { if (store.settings.pq !== q) { store.settings.pq = q; save(); } };
 const canPlay = (rec) => !!(rec && (outOf(rec, 'cues') || outOf(rec, 'srt')) && ((rec.up.v && rec.up.v.id) || burnedOut(rec)));
 let pl = null;                    // { id, st: 'load'|'ok'|'err', ctl, cues, iss, err }
@@ -5191,7 +5239,7 @@ async function playLoad(rec) {
     if (!src && !fb) { me.st = 'err'; me.err = 'nosw'; plPaint(); return; }
     me.cues = cues; me.iss = issuesList(cues);
     me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: me.iss, chapters: rec.chap || [], T,
-      ladder: src ? ladderOf(rec) : null, pq: store.settings.pq, onPq: pqSave,   // איכויות כמו ב־YouTube
+      ladder: src ? ladderOf(rec) : null, alt: src ? altOf(rec) : null, pq: store.settings.pq, onPq: pqSave,   // איכויות כמו ב־YouTube
       poster: thumbFor(rec, (u) => { if (pl === me && me.ctl) me.ctl.setPoster(u); }) });   // 21/10/2026: התמונה לפני הניגון
     me.wt = watchTrack(rec, me.ctl.video);   // מ׳3: כמה מהסרטון נצפה
     me.st = 'ok';
@@ -5234,7 +5282,7 @@ function pagePlay(p) {
   if (pl.st === 'err') {
     const bo = burnedOut(rec);
     p.append(h('div', 'st-empty st-empty-sm', pl.err === 'nosw' ? T('studioPlNoSw') : T('studioPlLoadErr')));
-    if (bo) p.append(list(rowExt({ href: 'https://drive.google.com/file/d/' + bo.id + '/view', tile: tile('film', 'green'), label: T('studioPlOpenDrive'), k: 'pl-drive' })));
+    if (bo) p.append(list(isR2Id(bo.id) ? rowOut(rec, bo) : rowExt({ href: 'https://drive.google.com/file/d/' + bo.id + '/view', tile: tile('film', 'green'), label: T('studioPlOpenDrive'), k: 'pl-drive' })));
     return;
   }
   p.append(pl.ctl.el);
@@ -5743,14 +5791,14 @@ function pageRr(p) {
     if (st === 'new' && !rrBusy) p.append(btn('st-btn wide', T('studioStartAnyway'), () => rrKick(r), 'rr-kick'));   // 20/10/2026: נחסמה בתקלה רחבה
     if (!rrBusy) p.append(btn('st-btn danger wide', T('studioRrCancel'), () => rrCancel(r), 'rr-cancel'));   // 20/10/2026: אפשר לעצור הפקה (ממתינה / רצה)
   } else if (r && st === 'done' && r.srv.out.length) {
-    p.append(secT(T('studioRrReady')), list(...r.srv.out.map((o) => rowExt({ href: 'https://drive.google.com/file/d/' + o.id + '/view', tile: tile('film', 'green'), label: outShort(o.k), sub: o.size ? fmtSize(o.size) : '', k: 'rr-out:' + o.k }))));
+    p.append(secT(T('studioRrReady')), list(...r.srv.out.map((o) => rowOut(rec, o))));   // 22/10/2026: הורדה / שמירה ב־Drive (לא קישור ל־Drive — הקבצים ב־R2)
   } else if (r && (st === 'failed' || st === 'cancelled' && r.srv.err)) p.append(banner('warn', T('studioRrFailedL', { e: errText(r.srv.err) })));   // ביטול ביד — בלי באנר כישלון
   const active = r && ['new', 'queued', 'running'].includes(st);
   if (active) return;
   // סבב 10: הצריבה לבדיקה — מצב / התוצאה (קטע קצר), לצד ההפקה המלאה
   const pv = rrPv.get(rec.id), pst = pv ? pv.srv.state : '';
   if (rrRunning(pv)) p.append(list(rowNav({ tile: tile('redo', 'blue'), label: T('studioRrPvRun'), value: pst === 'running' ? Math.round(100 * ((pv.srv.prog && pv.srv.prog.p) || 0)) + '%' : '', k: 'rr-pv-run' })));
-  else if (pv && pst === 'done' && pv.srv.out.length) p.append(list(...pv.srv.out.map((o) => rowExt({ href: 'https://drive.google.com/file/d/' + o.id + '/view', tile: tile('film', 'blue'), label: T('studioRrPvReady'), sub: o.size ? fmtSize(o.size) : '', k: 'rr-pv-out' }))));
+  else if (pv && pst === 'done' && pv.srv.out.length) p.append(list(...pv.srv.out.map((o) => rowOut(rec, o))));
   else if (pv && (pst === 'failed' || pst === 'cancelled')) p.append(banner('warn', T('studioRrFailedL', { e: errText(pv.srv.err) })));
   const dirty = seDirty() && se.id === rec.id;
   p.append(list(rowNav({ tile: tile('film', 'blue'), label: T('studioEdTitle'), value: edlSum(rrEdl.get(rec.id), rec.spec.dur), onClick: () => go('cut', rec.id), k: 'rr-cut' })));
@@ -6201,7 +6249,7 @@ function pageJob(p) {
     workerMsgRow(rec, ph0),
   ];
   const links = h('div', 'st-wacts');
-  if (!outs.length) for (const o of (rec.srv && rec.srv.out) || []) links.append(extLink('st-wbtn', 'https://drive.google.com/file/d/' + o.id + '/view', outShort(o.k) + (o.size ? ' · ' + fmtSize(o.size) : ''), 'out', 'out:' + o.k));
+  if (!outs.length) for (const o of (rec.srv && rec.srv.out) || []) links.append(isR2Id(o.id) ? btn('st-wbtn', outShort(o.k) + (o.size ? ' · ' + fmtSize(o.size) : ''), () => downloadOut(rec, o), 'out:' + o.k) : extLink('st-wbtn', 'https://drive.google.com/file/d/' + o.id + '/view', outShort(o.k) + (o.size ? ' · ' + fmtSize(o.size) : ''), 'out', 'out:' + o.k));
   if (rec.up.folder && !isR2Folder(rec.up.folder) && !outs.length) links.append(extLink('st-wbtn', 'https://drive.google.com/drive/folders/' + rec.up.folder, T('studioOpenDrive'), 'out', 'drive-folder'));
   if (rec.srv && rec.srv.sess) links.append(extLink('st-wbtn', rec.srv.sess.url, T('studioOpenSess'), 'out', 'session'));
   if (ph0 === 'done' && rec.srv) links.append(btn('st-wbtn', T('studioBenchCopy'), () => copyText(JSON.stringify(benchData(rec)), T('studioBenchCopied')), 'bench-copy'));   // מאגר המדידות

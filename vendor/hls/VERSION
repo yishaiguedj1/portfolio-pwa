@@ -1,5 +1,7 @@
 hls.js 1.6.19 (npm) — dist/hls.light.min.js
 sha256 997b01f5943bbc5750c4f52c5e6671d161728104b03c75ec4ea4eb7db9628ab6
++ dist/hls.min.js (הגרסה המלאה — רצועות קול חלופיות; נטענת רק כשהקול המקורי לא מתנגן בטלפון ויש עותק Opus, 22/10/2026)
+sha256 72b87a6e58db623feca73ab370970c1126ec06eb3dcd0a67fd14b47b6340b820
 npm integrity sha512-A//aZeaAgM5rgUCbTURD4gkfyw5Uag2/4Jky7CfDOukL/DN+P5DjbgK2BYteyP3/KnCkPfkGVkbLxQG2T0AbUQ==
 מקור: https://registry.npmjs.org/hls.js/-/hls.js-1.6.19.tgz · רישיון Apache-2.0 (LICENSE)
 בשימוש: studioplay.js — איכויות צפייה כמו ב־YouTube (אוטומטי / ידני) על הקבצים שהעובד ארז (translator/ladder.py). נטען רק כשיש איכויות.

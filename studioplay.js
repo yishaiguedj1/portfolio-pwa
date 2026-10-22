@@ -78,7 +78,7 @@ export function nextCc(cc, hasEn) { return cc === 'he' ? (hasEn ? 'en' : 'off') 
 export const HEAD_BYTES = 256 * 1024;
 export const SEG_TARGET = 6, SEG_MAX_BYTES = 24 * 1024 * 1024;   // קטע ~6 שנ׳; לא מעל 24MB (= תקרת הטווח המפורש ב־sw.js)
 export const Q_HEIGHTS = [4320, 2160, 1440, 1080, 720, 480, 360, 240, 144];
-const C_RE = /^[A-Za-z0-9.]{3,40}(,[A-Za-z0-9.]{3,40})?$/;
+const C_RE = /^[A-Za-z0-9.-]{3,40}(,[A-Za-z0-9.-]{3,40})?$/;   // 22/10/2026: גם ac-3 / ec-3
 const FID = /^[A-Za-z0-9_-]{10,100}$/;
 /* מהשרתון (job.hl): הראשונה = המקור, מהגבוהה לנמוכה — כמו normHl בשרתון */
 export function normLadder(list, vid) {
@@ -92,6 +92,92 @@ export function normLadder(list, vid) {
     out.push({ id: x.id, w, h: hh, bw, abw, c: x.c });
   }
   return vid && out[0].id !== vid ? null : out;
+}
+/* 22/10/2026 (בקשת המשתמש: לא לדרוס קול איכותי): עותק הקול לנגן (Opus) — כשהקול המקורי במקור הוא Dolby/DTS/TrueHD.
+   **זהה ל־normHla בשרתון** */
+export function normAlt(x) {
+  if (!x || typeof x !== 'object' || !FID.test(String(x.id || '')) || x.c !== 'opus') return null;
+  const bw = Math.floor(+x.bw), abw = Math.floor(+x.abw), ch = Math.floor(+x.ch);
+  if (!(bw >= 8000 && bw <= 2e6 && abw >= 8000 && abw <= bw && ch >= 1 && ch <= 8)) return null;
+  return { id: x.id, c: 'opus', bw, abw, ch };
+}
+/* הקודקים של רמה: [וידאו, קול] (הסדר במחרוזת לפי סדר הרצועות בקובץ — לא מניחים) */
+const V_PRE = /^(avc[13]|hvc1|hev1|av01|vp09|vp8)\b/;
+export function splitCodecs(c) {
+  const p = String(c || '').split(',').filter(Boolean);
+  return [p.find((x) => V_PRE.test(x)) || '', p.find((x) => !V_PRE.test(x)) || ''];
+}
+/* הטלפון מנגן את הקול של הרמה בעצמו? (בלי קול — כן) */
+export function audioPlayable(c, isType) {
+  const a = splitCodecs(c)[1];
+  if (!a) return true;
+  try { return !!isType('audio/mp4; codecs="' + a + '"'); } catch (e) { return false; }
+}
+/* ---- הסרת רצועת הקול מ־MP4 מקוטע תוך כדי ניגון (בלי לגעת בקובץ) ----
+   כשהטלפון לא מנגן את הקול המקורי: hls.js פותח SourceBuffer אחד לווידאו+קול וקודק קול לא מוכר מפיל את כל הניגון (נבדק
+   22/10/2026). לכן: מהאתחול (moov) יוצא trak הקול ו־trex שלו; מכל moof יוצא ה־traf שלו, ו־data_offset של ה־trun שנשארו
+   קטן באותו מספר בתים (default_base_moof — ההיסט נמדד מתחילת ה־moof). ה־mdat נשאר כמו שהוא (בתים שלא נקראים). */
+const u32 = (b, i) => ((b[i] << 24) >>> 0) + (b[i + 1] << 16) + (b[i + 2] << 8) + b[i + 3];
+const w32 = (b, i, v) => { b[i] = (v >>> 24) & 255; b[i + 1] = (v >>> 16) & 255; b[i + 2] = (v >>> 8) & 255; b[i + 3] = v & 255; };
+const btyp = (b, i) => String.fromCharCode(b[i + 4], b[i + 5], b[i + 6], b[i + 7]);
+function bkids(b, s, e) {
+  const o = [];
+  for (let i = s; i + 8 <= e;) { const sz = u32(b, i); if (sz < 8 || i + sz > e) break; o.push([btyp(b, i), i, sz]); i += sz; }
+  return o;
+}
+function bfind(b, s, e, path) {
+  let hit = null;
+  for (const n of path) { hit = bkids(b, s, e).find((k) => k[0] === n); if (!hit) return null; s = hit[1] + 8; e = hit[1] + hit[2]; }
+  return hit;
+}
+function bcut(b, rm) {
+  rm.sort((x, y) => x[0] - y[0]);
+  const o = new Uint8Array(b.length - rm.reduce((a, r) => a + r[1], 0));
+  let p = 0, i = 0;
+  for (const [s, l] of rm) { o.set(b.subarray(i, s), p); p += s - i; i = s + l; }
+  o.set(b.subarray(i), p);
+  return o;
+}
+/* אתחול → { data, ids } — ids = מזהי רצועות הקול שהוסרו (ריק = לא נגענו) */
+export function stripInitAudio(buf) {
+  const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  const moov = bkids(b, 0, b.length).find((k) => k[0] === 'moov');
+  if (!moov) return { data: b, ids: [] };
+  const ids = [], rm = [];
+  const kids = bkids(b, moov[1] + 8, moov[1] + moov[2]);
+  for (const t of kids.filter((k) => k[0] === 'trak')) {
+    const hd = bfind(b, t[1] + 8, t[1] + t[2], ['mdia', 'hdlr']), tk = bfind(b, t[1] + 8, t[1] + t[2], ['tkhd']);
+    if (!hd || !tk || btyp(b, hd[1] + 12) !== 'soun') continue;
+    ids.push(u32(b, tk[1] + 12 + (b[tk[1] + 8] ? 16 : 8)));
+    rm.push([t[1], t[2]]);
+  }
+  if (!ids.length || ids.length === kids.filter((k) => k[0] === 'trak').length) return { data: b, ids: [] };   // רק קול — לא נוגעים
+  const c = b.slice(), up = [];
+  for (const m of kids.filter((k) => k[0] === 'mvex')) {
+    for (const x of bkids(c, m[1] + 8, m[1] + m[2])) if (x[0] === 'trex' && ids.includes(u32(c, x[1] + 12))) { rm.push([x[1], x[2]]); up.push([m[1], x[2]]); }
+  }
+  for (const r of rm) w32(c, moov[1], u32(c, moov[1]) - r[1]);
+  for (const [at, n] of up) w32(c, at, u32(c, at) - n);
+  return { data: bcut(c, rm), ids };
+}
+/* קטע (moof+mdat, אחד או כמה) → אותו קטע בלי ה־traf של הרצועות שהוסרו */
+export function stripFragAudio(buf, ids) {
+  const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  if (!ids || !ids.length) return b;
+  const c = b.slice(), rm = [];
+  for (const m of bkids(c, 0, c.length).filter((k) => k[0] === 'moof')) {
+    const trafs = bkids(c, m[1] + 8, m[1] + m[2]).filter((k) => k[0] === 'traf');
+    let gone = 0;
+    for (const t of trafs) { const h = bfind(c, t[1] + 8, t[1] + t[2], ['tfhd']); if (h && ids.includes(u32(c, h[1] + 12))) { rm.push([t[1], t[2]]); gone += t[2]; } }
+    if (!gone) continue;
+    w32(c, m[1], m[2] - gone);
+    for (const t of trafs) {
+      const h = bfind(c, t[1] + 8, t[1] + t[2], ['tfhd']);
+      if (!h || ids.includes(u32(c, h[1] + 12))) continue;
+      for (const r of bkids(c, t[1] + 8, t[1] + t[2])) if (r[0] === 'trun' && (u32(c, r[1] + 8) & 1)) w32(c, r[1] + 16, (u32(c, r[1] + 16) - gone) >>> 0);
+    }
+  }
+  return rm.length ? bcut(c, rm) : b;
 }
 /* "1080p" — לפי הצלע הקצרה (אנכי 1080×1920 הוא 1080p, כמו ב־YouTube) */
 export const qShort = (l) => Math.min(l.w || l.width || 0, l.h || l.height || 0);
@@ -164,10 +250,13 @@ export function mediaPlaylist(url, init, segs) {
   L.push('#EXT-X-ENDLIST');
   return L.join('\n') + '\n';
 }
-export function masterPlaylist(levels) {
+export function masterPlaylist(levels, alt) {
   const L = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-INDEPENDENT-SEGMENTS'];
+  // 22/10/2026: עותק הקול לנגן — רצועת קול חלופית לכל הרמות; בקודקים של הרמה רק הווידאו + opus (הקול שבקטעים מוסר בטלפון)
+  if (alt) L.push('#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="main",DEFAULT=YES,AUTOSELECT=YES,CHANNELS="' + alt.ch + '",URI="' + alt.uri + '"');
   for (const l of levels) {
-    L.push('#EXT-X-STREAM-INF:BANDWIDTH=' + l.bw + ',AVERAGE-BANDWIDTH=' + l.abw + ',RESOLUTION=' + l.w + 'x' + l.h + ',CODECS="' + l.c + '"', l.uri);
+    const c = alt ? [splitCodecs(l.c)[0], 'opus'].filter(Boolean).join(',') : l.c;
+    L.push('#EXT-X-STREAM-INF:BANDWIDTH=' + (l.bw + (alt ? alt.bw : 0)) + ',AVERAGE-BANDWIDTH=' + (l.abw + (alt ? alt.abw : 0)) + ',RESOLUTION=' + l.w + 'x' + l.h + ',CODECS="' + c + '"' + (alt ? ',AUDIO="a"' : ''), l.uri);
   }
   return L.join('\n') + '\n';
 }
@@ -319,11 +408,18 @@ export function createPlayer(opts) {
   async function startHls() {
     try {
       if (typeof window === 'undefined' || !window.MediaSource) throw new Error('mse');
-      if (!window.Hls) await import(opts.hlsUrl || './vendor/hls/hls.light.min.js');
+      // 22/10/2026: הקול המקורי שהטלפון לא מנגן (Dolby/DTS…) + עותק Opus → hls.js המלא (רצועות קול חלופיות — הגרסה המקוצרת
+      // לא תומכת), והקול מוסר מהקטעים. טלפון שמנגן את הקול המקורי — כמו קודם, בקול המקורי
+      const isType = (t) => window.MediaSource.isTypeSupported(t);
+      const alt = opts.alt && opts.alt.url && !audioPlayable(ladder[0].c, isType) && isType('audio/mp4; codecs="opus"') ? opts.alt : null;
+      const full = './vendor/hls/hls.min.js';
+      if (!window.Hls || (alt && !window.HlsAlt)) { await import(alt ? full : (opts.hlsUrl || './vendor/hls/hls.light.min.js')); if (alt) window.HlsAlt = true; }
       const Hls = window.Hls;
       if (!Hls || !Hls.isSupported()) throw new Error('hls');
       const heads = await Promise.all(ladder.map((l) => head(l.url).catch(() => null)));
       if (!heads[0] || destroyed) throw new Error('top');
+      const ah = alt ? await head(alt.url).catch(() => null) : null;
+      if (alt && !ah) throw new Error('alt');
       const texts = new Map(), base = new URL('./studio-pl/', location.href).href, lv = [];
       ladder.forEach((l, i) => {
         if (!heads[i]) return;
@@ -331,8 +427,26 @@ export function createPlayer(opts) {
         texts.set(uri, mediaPlaylist(l.url, heads[i].init, groupSegs(heads[i].segs)));
         lv.push(Object.assign({}, l, { uri }));
       });
-      texts.set(base + 'm.m3u8', masterPlaylist(lv));
+      if (alt) texts.set(base + 'a.m3u8', mediaPlaylist(alt.url, ah.init, groupSegs(ah.segs)));
+      texts.set(base + 'm.m3u8', masterPlaylist(lv, alt ? Object.assign({}, alt, { uri: base + 'a.m3u8' }) : null));
       const Base = Hls.DefaultConfig.loader;
+      const strip = new Map();   // לכל קובץ (כתובת): מזהי רצועות הקול שהוסרו מהאתחול שלו
+      class FL extends Base {    // הקטעים של הווידאו — בלי רצועת הקול המקורית
+        load(ctx, cfg, cb) {
+          const frag = ctx.frag, ok = cb.onSuccess;
+          if (alt && frag && frag.type === 'main') {
+            cb = Object.assign({}, cb, { onSuccess: (r, st, c, n) => {
+              if (r && r.data instanceof ArrayBuffer) {
+                const key = String(ctx.url).split('#')[0];
+                if (frag.sn === 'initSegment') { const x = stripInitAudio(r.data); strip.set(key, x.ids); r.data = x.data.buffer; }
+                else r.data = stripFragAudio(r.data, strip.get(key) || []).buffer;
+              }
+              ok(r, st, c, n);
+            } });
+          }
+          super.load(ctx, cfg, cb);
+        }
+      }
       class PL extends Base {   // הרשימות נבנו כאן — בלי רשת
         load(ctx, cfg, cb) {
           const t = texts.get(ctx.url);
@@ -342,7 +456,7 @@ export function createPlayer(opts) {
           setTimeout(() => cb.onSuccess({ url: ctx.url, data: t }, st, ctx, null), 0);
         }
       }
-      hls = new Hls({ pLoader: PL, enableWorker: false, capLevelToPlayerSize: false, startLevel: -1, abrEwmaDefaultEstimate: 4e6,
+      hls = new Hls({ pLoader: PL, ...(alt ? { fLoader: FL } : {}), enableWorker: false, capLevelToPlayerSize: false, startLevel: -1, abrEwmaDefaultEstimate: 4e6,
         maxBufferLength: 30, backBufferLength: 30, fragLoadPolicy: { default: { maxTimeToFirstByteMs: 15000, maxLoadTimeMs: 120000,
           timeoutRetry: { maxNumRetry: 2, retryDelayMs: 0, maxRetryDelayMs: 0 }, errorRetry: { maxNumRetry: 3, retryDelayMs: 1000, maxRetryDelayMs: 8000 } } } });
       let healed = false;

@@ -17,11 +17,15 @@ from pathlib import Path
 # גובה (הצלע הקצרה — אנכי 1080×1920 הוא "1080p", כמו ב־YouTube), CRF ותקרת קצב (kbps) לכל איכות נמוכה
 RUNGS = ((1440, 25, 6000), (1080, 26, 3200), (720, 27, 1600), (480, 28, 800), (360, 29, 500), (240, 30, 280), (144, 31, 140))
 V_OK = ('h264', 'hevc', 'av1', 'vp9')            # נארזים בלי קידוד ומתנגנים ב־MSE של Chrome
-A_OK = ('aac', 'opus', 'mp3')
+A_OK = ('aac', 'opus', 'mp3', 'flac')           # הדפדפן מנגן אותם בעצמו — הקול נשאר בקובץ ומתנגן כמו שהוא
+# 22/10/2026 (בקשת המשתמש: "לא לדרוס סאונד איכותי"): קול שהטלפון לא תמיד מנגן (Dolby, DTS, TrueHD, ALAC) נשאר במקור כמו שהוא —
+# הקובץ נארז בלי קידוד כמו כל מקור, ולצידו נבנה עותק קול קטן ב־Opus רק לנגן (ALT). טלפון שמכיר את הקול המקורי מנגן אותו;
+# אחר — הנגן מסיר את רצועת הקול מהקטעים תוך כדי (studioplay.js stripAudio) ומנגן את העותק כרצועת קול חלופית של HLS
+A_ALT = ('ac3', 'eac3', 'alac', 'dts', 'truehd')
 GOP_MAX = 12.0                                   # מפתח לפחות כל 12 שנ׳ — אחרת קטעים ענקיים (קפיצה ומעבר איטיים)
 A_LOW = '64k'
 MOVFLAGS = '+frag_keyframe+empty_moov+default_base_moof+global_sidx'
-WHY = ('streams', 'vcodec', 'acodec', 'gop', 'small', 'edl', 'probe', 'remux', 'verify', 'encode', 'time')
+WHY = ('streams', 'vcodec', 'acodec', 'gop', 'small', 'edl', 'probe', 'remux', 'verify', 'encode', 'time', 'alt')
 
 
 def _streams(info):
@@ -48,21 +52,25 @@ def summarize(info, gop):
         dur = float((info.get('format') or {}).get('duration') or v.get('duration') or 0)
     except (TypeError, ValueError):
         dur = 0.0
+    try:
+        ch = int((aus[0] if aus else {}).get('channels') or 0)
+    except (TypeError, ValueError):
+        ch = 0
     return {'nv': len(vs), 'na': len(aus), 'other': other, 'v': v.get('codec_name') or '', 'a': (aus[0].get('codec_name') if aus else '') or '',
-            'w': w, 'h': h, 'dur': dur, 'gop': gop}
+            'ch': ch, 'w': w, 'h': h, 'dur': dur, 'gop': gop}
 
 
 def plan(sm, edl=False):
-    """טהורה: אפשר לארוז בלי אובדן? אילו איכויות נמוכות? → {'ok', 'why', 'short', 'rungs'}"""
+    """טהורה: אפשר לארוז בלי אובדן? אילו איכויות נמוכות? עותק קול לנגן? → {'ok', 'why', 'short', 'rungs', 'alt'}"""
     def no(why):
-        return {'ok': False, 'why': why, 'short': 0, 'rungs': []}
+        return {'ok': False, 'why': why, 'short': 0, 'rungs': [], 'alt': False}
     if edl:
         return no('edl')                         # חיתוך לפני התרגום — הנגן מנגן את הצריבה, לא את המקור
     if sm['nv'] != 1 or sm['na'] > 1 or sm['other']:
         return no('streams')                     # כתוביות / פרקים / קבצים מצורפים / כמה רצועות — לא נוגעים במקור
     if sm['v'] not in V_OK:
         return no('vcodec')
-    if sm['na'] and sm['a'] not in A_OK:
+    if sm['na'] and sm['a'] not in A_OK + A_ALT:
         return no('acodec')
     if not (0 < sm['gop'] <= GOP_MAX):
         return no('gop')
@@ -70,7 +78,7 @@ def plan(sm, edl=False):
     rungs = [r for r in RUNGS if r[0] < short - 8]
     if short < 200 or not rungs:
         return no('small')
-    return {'ok': True, 'why': '', 'short': short, 'rungs': rungs}
+    return {'ok': True, 'why': '', 'short': short, 'rungs': rungs, 'alt': bool(sm['na']) and sm['a'] in A_ALT}
 
 
 def probe(src, ffprobe='ffprobe'):
@@ -109,7 +117,33 @@ def remux_cmd(src, out, sm, ffmpeg='ffmpeg'):
     cmd += ['-c', 'copy', '-map_metadata', '-1', '-map_chapters', '-1']
     if sm['v'] == 'hevc':
         cmd += ['-tag:v', 'hvc1']                # Chrome מכיר hvc1 (לא hev1)
+    if sm['na'] and sm['a'] in A_ALT:
+        # Dolby/DTS/TrueHD ב־MP4: ffmpeg צריך לראות מנות לפני כתיבת moov (delay_moov — בלעדיו "Cannot write moov atom before
+        # EAC3 packets parsed"), ו־DTS/TrueHD מסומנים אצלו כניסיוניים ב־MP4 (‎-strict -2). הזרם עצמו מועתק כמו שהוא
+        return cmd + ['-strict', '-2', '-movflags', MOVFLAGS.replace('+empty_moov', '+empty_moov+delay_moov'), '-f', 'mp4', str(out)]
     return cmd + ['-movflags', MOVFLAGS, '-f', 'mp4', str(out)]
+
+
+def alt_layout(ch):
+    """(פריסה, קצב) לעותק ה־Opus: מונו/סטריאו כמו שהם, ‏5.1 ו־7.1 נשמרים (Opus בפריסה תקנית — 5.1(side) של Dolby לא מתקבל
+    ב־mapping family 1), 3–5 ערוצים → 5.1. כ־64kbps לערוץ (שקוף לאוזן ב־Opus), עד 448."""
+    ch = int(ch or 2)
+    if ch <= 1:
+        return 'mono', 64
+    if ch == 2:
+        return 'stereo', 128
+    if ch >= 8:
+        return '7.1', 448
+    return '5.1', 320
+
+
+def alt_cmd(src, out, sm, ffmpeg='ffmpeg'):
+    """עותק הקול לנגן: Opus ב־MP4 מקוטע עם sidx (קטעים של 6 שנ׳) — רצועת קול חלופית של HLS, בלי וידאו."""
+    lay, kbps = alt_layout(sm.get('ch'))
+    return [ffmpeg, '-hide_banner', '-loglevel', 'error', '-y', '-i', str(src), '-map', '0:a:0', '-vn', '-sn', '-dn',
+            '-af', 'aformat=channel_layouts=' + lay, '-c:a', 'libopus', '-b:a', '%dk' % kbps] + \
+           (['-mapping_family', '1'] if lay not in ('mono', 'stereo') else []) + \
+           ['-map_metadata', '-1', '-map_chapters', '-1', '-frag_duration', '6000000', '-movflags', MOVFLAGS, '-f', 'mp4', str(out)]
 
 
 def low_cmd(src, outdir, rungs, has_audio, ffmpeg='ffmpeg'):
@@ -277,6 +311,12 @@ def codecs(b):
             out.append('mp4a.40.%d' % aot if oti == 0x40 else 'mp4a.%02X' % oti)
         elif typ == 'Opus':
             out.append('opus')
+        elif typ in ('ac-3', 'ec-3', 'alac', 'mlpa'):
+            out.append(typ)                      # RFC 6381: ac-3 / ec-3 (שאר הקודקים — לנגן רק כדי לדעת שהקול לא בשבילו)
+        elif typ == 'fLaC':
+            out.append('flac')
+        elif typ in ('dtsc', 'dtsh', 'dtsl', 'dtse', 'dtsx'):
+            out.append(typ)
         elif typ == '.mp3':
             out.append('mp4a.6B')
     return ','.join(out)
@@ -354,6 +394,12 @@ def build(src, outdir, edl=False, ffmpeg='ffmpeg', ffprobe='ffprobe', log=print,
         return {'ok': False, 'why': 'remux'}
     if not verify_same(src, top, ffprobe):
         return {'ok': False, 'why': 'verify'}
+    alt = None
+    if pl['alt']:
+        alt = outdir / 'alt.mp4'
+        log('איכויות: עותק קול לנגן (Opus) — הקול המקורי נשאר בקובץ')
+        if subprocess.run(alt_cmd(src, alt, sm, ffmpeg)).returncode != 0 or not alt.exists():
+            return {'ok': False, 'why': 'alt'}
     if gate is not None:
         log('איכויות: המקור ארוז — הנמוכות מחכות לסוף הצריבה')
         gate()
@@ -372,4 +418,11 @@ def build(src, outdir, edl=False, ffmpeg='ffmpeg', ffprobe='ffprobe', log=print,
             return {'ok': False, 'why': 'encode'}
         d.update(f=str(p))                       # האיכויות הנמוכות כבר זקופות (ffmpeg מסובב בפענוח)
         rungs.append(d)
-    return {'ok': True, 'why': '', 'top': t, 'rungs': rungs}
+    out = {'ok': True, 'why': '', 'top': t, 'rungs': rungs}
+    if alt is not None:
+        a = describe(alt)
+        if not a or a['c'] != 'opus':
+            return {'ok': False, 'why': 'alt'}
+        a.update(f=str(alt), ch=int(sm.get('ch') or 2))
+        out['alt'] = a
+    return out
