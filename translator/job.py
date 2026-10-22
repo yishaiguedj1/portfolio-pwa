@@ -3487,6 +3487,23 @@ def ladder_stop():
 
 
 LADDER_HOLD_CMDS = ('align',)
+LADDER_GO = 'go'                 # 22/10/2026: הדגל שמשחרר את הקידוד של האיכויות הנמוכות (אחרי הצריבה)
+LADDER_VIDEO_OUTS = ('compact', 'same', 'mkv', 'small')
+
+
+def ladder_go():
+    """הצריבה הסתיימה (או שאין צריבה) — האיכויות הנמוכות יכולות להתחיל להתקודד."""
+    try:
+        if LADDER_DIR.is_dir():
+            (LADDER_DIR / LADDER_GO).write_text(str(time.time()))
+    except OSError:
+        pass
+
+
+def ladder_gate():
+    """בתהליך שברקע: מחכים לדגל. התהליך נעצר מבחוץ (ladder_stop/ladder_hold) — אין צורך בתקרת זמן כאן."""
+    while not (LADDER_DIR / LADDER_GO).exists():
+        time.sleep(2)
 
 
 def ladder_hold():
@@ -3520,7 +3537,8 @@ def ladder_start(ctx, src):
     LADDER_DIR.mkdir(parents=True, exist_ok=True)
     (LADDER_DIR / 'state.json').write_text(json.dumps({'job': ctx.st['job'], 's': 'run', 'at': time.time(), 'src': str(src)}), encoding='utf-8')
     log = open(LADDER_DIR / 'ladder.log', 'ab')
-    p = subprocess.Popen([sys.executable, str(HERE / 'job.py'), 'ladder-run', '--job', ctx.st['job'], '--src', str(src)],
+    gate = os.environ.get('SNB_LADDER_GATE') != 'off' and any(k in LADDER_VIDEO_OUTS for k in ((ctx.st.get('spec') or {}).get('out') or []))
+    p = subprocess.Popen([sys.executable, str(HERE / 'job.py'), 'ladder-run', '--job', ctx.st['job'], '--src', str(src)] + (['--gate'] if gate else []),
                          stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True, env=vt_env())
     (LADDER_DIR / 'pid').write_text(str(p.pid))
     return True
@@ -3539,7 +3557,7 @@ def ladder_run(args):
         os.sched_setscheduler(0, os.SCHED_IDLE, os.sched_param(0))
     except (AttributeError, OSError):
         pass
-    r = LD.build(args.src, LADDER_DIR / 'out', log=lambda m: print(m, flush=True))
+    r = LD.build(args.src, LADDER_DIR / 'out', log=lambda m: print(m, flush=True), gate=ladder_gate if getattr(args, 'gate', False) else None)
     st = {'job': args.job, 's': 'ok' if r.get('ok') else 'skip', 'why': r.get('why', ''), 'top': r.get('top'), 'rungs': r.get('rungs'),
           'at': time.time()}
     (LADDER_DIR / 'state.json').write_text(json.dumps(st), encoding='utf-8')
@@ -3564,9 +3582,12 @@ def ladder_finish(ctx):
     if not st or st.get('job') != ctx.st['job']:
         return None
     waited = 0
+    ladder_go()                                  # ליתר ביטחון (המשך מנקודת שמירה / מסלול שלא עבר בצריבה)
+    # הנמוכות מתחילות רק אחרי הצריבה — בסרטון ארוך הקידוד שלהן ארוך מרבע שעה. התוצרים כבר אצלך, וזה רק הנגן
+    wait_max = max(LADDER_WAIT, int(0.4 * float((ctx.st.get('spec') or {}).get('dur') or 0)))
     if st.get('s') == 'run' and ladder_running():
         ladder_boost()                           # עכשיו רק הן נשארו — לא לחכות למעבד "פנוי לגמרי"
-    while st.get('s') == 'run' and ladder_running() and waited < LADDER_WAIT:
+    while st.get('s') == 'run' and ladder_running() and waited < wait_max:
         ctx.report('sv', None, 'מכינים איכויות צפייה')
         time.sleep(5)
         waited += 5
@@ -3622,6 +3643,8 @@ def finish(args):
     if want and (ctx.st.get('rl') or {}).get('ab') and not approve_render(ctx):
         print('· בלי צריבה (המשתמש בחר רק קובץ כתוביות, או לא ענה בזמן) — מעלים את קובץ הכתוביות.')
         want = []
+    if not want:
+        ladder_go()                              # אין צריבה — האיכויות הנמוכות לא מחכות לכלום
     title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120]
     # 21/10/2026 (יומני הייצור: 27 שנ׳ בין build לצריבה — גל הקול ושבעה קבצים בטור): ההעלאה המוקדמת רצה ברקע, במקביל לצריבה
     early, eth = {}, None
@@ -3634,6 +3657,7 @@ def finish(args):
         if 'small' in want:                      # סבב 8: העותק לוואטסאפ נבנה מסרטון צרוב — בלי צרוב שנבחר, הדחוס (לא עולה)
             flags += (['--compact'] if 'compact' not in want and 'same' not in want else []) + ['--small', str(SMALL_MB)]
         vt(ctx, ['render', ctx.name] + flags, 'bn', 0.0, 1.0)
+        ladder_go()                              # 22/10/2026 (אפשרות א׳): הצריבה נגמרה — עכשיו המעבד פנוי לאיכויות הנמוכות
     t_sv = time.time()
     if eth is not None:
         eth.join()
@@ -4033,6 +4057,7 @@ def main(argv=None):
     sub.add_parser('ai-done', help='גיליון AI: בדיקת התשובה ושליחתה לטלפון')
     sub.add_parser('render', help='הפקה מחדש: הכתוביות שנערכו בטלפון → צריבה (בלי טוקנים)')
     lr = sub.add_parser('ladder-run', help='(פנימי) בניית איכויות הצפייה ברקע')
+    lr.add_argument('--gate', action='store_true', help='הנמוכות מחכות לדגל go (סוף הצריבה)')
     lr.add_argument('--job', required=True)
     lr.add_argument('--src', required=True)
     sub.add_parser('auto', help='מצב API: כל העבודה מקצה לקצה — הכלים כאן, עבודת השפה בקריאות ישירות ל־Claude')

@@ -1,0 +1,7 @@
+# לפריסה מהמחשב (לא חובה — אפשר להדביק את worker.js בממשק של Cloudflare, ראו README.md)
+name = "snb-studio-watch"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+[triggers]
+crons = ["*/10 * * * *"]
