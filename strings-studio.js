@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1750 מפתחות מתוך 3831) */
+/* המחרוזות של studio (1758 מפתחות מתוך 3839) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -826,6 +826,7 @@ he: {
   "studioLinkChecking": "בודקים את הקישור…",
   "studioLinkCheckingS": "הטלפון מחפש את הסרטון ואת כל האיכויות שלו. בדרך כלל כמה שניות (בפעם הראשונה קצת יותר).",
   "studioLinkClear": "ניקוי הקישור",
+  "studioLinkCloudNote": "יורד ישר לענן של Studio — בלי נתונים ובלי סוללה מהטלפון. התמלול מתחיל מהקול עוד לפני שהסרטון גמר לרדת. אם האתר חוסם את השרת, העבודה תיכשל — אז מורידים לטלפון.",
   "studioLinkDlWait": "מוריד לטלפון… ההתקדמות בחלון של Studio ובהתראה.",
   "studioLinkEApp": "הורדה מקישור עובדת באפליקציה Studio לאנדרואיד — הסרטון תמיד יורד לטלפון שלך.",
   "studioLinkEBad": "הקישור לא תקין.",
@@ -878,6 +879,13 @@ he: {
   "studioLinkTagSubs": "יש כתוביות",
   "studioLinkTagTop": "עד {q}",
   "studioLinkTo": "עד",
+  "studioLinkToCloud": "ישר לענן של Studio",
+  "studioLinkToCloudNo": "האתר הזה חוסם את השרת שלנו — רק לטלפון",
+  "studioLinkToCloudOff": "זמין רק במצב השרת של המערכת",
+  "studioLinkToCloudS": "בלי נתונים ובלי סוללה מהטלפון — השרת מוריד ומתרגם",
+  "studioLinkToDev": "לטלפון",
+  "studioLinkToDevS": "נשמר ב־Movies/Studio, עם התקדמות בהתראה — ואז עולה לתרגום",
+  "studioLinkToT": "לאן להוריד",
   "studioLinkUpload": "אם יש לכם את הקובץ בטלפון — אפשר גם לבחור אותו (חזרה לטופס ← בחירת סרטון).",
   "studioLinkVideo": "וידאו",
   "studioLoading": "טוען…",
@@ -2578,6 +2586,7 @@ en: {
   "studioLinkChecking": "Checking the link…",
   "studioLinkCheckingS": "Your phone is finding the video and all its qualities. Usually a few seconds (a bit longer the first time).",
   "studioLinkClear": "Clear the link",
+  "studioLinkCloudNote": "Downloads straight to the Studio cloud — no data or battery from your phone. Transcription starts from the audio before the video finishes. If the site blocks the server, the job will fail — then download to your phone.",
   "studioLinkDlWait": "Downloading to your phone… progress is in the Studio window and the notification.",
   "studioLinkEApp": "Downloading from a link works in the Studio Android app — the video always downloads to your phone.",
   "studioLinkEBad": "The link isn’t valid.",
@@ -2630,6 +2639,13 @@ en: {
   "studioLinkTagSubs": "Has subtitles",
   "studioLinkTagTop": "Up to {q}",
   "studioLinkTo": "To",
+  "studioLinkToCloud": "Straight to the Studio cloud",
+  "studioLinkToCloudNo": "This site blocks our server — phone only",
+  "studioLinkToCloudOff": "Available only in the system’s server mode",
+  "studioLinkToCloudS": "No data or battery from your phone — the server downloads and translates",
+  "studioLinkToDev": "To your phone",
+  "studioLinkToDevS": "Saved to Movies/Studio with progress in a notification — then it goes up for translation",
+  "studioLinkToT": "Where to download",
   "studioLinkUpload": "If the file is on your phone, you can also choose it (back to the form → choose a video).",
   "studioLinkVideo": "video",
   "studioLoading": "Loading…",
