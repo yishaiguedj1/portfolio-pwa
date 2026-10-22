@@ -92,7 +92,9 @@ RUN rm -rf /app/translator/tests /app/translator/research /app/translator/__pyca
 # 20/10/2026: בדיקת עשן מול הספריות האמיתיות שבתמונה (הבדיקות ב־CI רצות בלי anthropic) — בניית הלקוח של Claude
 # בלי רשת. anthropic 1.x עבר ל־httpx2 ודחה httpx.Timeout ב־TypeError: כל עבודה בשרת קרסה בקריאה הראשונה, והבנייה עברה
 RUN cd /app/translator && ANTHROPIC_API_KEY=build-check /opt/vt/bin/python -B -c \
-    "import llm; c = llm.Engine(llm.Spec.of(llm.DEFAULT_MODE))._client_or_new(); assert c.timeout.read == llm.API_READ_TIMEOUT, c.timeout"
+    "import llm; c = llm.Engine(llm.Spec.of(llm.DEFAULT_MODE))._client_or_new(); assert c.timeout.read == llm.API_READ_TIMEOUT, c.timeout" \
+ && cd /app/translator && /opt/vt/bin/python -B -c \
+    "from vt import diarize as d; p = d.model_path(); assert p, 'speaker model'; import numpy as n; assert d.Embedder(p)(n.zeros(16000, 'float32') + 1e-3).shape == (256,)"
 
 ENV PATH=/opt/vt/bin:/opt/ffmpeg:/usr/local/bin:/usr/bin:/bin \
     PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 \
