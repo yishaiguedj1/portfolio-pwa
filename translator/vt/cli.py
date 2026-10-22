@@ -142,6 +142,10 @@ def cmd_asr(a):
         res = asr_api.assemblyai(_api_audio(pr), terms, n_spk, ctx)
     else:
         die("מנוע לא מוכר")
+    from . import diarize                      # 22/10/2026: דוברים מהקול כשהמנוע לא מחזיר (Parakeet)
+    st = diarize.diarize(res["words"], str(pr.p("audio16k.wav")))
+    if st:
+        res["diarize"] = st
     write_json(pr.p("asr", f"{a.engine}.json"), res)
     log(f"נשמר asr/{a.engine}.json — {len(res['words'])} מילים, דוברים: {sorted({w.get('spk') for w in res['words'] if w.get('spk')})}")
     pr.mark("asr", engine=a.engine, words=len(res["words"]))
