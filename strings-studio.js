@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1617 מפתחות מתוך 3695) */
+/* המחרוזות של studio (1618 מפתחות מתוך 3696) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -1078,6 +1078,7 @@ he: {
   "studioRrSaveGo": "שמירה והפקה",
   "studioRrSmallSub": "עד 28MB — לשליחה בצ'אט",
   "studioRrStBn": "צורבים את הכתוביות",
+  "studioRrStStart": "מתחילים",
   "studioRrStSv": "שומרים",
   "studioRrStUp": "מורידים את הסרטון",
   "studioRrStWait": "ממתין להתחלה",
@@ -2697,6 +2698,7 @@ en: {
   "studioRrSaveGo": "Save and render",
   "studioRrSmallSub": "Up to 28MB — to send in a chat",
   "studioRrStBn": "Burning the subtitles",
+  "studioRrStStart": "Starting",
   "studioRrStSv": "Saving",
   "studioRrStUp": "Downloading the video",
   "studioRrStWait": "Waiting to start",
