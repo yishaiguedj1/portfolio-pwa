@@ -13,3 +13,7 @@ torch==2.11.0+cpu
 torchaudio==2.11.0+cpu
 qwen-asr
 anthropic
+# 22/10/2026: הורדה מקישור (translator/fetchurl.py) — yt-dlp + פתרון האתגרים של יוטיוב (EJS, עם Deno מהתמונה) + התחזות לדפדפן
+yt-dlp
+yt-dlp-ejs
+curl-cffi

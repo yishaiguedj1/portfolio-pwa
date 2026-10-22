@@ -62,18 +62,31 @@ jobs:
             echo "$sum" | grep -Eq '^[0-9a-f]{64}$'
             echo "${a#*:}=$sum" >> "$GITHUB_OUTPUT"
           done
+      - name: Deno — ה־sha256 של הגרסה הנעולה (שתי הארכיטקטורות; 22/10/2026 — הורדה מקישור)
+        id: deno
+        run: |
+          set -eu
+          v=$(sed -n 's/^ARG DENO_VERSION=//p' infra/worker/Dockerfile)
+          for a in x86_64-unknown-linux-gnu:amd64 aarch64-unknown-linux-gnu:arm64; do
+            sum=$(curl -fsSL "https://github.com/denoland/deno/releases/download/v$v/deno-${a%%:*}.zip.sha256sum" | grep -Eo '^[0-9a-f]{64}')
+            echo "$sum" | grep -Eq '^[0-9a-f]{64}$'
+            echo "${a#*:}=$sum" >> "$GITHUB_OUTPUT"
+          done
       - name: בנייה ודחיפה
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ARCH: ${{ matrix.arch }}
           FF_AMD64: ${{ steps.ff.outputs.amd64 }}
           FF_ARM64: ${{ steps.ff.outputs.arm64 }}
+          DN_AMD64: ${{ steps.deno.outputs.amd64 }}
+          DN_ARM64: ${{ steps.deno.outputs.arm64 }}
         run: |
           set -eu
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           docker buildx create --use --name snb >/dev/null     # הדרייבר הרגיל לא תומך ב־SBOM/provenance
           docker buildx build --provenance=mode=max --sbom=true --push --platform "linux/$ARCH" \
             --build-arg FFMPEG_SHA256_AMD64="$FF_AMD64" --build-arg FFMPEG_SHA256_ARM64="$FF_ARM64" \
+            --build-arg DENO_SHA256_AMD64="$DN_AMD64" --build-arg DENO_SHA256_ARM64="$DN_ARM64" \
             --build-arg SNB_VERSION="$GITHUB_SHA" \
             -f infra/worker/Dockerfile -t "$IMAGE:sha-${GITHUB_SHA}-$ARCH" .
           docker logout ghcr.io
