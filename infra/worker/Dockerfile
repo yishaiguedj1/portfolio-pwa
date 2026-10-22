@@ -34,6 +34,27 @@ RUN set -eu; \
     /opt/ffmpeg/ffmpeg -hide_banner -buildconf | grep -q -- '--enable-libsvtav1'; \
     /opt/ffmpeg/ffmpeg -hide_banner -buildconf | grep -q -- '--enable-libass'
 
+# ---------------------------------------------------------------- Deno (מאומת) — 22/10/2026: הורדה מקישור
+# yt-dlp צריך מנוע JavaScript כדי לפתור את האתגרים של יוטיוב (EJS; בלעדיו — פורמטים חסרים). הבינארי הרשמי של Deno
+# מ־GitHub (לא ההפצה ב־PyPI — היא של צד שלישי), בגרסה נעולה ומול ה־sha256 שה־workflow לוקח מקובץ ה־sha256sum של אותה גרסה.
+FROM ${PY_IMAGE} AS deno
+ARG TARGETARCH
+ARG DENO_VERSION=2.6.4
+ARG DENO_SHA256_AMD64
+ARG DENO_SHA256_ARM64
+RUN set -eu; \
+    case "$TARGETARCH" in \
+      amd64) f=x86_64-unknown-linux-gnu; s="$DENO_SHA256_AMD64" ;; \
+      arm64) f=aarch64-unknown-linux-gnu; s="$DENO_SHA256_ARM64" ;; \
+      *) echo "ארכיטקטורה לא נתמכת: $TARGETARCH"; exit 1 ;; \
+    esac; \
+    test -n "$s" || { echo 'חסר DENO_SHA256'; exit 1; }; \
+    apt-get update -qq && apt-get install -y -qq --no-install-recommends curl unzip ca-certificates >/dev/null; \
+    curl -fsSL -o /tmp/deno.zip "https://github.com/denoland/deno/releases/download/v${DENO_VERSION}/deno-$f.zip"; \
+    echo "$s  /tmp/deno.zip" | sha256sum -c -; \
+    mkdir -p /opt/deno && unzip -q /tmp/deno.zip -d /opt/deno && chmod 755 /opt/deno/deno; \
+    /opt/deno/deno --version | grep -q "deno ${DENO_VERSION}"
+
 # ---------------------------------------------------------------- ספריות Python (נעולות)
 FROM ${PY_IMAGE} AS deps
 ARG TARGETARCH
@@ -44,7 +65,7 @@ RUN set -eu; lock=/tmp/requirements.lock; [ "$TARGETARCH" = arm64 ] && lock=/tmp
  && /opt/vt/bin/pip install --no-cache-dir -q --upgrade 'pip==25.*' \
  && /opt/vt/bin/pip install --no-cache-dir -q --require-hashes --only-binary=:all: --no-binary=sox \
         --extra-index-url https://download.pytorch.org/whl/cpu -r "$lock" \
- && /opt/vt/bin/python -c "import numpy, soundfile, onnx, onnx_asr, torch, torchaudio, qwen_asr, anthropic, PIL, fontTools; print('ok')"
+ && /opt/vt/bin/python -c "import numpy, soundfile, onnx, onnx_asr, torch, torchaudio, qwen_asr, anthropic, PIL, fontTools, yt_dlp, yt_dlp_ejs, curl_cffi; print('ok')"
 
 # ---------------------------------------------------------------- גרפי היישור (ONNX INT8, שלב 4.1)
 # מהמודל הרשמי של Qwen בגרסה נעולה + sha256 של המשקולות (translator/aligner_export.py) — לא קבצים של צד שלישי.
@@ -71,6 +92,7 @@ RUN apt-get update -qq \
  && useradd --uid 10001 --user-group --no-create-home --shell /usr/sbin/nologin snb \
  && mkdir -p /work /cache /state && chown snb:snb /work /cache /state && chmod 700 /work /cache /state
 COPY --from=ffmpeg /opt/ffmpeg /opt/ffmpeg
+COPY --from=deno /opt/deno /opt/deno
 COPY --from=deps /opt/vt /opt/vt
 COPY --from=aligner /opt/aligner /opt/aligner
 COPY --chown=root:root translator /app/translator
@@ -82,10 +104,12 @@ RUN rm -rf /app/translator/tests /app/translator/research /app/translator/__pyca
  && chmod 644 /opt/snb-host/snb-common.sh /opt/snb-host/compose.yaml
 # 20/10/2026: בדיקת עשן מול הספריות האמיתיות שבתמונה (הבדיקות ב־CI רצות בלי anthropic) — בניית הלקוח של Claude
 # בלי רשת. anthropic 1.x עבר ל־httpx2 ודחה httpx.Timeout ב־TypeError: כל עבודה בשרת קרסה בקריאה הראשונה, והבנייה עברה
+# 22/10/2026: הורדה מקישור — yt-dlp רואה את Deno (מנוע ה־JavaScript של יוטיוב) ואת ההתחזות לדפדפן, בלי רשת
+RUN PATH=/opt/vt/bin:/opt/deno:$PATH /opt/vt/bin/python -c "import shutil, yt_dlp, curl_cffi; assert shutil.which('deno'), 'deno'; print(yt_dlp.version.__version__)"
 RUN cd /app/translator && ANTHROPIC_API_KEY=build-check /opt/vt/bin/python -B -c \
     "import llm; c = llm.Engine(llm.Spec.of(llm.DEFAULT_MODE))._client_or_new(); assert c.timeout.read == llm.API_READ_TIMEOUT, c.timeout"
 
-ENV PATH=/opt/vt/bin:/opt/ffmpeg:/usr/local/bin:/usr/bin:/bin \
+ENV PATH=/opt/vt/bin:/opt/ffmpeg:/opt/deno:/usr/local/bin:/usr/bin:/bin \
     PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 \
     HOME=/tmp \
     VT_PY=/opt/vt/bin/python VT_BIN=/opt/ffmpeg VT_WORK=/work SNB_STATE=/state \

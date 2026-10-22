@@ -2554,3 +2554,13 @@ werkzeug==3.1.9 \
     --hash=sha256:55ca7c70a75689be937aa27f8ff4b018f06ff4838fc73045560bf0f5a1291060 \
     --hash=sha256:6392e50c78460ba618e5b21f08a71f59c99ce99cdc6cf6e3dd7e6ccca8754fab
     # via flask
+# 22/10/2026 (ידני, עד ההרצה הבאה של uv pip compile — אותן גרסאות ב־requirements.in): הורדה מקישור
+curl-cffi==0.16.3 \
+    --hash=sha256:a875a661e2f9a949be29454880bbb9553307a487c4c08819738298cf5c1622e2
+    # via -r requirements.in
+yt-dlp==2026.10.21 \
+    --hash=sha256:94a3a3e2c423129d0bbd2f1be000c4171fa1226c29e251c84aff868f2851c247
+    # via -r requirements.in
+yt-dlp-ejs==0.8.0 \
+    --hash=sha256:79300e5fca7f937a1eeede11f0456862c1b41107ce1d726871e0207424f4bdb4
+    # via -r requirements.in
