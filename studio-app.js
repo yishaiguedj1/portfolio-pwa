@@ -2,6 +2,7 @@
    כמו academy-app.js: לפני הקובץ firebase-config.js, strings-studio.js, core.js, auth.js; אותו studio.js עם opt.standalone.
    קישור מהתראה (#studio=<עבודה>&v=play|subs) פותח את העבודה. עד שלב 5 ההתראות עדיין פותחות את האתר המאוחד. */
 import { openStudio } from './studio.js';
+import { studioShare } from './studio.js';   // 22/10/2026: קישור מהבועה כש־Studio כבר פתוחה
 import { thumbsReady } from './studio.js';   // 21/10/2026: התמונות של העבודות — לפני הציור הראשון
 import { createShell, appBoot, APP_URL, loginGate, accountCard, displayCard, advancedRow, advancedCards } from './shell.js';
 
@@ -39,9 +40,10 @@ A.onChange((st) => {
 });
 const link = /[#&]studio=(j[A-Za-z0-9_-]{20})(?:&v=(play|subs))?/.exec(location.hash || '');
 // 22/10/2026: "שיתוף ← Studio" מאנדרואיד (MainActivity: ‎#share=<הטקסט ששותף>) — דף "מקישור" עם הבדיקה כבר רצה
-const share = (() => { const m = /[#&]share=([^&]*)/.exec(location.hash || ''); try { return m ? decodeURIComponent(m[1]).slice(0, 4096) : ''; } catch (e) { return ''; } })();
+const hashArg = (k, max) => { const m = new RegExp('[#&]' + k + '=([^&]*)').exec(location.hash || ''); try { return m ? decodeURIComponent(m[1]).slice(0, max) : ''; } catch (e) { return ''; } };
+const share = hashArg('share', 4096);
 // שלב 2: קובץ שנמצא בדף (דפדפן הציד) — ‎&ref=<הדף>
-const shareRef = (() => { const m = /[#&]ref=([^&]*)/.exec(location.hash || ''); try { return m ? decodeURIComponent(m[1]).slice(0, 2048) : ''; } catch (e) { return ''; } })();
+const shareRef = hashArg('ref', 2048);
 if (link || share) { try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {} }
 const hs = history.state;
 /* ההדר המשותף (shell.js) — הלוגו של Studio, הקפסולה "חיבור ל־Claude" בהדר, ובתפריט מגדל הפיקוח. הגלובוס בתפריט הפתוח = ההגדרות */
@@ -68,3 +70,11 @@ else if (first === 'boot') ready.then((st) => { if (st === 'out') loginGate({ ap
 /* 21/10/2026: התמונות של העבודות נטענות מהטלפון לפני הציור הראשון (מאחורי הווילון, עד 400ms) — הרשימה מופיעה איתן, בלי הבהוב */
 Promise.race([thumbsReady, new Promise((r) => setTimeout(r, 400))]).then(() =>
   openStudio({ standalone: sa, restore: hs && hs.studio && !share ? hs : null, job: link ? link[1] : '', view: link && link[2] ? link[2] : '', share, ref: shareRef }));
+/* 22/10/2026: קישור מהבועה / משיתוף כש־Studio כבר פתוחה — אנדרואיד מעביר אותו ללשונית הקיימת כשינוי ב־hash, בלי טעינה */
+if (typeof window !== 'undefined') window.addEventListener('hashchange', () => {
+  const s = hashArg('share', 4096);
+  if (!s) return;
+  const r = hashArg('ref', 2048);
+  try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
+  studioShare(s, r);
+});

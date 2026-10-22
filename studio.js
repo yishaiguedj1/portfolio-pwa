@@ -7404,6 +7404,14 @@ function closeStudio(instant) {
 /* שלב 3ד בתוכנית שלוש האפליקציות: הסטודיו כדף עצמאי (studio.html) — opt.standalone = { auth: SnbAuth, home }.
    כמו בספרייה: הבית מחליף את רשומת הדף ("חזור" ממנו יוצא מהדף), "THE SNOWBALL" עובר ל־Invest, ובלי חיבור — כפתור כניסה. */
 let SA = null;
+/* 22/10/2026: "שיתוף ← Studio" / הבועה — טופס חדש ודף הקישור, והבדיקה מתחילה מיד (בלי להדביק).
+   גם כש־Studio כבר פתוחה: אנדרואיד מעביר את הקישור ללשונית הקיימת כשינוי ב־hash, בלי טעינה (studio-app.js → hashchange) */
+export function studioShare(text, ref) {
+  const shared = typeof text === 'string' ? text.trim().slice(0, 4096) : '';
+  if (!root || !shared || !/https?:\/\//i.test(shared)) return false;
+  form = freshForm(null); go('new', null, 'none'); go('link', null, 'none'); linkCheck(form, shared, ref);
+  return true;
+}
 export function openStudio(opt) {
   ensureCss();
   if (!root) SA = opt && opt.standalone ? opt.standalone : null;
@@ -7459,8 +7467,7 @@ export function openStudio(opt) {
   // מההתראה: לדף העבודה — מיד אם היא כבר בטלפון, אחרת אחרי שהרשימה מהשרתון מגיעה
   if (jobLink) { if (jobRec(jobLink)) goJobLink(jobLink, linkView, 'none'); else Promise.resolve(jobs0).then(() => { if (root && jobRec(jobLink)) goJobLink(jobLink, linkView); }); }
   // 22/10/2026: "שיתוף ← Studio" — טופס חדש ודף הקישור, והבדיקה מתחילה מיד (בלי להדביק)
-  const shared = opt && typeof opt.share === 'string' ? opt.share.trim().slice(0, 4096) : '';
-  if (shared && /https?:\/\//i.test(shared)) { form = freshForm(null); go('new', null, 'none'); go('link', null, 'none'); linkCheck(form, shared, opt.ref); }
+  if (opt) studioShare(opt.share, opt.ref);
   // העלאות שנקטעו (רענון): ממשיכים לבד כשיש ידית לקובץ עם הרשאה; אחרת המסך מבקש לבחור שוב
   for (const rec of store.jobs) {
     const done = rec.up.v.done && (rec.up.a.done || rec.up.noAudio);
