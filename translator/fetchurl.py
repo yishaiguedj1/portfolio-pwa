@@ -270,7 +270,65 @@ def summarize(info):
         'fm': [{k: r[k] for k in ('id', 'k', 'h', 'fps', 'c', 'ac', 'hdr', 'sz', 'br')} for r in
                sorted(rows, key=lambda r: (-r['h'], r['k'] != 'v', -V_RANK.get(r['c'], 0), -r['br']))][:FMT_MAX],
         'drm': 1 if info.get('_has_drm') else 0,
+        '_th': thumb_url(info),                     # לא עובר לטלפון — העובד מקטין לתמונה קטנה (th) ומוחק
     }
+
+
+def thumb_url(info):
+    """תמונת הסרטון ברוחב הכי קרוב ל־480 (מספיק לכרטיס; לא מורידים 4K בשביל תמונה קטנה)."""
+    best, bd = '', 1e9
+    for t in info.get('thumbnails') or []:
+        u, w = str((t or {}).get('url') or ''), (t or {}).get('width') or 0
+        if not u.startswith(('https://', 'http://')) or u.endswith('.webp') and not w:
+            continue
+        d = abs((w or 480) - 480)
+        if d < bd:
+            best, bd = u, d
+    u = best or str(info.get('thumbnail') or '')
+    return u if u.startswith(('https://', 'http://')) and len(u) <= URL_MAX else ''
+
+
+TH_MAX = 70 * 1024
+
+
+def thumb_data(url, opener=None, run=subprocess.run):
+    """תמונה קטנה (320px, JPEG) כ־data: — הטלפון מציג בלי לפנות לאתר חיצוני (CSP, פרטיות). כל תקלה → ''."""
+    import base64
+    import tempfile
+    import urllib.request
+    try:
+        check_url(url)
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with (opener or urllib.request.urlopen)(req, timeout=10) as r:
+            raw = r.read(3 * 1024 * 1024 + 1)
+        if not raw or len(raw) > 3 * 1024 * 1024:
+            return ''
+        vb = os.environ.get('VT_BIN', '')
+        ff = os.path.join(vb, 'ffmpeg') if vb and os.path.isfile(os.path.join(vb, 'ffmpeg')) else 'ffmpeg'
+        with tempfile.TemporaryDirectory() as d:
+            src, dst = os.path.join(d, 'in'), os.path.join(d, 'out.jpg')
+            with open(src, 'wb') as f:
+                f.write(raw)
+            run([ff, '-v', 'error', '-y', '-i', src, '-vf', 'scale=320:-2', '-frames:v', '1', '-q:v', '6', dst],
+                capture_output=True, timeout=20, check=True)
+            with open(dst, 'rb') as f:
+                out = f.read()
+        b = 'data:image/jpeg;base64,' + base64.b64encode(out).decode()
+        return b if len(b) <= TH_MAX else ''
+    except Exception:     # noqa: BLE001 — תמונה היא קישוט; בלעדיה הכרטיס מציג סמל
+        return ''
+
+
+def probe_full(url):
+    """מה שהסוכן שולח לשרתון: הסיכום + תמונה קטנה, או {'error': קוד}."""
+    try:
+        u = check_url(extract_url(url) or url)
+        s = probe(u)
+    except ValueError as e:
+        return {'error': str(e)}
+    th = s.pop('_th', '')
+    s['th'] = thumb_data(th) if th else ''
+    return s
 
 
 def selector(pick):
@@ -399,12 +457,9 @@ def download(url, pick, out_tmpl, kind='v', section=None, on_progress=None, pope
 def main(argv):
     """שימוש ידני / בדיקה: python3 fetchurl.py probe <קישור>  → JSON של הסיכום."""
     if len(argv) >= 3 and argv[1] == 'probe':
-        try:
-            print(json.dumps(probe(check_url(extract_url(argv[2]) or argv[2])), ensure_ascii=False))
-            return 0
-        except ValueError as e:
-            print(json.dumps({'error': str(e)}))
-            return 1
+        r = probe_full(argv[2])
+        print(json.dumps(r, ensure_ascii=False))
+        return 1 if r.get('error') else 0
     print('usage: fetchurl.py probe <url>')
     return 2
 

@@ -1027,6 +1027,50 @@ def run_slots(server: str, tok: str, warm, nmax: int, stop_after: int = 0) -> in
     return 0
 
 
+PQ_S = float(os.environ.get('SNB_PQ_S', '4'))
+
+
+def probe_once(server: str, tok: str, run=subprocess.run) -> bool:
+    """22/10/2026: הורדה מקישור — בדיקת קישור אחת מהתור (op:'pq'): yt-dlp בלי הורדה, בתהליך נפרד (fetchurl.py probe),
+    ומחזירים לשרתון סיכום או קוד שגיאה. True = הייתה בדיקה (שואלים שוב מיד)."""
+    try:
+        st, j, _ = J.http('POST', server + '/api/studio', {'op': 'pq'}, headers={'Authorization': 'Bearer ' + tok}, timeout=20)
+    except (OSError, ValueError):
+        return False
+    pr = j.get('pr') if st == 200 and isinstance(j, dict) else None
+    if not isinstance(pr, dict) or not re.match(r'^p[0-9a-z]{6,30}$', str(pr.get('id') or '')):
+        return False
+    body = {'op': 'pq', 'done': True, 'pid': pr['id']}
+    try:
+        r = run([sys.executable, str(Path(__file__).with_name('fetchurl.py')), 'probe', str(pr.get('u') or '')],
+                capture_output=True, text=True, timeout=120)
+        out = json.loads((r.stdout or '').strip().splitlines()[-1])
+    except (OSError, subprocess.SubprocessError, ValueError, IndexError):
+        out = {'error': 'fail'}
+    if out.get('error'):
+        body.update(ok=False, e=str(out['error'])[:20])
+    else:
+        body.update(ok=True, r=out)
+    print('· בדיקת קישור ' + pr['id'][:8] + '… → ' + (body.get('e') or 'ok'), flush=True)
+    try:
+        J.http('POST', server + '/api/studio', body, headers={'Authorization': 'Bearer ' + tok}, timeout=30)
+    except (OSError, ValueError):
+        pass
+    return True
+
+
+def probe_loop(server: str, tok: str):
+    """חוט נפרד: בדיקות קישור לא מחכות לעבודה שרצה (הן קלות — שניות, כ־100MB). השרתון לא קורא ל־Firestore כשאין
+    בדיקה חדשה, כך שהשאלה כל 4 שניות זולה."""
+    while not _stop:
+        try:
+            busy = probe_once(server, tok)
+        except Exception as e:     # noqa: BLE001 — חוט רקע: תקלה לא מפילה את הסוכן
+            print('· בדיקת קישור נכשלה (' + type(e).__name__ + ')', flush=True)
+            busy = False
+        time.sleep(0.2 if busy else PQ_S)
+
+
 WARM_WAIT_S = 900
 
 
@@ -1066,6 +1110,8 @@ def main(once: bool = False) -> int:
     ev('up')
     if not once:
         threading.Thread(target=beat_loop, args=(server, tok), daemon=True).start()
+        if os.environ.get('SNB_PROBE', 'on') != 'off':
+            threading.Thread(target=probe_loop, args=(server, tok), daemon=True).start()   # 22/10/2026: בדיקות קישור
     nmax = slots_max()
     if not once and nmax > 1:
         print('· עד ' + str(nmax) + ' עבודות במקביל, לפי הזיכרון (תקרה ' + str(mem_limit_mb()) + 'MB)', flush=True)
