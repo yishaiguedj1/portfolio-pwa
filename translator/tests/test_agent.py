@@ -287,6 +287,29 @@ class HandleUnit(unittest.TestCase):
         self.assertTrue(str(job.LADDER_DIR).startswith(str(job.VT_WORK)), 'האיכויות בדיסק העבודה, לא ב־/state (תקלה 10/10)')
 
 
+    def test_every_job_kind_runs_auto(self):
+        """22/10/2026 (באג חמור): מאז שהשרתון שולח את הסוג — הפקה מחדש (rr) וגיליון AI (ai) נלקחו ולא הורצו.
+        job.py auto מפנה כל סוג; רק בדיקת חיבור (ping) בלי auto. AUTO_KINDS = WORKER_KINDS של השרתון בלי ping"""
+        sys.path.insert(0, str(HERE))
+        import re as _re
+        import agent
+        src = (HERE.parent / 'ibkr-proxy' / 'lib' / 'studio.js').read_text(encoding='utf-8')
+        wk = _re.findall(r"'(\w+)'", _re.search(r'const WORKER_KINDS = \[([^\]]*)\]', src).group(1))
+        self.assertEqual(set(agent.AUTO_KINDS), set(wk) - {'ping'})
+        for kind, want in (('rr', ['run', 'auto']), ('ai', ['run', 'auto']), ('ping', ['run']), (None, ['run', 'auto'])):
+            calls = []
+            orig = agent.run_child
+            agent.run_child = lambda args, timeout, c=calls: (c.append(args[0]), 0)[1]
+            try:
+                jb = {'id': JOB, 'key': KEY}
+                if kind:
+                    jb['kind'] = kind
+                agent.handle(jb, agent.J.SERVER)
+            finally:
+                agent.run_child = orig
+            self.assertEqual(calls, want, kind)
+
+
 if __name__ == '__main__':
     unittest.main()
 

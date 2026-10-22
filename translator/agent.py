@@ -662,6 +662,9 @@ def end_code(rc: int) -> str:
     return {'job_timeout': 'timeout', 'worker_oom': 'oom'}.get(crash_code(rc), 'crash')
 
 
+AUTO_KINDS = ('tr', 'rr', 'ai')     # = WORKER_KINDS בשרתון חוץ מ־ping — job.py auto מטפל בכולם
+
+
 def handle(jb: dict, server: str, tok: str = '') -> int:
     global _busy
     J.VT_WORK.mkdir(parents=True, exist_ok=True)
@@ -682,7 +685,9 @@ def handle(jb: dict, server: str, tok: str = '') -> int:
             if os.environ.get('SNB_DRIVE_API') and J.LOCAL_RE.match(server):
                 base += ['--drive-api', os.environ['SNB_DRIVE_API']]
         rc = run_child(base, RUN_TIMEOUT_S)
-        if rc == 0 and jb.get('kind') == 'tr':
+        # 22/10/2026 (באג חמור — מ־21/10 השרתון שולח את הסוג; עד אז הוא היה חסר = 'tr' תמיד): הפקה מחדש וגיליון ה־AI
+        # נלקחו, סומנו "רצה" ולא הורצו — job.py auto הוא שמפנה אותם (render / ai_auto). רק בדיקת חיבור (ping) בלי auto
+        if rc == 0 and (jb.get('kind') or 'tr') in AUTO_KINDS:
             rc = run_child(['auto'], AUTO_TIMEOUT_S)
             err = crash_code(rc)
             if err:
