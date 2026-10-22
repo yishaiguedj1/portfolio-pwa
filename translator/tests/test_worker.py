@@ -41,7 +41,7 @@ if a and a[0].endswith('rerender.py'):       # מ2: הפקה מחדש (בלי vt
     o = dict(zip(a[1::2], a[2::2]))
     pathlib.Path(os.environ['FAKE_LOG']).open('a').write('rerender ' + o['--want'] + ' ' + o['--style'] + ''.join(' ' + k + '=' + o[k] for k in ('--edl0', '--edl') if k in o) + '\n')
     cues = json.loads(pathlib.Path(o['--cues']).read_text())
-    print('כתוביות: %d' % len(cues)); print('צריבה 50%')
+    print('כתוביות: %d' % len(cues)); print('[vt] צורב → x.he.compact.mp4'); print('[vt] צריבה: 50% · 0.1 דק׳')
     od = pathlib.Path(o['--out']); od.mkdir(parents=True, exist_ok=True)
     for k, fn in (('compact', '.he.compact.mp4'), ('same', '.he.mp4'), ('mkv', '.he.mkv'), ('small', '.he.small.mp4')):
         if k in o['--want'].split(','): (od / (o['--name'] + fn)).write_bytes(b'r' * 300000)

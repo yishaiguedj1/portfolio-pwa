@@ -267,6 +267,19 @@ class RenderProgress(unittest.TestCase):
         self.assertTrue(i_mkv < i_burn < i_comp < i_small, 'סדר המעברים ב־cmd_render = הסדר ב־RenderProg')
 
 
+    def test_rerender_flags(self):
+        # 22/10/2026: ההפקה מחדש (rerender.py) — אותם מעברים באותו סדר, כך שהפס בטלפון רק עולה
+        self.assertEqual(job.rr_render_flags(['mkv', 'same', 'small']), ['--mkv', '--burn', '--small'])
+        self.assertEqual(job.rr_render_flags(['small']), ['--compact', '--small'], 'עותק קטן בלי צרוב — הדחוס נבנה קודם')
+        self.assertEqual(job.RenderProg(job.rr_render_flags(['same', 'compact'])).passes, ['same', 'compact'])
+        rp = job.RenderProg(job.rr_render_flags(['same', 'compact']))
+        vals = [rp.feed(x) for x in ('צורב → a', 'צריבה: 100%', 'צורב → b', 'צריבה: 10%')]
+        self.assertEqual(vals, sorted(vals), 'עולה בלבד')
+        r = (HERE / 'rerender.py').read_text(encoding='utf-8')
+        i_mkv, i_same, i_comp, i_small = (r.index(x) for x in ("if 'mkv' in want:", "if 'same' in want:", "if 'compact' in want", "if 'small' in want:"))
+        self.assertTrue(i_mkv < i_same < i_comp < i_small, 'סדר המעברים ב־rerender.py = הסדר ב־RenderProg')
+
+
 class PxOf(unittest.TestCase):
     def test_px(self):
         self.assertEqual(job.px_of({'video': {'width': 1920, 'height': 1080, 'fps_float': 30}}), 1.0)
