@@ -135,6 +135,13 @@ export const creep = (el, e) => 0.9 * (1 - Math.exp(-Math.max(0, el) / Math.max(
    21/10/2026: ההערכה של השלב הנוכחי = החציון המותנה (condQuantile) — לא "הצפי פחות מה שעבר"; הפס (pct) כולל זחילה
    בשלב בלי דיווח (p = max(מה שדווח, creep)); over = השלב עבר את ה־p90 שלו ("לוקח יותר מהרגיל").
    job = מה שהשרתון מחזיר (prog.stg: זמני התחלה וסיום אמיתיים מהעובד); up = מצב ההעלאה בטלפון {p, left, done} */
+/* 22/10/2026: קובץ כתוביות קיים — = subsPlan ב־ibkr-proxy/lib/studioeta.js (אותם SUBS_STG): תמלול, יישור וצריבה קצרים */
+export const SUBS_STG = { tr: 60, al: 10, bn: 15, sv: 30 };
+export function subsPlan(pl) {
+  if (!pl || !pl.s) return pl;
+  const s = Object.assign({}, pl.s, SUBS_STG);
+  return Object.assign({}, pl, { s, t: ['tr', 'al', 'tl', 'rv', 'bn', 'sv'].reduce((a, k) => a + (s[k] || 0), 0) });
+}
 export function progressModel(job, est, up, now, q) {
   const prog = (job && job.prog) || {};
   const stg = prog.stg || {};

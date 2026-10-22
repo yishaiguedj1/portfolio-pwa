@@ -1383,6 +1383,7 @@ async function worker(req, res, body, deps) {
       if (job.kind === 'tr' && !ep && job.spec && job.spec.dur > 0) {
         const ge = job.eng === 'api' ? ((await readDoc(deps, 'studioEta', 'a').catch(() => null)) || {}).et : null;
         ep = ETA.etaPlan(ETA.etaModel(ETA.etSamplesFor(stats.et, ge, job.eng === 'api' ? 'a' : 'r'), job.eng === 'api' ? 'a' : 'r', now), job.spec.mode, job.spec.dur, ETA.jobFactors(job));
+        if (job.spec.src === 'subs') ep = ETA.subsPlan(ep);   // 22/10/2026: קובץ כתוביות — בלי תמלול, יישור וצריבה
         patch.ep = ep;
       }
       if (job.kind === 'tr' && !job.tg) {

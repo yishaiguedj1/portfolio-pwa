@@ -73,5 +73,9 @@ const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   ok(bd.tok.tl === 29000 && bd.tokd.tl.cw === 6000 && bd.usd.tl === 0.22 && bd.models.tl === 'claude-opus-5-5' && bd.quality === 99 && bd.judge === 88, 'נתוני המדידה: טוקנים (כולל מטמון), עלות, איכות ושופט');
   ok(!/Secret|fold123|drv123|\.mp4/.test(JSON.stringify(bd)), 'נתוני המדידה: בלי שם קובץ ובלי מזהי Drive');
   ok(/T\('studioBenchCopy'\)/.test(st) && (app.match(/studioBenchCopy: "/g) || []).length === 2, 'הכפתור + מחרוזת בשתי השפות');
+  // 22/10/2026: קובץ כתוביות — אותה התאמה לתוכנית בשרתון ובטלפון (בלי תמלול, יישור, צריבה וסרטונים לשמירה)
+  { const ep = E.etaPlan(null, 'haiku-high', 5000, {}), a = E.subsPlan(ep), b = N.subsPlan(ep);
+    ok(JSON.stringify(a) === JSON.stringify(b) && JSON.stringify(E.SUBS_STG) === JSON.stringify(N.SUBS_STG), 'subsPlan זהה בשרתון ובטלפון');
+    ok(a.s.tl === ep.s.tl && a.s.rv === ep.s.rv && a.s.tr === 60 && a.t < ep.t, 'subsPlan: התרגום והביקורת כמו בתוכנית, השאר קצר'); }
   console.log('# ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL - ' + e.message); process.exit(1); });

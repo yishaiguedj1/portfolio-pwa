@@ -8,7 +8,13 @@ sys.path.insert(0, str(HERE.parent))
 
 import subsimport as S  # noqa: E402
 
-FX = HERE / "fixtures" / "subs"
+# קובצי הדוגמה ב־JSON (base64) — קובצי כתוביות לא נכנסים לריפו כקבצים (studio-v358: שומר פרטיות)
+import base64  # noqa: E402
+import json  # noqa: E402
+import tempfile  # noqa: E402
+FX = Path(tempfile.mkdtemp(prefix="subsfx-"))
+for _n, _b in json.loads((HERE / "fixtures" / "subs.json").read_text()).items():
+    (FX / _n).write_bytes(base64.b64decode(_b))
 
 
 def imp(name, **kw):

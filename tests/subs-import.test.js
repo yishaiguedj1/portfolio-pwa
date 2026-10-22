@@ -5,9 +5,9 @@ let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('FAIL', m); } };
 (async () => {
   const S = await import(path.join(__dirname, '..', 'studiosubs.js'));
-  const FX = path.join(__dirname, '..', 'translator', 'tests', 'fixtures', 'subs');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'subsimp-'));
-  const files = fs.readdirSync(FX).sort().map((f) => path.join(FX, f));
+  const FXJ = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'translator', 'tests', 'fixtures', 'subs.json'), 'utf8'));
+  const files = Object.keys(FXJ).sort().map((n) => { const f = path.join(tmp, 'fx-' + n); fs.writeFileSync(f, Buffer.from(FXJ[n], 'base64')); return f; });
 
   // קבצים אקראיים: תגיות, SDH, תוויות דובר, פרסומות, חפיפות, כפולים, סדר הפוך, קידודים, שלושה פורמטים
   let seed = 11; const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
