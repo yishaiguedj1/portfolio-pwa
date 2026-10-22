@@ -72,6 +72,11 @@ class Holes(unittest.TestCase):
         rescue(words, holes(words, [(19.9, 24.0)], 25.0), rec2, 25.0)
         self.assertEqual([w["w"] for w in words], ["W-I-S-P-R-F-L-O-W", "dot"])
 
+    def test_short_real_words_are_kept(self):
+        words = [W("platform.", 10.0), W("Those", 14.0)]
+        rescue(words, holes(words, [(9.9, 14.5)], 14.5), lambda a, b: [W("a", 11.0), W("form", 11.3)], 14.5)
+        self.assertEqual([w["w"] for w in words], ["platform.", "a", "form", "Those"])
+
     def test_nothing_found(self):
         words = first_pass()
         self.assertEqual(rescue(words, holes(words, SEGS, 42.9), lambda a, b: [], 42.9), 0)

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 
 import numpy as np
@@ -78,6 +79,21 @@ def _norm(w: str) -> str:
     return "".join(c for c in w.lower() if c.isalnum())
 
 
+def _dup(g: dict, near: list[dict]) -> bool:
+    t = _norm(g["w"])
+    if not t:
+        return True
+    for w in near:
+        u = _norm(w["w"])
+        if abs(w["s"] - g["s"]) <= 1.2 and u == t:
+            return True
+        win = 5.0 if len(t) == 1 else 2.5                     # איות ארוך ("W-I-S-P-R-F-L-O-W") נמשך כמה שניות
+        spelled = bool(re.search(r"[-/]|\.\w", w["w"]))     # רק איות/כתובת — לא "a" בתוך "platform."
+        if abs(w["s"] - g["s"]) <= win and spelled and len(u) > 4 and (u.endswith(t) or u.startswith(t) or t in u):
+            return True
+    return False
+
+
 def holes(words: list[dict], segs: list[tuple[float, float]], total: float) -> list[tuple[int, float, float]]:
     """22/10/2026 (ניתוח המאגר): בחלון ארוך Parakeet מדלג לפעמים על משפט שלם — ב־Uber 28 מילים ב־0:35
     ו־11 ב־1:53, באמצע קטע דיבור רציף. חור = בין שתי מילים סמוכות יש לפחות HOLE_S שניות של דיבור.
@@ -106,13 +122,8 @@ def rescue(words: list[dict], found: list[tuple[int, float, float]], recog, tota
         hi = (nxt["s"] - 0.05) if nxt else total
         hi = min(hi, b) if b < hi - 0.5 else hi            # חלק שאינו האחרון — רק מה שמתחיל בתוכו
         got = [w for w in recog(max(0.0, a - HOLE_PAD), min(total, b + HOLE_PAD)) if lo < w["s"] < hi]
-        if prev:                                      # אותה מילה שכבר נשמעה לפני החור ("slash slash", "W-I-S-P… i s p")
-            pv = _norm(prev["w"])
-            while got and (_norm(got[0]["w"]) == pv or (pv.endswith(_norm(got[0]["w"])) and len(pv) > 4)
-                           or (len(_norm(got[0]["w"])) == 1 and len(pv) > 4 and _norm(got[0]["w"]) in pv)):
-                got = got[1:]
-        if got and nxt and _norm(got[-1]["w"]) == _norm(nxt["w"]):
-            got = got[:-1]
+        near = [w for w in words[max(0, i - 6):i + 6]]      # בלי כפילויות: מה שכבר נשמע ליד החור ("slash slash", איות)
+        got = [g for g in got if not _dup(g, near)]
         add.setdefault(i, [])
         if got:
             if nxt:
