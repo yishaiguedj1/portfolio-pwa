@@ -2079,7 +2079,7 @@ def url_get(ctx, kind, on_progress=None):
     out_dir.mkdir(parents=True, exist_ok=True)
     tmpl = str(out_dir / (ctx.name + ('.audio' if kind == 'a' else '') + '.%(ext)s'))
     try:
-        path = Path(F.download(sp['url'], pick, tmpl, kind, section=pick.get('sec'), on_progress=on_progress))
+        path = Path(F.download(sp['url'], pick, tmpl, kind, section=pick.get('sec'), on_progress=on_progress, ref=sp.get('ref') or ''))
     except ValueError as e:
         raise url_err(str(e))[0]
     title = re.sub(r'[\\/:*?"<>|\x00-\x1f]', ' ', str(sp.get('name') or ctx.name)).strip()[:120] or ctx.name

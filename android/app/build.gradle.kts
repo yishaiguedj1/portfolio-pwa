@@ -82,4 +82,6 @@ dependencies {
     "studioImplementation"("androidx.compose.runtime:runtime:1.7.8")
     // 22/10/2026: בדיקות JVM של בועת ההורדה (VideoUrl) — gradle testStudioReleaseUnitTest (גם ב־android.yml)
     "testStudioImplementation"("junit:junit:4.13.2")
+    // שלב 2: דפדפן הציד — סקריפט לפני הדף וערוץ הודעות (addDocumentStartJavaScript / addWebMessageListener)
+    "studioImplementation"("androidx.webkit:webkit:1.14.0")
 }

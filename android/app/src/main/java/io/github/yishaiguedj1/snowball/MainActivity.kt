@@ -83,7 +83,10 @@ class MainActivity : Activity() {
         if (i?.action == Intent.ACTION_SEND) {
             val t = (i.getStringExtra(Intent.EXTRA_TEXT) ?: "").take(4096)
             val app = "app=" + Flavor.appSig(this) + "&n=" + java.lang.Long.toString(System.currentTimeMillis(), 36)
-            return Uri.parse(getString(R.string.launchUrl).substringBefore('#') + "#share=" + Uri.encode(t) + "&" + app)
+            // שלב 2: קובץ שנמצא בדף (דפדפן הציד / אפליקציה ששולחת כמו ל־1DM: extra_referer) — הדף, בשביל ה־Referer
+            val ref = (i.getStringExtra("snb_ref") ?: i.getStringExtra("extra_referer") ?: "").take(2048)
+            return Uri.parse(getString(R.string.launchUrl).substringBefore('#') + "#share=" + Uri.encode(t) +
+                (if (ref.startsWith("http")) "&ref=" + Uri.encode(ref) else "") + "&" + app)
         }
         val d = i?.data
         // 2.0.0: הכתובת החדשה (invest.thesnowball.app), והישנה נשארת מוכרת בשביל קישורים ישנים (האתר הישן מעביר לחדשה)

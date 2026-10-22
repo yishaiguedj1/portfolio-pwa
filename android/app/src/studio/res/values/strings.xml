@@ -11,4 +11,15 @@
     <string name="grabTileOff">כבויה</string>
     <string name="grabTileOn">פועלת</string>
     <string name="grabTileSetup">להפעלה</string>
+    <string name="huntLabel">דפדפן ציד</string>
+    <string name="huntPh">חיפוש או כתובת</string>
+    <string name="huntClose">סגירה</string>
+    <string name="huntFound">נמצא סרטון · לשלוח ל־Studio</string>
+    <string name="huntFoundN">נמצאו %d · לשלוח ל־Studio</string>
+    <string name="huntPick">מה לשלוח ל־Studio?</string>
+    <string name="huntPage">הסרטון בדף הזה (מומלץ)</string>
+    <string name="huntHls">סרטון בזרימה (HLS)</string>
+    <string name="huntDash">סרטון בזרימה (DASH)</string>
+    <string name="huntFile">קובץ וידאו</string>
+    <string name="huntHint">מנגנים את הסרטון — והוא יופיע כאן</string>
 </resources>

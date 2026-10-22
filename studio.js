@@ -2928,12 +2928,13 @@ function linkErrText(e) {
 /* קודי url_* של עבודה שנכשלה (העובד) → אותם טקסטים */
 function urlErrText(code) { return linkErrText(String(code || '').replace(/^url_/, '')); }
 let linkSeq = 0;
-function linkCheck(f, raw) {
-  const L = f.link = { u: String(raw || '').trim(), st: 'busy', e: '', r: null, v: '', sec: null, ch: 1, at: Date.now() };
+function linkCheck(f, raw, ref) {
+  // ref — שלב 2: קובץ/זרם שנמצא בדף (דפדפן הציד) → הדף, והשרת מוריד עם ה־Referer שלו
+  const L = f.link = { u: String(raw || '').trim(), ref: /^https?:\/\//i.test(String(ref || '')) ? String(ref).slice(0, 2048) : '', st: 'busy', e: '', r: null, v: '', sec: null, ch: 1, at: Date.now() };
   const seq = ++linkSeq;
   render('none');
   (async () => {
-    let j = await net.api('urlProbe', { url: L.u });
+    let j = await net.api('urlProbe', L.ref ? { url: L.u, ref: L.ref } : { url: L.u });
     while (j && j.ok && j.probe && (j.probe.st === 'q' || j.probe.st === 'r') && Date.now() - L.at < LINK_WAIT_MS) {
       await sleep(LINK_POLL_MS);
       if (seq !== linkSeq || form !== f || f.link !== L) return;
@@ -3001,6 +3002,7 @@ function pageLink(p) {
     p.append(secT(T('studioLinkHowT')), list(
       rowTxtRow('share', 'blue', T('studioLinkHow1'), T('studioLinkHow1S')),
       rowTxtRow('clip', 'teal', T('studioLinkHow2'), T('studioLinkHow2S')),
+      grabOk() ? rowNav({ tile: tile('globe', 'red'), label: T('studioHuntT'), sub: T('studioHuntS'), onClick: () => huntOpen(inp.value.trim()), k: 'hunt' }) : null,
       grabOk() ? rowNav({ tile: tile('spark', 'red'), label: T('studioGrabT'), sub: T('studioGrabS'), onClick: () => go('grab'), k: 'grab' }) : null,
       rowNav({ tile: tile('help', 'gray'), label: T('studioFmtHelpT'), sub: T('studioFmtHelpS'), onClick: () => go('fmthelp'), k: 'fmthelp' })));
     return;
@@ -3015,13 +3017,14 @@ function pageLink(p) {
     const msg = L.e === 'flag' ? T('studioErrFlagOff') : /^srv:/.test(L.e) ? errText(L.e.slice(4)) : linkErrText(L.e);
     const card = h('div', 'st-lk-err'); card.dataset.k = 'link-err';
     card.append(ico('alert'), h('span', null, msg));
-    p.append(card, h('div', 'st-gap sm'), btn('st-btn tint wide', T('studioLinkRetry'), () => linkCheck(f, L.u), 'link-retry'));
+    p.append(card, h('div', 'st-gap sm'), btn('st-btn tint wide', T('studioLinkRetry'), () => linkCheck(f, L.u, L.ref), 'link-retry'));
     if (L.e === 'blocked' || L.e === 'login' || L.e === 'unsupported' || L.e === 'no_video') p.append(note(T('studioLinkUpload')));
     return;
   }
   // יש תוצאה
   const r = L.r, rec = linkRec(r), cur = (r.q || []).find((o) => o.v === L.v) || rec;
   p.append(linkCard(L));
+  if (L.ref) { let hst = ''; try { hst = new URL(L.ref).hostname.replace(/^www\./, ''); } catch (e) {} if (hst) p.append(note(T('studioLinkFromPage', { h: hst }))); }
   p.append(secT(T('studioLinkQT')));
   const recB = btn('st-lk-rec' + (cur && rec && cur.v === rec.v ? ' on' : ''), null, () => { L.v = rec.v; render('none'); }, 'link-rec');
   const star = h('span', 'st-lk-star'); star.append(ico('spark'));
@@ -3059,6 +3062,11 @@ function grabOk() {
 const GRAB_PKG = 'app.thesnowball.studio';
 function grabOpen(s) {
   location.href = 'intent://grab?s=' + s + '#Intent;scheme=snbstudio;package=' + GRAB_PKG + ';end';
+}
+/* שלב 2: דפדפן הציד (HuntActivity ב־APK) — עם הכתובת שבשדה, אם יש */
+function huntOpen(u) {
+  const q = /^https?:\/\/\S+$/i.test(u || '') ? '?u=' + encodeURIComponent(u) : '';
+  location.href = 'intent://hunt' + q + '#Intent;scheme=snbstudio;package=' + GRAB_PKG + ';end';
 }
 function pageGrab(p) {
   p.append(navBar({ back: T('studioLinkT'), title: T('studioGrabT') }));
@@ -3177,6 +3185,7 @@ function startLink(f) {
     const o = L.r.q.find((x) => x.v === pick.v) || {};
     const spec = { name: L.r.t, size: Math.max(1, linkSize(L)), type: 'video/url', dur, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
       out: OUTS.filter((k) => f.out[k]), style: f.style, terms: f.terms, src: 'url', url: L.r.u || L.u, pick, eng: 'api', cap: store.settings.cap };
+    if (L.ref) spec.ref = L.ref;
     if (cpMode()) spec.cp = 1;
     if (o.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, (o.h * o.h * 16 / 9) / (1920 * 1080))) * 1000) / 1000;
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
@@ -7396,7 +7405,7 @@ export function openStudio(opt) {
   if (jobLink) { if (jobRec(jobLink)) goJobLink(jobLink, linkView, 'none'); else Promise.resolve(jobs0).then(() => { if (root && jobRec(jobLink)) goJobLink(jobLink, linkView); }); }
   // 22/10/2026: "שיתוף ← Studio" — טופס חדש ודף הקישור, והבדיקה מתחילה מיד (בלי להדביק)
   const shared = opt && typeof opt.share === 'string' ? opt.share.trim().slice(0, 4096) : '';
-  if (shared && /https?:\/\//i.test(shared)) { form = freshForm(null); go('new', null, 'none'); go('link', null, 'none'); linkCheck(form, shared); }
+  if (shared && /https?:\/\//i.test(shared)) { form = freshForm(null); go('new', null, 'none'); go('link', null, 'none'); linkCheck(form, shared, opt.ref); }
   // העלאות שנקטעו (רענון): ממשיכים לבד כשיש ידית לקובץ עם הרשאה; אחרת המסך מבקש לבחור שוב
   for (const rec of store.jobs) {
     const done = rec.up.v.done && (rec.up.a.done || rec.up.noAudio);

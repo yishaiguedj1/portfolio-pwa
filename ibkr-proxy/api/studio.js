@@ -1035,7 +1035,7 @@ async function pqOp(deps, body, sid, now) {
   const qd = (await query(deps, 'studioProbe', { st: 'q' }, 10)).sort((a, b) => (a.at || 0) - (b.at || 0));
   for (const pr of qd) {
     if (now - (pr.at || 0) > SU.PROBE_TTL) continue;                          // הטלפון כבר הציג "לא ענה"
-    if (await patchIf(deps, 'studioProbe', pr.id, { st: 'r', sid, rt: now }, pr._ut).catch(() => false)) return { ok: true, pr: { id: pr.id, u: pr.u } };
+    if (await patchIf(deps, 'studioProbe', pr.id, { st: 'r', sid, rt: now }, pr._ut).catch(() => false)) return { ok: true, pr: Object.assign({ id: pr.id, u: pr.u }, pr.ref ? { ref: pr.ref } : {}) };
   }
   return { ok: true, pr: null };
 }
@@ -2292,14 +2292,14 @@ async function handler(req, res, deps = {}) {
         if (!pr || pr.uid !== uid) return res.status(404).json({ ok: false, error: 'no_probe' });
         return res.status(200).json({ ok: true, probe: SU.probeView(Object.assign(pr, { id: pid }), now), now });
       }
-      const u = SU.normSrcUrl(body.url);
-      if (!u) return res.status(400).json({ ok: false, error: 'bad_url' });
+      const u = SU.normSrcUrl(body.url), ref = body.ref ? SU.normSrcUrl(body.ref) : '';   // ref — שלב 2: הדף שבו נמצא הקובץ
+      if (!u || (body.ref && !ref)) return res.status(400).json({ ok: false, error: 'bad_url' });
       if (!R2.config().ok) return res.status(503).json({ ok: false, error: 'r2_needed' });
       if (limited('u|' + uid, 10)) return res.status(429).json({ ok: false, error: 'rate_limited' });
       const old = await query(deps, 'studioProbe', { uid }, 30).catch(() => []);
       for (const o of old.filter((x) => now - (x.at || 0) > SU.PROBE_KEEP).slice(0, 10)) await delDoc(deps, 'studioProbe', o.id).catch(() => {});
       const pid = 'p' + now.toString(36) + crypto.randomBytes(4).toString('hex');
-      await patchDoc(deps, 'studioProbe', pid, { uid, u, st: 'q', at: now });
+      await patchDoc(deps, 'studioProbe', pid, Object.assign({ uid, u, st: 'q', at: now }, ref ? { ref } : {}));
       probeHint = now;
       return res.status(200).json({ ok: true, probe: SU.probeView({ id: pid, st: 'q', at: now }, now), now });
     }

@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1735 מפתחות מתוך 3815) */
+/* המחרוזות של studio (1738 מפתחות מתוך 3818) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -694,6 +694,8 @@ he: {
   "studioHaltQN": "לעצור את כל הסוכנים? {n} העבודות שרצות ייעצרו מיד (הכל נשמר), והפעלות חדשות יחכו עד שתחזיר.",
   "studioHourEst": "לשעת וידאו",
   "studioHrs": "כ־{t} ש׳",
+  "studioHuntS": "גולשים לאתר, מנגנים — והסרטון נמצא",
+  "studioHuntT": "דפדפן ציד",
   "studioIdAsk": "שאלה על הסרטון",
   "studioIdAskNo": "כתבו שאלה",
   "studioIdAskPh": "למשל: מה שלוש הנקודות העיקריות?",
@@ -831,6 +833,7 @@ he: {
   "studioLinkEPlaylist": "זה קישור לרשימת השמעה. פתחו סרטון אחד ושתפו אותו.",
   "studioLinkFcNote": "{q} · {s} · יורד ישר לשרת",
   "studioLinkFrom": "מ־",
+  "studioLinkFromPage": "נמצא בדפדפן הציד, בדף ב־{h} — השרת יוריד אותו כאילו מהדף הזה",
   "studioLinkHow1": "שיתוף ← Studio",
   "studioLinkHow1S": "מכל אפליקציה: \"שיתוף\" ובוחרים Studio",
   "studioLinkHow2": "העתקה והדבקה",
@@ -2431,6 +2434,8 @@ en: {
   "studioHaltQN": "Stop all agents? The {n} running jobs stop right away (everything is saved), and new runs wait until you resume.",
   "studioHourEst": "Per video hour",
   "studioHrs": "~{t} h",
+  "studioHuntS": "Browse to the site, play — and the video is found",
+  "studioHuntT": "Hunting browser",
   "studioIdAsk": "A question about the video",
   "studioIdAskNo": "Write a question",
   "studioIdAskPh": "E.g.: what are the three main points?",
@@ -2568,6 +2573,7 @@ en: {
   "studioLinkEPlaylist": "This is a playlist link. Open one video and share it.",
   "studioLinkFcNote": "{q} · {s} · downloads straight to the server",
   "studioLinkFrom": "From",
+  "studioLinkFromPage": "Found in the hunting browser on {h} — the server downloads it as if from that page",
   "studioLinkHow1": "Share → Studio",
   "studioLinkHow1S": "From any app: \"Share\" and pick Studio",
   "studioLinkHow2": "Copy and paste",

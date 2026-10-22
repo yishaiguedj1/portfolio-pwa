@@ -184,6 +184,7 @@ function normSpec(s) {
   // 22/10/2026: הורדה מקישור — רק במצב השרת (העובד מוריד ל־R2); בלי חיתוך לפני התרגום (sec במקומו — מורידים רק את הקטע)
   const link = s.src === 'url';
   const url = link ? SU.normSrcUrl(s.url) : '', pick = link ? SU.normPick(s.pick) : null;
+  const ref = link && s.ref ? SU.normSrcUrl(s.ref) : '';   // שלב 2: קובץ שנמצא בדף (דפדפן הציד) — הדף שממנו הגיע, ל־Referer
   if (link && (s.eng !== 'api' || !url || !pick)) return null;
   return Object.assign({
     name, size,
@@ -196,7 +197,7 @@ function normSpec(s) {
     style: STYLES.includes(s.style) ? s.style : STYLES[0],
     terms: String(s.terms || '').replace(/\u0000/g, '').slice(0, 1000),
   }, subs ? Object.assign({ src: 'subs', sdh: s.sdh === 'keep' ? 'keep' : 'rm' }, SUBS_FPS.includes(String(s.fps)) ? { fps: String(s.fps) } : {}) : {},
-  link ? { src: 'url', url, pick } : {},
+  link ? Object.assign({ src: 'url', url, pick }, ref ? { ref } : {}) : {},
   !subs && !link && edlPre(normEdl(s.edl)) ? { edl: edlPre(normEdl(s.edl)) } : {},   // מ4: חיתוך לפני התרגום (dur = האורך אחרי החיתוך)
   // 21/10/2026: פיקסלים לשנייה ביחס ל־1080p30 (מהמידות שהטלפון קרא; העובד מתקן אחרי הקליטה) — לצפי של הצריבה
   Number.isFinite(+s.px) && +s.px >= 0.02 && +s.px <= 16 ? { px: Math.round(+s.px * 1000) / 1000 } : {},

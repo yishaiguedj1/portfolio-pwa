@@ -170,6 +170,21 @@ class Run(unittest.TestCase):
             F.probe('https://x.com/v', run=run)
         self.assertEqual(str(c.exception), 'unsupported')
 
+    def test_probe_ref(self):
+        # שלב 2 (דפדפן הציד): קובץ שנמצא בדף — Referer + Origin של הדף; Referer לא תקין — לא נשלח
+        import json
+        seen = []
+
+        def run(cmd, **kw):
+            seen.append(cmd)
+            return subprocess.CompletedProcess(cmd, 0, json.dumps(DIRECT), '')
+        F.probe('https://cdn.x.com/m.m3u8', run=run, ref='https://site.example/watch/1?a=b')
+        c = seen[-1]
+        self.assertIn('Referer:https://site.example/watch/1?a=b', c)
+        self.assertIn('Origin:https://site.example', c)
+        F.probe('https://cdn.x.com/m.m3u8', run=run, ref='https://a b\r\nX: y')
+        self.assertFalse(any(str(a).startswith('Referer:') for a in seen[-1]))
+
     def test_probe_ok(self):
         import json
         run = lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, json.dumps(DIRECT), '')

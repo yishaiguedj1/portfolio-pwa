@@ -9,4 +9,15 @@
     <string name="grabTileOff">Off</string>
     <string name="grabTileOn">On</string>
     <string name="grabTileSetup">Set up</string>
+    <string name="huntLabel">Hunting browser</string>
+    <string name="huntPh">Search or address</string>
+    <string name="huntClose">Close</string>
+    <string name="huntFound">Video found · send to Studio</string>
+    <string name="huntFoundN">%d found · send to Studio</string>
+    <string name="huntPick">What to send to Studio?</string>
+    <string name="huntPage">The video on this page (recommended)</string>
+    <string name="huntHls">Streaming video (HLS)</string>
+    <string name="huntDash">Streaming video (DASH)</string>
+    <string name="huntFile">Video file</string>
+    <string name="huntHint">Play the video — it will show up here</string>
 </resources>

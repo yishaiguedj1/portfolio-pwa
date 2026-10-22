@@ -30,4 +30,13 @@ for (const k of ['studioGrabT', 'studioGrabIntro', 'studioGrab1', 'studioGrabGre
 // מחרוזות האנדרואיד: עברית ואנגלית עם אותם מפתחות
 const keys = (p) => [...R(p).matchAll(/<string name="(\w+)"/g)].map((m) => m[1]).sort();
 assert.deepStrictEqual(keys('android/app/src/studio/res/values/strings.xml'), keys('android/app/src/studio/res/values-en/strings.xml')); n++;
+// שלב 2 — דפדפן הציד: הקישור מהאתר, הפעילות ב־manifest, והדף שבו נמצא הקובץ (ref) עובר עד הבדיקה והעבודה
+ok(/'intent:\/\/hunt' \+ q \+ '#Intent;scheme=snbstudio;package='/.test(studio) && /android:host="hunt"/.test(man) && /\.HuntActivity/.test(man), 'הקישור לדפדפן הציד');
+const mainK = R('android/app/src/main/java/io/github/yishaiguedj1/snowball/MainActivity.kt');
+ok(/"snb_ref"/.test(mainK) && /"extra_referer"/.test(mainK) && /"&ref=" \+ Uri\.encode\(ref\)/.test(mainK), 'MainActivity מעביר ref (גם extra_referer כמו ב־1DM)');
+ok(R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/HuntActivity.kt').includes('const val EXTRA_REF = "snb_ref"'), 'אותו שם extra בשני הצדדים');
+const sapp = R('studio-app.js');
+ok(/\[#&\]ref=/.test(sapp) && /ref: shareRef/.test(sapp), 'studio-app קורא את ref');
+ok(/linkCheck\(form, shared, opt\.ref\)/.test(studio) && /\{ url: L\.u, ref: L\.ref \}/.test(studio) && /spec\.ref = L\.ref/.test(studio), 'ref → בדיקה → עבודה');
+ok(!/HuntActivity|snbstudio/.test(R('android/app/src/main/AndroidManifest.xml')), 'דפדפן הציד רק ב־Studio');
 console.log('studio-grab: ' + n + ' בדיקות עברו');

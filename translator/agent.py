@@ -1042,7 +1042,8 @@ def probe_once(server: str, tok: str, run=subprocess.run) -> bool:
         return False
     body = {'op': 'pq', 'done': True, 'pid': pr['id']}
     try:
-        r = run([sys.executable, str(Path(__file__).with_name('fetchurl.py')), 'probe', str(pr.get('u') or '')],
+        ref = str(pr.get('ref') or '')                  # שלב 2: קובץ שנמצא בדף — הדף שממנו הגיע (Referer)
+        r = run([sys.executable, str(Path(__file__).with_name('fetchurl.py')), 'probe', str(pr.get('u') or '')] + (['--ref', ref] if ref else []),
                 capture_output=True, text=True, timeout=120)
         out = json.loads((r.stdout or '').strip().splitlines()[-1])
     except (OSError, subprocess.SubprocessError, ValueError, IndexError):

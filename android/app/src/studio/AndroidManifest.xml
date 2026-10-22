@@ -11,6 +11,8 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
+            <!-- לחיצה ארוכה על האייקון: "דפדפן ציד" -->
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
 
         <service
@@ -35,6 +37,22 @@
             </intent-filter>
             <meta-data android:name="android.service.quicksettings.TOGGLEABLE_TILE" android:value="true" />
         </service>
+
+        <!-- שלב 2: דפדפן הציד (מהאתר: intent://hunt?u=…#Intent;scheme=snbstudio;…, ומקיצור הדרך באייקון) -->
+        <activity
+            android:name=".HuntActivity"
+            android:exported="true"
+            android:label="@string/huntLabel"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@android:style/Theme.DeviceDefault.DayNight">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="snbstudio" android:host="hunt" />
+            </intent-filter>
+        </activity>
 
         <!-- מהאתר: intent://grab?s=app|a11y#Intent;scheme=snbstudio;package=app.thesnowball.studio;end — בלי מסך -->
         <activity

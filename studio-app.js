@@ -40,6 +40,8 @@ A.onChange((st) => {
 const link = /[#&]studio=(j[A-Za-z0-9_-]{20})(?:&v=(play|subs))?/.exec(location.hash || '');
 // 22/10/2026: "שיתוף ← Studio" מאנדרואיד (MainActivity: ‎#share=<הטקסט ששותף>) — דף "מקישור" עם הבדיקה כבר רצה
 const share = (() => { const m = /[#&]share=([^&]*)/.exec(location.hash || ''); try { return m ? decodeURIComponent(m[1]).slice(0, 4096) : ''; } catch (e) { return ''; } })();
+// שלב 2: קובץ שנמצא בדף (דפדפן הציד) — ‎&ref=<הדף>
+const shareRef = (() => { const m = /[#&]ref=([^&]*)/.exec(location.hash || ''); try { return m ? decodeURIComponent(m[1]).slice(0, 2048) : ''; } catch (e) { return ''; } })();
 if (link || share) { try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {} }
 const hs = history.state;
 /* ההדר המשותף (shell.js) — הלוגו של Studio, הקפסולה "חיבור ל־Claude" בהדר, ובתפריט מגדל הפיקוח. הגלובוס בתפריט הפתוח = ההגדרות */
@@ -65,4 +67,4 @@ if (first === 'out') loginGate({ app: 'studio', auth: A, logo: 'logo-studio.webp
 else if (first === 'boot') ready.then((st) => { if (st === 'out') loginGate({ app: 'studio', auth: A, logo: 'logo-studio.webp', logoLg: 'logo-studio-lg.webp', name: 'Studio' }); });
 /* 21/10/2026: התמונות של העבודות נטענות מהטלפון לפני הציור הראשון (מאחורי הווילון, עד 400ms) — הרשימה מופיעה איתן, בלי הבהוב */
 Promise.race([thumbsReady, new Promise((r) => setTimeout(r, 400))]).then(() =>
-  openStudio({ standalone: sa, restore: hs && hs.studio && !share ? hs : null, job: link ? link[1] : '', view: link && link[2] ? link[2] : '', share }));
+  openStudio({ standalone: sa, restore: hs && hs.studio && !share ? hs : null, job: link ? link[1] : '', view: link && link[2] ? link[2] : '', share, ref: shareRef }));

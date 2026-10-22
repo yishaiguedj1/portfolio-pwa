@@ -319,11 +319,11 @@ def thumb_data(url, opener=None, run=subprocess.run):
         return ''
 
 
-def probe_full(url):
-    """מה שהסוכן שולח לשרתון: הסיכום + תמונה קטנה, או {'error': קוד}."""
+def probe_full(url, ref=''):
+    """מה שהסוכן שולח לשרתון: הסיכום + תמונה קטנה, או {'error': קוד}. ref = הדף שבו נמצא הקובץ (דפדפן הציד)."""
     try:
         u = check_url(extract_url(url) or url)
-        s = probe(u)
+        s = probe(u, ref=ref_ok(ref))
     except ValueError as e:
         return {'error': str(e)}
     th = s.pop('_th', '')
@@ -393,10 +393,25 @@ def ytdlp_base():
     return cmd
 
 
-def probe(url, run=subprocess.run, timeout=PROBE_TIMEOUT):
+def ref_ok(ref):
+    """Referer מהטלפון → רק http(s) תקין, בלי רווחים ותווי בקרה (נשלח ככותרת), אחרת ''."""
+    r = str(ref or '').strip()
+    return r if len(r) <= 2048 and re.match(r'^https?://[^\s\x00-\x1f\x7f]+$', r) else ''
+
+
+def ref_args(ref):
+    """שלב 2 (דפדפן הציד): קובץ שנמצא בדף — הרבה שרתים נותנים אותו רק עם ה־Referer וה־Origin של הדף"""
+    r = ref_ok(ref)
+    if not r:
+        return []
+    o = re.match(r'^(https?://[^/?#]+)', r).group(1)
+    return ['--add-headers', 'Referer:' + r, '--add-headers', 'Origin:' + o]   # ‎--referer מיושן ב־yt-dlp
+
+
+def probe(url, run=subprocess.run, timeout=PROBE_TIMEOUT, ref=''):
     """בדיקת קישור: yt-dlp -J (בלי הורדה) → summarize. כשל → ValueError(קוד)."""
     try:
-        r = run(ytdlp_base() + ['-J', '--skip-download', '--', url], capture_output=True, text=True, timeout=timeout)
+        r = run(ytdlp_base() + ref_args(ref) + ['-J', '--skip-download', '--', url], capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         raise ValueError('timeout')
     except OSError:
@@ -413,10 +428,10 @@ def probe(url, run=subprocess.run, timeout=PROBE_TIMEOUT):
 PROG_RE = re.compile(r'^SNBP (\d+|NA) (\d+|NA) (\d+|NA)')
 
 
-def download(url, pick, out_tmpl, kind='v', section=None, on_progress=None, popen=subprocess.Popen, timeout=6 * 3600):
+def download(url, pick, out_tmpl, kind='v', section=None, on_progress=None, popen=subprocess.Popen, timeout=6 * 3600, ref=''):
     """הורדה: kind 'a' = רק הקול, 'v' = וידאו + קול ממוזגים בלי קידוד מחדש (MKV — מקבל כל צירוף קודקים).
     section = (מ, עד) בשניות — רק החלק הזה (yt-dlp חותך על פריימי מפתח; sync.py מיישר את הקול). מחזיר את הנתיב."""
-    cmd = ytdlp_base() + ['--newline', '--progress', '--progress-template',
+    cmd = ytdlp_base() + ref_args(ref) + ['--newline', '--progress', '--progress-template',
                           'download:SNBP %(progress.downloaded_bytes)s %(progress.total_bytes)s %(progress.total_bytes_estimate)s',
                           '--no-mtime', '--continue','--concurrent-fragments', '4',
                           '--max-filesize', '40G', '-o', out_tmpl, '--print', 'after_move:filepath']
@@ -457,7 +472,8 @@ def download(url, pick, out_tmpl, kind='v', section=None, on_progress=None, pope
 def main(argv):
     """שימוש ידני / בדיקה: python3 fetchurl.py probe <קישור>  → JSON של הסיכום."""
     if len(argv) >= 3 and argv[1] == 'probe':
-        r = probe_full(argv[2])
+        ref = argv[4] if len(argv) >= 5 and argv[3] == '--ref' else ''
+        r = probe_full(argv[2], ref)
         print(json.dumps(r, ensure_ascii=False))
         return 1 if r.get('error') else 0
     print('usage: fetchurl.py probe <url>')

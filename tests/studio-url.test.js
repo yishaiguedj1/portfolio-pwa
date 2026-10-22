@@ -118,6 +118,16 @@ const { fakeR2, ENV } = require('./_r2fake');
   await srv({ op: 'pq', done: true, pid: P3, ok: false, e: '<b>free text</b>' });
   ok((await api('urlProbe', { pid: P3 })).probe.e === 'fail', 'טקסט חופשי במקום קוד — "fail"');
 
+  // שלב 2 (דפדפן הציד): קובץ שנמצא בדף — הבדיקה והעבודה נושאות את הדף (Referer) עד העובד
+  ok((await api('urlProbe', { url: 'https://cdn.example.com/v/master.m3u8', ref: 'javascript:alert(1)' })).error === 'bad_url', 'Referer לא תקין — נדחה');
+  const P4 = (await api('urlProbe', { url: 'https://cdn.example.com/v/master.m3u8', ref: 'https://site.example/watch/9' })).probe.id;
+  q = await srv({ op: 'pq' });
+  ok(q.j.pr && q.j.pr.id === P4 && q.j.pr.ref === 'https://site.example/watch/9', 'העובד מקבל את הדף שבו נמצא הקובץ');
+  await srv({ op: 'pq', done: true, pid: P4, ok: false, e: 'fail' });
+  q = await api('urlProbe', { url: 'https://example.com/p5' });
+  ok(!(await srv({ op: 'pq' })).j.pr.ref, 'בלי Referer — בלי שדה');
+  await srv({ op: 'pq', done: true, pid: q.probe.id, ok: false, e: 'fail' });
+
   /* ---------- 2. עבודה מקישור ---------- */
   const spec = { name: r.t, size: 170e6, type: 'video/url', dur: 600, from: 'en', to: ['he'], mode: 'haiku-high', out: ['same'], eng: 'api', cap: 5,
     src: 'url', url: r.u, pick: { v: '399', a: '251', h: 1080, ch: 1 } };
@@ -126,6 +136,9 @@ const { fakeR2, ENV } = require('./_r2fake');
   j = await api('create', { spec });
   ok(j.ok && j.job.spec.src === 'url' && j.job.spec.pick.v === '399' && SR.isFolder(j.job.folder), 'עבודה מקישור נוצרת עם תיקייה ב־R2');
   const JOB = j.job.id, FOLDER = j.job.folder;
+  const jr = await api('create', { spec: Object.assign({}, spec, { url: 'https://cdn.example.com/v/master.m3u8', ref: 'https://site.example/watch/9' }) });
+  ok(jr.ok && jr.job.spec.ref === 'https://site.example/watch/9', 'עבודה מקובץ שנמצא בדף — עם ה־Referer');
+  ok(!(await api('create', { spec: Object.assign({}, spec, { ref: 'ftp://x' }) })).job.spec.ref, 'Referer לא תקין לא נשמר');
   j = await api('start', { job: JOB });
   ok(j.ok && j.job.state === 'queued', 'מתחילה בלי קבצים מהטלפון — העובד יביא אותם');
 
