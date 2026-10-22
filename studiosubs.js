@@ -1065,8 +1065,8 @@ function imAss(text) {
   }
   return cues;
 }
-// תגיות וסוגריים מסולסלים — עד שאין מה להסיר (הסרה אחת של "<<i>script>" משאירה "<script>")
-function imStrip(t) { let p; do { p = t; t = t.replace(IM_HTML, '').replace(IM_BRACE, ''); } while (t !== p); return t; }
+// תגיות וסוגריים מסולסלים — עד שאין מה להסיר (הסרה אחת של "<<i>script>" משאירה "<script>"), ו־"<" שנשאר יוצא (CodeQL)
+function imStrip(t) { let p; do { p = t; t = t.replace(IM_HTML, '').replace(IM_BRACE, ''); } while (t !== p); return t.replace(/</g, ''); }
 const IM_HTML = /<\/?[A-Za-z][^>]*>/g, IM_BRACE = /\{[^}]*\}/g, IM_VTT_TAG = /<\d{1,2}:\d{2}(?::\d{2})?\.\d{1,3}>/g;
 const IM_LETTER = /[A-Za-z\u00C0-\u024F\u0590-\u05FF\u0600-\u06FF\u0400-\u04FF]/;
 function imItalic(line, it) {

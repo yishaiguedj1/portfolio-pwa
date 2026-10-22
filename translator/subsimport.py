@@ -299,6 +299,7 @@ def import_subs(raw: bytes, sdh: bool = True) -> dict:
             while t != p:                      # עד שאין מה להסיר — "<<i>script>" → "<script>" בהסרה אחת
                 p = t
                 t = _BRACE.sub("", _HTML.sub("", t))
+            t = t.replace("<", "")                # "<" שנשאר — יוצא (כמו imStrip בטלפון)
             lines.append(_norm_ws(t))
         lines = [x for x in lines if x]
         whole = " ".join(lines)

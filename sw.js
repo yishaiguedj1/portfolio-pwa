@@ -71,7 +71,7 @@ const HASHES = {
   "./studio.css": "39131846ad566ce2a44ae396c7532fb0",
   "./studionet.js": "aa8bbf2c834dee5fb4862e0732912fac",
   "./studioplay.js": "c67d4ebfeab85699aefd358b354b97f3",
-  "./studiosubs.js": "ec3ec8052b57f39908e553de558fda44",
+  "./studiosubs.js": "3fc41b1fe1d0debb1e05be4a8908e77d",
   "./studioedl.js": "6374ccc5beb6a6addf0b8e1ac10ac56f",
   "./studioai.js": "e0a43e7a48c70e3bf5028813acebbf3e",
   "./studiostore.js": "633c4083aebf82cdc389813e65ecee16",
