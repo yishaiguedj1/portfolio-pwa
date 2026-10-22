@@ -364,6 +364,27 @@ class TestCtcConsensus(unittest.TestCase):
         self.assertLess(w[0]["e"] - w[0]["s"], 1.0)
 
 
+class TestConsensusNeighbors(unittest.TestCase):
+    def test_two_sources_pick_the_one_between_sure_neighbors(self):
+        """22/10/2026 (Undercover "no, no, no"): CTC 6 שנ׳ מאוחר — ה־ASR נכנס בין השכנים הבטוחים, ולכן הוא נבחר"""
+        from vt.align_ctc import consensus
+        def w(t, q, c, a):
+            return {"w": t, "s": 0, "e": 0, "s_qwen": q, "e_qwen": q and q + 0.2, "s_ctc": c, "e_ctc": c + 0.2,
+                    "s_asr": a, "e_asr": a + 0.2}
+        ws = [w("Hey,", 5387.0, 5387.1, 5387.05), w("no,", None, 5394.4, 5388.4), w("no.", 5389.7, 5389.75, 5389.8)]
+        st = consensus(ws)
+        self.assertAlmostEqual(ws[1]["s"], 5388.4, places=2)
+        self.assertEqual(st["neighbors"], 1)
+        self.assertLess(ws[1]["s"], ws[2]["s"])
+
+    def test_no_sure_neighbor_keeps_ctc(self):
+        from vt.align_ctc import consensus
+        ws = [{"w": "So", "s": 0, "e": 0, "s_qwen": None, "e_qwen": None, "s_ctc": 10.0, "e_ctc": 10.2,
+               "s_asr": 13.0, "e_asr": 13.2}]
+        consensus(ws)
+        self.assertAlmostEqual(ws[0]["s"], 10.0, places=2)
+
+
 class TestRetime(unittest.TestCase):
     def test_retime_updates_speech_and_parts(self):
         from vt.segment import retime

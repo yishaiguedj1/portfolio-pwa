@@ -224,10 +224,26 @@ def consensus(words: list[dict]) -> dict:
     מצרף את השתיקה שאחרי המילה לסוף שלה).
     """
     n = len(words)
-    st = {"median3": 0, "two": 0, "one": 0, "moved_100ms": 0}
+    st = {"median3": 0, "two": 0, "one": 0, "moved_100ms": 0, "neighbors": 0}
     for w in words:
         if "s_qwen" not in w:
             w["s_qwen"], w["e_qwen"] = (w["s"], w["e"]) if w.get("align") == "qwen3" else (None, None)
+    # 22/10/2026 (ניתוח המאגר מול תמלול ייחוס): כששני מקורות לא מסכימים — הזמן שנכנס בין השכנים הבטוחים
+    # (שלושה מקורות, או שניים שמסכימים). CTC מתבלבל בחזרות ("no, no, no" ב־Undercover — 6 שנ׳ מאוחר) וגורר
+    # אחריו מילים נכונות; ה־ASR מאחר בסוף חלון. בלי הכרעה כזו — CTC כמו קודם. ב־Undercover הסטייה ירדה בחצי.
+    sure = []
+    for w in words:
+        xs = [x for x in (w.get("s_qwen"), w.get("s_ctc"), w.get("s_asr")) if x is not None]
+        sure.append(statistics.median(xs) if len(xs) == 3 else
+                    (sum(xs) / 2 if len(xs) == 2 and abs(xs[0] - xs[1]) <= 0.25 else None))
+    prv, nxs, last = [None] * n, [None] * n, None
+    for i in range(n):
+        prv[i] = last
+        last = sure[i] if sure[i] is not None else last
+    last = None
+    for i in range(n - 1, -1, -1):
+        nxs[i] = last
+        last = sure[i] if sure[i] is not None else last
     for i, w in enumerate(words):
         nxt = words[i + 1].get("s_asr") if i + 1 < n else None
         e_asr = w.get("e_asr")
@@ -246,6 +262,12 @@ def consensus(words: list[dict]) -> dict:
                 s = sum(ss) / 2
             else:
                 pick = "ctc" if w.get("s_ctc") is not None else ("qwen" if w.get("s_qwen") is not None else "asr")
+                lo = prv[i] - 0.3 if prv[i] is not None else float("-inf")
+                hi = nxs[i] + 0.3 if nxs[i] is not None else float("inf")
+                fit = [k for k in ("ctc", "qwen", "asr") if w.get("s_" + k) is not None and lo <= w["s_" + k] <= hi]
+                if len(fit) == 1:
+                    pick = fit[0]
+                    st["neighbors"] += pick != "ctc"
                 s = w.get("s_" + pick)
             st["two"] += 1
         else:
