@@ -3060,6 +3060,8 @@ function pageLink(p) {
     card.append(ico('alert'), h('span', null, msg));
     p.append(card, h('div', 'st-gap sm'), btn('st-btn tint wide', T('studioLinkRetry'), () => linkCheck(f, L.u, L.ref), 'link-retry'));
     if (L.e === 'blocked' || L.e === 'login' || L.e === 'unsupported' || L.e === 'no_video') p.append(note(T('studioLinkUpload')));
+    // הניסוי: דף שהשרת לא מצא בו סרטון (נשלח מהבועה) — דפדפן הציד רואה את מה שהנגן מבקש בפועל
+    if (grabOk() && !L.ref && (L.e === 'unsupported' || L.e === 'no_video' || L.e === 'fail')) p.append(h('div', 'st-gap sm'), btn('st-btn wide', T('studioHuntTry'), () => huntOpen(L.u), 'link-hunt'));
     return;
   }
   // יש תוצאה

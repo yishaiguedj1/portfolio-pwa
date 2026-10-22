@@ -13,6 +13,8 @@ object VideoUrl {
         data class Video(val url: String) : Hit()
         /** אתר וידאו, אבל השורה מציגה רק את שם האתר (בלי הנתיב) — את הכתובת המלאה קוראים בנגיעה */
         data class SiteOnly(val host: String) : Hit()
+        /** הניסוי: דף באתר לא מוכר שיש בו נגן — שולחים את הדף, והשרת (yt-dlp, מחלץ כללי) מחפש בו את הסרטון */
+        data class Page(val url: String) : Hit()
         object None : Hit()
     }
 
@@ -53,6 +55,36 @@ object VideoUrl {
 
     private fun site(host: String): Pair<String, Regex?>? =
         SITES.firstOrNull { (h, _) -> host == h || host.endsWith(".$h") }
+
+    /**
+     * הניסוי (22/10/2026, בקשת המשתמש — "בועה בכל דף שיש בו סרטון"): כתובת של דף רגיל באתר לא מוכר → הכתובת המלאה,
+     * כדי לחפש בו נגן (GrabService.hasVideo). לא דפי חיפוש ולא דפים "פנימיים" של הדפדפן.
+     */
+    fun page(raw: CharSequence?): String? {
+        var s = raw?.toString()?.trim() ?: return null
+        if (s.isEmpty() || s.length > 2048 || s.any { it.isWhitespace() }) return null
+        if (!Regex("""^https?://""", RegexOption.IGNORE_CASE).containsMatchIn(s)) {
+            if (!Regex("""^[\w.-]+\.[a-z]{2,}(:\d+)?/""", RegexOption.IGNORE_CASE).containsMatchIn(s)) return null   // רק עם נתיב — דף בית לא
+            s = "https://$s"
+        }
+        val u = try { URI(s) } catch (e: Exception) { return null }
+        val host = (u.host ?: return null).lowercase().removePrefix("www.").removePrefix("m.")
+        if (!host.contains('.') || (u.rawPath ?: "").length < 2) return null
+        if (Regex("""(^|\.)(google|bing|duckduckgo|yahoo|baidu|yandex)\.""").containsMatchIn(host) && (u.rawPath ?: "").startsWith("/search")) return null
+        return u.toString()
+    }
+
+    /**
+     * צומת בעץ הנגישות של הדף = נגן וידאו? Chrome מעביר את התפקיד מה־HTML ב־extras (‏"AccessibilityNodeInfo.chromeRole"),
+     * ותיאור תפקיד ב־roleDescription; נגן מערכת — VideoView. טהור (נבדק ב־JVM). לא אומת על כל גרסאות Chrome — ניסוי.
+     */
+    fun isVideoNode(className: CharSequence?, chromeRole: CharSequence?, roleDesc: CharSequence?): Boolean {
+        val r = chromeRole?.toString()?.lowercase() ?: ""
+        if (r == "video") return true
+        if (className?.toString() == "android.widget.VideoView") return true
+        val d = roleDesc?.toString()?.trim()?.lowercase() ?: return false
+        return d == "video" || d == "סרטון" || d == "וידאו"
+    }
 
     /** הטקסט מהשורה (כמו שהוא — לרוב בלי https://) → מה להציע */
     fun classify(raw: CharSequence?): Hit {

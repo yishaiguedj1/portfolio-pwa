@@ -97,11 +97,49 @@ class GrabService : AccessibilityService() {
         val node = findBar(r, pkg, ids)
         if (node == null) return                       // מסך מלא / השורה מוסתרת — הבועה נשארת כמו שהיא
         if (node.isFocused) { hide(); return }         // המשתמש מקליד כתובת
-        val c = VideoUrl.classify(node.text)
-        val key = when (c) { is VideoUrl.Hit.Video -> c.url; is VideoUrl.Hit.SiteOnly -> "site:" + c.host; else -> null }
+        var c = VideoUrl.classify(node.text)
+        if (c is VideoUrl.Hit.None && prefs.getBoolean(KEY_DEEP, true)) {
+            // הניסוי: דף באתר לא מוכר — מחפשים בו נגן (פעם בכמה שניות לכל דף, עד שנמצא), ואז מציעים את הדף עצמו
+            val pg = VideoUrl.page(node.text)
+            if (pg != null && deepHas(r, pg)) c = VideoUrl.Hit.Page(pg)
+        }
+        val key = when (c) { is VideoUrl.Hit.Video -> c.url; is VideoUrl.Hit.SiteOnly -> "site:" + c.host; is VideoUrl.Hit.Page -> c.url; else -> null }
         if (key == null || key in dismissed) { hide(); return }
         hit = c; hitPkg = pkg
         if (key != shownFor) show(key)
+    }
+
+    /* הניסוי — מצא נגן בדף: סריקה רחבה של עץ הנגישות עם תקרה (צמתים, עומק, זמן), ותוצאה שמורה לכל כתובת.
+       דף שלא נמצא בו נגן נבדק שוב רק אחרי DEEP_AGAIN (הנגן נטען מאוחר), ועד DEEP_TRIES פעמים */
+    private var deepUrl = ""
+    private var deepFound = false
+    private var deepAt = 0L
+    private var deepTries = 0
+
+    private fun deepHas(r: AccessibilityNodeInfo, url: String): Boolean {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (url != deepUrl) { deepUrl = url; deepFound = false; deepAt = 0L; deepTries = 0 }
+        if (deepFound) return true
+        if (deepTries >= DEEP_TRIES || now - deepAt < DEEP_AGAIN) return false
+        deepAt = now; deepTries++
+        deepFound = findVideo(r, now)
+        return deepFound
+    }
+
+    private fun findVideo(root: AccessibilityNodeInfo, t0: Long): Boolean {
+        val q = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
+        q.add(root to 0)
+        var n = 0
+        while (q.isNotEmpty()) {
+            val (v, d) = q.removeFirst()
+            if (++n > DEEP_NODES || android.os.SystemClock.uptimeMillis() - t0 > DEEP_MS) return false
+            val ex = try { v.extras } catch (e: Exception) { null }
+            val role = ex?.getCharSequence("AccessibilityNodeInfo.chromeRole")
+            val desc = ex?.getCharSequence("AccessibilityNodeInfo.roleDescription")
+            if (VideoUrl.isVideoNode(v.className, role, desc)) return true
+            if (d < DEEP_DEPTH) for (i in 0 until v.childCount) { val ch = try { v.getChild(i) } catch (e: Exception) { null }; if (ch != null) q.add(ch to d + 1) }
+        }
+        return false
     }
 
     private fun findBar(r: AccessibilityNodeInfo, pkg: String, ids: List<String>): AccessibilityNodeInfo? {
@@ -249,6 +287,7 @@ class GrabService : AccessibilityService() {
     private fun send() {
         when (val c = hit) {
             is VideoUrl.Hit.Video -> open(c.url)
+            is VideoUrl.Hit.Page -> open(c.url)
             is VideoUrl.Hit.SiteOnly -> readFull()
             else -> hide()
         }
@@ -311,6 +350,12 @@ class GrabService : AccessibilityService() {
         private const val KEY_RIGHT = "right"
         private const val KEY_Y = "y"
         private const val KEY_HINTS = "hints"
+        const val KEY_DEEP = "deep"                 // הניסוי (חיפוש נגן בכל דף) — פועל כברירת מחדל
+        private const val DEEP_NODES = 1500
+        private const val DEEP_DEPTH = 40
+        private const val DEEP_MS = 40L
+        private const val DEEP_AGAIN = 2500L
+        private const val DEEP_TRIES = 6
 
         /* דפדפן → המזהים של שורת הכתובת (לפי הסדר). רשימה שמתחזקים: מזהה שהשתנה בגרסה חדשה = הבועה לא מופיעה שם */
         val URL_BAR: Map<String, List<String>> = mapOf(

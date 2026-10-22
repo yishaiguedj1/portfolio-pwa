@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1739 מפתחות מתוך 3820) */
+/* המחרוזות של studio (1740 מפתחות מתוך 3821) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -663,8 +663,8 @@ he: {
   "studioGrabIntro": "כמו IDM במחשב: פותחים סרטון ב־Chrome (או בכל דפדפן), ובצד המסך מופיעה בועה קטנה. נגיעה בה — והסרטון נשלח ל־Studio. מדליקים פעם אחת, ומאז היא עובדת לבד, בלי התראה קבועה.",
   "studioGrabOpen": "פתיחה",
   "studioGrabOpenApp": "פרטי האפליקציה",
-  "studioGrabPriv1": "רק את שורת הכתובת של הדפדפן",
-  "studioGrabPriv1S": "כדי לדעת אם זה דף של סרטון. שום דבר לא נשמר ולא נשלח — רק הקישור, וגם הוא רק כשנוגעים בבועה",
+  "studioGrabPriv1": "שורת הכתובת, וסוג הרכיבים בדף",
+  "studioGrabPriv1S": "כדי לדעת אם יש בדף סרטון — בלי הטקסט שבדף. שום דבר לא נשמר ולא נשלח — רק הקישור, וגם הוא רק כשנוגעים בבועה",
   "studioGrabPriv2": "האזהרה של אנדרואיד",
   "studioGrabPriv2S": "\"שליטה מלאה במכשיר\" — זה הנוסח הקבוע של אנדרואיד לכל שירות כזה. הבועה לא לוחצת ולא מקלידה בשמך",
   "studioGrabPrivT": "מה הבועה רואה",
@@ -696,6 +696,7 @@ he: {
   "studioHrs": "כ־{t} ש׳",
   "studioHuntS": "גולשים לאתר, מנגנים — והסרטון נמצא",
   "studioHuntT": "דפדפן ציד",
+  "studioHuntTry": "לפתוח בדפדפן הציד ולנגן שם",
   "studioIdAsk": "שאלה על הסרטון",
   "studioIdAskNo": "כתבו שאלה",
   "studioIdAskPh": "למשל: מה שלוש הנקודות העיקריות?",
@@ -2404,8 +2405,8 @@ en: {
   "studioGrabIntro": "Like IDM on a computer: open a video in Chrome (or any browser) and a small bubble appears at the edge of the screen. Tap it and the video goes to Studio. Turn it on once, and from then on it works by itself, with no permanent notification.",
   "studioGrabOpen": "Open",
   "studioGrabOpenApp": "App info",
-  "studioGrabPriv1": "Only the browser's address bar",
-  "studioGrabPriv1S": "To tell whether the page is a video. Nothing is stored or sent — only the link, and only when you tap the bubble",
+  "studioGrabPriv1": "The address bar, and the type of elements on the page",
+  "studioGrabPriv1S": "To tell whether the page has a video — not the text on the page. Nothing is stored or sent — only the link, and only when you tap the bubble",
   "studioGrabPriv2": "Android's warning",
   "studioGrabPriv2S": "\"Full control of your device\" — that is Android's fixed wording for every such service. The bubble doesn't tap or type for you",
   "studioGrabPrivT": "What the bubble sees",
@@ -2437,6 +2438,7 @@ en: {
   "studioHrs": "~{t} h",
   "studioHuntS": "Browse to the site, play — and the video is found",
   "studioHuntT": "Hunting browser",
+  "studioHuntTry": "Open in the hunting browser and play there",
   "studioIdAsk": "A question about the video",
   "studioIdAskNo": "Write a question",
   "studioIdAskPh": "E.g.: what are the three main points?",
