@@ -379,7 +379,7 @@ class TestWorker(unittest.TestCase):
         self.assertLess(self.fake.reports.index(early[1]), self.fake.reports.index(done))
 
     # ---------------------------------------------------------------- איכויות צפייה (ladder.py)
-    def seed_ladder(self, s='ok'):
+    def seed_ladder(self, s='ok', alt=False):
         d = self.tmp / 'work' / '_ladder'
         (d / 'out').mkdir(parents=True, exist_ok=True)
         (d / 'out' / 'top.mp4').write_bytes(b'T' * 500000)
@@ -388,7 +388,12 @@ class TestWorker(unittest.TestCase):
         top = {'w': 1920, 'h': 1080, 'bw': 5000000, 'abw': 4000000, 'c': 'avc1.640028,mp4a.40.2', 'f': str(d / 'out' / 'top.mp4')}
         rungs = [{'w': 640, 'h': 360, 'bw': 400000, 'abw': 300000, 'c': 'avc1.64001e,mp4a.40.2', 'f': str(d / 'out' / 'r360.mp4')},
                  {'w': 1280, 'h': 720, 'bw': 1500000, 'abw': 1200000, 'c': 'avc1.64001f,mp4a.40.2', 'f': str(d / 'out' / 'r720.mp4')}]
-        (d / 'state.json').write_text(json.dumps({'job': JOB, 's': s, 'why': '' if s == 'ok' else 'gop', 'top': top, 'rungs': rungs}))
+        a = None
+        if alt:                                  # 22/10/2026: הקול המקורי (ec-3) נשאר במקור + עותק Opus לנגן
+            top['c'] = 'avc1.640028,ec-3'
+            (d / 'out' / 'alt.mp4').write_bytes(b'A' * 40000)
+            a = {'bw': 330000, 'abw': 300000, 'c': 'opus', 'ch': 6, 'size': 40000, 'f': str(d / 'out' / 'alt.mp4')}
+        (d / 'state.json').write_text(json.dumps({'job': JOB, 's': s, 'why': '' if s == 'ok' else 'gop', 'top': top, 'rungs': rungs, 'alt': a}))
 
     def test_ladder_finish(self):
         self.assertEqual(self.take()[0], 0)
@@ -413,6 +418,25 @@ class TestWorker(unittest.TestCase):
         self.assertIn('VIDEO000001/revisions/rev0001', self.fake.deleted, 'הגרסה הקודמת של המקור נמחקת (לא 30 יום באחסון)')
         self.assertNotIn('VIDEO000001/revisions/rev0002', self.fake.deleted, 'הנוכחית נשארת')
         self.assertIn('איכויות צפייה: מקור (1080p) + 720p · 360p', out)
+        self.assertIsNone(done.get('hla'), 'קול רגיל — בלי עותק')
+
+    def test_ladder_alt_audio(self):
+        self.assertEqual(self.take()[0], 0)
+        self.assertEqual(self.job('prepare')[0], 0)
+        self.assertEqual(self.job('align')[0], 0)
+        self.seed_ladder(alt=True)
+        code, out = self.job('finish')
+        self.assertEqual(code, 0, out)
+        done = self.fake.reports[-1]
+        hla = done.get('hla')
+        self.assertTrue(hla, done.keys())
+        self.assertEqual((hla['c'], hla['ch'], hla['size']), ('opus', 6, 40000))
+        up = [u for u in self.fake.uploads.values() if u['meta'].get('name') == 'Interview_2026 (קול לנגן).mp4']
+        self.assertEqual(len(up), 1)
+        self.assertEqual((up[0]['meta']['parents'], (up[0]['meta'].get('appProperties') or {}).get('snbOut'), len(up[0]['data'])), (['FOLDER00001'], 'hl', 40000))
+        self.assertNotIn(hla['id'], [x['id'] for x in done['hl']], 'העותק לא נכנס לרשימת האיכויות')
+        self.assertEqual(done['hl'][0]['c'], 'avc1.640028,ec-3', 'המקור עם הקול המקורי')
+        self.assertIn('עותק קול לנגן (Opus, 6 ערוצים)', out)
 
     def test_ladder_not_ready(self):
         self.assertEqual(self.take()[0], 0)

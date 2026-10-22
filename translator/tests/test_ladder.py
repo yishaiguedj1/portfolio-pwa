@@ -35,8 +35,26 @@ class TestPlan(unittest.TestCase):
             self.assertEqual(L.plan(sm(**kw))['why'], why, kw)
         self.assertTrue(L.plan(sm(na=0, a=''))['ok'], 'בלי קול — בסדר')
         self.assertEqual(L.plan(sm(), edl=True)['why'], 'edl', 'חיתוך לפני התרגום — הנגן מנגן את הצריבה')
-        for why in ('streams', 'vcodec', 'acodec', 'gop', 'small', 'edl'):
+        for why in ('streams', 'vcodec', 'acodec', 'gop', 'small', 'edl', 'alt'):
             self.assertIn(why, L.WHY)
+
+    def test_plan_alt(self):
+        # 22/10/2026: קול שהטלפון לא תמיד מנגן — נארז כמו שהוא + עותק Opus לנגן (לא נדרס)
+        for a in ('ac3', 'eac3', 'dts', 'truehd', 'alac'):
+            p = L.plan(sm(a=a))
+            self.assertTrue(p['ok'] and p['alt'], a)
+        for a in ('aac', 'opus', 'mp3', 'flac'):
+            self.assertFalse(L.plan(sm(a=a))['alt'], a + ' — הדפדפן מנגן בעצמו, בלי עותק')
+        self.assertFalse(L.plan(sm(na=0, a=''))['alt'])
+        c = L.remux_cmd('in.mkv', 'top.mp4', sm(a='eac3'))
+        self.assertEqual(c[c.index('-c') + 1], 'copy', 'הקול המקורי מועתק כמו שהוא')
+        self.assertIn('delay_moov', c[c.index('-movflags') + 1], 'בלי delay_moov ffmpeg לא כותב E-AC3 ל־MP4 מקוטע')
+        self.assertNotIn('delay_moov', ' '.join(L.remux_cmd('in.mp4', 'top.mp4', sm())), 'קול רגיל — בלי שינוי')
+        self.assertEqual([L.alt_layout(c) for c in (1, 2, 6, 8, 3)], [('mono', 64), ('stereo', 128), ('5.1', 320), ('7.1', 448), ('5.1', 320)])
+        a = L.alt_cmd('in.mkv', 'alt.mp4', sm(a='eac3', ch=6))
+        self.assertEqual((a[a.index('-c:a') + 1], a[a.index('-af') + 1], a[a.index('-mapping_family') + 1]), ('libopus', 'aformat=channel_layouts=5.1', '1'))
+        self.assertNotIn('-mapping_family', L.alt_cmd('in.mkv', 'alt.mp4', sm(a='ac3', ch=2)))
+        self.assertIn('-vn', a)
 
     def test_summarize_rotation(self):
         info = {'streams': [{'codec_type': 'video', 'codec_name': 'hevc', 'width': 1920, 'height': 1080,
@@ -117,6 +135,31 @@ class TestBuild(unittest.TestCase):
         self.assertLess(low, top.stat().st_size, 'כל האיכויות הנמוכות יחד — פחות מהמקור')
         for x in [r['top']] + r['rungs']:
             self.assertGreaterEqual(x['bw'], x['abw'])
+
+    def test_alt_audio(self):
+        # 22/10/2026: מקור עם E-AC3 5.1 — המקור הארוז שומר את הקול בבייטים, ולצידו עותק Opus עם אותם 6 ערוצים ואותו אורך
+        if not self.ok:
+            self.skipTest('ffmpeg בלי libx264')
+        src = self.tmp / 'eac3.mkv'
+        r = subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(self.src), '-f', 'lavfi', '-i', 'sine=frequency=330:d=8,aformat=channel_layouts=5.1(side)',
+                            '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'eac3', str(src)], capture_output=True)
+        if r.returncode:
+            self.skipTest('ffmpeg בלי מקודד eac3')
+        res = L.build(src, self.tmp / 'out4', log=lambda m: None)
+        self.assertTrue(res['ok'], res)
+        top = Path(res['top']['f'])
+        self.assertEqual(self.md5(top, 'a:0'), self.md5(src, 'a:0'), 'הקול המקורי (E-AC3) נשאר בבייטים — לא נדרס')
+        self.assertTrue(res['top']['c'].endswith(',ec-3'), res['top']['c'])
+        alt = res['alt']
+        self.assertEqual((alt['c'], alt['ch']), ('opus', 6))
+        pr = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_type,codec_name,channels:format=duration', '-of', 'json', alt['f']],
+                            capture_output=True, text=True)
+        import json as _j
+        j = _j.loads(pr.stdout)
+        self.assertEqual([(x['codec_type'], x['codec_name'], x['channels']) for x in j['streams']], [('audio', 'opus', 6)], 'קול בלבד, 5.1')
+        self.assertAlmostEqual(float(j['format']['duration']), 8.0, delta=0.1)
+        self.assertTrue(L.sidx_index(L.head(alt['f'])), 'עם אינדקס — הנגן בונה ממנו רשימת קטעים')
+        self.assertLess(Path(alt['f']).stat().st_size, top.stat().st_size / 3)
 
     def test_gate_after_top(self):
         # 22/10/2026 (אפשרות א׳): המקור נארז מיד, והנמוכות מתקודדות רק אחרי השער (סוף הצריבה)

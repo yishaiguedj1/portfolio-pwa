@@ -1527,7 +1527,12 @@ async function worker(req, res, body, deps) {
         const m = await driveFileInFolder(deps, job.uid, job.folder, x.id);
         if (!m || m.error || m.size !== x.size) { good = false; break; }
       }
-      if (good) { up.hl = hl; up.fv = Object.assign({}, job.fv, { size: vs }); }
+      // 22/10/2026: עותק הקול לנגן (Opus) — מאומת כמו האיכויות; לא תקין — האיכויות נשמרות בלעדיו (טלפון בלי מפענח לקול
+      // המקורי ינגן בלי קול, כמו לפני כן)
+      let hla = good && body.hla != null ? S.normHla(body.hla) : null;
+      if (hla && hl.some((x) => x.id === hla.id)) hla = null;
+      if (hla) { const m = await driveFileInFolder(deps, job.uid, job.folder, hla.id); if (!m || m.error || m.size !== hla.size) hla = null; }
+      if (good) { up.hl = hl; up.fv = Object.assign({}, job.fv, { size: vs }); if (hla) up.hla = hla; }
     }
     if (body.ask != null) {
       // שאלה באמצע העבודה — מוצגת בטלפון עד שעונים או עד שהעובד ממשיך עם ברירת המחדל

@@ -3647,7 +3647,7 @@ def ladder_run(args):
         pass
     r = LD.build(args.src, LADDER_DIR / 'out', log=lambda m: print(m, flush=True), gate=ladder_gate if getattr(args, 'gate', False) else None)
     st = {'job': args.job, 's': 'ok' if r.get('ok') else 'skip', 'why': r.get('why', ''), 'top': r.get('top'), 'rungs': r.get('rungs'),
-          'at': time.time()}
+          'alt': r.get('alt'), 'at': time.time()}
     (LADDER_DIR / 'state.json').write_text(json.dumps(st), encoding='utf-8')
     print('✓ איכויות מוכנות' if r.get('ok') else '· בלי איכויות (' + st['why'] + ')', flush=True)
     return 0
@@ -3665,7 +3665,7 @@ def drive_purge_revisions(ctx, fid):
 
 def ladder_finish(ctx):
     """בסוף העבודה: מחכים לאיכויות (עד LADDER_WAIT), מעלים את הנמוכות, מחליפים את המקור בגרסה הארוזה.
-    כל תקלה — העבודה מסתיימת בלי איכויות (והמקור כמו שהיה). מחזיר {'hl', 'vs'} או None."""
+    כל תקלה — העבודה מסתיימת בלי איכויות (והמקור כמו שהיה). מחזיר {'hl', 'vs', 'hla'} או None (hla = עותק הקול לנגן, או None)."""
     st = ladder_state()
     if not st or st.get('job') != ctx.st['job']:
         return None
@@ -3698,6 +3698,13 @@ def ladder_finish(ctx):
             p = Path(str(r.get('f') or ''))
             fid = put_output(ctx, p, title + ' (%dp).mp4' % min(r['w'], r['h']), 'hl', 'video/mp4')
             up.append(dict({k: r[k] for k in ('w', 'h', 'bw', 'abw', 'c')}, id=fid, size=p.stat().st_size))
+        alt, hla = st.get('alt') or None, None
+        if alt and Path(str(alt.get('f') or '')).exists():
+            # 22/10/2026: הקול המקורי (Dolby/DTS…) נשאר במקור; העותק ב־Opus — רק לטלפון שלא מנגן אותו
+            ap = Path(alt['f'])
+            aid = put_output(ctx, ap, title + ' (קול לנגן).mp4', 'hl', 'audio/mp4')
+            hla = dict({k: alt[k] for k in ('bw', 'abw', 'c', 'ch')}, id=aid, size=ap.stat().st_size)
+            up.append(dict(hla, a=1))            # לניקוי אם משהו נכשל
         tp = Path(top['f'])
         put_output(ctx, tp, title + '.mp4', 'v', 'video/mp4', replace=v['id'])
     except SystemExit as e:
@@ -3710,10 +3717,13 @@ def ladder_finish(ctx):
     except Exception:            # noqa: BLE001 — Drive ימחק את הגרסה הקודמת לבד אחרי 30 יום
         n = 0
     size = tp.stat().st_size
+    up = [x for x in up if not x.get('a')]
     hl = [dict({k: top[k] for k in ('w', 'h', 'bw', 'abw', 'c')}, id=v['id'], size=size)] + sorted(up, key=lambda x: -min(x['w'], x['h']))
     print('✓ איכויות צפייה: מקור (%dp) + %s%s' % (min(top['w'], top['h']), ' · '.join('%dp' % min(x['w'], x['h']) for x in hl[1:]),
                                                    '' if not n else ' · הגרסה הקודמת של המקור נמחקה'))
-    return {'hl': hl, 'vs': size}
+    if hla:
+        print('✓ עותק קול לנגן (Opus, %d ערוצים) — הקול המקורי נשאר בקובץ' % hla['ch'])
+    return {'hl': hl, 'vs': size, 'hla': hla}
 
 
 @guarded
@@ -3822,7 +3832,7 @@ def finish(args):
         learn_media(ctx)                         # מ׳4: הקול ועותק ב־240p (רק כשהשרתון מבקש) — מ־240p של איכויות הצפייה
     note_timing(ctx, 'sv-learn', t_l, time.time())
     ctx.report(done=True, out=out, msg='התרגום מוכן', force=True, lx=learn_safe(ctx), usage=usage_safe(), trace=trace_safe(), quality=q,
-               judge=ctx.st.get('jd'), gl=gl, hl=hl and hl['hl'], vs=hl and hl['vs'],      # v375: שופט האיכות (Haiku) — אם רץ
+               judge=ctx.st.get('jd'), gl=gl, hl=hl and hl['hl'], vs=hl and hl['vs'], hla=hl and hl.get('hla'),      # v375: שופט האיכות (Haiku) — אם רץ
                rvf=rvf or None, fil=fil or None, gq=gq)
     print('✓ העבודה הסתיימה: ' + ', '.join(o['name'] for o in out))
     return 0
