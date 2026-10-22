@@ -7363,6 +7363,9 @@ export function openStudio(opt) {
   const jobs0 = refreshJobs(true);
   // מההתראה: לדף העבודה — מיד אם היא כבר בטלפון, אחרת אחרי שהרשימה מהשרתון מגיעה
   if (jobLink) { if (jobRec(jobLink)) goJobLink(jobLink, linkView, 'none'); else Promise.resolve(jobs0).then(() => { if (root && jobRec(jobLink)) goJobLink(jobLink, linkView); }); }
+  // 22/10/2026: "שיתוף ← Studio" — טופס חדש ודף הקישור, והבדיקה מתחילה מיד (בלי להדביק)
+  const shared = opt && typeof opt.share === 'string' ? opt.share.trim().slice(0, 4096) : '';
+  if (shared && /https?:\/\//i.test(shared)) { form = freshForm(null); go('new', null, 'none'); go('link', null, 'none'); linkCheck(form, shared); }
   // העלאות שנקטעו (רענון): ממשיכים לבד כשיש ידית לקובץ עם הרשאה; אחרת המסך מבקש לבחור שוב
   for (const rec of store.jobs) {
     const done = rec.up.v.done && (rec.up.a.done || rec.up.noAudio);

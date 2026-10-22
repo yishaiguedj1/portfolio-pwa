@@ -78,6 +78,13 @@ class MainActivity : Activity() {
     /* הכתובת לפתיחה + ‎app=<חתימת רשימת הווידג'ט> ב־hash: האתר יודע שהוא בתוך האפליקציה ומה הווידג'ט כבר מכיר,
        ומסנכרן רשימה רק כשיש הבדל (app.js → appWidgetSync). hash — לא משנה את הכתובת במטמון של ה־SW */
     private fun urlFor(i: Intent?): Uri {
+        // 22/10/2026: "שיתוף ← Studio" (רק ב־Studio יש intent-filter של SEND — src/studio/AndroidManifest.xml):
+        // הטקסט ששותף עובר לאתר ב־hash (לא בכתובת עצמה — לא נשמר במטמון של ה־SW ולא נשלח לשרת)
+        if (i?.action == Intent.ACTION_SEND) {
+            val t = (i.getStringExtra(Intent.EXTRA_TEXT) ?: "").take(4096)
+            val app = "app=" + Flavor.appSig(this) + "&n=" + java.lang.Long.toString(System.currentTimeMillis(), 36)
+            return Uri.parse(getString(R.string.launchUrl).substringBefore('#') + "#share=" + Uri.encode(t) + "&" + app)
+        }
         val d = i?.data
         // 2.0.0: הכתובת החדשה (invest.thesnowball.app), והישנה נשארת מוכרת בשביל קישורים ישנים (האתר הישן מעביר לחדשה)
         val ours = d != null && d.scheme == "https" &&
