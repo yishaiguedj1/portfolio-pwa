@@ -1081,6 +1081,27 @@ def _lm_ladder240(ctx):
     return None
 
 
+_LM_EARLY = {}
+
+
+def learn_media_early(ctx):
+    """22/10/2026 (עבודה בלי צריבה, 46 דק׳: "הסתיימה" חיכתה 3 דק׳ לקידוד 240p למאגר הלמידה): בזמן הביקורת והשופט
+    המעבד כמעט פנוי — הקידוד מתחיל שם. רק כשאין איכויות צפייה (אחרת 240p מהן, בלי קידוד), כשהסרטון כבר כאן,
+    ואחרי שהשוטים הסתיימו (הם ב־SCHED_IDLE — קידוד ב־nice היה מרעיב אותם, והבנייה מחכה להם)."""
+    try:
+        job = ctx.st.get('job')
+        if not job or job in _LM_EARLY or (ladder_state() or {}).get('job') == job:
+            return False
+        if not _lm_source(ctx.pdir) or not (ctx.pdir / 'shots.json').exists():
+            return False
+        th = threading.Thread(target=_learn_media_safe, args=(ctx,), daemon=True)
+        th.start()
+        _LM_EARLY[job] = th
+        return True
+    except Exception:            # noqa: BLE001 — מידע משני
+        return False
+
+
 def _learn_media_safe(ctx):
     try:
         learn_media(ctx)
@@ -3580,8 +3601,8 @@ def finish(args):
     t_up = time.time()
     # 22/10/2026 (פירוק השמירה, פרק של 92 דק׳ בלי איכויות צפייה): העותק למאגר הלמידה (קידוד 240p, ‏6 דק׳) רץ אחרי ההעלאה
     # (10 דק׳) — אחד על המעבד והשני על הרשת. בלי איכויות צפייה הוא לא תלוי בכלום — רץ במקביל להעלאה.
-    lm_th = None
-    if (ladder_state() or {}).get('job') != ctx.st.get('job'):
+    lm_th = _LM_EARLY.pop(ctx.st.get('job'), None)
+    if lm_th is None and (ladder_state() or {}).get('job') != ctx.st.get('job'):
         lm_th = threading.Thread(target=_learn_media_safe, args=(ctx,), daemon=True)
         lm_th.start()
     out, total = [], 0

@@ -1056,6 +1056,8 @@ def run_auto(jobmod, args) -> int:
             J.attach_late(J.Ctx(J.load_state()))
             ctx = J.Ctx(J.load_state())
             pl = Pipeline(ctx, J, eng)
+        if hasattr(J, 'learn_media_early'):
+            J.learn_media_early(J.Ctx(J.load_state()))   # העותק למאגר הלמידה בזמן הביקורת (המעבד כמעט פנוי)
         if after < 4:
             fixed, left = pl.review()
             print(f'✓ תרגום וביקורת: {fixed} תיקוני ביקורת · נשארו {left} שגיאות')
