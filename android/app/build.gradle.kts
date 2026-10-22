@@ -36,7 +36,12 @@ android {
         }
         app("invest", "io.github.yishaiguedj1.snowball", "Invest", "invest.thesnowball.app", "#30D158")
         app("academy", "app.thesnowball.academy", "Academy", "academy.thesnowball.app", "#4699FF")
-        app("studio", "app.thesnowball.studio", "Studio", "studio.thesnowball.app", "#FF4656")
+        app("studio", "app.thesnowball.studio", "Studio", "studio.thesnowball.app", "#FF4656").apply {
+            // 22/10/2026: ההורדה בטלפון (youtubedl-android: פייתון + ffmpeg בספריות מקומיות) — רק arm64 (כל הטלפונים
+            // מ־2017 בערך; בלי זה ה־APK פי 4 גדול). Android 10+ — שמירה ל־Movies/Studio דרך MediaStore בלי הרשאות
+            minSdk = 29
+            ndk { abiFilters += "arm64-v8a" }
+        }
         // 22/10/2026: הבועה בדפדפן (שירות נגישות) — APK נפרד. Play Protect חוסם התקנה מחוץ לחנות של אפליקציה עם שירות
         // נגישות, ובגללה Studio כולו לא הותקן; כך רק הבועה תלויה בזה. נגיעה בבועה = שיתוף ל־Studio
         app("bubble", "app.thesnowball.bubble", "Studio Bubble", "studio.thesnowball.app", "#FF4656")
@@ -67,6 +72,9 @@ android {
 
     buildFeatures { resValues = true }
 
+    // youtubedl-android מריץ את libpython.so מתיקיית הספריות — הן חייבות להיות מחולצות (extractNativeLibs)
+    packaging { jniLibs { useLegacyPackaging = true } }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -90,4 +98,9 @@ dependencies {
     "testBubbleImplementation"("junit:junit:4.13.2")
     // שלב 2: דפדפן הציד — סקריפט לפני הדף וערוץ הודעות (addDocumentStartJavaScript / addWebMessageListener)
     "studioImplementation"("androidx.webkit:webkit:1.14.0")
+    // 22/10/2026 (בקשת המשתמש: "כל ההורדות תמיד מקומית למכשיר"): yt-dlp בטלפון — פייתון 3.12, QuickJS (האתגרים של
+    // יוטיוב) ו־ffmpeg (מיזוג בלי קידוד). GPL-3.0. yt-dlp עצמו מתעדכן מתוך האפליקציה (DlEngine.prepare)
+    "studioImplementation"("io.github.junkfood02.youtubedl-android:library:0.18.1")
+    "studioImplementation"("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
+    "testStudioImplementation"("org.json:json:20240303")   // org.json של אנדרואיד לא רץ ב־JVM (DlProbeTest)
 }

@@ -1605,7 +1605,7 @@ async function runJob(id, run) {
         up.v = { done: true, id: f.id, size: Number(f.size) || file.size, uri: '', sent: file.size };
         if (!up.took) up.took = Math.round((Date.now() - run.t0) / 1000);
         save();
-        handleOp('del', id);
+        handleOp('get', id).then((hd) => { if (hd && hd.inbox) inboxOp('del', hd.inbox); handleOp('del', id); });   // 22/10/2026: העותק מההורדה בטלפון — לא צריך יותר (המקור ב־Movies/Studio)
       },
     });
     if (!up.started) await tryStart(id);
@@ -1639,7 +1639,8 @@ async function resumeJob(id, byUser) {
   let file = run && run.file;
   if (!file) {
     const hnd = await handleOp('get', id);
-    if (hnd && typeof hnd.getFile === 'function') {
+    if (hnd && hnd.inbox) { const e = await inboxOp('get', hnd.inbox); if (e && e.f instanceof Blob) file = e.f; }   // 22/10/2026: מההורדה בטלפון
+    else if (hnd && typeof hnd.getFile === 'function') {
       try {
         let perm = typeof hnd.queryPermission === 'function' ? await hnd.queryPermission({ mode: 'read' }) : 'granted';
         if (perm !== 'granted' && byUser && typeof hnd.requestPermission === 'function') perm = await hnd.requestPermission({ mode: 'read' });
@@ -2626,7 +2627,7 @@ function pageForm(p, editing) {
     p.append(inp, secT(T('studioSecVideo')), card);
     const subsRow = rowNav({ tile: tile('cc', 'orange'), label: T('studioSubsPick'), sub: subsOk() ? T('studioSubsPickS') : T('studioSubsApiOnly'), onClick: () => pickSubs(f), k: 'subs-pick' });
     // 22/10/2026: הורדה מקישור — שורה ראשונה (המנהל / "כל המודלים", כשהשרתון אומר שאפשר)
-    const linkRow = ui.url ? rowNav({ tile: tile('link', 'red'), label: T('studioLinkRow'), sub: T('studioLinkRowS'), onClick: () => go('link'), k: 'link' }) : null;
+    const linkRow = devDl() ? rowNav({ tile: tile('link', 'red'), label: T('studioLinkRow'), sub: T('studioLinkRowS'), onClick: () => go('link'), k: 'link' }) : null;
     p.append(list(linkRow, subsRow, canPick() ? rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'),
       onClick: () => pickSourceFromDrive(f), k: 'from-drive' }) : null));   // סרטון שכבר ב־Drive — בלי העלאה
     const tk = f.trk && f.trk.tracks.length ? f.trk.tracks : null;   // שלב 4
@@ -2911,9 +2912,8 @@ function pageTracks(p) {
   })));
 }
 /* ---------------- 22/10/2026: הורדה מקישור (בקשת המשתמש: "כל וידאו שקיים בתוך לינק" — כמו IDM) ----------------
-   מדביקים קישור → השרתון מעביר לבדיקה בעובד (yt-dlp בלי הורדה) → איכויות, גודל, פרקים → "הוספה" → העובד מוריד ישר ל־R2
-   (הקול קודם) ומתרגם. הטלפון לא מוריד ולא מעלה כלום. כל מונח עם הסבר פשוט (דף "מה זה אומר"). */
-const LINK_POLL_MS = 1500, LINK_WAIT_MS = 150e3;
+   מדביקים קישור → הטלפון בודק (yt-dlp ב־Studio לאנדרואיד, בלי הורדה) → איכויות, גודל, פרקים → "הוספה" → "התחלה" →
+   הטלפון מוריד ל־Movies/Studio → הקובץ חוזר לכאן ועולה כמו כל סרטון מהטלפון (הקול קודם). כל מונח עם הסבר פשוט. */
 /* גובה → תווית: 2160 = 4K, 0 = קובץ בלי גובה ידוע ("הכי טוב שיש") */
 export function qLabel(h) {
   return h >= 4000 ? '8K' : h >= 2000 ? '4K' : h > 0 ? h + 'p' : T('studioLinkBest');
@@ -2963,30 +2963,73 @@ function linkErrText(e) {
     case 'unsupported': case 'no_video': return T('studioLinkENone');
     case 'private': case 'bad_url': case 'dns': return T('studioLinkEBad');
     case 'timeout': case 'net': case 'no_server': return T('studioLinkENet');
+    case 'app': return T('studioLinkEApp');
+    case 'store': return T('studioLinkEStore');
     default: return T('studioLinkEFail');
   }
 }
 /* קודי url_* של עבודה שנכשלה (העובד) → אותם טקסטים */
 function urlErrText(code) { return linkErrText(String(code || '').replace(/^url_/, '')); }
 let linkSeq = 0;
+/* 22/10/2026 (בקשת המשתמש: "כל ההורדות של מנהל ההורדות תמיד מקומית למכשיר, לא לשרת"): הבדיקה וההורדה רצות בטלפון —
+   Studio לאנדרואיד (DlActivity: yt-dlp בתוך האפליקציה). יוטיוב חוסם את השרת (כתובת של חוות שרתים), לא את הטלפון.
+   האתר מבקש בכתובת intent://probe|dl?…, והתשובה חוזרת ב־hash (‎#probe=, ‎#dle=) או כקובץ (‎/share-file → ‎#got=). */
+export function devDl() { return grabOk(); }
+const DL_PKG = 'app.thesnowball.studio', DLP_KEY = 'pwa_studio_dlp', PROBE_WAIT_MS = 240e3;
+const dlNonce = () => Array.from({ length: 12 }, () => 'abcdefghijkmnpqrstuvwxyz23456789'[Math.floor(Math.random() * 32)]).join('');
+function dlIntent(kind, q) {
+  const qs = Object.keys(q).filter((k) => q[k] !== '' && q[k] != null).map((k) => k + '=' + encodeURIComponent(q[k])).join('&');
+  return 'intent://' + kind + '?' + qs + '#Intent;scheme=snbstudio;package=' + DL_PKG + ';end';
+}
+/* base64url (UTF-8) → מחרוזת */
+export function b64uText(b) {
+  const t = String(b || '').replace(/-/g, '+').replace(/_/g, '/');
+  const bin = atob(t + '==='.slice((t.length + 3) % 4));
+  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+}
+/* תוצאת הבדיקה מהטלפון — רק מה שבצורה הצפויה (טקסט מאתר חיצוני מוצג רק כטקסט; תמונה רק data:image/jpeg) */
+export function normDevProbe(r) {
+  if (!r || typeof r !== 'object' || typeof r.t !== 'string' || !Array.isArray(r.q)) return null;
+  const s = (v, n) => String(v == null ? '' : v).slice(0, n);
+  const n = (v, a, b) => { const x = Math.round(Number(v) || 0); return Math.max(a, Math.min(b, x)); };
+  const fid = (v) => (/^[\w.+-]{1,60}$/.test(String(v || '')) ? String(v) : '');
+  const q = r.q.slice(0, 20).map((o) => ({ h: n(o && o.h, 0, 8640), v: fid(o && o.v), a: fid(o && o.a), c: s(o && o.c, 10), ac: s(o && o.ac, 10),
+    fps: n(o && o.fps, 0, 480), hdr: o && o.hdr ? 1 : 0, sz: n(o && o.sz, 0, 1e13) })).filter((o) => o.v);
+  if (!q.length) return null;
+  const ch = Array.isArray(r.ch) ? r.ch.slice(0, 30).filter((c) => Array.isArray(c) && typeof c[1] === 'string').map((c) => [n(c[0], 0, 1e6), s(c[1], 80)]) : [];
+  const sub = Array.isArray(r.sub) ? r.sub.slice(0, 40).filter((x) => x && typeof x.l === 'string').map((x) => ({ l: s(x.l, 20), n: s(x.n, 60), a: x.a ? 1 : 0 })) : [];
+  const ao = r.ao && fid(r.ao.id) ? { id: fid(r.ao.id), ac: s(r.ao.ac, 10), br: n(r.ao.br, 0, 10000), sz: n(r.ao.sz, 0, 1e13) } : null;
+  const u = /^https?:\/\//i.test(String(r.u || '')) ? s(r.u, 2048) : '';
+  const th = /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(String(r.th || '')) && String(r.th).length <= 72000 ? String(r.th) : '';
+  return { t: s(r.t, 200) || 'video', u, s: s(r.s, 40), up: s(r.up, 100), d: n(r.d, 0, 1e6), ud: /^\d{8}$/.test(r.ud || '') ? r.ud : '',
+    lang: s(r.lang, 10), ch, sub, q, rec: n(r.rec, 0, 8640), ao, drm: r.drm ? 1 : 0, th };
+}
 function linkCheck(f, raw, ref) {
-  // ref — שלב 2: קובץ/זרם שנמצא בדף (דפדפן הציד) → הדף, והשרת מוריד עם ה־Referer שלו
+  // ref — שלב 2: קובץ/זרם שנמצא בדף (דפדפן הציד) → הדף, והטלפון מוריד עם ה־Referer שלו
   const L = f.link = { u: String(raw || '').trim(), ref: /^https?:\/\//i.test(String(ref || '')) ? String(ref).slice(0, 2048) : '', st: 'busy', e: '', r: null, v: '', sec: null, ch: 1, at: Date.now() };
   const seq = ++linkSeq;
+  if (!devDl()) { L.st = 'err'; L.e = 'app'; render('none'); return; }   // בלי האפליקציה — אין הורדה (לא דרך השרת)
+  L.n = dlNonce();
   render('none');
-  (async () => {
-    let j = await net.api('urlProbe', L.ref ? { url: L.u, ref: L.ref } : { url: L.u });
-    while (j && j.ok && j.probe && (j.probe.st === 'q' || j.probe.st === 'r') && Date.now() - L.at < LINK_WAIT_MS) {
-      await sleep(LINK_POLL_MS);
-      if (seq !== linkSeq || form !== f || f.link !== L) return;
-      j = await net.api('urlProbe', { pid: j.probe.id });
-    }
-    if (seq !== linkSeq || f.link !== L) return;
-    if (!j || !j.ok) { L.st = 'err'; L.e = j && j.error === 'bad_url' ? 'bad_url' : j && j.error === 'flag_off' ? 'flag' : j && j.error ? 'srv:' + j.error : 'net'; }
-    else if (j.probe.st === 'd' && j.probe.r) { L.st = 'ok'; L.r = j.probe.r; const rec = linkRec(L.r); L.v = rec ? rec.v : ''; }
-    else { L.st = 'err'; L.e = j.probe.st === 'e' ? j.probe.e : 'timeout'; }
-    render('none');
-  })();
+  location.href = dlIntent('probe', { u: L.u, ref: L.ref, n: L.n });
+  setTimeout(() => { if (seq === linkSeq && f.link === L && L.st === 'busy') { L.st = 'err'; L.e = 'timeout'; render('none'); } }, PROBE_WAIT_MS);
+}
+/* התשובה מ־DlActivity: ‎#probe=<n>.<base64url> או ‎#probe=<n>.!<קוד> (studio-app.js → hashchange) */
+export function studioProbeRes(arg) {
+  const m = /^([A-Za-z0-9]{6,24})\.(!?)([A-Za-z0-9_-]*)$/.exec(String(arg || ''));
+  const f = form, L = f && f.link;
+  if (!m || !L || L.n !== m[1] || L.st !== 'busy') return false;
+  if (m[2]) {
+    if (m[3] === 'cancel') { f.link = null; linkSeq++; }
+    else { L.st = 'err'; L.e = m[3].slice(0, 20) || 'fail'; }
+  } else {
+    let r = null;
+    try { r = normDevProbe(JSON.parse(b64uText(m[3]))); } catch (e) {}
+    if (!r) { L.st = 'err'; L.e = 'fail'; }
+    else { L.st = 'ok'; L.r = r; const rec = linkRec(r); L.v = rec ? rec.v : ''; }
+  }
+  render('none');
+  return true;
 }
 /* הכרטיס של הסרטון (בדף הקישור ובטופס) */
 function linkCard(L, small) {
@@ -3218,44 +3261,90 @@ function pageFmtHelp(p) {
     })));
   }
 }
-/* "התחלה" לעבודה מקישור: אומדן ואישור → עבודה בשרתון → התחלה מיד (העובד מוריד; בלי העלאה מהטלפון) */
+/* "התחלה" לעבודה מקישור: אומדן ואישור → ההורדה בטלפון (DlActivity) → הקובץ חוזר (studioGot) → עבודה רגילה מהטלפון.
+   הטופס נשמר ב־sessionStorage — החזרה של הקובץ טוענת את הדף מחדש (POST ל־/share-file) */
 function startLink(f) {
   const L = f.link;
   if (!L || L.st !== 'ok' || ui.starting) return;
   if (ui.access === 'signin' || ui.access === 'denied') { flashSafe(ui.access === 'signin' ? T('studioErrSignin') : T('studioErrDenied')); return; }
-  if (!apiMode() && !cpMode()) { flashSafe(T('studioLinkApiOnly')); return; }
+  if (!devDl()) { flashSafe(T('studioLinkEApp')); return; }
   if (!langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }
   const pick = linkPick(L);
   if (!pick) return;
   ui.starting = true; render('none');
   (async () => {
     const dur = pick.sec ? pick.sec[1] - pick.sec[0] : L.r.d || 0;
-    const o = L.r.q.find((x) => x.v === pick.v) || {};
-    const spec = { name: L.r.t, size: Math.max(1, linkSize(L)), type: 'video/url', dur, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
-      out: OUTS.filter((k) => f.out[k]), style: f.style, terms: f.terms, src: 'url', url: L.r.u || L.u, pick, eng: 'api', cap: store.settings.cap };
-    if (L.ref) spec.ref = L.ref;
-    if (cpMode()) spec.cp = 1;
-    if (o.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, (o.h * o.h * 16 / 9) / (1920 * 1080))) * 1000) / 1000;
-    const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
+    const est = startEstimate(modeFor(f.mode, ui.mf), dur, curNorm(), ui.api, apiMode());
     if (est.min && typeof askConfirm === 'function') {
       const yes = await new Promise((ok) => askConfirm(cpMode() ? T('studioEstCp') : estText(est, apiMode()), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) }));
       if (!yes || form !== f) { ui.starting = false; render('none'); return; }
     }
-    const j = await net.api('create', { spec });
-    ui.starting = false;
-    if (!j.ok || !j.job) { flashSafe(errText(j.error)); render('none'); return; }
-    const rec = normJob({ id: j.job.id, created: j.job.created || Date.now(), spec: j.job.spec || spec, srv: j.job,
-      fp: { name: L.r.t, size: spec.size, lm: 0 }, up: { link: true, noAudio: 'link', a: { done: true }, v: { done: true }, folder: j.job.folder || '' } });   // אין מה להעלות מהטלפון
-    if (pick.ch && L.r.ch) rec.chap = normChapters(L.r.ch.map((c) => ({ t: c[0] - (pick.sec ? pick.sec[0] : 0), title: c[1] })).filter((c) => c.t >= 0), dur);
-    if (L.r.th) { thumbs.set(rec.id, L.r.th); idbOp('thumbs', 'put', rec.id, L.r.th); }   // התמונה מהבדיקה — בלי לחכות לסרטון
-    store.jobs.unshift(rec);
-    if (f.id) store.drafts = store.drafts.filter((d) => d.id !== f.id);
-    save();
-    form = null;
-    if (!root) { startRun(rec.id, null); return; }
-    replaceView('job', rec.id);
-    startRun(rec.id, null);
+    const n = dlNonce();
+    const ch = pick.ch && L.r.ch ? L.r.ch.map((c) => [c[0] - (pick.sec ? pick.sec[0] : 0), c[1]]).filter((c) => c[0] >= 0) : [];
+    const pend = { n, at: Date.now(), dur, f: { from: f.from, to: f.to, mode: f.mode, out: f.out, style: f.style, terms: f.terms, edl: null },
+      t: L.r.t, u: L.r.u || L.u, ch, th: L.r.th || '' };
+    try { sessionStorage.setItem(DLP_KEY, JSON.stringify(pend)); } catch (e) {}
+    ui.starting = false; ui.dlWait = n; render('none');
+    flashSafe(T('studioLinkDlWait'));
+    location.href = dlIntent('dl', { u: L.r.u || L.u, ref: L.ref, n, v: pick.v, a: pick.a, h: pick.h,
+      s0: pick.sec ? pick.sec[0] : '', s1: pick.sec ? pick.sec[1] : '', t: L.r.t });
   })();
+}
+/* ההורדה הסתיימה: sw.js שמר את הקובץ (IndexedDB snb-inbox) והעביר לכאן עם ‎#got=<מפתח>. הטופס מההורדה (אם יש) —
+   ההתחלה ממשיכה לבד (האומדן כבר אושר). סרטון ששותף מהגלריה — טופס חדש עם הקובץ */
+export function studioGot(key) { return gotFile(key); }
+async function gotFile(key) {
+  if (!/^[A-Za-z0-9]{6,40}$/.test(String(key || ''))) return false;
+  const e = await inboxOp('get', key);
+  if (!e || !e.f || !(e.f instanceof Blob)) return false;
+  const file = e.f.name ? e.f : new File([e.f], 'video.mp4', { type: e.f.type || 'video/mp4' });
+  let pend = null;
+  try { pend = JSON.parse(sessionStorage.getItem(DLP_KEY) || 'null'); } catch (x) {}
+  const mine = pend && /^snbdl:/.test(String(e.t || '')) && String(e.t).slice(6) === pend.n;
+  if (!mine) pend = null;
+  try { if (mine) sessionStorage.removeItem(DLP_KEY); } catch (x) {}
+  ui.dlWait = '';
+  form = freshForm(null);
+  const f = form;
+  if (pend && pend.f) for (const k of ['from', 'to', 'mode', 'out', 'style', 'terms']) if (pend.f[k] != null) f[k] = pend.f[k];
+  f.fileObj = file; f.handle = { inbox: key }; f.drive = null; f.file = { name: file.name, size: file.size, type: file.type || '' };
+  f.dl = pend ? { t: pend.t, ch: pend.ch || [], th: pend.th || '' } : null;
+  inspectFor(f, file); tracksFor(f, file);
+  if (root) { if (ui.view !== 'new') go('new', null, 'none'); else render('none'); }
+  if (mine) { flashSafe(T('studioLinkGot')); f.estOk = true; startFromForm(); }
+  return true;
+}
+/* תיבת הקבצים שהגיעו מ־/share-file (sw.js כותב, הדף קורא) — מסד נפרד, בלי תלות בגרסה של snb-studio */
+function inboxOp(mode, key) {
+  if (typeof indexedDB === 'undefined') return Promise.resolve(null);
+  return new Promise((ok) => {
+    const r = indexedDB.open('snb-inbox', 1);
+    r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains('f')) r.result.createObjectStore('f'); };
+    r.onerror = () => ok(null);
+    r.onsuccess = () => {
+      try {
+        const tx = r.result.transaction('f', mode === 'get' ? 'readonly' : 'readwrite'), os = tx.objectStore('f');
+        if (mode === 'clean') {   // שבוע — אחר כך נמחק (הסרטון נשאר ב־Movies/Studio)
+          const q = os.openCursor();
+          q.onsuccess = () => { const c = q.result; if (!c) return ok(null); if (!c.value || Date.now() - (c.value.at || 0) > 7 * 864e5) c.delete(); c.continue(); };
+          q.onerror = () => ok(null);
+          return;
+        }
+        const q = mode === 'get' ? os.get(key) : os.delete(key);
+        q.onsuccess = () => ok(mode === 'get' ? q.result || null : null); q.onerror = () => ok(null);
+      } catch (x) { ok(null); }
+    };
+  });
+}
+/* שגיאה בהורדה בטלפון (‎#dle=<n>.<קוד>) */
+export function studioDlErr(arg) {
+  const m = /^([A-Za-z0-9]{6,24})\.([a-z_]{1,20})$/.exec(String(arg || ''));
+  if (!m) return false;
+  try { const p = JSON.parse(sessionStorage.getItem(DLP_KEY) || 'null'); if (p && p.n === m[1]) sessionStorage.removeItem(DLP_KEY); } catch (e) {}
+  if (ui.dlWait === m[1]) ui.dlWait = '';
+  flashSafe(T('studioLinkFailT') + ' — ' + linkErrText(m[2]));
+  render('none');
+  return true;
 }
 
 function saveForm() {
@@ -3301,10 +3390,11 @@ function startFromForm() {
     else if (cpMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap, cp: 1 });   // סבב 10: העתק־הדבק — השרת מתמלל וצורב, Claude שלך מתרגם
     // מ6 (כלל 2): אומדן ואישור לפני ההתחלה — עוד לפני שנוצרת עבודה ולפני ההעלאה
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
-    if (est.min && typeof askConfirm === 'function') {
+    if (est.min && !f.estOk && typeof askConfirm === 'function') {   // estOk — מקישור: האומדן אושר לפני ההורדה בטלפון
       const yes = await new Promise((ok) => askConfirm(cpMode() ? T('studioEstCp') : estText(est, apiMode()), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) }));
       if (!yes || form !== f) { ui.starting = false; render('none'); return; }
     }
+    if (f.dl && f.dl.t) spec.name = (f.dl.t + '.' + ((file.name.match(/\.(\w{2,4})$/) || [0, 'mp4'])[1])).slice(0, 200);   // השם מהאתר, לא שם הקובץ
     const j = await net.api('create', { spec });
     ui.starting = false;
     if (!j.ok || !j.job) { flashSafe(errText(j.error)); render('none'); return; }
@@ -3316,8 +3406,10 @@ function startFromForm() {
     store.jobs.unshift(rec);
     if (f.id) store.drafts = store.drafts.filter((d) => d.id !== f.id);   // טיוטה שהתחילה — כבר עבודה
     save();
-    if (f.handle) handleOp('put', rec.id, f.handle);
-    if (f.fileObj) thumbFor(rec, null, f.fileObj);   // 21/10/2026: התמונה מהקובץ שבטלפון — בלי לחכות שיעלה
+    if (f.dl && f.dl.ch && f.dl.ch.length) rec.chap = normChapters(f.dl.ch.map((c) => ({ t: c[0], title: c[1] })), spec.dur);   // הפרקים מהאתר
+    if (f.handle) handleOp('put', rec.id, f.handle);   // {inbox} — מההורדה בטלפון: הקובץ ב־snb-inbox (המשך אחרי רענון)
+    if (f.dl && f.dl.th) { thumbs.set(rec.id, f.dl.th); idbOp('thumbs', 'put', rec.id, f.dl.th); }
+    else if (f.fileObj) thumbFor(rec, null, f.fileObj);   // 21/10/2026: התמונה מהקובץ שבטלפון — בלי לחכות שיעלה
     form = null;
     if (!root) { startRun(rec.id, ext ? null : file); return; }
     replaceView('job', rec.id);
@@ -7464,10 +7556,13 @@ export function openStudio(opt) {
   try { root.focus({ preventScroll: true }); } catch (e) {}
   refreshStatus(true);
   const jobs0 = refreshJobs(true);
+  inboxOp('clean');   // 22/10/2026: קבצים מההורדה בטלפון שלא נכנסו לעבודה — אחרי שבוע
   // מההתראה: לדף העבודה — מיד אם היא כבר בטלפון, אחרת אחרי שהרשימה מהשרתון מגיעה
   if (jobLink) { if (jobRec(jobLink)) goJobLink(jobLink, linkView, 'none'); else Promise.resolve(jobs0).then(() => { if (root && jobRec(jobLink)) goJobLink(jobLink, linkView); }); }
   // 22/10/2026: "שיתוף ← Studio" — טופס חדש ודף הקישור, והבדיקה מתחילה מיד (בלי להדביק)
   if (opt) studioShare(opt.share, opt.ref);
+  if (opt && opt.got) studioGot(opt.got);      // 22/10/2026: הקובץ מההורדה בטלפון / מהגלריה (sw.js → ‎#got=)
+  if (opt && opt.dle) studioDlErr(opt.dle);
   // העלאות שנקטעו (רענון): ממשיכים לבד כשיש ידית לקובץ עם הרשאה; אחרת המסך מבקש לבחור שוב
   for (const rec of store.jobs) {
     const done = rec.up.v.done && (rec.up.a.done || rec.up.noAudio);

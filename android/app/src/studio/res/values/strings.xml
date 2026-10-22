@@ -12,4 +12,21 @@
     <string name="huntDash">סרטון בזרימה (DASH)</string>
     <string name="huntFile">קובץ וידאו</string>
     <string name="huntHint">מנגנים את הסרטון — והוא יופיע כאן</string>
+    <!-- 22/10/2026: ההורדה בטלפון (DlActivity, DlService) -->
+    <string name="dlChecking">בודק את הקישור בטלפון…</string>
+    <string name="dlCheckingS">מוצאים את הסרטון ואת האיכויות</string>
+    <string name="dlInit">מכין את מנוע ההורדה (רק בפעם הראשונה)…</string>
+    <string name="dlUpdate">מעדכן את מנוע ההורדה…</string>
+    <string name="dlTitle">מוריד לטלפון</string>
+    <string name="dlPrep">מתחיל…</string>
+    <string name="dlPct">%1$d%% · נשמר ב־Movies/Studio</string>
+    <string name="dlSaving">שומר בתיקייה Movies/Studio…</string>
+    <string name="dlDone">ההורדה הסתיימה</string>
+    <string name="dlTapContinue">לחצו להמשך ב־Studio</string>
+    <string name="dlFailed">ההורדה נכשלה</string>
+    <string name="dlCancel">ביטול</string>
+    <string name="dlHide">להמשיך ברקע</string>
+    <string name="dlClose">סגירה</string>
+    <string name="dlBusy">הורדה אחרת עדיין רצה</string>
+    <string name="dlChannel">הורדות</string>
 </resources>

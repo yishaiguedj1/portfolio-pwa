@@ -42,7 +42,7 @@ ok(R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/HuntActivity.k
 const sapp = R('studio-app.js');
 ok(/hashArg\('ref', 2048\)/.test(sapp) && /ref: shareRef/.test(sapp), 'studio-app קורא את ref');
 // 22/10/2026: Studio כבר פתוחה — הקישור מהבועה מגיע כשינוי ב־hash, בלי טעינה; חייב להגיע לדף הקישור
-ok(/addEventListener\('hashchange'[\s\S]{0,300}studioShare\(s, r\)/.test(sapp) && /import \{ studioShare \} from '.\/studio.js'/.test(sapp), 'studio-app מאזין ל־hashchange');
-ok(/export function studioShare\(text, ref\)[\s\S]{0,300}linkCheck\(form, shared, ref\)/.test(studio) && /studioShare\(opt\.share, opt\.ref\)/.test(studio) && /\{ url: L\.u, ref: L\.ref \}/.test(studio) && /spec\.ref = L\.ref/.test(studio), 'ref → בדיקה → עבודה');
+ok(/addEventListener\('hashchange'[\s\S]{0,600}studioShare\(s, r\)/.test(sapp) && /import \{ studioShare[^}]*\} from '.\/studio.js'/.test(sapp), 'studio-app מאזין ל־hashchange');
+ok(/export function studioShare\(text, ref\)[\s\S]{0,300}linkCheck\(form, shared, ref\)/.test(studio) && /studioShare\(opt\.share, opt\.ref\)/.test(studio) && /dlIntent\('probe', \{ u: L\.u, ref: L\.ref, n: L\.n \}\)/.test(studio) && /dlIntent\('dl', \{ u: L\.r\.u \|\| L\.u, ref: L\.ref,/.test(studio), 'ref → הבדיקה וההורדה בטלפון (22/10/2026: כל ההורדות מקומיות)');
 ok(!/HuntActivity|snbstudio/.test(R('android/app/src/main/AndroidManifest.xml')), 'דפדפן הציד רק ב־Studio');
 console.log('studio-grab: ' + n + ' בדיקות עברו');

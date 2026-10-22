@@ -15,6 +15,8 @@ import androidx.browser.customtabs.CustomTabColorSchemeParams
 import androidx.browser.customtabs.CustomTabsClient
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.browser.trusted.TrustedWebActivityIntentBuilder
+import androidx.browser.trusted.sharing.ShareData
+import androidx.browser.trusted.sharing.ShareTarget
 import com.google.androidbrowserhelper.trusted.TwaLauncher
 
 /**
@@ -39,13 +41,13 @@ class MainActivity : Activity() {
         if (savedInstanceState?.getBoolean(KEY_LAUNCHED) == true) { finish(); return }
         if (restartInOwnTask()) { finish(); return }
         setContentView(buildSplash())
-        open(urlFor(intent))
+        open(urlFor(intent), shareOf(intent))
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        open(urlFor(intent))
+        open(urlFor(intent), shareOf(intent))
     }
 
     // חזרה מהאתר (כפתור "אחורה") — סוגרים, במקום להשאיר מסך לוגו ריק
@@ -80,6 +82,9 @@ class MainActivity : Activity() {
     private fun urlFor(i: Intent?): Uri {
         // 22/10/2026: "שיתוף ← Studio" (רק ב־Studio יש intent-filter של SEND — src/studio/AndroidManifest.xml):
         // הטקסט ששותף עובר לאתר ב־hash (לא בכתובת עצמה — לא נשמר במטמון של ה־SW ולא נשלח לשרת)
+        if (i?.action == Intent.ACTION_SEND && shareOf(i) != null)   // סרטון (הקובץ עובר ב־POST — shareOf), הכתובת = הבית
+            return Uri.parse(getString(R.string.launchUrl).substringBefore('#') + "#app=" + Flavor.appSig(this) + "&n=" +
+                java.lang.Long.toString(System.currentTimeMillis(), 36))
         if (i?.action == Intent.ACTION_SEND) {
             val t = (i.getStringExtra(Intent.EXTRA_TEXT) ?: "").take(4096)
             val app = "app=" + Flavor.appSig(this) + "&n=" + java.lang.Long.toString(System.currentTimeMillis(), 36)
@@ -100,7 +105,18 @@ class MainActivity : Activity() {
         return Uri.parse(if (base.contains('#')) "$base&$app" else "$base#$app")
     }
 
-    private fun open(url: Uri) {
+    /* 22/10/2026: סרטון ששותף ל־Studio (מהגלריה, או בסוף ההורדה בטלפון — DlState.handoffIntent): Chrome שולח את הקובץ
+       ב־POST ל־/share-file באתר (Web Share Target), ו־sw.js שומר אותו ומעביר לדף. רק ב־Studio יש intent-filter כזה */
+    private fun shareOf(i: Intent?): ShareData? {
+        if (i?.action != Intent.ACTION_SEND || !(i.type ?: "").startsWith("video/")) return null
+        @Suppress("DEPRECATION")
+        val u = (if (android.os.Build.VERSION.SDK_INT >= 33) i.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+            else i.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri) ?: return null
+        val t = (i.getStringExtra(Intent.EXTRA_TEXT) ?: "").take(200)
+        return ShareData(null, t, listOf(u))
+    }
+
+    private fun open(url: Uri, share: ShareData? = null) {
         try {
             val pkg = CustomTabsClient.getPackageName(this, CHROME_PACKAGES, true)
             if (pkg == null) {
@@ -123,6 +139,8 @@ class MainActivity : Activity() {
                 .setColorSchemeParams(CustomTabsIntent.COLOR_SCHEME_DARK, dark)
                 // 14/10/2026: שתי האפליקציות האחרות — מקורות מאומתים (מעבר בתפריט כשהשנייה לא מותקנת נשאר במסך מלא)
                 .setAdditionalTrustedOrigins(APP_ORIGINS.filter { !it.endsWith("//" + getString(R.string.siteHost)) })
+            if (share != null) builder.setShareParams(ShareTarget(getString(R.string.launchUrl) + "share-file", ShareTarget.METHOD_POST,
+                ShareTarget.ENCODING_TYPE_MULTIPART, ShareTarget.Params(null, "text", listOf(ShareTarget.FileFormField("video", listOf("video/*"))))), share)
             // מופע שנפתח מעל ה־TWA (קישור כשהאפליקציה פתוחה) — נסגר אחרי ההעברה; השורש נשאר עד "אחורה"
             l.launch(builder, null, null, { launched = true; if (!isTaskRoot) finish() }, TwaLauncher.CCT_FALLBACK_STRATEGY)
         } catch (e: Throwable) {

@@ -2,7 +2,7 @@
    כמו academy-app.js: לפני הקובץ firebase-config.js, strings-studio.js, core.js, auth.js; אותו studio.js עם opt.standalone.
    קישור מהתראה (#studio=<עבודה>&v=play|subs) פותח את העבודה. עד שלב 5 ההתראות עדיין פותחות את האתר המאוחד. */
 import { openStudio } from './studio.js';
-import { studioShare } from './studio.js';   // 22/10/2026: קישור מהבועה כש־Studio כבר פתוחה
+import { studioShare, studioProbeRes, studioGot, studioDlErr } from './studio.js';   // 22/10/2026: קישור מהבועה כש־Studio כבר פתוחה; ההורדה בטלפון
 import { thumbsReady } from './studio.js';   // 21/10/2026: התמונות של העבודות — לפני הציור הראשון
 import { createShell, appBoot, APP_URL, loginGate, accountCard, displayCard, advancedRow, advancedCards } from './shell.js';
 
@@ -44,7 +44,9 @@ const hashArg = (k, max) => { const m = new RegExp('[#&]' + k + '=([^&]*)').exec
 const share = hashArg('share', 4096);
 // שלב 2: קובץ שנמצא בדף (דפדפן הציד) — ‎&ref=<הדף>
 const shareRef = hashArg('ref', 2048);
-if (link || share) { try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {} }
+// 22/10/2026: ההורדה בטלפון — הקובץ שחזר (sw.js → ‎#got=<מפתח>) ושגיאה (‎#dle=<n>.<קוד>)
+const got = hashArg('got', 40), dle = hashArg('dle', 60);
+if (link || share || got || dle) { try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {} }
 const hs = history.state;
 /* ההדר המשותף (shell.js) — הלוגו של Studio, הקפסולה "חיבור ל־Claude" בהדר, ובתפריט מגדל הפיקוח. הגלובוס בתפריט הפתוח = ההגדרות */
 const sa = { auth: A, home: APP_URL.invest, ready };   // שלב 4: בכתובת הנפרדת — הכתובת של Invest
@@ -69,12 +71,15 @@ if (first === 'out') loginGate({ app: 'studio', auth: A, logo: 'logo-studio.webp
 else if (first === 'boot') ready.then((st) => { if (st === 'out') loginGate({ app: 'studio', auth: A, logo: 'logo-studio.webp', logoLg: 'logo-studio-lg.webp', name: 'Studio' }); });
 /* 21/10/2026: התמונות של העבודות נטענות מהטלפון לפני הציור הראשון (מאחורי הווילון, עד 400ms) — הרשימה מופיעה איתן, בלי הבהוב */
 Promise.race([thumbsReady, new Promise((r) => setTimeout(r, 400))]).then(() =>
-  openStudio({ standalone: sa, restore: hs && hs.studio && !share ? hs : null, job: link ? link[1] : '', view: link && link[2] ? link[2] : '', share, ref: shareRef }));
+  openStudio({ standalone: sa, restore: hs && hs.studio && !share && !got ? hs : null, job: link ? link[1] : '', view: link && link[2] ? link[2] : '', share, ref: shareRef, got, dle }));
 /* 22/10/2026: קישור מהבועה / משיתוף כש־Studio כבר פתוחה — אנדרואיד מעביר אותו ללשונית הקיימת כשינוי ב־hash, בלי טעינה */
 if (typeof window !== 'undefined') window.addEventListener('hashchange', () => {
-  const s = hashArg('share', 4096);
-  if (!s) return;
+  const s = hashArg('share', 4096), pr = hashArg('probe', 200000), g = hashArg('got', 40), de = hashArg('dle', 60);
+  if (!s && !pr && !g && !de) return;
   const r = hashArg('ref', 2048);
   try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
-  studioShare(s, r);
+  if (s) studioShare(s, r);
+  if (pr) studioProbeRes(pr);   // 22/10/2026: תוצאת הבדיקה בטלפון (DlActivity)
+  if (g) studioGot(g);
+  if (de) studioDlErr(de);
 });

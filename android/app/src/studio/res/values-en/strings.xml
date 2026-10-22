@@ -11,4 +11,21 @@
     <string name="huntDash">Streaming video (DASH)</string>
     <string name="huntFile">Video file</string>
     <string name="huntHint">Play the video — it will show up here</string>
+    <!-- 22/10/2026: downloading on the phone (DlActivity, DlService) -->
+    <string name="dlChecking">Checking the link on your phone…</string>
+    <string name="dlCheckingS">Finding the video and its qualities</string>
+    <string name="dlInit">Preparing the download engine (first time only)…</string>
+    <string name="dlUpdate">Updating the download engine…</string>
+    <string name="dlTitle">Downloading to your phone</string>
+    <string name="dlPrep">Starting…</string>
+    <string name="dlPct">%1$d%% · saved to Movies/Studio</string>
+    <string name="dlSaving">Saving to Movies/Studio…</string>
+    <string name="dlDone">Download finished</string>
+    <string name="dlTapContinue">Tap to continue in Studio</string>
+    <string name="dlFailed">Download failed</string>
+    <string name="dlCancel">Cancel</string>
+    <string name="dlHide">Continue in background</string>
+    <string name="dlClose">Close</string>
+    <string name="dlBusy">Another download is still running</string>
+    <string name="dlChannel">Downloads</string>
 </resources>
