@@ -263,6 +263,7 @@ def cps_merge(cues: list[dict], timing: TimingRules, text: TextRules, refit) -> 
         slow = 'reading_speed' in (c.get('flags') or ()) or (nxt and 'reading_speed' in (nxt.get('flags') or ()))
         can = (nxt is not None and slow
                and c.get('spk') == nxt.get('spk') and not c.get('parts') and not nxt.get('parts')
+               and c.get('it') == nxt.get('it') and c.get('top') == nxt.get('top')   # הטיה / ראש המסך — לא מערבבים
                and c.get('he') not in (None, '=', '∅') and nxt.get('he') not in (None, '=', '∅')
                and nxt['speech_s'] - c['speech_e'] <= timing.chain_gap_s
                and nxt['speech_e'] - c['speech_s'] <= timing.max_dur_s - 0.2)
