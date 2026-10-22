@@ -351,6 +351,18 @@ class TestCtcConsensus(unittest.TestCase):
             self.assertLessEqual(w[i]["e"], w[i + 1]["s"] + 1e-9)
 
 
+    def test_two_sources_disagree_end_from_same_source(self):
+        """22/10/2026: Qwen חסר, CTC ותמלול לא מסכימים על ההתחלה — הסוף מאותו מקור (לא "So" של 13 שניות)"""
+        from vt.align_ctc import consensus
+        w = [{"w": "So", "s": 0, "e": 0, "s_qwen": None, "e_qwen": None, "s_ctc": 2988.08, "e_ctc": 2988.3,
+              "s_asr": 3000.87, "e_asr": 3001.09},
+             {"w": "next", "s": 0, "e": 0, "s_qwen": 3001.2, "e_qwen": 3001.5, "s_ctc": 3001.21, "e_ctc": 3001.48,
+              "s_asr": 3001.25, "e_asr": 3001.6}]
+        consensus(w)
+        self.assertAlmostEqual(w[0]["s"], 2988.08, places=2)
+        self.assertLess(w[0]["e"] - w[0]["s"], 1.0)
+
+
 class TestRetime(unittest.TestCase):
     def test_retime_updates_speech_and_parts(self):
         from vt.segment import retime
@@ -505,3 +517,31 @@ class TestSourceAndFixes(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestGlossaryCheck(unittest.TestCase):
+    """22/10/2026: מהקורפוס של הייצור — 195 "מונחים שלא נשמרו", מחציתם התרעות שווא שנשלחו לתיקון"""
+
+    def test_term_in_en(self):
+        from vt.translate import term_in_en
+        self.assertFalse(term_in_en('MAX', 'at max 50 people'), 'מונח באותיות גדולות — רק כמו שהוא כתוב')
+        self.assertTrue(term_in_en('MAX', 'HBO MAX launched'))
+        self.assertFalse(term_in_en('Shopify', 'go to shopify.co.uk now'), 'בתוך כתובת — נשאר בלועזית')
+        self.assertFalse(term_in_en('CEO', 'join.whoop.com/CEO'))
+        self.assertTrue(term_in_en('Shopify', 'Shopify grew fast'))
+
+    def test_gl_found(self):
+        from vt.translate import gl_found
+        self.assertTrue(gl_found('אובר', 'לאובר יש'))
+        self.assertTrue(gl_found('תגמול מבוסס מניות', 'תגמולים מבוססי מניות'))
+        self.assertTrue(gl_found('אלפא (יתרון)', 'איך יוצרים אלפא?'), 'הסוגריים במילון — הסבר')
+        self.assertFalse(gl_found('תזרים מזומנים', 'חברות טכנולוגיית ביטחון'))
+        self.assertFalse(gl_found('אדם', 'אדמה טובה'), 'מילה קצרה — רק כמו שהיא')
+
+    def test_check_uses_neighbors_and_forms(self):
+        cues = [{'id': 1, 'en': 'Uber drivers love it', 'budget': 80}, {'id': 2, 'en': 'and we agreed', 'budget': 80}]
+        he = {'1': 'הנהגים של החברה אוהבים את זה', '2': 'וכולם בלאובר הסכימו'}
+        issues, st = check(cues, he, [('Uber', ['אובר'])])
+        self.assertEqual(st['glossary'], 0, 'המונח בכתובית השכנה (החלוקה בעברית שונה) ועם אותיות שימוש')
+        issues, st = check(cues, {'1': 'הנהגים אוהבים', '2': 'והסכמנו'}, [('Uber', ['אובר'])])
+        self.assertEqual(st['glossary'], 1)
