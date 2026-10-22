@@ -886,3 +886,46 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-ut-cap { color: var(--on-surface-var); font-size: 13px; text-align: center; margin: 8px 0 0; }
 .st-se-body > .st-src { margin-top: 4px; }
 .st-se-row.open .st-src { margin-top: 2px; }
+
+/* ---------- 22/10/2026: הורדה מקישור — דף הקישור, האיכויות וההסברים ---------- */
+.st-tile.t-gray { background: #8E8E93; }
+.st-lk-in { display: flex; align-items: center; gap: 8px; margin: 0 16px; padding: 6px; border-radius: var(--radius-sm); background: var(--st-card); }
+.st-lk-in .st-in { flex: 1; min-width: 0; background: transparent; font-size: 16px; text-align: start; }
+.st-lk-in .st-in:placeholder-shown { direction: rtl; }
+[dir="ltr"] .st-lk-in .st-in:placeholder-shown { direction: ltr; }
+.st-lk-paste { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 8px 14px; border-radius: var(--pill);
+  background: var(--primary-container); color: var(--on-primary-container); font-size: 15px; font-weight: 700; }
+.st-lk-paste svg { width: 17px; height: 17px; }
+.st-lk-x { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--st-ter); color: var(--st-card); font-size: 17px; font-weight: 800; line-height: 1; }
+.st-lk-ld { display: flex; align-items: center; gap: 10px; margin: 14px 16px 0; padding: 16px; border-radius: var(--radius-sm); background: var(--st-card); color: var(--on-surface-var); font-size: 15px; }
+.st-lk-err { display: flex; gap: 10px; align-items: flex-start; margin: 14px 16px 0; padding: 14px; border-radius: var(--radius-sm); background: var(--st-amber-c); color: var(--st-amber); font-size: 15px; line-height: 1.45; }
+.st-lk-err svg { width: 20px; height: 20px; flex: none; margin-top: 1px; }
+.st-lk-card { margin: 14px 16px 0; border-radius: var(--radius); background: var(--st-card); overflow: hidden; }
+.st-lk-card > .st-thumb { display: grid; width: 100%; border-radius: 0; }
+.st-lk-card > .st-thumb svg { width: 34px; height: 34px; }
+.st-lk-card > .st-l { padding: 12px 14px 14px; gap: 4px; }
+.st-lk-card > .st-l b { font-size: 16.5px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.st-lk-dur { position: absolute; bottom: 8px; inset-inline-end: 8px; padding: 2px 6px; border-radius: 6px; background: rgba(0, 0, 0, .66); color: #fff; font-size: 12px; font-weight: 700; direction: ltr; }
+.st-lk-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.st-lk-tag { padding: 4px 9px; border-radius: 8px; background: var(--st-fill); color: var(--on-surface-var); font-size: 12.5px; font-weight: 600; }
+.st-lk-fc .st-l b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.st-lk-fc .st-lk-dur { bottom: 4px; inset-inline-end: 4px; font-size: 10.5px; padding: 1px 4px; }
+.st-lk-rec { box-sizing: border-box; display: flex; align-items: center; gap: 12px; width: calc(100% - 32px); margin: 0 16px; padding: 14px; border-radius: var(--radius-sm); background: var(--st-card); text-align: start; }
+.st-lk-rec.on { box-shadow: 0 0 0 2px var(--primary) inset; }
+.st-lk-rec .st-chk { width: 22px; height: 22px; color: var(--primary); flex: none; stroke-width: 2.8; }
+.st-lk-star { width: 40px; height: 40px; border-radius: var(--radius-xs); display: grid; place-items: center; flex: none; background: var(--primary); color: var(--on-primary); }
+.st-lk-star svg { width: 22px; height: 22px; }
+.st-lk-qs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 10px 16px 0; }
+.st-lk-q { display: grid; gap: 2px; padding: 9px 4px 8px; border-radius: var(--radius-xs); background: var(--st-card); text-align: center; }
+.st-lk-q b { font-size: 15.5px; font-weight: 700; }
+.st-lk-q small { font-size: 12px; color: var(--on-surface-var); white-space: nowrap; }
+.st-lk-q.on { background: var(--on-surface); color: var(--bg); }
+.st-lk-q.on small { color: var(--bg); opacity: .75; }
+.st-lk-rec:active, .st-lk-q:active, .st-lk-paste:active { transform: scale(.98); }
+.st-lk-sec { display: flex; align-items: flex-end; gap: 10px; margin: 0 16px; }
+.st-lk-tf { flex: 1; display: grid; gap: 4px; }
+.st-lk-tf small { font-size: 13px; color: var(--on-surface-var); }
+.st-lk-tf .st-in { background: var(--st-card); font-size: 18px; text-align: center; font-variant-numeric: tabular-nums; }
+.st-lk-dash { padding-bottom: 12px; color: var(--st-ter); }
+.st-help .st-l small { font-size: 14px; line-height: 1.45; }
+@media (prefers-reduced-motion: reduce) { .st-lk-rec:active, .st-lk-q:active, .st-lk-paste:active { transform: none; } }

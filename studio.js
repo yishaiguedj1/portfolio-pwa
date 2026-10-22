@@ -172,6 +172,7 @@ export function normJob(j) {
     noAudio: typeof u.noAudio === 'string' ? u.noAudio.slice(0, 20) : '', started: num(u.started),
     wait: typeof u.wait === 'string' ? u.wait.slice(0, 40) : '', took: num(u.took),
     ext: u.ext === true, extReg: u.extReg === true,   // מקור מ־Drive: בלי העלאה; extReg = נרשם בשרתון
+    link: u.link === true,   // 22/10/2026: מקישור — העובד מוריד; בלי העלאה מהטלפון
     dx: u.dx && FID_RE.test(String(u.dx.f || '')) ? { f: u.dx.f, n: String(u.dx.n || '').slice(0, 120), at: num(u.dx.at) } : null,   // התוצר נשמר בתיקייה שבחרת ב־Drive
     tl: normUtl(u.tl) };
   const fp = j.fp && typeof j.fp === 'object' ? { name: String(j.fp.name || '').slice(0, 200), size: num(j.fp.size), lm: num(j.fp.lm) } : null;
@@ -987,7 +988,10 @@ function errText(code, extra) {
     case 'store_net': return T('studioErrStoreNet');   // 11/10/2026: האחסון (R2 / Drive) — ניתוק / חסימה
     case 'store_fail': return T('studioErrStoreFail');
     case 'cp_timeout': case 'cp_empty': return T('studioErrCp');   // סבב 10: העתק־הדבק — לא הודבקה תשובה
-    default: return T('studioErrGeneric', { c: String(code || '?').slice(0, 30) });
+    case 'r2_needed': return T('studioLinkApiOnly');
+    default:
+      if (/^url_/.test(String(code || ''))) return urlErrText(code);   // 22/10/2026: הורדה מקישור
+      return T('studioErrGeneric', { c: String(code || '?').slice(0, 30) });
   }
 }
 
@@ -1125,6 +1129,7 @@ async function refreshStatus(force) {
     ui.lra = num(j.lra);                       // 15/10 (מ׳1): ההודעה על מאגר הלמידה כבר נקראה
     ui.lrt = num(j.lrt);                       // 15/10: הנוסח שאומר שגם הטקסט נשמר — נקרא
     ui.lrm = num(j.lrm);                       // מ׳4: הנוסח שאומר שגם הקול ועותק ב־240p נשמרים — נקרא
+    ui.url = j.url === true;                   // 22/10/2026: הורדה מקישור (מנהל / "כל המודלים", הדגל, R2)
     ui.mf = j.mf === true;                     // 15/10: כל מצבי התרגום (המנהל / רשימת "כל המודלים") — אחרת רק "רגיל" ו"ביצועים"
     ui.lrf = num(j.lrf);                       // 15/10: הנוסח של האיסוף המלא (תקופת הפיתוח) — נקרא
     save();
@@ -1532,6 +1537,12 @@ async function runJob(id, run) {
       run.phase = 'done';
       return;
     }
+    if (up.link) {   // 22/10/2026: מקישור — אין מה להעלות: העובד מוריד ישר ל־R2 ורושם את הקבצים בעצמו
+      run.phase = 'prep'; paintSoon();
+      if (!up.started) await tryStart(id);
+      run.phase = 'done';
+      return;
+    }
     if (up.ext) {   // סרטון מ־Drive: נשאר במקומו — רק רישום בשרתון (מאומת מול Drive: קיים, בגודל, סרטון) והתחלה
       run.phase = 'prep'; paintSoon();
       if (!up.extReg) { await register(id, 'v', up.v.id, up.folder, true); up.extReg = true; save(); }
@@ -1708,7 +1719,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 }
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
-  if ((v === 'lang' && p !== 'def') || v === 'tracks' || v === 'cutsrc') { v = 'new'; p = null; }   // הטופס (והקובץ) לא שורדים רענון
+  if ((v === 'lang' && p !== 'def') || v === 'tracks' || v === 'cutsrc' || v === 'link' || v === 'linkfmt' || v === 'linksec' || v === 'fmthelp') { v = 'new'; p = null; }   // הטופס (והקובץ) לא שורדים רענון
   const parent = (x, y) => (x === 'home' ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : (x === 'lang' || x === 'tower' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'towerx' || x === 'rlb' || x === 'rlm' ? ['tower', null] : x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['towerx', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
@@ -1797,7 +1808,7 @@ function onPop(e) {
    עמודים ראשיים = הבית ← מגדל הפיקוח ← הגדרות (כמו הלשוניות וההגדרות ב־Invest); בעמוד משנה — החלקה אחורה = "חזור"
    (כמו האפשרויות המתקדמות ב־Invest). בלי "החלקה קצרה" לטאבים (בקשת המשתמש) — פרטים · ציר · קשורות רק בלחיצה */
 const ST_SIB = ['home', 'tower', 'settings'];
-const ST_NOSWIPE = ['play', 'subs', 'cut', 'cutsrc', 'tracks', 'sty', 'ov', 'new', 'edit', 'lang', 'connect', 'ai', 'rr'];   // עורכים, נגן וטפסים — בלי
+const ST_NOSWIPE = ['play', 'subs', 'cut', 'cutsrc', 'tracks', 'link', 'linkfmt', 'linksec', 'fmthelp', 'sty', 'ov', 'new', 'edit', 'lang', 'connect', 'ai', 'rr'];   // עורכים, נגן וטפסים — בלי
 const ST_TAB_KEYS = ['d', 't', 'r'];
 let swipePop = 0;
 function stSibOk() {              // דף ראשי שהבית נמצא ישר מתחתיו
@@ -1896,7 +1907,8 @@ const ICON = {   // סמלים קבועים בלבד — אף פעם לא תוכ
   share: '<path d="M12 15V3.5M7.5 8l4.5-4.5L16.5 8"/><path d="M8 11H6.5A1.5 1.5 0 0 0 5 12.5v6A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-6a1.5 1.5 0 0 0-1.5-1.5H16"/>',
   down: '<path d="M12 4v11.5M7.5 11l4.5 4.5 4.5-4.5M5 20h14"/>',   // סבב 1: שיתוף / הורדה של התוצרים
   cc: '<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M10.2 10.3a2 2 0 1 0 0 3.4M16.2 10.3a2 2 0 1 0 0 3.4"/>',   // 22/10/2026: קובץ כתוביות
-  edit: '<path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/>', redo: '<path d="M20 8H9a5 5 0 0 0 0 10h3M16 4l4 4-4 4"/>',   // מ2: עריכת כתוביות, הפקה מחדש
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/>',
+  clip: '<rect x="8" y="3" width="8" height="4" rx="1.5"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/>',   // 22/10/2026: הדבקה redo: '<path d="M20 8H9a5 5 0 0 0 0 10h3M16 4l4 4-4 4"/>',   // מ2: עריכת כתוביות, הפקה מחדש
 };
 function ico(k, cls) {
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -2549,7 +2561,12 @@ function pageForm(p, editing) {
     inp.click();
   };
   let card;
-  if (f.file) {
+  if (f.link && f.linkOk && f.link.st === 'ok') {   // 22/10/2026: מקישור — הכרטיס של הסרטון (נגיעה = חזרה לדף הקישור)
+    card = btn('st-filecard st-lk-fc', null, () => go('link'), 'file');
+    const c = linkCard(f.link, true), meta = h('small', 'st-ok', T('studioLinkFcNote', { q: qLabel((f.link.r.q.find((o) => o.v === f.link.v) || {}).h || 0), s: approx(fmtSize(linkSize(f.link))) }));
+    c.querySelector('.st-l').append(meta);
+    card.append(...c.childNodes);
+  } else if (f.file) {
     card = btn('st-filecard', null, pick, 'file');
     card.setAttribute('aria-label', T('studioReplace') + ': ' + f.file.name);
     const th = h('span', 'st-thumb'); th.append(ico('film'));
@@ -2567,7 +2584,9 @@ function pageForm(p, editing) {
   else {
     p.append(inp, secT(T('studioSecVideo')), card);
     const subsRow = rowNav({ tile: tile('cc', 'orange'), label: T('studioSubsPick'), sub: subsOk() ? T('studioSubsPickS') : T('studioSubsApiOnly'), onClick: () => pickSubs(f), k: 'subs-pick' });
-    p.append(list(subsRow, canPick() ? rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'),
+    // 22/10/2026: הורדה מקישור — שורה ראשונה (המנהל / "כל המודלים", כשהשרתון אומר שאפשר)
+    const linkRow = ui.url ? rowNav({ tile: tile('link', 'red'), label: T('studioLinkRow'), sub: T('studioLinkRowS'), onClick: () => go('link'), k: 'link' }) : null;
+    p.append(list(linkRow, subsRow, canPick() ? rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'),
       onClick: () => pickSourceFromDrive(f), k: 'from-drive' }) : null));   // סרטון שכבר ב־Drive — בלי העלאה
     const tk = f.trk && f.trk.tracks.length ? f.trk.tracks : null;   // שלב 4
     if (tk) p.append(list(rowNav({ tile: tile('cc', 'orange'), label: T('studioTrkRow'), value: T('studioTrkN', { n: fmtNum(tk.length) }), sub: T('studioTrkRowS'), onClick: () => go('tracks'), k: 'tracks' })));
@@ -2614,7 +2633,7 @@ function pageForm(p, editing) {
 
   // התחלה: יוצרים עבודה בשרתון ומעלים ל־Drive (הקול קודם). טיוטה — אפשרות משנית
   const startBtn = btn('st-btn wide', ui.starting ? T('studioStarting') : T('studioStart'), startFromForm, 'start');
-  startBtn.disabled = !(f.fileObj || f.drive || f.subs) || ui.starting;
+  startBtn.disabled = !(f.fileObj || f.drive || f.subs || (f.link && f.linkOk)) || ui.starting;
   if (f.subs) { p.append(h('div', 'st-gap'), startBtn, note(T('studioSubsStartNote'))); return; }   // בלי טיוטה: הקובץ רק בזיכרון
   const saveBtn = btn('st-btn tint wide', T('studioSaveDraft'), saveForm, 'save');
   saveBtn.disabled = !f.file;
@@ -2850,6 +2869,308 @@ function pageTracks(p) {
     return r;
   })));
 }
+/* ---------------- 22/10/2026: הורדה מקישור (בקשת המשתמש: "כל וידאו שקיים בתוך לינק" — כמו IDM) ----------------
+   מדביקים קישור → השרתון מעביר לבדיקה בעובד (yt-dlp בלי הורדה) → איכויות, גודל, פרקים → "הוספה" → העובד מוריד ישר ל־R2
+   (הקול קודם) ומתרגם. הטלפון לא מוריד ולא מעלה כלום. כל מונח עם הסבר פשוט (דף "מה זה אומר"). */
+const LINK_POLL_MS = 1500, LINK_WAIT_MS = 150e3;
+/* גובה → תווית: 2160 = 4K, 0 = קובץ בלי גובה ידוע ("הכי טוב שיש") */
+export function qLabel(h) {
+  return h >= 4000 ? '8K' : h >= 2000 ? '4K' : h > 0 ? h + 'p' : T('studioLinkBest');
+}
+/* האיכות המומלצת מתוך הבדיקה: 1080 (או הכי קרוב מתחתיו), כמו fetchurl.recommended */
+export function linkRec(r) {
+  const q = (r && r.q) || [];
+  if (!q.length) return null;
+  const below = q.filter((o) => o.h <= 1080);
+  return below.length ? below.reduce((a, b) => (b.h > a.h ? b : a)) : q.reduce((a, b) => (b.h < a.h ? b : a));
+}
+/* מה שנבחר → pick של ה־spec (= normPick בשרתון) */
+export function linkPick(L) {
+  const o = L && L.r && (L.r.q || []).find((x) => x.v === L.v);
+  if (!o) return null;
+  const pick = { v: o.v, a: o.a || '', h: o.h };
+  if (L.sec && L.sec[1] > L.sec[0]) pick.sec = [Math.floor(L.sec[0]), Math.ceil(L.sec[1])];
+  if (L.ch && L.r.ch && L.r.ch.length) pick.ch = 1;
+  return pick;
+}
+/* הגודל המשוער של הבחירה (חלק מהסרטון — בחלק יחסי) */
+export function linkSize(L) {
+  const o = L && L.r && (L.r.q || []).find((x) => x.v === L.v);
+  if (!o) return 0;
+  const d = L.r.d || 0;
+  return L.sec && d > 0 ? Math.round(o.sz * Math.min(1, (L.sec[1] - L.sec[0]) / d)) : o.sz;
+}
+/* "1:02:03" / "2:30" / "45" → שניות; לא תקין → NaN */
+export function parseClock(s) {
+  const m = /^\s*(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\s*$|^\s*(\d{1,5})\s*$/.exec(String(s || ''));
+  if (!m) return NaN;
+  if (m[4] != null) return +m[4];
+  return (+(m[1] || 0)) * 3600 + (+m[2]) * 60 + (+m[3]);
+}
+const linkCodec = (c) => ({ av1: 'AV1', vp9: 'VP9', h264: 'H.264', h265: 'H.265', vp8: 'VP8' }[c] || '');
+const linkAudio = (c) => ({ opus: 'Opus', aac: 'AAC', mp3: 'MP3', flac: 'FLAC', vorbis: 'Vorbis', ac3: 'AC-3', eac3: 'E-AC-3' }[c] || '');
+/* שגיאת בדיקה → טקסט פשוט + מה עושים */
+function linkErrText(e) {
+  switch (e) {
+    case 'blocked': return T('studioLinkEBlocked');
+    case 'login': return T('studioLinkELogin');
+    case 'gone': return T('studioLinkEGone');
+    case 'geo': return T('studioLinkEGeo');
+    case 'drm': return T('studioLinkEDrm');
+    case 'live': return T('studioLinkELive');
+    case 'playlist': return T('studioLinkEPlaylist');
+    case 'unsupported': case 'no_video': return T('studioLinkENone');
+    case 'private': case 'bad_url': case 'dns': return T('studioLinkEBad');
+    case 'timeout': case 'net': case 'no_server': return T('studioLinkENet');
+    default: return T('studioLinkEFail');
+  }
+}
+/* קודי url_* של עבודה שנכשלה (העובד) → אותם טקסטים */
+function urlErrText(code) { return linkErrText(String(code || '').replace(/^url_/, '')); }
+let linkSeq = 0;
+function linkCheck(f, raw) {
+  const L = f.link = { u: String(raw || '').trim(), st: 'busy', e: '', r: null, v: '', sec: null, ch: 1, at: Date.now() };
+  const seq = ++linkSeq;
+  render('none');
+  (async () => {
+    let j = await net.api('urlProbe', { url: L.u });
+    while (j && j.ok && j.probe && (j.probe.st === 'q' || j.probe.st === 'r') && Date.now() - L.at < LINK_WAIT_MS) {
+      await sleep(LINK_POLL_MS);
+      if (seq !== linkSeq || form !== f || f.link !== L) return;
+      j = await net.api('urlProbe', { pid: j.probe.id });
+    }
+    if (seq !== linkSeq || f.link !== L) return;
+    if (!j || !j.ok) { L.st = 'err'; L.e = j && j.error === 'bad_url' ? 'bad_url' : j && j.error === 'flag_off' ? 'flag' : j && j.error ? 'srv:' + j.error : 'net'; }
+    else if (j.probe.st === 'd' && j.probe.r) { L.st = 'ok'; L.r = j.probe.r; const rec = linkRec(L.r); L.v = rec ? rec.v : ''; }
+    else { L.st = 'err'; L.e = j.probe.st === 'e' ? j.probe.e : 'timeout'; }
+    render('none');
+  })();
+}
+/* הכרטיס של הסרטון (בדף הקישור ובטופס) */
+function linkCard(L, small) {
+  const r = L.r, c = h('div', 'st-lk-card' + (small ? ' sm' : ''));
+  const th = h('span', 'st-thumb' + (r.th ? ' img' : ''));
+  if (r.th) th.style.backgroundImage = 'url("' + r.th + '")';
+  th.append(ico('film'));
+  if (r.d) th.append(h('b', 'st-lk-dur', fmtDur(r.d)));
+  const t = h('span', 'st-l'), nm = h('b'); nm.setAttribute('dir', 'auto'); nm.textContent = r.t;
+  const sub = h('small');
+  sub.append(h('bdi', null, r.s || ''), r.up ? ' · ' : '', r.up ? h('bdi', null, r.up) : '');
+  t.append(nm, sub);
+  c.append(th, t);
+  if (!small) {
+    const tags = h('div', 'st-lk-tags'), top = (r.q || []).reduce((a, b) => Math.max(a, b.h), 0);
+    if (r.ch && r.ch.length) tags.append(h('span', 'st-lk-tag', T('studioLinkTagCh', { n: fmtNum(r.ch.length) })));
+    if (r.sub && r.sub.some((s) => !s.a)) tags.append(h('span', 'st-lk-tag', T('studioLinkTagSubs')));
+    if (top) tags.append(h('span', 'st-lk-tag', T('studioLinkTagTop', { q: qLabel(top) })));
+    if (tags.childNodes.length) t.append(tags);
+  }
+  return c;
+}
+function pageLink(p) {
+  const f = form;
+  if (!f) { back(); return; }
+  const L = f.link || null;
+  const add = btn('st-txt bold', T('studioLinkAdd'), () => { if (L && L.st === 'ok') { f.linkOk = true; back(); } }, 'link-add');
+  add.disabled = !(L && L.st === 'ok' && L.v);
+  p.append(navBar({ back: f.id ? T('studioEditT') : T('studioNew'), title: T('studioLinkT'), end: add }));
+  // שדה הקישור + "הדבקה"
+  const box = h('div', 'st-lk-in');
+  const inp = h('input', 'st-in'); inp.type = 'url'; inp.inputMode = 'url'; inp.dir = 'ltr'; inp.autocomplete = 'off'; inp.spellcheck = false;
+  inp.placeholder = T('studioLinkPh'); inp.value = L ? (L.r && L.r.u) || L.u : ''; inp.dataset.k = 'link-in'; inp.setAttribute('aria-label', T('studioLinkT'));
+  let tmr = 0;
+  const kick = () => { clearTimeout(tmr); const v = inp.value.trim(); if (/https?:\/\/\S+\.\S+/i.test(v) && (!f.link || f.link.u !== v)) tmr = setTimeout(() => linkCheck(f, v), 500); };
+  inp.addEventListener('input', kick);
+  inp.addEventListener('paste', () => setTimeout(kick, 0));
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { clearTimeout(tmr); if (inp.value.trim()) linkCheck(f, inp.value.trim()); } });
+  const paste = btn('st-lk-paste', null, async () => {
+    let t = '';
+    try { t = await navigator.clipboard.readText(); } catch (e) { inp.focus(); flashSafe(T('studioLinkPasteNo')); return; }
+    if (!t || !/https?:\/\//i.test(t)) { flashSafe(T('studioLinkPasteNone')); return; }
+    inp.value = t.trim(); linkCheck(f, inp.value);
+  }, 'link-paste');
+  paste.append(ico('copy'), h('span', null, T('studioLinkPaste')));
+  if (L && L.u) {
+    const x = btn('st-lk-x', '×', () => { f.link = null; f.linkOk = false; linkSeq++; render('none'); }, 'link-clear');
+    x.setAttribute('aria-label', T('studioLinkClear'));
+    box.append(inp, x);
+  } else box.append(inp, paste);
+  p.append(h('div', 'st-gap sm'), box);
+  if (!L) {
+    p.append(note(T('studioLinkSites')));
+    p.append(secT(T('studioLinkHowT')), list(
+      rowTxtRow('share', 'blue', T('studioLinkHow1'), T('studioLinkHow1S')),
+      rowTxtRow('clip', 'teal', T('studioLinkHow2'), T('studioLinkHow2S')),
+      rowNav({ tile: tile('help', 'gray'), label: T('studioFmtHelpT'), sub: T('studioFmtHelpS'), onClick: () => go('fmthelp'), k: 'fmthelp' })));
+    return;
+  }
+  if (L.st === 'busy') {
+    const ld = h('div', 'st-lk-ld'); ld.dataset.k = 'link-busy';
+    ld.append(h('span', 'st-spin'), h('span', null, T('studioLinkChecking')));
+    p.append(ld, note(T('studioLinkCheckingS')));
+    return;
+  }
+  if (L.st === 'err') {
+    const msg = L.e === 'flag' ? T('studioErrFlagOff') : /^srv:/.test(L.e) ? errText(L.e.slice(4)) : linkErrText(L.e);
+    const card = h('div', 'st-lk-err'); card.dataset.k = 'link-err';
+    card.append(ico('alert'), h('span', null, msg));
+    p.append(card, h('div', 'st-gap sm'), btn('st-btn tint wide', T('studioLinkRetry'), () => linkCheck(f, L.u), 'link-retry'));
+    if (L.e === 'blocked' || L.e === 'login' || L.e === 'unsupported' || L.e === 'no_video') p.append(note(T('studioLinkUpload')));
+    return;
+  }
+  // יש תוצאה
+  const r = L.r, rec = linkRec(r), cur = (r.q || []).find((o) => o.v === L.v) || rec;
+  p.append(linkCard(L));
+  p.append(secT(T('studioLinkQT')));
+  const recB = btn('st-lk-rec' + (cur && rec && cur.v === rec.v ? ' on' : ''), null, () => { L.v = rec.v; render('none'); }, 'link-rec');
+  const star = h('span', 'st-lk-star'); star.append(ico('spark'));
+  recB.append(star, rowTxt(T('studioLinkRec', { q: qLabel(rec.h) }), T('studioLinkRecS') + ' · ' + approx(fmtSize(rec.sz))));
+  if (cur && cur.v === rec.v) recB.append(ico('check', 'st-chk'));
+  p.append(recB);
+  if ((r.q || []).length > 1) {
+    const grid = h('div', 'st-lk-qs'); grid.setAttribute('role', 'radiogroup'); grid.setAttribute('aria-label', T('studioLinkQT'));
+    for (const o of r.q) {
+      const b = btn('st-lk-q' + (o.v === L.v ? ' on' : ''), null, () => { L.v = o.v; render('none'); }, 'link-q:' + o.v);
+      b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', o.v === L.v ? 'true' : 'false');
+      b.append(h('b', null, qLabel(o.h)), h('small', null, o.sz ? approx(fmtSize(o.sz)) : ' '));
+      grid.append(b);
+    }
+    p.append(grid);
+  }
+  if (cur) p.append(note(T('studioLinkPickS', { v: linkCodec(cur.c) || T('studioLinkVideo'), a: linkAudio(cur.ac) || T('studioLinkAudioW') })));
+  // עוד
+  const sec = L.sec ? fmtDur(L.sec[0]) + '–' + fmtDur(L.sec[1]) : T('studioLinkSecAll');
+  p.append(secT(T('studioLinkMoreT')), list(
+    rowNav({ tile: tile('clock', 'blue'), label: T('studioLinkSec'), value: sec, onClick: () => go('linksec'), k: 'link-sec' }),
+    r.ch && r.ch.length ? rowSwitch({ label: T('studioLinkCh'), sub: T('studioLinkChS', { n: fmtNum(r.ch.length) }), on: !!L.ch, onClick: () => { L.ch = L.ch ? 0 : 1; render('none'); }, k: 'link-ch' }) : null,
+    rowNav({ tile: tile('sliders', 'gray'), label: T('studioLinkAll'), sub: T('studioLinkAllS'), onClick: () => go('linkfmt'), k: 'link-all' }),
+    rowNav({ tile: tile('help', 'gray'), label: T('studioFmtHelpT'), sub: T('studioFmtHelpS'), onClick: () => go('fmthelp'), k: 'fmthelp' })));
+  p.append(note(T('studioLinkSrvNote')));
+  const go2 = btn('st-btn wide', T('studioLinkAdd'), () => { f.linkOk = true; back(); }, 'link-add2');
+  go2.disabled = !L.v;
+  p.append(h('div', 'st-gap'), go2);
+}
+function rowTxtRow(icon, color, label, sub) {
+  const r = h('div', 'st-row st-ric'); r.append(tile(icon, color), rowTxt(label, sub)); return r;
+}
+/* כל האיכויות — כל אחת בשורה עם הסבר פשוט (קודק, קצב פריימים, HDR, גודל) */
+function pageLinkFmt(p) {
+  const f = form, L = f && f.link;
+  if (!L || !L.r) { back(); return; }
+  p.append(navBar({ back: T('studioLinkT'), title: T('studioLinkAll') }));
+  const rec = linkRec(L.r);
+  p.append(secT(T('studioLinkQT')), list(...(L.r.q || []).map((o) => {
+    const bits = [linkCodec(o.c), o.fps > 30 ? o.fps + 'fps' : '', o.hdr ? 'HDR' : '', linkAudio(o.ac)].filter(Boolean).join(' · ');
+    return rowRadio({ on: o.v === L.v, label: qLabel(o.h) + (rec && o.v === rec.v ? ' · ' + T('studioLinkRecTag') : ''),
+      sub: (bits ? bits + ' · ' : '') + (o.sz ? approx(fmtSize(o.sz)) : T('studioLinkSzUnknown')) + (o.c === 'av1' ? ' — ' + T('studioFmtAv1Short') : o.c === 'h264' ? ' — ' + T('studioFmtH264Short') : ''),
+      onClick: () => { L.v = o.v; render('none'); }, k: 'lf:' + o.v });
+  })));
+  if (L.r.ao) p.append(secT(T('studioLinkAudioT')), list(rowTxtRow('mic', 'teal', linkAudio(L.r.ao.ac) + (L.r.ao.br ? ' · ' + L.r.ao.br + 'kbps' : ''), T('studioLinkAudioS'))));
+  p.append(note(T('studioLinkNoReenc')));
+}
+/* רק חלק מהסרטון — מ/עד (שעות:דקות:שניות) או נגיעה בפרק */
+function pageLinkSec(p) {
+  const f = form, L = f && f.link;
+  if (!L || !L.r) { back(); return; }
+  const d = L.r.d || 0;
+  p.append(navBar({ back: T('studioLinkT'), title: T('studioLinkSec') }));
+  p.append(note(T('studioLinkSecNote')));
+  const row = h('div', 'st-lk-sec');
+  const mk = (val, lab, k) => { const w = h('label', 'st-lk-tf'); const i = h('input', 'st-in'); i.inputMode = 'numeric'; i.dir = 'ltr'; i.value = val; i.dataset.k = k; i.placeholder = '0:00'; w.append(h('small', null, lab), i); return [w, i]; };
+  const [wa, ia] = mk(fmtDur(L.sec ? L.sec[0] : 0), T('studioLinkFrom'), 'sec-a');
+  const [wb, ib] = mk(fmtDur(L.sec ? L.sec[1] : d), T('studioLinkTo'), 'sec-b');
+  row.append(wa, h('span', 'st-lk-dash', '–'), wb);
+  p.append(h('div', 'st-gap sm'), row);
+  const apply = () => {
+    const a = parseClock(ia.value), b = parseClock(ib.value);
+    if (!(a >= 0) || !(b > a) || (d && b > d + 1)) { flashSafe(T('studioLinkSecBad')); return; }
+    L.sec = a <= 0 && (!d || b >= d) ? null : [a, Math.min(b, d || b)];
+    back();
+  };
+  p.append(h('div', 'st-gap sm'), btn('st-btn wide', T('studioLinkSecOk'), apply, 'sec-ok'),
+    h('div', 'st-gap sm'), btn('st-btn tint wide', T('studioLinkSecAllBtn'), () => { L.sec = null; back(); }, 'sec-all'));
+  if (L.r.ch && L.r.ch.length) {
+    const chs = L.r.ch;
+    p.append(secT(T('studioLinkChT')), list(...chs.map((c, i) => {
+      const end = i + 1 < chs.length ? chs[i + 1][0] : d;
+      const r = rowNav({ label: c[1], value: fmtDur(c[0]), onClick: () => { L.sec = [c[0], end]; back(); }, k: 'ch:' + i });
+      return r;
+    })));
+  }
+}
+/* מה זה אומר — הסבר פשוט לכל מונח, בלי ז׳רגון */
+const FMT_HELP = [
+  ['studioFmtQ', 'studioFmtQS'], ['studioFmt4k', 'studioFmt4kS'], ['studioFmtOrig', 'studioFmtOrigS'], ['studioFmtAv1', 'studioFmtAv1S'],
+  ['studioFmtVp9', 'studioFmtVp9S'], ['studioFmtH264', 'studioFmtH264S'], ['studioFmtOpus', 'studioFmtOpusS'], ['studioFmtAac', 'studioFmtAacS'],
+  ['studioFmtFps', 'studioFmtFpsS'], ['studioFmtHdr', 'studioFmtHdrS'], ['studioFmtSize', 'studioFmtSizeS'], ['studioFmtSec', 'studioFmtSecS'],
+  ['studioFmtSrv', 'studioFmtSrvS'],
+];
+function pageFmtHelp(p) {
+  p.append(navBar({ back: form && form.link ? T('studioLinkT') : T('studioNew'), title: T('studioFmtHelpT') }));
+  p.append(note(T('studioFmtHelpLede')));
+  const L = (k) => {
+    switch (k) {   // מפתחות מילוליים — בדיקת התרגום אוסרת מפתח במשתנה
+      case 'studioFmtQ': return [T('studioFmtQ'), T('studioFmtQS')];
+      case 'studioFmt4k': return [T('studioFmt4k'), T('studioFmt4kS')];
+      case 'studioFmtOrig': return [T('studioFmtOrig'), T('studioFmtOrigS')];
+      case 'studioFmtAv1': return [T('studioFmtAv1'), T('studioFmtAv1S')];
+      case 'studioFmtVp9': return [T('studioFmtVp9'), T('studioFmtVp9S')];
+      case 'studioFmtH264': return [T('studioFmtH264'), T('studioFmtH264S')];
+      case 'studioFmtOpus': return [T('studioFmtOpus'), T('studioFmtOpusS')];
+      case 'studioFmtAac': return [T('studioFmtAac'), T('studioFmtAacS')];
+      case 'studioFmtFps': return [T('studioFmtFps'), T('studioFmtFpsS')];
+      case 'studioFmtHdr': return [T('studioFmtHdr'), T('studioFmtHdrS')];
+      case 'studioFmtSize': return [T('studioFmtSize'), T('studioFmtSizeS')];
+      case 'studioFmtSec': return [T('studioFmtSec'), T('studioFmtSecS')];
+      default: return [T('studioFmtSrv'), T('studioFmtSrvS')];
+    }
+  };
+  const groups = [[T('studioFmtGQ'), FMT_HELP.slice(0, 3)], [T('studioFmtGV'), FMT_HELP.slice(3, 6)], [T('studioFmtGA'), FMT_HELP.slice(6, 8)], [T('studioFmtGM'), FMT_HELP.slice(8)]];
+  for (const [title, items] of groups) {
+    p.append(secT(title), list(...items.map(([k]) => {
+      const [a, b] = L(k), r = h('div', 'st-row st-help'); r.append(rowTxt(a, b)); return r;
+    })));
+  }
+}
+/* "התחלה" לעבודה מקישור: אומדן ואישור → עבודה בשרתון → התחלה מיד (העובד מוריד; בלי העלאה מהטלפון) */
+function startLink(f) {
+  const L = f.link;
+  if (!L || L.st !== 'ok' || ui.starting) return;
+  if (ui.access === 'signin' || ui.access === 'denied') { flashSafe(ui.access === 'signin' ? T('studioErrSignin') : T('studioErrDenied')); return; }
+  if (!apiMode() && !cpMode()) { flashSafe(T('studioLinkApiOnly')); return; }
+  if (!langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }
+  const pick = linkPick(L);
+  if (!pick) return;
+  ui.starting = true; render('none');
+  (async () => {
+    const dur = pick.sec ? pick.sec[1] - pick.sec[0] : L.r.d || 0;
+    const o = L.r.q.find((x) => x.v === pick.v) || {};
+    const spec = { name: L.r.t, size: Math.max(1, linkSize(L)), type: 'video/url', dur, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
+      out: OUTS.filter((k) => f.out[k]), style: f.style, terms: f.terms, src: 'url', url: L.r.u || L.u, pick, eng: 'api', cap: store.settings.cap };
+    if (cpMode()) spec.cp = 1;
+    if (o.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, (o.h * o.h * 16 / 9) / (1920 * 1080))) * 1000) / 1000;
+    const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
+    if (est.min && typeof askConfirm === 'function') {
+      const yes = await new Promise((ok) => askConfirm(cpMode() ? T('studioEstCp') : estText(est, apiMode()), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) }));
+      if (!yes || form !== f) { ui.starting = false; render('none'); return; }
+    }
+    const j = await net.api('create', { spec });
+    ui.starting = false;
+    if (!j.ok || !j.job) { flashSafe(errText(j.error)); render('none'); return; }
+    const rec = normJob({ id: j.job.id, created: j.job.created || Date.now(), spec: j.job.spec || spec, srv: j.job,
+      fp: { name: L.r.t, size: spec.size, lm: 0 }, up: { link: true, noAudio: 'link', a: { done: true }, v: { done: true }, folder: j.job.folder || '' } });   // אין מה להעלות מהטלפון
+    if (pick.ch && L.r.ch) rec.chap = normChapters(L.r.ch.map((c) => ({ t: c[0] - (pick.sec ? pick.sec[0] : 0), title: c[1] })).filter((c) => c.t >= 0), dur);
+    if (L.r.th) { thumbs.set(rec.id, L.r.th); idbOp('thumbs', 'put', rec.id, L.r.th); }   // התמונה מהבדיקה — בלי לחכות לסרטון
+    store.jobs.unshift(rec);
+    if (f.id) store.drafts = store.drafts.filter((d) => d.id !== f.id);
+    save();
+    form = null;
+    if (!root) { startRun(rec.id, null); return; }
+    replaceView('job', rec.id);
+    startRun(rec.id, null);
+  })();
+}
+
 function saveForm() {
   const f = form;
   if (!f || !f.file) return;
@@ -2867,6 +3188,7 @@ function saveForm() {
 function startFromForm() {
   const f = form;
   if (f && f.subs && !ui.starting) { startSubs(f); return; }   // 22/10/2026: קובץ כתוביות קיים
+  if (f && f.link && f.linkOk && !ui.starting) { startLink(f); return; }   // 22/10/2026: מקישור — העובד מוריד
   if (!f || !(f.fileObj || f.drive) || ui.starting) return;
   if (ui.access === 'signin' || ui.access === 'denied') { flashSafe(ui.access === 'signin' ? T('studioErrSignin') : T('studioErrDenied')); return; }
   // 11/10/2026: במצב השרת עם R2 הקבצים לא עוברים דרך Drive — חיבור Drive נדרש רק למקור מ־Drive / Routine
@@ -6865,6 +7187,10 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'adv') pageAdvanced(p);       // אפשרויות מתקדמות (כמו ב־Invest)
   else if (ui.view === 'cutsrc') pageCut(p, true);    // מ4: חיתוך לפני התרגום
   else if (ui.view === 'tracks') pageTracks(p);      // שלב 4: כתוביות בתוך הסרטון
+  else if (ui.view === 'link') pageLink(p);          // 22/10/2026: הורדה מקישור
+  else if (ui.view === 'linkfmt') pageLinkFmt(p);
+  else if (ui.view === 'linksec') pageLinkSec(p);
+  else if (ui.view === 'fmthelp') pageFmtHelp(p);
   else if (ui.view === 'settings') pageSettings(p);
   else if (ui.view === 'eng') pageEng(p);             // 13/10/2026: עמודי המשנה של ההגדרות
   else if (ui.view === 'defs') pageDefs(p);
@@ -7042,6 +7368,7 @@ export function openStudio(opt) {
     const done = rec.up.v.done && (rec.up.a.done || rec.up.noAudio);
     const st = rec.srv ? rec.srv.state : 'new';
     if (rec.up.ext) { if ((!rec.up.extReg || !rec.up.started) && st === 'new' && !(runs.get(rec.id) && runs.get(rec.id).active)) startRun(rec.id, null); continue; }   // מ־Drive — בלי קובץ בטלפון
+    if (rec.up.link) { if (!rec.up.started && st === 'new' && !(runs.get(rec.id) && runs.get(rec.id).active)) startRun(rec.id, null); continue; }   // 22/10/2026: מקישור
     if (!done && !FINAL.includes(st) && !(runs.get(rec.id) && runs.get(rec.id).active) && rec.fp) resumeJob(rec.id, false);
   }
 }
