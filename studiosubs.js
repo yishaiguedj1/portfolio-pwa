@@ -1065,7 +1065,24 @@ function imAss(text) {
   }
   return cues;
 }
-const IM_HTML = /<\/?[A-Za-z][^>]*>/g, IM_BRACE = /\{[^}]*\}/g, IM_VTT_TAG = /<\d{1,2}:\d{2}(?::\d{2})?\.\d{1,3}>/g;
+// תגיות וסוגריים מסולסלים — עד שאין מה להסיר (הסרה אחת של "<<i>script>" משאירה "<script>"), ו־"<" שנשאר יוצא (CodeQL)
+function imStrip(t) { let p; do { p = t; t = imDrop(imDrop(t, 0), 1); } while (t !== p); return t.replace(/</g, ''); }
+// סריקה במקום replace עם ביטוי (זהה ל־_HTML / _BRACE בעובד): k=0 — </?אות…> עד ה־">" הראשון; k=1 — {…} עד ה־"}" הראשון
+function imDrop(t, k) {
+  let o = '', i = 0;
+  while (i < t.length) {
+    const c = t[i];
+    let end = -1;
+    if (k === 0 && c === '<') {
+      const a = t[i + 1] === '/' ? i + 2 : i + 1;
+      if (/[A-Za-z]/.test(t[a] || '')) end = t.indexOf('>', a);
+    } else if (k === 1 && c === '{') end = t.indexOf('}', i + 1);
+    if (end >= 0) { i = end + 1; continue; }
+    o += c; i++;
+  }
+  return o;
+}
+const IM_VTT_TAG = /<\d{1,2}:\d{2}(?::\d{2})?\.\d{1,3}>/g;
 const IM_LETTER = /[A-Za-z\u00C0-\u024F\u0590-\u05FF\u0600-\u06FF\u0400-\u04FF]/;
 function imItalic(line, it) {
   const out = []; let nIt = 0, nAll = 0, i = 0;
@@ -1136,7 +1153,7 @@ export function importSubs(raw, opt) {
       if (IM_TOP.test(ln)) top = true;
       ln = ln.replace(IM_VTT_TAG, '').replace(/<v(?:\.[^ >]*)?\s+([^>]*)>/g, '');
       const r = imItalic(ln, itx); nIt += r[1]; nAll += r[2]; itx = r[3];
-      lines.push(imWs(r[0].replace(IM_HTML, '').replace(IM_BRACE, '')));
+      lines.push(imWs(imStrip(r[0])));
     }
     lines = lines.filter(Boolean);
     const whole = lines.join(' ');

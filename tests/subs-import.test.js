@@ -65,6 +65,8 @@ const ok = (c, m) => { if (c) pass++; else { fail++; console.log('FAIL', m); } }
     cuesSeen += js.stats.n; sdhSeen += js.stats.sdh; labelsSeen += js.stats.labels;
   }));
   ok(cuesSeen > 1000 && sdhSeen > 50 && labelsSeen > 30, `המקרים האקראיים מכסים: ${cuesSeen} כתוביות, ${sdhSeen} SDH, ${labelsSeen} תוויות`);
+  { const r = S.importSubs(Buffer.from('1\n00:00:01,000 --> 00:00:02,000\n<<i>script>alert(1)<{x}/script>\n'));
+    ok(!/<\/?script/i.test(r.cues.map((c) => c.lines.join(' ')).join(' ')), 'תגית שנבנית מחדש אחרי הסרה אחת — מוסרת (CodeQL)'); }
   ok(S.subsDetect('WEBVTT\n') === 'vtt' && S.subsDetect('garbage') === '', 'זיהוי פורמט');
   fs.rmSync(tmp, { recursive: true, force: true });
   console.log(`subs-import: ${pass} עברו, ${fail} נכשלו`);
