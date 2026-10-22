@@ -118,6 +118,21 @@ class TestBuild(unittest.TestCase):
         for x in [r['top']] + r['rungs']:
             self.assertGreaterEqual(x['bw'], x['abw'])
 
+    def test_gate_after_top(self):
+        # 22/10/2026 (אפשרות א׳): המקור נארז מיד, והנמוכות מתקודדות רק אחרי השער (סוף הצריבה)
+        if not self.ok:
+            self.skipTest('ffmpeg בלי libx264')
+        out = self.tmp / 'out3'
+        seen = {}
+
+        def gate():
+            seen['top'] = (out / 'top.mp4').exists()
+            seen['low'] = sorted(p.name for p in out.glob('r*.mp4'))
+        r = L.build(self.src, out, log=lambda m: None, gate=gate)
+        self.assertTrue(r['ok'], r)
+        self.assertEqual(seen, {'top': True, 'low': []}, 'בשער: המקור הארוז קיים, ואף איכות נמוכה עוד לא')
+        self.assertEqual(len(r['rungs']), 4)
+
     def test_not_eligible_untouched(self):
         mkv = self.tmp / 'sub.mkv'
         srt = self.tmp / 's.srt'
