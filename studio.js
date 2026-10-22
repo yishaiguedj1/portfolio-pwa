@@ -2699,7 +2699,7 @@ function subsSection(p, f) {
   if (s.trk && f.trk) {   // שלב 4: מרצועה שבתוך הסרטון — רצועה אחרת / השוואה
     const ref = f.trk.ref != null ? f.trk.tracks.find((t) => t.id === f.trk.ref) : null;
     p.append(list(rowNav({ tile: tile('cc', 'orange'), label: T('studioTrkFrom'), value: trkLabel(f.trk.tracks.find((t) => t.id === f.trk.src) || {}), sub: f.file ? f.trk.vname : '', onClick: () => go('tracks'), k: 'tracks' }),
-      rowNav({ tile: tile('check', 'green'), label: T('studioTrkCmp'), value: ref ? trkLabel(ref) : T('studioTrkRefNone'), onClick: () => go('tracks'), k: 'tracks-ref' })));
+      f.trk.tracks.some((t) => t.kind === 'text' && t.id !== f.trk.src) && rowNav({ tile: tile('check', 'green'), label: T('studioTrkCmp'), value: ref ? trkLabel(ref) : T('studioTrkRefNone'), onClick: () => go('tracks'), k: 'tracks-ref' })));
   }
   // הסרטון — שלב הבא (צריבה, סנכרון ומין הדוברים מהקול)
   const vr = h('div', 'st-row st-ric st-muted'); vr.append(tile('film', 'blue'), rowTxt(T('studioSubsAddVideo'), T('studioSubsAddVideoS')));
@@ -2831,9 +2831,10 @@ function pageTracks(p) {
       rowRadio({ on: k.src == null, label: T('studioTrkAudio'), sub: T('studioTrkAudioS'), onClick: () => trkChooseSrc(f, null), k: 'trk-src:a' }),
       ...text.map((t) => rowRadio({ on: k.src === t.id, label: trkLabel(t), sub: trkSub(f, t), disabled: !subsOk() || k.busy, onClick: () => trkChooseSrc(f, t.id), k: 'trk-src:' + t.id }))));
     if (!subsOk()) p.append(note(T('studioSubsApiOnly')));
-    p.append(secT(T('studioTrkRefT')), list(
+    const refs = text.filter((t) => t.id !== k.src);   // רק כשיש רצועה נוספת להשוות אליה
+    if (refs.length) p.append(secT(T('studioTrkRefT')), list(
       rowRadio({ on: k.ref == null, label: T('studioTrkRefNone'), onClick: () => trkChooseRef(f, null), k: 'trk-ref:0' }),
-      ...text.filter((t) => t.id !== k.src).map((t) => rowRadio({ on: k.ref === t.id, label: trkLabel(t), sub: trkSub(f, t), disabled: k.busy, onClick: () => trkChooseRef(f, t.id), k: 'trk-ref:' + t.id }))),
+      ...refs.map((t) => rowRadio({ on: k.ref === t.id, label: trkLabel(t), sub: trkSub(f, t), disabled: k.busy, onClick: () => trkChooseRef(f, t.id), k: 'trk-ref:' + t.id }))),
       note(T('studioTrkRefNote')));
   }
   p.append(secT(T('studioTrkAllT')), list(...k.tracks.map((t) => {
