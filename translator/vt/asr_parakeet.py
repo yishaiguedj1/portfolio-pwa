@@ -70,6 +70,8 @@ def tokens_to_words(tokens: list[str], ts: list[float], offset: float, chunk_end
 HOLE_S = 1.2      # דיבור (לפי Silero) בלי אף מילה — חור
 HOLE_PAD = 2.0    # שוליים לחלון התמלול החוזר
 WORD_S = 0.6      # כמה זמן "תופסת" מילה כשאין לה סוף אמיתי
+QUIET_S = 2.5     # גם "שקט" ארוך: Silero מפספס דיבור ברעש (מסוק, רחוב — Undercover, ~70 מילים לפרק)
+PIECE_S = 28.0    # חור ארוך מתומלל בחלקים
 
 
 def _norm(w: str) -> str:
@@ -87,8 +89,10 @@ def holes(words: list[dict], segs: list[tuple[float, float]], total: float) -> l
         if b - a < HOLE_S:
             continue
         sp = sum(max(0.0, min(e, b) - max(s, a)) for s, e in segs)
-        if sp >= HOLE_S:
-            out.append((i, a, b))
+        if sp >= HOLE_S or b - a >= QUIET_S:
+            k = max(1, int(-(-(b - a) // PIECE_S)))
+            step = (b - a) / k
+            out += [(i, a + j * step, a + (j + 1) * step) for j in range(k)]
     return out
 
 
@@ -98,8 +102,9 @@ def rescue(words: list[dict], found: list[tuple[int, float, float]], recog, tota
     for i, a, b in found:
         prev = words[i - 1] if i > 0 else None
         nxt = words[i] if i < len(words) else None
-        lo = (prev["s"] + 0.05) if prev else 0.0
+        lo = max((prev["s"] + 0.05) if prev else 0.0, a if add.get(i) is not None else 0.0)
         hi = (nxt["s"] - 0.05) if nxt else total
+        hi = min(hi, b) if b < hi - 0.5 else hi            # חלק שאינו האחרון — רק מה שמתחיל בתוכו
         got = [w for w in recog(max(0.0, a - HOLE_PAD), min(total, b + HOLE_PAD)) if lo < w["s"] < hi]
         if prev:                                      # אותה מילה שכבר נשמעה לפני החור ("slash slash", "W-I-S-P… i s p")
             pv = _norm(prev["w"])
@@ -108,11 +113,12 @@ def rescue(words: list[dict], found: list[tuple[int, float, float]], recog, tota
                 got = got[1:]
         if got and nxt and _norm(got[-1]["w"]) == _norm(nxt["w"]):
             got = got[:-1]
+        add.setdefault(i, [])
         if got:
             if nxt:
                 got[-1]["e"] = min(got[-1]["e"], nxt["s"])
-            add[i] = got
-    if not add:
+            add[i] += got
+    if not any(add.values()):
         return 0
     res = []
     for i in range(len(words) + 1):

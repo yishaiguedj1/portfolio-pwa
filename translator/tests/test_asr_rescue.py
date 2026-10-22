@@ -14,7 +14,7 @@ def W(w, s, e=None):
 
 
 # המקור (מה שבאמת נאמר) — המשפט האמצעי "נפל" בתמלול הראשון
-TRUTH = [W("every", 35.2), W("year.", 35.4), W("But", 35.7), W("it", 35.85), W("seems", 36.0), W("that", 36.2),
+TRUTH = [W("x", float(t)) for t in range(0, 35)] + [W("every", 35.2), W("year.", 35.4), W("But", 35.7), W("it", 35.85), W("seems", 36.0), W("that", 36.2),
          W("you", 36.4), W("were", 36.6), W("forged.", 36.7), W("Yeah,", 39.8), W("and", 40.1), W("it", 40.2),
          W("started.", 40.4), W("With", 42.4), W("the", 42.6)]
 SEGS = [(35.1, 42.2), (42.4, 42.9)]
@@ -22,6 +22,9 @@ SEGS = [(35.1, 42.2), (42.4, 42.9)]
 
 def first_pass():
     return [dict(w) for w in TRUTH if w["s"] < 35.6 or w["s"] >= 42.0]
+
+
+IDX = 37                                                              # המילה שאחרי החור
 
 
 def recog(a, b):
@@ -33,10 +36,22 @@ class Holes(unittest.TestCase):
         f = holes(first_pass(), SEGS, 42.9)
         self.assertEqual(len(f), 1)
         i, a, b = f[0]
-        self.assertEqual((i, round(a, 2), b), (2, 36.0, 42.4))
+        self.assertEqual((i, round(a, 2), b), (IDX, 36.0, 42.4))
 
-    def test_silence_is_not_a_hole(self):
-        self.assertEqual(holes(first_pass(), [(35.1, 35.6), (42.3, 43.0)], 43.0), [])
+    def test_short_silence_is_not_a_hole(self):
+        words = [W("a", 0.2), W("b", 2.2)]                             # 1.4 שנ׳ שקט אחרי "a"
+        self.assertEqual(holes(words, [(0.1, 0.7), (2.1, 2.6)], 2.6), [])
+
+    def test_long_quiet_is_a_hole_in_pieces(self):
+        """Silero מפספס דיבור ברעש (מסוק — Undercover 14:35, 23 מילים): גם שקט ארוך מתומלל שוב, בחלקים"""
+        words = [W("a", 0.5), W("b", 80.0)]
+        f = holes(words, [(0.4, 1.0), (79.9, 80.4)], 80.4)
+        self.assertEqual(len(f), 3)
+        self.assertTrue(all(b - a <= 28.0 for _, a, b in f))
+        said = [W("we're", 20.0), W("gonna", 20.3), W("take", 44.9), W("a", 45.1), W("look", 70.0)]
+        n = rescue(words, f, lambda x, y: [dict(w) for w in said if x <= w["s"] < y], 80.4)
+        self.assertEqual([w["w"] for w in words], ["a", "we're", "gonna", "take", "a", "look", "b"])
+        self.assertEqual(n, 5)
 
     def test_rescue_inserts_in_order(self):
         words = first_pass()
