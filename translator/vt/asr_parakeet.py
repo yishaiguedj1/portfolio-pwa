@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 
 import numpy as np
@@ -67,6 +68,82 @@ def tokens_to_words(tokens: list[str], ts: list[float], offset: float, chunk_end
     return [w for w in words if w["w"] and w["w"] not in {",", "."}]
 
 
+HOLE_S = 1.2      # דיבור (לפי Silero) בלי אף מילה — חור
+HOLE_PAD = 2.0    # שוליים לחלון התמלול החוזר
+WORD_S = 0.6      # כמה זמן "תופסת" מילה כשאין לה סוף אמיתי
+QUIET_S = 2.5     # גם "שקט" ארוך: Silero מפספס דיבור ברעש (מסוק, רחוב — Undercover, ~70 מילים לפרק)
+PIECE_S = 28.0    # חור ארוך מתומלל בחלקים
+
+
+def _norm(w: str) -> str:
+    return "".join(c for c in w.lower() if c.isalnum())
+
+
+def _dup(g: dict, near: list[dict]) -> bool:
+    t = _norm(g["w"])
+    if not t:
+        return True
+    for w in near:
+        u = _norm(w["w"])
+        if abs(w["s"] - g["s"]) <= 1.2 and u == t:
+            return True
+        win = 5.0 if len(t) == 1 else 2.5                     # איות ארוך ("W-I-S-P-R-F-L-O-W") נמשך כמה שניות
+        spelled = bool(re.search(r"[-/]|\.\w", w["w"]))     # רק איות/כתובת — לא "a" בתוך "platform."
+        if abs(w["s"] - g["s"]) <= win and spelled and len(u) > 4 and (u.endswith(t) or u.startswith(t) or t in u):
+            return True
+    return False
+
+
+def holes(words: list[dict], segs: list[tuple[float, float]], total: float) -> list[tuple[int, float, float]]:
+    """22/10/2026 (ניתוח המאגר): בחלון ארוך Parakeet מדלג לפעמים על משפט שלם — ב־Uber 28 מילים ב־0:35
+    ו־11 ב־1:53, באמצע קטע דיבור רציף. חור = בין שתי מילים סמוכות יש לפחות HOLE_S שניות של דיבור.
+    מחזיר (אינדקס המילה שאחריה החור, תחילה, סוף)."""
+    out = []
+    for i in range(len(words) + 1):
+        a = words[i - 1]["s"] + WORD_S if i > 0 else 0.0
+        b = words[i]["s"] if i < len(words) else total
+        if b - a < HOLE_S:
+            continue
+        sp = sum(max(0.0, min(e, b) - max(s, a)) for s, e in segs)
+        if sp >= HOLE_S or b - a >= QUIET_S:
+            k = max(1, int(-(-(b - a) // PIECE_S)))
+            step = (b - a) / k
+            out += [(i, a + j * step, a + (j + 1) * step) for j in range(k)]
+    return out
+
+
+def rescue(words: list[dict], found: list[tuple[int, float, float]], recog, total: float) -> int:
+    """תמלול חוזר של כל חור בחלון קצר משלו; נכנסות רק מילים שמתחילות בתוך החור. recog(a, b) → מילים."""
+    add: dict[int, list[dict]] = {}
+    for i, a, b in found:
+        prev = words[i - 1] if i > 0 else None
+        nxt = words[i] if i < len(words) else None
+        lo = max((prev["s"] + 0.05) if prev else 0.0, a if add.get(i) is not None else 0.0)
+        hi = (nxt["s"] - 0.05) if nxt else total
+        hi = min(hi, b) if b < hi - 0.5 else hi            # חלק שאינו האחרון — רק מה שמתחיל בתוכו
+        got = [w for w in recog(max(0.0, a - HOLE_PAD), min(total, b + HOLE_PAD)) if lo < w["s"] < hi]
+        near = [w for w in words[max(0, i - 6):i + 6]]      # בלי כפילויות: מה שכבר נשמע ליד החור ("slash slash", איות)
+        got = [g for g in got if not _dup(g, near)]
+        add.setdefault(i, [])
+        if got:
+            if nxt:
+                got[-1]["e"] = min(got[-1]["e"], nxt["s"])
+            add[i] += got
+    if not any(add.values()):
+        return 0
+    res = []
+    for i in range(len(words) + 1):
+        res += add.get(i, [])
+        if i < len(words):
+            res.append(words[i])
+    for i in range(len(res) - 1):                     # המילה שלפני החור נגמרת לפני המילה שנוספה
+        if res[i]["e"] > res[i + 1]["s"]:
+            res[i]["e"] = round(max(res[i]["s"] + 0.04, res[i + 1]["s"]), 3)
+    n = len(res) - len(words)
+    words[:] = res
+    return n
+
+
 def transcribe(wav_path: str, quantization: str | None = "int8", batch: int = 4) -> dict:
     import onnx_asr
     import soundfile as sf
@@ -94,5 +171,13 @@ def transcribe(wav_path: str, quantization: str | None = "int8", batch: int = 4)
         if (i // batch) % 10 == 0:
             done = part[-1][1] / sr
             log(f"  {done / 60:.1f}/{len(audio) / sr / 60:.1f} דק׳ ({time.time() - t0:.0f} שנ׳)")
+    total = len(audio) / sr
+    found = holes(words, [(a / sr, b / sr) for a, b in segs], total)
+    if found:
+        def recog(a: float, b: float) -> list[dict]:
+            r = model.recognize(audio[int(a * sr):int(b * sr)], sample_rate=16000)
+            return tokens_to_words(r.tokens, r.timestamps, a, b) if r.tokens else []
+        n = rescue(words, found, recog, total)
+        log(f"Parakeet: {len(found)} חורים בדיבור — תמלול חוזר החזיר {n} מילים")
     log(f"Parakeet הסתיים: {len(words)} מילים ב־{time.time() - t0:.0f} שניות")
     return {"engine": "parakeet", "model": MODEL, "language": "en", "words": words, "events": []}
