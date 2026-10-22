@@ -37,10 +37,14 @@ android {
         app("invest", "io.github.yishaiguedj1.snowball", "Invest", "invest.thesnowball.app", "#30D158")
         app("academy", "app.thesnowball.academy", "Academy", "academy.thesnowball.app", "#4699FF")
         app("studio", "app.thesnowball.studio", "Studio", "studio.thesnowball.app", "#FF4656")
+        // 22/10/2026: הבועה בדפדפן (שירות נגישות) — APK נפרד. Play Protect חוסם התקנה מחוץ לחנות של אפליקציה עם שירות
+        // נגישות, ובגללה Studio כולו לא הותקן; כך רק הבועה תלויה בזה. נגיעה בבועה = שיתוף ל־Studio
+        app("bubble", "app.thesnowball.bubble", "Studio Bubble", "studio.thesnowball.app", "#FF4656")
     }
     sourceSets {
         getByName("academy").java.srcDir("src/lite/java")
-        getByName("studio").java.srcDir("src/lite/java")
+        getByName("studio").java.srcDirs("src/lite/java", "src/grab/java")   // grab = VideoUrl (גם דפדפן הציד וגם הבועה)
+        getByName("bubble").java.srcDirs("src/lite/java", "src/grab/java")
     }
 
     signingConfigs {
@@ -80,8 +84,10 @@ dependencies {
     // בלי ווידג'ט: התוסף של Compose (בשביל Glance) רץ על כל הגרסאות ודורש את ה־runtime — אותה גרסה ש־Glance מביא
     "academyImplementation"("androidx.compose.runtime:runtime:1.7.8")
     "studioImplementation"("androidx.compose.runtime:runtime:1.7.8")
-    // 22/10/2026: בדיקות JVM של בועת ההורדה (VideoUrl) — gradle testStudioReleaseUnitTest (גם ב־android.yml)
+    // 22/10/2026: בדיקות JVM של דפדפן הציד (HuntMedia) והבועה (VideoUrl) — testStudio/testBubble ReleaseUnitTest (גם ב־android.yml)
+    "bubbleImplementation"("androidx.compose.runtime:runtime:1.7.8")
     "testStudioImplementation"("junit:junit:4.13.2")
+    "testBubbleImplementation"("junit:junit:4.13.2")
     // שלב 2: דפדפן הציד — סקריפט לפני הדף וערוץ הודעות (addDocumentStartJavaScript / addWebMessageListener)
     "studioImplementation"("androidx.webkit:webkit:1.14.0")
 }

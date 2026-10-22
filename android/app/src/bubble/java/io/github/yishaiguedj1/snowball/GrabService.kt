@@ -310,12 +310,11 @@ class GrabService : AccessibilityService() {
 
     private fun open(url: String) {
         hide()
-        val i = Intent(this, MainActivity::class.java)
-            .setAction(Intent.ACTION_SEND)
-            .setType("text/plain")
-            .putExtra(Intent.EXTRA_TEXT, url)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        try { startActivity(i) } catch (e: Exception) {}
+        // לאפליקציית Studio (הבועה ב־APK נפרד). Studio לא מותקנת — האתר שלה מכאן (אותו MainActivity, ‎#share=)
+        val i = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, url)
+            .setPackage(STUDIO_PKG).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try { startActivity(i); return } catch (e: Exception) {}
+        try { startActivity(Intent(i).setPackage(null).setClass(this, MainActivity::class.java)) } catch (e: Exception) {}
     }
 
     /** העיגול: אדום של Studio עם חץ הורדה לבן (מצויר — בלי קובצי תמונה) */
@@ -346,6 +345,7 @@ class GrabService : AccessibilityService() {
 
     companion object {
         const val PREFS = "grab"
+        const val STUDIO_PKG = "app.thesnowball.studio"
         const val KEY_ON = "on"
         private const val KEY_RIGHT = "right"
         private const val KEY_Y = "y"
