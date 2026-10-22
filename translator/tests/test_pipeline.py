@@ -1098,3 +1098,117 @@ class SoftOrder(unittest.TestCase):
             self.assertEqual(P.soft_cap(d), 160)
             (Path(d) / 'cues.en.json').write_text(json.dumps([{}] * 300))
             self.assertEqual(P.soft_cap(d), P.SOFT_MIN)
+
+
+class SubsFlow(unittest.TestCase):
+    """22/10/2026: קובץ כתוביות קיים — תדריך במקום הגהה, וסדר השלבים בלי תמלול/יישור/סרטון."""
+
+    def test_brief_subs(self):
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            pd = tmp / 'job'
+            pd.mkdir()
+            (pd / 'en.subs.txt').write_text('[0:00:06 Michael] Where were you last night?\n', encoding='utf-8')
+            (pd / 'project.json').write_text(json.dumps({'subs': {'names': ['Michael', 'Sarah']}}), encoding='utf-8')
+            ctx = Ctx(pd)
+
+            def h(kw):
+                return msg('=== BRIEF ===\nמייקל — גבר; שרה — אישה\n=== GLOSSARY ===\nGlenn Stearns\tגלן סטרנס\n=== QUESTIONS ===\n[]')
+            client = Client(h)
+            pl = P.Pipeline(ctx, FakeJ(pd), llm.Engine(llm.Spec.of('opus-medium'), client=client))
+            self.assertEqual(pl.brief_subs(), [])
+            body = client.calls[0]['messages'][0]['content']
+            self.assertIn('<subtitles>', body, 'הכתוביות = נתונים בתוך גבולות מסומנים')
+            self.assertIn('<speaker_labels>\nMichael, Sarah', body)
+            sysp = ''.join(b['text'] for b in client.calls[0]['system'])
+            self.assertNotIn('=== PATCH ===', sysp, 'בלי הגהה — הטקסט נכתב בידי אדם')
+            self.assertIn('מי פונה למי', sysp)
+            self.assertIn('מייקל — גבר', (pd / 'tr' / 'brief.md').read_text(encoding='utf-8'))
+            self.assertTrue((pd / 'tr' / 'glossary.tsv').read_text(encoding='utf-8').endswith('Glenn Stearns\tגלן סטרנס\n'))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def flow(self, ck, resumed, proofed=False):
+        log = []
+        state = {'job': 'j' + 'a' * 20, 'spec': {'mode': 'haiku-high', 'src': 'subs'}, 'ck': ck}
+
+        class J:
+            def load_state(self):
+                return state
+
+            def save_state(self, st):
+                pass
+
+            def restore(self, a):
+                log.append('restore')
+                state['resumed'], state['proofed'] = resumed, proofed
+                return 0
+
+            def prepare_subs(self, a):
+                log.append('prepare_subs')
+                return 0
+
+            def prepare(self, a):
+                log.append('prepare!')            # אסור — המסלול הרגיל
+                return 0
+
+            def subs_prep(self, ctx):
+                log.append('subs_prep')
+
+            def save_ck(self, ctx, s, extra=None):
+                log.append('ck:' + s + ('+pr' if (extra or {}).get('pr') else ''))
+
+            def finish(self, a):
+                log.append('finish')
+                return 0
+
+            def Ctx(self, st):
+                return NS(st=st, report=lambda *a, **k: None)
+
+        class Pl:
+            def __init__(self, ctx, j, eng):
+                self.ctx = ctx
+
+            def brief_subs(self):
+                log.append('brief')
+                return []
+
+            def proofread(self):
+                log.append('proofread!')
+                return []
+
+            def ask_late(self):
+                pass
+
+            def translate(self, fix=True, quiet=False):
+                log.append('translate')
+
+            def review(self):
+                log.append('review')
+                return 0, 0
+
+            def judge(self):
+                log.append('judge')
+
+            def save_usage(self):
+                pass
+
+        old = (P.Pipeline, P.llm.Engine)
+        P.Pipeline, P.llm.Engine = Pl, lambda spec, cap_usd=None: NS(ledger=NS(list=lambda: []))
+        try:
+            self.assertEqual(P.run_auto(J(), NS()), 0)
+        finally:
+            P.Pipeline, P.llm.Engine = old
+        return log
+
+    def test_fresh(self):
+        self.assertEqual(self.flow([], None), ['prepare_subs', 'brief', 'ck:asr+pr', 'subs_prep', 'ck:al', 'translate',
+                                               'ck:tl', 'review', 'judge', 'finish'])
+
+    def test_resume(self):
+        ck = [{'s': 'asr', 'id': 'x'}]
+        self.assertEqual(self.flow(ck, 'asr', proofed=True), ['restore', 'subs_prep', 'ck:al', 'translate', 'ck:tl', 'review', 'judge', 'finish'],
+                         'התדריך כבר שולם — לא שוב')
+        self.assertEqual(self.flow(ck, 'al'), ['restore', 'translate', 'ck:tl', 'review', 'judge', 'finish'])
+        self.assertEqual(self.flow(ck, 'tl'), ['restore', 'review', 'judge', 'finish'])
+        self.assertEqual(self.flow(ck, 'rv'), ['restore', 'finish'])
