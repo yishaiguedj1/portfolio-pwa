@@ -216,6 +216,9 @@ def ctc_align(words: list[dict], wav_path: str, cache: str | None = None) -> dic
     return {"windows": len(plan), "aligned": ok, "seconds": round(time.time() - t0, 1)}
 
 
+CTC_DRIFT_S = 1.5
+
+
 def consensus(words: list[dict]) -> dict:
     """זמן סופי לכל מילה: חציון של המקורות הזמינים (Qwen, ‏CTC, תמלול).
 
@@ -237,9 +240,6 @@ def consensus(words: list[dict]) -> dict:
         es = [x for x in (w.get("e_qwen"), w.get("e_ctc"), e_asr) if x is not None]
         if not ss:
             continue
-        if len(ss) == 3:
-            s = statistics.median(ss)
-            st["median3"] += 1
         pick = None                        # מקור אחד שנבחר — גם הסוף ממנו
         if len(ss) == 3:
             s = statistics.median(ss)
@@ -249,6 +249,10 @@ def consensus(words: list[dict]) -> dict:
                 s = sum(ss) / 2
             else:
                 pick = "ctc" if w.get("s_ctc") is not None else ("qwen" if w.get("s_qwen") is not None else "asr")
+                # 22/10/2026 (ניתוח המאגר מול תמלול ייחוס): בפער של עד שנייה CTC מדויק יותר, אבל בפער גדול הוא
+                # "נמשך" לדיבור שלא תומלל (Uber 1:53 — 4 שנ׳ מוקדם): מעל CTC_DRIFT_S נכון ה־ASR ב־20 מתוך 21.
+                if pick == "ctc" and w.get("s_asr") is not None and abs(w["s_ctc"] - w["s_asr"]) > CTC_DRIFT_S:
+                    pick = "asr"
                 s = w.get("s_" + pick)
             st["two"] += 1
         else:

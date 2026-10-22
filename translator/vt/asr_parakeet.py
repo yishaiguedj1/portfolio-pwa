@@ -67,6 +67,66 @@ def tokens_to_words(tokens: list[str], ts: list[float], offset: float, chunk_end
     return [w for w in words if w["w"] and w["w"] not in {",", "."}]
 
 
+HOLE_S = 1.2      # דיבור (לפי Silero) בלי אף מילה — חור
+HOLE_PAD = 2.0    # שוליים לחלון התמלול החוזר
+WORD_S = 0.6      # כמה זמן "תופסת" מילה כשאין לה סוף אמיתי
+
+
+def _norm(w: str) -> str:
+    return "".join(c for c in w.lower() if c.isalnum())
+
+
+def holes(words: list[dict], segs: list[tuple[float, float]], total: float) -> list[tuple[int, float, float]]:
+    """22/10/2026 (ניתוח המאגר): בחלון ארוך Parakeet מדלג לפעמים על משפט שלם — ב־Uber 28 מילים ב־0:35
+    ו־11 ב־1:53, באמצע קטע דיבור רציף. חור = בין שתי מילים סמוכות יש לפחות HOLE_S שניות של דיבור.
+    מחזיר (אינדקס המילה שאחריה החור, תחילה, סוף)."""
+    out = []
+    for i in range(len(words) + 1):
+        a = words[i - 1]["s"] + WORD_S if i > 0 else 0.0
+        b = words[i]["s"] if i < len(words) else total
+        if b - a < HOLE_S:
+            continue
+        sp = sum(max(0.0, min(e, b) - max(s, a)) for s, e in segs)
+        if sp >= HOLE_S:
+            out.append((i, a, b))
+    return out
+
+
+def rescue(words: list[dict], found: list[tuple[int, float, float]], recog, total: float) -> int:
+    """תמלול חוזר של כל חור בחלון קצר משלו; נכנסות רק מילים שמתחילות בתוך החור. recog(a, b) → מילים."""
+    add: dict[int, list[dict]] = {}
+    for i, a, b in found:
+        prev = words[i - 1] if i > 0 else None
+        nxt = words[i] if i < len(words) else None
+        lo = (prev["s"] + 0.05) if prev else 0.0
+        hi = (nxt["s"] - 0.05) if nxt else total
+        got = [w for w in recog(max(0.0, a - HOLE_PAD), min(total, b + HOLE_PAD)) if lo < w["s"] < hi]
+        if prev:                                      # אותה מילה שכבר נשמעה לפני החור ("slash slash", "W-I-S-P… i s p")
+            pv = _norm(prev["w"])
+            while got and (_norm(got[0]["w"]) == pv or (pv.endswith(_norm(got[0]["w"])) and len(pv) > 4)
+                           or (len(_norm(got[0]["w"])) == 1 and len(pv) > 4 and _norm(got[0]["w"]) in pv)):
+                got = got[1:]
+        if got and nxt and _norm(got[-1]["w"]) == _norm(nxt["w"]):
+            got = got[:-1]
+        if got:
+            if nxt:
+                got[-1]["e"] = min(got[-1]["e"], nxt["s"])
+            add[i] = got
+    if not add:
+        return 0
+    res = []
+    for i in range(len(words) + 1):
+        res += add.get(i, [])
+        if i < len(words):
+            res.append(words[i])
+    for i in range(len(res) - 1):                     # המילה שלפני החור נגמרת לפני המילה שנוספה
+        if res[i]["e"] > res[i + 1]["s"]:
+            res[i]["e"] = round(max(res[i]["s"] + 0.04, res[i + 1]["s"]), 3)
+    n = len(res) - len(words)
+    words[:] = res
+    return n
+
+
 def transcribe(wav_path: str, quantization: str | None = "int8", batch: int = 4) -> dict:
     import onnx_asr
     import soundfile as sf
@@ -94,5 +154,13 @@ def transcribe(wav_path: str, quantization: str | None = "int8", batch: int = 4)
         if (i // batch) % 10 == 0:
             done = part[-1][1] / sr
             log(f"  {done / 60:.1f}/{len(audio) / sr / 60:.1f} דק׳ ({time.time() - t0:.0f} שנ׳)")
+    total = len(audio) / sr
+    found = holes(words, [(a / sr, b / sr) for a, b in segs], total)
+    if found:
+        def recog(a: float, b: float) -> list[dict]:
+            r = model.recognize(audio[int(a * sr):int(b * sr)], sample_rate=16000)
+            return tokens_to_words(r.tokens, r.timestamps, a, b) if r.tokens else []
+        n = rescue(words, found, recog, total)
+        log(f"Parakeet: {len(found)} חורים בדיבור — תמלול חוזר החזיר {n} מילים")
     log(f"Parakeet הסתיים: {len(words)} מילים ב־{time.time() - t0:.0f} שניות")
     return {"engine": "parakeet", "model": MODEL, "language": "en", "words": words, "events": []}
