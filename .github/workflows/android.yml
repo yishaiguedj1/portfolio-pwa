@@ -62,7 +62,7 @@ jobs:
           SNOWBALL_KS_PASS: ${{ secrets.SNOWBALL_KS_PASS }}
           SNOWBALL_VERSION_CODE: ${{ github.run_number }}
           SNOWBALL_VERSION_NAME: 1.0.${{ github.run_number }}
-        run: gradle --no-daemon assembleRelease
+        run: gradle --no-daemon assembleRelease testStudioReleaseUnitTest
       - name: Rename
         run: |
           cp android/app/build/outputs/apk/invest/release/app-invest-release.apk the-snowball.apk

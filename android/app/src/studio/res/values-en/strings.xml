@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="grabLabel">Download bubble in the browser</string>
+    <string name="grabDesc">When you open a video in the browser (Chrome, Samsung, Firefox, Edge and more), a small bubble appears at the edge of the screen. Tap it and the video goes to Studio for translation — without downloading it to the phone.\n\nWhat is read: only the browser\'s address bar, and only to tell whether the page is a video. Nothing is stored and nothing is sent — until you tap the bubble, and then only the link is sent.\n\nTo pause it: the "Download bubble" tile in Quick Settings.</string>
+    <string name="grabHint">Download to Studio</string>
+    <string name="grabBubble">Send this video to Studio</string>
+    <string name="grabNoVideo">No video found on this page</string>
+    <string name="grabTile">Download bubble</string>
+    <string name="grabTileOff">Off</string>
+    <string name="grabTileOn">On</string>
+    <string name="grabTileSetup">Set up</string>
+</resources>

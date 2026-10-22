@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 22/10/2026: רק דפדפנים (packageNames) ורק שני סוגי אירועים. canRetrieveWindowContent — כדי לקרוא את שורת
+     הכתובת (flagReportViewIds = לפי המזהה שלה). isAccessibilityTool=false — בכנות: זה לא כלי נגישות. -->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/grabDesc"
+    android:summary="@string/grabHint"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagReportViewIds"
+    android:canRetrieveWindowContent="true"
+    android:isAccessibilityTool="false"
+    android:notificationTimeout="300"
+    android:packageNames="com.android.chrome,com.chrome.beta,com.chrome.dev,com.chrome.canary,com.sec.android.app.sbrowser,com.sec.android.app.sbrowser.beta,org.mozilla.firefox,org.mozilla.firefox_beta,org.mozilla.fenix,com.microsoft.emmx,com.brave.browser,com.opera.browser,com.opera.mini.native,com.vivaldi.browser,com.duckduckgo.mobile.android,com.kiwibrowser.browser,com.mi.globalbrowser,com.heytap.browser,com.android.browser" />

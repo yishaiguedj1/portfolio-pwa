@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Studio בלבד (22/10/2026): בועת ההורדה בדפדפן (GrabService) והאריח בהגדרות המהירות (GrabTile) -->
+<resources>
+    <string name="grabLabel">בועת הורדה בדפדפן</string>
+    <!-- מוצג במסך הנגישות של המכשיר, מתחת למתג — חייב לומר בדיוק מה נקרא -->
+    <string name="grabDesc">כשפותחים סרטון בדפדפן (Chrome, Samsung, Firefox, Edge ועוד), מופיעה בועה קטנה בצד המסך. נגיעה בה — והסרטון נשלח לתרגום ב־Studio, בלי להוריד אותו לטלפון.\n\nמה נקרא: רק שורת הכתובת של הדפדפן, ורק כדי לדעת אם זה דף של סרטון. שום דבר לא נשמר ושום דבר לא נשלח — עד שנוגעים בבועה, ואז נשלח רק הקישור.\n\nלכיבוי זמני: האריח "בועת הורדה" בהגדרות המהירות.</string>
+    <string name="grabHint">הורדה ל־Studio</string>
+    <string name="grabBubble">שליחת הסרטון ל־Studio</string>
+    <string name="grabNoVideo">לא מצאתי סרטון בדף הזה</string>
+    <string name="grabTile">בועת הורדה</string>
+    <string name="grabTileOff">כבויה</string>
+    <string name="grabTileOn">פועלת</string>
+    <string name="grabTileSetup">להפעלה</string>
+</resources>

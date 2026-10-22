@@ -929,3 +929,8 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-lk-dash { padding-bottom: 12px; color: var(--st-ter); }
 .st-help .st-l small { font-size: 14px; line-height: 1.45; }
 @media (prefers-reduced-motion: reduce) { .st-lk-rec:active, .st-lk-q:active, .st-lk-paste:active { transform: none; } }
+/* 22/10/2026 — בועת ההורדה בדפדפן (pageGrab): שלבים ממוספרים עם כפתור קטן בצד */
+.st-btn.sm { min-height: 36px; padding: 7px 14px; font-size: 14px; flex: none; }
+.st-grab-st { align-items: center; }
+.st-grab-n { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--pill); background: var(--primary-container); color: var(--on-primary-container); font-weight: 700; font-size: 15px; }
+.st-grab-col { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }

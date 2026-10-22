@@ -1719,7 +1719,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 }
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
-  if ((v === 'lang' && p !== 'def') || v === 'tracks' || v === 'link' || v === 'linkfmt' || v === 'linksec' || v === 'fmthelp' || v === 'cutsrc') { v = 'new'; p = null; }   // הטופס (והקובץ) לא שורדים רענון
+  if ((v === 'lang' && p !== 'def') || v === 'tracks' || v === 'link' || v === 'linkfmt' || v === 'linksec' || v === 'fmthelp' || v === 'grab' || v === 'cutsrc') { v = 'new'; p = null; }   // הטופס (והקובץ) לא שורדים רענון
   const parent = (x, y) => (x === 'home' ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : (x === 'lang' || x === 'tower' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'towerx' || x === 'rlb' || x === 'rlm' ? ['tower', null] : x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['towerx', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
@@ -1808,7 +1808,7 @@ function onPop(e) {
    עמודים ראשיים = הבית ← מגדל הפיקוח ← הגדרות (כמו הלשוניות וההגדרות ב־Invest); בעמוד משנה — החלקה אחורה = "חזור"
    (כמו האפשרויות המתקדמות ב־Invest). בלי "החלקה קצרה" לטאבים (בקשת המשתמש) — פרטים · ציר · קשורות רק בלחיצה */
 const ST_SIB = ['home', 'tower', 'settings'];
-const ST_NOSWIPE = ['play', 'subs', 'cut', 'cutsrc', 'tracks', 'link', 'linkfmt', 'linksec', 'fmthelp', 'sty', 'ov', 'new', 'edit', 'lang', 'connect', 'ai', 'rr'];   // עורכים, נגן וטפסים — בלי
+const ST_NOSWIPE = ['play', 'subs', 'cut', 'cutsrc', 'tracks', 'link', 'linkfmt', 'linksec', 'fmthelp', 'grab', 'sty', 'ov', 'new', 'edit', 'lang', 'connect', 'ai', 'rr'];   // עורכים, נגן וטפסים — בלי
 const ST_TAB_KEYS = ['d', 't', 'r'];
 let swipePop = 0;
 function stSibOk() {              // דף ראשי שהבית נמצא ישר מתחתיו
@@ -3001,6 +3001,7 @@ function pageLink(p) {
     p.append(secT(T('studioLinkHowT')), list(
       rowTxtRow('share', 'blue', T('studioLinkHow1'), T('studioLinkHow1S')),
       rowTxtRow('clip', 'teal', T('studioLinkHow2'), T('studioLinkHow2S')),
+      grabOk() ? rowNav({ tile: tile('spark', 'red'), label: T('studioGrabT'), sub: T('studioGrabS'), onClick: () => go('grab'), k: 'grab' }) : null,
       rowNav({ tile: tile('help', 'gray'), label: T('studioFmtHelpT'), sub: T('studioFmtHelpS'), onClick: () => go('fmthelp'), k: 'fmthelp' })));
     return;
   }
@@ -3049,6 +3050,35 @@ function pageLink(p) {
   const go2 = btn('st-btn wide', T('studioLinkAdd'), () => { f.linkOk = true; back(); }, 'link-add2');
   go2.disabled = !L.v;
   p.append(h('div', 'st-gap'), go2);
+}
+/* שלב 1.5 (22/10/2026): בועת ההורדה בדפדפן — רק באפליקציית Studio לאנדרואיד (GrabService ב־APK). האתר לא יודע אם
+   השירות כבר פועל, לכן העמוד רק מסביר ופותח את ההגדרות (GrabSetupActivity: s=app — פרטי האפליקציה, אחרת — נגישות) */
+function grabOk() {
+  try { return typeof inApk === 'function' && inApk() && /Android/i.test(navigator.userAgent); } catch (e) { return false; }
+}
+const GRAB_PKG = 'app.thesnowball.studio';
+function grabOpen(s) {
+  location.href = 'intent://grab?s=' + s + '#Intent;scheme=snbstudio;package=' + GRAB_PKG + ';end';
+}
+function pageGrab(p) {
+  p.append(navBar({ back: T('studioLinkT'), title: T('studioGrabT') }));
+  p.append(note(T('studioGrabIntro')));
+  const step = (n, label, sub, act, below) => {
+    const r = h('div', 'st-row st-ric st-grab-st');
+    const num = h('span', 'st-grab-n', String(n)), txt = rowTxt(label, sub);
+    if (act && below) { const col = h('span', 'st-grab-col'); col.append(txt, act); r.append(num, col); }
+    else { r.append(num, txt); if (act) r.append(act); }
+    return r;
+  };
+  p.append(secT(T('studioGrabHowT')), list(
+    step(1, T('studioGrab1'), T('studioGrab1S'), btn('st-btn sm tint', T('studioGrabOpen'), () => grabOpen('a11y'), 'grab-a11y')),
+    step(2, T('studioGrab2'), T('studioGrab2S')),
+    step(3, T('studioGrab3'), T('studioGrab3S'))));
+  p.append(secT(T('studioGrabGreyT')), list(
+    step('!', T('studioGrabGrey'), T('studioGrabGreyS'), btn('st-btn sm tint', T('studioGrabOpenApp'), () => grabOpen('app'), 'grab-app'), true)));
+  p.append(secT(T('studioGrabPrivT')), list(
+    rowTxtRow('shield', 'gray', T('studioGrabPriv1'), T('studioGrabPriv1S')),
+    rowTxtRow('alert', 'gray', T('studioGrabPriv2'), T('studioGrabPriv2S'))));
 }
 function rowTxtRow(icon, color, label, sub) {
   const r = h('div', 'st-row st-ric'); r.append(tile(icon, color), rowTxt(label, sub)); return r;
@@ -7191,6 +7221,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'linkfmt') pageLinkFmt(p);
   else if (ui.view === 'linksec') pageLinkSec(p);
   else if (ui.view === 'fmthelp') pageFmtHelp(p);
+  else if (ui.view === 'grab') pageGrab(p);
   else if (ui.view === 'settings') pageSettings(p);
   else if (ui.view === 'eng') pageEng(p);             // 13/10/2026: עמודי המשנה של ההגדרות
   else if (ui.view === 'defs') pageDefs(p);
