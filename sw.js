@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v481';
+const CACHE_NAME = 'portfolio-pwa-v482';
 const HASHES = {
   "./": "2dc9c89cee293d86a4de945e5e0fb5a6",
   "./index.html": "2dc9c89cee293d86a4de945e5e0fb5a6",
   "./styles.css": "1f578fd7c392342171dbdf3870a4f718",
-  "./app.js": "5c8c7ca94ec7a081c13b0e3b25bd5722",
+  "./app.js": "8342b5611c361eea8c44d2ae7a2898c1",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "39bf52f7bb220ecf474e77b2572386d3",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -57,8 +57,8 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "e7f536140456bdf6163ff1f094fcfec2",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
-  "./strings-academy.js": "99e3c7e5673acf9dff43e6db5326bd6c",
-  "./core.js": "3f5044d32bf6feec6f8e3513f427b734",
+  "./strings-academy.js": "45b5660b5b4474b98373f7704a0b547f",
+  "./core.js": "046aeeadefd373cd7ac00682fe6c2072",
   "./auth.js": "556d7250a03993819af63e6ade4382b1",
   "./shell.js": "76e0a41a1583a981587d8c8f44e77b94",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -67,7 +67,7 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "d3f61f8a118a5c8c30074f2347333977",
+  "./studio.js": "813d8f97bfb85e70a3611565f7f1bf4c",
   "./studio.css": "7fb38a71350efeeb7c26809316cff6f1",
   "./studionet.js": "aa8bbf2c834dee5fb4862e0732912fac",
   "./studioplay.js": "90d90fae48ace88072f37b496ab46ab7",
@@ -77,8 +77,8 @@ const HASHES = {
   "./studioai.js": "e0a43e7a48c70e3bf5028813acebbf3e",
   "./studiostore.js": "633c4083aebf82cdc389813e65ecee16",
   "./studio.html": "e797e443dfa76398884be3d9f012d250",
-  "./studio-app.js": "405b1b079eef6b915814d24ee503b2b0",
-  "./strings-studio.js": "3a90ad37ac1ac3eed94832c9b980c64d",
+  "./studio-app.js": "bc7c8517875b069cf81caf3bdf977486",
+  "./strings-studio.js": "03117fa200ca77b655aef32e7fc66418",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
@@ -263,8 +263,35 @@ async function mediaFetch(event, id) {
   return new Response('', { status: 401 });
 }
 
+/* 22/10/2026 (בקשת המשתמש: "כל ההורדות מקומית למכשיר"): סרטון ששותף ל־Studio — מההורדה בטלפון (DlActivity) או מהגלריה.
+   Studio לאנדרואיד פותח את האתר עם הקובץ (Web Share Target): Chrome שולח POST ל־/share-file. שומרים את הקובץ ב־IndexedDB
+   (snb-inbox — מסד קטן משלו, בלי תלות בגרסה של snb-studio) ומעבירים לדף עם ‎#got=<מפתח> (studio.js → studioGot) */
+const SHARE_RE = /\/share-file$/;
+async function shareFile(request) {
+  let key = '';
+  try {
+    const fd = await request.formData();
+    const f = fd.get('video'), t = String(fd.get('text') || '').slice(0, 200);
+    if (f && typeof f === 'object' && f.size > 0 && /^video\//.test(f.type || 'video/')) {
+      key = Array.from(self.crypto.getRandomValues(new Uint8Array(12)), (b) => 'abcdefghijkmnpqrstuvwxyz23456789'[b % 32]).join('');
+      await new Promise((ok, no) => {
+        const r = indexedDB.open('snb-inbox', 1);
+        r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains('f')) r.result.createObjectStore('f'); };
+        r.onerror = () => no(r.error);
+        r.onsuccess = () => {
+          const tx = r.result.transaction('f', 'readwrite');
+          tx.objectStore('f').put({ f, t, at: Date.now() }, key);
+          tx.oncomplete = () => ok(); tx.onerror = () => no(tx.error);
+        };
+      });
+    }
+  } catch (e) { key = ''; }
+  return Response.redirect(new URL('./' + (key ? '#got=' + key : ''), self.registration.scope).href, 303);
+}
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+  if (!NO_SW && request.method === 'POST' && SHARE_RE.test(new URL(request.url).pathname)) { event.respondWith(shareFile(request)); return; }
   if (NO_SW || request.method !== 'GET') return;
 
   const url = new URL(request.url);

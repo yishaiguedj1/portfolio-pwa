@@ -1,0 +1,92 @@
+// 22/10/2026 (בקשת המשתמש: "כל ההורדות של מנהל ההורדות תמיד מקומית למכשיר, לא לשרת"): הבדיקה וההורדה בטלפון.
+// האתר ↔ Studio לאנדרואיד (DlActivity) ↔ sw.js (/share-file). כל צד משתמש באותם שמות — שינוי באחד = גם בשני.
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+const assert = require('assert');
+const R = (p) => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
+let n = 0;
+const ok = (c, m) => { assert.ok(c, m); n++; };
+
+const st = R('studio.js'), sapp = R('studio-app.js'), sw = R('sw.js');
+const K = 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/';
+const act = R(K + 'DlActivity.kt'), eng = R(K + 'DlEngine.kt'), svc = R(K + 'DlService.kt'), probe = R(K + 'DlProbe.kt');
+const main = R('android/app/src/main/java/io/github/yishaiguedj1/snowball/MainActivity.kt');
+const man = R('android/app/src/studio/AndroidManifest.xml');
+
+// 1. בלי השרת: האתר לא מבקש בדיקה/הורדה מהשרתון
+ok(!/urlProbe/.test(st) && !/src: 'url'/.test(st), 'studio.js לא פונה לשרת להורדה מקישור (urlProbe / src:url)');
+ok(/if \(!devDl\(\)\) \{ L\.st = 'err'; L\.e = 'app'/.test(st) && /const linkRow = devDl\(\) \?/.test(st), 'בלי האפליקציה — הסבר, לא שרת');
+
+// 2. הכתובות לאפליקציה = מה ש־DlActivity מקבלת
+ok(/'intent:\/\/' \+ kind \+ '\?' \+ qs \+ '#Intent;scheme=snbstudio;package=' \+ DL_PKG/.test(st) && /DL_PKG = 'app\.thesnowball\.studio'/.test(st), 'intent://probe|dl לחבילה של Studio');
+ok(/android:host="probe"/.test(man) && /android:host="dl"/.test(man) && /\.DlActivity/.test(man), 'DlActivity מקבלת probe ו־dl');
+for (const k of ['u', 'ref', 'n']) ok(new RegExp('getQueryParameter\\("' + k + '"\\)').test(act), 'DlActivity קוראת ' + k);
+for (const k of ['v', 'a', 'h', 's0', 's1', 't']) ok(new RegExp('getQueryParameter\\("' + k + '"\\)|num\\("' + k + '"\\)').test(act) && new RegExp('[{ ]' + k + ':').test(st.slice(st.indexOf("dlIntent('dl'"), st.indexOf("dlIntent('dl'") + 400)), 'הורדה: ' + k + ' בשני הצדדים');
+ok(/"#probe=\$nonce\." \+ DlEngine\.b64/.test(act) && /"#probe=\$nonce\.!"/.test(act) && /hashArg\('probe'/.test(sapp) && /studioProbeRes\(pr\)/.test(sapp), 'תוצאת הבדיקה חוזרת ב־‎#probe=');
+ok(/"#dle=" \+ id \+ "\." \+ code/.test(svc) && /hashArg\('dle'/.test(sapp), 'שגיאת הורדה חוזרת ב־‎#dle=');
+ok(/\^\[A-Za-z0-9\]\{6,24\}\$/.test(act) && /\[A-Za-z0-9\]\{6,24\}/.test(st), 'אותו פורמט מזהה (nonce) בשני הצדדים');
+
+// 3. הקובץ חוזר: MainActivity → Chrome POST ‎/share-file (name=video, text) → sw.js → ‎#got=
+ok(/getString\(R\.string\.launchUrl\) \+ "share-file"/.test(main) && /FileFormField\("video"/.test(main) && /Params\(null, "text"/.test(main), 'MainActivity: share target ‎/share-file עם video + text');
+ok(/SHARE_RE = \/\\\/share-file\$\//.test(sw) && /fd\.get\('video'\)/.test(sw) && /fd\.get\('text'\)/.test(sw), 'sw.js מקבל את אותם שדות');
+ok(/putExtra\(Intent\.EXTRA_TEXT, "snbdl:\$id"\)/.test(svc) && /\^snbdl:\//.test(st), 'snbdl:<מזהה> — הקובץ שייך להורדה שהתחילה בדף');
+ok(/<data android:mimeType="video\/\*" \/>/.test(man), 'Studio מקבל סרטון בשיתוף (גם מהגלריה)');
+ok(/RELATIVE_PATH, "Movies\/Studio"/.test(eng), 'נשמר ב־Movies/Studio (גלוי)');
+
+// 4. sw.js — הרצה ב־vm: POST עם קובץ → IndexedDB + הפניה ל־‎#got=
+{
+  const a = sw.indexOf('const SHARE_RE'), b = sw.indexOf("self.addEventListener('fetch'");
+  const store = new Map();
+  const idb = { open: () => { const r = { result: { objectStoreNames: { contains: () => true }, createObjectStore() {},
+    transaction: () => { const tx = { objectStore: () => ({ put: (v, k) => { store.set(k, v); setTimeout(() => tx.oncomplete && tx.oncomplete()); } }) }; return tx; } } };
+    setTimeout(() => r.onsuccess && r.onsuccess()); return r; } };
+  const ctx = { indexedDB: idb, URL, Uint8Array, Array, String, Promise, setTimeout,
+    self: { crypto: require('crypto').webcrypto, registration: { scope: 'https://studio.thesnowball.app/' } },
+    Response: { redirect: (u, s) => ({ u, s }) } };
+  vm.createContext(ctx);
+  vm.runInContext(sw.slice(a, b) + '\nthis.shareFile = shareFile; this.SHARE_RE = SHARE_RE;', ctx);
+  const file = { size: 10, type: 'video/mp4', name: 'x.mp4' };
+  const req = (f, t) => ({ formData: async () => ({ get: (k) => (k === 'video' ? f : k === 'text' ? t : null) }) });
+  (async () => {
+    const r1 = await ctx.shareFile(req(file, 'snbdl:abc123def'));
+    const key = /#got=([a-z0-9]{12})$/.exec(r1.u);
+    ok(r1.s === 303 && key && store.get(key[1]).f === file && store.get(key[1]).t === 'snbdl:abc123def', 'sw.js: הקובץ נשמר ומפנה ל־‎#got=');
+    const r2 = await ctx.shareFile(req({ size: 5, type: 'text/html' }, ''));
+    ok(r2.u === 'https://studio.thesnowball.app/' && store.size === 1, 'sw.js: לא סרטון — בלי שמירה');
+    ok(ctx.SHARE_RE.test('/share-file') && !ctx.SHARE_RE.test('/share-file/x'), 'הנתיב');
+    done();
+  })().catch((e) => { console.error(e); process.exit(1); });
+}
+
+// 5. normDevProbe / b64uText — טקסט מאתר חיצוני, רק בצורה הצפויה
+function done() {
+  const grab = (name) => { const a = st.indexOf('export function ' + name); const b = st.indexOf('\n}\n', a) + 2; return st.slice(a, b).replace(/^export /, ''); };
+  const c = {};
+  vm.createContext(Object.assign(c, { atob, TextDecoder, Uint8Array, Math, Number, String, Array, JSON }));
+  vm.runInContext(grab('b64uText') + grab('normDevProbe') + '\nthis.b = b64uText; this.N = normDevProbe;', c);
+  const raw = { t: 'שלום <b>x</b>', u: 'javascript:alert(1)', s: 'Youtube', up: 'ערוץ', d: 61.6, ud: '2026x', lang: 'he',
+    ch: [[0, 'פתיחה'], ['x', 5], [70, 'סוף']], sub: [{ l: 'he', n: 'עברית', a: 0 }], rec: 1080,
+    q: [{ h: 1080, v: '399', a: '251', c: 'av1', ac: 'opus', fps: 30, hdr: 0, sz: 1e8 }, { h: 720, v: 'bad id', a: '' }],
+    ao: { id: '251', ac: 'opus', br: 135, sz: 9e6 }, th: 'data:image/png;base64,AAAA' };
+  const b64 = Buffer.from(JSON.stringify(raw)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const r = c.N(JSON.parse(c.b(b64)));
+  ok(r.t === 'שלום <b>x</b>' && r.u === '' && r.th === '' && r.ud === '' && r.d === 62, 'normDevProbe: קישור לא http, תמונה לא JPEG ותאריך שבור — נזרקים');
+  ok(r.q.length === 1 && r.q[0].v === '399' && r.ch.length === 2 && r.ao.id === '251', 'normDevProbe: רק איכויות/פרקים תקינים');
+  ok(c.N({ t: 'x', q: [] }) === null && c.N(null) === null && c.N({ q: [{ v: '1' }] }) === null, 'normDevProbe: בלי איכויות — כלום');
+  ok(/r\.th \? '\./.test('') || /th\.style\.backgroundImage = 'url\("' \+ r\.th \+ '"\)'/.test(st), 'התמונה מוצגת רק כ־data: מבודק');
+
+  // 6. האפליקציה: yt-dlp בטלפון, מתעדכן לבד; DlProbe = fetchurl (בדיקת JVM — DlProbeTest)
+  const g = R('android/app/build.gradle.kts');
+  ok(/"studioImplementation"\("io\.github\.junkfood02\.youtubedl-android:library:/.test(g) && /minSdk = 29/.test(g) && /abiFilters \+= "arm64-v8a"/.test(g), 'gradle: yt-dlp רק ב־Studio, arm64, Android 10+');
+  ok(/updateYoutubeDL\(ctx\.applicationContext, YoutubeDL\.UpdateChannel\.NIGHTLY\)/.test(eng), 'yt-dlp מתעדכן מתוך האפליקציה');
+  ok(fs.existsSync(path.join(__dirname, '..', 'android/app/src/testStudio/java/io/github/yishaiguedj1/snowball/DlProbeTest.kt')), 'DlProbeTest קיים (רץ ב־android.yml)');
+  // ERR_RULES — אותם קודים ואותו סדר כמו fetchurl.py
+  const py = R('translator/fetchurl.py');
+  const codesPy = [...py.slice(py.indexOf('ERR_RULES = ('), py.indexOf('def err_code')).matchAll(/\('(\w+)', re\.compile/g)].map((m) => m[1]);
+  const codesKt = [...probe.slice(probe.indexOf('private val ERR'), probe.indexOf('fun errCode')).matchAll(/"(\w+)" to Regex/g)].map((m) => m[1]);
+  assert.deepStrictEqual(codesKt, codesPy); n++;
+  for (const k of ['studioLinkEApp', 'studioLinkDlWait', 'studioLinkGot', 'studioLinkEStore', 'studioLinkFailT'])
+    ok((R('app.js').match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, k + ' בעברית ובאנגלית');
+  console.log('studio-devdl: ' + n + ' בדיקות עברו');
+}

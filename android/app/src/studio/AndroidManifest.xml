@@ -4,12 +4,23 @@
      שלב 2: דפדפן הציד (HuntActivity). הבועה (שירות נגישות) — ב־APK נפרד, Studio Bubble (src/bubble): Play Protect חוסם
      התקנה מחוץ לחנות של אפליקציה שמבקשת שירות נגישות, ובגללה Studio כולו לא הותקן (22/10/2026). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application>
+    <!-- 22/10/2026: ההורדה בטלפון (כל ההורדות מקומיות — בקשת המשתמש): שירות בחזית עם התראה (כמו מנהל הורדות) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- youtubedl-android מריץ את הפייתון מתיקיית הספריות — חייב לחלץ אותן (README שלה) -->
+    <application android:extractNativeLibs="true">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter android:label="@string/app_name">
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
+            </intent-filter>
+            <!-- סרטון מהגלריה / מההורדה בטלפון (DlState.handoffIntent) → האתר מקבל את הקובץ (/share-file ב־sw.js) -->
+            <intent-filter android:label="@string/app_name">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="video/*" />
             </intent-filter>
             <!-- לחיצה ארוכה על האייקון: "דפדפן ציד" -->
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
@@ -30,5 +41,26 @@
                 <data android:scheme="snbstudio" android:host="hunt" />
             </intent-filter>
         </activity>
+
+        <!-- ההורדה בטלפון: מהאתר (intent://probe|dl?…#Intent;scheme=snbstudio;…). חלון קטן מעל Studio -->
+        <activity
+            android:name=".DlActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:excludeFromRecents="true"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode"
+            android:theme="@style/DlTheme">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="snbstudio" android:host="probe" />
+                <data android:scheme="snbstudio" android:host="dl" />
+            </intent-filter>
+        </activity>
+        <service
+            android:name=".DlService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
     </application>
 </manifest>
