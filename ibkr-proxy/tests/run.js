@@ -3323,6 +3323,30 @@ function stubFetch(text, status = 200) {
       await run({ op: 'remove', idToken: OWNER, job: JL });
     }
     {
+      // 22/10/2026: עבודה "רצה" אצל שרת שמדווח שאין אצלו אף עבודה (nj = 0) — יתומה (הבאג של AUTO_KINDS: הפקה מחדש נלקחה ולא רצה)
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPECA });
+      const JO = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: JO, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'file', idToken: OWNER, job: JO, which: 'v', id: 'vid1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JO });
+      rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+      const KO = rr.payload.job && rr.payload.job.key;
+      await wrk({ op: 'claim', job: JO, key: KO });
+      await srvRun({ op: 'poll', hb: { nj: 0 } }, STOK);
+      ok(db.get('studioJobs/' + JO).fields.state.stringValue === 'running', 'יתומה: נלקחה ממש עכשיו — עוד לא (ORPHAN_MS)');
+      { const fj = db.get('studioJobs/' + JO).fields; fj.pk = { integerValue: String(Number(fj.claimed.integerValue) - 4 * 60 * 1000) }; }   // השעון של הבדיקות
+      await srvRun({ op: 'poll', hb: { nj: 1 } }, STOK);
+      ok(db.get('studioJobs/' + JO).fields.state.stringValue === 'running', 'יתומה: השרת מדווח שיש אצלו עבודה — לא נוגעים');
+      await srvRun({ op: 'poll', hb: {} }, STOK);
+      ok(db.get('studioJobs/' + JO).fields.state.stringValue === 'running', 'יתומה: סוכן ישן (בלי nj) — לא נוגעים');
+      await srvRun({ op: 'poll', hb: { nj: 0 } }, STOK);
+      const fo = db.get('studioJobs/' + JO).fields;
+      ok(fo.state.stringValue === 'failed' && fo.err.stringValue === 'worker_lost' && !fo.kh.stringValue,
+        'יתומה: שרת פנוי ועבודה "רצה" אצלו מעל 3 דק׳ — worker_lost, המפתח מת (במקום שעתיים של STALE_MS)');
+      await run({ op: 'remove', idToken: OWNER, job: JO });
+      studio._reset();                     // מגבלת הפניות לשרת (20) — הבלוק הזה הוסיף פניות
+    }
+    {
       // פריט 13 (21/10/2026): הסוכן עלה בגרסה חדשה של העובד — עבודת בדיקה של דקה מעבודת הזהב (פעם אחת לגרסה; הפעם הראשונה רק נרשמת)
       const SM = require('../lib/studio');
       const JGS = 'jSMOKEGOLD' + '0'.repeat(11);
