@@ -6,6 +6,7 @@
 call(op, **kw) → dict: תשובת השרתון כמו שהיא (גם ok:false), חריגה רק כשהוא לא עונה בכלל."""
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 import urllib.error
 import urllib.request
 
@@ -100,6 +101,9 @@ def _put(url, data, opener=None):
         return 0
 
 
+UP_PAR = int(os.environ.get('SNB_UP_PAR', '6') or 6)   # חלקים במקביל בהעלאה ל־R2 (24 קישורים בבקשה, 8MiB לחלק — ‎~50MB זיכרון)
+
+
 def upload(call, path, mime='application/octet-stream', name='', replace='', on_progress=None, opener=None, sleep=time.sleep):
     """העלאה בחלקים קבועים. replace = תוכן חדש לקובץ קיים (אותו מזהה). אחרי תקלה שואלים את השרתון מה הגיע
     וממשיכים משם. מחזיר את מזהה הקובץ."""
@@ -140,20 +144,32 @@ def upload(call, path, mime='application/octet-stream', name='', replace='', on_
                     j = call('r2wparts', id=fid, up=up)
                 continue                                # r2_gone → הענף שלמעלה
             sent = 0
+            todo = []
             for n in missing:
                 if n not in urls:
                     break
-                f.seek((n - 1) * ps)
-                data = f.read(ps if n < n_all else size - ps * (n_all - 1))
-                st = _put(urls[n], data, opener)
-                if st != 200:
-                    if 400 <= st < 500 and st not in (403, 404, 408, 429):
-                        raise StoreError('r2_up_%d' % st)
-                    break
-                done.add(n)
-                sent += 1
-                if on_progress:
-                    on_progress(min(1.0, sum(min(ps, size - ps * (k - 1)) for k in done) / size))
+                todo.append(n)
+            # 22/10/2026 (פירוק השמירה בייצור: 7GB ב־10 דק׳ ≈ 12MB/s): חלק אחד בכל פעם — עכשיו UP_PAR במקביל.
+            # כל חלק נקרא מהקובץ בנפרד; הזיכרון = UP_PAR × גודל חלק. חלק שנכשל — נשאר ל־r2wparts (כמו קודם).
+            hard = None
+
+            def one(n):
+                with open(path, 'rb') as g:
+                    g.seek((n - 1) * ps)
+                    data = g.read(ps if n < n_all else size - ps * (n_all - 1))
+                return n, _put(urls[n], data, opener)
+            with ThreadPoolExecutor(max_workers=max(1, min(UP_PAR, len(todo) or 1))) as ex:
+                for n, st in ex.map(one, todo):
+                    if st != 200:
+                        if 400 <= st < 500 and st not in (403, 404, 408, 429):
+                            hard = hard or StoreError('r2_up_%d' % st)
+                        continue
+                    done.add(n)
+                    sent += 1
+                    if on_progress:
+                        on_progress(min(1.0, sum(min(ps, size - ps * (k - 1)) for k in done) / size))
+            if hard:
+                raise hard
             if sent:
                 fails = 0
             else:

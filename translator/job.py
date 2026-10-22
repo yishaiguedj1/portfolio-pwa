@@ -1081,6 +1081,13 @@ def _lm_ladder240(ctx):
     return None
 
 
+def _learn_media_safe(ctx):
+    try:
+        learn_media(ctx)
+    except Exception:            # noqa: BLE001 — מידע משני; לא מפיל את סוף העבודה
+        pass
+
+
 def _lm_nice():
     try:
         os.nice(10)
@@ -3571,6 +3578,12 @@ def finish(args):
         note_timing(ctx, 'sv-early', t_sv, time.time())    # 21/10/2026: מדידה לכל חלק בשלב השמירה (3.5 דק׳ בסרטון של 20 דק׳)
     ctx.report('sv', 0, 'שומרים את התוצרים', force=True)
     t_up = time.time()
+    # 22/10/2026 (פירוק השמירה, פרק של 92 דק׳ בלי איכויות צפייה): העותק למאגר הלמידה (קידוד 240p, ‏6 דק׳) רץ אחרי ההעלאה
+    # (10 דק׳) — אחד על המעבד והשני על הרשת. בלי איכויות צפייה הוא לא תלוי בכלום — רץ במקביל להעלאה.
+    lm_th = None
+    if (ladder_state() or {}).get('job') != ctx.st.get('job'):
+        lm_th = threading.Thread(target=_learn_media_safe, args=(ctx,), daemon=True)
+        lm_th.start()
     out, total = [], 0
     files = []
     for k, fname, suffix, mime in OUT_FILES:
@@ -3629,7 +3642,10 @@ def finish(args):
     note_timing(ctx, 'sv-ladder', t_l, time.time())
     t_l = time.time()
     learn_put(ctx)                               # 15/10/2026 (מ׳2): קורפוס הטקסט למאגר הלמידה — לפני הדיווח האחרון (אחריו המפתח מת)
-    learn_media(ctx)                             # מ׳4: הקול ועותק ב־240p (רק כשהשרתון מבקש) — גם לפני הדיווח האחרון
+    if lm_th is not None:
+        lm_th.join()                             # רץ במקביל להעלאה — לפני הדיווח האחרון (אחריו המפתח מת)
+    else:
+        learn_media(ctx)                         # מ׳4: הקול ועותק ב־240p (רק כשהשרתון מבקש) — מ־240p של איכויות הצפייה
     note_timing(ctx, 'sv-learn', t_l, time.time())
     ctx.report(done=True, out=out, msg='התרגום מוכן', force=True, lx=learn_safe(ctx), usage=usage_safe(), trace=trace_safe(), quality=q,
                judge=ctx.st.get('jd'), gl=gl, hl=hl and hl['hl'], vs=hl and hl['vs'],      # v375: שופט האיכות (Haiku) — אם רץ
