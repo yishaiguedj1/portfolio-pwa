@@ -50,7 +50,7 @@ class VideoUrlTest {
 
     /** כל דפדפן שהשירות מקבל ממנו אירועים — יודעים איפה שורת הכתובת שלו, ולהפך */
     @Test fun browserListsMatch() {
-        val xml = File("src/studio/res/xml/grab_service.xml").readText()
+        val xml = File("src/bubble/res/xml/grab_service.xml").readText()
         val pk = Regex("""packageNames="([^"]+)"""").find(xml)!!.groupValues[1].split(',').map { it.trim() }.toSet()
         assertEquals(GrabService.URL_BAR.keys, pk)
     }

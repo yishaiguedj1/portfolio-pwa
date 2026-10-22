@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Studio בלבד (22/10/2026): "שיתוף ← Studio" מכל אפליקציה — טקסט עם קישור לסרטון (יוטיוב, אינסטגרם, Chrome…).
      MainActivity פותח את Studio עם ‎#share=<הטקסט>, והאתר פותח את דף "מקישור" עם הבדיקה כבר רצה. בלי הרשאות.
-     שלב 1.5: בועת ההורדה בדפדפן (GrabService — שירות נגישות שקורא רק את שורת הכתובת של דפדפנים, ומופעל רק
-     במסך הנגישות של המכשיר), האריח בהגדרות המהירות (GrabTile) ופתיחת ההגדרות מהאתר (GrabSetupActivity). -->
+     שלב 2: דפדפן הציד (HuntActivity). הבועה (שירות נגישות) — ב־APK נפרד, Studio Bubble (src/bubble): Play Protect חוסם
+     התקנה מחוץ לחנות של אפליקציה שמבקשת שירות נגישות, ובגללה Studio כולו לא הותקן (22/10/2026). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
         <activity android:name=".MainActivity" android:exported="true">
@@ -15,30 +15,7 @@
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
 
-        <service
-            android:name=".GrabService"
-            android:exported="true"
-            android:label="@string/grabLabel"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data android:name="android.accessibilityservice" android:resource="@xml/grab_service" />
-        </service>
-
-        <service
-            android:name=".GrabTile"
-            android:exported="true"
-            android:icon="@drawable/ic_grab_tile"
-            android:label="@string/grabTile"
-            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE" />
-            </intent-filter>
-            <meta-data android:name="android.service.quicksettings.TOGGLEABLE_TILE" android:value="true" />
-        </service>
-
-        <!-- שלב 2: דפדפן הציד (מהאתר: intent://hunt?u=…#Intent;scheme=snbstudio;…, ומקיצור הדרך באייקון) -->
+        <!-- דפדפן הציד (מהאתר: intent://hunt?u=…#Intent;scheme=snbstudio;…, ומקיצור הדרך באייקון) -->
         <activity
             android:name=".HuntActivity"
             android:exported="true"
@@ -51,22 +28,6 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="snbstudio" android:host="hunt" />
-            </intent-filter>
-        </activity>
-
-        <!-- מהאתר: intent://grab?s=app|a11y#Intent;scheme=snbstudio;package=app.thesnowball.studio;end — בלי מסך -->
-        <activity
-            android:name=".GrabSetupActivity"
-            android:exported="true"
-            android:excludeFromRecents="true"
-            android:noHistory="true"
-            android:taskAffinity=""
-            android:theme="@android:style/Theme.NoDisplay">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="snbstudio" android:host="grab" />
             </intent-filter>
         </activity>
     </application>

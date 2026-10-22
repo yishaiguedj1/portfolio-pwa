@@ -3097,19 +3097,21 @@ function pageLink(p) {
   go2.disabled = !L.v;
   p.append(h('div', 'st-gap'), go2);
 }
-/* שלב 1.5 (22/10/2026): בועת ההורדה בדפדפן — רק באפליקציית Studio לאנדרואיד (GrabService ב־APK). האתר לא יודע אם
-   השירות כבר פועל, לכן העמוד רק מסביר ופותח את ההגדרות (GrabSetupActivity: s=app — פרטי האפליקציה, אחרת — נגישות) */
+/* שלב 1.5 (22/10/2026): בועת ההורדה בדפדפן — רק באפליקציית Studio לאנדרואיד. הבועה = APK נפרד, Studio Bubble
+   (Play Protect חסם את Studio כולו כשהשירות היה בתוכה). האתר לא יודע אם היא מותקנת/פועלת — העמוד מסביר, מוריד ופותח את
+   ההגדרות (GrabSetupActivity: s=app — פרטי האפליקציה, אחרת — נגישות; לא מותקנת → ה־APK דרך browser_fallback_url) */
 function grabOk() {
   try { return typeof inApk === 'function' && inApk() && /Android/i.test(navigator.userAgent); } catch (e) { return false; }
 }
-const GRAB_PKG = 'app.thesnowball.studio';
+const GRAB_PKG = 'app.thesnowball.bubble', HUNT_PKG = 'app.thesnowball.studio';
+const BUBBLE_APK = 'https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball-bubble.apk';
 function grabOpen(s) {
-  location.href = 'intent://grab?s=' + s + '#Intent;scheme=snbstudio;package=' + GRAB_PKG + ';end';
+  location.href = 'intent://grab?s=' + s + '#Intent;scheme=snbstudio;package=' + GRAB_PKG + ';S.browser_fallback_url=' + encodeURIComponent(BUBBLE_APK) + ';end';
 }
 /* שלב 2: דפדפן הציד (HuntActivity ב־APK) — עם הכתובת שבשדה, אם יש */
 function huntOpen(u) {
   const q = /^https?:\/\/\S+$/i.test(u || '') ? '?u=' + encodeURIComponent(u) : '';
-  location.href = 'intent://hunt' + q + '#Intent;scheme=snbstudio;package=' + GRAB_PKG + ';end';
+  location.href = 'intent://hunt' + q + '#Intent;scheme=snbstudio;package=' + HUNT_PKG + ';end';
 }
 function pageGrab(p) {
   p.append(navBar({ back: T('studioLinkT'), title: T('studioGrabT') }));
@@ -3121,11 +3123,14 @@ function pageGrab(p) {
     else { r.append(num, txt); if (act) r.append(act); }
     return r;
   };
+  const dl = h('a', 'st-btn sm tint', T('studioGrabDl')); dl.href = BUBBLE_APK; dl.rel = 'noopener'; dl.dataset.k = 'grab-dl';
   p.append(secT(T('studioGrabHowT')), list(
-    step(1, T('studioGrab1'), T('studioGrab1S'), btn('st-btn sm tint', T('studioGrabOpen'), () => grabOpen('a11y'), 'grab-a11y')),
-    step(2, T('studioGrab2'), T('studioGrab2S')),
-    step(3, T('studioGrab3'), T('studioGrab3S'))));
+    step(1, T('studioGrab0'), T('studioGrab0S'), dl),
+    step(2, T('studioGrab1'), T('studioGrab1S'), btn('st-btn sm tint', T('studioGrabOpen'), () => grabOpen('a11y'), 'grab-a11y')),
+    step(3, T('studioGrab2'), T('studioGrab2S')),
+    step(4, T('studioGrab3'), T('studioGrab3S'))));
   p.append(secT(T('studioGrabGreyT')), list(
+    step('!', T('studioGrabPp'), T('studioGrabPpS')),
     step('!', T('studioGrabGrey'), T('studioGrabGreyS'), btn('st-btn sm tint', T('studioGrabOpenApp'), () => grabOpen('app'), 'grab-app'), true)));
   p.append(secT(T('studioGrabPrivT')), list(
     rowTxtRow('shield', 'gray', T('studioGrabPriv1'), T('studioGrabPriv1S')),

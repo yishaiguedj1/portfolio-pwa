@@ -4,20 +4,24 @@ const fs = require('fs'), path = require('path'), assert = require('assert');
 const R = (p) => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
 let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
 
-const studio = R('studio.js'), man = R('android/app/src/studio/AndroidManifest.xml'), gradle = R('android/app/build.gradle.kts');
-const pkg = /app\("studio", "([^"]+)"/.exec(gradle)[1];
-ok(studio.includes("const GRAB_PKG = '" + pkg + "'"), 'החבילה בקישור = applicationId של Studio');
+const studio = R('studio.js'), man = R('android/app/src/bubble/AndroidManifest.xml'), sman = R('android/app/src/studio/AndroidManifest.xml'), gradle = R('android/app/build.gradle.kts');
+const pkg = /app\("studio", "([^"]+)"/.exec(gradle)[1], bpkg = /app\("bubble", "([^"]+)"/.exec(gradle)[1];
+// 22/10/2026: הבועה = APK נפרד (Studio Bubble) — Play Protect חסם את Studio כולו כשהשירות היה בתוכו
+ok(studio.includes("const GRAB_PKG = '" + bpkg + "', HUNT_PKG = '" + pkg + "'"), 'החבילות בקישורים = applicationId של Bubble ושל Studio');
 ok(/scheme=snbstudio;package=/.test(studio) && /android:scheme="snbstudio" android:host="grab"/.test(man), 'scheme/host זהים באתר וב־manifest');
-ok(/s=' \+ s \+/.test(studio) && R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/GrabSetupActivity.kt').includes('getQueryParameter("s") == "app"'), 'הפרמטר s');
+ok(/S\.browser_fallback_url=' \+ encodeURIComponent\(BUBBLE_APK\)/.test(studio) && /the-snowball-bubble\.apk/.test(R('.github/workflows/android.yml')), 'לא מותקנת — ההורדה מהקישור הקבוע, שה־CI מפרסם');
+ok(/s=' \+ s \+/.test(studio) && R('android/app/src/bubble/java/io/github/yishaiguedj1/snowball/GrabSetupActivity.kt').includes('getQueryParameter("s") == "app"'), 'הפרמטר s');
 ok(/BIND_ACCESSIBILITY_SERVICE/.test(man) && /BIND_QUICK_SETTINGS_TILE/.test(man), 'השירות והאריח מוגנים בהרשאת המערכת');
-for (const f of ['main', 'invest', 'academy']) {
+ok(!/ACCESSIBILITY|GrabService/.test(sman), 'ב־Studio עצמו אין שירות נגישות (אחרת Play Protect חוסם את ההתקנה)');
+ok(R('android/app/src/bubble/java/io/github/yishaiguedj1/snowball/GrabService.kt').includes('const val STUDIO_PKG = "' + pkg + '"'), 'הבועה שולחת ל־Studio');
+for (const f of ['main', 'invest', 'academy', 'studio']) {
   const p = 'android/app/src/' + f + '/AndroidManifest.xml';
   if (fs.existsSync(path.join(__dirname, '..', p))) ok(!/Grab|ACCESSIBILITY/.test(R(p)), 'בלי שירות נגישות ב־' + f);
 }
 // הדפדפנים: packageNames ב־xml = המפתחות של URL_BAR
-const xml = R('android/app/src/studio/res/xml/grab_service.xml');
+const xml = R('android/app/src/bubble/res/xml/grab_service.xml');
 const pk = /packageNames="([^"]+)"/.exec(xml)[1].split(',').map((s) => s.trim()).sort();
-const svc = R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/GrabService.kt');
+const svc = R('android/app/src/bubble/java/io/github/yishaiguedj1/snowball/GrabService.kt');
 const bar = [...svc.slice(svc.indexOf('URL_BAR: Map')).matchAll(/^\s+"([\w.]+)" to listOf\(/gm)].map((m) => m[1]).sort();
 assert.deepStrictEqual(bar, pk); n++;
 ok(/canRetrieveWindowContent="true"/.test(xml) && /isAccessibilityTool="false"/.test(xml), 'הגדרות השירות');
@@ -29,9 +33,9 @@ for (const k of ['studioGrabT', 'studioGrabIntro', 'studioGrab1', 'studioGrabGre
   ok((app.match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, k + ' בעברית ובאנגלית');
 // מחרוזות האנדרואיד: עברית ואנגלית עם אותם מפתחות
 const keys = (p) => [...R(p).matchAll(/<string name="(\w+)"/g)].map((m) => m[1]).sort();
-assert.deepStrictEqual(keys('android/app/src/studio/res/values/strings.xml'), keys('android/app/src/studio/res/values-en/strings.xml')); n++;
+for (const f of ['studio', 'bubble']) { assert.deepStrictEqual(keys('android/app/src/' + f + '/res/values/strings.xml'), keys('android/app/src/' + f + '/res/values-en/strings.xml')); n++; }
 // שלב 2 — דפדפן הציד: הקישור מהאתר, הפעילות ב־manifest, והדף שבו נמצא הקובץ (ref) עובר עד הבדיקה והעבודה
-ok(/'intent:\/\/hunt' \+ q \+ '#Intent;scheme=snbstudio;package='/.test(studio) && /android:host="hunt"/.test(man) && /\.HuntActivity/.test(man), 'הקישור לדפדפן הציד');
+ok(/'intent:\/\/hunt' \+ q \+ '#Intent;scheme=snbstudio;package=' \+ HUNT_PKG/.test(studio) && /android:host="hunt"/.test(sman) && /\.HuntActivity/.test(sman), 'הקישור לדפדפן הציד');
 const mainK = R('android/app/src/main/java/io/github/yishaiguedj1/snowball/MainActivity.kt');
 ok(/"snb_ref"/.test(mainK) && /"extra_referer"/.test(mainK) && /"&ref=" \+ Uri\.encode\(ref\)/.test(mainK), 'MainActivity מעביר ref (גם extra_referer כמו ב־1DM)');
 ok(R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/HuntActivity.kt').includes('const val EXTRA_REF = "snb_ref"'), 'אותו שם extra בשני הצדדים');

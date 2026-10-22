@@ -206,7 +206,7 @@ class HuntActivity : Activity() {
     private var hinted = false
     private fun hint() {
         if (hinted || found.size > 0 || pageIsVideo() || page.startsWith("https://www.google.")) return
-        val p = getSharedPreferences(GrabService.PREFS, MODE_PRIVATE)
+        val p = getSharedPreferences("hunt", MODE_PRIVATE)
         val n = p.getInt("huntHints", 0)
         if (n >= 3) return
         hinted = true
