@@ -5,7 +5,7 @@
      records.json  — כל הרשומות (רשומה לכל עבודה, בלי פרטים אישיים)
      view.json     — הניתוח המלא של לוח הבקרה
      checks.json   — התשובות של המנהל לבדיקות בטלפון (עובד / לא עובד + הערה)
-     media/<מזהה>.a.m4a — 22/10/2026: עם --media <מזהה,מזהה> (עד 4) — הקול של העבודות, מפוענח ב־ffmpeg (CENC). תוכן אמיתי:
+     media/<מזהה>.a.mka — 22/10/2026: עם --media <מזהה,מזהה> (עד 4) — הקול של העבודות, מפוענח ב־ffmpeg (CENC). תוכן אמיתי:
                      לתיקייה זמנית בלבד, לעולם לא לריפו. --video — גם ה־240p
      corpus.json   — מ׳2: עם --corpus N — עד 20 פריטים מקורפוס הטקסט (כתוביות לכל שלב, זמני מילים). תוכן אמיתי:
                      לתיקייה זמנית בלבד, לעולם לא לריפו
@@ -70,7 +70,7 @@ async function main() {
       const x = m && m[k];
       if (!x || !/^https:\/\//.test(String(x.url)) || !/^[0-9a-f]{32}$/.test(String(x.key))) continue;
       const dir = path.join(out, 'media'); fs.mkdirSync(dir, { recursive: true });
-      const dec = path.join(dir, lid + '.' + k + (k === 'a' ? '.m4a' : '.mp4'));
+      const dec = path.join(dir, lid + '.' + k + (k === 'a' ? '.mka' : '.mp4'));
       const p = require('child_process').spawnSync('ffmpeg', ['-v', 'error', '-y', '-decryption_key', x.key, '-i', x.url, '-c', 'copy', dec]);
       console.log(p.status === 0 ? 'נשמר: ' + dec : 'ההורדה/הפענוח נכשלו: ' + lid + '.' + k);
     }
