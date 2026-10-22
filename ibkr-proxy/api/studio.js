@@ -44,6 +44,7 @@ const LR = require('../lib/studiolearn');
 const LI = require('../lib/learnimpact');   // 21/10/2026: השפעת המאגר לאורך זמן
 const LC = require('../lib/learncorpus');
 const DL = require('../lib/devlog');   // 15/10/2026: האיסוף המלא בתקופת הפיתוח (הדגל learn_full) — לוגים, יומן הקריאות, מדדים, שגיאות מהטלפון
+const SU = require('../lib/studiourl');   // 22/10/2026: הורדה מקישור — בדיקת קישור בתור לעובד
 const SF = require('../lib/sysflags');   // 15/10/2026: מצב תחזוקה והגדרות ודגלים (sysCfg/main)   // 15/10/2026 (מ׳2): קורפוס הטקסט — לדלי נפרד snb-learn
 const AICACHE = require('../lib/aicache');   // 15/10/2026: התקרות היומיות של ה־AI (limits) — למסך AI ועלויות
 const AO = require('../lib/adminov');   // 15/10/2026: מרכז הניהול — הסקירה, "מחכה לך" ו"מה רץ איפה"   // 14/10/2026: מאגר הלמידה — רשומה אנונימית לכל עבודה + לוח הבקרה של המנהל
@@ -54,8 +55,8 @@ const BASE = () => 'https://firestore.googleapis.com/v1/projects/' + PROJECT() +
 const DRIVE = 'https://www.googleapis.com/drive/v3/files/';
 const UID_RE = /^[A-Za-z0-9]{6,128}$/;
 const AAD = (uid) => 'studio|' + uid + '|r';
-const WORKER_OPS = new Set(['claim', 'token', 'report', 'qa', 'r2get', 'r2wup', 'r2wparts', 'r2wdone', 'r2del', 'learnPut', 'learnMedia', 'learnMediaDone']);
-const SERVER_OPS = new Set(['poll', 'beat', 'devLog', 'devMet']);   // devLog/devMet — האיסוף המלא (lib/devlog.js)
+const WORKER_OPS = new Set(['claim', 'token', 'report', 'qa', 'srcFile', 'r2get', 'r2wup', 'r2wparts', 'r2wdone', 'r2del', 'learnPut', 'learnMedia', 'learnMediaDone']);
+const SERVER_OPS = new Set(['poll', 'beat', 'devLog', 'devMet', 'pq']);   // pq — בדיקות קישור (22/10/2026)   // devLog/devMet — האיסוף המלא (lib/devlog.js)
 /* מצב API: תקציב חודשי לכל משתמש (מפתח ה־API של המערכת). מעבר לזה — התקרה ב־Console של Anthropic */
 const LEARN_MAX = 5000, LEARN_SYNC_MAX = 400;   // מאגר הלמידה: כמה רשומות קוראים, וכמה משלימים בכל פתיחה של לוח הבקרה
 const USER_MONTH = () => Math.max(1, Math.min(10000, Number(process.env.STUDIO_API_USER_MONTH_USD) || 30));
@@ -1008,6 +1009,37 @@ async function updatePending(deps, ver, now) {
   return !!(w && w.sha && w.t && now - w.t >= 0 && now - w.t < UPD_WIN && !w.sha.startsWith(ver));
 }
 
+/* ---------- 22/10/2026: הורדה מקישור — בדיקת קישור בתור לעובד ----------
+   הטלפון יוצר מסמך ב־studioProbe (op:'urlProbe'), העובד לוקח (op:'pq' עם טוקן השרת) ומחזיר סיכום או קוד שגיאה.
+   כדי לא לקרוא ל־Firestore בכל 4 שניות: probeHint = מתי נוצרה בדיקה במופע הזה (בייצור הטלפון והעובד מדברים עם אותו
+   שרת); בלי בדיקה חדשה — שאילתה אחת לדקה (בדיקה שנוצרה במופע אחר — Vercel כגיבוי — נלקחת עד דקה אחרי). */
+let probeHint = 0, probeScan = 0;
+async function pqOp(deps, body, sid, now) {
+  if (body.done === true) {
+    const pid = String(body.pid || '');
+    if (!/^p[0-9a-z]{6,30}$/.test(pid)) return { ok: false, error: 'bad_params' };
+    const pr = await readDoc(deps, 'studioProbe', pid);
+    if (!pr || pr.st !== 'r' || pr.sid !== sid) return { ok: false, error: 'state' };
+    if (body.ok === true) {
+      const r = SU.normProbe(body.r);
+      if (!r) await patchDoc(deps, 'studioProbe', pid, { st: 'e', e: 'fail', ft: now });
+      else await patchDoc(deps, 'studioProbe', pid, { st: 'd', pbr: r, ft: now });
+    } else {
+      const e = SU.PROBE_ERRS.includes(String(body.e || '')) ? String(body.e) : 'fail';
+      await patchDoc(deps, 'studioProbe', pid, { st: 'e', e, ft: now });
+    }
+    return { ok: true };
+  }
+  if (now - probeHint > SU.PROBE_TTL && now - probeScan < 60e3) return { ok: true, pr: null };
+  probeScan = now;
+  const qd = (await query(deps, 'studioProbe', { st: 'q' }, 10)).sort((a, b) => (a.at || 0) - (b.at || 0));
+  for (const pr of qd) {
+    if (now - (pr.at || 0) > SU.PROBE_TTL) continue;                          // הטלפון כבר הציג "לא ענה"
+    if (await patchIf(deps, 'studioProbe', pr.id, { st: 'r', sid, rt: now }, pr._ut).catch(() => false)) return { ok: true, pr: { id: pr.id, u: pr.u } };
+  }
+  return { ok: true, pr: null };
+}
+
 async function server(req, res, body, deps) {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -1018,7 +1050,7 @@ async function server(req, res, body, deps) {
   const m = /^Bearer (\S+)$/.exec(String(hd.authorization || hd.Authorization || ''));
   const p = m && S.parseServerToken(m[1]);
   if (!p) return res.status(401).json({ ok: false, error: 'no_auth' });
-  if (limited('s|' + p.sid, 20)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+  if (limited((body.op === 'pq' ? 'q|' : 's|') + p.sid, body.op === 'pq' ? 40 : 20)) return res.status(429).json({ ok: false, error: 'rate_limited' });   // pq — כל כמה שניות
   const now = deps.now || Date.now();
   try {
     const srv = await readDocT(deps, 'studioServers', p.sid);   // _ut — הרישום של טוקן שנדחה בכתיבה בתנאי
@@ -1027,6 +1059,7 @@ async function server(req, res, body, deps) {
       return res.status(401).json({ ok: false, error: 'no_auth', stop: true });
     }
     if (body.op === 'devLog' || body.op === 'devMet') return res.status(200).json({ ok: true, saved: await devSrv(deps, body, p.sid, now), now });   // האיסוף המלא
+    if (body.op === 'pq') return res.status(200).json(Object.assign(await pqOp(deps, body, p.sid, now), { now }));   // 22/10/2026: בדיקת קישור
     const hb = S.normHb(body.hb);
     const seen = { seen: now, hb, updated: now };
     if (!(srv.seen > 0)) {
@@ -1449,6 +1482,22 @@ async function worker(req, res, body, deps) {
     if (body.op === 'learnPut') return res.status(200).json({ ok: true, saved: await learnPut(deps, job, body.lc, now), now });   // מ׳2
     if (body.op === 'learnMedia') return res.status(200).json(Object.assign({ ok: true, now }, (await learnMedia(deps, job, String(body.k || ''), now)) || { skip: true }));   // מ׳4
     if (body.op === 'learnMediaDone') return res.status(200).json({ ok: true, saved: await learnMediaDone(deps, job, String(body.k || '')), now });
+    if (body.op === 'srcFile') {
+      // 22/10/2026: הורדה מקישור — העובד הוריד את הקול / הסרטון והעלה לתיקייה של העבודה ב־R2. רושמים כאילו הטלפון העלה
+      // (fa/fv), כך שכל השאר — המשך, הנגן, איכויות הצפייה — לא יודע שהמקור היה קישור
+      const which = body.which === 'v' ? 'v' : body.which === 'a' ? 'a' : '';
+      const fid = String(body.id || '');
+      if (!which || job.kind !== 'tr' || !(job.spec && job.spec.src === 'url') || !SR.isFolder(job.folder) || !S.FILE_ID_RE.test(fid)) return res.status(400).json({ ok: false, error: 'bad_params' });
+      const m = await driveFileInFolder(deps, job.uid, job.folder, fid);
+      if (m && m.error) return res.status(200).json({ ok: false, error: m.error });
+      const f = m && S.normFile({ id: fid, name: m.name || (which === 'v' ? 'video' : 'audio'), size: m.size, mimeType: m.mime });
+      if (!f) return res.status(400).json({ ok: false, error: 'file_bad' });
+      f.at = now;
+      const patch = { ['f' + which]: f, updated: now };
+      if (which === 'v') patch.spec = Object.assign({}, job.spec, { size: f.size });   // הגודל האמיתי במקום האומדן מהבדיקה
+      await patchJob(deps, job.id, patch);
+      return res.status(200).json({ ok: true, now });
+    }
     if (body.op.startsWith('r2')) {   // ת4: הקבצים של העבודה ב־R2 (קלט, תוצרים, נקודות שמירה)
       const op = { r2get: 'url', r2wup: 'up', r2wparts: 'parts', r2wdone: 'done', r2del: 'del' }[body.op];
       const [code, out] = await r2Files(deps, op, body, job.uid, job.folder, 'worker');
@@ -2233,9 +2282,35 @@ async function handler(req, res, deps = {}) {
       const j = await readJob(deps, job.id);
       return res.status(200).json(Object.assign({ ok: f.ok, job: view(j) }, f.ok ? (f.unsure ? { unsure: f.unsure, detail: f.detail } : {}) : { error: f.error, retry: f.retry, detail: f.detail || '' }));
     }
+    if (op === 'urlProbe') {
+      // 22/10/2026: בדיקת קישור — רק למנהל ולמי שברשימת "כל המודלים" (שלב ראשון), והדגל st_url. pid = מצב בדיקה קיימת
+      if (!(await fullModes())) return res.status(403).json({ ok: false, error: 'not_allowed' });
+      if (!(await flagOn(deps, 'st_url', now))) return res.status(409).json({ ok: false, error: 'flag_off', fl: 'st_url' });
+      if (body.pid != null) {
+        const pid = String(body.pid || '');
+        const pr = /^p[0-9a-z]{6,30}$/.test(pid) ? await readDoc(deps, 'studioProbe', pid) : null;
+        if (!pr || pr.uid !== uid) return res.status(404).json({ ok: false, error: 'no_probe' });
+        return res.status(200).json({ ok: true, probe: SU.probeView(Object.assign(pr, { id: pid }), now), now });
+      }
+      const u = SU.normSrcUrl(body.url);
+      if (!u) return res.status(400).json({ ok: false, error: 'bad_url' });
+      if (!R2.config().ok) return res.status(503).json({ ok: false, error: 'r2_needed' });
+      if (limited('u|' + uid, 10)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+      const old = await query(deps, 'studioProbe', { uid }, 30).catch(() => []);
+      for (const o of old.filter((x) => now - (x.at || 0) > SU.PROBE_KEEP).slice(0, 10)) await delDoc(deps, 'studioProbe', o.id).catch(() => {});
+      const pid = 'p' + now.toString(36) + crypto.randomBytes(4).toString('hex');
+      await patchDoc(deps, 'studioProbe', pid, { uid, u, st: 'q', at: now });
+      probeHint = now;
+      return res.status(200).json({ ok: true, probe: SU.probeView({ id: pid, st: 'q', at: now }, now), now });
+    }
     if (op === 'create') {
       const spec = S.normSpec(body.spec);
       if (!spec) return res.status(400).json({ ok: false, error: 'bad_spec' });
+      if (spec.src === 'url') {   // 22/10/2026: הורדה מקישור — כמו בבדיקה: מנהל / "כל המודלים", הדגל, ו־R2 (העובד מוריד לשם)
+        if (!(await fullModes())) return res.status(403).json({ ok: false, error: 'not_allowed' });
+        if (!(await flagOn(deps, 'st_url', now))) return res.status(409).json({ ok: false, error: 'flag_off', fl: 'st_url' });
+        if (!R2.config().ok) return res.status(503).json({ ok: false, error: 'r2_needed' });
+      }
       if (!S.langReady(spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported' });   // לפני ההעלאה, לא אחריה
       if (await modeLocked(spec.mode)) return res.status(403).json({ ok: false, error: 'mode_locked' });
       const sbc = await sysBlock(deps, { kind: 'tr', spec }, now, false, isAdmin(user));   // 15/10/2026: לפני שמעלים כמה GB
@@ -2371,7 +2446,8 @@ async function handler(req, res, deps = {}) {
     if (op === 'start') {
       if (!['tr', 'rr', 'ai'].includes(job.kind) || st !== 'new') return res.status(409).json({ ok: false, error: 'state', job: view(job) });
       const subsJob = !!(job.spec && job.spec.src === 'subs');
-      if (job.kind === 'ai' ? !job.fq : subsJob ? !job.fsu : !job.fa && !job.fv || job.kind === 'rr' && !(job.fv && job.fc)) return res.status(409).json({ ok: false, error: 'no_files' });
+      const linkJob = !!(job.spec && job.spec.src === 'url');   // 22/10/2026: הורדה מקישור — העובד מביא את הקבצים בעצמו
+      if (job.kind === 'ai' ? !job.fq : subsJob ? !job.fsu : linkJob ? !SR.isFolder(job.folder) : !job.fa && !job.fv || job.kind === 'rr' && !(job.fv && job.fc)) return res.status(409).json({ ok: false, error: 'no_files' });
       if (job.kind === 'tr' && !S.langReady(job.spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported', job: view(job) });
       if (job.kind !== 'rr' && await modeLocked(job.spec && job.spec.mode)) return res.status(403).json({ ok: false, error: 'mode_locked', job: view(job) });   // גם עבודה שנוצרה לפני שהרשימה השתנתה / סט הזהב
       if (!S.WORKER_KINDS.includes(job.kind)) return res.status(200).json({ ok: false, error: 'worker_not_ready', job: view(job) });
