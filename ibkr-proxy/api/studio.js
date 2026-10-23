@@ -45,6 +45,7 @@ const LI = require('../lib/learnimpact');   // 21/10/2026: השפעת המאגר
 const LC = require('../lib/learncorpus');
 const DL = require('../lib/devlog');   // 15/10/2026: האיסוף המלא בתקופת הפיתוח (הדגל learn_full) — לוגים, יומן הקריאות, מדדים, שגיאות מהטלפון
 const SU = require('../lib/studiourl');   // 22/10/2026: הורדה מקישור — בדיקת קישור בתור לעובד
+const MON = require('../lib/studiomon');   // 22/10/2026: ניטור השרתים — היסטוריית דופק + טוקן קריאה לווידג׳ט
 const SF = require('../lib/sysflags');   // 15/10/2026: מצב תחזוקה והגדרות ודגלים (sysCfg/main)   // 15/10/2026 (מ׳2): קורפוס הטקסט — לדלי נפרד snb-learn
 const AICACHE = require('../lib/aicache');   // 15/10/2026: התקרות היומיות של ה־AI (limits) — למסך AI ועלויות
 const AO = require('../lib/adminov');   // 15/10/2026: מרכז הניהול — הסקירה, "מחכה לך" ו"מה רץ איפה"   // 14/10/2026: מאגר הלמידה — רשומה אנונימית לכל עבודה + לוח הבקרה של המנהל
@@ -1061,7 +1062,7 @@ async function server(req, res, body, deps) {
     if (body.op === 'devLog' || body.op === 'devMet') return res.status(200).json({ ok: true, saved: await devSrv(deps, body, p.sid, now), now });   // האיסוף המלא
     if (body.op === 'pq') return res.status(200).json(Object.assign(await pqOp(deps, body, p.sid, now), { now }));   // 22/10/2026: בדיקת קישור
     const hb = S.normHb(body.hb);
-    const seen = { seen: now, hb, updated: now };
+    const seen = { seen: now, hb, updated: now, mon: MON.monPush(srv.mon, hb, now) };   // 22/10/2026: נקודת היסטוריה לכל 5 דק׳ (לא מוסיף קריאה — נכתב עם הדופק)
     if (!(srv.seen > 0)) {
       // 15/10/2026: שרת שמתחבר בפעם הראשונה — התראה לטלפון (שרת שהוזמן אוטומטית עלה בלי שאף אחד ידע). כתיבה בתנאי: התראה אחת בלבד
       const first = await patchIf(deps, 'studioServers', p.sid, { seen: now, updated: now }, srv._ut).catch(() => false);
@@ -1744,8 +1745,16 @@ async function handler(req, res, deps = {}) {
   }
   if (body.op === 'gdConfig') return res.status(200).json({ ok: true, clientId: gdrive.cfg().id, configured: gdrive.configured(), picker: !!S.pickerCfg(process.env, gdrive.cfg().id) });   // המזהה ציבורי · picker = האם מפתח ה־Picker נטען (רק כן/לא — לאבחון בלי התחברות)
   let user;
-  try { user = await verifyIdToken(body.idToken, deps.verify || {}); } catch (e) { return res.status(401).json({ ok: false, error: 'no_auth' }); }
-  if (!UID_RE.test(String(user.uid || ''))) return res.status(401).json({ ok: false, error: 'no_auth' });
+  const monTok = String((req.headers || {})['x-mon-token'] || '');
+  if (body.op === 'adminMon' && monTok) {
+    // 22/10/2026: הווידג׳ט באנדרואיד — טוקן קריאה בלבד (sysCfg/main.monKh, רק hash), בלי התחברות. מותר רק ל־adminMon
+    const cfg = await readDoc(deps, 'sysCfg', 'main').catch(() => null);
+    if (!MON.monTokOk(monTok, cfg && cfg.monKh)) return res.status(401).json({ ok: false, error: 'no_auth' });
+    user = { mon: true, uid: '' };
+  } else {
+    try { user = await verifyIdToken(body.idToken, deps.verify || {}); } catch (e) { return res.status(401).json({ ok: false, error: 'no_auth' }); }
+  }
+  if (user.mon !== true && !UID_RE.test(String(user.uid || ''))) return res.status(401).json({ ok: false, error: 'no_auth' });   // 22/10/2026: טוקן הניטור (mon) בלי uid — רק ל־adminMon (נאכף בבלוק)
   if (body.op === 'fbSend') {   // 15/10/2026: משוב מההגדרות של כל אפליקציה — כל משתמש מחובר (לא רק של Studio)
     if (limited('fb|' + user.uid, 3)) return res.status(429).json({ ok: false, error: 'rate_limited' });
     const now = deps.now || Date.now();
@@ -1755,7 +1764,8 @@ async function handler(req, res, deps = {}) {
     return res.status(200).json({ ok: true });
   }
   // 15/10/2026: מי שברשימת "כל המודלים" במרכז הניהול מקבל גם את הסטודיו (בלי לחכות לפתיחה לכולם / ל־STUDIO_USERS)
-  if (!allowed(user) && !SF.amHas(await sysCfg(deps, deps.now || Date.now()), user)) return res.status(403).json({ ok: false, error: 'not_allowed' });
+  // 22/10/2026: טוקן הניטור (mon) עובר רק ל־adminMon (נאכף למעלה) — בלי זהות אין רשימת הרשאות לבדוק
+  if (user.mon !== true && !allowed(user) && !SF.amHas(await sysCfg(deps, deps.now || Date.now()), user)) return res.status(403).json({ ok: false, error: 'not_allowed' });
   if (limited('p|' + user.uid, 120)) return res.status(429).json({ ok: false, error: 'rate_limited' });
   if (body.op === 'devErr') return res.status(200).json({ ok: true, saved: await devErr(deps, user, body, deps.now || Date.now()) });   // שגיאות מהטלפון (האיסוף המלא)
   if (!vault.configured()) return res.status(503).json({ ok: false, error: 'vault_not_configured' });
@@ -1945,6 +1955,30 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json({ ok: true, users: AO.usersView({ admins: admins.length ? admins : emails(process.env.LIBRARY_READERS).slice(0, 1),
         acEnv: String(process.env.LIBRARY_READERS || '').split(/[\s,;]+/), acApp: cur ? cur.list : null, acErr: cur ? cur.err : 'x',
         stEnv: emails(process.env.STUDIO_USERS), am: SF.amList(await sysCfg(deps, now)), ibEnv: emails(process.env.IBKR_SYNC_USERS), counts }) });
+    }
+    if (op === 'monTok') {
+      // 22/10/2026: טוקן קריאה לווידג׳ט הניטור — רק מהמנהל. מוצג פעם אחת; השרתון שומר רק hash. ביטול = מחיקת ה-hash
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      if (body.rev === true) {
+        await patchDoc(deps, 'sysCfg', 'main', { monKh: '', monAt: 0, updated: now });
+        await adminLog(deps, user, 'mon_tok_off', '', now);
+        return res.status(200).json({ ok: true, on: false });
+      }
+      const tok = MON.monTokNew();
+      await patchDoc(deps, 'sysCfg', 'main', { monKh: MON.monTokHash(tok), monAt: now, updated: now });
+      await adminLog(deps, user, 'mon_tok_on', '', now);
+      return res.status(200).json({ ok: true, on: true, tok, at: now });
+    }
+    if (op === 'adminMon') {
+      // 22/10/2026: מוניטור — כל השרתים עם היסטוריית הדופק (24 שעות) + העבודות שרצות עכשיו. מנהל, או טוקן קריאה (הווידג׳ט)
+      if (!(user.mon === true || isAdmin(user))) return res.status(403).json({ ok: false, error: 'not_admin' });
+      let raw;
+      try { raw = await query(deps, 'studioServers', null, S.SRV_MAX + 5); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
+      const jobs = await query(deps, 'studioJobs', { state: 'running' }, 50).catch(() => []);
+      const srv = raw.map((x) => { const v = S.serverView(x, now); return v && Object.assign(v, { mon: Array.isArray(x.mon) ? x.mon : [] }); }).filter(Boolean);
+      const cfg = (await readDoc(deps, 'sysCfg', 'main').catch(() => null)) || {};
+      const run = jobs.map((j) => ({ sid: j.sid, st: (j.prog || {}).st, p: (j.prog || {}).p }));
+      return res.status(200).json({ ok: true, now, tok: { on: !!cfg.monKh, at: cfg.monAt > 0 ? cfg.monAt : 0 }, mon: MON.monView(srv, run, now) });
     }
     if (op === 'adminAgents' || op === 'adminServers') {
       // 15/10/2026: מרכז הניהול ← Studio. עבודות התרגום של 30 הימים האחרונים מכל המשתמשים (שאילתה עם טווח על created —

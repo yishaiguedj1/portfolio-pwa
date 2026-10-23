@@ -45,6 +45,8 @@ android {
         // 22/10/2026: הבועה בדפדפן (שירות נגישות) — APK נפרד. Play Protect חוסם התקנה מחוץ לחנות של אפליקציה עם שירות
         // נגישות, ובגללה Studio כולו לא הותקן; כך רק הבועה תלויה בזה. נגיעה בבועה = שיתוף ל־Studio
         app("bubble", "app.thesnowball.bubble", "Studio Bubble", "studio.thesnowball.app", "#FF4656")
+        // 23/10/2026: מרכז הניהול — APK נפרד (src/admin: ווידג'ט מדדי השרתים + מסך הטוקן). ה־TWA פותח את admin.thesnowball.app
+        app("admin", "app.thesnowball.admin", "Snowball Admin", "admin.thesnowball.app", "#30D158")
     }
     sourceSets {
         getByName("academy").java.srcDir("src/lite/java")
@@ -103,4 +105,8 @@ dependencies {
     "studioImplementation"("io.github.junkfood02.youtubedl-android:library:0.18.1")
     "studioImplementation"("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
     "testStudioImplementation"("org.json:json:20240303")   // org.json של אנדרואיד לא רץ ב־JVM (DlProbeTest)
+    // 23/10/2026: ווידג'ט מדדי השרתים (admin) — אותן גרסאות כמו Invest (Glance, WorkManager) + Compose runtime כמו שאר הטעמים
+    "adminImplementation"("androidx.glance:glance-appwidget:1.2.0")
+    "adminImplementation"("androidx.work:work-runtime-ktx:2.12.0")
+    "adminImplementation"("androidx.compose.runtime:runtime:1.7.8")
 }
