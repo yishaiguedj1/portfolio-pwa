@@ -125,8 +125,32 @@ function done() {
   ok(/rec\.sz \? approx\(fmtSize\(rec\.sz\)\) : T\('studioLinkSzUnknown'\)/.test(st) && !/approx\(fmtSize\(rec\.sz\)\)\)\)/.test(st), 'האתר: "גודל לא ידוע" במקום 1KB');
   ok(/DlDeep\.looksLikeVideo\(/.test(eng) && /IllegalArgumentException\("not_video"\)/.test(eng) && /case 'not_video': return T\('studioLinkENotVideo'\)/.test(st)
     && (R('app.js').match(/\bstudioLinkENotVideo: "/g) || []).length === 2, 'קובץ שירד ואינו סרטון (5KB / דף) — לא נשמר, הודעה בשתי השפות');
+  // 23/10/2026 (סרטון המשתמש): "לא נמצא" עובר לאתר רק כשדפדפן הציד נסגר בלי לשלוח — אחרת השליחה נדרסת
+  const hunt = R(dir + 'HuntActivity.kt');
+  ok(/putExtra\(HuntActivity\.EXTRA_MISS, miss\)/.test(act) && !/launchUrl\) \+ miss\), this, MainActivity/.test(act) && /override fun finish\(\)/.test(hunt) && /if \(!sent && /.test(hunt) && /private fun send\(url: String, ref: String\) \{\s*\n\s*sent = true/.test(hunt), 'דפדפן הציד: "לא נמצא" רק אם נסגר בלי לשלוח');
+  ok(/requestMethod = "HEAD"/.test(hunt) && /DlDeep\.MIN_BYTES/.test(hunt), 'דפדפן הציד: קובץ קטן / דף לא נספר כ"נמצא סרטון"');
+  ok(/elementFromPoint/.test(deep) && /__snbClick\|\|0/.test(deep), 'בדיקה לעומק: עד 3 ניסיונות ללחוץ ▶ (כולל מרכז הנגן)');
   ok(/name="dlDeep"/.test(R('android/app/src/studio/res/values/strings.xml')) && /name="dlDeep"/.test(R('android/app/src/studio/res/values-en/strings.xml')), 'dlDeep בעברית ובאנגלית');
   for (const k of ['studioLinkEApp', 'studioLinkDlWait', 'studioLinkGot', 'studioLinkEStore', 'studioLinkFailT'])
     ok((R('app.js').match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, k + ' בעברית ובאנגלית');
+  // 23/10/2026: תקרת זמן לבדיקה (דפדפן הציד — יותר מדקה בלי תשובה), ניסיונות קצרים, בלי חלופות לקובץ ישיר
+  {
+    const act = R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/DlActivity.kt'), en2 = R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/DlEngine.kt');
+    ok(/PROBE_REF_MS = 45_000L/.test(act) && /PROBE_MS = 90_000L/.test(act) && /if \(probeSlow\) "slow"/.test(act), 'תקרת זמן לבדיקה → slow');
+    ok(/HUNT_ON = setOf\([^)]*"slow"/.test(act), 'slow בדף → הבדיקה לעומק');
+    ok(/deepProbe\(h\.url, page, ck, PROBE_REF_MS\)/.test(act) && /DlEngine\.cancel\(it\)/.test(act), 'הבדיקות שבתוך הבדיקה לעומק — מוגבלות ונעצרות');
+    ok(/"--retries", 1\)/.test(en2) && /ref\.isNotEmpty\(\) \|\| DlDeep\.isMediaUrl\(url\)\) emptyList\(\)/.test(en2), 'ניסיונות קצרים ובלי חלופות לקובץ');
+    ok(/case 'slow': return T\('studioLinkESlow'\)/.test(st) && (R('app.js').match(/\bstudioLinkESlow: "/g) || []).length === 2, 'slow — טקסט בשתי השפות');
+    ok(/\(L\.e === 'tiny' \|\| L\.e === 'slow'\) && L\.ref/.test(st), 'slow על קובץ מהציד → לנסות בדפדפן הציד');
+  }
+  // 23/10/2026 (צילום המשתמש: "בודקים את הקישור…" בלי סוף אחרי דפדפן הציד): הבדיקה נפתחת מדפדפן הציד, לא מהאתר
+  {
+    const hunt = R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/HuntActivity.kt'), act = R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/DlActivity.kt'), sapp = R('studio-app.js');
+    ok(/Intent\(this, DlActivity::class\.java\)\.setData\(Uri\.parse\(q\)\)/.test(hunt) && /snbstudio:\/\/probe\?h=1&n=\$n&u=/.test(hunt), 'דפדפן הציד פותח את הבדיקה בעצמו');
+    ok(/getBooleanExtra\(EXTRA_AUTO, false\) != true && VideoUrl\.classify\(page\)/.test(hunt), 'בפתיחה אוטומטית — הדף לא מוצע שוב');
+    ok(/fromHunt = d\.getQueryParameter\("h"\) == "1"/.test(act) && /"#share=" \+ Uri\.encode\(huntU\)[\s\S]{0,120}"&probe=" \+ Uri\.encode/.test(act), 'התוצאה חוזרת יחד עם הכתובת');
+    ok(/HUNT_ON && !fromHunt/.test(act) && /DlDeep\.fromMedia\(s, u, ref, null\)/.test(act), 'בלי לולאה, והקובץ עם הדף');
+    ok(/if \(pre\) \{ L\.n = pre; render\('none'\); return; \}/.test(st) && /if \(pre\) studioProbeRes\(pr\)/.test(st) && /probe: shareProbe/.test(sapp), 'האתר לא פותח שוב את חלון הבדיקה');
+  }
   console.log('studio-devdl: ' + n + ' בדיקות עברו');
 }

@@ -82,6 +82,8 @@ class DlActivity : Activity() {
         if (!N_RE.matches(n) || u.isEmpty() || u.length > DlProbe.URL_MAX) { finish(); return }
         nonce = n
         val ref = DlProbe.refOk(d.getQueryParameter("ref"))
+        fromHunt = d.getQueryParameter("h") == "1"
+        huntU = u; huntRef = ref
         when (d.host) {
             "probe" -> probe(u, ref)
             "dl" -> download(d, u, ref)
@@ -89,23 +91,33 @@ class DlActivity : Activity() {
         }
     }
 
+    @Volatile private var probeSlow = false
+
     private fun probe(u: String, ref: String) {
         mode = "probe"
         titleV.text = s(R.string.dlChecking); subV.text = s(R.string.dlCheckingS)
         bar.isIndeterminate = true; btn.text = s(R.string.dlCancel)
-        btn.setOnClickListener { back("#probe=$nonce.!cancel") }
+        val pid = "probe-$nonce"
+        btn.setOnClickListener { DlEngine.cancel(pid); back("#probe=$nonce.!cancel") }
+        // 23/10/2026 (דיווח המשתמש: קובץ מדפדפן הציד — יותר מדקה בלי תשובה): תקרת זמן לבדיקה עצמה, אחרי ההכנה.
+        // עברה → עוצרים את yt-dlp ומחזירים "slow" (האתר: לנסות שוב / דפדפן הציד; כתובת של דף — הבדיקה לעומק)
+        val slow = Runnable { probeSlow = true; DlEngine.cancel(pid) }
         Thread {
             var miss = false
             val res = try {
-                val s = DlEngine.probe(this, u, ref, DlEngine.cookiesFor(this, u, ref)) { st ->
+                val s = DlEngine.probe(this, u, ref, DlEngine.cookiesFor(this, u, ref), pid) { st ->
                     main.post { subV.text = s(when (st) { "init" -> R.string.dlInit; "update" -> R.string.dlUpdate; else -> R.string.dlCheckingS }) }
+                    if (st == "probe") main.postDelayed(slow, if (ref.isNotEmpty()) PROBE_REF_MS else PROBE_MS)
                 }
+                main.removeCallbacks(slow)
                 // קובץ שנתפס בדף (דפדפן הציד) ונראה כמו פרסומת / קובץ זעיר — לא מציעים להוריד אותו
                 if (ref.isNotEmpty() && !DlDeep.realVideo(s, 0)) throw IllegalArgumentException("tiny")
+                if (ref.isNotEmpty()) DlDeep.fromMedia(s, u, ref, null)   // האתר מוריד את הקובץ (u) עם הדף (rf) כ־Referer
                 "#probe=$nonce." + DlEngine.b64(s.toString())
             } catch (e: Throwable) {
-                val code = (e as? IllegalArgumentException)?.message ?: "fail"
-                miss = ref.isEmpty() && code in HUNT_ON
+                main.removeCallbacks(slow)
+                val code = if (probeSlow) "slow" else (e as? IllegalArgumentException)?.message ?: "fail"
+                miss = ref.isEmpty() && code in HUNT_ON && !fromHunt   // מדפדפן הציד — המשתמש כבר שם; לא שוב לעומק ולציד
                 "#probe=$nonce.!" + code
             }
             main.post {
@@ -186,7 +198,7 @@ class DlActivity : Activity() {
         if (ck == null) { ckFailed = true; return }
         val img = deepPage?.image ?: ""
         Thread {
-            val r = try { DlEngine.probe(this, u, "", ck) } catch (e: Throwable) { null }
+            val r = deepProbe(u, "", ck, PROBE_MS)
             if (r != null) DlEngine.thumbIfEmpty(r, img)
             main.post {
                 if (deepDone) return@post
@@ -204,7 +216,7 @@ class DlActivity : Activity() {
         val ck = writeCookies(page, h.url)
         val pg = deepPage
         Thread {
-            val r = try { DlEngine.probe(this, h.url, page, ck) } catch (e: Throwable) { null }
+            val r = deepProbe(h.url, page, ck, PROBE_REF_MS)
             if (r != null) { DlDeep.fromMedia(r, h.url, page, pg); DlEngine.thumbIfEmpty(r, pg?.image ?: "") }
             main.post {
                 mediaBusy = false
@@ -221,6 +233,17 @@ class DlActivity : Activity() {
                 nextMedia(u, miss)
             }
         }.start()
+    }
+
+    /** בדיקה אחת בתוך הבדיקה לעומק — עם תקרת זמן, ונעצרת יחד איתה (stopDeep). כל תקלה → null */
+    @Volatile private var deepPid = ""
+    private fun deepProbe(u: String, ref: String, ck: DlEngine.Ck?, ms: Long): org.json.JSONObject? {
+        val pid = "deep-$nonce-${System.nanoTime()}"
+        deepPid = pid
+        val stop = Runnable { DlEngine.cancel(pid) }
+        main.postDelayed(stop, ms)
+        return try { DlEngine.probe(this, u, ref, ck, pid) } catch (e: Throwable) { null }
+            finally { main.removeCallbacks(stop); if (deepPid == pid) deepPid = "" }
     }
 
     private var bestMedia: org.json.JSONObject? = null
@@ -242,6 +265,7 @@ class DlActivity : Activity() {
     private fun stopDeep() {
         deepDone = true
         main.removeCallbacksAndMessages(null)
+        deepPid.let { if (it.isNotEmpty()) DlEngine.cancel(it) }
         web?.let { try { it.stopLoading(); (it.parent as? ViewGroup)?.removeView(it); it.destroy() } catch (e: Throwable) {} }
         web = null
     }
@@ -250,9 +274,10 @@ class DlActivity : Activity() {
     private fun hunt(u: String, miss: String) {
         stopDeep()
         if (isFinishing) return
-        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(s(R.string.launchUrl) + miss), this, MainActivity::class.java))
+        // 23/10/2026 (סרטון המשתמש): לא שולחים לאתר את "לא נמצא" עכשיו — שני שינויי hash כמעט יחד (התוצאה + מה שנשלח
+        // מדפדפן הציד) כשהאתר ברקע = רק האחרון נקרא, והשליחה אבדה. דפדפן הציד מעביר את "לא נמצא" רק אם נסגר בלי לשלוח
         startActivity(Intent(this, HuntActivity::class.java).setData(Uri.parse("snbstudio://hunt?u=" + Uri.encode(u)))
-            .putExtra(HuntActivity.EXTRA_AUTO, true))
+            .putExtra(HuntActivity.EXTRA_AUTO, true).putExtra(HuntActivity.EXTRA_MISS, miss))
         finish()
     }
 
@@ -301,7 +326,16 @@ class DlActivity : Activity() {
     }
 
     /** חזרה לאתר (‎#… = התוצאה; ריק = רק לחזור) */
-    private fun back(hash: String) {
+    /* נפתח מדפדפן הציד (h=1): האתר עוד לא יודע על הקישור — הכתובת והתוצאה חוזרות יחד, בשינוי hash אחד */
+    private var fromHunt = false; private var huntU = ""; private var huntRef = ""
+    private fun huntHash(hash: String): String {
+        if (!fromHunt || !hash.startsWith("#probe=")) return hash
+        return "#share=" + Uri.encode(huntU) + (if (huntRef.isNotEmpty()) "&ref=" + Uri.encode(huntRef) else "") +
+            "&probe=" + Uri.encode(hash.removePrefix("#probe="))
+    }
+
+    private fun back(hash0: String) {
+        val hash = huntHash(hash0)
         if (hash.isNotEmpty()) startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(s(R.string.launchUrl) + hash), this, MainActivity::class.java))
         finish()
     }
@@ -339,6 +373,8 @@ class DlActivity : Activity() {
     companion object {
         const val ACT_SHOW = "app.thesnowball.studio.DL_SHOW"
         private val N_RE = Regex("^[A-Za-z0-9]{6,24}$")
-        private val HUNT_ON = setOf("unsupported", "no_video", "fail")   // = מתי האתר מציע את דפדפן הציד
+        private val HUNT_ON = setOf("unsupported", "no_video", "fail", "slow")   // = מתי האתר מציע את דפדפן הציד
+        const val PROBE_MS = 90_000L       // תקרת הזמן לבדיקה של דף
+        const val PROBE_REF_MS = 45_000L   // ושל קובץ שנתפס בדף (דפדפן הציד / הבדיקה לעומק)
     }
 }

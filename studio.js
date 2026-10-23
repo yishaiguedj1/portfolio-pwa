@@ -12,6 +12,7 @@ import { createNet, probeVideo, extractAudio, uploadBoth, stageEstimates, progre
 import { createBackup, waitOAuthCode } from './libbackup.js';
 // ת4: מזהים של R2 (העלאה ותוצרים בעבודה במצב שרת)
 import { isR2Folder, isR2Id } from './studiostore.js';
+import { bgEligible, bgUpload, bgIdOf, bgDb, bgUpOk } from './studiobg.js';
 import { createPlayer, normCues, issuesList, fmtT, normLadder, normAlt, normPq, normTrackPref, normChapters, normSty, STY_COLORS, STY_Y } from './studioplay.js';
 import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, toStl, termIssues, flagIndex, normMeta, createTimeline, editDiff, editStats, importSubs } from './studiosubs.js';
 import { listTracks, extractTracks, cuesToFile } from './studiotracks.js';
@@ -101,7 +102,8 @@ export function normSettings(o) {
   if (CAPS.includes(o.cap)) s.cap = o.cap;
   s.pq = normPq(o.pq);
   s.pt = normTrackPref(o.pt);   // 23/10/2026: הקול והכתוביות שנבחרו ידנית בנגן (ריק = אוטומטי)
-  if (Number.isFinite(+o.op1) && +o.op1 > 0) s.op1 = Math.floor(+o.op1);   // מתי Google סירב לבורר במסך מלא (ננסה שוב אחרי חודש)
+  if (Number.isFinite(+o.op1) && +o.op1 > 0) s.op1 = Math.floor(+o.op1);
+  if (Number.isFinite(+o.bgNo) && +o.bgNo > 0) s.bgNo = Math.floor(+o.bgNo);   // 23/10/2026: מתי הדפדפן סירב להעלאה ברקע (ננסה שוב אחרי חודש)   // מתי Google סירב לבורר במסך מלא (ננסה שוב אחרי חודש)
   const sty = normSty(o.sty); if (sty) s.sty = sty;   // סבב 5: עיצוב הכתוביות האחרון (ברירת המחדל להפקה הבאה)
   if (o.lg && typeof o.lg === 'object') { const ov = normOv({ lg: o.lg.d, lp: o.lg.p, ls: o.lg.s }); if (ov) s.lg = { d: ov.lg, p: ov.lp, s: ov.ls }; }   // סבב 7: הלוגו שלך
   return s;
@@ -1378,7 +1380,7 @@ async function pickWithHandle() {
    הצילום של המשתמש: "מוציאים את הקול ושולחים אותו קודם" — 17 דק׳, בזמן שהסרטון המלא עלה אחר כך ב־4–6MB/שנ׳. בלי מדידה
    מהטלפון אי אפשר לדעת אם זה החילוץ, דף מואט ברקע או משהו אחר. רק מספרים (בלי שמות) → op:'upTel' → job.utl.
    **UTL_KEYS זהה ל־UTL_KEYS בשרתון (lib/studio.js)** */
-export const UTL_KEYS = ['c2s', 'ex', 'ab', 'a', 'v', 'vb', 'hid', 'hn', 'rs', 'wt', 'wl', 'wlr', 'nt', 'dl', 'dm', 'hc', 'vf'];
+export const UTL_KEYS = ['c2s', 'ex', 'ab', 'a', 'v', 'vb', 'hid', 'hn', 'rs', 'wt', 'wl', 'wlr', 'nt', 'dl', 'dm', 'hc', 'vf', 'bg'];   // bg — ההעלאה ברקע: 1 הצליחה, 2 חזרה לרגילה, 3 הדפדפן לא תומך
 export function normUtl(o) {
   if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
   const out = {};
@@ -1574,6 +1576,9 @@ async function runJob(id, run) {
     // 1+2. הקול והסרטון — uploadBoth (studionet.js): הסרטון מתחיל מיד במקביל לחילוץ, הקול עולה ראשון כשהוא מוכן, והסרטון
     // שסיים לפני החילוץ עוצר אותו (21/10/2026 — "הקול לקח 17 דק׳")
     let tx = 0, ta = 0, tv = 0;
+    let audioSettle = null;   // 23/10/2026: הסרטון ברקע מתחיל רק אחרי הקול (Background Fetch אי אפשר להשהות כמו vGate)
+    const audioSettled = new Promise((r) => { audioSettle = r; });
+    if (up.a.done || up.noAudio) audioSettle();
     await uploadBoth({
       signal: sig, gate: () => gate(run),
       needAudio: !up.a.done && !up.noAudio, needVideo: !up.v.done,
@@ -1587,7 +1592,7 @@ async function runJob(id, run) {
         return extractAudio(file, { onProgress: (p) => { if (run.phase === 'extract') { run.p = p; paintSoon(); } }, signal })
           .finally(() => utlAdd(rec, 'ex', Date.now() - tx));
       },
-      noAudio: (why, videoFirst) => { up.noAudio = why; if (videoFirst) utlOf(rec).vf = 1; save(); },
+      noAudio: (why, videoFirst) => { up.noAudio = why; if (videoFirst) utlOf(rec).vf = 1; save(); audioSettle(); },
       upAudio: (ex) => {
         const size = ex.blob.size;
         run.sent = 0; run.total = size;
@@ -1605,19 +1610,27 @@ async function runJob(id, run) {
         up.took = Math.round((Date.now() - run.t0) / 1000);
         save();
         utlSend(id);                           // כבר עכשיו — גם אם הסרטון ייתקע, יודעים כמה לקח הקול
+        audioSettle();
       },
       start: () => (up.a.done ? tryStart(id) : null),
-      upVideo: (vGate) => {
+      upVideo: async (vGate) => {
         utlOf(rec).vb = file.size;
+        const vProg = (b) => {
+          up.v.sent = b;
+          if (run.phase === 'video') { run.sent = b; run.p = b / file.size; tickRate(run, b); }
+          paintSoon(); saveSoon();
+        };
+        if (await bgCan(rec, file)) {
+          await audioSettled; await vGate();
+          tv = Date.now();
+          run.bg = true;
+          try { await bgTry(rec, id, file, sig, vProg); } finally { run.bg = false; utlAdd(rec, 'v', Date.now() - tv); }
+        }
         tv = Date.now();
         return net.upload({ blob: file, size: file.size, mime: file.type || 'application/octet-stream', signal: sig, gate: vGate,
           uri: up.v.uri || '', onUri: (u) => { up.v.uri = u; save(); }, r2: up.v.r2, onR2: (x) => { up.v.r2 = x; save(); },
           meta: { name: rec.spec.name, parents: [up.folder], appProperties: { snbJob: id, snbPart: 'v' } },
-          onProgress: (b) => {
-            up.v.sent = b;
-            if (run.phase === 'video') { run.sent = b; run.p = b / file.size; tickRate(run, b); }
-            paintSoon(); saveSoon();
-          },
+          onProgress: vProg,
           onWait: onWaitT }).finally(() => utlAdd(rec, 'v', Date.now() - tv));
       },
       videoDone: async (f) => {
@@ -1652,6 +1665,73 @@ function opsEvent(id, ev) { try { net.api('event', { job: id, ev }).catch(() => 
 /* v368: חלון חסימה לעדכון — גרסה חדשה של האפליקציה לא מרעננת את הדף באמצע העלאה (app.js שואל לפני הרענון) */
 if (typeof window !== 'undefined') window.snbStudioBusy = () => Array.from(runs.values()).some((r) => r && r.active);
 function stopRun(id) { const r = runs.get(id); if (r && r.active) r.ctl.abort(); }
+
+/* ---------------- 23/10/2026: הסרטון ב־Background Fetch (studiobg.js) — ממשיך גם כשהאפליקציה סגורה ---------------- */
+const BG_RETRY_MS = 30 * 86400e3;   // דפדפן שסירב — מנסים שוב אחרי חודש (עדכון של Chrome)
+const bgStore = typeof indexedDB !== 'undefined' ? bgDb(indexedDB) : null;
+const bgEnv = {
+  reg: () => navigator.serviceWorker.ready,
+  Request: typeof Request !== 'undefined' ? Request : null,
+  put: (x) => (bgStore ? bgStore.put(x) : null), del: (k) => (bgStore ? bgStore.del(k).catch(() => {}) : null),
+  base: () => proxyBase(), lang: () => uiLang(), now: () => Date.now(),
+};
+async function bgCan(rec, file) {
+  const s = store.settings, up = rec.up;
+  return bgEligible({ size: file.size, r2: isR2Folder(up.folder), ext: !!up.ext, wifi: s.wifi, off: !!(s.bgNo && Date.now() - s.bgNo < BG_RETRY_MS),
+    api: typeof navigator !== 'undefined' && !!navigator.serviceWorker && typeof BackgroundFetchManager !== 'undefined' && !!bgStore,
+    up: await bgUpOk() });
+}
+/* מנסה; בכל מקרה ממשיכים אחר כך בהעלאה הרגילה — היא רק סוגרת כשהכל הגיע, או ממשיכה מהחלקים החסרים */
+async function bgTry(rec, id, file, sig, onProgress) {
+  const up = rec.up;
+  const r = await bgUpload({ api: net.api, job: id, name: rec.spec.name, blob: file, size: file.size, mime: file.type || 'application/octet-stream',
+    st: up.v.r2, onState: (x) => { up.v.r2 = x; save(); }, onProgress, signal: sig, title: T('studioBgTitle'), icon: 'icon-studio-192.png' }, bgEnv)
+    .catch(() => ({ fallback: 'bg_err' }));
+  utlOf(rec).bg = r.ok ? 1 : r.unsupported ? 3 : 2;
+  if (r.unsupported) { store.settings.bgNo = Date.now(); save(); }
+  if (r.aborted) throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+  return r;
+}
+/* אחרי רענון בלי הקובץ: Background Fetch שעדיין רץ / שהסתיים — מחכים לו, סוגרים ורושמים (בלי בלוב: רק כשכל החלקים
+   הגיעו — ההעלאה הרגילה צריכה את הקובץ לחלקים חסרים). false = אין כזה / נכשל → "בחרו שוב" כמו היום */
+async function bgResume(id) {
+  const rec = jobRec(id); if (!rec) return false;
+  const up = rec.up, st = up.v.r2 || {};
+  if (up.v.done || !isR2Folder(up.folder) || !st.id || !(up.a.done || up.noAudio)) return false;
+  let bg = null;
+  try { const reg = navigator.serviceWorker && await navigator.serviceWorker.ready; bg = reg && reg.backgroundFetch && await reg.backgroundFetch.get(bgIdOf(id)); } catch (e) { bg = null; }
+  if (!bg || bg.result === 'failure') return false;
+  const prev = runs.get(id);
+  if (prev && prev.active) return true;
+  const size = rec.spec.size;
+  const run = { active: true, phase: 'video', p: 0, sent: 0, total: size, rate: 0, wait: '', err: '', need: false, file: null, t0: Date.now(), ctl: new AbortController(), bg: true };
+  runs.set(id, run); paintSoon();
+  try {
+    const r = await bgUpload({ api: net.api, job: id, size, st, signal: run.ctl.signal,
+      onProgress: (b) => { run.sent = b; run.p = b / size; tickRate(run, b); paintSoon(); } }, bgEnv).catch(() => ({ fallback: 'bg_err' }));
+    if (!r.ok) throw new Error('bg');
+    const j = await net.api('r2done', { job: id, id: st.id, up: st.up });
+    if (!j.ok) throw new Error('bg');
+    await register(id, 'v', st.id, up.folder);
+    up.v = { done: true, id: st.id, size, uri: '', sent: size };
+    save();
+    if (!up.started) await tryStart(id);
+    run.phase = 'done';
+    return true;
+  } catch (e) {
+    Object.assign(run, { phase: 'need', need: true });
+    return false;
+  } finally { run.active = false; repaint(); }
+}
+/* מחיקה / ביטול של עבודה שהסרטון שלה עולה ברקע בלי הדף (אחרי רענון) */
+async function bgAbort(id) {
+  try {
+    const reg = navigator.serviceWorker && await navigator.serviceWorker.ready;
+    const bg = reg && reg.backgroundFetch && await reg.backgroundFetch.get(bgIdOf(id));
+    if (bg && !bg.result) await bg.abort();
+  } catch (e) {}
+  if (bgStore) bgStore.del(bgIdOf(id)).catch(() => {});
+}
 /* המשך אחרי רענון / עצירה: הקובץ מהזיכרון, מהידית השמורה, או שמבקשים לבחור שוב (ובודקים שזה אותו קובץ) */
 async function resumeJob(id, byUser) {
   const rec = jobRec(id); if (!rec) return;
@@ -1668,6 +1748,8 @@ async function resumeJob(id, byUser) {
       } catch (e) {}
     }
   }
+  // 23/10/2026: אין קובץ (אין ידית שמורה), אבל הסרטון כבר עולה ברקע / עלה — מצטרפים, בלי "בחרו שוב"
+  if (!file && await bgResume(id)) return;
   if (!file || !sameFile(file, rec.fp)) {
     if (file && byUser) flashSafe(T('studioWrongFile'));
     runs.set(id, Object.assign(run || {}, { active: false, need: true, phase: 'need' }));
@@ -2986,6 +3068,7 @@ function linkErrText(e) {
     case 'playlist': return T('studioLinkEPlaylist');
     case 'unsupported': case 'no_video': return T('studioLinkENone');
     case 'tiny': return T('studioLinkETiny');
+    case 'slow': return T('studioLinkESlow');   // 23/10/2026: הבדיקה בטלפון עברה את תקרת הזמן
     case 'not_video': return T('studioLinkENotVideo');
     case 'private': case 'bad_url': case 'dns': return T('studioLinkEBad');
     case 'timeout': case 'net': case 'no_server': return T('studioLinkENet');
@@ -3065,7 +3148,7 @@ export function normDevProbe(r) {
   return { t: s(r.t, 200) || 'video', u, s: s(r.s, 40), up: s(r.up, 100), d: n(r.d, 0, 1e6), ud: /^\d{8}$/.test(r.ud || '') ? r.ud : '',
     lang: s(r.lang, 10), ch, sub, q, rec: n(r.rec, 0, 8640), ao, drm: r.drm ? 1 : 0, th, rf, alt };
 }
-function linkCheck(f, raw, ref) {
+function linkCheck(f, raw, ref, pre) {
   // ref — שלב 2: קובץ/זרם שנמצא בדף (דפדפן הציד) → הדף, והטלפון מוריד עם ה־Referer שלו
   const L = f.link = { u: String(raw || '').trim(), ref: /^https?:\/\//i.test(String(ref || '')) ? String(ref).slice(0, 2048) : '', st: 'busy', e: '', r: null, v: '', sec: null, ch: 1, at: Date.now() };
   const seq = ++linkSeq;
@@ -3074,6 +3157,7 @@ function linkCheck(f, raw, ref) {
     if (ui.url) linkCheckSrv(f, L, seq); else { L.st = 'err'; L.e = 'app'; }
     render('none'); return;
   }
+  if (pre) { L.n = pre; render('none'); return; }   // הבדיקה כבר רצה בטלפון (דפדפן הציד) — התוצאה מגיעה מיד
   L.n = dlNonce();
   if (!hasTap()) { L.st = 'tap'; render('none'); return; }
   probeGo(f, L);
@@ -3190,7 +3274,7 @@ function pageLink(p) {
     if (L.e === 'blocked' || L.e === 'login' || L.e === 'unsupported' || L.e === 'no_video') p.append(note(T('studioLinkUpload')));
     // הניסוי: דף שהשרת לא מצא בו סרטון (נשלח מהבועה) — דפדפן הציד רואה את מה שהנגן מבקש בפועל
     // קובץ זעיר מדפדפן הציד → חוזרים לדף (L.ref) ומנגנים את הסרטון עצמו
-    if (grabOk() && ((!L.ref && (L.e === 'unsupported' || L.e === 'no_video' || L.e === 'fail')) || (L.e === 'tiny' && L.ref))) p.append(h('div', 'st-gap sm'), btn('st-btn wide', T('studioHuntTry'), () => huntOpen(L.e === 'tiny' ? L.ref : L.u), 'link-hunt'));
+    if (grabOk() && ((!L.ref && (L.e === 'unsupported' || L.e === 'no_video' || L.e === 'fail' || L.e === 'slow')) || ((L.e === 'tiny' || L.e === 'slow') && L.ref))) p.append(h('div', 'st-gap sm'), btn('st-btn wide', T('studioHuntTry'), () => huntOpen(L.ref || L.u), 'link-hunt'));
     return;
   }
   // יש תוצאה
@@ -6885,6 +6969,7 @@ function pageJob(p) {
     const removing = fin || ph0 === 'ready' || ph0 === 'paused' || ph0 === 'need' || ph0 === 'error';
     const doIt = async () => {
       stopRun(id);
+      bgAbort(id);
       if (removing) {
         if (!fin) await net.api('cancel', { job: id });
         const j = await net.api('remove', { job: id });
@@ -7661,10 +7746,16 @@ function closeStudio(instant) {
 let SA = null;
 /* 22/10/2026: "שיתוף ← Studio" / הבועה — טופס חדש ודף הקישור, והבדיקה מתחילה מיד (בלי להדביק).
    גם כש־Studio כבר פתוחה: אנדרואיד מעביר את הקישור ללשונית הקיימת כשינוי ב־hash, בלי טעינה (studio-app.js → hashchange) */
-export function studioShare(text, ref) {
+export function studioShare(text, ref, pr) {
   const shared = typeof text === 'string' ? text.trim().slice(0, 4096) : '';
   if (!root || !shared || !/https?:\/\//i.test(shared)) return false;
-  form = freshForm(null); go('new', null, 'none'); go('link', null, 'none'); linkCheck(form, shared, ref);
+  // 23/10/2026: מדפדפן הציד — הבדיקה כבר רצה בטלפון (DlActivity), והתוצאה הגיעה יחד עם הכתובת (pr = ‎<n>.<תוצאה>).
+  // האתר לא פותח שוב את חלון הבדיקה (בלי נגיעה של המשתמש Chrome חוסם — "בודקים את הקישור…" בלי סוף)
+  const pre = /^([A-Za-z0-9]{6,24})\./.exec(String(pr || ''));
+  const L0 = form && form.link;
+  if (pre && L0 && L0.n === pre[1] && L0.st === 'busy') return studioProbeRes(pr);   // הדף עוד מחכה לבדיקה הזו
+  form = freshForm(null); go('new', null, 'none'); go('link', null, 'none'); linkCheck(form, shared, ref, pre ? pre[1] : '');
+  if (pre) studioProbeRes(pr);
   return true;
 }
 export function openStudio(opt) {
@@ -7723,7 +7814,7 @@ export function openStudio(opt) {
   // מההתראה: לדף העבודה — מיד אם היא כבר בטלפון, אחרת אחרי שהרשימה מהשרתון מגיעה
   if (jobLink) { if (jobRec(jobLink)) goJobLink(jobLink, linkView, 'none'); else Promise.resolve(jobs0).then(() => { if (root && jobRec(jobLink)) goJobLink(jobLink, linkView); }); }
   // 22/10/2026: "שיתוף ← Studio" — טופס חדש ודף הקישור, והבדיקה מתחילה מיד (בלי להדביק)
-  if (opt) studioShare(opt.share, opt.ref);
+  if (opt) studioShare(opt.share, opt.ref, opt.probe);
   if (opt && opt.got) studioGot(opt.got);      // 22/10/2026: הקובץ מההורדה בטלפון / מהגלריה (sw.js → ‎#got=)
   if (opt && opt.dle) studioDlErr(opt.dle);
   // העלאות שנקטעו (רענון): ממשיכים לבד כשיש ידית לקובץ עם הרשאה; אחרת המסך מבקש לבחור שוב

@@ -195,8 +195,26 @@ class HuntActivity : Activity() {
     /* מכל חוט (בקשות רשת מגיעות מחוט רקע) → הסינון → הרשימה בחוט הראשי */
     private fun seen(url: String) {
         val h = HuntMedia.classify(url) ?: return
-        ui.post { if (found.add(h)) paintPill() }
+        if (h.kind != HuntMedia.Kind.FILE) { ui.post { if (found.add(h)) paintPill() }; return }
+        // 23/10/2026 (buffett.cnbc.com: "נמצא סרטון" על קובץ של 5KB לפני שנוגעים ב־▶): קובץ ישיר נבדק קודם (HEAD) —
+        // קטן מ־DlDeep.MIN_BYTES או דף/תמונה לא נספר. גודל לא ידוע — נספר
+        synchronized(headSeen) { if (!headSeen.add(h.url) || headSeen.size > 60) return }
+        val ref = page
+        Thread {
+            var ok = true
+            try {
+                val c = java.net.URL(h.url).openConnection() as java.net.HttpURLConnection
+                c.requestMethod = "HEAD"; c.connectTimeout = 8000; c.readTimeout = 8000
+                c.setRequestProperty("User-Agent", web.settings.userAgentString)
+                if (ref.startsWith("http")) c.setRequestProperty("Referer", ref)
+                val type = (c.contentType ?: "").lowercase(); val len = c.contentLengthLong
+                c.disconnect()
+                if ((len in 1 until DlDeep.MIN_BYTES) || type.startsWith("text/") || type.startsWith("image/") || type.contains("json")) ok = false
+            } catch (e: Throwable) {}
+            if (ok) ui.post { if (found.add(h)) paintPill() }
+        }.start()
     }
+    private val headSeen = HashSet<String>()
 
     private fun paintPill() {
         val n = found.size + (if (pageIsVideo()) 1 else 0)
@@ -226,7 +244,8 @@ class HuntActivity : Activity() {
         android.widget.Toast.makeText(this, R.string.huntHint, android.widget.Toast.LENGTH_LONG).show()
     }
 
-    private fun pageIsVideo() = VideoUrl.classify(page) is VideoUrl.Hit.Video
+    // נפתח לבד מהבדיקה (EXTRA_AUTO) — הדף עצמו כבר נבדק ולא נמצא בו סרטון: לא מציעים אותו שוב (אחרת "נמצא" = הדף, ולולאה)
+    private fun pageIsVideo() = intent?.getBooleanExtra(EXTRA_AUTO, false) != true && VideoUrl.classify(page) is VideoUrl.Hit.Video
 
     /* מה לשלוח: הדף עצמו (כשזה דף צפייה באתר מוכר — yt-dlp יביא כותרת, פרקים וכתוביות) או אחד הממצאים */
     private fun pick() {
@@ -244,13 +263,33 @@ class HuntActivity : Activity() {
             .show()
     }
 
+    /* נפתח לבד מהבדיקה (DlActivity) — האתר עוד מחכה לתוצאה; נסגר בלי לשלוח → מקבל את "לא נמצא" עכשיו */
+    private var sent = false
+    override fun finish() {
+        val miss = intent?.getStringExtra(EXTRA_MISS) ?: ""
+        if (!sent && Regex("^#probe=[A-Za-z0-9]{6,24}\\.![a-z_]{1,20}$").matches(miss)) {
+            sent = true
+            try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.launchUrl) + miss), this, MainActivity::class.java)) } catch (e: Exception) {}
+        }
+        super.finish()
+    }
+
+    /* 23/10/2026 (צילום המשתמש, buffett.cnbc.com: "בודקים את הקישור…" בלי סוף): עד היום הממצא עבר לאתר כ"שיתוף",
+       והאתר פתח את חלון הבדיקה בעצמו — בלי נגיעה של המשתמש, ו־Chrome חוסם את זה. עכשיו הבדיקה נפתחת מכאן (DlActivity, h=1),
+       והתוצאה חוזרת לאתר יחד עם הכתובת (‎#share=…&ref=…&probe=…) — שינוי hash אחד */
     private fun send(url: String, ref: String) {
-        val i = Intent(this, MainActivity::class.java)
-            .setAction(Intent.ACTION_SEND).setType("text/plain")
-            .putExtra(Intent.EXTRA_TEXT, url)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (ref.isNotEmpty()) i.putExtra(EXTRA_REF, ref)
-        startActivity(i)
+        sent = true
+        val n = Regex("^#probe=([A-Za-z0-9]{6,24})\\.").find(intent?.getStringExtra(EXTRA_MISS) ?: "")?.groupValues?.get(1)
+            ?: java.util.UUID.randomUUID().toString().replace("-", "").take(16)
+        val q = "snbstudio://probe?h=1&n=$n&u=" + Uri.encode(url) + (if (ref.isNotEmpty()) "&ref=" + Uri.encode(ref) else "") +
+            (DlLang.cur(this)?.let { "&l=$it" } ?: "")
+        try { startActivity(Intent(this, DlActivity::class.java).setData(Uri.parse(q))) }
+        catch (e: Exception) {   // לא אמור לקרות — הדרך הישנה
+            val i = Intent(this, MainActivity::class.java).setAction(Intent.ACTION_SEND).setType("text/plain")
+                .putExtra(Intent.EXTRA_TEXT, url).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (ref.isNotEmpty()) i.putExtra(EXTRA_REF, ref)
+            startActivity(i)
+        }
         finish()
     }
 
@@ -284,6 +323,7 @@ class HuntActivity : Activity() {
     companion object {
         const val EXTRA_REF = "snb_ref"
         const val EXTRA_AUTO = "snb_auto"   // נפתח לבד אחרי בדיקה שלא מצאה סרטון (DlActivity)
+        const val EXTRA_MISS = "snb_miss"   // התוצאה לאתר (‎#probe=<n>.!<קוד>) — נמסרת רק אם נסגר בלי לשלוח
 
         /* הסקריפט בדף: fetch/XHR של הנגן ו־src של <video>/<source>. רק מדווח כתובות (מחרוזות) — לא משנה כלום */
         private const val HOOK = """(function(){try{

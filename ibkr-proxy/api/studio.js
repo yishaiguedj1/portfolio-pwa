@@ -1284,10 +1284,11 @@ async function r2Files(deps, op, body, uid, folder, by) {
   const c = R2.config();
   if (!c.ok) return [503, { ok: false, error: 'r2_off' }];
   const id = String(body.id || ''), rd = r2deps(deps);
-  if ((id || op !== 'up') && !SR.inFolder(id, folder)) return [400, { ok: false, error: 'bad_id' }];
+  if ((id || (op !== 'up' && op !== 'bg')) && !SR.inFolder(id, folder)) return [400, { ok: false, error: 'bad_id' }];
   const rec = id ? await upRec(deps, id) : null;
   let out;
   if (op === 'up') out = await SR.upStart(c, rd, { uid, folder, id, size: body.size, type: body.type, name: body.name, rec, by, replace: by === 'worker' && body.replace === true });
+  else if (op === 'bg' && by === 'phone') out = await SR.upBg(c, rd, { uid, folder, id, size: body.size, type: body.type, name: body.name, rec });   // 23/10/2026: Background Fetch
   else if (op === 'parts') out = await SR.upParts(c, rd, { id, rec, up: body.up, uid });
   else if (op === 'done') out = await SR.upDone(c, rd, { id, rec, up: body.up, uid });
   else if (op === 'url') return [200, await SR.getUrl(c, rd, { uid, folder, id, by, name: body.name ? String(body.name) : '' })];
@@ -1297,6 +1298,46 @@ async function r2Files(deps, op, body, uid, folder, by) {
   if (out.rec && fid) await patchDoc(deps, 'studioUp', fid, Object.assign({}, out.rec, { f: folder }));
   return [200, out.res];
 }
+/* רישום קובץ שעלה ל־R2 בעבודה (op:'file' מהטלפון, ו־r2bgDone מה־service worker): קיים, בתיקייה של העבודה, והסרטון /
+   הכתוביות בגודל של המקור. משנה את job במקום. מחזיר {} או { code, error } */
+async function r2Register(deps, job, which, fid, now) {
+  const fkey = which === 's' ? 'fsu' : 'f' + which;
+  const m = await driveFileInFolder(deps, job.uid, job.folder, fid);
+  if (m && m.error) return { code: 200, error: m.error };
+  const f = m && S.normFile({ id: fid, name: m.name || (which === 'v' ? 'video' : which === 's' ? 'subs' : 'audio'), size: m.size, mimeType: m.mime });
+  if (!f) return { code: 400, error: 'file_bad' };
+  if ((which === 'v' || which === 's') && job.spec && f.size !== job.spec.size) return { code: 400, error: 'file_size' };
+  f.at = now;
+  await patchJob(deps, job.id, { [fkey]: f, updated: now });
+  job[fkey] = f;
+  return {};
+}
+
+/* 23/10/2026: הסרטון עלה ב־Background Fetch — ה־service worker (גם כשהאפליקציה סגורה) מסיים את ההעלאה ורושם אותו.
+   בלי התחברות: ההרשאה = מפתח הסיום החד־פעמי שהשרתון נתן לטלפון ב־r2bg (ברשומת ההעלאה רק ה־hash). רק סרטון של עבודת
+   תרגום, רק בתיקייה של העבודה. העבודה כבר התחילה מהקול (הקול קודם) — העובד מחכה לסרטון ולוקח אותו מכאן */
+async function r2BgDone(req, res, body, deps) {
+  const ip = String(((req.socket || {}).remoteAddress) || '');
+  if (limited('bg|' + ip, 30)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+  const now = deps.now || Date.now();
+  const jid = String(body.job || ''), id = String(body.id || '');
+  if (!S.JOB_RE.test(jid) || !SR.isId(id)) return res.status(400).json({ ok: false, error: 'bad_params' });
+  const c = R2.config();
+  if (!c.ok) return res.status(503).json({ ok: false, error: 'r2_off' });
+  const job = await readJob(deps, jid);
+  if (!job || job.kind !== 'tr' || !SR.inFolder(id, job.folder)) return res.status(404).json({ ok: false, error: 'not_found' });
+  const rec = await upRec(deps, id);
+  if (!rec || rec.f !== job.folder || rec.uid !== job.uid) return res.status(404).json({ ok: false, error: 'not_found' });
+  const out = await SR.bgDone(c, r2deps(deps), { id, rec, up: String(body.up || ''), fk: String(body.fk || '') });
+  if (out.rec) await patchDoc(deps, 'studioUp', id, Object.assign({}, out.rec, { f: job.folder }));
+  if (!out.res.ok) return res.status(out.res.error === 'forbidden' ? 403 : 200).json({ ok: false, error: out.res.error, missing: out.res.missing });
+  const st = S.effState(job, now).state;
+  if (job.fv && job.fv.id === id) return res.status(200).json({ ok: true });
+  if (!['new', 'queued', 'running', 'failed'].includes(st)) return res.status(200).json({ ok: true, reg: 'state' });
+  const rg = await r2Register(deps, job, 'v', id, now);
+  return res.status(200).json(rg.error ? { ok: true, reg: rg.error } : { ok: true });
+}
+
 /* מחיקת עבודה: הקבצים ב־R2 נמחקים כשאף עבודה אחרת לא משתמשת בתיקייה (עבודות משנה וסט הזהב יורשים אותה) */
 async function r2Purge(deps, uid, job) {
   if (!SR.isFolder(job.folder) || !R2.config().ok) return;
@@ -1743,6 +1784,7 @@ async function handler(req, res, deps = {}) {
     const now = deps.now || Date.now();
     return res.status(200).json({ ok: true, cfg: SF.publicCfg(await sysCfg(deps, now), now), now });
   }
+  if (body.op === 'r2bgDone') return r2BgDone(req, res, body, deps);   // 23/10/2026: Background Fetch — מפתח הסיום במקום התחברות
   if (body.op === 'gdConfig') return res.status(200).json({ ok: true, clientId: gdrive.cfg().id, configured: gdrive.configured(), picker: !!S.pickerCfg(process.env, gdrive.cfg().id) });   // המזהה ציבורי · picker = האם מפתח ה־Picker נטען (רק כן/לא — לאבחון בלי התחברות)
   let user;
   const monTok = String((req.headers || {})['x-mon-token'] || '');
@@ -2438,7 +2480,7 @@ async function handler(req, res, deps = {}) {
       await learnSave(deps, job, now);
       return res.status(200).json({ ok: true, job: view(job) });
     }
-    if (op === 'r2up' || op === 'r2parts' || op === 'r2done' || op === 'r2url') {
+    if (op === 'r2up' || op === 'r2parts' || op === 'r2done' || op === 'r2url' || op === 'r2bg') {
       // ת4: העלאה מהטלפון ל־R2 (בחלקים, עם המשך) וקישור צפייה / הורדה — רק בתיקייה של העבודה הזו
       const [code, out] = await r2Files(deps, op.slice(2), body, uid, job.folder, 'phone');
       return res.status(code).json(out);
@@ -2456,14 +2498,8 @@ async function handler(req, res, deps = {}) {
       if (SR.isFolder(folder) && !ext) {
         // ת4: קובץ ב־R2 — קיים, בתיקייה של העבודה, והסרטון בגודל של המקור (מקור מ־Drive — ext — נשאר ב־Drive, בבדיקה שלמטה)
         if (folder !== job.folder) return res.status(400).json({ ok: false, error: 'bad_params' });
-        const m = await driveFileInFolder(deps, uid, folder, fid);
-        if (m && m.error) return res.status(200).json({ ok: false, error: m.error });
-        const f = m && S.normFile({ id: fid, name: m.name || (which === 'v' ? 'video' : which === 's' ? 'subs' : 'audio'), size: m.size, mimeType: m.mime });
-        if (!f) return res.status(400).json({ ok: false, error: 'file_bad' });
-        if ((which === 'v' || which === 's') && job.spec && f.size !== job.spec.size) return res.status(400).json({ ok: false, error: 'file_size' });
-        f.at = now;
-        await patchJob(deps, job.id, { [fkey]: f, updated: now });
-        job[fkey] = f;
+        const rg = await r2Register(deps, job, which, fid, now);
+        if (rg.error) return res.status(rg.code).json({ ok: false, error: rg.error });
         return res.status(200).json({ ok: true, job: view(job) });
       }
       // מאמתים מול Drive עצמו: הקובץ קיים, בתיקיית העבודה, והווידאו בגודל של המקור — העובד יוריד בדיוק את זה
