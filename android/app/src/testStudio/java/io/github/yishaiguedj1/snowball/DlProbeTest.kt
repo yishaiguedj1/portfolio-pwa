@@ -53,6 +53,14 @@ class DlProbeTest {
         assertEquals(ref.getString(1), DlProbe.refOk(" https://a.com/p "))
     }
 
+    @Test fun altUrlsAddWww() {
+        assertEquals(listOf("https://www.imdb.com/video/vi17"), DlProbe.altUrls("https://imdb.com/video/vi17"))
+        assertEquals(listOf("https://www.cnbc.com/video/2026/05/04/x.html"), DlProbe.altUrls("https://buffett.cnbc.com/video/2026/05/04/x.html"))
+        assertEquals(listOf("https://www.kan.org.il/content/1"), DlProbe.altUrls("https://kan.org.il/content/1"))
+        listOf("https://www.imdb.com/video/vi1", "https://m.imdb.com/x", "https://a.b.c.example.com/x", "https://1.2.3.4/x", "ftp://imdb.com/x")
+            .forEach { assertEquals(it, emptyList<String>(), DlProbe.altUrls(it)) }
+    }
+
     @Test fun pyRoundIsBankers() {
         assertEquals(2, DlProbe.pyRound(2.5)); assertEquals(4, DlProbe.pyRound(3.5)); assertEquals(30, DlProbe.pyRound(29.97))
     }

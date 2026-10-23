@@ -65,14 +65,21 @@ object DlEngine {
     fun probe(ctx: Context, url: String, ref: String, onStage: (String) -> Unit = {}): JSONObject {
         prepare(ctx, onStage)
         onStage("probe")
-        val req = base(YoutubeDLRequest(url), ref).addOption("-J").addOption("--skip-download")
-        val out = try {
-            YoutubeDL.getInstance().execute(req).out
-        } catch (e: Throwable) {
-            throw IllegalArgumentException(DlProbe.errCode(e.message))
+        // לא נמצא סרטון בכתובת כמו שהיא → הכתובות החלופיות (DlProbe.altUrls: www.); שגיאה אחרת — מיד
+        var s: JSONObject? = null; var info: JSONObject? = null; var err: IllegalArgumentException? = null
+        for (u in listOf(url) + DlProbe.altUrls(url)) {
+            try {
+                val out = try {
+                    YoutubeDL.getInstance().execute(base(YoutubeDLRequest(u), ref).addOption("-J").addOption("--skip-download")).out
+                } catch (e: Throwable) { throw IllegalArgumentException(DlProbe.errCode(e.message)) }
+                val i = try { JSONObject(out) } catch (e: Throwable) { throw IllegalArgumentException("fail") }
+                s = DlProbe.summarize(i); info = i; break
+            } catch (e: IllegalArgumentException) {
+                if (err == null) err = e
+                if (e.message !in RETRY_ALT) break
+            }
         }
-        val info = try { JSONObject(out) } catch (e: Throwable) { throw IllegalArgumentException("fail") }
-        val s = DlProbe.summarize(info)
+        if (s == null || info == null) throw err ?: IllegalArgumentException("fail")
         s.put("th", thumbData(DlProbe.thumbUrl(info)))
         return s
     }
@@ -95,6 +102,8 @@ object DlEngine {
             if (b.length <= 70 * 1024) b else ""
         } catch (e: Throwable) { "" }
     }
+
+    private val RETRY_ALT = setOf("unsupported", "no_video", "fail")
 
     data class Pick(val v: String, val a: String, val h: Int, val s0: Int, val s1: Int)
 
