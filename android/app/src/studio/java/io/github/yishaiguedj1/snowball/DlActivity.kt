@@ -43,8 +43,23 @@ class DlActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        guard()
         setContentView(build())
         route(intent)
+    }
+
+    /** קריסה לא צפויה → האתר מקבל שגיאה (‎!crash / ‎crash) במקום מסך שנעלם בשקט */
+    private fun guard() {
+        val prev = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e ->
+            try {
+                val n = nonce
+                if (N_RE.matches(n)) startActivity(if (mode == "dl") DlState.errIntent(this, n, "crash")
+                    else Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.launchUrl) + "#probe=$n.!crash"), this, MainActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            } catch (x: Throwable) {}
+            prev?.uncaughtException(t, e)
+        }
     }
 
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); route(intent) }
