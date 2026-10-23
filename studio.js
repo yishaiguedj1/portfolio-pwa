@@ -847,6 +847,19 @@ export function jobPhase(rec, run) {
   return rec.up.started ? 'queued' : 'ready';
 }
 
+/* 23/10/2026: העלאה שנחסמת (CORS / קישור חתום / חיבור שנתקע) נראתה "תקועה" בלי מילה — הטלפון ניסה שוב בשקט.
+   upBlockStep מעדכן את מצב החסימה בכל ניסיון חוזר (onWait); upBlocked אומר מתי להגיד למשתמש: ניסיונות רצופים
+   בלי שום בייט שהתקדם, ולפחות UP_BLOCK_MS. טביעת ההתקדמות = הבייטים של הקול + הסרטון + ההעלאה הנוכחית. */
+export const UP_BLOCK_N = 3, UP_BLOCK_MS = 45000;
+export function upBlockStep(b, fp, code, now) {
+  if (!b || b.fp !== fp) return { fp, n: 1, t0: now, code: String(code || 'net') };
+  return { fp, n: b.n + 1, t0: b.t0, code: String(code || b.code || 'net') };
+}
+export function upBlocked(b, fp, now) {
+  if (!b || b.fp !== fp || b.n < UP_BLOCK_N || now - b.t0 < UP_BLOCK_MS) return '';
+  return b.code === 'stalled' ? 'stall' : 'net';
+}
+
 /* ---------------- מחרוזות לפי מזהה (כל מפתח מילולי) ---------------- */
 function modeSub(id) {
   switch (id) {
@@ -1518,7 +1531,13 @@ async function runJob(id, run) {
   const up = rec.up, file = run.file, sig = run.ctl.signal;
   wakeOn(); paintSoon();
   { const tl = utlOf(rec); tl.rs = (tl.rs || 0) + 1; if (!tl.c2s && rec.created) tl.c2s = Math.max(0, run.t0 - rec.created); }
-  const onWaitT = () => { utlAdd(rec, 'wt', 1); paintSoon(); };
+  const upFp = () => (Number(rec.up.a.sent) || 0) + (Number(rec.up.v.sent) || 0) + (Number(run.sent) || 0);
+  const onWaitT = (e) => {
+    utlAdd(rec, 'wt', 1);
+    run.blk = upBlockStep(run.blk, upFp(), e && (e.code || e.message), Date.now());
+    if (!run.blkEv && upBlocked(run.blk, upFp(), Date.now())) { run.blkEv = run.evd = true; opsEvent(id, [{ c: 'phone', k: 'stall' }]); }   // מגדל הפיקוח — פעם אחת להעלאה
+    paintSoon();
+  };
   try {
     if (!up.folder) { up.folder = await net.jobFolder(id, fileTitle(rec.spec.name)); save(); }
     if (rec.spec.src === 'subs') {   // 22/10/2026: קובץ כתוביות — העלאה אחת קטנה, רישום (s) והתחלה. הקובץ במקום של הקול (up.a)
@@ -2374,6 +2393,10 @@ function heroState(rec, run, ph) {
 const SRV_DIED = new Set(['worker_lost', 'worker_crash', 'worker_oom']);
 /* מה קורה עכשיו — משפט אחד */
 function nowLine(rec, run, ph) {
+  if (run && run.active && (ph === 'extract' || ph === 'audio' || ph === 'video')) {
+    const bk = upBlocked(run.blk, (Number(rec.up.a.sent) || 0) + (Number(rec.up.v.sent) || 0) + (Number(run.sent) || 0), Date.now());
+    if (bk) { const t = fmtSecShort((Date.now() - run.blk.t0) / 1000); return bk === 'stall' ? T('studioUpBlockStall', { t }) : T('studioUpBlockNet', { t }); }
+  }
   if (ph === 'wait') return run.wait === 'wifi' ? T('studioWaitWifi') : T('studioWaitNet');
   if (ph === 'extract') {             // 21/10/2026: הסרטון עולה במקביל לחילוץ (uploadBoth)
     const vp = rec.spec && rec.spec.size > 0 && rec.up.v.sent > 0 ? Math.min(99, Math.floor(100 * rec.up.v.sent / rec.spec.size)) : 0;
