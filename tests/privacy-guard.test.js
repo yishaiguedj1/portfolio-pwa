@@ -27,6 +27,15 @@ const textExt = /\.(js|md|html|css|json|yml|yaml|webmanifest|txt|py|sh|tsv)$/i; 
 files = files.filter((f) => textExt.test(f) && fs.existsSync(path.join(root, f)));
 ok(files.length > 20, 'נסרקו ' + files.length + ' קבצים');
 
+// 23/10/2026: קובץ צד שלישי מקובע — מפענח ה־AC-3 (WASM בתוך מחרוזת: טבלאות של 0/1 נראות כמו "20+ ספרות").
+// מוחרג רק כשהקובץ זהה בדיוק לטביעה ב־VERSION — כל שינוי בו נסרק כרגיל.
+const PINNED = new Set(['vendor/mediabunny/ac3-worker.js'].filter((f) => {
+  try {
+    const h = require('crypto').createHash('sha256').update(fs.readFileSync(path.join(root, f))).digest('hex');
+    return fs.readFileSync(path.join(root, 'vendor/mediabunny/VERSION'), 'utf8').includes(f.split('/').pop() + ' ') &&
+      new RegExp(f.split('/').pop().replace('.', '\\.') + '\\s+sha256 ' + h).test(fs.readFileSync(path.join(root, 'vendor/mediabunny/VERSION'), 'utf8'));
+  } catch (e) { return false; }
+}));
 const DUMMY_TOKEN = '1234567890'.repeat(3).slice(0, 24); // הטוקן המדומה של בדיקות השרתון
 const rules = [
   { name: 'מספר חשבון IBKR', re: /\b[UI]\d{7,8}\b/g },
@@ -40,6 +49,7 @@ for (const r of rules) {
   for (const f of files) {
     if (f === 'tests/privacy-guard.test.js') continue;
     if (r.allowFile && r.allowFile(f)) continue;
+    if (PINNED.has(f)) continue;
     const src = fs.readFileSync(path.join(root, f), 'utf8');
     for (const m of src.matchAll(r.re)) {
       if (r.allow && r.allow(m[0])) continue;
