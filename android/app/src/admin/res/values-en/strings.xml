@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="assetStatements" translatable="false">[{\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://admin.thesnowball.app\"}}]</string>
+
+    <string name="mon_title">Admin monitor</string>
+    <string name="mon_widget_label">Admin monitor</string>
+    <string name="mon_widget_desc">Server metrics in near real time: CPU, memory, disk and network per server. Tap ↻ to refresh.</string>
+    <string name="mon_updated">Updated %1$s</string>
+    <string name="mon_now">now</string>
+    <string name="mon_ago_m">%1$d min ago</string>
+    <string name="mon_ago_h">%1$d h ago</string>
+    <string name="mon_ago_d">%1$d days ago</string>
+    <string name="mon_never">never</string>
+    <string name="mon_seen">Seen %1$s</string>
+    <string name="mon_refresh">Refresh</string>
+    <string name="mon_settings">Settings</string>
+    <string name="mon_no_token">Set a token in the widget settings</string>
+    <string name="mon_auth_bad">Token invalid — reconnect in settings</string>
+    <string name="mon_loading">Loading…</string>
+    <string name="mon_no_servers">No servers reporting</string>
+    <string name="mon_st_on">Online</string>
+    <string name="mon_st_paused">Paused</string>
+    <string name="mon_st_off">Offline</string>
+    <string name="mon_st_warn">Warning: %1$s</string>
+    <string name="mon_st_busy">Working on a job</string>
+    <string name="mon_w_cu">CPU</string>
+    <string name="mon_w_mem">memory</string>
+    <string name="mon_w_disk">disk</string>
+    <string name="mon_w_psi">pressure</string>
+    <string name="mon_metrics">CPU %1$s · RAM %2$s · Disk %3$s</string>
+    <string name="mon_net">Net ↓ %1$s ↑ %2$s</string>
+    <string name="mon_no_data">No metrics</string>
+
+    <string name="mon_cfg_title">Admin monitor connection</string>
+    <string name="mon_cfg_hint">Paste the admin monitor token. It is stored only on this device and is never shown again.</string>
+    <string name="mon_cfg_stored">A token is stored on this device. To replace it, paste a new one and save.</string>
+    <string name="mon_cfg_save">Save</string>
+    <string name="mon_cfg_check">Check connection</string>
+    <string name="mon_cfg_clear">Delete token</string>
+    <string name="mon_cfg_empty">Paste a token first</string>
+    <string name="mon_cfg_saved">Saved. The widget is refreshing…</string>
+    <string name="mon_cfg_cleared">Token deleted from this device</string>
+    <string name="mon_cfg_ok">Connected · %1$d servers · %2$d active jobs</string>
+    <string name="mon_cfg_noauth">The token is invalid or was revoked</string>
+    <string name="mon_cfg_fail">The server is unavailable right now — try again later</string>
+    <string name="mon_loading_check">Checking…</string>
+</resources>
