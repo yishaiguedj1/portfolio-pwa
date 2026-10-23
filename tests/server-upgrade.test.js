@@ -335,6 +335,7 @@ const paused = (w) => [w.docs[PROD].p1.paused, w.docs[STG].s1.paused];
   const txt = await U.check(E, w.deps);
   ok(/cx43 · fsn1/.test(txt) && /35\.59 USD/.test(txt) && /במלאי/.test(txt), 'check: השרת, המיקום, המחיר כולל IPv4 והמלאי');
   ok(w.acts.length === 0 && w.patches.length === 0, 'check לא משנה כלום');
+  ok(txt.includes('בתור יותר מ־' + Math.round(U.UP.QUEUE_OLD / 60e3) + ' דק׳'), 'check: סף התור מהקבוע עצמו (90 דק׳), לא "3 שעות" ישן');
 
   // ---------------- ה־workflow
   const wf = read('.github/workflows/upgrade.yml');
