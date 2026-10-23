@@ -111,6 +111,13 @@ class DlDeepTest {
         assertTrue(DlDeep.EXTRACT.contains("k==='duration'") && DlDeep.EXTRACT.contains("out.vd"))
     }
 
+    @Test fun mediaUrl() {
+        assertTrue(DlDeep.isMediaUrl("https://sc.cnbcfm.com/applications/x/master.m3u8?a=1"))
+        assertTrue(DlDeep.isMediaUrl("https://cdn.example.com/v/clip.MP4"))
+        assertFalse(DlDeep.isMediaUrl("https://buffett.cnbc.com/video/1994/05/02/"))
+        assertFalse(DlDeep.isMediaUrl("https://example.com/watch?f=a.mp4"))   // סיומת רק בפרמטר — דף
+    }
+
     @Test fun extractScript() {
         val js = DlDeep.EXTRACT
         assertTrue(js.contains("__NEXT_DATA__") && js.contains("application/ld+json") && js.contains("og:video"))

@@ -89,22 +89,31 @@ class DlActivity : Activity() {
         }
     }
 
+    @Volatile private var probeSlow = false
+
     private fun probe(u: String, ref: String) {
         mode = "probe"
         titleV.text = s(R.string.dlChecking); subV.text = s(R.string.dlCheckingS)
         bar.isIndeterminate = true; btn.text = s(R.string.dlCancel)
-        btn.setOnClickListener { back("#probe=$nonce.!cancel") }
+        val pid = "probe-$nonce"
+        btn.setOnClickListener { DlEngine.cancel(pid); back("#probe=$nonce.!cancel") }
+        // 23/10/2026 (דיווח המשתמש: קובץ מדפדפן הציד — יותר מדקה בלי תשובה): תקרת זמן לבדיקה עצמה, אחרי ההכנה.
+        // עברה → עוצרים את yt-dlp ומחזירים "slow" (האתר: לנסות שוב / דפדפן הציד; כתובת של דף — הבדיקה לעומק)
+        val slow = Runnable { probeSlow = true; DlEngine.cancel(pid) }
         Thread {
             var miss = false
             val res = try {
-                val s = DlEngine.probe(this, u, ref, DlEngine.cookiesFor(this, u, ref)) { st ->
+                val s = DlEngine.probe(this, u, ref, DlEngine.cookiesFor(this, u, ref), pid) { st ->
                     main.post { subV.text = s(when (st) { "init" -> R.string.dlInit; "update" -> R.string.dlUpdate; else -> R.string.dlCheckingS }) }
+                    if (st == "probe") main.postDelayed(slow, if (ref.isNotEmpty()) PROBE_REF_MS else PROBE_MS)
                 }
+                main.removeCallbacks(slow)
                 // קובץ שנתפס בדף (דפדפן הציד) ונראה כמו פרסומת / קובץ זעיר — לא מציעים להוריד אותו
                 if (ref.isNotEmpty() && !DlDeep.realVideo(s, 0)) throw IllegalArgumentException("tiny")
                 "#probe=$nonce." + DlEngine.b64(s.toString())
             } catch (e: Throwable) {
-                val code = (e as? IllegalArgumentException)?.message ?: "fail"
+                main.removeCallbacks(slow)
+                val code = if (probeSlow) "slow" else (e as? IllegalArgumentException)?.message ?: "fail"
                 miss = ref.isEmpty() && code in HUNT_ON
                 "#probe=$nonce.!" + code
             }
@@ -186,7 +195,7 @@ class DlActivity : Activity() {
         if (ck == null) { ckFailed = true; return }
         val img = deepPage?.image ?: ""
         Thread {
-            val r = try { DlEngine.probe(this, u, "", ck) } catch (e: Throwable) { null }
+            val r = deepProbe(u, "", ck, PROBE_MS)
             if (r != null) DlEngine.thumbIfEmpty(r, img)
             main.post {
                 if (deepDone) return@post
@@ -204,7 +213,7 @@ class DlActivity : Activity() {
         val ck = writeCookies(page, h.url)
         val pg = deepPage
         Thread {
-            val r = try { DlEngine.probe(this, h.url, page, ck) } catch (e: Throwable) { null }
+            val r = deepProbe(h.url, page, ck, PROBE_REF_MS)
             if (r != null) { DlDeep.fromMedia(r, h.url, page, pg); DlEngine.thumbIfEmpty(r, pg?.image ?: "") }
             main.post {
                 mediaBusy = false
@@ -221,6 +230,17 @@ class DlActivity : Activity() {
                 nextMedia(u, miss)
             }
         }.start()
+    }
+
+    /** בדיקה אחת בתוך הבדיקה לעומק — עם תקרת זמן, ונעצרת יחד איתה (stopDeep). כל תקלה → null */
+    @Volatile private var deepPid = ""
+    private fun deepProbe(u: String, ref: String, ck: DlEngine.Ck?, ms: Long): org.json.JSONObject? {
+        val pid = "deep-$nonce-${System.nanoTime()}"
+        deepPid = pid
+        val stop = Runnable { DlEngine.cancel(pid) }
+        main.postDelayed(stop, ms)
+        return try { DlEngine.probe(this, u, ref, ck, pid) } catch (e: Throwable) { null }
+            finally { main.removeCallbacks(stop); if (deepPid == pid) deepPid = "" }
     }
 
     private var bestMedia: org.json.JSONObject? = null
@@ -242,6 +262,7 @@ class DlActivity : Activity() {
     private fun stopDeep() {
         deepDone = true
         main.removeCallbacksAndMessages(null)
+        deepPid.let { if (it.isNotEmpty()) DlEngine.cancel(it) }
         web?.let { try { it.stopLoading(); (it.parent as? ViewGroup)?.removeView(it); it.destroy() } catch (e: Throwable) {} }
         web = null
     }
@@ -340,6 +361,8 @@ class DlActivity : Activity() {
     companion object {
         const val ACT_SHOW = "app.thesnowball.studio.DL_SHOW"
         private val N_RE = Regex("^[A-Za-z0-9]{6,24}$")
-        private val HUNT_ON = setOf("unsupported", "no_video", "fail")   // = מתי האתר מציע את דפדפן הציד
+        private val HUNT_ON = setOf("unsupported", "no_video", "fail", "slow")   // = מתי האתר מציע את דפדפן הציד
+        const val PROBE_MS = 90_000L       // תקרת הזמן לבדיקה של דף
+        const val PROBE_REF_MS = 45_000L   // ושל קובץ שנתפס בדף (דפדפן הציד / הבדיקה לעומק)
     }
 }
