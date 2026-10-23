@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1770 מפתחות מתוך 3853) */
+/* המחרוזות של studio (1772 מפתחות מתוך 3855) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -855,6 +855,8 @@ he: {
   "studioLinkHowT": "דרכים מהירות",
   "studioLinkMoreT": "עוד",
   "studioLinkNoReenc": "התמונה והקול מתאחדים לקובץ אחד בלי לקודד מחדש — בדיוק האיכות שהאתר מגיש.",
+  "studioLinkOnly": "רק להוריד לטלפון",
+  "studioLinkOnlyWait": "מוריד לטלפון — נשמר ב־Movies/Studio",
   "studioLinkPaste": "הדבקה",
   "studioLinkPasteNo": "אין גישה ללוח — הדביקו בשדה",
   "studioLinkPasteNone": "אין קישור בלוח",
@@ -890,7 +892,7 @@ he: {
   "studioLinkToCloudS": "בלי נתונים ובלי סוללה מהטלפון — השרת מוריד ומתרגם",
   "studioLinkToDev": "לטלפון",
   "studioLinkToDevS": "נשמר ב־Movies/Studio, עם התקדמות בהתראה — ואז עולה לתרגום",
-  "studioLinkToT": "לאן להוריד",
+  "studioLinkToT": "לתרגום — לאן להוריד",
   "studioLinkUpload": "אם יש לכם את הקובץ בטלפון — אפשר גם לבחור אותו (חזרה לטופס ← בחירת סרטון).",
   "studioLinkVideo": "וידאו",
   "studioLoading": "טוען…",
@@ -2627,6 +2629,8 @@ en: {
   "studioLinkHowT": "Quick ways",
   "studioLinkMoreT": "More",
   "studioLinkNoReenc": "Picture and sound are merged into one file without re-encoding — exactly the quality the site serves.",
+  "studioLinkOnly": "Just download to phone",
+  "studioLinkOnlyWait": "Downloading to your phone — saved to Movies/Studio",
   "studioLinkPaste": "Paste",
   "studioLinkPasteNo": "No clipboard access — paste into the field",
   "studioLinkPasteNone": "No link in the clipboard",
@@ -2662,7 +2666,7 @@ en: {
   "studioLinkToCloudS": "No data or battery from your phone — the server downloads and translates",
   "studioLinkToDev": "To your phone",
   "studioLinkToDevS": "Saved to Movies/Studio with progress in a notification — then it goes up for translation",
-  "studioLinkToT": "Where to download",
+  "studioLinkToT": "For translation — where to download",
   "studioLinkUpload": "If the file is on your phone, you can also choose it (back to the form → choose a video).",
   "studioLinkVideo": "video",
   "studioLoading": "Loading…",

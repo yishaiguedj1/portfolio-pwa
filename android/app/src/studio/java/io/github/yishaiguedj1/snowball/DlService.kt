@@ -56,12 +56,12 @@ class DlService : Service() {
     companion object {
         const val ACT_CANCEL = "app.thesnowball.studio.DL_CANCEL"
         const val X_ID = "id"; const val X_URL = "u"; const val X_REF = "ref"; const val X_TITLE = "t"
-        const val X_V = "v"; const val X_A = "a"; const val X_H = "h"; const val X_S0 = "s0"; const val X_S1 = "s1"
+        const val X_V = "v"; const val X_A = "a"; const val X_H = "h"; const val X_S0 = "s0"; const val X_S1 = "s1"; const val X_ONLY = "o"
 
         fun reqOf(i: Intent): DlWork.Req? {
             val id = i.getStringExtra(X_ID) ?: return null
             return DlWork.Req(id, i.getStringExtra(X_URL) ?: "", i.getStringExtra(X_REF) ?: "", i.getStringExtra(X_TITLE) ?: "",
-                DlEngine.Pick(i.getStringExtra(X_V) ?: "", i.getStringExtra(X_A) ?: "", i.getIntExtra(X_H, 0), i.getIntExtra(X_S0, 0), i.getIntExtra(X_S1, 0)))
+                DlEngine.Pick(i.getStringExtra(X_V) ?: "", i.getStringExtra(X_A) ?: "", i.getIntExtra(X_H, 0), i.getIntExtra(X_S0, 0), i.getIntExtra(X_S1, 0)), i.getBooleanExtra(X_ONLY, false))
         }
     }
 }
@@ -74,6 +74,7 @@ object DlState {
     @Volatile var pct = 0f; private set
     @Volatile var uri: Uri? = null; private set
     @Volatile var err = ""; private set
+    @Volatile var only = false; private set
     private val listeners = LinkedHashSet<() -> Unit>()
     private val main = Handler(Looper.getMainLooper())
 
@@ -83,7 +84,7 @@ object DlState {
     fun unlisten(l: () -> Unit) { listeners.remove(l) }
     private fun fire() { main.post { listeners.toList().forEach { it() } } }
 
-    fun start(i: String, t: String) { id = i; title = t; phase = "dl"; pct = 0f; uri = null; err = ""; fire() }
+    fun start(i: String, t: String, o: Boolean = false) { id = i; title = t; only = o; phase = "dl"; pct = 0f; uri = null; err = ""; fire() }
     fun progress(p: Float) { pct = p; fire() }
     fun phase(p: String) { phase = p; fire() }
     fun done(u: Uri) { uri = u; phase = "done"; fire() }
@@ -96,6 +97,10 @@ object DlState {
             .putExtra(Intent.EXTRA_STREAM, u).putExtra(Intent.EXTRA_TEXT, "snbdl:$id")
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
             .also { it.clipData = ClipData.newRawUri("", u) }
+
+    /** "רק להוריד": פתיחת הסרטון שנשמר בנגן של הטלפון */
+    fun viewIntent(u: Uri): Intent = Intent(Intent.ACTION_VIEW).setDataAndType(u, "video/*")
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
 
     /** שגיאה בהורדה → האתר מציג אותה (‎#dle=<מזהה>.<קוד>) */
     fun errIntent(ctx: Context, id: String, code: String): Intent =

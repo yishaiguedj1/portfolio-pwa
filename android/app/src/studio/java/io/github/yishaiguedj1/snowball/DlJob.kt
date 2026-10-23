@@ -40,7 +40,7 @@ class DlJob : JobService() {
             if (android.os.Build.VERSION.SDK_INT < 34) return false
             val b = PersistableBundle().apply {
                 putString("id", r.id); putString("u", r.url); putString("ref", r.ref); putString("t", r.title)
-                putString("v", r.pick.v); putString("a", r.pick.a); putInt("h", r.pick.h); putInt("s0", r.pick.s0); putInt("s1", r.pick.s1)
+                putString("v", r.pick.v); putString("a", r.pick.a); putInt("h", r.pick.h); putInt("s0", r.pick.s0); putInt("s1", r.pick.s1); putBoolean("o", r.only)
             }
             val info = JobInfo.Builder(JOB_ID, ComponentName(ctx, DlJob::class.java))
                 .setUserInitiated(true)
@@ -56,7 +56,7 @@ class DlJob : JobService() {
             b ?: return null
             val id = b.getString("id") ?: return null
             return DlWork.Req(id, b.getString("u") ?: "", b.getString("ref") ?: "", b.getString("t") ?: "",
-                DlEngine.Pick(b.getString("v") ?: "", b.getString("a") ?: "", b.getInt("h"), b.getInt("s0"), b.getInt("s1")))
+                DlEngine.Pick(b.getString("v") ?: "", b.getString("a") ?: "", b.getInt("h"), b.getInt("s0"), b.getInt("s1")), b.getBoolean("o"))
         }
     }
 }

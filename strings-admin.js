@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (980 מפתחות מתוך 3853) */
+/* המחרוזות של admin (980 מפתחות מתוך 3855) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
