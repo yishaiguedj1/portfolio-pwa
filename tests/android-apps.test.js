@@ -40,7 +40,7 @@ ok(Object.values(PKGS).every((p) => al.some((x) => x.target.package_name === p))
 
 // ---------- CI: שלושה קבצים בקישורים קבועים
 const aw = R('.github/workflows/android.yml');
-ok(/gh release upload android-latest the-snowball\.apk the-snowball-academy\.apk the-snowball-studio\.apk the-snowball-bubble\.apk --clobber/.test(aw), 'CI: ארבעת הקבצים ב־android-latest (Invest בקישור הישן, ו־Studio Bubble)');
+ok(/gh release upload android-latest the-snowball\.apk the-snowball-academy\.apk the-snowball-studio\.apk the-snowball-bubble\.apk the-snowball-admin\.apk --clobber/.test(aw), 'CI: חמשת הקבצים ב־android-latest (Invest בקישור הישן, Studio Bubble, והניהול — 23/10/2026)');
 
 // ---------- האתר: מעבר בתפריט = האפליקציה המותקנת
 const core = R('core.js');
