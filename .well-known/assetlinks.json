@@ -34,5 +34,17 @@
         "70:7E:61:48:B4:BD:E1:87:91:0F:77:F3:97:7E:CB:CA:DC:74:B3:6A:34:D6:CE:32:0B:94:8C:DC:80:AB:F7:00"
       ]
     }
+  },
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.thesnowball.admin",
+      "sha256_cert_fingerprints": [
+        "70:7E:61:48:B4:BD:E1:87:91:0F:77:F3:97:7E:CB:CA:DC:74:B3:6A:34:D6:CE:32:0B:94:8C:DC:80:AB:F7:00"
+      ]
+    }
   }
 ]
