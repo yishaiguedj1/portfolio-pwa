@@ -48,6 +48,14 @@ const media = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmMe
 ok(/IS_PENDING, 1/.test(media) && /IS_PENDING, 0/.test(media), 'ישר ל־MediaStore עם IS_PENDING, בלי עותק כפול');
 const store = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmStore.kt');
 ok(/renameTo\(f\)/.test(store), 'הרשימה נכתבת אטומית');
+// 23/10 (אחרי ההתקנה הראשונה): הכתובת המקורית נשמרת (חתומה אחרי הפניה פגה תוך דקות), והלוח לא מציע קישור שכבר ירד
+const act = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmActivity.kt');
+const eng = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmEngine.kt');
+ok(/return Found\.File\(url, /.test(act) && !/t\.url = p\.finalUrl/.test(eng), 'נשמרת הכתובת שהמשתמש נתן, לא זו שאחרי ההפניה');
+ok(/!DmStore\.has\(u\)/.test(act) && /fun has\(url: String\)/.test(store), 'הלוח לא מציע קישור שכבר ברשימה');
+// שפה: עברית כברירת מחדל (כמו בשאר האפליקציות), גם בהתראות
+ok(/getString\("lang", "he"\)/.test(store) && /attachBaseContext[\s\S]{0,80}DmLang\.wrap/.test(act), 'עברית כברירת מחדל, בלי תלות בשפת הטלפון');
+ok((run.match(/val ctx = DmLang\.wrap\(ctx0\)/g) || []).length === 4, 'כל ההתראות בשפה שנבחרה');
 ok(fs.existsSync(path.join(ROOT, 'android/app/src/testDm/java/io/github/yishaiguedj1/snowball/dm/DmFetchTest.kt')), 'בדיקת JVM מול שרת אמיתי קיימת');
 
 // מחרוזות: כל R.string.dm* קיים, ובשתי השפות

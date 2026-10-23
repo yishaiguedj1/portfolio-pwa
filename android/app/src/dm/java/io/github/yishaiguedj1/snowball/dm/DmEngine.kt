@@ -72,7 +72,7 @@ object DmEngine {
             }
             if (t.name.isEmpty()) t.name = DmName.pick(p.disposition, p.finalUrl, p.mime)
             if (t.mime.isEmpty()) t.mime = p.mime
-            t.total = p.total; t.ranges = p.ranges; t.etag = p.etag; t.lastMod = p.lastMod; t.url = p.finalUrl
+            t.total = p.total; t.ranges = p.ranges; t.etag = p.etag; t.lastMod = p.lastMod   // t.url נשאר המקורי (ראו DmActivity.probe)
             if (p.mime == "text/html") return "page"   // דף ולא קובץ — הגיליון מציע yt-dlp
         }
         val u = DmMedia.pending(ctx, t)

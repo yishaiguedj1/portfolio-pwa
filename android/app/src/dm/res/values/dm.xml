@@ -78,6 +78,10 @@
     <string name="dmSetQuality">איכות ברירת מחדל</string>
     <string name="dmSetWhere">איפה נשמר</string>
     <string name="dmSetWifi">רק ב־Wi‑Fi</string>
+    <string name="dmSetLang">שפה</string>
+    <string name="dmLangHe">עברית</string>
+    <string name="dmLangEn">English</string>
+    <string name="dmLangSys">כמו בטלפון</string>
     <string name="dmSetParallel">הורדות במקביל</string>
     <string name="dmSetConns">חיבורים לכל הורדה</string>
     <string name="dmSetBattery">רקע וסוללה</string>

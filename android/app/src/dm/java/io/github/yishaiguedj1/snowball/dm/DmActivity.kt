@@ -25,6 +25,8 @@ class DmActivity : ComponentActivity() {
     val sheetRef = mutableStateOf("")
     val clipUrl = mutableStateOf("")
 
+    override fun attachBaseContext(newBase: android.content.Context) { super.attachBaseContext(DmLang.wrap(newBase)) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -57,7 +59,7 @@ class DmActivity : ComponentActivity() {
         val txt = runCatching { cm.primaryClip?.getItemAt(0)?.coerceToText(this)?.toString() }.getOrNull()
         val u = DmLink.first(txt)
         val pr = DmPrefs(this)
-        clipUrl.value = if (u.isNotEmpty() && u != pr.lastClip && DmStore.all().none { it.url == u }) u else ""
+        clipUrl.value = if (u.isNotEmpty() && u != pr.lastClip && !DmStore.has(u)) u else ""
     }
 
     fun dismissClip() { DmPrefs(this).lastClip = clipUrl.value; clipUrl.value = "" }
@@ -101,7 +103,9 @@ class DmActivity : ComponentActivity() {
             try {
                 val p = DmFetch.probeRetry(url, ref)
                 if (p.mime != "text/html" && p.mime != "application/xhtml+xml")
-                    return Found.File(p.finalUrl, DmName.pick(p.disposition, p.finalUrl, p.mime), p.total, p.mime, p.ranges)
+                    // נשמרת הכתובת שהמשתמש נתן, לא זו שאחרי ההפניה: קישור הורדה (GitHub, S3…) מפנה לכתובת חתומה שפגה תוך דקות,
+                    // ו"המשך" מחר היה נכשל ב־expired. כל חיבור עוקב אחרי ההפניה מחדש; If-Range (ETag) שומר שלא מערבבים קבצים
+                    return Found.File(url, DmName.pick(p.disposition, p.finalUrl, p.mime), p.total, p.mime, p.ranges)
             } catch (e: Throwable) {
                 if (e is DmHttpError && DmRetry.http(e.status).act == DmRetry.Act.FATAL) return Found.Fail(DmRetry.http(e.status).code)
             }

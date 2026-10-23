@@ -437,6 +437,7 @@ private fun SettingsScreen(a: DmActivity) {
     var par by remember { mutableIntStateOf(pr.parallel) }
     var conns by remember { mutableIntStateOf(pr.conns) }
     var q by remember { mutableStateOf(pr.quality) }
+    var lang by remember { mutableStateOf(pr.lang) }
     var dlg by remember { mutableStateOf("") }
     Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp, 0.dp, 16.dp, 24.dp)) {
         Group {
@@ -450,6 +451,8 @@ private fun SettingsScreen(a: DmActivity) {
             SetRow(stringResource(R.string.dmSetParallel), par.toString()) { dlg = "p" }
             Div()
             SetRow(stringResource(R.string.dmSetConns), conns.toString()) { dlg = "c" }
+            Div()
+            SetRow(stringResource(R.string.dmSetLang), langName(lang)) { dlg = "g" }
         }
         Spacer(Modifier.height(14.dp))
         Group {
@@ -466,6 +469,9 @@ private fun SettingsScreen(a: DmActivity) {
     when (dlg) {
         "q" -> Choose(stringResource(R.string.dmSetQuality), listOf("best", "2160", "1080", "720", "480", "audio"), q, { qName(it) }) { q = it; pr.quality = it; dlg = "" }
         "p" -> Choose(stringResource(R.string.dmSetParallel), listOf("1", "2", "3", "4", "5"), par.toString(), { it }) { par = it.toInt(); pr.parallel = par; dlg = ""; DmEngine.pump(ctx) }
+        "g" -> Choose(stringResource(R.string.dmSetLang), DmLang.MODES, lang, { langName(it) }) {
+            dlg = ""; if (it != lang) { lang = it; pr.lang = it; a.recreate() }   // מחרוזות וכיוון — מההקשר החדש
+        }
         "c" -> Choose(stringResource(R.string.dmSetConns), listOf("1", "2", "4", "8"), conns.toString(), { it }) { conns = it.toInt(); pr.conns = conns; dlg = "" }
         "l" -> AlertDialog(onDismissRequest = { dlg = "" }, confirmButton = { TextButton({ dlg = "" }) { Text(stringResource(R.string.dmClose)) } },
             title = { Text(stringResource(R.string.dmSetLicenses)) },
@@ -477,6 +483,11 @@ private fun SettingsScreen(a: DmActivity) {
 @Composable
 private fun qName(q: String) = when (q) {
     "best" -> stringResource(R.string.dmQBest); "audio" -> stringResource(R.string.dmAudioOnly); else -> q + "p"
+}
+
+@Composable
+private fun langName(m: String) = when (m) {
+    "he" -> stringResource(R.string.dmLangHe); "en" -> stringResource(R.string.dmLangEn); else -> stringResource(R.string.dmLangSys)
 }
 
 @Composable

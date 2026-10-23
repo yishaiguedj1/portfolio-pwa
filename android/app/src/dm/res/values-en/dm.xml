@@ -73,6 +73,10 @@
     <string name="dmSetQuality">Default quality</string>
     <string name="dmSetWhere">Where files go</string>
     <string name="dmSetWifi">Wi‑Fi only</string>
+    <string name="dmSetLang">Language</string>
+    <string name="dmLangHe">עברית</string>
+    <string name="dmLangEn">English</string>
+    <string name="dmLangSys">Same as phone</string>
     <string name="dmSetParallel">Downloads at once</string>
     <string name="dmSetConns">Connections per download</string>
     <string name="dmSetBattery">Background and battery</string>
