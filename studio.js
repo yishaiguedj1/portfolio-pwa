@@ -5779,12 +5779,14 @@ function ladderOf(rec) {
   for (const l of hl) { const u = net.mediaUrl(l.id); if (!u) return null; out.push(Object.assign({}, l, { url: new URL(u, location.href).href })); }
   return out;
 }
-/* 22/10/2026: עותק הקול לנגן (Opus) — הנגן משתמש בו רק כשהטלפון לא מנגן את הקול המקורי */
+/* 22/10/2026: עותק הקול לנגן (Opus) — הנגן משתמש בו רק כשהטלפון לא מנגן את הקול המקורי.
+   23/10/2026: רשימה — עותק לכל רצועת קול (שפות); כמה רצועות = תמיד דרך העותקים, עם בחירה בתפריט */
 function altOf(rec) {
-  const a = rec && rec.srv && rec.srv.hla;
-  if (!a || !ladderOf(rec)) return null;
-  const u = net.mediaUrl(a.id);
-  return u ? Object.assign({}, a, { url: new URL(u, location.href).href }) : null;
+  const list = rec && rec.srv && rec.srv.hla;
+  if (!list || !list.length || !ladderOf(rec)) return null;
+  const out = [];
+  for (const a of list) { const u = net.mediaUrl(a.id); if (!u) return null; out.push(Object.assign({}, a, { url: new URL(u, location.href).href })); }
+  return out;
 }
 const pqSave = (q) => { if (store.settings.pq !== q) { store.settings.pq = q; save(); } };
 const canPlay = (rec) => !!(rec && (outOf(rec, 'cues') || outOf(rec, 'srt')) && ((rec.up.v && rec.up.v.id) || burnedOut(rec)));

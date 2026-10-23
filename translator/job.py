@@ -3647,7 +3647,7 @@ def ladder_run(args):
         pass
     r = LD.build(args.src, LADDER_DIR / 'out', log=lambda m: print(m, flush=True), gate=ladder_gate if getattr(args, 'gate', False) else None)
     st = {'job': args.job, 's': 'ok' if r.get('ok') else 'skip', 'why': r.get('why', ''), 'top': r.get('top'), 'rungs': r.get('rungs'),
-          'alt': r.get('alt'), 'at': time.time()}
+          'alt': r.get('alt'), 'alts': r.get('alts'), 'at': time.time()}
     (LADDER_DIR / 'state.json').write_text(json.dumps(st), encoding='utf-8')
     print('✓ איכויות מוכנות' if r.get('ok') else '· בלי איכויות (' + st['why'] + ')', flush=True)
     return 0
@@ -3698,13 +3698,20 @@ def ladder_finish(ctx):
             p = Path(str(r.get('f') or ''))
             fid = put_output(ctx, p, title + ' (%dp).mp4' % min(r['w'], r['h']), 'hl', 'video/mp4')
             up.append(dict({k: r[k] for k in ('w', 'h', 'bw', 'abw', 'c')}, id=fid, size=p.stat().st_size))
-        alt, hla = st.get('alt') or None, None
-        if alt and Path(str(alt.get('f') or '')).exists():
-            # 22/10/2026: הקול המקורי (Dolby/DTS…) נשאר במקור; העותק ב־Opus — רק לטלפון שלא מנגן אותו
-            ap = Path(alt['f'])
-            aid = put_output(ctx, ap, title + ' (קול לנגן).mp4', 'hl', 'audio/mp4')
-            hla = dict({k: alt[k] for k in ('bw', 'abw', 'c', 'ch')}, id=aid, size=ap.stat().st_size)
-            up.append(dict(hla, a=1))            # לניקוי אם משהו נכשל
+        # 22/10/2026: הקול המקורי (Dolby/DTS…) נשאר במקור; העותק ב־Opus — רק לטלפון שלא מנגן אותו.
+        # 23/10/2026: כמה רצועות קול — עותק לכל אחת (רשימה; מצב ישן עם 'alt' בלבד = רצועה אחת)
+        alts, hla = st.get('alts') or ([st['alt']] if st.get('alt') else []), []
+        for i, alt in enumerate(alts):
+            ap = Path(str(alt.get('f') or ''))
+            if not ap.exists():
+                hla = []
+                break
+            name = ' (קול לנגן).mp4' if len(alts) == 1 else ' (קול לנגן %d%s).mp4' % (i + 1, ' · ' + alt['l'] if alt.get('l') else '')
+            aid = put_output(ctx, ap, title + name, 'hl', 'audio/mp4')
+            a = dict({k: alt[k] for k in ('bw', 'abw', 'c', 'ch')}, id=aid, size=ap.stat().st_size)
+            a.update({k: alt[k] for k in ('l', 'd') if alt.get(k)})
+            hla.append(a)
+            up.append(dict(a, a=1))              # לניקוי אם משהו נכשל
         tp = Path(top['f'])
         put_output(ctx, tp, title + '.mp4', 'v', 'video/mp4', replace=v['id'])
     except SystemExit as e:
@@ -3722,8 +3729,9 @@ def ladder_finish(ctx):
     print('✓ איכויות צפייה: מקור (%dp) + %s%s' % (min(top['w'], top['h']), ' · '.join('%dp' % min(x['w'], x['h']) for x in hl[1:]),
                                                    '' if not n else ' · הגרסה הקודמת של המקור נמחקה'))
     if hla:
-        print('✓ עותק קול לנגן (Opus, %d ערוצים) — הקול המקורי נשאר בקובץ' % hla['ch'])
-    return {'hl': hl, 'vs': size, 'hla': hla}
+        print('✓ עותק קול לנגן (Opus, %s) — הקול המקורי נשאר בקובץ' % ' · '.join('%d ערוצים%s' % (a['ch'], ' ' + a['l'] if a.get('l') else '') for a in hla))
+    # רצועה אחת — אובייקט (כמו עד היום, שרתון ישן מקבל אותו); כמה — רשימה
+    return {'hl': hl, 'vs': size, 'hla': (hla[0] if len(hla) == 1 else hla) or None}
 
 
 @guarded

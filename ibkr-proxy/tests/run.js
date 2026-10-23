@@ -1582,7 +1582,21 @@ function stubFetch(text, status = 200) {
       ok(r.payload.job.hla === null, 'סטודיו (קול לנגן): גודל שלא תואם — מתעלמים');
       r = await wrk({ op: 'report', job: JT, key: Kb, st: 'sv', p: 1, hl: [topE, r7, r3], vs: VS, hla: ha });
       r = await run({ op: 'job', idToken: OWNER, job: JT });
-      ok(r.payload.job.hla && r.payload.job.hla.id === 'alt1234567890a' && r.payload.job.hla.ch === 6 && r.payload.job.hla.c === 'opus', 'סטודיו (קול לנגן): נשמר ומגיע לטלפון');
+      ok(r.payload.job.hla && r.payload.job.hla.length === 1 && r.payload.job.hla[0].id === 'alt1234567890a' && r.payload.job.hla[0].ch === 6 && r.payload.job.hla[0].c === 'opus', 'סטודיו (קול לנגן): נשמר ומגיע לטלפון (אובייקט ישן → רשימה של אחת)');
+      // 23/10/2026: כמה רצועות קול — רשימה עם שפה וברירת מחדל; פריט אחד שלא בתיקייה = כל הרשימה נזרקת
+      const hb = { id: 'alt2234567890b', c: 'opus', bw: 140000, abw: 128000, ch: 2, size: 4000000, l: 'heb', d: 1 };
+      ok(S.normHla([ha, hb]).length === 2 && S.normHla([ha, hb])[1].l === 'heb' && S.normHla([ha, hb])[1].d === 1
+        && S.normHla([ha, Object.assign({}, hb, { l: 'Hebrew"' })])[1].l === undefined
+        && S.normHla([Object.assign({}, ha, { d: 1 }), hb]) === null && S.normHla([ha, ha]) === null
+        && S.normHla([ha, hb, Object.assign({}, hb, { id: 'alt3234567890c' }), Object.assign({}, hb, { id: 'alt4234567890d', d: 0 }), Object.assign({}, hb, { id: 'alt5234567890e', d: 0 })]) === null,
+        'סטודיו (כמה רצועות): עד 4, שפה רק כקוד, ברירת מחדל אחת, בלי כפילות');
+      r = await wrk({ op: 'report', job: JT, key: Kb, st: 'sv', p: 1, hl: [topE, r7, r3], vs: VS, hla: [ha, hb] });
+      r = await run({ op: 'job', idToken: OWNER, job: JT });
+      ok(r.payload.job.hla && r.payload.job.hla.length === 1, 'סטודיו (כמה רצועות): רצועה שלא בתיקיית העבודה — כל הרשימה נזרקת (נשאר מה שהיה)');
+      driveFiles.set('alt2234567890b', { id: 'alt2234567890b', name: 'x (קול לנגן 2).mp4', size: '4000000', parents: ['fold1234567890'], trashed: false });
+      r = await wrk({ op: 'report', job: JT, key: Kb, st: 'sv', p: 1, hl: [topE, r7, r3], vs: VS, hla: [ha, hb] });
+      r = await run({ op: 'job', idToken: OWNER, job: JT });
+      ok(r.payload.job.hla && r.payload.job.hla.length === 2 && r.payload.job.hla[1].l === 'heb' && r.payload.job.hla[1].d === 1, 'סטודיו (כמה רצועות): נשמרות ומגיעות לטלפון');
       driveFiles.get('vid1234567890').size = old;
       studio._reset();   // הקריאות הנוספות כאן — לא על חשבון מגבלת הדקה של הבדיקות שאחרי
     }
