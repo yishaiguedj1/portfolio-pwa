@@ -95,6 +95,14 @@ function done() {
   const codesPy = [...py.slice(py.indexOf('ERR_RULES = ('), py.indexOf('def err_code')).matchAll(/\('(\w+)', re\.compile/g)].map((m) => m[1]);
   const codesKt = [...probe.slice(probe.indexOf('private val ERR'), probe.indexOf('fun errCode')).matchAll(/"(\w+)" to Regex/g)].map((m) => m[1]);
   assert.deepStrictEqual(codesKt, codesPy); n++;
+  // 23/10/2026: (?U) / UNICODE_CHARACTER_CLASS עובד ב־JVM (DlProbeTest עבר) ונזרק באנדרואיד (ICU) — Studio קרס בפתיחת
+  // חלון ההורדה. אף Regex בקוד האנדרואיד לא משתמש בהם; וחלון ההורדה בתהליך נפרד, עם דיווח קריסה לאתר
+  const ktFiles = [];
+  (function walk(d) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (/\.kt$/.test(e.name)) ktFiles.push(p); } })(path.join(__dirname, '..', 'android/app/src'));
+  for (const f of ktFiles) ok(!/\(\?[a-zA-Z]*U|UNICODE_CHARACTER_CLASS|CANON_EQ/.test(fs.readFileSync(f, 'utf8')), path.basename(f) + ': בלי דגלי Regex שאנדרואיד לא מכיר');
+  const man = R('android/app/src/studio/AndroidManifest.xml');
+  ok((man.match(/android:process=":dl"/g) || []).length === 2, 'DlActivity ו־DlService בתהליך נפרד');
+  ok(/setDefaultUncaughtExceptionHandler/.test(R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/DlActivity.kt')), 'קריסה בחלון ההורדה מדווחת לאתר');
   for (const k of ['studioLinkEApp', 'studioLinkDlWait', 'studioLinkGot', 'studioLinkEStore', 'studioLinkFailT'])
     ok((R('app.js').match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, k + ' בעברית ובאנגלית');
   console.log('studio-devdl: ' + n + ' בדיקות עברו');

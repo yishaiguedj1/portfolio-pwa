@@ -63,13 +63,15 @@ object DlProbe {
     }
 
     private val CTRL = Regex("[\\u0000-\\u001f\\u007f\\u202a-\\u202e\\u2066-\\u2069]")
-    private val WS = Regex("(?U)\\s+")   // \s של פייתון = יוניקוד
+    // \s של פייתון = יוניקוד. בלי דגל U: אנדרואיד (ICU) לא מכיר את הדגל — Regex נזרק בטעינת המחלקה, ו־Studio קרס
+    // מיד בפתיחת חלון ההורדה (23/10/2026). רשימה מפורשת = אותה תוצאה ב־JVM (הבדיקות) ובאנדרואיד
+    private val WS = Regex("[\\t\\n\\u000b\\f\\r\\u001c-\\u001f \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]+")
     fun clean(s: Any?, n: Int): String {
         val t = WS.replace(CTRL.replace(str(s), " "), " ").trim()
         return if (t.length > n) t.substring(0, n) else t
     }
 
-    private val FID = Regex("(?U)^[\\w.+-]{1,60}$")
+    private val FID = Regex("^[\\p{L}\\p{N}_.+-]{1,60}$")   // \w של פייתון, בלי דגל U
 
     fun rows(info: JSONObject): List<Row> {
         val dur = num(info.opt("duration")) ?: 0.0
