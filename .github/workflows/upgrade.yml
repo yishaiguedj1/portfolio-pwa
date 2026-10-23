@@ -1,0 +1,93 @@
+# שדרוג אוטומטי של השרת הקיים ל־CX53 (Rescale) — tools/server-upgrade.js. 23/10/2026, באישור מפורש של המשתמש:
+# CX53 ‏$34.99 מול CX43 ‏$18.49 לחודש (+$16.50, בלי מע״מ); "שכל התהליך יהיה אוטומטי לגמרי".
+#
+# למה לא שרת חדש (autobuy): מכסת החשבון ב־Hetzner = 20 vCPU. השרת הקיים תופס 8, ו־CX53 חדש עוד 16 (24 > 20) —
+# ההזמנה נעצרה ב־403 resource_limit_exceeded (Issue ‏#234). Rescale = אותו שרת, 16 מתוך 20.
+#
+# אותו מתג ואותה תקרה של ההזמנה האוטומטית (Settings ← Secrets and variables ← Actions ← Variables):
+#   SNB_AUTOBUY     = on  → האישור לעלות (בלעדיו לא רץ)
+#   SNB_AUTOBUY_MAX = 40  → תקרת המחיר לחודש כולל IPv4, מה־API, נבדקת שוב רגע לפני הכיבוי
+#
+# איך: ריצה אחת מחזיקה כמעט 6 שעות ובודקת כל דקה אם CX53 במלאי במיקום של השרת; הריצה המתוזמנת הבאה ממשיכה.
+# כשיש מלאי: השהיית השרת בסטודיו → המתנה לעבודות → כיבוי מסודר → Rescale (upgrade_disk=false — הפיך) →
+# השרתונים עונים והעובד מדווח על הזיכרון החדש → ההשהיה יורדת. הפירוט והנימוקים — בראש tools/server-upgrade.js.
+# הסוף (שודרג / נעצר): ה־workflow מכבה את עצמו ופותח Issue (התראה לטלפון). רק "עוד אין מלאי" ממשיך.
+name: upgrade
+
+on:
+  schedule:
+    - cron: '47 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'check = מצב השרת, המלאי, המחיר והעבודות בלי שום שינוי · watch = לחכות ולשדרג (רק כש־SNB_AUTOBUY=on)'
+        type: choice
+        options: [check, watch]
+        default: check
+
+permissions: {}
+
+concurrency:
+  group: server-upgrade
+  cancel-in-progress: false
+
+jobs:
+  run:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || vars.SNB_AUTOBUY == 'on')
+    runs-on: ubuntu-latest
+    timeout-minutes: 358
+    permissions:
+      contents: read
+      actions: write      # לכבות את ה־workflow אחרי השדרוג
+      issues: write       # התראה: Issue עם התוצאה (בלי סודות)
+    env:
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+      PROD_FIREBASE_SA: ${{ secrets.PROD_FIREBASE_SA }}
+      STG_FIREBASE_SA: ${{ secrets.STG_FIREBASE_SA }}
+      SNB_AUTOBUY_MAX: ${{ vars.SNB_AUTOBUY_MAX }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: בדיקה — בלי שום שינוי
+        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'check'
+        run: node tools/server-upgrade.js check | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: מחכים למלאי ומשדרגים
+        id: up
+        if: vars.SNB_AUTOBUY == 'on' && (github.event_name == 'schedule' || inputs.mode == 'watch')
+        run: node tools/server-upgrade.js watch 345 | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: מסירים השהיה שנשארה (תמיד — גם בכישלון או ביטול)
+        if: always() && steps.up.conclusion != 'skipped'
+        run: node tools/server-upgrade.js release || true
+      - name: שודרג — מכבים את האוטומציה ומודיעים
+        if: steps.up.outputs.upgraded == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LOC: ${{ steps.up.outputs.location }}
+          PRICE: ${{ steps.up.outputs.price }}
+          CUR: ${{ steps.up.outputs.currency }}
+          WARN: ${{ steps.up.outputs.warn }}
+        run: |
+          gh workflow disable upgrade.yml --repo "$GITHUB_REPOSITORY" || true
+          W=''
+          [ "$WARN" = limits ] && W='⚠ העובד עוד לא דיווח על הזיכרון החדש תוך 25 דקות (snb-update לא בנה מחדש את הקונטיינרים). השרת עובד, אבל בגבולות הישנים — לבדוק במסך השרת באפליקציה, ואם צריך: snb-update במסוף.'
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "השרת שודרג ל־CX53 · $LOC" --body "@$GITHUB_REPOSITORY_OWNER — השרת שודרג אוטומטית ל־CX53 (Rescale): $LOC · $PRICE $CUR לחודש כולל IPv4.
+
+          כל הבדיקות עברו: השרתונים של הייצור והניסוי עונים, והעובדים חזרו לקבל עבודות. האוטומציה כובתה.
+          הדיסק נשאר בגודל הקודם, כך שאפשר לחזור ל־CX43 אם צריך.
+
+          $W
+
+          ריצה: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+      - name: נעצר — מכבים ומודיעים
+        if: always() && steps.up.outputs.stopped != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WHY: ${{ steps.up.outputs.stopped }}
+        run: |
+          gh workflow disable upgrade.yml --repo "$GITHUB_REPOSITORY" || true
+          [ "$WHY" = done ] && exit 0
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "השדרוג האוטומטי נעצר: $WHY" --body "@$GITHUB_REPOSITORY_OWNER — השדרוג האוטומטי של השרת ל־CX53 נעצר (קוד: $WHY). ההשהיה בסטודיו הוסרה, והאוטומציה כובתה. מצב השרת (בדרך כלל דולק כמו שהיה) והפרטים — בריצה.
+
+          הפרטים בריצה: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+          אחרי הטיפול — להדליק שוב: Actions ← upgrade ← Enable workflow."
