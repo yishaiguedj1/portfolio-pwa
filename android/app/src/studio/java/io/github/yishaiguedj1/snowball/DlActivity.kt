@@ -250,9 +250,10 @@ class DlActivity : Activity() {
     private fun hunt(u: String, miss: String) {
         stopDeep()
         if (isFinishing) return
-        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(s(R.string.launchUrl) + miss), this, MainActivity::class.java))
+        // 23/10/2026 (סרטון המשתמש): לא שולחים לאתר את "לא נמצא" עכשיו — שני שינויי hash כמעט יחד (התוצאה + מה שנשלח
+        // מדפדפן הציד) כשהאתר ברקע = רק האחרון נקרא, והשליחה אבדה. דפדפן הציד מעביר את "לא נמצא" רק אם נסגר בלי לשלוח
         startActivity(Intent(this, HuntActivity::class.java).setData(Uri.parse("snbstudio://hunt?u=" + Uri.encode(u)))
-            .putExtra(HuntActivity.EXTRA_AUTO, true))
+            .putExtra(HuntActivity.EXTRA_AUTO, true).putExtra(HuntActivity.EXTRA_MISS, miss))
         finish()
     }
 
