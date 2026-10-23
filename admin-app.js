@@ -527,7 +527,9 @@ function monChart(pts, k, top, warnAt) {
 function monBlk(label, cur, svg, warn) {
   const top = h('div', 'adm-mon-top');
   top.append(h('span', null, label), h('b', warn ? 'adm-mon-w' : null, cur));
-  return h('div', 'adm-mon-blk', top, svg);
+  const b = h('div', 'adm-mon-blk');
+  b.append(top, svg);
+  return b;
 }
 function monCard(x) {
   const hb = x.hb || {}, pts = x.mon || [], w = x.warn || [];
@@ -535,13 +537,16 @@ function monCard(x) {
   const net = hb.rx == null && hb.tx == null ? null : (hb.rx || 0) + (hb.tx || 0);
   const hd = h('div', 'adm-mon-hd');
   hd.append(h('span', 'adm-mon-dot adm-mon-' + st[0]), h('b', null, x.name), h('span', 'adm-mon-st', st[1] + (hb.v ? ' · ' + hb.v : '')));
-  const grid = h('div', 'adm-mon-grid',
+  const grid = h('div', 'adm-mon-grid');
+  grid.append(
     monBlk(t('admMonCpu'), monPct(hb.cu), monChart(pts, 'cu', 100, 90), w.includes('cu')),
     monBlk(t('admSvMem'), monPct(hb.mem), monChart(pts, 'mem', 100, 90), w.includes('mem')),
     monBlk(t('admSvDisk'), monPct(hb.disk), monChart(pts, 'disk', 100, 85), w.includes('disk')),
     monBlk(t('admMonNet'), monRate(net), monChart(pts, 'net', null, null), false),
     monBlk(t('admMonPsi'), monPct(hb.psi), monChart(pts, 'psi', 100, 20), w.includes('psi')));
-  return h('div', 'adm-mon-card', hd, grid);
+  const card = h('div', 'adm-mon-card');
+  card.append(hd, grid);
+  return card;
 }
 page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
   if (!D.monT) needMon();
