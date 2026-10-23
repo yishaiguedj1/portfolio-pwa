@@ -100,6 +100,8 @@ class DlActivity : Activity() {
                 val s = DlEngine.probe(this, u, ref, DlEngine.cookiesFor(this, u, ref)) { st ->
                     main.post { subV.text = s(when (st) { "init" -> R.string.dlInit; "update" -> R.string.dlUpdate; else -> R.string.dlCheckingS }) }
                 }
+                // קובץ שנתפס בדף (דפדפן הציד) ונראה כמו פרסומת / קובץ זעיר — לא מציעים להוריד אותו
+                if (ref.isNotEmpty() && !DlDeep.realVideo(s, 0)) throw IllegalArgumentException("tiny")
                 "#probe=$nonce." + DlEngine.b64(s.toString())
             } catch (e: Throwable) {
                 val code = (e as? IllegalArgumentException)?.message ?: "fail"
@@ -160,7 +162,11 @@ class DlActivity : Activity() {
                     nextMedia(u, miss)
                 }
                 // הזמן נגמר — מחכים רק לבדיקה שכבר רצה; אחרת דפדפן הציד
-                if ((el > DlDeep.DEEP_MS && !mediaBusy && (ckFailed || !ckTried)) || el > DlDeep.DEEP_MS * 3) { hunt(u, miss); return }
+                if ((el > DlDeep.DEEP_MS && !mediaBusy && (ckFailed || !ckTried)) || el > DlDeep.DEEP_MS * 3) {
+                    val b = bestMedia
+                    if (b != null) okMedia(b) else hunt(u, miss)   // לא נמצא קובץ אמיתי — דפדפן הציד, לא קובץ זעיר
+                    return
+                }
                 main.postDelayed(this, 1000)
             }
         }
@@ -184,7 +190,7 @@ class DlActivity : Activity() {
             if (r != null) DlEngine.thumbIfEmpty(r, img)
             main.post {
                 if (deepDone) return@post
-                if (r != null) okDeep(r) else { ckFailed = true; nextMedia(u, miss) }
+                if (r != null && DlDeep.realVideo(r, pageDur())) okDeep(r) else { ckFailed = true; nextMedia(u, miss) }
             }
         }.start()
     }
@@ -203,10 +209,24 @@ class DlActivity : Activity() {
             main.post {
                 mediaBusy = false
                 if (deepDone) return@post
-                if (r != null) okDeep(r) else nextMedia(u, miss)
+                // 23/10/2026: קובץ זעיר / קצר / פרסומת — לא מציעים. כל קובץ אמיתי נשמר (מקורות נוספים), והטוב נבחר:
+                // תואם למשך של הדף, ובין התואמים — האיכות הגבוהה ביותר. ממשיכים עד שאין עוד קבצים לבדוק
+                if (r != null && DlDeep.realVideo(r, pageDur())) {
+                    goods.add(r)
+                    if (DlDeep.better(r, bestMedia, pageDur())) bestMedia = r
+                }
+                val left = found.list.any { it.url !in mediaTried }
+                val b = bestMedia
+                if (b != null && (mediaTried.size >= DlDeep.MEDIA_TRIES || (!left && DlDeep.matches(b, pageDur())))) { okMedia(b); return@post }
+                nextMedia(u, miss)
             }
         }.start()
     }
+
+    private var bestMedia: org.json.JSONObject? = null
+    private val goods = ArrayList<org.json.JSONObject>()
+    private fun okMedia(b: org.json.JSONObject) = okDeep(DlDeep.withAlt(b, goods, pageDur()))
+    private fun pageDur() = deepPage?.dur ?: 0
 
     private fun writeCookies(page: String, vararg more: String): DlEngine.Ck? {
         val cm = CookieManager.getInstance()
