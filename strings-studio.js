@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1776 מפתחות מתוך 3886) */
+/* המחרוזות של studio (1777 מפתחות מתוך 3887) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -253,6 +253,7 @@ he: {
   "studioBack": "חזרה",
   "studioBenchCopied": "נתוני המדידה הועתקו — אפשר להדביק בסשן הפיתוח",
   "studioBenchCopy": "העתקת נתוני המדידה",
+  "studioBgTitle": "Studio — מעלה את הסרטון",
   "studioCancel": "ביטול",
   "studioCheapGo": "להמשיך ב־{m} · זול יותר",
   "studioCheapOk": "להמשיך בזול",
@@ -2031,6 +2032,7 @@ en: {
   "studioBack": "Back",
   "studioBenchCopied": "Measurement data copied — paste it in the dev session",
   "studioBenchCopy": "Copy measurement data",
+  "studioBgTitle": "Studio — uploading the video",
   "studioCancel": "Cancel",
   "studioCheapGo": "Continue with {m} · cheaper",
   "studioCheapOk": "Continue cheaper",
