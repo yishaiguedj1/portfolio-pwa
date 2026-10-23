@@ -68,7 +68,38 @@ export function fmtT(sec) {
 export const SPEEDS = [1, 1.25, 1.5, 2, 0.5, 0.75];
 export const nextSpeed = (v) => SPEEDS[(SPEEDS.indexOf(v) + 1) % SPEEDS.length] || 1;
 /* מצבי הכתוביות: עברית → שפת המקור (אם יש) → כבויות */
-export function nextCc(cc, hasEn) { return cc === 'he' ? (hasEn ? 'en' : 'off') : cc === 'en' ? 'off' : 'he'; }
+export function nextCc(cc, hasEn) { return cc === 'he' ? (hasEn ? 'en' : 'off') : cc === 'en' || cc === 'both' ? 'off' : 'he'; }
+
+/* ---- 23/10/2026 (בקשת המשתמש — "כמו בנגנים מתקדמים"): בחירת רצועת קול ורצועת כתוביות מהנגן ----
+   ברירת המחדל = "אוטומטי": הקול — ברירת המחדל שסומנה בקובץ (אחרת הראשונה); הכתוביות — התרגום, וכבויות כשהקול כבר בשפת
+   התרגום (אין טעם בכתוביות בעברית מעל קול בעברית). בחירה ידנית נשמרת (העדפה בהגדרות — כמו ב־YouTube) ו"אוטומטי" מחזיר.
+   ההעדפה לקול = קוד שפה (רצועה בלי שפה — רק לניגון הזה), לכתוביות = off/he/en/both */
+export const CC_MODES = ['off', 'he', 'en', 'both'];
+export function normTrackPref(x) {
+  const o = x && typeof x === 'object' ? x : {};
+  return { a: /^[a-z]{2,3}$/.test(String(o.a || '')) ? o.a : '', cc: CC_MODES.includes(o.cc) ? o.cc : '' };
+}
+/* איזו רצועה מתנגנת: השפה שנבחרה ידנית, אחרת ברירת המחדל של הקובץ, אחרת הראשונה */
+export function pickAudio(alts, prefA) {
+  const list = Array.isArray(alts) ? alts : [];
+  if (!list.length) return -1;
+  const m = prefA ? list.findIndex((a) => a && a.l === prefA) : -1;
+  if (m >= 0) return m;
+  return Math.max(0, list.findIndex((a) => a && a.d));
+}
+/* הכתוביות האוטומטיות: התרגום, וכבויות כשהקול בשפת התרגום / בלי כתוביות / סרטון צרוב */
+export function autoCc(audioLang, hasCues, burned, subLang) {
+  if (burned || !hasCues) return 'off';
+  const to = subLang || 'he';
+  return audioLang && (audioLang === to || (to === 'he' && audioLang === 'heb') || (to === 'he' && audioLang === 'iw')) ? 'off' : 'he';
+}
+/* הבחירה בפועל: ידנית כשהיא אפשרית (אנגלית / שתיהן — רק כשיש מקור באנגלית), אחרת האוטומטית */
+export function resolveCc(prefCc, auto, hasEn, burned) {
+  if (burned) return 'off';
+  if (!prefCc) return auto;
+  if ((prefCc === 'en' || prefCc === 'both') && !hasEn) return prefCc === 'both' ? 'he' : auto;
+  return prefCc;
+}
 
 /* ---------------- איכויות צפייה כמו ב־YouTube (10/10/2026) ----------------
    העובד (translator/ladder.py) אורז את המקור עצמו מחדש — אותו קובץ, אותם זרמים, בלי קידוד — ומוסיף איכויות נמוכות קטנות.
@@ -443,7 +474,12 @@ export function normSty(o) {
 export function createPlayer(opts) {
   const T = opts.T || ((k) => k);
   let cues = opts.cues || [], issues = opts.issues || [], chs = normChapters(opts.chapters), chNow = -2;
-  let cc = opts.burned ? 'off' : 'he', hideT = 0, lastTap = 0, tapT = 0, dragging = false, destroyed = false;
+  let pref = normTrackPref(opts.pref);
+  const hasEn = () => cues.some((c) => c.en);
+  const curLang = () => { const i = audNow(); return i >= 0 && altsNow[i] ? altsNow[i].l || '' : ''; };
+  const ccAuto = () => autoCc(curLang(), cues.length > 0, !!opts.burned, opts.subLang);
+  const savePref = (p) => { pref = normTrackPref(Object.assign({}, pref, p)); if (opts.onPref) opts.onPref(pref); };
+  let cc = resolveCc(pref.cc, autoCc('', (opts.cues || []).length > 0, !!opts.burned, opts.subLang), (opts.cues || []).some((c) => c.en), !!opts.burned), hideT = 0, lastTap = 0, tapT = 0, dragging = false, destroyed = false;
   const wrap = el('div', 'st-pl'); wrap.dir = 'ltr';
   const v = el('video', 'st-pl-v'); v.playsInline = true; v.preload = 'metadata'; v.setAttribute('playsinline', '');
   // 21/10/2026 (בקשת המשתמש — כמו ב־YouTube): תמונה לפני הניגון. קפיצה לנקודה (seek) מורידה אותה ומציגה את הפריים של הנקודה
@@ -452,7 +488,7 @@ export function createPlayer(opts) {
   const sub = el('div', 'st-pl-sub'); sub.dir = 'rtl'; sub.setAttribute('aria-live', 'off');
   const ui = el('div', 'st-pl-ui');
   const top = el('div', 'st-pl-top'), mid = el('div', 'st-pl-mid'), bot = el('div', 'st-pl-bot');
-  const ccB = ib('cc', 'cc', T('studioPlCc'), () => { cc = nextCc(cc, cues.some((c) => c.en)); paintCc(); paintSub(); });
+  const ccB = ib('cc', 'cc', T('studioPlCc'), () => { cc = nextCc(cc, hasEn()); savePref({ cc }); paintCc(); paintSub(); });
   const ccL = el('span', 'st-pl-ccl'); ccB.append(ccL);
   // ההגדרות — כמו ב־YouTube: גלגל שיניים → איכות / מהירות (בתוך הנגן, גם במסך מלא)
   const gearB = ib('gear', 'gear', T('studioPlSettings'), () => openMenu(''));
@@ -585,6 +621,7 @@ export function createPlayer(opts) {
         mode = 'hls';
         const i = pickLevel(levels, pq);
         if (i >= 0) { hls.startLevel = i; hls.currentLevel = i; }
+        if (altsNow.length > 1) setAudio(pickAudio(altsNow, pref.a));   // 23/10/2026: הקול שנבחר (שפה) / ברירת המחדל של הקובץ
         paintHd();
       });
       hls.on(Hls.Events.LEVEL_SWITCHED, (e, d) => { autoNow = d.level; paintHd(); if (!menu.hidden) openMenu(menu.dataset.p || ''); });
@@ -623,9 +660,10 @@ export function createPlayer(opts) {
       box.append(mRow('speed', T('studioPlSpeed'), speedName(v.playbackRate), () => openMenu('s')));
       const ai = audNow();
       if (ai >= 0) box.append(mRow('aud', T('studioPlAudio'), altName(altsNow[ai], ai, T, uiLang()), () => openMenu('a')));
+      if (!opts.burned && cues.length && !ccB.disabled) box.append(mRow('cc', T('studioPlCc'), ccName(cc), () => openMenu('t')));
       if (chs.length) box.append(mRow('chap', T('studioPlChaps'), String(chs.length), () => openMenu('c')));
     } else {
-      box.append(mRow('prev', page === 'q' ? T('studioPlQuality') : page === 'c' ? T('studioPlChaps') : page === 'a' ? T('studioPlAudio') : T('studioPlSpeed'), null, () => openMenu('')));
+      box.append(mRow('prev', page === 'q' ? T('studioPlQuality') : page === 'c' ? T('studioPlChaps') : page === 'a' ? T('studioPlAudio') : page === 't' ? T('studioPlCc') : T('studioPlSpeed'), null, () => openMenu('')));
       box.lastChild.classList.add('st-pl-mhead');
       if (page === 'q') {
         const order = levels.map((l, i) => i).sort((a, b) => qShort(levels[b]) - qShort(levels[a]) || (levels[b].bitrate || 0) - (levels[a].bitrate || 0));
@@ -637,8 +675,18 @@ export function createPlayer(opts) {
             () => { setPq(i === top ? 'src' : qShort(l)); closeMenu(); }, { on: sel, hd: qHd(l) }));
         }
       } else if (page === 'a') {
-        const ai = audNow();
-        altsNow.forEach((a, i) => box.append(mRow('', altName(a, i, T, uiLang()), null, () => { if (hls) hls.audioTrack = i; closeMenu(); }, { on: i === ai })));
+        const ai = audNow(), auto = pickAudio(altsNow, '');
+        box.append(mRow('', T('studioPlAutoNow', { q: altName(altsNow[auto], auto, T, uiLang()) }), null, () => { savePref({ a: '' }); setAudio(auto); closeMenu(); }, { on: !pref.a && !audManual }));
+        altsNow.forEach((a, i) => box.append(mRow('', altName(a, i, T, uiLang()), null, () => {
+          audManual = true; if (a.l) savePref({ a: a.l }); setAudio(i); closeMenu();
+        }, { on: (!!pref.a || audManual) && i === ai })));
+      } else if (page === 't') {
+        const en = hasEn();
+        box.append(mRow('', T('studioPlAutoNow', { q: ccName(ccAuto()) }), null, () => { savePref({ cc: '' }); setCc(ccAuto()); closeMenu(); }, { on: !pref.cc }));
+        for (const m of CC_MODES) {
+          if ((m === 'en' || m === 'both') && !en) continue;
+          box.append(mRow('', ccName(m), null, () => { savePref({ cc: m }); setCc(m); closeMenu(); }, { on: !!pref.cc && cc === m }));
+        }
       } else if (page === 'c') {
         const ci = chapterAt(chs, v.currentTime || 0);
         chs.forEach((c, i) => box.append(mRow('', c.title, null, () => { seekTo(c.t); closeMenu(); }, { on: i === ci, tm: fmtT(c.t) })));
@@ -657,6 +705,14 @@ export function createPlayer(opts) {
     wrap.classList.add('menu');
     clearTimeout(hideT);
   }
+  let audManual = false;
+  function ccName(m) { return m === 'off' ? T('studioPlCcOff') : m === 'en' ? T('studioPlCcEnL') : m === 'both' ? T('studioPlCcBothL') : T('studioPlCcHeL'); }
+  function setCc(m) { cc = m; paintCc(); paintSub(); }
+  function setAudio(i) {
+    if (!hls || i < 0) return;
+    if (hls.audioTrack !== i) hls.audioTrack = i;
+    if (!pref.cc) setCc(ccAuto());               // הכתוביות האוטומטיות תלויות בשפת הקול
+  }
   // 23/10/2026: כמה רצועות קול — הרצועה שמתנגנת עכשיו (hls.audioTracks באותו סדר של העותקים), ‎-1 = אין בחירה
   function audNow() {
     if (mode !== 'hls' || !hls || altsNow.length < 2 || !hls.audioTracks || hls.audioTracks.length !== altsNow.length) return -1;
@@ -668,7 +724,7 @@ export function createPlayer(opts) {
 
   function paintCc() {
     ccB.classList.toggle('on', cc !== 'off');
-    ccL.textContent = cc === 'en' ? T('studioPlCcEn') : cc === 'he' ? T('studioPlCcHe') : '';
+    ccL.textContent = cc === 'en' ? T('studioPlCcEn') : cc === 'he' ? T('studioPlCcHe') : cc === 'both' ? T('studioPlCcBoth') : '';
     ccB.setAttribute('aria-pressed', cc !== 'off' ? 'true' : 'false');
   }
   let shown = -2;
@@ -683,6 +739,7 @@ export function createPlayer(opts) {
     const lines = cc === 'en' ? (c.en ? [c.en] : []) : c.lines;
     sub.dir = cc === 'en' ? 'ltr' : 'rtl';
     for (const x of lines) { const d = el('div'); d.append(el('span', null, x)); sub.append(d); }   // span — הרקע של "עם רקע" לפי אורך השורה
+    if (cc === 'both' && c.en) { const d = el('div', 'st-pl-sub2'); d.dir = 'ltr'; d.append(el('span', null, c.en)); sub.append(d); }   // 23/10/2026: שתי השפות — המקור מתחת
   }
   function paintBar() {
     const d = v.duration || 0, t = v.currentTime || 0, f = d > 0 ? Math.min(1, t / d) : 0;
@@ -801,7 +858,11 @@ export function createPlayer(opts) {
     setPoster,
     play() { const p = v.play(); if (p && p.catch) p.catch(() => {}); },
     pause() { v.pause(); },
-    setCues(c, iss) { cues = c || []; issues = iss || issuesList(cues); shown = -2; paintSub(); paintHeat(); },
+    setCues(c, iss) {
+      cues = c || []; issues = iss || issuesList(cues); shown = -2;
+      if (!ccB.disabled) { cc = resolveCc(pref.cc, ccAuto(), hasEn(), !!opts.burned); paintCc(); }   // 23/10/2026: הכתוביות הגיעו — ברירת המחדל מחדש
+      paintSub(); paintHeat();
+    },
     /* סבב 5: תצוגה של העיצוב (גודל, צבע, רקע, גובה) — כמו שהצריבה תצא, בקירוב */
     setStyle(o) {
       const st = normSty(o) || {};

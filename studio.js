@@ -12,7 +12,7 @@ import { createNet, probeVideo, extractAudio, uploadBoth, stageEstimates, progre
 import { createBackup, waitOAuthCode } from './libbackup.js';
 // ת4: מזהים של R2 (העלאה ותוצרים בעבודה במצב שרת)
 import { isR2Folder, isR2Id } from './studiostore.js';
-import { createPlayer, normCues, issuesList, fmtT, normLadder, normAlt, normPq, normChapters, normSty, STY_COLORS, STY_Y } from './studioplay.js';
+import { createPlayer, normCues, issuesList, fmtT, normLadder, normAlt, normPq, normTrackPref, normChapters, normSty, STY_COLORS, STY_Y } from './studioplay.js';
 import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, toStl, termIssues, flagIndex, normMeta, createTimeline, editDiff, editStats, importSubs } from './studiosubs.js';
 import { listTracks, extractTracks, cuesToFile } from './studiotracks.js';
 import { createEdlEditor, normEdl, edlPre, edlDur, outDur, silenceSegs, removeRange, addRange, segAt, intersectSegs, cutFillers, normOv, OV_T_MAX, OV_LG_MAX, OV_POS, previewEdl, PV_LEN } from './studioedl.js';
@@ -100,6 +100,7 @@ export function normSettings(o) {
   s.wifi = o.wifi === true;
   if (CAPS.includes(o.cap)) s.cap = o.cap;
   s.pq = normPq(o.pq);
+  s.pt = normTrackPref(o.pt);   // 23/10/2026: הקול והכתוביות שנבחרו ידנית בנגן (ריק = אוטומטי)
   if (Number.isFinite(+o.op1) && +o.op1 > 0) s.op1 = Math.floor(+o.op1);   // מתי Google סירב לבורר במסך מלא (ננסה שוב אחרי חודש)
   const sty = normSty(o.sty); if (sty) s.sty = sty;   // סבב 5: עיצוב הכתוביות האחרון (ברירת המחדל להפקה הבאה)
   if (o.lg && typeof o.lg === 'object') { const ov = normOv({ lg: o.lg.d, lp: o.lg.p, ls: o.lg.s }); if (ov) s.lg = { d: ov.lg, p: ov.lp, s: ov.ls }; }   // סבב 7: הלוגו שלך
@@ -5789,6 +5790,7 @@ function altOf(rec) {
   return out;
 }
 const pqSave = (q) => { if (store.settings.pq !== q) { store.settings.pq = q; save(); } };
+const ptSave = (p) => { const n = normTrackPref(p); if (JSON.stringify(store.settings.pt) !== JSON.stringify(n)) { store.settings.pt = n; save(); } };
 const canPlay = (rec) => !!(rec && (outOf(rec, 'cues') || outOf(rec, 'srt')) && ((rec.up.v && rec.up.v.id) || burnedOut(rec)));
 let pl = null;                    // { id, st: 'load'|'ok'|'err', ctl, cues, iss, err }
 function playClose() { if (pl && pl.wt) pl.wt(); if (pl && pl.ctl) pl.ctl.destroy(); pl = null; }
@@ -5807,6 +5809,7 @@ async function playLoad(rec) {
     me.cues = cues; me.iss = issuesList(cues);
     me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: me.iss, chapters: rec.chap || [], T,
       ladder: src ? ladderOf(rec) : null, alt: src ? altOf(rec) : null, pq: store.settings.pq, onPq: pqSave,   // איכויות כמו ב־YouTube
+      pref: store.settings.pt, onPref: ptSave,   // 23/10/2026: קול וכתוביות — אוטומטי, או מה שנבחר ידנית
       poster: thumbFor(rec, (u) => { if (pl === me && me.ctl) me.ctl.setPoster(u); }) });   // 21/10/2026: התמונה לפני הניגון
     me.wt = watchTrack(rec, me.ctl.video);   // מ׳3: כמה מהסרטון נצפה
     me.st = 'ok';
@@ -5979,7 +5982,7 @@ function pageSubs(p) {
       const me = se;
       const at = me.at >= 0 ? me.at : -1;
       se.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues: se.ed.cues(), T,
-        ladder: src ? ladderOf(rec) : null, pq: store.settings.pq, onPq: pqSave,
+        ladder: src ? ladderOf(rec) : null, pq: store.settings.pq, onPq: pqSave, pref: store.settings.pt, onPref: ptSave,
         poster: at >= 0 ? '' : thumbFor(rec, (u) => { if (se === me && me.ctl && !(me.at >= 0)) me.ctl.setPoster(u); }),   // 21/10/2026: כמו ב־YouTube
         onTime: (t) => { if (me.ed && me.ctl) me.ed.time(t, !me.ctl.video.paused); } });
       if (at >= 0) {   // נפתח על נקודה — הפריים של הנקודה (גם אחרי שהסרטון נטען: לפני כן הדפדפן יכול להתעלם מהקפיצה)

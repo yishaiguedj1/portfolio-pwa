@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1765 מפתחות מתוך 3846) */
+/* המחרוזות של studio (1770 מפתחות מתוך 3851) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -1063,8 +1063,13 @@ he: {
   "studioPlAutoNow": "אוטומטי ({q})",
   "studioPlBack": "10 שניות אחורה",
   "studioPlCc": "כתוביות",
+  "studioPlCcBoth": "עב+EN",
+  "studioPlCcBothL": "עברית + אנגלית",
   "studioPlCcEn": "EN",
+  "studioPlCcEnL": "אנגלית (המקור)",
   "studioPlCcHe": "עב",
+  "studioPlCcHeL": "עברית (התרגום)",
+  "studioPlCcOff": "כבויות",
   "studioPlChapNow": "פרק: {t} — לרשימת הפרקים",
   "studioPlChaps": "פרקים",
   "studioPlErr": "הסרטון לא נטען",
@@ -2830,8 +2835,13 @@ en: {
   "studioPlAutoNow": "Auto ({q})",
   "studioPlBack": "Back 10 seconds",
   "studioPlCc": "Subtitles",
+  "studioPlCcBoth": "HE+EN",
+  "studioPlCcBothL": "Hebrew + English",
   "studioPlCcEn": "EN",
+  "studioPlCcEnL": "English (original)",
   "studioPlCcHe": "HE",
+  "studioPlCcHeL": "Hebrew (translation)",
+  "studioPlCcOff": "Off",
   "studioPlChapNow": "Chapter: {t} — open the chapter list",
   "studioPlChaps": "Chapters",
   "studioPlErr": "The video did not load",
