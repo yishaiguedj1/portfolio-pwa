@@ -80,6 +80,10 @@ object DlDeep {
         return m
     }
 
+    /** כתובת של קובץ וידאו / רשימת זרם (לא דף) — בבדיקה שלה אין טעם בכתובות חלופיות */
+    fun isMediaUrl(u: String): Boolean =
+        Regex("^https?://[^?#]+\\.(m3u8|mpd|mp4|m4v|webm|mkv|mov|ts|flv)([?#].*)?$", RegexOption.IGNORE_CASE).matches(u.trim())
+
     /** הסרטון האמיתי ולא פרסומת / קובץ זעיר: לא קטן מ־300KB, לא קצר מ־8 שניות, ולא פחות מחצי מהמשך שהדף מצהיר */
     fun realVideo(s: JSONObject, pageDur: Int): Boolean {
         val d = s.optInt("d", 0); val sz = sizeOf(s)

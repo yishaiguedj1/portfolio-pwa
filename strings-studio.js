@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1780 מפתחות מתוך 3890) */
+/* המחרוזות של studio (1781 מפתחות מתוך 3891) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -847,6 +847,7 @@ he: {
   "studioLinkENone": "לא מצאנו סרטון בקישור הזה.",
   "studioLinkENotVideo": "הקובץ שירד הוא לא סרטון (כנראה דף שגיאה או פרסומת) ולא נשמר. נגנו את הסרטון עצמו בדפדפן הציד.",
   "studioLinkEPlaylist": "זה קישור לרשימת השמעה. פתחו סרטון אחד ושתפו אותו.",
+  "studioLinkESlow": "האתר לא ענה בזמן. אפשר לנסות שוב או לבחור את הסרטון בדפדפן הציד.",
   "studioLinkEStore": "לא הצלחנו לשמור את הסרטון בטלפון (אין מקום?).",
   "studioLinkETiny": "מה שנמצא קטן מדי — כנראה פרסומת או קטע קצר, לא הסרטון. נגנו את הסרטון עצמו בדפדפן הציד.",
   "studioLinkFailT": "ההורדה בטלפון נכשלה",
@@ -2629,6 +2630,7 @@ en: {
   "studioLinkENone": "We didn’t find a video at this link.",
   "studioLinkENotVideo": "The downloaded file isn’t a video (probably an error page or an ad), so it wasn’t saved. Play the video itself in the hunt browser.",
   "studioLinkEPlaylist": "This is a playlist link. Open one video and share it.",
+  "studioLinkESlow": "The site didn’t answer in time. Try again, or pick the video in the hunt browser.",
   "studioLinkEStore": "Couldn’t save the video on your phone (out of space?).",
   "studioLinkETiny": "What we found is too small — probably an ad or a short clip, not the video. Play the video itself in the hunt browser.",
   "studioLinkFailT": "The download on your phone failed",

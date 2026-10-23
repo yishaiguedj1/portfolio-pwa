@@ -3068,6 +3068,7 @@ function linkErrText(e) {
     case 'playlist': return T('studioLinkEPlaylist');
     case 'unsupported': case 'no_video': return T('studioLinkENone');
     case 'tiny': return T('studioLinkETiny');
+    case 'slow': return T('studioLinkESlow');   // 23/10/2026: הבדיקה בטלפון עברה את תקרת הזמן
     case 'not_video': return T('studioLinkENotVideo');
     case 'private': case 'bad_url': case 'dns': return T('studioLinkEBad');
     case 'timeout': case 'net': case 'no_server': return T('studioLinkENet');
@@ -3272,7 +3273,7 @@ function pageLink(p) {
     if (L.e === 'blocked' || L.e === 'login' || L.e === 'unsupported' || L.e === 'no_video') p.append(note(T('studioLinkUpload')));
     // הניסוי: דף שהשרת לא מצא בו סרטון (נשלח מהבועה) — דפדפן הציד רואה את מה שהנגן מבקש בפועל
     // קובץ זעיר מדפדפן הציד → חוזרים לדף (L.ref) ומנגנים את הסרטון עצמו
-    if (grabOk() && ((!L.ref && (L.e === 'unsupported' || L.e === 'no_video' || L.e === 'fail')) || (L.e === 'tiny' && L.ref))) p.append(h('div', 'st-gap sm'), btn('st-btn wide', T('studioHuntTry'), () => huntOpen(L.e === 'tiny' ? L.ref : L.u), 'link-hunt'));
+    if (grabOk() && ((!L.ref && (L.e === 'unsupported' || L.e === 'no_video' || L.e === 'fail' || L.e === 'slow')) || ((L.e === 'tiny' || L.e === 'slow') && L.ref))) p.append(h('div', 'st-gap sm'), btn('st-btn wide', T('studioHuntTry'), () => huntOpen(L.ref || L.u), 'link-hunt'));
     return;
   }
   // יש תוצאה
