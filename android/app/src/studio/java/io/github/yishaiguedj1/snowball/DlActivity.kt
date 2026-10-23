@@ -111,7 +111,8 @@ class DlActivity : Activity() {
                 .putExtra(DlService.X_REF, ref).putExtra(DlService.X_TITLE, t)
                 .putExtra(DlService.X_V, d.getQueryParameter("v") ?: "").putExtra(DlService.X_A, d.getQueryParameter("a") ?: "")
                 .putExtra(DlService.X_H, num("h")).putExtra(DlService.X_S0, num("s0")).putExtra(DlService.X_S1, num("s1"))
-            DlState.start(nonce, t)
+                .putExtra(DlService.X_ONLY, d.getQueryParameter("o") == "1")
+            DlState.start(nonce, t, d.getQueryParameter("o") == "1")
             // אנדרואיד 14+: משימת העברה שהמשתמש התחיל (DlJob, בלי מגבלת 6 השעות); אחרת — השירות בחזית
             if (!DlJob.schedule(this, DlService.reqOf(s)!!)) startForegroundService(s)
         }
@@ -127,7 +128,12 @@ class DlActivity : Activity() {
                 subV.text = if (p > 0) getString(R.string.dlPct, p) else getString(R.string.dlPrep)
                 btn.text = getString(R.string.dlHide); btn.setOnClickListener { back("") } }
             "save" -> { bar.isIndeterminate = true; subV.text = getString(R.string.dlSaving) }
-            "done" -> { val u = DlState.uri; if (u != null && !handed) { handed = true; DlState.clear(); startActivity(DlState.handoffIntent(this, u, nonce)); finish() } }
+            "done" -> { val u = DlState.uri
+                if (u != null && DlState.only) {   // "רק להוריד" — נשאר בטלפון; פתיחה בנגן או סגירה
+                    titleV.text = getString(R.string.dlSaved); subV.text = getString(R.string.dlSavedS); bar.visibility = View.GONE
+                    btn.text = getString(R.string.dlOpen)
+                    btn.setOnClickListener { DlState.clear(); try { startActivity(DlState.viewIntent(u)) } catch (e: Exception) {}; finish() }
+                } else if (u != null && !handed) { handed = true; DlState.clear(); startActivity(DlState.handoffIntent(this, u, nonce)); finish() } }
             "err" -> { val c = DlState.err; DlState.clear(); if (c == "cancel") finish() else { startActivity(DlState.errIntent(this, nonce, c)); finish() } }
         }
     }

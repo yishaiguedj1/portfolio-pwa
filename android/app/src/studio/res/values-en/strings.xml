@@ -28,4 +28,7 @@
     <string name="dlClose">Close</string>
     <string name="dlBusy">Another download is still running</string>
     <string name="dlChannel">Downloads</string>
+    <string name="dlSaved">Saved to your phone</string>
+    <string name="dlSavedS">In Movies/Studio</string>
+    <string name="dlOpen">Open</string>
 </resources>

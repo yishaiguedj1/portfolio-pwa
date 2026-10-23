@@ -24,11 +24,12 @@ object DlWork {
     private const val CH = "dl"
     private val main = Handler(Looper.getMainLooper())
 
-    data class Req(val id: String, val url: String, val ref: String, val title: String, val pick: DlEngine.Pick)
+    // only = "רק להוריד לטלפון" (23/10/2026, בקשת המשתמש): הקובץ נשאר ב־Movies/Studio ולא עובר לטופס התרגום
+    data class Req(val id: String, val url: String, val ref: String, val title: String, val pick: DlEngine.Pick, val only: Boolean = false)
 
     /** ההורדה עצמה (בתהליכון של הקורא). done(true) = הסתיימה/נכשלה סופית; done(false) = נעצרה באמצע (להמשיך אחר כך) */
     fun run(ctx: Context, r: Req, stopped: () -> Boolean, done: (Boolean) -> Unit) {
-        DlState.start(r.id, r.title)
+        DlState.start(r.id, r.title, r.only)
         var last = 0L
         try {
             val f = DlEngine.download(ctx, r.url, r.ref, r.pick, r.id) { p, _ ->
@@ -41,7 +42,7 @@ object DlWork {
             val uri = DlEngine.publish(ctx, f)
             main.post {
                 DlState.done(uri)
-                if (!DlState.watched()) nm(ctx).notify(N_DONE, doneNotif(ctx, r.title, uri, r.id))
+                if (!DlState.watched()) nm(ctx).notify(N_DONE, if (r.only) savedNotif(ctx, r.title, uri) else doneNotif(ctx, r.title, uri, r.id))
                 done(true)
             }
         } catch (e: Throwable) {
@@ -75,6 +76,14 @@ object DlWork {
         val pi = PendingIntent.getActivity(ctx, 3, DlState.handoffIntent(ctx, uri, id), PendingIntent.FLAG_IMMUTABLE)
         return builder(ctx).setSmallIcon(android.R.drawable.stat_sys_download_done).setContentTitle(ctx.getString(R.string.dlDone))
             .setContentText(title.ifEmpty { ctx.getString(R.string.dlTapContinue) }).setSubText(ctx.getString(R.string.dlTapContinue))
+            .setAutoCancel(true).setContentIntent(pi).build()
+    }
+
+    /* "רק להוריד": נגיעה בהתראה פותחת את הסרטון בנגן של הטלפון */
+    private fun savedNotif(ctx: Context, title: String, uri: Uri): Notification {
+        val pi = PendingIntent.getActivity(ctx, 5, DlState.viewIntent(uri), PendingIntent.FLAG_IMMUTABLE)
+        return builder(ctx).setSmallIcon(android.R.drawable.stat_sys_download_done).setContentTitle(ctx.getString(R.string.dlSaved))
+            .setContentText(title.ifEmpty { ctx.getString(R.string.dlSavedS) }).setSubText(ctx.getString(R.string.dlSavedS))
             .setAutoCancel(true).setContentIntent(pi).build()
     }
 

@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 22/10/2026: רק דפדפנים (packageNames) ורק שני סוגי אירועים. canRetrieveWindowContent — כדי לקרוא את שורת
-     הכתובת (flagReportViewIds = לפי המזהה שלה). isAccessibilityTool=false — בכנות: זה לא כלי נגישות. -->
+     הכתובת (flagReportViewIds = לפי המזהה שלה). isAccessibilityTool=false — בכנות: זה לא כלי נגישות.
+     23/10/2026: typeWindowsChanged — בלעדיו Chrome מסווג את השירות כ"מנהל סיסמאות" (רק windowState/windowContent +
+     flagReportViewIds = PASSWORD_MANAGER_*_MASK ב־AccessibilityStateDelegateImpl של Chromium) ומעביר רק שדות טופס
+     (kAXModeFormControls) — הנגן בדף לא נראה, והבועה לא הופיעה (buffett.cnbc.com). עם אירוע נוסף: kAXModeBasic. -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/grabDesc"
     android:summary="@string/grabHint"
-    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeWindowsChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:accessibilityFlags="flagReportViewIds"
     android:canRetrieveWindowContent="true"
