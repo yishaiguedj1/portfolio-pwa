@@ -13,6 +13,7 @@ import android.graphics.Path
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import android.provider.Settings
 import android.text.TextUtils
@@ -43,6 +44,9 @@ import kotlin.math.abs
  */
 class GrabService : AccessibilityService() {
     private val h = Handler(Looper.getMainLooper())
+    // 23/10/2026: החיפוש אחרי נגן בעץ של דף כבד לוקח מאות קריאות לדפדפן — רץ ברקע, לא בתהליכון של הבועה
+    private val deepThread = HandlerThread("grab-deep").apply { start() }
+    private val deepH = Handler(deepThread.looper)
     private var wm: WindowManager? = null
     private var root: LinearLayout? = null
     private var bubble: View? = null
@@ -84,6 +88,7 @@ class GrabService : AccessibilityService() {
         hide()
         if (::prefs.isInitialized) prefs.unregisterOnSharedPreferenceChangeListener(prefListener)
         h.removeCallbacksAndMessages(null)
+        deepThread.quitSafely()
         GrabTile.refresh(this)
         super.onDestroy()
     }
@@ -101,7 +106,7 @@ class GrabService : AccessibilityService() {
         if (c is VideoUrl.Hit.None && prefs.getBoolean(KEY_DEEP, true)) {
             // הניסוי: דף באתר לא מוכר — מחפשים בו נגן (פעם בכמה שניות לכל דף, עד שנמצא), ואז מציעים את הדף עצמו
             val pg = VideoUrl.page(node.text)
-            if (pg != null && deepHas(r, pg)) c = VideoUrl.Hit.Page(pg)
+            if (pg != null && deepHas(r, pg)) c = VideoUrl.Hit.Page(pg, VideoUrl.pageIsBare(pg))
         }
         val key = when (c) { is VideoUrl.Hit.Video -> c.url; is VideoUrl.Hit.SiteOnly -> "site:" + c.host; is VideoUrl.Hit.Page -> c.url; else -> null }
         if (key == null || key in dismissed) { hide(); return }
@@ -110,20 +115,30 @@ class GrabService : AccessibilityService() {
     }
 
     /* הניסוי — מצא נגן בדף: סריקה רחבה של עץ הנגישות עם תקרה (צמתים, עומק, זמן), ותוצאה שמורה לכל כתובת.
-       דף שלא נמצא בו נגן נבדק שוב רק אחרי DEEP_AGAIN (הנגן נטען מאוחר), ועד DEEP_TRIES פעמים */
+       הסריקה ברקע (deepH); כשנמצא נגן — scan() שוב בתהליכון הראשי. דף שלא נמצא בו נגן נבדק שוב רק אחרי
+       DEEP_AGAIN (הנגן נטען מאוחר), ועד DEEP_TRIES פעמים */
     private var deepUrl = ""
-    private var deepFound = false
+    @Volatile private var deepFound = false
     private var deepAt = 0L
     private var deepTries = 0
+    private var deepBusy = false
 
     private fun deepHas(r: AccessibilityNodeInfo, url: String): Boolean {
         val now = android.os.SystemClock.uptimeMillis()
         if (url != deepUrl) { deepUrl = url; deepFound = false; deepAt = 0L; deepTries = 0 }
         if (deepFound) return true
-        if (deepTries >= DEEP_TRIES || now - deepAt < DEEP_AGAIN) return false
-        deepAt = now; deepTries++
-        deepFound = findVideo(r, now)
-        return deepFound
+        if (deepBusy || deepTries >= DEEP_TRIES || now - deepAt < DEEP_AGAIN) return false
+        deepAt = now; deepTries++; deepBusy = true
+        val root = AccessibilityNodeInfo.obtain(r)
+        deepH.post {
+            val found = try { findVideo(root, android.os.SystemClock.uptimeMillis()) } catch (e: Exception) { false }
+            h.post {
+                deepBusy = false
+                if (found && url == deepUrl) { deepFound = true; scan() }
+                else if (!found && deepTries < DEEP_TRIES) { h.removeCallbacks(check); h.postDelayed(check, DEEP_AGAIN) }
+            }
+        }
+        return false
     }
 
     private fun findVideo(root: AccessibilityNodeInfo, t0: Long): Boolean {
@@ -287,13 +302,14 @@ class GrabService : AccessibilityService() {
     private fun send() {
         when (val c = hit) {
             is VideoUrl.Hit.Video -> open(c.url)
-            is VideoUrl.Hit.Page -> open(c.url)
-            is VideoUrl.Hit.SiteOnly -> readFull()
+            is VideoUrl.Hit.Page -> if (c.bare) readFull(c.url) else open(c.url)
+            is VideoUrl.Hit.SiteOnly -> readFull(null)
             else -> hide()
         }
     }
 
-    private fun readFull() {
+    /* page = הדף שבו נמצא נגן (השורה הציגה רק שם אתר): מה שנקרא בשורה הפתוחה — ואם לא נקרא, הדף עצמו */
+    private fun readFull(page: String?) {
         val pkg = hitPkg ?: return
         val r = try { rootInActiveWindow } catch (e: Exception) { null } ?: return
         val node = findBar(r, pkg, URL_BAR[pkg] ?: return) ?: return
@@ -304,6 +320,7 @@ class GrabService : AccessibilityService() {
             val c = VideoUrl.classify(n2?.text)
             performGlobalAction(GLOBAL_ACTION_BACK)          // סוגרים את שורת הכתובת שפתחנו
             if (c is VideoUrl.Hit.Video) open(c.url)
+            else if (page != null) open(VideoUrl.page(n2?.text) ?: page)
             else Toast.makeText(this, R.string.grabNoVideo, Toast.LENGTH_SHORT).show()
         }, 350)
     }
@@ -351,9 +368,10 @@ class GrabService : AccessibilityService() {
         private const val KEY_Y = "y"
         private const val KEY_HINTS = "hints"
         const val KEY_DEEP = "deep"                 // הניסוי (חיפוש נגן בכל דף) — פועל כברירת מחדל
-        private const val DEEP_NODES = 1500
-        private const val DEEP_DEPTH = 40
-        private const val DEEP_MS = 40L
+        // 23/10/2026: 40ms הספיקו רק לעשרות צמתים בדף כבד (buffett.cnbc.com — הבועה לא הופיעה); ברקע אפשר יותר
+        private const val DEEP_NODES = 6000
+        private const val DEEP_DEPTH = 80
+        private const val DEEP_MS = 600L
         private const val DEEP_AGAIN = 2500L
         private const val DEEP_TRIES = 6
 

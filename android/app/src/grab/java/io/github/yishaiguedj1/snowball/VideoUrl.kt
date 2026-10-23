@@ -14,7 +14,7 @@ object VideoUrl {
         /** אתר וידאו, אבל השורה מציגה רק את שם האתר (בלי הנתיב) — את הכתובת המלאה קוראים בנגיעה */
         data class SiteOnly(val host: String) : Hit()
         /** הניסוי: דף באתר לא מוכר שיש בו נגן — שולחים את הדף, והשרת (yt-dlp, מחלץ כללי) מחפש בו את הסרטון */
-        data class Page(val url: String) : Hit()
+        data class Page(val url: String, val bare: Boolean = false) : Hit()
         object None : Hit()
     }
 
@@ -59,20 +59,26 @@ object VideoUrl {
     /**
      * הניסוי (22/10/2026, בקשת המשתמש — "בועה בכל דף שיש בו סרטון"): כתובת של דף רגיל באתר לא מוכר → הכתובת המלאה,
      * כדי לחפש בו נגן (GrabService.hasVideo). לא דפי חיפוש ולא דפים "פנימיים" של הדפדפן.
+     * 23/10/2026: גם דף הבית של אתר (buffett.cnbc.com — הנגן בדף הבית) ושם אתר בלי נתיב (Chrome מציג לפעמים
+     * רק את שם האתר) — הבועה מופיעה רק אם נמצא נגן בדף, אז דף בית בלי סרטון לא מקפיץ כלום.
      */
     fun page(raw: CharSequence?): String? {
         var s = raw?.toString()?.trim() ?: return null
         if (s.isEmpty() || s.length > 2048 || s.any { it.isWhitespace() }) return null
         if (!Regex("""^https?://""", RegexOption.IGNORE_CASE).containsMatchIn(s)) {
-            if (!Regex("""^[\w.-]+\.[a-z]{2,}(:\d+)?/""", RegexOption.IGNORE_CASE).containsMatchIn(s)) return null   // רק עם נתיב — דף בית לא
+            if (!Regex("""^[\w.-]+\.[a-z]{2,}(:\d+)?([/?#]|$)""", RegexOption.IGNORE_CASE).containsMatchIn(s)) return null
             s = "https://$s"
         }
         val u = try { URI(s) } catch (e: Exception) { return null }
         val host = (u.host ?: return null).lowercase().removePrefix("www.").removePrefix("m.")
-        if (!host.contains('.') || (u.rawPath ?: "").length < 2) return null
+        if (!host.contains('.')) return null
+        if ((u.rawPath ?: "").isEmpty()) return URI(u.scheme, u.rawAuthority, "/", u.rawQuery, u.rawFragment).toString()
         if (Regex("""(^|\.)(google|bing|duckduckgo|yahoo|baidu|yandex)\.""").containsMatchIn(host) && (u.rawPath ?: "").startsWith("/search")) return null
         return u.toString()
     }
+
+    /** השורה מציגה רק שם אתר / דף בית — ייתכן ש־Chrome מקצר; את הכתובת המלאה קוראים בנגיעה */
+    fun pageIsBare(url: String): Boolean = try { val u = URI(url); (u.rawPath ?: "").length <= 1 && u.rawQuery == null } catch (e: Exception) { false }
 
     /**
      * צומת בעץ הנגישות של הדף = נגן וידאו? Chrome מעביר את התפקיד מה־HTML ב־extras (‏"AccessibilityNodeInfo.chromeRole"),
