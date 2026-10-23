@@ -164,7 +164,18 @@ var ld=document.querySelectorAll('script[type="application/ld+json"]');for(var a
 var nx=document.getElementById('__NEXT_DATA__');if(nx&&nx.textContent.length<4000000){try{walk(JSON.parse(nx.textContent),0);}catch(e){}}
 var v=document.querySelectorAll('video,source');for(var b=0;b<v.length;b++){var s=v[b].currentSrc||v[b].src;if(s&&s.indexOf('blob:')!==0)add(s);}
 var vs=document.querySelectorAll('video');for(var c=0;c<vs.length;c++){try{var vdu=vs[c].duration;if(isFinite(vdu)&&vdu>out.vd)out.vd=vdu;vs[c].muted=true;var p=vs[c].play();if(p&&p.catch)p.catch(function(){});}catch(e){}}
-if(!vs.length||vs[0].paused){var bt=document.querySelector('.vjs-big-play-button,.jw-icon-display,.ytp-large-play-button,.plyr__control--overlaid,button[aria-label*="Play" i],button[aria-label*="play" i],[class*="play-button" i]');
-if(bt&&!window.__snbClick){window.__snbClick=1;try{bt.click();}catch(e){}}}
+var playing=false;for(var e2=0;e2<vs.length;e2++)if(!vs[e2].paused)playing=true;
+var nc=window.__snbClick||0;
+if(!playing&&nc<3&&Date.now()-(window.__snbT||0)>3500){window.__snbClick=nc+1;window.__snbT=Date.now();
+function vis(el){var r=el.getBoundingClientRect();return r.width>=20&&r.height>=20&&r.bottom>0&&r.top<innerHeight?r:null;}
+var bt=null;
+if(nc===0)bt=document.querySelector('.vjs-big-play-button,.jw-icon-display,.ytp-large-play-button,.plyr__control--overlaid,button[aria-label*="Play" i],[class*="play-button" i],[class*="PlayButton"],[class*="playButton"]');
+if(!bt&&nc<=1){var best=0,all=document.querySelectorAll('button,[role="button"],a,div,span,svg');
+for(var f=0;f<all.length&&f<4000;f++){var el=all[f],k=((el.getAttribute('class')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.getAttribute('title')||'')).toLowerCase();
+if(k.indexOf('play')<0||/playlist|display|player-?(wrap|container)|autoplay/.test(k))continue;var r=vis(el);if(!r)continue;var ar=r.width*r.height;if(ar>best&&ar<300000){best=ar;bt=el;}}}
+if(!bt){var big=null,ba=0,ms=document.querySelectorAll('video,img,[class*="player" i],[class*="video" i]');
+for(var g=0;g<ms.length&&g<500;g++){var r2=vis(ms[g]);if(r2&&r2.width*r2.height>ba){ba=r2.width*r2.height;big=r2;}}
+if(big)bt=document.elementFromPoint(big.left+big.width/2,big.top+big.height/2);}
+if(bt){try{bt.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window}));}catch(e){try{bt.click();}catch(x){}}}}
 return JSON.stringify(out);}catch(e){return '{}';}})()"""
 }

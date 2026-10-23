@@ -125,6 +125,11 @@ function done() {
   ok(/rec\.sz \? approx\(fmtSize\(rec\.sz\)\) : T\('studioLinkSzUnknown'\)/.test(st) && !/approx\(fmtSize\(rec\.sz\)\)\)\)/.test(st), 'האתר: "גודל לא ידוע" במקום 1KB');
   ok(/DlDeep\.looksLikeVideo\(/.test(eng) && /IllegalArgumentException\("not_video"\)/.test(eng) && /case 'not_video': return T\('studioLinkENotVideo'\)/.test(st)
     && (R('app.js').match(/\bstudioLinkENotVideo: "/g) || []).length === 2, 'קובץ שירד ואינו סרטון (5KB / דף) — לא נשמר, הודעה בשתי השפות');
+  // 23/10/2026 (סרטון המשתמש): "לא נמצא" עובר לאתר רק כשדפדפן הציד נסגר בלי לשלוח — אחרת השליחה נדרסת
+  const hunt = R(dir + 'HuntActivity.kt');
+  ok(/putExtra\(HuntActivity\.EXTRA_MISS, miss\)/.test(act) && !/launchUrl\) \+ miss\), this, MainActivity/.test(act) && /override fun finish\(\)/.test(hunt) && /if \(!sent && /.test(hunt) && /sent = true\s*\n\s*val i = Intent\(this, MainActivity/.test(hunt), 'דפדפן הציד: "לא נמצא" רק אם נסגר בלי לשלוח');
+  ok(/requestMethod = "HEAD"/.test(hunt) && /DlDeep\.MIN_BYTES/.test(hunt), 'דפדפן הציד: קובץ קטן / דף לא נספר כ"נמצא סרטון"');
+  ok(/elementFromPoint/.test(deep) && /__snbClick\|\|0/.test(deep), 'בדיקה לעומק: עד 3 ניסיונות ללחוץ ▶ (כולל מרכז הנגן)');
   ok(/name="dlDeep"/.test(R('android/app/src/studio/res/values/strings.xml')) && /name="dlDeep"/.test(R('android/app/src/studio/res/values-en/strings.xml')), 'dlDeep בעברית ובאנגלית');
   for (const k of ['studioLinkEApp', 'studioLinkDlWait', 'studioLinkGot', 'studioLinkEStore', 'studioLinkFailT'])
     ok((R('app.js').match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, k + ' בעברית ובאנגלית');
