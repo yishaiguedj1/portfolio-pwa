@@ -2557,13 +2557,43 @@ def _gl_word(term, low):
     return re.search(r'(?<![a-z0-9])' + re.escape(term.lower()) + r'(?![a-z0-9])', low) is not None
 
 
+# 23/10/2026 (ניתוח המאגר: "run rate", ‏SBC ומונחים פיננסיים שתורגמו מילולית): מהמילון העסקי המשותף
+# (glossary/business-en-he.tsv) נכנסים לעבודה רק מונחים ספציפיים — כמה מילים או ראשי תיבות — שמופיעים בתמליל.
+# מילה כללית ("team", "cost") לא נכנסת: אחרת tr-check מתריע על כל ניסוח אחר שלה, והתיקונים עולים טוקנים.
+BIZ_MARK = '# — מונחים עסקיים (ברירת מחדל — שורה של העבודה גוברת) —'
+BIZ_FILE = HERE / 'glossary' / 'business-en-he.tsv'
+
+
+BIZ_ACRO = {'EBITDA', 'SBC', 'ARR', 'TAM', 'CAGR', 'P&L', 'R&D', 'B2B', 'B2C', 'SaaS', 'capex'}   # ראשי תיבות פיננסיים — AI/CEO מתורגמים נכון ממילא
+
+
+def _biz_specific(term):
+    t = term.strip()
+    return t in BIZ_ACRO or ' ' in t or '-' in t
+
+
+def _biz_all():
+    try:
+        return gl_parse(BIZ_FILE.read_text(encoding='utf-8'))
+    except OSError:
+        return []
+
+
+def biz_keys():
+    return {r[0].lower() for r in _biz_all() if _biz_specific(r[0])}
+
+
+def biz_rows(low):
+    return [r for r in _biz_all() if _biz_specific(r[0]) and _gl_word(r[0], low)]
+
+
 def gl_merge(ctx):
-    """אחרי tr-prep: המונחים מהמילון שמופיעים בתמליל → tr/glossary.tsv (מתחת ל־GL_MARK; שורה של העבודה עם אותו מונח יוצאת)."""
+    """אחרי tr-prep: המונחים מהמילון שמופיעים בתמליל → tr/glossary.tsv (מתחת ל־GL_MARK; שורה של העבודה עם אותו מונח יוצאת).
+    לפניהם — מונחים עסקיים ספציפיים שמופיעים (מתחת ל־BIZ_MARK; שורה של העבודה או שלך גוברת)."""
     rows = gl_load(ctx)
-    if not rows:
-        if rows is None:
-            print('· המילון שלך לא נטען מ־Drive — ממשיכים בלעדיו.')
-        return 0
+    if rows is None:
+        print('· המילון שלך לא נטען מ־Drive — ממשיכים בלעדיו.')
+    rows = rows or []
     try:
         cues = json.loads((ctx.pdir / 'cues.en.json').read_text(encoding='utf-8'))
         low = ' '.join(str(c.get('en') or '') for c in cues).lower()
@@ -2571,16 +2601,34 @@ def gl_merge(ctx):
         return 0
     hit = [r for r in rows if _gl_word(r[0], low)]
     gp = ctx.pdir / 'tr' / 'glossary.tsv'
-    old = gp.read_text(encoding='utf-8') if gp.exists() else ''
-    old = old.split(GL_MARK)[0]                    # הרצה חוזרת — הבלוק הקודם מתחלף
+    old = (gp.read_text(encoding='utf-8') if gp.exists() else '').split(GL_MARK)[0]
+    if BIZ_MARK in old:                            # הרצה חוזרת — המונחים העסקיים יוצאים; שורות שנכתבו אחריהם נשארות
+        head, rest = old.split(BIZ_MARK, 1)
+        bk = biz_keys()
+        old = head + '\n'.join(ln for ln in rest.splitlines()
+                               if ln.strip() and not ln.lstrip().startswith('#') and ln.split('\t')[0].strip().lower() not in bk)
     keys = {r[0].lower() for r in hit}
     keep = [ln for ln in old.splitlines() if ln.lstrip().startswith('#') or ln.split('\t')[0].strip().lower() not in keys]
+    raw = gp.read_text(encoding='utf-8') if gp.exists() else ''
+    have = keys | {ln.split('\t')[0].strip().lower() for ln in keep if ln.strip() and not ln.lstrip().startswith('#')}
+    if not rows and GL_MARK in raw:
+        have |= {r[0].lower() for r in gl_parse(raw.split(GL_MARK, 1)[1])}
+    biz = [r for r in biz_rows(low) if r[0].lower() not in have]
+    if not hit and not biz and GL_MARK not in raw and BIZ_MARK not in raw:
+        return 0
     body = '\n'.join(keep).rstrip('\n') + '\n'
+    if biz:
+        body += BIZ_MARK + '\n' + '\n'.join(gl_line(r) for r in biz) + '\n'
     if hit:
         body += GL_MARK + '\n' + '\n'.join(gl_line(r) for r in hit) + '\n'
+    elif not rows and GL_MARK in raw:              # המילון שלך לא נטען / ריק — הבלוק הקודם נשאר כמו שהוא (כמו עד היום)
+        body += GL_MARK + raw.split(GL_MARK, 1)[1]
     gp.parent.mkdir(parents=True, exist_ok=True)
     gp.write_text(body, encoding='utf-8')
-    print('✓ מהמילון שלך: ' + str(len(hit)) + ' מונחים שמופיעים בסרטון (מתוך ' + str(len(rows)) + ')')
+    if biz:
+        print('✓ מונחים עסקיים מהמילון המשותף: ' + str(len(biz)))
+    if rows:
+        print('✓ מהמילון שלך: ' + str(len(hit)) + ' מונחים שמופיעים בסרטון (מתוך ' + str(len(rows)) + ')')
     return len(hit)
 
 
@@ -2588,7 +2636,11 @@ def gl_suggest(ctx):
     """בסוף העבודה: {u: כמה מונחים מהמילון שימשו, s: [[en, he]] חדשים מהעבודה} — או None. בלי מילון שנקרא — בלי הצעות."""
     gp = ctx.pdir / 'tr' / 'glossary.tsv'
     try:
-        proj = gl_parse(gp.read_text(encoding='utf-8')) if gp.exists() else []
+        gtxt = gp.read_text(encoding='utf-8') if gp.exists() else ''
+        proj = gl_parse(gtxt)
+        if BIZ_MARK in gtxt:                       # המונחים העסקיים — לא "חדשים מהעבודה"
+            bk = {r[0].lower() for r in gl_parse(gtxt.split(BIZ_MARK, 1)[1].split(GL_MARK)[0])} & biz_keys()
+            proj = [r for r in proj if r[0].lower() not in bk]
     except OSError:
         return None
     user = gl_load(ctx)
