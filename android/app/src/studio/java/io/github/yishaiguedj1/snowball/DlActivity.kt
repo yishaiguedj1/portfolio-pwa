@@ -36,6 +36,7 @@ class DlActivity : Activity() {
     private lateinit var subV: TextView
     private lateinit var bar: ProgressBar
     private lateinit var btn: Button
+    private lateinit var btn2: Button
     private var mode = ""
     private var nonce = ""
     private var handed = false
@@ -133,6 +134,8 @@ class DlActivity : Activity() {
                     titleV.text = getString(R.string.dlSaved); subV.text = getString(R.string.dlSavedS); bar.visibility = View.GONE
                     btn.text = getString(R.string.dlOpen)
                     btn.setOnClickListener { DlState.clear(); try { startActivity(DlState.viewIntent(u)) } catch (e: Exception) {}; finish() }
+                    btn2.visibility = View.VISIBLE; btn2.text = getString(R.string.dlShare)
+                    btn2.setOnClickListener { DlState.clear(); try { startActivity(DlState.shareIntent(this, u)) } catch (e: Exception) {}; finish() }
                 } else if (u != null && !handed) { handed = true; DlState.clear(); startActivity(DlState.handoffIntent(this, u, nonce)); finish() } }
             "err" -> { val c = DlState.err; DlState.clear(); if (c == "cancel") finish() else { startActivity(DlState.errIntent(this, nonce, c)); finish() } }
         }
@@ -164,7 +167,9 @@ class DlActivity : Activity() {
             progressTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FF4656")); indeterminateTintList = progressTintList }
         btn = Button(this, null, android.R.attr.borderlessButtonStyle).apply { setTextColor(Color.parseColor("#FF4656")); textSize = 16f; isAllCaps = false }
         card.addView(titleV); card.addView(subV); card.addView(bar)
-        card.addView(btn, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { gravity = Gravity.END; topMargin = dp(8f) })
+        btn2 = Button(this, null, android.R.attr.borderlessButtonStyle).apply { setTextColor(Color.parseColor("#FF4656")); textSize = 16f; isAllCaps = false; visibility = View.GONE }
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.END; addView(btn2); addView(btn) }
+        card.addView(row, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8f) })
         root.addView(card, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER)
             .apply { leftMargin = dp(20f); rightMargin = dp(20f) })
         return root

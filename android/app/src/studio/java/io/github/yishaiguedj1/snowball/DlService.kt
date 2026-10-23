@@ -102,6 +102,12 @@ object DlState {
     fun viewIntent(u: Uri): Intent = Intent(Intent.ACTION_VIEW).setDataAndType(u, "video/*")
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
 
+    /** "רק להוריד": שיתוף הסרטון שנשמר (וואטסאפ, Drive…) */
+    fun shareIntent(ctx: Context, u: Uri): Intent =
+        Intent.createChooser(Intent(Intent.ACTION_SEND).setType("video/*").putExtra(Intent.EXTRA_STREAM, u)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION).also { it.clipData = ClipData.newRawUri("", u) }, ctx.getString(R.string.dlShare))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
     /** שגיאה בהורדה → האתר מציג אותה (‎#dle=<מזהה>.<קוד>) */
     fun errIntent(ctx: Context, id: String, code: String): Intent =
         Intent(Intent.ACTION_VIEW, Uri.parse(ctx.getString(R.string.launchUrl) + "#dle=" + id + "." + code), ctx, MainActivity::class.java)

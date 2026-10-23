@@ -30,6 +30,7 @@
     <string name="dlBusy">הורדה אחרת עדיין רצה</string>
     <string name="dlChannel">הורדות</string>
     <string name="dlSaved">נשמר בטלפון</string>
-    <string name="dlSavedS">בתיקייה Movies/Studio</string>
+    <string name="dlSavedS">בגלריה, באלבום Studio (התיקייה Movies/Studio)</string>
+    <string name="dlShare">שיתוף</string>
     <string name="dlOpen">פתיחה</string>
 </resources>

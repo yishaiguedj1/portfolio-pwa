@@ -278,6 +278,28 @@ object DlProbe {
         return m.value.trimEnd('.', ',', ';', ':', '!', '?', ')', ']', '}', '»')
     }
 
+    /**
+     * 23/10/2026: כתובות חלופיות כשהבדיקה לא מצאה סרטון. Chrome מסתיר את "www." בשורת הכתובת, והבועה שולחת
+     * imdb.com/video/… — המחלץ של IMDb ב־yt-dlp מכיר רק www/m. לכן: שם אתר בלי תת־דומיין → גם www.;
+     * תת־דומיין (buffett.cnbc.com) → גם www של האתר הראשי (CNBC מכיר רק www.cnbc.com). רק http(s), לכל היותר 2.
+     */
+    fun altUrls(url: String): List<String> {
+        val m = Regex("^(https?://)([^/:?#]+)(.*)$", RegexOption.IGNORE_CASE).matchEntire(url) ?: return emptyList()
+        val (sch, host0, rest) = m.destructured
+        val host = host0.lowercase()
+        if (host.startsWith("www.") || host.startsWith("m.") || Regex("^[\\d.]+$").matches(host)) return emptyList()
+        val parts = host.split('.')
+        if (parts.size < 2 || parts.any { it.isEmpty() }) return emptyList()
+        val sld = parts.size >= 3 && parts[parts.size - 1].length == 2 && parts[parts.size - 2] in SLD
+        val base = if (sld) 3 else 2                       // כמה תוויות הן "שם האתר" (example.co.il = 3)
+        return when {
+            parts.size == base -> listOf("${sch}www.$host$rest")
+            parts.size == base + 1 -> listOf("${sch}www.${parts.drop(1).joinToString(".")}$rest")
+            else -> emptyList()
+        }
+    }
+    private val SLD = setOf("co", "com", "org", "net", "ac", "gov", "edu")
+
     /** Referer מהאתר (דפדפן הציד) → רק http(s) תקין, אחרת "" (= fetchurl.ref_ok) */
     fun refOk(r0: String?): String {
         val r = (r0 ?: "").trim()

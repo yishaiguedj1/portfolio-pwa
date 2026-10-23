@@ -81,9 +81,14 @@ object DlWork {
 
     /* "רק להוריד": נגיעה בהתראה פותחת את הסרטון בנגן של הטלפון */
     private fun savedNotif(ctx: Context, title: String, uri: Uri): Notification {
+        // 23/10/2026: איפה הקובץ — בטקסט (אלבום Studio בגלריה), ופעולות "פתיחה" ו"שיתוף" ישר מההתראה
         val pi = PendingIntent.getActivity(ctx, 5, DlState.viewIntent(uri), PendingIntent.FLAG_IMMUTABLE)
+        val share = PendingIntent.getActivity(ctx, 6, DlState.shareIntent(ctx, uri), PendingIntent.FLAG_IMMUTABLE)
         return builder(ctx).setSmallIcon(android.R.drawable.stat_sys_download_done).setContentTitle(ctx.getString(R.string.dlSaved))
-            .setContentText(title.ifEmpty { ctx.getString(R.string.dlSavedS) }).setSubText(ctx.getString(R.string.dlSavedS))
+            .setContentText(title.ifEmpty { ctx.getString(R.string.dlSavedS) })
+            .setStyle(Notification.BigTextStyle().bigText((if (title.isEmpty()) "" else title + "\n") + ctx.getString(R.string.dlSavedS)))
+            .addAction(Notification.Action.Builder(null, ctx.getString(R.string.dlOpen), pi).build())
+            .addAction(Notification.Action.Builder(null, ctx.getString(R.string.dlShare), share).build())
             .setAutoCancel(true).setContentIntent(pi).build()
     }
 
