@@ -532,4 +532,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { ENVS, PLANS, RE, shape, need, saOf, emailsOf, stagingFiles, prodFiles, planFiles, cloudInit, vercelEnv, appEnvLine, appEnv, saVerified, parseExtra, hc, NAME_RE, TYPE_RE, LOC_RE, register, unregister, create, waitUp, main, MARK };
+module.exports = { ENVS, PLANS, RE, shape, need, saOf, emailsOf, stagingFiles, prodFiles, planFiles, cloudInit, vercelEnv, appEnvLine, appEnv, saVerified, parseExtra, hc, NAME_RE, TYPE_RE, LOC_RE, fsBase, fsToken, register, unregister, create, waitUp, main, MARK };
