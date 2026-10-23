@@ -44,6 +44,8 @@ const hashArg = (k, max) => { const m = new RegExp('[#&]' + k + '=([^&]*)').exec
 const share = hashArg('share', 4096);
 // שלב 2: קובץ שנמצא בדף (דפדפן הציד) — ‎&ref=<הדף>
 const shareRef = hashArg('ref', 2048);
+// 23/10/2026: מדפדפן הציד — תוצאת הבדיקה שכבר רצה בטלפון, יחד עם הכתובת (‎&probe=<n>.<תוצאה>)
+const shareProbe = share ? hashArg('probe', 200000) : '';
 // 22/10/2026: ההורדה בטלפון — הקובץ שחזר (sw.js → ‎#got=<מפתח>) ושגיאה (‎#dle=<n>.<קוד>)
 const got = hashArg('got', 40), dle = hashArg('dle', 60);
 if (link || share || got || dle) { try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {} }
@@ -71,15 +73,15 @@ if (first === 'out') loginGate({ app: 'studio', auth: A, logo: 'logo-studio.webp
 else if (first === 'boot') ready.then((st) => { if (st === 'out') loginGate({ app: 'studio', auth: A, logo: 'logo-studio.webp', logoLg: 'logo-studio-lg.webp', name: 'Studio' }); });
 /* 21/10/2026: התמונות של העבודות נטענות מהטלפון לפני הציור הראשון (מאחורי הווילון, עד 400ms) — הרשימה מופיעה איתן, בלי הבהוב */
 Promise.race([thumbsReady, new Promise((r) => setTimeout(r, 400))]).then(() =>
-  openStudio({ standalone: sa, restore: hs && hs.studio && !share && !got ? hs : null, job: link ? link[1] : '', view: link && link[2] ? link[2] : '', share, ref: shareRef, got, dle }));
+  openStudio({ standalone: sa, restore: hs && hs.studio && !share && !got ? hs : null, job: link ? link[1] : '', view: link && link[2] ? link[2] : '', share, ref: shareRef, probe: shareProbe, got, dle }));
 /* 22/10/2026: קישור מהבועה / משיתוף כש־Studio כבר פתוחה — אנדרואיד מעביר אותו ללשונית הקיימת כשינוי ב־hash, בלי טעינה */
 if (typeof window !== 'undefined') window.addEventListener('hashchange', () => {
   const s = hashArg('share', 4096), pr = hashArg('probe', 200000), g = hashArg('got', 40), de = hashArg('dle', 60);
   if (!s && !pr && !g && !de) return;
   const r = hashArg('ref', 2048);
   try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
-  if (s) studioShare(s, r);
-  if (pr) studioProbeRes(pr);   // 22/10/2026: תוצאת הבדיקה בטלפון (DlActivity)
+  if (s) studioShare(s, r, pr);   // 23/10/2026: מדפדפן הציד — עם התוצאה (pr)
+  else if (pr) studioProbeRes(pr);   // 22/10/2026: תוצאת הבדיקה בטלפון (DlActivity)
   if (g) studioGot(g);
   if (de) studioDlErr(de);
 });

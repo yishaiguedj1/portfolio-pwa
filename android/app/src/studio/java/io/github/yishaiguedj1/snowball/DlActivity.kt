@@ -82,6 +82,8 @@ class DlActivity : Activity() {
         if (!N_RE.matches(n) || u.isEmpty() || u.length > DlProbe.URL_MAX) { finish(); return }
         nonce = n
         val ref = DlProbe.refOk(d.getQueryParameter("ref"))
+        fromHunt = d.getQueryParameter("h") == "1"
+        huntU = u; huntRef = ref
         when (d.host) {
             "probe" -> probe(u, ref)
             "dl" -> download(d, u, ref)
@@ -110,11 +112,12 @@ class DlActivity : Activity() {
                 main.removeCallbacks(slow)
                 // קובץ שנתפס בדף (דפדפן הציד) ונראה כמו פרסומת / קובץ זעיר — לא מציעים להוריד אותו
                 if (ref.isNotEmpty() && !DlDeep.realVideo(s, 0)) throw IllegalArgumentException("tiny")
+                if (ref.isNotEmpty()) DlDeep.fromMedia(s, u, ref, null)   // האתר מוריד את הקובץ (u) עם הדף (rf) כ־Referer
                 "#probe=$nonce." + DlEngine.b64(s.toString())
             } catch (e: Throwable) {
                 main.removeCallbacks(slow)
                 val code = if (probeSlow) "slow" else (e as? IllegalArgumentException)?.message ?: "fail"
-                miss = ref.isEmpty() && code in HUNT_ON
+                miss = ref.isEmpty() && code in HUNT_ON && !fromHunt   // מדפדפן הציד — המשתמש כבר שם; לא שוב לעומק ולציד
                 "#probe=$nonce.!" + code
             }
             main.post {
@@ -323,7 +326,16 @@ class DlActivity : Activity() {
     }
 
     /** חזרה לאתר (‎#… = התוצאה; ריק = רק לחזור) */
-    private fun back(hash: String) {
+    /* נפתח מדפדפן הציד (h=1): האתר עוד לא יודע על הקישור — הכתובת והתוצאה חוזרות יחד, בשינוי hash אחד */
+    private var fromHunt = false; private var huntU = ""; private var huntRef = ""
+    private fun huntHash(hash: String): String {
+        if (!fromHunt || !hash.startsWith("#probe=")) return hash
+        return "#share=" + Uri.encode(huntU) + (if (huntRef.isNotEmpty()) "&ref=" + Uri.encode(huntRef) else "") +
+            "&probe=" + Uri.encode(hash.removePrefix("#probe="))
+    }
+
+    private fun back(hash0: String) {
+        val hash = huntHash(hash0)
         if (hash.isNotEmpty()) startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(s(R.string.launchUrl) + hash), this, MainActivity::class.java))
         finish()
     }

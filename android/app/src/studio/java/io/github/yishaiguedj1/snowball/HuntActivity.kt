@@ -244,7 +244,8 @@ class HuntActivity : Activity() {
         android.widget.Toast.makeText(this, R.string.huntHint, android.widget.Toast.LENGTH_LONG).show()
     }
 
-    private fun pageIsVideo() = VideoUrl.classify(page) is VideoUrl.Hit.Video
+    // נפתח לבד מהבדיקה (EXTRA_AUTO) — הדף עצמו כבר נבדק ולא נמצא בו סרטון: לא מציעים אותו שוב (אחרת "נמצא" = הדף, ולולאה)
+    private fun pageIsVideo() = intent?.getBooleanExtra(EXTRA_AUTO, false) != true && VideoUrl.classify(page) is VideoUrl.Hit.Video
 
     /* מה לשלוח: הדף עצמו (כשזה דף צפייה באתר מוכר — yt-dlp יביא כותרת, פרקים וכתוביות) או אחד הממצאים */
     private fun pick() {
@@ -273,14 +274,22 @@ class HuntActivity : Activity() {
         super.finish()
     }
 
+    /* 23/10/2026 (צילום המשתמש, buffett.cnbc.com: "בודקים את הקישור…" בלי סוף): עד היום הממצא עבר לאתר כ"שיתוף",
+       והאתר פתח את חלון הבדיקה בעצמו — בלי נגיעה של המשתמש, ו־Chrome חוסם את זה. עכשיו הבדיקה נפתחת מכאן (DlActivity, h=1),
+       והתוצאה חוזרת לאתר יחד עם הכתובת (‎#share=…&ref=…&probe=…) — שינוי hash אחד */
     private fun send(url: String, ref: String) {
         sent = true
-        val i = Intent(this, MainActivity::class.java)
-            .setAction(Intent.ACTION_SEND).setType("text/plain")
-            .putExtra(Intent.EXTRA_TEXT, url)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (ref.isNotEmpty()) i.putExtra(EXTRA_REF, ref)
-        startActivity(i)
+        val n = Regex("^#probe=([A-Za-z0-9]{6,24})\\.").find(intent?.getStringExtra(EXTRA_MISS) ?: "")?.groupValues?.get(1)
+            ?: java.util.UUID.randomUUID().toString().replace("-", "").take(16)
+        val q = "snbstudio://probe?h=1&n=$n&u=" + Uri.encode(url) + (if (ref.isNotEmpty()) "&ref=" + Uri.encode(ref) else "") +
+            (DlLang.cur(this)?.let { "&l=$it" } ?: "")
+        try { startActivity(Intent(this, DlActivity::class.java).setData(Uri.parse(q))) }
+        catch (e: Exception) {   // לא אמור לקרות — הדרך הישנה
+            val i = Intent(this, MainActivity::class.java).setAction(Intent.ACTION_SEND).setType("text/plain")
+                .putExtra(Intent.EXTRA_TEXT, url).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (ref.isNotEmpty()) i.putExtra(EXTRA_REF, ref)
+            startActivity(i)
+        }
         finish()
     }
 
