@@ -98,4 +98,23 @@
     <string name="dmFailedN">ההורדה נעצרה</string>
     <string name="dmWaitingN">יש הורדות שממתינות</string>
     <string name="dmWaitingS">נגיעה כדי להמשיך מאותה נקודה</string>
+    <string name="dmBrowser">דפדפן</string>
+    <string name="dmBrClose">סגירה</string>
+    <string name="dmBrHint">חיפוש או כתובת</string>
+    <string name="dmBrRefreshHint">רענון קישור: מגיעים שוב לקובץ ומתחילים להוריד אותו — ההורדה תמשיך מאותה נקודה.</string>
+    <string name="dmBrFound">נמצא להורדה</string>
+    <string name="dmBrFoundN">נמצאו %d להורדה</string>
+    <string name="dmBrPick">מה להוריד?</string>
+    <string name="dmBrPage">הסרטון בדף (מומלץ)</string>
+    <string name="dmBrHls">זרם וידאו (HLS)</string>
+    <string name="dmBrDash">זרם וידאו (DASH)</string>
+    <string name="dmBrFile">קובץ וידאו</string>
+    <string name="dmRefresh">רענון קישור</string>
+    <string name="dmRefreshS">הקישור פג. פותחים את הדף בדפדפן, מגיעים שוב לקובץ — וממשיכים בלי להתחיל מהתחלה.</string>
+    <string name="dmRefreshGo">להמשיך עם הקישור החדש</string>
+    <string name="dmRefreshNew">להוריד כהורדה חדשה</string>
+    <string name="dmErrRefreshSize">זה לא אותו קובץ — הגודל שונה</string>
+    <string name="dmErrRefreshKind">אפשר לרענן רק הורדה של קובץ ישיר</string>
+    <string name="dmSetLimit">הגבלת מהירות</string>
+    <string name="dmLimitOff">ללא</string>
 </resources>

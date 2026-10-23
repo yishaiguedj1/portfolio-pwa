@@ -39,6 +39,8 @@ object DmFmt {
         "live" -> R.string.dmErrLive
         "playlist" -> R.string.dmErrPlaylist
         "unsupported", "no_video" -> R.string.dmErrNoVideo
+        "refresh_size" -> R.string.dmErrRefreshSize
+        "refresh_kind" -> R.string.dmErrRefreshKind
         else -> R.string.dmErrFail
     })
 

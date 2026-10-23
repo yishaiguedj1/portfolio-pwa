@@ -93,4 +93,23 @@
     <string name="dmFailedN">Download stopped</string>
     <string name="dmWaitingN">Downloads are waiting</string>
     <string name="dmWaitingS">Tap to continue from where it stopped</string>
+    <string name="dmBrowser">Browser</string>
+    <string name="dmBrClose">Close</string>
+    <string name="dmBrHint">Search or address</string>
+    <string name="dmBrRefreshHint">Refresh link: get to the file again and start downloading it — the download continues where it stopped.</string>
+    <string name="dmBrFound">Found a download</string>
+    <string name="dmBrFoundN">Found %d downloads</string>
+    <string name="dmBrPick">What to download?</string>
+    <string name="dmBrPage">The video on this page (recommended)</string>
+    <string name="dmBrHls">Video stream (HLS)</string>
+    <string name="dmBrDash">Video stream (DASH)</string>
+    <string name="dmBrFile">Video file</string>
+    <string name="dmRefresh">Refresh link</string>
+    <string name="dmRefreshS">The link expired. Open the page in the browser, get to the file again — and continue without starting over.</string>
+    <string name="dmRefreshGo">Continue with the new link</string>
+    <string name="dmRefreshNew">Download as a new file</string>
+    <string name="dmErrRefreshSize">Not the same file — the size is different</string>
+    <string name="dmErrRefreshKind">Only direct file downloads can be refreshed</string>
+    <string name="dmSetLimit">Speed limit</string>
+    <string name="dmLimitOff">None</string>
 </resources>

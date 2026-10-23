@@ -36,7 +36,7 @@ for (const f of code) {
 
 // המנוע: הכללים מהמחקר
 const fetch = R('android/app/src/dmcore/java/io/github/yishaiguedj1/snowball/dm/DmFetch.kt');
-ok(/"Range", "bytes=0-0"/.test(fetch), 'בדיקה ב־GET עם Range: bytes=0-0 (לא HEAD)');
+ok(/"Range" to "bytes=0-0"/.test(fetch), 'בדיקה ב־GET עם Range: bytes=0-0 (לא HEAD)');
 ok(/"If-Range"/.test(fetch) && /st == 200\) \{ restart = true/.test(fetch), 'If-Range: קובץ שהשתנה → מתחילים מחדש, לא מערבבים');
 ok(/"Accept-Encoding", "identity"/.test(fetch), 'בלי דחיסה (הטווחים בבתים של הקובץ)');
 ok(/DmSegs\.split\(task\.segs, minSeg\)/.test(fetch), 'חיבור שהתפנה חוצה את המקטע הגדול ביותר');
@@ -56,6 +56,26 @@ ok(/!DmStore\.has\(u\)/.test(act) && /fun has\(url: String\)/.test(store), 'הל
 // שפה: עברית כברירת מחדל (כמו בשאר האפליקציות), גם בהתראות
 ok(/getString\("lang", "he"\)/.test(store) && /attachBaseContext[\s\S]{0,80}DmLang\.wrap/.test(act), 'עברית כברירת מחדל, בלי תלות בשפת הטלפון');
 ok((run.match(/val ctx = DmLang\.wrap\(ctx0\)/g) || []).length === 4, 'כל ההתראות בשפה שנבחרה');
+// שלב 2 (23/10): הדפדפן של DM, עוגיות, רענון קישור, מגבלות
+const br = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmBrowser.kt');
+const hunt = R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/HuntActivity.kt');
+const Q3 = '"'.repeat(3);
+const hook = (src) => { const i = src.indexOf('private const val HOOK = ' + Q3); if (i < 0) return ''; const a = i + 25 + 3; return src.slice(a, src.indexOf(Q3, a)); };
+ok(hook(br) && hook(br) === hook(hunt), 'אותו סקריפט ציד בשני הדפדפנים (Studio ו־DM)');
+ok(fs.existsSync(path.join(ROOT, 'android/app/src/grab/java/io/github/yishaiguedj1/snowball/HuntMedia.kt')) &&
+  !fs.existsSync(path.join(ROOT, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/HuntMedia.kt')), 'HuntMedia משותף (src/grab)');
+ok(/android:name="\.dm\.DmBrowser"\s+android:exported="false"/.test(man), 'הדפדפן לא נגיש לאפליקציות אחרות');
+ok(/DmBrowser\.take\(i\.getStringExtra\(DmBrowser\.EXTRA_TOKEN\), u\)/.test(act) && !/getBooleanExtra\("?dm_ck/.test(act), 'עוגיות ו־User-Agent רק ממסירה בתוך התהליך — לא מ־extras');
+ok(/token != h\.token \|\| url != h\.url/.test(br) && /handoff = null/.test(br), 'המסירה חד־פעמית, לאותו קישור');
+ok(/setDownloadListener/.test(br), 'הורדה שהדף מתחיל — ל־DM');
+ok(/instanceFollowRedirects = false/.test(fetch) && /cookies\?\.invoke\(u\.toString\(\)\)/.test(fetch) && /next\.protocol == "http"/.test(fetch), 'הפניות בתוך המנוע: עוגייה לכל קפיצה בנפרד, בלי ירידה ל־http');
+ok(fetch.includes("'\\n' !in it && '\\r' !in it"), 'בלי הזרקת כותרות דרך העוגייה');
+ok(/DmLimit\.take\(n\.toLong\(\), sleep\)/.test(fetch) && /DmLimit\.bytesPerSec = pr\.limit/.test(eng), 'מגבלת מהירות לכל ההורדות');
+ok(/DmLink\.pickStart\(/.test(eng) && /const val PER_HOST = 2/.test(R('android/app/src/dmcore/java/io/github/yishaiguedj1/snowball/dm/DmCore.kt')), 'לכל היותר 2 הורדות במקביל מאותו אתר');
+ok(/if \(t\.total > 0 && f\.size != t\.total\) return "refresh_size"/.test(act), 'רענון קישור רק לאותו קובץ (אותו גודל)');
+ok(/fun cookiesOf\(t: DmTask\)[^\n]*if \(!t\.ck\) null/.test(eng), 'עוגיות רק להורדה שהתחילה בדפדפן');
+ok(!/ck|\.ua/.test(store.split('fun exportJson')[1].split('\n}')[0]), 'הייצוא בלי עוגיות/User-Agent');
+ok(fs.existsSync(path.join(ROOT, 'android/app/src/testDm/java/io/github/yishaiguedj1/snowball/dm/DmNetTest.kt')), 'בדיקת JVM לעוגיות בהפניה ולמגבלות');
 ok(fs.existsSync(path.join(ROOT, 'android/app/src/testDm/java/io/github/yishaiguedj1/snowball/dm/DmFetchTest.kt')), 'בדיקת JVM מול שרת אמיתי קיימת');
 
 // מחרוזות: כל R.string.dm* קיים, ובשתי השפות

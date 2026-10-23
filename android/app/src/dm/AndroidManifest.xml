@@ -20,6 +20,13 @@
         <activity android:name=".MainActivity" tools:node="remove" />
         <service android:name="com.google.androidbrowserhelper.trusted.DelegationService" tools:node="remove" />
 
+        <!-- הדפדפן של DM — רק מתוך האפליקציה -->
+        <activity
+            android:name=".dm.DmBrowser"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode" />
+
         <activity
             android:name=".dm.DmActivity"
             android:exported="true"
