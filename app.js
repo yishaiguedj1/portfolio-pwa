@@ -133,7 +133,7 @@ he: {
   ovUpdated: 'עודכן: {time}',
   pfTitle: 'ביצועי התיק לאורך זמן',
   pfNote: 'שווי התיק בשקלים לאורך זמן, לפי האחזקות הנוכחיות (אין יומן קניות היסטורי).',
-  pieTitle: 'חלוקת תיק מניות',
+  pieTitle: 'חלוקת התיק',
 
   myStocks: 'המניות שלי',
   editBtn: ICON_EDIT + 'עריכה',
@@ -737,7 +737,7 @@ en: {
   ovUpdated: 'Updated: {time}',
   pfTitle: 'Portfolio performance over time',
   pfNote: 'Portfolio value in ILS over time, based on current holdings (no historical trade log).',
-  pieTitle: 'Stock allocation',
+  pieTitle: 'Portfolio allocation',
 
   myStocks: 'My stocks',
   editBtn: ICON_EDIT + 'Edit',
@@ -4928,8 +4928,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.27.1';
-const APP_VERSION = 'v486';
+const APP_RELEASE = '2.27.2';
+const APP_VERSION = 'v487';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
