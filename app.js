@@ -14054,6 +14054,7 @@ function renderAll(opts) {
   try { renderAllInner(); } finally { _renderForce = false; }
 }
 function renderAllInner() {
+  try { renderCashInputs(); } catch (e) {} // 23/10/2026: המזומן בתפריט מתעדכן אחרי סנכרון IBKR / טעינה מהענן (עד אז — רק בפתיחה)
   // v141: מניה שנוספה ביד במצב IBKR (לפני v141) מסומנת ידנית — נכללת בחישובים ונשמרת בסנכרון
   try { if (markManualPositions()) saveDB(); } catch (e) {}
   // v157: מחירי ת"א שהוזנו באגורות לפני v157 — מתוקנים פעם אחת כשיש מחיר חי
@@ -14320,8 +14321,9 @@ function wireEditToggle(btnId, hintId, key, rerender) {
 function renderCashInputs() {
   const u = document.getElementById('cashUsd');
   const s = document.getElementById('cashIls');
-  if (u) u.value = (DB.cash && DB.cash.usd) || 0;
-  if (s) s.value = (DB.cash && DB.cash.ils) || 0;
+  const act = typeof document !== 'undefined' && document.activeElement; // לא דורסים שדה שמקלידים בו
+  if (u && act !== u) u.value = (DB.cash && DB.cash.usd) || 0;
+  if (s && act !== s) s.value = (DB.cash && DB.cash.ils) || 0;
 }
 
 function renderPensionFundEditors() {

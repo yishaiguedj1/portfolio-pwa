@@ -97,6 +97,18 @@ function stubFetch(text, status = 200) {
     `<ChangeInNAV fromDate="20240103" toDate="20240103" startingValue="12100" endingValue="10890" twr="-10" mtm="-1210"/>` +
     `</FlexStatement></FlexStatements></FlexQueryResponse>`;
   const multi = statementToJson(parseXml(multiXml));
+  // 23/10/2026: המזומן מ־Cash Report — endingCash, בלי שורת BASE_SUMMARY; בלי Cash Report — מ־NAV in Base
+  const cr = statementToJson(parseXml('<FlexStatement fromDate="20260101" toDate="20261022" baseCurrency="USD"><CashReport>' +
+    '<CashReportCurrency currency="BASE_SUMMARY" startingCash="1" endingCash="9999"/>' +
+    '<CashReportCurrency currency="USD" startingCash="10" endingCash="1234.5" endingSettledCash="1200"/>' +
+    '<CashReportCurrency currency="ILS" startingCash="0" endingCash="311"/></CashReport></FlexStatement>'));
+  ok(cr.cashBalances.length === 2 && cr.cashBalances[0].currency === 'USD' && cr.cashBalances[0].balance === 1234.5 && cr.cashBalances[1].balance === 311,
+    'Cash Report: endingCash לכל מטבע, בלי BASE_SUMMARY');
+  const eq = statementToJson(parseXml('<FlexStatement fromDate="20261001" toDate="20261022" baseCurrency="USD"><EquitySummaryInBase>' +
+    '<EquitySummaryByReportDateInBase reportDate="20261021" cash="500" total="1000"/>' +
+    '<EquitySummaryByReportDateInBase reportDate="20261022" cash="750" total="1100"/></EquitySummaryInBase></FlexStatement>'));
+  ok(eq.cashBalances.length === 1 && eq.cashBalances[0].currency === 'USD' && eq.cashBalances[0].balance === 750,
+    'בלי Cash Report: המזומן מהיום האחרון ב־NAV in Base');
   ok(multi.navHistory.length === 3, 'שלוש שורות NAV נשמרו להיסטוריה');
   ok(multi.navHistory[0].toDate === '2024-01-01' && multi.navHistory[2].endingValue === 10890, 'תאריכים וערכים יומיים מפוענחים');
   const expTwr = (1.1 * 1.1 * 0.9 - 1) * 100;
