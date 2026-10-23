@@ -93,6 +93,17 @@ class BizGlossary(unittest.TestCase):
         sug = job.gl_suggest(ctx)
         self.assertFalse(sug and any(r[0] == 'run rate' for r in sug.get('s', [])), sug)
 
+    def test_rows_written_after_biz_block_survive(self):
+        # Claude הוסיף מונחים בסוף החלק של העבודה (אחרי הבלוק העסקי) — בהרצה חוזרת הם נשארים, והבלוק העסקי מתחלף
+        ctx, g = self.run_merge('Our run rate grew, a real moat.', gl_rows=[('moat', 'חפיר')])
+        gp = ctx.pdir / 'tr' / 'glossary.tsv'
+        head, tail = g.split(job.GL_MARK, 1)
+        gp.write_text(head + 'Buyback\tרכישה עצמית\n' + job.GL_MARK + tail, encoding='utf-8')
+        job.gl_merge(ctx)
+        g2 = gp.read_text(encoding='utf-8')
+        self.assertIn('Buyback\tרכישה עצמית', g2)
+        self.assertEqual(g2.count('run rate\t'), 1)
+
     def test_nothing_to_add(self):
         _, g = self.run_merge('We just talked about food.')
         self.assertEqual(g, '')

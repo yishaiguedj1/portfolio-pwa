@@ -2572,12 +2572,19 @@ def _biz_specific(term):
     return t in BIZ_ACRO or ' ' in t or '-' in t
 
 
-def biz_rows(low):
+def _biz_all():
     try:
-        rows = gl_parse(BIZ_FILE.read_text(encoding='utf-8'))
+        return gl_parse(BIZ_FILE.read_text(encoding='utf-8'))
     except OSError:
         return []
-    return [r for r in rows if _biz_specific(r[0]) and _gl_word(r[0], low)]
+
+
+def biz_keys():
+    return {r[0].lower() for r in _biz_all() if _biz_specific(r[0])}
+
+
+def biz_rows(low):
+    return [r for r in _biz_all() if _biz_specific(r[0]) and _gl_word(r[0], low)]
 
 
 def gl_merge(ctx):
@@ -2594,12 +2601,19 @@ def gl_merge(ctx):
         return 0
     hit = [r for r in rows if _gl_word(r[0], low)]
     gp = ctx.pdir / 'tr' / 'glossary.tsv'
-    old = (gp.read_text(encoding='utf-8') if gp.exists() else '').split(GL_MARK)[0].split(BIZ_MARK)[0]  # הרצה חוזרת — הבלוקים הקודמים מתחלפים
+    old = (gp.read_text(encoding='utf-8') if gp.exists() else '').split(GL_MARK)[0]
+    if BIZ_MARK in old:                            # הרצה חוזרת — המונחים העסקיים יוצאים; שורות שנכתבו אחריהם נשארות
+        head, rest = old.split(BIZ_MARK, 1)
+        bk = biz_keys()
+        old = head + '\n'.join(ln for ln in rest.splitlines()
+                               if ln.strip() and not ln.lstrip().startswith('#') and ln.split('\t')[0].strip().lower() not in bk)
     keys = {r[0].lower() for r in hit}
     keep = [ln for ln in old.splitlines() if ln.lstrip().startswith('#') or ln.split('\t')[0].strip().lower() not in keys]
-    have = keys | {ln.split('\t')[0].strip().lower() for ln in keep if ln.strip() and not ln.lstrip().startswith('#')}
-    biz = [r for r in biz_rows(low) if r[0].lower() not in have]
     raw = gp.read_text(encoding='utf-8') if gp.exists() else ''
+    have = keys | {ln.split('\t')[0].strip().lower() for ln in keep if ln.strip() and not ln.lstrip().startswith('#')}
+    if not rows and GL_MARK in raw:
+        have |= {r[0].lower() for r in gl_parse(raw.split(GL_MARK, 1)[1])}
+    biz = [r for r in biz_rows(low) if r[0].lower() not in have]
     if not hit and not biz and GL_MARK not in raw and BIZ_MARK not in raw:
         return 0
     body = '\n'.join(keep).rstrip('\n') + '\n'
@@ -2607,6 +2621,8 @@ def gl_merge(ctx):
         body += BIZ_MARK + '\n' + '\n'.join(gl_line(r) for r in biz) + '\n'
     if hit:
         body += GL_MARK + '\n' + '\n'.join(gl_line(r) for r in hit) + '\n'
+    elif not rows and GL_MARK in raw:              # המילון שלך לא נטען / ריק — הבלוק הקודם נשאר כמו שהוא (כמו עד היום)
+        body += GL_MARK + raw.split(GL_MARK, 1)[1]
     gp.parent.mkdir(parents=True, exist_ok=True)
     gp.write_text(body, encoding='utf-8')
     if biz:
@@ -2621,10 +2637,10 @@ def gl_suggest(ctx):
     gp = ctx.pdir / 'tr' / 'glossary.tsv'
     try:
         gtxt = gp.read_text(encoding='utf-8') if gp.exists() else ''
-        if BIZ_MARK in gtxt:                       # המונחים העסקיים — לא "חדשים מהעבודה"
-            head, rest = gtxt.split(BIZ_MARK, 1)
-            gtxt = head + (GL_MARK + rest.split(GL_MARK, 1)[1] if GL_MARK in rest else '')
         proj = gl_parse(gtxt)
+        if BIZ_MARK in gtxt:                       # המונחים העסקיים — לא "חדשים מהעבודה"
+            bk = {r[0].lower() for r in gl_parse(gtxt.split(BIZ_MARK, 1)[1].split(GL_MARK)[0])} & biz_keys()
+            proj = [r for r in proj if r[0].lower() not in bk]
     except OSError:
         return None
     user = gl_load(ctx)
