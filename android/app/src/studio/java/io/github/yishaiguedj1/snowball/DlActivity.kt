@@ -112,7 +112,8 @@ class DlActivity : Activity() {
                 .putExtra(DlService.X_V, d.getQueryParameter("v") ?: "").putExtra(DlService.X_A, d.getQueryParameter("a") ?: "")
                 .putExtra(DlService.X_H, num("h")).putExtra(DlService.X_S0, num("s0")).putExtra(DlService.X_S1, num("s1"))
             DlState.start(nonce, t)
-            startForegroundService(s)
+            // אנדרואיד 14+: משימת העברה שהמשתמש התחיל (DlJob, בלי מגבלת 6 השעות); אחרת — השירות בחזית
+            if (!DlJob.schedule(this, DlService.reqOf(s)!!)) startForegroundService(s)
         }
         paint()
     }
