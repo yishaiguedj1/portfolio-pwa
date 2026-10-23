@@ -33,4 +33,5 @@
     <string name="dlSavedS">בגלריה, באלבום Studio (התיקייה Movies/Studio)</string>
     <string name="dlShare">שיתוף</string>
     <string name="dlOpen">פתיחה</string>
+    <string name="huntAuto">לא מצאנו את הסרטון ישירות — נגנו אותו כאן, ו־Studio יתפוס אותו</string>
 </resources>

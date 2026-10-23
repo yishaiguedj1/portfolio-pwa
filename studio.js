@@ -2988,6 +2988,7 @@ const DL_APK = 'https://github.com/yishaiguedj1/portfolio-pwa/releases/download/
 /* 23/10/2026: Studio ישנה (בלי DlActivity) → Chrome לא עושה כלום בשקט. עם browser_fallback_url הוא חוזר אלינו עם
    השגיאה ‎noapp‎ (‎#probe=<n>.!noapp / ‎#dle=<n>.noapp), והדף אומר לעדכן את האפליקציה */
 function dlIntent(kind, q) {
+  q = Object.assign({}, q, { l: uiLang() });   // 23/10/2026: החלון וההתראות בשפה של Studio (DlLang)
   const qs = Object.keys(q).filter((k) => q[k] !== '' && q[k] != null).map((k) => k + '=' + encodeURIComponent(q[k])).join('&');
   let fb = '';
   try { fb = location.origin + location.pathname + (kind === 'probe' ? '#probe=' + q.n + '.!noapp' : '#dle=' + q.n + '.noapp'); } catch (e) {}
@@ -3226,7 +3227,7 @@ function grabOpen(s) {
 }
 /* שלב 2: דפדפן הציד (HuntActivity ב־APK) — עם הכתובת שבשדה, אם יש */
 function huntOpen(u) {
-  const q = /^https?:\/\/\S+$/i.test(u || '') ? '?u=' + encodeURIComponent(u) : '';
+  const q = (/^https?:\/\/\S+$/i.test(u || '') ? '?u=' + encodeURIComponent(u) + '&' : '?') + 'l=' + uiLang();
   location.href = 'intent://hunt' + q + '#Intent;scheme=snbstudio;package=' + HUNT_PKG + ';end';
 }
 function pageGrab(p) {

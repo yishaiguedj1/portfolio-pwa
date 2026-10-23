@@ -32,4 +32,5 @@
     <string name="dlSavedS">In your gallery, Studio album (Movies/Studio folder)</string>
     <string name="dlShare">Share</string>
     <string name="dlOpen">Open</string>
+    <string name="huntAuto">Couldn\'t find the video directly — play it here and Studio will catch it</string>
 </resources>
