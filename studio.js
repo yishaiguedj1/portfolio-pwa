@@ -2962,6 +2962,7 @@ function linkErrText(e) {
     case 'live': return T('studioLinkELive');
     case 'playlist': return T('studioLinkEPlaylist');
     case 'unsupported': case 'no_video': return T('studioLinkENone');
+    case 'tiny': return T('studioLinkETiny');
     case 'private': case 'bad_url': case 'dns': return T('studioLinkEBad');
     case 'timeout': case 'net': case 'no_server': return T('studioLinkENet');
     case 'app': return T('studioLinkEApp');
@@ -3034,9 +3035,11 @@ export function normDevProbe(r) {
   const ao = r.ao && fid(r.ao.id) ? { id: fid(r.ao.id), ac: s(r.ao.ac, 10), br: n(r.ao.br, 0, 10000), sz: n(r.ao.sz, 0, 1e13) } : null;
   const u = /^https?:\/\//i.test(String(r.u || '')) ? s(r.u, 2048) : '';
   const rf = /^https?:\/\//i.test(String(r.rf || '')) ? s(r.rf, 2048) : '';   // בדיקה לעומק: הזרם שנמצא בדף → הדף (Referer)
+  const alt = Array.isArray(r.alt) ? r.alt.slice(0, 8).filter((a) => a && /^https?:\/\//i.test(String(a.u || '')) && String(a.u).length <= 2048)
+    .map((a) => ({ u: String(a.u), h: n(a.h, 0, 8640), d: n(a.d, 0, 1e6), sz: n(a.sz, 0, 1e13) })) : [];
   const th = /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(String(r.th || '')) && String(r.th).length <= 72000 ? String(r.th) : '';
   return { t: s(r.t, 200) || 'video', u, s: s(r.s, 40), up: s(r.up, 100), d: n(r.d, 0, 1e6), ud: /^\d{8}$/.test(r.ud || '') ? r.ud : '',
-    lang: s(r.lang, 10), ch, sub, q, rec: n(r.rec, 0, 8640), ao, drm: r.drm ? 1 : 0, th, rf };
+    lang: s(r.lang, 10), ch, sub, q, rec: n(r.rec, 0, 8640), ao, drm: r.drm ? 1 : 0, th, rf, alt };
 }
 function linkCheck(f, raw, ref) {
   // ref — שלב 2: קובץ/זרם שנמצא בדף (דפדפן הציד) → הדף, והטלפון מוריד עם ה־Referer שלו
@@ -3162,7 +3165,8 @@ function pageLink(p) {
     if (L.e === 'noapp') p.append(apkBtn());
     if (L.e === 'blocked' || L.e === 'login' || L.e === 'unsupported' || L.e === 'no_video') p.append(note(T('studioLinkUpload')));
     // הניסוי: דף שהשרת לא מצא בו סרטון (נשלח מהבועה) — דפדפן הציד רואה את מה שהנגן מבקש בפועל
-    if (grabOk() && !L.ref && (L.e === 'unsupported' || L.e === 'no_video' || L.e === 'fail')) p.append(h('div', 'st-gap sm'), btn('st-btn wide', T('studioHuntTry'), () => huntOpen(L.u), 'link-hunt'));
+    // קובץ זעיר מדפדפן הציד → חוזרים לדף (L.ref) ומנגנים את הסרטון עצמו
+    if (grabOk() && ((!L.ref && (L.e === 'unsupported' || L.e === 'no_video' || L.e === 'fail')) || (L.e === 'tiny' && L.ref))) p.append(h('div', 'st-gap sm'), btn('st-btn wide', T('studioHuntTry'), () => huntOpen(L.e === 'tiny' ? L.ref : L.u), 'link-hunt'));
     return;
   }
   // יש תוצאה
@@ -3186,6 +3190,15 @@ function pageLink(p) {
     p.append(grid);
   }
   if (cur) p.append(note(T('studioLinkPickS', { v: linkCodec(cur.c) || T('studioLinkVideo'), a: linkAudio(cur.ac) || T('studioLinkAudioW') })));
+  // 23/10/2026 (בקשת המשתמש: "כמה שיותר אופציות של איכויות ומקורות"): שאר הקבצים האמיתיים שהבדיקה לעומק מצאה בדף
+  if (r.alt && r.alt.length) {
+    const ref = L.ref || L.u;
+    p.append(secT(T('studioLinkAltT')), list(...r.alt.map((a, i) => {
+      let hst = ''; try { hst = new URL(a.u).hostname.replace(/^www\./, ''); } catch (e) {}
+      const sub = [a.d ? fmtDur(a.d) : '', a.sz ? approx(fmtSize(a.sz)) : '', hst].filter(Boolean).join(' · ');
+      return rowNav({ tile: tile('film', 'gray'), label: a.h ? T('studioLinkAltUpTo', { q: qLabel(a.h) }) : T('studioLinkAltQ'), sub, onClick: () => linkCheck(f, a.u, ref), k: 'link-alt:' + i });
+    })));
+  }
   // לאן להוריד: לטלפון (ברירת המחדל) או ישר לענן של Studio — כשהמקור לא חוסם את השרת
   if (devDl()) {
     const cOk = cloudOk(L);

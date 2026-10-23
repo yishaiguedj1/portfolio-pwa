@@ -114,7 +114,12 @@ function done() {
   ok(/fun deep\(/.test(act) && /if \(!miss\) back\(res\) else deep\(u, res\)/.test(act) && /setDataDirectorySuffix\("dl"\)/.test(act), 'DlActivity: בדיקה לעומק לפני דפדפן הציד, WebView בתיקייה של התהליך');
   ok(/addOption\("--cookies", ck\.file\.absolutePath\)/.test(eng) && /File\(ctx\.filesDir, "ck"\)/.test(eng) && /CK_TTL_MS/.test(eng), 'DlEngine: קובץ עוגיות פרטי וזמני ל־yt-dlp');
   ok(!/Log\.|println/.test(deep + act.slice(act.indexOf('fun deep('))), 'בלי לוגים בבדיקה לעומק');
-  ok(/const rf = /.test(st) && /th, rf \}/.test(st) && /if \(r\.rf && !L\.ref\) L\.ref = r\.rf/.test(st) && /put\("rf"/.test(deep), 'הזרם שנמצא בדף: ה־Referer (rf) עובר לאתר ולהורדה');
+  ok(/const rf = /.test(st) && /th, rf(, alt)? \}/.test(st) && /if \(r\.rf && !L\.ref\) L\.ref = r\.rf/.test(st) && /put\("rf"/.test(deep), 'הזרם שנמצא בדף: ה־Referer (rf) עובר לאתר ולהורדה');
+  // 23/10/2026: קובץ זעיר / פרסומת לא מוצע (buffett.cnbc.com — 1KB)
+  ok(/DlDeep\.realVideo\(r, pageDur\(\)\)/.test(act) && /DlDeep\.better\(r, bestMedia, pageDur\(\)\)/.test(act) && /if \(b != null\) okMedia\(b\) else hunt\(u, miss\)/.test(act) && /DlDeep\.withAlt\(b, goods, pageDur\(\)\)/.test(act), 'בדיקה לעומק: רק קובץ אמיתי, הטוב ביותר נבחר, השאר — מקורות נוספים; בלי קובץ אמיתי — דפדפן הציד');
+  ok(/const alt = Array\.isArray\(r\.alt\)/.test(st) && /th, rf, alt \}/.test(st) && /T\('studioLinkAltT'\)/.test(st) && /linkCheck\(f, a\.u, ref\)/.test(st) && (R('app.js').match(/\bstudioLinkAltT: "/g) || []).length === 2, 'האתר: "מקורות נוספים בדף" — נגיעה בודקת את המקור עם ה־Referer');
+  ok(/ref\.isNotEmpty\(\) && !DlDeep\.realVideo\(s, 0\)\) throw IllegalArgumentException\("tiny"\)/.test(act) && /case 'tiny': return T\('studioLinkETiny'\)/.test(st)
+    && (R('app.js').match(/\bstudioLinkETiny: "/g) || []).length === 2, 'קובץ זעיר מדפדפן הציד → הודעה ברורה (tiny) בשתי השפות');
   ok(/name="dlDeep"/.test(R('android/app/src/studio/res/values/strings.xml')) && /name="dlDeep"/.test(R('android/app/src/studio/res/values-en/strings.xml')), 'dlDeep בעברית ובאנגלית');
   for (const k of ['studioLinkEApp', 'studioLinkDlWait', 'studioLinkGot', 'studioLinkEStore', 'studioLinkFailT'])
     ok((R('app.js').match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, k + ' בעברית ובאנגלית');
