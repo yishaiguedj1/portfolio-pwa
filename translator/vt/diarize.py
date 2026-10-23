@@ -27,6 +27,8 @@ STRONG_S = 1.2      # רק קטעים באורך הזה ומעלה בונים א
 THRESH = 0.68       # מרחק קוסינוס לחיתוך העץ — VoxConverse: 1.5% (קצרות) ו־2.1% (13–16 דק׳) שגיאת דובר ברמת מילה
 MIN_SPK_S = 4.0     # דובר עם פחות דיבור מזה מצורף לקרוב אליו
 BATCH = 32          # קטעים בהרצה אחת של המודל
+MERGE_B = 0.4      # 23/10/2026: אשכול קטן שדומה לשכן מתאחד איתו — הדמיון הנדרש = MERGE_B + MERGE_K × שניות הדיבור
+MERGE_K = 0.005    # של הקטן מביניהם (גדול = צריך דמיון גבוה יותר). VoxConverse test (22 הקלטות, לא כוונו עליו): 2.08%→1.71%, מיותרים 22→6
 SNAP_W = 3          # החלפת דובר בלי הפסקה — לסוף המשפט הקרוב, עד כמה מילים מהגבול
 
 
@@ -196,6 +198,30 @@ def cluster(emb: np.ndarray, thresh: float | None = None) -> np.ndarray:
     return np.array([ids[r] for r in roots])
 
 
+def merge_small(E: np.ndarray, dur: np.ndarray, who: np.ndarray, cent: np.ndarray):
+    """אשכול זעיר (4–10 שנ׳ של דיבור) הוא לרוב חלק מדובר אחר — קול בהתרגשות, טלפון, צחוק. בהקלטה ארוכה
+    הסף האחיד מפצל כך דובר אחד לכמה תוויות (Undercover: עשרות). כאן: כל עוד יש אשכול שהדמיון שלו לשכן הקרוב
+    (ממוצע הטביעות, אחרי השיוך) עולה על סף שגדל עם כמות הדיבור — הוא מתאחד, ומשייכים מחדש.
+    דובר אמיתי קטן נשאר: בין אנשים שונים הדמיון נמוך (~0.1–0.35)."""
+    while len(cent) > 1:
+        talk = np.array([dur[who == c].sum() for c in range(len(cent))])
+        C = np.stack([E[who == c].mean(axis=0) if (who == c).any() else cent[c] for c in range(len(cent))])
+        C /= np.linalg.norm(C, axis=1, keepdims=True)
+        M = C @ C.T
+        np.fill_diagonal(M, -1.0)
+        drop = None
+        for c in np.argsort(talk, kind="stable"):
+            g = int(np.argmax(M[c]))
+            if M[c, g] > MERGE_B + MERGE_K * min(talk[c], talk[g]):
+                drop = int(c)
+                break
+        if drop is None:
+            break
+        cent = C[[x for x in range(len(cent)) if x != drop]]
+        who = (E @ cent.T).argmax(axis=1)
+    return who, cent
+
+
 def assign(words: list[dict], audio: np.ndarray, embed) -> dict:
     """ממלא w["spk"] = S1, ‏S2… בסדר ההופעה. מחזיר סטטיסטיקה."""
     us = units(words)
@@ -218,6 +244,7 @@ def assign(words: list[dict], audio: np.ndarray, embed) -> dict:
     cent = cent[keep] / np.linalg.norm(cent[keep], axis=1, keepdims=True)
     sim = E @ cent.T
     who = sim.argmax(axis=1)
+    who, cent = merge_small(E, dur, who, cent)
     # קטע קצר שהדמיון בו לא חד — כמו השכן (הנגשה קצרה "Yeah." באמצע דברי אותו דובר)
     for i in range(len(us)):
         if dur[i] < STRONG_S and len(cent) > 1:
