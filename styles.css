@@ -666,6 +666,8 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
   background: #FFFFFF; box-shadow: 0 1px 3px rgba(0,0,0,.12), inset 0 0 0 1px rgba(0,0,0,.06);
 }
 .pie-leg-fb { font-weight: 800; font-size: 15px; color: #3A3A3C; }
+.pie-leg-logo.cash { background: var(--primary); }
+.pie-leg-logo.cash .pie-leg-fb { color: var(--on-primary); font-size: 20px; }
 /* v173: לוגו לבן — מתהפך לשחור על האריח הלבן, כמו בטאב המניות */
 .pie-leg-logo.inv img { filter: invert(1); background: transparent; }
 .pie-leg-logo.inv .pie-leg-fb { display: none; } /* v174: הלוגו כבר נטען — בלי האות מאחוריו */
