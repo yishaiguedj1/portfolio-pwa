@@ -17,6 +17,14 @@ const URLS_PER_CALL = 24;             // קישורים לחלקים בכל בק
 const PART_TTL = 3600;                // קישור לחלק — שעה
 const GET_TTL = 6 * 3600;             // קישור הורדה לעובד — 6 שעות (הורדה עם המשך; פג → מבקשים חדש)
 const VIEW_TTL = 3600;                // קישור צפייה / הורדה לטלפון
+/* 23/10/2026 (בקשת המשתמש: העלאה שממשיכה גם כשהאפליקציה סגורה): Background Fetch של Chrome. כל חלק = בקשה אחת דרך /up
+   באותו מקור (functions/up.js — Workers בחינם מקבלים עד 100MB לבקשה), ולכן חלק של 64MiB. הקישורים לכל החלקים מראש,
+   לשלושה ימים (הדפדפן יכול להשהות את ההעלאה בלי רשת). fk = מפתח סיום חד־פעמי: ה־service worker מסיים את ההעלאה ורושם
+   את הסרטון בלי התחברות (op:'r2bgDone') — נשמר רק ה־hash שלו ברשומה (bk) */
+const BG_PS = 64 * 1024 * 1024;
+const BG_PART_MAX = 95 * 1000 * 1000;
+const BG_TTL = 3 * 24 * 3600;
+const BG_MAX_PARTS = 400;
 
 const isFolder = (f) => FOLDER_RE.test(String(f || ''));
 const isId = (id) => ID_RE.test(String(id || ''));
@@ -38,12 +46,13 @@ function normRec(x) {
     n: String(x.n || '').replace(/[\u0000-\u001f<>]/g, '').slice(0, 200), up: String(x.up || '').slice(0, 400),
     ps: Math.max(0, Math.floor(Number(x.ps) || 0)), ok: x.ok ? 1 : 0, at: Math.max(0, Number(x.at) || 0),
     by: x.by === 'worker' ? 'worker' : 'phone', uid: String(x.uid || '') };
+  if (/^[a-f0-9]{64}$/.test(String(x.bk || ''))) r.bk = String(x.bk);   // Background Fetch: hash של מפתח הסיום
   return R2.okKey(r.k) && r.s > 0 && UID_RE.test(r.uid) ? r : null;
 }
 
-async function urlsFor(c, deps, rec, parts) {
+async function urlsFor(c, deps, rec, parts, max = URLS_PER_CALL, ttl = PART_TTL) {
   const out = {};
-  for (const n of parts.slice(0, URLS_PER_CALL)) out[n] = await R2.mpPartUrl(c, deps, rec.k, rec.up, n, PART_TTL);
+  for (const n of parts.slice(0, max)) out[n] = await R2.mpPartUrl(c, deps, rec.k, rec.up, n, ttl);
   return out;
 }
 function missingOf(rec, parts) {
@@ -116,7 +125,53 @@ async function upDone(c, deps, { id, rec, up, uid }) {
   const h = await R2.head(c, deps, r.k);
   if (!h || h.size !== r.s) return { res: { ok: false, error: 'r2_size' } };
   const done = Object.assign({}, r, { up: '', ok: 1, at: (deps.now || Date.now)() });
+  if (r.bk) done.bk = '';   // מפתח הסיום של Background Fetch — פעם אחת (patchDoc ממזג: ריק, לא מחיקה)
   return { res: { ok: true, id, file: { size: r.s, name: r.n, mimeType: r.t } }, rec: done };
+}
+
+const sha = (x) => crypto.createHash('sha256').update(String(x)).digest('hex');
+/* Background Fetch: פתיחה / המשך של העלאה עם קישורים לכל החלקים החסרים (3 ימים) + מפתח סיום חדש.
+   העלאה קיימת באותו גודל ממשיכה (גם בחלקים של 8MiB מההעלאה הרגילה), כל עוד החלק נכנס בבקשה אחת ויש עד BG_MAX_PARTS חלקים חסרים;
+   אחרת — no_bg, והטלפון ממשיך בהעלאה הרגילה */
+async function upBg(c, deps, { uid, folder, id, size, type, name, rec }) {
+  if (!isFolder(folder) || !UID_RE.test(String(uid || ''))) return { res: { ok: false, error: 'bad_folder' } };
+  if (id && !inFolder(id, folder)) return { res: { ok: false, error: 'bad_id' } };
+  size = Math.floor(Number(size) || 0);
+  if (!(size > 0)) return { res: { ok: false, error: 'bad_size' } };
+  if (size > MAX.phone) return { res: { ok: false, error: 'too_big' } };
+  let r = normRec(rec);
+  if (r && r.uid !== uid) return { res: { ok: false, error: 'forbidden' } };
+  if (r && r.ok && r.s === size) return { res: { ok: true, id, file: { size: r.s }, done: [], urls: {} }, rec: r };
+  let m = null;
+  if (r && r.up && r.s === size && r.ps <= BG_PART_MAX) {
+    const parts = await R2.mpList(c, deps, r.k, r.up);
+    if (parts) m = missingOf(r, parts);
+    // העלאה רגילה בחלקים של 8MiB שעוד בתחילתה — מתחילים מחדש בחלקים גדולים (אחרת מאות בקשות); רובה כבר עלה — no_bg
+    if (m && m.miss.length > BG_MAX_PARTS && m.done.length * r.ps < size / 2) m = null;
+  }
+  if (!m) {
+    if (r && r.up) await R2.mpAbort(c, deps, r.k, r.up).catch(() => null);
+    id = id || newId(folder);
+    const k = keyOf(uid, id);
+    r = { k, s: size, t: okType(type), n: String(name || (r && r.n) || '').slice(0, 200), up: await R2.mpCreate(c, deps, k, okType(type)),
+      ps: R2.partSize(size, BG_PS), ok: 0, at: (deps.now || Date.now)(), by: 'phone', uid };
+    m = missingOf(r, []);
+  }
+  if (r.ps > BG_PART_MAX || m.miss.length > BG_MAX_PARTS) return { res: { ok: false, error: 'no_bg' }, rec: normRec(r) };
+  const fk = crypto.randomBytes(32).toString('base64url');
+  const out = Object.assign({}, r, { bk: sha(fk) });
+  return { res: { ok: true, id, up: r.up, ps: r.ps, done: m.done, urls: await urlsFor(c, deps, r, m.miss, BG_MAX_PARTS, BG_TTL), fk, exp: (deps.now || Date.now)() + BG_TTL * 1000 },
+    rec: normRec(out) };
+}
+
+/* Background Fetch הסתיים (ה־service worker, בלי התחברות): המפתח החד־פעמי מול ה־hash ברשומה, ואז סגירה רגילה (upDone).
+   ההרשאה = המפתח — רק מי שפתח את ההעלאה בטלפון מחזיק אותו */
+async function bgDone(c, deps, { id, rec, up, fk }) {
+  const r = normRec(rec);
+  if (!r || !r.bk || !/^[A-Za-z0-9_-]{43}$/.test(String(fk || ''))) return { res: { ok: false, error: 'forbidden' } };
+  const a = Buffer.from(sha(fk)), b = Buffer.from(r.bk);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return { res: { ok: false, error: 'forbidden' } };
+  return upDone(c, deps, { id, rec: r, up, uid: r.uid });
 }
 
 /* הקובץ קיים ב־R2 ושייך לתיקייה — כמו driveFileInFolder: { id, name, size } או null */
@@ -159,5 +214,5 @@ async function purgeFolder(c, deps, { uid, folder, recs }) {
   return keys.length;
 }
 
-module.exports = { isFolder, isId, folderOfId, inFolder, folderFor, newId, keyOf, normRec, missingOf, upStart, upParts, upDone, fileIn, getUrl, delFile,
-  purgeFolder, URLS_PER_CALL, MAX };
+module.exports = { isFolder, isId, folderOfId, inFolder, folderFor, newId, keyOf, normRec, missingOf, upStart, upParts, upDone, upBg, bgDone, fileIn, getUrl, delFile,
+  purgeFolder, URLS_PER_CALL, MAX, BG_PS, BG_PART_MAX, BG_TTL, BG_MAX_PARTS };

@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v494';
+const CACHE_NAME = 'portfolio-pwa-v495';
 const HASHES = {
   "./": "930248b23c4f0ec55737671e159c8dbd",
   "./index.html": "930248b23c4f0ec55737671e159c8dbd",
   "./styles.css": "8b3bc2b54c238fd7cf64ea66528b781a",
-  "./app.js": "63441f65592483778667b9067c26db15",
+  "./app.js": "13112d76c563bc18b8839ccb20efd052",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "39bf52f7bb220ecf474e77b2572386d3",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -57,8 +57,8 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "e7f536140456bdf6163ff1f094fcfec2",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
-  "./strings-academy.js": "03d11561c2906a58d53162f36f2d3ebe",
-  "./core.js": "1948609778c64616bc9b505574282389",
+  "./strings-academy.js": "d80c9c75310607202b5fb8ec22d7ab67",
+  "./core.js": "f05ef83456df9def0f653e8a0a744f17",
   "./auth.js": "556d7250a03993819af63e6ade4382b1",
   "./shell.js": "76e0a41a1583a981587d8c8f44e77b94",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -67,7 +67,7 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "f7e4d40a1d4b6ca3e3b2080aacb4a52b",
+  "./studio.js": "64956ece8b791b5322d7f40298c5632d",
   "./studio.css": "7fb38a71350efeeb7c26809316cff6f1",
   "./studionet.js": "aa8bbf2c834dee5fb4862e0732912fac",
   "./studioplay.js": "30a9e3bd060cc6ca279081dddad21941",
@@ -76,9 +76,10 @@ const HASHES = {
   "./studioedl.js": "6374ccc5beb6a6addf0b8e1ac10ac56f",
   "./studioai.js": "e0a43e7a48c70e3bf5028813acebbf3e",
   "./studiostore.js": "633c4083aebf82cdc389813e65ecee16",
+  "./studiobg.js": "fb8735bcb7cba28d0e651a73323a9433",
   "./studio.html": "e797e443dfa76398884be3d9f012d250",
   "./studio-app.js": "bc7c8517875b069cf81caf3bdf977486",
-  "./strings-studio.js": "f9460a06aa34510e1596e7b0c990e503",
+  "./strings-studio.js": "aa6beabf0e2877bbd935c401dc2984d6",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
@@ -122,7 +123,7 @@ const LIB_SHELL = [
 /* v354: סטודיו התרגום — אותו דבר: נטען מראש בעדכון רק אצל מי שכבר נכנס אליו (studio.js במטמון הקודם).
    v355: גם studionet.js ו־libbackup.js (המודולים שהסטודיו מייבא) — בלעדיהם הסטודיו לא נפתח אופליין.
    Mediabunny (vendor/mediabunny) לא כאן: חילוץ הקול צריך רשת בכל מקרה (ההעלאה), והוא נשמר במטמון בשימוש הראשון */
-const STUDIO_SHELL = ['./studio.js', './studio.css', './studionet.js', './libbackup.js', './studioplay.js', './studiosubs.js', './studiotracks.js', './studioedl.js', './studioai.js', './studiostore.js',
+const STUDIO_SHELL = ['./studio.js', './studio.css', './studionet.js', './libbackup.js', './studioplay.js', './studiosubs.js', './studiotracks.js', './studioedl.js', './studioai.js', './studiostore.js', './studiobg.js',
   './studio.html', './studio-app.js', './strings-studio.js', './core.js', './auth.js', './shell.js', './logo-studio.webp', './logo-studio-lg.webp', './face-studio.webp', './snow-far-light.png', './snow-mid-light.png', './snow-near-light.png', './snow-far-dark.png', './snow-mid-dark.png', './snow-near-dark.png', './icon-studio-192.png', './apple-touch-studio.png', './favicon-studio-48.png'];   // שלב 3ד: Studio כדף עצמאי   // מ1: הנגן · מ2: עורך הכתוביות · מ4: עורך הווידאו · מ7: גיליון ה־AI · ת4: studiostore.js (מזהי R2)
 
 /* 12/10/2026 (פס פריסה אחד): קובץ מהרשת רק אם הוא בדיוק הקובץ שהגרסה הזו נבנתה ממנו.
@@ -371,6 +372,78 @@ self.addEventListener('notificationclick', (event) => {
     for (const w of wins) {
       if (w.url.startsWith(self.registration.scope) && 'focus' in w) { try { await w.navigate(url); } catch (e) {} return w.focus(); }
     }
+    return self.clients.openWindow(url);
+  })());
+});
+
+/* 23/10/2026 (בקשת המשתמש: העלאה שממשיכה גם כשהאפליקציה סגורה): הסרטון עלה ב־Background Fetch (studiobg.js).
+   ה־service worker מסיים את ההעלאה ורושם את הסרטון בשרתון (op:'r2bgDone') — גם כשאף דף לא פתוח. ההרשאה = מפתח הסיום
+   החד־פעמי שהדף שמר ב־snb-bgup (בלי התחברות). לא הצליח — ההתראה אומרת לפתוח את Studio, וההעלאה הרגילה בדף מסיימת /
+   ממשיכה מהחלקים החסרים. רק מזהים שמתחילים ב־snbup- (BG_PREFIX) */
+const BG_ID_RE = /^snbup-(j[A-Za-z0-9_-]{20})$/;
+const BG_TXT = {
+  he: { ok: 'הסרטון עלה — Studio ממשיך לבד', open: 'הסרטון עלה — פתחו את Studio כדי לסיים', fail: 'ההעלאה נעצרה — פתחו את Studio כדי להמשיך' },
+  en: { ok: 'Video uploaded — Studio carries on', open: 'Video uploaded — open Studio to finish', fail: 'Upload stopped — open Studio to continue' },
+};
+function bgRec(id, del) {
+  return new Promise((ok) => {
+    const r = indexedDB.open('snb-bgup', 1);
+    r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains('u')) r.result.createObjectStore('u'); };
+    r.onerror = () => ok(null);
+    r.onsuccess = () => {
+      const tx = r.result.transaction('u', del ? 'readwrite' : 'readonly');
+      const q = del ? tx.objectStore('u').delete(id) : tx.objectStore('u').get(id);
+      tx.oncomplete = () => ok(del ? null : q.result || null); tx.onerror = () => ok(null);
+    };
+  });
+}
+const BG_API_RE = /^https:\/\/(api(-staging)?\.thesnowball\.app|ibkr-proxy-wine\.vercel\.app)$/;
+async function bgFinish(job, rec) {
+  for (const base of (rec.apis || []).filter((x) => BG_API_RE.test(x))) {
+    try {
+      const r = await fetch(base + '/api/studio', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ op: 'r2bgDone', job, id: rec.fid, up: rec.up, fk: rec.fk }) });
+      const j = await r.json().catch(() => null);
+      if (j && j.ok) return true;
+      if (r.status === 403 || r.status === 404 || r.status === 400) return false;   // לא תקלת רשת — שרתון אחר לא יעזור
+    } catch (e) {}
+  }
+  return false;
+}
+async function bgTell(m) {
+  for (const c of await self.clients.matchAll({ type: 'window', includeUncontrolled: true })) c.postMessage(m);
+}
+self.addEventListener('backgroundfetchsuccess', (event) => {
+  const m = BG_ID_RE.exec(event.registration.id);
+  if (!m) return;
+  event.waitUntil((async () => {
+    const rec = await bgRec(event.registration.id);
+    const t = BG_TXT[rec && rec.l === 'en' ? 'en' : 'he'];
+    const ok = !!(rec && await bgFinish(m[1], rec));
+    if (ok) await bgRec(event.registration.id, true);
+    try { await event.updateUI({ title: ok ? t.ok : t.open }); } catch (e) {}
+    await bgTell({ snbBg: m[1], ok });
+  })());
+});
+self.addEventListener('backgroundfetchfail', (event) => {
+  const m = BG_ID_RE.exec(event.registration.id);
+  if (!m) return;
+  event.waitUntil((async () => {
+    const rec = await bgRec(event.registration.id);
+    try { await event.updateUI({ title: BG_TXT[rec && rec.l === 'en' ? 'en' : 'he'].fail }); } catch (e) {}
+    await bgTell({ snbBg: m[1], ok: false, why: event.registration.failureReason || '' });
+  })());
+});
+self.addEventListener('backgroundfetchabort', (event) => {
+  if (BG_ID_RE.test(event.registration.id)) event.waitUntil(bgRec(event.registration.id, true));
+});
+self.addEventListener('backgroundfetchclick', (event) => {
+  const m = BG_ID_RE.exec(event.registration.id);
+  if (!m) return;
+  const url = new URL('./#studio=' + m[1], self.registration.scope).href;
+  event.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const w of wins) if (w.url.startsWith(self.registration.scope) && 'focus' in w) return w.focus();
     return self.clients.openWindow(url);
   })());
 });

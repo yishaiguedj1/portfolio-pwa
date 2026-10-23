@@ -202,7 +202,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   if (swVer >= 355) ok(/const STUDIO_SHELL = \[[^\]]*'\.\/studionet\.js'[^\]]*'\.\/libbackup\.js'/.test(sw), 'sw.js: גם studionet.js ו־libbackup.js נטענים מראש (הסטודיו נפתח אופליין)');
   else ok(true, 'sw.js עוד בגרסה הקודמת (שלב התוכן בפרוטוקול הדו־שלבי)');
   const imports = [...st.matchAll(/^import .* from '\.\/([\w.-]+)';$/gm)].map((x) => x[1]);
-  ok(imports.sort().join() === 'libbackup.js,studioai.js,studioedl.js,studionet.js,studioplay.js,studiostore.js,studiosubs.js,studiotracks.js', 'studio.js מייבא רק את studionet.js, libbackup.js, studiostore.js (ת4: מזהים של R2) ומודולי העורכים (מ1 הנגן · מ2 הכתוביות · מ4 הווידאו · מ7 גיליון ה־AI)');
+  ok(imports.sort().join() === 'libbackup.js,studioai.js,studiobg.js,studioedl.js,studionet.js,studioplay.js,studiostore.js,studiosubs.js,studiotracks.js', 'studio.js מייבא רק את studionet.js, libbackup.js, studiostore.js (ת4: מזהים של R2), studiobg.js (העלאה ברקע, 23/10) ומודולי העורכים (מ1 הנגן · מ2 הכתוביות · מ4 הווידאו · מ7 גיליון ה־AI)');
   // v387: כל מודול שהסטודיו מייבא — בקבצי הסטודיו של sw.js (studiostore.js חסר שם עד v386 → הסטודיו לא נפתח אופליין)
   const shell = (sw.match(/const STUDIO_SHELL = \[([^\]]*)\]/) || [])[1] || '';
   if (swVer >= 387) ok(imports.every((m) => shell.includes("'./" + m + "'")), 'sw.js: כל מה ש־studio.js מייבא נמצא ב־STUDIO_SHELL');
