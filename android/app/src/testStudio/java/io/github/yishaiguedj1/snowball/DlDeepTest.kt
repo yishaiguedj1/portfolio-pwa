@@ -51,6 +51,54 @@ class DlDeepTest {
         assertEquals("Real title", keep.getString("t"))                     // כותרת אמיתית מ־yt-dlp נשארת
     }
 
+    private fun sum(d: Int, sz: Long, h: Int = 720) =
+        JSONObject().put("d", d).put("q", org.json.JSONArray().put(JSONObject().put("h", h).put("sz", sz)))
+
+    /* 23/10/2026: ב־buffett.cnbc.com נבחר "סרטון" של 1KB */
+    @Test fun realVideo() {
+        assertFalse(DlDeep.realVideo(sum(0, 1_000, 0), 0))                // הקובץ מהדיווח: 1KB
+        assertFalse(DlDeep.realVideo(sum(5, 2_000_000), 0))               // 5 שניות
+        assertFalse(DlDeep.realVideo(sum(30, 9_000_000), 3 * 3600))      // פרסומת של 30 שנ׳ בדף של 3 שעות
+        assertTrue(DlDeep.realVideo(sum(24, 22_000_000), 0))              // טריילר של IMDb (0:24)
+        assertTrue(DlDeep.realVideo(sum(3 * 3600, 0), 3 * 3600))          // HLS בלי גודל, באורך של הדף
+        assertTrue(DlDeep.realVideo(sum(0, 0, 0), 0))                     // לא ידוע כלום — לא נפסל (אבל לא "תואם")
+    }
+
+    @Test fun matchesAndBetter() {
+        assertTrue(DlDeep.matches(sum(10_790, 0), 10_800))
+        assertFalse(DlDeep.matches(sum(30, 0), 10_800))
+        assertFalse(DlDeep.matches(sum(30, 0), 0))
+        val short = sum(600, 50_000_000); val long = sum(3600, 10_000_000); val hi = sum(3600, 10_000_000, 1080)
+        assertTrue(DlDeep.better(long, short, 0))
+        assertTrue(DlDeep.better(hi, long, 0))
+        assertFalse(DlDeep.better(short, long, 0))
+        assertTrue(DlDeep.better(short, null, 0))
+        // שניהם תואמים לדף — האיכות הגבוהה ביותר, גם אם קצת קצר יותר
+        val m360 = sum(10_800, 300_000_000, 360); val m1080 = sum(10_750, 2_000_000_000, 1080)
+        assertTrue(DlDeep.better(m1080, m360, 10_800))
+        assertTrue(DlDeep.better(m360, sum(30, 9_000_000, 1080), 10_800))   // תואם גובר על קובץ קצר באיכות גבוהה
+    }
+
+    @Test fun withAlt() {
+        val a = sum(3600, 1_000_000_000, 1080).put("u", "https://c/a.m3u8")
+        val b = sum(3600, 400_000_000, 480).put("u", "https://c/b.mp4")
+        val c = sum(3600, 600_000_000, 720).put("u", "https://c/c.mp4")
+        val r = DlDeep.withAlt(a, listOf(b, a, c), 3600)
+        val alt = r.getJSONArray("alt")
+        assertEquals(2, alt.length())
+        assertEquals("https://c/c.mp4", alt.getJSONObject(0).getString("u"))   // מהטוב לפחות טוב
+        assertEquals(720, alt.getJSONObject(0).getInt("h"))
+        assertEquals("https://c/b.mp4", alt.getJSONObject(1).getString("u"))
+        assertFalse(DlDeep.withAlt(sum(1, 1).put("u", "x"), emptyList(), 0).has("alt"))
+    }
+
+    @Test fun pageDuration() {
+        assertEquals(3600, DlDeep.parsePage("""{"d":3600,"vd":30}""")!!.dur)   // JSON-LD גובר על הנגן
+        assertEquals(0, DlDeep.parsePage("""{"vd":30}""")!!.dur)               // נגן קצר (כנראה פרסומת) — לא נחשב
+        assertEquals(5400, DlDeep.parsePage("""{"vd":5400.4}""")!!.dur)
+        assertTrue(DlDeep.EXTRACT.contains("k==='duration'") && DlDeep.EXTRACT.contains("out.vd"))
+    }
+
     @Test fun extractScript() {
         val js = DlDeep.EXTRACT
         assertTrue(js.contains("__NEXT_DATA__") && js.contains("application/ld+json") && js.contains("og:video"))
