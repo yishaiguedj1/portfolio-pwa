@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1778 מפתחות מתוך 3888) */
+/* המחרוזות של studio (1779 מפתחות מתוך 3889) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -844,6 +844,7 @@ he: {
   "studioLinkENet": "השרת לא ענה בזמן. נסו שוב בעוד רגע.",
   "studioLinkENoApp": "צריך לעדכן את Studio לאנדרואיד — מתקינים את הגרסה החדשה מעל הקיימת ומנסים שוב.",
   "studioLinkENone": "לא מצאנו סרטון בקישור הזה.",
+  "studioLinkENotVideo": "הקובץ שירד הוא לא סרטון (כנראה דף שגיאה או פרסומת) ולא נשמר. נגנו את הסרטון עצמו בדפדפן הציד.",
   "studioLinkEPlaylist": "זה קישור לרשימת השמעה. פתחו סרטון אחד ושתפו אותו.",
   "studioLinkEStore": "לא הצלחנו לשמור את הסרטון בטלפון (אין מקום?).",
   "studioLinkETiny": "מה שנמצא קטן מדי — כנראה פרסומת או קטע קצר, לא הסרטון. נגנו את הסרטון עצמו בדפדפן הציד.",
@@ -2624,6 +2625,7 @@ en: {
   "studioLinkENet": "The server didn’t answer in time. Try again in a moment.",
   "studioLinkENoApp": "Studio for Android needs an update — install the new version over the current one and try again.",
   "studioLinkENone": "We didn’t find a video at this link.",
+  "studioLinkENotVideo": "The downloaded file isn’t a video (probably an error page or an ad), so it wasn’t saved. Play the video itself in the hunt browser.",
   "studioLinkEPlaylist": "This is a playlist link. Open one video and share it.",
   "studioLinkEStore": "Couldn’t save the video on your phone (out of space?).",
   "studioLinkETiny": "What we found is too small — probably an ad or a short clip, not the video. Play the video itself in the hunt browser.",

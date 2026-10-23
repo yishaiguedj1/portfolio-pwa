@@ -79,6 +79,18 @@ class DlDeepTest {
         assertTrue(DlDeep.better(m360, sum(30, 9_000_000, 1080), 10_800))   // תואם גובר על קובץ קצר באיכות גבוהה
     }
 
+    /* 23/10/2026: הקובץ שירד מ־buffett.cnbc.com — MP4 של 5KB, שנייה אחת; ושרת שמחזיר דף */
+    @Test fun notVideo() {
+        assertFalse(DlDeep.realVideo(sum(0, 5_000, 0), 0))                                // 5KB אחרי HEAD
+        assertFalse(DlDeep.realVideo(sum(0, 0, 0).put("nv", 1), 0))                        // השרת: text/html
+        val mp4 = ByteArray(32).also { "ftypisom".toByteArray().copyInto(it, 4) }
+        assertTrue(DlDeep.looksLikeVideo(mp4))
+        assertTrue(DlDeep.looksLikeVideo(byteArrayOf(0x1A, 0x45, 0xDF.toByte(), 0xA3.toByte(), 0, 0, 0, 0, 0, 0, 0, 0)))
+        assertFalse(DlDeep.looksLikeVideo("<!DOCTYPE html><html>".toByteArray()))
+        assertFalse(DlDeep.looksLikeVideo("#EXTM3U\n#EXT-X-VERSION:3".toByteArray()))
+        assertFalse(DlDeep.looksLikeVideo(ByteArray(4)))
+    }
+
     @Test fun withAlt() {
         val a = sum(3600, 1_000_000_000, 1080).put("u", "https://c/a.m3u8")
         val b = sum(3600, 400_000_000, 480).put("u", "https://c/b.mp4")

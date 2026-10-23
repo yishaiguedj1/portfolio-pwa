@@ -83,6 +83,7 @@ object DlDeep {
     /** הסרטון האמיתי ולא פרסומת / קובץ זעיר: לא קטן מ־300KB, לא קצר מ־8 שניות, ולא פחות מחצי מהמשך שהדף מצהיר */
     fun realVideo(s: JSONObject, pageDur: Int): Boolean {
         val d = s.optInt("d", 0); val sz = sizeOf(s)
+        if (s.optInt("nv", 0) == 1) return false            // השרת של הקובץ אמר שזה דף / תמונה, לא וידאו (DlEngine.fillSize)
         if (sz in 1 until MIN_BYTES) return false
         if (d in 1 until MIN_SEC) return false
         if (pageDur >= 60 && d > 0 && d < pageDur / 2) return false
@@ -104,6 +105,20 @@ object DlDeep {
         val ka = if (ma) listOf(heightOf(a).toLong(), sizeOf(a), a.optInt("d", 0).toLong()) else listOf(a.optInt("d", 0).toLong(), heightOf(a).toLong(), sizeOf(a))
         val kb = if (mb) listOf(heightOf(b).toLong(), sizeOf(b), b.optInt("d", 0).toLong()) else listOf(b.optInt("d", 0).toLong(), heightOf(b).toLong(), sizeOf(b))
         for (i in ka.indices) if (ka[i] != kb[i]) return ka[i] > kb[i]
+        return false
+    }
+
+    /** 23/10/2026 (דיווח המשתמש: הקובץ שירד מ־buffett.cnbc.com לא נפתח): תחילת הקובץ שירד — באמת וידאו?
+     *  MP4/MOV/3GP ‏(ftyp/moov/mdat/free/wide בבתים 4–8), Matroska/WebM ‏(1A45DFA3), MPEG-TS ‏(0x47 כל 188), FLV, AVI */
+    fun looksLikeVideo(b: ByteArray): Boolean {
+        if (b.size < 12) return false
+        val box = String(b, 4, 4, Charsets.ISO_8859_1)
+        if (box in setOf("ftyp", "moov", "mdat", "free", "wide", "skip")) return true
+        if (b[0] == 0x1A.toByte() && b[1] == 0x45.toByte() && b[2] == 0xDF.toByte() && b[3] == 0xA3.toByte()) return true
+        if (b[0] == 0x47.toByte() && (b.size < 189 || b[188] == 0x47.toByte())) return true
+        val head = String(b, 0, 4, Charsets.ISO_8859_1)
+        if (head.startsWith("FLV")) return true
+        if (head == "RIFF" && String(b, 8, 4, Charsets.ISO_8859_1) == "AVI ") return true
         return false
     }
 
