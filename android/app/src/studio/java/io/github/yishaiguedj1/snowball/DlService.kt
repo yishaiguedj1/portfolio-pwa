@@ -1,9 +1,6 @@
 package io.github.yishaiguedj1.snowball
 
 import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
 import android.content.ClipData
 import android.content.Context
@@ -17,96 +14,55 @@ import android.os.Looper
 
 /**
  * 22/10/2026: ההורדה רצה כשירות בחזית (התראה עם התקדמות, כמו כל מנהל הורדות) — ממשיכה גם כשיוצאים מהמסך.
- * הורדה אחת בכל פעם. בסוף: הקובץ ב־Movies/Studio, ואז הוא עובר לאתר (DlState.handoff) — מהמסך אם הוא פתוח,
- * אחרת מההתראה (אנדרואיד לא נותן לשירות לפתוח מסך מהרקע).
+ * 23/10/2026: מאנדרואיד 14 ההורדה רצה ב־DlJob (UIDT) — כאן רק אנדרואיד 10–13, וכפתור "ביטול" שבהתראה (בשניהם).
+ * dataSync מוגבל ל־6 שעות ב־24 (targetSdk 35): onTimeout עוצר יפה, וההורדה ממשיכה בפעם הבאה מאותו מקום.
+ * הורדה אחת בכל פעם. העבודה עצמה — DlWork.
  */
 class DlService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
+    @Volatile private var mine = false
+    @Volatile private var timedOut = false
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val i = intent ?: return START_NOT_STICKY
-        if (i.action == ACT_CANCEL) { DlState.id?.let { DlEngine.cancel(it) }; return START_NOT_STICKY }
+        if (i.action == ACT_CANCEL) { DlState.id?.let { DlEngine.cancel(it) }; if (!mine) stopSelf(); return START_NOT_STICKY }
         val id = i.getStringExtra(X_ID) ?: return START_NOT_STICKY
         if (DlState.busy() && DlState.id != id) return START_NOT_STICKY   // הורדה אחת בכל פעם (המסך כבר סימן את זו)
-        val url = i.getStringExtra(X_URL) ?: ""
-        val title = i.getStringExtra(X_TITLE) ?: ""
-        val pick = DlEngine.Pick(i.getStringExtra(X_V) ?: "", i.getStringExtra(X_A) ?: "", i.getIntExtra(X_H, 0),
-            i.getIntExtra(X_S0, 0), i.getIntExtra(X_S1, 0))
-        val ref = i.getStringExtra(X_REF) ?: ""
-        DlState.start(id, title)
-        startFg(notif(title, getString(R.string.dlPrep), -1))
+        val r = reqOf(i) ?: return START_NOT_STICKY
+        mine = true
+        startFg(DlWork.progress(this, r.title, getString(R.string.dlPrep), -1))
         Thread {
-            var last = 0L
-            try {
-                val f = DlEngine.download(this, url, ref, pick, id) { p, _ ->
-                    DlState.progress(p)
-                    val now = System.currentTimeMillis()
-                    if (now - last > 1000) { last = now; nm().notify(N_ID, notif(title, getString(R.string.dlPct, p.toInt().coerceIn(0, 100)), p.toInt())) }
-                }
-                DlState.phase("save")
-                nm().notify(N_ID, notif(title, getString(R.string.dlSaving), -1))
-                val uri = DlEngine.publish(this, f)
-                main.post {
-                    DlState.done(uri)
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                    if (!DlState.watched()) nm().notify(N_DONE, doneNotif(title, uri, id))
-                    stopSelf()
-                }
-            } catch (e: Throwable) {
-                val code = (e as? IllegalArgumentException)?.message ?: "fail"
-                main.post {
-                    DlState.fail(code)
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                    if (code != "cancel" && !DlState.watched()) nm().notify(N_DONE, errNotif(title, id, code))
-                    stopSelf()
-                }
+            DlWork.run(this, r, { timedOut }) {
+                mine = false
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
             }
         }.start()
         return START_NOT_STICKY
     }
 
-    private val main = Handler(Looper.getMainLooper())
-    private fun nm() = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-    private fun startFg(n: Notification) {
-        if (Build.VERSION.SDK_INT >= 29) startForeground(N_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC) else startForeground(N_ID, n)
+    /** אנדרואיד 15: נגמרה מכסת ה־6 שעות של dataSync — חייבים לעצור תוך שניות (אחרת קריסה) */
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        timedOut = true
+        DlState.id?.let { DlEngine.cancel(it) }
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
 
-    private fun chan() {
-        if (Build.VERSION.SDK_INT >= 26) nm().createNotificationChannel(NotificationChannel(CH, getString(R.string.dlChannel), NotificationManager.IMPORTANCE_LOW))
-    }
-
-    private fun builder(): Notification.Builder { chan(); return if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CH) else Notification.Builder(this) }
-
-    private fun notif(title: String, text: String, pct: Int): Notification {
-        val open = PendingIntent.getActivity(this, 1, Intent(this, DlActivity::class.java).setAction(DlActivity.ACT_SHOW), PendingIntent.FLAG_IMMUTABLE)
-        val cancel = PendingIntent.getService(this, 2, Intent(this, DlService::class.java).setAction(ACT_CANCEL), PendingIntent.FLAG_IMMUTABLE)
-        return builder().setSmallIcon(android.R.drawable.stat_sys_download).setContentTitle(title.ifEmpty { getString(R.string.dlTitle) })
-            .setContentText(text).setOngoing(true).setOnlyAlertOnce(true).setContentIntent(open)
-            .setProgress(100, pct.coerceAtLeast(0), pct < 0)
-            .addAction(Notification.Action.Builder(null, getString(R.string.dlCancel), cancel).build()).build()
-    }
-
-    private fun doneNotif(title: String, uri: Uri, id: String): Notification {
-        val pi = PendingIntent.getActivity(this, 3, DlState.handoffIntent(this, uri, id), PendingIntent.FLAG_IMMUTABLE)
-        return builder().setSmallIcon(android.R.drawable.stat_sys_download_done).setContentTitle(getString(R.string.dlDone))
-            .setContentText(title.ifEmpty { getString(R.string.dlTapContinue) }).setSubText(getString(R.string.dlTapContinue))
-            .setAutoCancel(true).setContentIntent(pi).build()
-    }
-
-    private fun errNotif(title: String, id: String, code: String): Notification {
-        val pi = PendingIntent.getActivity(this, 4, DlState.errIntent(this, id, code), PendingIntent.FLAG_IMMUTABLE)
-        return builder().setSmallIcon(android.R.drawable.stat_notify_error).setContentTitle(getString(R.string.dlFailed))
-            .setContentText(title).setAutoCancel(true).setContentIntent(pi).build()
+    private fun startFg(n: android.app.Notification) {
+        if (Build.VERSION.SDK_INT >= 29) startForeground(DlWork.N_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC) else startForeground(DlWork.N_ID, n)
     }
 
     companion object {
         const val ACT_CANCEL = "app.thesnowball.studio.DL_CANCEL"
         const val X_ID = "id"; const val X_URL = "u"; const val X_REF = "ref"; const val X_TITLE = "t"
         const val X_V = "v"; const val X_A = "a"; const val X_H = "h"; const val X_S0 = "s0"; const val X_S1 = "s1"
-        private const val CH = "dl"
-        private const val N_ID = 41
-        private const val N_DONE = 42
+
+        fun reqOf(i: Intent): DlWork.Req? {
+            val id = i.getStringExtra(X_ID) ?: return null
+            return DlWork.Req(id, i.getStringExtra(X_URL) ?: "", i.getStringExtra(X_REF) ?: "", i.getStringExtra(X_TITLE) ?: "",
+                DlEngine.Pick(i.getStringExtra(X_V) ?: "", i.getStringExtra(X_A) ?: "", i.getIntExtra(X_H, 0), i.getIntExtra(X_S0, 0), i.getIntExtra(X_S1, 0)))
+        }
     }
 }
 

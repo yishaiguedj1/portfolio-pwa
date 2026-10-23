@@ -101,7 +101,13 @@ function done() {
   (function walk(d) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (/\.kt$/.test(e.name)) ktFiles.push(p); } })(path.join(__dirname, '..', 'android/app/src'));
   for (const f of ktFiles) ok(!/\(\?[a-zA-Z]*U|UNICODE_CHARACTER_CLASS|CANON_EQ/.test(fs.readFileSync(f, 'utf8')), path.basename(f) + ': בלי דגלי Regex שאנדרואיד לא מכיר');
   const man = R('android/app/src/studio/AndroidManifest.xml');
-  ok((man.match(/android:process=":dl"/g) || []).length === 2, 'DlActivity ו־DlService בתהליך נפרד');
+  ok((man.match(/android:process=":dl"/g) || []).length === 3, 'DlActivity, DlService ו־DlJob בתהליך נפרד');
+  // 23/10/2026: מגבלת 6 השעות של dataSync (targetSdk 35) — אנדרואיד 14+ = UIDT (DlJob), השירות מממש onTimeout
+  const dir = 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/';
+  ok(/setUserInitiated\(true\)/.test(R(dir + 'DlJob.kt')) && /setNotification\(params/.test(R(dir + 'DlJob.kt')) && /override fun onStopJob[\s\S]*return true/.test(R(dir + 'DlJob.kt')), 'DlJob: UIDT עם התראה, ממשיך אחרי עצירה');
+  ok(/override fun onTimeout\(startId: Int, fgsType: Int\)/.test(R(dir + 'DlService.kt')), 'DlService: onTimeout (אנדרואיד 15)');
+  ok(/RUN_USER_INITIATED_JOBS/.test(man) && /\.DlJob"[\s\S]*?BIND_JOB_SERVICE/.test(man) && (man.match(/android:process=":dl"/g) || []).length === 3, 'מניפסט: הרשאת UIDT ו־DlJob בתהליך ההורדה');
+  ok(/DlJob\.schedule\(this/.test(R(dir + 'DlActivity.kt')), 'DlActivity מתזמן קודם UIDT');
   ok(/setDefaultUncaughtExceptionHandler/.test(R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/DlActivity.kt')), 'קריסה בחלון ההורדה מדווחת לאתר');
   for (const k of ['studioLinkEApp', 'studioLinkDlWait', 'studioLinkGot', 'studioLinkEStore', 'studioLinkFailT'])
     ok((R('app.js').match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, k + ' בעברית ובאנגלית');
