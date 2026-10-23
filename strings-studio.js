@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1774 מפתחות מתוך 3884) */
+/* המחרוזות של studio (1778 מפתחות מתוך 3888) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -815,6 +815,9 @@ he: {
   "studioLinkAdd": "הוספה",
   "studioLinkAll": "כל האיכויות",
   "studioLinkAllS": "עם הסבר לכל אחת",
+  "studioLinkAltQ": "קובץ וידאו",
+  "studioLinkAltT": "מקורות נוספים בדף",
+  "studioLinkAltUpTo": "עד {q}",
   "studioLinkApiOnly": "הורדה מקישור זמינה רק במצב השרת של המערכת.",
   "studioLinkApk": "להתקין את הגרסה החדשה של Studio",
   "studioLinkAudioS": "הקול הכי טוב בשפה המקורית — נבחר לבד",
@@ -843,6 +846,7 @@ he: {
   "studioLinkENone": "לא מצאנו סרטון בקישור הזה.",
   "studioLinkEPlaylist": "זה קישור לרשימת השמעה. פתחו סרטון אחד ושתפו אותו.",
   "studioLinkEStore": "לא הצלחנו לשמור את הסרטון בטלפון (אין מקום?).",
+  "studioLinkETiny": "מה שנמצא קטן מדי — כנראה פרסומת או קטע קצר, לא הסרטון. נגנו את הסרטון עצמו בדפדפן הציד.",
   "studioLinkFailT": "ההורדה בטלפון נכשלה",
   "studioLinkFcNote": "{q} · {s} · יורד ישר לשרת",
   "studioLinkFrom": "מ־",
@@ -2591,6 +2595,9 @@ en: {
   "studioLinkAdd": "Add",
   "studioLinkAll": "All qualities",
   "studioLinkAllS": "With an explanation for each",
+  "studioLinkAltQ": "Video file",
+  "studioLinkAltT": "More sources on the page",
+  "studioLinkAltUpTo": "Up to {q}",
   "studioLinkApiOnly": "Downloading from a link is available only in the system’s server mode.",
   "studioLinkApk": "Install the new version of Studio",
   "studioLinkAudioS": "The best audio in the original language — picked for you",
@@ -2619,6 +2626,7 @@ en: {
   "studioLinkENone": "We didn’t find a video at this link.",
   "studioLinkEPlaylist": "This is a playlist link. Open one video and share it.",
   "studioLinkEStore": "Couldn’t save the video on your phone (out of space?).",
+  "studioLinkETiny": "What we found is too small — probably an ad or a short clip, not the video. Play the video itself in the hunt browser.",
   "studioLinkFailT": "The download on your phone failed",
   "studioLinkFcNote": "{q} · {s} · downloads straight to the server",
   "studioLinkFrom": "From",
