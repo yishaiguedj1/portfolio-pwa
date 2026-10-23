@@ -116,6 +116,41 @@ class Assign(unittest.TestCase):
         self.assertEqual([m[w["spk"]] for w in ws[:16]], truth[:16])
 
 
+class MergeSmall(unittest.TestCase):
+    """23/10/2026: דובר אחד שפוצל לשני אשכולות מתאחד; דובר אמיתי קטן (קול אחר) נשאר."""
+
+    def emb(self, base, n, noise, r):
+        X = base + noise * r.normal(size=(n, len(base)))
+        return X / np.linalg.norm(X, axis=1, keepdims=True)
+
+    def test_split_speaker_merges_real_small_stays(self):
+        r = np.random.default_rng(7)
+        a, b = r.normal(size=32), r.normal(size=32)
+        a /= np.linalg.norm(a)
+        b /= np.linalg.norm(b)
+        a2 = a + 0.6 * r.normal(size=32) / np.sqrt(32)                   # אותו קול — דמיון ~0.85 לממוצע
+        a2 /= np.linalg.norm(a2)
+        E = np.concatenate([self.emb(a, 60, 0.3, r), self.emb(a2, 4, 0.3, r), self.emb(b, 4, 0.3, r)])
+        dur = np.full(len(E), 2.0)
+        cent = np.stack([a, a2, b])
+        who = (E @ cent.T).argmax(axis=1)
+        who, cent = D.merge_small(E, dur, who, cent)
+        self.assertEqual(len(cent), 2)
+        self.assertEqual(len(set(who[:64].tolist())), 1)                  # הפיצול אוחד
+        self.assertNotEqual(who[0], who[-1])                              # הקטן האמיתי נשאר לבד
+
+    def test_big_clusters_need_more(self):
+        r = np.random.default_rng(3)
+        a = r.normal(size=32)
+        a /= np.linalg.norm(a)
+        b = a + 1.4 * r.normal(size=32) / np.sqrt(32)                     # דומה, אבל שני דוברים גדולים
+        b /= np.linalg.norm(b)
+        E = np.concatenate([self.emb(a, 80, 0.2, r), self.emb(b, 80, 0.2, r)])
+        dur = np.full(len(E), 2.0)                                        # 160 שנ׳ לכל אחד — סף ~1.2
+        who, cent = D.merge_small(E, dur, (E @ np.stack([a, b]).T).argmax(axis=1), np.stack([a, b]))
+        self.assertEqual(len(cent), 2)
+
+
 class Fallback(unittest.TestCase):
     def test_no_model_leaves_words(self):
         ws, _ = talk([("A", 5, 0.5)])
