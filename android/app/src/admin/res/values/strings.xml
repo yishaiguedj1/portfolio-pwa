@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- אימות הקשר לאתר — רק הדומיין של הניהול (בלי הרשימה של שאר האפליקציות שב־src/main) -->
+    <string name="assetStatements" translatable="false">[{\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://admin.thesnowball.app\"}}]</string>
+
+    <string name="mon_title">מרכז הניהול</string>
+    <string name="mon_widget_label">מרכז הניהול</string>
+    <string name="mon_widget_desc">מדדי השרתים בזמן כמעט אמת: מעבד, זיכרון, דיסק ורשת לכל שרת. נגיעה ב־↻ מרעננת.</string>
+    <string name="mon_updated">עודכן %1$s</string>
+    <string name="mon_now">עכשיו</string>
+    <string name="mon_ago_m">לפני %1$d דק׳</string>
+    <string name="mon_ago_h">לפני %1$d שע׳</string>
+    <string name="mon_ago_d">לפני %1$d ימים</string>
+    <string name="mon_never">מעולם</string>
+    <string name="mon_seen">נראה %1$s</string>
+    <string name="mon_refresh">רענון</string>
+    <string name="mon_settings">הגדרות</string>
+    <string name="mon_no_token">הגדר טוקן בהגדרות הווידג׳ט</string>
+    <string name="mon_auth_bad">הטוקן לא תקף — חבר מחדש בהגדרות</string>
+    <string name="mon_loading">טוען…</string>
+    <string name="mon_no_servers">אין שרתים מדווחים</string>
+    <string name="mon_st_on">פעיל</string>
+    <string name="mon_st_paused">מושהה</string>
+    <string name="mon_st_off">לא מחובר</string>
+    <string name="mon_st_warn">אזהרה: %1$s</string>
+    <string name="mon_st_busy">עובד על עבודה</string>
+    <string name="mon_w_cu">מעבד</string>
+    <string name="mon_w_mem">זיכרון</string>
+    <string name="mon_w_disk">דיסק</string>
+    <string name="mon_w_psi">לחץ</string>
+    <string name="mon_metrics">מעבד %1$s · זיכרון %2$s · דיסק %3$s</string>
+    <string name="mon_net">רשת ↓ %1$s ↑ %2$s</string>
+    <string name="mon_no_data">אין נתוני מדדים</string>
+
+    <string name="mon_cfg_title">חיבור מרכז הניהול</string>
+    <string name="mon_cfg_hint">הדבק את הטוקן של מרכז הניהול. הוא נשמר רק במכשיר הזה ולא מוצג שוב.</string>
+    <string name="mon_cfg_stored">יש טוקן שמור במכשיר. להחלפה — הדבק טוקן חדש ושמור.</string>
+    <string name="mon_cfg_save">שמירה</string>
+    <string name="mon_cfg_check">בדוק חיבור</string>
+    <string name="mon_cfg_clear">מחק טוקן</string>
+    <string name="mon_cfg_empty">הדבק טוקן קודם</string>
+    <string name="mon_cfg_saved">נשמר. הווידג׳ט מתרענן…</string>
+    <string name="mon_cfg_cleared">הטוקן נמחק מהמכשיר</string>
+    <string name="mon_cfg_ok">מחובר · %1$d שרתים · %2$d עבודות פעילות</string>
+    <string name="mon_cfg_noauth">הטוקן לא תקף או שבוטל</string>
+    <string name="mon_cfg_fail">השרתון לא זמין כרגע — נסה שוב אחר כך</string>
+    <string name="mon_loading_check">בודק…</string>
+</resources>

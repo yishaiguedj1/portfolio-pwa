@@ -61,6 +61,44 @@ def token() -> str:
     return t
 
 
+_net_prev = [0.0, 0, 0]              # 22/10/2026: (שניות, קבלה, שליחה) של הדגימה הקודמת — לקצב הרשת
+
+
+def net_bytes():
+    """בייטים מצטברים (קבלה, שליחה) של כל הממשקים חוץ מ־lo — /proc/net/dev. בלי הקובץ — None"""
+    rx = tx = 0
+    try:
+        for ln in Path('/proc/net/dev').read_text().splitlines()[2:]:
+            name, _, rest = ln.partition(':')
+            if not rest or name.strip() == 'lo':
+                continue
+            f = rest.split()
+            rx += int(f[0])
+            tx += int(f[8])
+    except (OSError, ValueError, IndexError):
+        return None
+    return rx, tx
+
+
+def rate_pair(t0, rx0, tx0, t1, rx1, tx1):
+    """קצב (בייטים לשנייה) בין שתי דגימות. ריק כשאין בסיס, הזמן לא זז, או המונה ירד (אתחול) — לא מנחשים"""
+    dt = t1 - t0
+    if not t0 or dt <= 0 or rx1 < rx0 or tx1 < tx0:
+        return {}
+    return {'rx': round((rx1 - rx0) / dt), 'tx': round((tx1 - tx0) / dt)}
+
+
+def net_rate() -> dict:
+    """קצב הרשת מאז הדגימה הקודמת (rx/tx בבייטים לשנייה). נקרא מ־host_info בלבד — כל קריאה מעדכנת את הבסיס"""
+    cur = net_bytes()
+    if cur is None:
+        return {}
+    now = time.time()
+    t0, rx0, tx0 = _net_prev
+    _net_prev[:] = [now, cur[0], cur[1]]
+    return rate_pair(t0, rx0, tx0, now, cur[0], cur[1])
+
+
 def host_info(busy: str = '') -> dict:
     """מצב השרת למסך השרת באפליקציה — מספרים בלבד (בלי שמות קבצים, בלי תוכן). כל ערך שלא נמדד — לא נשלח."""
     hb = {'v': os.environ.get('SNB_VERSION', 'dev')[:12], 'busy': busy}
@@ -88,6 +126,14 @@ def host_info(busy: str = '') -> dict:
         hb['load'] = round(os.getloadavg()[0], 2)
     except OSError:
         pass
+    # 22/10/2026: מדדי הניטור (היסטוריה במסך הניטור): מעבד %, קצב רשת, לחץ זיכרון. דגימה אחת לכל קריאה — met_sample לוקח מכאן
+    cu = cpu_pct()
+    if cu is not None:
+        hb['cu'] = cu
+    hb.update(net_rate())
+    psi = mem_pressure()
+    if psi:
+        hb['psi'] = psi
     hb['cpu'] = cpus_allowed()                      # 21/10/2026: לצפי (השרתון מנרמל זמנים לפי הליבות) ולמסך השרת
     if _slots:
         hb['nj'] = len(_slots)
@@ -247,7 +293,7 @@ def top_procs(n: int = 5) -> list:
 def met_sample() -> dict:
     hb = host_info(_busy)
     mi = _meminfo()
-    d = {'t': int(time.time()), 'cpu': cpu_pct(), 'mem': hb.get('mem'), 'disk': hb.get('disk'), 'free': hb.get('free'), 'load': hb.get('load'),
+    d = {'t': int(time.time()), 'cpu': hb.get('cu'), 'mem': hb.get('mem'), 'disk': hb.get('disk'), 'free': hb.get('free'), 'load': hb.get('load'),
          # 21/10/2026 (מהיומנים): "100%" בלי התקרה לא אומר כמה GB; PSI = כמה זמן תהליכים חיכו לזיכרון (האות שמקדים OOM)
          'mx': mem_limit_mb() or None, 'av': int(mi['MemAvailable'] / 1024) if mi.get('MemAvailable') else None,
          'psi': mem_pressure() or None}

@@ -3898,6 +3898,34 @@ function stubFetch(text, status = 200) {
       ok(agR.payload.ok && Array.isArray(agR.payload.md.modes) && agR.payload.md.modes.length >= 4 && Array.isArray(agR.payload.ag.agents) && !/ownerUid0001|friendUid03|@example\.com/.test(JSON.stringify(agR.payload)), 'סוכנים ומודלים: כל המצבים, בלי uid ומיילים');
       const svR = await run({ op: 'adminServers', idToken: OWNER });
       ok(svR.payload.ok && Array.isArray(svR.payload.srv.servers) && !/ownerUid0001|"th"|"by"/.test(JSON.stringify(svR.payload)), 'שרתים ומשאבים: בלי uid ובלי hash של טוקן');
+      // v-mon (22/10/2026): ניטור השרתים — היסטוריית הדופק, מסך המוניטור (רק מנהל), וטוקן קריאה לווידג׳ט (hash בלבד, ביטול)
+      // הווידג׳ט שולח Origin של מרכז הניהול (מאושר בשרתון); בלעדיו — forbidden_origin לפני כל בדיקה
+      const monRun = async (body, headers) => { const x = mockRes(); await studio._handler(mockReq({ body, headers: Object.assign({ origin: 'https://admin.thesnowball.app' }, headers || {}) }), x, deps()); return x; };
+      ok((await monRun({ op: 'adminMon', idToken: FRIEND })).payload.error === 'not_admin', 'ניטור: רק המנהל רואה');
+      ok((await monRun({ op: 'monTok', idToken: FRIEND })).payload.error === 'not_admin', 'ניטור: רק המנהל יוצר טוקן קריאה');
+      const mtR = await monRun({ op: 'monTok', idToken: OWNER });
+      const monTokVal = mtR.payload.tok;
+      ok(mtR.payload.ok && mtR.payload.on && /^mon-[0-9a-f]{48}$/.test(monTokVal), 'ניטור: טוקן נוצר ומוצג פעם אחת');
+      const cfgDoc = db.get('sysCfg/main');
+      ok(cfgDoc && cfgDoc.fields.monKh && cfgDoc.fields.monKh.stringValue.length === 64 && !JSON.stringify(cfgDoc).includes(monTokVal), 'ניטור: השרתון שומר hash בלבד, לא את הטוקן');
+      const mRead = await monRun({ op: 'adminMon' }, { 'x-mon-token': monTokVal });
+      ok(mRead.payload.ok && Array.isArray(mRead.payload.mon.servers) && mRead.payload.tok.on === true, 'ניטור: הווידג׳ט קורא עם הטוקן');
+      ok((await monRun({ op: 'adminMon' }, { 'x-mon-token': 'mon-' + '0'.repeat(48) })).statusCode === 401, 'ניטור: טוקן שגוי — 401');
+      ok((await monRun({ op: 'adminServers' }, { 'x-mon-token': monTokVal })).statusCode === 401, 'ניטור: הטוקן לא פותח שום פעולה אחרת');
+      ok((await monRun({ op: 'monTok', rev: true }, { 'x-mon-token': monTokVal })).statusCode === 401, 'ניטור: הטוקן לא מבטל טוקנים');
+      const sc = await monRun({ op: 'srvCreate', idToken: OWNER, name: 'mon-srv' });
+      const monSid = sc.payload.server.id;
+      await srvRun({ op: 'beat', v: 1, hb: { cu: 55.04, mem: 41, disk: 30, rx: 2000, tx: 500, psi: 1 } }, sc.payload.token);
+      const mv = (await monRun({ op: 'adminMon', idToken: OWNER })).payload;
+      const ms = mv.mon.servers.find((x) => x.id === monSid);
+      ok(ms && ms.mon.length === 1 && ms.mon[0][1] === 55 && ms.hb.cu === 55 && ms.hb.rx === 2000 && ms.hb.tx === 500, 'ניטור: הדופק נכנס להיסטוריה (מעבד, רשת) — עם hash בלבד במסד');
+      ok(Array.isArray(ms.warn) && ms.warn.length === 0 && !JSON.stringify(mv).includes('"th"'), 'ניטור: אזהרה רק מעל הסף, ובלי hash של טוקן');
+      await srvRun({ op: 'beat', v: 1, hb: { cu: 96, mem: 41 } }, sc.payload.token);
+      const mv2 = (await monRun({ op: 'adminMon', idToken: OWNER })).payload.mon.servers.find((x) => x.id === monSid);
+      ok(mv2.mon.length === 1 && mv2.warn.includes('cu'), 'ניטור: דופק שני באותו רגע לא מכפיל נקודה, ומעל 90% — אזהרה מעל הסף');
+      const mtOff = await monRun({ op: 'monTok', idToken: OWNER, rev: true });
+      ok(mtOff.payload.ok && mtOff.payload.on === false, 'ניטור: ביטול טוקן');
+      ok((await monRun({ op: 'adminMon' }, { 'x-mon-token': monTokVal })).statusCode === 401, 'ניטור: טוקן שבוטל נדחה');
       ok((await run({ op: 'adminUsage', idToken: FRIEND })).payload.error === 'not_admin', 'שימוש: רק המנהל');
       const usg = await run({ op: 'adminUsage', idToken: OWNER });
       ok(usg.payload.ok && usg.payload.us.studio.length === 4 && !/ownerUid0001|friendUid03|@example\.com/.test(JSON.stringify(usg.payload)), 'שימוש: משפכים במספרים, בלי uid ומיילים');

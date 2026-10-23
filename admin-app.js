@@ -282,6 +282,7 @@ page('sys', { tab: 'sys', title: () => t('admTabSys'), render(p) {
   if (!D.rd) needReady();
   p.append(list(
     row({ c: 'orange', ic: '$', t: t('admAiCost'), s: ai && ai.month ? fmt(t('admAiCostS'), { u: usd(ai.month.usd), n: ai.today.t }) : k ? fmt(t('admAiCostS2'), { u: usd(k.usd) }) : '', badge: ai ? ai.warn.filter((w) => w.sev <= 2).length : 0, on: () => go('ai') }),
+    row({ c: 'blue', ic: '▦', t: t('admMonRow'), s: t('admMonRowS'), on: () => go('mon') }),
     row({ c: 'blue', ic: '%', t: t('admQuota'), s: o && o.dates && o.dates[0] ? fmt(t('admQuotaS'), { n: o.dates[0].left }) : '', on: () => go('quota') }),
     row({ c: !D.rd ? 'gray' : D.rd.pass === D.rd.n ? 'green' : D.rd.checks[0].sev === 1 ? 'red' : 'orange', ic: '✓', t: t('admRdT'), s: D.rd ? fmt(t('admRdS'), { p: D.rd.pass, n: D.rd.n }) : t('admLoading'), badge: D.rd ? D.rd.n - D.rd.pass : 0, on: () => go('ready') }),
     row({ c: !D.bk ? 'gray' : D.bk.warn.length ? 'orange' : 'green', ic: '⟲', t: t('admBkT'), s: !D.bk ? t('admLoading') : D.bk.warn.length ? fmt(t('admBkWarnN'), { n: D.bk.warn.length }) : fmt(t('admBkOkS'), { d: D.bk.r2 && D.bk.r2.last ? D.bk.r2.last.split('-').reverse().slice(0, 2).join('/') : '—' }), badge: D.bk ? D.bk.warn.filter((w) => /none|err/.test(w)).length : 0, on: () => go('backups') }),
@@ -495,6 +496,96 @@ page('servers', { tab: 'apps', parent: 'studio', title: () => t('admStudioSrv'),
   p.append(list(row({ c: 'gray', ic: '↗', t: t('admSvRebuild'), s: t('admSvRebuildS'), on: () => { try { window.open('https://github.com/yishaiguedj1/portfolio-pwa/actions/workflows/server.yml', '_blank', 'noopener'); } catch (e) {} } })),
     h('p', 'adm-foot', t('admSvFoot')));
 } });
+/* ---- ניטור שרתים (22/10/2026): היסטוריית הדופק לכל שרת — נקודה כל 5 דק׳, 24 שעות. גרפים ב־SVG בלי ספרייה.
+   הנתונים מגיעים מ־op adminMon (השרתון מחשב warn ו־mon); המסך רק מציג ---- */
+const MON_I = { cu: 1, mem: 2, disk: 3, psi: 6, nj: 7 };
+const MON_C = { cu: '#0A84FF', mem: '#5E5CE6', disk: '#30D158', net: '#F5A524', psi: '#FF453A' };   // נקודות הדופק: MON_KEYS בשרתון
+const monVal = (p, k) => {
+  if (k === 'net') return p[4] == null && p[5] == null ? null : (p[4] || 0) + (p[5] || 0);
+  return p[MON_I[k]] == null ? null : p[MON_I[k]];
+};
+const monRate = (b) => (b == null ? '—' : b < 1024 ? Math.round(b) + ' B/s' : b < 1048576 ? (b / 1024).toFixed(1) + ' KB/s' : (b / 1048576).toFixed(2) + ' MB/s');
+const monPct = (v) => (v == null ? '—' : Math.round(v) + '%');
+const monOpen = (u) => () => { try { window.open(u, '_blank', 'noopener'); } catch (e) {} };
+function monChart(pts, k, top, warnAt) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const data = (pts || []).map((p) => [p[0], monVal(p, k)]).filter((x) => x[1] != null);
+  if (data.length < 2) return h('div', 'adm-mon-none', t('admMonNoData'));
+  const W = 320, H = 64, t0 = data[0][0], t1 = data[data.length - 1][0];
+  const mx = top || Math.max(1, ...data.map((x) => x[1])) * 1.15;
+  const X = (ts) => ((ts - t0) / Math.max(1, t1 - t0)) * W;
+  const Y = (v) => H - 3 - (Math.min(v, mx) / mx) * (H - 6);
+  const d = data.map((x, i) => (i ? 'L' : 'M') + X(x[0]).toFixed(1) + ' ' + Y(x[1]).toFixed(1)).join(' ');
+  const c = MON_C[k];
+  const mk = (tag, a) => { const e = document.createElementNS(NS, tag); Object.keys(a).forEach((n) => e.setAttribute(n, a[n])); return e; };
+  const svg = mk('svg', { viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'none', class: 'adm-mon-svg', role: 'img' });
+  svg.append(mk('path', { d: d + ' L' + W + ' ' + H + ' L0 ' + H + ' Z', fill: c, 'fill-opacity': '.16' }),
+    mk('path', { d, fill: 'none', stroke: c, 'stroke-width': '2', 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round' }));
+  if (warnAt != null) svg.append(mk('line', { x1: 0, x2: W, y1: Y(warnAt), y2: Y(warnAt), stroke: '#FF453A', 'stroke-dasharray': '3 3', 'stroke-opacity': '.7', 'vector-effect': 'non-scaling-stroke' }));
+  return svg;
+}
+function monBlk(label, cur, svg, warn) {
+  const top = h('div', 'adm-mon-top');
+  top.append(h('span', null, label), h('b', warn ? 'adm-mon-w' : null, cur));
+  return h('div', 'adm-mon-blk', top, svg);
+}
+function monCard(x) {
+  const hb = x.hb || {}, pts = x.mon || [], w = x.warn || [];
+  const st = !x.online ? ['gray', t('admMonOff')] : w.length ? ['orange', t('admMonWarn')] : ['green', t('admMonOk')];
+  const net = hb.rx == null && hb.tx == null ? null : (hb.rx || 0) + (hb.tx || 0);
+  const hd = h('div', 'adm-mon-hd');
+  hd.append(h('span', 'adm-mon-dot adm-mon-' + st[0]), h('b', null, x.name), h('span', 'adm-mon-st', st[1] + (hb.v ? ' · ' + hb.v : '')));
+  const grid = h('div', 'adm-mon-grid',
+    monBlk(t('admMonCpu'), monPct(hb.cu), monChart(pts, 'cu', 100, 90), w.includes('cu')),
+    monBlk(t('admSvMem'), monPct(hb.mem), monChart(pts, 'mem', 100, 90), w.includes('mem')),
+    monBlk(t('admSvDisk'), monPct(hb.disk), monChart(pts, 'disk', 100, 85), w.includes('disk')),
+    monBlk(t('admMonNet'), monRate(net), monChart(pts, 'net', null, null), false),
+    monBlk(t('admMonPsi'), monPct(hb.psi), monChart(pts, 'psi', 100, 20), w.includes('psi')));
+  return h('div', 'adm-mon-card', hd, grid);
+}
+page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
+  if (!D.monT) needMon();
+  const V = D.mon;
+  if (!V) { p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  const M = V.mon;
+  p.append(h('p', 'adm-dt', t('admMonDt')));
+  p.append(grp(t('admMonSrv')));
+  if (!M.servers.length) p.append(list(row({ c: 'gray', ic: '☁', t: t('admMonNone') })));
+  for (const x of M.servers) p.append(monCard(x));
+  p.append(grp(t('admMonJobs')));
+  const jobs = M.jobs || [];
+  if (!jobs.length) p.append(list(row({ c: 'gray', ic: '◎', t: t('admMonJobsNone') })));
+  else p.append(list(...jobs.map((j) => {
+    const s = M.servers.find((x) => x.id === j.sid), pc = j.p == null ? null : Math.round(j.p * 100);
+    return row({ c: 'blue', ic: '◎', t: (STG[j.st] || (() => j.st || '—'))(), s: s ? s.name : '', v: pc == null ? '' : pc + '%', meter: pc == null ? null : [pc, ''] });
+  })));
+  p.append(grp(t('admMonTokT')));
+  const on = !!(V.tok && V.tok.on);
+  p.append(list(row({ c: on ? 'green' : 'gray', ic: '⚿', t: on ? fmt(t('admMonTokOn'), { a: ago(V.tok.at) }) : t('admMonTokOff') })));
+  const tb = h('div', 'btn-row adm-srvbtns');
+  const mk = h('button', 'btn secondary-btn', on ? t('admMonTokRotate') : t('admMonTokMake')); mk.type = 'button';
+  mk.addEventListener('click', async () => {
+    mk.disabled = true; const r = await api('monTok', {}); mk.disabled = false;
+    if (!r.ok) { flash(t('admErr')); return; }
+    needMon();
+    const pre = h('pre', 'adm-code', r.tok); pre.dir = 'ltr';
+    askConfirm(t('admMonTokNew'), () => copyText(r.tok), { body: pre, ok: t('admMonTokCopy') });
+  });
+  tb.append(mk);
+  if (on) {
+    const rv = h('button', 'mini-btn danger', t('admMonTokRev')); rv.type = 'button';
+    rv.addEventListener('click', () => askConfirm(t('admMonTokRevQ'), async () => { const r = await api('monTok', { rev: true }); if (r.ok) needMon(); else flash(t('admErr')); }, { danger: true, ok: t('admMonTokRev') }));
+    tb.append(rv);
+  }
+  p.append(tb);
+  p.append(list(row({ c: 'blue', ic: '▣', t: t('admMonApk'), s: t('admMonApkS'), on: monOpen('https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball-admin.apk') })));
+} });
+async function needMon() {
+  clearTimeout(D.monT); D.monT = 0;
+  const r = await api('adminMon');
+  if (r.ok) D.mon = r;
+  if (cur === 'mon') { D.monT = setTimeout(needMon, 30000); paint(); }   // מתרענן כל 30 שנ׳ כל עוד המסך פתוח
+}
 /* ---- שימוש ומשפכים (15/10/2026): כמה נכנסו לכל אפליקציה ועד איפה הגיעו. רק ספירות קיימות + עבודות 30 יום — בלי מעקב חדש ---- */
 async function needUsage() {
   const r = await api('adminUsage');

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- admin (23/10/2026): מרכז הניהול — ווידג'ט מדדי השרתים ומסך הטוקן. ‏INTERNET כבר ב־src/main. בלי הרשאות נוספות. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- מסך הטוקן: לא מיוצא — נפתח רק מהווידג'ט (PendingIntent של האפליקציה עצמה) -->
+        <activity
+            android:name=".MonConfigActivity"
+            android:exported="false"
+            android:label="@string/mon_cfg_title"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+
+        <!-- ווידג'ט מדדי השרתים למסך הבית -->
+        <receiver
+            android:name=".MonWidgetReceiver"
+            android:exported="true"
+            android:label="@string/mon_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/mon_widget_info" />
+        </receiver>
+    </application>
+</manifest>
