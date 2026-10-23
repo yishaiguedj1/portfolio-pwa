@@ -26,7 +26,7 @@ ok(cn('MSFT') === 'Microsoft' && cn('META') === 'Meta Platforms' && cn('NOW') ==
 ok(cn('POLI.TA') === 'הפועלים' && (vm.runInContext('state.lang = "en"', sb), cn('POLI.TA') === 'Bank Hapoalim'), 'ת"א: שם בעברית / באנגלית לפי השפה');
 ok(/'longName', 'shortName'\]/.test(proxy) && /longName: meta\.longName \|\| meta\.shortName/.test(src), 'מניה שלא ברשימה: השם מ־Yahoo דרך השרתון');
 ok(/return cnt >= 5 && cnt <= w \* h \* 0\.8 && sum \/ cnt > 225;/.test(src) && /e\.light = logoIsLight\(e\.img\)/.test(src), 'לוגו לבן על שקוף (UNH/UBER/APP) מזוהה; לבן אטום (AAPL, v221) לא');
-ok(/ctx\.drawImage\(e\.inv \|\| e\.img,/.test(src) && /pie-leg-logo' \+ \(e && e\.ready && e\.light \? ' inv'/.test(src) && /\.pie-leg-logo\.inv img \{ filter: invert\(1\); background: transparent; \}/.test(css), 'v173: לוגו לבן — מתהפך לשחור על אריח לבן, כמו בטאב המניות (עוגה ומקרא)');
+ok(/ctx\.drawImage\(e\.inv \|\| e\.img,/.test(src) && /pie-leg-logo' \+ \(s\.cash \? ' cash' : e && e\.ready && e\.light \? ' inv'/.test(src) && /\.pie-leg-logo\.inv img \{ filter: invert\(1\); background: transparent; \}/.test(css), 'v173: לוגו לבן — מתהפך לשחור על אריח לבן, כמו בטאב המניות (עוגה ומקרא)');
 ok(/for \(const sc of \[1, 0\.9, 0\.82, 0\.76, 0\.7\]\)/.test(src) && /R = Math\.max\(R0 \* 0\.6, Math\.min\(R0, rho \+ H \* SC \* 0\.22\)\);/.test(src), 'v173: כל התוויות באותו גודל על מעגל אחד — מעט מניות במרכז הפרוסות, יותר מניות: המעגל מתרחק באחידות');
 ok(/const clash = \(p, q\) =>/.test(src) && /placed\.some\(\(o\) => clash\(o, g\)\)/.test(src), 'v173/v187: אין שתי תוויות שנוגעות זו בזו (שרשרת ב־posAt)');
 ok(/pctTxt: pct\.toFixed\(1\) \+ '%'/.test(src), 'v172: אחוז עם ספרה עשרונית תמיד (18.1%)');
@@ -34,7 +34,7 @@ ok(/ctx\.strokeStyle = surface; ctx\.lineWidth = gap;/.test(src), 'רווח דק
 ok(/\.pie-leg-logo \{[^}]*width: 34px; height: 34px; border-radius: 10px;/.test(css), 'מקרא: לוגו גדול יותר, אריח מעוגל');
 ok(/class="lg-full" dir="auto"/.test(src) && /#pieLegend \.lg-full \{ align-self: flex-start; max-width: 100%;/.test(css), 'מקרא: שם מלא מתחת לסימבול, חיתוך בסוף השם');
 ok(/data-err="hide-self"/.test(src) && /im\.dataset\.err === 'hide-self'/.test(src), 'לוגו שלא נטען — נשארת האות, לא ריבוע ריק');
-ok(/const ordered = slicesUnique\.slice\(\)\.sort\(\(x, y\) => y\.value - x\.value\);/.test(src), 'v170: הפרוסות לפי גודל, מהגדולה ב־12 בשעון עם כיוון השעון');
+ok(/const cashLast = \(x, y\) => \(x\.cash \? 1 : 0\) - \(y\.cash \? 1 : 0\) \|\| y\.value - x\.value;/.test(src) && /const ordered = slicesUnique\.slice\(\)\.sort\(cashLast\);/.test(src), 'v170: הפרוסות לפי גודל, מהגדולה ב־12 בשעון עם כיוון השעון (המזומן תמיד אחרון)');
 ok(/\.pie-leg-logo\.inv \.pie-leg-fb \{ display: none; \}/.test(css), 'v174: לוגו לבן מהופך — בלי האות מאחוריו');
 ok(/\.pie-wrap \{ display: flex; justify-content: center; margin-inline: -12px; \}/.test(css) && /#pieChart \{ width: 100%; max-width: 520px;/.test(css), 'v175: העוגה כמעט ברוחב הכרטיס');
 ok(A('PIE_RANK_PALETTE').slice(0, 4).join() === '#8DC63F,#8FC1E3,#F46A5C,#C95CF5' && /x\.color = x\.cash \? PIE_CASH_COLOR : PIE_RANK_PALETTE\[rk\+\+ % PIE_RANK_PALETTE\.length\]/.test(src), 'v178: צבעי הפרוסות לפי הדירוג בתיק (ירוק, תכלת, אלמוגי, סגול…)');
