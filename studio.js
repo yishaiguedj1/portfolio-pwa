@@ -2627,7 +2627,7 @@ function pageForm(p, editing) {
     p.append(inp, secT(T('studioSecVideo')), card);
     const subsRow = rowNav({ tile: tile('cc', 'orange'), label: T('studioSubsPick'), sub: subsOk() ? T('studioSubsPickS') : T('studioSubsApiOnly'), onClick: () => pickSubs(f), k: 'subs-pick' });
     // 22/10/2026: הורדה מקישור — שורה ראשונה (המנהל / "כל המודלים", כשהשרתון אומר שאפשר)
-    const linkRow = devDl() ? rowNav({ tile: tile('link', 'red'), label: T('studioLinkRow'), sub: T('studioLinkRowS'), onClick: () => go('link'), k: 'link' }) : null;
+    const linkRow = devDl() || ui.url ? rowNav({ tile: tile('link', 'red'), label: T('studioLinkRow'), sub: T('studioLinkRowS'), onClick: () => go('link'), k: 'link' }) : null;
     p.append(list(linkRow, subsRow, canPick() ? rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'),
       onClick: () => pickSourceFromDrive(f), k: 'from-drive' }) : null));   // סרטון שכבר ב־Drive — בלי העלאה
     const tk = f.trk && f.trk.tracks.length ? f.trk.tracks : null;   // שלב 4
@@ -2964,6 +2964,7 @@ function linkErrText(e) {
     case 'private': case 'bad_url': case 'dns': return T('studioLinkEBad');
     case 'timeout': case 'net': case 'no_server': return T('studioLinkENet');
     case 'app': return T('studioLinkEApp');
+    case 'noapp': return T('studioLinkENoApp');
     case 'store': return T('studioLinkEStore');
     default: return T('studioLinkEFail');
   }
@@ -2975,11 +2976,41 @@ let linkSeq = 0;
    Studio לאנדרואיד (DlActivity: yt-dlp בתוך האפליקציה). יוטיוב חוסם את השרת (כתובת של חוות שרתים), לא את הטלפון.
    האתר מבקש בכתובת intent://probe|dl?…, והתשובה חוזרת ב־hash (‎#probe=, ‎#dle=) או כקובץ (‎/share-file → ‎#got=). */
 export function devDl() { return grabOk(); }
+/* "לענן של Studio" (בחירת המשתמש 22/10/2026): רק כשהשרתון מתיר (ui.url — מנהל/"כל המודלים" + הדגל) ובמקור שלא חוסם
+   את השרת. יוטיוב חוסם כתובות של חוות שרתים ("not a bot") — שם רק לטלפון */
+export const cloudBlocked = (r) => /^youtube/i.test(String((r && r.s) || ''));
+function cloudOk(L) { return !!(ui.url && L && L.r && !cloudBlocked(L.r)); }
 const DL_PKG = 'app.thesnowball.studio', DLP_KEY = 'pwa_studio_dlp', PROBE_WAIT_MS = 240e3;
+const LINK_POLL_MS = 1500, LINK_WAIT_MS = 150e3;   // הבדיקה בשרת (בדפדפן בלי האפליקציה)
 const dlNonce = () => Array.from({ length: 12 }, () => 'abcdefghijkmnpqrstuvwxyz23456789'[Math.floor(Math.random() * 32)]).join('');
+const DL_APK = 'https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball-studio.apk';
+/* 23/10/2026: Studio ישנה (בלי DlActivity) → Chrome לא עושה כלום בשקט. עם browser_fallback_url הוא חוזר אלינו עם
+   השגיאה ‎noapp‎ (‎#probe=<n>.!noapp / ‎#dle=<n>.noapp), והדף אומר לעדכן את האפליקציה */
 function dlIntent(kind, q) {
   const qs = Object.keys(q).filter((k) => q[k] !== '' && q[k] != null).map((k) => k + '=' + encodeURIComponent(q[k])).join('&');
-  return 'intent://' + kind + '?' + qs + '#Intent;scheme=snbstudio;package=' + DL_PKG + ';end';
+  let fb = '';
+  try { fb = location.origin + location.pathname + (kind === 'probe' ? '#probe=' + q.n + '.!noapp' : '#dle=' + q.n + '.noapp'); } catch (e) {}
+  return 'intent://' + kind + '?' + qs + '#Intent;scheme=snbstudio;package=' + DL_PKG + (fb ? ';S.browser_fallback_url=' + encodeURIComponent(fb) : '') + ';end';
+}
+/* Chrome פותח אפליקציה רק מתוך נגיעה (user activation). קישור שהגיע בשיתוף (הבועה, "שיתוף ← Studio") טוען את הדף בלי
+   נגיעה — שם ה־intent נחסם בשקט והדף חיכה לשווא (23/10/2026). בלי נגיעה פעילה — כפתור "בדיקת הקישור" */
+function hasTap() {
+  try { return !navigator.userActivation || navigator.userActivation.isActive; } catch (e) { return true; }
+}
+const PROBE_SLOW_MS = 15e3;
+function apkBtn() {   // הגרסה החדשה של Studio לאנדרואיד (מותקנת מעל הקיימת)
+  const a = h('a', 'st-btn wide', T('studioLinkApk')); a.href = DL_APK; a.rel = 'noopener'; a.dataset.k = 'link-apk';
+  const w = h('div'); w.append(h('div', 'st-gap sm'), a);
+  return w;
+}
+function probeGo(f, L) {
+  const seq = ++linkSeq;
+  L.st = 'busy'; L.slow = false; L.at = Date.now();
+  render('none');
+  location.href = dlIntent('probe', { u: L.u, ref: L.ref, n: L.n });
+  const live = () => seq === linkSeq && f.link === L && L.st === 'busy';
+  setTimeout(() => { if (live()) { L.slow = true; render('none'); } }, PROBE_SLOW_MS);
+  setTimeout(() => { if (live()) { L.st = 'err'; L.e = 'timeout'; render('none'); } }, PROBE_WAIT_MS);
 }
 /* base64url (UTF-8) → מחרוזת */
 export function b64uText(b) {
@@ -3008,11 +3039,29 @@ function linkCheck(f, raw, ref) {
   // ref — שלב 2: קובץ/זרם שנמצא בדף (דפדפן הציד) → הדף, והטלפון מוריד עם ה־Referer שלו
   const L = f.link = { u: String(raw || '').trim(), ref: /^https?:\/\//i.test(String(ref || '')) ? String(ref).slice(0, 2048) : '', st: 'busy', e: '', r: null, v: '', sec: null, ch: 1, at: Date.now() };
   const seq = ++linkSeq;
-  if (!devDl()) { L.st = 'err'; L.e = 'app'; render('none'); return; }   // בלי האפליקציה — אין הורדה (לא דרך השרת)
+  L.to = devDl() ? 'dev' : 'cloud';
+  if (!devDl()) {   // בלי האפליקציה: רק לענן (כשמותר — ui.url), אחרת הסבר
+    if (ui.url) linkCheckSrv(f, L, seq); else { L.st = 'err'; L.e = 'app'; }
+    render('none'); return;
+  }
   L.n = dlNonce();
-  render('none');
-  location.href = dlIntent('probe', { u: L.u, ref: L.ref, n: L.n });
-  setTimeout(() => { if (seq === linkSeq && f.link === L && L.st === 'busy') { L.st = 'err'; L.e = 'timeout'; render('none'); } }, PROBE_WAIT_MS);
+  if (!hasTap()) { L.st = 'tap'; render('none'); return; }
+  probeGo(f, L);
+}
+function linkCheckSrv(f, L, seq) {   // הבדיקה בשרת — רק בדפדפן בלי האפליקציה (ההורדה אז רק לענן)
+  (async () => {
+    let j = await net.api('urlProbe', L.ref ? { url: L.u, ref: L.ref } : { url: L.u });
+    while (j && j.ok && j.probe && (j.probe.st === 'q' || j.probe.st === 'r') && Date.now() - L.at < LINK_WAIT_MS) {
+      await sleep(LINK_POLL_MS);
+      if (seq !== linkSeq || form !== f || f.link !== L) return;
+      j = await net.api('urlProbe', { pid: j.probe.id });
+    }
+    if (seq !== linkSeq || f.link !== L) return;
+    if (!j || !j.ok) { L.st = 'err'; L.e = j && j.error === 'bad_url' ? 'bad_url' : j && j.error === 'flag_off' ? 'flag' : j && j.error ? 'srv:' + j.error : 'net'; }
+    else if (j.probe.st === 'd' && j.probe.r) { L.st = 'ok'; L.r = j.probe.r; const rec = linkRec(L.r); L.v = rec ? rec.v : ''; }
+    else { L.st = 'err'; L.e = j.probe.st === 'e' ? j.probe.e : 'timeout'; }
+    render('none');
+  })();
 }
 /* התשובה מ־DlActivity: ‎#probe=<n>.<base64url> או ‎#probe=<n>.!<קוד> (studio-app.js → hashchange) */
 export function studioProbeRes(arg) {
@@ -3091,10 +3140,15 @@ function pageLink(p) {
       rowNav({ tile: tile('help', 'gray'), label: T('studioFmtHelpT'), sub: T('studioFmtHelpS'), onClick: () => go('fmthelp'), k: 'fmthelp' })));
     return;
   }
+  if (L.st === 'tap') {   // הגיע בשיתוף — Chrome פותח את Studio רק מנגיעה
+    p.append(note(T('studioLinkTapS')), h('div', 'st-gap sm'), btn('st-btn wide', T('studioLinkTapB'), () => probeGo(f, L), 'link-tap'));
+    return;
+  }
   if (L.st === 'busy') {
     const ld = h('div', 'st-lk-ld'); ld.dataset.k = 'link-busy';
     ld.append(h('span', 'st-spin'), h('span', null, T('studioLinkChecking')));
-    p.append(ld, note(T('studioLinkCheckingS')));
+    p.append(ld, note(L.slow ? T('studioLinkSlow') : T('studioLinkCheckingS')));
+    if (L.slow) p.append(h('div', 'st-gap sm'), btn('st-btn tint wide', T('studioLinkRetry'), () => probeGo(f, L), 'link-again'), apkBtn());
     return;
   }
   if (L.st === 'err') {
@@ -3102,6 +3156,7 @@ function pageLink(p) {
     const card = h('div', 'st-lk-err'); card.dataset.k = 'link-err';
     card.append(ico('alert'), h('span', null, msg));
     p.append(card, h('div', 'st-gap sm'), btn('st-btn tint wide', T('studioLinkRetry'), () => linkCheck(f, L.u, L.ref), 'link-retry'));
+    if (L.e === 'noapp') p.append(apkBtn());
     if (L.e === 'blocked' || L.e === 'login' || L.e === 'unsupported' || L.e === 'no_video') p.append(note(T('studioLinkUpload')));
     // הניסוי: דף שהשרת לא מצא בו סרטון (נשלח מהבועה) — דפדפן הציד רואה את מה שהנגן מבקש בפועל
     if (grabOk() && !L.ref && (L.e === 'unsupported' || L.e === 'no_video' || L.e === 'fail')) p.append(h('div', 'st-gap sm'), btn('st-btn wide', T('studioHuntTry'), () => huntOpen(L.u), 'link-hunt'));
@@ -3128,6 +3183,17 @@ function pageLink(p) {
     p.append(grid);
   }
   if (cur) p.append(note(T('studioLinkPickS', { v: linkCodec(cur.c) || T('studioLinkVideo'), a: linkAudio(cur.ac) || T('studioLinkAudioW') })));
+  // לאן להוריד: לטלפון (ברירת המחדל) או ישר לענן של Studio — כשהמקור לא חוסם את השרת
+  if (devDl()) {
+    const cOk = cloudOk(L);
+    if (L.to === 'cloud' && !cOk) L.to = 'dev';
+    const cr = rowRadio({ on: L.to === 'cloud', label: T('studioLinkToCloud'),
+      sub: cOk ? T('studioLinkToCloudS') : !ui.url ? T('studioLinkToCloudOff') : T('studioLinkToCloudNo'),
+      onClick: () => { if (cOk) { L.to = 'cloud'; render('none'); } }, k: 'link-to:cloud' });
+    if (!cOk) cr.classList.add('off');
+    p.append(secT(T('studioLinkToT')), list(
+      rowRadio({ on: L.to !== 'cloud', label: T('studioLinkToDev'), sub: T('studioLinkToDevS'), onClick: () => { L.to = 'dev'; render('none'); }, k: 'link-to:dev' }), cr));
+  }
   // עוד
   const sec = L.sec ? fmtDur(L.sec[0]) + '–' + fmtDur(L.sec[1]) : T('studioLinkSecAll');
   p.append(secT(T('studioLinkMoreT')), list(
@@ -3135,7 +3201,7 @@ function pageLink(p) {
     r.ch && r.ch.length ? rowSwitch({ label: T('studioLinkCh'), sub: T('studioLinkChS', { n: fmtNum(r.ch.length) }), on: !!L.ch, onClick: () => { L.ch = L.ch ? 0 : 1; render('none'); }, k: 'link-ch' }) : null,
     rowNav({ tile: tile('sliders', 'gray'), label: T('studioLinkAll'), sub: T('studioLinkAllS'), onClick: () => go('linkfmt'), k: 'link-all' }),
     rowNav({ tile: tile('help', 'gray'), label: T('studioFmtHelpT'), sub: T('studioFmtHelpS'), onClick: () => go('fmthelp'), k: 'fmthelp' })));
-  p.append(note(T('studioLinkSrvNote')));
+  p.append(note(L.to === 'cloud' ? T('studioLinkCloudNote') : T('studioLinkSrvNote')));
   const go2 = btn('st-btn wide', T('studioLinkAdd'), () => { f.linkOk = true; back(); }, 'link-add2');
   go2.disabled = !L.v;
   p.append(h('div', 'st-gap'), go2);
@@ -3265,6 +3331,7 @@ function pageFmtHelp(p) {
    הטופס נשמר ב־sessionStorage — החזרה של הקובץ טוענת את הדף מחדש (POST ל־/share-file) */
 function startLink(f) {
   const L = f.link;
+  if (L && L.to === 'cloud') { startLinkCloud(f); return; }   // הבחירה "לענן של Studio"
   if (!L || L.st !== 'ok' || ui.starting) return;
   if (ui.access === 'signin' || ui.access === 'denied') { flashSafe(ui.access === 'signin' ? T('studioErrSignin') : T('studioErrDenied')); return; }
   if (!devDl()) { flashSafe(T('studioLinkEApp')); return; }
@@ -3288,6 +3355,44 @@ function startLink(f) {
     flashSafe(T('studioLinkDlWait'));
     location.href = dlIntent('dl', { u: L.r.u || L.u, ref: L.ref, n, v: pick.v, a: pick.a, h: pick.h,
       s0: pick.sec ? pick.sec[0] : '', s1: pick.sec ? pick.sec[1] : '', t: L.r.t });
+  })();
+}
+function startLinkCloud(f) {   // ישר לענן של Studio (העובד מוריד) — כשהמשתמש בחר ובמקור שלא חוסם את השרת
+  const L = f.link;
+  if (!L || L.st !== 'ok' || ui.starting) return;
+  if (ui.access === 'signin' || ui.access === 'denied') { flashSafe(ui.access === 'signin' ? T('studioErrSignin') : T('studioErrDenied')); return; }
+  if (!apiMode() && !cpMode()) { flashSafe(T('studioLinkApiOnly')); return; }
+  if (!langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }
+  const pick = linkPick(L);
+  if (!pick) return;
+  ui.starting = true; render('none');
+  (async () => {
+    const dur = pick.sec ? pick.sec[1] - pick.sec[0] : L.r.d || 0;
+    const o = L.r.q.find((x) => x.v === pick.v) || {};
+    const spec = { name: L.r.t, size: Math.max(1, linkSize(L)), type: 'video/url', dur, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
+      out: OUTS.filter((k) => f.out[k]), style: f.style, terms: f.terms, src: 'url', url: L.r.u || L.u, pick, eng: 'api', cap: store.settings.cap };
+    if (L.ref) spec.ref = L.ref;
+    if (cpMode()) spec.cp = 1;
+    if (o.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, (o.h * o.h * 16 / 9) / (1920 * 1080))) * 1000) / 1000;
+    const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
+    if (est.min && typeof askConfirm === 'function') {
+      const yes = await new Promise((ok) => askConfirm(cpMode() ? T('studioEstCp') : estText(est, apiMode()), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) }));
+      if (!yes || form !== f) { ui.starting = false; render('none'); return; }
+    }
+    const j = await net.api('create', { spec });
+    ui.starting = false;
+    if (!j.ok || !j.job) { flashSafe(errText(j.error)); render('none'); return; }
+    const rec = normJob({ id: j.job.id, created: j.job.created || Date.now(), spec: j.job.spec || spec, srv: j.job,
+      fp: { name: L.r.t, size: spec.size, lm: 0 }, up: { link: true, noAudio: 'link', a: { done: true }, v: { done: true }, folder: j.job.folder || '' } });   // אין מה להעלות מהטלפון
+    if (pick.ch && L.r.ch) rec.chap = normChapters(L.r.ch.map((c) => ({ t: c[0] - (pick.sec ? pick.sec[0] : 0), title: c[1] })).filter((c) => c.t >= 0), dur);
+    if (L.r.th) { thumbs.set(rec.id, L.r.th); idbOp('thumbs', 'put', rec.id, L.r.th); }   // התמונה מהבדיקה — בלי לחכות לסרטון
+    store.jobs.unshift(rec);
+    if (f.id) store.drafts = store.drafts.filter((d) => d.id !== f.id);
+    save();
+    form = null;
+    if (!root) { startRun(rec.id, null); return; }
+    replaceView('job', rec.id);
+    startRun(rec.id, null);
   })();
 }
 /* ההורדה הסתיימה: sw.js שמר את הקובץ (IndexedDB snb-inbox) והעביר לכאן עם ‎#got=<מפתח>. הטופס מההורדה (אם יש) —
