@@ -2963,6 +2963,7 @@ function linkErrText(e) {
     case 'playlist': return T('studioLinkEPlaylist');
     case 'unsupported': case 'no_video': return T('studioLinkENone');
     case 'tiny': return T('studioLinkETiny');
+    case 'not_video': return T('studioLinkENotVideo');
     case 'private': case 'bad_url': case 'dns': return T('studioLinkEBad');
     case 'timeout': case 'net': case 'no_server': return T('studioLinkENet');
     case 'app': return T('studioLinkEApp');

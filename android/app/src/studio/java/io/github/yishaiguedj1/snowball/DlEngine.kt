@@ -128,7 +128,9 @@ object DlEngine {
             val type = (c.contentType ?: "").lowercase()
             val len = c.contentLengthLong
             c.disconnect()
-            if (len > 0 && !type.contains("mpegurl") && !type.contains("dash") && !type.contains("text/")) q.getJSONObject(0).put("sz", len)
+            val list = type.contains("mpegurl") || type.contains("dash")
+            if (!list && (type.startsWith("text/") || type.contains("json") || type.contains("xml") || type.startsWith("image/"))) s.put("nv", 1)
+            else if (len > 0 && !list) q.getJSONObject(0).put("sz", len)
         } catch (e: Throwable) {}
     }
 
@@ -182,6 +184,13 @@ object DlEngine {
         val path = res.out.lines().map { it.trim() }.lastOrNull { it.startsWith("/") } ?: ""
         val f = File(path)
         if (path.isEmpty() || !f.isFile || !f.canonicalPath.startsWith(dir.canonicalPath)) throw IllegalArgumentException("fail")
+        // לא סרטון (דף שגיאה, פרסומת, קובץ ריק) — לא נשמר בגלריה; האתר מציג "הקובץ שירד הוא לא סרטון"
+        val head = ByteArray(200)
+        val n = try { f.inputStream().use { it.read(head) } } catch (e: Throwable) { 0 }
+        if (f.length() < DlDeep.MIN_BYTES / 3 || !DlDeep.looksLikeVideo(head.copyOf(maxOf(n, 0)))) {
+            dir.deleteRecursively()
+            throw IllegalArgumentException("not_video")
+        }
         return f
     }
 
