@@ -356,7 +356,7 @@ async function check(e, deps) {
   let st = '';
   try {
     const s = await snapshot(e, deps);
-    st = 'שרתי סטודיו מחוברים: ' + s.srv.length + ' · עבודות רצות/נלקחו: ' + s.busy.length + ' · בתור יותר מ־3 שעות: ' + s.oldQueue;
+    st = 'שרתי סטודיו מחוברים: ' + s.srv.length + ' · עבודות רצות/נלקחו: ' + s.busy.length + ' · בתור יותר מ־' + Math.round(UP.QUEUE_OLD / 60e3) + ' דק׳: ' + s.oldQueue;   // מהסף עצמו — לא טקסט קבוע שמתיישן
   } catch (x) { st = 'מצב העבודות: ✗ ' + x.message; }
   const h = await healthOnce(deps);
   return [
