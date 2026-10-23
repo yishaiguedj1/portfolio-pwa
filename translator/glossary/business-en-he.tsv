@@ -30,10 +30,19 @@ margin	שיעור רווח/מרווח
 gross margin	שיעור הרווח הגולמי/הרווח הגולמי
 operating income	רווח תפעולי
 net income	רווח נקי
-cash flow	תזרים מזומנים/תזרים
+cash flow	תזרים מזומנים/תזרים/מזומנים
 free cash flow	תזרים מזומנים חופשי
 EBITDA	EBITDA
 burn rate	קצב שריפת המזומנים/קצב השריפה
+run rate	קצב שנתי/בקצב שנתי	הכנסות "run rate" = הקצב הנוכחי כפול שנה
+stock-based compensation	תגמול מבוסס מניות
+SBC	תגמול מבוסס מניות	stock-based compensation
+TAM	גודל השוק הפוטנציאלי/השוק הפוטנציאלי
+total addressable market	גודל השוק הפוטנציאלי/השוק הפוטנציאלי
+CAGR	צמיחה שנתית ממוצעת/שיעור צמיחה שנתי
+year over year	לעומת השנה שעברה/בהשוואה שנתית
+P&L	דוח רווח והפסד/רווח והפסד
+operating leverage	מינוף תפעולי
 runway	הזמן עד שייגמר הכסף/מסלול	לפי הקשר: "כמה זמן נשאר לנו כסף"
 break-even	נקודת איזון/איזון
 unit economics	כלכלת היחידה/הרווחיות לכל לקוח
@@ -83,7 +92,7 @@ acquire	לרכוש
 merger	מיזוג
 exit	אקזיט/מימוש
 hedge fund	קרן גידור
-private equity	קרנות פרייבט אקוויטי/השקעות פרטיות
+private equity	קרנות פרייבט אקוויטי/השקעות פרטיות/פרייבט אקוויטי
 analyst	אנליסט/אנליסטים
 Wall Street	וול סטריט
 # --- אסטרטגיה ומוצר ---
@@ -161,8 +170,8 @@ leadership	מנהיגות
 decision	החלטה
 accountability	אחריותיות/לקיחת אחריות
 first principles	עקרונות יסוד/מאפס	"first principles thinking" = חשיבה מהיסוד
-long-term	לטווח ארוך
-short-term	לטווח קצר
+long-term	לטווח ארוך/ארוך טווח/ארוכת טווח
+short-term	לטווח קצר/קצר טווח/קצרת טווח
 mindset	תפיסה/גישה/דפוס חשיבה
 execution	ביצוע
 focus	מיקוד

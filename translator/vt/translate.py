@@ -252,6 +252,19 @@ def drift_ids(cues: list[dict], he: dict[str, str]) -> dict[str, int]:
     return out
 
 
+_TAG_Q = re.compile(r"^(?:right|you know|ok(?:ay)?|yeah|huh|no|isn't it|don't you|you see|correct|true)\W*$", re.I)
+
+
+def _real_question(en: str) -> bool:
+    """משפט שאלה של 3 מילים ומעלה באמצע הכתובית — לא "right?" בסוף משפט (מילת מילוי שמשמיטים לפי המדריך)"""
+    for m in re.finditer(r"([^.?!…]+)\?", en):
+        q = m.group(1).strip().strip(",;:-—")
+        tail = q.split(",")[-1].strip()
+        if len(q.split()) >= 3 and not _TAG_Q.match(tail):
+            return True
+    return False
+
+
 def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[str]]],
           max_chars: int = 84) -> tuple[list[str], dict]:
     """בדיקת התרגום מול התכנון. מחזיר (שורות דוח, סיכום)."""
@@ -334,8 +347,21 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
         if has_latin(txt):
             issues.append(f"- #{k}: אותיות לועזיות: {', '.join(latin_runs(txt))} (בסדר רק לשם מותג/מונח שנשאר בלועזית)")
             stats["latin"] += 1
-        if en.rstrip().endswith("?") and not txt.rstrip().endswith(("?", "?!", "!?")) and not c.get("parts"):
+        if c.get("parts") and "||" in t:
+            # 23/10/2026 (ניתוח המאגר): שאלה קצרה של דובר אחד נבלעה בכתובית של שני דוברים ("And what's your name?" → חסר)
+            for pi, (p, seg) in enumerate(zip(c["parts"], t.split("||", 1))):
+                seg = normalize_he(seg.replace("|", " ")).strip()
+                if not seg:
+                    issues.append(f"- #{k}: החלק של הדובר {'הראשון' if pi == 0 else 'השני'} הושמט — כל דובר מקבל תרגום")
+                    stats["errors"] += 1
+                elif str(p.get("en") or "").rstrip().endswith("?") and "?" not in seg:
+                    issues.append(f"- #{k}: שאלה במקור (הדובר {'הראשון' if pi == 0 else 'השני'}) — בתרגום אין סימן שאלה")
+                    stats["questions"] += 1
+        elif en.rstrip().endswith("?") and not txt.rstrip().endswith(("?", "?!", "!?")) and not c.get("parts"):
             issues.append(f"- #{k}: שאלה במקור — בתרגום אין סימן שאלה")
+            stats["questions"] += 1
+        elif not c.get("parts") and "?" not in txt and _real_question(en):
+            issues.append(f"- #{k}: שאלה במקור (באמצע הכתובית) — בתרגום אין סימן שאלה, לוודא שלא הושמטה")
             stats["questions"] += 1
         near = " ".join(normalize_he(str(he.get(str(x["id"]), ""))) for x in cues[max(0, ci - 1):ci + 2])
         for term, opts in glossary:
