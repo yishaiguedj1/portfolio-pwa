@@ -1,0 +1,181 @@
+package io.github.yishaiguedj1.snowball.dm
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.app.job.JobInfo
+import android.app.job.JobParameters
+import android.app.job.JobScheduler
+import android.app.job.JobService
+import android.content.BroadcastReceiver
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.net.Uri
+import android.os.Build
+import android.os.IBinder
+import io.github.yishaiguedj1.snowball.R
+
+/**
+ * מה שמחזיק את התהליך חי בזמן הורדה (לפי המחקר — "אנדרואיד 14–16 מכתיב UIDT"):
+ *  · אנדרואיד 14+: משימת העברה שהמשתמש התחיל (DmJob, UIDT) — בלי מגבלת 6 השעות של dataSync ובלי מכסות ה־jobs.
+ *    אפשר לתזמן רק כשהאפליקציה גלויה; כשלא — נופלים לשירות.
+ *  · מתחת ל־14 (ומקרה הנפילה): שירות בחזית dataSync (DmService) עם onTimeout שמחזיר הכל לתור.
+ * המערכת עוצרת → DmEngine.stopAllSystem: ההתקדמות כבר שמורה, וההורדה ממשיכה מאותו בייט כשחוזרים.
+ */
+object DmRun {
+    private const val JOB_ID = 5100
+
+    fun ensure(ctx: Context) {
+        if (Build.VERSION.SDK_INT >= 34 && DmJob.active) return
+        if (DmService.active) return
+        if (Build.VERSION.SDK_INT >= 34 && scheduleJob(ctx)) return
+        runCatching { ctx.startForegroundService(Intent(ctx, DmService::class.java)) }
+    }
+
+    fun idle(ctx: Context) {
+        DmJob.finish()
+        if (DmService.active) runCatching { ctx.stopService(Intent(ctx, DmService::class.java)) }
+    }
+
+    private fun scheduleJob(ctx: Context): Boolean {
+        val info = JobInfo.Builder(JOB_ID, ComponentName(ctx, DmJob::class.java))
+            .setUserInitiated(true)
+            .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+            .build()
+        return try {
+            (ctx.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler).schedule(info) == JobScheduler.RESULT_SUCCESS
+        } catch (e: Throwable) { false }
+    }
+}
+
+class DmJob : JobService() {
+    override fun onStartJob(params: JobParameters): Boolean {
+        current = this; currentParams = params; active = true
+        setNotification(params, DmNotif.N_RUN, DmNotif.running(this), JOB_END_NOTIFICATION_POLICY_REMOVE)
+        DmEngine.pump(this)
+        return true
+    }
+
+    override fun onStopJob(params: JobParameters): Boolean {
+        active = false; current = null
+        DmEngine.stopAllSystem()
+        return true   // לתזמן שוב — ממשיכים מאותו בייט
+    }
+
+    companion object {
+        @Volatile var active = false
+        @Volatile private var current: DmJob? = null
+        @Volatile private var currentParams: JobParameters? = null
+
+        fun finish() {
+            val j = current ?: return
+            val p = currentParams ?: return
+            active = false; current = null
+            runCatching { j.jobFinished(p, false) }
+        }
+
+        fun refresh(ctx: Context) {
+            val j = current ?: return; val p = currentParams ?: return
+            if (Build.VERSION.SDK_INT >= 34) runCatching { j.setNotification(p, DmNotif.N_RUN, DmNotif.running(ctx), JOB_END_NOTIFICATION_POLICY_REMOVE) }
+        }
+    }
+}
+
+class DmService : Service() {
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        active = true
+        val n = DmNotif.running(this)
+        if (Build.VERSION.SDK_INT >= 34) startForeground(DmNotif.N_RUN, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        else startForeground(DmNotif.N_RUN, n)
+        DmEngine.pump(this)
+        return START_NOT_STICKY
+    }
+
+    /** אנדרואיד 15: נגמרו 6 השעות של dataSync — שומרים, מחזירים לתור, ועוצרים (חובה, אחרת קריסה) */
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        DmEngine.stopAllSystem()
+        DmNotif.waiting(this)
+        stopSelf()
+    }
+
+    override fun onDestroy() { active = false; super.onDestroy() }
+
+    companion object { @Volatile var active = false }
+}
+
+/** אחרי אתחול: לא מתחילים ברקע (אנדרואיד 15 אוסר dataSync מ־BOOT_COMPLETED) — התראה "ממתינות", נגיעה = המשך */
+class DmBoot : BroadcastReceiver() {
+    override fun onReceive(ctx: Context, intent: Intent) {
+        DmStore.init(ctx)
+        if (DmEngine.hasWork()) DmNotif.waiting(ctx)
+    }
+}
+
+object DmNotif {
+    const val N_RUN = 51
+    private const val N_WAIT = 52
+    private const val CH = "dm"
+    private const val CH_DONE = "dm_done"
+    @Volatile private var lastUpd = 0L
+
+    private fun nm(ctx: Context) = ctx.getSystemService(NotificationManager::class.java)
+
+    private fun builder(ctx: Context, ch: String): Notification.Builder {
+        nm(ctx).createNotificationChannel(NotificationChannel(CH, ctx.getString(R.string.dmChRun), NotificationManager.IMPORTANCE_LOW))
+        nm(ctx).createNotificationChannel(NotificationChannel(CH_DONE, ctx.getString(R.string.dmChDone), NotificationManager.IMPORTANCE_DEFAULT))
+        return Notification.Builder(ctx, ch)
+    }
+
+    private fun openApp(ctx: Context, req: Int = 0) = PendingIntent.getActivity(ctx, req,
+        Intent(ctx, DmActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP), PendingIntent.FLAG_IMMUTABLE)
+
+    /** התראה אחת מקובצת לכל מה שרץ: "3 הורדות · 42%" */
+    fun running(ctx: Context): Notification {
+        val act = DmStore.all().filter { it.state == DmState.RUNNING }
+        val tot = act.sumOf { it.total.coerceAtLeast(0) }; val got = act.sumOf { it.got }
+        val pct = if (tot > 0) (got * 100 / tot).toInt() else -1
+        val title = if (act.size == 1) act[0].name.ifEmpty { act[0].title } else ctx.getString(R.string.dmNRunning, act.size)
+        val sp = DmEngine.speed.values.sum()
+        return builder(ctx, CH).setSmallIcon(android.R.drawable.stat_sys_download)
+            .setContentTitle(title.ifEmpty { ctx.getString(R.string.app_name) })
+            .setContentText((if (pct >= 0) "$pct% · " else "") + DmFmt.speed(ctx, sp))
+            .setOngoing(true).setOnlyAlertOnce(true).setContentIntent(openApp(ctx))
+            .setProgress(100, pct.coerceAtLeast(0), pct < 0).build()
+    }
+
+    fun update(ctx: Context) {
+        val now = System.currentTimeMillis()
+        if (now - lastUpd < 900) return
+        lastUpd = now
+        if (DmStore.all().none { it.state == DmState.RUNNING }) return
+        if (DmService.active) nm(ctx).notify(N_RUN, running(ctx))
+        DmJob.refresh(ctx)
+    }
+
+    fun done(ctx: Context, t: DmTask) {
+        val view = Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(t.uri), DmMedia.mimeFor(t.name, t.mime))
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        val pi = PendingIntent.getActivity(ctx, t.id.hashCode(), view, PendingIntent.FLAG_IMMUTABLE)
+        nm(ctx).notify(t.id.hashCode(), builder(ctx, CH_DONE).setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setContentTitle(ctx.getString(R.string.dmDoneN)).setContentText(t.name.ifEmpty { t.title })
+            .setAutoCancel(true).setContentIntent(pi).setGroup("dm_done").build())
+    }
+
+    fun failed(ctx: Context, t: DmTask) {
+        nm(ctx).notify(t.id.hashCode(), builder(ctx, CH_DONE).setSmallIcon(android.R.drawable.stat_notify_error)
+            .setContentTitle(ctx.getString(R.string.dmFailedN)).setContentText(t.name.ifEmpty { t.title } + " · " + DmFmt.err(ctx, t.err))
+            .setAutoCancel(true).setContentIntent(openApp(ctx, 3)).setGroup("dm_done").build())
+    }
+
+    fun waiting(ctx: Context) {
+        nm(ctx).notify(N_WAIT, builder(ctx, CH_DONE).setSmallIcon(android.R.drawable.stat_sys_download)
+            .setContentTitle(ctx.getString(R.string.dmWaitingN)).setContentText(ctx.getString(R.string.dmWaitingS))
+            .setAutoCancel(true).setContentIntent(openApp(ctx, 4)).build())
+    }
+}
