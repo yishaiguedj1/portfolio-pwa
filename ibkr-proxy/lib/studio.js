@@ -244,11 +244,26 @@ function normHl(list, vid) {
 }
 /* 22/10/2026 (בקשת המשתמש: לא לדרוס קול איכותי): עותק הקול לנגן — Opus בלבד, לצד המקור שבו נשאר הקול המקורי (Dolby/DTS…).
    הטלפון משתמש בו רק כשהוא לא מנגן את הקול המקורי בעצמו. **זהה ל־normAlt ב־studioplay.js** */
-function normHla(x) {
+// 23/10/2026: כמה רצועות קול — רשימה (עד HLA_MAX), לכל אחת שפה (קוד ISO בלבד) ו־d = ברירת המחדל. אובייקט יחיד (עבודה
+// מלפני 23/10 / עובד ישן) = רשימה של אחת. תמיד מחזיר רשימה או null; פריט לא תקין — כל הרשימה נזרקת
+const HLA_MAX = 4;
+const HLA_LANG_RE = /^[a-z]{2,3}$/;
+function normHla1(x) {
   if (!x || typeof x !== 'object' || Array.isArray(x) || !FILE_ID_RE.test(String(x.id || '')) || x.c !== 'opus') return null;
   const bw = Math.floor(Number(x.bw)), abw = Math.floor(Number(x.abw)), ch = Math.floor(Number(x.ch)), size = Math.floor(Number(x.size));
   if (!(bw >= 8000 && bw <= 2e6 && abw >= 8000 && abw <= bw && ch >= 1 && ch <= 8 && size > 0)) return null;
-  return { id: x.id, c: 'opus', bw, abw, ch, size };
+  const o = { id: x.id, c: 'opus', bw, abw, ch, size };
+  if (HLA_LANG_RE.test(String(x.l || ''))) o.l = x.l;
+  if (x.d === 1) o.d = 1;
+  return o;
+}
+function normHla(x) {
+  const list = Array.isArray(x) ? x : x ? [x] : [];
+  if (!list.length || list.length > HLA_MAX) return null;
+  const out = [];
+  for (const y of list) { const o = normHla1(y); if (!o || out.some((z) => z.id === o.id)) return null; out.push(o); }
+  if (out.filter((o) => o.d).length > 1) return null;
+  return out;
 }
 
 /* v359: הטוקנים והעלות של העבודה (מהעובד, בדיווח האחרון — finish/fail). עד 6 שורות: סוג (תיאום/תרגום/ביקורת/סוכן־משנה),

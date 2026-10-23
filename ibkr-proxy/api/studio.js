@@ -1530,8 +1530,8 @@ async function worker(req, res, body, deps) {
       // 22/10/2026: עותק הקול לנגן (Opus) — מאומת כמו האיכויות; לא תקין — האיכויות נשמרות בלעדיו (טלפון בלי מפענח לקול
       // המקורי ינגן בלי קול, כמו לפני כן)
       let hla = good && body.hla != null ? S.normHla(body.hla) : null;
-      if (hla && hl.some((x) => x.id === hla.id)) hla = null;
-      if (hla) { const m = await driveFileInFolder(deps, job.uid, job.folder, hla.id); if (!m || m.error || m.size !== hla.size) hla = null; }
+      if (hla && hla.some((a) => hl.some((x) => x.id === a.id))) hla = null;
+      for (const a of hla || []) { const m = await driveFileInFolder(deps, job.uid, job.folder, a.id); if (!m || m.error || m.size !== a.size) { hla = null; break; } }
       if (good) { up.hl = hl; up.fv = Object.assign({}, job.fv, { size: vs }); if (hla) up.hla = hla; }
     }
     if (body.ask != null) {
