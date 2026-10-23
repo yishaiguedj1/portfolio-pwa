@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1776 מפתחות מתוך 3886) */
+/* המחרוזות של studio (1778 מפתחות מתוך 3888) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -1672,6 +1672,8 @@ he: {
   "studioUnmute": "בטל השתקה",
   "studioUnmutedOk": "ההשתקה בוטלה",
   "studioUntitled": "ללא שם",
+  "studioUpBlockNet": "ההעלאה לא מתקדמת כבר {t} — מנסים שוב לבד. אם זה נמשך: לעבור לרשת אחרת, או לעצור ולהתחיל שוב",
+  "studioUpBlockStall": "החיבור נתקע כבר {t} בלי שום התקדמות — מנסים שוב לבד. אם זה נמשך: לעבור לרשת אחרת, או לעצור ולהתחיל שוב",
   "studioUpLeftS": "עד שכל הסרטון בענן",
   "studioUpOf": "עלו {a} מתוך {b}",
   "studioUpStopBig": "ההעלאה נעצרה",
@@ -3450,6 +3452,8 @@ en: {
   "studioUnmute": "Unmute",
   "studioUnmutedOk": "Unmuted",
   "studioUntitled": "Untitled",
+  "studioUpBlockNet": "The upload hasn't moved for {t} — retrying by itself. If it continues: switch networks, or stop and start again",
+  "studioUpBlockStall": "The connection has been stuck for {t} with no progress — retrying by itself. If it continues: switch networks, or stop and start again",
   "studioUpLeftS": "until the whole video is in the cloud",
   "studioUpOf": "{a} of {b} uploaded",
   "studioUpStopBig": "Upload paused",
