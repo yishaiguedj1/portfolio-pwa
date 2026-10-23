@@ -50,7 +50,7 @@ android {
     }
     sourceSets {
         getByName("academy").java.srcDir("src/lite/java")
-        getByName("studio").java.srcDirs("src/lite/java", "src/grab/java")   // grab = VideoUrl (גם דפדפן הציד וגם הבועה)
+        getByName("studio").java.srcDirs("src/lite/java", "src/grab/java", "src/ytdl/java")   // grab = VideoUrl (גם דפדפן הציד וגם הבועה); ytdl = מנוע yt-dlp (משותף עם Studio DM)
         getByName("bubble").java.srcDirs("src/lite/java", "src/grab/java")
     }
 
