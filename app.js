@@ -202,6 +202,8 @@ he: {
   noChartNow: 'אין נתוני גרף כרגע',
   noPriceYet: 'אין נתוני מחיר עדיין',
   totalStocks: 'סך מניות',
+  totalPortfolio: 'סך התיק',
+  pieCash: 'מזומן',
   myPortfolio: 'התיק שלי',
   pfHoldingsLegend: 'האחזקות הנוכחיות',
   pfNoteManualTwr: 'תשואה משוקללת־זמן (TWR) בדולרים מהעסקאות הידניות — קנייה ומכירה לא נספרות כרווח, כמו ב־IBKR.',
@@ -804,6 +806,8 @@ en: {
   noChartNow: 'No chart data right now',
   noPriceYet: 'No price data yet',
   totalStocks: 'Stocks total',
+  totalPortfolio: 'Portfolio total',
+  pieCash: 'Cash',
   myPortfolio: 'My portfolio',
   pfHoldingsLegend: 'Current holdings',
   pfNoteManualTwr: 'Time-weighted return (TWR) in USD from your manual trades — buys and sells are not counted as gains, like IBKR.',
@@ -4924,8 +4928,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.27.0';
-const APP_VERSION = 'v484';
+const APP_RELEASE = '2.28.0';
+const APP_VERSION = 'v487';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -5146,6 +5150,7 @@ const PIE_BRAND_COLORS = {
 };
 /* v178: צבעי הפרוסות לפי הדירוג בתיק (בקשת המשתמש — בדיוק הצבעים מצילום העוגה של הדמו): הגדולה ירוקה, השנייה תכלת,
    השלישית אלמוגית וכו'. אחרי 21 — מתחילים מחדש. */
+const PIE_CASH_COLOR = '#C7C7CC'; // פרוסת המזומן — אפור ניטרלי, לא מצבעי הדירוג של המניות
 const PIE_RANK_PALETTE = ['#8DC63F', '#8FC1E3', '#F46A5C', '#C95CF5', '#8BC9A6', '#F2D250', '#BE5B8D', '#9A9AA6', '#7CC6C2',
   '#97E38F', '#C6783F', '#F45CE6', '#D4F55C', '#8B9FC9', '#F25070', '#9DA69A', '#5BA6BE', '#9D7CC6', '#3FC656', '#E38FC1', '#5CF46A'];
 const PIE_FALLBACK_PALETTE = ['#8DC63F', '#8FC1E3', '#F46A5C', '#F5A35C', '#C98BBE', '#F2D250', '#9AA0A6', '#5B8DBE', '#B07CC6'];
@@ -7095,6 +7100,14 @@ function totalsUSD() {
   const ils = (DB.cash && DB.cash.ils) || 0;
   return { stockVal: stockVal, total: stockVal + usd + (state.fx ? ils / state.fx : 0) };
 }
+/* המזומן בדולרים — פרוסה בעוגה וחלק מהמכנה של "משקל בתיק". רק יתרה חיובית
+   (יתרה שלילית — מינוף — לא נכנסת לעוגה, והמשקלים נשארים מתוך המניות). טהורה. */
+const PIE_CASH = '$CASH';
+function pieCashUSD(cash, fx) {
+  const c = cash || {};
+  const v = (Number(c.usd) || 0) + (fx > 0 ? (Number(c.ils) || 0) / fx : 0);
+  return v >= 0.5 ? v : 0;
+}
 
 function depositsInCur() {
   const nd = netDepositsILS();
@@ -8188,6 +8201,9 @@ function drawPie() {
   // רשמיים שונים) — מפזרת ביניהם לפני שממשיכים, כדי שכל חברה תיבדל
   // גם ברשימת המקרא ולא רק בין שכנות בטבעת.
   const slicesUnique = pieDedupeColors(slices);
+  // המזומן = פרוסה משלו, כך שאחוז כל מניה הוא מתוך כל התיק (מניות + מזומן)
+  const cashV = slicesUnique.length ? pieCashUSD(DB.cash, state.fx) : 0;
+  if (cashV) slicesUnique.push({ sym: PIE_CASH, name: t('pieCash'), value: cashV, color: PIE_CASH_COLOR, cash: true });
   const total = slicesUnique.reduce((a, s) => a + s.value, 0);
 
   const dpr = window.devicePixelRatio || 1;
@@ -8216,7 +8232,8 @@ function drawPie() {
   // v170: לפי הגודל בתיק — הגדולה ביותר מ־12 בשעון, ומשם בכיוון השעון (מימין לשמאל), כמו המקרא.
   // הצבעים כבר מובדלים גלובלית (pieDedupeColors), כך שגם שכנות נבדלות.
   const ordered = slicesUnique.slice().sort((x, y) => y.value - x.value);
-  ordered.forEach((x, i) => { x.color = PIE_RANK_PALETTE[i % PIE_RANK_PALETTE.length]; }); // v178: צבע לפי דירוג (גם במקרא)
+  let rk = 0;
+  ordered.forEach((x) => { x.color = x.cash ? PIE_CASH_COLOR : PIE_RANK_PALETTE[rk++ % PIE_RANK_PALETTE.length]; }); // v178: צבע לפי דירוג (גם במקרא); המזומן — צבע קבוע
   // v169→v171: עיצוב נקי בסגנון אפל/גוגל — טבעת עבה עם רווח דק בצבע הכרטיס בין הפרוסות. לכל מניה אותה "תווית":
   // אריח לוגו בגודל אחיד + סימבול + בועה (אחוז מעל שווי). פרוסה קטנה מדי — התווית בולטת החוצה מעבר לשפה
   // (הטבעת מתכווצת בדיוק כמה שצריך), ותוויות לא עולות אחת על השנייה (מוזזות לאורך הטבעת).
@@ -8235,7 +8252,7 @@ function drawPie() {
     const pct = s.value / total * 100;
     // v187: זווית התווית (`lab`) נקבעת בשרשרת ב־posAt — צמודה לצד שנגד כיוון השעון של הפרוסה
     const g = { s: s, a: a0, a2: a2, mid: (a0 + a2) / 2, lab: (a0 + a2) / 2, pctTxt: pct.toFixed(1) + '%',
-      valTxt: fmtShortMoney(val(s.value), cur), symTxt: normalizeSym(s.sym) || '?' };
+      valTxt: fmtShortMoney(val(s.value), cur), symTxt: s.cash ? t('pieCash') : (normalizeSym(s.sym) || '?') };
     ctx.font = '700 10.5px ' + FONT;
     const symW = tw(g.symTxt), pW = tw(g.pctTxt);
     ctx.font = '500 10px ' + FONT;
@@ -8539,7 +8556,7 @@ function drawPie() {
     ctx.scale((g.sc || 1) * pop, (g.sc || 1) * pop); // גודל יחסי לפרוסה — הלוגו, הסימבול והבועה יחד
     let top = -(g.chip ? CHIP_H : H) / 2; // v186: שבב (הרבה מניות) — בלי שורת הסימבול
     // לוגו — אותו גודל לכל החברות
-    const e = pieLogoImg(s.sym);
+    const e = s.cash ? { ready: false, failed: true } : pieLogoImg(s.sym);
     const lx = x - LS / 2;
     const light = !!(e.ready && e.light && !e.inv); // לוגו לבן שלא הצלחנו להפוך — אריח כהה
     ctx.save();
@@ -8558,9 +8575,9 @@ function drawPie() {
       ctx.drawImage(e.inv || e.img, x - iw * sc / 2, top + LS / 2 - ih * sc / 2, iw * sc, ih * sc);
       ctx.restore();
     } else {
-      ctx.fillStyle = '#3A3A3C'; ctx.font = '700 ' + Math.round(LS * 0.44) + 'px ' + FONT;
+      ctx.fillStyle = s.cash ? pieShade(PIE_CASH_COLOR, -0.45) : '#3A3A3C'; ctx.font = '700 ' + Math.round(LS * 0.44) + 'px ' + FONT;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(g.symTxt.charAt(0), x, top + LS / 2 + 0.5);
+      ctx.fillText(s.cash ? (cur === 'ILS' ? '₪' : '$') : g.symTxt.charAt(0), x, top + LS / 2 + 0.5);
     }
     top += LS + 2;
     if (!g.chip) { // סימבול — מחוץ לטבעת בצבע הטקסט של הכרטיס, בתוכה כהה על הפסטל
@@ -8599,7 +8616,7 @@ function drawPie() {
     ctx.save(); ctx.globalAlpha = 1 - cf;
     ctx.fillStyle = cssVar('--on-surface-var', '#6B6B70');
     ctx.font = '600 ' + small + 'px ' + FONT;
-    ctx.fillText(t('totalStocks'), cx, cy - 8 - cf * 6);
+    ctx.fillText(cashV ? t('totalPortfolio') : t('totalStocks'), cx, cy - 8 - cf * 6);
     ctx.fillStyle = cssVar('--on-surface', '#191C1A');
     ctx.font = '800 ' + big + 'px ' + FONT;
     ctx.fillText(money(val(total), cur), cx, cy + 17 - cf * 6);
@@ -8627,15 +8644,15 @@ function drawPie() {
   legend.innerHTML = '';
   const sorted = slicesUnique.slice().sort((a, b) => b.value - a.value);
   for (const s of sorted) {
-    const src = logoSrc(s.sym);
+    const src = s.cash ? null : logoSrc(s.sym);
     const e = src ? pieLogoImg(s.sym) : null;
-    const full = companyName(s.sym, s.name);
+    const full = s.cash ? '' : companyName(s.sym, s.name);
     const li = el('li', '',
       '<span class="pie-leg-logo' + (e && e.ready && e.light ? ' inv' : '') + '">' +
-      '<span class="pie-leg-fb">' + esc((normalizeSym(s.sym) || '?').charAt(0)) + '</span>' +
+      '<span class="pie-leg-fb">' + esc(s.cash ? (cur === 'ILS' ? '₪' : '$') : (normalizeSym(s.sym) || '?').charAt(0)) + '</span>' +
       (src && !(e && e.failed) ? '<img src="' + src + '" alt="" loading="lazy" decoding="async" data-err="hide-self">' : '') + '</span>' +
       '<span class="dot" style="background:' + s.color + '"></span>' +
-      '<span class="lg-name"><bdi dir="ltr" class="lg-sym">' + esc(s.sym) + '</bdi>' +
+      '<span class="lg-name">' + (s.cash ? '<span class="lg-sym">' + esc(t('pieCash')) + '</span>' : '<bdi dir="ltr" class="lg-sym">' + esc(s.sym) + '</bdi>') +
       (full && full.toUpperCase() !== String(s.sym).toUpperCase() ? '<span class="lg-full" dir="auto">' + esc(full) + '</span>' : '') + '</span>' +
       '<span class="lg-val">' + money(val(s.value), cur) + '</span>' +
       '<span class="lg-pct">' + (s.value / total * 100).toFixed(1) + '%</span>');
@@ -12885,7 +12902,8 @@ function weightTxt(sym) {
   const q = state.quotes[sym];
   if (!tot.stockVal || !q) return '—';
   const v = nativeToUSD(q.close * p.shares, sym);
-  return v === null ? '—' : (v / tot.stockVal * 100).toFixed(1) + '%';
+  const base = tot.stockVal + pieCashUSD(DB.cash, state.fx); // כולל מזומן — כמו בעוגה
+  return v === null ? '—' : (v / base * 100).toFixed(1) + '%';
 }
 
 /* v193: פתיחה/סגירה עם אנימציית גובה (grid 0fr↔1fr) — אבל גוף סגור נשאר display:none (בלי עלות layout ל־10 גופים
@@ -14036,6 +14054,7 @@ function renderAll(opts) {
   try { renderAllInner(); } finally { _renderForce = false; }
 }
 function renderAllInner() {
+  try { renderCashInputs(); } catch (e) {} // 23/10/2026: המזומן בתפריט מתעדכן אחרי סנכרון IBKR / טעינה מהענן (עד אז — רק בפתיחה)
   // v141: מניה שנוספה ביד במצב IBKR (לפני v141) מסומנת ידנית — נכללת בחישובים ונשמרת בסנכרון
   try { if (markManualPositions()) saveDB(); } catch (e) {}
   // v157: מחירי ת"א שהוזנו באגורות לפני v157 — מתוקנים פעם אחת כשיש מחיר חי
@@ -14302,8 +14321,9 @@ function wireEditToggle(btnId, hintId, key, rerender) {
 function renderCashInputs() {
   const u = document.getElementById('cashUsd');
   const s = document.getElementById('cashIls');
-  if (u) u.value = (DB.cash && DB.cash.usd) || 0;
-  if (s) s.value = (DB.cash && DB.cash.ils) || 0;
+  const act = typeof document !== 'undefined' && document.activeElement; // לא דורסים שדה שמקלידים בו
+  if (u && act !== u) u.value = (DB.cash && DB.cash.usd) || 0;
+  if (s && act !== s) s.value = (DB.cash && DB.cash.ils) || 0;
 }
 
 function renderPensionFundEditors() {
