@@ -8231,7 +8231,9 @@ function drawPie() {
   }
   // v170: לפי הגודל בתיק — הגדולה ביותר מ־12 בשעון, ומשם בכיוון השעון (מימין לשמאל), כמו המקרא.
   // הצבעים כבר מובדלים גלובלית (pieDedupeColors), כך שגם שכנות נבדלות.
-  const ordered = slicesUnique.slice().sort((x, y) => y.value - x.value);
+  // המזומן תמיד אחרון — הפרוסה האחרונה עם כיוון השעון (משמאל, לפני 12), בלי קשר לגודל (בקשת המשתמש: "יותר מסודר בעין")
+  const cashLast = (x, y) => (x.cash ? 1 : 0) - (y.cash ? 1 : 0) || y.value - x.value;
+  const ordered = slicesUnique.slice().sort(cashLast);
   let rk = 0;
   ordered.forEach((x) => { x.color = x.cash ? PIE_CASH_COLOR : PIE_RANK_PALETTE[rk++ % PIE_RANK_PALETTE.length]; }); // v178: צבע לפי דירוג (גם במקרא); המזומן — צבע קבוע
   // v169→v171: עיצוב נקי בסגנון אפל/גוגל — טבעת עבה עם רווח דק בצבע הכרטיס בין הפרוסות. לכל מניה אותה "תווית":
@@ -8562,7 +8564,7 @@ function drawPie() {
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,' + (0.18 + 0.16 * Math.min(1, gL)).toFixed(3) + ')'; ctx.shadowBlur = 6 + 10 * gL; ctx.shadowOffsetY = 1.5 + 4 * gL;
     pieRoundRect(ctx, lx, top, LS, LS, LS * 0.26);
-    ctx.fillStyle = light ? '#1D1D1F' : '#FFFFFF';
+    ctx.fillStyle = s.cash ? cssVar('--primary', '#30D158') : light ? '#1D1D1F' : '#FFFFFF'; // המזומן — אריח בירוק של הכפתורים
     ctx.fill();
     ctx.restore();
     if (e.ready && !e.failed && e.img.naturalWidth) {
@@ -8575,7 +8577,7 @@ function drawPie() {
       ctx.drawImage(e.inv || e.img, x - iw * sc / 2, top + LS / 2 - ih * sc / 2, iw * sc, ih * sc);
       ctx.restore();
     } else {
-      ctx.fillStyle = s.cash ? pieShade(PIE_CASH_COLOR, -0.45) : '#3A3A3C'; ctx.font = '700 ' + Math.round(LS * 0.44) + 'px ' + FONT;
+      ctx.fillStyle = s.cash ? cssVar('--on-primary', '#06281A') : '#3A3A3C'; ctx.font = (s.cash ? '800 ' + Math.round(LS * 0.6) : '700 ' + Math.round(LS * 0.44)) + 'px ' + FONT;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(s.cash ? (cur === 'ILS' ? '₪' : '$') : g.symTxt.charAt(0), x, top + LS / 2 + 0.5);
     }
@@ -8642,13 +8644,13 @@ function drawPie() {
   // v180: בזמן האנימציה לא בונים את הרשימה מחדש (התמונות היו מהבהבות) — רק מסמנים את השורה הפעילה
   if (pieAnimRaf && legend.children && legend.children.length) { pieMarkLegend(legend); return; }
   legend.innerHTML = '';
-  const sorted = slicesUnique.slice().sort((a, b) => b.value - a.value);
+  const sorted = slicesUnique.slice().sort(cashLast);
   for (const s of sorted) {
     const src = s.cash ? null : logoSrc(s.sym);
     const e = src ? pieLogoImg(s.sym) : null;
     const full = s.cash ? '' : companyName(s.sym, s.name);
     const li = el('li', '',
-      '<span class="pie-leg-logo' + (e && e.ready && e.light ? ' inv' : '') + '">' +
+      '<span class="pie-leg-logo' + (s.cash ? ' cash' : e && e.ready && e.light ? ' inv' : '') + '">' +
       '<span class="pie-leg-fb">' + esc(s.cash ? (cur === 'ILS' ? '₪' : '$') : (normalizeSym(s.sym) || '?').charAt(0)) + '</span>' +
       (src && !(e && e.failed) ? '<img src="' + src + '" alt="" loading="lazy" decoding="async" data-err="hide-self">' : '') + '</span>' +
       '<span class="dot" style="background:' + s.color + '"></span>' +

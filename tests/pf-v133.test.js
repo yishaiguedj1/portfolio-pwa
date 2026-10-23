@@ -166,6 +166,12 @@ function makeSandbox() {
   ok(A('weightTxt')('META') === '42.9%', 'משקל בתיק בכרטיס המניה — כולל מזומן, כמו בעוגה');
   ok(A('pieCashUSD')({ usd: -500, ils: 0 }, 3.1) === 0, 'יתרה שלילית (מינוף) — לא פרוסה');
   legendChildren.length = 0;
+  run(`DB.cash = { usd: 20000, ils: 0 }; drawPie();`);
+  ok(/lg-sym">מזומן</.test(legendChildren[legendChildren.length - 1].innerHTML), 'מזומן תמיד אחרון במקרא — גם כשהוא הגדול');
+  ok(/pie-leg-logo cash/.test(legendChildren[legendChildren.length - 1].innerHTML), 'מזומן: אריח בצבע המערכת (cash)');
+  const segs = A('state').pieGeom.segs;
+  ok(segs[segs.length - 1].sym === A('PIE_CASH'), 'מזומן: הפרוסה האחרונה בעוגה (משמאל, לפני 12)');
+  legendChildren.length = 0;
   run(`DB.cash = { usd: 0, ils: 0 }; drawPie();`);
   ok(legendChildren.length === 2 && A('weightTxt')('META') === '60.0%', 'בלי מזומן — כמו קודם');
 
