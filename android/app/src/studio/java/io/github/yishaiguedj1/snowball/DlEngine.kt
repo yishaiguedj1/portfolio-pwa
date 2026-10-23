@@ -74,9 +74,11 @@ object DlEngine {
         return try { Ck(f, u.readText()) } catch (e: Throwable) { null }
     }
 
-    private fun base(req: YoutubeDLRequest, ref: String, ck: Ck? = null): YoutubeDLRequest {
+    private fun base(req: YoutubeDLRequest, ref: String, ck: Ck? = null, quick: Boolean = false): YoutubeDLRequest {
         if (ck != null) req.addOption("--cookies", ck.file.absolutePath).addOption("--user-agent", ck.ua)
-        req.addOption("--no-playlist").addOption("--socket-timeout", 20).addOption("--retries", 5)
+        // 23/10/2026: בבדיקה — ניסיונות קצרים (5 ניסיונות × 20 שנ׳ השאירו את הבדיקה יותר מדקה בלי תשובה)
+        if (quick) req.addOption("--no-playlist").addOption("--socket-timeout", 12).addOption("--retries", 1).addOption("--extractor-retries", 1)
+        else req.addOption("--no-playlist").addOption("--socket-timeout", 20).addOption("--retries", 5)
             .addOption("--fragment-retries", 10).addOption("--extractor-retries", 2)
         val r = DlProbe.refOk(ref)
         if (r.isNotEmpty()) {
@@ -88,15 +90,18 @@ object DlEngine {
     }
 
     /** בדיקה: yt-dlp -J → הסיכום של DlProbe + תמונה קטנה. כשל → IllegalArgumentException(קוד) */
-    fun probe(ctx: Context, url: String, ref: String, ck: Ck? = null, onStage: (String) -> Unit = {}): JSONObject {
+    fun probe(ctx: Context, url: String, ref: String, ck: Ck? = null, id: String? = null, onStage: (String) -> Unit = {}): JSONObject {
         prepare(ctx, onStage)
         onStage("probe")
-        // לא נמצא סרטון בכתובת כמו שהיא → הכתובות החלופיות (DlProbe.altUrls: www.); שגיאה אחרת — מיד
+        // לא נמצא סרטון בכתובת כמו שהיא → הכתובות החלופיות (DlProbe.altUrls: www.); שגיאה אחרת — מיד.
+        // קובץ שנתפס בדף (ref) או כתובת של קובץ/זרם — בלי חלופות (www. של שרת קבצים רק מוסיף המתנה)
+        val alts = if (ref.isNotEmpty() || DlDeep.isMediaUrl(url)) emptyList() else DlProbe.altUrls(url)
         var s: JSONObject? = null; var info: JSONObject? = null; var err: IllegalArgumentException? = null
-        for (u in listOf(url) + DlProbe.altUrls(url)) {
+        for (u in listOf(url) + alts) {
             try {
                 val out = try {
-                    YoutubeDL.getInstance().execute(base(YoutubeDLRequest(u), ref, ck).addOption("-J").addOption("--skip-download")).out
+                    YoutubeDL.getInstance().execute(base(YoutubeDLRequest(u), ref, ck, true).addOption("-J").addOption("--skip-download"), id).out
+                } catch (e: YoutubeDL.CanceledException) { throw IllegalArgumentException("cancel")
                 } catch (e: Throwable) { throw IllegalArgumentException(DlProbe.errCode(e.message)) }
                 val i = try { JSONObject(out) } catch (e: Throwable) { throw IllegalArgumentException("fail") }
                 s = DlProbe.summarize(i); info = i; break

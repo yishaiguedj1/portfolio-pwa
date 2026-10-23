@@ -133,5 +133,15 @@ function done() {
   ok(/name="dlDeep"/.test(R('android/app/src/studio/res/values/strings.xml')) && /name="dlDeep"/.test(R('android/app/src/studio/res/values-en/strings.xml')), 'dlDeep בעברית ובאנגלית');
   for (const k of ['studioLinkEApp', 'studioLinkDlWait', 'studioLinkGot', 'studioLinkEStore', 'studioLinkFailT'])
     ok((R('app.js').match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, k + ' בעברית ובאנגלית');
+  // 23/10/2026: תקרת זמן לבדיקה (דפדפן הציד — יותר מדקה בלי תשובה), ניסיונות קצרים, בלי חלופות לקובץ ישיר
+  {
+    const act = R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/DlActivity.kt'), en2 = R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/DlEngine.kt');
+    ok(/PROBE_REF_MS = 45_000L/.test(act) && /PROBE_MS = 90_000L/.test(act) && /if \(probeSlow\) "slow"/.test(act), 'תקרת זמן לבדיקה → slow');
+    ok(/HUNT_ON = setOf\([^)]*"slow"/.test(act), 'slow בדף → הבדיקה לעומק');
+    ok(/deepProbe\(h\.url, page, ck, PROBE_REF_MS\)/.test(act) && /DlEngine\.cancel\(it\)/.test(act), 'הבדיקות שבתוך הבדיקה לעומק — מוגבלות ונעצרות');
+    ok(/"--retries", 1\)/.test(en2) && /ref\.isNotEmpty\(\) \|\| DlDeep\.isMediaUrl\(url\)\) emptyList\(\)/.test(en2), 'ניסיונות קצרים ובלי חלופות לקובץ');
+    ok(/case 'slow': return T\('studioLinkESlow'\)/.test(st) && (R('app.js').match(/\bstudioLinkESlow: "/g) || []).length === 2, 'slow — טקסט בשתי השפות');
+    ok(/\(L\.e === 'tiny' \|\| L\.e === 'slow'\) && L\.ref/.test(st), 'slow על קובץ מהציד → לנסות בדפדפן הציד');
+  }
   console.log('studio-devdl: ' + n + ' בדיקות עברו');
 }
