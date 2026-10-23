@@ -379,7 +379,7 @@ class TestWorker(unittest.TestCase):
         self.assertLess(self.fake.reports.index(early[1]), self.fake.reports.index(done))
 
     # ---------------------------------------------------------------- איכויות צפייה (ladder.py)
-    def seed_ladder(self, s='ok', alt=False):
+    def seed_ladder(self, s='ok', alt=False, multi=False):
         d = self.tmp / 'work' / '_ladder'
         (d / 'out').mkdir(parents=True, exist_ok=True)
         (d / 'out' / 'top.mp4').write_bytes(b'T' * 500000)
@@ -393,7 +393,11 @@ class TestWorker(unittest.TestCase):
             top['c'] = 'avc1.640028,ec-3'
             (d / 'out' / 'alt.mp4').write_bytes(b'A' * 40000)
             a = {'bw': 330000, 'abw': 300000, 'c': 'opus', 'ch': 6, 'size': 40000, 'f': str(d / 'out' / 'alt.mp4')}
-        (d / 'state.json').write_text(json.dumps({'job': JOB, 's': s, 'why': '' if s == 'ok' else 'gop', 'top': top, 'rungs': rungs, 'alt': a}))
+        st = {'job': JOB, 's': s, 'why': '' if s == 'ok' else 'gop', 'top': top, 'rungs': rungs, 'alt': a}
+        if multi:                                # 23/10/2026: שתי רצועות קול — עותק לכל אחת, השנייה ברירת המחדל
+            (d / 'out' / 'alt1.mp4').write_bytes(b'B' * 20000)
+            st['alts'] = [dict(a, l='eng'), {'bw': 140000, 'abw': 128000, 'c': 'opus', 'ch': 2, 'l': 'heb', 'd': 1, 'f': str(d / 'out' / 'alt1.mp4')}]
+        (d / 'state.json').write_text(json.dumps(st))
 
     def test_ladder_finish(self):
         self.assertEqual(self.take()[0], 0)
@@ -437,6 +441,19 @@ class TestWorker(unittest.TestCase):
         self.assertNotIn(hla['id'], [x['id'] for x in done['hl']], 'העותק לא נכנס לרשימת האיכויות')
         self.assertEqual(done['hl'][0]['c'], 'avc1.640028,ec-3', 'המקור עם הקול המקורי')
         self.assertIn('עותק קול לנגן (Opus, 6 ערוצים)', out)
+
+    def test_ladder_multi_audio(self):
+        self.assertEqual(self.take()[0], 0)
+        self.assertEqual(self.job('prepare')[0], 0)
+        self.assertEqual(self.job('align')[0], 0)
+        self.seed_ladder(alt=True, multi=True)
+        code, out = self.job('finish')
+        self.assertEqual(code, 0, out)
+        hla = self.fake.reports[-1].get('hla')
+        self.assertIsInstance(hla, list)
+        self.assertEqual([(x['ch'], x.get('l'), x.get('d'), x['size']) for x in hla], [(6, 'eng', None, 40000), (2, 'heb', 1, 20000)])
+        names = sorted(u['meta'].get('name') for u in self.fake.uploads.values() if 'קול לנגן' in (u['meta'].get('name') or ''))
+        self.assertEqual(names, ['Interview_2026 (קול לנגן 1 · eng).mp4', 'Interview_2026 (קול לנגן 2 · heb).mp4'])
 
     def test_ladder_not_ready(self):
         self.assertEqual(self.take()[0], 0)

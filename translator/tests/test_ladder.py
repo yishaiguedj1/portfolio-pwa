@@ -29,7 +29,7 @@ class TestPlan(unittest.TestCase):
         self.assertEqual([r[0] for r in L.plan(sm(w=3840, h=2160))['rungs']], [1440, 1080, 720, 480, 360, 240, 144])
         self.assertEqual(L.plan(sm(w=1080, h=1920))['short'], 1080, 'אנכי — לפי הצלע הקצרה (כמו YouTube)')
         self.assertEqual(L.plan(sm(w=1280, h=720))['rungs'][0][0], 480)
-        for kw, why in ((dict(na=2), 'streams'), (dict(other=['subtitle']), 'streams'), (dict(nv=0), 'streams'),
+        for kw, why in ((dict(na=L.A_MAX + 1), 'streams'), (dict(other=['subtitle']), 'streams'), (dict(nv=0), 'streams'),
                         (dict(v='prores'), 'vcodec'), (dict(a='pcm_s16le'), 'acodec'), (dict(gop=30.0), 'gop'),
                         (dict(gop=0.0), 'gop'), (dict(w=176, h=144), 'small')):
             self.assertEqual(L.plan(sm(**kw))['why'], why, kw)
@@ -160,6 +160,42 @@ class TestBuild(unittest.TestCase):
         self.assertAlmostEqual(float(j['format']['duration']), 8.0, delta=0.1)
         self.assertTrue(L.sidx_index(L.head(alt['f'])), 'עם אינדקס — הנגן בונה ממנו רשימת קטעים')
         self.assertLess(Path(alt['f']).stat().st_size, top.stat().st_size / 3)
+
+    def test_multi_audio(self):
+        # 23/10/2026: שתי רצועות קול (AAC אנגלית + E-AC3 עברית, ברירת המחדל) — כולן נשארות במקור בבייטים, ועותק Opus לכל אחת
+        if not self.ok:
+            self.skipTest('ffmpeg בלי libx264')
+        src = self.tmp / 'multi.mkv'
+        r = subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(self.src), '-f', 'lavfi', '-i', 'sine=frequency=440:d=8',
+                            '-f', 'lavfi', '-i', 'sine=frequency=330:d=8,aformat=channel_layouts=5.1(side)',
+                            '-map', '0:v', '-map', '1:a', '-map', '2:a', '-c:v', 'copy', '-c:a:0', 'aac', '-c:a:1', 'eac3',
+                            '-metadata:s:a:0', 'language=eng', '-metadata:s:a:1', 'language=heb',
+                            '-disposition:a:0', '0', '-disposition:a:1', 'default', str(src)], capture_output=True)
+        if r.returncode:
+            self.skipTest('ffmpeg בלי מקודד eac3')
+        sm = L.probe(src)
+        self.assertEqual([(t['c'], t['ch'], t['l'], t['d']) for t in sm['as']], [('aac', 1, 'eng', 0), ('eac3', 6, 'heb', 1)])
+        self.assertTrue(L.plan(sm)['alt'], 'כמה רצועות = תמיד עותקים (גם כשהראשונה AAC)')
+        res = L.build(src, self.tmp / 'out5', log=lambda m: None)
+        self.assertTrue(res['ok'], res)
+        top = Path(res['top']['f'])
+        for i in (0, 1):
+            self.assertEqual(self.md5(top, 'a:%d' % i), self.md5(src, 'a:%d' % i), 'רצועה %d נשארה בבייטים' % i)
+        alts = res['alts']
+        self.assertEqual([(a['c'], a['ch'], a.get('l'), a.get('d')) for a in alts], [('opus', 1, 'eng', None), ('opus', 6, 'heb', 1)])
+        for a in alts:
+            self.assertTrue(L.sidx_index(L.head(a['f'])))
+        self.assertEqual(res['alt']['f'], alts[0]['f'])
+
+    def test_too_many_audio(self):
+        sm = {'nv': 1, 'na': L.A_MAX + 1, 'other': [], 'v': 'h264', 'a': 'aac', 'ch': 2, 'as': [{'c': 'aac', 'ch': 2, 'l': '', 'd': 0}] * (L.A_MAX + 1),
+              'w': 1920, 'h': 1080, 'dur': 10, 'gop': 2}
+        self.assertEqual(L.plan(sm)['why'], 'streams')
+        sm2 = dict(sm, na=2, **{'as': [{'c': 'aac', 'ch': 2, 'l': '', 'd': 0}, {'c': 'pcm_s16le', 'ch': 2, 'l': '', 'd': 0}]})
+        self.assertEqual(L.plan(sm2)['why'], 'acodec', 'קודק לא נתמך באחת הרצועות — לא נוגעים')
+        old = {k: v for k, v in sm.items() if k != 'as'}
+        old['na'] = 1
+        self.assertTrue(L.plan(old)['ok'], 'תקציר ישן בלי as — רצועה אחת')
 
     def test_gate_after_top(self):
         # 22/10/2026 (אפשרות א׳): המקור נארז מיד, והנמוכות מתקודדות רק אחרי השער (סוף הצריבה)

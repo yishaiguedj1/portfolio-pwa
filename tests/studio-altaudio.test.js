@@ -53,7 +53,14 @@ function traf(id, off) { return box('traf', box('tfhd', u32(0x020000), u32(id)),
   /* ---------- עותק הקול: זהה בטלפון ובשרתון ---------- */
   const a = { id: 'R2_abcdefghij_klmnopqrstuv', c: 'opus', bw: 330000, abw: 300000, ch: 6, size: 12345 };
   const pa = P.normAlt(a), sa = SV.normHla(a);
-  ok(pa && sa && pa.id === sa.id && pa.ch === 6 && pa.bw === sa.bw, 'normAlt (טלפון) = normHla (שרתון)');
+  ok(pa && sa && pa.length === 1 && sa.length === 1 && pa[0].id === sa[0].id && pa[0].ch === 6 && pa[0].bw === sa[0].bw, 'normAlt (טלפון) = normHla (שרתון) — אובייקט ישן = רשימה של אחת');
+  // 23/10/2026: כמה רצועות קול — אותו כלל בשני הצדדים
+  const b2 = { ...a, id: 'R2_abcdefghij_zzzzzzzzzzzz', ch: 2, l: 'heb', d: 1 };
+  for (const x of [[a, b2], [a, { ...b2, l: 'עב' }], [{ ...a, d: 1 }, b2], [a, a], [a, b2, { ...b2, id: 'R2_abcdefghij_yyyyyyyyyyyy', d: 0 }, { ...b2, id: 'R2_abcdefghij_xxxxxxxxxxxx', d: 0 }, { ...b2, id: 'R2_abcdefghij_wwwwwwwwwwww', d: 0 }], []]) {
+    const p1 = P.normAlt(x), s1 = SV.normHla(x);
+    ok(JSON.stringify(p1 && p1.map(({ size, ...r }) => r)) === JSON.stringify(s1 && s1.map(({ size, ...r }) => r)), 'כמה רצועות: אותה תוצאה בשני הצדדים (' + (p1 ? p1.length : 'null') + ')');
+  }
+  ok(P.normAlt([a, b2]).length === 2 && P.normAlt([a, b2])[1].l === 'heb' && P.normAlt([a, { ...b2, l: 'עב' }])[1].l === undefined, 'שפה רק כקוד ISO');
   for (const bad of [{ ...a, c: 'mp4a.40.2' }, { ...a, ch: 9 }, { ...a, abw: 400000 }, { ...a, id: 'x' }, null])
     ok(!P.normAlt(bad) && !SV.normHla(bad), 'עותק קול לא תקין נדחה בשני הצדדים: ' + JSON.stringify(bad && { c: bad.c, ch: bad.ch, id: bad.id }));
   ok(SV.normHl([{ id: 'R2_abcdefghij_aaaaaaaaaaaa', w: 1920, h: 1080, bw: 9e6, abw: 8e6, c: 'avc1.640028,ec-3', size: 9 }, { id: 'R2_abcdefghij_bbbbbbbbbbbb', w: 1280, h: 720, bw: 2e6, abw: 1e6, c: 'avc1.64001f,mp4a.40.2', size: 9 }]),
@@ -71,6 +78,12 @@ function traf(id, off) { return box('traf', box('tfhd', u32(0x020000), u32(id)),
   ok(m.includes('CODECS="avc1.640028,opus",AUDIO="a"') && m.includes('CODECS="avc1.64001f,opus",AUDIO="a"') && !m.includes('ec-3'), 'בכל רמה: הווידאו + opus (הקול שבקטעים מוסר) — ec-3 לא מופיע (hls.js היה זורק את הרמה)');
   ok(m.includes('BANDWIDTH=9330000'), 'הקצב כולל את הקול');
   ok(!P.masterPlaylist([{ bw: 1, abw: 1, w: 2, h: 2, c: 'avc1.1,mp4a.40.2', uri: 'x' }]).includes('EXT-X-MEDIA'), 'בלי עותק — כמו קודם');
+  const mm = P.masterPlaylist([{ bw: 9e6, abw: 8e6, w: 1920, h: 1080, c: 'avc1.640028,mp4a.40.2,mp4a.40.2', uri: 'a/0.m3u8' }],
+    [{ ch: 2, bw: 140000, abw: 128000, l: 'eng', uri: 'a/a0.m3u8' }, { ch: 6, bw: 330000, abw: 300000, l: 'heb', d: 1, uri: 'a/a1.m3u8' }]);
+  ok(/NAME="a0",LANGUAGE="eng",DEFAULT=NO,AUTOSELECT=YES,CHANNELS="2",URI="a\/a0\.m3u8"/.test(mm) && /NAME="a1",LANGUAGE="heb",DEFAULT=YES,AUTOSELECT=YES,CHANNELS="6",URI="a\/a1\.m3u8"/.test(mm),
+    'כמה רצועות: EXT-X-MEDIA לכל אחת, DEFAULT לברירת המחדל של המקור');
+  ok(mm.includes('BANDWIDTH=9330000') && mm.includes('CODECS="avc1.640028,opus",AUDIO="a"'), 'הקצב לפי רצועת ברירת המחדל; בקודקים הווידאו + opus');
+  ok(P.altName({ l: 'heb' }, 0, (k, o) => k + o.n, 'he') !== 'studioPlTrackN1' && P.altName({}, 1, (k, o) => k + o.n, 'he') === 'studioPlTrackN2', 'שם רצועה: שפה, אחרת "רצועה N"');
 
   /* ---------- hls.js המלא ---------- */
   const full = fs.readFileSync(path.join(root, 'vendor/hls/hls.min.js'));
@@ -83,9 +96,9 @@ function traf(id, off) { return box('traf', box('tfhd', u32(0x020000), u32(id)),
   const lad = read('translator/ladder.py');
   ok(/A_ALT = \('ac3', 'eac3', 'alac', 'dts', 'truehd'\)/.test(lad) && /delay_moov/.test(lad) && /'libopus'/.test(lad), 'העובד: אריזה בלי קידוד עם delay_moov (Dolby), עותק Opus');
   const job = read('translator/job.py');
-  ok(/hla=hl and hl\.get\('hla'\)/.test(job) && /put_output\(ctx, ap, title \+ ' \(קול לנגן\)\.mp4', 'hl', 'audio\/mp4'\)/.test(job), 'העובד מעלה את העותק ומדווח hla');
+  ok(/hla=hl and hl\.get\('hla'\)/.test(job) && /put_output\(ctx, ap, title \+ name, 'hl', 'audio\/mp4'\)/.test(job) && /' \(קול לנגן\)\.mp4'/.test(job), 'העובד מעלה את העותק ומדווח hla');
   const api = read('ibkr-proxy/api/studio.js');
-  ok(/S\.normHla\(body\.hla\)/.test(api) && /driveFileInFolder\(deps, job\.uid, job\.folder, hla\.id\)/.test(api), 'השרתון: העותק מאומת בתיקיית העבודה ובגודל');
+  ok(/S\.normHla\(body\.hla\)/.test(api) && /driveFileInFolder\(deps, job\.uid, job\.folder, a\.id\)/.test(api) && /for \(const a of hla \|\| \[\]\)/.test(api), 'השרתון: העותק מאומת בתיקיית העבודה ובגודל');
   ok(/'hl', 'hla',/.test(read('ibkr-proxy/lib/studio.js')), 'hla נשמר כ־JSON (שם שלא קיים באוסף אחר)');
 
   /* ---------- ההורדות ---------- */
