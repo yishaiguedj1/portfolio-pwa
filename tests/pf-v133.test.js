@@ -150,6 +150,25 @@ function makeSandbox() {
   ok(/pie-leg-logo[\s\S]*?dot/.test(legendChildren[0].innerHTML), 'מקרא: הלוגו לפני עיגול הצבע (ימני יותר ב-RTL)');
   ok(legendChildren.every((li) => /financialmodelingprep\.com\/image-stock\//.test(li.innerHTML)), 'מקרא: מקור הלוגו כמו בטאב המניות');
 
+  // --- 4ב. המזומן = פרוסה משלו, והאחוזים מתוך כל התיק (מניות + מזומן) ---
+  legendChildren.length = 0;
+  run(`
+    state.fx = 3.1;
+    DB.cash = { usd: 1000, ils: 3100 }; // = $2,000
+    drawPie();
+  `);
+  ok(legendChildren.length === 3, 'מזומן: שורה נוספת במקרא');
+  const cashLi = legendChildren.find((li) => /lg-sym">מזומן</.test(li.innerHTML));
+  ok(cashLi && /28\.6%/.test(cashLi.innerHTML), 'מזומן: 2,000 מתוך 7,000 = 28.6%');
+  ok(cashLi && !/financialmodelingprep/.test(cashLi.innerHTML), 'מזומן: בלי לוגו מהרשת');
+  const metaLi = legendChildren.find((li) => />META</.test(li.innerHTML));
+  ok(metaLi && /42\.9%/.test(metaLi.innerHTML), 'META: 3,000 מתוך 7,000 (כולל מזומן) = 42.9%');
+  ok(A('weightTxt')('META') === '42.9%', 'משקל בתיק בכרטיס המניה — כולל מזומן, כמו בעוגה');
+  ok(A('pieCashUSD')({ usd: -500, ils: 0 }, 3.1) === 0, 'יתרה שלילית (מינוף) — לא פרוסה');
+  legendChildren.length = 0;
+  run(`DB.cash = { usd: 0, ils: 0 }; drawPie();`);
+  ok(legendChildren.length === 2 && A('weightTxt')('META') === '60.0%', 'בלי מזומן — כמו קודם');
+
   // --- 5. CSS: קנבס מרובע וגדול, כרטיס לוגו למקרא ---
   const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
   ok(/#pieChart\s*\{[^}]*aspect-ratio:\s*1\s*\/\s*1/.test(css), 'CSS: הקנבס מרובע (aspect-ratio 1/1) — גדל עם הרוחב');
