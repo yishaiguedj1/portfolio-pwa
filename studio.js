@@ -2964,6 +2964,7 @@ function linkErrText(e) {
     case 'private': case 'bad_url': case 'dns': return T('studioLinkEBad');
     case 'timeout': case 'net': case 'no_server': return T('studioLinkENet');
     case 'app': return T('studioLinkEApp');
+    case 'noapp': return T('studioLinkENoApp');
     case 'store': return T('studioLinkEStore');
     default: return T('studioLinkEFail');
   }
@@ -2982,9 +2983,34 @@ function cloudOk(L) { return !!(ui.url && L && L.r && !cloudBlocked(L.r)); }
 const DL_PKG = 'app.thesnowball.studio', DLP_KEY = 'pwa_studio_dlp', PROBE_WAIT_MS = 240e3;
 const LINK_POLL_MS = 1500, LINK_WAIT_MS = 150e3;   // הבדיקה בשרת (בדפדפן בלי האפליקציה)
 const dlNonce = () => Array.from({ length: 12 }, () => 'abcdefghijkmnpqrstuvwxyz23456789'[Math.floor(Math.random() * 32)]).join('');
+const DL_APK = 'https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball-studio.apk';
+/* 23/10/2026: Studio ישנה (בלי DlActivity) → Chrome לא עושה כלום בשקט. עם browser_fallback_url הוא חוזר אלינו עם
+   השגיאה ‎noapp‎ (‎#probe=<n>.!noapp / ‎#dle=<n>.noapp), והדף אומר לעדכן את האפליקציה */
 function dlIntent(kind, q) {
   const qs = Object.keys(q).filter((k) => q[k] !== '' && q[k] != null).map((k) => k + '=' + encodeURIComponent(q[k])).join('&');
-  return 'intent://' + kind + '?' + qs + '#Intent;scheme=snbstudio;package=' + DL_PKG + ';end';
+  let fb = '';
+  try { fb = location.origin + location.pathname + (kind === 'probe' ? '#probe=' + q.n + '.!noapp' : '#dle=' + q.n + '.noapp'); } catch (e) {}
+  return 'intent://' + kind + '?' + qs + '#Intent;scheme=snbstudio;package=' + DL_PKG + (fb ? ';S.browser_fallback_url=' + encodeURIComponent(fb) : '') + ';end';
+}
+/* Chrome פותח אפליקציה רק מתוך נגיעה (user activation). קישור שהגיע בשיתוף (הבועה, "שיתוף ← Studio") טוען את הדף בלי
+   נגיעה — שם ה־intent נחסם בשקט והדף חיכה לשווא (23/10/2026). בלי נגיעה פעילה — כפתור "בדיקת הקישור" */
+function hasTap() {
+  try { return !navigator.userActivation || navigator.userActivation.isActive; } catch (e) { return true; }
+}
+const PROBE_SLOW_MS = 15e3;
+function apkBtn() {   // הגרסה החדשה של Studio לאנדרואיד (מותקנת מעל הקיימת)
+  const a = h('a', 'st-btn wide', T('studioLinkApk')); a.href = DL_APK; a.rel = 'noopener'; a.dataset.k = 'link-apk';
+  const w = h('div'); w.append(h('div', 'st-gap sm'), a);
+  return w;
+}
+function probeGo(f, L) {
+  const seq = ++linkSeq;
+  L.st = 'busy'; L.slow = false; L.at = Date.now();
+  render('none');
+  location.href = dlIntent('probe', { u: L.u, ref: L.ref, n: L.n });
+  const live = () => seq === linkSeq && f.link === L && L.st === 'busy';
+  setTimeout(() => { if (live()) { L.slow = true; render('none'); } }, PROBE_SLOW_MS);
+  setTimeout(() => { if (live()) { L.st = 'err'; L.e = 'timeout'; render('none'); } }, PROBE_WAIT_MS);
 }
 /* base64url (UTF-8) → מחרוזת */
 export function b64uText(b) {
@@ -3019,9 +3045,8 @@ function linkCheck(f, raw, ref) {
     render('none'); return;
   }
   L.n = dlNonce();
-  render('none');
-  location.href = dlIntent('probe', { u: L.u, ref: L.ref, n: L.n });
-  setTimeout(() => { if (seq === linkSeq && f.link === L && L.st === 'busy') { L.st = 'err'; L.e = 'timeout'; render('none'); } }, PROBE_WAIT_MS);
+  if (!hasTap()) { L.st = 'tap'; render('none'); return; }
+  probeGo(f, L);
 }
 function linkCheckSrv(f, L, seq) {   // הבדיקה בשרת — רק בדפדפן בלי האפליקציה (ההורדה אז רק לענן)
   (async () => {
@@ -3115,10 +3140,15 @@ function pageLink(p) {
       rowNav({ tile: tile('help', 'gray'), label: T('studioFmtHelpT'), sub: T('studioFmtHelpS'), onClick: () => go('fmthelp'), k: 'fmthelp' })));
     return;
   }
+  if (L.st === 'tap') {   // הגיע בשיתוף — Chrome פותח את Studio רק מנגיעה
+    p.append(note(T('studioLinkTapS')), h('div', 'st-gap sm'), btn('st-btn wide', T('studioLinkTapB'), () => probeGo(f, L), 'link-tap'));
+    return;
+  }
   if (L.st === 'busy') {
     const ld = h('div', 'st-lk-ld'); ld.dataset.k = 'link-busy';
     ld.append(h('span', 'st-spin'), h('span', null, T('studioLinkChecking')));
-    p.append(ld, note(T('studioLinkCheckingS')));
+    p.append(ld, note(L.slow ? T('studioLinkSlow') : T('studioLinkCheckingS')));
+    if (L.slow) p.append(h('div', 'st-gap sm'), btn('st-btn tint wide', T('studioLinkRetry'), () => probeGo(f, L), 'link-again'), apkBtn());
     return;
   }
   if (L.st === 'err') {
@@ -3126,6 +3156,7 @@ function pageLink(p) {
     const card = h('div', 'st-lk-err'); card.dataset.k = 'link-err';
     card.append(ico('alert'), h('span', null, msg));
     p.append(card, h('div', 'st-gap sm'), btn('st-btn tint wide', T('studioLinkRetry'), () => linkCheck(f, L.u, L.ref), 'link-retry'));
+    if (L.e === 'noapp') p.append(apkBtn());
     if (L.e === 'blocked' || L.e === 'login' || L.e === 'unsupported' || L.e === 'no_video') p.append(note(T('studioLinkUpload')));
     // הניסוי: דף שהשרת לא מצא בו סרטון (נשלח מהבועה) — דפדפן הציד רואה את מה שהנגן מבקש בפועל
     if (grabOk() && !L.ref && (L.e === 'unsupported' || L.e === 'no_video' || L.e === 'fail')) p.append(h('div', 'st-gap sm'), btn('st-btn wide', T('studioHuntTry'), () => huntOpen(L.u), 'link-hunt'));
