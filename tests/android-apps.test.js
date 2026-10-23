@@ -16,7 +16,7 @@ for (const [k, id] of Object.entries(PKGS)) {
 ok(/applicationId = "io\.github\.yishaiguedj1\.snowball"/.test(gr) && /app\("invest", "io\.github\.yishaiguedj1\.snowball"/.test(gr), 'Invest שומרת את המזהה הקיים — ההתקנה מתעדכנת במקום והווידג׳ט נשאר');
 ok(/"investImplementation"\("androidx\.glance:glance-appwidget/.test(gr) && !/^\s*implementation\("androidx\.glance/m.test(gr), 'Glance רק ב־Invest');
 // 22/10/2026: גם Studio Bubble (הבועה בדפדפן — APK נפרד) על src/lite; Studio והבועה חולקות את src/grab (VideoUrl)
-ok(/getByName\("academy"\)\.java\.srcDir\("src\/lite\/java"\)/.test(gr) && /getByName\("studio"\)\.java\.srcDirs\("src\/lite\/java", "src\/grab\/java"\)/.test(gr) && /getByName\("bubble"\)\.java\.srcDirs\("src\/lite\/java", "src\/grab\/java"\)/.test(gr), 'Academy, Studio ו־Studio Bubble חולקות את src/lite');
+ok(/getByName\("academy"\)\.java\.srcDir\("src\/lite\/java"\)/.test(gr) && /getByName\("studio"\)\.java\.srcDirs\("src\/lite\/java", "src\/grab\/java", "src\/ytdl\/java"\)/.test(gr) && /getByName\("bubble"\)\.java\.srcDirs\("src\/lite\/java", "src\/grab\/java"\)/.test(gr), 'Academy, Studio ו־Studio Bubble חולקות את src/lite (23/10/2026: ומנוע yt-dlp ב־src/ytdl — משותף עם Studio DM)');
 
 // ---------- מבנה הקבצים
 const P = 'io/github/yishaiguedj1/snowball/';
@@ -40,7 +40,7 @@ ok(Object.values(PKGS).every((p) => al.some((x) => x.target.package_name === p))
 
 // ---------- CI: שלושה קבצים בקישורים קבועים
 const aw = R('.github/workflows/android.yml');
-ok(/gh release upload android-latest the-snowball\.apk the-snowball-academy\.apk the-snowball-studio\.apk the-snowball-bubble\.apk the-snowball-admin\.apk --clobber/.test(aw), 'CI: חמשת הקבצים ב־android-latest (Invest בקישור הישן, Studio Bubble, והניהול — 23/10/2026)');
+ok(/gh release upload android-latest the-snowball\.apk the-snowball-academy\.apk the-snowball-studio\.apk the-snowball-bubble\.apk the-snowball-admin\.apk the-snowball-studio-dm\.apk --clobber/.test(aw), 'CI: ששת הקבצים ב־android-latest (Invest בקישור הישן, Studio Bubble, הניהול ו־Studio DM — 23/10/2026)');
 
 // ---------- האתר: מעבר בתפריט = האפליקציה המותקנת
 const core = R('core.js');

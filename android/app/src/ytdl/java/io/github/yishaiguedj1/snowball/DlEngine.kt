@@ -169,11 +169,15 @@ object DlEngine {
 
     /** הורדה לתיקייה של האפליקציה (yt-dlp צריך נתיב רגיל), מיזוג בלי קידוד מחדש — MP4 כשאפשר, אחרת MKV.
      *  progress: 0–100. מחזיר את הקובץ. כשל → IllegalArgumentException(קוד) */
-    fun download(ctx: Context, url: String, ref: String, pick: Pick, id: String, progress: (Float, Long) -> Unit): File {
+    fun download(ctx: Context, url: String, ref: String, pick: Pick, id: String, progress: (Float, Long) -> Unit): File =
+        download(ctx, url, ref, pick, id, "", progress)
+
+    /** format = בורר yt-dlp משלך (Studio DM: "רק קול" — ‎ba/b‎); ריק = לפי pick, כמו ב־Studio */
+    fun download(ctx: Context, url: String, ref: String, pick: Pick, id: String, format: String, progress: (Float, Long) -> Unit): File {
         prepare(ctx)
         val dir = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "dl/$id").apply { mkdirs() }
         val req = base(YoutubeDLRequest(url), ref, cookiesFor(ctx, url, ref))
-            .addOption("-f", DlProbe.selector(pick.v, pick.a, pick.h))
+            .addOption("-f", format.ifEmpty { DlProbe.selector(pick.v, pick.a, pick.h) })
             .addOption("--merge-output-format", "mp4/mkv")
             .addOption("--no-mtime").addOption("--continue").addOption("--concurrent-fragments", 4)
             .addOption("-o", dir.absolutePath + "/%(title).80B [%(id)s].%(ext)s")

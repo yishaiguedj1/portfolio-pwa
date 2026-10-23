@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Studio DM (23/10/2026, בקשת המשתמש): מנהל הורדות נייטיב — לא TWA. ה־MainActivity של main (פתיחת האתר בכרום)
+     ושירות ה־TWA יוצאים מהמניפסט; האפליקציה = DmActivity (Compose). שום דבר לא עובר דרך השרת שלנו:
+     כל הקבצים נשמרים רק בטלפון (MediaStore: Download/Movies/Music ‏→ Studio DM). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- אנדרואיד 14+: ההורדה כמשימת העברה שהמשתמש התחיל (UIDT) — בלי מגבלת 6 השעות של dataSync -->
+    <uses-permission android:name="android.permission.RUN_USER_INITIATED_JOBS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <application android:extractNativeLibs="true" tools:replace="android:theme"
+        android:theme="@style/DmTheme">
+
+        <meta-data android:name="asset_statements" tools:node="remove" />
+        <activity android:name=".MainActivity" tools:node="remove" />
+        <service android:name="com.google.androidbrowserhelper.trusted.DelegationService" tools:node="remove" />
+
+        <activity
+            android:name=".dm.DmActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- "שיתוף ← Studio DM" מכל אפליקציה (קישור) -->
+            <intent-filter android:label="@string/dmShareLabel">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <!-- "פתח באמצעות" — קישור לקובץ שאפליקציה אחרת מציעה להוריד -->
+            <intent-filter android:label="@string/dmOpenLabel">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="application/*" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".dm.DmJob"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="false" />
+        <service
+            android:name=".dm.DmService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <receiver android:name=".dm.DmBoot" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

@@ -10,7 +10,9 @@ const ok = (c, m) => { assert.ok(c, m); n++; };
 
 const st = R('studio.js'), sapp = R('studio-app.js'), sw = R('sw.js');
 const K = 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/';
-const act = R(K + 'DlActivity.kt'), eng = R(K + 'DlEngine.kt'), svc = R(K + 'DlService.kt'), probe = R(K + 'DlProbe.kt');
+// 23/10/2026: המנוע (DlEngine/DlProbe/DlDeep) עבר ל־src/ytdl — משותף ל־Studio ול־Studio DM
+const KY = 'android/app/src/ytdl/java/io/github/yishaiguedj1/snowball/';
+const act = R(K + 'DlActivity.kt'), eng = R(KY + 'DlEngine.kt'), svc = R(K + 'DlService.kt'), probe = R(KY + 'DlProbe.kt');
 const main = R('android/app/src/main/java/io/github/yishaiguedj1/snowball/MainActivity.kt');
 const man = R('android/app/src/studio/AndroidManifest.xml');
 
@@ -110,7 +112,7 @@ function done() {
   ok(/DlJob\.schedule\(this/.test(R(dir + 'DlActivity.kt')), 'DlActivity מתזמן קודם UIDT');
   ok(/setDefaultUncaughtExceptionHandler/.test(R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/DlActivity.kt')), 'קריסה בחלון ההורדה מדווחת לאתר');
   // 23/10/2026: הבדיקה לעומק — דפדפן נסתר בחלון ההורדה; העוגיות רק בקובץ זמני בטלפון; ה־Referer של הזרם חוזר לאתר
-  const deep = R(dir + 'DlDeep.kt');
+  const deep = R(KY + 'DlDeep.kt');
   ok(/fun deep\(/.test(act) && /if \(!miss\) back\(res\) else deep\(u, res\)/.test(act) && /setDataDirectorySuffix\("dl"\)/.test(act), 'DlActivity: בדיקה לעומק לפני דפדפן הציד, WebView בתיקייה של התהליך');
   ok(/addOption\("--cookies", ck\.file\.absolutePath\)/.test(eng) && /File\(ctx\.filesDir, "ck"\)/.test(eng) && /CK_TTL_MS/.test(eng), 'DlEngine: קובץ עוגיות פרטי וזמני ל־yt-dlp');
   ok(!/Log\.|println/.test(deep + act.slice(act.indexOf('fun deep('))), 'בלי לוגים בבדיקה לעומק');
@@ -135,7 +137,7 @@ function done() {
     ok((R('app.js').match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, k + ' בעברית ובאנגלית');
   // 23/10/2026: תקרת זמן לבדיקה (דפדפן הציד — יותר מדקה בלי תשובה), ניסיונות קצרים, בלי חלופות לקובץ ישיר
   {
-    const act = R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/DlActivity.kt'), en2 = R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/DlEngine.kt');
+    const act = R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/DlActivity.kt'), en2 = R(KY + 'DlEngine.kt');
     ok(/PROBE_REF_MS = 45_000L/.test(act) && /PROBE_MS = 90_000L/.test(act) && /if \(probeSlow\) "slow"/.test(act), 'תקרת זמן לבדיקה → slow');
     ok(/HUNT_ON = setOf\([^)]*"slow"/.test(act), 'slow בדף → הבדיקה לעומק');
     ok(/deepProbe\(h\.url, page, ck, PROBE_REF_MS\)/.test(act) && /DlEngine\.cancel\(it\)/.test(act), 'הבדיקות שבתוך הבדיקה לעומק — מוגבלות ונעצרות');
