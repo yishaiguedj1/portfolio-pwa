@@ -2606,7 +2606,7 @@ function pageForm(p, editing) {
   let card;
   if (f.link && f.linkOk && f.link.st === 'ok') {   // 22/10/2026: מקישור — הכרטיס של הסרטון (נגיעה = חזרה לדף הקישור)
     card = btn('st-filecard st-lk-fc', null, () => go('link'), 'file');
-    const c = linkCard(f.link, true), meta = h('small', 'st-ok', T('studioLinkFcNote', { q: qLabel((f.link.r.q.find((o) => o.v === f.link.v) || {}).h || 0), s: approx(fmtSize(linkSize(f.link))) }));
+    const c = linkCard(f.link, true), meta = h('small', 'st-ok', T('studioLinkFcNote', { q: qLabel((f.link.r.q.find((o) => o.v === f.link.v) || {}).h || 0), s: linkSize(f.link) ? approx(fmtSize(linkSize(f.link))) : T('studioLinkSzUnknown') }));
     c.querySelector('.st-l').append(meta);
     card.append(...c.childNodes);
   } else if (f.file) {
@@ -3176,7 +3176,7 @@ function pageLink(p) {
   p.append(secT(T('studioLinkQT')));
   const recB = btn('st-lk-rec' + (cur && rec && cur.v === rec.v ? ' on' : ''), null, () => { L.v = rec.v; render('none'); }, 'link-rec');
   const star = h('span', 'st-lk-star'); star.append(ico('spark'));
-  recB.append(star, rowTxt(T('studioLinkRec', { q: qLabel(rec.h) }), T('studioLinkRecS') + ' · ' + approx(fmtSize(rec.sz))));
+  recB.append(star, rowTxt(T('studioLinkRec', { q: qLabel(rec.h) }), T('studioLinkRecS') + ' · ' + (rec.sz ? approx(fmtSize(rec.sz)) : T('studioLinkSzUnknown'))));
   if (cur && cur.v === rec.v) recB.append(ico('check', 'st-chk'));
   p.append(recB);
   if ((r.q || []).length > 1) {

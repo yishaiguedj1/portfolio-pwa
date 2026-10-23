@@ -107,7 +107,29 @@ object DlEngine {
         }
         if (s == null || info == null) throw err ?: IllegalArgumentException("fail")
         s.put("th", thumbData(DlProbe.thumbUrl(info)))
+        fillSize(s, info, ref, ck)
         return s
+    }
+
+    /** 23/10/2026 (דיווח המשתמש: "1KB" ב־buffett.cnbc.com — בפועל גודל לא ידוע): קובץ ישיר בלי גודל במידע של yt-dlp →
+     *  שואלים את השרת (HEAD, עם ה־Referer). כך realVideo פוסל קובץ זעיר באמת, והאתר מציג את הגודל הנכון */
+    private fun fillSize(s: JSONObject, info: JSONObject, ref: String, ck: Ck?) {
+        val q = s.optJSONArray("q") ?: return
+        if (q.length() != 1 || (q.optJSONObject(0)?.optLong("sz", 0) ?: 0) > 0) return
+        val u = info.optString("url", "").ifEmpty { info.optString("webpage_url", "") }
+        if (!Regex("^https?://", RegexOption.IGNORE_CASE).containsMatchIn(u)) return
+        try {
+            val c = URL(u).openConnection() as HttpURLConnection
+            c.requestMethod = "HEAD"; c.instanceFollowRedirects = true
+            c.connectTimeout = 10000; c.readTimeout = 10000
+            c.setRequestProperty("User-Agent", ck?.ua ?: "Mozilla/5.0")
+            val r = DlProbe.refOk(ref)
+            if (r.isNotEmpty()) c.setRequestProperty("Referer", r)
+            val type = (c.contentType ?: "").lowercase()
+            val len = c.contentLengthLong
+            c.disconnect()
+            if (len > 0 && !type.contains("mpegurl") && !type.contains("dash") && !type.contains("text/")) q.getJSONObject(0).put("sz", len)
+        } catch (e: Throwable) {}
     }
 
     /** תמונה מהדף (og:image) כשל־yt-dlp אין — לבדיקה לעומק */

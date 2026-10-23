@@ -120,6 +120,9 @@ function done() {
   ok(/const alt = Array\.isArray\(r\.alt\)/.test(st) && /th, rf, alt \}/.test(st) && /T\('studioLinkAltT'\)/.test(st) && /linkCheck\(f, a\.u, ref\)/.test(st) && (R('app.js').match(/\bstudioLinkAltT: "/g) || []).length === 2, 'האתר: "מקורות נוספים בדף" — נגיעה בודקת את המקור עם ה־Referer');
   ok(/ref\.isNotEmpty\(\) && !DlDeep\.realVideo\(s, 0\)\) throw IllegalArgumentException\("tiny"\)/.test(act) && /case 'tiny': return T\('studioLinkETiny'\)/.test(st)
     && (R('app.js').match(/\bstudioLinkETiny: "/g) || []).length === 2, 'קובץ זעיר מדפדפן הציד → הודעה ברורה (tiny) בשתי השפות');
+  // 23/10/2026: "1KB" = גודל לא ידוע (fmtSize(0)) — שואלים את השרת (HEAD), ובאתר "גודל לא ידוע"
+  ok(/fillSize\(s, info, ref, ck\)/.test(eng) && /requestMethod = "HEAD"/.test(eng), 'גודל לא ידוע → HEAD לשרת של הקובץ');
+  ok(/rec\.sz \? approx\(fmtSize\(rec\.sz\)\) : T\('studioLinkSzUnknown'\)/.test(st) && !/approx\(fmtSize\(rec\.sz\)\)\)\)/.test(st), 'האתר: "גודל לא ידוע" במקום 1KB');
   ok(/name="dlDeep"/.test(R('android/app/src/studio/res/values/strings.xml')) && /name="dlDeep"/.test(R('android/app/src/studio/res/values-en/strings.xml')), 'dlDeep בעברית ובאנגלית');
   for (const k of ['studioLinkEApp', 'studioLinkDlWait', 'studioLinkGot', 'studioLinkEStore', 'studioLinkFailT'])
     ok((R('app.js').match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, k + ' בעברית ובאנגלית');
