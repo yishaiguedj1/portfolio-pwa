@@ -30,7 +30,7 @@ class DlService : Service() {
         if (DlState.busy() && DlState.id != id) return START_NOT_STICKY   // הורדה אחת בכל פעם (המסך כבר סימן את זו)
         val r = reqOf(i) ?: return START_NOT_STICKY
         mine = true
-        startFg(DlWork.progress(this, r.title, getString(R.string.dlPrep), -1))
+        startFg(DlWork.progress(this, r.title, DlLang.of(this).getString(R.string.dlPrep), -1))
         Thread {
             DlWork.run(this, r, { timedOut }) {
                 mine = false
@@ -105,11 +105,11 @@ object DlState {
     /** "רק להוריד": שיתוף הסרטון שנשמר (וואטסאפ, Drive…) */
     fun shareIntent(ctx: Context, u: Uri): Intent =
         Intent.createChooser(Intent(Intent.ACTION_SEND).setType("video/*").putExtra(Intent.EXTRA_STREAM, u)
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION).also { it.clipData = ClipData.newRawUri("", u) }, ctx.getString(R.string.dlShare))
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION).also { it.clipData = ClipData.newRawUri("", u) }, DlLang.of(ctx).getString(R.string.dlShare))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
     /** שגיאה בהורדה → האתר מציג אותה (‎#dle=<מזהה>.<קוד>) */
     fun errIntent(ctx: Context, id: String, code: String): Intent =
-        Intent(Intent.ACTION_VIEW, Uri.parse(ctx.getString(R.string.launchUrl) + "#dle=" + id + "." + code), ctx, MainActivity::class.java)
+        Intent(Intent.ACTION_VIEW, Uri.parse(DlLang.of(ctx).getString(R.string.launchUrl) + "#dle=" + id + "." + code), ctx, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 }

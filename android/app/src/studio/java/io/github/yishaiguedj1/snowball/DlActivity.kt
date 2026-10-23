@@ -1,6 +1,7 @@
 package io.github.yishaiguedj1.snowball
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -16,6 +17,12 @@ import android.os.Looper
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
+import android.webkit.CookieManager
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -56,7 +63,7 @@ class DlActivity : Activity() {
             try {
                 val n = nonce
                 if (N_RE.matches(n)) startActivity(if (mode == "dl") DlState.errIntent(this, n, "crash")
-                    else Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.launchUrl) + "#probe=$n.!crash"), this, MainActivity::class.java)
+                    else Intent(Intent.ACTION_VIEW, Uri.parse(s(R.string.launchUrl) + "#probe=$n.!crash"), this, MainActivity::class.java)
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             } catch (x: Throwable) {}
             prev?.uncaughtException(t, e)
@@ -69,6 +76,7 @@ class DlActivity : Activity() {
         val d = i?.data
         if (i?.action == ACT_SHOW) { if (!DlState.busy()) { finish(); return }; mode = "dl"; nonce = DlState.id ?: ""; paint(); return }
         if (d == null || d.scheme != "snbstudio") { finish(); return }
+        DlLang.set(this, d.getQueryParameter("l"))
         val n = d.getQueryParameter("n") ?: ""
         val u = DlProbe.extractUrl(d.getQueryParameter("u"))
         if (!N_RE.matches(n) || u.isEmpty() || u.length > DlProbe.URL_MAX) { finish(); return }
@@ -83,26 +91,157 @@ class DlActivity : Activity() {
 
     private fun probe(u: String, ref: String) {
         mode = "probe"
-        titleV.text = getString(R.string.dlChecking); subV.text = getString(R.string.dlCheckingS)
-        bar.isIndeterminate = true; btn.text = getString(R.string.dlCancel)
+        titleV.text = s(R.string.dlChecking); subV.text = s(R.string.dlCheckingS)
+        bar.isIndeterminate = true; btn.text = s(R.string.dlCancel)
         btn.setOnClickListener { back("#probe=$nonce.!cancel") }
         Thread {
+            var miss = false
             val res = try {
-                val s = DlEngine.probe(this, u, ref) { st ->
-                    main.post { subV.text = getString(when (st) { "init" -> R.string.dlInit; "update" -> R.string.dlUpdate; else -> R.string.dlCheckingS }) }
+                val s = DlEngine.probe(this, u, ref, DlEngine.cookiesFor(this, u, ref)) { st ->
+                    main.post { subV.text = s(when (st) { "init" -> R.string.dlInit; "update" -> R.string.dlUpdate; else -> R.string.dlCheckingS }) }
                 }
                 "#probe=$nonce." + DlEngine.b64(s.toString())
             } catch (e: Throwable) {
-                "#probe=$nonce.!" + ((e as? IllegalArgumentException)?.message ?: "fail")
+                val code = (e as? IllegalArgumentException)?.message ?: "fail"
+                miss = ref.isEmpty() && code in HUNT_ON
+                "#probe=$nonce.!" + code
             }
-            main.post { if (!isFinishing) back(res) }
+            main.post {
+                if (isFinishing) return@post
+                if (!miss) back(res) else deep(u, res)   // 23/10/2026: לא נמצא ישירות → בדיקה לעומק, ואז דפדפן הציד
+            }
         }.start()
     }
 
+    /* ---------- הבדיקה לעומק (DlDeep): דפדפן נסתר בחלון הזה ---------- */
+    private var web: WebView? = null
+    private val found = HuntMedia.Found()
+    @Volatile private var deepDone = false
+    private var deepPage: DlDeep.Page? = null
+    private var ckTried = false; private var ckFailed = false; private var mediaBusy = false
+    private val mediaTried = HashSet<String>()
+
+    @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
+    private fun deep(u: String, miss: String) {
+        // WebView בשני תהליכים (דפדפן הציד בראשי) — כל אחד בתיקייה משלו
+        try { WebView.setDataDirectorySuffix("dl") } catch (e: Throwable) {}
+        val w = try { WebView(this) } catch (e: Throwable) { null }
+        if (w == null) { hunt(u, miss); return }
+        web = w
+        subV.text = s(R.string.dlDeep)
+        btn.setOnClickListener { stopDeep(); back("#probe=$nonce.!cancel") }
+        val st = w.settings
+        st.javaScriptEnabled = true; st.domStorageEnabled = true
+        st.mediaPlaybackRequiresUserGesture = false          // ניגון מושתק בלי נגיעה — רק כאן, בבדיקה שהמשתמש התחיל
+        st.allowFileAccess = false; st.allowContentAccess = false; st.setSupportMultipleWindows(false)
+        CookieManager.getInstance().setAcceptCookie(true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(w, true)
+        w.alpha = 0.01f                                       // מחובר לחלון (אחרת הדף "מוסתר" והנגן לא מתחיל), כמעט שקוף
+        w.setOnTouchListener { _, _ -> true }                 // אין נגיעות בדף הנסתר
+        w.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView, req: WebResourceRequest): Boolean {
+                val sc = req.url.scheme?.lowercase(); return sc != "http" && sc != "https"
+            }
+            override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? { seen(req.url.toString()); return null }
+            override fun onPageFinished(view: WebView, url: String) { main.postDelayed({ tryCookies(u, miss) }, DlDeep.SETTLE_MS) }
+        }
+        findViewById<ViewGroup>(android.R.id.content).addView(w, 0,
+            ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        w.loadUrl(u)
+        val t0 = System.currentTimeMillis()
+        val tick = object : Runnable {
+            override fun run() {
+                if (deepDone) return
+                val el = System.currentTimeMillis() - t0
+                if (el > DlDeep.NO_FINISH_MS) tryCookies(u, miss)
+                w.evaluateJavascript(DlDeep.EXTRACT) { r ->
+                    val js = try { org.json.JSONTokener(r).nextValue() as? String } catch (e: Throwable) { null }
+                    DlDeep.parsePage(js)?.let { pg -> deepPage = pg; pg.urls.forEach { seen(it) } }
+                    nextMedia(u, miss)
+                }
+                // הזמן נגמר — מחכים רק לבדיקה שכבר רצה; אחרת דפדפן הציד
+                if ((el > DlDeep.DEEP_MS && !mediaBusy && (ckFailed || !ckTried)) || el > DlDeep.DEEP_MS * 3) { hunt(u, miss); return }
+                main.postDelayed(this, 1000)
+            }
+        }
+        main.postDelayed(tick, 1000)
+    }
+
+    private fun seen(url: String) {
+        val h = HuntMedia.classify(url) ?: return
+        main.post { found.add(h) }
+    }
+
+    /** 1. yt-dlp שוב, עם העוגיות של הדפדפן (אתגר שנפתר) */
+    private fun tryCookies(u: String, miss: String) {
+        if (ckTried || deepDone) return
+        ckTried = true
+        val ck = writeCookies(u)
+        if (ck == null) { ckFailed = true; return }
+        val img = deepPage?.image ?: ""
+        Thread {
+            val r = try { DlEngine.probe(this, u, "", ck) } catch (e: Throwable) { null }
+            if (r != null) DlEngine.thumbIfEmpty(r, img)
+            main.post {
+                if (deepDone) return@post
+                if (r != null) okDeep(r) else { ckFailed = true; nextMedia(u, miss) }
+            }
+        }.start()
+    }
+
+    /** 2. הזרם שנמצא בדף (הטוב קודם), עם ה־Referer של הדף */
+    private fun nextMedia(u: String, miss: String) {
+        if (deepDone || mediaBusy || !ckFailed || mediaTried.size >= DlDeep.MEDIA_TRIES) return
+        val h = found.list.firstOrNull { it.url !in mediaTried } ?: return
+        mediaTried.add(h.url); mediaBusy = true
+        val page = web?.url ?: u
+        val ck = writeCookies(page, h.url)
+        val pg = deepPage
+        Thread {
+            val r = try { DlEngine.probe(this, h.url, page, ck) } catch (e: Throwable) { null }
+            if (r != null) { DlDeep.fromMedia(r, h.url, page, pg); DlEngine.thumbIfEmpty(r, pg?.image ?: "") }
+            main.post {
+                mediaBusy = false
+                if (deepDone) return@post
+                if (r != null) okDeep(r) else nextMedia(u, miss)
+            }
+        }.start()
+    }
+
+    private fun writeCookies(page: String, vararg more: String): DlEngine.Ck? {
+        val cm = CookieManager.getInstance()
+        try { cm.flush() } catch (e: Throwable) {}
+        val urls = (listOf(page) + more + found.list.map { it.url }).distinct()
+        val text = DlDeep.netscape(urls.map { it to cm.getCookie(it) }, System.currentTimeMillis() / 1000)
+        val ua = web?.settings?.userAgentString ?: return null
+        return DlEngine.saveCookies(this, page, text, ua)
+    }
+
+    private fun okDeep(r: org.json.JSONObject) { stopDeep(); back("#probe=$nonce." + DlEngine.b64(r.toString())) }
+
+    private fun stopDeep() {
+        deepDone = true
+        main.removeCallbacksAndMessages(null)
+        web?.let { try { it.stopLoading(); (it.parent as? ViewGroup)?.removeView(it); it.destroy() } catch (e: Throwable) {} }
+        web = null
+    }
+
+    /** 3. לא נמצא — דפדפן הציד הגלוי נפתח לבד (מהאפליקציה; מהאתר Chrome חוסם intent בלי נגיעה). האתר מקבל את התוצאה */
+    private fun hunt(u: String, miss: String) {
+        stopDeep()
+        if (isFinishing) return
+        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(s(R.string.launchUrl) + miss), this, MainActivity::class.java))
+        startActivity(Intent(this, HuntActivity::class.java).setData(Uri.parse("snbstudio://hunt?u=" + Uri.encode(u)))
+            .putExtra(HuntActivity.EXTRA_AUTO, true))
+        finish()
+    }
+
+    override fun onDestroy() { stopDeep(); super.onDestroy() }
+
     private fun download(d: Uri, u: String, ref: String) {
         mode = "dl"
-        if (DlState.busy() && DlState.id != nonce) { titleV.text = getString(R.string.dlBusy); subV.text = DlState.title; bar.visibility = View.GONE
-            btn.text = getString(R.string.dlClose); btn.setOnClickListener { finish() }; return }
+        if (DlState.busy() && DlState.id != nonce) { titleV.text = s(R.string.dlBusy); subV.text = DlState.title; bar.visibility = View.GONE
+            btn.text = s(R.string.dlClose); btn.setOnClickListener { finish() }; return }
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         if (DlState.id != nonce) {
@@ -123,18 +262,18 @@ class DlActivity : Activity() {
     /** המסך לפי המצב של ההורדה */
     private fun paint() {
         if (mode != "dl") return
-        titleV.text = DlState.title.ifEmpty { getString(R.string.dlTitle) }
+        titleV.text = DlState.title.ifEmpty { s(R.string.dlTitle) }
         when (DlState.phase) {
             "dl" -> { bar.visibility = View.VISIBLE; val p = DlState.pct.toInt().coerceIn(0, 100); bar.isIndeterminate = p <= 0; bar.progress = p
-                subV.text = if (p > 0) getString(R.string.dlPct, p) else getString(R.string.dlPrep)
-                btn.text = getString(R.string.dlHide); btn.setOnClickListener { back("") } }
-            "save" -> { bar.isIndeterminate = true; subV.text = getString(R.string.dlSaving) }
+                subV.text = if (p > 0) s(R.string.dlPct, p) else s(R.string.dlPrep)
+                btn.text = s(R.string.dlHide); btn.setOnClickListener { back("") } }
+            "save" -> { bar.isIndeterminate = true; subV.text = s(R.string.dlSaving) }
             "done" -> { val u = DlState.uri
                 if (u != null && DlState.only) {   // "רק להוריד" — נשאר בטלפון; פתיחה בנגן או סגירה
-                    titleV.text = getString(R.string.dlSaved); subV.text = getString(R.string.dlSavedS); bar.visibility = View.GONE
-                    btn.text = getString(R.string.dlOpen)
+                    titleV.text = s(R.string.dlSaved); subV.text = s(R.string.dlSavedS); bar.visibility = View.GONE
+                    btn.text = s(R.string.dlOpen)
                     btn.setOnClickListener { DlState.clear(); try { startActivity(DlState.viewIntent(u)) } catch (e: Exception) {}; finish() }
-                    btn2.visibility = View.VISIBLE; btn2.text = getString(R.string.dlShare)
+                    btn2.visibility = View.VISIBLE; btn2.text = s(R.string.dlShare)
                     btn2.setOnClickListener { DlState.clear(); try { startActivity(DlState.shareIntent(this, u)) } catch (e: Exception) {}; finish() }
                 } else if (u != null && !handed) { handed = true; DlState.clear(); startActivity(DlState.handoffIntent(this, u, nonce)); finish() } }
             "err" -> { val c = DlState.err; DlState.clear(); if (c == "cancel") finish() else { startActivity(DlState.errIntent(this, nonce, c)); finish() } }
@@ -143,12 +282,14 @@ class DlActivity : Activity() {
 
     /** חזרה לאתר (‎#… = התוצאה; ריק = רק לחזור) */
     private fun back(hash: String) {
-        if (hash.isNotEmpty()) startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.launchUrl) + hash), this, MainActivity::class.java))
+        if (hash.isNotEmpty()) startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(s(R.string.launchUrl) + hash), this, MainActivity::class.java))
         finish()
     }
 
     override fun onResume() { super.onResume(); DlState.listen(onState); paint() }
     override fun onPause() { DlState.unlisten(onState); super.onPause() }
+
+    private fun s(id: Int, vararg a: Any): String = DlLang.of(this).getString(id, *a)
 
     private fun dp(v: Float) = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, resources.displayMetrics).toInt()
 
@@ -178,5 +319,6 @@ class DlActivity : Activity() {
     companion object {
         const val ACT_SHOW = "app.thesnowball.studio.DL_SHOW"
         private val N_RE = Regex("^[A-Za-z0-9]{6,24}$")
+        private val HUNT_ON = setOf("unsupported", "no_video", "fail")   // = מתי האתר מציע את דפדפן הציד
     }
 }

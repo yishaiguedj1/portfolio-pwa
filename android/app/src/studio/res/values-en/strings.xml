@@ -14,6 +14,7 @@
     <!-- 22/10/2026: downloading on the phone (DlActivity, DlService) -->
     <string name="dlChecking">Checking the link on your phone…</string>
     <string name="dlCheckingS">Finding the video and its qualities</string>
+    <string name="dlDeep">Looking deeper into the page, like a browser</string>
     <string name="dlInit">Preparing the download engine (first time only)…</string>
     <string name="dlUpdate">Updating the download engine…</string>
     <string name="dlTitle">Downloading to your phone</string>
@@ -32,4 +33,5 @@
     <string name="dlSavedS">In your gallery, Studio album (Movies/Studio folder)</string>
     <string name="dlShare">Share</string>
     <string name="dlOpen">Open</string>
+    <string name="huntAuto">Couldn\'t find the video directly — play it here and Studio will catch it</string>
 </resources>
