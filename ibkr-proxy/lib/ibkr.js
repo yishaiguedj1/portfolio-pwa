@@ -364,17 +364,30 @@ function statementToJson(tree) {
       mtm: mtmSum,
     };
   }
+  // יתרות מזומן. ב־Flex המקטע Cash Report = שורות CashReportCurrency עם endingCash (לא cashBalance — 23/10/2026:
+  // עד אז השם לא נמצא, והמזומן מ־IBKR אף פעם לא הגיע לאפליקציה), ושורת סיכום BASE_SUMMARY שלא סופרים.
+  // המקור הראשון שיש בו שורות גובר (בלי לספור פעמיים). בלי Cash Report — המזומן מהיום האחרון ב־NAV in Base.
   for (const tag of ['CashReport', 'CashBalances', 'ForexBalances']) {
+    if (out.cashBalances.length) break;
     for (const sec of findKids(st, tag)) {
       for (const c of sec.children || []) {
         const x = c.attrs || {};
-        const cur = x.currency || x.curr || '';
-        const bal = x.cashBalance !== undefined ? num(x.cashBalance)
-          : x.cash !== undefined ? num(x.cash)
-          : x.balance !== undefined ? num(x.balance) : null;
-        if (cur && bal !== null) out.cashBalances.push({ currency: cur, balance: bal });
+        const cur = String(x.currency || x.curr || '').toUpperCase();
+        if (!cur || cur === 'BASE_SUMMARY' || cur === 'BASE') continue;
+        const pick = ['endingCash', 'endingSettledCash', 'cashBalance', 'cash', 'balance'].find((k) => x[k] !== undefined && x[k] !== '');
+        if (pick) out.cashBalances.push({ currency: cur, balance: num(x[pick]) });
       }
     }
+  }
+  if (!out.cashBalances.length) {
+    let last = null;
+    for (const el of findKids(st, 'EquitySummaryByReportDateInBase')) {
+      const x = el.attrs || {};
+      const date = flexDate(x.reportDate || x.date);
+      if (x.cash === undefined || x.cash === '' || !/^\d{4}-\d{2}-\d{2}$/.test(date || '')) continue;
+      if (!last || date >= last.date) last = { date, cash: num(x.cash) };
+    }
+    if (last) out.cashBalances.push({ currency: out.meta.baseCurrency || 'USD', balance: last.cash, base: 1 });
   }
   return out;
 }

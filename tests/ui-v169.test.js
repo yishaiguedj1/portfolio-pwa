@@ -37,7 +37,7 @@ ok(/data-err="hide-self"/.test(src) && /im\.dataset\.err === 'hide-self'/.test(s
 ok(/const ordered = slicesUnique\.slice\(\)\.sort\(\(x, y\) => y\.value - x\.value\);/.test(src), 'v170: הפרוסות לפי גודל, מהגדולה ב־12 בשעון עם כיוון השעון');
 ok(/\.pie-leg-logo\.inv \.pie-leg-fb \{ display: none; \}/.test(css), 'v174: לוגו לבן מהופך — בלי האות מאחוריו');
 ok(/\.pie-wrap \{ display: flex; justify-content: center; margin-inline: -12px; \}/.test(css) && /#pieChart \{ width: 100%; max-width: 520px;/.test(css), 'v175: העוגה כמעט ברוחב הכרטיס');
-ok(A('PIE_RANK_PALETTE').slice(0, 4).join() === '#8DC63F,#8FC1E3,#F46A5C,#C95CF5' && /x\.color = PIE_RANK_PALETTE\[i % PIE_RANK_PALETTE\.length\]/.test(src), 'v178: צבעי הפרוסות לפי הדירוג בתיק (ירוק, תכלת, אלמוגי, סגול…)');
+ok(A('PIE_RANK_PALETTE').slice(0, 4).join() === '#8DC63F,#8FC1E3,#F46A5C,#C95CF5' && /x\.color = x\.cash \? PIE_CASH_COLOR : PIE_RANK_PALETTE\[rk\+\+ % PIE_RANK_PALETTE\.length\]/.test(src), 'v178: צבעי הפרוסות לפי הדירוג בתיק (ירוק, תכלת, אלמוגי, סגול…)');
 const geom = { cx: 100, cy: 100, r: 40, R: 90, segs: [{ sym: 'A', a: -Math.PI / 2, a2: 0 }, { sym: 'B', a: 0, a2: 3 * Math.PI / 2 }] };
 ok(A('pieHitSym')(geom, 160, 40) === 'A' && A('pieHitSym')(geom, 40, 160) === 'B' && A('pieHitSym')(geom, 100, 100) === null && A('pieHitSym')(geom, 100, -10) === null, 'v178: זיהוי הפרוסה שנגעו בה (לא במרכז ולא מחוץ לטבעת)');
 ok(A('pieShade')('#000000', 0.5) === '#808080' && A('pieShade')('#FFFFFF', -0.5) === '#808080', 'v178: הבהרה/הכהיה של צבע');
