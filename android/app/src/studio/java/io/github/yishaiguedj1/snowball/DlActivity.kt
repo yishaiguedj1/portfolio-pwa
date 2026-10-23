@@ -1,6 +1,7 @@
 package io.github.yishaiguedj1.snowball
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -16,6 +17,12 @@ import android.os.Looper
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
+import android.webkit.CookieManager
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -90,7 +97,7 @@ class DlActivity : Activity() {
         Thread {
             var miss = false
             val res = try {
-                val s = DlEngine.probe(this, u, ref) { st ->
+                val s = DlEngine.probe(this, u, ref, DlEngine.cookiesFor(this, u, ref)) { st ->
                     main.post { subV.text = s(when (st) { "init" -> R.string.dlInit; "update" -> R.string.dlUpdate; else -> R.string.dlCheckingS }) }
                 }
                 "#probe=$nonce." + DlEngine.b64(s.toString())
@@ -101,16 +108,135 @@ class DlActivity : Activity() {
             }
             main.post {
                 if (isFinishing) return@post
-                if (!miss) { back(res); return@post }
-                // 23/10/2026 (בקשת המשתמש): לא נמצא סרטון ישירות → דפדפן הציד נפתח לבד (מהאפליקציה — מהאתר Chrome חוסם
-                // intent בלי נגיעה). קודם האתר עם התוצאה, ומעליו דפדפן הציד; מה שנתפס שם חוזר לאתר עם ref
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(s(R.string.launchUrl) + res), this, MainActivity::class.java))
-                startActivity(Intent(this, HuntActivity::class.java).setData(Uri.parse("snbstudio://hunt?u=" + Uri.encode(u)))
-                    .putExtra(HuntActivity.EXTRA_AUTO, true))
-                finish()
+                if (!miss) back(res) else deep(u, res)   // 23/10/2026: לא נמצא ישירות → בדיקה לעומק, ואז דפדפן הציד
             }
         }.start()
     }
+
+    /* ---------- הבדיקה לעומק (DlDeep): דפדפן נסתר בחלון הזה ---------- */
+    private var web: WebView? = null
+    private val found = HuntMedia.Found()
+    @Volatile private var deepDone = false
+    private var deepPage: DlDeep.Page? = null
+    private var ckTried = false; private var ckFailed = false; private var mediaBusy = false
+    private val mediaTried = HashSet<String>()
+
+    @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
+    private fun deep(u: String, miss: String) {
+        // WebView בשני תהליכים (דפדפן הציד בראשי) — כל אחד בתיקייה משלו
+        try { WebView.setDataDirectorySuffix("dl") } catch (e: Throwable) {}
+        val w = try { WebView(this) } catch (e: Throwable) { null }
+        if (w == null) { hunt(u, miss); return }
+        web = w
+        subV.text = s(R.string.dlDeep)
+        btn.setOnClickListener { stopDeep(); back("#probe=$nonce.!cancel") }
+        val st = w.settings
+        st.javaScriptEnabled = true; st.domStorageEnabled = true
+        st.mediaPlaybackRequiresUserGesture = false          // ניגון מושתק בלי נגיעה — רק כאן, בבדיקה שהמשתמש התחיל
+        st.allowFileAccess = false; st.allowContentAccess = false; st.setSupportMultipleWindows(false)
+        CookieManager.getInstance().setAcceptCookie(true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(w, true)
+        w.alpha = 0.01f                                       // מחובר לחלון (אחרת הדף "מוסתר" והנגן לא מתחיל), כמעט שקוף
+        w.setOnTouchListener { _, _ -> true }                 // אין נגיעות בדף הנסתר
+        w.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView, req: WebResourceRequest): Boolean {
+                val sc = req.url.scheme?.lowercase(); return sc != "http" && sc != "https"
+            }
+            override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? { seen(req.url.toString()); return null }
+            override fun onPageFinished(view: WebView, url: String) { main.postDelayed({ tryCookies(u, miss) }, DlDeep.SETTLE_MS) }
+        }
+        findViewById<ViewGroup>(android.R.id.content).addView(w, 0,
+            ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        w.loadUrl(u)
+        val t0 = System.currentTimeMillis()
+        val tick = object : Runnable {
+            override fun run() {
+                if (deepDone) return
+                val el = System.currentTimeMillis() - t0
+                if (el > DlDeep.NO_FINISH_MS) tryCookies(u, miss)
+                w.evaluateJavascript(DlDeep.EXTRACT) { r ->
+                    val js = try { org.json.JSONTokener(r).nextValue() as? String } catch (e: Throwable) { null }
+                    DlDeep.parsePage(js)?.let { pg -> deepPage = pg; pg.urls.forEach { seen(it) } }
+                    nextMedia(u, miss)
+                }
+                // הזמן נגמר — מחכים רק לבדיקה שכבר רצה; אחרת דפדפן הציד
+                if ((el > DlDeep.DEEP_MS && !mediaBusy && (ckFailed || !ckTried)) || el > DlDeep.DEEP_MS * 3) { hunt(u, miss); return }
+                main.postDelayed(this, 1000)
+            }
+        }
+        main.postDelayed(tick, 1000)
+    }
+
+    private fun seen(url: String) {
+        val h = HuntMedia.classify(url) ?: return
+        main.post { found.add(h) }
+    }
+
+    /** 1. yt-dlp שוב, עם העוגיות של הדפדפן (אתגר שנפתר) */
+    private fun tryCookies(u: String, miss: String) {
+        if (ckTried || deepDone) return
+        ckTried = true
+        val ck = writeCookies(u)
+        if (ck == null) { ckFailed = true; return }
+        val img = deepPage?.image ?: ""
+        Thread {
+            val r = try { DlEngine.probe(this, u, "", ck) } catch (e: Throwable) { null }
+            if (r != null) DlEngine.thumbIfEmpty(r, img)
+            main.post {
+                if (deepDone) return@post
+                if (r != null) okDeep(r) else { ckFailed = true; nextMedia(u, miss) }
+            }
+        }.start()
+    }
+
+    /** 2. הזרם שנמצא בדף (הטוב קודם), עם ה־Referer של הדף */
+    private fun nextMedia(u: String, miss: String) {
+        if (deepDone || mediaBusy || !ckFailed || mediaTried.size >= DlDeep.MEDIA_TRIES) return
+        val h = found.list.firstOrNull { it.url !in mediaTried } ?: return
+        mediaTried.add(h.url); mediaBusy = true
+        val page = web?.url ?: u
+        val ck = writeCookies(page, h.url)
+        val pg = deepPage
+        Thread {
+            val r = try { DlEngine.probe(this, h.url, page, ck) } catch (e: Throwable) { null }
+            if (r != null) { DlDeep.fromMedia(r, h.url, page, pg); DlEngine.thumbIfEmpty(r, pg?.image ?: "") }
+            main.post {
+                mediaBusy = false
+                if (deepDone) return@post
+                if (r != null) okDeep(r) else nextMedia(u, miss)
+            }
+        }.start()
+    }
+
+    private fun writeCookies(page: String, vararg more: String): DlEngine.Ck? {
+        val cm = CookieManager.getInstance()
+        try { cm.flush() } catch (e: Throwable) {}
+        val urls = (listOf(page) + more + found.list.map { it.url }).distinct()
+        val text = DlDeep.netscape(urls.map { it to cm.getCookie(it) }, System.currentTimeMillis() / 1000)
+        val ua = web?.settings?.userAgentString ?: return null
+        return DlEngine.saveCookies(this, page, text, ua)
+    }
+
+    private fun okDeep(r: org.json.JSONObject) { stopDeep(); back("#probe=$nonce." + DlEngine.b64(r.toString())) }
+
+    private fun stopDeep() {
+        deepDone = true
+        main.removeCallbacksAndMessages(null)
+        web?.let { try { it.stopLoading(); (it.parent as? ViewGroup)?.removeView(it); it.destroy() } catch (e: Throwable) {} }
+        web = null
+    }
+
+    /** 3. לא נמצא — דפדפן הציד הגלוי נפתח לבד (מהאפליקציה; מהאתר Chrome חוסם intent בלי נגיעה). האתר מקבל את התוצאה */
+    private fun hunt(u: String, miss: String) {
+        stopDeep()
+        if (isFinishing) return
+        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(s(R.string.launchUrl) + miss), this, MainActivity::class.java))
+        startActivity(Intent(this, HuntActivity::class.java).setData(Uri.parse("snbstudio://hunt?u=" + Uri.encode(u)))
+            .putExtra(HuntActivity.EXTRA_AUTO, true))
+        finish()
+    }
+
+    override fun onDestroy() { stopDeep(); super.onDestroy() }
 
     private fun download(d: Uri, u: String, ref: String) {
         mode = "dl"

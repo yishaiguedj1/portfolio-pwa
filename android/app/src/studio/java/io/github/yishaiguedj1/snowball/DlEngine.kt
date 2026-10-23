@@ -49,7 +49,33 @@ object DlEngine {
         }
     }
 
-    private fun base(req: YoutubeDLRequest, ref: String): YoutubeDLRequest {
+    /** עוגיות + זהות הדפדפן מהבדיקה לעומק (DlDeep) — קובץ זמני באחסון הפרטי, לפי האתר */
+    data class Ck(val file: File, val ua: String)
+
+    private fun ckDir(ctx: Context) = File(ctx.filesDir, "ck")
+
+    fun saveCookies(ctx: Context, page: String, text: String, ua: String): Ck? {
+        val k = DlDeep.hostKey(page)
+        if (k.isEmpty() || ua.isEmpty() || ua.length > 512 || ua.any { it < ' ' }) return null
+        val d = ckDir(ctx).apply { mkdirs() }
+        d.listFiles()?.forEach { if (System.currentTimeMillis() - it.lastModified() > DlDeep.CK_TTL_MS) it.delete() }
+        return try {
+            File(d, "$k.txt").writeText(text); File(d, "$k.ua").writeText(ua)
+            Ck(File(d, "$k.txt"), ua)
+        } catch (e: Throwable) { null }
+    }
+
+    /** לפי ה־Referer (זרם שנמצא בדף) או לפי הכתובת עצמה; רק כשטרי */
+    fun cookiesFor(ctx: Context, url: String, ref: String): Ck? {
+        val k = DlDeep.hostKey(ref.ifEmpty { url })
+        if (k.isEmpty()) return null
+        val f = File(ckDir(ctx), "$k.txt"); val u = File(ckDir(ctx), "$k.ua")
+        if (!f.isFile || !u.isFile || System.currentTimeMillis() - f.lastModified() > DlDeep.CK_TTL_MS) return null
+        return try { Ck(f, u.readText()) } catch (e: Throwable) { null }
+    }
+
+    private fun base(req: YoutubeDLRequest, ref: String, ck: Ck? = null): YoutubeDLRequest {
+        if (ck != null) req.addOption("--cookies", ck.file.absolutePath).addOption("--user-agent", ck.ua)
         req.addOption("--no-playlist").addOption("--socket-timeout", 20).addOption("--retries", 5)
             .addOption("--fragment-retries", 10).addOption("--extractor-retries", 2)
         val r = DlProbe.refOk(ref)
@@ -62,7 +88,7 @@ object DlEngine {
     }
 
     /** בדיקה: yt-dlp -J → הסיכום של DlProbe + תמונה קטנה. כשל → IllegalArgumentException(קוד) */
-    fun probe(ctx: Context, url: String, ref: String, onStage: (String) -> Unit = {}): JSONObject {
+    fun probe(ctx: Context, url: String, ref: String, ck: Ck? = null, onStage: (String) -> Unit = {}): JSONObject {
         prepare(ctx, onStage)
         onStage("probe")
         // לא נמצא סרטון בכתובת כמו שהיא → הכתובות החלופיות (DlProbe.altUrls: www.); שגיאה אחרת — מיד
@@ -70,7 +96,7 @@ object DlEngine {
         for (u in listOf(url) + DlProbe.altUrls(url)) {
             try {
                 val out = try {
-                    YoutubeDL.getInstance().execute(base(YoutubeDLRequest(u), ref).addOption("-J").addOption("--skip-download")).out
+                    YoutubeDL.getInstance().execute(base(YoutubeDLRequest(u), ref, ck).addOption("-J").addOption("--skip-download")).out
                 } catch (e: Throwable) { throw IllegalArgumentException(DlProbe.errCode(e.message)) }
                 val i = try { JSONObject(out) } catch (e: Throwable) { throw IllegalArgumentException("fail") }
                 s = DlProbe.summarize(i); info = i; break
@@ -82,6 +108,11 @@ object DlEngine {
         if (s == null || info == null) throw err ?: IllegalArgumentException("fail")
         s.put("th", thumbData(DlProbe.thumbUrl(info)))
         return s
+    }
+
+    /** תמונה מהדף (og:image) כשל־yt-dlp אין — לבדיקה לעומק */
+    fun thumbIfEmpty(s: JSONObject, img: String) {
+        if (s.optString("th", "").isEmpty() && img.isNotEmpty()) s.put("th", thumbData(img))
     }
 
     /** תמונה קטנה (320px, JPEG) כ־data: — כמו fetchurl.thumb_data. כל תקלה → "" */
@@ -112,7 +143,7 @@ object DlEngine {
     fun download(ctx: Context, url: String, ref: String, pick: Pick, id: String, progress: (Float, Long) -> Unit): File {
         prepare(ctx)
         val dir = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "dl/$id").apply { mkdirs() }
-        val req = base(YoutubeDLRequest(url), ref)
+        val req = base(YoutubeDLRequest(url), ref, cookiesFor(ctx, url, ref))
             .addOption("-f", DlProbe.selector(pick.v, pick.a, pick.h))
             .addOption("--merge-output-format", "mp4/mkv")
             .addOption("--no-mtime").addOption("--continue").addOption("--concurrent-fragments", 4)

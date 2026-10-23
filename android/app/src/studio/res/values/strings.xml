@@ -15,6 +15,7 @@
     <!-- 22/10/2026: ההורדה בטלפון (DlActivity, DlService) -->
     <string name="dlChecking">בודק את הקישור בטלפון…</string>
     <string name="dlCheckingS">מוצאים את הסרטון ואת האיכויות</string>
+    <string name="dlDeep">בודקים את הדף לעומק — כמו דפדפן</string>
     <string name="dlInit">מכין את מנוע ההורדה (רק בפעם הראשונה)…</string>
     <string name="dlUpdate">מעדכן את מנוע ההורדה…</string>
     <string name="dlTitle">מוריד לטלפון</string>
