@@ -3206,6 +3206,12 @@ function pageLink(p) {
   const go2 = btn('st-btn wide', T('studioLinkAdd'), () => { f.linkOk = true; back(); }, 'link-add2');
   go2.disabled = !L.v;
   p.append(h('div', 'st-gap'), go2);
+  // 23/10/2026 (בקשת המשתמש): "רק להוריד" — הקובץ נשאר ב־Movies/Studio, בלי טופס התרגום
+  if (devDl()) {
+    const dl = btn('st-btn ghost wide', T('studioLinkOnly'), () => dlOnly(L), 'link-only');
+    dl.disabled = !L.v;
+    p.append(h('div', 'st-gap sm'), dl);
+  }
 }
 /* שלב 1.5 (22/10/2026): בועת ההורדה בדפדפן — רק באפליקציית Studio לאנדרואיד. הבועה = APK נפרד, Studio Bubble
    (Play Protect חסם את Studio כולו כשהשירות היה בתוכה). האתר לא יודע אם היא מותקנת/פועלת — העמוד מסביר, מוריד ופותח את
@@ -3357,6 +3363,14 @@ function startLink(f) {
     location.href = dlIntent('dl', { u: L.r.u || L.u, ref: L.ref, n, v: pick.v, a: pick.a, h: pick.h,
       s0: pick.sec ? pick.sec[0] : '', s1: pick.sec ? pick.sec[1] : '', t: L.r.t });
   })();
+}
+/* "רק להוריד לטלפון": ההורדה ב־DlActivity עם o=1 — בסוף "נשמר בטלפון" עם פתיחה בנגן, בלי לחזור לאתר */
+function dlOnly(L) {
+  const pick = L && L.st === 'ok' ? linkPick(L) : null;
+  if (!pick) return;
+  flashSafe(T('studioLinkOnlyWait'));
+  location.href = dlIntent('dl', { u: L.r.u || L.u, ref: L.ref, n: dlNonce(), v: pick.v, a: pick.a, h: pick.h,
+    s0: pick.sec ? pick.sec[0] : '', s1: pick.sec ? pick.sec[1] : '', t: L.r.t, o: 1 });
 }
 function startLinkCloud(f) {   // ישר לענן של Studio (העובד מוריד) — כשהמשתמש בחר ובמקור שלא חוסם את השרת
   const L = f.link;
