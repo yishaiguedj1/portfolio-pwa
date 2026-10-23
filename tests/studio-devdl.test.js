@@ -14,9 +14,18 @@ const act = R(K + 'DlActivity.kt'), eng = R(K + 'DlEngine.kt'), svc = R(K + 'DlS
 const main = R('android/app/src/main/java/io/github/yishaiguedj1/snowball/MainActivity.kt');
 const man = R('android/app/src/studio/AndroidManifest.xml');
 
-// 1. בלי השרת: האתר לא מבקש בדיקה/הורדה מהשרתון
-ok(!/urlProbe/.test(st) && !/src: 'url'/.test(st), 'studio.js לא פונה לשרת להורדה מקישור (urlProbe / src:url)');
-ok(/if \(!devDl\(\)\) \{ L\.st = 'err'; L\.e = 'app'/.test(st) && /const linkRow = devDl\(\) \?/.test(st), 'בלי האפליקציה — הסבר, לא שרת');
+// 1. לטלפון כברירת מחדל; "ישר לענן של Studio" רק בבחירה, רק כשהשרתון מתיר ורק במקור שלא חוסם את השרת (22/10/2026)
+{
+  const fnSrc = (name) => { const a = st.indexOf('function ' + name + '('); return st.slice(a, st.indexOf('\n}\n', a)); };
+  const outside = st.replace(fnSrc('linkCheckSrv'), '').replace(fnSrc('startLinkCloud'), '');
+  ok(!/urlProbe/.test(outside) && !/src: 'url'/.test(outside), 'השרת רק בשתי פונקציות: linkCheckSrv (דפדפן בלי האפליקציה) ו־startLinkCloud (בחירה)');
+  ok(/L\.to = devDl\(\) \? 'dev' : 'cloud';/.test(st) && /if \(ui\.url\) linkCheckSrv\(f, L, seq\); else \{ L\.st = 'err'; L\.e = 'app'; \}/.test(st), 'בטלפון — "dev"; בלי האפליקציה — לענן (כשמותר) או הסבר');
+  ok(/if \(L && L\.to === 'cloud'\) \{ startLinkCloud\(f\); return; \}/.test(st), 'התחלה לפי הבחירה');
+  ok(/cloudBlocked = \(r\) => \/\^youtube\/i/.test(st) && /function cloudOk\(L\) \{ return !!\(ui\.url && L && L\.r && !cloudBlocked\(L\.r\)\); \}/.test(st), 'לענן — רק עם ui.url ובלי יוטיוב (חוסם את השרת)');
+  ok(/if \(L\.to === 'cloud' && !cOk\) L\.to = 'dev';/.test(st) && /k: 'link-to:cloud'/.test(st) && /k: 'link-to:dev'/.test(st), 'הבחירה בדף הקישור, וחוזרת לטלפון כשהענן לא מותר');
+  for (const k of ['studioLinkToT', 'studioLinkToDev', 'studioLinkToCloud', 'studioLinkToCloudNo', 'studioLinkToCloudOff', 'studioLinkCloudNote'])
+    ok((R('app.js').match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, k + ' בעברית ובאנגלית');
+}
 
 // 2. הכתובות לאפליקציה = מה ש־DlActivity מקבלת
 ok(/'intent:\/\/' \+ kind \+ '\?' \+ qs \+ '#Intent;scheme=snbstudio;package=' \+ DL_PKG/.test(st) && /DL_PKG = 'app\.thesnowball\.studio'/.test(st), 'intent://probe|dl לחבילה של Studio');
