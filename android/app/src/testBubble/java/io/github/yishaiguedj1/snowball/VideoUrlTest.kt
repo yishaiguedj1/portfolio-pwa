@@ -40,7 +40,11 @@ class VideoUrlTest {
     /** הניסוי: דף רגיל באתר לא מוכר → הכתובת; דף בית/חיפוש — לא. וזיהוי נגן לפי התפקיד שכרום מעביר */
     @Test fun deepPage() {
         assertEquals("https://news.example.co.il/article/123", VideoUrl.page("news.example.co.il/article/123"))
-        listOf("news.example.co.il", "google.com/search?q=x", "https://www.google.com/search?q=x", "חדשות", "a b/c").forEach { assertEquals(it, null, VideoUrl.page(it)) }
+        assertEquals("https://buffett.cnbc.com/", VideoUrl.page("buffett.cnbc.com/"))
+        assertEquals("https://buffett.cnbc.com/", VideoUrl.page("buffett.cnbc.com"))
+        assertTrue(VideoUrl.pageIsBare("https://buffett.cnbc.com/"))
+        assertTrue(!VideoUrl.pageIsBare("https://news.example.co.il/article/123"))
+        listOf("google.com/search?q=x", "https://www.google.com/search?q=x", "חדשות", "a b/c").forEach { assertEquals(it, null, VideoUrl.page(it)) }
         assertTrue(VideoUrl.isVideoNode("android.view.View", "video", null))
         assertTrue(VideoUrl.isVideoNode("android.widget.VideoView", null, null))
         assertTrue(VideoUrl.isVideoNode("android.view.View", null, "סרטון"))
