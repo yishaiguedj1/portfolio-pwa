@@ -35,10 +35,10 @@ object DlWork {
             val f = DlEngine.download(ctx, r.url, r.ref, r.pick, r.id) { p, _ ->
                 DlState.progress(p)
                 val now = System.currentTimeMillis()
-                if (now - last > 1000) { last = now; nm(ctx).notify(N_ID, progress(ctx, r.title, ctx.getString(R.string.dlPct, p.toInt().coerceIn(0, 100)), p.toInt())) }
+                if (now - last > 1000) { last = now; nm(ctx).notify(N_ID, progress(ctx, r.title, DlLang.of(ctx).getString(R.string.dlPct, p.toInt().coerceIn(0, 100)), p.toInt())) }
             }
             DlState.phase("save")
-            nm(ctx).notify(N_ID, progress(ctx, r.title, ctx.getString(R.string.dlSaving), -1))
+            nm(ctx).notify(N_ID, progress(ctx, r.title, DlLang.of(ctx).getString(R.string.dlSaving), -1))
             val uri = DlEngine.publish(ctx, f)
             main.post {
                 DlState.done(uri)
@@ -59,23 +59,23 @@ object DlWork {
     fun nm(ctx: Context) = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
     private fun builder(ctx: Context): Notification.Builder {
-        if (Build.VERSION.SDK_INT >= 26) nm(ctx).createNotificationChannel(NotificationChannel(CH, ctx.getString(R.string.dlChannel), NotificationManager.IMPORTANCE_LOW))
+        if (Build.VERSION.SDK_INT >= 26) nm(ctx).createNotificationChannel(NotificationChannel(CH, DlLang.of(ctx).getString(R.string.dlChannel), NotificationManager.IMPORTANCE_LOW))
         return if (Build.VERSION.SDK_INT >= 26) Notification.Builder(ctx, CH) else Notification.Builder(ctx)
     }
 
     fun progress(ctx: Context, title: String, text: String, pct: Int): Notification {
         val open = PendingIntent.getActivity(ctx, 1, Intent(ctx, DlActivity::class.java).setAction(DlActivity.ACT_SHOW), PendingIntent.FLAG_IMMUTABLE)
         val cancel = PendingIntent.getService(ctx, 2, Intent(ctx, DlService::class.java).setAction(DlService.ACT_CANCEL), PendingIntent.FLAG_IMMUTABLE)
-        return builder(ctx).setSmallIcon(android.R.drawable.stat_sys_download).setContentTitle(title.ifEmpty { ctx.getString(R.string.dlTitle) })
+        return builder(ctx).setSmallIcon(android.R.drawable.stat_sys_download).setContentTitle(title.ifEmpty { DlLang.of(ctx).getString(R.string.dlTitle) })
             .setContentText(text).setOngoing(true).setOnlyAlertOnce(true).setContentIntent(open)
             .setProgress(100, pct.coerceAtLeast(0), pct < 0)
-            .addAction(Notification.Action.Builder(null, ctx.getString(R.string.dlCancel), cancel).build()).build()
+            .addAction(Notification.Action.Builder(null, DlLang.of(ctx).getString(R.string.dlCancel), cancel).build()).build()
     }
 
     private fun doneNotif(ctx: Context, title: String, uri: Uri, id: String): Notification {
         val pi = PendingIntent.getActivity(ctx, 3, DlState.handoffIntent(ctx, uri, id), PendingIntent.FLAG_IMMUTABLE)
-        return builder(ctx).setSmallIcon(android.R.drawable.stat_sys_download_done).setContentTitle(ctx.getString(R.string.dlDone))
-            .setContentText(title.ifEmpty { ctx.getString(R.string.dlTapContinue) }).setSubText(ctx.getString(R.string.dlTapContinue))
+        return builder(ctx).setSmallIcon(android.R.drawable.stat_sys_download_done).setContentTitle(DlLang.of(ctx).getString(R.string.dlDone))
+            .setContentText(title.ifEmpty { DlLang.of(ctx).getString(R.string.dlTapContinue) }).setSubText(DlLang.of(ctx).getString(R.string.dlTapContinue))
             .setAutoCancel(true).setContentIntent(pi).build()
     }
 
@@ -84,17 +84,17 @@ object DlWork {
         // 23/10/2026: איפה הקובץ — בטקסט (אלבום Studio בגלריה), ופעולות "פתיחה" ו"שיתוף" ישר מההתראה
         val pi = PendingIntent.getActivity(ctx, 5, DlState.viewIntent(uri), PendingIntent.FLAG_IMMUTABLE)
         val share = PendingIntent.getActivity(ctx, 6, DlState.shareIntent(ctx, uri), PendingIntent.FLAG_IMMUTABLE)
-        return builder(ctx).setSmallIcon(android.R.drawable.stat_sys_download_done).setContentTitle(ctx.getString(R.string.dlSaved))
-            .setContentText(title.ifEmpty { ctx.getString(R.string.dlSavedS) })
-            .setStyle(Notification.BigTextStyle().bigText((if (title.isEmpty()) "" else title + "\n") + ctx.getString(R.string.dlSavedS)))
-            .addAction(Notification.Action.Builder(null, ctx.getString(R.string.dlOpen), pi).build())
-            .addAction(Notification.Action.Builder(null, ctx.getString(R.string.dlShare), share).build())
+        return builder(ctx).setSmallIcon(android.R.drawable.stat_sys_download_done).setContentTitle(DlLang.of(ctx).getString(R.string.dlSaved))
+            .setContentText(title.ifEmpty { DlLang.of(ctx).getString(R.string.dlSavedS) })
+            .setStyle(Notification.BigTextStyle().bigText((if (title.isEmpty()) "" else title + "\n") + DlLang.of(ctx).getString(R.string.dlSavedS)))
+            .addAction(Notification.Action.Builder(null, DlLang.of(ctx).getString(R.string.dlOpen), pi).build())
+            .addAction(Notification.Action.Builder(null, DlLang.of(ctx).getString(R.string.dlShare), share).build())
             .setAutoCancel(true).setContentIntent(pi).build()
     }
 
     private fun errNotif(ctx: Context, title: String, id: String, code: String): Notification {
         val pi = PendingIntent.getActivity(ctx, 4, DlState.errIntent(ctx, id, code), PendingIntent.FLAG_IMMUTABLE)
-        return builder(ctx).setSmallIcon(android.R.drawable.stat_notify_error).setContentTitle(ctx.getString(R.string.dlFailed))
+        return builder(ctx).setSmallIcon(android.R.drawable.stat_notify_error).setContentTitle(DlLang.of(ctx).getString(R.string.dlFailed))
             .setContentText(title).setAutoCancel(true).setContentIntent(pi).build()
     }
 }

@@ -2988,6 +2988,7 @@ const DL_APK = 'https://github.com/yishaiguedj1/portfolio-pwa/releases/download/
 /* 23/10/2026: Studio ישנה (בלי DlActivity) → Chrome לא עושה כלום בשקט. עם browser_fallback_url הוא חוזר אלינו עם
    השגיאה ‎noapp‎ (‎#probe=<n>.!noapp / ‎#dle=<n>.noapp), והדף אומר לעדכן את האפליקציה */
 function dlIntent(kind, q) {
+  q = Object.assign({}, q, { l: uiLang() });   // 23/10/2026: החלון וההתראות בשפה של Studio (DlLang)
   const qs = Object.keys(q).filter((k) => q[k] !== '' && q[k] != null).map((k) => k + '=' + encodeURIComponent(q[k])).join('&');
   let fb = '';
   try { fb = location.origin + location.pathname + (kind === 'probe' ? '#probe=' + q.n + '.!noapp' : '#dle=' + q.n + '.noapp'); } catch (e) {}
@@ -3032,9 +3033,10 @@ export function normDevProbe(r) {
   const sub = Array.isArray(r.sub) ? r.sub.slice(0, 40).filter((x) => x && typeof x.l === 'string').map((x) => ({ l: s(x.l, 20), n: s(x.n, 60), a: x.a ? 1 : 0 })) : [];
   const ao = r.ao && fid(r.ao.id) ? { id: fid(r.ao.id), ac: s(r.ao.ac, 10), br: n(r.ao.br, 0, 10000), sz: n(r.ao.sz, 0, 1e13) } : null;
   const u = /^https?:\/\//i.test(String(r.u || '')) ? s(r.u, 2048) : '';
+  const rf = /^https?:\/\//i.test(String(r.rf || '')) ? s(r.rf, 2048) : '';   // בדיקה לעומק: הזרם שנמצא בדף → הדף (Referer)
   const th = /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(String(r.th || '')) && String(r.th).length <= 72000 ? String(r.th) : '';
   return { t: s(r.t, 200) || 'video', u, s: s(r.s, 40), up: s(r.up, 100), d: n(r.d, 0, 1e6), ud: /^\d{8}$/.test(r.ud || '') ? r.ud : '',
-    lang: s(r.lang, 10), ch, sub, q, rec: n(r.rec, 0, 8640), ao, drm: r.drm ? 1 : 0, th };
+    lang: s(r.lang, 10), ch, sub, q, rec: n(r.rec, 0, 8640), ao, drm: r.drm ? 1 : 0, th, rf };
 }
 function linkCheck(f, raw, ref) {
   // ref — שלב 2: קובץ/זרם שנמצא בדף (דפדפן הציד) → הדף, והטלפון מוריד עם ה־Referer שלו
@@ -3076,7 +3078,7 @@ export function studioProbeRes(arg) {
     let r = null;
     try { r = normDevProbe(JSON.parse(b64uText(m[3]))); } catch (e) {}
     if (!r) { L.st = 'err'; L.e = 'fail'; }
-    else { L.st = 'ok'; L.r = r; const rec = linkRec(r); L.v = rec ? rec.v : ''; }
+    else { L.st = 'ok'; L.r = r; if (r.rf && !L.ref) L.ref = r.rf; const rec = linkRec(r); L.v = rec ? rec.v : ''; }
   }
   render('none');
   return true;
@@ -3226,7 +3228,7 @@ function grabOpen(s) {
 }
 /* שלב 2: דפדפן הציד (HuntActivity ב־APK) — עם הכתובת שבשדה, אם יש */
 function huntOpen(u) {
-  const q = /^https?:\/\/\S+$/i.test(u || '') ? '?u=' + encodeURIComponent(u) : '';
+  const q = (/^https?:\/\/\S+$/i.test(u || '') ? '?u=' + encodeURIComponent(u) + '&' : '?') + 'l=' + uiLang();
   location.href = 'intent://hunt' + q + '#Intent;scheme=snbstudio;package=' + HUNT_PKG + ';end';
 }
 function pageGrab(p) {

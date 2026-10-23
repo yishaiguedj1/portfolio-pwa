@@ -109,6 +109,13 @@ function done() {
   ok(/RUN_USER_INITIATED_JOBS/.test(man) && /\.DlJob"[\s\S]*?BIND_JOB_SERVICE/.test(man) && (man.match(/android:process=":dl"/g) || []).length === 3, 'מניפסט: הרשאת UIDT ו־DlJob בתהליך ההורדה');
   ok(/DlJob\.schedule\(this/.test(R(dir + 'DlActivity.kt')), 'DlActivity מתזמן קודם UIDT');
   ok(/setDefaultUncaughtExceptionHandler/.test(R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/DlActivity.kt')), 'קריסה בחלון ההורדה מדווחת לאתר');
+  // 23/10/2026: הבדיקה לעומק — דפדפן נסתר בחלון ההורדה; העוגיות רק בקובץ זמני בטלפון; ה־Referer של הזרם חוזר לאתר
+  const deep = R(dir + 'DlDeep.kt');
+  ok(/fun deep\(/.test(act) && /if \(!miss\) back\(res\) else deep\(u, res\)/.test(act) && /setDataDirectorySuffix\("dl"\)/.test(act), 'DlActivity: בדיקה לעומק לפני דפדפן הציד, WebView בתיקייה של התהליך');
+  ok(/addOption\("--cookies", ck\.file\.absolutePath\)/.test(eng) && /File\(ctx\.filesDir, "ck"\)/.test(eng) && /CK_TTL_MS/.test(eng), 'DlEngine: קובץ עוגיות פרטי וזמני ל־yt-dlp');
+  ok(!/Log\.|println/.test(deep + act.slice(act.indexOf('fun deep('))), 'בלי לוגים בבדיקה לעומק');
+  ok(/const rf = /.test(st) && /th, rf \}/.test(st) && /if \(r\.rf && !L\.ref\) L\.ref = r\.rf/.test(st) && /put\("rf"/.test(deep), 'הזרם שנמצא בדף: ה־Referer (rf) עובר לאתר ולהורדה');
+  ok(/name="dlDeep"/.test(R('android/app/src/studio/res/values/strings.xml')) && /name="dlDeep"/.test(R('android/app/src/studio/res/values-en/strings.xml')), 'dlDeep בעברית ובאנגלית');
   for (const k of ['studioLinkEApp', 'studioLinkDlWait', 'studioLinkGot', 'studioLinkEStore', 'studioLinkFailT'])
     ok((R('app.js').match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, k + ' בעברית ובאנגלית');
   console.log('studio-devdl: ' + n + ' בדיקות עברו');

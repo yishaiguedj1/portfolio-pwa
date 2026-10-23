@@ -59,8 +59,15 @@ class HuntActivity : Activity() {
     private val dark get() = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
 
     @SuppressLint("SetJavaScriptEnabled")
+    override fun attachBaseContext(base: Context) {
+        super.attachBaseContext(DlLang.of(base))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // השפה של Studio (l= מהאתר) — נקבעת לפני שהמסך נבנה; שפה חדשה → בנייה מחדש פעם אחת
+        val l = intent?.data?.getQueryParameter("l")
+        if ((l == "he" || l == "en") && DlLang.cur(this) != l) { DlLang.set(this, l); recreate(); return }
         val bg = if (dark) Color.parseColor("#000000") else Color.parseColor("#F2F2F7")
         val fg = if (dark) Color.WHITE else Color.parseColor("#1C1C1E")
         val field = if (dark) Color.parseColor("#2C2C2E") else Color.WHITE
@@ -206,6 +213,11 @@ class HuntActivity : Activity() {
     private var hinted = false
     private fun hint() {
         if (hinted || found.size > 0 || pageIsVideo() || page.startsWith("https://www.google.")) return
+        if (intent?.getBooleanExtra(EXTRA_AUTO, false) == true) {   // נפתח לבד — תמיד מסבירים למה ומה לעשות
+            hinted = true
+            android.widget.Toast.makeText(this, R.string.huntAuto, android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
         val p = getSharedPreferences("hunt", MODE_PRIVATE)
         val n = p.getInt("huntHints", 0)
         if (n >= 3) return
@@ -271,6 +283,7 @@ class HuntActivity : Activity() {
 
     companion object {
         const val EXTRA_REF = "snb_ref"
+        const val EXTRA_AUTO = "snb_auto"   // נפתח לבד אחרי בדיקה שלא מצאה סרטון (DlActivity)
 
         /* הסקריפט בדף: fetch/XHR של הנגן ו־src של <video>/<source>. רק מדווח כתובות (מחרוזות) — לא משנה כלום */
         private const val HOOK = """(function(){try{
