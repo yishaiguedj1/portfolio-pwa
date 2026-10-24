@@ -107,5 +107,21 @@ assert.strictEqual(fs.items[1].used, 100);
   const mc = U.storeMerge({ r2: { at: 1, b: [{ name: 'x-y', gb: 1, n: 1 }], cost: { proj: 3 } } }, { st: 'ok', b: [{ name: 'x-y', gb: 2, n: 1 }] }, null, 7200e3);
   assert.deepStrictEqual(mc.r2.cost, { proj: 3 }, 'העלות נשארת כשהשאלה עליה נכשלה');
 
+  // 24/10/2026: שגיאה של R2 נשמרת בקוד; מדידה מוצלחת מוחקת אותה
+  const me = U.storeMerge(m1, { st: 'err', err: 'gql', b: [] }, null, now0 + 7200e3);
+  assert.deepStrictEqual(me.r2e, { err: 'gql', at: Math.round((now0 + 7200e3) / 1000) }); assert.strictEqual(me.r2.b[0].gb, 1, 'הגודל הקודם נשאר');
+  assert.strictEqual(U.storeMerge(me, { st: 'off', b: [] }, null, now0).r2e.err, 'gql', 'ריצה בלי טוקן לא מוחקת את השגיאה');
+  assert.strictEqual(U.storeMerge(me, { st: 'ok', b: [{ name: 'snb-studio', gb: 2 }] }, null, now0).r2e, undefined);
+  // מה שנמדד ב־Vercel (עם טוקן) מוצג בשרת שלנו (בלי טוקן) — רק במקום off
+  const kept = U.provKeep(null, { vercel: { st: 'off', items: [] }, r2: { st: 'ok', items: [1] }, firestore: { st: 'err', err: 'api_off' } }, now0);
+  assert.deepStrictEqual(Object.keys(kept).sort(), ['firestore', 'r2']); assert.strictEqual(kept.r2.at, now0 / 1000);
+  const mg = U.provMerge({ vercel: { st: 'off' }, r2: { st: 'off' }, firestore: { st: 'ok', items: [2] } }, kept);
+  assert.deepStrictEqual(mg.r2.items, [1]); assert.deepStrictEqual(mg.firestore.items, [2], 'מדידה מקומית גוברת'); assert.strictEqual(mg.vercel.st, 'off');
+  assert.strictEqual(U.provKeep(kept, { r2: { st: 'off' } }, now0 + 1).r2.at, now0 / 1000, 'off לא דורס את השמור');
+  // 403 של Google: API כבוי מול חסר תפקיד
+  const g403 = (tx) => async () => ({ status: 403, text: async () => tx });
+  assert.strictEqual((await U.r2Store({ CF_USAGE_TOKEN: 't', R2_ACCOUNT_ID: 'a', R2_BUCKET: 'snb-learn' }, g403('{"reason":"SERVICE_DISABLED"}'), now0)).err, 'api_off');
+  assert.strictEqual((await U.r2Store({ CF_USAGE_TOKEN: 't', R2_ACCOUNT_ID: 'a', R2_BUCKET: 'snb-learn' }, g403('PERMISSION_DENIED'), now0)).err, 'http_403');
+
   console.log('usage-monitor: כל הבדיקות עברו');
 })().catch((e) => { console.error(e); process.exit(1); });
