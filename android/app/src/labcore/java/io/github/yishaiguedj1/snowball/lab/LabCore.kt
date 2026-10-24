@@ -157,6 +157,12 @@ object FfLine {
     private val ERR = Regex("""mediacodec|error|fail|invalid|unsupported|not supported|unable|could not|cannot|no such|denied""", RegexOption.IGNORE_CASE)
     private val NOISE = Regex("""^\s*(Stream #|Input #|Output #|Metadata:|Duration:|encoder\s*:|handler_name|vendor_id|Press \[q\])""")
 
+    /** השורות שהמקודד [enc] עצמו כתב ("[h264_mediacodec @ 0x…]" — לא "[vost#0:0/h264_mediacodec @") — שם הסיבה האמיתית */
+    fun own(text: String, enc: String, n: Int): List<String> {
+        val tag = "[$enc @"
+        return text.lineSequence().map { it.trim() }.filter { it.startsWith(tag) }.map { it.substringAfter("] ").take(180) }.distinct().toList().take(n)
+    }
+
     /** השורות שמסבירות כישלון (גם מ־‎-loglevel verbose): בלי התקדמות ובלי כפולים, האחרונות [n], עד 180 תווים כל אחת */
     fun errors(text: String, n: Int): List<String> {
         val seen = LinkedHashSet<String>()

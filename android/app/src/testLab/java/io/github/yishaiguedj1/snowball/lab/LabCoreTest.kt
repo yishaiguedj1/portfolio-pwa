@@ -31,6 +31,7 @@ class LabCoreTest {
             "Conversion failed!",
         ), e)
         assertEquals(2, FfLine.errors(log, 2).size)
+        assertEquals(listOf("Use MediaCodec from NDK", "Encoder configure failed, -10000"), FfLine.own(log, "h264_mediacodec", 10))
     }
 
     @Test fun vocabDecodeLikeOnnxAsr() {

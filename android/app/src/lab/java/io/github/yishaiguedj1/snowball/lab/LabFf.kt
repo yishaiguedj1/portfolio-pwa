@@ -65,5 +65,13 @@ object LabFf {
         return Out(code, (System.nanoTime() - t0) / 1_000_000, sb.toString(), last.toList(), speed, fps, s.peakChildKb)
     }
 
+    /** ffmpeg שהפלט שלו (stdout) הוא הנתונים — לצינור אל MediaCodec. השגיאות לקובץ, כדי שהצינור לא ייתקע */
+    fun spawn(ctx: Context, args: List<String>, err: File): Process {
+        val bin = File(ctx.applicationInfo.nativeLibraryDir, "libffmpeg.so").absolutePath
+        val pb = ProcessBuilder(listOf(bin) + args).redirectError(err)
+        pb.environment().putAll(env(ctx))
+        return pb.start().also { cur = it }
+    }
+
     fun cancel() { cur?.destroy() }
 }
