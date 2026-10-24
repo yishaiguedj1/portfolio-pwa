@@ -3926,6 +3926,11 @@ function stubFetch(text, status = 200) {
       const mtOff = await monRun({ op: 'monTok', idToken: OWNER, rev: true });
       ok(mtOff.payload.ok && mtOff.payload.on === false, 'ניטור: ביטול טוקן');
       ok((await monRun({ op: 'adminMon' }, { 'x-mon-token': monTokVal })).statusCode === 401, 'ניטור: טוקן שבוטל נדחה');
+      // 23/10/2026: מעקב תעבורה לספקים — רק מנהל; בלי טוקנים בסביבת הבדיקה כל ספק "off" ואין מספרים מומצאים
+      ok((await monRun({ op: 'provUsage', idToken: FRIEND })).payload.error === 'not_admin', 'תעבורה: רק המנהל רואה');
+      const pvR = await monRun({ op: 'provUsage', idToken: OWNER });
+      ok(pvR.payload.ok && ['vercel', 'r2', 'firestore'].every((k) => pvR.payload.prov[k] && ['off', 'ok', 'err'].includes(pvR.payload.prov[k].st)), 'תעבורה: שלושה ספקים עם מצב');
+      ok(pvR.payload.prov.vercel.st === 'off' && pvR.payload.prov.vercel.items.every((x) => x.used === null), 'תעבורה: בלי טוקן — off ובלי מספר');
       ok((await run({ op: 'adminUsage', idToken: FRIEND })).payload.error === 'not_admin', 'שימוש: רק המנהל');
       const usg = await run({ op: 'adminUsage', idToken: OWNER });
       ok(usg.payload.ok && usg.payload.us.studio.length === 4 && !/ownerUid0001|friendUid03|@example\.com/.test(JSON.stringify(usg.payload)), 'שימוש: משפכים במספרים, בלי uid ומיילים');

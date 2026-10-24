@@ -548,6 +548,15 @@ function monCard(x) {
   card.append(hd, grid);
   return card;
 }
+const PROV_NAME = { vercel: () => t('admProvVercel'), r2: () => t('admProvR2'), fs: () => t('admProvFs') };
+const PROV_ITEM = { bw: () => t('admProvBw'), inv: () => t('admProvInv'), store: () => t('admProvStore'), ops: () => t('admProvOps'), reads: () => t('admProvReads'), writes: () => t('admProvWrites') };
+function provRow(name, P) {
+  if (!P || P.st === 'off') return row({ c: 'gray', ic: '☁', t: name, s: t('admProvOff') });
+  if (P.st === 'err') return row({ c: 'red', ic: '!', t: name, s: t('admProvErr') + ' · ' + (P.err || '') });
+  const parts = (P.items || []).filter((x) => x.used != null).map((x) => (PROV_ITEM[x.k] || (() => x.k))() + ': ' + fmt(t('admProvOf'), { u: String(x.used), l: x.lim }) + ' ' + x.unit);
+  const worst = Math.max(0, ...(P.items || []).map((x) => x.pct || 0));
+  return row({ c: worst >= 80 ? 'orange' : 'green', ic: '☁', t: name, s: parts.join(' · ') || t('admProvOff'), v: worst ? Math.round(worst) + '%' : '', meter: worst ? [worst, worst >= 80 ? 'w' : ''] : null });
+}
 page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
   if (!D.monT) needMon();
   const V = D.mon;
@@ -564,6 +573,11 @@ page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
     const s = M.servers.find((x) => x.id === j.sid), pc = j.p == null ? null : Math.round(j.p * 100);
     return row({ c: 'blue', ic: '◎', t: (STG[j.st] || (() => j.st || '—'))(), s: s ? s.name : '', v: pc == null ? '' : pc + '%', meter: pc == null ? null : [pc, ''] });
   })));
+  // 23/10/2026: שימוש בשירותי הענן — רק מספרים מהספקים עצמם; ספק בלי טוקן = "לא מוגדר", בלי מספר מומצא
+  p.append(grp(t('admProvT')));
+  const PV = D.prov;
+  if (!PV) p.append(list(row({ c: 'gray', ic: '⋯', t: t('admLoading') })));
+  else p.append(list(...[[PROV_NAME.vercel(), PV.vercel], [PROV_NAME.r2(), PV.r2], [PROV_NAME.fs(), PV.firestore]].map(([name, P]) => provRow(name, P))), h('p', 'adm-foot', t('admProvNote')));
   p.append(grp(t('admMonTokT')));
   const on = !!(V.tok && V.tok.on);
   p.append(list(row({ c: on ? 'green' : 'gray', ic: '⚿', t: on ? fmt(t('admMonTokOn'), { a: ago(V.tok.at) }) : t('admMonTokOff') })));
@@ -587,8 +601,9 @@ page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
 } });
 async function needMon() {
   clearTimeout(D.monT); D.monT = 0;
-  const r = await api('adminMon');
+  const [r, pv] = await Promise.all([api('adminMon'), api('provUsage')]);
   if (r.ok) D.mon = r;
+  if (pv.ok) D.prov = pv.prov;
   if (cur === 'mon') { D.monT = setTimeout(needMon, 30000); paint(); }   // מתרענן כל 30 שנ׳ כל עוד המסך פתוח
 }
 /* ---- שימוש ומשפכים (15/10/2026): כמה נכנסו לכל אפליקציה ועד איפה הגיעו. רק ספירות קיימות + עבודות 30 יום — בלי מעקב חדש ---- */
