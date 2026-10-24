@@ -235,6 +235,13 @@ internal fun SignInButton(a: DmActivity, onOk: () -> Unit) {
     }) { if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text(stringResource(R.string.dmConsentGo)) }
 }
 
+/* רשימת השמעה (24/10): האיכויות לבחירה (בלי בדיקה של כל סרטון — "עד הגובה הזה") */
+private val PL_Q = listOf("best", "2160", "1080", "720", "480", "audio")
+private fun fmtCount(ctx: android.content.Context, n: Int) = ctx.resources.getQuantityString(R.plurals.dmPlCount, n, n)
+private fun fmtSel(ctx: android.content.Context, n: Int, of: Int) = ctx.getString(R.string.dmPlSel, n, of)
+private fun fmtGo(ctx: android.content.Context, n: Int) = ctx.resources.getQuantityString(R.plurals.dmPlGo, n, n)
+private fun durTxt(sec: Int) = if (sec >= 3600) String.format(java.util.Locale.US, "%d:%02d:%02d", sec / 3600, sec / 60 % 60, sec % 60) else String.format(java.util.Locale.US, "%d:%02d", sec / 60, sec % 60)
+
 /* "אחר כך" (24/10): ההורדה מתחילה כשיש Wi‑Fi והטלפון בטעינה — בלי הרשאת שעון מדויק (DmRun.scheduleLater) */
 @Composable
 private fun LaterRow(on: Boolean, set: (Boolean) -> Unit) {
@@ -431,6 +438,8 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
     var qi by remember { mutableIntStateOf(0) }
     var audio by remember { mutableStateOf(false) }
     var later by remember { mutableStateOf(false) }   // "אחר כך" — Wi‑Fi וטעינה
+    var plSel by remember { mutableStateOf(setOf<Int>()) }   // רשימת השמעה: מה נבחר
+    var plQ by remember { mutableStateOf("best") }
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
     val pr = remember { DmPrefs(ctx) }
@@ -448,6 +457,7 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
         val f = withContext(Dispatchers.IO) { a.probe(u, ref) }
         busy = false; found = f
         if (f is DmActivity.Found.File) name = f.name
+        if (f is DmActivity.Found.Playlist) { plSel = f.pl.entries.indices.toSet(); plQ = pr.quality }
         if (f is DmActivity.Found.Video) {
             audio = pr.quality == "audio"
             val qs = f.info.optJSONArray("q")
@@ -541,6 +551,38 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                         Text(stringResource(if (later) R.string.dmGoLater else R.string.dmGo), fontSize = 17.sp)
                     }
                     if (!audio) StudioRow(a, f.url, ref, cloudOk(info)) { a.addVideo(f, list.getOrNull(qi), false, ref, tr = true); onClose() }
+                    val lu = remember(f.url) { DmPlaylist.listUrl(f.url) }
+                    if (lu.isNotEmpty()) TextButton(onClick = {
+                        scope.launch { busy = true; found = null; val r = withContext(Dispatchers.IO) { a.probeList(lu, ref) }; busy = false; found = r; if (r is DmActivity.Found.Playlist) { plSel = r.pl.entries.indices.toSet(); plQ = pr.quality } }
+                    }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.dmPlWhole)) }
+                }
+                is DmActivity.Found.Playlist -> {
+                    val pl = f.pl
+                    Text(pl.title.ifEmpty { stringResource(R.string.dmPlT) }, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(listOf(pl.up, fmtCount(ctx, pl.entries.size)).filter { it.isNotEmpty() }.joinToString(" · "),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.height(12.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(PL_Q.size) { i -> val o = PL_Q[i]; FilterChip(plQ == o, { plQ = o }, label = { Text(qName(o)) }) }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
+                        Text(fmtSel(ctx, plSel.size, pl.entries.size), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        TextButton(onClick = { plSel = if (plSel.size == pl.entries.size) emptySet() else pl.entries.indices.toSet() }) {
+                            Text(stringResource(if (plSel.size == pl.entries.size) R.string.dmPlNone else R.string.dmPlAll))
+                        }
+                    }
+                    pl.entries.forEachIndexed { i, e ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().combinedClickable(onClick = { plSel = if (i in plSel) plSel - i else plSel + i })) {
+                            androidx.compose.material3.Checkbox(i in plSel, { plSel = if (it) plSel + i else plSel - i })
+                            Text(e.title, Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+                            if (e.dur > 0) Text(durTxt(e.dur), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 8.dp))
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    LaterRow(later) { later = it }
+                    Button(enabled = plSel.isNotEmpty(), onClick = {
+                        a.addPlaylist(pl.entries.filterIndexed { i, _ -> i in plSel }, plQ.toIntOrNull() ?: 0, plQ == "audio", later); onClose()
+                    }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text(fmtGo(ctx, plSel.size), fontSize = 17.sp) }
                 }
             }
         }

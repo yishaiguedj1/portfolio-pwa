@@ -152,7 +152,8 @@ object DmEngine {
 
     private fun runYt(ctx: Context, t: DmTask, r: Runner): String? {
         val pick = DlEngine.Pick(t.vf, t.af, t.height.coerceAtLeast(0), 0, 0)
-        val fmt = if (t.audioOnly) "ba/b" else ""
+        // בלי פורמט שנבחר מראש (רשימת השמעה, ייבוא) — הבורר לפי הגובה ופורמט הווידאו שבהגדרות
+        val fmt = if (t.audioOnly) "ba/b" else if (t.vf.isEmpty()) DmPlaylist.format(t.height, false, DmPrefs(ctx).codec) else ""
         var lastP = 0L
         val pr = DmYt.Progress(if (t.audioOnly || t.af.isEmpty()) 1 else 2, t.pctYt)
         ytStage[t.id] = pr.stage

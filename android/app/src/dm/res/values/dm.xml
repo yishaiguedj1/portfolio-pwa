@@ -172,4 +172,11 @@
     <string name="dmGoLater">להוריד אחר כך</string>
     <string name="dmQueuedLater">ממתינה ל־Wi‑Fi ולטעינה</string>
     <string name="dmLaterAct">להוריד אחר כך (Wi‑Fi וטעינה)</string>
+    <string name="dmPlT">רשימת השמעה</string>
+    <string name="dmPlWhole">כל רשימת ההשמעה</string>
+    <string name="dmPlAll">לבחור הכל</string>
+    <string name="dmPlNone">לבטל הכל</string>
+    <string name="dmPlSel">נבחרו %1$d מתוך %2$d</string>
+    <plurals name="dmPlCount"><item quantity="one">סרטון אחד</item><item quantity="two">שני סרטונים</item><item quantity="other">%1$d סרטונים</item></plurals>
+    <plurals name="dmPlGo"><item quantity="one">להוריד סרטון אחד</item><item quantity="two">להוריד שני סרטונים</item><item quantity="other">להוריד %1$d סרטונים</item></plurals>
 </resources>
