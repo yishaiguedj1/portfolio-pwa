@@ -190,9 +190,57 @@ private fun Downloads(a: DmActivity, rev: Int, onDetails: (String) -> Unit) {
             }
         }
         if (all.isEmpty()) item { Empty(a) }
+        if (done.isNotEmpty()) item { ImproveCard(a) }
         if (active.isNotEmpty()) { item { Section(stringResource(R.string.dmActive)) }; items(active, key = { it.id }) { TaskRow(a, it, onDetails) } }
         if (done.isNotEmpty()) { item { Section(stringResource(R.string.dmDone)) }; items(done.take(50), key = { it.id }) { TaskRow(a, it, onDetails) } }
     }
+}
+
+/* מאגר הנתונים (24/10/2026): הצעה אחת, אחרי שההורדה הראשונה הסתיימה — "כן" פותח את מסך ההסכמה, "לא תודה" לא שואל שוב */
+@Composable
+private fun ImproveCard(a: DmActivity) {
+    val ctx = LocalContext.current
+    var show by remember { mutableStateOf(!DmSync.asked(ctx) && !DmSync.on(ctx)) }
+    var ask by remember { mutableStateOf(false) }
+    if (!show) return
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer), shape = RoundedCornerShape(20.dp)) {
+        Column(Modifier.padding(16.dp)) {
+            Text(stringResource(R.string.dmImpT), fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.dmImpS), style = MaterialTheme.typography.bodySmall)
+            Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { ask = true }) { Text(stringResource(R.string.dmImpYes)) }
+                TextButton(onClick = { DmSync.setAsked(ctx); show = false }) { Text(stringResource(R.string.dmImpNo)) }
+            }
+        }
+    }
+    if (ask) ConsentDialog(a, onClose = { ok -> ask = false; if (ok) show = false })
+}
+
+/** מסך ההסכמה: בדיוק מה נשלח ומה לא, ואז כניסה עם Google. onClose(true) = נכנס והסכים */
+@Composable
+internal fun ConsentDialog(a: DmActivity, onClose: (Boolean) -> Unit) {
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    var err by remember { mutableStateOf(false) }
+    AlertDialog(onDismissRequest = { if (!busy) onClose(false) },
+        title = { Text(stringResource(R.string.dmConsentT)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text(stringResource(R.string.dmConsentText))
+                if (err) Text(stringResource(R.string.dmSignFail), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
+            }
+        },
+        confirmButton = {
+            Button(enabled = !busy, onClick = {
+                busy = true; err = false
+                scope.launch {
+                    val r = DmSync.signIn(a)
+                    busy = false
+                    when (r) { is DmSync.R.Ok -> onClose(true); is DmSync.R.Fail -> err = true; else -> {} }
+                }
+            }) { if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text(stringResource(R.string.dmConsentGo)) }
+        },
+        dismissButton = { TextButton(enabled = !busy, onClick = { onClose(false) }) { Text(stringResource(R.string.dmNotNow)) } })
 }
 
 @Composable
@@ -593,6 +641,8 @@ private fun SettingsScreen(a: DmActivity) {
     var lang by remember { mutableStateOf(pr.lang) }
     var lim by remember { mutableStateOf(pr.limit) }
     var dlg by remember { mutableStateOf("") }
+    var synced by remember { mutableStateOf(DmSync.on(ctx)) }
+    var forgetMsg by remember { mutableStateOf("") }
     Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp, 0.dp, 16.dp, 24.dp)) {
         Group {
             SetRow(stringResource(R.string.dmSetQuality), qName(q)) { dlg = "q" }
@@ -621,9 +671,29 @@ private fun SettingsScreen(a: DmActivity) {
             Div()
             SetRow(stringResource(R.string.dmSetLicenses), "") { dlg = "l" }
         }
-        Text(stringResource(R.string.dmPrivacy), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Spacer(Modifier.height(14.dp))
+        Group {
+            if (synced) {
+                ListItem(headlineContent = { Text(stringResource(R.string.dmSetImprove)) }, supportingContent = { Text(DmSync.email(ctx)) },
+                    trailingContent = { Switch(true, { DmSync.signOut(ctx); synced = false }) })
+                Div()
+                SetRow(stringResource(R.string.dmSetForget), forgetMsg) { dlg = "f" }
+            } else SetRow(stringResource(R.string.dmSetImprove), stringResource(R.string.dmSetImproveOff)) { dlg = "i" }
+        }
+        Text(stringResource(if (synced) R.string.dmPrivacyOn else R.string.dmPrivacy), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(8.dp, 16.dp))
     }
+    if (dlg == "i") ConsentDialog(a) { ok -> dlg = ""; if (ok) synced = true }
+    if (dlg == "f") AlertDialog(onDismissRequest = { dlg = "" }, text = { Text(stringResource(R.string.dmForgetQ)) },
+        confirmButton = { TextButton(onClick = {
+            dlg = ""; forgetMsg = "…"
+            Thread {
+                val n = DmSync.forget(ctx)
+                forgetMsg = if (n == null) ctx.getString(R.string.dmForgetFail) else ctx.getString(R.string.dmForgetDone, n)
+                if (n != null) synced = false
+            }.start()
+        }) { Text(stringResource(R.string.dmForgetGo), color = MaterialTheme.colorScheme.error) } },
+        dismissButton = { TextButton(onClick = { dlg = "" }) { Text(stringResource(R.string.dmNotNow)) } })
     when (dlg) {
         "q" -> Choose(stringResource(R.string.dmSetQuality), listOf("best", "2160", "1080", "720", "480", "audio"), q, { qName(it) }) { q = it; pr.quality = it; dlg = "" }
         "p" -> Choose(stringResource(R.string.dmSetParallel), listOf("1", "2", "3", "4", "5"), par.toString(), { it }) { par = it.toInt(); pr.parallel = par; dlg = ""; DmEngine.pump(ctx) }

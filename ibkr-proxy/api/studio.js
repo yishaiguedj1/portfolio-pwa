@@ -44,6 +44,7 @@ const LR = require('../lib/studiolearn');
 const LI = require('../lib/learnimpact');   // 21/10/2026: השפעת המאגר לאורך זמן
 const LC = require('../lib/learncorpus');
 const DL = require('../lib/devlog');   // 15/10/2026: האיסוף המלא בתקופת הפיתוח (הדגל learn_full) — לוגים, יומן הקריאות, מדדים, שגיאות מהטלפון
+const DMLOG = require('../lib/dmlog');   // 24/10/2026: מאגר הנתונים מ־Studio DM — יומן ההורדות, בהסכמה מפורשת
 const SU = require('../lib/studiourl');   // 22/10/2026: הורדה מקישור — בדיקת קישור בתור לעובד
 const MON = require('../lib/studiomon');   // 22/10/2026: ניטור השרתים — היסטוריית דופק + טוקן קריאה לווידג׳ט
 const SF = require('../lib/sysflags');   // 15/10/2026: מצב תחזוקה והגדרות ודגלים (sysCfg/main)   // 15/10/2026 (מ׳2): קורפוס הטקסט — לדלי נפרד snb-learn
@@ -440,6 +441,7 @@ async function learnBatch(deps, now) {
     }
   }
   gone += await devGc(deps, now).catch(() => 0);   // האיסוף המלא: לוגים ומדדים מעל 30 יום
+  gone += await dmGc(deps, now).catch(() => 0);    // יומני Studio DM מעל 24 חודשים
   await patchDoc(deps, 'sysLearn', 'batch', { day, at: now, mv: moved, gn: gone });
   return moved;
 }
@@ -535,6 +537,40 @@ async function devErr(deps, user, body, now) {
     if (limited('de|' + user.uid, 6)) return false;
     return devPut(deps, 'e', DL.normErrs(body), now);
   } catch (e) { return false; }
+}
+/* Studio DM (24/10/2026): יומן ההורדות מהאפליקציה הנייטיב — בלי Origin (אפליקציה, לא דף), התחברות Firebase (Google ב־DM)
+   והסכמה בנוסח הנוכחי (cv). לכל משתמש מחובר — לא רק למי שפתוח לו הסטודיו. dmForget = "מחק את הנתונים שלי" */
+async function dmOps(req, res, body, deps) {
+  let user;
+  try { user = await verifyIdToken(body.idToken, deps.verify || {}); } catch (e) { return res.status(401).json({ ok: false, error: 'no_auth' }); }
+  if (!UID_RE.test(String(user.uid || ''))) return res.status(401).json({ ok: false, error: 'no_auth' });
+  if (limited('dm|' + user.uid, 12)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+  const c = learnCfg();
+  if (!c.ok) return res.status(learnRemote() ? 421 : 503).json({ ok: false, error: learnRemote() ? 'learn_remote' : 'not_configured' });
+  if (!vault.configured()) return res.status(503).json({ ok: false, error: 'vault_not_configured' });
+  const rd = r2deps(deps), now = deps.now || Date.now();
+  try {
+    if (body.op === 'dmForget') {
+      let n = 0;
+      for (const it of await R2.list(c, rd, DMLOG.userPrefix(user.uid, 'snb'), 50000)) { await R2.del(c, rd, it.key); n++; }
+      return res.status(200).json({ ok: true, deleted: n });
+    }
+    const b = DMLOG.normBatch(body);
+    if (!b) return res.status(+body.cv === DMLOG.DMC_V ? 400 : 409).json({ ok: false, error: +body.cv === DMLOG.DMC_V ? 'bad_params' : 'consent' });
+    const id = now.toString(36) + '-' + crypto.randomBytes(5).toString('hex');
+    const key = DMLOG.dmKey(user.uid, 'snb', now, id);
+    await R2.putText(c, rd, key, vault.seal(Object.assign({ v: DMLOG.DMC_V, at: now }, b), 'dm|' + key), 'application/octet-stream');
+    return res.status(200).json({ ok: true, saved: b.ev.length });
+  } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
+}
+/* ניקוי: יומני DM מעל 24 חודשים (האצווה היומית) */
+async function dmGc(deps, now) {
+  const c = learnCfg();
+  if (!c.ok) return 0;
+  const rd = r2deps(deps);
+  let n = 0;
+  for (const it of await R2.list(c, rd, 'dm/', 50000)) if (DMLOG.expiredKey(it.key, now)) { await R2.del(c, rd, it.key); n++; }
+  return n;
 }
 /* ניקוי: פריטים מעל 30 יום. מתוך האצווה היומית של מאגר הלמידה */
 async function devGc(deps, now) {
@@ -1778,6 +1814,7 @@ async function handler(req, res, deps = {}) {
   if (SERVER_OPS.has(String(body.op || ''))) return server(req, res, body, deps);
   if (body.op === 'learnPull') return learnPull(req, res, body, deps);   // 14/10/2026: טוקן ניתוח (Claude Code)
   if (body.op === 'devPull') return devPull(req, res, body, deps);   // 15/10/2026: האיסוף המלא — לוגים, קריאות, מדדים, שגיאות (קריאה בלבד)
+  if (body.op === 'dmLog' || body.op === 'dmForget') return dmOps(req, res, body, deps);   // 24/10/2026: Studio DM — אפליקציה נייטיב, בלי Origin
   if (guard(req, res)) return;
   if (body.op === 'cfg') {   // 15/10/2026: מצב התחזוקה והדגלים — לשלוש האפליקציות, בלי התחברות (רק מה שציבורי)
     if (limited('cfg|' + String(((req.socket || {}).remoteAddress) || ''), 30)) return res.status(429).json({ ok: false, error: 'rate_limited' });

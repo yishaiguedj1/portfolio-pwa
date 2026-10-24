@@ -150,4 +150,20 @@
     <string name="dmStMerge">ממזג וידאו וקול…</string>
     <string name="dmStPost">מסיים…</string>
     <string name="dmSetLog">שיתוף יומן ההורדות (לתמיכה)</string>
+    <string name="dmImpT">לעזור לשפר את DM?</string>
+    <string name="dmImpS">שליחת יומן ההורדות — בלי כתובות ובלי עוגיות — כדי שנמצא ונתקן תקלות מהר יותר.</string>
+    <string name="dmImpYes">כן, לעזור</string>
+    <string name="dmImpNo">לא תודה</string>
+    <string name="dmConsentT">שליחת יומן ההורדות</string>
+    <string name="dmConsentText">אחרי כל הורדה נשלח למאגר שלנו: מה קרה (הסתיימה, נכשלה ולמה), גודל, מהירות, מספר חיבורים וניסיונות, שם האתר ושם הקובץ, ודגם הטלפון.\n\nלא נשלחים: הכתובת המלאה, עוגיות, הקבצים עצמם או מה שראית באתר. ההורדות ממשיכות לעבור ישר מהאתר לטלפון.\n\nצריך להיכנס עם חשבון Google — אותו חשבון של THE SNOWBALL. המידע נשמר מוצפן עד שנתיים, ואפשר לכבות ולמחוק אותו בכל רגע מההגדרות.</string>
+    <string name="dmConsentGo">כניסה עם Google והסכמה</string>
+    <string name="dmSignFail">הכניסה לא הצליחה — נסו שוב.</string>
+    <string name="dmSetImprove">שליחת יומן ההורדות</string>
+    <string name="dmSetImproveOff">כבוי</string>
+    <string name="dmSetForget">מחק את הנתונים שלי</string>
+    <string name="dmForgetQ">למחוק מהמאגר את כל יומני ההורדות ששלחת? אחרי המחיקה השליחה נכבית.</string>
+    <string name="dmForgetGo">מחיקה</string>
+    <string name="dmForgetDone">נמחק (%1$d)</string>
+    <string name="dmForgetFail">המחיקה נכשלה — נסו שוב</string>
+    <string name="dmPrivacyOn">ההורדות עוברות ישר מהאתר לטלפון, בלי שרת באמצע. רק יומן ההורדות — בלי כתובות ובלי עוגיות — נשלח למאגר, כי הסכמת. אפשר לכבות ולמחוק למעלה.</string>
 </resources>

@@ -63,7 +63,7 @@ object DmEngine {
             val conns = DmHostRules.conns(hostRule(pr, host), pr.conns)
             val t0 = System.currentTimeMillis(); val got0 = t.got
             if (t.kind != DmKind.YTDL) r.conns = conns
-            log(t, r, "start", "", 0, 0)
+            log(ctx, t, r, "start", "", 0, 0)
             val end = try { if (t.kind == DmKind.YTDL) runYt(ctx, t, r) else runHttp(ctx, t, r, conns, pr, host) } catch (e: Throwable) { r.ex = e; "fail" }
             running.remove(t.id); speed.remove(t.id); ytStage.remove(t.id); ytEta.remove(t.id)
             when {
@@ -80,14 +80,14 @@ object DmEngine {
             }
             val ms = System.currentTimeMillis() - t0
             val k = when (t.state) { DmState.DONE -> "done"; DmState.FAILED -> "fail"; else -> "stop" }
-            log(t, r, k, if (k == "done") "" else end ?: "", ms, (t.got - got0).coerceAtLeast(0))
+            log(ctx, t, r, k, if (k == "done") "" else end ?: "", ms, (t.got - got0).coerceAtLeast(0))
             DmStore.save()
             pump(ctx)
         }.apply { isDaemon = true; name = "dm-${t.id}" }.start()
     }
 
     /** אירוע ליומן המקומי (DmLog) — דומיין ושם קובץ בלבד, לא הכתובת ולא עוגיות */
-    private fun log(t: DmTask, r: Runner, k: String, code: String, ms: Long, got: Long) {
+    private fun log(ctx: Context, t: DmTask, r: Runner, k: String, code: String, ms: Long, got: Long) {
         val e = r.ex
         DmLogFile.add(DmLog.Event(
             t = System.currentTimeMillis(), k = k, id = t.id, kind = if (t.kind == DmKind.YTDL) "yt" else "http",
@@ -97,6 +97,7 @@ object DmEngine {
             msg = if (k == "fail" && e != null) DmLog.redact(e.message) else "",
             tail = if (k == "fail") r.tail.list() else emptyList(),
         ))
+        if (k != "start") DmSync.kick(ctx, k == "fail")   // רק אם המשתמש נכנס והסכים (DmSync.on)
     }
 
     /** null = הסתיים; אחרת קוד */

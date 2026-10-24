@@ -125,6 +125,10 @@ dependencies {
     "dmImplementation"("androidx.webkit:webkit:1.14.0")   // הדפדפן של DM: סקריפט לפני הדף וערוץ הודעות (כמו דפדפן הציד)
     "dmImplementation"("io.github.junkfood02.youtubedl-android:library:0.18.1")
     "dmImplementation"("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
+    // 24/10/2026: כניסה עם Google ב־DM (מאגר הנתונים, בהסכמה) — Credential Manager ← אסימון Google ← Firebase (signInWithIdp)
+    "dmImplementation"("androidx.credentials:credentials:1.5.0")
+    "dmImplementation"("androidx.credentials:credentials-play-services-auth:1.5.0")
+    "dmImplementation"("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     "testDmImplementation"("junit:junit:4.13.2")
     "testDmImplementation"("org.json:json:20240303")
 }
