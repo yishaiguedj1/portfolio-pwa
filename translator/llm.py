@@ -21,9 +21,13 @@ import hashlib
 import json
 import os
 import re
+import shutil
+import subprocess
+import tempfile
 import threading
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
 # הבלוק הקבוע נשמר במטמון לשעה (לא 5 דק׳): עבודה שלמה נמשכת יותר משעה, וטיימר ה־5 דקות נמדד
 # מתחילת הבקשה — ג׳נרציה של דקות אוכלת אותו. כתיבת 1h = פי 2 מהקלט, קריאה = 5% — משתלם מהקריאה השנייה.
@@ -81,6 +85,19 @@ TRANSIENT_CODES = ('api_overloaded', 'api_network', 'api_timeout', 'api_rate')
 # באמצע הזרם חיכה עד חצי שעה לכל ניסיון (ועוד 4 ניסיונות של ה־SDK). בזרם Anthropic שולח אירועי ping גם בזמן
 # החשיבה, כך שהמתנה ארוכה בלי שום בייט = חיבור מת. read = הזמן המקסימלי בין שני בייטים, לא לכל התשובה.
 API_READ_TIMEOUT = float(os.environ.get('SNB_API_READ_TIMEOUT', '150'))
+# 24/10/2026 (בקשת המשתמש: "שה־Routine יעבוד בדיוק כמו ה־API"): ערוץ שני לאותן קריאות — Claude Code במצב ללא ממשק
+# (claude -p) בתוך הסשן של ה־Routine, על המנוי של המשתמש. אותה הנחיה, אותו מודל ומאמץ, אותו בלוק קבוע במטמון —
+# בלי כלים, בלי CLAUDE.md, בלי ההנחיה של Claude Code. נמדד בסשן ענן: מעטפת של ‎~1,400 טוקנים לקריאה (מול ‎~127K
+# לכל סוכן־משנה במסלול הישן), המטמון נקרא בין תהליכים נפרדים, TTL של שעה. SNB_LLM=cli בוחר אותו (job.py, במנוי).
+TRANSPORT = os.environ.get('SNB_LLM', 'api')
+CLI_TIMEOUT = float(os.environ.get('SNB_CLI_TIMEOUT', '2400'))
+# משתנים שמשנים את מה שהקריאה עושה: מפתח API (‏-p משתמש בו כשהוא קיים — חיוב ב־API במקום במנוי) ומאמץ שגובר על ‎--effort
+CLI_DROP_ENV = ('ANTHROPIC_API_KEY', 'CLAUDE_CODE_EFFORT_LEVEL', 'CLAUDE_EFFORT', 'MAX_THINKING_TOKENS')
+CLI_ENV = {'CLAUDE_CODE_DISABLE_CLAUDE_MDS': '1', 'CLAUDE_CODE_DISABLE_ATTACHMENTS': '1',
+           'CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS': '1', 'DISABLE_AUTOUPDATER': '1'}
+CLI_FLAGS = ('--disallowedTools', '*', '--setting-sources', '', '--strict-mcp-config', '--disable-slash-commands',
+             '--max-turns', '1', '--no-session-persistence', '--output-format', 'stream-json', '--verbose',
+             '--include-partial-messages')
 
 
 def api_timeout():
@@ -185,8 +202,9 @@ class Result:
 class Engine:
     """מנוע אחד לכל עבודה. ledger צובר את העלות; cap_usd = תקרת העבודה (נבדקת לפני כל קריאה)."""
 
-    def __init__(self, spec: Spec, cap_usd: float | None = None, client=None):
+    def __init__(self, spec: Spec, cap_usd: float | None = None, client=None, transport: str | None = None):
         self.spec = spec
+        self.transport = transport or os.environ.get('SNB_LLM') or TRANSPORT   # 'api' = Messages API עם המפתח של המערכת · 'cli' = claude -p במנוי
         self.cap = cap_usd
         self.ledger = Ledger()
         self._client = client          # בבדיקות: לקוח מדומה עם messages.stream(...)
@@ -300,8 +318,10 @@ class Engine:
     def prompt_tokens(self, fixed: str, prompt: str, extra: str = '') -> int:
         """כמה טוקני קלט תהיה הבקשה. אומדן גס; כשהוא באזור הסף — count_tokens של ה־API (חינם, מכסה נפרדת)."""
         rough = est_tokens(fixed) + est_tokens(extra) + est_tokens(prompt) + 64
+        if self.transport == 'cli':
+            rough += 1500                 # המעטפת של Claude Code (נמדד: ‎~1,400 טוקנים)
         lim = self.card_limit
-        if lim and 0.5 * lim <= rough <= 2 * lim:
+        if lim and 0.5 * lim <= rough <= 2 * lim and self.transport != 'cli':
             try:
                 system = [{'type': 'text', 'text': fixed}] + ([{'type': 'text', 'text': extra}] if extra else [])
                 r = self._client_or_new().messages.count_tokens(model=self.spec.model, system=system,
@@ -335,7 +355,7 @@ class Engine:
         טוקנים ועלות — לכל קריאה, גם לזו שנכשלה. העטיפה לא משנה את ההתנהגות; תקלה ביומן נבלעת"""
         t0 = time.time()
         try:
-            res = self._anthropic0(fixed, extra, prompt, max_tokens, on_first_token)
+            res = (self._cli0 if self.transport == 'cli' else self._anthropic0)(fixed, extra, prompt, max_tokens, on_first_token)
         except LLMError as e:
             call_log({'t': t0, 'ms': int((time.time() - t0) * 1000), 'k': getattr(_tl, 'k', ''), 'm': self.spec.model,
                       'a': getattr(_tl, 'a', 0), 'mt': max_tokens, 'err': e.code, 'em': str(e)[:300],
@@ -412,6 +432,89 @@ class Engine:
         usd = cost_anthropic(self.spec.model, usage['i'], usage['o'], usage['cr'], usage['c5'], usage['c1'])
         return Result(text, usage, usd, stop, think_chars=think, diag=getattr(msg, 'diagnostics', None),
                       rid=getattr(msg, '_request_id', None), mid=mid)
+
+    # ------------------------------------------------------------------ claude -p (המנוי, בתוך ה־Routine)
+    def _cli0(self, fixed: str, extra: str, prompt: str, max_tokens: int, on_first_token=None) -> Result:
+        """אותה קריאה כמו _anthropic0, דרך Claude Code. הבלוק הקבוע = ההנחיה של המערכת (קובץ לפי טביעה — אותו קובץ
+        לכל הקריאות, והמטמון לפי תחילית מדויקת); ההוראה שמשתנה + הבקשה = ההודעה. התיקייה קבועה: המטמון של Claude Code
+        מוגבל לתיקייה. התקרה (max_tokens) עוברת במשתנה הסביבה; בקטיעה Claude Code ממשיך לבד, והשימוש מצטבר."""
+        exe = os.environ.get('SNB_CLAUDE_BIN') or shutil.which('claude')
+        if not exe:
+            raise LLMError('cli_missing', 'לא נמצא claude (Claude Code) בסביבה')
+        d = Path(os.environ.get('SNB_CLI_DIR') or (Path(tempfile.gettempdir()) / 'snb-cli'))
+        d.mkdir(parents=True, exist_ok=True)
+        sp = d / ('sys-' + hashlib.sha1(fixed.encode('utf-8')).hexdigest()[:20] + '.txt')
+        if not sp.exists():
+            tmp = sp.with_suffix('.%d.tmp' % threading.get_ident())
+            tmp.write_text(fixed, encoding='utf-8')
+            os.replace(tmp, sp)
+        env = {k: v for k, v in os.environ.items() if k not in CLI_DROP_ENV}
+        env.update(CLI_ENV)
+        env['CLAUDE_CODE_MAX_OUTPUT_TOKENS'] = str(int(max_tokens))
+        cmd = [exe, '-p', '--model', self.spec.model, '--effort', self.spec.effort or 'medium',
+               '--system-prompt-file', str(sp), *CLI_FLAGS]
+        user = (extra + '\n\n' + prompt) if extra else prompt
+        try:
+            pr = subprocess.Popen(cmd, cwd=str(d), env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE, text=True, encoding='utf-8')
+        except OSError as e:
+            raise LLMError('cli_missing', 'claude לא עלה: ' + type(e).__name__) from e
+        err_lines: list = []
+        et = threading.Thread(target=lambda: err_lines.extend(pr.stderr.readlines()[-20:]), daemon=True)
+        et.start()
+        timer = threading.Timer(CLI_TIMEOUT, pr.kill)
+        timer.start()
+        res_ev, started = None, False
+        try:
+            try:
+                pr.stdin.write(user)
+                pr.stdin.close()
+            except (BrokenPipeError, OSError):
+                pass
+            for line in pr.stdout:
+                try:
+                    ev = json.loads(line)
+                except ValueError:
+                    continue
+                t = ev.get('type') if isinstance(ev, dict) else None
+                if t == 'stream_event' and not started and on_first_token is not None:
+                    started = True                  # השרת התחיל לענות — הקלט עובד והמטמון נכתב
+                    on_first_token()
+                elif t == 'result':
+                    res_ev = ev
+            pr.wait()
+            et.join(5)
+        finally:
+            timer.cancel()
+            for f in (pr.stdout, pr.stderr):
+                try:
+                    f.close()
+                except OSError:
+                    pass
+        if not res_ev:
+            if pr.returncode in (-9, 137):
+                raise LLMError('api_timeout', 'claude -p לא סיים בזמן')
+            tail = ' '.join(x.strip() for x in err_lines)[-200:]
+            raise LLMError('cli_error', 'claude -p יצא בלי תוצאה (' + str(pr.returncode) + '): ' + tail)
+        u = res_ev.get('usage') or {}
+        cc = u.get('cache_creation') or {}
+        c1 = int(cc.get('ephemeral_1h_input_tokens') or 0)
+        c5 = max(int(u.get('cache_creation_input_tokens') or 0) - c1, 0)
+        usage = {'i': int(u.get('input_tokens') or 0), 'o': int(u.get('output_tokens') or 0),
+                 'cr': int(u.get('cache_read_input_tokens') or 0), 'c5': c5, 'c1': c1}
+        if res_ev.get('is_error'):
+            st = res_ev.get('api_error_status')
+            msg = str(res_ev.get('result') or res_ev.get('subtype') or '')
+            code = ('api_rate' if st == 429 else 'api_overloaded' if isinstance(st, int) and st >= 500
+                    else 'api_auth' if st in (401, 403) else 'api_bad_request' if st == 400 else 'api_error')
+            if re.search(r'usage limit|limit reached|hit your limit', msg, re.I):
+                code = 'sub_limit'               # מגבלת השימוש של המנוי (מתאפסת לבד אחרי כמה שעות) — לא מפתח של המערכת
+            raise LLMError(code, 'claude -p: ' + msg[:200])
+        otd = u.get('output_tokens_details') or {}
+        think = int(otd.get('thinking_tokens') or 0) if isinstance(otd, dict) else 0
+        usd = cost_anthropic(self.spec.model, usage['i'], usage['o'], usage['cr'], usage['c5'], usage['c1'])
+        return Result(str(res_ev.get('result') or ''), usage, usd, res_ev.get('stop_reason') or 'end_turn',
+                      think_chars=think, mid=res_ev.get('uuid'))
 
 
 _tl = threading.local()

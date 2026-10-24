@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1781 מפתחות מתוך 3891) */
+/* המחרוזות של studio (1785 מפתחות מתוך 3895) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -431,6 +431,7 @@ he: {
   "studioEfSonMed": "★ מומלץ",
   "studioEmptyS": "בוחרים סרטון, ו־Claude מתרגם אותו לכל שפה — עם כתוביות בתוך הסרטון וקובץ SRT.",
   "studioEmptyT": "עוד אין פרויקטים",
+  "studioEngWait": "השרת של המערכת לא ענה, ולכן העבודה לא התחילה. נסו שוב בעוד רגע.",
   "studioErrApiKey": "Anthropic דחה את המפתח או את המודל של השרת — מחליפים מפתח במסך השרת",
   "studioErrApiNet": "תקלת רשת או עומס מול Anthropic — אפשר להמשיך מאותה נקודה",
   "studioErrApiQuota": "מפתח ה־API של השרת הגיע למגבלת ההוצאה שהוגדרה ב־Anthropic — מעלים את המגבלה במסוף של Anthropic ואז \"המשך\"",
@@ -439,6 +440,7 @@ he: {
   "studioErrBudget": "יותר מדי הפעלות בשעה האחרונה. נסו שוב מאוחר יותר",
   "studioErrBudgetStop": "עצרנו בתקציב שקבעת",
   "studioErrChecks": "נשארו שגיאות בבדיקה האוטומטית אחרי התיקונים",
+  "studioErrCli": "Claude Code לא ענה בסביבת ה־Routine. לוחצים \"המשך\", ואם זה חוזר — מעבירים את העבודה לשרת של המערכת.",
   "studioErrCodeL": "פרטים לתמיכה",
   "studioErrConn": "Claude לא מחובר. חברו אותו בהגדרות הסטודיו",
   "studioErrCp": "לא הודבקה תשובה מ־Claude בזמן — אפשר להמשיך מאותה נקודה",
@@ -478,6 +480,7 @@ he: {
   "studioErrSignin": "כדי להשתמש בסטודיו צריך להתחבר לאפליקציה עם Google",
   "studioErrStoreFail": "השמירה באחסון נכשלה",
   "studioErrStoreNet": "החיבור לאחסון נקטע — אפשר להמשיך מאותה נקודה",
+  "studioErrSubLimit": "המנוי שלך ב־Claude הגיע למגבלת השימוש. אחרי שהמגבלה מתאפסת לוחצים \"המשך\" — העבודה ממשיכה מנקודת השמירה.",
   "studioErrTooMany": "יש כבר 5 עבודות פתוחות. חכו שאחת תסתיים",
   "studioErrTower": "מגדל הפיקוח עצר את העבודה",
   "studioErrVault": "השרתון עוד לא מוגדר לשמירה מוצפנת",
@@ -766,6 +769,7 @@ he: {
   "studioIncStW": "בטיפול",
   "studioIncStX": "נסגרה",
   "studioIncStale": "העבודה נתקעה",
+  "studioIncSubLimit": "המנוי ב־Claude הגיע למגבלת השימוש",
   "studioIncSumO": "נעצרה {t}. הסיבה הסבירה: {r}",
   "studioIncSumR": "נפתרה אחרי {d} ({by})",
   "studioIncSumW": "חזרה לעבודה ({by}) — מחכים שתסתיים",
@@ -2214,6 +2218,7 @@ en: {
   "studioEfSonMed": "★ Top pick",
   "studioEmptyS": "Pick a video and Claude translates it into any language — with subtitles in the video and an SRT file.",
   "studioEmptyT": "No projects yet",
+  "studioEngWait": "The system server didn't answer, so the job didn't start. Try again in a moment.",
   "studioErrApiKey": "Anthropic rejected the server key or model — replace the key on the server screen",
   "studioErrApiNet": "Network trouble or load at Anthropic — you can resume from the same point",
   "studioErrApiQuota": "The server API key reached the spend limit set at Anthropic — raise it in the Anthropic Console, then Resume",
@@ -2222,6 +2227,7 @@ en: {
   "studioErrBudget": "Too many runs in the past hour. Try again later",
   "studioErrBudgetStop": "Stopped at your budget",
   "studioErrChecks": "Automatic checks still failed after fixes",
+  "studioErrCli": "Claude Code didn't answer in the Routine environment. Tap \"Resume\"; if it happens again, switch the job to the system server.",
   "studioErrCodeL": "Details for support",
   "studioErrConn": "Claude isn't connected. Connect it in studio settings",
   "studioErrCp": "No answer from Claude was pasted in time — you can resume from the same point",
@@ -2261,6 +2267,7 @@ en: {
   "studioErrSignin": "Sign in to the app with Google to use the studio",
   "studioErrStoreFail": "Saving to storage failed",
   "studioErrStoreNet": "The connection to storage dropped — you can resume from the same point",
+  "studioErrSubLimit": "Your Claude plan reached its usage limit. Once it resets, tap \"Resume\" — the job continues from its checkpoint.",
   "studioErrTooMany": "There are already 5 open jobs. Wait for one to finish",
   "studioErrTower": "The control tower stopped the job",
   "studioErrVault": "The server isn't set up for encrypted storage yet",
@@ -2549,6 +2556,7 @@ en: {
   "studioIncStW": "In progress",
   "studioIncStX": "Closed",
   "studioIncStale": "The job got stuck",
+  "studioIncSubLimit": "Claude plan hit its usage limit",
   "studioIncSumO": "Stopped {t}. Probable cause: {r}",
   "studioIncSumR": "Resolved after {d} ({by})",
   "studioIncSumW": "Back at work ({by}) — waiting for it to finish",

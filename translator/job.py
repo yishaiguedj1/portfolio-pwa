@@ -477,13 +477,18 @@ def _tally(calls):
         c5 = _num(cc.get('ephemeral_5m_input_tokens')) if cc else _num(u.get('cache_creation_input_tokens'))
         c1 = _num(cc.get('ephemeral_1h_input_tokens')) if cc else 0
         model = str(m.get('model') or '')
-        row = by.setdefault(model, {'m': model, 'n': 0, 'i': 0, 'o': 0, 'cr': 0, 'c5': 0, 'c1': 0})
+        row = by.setdefault(model, {'m': model, 'n': 0, 'i': 0, 'o': 0, 'cr': 0, 'c5': 0, 'c1': 0, 'usd': 0.0})
+        i, o, cr = _num(u.get('input_tokens')), _num(u.get('output_tokens')), _num(u.get('cache_read_input_tokens'))
         row['n'] += 1
-        row['i'] += _num(u.get('input_tokens'))
-        row['o'] += _num(u.get('output_tokens'))
-        row['cr'] += _num(u.get('cache_read_input_tokens'))
+        row['i'] += i
+        row['o'] += o
+        row['cr'] += cr
         row['c5'] += c5
         row['c1'] += c1
+        # 24/10/2026: המחיר לכל קריאה — הכרטיס של Haiku לבקשה מעל 100K נקבע לפי הבקשה עצמה. עד היום הוא חושב
+        # על סכום כל הקריאות של הסוכן, וכל עבודה במנוי עם Haiku נראתה עד פי 5 יקרה (AppLovin 23/10: $1.56)
+        c = cost_of(model, i, o, cr, c5, c1)
+        row['usd'] = None if c is None or row['usd'] is None else row['usd'] + c
     return by
 
 
@@ -500,7 +505,7 @@ def _open_cost(calls):
 
 
 def _finish_row(kind, row, extra=None):
-    usd = cost_of(row['m'], row['i'], row['o'], row['cr'], row['c5'], row['c1'])
+    usd = row['usd'] if 'usd' in row else cost_of(row['m'], row['i'], row['o'], row['cr'], row['c5'], row['c1'])
     out = dict(row, k=kind, usd=None if usd is None else round(usd, 4))
     if not MODEL_RE.match(out['m']):
         out['m'] = 'claude-unknown'
@@ -693,6 +698,31 @@ def live_usage(force=False):
 
 
 def usage_safe():
+    return with_session(_usage_safe0())
+
+
+def with_session(rows):
+    """24/10/2026: ה־Routine כמו מצב ה־API (SNB_LLM=cli) — לעלות של הקריאות מה־ledger מצטרף הסשן הדק של ה־Routine
+    (מפעיל את go ומחכה) מהיומנים שלו, בשורת "sub". הקריאות של claude -p עצמן לא נשמרות כיומן (‎--no-session-persistence)."""
+    if os.environ.get('SNB_LLM') != 'cli':
+        return rows
+    try:
+        extra = [dict(r, k='sub', op=0, oc=0) for r in (usage() or []) if r.get('k') == 'main']
+    except Exception:            # noqa: BLE001 — מידע משני
+        return rows
+    out = [dict(r) for r in (rows or [])]
+    for r in extra:
+        t = next((x for x in out if x.get('k') == 'sub' and x.get('m') == r['m']), None)
+        if t is None:
+            out.append(r)
+            continue
+        for f in ('n', 'i', 'o', 'cr', 'c5', 'c1'):
+            t[f] = int(t.get(f) or 0) + int(r.get(f) or 0)
+        t['usd'] = None if t.get('usd') is None or r.get('usd') is None else round(t['usd'] + r['usd'], 6)
+    return out[:USE_MAX] or None
+
+
+def _usage_safe0():
     """לדיווח האחרון: תקלה בקריאת היומנים לא מפילה את סוף העבודה. אין יומנים → None (לא נשלח).
     מצב API (pipeline): העלות האמיתית מה־ledger של המנוע, שנשמר במצב העבודה (api_usage) — לא יומני סשן.
     21/10/2026: כשל בשלב של הכלים (vt נהרג, אחסון) — ה־ledger החי, אחרת מה ששולם עד הכשל לא נספר בכלל."""
@@ -3291,6 +3321,80 @@ def auto(args):
         raise
 
 
+# ---------------------------------------------------------------- ה־Routine כמו מצב ה־API (24/10/2026)
+# בקשת המשתמש: "שה־Routine יעבוד בדיוק כמו ה־API — אותה חלוקת עבודה, אותה צריכה". עד היום הסשן של ה־Routine (Sonnet)
+# ניהל את העבודה בעצמו ופתח סוכני־משנה לתרגום ולביקורת — כל אחד עם ההנחיה והכלים של Claude Code (‎~127K טוקנים בפתיחה,
+# 1.7–2.5M קריאות מהמטמון לכל סוכן): AppLovin (24 דק׳, Haiku High) עלה $1.56 במחירון, מול $0.12 בשרת, ולקח פי 2.
+# עכשיו: go מריץ את auto (אותו pipeline של השרת) כתהליך עצמאי, ועבודת השפה עוברת ב־claude -p (llm.TRANSPORT 'cli'):
+# אותן קריאות, אותו מודל ומאמץ, אותו מטמון, על המנוי. הסשן רק מפעיל ומחכה (wait) — כמה תורות לכל העבודה.
+GO_LOG, GO_RC, GO_PID = 'auto.log', 'auto.rc', 'auto.pid'
+
+
+def go(args):
+    """מפעיל את auto ברקע, מנותק מהסשן (setsid) — wait שנקטע לא הורג את העבודה."""
+    d = STATE.parent
+    d.mkdir(parents=True, exist_ok=True)
+    pid = _go_pid(d)
+    if pid:
+        print('· העבודה כבר רצה ברקע. הצעד הבא (ברקע, run_in_background, timeout 7200000): python3 translator/job.py wait')
+        return 0
+    for f in (GO_LOG, GO_RC):
+        try:
+            (d / f).unlink()
+        except OSError:
+            pass
+    cmd = json.loads(os.environ['SNB_GO_CMD']) if os.environ.get('SNB_GO_CMD') else [sys.executable, str(Path(__file__).resolve()), 'auto']
+    env = dict(os.environ, SNB_LLM=os.environ.get('SNB_LLM') or 'cli')
+    sh = '"$@" > "$SNB_GO_LOG" 2>&1; echo $? > "$SNB_GO_RC"'
+    env.update(SNB_GO_LOG=str(d / GO_LOG), SNB_GO_RC=str(d / GO_RC))
+    pr = subprocess.Popen(['/bin/sh', '-c', sh, 'go'] + cmd, env=env, start_new_session=True,
+                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    (d / GO_PID).write_text(str(pr.pid))
+    print('✓ העבודה רצה ברקע (כמו בשרת: הכלים כאן, ו־Claude בקריאות ישירות במנוי שלך).')
+    print('הצעד הבא (ברקע, run_in_background, timeout 7200000): python3 translator/job.py wait')
+    return 0
+
+
+def _go_pid(d):
+    try:
+        pid = int((d / GO_PID).read_text().strip())
+        os.kill(pid, 0)
+        return pid if not (d / GO_RC).exists() else 0
+    except (OSError, ValueError):
+        return 0
+
+
+def wait_cmd(args):
+    """מחכה ל־auto עד --max שניות. בסוף: סוף הלוג + "הסתיים". עדיין רץ — "להריץ שוב". בלי פלט באמצע (כל שורה = תור של הסשן)."""
+    d = STATE.parent
+    end = time.time() + max(5, int(getattr(args, 'max', 0) or 6600))
+    step = float(os.environ.get('SNB_WAIT_STEP', '15'))
+    while time.time() < end:
+        if (d / GO_RC).exists() or not _go_pid(d):
+            break
+        time.sleep(step)
+    rc = None
+    try:
+        rc = int((d / GO_RC).read_text().strip())
+    except (OSError, ValueError):
+        pass
+    if rc is None and _go_pid(d):
+        print('· העבודה עדיין רצה ברקע. הרץ שוב (ברקע, run_in_background, timeout 7200000): python3 translator/job.py wait')
+        return 0
+    try:
+        tail = (d / GO_LOG).read_text(encoding='utf-8', errors='replace').splitlines()[-12:]
+    except OSError:
+        tail = []
+    for line in tail:
+        print(line[:300])
+    if rc is None:
+        print('✗ העבודה ברקע נעצרה בלי קוד יציאה (התהליך נהרג). הרץ: python3 translator/job.py fail --err worker_lost')
+        return 1
+    print(('✓ העבודה הסתיימה.' if rc == 0 else '■ העבודה נעצרה (קוד ' + str(rc) + ') — הסטטוס כבר דווח לטלפון.')
+          + ' סכם בשורה אחת וסיים.')
+    return 0
+
+
 def vt_cmd(args):
     """קיצור לסשן: פקודת vt על הפרויקט של העבודה, עם הסביבה הנכונה (למשל: job.py vt tr-check)."""
     st = load_state()
@@ -4219,12 +4323,15 @@ def main(argv=None):
     lr.add_argument('--job', required=True)
     lr.add_argument('--src', required=True)
     sub.add_parser('auto', help='מצב API: כל העבודה מקצה לקצה — הכלים כאן, עבודת השפה בקריאות ישירות ל־Claude')
+    sub.add_parser('go', help='ה־Routine: auto ברקע (Claude דרך claude -p במנוי), כמו בשרת')
+    w = sub.add_parser('wait', help='ה־Routine: מחכה לעבודה שרצה ברקע (go)')
+    w.add_argument('--max', type=int, default=6600)
     v = sub.add_parser('vt', help='פקודת vt על הפרויקט של העבודה')
     v.add_argument('rest', nargs=argparse.REMAINDER)
     a = p.parse_args(argv)
     if a.cmd != 'run':
         return {'prepare': prepare, 'align': align, 'stage': stage, 'finish': finish, 'fail': fail, 'ask': ask, 'vt': vt_cmd,
-                'save': save, 'restore': restore, 'fix': fix, 'pir': pir, 'gate': gate_cmd, 'auto': auto,
+                'save': save, 'restore': restore, 'fix': fix, 'pir': pir, 'gate': gate_cmd, 'auto': auto, 'go': go, 'wait': wait_cmd,
                 'judge-prep': judge_prep, 'judge': judge, 'render': render,
                 'ai-prep': ai_prep, 'ai-done': ai_done, 'ladder-run': ladder_run, 'attach-late': attach_late_cmd}[a.cmd](a)
     if not JOB_RE.match(a.job) or not KEY_RE.match(a.key):
