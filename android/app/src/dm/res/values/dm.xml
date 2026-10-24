@@ -89,7 +89,7 @@
     <string name="dmSetExport">ייצוא רשימת ההורדות</string>
     <string name="dmSetLicenses">רישיונות</string>
     <string name="dmQBest">הכי גבוהה</string>
-    <string name="dmPrivacy">שום דבר לא עוזב את הטלפון: ההורדות עוברות ישר מהאתר לטלפון, בלי שרת באמצע.</string>
+    <string name="dmPrivacy">שום דבר לא עוזב את הטלפון: ההורדות עוברות ישר מהאתר לטלפון, בלי שרת באמצע. גם יומן ההורדות נשאר בטלפון, ויוצא רק כשאתה משתף אותו.</string>
     <string name="dmLicensesText">Studio DM כולל את yt-dlp (Unlicense) דרך youtubedl-android (GPL-3.0), פייתון (PSF), FFmpeg (GPL), QuickJS (MIT) ו־Jetpack Compose (Apache-2.0). קוד המקור: github.com/yishaiguedj1/portfolio-pwa</string>
     <string name="dmChRun">הורדות פעילות</string>
     <string name="dmChDone">הורדות שהסתיימו</string>
@@ -149,4 +149,5 @@
     <string name="dmStRetry">מנסה שוב…</string>
     <string name="dmStMerge">ממזג וידאו וקול…</string>
     <string name="dmStPost">מסיים…</string>
+    <string name="dmSetLog">שיתוף יומן ההורדות (לתמיכה)</string>
 </resources>

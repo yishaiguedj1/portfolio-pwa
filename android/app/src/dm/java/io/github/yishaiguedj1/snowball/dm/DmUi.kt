@@ -617,6 +617,8 @@ private fun SettingsScreen(a: DmActivity) {
             Div()
             SetRow(stringResource(R.string.dmSetExport), "") { a.shareText(DmStore.exportJson()) }
             Div()
+            SetRow(stringResource(R.string.dmSetLog), "") { DmLogFile.init(ctx); a.shareText(DmLogFile.exportText(ctx)) }
+            Div()
             SetRow(stringResource(R.string.dmSetLicenses), "") { dlg = "l" }
         }
         Text(stringResource(R.string.dmPrivacy), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -188,7 +188,7 @@ object DlEngine {
         } catch (e: YoutubeDL.CanceledException) {
             throw IllegalArgumentException("cancel")
         } catch (e: Throwable) {
-            throw IllegalArgumentException(DlProbe.errCode(e.message))
+            throw IllegalArgumentException(DlProbe.errCode(e.message), e)   // הסיבה — ליומן של DM (מנוקה שם)
         }
         val path = res.out.lines().map { it.trim() }.lastOrNull { it.startsWith("/") } ?: ""
         val f = File(path)

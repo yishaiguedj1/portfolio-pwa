@@ -84,7 +84,7 @@
     <string name="dmSetExport">Export the download list</string>
     <string name="dmSetLicenses">Licenses</string>
     <string name="dmQBest">Highest</string>
-    <string name="dmPrivacy">Nothing leaves your phone: downloads go straight from the site to your phone, with no server in between.</string>
+    <string name="dmPrivacy">Nothing leaves your phone: downloads go straight from the site to your phone, with no server in between. The download log stays on your phone too, and leaves it only when you share it.</string>
     <string name="dmLicensesText">Studio DM includes yt-dlp (Unlicense) via youtubedl-android (GPL-3.0), Python (PSF), FFmpeg (GPL), QuickJS (MIT) and Jetpack Compose (Apache-2.0). Source code: github.com/yishaiguedj1/portfolio-pwa</string>
     <string name="dmChRun">Active downloads</string>
     <string name="dmChDone">Finished downloads</string>
@@ -144,4 +144,5 @@
     <string name="dmStRetry">Retrying…</string>
     <string name="dmStMerge">Merging video and audio…</string>
     <string name="dmStPost">Finishing…</string>
+    <string name="dmSetLog">Share the download log (for support)</string>
 </resources>

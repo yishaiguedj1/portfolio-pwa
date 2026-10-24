@@ -24,6 +24,9 @@ object DmEngine {
     private class Runner(val id: String) {
         @Volatile var stop = false
         @Volatile var system = false   // המערכת עצרה (Job/רשת) — חוזר לתור, לא "מושהה"
+        @Volatile var ex: Throwable? = null   // ליומן (DmLog): החריגה שמאחורי קוד הכשל
+        val tail = DmLog.Tail()               // ליומן: שורות WARNING/ERROR אחרונות של yt-dlp
+        @Volatile var conns = 0
     }
 
     fun busy() = running.isNotEmpty()
@@ -34,6 +37,7 @@ object DmEngine {
     fun pump(ctx: Context) {
         val app = ctx.applicationContext
         DmStore.init(app)
+        DmLogFile.init(app)
         val pr = DmPrefs(app)
         val okNet = netOk(app, pr.wifiOnly)
         DmLimit.bytesPerSec = pr.limit
@@ -57,7 +61,10 @@ object DmEngine {
         Thread {
             val host = DmLink.host(t.url)
             val conns = DmHostRules.conns(hostRule(pr, host), pr.conns)
-            val end = try { if (t.kind == DmKind.YTDL) runYt(ctx, t, r) else runHttp(ctx, t, r, conns, pr, host) } catch (e: Throwable) { "fail" }
+            val t0 = System.currentTimeMillis(); val got0 = t.got
+            if (t.kind != DmKind.YTDL) r.conns = conns
+            log(t, r, "start", "", 0, 0)
+            val end = try { if (t.kind == DmKind.YTDL) runYt(ctx, t, r) else runHttp(ctx, t, r, conns, pr, host) } catch (e: Throwable) { r.ex = e; "fail" }
             running.remove(t.id); speed.remove(t.id); ytStage.remove(t.id); ytEta.remove(t.id)
             when {
                 end == null -> {
@@ -71,9 +78,25 @@ object DmEngine {
                 end == "stopped" -> { t.state = DmState.PAUSED }
                 else -> { t.state = DmState.FAILED; t.err = end; t.tries++; DmNotif.failed(ctx, t) }
             }
+            val ms = System.currentTimeMillis() - t0
+            val k = when (t.state) { DmState.DONE -> "done"; DmState.FAILED -> "fail"; else -> "stop" }
+            log(t, r, k, if (k == "done") "" else end ?: "", ms, (t.got - got0).coerceAtLeast(0))
             DmStore.save()
             pump(ctx)
         }.apply { isDaemon = true; name = "dm-${t.id}" }.start()
+    }
+
+    /** אירוע ליומן המקומי (DmLog) — דומיין ושם קובץ בלבד, לא הכתובת ולא עוגיות */
+    private fun log(t: DmTask, r: Runner, k: String, code: String, ms: Long, got: Long) {
+        val e = r.ex
+        DmLogFile.add(DmLog.Event(
+            t = System.currentTimeMillis(), k = k, id = t.id, kind = if (t.kind == DmKind.YTDL) "yt" else "http",
+            dom = DmLog.domain(t.url), name = DmLog.cleanName(t.name.ifEmpty { t.title }), code = code,
+            size = t.total, got = got, ms = ms, bps = if (ms > 0) got * 1000 / ms else 0, conns = r.conns, tries = t.tries,
+            ex = if (k == "fail" && e != null) e.javaClass.simpleName else "",
+            msg = if (k == "fail" && e != null) DmLog.redact(e.message) else "",
+            tail = if (k == "fail") r.tail.list() else emptyList(),
+        ))
     }
 
     /** null = הסתיים; אחרת קוד */
@@ -92,6 +115,7 @@ object DmEngine {
     private fun runHttp(ctx: Context, t: DmTask, r: Runner, conns: Int, pr: DmPrefs, host: String): String? {
         if (t.total < 0 || t.name.isEmpty() || t.segs.isEmpty()) {
             val p = try { DmFetch.probeRetry(t.url, t.ref, uaOf(t), cookies = cookiesOf(t)) } catch (e: Throwable) {
+                r.ex = e
                 return if (r.stop) "stopped" else (if (e is DmHttpError) DmRetry.http(e.status) else DmRetry.io(e)).code
             }
             if (t.name.isEmpty()) t.name = DmName.pick(p.disposition, p.finalUrl, p.mime)
@@ -133,6 +157,7 @@ object DmEngine {
         return try {
             // כל שורה של yt-dlp → שלב ואחוז של כל ההורדה (וידאו ואחריו קול); האחוז שלו לבדו מתאפס בכל חלק
             val f = DlEngine.download(ctx, t.url, t.ref, pick, "dm-" + t.id, fmt, onLine = ln@{ line ->
+                r.tail.add(line)
                 if (!pr.feed(line)) return@ln
                 val now = System.currentTimeMillis()
                 val moved = ytStage.put(t.id, pr.stage) != pr.stage
@@ -147,6 +172,7 @@ object DmEngine {
             DmMedia.importFile(ctx, t, f)
             null
         } catch (e: IllegalArgumentException) {
+            r.ex = e.cause ?: e
             val c = e.message ?: "fail"
             if (c == "cancel") (if (r.system) "stopped_sys" else "stopped") else c
         } finally { stopWatch.interrupt() }
