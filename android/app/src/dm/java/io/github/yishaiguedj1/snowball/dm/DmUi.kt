@@ -513,8 +513,10 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(list.size) { i ->
                             val q = list[i]
+                            // הגודל לפי פורמט הווידאו שבהגדרות (תואם = H.264, גדול יותר) — מה שבאמת יירד
+                            val sz = DmCodec.prefer(q, info.optJSONArray("fm"), info.optJSONObject("ao"), DmPrefs(ctx).codec).sz
                             FilterChip(!audio && qi == i, { audio = false; qi = i }, label = {
-                                Text(q.optInt("h").toString() + "p" + (if (q.optLong("sz") > 0) " · " + DmFmt.size(ctx, q.optLong("sz")) else ""))
+                                Text(q.optInt("h").toString() + "p" + (if (sz > 0) " · " + DmFmt.size(ctx, sz) else ""))
                             })
                         }
                         if (info.optJSONObject("ao") != null) item {
@@ -630,6 +632,7 @@ private fun SettingsScreen(a: DmActivity) {
     var par by remember { mutableIntStateOf(pr.parallel) }
     var conns by remember { mutableIntStateOf(pr.conns) }
     var q by remember { mutableStateOf(pr.quality) }
+    var codec by remember { mutableStateOf(pr.codec) }
     var lang by remember { mutableStateOf(pr.lang) }
     var lim by remember { mutableStateOf(pr.limit) }
     var dlg by remember { mutableStateOf("") }
@@ -639,6 +642,8 @@ private fun SettingsScreen(a: DmActivity) {
     Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp, 0.dp, 16.dp, 24.dp)) {
         Group {
             SetRow(stringResource(R.string.dmSetQuality), qName(q)) { dlg = "q" }
+            Div()
+            SetRow(stringResource(R.string.dmSetCodec), codecName(codec)) { dlg = "k" }
             Div()
             SetRow(stringResource(R.string.dmSetWhere), stringResource(R.string.dmSavedWhere)) {}
             Div()
@@ -691,6 +696,7 @@ private fun SettingsScreen(a: DmActivity) {
         dismissButton = { TextButton(onClick = { dlg = "" }) { Text(stringResource(R.string.dmNotNow)) } })
     when (dlg) {
         "q" -> Choose(stringResource(R.string.dmSetQuality), listOf("best", "2160", "1080", "720", "480", "audio"), q, { qName(it) }) { q = it; pr.quality = it; dlg = "" }
+        "k" -> Choose(stringResource(R.string.dmSetCodec), DmCodec.MODES, codec, { codecName(it) }) { codec = it; pr.codec = it; dlg = "" }
         "p" -> Choose(stringResource(R.string.dmSetParallel), listOf("1", "2", "3", "4", "5"), par.toString(), { it }) { par = it.toInt(); pr.parallel = par; dlg = ""; DmEngine.pump(ctx) }
         "g" -> Choose(stringResource(R.string.dmSetLang), DmLang.MODES, lang, { langName(it) }) {
             dlg = ""; if (it != lang) { lang = it; pr.lang = it; a.recreate() }   // מחרוזות וכיוון — מההקשר החדש
@@ -705,6 +711,9 @@ private fun SettingsScreen(a: DmActivity) {
     }
     if (dlg == "x") dlg = ""
 }
+
+@Composable
+private fun codecName(c: String) = stringResource(if (c == DmCodec.COMPAT) R.string.dmCodecCompat else R.string.dmCodecSmall)
 
 @Composable
 private fun qName(q: String) = when (q) {

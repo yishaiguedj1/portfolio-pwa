@@ -181,7 +181,11 @@ class DmActivity : ComponentActivity() {
             this.tr = tr && !audio
             title = v.info.optString("t"); name = title
             audioOnly = audio
-            if (q != null && !audio) { vf = q.optString("v"); af = q.optString("a"); height = q.optInt("h"); total = q.optLong("sz", -1) }
+            if (q != null && !audio) {
+                // פורמט הווידאו מההגדרות (DmCodec): חסכוני = מה שנבחר (AV1/VP9), תואם = H.264 + AAC באותה רזולוציה
+                val pk = DmCodec.prefer(q, v.info.optJSONArray("fm"), v.info.optJSONObject("ao"), DmPrefs(this@DmActivity).codec)
+                vf = pk.v; af = pk.a; height = q.optInt("h"); total = pk.sz
+            }
             if (audio) total = v.info.optJSONObject("ao")?.optLong("sz", -1) ?: -1
             created = System.currentTimeMillis(); ck = sheetCk
         }

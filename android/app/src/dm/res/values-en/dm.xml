@@ -159,4 +159,7 @@
     <string name="dmPrivacyOn">Downloads go straight from the site to your phone, with no server in between. Only the download log — no addresses, no cookies, no files — is sent to our database, encrypted, to fix problems. You can turn it off and delete it above.</string>
     <string name="dmSetImproveS">No addresses, no cookies</string>
     <string name="dmSignNeed">Sign in to send</string>
+    <string name="dmSetCodec">Video format</string>
+    <string name="dmCodecSmall">Compact — smallest file</string>
+    <string name="dmCodecCompat">Compatible — plays everywhere</string>
 </resources>

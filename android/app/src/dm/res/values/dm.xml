@@ -164,4 +164,7 @@
     <string name="dmPrivacyOn">ההורדות עוברות ישר מהאתר לטלפון, בלי שרת באמצע. רק יומן ההורדות — בלי כתובות, בלי עוגיות ובלי הקבצים — נשלח למאגר שלנו, מוצפן, כדי לתקן תקלות. אפשר לכבות ולמחוק למעלה.</string>
     <string name="dmSetImproveS">בלי כתובות ובלי עוגיות</string>
     <string name="dmSignNeed">כדי לשלוח צריך להיכנס</string>
+    <string name="dmSetCodec">פורמט וידאו</string>
+    <string name="dmCodecSmall">חסכוני — הקובץ הקטן ביותר</string>
+    <string name="dmCodecCompat">תואם — מתנגן בכל מכשיר</string>
 </resources>
