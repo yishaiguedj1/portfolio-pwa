@@ -108,4 +108,28 @@ async function usageAll(env, f, now) {
   return { now, vercel, r2, firestore };
 }
 
-module.exports = { LIMITS, parseVercel, parseR2, parseFs, sumPoints, usageAll, item };
+
+/* היסטוריה (23/10/2026): נקודה לשעה לכל אחוז שימוש, עד 31 ימים. טור: זמן + 6 ערכים (אחוז או null).
+   HIST_KEYS זהה ב־admin-app.js. נשמר במסמך sysUsage/main (שדה uh, JSON) */
+const HIST_KEYS = ['t', 'vbw', 'vinv', 'rst', 'rops', 'rrd', 'rwr'];
+const HIST_MAX = 744;          // 31 ימים × 24 שעות
+const HIST_GAP = 55 * 60e3;    // נקודה לכל היותר פעם בשעה (המסלול רץ כל ~10 דק׳)
+function histPoint(prov, now) {
+  const pc = (P, k) => { const it = P && P.st === 'ok' && (P.items || []).find((x) => x.k === k); return it && it.pct != null ? it.pct : null; };
+  return [Math.round(now / 1000), pc(prov.vercel, 'bw'), pc(prov.vercel, 'inv'), pc(prov.r2, 'store'), pc(prov.r2, 'ops'), pc(prov.firestore, 'reads'), pc(prov.firestore, 'writes')];
+}
+const histValid = (hist) => (Array.isArray(hist) ? hist : []).filter((p) => Array.isArray(p) && p.length === HIST_KEYS.length);
+function histDue(hist, now) {
+  const arr = histValid(hist);
+  return !arr.length || now - arr[arr.length - 1][0] * 1000 >= HIST_GAP;
+}
+function histPush(hist, prov, now) {
+  const arr = histValid(hist);
+  if (!histDue(arr, now)) return arr;
+  const pt = histPoint(prov, now);
+  if (pt.slice(1).every((v) => v == null)) return arr;   // אין נתון באף ספק — לא שומרים נקודה ריקה
+  arr.push(pt);
+  return arr.slice(-HIST_MAX);
+}
+
+module.exports = { HIST_KEYS, HIST_MAX, histDue, histPush, LIMITS, parseVercel, parseR2, parseFs, sumPoints, usageAll, item };

@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1020 מפתחות מתוך 3909) */
+/* המחרוזות של admin (1023 מפתחות מתוך 3912) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -544,6 +544,8 @@ he: {
   "admMonOff": "לא מדווח",
   "admMonOk": "תקין",
   "admMonPsi": "לחץ זיכרון",
+  "admMonRange24": "24 שעות",
+  "admMonRange31": "31 ימים",
   "admMonRow": "ניטור שרתים",
   "admMonRowS": "מעבד, זיכרון, דיסק ורשת — 24 שעות אחורה",
   "admMonSrv": "שרתים",
@@ -608,6 +610,7 @@ he: {
   "admProvBw": "תעבורה",
   "admProvErr": "שגיאה",
   "admProvFs": "Firestore",
+  "admProvHist": "היסטוריה — עד 31 ימים",
   "admProvInv": "קריאות לפונקציות",
   "admProvNote": "מכסות חינמיות לפי התיעוד של הספקים. נתון חסר לא מוצג",
   "admProvOf": "{u} מתוך {l}",
@@ -1566,6 +1569,8 @@ en: {
   "admMonOff": "Not reporting",
   "admMonOk": "OK",
   "admMonPsi": "Memory pressure",
+  "admMonRange24": "24 hours",
+  "admMonRange31": "31 days",
   "admMonRow": "Server monitor",
   "admMonRowS": "CPU, memory, disk and network — 24 hours back",
   "admMonSrv": "Servers",
@@ -1630,6 +1635,7 @@ en: {
   "admProvBw": "Bandwidth",
   "admProvErr": "Error",
   "admProvFs": "Firestore",
+  "admProvHist": "History — up to 31 days",
   "admProvInv": "Function calls",
   "admProvNote": "Free-tier quotas from the providers' docs. Missing data is not shown",
   "admProvOf": "{u} of {l}",
