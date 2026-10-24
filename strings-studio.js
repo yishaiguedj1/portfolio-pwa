@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1792 מפתחות מתוך 3966) */
+/* המחרוזות של studio (1793 מפתחות מתוך 3967) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -466,6 +466,7 @@ he: {
   "studioErrNoServer": "אף שרת לא לקח את העבודה — בדקו במסך השרת",
   "studioErrNotAdmin": "רק המנהל יכול לעשות את זה",
   "studioErrOom": "העבודה נעצרה בשרת (כנראה נגמר הזיכרון) — אפשר להמשיך מנקודת השמירה",
+  "studioErrPhMeta": "המדידות מהטלפון לא הגיעו או לא תקינות — פתחו שוב את הסרטון באפליקציה",
   "studioErrRAuth": "המפתח של ה־Routine לא תקף (בוטל או הוחלף). הדביקו מפתח חדש",
   "studioErrRDown": "Claude לא זמין כרגע. נסו שוב בעוד כמה דקות",
   "studioErrRForbidden": "לחשבון Claude הזה אין גישה ל־Routines",
@@ -2260,6 +2261,7 @@ en: {
   "studioErrNoServer": "No server took the job — check the Server screen",
   "studioErrNotAdmin": "Only the admin can do this",
   "studioErrOom": "The job stopped on the server (probably out of memory) — you can resume from the checkpoint",
+  "studioErrPhMeta": "The measurements from the phone are missing or invalid — open the video in the app again",
   "studioErrRAuth": "The Routine key is invalid (revoked or replaced). Paste a new one",
   "studioErrRDown": "Claude is unavailable right now. Try again in a few minutes",
   "studioErrRForbidden": "This Claude account doesn't have access to Routines",

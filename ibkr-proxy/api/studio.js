@@ -1278,7 +1278,7 @@ async function server(req, res, body, deps) {
     const fit = S.normFit(body.fit);
     for (const job of qd) {
       if (!apiJob(job) || S.effState(job, now).state !== 'queued') continue;
-      if (job.vw && !(job.fv && job.fv.id)) continue;   // 15/10/2026: מחכה לסרטון — לא תופסים שרת עד שהוא נרשם
+      if (job.vw && !((job.spec && job.spec.ph === 1 ? job.fph : job.fv) || {}).id) continue;   // 15/10/2026: מחכה לסרטון — לא תופסים שרת עד שהוא נרשם (24/10: בתרגום בטלפון — לקובץ המדידות)
       if (fit && S.peakNeed(job, fit) > fit.mb) break;
       const st = await readStats(deps, job.uid);
       const cap = S.jobCap(job.spec, S.monthUsed(st.mu, now), USER_MONTH(), S.usdOf(job.use0));
@@ -1489,12 +1489,13 @@ async function r2Files(deps, op, body, uid, folder, by) {
 /* רישום קובץ שעלה ל־R2 בעבודה (op:'file' מהטלפון, ו־r2bgDone מה־service worker): קיים, בתיקייה של העבודה, והסרטון /
    הכתוביות בגודל של המקור. משנה את job במקום. מחזיר {} או { code, error } */
 async function r2Register(deps, job, which, fid, now) {
-  const fkey = which === 's' ? 'fsu' : 'f' + which;
+  const fkey = which === 's' ? 'fsu' : which === 'm' ? 'fph' : 'f' + which;   // m = קובץ המדידות מהטלפון (תרגום בטלפון)
   const m = await driveFileInFolder(deps, job.uid, job.folder, fid);
   if (m && m.error) return { code: 200, error: m.error };
   const f = m && S.normFile({ id: fid, name: m.name || (which === 'v' ? 'video' : which === 's' ? 'subs' : 'audio'), size: m.size, mimeType: m.mime });
   if (!f) return { code: 400, error: 'file_bad' };
   if ((which === 'v' || which === 's') && job.spec && f.size !== job.spec.size) return { code: 400, error: 'file_size' };
+  if (which === 'm' && f.size > S.PH_META_MAX) return { code: 400, error: 'file_size' };
   f.at = now;
   await patchJob(deps, job.id, { [fkey]: f, updated: now });
   job[fkey] = f;
@@ -2607,6 +2608,7 @@ async function handler(req, res, deps = {}) {
       if (!spec) return res.status(400).json({ ok: false, error: 'bad_spec' });
       if (!S.langReady(spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported' });   // לפני ההעלאה, לא אחריה
       if (await modeLocked(spec.mode)) return res.status(403).json({ ok: false, error: 'mode_locked' });
+      if (spec.ph && !R2.config().ok) return res.status(503).json({ ok: false, error: 'r2_needed' });   // 24/10/2026: תרגום בטלפון — הקבצים הקטנים ב־R2
       if (spec.src === 'url') {   // 22/10/2026: הורדה מקישור — כמו בבדיקה: מנהל / "כל המודלים", הדגל, ו־R2 (העובד מוריד לשם)
         if (!(await fullModes())) return res.status(403).json({ ok: false, error: 'not_allowed' });
         if (!(await flagOn(deps, 'st_url', now))) return res.status(409).json({ ok: false, error: 'flag_off', fl: 'st_url' });
@@ -2713,10 +2715,12 @@ async function handler(req, res, deps = {}) {
       if (job.kind !== 'tr' || !['new', 'queued', 'running', 'failed'].includes(st)) return res.status(409).json({ ok: false, error: 'state' });
       // 22/10/2026: s = קובץ כתוביות קיים (spec.src = 'subs') — נשמר ב־fsu, בגודל של המקור ועד SUBS_MAX
       const subs = !!(job.spec && job.spec.src === 'subs');
-      const which = subs ? (body.which === 's' ? 's' : '') : body.which === 'v' ? 'v' : body.which === 'a' ? 'a' : '';
+      const ph = !!(job.spec && job.spec.ph === 1);   // 24/10/2026: תרגום בטלפון — הקול וקובץ המדידות; הסרטון לא עולה לעולם
+      const which = subs ? (body.which === 's' ? 's' : '') : ph ? (body.which === 'a' || body.which === 'm' ? body.which : '') : body.which === 'v' ? 'v' : body.which === 'a' ? 'a' : '';
       const fkey = which === 's' ? 'fsu' : 'f' + which;
       const fid = String(body.id || ''), folder = String(body.folder || ''), ext = body.ext === true && which === 'v';   // ext: סרטון שבחרת ב־Drive (Picker) — נשאר במקומו
       if (!which || !S.FILE_ID_RE.test(fid) || !S.FILE_ID_RE.test(folder) || (job.folder && job.folder !== folder)) return res.status(400).json({ ok: false, error: 'bad_params' });
+      if (ph && !SR.isFolder(folder)) return res.status(400).json({ ok: false, error: 'bad_params' });
       if (SR.isFolder(folder) && !ext) {
         // ת4: קובץ ב־R2 — קיים, בתיקייה של העבודה, והסרטון בגודל של המקור (מקור מ־Drive — ext — נשאר ב־Drive, בבדיקה שלמטה)
         if (folder !== job.folder) return res.status(400).json({ ok: false, error: 'bad_params' });
@@ -2743,7 +2747,7 @@ async function handler(req, res, deps = {}) {
     if (op === 'start') {
       if (!['tr', 'rr', 'ai'].includes(job.kind) || st !== 'new') return res.status(409).json({ ok: false, error: 'state', job: view(job) });
       const subsJob = !!(job.spec && job.spec.src === 'subs');
-      if (job.kind === 'ai' ? !job.fq : subsJob ? !job.fsu : job.spec && job.spec.src === 'url' ? !SR.isFolder(job.folder) : !job.fa && !job.fv || job.kind === 'rr' && !(job.fv && job.fc)) return res.status(409).json({ ok: false, error: 'no_files' });
+      if (job.kind === 'ai' ? !job.fq : subsJob ? !job.fsu : job.spec && job.spec.src === 'url' ? !SR.isFolder(job.folder) : job.spec && job.spec.ph === 1 ? !job.fa || !SR.isFolder(job.folder) : !job.fa && !job.fv || job.kind === 'rr' && !(job.fv && job.fc)) return res.status(409).json({ ok: false, error: 'no_files' });
       if (job.kind === 'tr' && !S.langReady(job.spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported', job: view(job) });
       if (job.kind !== 'rr' && await modeLocked(job.spec && job.spec.mode)) return res.status(403).json({ ok: false, error: 'mode_locked', job: view(job) });   // גם עבודה שנוצרה לפני שהרשימה השתנתה / סט הזהב
       if (!S.WORKER_KINDS.includes(job.kind)) return res.status(200).json({ ok: false, error: 'worker_not_ready', job: view(job) });
@@ -2763,6 +2767,16 @@ async function handler(req, res, deps = {}) {
       const f = await fireJob(deps, uid, v, job, now);
       const j = await readJob(deps, job.id);
       return res.status(200).json(Object.assign({ ok: f.ok, job: view(j) }, f.ok ? (f.unsure ? { unsure: f.unsure, detail: f.detail } : {}) : { error: f.error, retry: f.retry, detail: f.detail || '' }));
+    }
+    if (op === 'phBurn') {
+      // 24/10/2026: תרגום בטלפון — הטלפון צורב בעצמו (MediaCodec) ומדווח: רץ (אחוז), הסתיים (גודל, זמן), נכשל (קוד).
+      // רק מספרים וקוד; התוצר נשאר בטלפון (Movies/Studio) ולא עולה לשום מקום
+      if (job.kind !== 'tr' || !(job.spec && job.spec.ph === 1) || st !== 'done') return res.status(409).json({ ok: false, error: 'state' });
+      const pbn = S.normPbn(body.pbn, now);
+      if (!pbn) return res.status(400).json({ ok: false, error: 'bad_params' });
+      await patchJob(deps, job.id, { pbn });
+      job.pbn = pbn;
+      return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'learnUx') {
       // מ׳3: מה קרה אחרי העבודה — צפייה, הורדות ושיתוף, הצעות, גיליון ה־AI, מונחים (תוספת מספרים; LR.normUx)
