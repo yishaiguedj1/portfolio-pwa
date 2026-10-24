@@ -9,7 +9,12 @@
 1. dash.cloudflare.com → Workers & Pages → Create → Create Worker (Start with Hello World).
 2. השם: `snb-studio-watch` → Deploy.
 3. Edit code → למחוק הכל ולהדביק את `worker.js` → Deploy.
-4. Settings → Trigger Events → Add → Cron Triggers → `*/10 * * * *` → Add.
+4. Settings → Trigger Events → Add → Cron Triggers → `*/10 * * * *` → Add. **וגם** `5 12 * * *` → Add (סנכרון IBKR יומי).
 5. בדיקה: לפתוח את הכתובת של ה־Worker — צריך לחזור `"status":200`.
 
 עלות: חינם (Workers Free — 100 אלף בקשות ביום; כאן 144).
+
+
+## סנכרון IBKR יומי (24/10/2026)
+הקרון `5 12 * * *` קורא ל־`/api/ibkr-sync` בשרתון (גיבוי: Vercel). אם ב־Vercel מוגדר `CRON_SECRET` — להוסיף אותו גם כ־Secret של ה־Worker באותו שם.
+אחרי שהקרון של Vercel יוסר מ־`vercel.json` (שלב נפרד, באישור) — הקרון היומי נשאר רק כאן ובשרתון.
