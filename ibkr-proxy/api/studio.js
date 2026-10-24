@@ -969,10 +969,16 @@ async function usageSnap(deps, now) {
     set.sto = await storeSnap(deps, f, now, cfg.sto).catch(() => cfg.sto || null);
     set[stamp] = now;
   }
-  let n = 0;
+  let n = 0, prov = null;
+  // 24/10/2026: מופע עם טוקן של ספק (Vercel) שומר את מה שמדד, פעם בשעה — השרת שלנו (בלי הטוקנים) מציג ממנו
+  if ((process.env.CF_USAGE_TOKEN || process.env.VERCEL_USAGE_TOKEN) && !(now - (+cfg.upvAt || 0) < USG.STO_GAP)) {
+    prov = await USG.usageAll(process.env, f, now);
+    set.upv = USG.provKeep(cfg.upv, prov, now);
+    set.upvAt = now;
+  }
   if (USG.histDue(cfg.uh, now)) {
-    const prov = await USG.usageAll(process.env, f, now);
-    set.uh = USG.histPush(cfg.uh, prov, now);
+    prov = prov || await USG.usageAll(process.env, f, now);
+    set.uh = USG.histPush(cfg.uh, USG.provMerge(prov, set.upv || cfg.upv), now);
     n = set.uh.length;
   }
   if (!Object.keys(set).length) return 0;
@@ -2300,13 +2306,14 @@ async function handler(req, res, deps = {}) {
       const srv = raw.map((x) => { const v = S.serverView(x, now); return v && Object.assign(v, { mon: Array.isArray(x.mon) ? x.mon : [] }); }).filter(Boolean);
       const cfg = (await readDoc(deps, 'sysCfg', 'main').catch(() => null)) || {};
       const run = jobs.map((j) => ({ sid: j.sid, st: (j.prog || {}).st, p: (j.prog || {}).p }));
-      return res.status(200).json({ ok: true, now, tok: { on: !!cfg.monKh, at: cfg.monAt > 0 ? cfg.monAt : 0 }, mon: MON.monView(srv, run, now) });
+      const usg = await readDoc(deps, 'sysUsage', 'main').catch(() => null);   // 24/10/2026: האחסון והעלות גם בווידג'ט
+      return res.status(200).json({ ok: true, now, tok: { on: !!cfg.monKh, at: cfg.monAt > 0 ? cfg.monAt : 0 }, mon: MON.monView(srv, run, now), sto: USG.stoBrief(usg && usg.sto) });
     }
     if (op === 'provUsage') {
       // 23/10/2026: שימוש בפועל מול הספקים — רק מנהל (בלי טוקן ניטור). ספק בלי טוקן = off, ואף מספר לא מומצא
       if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
-      const prov = await USG.usageAll(process.env, deps.fetch || fetch, now);
       const cfg = (await readDoc(deps, 'sysUsage', 'main').catch(() => null)) || {};
+      const prov = USG.provMerge(await USG.usageAll(process.env, deps.fetch || fetch, now), cfg.upv);   // בלי טוקן כאן — מה ש־Vercel מדד
       return res.status(200).json({ ok: true, prov, hist: USG.histPush(cfg.uh, prov, now), sto: cfg.sto || null });   // sto: נמדד פעם בשעה ב־watch
     }
     if (op === 'adminAgents' || op === 'adminServers') {
