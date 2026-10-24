@@ -185,7 +185,8 @@ object DlEngine {
         download(ctx, url, ref, pick, id, "", progress = progress)
 
     /** format = בורר yt-dlp משלך (Studio DM: "רק קול" — ‎ba/b‎); ריק = לפי pick, כמו ב־Studio */
-    fun download(ctx: Context, url: String, ref: String, pick: Pick, id: String, format: String, onLine: (String) -> Unit = {}, progress: (Float, Long) -> Unit): File {
+    /** subs = שפות כתוביות לצרף לקובץ ("he,en"; Studio DM — DmSubs), auto = כולל כתוביות אוטומטיות */
+    fun download(ctx: Context, url: String, ref: String, pick: Pick, id: String, format: String, onLine: (String) -> Unit = {}, subs: String = "", auto: Boolean = false, progress: (Float, Long) -> Unit): File {
         prepare(ctx)
         val dir = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "dl/$id").apply { mkdirs() }
         val req = base(YoutubeDLRequest(url), ref, cookiesFor(ctx, url, ref))
@@ -195,6 +196,11 @@ object DlEngine {
             .addOption("-o", dir.absolutePath + "/%(title).80B [%(id)s].%(ext)s")
             .addOption("--print", "after_move:filepath")
         if (pick.s1 > pick.s0) req.addOption("--download-sections", "*${pick.s0}-${pick.s1}")
+        if (Regex("^[A-Za-z0-9_-]{1,20}(,[A-Za-z0-9_-]{1,20}){0,4}$").matches(subs)) {
+            // כתוביות בתוך הקובץ (MP4 = mov_text, MKV = srt) — לא קבצים נפרדים; כשל בכתוביות לא מפיל את ההורדה
+            req.addOption("--write-subs").addOption("--sub-langs", subs).addOption("--embed-subs").addOption("--convert-subs", "srt").addOption("--ignore-errors")
+            if (auto) req.addOption("--write-auto-subs")
+        }
         val res = try {
             YoutubeDL.getInstance().execute(req, id) { p, eta, line -> progress(p, eta); onLine(line) }
         } catch (e: YoutubeDL.CanceledException) {

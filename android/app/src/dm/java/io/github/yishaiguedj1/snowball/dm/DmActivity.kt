@@ -194,9 +194,10 @@ class DmActivity : ComponentActivity() {
         DmStore.add(t); askNotifications(); DmEngine.pump(this)
     }
 
-    fun addVideo(v: Found.Video, q: JSONObject?, audio: Boolean, ref: String, tr: Boolean = false, later: Boolean = false) {
+    fun addVideo(v: Found.Video, q: JSONObject?, audio: Boolean, ref: String, tr: Boolean = false, later: Boolean = false, subs: List<DmSubs.Sub> = emptyList()) {
         val t = DmTask(DmStore.newId(), v.url, ref, DmKind.YTDL).apply {
             this.tr = tr && !audio; this.later = later
+            if (!audio) { this.subs = DmSubs.langs(subs); subsAuto = DmSubs.anyAuto(subs) }
             title = v.info.optString("t"); name = title
             audioOnly = audio
             if (q != null && !audio) {
