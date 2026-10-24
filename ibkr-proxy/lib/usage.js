@@ -26,7 +26,13 @@ function parseVercel(j) {
   return { st: 'ok', items: [item('bw', bw == null ? null : +bw / GB, LIMITS.vercel.bw.lim, 'GB'), item('inv', inv, LIMITS.vercel.inv.lim, 'n')] };
 }
 /* Cloudflare R2 (GraphQL) — UNVERIFIED: שמות השדות r2StorageAdaptiveGroups / r2OperationsAdaptiveGroups */
+/* 24/10/2026: ההודעה הראשונה של Cloudflare GraphQL (בלי טוקנים — שגיאת סכמה/הרשאה), קצרה ונקייה, למרכז הניהול בלבד */
+function gqlMsg(j) {
+  const e = j && Array.isArray(j.errors) && j.errors[0];
+  return e && e.message ? String(e.message).replace(/[^A-Za-z0-9 _.,:'"$!()\[\]-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140) : '';
+}
 function parseR2(j) {
+  if (j && Array.isArray(j.errors) && j.errors.length && !j.data) return { st: 'err', err: 'gql', m: gqlMsg(j), items: [] };
   const acc = j && j.data && j.data.viewer && j.data.viewer.accounts && j.data.viewer.accounts[0];
   if (!acc) return { st: 'err', err: 'shape', items: [] };
   const st = (acc.r2StorageAdaptiveGroups || [])[0], op = (acc.r2OperationsAdaptiveGroups || [])[0];
@@ -77,7 +83,7 @@ async function r2Usage(env, f, now) {
   const d = new Date(now), start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
   // 24/10/2026: לפי התיעוד של Cloudflare (r2/platform/metrics-analytics) הסינון הוא datetime_geq/datetime_leq — עד היום
   // datetimeHour_*, שהשאילתה נדחתה עליו. האחסון = הנקודה האחרונה (orderBy datetime_DESC), לא שיא החודש
-  const query = 'query($a:string,$s:Time,$e:Time){viewer{accounts(filter:{accountTag:$a}){' +
+  const query = 'query($a:string!,$s:Time,$e:Time){viewer{accounts(filter:{accountTag:$a}){' +
     'r2StorageAdaptiveGroups(limit:1,filter:{datetime_geq:$s,datetime_leq:$e},orderBy:[datetime_DESC]){max{payloadSize}}' +
     'r2OperationsAdaptiveGroups(limit:1,filter:{datetime_geq:$s,datetime_leq:$e}){sum{requests}}}}}';
   const body = JSON.stringify({ query, variables: { a: acc, s: start, e: d.toISOString() } });
@@ -120,7 +126,7 @@ function r2Buckets(env) {
 function storeQuery(bs) {
   const one = (al, name) => al + ':r2StorageAdaptiveGroups(limit:1,filter:{datetime_geq:$s,datetime_leq:$e,bucketName:"' + name + '"},' +
     'orderBy:[datetime_DESC]){max{payloadSize metadataSize objectCount}}';
-  return 'query($a:string,$s:Time,$e:Time){viewer{accounts(filter:{accountTag:$a}){' +
+  return 'query($a:string!,$s:Time,$e:Time){viewer{accounts(filter:{accountTag:$a}){' +
     bs.map((b, i) => one('p' + i, b) + ' ' + one('e' + i, 'eu_' + b)).join(' ') + '}}}';
 }
 function parseStore(j, bs) {
@@ -182,7 +188,7 @@ async function r2Store(env, f, now) {
   const d = new Date(now), m0 = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
   const g = await gql(storeQuery(bs), { s: new Date(now - 3 * 86400e3).toISOString(), e: d.toISOString() });
   if (g.err) return { st: 'err', err: g.err, b: [] };
-  if (g.j && Array.isArray(g.j.errors) && g.j.errors.length && !g.j.data) return { st: 'err', err: 'gql', b: [] };
+  if (g.j && Array.isArray(g.j.errors) && g.j.errors.length && !g.j.data) return { st: 'err', err: 'gql', m: gqlMsg(g.j), b: [] };
   const out = parseStore(g.j, bs);
   if (out.st !== 'ok') return out;
   // העלות: שאלה נפרדת — אם היא נדחית (שם שדה), הגודל לפי דלי עדיין נשמר
@@ -197,7 +203,7 @@ async function r2Store(env, f, now) {
 }
 function costQuery(bs) {
   const one = (al, name) => al + ':r2StorageAdaptiveGroups(limit:40,filter:{datetime_geq:$m,datetime_leq:$e,bucketName:"' + name + '"}){max{payloadSize metadataSize} dimensions{date}}';
-  return 'query($a:string,$m:Time,$e:Time){viewer{accounts(filter:{accountTag:$a}){' +
+  return 'query($a:string!,$m:Time,$e:Time){viewer{accounts(filter:{accountTag:$a}){' +
     'ops:r2OperationsAdaptiveGroups(limit:200,filter:{datetime_geq:$m,datetime_leq:$e}){sum{requests} dimensions{actionType}} ' +
     bs.map((b, i) => one('d' + i, b) + ' ' + one('d' + (i + bs.length), 'eu_' + b)).join(' ') + '}}}';
 }
@@ -219,7 +225,7 @@ function storeMerge(prev, r2, drive, now) {
   const out = { r2: p.r2 || null, drive: p.drive || null };
   if (r2 && r2.st === 'ok' && r2.b.length) out.r2 = Object.assign({ at: Math.round(now / 1000), b: r2.b }, r2.cost ? { cost: r2.cost } : (p.r2 && p.r2.cost ? { cost: p.r2.cost } : {}));
   // 24/10/2026: שגיאה של R2 נשמרת (קוד וזמן) — אחרת המסך אמר "צריך טוקן" גם כשהטוקן קיים והשאילתה נדחתה
-  if (r2 && r2.st === 'err') out.r2e = { err: String(r2.err || 'err').slice(0, 20), at: Math.round(now / 1000) };
+  if (r2 && r2.st === 'err') out.r2e = Object.assign({ err: String(r2.err || 'err').slice(0, 20), at: Math.round(now / 1000) }, r2.m ? { m: String(r2.m).slice(0, 140) } : {});
   else if (p.r2e && !(r2 && r2.st === 'ok')) out.r2e = p.r2e;
   if (drive && drive.st === 'ok') out.drive = { at: Math.round(now / 1000), gb: drive.gb, lim: drive.lim };
   return out;
@@ -288,4 +294,4 @@ function histPush(hist, prov, now) {
   return arr.slice(-HIST_MAX);
 }
 
-module.exports = { stoBrief, PROV_KEYS, provKeep, provMerge, R2_PRICE, opsByClass, r2Cost, gbMonthOf, costQuery, STO_GAP, r2Buckets, storeQuery, parseStore, r2Store, parseDrive, driveStore, storeMerge, HIST_KEYS, HIST_MAX, histDue, histPush, LIMITS, parseVercel, parseR2, parseFs, sumPoints, usageAll, item };
+module.exports = { gqlMsg, stoBrief, PROV_KEYS, provKeep, provMerge, R2_PRICE, opsByClass, r2Cost, gbMonthOf, costQuery, STO_GAP, r2Buckets, storeQuery, parseStore, r2Store, parseDrive, driveStore, storeMerge, HIST_KEYS, HIST_MAX, histDue, histPush, LIMITS, parseVercel, parseR2, parseFs, sumPoints, usageAll, item };

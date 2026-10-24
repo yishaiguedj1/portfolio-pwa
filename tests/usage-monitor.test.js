@@ -123,6 +123,12 @@ assert.strictEqual(fs.items[1].used, 100);
   assert.strictEqual((await U.r2Store({ CF_USAGE_TOKEN: 't', R2_ACCOUNT_ID: 'a', R2_BUCKET: 'snb-learn' }, g403('{"reason":"SERVICE_DISABLED"}'), now0)).err, 'api_off');
   assert.strictEqual((await U.r2Store({ CF_USAGE_TOKEN: 't', R2_ACCOUNT_ID: 'a', R2_BUCKET: 'snb-learn' }, g403('PERMISSION_DENIED'), now0)).err, 'http_403');
 
+  // 24/10/2026: המשתנה של החשבון חייב להיות string! (accountTag לא nullable) — אחרת Cloudflare דוחה את כל השאילתה
+  assert.ok(U.storeQuery(['a-b']).startsWith('query($a:string!,') && U.costQuery(['a-b']).startsWith('query($a:string!,'));
+  assert.strictEqual(U.gqlMsg({ errors: [{ message: 'Variable "$a" of type "string" used\n in position <x>' }] }), 'Variable "$a" of type "string" used in position x');
+  const ge = await U.r2Store({ CF_USAGE_TOKEN: 't', R2_ACCOUNT_ID: 'a', R2_BUCKET: 'snb-learn' }, async () => ({ status: 200, json: async () => ({ errors: [{ message: 'not authorized for that account' }], data: null }) }), now0);
+  assert.strictEqual(ge.m, 'not authorized for that account');
+  assert.strictEqual(U.storeMerge(null, ge, null, now0).r2e.m, 'not authorized for that account');
   // תקציר לווידג'ט
   assert.strictEqual(U.stoBrief(null), null);
   assert.deepStrictEqual(U.stoBrief({ r2: { at: 5, b: [{ name: 'a', gb: 1.234 }, { name: 'b', gb: 2 }], cost: { proj: 3.5, mtd: 1, st: 9 } }, r2e: { err: 'gql', at: 1 }, drive: { at: 6, gb: 4, lim: 15 } }),

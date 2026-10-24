@@ -595,7 +595,7 @@ function storeRows(S, servers) {
         v: usd(C.proj), tr: fmt(t('admStoCostMtd'), { m: usd(C.mtd) }) }));
     }
     for (const b of r2.b) out.push(row({ c: 'gray', ic: '▤', t: (STO_NAME[b.name] || (() => b.name))(), s: b.n == null ? b.name : fmt(t('admStoFiles'), { n: b.n.toLocaleString(lang === 'he' ? 'he-IL' : 'en-US') }), v: gbTxt(b.gb) }));
-  } else if (S && S.r2e) out.push(row({ c: 'red', ic: '!', t: t('admStoR2'), s: provErr(S.r2e.err) + ' · ' + fmt(t('admStoAt'), { a: ago(S.r2e.at * 1000) }) }));
+  } else if (S && S.r2e) out.push(row({ c: 'red', ic: '!', t: t('admStoR2'), s: provErr(S.r2e.err) + ' · ' + fmt(t('admStoAt'), { a: ago(S.r2e.at * 1000) }) + (S.r2e.m ? ' · ' + S.r2e.m : '') }));
   else out.push(row({ c: 'gray', ic: '☁', t: t('admStoR2'), s: t('admStoR2Off') }));
   if (dr && dr.gb != null) {
     const pc = dr.lim ? Math.round(dr.gb / dr.lim * 100) : null;
@@ -615,7 +615,7 @@ const provErr = (e) => (e === 'api_off' ? t('admProvApiOff') : e === 'http_403' 
 function provRow(name, P, skip) {
   if (!P || P.st === 'off') return row({ c: 'gray', ic: '☁', t: name, s: t('admProvOff') });
   const at = P.at ? ' · ' + fmt(t('admStoAt'), { a: ago(P.at * 1000) }) : '';   // נמדד ב־Vercel ונשמר (upv)
-  if (P.st === 'err') return row({ c: 'red', ic: '!', t: name, s: provErr(P.err) + at });
+  if (P.st === 'err') return row({ c: 'red', ic: '!', t: name, s: provErr(P.err) + at + (P.m ? ' · ' + P.m : '') });   // ההודעה של הספק (Cloudflare GraphQL)
   const items = (P.items || []).filter((x) => !skip || !skip.includes(x.k));
   const parts = items.filter((x) => x.used != null).map((x) => (PROV_ITEM[x.k] || (() => x.k))() + ': ' + fmt(t('admProvOf'), { u: String(x.used), l: x.lim }) + ' ' + x.unit);
   const worst = Math.max(0, ...items.map((x) => x.pct || 0));
