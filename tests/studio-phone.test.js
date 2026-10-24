@@ -206,6 +206,10 @@ const { fakeR2, ENV } = require('./_r2fake');
   const act = fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhActivity.kt'), 'utf8');
   ok(/"https:\/\/studio\.thesnowball\.app\/", "https:\/\/studio-staging\.thesnowball\.app\/"/.test(act), 'האפליקציה חוזרת רק לאתר של Studio (ייצור / ניסוי)');
   ok(['studioPh', 'phburn', 'phKey'].every((x) => src.includes(x)) && !/net\.api\('phBurn'/.test(src), 'הדף לא מדווח צריבה (רק האפליקציה, במפתח של העבודה)');
+  // 24/10/2026 (בטלפון: הצריבה הופיעה רק בהתראה) — עבודה שהסתיימה ממשיכה להיבדק בזמן הצריבה, והאחוז נשלח כל 5 שנ׳ ברקע
+  ok(/st === 'running' \|\| phBurnLive\(r\) \? 4000/.test(src) && /phBurnTap\.set\(rec\.id, Date\.now\(\)\)/.test(src), 'בזמן הצריבה דף העבודה שואל כל 4 שנ׳ (גם כשהעבודה "הסתיימה")');
+  const work = fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhWork.kt'), 'utf8');
+  ok(/lastRep > 5_000/.test(work) && /q\.execute \{ rep\(o\) \}/.test(work) && /repDone\(JSONObject\(\)\.put\("s", "done"\)/.test(work), 'הצריבה מדווחת כל 5 שנ׳ בתהליכון אחד לפי הסדר (בלי לעצור את הקידוד; "הסתיים" אחרון)');
 
   console.log('\nכל ' + n + ' הבדיקות עברו ✓');
 })().catch((e) => { console.error(e); process.exit(1); });

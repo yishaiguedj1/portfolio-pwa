@@ -3759,9 +3759,15 @@ async function phKeyFor(id) {
   phKeys.set(id, { k: k.key, exp: Number(k.exp) || 0 });
   return k.key;
 }
+/* 24/10/2026 (בטלפון: הצריבה הופיעה רק בהתראה): נגיעה ב"לצרוב" — הדף ממשיך לשאול את השרתון (העבודה כבר "הסתיימה",
+   ועד עכשיו עבודה שהסתיימה לא נבדקה שוב) עד שהצריבה מסתיימת או נכשלת */
+const phBurnTap = new Map(), PH_BURN_WAIT = 5 * 60e3;
+const phBurnLive = (r) => !!(r && r.spec && r.spec.ph && r.srv && (r.srv.pbn && r.srv.pbn.s === 'run'
+  || Date.now() - (phBurnTap.get(r.id) || 0) < PH_BURN_WAIT && !(r.srv.pbn && r.srv.pbn.at > phBurnTap.get(r.id) - 60e3 && r.srv.pbn.s !== 'run')));   // דקה — שעון הטלפון מול השרתון
 function phHand(rec, kind) {
   const c = phKeys.get(rec.id);
   if (!rec.up.ph || !c) return false;
+  if (kind === 'phburn') { phBurnTap.set(rec.id, Date.now()); setTimeout(schedulePoll, 0); }
   location.href = phIntent(kind, Object.assign({ pid: rec.up.ph, j: rec.id, k: c.k, b: proxyBase(), pb: rec.spec.pb || '' }, kind === 'phburn' ? { pb: rec.spec.pb || 'same' } : {}));
   return true;
 }
@@ -3777,19 +3783,24 @@ function phCard(rec) {
   const card = h('div', 'st-card st-ph');
   card.append(h('b', null, T('studioPhCardT')));
   const lines = [srv.m ? T('studioPhMeasured') : T('studioPhNotMeasured')];
-  if (b && b.s === 'done') lines.push(T('studioPhBurned', { s: b.sz ? fmtSize(b.sz) : '' }));
-  else if (b && b.s === 'run') lines.push(T('studioPhBurning', { p: Math.round((b.p || 0) * 100) }));
-  else if (b && b.s === 'fail') lines.push(T('studioPhBurnFail') + (b.e ? ' (' + b.e + ')' : ''));
+  const burning = phBurnLive(rec);
+  if (b && b.s === 'done' && !burning) lines.push(T('studioPhBurned', { s: b.sz ? fmtSize(b.sz) : '' }));
+  else if (b && b.s === 'fail' && !burning) lines.push(T('studioPhBurnFail') + (b.e ? ' (' + b.e + ')' : ''));
   for (const l of lines) card.append(h('small', null, l));
+  if (burning) {   // הצריבה רצה — אחוז ופס שמתעדכנים במקום
+    const cur = () => { const x = jobRec(rec.id) || rec, q = x.srv && x.srv.pbn; return q && q.s === 'run' ? q.p || 0 : 0; };
+    const pb = h('span', 'st-pbar'), pi = h('i'); pb.append(pi);
+    card.append(live(h('small'), (el) => { el.textContent = T('studioPhBurning', { p: Math.round(cur() * 100) }); }), live(pb, () => { pi.style.width = Math.round(cur() * 100) + '%'; }));
+  }
   const here = !!(rec.up.ph && devDl());
   const ready = here && phKeys.has(rec.id);
   if (here && !ready) phKeyFor(rec.id).then((k) => { if (k && root && ui.view === 'job' && ui.param === rec.id) render('none'); });   // מראש — לפני הנגיעה
   const go = (cls, label, kind) => { const x = btn(cls, ready ? label : T('studioPhKeyBusy'), () => phHand(rec, kind), 'ph-' + kind); x.disabled = !ready; card.append(h('div', 'st-gap sm'), x); };
   if ((st === 'new' || !srv.m && (st === 'queued' || st === 'running'))) {   // האפליקציה עוד לא העלתה הכל (או לא נפתחה) — להמשיך שם
     if (here) go(st === 'new' ? 'st-btn wide' : 'st-btn ghost wide', st === 'new' ? T('studioPhStartApp') : T('studioPhResume'), 'ph'); else card.append(h('small', 'st-warn', T('studioPhOtherDev')));
-  } else if (st === 'done' && rec.spec.pb && !(b && (b.s === 'run' || b.s === 'done'))) {
+  } else if (!burning && st === 'done' && rec.spec.pb && !(b && (b.s === 'run' || b.s === 'done'))) {
     if (here) go('st-btn wide', T('studioPhBurnGo'), 'phburn'); else card.append(h('small', 'st-warn', T('studioPhOtherDev')));
-  } else if (st === 'done' && b && b.s === 'done' && here) go('st-btn ghost wide', T('studioPhBurnAgain'), 'phburn');
+  } else if (!burning && st === 'done' && b && b.s === 'done' && here) go('st-btn ghost wide', T('studioPhBurnAgain'), 'phburn');
   return card;
 }
 
@@ -7803,7 +7814,7 @@ let lastShape = '';
 /* "צורת" הדף — כשהיא משתנה (שלב חדש, העלאה הסתיימה, שגיאה) בונים את הדף מחדש; אחרת רק מעדכנים במקום */
 function shapeKey() {
   const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x + (rec.srv.tw.sh ? 's' : '') : '') + (recovering(rec) ? 'R' : '') + (rec.srv && rec.srv.nt ? 'n' + rec.srv.nt.h.length + (rec.srv.nt.p ? 'p' : '') : '') + (rec.srv && rec.srv.cp ? 'c' + rec.srv.cp.n + (rec.srv.cp.a ? 'a' : '') : '') + (cpBusy ? 'B' : '') + (rec.srv && rec.srv.out.length ? 'o' + rec.srv.out.length : '')
-    + (rec.spec.ph && rec.srv ? 'P' + (rec.srv.m ? 1 : 0) + (rec.srv.pbn ? rec.srv.pbn.s + Math.round(rec.srv.pbn.p * 20) : '') + (phKeys.has(rec.id) ? 'k' : '') : ''); };   // 24/10/2026: תרגום בטלפון — המדידות והצריבה   // v382: הערה שנקראה / ממתינה; סבב 10: העתק־הדבק
+    + (rec.spec.ph && rec.srv ? 'P' + (rec.srv.m ? 1 : 0) + (rec.srv.pbn ? rec.srv.pbn.s + (rec.srv.pbn.at || '') : '') + (phBurnLive(rec) ? 'b' : '') + (phKeys.has(rec.id) ? 'k' : '') : ''); };   // 24/10/2026: תרגום בטלפון — המדידות והצריבה   // v382: הערה שנקראה / ממתינה; סבב 10: העתק־הדבק
   const incK = (j) => { const x = ui.inc && ui.inc.list.find((y) => y.j === j); return x ? x.no + x.st + x.s : ''; };
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : '') + '|' + incK(ui.param); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join() + '|' + (majorOn(ui.inc) ? ui.inc.mi.no + ':' + ui.inc.mi.n : '');
@@ -7938,7 +7949,7 @@ function schedulePoll() {
   let ms = 0;
   // v368: עבודה שמתאוששת — בודקים שוב בסוף החלון (אז השרתון ממשיך אותה)
   const recMs = (list) => { const t = Math.min(...list.filter(recovering).map((r) => r.srv.rw)); return Number.isFinite(t) ? Math.max(2000, Math.min(60000, t - Date.now() + 1500)) : 0; };
-  if (ui.view === 'job') { const r = jobRec(ui.param), st = r && r.srv ? r.srv.state : 'new'; ms = st === 'queued' || st === 'running' ? 4000 : st === 'new' && r && r.up.started ? 15000 : r ? recMs([r]) : 0; }
+  if (ui.view === 'job') { const r = jobRec(ui.param), st = r && r.srv ? r.srv.state : 'new'; ms = st === 'queued' || st === 'running' || phBurnLive(r) ? 4000 : st === 'new' && r && r.up.started ? 15000 : r ? recMs([r]) : 0; }
   else if (ui.view === 'home') ms = store.jobs.some((r) => r.srv && (r.srv.state === 'queued' || r.srv.state === 'running')) ? 15000 : recMs(store.jobs);
   else if (ui.view === 'rr') { ms = rrRunning(rrJobs.get(ui.param)) || rrRunning(rrPv.get(ui.param)) ? 4000 : 0; }   // מ2; סבב 10: גם הבדיקה
   else if (ui.view === 'server' && ui.api && ui.api.admin) ms = 15000;   // מסך השרת: הדופק מתעדכן כל 15 שנ׳
