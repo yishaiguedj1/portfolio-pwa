@@ -1,0 +1,5 @@
+  Stream #0:0[0x0](und): Video: h264 (Constrained Baseline) (avc1 / 0x0), yuv420p(progressive), 640x0 [SAR 1:1 DAR 16:9], 1169 kb/s, 29.97 fps, 29.97 tbr, 30k tbn (default)
+  Stream #0:1[0x0](und): Audio: aac (LC) (mp4a / 0x0D), 44100 Hz, mono, fltp, 69 kb/s (default)
+  Stream #0:0 -> #0:0 (h264 (native) -> wrapped_avframe (native))
+  Stream #0:0(und): Video: wrapped_avframe, yuv420p(tv, progressive), 320x0 [SAR 1:1 DAR 16:9], q=2-31, 200 kb/s, 29.97 fps, 29.97 tbn (default)
+[scdet @ 0x0] lavfi.scd.score: 21.895, lavfi.scd.time: 6.006

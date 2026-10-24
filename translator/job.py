@@ -1186,7 +1186,7 @@ def learn_media(ctx):
     work = ctx.pdir / '_learn'
     out = []
     try:
-        for k in ('a', 'v'):
+        for k in (('a',) if ph_mode(ctx.st) else ('a', 'v')):   # 24/10/2026: תרגום בטלפון — אין סרטון בשרת
             j = ctx.c.raw('learnMedia', k=k)
             url, key, kid = str(j.get('url') or ''), str(j.get('key') or ''), str(j.get('kid') or '')
             if not url.startswith('https://') or not _LM_HEX.match(key) or not _LM_HEX.match(kid):
@@ -2336,6 +2336,8 @@ def video_prefetch(ctx, stop):
     """21/10/2026 (בקשת המשתמש: "ששום דבר לא יחכה לשום דבר שלא הכרחי"): ברקע, בזמן שההגהה, היישור והתרגום רצים על
     הקול — מחכים בשקט שהסרטון יסיים לעלות ומורידים אותו. לא נוגעים בפרויקט ולא שומרים מצב (עותק של המילון — התהליכון
     הראשי שומר את שלו), ולא מדווחים כלום: אף אחד לא מחכה לזה עד שצריך את הסרטון (attach_late)."""
+    if ph_mode(ctx.st):
+        return None                               # 24/10/2026: תרגום בטלפון — הסרטון לא עולה לעולם
     q = QuietCtx(dict(ctx.st))
     poll = float(os.environ.get('SNB_POLL', '30'))
     while not stop.is_set():
@@ -2361,6 +2363,8 @@ def attach_late(ctx):
     לחילופי השוטים, לבדיקה האחרונה ולצריבה. לכן הוא מצטרף כאן, לפני הבדיקה: קליטה, מדידת ההיסט בין הקולות (sync.py),
     הזזת זמני המילים (גם של היישור) ו־vt retime — החלוקה והתרגום נשמרים, רק הזמנים מתעדכנים. היסט לא ודאי → יישור
     מחדש על הקול של הסרטון (בלי טוקנים). עד היום כל השלבים חיכו לסרטון אחרי ההגהה (בעבודה של 21/10 — 25 דקות)."""
+    if ph_mode(ctx.st):
+        return phone_attach(ctx)                 # 24/10/2026: תרגום בטלפון — המדידות במקום הסרטון
     v = wait_video(ctx, 'rv', 'מחכה שהסרטון יסיים לעלות')
     src = in_path(ctx, v, 'v')
     ctx.report('rv', 0, 'מצרפים את הסרטון', force=True)
@@ -2395,6 +2399,150 @@ def attach_late(ctx):
     ctx.st['src'] = 'v'
     ctx.st['sync'] = {'off': round(off, 4), 'conf': round(conf, 3)}
     save_state(ctx.st)
+
+
+# ---------------------------------------------------------------- תרגום בטלפון (24/10/2026, שלב 1)
+# הסרטון לא עוזב את הטלפון. הטלפון מעלה את הקול (מועתק מהסרטון בלי קידוד — אותן דגימות, מאותו רגע) ואת קובץ המדידות:
+# הפלט של ffprobe על הסרטון והשוטים (scdet באותה פקודה של vt shots). השרת עושה רק את שלבי הטקסט; מה שהבנייה צריכה
+# מהסרטון (מידות, קצב פריימים, ציר הזמן, השוטים) מגיע מהקובץ הזה, והצריבה — בטלפון (MediaCodec), מ־he.ass שעלה כאן.
+PH_V = 1
+PH_SHOTS_MAX = 50000
+PH_STREAMS_MAX = 64
+
+
+def ph_mode(st) -> bool:
+    return (st.get('spec') or {}).get('ph') == 1
+
+
+def _fin(x, lo=0.0, hi=1e7):
+    return isinstance(x, (int, float)) and not isinstance(x, bool) and x == x and lo <= x <= hi
+
+
+def ph_meta_check(d):
+    """{"v":1, "probe": {"format": {...}, "streams": [...]}, "shots": {"threshold": n, "shots": [{"t","score"}]}}.
+    מחזיר (probe, shots) או None. כל מה שלא בצורה — נזרק כולו (קלט מהטלפון; לא מתקנים)."""
+    if not isinstance(d, dict) or d.get('v') != PH_V:
+        return None
+    pr, sh = d.get('probe'), d.get('shots')
+    if not isinstance(pr, dict) or not isinstance(pr.get('format'), dict) or not isinstance(pr.get('streams'), list):
+        return None
+    streams = pr['streams']
+    if not streams or len(streams) > PH_STREAMS_MAX or not all(isinstance(x, dict) for x in streams):
+        return None
+    v = next((x for x in streams if x.get('codec_type') == 'video' and not (x.get('disposition') or {}).get('attached_pic')), None)
+    if not v or not all(isinstance(v.get(k), int) and not isinstance(v.get(k), bool) and 16 <= v[k] <= 16384 for k in ('width', 'height')):
+        return None
+    if not any(x.get('codec_type') == 'audio' for x in streams):
+        return None
+    try:
+        dur = float(pr['format'].get('duration') or 0)
+        for x in streams:
+            float(x.get('start_time') or 0)
+        float(pr['format'].get('start_time') or 0)
+    except (TypeError, ValueError):
+        return None
+    if not (0 < dur <= 24 * 3600):
+        return None
+    if not isinstance(sh, dict) or not _fin(sh.get('threshold'), 0.1, 100) or not isinstance(sh.get('shots'), list) or len(sh['shots']) > PH_SHOTS_MAX:
+        return None
+    shots = []
+    for x in sh['shots']:
+        if not isinstance(x, dict) or not _fin(x.get('t'), 0, dur + 5) or not _fin(x.get('score'), 0, 100):
+            return None
+        shots.append({'t': round(float(x['t']), 6), 'score': round(float(x['score']), 3)})
+    return pr, {'threshold': float(sh['threshold']), 'shots': shots}
+
+
+def wait_meta(ctx):
+    """מחכים לקובץ המדידות (הטלפון מעלה אותו אחרי הקול — השוטים לוקחים כ־3 דק׳ לשעת סרטון). כמו wait_video:
+    בשרת שלנו — אחרי PARK_AFTER: Park (התרגום כבר בנקודת השמירה)."""
+    poll = float(os.environ.get('SNB_POLL', '30'))
+    n, t0, park = 0, time.time(), can_park(ctx)
+    if not ((ctx.st.get('files') or {}).get('m') or {}).get('id'):
+        try:
+            ctx.refresh()
+        except (SystemExit, Exception):           # noqa: BLE001 — רשת רגעית: הלולאה תנסה שוב
+            pass
+    while not ((ctx.st.get('files') or {}).get('m') or {}).get('id'):
+        if park and time.time() - t0 >= park_after():
+            raise Park()
+        if n == 0:
+            print('מחכה למדידות מהטלפון (מידות הסרטון וחילופי השוטים)…')
+        if n % 10 == 0:
+            ctx.report('rv', None, 'מחכה למדידות מהטלפון', force=True, wv=True)
+        time.sleep(poll)
+        n += 1
+        if n * poll > 12 * 3600:
+            ctx.report(fail=True, err='upload_timeout', force=True)
+            raise SystemExit('✗ המדידות מהטלפון לא הגיעו תוך 12 שעות.')
+        ctx.refresh()
+    return ctx.st['files']['m']
+
+
+def ph_media_write(ctx, probe):
+    """media.json מה־ffprobe של הטלפון (אותו סיכום של vt ingest). המקור בפרויקט נשאר הקול. מחזיר את ההיסט בין
+    הקול שעלה לציר הזמן של הסרטון (t0 של הקול בסרטון פחות t0 שלו בקובץ שעלה — כמעט תמיד 0)."""
+    if str(HERE) not in sys.path:
+        sys.path.insert(0, str(HERE))
+    from vt import media as vtm
+    mp = ctx.pdir / 'media.json'
+    try:
+        old = json.loads(mp.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        old = {}
+    info = vtm.summarize(probe, old.get('path') or '')
+    if old.get('size'):
+        info['size'] = old['size']
+    tmp = mp.with_name('media.json.tmp')
+    tmp.write_text(json.dumps(info, ensure_ascii=False, indent=2), encoding='utf-8')
+    tmp.replace(mp)
+    a_new, a_old = (info.get('audio') or {}).get('t0'), (old.get('audio') or {}).get('t0')
+    return (float(a_new) - float(a_old or 0)) if isinstance(a_new, (int, float)) else 0.0
+
+
+def _ph_meta_load(ctx, m):
+    dest = VT_WORK / '_in' / (ctx.name + '.phone.json')
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.unlink(missing_ok=True)
+    fetch_input(ctx, m['id'], dest, int(m.get('size') or 0))
+    try:
+        chk = ph_meta_check(json.loads(dest.read_text(encoding='utf-8')))
+    except (OSError, ValueError):
+        chk = None
+    if not chk:
+        raise StepError('✗ קובץ המדידות מהטלפון לא תקין.', 'ph_meta')
+    return chk
+
+
+def phone_attach(ctx):
+    """במקום attach_late: המדידות מהטלפון → media.json (וידאו, ציר הזמן), shots.json, והזזת הזמנים לציר של הסרטון."""
+    m = wait_meta(ctx)
+    ctx.report('rv', 0, 'מצרפים את המדידות מהטלפון', force=True)
+    probe, shots = _ph_meta_load(ctx, m)
+    off = ph_media_write(ctx, probe)
+    pd = ctx.pdir
+    (pd / 'shots.json').write_text(json.dumps(shots, ensure_ascii=False), encoding='utf-8')
+    try:                                         # הסימון ביומן הפרויקט — מידע בלבד
+        subprocess.run([VT_PY, '-c', 'import sys\nfrom vt.project import Project\nProject(sys.argv[1]).mark("shots", count=int(sys.argv[2]), phone=1)',
+                        ctx.name, str(len(shots['shots']))], cwd=str(HERE), env=vt_env(), capture_output=True)
+    except OSError:
+        pass
+    if abs(off) >= 0.0005:
+        shift_times(pd, off)
+        vt(ctx, ['retime', ctx.name])
+    print('✓ המדידות מהטלפון צורפו · %d חילופי שוטים · היסט הקול %+.3f שנ׳' % (len(shots['shots']), off))
+    ctx.st['src'] = 'ph'
+    ctx.st['sync'] = {'off': round(off, 4), 'conf': 1.0}
+    save_state(ctx.st)
+
+
+def ph_reapply(ctx):
+    """המשך מנקודת שמירה אחרי הצירוף: vt ingest --force כתב שוב media.json של הקול — מחזירים את זה של הסרטון.
+    הזמנים בנקודה כבר על ציר הסרטון (לא מזיזים שוב); shots.json כבר בפרויקט ששוחזר."""
+    m = ((ctx.st.get('files') or {}).get('m') or {})
+    if not m.get('id'):
+        raise StepError('✗ קובץ המדידות מהטלפון חסר.', 'ph_meta')
+    ph_media_write(ctx, _ph_meta_load(ctx, m)[0])
 
 
 # 21/10/2026 (מהיומנים של הייצור): זיהוי השוטים בסרטון של 87 דק׳ — 8.5 דק׳ ב־97% מעבד, ובמסלול "הקול קודם" הוא היה על
@@ -2637,6 +2785,9 @@ def biz_rows(low):
 def gl_merge(ctx):
     """אחרי tr-prep: המונחים מהמילון שמופיעים בתמליל → tr/glossary.tsv (מתחת ל־GL_MARK; שורה של העבודה עם אותו מונח יוצאת).
     לפניהם — מונחים עסקיים ספציפיים שמופיעים (מתחת ל־BIZ_MARK; שורה של העבודה או שלך גוברת)."""
+    if (ctx.st.get('spec') or {}).get('xg') == 1:   # 24/10/2026: ניסוי "בלי מילון" (סט הזהב) — גם בלי המילון שלך והעסקי
+        print('· ניסוי בלי מילון מונחים — המילון לא נכנס לעבודה.')
+        return 0
     rows = gl_load(ctx)
     if rows is None:
         print('· המילון שלך לא נטען מ־Drive — ממשיכים בלעדיו.')
@@ -4307,7 +4458,7 @@ def restore(args):
         ctx.report(st_next, 0, 'ממשיכים מאותה נקודה', force=True)
         print('✓ הפרויקט שוחזר מנקודת השמירה: אחרי ' + CK_LABEL[used] + '.')
         return 0
-    kind = 'a' if info.get('src') == 'a' and (files.get('a') or {}).get('id') else 'v'
+    kind = 'a' if info.get('src') in ('a', 'ph') and (files.get('a') or {}).get('id') else 'v'
     f = files['a'] if kind == 'a' else wait_video(ctx, st_next, 'מחכה שהסרטון יסיים לעלות')
     src = in_path(ctx, f, kind)
     ctx.report(st_next, None, 'מוריד את ' + ('הקול' if kind == 'a' else 'הסרטון') + '', force=True)
@@ -4319,6 +4470,9 @@ def restore(args):
     set_source(pd, src)
     vt(ctx, ['ingest', ctx.name, '--force'])
     ctx.st['src'] = kind
+    if info.get('src') == 'ph' and kind == 'a':
+        ph_reapply(ctx)                          # 24/10/2026: תרגום בטלפון — media.json של הסרטון מהמדידות
+        ctx.st['src'] = 'ph'
     if info.get('sync'):
         ctx.st['sync'] = info['sync']
     ctx.st['resumed'] = used

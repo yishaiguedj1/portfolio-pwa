@@ -62,7 +62,8 @@ android {
     }
     sourceSets {
         getByName("academy").java.srcDir("src/lite/java")
-        getByName("studio").java.srcDirs("src/lite/java", "src/grab/java", "src/ytdl/java")   // grab = VideoUrl (גם דפדפן הציד וגם הבועה); ytdl = מנוע yt-dlp (משותף עם Studio DM)
+        getByName("studio").java.srcDirs("src/lite/java", "src/grab/java", "src/ytdl/java")
+        getByName("studio").assets.srcDir("../../translator/fonts")   // 24/10/2026: הגופנים של הכתוביות (vt) — לצריבה בטלפון (PhWork)   // grab = VideoUrl (גם דפדפן הציד וגם הבועה); ytdl = מנוע yt-dlp (משותף עם Studio DM)
         getByName("bubble").java.srcDirs("src/lite/java", "src/grab/java")
         getByName("dm").java.srcDirs("src/lite/java", "src/dmcore/java", "src/ytdl/java", "src/grab/java")   // lite = Flavor (MainActivity של main נבנה גם כאן, ויוצא מהמניפסט)
         getByName("testDm").java.srcDir("src/dmcore/java")

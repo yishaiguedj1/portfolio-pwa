@@ -8,11 +8,11 @@
    בלי DOM — התלויות מוזרקות (env), נבדק ב־node (tests/studio-bgup.test.js). */
 export const BG_MIN = 64 * 1024 * 1024;            // סרטון קטן מזה — ההעלאה הרגילה מספיקה (פחות מחלק אחד של Background Fetch)
 export const BG_PREFIX = 'snbup-';                 // מזהה ה־Background Fetch = BG_PREFIX + מזהה העבודה (סרטון אחד לעבודה)
-export const BG_DB = 'snb-bgup';
+export const BG_DB = 'snb-bgup';                   // מה שה־service worker צריך כדי לסיים: העבודה, הקובץ, מפתח הסיום, השרתון, השפה
 /* 24/10/2026 (בטלפון: ההתראה עמדה על 0% עד הסוף): Chrome מראה התקדמות לפי גודל רק כש־downloadTotal > 0 — ואז הסכום הוא
    ההורדה + ההעלאה, וגם בתים שבדרך נספרים. התשובה של /up לכל חלק היא JSON קטן, ולכן מצהירים על תקרה נדיבה לכל חלק:
    הצהרה גבוהה מדי לא מזיקה (בסוף Chrome מצמיד את הסכום למה שהגיע), נמוכה מדי — Chrome מכשיל את ההעלאה. */
-export const BG_RESP_MAX = 4096;                   // מה שה־service worker צריך כדי לסיים: העבודה, הקובץ, מפתח הסיום, השרתון, השפה
+export const BG_RESP_MAX = 4096;
 const JOB_RE = /^j[A-Za-z0-9_-]{20}$/;
 
 export const bgIdOf = (job) => (JOB_RE.test(String(job || '')) ? BG_PREFIX + job : '');

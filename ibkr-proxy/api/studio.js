@@ -61,6 +61,9 @@ const UID_RE = /^[A-Za-z0-9]{6,128}$/;
 const AAD = (uid) => 'studio|' + uid + '|r';
 const WORKER_OPS = new Set(['claim', 'token', 'report', 'qa', 'r2get', 'r2wup', 'r2wparts', 'r2wdone', 'r2del', 'learnPut', 'learnMedia', 'learnMediaDone', 'srcFile']);   // 22/10/2026: srcFile — הורדה מקישור
 const RELAY_OPS = new Set(['rlPut', 'rlFix', 'rlWait', 'rlEnd', 'rlNext', 'rlMark']);   // 24/10/2026: rlPut…rlEnd = העובד (kh), rlNext/rlMark = ה־Routine (rkh)
+// 24/10/2026: תרגום בטלפון — Studio לאנדרואיד (נייטיב, בלי Origin ובלי התחברות) עם מפתח לעבודה אחת (pkh — רק ה־hash)
+const PHONE_OPS = new Set(['phUp', 'phParts', 'phDone', 'phFile', 'phStart', 'phJob', 'phGet', 'phBurn']);
+const PH_KEY_TTL = 7 * 24 * 3600e3;   // הצריבה יכולה לקרות ימים אחרי שהתרגום מוכן
 const SERVER_OPS = new Set(['poll', 'beat', 'devLog', 'devMet', 'pq']);   // pq — בדיקות קישור (22/10/2026)   // devLog/devMet — האיסוף המלא (lib/devlog.js)
 /* מצב API: תקציב חודשי לכל משתמש (מפתח ה־API של המערכת). מעבר לזה — התקרה ב־Console של Anthropic */
 const LEARN_MAX = 5000, LEARN_SYNC_MAX = 400;   // מאגר הלמידה: כמה רשומות קוראים, וכמה משלימים בכל פתיחה של לוח הבקרה
@@ -966,10 +969,16 @@ async function usageSnap(deps, now) {
     set.sto = await storeSnap(deps, f, now, cfg.sto).catch(() => cfg.sto || null);
     set[stamp] = now;
   }
-  let n = 0;
+  let n = 0, prov = null;
+  // 24/10/2026: מופע עם טוקן של ספק (Vercel) שומר את מה שמדד, פעם בשעה — השרת שלנו (בלי הטוקנים) מציג ממנו
+  if ((process.env.CF_USAGE_TOKEN || process.env.VERCEL_USAGE_TOKEN) && !(now - (+cfg.upvAt || 0) < USG.STO_GAP)) {
+    prov = await USG.usageAll(process.env, f, now);
+    set.upv = USG.provKeep(cfg.upv, prov, now);
+    set.upvAt = now;
+  }
   if (USG.histDue(cfg.uh, now)) {
-    const prov = await USG.usageAll(process.env, f, now);
-    set.uh = USG.histPush(cfg.uh, prov, now);
+    prov = prov || await USG.usageAll(process.env, f, now);
+    set.uh = USG.histPush(cfg.uh, USG.provMerge(prov, set.upv || cfg.upv), now);
     n = set.uh.length;
   }
   if (!Object.keys(set).length) return 0;
@@ -1288,7 +1297,7 @@ async function server(req, res, body, deps) {
     const fit = S.normFit(body.fit);
     for (const job of qd) {
       if (!apiJob(job) || S.effState(job, now).state !== 'queued') continue;
-      if (job.vw && !(job.fv && job.fv.id)) continue;   // 15/10/2026: מחכה לסרטון — לא תופסים שרת עד שהוא נרשם
+      if (job.vw && !((job.spec && job.spec.ph === 1 ? job.fph : job.fv) || {}).id) continue;   // 15/10/2026: מחכה לסרטון — לא תופסים שרת עד שהוא נרשם (24/10: בתרגום בטלפון — לקובץ המדידות)
       if (fit && S.peakNeed(job, fit) > fit.mb) break;
       const st = await readStats(deps, job.uid);
       const cap = S.jobCap(job.spec, S.monthUsed(st.mu, now), USER_MONTH(), S.usdOf(job.use0));
@@ -1499,16 +1508,81 @@ async function r2Files(deps, op, body, uid, folder, by) {
 /* רישום קובץ שעלה ל־R2 בעבודה (op:'file' מהטלפון, ו־r2bgDone מה־service worker): קיים, בתיקייה של העבודה, והסרטון /
    הכתוביות בגודל של המקור. משנה את job במקום. מחזיר {} או { code, error } */
 async function r2Register(deps, job, which, fid, now) {
-  const fkey = which === 's' ? 'fsu' : 'f' + which;
+  const fkey = which === 's' ? 'fsu' : which === 'm' ? 'fph' : 'f' + which;   // m = קובץ המדידות מהטלפון (תרגום בטלפון)
   const m = await driveFileInFolder(deps, job.uid, job.folder, fid);
   if (m && m.error) return { code: 200, error: m.error };
   const f = m && S.normFile({ id: fid, name: m.name || (which === 'v' ? 'video' : which === 's' ? 'subs' : 'audio'), size: m.size, mimeType: m.mime });
   if (!f) return { code: 400, error: 'file_bad' };
   if ((which === 'v' || which === 's') && job.spec && f.size !== job.spec.size) return { code: 400, error: 'file_size' };
+  if (which === 'm' && f.size > S.PH_META_MAX) return { code: 400, error: 'file_size' };
   f.at = now;
   await patchJob(deps, job.id, { [fkey]: f, updated: now });
   job[fkey] = f;
   return {};
+}
+
+/* 24/10/2026: תרגום בטלפון — Studio לאנדרואיד מדבר עם השרתון בלי הדפדפן, במפתח של עבודה אחת (op:'phKey' מהדף).
+   מותר רק מה שהטלפון צריך: להעלות לתיקייה של העבודה, לרשום את הקול ואת קובץ המדידות, להתחיל (פעם אחת — כל הבדיקות
+   של התחלה רגילה), לקרוא את המצב, להוריד את התוצרים של העבודה (he.ass לצריבה) ולדווח על הצריבה. שום דבר אחר */
+async function phoneOp(req, res, body, deps) {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'POST only' });
+  let len = 0; try { len = JSON.stringify(body).length; } catch (e) { len = 1e9; }
+  if (len > 4096) return res.status(413).json({ ok: false, error: 'too_large' });
+  const id = String(body.job || ''), key = String(body.key || '');
+  if (!S.JOB_RE.test(id) || !S.KEY_RE.test(key)) return res.status(400).json({ ok: false, error: 'bad_params' });
+  if (limited('ph|' + id, 60)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+  const now = deps.now || Date.now();
+  try {
+    const job = await readJob(deps, id);
+    if (!job || !(job.spec && job.spec.ph === 1) || job.kind !== 'tr' || !S.keyMatches(job, key, 'pkh') || now > (job.pkx || 0)) return res.status(403).json({ ok: false, error: 'bad_key' });
+    const e = S.effState(job, now), op = body.op;
+    if (op === 'phJob') {
+      return res.status(200).json({ ok: true, now, job: { id, state: e.state, err: e.err, prog: job.prog || null, pb: job.spec.pb || '',
+        out: (Array.isArray(job.fo) ? job.fo : []).map((o) => ({ id: o.id, k: o.k, size: o.size })), a: !!job.fa, m: !!job.fph, pbn: S.normPbn(job.pbn, job.pbn && job.pbn.at) } });
+    }
+    if (op === 'phGet') {
+      const fid = String(body.id || '');
+      if (!(Array.isArray(job.fo) && job.fo.some((o) => o && o.id === fid))) return res.status(400).json({ ok: false, error: 'bad_id' });
+      const [code, out] = await r2Files(deps, 'url', { id: fid }, job.uid, job.folder, 'worker');
+      return res.status(code).json(Object.assign({ now }, out));
+    }
+    if (op === 'phBurn') {
+      if (e.state !== 'done') return res.status(409).json({ ok: false, error: 'state' });
+      const pbn = S.normPbn(body.pbn, now);
+      if (!pbn) return res.status(400).json({ ok: false, error: 'bad_params' });
+      await patchJob(deps, id, { pbn });
+      return res.status(200).json({ ok: true, now });
+    }
+    if (!['new', 'queued', 'running', 'failed'].includes(e.state)) return res.status(409).json({ ok: false, error: 'state' });
+    if (op === 'phUp' || op === 'phParts' || op === 'phDone') {
+      if (op === 'phUp' && !(Number(body.size) > 0 && Number(body.size) <= S.PH_UP_MAX)) return res.status(400).json({ ok: false, error: 'too_big' });
+      const [code, out] = await r2Files(deps, { phUp: 'up', phParts: 'parts', phDone: 'done' }[op], body, job.uid, job.folder, 'phone');
+      return res.status(code).json(Object.assign({ now }, out));
+    }
+    if (op === 'phFile') {
+      const which = body.which === 'a' || body.which === 'm' ? body.which : '';
+      const fid = String(body.id || '');
+      if (!which || !S.FILE_ID_RE.test(fid) || !SR.inFolder(fid, job.folder)) return res.status(400).json({ ok: false, error: 'bad_params' });
+      const rg = await r2Register(deps, job, which, fid, now);
+      if (rg.error) return res.status(rg.code).json({ ok: false, error: rg.error });
+      return res.status(200).json({ ok: true, now });
+    }
+    // phStart: פעם אחת, אחרי שהקול נרשם — אותן בדיקות של התחלה מהדף (תחזוקה ודגלים, מתג החירום והחוקים, תקלה רחבה)
+    if (e.state !== 'new') return res.status(200).json({ ok: true, state: e.state, now });   // כבר התחילה — לא שוב
+    if (!job.fa) return res.status(409).json({ ok: false, error: 'no_files' });
+    const sbs = await sysBlock(deps, job, now, false, false);
+    if (sbs) return res.status(409).json(Object.assign({ ok: false }, sbs));
+    const stop = await ruleBlock(deps, job.uid, job, { ov: body.ov === true });   // ov — מה שאישרת בדף לפני המסירה לאפליקציה
+    if (stop) return res.status(409).json(Object.assign({ ok: false }, stop));
+    const mj = body.mo !== true ? await majorNow(deps, job.uid, job) : null;
+    if (mj) return res.status(409).json({ ok: false, error: 'major' });
+    const q = await queueApi(deps, job.uid, job, now);
+    return res.status(200).json(Object.assign({ ok: q.ok, now }, q.ok ? { state: 'queued' } : { error: q.error }));
+  } catch (err) {
+    return res.status(503).json({ ok: false, error: 'store' });
+  }
 }
 
 /* 23/10/2026: הסרטון עלה ב־Background Fetch — ה־service worker (גם כשהאפליקציה סגורה) מסיים את ההעלאה ורושם אותו.
@@ -1956,7 +2030,7 @@ async function worker(req, res, body, deps) {
       // 22/10/2026: קובץ כתוביות (בלי תמלול ויישור) לא מלמד את הצפי ואת "הרגיל" של עבודות מסרטון — שלבים וזמנים אחרים
       const smp = S.normSample(job, up.use || job.use, now);
       // 10/10/2026: וגם כמה לקח כל שלב — מזה נלמד הצפי (studioeta.js)
-      const es = job.spec && job.spec.xe ? null : ETA.etaSample(Object.assign({}, job, up), now);   // 24/10/2026: ניסוי המאמץ לא מלמד את הצפי
+      const es = job.spec && (job.spec.xe || job.spec.xg) ? null : ETA.etaSample(Object.assign({}, job, up), now);   // 24/10/2026: ניסוי המאמץ לא מלמד את הצפי
       if (smp || es) {
         const st0 = await readStats(deps, job.uid);
         const patchS = { updated: now };
@@ -1985,6 +2059,7 @@ async function handler(req, res, deps = {}) {
   if (RELAY_OPS.has(String(body.op || ''))) return relayOp(req, res, body, deps);
   if (WORKER_OPS.has(String(body.op || ''))) return worker(req, res, body, deps);
   if (SERVER_OPS.has(String(body.op || ''))) return server(req, res, body, deps);
+  if (PHONE_OPS.has(String(body.op || ''))) return phoneOp(req, res, body, deps);
   if (body.op === 'learnPull') return learnPull(req, res, body, deps);   // 14/10/2026: טוקן ניתוח (Claude Code)
   if (body.op === 'devPull') return devPull(req, res, body, deps);   // 15/10/2026: האיסוף המלא — לוגים, קריאות, מדדים, שגיאות (קריאה בלבד)
   if (body.op === 'dmPull') return dmPull(req, res, body, deps);   // שלב ג׳: יומני DM לניתוח (טוקן הניתוח, קריאה בלבד)
@@ -2231,13 +2306,14 @@ async function handler(req, res, deps = {}) {
       const srv = raw.map((x) => { const v = S.serverView(x, now); return v && Object.assign(v, { mon: Array.isArray(x.mon) ? x.mon : [] }); }).filter(Boolean);
       const cfg = (await readDoc(deps, 'sysCfg', 'main').catch(() => null)) || {};
       const run = jobs.map((j) => ({ sid: j.sid, st: (j.prog || {}).st, p: (j.prog || {}).p }));
-      return res.status(200).json({ ok: true, now, tok: { on: !!cfg.monKh, at: cfg.monAt > 0 ? cfg.monAt : 0 }, mon: MON.monView(srv, run, now) });
+      const usg = await readDoc(deps, 'sysUsage', 'main').catch(() => null);   // 24/10/2026: האחסון והעלות גם בווידג'ט
+      return res.status(200).json({ ok: true, now, tok: { on: !!cfg.monKh, at: cfg.monAt > 0 ? cfg.monAt : 0 }, mon: MON.monView(srv, run, now), sto: USG.stoBrief(usg && usg.sto) });
     }
     if (op === 'provUsage') {
       // 23/10/2026: שימוש בפועל מול הספקים — רק מנהל (בלי טוקן ניטור). ספק בלי טוקן = off, ואף מספר לא מומצא
       if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
-      const prov = await USG.usageAll(process.env, deps.fetch || fetch, now);
       const cfg = (await readDoc(deps, 'sysUsage', 'main').catch(() => null)) || {};
+      const prov = USG.provMerge(await USG.usageAll(process.env, deps.fetch || fetch, now), cfg.upv);   // בלי טוקן כאן — מה ש־Vercel מדד
       return res.status(200).json({ ok: true, prov, hist: USG.histPush(cfg.uh, prov, now), sto: cfg.sto || null });   // sto: נמדד פעם בשעה ב־watch
     }
     if (op === 'adminAgents' || op === 'adminServers') {
@@ -2617,6 +2693,7 @@ async function handler(req, res, deps = {}) {
       if (!spec) return res.status(400).json({ ok: false, error: 'bad_spec' });
       if (!S.langReady(spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported' });   // לפני ההעלאה, לא אחריה
       if (await modeLocked(spec.mode)) return res.status(403).json({ ok: false, error: 'mode_locked' });
+      if (spec.ph && !R2.config().ok) return res.status(503).json({ ok: false, error: 'r2_needed' });   // 24/10/2026: תרגום בטלפון — הקבצים הקטנים ב־R2
       if (spec.src === 'url') {   // 22/10/2026: הורדה מקישור — כמו בבדיקה: מנהל / "כל המודלים", הדגל, ו־R2 (העובד מוריד לשם)
         if (!(await fullModes())) return res.status(403).json({ ok: false, error: 'not_allowed' });
         if (!(await flagOn(deps, 'st_url', now))) return res.status(409).json({ ok: false, error: 'flag_off', fl: 'st_url' });
@@ -2668,9 +2745,12 @@ async function handler(req, res, deps = {}) {
       const gsrc = S.goldSources(all).filter((j) => !body.src || j.id === body.src);
       const xe = body.xe != null ? S.normXe(body.xe) : null;   // 24/10/2026: ניסוי המאמץ — רק מנהל (מרכז הניהול)
       if (body.xe != null && (!xe || !isAdmin(user))) return res.status(xe ? 403 : 400).json({ ok: false, error: xe ? 'admin' : 'bad_params' });
+      const xg = body.xg === true;   // 24/10/2026: ניסוי "בלי מילון מונחים" — גם הוא רק מנהל
+      if (xg && !isAdmin(user)) return res.status(403).json({ ok: false, error: 'admin' });
       // both = לכל מצב גם הרצה רגילה וגם הרצה בניסוי (השוואה על אותו סרטון, באותו זמן)
-      const vars = xe ? (body.both === true ? [null, xe] : [xe]) : [null];
-      const src = (modes.length ? modes.flatMap((m) => vars.map((x) => [gsrc[0], m, x])) : gsrc.map((j) => [j, null, xe])).filter((x) => x[0]).slice(0, S.GOLD_MAX);
+      const vx = xe || xg ? { xe, xg: xg ? 1 : 0 } : null;
+      const vars = vx ? (body.both === true ? [null, vx] : [vx]) : [null];
+      const src = (modes.length ? modes.flatMap((m) => vars.map((x) => [gsrc[0], m, x])) : gsrc.map((j) => [j, null, vx])).filter((x) => x[0]).slice(0, S.GOLD_MAX);
       if (!src.length) return res.status(400).json({ ok: false, error: 'no_gold' });
       if (all.some((j) => j.gs && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'gold_busy' });   // הרצה קודמת עוד פתוחה
       if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length + src.length > S.maxActive(isAdmin(user))) return res.status(409).json({ ok: false, error: 'too_many' });   // הסקירה: לא לעקוף את MAX_ACTIVE
@@ -2723,10 +2803,12 @@ async function handler(req, res, deps = {}) {
       if (job.kind !== 'tr' || !['new', 'queued', 'running', 'failed'].includes(st)) return res.status(409).json({ ok: false, error: 'state' });
       // 22/10/2026: s = קובץ כתוביות קיים (spec.src = 'subs') — נשמר ב־fsu, בגודל של המקור ועד SUBS_MAX
       const subs = !!(job.spec && job.spec.src === 'subs');
-      const which = subs ? (body.which === 's' ? 's' : '') : body.which === 'v' ? 'v' : body.which === 'a' ? 'a' : '';
+      const ph = !!(job.spec && job.spec.ph === 1);   // 24/10/2026: תרגום בטלפון — הקול וקובץ המדידות; הסרטון לא עולה לעולם
+      const which = subs ? (body.which === 's' ? 's' : '') : ph ? (body.which === 'a' || body.which === 'm' ? body.which : '') : body.which === 'v' ? 'v' : body.which === 'a' ? 'a' : '';
       const fkey = which === 's' ? 'fsu' : 'f' + which;
       const fid = String(body.id || ''), folder = String(body.folder || ''), ext = body.ext === true && which === 'v';   // ext: סרטון שבחרת ב־Drive (Picker) — נשאר במקומו
       if (!which || !S.FILE_ID_RE.test(fid) || !S.FILE_ID_RE.test(folder) || (job.folder && job.folder !== folder)) return res.status(400).json({ ok: false, error: 'bad_params' });
+      if (ph && !SR.isFolder(folder)) return res.status(400).json({ ok: false, error: 'bad_params' });
       if (SR.isFolder(folder) && !ext) {
         // ת4: קובץ ב־R2 — קיים, בתיקייה של העבודה, והסרטון בגודל של המקור (מקור מ־Drive — ext — נשאר ב־Drive, בבדיקה שלמטה)
         if (folder !== job.folder) return res.status(400).json({ ok: false, error: 'bad_params' });
@@ -2753,7 +2835,7 @@ async function handler(req, res, deps = {}) {
     if (op === 'start') {
       if (!['tr', 'rr', 'ai'].includes(job.kind) || st !== 'new') return res.status(409).json({ ok: false, error: 'state', job: view(job) });
       const subsJob = !!(job.spec && job.spec.src === 'subs');
-      if (job.kind === 'ai' ? !job.fq : subsJob ? !job.fsu : job.spec && job.spec.src === 'url' ? !SR.isFolder(job.folder) : !job.fa && !job.fv || job.kind === 'rr' && !(job.fv && job.fc)) return res.status(409).json({ ok: false, error: 'no_files' });
+      if (job.kind === 'ai' ? !job.fq : subsJob ? !job.fsu : job.spec && job.spec.src === 'url' ? !SR.isFolder(job.folder) : job.spec && job.spec.ph === 1 ? !job.fa || !SR.isFolder(job.folder) : !job.fa && !job.fv || job.kind === 'rr' && !(job.fv && job.fc)) return res.status(409).json({ ok: false, error: 'no_files' });
       if (job.kind === 'tr' && !S.langReady(job.spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported', job: view(job) });
       if (job.kind !== 'rr' && await modeLocked(job.spec && job.spec.mode)) return res.status(403).json({ ok: false, error: 'mode_locked', job: view(job) });   // גם עבודה שנוצרה לפני שהרשימה השתנתה / סט הזהב
       if (!S.WORKER_KINDS.includes(job.kind)) return res.status(200).json({ ok: false, error: 'worker_not_ready', job: view(job) });
@@ -2773,6 +2855,19 @@ async function handler(req, res, deps = {}) {
       const f = await fireJob(deps, uid, v, job, now);
       const j = await readJob(deps, job.id);
       return res.status(200).json(Object.assign({ ok: f.ok, job: view(j) }, f.ok ? (f.unsure ? { unsure: f.unsure, detail: f.detail } : {}) : { error: f.error, retry: f.retry, detail: f.detail || '' }));
+    }
+    if (op === 'phKey') {
+      // 24/10/2026: תרגום בטלפון — מפתח לעבודה אחת בשביל Studio לאנדרואיד (הקול, המדידות, ההתחלה, ההורדה והצריבה בלי
+      // הדפדפן). לבדיקה — ה־hash; לשליפה חוזרת — מוצפן בכספת (pke, ‏AAD לפי העבודה), אף פעם לא גלוי במסמך
+      if (job.kind !== 'tr' || !(job.spec && job.spec.ph === 1) || !SR.isFolder(job.folder) || !['new', 'queued', 'running', 'failed', 'done'].includes(st)) return res.status(409).json({ ok: false, error: 'state' });
+      // אותו מפתח כל עוד נשאר לו יותר מיום (מוצפן בכספת — pke): הדף מבקש אותו מראש, כדי לפתוח את האפליקציה ישר מהנגיעה
+      // (Chrome פותח intent רק מתוך נגיעה), וזה לא מבטל מפתח שהאפליקציה כבר משתמשת בו באמצע העלאה
+      const aad = 'phk|' + job.id;
+      const old = job.pke && now < (job.pkx || 0) - 24 * 3600e3 ? vault.open(job.pke, aad) : null;
+      if (old && S.KEY_RE.test(String(old.k || '')) && S.keyMatches(job, old.k, 'pkh')) return res.status(200).json({ ok: true, key: old.k, exp: job.pkx, api: 'studio' });
+      const key = S.newKey();
+      await patchJob(deps, job.id, { pkh: S.keyHash(key), pkx: now + PH_KEY_TTL, pke: vault.seal({ k: key }, aad) });
+      return res.status(200).json({ ok: true, key, exp: now + PH_KEY_TTL, api: 'studio' });
     }
     if (op === 'learnUx') {
       // מ׳3: מה קרה אחרי העבודה — צפייה, הורדות ושיתוף, הצעות, גיליון ה־AI, מונחים (תוספת מספרים; LR.normUx)

@@ -1,0 +1,205 @@
+package io.github.yishaiguedj1.snowball
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import org.json.JSONObject
+import java.io.File
+
+/**
+ * 24/10/2026 — תרגום בטלפון, שלב 1: העבודה בטלפון. שני חלקים, כל אחד בשירות בחזית (PhService):
+ *  up    — הקול בלי קידוד → העלאה → רישום → התחלת העבודה בשרת → השוטים וה־ffprobe → העלאת קובץ המדידות.
+ *          השרת מתמלל ומתרגם בינתיים; הסרטון לא עוזב את הטלפון.
+ *  burn  — כשהתרגום מוכן: he.ass מהשרתון → ffmpeg (libass) → MediaCodec (חומרה) → הקול מהמקור → Movies/Studio.
+ * כל שלב נשמר ברשומה (PhStore) — עצירה של המערכת באמצע = ממשיכים מאותו שלב (וההעלאה מאותו חלק).
+ */
+object PhWork {
+    const val N_ID = 43
+    const val N_DONE = 44
+    private const val CH = "ph"
+
+    class Stop(val code: String) : Exception(code)
+
+    private fun net(r: JSONObject) = PhNet(r.getString("base"), r.getString("job"), r.getString("key"))
+    private fun src(ctx: Context, r: JSONObject): File {
+        val f = File(r.optString("src"))
+        if (!f.isFile || !f.absolutePath.startsWith(ctx.noBackupFilesDir.absolutePath)) throw Stop("src_gone")
+        return f
+    }
+
+    /* ---------------------------------------------------------------- up */
+    fun up(ctx: Context, pid: String, stopped: () -> Boolean) {
+        var r = PhStore.get(ctx, pid) ?: return
+        val title = r.optString("name")
+        val n = net(r)
+        val work = PhStore.work(ctx, pid)
+        fun stage(st: String, text: Int, p: Float = -1f) {
+            r = PhStore.update(ctx, pid) { it.put("st", st) } ?: r
+            notify(ctx, progress(ctx, title, s(ctx, text), p))
+        }
+        try {
+            val f = src(ctx, r)
+            // 1. הקול כמו שהוא (שניות)
+            if (r.optString("aId").isEmpty()) {
+                val a = File(work, "audio.mka")
+                if (!a.isFile || a.length() == 0L) {
+                    stage("audio", R.string.phAudio)
+                    val o = PhFf.run(ctx, PhCore.audioArgs(f.absolutePath, a.absolutePath), stop = stopped)
+                    if (stopped()) throw Stop("stopped")
+                    if (o.code != 0 || !a.isFile || a.length() == 0L) { a.delete(); throw Stop("no_audio") }
+                }
+                stage("upa", R.string.phUpA, 0f)
+                val id = n.upload(a, "audio/x-matroska", title.substringBeforeLast('.') + ".audio.mka", r.optString("aUp0"), r.optString("aUp"),
+                    { id, up -> PhStore.update(ctx, pid) { it.put("aUp0", id).put("aUp", up) } }, stopped) { p ->
+                    notify(ctx, progress(ctx, title, s(ctx, R.string.phUpA), p)) }
+                val fr = n.call("phFile", JSONObject().put("which", "a").put("id", id))
+                if (!fr.optBoolean("ok")) throw Stop(fr.optString("error", "file"))
+                r = PhStore.update(ctx, pid) { it.put("aId", id) } ?: r
+                a.delete()
+            }
+            // 2. העבודה מתחילה בשרת (התמלול והתרגום רצים בזמן שהטלפון מודד את השוטים)
+            if (!r.optBoolean("started")) {
+                stage("start", R.string.phStart)
+                val sr = n.call("phStart", JSONObject().put("ov", r.optBoolean("ov")))
+                if (!sr.optBoolean("ok")) throw Stop(sr.optString("error", "start"))
+                r = PhStore.update(ctx, pid) { it.put("started", true) } ?: r
+            }
+            // 3. המדידות: ffprobe (נשמר בבחירה) + השוטים (כ־3 דק׳ לשעת סרטון)
+            if (r.optString("mId").isEmpty()) {
+                val m = File(work, "meta.json")
+                if (!m.isFile) {
+                    stage("shots", R.string.phShots)
+                    val o = PhFf.run(ctx, PhCore.shotsArgs(f.absolutePath), stop = stopped) { it.contains("lavfi.scd") }
+                    if (stopped()) throw Stop("stopped")
+                    if (o.code != 0) throw Stop("shots")
+                    val probe = r.optJSONObject("probe") ?: throw Stop("probe")
+                    m.writeText(PhCore.meta(probe, PhCore.shots(o.err)).toString())
+                }
+                stage("upm", R.string.phUpM)
+                val id = n.upload(m, "application/json", "meta.json", r.optString("mUp0"), r.optString("mUp"),
+                    { id, up -> PhStore.update(ctx, pid) { it.put("mUp0", id).put("mUp", up) } }, stopped) {}
+                val fr = n.call("phFile", JSONObject().put("which", "m").put("id", id))
+                if (!fr.optBoolean("ok")) throw Stop(fr.optString("error", "file"))
+                r = PhStore.update(ctx, pid) { it.put("mId", id) } ?: r
+            }
+            PhStore.update(ctx, pid) { it.put("st", "wait") }
+            nm(ctx).cancel(N_ID)
+            nm(ctx).notify(N_DONE, simple(ctx, s(ctx, R.string.phSent), s(ctx, R.string.phSentS), webIntent(ctx, r, "")))
+        } catch (e: Throwable) {
+            val code = (e as? Stop)?.code ?: (e as? PhNet.Err)?.code ?: "fail"
+            if (code == "stopped" || stopped()) return                     // המערכת עצרה — ממשיכים בפעם הבאה מאותו שלב
+            PhStore.update(ctx, pid) { it.put("e", code).put("st", "err").put("est", r.optString("st")) }
+            nm(ctx).cancel(N_ID)
+            nm(ctx).notify(N_DONE, simple(ctx, s(ctx, R.string.phFailed), title, webIntent(ctx, r, code)))
+        }
+    }
+
+    /* ---------------------------------------------------------------- burn */
+    fun burn(ctx: Context, pid: String, stopped: () -> Boolean) {
+        var r = PhStore.get(ctx, pid) ?: return
+        val title = r.optString("name")
+        val n = net(r)
+        val work = PhStore.work(ctx, pid)
+        val small = r.optString("pb") == "small"
+        val t0 = System.currentTimeMillis()
+        fun rep(o: JSONObject) { try { n.call("phBurn", JSONObject().put("pbn", o)) } catch (e: Throwable) {} }
+        try {
+            val f = src(ctx, r)
+            r = PhStore.update(ctx, pid) { it.put("st", "burn").remove("e") } ?: r
+            notify(ctx, progress(ctx, title, s(ctx, R.string.phBurnPrep), -1f))
+            val j = n.call("phJob").optJSONObject("job") ?: throw Stop("job")
+            if (j.optString("state") != "done") throw Stop("not_ready")
+            val outs = j.optJSONArray("out")
+            var assId = ""
+            for (i in 0 until (outs?.length() ?: 0)) outs!!.getJSONObject(i).let { if (it.optString("k") == "ass") assId = it.optString("id") }
+            if (assId.isEmpty()) throw Stop("no_ass")
+            val g = n.call("phGet", JSONObject().put("id", assId))
+            val ass = File(work, "he.ass")
+            n.get(g.optString("url"), ass)
+            val fonts = File(work, "fonts").apply { mkdirs() }
+            for (fn in listOf("Arimo-Bold.ttf", "Assistant-SemiBold.ttf"))
+                ctx.assets.open(fn).use { i -> File(fonts, fn).outputStream().use { i.copyTo(it) } }
+            val info = PhCore.info(r.optJSONObject("probe") ?: throw Stop("probe")) ?: throw Stop("probe")
+            val (w, h) = PhCore.outSize(info, small)
+            val (mime, codecName) = PhCodec.pick(w, h, small) ?: throw Stop("no_codec")
+            rep(JSONObject().put("s", "run").put("p", 0))
+            val v = File(work, "v.mp4")
+            var lastRep = 0L
+            val res = PhCodec.encode(ctx, PhCore.burnArgs(f.absolutePath, ass.absolutePath, fonts.absolutePath, info, w, h), w, h, info.fps, mime, codecName,
+                PhCore.bitrate(f.length(), info.dur, small), v, File(work, "ff.err"), (info.dur * info.fps).toInt(), stopped) { p ->
+                notify(ctx, progress(ctx, title, s(ctx, R.string.phBurning, (p * 100).toInt().coerceIn(0, 100)), p))
+                val now = System.currentTimeMillis()
+                if (now - lastRep > 15_000) { lastRep = now; rep(JSONObject().put("s", "run").put("p", p * 0.95)) }
+            }
+            if (stopped()) throw Stop("stopped")
+            if (!res.ok) throw Stop(res.err ?: "encode")
+            notify(ctx, progress(ctx, title, s(ctx, R.string.phSaving), -1f))
+            val outDir = File(work, "out").apply { deleteRecursively(); mkdirs() }
+            val out = File(outDir, PhCore.outName(title, small))
+            val aac = small || !PhCore.mp4Audio(info.aCodec)
+            var mx = PhFf.run(ctx, PhCore.muxArgs(v.absolutePath, f.absolutePath, out.absolutePath, info, aac), stop = stopped)
+            if ((mx.code != 0 || !out.isFile) && !aac) mx = PhFf.run(ctx, PhCore.muxArgs(v.absolutePath, f.absolutePath, out.absolutePath, info, true), stop = stopped)
+            if (mx.code != 0 || !out.isFile) throw Stop("mux")
+            val sz = out.length()
+            val uri = DlEngine.publish(ctx, out)                 // Movies/Studio (מוחק את התיקייה הזמנית)
+            v.delete()
+            rep(JSONObject().put("s", "done").put("sz", sz).put("ms", System.currentTimeMillis() - t0))
+            PhStore.update(ctx, pid) { it.put("st", "done").put("out", uri.toString()) }
+            f.delete()                                             // העותק של הסרטון — כבר לא נחוץ
+            nm(ctx).cancel(N_ID)
+            nm(ctx).notify(N_DONE, savedNotif(ctx, title, uri))
+        } catch (e: Throwable) {
+            val code = (e as? Stop)?.code ?: (e as? PhNet.Err)?.code ?: "fail"
+            if (code == "stopped" || stopped()) return
+            rep(JSONObject().put("s", "fail").put("e", code))
+            PhStore.update(ctx, pid) { it.put("e", code).put("st", "err").put("est", "burn") }
+            nm(ctx).cancel(N_ID)
+            nm(ctx).notify(N_DONE, simple(ctx, s(ctx, R.string.phBurnFailed), title, webIntent(ctx, r, code)))
+        }
+    }
+
+    /* ---------------------------------------------------------------- התראות */
+    fun s(ctx: Context, id: Int, vararg a: Any): String = DlLang.of(ctx).getString(id, *a)
+    fun nm(ctx: Context) = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    private fun notify(ctx: Context, n: Notification) = nm(ctx).notify(N_ID, n)
+
+    private fun builder(ctx: Context): Notification.Builder {
+        if (Build.VERSION.SDK_INT >= 26) nm(ctx).createNotificationChannel(NotificationChannel(CH, s(ctx, R.string.phChannel), NotificationManager.IMPORTANCE_LOW))
+        return if (Build.VERSION.SDK_INT >= 26) Notification.Builder(ctx, CH) else Notification.Builder(ctx)
+    }
+
+    fun progress(ctx: Context, title: String, text: String, p: Float): Notification {
+        val cancel = PendingIntent.getService(ctx, 12, Intent(ctx, PhService::class.java).setAction(PhService.ACT_CANCEL), PendingIntent.FLAG_IMMUTABLE)
+        return builder(ctx).setSmallIcon(android.R.drawable.stat_sys_upload).setContentTitle(title.ifEmpty { s(ctx, R.string.phTitle) })
+            .setContentText(text).setOngoing(true).setOnlyAlertOnce(true)
+            .setProgress(100, if (p < 0) 0 else (p * 100).toInt().coerceIn(0, 100), p < 0)
+            .addAction(Notification.Action.Builder(null, s(ctx, R.string.dlCancel), cancel).build()).build()
+    }
+
+    private fun simple(ctx: Context, title: String, text: String, open: Intent): Notification =
+        builder(ctx).setSmallIcon(android.R.drawable.stat_sys_upload_done).setContentTitle(title).setContentText(text)
+            .setStyle(Notification.BigTextStyle().bigText(text)).setAutoCancel(true)
+            .setContentIntent(PendingIntent.getActivity(ctx, 13, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)).build()
+
+    private fun savedNotif(ctx: Context, title: String, uri: Uri): Notification {
+        val pi = PendingIntent.getActivity(ctx, 14, DlState.viewIntent(uri), PendingIntent.FLAG_IMMUTABLE)
+        val share = PendingIntent.getActivity(ctx, 15, DlState.shareIntent(ctx, uri), PendingIntent.FLAG_IMMUTABLE)
+        return builder(ctx).setSmallIcon(android.R.drawable.stat_sys_download_done).setContentTitle(s(ctx, R.string.phBurned))
+            .setContentText(title).setStyle(Notification.BigTextStyle().bigText(title + "\n" + s(ctx, R.string.dlSavedS)))
+            .addAction(Notification.Action.Builder(null, s(ctx, R.string.dlOpen), pi).build())
+            .addAction(Notification.Action.Builder(null, s(ctx, R.string.dlShare), share).build())
+            .setAutoCancel(true).setContentIntent(pi).build()
+    }
+
+    /** חזרה לאתר — לדף העבודה (‎#studio=<מזהה>), ועם שגיאה מהטלפון (‎&phe=<קוד>) */
+    fun webIntent(ctx: Context, r: JSONObject, code: String): Intent {
+        val web = r.optString("web").ifEmpty { s(ctx, R.string.launchUrl) }
+        val h = "#studio=" + r.optString("job") + (if (code.isNotEmpty()) "&phe=" + code.filter { it.isLetterOrDigit() || it == '_' }.take(24) else "")
+        return Intent(Intent.ACTION_VIEW, Uri.parse(web + h), ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+}

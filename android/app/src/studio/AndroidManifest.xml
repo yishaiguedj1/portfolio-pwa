@@ -10,6 +10,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- 23/10/2026: אנדרואיד 14+ — ההורדה כמשימת העברה שהמשתמש התחיל (DlJob), בלי מגבלת 6 השעות של dataSync -->
     <uses-permission android:name="android.permission.RUN_USER_INITIATED_JOBS" />
+    <!-- 24/10/2026: תרגום בטלפון — הצריבה במקודד החומרה (שירות בחזית מסוג mediaProcessing, אנדרואיד 15+) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING" />
     <!-- youtubedl-android מריץ את הפייתון מתיקיית הספריות — חייב לחלץ אותן (README שלה) -->
     <!-- DlActivity ו־DlService בתהליך נפרד (23/10/2026): קריסה של המנוע לא מפילה את Studio — כשהתהליך הראשי
          קרס, Chrome סגר גם את האפליקציה וחזר לדפדפן בלי שום הודעה -->
@@ -67,6 +69,31 @@
                 <data android:scheme="snbstudio" android:host="dl" />
             </intent-filter>
         </activity>
+        <!-- 24/10/2026: תרגום בטלפון (הסרטון לא עוזב את הטלפון) — בחירה, הקול והמדידות, הצריבה. מהאתר:
+             intent://phpick|ph|phburn|phgo?…#Intent;scheme=snbstudio;… · בתהליך נפרד (ffmpeg ו־MediaCodec לא מפילים את Studio) -->
+        <activity
+            android:name=".PhActivity"
+            android:process=":ph"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:excludeFromRecents="true"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode"
+            android:theme="@style/DlTheme">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="snbstudio" android:host="phpick" />
+                <data android:scheme="snbstudio" android:host="ph" />
+                <data android:scheme="snbstudio" android:host="phburn" />
+                <data android:scheme="snbstudio" android:host="phgo" />
+            </intent-filter>
+        </activity>
+        <service
+            android:name=".PhService"
+            android:process=":ph"
+            android:exported="false"
+            android:foregroundServiceType="dataSync|mediaProcessing" />
         <service
             android:name=".DlJob"
             android:process=":dl"
