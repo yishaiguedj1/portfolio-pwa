@@ -334,7 +334,7 @@ const learnCfg = (env = process.env) => R2.config({ R2_ACCOUNT_ID: env.R2L_ACCOU
    SNB_LEARN_REMOTE=1). פעולה מהטלפון שנוגעת בדלי לא "מצליחה" כאן בלי לעשות כלום — 421 לפני כל שינוי, והטלפון שולח את
    אותה בקשה ל־Vercel (installFailover ב־firebase-config.js). בלי הדלי בשום מקום (בלי הדגל) — כמו קודם */
 const learnRemote = (env = process.env) => env.SNB_LEARN_REMOTE === '1' && !learnCfg(env).ok;
-const LEARN_REMOTE_OPS = new Set(['learnForget', 'learn']);
+const LEARN_REMOTE_OPS = new Set(['learnForget', 'learn', 'adminDm']);   // adminDm — יומני Studio DM (24/10)
 async function learnPut(deps, job, b64, now) {
   try {
     const c = learnCfg();
@@ -638,6 +638,23 @@ async function devPull(req, res, body, deps) {
     return res.status(502).json({ ok: false, error: /^fs_http_/.test(String(e.message)) ? String(e.message).slice(0, 20) : 'failed' });
   }
 }
+/* יומני DM של N הימים האחרונים (רק החודשים שמכסים אותם), מהחדש לישן, 8 במקביל עם תקציב זמן; next = מאיפה ממשיכים */
+async function dmCollect(deps, c, now, days, before) {
+  const months = DMLOG.monthsBack(now, days), from = now - days * 864e5;
+  const rd = r2deps(deps);
+  const keys = (await R2.list(c, rd, 'dm/u/', 50000)).filter((it) => { const p = DMLOG.parseKey(it.key), kt = DMLOG.keyTime(it.key); return p && months.has(p.month) && kt >= from && (!before || kt < before); })
+    .sort((a, b) => DMLOG.keyTime(b.key) - DMLOG.keyTime(a.key)).slice(0, DEV_PULL_MAX);
+  const t0 = Date.now(), items = [];
+  let i = 0, next = '';
+  while (i < keys.length) {
+    if (Date.now() - t0 > DEV_PULL_BUDGET_MS) { next = keys[i - 1] ? keys[i - 1].key : ''; break; }
+    const batch = keys.slice(i, i + 8);
+    i += batch.length;
+    const got = await Promise.all(batch.map((it) => R2.getText(c, rd, it.key, 4 * 1024 * 1024).then((x) => vault.open(x, 'dm|' + it.key)).catch(() => null)));
+    got.forEach((x, n) => { if (x) items.push(Object.assign({ u: DMLOG.parseKey(batch[n].key).u }, x)); });
+  }
+  return { items, next };
+}
 /* Studio DM (24/10/2026, שלב ג׳): משיכת יומני ההורדות בטוקן הניתוח — קריאה בלבד, N הימים האחרונים (עד 31),
    מהחדש לישן, 8 במקביל עם תקציב זמן ו־next. המשתמש מזוהה רק ב־hash (u) — בלי uid ובלי מייל. stats = סיכום במספרים */
 async function dmPull(req, res, body, deps) {
@@ -652,20 +669,8 @@ async function dmPull(req, res, body, deps) {
     if (!c.ok) return res.status(learnRemote() ? 421 : 200).json({ ok: !learnRemote(), r2: false, at: now, items: [] });
     await patchDoc(deps, 'sysTokens', t.id, { last: now, uses: (t.uses || 0) + 1 }).catch(() => {});
     const days = Math.max(1, Math.min(31, Math.floor(+body.days || 7)));
-    const months = DMLOG.monthsBack(now, days), from = now - days * 864e5;
     const before = typeof body.before === 'string' && body.before.startsWith('dm/') ? DMLOG.keyTime(body.before) : 0;
-    const rd = r2deps(deps);
-    const keys = (await R2.list(c, rd, 'dm/u/', 50000)).filter((it) => { const p = DMLOG.parseKey(it.key), kt = DMLOG.keyTime(it.key); return p && months.has(p.month) && kt >= from && (!before || kt < before); })
-      .sort((a, b) => DMLOG.keyTime(b.key) - DMLOG.keyTime(a.key)).slice(0, DEV_PULL_MAX);
-    const t0 = Date.now(), items = [];
-    let i = 0, next = '';
-    while (i < keys.length) {
-      if (Date.now() - t0 > DEV_PULL_BUDGET_MS) { next = keys[i - 1] ? keys[i - 1].key : ''; break; }
-      const batch = keys.slice(i, i + 8);
-      i += batch.length;
-      const got = await Promise.all(batch.map((it) => R2.getText(c, rd, it.key, 4 * 1024 * 1024).then((x) => vault.open(x, 'dm|' + it.key)).catch(() => null)));
-      got.forEach((x, n) => { if (x) items.push(Object.assign({ u: DMLOG.parseKey(batch[n].key).u }, x)); });
-    }
+    const { items, next } = await dmCollect(deps, c, now, days, before);
     return res.status(200).json({ ok: true, r2: true, at: now, stats: DMLOG.dmStats(items), items, next: next || undefined });
   } catch (e) {
     return res.status(502).json({ ok: false, error: /^fs_http_/.test(String(e.message)) ? String(e.message).slice(0, 20) : 'failed' });
@@ -2224,6 +2229,16 @@ async function handler(req, res, deps = {}) {
         return Object.fromEntries(K.map((k, i) => [k, v[i]]));
       }, now);
       return res.status(200).json({ ok: true, us: AO.usageView({ now, counts: c || {}, jobs: await jobs30(deps, now) }) });
+    }
+    if (op === 'adminDm') {
+      // 24/10/2026: מרכז הניהול ← מעבדת השיפור ← Studio DM — יומני ההורדות של 14 הימים האחרונים (כבר מנוקים), בלי משתמשים
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const c = learnCfg();
+      if (!c.ok) return res.status(learnRemote() ? 421 : 200).json({ ok: !learnRemote(), r2: false, dm: null });
+      try {
+        const { items } = await dmCollect(deps, c, now, 14, 0);
+        return res.status(200).json({ ok: true, r2: true, dm: DMLOG.dmView(items, now, 14) });
+      } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
     }
     if (op === 'adminFb') {
       // 15/10/2026: מרכז הניהול ← משוב ופניות. 300 האחרונים; set = { id, st: 'd'|'n'|'x' } (טופל / חדש / מחיקה)
