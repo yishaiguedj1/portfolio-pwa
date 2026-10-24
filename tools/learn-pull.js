@@ -52,7 +52,10 @@ async function main() {
   const bases = o.api ? [o.api] : API[o.env];
   let j = null, last = null;
   for (const b of bases) {
-    try { j = await pull(b, o.token, null, o.ci, o.mi, o.mv); break; } catch (e) { last = e; if (/bad_token|rate_limited/.test(e.message)) break; }
+    try { j = await pull(b, o.token, null, o.ci, o.mi, o.mv); } catch (e) { last = e; if (/bad_token|rate_limited/.test(e.message)) break; continue; }
+    // 24/10/2026: השרת המאוחד הוקם בלי R2L_* — שם הקורפוס "לא מוגדר"; כשביקשו קורפוס/קול — הכתובת הבאה (כמו dev-pull)
+    if ((o.ci || o.mi.length) && !(j.corpus && j.corpus.on) && b !== bases[bases.length - 1]) continue;
+    break;
   }
   if (!j) { console.error('המשיכה נכשלה: ' + (last && last.message)); process.exit(1); }
   const out = o.out || path.join(process.env.TMPDIR || '/tmp', 'snb-learn-' + new Date(j.at).toISOString().slice(0, 10));
