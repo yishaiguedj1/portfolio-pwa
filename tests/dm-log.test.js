@@ -53,10 +53,17 @@ const { fakeR2, ACC } = require('./_r2fake');
   };
   const A = tok('dmUserA00001', 'a@example.com'), B = tok('dmUserB00002', 'b@example.com');
   const R = fakeR2();
+  const db = new Map();
   const J = (o, st = 200) => ({ status: st, ok: st < 300, json: async () => o, text: async () => JSON.stringify(o), headers: { get: () => null } });
   const fetchAll = async (u, opt = {}) => {
     if (u.includes('.r2.cloudflarestorage.com')) return R.fetch(u, opt);
     if (u.includes('oauth2.googleapis.com/token')) return J({ access_token: 'SA', expires_in: 3600 });
+    const m = u.match(/\/documents\/([A-Za-z]+)\/([A-Za-z0-9_-]+)/);
+    if (m) {
+      const k = m[1] + '/' + m[2];
+      if ((opt.method || 'GET') === 'GET') return db.has(k) ? J({ fields: db.get(k), updateTime: 't1' }) : J({}, 404);
+      if (opt.method === 'PATCH') { db.set(k, Object.assign({}, db.get(k), JSON.parse(opt.body).fields)); return J({}); }
+    }
     return J({}, 404);
   };
   const deps = () => ({ verify: { keys }, fetch: fetchAll, now: R.now });
@@ -88,5 +95,21 @@ const { fakeR2, ACC } = require('./_r2fake');
   const fg = await call({ op: 'dmForget', idToken: A });
   const left = await keysIn('dm/');
   ok(fg.j.ok && fg.j.deleted === 1 && left.length === 1 && left[0].startsWith(D.userPrefix('dmUserB00002', 'snb')), '"מחק את הנתונים שלי" — רק של המשתמש');
+
+  /* ---------- 3. משיכה לניתוח (שלב ג׳) ---------- */
+  const AT = 'snbL_' + 'a'.repeat(32);
+  ok((await call({ op: 'dmPull', at: AT })).code === 401, 'dmPull: טוקן לא רשום — 401');
+  db.set('sysTokens/' + crypto.createHash('sha256').update(AT).digest('hex').slice(0, 40), { exp: { integerValue: String(R.now + 864e5) } });
+  await call({ op: 'dmLog', idToken: A, cv: D.DMC_V, ev: [ev, Object.assign({}, ev, { k: 'done', code: '', bps: 5000, dom: 'example.org' })] });
+  const pl = await call({ op: 'dmPull', at: AT, days: 7 });
+  const plS = JSON.stringify(pl.j);
+  ok(pl.j.ok && pl.j.items.length === 2 && pl.j.items.every((x) => /^[0-9a-f]{16}$/.test(x.u)), 'dmPull: היומנים של כולם, המשתמש רק כ־hash');
+  ok(!/dmUser|@example\.com|videoplayback/.test(plS), 'dmPull: בלי uid, מייל או כתובת');
+  ok(pl.j.stats.n === 3 && pl.j.stats.users === 2 && pl.j.stats.codes[0][0] === 'blocked' && pl.j.stats.ok === 33.3, 'dmPull: סיכום — אירועים, משתמשים, קודים, אחוז הצלחה');
+  const plB = await call({ op: 'dmPull', at: AT, days: 7, before: [...(await keysIn('dm/'))].sort()[0] });
+  ok(plB.j.ok && plB.j.items.length <= 1, 'dmPull: before — רק מה שלפני (המשך משיכה)');
+  const DP = require(path.join(root, 'tools/dm-pull.js'));
+  const md = DP.failsMd(pl.j.items), sm = DP.summaryMd(pl.j.items, 7);
+  ok(md.includes('`blocked`') && md.includes('ERROR:') && sm.includes('הצלחה 33.3%'), 'tools/dm-pull.js: fails.md ו־summary.md');
   console.log('\n' + n + ' בדיקות עברו');
 })().catch((e) => { console.error(e); process.exit(1); });

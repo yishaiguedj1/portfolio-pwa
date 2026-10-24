@@ -636,6 +636,39 @@ async function devPull(req, res, body, deps) {
     return res.status(502).json({ ok: false, error: /^fs_http_/.test(String(e.message)) ? String(e.message).slice(0, 20) : 'failed' });
   }
 }
+/* Studio DM (24/10/2026, שלב ג׳): משיכת יומני ההורדות בטוקן הניתוח — קריאה בלבד, N הימים האחרונים (עד 31),
+   מהחדש לישן, 8 במקביל עם תקציב זמן ו־next. המשתמש מזוהה רק ב־hash (u) — בלי uid ובלי מייל. stats = סיכום במספרים */
+async function dmPull(req, res, body, deps) {
+  const tok = String(body.at || '');
+  if (!AT_RE.test(tok)) return res.status(401).json({ ok: false, error: 'bad_token' });
+  if (limited('at|' + atId(tok).slice(0, 12), 6)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+  const now = deps.now || Date.now();
+  try {
+    const t = await readDoc(deps, 'sysTokens', atId(tok));
+    if (!t || !(t.exp > now)) return res.status(401).json({ ok: false, error: 'bad_token' });
+    const c = learnCfg();
+    if (!c.ok) return res.status(learnRemote() ? 421 : 200).json({ ok: !learnRemote(), r2: false, at: now, items: [] });
+    await patchDoc(deps, 'sysTokens', t.id, { last: now, uses: (t.uses || 0) + 1 }).catch(() => {});
+    const days = Math.max(1, Math.min(31, Math.floor(+body.days || 7)));
+    const months = DMLOG.monthsBack(now, days), from = now - days * 864e5;
+    const before = typeof body.before === 'string' && body.before.startsWith('dm/') ? DMLOG.keyTime(body.before) : 0;
+    const rd = r2deps(deps);
+    const keys = (await R2.list(c, rd, 'dm/u/', 50000)).filter((it) => { const p = DMLOG.parseKey(it.key), kt = DMLOG.keyTime(it.key); return p && months.has(p.month) && kt >= from && (!before || kt < before); })
+      .sort((a, b) => DMLOG.keyTime(b.key) - DMLOG.keyTime(a.key)).slice(0, DEV_PULL_MAX);
+    const t0 = Date.now(), items = [];
+    let i = 0, next = '';
+    while (i < keys.length) {
+      if (Date.now() - t0 > DEV_PULL_BUDGET_MS) { next = keys[i - 1] ? keys[i - 1].key : ''; break; }
+      const batch = keys.slice(i, i + 8);
+      i += batch.length;
+      const got = await Promise.all(batch.map((it) => R2.getText(c, rd, it.key, 4 * 1024 * 1024).then((x) => vault.open(x, 'dm|' + it.key)).catch(() => null)));
+      got.forEach((x, n) => { if (x) items.push(Object.assign({ u: DMLOG.parseKey(batch[n].key).u }, x)); });
+    }
+    return res.status(200).json({ ok: true, r2: true, at: now, stats: DMLOG.dmStats(items), items, next: next || undefined });
+  } catch (e) {
+    return res.status(502).json({ ok: false, error: /^fs_http_/.test(String(e.message)) ? String(e.message).slice(0, 20) : 'failed' });
+  }
+}
 /* v363: "הרגיל" של המשתמש — דגימה לכל עבודה שהסתיימה (studioStats/{uid}, נפרד מהכספת: ניתוק Claude לא מוחק את ההיסטוריה) */
 /* v365: מגדל הפיקוח 2.0 — אירועים והתראות (lib/studioops.js) ב־studioOps/{uid}. תקלה כאן לעולם לא מפילה את הפעולה עצמה */
 async function raise(deps, uid, evs, j, now, once) {
@@ -1828,6 +1861,7 @@ async function handler(req, res, deps = {}) {
   if (SERVER_OPS.has(String(body.op || ''))) return server(req, res, body, deps);
   if (body.op === 'learnPull') return learnPull(req, res, body, deps);   // 14/10/2026: טוקן ניתוח (Claude Code)
   if (body.op === 'devPull') return devPull(req, res, body, deps);   // 15/10/2026: האיסוף המלא — לוגים, קריאות, מדדים, שגיאות (קריאה בלבד)
+  if (body.op === 'dmPull') return dmPull(req, res, body, deps);   // שלב ג׳: יומני DM לניתוח (טוקן הניתוח, קריאה בלבד)
   if (body.op === 'dmLog' || body.op === 'dmForget') return dmOps(req, res, body, deps);   // 24/10/2026: Studio DM — אפליקציה נייטיב, בלי Origin
   if (guard(req, res)) return;
   if (body.op === 'cfg') {   // 15/10/2026: מצב התחזוקה והדגלים — לשלוש האפליקציות, בלי התחברות (רק מה שציבורי)

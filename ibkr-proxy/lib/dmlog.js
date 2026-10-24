@@ -88,4 +88,32 @@ function expiredKey(k, now) {
   return p.month < d.toISOString().slice(0, 7);
 }
 
-module.exports = { DMC_V, KEEP_MONTHS, EV_MAX, clean, normEv, normBatch, uidHash, userPrefix, dmKey, parseKey, expiredKey };
+/* זמן ההעלאה מתוך המזהה (now.toString(36)-אקראי) */
+const keyTime = (k) => { const p = parseKey(k); return p ? parseInt(p.id.split('-')[0], 36) || 0 : 0; };
+/* החודשים שמכסים את N הימים האחרונים — רק הם נפתחים */
+function monthsBack(now, days) {
+  const out = new Set();
+  for (let t = now - days * 864e5; t <= now + 864e5; t += 864e5) out.add(monthOf(t));
+  return out;
+}
+/* סיכום לניתוח (dmPull / tools/dm-pull.js): לפי סוג, הקודים הנפוצים בכשלים, אתרים, מהירות חציונית — רק מספרים */
+function dmStats(items) {
+  const k = {}, codes = {}, doms = {}, kinds = {}, users = new Set(), bps = [];
+  let n = 0;
+  for (const it of items || []) {
+    if (it.u) users.add(it.u);
+    for (const e of it.ev || []) {
+      n++; k[e.k] = (k[e.k] || 0) + 1;
+      if (e.k === 'fail') codes[e.code || '?'] = (codes[e.code || '?'] || 0) + 1;
+      if (e.k !== 'start') { const d = (doms[e.dom || '?'] = doms[e.dom || '?'] || { done: 0, fail: 0, stop: 0 }); d[e.k] = (d[e.k] || 0) + 1; kinds[e.kind] = (kinds[e.kind] || 0) + 1; }
+      if (e.k === 'done' && e.bps > 0) bps.push(e.bps);
+    }
+  }
+  const top = (o, m) => Object.entries(o).sort((a, b) => (typeof b[1] === 'number' ? b[1] - a[1] : (b[1].done + b[1].fail) - (a[1].done + a[1].fail))).slice(0, m);
+  bps.sort((a, b) => a - b);
+  const ended = (k.done || 0) + (k.fail || 0);
+  return { n, users: users.size, k, kinds, ok: ended ? Math.round((k.done || 0) / ended * 1000) / 10 : null,
+    codes: top(codes, 12), doms: top(doms, 15), bps50: bps.length ? bps[Math.floor(bps.length / 2)] : null };
+}
+
+module.exports = { keyTime, monthsBack, dmStats, DMC_V, KEEP_MONTHS, EV_MAX, clean, normEv, normBatch, uidHash, userPrefix, dmKey, parseKey, expiredKey };
