@@ -1107,9 +1107,11 @@ def probe_once(server: str, tok: str, run=subprocess.run) -> bool:
     print('· בדיקת קישור ' + pr['id'][:8] + '… → ' + (body.get('e') or 'ok'), flush=True)
     PQ_N += 1
     try:
-        J.http('POST', server + '/api/studio', body, headers={'Authorization': 'Bearer ' + tok}, timeout=30)
+        st2, _, _ = J.http('POST', server + '/api/studio', body, headers={'Authorization': 'Bearer ' + tok}, timeout=30)
+        if st2 != 200:                                   # 24/10/2026: עד היום נבלע בשקט (413 על תשובה גדולה)
+            print('· תשובת בדיקת הקישור נדחתה: ' + str(st2), flush=True)
     except (OSError, ValueError):
-        pass
+        print('· תשובת בדיקת הקישור לא נשלחה (רשת)', flush=True)
     return True
 
 
