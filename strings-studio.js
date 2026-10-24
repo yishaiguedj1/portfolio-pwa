@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1789 מפתחות מתוך 3937) */
+/* המחרוזות של studio (1790 מפתחות מתוך 3938) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -851,6 +851,7 @@ he: {
   "studioLinkELogin": "הסרטון דורש התחברות (פרטי, למנויים או מוגבל גיל).",
   "studioLinkENet": "השרת לא ענה בזמן. נסו שוב בעוד רגע.",
   "studioLinkENoApp": "צריך לעדכן את Studio לאנדרואיד — מתקינים את הגרסה החדשה מעל הקיימת ומנסים שוב.",
+  "studioLinkENoTake": "השרת לא לקח את הבדיקה. נסו שוב — ואם זה חוזר, להוריד בטלפון.",
   "studioLinkENone": "לא מצאנו סרטון בקישור הזה.",
   "studioLinkENotVideo": "הקובץ שירד הוא לא סרטון (כנראה דף שגיאה או פרסומת) ולא נשמר. נגנו את הסרטון עצמו בדפדפן הציד.",
   "studioLinkEPlaylist": "זה קישור לרשימת השמעה. פתחו סרטון אחד ושתפו אותו.",
@@ -2642,6 +2643,7 @@ en: {
   "studioLinkELogin": "This video needs a sign-in (private, members-only or age-restricted).",
   "studioLinkENet": "The server didn’t answer in time. Try again in a moment.",
   "studioLinkENoApp": "Studio for Android needs an update — install the new version over the current one and try again.",
+  "studioLinkENoTake": "No server picked up the check. Try again — if it keeps happening, download on the phone.",
   "studioLinkENone": "We didn’t find a video at this link.",
   "studioLinkENotVideo": "The downloaded file isn’t a video (probably an error page or an ad), so it wasn’t saved. Play the video itself in the hunt browser.",
   "studioLinkEPlaylist": "This is a playlist link. Open one video and share it.",

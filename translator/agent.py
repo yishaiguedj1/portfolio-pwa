@@ -296,7 +296,7 @@ def met_sample() -> dict:
     d = {'t': int(time.time()), 'cpu': hb.get('cu'), 'mem': hb.get('mem'), 'disk': hb.get('disk'), 'free': hb.get('free'), 'load': hb.get('load'),
          # 21/10/2026 (מהיומנים): "100%" בלי התקרה לא אומר כמה GB; PSI = כמה זמן תהליכים חיכו לזיכרון (האות שמקדים OOM)
          'mx': mem_limit_mb() or None, 'av': int(mi['MemAvailable'] / 1024) if mi.get('MemAvailable') else None,
-         'psi': mem_pressure() or None}
+         'psi': mem_pressure() or None, 'pq': PQ_ST or None, 'pqn': PQ_N or None}
     ms = mem_stat()                     # 21/10/2026: anon (תהליכים) מול file (מטמון קבצים) — מכריע אם "100%" הוא זיכרון אמיתי או מטמון
     if ms:
         d.update(ms)
@@ -1074,15 +1074,21 @@ def run_slots(server: str, tok: str, warm, nmax: int, stop_after: int = 0) -> in
 
 
 PQ_S = float(os.environ.get('SNB_PQ_S', '4'))
+PQ_ST, PQ_N = 0, 0     # 24/10/2026: מה השרתון ענה לשאלה האחרונה על בדיקות קישור (0 = עוד לא שאלנו, 1 = רשת) וכמה בדיקות טופלו — למדדים
 
 
 def probe_once(server: str, tok: str, run=subprocess.run) -> bool:
     """22/10/2026: הורדה מקישור — בדיקת קישור אחת מהתור (op:'pq'): yt-dlp בלי הורדה, בתהליך נפרד (fetchurl.py probe),
     ומחזירים לשרתון סיכום או קוד שגיאה. True = הייתה בדיקה (שואלים שוב מיד)."""
+    global PQ_ST, PQ_N
     try:
         st, j, _ = J.http('POST', server + '/api/studio', {'op': 'pq'}, headers={'Authorization': 'Bearer ' + tok}, timeout=20)
     except (OSError, ValueError):
+        PQ_ST = 1                                        # 24/10/2026: רשת — נראה במדדים (pq)
         return False
+    if st != PQ_ST and st != 200:
+        print('· בדיקות קישור: השרתון החזיר ' + str(st), flush=True)
+    PQ_ST = st
     pr = j.get('pr') if st == 200 and isinstance(j, dict) else None
     if not isinstance(pr, dict) or not re.match(r'^p[0-9a-z]{6,30}$', str(pr.get('id') or '')):
         return False
@@ -1099,6 +1105,7 @@ def probe_once(server: str, tok: str, run=subprocess.run) -> bool:
     else:
         body.update(ok=True, r=out)
     print('· בדיקת קישור ' + pr['id'][:8] + '… → ' + (body.get('e') or 'ok'), flush=True)
+    PQ_N += 1
     try:
         J.http('POST', server + '/api/studio', body, headers={'Authorization': 'Bearer ' + tok}, timeout=30)
     except (OSError, ValueError):

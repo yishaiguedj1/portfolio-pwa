@@ -3079,6 +3079,7 @@ function linkErrText(e) {
     case 'slow': return T('studioLinkESlow');   // 23/10/2026: הבדיקה בטלפון עברה את תקרת הזמן
     case 'not_video': return T('studioLinkENotVideo');
     case 'private': case 'bad_url': case 'dns': return T('studioLinkEBad');
+    case 'no_take': return T('studioLinkENoTake');   // 24/10/2026: הבדיקה בשרת לא נלקחה — העובד לא שאל
     case 'timeout': case 'net': case 'no_server': return T('studioLinkENet');
     case 'app': return T('studioLinkEApp');
     case 'noapp': return T('studioLinkENoApp');
@@ -3098,7 +3099,7 @@ export function devDl() { return grabOk(); }
 export const cloudBlocked = (r) => /^youtube/i.test(String((r && r.s) || ''));
 function cloudOk(L) { return !!(ui.url && L && L.r && !cloudBlocked(L.r)); }
 const DL_PKG = 'app.thesnowball.studio', DLP_KEY = 'pwa_studio_dlp', PROBE_WAIT_MS = 240e3;
-const LINK_POLL_MS = 1500, LINK_WAIT_MS = 150e3;   // הבדיקה בשרת (בדפדפן בלי האפליקציה)
+const LINK_POLL_MS = 1500, LINK_WAIT_MS = 300e3;   // הבדיקה בשרת (בדפדפן בלי האפליקציה). 24/10/2026: 150 שנ׳ היה צמוד מדי (סריקת התור + הבדיקה עצמה)
 const dlNonce = () => Array.from({ length: 12 }, () => 'abcdefghijkmnpqrstuvwxyz23456789'[Math.floor(Math.random() * 32)]).join('');
 const DL_APK = 'https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball-studio.apk';
 /* 23/10/2026: Studio ישנה (בלי DlActivity) → Chrome לא עושה כלום בשקט. עם browser_fallback_url הוא חוזר אלינו עם
@@ -3182,7 +3183,7 @@ function linkCheckSrv(f, L, seq) {   // הבדיקה בשרת — רק בדפד�
     if (seq !== linkSeq || f.link !== L) return;
     if (!j || !j.ok) { L.st = 'err'; L.e = j && j.error === 'bad_url' ? 'bad_url' : j && j.error === 'flag_off' ? 'flag' : j && j.error ? 'srv:' + j.error : 'net'; }
     else if (j.probe.st === 'd' && j.probe.r) { L.st = 'ok'; L.r = j.probe.r; const rec = linkRec(L.r); L.v = rec ? rec.v : ''; }
-    else { L.st = 'err'; L.e = j.probe.st === 'e' ? j.probe.e : 'timeout'; }
+    else { L.st = 'err'; L.e = j.probe.st === 'e' ? j.probe.e : j.probe.st === 'q' ? 'no_take' : 'timeout'; }   // 24/10/2026: q = אף שרת לא לקח את הבדיקה
     render('none');
   })();
 }
