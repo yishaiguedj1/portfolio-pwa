@@ -577,14 +577,45 @@ function monCard(x, r) {
   }
   return card;
 }
+const STO_NAME = { 'snb-studio': () => t('admStoStudio'), 'snb-learn': () => t('admStoLearn'), 'snb-staging': () => t('admStoStg') };
+const gbTxt = (g) => (g == null ? '—' : '\u2066' + (g < 1 ? Math.round(g * 1000) + ' MB' : (g < 10 ? g.toFixed(2) : Math.round(g)) + ' GB') + '\u2069');   // בידוד — בלי היפוך בשורה עברית
+const meterOf = (pc) => [pc, pc >= 90 ? 'x' : pc >= 80 ? 'w' : ''];
+const colOf = (pc) => (pc >= 90 ? 'red' : pc >= 80 ? 'orange' : 'green');
+function storeRows(S, servers) {
+  const out = [], r2 = S && S.r2, dr = S && S.drive;
+  if (r2 && r2.b && r2.b.length) {
+    const tot = r2.b.reduce((a, b) => a + (b.gb || 0), 0), pc = Math.round(tot / 10 * 100);   // 10GB חינם — משותף לכל הדליים
+    // מעל 10GB משלמים — אז לא "305%" באדום אלא הגודל וכמה מעל החינם (העלות בשורה הבאה)
+    out.push(tot > 10 ? row({ c: 'blue', ic: '☁', t: t('admStoR2'), s: fmt(t('admStoOver'), { g: gbTxt(tot - 10) }) + ' · ' + fmt(t('admStoAt'), { a: ago(r2.at * 1000) }), v: gbTxt(tot) })
+      : row({ c: colOf(pc), ic: '☁', t: t('admStoR2'), s: fmt(t('admStoOf'), { u: gbTxt(tot), l: gbTxt(10) }) + ' · ' + fmt(t('admStoAt'), { a: ago(r2.at * 1000) }), v: pc + '%', meter: meterOf(pc) }));
+    const C = r2.cost, usd = (x) => '$' + (x || 0).toFixed(2);
+    if (C) {
+      const parts = [[C.st, 'admStoCSt'], [C.a, 'admStoCA'], [C.b, 'admStoCB']].filter((x) => x[0] > 0).map((x) => fmt(t(x[1]), { v: usd(x[0]) }));
+      out.push(row({ c: C.proj > 0 ? 'orange' : 'green', ic: '$', t: t('admStoCost'), s: parts.length ? parts.join(' · ') : t('admStoCFree'),
+        v: usd(C.proj), tr: fmt(t('admStoCostMtd'), { m: usd(C.mtd) }) }));
+    }
+    for (const b of r2.b) out.push(row({ c: 'gray', ic: '▤', t: (STO_NAME[b.name] || (() => b.name))(), s: b.n == null ? b.name : fmt(t('admStoFiles'), { n: b.n.toLocaleString(lang === 'he' ? 'he-IL' : 'en-US') }), v: gbTxt(b.gb) }));
+  } else out.push(row({ c: 'gray', ic: '☁', t: t('admStoR2'), s: t('admStoR2Off') }));
+  if (dr && dr.gb != null) {
+    const pc = dr.lim ? Math.round(dr.gb / dr.lim * 100) : null;
+    out.push(row({ c: pc == null ? 'blue' : colOf(pc), ic: '◫', t: t('admStoDrive'), s: (dr.lim ? fmt(t('admStoOf'), { u: gbTxt(dr.gb), l: gbTxt(dr.lim) }) : gbTxt(dr.gb)) + ' · ' + fmt(t('admStoAt'), { a: ago(dr.at * 1000) }), v: pc == null ? '' : pc + '%', meter: pc == null ? null : meterOf(pc) }));
+  } else out.push(row({ c: 'gray', ic: '◫', t: t('admStoDrive'), s: t('admStoDriveOff') }));
+  for (const x of servers || []) {
+    const hb = x.hb || {};
+    if (hb.disk == null) continue;
+    out.push(row({ c: colOf(hb.disk), ic: '▣', t: fmt(t('admStoSrv'), { n: x.name }), s: hb.free == null ? '' : fmt(t('admMonFree'), { g: Math.round(hb.free) }), v: Math.round(hb.disk) + '%', meter: meterOf(hb.disk) }));
+  }
+  return out;
+}
 const PROV_NAME = { vercel: () => t('admProvVercel'), r2: () => t('admProvR2'), fs: () => t('admProvFs') };
 const PROV_ITEM = { bw: () => t('admProvBw'), inv: () => t('admProvInv'), store: () => t('admProvStore'), ops: () => t('admProvOps'), reads: () => t('admProvReads'), writes: () => t('admProvWrites') };
-function provRow(name, P) {
+function provRow(name, P, skip) {
   if (!P || P.st === 'off') return row({ c: 'gray', ic: '☁', t: name, s: t('admProvOff') });
   if (P.st === 'err') return row({ c: 'red', ic: '!', t: name, s: t('admProvErr') + ' · ' + (P.err || '') });
-  const parts = (P.items || []).filter((x) => x.used != null).map((x) => (PROV_ITEM[x.k] || (() => x.k))() + ': ' + fmt(t('admProvOf'), { u: String(x.used), l: x.lim }) + ' ' + x.unit);
-  const worst = Math.max(0, ...(P.items || []).map((x) => x.pct || 0));
-  return row({ c: worst >= 80 ? 'orange' : 'green', ic: '☁', t: name, s: parts.join(' · ') || t('admProvOff'), v: worst ? Math.round(worst) + '%' : '', meter: worst ? [worst, worst >= 80 ? 'w' : ''] : null });
+  const items = (P.items || []).filter((x) => !skip || !skip.includes(x.k));
+  const parts = items.filter((x) => x.used != null).map((x) => (PROV_ITEM[x.k] || (() => x.k))() + ': ' + fmt(t('admProvOf'), { u: String(x.used), l: x.lim }) + ' ' + x.unit);
+  const worst = Math.max(0, ...items.map((x) => x.pct || 0));
+  return row({ c: worst >= 80 ? 'orange' : 'green', ic: '☁', t: name, s: parts.join(' · ') || (skip ? '' : t('admProvOff')), v: worst ? Math.round(worst) + '%' : '', meter: worst ? [worst, worst >= 80 ? 'w' : ''] : null });
 }
 page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
   if (!D.monT) needMon();
@@ -615,7 +646,10 @@ page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
   p.append(grp(t('admProvT')));
   const PV = D.prov;
   if (!PV) p.append(list(row({ c: 'gray', ic: '⋯', t: t('admLoading') })));
-  else p.append(list(...[[PROV_NAME.vercel(), PV.vercel], [PROV_NAME.r2(), PV.r2], [PROV_NAME.fs(), PV.firestore]].map(([name, P]) => provRow(name, P))), h('p', 'adm-foot', t('admProvNote')));
+  else p.append(list(...[[PROV_NAME.vercel(), PV.vercel], [PROV_NAME.r2(), PV.r2, D.sto && D.sto.r2 ? ['store'] : null], [PROV_NAME.fs(), PV.firestore]].map(([name, P, sk]) => provRow(name, P, sk))), h('p', 'adm-foot', t('admProvNote')));
+  // 24/10/2026 (בקשת המשתמש): כל מקומות האחסון שלנו במקום אחד — דליי R2, ה־Drive של הגיבוי והדיסק של כל שרת
+  p.append(grp(t('admStoT')));
+  p.append(list(...storeRows(D.sto, M.servers)), h('p', 'adm-foot', t('admStoNote')));
   // 23/10/2026: היסטוריית אחוזי השימוש של כל פרמטר (עד 31 ימים, נקודה לשעה)
   p.append(grp(t('admProvHist')));
   const HB = [['vbw', PROV_NAME.vercel() + ' · ' + PROV_ITEM.bw()], ['vinv', PROV_NAME.vercel() + ' · ' + PROV_ITEM.inv()], ['rst', PROV_NAME.r2() + ' · ' + PROV_ITEM.store()],
@@ -648,7 +682,7 @@ async function needMon() {
   clearTimeout(D.monT); D.monT = 0;
   const [r, pv] = await Promise.all([api('adminMon'), api('provUsage')]);
   if (r.ok) D.mon = r;
-  if (pv.ok) { D.prov = pv.prov; D.provHist = pv.hist || []; }
+  if (pv.ok) { D.prov = pv.prov; D.provHist = pv.hist || []; D.sto = pv.sto || null; }
   if (cur === 'mon') { D.monT = setTimeout(needMon, 30000); paint(); }   // מתרענן כל 30 שנ׳ כל עוד המסך פתוח
 }
 /* ---- שימוש ומשפכים (15/10/2026): כמה נכנסו לכל אפליקציה ועד איפה הגיעו. רק ספירות קיימות + עבודות 30 יום — בלי מעקב חדש ---- */
@@ -1002,7 +1036,8 @@ page('imp', { tab: 'imp', title: () => t('admTabImp'), render(p) {
 } });
 /* ---- ריצת מבחן (פריט 15 בסבב הייעול, 21/10/2026): עבודת זהב (תרגום אנושי לייחוס) × כמה מצבים, על השרת של המערכת.
    אומדן ואישור לפני; העבודות נוצרות ב־goldRun ומתחילות ב־start (כל השמירות הרגילות); הציון (chrF++, כיסוי זמן) — מהעובד ---- */
-const GOLD_XE = { main: 'medium', rv: 'medium' }, GOLD_MAX = 5;   // = S.GOLD_MAX בשרתון
+// ניסוי המאמץ: pr = ההגהה והביקורת במאמץ בינוני; all = גם התרגום (פריט 8 בסבב הייעול)
+const GOLD_XES = { pr: { main: 'medium', rv: 'medium' }, all: { main: 'medium', tl: 'medium', rv: 'medium' } }, GOLD_MAX = 5;   // = S.GOLD_MAX בשרתון
 const GOLD_MODES = ['haiku-medium', 'haiku-high', 'sonnet-low', 'sonnet-medium', 'sonnet-high', 'opus-medium'];
 const jobUsd = (j) => (Array.isArray(j.use) ? j.use : []).reduce((a, r) => a + (r && typeof r.usd === 'number' ? r.usd : 0), 0);
 async function needGold(force) {
@@ -1030,14 +1065,15 @@ page('gold', { tab: 'imp', parent: 'imp', title: () => t('admGoldT'), render(p) 
   p.append(grp(t('admGoldModes')), list(...GOLD_MODES.map((m) => { const e = goldEst(src, m); return row({ c: D.gModes.has(m) ? 'blue' : 'gray', ic: D.gModes.has(m) ? '✓' : '',
     t: modeName(m), v: e == null ? '' : '≈' + usd(e), on: () => { if (D.gModes.has(m)) D.gModes.delete(m); else D.gModes.add(m); paint(); } }); })));
   // 24/10/2026: ניסוי המאמץ — כל מצב שנבחר רץ פעמיים (רגיל + הגהה וביקורת במאמץ בינוני)
-  p.append(list(row({ c: D.gXe ? 'purple' : 'gray', ic: D.gXe ? '✓' : '', t: t('admGoldXe'), s: t('admGoldXeS'), on: () => { D.gXe = !D.gXe; paint(); } })));
+  const xeRow = (k, tt, ss) => row({ c: D.gXe === k ? 'purple' : 'gray', ic: D.gXe === k ? '✓' : '', t: tt, s: ss, on: () => { D.gXe = D.gXe === k ? '' : k; paint(); } });
+  p.append(list(xeRow('pr', t('admGoldXe'), t('admGoldXeS')), xeRow('all', t('admGoldXeAll'), t('admGoldXeAllS'))));
   const k = D.gXe ? 2 : 1, sel = GOLD_MODES.filter((m) => D.gModes.has(m)), tot = k * sel.reduce((a, m) => a + (goldEst(src, m) || 0), 0);
   const runs = jobs.filter((j) => j.gs === D.gSrc);
   const busy = runs.some((j) => ['new', 'queued', 'running'].includes(j.state));
   const go1 = h('button', 'btn', fmt(t('admGoldRun'), { n: k * sel.length, u: usd(tot) })); go1.type = 'button'; go1.disabled = !sel.length || busy || k * sel.length > GOLD_MAX;
   go1.addEventListener('click', () => askConfirm(fmt(t('admGoldQ'), { n: k * sel.length, u: usd(tot) }), async () => {
     go1.disabled = true;
-    const r = await api('goldRun', Object.assign({ ok: true, src: D.gSrc, modes: sel }, D.gXe ? { xe: GOLD_XE, both: true } : {}));
+    const r = await api('goldRun', Object.assign({ ok: true, src: D.gSrc, modes: sel }, D.gXe ? { xe: GOLD_XES[D.gXe], both: true } : {}));
     if (!r.ok) { flash(t('admErr') + ' · ' + (r.error || '')); go1.disabled = false; return; }
     let bad = 0;
     for (const j of r.jobs || []) { const s2 = await api('start', { job: j.id }); if (!s2.ok) bad++; }
@@ -1050,7 +1086,7 @@ page('gold', { tab: 'imp', parent: 'imp', title: () => t('admGoldT'), render(p) 
   if (runs.length) {
     const stTxt = (j) => (j.state === 'done' ? (j.gq ? 'chrF++ ' + j.gq.s + ' · ' + fmt(t('admGoldTm'), { n: j.gq.tm }) : t('admGoldNoScore')) : j.state === 'failed' ? t('admGoldFailed') : t('admGoldRunning'));
     p.append(grp(t('admGoldRes'), [t('admGoldRefresh'), () => needGold(true)]), list(...runs.sort((a, b) => (b.created || 0) - (a.created || 0)).slice(0, 18).map((j) =>
-      row({ c: j.state === 'done' ? (j.gq ? 'green' : 'gray') : j.state === 'failed' ? 'red' : 'blue', ic: '◎', t: modeName(j.spec && j.spec.mode) + (j.spec && j.spec.xe ? ' · ' + t('admGoldXeTag') : '') + ' · ' + day(j.created), s: stTxt(j),
+      row({ c: j.state === 'done' ? (j.gq ? 'green' : 'gray') : j.state === 'failed' ? 'red' : 'blue', ic: '◎', t: modeName(j.spec && j.spec.mode) + (j.spec && j.spec.xe ? ' · ' + (j.spec.xe.tl ? t('admGoldXeTagAll') : t('admGoldXeTag')) : '') + ' · ' + day(j.created), s: stTxt(j),
         v: jobUsd(j) ? usd(jobUsd(j)) : '' }))));
   }
   p.append(h('p', 'adm-foot', t('admGoldFoot')));
