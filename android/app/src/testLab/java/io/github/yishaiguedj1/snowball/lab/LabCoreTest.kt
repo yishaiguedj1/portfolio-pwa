@@ -12,6 +12,27 @@ import java.nio.ByteOrder
  * (המודלים עצמם נבדקו מקומית ב־JVM עם ONNX Runtime 1.30.0: התמלול של Parakeet זהה מילה במילה ל־onnx_asr.)
  */
 class LabCoreTest {
+    @Test fun ffmpegErrorsKeepTheReason() {
+        val log = """
+            Input #0, matroska,webm, from 'in.mkv':
+              Stream #0:0: Video: av1 (libdav1d), yuv420p, 1920x1080
+            [h264_mediacodec @ 0xb4] Use MediaCodec from NDK
+            [h264_mediacodec @ 0xb4] Encoder configure failed, -10000
+            frame=    0 fps=0.0 q=0.0 size=       0KiB time=N/A bitrate=N/A speed=N/A
+            [vost#0:0/h264_mediacodec @ 0xc1] Error while opening encoder - maybe incorrect parameters such as bit_rate, rate, width or height
+            [h264_mediacodec @ 0xb4] Encoder configure failed, -10000
+            Conversion failed!
+        """.trimIndent()
+        val e = FfLine.errors(log, 6)
+        assertEquals(listOf(
+            "[h264_mediacodec @ 0xb4] Use MediaCodec from NDK",
+            "[vost#0:0/h264_mediacodec @ 0xc1] Error while opening encoder - maybe incorrect parameters such as bit_rate, rate, width or height",
+            "[h264_mediacodec @ 0xb4] Encoder configure failed, -10000",
+            "Conversion failed!",
+        ), e)
+        assertEquals(2, FfLine.errors(log, 2).size)
+    }
+
     @Test fun vocabDecodeLikeOnnxAsr() {
         val v = Vocab.parse("<unk> 0\n▁he 1\nllo 2\n▁wor 3\nld 4\n, 5\n<blk> 6\n")
         assertEquals(6, v.blank)
