@@ -53,6 +53,11 @@ function parseFs(readsJ, writesJ) {
 const off = (lim) => ({ st: 'off', items: Object.keys(lim).map((k) => item(k, null, lim[k].lim, lim[k].unit)) });
 async function getJson(f, url, opt) {
   const r = await f(url, opt);
+  if (r.status === 403) {
+    // 24/10/2026: ב־Google 403 הוא שני דברים שונים — ה־API כבוי בפרויקט (SERVICE_DISABLED) או שחסר תפקיד. רק קוד, בלי ההודעה
+    const tx = typeof r.text === 'function' ? await r.text().catch(() => '') : '';
+    return { err: /SERVICE_DISABLED|has not been used|is disabled/.test(tx) ? 'api_off' : 'http_403' };
+  }
   if (r.status !== 200) return { err: 'http_' + r.status };
   try { return { j: await r.json() }; } catch (e) { return { err: 'shape' }; }
 }
@@ -213,8 +218,39 @@ function storeMerge(prev, r2, drive, now) {
   const p = prev && typeof prev === 'object' ? prev : {};
   const out = { r2: p.r2 || null, drive: p.drive || null };
   if (r2 && r2.st === 'ok' && r2.b.length) out.r2 = Object.assign({ at: Math.round(now / 1000), b: r2.b }, r2.cost ? { cost: r2.cost } : (p.r2 && p.r2.cost ? { cost: p.r2.cost } : {}));
+  // 24/10/2026: שגיאה של R2 נשמרת (קוד וזמן) — אחרת המסך אמר "צריך טוקן" גם כשהטוקן קיים והשאילתה נדחתה
+  if (r2 && r2.st === 'err') out.r2e = { err: String(r2.err || 'err').slice(0, 20), at: Math.round(now / 1000) };
+  else if (p.r2e && !(r2 && r2.st === 'ok')) out.r2e = p.r2e;
   if (drive && drive.st === 'ok') out.drive = { at: Math.round(now / 1000), gb: drive.gb, lim: drive.lim };
   return out;
+}
+
+/* 24/10/2026: מרכז הניהול נשאל דרך השרת שלנו (ראשי), והטוקנים של הספקים רק ב־Vercel (שרץ מדי כמה שעות — בדיקת הגיבוי).
+   לכן מופע עם טוקן שומר את מה שמדד (upv במסמך sysUsage/main), ומופע בלי טוקן מציג את השמור במקום "לא מוגדר".
+   provKeep: רק מה שנמדד (לא off). provMerge: off מקומי ← השמור, עם הזמן שבו נמדד (at, בשניות) */
+const PROV_KEYS = ['vercel', 'r2', 'firestore'];
+function provKeep(prev, prov, now) {
+  const out = Object.assign({}, prev && typeof prev === 'object' ? prev : {});
+  for (const k of PROV_KEYS) { const x = prov && prov[k]; if (x && x.st && x.st !== 'off') out[k] = Object.assign({}, x, { at: Math.round(now / 1000) }); }
+  return out;
+}
+function provMerge(prov, kept) {
+  const out = Object.assign({}, prov || {}), K = kept && typeof kept === 'object' ? kept : {};
+  for (const k of PROV_KEYS) if ((!out[k] || out[k].st === 'off') && K[k] && K[k].st) out[k] = K[k];
+  return out;
+}
+
+/* 24/10/2026: תקציר האחסון לווידג'ט של מרכז הניהול (adminMon) — רק מספרים: R2 בסך הכל, העלות, השגיאה האחרונה ו־Drive */
+function stoBrief(sto) {
+  const S = sto && typeof sto === 'object' ? sto : {}, out = {};
+  const r2 = S.r2, dr = S.drive;
+  if (r2 && Array.isArray(r2.b) && r2.b.length) {
+    out.r2 = { gb: Math.round(r2.b.reduce((a, b) => a + (+b.gb || 0), 0) * 100) / 100, at: +r2.at || 0 };
+    if (r2.cost) out.r2.proj = +r2.cost.proj || 0, out.r2.mtd = +r2.cost.mtd || 0;
+  }
+  if (S.r2e && S.r2e.err) out.r2e = String(S.r2e.err).slice(0, 20);
+  if (dr && dr.gb != null) out.drive = { gb: +dr.gb, lim: dr.lim == null ? null : +dr.lim, at: +dr.at || 0 };
+  return Object.keys(out).length ? out : null;
 }
 
 /* כל הספקים במקביל; ספק שנכשל לא מפיל את האחרים */
@@ -252,4 +288,4 @@ function histPush(hist, prov, now) {
   return arr.slice(-HIST_MAX);
 }
 
-module.exports = { R2_PRICE, opsByClass, r2Cost, gbMonthOf, costQuery, STO_GAP, r2Buckets, storeQuery, parseStore, r2Store, parseDrive, driveStore, storeMerge, HIST_KEYS, HIST_MAX, histDue, histPush, LIMITS, parseVercel, parseR2, parseFs, sumPoints, usageAll, item };
+module.exports = { stoBrief, PROV_KEYS, provKeep, provMerge, R2_PRICE, opsByClass, r2Cost, gbMonthOf, costQuery, STO_GAP, r2Buckets, storeQuery, parseStore, r2Store, parseDrive, driveStore, storeMerge, HIST_KEYS, HIST_MAX, histDue, histPush, LIMITS, parseVercel, parseR2, parseFs, sumPoints, usageAll, item };

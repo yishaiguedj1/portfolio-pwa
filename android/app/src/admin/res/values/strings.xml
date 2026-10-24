@@ -33,6 +33,11 @@
     <string name="mon_l_mem">זיכרון</string>
     <string name="mon_l_disk">דיסק</string>
     <string name="mon_free">פנוי %1$s</string>
+    <string name="mon_sto_title">אחסון ועלות</string>
+    <string name="mon_sto_r2">R2</string>
+    <string name="mon_sto_r2_err">R2 · שגיאה</string>
+    <string name="mon_sto_cost">צפי לחודש</string>
+    <string name="mon_sto_drive">גיבוי Drive</string>
     <string name="mon_no_data">אין נתוני מדדים</string>
 
     <string name="mon_cfg_title">חיבור מרכז הניהול</string>

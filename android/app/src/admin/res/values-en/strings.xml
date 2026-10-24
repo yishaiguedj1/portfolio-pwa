@@ -32,6 +32,11 @@
     <string name="mon_l_mem">Memory</string>
     <string name="mon_l_disk">Disk</string>
     <string name="mon_free">%1$s free</string>
+    <string name="mon_sto_title">Storage &amp; cost</string>
+    <string name="mon_sto_r2">R2</string>
+    <string name="mon_sto_r2_err">R2 · error</string>
+    <string name="mon_sto_cost">Monthly estimate</string>
+    <string name="mon_sto_drive">Drive backup</string>
     <string name="mon_no_data">No metrics</string>
 
     <string name="mon_cfg_title">Admin monitor connection</string>
