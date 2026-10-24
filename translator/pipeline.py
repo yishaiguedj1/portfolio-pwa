@@ -1047,6 +1047,8 @@ def run_auto(jobmod, args) -> int:
     st = J.load_state()
     mode = str((st.get('spec') or {}).get('mode') or llm.DEFAULT_MODE)
     cap = st.get('cap')
+    if not cap and os.environ.get('SNB_LLM') == 'cli':
+        cap = (st.get('rl') or {}).get('b') or None   # 24/10/2026: ה־Routine — התקציב שלך לעבודה ("החוקים שלך") הוא התקרה
     if (st.get('spec') or {}).get('cp') == 1 and hasattr(J, 'cp_round'):
         # סבב 10: העתק־הדבק — כל בקשה ל־Claude עוברת דרך הטלפון (Claude של המשתמש בצ'אט); התמלול, היישור והצריבה — כאן
         eng = llm.ManualEngine(lambda k, text: J.cp_round(J.Ctx(J.load_state()), k, text))

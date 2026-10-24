@@ -997,6 +997,8 @@ function errText(code, extra) {
     case 'mode': return T('studioErrMode');   // v376
     case 'budget_stop': case 'budget_cap': return T('studioErrBudgetStop');
     case 'api_quota': return T('studioErrApiQuota');   // 21/10/2026
+    case 'sub_limit': return T('studioErrSubLimit');   // 24/10/2026: ה־Routine — מגבלת המנוי
+    case 'cli_missing': case 'cli_error': return T('studioErrCli');
     case 'api_auth': case 'api_model': case 'no_api_key': return T('studioErrApiKey');   // הסקירה: קודי מצב API
     case 'api_network': case 'api_timeout': case 'api_rate': case 'api_overloaded': return T('studioErrApiNet');
     case 'model_refusal': return T('studioErrRefusal');
@@ -3604,8 +3606,24 @@ function saveForm() {
   back();
 }
 /* "התחלה" מהטופס: התחברות + Drive מחובר → קריאה מהירה של הסרטון (אורך) → עבודה בשרתון → מסך ההתקדמות + ההעלאה */
+/* 24/10/2026: בחרת בשרת של המערכת (או בהעתק־הדבק) — ההתחלה מחכה לתשובה מהשרתון, ובלעדיה לא מתחילים.
+   עד היום עבודה מהורדה בטלפון (gotFile) התחילה מיד אחרי טעינת הדף, לפני ש־ui.api הגיע — ונפלה בשקט ל־Routine */
+export const engKnown = (conn, api) => !(conn === 'api' || conn === 'copy') || !!api;
+async function engSettle() {
+  for (let i = 0; i < 2 && !engKnown(store.settings.conn, ui.api); i++) { statusAt = 0; await refreshStatus(true); }
+  return engKnown(store.settings.conn, ui.api);
+}
 function startFromForm() {
   const f = form;
+  if (f && !ui.starting && !engKnown(store.settings.conn, ui.api)) {
+    ui.starting = true; render('none');
+    engSettle().then((ok) => {
+      ui.starting = false;
+      if (form !== f) return;
+      if (ok) startFromForm(); else { flashSafe(T('studioEngWait')); render('none'); }
+    });
+    return;
+  }
   if (f && f.subs && !ui.starting) { startSubs(f); return; }   // 22/10/2026: קובץ כתוביות קיים
   if (f && f.link && f.linkOk && !ui.starting) { startLink(f); return; }   // 22/10/2026: מקישור — העובד מוריד
   if (!f || !(f.fileObj || f.drive) || ui.starting) return;
@@ -4306,6 +4324,7 @@ function incTitle(e) {
     case 'tower_stop': return T('studioIncTower');
     case 'budget_stop': case 'budget_cap': return T('studioIncBudget');
     case 'api_quota': return T('studioIncApiQuota');
+    case 'sub_limit': return T('studioIncSubLimit');
     case 'api_auth': case 'api_model': case 'no_api_key': return T('studioIncApiKey');
     case 'api_network': case 'api_timeout': case 'api_rate': case 'api_overloaded': return T('studioIncApiNet');
     case 'stale': return T('studioIncStale');

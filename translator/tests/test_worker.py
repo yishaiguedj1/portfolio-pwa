@@ -1478,6 +1478,27 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(J.inject_scan(t), [(1, 'ign'), (3, 'role'), (4, 'cmd'), (5, 'tag'), (6, 'key')])
         self.assertEqual(J.inject_scan(''), [])
 
+    def test_usage_haiku_card_per_call(self):
+        """24/10/2026: הכרטיס של Haiku לבקשה מעל 100K נקבע לפי הקריאה עצמה, לא לפי הסכום של הסוכן"""
+        sys.path.insert(0, str(HERE))
+        import job as J
+        root = self.tmp / 'projects' / 'p2'
+        (root / 's' / 'subagents').mkdir(parents=True)
+        H = 'claude-haiku-5-5'
+
+        def asst(mid, i, o, cr, c5):
+            return {'type': 'assistant', 'message': {'id': mid, 'model': H, 'content': [{'type': 'text'}],
+                    'usage': {'input_tokens': i, 'output_tokens': o, 'cache_read_input_tokens': cr,
+                              'cache_creation_input_tokens': c5}}}
+        recs = [{'type': 'user', 'message': {'content': 'תרגם לפי TRANSLATE.md'}},
+                asst('m1', 10, 1000, 60000, 0), asst('m2', 10, 1000, 60000, 0),   # כל אחת 60K — כרטיס רגיל
+                asst('m3', 10, 1000, 110000, 0)]                                   # מעל 100K — הכרטיס היקר
+        (root / 's' / 'subagents' / 'agent-h.jsonl').write_text('\n'.join(json.dumps(r) for r in recs) + '\n')
+        tl = [r for r in J.usage(root) if r['k'] == 'tl'][0]
+        want = J.cost_of(H, 10, 1000, 60000, 0, 0) * 2 + J.cost_of(H, 10, 1000, 110000, 0, 0)
+        self.assertAlmostEqual(tl['usd'], round(want, 4), places=4)
+        self.assertLess(tl['usd'], J.cost_of(H, 30, 3000, 230000, 0, 0), 'לא המחיר על הסכום')
+
     def test_usage_merge_max6(self):
         sys.path.insert(0, str(HERE))
         import job as J
