@@ -72,15 +72,16 @@ class PhCoreTest {
         val i = PhCore.info(JSONObject(res("probe.json")))!!
         val b = PhCore.burnArgs("/x/src.mp4", "/x/he.ass", "/x/fonts", i, 640, 360)
         val vf = b[b.indexOf("-vf") + 1]
-        assertFalse("ציר שמתחיל ב־0 — בלי setpts", vf.contains("setpts"))
+        assertFalse("בלי setpts — ffmpeg כבר מזיז לפי ההתחלה של הקובץ", vf.contains("setpts"))
         assertTrue(vf.startsWith("subtitles=filename=/x/he.ass:fontsdir=/x/fonts,scale=640:360,format=nv12"))
         assertEquals(listOf("cfr"), listOf(b[b.indexOf("-fps_mode") + 1]))
         assertEquals("30000/1001", b[b.indexOf("-r") + 1])
         assertEquals("pipe:1", b.last())
         val late = PhCore.Info(1920, 1080, 25, 1, 60.0, 1.5, 0.0, 0.2, "aac", true)
-        PhCore.burnArgs("/s", "/a", "/f", late, 1920, 1080).let { assertTrue(it[it.indexOf("-vf") + 1].startsWith("setpts=PTS-1.5/TB,")) }
+        // 24/10/2026 (בטלפון: הווידאו איחר ב־5 שנ׳ — הבסיס/ההיסט נספרו פעמיים): גם בקובץ שמתחיל אחרי 0 — בלי setpts
+        PhCore.burnArgs("/s", "/a", "/f", late, 1920, 1080).let { assertTrue(it[it.indexOf("-vf") + 1].startsWith("subtitles=")) }
         val mx = PhCore.muxArgs("/v.mp4", "/s.mkv", "/o.mp4", PhCore.Info(1920, 1080, 25, 1, 60.0, 0.0, 0.04, 0.0, "dts", true), true)
-        assertEquals("0.04", mx[mx.indexOf("-itsoffset") + 1])
+        assertFalse("בלי -itsoffset — הפער עד הווידאו כבר בפריימים (cfr)", mx.contains("-itsoffset"))
         assertEquals("aac", mx[mx.indexOf("-c:a") + 1])
         assertTrue(PhCore.mp4Audio("aac")); assertFalse(PhCore.mp4Audio("dts"))
         assertEquals(listOf("-map", "0:a:0", "-vn"), PhCore.audioArgs("/s", "/a.mka").let { it.subList(it.indexOf("-map"), it.indexOf("-map") + 3) })

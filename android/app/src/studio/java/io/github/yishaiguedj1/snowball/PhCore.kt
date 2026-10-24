@@ -108,10 +108,12 @@ object PhCore {
     }
 
     /** ffmpeg מפענח וצורב את הכתוביות (libass) ומוציא פריימים nv12 בקצב קבוע — MediaCodec של האפליקציה מקודד.
-     *  ציר הזמן: setpts לפי ההתחלה של הקובץ (כמו vt render), כך שזמני ה־ASS נכונים */
+     *  ציר הזמן: ffmpeg כבר מזיז הכל לפי ההתחלה של הקובץ (format.start_time = הבסיס של media.summarize), ו־cfr משלים
+     *  בפריים הראשון את הזמן עד שהווידאו מתחיל — פריים i = הבסיס + i/fps, כמו זמני ה־ASS.
+     *  24/10/2026 (בטלפון: הווידאו איחר ב־5 שנ׳): עד עכשיו גם setpts=PTS-base (הבסיס הוחסר פעמיים — בקובץ שמתחיל
+     *  אחרי 0 נחתך ההתחלה) וגם ‎-itsoffset vt0‎ באריזה (הפער שכבר הושלם נוסף שוב). שניהם הוסרו. */
     fun burnArgs(src: String, ass: String, fonts: String, i: Info, w: Int, h: Int): List<String> {
         val vf = buildList {
-            if (i.base > 0.0005) add("setpts=PTS-${fmt(i.base)}/TB")
             add("subtitles=filename=${esc(ass)}:fontsdir=${esc(fonts)}")
             add("scale=$w:$h")
             add("format=nv12")
@@ -120,10 +122,10 @@ object PhCore {
             "-fps_mode", "cfr", "-r", i.fpsStr, "-an", "-sn", "-f", "rawvideo", "-pix_fmt", "nv12", "pipe:1")
     }
 
-    /** הווידאו שקודד + הקול מהמקור. copy כשאפשר; לוואטסאפ (או כשהעתקה נכשלה) — AAC */
+    /** הווידאו שקודד (מתחיל בבסיס — burnArgs) + הקול מהמקור, שנשאר במקומו יחסית לבסיס (ffmpeg מזיז כל קלט לפי ההתחלה שלו).
+     *  בלי ‎-itsoffset‎. copy כשאפשר; לוואטסאפ (או כשהעתקה נכשלה) — AAC */
     fun muxArgs(video: String, src: String, out: String, i: Info, aac: Boolean): List<String> = buildList {
         addAll(listOf("-hide_banner", "-nostdin", "-y", "-loglevel", "error"))
-        if (i.vt0 > 0.0005) addAll(listOf("-itsoffset", fmt(i.vt0)))
         addAll(listOf("-i", video, "-i", src, "-map", "0:v:0"))
         if (i.hasAudio) addAll(listOf("-map", "1:a:0"))
         addAll(listOf("-c:v", "copy"))
