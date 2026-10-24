@@ -47,6 +47,8 @@ for (const f of code) {
   ok(/const val DEFAULT_ON = (true|false)/.test(sync) && /getBoolean\("en", DEFAULT_ON\)/.test(sync), 'DmSync: ברירת המחדל במקום אחד (DEFAULT_ON) ומתג כיבוי בהגדרות');
   const cv = +(sync.match(/const val CV = (\d+)/) || [])[1];
   ok(cv === require(path.join(ROOT, 'ibkr-proxy/lib/dmlog.js')).DMC_V, 'DmSync.CV = DMC_V בשרתון');
+  // 24/10/2026: WEB_CLIENT חייב להיות לקוח ה־Web של Firebase (מ־accounts:createAuthUri) — עם מזהה הלקוח מסוג Android Google מחזיר [28444]
+  ok(/WEB_CLIENT = "286578855160-a5kii0glss9b883glkr698frmvekpa67\.apps\.googleusercontent\.com"/.test(sync), 'DmSync: WEB_CLIENT = לקוח ה־Web של הפרויקט (לא לקוח ה־Android)');
   ok(/JSONArray\(evs\.map \{ it\.json\(\) \}\)/.test(sync) && !/\.url\b|cookie/i.test(sync.replace(/import java\.net\.URL\n/, '')), 'DmSync: נשלחים רק האירועים של DmLog — בלי כתובת ובלי עוגיות');
   const log = R('android/app/src/dmcore/java/io/github/yishaiguedj1/snowball/dm/DmLog.kt');
   ok(!/put\("url"|put\("ref"|put\("ck"|put\("ua"/.test(log), 'DmLog: אין שדה כתובת, Referer, עוגיות או User-Agent');

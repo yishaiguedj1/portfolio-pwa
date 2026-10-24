@@ -28,7 +28,7 @@ object DmSync {
     const val CV = 1
     const val DEFAULT_ON = true
     // מזהים ציבוריים של פרויקט ה־Firebase (כמו ב־firebase-config.js) — לא סודות
-    private const val WEB_CLIENT = "286578855160-c5et32a91anfqraplk5djj9qm5soejhf.apps.googleusercontent.com"
+    private const val WEB_CLIENT = "286578855160-a5kii0glss9b883glkr698frmvekpa67.apps.googleusercontent.com"
     private const val FB_KEY = "AIzaSyDpz4owHSvJCYVzUFtZQL8V_e71HpVeffk"
     private val API = listOf("https://api.thesnowball.app/api/studio", "https://ibkr-proxy-wine.vercel.app/api/studio")
     private const val BATCH = 200
