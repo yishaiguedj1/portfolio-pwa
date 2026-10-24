@@ -57,7 +57,7 @@ PART_RE = re.compile(r'^## חלק (\d+)/(\d+) → (batch_\d{3}\.he\.txt)\s*$')
 ISSUE_RE = re.compile(r'^- #(\d+): (.*)$')
 # בעיות שחייבות תיקון (שגיאה/חסר) מול הערות שכדאי לשקול (מעל תקציב, מספר, מילון, שאלה)
 HARD = ('חסר תרגום', 'מעל 84', "'=' בלי", "חסר '||'", 'מספר לא קיים', 'מופיע ביותר', 'ניקוד', 'מקף דובר', 'תג עיצוב', 'הושמט — כל דובר')
-SOFT = ('תקציב', 'המספר', 'מונח', 'סימן שאלה', 'קצר מאוד', 'סמל מטבע', 'ספרה בתחילת')
+SOFT = ('תקציב', 'המספר', 'מונח', 'סימן שאלה', 'קצר מאוד', 'סמל מטבע', 'ספרה בתחילת', 'לכתיב אחד')
 
 SECTION_RE = re.compile(r'^=== (PATCH|BRIEF|GLOSSARY|QUESTIONS) ===\s*$', re.M)
 
@@ -206,6 +206,87 @@ def clean_glossary(text: str) -> str:
     return '\n'.join(rows)
 
 
+# 24/10/2026 (המחקר על המילון): המתכנן פספס שמות שחוזרים ("Karolinska Institute" קוצר, "Sub-Saharan Africa" לא נכנס).
+# רשימת מועמדים מהקוד — שמות (רק באות גדולה בתמליל), צירופים של שמות וראשי תיבות, עם מספר המופעים. המתכנן מחליט.
+CAND_MAX = 40
+_CAND_STOP = {'i', "i'm", "i've", "i'd", "i'll", 'ok', 'okay', 'mr', 'mrs', 'ms', 'dr', 'yes', 'no', 'oh', 'hi', 'hello'}
+_CAND_JOIN = {'of', 'the', 'for', 'de', 'van', 'von', 'la', 'du', 'del', 'da'}
+_CAND_TOK = re.compile(r"[A-Za-z][A-Za-z'\u2019]*(?:-[A-Za-z][A-Za-z'\u2019]*)*")
+
+
+def term_candidates(text: str, limit: int = CAND_MAX) -> list[tuple[str, int]]:
+    """[(מונח, מופעים)] מהתמליל / מהכתוביות. שורות הערה (#) ותגיות דובר ([S1 00:01]) לא נספרות."""
+    lines = []
+    for ln in str(text or '').splitlines():
+        if ln.lstrip().startswith('#'):
+            continue
+        lines.append(re.sub(r'^\s*\[[^\]]*\]\s*', '', ln))
+    sents = [x for x in re.split(r'(?<=[.!?])\s+|\n+', '\n'.join(lines)) if x.strip()]
+    # כל משפט לקטעים בין סימני פיסוק — רשימה ("Poland, Russia, Pakistan") לא מתחברת לצירוף אחד; רק הקטע הראשון = תחילת משפט
+    segs = [(k == 0, g) for x in sents for k, g in enumerate(re.split(r'[,;:()"\u201c\u201d\u2013\u2014]|\s-\s', x))]
+    toks = [(st, [m.group(0).replace('\u2019', "'") for m in _CAND_TOK.finditer(g)]) for st, g in segs]
+    lower = {t.lower() for _st, ts in toks for t in ts if t[:1].islower()}
+    count, first = {}, {}
+
+    def add(term):
+        if term.lower() in _CAND_STOP:
+            return
+        count[term] = count.get(term, 0) + 1
+        first.setdefault(term, len(first))
+
+    for st, ts in toks:
+        i = 0
+        while i < len(ts):
+            if not ts[i][:1].isupper():
+                i += 1
+                continue
+            j = i + 1
+            while j < len(ts) and (ts[j][:1].isupper() or (ts[j].lower() in _CAND_JOIN and j + 1 < len(ts) and ts[j + 1][:1].isupper())):
+                j += 1
+            run = ts[i:j]
+            k = next((x for x, w in enumerate(run) if w.lower() in _CAND_STOP), None)
+            if k is not None:                            # "So I said" — "I" חוצה את הרצף
+                j = i + max(k, 1)
+                run = run[:k]
+            if i == 0 and st:                            # תחילת משפט — מילה רגילה באות גדולה לא נכנסת ("So Sweden")
+                while run and run[0].lower() in lower:
+                    run = run[1:]
+            while run and run[-1].lower() in _CAND_JOIN:
+                run = run[:-1]
+            i = j
+            if not run:
+                continue
+            if len(run) == 1:
+                w = run[0]
+                acro = 2 <= len(w) <= 5 and w.isupper()
+                if acro or (w.lower() not in lower and len(w) >= 3):
+                    add(w)
+            else:
+                add(' '.join(run))
+    keep = [(k, n) for k, n in count.items()
+            if n >= 2 or ' ' in k or '-' in k or (k.isupper() and len(k) >= 2)]
+    keep.sort(key=lambda kn: (-kn[1], first[kn[0]]))
+    return keep[:limit]
+
+
+def candidates_block(text: str) -> str:
+    c = term_candidates(text)
+    return block('term_candidates', '\n'.join(f'{k} ×{n}' for k, n in c)) if c else ''
+
+
+def write_glossary(td: Path, text: str, spec) -> str:
+    """tr/glossary.tsv מהמקטע GLOSSARY. 24/10/2026: spec.xg = ניסוי "בלי מילון" (סט הזהב) — הקובץ בלי מונחים,
+    כדי למדוד כמה המילון באמת תורם (אותה הגהה ואותו פרומפט — רק בלי השורות)."""
+    gl = '' if no_glossary(spec) else clean_glossary(text)
+    head = (HERE / 'templates' / 'glossary.tsv').read_text(encoding='utf-8').rstrip('\n')
+    (td / 'glossary.tsv').write_text(head + ('\n' + gl if gl else '') + '\n', encoding='utf-8')
+    return gl
+
+
+def no_glossary(spec) -> bool:
+    return isinstance(spec, dict) and spec.get('xg') == 1
+
+
 def parse_questions(text: str) -> list[dict]:
     """JSON: [{"q": "...", "opts": ["..."], "default": 0}] — לכל היותר 2, טקסט קצר בלבד."""
     m = re.search(r'\[.*\]', text, re.S)
@@ -283,7 +364,7 @@ def parse_issues(check_md: str) -> tuple[dict[str, list[str]], dict[str, list[st
 # 21/10/2026 (מהיומנים): ההערות "לשקול" נכנסו לתיקון לפי סדר הכתוביות עד 60 — בסרטון ארוך רק תחילת הסרטון קיבלה תיקונים
 # (Uber, ‏1,616 כתוביות: 123→101→72 מעל תקציב הקריאה; שאר הסרטון לא נשלח). עכשיו לפי חומרה, והתקרה גדלה עם האורך.
 SOFT_MIN, SOFT_MAX = 60, 160          # כתוביות "לשקול" בסבב; בין לבין — עשירית מהכתוביות
-SOFT_RANK = (('המספר', 0), ('מונח', 1), ('סימן שאלה', 2), ('קצר מאוד', 3), ('תקציב', 4))
+SOFT_RANK = (('המספר', 0), ('מונח', 1), ('לכתיב אחד', 1), ('סימן שאלה', 2), ('קצר מאוד', 3), ('תקציב', 4))
 _OVER_RE = re.compile(r'(\d+) תווים מול תקציב (\d+)')
 
 
@@ -371,6 +452,12 @@ PROOF_TASK = """המשימה: הגהה של תמליל אנגלי אוטומטי
 
 === GLOSSARY ===
 מונחים ושמות שחייבים להיות עקביים: שורה לכל מונח, `אנגלית<TAB>עברית` (חלופות מותרות מופרדות ב־/).
+מה נכנס: שמות (אנשים, מוסדות, חברות, מוצרים, מקומות ואזורים) ומונחים מקצועיים שאפשר לתרגם ביותר מדרך אחת.
+שם רשמי — מלא ובנוסח המקובל בעברית (Karolinska Institute = מכון קרולינסקה); אזור — בנוסח המקובל
+(Sub-Saharan Africa = אפריקה שמדרום לסהרה). שם המדינה ושם התואר — שורה נפרדת לכל אחד, ושם התואר עם כל הצורות כחלופות
+(Soviet Union = ברית המועצות; Soviet = סובייטי/סובייטית/סובייטיים). בסוף — לבדוק שכל מוסד ואזור שחוזר בראיון מופיע בנוסח המלא.
+מה לא נכנס: מילים כלליות שהתרגום שלהן תלוי בהקשר (data, money, growth).
+`term_candidates` = שמות, צירופים וראשי תיבות שהקוד מצא (×מספר המופעים) — לעבור על כל אחד ולהחליט לפי הכללים; לא חובה להכניס את כולם.
 
 === QUESTIONS ===
 מערך JSON של לכל היותר 2 שאלות למשתמש, רק ספק אמיתי שאי אפשר להכריע מהתמליל (כתיב שם של דובר, מגדר של דובר):
@@ -387,6 +474,12 @@ SUBS_TASK = """המשימה: הכנה לתרגום של קובץ כתוביות 
 
 === GLOSSARY ===
 מונחים ושמות שחייבים להיות עקביים: שורה לכל מונח, `אנגלית<TAB>עברית` (חלופות מותרות מופרדות ב־/).
+מה נכנס: שמות (אנשים, מוסדות, חברות, מוצרים, מקומות ואזורים) ומונחים מקצועיים שאפשר לתרגם ביותר מדרך אחת.
+שם רשמי — מלא ובנוסח המקובל בעברית (Karolinska Institute = מכון קרולינסקה); אזור — בנוסח המקובל
+(Sub-Saharan Africa = אפריקה שמדרום לסהרה). שם המדינה ושם התואר — שורה נפרדת לכל אחד, ושם התואר עם כל הצורות כחלופות
+(Soviet Union = ברית המועצות; Soviet = סובייטי/סובייטית/סובייטיים). בסוף — לבדוק שכל מוסד ואזור שחוזר בראיון מופיע בנוסח המלא.
+מה לא נכנס: מילים כלליות שהתרגום שלהן תלוי בהקשר (data, money, growth).
+`term_candidates` = שמות, צירופים וראשי תיבות שהקוד מצא (×מספר המופעים) — לעבור על כל אחד ולהחליט לפי הכללים; לא חובה להכניס את כולם.
 
 === QUESTIONS ===
 מערך JSON של לכל היותר 2 שאלות למשתמש, רק ספק אמיתי שאי אפשר להכריע מהטקסט (מגדר של דמות מרכזית, כתיב של שם):
@@ -398,7 +491,8 @@ TL_TASK = """אתה מתרגם מקצועי של כתוביות מאנגלית �
 - `≤N` = תקציב התווים (קצב קריאה) — תקרה. מקצרים בחוכמה בלי לאבד משמעות.
 - כתובית של שני דוברים: `||` בין הדוברים. `|` = שבירת שורה ידנית.
 - סמיכות, מספר ונספר, שם עצם ותואר, צירוף קבוע ושם אדם — לא בין שתי שורות.
-- מונחי המילון כפי שהם. שם שלא בטוחים בו — בתעתיק המקובל בעברית.
+- המילון קובע את המונח; את הצורה הדקדוקית (מין, מספר, סמיכות, ה' הידיעה) מתאימים למשפט. מונח שלא מתאים בהקשר הזה — לא כופים אותו.
+  שם שלא בטוחים בו — בתעתיק המקובל בעברית.
 - כשהמקור תמלול אוטומטי (לא קובץ כתוביות שכתב אדם): מילה שלא מסתדרת בהקשר נשמעה כנראה לא נכון — מתרגמים את מה שנאמר באמת, לא את הטעות.
 - כתובית של שני דוברים: כל דובר מקבל תרגום — שאלה קצרה לא נבלעת; מקצרים את התשובה.
 - כתיב מלא, בלי שום ניקוד (הבדיקה פוסלת תווי ניקוד). מילה דו־משמעית — מנסחים מחדש במקום לנקד.
@@ -484,6 +578,7 @@ class Pipeline:
                              block('brief_template', (HERE / 'templates' / 'brief.md').read_text(encoding='utf-8'))])
         prompt = '\n\n'.join(x for x in [
             block('user_terms', terms) if terms else '',
+            candidates_block(edit),
             block('transcript', edit)] if x)
         if not self.eng.fits_card(fixed, prompt):
             # תמליל של שעות רבות: ההגהה צריכה את כל התמליל בבת אחת — נשארת בקריאה אחת, במחיר המלא (רשום ב־ledger)
@@ -498,9 +593,7 @@ class Pipeline:
         td.mkdir(parents=True, exist_ok=True)
         if sec.get('BRIEF', '').strip():
             (td / 'brief.md').write_text(sec['BRIEF'].strip() + '\n', encoding='utf-8')
-        gl = clean_glossary(sec.get('GLOSSARY', ''))
-        head = (HERE / 'templates' / 'glossary.tsv').read_text(encoding='utf-8').rstrip('\n')
-        (td / 'glossary.tsv').write_text(head + ('\n' + gl if gl else '') + '\n', encoding='utf-8')
+        gl = write_glossary(td, sec.get('GLOSSARY', ''), ctx.st.get('spec'))
         why = {}
         for d in dropped:
             why[d.split(':', 1)[0]] = why.get(d.split(':', 1)[0], 0) + 1
@@ -526,6 +619,7 @@ class Pipeline:
         prompt = '\n\n'.join(x for x in [
             block('user_terms', terms) if terms else '',
             block('speaker_labels', ', '.join(str(n) for n in names[:40])) if names else '',
+            candidates_block(text),
             block('subtitles', text)] if x)
         if not self.eng.fits_card(fixed, prompt):
             print(f'· {self.eng.spec.model}: הקובץ מעל סף 100K הטוקנים — התדריך יתומחר בכרטיס היקר')
@@ -536,9 +630,7 @@ class Pipeline:
         td.mkdir(parents=True, exist_ok=True)
         if sec.get('BRIEF', '').strip():
             (td / 'brief.md').write_text(sec['BRIEF'].strip() + '\n', encoding='utf-8')
-        gl = clean_glossary(sec.get('GLOSSARY', ''))
-        head = (HERE / 'templates' / 'glossary.tsv').read_text(encoding='utf-8').rstrip('\n')
-        (td / 'glossary.tsv').write_text(head + ('\n' + gl if gl else '') + '\n', encoding='utf-8')
+        gl = write_glossary(td, sec.get('GLOSSARY', ''), ctx.st.get('spec'))
         print(f'✓ תדריך מהכתוביות · מילון: {len(gl.splitlines()) if gl else 0} מונחים')
         return parse_questions(sec.get('QUESTIONS', ''))
 
