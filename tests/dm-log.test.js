@@ -70,6 +70,11 @@ const { fakeR2, ACC } = require('./_r2fake');
   const keysIn = async (pre) => (await R2.list(cfg, { fetch: fetchAll, now: () => R.now }, pre)).map((x) => x.key);
 
   ok((await call({ op: 'dmLog', cv: D.DMC_V, ev: [ev] })).code === 401, 'בלי התחברות — 401');
+  const tokApp = (sub, app) => {
+    const hd = b64u({ alg: 'RS256', kid: 'k1' }), bd = b64u({ aud: 'yishaiguedj1-c786e', iss: 'https://securetoken.google.com/yishaiguedj1-c786e', sub, iat: tnow - 5, exp: tnow + 3000, app });
+    return hd + '.' + bd + '.' + crypto.sign('RSA-SHA256', Buffer.from(hd + '.' + bd), fb.privateKey).toString('base64url');
+  };
+  ok((await call({ op: 'dmLog', idToken: tokApp('dmUserA00001', 'invest'), cv: D.DMC_V, ev: [ev] })).j.error === 'wrong_app', 'שלב 7: טוקן של Invest — 403 wrong_app (הפעולה של Studio)');
   ok((await call({ op: 'dmLog', idToken: A, cv: 0, ev: [ev] })).j.error === 'consent', 'הסכמה בנוסח ישן — 409 consent, לא נשמר');
   const r1 = await call({ op: 'dmLog', idToken: A, cv: D.DMC_V, ev: [ev, { k: 'bad' }], dev: { v: '1.0.1', sdk: 35 } });
   ok(r1.code === 200 && r1.j.saved === 1, 'נשמר — בלי Origin, לכל משתמש מחובר (גם בלי גישה לסטודיו)');

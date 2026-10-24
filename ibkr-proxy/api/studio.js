@@ -541,6 +541,9 @@ async function devErr(deps, user, body, now) {
 /* Studio DM (24/10/2026): יומן ההורדות מהאפליקציה הנייטיב — בלי Origin (אפליקציה, לא דף), התחברות Firebase (Google ב־DM)
    והסכמה בנוסח הנוכחי (cv). לכל משתמש מחובר — לא רק למי שפתוח לו הסטודיו. dmForget = "מחק את הנתונים שלי" */
 async function dmOps(req, res, body, deps) {
+  // שלב 7 (appscope): הפעולה של Studio — בלי guard (אין Origin לאפליקציה נייטיב), לכן כאן: טוקן של Invest/Academy (טענת app) = 403
+  const ta = require('../lib/appscope').tokenApp(body.idToken);
+  if (ta && ta !== 'studio' && ta !== 'all') return res.status(403).json({ ok: false, error: 'wrong_app' });
   let user;
   try { user = await verifyIdToken(body.idToken, deps.verify || {}); } catch (e) { return res.status(401).json({ ok: false, error: 'no_auth' }); }
   if (!UID_RE.test(String(user.uid || ''))) return res.status(401).json({ ok: false, error: 'no_auth' });
