@@ -16,6 +16,7 @@ ok(c0.spec.ry === undefined && c0.spec.cp === undefined && c0.spec.xe === undefi
 ok(c0.spec.mode === 'sonnet-medium' && c0.spec.out.includes('srt') && c0.gs === src.id, 'goldClone — המצב שנבחר, עם SRT, מסומנת כהרצה של סט הזהב');
 const c1 = S.goldClone(src, 'jC1' + '0'.repeat(18), 'u', 1, 'haiku-high', { main: 'medium', rv: 'medium' });
 ok(JSON.stringify(c1.spec.xe) === '{"main":"medium","rv":"medium"}', 'goldClone — הניסוי נשמר בעבודה');
+ok(JSON.stringify(S.goldClone(src, 'jC2' + '0'.repeat(18), 'u', 1, 'haiku-high', { main: 'medium', tl: 'medium', rv: 'medium' }).spec.xe) === '{"main":"medium","tl":"medium","rv":"medium"}', 'goldClone — ניסוי עם התרגום (פריט 8)');
 ok(src.spec.ry === 1 && src.spec.xe.tl === 'low', 'goldClone — לא נוגע בעבודת המקור');
 
 const done = { kind: 'tr', fires: 1, spec: { mode: 'haiku-high', dur: 600 }, eng: 'a' }, use = [{ usd: 0.1 }];
@@ -25,10 +26,10 @@ ok(/job\.spec && job\.spec\.xe \? null : ETA\.etaSample/.test(api), 'הרצה ב
 ok(/body\.xe != null && \(!xe \|\| !isAdmin\(user\)\)/.test(api), 'השרתון — ניסוי רק למנהל');
 
 const adm = R('admin-app.js'), app = R('app.js');
-const gm = /GOLD_XE = \{ main: 'medium', rv: 'medium' \}, GOLD_MAX = (\d+)/.exec(adm);
+const gm = /GOLD_XES = \{ pr: \{ main: 'medium', rv: 'medium' \}, all: \{ main: 'medium', tl: 'medium', rv: 'medium' \} \}, GOLD_MAX = (\d+)/.exec(adm);
 ok(gm && +gm[1] === S.GOLD_MAX, 'מרכז הניהול — GOLD_MAX זהה לשרתון');
-ok(/D\.gXe \? \{ xe: GOLD_XE, both: true \}/.test(adm) && /t\('admGoldXeTag'\)/.test(adm), 'מרכז הניהול — הבחירה נשלחת, והרצה בניסוי מסומנת בתוצאות');
-for (const k of ['admGoldXe', 'admGoldXeS', 'admGoldXeTag']) ok((app.match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, 'מחרוזת ' + k + ' בעברית ובאנגלית');
+ok(/D\.gXe \? \{ xe: GOLD_XES\[D\.gXe\], both: true \}/.test(adm) && /t\('admGoldXeTag'\)/.test(adm) && /t\('admGoldXeTagAll'\)/.test(adm), 'מרכז הניהול — הבחירה נשלחת, והרצה בניסוי מסומנת בתוצאות (עם התרגום / בלי)');
+for (const k of ['admGoldXe', 'admGoldXeS', 'admGoldXeTag', 'admGoldXeAll', 'admGoldXeAllS', 'admGoldXeTagAll']) ok((app.match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, 'מחרוזת ' + k + ' בעברית ובאנגלית');
 
 console.log(`${n - fail}/${n}`);
 process.exit(fail ? 1 : 0);

@@ -103,7 +103,8 @@ function normMet(b) {
       j: tok(s.j, JOB_RE, 21), st: tok(s.st, /^[a-z0-9_-]{1,24}$/, 24), p: num(s.p, 0, 1, 1000),
       // 21/10/2026: בלי התקרה אי אפשר לתרגם "100%" ל־GB; במשבצות rss של העבודה היה תמיד 0 — עכשיו לכל משבצת
       mx: int(s.mx, 0, 1e7), av: int(s.av, 0, 1e7), psi: num(s.psi, 0, 100, 100),
-      ma: int(s.ma, 0, 1e7), mf: int(s.mf, 0, 1e7), msh: int(s.msh, 0, 1e7) };   // memory.stat: anon / file (מטמון) / shmem — MB
+      ma: int(s.ma, 0, 1e7), mf: int(s.mf, 0, 1e7), msh: int(s.msh, 0, 1e7),
+      pq: int(s.pq, 0, 999), pqn: int(s.pqn, 0, 1e7) };   // 24/10/2026: בדיקות קישור — מה השרתון ענה לעובד, כמה טופלו   // memory.stat: anon / file (מטמון) / shmem — MB
     if (Array.isArray(s.sl)) {
       const sl = s.sl.slice(0, 4).map((x) => x && typeof x === 'object' && JOB_RE.test(String(x.j || '')) ? dropEmpty({
         j: x.j, st: tok(x.st, /^[a-z0-9_-]{1,24}$/, 24), p: num(x.p, 0, 1, 1000), rss: int(x.rss, 0, 1e7), cpu: num(x.cpu, 0, 1e4, 10) }) : null).filter(Boolean);

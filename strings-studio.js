@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1789 מפתחות מתוך 3960) */
+/* המחרוזות של studio (1792 מפתחות מתוך 3966) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -832,6 +832,8 @@ he: {
   "studioLinkAudioT": "קול",
   "studioLinkAudioW": "קול",
   "studioLinkBest": "הכי טוב שיש",
+  "studioLinkBlind": "להוריד בענן בלי בדיקה",
+  "studioLinkBlindS": "השרת מוריד ישר באיכות הכי טובה (עד 1080p) ומתחיל לתרגם. קישור שלא עובד — העבודה תיעצר עם הסבר.",
   "studioLinkCh": "פרקים לנגן",
   "studioLinkChS": "{n} פרקים מהאתר — מופיעים בנגן",
   "studioLinkChT": "או פרק אחד",
@@ -851,6 +853,7 @@ he: {
   "studioLinkELogin": "הסרטון דורש התחברות (פרטי, למנויים או מוגבל גיל).",
   "studioLinkENet": "השרת לא ענה בזמן. נסו שוב בעוד רגע.",
   "studioLinkENoApp": "צריך לעדכן את Studio לאנדרואיד — מתקינים את הגרסה החדשה מעל הקיימת ומנסים שוב.",
+  "studioLinkENoTake": "השרת לא לקח את הבדיקה. נסו שוב — ואם זה חוזר, להוריד בטלפון.",
   "studioLinkENone": "לא מצאנו סרטון בקישור הזה.",
   "studioLinkENotVideo": "הקובץ שירד הוא לא סרטון (כנראה דף שגיאה או פרסומת) ולא נשמר. נגנו את הסרטון עצמו בדפדפן הציד.",
   "studioLinkEPlaylist": "זה קישור לרשימת השמעה. פתחו סרטון אחד ושתפו אותו.",
@@ -2623,6 +2626,8 @@ en: {
   "studioLinkAudioT": "Audio",
   "studioLinkAudioW": "audio",
   "studioLinkBest": "Best available",
+  "studioLinkBlind": "Download in the cloud without checking",
+  "studioLinkBlindS": "The server downloads the best quality (up to 1080p) and starts translating. If the link doesn't work, the job stops with an explanation.",
   "studioLinkCh": "Chapters in the player",
   "studioLinkChS": "{n} chapters from the site — shown in the player",
   "studioLinkChT": "Or one chapter",
@@ -2642,6 +2647,7 @@ en: {
   "studioLinkELogin": "This video needs a sign-in (private, members-only or age-restricted).",
   "studioLinkENet": "The server didn’t answer in time. Try again in a moment.",
   "studioLinkENoApp": "Studio for Android needs an update — install the new version over the current one and try again.",
+  "studioLinkENoTake": "No server picked up the check. Try again — if it keeps happening, download on the phone.",
   "studioLinkENone": "We didn’t find a video at this link.",
   "studioLinkENotVideo": "The downloaded file isn’t a video (probably an error page or an ad), so it wasn’t saved. Play the video itself in the hunt browser.",
   "studioLinkEPlaylist": "This is a playlist link. Open one video and share it.",

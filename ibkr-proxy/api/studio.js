@@ -1196,6 +1196,7 @@ async function updatePending(deps, ver, now) {
    כדי לא לקרוא ל־Firestore בכל 4 שניות: probeHint = מתי נוצרה בדיקה במופע הזה (בייצור הטלפון והעובד מדברים עם אותו
    שרת); בלי בדיקה חדשה — שאילתה אחת לדקה (בדיקה שנוצרה במופע אחר — Vercel כגיבוי — נלקחת עד דקה אחרי). */
 let probeHint = 0, probeScan = 0;
+const PROBE_SCAN_MS = 20e3;
 async function pqOp(deps, body, sid, now) {
   if (body.done === true) {
     const pid = String(body.pid || '');
@@ -1212,7 +1213,9 @@ async function pqOp(deps, body, sid, now) {
     }
     return { ok: true };
   }
-  if (now - probeHint > SU.PROBE_TTL && now - probeScan < 60e3) return { ok: true, pr: null };
+  // 24/10/2026: בייצור העובד שואל את Vercel והטלפון את api.thesnowball.app — probeHint לא עוזר שם, ודקה של המתנה + הבדיקה
+  // עברו את מה שהטלפון חיכה. סריקה כל PROBE_SCAN_MS (שאילתה ריקה = קריאה אחת ב־Firestore)
+  if (now - probeHint > SU.PROBE_TTL && now - probeScan < PROBE_SCAN_MS) return { ok: true, pr: null };
   probeScan = now;
   const qd = (await query(deps, 'studioProbe', { st: 'q' }, 10)).sort((a, b) => (a.at || 0) - (b.at || 0));
   for (const pr of qd) {

@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1066 מפתחות מתוך 3960) */
+/* המחרוזות של admin (1069 מפתחות מתוך 3966) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -305,8 +305,11 @@ he: {
   "admGoldT": "ריצת מבחן",
   "admGoldTm": "כיסוי זמן {n}%",
   "admGoldXe": "ניסוי: הגהה וביקורת במאמץ בינוני",
+  "admGoldXeAll": "ניסוי: גם התרגום במאמץ בינוני",
+  "admGoldXeAllS": "הגהה, תרגום וביקורת במאמץ בינוני — פעם רגילה ופעם בניסוי",
   "admGoldXeS": "כל מצב שנבחר רץ פעם רגילה ופעם בניסוי — כדי להשוות",
   "admGoldXeTag": "ניסוי מאמץ",
+  "admGoldXeTagAll": "ניסוי מאמץ + תרגום",
   "admHrAgo": "לפני {n} שעות",
   "admHrU": " שע׳",
   "admI_ai_after": "גיליון ה־AI אחרי העבודה",
@@ -1373,8 +1376,11 @@ en: {
   "admGoldT": "Test run",
   "admGoldTm": "time coverage {n}%",
   "admGoldXe": "Experiment: proofreading and review at medium effort",
+  "admGoldXeAll": "Experiment: translation at medium effort too",
+  "admGoldXeAllS": "Proofreading, translation and review at medium effort — once normally, once in the experiment",
   "admGoldXeS": "Each selected mode runs once normally and once in the experiment — to compare",
   "admGoldXeTag": "effort test",
+  "admGoldXeTagAll": "effort test + translation",
   "admHrAgo": "{n} hours ago",
   "admHrU": " h",
   "admI_ai_after": "AI sheet after the job",
