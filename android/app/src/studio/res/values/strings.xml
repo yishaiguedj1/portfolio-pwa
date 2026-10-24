@@ -35,4 +35,31 @@
     <string name="dlShare">שיתוף</string>
     <string name="dlOpen">פתיחה</string>
     <string name="huntAuto">לא מצאנו את הסרטון ישירות — נגנו אותו כאן, ו־Studio יתפוס אותו</string>
+    <!-- 24/10/2026: תרגום בטלפון (PhActivity, PhService) -->
+    <string name="phTitle">תרגום בטלפון</string>
+    <string name="phChannel">תרגום בטלפון</string>
+    <string name="phPrep">מתחיל…</string>
+    <string name="phPickT">בחרו את הסרטון</string>
+    <string name="phPickS">הסרטון נשאר בטלפון — עולים רק הקול ומדידות קטנות</string>
+    <string name="phCopyT">מכין את הסרטון…</string>
+    <string name="phCopyS">עותק באחסון של Studio (רק עד הצריבה)</string>
+    <string name="phProbe">מודד את הסרטון…</string>
+    <string name="phAudio">מוציא את הקול (בלי קידוד)…</string>
+    <string name="phUpA">מעלה את הקול</string>
+    <string name="phStart">מתחיל את התרגום בשרת…</string>
+    <string name="phShots">מזהה את חילופי השוטים (בזמן שהשרת מתמלל)…</string>
+    <string name="phUpM">שולח את המדידות</string>
+    <string name="phSent">התרגום רץ בשרת</string>
+    <string name="phSentS">הסרטון נשאר בטלפון. כשהתרגום יהיה מוכן — נגיעה ב\"לצרוב בטלפון\" בדף העבודה</string>
+    <string name="phFailed">התרגום בטלפון נעצר</string>
+    <string name="phGoT">ממשיך ברקע</string>
+    <string name="phGoS">אפשר לחזור ל־Studio — ההתקדמות בהתראה</string>
+    <string name="phGone">הסרטון כבר לא בטלפון — בחרו אותו שוב</string>
+    <string name="phBusy">עבודה אחרת עדיין רצה בטלפון</string>
+    <string name="phBurnGo">צורב בטלפון</string>
+    <string name="phBurnPrep">מכין את הצריבה…</string>
+    <string name="phBurning">צורב את הכתוביות · %1$d%%</string>
+    <string name="phSaving">שומר בתיקייה Movies/Studio…</string>
+    <string name="phBurned">הסרטון המתורגם מוכן</string>
+    <string name="phBurnFailed">הצריבה בטלפון נכשלה</string>
 </resources>

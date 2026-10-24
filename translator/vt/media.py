@@ -19,7 +19,12 @@ from .util import run, log, FrameGrid
 def probe(path: Path) -> dict:
     p = run(["ffprobe", "-v", "error", "-print_format", "json", "-show_format", "-show_streams",
              str(path)], capture=True, quiet=True)
-    d = json.loads(p.stdout)
+    return summarize(json.loads(p.stdout), path)
+
+
+def summarize(d: dict, path) -> dict:
+    """הפלט של ffprobe (‏-show_format -show_streams) → media.json. 24/10/2026: גם מהטלפון (תרגום בטלפון — הסרטון לא
+    עוזב אותו, ו־job.py phone_attach כותב את media.json מה־ffprobe שרץ שם)."""
     fmt = d.get("format", {})
     info = {"path": str(path), "duration": float(fmt.get("duration", 0) or 0),
             "start": float(fmt.get("start_time", 0) or 0), "size": int(fmt.get("size", 0) or 0),

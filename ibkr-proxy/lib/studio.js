@@ -80,7 +80,7 @@ function recoverWait(job, now) {
 const TRANSIENT_ERRS = ['net', 'drive', 'drive_net', 'store_net', 'url_net', 'url_timeout', 'api_network', 'api_timeout', 'api_rate', 'api_overloaded', 'worker_lost', 'relay_lost'];   // 24/10/2026: relay_lost = הסשן של ה־Routine נגמר באמצע — "המשך" מפעיל חדש   // 14/10/2026: worker_lost = השרת הופעל מחדש באמצע (עדכון / כיבוי) — ממשיכים מנקודת השמירה   // 11/10: store_net = ניתוק מול R2 / Drive   // הסקירה: גם רשת/קצב/עומס מול Anthropic במצב API
 /* 11/10/2026 (ביקורת העמידות): כשל דטרמיניסטי — אותה בקשה תיכשל שוב. לא "חולף" גם כשבמקרה נשארה פתוחה התראת Drive
    ישנה מאותה עבודה (קודם: max_tokens אחרי התראת הורדה ישנה קיבל "המשך" אוטומטי ששילם שוב על אותו כשל) */
-const DET_ERRS = ['relay_none', 'relay_hub', 'relay_bad', 'worker_oom', 'store_fail', 'max_tokens', 'check_errors', 'model_refusal', 'api_bad_request', 'no_api_key', 'sdk_missing', 'mode_unknown', 'cp_empty', 'cp_timeout',
+const DET_ERRS = ['ph_meta', 'relay_none', 'relay_hub', 'relay_bad', 'worker_oom', 'store_fail', 'max_tokens', 'check_errors', 'model_refusal', 'api_bad_request', 'no_api_key', 'sdk_missing', 'mode_unknown', 'cp_empty', 'cp_timeout',
   'url_login', 'url_gone', 'url_geo', 'url_drm', 'url_live', 'url_unsupported', 'url_playlist', 'url_no_video', 'url_private', 'url_bad_url', 'url_dns', 'url_blocked'];   // 22/10/2026: הורדה מקישור — אותו ניסיון ייכשל שוב
 const TRANSIENT_KINDS = ['drive:dl_retry', 'drive:up_retry', 'drive:dl_fail', 'drive:up_fail'];
 /* עצירה מכוונת — אף פעם לא "חולפת", גם כשבמקרה הייתה תקלת Drive פתוחה (המגדל / התקציב / מתג החירום / ההחלטה שלך) */
@@ -172,6 +172,22 @@ function edlPre(e) {
   if (!e) return null;
   return e.k.length || e.ar !== 'src' ? { k: e.k.map((p) => p.slice()), ar: e.ar, x: e.ar === 'src' ? 0.5 : e.x } : null;
 }
+/* 24/10/2026: תרגום בטלפון — מה הטלפון צורב (השרת לא צורב). same = כמו המקור, small = עותק לוואטסאפ */
+const PH_BURN = ['same', 'small'];
+const PH_META_MAX = 4 * 1024 * 1024;
+const PH_UP_MAX = 4 * 1024 * 1024 * 1024;   // הקול מהטלפון (בפועל עשרות MB לשעה) — תקרה גסה בלבד   // קובץ המדידות מהטלפון (ffprobe + השוטים) — JSON קטן; יותר = לא תקין
+/* מצב הצריבה בטלפון (op:'phBurn' מהטלפון) — רק מספרים וקוד: s = run/done/fail, p = 0–1, e = קוד שגיאה, sz = גודל התוצר */
+const PBN_S = ['run', 'done', 'fail'];
+function normPbn(o, now) {
+  if (!o || typeof o !== 'object' || !PBN_S.includes(o.s)) return null;
+  const out = { s: o.s, p: o.s === 'done' ? 1 : Math.max(0, Math.min(1, Math.round((Number(o.p) || 0) * 1000) / 1000)), at: typeof now === 'number' ? now : 0 };
+  if (o.s === 'fail' && /^[a-z0-9_]{2,32}$/.test(String(o.e || ''))) out.e = o.e;
+  const sz = Math.floor(Number(o.sz));
+  if (o.s === 'done' && sz > 0 && sz <= MAX_SIZE) out.sz = sz;
+  const ms = Math.floor(Number(o.ms));
+  if (o.s === 'done' && ms > 0 && ms < 86400e3) out.ms = ms;
+  return out;
+}
 function normSpec(s) {
   if (!s || typeof s !== 'object') return null;
   const name = clean(s.name, 200), size = Math.floor(Number(s.size) || 0);
@@ -186,6 +202,10 @@ function normSpec(s) {
   const url = link ? SU.normSrcUrl(s.url) : '', pick = link ? SU.normPick(s.pick) : null;
   const ref = link && s.ref ? SU.normSrcUrl(s.ref) : '';   // שלב 2: קובץ שנמצא בדף (דפדפן הציד) — הדף שממנו הגיע, ל־Referer
   if (link && (s.eng !== 'api' || !url || !pick)) return null;
+  // 24/10/2026 (תרגום בטלפון, שלב 1): הסרטון לא עוזב את הטלפון — עולים רק הקול וקובץ המדידות (phMeta). השרת עושה רק
+  // את שלבי הטקסט; הצריבה בטלפון (MediaCodec). רק במצב השרת, בלי חיתוך ובלי תוצרי וידאו בשרת
+  const ph = s.ph === 1 && s.eng === 'api' && !subs && !link;
+  if (s.ph === 1 && !ph) return null;
   return Object.assign({
     name, size,
     type: String(s.type || '').slice(0, 60).replace(/[^\w.+/-]/g, ''),
@@ -193,12 +213,13 @@ function normSpec(s) {
     from: s.from === 'auto' || LANGS.includes(s.from) ? s.from : 'auto',
     to,
     mode: modeNow(s.mode),
-    out: subs ? [] : uniq(s.out, (k) => OUTS.includes(k)),                      // SRT תמיד; ריק = SRT בלבד (+ VTT/ASS כעזר)
+    out: subs || ph ? [] : uniq(s.out, (k) => OUTS.includes(k)),                      // SRT תמיד; ריק = SRT בלבד (+ VTT/ASS כעזר)
     style: STYLES.includes(s.style) ? s.style : STYLES[0],
     terms: String(s.terms || '').replace(/\u0000/g, '').slice(0, 1000),
   }, subs ? Object.assign({ src: 'subs', sdh: s.sdh === 'keep' ? 'keep' : 'rm' }, SUBS_FPS.includes(String(s.fps)) ? { fps: String(s.fps) } : {}) : {},
   link ? Object.assign({ src: 'url', url, pick }, ref ? { ref } : {}) : {},
-  !subs && !link && edlPre(normEdl(s.edl)) ? { edl: edlPre(normEdl(s.edl)) } : {},   // מ4: חיתוך לפני התרגום (dur = האורך אחרי החיתוך)
+  ph ? Object.assign({ ph: 1 }, PH_BURN.includes(s.pb) ? { pb: s.pb } : {}) : {},   // pb = מה הטלפון צורב בסוף (ריק = רק כתוביות)
+  !subs && !link && !ph && edlPre(normEdl(s.edl)) ? { edl: edlPre(normEdl(s.edl)) } : {},   // מ4: חיתוך לפני התרגום (dur = האורך אחרי החיתוך)
   // 21/10/2026: פיקסלים לשנייה ביחס ל־1080p30 (מהמידות שהטלפון קרא; העובד מתקן אחרי הקליטה) — לצפי של הצריבה
   Number.isFinite(+s.px) && +s.px >= 0.02 && +s.px <= 16 ? { px: Math.round(+s.px * 1000) / 1000 } : {},
   s.eng === 'api' ? Object.assign({ eng: 'api', cap: normCap(s.cap) }, s.cp === 1 ? { cp: 1 } : s.ry === 1 ? { ry: 1 } : {}) : {});   // 24/10/2026: ry = השרת עושה הכל, Claude דרך ה־Routine של המשתמש (lib/relay.js)   // מצב API של המערכת — עם תקרת עבודה ($); סבב 10: cp = העתק־הדבק (Claude של המשתמש)
@@ -659,7 +680,7 @@ function publicJob(job, now) {
   return {
     id: job.id, kind: job.kind, state: e.state, err: e.err, created: job.created || 0, updated: job.updated || 0,
     fired: job.fired || 0, claimed: job.claimed || 0, ended: job.ended || e.at || 0,
-    spec: job.spec || null, files: { a: fileView(job.fa), v: fileView(job.fv), s: fileView(job.fsu), o: Array.isArray(job.fo) ? job.fo : [], c: fileView(job.fc), q: fileView(job.fq) },
+    spec: job.spec || null, files: { a: fileView(job.fa), v: fileView(job.fv), s: fileView(job.fsu), o: Array.isArray(job.fo) ? job.fo : [], c: fileView(job.fc), q: fileView(job.fq), m: fileView(job.fph) },
     folder: FILE_ID_RE.test(String(job.folder || '')) ? job.folder : '',
     rp: job.rp || '', ev: job.ev || 0, vh: Array.isArray(job.vh) ? job.vh.map((x) => (x && x.at) || 0) : [],   // מ2: הפקה מחדש (העבודה המקורית), גרסת הכתוביות, מתי נשמרה כל גרסה קודמת
     sess: job.sess && job.sess.url ? { url: job.sess.url } : null,
@@ -688,6 +709,7 @@ function publicJob(job, now) {
     gd: normGd(job.gd), gs: JOB_RE.test(String(job.gs || '')) ? job.gs : '', gq: normGq(job.gq), sm: job.sm ? 1 : 0,   // v387: סט הזהב — ייחוס, מקור ההרצה, הציון
     hl: normHl(job.hl, job.fv && job.fv.id),       // איכויות הצפייה (הראשונה = המקור עצמו)
     hla: normHl(job.hl, job.fv && job.fv.id) ? normHla(job.hla) : null,   // 22/10/2026: עותק הקול לנגן (הקול המקורי נשאר במקור)
+    pbn: normPbn(job.pbn, job.pbn && job.pbn.at),   // 24/10/2026: הצריבה בטלפון (תרגום בטלפון)
   };
 }
 /* v387: סט הזהב (Agentic evaluation · golden dataset) — עבודה שהסתיימה + תרגום אנושי לייחוס (קובץ SRT בתיקיית העבודה ב־Drive).
@@ -991,7 +1013,7 @@ function workerJob(job, nm, fb, fm, rl, gl) {
     fb: fb || [],            // v364: ספר התיקונים — תקלות מוכרות עם התיקון שלהן
     ls: job.ls && FP_RE.test(String(job.ls.fp || '')) ? job.ls : null,   // v364: העצירה שלפני ההמשך (לאבחון)
     cap: job.eng === 'api' && job.capc > 0 ? job.capc / 100 : null,   // מצב API: תקרת העבודה ($; נשמרת בסנטים) — כבר אחרי התקציב החודשי שנשאר
-    id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv), s: fileView(job.fsu), c: fileView(job.fc), q: fileView(job.fq) },
+    id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv), s: fileView(job.fsu), c: fileView(job.fc), q: fileView(job.fq), m: fileView(job.fph) },
     qa: job.qa && job.qa.id ? { id: job.qa.id, q: job.qa.q, a: job.qa.a || null, g: job.qa.g || '' } : null,   // v361: גם השאלה — להמשך בסשן חדש
     ck: Array.isArray(job.ck) ? job.ck.map((c) => ({ s: c.s, id: c.id, size: c.size })) : [],   // v361: להמשך (מהאחרונה)
     sh: job.sh && job.sh.n > 0 ? { n: job.sh.n, old: job.sh.old || null } : null,   // v384: מצב צל — המגדל אוכף את הספים הישנים
@@ -1156,7 +1178,7 @@ function normUtl(o) {
   for (const k of UTL_KEYS) { const v = Number(o[k]); if (Number.isFinite(v) && v >= 0 && v <= 1e11) out[k] = Math.round(v); }
   return Object.keys(out).length ? out : null;
 }
-const JSON_FIELDS = ['mon', 'uh', 'sto', 'upv', 'spec','fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'hla', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl', 'pbr'];   // 22/10/2026: pbr = סיכום בדיקת קישור (studioProbe)   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['mon', 'uh', 'sto', 'upv', 'spec','fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'hla', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl', 'pbr', 'fph', 'pbn'];   // 24/10/2026: fph = קובץ המדידות מהטלפון, pbn = הצריבה בטלפון   // 22/10/2026: pbr = סיכום בדיקת קישור (studioProbe)   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -1183,7 +1205,7 @@ function fromFields(f) {
   return o;
 }
 
-module.exports = { SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
+module.exports = { PH_BURN, PH_META_MAX, PH_UP_MAX, normPbn, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,
