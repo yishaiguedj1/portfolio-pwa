@@ -8,7 +8,11 @@
    בלי DOM — התלויות מוזרקות (env), נבדק ב־node (tests/studio-bgup.test.js). */
 export const BG_MIN = 64 * 1024 * 1024;            // סרטון קטן מזה — ההעלאה הרגילה מספיקה (פחות מחלק אחד של Background Fetch)
 export const BG_PREFIX = 'snbup-';                 // מזהה ה־Background Fetch = BG_PREFIX + מזהה העבודה (סרטון אחד לעבודה)
-export const BG_DB = 'snb-bgup';                   // מה שה־service worker צריך כדי לסיים: העבודה, הקובץ, מפתח הסיום, השרתון, השפה
+export const BG_DB = 'snb-bgup';
+/* 24/10/2026 (בטלפון: ההתראה עמדה על 0% עד הסוף): Chrome מראה התקדמות לפי גודל רק כש־downloadTotal > 0 — ואז הסכום הוא
+   ההורדה + ההעלאה, וגם בתים שבדרך נספרים. התשובה של /up לכל חלק היא JSON קטן, ולכן מצהירים על תקרה נדיבה לכל חלק:
+   הצהרה גבוהה מדי לא מזיקה (בסוף Chrome מצמיד את הסכום למה שהגיע), נמוכה מדי — Chrome מכשיל את ההעלאה. */
+export const BG_RESP_MAX = 4096;                   // מה שה־service worker צריך כדי לסיים: העבודה, הקובץ, מפתח הסיום, השרתון, השפה
 const JOB_RE = /^j[A-Za-z0-9_-]{20}$/;
 
 export const bgIdOf = (job) => (JOB_RE.test(String(job || '')) ? BG_PREFIX + job : '');
@@ -66,7 +70,7 @@ export async function bgUpload(o, env) {
     const reqs = plan.map((p) => new env.Request('/up?u=' + encodeURIComponent(p.url), { method: 'POST', body: o.blob.slice(p.start, p.end),
       headers: { 'Content-Type': 'application/octet-stream' } }));
     try {
-      bg = await reg.backgroundFetch.fetch(id, reqs, { title: o.title || 'Studio', icons: o.icon ? [{ src: o.icon, sizes: '192x192', type: 'image/png' }] : [] });
+      bg = await reg.backgroundFetch.fetch(id, reqs, { title: o.title || 'Studio', downloadTotal: plan.length * BG_RESP_MAX, icons: o.icon ? [{ src: o.icon, sizes: '192x192', type: 'image/png' }] : [] });
     } catch (e) {
       await env.del(id);
       return /TypeError/.test(String(e && e.name)) || /body|upload|not supported/i.test(String(e && e.message)) ? { unsupported: true } : { fallback: 'bg_start' };

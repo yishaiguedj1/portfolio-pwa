@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v507';
+const CACHE_NAME = 'portfolio-pwa-v509';
 const HASHES = {
   "./": "930248b23c4f0ec55737671e159c8dbd",
   "./index.html": "930248b23c4f0ec55737671e159c8dbd",
   "./styles.css": "8b3bc2b54c238fd7cf64ea66528b781a",
-  "./app.js": "47083b9f0e37f95a25bee4e247f931bd",
+  "./app.js": "804f5485dff7f7cebd8d63532a48cb27",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "39bf52f7bb220ecf474e77b2572386d3",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -58,7 +58,7 @@ const HASHES = {
   "./academy.html": "e7f536140456bdf6163ff1f094fcfec2",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
   "./strings-academy.js": "136b9fc6bcca283ff68aaa5d92dac198",
-  "./core.js": "bde789e5d2661357d168a98dcd49a73c",
+  "./core.js": "861bbec52ee2436491311b07b75a4616",
   "./auth.js": "556d7250a03993819af63e6ade4382b1",
   "./shell.js": "76e0a41a1583a981587d8c8f44e77b94",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -76,7 +76,7 @@ const HASHES = {
   "./studioedl.js": "6374ccc5beb6a6addf0b8e1ac10ac56f",
   "./studioai.js": "e0a43e7a48c70e3bf5028813acebbf3e",
   "./studiostore.js": "633c4083aebf82cdc389813e65ecee16",
-  "./studiobg.js": "fb8735bcb7cba28d0e651a73323a9433",
+  "./studiobg.js": "90d3be660bd55d863bf98daf7c88c1f8",
   "./studio.html": "e797e443dfa76398884be3d9f012d250",
   "./studio-app.js": "6662977b29d14f543a66a4beb78097c5",
   "./strings-studio.js": "72b0afa8c391e3d06972989c81655dc8",
