@@ -187,4 +187,9 @@
     <string name="dmRemoved">הוסר מהרשימה — הקובץ נשאר</string>
     <string name="dmUndo">ביטול</string>
     <string name="dmOpenWith">פתיחה באפליקציה אחרת</string>
+    <string name="dmUnzip">חילוץ</string>
+    <string name="dmUnzipping">מחלץ…</string>
+    <string name="dmUnzipped">חולצו %1$d קבצים ל־%2$s</string>
+    <string name="dmUnzipBig">הארכיון גדול מדי לחילוץ</string>
+    <string name="dmUnzipFail">החילוץ לא הצליח — הקובץ פגום או מוגן בסיסמה</string>
 </resources>

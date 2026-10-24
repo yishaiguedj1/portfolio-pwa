@@ -90,6 +90,28 @@ object DmMedia {
         f.parentFile?.deleteRecursively()
     }
 
+    /** חילוץ ZIP (DmZip) ל־Download/Studio DM/<שם הארכיון>/… — כל קובץ דרך MediaStore (בלי הרשאות אחסון). מחזיר כמה חולצו */
+    fun extractZip(ctx: Context, t: DmTask): Int {
+        val root = "Download/$DIR/" + DmZip.folderOf(t.name)
+        val cr = ctx.contentResolver
+        val inp = cr.openInputStream(Uri.parse(t.uri)) ?: throw java.io.FileNotFoundException()
+        return inp.use { s ->
+            DmZip.extract(s) { dirs, name, data ->
+                val cv = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+                    put(MediaStore.MediaColumns.MIME_TYPE, mimeFor(name, ""))
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, (listOf(root) + dirs).joinToString("/"))
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+                val u = cr.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv) ?: throw DmSpace()
+                try {
+                    cr.openOutputStream(u, "w")?.use { o -> data.copyTo(o, 1 shl 16) } ?: throw DmSpace()
+                    cr.update(u, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
+                } catch (e: Throwable) { runCatching { cr.delete(u, null, null) }; throw e }
+            }
+        }
+    }
+
     fun delete(ctx: Context, t: DmTask) {
         if (t.uri.isNotEmpty()) runCatching { ctx.contentResolver.delete(Uri.parse(t.uri), null, null) }
     }

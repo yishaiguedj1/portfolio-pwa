@@ -182,4 +182,9 @@
     <string name="dmRemoved">Removed from the list — the file stays</string>
     <string name="dmUndo">Undo</string>
     <string name="dmOpenWith">Open in another app</string>
+    <string name="dmUnzip">Extract</string>
+    <string name="dmUnzipping">Extracting…</string>
+    <string name="dmUnzipped">Extracted %1$d files to %2$s</string>
+    <string name="dmUnzipBig">The archive is too large to extract</string>
+    <string name="dmUnzipFail">Extraction failed — the file is damaged or password-protected</string>
 </resources>

@@ -107,6 +107,16 @@ class DmActivity : ComponentActivity() {
         openWith(t)
     }
 
+    /** חילוץ ZIP ברקע — בסוף הודעה עם מספר הקבצים / הסיבה */
+    fun unzip(t: DmTask) {
+        android.widget.Toast.makeText(this, R.string.dmUnzipping, android.widget.Toast.LENGTH_SHORT).show()
+        Thread {
+            val msg = try { getString(R.string.dmUnzipped, DmMedia.extractZip(this, t), "Download/" + DmMedia.DIR + "/" + DmZip.folderOf(t.name)) }
+                catch (e: DmZip.TooBig) { getString(R.string.dmUnzipBig) } catch (e: DmSpace) { getString(R.string.dmErrSpace) } catch (e: Throwable) { getString(R.string.dmUnzipFail) }
+            runOnUiThread { android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_LONG).show() }
+        }.apply { isDaemon = true }.start()
+    }
+
     /** "פתיחה באפליקציה אחרת" */
     fun openWith(t: DmTask) {
         val i = Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(t.uri), DmMedia.mimeFor(t.name, t.mime))

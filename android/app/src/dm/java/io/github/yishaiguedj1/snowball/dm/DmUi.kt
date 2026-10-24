@@ -358,6 +358,7 @@ private fun TaskRow(a: DmActivity, t: DmTask, onDetails: (String) -> Unit) {
                     DropdownMenuItem({ Text(stringResource(R.string.dmLaterAct)) }, { menu = false; DmEngine.setLater(ctx, t.id, true) })
                 if (t.state == DmState.DONE) DropdownMenuItem({ Text(stringResource(R.string.dmShare)) }, { menu = false; a.share(t) })
                 if (t.state == DmState.DONE) DropdownMenuItem({ Text(stringResource(R.string.dmOpenWith)) }, { menu = false; a.openWith(t) })
+                if (t.state == DmState.DONE && t.name.endsWith(".zip", true)) DropdownMenuItem({ Text(stringResource(R.string.dmUnzip)) }, { menu = false; a.unzip(t) })
                 if (t.state == DmState.DONE && isVideo(t) && a.studioHere()) DropdownMenuItem({ Text(stringResource(R.string.dmTranslate)) }, { menu = false; a.translate(t) })
                 DropdownMenuItem({ Text(stringResource(R.string.dmCopyLink)) }, { menu = false; copy(ctx, t.url) })
                 DropdownMenuItem({ Text(stringResource(R.string.dmRemove)) }, { menu = false; DmEngine.delete(ctx, t.id, false) })
