@@ -136,6 +136,64 @@ class SameFileAsPhone(unittest.TestCase):
         self.assertEqual((o['video']['width'], o['video']['fps'], o['audio']['t0']), (e['w'], e['fps'], e['at0']))
 
 
+FF = __import__('shutil').which('ffmpeg') and __import__('shutil').which('ffprobe')
+KT = Path(__file__).resolve().parents[2] / 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhCore.kt'
+
+
+@unittest.skipUnless(FF, 'אין ffmpeg')
+class BurnSync(unittest.TestCase):
+    """24/10/2026 (בטלפון: הווידאו איחר ב־5 שנ׳ אחרי הקול). הצינור של PhCore: ffmpeg → פריימים nv12 בקצב קבוע → מקודד
+    (כאן libx264 במקום MediaCodec) → אריזה עם הקול מהמקור. מקור שהווידאו בו מתחיל אחרי הקול, וקובץ TS שמתחיל אחרי 0:
+    הבהירות של כל פריים = 8 × הזמן במקור, ולכן בזמן T בתוצר רואים בדיוק את הפריים של זמן T (הקול לא זז)."""
+
+    def run_ff(self, *a):
+        import subprocess
+        return subprocess.run(['ffmpeg', '-hide_banner', '-nostdin', '-y', '-loglevel', 'error', *a], check=True, capture_output=True)
+
+    def luma(self, f, t):
+        import subprocess
+        o = subprocess.run(['ffmpeg', '-hide_banner', '-ss', str(t), '-i', str(f), '-frames:v', '1', '-vf',
+                            'signalstats,metadata=print:key=lavfi.signalstats.YAVG', '-f', 'null', '-'], capture_output=True, text=True).stderr
+        return float(o.split('YAVG=')[1].split()[0])
+
+    def pipeline(self, d, src, fps='24/1', w=160, h=120):
+        import subprocess
+        raw = subprocess.run(['ffmpeg', '-hide_banner', '-nostdin', '-loglevel', 'error', '-i', str(src), '-map', '0:v:0', '-vf', 'format=nv12',
+                              '-fps_mode', 'cfr', '-r', fps, '-an', '-sn', '-f', 'rawvideo', '-pix_fmt', 'nv12', 'pipe:1'], check=True, capture_output=True).stdout
+        (d / 'r.nv12').write_bytes(raw)
+        self.run_ff('-f', 'rawvideo', '-pix_fmt', 'nv12', '-s', f'{w}x{h}', '-r', fps, '-i', str(d / 'r.nv12'), '-c:v', 'libx264', '-bf', '0', str(d / 'v.mp4'))
+        self.run_ff('-i', str(d / 'v.mp4'), '-i', str(src), '-map', '0:v:0', '-map', '1:a:0', '-c:v', 'copy', '-c:a', 'copy', str(d / 'out.mp4'))
+        return d / 'out.mp4'
+
+    def source(self, d):
+        self.run_ff('-f', 'lavfi', '-i', "color=c=gray:s=160x120:r=24,geq=lum='mod(T*8\\,250)':cb=128:cr=128", '-f', 'lavfi', '-i',
+                    'sine=f=440:sample_rate=48000', '-t', '25', '-c:v', 'libx264', '-bf', '3', '-c:a', 'aac', str(d / 'lum.mp4'))
+        return d / 'lum.mp4'
+
+    def test_video_starts_after_audio(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t); lum = self.source(d)
+            self.run_ff('-itsoffset', '4.958', '-i', str(lum), '-i', str(lum), '-map', '0:v', '-map', '1:a', '-c', 'copy', '-t', '25', str(d / 'late.mp4'))
+            out = self.pipeline(d, d / 'late.mp4')
+            for T in (8, 14, 20):
+                self.assertAlmostEqual(self.luma(out, T), 8 * (T - 4.958), delta=2.5, msg=f'T={T}')
+
+    def test_ts_not_starting_at_zero(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t); lum = self.source(d)
+            self.run_ff('-i', str(lum), '-c', 'copy', '-f', 'mpegts', '-output_ts_offset', '1.4', str(d / 'b.ts'))
+            out = self.pipeline(d, d / 'b.ts')
+            for T in (6, 12, 18):
+                self.assertAlmostEqual(self.luma(out, T), 8 * T, delta=2.5, msg=f'T={T}')
+
+    def test_kotlin_has_no_double_shift(self):
+        src = KT.read_text(encoding='utf-8')
+        body = src[src.index('fun burnArgs'):src.index('fun mp4Audio')]
+        self.assertNotIn('setpts', body.split('*/')[-1] if '*/' in body else body)
+        self.assertNotIn('"-itsoffset"', body)
+        self.assertIn('"-fps_mode", "cfr"', body)
+
+
 class Wiring(unittest.TestCase):
     def test_source_rules(self):
         src = Path(job.__file__).read_text(encoding='utf-8')

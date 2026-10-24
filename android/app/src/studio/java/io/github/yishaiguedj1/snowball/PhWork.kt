@@ -108,6 +108,9 @@ object PhWork {
         val small = r.optString("pb") == "small"
         val t0 = System.currentTimeMillis()
         fun rep(o: JSONObject) { try { n.call("phBurn", JSONObject().put("pbn", o)) } catch (e: Throwable) {} }
+        // ההתקדמות נשלחת בתהליכון אחד, לפי הסדר — קריאה לרשת לא עוצרת את הקידוד, ו"הסתיים" לא נדרס ע"י אחוז שהגיע אחריו
+        val q = java.util.concurrent.Executors.newSingleThreadExecutor()
+        fun repDone(o: JSONObject) { q.shutdown(); try { q.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS) } catch (e: Throwable) {}; rep(o) }
         try {
             val f = src(ctx, r)
             r = PhStore.update(ctx, pid) { it.put("st", "burn").remove("e") } ?: r
@@ -134,7 +137,8 @@ object PhWork {
                 PhCore.bitrate(f.length(), info.dur, small), v, File(work, "ff.err"), (info.dur * info.fps).toInt(), stopped) { p ->
                 notify(ctx, progress(ctx, title, s(ctx, R.string.phBurning, (p * 100).toInt().coerceIn(0, 100)), p))
                 val now = System.currentTimeMillis()
-                if (now - lastRep > 15_000) { lastRep = now; rep(JSONObject().put("s", "run").put("p", p * 0.95)) }
+                // כל 5 שנ׳, בתהליכון נפרד — דף העבודה מציג את האחוז, והקריאה לרשת לא עוצרת את הקידוד
+                if (now - lastRep > 5_000) { lastRep = now; val o = JSONObject().put("s", "run").put("p", p * 0.95); q.execute { rep(o) } }
             }
             if (stopped()) throw Stop("stopped")
             if (!res.ok) throw Stop(res.err ?: "encode")
@@ -148,15 +152,15 @@ object PhWork {
             val sz = out.length()
             val uri = DlEngine.publish(ctx, out)                 // Movies/Studio (מוחק את התיקייה הזמנית)
             v.delete()
-            rep(JSONObject().put("s", "done").put("sz", sz).put("ms", System.currentTimeMillis() - t0))
+            repDone(JSONObject().put("s", "done").put("sz", sz).put("ms", System.currentTimeMillis() - t0))
             PhStore.update(ctx, pid) { it.put("st", "done").put("out", uri.toString()) }
             f.delete()                                             // העותק של הסרטון — כבר לא נחוץ
             nm(ctx).cancel(N_ID)
             nm(ctx).notify(N_DONE, savedNotif(ctx, title, uri))
         } catch (e: Throwable) {
             val code = (e as? Stop)?.code ?: (e as? PhNet.Err)?.code ?: "fail"
-            if (code == "stopped" || stopped()) return
-            rep(JSONObject().put("s", "fail").put("e", code))
+            if (code == "stopped" || stopped()) { q.shutdown(); return }
+            repDone(JSONObject().put("s", "fail").put("e", code))
             PhStore.update(ctx, pid) { it.put("e", code).put("st", "err").put("est", "burn") }
             nm(ctx).cancel(N_ID)
             nm(ctx).notify(N_DONE, simple(ctx, s(ctx, R.string.phBurnFailed), title, webIntent(ctx, r, code)))
