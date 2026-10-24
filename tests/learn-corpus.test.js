@@ -128,6 +128,14 @@ const { fakeR2, ACC } = require('./_r2fake');
   const c = await newJob();
   ok((await c.put(body(raw))).saved === true, 'המתג דולק שוב — נשמר');
 
+  /* 24/10/2026: עבודות שעוד בתור — גם בניתוח, לפני האצווה */
+  const atq = await api('atNew', { n: 'test-q' });
+  const lpq = await call({ op: 'learnPull', at: atq.token || atq.at || atq.tok, ci: 5 }, true);
+  ok(lpq.j && lpq.j.ok && lpq.j.corpus.n === 0 && lpq.j.corpus.q === 2 && lpq.j.corpus.items.length === 2 && lpq.j.corpus.items.every((x) => x.q === 1 && /התקשרו/.test(JSON.stringify(x))),
+    'learnPull לפני האצווה: הפריטים מהתור (q:1), עם הטקסט');
+  const lpq1 = await call({ op: 'learnPull', at: atq.token || atq.at || atq.tok, ci: 1 }, true);
+  ok(lpq1.j.corpus.items.length === 1, 'ci מגביל גם את התור');
+
   /* האצווה היומית */
   let w = await call({}, false, true);
   ok(w.j.ok && w.j.lc === 2, 'האצווה: שני הפריטים עברו מהתור');
@@ -139,7 +147,7 @@ const { fakeR2, ACC } = require('./_r2fake');
   const at = await api('atNew', { n: 'test' });
   const tokA = at.token || at.at || at.tok;
   const lp = await call({ op: 'learnPull', at: tokA, ci: 5 }, true);
-  ok(lp.j && lp.j.ok && lp.j.corpus.on && lp.j.corpus.n === 2 && lp.j.corpus.items.length === 2, 'learnPull: המספרים + הפריטים (עם ci)');
+  ok(lp.j && lp.j.ok && lp.j.corpus.on && lp.j.corpus.n === 2 && lp.j.corpus.items.length === 2 && lp.j.corpus.items.every((x) => !x.q), 'learnPull: המספרים + הפריטים (עם ci) — אחרי האצווה בלי q');
   const flat = JSON.stringify(lp.j.corpus.items);
   ok(!/my-private-lecture|ownerUid0001|owner@example|054-123|Dana Levi/.test(flat) && /התקשרו/.test(flat) && /Warren Buffett/.test(flat) && lp.j.corpus.items[0].m === '2026-10', 'הפריטים הפתוחים: הטקסט כן — שום שדה מזהה לא');
   const lp0 = await call({ op: 'learnPull', at: tokA }, true);
