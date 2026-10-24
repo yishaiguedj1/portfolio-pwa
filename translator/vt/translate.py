@@ -194,6 +194,12 @@ def gl_strict(term: str, opts: list[str]) -> bool:
     return t[:1].isupper() and all(len(re.findall(r"\S+", re.sub(r"\s*\([^)]*\)", "", o).strip())) == 1 for o in opts)
 
 
+def _gl_inside(term: str, hit: list[str]) -> bool:
+    """24/10/2026: מונח שמוכל במונח ארוך יותר שנמצא באותה כתובית ("Soviet" בתוך "Soviet Union") — נבדק רק הארוך,
+    אחרת "ברית המועצות" מסומן כחסר "סובייטי"."""
+    return any(len(t2) > len(term) and term_in_en(term, t2) for t2 in hit)
+
+
 def _he_stem(w: str) -> str:
     b = _HE_SUFFIX.sub("", w) if len(w) > 3 else w
     return b
@@ -376,8 +382,9 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
             issues.append(f"- #{k}: שאלה במקור (באמצע הכתובית) — בתרגום אין סימן שאלה, לוודא שלא הושמטה")
             stats["questions"] += 1
         near = " ".join(normalize_he(str(he.get(str(x["id"]), ""))) for x in cues[max(0, ci - 1):ci + 2])
+        hit = [t2 for t2, _o in glossary if term_in_en(t2, en)]
         for term, opts in glossary:
-            if term_in_en(term, en):
+            if term in hit and not _gl_inside(term, hit):
                 if not any(gl_found(o, txt) or gl_found(o, near) for o in opts):
                     if gl_strict(term, opts):
                         issues.append(f"- #{k}: מונח '{term}' — לפי המילון: {' / '.join(opts)}")

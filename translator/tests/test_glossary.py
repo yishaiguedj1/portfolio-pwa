@@ -31,6 +31,30 @@ class Strict(unittest.TestCase):
         self.assertEqual(stats['glossary'], 1)
         self.assertEqual(stats['glossary_soft'], 1)
 
+    def test_nested_term_checked_once(self):
+        # שורה נפרדת למדינה ולתואר (ההוראה החדשה למתכנן): "Soviet Union" לא מסמן חוסר של "סובייטי"
+        cues = [{'id': 1, 'en': 'The Soviet Union collapsed.', 's': 0, 'e': 3, 'budget': 84},
+                {'id': 2, 'en': 'The Soviet economy was planned.', 's': 3, 'e': 6, 'budget': 84}]
+        he = {'1': 'ברית המועצות קרסה.', '2': 'הכלכלה הסובייטית הייתה מתוכננת.'}
+        gl = [('Soviet Union', ['ברית המועצות']), ('Soviet', ['סובייטי', 'סובייטית', 'סובייטיים'])]
+        issues, stats = check(cues, he, gl)
+        self.assertEqual(issues, [])                       # גם "הסובייטית" (ה' הידיעה) נמצא
+        self.assertEqual(stats['glossary'] + stats['glossary_soft'], 0)
+        he['1'] = 'המדינה קרסה.'
+        issues, _ = check(cues, he, gl)
+        self.assertEqual(len(issues), 1)
+        self.assertIn("'Soviet Union'", issues[0])
+
+    def test_prompts(self):
+        self.assertNotIn('כפי שהם', pipeline.TL_TASK)     # 24/10/2026: לא כופים — מתאימים את הצורה למשפט
+        self.assertIn('מתאימים למשפט', pipeline.TL_TASK)
+        self.assertIn('לא כופים', pipeline.TL_TASK)
+        for t in (pipeline.PROOF_TASK, pipeline.SUBS_TASK):
+            self.assertIn('Soviet Union = ברית המועצות', t)
+            self.assertIn('שורה נפרדת', t)
+        md = (Path(__file__).resolve().parent.parent / 'TRANSLATE.md').read_text(encoding='utf-8')
+        self.assertNotIn('כפי שהם', md)
+
 
 class NoGlossary(unittest.TestCase):
     def test_write_glossary(self):
