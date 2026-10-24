@@ -1956,7 +1956,7 @@ async function worker(req, res, body, deps) {
       // 22/10/2026: קובץ כתוביות (בלי תמלול ויישור) לא מלמד את הצפי ואת "הרגיל" של עבודות מסרטון — שלבים וזמנים אחרים
       const smp = S.normSample(job, up.use || job.use, now);
       // 10/10/2026: וגם כמה לקח כל שלב — מזה נלמד הצפי (studioeta.js)
-      const es = job.spec && job.spec.xe ? null : ETA.etaSample(Object.assign({}, job, up), now);   // 24/10/2026: ניסוי המאמץ לא מלמד את הצפי
+      const es = job.spec && (job.spec.xe || job.spec.xg) ? null : ETA.etaSample(Object.assign({}, job, up), now);   // 24/10/2026: ניסוי המאמץ לא מלמד את הצפי
       if (smp || es) {
         const st0 = await readStats(deps, job.uid);
         const patchS = { updated: now };
@@ -2668,9 +2668,12 @@ async function handler(req, res, deps = {}) {
       const gsrc = S.goldSources(all).filter((j) => !body.src || j.id === body.src);
       const xe = body.xe != null ? S.normXe(body.xe) : null;   // 24/10/2026: ניסוי המאמץ — רק מנהל (מרכז הניהול)
       if (body.xe != null && (!xe || !isAdmin(user))) return res.status(xe ? 403 : 400).json({ ok: false, error: xe ? 'admin' : 'bad_params' });
+      const xg = body.xg === true;   // 24/10/2026: ניסוי "בלי מילון מונחים" — גם הוא רק מנהל
+      if (xg && !isAdmin(user)) return res.status(403).json({ ok: false, error: 'admin' });
       // both = לכל מצב גם הרצה רגילה וגם הרצה בניסוי (השוואה על אותו סרטון, באותו זמן)
-      const vars = xe ? (body.both === true ? [null, xe] : [xe]) : [null];
-      const src = (modes.length ? modes.flatMap((m) => vars.map((x) => [gsrc[0], m, x])) : gsrc.map((j) => [j, null, xe])).filter((x) => x[0]).slice(0, S.GOLD_MAX);
+      const vx = xe || xg ? { xe, xg: xg ? 1 : 0 } : null;
+      const vars = vx ? (body.both === true ? [null, vx] : [vx]) : [null];
+      const src = (modes.length ? modes.flatMap((m) => vars.map((x) => [gsrc[0], m, x])) : gsrc.map((j) => [j, null, vx])).filter((x) => x[0]).slice(0, S.GOLD_MAX);
       if (!src.length) return res.status(400).json({ ok: false, error: 'no_gold' });
       if (all.some((j) => j.gs && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'gold_busy' });   // הרצה קודמת עוד פתוחה
       if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length + src.length > S.maxActive(isAdmin(user))) return res.status(409).json({ ok: false, error: 'too_many' });   // הסקירה: לא לעקוף את MAX_ACTIVE

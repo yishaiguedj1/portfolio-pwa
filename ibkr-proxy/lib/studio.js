@@ -368,7 +368,7 @@ const normFixed = (eng) => (engKey(eng) === 'a' ? NORM_FIXED_API : NORM_FIXED);
 function normSample(job, use, now) {
   const sp = job && job.spec;
   if (!job || job.kind !== 'tr' || (job.fires || 0) > 1 || !sp || !MODES.includes(sp.mode) || !(sp.dur > 0)) return null;
-  if (sp.xe) return null;   // 24/10/2026: ניסוי המאמץ — לא מה שהמצב עולה בדרך כלל
+  if (sp.xe || sp.xg) return null;   // 24/10/2026: ניסוי המאמץ / בלי מילון — לא מה שהמצב עולה בדרך כלל
   if (!Array.isArray(use) || !use.length || use.some((r) => r.usd == null)) return null;   // מודל בלי מחירון — לא יודעים כמה עלה
   const u = use.reduce((s, r) => s + (r.usd || 0), 0);
   if (!(u > 0) || u > 1e4) return null;
@@ -796,9 +796,11 @@ function goldClone(src, id, uid, now, mode, xe) {
   const gd = normGd(src.gd), spec = Object.assign({}, src.spec, { out }, mode ? { mode: modeNow(mode) } : {});
   // 24/10/2026: ההשוואה בין המצבים רצה על השרת של המערכת — בלי ה־Routine (ry) ובלי העתק־הדבק (cp), כך שכל ההרצות
   // באותם תנאים ולא תלויות בסשן של המשתמש; הניסוי (xe) רק כשנבחר
-  delete spec.ry; delete spec.cp; delete spec.xe;
-  const x = normXe(xe);
+  delete spec.ry; delete spec.cp; delete spec.xe; delete spec.xg;
+  const v = xe && (xe.xe || xe.xg) ? xe : { xe };   // וריאנט: { xe, xg } (או מאמץ לבד — הצורה הישנה)
+  const x = normXe(v.xe);
   if (x) spec.xe = x;
+  if (v.xg === 1) spec.xg = 1;   // 24/10/2026: ניסוי "בלי מילון מונחים" — העובד כותב glossary.tsv בלי מונחים
   return { id, uid, kind: 'tr', state: 'new', created: now, updated: now, spec, fa: src.fa || null, fv: src.fv || null, folder: src.folder, gs: src.id, gr: gd ? gd.r : '' };
 }
 /* פריט 13 (21/10/2026): עבודת בדיקה אחרי עדכון של העובד — הדקה הראשונה של עבודת הזהב, רק SRT, במצב ברירת המחדל.

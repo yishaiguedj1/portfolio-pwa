@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1069 מפתחות מתוך 3966) */
+/* המחרוזות של admin (1072 מפתחות מתוך 3969) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -310,6 +310,9 @@ he: {
   "admGoldXeS": "כל מצב שנבחר רץ פעם רגילה ופעם בניסוי — כדי להשוות",
   "admGoldXeTag": "ניסוי מאמץ",
   "admGoldXeTagAll": "ניסוי מאמץ + תרגום",
+  "admGoldXg": "ניסוי: בלי מילון מונחים",
+  "admGoldXgS": "כל מצב רץ פעמיים — רגיל ובלי מילון. כך רואים כמה המילון באמת תורם.",
+  "admGoldXgTag": "בלי מילון",
   "admHrAgo": "לפני {n} שעות",
   "admHrU": " שע׳",
   "admI_ai_after": "גיליון ה־AI אחרי העבודה",
@@ -1381,6 +1384,9 @@ en: {
   "admGoldXeS": "Each selected mode runs once normally and once in the experiment — to compare",
   "admGoldXeTag": "effort test",
   "admGoldXeTagAll": "effort test + translation",
+  "admGoldXg": "Experiment: no glossary",
+  "admGoldXgS": "Each mode runs twice — normal and without a glossary — to see how much the glossary really helps.",
+  "admGoldXgTag": "no glossary",
   "admHrAgo": "{n} hours ago",
   "admHrU": " h",
   "admI_ai_after": "AI sheet after the job",

@@ -182,6 +182,18 @@ def term_in_en(term: str, en: str) -> bool:
     return re.search(r"(?<![a-z])" + re.escape(term.lower()) + r"(?![a-z])", text.lower()) is not None
 
 
+def gl_strict(term: str, opts: list[str]) -> bool:
+    """24/10/2026: אילו מונחים מהמילון נאכפים (סימון + סבב תיקון). רק: מונח של כמה מילים, ראשי תיבות, או שם במילה אחת
+    שמתורגם למילה אחת (Uber = אובר). מילה אחת שתרגומה תלוי בהקשר ("data", או "Soviet" = ברית המועצות כשבהקשר צריך
+    "סובייטית") — רק המלצה: בעבודה אמיתית הכפייה שברה משפט ("ברית המועצות. כלכלה מתוכננת" במקום "כלכלה סובייטית")."""
+    t = term.strip()
+    if " " in t or "-" in t:
+        return True
+    if len(t) >= 2 and t.upper() == t and any(ch.isalpha() for ch in t):
+        return True
+    return t[:1].isupper() and all(len(re.findall(r"\S+", re.sub(r"\s*\([^)]*\)", "", o).strip())) == 1 for o in opts)
+
+
 def _he_stem(w: str) -> str:
     b = _HE_SUFFIX.sub("", w) if len(w) > 3 else w
     return b
@@ -270,7 +282,7 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
     """בדיקת התרגום מול התכנון. מחזיר (שורות דוח, סיכום)."""
     issues: list[str] = []
     stats = {"total": len(cues), "translated": 0, "missing": 0, "over_budget": 0,
-             "numbers": 0, "latin": 0, "glossary": 0, "questions": 0, "short": 0, "style": 0, "errors": 0, "drift": 0}
+             "numbers": 0, "latin": 0, "glossary": 0, "glossary_soft": 0, "questions": 0, "short": 0, "style": 0, "errors": 0, "drift": 0}
     ids = {str(c["id"]) for c in cues}
     for k in he:
         if k not in ids:
@@ -367,8 +379,11 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
         for term, opts in glossary:
             if term_in_en(term, en):
                 if not any(gl_found(o, txt) or gl_found(o, near) for o in opts):
-                    issues.append(f"- #{k}: מונח '{term}' — לפי המילון: {' / '.join(opts)}")
-                    stats["glossary"] += 1
+                    if gl_strict(term, opts):
+                        issues.append(f"- #{k}: מונח '{term}' — לפי המילון: {' / '.join(opts)}")
+                        stats["glossary"] += 1
+                    else:
+                        stats["glossary_soft"] += 1   # מילה אחת שהתרגום שלה תלוי בהקשר — המלצה בלבד, בלי סבב תיקון
         if "..." in t:
             issues.append(f"- #{k}: '...' — להשתמש בתו … (ינורמל אוטומטית)")
     return issues, stats

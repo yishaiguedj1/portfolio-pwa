@@ -206,6 +206,19 @@ def clean_glossary(text: str) -> str:
     return '\n'.join(rows)
 
 
+def write_glossary(td: Path, text: str, spec) -> str:
+    """tr/glossary.tsv מהמקטע GLOSSARY. 24/10/2026: spec.xg = ניסוי "בלי מילון" (סט הזהב) — הקובץ בלי מונחים,
+    כדי למדוד כמה המילון באמת תורם (אותה הגהה ואותו פרומפט — רק בלי השורות)."""
+    gl = '' if no_glossary(spec) else clean_glossary(text)
+    head = (HERE / 'templates' / 'glossary.tsv').read_text(encoding='utf-8').rstrip('\n')
+    (td / 'glossary.tsv').write_text(head + ('\n' + gl if gl else '') + '\n', encoding='utf-8')
+    return gl
+
+
+def no_glossary(spec) -> bool:
+    return isinstance(spec, dict) and spec.get('xg') == 1
+
+
 def parse_questions(text: str) -> list[dict]:
     """JSON: [{"q": "...", "opts": ["..."], "default": 0}] — לכל היותר 2, טקסט קצר בלבד."""
     m = re.search(r'\[.*\]', text, re.S)
@@ -371,6 +384,10 @@ PROOF_TASK = """המשימה: הגהה של תמליל אנגלי אוטומטי
 
 === GLOSSARY ===
 מונחים ושמות שחייבים להיות עקביים: שורה לכל מונח, `אנגלית<TAB>עברית` (חלופות מותרות מופרדות ב־/).
+מה נכנס: שמות (אנשים, מוסדות, חברות, מוצרים, מקומות ואזורים) ומונחים מקצועיים שאפשר לתרגם ביותר מדרך אחת.
+שם רשמי — מלא ובנוסח המקובל בעברית (Karolinska Institute = מכון קרולינסקה); אזור — בנוסח המקובל
+(Sub-Saharan Africa = אפריקה שמדרום לסהרה). שם תואר/לאום — כל הצורות כחלופות (Soviet = סובייטי/סובייטית/ברית המועצות).
+מה לא נכנס: מילים כלליות שהתרגום שלהן תלוי בהקשר (data, money, growth).
 
 === QUESTIONS ===
 מערך JSON של לכל היותר 2 שאלות למשתמש, רק ספק אמיתי שאי אפשר להכריע מהתמליל (כתיב שם של דובר, מגדר של דובר):
@@ -387,6 +404,10 @@ SUBS_TASK = """המשימה: הכנה לתרגום של קובץ כתוביות 
 
 === GLOSSARY ===
 מונחים ושמות שחייבים להיות עקביים: שורה לכל מונח, `אנגלית<TAB>עברית` (חלופות מותרות מופרדות ב־/).
+מה נכנס: שמות (אנשים, מוסדות, חברות, מוצרים, מקומות ואזורים) ומונחים מקצועיים שאפשר לתרגם ביותר מדרך אחת.
+שם רשמי — מלא ובנוסח המקובל בעברית (Karolinska Institute = מכון קרולינסקה); אזור — בנוסח המקובל
+(Sub-Saharan Africa = אפריקה שמדרום לסהרה). שם תואר/לאום — כל הצורות כחלופות (Soviet = סובייטי/סובייטית/ברית המועצות).
+מה לא נכנס: מילים כלליות שהתרגום שלהן תלוי בהקשר (data, money, growth).
 
 === QUESTIONS ===
 מערך JSON של לכל היותר 2 שאלות למשתמש, רק ספק אמיתי שאי אפשר להכריע מהטקסט (מגדר של דמות מרכזית, כתיב של שם):
@@ -498,9 +519,7 @@ class Pipeline:
         td.mkdir(parents=True, exist_ok=True)
         if sec.get('BRIEF', '').strip():
             (td / 'brief.md').write_text(sec['BRIEF'].strip() + '\n', encoding='utf-8')
-        gl = clean_glossary(sec.get('GLOSSARY', ''))
-        head = (HERE / 'templates' / 'glossary.tsv').read_text(encoding='utf-8').rstrip('\n')
-        (td / 'glossary.tsv').write_text(head + ('\n' + gl if gl else '') + '\n', encoding='utf-8')
+        gl = write_glossary(td, sec.get('GLOSSARY', ''), ctx.st.get('spec'))
         why = {}
         for d in dropped:
             why[d.split(':', 1)[0]] = why.get(d.split(':', 1)[0], 0) + 1
@@ -536,9 +555,7 @@ class Pipeline:
         td.mkdir(parents=True, exist_ok=True)
         if sec.get('BRIEF', '').strip():
             (td / 'brief.md').write_text(sec['BRIEF'].strip() + '\n', encoding='utf-8')
-        gl = clean_glossary(sec.get('GLOSSARY', ''))
-        head = (HERE / 'templates' / 'glossary.tsv').read_text(encoding='utf-8').rstrip('\n')
-        (td / 'glossary.tsv').write_text(head + ('\n' + gl if gl else '') + '\n', encoding='utf-8')
+        gl = write_glossary(td, sec.get('GLOSSARY', ''), ctx.st.get('spec'))
         print(f'✓ תדריך מהכתוביות · מילון: {len(gl.splitlines()) if gl else 0} מונחים')
         return parse_questions(sec.get('QUESTIONS', ''))
 
