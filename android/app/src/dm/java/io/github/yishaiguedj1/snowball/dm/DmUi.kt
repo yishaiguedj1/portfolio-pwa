@@ -489,6 +489,9 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                     if (DmLink.all(url).size == 1 && DmImport.parse(url) !is DmImport.Parsed.Backup) scope.launch { check() }
                 }) { Icon(DmIcons.Paste, stringResource(R.string.dmPaste)) } })
             Spacer(Modifier.height(14.dp))
+            // כבר ברשימה (24/10): אותו קישור הורד / בתור — אזהרה, לא חסימה (אפשר להוריד שוב באיכות אחרת)
+            val dup = remember(url) { DmLink.first(url).let { u -> u.isNotEmpty() && refTask == null && DmStore.has(u) } }
+            if (dup && !multi) Text(stringResource(R.string.dmDup), color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))
             if (multi) BatchBlock(a, parsed, ref, onClose)
             else when (val f = found) {
                 null -> if (busy) Row(verticalAlignment = Alignment.CenterVertically) {

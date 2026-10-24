@@ -81,6 +81,7 @@
             android:name=".dm.DmService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <receiver android:name=".dm.DmAct" android:exported="false" />
         <receiver android:name=".dm.DmBoot" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

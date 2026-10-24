@@ -181,4 +181,5 @@
     <plurals name="dmPlGo"><item quantity="one">להוריד סרטון אחד</item><item quantity="two">להוריד שני סרטונים</item><item quantity="other">להוריד %1$d סרטונים</item></plurals>
     <string name="dmSubs">עם כתוביות</string>
     <string name="dmSubsAuto">אוטומטיות</string>
+    <string name="dmDup">הקישור הזה כבר ברשימת ההורדות שלך.</string>
 </resources>

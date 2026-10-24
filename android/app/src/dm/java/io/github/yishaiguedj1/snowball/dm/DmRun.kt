@@ -127,6 +127,15 @@ class DmService : Service() {
     companion object { @Volatile var active = false }
 }
 
+/** כפתור בהתראה (24/10): "לעצור הכל" — בלי לפתוח את האפליקציה. לא מיוצא — רק ההתראה שלנו שולחת אליו */
+class DmAct : BroadcastReceiver() {
+    override fun onReceive(ctx: Context, intent: Intent) {
+        DmStore.init(ctx)
+        if (intent.action == PAUSE_ALL) DmEngine.pauseAll(ctx)
+    }
+    companion object { const val PAUSE_ALL = "app.thesnowball.studiodm.PAUSE_ALL" }
+}
+
 /** אחרי אתחול: לא מתחילים ברקע (אנדרואיד 15 אוסר dataSync מ־BOOT_COMPLETED) — התראה "ממתינות", נגיעה = המשך */
 class DmBoot : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
@@ -165,6 +174,7 @@ object DmNotif {
             .setContentTitle(title.ifEmpty { ctx.getString(R.string.app_name) })
             .setContentText((if (pct >= 0) "$pct% · " else "") + DmFmt.speed(ctx, sp))
             .setOngoing(true).setOnlyAlertOnce(true).setContentIntent(openApp(ctx))
+            .addAction(0, ctx.getString(R.string.dmPauseAll), PendingIntent.getBroadcast(ctx, 7, Intent(ctx, DmAct::class.java).setAction(DmAct.PAUSE_ALL), PendingIntent.FLAG_IMMUTABLE))
             .setProgress(100, pct.coerceAtLeast(0), pct < 0).build()
     }
 
