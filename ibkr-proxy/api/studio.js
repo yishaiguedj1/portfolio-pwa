@@ -949,10 +949,12 @@ async function usageSnap(deps, now) {
   const f = deps.fetch || fetch;
   // 24/10/2026: האחסון לפי מקום — R2 לכל דלי, ו־Drive של הגיבוי. פעם בשעה (stoAt), בנפרד מההיסטוריה — בלי טוקנים
   // של ספקים ההיסטוריה לא גדלה ו־histDue נשאר אמת, אבל לא שואלים את Drive כל 10 דק׳. תקלה כאן לא מפילה את ההיסטוריה
-  const set = {};
-  if (!(now - (+cfg.stoAt || 0) < USG.STO_GAP)) {
+  // חותמת לפי מי שמודד: מופע עם CF_USAGE_TOKEN (Vercel) — stoAt; בלי (השרתון שלנו) — רק Drive, בחותמת משלו (stdAt),
+  // כדי שהשרתון, שרץ כל 10 דק׳, לא יחסום את המדידה של R2 ב־Vercel (שמגיע לכאן רק מדי כמה שעות)
+  const set = {}, stamp = process.env.CF_USAGE_TOKEN ? 'stoAt' : 'stdAt';
+  if (!(now - (+cfg[stamp] || 0) < USG.STO_GAP)) {
     set.sto = await storeSnap(deps, f, now, cfg.sto).catch(() => cfg.sto || null);
-    set.stoAt = now;
+    set[stamp] = now;
   }
   let n = 0;
   if (USG.histDue(cfg.uh, now)) {
