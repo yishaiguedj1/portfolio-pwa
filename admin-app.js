@@ -595,7 +595,8 @@ function storeRows(S, servers) {
         v: usd(C.proj), tr: fmt(t('admStoCostMtd'), { m: usd(C.mtd) }) }));
     }
     for (const b of r2.b) out.push(row({ c: 'gray', ic: '▤', t: (STO_NAME[b.name] || (() => b.name))(), s: b.n == null ? b.name : fmt(t('admStoFiles'), { n: b.n.toLocaleString(lang === 'he' ? 'he-IL' : 'en-US') }), v: gbTxt(b.gb) }));
-  } else out.push(row({ c: 'gray', ic: '☁', t: t('admStoR2'), s: t('admStoR2Off') }));
+  } else if (S && S.r2e) out.push(row({ c: 'red', ic: '!', t: t('admStoR2'), s: provErr(S.r2e.err) + ' · ' + fmt(t('admStoAt'), { a: ago(S.r2e.at * 1000) }) }));
+  else out.push(row({ c: 'gray', ic: '☁', t: t('admStoR2'), s: t('admStoR2Off') }));
   if (dr && dr.gb != null) {
     const pc = dr.lim ? Math.round(dr.gb / dr.lim * 100) : null;
     out.push(row({ c: pc == null ? 'blue' : colOf(pc), ic: '◫', t: t('admStoDrive'), s: (dr.lim ? fmt(t('admStoOf'), { u: gbTxt(dr.gb), l: gbTxt(dr.lim) }) : gbTxt(dr.gb)) + ' · ' + fmt(t('admStoAt'), { a: ago(dr.at * 1000) }), v: pc == null ? '' : pc + '%', meter: pc == null ? null : meterOf(pc) }));
@@ -609,13 +610,16 @@ function storeRows(S, servers) {
 }
 const PROV_NAME = { vercel: () => t('admProvVercel'), r2: () => t('admProvR2'), fs: () => t('admProvFs') };
 const PROV_ITEM = { bw: () => t('admProvBw'), inv: () => t('admProvInv'), store: () => t('admProvStore'), ops: () => t('admProvOps'), reads: () => t('admProvReads'), writes: () => t('admProvWrites') };
+// 24/10/2026: קוד שגיאה → משפט (403 של Google: API כבוי / חסר תפקיד); אחר — "שגיאה · קוד"
+const provErr = (e) => (e === 'api_off' ? t('admProvApiOff') : e === 'http_403' ? t('admProvNoRole') : t('admProvErr') + ' · ' + (e || ''));
 function provRow(name, P, skip) {
   if (!P || P.st === 'off') return row({ c: 'gray', ic: '☁', t: name, s: t('admProvOff') });
-  if (P.st === 'err') return row({ c: 'red', ic: '!', t: name, s: t('admProvErr') + ' · ' + (P.err || '') });
+  const at = P.at ? ' · ' + fmt(t('admStoAt'), { a: ago(P.at * 1000) }) : '';   // נמדד ב־Vercel ונשמר (upv)
+  if (P.st === 'err') return row({ c: 'red', ic: '!', t: name, s: provErr(P.err) + at });
   const items = (P.items || []).filter((x) => !skip || !skip.includes(x.k));
   const parts = items.filter((x) => x.used != null).map((x) => (PROV_ITEM[x.k] || (() => x.k))() + ': ' + fmt(t('admProvOf'), { u: String(x.used), l: x.lim }) + ' ' + x.unit);
   const worst = Math.max(0, ...items.map((x) => x.pct || 0));
-  return row({ c: worst >= 80 ? 'orange' : 'green', ic: '☁', t: name, s: parts.join(' · ') || (skip ? '' : t('admProvOff')), v: worst ? Math.round(worst) + '%' : '', meter: worst ? [worst, worst >= 80 ? 'w' : ''] : null });
+  return row({ c: worst >= 80 ? 'orange' : 'green', ic: '☁', t: name, s: (parts.join(' · ') || (skip ? '' : t('admProvOff'))) + (parts.length ? at : ''), v: worst ? Math.round(worst) + '%' : '', meter: worst ? [worst, worst >= 80 ? 'w' : ''] : null });
 }
 page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
   if (!D.monT) needMon();

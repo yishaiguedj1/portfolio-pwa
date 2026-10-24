@@ -57,7 +57,17 @@ class MonServer(
     val hb: MonHb?,
 )
 
-class MonSnap(val now: Long, val servers: List<MonServer>, val jobs: Int)
+/** 24/10/2026: האחסון והעלות (adminMon.sto). ערך חסר = NaN / "" */
+class MonSto(
+    val r2Gb: Double,     // כל הדליים של R2 (GB)
+    val proj: Double,     // צפי העלות של R2 לחודש ($)
+    val mtd: Double,      // עד היום ($)
+    val r2Err: String,    // קוד השגיאה האחרונה במדידה, או ""
+    val driveGb: Double,  // הגיבוי ב־Drive (GB)
+    val driveLim: Double, // המכסה של ה־Drive (GB)
+)
+
+class MonSnap(val now: Long, val servers: List<MonServer>, val jobs: Int, val sto: MonSto? = null)
 
 object MonParse {
     /** מחזיר null אם ok=false או שהמבנה לא תקין (לא זורק) */
@@ -72,10 +82,24 @@ object MonParse {
                 now = o.optLong("now", 0L),
                 servers = List(arr.length()) { arr.getJSONObject(it).toServer() },
                 jobs = m.optJSONArray("jobs")?.length() ?: 0,
+                sto = o.optJSONObject("sto")?.toSto(),
             )
         } catch (e: Exception) {
             null
         }
+    }
+
+    private fun JSONObject.toSto(): MonSto {
+        val r2 = optJSONObject("r2")
+        val dr = optJSONObject("drive")
+        return MonSto(
+            r2Gb = r2?.optDouble("gb", Double.NaN) ?: Double.NaN,
+            proj = r2?.optDouble("proj", Double.NaN) ?: Double.NaN,
+            mtd = r2?.optDouble("mtd", Double.NaN) ?: Double.NaN,
+            r2Err = optString("r2e"),
+            driveGb = dr?.optDouble("gb", Double.NaN) ?: Double.NaN,
+            driveLim = dr?.optDouble("lim", Double.NaN) ?: Double.NaN,
+        )
     }
 
     private fun JSONObject.toServer(): MonServer {

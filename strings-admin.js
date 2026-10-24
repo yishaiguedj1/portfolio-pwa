@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1072 מפתחות מתוך 3969) */
+/* המחרוזות של admin (1074 מפתחות מתוך 3994) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -636,11 +636,13 @@ he: {
   "admPerMin": "לדקה",
   "admPerMo": "בחודש",
   "admPrev": "קודם: {n}",
+  "admProvApiOff": "ה־API כבוי בפרויקט",
   "admProvBw": "תעבורה",
   "admProvErr": "שגיאה",
   "admProvFs": "Firestore",
   "admProvHist": "היסטוריה — עד 31 ימים",
   "admProvInv": "קריאות לפונקציות",
+  "admProvNoRole": "אין הרשאה (403)",
   "admProvNote": "מכסות חינמיות לפי התיעוד של הספקים. נתון חסר לא מוצג",
   "admProvOf": "{u} מתוך {l}",
   "admProvOff": "לא מוגדר — צריך טוקן",
@@ -1710,11 +1712,13 @@ en: {
   "admPerMin": "per min",
   "admPerMo": "a month",
   "admPrev": "before: {n}",
+  "admProvApiOff": "API is turned off in the project",
   "admProvBw": "Bandwidth",
   "admProvErr": "Error",
   "admProvFs": "Firestore",
   "admProvHist": "History — up to 31 days",
   "admProvInv": "Function calls",
+  "admProvNoRole": "No permission (403)",
   "admProvNote": "Free-tier quotas from the providers' docs. Missing data is not shown",
   "admProvOf": "{u} of {l}",
   "admProvOff": "Not set up — token needed",
