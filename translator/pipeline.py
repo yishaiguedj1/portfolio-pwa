@@ -1054,6 +1054,7 @@ def run_auto(jobmod, args) -> int:
         eng = llm.ManualEngine(lambda k, text: J.cp_round(J.Ctx(J.load_state()), k, text))
     else:
         eng = llm.Engine(llm.Spec.of(mode), cap_usd=float(cap) if cap else DEFAULT_CAP_USD)
+        eng.role_effort = llm.norm_xe((st.get('spec') or {}).get('xe'))   # 24/10/2026: ניסוי המאמץ (סט הזהב)
     if hasattr(J, 'LIVE_USAGE'):
         J.LIVE_USAGE = eng.ledger.list             # 21/10/2026: העלות בזמן ריצה, וגם בכשל של שלב הכלים (usage_safe)
     ns = SimpleNamespace(force=False)
