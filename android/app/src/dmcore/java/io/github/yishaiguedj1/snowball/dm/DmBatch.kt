@@ -102,3 +102,13 @@ object DmHostRules {
 
     fun dump(m: Map<String, Int>): String = m.entries.toList().takeLast(MAX_HOSTS).joinToString(";") { "${it.key}=${it.value}" }
 }
+
+/** חיפוש ברשימת ההורדות (24/10): כל המילים בשאילתה מופיעות באחד השדות (שם, כותרת, אתר), בלי תלות באותיות גדולות/קטנות */
+object DmFind {
+    fun match(q: String, vararg fields: String): Boolean {
+        val words = q.lowercase().split(Regex("\\s+")).filter { it.isNotEmpty() }
+        if (words.isEmpty()) return true
+        val hay = fields.joinToString(" ") { it.lowercase() }
+        return words.all { hay.contains(it) }
+    }
+}

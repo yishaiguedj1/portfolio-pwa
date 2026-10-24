@@ -177,4 +177,8 @@
     <string name="dmSubs">With subtitles</string>
     <string name="dmSubsAuto">auto-generated</string>
     <string name="dmDup">This link is already in your downloads.</string>
+    <string name="dmSearch">Search downloads</string>
+    <string name="dmNoMatch">No downloads found</string>
+    <string name="dmRemoved">Removed from the list — the file stays</string>
+    <string name="dmUndo">Undo</string>
 </resources>

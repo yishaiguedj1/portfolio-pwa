@@ -56,6 +56,13 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -170,13 +177,26 @@ fun DmApp(a: DmActivity) {
 }
 
 /* ---------- הורדות ---------- */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Downloads(a: DmActivity, rev: Int, onDetails: (String) -> Unit) {
     val all = remember(rev) { DmStore.all() }
-    val active = all.filter { it.state != DmState.DONE }
-    val done = all.filter { it.state == DmState.DONE }.sortedByDescending { it.finishedAt }
+    // חיפוש (24/10, מפת המסכים בדוח: "חיפוש רק מ־10 פריטים") — שם, כותרת או אתר
+    var q by remember { mutableStateOf("") }
+    val shown = remember(rev, q) { if (q.isBlank()) all else all.filter { t -> DmFind.match(q, t.name, t.title, DmLink.host(t.url)) } }
+    val active = shown.filter { it.state != DmState.DONE }
+    val done = shown.filter { it.state == DmState.DONE }.sortedByDescending { it.finishedAt }
     val clip by a.clipUrl
+    val snack = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
+    Box(Modifier.fillMaxSize()) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (all.size >= 10) item {
+            OutlinedTextField(q, { q = it }, Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(24.dp),
+                placeholder = { Text(stringResource(R.string.dmSearch)) }, leadingIcon = { Icon(DmIcons.Search, null) },
+                trailingIcon = { if (q.isNotEmpty()) IconButton(onClick = { q = "" }) { Icon(DmIcons.Close, stringResource(R.string.dmClose)) } })
+        }
         if (clip.isNotEmpty()) item {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.padding(16.dp)) {
@@ -190,9 +210,28 @@ private fun Downloads(a: DmActivity, rev: Int, onDetails: (String) -> Unit) {
             }
         }
         if (all.isEmpty()) item { Empty(a) }
+        if (all.isNotEmpty() && shown.isEmpty()) item { Text(stringResource(R.string.dmNoMatch), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(8.dp)) }
         item { SignInCard(a) }
         if (active.isNotEmpty()) { item { Section(stringResource(R.string.dmActive)) }; items(active, key = { it.id }) { TaskRow(a, it, onDetails) } }
-        if (done.isNotEmpty()) { item { Section(stringResource(R.string.dmDone)) }; items(done.take(50), key = { it.id }) { TaskRow(a, it, onDetails) } }
+        if (done.isNotEmpty()) { item { Section(stringResource(R.string.dmDone)) }; items(done.take(50), key = { it.id }) { t ->
+            // החלקה = הסרה מהרשימה (הקובץ נשאר), עם "בטל" — כמו בדואר של Apple
+            val st = rememberSwipeToDismissBoxState(confirmValueChange = { v ->
+                if (v != SwipeToDismissBoxValue.Settled) {
+                    DmStore.remove(t.id)
+                    scope.launch {
+                        val r = snack.showSnackbar(ctx.getString(R.string.dmRemoved), ctx.getString(R.string.dmUndo), duration = SnackbarDuration.Short)
+                        if (r == SnackbarResult.ActionPerformed) DmStore.add(t)
+                    }
+                    true
+                } else false
+            })
+            SwipeToDismissBox(st, backgroundContent = {
+                Box(Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.errorContainer).padding(horizontal = 20.dp),
+                    contentAlignment = Alignment.CenterEnd) { Icon(DmIcons.Delete, null, tint = MaterialTheme.colorScheme.onErrorContainer) }
+            }) { TaskRow(a, t, onDetails) }
+        } }
+    }
+    SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).padding(16.dp))
     }
 }
 
