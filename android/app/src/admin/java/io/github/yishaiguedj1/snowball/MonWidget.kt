@@ -241,7 +241,7 @@ private fun ServerBlock(context: Context, s: MonServer, compact: Boolean, first:
 
 /** מדד אחד: הערך בגדול, השם מתחתיו ופס דק. חורג מהסף = כתום */
 @Composable
-private fun Metric(label: String, v: Double, warn: Boolean, color: ColorProvider, mod: GlanceModifier) {
+private fun Metric(label: String, v: Double, warn: Boolean, color: androidx.glance.unit.ColorProvider, mod: GlanceModifier) {
     Column(mod) {
         Text(
             pct(v), style = TextStyle(color = if (warn) C.warn else C.on, fontSize = 22.sp, fontWeight = FontWeight.Bold),
