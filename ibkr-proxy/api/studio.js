@@ -476,10 +476,20 @@ async function learnCorpusView(deps, items) {
   const out = Object.assign({ on: true }, LC.corpusStats(keys));
   if (items > 0) {
     const list = [];
-    for (const it of keys.filter((k) => (LC.parseKey(k.key) || {}).kind === 'c').sort((a, b) => (a.key < b.key ? 1 : -1)).slice(0, Math.min(items, 20))) {
+    // 24/10/2026 (בקשת המשתמש): גם עבודות שעוד בתור (q/) — עד האצווה היומית עבודה שהסתיימה עכשיו לא נראתה בניתוח.
+    // התור קודם (החדשות), ואחריו c/ מהחדש לישן; אותה עבודה פעם אחת. q:1 = עוד לא עברה באצווה
+    const rank = (k) => (k.lastModified ? Date.parse(k.lastModified) || 0 : 0);
+    const qd = keys.filter((k) => (LC.parseKey(k.key) || {}).kind === 'q').sort((a, b) => rank(b) - rank(a));
+    const cd = keys.filter((k) => (LC.parseKey(k.key) || {}).kind === 'c').sort((a, b) => (a.key < b.key ? 1 : -1));
+    const seen = new Set();
+    for (const it of [...qd, ...cd]) {
+      if (list.length >= Math.min(items, 20)) break;
       const p = LC.parseKey(it.key);
+      if (seen.has(p.lid)) continue;
       const x = vault.open(await R2.getText(c, rd, it.key, LC_MAX_BODY * 2), 'learn|' + p.lid);
       if (!x) continue;
+      seen.add(p.lid);
+      if (p.kind === 'q') x.q = 1;
       const ek = keys.find((k) => { const q = LC.parseKey(k.key); return q && q.lid === p.lid && (q.kind === 'e' || q.kind === 'qe'); });   // מ׳3: העריכות של אותה עבודה
       const ed = ek ? vault.open(await R2.getText(c, rd, ek.key, LE_MAX * 3), 'learn|' + p.lid) : null;
       list.push(Object.assign({ id: p.lid }, x, ed ? { ed: ed.ss } : {}));
