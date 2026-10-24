@@ -96,6 +96,7 @@ class LabActivity : ComponentActivity() {
                     LabModels.fetch(this, g, { false }) { n, d, t ->
                         runOnUiThread { dl.value = "$n · ${d / 1048576}/${if (t > 0) t / 1048576 else "?"}MB" }
                     }
+                    runOnUiThread { tick.value++ }   // ✓ ליד כל מודל ברגע שהוא מוכן, לא רק בסוף
                 }
                 runOnUiThread { dl.value = "המודלים מוכנים" }
             } catch (e: Throwable) {

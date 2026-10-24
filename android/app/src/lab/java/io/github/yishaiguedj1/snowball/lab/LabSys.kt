@@ -57,7 +57,8 @@ object LabSys {
     fun heat(ctx: Context): String {
         val pm = ctx.getSystemService(PowerManager::class.java)
         val st = pm.currentThermalStatus
-        val head = if (Build.VERSION.SDK_INT >= 30) pm.getThermalHeadroom(10).let { if (it.isNaN()) "?" else Fmt.n(it.toDouble(), 2) } else "?"
+        // מרווח 0 כשהמצב כבר מעל "ללא" = הטלפון לא מדווח מרווח (נמדד ב־OnePlus 24/10) — לא מציגים מספר שגוי
+        val head = if (Build.VERSION.SDK_INT >= 30) pm.getThermalHeadroom(10).let { if (it.isNaN() || it <= 0f && st > 0) "?" else Fmt.n(it.toDouble(), 2) } else "?"
         val b = ctx.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         val temp = (b?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0) ?: 0) / 10.0
         val lvl = b?.let { it.getIntExtra(BatteryManager.EXTRA_LEVEL, 0) * 100 / maxOf(1, it.getIntExtra(BatteryManager.EXTRA_SCALE, 100)) } ?: 0
