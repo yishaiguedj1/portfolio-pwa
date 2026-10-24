@@ -2,7 +2,7 @@
 <resources>
     <string name="assetStatements" translatable="false">[{\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://admin.thesnowball.app\"}}]</string>
 
-    <string name="mon_title">Admin monitor</string>
+    <string name="mon_title">Servers</string>
     <string name="mon_widget_label">Admin monitor</string>
     <string name="mon_widget_desc">Server metrics in near real time: CPU, memory, disk and network per server. Tap ↻ to refresh.</string>
     <string name="mon_updated">Updated %1$s</string>
@@ -18,17 +18,20 @@
     <string name="mon_auth_bad">Token invalid — reconnect in settings</string>
     <string name="mon_loading">Loading…</string>
     <string name="mon_no_servers">No servers reporting</string>
-    <string name="mon_st_on">Online</string>
+    <string name="mon_st_on">OK</string>
     <string name="mon_st_paused">Paused</string>
     <string name="mon_st_off">Offline</string>
-    <string name="mon_st_warn">Warning: %1$s</string>
-    <string name="mon_st_busy">Working on a job</string>
+    <string name="mon_st_warn">Over: %1$s</string>
+    <string name="mon_st_busy">Working</string>
     <string name="mon_w_cu">CPU</string>
     <string name="mon_w_mem">memory</string>
     <string name="mon_w_disk">disk</string>
     <string name="mon_w_psi">pressure</string>
-    <string name="mon_metrics">CPU %1$s · RAM %2$s · Disk %3$s</string>
     <string name="mon_net">Net ↓ %1$s ↑ %2$s</string>
+    <string name="mon_l_cu">CPU</string>
+    <string name="mon_l_mem">Memory</string>
+    <string name="mon_l_disk">Disk</string>
+    <string name="mon_free">%1$s free</string>
     <string name="mon_no_data">No metrics</string>
 
     <string name="mon_cfg_title">Admin monitor connection</string>

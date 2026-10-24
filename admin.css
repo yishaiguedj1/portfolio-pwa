@@ -134,23 +134,35 @@ html[data-app="admin"] .appbar .brand-logo { width: 64px; height: 64px; }
 :root[data-theme="dark"] .adm-tf small.dn { color: #FF453A; }
 
 /* ---- ניטור שרתים (22/10/2026): כרטיס לכל שרת, ארבעה גרפים קטנים בשורה — ב־320px נכנסים שניים בשורה ---- */
-.adm-mon-card { background: var(--surface); border: 1px solid var(--card-border); border-radius: var(--radius-sm); padding: 12px; margin: 8px 0 12px; box-shadow: var(--shadow); }
-.adm-mon-hd { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
-.adm-mon-hd b { font-weight: 600; }
-.adm-mon-st { margin-inline-start: auto; font-size: 13px; color: var(--on-surface-var); }
-.adm-mon-dot { width: 9px; height: 9px; border-radius: 50%; background: #8E8E93; flex: none; }
-.adm-mon-green { background: #30D158; }
-.adm-mon-orange { background: #F5A524; }
-.adm-mon-red { background: #FF453A; }
-.adm-mon-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px 16px; }
-.adm-mon-blk { min-width: 0; }
-.adm-mon-top { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; font-size: 13px; color: var(--on-surface-var); margin-bottom: 4px; }
-.adm-mon-top b { color: var(--on-surface); font-weight: 600; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
-.adm-mon-w { color: #FF453A !important; }
-.adm-mon-svg { display: block; width: 100%; height: 64px; overflow: visible; }
-.adm-mon-none { height: 64px; display: grid; place-items: center; font-size: 12px; color: var(--on-surface-var); border: 1px dashed var(--card-border); border-radius: var(--radius-xs); }
 
 /* מתג טווח הגרפים (24 שעות / 31 ימים) — 23/10/2026 */
-.adm-rng { display: flex; gap: 6px; margin: 4px 0 10px; }
-.adm-rng-b { border: 1px solid var(--card-border); background: transparent; color: var(--on-surface-var); border-radius: var(--pill); padding: 6px 14px; font: inherit; font-size: 13px; cursor: pointer; }
-.adm-rng-b.on { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+
+/* 24/10/2026 — ניטור השרתים בעיצוב חדש (בקשת המשתמש: "כתב קריא, נקי כמו Apple"): כרטיס לכל שרת, שורה לכל מדד —
+   שם + ממוצע/שיא, גרף קטן, הערך הנוכחי בגדול. הסף מסומן רק כשחורגים */
+.adm-seg { display: flex; padding: 3px; margin: 2px 0 12px; border-radius: 10px; background: color-mix(in srgb, var(--on-surface) 8%, transparent); }
+.adm-seg-b { flex: 1; border: 0; background: transparent; color: var(--on-surface); font: inherit; font-size: 15px; font-weight: 600; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+.adm-seg-b.on { background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.adm-sv { background: var(--surface); border-radius: 16px; box-shadow: var(--shadow); padding: 4px 16px; margin: 0 0 14px; }
+.adm-sv-hd { display: flex; align-items: center; gap: 12px; padding: 12px 0 10px; }
+.adm-sv-nm { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.adm-sv-nm b { font-size: 19px; font-weight: 700; letter-spacing: -.2px; overflow-wrap: anywhere; }
+.adm-sv-nm small { font-size: 14px; color: var(--on-surface-var); }
+.adm-sv-st { flex: none; font-size: 14px; font-weight: 650; padding: 5px 11px; border-radius: var(--pill); }
+.adm-sv-green { color: #1a8a3a; background: color-mix(in srgb, #30D158 18%, transparent); }
+.adm-sv-orange { color: #b25e00; background: color-mix(in srgb, #FF9F0A 20%, transparent); }
+.adm-sv-gray { color: var(--on-surface-var); background: color-mix(in srgb, var(--on-surface) 9%, transparent); }
+:root[data-theme="dark"] .adm-sv-green { color: #30D158; }
+:root[data-theme="dark"] .adm-sv-orange { color: #FF9F0A; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .adm-sv-green { color: #30D158; } :root:not([data-theme="light"]) .adm-sv-orange { color: #FF9F0A; } }
+.adm-mr { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid color-mix(in srgb, var(--on-surface) 9%, transparent); }
+.adm-sv-hd + .adm-mr { border-top-color: color-mix(in srgb, var(--on-surface) 12%, transparent); }
+.adm-sv > .adm-mr:first-child { border-top: 0; }
+.adm-mr-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.adm-mr-tx b { font-size: 17px; font-weight: 600; }
+.adm-mr-tx small { font-size: 13.5px; line-height: 1.35; color: var(--on-surface-var); }
+.adm-mr-g { flex: none; width: 76px; height: 32px; }
+.adm-mr-v { flex: none; min-width: 64px; text-align: end; font-size: 24px; font-weight: 700; letter-spacing: -.4px; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
+.adm-mr.warn .adm-mr-v { color: #FF9F0A; }
+.adm-mr-v small { font-size: 14px; font-weight: 600; letter-spacing: 0; color: var(--on-surface-var); margin-inline-start: 3px; }
+.adm-mon-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+@media (max-width: 360px) { .adm-mr-g { width: 56px; } .adm-mr-v { min-width: 56px; font-size: 21px; } }

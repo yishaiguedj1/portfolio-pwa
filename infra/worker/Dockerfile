@@ -85,14 +85,8 @@ RUN HF_HOME=/tmp/hf HF_HUB_DISABLE_TELEMETRY=1 /opt/vt/bin/python -c \
 
 # ---------------------------------------------------------------- התמונה הסופית
 FROM ${PY_IMAGE}
-ARG FFMPEG_SHA256_AMD64
-ARG FFMPEG_SHA256_ARM64
-# הקומיט שממנו נבנתה התמונה — מוצג במסך השרת באפליקציה (הדופק)
-ARG SNB_VERSION=dev
-LABEL org.opencontainers.image.source=https://github.com/yishaiguedj1/portfolio-pwa \
-      org.opencontainers.image.description="THE SNOWBALL — העובד של סטודיו התרגום" \
-      snb.ffmpeg.sha256.amd64=${FFMPEG_SHA256_AMD64} \
-      snb.ffmpeg.sha256.arm64=${FFMPEG_SHA256_ARM64}
+# 24/10/2026: ARG שמשתנה בכל בנייה (הקומיט, ה־sha של ffmpeg) נכנס לסביבה של כל RUN אחריו ומבטל את המטמון שלו —
+# לכן הם אחרי השכבות הכבדות (ראו למטה), כדי שבנייה חדשה תחלוק איתן שכבות ולא תתפוס עוד ~5GB בשרת.
 # רק מה שצריך: תעודות CA ו־tini. בלי curl, בלי compilers, בלי shell נוסף.
 RUN apt-get update -qq \
  && apt-get install -y -qq --no-install-recommends ca-certificates tini >/dev/null \
@@ -106,11 +100,11 @@ COPY --from=aligner /opt/aligner /opt/aligner
 COPY --from=speaker /opt/speaker /opt/speaker
 COPY --chown=root:root translator /app/translator
 # 16/10/2026: הגדרת השרת לעדכון ידני בלי שרת חדש — נתונים בלבד, שום דבר לא מריץ אותם לבד (infra/worker/snb-host-apply)
-COPY --chown=root:root infra/host/snb-common.sh infra/compose.yaml /opt/snb-host/
+COPY --chown=root:root infra/host/snb-common.sh infra/compose.yaml infra/host/snb-update /opt/snb-host/
 COPY --chown=root:root --chmod=755 infra/worker/snb-host-apply /opt/snb-host/apply
 RUN rm -rf /app/translator/tests /app/translator/research /app/translator/__pycache__ \
  && find /app /opt/aligner /opt/speaker -type d -exec chmod 755 {} + && find /app /opt/aligner /opt/speaker -type f -exec chmod 644 {} + \
- && chmod 644 /opt/snb-host/snb-common.sh /opt/snb-host/compose.yaml
+ && chmod 644 /opt/snb-host/snb-common.sh /opt/snb-host/compose.yaml /opt/snb-host/snb-update
 # 20/10/2026: בדיקת עשן מול הספריות האמיתיות שבתמונה (הבדיקות ב־CI רצות בלי anthropic) — בניית הלקוח של Claude
 # בלי רשת. anthropic 1.x עבר ל־httpx2 ודחה httpx.Timeout ב־TypeError: כל עבודה בשרת קרסה בקריאה הראשונה, והבנייה עברה
 # 22/10/2026: הורדה מקישור — yt-dlp רואה את Deno (מנוע ה־JavaScript של יוטיוב) ואת ההתחזות לדפדפן, בלי רשת
@@ -120,6 +114,14 @@ RUN cd /app/translator && ANTHROPIC_API_KEY=build-check /opt/vt/bin/python -B -c
  && cd /app/translator && /opt/vt/bin/python -B -c \
     "from vt import diarize as d; p = d.model_path(); assert p, 'speaker model'; import numpy as n; assert d.Embedder(p)(n.zeros(16000, 'float32') + 1e-3).shape == (256,)"
 
+ARG FFMPEG_SHA256_AMD64
+ARG FFMPEG_SHA256_ARM64
+# הקומיט שממנו נבנתה התמונה — מוצג במסך השרת באפליקציה (הדופק)
+ARG SNB_VERSION=dev
+LABEL org.opencontainers.image.source=https://github.com/yishaiguedj1/portfolio-pwa \
+      org.opencontainers.image.description="THE SNOWBALL — העובד של סטודיו התרגום" \
+      snb.ffmpeg.sha256.amd64=${FFMPEG_SHA256_AMD64} \
+      snb.ffmpeg.sha256.arm64=${FFMPEG_SHA256_ARM64}
 ENV PATH=/opt/vt/bin:/opt/ffmpeg:/opt/deno:/usr/local/bin:/usr/bin:/bin \
     PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 \
     HOME=/tmp \
