@@ -105,30 +105,52 @@ object LabRun {
         val ass = File(work, "t.ass").apply { writeText(TestAss.build(o.burnSec.toDouble(), "Assistant SemiBold", w, h)) }
         val sec = minOf(dur, o.burnSec.toDouble())
         val br = (input.length() * 8 / maxOf(1.0, dur) * 0.9).toLong().coerceIn(2_000_000, 20_000_000)
-        val tries = buildList {
-            if ("hevc_mediacodec" in have) add("hevc_mediacodec" to listOf("-c:v", "hevc_mediacodec", "-b:v", "$br"))
-            if ("h264_mediacodec" in have) add("h264_mediacodec" to listOf("-c:v", "h264_mediacodec", "-b:v", "${br * 3 / 2}"))
-            if ("av1_mediacodec" in have) add("av1_mediacodec" to listOf("-c:v", "av1_mediacodec", "-b:v", "${br * 3 / 4}"))
+        val hw = listOf("hevc_mediacodec" to br, "h264_mediacodec" to br * 3 / 2, "av1_mediacodec" to br * 3 / 4).filter { it.first in have }
+        val sw = buildList {
             if ("libsvtav1" in have) add("libsvtav1 p10" to listOf("-c:v", "libsvtav1", "-preset", "10", "-crf", "32"))
             if ("libx264" in have) add("libx264 veryfast" to listOf("-c:v", "libx264", "-preset", "veryfast", "-crf", "22"))
         }
         val vf = "subtitles=${ass.absolutePath}:fontsdir=${fonts.absolutePath}"
-        for ((lbl, codec) in tries) {
+        val out = File(work, "b.mp4")
+        fun burn(lbl: String, pix: String, codec: List<String>, s: Double, extra: List<String> = emptyList()): LabFf.Out {
+            out.delete()
+            return LabFf.run(ctx, listOf("-hide_banner", "-nostdin", "-y") + extra + listOf("-t", Fmt.n(s, 0), "-i", input.absolutePath, "-vf", "$vf,format=$pix") +
+                codec + listOf("-an", out.absolutePath))
+        }
+        fun okLine(lbl: String, pix: String, b: LabFf.Out) =
+            r("4. צריבה $lbl ($pix, ${Fmt.dur(sec)}): ${Fmt.n(b.ms / 1000.0)} שנ׳ = ${Fmt.n(sec / (b.ms / 1000.0), 2)}x זמן אמת (${Fmt.perHour(b.ms / 1000.0, sec)}) · " +
+                "${b.fps?.let { Fmt.n(it, 0) } ?: "?"}fps · ${Fmt.mb(out.length())} · שיא ${b.peakChildKb / 1024}MB · ${LabSys.heat(ctx)}")
+
+        // מקודדי החומרה: קודם ניסיון קצר (5 שנ׳) בכמה צורות, עם השגיאה המלאה; רק מה שעבר נמדד על כל [burnSec]
+        for ((name, rate) in hw) {
+            ck()
+            st("צריבה · $name")
+            val variants = listOf(
+                Triple("nv12 · NDK", "nv12", listOf("-ndk_codec", "1")),
+                Triple("yuv420p · NDK", "yuv420p", listOf("-ndk_codec", "1")),
+                Triple("nv12", "nv12", emptyList()),
+                Triple("nv12 · NDK · ‏CQ", "nv12", listOf("-ndk_codec", "1", "-bitrate_mode", "cq")),
+            )
+            var won: Triple<String, String, List<String>>? = null
+            for (v in variants) {
+                ck()
+                val codec = listOf("-c:v", name, "-b:v", "$rate") + v.third
+                val b = burn(name, v.second, codec, minOf(5.0, sec), listOf("-loglevel", "verbose"))
+                if (b.code == 0 && out.length() > 0) { won = v; r("4. $name · ${v.first}: ✓ בניסיון הקצר"); break }
+                r("4. $name · ${v.first}: ✕ קוד ${b.code}")
+                for (l in FfLine.errors(b.text, 6)) r("   $l")
+            }
+            val w = won ?: continue
+            val b = burn(name, w.second, listOf("-c:v", name, "-b:v", "$rate") + w.third, sec)
+            if (b.code == 0 && out.length() > 0) okLine("$name (${w.first})", w.second, b)
+            else { r("4. צריבה $name: ✕ קוד ${b.code} במדידה המלאה"); for (l in FfLine.errors(b.text, 6)) r("   $l") }
+        }
+        for ((lbl, codec) in sw) {
             ck()
             st("צריבה · $lbl")
-            for (pix in listOf("yuv420p", "nv12")) {
-                val out = File(work, "b.mp4"); out.delete()
-                val b = LabFf.run(ctx, listOf("-hide_banner", "-nostdin", "-y", "-t", Fmt.n(sec, 0), "-i", input.absolutePath, "-vf", "$vf,format=$pix") +
-                    codec + listOf("-c:a", "copy", out.absolutePath))
-                if (b.code == 0 && out.length() > 0) {
-                    r("4. צריבה $lbl ($pix, ${Fmt.dur(sec)}): ${Fmt.n(b.ms / 1000.0)} שנ׳ = ${Fmt.n(sec / (b.ms / 1000.0), 2)}x זמן אמת (${Fmt.perHour(b.ms / 1000.0, sec)}) · " +
-                        "${b.fps?.let { Fmt.n(it, 0) } ?: "?"}fps · ${Fmt.mb(out.length())} · שיא ${b.peakChildKb / 1024}MB · ${LabSys.heat(ctx)}")
-                    break
-                } else if (pix == "nv12" || b.code != 0 && !b.text.contains("pixel format", true)) {
-                    r("4. צריבה $lbl: ✕ קוד ${b.code} · ${b.last.takeLast(2).joinToString(" | ").take(200)}")
-                    break
-                }
-            }
+            val b = burn(lbl, "yuv420p", codec, sec)
+            if (b.code == 0 && out.length() > 0) okLine(lbl, "yuv420p", b)
+            else { r("4. צריבה $lbl: ✕ קוד ${b.code}"); for (l in FfLine.errors(b.text, 6)) r("   $l") }
         }
         File(work, "b.mp4").delete()
     }

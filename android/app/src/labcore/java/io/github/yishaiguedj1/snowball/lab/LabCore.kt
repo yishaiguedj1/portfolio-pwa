@@ -153,6 +153,20 @@ object FfLine {
 
     /** הפלט של ffmpeg -encoders: אילו מקודדים קיימים מתוך הרשימה */
     fun encoders(text: String, want: List<String>): List<String> = want.filter { e -> Regex("""^\s*V\S*\s+$e\b""", RegexOption.MULTILINE).containsMatchIn(text) }
+
+    private val ERR = Regex("""mediacodec|error|fail|invalid|unsupported|not supported|unable|could not|cannot|no such|denied""", RegexOption.IGNORE_CASE)
+    private val NOISE = Regex("""^\s*(Stream #|Input #|Output #|Metadata:|Duration:|encoder\s*:|handler_name|vendor_id|Press \[q\])""")
+
+    /** השורות שמסבירות כישלון (גם מ־‎-loglevel verbose): בלי התקדמות ובלי כפולים, האחרונות [n], עד 180 תווים כל אחת */
+    fun errors(text: String, n: Int): List<String> {
+        val seen = LinkedHashSet<String>()
+        for (l in text.lineSequence()) {
+            val t = l.trim()
+            if (t.isEmpty() || parse(t) != null || NOISE.containsMatchIn(t) || !ERR.containsMatchIn(t)) continue
+            seen.remove(t); seen.add(t.take(180))
+        }
+        return seen.toList().takeLast(n)
+    }
 }
 
 /** WAV PCM 16-bit (מה ש־ffmpeg כותב עם ‎-ac 1 -ar 16000) → float ב־[-1,1]. רק הטווח שביקשו (שניות) */
