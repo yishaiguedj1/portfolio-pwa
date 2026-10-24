@@ -8,7 +8,7 @@
 #   2. לא מחליפים עובד באמצע עבודה (/work/.busy של אותו עובד). השרתון מוחלף מיד.
 #   3. מושכים את התג ולוקחים את ה־digest — מאז רק לפי digest (תג יכול לזוז, digest לא).
 #   4. מאמתים חתימה: נבנה ונחתם ב־workflow של אותה תמונה מהענף הראשי של הריפו. אחרת — נשארים בגרסה הקודמת.
-#   5. כותבים את ה־digest ל־/opt/snb/.env ומפעילים מחדש (רק מה שהשתנה). התמונות הישנות נמחקות אחרי שבוע.
+#   5. כותבים את ה־digest ל־/opt/snb/.env ומפעילים מחדש (רק מה שהשתנה). תמונה שאף קונטיינר לא משתמש בה — נמחקת מיד.
 set -eu
 # shellcheck source=snb-common.sh
 . /usr/local/lib/snb/common.sh
@@ -73,4 +73,8 @@ if [ -n "$REF" ] && { [ "$SNB_RUNTIME" = runsc ] || [ -e "$SNB_RT_OK.bad" ]; }; 
 	fi
 fi
 snb_compose up -d --remove-orphans --quiet-pull >/dev/null 2>&1 || snb_compose up -d --remove-orphans
-docker image prune -af --filter "until=168h" >/dev/null 2>&1 || true
+# 24/10/2026: עד היום נמחקו רק תמונות בנות יותר משבוע. כל מיזוג בונה תמונת עובד חדשה (~5GB פתוחה, כמעט בלי שכבות
+# משותפות) והניסוי מושך אותה — עשרות תמונות ישנות מילאו את הדיסק מעל 80%. חזרה לגרסה קודמת היא משיכה לפי digest,
+# לא עותק מקומי, ועובד שעוד רץ על גרסה ישנה (עבודה באמצע) מחזיק את התמונה שלו — prune לא נוגע בה.
+docker image prune -af >/dev/null 2>&1 || true
+docker builder prune -af >/dev/null 2>&1 || true

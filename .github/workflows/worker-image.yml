@@ -15,6 +15,7 @@ on:
       - 'translator/**'
       - 'infra/worker/**'
       - 'infra/host/snb-common.sh'   # נארז בתמונה לעדכון ידני של הגדרת השרת (snb-host-apply)
+      - 'infra/host/snb-update'
       - 'infra/compose.yaml'
       - '.github/workflows/worker-image.yml'
   workflow_dispatch:
@@ -88,6 +89,8 @@ jobs:
             --build-arg FFMPEG_SHA256_AMD64="$FF_AMD64" --build-arg FFMPEG_SHA256_ARM64="$FF_ARM64" \
             --build-arg DENO_SHA256_AMD64="$DN_AMD64" --build-arg DENO_SHA256_ARM64="$DN_ARM64" \
             --build-arg SNB_VERSION="$GITHUB_SHA" \
+            --cache-from "type=registry,ref=$IMAGE:buildcache-$ARCH" \
+            --cache-to "type=registry,ref=$IMAGE:buildcache-$ARCH,mode=max" \
             -f infra/worker/Dockerfile -t "$IMAGE:sha-${GITHUB_SHA}-$ARCH" .
           docker logout ghcr.io
 
