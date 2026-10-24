@@ -357,6 +357,7 @@ private fun TaskRow(a: DmActivity, t: DmTask, onDetails: (String) -> Unit) {
                 if ((t.state == DmState.QUEUED || t.state == DmState.WAITING || t.state == DmState.PAUSED) && !t.later)
                     DropdownMenuItem({ Text(stringResource(R.string.dmLaterAct)) }, { menu = false; DmEngine.setLater(ctx, t.id, true) })
                 if (t.state == DmState.DONE) DropdownMenuItem({ Text(stringResource(R.string.dmShare)) }, { menu = false; a.share(t) })
+                if (t.state == DmState.DONE) DropdownMenuItem({ Text(stringResource(R.string.dmOpenWith)) }, { menu = false; a.openWith(t) })
                 if (t.state == DmState.DONE && isVideo(t) && a.studioHere()) DropdownMenuItem({ Text(stringResource(R.string.dmTranslate)) }, { menu = false; a.translate(t) })
                 DropdownMenuItem({ Text(stringResource(R.string.dmCopyLink)) }, { menu = false; copy(ctx, t.url) })
                 DropdownMenuItem({ Text(stringResource(R.string.dmRemove)) }, { menu = false; DmEngine.delete(ctx, t.id, false) })

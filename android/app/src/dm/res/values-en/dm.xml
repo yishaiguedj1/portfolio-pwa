@@ -181,4 +181,5 @@
     <string name="dmNoMatch">No downloads found</string>
     <string name="dmRemoved">Removed from the list — the file stays</string>
     <string name="dmUndo">Undo</string>
+    <string name="dmOpenWith">Open in another app</string>
 </resources>

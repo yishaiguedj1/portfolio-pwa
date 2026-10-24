@@ -99,6 +99,16 @@ class DmActivity : ComponentActivity() {
     }
 
     fun open(t: DmTask) {
+        // סרטון וקול — בנגן שלנו (DmPlayer); כל השאר — באפליקציה שמתאימה לסוג
+        val cat = if (t.kind == DmKind.YTDL) (if (t.audioOnly) DmName.Cat.AUDIO else DmName.Cat.VIDEO) else DmName.cat(t.name, t.mime)
+        if ((cat == DmName.Cat.VIDEO || cat == DmName.Cat.AUDIO) && t.uri.startsWith("content://")) {
+            if (runCatching { startActivity(Intent(this, DmPlayer::class.java).setData(Uri.parse(t.uri)).putExtra(DmPlayer.EXTRA_TITLE, t.title.ifEmpty { t.name })) }.isSuccess) return
+        }
+        openWith(t)
+    }
+
+    /** "פתיחה באפליקציה אחרת" */
+    fun openWith(t: DmTask) {
         val i = Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(t.uri), DmMedia.mimeFor(t.name, t.mime))
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         runCatching { startActivity(i) }

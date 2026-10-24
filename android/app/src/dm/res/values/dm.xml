@@ -186,4 +186,5 @@
     <string name="dmNoMatch">לא נמצאו הורדות</string>
     <string name="dmRemoved">הוסר מהרשימה — הקובץ נשאר</string>
     <string name="dmUndo">ביטול</string>
+    <string name="dmOpenWith">פתיחה באפליקציה אחרת</string>
 </resources>
