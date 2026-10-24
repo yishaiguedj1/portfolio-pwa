@@ -34,4 +34,31 @@
     <string name="dlShare">Share</string>
     <string name="dlOpen">Open</string>
     <string name="huntAuto">Couldn\'t find the video directly — play it here and Studio will catch it</string>
+    <!-- 24/10/2026: תרגום בטלפון (PhActivity, PhService) -->
+    <string name="phTitle">Translate on the phone</string>
+    <string name="phChannel">Translate on the phone</string>
+    <string name="phPrep">Starting…</string>
+    <string name="phPickT">Choose the video</string>
+    <string name="phPickS">The video stays on the phone — only the audio and small measurements are uploaded</string>
+    <string name="phCopyT">Preparing the video…</string>
+    <string name="phCopyS">A copy in Studio\'s storage (only until the burn)</string>
+    <string name="phProbe">Measuring the video…</string>
+    <string name="phAudio">Extracting the audio (no re-encoding)…</string>
+    <string name="phUpA">Uploading the audio</string>
+    <string name="phStart">Starting the translation on the server…</string>
+    <string name="phShots">Detecting shot changes (while the server transcribes)…</string>
+    <string name="phUpM">Sending the measurements</string>
+    <string name="phSent">Translation is running on the server</string>
+    <string name="phSentS">The video stays on the phone. When the translation is ready, tap \"Burn on the phone\" on the job page</string>
+    <string name="phFailed">Translating on the phone stopped</string>
+    <string name="phGoT">Continuing in the background</string>
+    <string name="phGoS">You can go back to Studio — progress is in the notification</string>
+    <string name="phGone">The video is no longer on the phone — choose it again</string>
+    <string name="phBusy">Another job is still running on the phone</string>
+    <string name="phBurnGo">Burning on the phone</string>
+    <string name="phBurnPrep">Preparing the burn…</string>
+    <string name="phBurning">Burning the subtitles · %1$d%%</string>
+    <string name="phSaving">Saving to Movies/Studio…</string>
+    <string name="phBurned">The translated video is ready</string>
+    <string name="phBurnFailed">Burning on the phone failed</string>
 </resources>

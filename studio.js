@@ -151,6 +151,33 @@ export function normCp(x) {
   return { n: x.n, r: x.r, f: x.f, at: num(x.at), a: x.a === true };
 }
 /* עבודה (שלב 2): הפרטים ששלחנו לשרתון, מצב ההעלאה בטלפון (כתובות ההעלאה של Drive, כמה עלה) והמצב האחרון מהשרתון */
+/* 24/10/2026 — תרגום בטלפון (שלב 1): הסרטון לא עוזב את הטלפון. Studio לאנדרואיד (PhActivity/PhService) בוחר אותו, מחלץ את
+   הקול, מודד (ffprobe + השוטים), מעלה רק אותם במפתח של העבודה (op:'phKey'), ובסוף צורב בעצמו (MediaCodec). האתר רק יוצר את
+   העבודה ומוסר. pb — מה הטלפון צורב (same / small); הצריבה מדווחת ב־pbn (**normPbn זהה לשרתון**) */
+export const PH_BURN = ['same', 'small'];
+const PH_PID_RE = /^p[0-9a-f]{16}$/;
+export function normPbn(o) {
+  if (!o || typeof o !== 'object' || !['run', 'done', 'fail'].includes(o.s)) return null;
+  const out = { s: o.s, p: o.s === 'done' ? 1 : Math.max(0, Math.min(1, Number(o.p) || 0)), at: num(o.at) };
+  if (o.s === 'fail' && /^[a-z0-9_]{2,32}$/.test(String(o.e || ''))) out.e = o.e;
+  if (o.s === 'done' && num(o.sz) > 0) out.sz = num(o.sz);
+  return out;
+}
+/* ‎#phpick=<pid>.<base64url של JSON> מ־PhActivity (או ‎!<קוד>) → { pid, name, size, dur, w, h } / { e } / null. טהור */
+export function parsePhPick(arg) {
+  const a = String(arg || '');
+  const m = /^!([a-z_]{1,20})$/.exec(a);
+  if (m) return { e: m[1] };
+  const k = /^(p[0-9a-f]{16})\.([A-Za-z0-9_-]{8,6000})$/.exec(a);
+  if (!k) return null;
+  let o = null;
+  try { o = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(k[2].replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((k[2].length + 3) % 4)), (c) => c.charCodeAt(0)))); } catch (e) { return null; }
+  if (!o || o.pid !== k[1]) return null;
+  const size = Math.floor(Number(o.size) || 0), dur = Number(o.dur) || 0;
+  if (!(size > 0)) return null;
+  return { pid: k[1], name: String(o.name || 'video.mp4').replace(/[\u0000-\u001f]/g, '').slice(0, 200) || 'video.mp4', size,
+    dur: dur > 0 && dur < 86400 ? dur : 0, w: Math.max(0, Math.floor(Number(o.w) || 0)), h: Math.max(0, Math.floor(Number(o.h) || 0)) };
+}
 export function normJob(j) {
   if (!j || typeof j !== 'object' || !JOB_RE.test(String(j.id || ''))) return null;
   const sp = j.spec && typeof j.spec === 'object' ? j.spec : {};
@@ -164,6 +191,7 @@ export function normJob(j) {
   if (edlPre(normEdl(sp.edl))) spec.edl = edlPre(normEdl(sp.edl));   // מ4: חיתוך לפני התרגום (הכתוביות על ציר הזמן שאחרי החיתוך)
   if (num(sp.px) >= 0.02 && num(sp.px) <= 16) spec.px = num(sp.px);   // 21/10/2026: פיקסלים לשנייה מול 1080p30 — לצפי
   if (sp.src === 'subs') { spec.src = 'subs'; spec.sdh = sp.sdh === 'keep' ? 'keep' : 'rm'; spec.out = []; }   // 22/10/2026: קובץ כתוביות קיים
+  if (sp.ph === 1) { spec.ph = 1; spec.out = []; if (PH_BURN.includes(sp.pb)) spec.pb = sp.pb; }   // 24/10/2026: תרגום בטלפון — הצריבה בטלפון
   const u = j.up && typeof j.up === 'object' ? j.up : {};
   const part = (x) => {
     x = x && typeof x === 'object' ? x : {};
@@ -176,6 +204,7 @@ export function normJob(j) {
     wait: typeof u.wait === 'string' ? u.wait.slice(0, 40) : '', took: num(u.took),
     ext: u.ext === true, extReg: u.extReg === true,   // מקור מ־Drive: בלי העלאה; extReg = נרשם בשרתון
     link: u.link === true,   // 22/10/2026: מקישור — העובד מוריד; בלי העלאה מהטלפון
+    ph: PH_PID_RE.test(String(u.ph || '')) ? u.ph : '',   // 24/10/2026: תרגום בטלפון — Studio לאנדרואיד מעלה (הסרטון נשאר בטלפון)
     dx: u.dx && FID_RE.test(String(u.dx.f || '')) ? { f: u.dx.f, n: String(u.dx.n || '').slice(0, 120), at: num(u.dx.at) } : null,   // התוצר נשמר בתיקייה שבחרת ב־Drive
     tl: normUtl(u.tl) };
   const fp = j.fp && typeof j.fp === 'object' ? { name: String(j.fp.name || '').slice(0, 200), size: num(j.fp.size), lm: num(j.fp.lm) } : null;
@@ -214,6 +243,8 @@ export function normJob(j) {
     hl: normLadder(s.hl),                     // איכויות הצפייה (הראשונה = המקור עצמו)
     hla: s.hl ? normAlt(s.hla) : null,        // 22/10/2026: עותק הקול לנגן (הקול המקורי — Dolby/DTS… — נשאר במקור)
     cp: normCp(s.cp),                         // סבב 10: העתק־הדבק — בקשה שמחכה לתשובה שלך
+    pbn: normPbn(s.pbn),                      // 24/10/2026: הצריבה בטלפון
+    m: !!(s.files && s.files.m && s.files.m.id),   // 24/10/2026: המדידות מהטלפון הגיעו
   } : null;
   const chap = normChapters(j.chap);   // פרקים בנגן (מ"רעיונות"); נשמרים בטלפון עם העבודה
   const vm = j.vm && num(j.vm.w) > 0 && num(j.vm.h) > 0 ? { w: Math.min(num(j.vm.w), 16384), h: Math.min(num(j.vm.h), 16384) } : null;   // סבב 2: מידות הסרטון (מהבדיקה בטלפון)
@@ -1567,6 +1598,7 @@ async function runJob(id, run) {
       run.phase = 'done';
       return;
     }
+    if (up.ph) { run.phase = 'done'; return; }   // 24/10/2026: תרגום בטלפון — Studio לאנדרואיד מעלה ומתחיל (PhService)
     if (up.link) {   // 22/10/2026: מקישור — אין מה להעלות: העובד מוריד ישר ל־R2 ורושם את הקבצים בעצמו
       run.phase = 'prep'; paintSoon();
       if (!up.started) await tryStart(id);
@@ -2497,7 +2529,7 @@ function nowLine(rec, run, ph) {
   if (ph === 'paused') return T('studioPausedNow');
   if (ph === 'error') return errText(run.err);
   if (ph === 'ready') return rec.up.wait === 'worker_not_ready' ? T('studioWaitWorker') : rec.up.wait ? errText(rec.up.wait) : T('studioReady');
-  if (ph === 'queued') return rec.srv && rec.srv.vw ? T('studioNowParked') : rec.srv && rec.srv.eng === 'api' ? T('studioNowQueuedApi') : T('studioNowQueued');
+  if (ph === 'queued') return rec.srv && rec.srv.vw ? (rec.spec.ph ? T('studioPhWaitM') : T('studioNowParked')) : rec.srv && rec.srv.eng === 'api' ? T('studioNowQueuedApi') : T('studioNowQueued');
   if (ph === 'running' && ryWaiting(rec, Date.now())) return T('studioNowRyWait');
   if (ph === 'running') return (rec.srv && rec.srv.prog && rec.srv.prog.msg) || T('studioNowRunning');
   if (ph === 'done') return T('studioNowDone');
@@ -2723,13 +2755,13 @@ function pageForm(p, editing) {
     c.querySelector('.st-l').append(meta);
     card.append(...c.childNodes);
   } else if (f.file) {
-    card = btn('st-filecard', null, pick, 'file');
+    card = btn('st-filecard', null, f.ph ? phPick : pick, 'file');   // תרגום בטלפון — החלפה דרך האפליקציה
     card.setAttribute('aria-label', T('studioReplace') + ': ' + f.file.name);
     const th = h('span', 'st-thumb'); th.append(ico('film'));
     const txt = h('span', 'st-l');
     const nm = h('b'); nm.append(fileNameEl(f.file.name));
     const sz = h('small'); sz.append(fmtSize(f.file.size) + ' · ', h('span', 'st-linkish', T('studioReplace')));
-    txt.append(nm, sz, f.drive ? h('small', 'st-ok', T('studioInDriveNote')) : f.fileObj ? h('small', 'st-ok', T('studioPhoneOnly')) : h('small', 'st-warn', T('studioRepick')));
+    txt.append(nm, sz, f.ph ? h('small', 'st-ok', T('studioPhNote')) : f.drive ? h('small', 'st-ok', T('studioInDriveNote')) : f.fileObj ? h('small', 'st-ok', T('studioPhoneOnly')) : h('small', 'st-warn', T('studioRepick')));
     card.append(th, txt);
   } else {
     card = btn('st-newcard pick', null, pick, 'file');
@@ -2742,6 +2774,9 @@ function pageForm(p, editing) {
     const subsRow = rowNav({ tile: tile('cc', 'orange'), label: T('studioSubsPick'), sub: subsOk() ? T('studioSubsPickS') : T('studioSubsApiOnly'), onClick: () => pickSubs(f), k: 'subs-pick' });
     // 22/10/2026: הורדה מקישור — שורה ראשונה (המנהל / "כל המודלים", כשהשרתון אומר שאפשר)
     const linkRow = devDl() || ui.url ? rowNav({ tile: tile('link', 'red'), label: T('studioLinkRow'), sub: T('studioLinkRowS'), onClick: () => go('link'), k: 'link' }) : null;
+    // 24/10/2026: תרגום בטלפון — הסרטון לא עוזב את הטלפון (Studio לאנדרואיד בוחר, מודד, מעלה רק את הקול וצורב בסוף)
+    const phRow = phOk() ? rowNav({ tile: tile('film', 'green'), label: T('studioPhRow'), value: f.ph ? T('studioPhOn') : '', sub: f.ph ? null : T('studioPhRowS'), onClick: () => phPick(), k: 'ph-pick' }) : null;
+    if (phRow) p.append(list(phRow));
     p.append(list(linkRow, subsRow, canPick() ? rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'),
       onClick: () => pickSourceFromDrive(f), k: 'from-drive' }) : null));   // סרטון שכבר ב־Drive — בלי העלאה
     const tk = f.trk && f.trk.tracks.length ? f.trk.tracks : null;   // שלב 4
@@ -2789,10 +2824,10 @@ function pageForm(p, editing) {
 
   // התחלה: יוצרים עבודה בשרתון ומעלים ל־Drive (הקול קודם). טיוטה — אפשרות משנית
   const startBtn = btn('st-btn wide', ui.starting ? T('studioStarting') : T('studioStart'), startFromForm, 'start');
-  startBtn.disabled = !(f.fileObj || f.drive || f.subs || (f.link && f.linkOk)) || ui.starting;
+  startBtn.disabled = !(f.fileObj || f.drive || f.subs || f.ph || (f.link && f.linkOk)) || ui.starting;   // ph — תרגום בטלפון
   if (f.subs) { p.append(h('div', 'st-gap'), startBtn, note(T('studioSubsStartNote'))); return; }   // בלי טיוטה: הקובץ רק בזיכרון
   const saveBtn = btn('st-btn tint wide', T('studioSaveDraft'), saveForm, 'save');
-  saveBtn.disabled = !f.file;
+  saveBtn.disabled = !f.file || !!f.ph;   // תרגום בטלפון — הבחירה באפליקציה, לא טיוטה
   p.append(h('div', 'st-gap'), startBtn, h('div', 'st-gap sm'), saveBtn,
     note(!f.file ? T('studioPickFirst') : !f.fileObj && !f.drive ? T('studioRepickNote') : f.drive ? T('studioStartNoteDrive') : T('studioStartNote')));
 }
@@ -3630,6 +3665,134 @@ export function studioDlErr(arg) {
   return true;
 }
 
+/* ---------------- 24/10/2026: תרגום בטלפון (שלב 1) — הסרטון לא עוזב את הטלפון ----------------
+   האתר: בחירה (intent ל־PhActivity → ‎#phpick=), יצירת העבודה (spec.ph), מפתח לעבודה (phKey) ומסירה לאפליקציה (intent ph).
+   האפליקציה (PhService): הקול → העלאה → התחלה → השוטים וה־ffprobe → העלאה. בסוף — "לצרוב בטלפון" (intent phburn). */
+const phOk = () => devDl() && ui.r2 && (apiMode() || cpMode() || ryMode());
+function phIntent(kind, q) {
+  q = Object.assign({}, q, { l: uiLang() });
+  try { q.w = location.origin + '/'; } catch (e) {}
+  const qs = Object.keys(q).filter((k) => q[k] !== '' && q[k] != null).map((k) => k + '=' + encodeURIComponent(q[k])).join('&');
+  let fb = '';
+  try { fb = location.origin + location.pathname + '#phpick=!noapp'; } catch (e) {}
+  return 'intent://' + kind + '?' + qs + '#Intent;scheme=snbstudio;package=' + DL_PKG + (fb ? ';S.browser_fallback_url=' + encodeURIComponent(fb) : '') + ';end';
+}
+function phPick() {
+  if (!phOk()) { flashSafe(T('studioLinkEApp')); return; }
+  location.href = phIntent('phpick', {});
+}
+/* ‎#phpick= מ־PhActivity: הסרטון נבחר והועתק לאחסון של Studio — הטופס עם הקובץ (בלי לקרוא אותו כאן) */
+export function studioPhPick(arg) {
+  const r = parsePhPick(arg);
+  if (!r) return false;
+  if (r.e) { if (r.e !== 'cancel') flashSafe(T('studioPhFail') + ' — ' + phErrText(r.e)); return true; }
+  if (!form) form = freshForm(null);
+  const f = form;
+  f.ph = { pid: r.pid, w: r.w, h: r.h, dur: r.dur };
+  f.fileObj = null; f.handle = null; f.drive = null; f.link = null; f.linkOk = false; f.edl = null;
+  f.file = { name: r.name, size: r.size, type: 'video/*' }; f.dur = r.dur;
+  if (root) { if (ui.view !== 'new') go('new', null, 'none'); else render('none'); }
+  return true;
+}
+function phErrText(c) {
+  switch (c) {
+    case 'space': return T('studioPhESpace');
+    case 'no_audio': return T('studioPhENoAudio');
+    case 'no_video': case 'probe': return T('studioPhEProbe');
+    case 'noapp': return T('studioLinkEApp');
+    default: return T('studioPhEGen');
+  }
+}
+function phPb(f) {
+  const o = f.out || {};
+  if (o.same || o.compact || o.mkv) return 'same';
+  return o.small ? 'small' : '';
+}
+function startPhone(f) {
+  const P = f.ph;
+  if (!P || ui.starting) return;
+  if (ui.access === 'signin' || ui.access === 'denied') { flashSafe(ui.access === 'signin' ? T('studioErrSignin') : T('studioErrDenied')); return; }
+  if (!phOk()) { flashSafe(T('studioLinkApiOnly')); return; }
+  if (!langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }
+  ui.starting = true; render('none');
+  (async () => {
+    const spec = { name: f.file.name, size: f.file.size, type: 'video/*', dur: P.dur || 0, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
+      out: [], style: f.style, terms: f.terms, ph: 1, eng: 'api', cap: store.settings.cap };
+    const pb = phPb(f); if (pb) spec.pb = pb;
+    if (cpMode()) spec.cp = 1; else if (ryMode()) spec.ry = 1;
+    if (P.w > 0 && P.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, P.w * P.h / (1920 * 1080))) * 1000) / 1000;
+    // קודם יוצרים את העבודה ומבקשים מפתח (רשת — בלי נגיעה), ורק אז האומדן: הנגיעה ב"להתחיל" היא זו שפותחת את
+    // האפליקציה (Chrome פותח intent רק מתוך נגיעה; אחרי await של רשת — כבר לא). ביטול — העבודה נמחקת. העבודה נשארת
+    // "חדשה" עד שהאפליקציה מעלה את הקול ומתחילה אותה — לא עולה כלום עד אז
+    const j = await net.api('create', { spec });
+    if (!j.ok || !j.job) { ui.starting = false; flashSafe(errText(j.error)); render('none'); return; }
+    const k = await phKeyFor(j.job.id);
+    if (!k) { ui.starting = false; net.api('remove', { job: j.job.id }).catch(() => {}); flashSafe(errText('phkey')); render('none'); return; }
+    const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
+    if (est.min && typeof askConfirm === 'function') {
+      const yes = await new Promise((ok) => askConfirm(cpMode() ? T('studioEstCp') : estText(est, apiMode()), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) }));
+      if (!yes || form !== f) { ui.starting = false; net.api('remove', { job: j.job.id }).catch(() => {}); render('none'); return; }
+    }
+    ui.starting = false;
+    const rec = normJob({ id: j.job.id, created: j.job.created || Date.now(), spec: j.job.spec || spec, srv: j.job,
+      fp: { name: f.file.name, size: f.file.size, lm: 0 }, vm: P.w && P.h ? { w: P.w, h: P.h } : null,
+      up: { ph: P.pid, noAudio: 'ph', a: { done: true }, v: { done: true }, folder: j.job.folder || '' } });   // האפליקציה מעלה, לא הדף
+    store.jobs.unshift(rec);
+    if (f.id) store.drafts = store.drafts.filter((d) => d.id !== f.id);
+    save();
+    form = null;
+    if (root) replaceView('job', rec.id);
+    // חלון האישור סוגר את עצמו ב־history.back (אסינכרוני) — ניווט בהיסטוריה אחרי ה־intent מבטל אותו. לכן אחרי afterBack
+    // (כמו appGo); ההפעלה מהנגיעה עוד בתוקף. לא נפתח — הכפתור "להמשיך באפליקציה" בדף העבודה
+    const hand = () => setTimeout(() => phHand(rec, 'ph'), 250);   // אחרי שדף העבודה סיים להתעדכן בהיסטוריה (replaceState מבטל ניווט שבדרך)
+    if (typeof afterBack === 'function') afterBack(hand); else hand();
+  })();
+}
+/* המפתח של העבודה בשביל האפליקציה — יציב בשרתון (אותו מפתח כל עוד הוא בתוקף), אז מבקשים אותו מראש ושומרים בזיכרון:
+   כל כפתור פותח את האפליקציה ישר מהנגיעה, בלי בקשה ברשת באמצע */
+const phKeys = new Map();
+async function phKeyFor(id) {
+  const c = phKeys.get(id);
+  if (c && c.exp - Date.now() > 3600e3) return c.k;
+  const k = await net.api('phKey', { job: id });
+  if (!k || !k.ok || !k.key) return '';
+  phKeys.set(id, { k: k.key, exp: Number(k.exp) || 0 });
+  return k.key;
+}
+function phHand(rec, kind) {
+  const c = phKeys.get(rec.id);
+  if (!rec.up.ph || !c) return false;
+  location.href = phIntent(kind, Object.assign({ pid: rec.up.ph, j: rec.id, k: c.k, b: proxyBase(), pb: rec.spec.pb || '' }, kind === 'phburn' ? { pb: rec.spec.pb || 'same' } : {}));
+  return true;
+}
+/* שגיאה מהאפליקציה (‎#studio=<עבודה>&phe=<קוד>) */
+export function studioPhErr(id, code) {
+  if (!/^[a-z0-9_]{1,24}$/.test(String(code || ''))) return false;
+  flashSafe(T('studioPhFail') + ' — ' + (/^(space|no_audio|no_video|probe|noapp)$/.test(code) ? phErrText(code) : errText(code)));
+  return true;
+}
+/* הכרטיס בדף העבודה: הסרטון בטלפון · המדידות · הצריבה (מצב מהשרתון — pbn — וכפתור) */
+function phCard(rec) {
+  const srv = rec.srv || {}, b = srv.pbn, st = srv.state;
+  const card = h('div', 'st-card st-ph');
+  card.append(h('b', null, T('studioPhCardT')));
+  const lines = [srv.m ? T('studioPhMeasured') : T('studioPhNotMeasured')];
+  if (b && b.s === 'done') lines.push(T('studioPhBurned', { s: b.sz ? fmtSize(b.sz) : '' }));
+  else if (b && b.s === 'run') lines.push(T('studioPhBurning', { p: Math.round((b.p || 0) * 100) }));
+  else if (b && b.s === 'fail') lines.push(T('studioPhBurnFail') + (b.e ? ' (' + b.e + ')' : ''));
+  for (const l of lines) card.append(h('small', null, l));
+  const here = !!(rec.up.ph && devDl());
+  const ready = here && phKeys.has(rec.id);
+  if (here && !ready) phKeyFor(rec.id).then((k) => { if (k && root && ui.view === 'job' && ui.param === rec.id) render('none'); });   // מראש — לפני הנגיעה
+  const go = (cls, label, kind) => { const x = btn(cls, ready ? label : T('studioPhKeyBusy'), () => phHand(rec, kind), 'ph-' + kind); x.disabled = !ready; card.append(h('div', 'st-gap sm'), x); };
+  if ((st === 'new' || !srv.m && (st === 'queued' || st === 'running'))) {   // האפליקציה עוד לא העלתה הכל (או לא נפתחה) — להמשיך שם
+    if (here) go(st === 'new' ? 'st-btn wide' : 'st-btn ghost wide', st === 'new' ? T('studioPhStartApp') : T('studioPhResume'), 'ph'); else card.append(h('small', 'st-warn', T('studioPhOtherDev')));
+  } else if (st === 'done' && rec.spec.pb && !(b && (b.s === 'run' || b.s === 'done'))) {
+    if (here) go('st-btn wide', T('studioPhBurnGo'), 'phburn'); else card.append(h('small', 'st-warn', T('studioPhOtherDev')));
+  } else if (st === 'done' && b && b.s === 'done' && here) go('st-btn ghost wide', T('studioPhBurnAgain'), 'phburn');
+  return card;
+}
+
 function saveForm() {
   const f = form;
   if (!f || !f.file) return;
@@ -3672,6 +3835,7 @@ function startFromForm() {
   }
   if (f && f.subs && !ui.starting) { startSubs(f); return; }   // 22/10/2026: קובץ כתוביות קיים
   if (f && f.link && f.linkOk && !ui.starting) { startLink(f); return; }   // 22/10/2026: מקישור — העובד מוריד
+  if (f && f.ph && !ui.starting) { startPhone(f); return; }   // 24/10/2026: תרגום בטלפון — Studio לאנדרואיד מעלה
   if (!f || !(f.fileObj || f.drive) || ui.starting) return;
   if (ui.access === 'signin' || ui.access === 'denied') { flashSafe(ui.access === 'signin' ? T('studioErrSignin') : T('studioErrDenied')); return; }
   // 11/10/2026: במצב השרת עם R2 הקבצים לא עוברים דרך Drive — חיבור Drive נדרש רק למקור מ־Drive / Routine
@@ -6860,6 +7024,7 @@ function pageJob(p) {
   p.append(hero);
   const ask = askCard(rec);   // שאלה מ־Claude — מעל הכל, כי היא מחכה לך
   if (ask) p.append(ask);
+  if (rec.spec.ph) p.append(phCard(rec));   // 24/10/2026: תרגום בטלפון — הסרטון, המדידות והצריבה בטלפון
   const cpc = cpCard(rec);   // סבב 10: העתק־הדבק — בקשה שמחכה לתשובה מ־Claude שלך
   if (cpc) p.append(cpc);
   const tstop = towerStopCard(rec);   // v362: מגדל הפיקוח עצר — מה קרה, מה זה אומר, המספרים
@@ -7637,7 +7802,8 @@ let renderSeq = 0;
 let lastShape = '';
 /* "צורת" הדף — כשהיא משתנה (שלב חדש, העלאה הסתיימה, שגיאה) בונים את הדף מחדש; אחרת רק מעדכנים במקום */
 function shapeKey() {
-  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x + (rec.srv.tw.sh ? 's' : '') : '') + (recovering(rec) ? 'R' : '') + (rec.srv && rec.srv.nt ? 'n' + rec.srv.nt.h.length + (rec.srv.nt.p ? 'p' : '') : '') + (rec.srv && rec.srv.cp ? 'c' + rec.srv.cp.n + (rec.srv.cp.a ? 'a' : '') : '') + (cpBusy ? 'B' : '') + (rec.srv && rec.srv.out.length ? 'o' + rec.srv.out.length : ''); };   // v382: הערה שנקראה / ממתינה; סבב 10: העתק־הדבק
+  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x + (rec.srv.tw.sh ? 's' : '') : '') + (recovering(rec) ? 'R' : '') + (rec.srv && rec.srv.nt ? 'n' + rec.srv.nt.h.length + (rec.srv.nt.p ? 'p' : '') : '') + (rec.srv && rec.srv.cp ? 'c' + rec.srv.cp.n + (rec.srv.cp.a ? 'a' : '') : '') + (cpBusy ? 'B' : '') + (rec.srv && rec.srv.out.length ? 'o' + rec.srv.out.length : '')
+    + (rec.spec.ph && rec.srv ? 'P' + (rec.srv.m ? 1 : 0) + (rec.srv.pbn ? rec.srv.pbn.s + Math.round(rec.srv.pbn.p * 20) : '') + (phKeys.has(rec.id) ? 'k' : '') : ''); };   // 24/10/2026: תרגום בטלפון — המדידות והצריבה   // v382: הערה שנקראה / ממתינה; סבב 10: העתק־הדבק
   const incK = (j) => { const x = ui.inc && ui.inc.list.find((y) => y.j === j); return x ? x.no + x.st + x.s : ''; };
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : '') + '|' + incK(ui.param); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join() + '|' + (majorOn(ui.inc) ? ui.inc.mi.no + ':' + ui.inc.mi.n : '');
@@ -7897,6 +8063,7 @@ export function openStudio(opt) {
     const st = rec.srv ? rec.srv.state : 'new';
     if (rec.up.ext) { if ((!rec.up.extReg || !rec.up.started) && st === 'new' && !(runs.get(rec.id) && runs.get(rec.id).active)) startRun(rec.id, null); continue; }   // מ־Drive — בלי קובץ בטלפון
     if (rec.up.link) { if (!rec.up.started && st === 'new' && !(runs.get(rec.id) && runs.get(rec.id).active)) startRun(rec.id, null); continue; }   // 22/10/2026: מקישור
+    if (rec.up.ph) continue;   // 24/10/2026: תרגום בטלפון — האפליקציה מעלה, לא הדף
     if (!done && !FINAL.includes(st) && !(runs.get(rec.id) && runs.get(rec.id).active) && rec.fp) resumeJob(rec.id, false);
   }
 }

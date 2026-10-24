@@ -173,7 +173,7 @@ function devStats(items) {
 
 /* ---------- תמונת העבודה מהשרתון (למאגר הלמידה במצב המלא) ---------- */
 /* כל מה שיש ברשומת העבודה חוץ מסודות: hash של מפתח העבודה ותוקפו, סשן, קישורי העלאה, הבעלים */
-const SNAP_DROP = new Set(['kh', 'kx', 'sess', 'uid', 'key', 'tok', 'token', 'secret', '_ut', 'pk', 'url', 'urls', 'u']);
+const SNAP_DROP = new Set(['kh', 'kx', 'sess', 'uid', 'key', 'tok', 'token', 'secret', '_ut', 'pk', 'url', 'urls', 'u', 'rkh', 'pkh', 'pkx', 'pke']);   // 24/10/2026: מפתח ההעברה ומפתח הטלפון (hash / מוצפן) — לא נכנסים לאיסוף
 function jobSnap(job, depth) {
   const d = depth || 0;
   if (d > 6) return null;

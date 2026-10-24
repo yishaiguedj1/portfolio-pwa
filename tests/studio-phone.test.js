@@ -121,20 +121,91 @@ const { fakeR2, ENV } = require('./_r2fake');
   const plain = await api('create', { spec: base });
   ok((await api('file', { job: plain.job.id, which: 'm', id: SR.newId(plain.job.folder), folder: plain.job.folder })).error === 'bad_params', 'בעבודה רגילה אין קובץ מדידות');
 
-  /* ---------- 5. הצריבה בטלפון ---------- */
-  ok((await api('phBurn', { job: JOB, pbn: { s: 'run', p: 0.5 } })).error === 'state', 'לפני שהעבודה הסתיימה — אין צריבה');
-  db.get('studioJobs/' + JOB).fields.state = { stringValue: 'done' };
-  ok((await api('phBurn', { job: plain.job.id, pbn: { s: 'run' } })).error === 'state', 'עבודה רגילה — אין דיווח צריבה מהטלפון');
-  ok((await api('phBurn', { job: JOB, pbn: { s: '??' } })).error === 'bad_params', 'מצב לא מוכר — נדחה');
-  j = await api('phBurn', { job: JOB, pbn: { s: 'run', p: 0.25 } });
-  ok(j.ok && j.job.pbn.s === 'run' && j.job.pbn.p === 0.25, 'הטלפון מדווח שהצריבה רצה');
-  j = await api('phBurn', { job: JOB, pbn: { s: 'done', sz: 4e8, ms: 570000 } });
-  ok(j.ok && (await api('job', { job: JOB })).job.pbn.s === 'done', 'הצריבה הסתיימה — רואים את זה גם אחרי טעינה מחדש');
-  ok((await other('phBurn', { job: JOB, pbn: { s: 'fail' } })).error === 'no_job', 'משתמש אחר לא מדווח על עבודה שלי');
+  /* ---------- 5. Studio לאנדרואיד — מפתח לעבודה אחת ---------- */
+  ok((await api('phKey', { job: plain.job.id })).error === 'state', 'עבודה רגילה — אין מפתח טלפון');
+  ok((await other('phKey', { job: j2.job.id })).error === 'no_job', 'משתמש אחר לא מקבל מפתח לעבודה שלי');
+  const pk1 = await api('phKey', { job: j2.job.id });
+  ok(pk1.ok && S.KEY_RE.test(pk1.key) && pk1.exp > R.now, 'מפתח טלפון לעבודה');
+  ok(!JSON.stringify(db.get('studioJobs/' + j2.job.id).fields).includes(pk1.key), 'במסמך אין את המפתח עצמו (hash + מוצפן)');
+  const pk = await api('phKey', { job: j2.job.id });
+  ok(pk.key === pk1.key, 'בקשה חוזרת — אותו מפתח (לא מבטלת העלאה שבדרך; הדף מבקש מראש)');
+  const PJ = j2.job.id, PK = pk.key;
+  const ph = (op, b, key) => call(Object.assign({ op, job: PJ, key: key || PK }, b), true).then((x) => x.j);
+  // מפתח שנשאר לו פחות מיום — מוחלף
+  const dj = db.get('studioJobs/' + PJ).fields, pkx0 = dj.pkx;
+  dj.pkx = { integerValue: String(R.now + 3600e3) };
+  const pk2 = await api('phKey', { job: PJ });
+  ok(pk2.key !== PK && (await ph('phJob', {}, PK)).error === 'bad_key', 'מפתח שעומד לפוג — מפתח חדש, והקודם מת');
+  const PK2 = pk2.key;
+  const ph2 = (op, b) => call(Object.assign({ op, job: PJ, key: PK2 }, b), true).then((x) => x.j);
+  ok((await ph('phJob', {}, crypto.randomBytes(32).toString('base64url'))).error === 'bad_key', 'מפתח לא נכון — נדחה');
+  ok((await call({ op: 'phJob', job: JOB, key: PK2 }, true)).j.error === 'bad_key', 'המפתח לא פותח עבודה אחרת');
+  j = await ph2('phJob', {});
+  ok(j.ok && j.job.state === 'new' && j.job.a === false && j.job.out.length === 0, 'הטלפון קורא את המצב (בלי התחברות, בלי Origin)');
+  ok((await ph2('phStart', {})).error === 'no_files', 'בלי קול — לא מתחילים');
+  // הקול מהטלפון
+  const u = await ph2('phUp', { size: audio.length, type: 'audio/x-matroska', name: 'talk.audio.mka' });
+  ok(u.ok && SR.inFolder(u.id, j2.job.folder), 'העלאה לתיקייה של העבודה');
+  await R.fetch(u.urls[1], { method: 'PUT', body: audio });
+  ok((await ph2('phDone', { id: u.id, up: u.up })).ok, 'ההעלאה נסגרה');
+  ok((await ph2('phFile', { which: 'v', id: u.id })).error === 'bad_params', 'סרטון — לא');
+  ok((await ph2('phFile', { which: 'a', id: SR.newId(FOLDER) })).error === 'bad_params', 'קובץ מתיקייה של עבודה אחרת — לא');
+  ok((await ph2('phFile', { which: 'a', id: u.id })).ok, 'הקול נרשם מהטלפון');
+  ok((await ph2('phUp', { size: S.PH_UP_MAX + 1, name: 'x' })).error === 'too_big', 'מעל התקרה — לא');
+  j = await ph2('phStart', {});
+  ok(j.ok && j.state === 'queued' && (await api('job', { job: PJ })).job.state === 'queued', 'הטלפון התחיל את העבודה (לתור של השרת)');
+  ok((await ph2('phStart', {})).state === 'queued', 'התחלה שנייה — לא מפעילה שוב');
+  // הצריבה
+  ok((await ph2('phBurn', { pbn: { s: 'run', p: 0.5 } })).error === 'state', 'לפני שהעבודה הסתיימה — אין צריבה');
+  const OUT = SR.newId(j2.job.folder);
+  await R.fetch((await ph2('phUp', { size: 50, type: 'text/plain', name: 'he.ass' })).urls[1], { method: 'PUT', body: Buffer.alloc(50) }).catch(() => null);
+  Object.assign(db.get('studioJobs/' + PJ).fields, { state: { stringValue: 'done' }, fo: { stringValue: JSON.stringify([{ id: OUT, name: 'talk.he.ass', size: 50, k: 'ass' }]) } });
+  ok((await ph2('phFile', { which: 'm', id: OUT })).error === 'state', 'אחרי הסיום — לא רושמים קבצים');
+  j = await ph2('phJob', {});
+  ok(j.job.state === 'done' && j.job.out[0].k === 'ass', 'הטלפון רואה את התוצרים');
+  ok((await ph2('phGet', { id: SR.newId(j2.job.folder) })).error === 'bad_id', 'רק קבצים מהתוצרים של העבודה');
+  ok((await ph2('phBurn', { pbn: { s: '??' } })).error === 'bad_params', 'מצב צריבה לא מוכר — נדחה');
+  ok((await ph2('phBurn', { pbn: { s: 'run', p: 0.25 } })).ok, 'הטלפון מדווח שהצריבה רצה');
+  ok((await ph2('phBurn', { pbn: { s: 'done', sz: 4e8, ms: 570000 } })).ok, 'הצריבה הסתיימה');
+  j = await api('job', { job: PJ });
+  ok(j.job.pbn.s === 'done' && j.job.pbn.sz === 4e8 && (await ph2('phJob', {})).job.pbn.s === 'done', 'הדף והאפליקציה רואים את אותו מצב צריבה');
+  ok((await ph2('phJob', { pad: 'x'.repeat(5000) })).error === 'too_large', 'גוף מעל 4KB — נדחה');
 
   /* ---------- 6. תור: עבודת טלפון שחזרה לתור מחכה למדידות, לא לסרטון ---------- */
   const api_src = require('fs').readFileSync(path.join(root, 'ibkr-proxy/api/studio.js'), 'utf8');
   ok(/job\.vw && !\(\(job\.spec && job\.spec\.ph === 1 \? job\.fph : job\.fv\)/.test(api_src), 'השרת לוקח עבודת טלפון שחזרה לתור רק כשהמדידות נרשמו');
+
+  /* ---------- 7. האתר: ‎#phpick= ו־normPbn (זהה לשרתון) ---------- */
+  const fs = require('fs');
+  const src = fs.readFileSync(path.join(root, 'studio.js'), 'utf8');
+  const fnSrc = (name) => src.slice(src.indexOf('export function ' + name + '('), src.indexOf('\n}\n', src.indexOf('export function ' + name + '(')) + 2).replace(/^export /, '');
+  const num = (v) => (Number.isFinite(+v) && +v > 0 ? +v : 0);
+  const W = new Function('num', 'TextDecoder', 'atob', fnSrc('parsePhPick') + '\n' + fnSrc('normPbn') + '\nreturn { parsePhPick, normPbn };')(num, TextDecoder, atob);
+  const enc = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const PID = 'p0123456789abcdef';
+  let pp = W.parsePhPick(PID + '.' + enc({ pid: PID, name: 'הרצאה.mp4', size: 123456789, dur: 3600.5, w: 1920, h: 1080 }));
+  ok(pp && pp.pid === PID && pp.name === 'הרצאה.mp4' && pp.size === 123456789 && pp.dur === 3600.5 && pp.w === 1920, '‎#phpick= — הסרטון שנבחר בטלפון (שם בעברית)');
+  ok(W.parsePhPick('!space').e === 'space' && W.parsePhPick('!<b>') === null, 'שגיאה מהאפליקציה — רק קוד');
+  ok(W.parsePhPick('p0123456789abcdee.' + enc({ pid: PID, size: 5 })) === null, 'pid לא תואם — נדחה');
+  ok(W.parsePhPick(PID + '.' + enc({ pid: PID, size: 0 })) === null && W.parsePhPick('x.' + enc({})) === null, 'בלי גודל / מזהה לא תקין — נדחה');
+  ok(W.parsePhPick(PID + '.' + enc({ pid: PID, size: 9, name: 'a\u0000\u0007b' })).name === 'ab', 'תווי בקרה בשם — יורדים');
+  for (const c of [{ s: 'run', p: 0.42 }, { s: 'done', sz: 77, p: 0.1 }, { s: 'fail', e: 'no_codec' }, { s: 'fail', e: 'BAD!' }, { s: 'x' }, null]) {
+    const a = W.normPbn(c), b = S.normPbn(c, 0);
+    ok(JSON.stringify(a && Object.assign({}, a, { at: 0 })) === JSON.stringify(b && Object.assign({}, b, { at: 0, ms: undefined })), 'normPbn זהה בדף ובשרתון: ' + JSON.stringify(c));
+  }
+
+  // ה־intent המלא (Playwright לא רואה את ה־#Intent;… — נבדק כאן): החבילה של Studio, וחזרה לאתר כשהאפליקציה לא מותקנת
+  const iStart = src.indexOf('function phIntent(kind, q) {'), iEnd = src.indexOf('\n}\n', iStart) + 2;
+  const phIntent = new Function('uiLang', 'DL_PKG', 'location', src.slice(iStart, iEnd) + '\nreturn phIntent;')(() => 'he', 'app.thesnowball.studio', { origin: 'https://studio.thesnowball.app', pathname: '/' });
+  const iu = phIntent('phburn', { pid: PID, j: 'j' + 'a'.repeat(20), k: 'K'.repeat(43), b: 'https://api.thesnowball.app', pb: 'small' });
+  ok(/^intent:\/\/phburn\?pid=p0123456789abcdef&j=ja{20}&k=K{43}&b=https%3A%2F%2Fapi\.thesnowball\.app&pb=small&l=he&w=https%3A%2F%2Fstudio\.thesnowball\.app%2F#Intent;scheme=snbstudio;package=app\.thesnowball\.studio;S\.browser_fallback_url=[^;]*phpick%3D!noapp;end$/.test(iu), 'intent://phburn — הפרמטרים, החבילה של Studio, וחזרה עם noapp: ' + iu.slice(0, 80));
+  const android = fs.readFileSync(path.join(root, 'android/app/src/studio/AndroidManifest.xml'), 'utf8');
+  ok(['phpick', 'ph', 'phburn', 'phgo'].every((x) => android.includes('android:host="' + x + '"')), 'כל ה־intents של האתר — במניפסט של PhActivity');
+  const core = fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhCore.kt'), 'utf8');
+  ok(/const val PH_V = 1/.test(core) && /^PH_V = 1$/m.test(fs.readFileSync(path.join(root, 'translator/job.py'), 'utf8')), 'PH_V זהה בטלפון ובעובד');
+  const act = fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhActivity.kt'), 'utf8');
+  ok(/"https:\/\/studio\.thesnowball\.app\/", "https:\/\/studio-staging\.thesnowball\.app\/"/.test(act), 'האפליקציה חוזרת רק לאתר של Studio (ייצור / ניסוי)');
+  ok(['studioPh', 'phburn', 'phKey'].every((x) => src.includes(x)) && !/net\.api\('phBurn'/.test(src), 'הדף לא מדווח צריבה (רק האפליקציה, במפתח של העבודה)');
 
   console.log('\nכל ' + n + ' הבדיקות עברו ✓');
 })().catch((e) => { console.error(e); process.exit(1); });

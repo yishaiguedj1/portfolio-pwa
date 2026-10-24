@@ -118,6 +118,24 @@ class PhoneAttach(unittest.TestCase):
         self.assertIsNone(job.video_prefetch(self.ctx, None))
 
 
+class SameFileAsPhone(unittest.TestCase):
+    """הקובץ שה־Kotlin מייצר (PhCoreTest משווה אליו) — מה שהעובד מקבל. ffprobe ו־scdet אמיתיים."""
+    FX = Path(__file__).resolve().parents[2] / 'android/app/src/testStudio/resources/ph'
+
+    def test_phone_meta_accepted(self):
+        d = json.loads((self.FX / 'meta.expect.json').read_text(encoding='utf-8'))
+        chk = job.ph_meta_check(d)
+        self.assertIsNotNone(chk, 'מה שהטלפון שולח עובר את הבדיקה של העובד')
+        self.assertEqual(chk[1]['shots'], [{'t': 6.006, 'score': 21.895}])
+
+    def test_summarize_same_as_phone_info(self):
+        sys.path.insert(0, str(Path(job.__file__).parent))
+        from vt import media
+        o = media.summarize(json.loads((self.FX / 'probe.json').read_text(encoding='utf-8')), 'x')
+        e = json.loads((self.FX / 'info.expect.json').read_text(encoding='utf-8'))
+        self.assertEqual((o['video']['width'], o['video']['fps'], o['audio']['t0']), (e['w'], e['fps'], e['at0']))
+
+
 class Wiring(unittest.TestCase):
     def test_source_rules(self):
         src = Path(job.__file__).read_text(encoding='utf-8')

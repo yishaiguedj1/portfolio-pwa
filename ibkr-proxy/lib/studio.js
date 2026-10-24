@@ -174,7 +174,8 @@ function edlPre(e) {
 }
 /* 24/10/2026: תרגום בטלפון — מה הטלפון צורב (השרת לא צורב). same = כמו המקור, small = עותק לוואטסאפ */
 const PH_BURN = ['same', 'small'];
-const PH_META_MAX = 4 * 1024 * 1024;   // קובץ המדידות מהטלפון (ffprobe + השוטים) — JSON קטן; יותר = לא תקין
+const PH_META_MAX = 4 * 1024 * 1024;
+const PH_UP_MAX = 4 * 1024 * 1024 * 1024;   // הקול מהטלפון (בפועל עשרות MB לשעה) — תקרה גסה בלבד   // קובץ המדידות מהטלפון (ffprobe + השוטים) — JSON קטן; יותר = לא תקין
 /* מצב הצריבה בטלפון (op:'phBurn' מהטלפון) — רק מספרים וקוד: s = run/done/fail, p = 0–1, e = קוד שגיאה, sz = גודל התוצר */
 const PBN_S = ['run', 'done', 'fail'];
 function normPbn(o, now) {
@@ -1204,7 +1205,7 @@ function fromFields(f) {
   return o;
 }
 
-module.exports = { PH_BURN, PH_META_MAX, normPbn, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
+module.exports = { PH_BURN, PH_META_MAX, PH_UP_MAX, normPbn, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,
