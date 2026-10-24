@@ -18,12 +18,15 @@ import java.util.concurrent.Executors
 /**
  * מאגר הנתונים מ־DM (24/10/2026, בקשת המשתמש — שלב ב׳). **המקום היחיד ב־DM שפונה לשרת שלנו**, ורק כשהמשתמש:
  * (1) נכנס עם Google (אותו חשבון של Invest/Academy/Studio — Credential Manager ← אסימון Google ← Firebase signInWithIdp),
- * (2) הסכים במפורש לנוסח הנוכחי (CV — זהה ל־DMC_V ב־ibkr-proxy/lib/dmlog.js; נוסח שמרחיב מה נאסף = מספר חדש בשניהם).
+ * (2) השליחה דלוקה — **בתקופת הפיתוח דלוקה כברירת מחדל** (DEFAULT_ON, החלטת המשתמש 24/10/2026: כל המשתמשים הם שלו
+ *     ושל חברים שיודעים על האיסוף; לכבות — false — לפני שיש משתמשים מבחוץ, ואז מסך הסכמה). CV = הנוסח שהוצג
+ *     (זהה ל־DMC_V ב־ibkr-proxy/lib/dmlog.js; נוסח שמרחיב מה נאסף = מספר חדש בשניהם).
  * נשלח רק יומן ההורדות (DmLog — בלי כתובות ועוגיות), אף פעם לא הקבצים. ההורדות עצמן לא עוברות בשום שרת.
  * כיבוי = לא שולחים יותר; "מחק את הנתונים שלי" = dmForget ואז התנתקות.
  */
 object DmSync {
     const val CV = 1
+    const val DEFAULT_ON = true
     // מזהים ציבוריים של פרויקט ה־Firebase (כמו ב־firebase-config.js) — לא סודות
     private const val WEB_CLIENT = "286578855160-c5et32a91anfqraplk5djj9qm5soejhf.apps.googleusercontent.com"
     private const val FB_KEY = "AIzaSyDpz4owHSvJCYVzUFtZQL8V_e71HpVeffk"
@@ -38,8 +41,12 @@ object DmSync {
 
     private fun p(ctx: Context) = ctx.applicationContext.getSharedPreferences("dm-sync", Context.MODE_PRIVATE)
 
-    /** חתום ומסכים בנוסח הנוכחי */
-    fun on(ctx: Context) = p(ctx).getInt("cv", 0) == CV && p(ctx).getString("rt", "").orEmpty().isNotEmpty()
+    /** השליחה דלוקה (ברירת המחדל — DEFAULT_ON; המשתמש יכול לכבות בהגדרות) */
+    fun enabled(ctx: Context) = p(ctx).getBoolean("en", DEFAULT_ON)
+    fun setEnabled(ctx: Context, v: Boolean) { p(ctx).edit().putBoolean("en", v).apply(); if (v) kick(ctx, true) }
+    fun signedIn(ctx: Context) = p(ctx).getString("rt", "").orEmpty().isNotEmpty()
+    /** שולחים: דלוק ומחובר */
+    fun on(ctx: Context) = enabled(ctx) && signedIn(ctx)
     fun email(ctx: Context): String = p(ctx).getString("em", "").orEmpty()
     /** ההצעה בראש ההורדות — פעם אחת (כן / לא תודה) */
     fun asked(ctx: Context) = p(ctx).getBoolean("asked", false)
@@ -60,7 +67,7 @@ object DmSync {
                     .put("postBody", "id_token=" + URLEncoder.encode(gid, "UTF-8") + "&providerId=google.com")
                     .put("requestUri", "http://localhost").put("returnSecureToken", true).toString(), "application/json").second
                 save(ctx = a, it = j.getString("idToken"), rt = j.getString("refreshToken"), exp = j.optString("expiresIn", "3600"))
-                p(a).edit().putString("em", j.optString("email")).putInt("cv", CV).putBoolean("asked", true).putLong("sentT", System.currentTimeMillis()).apply()
+                p(a).edit().putString("em", j.optString("email")).putBoolean("asked", true).apply()   // גם מה שנאסף לפני הכניסה נשלח (בתקופת הפיתוח)
                 kick(a)
                 R.Ok
             } catch (e: Throwable) { R.Fail("firebase") }
@@ -79,7 +86,7 @@ object DmSync {
         val rt = pp.getString("rt", "").orEmpty().ifEmpty { return null }
         val (st, j) = post("https://securetoken.googleapis.com/v1/token?key=$FB_KEY",
             "grant_type=refresh_token&refresh_token=" + URLEncoder.encode(rt, "UTF-8"), "application/x-www-form-urlencoded")
-        if (st == 400) { pp.edit().remove("it").remove("rt").putInt("cv", 0).apply(); return null }   // החשבון בוטל / התנתק — עוצרים
+        if (st == 400) { pp.edit().remove("it").remove("rt").apply(); return null }   // החשבון בוטל / התנתק — עוצרים
         save(ctx, j.getString("id_token"), j.optString("refresh_token", rt), j.optString("expires_in", "3600"))
         return pp.getString("it", null)
     }
@@ -106,7 +113,7 @@ object DmSync {
         val (st, _) = call(ctx, body) ?: return
         when (st) {
             200 -> pp.edit().putLong("sentT", evs.last().t).apply()
-            409 -> pp.edit().putInt("cv", 0).apply()   // נוסח הסכמה חדש — לשאול שוב
+            409 -> setEnabled(ctx, false)   // השרתון דורש נוסח חדש — מכבים עד שה־APK יתעדכן
         }
     }
 
@@ -118,9 +125,9 @@ object DmSync {
         return r.second.optInt("deleted", 0)
     }
 
-    /** כיבוי: לא שולחים יותר, האסימונים נמחקים מהטלפון (הנתונים שכבר נשלחו נשארים עד "מחק") */
+    /** התנתקות: האסימונים נמחקים מהטלפון (הנתונים שכבר נשלחו נשארים עד "מחק") */
     fun signOut(ctx: Context) {
-        p(ctx).edit().remove("it").remove("rt").remove("ie").remove("em").putInt("cv", 0).apply()
+        p(ctx).edit().remove("it").remove("rt").remove("ie").remove("em").apply()
         runCatching { kotlinx.coroutines.runBlocking { CredentialManager.create(ctx).clearCredentialState(ClearCredentialStateRequest()) } }
     }
 

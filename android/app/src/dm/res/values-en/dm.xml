@@ -145,20 +145,18 @@
     <string name="dmStMerge">Merging video and audio…</string>
     <string name="dmStPost">Finishing…</string>
     <string name="dmSetLog">Share the download log (for support)</string>
-    <string name="dmImpT">Help improve DM?</string>
-    <string name="dmImpS">Send the download log — no addresses, no cookies — so we can find and fix problems faster.</string>
-    <string name="dmImpYes">Yes, help</string>
-    <string name="dmImpNo">No thanks</string>
-    <string name="dmConsentT">Send the download log</string>
-    <string name="dmConsentText">After each download we send to our database: what happened (finished, failed and why), size, speed, number of connections and retries, the site name and file name, and the phone model.\n\nNot sent: the full address, cookies, the files themselves or what you saw on the site. Downloads still go straight from the site to your phone.\n\nYou need to sign in with Google — the same account as THE SNOWBALL. The data is stored encrypted for up to two years, and you can turn it off and delete it anytime in settings.</string>
-    <string name="dmConsentGo">Sign in with Google and agree</string>
+    <string name="dmImpT">Sign in to DM</string>
+    <string name="dmImpS">During development DM sends the download log — no addresses, no cookies — so we can find and fix problems. Sign in with Google, the same account as THE SNOWBALL. You can turn it off in settings.</string>
+    <string name="dmConsentGo">Sign in with Google</string>
     <string name="dmSignFail">Sign-in failed — please try again.</string>
     <string name="dmSetImprove">Send the download log</string>
     <string name="dmSetImproveOff">Off</string>
     <string name="dmSetForget">Delete my data</string>
-    <string name="dmForgetQ">Delete all the download logs you sent from our database? Sending turns off afterwards.</string>
+    <string name="dmForgetQ">Delete all the download logs you sent from our database? DM signs out afterwards.</string>
     <string name="dmForgetGo">Delete</string>
     <string name="dmForgetDone">Deleted (%1$d)</string>
     <string name="dmForgetFail">Delete failed — try again</string>
-    <string name="dmPrivacyOn">Downloads go straight from the site to your phone, with no server in between. Only the download log — no addresses, no cookies — is sent to our database, because you agreed. You can turn it off and delete it above.</string>
+    <string name="dmPrivacyOn">Downloads go straight from the site to your phone, with no server in between. Only the download log — no addresses, no cookies, no files — is sent to our database, encrypted, to fix problems. You can turn it off and delete it above.</string>
+    <string name="dmSetImproveS">No addresses, no cookies</string>
+    <string name="dmSignNeed">Sign in to send</string>
 </resources>

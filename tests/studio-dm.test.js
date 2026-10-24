@@ -42,7 +42,9 @@ for (const f of code) {
     'https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=$FB_KEY', 'https://securetoken.googleapis.com/v1/token?key=$FB_KEY'].sort()),
     'DmSync: רק השרתון (ראשי + גיבוי) והכניסה של Google — שום כתובת אחרת');
   ok((sync.match(/put\("op", "(\w+)"\)/g) || []).map((x) => x.match(/"(\w+)"\)$/)[1]).sort().join() === 'dmForget,dmLog', 'DmSync: רק dmLog ו־dmForget');
-  ok(/fun on\(ctx: Context\) = p\(ctx\)\.getInt\("cv", 0\) == CV/.test(sync) && /if \(!on\(app\)\) return/.test(sync) && /if \(!on\(ctx\)\) return/.test(sync), 'DmSync: שולחים רק אחרי הסכמה בנוסח הנוכחי');
+  ok(/fun on\(ctx: Context\) = enabled\(ctx\) && signedIn\(ctx\)/.test(sync) && /if \(!on\(app\)\) return/.test(sync) && /if \(!on\(ctx\)\) return/.test(sync), 'DmSync: שולחים רק כשהשליחה דלוקה ומחוברים עם Google');
+  // 24/10/2026 (החלטת המשתמש): בתקופת הפיתוח — דלוק כברירת מחדל. לפני משתמשים מבחוץ: false + מסך הסכמה (משימות-פתוחות.md)
+  ok(/const val DEFAULT_ON = (true|false)/.test(sync) && /getBoolean\("en", DEFAULT_ON\)/.test(sync), 'DmSync: ברירת המחדל במקום אחד (DEFAULT_ON) ומתג כיבוי בהגדרות');
   const cv = +(sync.match(/const val CV = (\d+)/) || [])[1];
   ok(cv === require(path.join(ROOT, 'ibkr-proxy/lib/dmlog.js')).DMC_V, 'DmSync.CV = DMC_V בשרתון');
   ok(/JSONArray\(evs\.map \{ it\.json\(\) \}\)/.test(sync) && !/\.url\b|cookie/i.test(sync.replace(/import java\.net\.URL\n/, '')), 'DmSync: נשלחים רק האירועים של DmLog — בלי כתובת ובלי עוגיות');

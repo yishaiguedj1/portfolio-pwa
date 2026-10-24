@@ -190,57 +190,49 @@ private fun Downloads(a: DmActivity, rev: Int, onDetails: (String) -> Unit) {
             }
         }
         if (all.isEmpty()) item { Empty(a) }
-        if (done.isNotEmpty()) item { ImproveCard(a) }
+        item { SignInCard(a) }
         if (active.isNotEmpty()) { item { Section(stringResource(R.string.dmActive)) }; items(active, key = { it.id }) { TaskRow(a, it, onDetails) } }
         if (done.isNotEmpty()) { item { Section(stringResource(R.string.dmDone)) }; items(done.take(50), key = { it.id }) { TaskRow(a, it, onDetails) } }
     }
 }
 
-/* מאגר הנתונים (24/10/2026): הצעה אחת, אחרי שההורדה הראשונה הסתיימה — "כן" פותח את מסך ההסכמה, "לא תודה" לא שואל שוב */
+/* מאגר הנתונים (24/10/2026): בתקופת הפיתוח השליחה דלוקה כברירת מחדל (DmSync.DEFAULT_ON) — חסרה רק הכניסה עם Google.
+   הכרטיס מסביר מה נשלח, נכנסים בנגיעה אחת, ואפשר לכבות בהגדרות */
 @Composable
-private fun ImproveCard(a: DmActivity) {
+private fun SignInCard(a: DmActivity) {
     val ctx = LocalContext.current
-    var show by remember { mutableStateOf(!DmSync.asked(ctx) && !DmSync.on(ctx)) }
-    var ask by remember { mutableStateOf(false) }
+    var show by remember { mutableStateOf(DmSync.enabled(ctx) && !DmSync.signedIn(ctx) && !DmSync.asked(ctx)) }
     if (!show) return
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer), shape = RoundedCornerShape(20.dp)) {
         Column(Modifier.padding(16.dp)) {
             Text(stringResource(R.string.dmImpT), fontWeight = FontWeight.SemiBold)
             Text(stringResource(R.string.dmImpS), style = MaterialTheme.typography.bodySmall)
             Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { ask = true }) { Text(stringResource(R.string.dmImpYes)) }
-                TextButton(onClick = { DmSync.setAsked(ctx); show = false }) { Text(stringResource(R.string.dmImpNo)) }
+                SignInButton(a) { show = false }
+                TextButton(onClick = { DmSync.setAsked(ctx); show = false }) { Text(stringResource(R.string.dmNotNow)) }
             }
         }
     }
-    if (ask) ConsentDialog(a, onClose = { ok -> ask = false; if (ok) show = false })
 }
 
-/** מסך ההסכמה: בדיוק מה נשלח ומה לא, ואז כניסה עם Google. onClose(true) = נכנס והסכים */
+/** כפתור "כניסה עם Google" — חלון המערכת של Google, ואז onOk */
 @Composable
-internal fun ConsentDialog(a: DmActivity, onClose: (Boolean) -> Unit) {
+internal fun SignInButton(a: DmActivity, onOk: () -> Unit) {
+    val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
-    var err by remember { mutableStateOf(false) }
-    AlertDialog(onDismissRequest = { if (!busy) onClose(false) },
-        title = { Text(stringResource(R.string.dmConsentT)) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                Text(stringResource(R.string.dmConsentText))
-                if (err) Text(stringResource(R.string.dmSignFail), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
+    Button(enabled = !busy, onClick = {
+        busy = true
+        scope.launch {
+            val r = DmSync.signIn(a)
+            busy = false
+            when (r) {
+                is DmSync.R.Ok -> onOk()
+                is DmSync.R.Fail -> android.widget.Toast.makeText(ctx, R.string.dmSignFail, android.widget.Toast.LENGTH_LONG).show()
+                else -> {}
             }
-        },
-        confirmButton = {
-            Button(enabled = !busy, onClick = {
-                busy = true; err = false
-                scope.launch {
-                    val r = DmSync.signIn(a)
-                    busy = false
-                    when (r) { is DmSync.R.Ok -> onClose(true); is DmSync.R.Fail -> err = true; else -> {} }
-                }
-            }) { if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text(stringResource(R.string.dmConsentGo)) }
-        },
-        dismissButton = { TextButton(enabled = !busy, onClick = { onClose(false) }) { Text(stringResource(R.string.dmNotNow)) } })
+        }
+    }) { if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text(stringResource(R.string.dmConsentGo)) }
 }
 
 @Composable
@@ -641,7 +633,8 @@ private fun SettingsScreen(a: DmActivity) {
     var lang by remember { mutableStateOf(pr.lang) }
     var lim by remember { mutableStateOf(pr.limit) }
     var dlg by remember { mutableStateOf("") }
-    var synced by remember { mutableStateOf(DmSync.on(ctx)) }
+    var synced by remember { mutableStateOf(DmSync.enabled(ctx)) }
+    var signed by remember { mutableStateOf(DmSync.signedIn(ctx)) }
     var forgetMsg by remember { mutableStateOf("") }
     Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp, 0.dp, 16.dp, 24.dp)) {
         Group {
@@ -673,24 +666,26 @@ private fun SettingsScreen(a: DmActivity) {
         }
         Spacer(Modifier.height(14.dp))
         Group {
+            ListItem(headlineContent = { Text(stringResource(R.string.dmSetImprove)) },
+                supportingContent = { Text(stringResource(if (synced) R.string.dmSetImproveS else R.string.dmSetImproveOff)) },
+                trailingContent = { Switch(synced, { synced = it; DmSync.setEnabled(ctx, it) }) })
             if (synced) {
-                ListItem(headlineContent = { Text(stringResource(R.string.dmSetImprove)) }, supportingContent = { Text(DmSync.email(ctx)) },
-                    trailingContent = { Switch(true, { DmSync.signOut(ctx); synced = false }) })
                 Div()
-                SetRow(stringResource(R.string.dmSetForget), forgetMsg) { dlg = "f" }
-            } else SetRow(stringResource(R.string.dmSetImprove), stringResource(R.string.dmSetImproveOff)) { dlg = "i" }
+                if (signed) ListItem(headlineContent = { Text(DmSync.email(ctx)) })
+                else ListItem(headlineContent = { Text(stringResource(R.string.dmSignNeed)) }, trailingContent = { SignInButton(a) { signed = true } })
+            }
+            if (signed) { Div(); SetRow(stringResource(R.string.dmSetForget), forgetMsg) { dlg = "f" } }
         }
         Text(stringResource(if (synced) R.string.dmPrivacyOn else R.string.dmPrivacy), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(8.dp, 16.dp))
     }
-    if (dlg == "i") ConsentDialog(a) { ok -> dlg = ""; if (ok) synced = true }
     if (dlg == "f") AlertDialog(onDismissRequest = { dlg = "" }, text = { Text(stringResource(R.string.dmForgetQ)) },
         confirmButton = { TextButton(onClick = {
             dlg = ""; forgetMsg = "…"
             Thread {
                 val n = DmSync.forget(ctx)
                 forgetMsg = if (n == null) ctx.getString(R.string.dmForgetFail) else ctx.getString(R.string.dmForgetDone, n)
-                if (n != null) synced = false
+                if (n != null) signed = false
             }.start()
         }) { Text(stringResource(R.string.dmForgetGo), color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onClick = { dlg = "" }) { Text(stringResource(R.string.dmNotNow)) } })
