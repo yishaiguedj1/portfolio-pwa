@@ -946,11 +946,32 @@ let lastOff = 0;
 /* 23/10/2026: נקודת היסטוריה לשעה לאחוזי השימוש של הספקים — רק אם הגיע הזמן (לא קוראים לספקים בכל מחזור) */
 async function usageSnap(deps, now) {
   const cfg = (await readDoc(deps, 'sysUsage', 'main').catch(() => null)) || {};
-  if (!USG.histDue(cfg.uh, now)) return 0;
-  const prov = await USG.usageAll(process.env, deps.fetch || fetch, now);
-  const uh = USG.histPush(cfg.uh, prov, now);
-  await patchDoc(deps, 'sysUsage', 'main', { uh, updated: now });
-  return uh.length;
+  const f = deps.fetch || fetch;
+  // 24/10/2026: האחסון לפי מקום — R2 לכל דלי, ו־Drive של הגיבוי. פעם בשעה (stoAt), בנפרד מההיסטוריה — בלי טוקנים
+  // של ספקים ההיסטוריה לא גדלה ו־histDue נשאר אמת, אבל לא שואלים את Drive כל 10 דק׳. תקלה כאן לא מפילה את ההיסטוריה
+  // חותמת לפי מי שמודד: מופע עם CF_USAGE_TOKEN (Vercel) — stoAt; בלי (השרתון שלנו) — רק Drive, בחותמת משלו (stdAt),
+  // כדי שהשרתון, שרץ כל 10 דק׳, לא יחסום את המדידה של R2 ב־Vercel (שמגיע לכאן רק מדי כמה שעות)
+  const set = {}, stamp = process.env.CF_USAGE_TOKEN ? 'stoAt' : 'stdAt';
+  if (!(now - (+cfg[stamp] || 0) < USG.STO_GAP)) {
+    set.sto = await storeSnap(deps, f, now, cfg.sto).catch(() => cfg.sto || null);
+    set[stamp] = now;
+  }
+  let n = 0;
+  if (USG.histDue(cfg.uh, now)) {
+    const prov = await USG.usageAll(process.env, f, now);
+    set.uh = USG.histPush(cfg.uh, prov, now);
+    n = set.uh.length;
+  }
+  if (!Object.keys(set).length) return 0;
+  if (set.sto == null) delete set.sto;
+  await patchDoc(deps, 'sysUsage', 'main', Object.assign(set, { updated: now }));
+  return n;
+}
+async function storeSnap(deps, f, now, prev) {
+  const bk = await readDoc(deps, 'sysBackup', 'cfg').catch(() => null);
+  const t = bk && UID_RE.test(String(bk.uid || '')) ? await OFF.ownerToken(deps, bk.uid).catch(() => null) : null;
+  const [r2, drive] = await Promise.all([USG.r2Store(process.env, f, now).catch(() => null), USG.driveStore(t && t.ok ? t.token : '', f).catch(() => null)]);
+  return USG.storeMerge(prev, r2, drive, now);
 }
 async function offsiteBackup(deps, now) {
   if (!R2.config().ok || Math.abs(now - lastOff) < OFF_EVERY) return 0;
@@ -2203,7 +2224,7 @@ async function handler(req, res, deps = {}) {
       if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
       const prov = await USG.usageAll(process.env, deps.fetch || fetch, now);
       const cfg = (await readDoc(deps, 'sysUsage', 'main').catch(() => null)) || {};
-      return res.status(200).json({ ok: true, prov, hist: USG.histPush(cfg.uh, prov, now) });
+      return res.status(200).json({ ok: true, prov, hist: USG.histPush(cfg.uh, prov, now), sto: cfg.sto || null });   // sto: נמדד פעם בשעה ב־watch
     }
     if (op === 'adminAgents' || op === 'adminServers') {
       // 15/10/2026: מרכז הניהול ← Studio. עבודות התרגום של 30 הימים האחרונים מכל המשתמשים (שאילתה עם טווח על created —
