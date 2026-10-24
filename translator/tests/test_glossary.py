@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from vt.translate import check, gl_strict  # noqa: E402
+from vt.translate import check, gl_strict, name_variants  # noqa: E402
 import pipeline  # noqa: E402
 
 
@@ -54,6 +54,62 @@ class Strict(unittest.TestCase):
             self.assertIn('שורה נפרדת', t)
         md = (Path(__file__).resolve().parent.parent / 'TRANSLATE.md').read_text(encoding='utf-8')
         self.assertNotIn('כפי שהם', md)
+
+
+class Candidates(unittest.TestCase):
+    def test_names_phrases_acronyms(self):
+        txt = ("# ראש — לא נספר\n"
+               "[S1 00:01] So I started at Karolinska Institute. So Sweden is fine, and the OECD said so.\n"
+               "[S1 00:09] Poland, Russia, Pakistan and South Africa. Sub-Saharan Africa is big.\n"
+               "[S1 00:15] Uganda grew. Uganda again, and the World Bank of the UN.")
+        got = dict(pipeline.term_candidates(txt))
+        for k in ('Karolinska Institute', 'OECD', 'South Africa', 'Sub-Saharan Africa', 'Uganda', 'World Bank', 'UN'):
+            self.assertIn(k, got)
+        self.assertEqual(got['Uganda'], 2)
+        for k in ('So', 'So I', 'Sweden', 'Poland Russia', 'I', 'Poland'):   # תחילת משפט, "I", מילה אחת פעם אחת
+            self.assertNotIn(k, got)
+        self.assertFalse(any('ראש' in k for k in got))
+
+    def test_block_in_prompt(self):
+        self.assertEqual(pipeline.candidates_block(''), '')
+        b = pipeline.candidates_block('Hans Rosling met the World Bank.')
+        self.assertIn('term_candidates', b)
+        self.assertIn('Hans Rosling ×1', b)
+        for t in (pipeline.PROOF_TASK, pipeline.SUBS_TASK):
+            self.assertIn('`term_candidates`', t)
+
+    def test_limit(self):
+        txt = ' '.join(f'Went to Alpha{chr(97 + i % 26)}{chr(97 + i // 26)} Place.' for i in range(80))
+        self.assertLessEqual(len(pipeline.term_candidates(txt)), pipeline.CAND_MAX)
+
+
+class NameVariants(unittest.TestCase):
+    CUES = [{'id': 1, 'en': 'Hans Rosling went home.'}, {'id': 2, 'en': 'Rosling said so.'},
+            {'id': 3, 'en': 'Then Rosling left.'}, {'id': 4, 'en': 'In India we met.'}, {'id': 5, 'en': 'India is big.'},
+            {'id': 6, 'en': 'Swedish people went home.'}, {'id': 7, 'en': 'The Swedish are tall.'},
+            {'id': 8, 'en': 'Nigeria grew.'}, {'id': 9, 'en': 'Nigeria fell.'}]
+
+    def he(self, **kw):
+        h = {'1': 'הנס רוסלינג הלך הביתה.', '2': 'רוזלינג אמר כך.', '3': 'ואז ברוסלינג עזב.', '4': 'בהודו נפגשנו.',
+             '5': 'הודו גדולה.', '6': 'השוודים הלכו הביתה.', '7': 'השוודית גבוהה.', '8': 'בניגריה צמחו.', '9': 'לניגריה נפל.'}
+        h.update(kw)
+        return h
+
+    def test_flags_minority_spelling(self):
+        out = name_variants(self.CUES, self.he())
+        self.assertEqual(len(out), 1)                          # אות שימוש ("בהודו", "לניגריה") ≠ כתיב אחר
+        self.assertTrue(out[0].startswith('- #2:'))
+        self.assertIn("'רוסלינג'", out[0])
+        self.assertIn('לכתיב אחד', out[0])
+
+    def test_consistent_and_check(self):
+        self.assertEqual(name_variants(self.CUES, self.he(**{'2': 'רוסלינג אמר כך.'})), [])
+        cues = [dict(c, s=0, e=3, budget=84) for c in self.CUES]
+        issues, stats = check(cues, self.he(), [])
+        self.assertEqual(stats['names'], 1)
+        hard, soft = pipeline.parse_issues('\n'.join(issues))
+        self.assertIn('2', soft)                               # הערה לסבב התיקון — לא שגיאה
+        self.assertNotIn('2', hard)
 
 
 class NoGlossary(unittest.TestCase):
