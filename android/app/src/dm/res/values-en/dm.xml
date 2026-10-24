@@ -84,7 +84,7 @@
     <string name="dmSetExport">Export the download list</string>
     <string name="dmSetLicenses">Licenses</string>
     <string name="dmQBest">Highest</string>
-    <string name="dmPrivacy">Nothing leaves your phone: downloads go straight from the site to your phone, with no server in between.</string>
+    <string name="dmPrivacy">Nothing leaves your phone: downloads go straight from the site to your phone, with no server in between. The download log stays on your phone too, and leaves it only when you share it.</string>
     <string name="dmLicensesText">Studio DM includes yt-dlp (Unlicense) via youtubedl-android (GPL-3.0), Python (PSF), FFmpeg (GPL), QuickJS (MIT) and Jetpack Compose (Apache-2.0). Source code: github.com/yishaiguedj1/portfolio-pwa</string>
     <string name="dmChRun">Active downloads</string>
     <string name="dmChDone">Finished downloads</string>
@@ -139,4 +139,24 @@
     <string name="dmTranslate">Translate in Studio</string>
     <string name="dmDoneTrN">Download finished — translate in Studio</string>
     <string name="dmNoStudio">Studio isn’t installed on this phone</string>
+    <string name="dmStPrep">Preparing the download engine…</string>
+    <string name="dmStConn">Connecting to the site…</string>
+    <string name="dmStRetry">Retrying…</string>
+    <string name="dmStMerge">Merging video and audio…</string>
+    <string name="dmStPost">Finishing…</string>
+    <string name="dmSetLog">Share the download log (for support)</string>
+    <string name="dmImpT">Sign in to DM</string>
+    <string name="dmImpS">During development DM sends the download log — no addresses, no cookies — so we can find and fix problems. Sign in with Google, the same account as THE SNOWBALL. You can turn it off in settings.</string>
+    <string name="dmConsentGo">Sign in with Google</string>
+    <string name="dmSignFail">Sign-in failed — please try again.</string>
+    <string name="dmSetImprove">Send the download log</string>
+    <string name="dmSetImproveOff">Off</string>
+    <string name="dmSetForget">Delete my data</string>
+    <string name="dmForgetQ">Delete all the download logs you sent from our database? DM signs out afterwards.</string>
+    <string name="dmForgetGo">Delete</string>
+    <string name="dmForgetDone">Deleted (%1$d)</string>
+    <string name="dmForgetFail">Delete failed — try again</string>
+    <string name="dmPrivacyOn">Downloads go straight from the site to your phone, with no server in between. Only the download log — no addresses, no cookies, no files — is sent to our database, encrypted, to fix problems. You can turn it off and delete it above.</string>
+    <string name="dmSetImproveS">No addresses, no cookies</string>
+    <string name="dmSignNeed">Sign in to send</string>
 </resources>

@@ -50,8 +50,20 @@ object DmFmt {
         val sz = if (tot > 0) ctx.getString(R.string.dmOf, size(ctx, got), size(ctx, tot)) else size(ctx, got.coerceAtLeast(0))
         return when (t.state) {
             DmState.RUNNING -> {
+                val st = if (t.kind == DmKind.YTDL) DmEngine.ytStage[t.id] else null
+                val stage = when (st) {
+                    DmYt.Stage.PREP -> R.string.dmStPrep
+                    DmYt.Stage.CONN -> R.string.dmStConn
+                    DmYt.Stage.RETRY -> R.string.dmStRetry
+                    DmYt.Stage.MERGE -> R.string.dmStMerge
+                    DmYt.Stage.POST -> R.string.dmStPost
+                    else -> 0
+                }
+                // לפני שהבתים מתחילים לזרום — מה קורה עכשיו, לא "0 B" קפוא
+                if (stage != 0 && (got <= 0 || st != DmYt.Stage.CONN && st != DmYt.Stage.PREP)) return ctx.getString(stage)
                 val sp = DmEngine.speed[t.id] ?: 0
-                val l = if (sp > 0 && tot > 0) left(ctx, (tot - got) / sp) else ""
+                val eta = if (st != null) DmEngine.ytEta[t.id] ?: -1 else -1
+                val l = if (eta >= 0) left(ctx, eta) else if (sp > 0 && tot > 0) left(ctx, (tot - got) / sp) else ""
                 listOf(sz, speed(ctx, sp), l).filter { it.isNotEmpty() }.joinToString(" · ")
             }
             DmState.QUEUED -> ctx.getString(R.string.dmQueued) + if (got > 0) " · $sz" else ""

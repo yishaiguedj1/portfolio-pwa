@@ -44,6 +44,7 @@ const LR = require('../lib/studiolearn');
 const LI = require('../lib/learnimpact');   // 21/10/2026: השפעת המאגר לאורך זמן
 const LC = require('../lib/learncorpus');
 const DL = require('../lib/devlog');   // 15/10/2026: האיסוף המלא בתקופת הפיתוח (הדגל learn_full) — לוגים, יומן הקריאות, מדדים, שגיאות מהטלפון
+const DMLOG = require('../lib/dmlog');   // 24/10/2026: מאגר הנתונים מ־Studio DM — יומן ההורדות, בהסכמה מפורשת
 const SU = require('../lib/studiourl');   // 22/10/2026: הורדה מקישור — בדיקת קישור בתור לעובד
 const MON = require('../lib/studiomon');
 const USG = require('../lib/usage');   // 23/10/2026: מעקב תעבורה/אחסון של Vercel, R2 ו־Firestore (טוקנים לקריאה בלבד)   // 22/10/2026: ניטור השרתים — היסטוריית דופק + טוקן קריאה לווידג׳ט
@@ -443,6 +444,7 @@ async function learnBatch(deps, now) {
     }
   }
   gone += await devGc(deps, now).catch(() => 0);   // האיסוף המלא: לוגים ומדדים מעל 30 יום
+  gone += await dmGc(deps, now).catch(() => 0);    // יומני Studio DM מעל 24 חודשים
   await patchDoc(deps, 'sysLearn', 'batch', { day, at: now, mv: moved, gn: gone });
   return moved;
 }
@@ -539,6 +541,43 @@ async function devErr(deps, user, body, now) {
     return devPut(deps, 'e', DL.normErrs(body), now);
   } catch (e) { return false; }
 }
+/* Studio DM (24/10/2026): יומן ההורדות מהאפליקציה הנייטיב — בלי Origin (אפליקציה, לא דף), התחברות Firebase (Google ב־DM)
+   והסכמה בנוסח הנוכחי (cv). לכל משתמש מחובר — לא רק למי שפתוח לו הסטודיו. dmForget = "מחק את הנתונים שלי" */
+async function dmOps(req, res, body, deps) {
+  // שלב 7 (appscope): הפעולה של Studio — בלי guard (אין Origin לאפליקציה נייטיב), לכן כאן: טוקן של Invest/Academy (טענת app) = 403
+  const ta = require('../lib/appscope').tokenApp(body.idToken);
+  if (ta && ta !== 'studio' && ta !== 'all') return res.status(403).json({ ok: false, error: 'wrong_app' });
+  let user;
+  try { user = await verifyIdToken(body.idToken, deps.verify || {}); } catch (e) { return res.status(401).json({ ok: false, error: 'no_auth' }); }
+  if (!UID_RE.test(String(user.uid || ''))) return res.status(401).json({ ok: false, error: 'no_auth' });
+  if (limited('dm|' + user.uid, 12)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+  const c = learnCfg();
+  if (!c.ok) return res.status(learnRemote() ? 421 : 503).json({ ok: false, error: learnRemote() ? 'learn_remote' : 'not_configured' });
+  if (!vault.configured()) return res.status(503).json({ ok: false, error: 'vault_not_configured' });
+  const rd = r2deps(deps), now = deps.now || Date.now();
+  try {
+    if (body.op === 'dmForget') {
+      let n = 0;
+      for (const it of await R2.list(c, rd, DMLOG.userPrefix(user.uid, 'snb'), 50000)) { await R2.del(c, rd, it.key); n++; }
+      return res.status(200).json({ ok: true, deleted: n });
+    }
+    const b = DMLOG.normBatch(body);
+    if (!b) return res.status(+body.cv === DMLOG.DMC_V ? 400 : 409).json({ ok: false, error: +body.cv === DMLOG.DMC_V ? 'bad_params' : 'consent' });
+    const id = now.toString(36) + '-' + crypto.randomBytes(5).toString('hex');
+    const key = DMLOG.dmKey(user.uid, 'snb', now, id);
+    await R2.putText(c, rd, key, vault.seal(Object.assign({ v: DMLOG.DMC_V, at: now }, b), 'dm|' + key), 'application/octet-stream');
+    return res.status(200).json({ ok: true, saved: b.ev.length });
+  } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
+}
+/* ניקוי: יומני DM מעל 24 חודשים (האצווה היומית) */
+async function dmGc(deps, now) {
+  const c = learnCfg();
+  if (!c.ok) return 0;
+  const rd = r2deps(deps);
+  let n = 0;
+  for (const it of await R2.list(c, rd, 'dm/', 50000)) if (DMLOG.expiredKey(it.key, now)) { await R2.del(c, rd, it.key); n++; }
+  return n;
+}
 /* ניקוי: פריטים מעל 30 יום. מתוך האצווה היומית של מאגר הלמידה */
 async function devGc(deps, now) {
   const c = learnCfg();
@@ -595,6 +634,39 @@ async function devPull(req, res, body, deps) {
       });
     }
     return res.status(200).json({ ok: true, on, r2: true, at: now, stats: DL.devStats(all), items, next: next || undefined });
+  } catch (e) {
+    return res.status(502).json({ ok: false, error: /^fs_http_/.test(String(e.message)) ? String(e.message).slice(0, 20) : 'failed' });
+  }
+}
+/* Studio DM (24/10/2026, שלב ג׳): משיכת יומני ההורדות בטוקן הניתוח — קריאה בלבד, N הימים האחרונים (עד 31),
+   מהחדש לישן, 8 במקביל עם תקציב זמן ו־next. המשתמש מזוהה רק ב־hash (u) — בלי uid ובלי מייל. stats = סיכום במספרים */
+async function dmPull(req, res, body, deps) {
+  const tok = String(body.at || '');
+  if (!AT_RE.test(tok)) return res.status(401).json({ ok: false, error: 'bad_token' });
+  if (limited('at|' + atId(tok).slice(0, 12), 6)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+  const now = deps.now || Date.now();
+  try {
+    const t = await readDoc(deps, 'sysTokens', atId(tok));
+    if (!t || !(t.exp > now)) return res.status(401).json({ ok: false, error: 'bad_token' });
+    const c = learnCfg();
+    if (!c.ok) return res.status(learnRemote() ? 421 : 200).json({ ok: !learnRemote(), r2: false, at: now, items: [] });
+    await patchDoc(deps, 'sysTokens', t.id, { last: now, uses: (t.uses || 0) + 1 }).catch(() => {});
+    const days = Math.max(1, Math.min(31, Math.floor(+body.days || 7)));
+    const months = DMLOG.monthsBack(now, days), from = now - days * 864e5;
+    const before = typeof body.before === 'string' && body.before.startsWith('dm/') ? DMLOG.keyTime(body.before) : 0;
+    const rd = r2deps(deps);
+    const keys = (await R2.list(c, rd, 'dm/u/', 50000)).filter((it) => { const p = DMLOG.parseKey(it.key), kt = DMLOG.keyTime(it.key); return p && months.has(p.month) && kt >= from && (!before || kt < before); })
+      .sort((a, b) => DMLOG.keyTime(b.key) - DMLOG.keyTime(a.key)).slice(0, DEV_PULL_MAX);
+    const t0 = Date.now(), items = [];
+    let i = 0, next = '';
+    while (i < keys.length) {
+      if (Date.now() - t0 > DEV_PULL_BUDGET_MS) { next = keys[i - 1] ? keys[i - 1].key : ''; break; }
+      const batch = keys.slice(i, i + 8);
+      i += batch.length;
+      const got = await Promise.all(batch.map((it) => R2.getText(c, rd, it.key, 4 * 1024 * 1024).then((x) => vault.open(x, 'dm|' + it.key)).catch(() => null)));
+      got.forEach((x, n) => { if (x) items.push(Object.assign({ u: DMLOG.parseKey(batch[n].key).u }, x)); });
+    }
+    return res.status(200).json({ ok: true, r2: true, at: now, stats: DMLOG.dmStats(items), items, next: next || undefined });
   } catch (e) {
     return res.status(502).json({ ok: false, error: /^fs_http_/.test(String(e.message)) ? String(e.message).slice(0, 20) : 'failed' });
   }
@@ -1872,6 +1944,8 @@ async function handler(req, res, deps = {}) {
   if (SERVER_OPS.has(String(body.op || ''))) return server(req, res, body, deps);
   if (body.op === 'learnPull') return learnPull(req, res, body, deps);   // 14/10/2026: טוקן ניתוח (Claude Code)
   if (body.op === 'devPull') return devPull(req, res, body, deps);   // 15/10/2026: האיסוף המלא — לוגים, קריאות, מדדים, שגיאות (קריאה בלבד)
+  if (body.op === 'dmPull') return dmPull(req, res, body, deps);   // שלב ג׳: יומני DM לניתוח (טוקן הניתוח, קריאה בלבד)
+  if (body.op === 'dmLog' || body.op === 'dmForget') return dmOps(req, res, body, deps);   // 24/10/2026: Studio DM — אפליקציה נייטיב, בלי Origin
   if (guard(req, res)) return;
   if (body.op === 'cfg') {   // 15/10/2026: מצב התחזוקה והדגלים — לשלוש האפליקציות, בלי התחברות (רק מה שציבורי)
     if (limited('cfg|' + String(((req.socket || {}).remoteAddress) || ''), 30)) return res.status(429).json({ ok: false, error: 'rate_limited' });

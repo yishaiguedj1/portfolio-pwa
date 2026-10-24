@@ -67,7 +67,8 @@ class DmTask(
     var tr = false             // 24/10: "להוריד ולתרגם ב־Studio" — בסוף ההורדה הקובץ מוצע ל־Studio
 
     val got: Long get() = if (kind == DmKind.YTDL) bytesYt else segs.sumOf { it.done.coerceAtMost(it.end - it.start) }
-    val frac: Float get() = if (kind == DmKind.YTDL && pctYt >= 0) pctYt.coerceIn(0f, 1f)
+    // yt-dlp לפני האחוז הראשון (מתחבר, פותר את בדיקת יוטיוב) = ‎-1‎ — פס בתנועה, לא "0" קפוא
+    val frac: Float get() = if (kind == DmKind.YTDL) (if (pctYt >= 0) pctYt.coerceIn(0f, 1f) else -1f)
         else if (total > 0) (got.toDouble() / total).toFloat().coerceIn(0f, 1f) else -1f
     val active get() = state == DmState.RUNNING || state == DmState.QUEUED || state == DmState.WAITING
 

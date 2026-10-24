@@ -29,9 +29,27 @@ ok(/android:foregroundServiceType="dataSync"/.test(man) && /RUN_USER_INITIATED_J
 // 0א — ניתוק מהשרת: שום כתובת שלנו בקוד של DM (גם לא במנוע המשותף)
 const code = [...ls('android/app/src/dm/java'), ...ls('android/app/src/dmcore/java'), ...ls('android/app/src/ytdl/java')];
 ok(code.length >= 8, 'קבצי הקוד נמצאו');
+// 24/10/2026: החריג היחיד — DmSync.kt (מאגר הנתונים, בקשת המשתמש): רק יומן ההורדות, רק אחרי כניסה עם Google והסכמה
 for (const f of code) {
   const s = R(f);
+  if (path.basename(f) === 'DmSync.kt') continue;
   ok(!/thesnowball\.app|vercel\.app|workers\.dev|\/api\/|snbstudio:\/\/|launchUrl/.test(s), 'בלי שרת/אתר שלנו: ' + path.basename(f));
+}
+{
+  const sync = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmSync.kt');
+  const urls = (sync.match(/https:\/\/[^"\s]+/g) || []).sort();
+  ok(JSON.stringify(urls) === JSON.stringify(['https://api.thesnowball.app/api/studio', 'https://ibkr-proxy-wine.vercel.app/api/studio',
+    'https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=$FB_KEY', 'https://securetoken.googleapis.com/v1/token?key=$FB_KEY'].sort()),
+    'DmSync: רק השרתון (ראשי + גיבוי) והכניסה של Google — שום כתובת אחרת');
+  ok((sync.match(/put\("op", "(\w+)"\)/g) || []).map((x) => x.match(/"(\w+)"\)$/)[1]).sort().join() === 'dmForget,dmLog', 'DmSync: רק dmLog ו־dmForget');
+  ok(/fun on\(ctx: Context\) = enabled\(ctx\) && signedIn\(ctx\)/.test(sync) && /if \(!on\(app\)\) return/.test(sync) && /if \(!on\(ctx\)\) return/.test(sync), 'DmSync: שולחים רק כשהשליחה דלוקה ומחוברים עם Google');
+  // 24/10/2026 (החלטת המשתמש): בתקופת הפיתוח — דלוק כברירת מחדל. לפני משתמשים מבחוץ: false + מסך הסכמה (משימות-פתוחות.md)
+  ok(/const val DEFAULT_ON = (true|false)/.test(sync) && /getBoolean\("en", DEFAULT_ON\)/.test(sync), 'DmSync: ברירת המחדל במקום אחד (DEFAULT_ON) ומתג כיבוי בהגדרות');
+  const cv = +(sync.match(/const val CV = (\d+)/) || [])[1];
+  ok(cv === require(path.join(ROOT, 'ibkr-proxy/lib/dmlog.js')).DMC_V, 'DmSync.CV = DMC_V בשרתון');
+  ok(/JSONArray\(evs\.map \{ it\.json\(\) \}\)/.test(sync) && !/\.url\b|cookie/i.test(sync.replace(/import java\.net\.URL\n/, '')), 'DmSync: נשלחים רק האירועים של DmLog — בלי כתובת ובלי עוגיות');
+  const log = R('android/app/src/dmcore/java/io/github/yishaiguedj1/snowball/dm/DmLog.kt');
+  ok(!/put\("url"|put\("ref"|put\("ck"|put\("ua"/.test(log), 'DmLog: אין שדה כתובת, Referer, עוגיות או User-Agent');
 }
 
 // המנוע: הכללים מהמחקר
