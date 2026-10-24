@@ -505,24 +505,36 @@ const monVal = (p, k) => {
   return p[MON_I[k]] == null ? null : p[MON_I[k]];
 };
 const monRate = (b) => (b == null ? '—' : b < 1024 ? Math.round(b) + ' B/s' : b < 1048576 ? (b / 1024).toFixed(1) + ' KB/s' : (b / 1048576).toFixed(2) + ' MB/s');
+const MON_RANGE = { '24h': 86400, '31d': 31 * 86400 };   // זהה לחלון של השרתון: 24 שעות מלאות + נקודה לשעה עד 31 ימים
+const monRangePts = (pts, r) => { const cut = Date.now() / 1000 - MON_RANGE[r]; return (pts || []).filter((p) => p[0] >= cut); };
+const HIST_I = { vbw: 1, vinv: 2, rst: 3, rops: 4, rrd: 5, rwr: 6 };   // זהה ל־HIST_KEYS בשרתון (lib/usage.js)
+const HIST_C = { vbw: '#0A84FF', vinv: '#5E5CE6', rst: '#30D158', rops: '#F5A524', rrd: '#FF453A', rwr: '#8E8E93' };
+function histBlk(key, label, hist) {
+  const data = (hist || []).map((p) => [p[0], p[HIST_I[key]]]).filter((x) => x[1] != null);
+  const last = data.length ? data[data.length - 1][1] : null;
+  const svg = data.length < 2 ? h('div', 'adm-mon-none', t('admMonNoData')) : seriesSvg(data, HIST_C[key], 100, 80);
+  return monBlk(label, last == null ? '—' : Math.round(last) + '%', svg, last != null && last >= 80);
+}
 const monPct = (v) => (v == null ? '—' : Math.round(v) + '%');
 const monOpen = (u) => () => { try { window.open(u, '_blank', 'noopener'); } catch (e) {} };
-function monChart(pts, k, top, warnAt) {
+function seriesSvg(data, c, top, warnAt) {
   const NS = 'http://www.w3.org/2000/svg';
-  const data = (pts || []).map((p) => [p[0], monVal(p, k)]).filter((x) => x[1] != null);
-  if (data.length < 2) return h('div', 'adm-mon-none', t('admMonNoData'));
   const W = 320, H = 64, t0 = data[0][0], t1 = data[data.length - 1][0];
   const mx = top || Math.max(1, ...data.map((x) => x[1])) * 1.15;
   const X = (ts) => ((ts - t0) / Math.max(1, t1 - t0)) * W;
   const Y = (v) => H - 3 - (Math.min(v, mx) / mx) * (H - 6);
   const d = data.map((x, i) => (i ? 'L' : 'M') + X(x[0]).toFixed(1) + ' ' + Y(x[1]).toFixed(1)).join(' ');
-  const c = MON_C[k];
   const mk = (tag, a) => { const e = document.createElementNS(NS, tag); Object.keys(a).forEach((n) => e.setAttribute(n, a[n])); return e; };
   const svg = mk('svg', { viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'none', class: 'adm-mon-svg', role: 'img' });
   svg.append(mk('path', { d: d + ' L' + W + ' ' + H + ' L0 ' + H + ' Z', fill: c, 'fill-opacity': '.16' }),
     mk('path', { d, fill: 'none', stroke: c, 'stroke-width': '2', 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round' }));
   if (warnAt != null) svg.append(mk('line', { x1: 0, x2: W, y1: Y(warnAt), y2: Y(warnAt), stroke: '#FF453A', 'stroke-dasharray': '3 3', 'stroke-opacity': '.7', 'vector-effect': 'non-scaling-stroke' }));
   return svg;
+}
+function monChart(pts, k, top, warnAt) {
+  const data = (pts || []).map((p) => [p[0], monVal(p, k)]).filter((x) => x[1] != null);
+  if (data.length < 2) return h('div', 'adm-mon-none', t('admMonNoData'));
+  return seriesSvg(data, MON_C[k], top, warnAt);
 }
 function monBlk(label, cur, svg, warn) {
   const top = h('div', 'adm-mon-top');
@@ -531,8 +543,8 @@ function monBlk(label, cur, svg, warn) {
   b.append(top, svg);
   return b;
 }
-function monCard(x) {
-  const hb = x.hb || {}, pts = x.mon || [], w = x.warn || [];
+function monCard(x, r) {
+  const hb = x.hb || {}, pts = monRangePts(x.mon, r), w = x.warn || [];
   const st = !x.online ? ['gray', t('admMonOff')] : w.length ? ['orange', t('admMonWarn')] : ['green', t('admMonOk')];
   const net = hb.rx == null && hb.tx == null ? null : (hb.rx || 0) + (hb.tx || 0);
   const hd = h('div', 'adm-mon-hd');
@@ -548,6 +560,15 @@ function monCard(x) {
   card.append(hd, grid);
   return card;
 }
+const PROV_NAME = { vercel: () => t('admProvVercel'), r2: () => t('admProvR2'), fs: () => t('admProvFs') };
+const PROV_ITEM = { bw: () => t('admProvBw'), inv: () => t('admProvInv'), store: () => t('admProvStore'), ops: () => t('admProvOps'), reads: () => t('admProvReads'), writes: () => t('admProvWrites') };
+function provRow(name, P) {
+  if (!P || P.st === 'off') return row({ c: 'gray', ic: '☁', t: name, s: t('admProvOff') });
+  if (P.st === 'err') return row({ c: 'red', ic: '!', t: name, s: t('admProvErr') + ' · ' + (P.err || '') });
+  const parts = (P.items || []).filter((x) => x.used != null).map((x) => (PROV_ITEM[x.k] || (() => x.k))() + ': ' + fmt(t('admProvOf'), { u: String(x.used), l: x.lim }) + ' ' + x.unit);
+  const worst = Math.max(0, ...(P.items || []).map((x) => x.pct || 0));
+  return row({ c: worst >= 80 ? 'orange' : 'green', ic: '☁', t: name, s: parts.join(' · ') || t('admProvOff'), v: worst ? Math.round(worst) + '%' : '', meter: worst ? [worst, worst >= 80 ? 'w' : ''] : null });
+}
 page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
   if (!D.monT) needMon();
   const V = D.mon;
@@ -556,7 +577,15 @@ page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
   p.append(h('p', 'adm-dt', t('admMonDt')));
   p.append(grp(t('admMonSrv')));
   if (!M.servers.length) p.append(list(row({ c: 'gray', ic: '☁', t: t('admMonNone') })));
-  for (const x of M.servers) p.append(monCard(x));
+  const rng = h('div', 'adm-rng');
+  for (const r of ['24h', '31d']) {
+    const b = h('button', 'adm-rng-b' + (D.mr === r ? ' on' : ''), r === '24h' ? t('admMonRange24') : t('admMonRange31'));
+    b.type = 'button'; b.setAttribute('aria-pressed', D.mr === r ? 'true' : 'false');
+    b.addEventListener('click', () => { D.mr = r; paint(); });
+    rng.append(b);
+  }
+  p.append(rng);
+  for (const x of M.servers) p.append(monCard(x, D.mr || '24h'));
   p.append(grp(t('admMonJobs')));
   const jobs = M.jobs || [];
   if (!jobs.length) p.append(list(row({ c: 'gray', ic: '◎', t: t('admMonJobsNone') })));
@@ -564,6 +593,20 @@ page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
     const s = M.servers.find((x) => x.id === j.sid), pc = j.p == null ? null : Math.round(j.p * 100);
     return row({ c: 'blue', ic: '◎', t: (STG[j.st] || (() => j.st || '—'))(), s: s ? s.name : '', v: pc == null ? '' : pc + '%', meter: pc == null ? null : [pc, ''] });
   })));
+  // 23/10/2026: שימוש בשירותי הענן — רק מספרים מהספקים עצמם; ספק בלי טוקן = "לא מוגדר", בלי מספר מומצא
+  p.append(grp(t('admProvT')));
+  const PV = D.prov;
+  if (!PV) p.append(list(row({ c: 'gray', ic: '⋯', t: t('admLoading') })));
+  else p.append(list(...[[PROV_NAME.vercel(), PV.vercel], [PROV_NAME.r2(), PV.r2], [PROV_NAME.fs(), PV.firestore]].map(([name, P]) => provRow(name, P))), h('p', 'adm-foot', t('admProvNote')));
+  // 23/10/2026: היסטוריית אחוזי השימוש של כל פרמטר (עד 31 ימים, נקודה לשעה)
+  p.append(grp(t('admProvHist')));
+  const HB = [['vbw', PROV_NAME.vercel() + ' · ' + PROV_ITEM.bw()], ['vinv', PROV_NAME.vercel() + ' · ' + PROV_ITEM.inv()], ['rst', PROV_NAME.r2() + ' · ' + PROV_ITEM.store()],
+    ['rops', PROV_NAME.r2() + ' · ' + PROV_ITEM.ops()], ['rrd', PROV_NAME.fs() + ' · ' + PROV_ITEM.reads()], ['rwr', PROV_NAME.fs() + ' · ' + PROV_ITEM.writes()]];
+  const hgrid = h('div', 'adm-mon-grid');
+  for (const [k, label] of HB) hgrid.append(histBlk(k, label, monRangePts(D.provHist, D.mr || '24h')));
+  const hcard = h('div', 'adm-mon-card');
+  hcard.append(hgrid);
+  p.append(hcard);
   p.append(grp(t('admMonTokT')));
   const on = !!(V.tok && V.tok.on);
   p.append(list(row({ c: on ? 'green' : 'gray', ic: '⚿', t: on ? fmt(t('admMonTokOn'), { a: ago(V.tok.at) }) : t('admMonTokOff') })));
@@ -587,8 +630,9 @@ page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
 } });
 async function needMon() {
   clearTimeout(D.monT); D.monT = 0;
-  const r = await api('adminMon');
+  const [r, pv] = await Promise.all([api('adminMon'), api('provUsage')]);
   if (r.ok) D.mon = r;
+  if (pv.ok) { D.prov = pv.prov; D.provHist = pv.hist || []; }
   if (cur === 'mon') { D.monT = setTimeout(needMon, 30000); paint(); }   // מתרענן כל 30 שנ׳ כל עוד המסך פתוח
 }
 /* ---- שימוש ומשפכים (15/10/2026): כמה נכנסו לכל אפליקציה ועד איפה הגיעו. רק ספירות קיימות + עבודות 30 יום — בלי מעקב חדש ---- */

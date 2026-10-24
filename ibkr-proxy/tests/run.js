@@ -3663,7 +3663,7 @@ function stubFetch(text, status = 200) {
         now += 2 * 60e3;
         g = await get();
         const m1 = pushes.length === 1 && decrypt(pushes[0].body);
-        ok(g.payload.down === 1 && m1 && m1.k === 'srv_down' && m1.j === '' && +db.get('studioServers/' + S7).fields.dn.integerValue === now && Object.keys(g.payload).join() === 'ok,down,ar,st,bk,ob,aw,lc,lw,jg' && g.payload.jg === 0 && g.payload.lc === 0 && g.payload.lw === 0 && g.payload.aw === 0 && g.payload.ar === 0 && g.payload.st === 0 && g.payload.bk === -1 && g.payload.ob === 0,
+        ok(g.payload.down === 1 && m1 && m1.k === 'srv_down' && m1.j === '' && +db.get('studioServers/' + S7).fields.dn.integerValue === now && Object.keys(g.payload).join() === 'ok,down,ar,st,bk,ob,aw,lc,lw,jg,us' && typeof g.payload.us === 'number' && g.payload.jg === 0 && g.payload.lc === 0 && g.payload.lw === 0 && g.payload.aw === 0 && g.payload.ar === 0 && g.payload.st === 0 && g.payload.bk === -1 && g.payload.ob === 0,
           'ת7: שותק רבע שעה → התראה לטלפון ("השרת לא מדווח"), מסומן; התשובה רק מספרים (בלי R2 — הגיבוי -1)');
         ok(await srvOpen(), 'ת7: התראה במגדל (server:down)');
         now += 40 * 60e3;
@@ -3926,6 +3926,11 @@ function stubFetch(text, status = 200) {
       const mtOff = await monRun({ op: 'monTok', idToken: OWNER, rev: true });
       ok(mtOff.payload.ok && mtOff.payload.on === false, 'ניטור: ביטול טוקן');
       ok((await monRun({ op: 'adminMon' }, { 'x-mon-token': monTokVal })).statusCode === 401, 'ניטור: טוקן שבוטל נדחה');
+      // 23/10/2026: מעקב תעבורה לספקים — רק מנהל; בלי טוקנים בסביבת הבדיקה כל ספק "off" ואין מספרים מומצאים
+      ok((await monRun({ op: 'provUsage', idToken: FRIEND })).payload.error === 'not_admin', 'תעבורה: רק המנהל רואה');
+      const pvR = await monRun({ op: 'provUsage', idToken: OWNER });
+      ok(pvR.payload.ok && ['vercel', 'r2', 'firestore'].every((k) => pvR.payload.prov[k] && ['off', 'ok', 'err'].includes(pvR.payload.prov[k].st)), 'תעבורה: שלושה ספקים עם מצב');
+      ok(pvR.payload.prov.vercel.st === 'off' && pvR.payload.prov.vercel.items.every((x) => x.used === null), 'תעבורה: בלי טוקן — off ובלי מספר');
       ok((await run({ op: 'adminUsage', idToken: FRIEND })).payload.error === 'not_admin', 'שימוש: רק המנהל');
       const usg = await run({ op: 'adminUsage', idToken: OWNER });
       ok(usg.payload.ok && usg.payload.us.studio.length === 4 && !/ownerUid0001|friendUid03|@example\.com/.test(JSON.stringify(usg.payload)), 'שימוש: משפכים במספרים, בלי uid ומיילים');

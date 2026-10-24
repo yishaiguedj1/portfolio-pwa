@@ -46,7 +46,8 @@ const LC = require('../lib/learncorpus');
 const DL = require('../lib/devlog');   // 15/10/2026: האיסוף המלא בתקופת הפיתוח (הדגל learn_full) — לוגים, יומן הקריאות, מדדים, שגיאות מהטלפון
 const DMLOG = require('../lib/dmlog');   // 24/10/2026: מאגר הנתונים מ־Studio DM — יומן ההורדות, בהסכמה מפורשת
 const SU = require('../lib/studiourl');   // 22/10/2026: הורדה מקישור — בדיקת קישור בתור לעובד
-const MON = require('../lib/studiomon');   // 22/10/2026: ניטור השרתים — היסטוריית דופק + טוקן קריאה לווידג׳ט
+const MON = require('../lib/studiomon');
+const USG = require('../lib/usage');   // 23/10/2026: מעקב תעבורה/אחסון של Vercel, R2 ו־Firestore (טוקנים לקריאה בלבד)   // 22/10/2026: ניטור השרתים — היסטוריית דופק + טוקן קריאה לווידג׳ט
 const SF = require('../lib/sysflags');   // 15/10/2026: מצב תחזוקה והגדרות ודגלים (sysCfg/main)   // 15/10/2026 (מ׳2): קורפוס הטקסט — לדלי נפרד snb-learn
 const AICACHE = require('../lib/aicache');   // 15/10/2026: התקרות היומיות של ה־AI (limits) — למסך AI ועלויות
 const AO = require('../lib/adminov');   // 15/10/2026: מרכז הניהול — הסקירה, "מחכה לך" ו"מה רץ איפה"   // 14/10/2026: מאגר הלמידה — רשומה אנונימית לכל עבודה + לוח הבקרה של המנהל
@@ -819,7 +820,8 @@ async function watch(req, res, deps) {
   const lc = await learnBatch(deps, now).catch(() => -1);   // 15/10/2026 (מ׳2): קורפוס הטקסט — האצווה היומית ומחיקה אחרי 24 חודשים
   const lw = await learnWeekly(deps, now).catch(() => -1);   // 20/10/2026 (מ׳7): הסיכום השבועי של המעבדה — התראה למנהל
   const jg = await jobGc(deps, now).catch(() => -1);   // 21/10/2026: עבודות ב־R2 שהסתיימו לפני יותר מחודש
-  return res.status(200).json({ ok: true, down, ar, st, bk, ob, aw, lc, lw, jg });
+  const us = await usageSnap(deps, now).catch(() => -1);   // 23/10/2026: נקודה לשעה לאחוזי השימוש של הספקים (היסטוריה של חודש)
+  return res.status(200).json({ ok: true, down, ar, st, bk, ob, aw, lc, lw, jg, us });
 }
 /* 21/10/2026 (בקשת המשתמש): עבודה ב־R2 שהסתיימה לפני יותר מחודש (SC.expiredJob) נמחקת כמו "מחיקה" בטלפון —
    removeJobRec: קודם הרשומה במאגר הלמידה נשמרת (learnSave), ואז הרשומה, הקבצים ב־R2, ההפקות מחדש וגיליונות ה־AI.
@@ -901,6 +903,15 @@ async function siteWatch(deps, now) {
    בסה"כ), err (קוד בלבד). פעם ב־OFF_EVERY למופע; תקציב זמן — הפונקציה מוגבלת ל־30 שנ׳. 1 = רץ, 0 = לא היה מה / לא הגיע הזמן, -1 = תקלה */
 const OFF_EVERY = 8 * 60e3;
 let lastOff = 0;
+/* 23/10/2026: נקודת היסטוריה לשעה לאחוזי השימוש של הספקים — רק אם הגיע הזמן (לא קוראים לספקים בכל מחזור) */
+async function usageSnap(deps, now) {
+  const cfg = (await readDoc(deps, 'sysUsage', 'main').catch(() => null)) || {};
+  if (!USG.histDue(cfg.uh, now)) return 0;
+  const prov = await USG.usageAll(process.env, deps.fetch || fetch, now);
+  const uh = USG.histPush(cfg.uh, prov, now);
+  await patchDoc(deps, 'sysUsage', 'main', { uh, updated: now });
+  return uh.length;
+}
 async function offsiteBackup(deps, now) {
   if (!R2.config().ok || Math.abs(now - lastOff) < OFF_EVERY) return 0;
   lastOff = now;
@@ -2061,6 +2072,13 @@ async function handler(req, res, deps = {}) {
       const cfg = (await readDoc(deps, 'sysCfg', 'main').catch(() => null)) || {};
       const run = jobs.map((j) => ({ sid: j.sid, st: (j.prog || {}).st, p: (j.prog || {}).p }));
       return res.status(200).json({ ok: true, now, tok: { on: !!cfg.monKh, at: cfg.monAt > 0 ? cfg.monAt : 0 }, mon: MON.monView(srv, run, now) });
+    }
+    if (op === 'provUsage') {
+      // 23/10/2026: שימוש בפועל מול הספקים — רק מנהל (בלי טוקן ניטור). ספק בלי טוקן = off, ואף מספר לא מומצא
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const prov = await USG.usageAll(process.env, deps.fetch || fetch, now);
+      const cfg = (await readDoc(deps, 'sysUsage', 'main').catch(() => null)) || {};
+      return res.status(200).json({ ok: true, prov, hist: USG.histPush(cfg.uh, prov, now) });
     }
     if (op === 'adminAgents' || op === 'adminServers') {
       // 15/10/2026: מרכז הניהול ← Studio. עבודות התרגום של 30 הימים האחרונים מכל המשתמשים (שאילתה עם טווח על created —

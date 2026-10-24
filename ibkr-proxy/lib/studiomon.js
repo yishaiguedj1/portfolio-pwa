@@ -6,7 +6,8 @@ const crypto = require('crypto');
 
 const MON_KEYS = ['t', 'cu', 'mem', 'disk', 'rx', 'tx', 'psi', 'nj'];   // זמן (שניות), מעבד %, זיכרון %, דיסק %, רשת B/s ×2, לחץ זיכרון %, עבודות במקביל
 const MON_STEP = 4 * 60e3;   // נקודה לכל היותר פעם ב־4 דק׳ (הדופק כל 5 דק׳ — בלי כפילויות בין דופק לדופק)
-const MON_MAX = 288;         // 24 שעות
+const MON_DAY = 288;         // 24 שעות של נקודות מלאות (כל ~5 דק׳)
+const MON_MAX = MON_DAY + 744 + 8;   // + נקודה לשעה ל־31 ימים (אחרי 24 שעות)
 const ALERT = { cu: 90, mem: 90, disk: 85, psi: 20 };   // סף "כתום" לכל מדד — מה שיוצא מעבר לו מסומן במסך ובווידג׳ט
 const MON_TOK_RE = /^mon-[0-9a-f]{48}$/;
 
@@ -25,7 +26,9 @@ function monPush(mon, hb, now) {
   const last = arr.length ? arr[arr.length - 1][0] * 1000 : 0;
   if (now - last < MON_STEP) return arr;
   arr.push(monPoint(hb, now));
-  return arr.slice(-MON_MAX);
+  // מעבר ל־24 שעות נשארת נקודה אחת לשעה (הראשונה בשעה) — כדי שההיסטוריה תגיע לחודש בלי לנפח את המסמך
+  const out = arr.filter((p, i) => now - p[0] * 1000 < 86400e3 || p[0] % 3600 < 300 || i === arr.length - 1);
+  return out.slice(-MON_MAX);
 }
 
 /* אילו מדדים חורגים מהסף עכשיו (מפתחות בלבד — הטקסט בטלפון) */
@@ -52,4 +55,4 @@ function monTokOk(tok, kh) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-module.exports = { MON_KEYS, MON_STEP, MON_MAX, ALERT, monPoint, monPush, monWarn, monView, monTokNew, monTokHash, monTokOk, MON_TOK_RE };
+module.exports = { MON_KEYS, MON_STEP, MON_DAY, MON_MAX, ALERT, monPoint, monPush, monWarn, monView, monTokNew, monTokHash, monTokOk, MON_TOK_RE };

@@ -19,9 +19,16 @@ assert.strictEqual(h.length, 2);
 
 // שורות פגומות בהיסטוריה נזרקות, והתקרה 288 (24 שעות)
 const bad = [[1, 2], 'x', null];
+// 23/10/2026: 24 שעות בדיוק בנקודות מלאות, ומעבר לכך נקודה לשעה (עד 31 ימים), ותקרה קשיחה
 let big = [];
-for (let i = 0; i < M.MON_MAX + 20; i++) big = M.monPush(big, { cu: i % 100 }, t0 + i * 5 * 60e3);
-assert.strictEqual(big.length, M.MON_MAX);
+for (let i = 0; i < 40 * 12; i++) big = M.monPush(big, { cu: i % 100 }, t0 + i * 5 * 60e3);   // 40 שעות
+const dayAgo = (Math.round((t0 + 39 * 3600e3) / 1000)) - 86400;
+const full = big.filter((p) => p[0] >= dayAgo);
+const older = big.filter((p) => p[0] < dayAgo);
+assert.ok(full.length >= 280 && full.length <= 300, 'כ־288 נקודות מלאות ב־24 שעות: ' + full.length);
+assert.ok(older.length <= 16 && older.length >= 14, 'שעתיים-שלוש לפני 24 שעות — נקודה לשעה בלבד: ' + older.length);
+for (let i = 0; i < M.MON_MAX + 200; i++) big = M.monPush(big, { cu: 1 }, t0 + (1000 + i) * 3600e3);   // הרבה שעות אחורה
+assert.ok(big.length <= M.MON_MAX, 'התקרה לא נחצית');
 assert.strictEqual(M.monPush(bad, {}, t0).length, 1, 'שורות לא תקינות נזרקות');
 
 // אזהרות: רק מה שחורג מהסף
@@ -31,7 +38,7 @@ assert.deepStrictEqual(M.monWarn(null), []);
 // תצוגה: לכל שרת warn ו־mon (חתוך), עבודות בלי מזהים
 const v = M.monView([{ id: 'a', hb: { cu: 91 }, mon: [[1]].concat(big) }], [{ sid: 'a', st: 'al', p: 0.4567, secret: 'x' }], t0);
 assert.deepStrictEqual(v.servers[0].warn, ['cu']);
-assert.strictEqual(v.servers[0].mon.length, M.MON_MAX);
+assert.ok(v.servers[0].mon.length <= M.MON_MAX && v.servers[0].mon.length > 0, 'ההיסטוריה חתוכה לתקרה ולא ריקה');
 assert.deepStrictEqual(v.jobs, [{ sid: 'a', st: 'al', p: 0.457 }]);   // שלוש ספרות אחרי הנקודה
 
 // טוקן קריאה: צורה, hash בלבד, השוואה, ביטול (hash ריק)
