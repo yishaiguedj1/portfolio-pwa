@@ -19,7 +19,7 @@ ok(!/material-icons-extended/.test(gradle), 'בלי material-icons-extended (‎
 
 const yml = R('.github/workflows/android.yml');
 ok(/testDmReleaseUnitTest/.test(yml), 'בדיקות הליבה רצות ב־CI');
-ok(/app-dm-release\.apk the-snowball-studio-dm\.apk/.test(yml) && /the-snowball-studio-dm\.apk --clobber/.test(yml), 'APK רביעי בקישור הקבוע');
+ok(/app-dm-release\.apk the-snowball-studio-dm\.apk/.test(yml) && /the-snowball-studio-dm\.apk[^\n]*--clobber/.test(yml), 'APK רביעי בקישור הקבוע');
 
 const man = R('android/app/src/dm/AndroidManifest.xml');
 ok(/android:name="\.MainActivity" tools:node="remove"/.test(man) && /DelegationService" tools:node="remove"/.test(man), 'לא TWA: MainActivity והשירות של TWA יוצאים');

@@ -53,6 +53,12 @@ android {
             minSdk = 29
             ndk { abiFilters += "arm64-v8a" }
         }
+        // 24/10/2026 ("תרגום סרטונים בטלפון", שלב 0): Studio Lab — כלי מדידה בלבד. אותם מודלים של השרת (Parakeet, Qwen)
+        // דרך ONNX Runtime לאנדרואיד ואותו ffmpeg של youtubedl-android; מודד זמן, זיכרון וחום ומפיק דוח לשיתוף
+        app("lab", "app.thesnowball.lab", "Studio Lab", "studio.thesnowball.app", "#FF4656").apply {
+            minSdk = 29
+            ndk { abiFilters += "arm64-v8a" }
+        }
     }
     sourceSets {
         getByName("academy").java.srcDir("src/lite/java")
@@ -60,6 +66,8 @@ android {
         getByName("bubble").java.srcDirs("src/lite/java", "src/grab/java")
         getByName("dm").java.srcDirs("src/lite/java", "src/dmcore/java", "src/ytdl/java", "src/grab/java")   // lite = Flavor (MainActivity של main נבנה גם כאן, ויוצא מהמניפסט)
         getByName("testDm").java.srcDir("src/dmcore/java")
+        getByName("lab").java.srcDirs("src/lite/java", "src/labcore/java")   // labcore = הליבה (נבדקת ב־JVM — testLab)
+        getByName("testLab").java.srcDir("src/labcore/java")
     }
 
     signingConfigs {
@@ -133,5 +141,14 @@ dependencies {
     "dmImplementation"("androidx.media3:media3-exoplayer:1.5.1")
     "dmImplementation"("androidx.media3:media3-ui:1.5.1")
     "testDmImplementation"("junit:junit:4.13.2")
+    // 24/10/2026: Studio Lab — Compose כמו DM, ‏ONNX Runtime באותה גרסה של השרת (onnxruntime==1.30.0), ffmpeg של youtubedl-android
+    "labImplementation"(platform("androidx.compose:compose-bom:2025.02.00"))
+    "labImplementation"("androidx.compose.material3:material3")
+    "labImplementation"("androidx.compose.ui:ui")
+    "labImplementation"("androidx.activity:activity-compose:1.10.0")
+    "labImplementation"("com.microsoft.onnxruntime:onnxruntime-android:1.30.0")
+    "labImplementation"("io.github.junkfood02.youtubedl-android:library:0.18.1")
+    "labImplementation"("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
+    "testLabImplementation"("junit:junit:4.13.2")
     "testDmImplementation"("org.json:json:20240303")
 }
