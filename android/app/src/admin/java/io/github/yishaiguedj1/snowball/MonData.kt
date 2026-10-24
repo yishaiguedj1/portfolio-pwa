@@ -41,6 +41,7 @@ class MonHb(
     val cu: Double,      // מעבד %
     val mem: Double,     // זיכרון %
     val disk: Double,    // דיסק %
+    val free: Double,    // דיסק פנוי (GB)
     val rx: Double,      // בייטים לשנייה (קבלה)
     val tx: Double,      // בייטים לשנייה (שליחה)
     val busy: String,    // מזהה עבודה, או ""
@@ -51,7 +52,7 @@ class MonServer(
     val name: String,
     val online: Boolean,
     val paused: Boolean,
-    val seen: Long,            // שניות unix של הפעם האחרונה שדיווח, 0 = מעולם
+    val seen: Long,            // מילישניות (Date.now של השרתון) של הפעם האחרונה שדיווח, 0 = מעולם
     val warn: List<String>,    // cu / mem / disk / psi
     val hb: MonHb?,
 )
@@ -93,6 +94,7 @@ object MonParse {
                     cu = it.optDouble("cu", Double.NaN),
                     mem = it.optDouble("mem", Double.NaN),
                     disk = it.optDouble("disk", Double.NaN),
+                    free = it.optDouble("free", Double.NaN),
                     rx = it.optDouble("rx", Double.NaN),
                     tx = it.optDouble("tx", Double.NaN),
                     busy = it.optString("busy"),

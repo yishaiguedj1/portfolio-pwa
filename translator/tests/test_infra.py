@@ -433,13 +433,14 @@ class HostApply(unittest.TestCase):
         import tempfile, os
         self.d = tempfile.mkdtemp()
         self.h, self.s = os.path.join(self.d, 'h'), os.path.join(self.d, 's')
-        for x in ('opt/snb', 'usr/local/lib/snb'):
+        for x in ('opt/snb', 'usr/local/lib/snb', 'usr/local/sbin'):
             os.makedirs(os.path.join(self.h, x))
         os.makedirs(self.s)
         open(os.path.join(self.h, 'opt/snb/compose.yaml'), 'w').write('old\n')
         open(os.path.join(self.h, 'usr/local/lib/snb/common.sh'), 'w').write('old=1\n')
         open(os.path.join(self.s, 'compose.yaml'), 'w').write(read('infra/compose.yaml'))
         open(os.path.join(self.s, 'snb-common.sh'), 'w').write(read('infra/host/snb-common.sh'))
+        open(os.path.join(self.s, 'snb-update'), 'w').write(read('infra/host/snb-update'))
 
     def tearDown(self):
         import shutil
@@ -457,7 +458,9 @@ class HostApply(unittest.TestCase):
         self.assertEqual(open(os.path.join(self.h, 'opt/snb/compose.yaml')).read(), read('infra/compose.yaml'))
         self.assertEqual(open(os.path.join(self.h, 'usr/local/lib/snb/common.sh')).read(), read('infra/host/snb-common.sh'))
         self.assertEqual(stat.S_IMODE(os.stat(os.path.join(self.h, 'opt/snb/compose.yaml')).st_mode), 0o644)
-        self.assertIn('Done (2 updated)', r.stdout)
+        self.assertEqual(open(os.path.join(self.h, 'usr/local/sbin/snb-update')).read(), read('infra/host/snb-update'))
+        self.assertEqual(stat.S_IMODE(os.stat(os.path.join(self.h, 'usr/local/sbin/snb-update')).st_mode), 0o755, 'snb-update רץ מה־timer')
+        self.assertIn('Done (3 updated)', r.stdout)
         self.assertIn('Done (0 updated)', self.run_apply().stdout, 'הרצה שנייה — כלום')
 
     def test_refuses_while_job_runs(self):
@@ -477,7 +480,7 @@ class HostApply(unittest.TestCase):
 
     def test_packaged_as_data_only(self):
         d = read('infra/worker/Dockerfile')
-        self.assertIn('COPY --chown=root:root infra/host/snb-common.sh infra/compose.yaml /opt/snb-host/', d)
+        self.assertIn('COPY --chown=root:root infra/host/snb-common.sh infra/compose.yaml infra/host/snb-update /opt/snb-host/', d)
         self.assertIn('/opt/snb-host/apply', d)
         for f in ('infra/host/snb-update', 'infra/host/snb-common.sh', 'infra/compose.yaml'):
             self.assertNotIn('snb-host', read(f).replace('snb-host-apply', ''), 'שום דבר בשרת לא מריץ את הקבצים לבד: ' + f)
@@ -492,3 +495,26 @@ class HostApply(unittest.TestCase):
         w = read('.github/workflows/worker-image.yml')
         self.assertIn("- 'infra/host/snb-common.sh'", w, 'שינוי בהגדרה בונה תמונה חדשה')
         self.assertIn("- 'infra/compose.yaml'", w)
+        self.assertIn("- 'infra/host/snb-update'", w)
+
+    def test_bad_update_script_not_installed(self):
+        import os
+        open(os.path.join(self.s, 'snb-update'), 'w').write('if then fi (\n')
+        open(os.path.join(self.h, 'usr/local/sbin/snb-update'), 'w').write('old\n')
+        r = self.run_apply()
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(open(os.path.join(self.h, 'usr/local/sbin/snb-update')).read(), 'old\n', 'סקריפט שבור לא מותקן')
+
+    def test_disk_kept_small(self):
+        # 24/10/2026: הדיסק בשרת מעל 80% — תמונות ישנות נשמרו שבוע, וכל בנייה כמעט בלי שכבות משותפות
+        u = read('infra/host/snb-update')
+        self.assertIn('docker image prune -af >/dev/null', u, 'תמונה שלא בשימוש נמחקת מיד')
+        self.assertNotIn('until=168h', u)
+        self.assertLess(u.index('snb_compose up -d'), u.index('docker image prune -af'), 'קודם עוברים לגרסה החדשה, אחר כך מוחקים')
+        w = read('.github/workflows/worker-image.yml')
+        self.assertIn('--cache-from "type=registry,ref=$IMAGE:buildcache-$ARCH"', w)
+        self.assertIn('--cache-to "type=registry,ref=$IMAGE:buildcache-$ARCH,mode=max"', w)
+        d = read('infra/worker/Dockerfile')
+        final = d[d.rindex('\nFROM '):]
+        for a in ('ARG SNB_VERSION', 'ARG FFMPEG_SHA256_AMD64'):
+            self.assertLess(final.rindex('\nRUN '), final.index(a), a + ' אחרי כל RUN — אחרת כל בנייה בונה הכל מחדש')

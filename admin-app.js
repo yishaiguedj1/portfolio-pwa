@@ -511,9 +511,9 @@ const HIST_I = { vbw: 1, vinv: 2, rst: 3, rops: 4, rrd: 5, rwr: 6 };   // זהה
 const HIST_C = { vbw: '#0A84FF', vinv: '#5E5CE6', rst: '#30D158', rops: '#F5A524', rrd: '#FF453A', rwr: '#8E8E93' };
 function histBlk(key, label, hist) {
   const data = (hist || []).map((p) => [p[0], p[HIST_I[key]]]).filter((x) => x[1] != null);
-  const last = data.length ? data[data.length - 1][1] : null;
-  const svg = data.length < 2 ? h('div', 'adm-mon-none', t('admMonNoData')) : seriesSvg(data, HIST_C[key], 100, 80);
-  return monBlk(label, last == null ? '—' : Math.round(last) + '%', svg, last != null && last >= 80);
+  if (data.length < 2) return null;   // 24/10/2026: בלי נקודות — לא מציגים קופסה ריקה (שש קופסאות "עוד אין" היו רוב המסך)
+  const last = data[data.length - 1][1], v = data.map((x) => x[1]), pc = (n) => Math.round(n) + '%';
+  return monRow(label, pc(last), seriesSvg(data, HIST_C[key], 100, last >= 80 ? 80 : null), last >= 80, { avg: v.reduce((a, b) => a + b, 0) / v.length, max: Math.max(...v) }, pc);
 }
 const monPct = (v) => (v == null ? '—' : Math.round(v) + '%');
 const monOpen = (u) => () => { try { window.open(u, '_blank', 'noopener'); } catch (e) {} };
@@ -533,31 +533,48 @@ function seriesSvg(data, c, top, warnAt) {
 }
 function monChart(pts, k, top, warnAt) {
   const data = (pts || []).map((p) => [p[0], monVal(p, k)]).filter((x) => x[1] != null);
-  if (data.length < 2) return h('div', 'adm-mon-none', t('admMonNoData'));
+  if (data.length < 2) return null;
   return seriesSvg(data, MON_C[k], top, warnAt);
 }
-function monBlk(label, cur, svg, warn) {
-  const top = h('div', 'adm-mon-top');
-  top.append(h('span', null, label), h('b', warn ? 'adm-mon-w' : null, cur));
-  const b = h('div', 'adm-mon-blk');
-  b.append(top, svg);
-  return b;
+/* 24/10/2026 (בקשת המשתמש: "כתב קריא, נקי כמו Apple"): שורה לכל מדד — שם וממוצע/שיא, גרף קטן, והערך הנוכחי בגדול.
+   הסף מסומן רק כשהמדד חורג (בלי קווים אדומים על כל גרף) */
+function monStat(pts, k) {
+  const v = (pts || []).map((p) => monVal(p, k)).filter((x) => x != null);
+  return v.length ? { avg: v.reduce((a, b) => a + b, 0) / v.length, max: Math.max(...v) } : null;
+}
+function monRow(label, cur, svg, warn, st, fmtV, note) {
+  const r = h('div', 'adm-mr' + (warn ? ' warn' : ''));
+  const tx = h('div', 'adm-mr-tx');
+  tx.append(h('b', null, label));
+  const iso = (x) => '\u2066' + x + '\u2069';   // מספר עם יחידה בתוך שורה עברית — בלי היפוך
+  if (st) tx.append(h('small', null, fmt(t('admMonAvgMax'), { a: iso(fmtV(st.avg)), m: iso(fmtV(st.max)) })));
+  if (note) tx.append(h('small', null, note));
+  r.append(tx);
+  if (svg) { const g = h('div', 'adm-mr-g'); g.append(svg); r.append(g); }
+  const v = h('span', 'adm-mr-v'), m = /^([\d.,]+) (\S+)$/.exec(cur);   // "39.4 KB/s" → המספר בגדול, היחידה קטנה
+  if (m) v.append(m[1], h('small', null, m[2])); else v.textContent = cur;
+  r.append(v);
+  return r;
 }
 function monCard(x, r) {
   const hb = x.hb || {}, pts = monRangePts(x.mon, r), w = x.warn || [];
   const st = !x.online ? ['gray', t('admMonOff')] : w.length ? ['orange', t('admMonWarn')] : ['green', t('admMonOk')];
   const net = hb.rx == null && hb.tx == null ? null : (hb.rx || 0) + (hb.tx || 0);
-  const hd = h('div', 'adm-mon-hd');
-  hd.append(h('span', 'adm-mon-dot adm-mon-' + st[0]), h('b', null, x.name), h('span', 'adm-mon-st', st[1] + (hb.v ? ' · ' + hb.v : '')));
-  const grid = h('div', 'adm-mon-grid');
-  grid.append(
-    monBlk(t('admMonCpu'), monPct(hb.cu), monChart(pts, 'cu', 100, 90), w.includes('cu')),
-    monBlk(t('admSvMem'), monPct(hb.mem), monChart(pts, 'mem', 100, 90), w.includes('mem')),
-    monBlk(t('admSvDisk'), monPct(hb.disk), monChart(pts, 'disk', 100, 85), w.includes('disk')),
-    monBlk(t('admMonNet'), monRate(net), monChart(pts, 'net', null, null), false),
-    monBlk(t('admMonPsi'), monPct(hb.psi), monChart(pts, 'psi', 100, 20), w.includes('psi')));
-  const card = h('div', 'adm-mon-card');
-  card.append(hd, grid);
+  const hd = h('div', 'adm-sv-hd');
+  const nm = h('div', 'adm-sv-nm');
+  nm.append(h('b', null, x.name));
+  const sub = [x.online ? (hb.busy ? t('admMonBusy') : t('admMonIdle')) : '', x.seen ? fmt(t('admMonSeen'), { a: ago(x.seen) }) : ''].filter(Boolean).join(' · ');
+  if (sub) nm.append(h('small', null, sub));
+  hd.append(nm, h('span', 'adm-sv-st adm-sv-' + st[0], st[1]));
+  const card = h('div', 'adm-sv');
+  card.append(hd);
+  const pc = (v) => monPct(v);
+  const M = [['cu', t('admMonCpu'), monPct(hb.cu), 100, 90, pc], ['mem', t('admSvMem'), monPct(hb.mem), 100, 90, pc], ['disk', t('admSvDisk'), monPct(hb.disk), 100, 85, pc],
+    ['net', t('admMonNet'), monRate(net), null, null, monRate], ['psi', t('admMonPsi'), monPct(hb.psi), 100, 20, pc]];
+  for (const [k, label, cur, top, at, f] of M) {
+    const warn = w.includes(k), note = k === 'disk' && hb.free != null ? fmt(t('admMonFree'), { g: Math.round(hb.free) }) : '';
+    card.append(monRow(label, cur, monChart(pts, k, top, warn ? at : null), warn, monStat(pts, k), f, note));
+  }
   return card;
 }
 const PROV_NAME = { vercel: () => t('admProvVercel'), r2: () => t('admProvR2'), fs: () => t('admProvFs') };
@@ -577,10 +594,11 @@ page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
   p.append(h('p', 'adm-dt', t('admMonDt')));
   p.append(grp(t('admMonSrv')));
   if (!M.servers.length) p.append(list(row({ c: 'gray', ic: '☁', t: t('admMonNone') })));
-  const rng = h('div', 'adm-rng');
+  const rng = h('div', 'adm-seg');
   for (const r of ['24h', '31d']) {
-    const b = h('button', 'adm-rng-b' + (D.mr === r ? ' on' : ''), r === '24h' ? t('admMonRange24') : t('admMonRange31'));
-    b.type = 'button'; b.setAttribute('aria-pressed', D.mr === r ? 'true' : 'false');
+    const on = (D.mr || '24h') === r;
+    const b = h('button', 'adm-seg-b' + (on ? ' on' : ''), r === '24h' ? t('admMonRange24') : t('admMonRange31'));
+    b.type = 'button'; b.setAttribute('aria-pressed', on ? 'true' : 'false');
     b.addEventListener('click', () => { D.mr = r; paint(); });
     rng.append(b);
   }
@@ -602,11 +620,9 @@ page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
   p.append(grp(t('admProvHist')));
   const HB = [['vbw', PROV_NAME.vercel() + ' · ' + PROV_ITEM.bw()], ['vinv', PROV_NAME.vercel() + ' · ' + PROV_ITEM.inv()], ['rst', PROV_NAME.r2() + ' · ' + PROV_ITEM.store()],
     ['rops', PROV_NAME.r2() + ' · ' + PROV_ITEM.ops()], ['rrd', PROV_NAME.fs() + ' · ' + PROV_ITEM.reads()], ['rwr', PROV_NAME.fs() + ' · ' + PROV_ITEM.writes()]];
-  const hgrid = h('div', 'adm-mon-grid');
-  for (const [k, label] of HB) hgrid.append(histBlk(k, label, monRangePts(D.provHist, D.mr || '24h')));
-  const hcard = h('div', 'adm-mon-card');
-  hcard.append(hgrid);
-  p.append(hcard);
+  const hrows = HB.map(([k, label]) => histBlk(k, label, monRangePts(D.provHist, D.mr || '24h'))).filter(Boolean);
+  if (hrows.length) { const hcard = h('div', 'adm-sv'); hcard.append(...hrows); p.append(hcard); }
+  else p.append(list(row({ c: 'gray', ic: '◷', t: t('admMonHistWait') })));
   p.append(grp(t('admMonTokT')));
   const on = !!(V.tok && V.tok.on);
   p.append(list(row({ c: on ? 'green' : 'gray', ic: '⚿', t: on ? fmt(t('admMonTokOn'), { a: ago(V.tok.at) }) : t('admMonTokOff') })));

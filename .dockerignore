@@ -5,6 +5,7 @@
 !infra/worker/requirements-arm64.lock
 # 16/10/2026: הגדרת השרת לעדכון ידני (snb-host-apply) — נתונים בלבד בתמונה
 !infra/host/snb-common.sh
+!infra/host/snb-update
 !infra/compose.yaml
 !infra/worker/snb-host-apply
 translator/**/__pycache__

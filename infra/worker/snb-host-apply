@@ -18,10 +18,10 @@ for v in snb_work snb_work-stg; do
 	fi
 done
 n=0
-for x in snb-common.sh:usr/local/lib/snb/common.sh:644 compose.yaml:opt/snb/compose.yaml:644; do
+for x in snb-common.sh:usr/local/lib/snb/common.sh:644 compose.yaml:opt/snb/compose.yaml:644 snb-update:usr/local/sbin/snb-update:755; do
 	src=$S/${x%%:*}; rest=${x#*:}; dst=$H/${rest%%:*}; mode=${rest##*:}
 	[ -s "$src" ] || { echo "Missing $src in image"; exit 1; }
-	case "$src" in *.sh) sh -n "$src" || { echo "Syntax check failed: $src"; exit 1; } ;; esac
+	case "$src" in *.yaml) ;; *) sh -n "$src" || { echo "Syntax check failed: $src"; exit 1; } ;; esac
 	if cmp -s "$src" "$dst"; then echo "Same: /${rest%%:*}"; continue; fi
 	cp "$src" "$dst.snb-new"
 	chmod "$mode" "$dst.snb-new"

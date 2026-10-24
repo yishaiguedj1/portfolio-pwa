@@ -1,0 +1,49 @@
+# Studio Lab (24/10/2026, "תרגום סרטונים בטלפון" — שלב 0): גרפי היישור של Qwen לטלפון.
+# אותם קבצים בדיוק שהעובד מריץ (‏/opt/aligner בתמונת העובד — translator/aligner_export.py, מהמודל הרשמי, Apache-2.0)
+# מועלים ל־Release ‏lab-models, ו־Studio Lab מוריד אותם ובודק כל קובץ מול ה־manifest (sha256).
+# בלי ctc.onnx (‏MMS_FA — רישיון CC-BY-NC, לא להפיץ). רץ כשהקובץ הזה משתנה, או ידנית אחרי תמונת עובד חדשה.
+name: lab-models
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/lab-models.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write # Release ‏lab-models בלבד
+
+concurrency:
+  group: lab-models
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      IMAGE: ghcr.io/yishaiguedj1/snb-worker:prod
+    steps:
+      - name: Copy /opt/aligner from the worker image
+        run: |
+          docker pull "$IMAGE"
+          c=$(docker create "$IMAGE")
+          docker cp "$c:/opt/aligner" aligner
+          docker rm "$c" > /dev/null
+          cd aligner
+          for f in audio-conv.onnx audio-encoder.onnx text-decoder.onnx embed.npy pos.npy; do
+            want=$(jq -r --arg f "$f" '.sha256[$f]' manifest.json)
+            got=$(sha256sum "$f" | cut -d' ' -f1)
+            [ "$want" = "$got" ] || { echo "sha mismatch: $f"; exit 1; }
+          done
+          ls -la
+      - name: Publish (lab-models)
+        working-directory: aligner
+        run: |
+          if ! gh release view lab-models > /dev/null 2>&1; then
+            gh release create lab-models --title "Studio Lab — מודלים" --notes "גרפי היישור (Qwen3-ForcedAligner-0.6B, ‏INT8, ‏Apache-2.0) מתמונת העובד — לכלי המדידה Studio Lab." --latest=false
+          fi
+          gh release upload lab-models manifest.json audio-conv.onnx audio-encoder.onnx text-decoder.onnx embed.npy pos.npy --clobber
+          gh release edit lab-models --notes "מתמונת העובד (prod), $(jq -r .revision manifest.json | cut -c1-12) · $(date -u +%F)"
