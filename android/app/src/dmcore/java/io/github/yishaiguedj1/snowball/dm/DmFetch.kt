@@ -55,6 +55,10 @@ class DmFetch(
     /** בתים שנכתבו בהרצה הזו (למהירות) */
     val bytes get() = written.get()
 
+    /** כמה פעמים השרת אמר "יותר מדי" (429/503) בהרצה הזו — ל־DmHostRules */
+    private val busyHits = java.util.concurrent.atomic.AtomicInteger(0)
+    val throttled get() = busyHits.get() >= DmHostRules.BUSY_HITS
+
     fun run(stop: () -> Boolean, onTick: () -> Unit = {}): Result {
         stopFlag = stop
         repeat(3) {   // שינוי בשרת באמצע (If-Range) → מתחילים מחדש, לכל היותר פעמיים
@@ -146,6 +150,7 @@ class DmFetch(
                 if (single && task.total <= 0) { seg.end = seg.pos; task.total = seg.pos }   // הגודל נודע בסוף
             } catch (e: Throwable) {
                 val v = if (e is DmHttpError) DmRetry.http(e.status) else DmRetry.io(e)
+                if (e is DmHttpError && (e.status == 429 || e.status == 503)) busyHits.incrementAndGet()
                 if (v.act == DmRetry.Act.RESTART) { restart = true; return Result.Failed("changed") }
                 if (v.act == DmRetry.Act.FATAL || ++attempt > DmRetry.MAX_TRIES) { fail.compareAndSet(null, v.code); return Result.Failed(v.code) }
                 val wait = DmRetry.backoffMs(attempt - 1, (e as? DmHttpError)?.retryAfter ?: -1)

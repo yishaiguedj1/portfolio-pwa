@@ -171,6 +171,13 @@ object DmLink {
     private val RE = Regex("https?://[^\\s<>\"'`]+", RegexOption.IGNORE_CASE)
     fun first(text: String?): String = RE.find(text ?: "")?.value?.trimEnd('.', ',', ')', ']', '»', '"', '\'')?.take(4096) ?: ""
 
+    /** כל הקישורים בטקסט (הדבקת רשימה): בלי כפולים, לפי הסדר, עד MAX_BATCH */
+    fun all(text: String?): List<String> = RE.findAll(text ?: "")
+        .map { it.value.trimEnd('.', ',', ')', ']', '»', '"', '\'').take(4096) }
+        .filter { it.length > 10 }.distinct().take(MAX_BATCH).toList()
+
+    const val MAX_BATCH = 200
+
     /** האתר של הקישור (בלי www.) — למגבלה של הורדות במקביל לכל אתר */
     fun host(url: String): String = runCatching { java.net.URI(url).host?.lowercase()?.removePrefix("www.") }.getOrNull() ?: ""
 

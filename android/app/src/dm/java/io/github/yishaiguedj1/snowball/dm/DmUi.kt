@@ -135,6 +135,14 @@ fun DmApp(a: DmActivity) {
                         IconButton(onClick = { a.sheetRef.value = ""; a.sheetUrl.value = "" }) {
                             Icon(DmIcons.Paste, stringResource(R.string.dmAdd), tint = MaterialTheme.colorScheme.primary)
                         }
+                        var more by remember { mutableStateOf(false) }
+                        val ctx = LocalContext.current
+                        IconButton(onClick = { more = true }) { Icon(DmIcons.More, stringResource(R.string.dmMore)) }
+                        DropdownMenu(more, { more = false }) {
+                            DropdownMenuItem({ Text(stringResource(R.string.dmPauseAll)) }, { more = false; DmEngine.pauseAll(ctx) })
+                            DropdownMenuItem({ Text(stringResource(R.string.dmResumeAll)) }, { more = false; DmEngine.resumeAll(ctx) })
+                            DropdownMenuItem({ Text(stringResource(R.string.dmAddList)) }, { more = false; a.sheetRef.value = ""; a.sheetUrl.value = "" })
+                        }
                     }
                 })
             },
@@ -202,6 +210,8 @@ private fun Empty(a: DmActivity) {
     }
 }
 
+private fun isVideo(t: DmTask) = if (t.kind == DmKind.YTDL) !t.audioOnly else DmName.cat(t.name, t.mime) == DmName.Cat.VIDEO
+
 private fun catIcon(t: DmTask): ImageVector = when (if (t.kind == DmKind.YTDL) (if (t.audioOnly) DmName.Cat.AUDIO else DmName.Cat.VIDEO) else DmName.cat(t.name, t.mime)) {
     DmName.Cat.VIDEO -> DmIcons.Movie
     DmName.Cat.AUDIO -> DmIcons.Music
@@ -248,7 +258,10 @@ private fun TaskRow(a: DmActivity, t: DmTask, onDetails: (String) -> Unit) {
             if (ic != null) Icon(ic, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             DropdownMenu(menu, { menu = false }) {
                 DropdownMenuItem({ Text(stringResource(R.string.dmDetails)) }, { menu = false; onDetails(t.id) })
+                if (t.state == DmState.QUEUED || t.state == DmState.WAITING || t.state == DmState.PAUSED || t.state == DmState.FAILED)
+                    DropdownMenuItem({ Text(stringResource(R.string.dmFirst)) }, { menu = false; DmEngine.startFirst(ctx, t.id) })
                 if (t.state == DmState.DONE) DropdownMenuItem({ Text(stringResource(R.string.dmShare)) }, { menu = false; a.share(t) })
+                if (t.state == DmState.DONE && isVideo(t) && a.studioHere()) DropdownMenuItem({ Text(stringResource(R.string.dmTranslate)) }, { menu = false; a.translate(t) })
                 DropdownMenuItem({ Text(stringResource(R.string.dmCopyLink)) }, { menu = false; copy(ctx, t.url) })
                 DropdownMenuItem({ Text(stringResource(R.string.dmRemove)) }, { menu = false; DmEngine.delete(ctx, t.id, false) })
                 if (t.state == DmState.DONE) DropdownMenuItem({ Text(stringResource(R.string.dmDeleteFile), color = MaterialTheme.colorScheme.error) },
@@ -290,10 +303,15 @@ private fun Details(a: DmActivity, t: DmTask, rev: Int, onClose: () -> Unit) {
             Info(stringResource(R.string.dmSource), runCatching { java.net.URI(t.url).host }.getOrNull() ?: t.url)
             Info(stringResource(R.string.dmResume), stringResource(if (t.kind == DmKind.YTDL || t.ranges) R.string.dmYes else R.string.dmNo))
             if (t.state == DmState.DONE) Info(stringResource(R.string.dmSavedIn), stringResource(R.string.dmSavedWhere))
+            if (t.state == DmState.DONE && t.uri.isNotEmpty()) HashBlock(a, t)
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 when (t.state) {
-                    DmState.DONE -> { Button(onClick = { a.open(t) }) { Text(stringResource(R.string.dmOpen)) }; FilledTonalButton(onClick = { a.share(t) }) { Text(stringResource(R.string.dmShare)) } }
+                    DmState.DONE -> {
+                        Button(onClick = { a.open(t) }) { Text(stringResource(R.string.dmOpen)) }
+                        if (isVideo(t) && a.studioHere()) FilledTonalButton(onClick = { a.translate(t) }) { Text(stringResource(R.string.dmTranslate)) }
+                        else FilledTonalButton(onClick = { a.share(t) }) { Text(stringResource(R.string.dmShare)) }
+                    }
                     DmState.FAILED, DmState.PAUSED -> Button(onClick = { DmEngine.resume(ctx, t.id) }) { Text(stringResource(R.string.dmRetry)) }
                     else -> FilledTonalButton(onClick = { DmEngine.pause(ctx, t.id) }) { Text(stringResource(R.string.dmPause)) }
                 }
@@ -309,6 +327,37 @@ private fun Details(a: DmActivity, t: DmTask, rev: Int, onClose: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
             }
         }
+    }
+}
+
+/** בדיקת שלמות: מדביקים את הסיכום שהאתר מפרסם (או רק מחשבים SHA-256), ו־DM משווה לקובץ שבטלפון */
+@Composable
+private fun HashBlock(a: DmActivity, t: DmTask) {
+    val ctx = LocalContext.current
+    var want by remember(t.id) { mutableStateOf("") }
+    var busy by remember(t.id) { mutableStateOf(false) }
+    var got by remember(t.id) { mutableStateOf<Long>(0) }
+    var res by remember(t.id) { mutableStateOf<String?>(null) }
+    var failed by remember(t.id) { mutableStateOf(false) }
+    val algo = DmHash.algoOf(want) ?: "SHA-256"
+    Spacer(Modifier.height(10.dp))
+    Text(stringResource(R.string.dmHashT), fontWeight = FontWeight.SemiBold)
+    OutlinedTextField(want, { want = it; res = null }, Modifier.fillMaxWidth(), singleLine = true,
+        label = { Text(stringResource(R.string.dmHashWant)) }, shape = RoundedCornerShape(14.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        TextButton(enabled = !busy, onClick = {
+            busy = true; res = null; failed = false; got = 0
+            a.hashFile(t, algo, { got = it }) { h -> busy = false; if (h == null) failed = true else res = h }
+        }) { Text(stringResource(R.string.dmHashGo, algo)) }
+        if (busy) Text(if (t.total > 0) "${(got * 100 / t.total).coerceIn(0, 100)}%" else DmFmt.size(ctx, got),
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    if (failed) Text(stringResource(R.string.dmErrFail), color = MaterialTheme.colorScheme.error)
+    res?.let { h ->
+        val m = DmHash.matches(h, want)
+        Text(h, style = MaterialTheme.typography.bodySmall, modifier = Modifier.combinedClickable(onClick = { copy(ctx, h) }))
+        if (m != null) Text(stringResource(if (m) R.string.dmHashOk else R.string.dmHashBad),
+            color = if (m) Green else MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -337,6 +386,9 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
     val refId by a.refreshId
     val refTask = remember(refId) { if (refId.isEmpty()) null else DmStore.get(refId) }
     var refErr by remember { mutableStateOf("") }
+    // שלב 3: כמה קישורים בבת אחת, או גיבוי של DM — אותו שדה
+    val parsed = remember(url) { DmImport.parse(url) }
+    val multi = refTask == null && ((parsed is DmImport.Parsed.Links && parsed.urls.size > 1) || parsed is DmImport.Parsed.Backup)
 
     suspend fun check() {
         val u = DmLink.first(url).ifEmpty { url.trim() }
@@ -353,22 +405,31 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
             if (qs != null && want != null) for (i in 0 until qs.length()) if (qs.optJSONObject(i)?.optInt("h") ?: 0 <= want) { qi = i; break }
         }
     }
-    LaunchedEffect(url0) { if (url0.startsWith("http")) check() }
+    LaunchedEffect(url0) { if (url0.startsWith("http") && DmLink.all(url0).size <= 1) check() }
+    // גיליון חדש: ההתקדמות של רשימה קודמת שהסתיימה כבר לא רלוונטית
+    LaunchedEffect(Unit) { if (a.batch.value?.finished == true) a.batch.value = null }
 
     ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.padding(20.dp, 0.dp, 20.dp, 28.dp).verticalScroll(rememberScrollState())) {
             Text(stringResource(if (refTask != null) R.string.dmRefresh else R.string.dmAddT), fontWeight = FontWeight.Bold, fontSize = 22.sp)
             if (refTask != null) Text(refTask.name.ifEmpty { refTask.title }, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(12.dp))
-            OutlinedTextField(url, { url = it; found = null }, Modifier.fillMaxWidth(), singleLine = true,
+            OutlinedTextField(url, { url = it; found = null }, Modifier.fillMaxWidth(), singleLine = false, maxLines = 4,
                 label = { Text(stringResource(R.string.dmLink)) }, shape = RoundedCornerShape(14.dp),
                 trailingIcon = { IconButton(onClick = {
                     val cm = ctx.getSystemService(ClipboardManager::class.java)
-                    url = DmLink.first(cm?.primaryClip?.getItemAt(0)?.coerceToText(ctx)?.toString()).ifEmpty { url }
-                    if (url.startsWith("http")) scope.launch { check() }
+                    val txt = cm?.primaryClip?.getItemAt(0)?.coerceToText(ctx)?.toString() ?: ""
+                    val p = DmImport.parse(txt)
+                    url = when {
+                        refTask == null && (p is DmImport.Parsed.Backup || (p is DmImport.Parsed.Links && p.urls.size > 1)) -> txt.take(200_000)
+                        else -> DmLink.first(txt).ifEmpty { url }
+                    }
+                    found = null
+                    if (DmLink.all(url).size == 1 && DmImport.parse(url) !is DmImport.Parsed.Backup) scope.launch { check() }
                 }) { Icon(DmIcons.Paste, stringResource(R.string.dmPaste)) } })
             Spacer(Modifier.height(14.dp))
-            when (val f = found) {
+            if (multi) BatchBlock(a, parsed, ref, onClose)
+            else when (val f = found) {
                 null -> if (busy) Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.5.dp)
                     Text(stringResource(R.string.dmChecking), Modifier.padding(start = 12.dp))
@@ -388,8 +449,10 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                             Text(stringResource(R.string.dmRefreshGo), fontSize = 17.sp)
                         }
                         TextButton(onClick = { a.refreshId.value = "" }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.dmRefreshNew)) }
-                    } else
-                    Button(onClick = { a.addFile(f, name, ref); onClose() }, Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(R.string.dmGo), fontSize = 17.sp) }
+                    } else {
+                        Button(onClick = { a.addFile(f, name, ref); onClose() }, Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(R.string.dmGo), fontSize = 17.sp) }
+                        if (DmName.cat(f.name, f.mime) == DmName.Cat.VIDEO) StudioRow(a, f.url, ref, true) { a.addFile(f, name, ref, tr = true); onClose() }
+                    }
                 }
                 is DmActivity.Found.Video -> {
                     val info = f.info
@@ -422,12 +485,75 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                     Button(onClick = { a.addVideo(f, list.getOrNull(qi), audio, ref); onClose() }, Modifier.fillMaxWidth().height(52.dp)) {
                         Text(stringResource(R.string.dmGo), fontSize = 17.sp)
                     }
+                    if (!audio) StudioRow(a, f.url, ref, cloudOk(info)) { a.addVideo(f, list.getOrNull(qi), false, ref, tr = true); onClose() }
                 }
             }
         }
     }
 }
 
+
+/** יוטיוב חוסם את השרת — שם "ישר לענן" לא אפשרי (כמו cloudBlocked ב־studio.js) */
+private fun cloudOk(info: JSONObject) = !Regex("^youtube", RegexOption.IGNORE_CASE).containsMatchIn(info.optString("s"))
+
+/** 24/10: סרטון — גם לעבודה ב־Studio: להוריד כאן ולתרגם, או ישר לענן של Studio בלי להוריד לטלפון */
+@Composable
+private fun StudioRow(a: DmActivity, url: String, ref: String, cloud: Boolean, downloadAndTranslate: () -> Unit) {
+    if (!a.studioHere()) return
+    Spacer(Modifier.height(6.dp))
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilledTonalButton(onClick = downloadAndTranslate, Modifier.weight(1f)) { Text(stringResource(R.string.dmDlTr), maxLines = 2) }
+        if (cloud) FilledTonalButton(onClick = { a.toCloud(url, ref) }, Modifier.weight(1f)) { Text(stringResource(R.string.dmToCloud), maxLines = 2) }
+    }
+}
+
+/* ---------- שלב 3: הוספה של הרבה קישורים / שחזור מגיבוי ---------- */
+@Composable
+private fun BatchBlock(a: DmActivity, parsed: DmImport.Parsed, ref: String, onClose: () -> Unit) {
+    val ctx = LocalContext.current
+    val b by a.batch
+    when (parsed) {
+        is DmImport.Parsed.Backup -> {
+            var added by remember(parsed) { mutableStateOf(-1) }
+            Text(stringResource(R.string.dmBackupFound, parsed.tasks.size), fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(12.dp))
+            if (added < 0) Button(onClick = { added = a.importBackup(parsed.tasks) }, Modifier.fillMaxWidth().height(52.dp)) {
+                Text(stringResource(R.string.dmBackupGo), fontSize = 17.sp)
+            } else {
+                Text(stringResource(R.string.dmBackupDone, added), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = onClose, Modifier.fillMaxWidth()) { Text(stringResource(R.string.dmClose)) }
+            }
+        }
+        is DmImport.Parsed.Links -> {
+            val st = b
+            if (st == null) {
+                Text(stringResource(R.string.dmBatchFound, parsed.urls.size), fontWeight = FontWeight.SemiBold)
+                parsed.urls.take(6).forEach {
+                    Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (parsed.urls.size > 6) Text(stringResource(R.string.dmBatchMore, parsed.urls.size - 6), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(12.dp))
+                Button(onClick = { a.addBatch(parsed.urls, ref) }, Modifier.fillMaxWidth().height(52.dp)) {
+                    Text(stringResource(R.string.dmBatchGo, parsed.urls.size), fontSize = 17.sp)
+                }
+            } else {
+                Text(stringResource(R.string.dmBatchProg, st.done, st.total), fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
+                LinearProgressIndicator(progress = { if (st.total > 0) st.done.toFloat() / st.total else 0f },
+                    Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)))
+                Spacer(Modifier.height(8.dp))
+                Text(stringResource(R.string.dmBatchOk, st.ok) + if (st.failed.isNotEmpty()) " · " + stringResource(R.string.dmBatchBad, st.failed.size) else "",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (st.finished && st.failed.isNotEmpty()) TextButton(onClick = { copy(ctx, st.failed.joinToString("\n")) }) { Text(stringResource(R.string.dmBatchCopyBad)) }
+                if (!st.finished) TextButton(onClick = { a.stopBatch() }) { Text(stringResource(R.string.dmBatchStop)) }
+                else TextButton(onClick = { a.batch.value = null; onClose() }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.dmClose)) }
+            }
+        }
+        DmImport.Parsed.Empty -> {}
+    }
+}
 
 /* ---------- ספרייה: תיקיות חכמות (נגזרות, בלי ניהול תיקיות) ---------- */
 @Composable

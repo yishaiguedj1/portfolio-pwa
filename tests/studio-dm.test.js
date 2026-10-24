@@ -75,6 +75,32 @@ ok(/DmLink\.pickStart\(/.test(eng) && /const val PER_HOST = 2/.test(R('android/a
 ok(/if \(t\.total > 0 && f\.size != t\.total\) return "refresh_size"/.test(act), 'רענון קישור רק לאותו קובץ (אותו גודל)');
 ok(/fun cookiesOf\(t: DmTask\)[^\n]*if \(!t\.ck\) null/.test(eng), 'עוגיות רק להורדה שהתחילה בדפדפן');
 ok(!/ck|\.ua/.test(store.split('fun exportJson')[1].split('\n}')[0]), 'הייצוא בלי עוגיות/User-Agent');
+// שלב 3 (24/10): הרבה הורדות — רשימה, גיבוי, שלמות, כללים לפי אתר, אריח
+const batch = R('android/app/src/dmcore/java/io/github/yishaiguedj1/snowball/dm/DmBatch.kt');
+const ui = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmUi.kt');
+ok(/DmImport\.parse\(url\)/.test(ui) && /BatchBlock\(a, parsed, ref, onClose\)/.test(ui), 'הדבקה של כמה קישורים / גיבוי — באותו שדה');
+ok(/fun fresh\(/.test(batch) && /DmImport\.fresh\(/.test(act), 'שחזור מגיבוי בלי כפולים');
+ok(/MessageDigest\.getInstance\(algo\)/.test(batch) && /HashBlock\(a, t\)/.test(ui), 'בדיקת שלמות מול הסיכום של האתר');
+ok(/busyHits\.incrementAndGet\(\)/.test(fetch) && /learnHost\(pr, host, conns, f\.throttled\)/.test(eng), 'אתר שמגביל — פחות חיבורים בפעם הבאה');
+ok(/android:name="\.dm\.DmTile"[\s\S]{0,300}BIND_QUICK_SETTINGS_TILE/.test(man), 'אריח בהגדרות המהירות, מוגן על ידי המערכת');
+ok(/DmTile\.ACTION_CLIP/.test(act) && /clipOnFocus/.test(act), 'האריח קורא את הלוח רק כשהחלון בפוקוס');
+ok(/fun pauseAll/.test(eng) && /fun resumeAll/.test(eng) && /fun startFirst/.test(eng), 'עצירה/המשך של הכל ו"להוריד ראשון"');
+ok(!/RECEIVE_BOOT|SCHEDULE_EXACT_ALARM|USE_EXACT_ALARM/.test(man.split('DmTile')[1] || ''), 'בלי הרשאות חדשות לשלב 3');
+// 24/10: "מהרגע שמתקינים את Studio DM — כל ההורדות של המכשיר אליו" (בקשת המשתמש)
+const route = R('android/app/src/grab/java/io/github/yishaiguedj1/snowball/AppRoute.kt');
+const grab = R('android/app/src/bubble/java/io/github/yishaiguedj1/snowball/GrabService.kt');
+const dla = R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/DlActivity.kt');
+ok(/const val DM_PKG = "app\.thesnowball\.studiodm"/.test(route) && /const val STUDIO_PKG = "app\.thesnowball\.studio"/.test(route), 'AppRoute: החבילות שלנו בלבד');
+ok(/private fun open\(url: String\) \{\s*hide\(\)[\s\S]{0,200}if \(AppRoute\.toDm\(this, url\)\) return/.test(grab), 'הבועה → Studio DM כשמותקן (ברירת המחדל)');
+ok(/getQueryParameter\("o"\) == "1" && DlState\.id != nonce && AppRoute\.toDm\(this, u, ref\)/.test(dla), '"רק להוריד לטלפון" ב־Studio → Studio DM כשמותקן');
+for (const [m, pkg] of [['bubble', 'studiodm'], ['studio', 'studiodm'], ['dm', 'studio']])
+  ok(new RegExp('<package android:name="app\\.thesnowball\\.' + pkg + '" />').test(R('android/app/src/' + m + '/AndroidManifest.xml')), 'queries ב־' + m + ' → ' + pkg);
+ok(/StudioRow\(a, f\.url, ref, cloudOk\(info\)\)/.test(ui) && /a\.toCloud\(url, ref\)/.test(ui), 'DM: "להוריד ולתרגם" ו"ישר לענן של Studio"');
+ok(/\^youtube/.test(ui) && /export const cloudBlocked = \(r\) => \/\^youtube\/i/.test(R('studio.js')), '"ישר לענן" לא מוצע ביוטיוב — אותו כלל של Studio');
+ok(/snb_to"\) == "cloud"\) "&to=cloud"/.test(R('android/app/src/main/java/io/github/yishaiguedj1/snowball/MainActivity.kt')) &&
+  /hashArg\('to', 10\) === 'cloud'/.test(R('studio-app.js')) && /want === 'cloud' && ui\.url \? 'cloud'/.test(R('studio.js')), 'to=cloud: מ־DM עד הבחירה בדף הקישור');
+ok(/const val EXTRA_TO = "snb_to"/.test(route), 'אותו שם extra בשני הצדדים');
+ok(/FLAG_GRANT_READ_URI_PERMISSION/.test(route) && /setPackage\(STUDIO_PKG\)/.test(route), 'הקובץ ל־Studio — רק לחבילה שלנו ורק עם הרשאת קריאה לקובץ הזה');
 ok(fs.existsSync(path.join(ROOT, 'android/app/src/testDm/java/io/github/yishaiguedj1/snowball/dm/DmNetTest.kt')), 'בדיקת JVM לעוגיות בהפניה ולמגבלות');
 ok(fs.existsSync(path.join(ROOT, 'android/app/src/testDm/java/io/github/yishaiguedj1/snowball/dm/DmFetchTest.kt')), 'בדיקת JVM מול שרת אמיתי קיימת');
 

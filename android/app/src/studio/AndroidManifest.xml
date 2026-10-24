@@ -13,6 +13,10 @@
     <!-- youtubedl-android מריץ את הפייתון מתיקיית הספריות — חייב לחלץ אותן (README שלה) -->
     <!-- DlActivity ו־DlService בתהליך נפרד (23/10/2026): קריסה של המנוע לא מפילה את Studio — כשהתהליך הראשי
          קרס, Chrome סגר גם את האפליקציה וחזר לדפדפן בלי שום הודעה -->
+    <!-- AppRoute: האפליקציה השנייה (Studio ↔ Studio DM) — בלי זה אנדרואיד 11+ "מסתיר" אותה -->
+    <queries>
+        <package android:name="app.thesnowball.studiodm" />
+    </queries>
     <application android:extractNativeLibs="true">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter android:label="@string/app_name">
