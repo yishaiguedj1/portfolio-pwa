@@ -3177,10 +3177,10 @@ function linkCheckSrv(f, L, seq) {   // הבדיקה בשרת — רק בדפד�
     let j = await net.api('urlProbe', L.ref ? { url: L.u, ref: L.ref } : { url: L.u });
     while (j && j.ok && j.probe && (j.probe.st === 'q' || j.probe.st === 'r') && Date.now() - L.at < LINK_WAIT_MS) {
       await sleep(LINK_POLL_MS);
-      if (seq !== linkSeq || form !== f || f.link !== L) return;
+      if (seq !== linkSeq || form !== f || f.link !== L || L.blind) return;
       j = await net.api('urlProbe', { pid: j.probe.id });
     }
-    if (seq !== linkSeq || f.link !== L) return;
+    if (seq !== linkSeq || f.link !== L || L.blind) return;
     if (!j || !j.ok) { L.st = 'err'; L.e = j && j.error === 'bad_url' ? 'bad_url' : j && j.error === 'flag_off' ? 'flag' : j && j.error ? 'srv:' + j.error : 'net'; }
     else if (j.probe.st === 'd' && j.probe.r) { L.st = 'ok'; L.r = j.probe.r; const rec = linkRec(L.r); L.v = rec ? rec.v : ''; }
     else { L.st = 'err'; L.e = j.probe.st === 'e' ? j.probe.e : j.probe.st === 'q' ? 'no_take' : 'timeout'; }   // 24/10/2026: q = אף שרת לא לקח את הבדיקה
@@ -3273,6 +3273,7 @@ function pageLink(p) {
     ld.append(h('span', 'st-spin'), h('span', null, T('studioLinkChecking')));
     p.append(ld, note(L.slow ? T('studioLinkSlow') : T('studioLinkCheckingS')));
     if (L.slow) p.append(h('div', 'st-gap sm'), btn('st-btn tint wide', T('studioLinkRetry'), () => probeGo(f, L), 'link-again'), apkBtn());
+    if (L.slow && blindOk(L, true)) p.append(h('div', 'st-gap sm'), btn('st-btn wide', T('studioLinkBlind'), () => linkBlind(f), 'link-blind'), note(T('studioLinkBlindS')));
     return;
   }
   if (L.st === 'err') {
@@ -3281,6 +3282,8 @@ function pageLink(p) {
     card.append(ico('alert'), h('span', null, msg));
     p.append(card, h('div', 'st-gap sm'), btn('st-btn tint wide', T('studioLinkRetry'), () => linkCheck(f, L.u, L.ref), 'link-retry'));
     if (L.e === 'noapp') p.append(apkBtn());
+    // 24/10/2026 (כמו ב־Studio DM — ההורדה עצמה היא הבדיקה): הבדיקה בשרת לא חזרה → להוריד בענן בלי לחכות לה
+    if (blindOk(L)) p.append(h('div', 'st-gap sm'), btn('st-btn wide', T('studioLinkBlind'), () => linkBlind(f), 'link-blind'), note(T('studioLinkBlindS')));
     if (L.e === 'blocked' || L.e === 'login' || L.e === 'unsupported' || L.e === 'no_video') p.append(note(T('studioLinkUpload')));
     // הניסוי: דף שהשרת לא מצא בו סרטון (נשלח מהבועה) — דפדפן הציד רואה את מה שהנגן מבקש בפועל
     // קובץ זעיר מדפדפן הציד → חוזרים לדף (L.ref) ומנגנים את הסרטון עצמו
@@ -3505,19 +3508,44 @@ function dlOnly(L) {
   location.href = dlIntent('dl', { u: L.r.u || L.u, ref: L.ref, n: dlNonce(), v: pick.v, a: pick.a, h: pick.h,
     s0: pick.sec ? pick.sec[0] : '', s1: pick.sec ? pick.sec[1] : '', t: L.r.t, o: 1 });
 }
+/* 24/10/2026: "להוריד בענן בלי בדיקה" — רק כשהבדיקה בשרת לא חזרה (לא כשהאתר עצמו סירב), בדפדפן בלי האפליקציה,
+   כשמותר ענן (ui.url) ולא ביוטיוב (חוסם את השרת). השם — מהכתובת; האורך והגודל — אחרי ההורדה */
+const BLIND_ERRS = ['timeout', 'no_take', 'net'];
+export function blindOk(L, busy) {
+  if (!L || !ui.url || devDl() || !L.u) return false;
+  if (!busy && !BLIND_ERRS.includes(L.e) && !/^srv:(?!bad_url|flag_off)/.test(L.e || '')) return false;
+  try { return !/(^|\.)(youtube\.com|youtu\.be)$/i.test(new URL(L.u).hostname); } catch (e) { return false; }
+}
+export function urlTitle(u) {
+  try {
+    const x = new URL(u), seg = x.pathname.split('/').filter(Boolean).pop() || '';
+    let t = seg;
+    try { t = decodeURIComponent(seg); } catch (e) {}
+    t = t.replace(/\.[a-z0-9]{2,4}$/i, '').replace(/[_+-]+/g, ' ').replace(/\s+/g, ' ').trim();
+    return (t || x.hostname.replace(/^www\./, '')).slice(0, 120);
+  } catch (e) { return 'video'; }
+}
+function linkBlind(f) {
+  const L = f && f.link;
+  if (!blindOk(L, L && L.st === 'busy')) return;
+  L.r = { t: urlTitle(L.u), u: L.u, d: 0, q: [], s: '', ch: [] };
+  L.blind = 1; L.st = 'ok';
+  startLinkCloud(f);
+}
+function blindUndo(L) { if (L && L.blind) { L.blind = 0; L.r = null; L.st = 'err'; L.e = L.e || 'timeout'; } }
 function startLinkCloud(f) {   // ישר לענן של Studio (העובד מוריד) — כשהמשתמש בחר ובמקור שלא חוסם את השרת
   const L = f.link;
   if (!L || L.st !== 'ok' || ui.starting) return;
   if (ui.access === 'signin' || ui.access === 'denied') { flashSafe(ui.access === 'signin' ? T('studioErrSignin') : T('studioErrDenied')); return; }
   if (!apiMode() && !cpMode()) { flashSafe(T('studioLinkApiOnly')); return; }
   if (!langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }
-  const pick = linkPick(L);
+  const pick = L.blind ? { h: 0 } : linkPick(L);   // 24/10/2026: "בלי בדיקה" — העובד בוחר לבד (הכי טוב עד 1080p, fetchurl.selector)
   if (!pick) return;
   ui.starting = true; render('none');
   (async () => {
     const dur = pick.sec ? pick.sec[1] - pick.sec[0] : L.r.d || 0;
-    const o = L.r.q.find((x) => x.v === pick.v) || {};
-    const spec = { name: L.r.t, size: Math.max(1, linkSize(L)), type: 'video/url', dur, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
+    const o = L.blind ? {} : L.r.q.find((x) => x.v === pick.v) || {};
+    const spec = { name: L.r.t, size: L.blind ? 1 : Math.max(1, linkSize(L)), type: 'video/url', dur, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
       out: OUTS.filter((k) => f.out[k]), style: f.style, terms: f.terms, src: 'url', url: L.r.u || L.u, pick, eng: 'api', cap: store.settings.cap };
     if (L.ref) spec.ref = L.ref;
     if (cpMode()) spec.cp = 1;
@@ -3526,11 +3554,11 @@ function startLinkCloud(f) {   // ישר לענן של Studio (העובד מור
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
     if (est.min && typeof askConfirm === 'function') {
       const yes = await new Promise((ok) => askConfirm(cpMode() ? T('studioEstCp') : estText(est, apiMode()), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) }));
-      if (!yes || form !== f) { ui.starting = false; render('none'); return; }
+      if (!yes || form !== f) { ui.starting = false; blindUndo(L); render('none'); return; }
     }
     const j = await net.api('create', { spec });
     ui.starting = false;
-    if (!j.ok || !j.job) { flashSafe(errText(j.error)); render('none'); return; }
+    if (!j.ok || !j.job) { flashSafe(errText(j.error)); blindUndo(L); render('none'); return; }
     const rec = normJob({ id: j.job.id, created: j.job.created || Date.now(), spec: j.job.spec || spec, srv: j.job,
       fp: { name: L.r.t, size: spec.size, lm: 0 }, up: { link: true, noAudio: 'link', a: { done: true }, v: { done: true }, folder: j.job.folder || '' } });   // אין מה להעלות מהטלפון
     if (pick.ch && L.r.ch) rec.chap = normChapters(L.r.ch.map((c) => ({ t: c[0] - (pick.sec ? pick.sec[0] : 0), title: c[1] })).filter((c) => c.t >= 0), dur);

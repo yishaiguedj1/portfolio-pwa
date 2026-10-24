@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1790 מפתחות מתוך 3938) */
+/* המחרוזות של studio (1792 מפתחות מתוך 3940) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -832,6 +832,8 @@ he: {
   "studioLinkAudioT": "קול",
   "studioLinkAudioW": "קול",
   "studioLinkBest": "הכי טוב שיש",
+  "studioLinkBlind": "להוריד בענן בלי בדיקה",
+  "studioLinkBlindS": "השרת מוריד ישר באיכות הכי טובה (עד 1080p) ומתחיל לתרגם. קישור שלא עובד — העבודה תיעצר עם הסבר.",
   "studioLinkCh": "פרקים לנגן",
   "studioLinkChS": "{n} פרקים מהאתר — מופיעים בנגן",
   "studioLinkChT": "או פרק אחד",
@@ -2624,6 +2626,8 @@ en: {
   "studioLinkAudioT": "Audio",
   "studioLinkAudioW": "audio",
   "studioLinkBest": "Best available",
+  "studioLinkBlind": "Download in the cloud without checking",
+  "studioLinkBlindS": "The server downloads the best quality (up to 1080p) and starts translating. If the link doesn't work, the job stops with an explanation.",
   "studioLinkCh": "Chapters in the player",
   "studioLinkChS": "{n} chapters from the site — shown in the player",
   "studioLinkChT": "Or one chapter",
