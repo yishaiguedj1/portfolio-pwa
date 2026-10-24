@@ -130,14 +130,71 @@ function parseStore(j, bs) {
   });
   return { st: 'ok', b };
 }
+/* העלות החודשית של R2 (24/10/2026, בקשת המשתמש: "כבר מזמן עברתי את ה־10GB"). המחירון מהתיעוד (developers.cloudflare.com/r2/pricing,
+   נבדק 24/10/2026): אחסון $0.015 ל־GB-חודש מעל 10; Class A ‏$4.50 למיליון מעל מיליון; Class B ‏$0.36 למיליון מעל 10 מיליון; יציאה חינם.
+   GB-חודש = ממוצע של השיא היומי (מעוגל למעלה). זו הערכה — החשבונית של Cloudflare היא הקובעת */
+const R2_PRICE = { gb: 0.015, a: 4.5, b: 0.36, freeGb: 10, freeA: 1e6, freeB: 1e7 };
+const R2_A = ['ListBuckets', 'PutBucket', 'ListObjects', 'PutObject', 'CopyObject', 'CompleteMultipartUpload', 'CreateMultipartUpload',
+  'LifecycleStorageTierTransition', 'ListMultipartUploads', 'UploadPart', 'UploadPartCopy', 'ListParts', 'PutBucketEncryption', 'PutBucketCors', 'PutBucketLifecycleConfiguration'];
+const R2_FREE_OPS = ['DeleteObject', 'DeleteBucket', 'AbortMultipartUpload'];
+/* פעולות החודש לפי סוג: {a, b} (פעולה שלא ברשימות = B, הזולה — שלא ננפח) */
+function opsByClass(groups) {
+  let a = 0, b = 0;
+  for (const g of groups || []) {
+    const t = g && g.dimensions && g.dimensions.actionType, n = +((g && g.sum && g.sum.requests) || 0);
+    if (!Number.isFinite(n) || R2_FREE_OPS.includes(t)) continue;
+    if (R2_A.includes(t)) a += n; else b += n;
+  }
+  return { a, b };
+}
+/* gbMonth = ממוצע השיא היומי עד היום; a/b = פעולות מתחילת החודש; day/days = היום בחודש ומספר הימים. מחזיר דולרים — בפועל
+   עד היום (mtd) וצפי לסוף החודש (proj; הפעולות בקצב של עד היום) */
+function r2Cost(o) {
+  const P = R2_PRICE, day = Math.max(1, o.day || 1), days = Math.max(day, o.days || 30);
+  const st = Math.max(0, Math.ceil(o.gbMonth || 0) - P.freeGb) * P.gb;
+  const ca = (n) => Math.max(0, n - P.freeA) / 1e6 * P.a, cb = (n) => Math.max(0, n - P.freeB) / 1e6 * P.b;
+  const k = days / day, pa = (o.a || 0) * k, pb = (o.b || 0) * k;
+  const r2c = (x) => Math.round(x * 100) / 100;
+  return { st: r2c(st), a: r2c(ca(pa)), b: r2c(cb(pb)), proj: r2c(st + ca(pa) + cb(pb)), mtd: r2c(st * day / days + ca(o.a || 0) + cb(o.b || 0)),
+    gbm: Math.round((o.gbMonth || 0) * 100) / 100, pa: Math.round(pa), pb: Math.round(pb) };
+}
+/* השיא היומי מכל דלי (קבוצות לפי date) → ממוצע הסכום היומי */
+function gbMonthOf(acc, n) {
+  const day = {};
+  for (let i = 0; i < n; i++) for (const g of acc['d' + i] || []) {
+    const d = g && g.dimensions && g.dimensions.date, m = g && g.max;
+    if (!d || !m || m.payloadSize == null) continue;
+    day[d] = (day[d] || 0) + (+m.payloadSize + (+m.metadataSize || 0)) / GB;
+  }
+  const v = Object.values(day);
+  return v.length ? v.reduce((x, y) => x + y, 0) / v.length : null;
+}
 async function r2Store(env, f, now) {
   const tok = String(env.CF_USAGE_TOKEN || '').trim(), acc = String(env.R2_ACCOUNT_ID || '').trim(), bs = r2Buckets(env);
   if (!tok || !acc || !bs.length) return { st: 'off', b: [] };
-  const body = JSON.stringify({ query: storeQuery(bs), variables: { a: acc, s: new Date(now - 3 * 86400e3).toISOString(), e: new Date(now).toISOString() } });
-  const g = await getJson(f, 'https://api.cloudflare.com/client/v4/graphql', { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }, body }).catch(() => ({ err: 'net' }));
+  const gql = (query, vars) => getJson(f, 'https://api.cloudflare.com/client/v4/graphql', { method: 'POST',
+    headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }, body: JSON.stringify({ query, variables: Object.assign({ a: acc }, vars) }) }).catch(() => ({ err: 'net' }));
+  const d = new Date(now), m0 = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
+  const g = await gql(storeQuery(bs), { s: new Date(now - 3 * 86400e3).toISOString(), e: d.toISOString() });
   if (g.err) return { st: 'err', err: g.err, b: [] };
   if (g.j && Array.isArray(g.j.errors) && g.j.errors.length && !g.j.data) return { st: 'err', err: 'gql', b: [] };
-  return parseStore(g.j, bs);
+  const out = parseStore(g.j, bs);
+  if (out.st !== 'ok') return out;
+  // העלות: שאלה נפרדת — אם היא נדחית (שם שדה), הגודל לפי דלי עדיין נשמר
+  const c = await gql(costQuery(bs), { m: m0, e: d.toISOString() });
+  const ca = !c.err && c.j && c.j.data && c.j.data.viewer && c.j.data.viewer.accounts && c.j.data.viewer.accounts[0];
+  if (ca) {
+    const ops = opsByClass(ca.ops), cur = out.b.reduce((x, y) => x + y.gb, 0), gbm = gbMonthOf(ca, bs.length * 2);
+    const days = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+    out.cost = r2Cost({ gbMonth: gbm == null ? cur : gbm, a: ops.a, b: ops.b, day: d.getUTCDate(), days });
+  }
+  return out;
+}
+function costQuery(bs) {
+  const one = (al, name) => al + ':r2StorageAdaptiveGroups(limit:40,filter:{datetime_geq:$m,datetime_leq:$e,bucketName:"' + name + '"}){max{payloadSize metadataSize} dimensions{date}}';
+  return 'query($a:string,$m:Time,$e:Time){viewer{accounts(filter:{accountTag:$a}){' +
+    'ops:r2OperationsAdaptiveGroups(limit:200,filter:{datetime_geq:$m,datetime_leq:$e}){sum{requests} dimensions{actionType}} ' +
+    bs.map((b, i) => one('d' + i, b) + ' ' + one('d' + (i + bs.length), 'eu_' + b)).join(' ') + '}}}';
 }
 /* Google Drive — הגיבוי אצל ספק שני (lib/offsite.js) ב־Drive של המנהל: כמה תפוס מתוך המכסה. token = גישה של הלקוח של הספרייה */
 function parseDrive(j) {
@@ -155,7 +212,7 @@ async function driveStore(token, f) {
 function storeMerge(prev, r2, drive, now) {
   const p = prev && typeof prev === 'object' ? prev : {};
   const out = { r2: p.r2 || null, drive: p.drive || null };
-  if (r2 && r2.st === 'ok' && r2.b.length) out.r2 = { at: Math.round(now / 1000), b: r2.b };
+  if (r2 && r2.st === 'ok' && r2.b.length) out.r2 = Object.assign({ at: Math.round(now / 1000), b: r2.b }, r2.cost ? { cost: r2.cost } : (p.r2 && p.r2.cost ? { cost: p.r2.cost } : {}));
   if (drive && drive.st === 'ok') out.drive = { at: Math.round(now / 1000), gb: drive.gb, lim: drive.lim };
   return out;
 }
@@ -195,4 +252,4 @@ function histPush(hist, prov, now) {
   return arr.slice(-HIST_MAX);
 }
 
-module.exports = { STO_GAP, r2Buckets, storeQuery, parseStore, r2Store, parseDrive, driveStore, storeMerge, HIST_KEYS, HIST_MAX, histDue, histPush, LIMITS, parseVercel, parseR2, parseFs, sumPoints, usageAll, item };
+module.exports = { R2_PRICE, opsByClass, r2Cost, gbMonthOf, costQuery, STO_GAP, r2Buckets, storeQuery, parseStore, r2Store, parseDrive, driveStore, storeMerge, HIST_KEYS, HIST_MAX, histDue, histPush, LIMITS, parseVercel, parseR2, parseFs, sumPoints, usageAll, item };

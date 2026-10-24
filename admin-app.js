@@ -585,7 +585,15 @@ function storeRows(S, servers) {
   const out = [], r2 = S && S.r2, dr = S && S.drive;
   if (r2 && r2.b && r2.b.length) {
     const tot = r2.b.reduce((a, b) => a + (b.gb || 0), 0), pc = Math.round(tot / 10 * 100);   // 10GB חינם — משותף לכל הדליים
-    out.push(row({ c: colOf(pc), ic: '☁', t: t('admStoR2'), s: fmt(t('admStoOf'), { u: gbTxt(tot), l: gbTxt(10) }) + ' · ' + fmt(t('admStoAt'), { a: ago(r2.at * 1000) }), v: pc + '%', meter: meterOf(pc) }));
+    // מעל 10GB משלמים — אז לא "305%" באדום אלא הגודל וכמה מעל החינם (העלות בשורה הבאה)
+    out.push(tot > 10 ? row({ c: 'blue', ic: '☁', t: t('admStoR2'), s: fmt(t('admStoOver'), { g: gbTxt(tot - 10) }) + ' · ' + fmt(t('admStoAt'), { a: ago(r2.at * 1000) }), v: gbTxt(tot) })
+      : row({ c: colOf(pc), ic: '☁', t: t('admStoR2'), s: fmt(t('admStoOf'), { u: gbTxt(tot), l: gbTxt(10) }) + ' · ' + fmt(t('admStoAt'), { a: ago(r2.at * 1000) }), v: pc + '%', meter: meterOf(pc) }));
+    const C = r2.cost, usd = (x) => '$' + (x || 0).toFixed(2);
+    if (C) {
+      const parts = [[C.st, 'admStoCSt'], [C.a, 'admStoCA'], [C.b, 'admStoCB']].filter((x) => x[0] > 0).map((x) => fmt(t(x[1]), { v: usd(x[0]) }));
+      out.push(row({ c: C.proj > 0 ? 'orange' : 'green', ic: '$', t: t('admStoCost'), s: parts.length ? parts.join(' · ') : t('admStoCFree'),
+        v: usd(C.proj), tr: fmt(t('admStoCostMtd'), { m: usd(C.mtd) }) }));
+    }
     for (const b of r2.b) out.push(row({ c: 'gray', ic: '▤', t: (STO_NAME[b.name] || (() => b.name))(), s: b.n == null ? b.name : fmt(t('admStoFiles'), { n: b.n.toLocaleString(lang === 'he' ? 'he-IL' : 'en-US') }), v: gbTxt(b.gb) }));
   } else out.push(row({ c: 'gray', ic: '☁', t: t('admStoR2'), s: t('admStoR2Off') }));
   if (dr && dr.gb != null) {

@@ -86,14 +86,26 @@ assert.strictEqual(fs.items[1].used, 100);
   assert.deepStrictEqual(m2, m1, 'ריצה בלי טוקן / עם תקלה לא מוחקת את מה שנמדד');
   // r2Store: בלי טוקן — off, בלי בקשה; עם טוקן — בקשה אחת ל־GraphQL
   let gc = 0;
-  const gql = async (url, opt) => { gc++; assert.ok(url.endsWith('/graphql')); assert.ok(JSON.parse(opt.body).query.includes('snb-learn'));
+  const gql = async (url, opt) => { gc++; assert.ok(url.endsWith('/graphql')); const q = JSON.parse(opt.body).query; assert.ok(q.includes('snb-learn'));
+    if (q.includes('ops:')) return { status: 200, json: async () => ({ data: { viewer: { accounts: [{ ops: [{ sum: { requests: 3e6 }, dimensions: { actionType: 'PutObject' } }, { sum: { requests: 2e7 }, dimensions: { actionType: 'GetObject' } }, { sum: { requests: 9e9 }, dimensions: { actionType: 'DeleteObject' } }],
+      d0: [{ max: { payloadSize: 30e9 }, dimensions: { date: '2026-10-01' } }, { max: { payloadSize: 34e9 }, dimensions: { date: '2026-10-02' } }] }] } } }) };
     return { status: 200, json: async () => ({ data: { viewer: { accounts: [{ p0: [{ max: { payloadSize: 4e9, objectCount: 7 } }] }] } } }) }; };
   assert.strictEqual((await U.r2Store({ R2_BUCKET: 'snb-learn' }, gql, now0)).st, 'off');
   assert.strictEqual(gc, 0);
   const rs = await U.r2Store({ CF_USAGE_TOKEN: 't', R2_ACCOUNT_ID: 'a', R2_BUCKET: 'snb-learn' }, gql, now0);
-  assert.strictEqual(gc, 1); assert.deepStrictEqual(rs.b, [{ name: 'snb-learn', gb: 4, n: 7 }]);
+  assert.strictEqual(gc, 2, 'גודל ואז עלות'); assert.deepStrictEqual(rs.b, [{ name: 'snb-learn', gb: 4, n: 7 }]);
+  // 24 באוקטובר: 32GB ממוצע שיא יומי → 22 מעל החינם × 0.015 = 0.33; A: 3M עד היום → צפי 3M×31/24 = 3.875M → 2.875M × 4.5 = 12.94; B: 20M → 25.83M → 15.83M × 0.36 = 5.70
+  assert.deepStrictEqual(rs.cost, { st: 0.33, a: 12.94, b: 5.7, proj: 18.97, mtd: 12.86, gbm: 32, pa: 3875000, pb: 25833333 });
   const gerr = async () => ({ status: 200, json: async () => ({ errors: [{ message: 'unknown field' }], data: null }) });
   assert.strictEqual((await U.r2Store({ CF_USAGE_TOKEN: 't', R2_ACCOUNT_ID: 'a', R2_BUCKET: 'snb-learn' }, gerr, now0)).err, 'gql');
+
+  // העלות — מקרי קצה
+  assert.deepStrictEqual(U.opsByClass([{ sum: { requests: 5 }, dimensions: { actionType: 'ListObjects' } }, { sum: { requests: 2 }, dimensions: { actionType: 'Mystery' } }, { sum: { requests: 9 }, dimensions: { actionType: 'AbortMultipartUpload' } }]), { a: 5, b: 2 }, 'לא מוכר = B (זול), מחיקה = חינם');
+  assert.strictEqual(U.r2Cost({ gbMonth: 9.2, a: 1000, b: 1000, day: 1, days: 30 }).proj, 0, 'בתוך החינם — אפס');
+  assert.strictEqual(U.r2Cost({ gbMonth: 10.1, day: 10, days: 30 }).st, 0.02, 'מעוגל למעלה ל־11GB ($0.015 → סנטים)');
+  assert.ok(U.costQuery(['snb-studio']).includes('dimensions{actionType}') && U.costQuery(['snb-studio']).includes('bucketName:"eu_snb-studio"'));
+  const mc = U.storeMerge({ r2: { at: 1, b: [{ name: 'x-y', gb: 1, n: 1 }], cost: { proj: 3 } } }, { st: 'ok', b: [{ name: 'x-y', gb: 2, n: 1 }] }, null, 7200e3);
+  assert.deepStrictEqual(mc.r2.cost, { proj: 3 }, 'העלות נשארת כשהשאלה עליה נכשלה');
 
   console.log('usage-monitor: כל הבדיקות עברו');
 })().catch((e) => { console.error(e); process.exit(1); });
