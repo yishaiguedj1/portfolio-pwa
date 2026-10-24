@@ -42,8 +42,12 @@ class DmActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); handle(intent) }
 
+    /** מהאריח: לפתוח את גיליון ההוספה עם הקישור שבלוח — כשהחלון יקבל פוקוס (רק אז מותר לקרוא את הלוח) */
+    private var clipOnFocus = false
+
     private fun handle(i: Intent?) {
         i ?: return
+        if (i.action == DmTile.ACTION_CLIP) { clipOnFocus = true; return }
         val u = when (i.action) {
             Intent.ACTION_SEND -> DmLink.first(i.getStringExtra(Intent.EXTRA_TEXT))
             Intent.ACTION_VIEW -> i.dataString?.takeIf { it.startsWith("http") } ?: ""
@@ -70,6 +74,13 @@ class DmActivity : ComponentActivity() {
         val txt = runCatching { cm.primaryClip?.getItemAt(0)?.coerceToText(this)?.toString() }.getOrNull()
         val u = DmLink.first(txt)
         val pr = DmPrefs(this)
+        if (clipOnFocus) {
+            clipOnFocus = false
+            sheetRef.value = ""; sheetCk = false; sheetUa = ""; refreshId.value = ""
+            sheetUrl.value = u   // ריק = הגיליון פתוח להדבקה
+            clipUrl.value = ""
+            return
+        }
         clipUrl.value = if (u.isNotEmpty() && u != pr.lastClip && !DmStore.has(u)) u else ""
     }
 
@@ -170,5 +181,66 @@ class DmActivity : ComponentActivity() {
         DmStore.save()
         DmEngine.resume(this, id)
         return null
+    }
+
+    /* ---------- שלב 3: הרבה הורדות בבת אחת ---------- */
+
+    /** הוספה של רשימה (הדבקה) — בודקים אחד־אחד ברקע; `batch` = ההתקדמות לגיליון */
+    data class Batch(val total: Int, val done: Int, val ok: Int, val failed: List<String>, val finished: Boolean)
+    val batch = mutableStateOf<Batch?>(null)
+    @Volatile private var batchStop = false
+
+    fun addBatch(urls: List<String>, ref: String) {
+        if (batch.value?.finished == false) return
+        batchStop = false
+        val pr = DmPrefs(this)
+        batch.value = Batch(urls.size, 0, 0, emptyList(), false)
+        Thread {
+            var ok = 0; val bad = ArrayList<String>()
+            for ((i, u) in urls.withIndex()) {
+                if (batchStop) break
+                if (DmStore.has(u)) { ok++; batch.value = Batch(urls.size, i + 1, ok, bad.toList(), false); continue }
+                when (val f = probe(u, ref)) {
+                    is Found.File -> { runOnUiThread { addFile(f, f.name, ref) }; ok++ }
+                    is Found.Video -> {
+                        val audio = pr.quality == "audio"
+                        runOnUiThread { addVideo(f, pickQuality(f.info, pr.quality), audio, ref) }; ok++
+                    }
+                    is Found.Fail -> bad.add(u)
+                }
+                batch.value = Batch(urls.size, i + 1, ok, bad.toList(), false)
+            }
+            batch.value = Batch(urls.size, batch.value?.done ?: 0, ok, bad.toList(), true)
+        }.apply { isDaemon = true; name = "dm-batch" }.start()
+    }
+
+    fun stopBatch() { batchStop = true }
+
+    /** האיכות לפי ברירת המחדל בהגדרות: הגבוהה ביותר שלא עוברת את הגובה שנבחר */
+    fun pickQuality(info: JSONObject, quality: String): JSONObject? {
+        val qs = info.optJSONArray("q") ?: return null
+        val want = quality.toIntOrNull()
+        if (want != null) for (i in 0 until qs.length()) qs.optJSONObject(i)?.let { if (it.optInt("h") <= want) return it }
+        return qs.optJSONObject(0)
+    }
+
+    /** שחזור מגיבוי (הטקסט של "ייצוא הרשימה"): רק מה שעוד לא ברשימה, בתור */
+    fun importBackup(tasks: List<DmTask>): Int {
+        val all = DmStore.all()
+        val add = DmImport.fresh(tasks, all.map { it.url }.toSet(), all.map { it.id }.toSet()) { DmStore.newId() }
+        val now = System.currentTimeMillis()
+        add.forEach { it.created = now; DmStore.add(it) }
+        if (add.isNotEmpty()) { askNotifications(); DmEngine.pump(this) }
+        return add.size
+    }
+
+    /** בדיקת שלמות: סיכום של הקובץ שבטלפון (MediaStore) — ברקע; onDone(hex או null) בחוט הראשי */
+    fun hashFile(t: DmTask, algo: String, onBytes: (Long) -> Unit, onDone: (String?) -> Unit) {
+        Thread {
+            val r = try {
+                contentResolver.openInputStream(Uri.parse(t.uri))?.let { DmHash.digest(it, algo, onBytes) }
+            } catch (e: Throwable) { null }
+            runOnUiThread { onDone(r) }
+        }.apply { isDaemon = true; name = "dm-hash" }.start()
     }
 }

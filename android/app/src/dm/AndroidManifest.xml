@@ -20,6 +20,18 @@
         <activity android:name=".MainActivity" tools:node="remove" />
         <service android:name="com.google.androidbrowserhelper.trusted.DelegationService" tools:node="remove" />
 
+        <!-- שלב 3: אריח "הורדה מהלוח" בהגדרות המהירות -->
+        <service
+            android:name=".dm.DmTile"
+            android:exported="true"
+            android:icon="@drawable/dm_tile"
+            android:label="@string/dmTileLabel"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
         <!-- הדפדפן של DM — רק מתוך האפליקציה -->
         <activity
             android:name=".dm.DmBrowser"

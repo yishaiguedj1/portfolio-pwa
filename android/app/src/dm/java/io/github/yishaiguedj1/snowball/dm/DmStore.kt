@@ -38,6 +38,13 @@ object DmStore {
     @Synchronized
     fun remove(id: String) { tasks.removeAll { it.id == id }; save() }
 
+    /** "להוריד ראשון": התור מתחיל מהישנה (סוף הרשימה) — המשימה עוברת לסוף */
+    @Synchronized
+    fun moveFirst(id: String) {
+        val t = tasks.firstOrNull { it.id == id } ?: return
+        tasks.remove(t); tasks.add(t); save()
+    }
+
     /** שמירה + עדכון הממשק */
     @Synchronized
     fun save() {
@@ -69,6 +76,8 @@ class DmPrefs(ctx: Context) {
     var firstRun: Boolean get() = p.getBoolean("first", true); set(v) = p.edit().putBoolean("first", v).apply()
     /** הגבלת מהירות לכל ההורדות יחד, בתים לשנייה (0 = בלי הגבלה) */
     var limit: Long get() = p.getLong("lim", 0).coerceAtLeast(0); set(v) = p.edit().putLong("lim", v).apply()
+    /** כללים לפי אתר (נלמדים — DmHostRules): "host=n;host=n" */
+    var hostRules: String get() = p.getString("hr", "") ?: ""; set(v) = p.edit().putString("hr", v).apply()
     var lastClip: String get() = p.getString("clip", "") ?: ""; set(v) = p.edit().putString("clip", v).apply()
     /** שפת הממשק: he (ברירת המחדל — כמו בשאר האפליקציות) / en / sys = כמו בטלפון */
     var lang: String get() = (p.getString("lang", "he") ?: "he").takeIf { it in DmLang.MODES } ?: "he"; set(v) = p.edit().putString("lang", v).apply()

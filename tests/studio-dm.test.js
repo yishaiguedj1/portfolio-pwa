@@ -75,6 +75,17 @@ ok(/DmLink\.pickStart\(/.test(eng) && /const val PER_HOST = 2/.test(R('android/a
 ok(/if \(t\.total > 0 && f\.size != t\.total\) return "refresh_size"/.test(act), 'רענון קישור רק לאותו קובץ (אותו גודל)');
 ok(/fun cookiesOf\(t: DmTask\)[^\n]*if \(!t\.ck\) null/.test(eng), 'עוגיות רק להורדה שהתחילה בדפדפן');
 ok(!/ck|\.ua/.test(store.split('fun exportJson')[1].split('\n}')[0]), 'הייצוא בלי עוגיות/User-Agent');
+// שלב 3 (24/10): הרבה הורדות — רשימה, גיבוי, שלמות, כללים לפי אתר, אריח
+const batch = R('android/app/src/dmcore/java/io/github/yishaiguedj1/snowball/dm/DmBatch.kt');
+const ui = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmUi.kt');
+ok(/DmImport\.parse\(url\)/.test(ui) && /BatchBlock\(a, parsed, ref, onClose\)/.test(ui), 'הדבקה של כמה קישורים / גיבוי — באותו שדה');
+ok(/fun fresh\(/.test(batch) && /DmImport\.fresh\(/.test(act), 'שחזור מגיבוי בלי כפולים');
+ok(/MessageDigest\.getInstance\(algo\)/.test(batch) && /HashBlock\(a, t\)/.test(ui), 'בדיקת שלמות מול הסיכום של האתר');
+ok(/busyHits\.incrementAndGet\(\)/.test(fetch) && /learnHost\(pr, host, conns, f\.throttled\)/.test(eng), 'אתר שמגביל — פחות חיבורים בפעם הבאה');
+ok(/android:name="\.dm\.DmTile"[\s\S]{0,300}BIND_QUICK_SETTINGS_TILE/.test(man), 'אריח בהגדרות המהירות, מוגן על ידי המערכת');
+ok(/DmTile\.ACTION_CLIP/.test(act) && /clipOnFocus/.test(act), 'האריח קורא את הלוח רק כשהחלון בפוקוס');
+ok(/fun pauseAll/.test(eng) && /fun resumeAll/.test(eng) && /fun startFirst/.test(eng), 'עצירה/המשך של הכל ו"להוריד ראשון"');
+ok(!/RECEIVE_BOOT|SCHEDULE_EXACT_ALARM|USE_EXACT_ALARM/.test(man.split('DmTile')[1] || ''), 'בלי הרשאות חדשות לשלב 3');
 ok(fs.existsSync(path.join(ROOT, 'android/app/src/testDm/java/io/github/yishaiguedj1/snowball/dm/DmNetTest.kt')), 'בדיקת JVM לעוגיות בהפניה ולמגבלות');
 ok(fs.existsSync(path.join(ROOT, 'android/app/src/testDm/java/io/github/yishaiguedj1/snowball/dm/DmFetchTest.kt')), 'בדיקת JVM מול שרת אמיתי קיימת');
 

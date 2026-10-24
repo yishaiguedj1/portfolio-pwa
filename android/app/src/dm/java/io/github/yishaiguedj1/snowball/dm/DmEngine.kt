@@ -52,7 +52,9 @@ object DmEngine {
         t.state = DmState.RUNNING; t.err = ""
         DmStore.save()
         Thread {
-            val end = try { if (t.kind == DmKind.YTDL) runYt(ctx, t, r) else runHttp(ctx, t, r, pr.conns) } catch (e: Throwable) { "fail" }
+            val host = DmLink.host(t.url)
+            val conns = DmHostRules.conns(hostRule(pr, host), pr.conns)
+            val end = try { if (t.kind == DmKind.YTDL) runYt(ctx, t, r) else runHttp(ctx, t, r, conns, pr, host) } catch (e: Throwable) { "fail" }
             running.remove(t.id); speed.remove(t.id)
             when {
                 end == null -> { t.state = DmState.DONE; t.finishedAt = System.currentTimeMillis(); t.err = ""; DmNotif.done(ctx, t) }
@@ -66,7 +68,19 @@ object DmEngine {
     }
 
     /** null = הסתיים; אחרת קוד */
-    private fun runHttp(ctx: Context, t: DmTask, r: Runner, conns: Int): String? {
+    private fun hostRule(pr: DmPrefs, host: String) = synchronized(this) { DmHostRules.parse(pr.hostRules)[host] ?: 0 }
+
+    /** אחרי הורדה: האתר הגביל? פחות חיבורים בפעם הבאה; נקייה — צעד חזרה למעלה */
+    private fun learnHost(pr: DmPrefs, host: String, used: Int, throttled: Boolean) = synchronized(this) {
+        if (host.isEmpty()) return@synchronized
+        val m = DmHostRules.parse(pr.hostRules)
+        val n = DmHostRules.next(m[host] ?: 0, used, throttled, pr.conns)
+        if (n == (m[host] ?: 0)) return@synchronized
+        m.remove(host); if (n > 0) m[host] = n
+        pr.hostRules = DmHostRules.dump(m)
+    }
+
+    private fun runHttp(ctx: Context, t: DmTask, r: Runner, conns: Int, pr: DmPrefs, host: String): String? {
         if (t.total < 0 || t.name.isEmpty() || t.segs.isEmpty()) {
             val p = try { DmFetch.probeRetry(t.url, t.ref, uaOf(t), cookies = cookiesOf(t)) } catch (e: Throwable) {
                 return if (r.stop) "stopped" else (if (e is DmHttpError) DmRetry.http(e.status) else DmRetry.io(e)).code
@@ -88,6 +102,7 @@ object DmEngine {
                 lastB = f.bytes; lastT = now
                 DmStore.save(); DmNotif.update(ctx)
             }
+            if (t.ranges && res !is DmFetch.Result.Stopped) learnHost(pr, host, conns, f.throttled)
             return when (res) {
                 is DmFetch.Result.Done -> { sink.close(); DmMedia.publish(ctx, t); null }
                 is DmFetch.Result.Stopped -> if (r.system) "stopped_sys" else "stopped"
@@ -129,6 +144,25 @@ object DmEngine {
         if (r != null) r.stop = true
         else DmStore.get(id)?.let { if (it.active) { it.state = DmState.PAUSED; DmStore.save() } }
         DmNotif.update(ctx)
+    }
+
+    /** עצירה של כל מה שרץ / בתור (שורת התפריט) */
+    fun pauseAll(ctx: Context) {
+        running.values.forEach { it.stop = true }
+        DmStore.all().forEach { if (it.state == DmState.QUEUED || it.state == DmState.WAITING) it.state = DmState.PAUSED }
+        DmStore.save(); DmNotif.update(ctx)
+    }
+
+    /** המשך של כל מה שנעצר או נכשל — לפי התור, עם אותן מגבלות (במקביל, לכל אתר, רשת) */
+    fun resumeAll(ctx: Context) {
+        DmStore.all().forEach { if (it.state == DmState.PAUSED || it.state == DmState.FAILED) { it.state = DmState.QUEUED; it.err = "" } }
+        DmStore.save(); pump(ctx)
+    }
+
+    fun startFirst(ctx: Context, id: String) {
+        DmStore.moveFirst(id)
+        DmStore.get(id)?.let { if (it.state == DmState.PAUSED || it.state == DmState.FAILED) { it.state = DmState.QUEUED; it.err = "" } }
+        DmStore.save(); pump(ctx)
     }
 
     fun resume(ctx: Context, id: String) {
