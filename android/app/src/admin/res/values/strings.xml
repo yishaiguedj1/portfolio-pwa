@@ -3,7 +3,7 @@
     <!-- אימות הקשר לאתר — רק הדומיין של הניהול (בלי הרשימה של שאר האפליקציות שב־src/main) -->
     <string name="assetStatements" translatable="false">[{\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://admin.thesnowball.app\"}}]</string>
 
-    <string name="mon_title">מרכז הניהול</string>
+    <string name="mon_title">שרתים</string>
     <string name="mon_widget_label">מרכז הניהול</string>
     <string name="mon_widget_desc">מדדי השרתים בזמן כמעט אמת: מעבד, זיכרון, דיסק ורשת לכל שרת. נגיעה ב־↻ מרעננת.</string>
     <string name="mon_updated">עודכן %1$s</string>
@@ -19,17 +19,20 @@
     <string name="mon_auth_bad">הטוקן לא תקף — חבר מחדש בהגדרות</string>
     <string name="mon_loading">טוען…</string>
     <string name="mon_no_servers">אין שרתים מדווחים</string>
-    <string name="mon_st_on">פעיל</string>
+    <string name="mon_st_on">תקין</string>
     <string name="mon_st_paused">מושהה</string>
     <string name="mon_st_off">לא מחובר</string>
-    <string name="mon_st_warn">אזהרה: %1$s</string>
-    <string name="mon_st_busy">עובד על עבודה</string>
+    <string name="mon_st_warn">חורג: %1$s</string>
+    <string name="mon_st_busy">עובד</string>
     <string name="mon_w_cu">מעבד</string>
     <string name="mon_w_mem">זיכרון</string>
     <string name="mon_w_disk">דיסק</string>
     <string name="mon_w_psi">לחץ</string>
-    <string name="mon_metrics">מעבד %1$s · זיכרון %2$s · דיסק %3$s</string>
     <string name="mon_net">רשת ↓ %1$s ↑ %2$s</string>
+    <string name="mon_l_cu">מעבד</string>
+    <string name="mon_l_mem">זיכרון</string>
+    <string name="mon_l_disk">דיסק</string>
+    <string name="mon_free">פנוי %1$s</string>
     <string name="mon_no_data">אין נתוני מדדים</string>
 
     <string name="mon_cfg_title">חיבור מרכז הניהול</string>
