@@ -52,25 +52,33 @@ object DmSync {
     fun asked(ctx: Context) = p(ctx).getBoolean("asked", false)
     fun setAsked(ctx: Context) = p(ctx).edit().putBoolean("asked", true).apply()
 
-    sealed class R { object Ok : R(); object Cancel : R(); data class Fail(val code: String) : R() }
+    /** Fail.why = סוג החריגה / קוד השגיאה של Google — מוצג בהודעה ונשמר ביומן (בלי אסימונים) */
+    sealed class R { object Ok : R(); object Cancel : R(); data class Fail(val code: String, val why: String = "") : R() }
 
-    /** כניסה עם Google והסכמה — מתוך פעולה של המשתמש (חלון המערכת של Google). רץ ב־coroutine */
+    private fun fail(stage: String, ex: String, msg: String?): R.Fail {
+        val m = DmLog.redact(msg)
+        DmLogFile.add(DmLog.Event(System.currentTimeMillis(), "fail", "auth", "http", code = stage, ex = ex, msg = m))
+        return R.Fail(stage, listOf(ex, m).filter { it.isNotEmpty() }.joinToString(": ").take(160))
+    }
+
+    /** כניסה עם Google — מתוך פעולה של המשתמש (חלון המערכת של Google). רץ ב־coroutine */
     suspend fun signIn(a: Activity): R {
         val cred = try {
             CredentialManager.create(a).getCredential(a, GetCredentialRequest(listOf(GetSignInWithGoogleOption.Builder(WEB_CLIENT).build()))).credential
         } catch (e: androidx.credentials.exceptions.GetCredentialCancellationException) { return R.Cancel
-        } catch (e: Throwable) { DmLogFile.add(DmLog.Event(System.currentTimeMillis(), "fail", "auth", "http", code = "signin", ex = e.javaClass.simpleName, msg = DmLog.redact(e.message))); return R.Fail("signin") }
-        val gid = try { GoogleIdTokenCredential.createFrom(cred.data).idToken } catch (e: Throwable) { return R.Fail("signin") }
+        } catch (e: Throwable) { return fail("signin", e.javaClass.simpleName, e.message) }
+        val gid = try { GoogleIdTokenCredential.createFrom(cred.data).idToken } catch (e: Throwable) { return fail("signin", e.javaClass.simpleName + "/" + cred.type, e.message) }
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                val j = post("https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=$FB_KEY", JSONObject()
+                val (st, j) = post("https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=$FB_KEY", JSONObject()
                     .put("postBody", "id_token=" + URLEncoder.encode(gid, "UTF-8") + "&providerId=google.com")
-                    .put("requestUri", "http://localhost").put("returnSecureToken", true).toString(), "application/json").second
+                    .put("requestUri", "http://localhost").put("returnSecureToken", true).toString(), "application/json")
+                if (st != 200 || !j.has("refreshToken")) return@withContext fail("firebase", "http_$st", j.optJSONObject("error")?.optString("message"))
                 save(ctx = a, it = j.getString("idToken"), rt = j.getString("refreshToken"), exp = j.optString("expiresIn", "3600"))
                 p(a).edit().putString("em", j.optString("email")).putBoolean("asked", true).apply()   // גם מה שנאסף לפני הכניסה נשלח (בתקופת הפיתוח)
                 kick(a)
                 R.Ok
-            } catch (e: Throwable) { R.Fail("firebase") }
+            } catch (e: Throwable) { fail("firebase", e.javaClass.simpleName, e.message) }
         }
     }
 

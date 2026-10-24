@@ -228,7 +228,7 @@ internal fun SignInButton(a: DmActivity, onOk: () -> Unit) {
             busy = false
             when (r) {
                 is DmSync.R.Ok -> onOk()
-                is DmSync.R.Fail -> android.widget.Toast.makeText(ctx, R.string.dmSignFail, android.widget.Toast.LENGTH_LONG).show()
+                is DmSync.R.Fail -> android.widget.Toast.makeText(ctx, ctx.getString(R.string.dmSignFail) + "\n" + r.code + (if (r.why.isNotEmpty()) " · " + r.why else ""), android.widget.Toast.LENGTH_LONG).show()
                 else -> {}
             }
         }
