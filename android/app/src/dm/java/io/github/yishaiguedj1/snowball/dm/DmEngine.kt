@@ -17,31 +17,43 @@ object DmEngine {
     @Volatile private var netCb: ConnectivityManager.NetworkCallback? = null
     /** מהירות לכל משימה (בתים לשנייה), לממשק בלבד */
     val speed = ConcurrentHashMap<String, Long>()
+    /** yt-dlp: השלב שרץ (מתחבר / מוריד / ממזג…) והזמן שנותר לפי yt-dlp — לשורת המצב (DmYt) */
+    val ytStage = ConcurrentHashMap<String, DmYt.Stage>()
+    val ytEta = ConcurrentHashMap<String, Long>()
 
     private class Runner(val id: String) {
         @Volatile var stop = false
         @Volatile var system = false   // המערכת עצרה (Job/רשת) — חוזר לתור, לא "מושהה"
+        @Volatile var ex: Throwable? = null   // ליומן (DmLog): החריגה שמאחורי קוד הכשל
+        val tail = DmLog.Tail()               // ליומן: שורות WARNING/ERROR אחרונות של yt-dlp
+        @Volatile var conns = 0
     }
 
+    /** "אחר כך" (24/10): מתחילות רק ב־Wi‑Fi ובטעינה — עד אז לא מחזיקות שירות/משימה, רק משימת מערכת עם התנאים (DmRun.scheduleLater) */
+    @Volatile var laterReady = false
     fun busy() = running.isNotEmpty()
-    fun hasWork() = DmStore.all().any { it.state == DmState.QUEUED || it.state == DmState.RUNNING || it.state == DmState.WAITING }
+    fun hasWork() = DmStore.all().any { (it.state == DmState.QUEUED && (!it.later || laterReady)) || it.state == DmState.RUNNING || it.state == DmState.WAITING }
+    fun charging(ctx: Context) = runCatching { ctx.getSystemService(android.os.BatteryManager::class.java)?.isCharging == true }.getOrDefault(false)
 
     /** מתחיל מה שאפשר מהתור */
     @Synchronized
     fun pump(ctx: Context) {
         val app = ctx.applicationContext
         DmStore.init(app)
+        DmLogFile.init(app)
         val pr = DmPrefs(app)
         val okNet = netOk(app, pr.wifiOnly)
+        laterReady = netOk(app, true) && charging(app)
         DmLimit.bytesPerSec = pr.limit
         // הישנה קודם; עד `parallel` בבת אחת ולכל היותר DmLink.PER_HOST מאותו אתר
-        val queued = DmStore.all().reversed().filter { !running.containsKey(it.id) && (it.state == DmState.QUEUED || it.state == DmState.WAITING) }
+        val queued = DmStore.all().reversed().filter { !running.containsKey(it.id) && (it.state == DmState.QUEUED || it.state == DmState.WAITING) && (!it.later || laterReady) }
         if (!okNet) queued.forEach { t -> if (t.state != DmState.WAITING) { t.state = DmState.WAITING; t.err = if (pr.wifiOnly) "wifi" else "net"; DmStore.save() } }
         else {
             val run = running.keys.mapNotNull { DmStore.get(it)?.url }
             DmLink.pickStart(queued.map { it.url }, run, pr.parallel - running.size).forEach { start(app, queued[it], pr) }
         }
         watchNet(app)
+        if (!laterReady && DmStore.all().any { it.later && it.state == DmState.QUEUED }) DmRun.scheduleLater(app)
         if (hasWork()) DmRun.ensure(app) else DmRun.idle(app)
         DmNotif.update(app)
     }
@@ -54,8 +66,11 @@ object DmEngine {
         Thread {
             val host = DmLink.host(t.url)
             val conns = DmHostRules.conns(hostRule(pr, host), pr.conns)
-            val end = try { if (t.kind == DmKind.YTDL) runYt(ctx, t, r) else runHttp(ctx, t, r, conns, pr, host) } catch (e: Throwable) { "fail" }
-            running.remove(t.id); speed.remove(t.id)
+            val t0 = System.currentTimeMillis(); val got0 = t.got
+            if (t.kind != DmKind.YTDL) r.conns = conns
+            log(ctx, t, r, "start", "", 0, 0)
+            val end = try { if (t.kind == DmKind.YTDL) runYt(ctx, t, r) else runHttp(ctx, t, r, conns, pr, host) } catch (e: Throwable) { r.ex = e; "fail" }
+            running.remove(t.id); speed.remove(t.id); ytStage.remove(t.id); ytEta.remove(t.id)
             when {
                 end == null -> {
                     t.state = DmState.DONE; t.finishedAt = System.currentTimeMillis(); t.err = ""; DmNotif.done(ctx, t)
@@ -68,9 +83,26 @@ object DmEngine {
                 end == "stopped" -> { t.state = DmState.PAUSED }
                 else -> { t.state = DmState.FAILED; t.err = end; t.tries++; DmNotif.failed(ctx, t) }
             }
+            val ms = System.currentTimeMillis() - t0
+            val k = when (t.state) { DmState.DONE -> "done"; DmState.FAILED -> "fail"; else -> "stop" }
+            log(ctx, t, r, k, if (k == "done") "" else end ?: "", ms, (t.got - got0).coerceAtLeast(0))
             DmStore.save()
             pump(ctx)
         }.apply { isDaemon = true; name = "dm-${t.id}" }.start()
+    }
+
+    /** אירוע ליומן המקומי (DmLog) — דומיין ושם קובץ בלבד, לא הכתובת ולא עוגיות */
+    private fun log(ctx: Context, t: DmTask, r: Runner, k: String, code: String, ms: Long, got: Long) {
+        val e = r.ex
+        DmLogFile.add(DmLog.Event(
+            t = System.currentTimeMillis(), k = k, id = t.id, kind = if (t.kind == DmKind.YTDL) "yt" else "http",
+            dom = DmLog.domain(t.url), name = DmLog.cleanName(t.name.ifEmpty { t.title }), code = code,
+            size = t.total, got = got, ms = ms, bps = if (ms > 0) got * 1000 / ms else 0, conns = r.conns, tries = t.tries,
+            ex = if (k == "fail" && e != null) e.javaClass.simpleName else "",
+            msg = if (k == "fail" && e != null) DmLog.redact(e.message) else "",
+            tail = if (k == "fail") r.tail.list() else emptyList(),
+        ))
+        if (k != "start") DmSync.kick(ctx, k == "fail")   // רק אם המשתמש נכנס והסכים (DmSync.on)
     }
 
     /** null = הסתיים; אחרת קוד */
@@ -89,6 +121,7 @@ object DmEngine {
     private fun runHttp(ctx: Context, t: DmTask, r: Runner, conns: Int, pr: DmPrefs, host: String): String? {
         if (t.total < 0 || t.name.isEmpty() || t.segs.isEmpty()) {
             val p = try { DmFetch.probeRetry(t.url, t.ref, uaOf(t), cookies = cookiesOf(t)) } catch (e: Throwable) {
+                r.ex = e
                 return if (r.stop) "stopped" else (if (e is DmHttpError) DmRetry.http(e.status) else DmRetry.io(e)).code
             }
             if (t.name.isEmpty()) t.name = DmName.pick(p.disposition, p.finalUrl, p.mime)
@@ -119,22 +152,34 @@ object DmEngine {
 
     private fun runYt(ctx: Context, t: DmTask, r: Runner): String? {
         val pick = DlEngine.Pick(t.vf, t.af, t.height.coerceAtLeast(0), 0, 0)
-        val fmt = if (t.audioOnly) "ba/b" else ""
+        // בלי פורמט שנבחר מראש (רשימת השמעה, ייבוא) — הבורר לפי הגובה ופורמט הווידאו שבהגדרות
+        val fmt = if (t.audioOnly) "ba/b" else if (t.vf.isEmpty()) DmPlaylist.format(t.height, false, DmPrefs(ctx).codec) else ""
         var lastP = 0L
+        val pr = DmYt.Progress(if (t.audioOnly || t.af.isEmpty()) 1 else 2, t.pctYt)
+        ytStage[t.id] = pr.stage
         val stopWatch = Thread {
             while (!r.stop && running.containsKey(t.id)) Thread.sleep(300)
             if (r.stop) DlEngine.cancel("dm-" + t.id)
         }.apply { isDaemon = true; start() }
         return try {
-            val f = DlEngine.download(ctx, t.url, t.ref, pick, "dm-" + t.id, fmt) { p, _ ->
+            // כל שורה של yt-dlp → שלב ואחוז של כל ההורדה (וידאו ואחריו קול); האחוז שלו לבדו מתאפס בכל חלק
+            val f = DlEngine.download(ctx, t.url, t.ref, pick, "dm-" + t.id, fmt, subs = if (t.audioOnly) "" else t.subs, auto = t.subsAuto, onLine = ln@{ line ->
+                r.tail.add(line)
+                if (!pr.feed(line)) return@ln
                 val now = System.currentTimeMillis()
-                t.pctYt = (p / 100f).coerceIn(0f, 1f)
-                t.bytesYt = if (t.total > 0) (t.total * t.pctYt).toLong() else 0
-                if (now - lastP > 2000) { lastP = now; DmStore.save(); DmNotif.update(ctx) }
-            }
+                val moved = ytStage.put(t.id, pr.stage) != pr.stage
+                if (pr.frac >= 0f) {
+                    t.pctYt = pr.frac
+                    t.bytesYt = if (t.total > 0) (t.total * pr.frac).toLong() else 0
+                }
+                if (pr.bps > 0) speed[t.id] = pr.bps else if (pr.stage != DmYt.Stage.DL) speed.remove(t.id)
+                if (pr.eta >= 0) ytEta[t.id] = pr.eta else ytEta.remove(t.id)
+                if (moved || now - lastP > 2000) { lastP = now; DmStore.save(); DmNotif.update(ctx) }
+            }) { _, _ -> }
             DmMedia.importFile(ctx, t, f)
             null
         } catch (e: IllegalArgumentException) {
+            r.ex = e.cause ?: e
             val c = e.message ?: "fail"
             if (c == "cancel") (if (r.system) "stopped_sys" else "stopped") else c
         } finally { stopWatch.interrupt() }
@@ -167,7 +212,13 @@ object DmEngine {
 
     fun startFirst(ctx: Context, id: String) {
         DmStore.moveFirst(id)
-        DmStore.get(id)?.let { if (it.state == DmState.PAUSED || it.state == DmState.FAILED) { it.state = DmState.QUEUED; it.err = "" } }
+        DmStore.get(id)?.let { it.later = false; if (it.state == DmState.PAUSED || it.state == DmState.FAILED) { it.state = DmState.QUEUED; it.err = "" } }
+        DmStore.save(); pump(ctx)
+    }
+
+    /** "אחר כך" / "עכשיו" למשימה שעוד לא הסתיימה */
+    fun setLater(ctx: Context, id: String, v: Boolean) {
+        DmStore.get(id)?.let { it.later = v }
         DmStore.save(); pump(ctx)
     }
 

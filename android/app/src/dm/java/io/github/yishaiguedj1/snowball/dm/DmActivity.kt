@@ -99,6 +99,26 @@ class DmActivity : ComponentActivity() {
     }
 
     fun open(t: DmTask) {
+        // סרטון וקול — בנגן שלנו (DmPlayer); כל השאר — באפליקציה שמתאימה לסוג
+        val cat = if (t.kind == DmKind.YTDL) (if (t.audioOnly) DmName.Cat.AUDIO else DmName.Cat.VIDEO) else DmName.cat(t.name, t.mime)
+        if ((cat == DmName.Cat.VIDEO || cat == DmName.Cat.AUDIO) && t.uri.startsWith("content://")) {
+            if (runCatching { startActivity(Intent(this, DmPlayer::class.java).setData(Uri.parse(t.uri)).putExtra(DmPlayer.EXTRA_TITLE, t.title.ifEmpty { t.name })) }.isSuccess) return
+        }
+        openWith(t)
+    }
+
+    /** חילוץ ZIP ברקע — בסוף הודעה עם מספר הקבצים / הסיבה */
+    fun unzip(t: DmTask) {
+        android.widget.Toast.makeText(this, R.string.dmUnzipping, android.widget.Toast.LENGTH_SHORT).show()
+        Thread {
+            val msg = try { getString(R.string.dmUnzipped, DmMedia.extractZip(this, t), "Download/" + DmMedia.DIR + "/" + DmZip.folderOf(t.name)) }
+                catch (e: DmZip.TooBig) { getString(R.string.dmUnzipBig) } catch (e: DmSpace) { getString(R.string.dmErrSpace) } catch (e: Throwable) { getString(R.string.dmUnzipFail) }
+            runOnUiThread { android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_LONG).show() }
+        }.apply { isDaemon = true }.start()
+    }
+
+    /** "פתיחה באפליקציה אחרת" */
+    fun openWith(t: DmTask) {
         val i = Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(t.uri), DmMedia.mimeFor(t.name, t.mime))
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         runCatching { startActivity(i) }
@@ -137,6 +157,24 @@ class DmActivity : ComponentActivity() {
         data class File(val url: String, val name: String, val size: Long, val mime: String, val ranges: Boolean) : Found()
         data class Video(val url: String, val info: JSONObject) : Found()
         data class Fail(val code: String) : Found()
+        data class Playlist(val url: String, val pl: DmPlaylist.Playlist) : Found()
+    }
+
+    /** רשימת השמעה — כל הכותרות בבקשה אחת (DlEngine.probePlaylist). רץ בתהליכון */
+    fun probeList(url: String, ref: String): Found = try {
+        DmPlaylist.parse(DlEngine.probePlaylist(this, url, ref, DlEngine.cookiesFor(this, url, ref)))?.let { Found.Playlist(url, it) } ?: Found.Fail("playlist")
+    } catch (e: IllegalArgumentException) { Found.Fail(e.message ?: "fail") } catch (e: Throwable) { Found.Fail("fail") }
+
+    /** הסרטונים שנבחרו מהרשימה → משימות yt-dlp (כל אחת נבדקת כשהיא מתחילה; הבורר לפי הגובה ופורמט הווידאו — DmPlaylist.format) */
+    fun addPlaylist(entries: List<DmPlaylist.Entry>, h: Int, audio: Boolean, later: Boolean) {
+        val now = System.currentTimeMillis()
+        entries.forEachIndexed { i, e ->
+            DmStore.add(DmTask(DmStore.newId(), e.url, "", DmKind.YTDL).apply {
+                title = e.title; name = e.title; audioOnly = audio; height = if (audio) 0 else h
+                this.later = later; created = now + i
+            })
+        }
+        askNotifications(); DmEngine.pump(this)
     }
 
     /** רץ בתהליכון (לא בממשק) */
@@ -163,25 +201,30 @@ class DmActivity : ComponentActivity() {
             }
         }
         return try { Found.Video(url, DlEngine.probe(this, url, ref, DlEngine.cookiesFor(this, url, ref))) }
-        catch (e: IllegalArgumentException) { Found.Fail(e.message ?: "fail") }
+        catch (e: IllegalArgumentException) { if (e.message == "playlist") probeList(url, ref) else Found.Fail(e.message ?: "fail") }
         catch (e: Throwable) { Found.Fail("fail") }
     }
 
-    fun addFile(f: Found.File, name: String, ref: String, tr: Boolean = false) {
+    fun addFile(f: Found.File, name: String, ref: String, tr: Boolean = false, later: Boolean = false) {
         val t = DmTask(DmStore.newId(), f.url, ref, DmKind.HTTP).apply {
-            this.tr = tr
+            this.tr = tr; this.later = later
             this.name = DmName.clean(name).ifEmpty { f.name }; mime = f.mime; total = f.size; ranges = f.ranges
             created = System.currentTimeMillis(); ua = sheetUa; ck = sheetCk
         }
         DmStore.add(t); askNotifications(); DmEngine.pump(this)
     }
 
-    fun addVideo(v: Found.Video, q: JSONObject?, audio: Boolean, ref: String, tr: Boolean = false) {
+    fun addVideo(v: Found.Video, q: JSONObject?, audio: Boolean, ref: String, tr: Boolean = false, later: Boolean = false, subs: List<DmSubs.Sub> = emptyList()) {
         val t = DmTask(DmStore.newId(), v.url, ref, DmKind.YTDL).apply {
-            this.tr = tr && !audio
+            this.tr = tr && !audio; this.later = later
+            if (!audio) { this.subs = DmSubs.langs(subs); subsAuto = DmSubs.anyAuto(subs) }
             title = v.info.optString("t"); name = title
             audioOnly = audio
-            if (q != null && !audio) { vf = q.optString("v"); af = q.optString("a"); height = q.optInt("h"); total = q.optLong("sz", -1) }
+            if (q != null && !audio) {
+                // פורמט הווידאו מההגדרות (DmCodec): חסכוני = מה שנבחר (AV1/VP9), תואם = H.264 + AAC באותה רזולוציה
+                val pk = DmCodec.prefer(q, v.info.optJSONArray("fm"), v.info.optJSONObject("ao"), DmPrefs(this@DmActivity).codec)
+                vf = pk.v; af = pk.a; height = q.optInt("h"); total = pk.sz
+            }
             if (audio) total = v.info.optJSONObject("ao")?.optLong("sz", -1) ?: -1
             created = System.currentTimeMillis(); ck = sheetCk
         }
@@ -229,6 +272,7 @@ class DmActivity : ComponentActivity() {
                         val audio = pr.quality == "audio"
                         runOnUiThread { addVideo(f, pickQuality(f.info, pr.quality), audio, ref) }; ok++
                     }
+                    is Found.Playlist -> { runOnUiThread { addPlaylist(f.pl.entries, pr.quality.toIntOrNull() ?: 0, pr.quality == "audio", false) }; ok++ }
                     is Found.Fail -> bad.add(u)
                 }
                 batch.value = Batch(urls.size, i + 1, ok, bad.toList(), false)

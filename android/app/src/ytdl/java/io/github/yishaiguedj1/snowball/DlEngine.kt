@@ -74,10 +74,11 @@ object DlEngine {
         return try { Ck(f, u.readText()) } catch (e: Throwable) { null }
     }
 
-    private fun base(req: YoutubeDLRequest, ref: String, ck: Ck? = null, quick: Boolean = false): YoutubeDLRequest {
+    private fun base(req: YoutubeDLRequest, ref: String, ck: Ck? = null, quick: Boolean = false, list: Boolean = false): YoutubeDLRequest {
         if (ck != null) req.addOption("--cookies", ck.file.absolutePath).addOption("--user-agent", ck.ua)
         // 23/10/2026: בבדיקה — ניסיונות קצרים (5 ניסיונות × 20 שנ׳ השאירו את הבדיקה יותר מדקה בלי תשובה)
-        if (quick) req.addOption("--no-playlist").addOption("--socket-timeout", 12).addOption("--retries", 1).addOption("--extractor-retries", 1)
+        if (list) req.addOption("--socket-timeout", 20).addOption("--retries", 2).addOption("--extractor-retries", 2)
+        else if (quick) req.addOption("--no-playlist").addOption("--socket-timeout", 12).addOption("--retries", 1).addOption("--extractor-retries", 1)
         else req.addOption("--no-playlist").addOption("--socket-timeout", 20).addOption("--retries", 5)
             .addOption("--fragment-retries", 10).addOption("--extractor-retries", 2)
         val r = DlProbe.refOk(ref)
@@ -114,6 +115,17 @@ object DlEngine {
         s.put("th", thumbData(DlProbe.thumbUrl(info)))
         fillSize(s, info, ref, ck)
         return s
+    }
+
+    /** רשימת השמעה (Studio DM, 24/10/2026): ‎--flat-playlist -J‎ — הכותרות והכתובות בלבד, בלי לבדוק כל סרטון. מחזיר את ה־JSON הגולמי
+     *  (DmPlaylist.parse). כשל → IllegalArgumentException(קוד) */
+    fun probePlaylist(ctx: Context, url: String, ref: String, ck: Ck? = null): JSONObject {
+        prepare(ctx)
+        val out = try {
+            YoutubeDL.getInstance().execute(base(YoutubeDLRequest(url), ref, ck, list = true).addOption("--flat-playlist").addOption("-J")
+                .addOption("--playlist-end", 500)).out
+        } catch (e: Throwable) { throw IllegalArgumentException(DlProbe.errCode(e.message)) }
+        return try { JSONObject(out) } catch (e: Throwable) { throw IllegalArgumentException("fail") }
     }
 
     /** 23/10/2026 (דיווח המשתמש: "1KB" ב־buffett.cnbc.com — בפועל גודל לא ידוע): קובץ ישיר בלי גודל במידע של yt-dlp →
@@ -170,10 +182,11 @@ object DlEngine {
     /** הורדה לתיקייה של האפליקציה (yt-dlp צריך נתיב רגיל), מיזוג בלי קידוד מחדש — MP4 כשאפשר, אחרת MKV.
      *  progress: 0–100. מחזיר את הקובץ. כשל → IllegalArgumentException(קוד) */
     fun download(ctx: Context, url: String, ref: String, pick: Pick, id: String, progress: (Float, Long) -> Unit): File =
-        download(ctx, url, ref, pick, id, "", progress)
+        download(ctx, url, ref, pick, id, "", progress = progress)
 
     /** format = בורר yt-dlp משלך (Studio DM: "רק קול" — ‎ba/b‎); ריק = לפי pick, כמו ב־Studio */
-    fun download(ctx: Context, url: String, ref: String, pick: Pick, id: String, format: String, progress: (Float, Long) -> Unit): File {
+    /** subs = שפות כתוביות לצרף לקובץ ("he,en"; Studio DM — DmSubs), auto = כולל כתוביות אוטומטיות */
+    fun download(ctx: Context, url: String, ref: String, pick: Pick, id: String, format: String, onLine: (String) -> Unit = {}, subs: String = "", auto: Boolean = false, progress: (Float, Long) -> Unit): File {
         prepare(ctx)
         val dir = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "dl/$id").apply { mkdirs() }
         val req = base(YoutubeDLRequest(url), ref, cookiesFor(ctx, url, ref))
@@ -183,12 +196,17 @@ object DlEngine {
             .addOption("-o", dir.absolutePath + "/%(title).80B [%(id)s].%(ext)s")
             .addOption("--print", "after_move:filepath")
         if (pick.s1 > pick.s0) req.addOption("--download-sections", "*${pick.s0}-${pick.s1}")
+        if (Regex("^[A-Za-z0-9_-]{1,20}(,[A-Za-z0-9_-]{1,20}){0,4}$").matches(subs)) {
+            // כתוביות בתוך הקובץ (MP4 = mov_text, MKV = srt) — לא קבצים נפרדים; כשל בכתוביות לא מפיל את ההורדה
+            req.addOption("--write-subs").addOption("--sub-langs", subs).addOption("--embed-subs").addOption("--convert-subs", "srt").addOption("--ignore-errors")
+            if (auto) req.addOption("--write-auto-subs")
+        }
         val res = try {
-            YoutubeDL.getInstance().execute(req, id) { p, eta, _ -> progress(p, eta) }
+            YoutubeDL.getInstance().execute(req, id) { p, eta, line -> progress(p, eta); onLine(line) }
         } catch (e: YoutubeDL.CanceledException) {
             throw IllegalArgumentException("cancel")
         } catch (e: Throwable) {
-            throw IllegalArgumentException(DlProbe.errCode(e.message))
+            throw IllegalArgumentException(DlProbe.errCode(e.message), e)   // הסיבה — ליומן של DM (מנוקה שם)
         }
         val path = res.out.lines().map { it.trim() }.lastOrNull { it.startsWith("/") } ?: ""
         val f = File(path)
