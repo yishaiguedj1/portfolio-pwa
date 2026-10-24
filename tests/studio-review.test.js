@@ -29,7 +29,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/disabled: off, badge: off \? T\('studioSoon'\)/.test(sj) && /function rowCheck\(o\)[\s\S]{0,300}o\.disabled/.test(sj), 'בורר השפות: שפה שעוד לא נתמכת — "בקרוב" ולא נבחרת');
 
   /* ---------- 2. קודי השגיאה של מצב השרת (llm.py / pipeline.py) ---------- */
-  const codes = (read('translator/llm.py') + read('translator/pipeline.py')).match(/'(api_[a-z_]+|cli_[a-z_]+|sub_limit|budget_cap|model_refusal|check_errors)'/g).map((x) => x.slice(1, -1)).filter((c) => c !== 'api_usage' && c !== 'api_error_status');   // api_usage / api_error_status = שדות, לא קודי שגיאה
+  const codes = (read('translator/llm.py') + read('translator/pipeline.py') + read('translator/relay.py')).match(/'(api_[a-z_]+|cli_[a-z_]+|relay_[a-z_]+|sub_limit|budget_cap|model_refusal|check_errors)'/g).map((x) => x.slice(1, -1)).filter((c) => c !== 'api_usage' && c !== 'api_error_status');   // api_usage / api_error_status = שדות, לא קודי שגיאה
   ok([...new Set(codes)].every((c) => I.ERR_INFO[c]), 'כל קוד שגיאה של מצב השרת ממופה ברכיב ובחומרה (' + [...new Set(codes)].join(', ') + ')');
   ok(I.ERR_INFO.api_auth[1] === 1 && I.ERR_INFO.api_model[1] === 1 && I.ERR_INFO.api_network[1] === 3, 'מפתח/מודל שנדחו = P1 (שום עבודת API לא תעבוד); רשת = P3');
   ok(S.isTransient('api_network') && S.isTransient('api_timeout') && S.isTransient('api_rate') && !S.isTransient('api_auth') && !S.isTransient('budget_cap'), 'רשת/קצב מול Anthropic = חולף (המשך אוטומטי); מפתח ותקרה — לא');

@@ -81,5 +81,81 @@ class SessionUsageTests(unittest.TestCase):
         self.assertAlmostEqual(sub['usd'], 0.012 + J.cost_of(S, 5, 200, 30000, 0, 0), places=3)
 
 
+class RelayModeTests(unittest.TestCase):
+    """24/10/2026: "המנוי שלי" דרך השרת — העבודה בשרת שלנו, Claude דרך התור ל־Routine"""
+
+    def tearDown(self):
+        import llm
+        llm.RELAY = None
+
+    def test_go_runs_relay_loop(self):
+        J.save_state({'job': 'j' + 'A' * 20, 'key': 'k' * 43, 'kind': 'relay', 'hub': 'https://api.thesnowball.app'})
+        got = {}
+
+        class P:
+            pid = 99999999
+
+        orig = J.subprocess.Popen
+        J.subprocess.Popen = lambda cmd, **kw: got.update(cmd=cmd) or P()
+        try:
+            rc, out = run('go')
+        finally:
+            J.subprocess.Popen = orig
+            (J.STATE.parent / J.GO_PID).unlink(missing_ok=True)
+        self.assertEqual(rc, 0)
+        self.assertEqual(got['cmd'][-1], 'relay-loop', 'ב־Routine של עבודת העברה — רק הלולאה שמעבירה את הקריאות')
+        self.assertIn('העבודה בשרת שלנו', out)
+
+    def test_hub_closed_list(self):
+        self.assertTrue(J.hub_ok('https://api.thesnowball.app') and J.hub_ok('https://api-staging.thesnowball.app'))
+        self.assertFalse(J.hub_ok('https://evil.example') or J.hub_ok(None), 'כתובת תור — רק מהרשימה הסגורה')
+
+    def test_auto_sets_relay_and_ends(self):
+        import llm
+        import relay
+        J.save_state({'job': 'j' + 'B' * 20, 'key': 'w' * 43, 'rh': 'https://api.thesnowball.app', 'spec': {}})
+        seen, ended = {}, []
+        o_auto, o_end = J.auto, relay.end
+        J.auto = lambda a: seen.update(r=dict(llm.RELAY or {}), t=llm.Engine(llm.Spec.of('haiku-high')).transport) or 0
+        relay.end = lambda *a: ended.append(a)
+        try:
+            self.assertEqual(J.auto_cmd(None), 0)
+        finally:
+            J.auto, relay.end = o_auto, o_end
+        self.assertEqual(seen['r']['base'], 'https://api.thesnowball.app')
+        self.assertEqual(seen['t'], 'relay', 'כל מנוע בתהליך — דרך התור (גם השופט ודוח התקלה)')
+        self.assertEqual(ended[0][0], 'https://api.thesnowball.app', 'בסוף — התור נסגר וה־Routine יוצא')
+
+    def test_engine_relay_result_and_errors(self):
+        import llm
+        import relay
+        llm.set_relay('https://api.thesnowball.app', 'j' + 'C' * 20, 'w' * 43)
+        eng = llm.Engine(llm.Spec.of('haiku-high'))
+        o = relay.call
+        relay.call = lambda *a, **k: {'t': 'שלום', 'u': {'i': 10, 'o': 20, 'cr': 1000, 'c5': 0, 'c1': 0}, 'st': 'end_turn', 'th': 5}
+        try:
+            r = eng._relay0('קבוע', '', 'בקשה', 1000)
+            self.assertEqual((r.text, r.usage['cr'], r.think_chars), ('שלום', 1000, 5))
+            self.assertAlmostEqual(r.usd, llm.cost_anthropic('claude-haiku-5-5', 10, 20, 1000, 0, 0))
+            relay.call = lambda *a, **k: {'err': 'sub_limit'}
+            with self.assertRaises(llm.LLMError) as e:
+                eng._relay0('קבוע', '', 'בקשה', 1000)
+            self.assertEqual(e.exception.code, 'sub_limit')
+
+            def boom(*a, **k):
+                raise relay.RelayError('relay_lost')
+            relay.call = boom
+            with self.assertRaises(llm.LLMError) as e:
+                eng._relay0('קבוע', '', 'בקשה', 1000)
+            self.assertEqual(e.exception.code, 'relay_lost')
+        finally:
+            relay.call = o
+
+    def test_relay_answer_rejects_unknown_model(self):
+        import llm
+        self.assertEqual(llm.relay_answer({'m': 'claude-evil', 'e': 'high'}, 'x')['err'], 'relay_bad')
+        self.assertEqual(llm.relay_answer({'m': 'claude-haiku-5-5', 'e': 'turbo'}, 'x')['err'], 'relay_bad')
+
+
 if __name__ == '__main__':
     unittest.main()

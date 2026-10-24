@@ -297,11 +297,26 @@ def pir(args):
     return 0
 
 
+def hub_ok(u) -> bool:
+    """24/10/2026: כתובת התור (ההעברה) — רק מהרשימה הסגורה של השרתונים (המפתח לא נשלח לכתובת שלא אנחנו)"""
+    return isinstance(u, str) and (u in SERVERS or bool(LOCAL_RE.match(u)))
+
+
 def run(args):
     c = Client(args.server, args.job, args.key)
     try:
         got = c.call('claim', ev=env_version(), pv=prompt_versions())
         job = got.get('job') or {}
+        if got.get('relay'):
+            # 24/10/2026: "המנוי שלי" דרך השרת — העבודה כולה רצה בשרת שלנו; הסשן הזה רק מעביר את הקריאות ל־Claude
+            if not hub_ok(got.get('hub')):
+                print('✗ כתובת תור לא מוכרת.')
+                return 1
+            save_state({'job': args.job, 'key': args.key, 'server': args.server, 'kind': 'relay', 'hub': got['hub']})
+            print('✓ עבודת "המנוי שלי" נלקחה: השרת שלנו עושה את כל העבודה (הורדה, תמלול, יישור, צריבה), '
+                  'וכאן רק הקריאות ל־Claude — על המנוי שלך.')
+            print('הצעד הבא: python3 translator/job.py go')
+            return 0
         token = (got.get('drive') or {}).get('token') or ''
         if job.get('kind') == 'ping':
             d = drive_ok(token, args.drive_api)
@@ -318,7 +333,8 @@ def run(args):
         if job.get('kind') == 'ai':
             # מ7: גיליון ה־AI — בקשה על הכתוביות מהטלפון (תור), תשובה בפורמט קבוע; בלי תמלול ובלי צריבה
             save_state({'job': args.job, 'key': args.key, 'server': args.server, 'drive_api': args.drive_api, 'kind': 'ai',
-                        'folder': job.get('folder') or '', 'spec': job.get('spec') or {}, 'files': job.get('files') or {}})
+                        'folder': job.get('folder') or '', 'spec': job.get('spec') or {}, 'files': job.get('files') or {},
+                        'rh': job.get('rh') if hub_ok(job.get('rh')) else None})   # 24/10/2026: גם הבקשה מהגיליון — במנוי, דרך התור
             print('✓ בקשת גיליון AI נלקחה (עריכה של כתוביות קיימות).')
             print('הצעד הבא: python3 translator/job.py ai-prep')
             return 0
@@ -349,6 +365,7 @@ def run(args):
                     'gref': job.get('gref') if FILE_ID_RE.match(str(job.get('gref') or '')) else None,   # פריט 15: הייחוס של סט הזהב
                     'notes': notes_valid(job.get('notes')),                              # v382: הערות שלך שכבר נקראו (להמשך)
                     'gl': [list(r) for r in gl_rows(job.get('gl'))] if gl_rows(job.get('gl')) is not None else None,   # 11/10: המילון מ־R2 (None = מ־Drive)
+                    'rh': job.get('rh') if hub_ok(job.get('rh')) else None,               # 24/10/2026: Claude דרך התור (המנוי של המשתמש)
                     'cap': job.get('cap') if isinstance(job.get('cap'), (int, float)) and 0 < job.get('cap') <= 100 else None})   # מצב API: תקרת העבודה ($)
         for old in ('prog.json', 'tower.json'):        # v362: מגדל הפיקוח מתחיל נקי לכל הפעלה
             try:
@@ -3285,6 +3302,25 @@ def crash_where(e: BaseException) -> str:
     return name
 
 
+def auto_cmd(args):
+    """הפקודה auto: 24/10/2026 — עבודת "המנוי שלי" (rh בלקיחה) רצה כמו כל עבודת שרת, והקריאות ל־Claude עוברות דרך
+    התור ל־Routine של המשתמש. בסוף — התור נסגר."""
+    try:
+        st = load_state()
+    except SystemExit:
+        st = {}
+    rh = st.get('rh') if hub_ok(st.get('rh')) and st.get('kind') not in ('rr',) else None
+    if rh:
+        import llm
+        llm.set_relay(rh, st['job'], st['key'])
+    try:
+        return auto(args)
+    finally:
+        if rh:
+            import relay
+            relay.end(rh, st['job'], st['key'])     # ה־Routine יוצא (התור אומר "סוף")
+
+
 def auto(args):
     """מצב "API של המערכת": מנהל העבודה הוא סקריפט (pipeline.py), והמודל מקבל רק את עבודת השפה."""
     try:
@@ -3343,14 +3379,19 @@ def go(args):
             (d / f).unlink()
         except OSError:
             pass
-    cmd = json.loads(os.environ['SNB_GO_CMD']) if os.environ.get('SNB_GO_CMD') else [sys.executable, str(Path(__file__).resolve()), 'auto']
+    try:
+        rl = load_state().get('kind') == 'relay'     # 24/10/2026: "המנוי שלי" דרך השרת — רק הלולאה שמעבירה את הקריאות
+    except SystemExit:
+        rl = False
+    cmd = json.loads(os.environ['SNB_GO_CMD']) if os.environ.get('SNB_GO_CMD') else [sys.executable, str(Path(__file__).resolve()), 'relay-loop' if rl else 'auto']
     env = dict(os.environ, SNB_LLM=os.environ.get('SNB_LLM') or 'cli')
     sh = '"$@" > "$SNB_GO_LOG" 2>&1; echo $? > "$SNB_GO_RC"'
     env.update(SNB_GO_LOG=str(d / GO_LOG), SNB_GO_RC=str(d / GO_RC))
     pr = subprocess.Popen(['/bin/sh', '-c', sh, 'go'] + cmd, env=env, start_new_session=True,
                           stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     (d / GO_PID).write_text(str(pr.pid))
-    print('✓ העבודה רצה ברקע (כמו בשרת: הכלים כאן, ו־Claude בקריאות ישירות במנוי שלך).')
+    print('✓ ההעברה רצה ברקע (העבודה בשרת שלנו; כאן Claude על המנוי שלך).' if rl else
+          '✓ העבודה רצה ברקע (כמו בשרת: הכלים כאן, ו־Claude בקריאות ישירות במנוי שלך).')
     print('הצעד הבא (ברקע, run_in_background, timeout 7200000): python3 translator/job.py wait')
     return 0
 
@@ -3393,6 +3434,19 @@ def wait_cmd(args):
     print(('✓ העבודה הסתיימה.' if rc == 0 else '■ העבודה נעצרה (קוד ' + str(rc) + ') — הסטטוס כבר דווח לטלפון.')
           + ' סכם בשורה אחת וסיים.')
     return 0
+
+
+def relay_loop(args):
+    """24/10/2026: ה־Routine של "המנוי שלי" דרך השרת — מושך מהתור את הקריאות ל־Claude, מריץ ב־claude -p ומחזיר.
+    נגמר כשהעבודה בשרת נגמרת (התור אומר "סוף") או נעצרת."""
+    st = load_state()
+    if st.get('kind') != 'relay' or not hub_ok(st.get('hub')):
+        raise SystemExit('✗ זו לא עבודת העברה.')
+    import llm
+    import relay
+    print('· מעביר קריאות ל־Claude מהשרת (עד ' + str(relay.PAR) + ' במקביל)…', flush=True)
+    return relay.serve(st['hub'], st['job'], st['key'], llm.relay_answer,
+                       log=lambda m: print(m, flush=True))
 
 
 def vt_cmd(args):
@@ -4324,6 +4378,7 @@ def main(argv=None):
     lr.add_argument('--src', required=True)
     sub.add_parser('auto', help='מצב API: כל העבודה מקצה לקצה — הכלים כאן, עבודת השפה בקריאות ישירות ל־Claude')
     sub.add_parser('go', help='ה־Routine: auto ברקע (Claude דרך claude -p במנוי), כמו בשרת')
+    sub.add_parser('relay-loop', help=argparse.SUPPRESS)
     w = sub.add_parser('wait', help='ה־Routine: מחכה לעבודה שרצה ברקע (go)')
     w.add_argument('--max', type=int, default=6600)
     v = sub.add_parser('vt', help='פקודת vt על הפרויקט של העבודה')
@@ -4331,7 +4386,7 @@ def main(argv=None):
     a = p.parse_args(argv)
     if a.cmd != 'run':
         return {'prepare': prepare, 'align': align, 'stage': stage, 'finish': finish, 'fail': fail, 'ask': ask, 'vt': vt_cmd,
-                'save': save, 'restore': restore, 'fix': fix, 'pir': pir, 'gate': gate_cmd, 'auto': auto, 'go': go, 'wait': wait_cmd,
+                'save': save, 'restore': restore, 'fix': fix, 'pir': pir, 'gate': gate_cmd, 'auto': auto_cmd, 'go': go, 'wait': wait_cmd, 'relay-loop': relay_loop,
                 'judge-prep': judge_prep, 'judge': judge, 'render': render,
                 'ai-prep': ai_prep, 'ai-done': ai_done, 'ladder-run': ladder_run, 'attach-late': attach_late_cmd}[a.cmd](a)
     if not JOB_RE.match(a.job) or not KEY_RE.match(a.key):

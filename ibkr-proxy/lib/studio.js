@@ -77,10 +77,10 @@ function recoverWait(job, now) {
   // נשמרה נקודה בהפעלה הזו — העבודה כבר התקדמה; זו לא תקלת תשתית של הרגע הראשון
   return (Array.isArray(job.ck) ? job.ck : []).some((c) => c && c.at >= t0) ? RECOVER_WAIT : EARLY_WAIT;
 }
-const TRANSIENT_ERRS = ['net', 'drive', 'drive_net', 'store_net', 'url_net', 'url_timeout', 'api_network', 'api_timeout', 'api_rate', 'api_overloaded', 'worker_lost'];   // 14/10/2026: worker_lost = השרת הופעל מחדש באמצע (עדכון / כיבוי) — ממשיכים מנקודת השמירה   // 11/10: store_net = ניתוק מול R2 / Drive   // הסקירה: גם רשת/קצב/עומס מול Anthropic במצב API
+const TRANSIENT_ERRS = ['net', 'drive', 'drive_net', 'store_net', 'url_net', 'url_timeout', 'api_network', 'api_timeout', 'api_rate', 'api_overloaded', 'worker_lost', 'relay_lost'];   // 24/10/2026: relay_lost = הסשן של ה־Routine נגמר באמצע — "המשך" מפעיל חדש   // 14/10/2026: worker_lost = השרת הופעל מחדש באמצע (עדכון / כיבוי) — ממשיכים מנקודת השמירה   // 11/10: store_net = ניתוק מול R2 / Drive   // הסקירה: גם רשת/קצב/עומס מול Anthropic במצב API
 /* 11/10/2026 (ביקורת העמידות): כשל דטרמיניסטי — אותה בקשה תיכשל שוב. לא "חולף" גם כשבמקרה נשארה פתוחה התראת Drive
    ישנה מאותה עבודה (קודם: max_tokens אחרי התראת הורדה ישנה קיבל "המשך" אוטומטי ששילם שוב על אותו כשל) */
-const DET_ERRS = ['worker_oom', 'store_fail', 'max_tokens', 'check_errors', 'model_refusal', 'api_bad_request', 'no_api_key', 'sdk_missing', 'mode_unknown', 'cp_empty', 'cp_timeout',
+const DET_ERRS = ['relay_none', 'relay_hub', 'relay_bad', 'worker_oom', 'store_fail', 'max_tokens', 'check_errors', 'model_refusal', 'api_bad_request', 'no_api_key', 'sdk_missing', 'mode_unknown', 'cp_empty', 'cp_timeout',
   'url_login', 'url_gone', 'url_geo', 'url_drm', 'url_live', 'url_unsupported', 'url_playlist', 'url_no_video', 'url_private', 'url_bad_url', 'url_dns', 'url_blocked'];   // 22/10/2026: הורדה מקישור — אותו ניסיון ייכשל שוב
 const TRANSIENT_KINDS = ['drive:dl_retry', 'drive:up_retry', 'drive:dl_fail', 'drive:up_fail'];
 /* עצירה מכוונת — אף פעם לא "חולפת", גם כשבמקרה הייתה תקלת Drive פתוחה (המגדל / התקציב / מתג החירום / ההחלטה שלך) */
@@ -201,7 +201,7 @@ function normSpec(s) {
   !subs && !link && edlPre(normEdl(s.edl)) ? { edl: edlPre(normEdl(s.edl)) } : {},   // מ4: חיתוך לפני התרגום (dur = האורך אחרי החיתוך)
   // 21/10/2026: פיקסלים לשנייה ביחס ל־1080p30 (מהמידות שהטלפון קרא; העובד מתקן אחרי הקליטה) — לצפי של הצריבה
   Number.isFinite(+s.px) && +s.px >= 0.02 && +s.px <= 16 ? { px: Math.round(+s.px * 1000) / 1000 } : {},
-  s.eng === 'api' ? Object.assign({ eng: 'api', cap: normCap(s.cap) }, s.cp === 1 ? { cp: 1 } : {}) : {});   // מצב API של המערכת — עם תקרת עבודה ($); סבב 10: cp = העתק־הדבק (Claude של המשתמש)
+  s.eng === 'api' ? Object.assign({ eng: 'api', cap: normCap(s.cap) }, s.cp === 1 ? { cp: 1 } : s.ry === 1 ? { ry: 1 } : {}) : {});   // 24/10/2026: ry = השרת עושה הכל, Claude דרך ה־Routine של המשתמש (lib/relay.js)   // מצב API של המערכת — עם תקרת עבודה ($); סבב 10: cp = העתק־הדבק (Claude של המשתמש)
 }
 /* קובץ שעלה ל־Drive (מה ש־Drive עצמו החזיר — api/studio.js מאמת מולו) */
 function normFile(f) {
@@ -581,9 +581,10 @@ function normGate(g, id) {
 const newJobId = () => 'j' + crypto.randomBytes(15).toString('base64url');
 const newKey = () => crypto.randomBytes(32).toString('base64url');
 const keyHash = (k) => crypto.createHash('sha256').update(String(k)).digest('hex');
-function keyMatches(job, key) {
-  if (!job || !job.kh || !KEY_RE.test(String(key || ''))) return false;
-  const a = Buffer.from(keyHash(key), 'hex'), b = Buffer.from(String(job.kh), 'hex');
+function keyMatches(job, key, f) {
+  f = f || 'kh';   // 24/10/2026: rkh = מפתח ההעברה של ה־Routine (lib/relay.js) — נפרד ממפתח העובד, ופותח רק את פעולות ההעברה
+  if (!job || !job[f] || !KEY_RE.test(String(key || ''))) return false;
+  const a = Buffer.from(keyHash(key), 'hex'), b = Buffer.from(String(job[f]), 'hex');
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 /* מה נשלח ל־Routine: רק מזהה העבודה ומפתח העבודה. הסשן מקבל את זה עטוף כ"נתונים לא מהימנים";
@@ -672,6 +673,7 @@ function publicJob(job, now) {
     rec: recoverAt(job, now),                       // v368: תקלה חולפת — ממשיכה לבד מהרגע הזה (0 = לא)
     eng: job.eng === 'api' || job.spec && job.spec.eng === 'api' ? 'api' : 'sub',   // מצב API: השרת של המערכת
     sid: job.eng === 'api' && SRV_ID_RE.test(String(job.sid || '')) ? job.sid : '',
+    ry: job.spec && job.spec.ry === 1 ? 1 : 0, rc: job.spec && job.spec.ry === 1 ? (Number(job.rcl) || 0) : 0,   // 24/10/2026: "המנוי שלי" דרך השרת — מתי ה־Routine שלך התחבר (0 = עוד לא)
     vw: job.vw && !job.pk ? 1 : 0,                   // 15/10/2026: מחכה לסרטון בתור — השרת פנוי בינתיים
     fr: job.fr && typeof job.fr.s === 'number' ? { s: job.fr.s, ms: Math.max(0, Math.round(job.fr.ms || 0)) } : null,   // v369: תוצאת ההפעלה האחרונה
     tr: normTrace(job.tr),                          // v373: עקיבה — פעולות לכל סוכן והקבוצות הנפוצות
@@ -775,7 +777,7 @@ function aiJob(parent, fq, mode, id, uid, now) {
   const sp = parent.spec || {};
   return { id, uid, kind: 'ai', state: 'new', created: now, updated: now, folder: parent.folder, rp: parent.id, fq,
     spec: { name: sp.name || '', size: sp.size || 0, type: '', dur: 0, from: sp.from || 'auto', to: sp.to || ['he'], mode: modeNow(mode || DEFAULT_MODE), out: [], style: STYLES[0], terms: '',
-      ...(sp.eng === 'api' ? { eng: 'api', cap: CAP_MIN_JOB } : {}) } };
+      ...(sp.eng === 'api' ? Object.assign({ eng: 'api', cap: CAP_MIN_JOB }, sp.ry === 1 ? { ry: 1 } : {}) : {}) } };   // 24/10/2026: ry — גם הבקשה מהגיליון במנוי שלך
 }
 /* פריט 15 (21/10/2026, "ריצת מבחן"): mode = מצב אחר מזה של המקור (השוואה בין מצבים על אותו סרטון); gr = קובץ הייחוס
    (באותה תיקייה) — העובד מחשב את הציון בעצמו בסוף (translator/goldscore.py), בלי שהטלפון פתוח */
@@ -1122,6 +1124,7 @@ const addMonth = (mu, usd, now) => ({ m: monthKey(now), usd: Math.round((monthUs
 /* תקרת העבודה בפועל: מה שהמשתמש בחר, אבל לא יותר ממה שנשאר החודש. פחות מדולר — לא מתחילים */
 function jobCap(spec, used, month, prev) {
   if (spec && spec.cp === 1) return CAP_MIN_JOB;   // סבב 10: העתק־הדבק — בלי טוקנים מהמפתח שלנו (התקציב החודשי לא נוגע)
+  if (spec && spec.ry === 1) return Math.max(CAP_MIN_JOB, normCap(spec.cap) - Math.max(0, Number(prev) || 0));   // 24/10/2026: המנוי שלך (Routine) — התקרה שלך לעבודה, בלי התקציב החודשי של המערכת
   const left = Math.max(0, month - used);
   // 14/10/2026: התקרה היא לכל העבודה, לא לכל הפעלה — "המשך" מקבל רק את מה שנשאר אחרי הסשנים הקודמים (prev = use0)
   const cap = Math.min(normCap(spec && spec.cap) - Math.max(0, Number(prev) || 0), left);

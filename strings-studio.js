@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1785 מפתחות מתוך 3912) */
+/* המחרוזות של studio (1789 מפתחות מתוך 3916) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -476,6 +476,9 @@ he: {
   "studioErrRefusal": "המודל סירב לבקשה — בדקו את תוכן הסרטון",
   "studioErrResumeLimit": "העבודה הופעלה כבר יותר מדי פעמים — כדאי להתחיל עבודה חדשה",
   "studioErrRuleMode": "המצב מעל המקסימום שבחוקים — מחכה לאישור שלך",
+  "studioErrRy": "תקלה בהעברת הקריאות ל־Claude שלך. לוחצים \"המשך\" — ממשיכים מאותה נקודה",
+  "studioErrRyLost": "ה־Routine שלך הפסיק לענות באמצע. לוחצים \"המשך\" — ממשיכים מאותה נקודה",
+  "studioErrRyNone": "ה־Routine שלך לא התחבר לעבודה. בדקו שהכתובת api.thesnowball.app ברשימת הכתובות של הסביבה ב־claude.ai, ולחצו \"המשך\"",
   "studioErrServer": "השרתון לא ענה. נסו שוב בעוד רגע",
   "studioErrSignin": "כדי להשתמש בסטודיו צריך להתחבר לאפליקציה עם Google",
   "studioErrStoreFail": "השמירה באחסון נכשלה",
@@ -956,6 +959,7 @@ he: {
   "studioNowQueued": "Claude נפתח בענן ומתחיל לעבוד",
   "studioNowQueuedApi": "בתור לשרת — מתחיל ברגע שהוא פנוי",
   "studioNowRunning": "Claude עובד על הסרטון",
+  "studioNowRyWait": "העבודה רצה בשרת, ומחכה שה־Routine שלך יתחבר. אם זה נמשך — בדקו שהכתובת api.thesnowball.app ברשימת הכתובות של הסביבה ב־claude.ai",
   "studioNowStuck": "Claude לא עדכן כבר שעתיים — כנראה הסשן נסגר. אפשר להמשיך מאותה נקודה",
   "studioNowVideo": "הסרטון המלא עולה לענן",
   "studioNowVideoOnly": "הסרטון עולה לענן",
@@ -2263,6 +2267,9 @@ en: {
   "studioErrRefusal": "The model refused the request — check the video content",
   "studioErrResumeLimit": "This job was started too many times — better to start a new one",
   "studioErrRuleMode": "Mode is above your rules' maximum — waiting for you",
+  "studioErrRy": "Passing the calls to your Claude failed. Tap \"Resume\" to continue from the same point",
+  "studioErrRyLost": "Your Routine stopped answering midway. Tap \"Resume\" to continue from the same point",
+  "studioErrRyNone": "Your Routine didn't connect to the job. Check that api.thesnowball.app is in the environment's allowed domains on claude.ai, then tap \"Resume\"",
   "studioErrServer": "The server didn't respond. Try again in a moment",
   "studioErrSignin": "Sign in to the app with Google to use the studio",
   "studioErrStoreFail": "Saving to storage failed",
@@ -2743,6 +2750,7 @@ en: {
   "studioNowQueued": "Claude is starting up in the cloud",
   "studioNowQueuedApi": "In the server queue — starts as soon as it is free",
   "studioNowRunning": "Claude is working on the video",
+  "studioNowRyWait": "Running on the server, waiting for your Routine to connect. If this persists, check that api.thesnowball.app is in the environment's allowed domains on claude.ai",
   "studioNowStuck": "Claude hasn't reported for two hours — the session probably closed. You can continue from the same point",
   "studioNowVideo": "The full video is uploading to the cloud",
   "studioNowVideoOnly": "The video is uploading to the cloud",
