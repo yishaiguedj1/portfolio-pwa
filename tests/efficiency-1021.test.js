@@ -45,7 +45,7 @@ const api = fs.readFileSync(path.join(root, 'ibkr-proxy/api/studio.js'), 'utf8')
 {
   const fs = require('fs');
   const adm = fs.readFileSync(path.join(root, 'admin-app.js'), 'utf8'), job = fs.readFileSync(path.join(root, 'translator/job.py'), 'utf8');
-  ok(/page\('gold'/.test(adm) && /api\('goldRun', \{ ok: true, src: D\.gSrc, modes: sel \}\)/.test(adm) && /askConfirm\(fmt\(t\('admGoldQ'\)/.test(adm), '15: מסך ריצת המבחן — אומדן ואישור לפני goldRun עם המצבים');
+  ok(/page\('gold'/.test(adm) && /api\('goldRun', Object\.assign\(\{ ok: true, src: D\.gSrc, modes: sel \}/.test(adm) && /askConfirm\(fmt\(t\('admGoldQ'\)/.test(adm), '15: מסך ריצת המבחן — אומדן ואישור לפני goldRun עם המצבים');
   ok(/gq = gold_score\(ctx\)/.test(job) && /gq=gq\)/.test(job) && fs.existsSync(path.join(root, 'translator/goldscore.py')), '15: העובד מחשב ושולח את הציון בדיווח האחרון');
 }
 // 16: תזכורת לריצת מבחן — אחרי שינוי בקוד/בהנחיות, או אחרי שבוע. רק תזכורת, שום דבר לא רץ לבד

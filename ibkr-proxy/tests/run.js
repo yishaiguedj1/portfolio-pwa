@@ -2007,6 +2007,15 @@ function stubFetch(text, status = 200) {
       const mm = (rr.payload.jobs || []).map((j) => j.spec.mode);
       ok(rr.payload.ok && mm.join() === 'haiku-high,sonnet-low' && rr.payload.jobs.every((j) => j.gs === JGD && j.state === 'new'), 'סטודיו: ריצת מבחן — עבודה לכל מצב (בלי כפולים ובלי מצב לא מוכר), "חדשות"');
       const runs = rr.payload.jobs.map((j) => j.id);
+      // 24/10/2026: ניסוי המאמץ — לכל מצב הרצה רגילה + הרצה בניסוי (both), רק מפתחות ומאמצים מוכרים
+      for (const id of runs.splice(0)) await run({ op: 'remove', idToken: OWNER, job: id });
+      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, src: JGD, modes: ['haiku-high'], xe: { jg: 'low' } });
+      ok(rr.statusCode === 400 && rr.payload.error === 'bad_params', 'סטודיו: ניסוי המאמץ — תפקיד לא מוכר נדחה');
+      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, src: JGD, modes: ['haiku-high', 'sonnet-low'], xe: { main: 'medium', rv: 'medium', jg: 'low' }, both: true });
+      const xv = (rr.payload.jobs || []).map((j) => j.spec.mode + ':' + JSON.stringify(j.spec.xe || null));
+      ok(rr.payload.ok && xv.join() === 'haiku-high:null,haiku-high:{"main":"medium","rv":"medium"},sonnet-low:null,sonnet-low:{"main":"medium","rv":"medium"}',
+        'סטודיו: ניסוי המאמץ — לכל מצב רגילה + ניסוי, רק התפקידים המוכרים');
+      runs.push(...rr.payload.jobs.map((j) => j.id));
       rr = await run({ op: 'gold', idToken: OWNER, job: JGD, ref: null });
       ok(rr.payload.ok && rr.payload.job.gd === null && rr.payload.job.gq === null, 'סטודיו: סט הזהב — הסרה');
       for (const id of [JGD, JNS].concat(runs)) await run({ op: 'remove', idToken: OWNER, job: id });

@@ -368,6 +368,7 @@ const normFixed = (eng) => (engKey(eng) === 'a' ? NORM_FIXED_API : NORM_FIXED);
 function normSample(job, use, now) {
   const sp = job && job.spec;
   if (!job || job.kind !== 'tr' || (job.fires || 0) > 1 || !sp || !MODES.includes(sp.mode) || !(sp.dur > 0)) return null;
+  if (sp.xe) return null;   // 24/10/2026: ניסוי המאמץ — לא מה שהמצב עולה בדרך כלל
   if (!Array.isArray(use) || !use.length || use.some((r) => r.usd == null)) return null;   // מודל בלי מחירון — לא יודעים כמה עלה
   const u = use.reduce((s, r) => s + (r.usd || 0), 0);
   if (!(u > 0) || u > 1e4) return null;
@@ -781,9 +782,23 @@ function aiJob(parent, fq, mode, id, uid, now) {
 }
 /* פריט 15 (21/10/2026, "ריצת מבחן"): mode = מצב אחר מזה של המקור (השוואה בין מצבים על אותו סרטון); gr = קובץ הייחוס
    (באותה תיקייה) — העובד מחשב את הציון בעצמו בסוף (translator/goldscore.py), בלי שהטלפון פתוח */
-function goldClone(src, id, uid, now, mode) {
+/* 24/10/2026 (ניסוי המאמץ): מאמץ אחר לתפקיד אחד בהרצה של סט הזהב — main = ההגהה והתדריך, tl = התרגום, rv = הביקורת.
+   = ROLE_EFFORT_KEYS / EFFORTS ב־translator/llm.py (norm_xe). רק מ־goldRun (מנהל) — לא מהטופס */
+const XE_KEYS = ['main', 'tl', 'rv'], XE_EFFORTS = ['low', 'medium', 'high', 'max'];
+function normXe(x) {
+  if (!x || typeof x !== 'object' || Array.isArray(x)) return null;
+  const o = {};
+  for (const k of XE_KEYS) if (XE_EFFORTS.includes(x[k])) o[k] = x[k];
+  return Object.keys(o).length ? o : null;
+}
+function goldClone(src, id, uid, now, mode, xe) {
   const out = Array.from(new Set((Array.isArray(src.spec && src.spec.out) ? src.spec.out : []).concat(['srt'])));   // ההשוואה צריכה SRT
   const gd = normGd(src.gd), spec = Object.assign({}, src.spec, { out }, mode ? { mode: modeNow(mode) } : {});
+  // 24/10/2026: ההשוואה בין המצבים רצה על השרת של המערכת — בלי ה־Routine (ry) ובלי העתק־הדבק (cp), כך שכל ההרצות
+  // באותם תנאים ולא תלויות בסשן של המשתמש; הניסוי (xe) רק כשנבחר
+  delete spec.ry; delete spec.cp; delete spec.xe;
+  const x = normXe(xe);
+  if (x) spec.xe = x;
   return { id, uid, kind: 'tr', state: 'new', created: now, updated: now, spec, fa: src.fa || null, fv: src.fv || null, folder: src.folder, gs: src.id, gr: gd ? gd.r : '' };
 }
 /* פריט 13 (21/10/2026): עבודת בדיקה אחרי עדכון של העובד — הדקה הראשונה של עבודת הזהב, רק SRT, במצב ברירת המחדל.
@@ -1171,7 +1186,7 @@ function fromFields(f) {
 module.exports = { SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
-  GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,
+  GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normFil, FIL_MAX, normSty, normOv, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,

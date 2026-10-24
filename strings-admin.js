@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1038 מפתחות מתוך 3931) */
+/* המחרוזות של admin (1041 מפתחות מתוך 3934) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -304,6 +304,9 @@ he: {
   "admGoldSub": "אותו סרטון עם תרגום אנושי לייחוס — רץ שוב על השרת בכל מצב שבוחרים, והעובד מחשב לכל אחד ציון מול הייחוס (chrF++ וכיסוי זמן). כך רואים אם שינוי שיפר או קלקל.",
   "admGoldT": "ריצת מבחן",
   "admGoldTm": "כיסוי זמן {n}%",
+  "admGoldXe": "ניסוי: הגהה וביקורת במאמץ בינוני",
+  "admGoldXeS": "כל מצב שנבחר רץ פעם רגילה ופעם בניסוי — כדי להשוות",
+  "admGoldXeTag": "ניסוי מאמץ",
   "admHrAgo": "לפני {n} שעות",
   "admHrU": " שע׳",
   "admI_ai_after": "גיליון ה־AI אחרי העבודה",
@@ -1344,6 +1347,9 @@ en: {
   "admGoldSub": "The same video with a human reference translation — re-run on the server in every mode you pick, and the worker scores each one against the reference (chrF++ and time coverage). This shows whether a change helped or hurt.",
   "admGoldT": "Test run",
   "admGoldTm": "time coverage {n}%",
+  "admGoldXe": "Experiment: proofreading and review at medium effort",
+  "admGoldXeS": "Each selected mode runs once normally and once in the experiment — to compare",
+  "admGoldXeTag": "effort test",
   "admHrAgo": "{n} hours ago",
   "admHrU": " h",
   "admI_ai_after": "AI sheet after the job",

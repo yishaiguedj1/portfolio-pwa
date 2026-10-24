@@ -1918,7 +1918,7 @@ async function worker(req, res, body, deps) {
       // 22/10/2026: קובץ כתוביות (בלי תמלול ויישור) לא מלמד את הצפי ואת "הרגיל" של עבודות מסרטון — שלבים וזמנים אחרים
       const smp = S.normSample(job, up.use || job.use, now);
       // 10/10/2026: וגם כמה לקח כל שלב — מזה נלמד הצפי (studioeta.js)
-      const es = ETA.etaSample(Object.assign({}, job, up), now);
+      const es = job.spec && job.spec.xe ? null : ETA.etaSample(Object.assign({}, job, up), now);   // 24/10/2026: ניסוי המאמץ לא מלמד את הצפי
       if (smp || es) {
         const st0 = await readStats(deps, job.uid);
         const patchS = { updated: now };
@@ -2628,13 +2628,17 @@ async function handler(req, res, deps = {}) {
       if (Array.isArray(body.modes) && (!modes.length || !body.src)) return res.status(400).json({ ok: false, error: 'bad_params' });
       for (const m of modes) if (await modeLocked(m)) return res.status(403).json({ ok: false, error: 'mode_locked' });
       const gsrc = S.goldSources(all).filter((j) => !body.src || j.id === body.src);
-      const src = (modes.length ? modes.map((m) => [gsrc[0], m]) : gsrc.map((j) => [j, null])).filter((x) => x[0]).slice(0, S.GOLD_MAX);
+      const xe = body.xe != null ? S.normXe(body.xe) : null;   // 24/10/2026: ניסוי המאמץ — רק מנהל (מרכז הניהול)
+      if (body.xe != null && (!xe || !isAdmin(user))) return res.status(xe ? 403 : 400).json({ ok: false, error: xe ? 'admin' : 'bad_params' });
+      // both = לכל מצב גם הרצה רגילה וגם הרצה בניסוי (השוואה על אותו סרטון, באותו זמן)
+      const vars = xe ? (body.both === true ? [null, xe] : [xe]) : [null];
+      const src = (modes.length ? modes.flatMap((m) => vars.map((x) => [gsrc[0], m, x])) : gsrc.map((j) => [j, null, xe])).filter((x) => x[0]).slice(0, S.GOLD_MAX);
       if (!src.length) return res.status(400).json({ ok: false, error: 'no_gold' });
       if (all.some((j) => j.gs && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'gold_busy' });   // הרצה קודמת עוד פתוחה
       if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length + src.length > S.maxActive(isAdmin(user))) return res.status(409).json({ ok: false, error: 'too_many' });   // הסקירה: לא לעקוף את MAX_ACTIVE
       for (const old of all.filter((j) => S.FINAL.includes(S.effState(j, now).state) && !j.gd).slice(S.MAX_STORED - src.length)) await delDoc(deps, 'studioJobs', old.id);
       const made = [];
-      for (const [j, m] of src) { const c = S.goldClone(j, S.newJobId(), uid, now, m); await patchJob(deps, c.id, c); made.push(view(c)); }
+      for (const [j, m, x] of src) { const c = S.goldClone(j, S.newJobId(), uid, now, m, x); await patchJob(deps, c.id, c); made.push(view(c)); }
       return res.status(200).json({ ok: true, jobs: made });
     }
     let job = await mine(body.job);
