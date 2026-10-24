@@ -182,6 +182,108 @@ def term_in_en(term: str, en: str) -> bool:
     return re.search(r"(?<![a-z])" + re.escape(term.lower()) + r"(?![a-z])", text.lower()) is not None
 
 
+def gl_strict(term: str, opts: list[str]) -> bool:
+    """24/10/2026: אילו מונחים מהמילון נאכפים (סימון + סבב תיקון). רק: מונח של כמה מילים, ראשי תיבות, או שם במילה אחת
+    שמתורגם למילה אחת (Uber = אובר). מילה אחת שתרגומה תלוי בהקשר ("data", או "Soviet" = ברית המועצות כשבהקשר צריך
+    "סובייטית") — רק המלצה: בעבודה אמיתית הכפייה שברה משפט ("ברית המועצות. כלכלה מתוכננת" במקום "כלכלה סובייטית")."""
+    t = term.strip()
+    if " " in t or "-" in t:
+        return True
+    if len(t) >= 2 and t.upper() == t and any(ch.isalpha() for ch in t):
+        return True
+    return t[:1].isupper() and all(len(re.findall(r"\S+", re.sub(r"\s*\([^)]*\)", "", o).strip())) == 1 for o in opts)
+
+
+def _gl_inside(term: str, hit: list[str]) -> bool:
+    """24/10/2026: מונח שמוכל במונח ארוך יותר שנמצא באותה כתובית ("Soviet" בתוך "Soviet Union") — נבדק רק הארוך,
+    אחרת "ברית המועצות" מסומן כחסר "סובייטי"."""
+    return any(len(t2) > len(term) and term_in_en(term, t2) for t2 in hit)
+
+
+# 24/10/2026 (המחקר על המילון): שלושה חלקים מתורגמים במקביל, ושם שלא במילון יוצא לפעמים בשני כתיבים
+# ("קרולינסקה" / "קרולינסקא", "רוסלינג" / "רוזלינג"). לכל שם אנגלי שחוזר: המילים בעברית שדומות לתעתיק שלו,
+# ושני כתיבים שההבדל ביניהם הוא רק אמות קריאה / ס־ז / ת־ט / ק־כ — הכתיב הנדיר מסומן לאיחוד (הערה, לא שגיאה).
+_NM_TOK = re.compile(r"[A-Z][a-z]{2,}")
+_HE_WORD = re.compile(r"[א-ת]{3,}")
+_HE_SKEL = str.maketrans({"ך": "כ", "ם": "מ", "ן": "נ", "ף": "פ", "ץ": "צ", "ק": "כ", "ז": "ס", "ת": "ט"})
+_EN_DI = (("sh", "ש"), ("ch", "צ"), ("th", "ט"), ("ph", "פ"), ("ck", "כ"), ("x", "כס"))
+_EN_MAP = str.maketrans({"b": "ב", "c": "כ", "d": "ד", "f": "פ", "g": "ג", "j": "ג", "k": "כ", "l": "ל", "m": "מ",
+                         "n": "נ", "p": "פ", "q": "כ", "r": "ר", "s": "ס", "t": "ט", "v": "ב", "z": "ס"})
+_HE_PFX_ONLY = re.compile(r"^(?:ו?(?:ש|כש|מש|לכש)?[הבלמכ]?)$")
+
+
+def he_skel(w: str) -> str:
+    """שלד עיצורים: בלי אמות קריאה (א ה ו י) ובלי ע, סופיות כרגילות, ז/ת/ק כמו ס/ט/כ"""
+    return re.sub(r"[אהויע]", "", w.translate(_HE_SKEL))
+
+
+def en_skel(w: str) -> str:
+    t = w.lower()
+    for a, b in _EN_DI:
+        t = t.replace(a, b)
+    return re.sub(r"[a-z]", "", t.translate(_EN_MAP))
+
+
+def _same_word(a: str, b: str) -> bool:
+    """אותה מילה עם אות שימוש ("הודו" / "בהודו") — לא שני כתיבים"""
+    if a == b or _nm_base(a) == _nm_base(b):
+        return True
+    lo, hi = (a, b) if len(a) < len(b) else (b, a)
+    return hi.endswith(lo) and bool(_HE_PFX_ONLY.match(hi[:-len(lo)]))
+
+
+def _nm_base(w: str) -> str:
+    b = _HE_PREFIX.sub("", w, count=1)
+    return b if len(b) >= 3 else w
+
+
+def name_variants(cues: list[dict], he: dict[str, str]) -> list[str]:
+    import difflib
+    rows = []
+    for c in cues:
+        t = he.get(str(c["id"]))
+        if t and t not in ("=", "∅"):
+            rows.append((str(c["id"]), str(c.get("en") or ""), normalize_he(str(t))))
+    lower = {w for _k, en, _t in rows for w in re.findall(r"\b[a-z]{3,}\b", en)}
+    by_name: dict[str, list[int]] = {}
+    for i, (_k, en, _t) in enumerate(rows):
+        for nm in set(_NM_TOK.findall(en)):
+            if nm.lower() not in lower:
+                by_name.setdefault(nm, []).append(i)
+    out, flagged = [], set()
+    for nm, idx in sorted(by_name.items()):
+        es = en_skel(nm)
+        if len(idx) < 2 or len(es) < 3:
+            continue
+        seen: dict[str, list[int]] = {}          # מילה בעברית → באילו כתוביות
+        for i in idx:
+            for w in set(_HE_WORD.findall(rows[i][2])):
+                if difflib.SequenceMatcher(None, he_skel(_nm_base(w)), es).ratio() >= 0.75:
+                    seen.setdefault(w, []).append(i)
+        groups: dict[str, list[str]] = {}
+        for w in seen:
+            groups.setdefault(he_skel(_nm_base(w)), []).append(w)
+        for ws in groups.values():
+            forms: list[list[str]] = []            # כתיבים שונים (בלי הבדלי אות שימוש)
+            for w in ws:
+                f = next((f for f in forms if any(_same_word(w, x) for x in f)), None)
+                (f.append(w) if f is not None else forms.append([w]))
+            if len(forms) < 2:
+                continue
+            cnt = [len({i for w in f for i in seen[w]}) for f in forms]
+            major = forms[cnt.index(max(cnt))]
+            for f, n in zip(forms, cnt):
+                if f is major:
+                    continue
+                for i in sorted({i for w in f for i in seen[w]}):
+                    if any(i in seen[w] for w in major) or rows[i][0] in flagged:
+                        continue
+                    flagged.add(rows[i][0])
+                    out.append(f"- #{rows[i][0]}: שם '{nm}' נכתב כאן '{min(f, key=len)}' ובשאר הכתוביות "
+                               f"'{min(major, key=len)}' — לאחד לכתיב אחד")
+    return out
+
+
 def _he_stem(w: str) -> str:
     b = _HE_SUFFIX.sub("", w) if len(w) > 3 else w
     return b
@@ -270,7 +372,7 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
     """בדיקת התרגום מול התכנון. מחזיר (שורות דוח, סיכום)."""
     issues: list[str] = []
     stats = {"total": len(cues), "translated": 0, "missing": 0, "over_budget": 0,
-             "numbers": 0, "latin": 0, "glossary": 0, "questions": 0, "short": 0, "style": 0, "errors": 0, "drift": 0}
+             "numbers": 0, "latin": 0, "glossary": 0, "glossary_soft": 0, "names": 0, "questions": 0, "short": 0, "style": 0, "errors": 0, "drift": 0}
     ids = {str(c["id"]) for c in cues}
     for k in he:
         if k not in ids:
@@ -364,13 +466,20 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
             issues.append(f"- #{k}: שאלה במקור (באמצע הכתובית) — בתרגום אין סימן שאלה, לוודא שלא הושמטה")
             stats["questions"] += 1
         near = " ".join(normalize_he(str(he.get(str(x["id"]), ""))) for x in cues[max(0, ci - 1):ci + 2])
+        hit = [t2 for t2, _o in glossary if term_in_en(t2, en)]
         for term, opts in glossary:
-            if term_in_en(term, en):
+            if term in hit and not _gl_inside(term, hit):
                 if not any(gl_found(o, txt) or gl_found(o, near) for o in opts):
-                    issues.append(f"- #{k}: מונח '{term}' — לפי המילון: {' / '.join(opts)}")
-                    stats["glossary"] += 1
+                    if gl_strict(term, opts):
+                        issues.append(f"- #{k}: מונח '{term}' — לפי המילון: {' / '.join(opts)}")
+                        stats["glossary"] += 1
+                    else:
+                        stats["glossary_soft"] += 1   # מילה אחת שהתרגום שלה תלוי בהקשר — המלצה בלבד, בלי סבב תיקון
         if "..." in t:
             issues.append(f"- #{k}: '...' — להשתמש בתו … (ינורמל אוטומטית)")
+    nv = name_variants(cues, he)
+    issues += nv
+    stats["names"] = len(nv)
     return issues, stats
 
 
@@ -379,7 +488,7 @@ def check_report(issues: list[str], stats: dict) -> str:
             f"- כתוביות: {stats['total']} · תורגמו: {stats['translated']} · חסרות: {stats['missing']}",
             f"- שגיאות: {stats['errors']} · מעל התקציב: {stats['over_budget']} · מספרים: {stats['numbers']}",
             f"- לועזית: {stats['latin']} · מילון מונחים: {stats['glossary']} · שאלות: {stats['questions']} · "
-            f"קצרים: {stats['short']} · סגנון: {stats.get('style', 0)}",
+            f"קצרים: {stats['short']} · סגנון: {stats.get('style', 0)} · שם בשני כתיבים: {stats.get('names', 0)}",
             ""]
     return "\n".join(head + (issues or ["אין הערות."])) + "\n"
 

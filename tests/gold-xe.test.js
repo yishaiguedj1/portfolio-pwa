@@ -22,13 +22,13 @@ ok(src.spec.ry === 1 && src.spec.xe.tl === 'low', 'goldClone — לא נוגע �
 const done = { kind: 'tr', fires: 1, spec: { mode: 'haiku-high', dur: 600 }, eng: 'a' }, use = [{ usd: 0.1 }];
 ok(S.normSample(done, use, 1) && S.normSample(Object.assign({}, done, { spec: Object.assign({}, done.spec, { xe: { rv: 'medium' } }) }), use, 1) === null, 'הרצה בניסוי לא נלמדת ל"רגיל"');
 const api = R('ibkr-proxy/api/studio.js');
-ok(/job\.spec && job\.spec\.xe \? null : ETA\.etaSample/.test(api), 'הרצה בניסוי לא נלמדת לצפי הזמנים');
+ok(/job\.spec && \(job\.spec\.xe \|\| job\.spec\.xg\) \? null : ETA\.etaSample/.test(api), 'הרצה בניסוי לא נלמדת לצפי הזמנים');
 ok(/body\.xe != null && \(!xe \|\| !isAdmin\(user\)\)/.test(api), 'השרתון — ניסוי רק למנהל');
 
 const adm = R('admin-app.js'), app = R('app.js');
 const gm = /GOLD_XES = \{ pr: \{ main: 'medium', rv: 'medium' \}, all: \{ main: 'medium', tl: 'medium', rv: 'medium' \} \}, GOLD_MAX = (\d+)/.exec(adm);
 ok(gm && +gm[1] === S.GOLD_MAX, 'מרכז הניהול — GOLD_MAX זהה לשרתון');
-ok(/D\.gXe \? \{ xe: GOLD_XES\[D\.gXe\], both: true \}/.test(adm) && /t\('admGoldXeTag'\)/.test(adm) && /t\('admGoldXeTagAll'\)/.test(adm), 'מרכז הניהול — הבחירה נשלחת, והרצה בניסוי מסומנת בתוצאות (עם התרגום / בלי)');
+ok(/D\.gXe \? \{ xe: GOLD_XES\[D\.gXe\] \} : \{\}, D\.gXg \? \{ xg: true \} : \{\}, D\.gXe \|\| D\.gXg \? \{ both: true \}/.test(adm) && /t\('admGoldXeTag'\)/.test(adm) && /t\('admGoldXeTagAll'\)/.test(adm), 'מרכז הניהול — הבחירה נשלחת, והרצה בניסוי מסומנת בתוצאות (עם התרגום / בלי)');
 for (const k of ['admGoldXe', 'admGoldXeS', 'admGoldXeTag', 'admGoldXeAll', 'admGoldXeAllS', 'admGoldXeTagAll']) ok((app.match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, 'מחרוזת ' + k + ' בעברית ובאנגלית');
 
 console.log(`${n - fail}/${n}`);
