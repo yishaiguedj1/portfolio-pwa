@@ -64,6 +64,7 @@ class DmTask(
     // מהדפדפן של DM: אותו User-Agent של הדף, ועוגיות מ־CookieManager (בזמן הבקשה — לא נשמרות כאן)
     var ua = ""
     var ck = false
+    var tr = false             // 24/10: "להוריד ולתרגם ב־Studio" — בסוף ההורדה הקובץ מוצע ל־Studio
 
     val got: Long get() = if (kind == DmKind.YTDL) bytesYt else segs.sumOf { it.done.coerceAtMost(it.end - it.start) }
     val frac: Float get() = if (kind == DmKind.YTDL && pctYt >= 0) pctYt.coerceIn(0f, 1f)
@@ -76,7 +77,7 @@ class DmTask(
         put("sg", JSONArray().also { a -> segs.forEach { a.put(it.json()) } })
         put("c", created); put("f", finishedAt); put("uri", uri); put("tr", tries)
         put("vf", vf); put("af", af); put("h", height); put("ao", audioOnly); put("ti", title); put("by", bytesYt); put("py", pctYt.toDouble())
-        put("ua", ua); put("ck", ck)
+        put("ua", ua); put("ck", ck); put("tr", tr)
     }
 
     companion object {
@@ -99,7 +100,7 @@ class DmTask(
                 created = o.optLong("c"); finishedAt = o.optLong("f"); uri = o.optString("uri"); tries = o.optInt("tr")
                 vf = o.optString("vf"); af = o.optString("af"); height = o.optInt("h"); audioOnly = o.optBoolean("ao")
                 title = o.optString("ti"); bytesYt = o.optLong("by"); pctYt = o.optDouble("py", -1.0).toFloat()
-                ua = o.optString("ua").take(400); ck = o.optBoolean("ck")
+                ua = o.optString("ua").take(400); ck = o.optBoolean("ck"); tr = o.optBoolean("tr")
             }
         }
 

@@ -327,6 +327,8 @@ class GrabService : AccessibilityService() {
 
     private fun open(url: String) {
         hide()
+        // 24/10/2026: Studio DM מותקן → ההורדה אליו (ברירת המחדל; משם "לתרגם ב־Studio" / "ישר לענן של Studio")
+        if (AppRoute.toDm(this, url)) return
         // לאפליקציית Studio (הבועה ב־APK נפרד). Studio לא מותקנת — האתר שלה מכאן (אותו MainActivity, ‎#share=)
         val i = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, url)
             .setPackage(STUDIO_PKG).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

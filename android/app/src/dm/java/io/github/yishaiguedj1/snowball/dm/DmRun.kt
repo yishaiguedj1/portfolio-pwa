@@ -164,10 +164,25 @@ object DmNotif {
         val view = Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(t.uri), DmMedia.mimeFor(t.name, t.mime))
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         val pi = PendingIntent.getActivity(ctx, t.id.hashCode(), view, PendingIntent.FLAG_IMMUTABLE)
-        nm(ctx).notify(t.id.hashCode(), builder(ctx, CH_DONE).setSmallIcon(android.R.drawable.stat_sys_download_done)
-            .setContentTitle(ctx.getString(R.string.dmDoneN)).setContentText(t.name.ifEmpty { t.title })
-            .setAutoCancel(true).setContentIntent(pi).setGroup("dm_done").build())
+        val b = builder(ctx, CH_DONE).setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setContentTitle(ctx.getString(if (t.tr) R.string.dmDoneTrN else R.string.dmDoneN)).setContentText(t.name.ifEmpty { t.title })
+            .setAutoCancel(true).setContentIntent(pi).setGroup("dm_done")
+        // 24/10: סרטון + Studio מותקן — "לתרגם ב־Studio" בהתראה (וכשביקשו "להוריד ולתרגם" — זו הנגיעה הראשית)
+        if (isVideo(t) && io.github.yishaiguedj1.snowball.AppRoute.studioInstalled(ctx)) {
+            val tr = PendingIntent.getActivity(ctx, t.id.hashCode() + 1, studioSend(t), PendingIntent.FLAG_IMMUTABLE)
+            b.addAction(Notification.Action.Builder(null, ctx.getString(R.string.dmTranslate), tr).build())
+            if (t.tr) b.setContentIntent(tr)
+        }
+        nm(ctx).notify(t.id.hashCode(), b.build())
     }
+
+    private fun isVideo(t: DmTask) = if (t.kind == DmKind.YTDL) !t.audioOnly else DmName.cat(t.name, t.mime) == DmName.Cat.VIDEO
+
+    /** אותו Intent של AppRoute.fileToStudio — בתוך התראה (PendingIntent של DM מעביר את הרשאת הקריאה לקובץ) */
+    fun studioSend(t: DmTask): Intent = Intent(Intent.ACTION_SEND).setType(DmMedia.mimeFor(t.name, t.mime).ifEmpty { "video/mp4" })
+        .putExtra(Intent.EXTRA_STREAM, Uri.parse(t.uri)).putExtra(Intent.EXTRA_TEXT, t.title.ifEmpty { t.name }.take(200))
+        .setPackage(io.github.yishaiguedj1.snowball.AppRoute.STUDIO_PKG)
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
 
     fun failed(ctx0: Context, t: DmTask) {
         val ctx = DmLang.wrap(ctx0)   // השפה שנבחרה באפליקציה, לא של הטלפון

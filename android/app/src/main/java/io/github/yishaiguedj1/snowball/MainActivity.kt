@@ -91,7 +91,8 @@ class MainActivity : Activity() {
             // שלב 2: קובץ שנמצא בדף (דפדפן הציד / אפליקציה ששולחת כמו ל־1DM: extra_referer) — הדף, בשביל ה־Referer
             val ref = (i.getStringExtra("snb_ref") ?: i.getStringExtra("extra_referer") ?: "").take(2048)
             return Uri.parse(getString(R.string.launchUrl).substringBefore('#') + "#share=" + Uri.encode(t) +
-                (if (ref.startsWith("http")) "&ref=" + Uri.encode(ref) else "") + "&" + app)
+                (if (ref.startsWith("http")) "&ref=" + Uri.encode(ref) else "") +
+                (if (i.getStringExtra("snb_to") == "cloud") "&to=cloud" else "") + "&" + app)   // 24/10: מ־Studio DM — ישר לענן
         }
         val d = i?.data
         // 2.0.0: הכתובת החדשה (invest.thesnowball.app), והישנה נשארת מוכרת בשביל קישורים ישנים (האתר הישן מעביר לחדשה)

@@ -284,6 +284,8 @@ class DlActivity : Activity() {
     override fun onDestroy() { stopDeep(); super.onDestroy() }
 
     private fun download(d: Uri, u: String, ref: String) {
+        // 24/10/2026: "רק להוריד לטלפון" + Studio DM מותקן → ההורדה שם (מנהל ההורדות של המכשיר); הורדה לתרגום נשארת כאן
+        if (d.getQueryParameter("o") == "1" && DlState.id != nonce && AppRoute.toDm(this, u, ref)) { finish(); return }
         mode = "dl"
         if (DlState.busy() && DlState.id != nonce) { titleV.text = s(R.string.dlBusy); subV.text = DlState.title; bar.visibility = View.GONE
             btn.text = s(R.string.dlClose); btn.setOnClickListener { finish() }; return }
