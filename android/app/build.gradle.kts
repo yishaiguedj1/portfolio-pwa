@@ -122,6 +122,7 @@ dependencies {
     "dmImplementation"("androidx.compose.material3:material3")
     "dmImplementation"("androidx.compose.ui:ui")
     "dmImplementation"("androidx.activity:activity-compose:1.10.0")
+    "dmImplementation"("androidx.webkit:webkit:1.14.0")   // הדפדפן של DM: סקריפט לפני הדף וערוץ הודעות (כמו דפדפן הציד)
     "dmImplementation"("io.github.junkfood02.youtubedl-android:library:0.18.1")
     "dmImplementation"("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
     "testDmImplementation"("junit:junit:4.13.2")

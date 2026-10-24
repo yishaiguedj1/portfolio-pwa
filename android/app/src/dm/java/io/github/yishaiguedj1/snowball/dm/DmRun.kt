@@ -136,7 +136,8 @@ object DmNotif {
         Intent(ctx, DmActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP), PendingIntent.FLAG_IMMUTABLE)
 
     /** התראה אחת מקובצת לכל מה שרץ: "3 הורדות · 42%" */
-    fun running(ctx: Context): Notification {
+    fun running(ctx0: Context): Notification {
+        val ctx = DmLang.wrap(ctx0)   // השפה שנבחרה באפליקציה, לא של הטלפון
         val act = DmStore.all().filter { it.state == DmState.RUNNING }
         val tot = act.sumOf { it.total.coerceAtLeast(0) }; val got = act.sumOf { it.got }
         val pct = if (tot > 0) (got * 100 / tot).toInt() else -1
@@ -158,7 +159,8 @@ object DmNotif {
         DmJob.refresh(ctx)
     }
 
-    fun done(ctx: Context, t: DmTask) {
+    fun done(ctx0: Context, t: DmTask) {
+        val ctx = DmLang.wrap(ctx0)   // השפה שנבחרה באפליקציה, לא של הטלפון
         val view = Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(t.uri), DmMedia.mimeFor(t.name, t.mime))
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         val pi = PendingIntent.getActivity(ctx, t.id.hashCode(), view, PendingIntent.FLAG_IMMUTABLE)
@@ -167,13 +169,15 @@ object DmNotif {
             .setAutoCancel(true).setContentIntent(pi).setGroup("dm_done").build())
     }
 
-    fun failed(ctx: Context, t: DmTask) {
+    fun failed(ctx0: Context, t: DmTask) {
+        val ctx = DmLang.wrap(ctx0)   // השפה שנבחרה באפליקציה, לא של הטלפון
         nm(ctx).notify(t.id.hashCode(), builder(ctx, CH_DONE).setSmallIcon(android.R.drawable.stat_notify_error)
             .setContentTitle(ctx.getString(R.string.dmFailedN)).setContentText(t.name.ifEmpty { t.title } + " · " + DmFmt.err(ctx, t.err))
             .setAutoCancel(true).setContentIntent(openApp(ctx, 3)).setGroup("dm_done").build())
     }
 
-    fun waiting(ctx: Context) {
+    fun waiting(ctx0: Context) {
+        val ctx = DmLang.wrap(ctx0)   // השפה שנבחרה באפליקציה, לא של הטלפון
         nm(ctx).notify(N_WAIT, builder(ctx, CH_DONE).setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle(ctx.getString(R.string.dmWaitingN)).setContentText(ctx.getString(R.string.dmWaitingS))
             .setAutoCancel(true).setContentIntent(openApp(ctx, 4)).build())

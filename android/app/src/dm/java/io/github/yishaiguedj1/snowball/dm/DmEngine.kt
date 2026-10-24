@@ -33,12 +33,13 @@ object DmEngine {
         DmStore.init(app)
         val pr = DmPrefs(app)
         val okNet = netOk(app, pr.wifiOnly)
-        for (t in DmStore.all().reversed()) {   // הישנה קודם
-            if (running.size >= pr.parallel) break
-            if (running.containsKey(t.id)) continue
-            if (t.state != DmState.QUEUED && t.state != DmState.WAITING) continue
-            if (!okNet) { if (t.state != DmState.WAITING) { t.state = DmState.WAITING; t.err = if (pr.wifiOnly) "wifi" else "net"; DmStore.save() }; continue }
-            start(app, t, pr)
+        DmLimit.bytesPerSec = pr.limit
+        // הישנה קודם; עד `parallel` בבת אחת ולכל היותר DmLink.PER_HOST מאותו אתר
+        val queued = DmStore.all().reversed().filter { !running.containsKey(it.id) && (it.state == DmState.QUEUED || it.state == DmState.WAITING) }
+        if (!okNet) queued.forEach { t -> if (t.state != DmState.WAITING) { t.state = DmState.WAITING; t.err = if (pr.wifiOnly) "wifi" else "net"; DmStore.save() } }
+        else {
+            val run = running.keys.mapNotNull { DmStore.get(it)?.url }
+            DmLink.pickStart(queued.map { it.url }, run, pr.parallel - running.size).forEach { start(app, queued[it], pr) }
         }
         watchNet(app)
         if (hasWork()) DmRun.ensure(app) else DmRun.idle(app)
@@ -67,19 +68,19 @@ object DmEngine {
     /** null = הסתיים; אחרת קוד */
     private fun runHttp(ctx: Context, t: DmTask, r: Runner, conns: Int): String? {
         if (t.total < 0 || t.name.isEmpty() || t.segs.isEmpty()) {
-            val p = try { DmFetch.probeRetry(t.url, t.ref) } catch (e: Throwable) {
+            val p = try { DmFetch.probeRetry(t.url, t.ref, uaOf(t), cookies = cookiesOf(t)) } catch (e: Throwable) {
                 return if (r.stop) "stopped" else (if (e is DmHttpError) DmRetry.http(e.status) else DmRetry.io(e)).code
             }
             if (t.name.isEmpty()) t.name = DmName.pick(p.disposition, p.finalUrl, p.mime)
             if (t.mime.isEmpty()) t.mime = p.mime
-            t.total = p.total; t.ranges = p.ranges; t.etag = p.etag; t.lastMod = p.lastMod; t.url = p.finalUrl
+            t.total = p.total; t.ranges = p.ranges; t.etag = p.etag; t.lastMod = p.lastMod   // t.url נשאר המקורי (ראו DmActivity.probe)
             if (p.mime == "text/html") return "page"   // דף ולא קובץ — הגיליון מציע yt-dlp
         }
         val u = DmMedia.pending(ctx, t)
         DmStore.save()
         val sink = DmMedia.Sink(ctx, u)
         try {
-            val f = DmFetch(t, sink, conns)
+            val f = DmFetch(t, sink, conns, uaOf(t), cookies = cookiesOf(t))
             var lastB = 0L; var lastT = System.currentTimeMillis()
             val res = f.run({ r.stop }) {
                 val now = System.currentTimeMillis()
@@ -117,6 +118,11 @@ object DmEngine {
             if (c == "cancel") (if (r.system) "stopped_sys" else "stopped") else c
         } finally { stopWatch.interrupt() }
     }
+
+    fun uaOf(t: DmTask) = t.ua.ifEmpty { DmFetch.UA }
+
+    /** עוגיות רק להורדה שהתחילה בדפדפן של DM — מה־CookieManager באותו רגע, לכל כתובת בנפרד (גם אחרי הפניה) */
+    fun cookiesOf(t: DmTask): ((String) -> String?)? = if (!t.ck) null else { u -> runCatching { android.webkit.CookieManager.getInstance().getCookie(u) }.getOrNull() }
 
     fun pause(ctx: Context, id: String) {
         val r = running[id]

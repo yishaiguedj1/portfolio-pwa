@@ -37,6 +37,8 @@ class DmFetch(
     private val ua: String = UA,
     private val sleep: (Long) -> Unit = { Thread.sleep(it) },
     private val minSeg: Long = DmSegs.MIN_SEG,
+    /** עוגיות לכתובת (מהדפדפן של DM, רק להורדה שהתחילה שם) — נשלחות רק לאתר שהן שלו, גם אחרי הפניה */
+    private val cookies: ((String) -> String?)? = null,
 ) {
     sealed class Result {
         object Done : Result()
@@ -123,13 +125,14 @@ class DmFetch(
             var c: HttpURLConnection? = null
             try {
                 if (single) { seg.done = 0 }   // בלי Range — כל ניסיון מההתחלה
-                c = open(task.url, task.ref, ua)
                 val ranged = !single
+                val h = LinkedHashMap<String, String>()
                 if (ranged) {
-                    c.setRequestProperty("Range", "bytes=${seg.pos}-${seg.end - 1}")
+                    h["Range"] = "bytes=${seg.pos}-${seg.end - 1}"
                     val v = task.etag.ifEmpty { task.lastMod }
-                    if (v.isNotEmpty()) c.setRequestProperty("If-Range", v)
+                    if (v.isNotEmpty()) h["If-Range"] = v
                 }
+                c = open(task.url, task.ref, ua, h, cookies)
                 val st = c.responseCode
                 if (ranged && st == 200) { restart = true; return Result.Failed("changed") }   // If-Range: הקובץ השתנה
                 if (st !in 200..299) throw DmHttpError(st, c.getHeaderField("Retry-After")?.trim()?.toLongOrNull() ?: -1)
@@ -169,6 +172,7 @@ class DmFetch(
                 sink.write(seg.pos, buf, n)
                 seg.done += n
                 written.addAndGet(n.toLong())
+                DmLimit.take(n.toLong(), sleep)
             }
         }
     }
@@ -178,21 +182,41 @@ class DmFetch(
         const val BUF = 64 * 1024
         const val TICK_MS = 2000L
 
-        fun open(url: String, ref: String, ua: String): HttpURLConnection {
-            val c = URL(url).openConnection() as HttpURLConnection
-            c.instanceFollowRedirects = true
-            c.connectTimeout = 20_000; c.readTimeout = 30_000
-            c.setRequestProperty("User-Agent", ua)
-            c.setRequestProperty("Accept-Encoding", "identity")   // בלי דחיסה — אחרת הטווחים לא בבתים של הקובץ
-            if (ref.startsWith("http")) c.setRequestProperty("Referer", ref)
-            return c
+        const val MAX_REDIRECTS = 8
+
+        /** חיבור מחובר (התשובה כבר הגיעה), אחרי הפניות. ההפניות כאן ולא ב־HttpURLConnection: עוגיות נשלחות רק לאתר
+         *  שהן שלו (CookieManager לפי הכתובת של כל קפיצה) — עם instanceFollowRedirects הכותרת Cookie הייתה עוברת לאתר
+         *  שאליו מפנים. רק http/https, ובלי ירידה מ־https ל־http */
+        fun open(url: String, ref: String, ua: String, headers: Map<String, String> = emptyMap(), cookies: ((String) -> String?)? = null): HttpURLConnection {
+            var u = URL(url)
+            var hops = 0
+            while (true) {
+                if (u.protocol != "http" && u.protocol != "https") throw IOException("bad_scheme")
+                val c = u.openConnection() as HttpURLConnection
+                c.instanceFollowRedirects = false
+                c.connectTimeout = 20_000; c.readTimeout = 30_000
+                c.setRequestProperty("User-Agent", ua)
+                c.setRequestProperty("Accept-Encoding", "identity")   // בלי דחיסה — אחרת הטווחים לא בבתים של הקובץ
+                if (ref.startsWith("http")) c.setRequestProperty("Referer", ref)
+                headers.forEach { (k, v) -> c.setRequestProperty(k, v) }
+                cookies?.invoke(u.toString())?.takeIf { it.isNotBlank() && '\n' !in it && '\r' !in it }?.let { c.setRequestProperty("Cookie", it) }
+                val st = c.responseCode
+                if (st !in 300..399 || st == 304) return c
+                val loc = c.getHeaderField("Location")
+                runCatching { c.inputStream.close() }; c.disconnect()
+                if (loc.isNullOrBlank() || ++hops > MAX_REDIRECTS) throw DmHttpError(st, -1)
+                val next = URL(u, loc)
+                if (u.protocol == "https" && next.protocol == "http") throw IOException("bad_scheme")
+                u = next
+            }
         }
 
         /** הבדיקה עם ניסיונות חוזרים לתקלה חולפת (503, ניתוק) — כמו ההורדה עצמה */
-        fun probeRetry(url: String, ref: String = "", ua: String = UA, tries: Int = 4, sleep: (Long) -> Unit = { Thread.sleep(it) }): DmProbe {
+        fun probeRetry(url: String, ref: String = "", ua: String = UA, tries: Int = 4, sleep: (Long) -> Unit = { Thread.sleep(it) },
+                       cookies: ((String) -> String?)? = null): DmProbe {
             var n = 0
             while (true) {
-                try { return probe(url, ref, ua) } catch (e: Throwable) {
+                try { return probe(url, ref, ua, cookies) } catch (e: Throwable) {
                     val v = if (e is DmHttpError) DmRetry.http(e.status) else DmRetry.io(e)
                     if (v.act != DmRetry.Act.RETRY || ++n >= tries) throw e
                     sleep(DmRetry.backoffMs(n - 1, (e as? DmHttpError)?.retryAfter ?: -1))
@@ -201,10 +225,9 @@ class DmFetch(
         }
 
         /** GET עם ‎Range: bytes=0-0‎ — גודל, תמיכה בטווחים, ETag, סוג ושם, בלי לקרוא את הקובץ */
-        fun probe(url: String, ref: String = "", ua: String = UA): DmProbe {
-            val c = open(url, ref, ua)
+        fun probe(url: String, ref: String = "", ua: String = UA, cookies: ((String) -> String?)? = null): DmProbe {
+            val c = open(url, ref, ua, mapOf("Range" to "bytes=0-0"), cookies)
             try {
-                c.setRequestProperty("Range", "bytes=0-0")
                 val st = c.responseCode
                 if (st !in 200..299) throw DmHttpError(st, c.getHeaderField("Retry-After")?.trim()?.toLongOrNull() ?: -1)
                 val cr = c.getHeaderField("Content-Range") ?: ""
@@ -216,5 +239,31 @@ class DmFetch(
                     (c.contentType ?: "").substringBefore(';').trim(), c.getHeaderField("Content-Disposition") ?: "", c.url.toString())
             } finally { runCatching { c.inputStream.close() }; c.disconnect() }
         }
+    }
+}
+
+/**
+ * הגבלת מהירות לכל ההורדות יחד (הגדרה אחת, כמו ב־IDM): דלי אסימונים — כל חיבור "לוקח" את מה שקרא, ומחכה כשנגמר.
+ * 0 = בלי הגבלה (ברירת המחדל). הדלי מחזיק עד חצי שנייה, כך שגם 8 חיבורים לא עוברים את הקצב גם לרגע.
+ */
+object DmLimit {
+    @Volatile var bytesPerSec = 0L
+        set(v) { field = v.coerceAtLeast(0); synchronized(this) { tokens = 0.0; at = now() } }
+    @Volatile var now: () -> Long = { System.nanoTime() }
+    private var tokens = 0.0
+    private var at = System.nanoTime()
+
+    fun take(n: Long, sleep: (Long) -> Unit) {
+        val rate = bytesPerSec
+        if (rate <= 0) return
+        val wait: Long
+        synchronized(this) {
+            val t = now()   // `at` נקבע ב־set של הקצב (שעון שמתחיל ב־0 הוא שעון תקין)
+            tokens = minOf(rate / 2.0, tokens + (t - at) / 1e9 * rate)
+            at = t
+            tokens -= n
+            wait = if (tokens < 0) (-tokens / rate * 1000).toLong() else 0
+        }
+        if (wait > 0) sleep(wait)
     }
 }

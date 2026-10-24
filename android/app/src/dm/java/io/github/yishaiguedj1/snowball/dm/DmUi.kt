@@ -128,8 +128,13 @@ fun DmApp(a: DmActivity) {
                     Text(stringResource(when (tab) { Tab.DOWNLOADS -> R.string.dmTabDownloads; Tab.LIBRARY -> R.string.dmTabLibrary; Tab.SETTINGS -> R.string.dmTabSettings }),
                         fontWeight = FontWeight.Bold, fontSize = 30.sp)
                 }, actions = {
-                    if (tab == Tab.DOWNLOADS) IconButton(onClick = { a.sheetRef.value = ""; a.sheetUrl.value = "" }) {
-                        Icon(DmIcons.Paste, stringResource(R.string.dmAdd), tint = MaterialTheme.colorScheme.primary)
+                    if (tab == Tab.DOWNLOADS) {
+                        IconButton(onClick = { a.openBrowser("") }) {
+                            Icon(DmIcons.Globe, stringResource(R.string.dmBrowser), tint = MaterialTheme.colorScheme.primary)
+                        }
+                        IconButton(onClick = { a.sheetRef.value = ""; a.sheetUrl.value = "" }) {
+                            Icon(DmIcons.Paste, stringResource(R.string.dmAdd), tint = MaterialTheme.colorScheme.primary)
+                        }
                     }
                 })
             },
@@ -151,7 +156,7 @@ fun DmApp(a: DmActivity) {
                 }
             }
         }
-        if (sheet != null) AddSheet(a, sheet ?: "", a.sheetRef.value) { a.sheetUrl.value = null }
+        if (sheet != null) AddSheet(a, sheet ?: "", a.sheetRef.value) { a.sheetDone() }
         details?.let { id -> DmStore.get(id)?.let { t -> Details(a, t, rev) { details = null } } ?: run { details = null } }
     }
 }
@@ -294,9 +299,20 @@ private fun Details(a: DmActivity, t: DmTask, rev: Int, onClose: () -> Unit) {
                 }
                 TextButton(onClick = { copy(ctx, t.url) }) { Text(stringResource(R.string.dmCopyLink)) }
             }
+            // הקישור פג (כתובת חתומה) — מוצאים אותו שוב בדפדפן, וההורדה ממשיכה מאותה נקודה
+            if (t.kind == DmKind.HTTP && t.state != DmState.DONE) {
+                Spacer(Modifier.height(4.dp))
+                FilledTonalButton(onClick = { onClose(); a.openBrowser(t.ref.ifEmpty { originOf(t.url) }, t.id) }, Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.dmRefresh))
+                }
+                if (t.err == "expired") Text(stringResource(R.string.dmRefreshS), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
+            }
         }
     }
 }
+
+private fun originOf(u: String) = Regex("^(https?://[^/?#]+)").find(u)?.groupValues?.get(1) ?: ""
 
 @Composable
 private fun Info(k: String, v: String) {
@@ -318,6 +334,9 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
     val pr = remember { DmPrefs(ctx) }
+    val refId by a.refreshId
+    val refTask = remember(refId) { if (refId.isEmpty()) null else DmStore.get(refId) }
+    var refErr by remember { mutableStateOf("") }
 
     suspend fun check() {
         val u = DmLink.first(url).ifEmpty { url.trim() }
@@ -338,7 +357,8 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
 
     ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.padding(20.dp, 0.dp, 20.dp, 28.dp).verticalScroll(rememberScrollState())) {
-            Text(stringResource(R.string.dmAddT), fontWeight = FontWeight.Bold, fontSize = 22.sp)
+            Text(stringResource(if (refTask != null) R.string.dmRefresh else R.string.dmAddT), fontWeight = FontWeight.Bold, fontSize = 22.sp)
+            if (refTask != null) Text(refTask.name.ifEmpty { refTask.title }, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(url, { url = it; found = null }, Modifier.fillMaxWidth(), singleLine = true,
                 label = { Text(stringResource(R.string.dmLink)) }, shape = RoundedCornerShape(14.dp),
@@ -362,6 +382,13 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                     Info(stringResource(R.string.dmSize), DmFmt.size(ctx, f.size))
                     Info(stringResource(R.string.dmResume), stringResource(if (f.ranges) R.string.dmYesParts else R.string.dmNo))
                     Spacer(Modifier.height(12.dp))
+                    if (refTask != null) {
+                        if (refErr.isNotEmpty()) Text(DmFmt.err(ctx, refErr), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(bottom = 8.dp))
+                        Button(onClick = { val e = a.refresh(refTask.id, f, ref); if (e == null) onClose() else refErr = e }, Modifier.fillMaxWidth().height(52.dp)) {
+                            Text(stringResource(R.string.dmRefreshGo), fontSize = 17.sp)
+                        }
+                        TextButton(onClick = { a.refreshId.value = "" }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.dmRefreshNew)) }
+                    } else
                     Button(onClick = { a.addFile(f, name, ref); onClose() }, Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(R.string.dmGo), fontSize = 17.sp) }
                 }
                 is DmActivity.Found.Video -> {
@@ -437,6 +464,8 @@ private fun SettingsScreen(a: DmActivity) {
     var par by remember { mutableIntStateOf(pr.parallel) }
     var conns by remember { mutableIntStateOf(pr.conns) }
     var q by remember { mutableStateOf(pr.quality) }
+    var lang by remember { mutableStateOf(pr.lang) }
+    var lim by remember { mutableStateOf(pr.limit) }
     var dlg by remember { mutableStateOf("") }
     Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp, 0.dp, 16.dp, 24.dp)) {
         Group {
@@ -450,6 +479,10 @@ private fun SettingsScreen(a: DmActivity) {
             SetRow(stringResource(R.string.dmSetParallel), par.toString()) { dlg = "p" }
             Div()
             SetRow(stringResource(R.string.dmSetConns), conns.toString()) { dlg = "c" }
+            Div()
+            SetRow(stringResource(R.string.dmSetLimit), limName(lim)) { dlg = "s" }
+            Div()
+            SetRow(stringResource(R.string.dmSetLang), langName(lang)) { dlg = "g" }
         }
         Spacer(Modifier.height(14.dp))
         Group {
@@ -466,6 +499,12 @@ private fun SettingsScreen(a: DmActivity) {
     when (dlg) {
         "q" -> Choose(stringResource(R.string.dmSetQuality), listOf("best", "2160", "1080", "720", "480", "audio"), q, { qName(it) }) { q = it; pr.quality = it; dlg = "" }
         "p" -> Choose(stringResource(R.string.dmSetParallel), listOf("1", "2", "3", "4", "5"), par.toString(), { it }) { par = it.toInt(); pr.parallel = par; dlg = ""; DmEngine.pump(ctx) }
+        "g" -> Choose(stringResource(R.string.dmSetLang), DmLang.MODES, lang, { langName(it) }) {
+            dlg = ""; if (it != lang) { lang = it; pr.lang = it; a.recreate() }   // מחרוזות וכיוון — מההקשר החדש
+        }
+        "s" -> Choose(stringResource(R.string.dmSetLimit), LIMITS.map { it.toString() }, lim.toString(), { limName(it.toLong()) }) {
+            lim = it.toLong(); pr.limit = lim; DmLimit.bytesPerSec = lim; dlg = ""
+        }
         "c" -> Choose(stringResource(R.string.dmSetConns), listOf("1", "2", "4", "8"), conns.toString(), { it }) { conns = it.toInt(); pr.conns = conns; dlg = "" }
         "l" -> AlertDialog(onDismissRequest = { dlg = "" }, confirmButton = { TextButton({ dlg = "" }) { Text(stringResource(R.string.dmClose)) } },
             title = { Text(stringResource(R.string.dmSetLicenses)) },
@@ -477,6 +516,17 @@ private fun SettingsScreen(a: DmActivity) {
 @Composable
 private fun qName(q: String) = when (q) {
     "best" -> stringResource(R.string.dmQBest); "audio" -> stringResource(R.string.dmAudioOnly); else -> q + "p"
+}
+
+/** הגבלת מהירות: בלי, ‏1/2/5/10 MB/s */
+private val LIMITS = listOf(0L, 1L shl 20, 2L shl 20, 5L shl 20, 10L shl 20)
+
+@Composable
+private fun limName(b: Long): String = if (b <= 0) stringResource(R.string.dmLimitOff) else DmFmt.speed(LocalContext.current, b)
+
+@Composable
+private fun langName(m: String) = when (m) {
+    "he" -> stringResource(R.string.dmLangHe); "en" -> stringResource(R.string.dmLangEn); else -> stringResource(R.string.dmLangSys)
 }
 
 @Composable

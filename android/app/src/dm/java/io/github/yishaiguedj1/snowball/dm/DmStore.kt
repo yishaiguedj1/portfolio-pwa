@@ -29,6 +29,8 @@ object DmStore {
 
     @Synchronized fun all(): List<DmTask> = tasks.toList()
     @Synchronized fun get(id: String): DmTask? = tasks.firstOrNull { it.id == id }
+    /** הקישור כבר ברשימה (כל מצב, גם הסתיים) — הלוח לא מציע אותו שוב */
+    @Synchronized fun has(url: String): Boolean = tasks.any { it.url == url }
 
     @Synchronized
     fun add(t: DmTask) { tasks.add(0, t); save() }
@@ -65,5 +67,22 @@ class DmPrefs(ctx: Context) {
     var quality: String get() = p.getString("q", "best") ?: "best"; set(v) = p.edit().putString("q", v).apply()
     var quick: Boolean get() = p.getBoolean("quick", false); set(v) = p.edit().putBoolean("quick", v).apply()
     var firstRun: Boolean get() = p.getBoolean("first", true); set(v) = p.edit().putBoolean("first", v).apply()
+    /** הגבלת מהירות לכל ההורדות יחד, בתים לשנייה (0 = בלי הגבלה) */
+    var limit: Long get() = p.getLong("lim", 0).coerceAtLeast(0); set(v) = p.edit().putLong("lim", v).apply()
     var lastClip: String get() = p.getString("clip", "") ?: ""; set(v) = p.edit().putString("clip", v).apply()
+    /** שפת הממשק: he (ברירת המחדל — כמו בשאר האפליקציות) / en / sys = כמו בטלפון */
+    var lang: String get() = (p.getString("lang", "he") ?: "he").takeIf { it in DmLang.MODES } ?: "he"; set(v) = p.edit().putString("lang", v).apply()
+}
+
+/** שפה לאפליקציה בלי תלות בשפת הטלפון (minSdk 29 — לפני LocaleManager): הקשר עם locale משלו לפעילות ולהתראות */
+object DmLang {
+    val MODES = listOf("he", "en", "sys")
+    fun wrap(ctx: Context): Context {
+        val m = DmPrefs(ctx).lang
+        if (m == "sys") return ctx
+        val loc = java.util.Locale.forLanguageTag(m)
+        val c = android.content.res.Configuration(ctx.resources.configuration)
+        c.setLocale(loc); c.setLayoutDirection(loc)
+        return ctx.createConfigurationContext(c)
+    }
 }

@@ -78,6 +78,10 @@
     <string name="dmSetQuality">איכות ברירת מחדל</string>
     <string name="dmSetWhere">איפה נשמר</string>
     <string name="dmSetWifi">רק ב־Wi‑Fi</string>
+    <string name="dmSetLang">שפה</string>
+    <string name="dmLangHe">עברית</string>
+    <string name="dmLangEn">English</string>
+    <string name="dmLangSys">כמו בטלפון</string>
     <string name="dmSetParallel">הורדות במקביל</string>
     <string name="dmSetConns">חיבורים לכל הורדה</string>
     <string name="dmSetBattery">רקע וסוללה</string>
@@ -94,4 +98,23 @@
     <string name="dmFailedN">ההורדה נעצרה</string>
     <string name="dmWaitingN">יש הורדות שממתינות</string>
     <string name="dmWaitingS">נגיעה כדי להמשיך מאותה נקודה</string>
+    <string name="dmBrowser">דפדפן</string>
+    <string name="dmBrClose">סגירה</string>
+    <string name="dmBrHint">חיפוש או כתובת</string>
+    <string name="dmBrRefreshHint">רענון קישור: מגיעים שוב לקובץ ומתחילים להוריד אותו — ההורדה תמשיך מאותה נקודה.</string>
+    <string name="dmBrFound">נמצא להורדה</string>
+    <string name="dmBrFoundN">נמצאו %d להורדה</string>
+    <string name="dmBrPick">מה להוריד?</string>
+    <string name="dmBrPage">הסרטון בדף (מומלץ)</string>
+    <string name="dmBrHls">זרם וידאו (HLS)</string>
+    <string name="dmBrDash">זרם וידאו (DASH)</string>
+    <string name="dmBrFile">קובץ וידאו</string>
+    <string name="dmRefresh">רענון קישור</string>
+    <string name="dmRefreshS">הקישור פג. פותחים את הדף בדפדפן, מגיעים שוב לקובץ — וממשיכים בלי להתחיל מהתחלה.</string>
+    <string name="dmRefreshGo">להמשיך עם הקישור החדש</string>
+    <string name="dmRefreshNew">להוריד כהורדה חדשה</string>
+    <string name="dmErrRefreshSize">זה לא אותו קובץ — הגודל שונה</string>
+    <string name="dmErrRefreshKind">אפשר לרענן רק הורדה של קובץ ישיר</string>
+    <string name="dmSetLimit">הגבלת מהירות</string>
+    <string name="dmLimitOff">ללא</string>
 </resources>

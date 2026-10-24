@@ -170,4 +170,25 @@ object DmName {
 object DmLink {
     private val RE = Regex("https?://[^\\s<>\"'`]+", RegexOption.IGNORE_CASE)
     fun first(text: String?): String = RE.find(text ?: "")?.value?.trimEnd('.', ',', ')', ']', '»', '"', '\'')?.take(4096) ?: ""
+
+    /** האתר של הקישור (בלי www.) — למגבלה של הורדות במקביל לכל אתר */
+    fun host(url: String): String = runCatching { java.net.URI(url).host?.lowercase()?.removePrefix("www.") }.getOrNull() ?: ""
+
+    /** כמה הורדות במקביל מאותו אתר — כמו ב־IDM: שרתים רבים חוסמים יותר מדי חיבורים מכתובת אחת */
+    const val PER_HOST = 2
+
+    /** מה מהתור מתחיל עכשיו: לפי הסדר, עד `slots`, ולכל היותר PER_HOST מאותו אתר (כולל מה שכבר רץ) */
+    fun pickStart(queued: List<String>, running: List<String>, slots: Int): List<Int> {
+        val per = HashMap<String, Int>()
+        running.forEach { val h = host(it); per[h] = (per[h] ?: 0) + 1 }
+        val out = ArrayList<Int>()
+        for ((i, u) in queued.withIndex()) {
+            if (out.size >= slots) break
+            val h = host(u)
+            if ((per[h] ?: 0) >= PER_HOST) continue
+            per[h] = (per[h] ?: 0) + 1
+            out.add(i)
+        }
+        return out
+    }
 }

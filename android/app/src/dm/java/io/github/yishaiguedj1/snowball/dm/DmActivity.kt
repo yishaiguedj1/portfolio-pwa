@@ -24,6 +24,12 @@ class DmActivity : ComponentActivity() {
     val sheetUrl = mutableStateOf<String?>(null)
     val sheetRef = mutableStateOf("")
     val clipUrl = mutableStateOf("")
+    /** מהדפדפן של DM: אותו User-Agent, עוגיות מהדפדפן, ו"רענון קישור" למשימה קיימת (מזהה) */
+    var sheetUa = ""
+    var sheetCk = false
+    val refreshId = mutableStateOf("")
+
+    override fun attachBaseContext(newBase: android.content.Context) { super.attachBaseContext(DmLang.wrap(newBase)) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,6 +51,13 @@ class DmActivity : ComponentActivity() {
         }
         if (u.isNotEmpty()) {
             sheetRef.value = DmLink.first(i.getStringExtra("snb_ref") ?: i.getStringExtra("extra_referer"))
+            // עוגיות, User-Agent ורענון — רק ממסירה בתוך התהליך (DmBrowser.take עם אסימון חד־פעמי). אפליקציה אחרת
+            // יכולה לשלוח לנו intent עם כל extra, ואסור שתגרום ל־DM לשלוח את העוגיות של הדפדפן לכתובת שהיא בחרה
+            val h = DmBrowser.take(i.getStringExtra(DmBrowser.EXTRA_TOKEN), u)
+            sheetCk = h?.ck ?: false
+            sheetUa = h?.ua ?: ""
+            refreshId.value = h?.refresh ?: ""
+            if (h != null) sheetRef.value = h.ref
             sheetUrl.value = u
         }
     }
@@ -57,7 +70,7 @@ class DmActivity : ComponentActivity() {
         val txt = runCatching { cm.primaryClip?.getItemAt(0)?.coerceToText(this)?.toString() }.getOrNull()
         val u = DmLink.first(txt)
         val pr = DmPrefs(this)
-        clipUrl.value = if (u.isNotEmpty() && u != pr.lastClip && DmStore.all().none { it.url == u }) u else ""
+        clipUrl.value = if (u.isNotEmpty() && u != pr.lastClip && !DmStore.has(u)) u else ""
     }
 
     fun dismissClip() { DmPrefs(this).lastClip = clipUrl.value; clipUrl.value = "" }
@@ -95,13 +108,24 @@ class DmActivity : ComponentActivity() {
     }
 
     /** רץ בתהליכון (לא בממשק) */
+    /** הגיליון נסגר — מה שהגיע מהדפדפן לא עובר להוספה הבאה */
+    fun sheetDone() { sheetUrl.value = null; sheetCk = false; sheetUa = ""; refreshId.value = "" }
+
+    private fun ckFn(): ((String) -> String?)? = if (!sheetCk) null else { u -> runCatching { android.webkit.CookieManager.getInstance().getCookie(u) }.getOrNull() }
+
+    fun openBrowser(start: String, refresh: String = "") {
+        runCatching { startActivity(Intent(this, DmBrowser::class.java).putExtra(DmBrowser.EXTRA_START, start).putExtra(DmBrowser.EXTRA_REFRESH, refresh)) }
+    }
+
     fun probe(url: String, ref: String): Found {
         val known = VideoUrl.classify(url).let { it is VideoUrl.Hit.Video && DmName.cat(DmName.fromUrl(url), "") == DmName.Cat.OTHER }
         if (!known) {
             try {
-                val p = DmFetch.probeRetry(url, ref)
+                val p = DmFetch.probeRetry(url, ref, sheetUa.ifEmpty { DmFetch.UA }, cookies = ckFn())
                 if (p.mime != "text/html" && p.mime != "application/xhtml+xml")
-                    return Found.File(p.finalUrl, DmName.pick(p.disposition, p.finalUrl, p.mime), p.total, p.mime, p.ranges)
+                    // נשמרת הכתובת שהמשתמש נתן, לא זו שאחרי ההפניה: קישור הורדה (GitHub, S3…) מפנה לכתובת חתומה שפגה תוך דקות,
+                    // ו"המשך" מחר היה נכשל ב־expired. כל חיבור עוקב אחרי ההפניה מחדש; If-Range (ETag) שומר שלא מערבבים קבצים
+                    return Found.File(url, DmName.pick(p.disposition, p.finalUrl, p.mime), p.total, p.mime, p.ranges)
             } catch (e: Throwable) {
                 if (e is DmHttpError && DmRetry.http(e.status).act == DmRetry.Act.FATAL) return Found.Fail(DmRetry.http(e.status).code)
             }
@@ -114,7 +138,7 @@ class DmActivity : ComponentActivity() {
     fun addFile(f: Found.File, name: String, ref: String) {
         val t = DmTask(DmStore.newId(), f.url, ref, DmKind.HTTP).apply {
             this.name = DmName.clean(name).ifEmpty { f.name }; mime = f.mime; total = f.size; ranges = f.ranges
-            created = System.currentTimeMillis()
+            created = System.currentTimeMillis(); ua = sheetUa; ck = sheetCk
         }
         DmStore.add(t); askNotifications(); DmEngine.pump(this)
     }
@@ -125,8 +149,26 @@ class DmActivity : ComponentActivity() {
             audioOnly = audio
             if (q != null && !audio) { vf = q.optString("v"); af = q.optString("a"); height = q.optInt("h"); total = q.optLong("sz", -1) }
             if (audio) total = v.info.optJSONObject("ao")?.optLong("sz", -1) ?: -1
-            created = System.currentTimeMillis()
+            created = System.currentTimeMillis(); ck = sheetCk
         }
         DmStore.add(t); askNotifications(); DmEngine.pump(this)
+    }
+
+    /**
+     * רענון קישור (כמו ב־IDM): הקישור של משימה פג (403/410 — כתובת חתומה), והמשתמש מצא אותו שוב בדפדפן. אותו קובץ =
+     * אותו גודל → מחליפים את הכתובת ושומרים את מה שכבר ירד (If-Range עם ה־ETag הישן עדיין שומר שלא מערבבים).
+     * null = הוחלף; אחרת קוד לגיליון
+     */
+    fun refresh(id: String, f: Found.File, ref: String): String? {
+        val t = DmStore.get(id) ?: return "fail"
+        if (t.kind != DmKind.HTTP) return "refresh_kind"
+        if (t.total > 0 && f.size != t.total) return "refresh_size"
+        DmEngine.pause(this, id)
+        t.url = f.url; if (ref.isNotEmpty()) t.ref = ref
+        t.ua = sheetUa; t.ck = sheetCk
+        t.err = ""; if (t.state != DmState.DONE) t.state = DmState.PAUSED
+        DmStore.save()
+        DmEngine.resume(this, id)
+        return null
     }
 }
