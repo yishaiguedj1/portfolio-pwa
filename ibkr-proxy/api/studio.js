@@ -50,6 +50,7 @@ const USG = require('../lib/usage');   // 23/10/2026: מעקב תעבורה/אח
 const SF = require('../lib/sysflags');   // 15/10/2026: מצב תחזוקה והגדרות ודגלים (sysCfg/main)   // 15/10/2026 (מ׳2): קורפוס הטקסט — לדלי נפרד snb-learn
 const AICACHE = require('../lib/aicache');   // 15/10/2026: התקרות היומיות של ה־AI (limits) — למסך AI ועלויות
 const AO = require('../lib/adminov');   // 15/10/2026: מרכז הניהול — הסקירה, "מחכה לך" ו"מה רץ איפה"   // 14/10/2026: מאגר הלמידה — רשומה אנונימית לכל עבודה + לוח הבקרה של המנהל
+const RL = require('../lib/relay');   // 24/10/2026: ההעברה — השרת עושה הכל, Claude דרך ה־Routine של המשתמש
 const A = require('../lib/studioagents');   // v373: מלאי הסוכנים   // v371: תקלות, שורש סביר ותקלה רחבה
 
 const PROJECT = () => process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e';
@@ -58,6 +59,7 @@ const DRIVE = 'https://www.googleapis.com/drive/v3/files/';
 const UID_RE = /^[A-Za-z0-9]{6,128}$/;
 const AAD = (uid) => 'studio|' + uid + '|r';
 const WORKER_OPS = new Set(['claim', 'token', 'report', 'qa', 'r2get', 'r2wup', 'r2wparts', 'r2wdone', 'r2del', 'learnPut', 'learnMedia', 'learnMediaDone', 'srcFile']);   // 22/10/2026: srcFile — הורדה מקישור
+const RELAY_OPS = new Set(['rlPut', 'rlFix', 'rlWait', 'rlEnd', 'rlNext', 'rlMark']);   // 24/10/2026: rlPut…rlEnd = העובד (kh), rlNext/rlMark = ה־Routine (rkh)
 const SERVER_OPS = new Set(['poll', 'beat', 'devLog', 'devMet', 'pq']);   // pq — בדיקות קישור (22/10/2026)   // devLog/devMet — האיסוף המלא (lib/devlog.js)
 /* מצב API: תקציב חודשי לכל משתמש (מפתח ה־API של המערכת). מעבר לזה — התקרה ב־Console של Anthropic */
 const LEARN_MAX = 5000, LEARN_SYNC_MAX = 400;   // מאגר הלמידה: כמה רשומות קוראים, וכמה משלימים בכל פתיחה של לוח הבקרה
@@ -989,9 +991,79 @@ async function queueApi(deps, uid, job, now) {
   const st = await readStats(deps, uid);
   const cap = S.jobCap(job.spec, S.monthUsed(st.mu, now), USER_MONTH(), S.usdOf(job.use0));
   if (!cap) return { ok: false, error: capWhy(job, st, now) };
-  await patchJob(deps, job.id, { state: 'queued', eng: 'api', sid: '', pk: 0, vw: 0, kh: '', kx: 0, fired: now, fires: (job.fires || 0) + 1,
-    err: '', ed: '', warn: '', use: null, tw: null, sess: null, updated: now });
+  let rx = {};
+  if (relayJob(job)) {
+    const r = await fireRelay(deps, uid, job, now);
+    if (!r.ok) return r;
+    rx = r.patch;
+  }
+  await patchJob(deps, job.id, Object.assign({ state: 'queued', eng: 'api', sid: '', pk: 0, vw: 0, kh: '', kx: 0, fired: now, fires: (job.fires || 0) + 1,
+    err: '', ed: '', warn: '', use: null, tw: null, sess: null, updated: now }, rx));
   return { ok: true };
+}
+/* 24/10/2026 (בקשת המשתמש: "שהיישור והצריבה יהיו על השרת שלנו גם במצב Routine"): עבודת "המנוי שלי" רצה כמו עבודת שרת
+   (העובד שלנו — הורדה, תמלול, יישור, צריבה), ורק הקריאות ל־Claude עוברות ל־Routine של המשתמש דרך התור (lib/relay.js).
+   ה־Routine מופעל כאן עם מפתח משלו (rkh) — הוא פותח רק את פעולות ההעברה של העבודה הזו, לא את הקבצים ולא את הדיווח.
+   כשל ודאי בהפעלה = העבודה לא נכנסת לתור (נשארת כמו שהייתה, עם השגיאה של ההפעלה) */
+const relayJob = (job) => apiJob(job) && job.spec.ry === 1 && job.kind !== 'rr';   // הפקה מחדש — בלי Claude, בלי Routine
+async function fireRelay(deps, uid, job, now) {
+  const v = await readVault(deps, uid);
+  if (!v || !v.r) return { ok: false, error: 'conn_missing' };
+  if (S.recentFires(v.fh, now).length >= S.FIRE_HOUR) return { ok: false, error: 'budget' };
+  const rk = S.newKey(), fh = S.recentFires(v.fh, now);
+  await patchJob(deps, job.id, { rkh: S.keyHash(rk), rkx: now + S.KEY_TTL, rcl: 0, fr: { s: -1, ms: 0 }, updated: now });
+  const f = await fire(deps, v, uid, S.fireText(job.id, rk));
+  if (job.kind === 'tr') await raise(deps, uid, f.ok ? [{ c: 'routine', k: 'fire', ok: true }, { c: 'routine', k: 'rate', ok: true }] : [O.fireEvent(f.error)].filter(Boolean), job.id, now);
+  if (!f.ok && !UNSURE.includes(f.error)) {
+    await patchJob(deps, job.id, { rkh: '', rkx: 0, err: f.error, ed: f.detail || '', fr: f.fr || null, updated: now });
+    if (f.error !== 'routine_net') await patchVault(deps, uid, { tt: now });
+    return { ok: false, error: f.error, retry: f.retry, detail: f.detail || '' };
+  }
+  await patchVault(deps, uid, { tt: now, fh: fh.concat(now) });
+  return { ok: true, patch: Object.assign({ fr: f.fr || null }, f.ok ? { sess: f.sess } : { warn: f.error, ed: f.detail || '' }) };
+}
+/* כתובת התור: תהליך אחד של חדר האפליקציה (ibkr-proxy/server.js) — לפי הסביבה. ב־Vercel אין תור */
+const RELAY_HUB = () => process.env.SNB_RELAY_HUB || (PROJECT() === 'snowball-staging-758f6' ? 'https://api-staging.thesnowball.app' : 'https://api.thesnowball.app');
+/* האימות של פעולות ההעברה בלי לקרוא את Firestore בכל פעולה (המתנה ארוכה = עשרות פעולות לדקה): המפתח נבדק מול רשומת
+   העבודה פעם ב־RL_AUTH_TTL, ובינתיים מול ה־hash שבזיכרון. עבודה שהסתיימה / בוטלה — התור נסגר וכולם מקבלים "עצור" */
+const RL_AUTH_TTL = 90e3, rlAuth = new Map();
+async function relayAuth(deps, id, key, f, now) {
+  const ck = id + '|' + f, h = S.keyHash(key), c = rlAuth.get(ck);
+  if (c && c.h === h && now - c.at < RL_AUTH_TTL && now <= c.kx) return { ok: true };
+  const job = await readJob(deps, id);
+  const fx = f === 'rkh' ? 'rkx' : 'kx';
+  if (!job || !relayJob(job) || !S.keyMatches(job, key, f) || now > (job[fx] || 0)) { rlAuth.delete(ck); return { ok: false, status: 403, error: 'bad_key' }; }
+  const e = S.effState(job, now);
+  if (S.FINAL.includes(e.state)) { const hb = RL.hub(); if (hb) hb.end(id, e.state); return { ok: false, status: 200, error: 'stop', state: e.state }; }
+  if (rlAuth.size > 500) rlAuth.clear();
+  rlAuth.set(ck, { h, at: now, kx: job[fx] });
+  return { ok: true, job };
+}
+async function relayOp(req, res, body, deps) {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'POST only' });
+  const hub = RL.hub();
+  if (!hub) return res.status(503).json({ ok: false, error: 'no_hub', hub: RELAY_HUB() });
+  const id = String(body.job || ''), key = String(body.key || ''), op = String(body.op);
+  if (!S.JOB_RE.test(id) || !S.KEY_RE.test(key)) return res.status(400).json({ ok: false, error: 'bad_params' });
+  if (limited('rl|' + id, 600)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+  const now = deps.now || Date.now();
+  const routine = op === 'rlNext' || op === 'rlMark';
+  try {
+    const a = await relayAuth(deps, id, key, routine ? 'rkh' : 'kh', now);
+    if (!a.ok) return res.status(a.status).json({ ok: false, error: a.error, stop: true, state: a.state });
+    let out;
+    if (op === 'rlPut') out = hub.put(id, body);
+    else if (op === 'rlFix') out = hub.fix(id, body.fh, body.fx);
+    else if (op === 'rlWait') out = await hub.wait(id, body.rid, body.w);
+    else if (op === 'rlEnd') out = hub.end(id, body.why);
+    else if (op === 'rlNext') out = await hub.next(id, body.have, body.max, body.w);
+    else out = hub.mark(id, body.rid, body.st, body.ans);
+    return res.status(200).json(Object.assign(out, { now: Date.now() }));
+  } catch (err) {
+    return res.status(502).json({ ok: false, error: /^(fs_http_|sa_http_)/.test(String(err.message)) ? String(err.message).slice(0, 30) : 'failed' });
+  }
 }
 /* למה אין תקציב להפעלה: התקרה של העבודה נוצלה בסשנים הקודמים (budget_cap — "המשך" במצב זול יותר / תקרה גבוהה יותר), או החודש */
 const capWhy = (job, st, now) => (S.jobCap(job.spec, 0, USER_MONTH(), S.usdOf(job.use0)) ? 'month_cap' : 'budget_cap');
@@ -1472,6 +1544,13 @@ async function worker(req, res, body, deps) {
   const now = deps.now || Date.now();
   try {
     const job = await readJob(deps, id);
+    if (body.op === 'claim' && job && relayJob(job) && S.keyMatches(job, key, 'rkh') && now <= (job.rkx || 0)) {
+      // 24/10/2026: ה־Routine של "המנוי שלי" — רק Claude. מקבל את כתובת התור, וזהו (בלי קבצים, בלי דיווח)
+      const e0 = S.effState(job, now);
+      if (S.FINAL.includes(e0.state)) return res.status(200).json({ ok: false, stop: true, state: e0.state });
+      if (!job.rcl) await patchJob(deps, id, { rcl: now, warn: '' }).catch(() => {});
+      return res.status(200).json({ ok: true, relay: true, hub: RELAY_HUB(), job: { id, kind: job.kind }, now });
+    }
     if (!job || !S.keyMatches(job, key) || now > (job.kx || 0)) return res.status(403).json({ ok: false, error: 'bad_key', stop: true });
     const e = S.effState(job, now);
     if (S.FINAL.includes(e.state)) return res.status(200).json({ ok: false, stop: true, state: e.state });
@@ -1529,7 +1608,9 @@ async function worker(req, res, body, deps) {
         try { const t = await R2.getText(R2.config(), r2deps(deps), S.glKey(job.uid), 256 * 1024); if (t != null) gl = S.glParse(t); } catch (e) { gl = null; }
       }
       const full = (await learnFull(deps, job, stats)) ? 1 : 0;   // האיסוף המלא: העובד שולח גם את קבצי הטקסט ואת יומן הקריאות
-      return res.status(200).json({ ok: true, job: S.workerJob(job, nm, S.fbForWorker(stats.fb), stats.fm, stats.rl, gl), drive: await driveFor(), pir, full, now });
+      const wj = S.workerJob(job, nm, S.fbForWorker(stats.fb), stats.fm, stats.rl, gl);
+      if (relayJob(job)) wj.rh = RELAY_HUB();   // 24/10/2026: Claude דרך התור — לאן לשלוח
+      return res.status(200).json({ ok: true, job: wj, drive: await driveFor(), pir, full, now });
     }
     if (body.op === 'token') return res.status(200).json({ ok: true, drive: await driveFor(), now });
     if (body.op === 'learnPut') return res.status(200).json({ ok: true, saved: await learnPut(deps, job, body.lc, now), now });   // מ׳2
@@ -1694,7 +1775,8 @@ async function worker(req, res, body, deps) {
       if (ws && up.prog) up.prog = S.excludeWait(up.prog, ws, job.wv0, now);
     }
     // Firestore שומר כאן מספרים שלמים — לכן סנטים (mucc), לא דולרים
-    const spent = job.eng === 'api' && up.use ? S.usdOf(up.use) - (job.mucc || 0) / 100 : 0;
+    // 24/10/2026: עבודת "המנוי שלי" (relayJob) — לא מהתקציב החודשי של המערכת
+    const spent = job.eng === 'api' && !relayJob(job) && up.use ? S.usdOf(up.use) - (job.mucc || 0) / 100 : 0;
     if (spent > 0) up.mucc = Math.round(S.usdOf(up.use) * 100);
     if (parked && up.use) { up.use0 = up.use; up.use = null; }   // הסשן הבא מדווח מאפס — הסכום שלו מצטרף ל־use0 (כמו ב"המשך")
     if (job.kind === 'tr' && up.state === 'failed' && (job.ar || 0) < S.AUTO_RESUME_MAX) {
@@ -1785,6 +1867,7 @@ async function handler(req, res, deps = {}) {
   let body = req.body;
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } }
   body = body || {};
+  if (RELAY_OPS.has(String(body.op || ''))) return relayOp(req, res, body, deps);
   if (WORKER_OPS.has(String(body.op || ''))) return worker(req, res, body, deps);
   if (SERVER_OPS.has(String(body.op || ''))) return server(req, res, body, deps);
   if (body.op === 'learnPull') return learnPull(req, res, body, deps);   // 14/10/2026: טוקן ניתוח (Claude Code)

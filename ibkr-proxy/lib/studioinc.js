@@ -27,7 +27,9 @@ const ERR_INFO = {
   api_bad_request: ['claude', 2], api_error: ['claude', 2], budget_cap: ['claude', 3], model_refusal: ['claude', 3], check_errors: ['claude', 3],
   cp_timeout: ['claude', 4], cp_empty: ['claude', 4],
   // 24/10/2026: ה־Routine כמו מצב ה־API (claude -p במנוי) — מגבלת השימוש של המנוי; claude לא נמצא / יצא בלי תוצאה
-  sub_limit: ['claude', 2], cli_missing: ['claude', 1], cli_error: ['claude', 2],   // סבב 10: העתק־הדבק — לא הודבקה תשובה (בחירה של המשתמש, לא תקלה)
+  sub_limit: ['claude', 2], cli_missing: ['claude', 1], cli_error: ['claude', 2],
+  // 24/10/2026: "המנוי שלי" דרך השרת (translator/relay.py) — ה־Routine לא התחבר / הפסיק לענות / אין תור / תשובה לא תקינה
+  relay_none: ['routine', 2], relay_lost: ['routine', 3], relay_hub: ['server', 1], relay_error: ['routine', 2], relay_bad: ['routine', 2], relay_stop: ['routine', 4],   // סבב 10: העתק־הדבק — לא הודבקה תשובה (בחירה של המשתמש, לא תקלה)
   // 11/10/2026: התשובה של Claude נקטעה בתקרת האורך (גם אחרי ניסיון בתקרת המודל); עומס באמצע הזרם; מפתח/ספרייה חסרים בשרת
   max_tokens: ['claude', 2], api_overloaded: ['claude', 3], no_api_key: ['server', 1], sdk_missing: ['server', 1], mode_unknown: ['claude', 3],
   // 22/10/2026: הורדה מקישור — יוטיוב חוסם את השרת (P2: כל עבודה מיוטיוב תיכשל עד שיש פתרון), השאר — הסרטון עצמו

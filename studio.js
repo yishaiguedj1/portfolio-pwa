@@ -192,6 +192,7 @@ export function normJob(j) {
     use: normUse(s.use),   // v359: טוקנים ועלות (מהעובד, דרך השרתון)
     eng: s.eng === 'api' ? 'api' : 'sub',   // מצב API: העבודה רצה על השרת של המערכת (בתור עד ששרת פנוי)
     vw: s.vw === 1 || s.vw === true,   // 15/10/2026: מחכה לסרטון בתור — השרת פנוי בינתיים
+    ry: s.ry === 1, rc: num(s.rc),   // 24/10/2026: "המנוי שלי" דרך השרת — ומתי ה־Routine שלך התחבר (0 = עוד לא)
     qa: normQa(s.qa),      // שאלה מ־Claude באמצע העבודה (והתשובה)
     ck: normCk(s.ck),      // v361: נקודת השמירה האחרונה (אחרי איזה שלב)
     stale: s.stale === true, fires: num(s.fires),
@@ -999,6 +1000,9 @@ function errText(code, extra) {
     case 'api_quota': return T('studioErrApiQuota');   // 21/10/2026
     case 'sub_limit': return T('studioErrSubLimit');   // 24/10/2026: ה־Routine — מגבלת המנוי
     case 'cli_missing': case 'cli_error': return T('studioErrCli');
+    case 'relay_none': return T('studioErrRyNone');   // 24/10/2026: "המנוי שלי" דרך השרת
+    case 'relay_lost': return T('studioErrRyLost');
+    case 'relay_hub': case 'relay_error': case 'relay_bad': return T('studioErrRy');
     case 'api_auth': case 'api_model': case 'no_api_key': return T('studioErrApiKey');   // הסקירה: קודי מצב API
     case 'api_network': case 'api_timeout': case 'api_rate': case 'api_overloaded': return T('studioErrApiNet');
     case 'model_refusal': return T('studioErrRefusal');
@@ -2493,6 +2497,7 @@ function nowLine(rec, run, ph) {
   if (ph === 'error') return errText(run.err);
   if (ph === 'ready') return rec.up.wait === 'worker_not_ready' ? T('studioWaitWorker') : rec.up.wait ? errText(rec.up.wait) : T('studioReady');
   if (ph === 'queued') return rec.srv && rec.srv.vw ? T('studioNowParked') : rec.srv && rec.srv.eng === 'api' ? T('studioNowQueuedApi') : T('studioNowQueued');
+  if (ph === 'running' && ryWaiting(rec, Date.now())) return T('studioNowRyWait');
   if (ph === 'running') return (rec.srv && rec.srv.prog && rec.srv.prog.msg) || T('studioNowRunning');
   if (ph === 'done') return T('studioNowDone');
   // 21/10/2026: נפילה של השרת (לרוב זיכרון ביישור) הוצגה כ"הקשר עם האחסון או עם הרשת נקטע" — מטעה; לכשל כזה ההודעה שלו
@@ -2806,6 +2811,7 @@ function startSubs(f) {
     const spec = { name: s.name, size: s.size, type: s.type, dur: Math.round(s.imp.stats.dur / 1000), from: f.from, to: f.to,
       mode: modeFor(f.mode, ui.mf), out: [], style: f.style, terms: f.terms, src: 'subs', sdh: f.sdh === 'keep' ? 'keep' : 'rm' };
     if (apiMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap });
+    else if (ryMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap, ry: 1 });
     else Object.assign(spec, { eng: 'api', cap: store.settings.cap, cp: 1 });
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
     if (est.min && typeof askConfirm === 'function') {
@@ -3514,6 +3520,7 @@ function startLinkCloud(f) {   // ישר לענן של Studio (העובד מור
       out: OUTS.filter((k) => f.out[k]), style: f.style, terms: f.terms, src: 'url', url: L.r.u || L.u, pick, eng: 'api', cap: store.settings.cap };
     if (L.ref) spec.ref = L.ref;
     if (cpMode()) spec.cp = 1;
+    else if (ryMode()) spec.ry = 1;   // 24/10/2026: המנוי שלך — Claude דרך ה־Routine, לא מהמפתח של המערכת
     if (o.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, (o.h * o.h * 16 / 9) / (1920 * 1080))) * 1000) / 1000;
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
     if (est.min && typeof askConfirm === 'function') {
@@ -3625,6 +3632,14 @@ function startFromForm() {
     });
     return;
   }
+  // 24/10/2026: "המנוי שלי" — מחכים לתשובה פעם אחת כדי לדעת אם יש שרת (אז העבודה רצה בו, ו־Claude דרך ה־Routine).
+  // אין תשובה — ממשיכים כמו קודם (רק ה־Routine), לא חוסמים
+  if (f && !ui.starting && store.settings.conn === 'sub' && !ui.api && !f.ryTried) {
+    f.ryTried = true; ui.starting = true; render('none');
+    statusAt = 0;
+    refreshStatus(true).catch(() => {}).then(() => { ui.starting = false; if (form === f) startFromForm(); });
+    return;
+  }
   if (f && f.subs && !ui.starting) { startSubs(f); return; }   // 22/10/2026: קובץ כתוביות קיים
   if (f && f.link && f.linkOk && !ui.starting) { startLink(f); return; }   // 22/10/2026: מקישור — העובד מוריד
   if (!f || !(f.fileObj || f.drive) || ui.starting) return;
@@ -3650,6 +3665,7 @@ function startFromForm() {
     if (sm && sm.w > 0 && sm.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, sm.w * sm.h / (1920 * 1080))) * 1000) / 1000;
     if (apiMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap });   // השרת של המערכת — בלי Routine
     else if (cpMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap, cp: 1 });   // סבב 10: העתק־הדבק — השרת מתמלל וצורב, Claude שלך מתרגם
+    else if (ryMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap, ry: 1 });   // 24/10/2026: המנוי שלך — השרת עושה הכל, Claude דרך ה־Routine
     // מ6 (כלל 2): אומדן ואישור לפני ההתחלה — עוד לפני שנוצרת עבודה ולפני ההעלאה
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
     if (est.min && !f.estOk && typeof askConfirm === 'function') {   // estOk — מקישור: האומדן אושר לפני ההורדה בטלפון
@@ -7288,6 +7304,11 @@ async function pushTest() {
    השרת לא פתוח לאינטרנט — הוא שואל את השרתון כל 20 שנ׳ ומדווח דופק. כאן רואים אותו ומנהלים אותו (המנהל בלבד):
    מחובר / לא, גרסה, דיסק, זיכרון, מה הוא מתרגם, השהיה, הסרה (הטוקן מת מיד), והוספה (הטוקן מוצג פעם אחת) */
 const apiMode = () => store.settings.conn === 'api' && !!ui.api;
+// 24/10/2026: "המנוי שלי" + יש שרת במערכת — העבודה רצה בשרת שלנו, ו־Claude דרך ה־Routine שלך (ry). בלי שרת — כמו קודם
+/* העבודה רצה בשרת, אבל ה־Routine שלך עוד לא התחבר אחרי 2 דק׳ (לרוב: הכתובת של התור חסרה ברשימת הכתובות של הסביבה) */
+export const ryWaiting = (rec, now) => !!(rec && rec.srv && rec.srv.ry && !rec.srv.rc && rec.srv.fired > 0 && now - rec.srv.fired > 120e3);
+export const ryOn = (conn, api) => conn === 'sub' && !!api && api.servers > 0;
+const ryMode = () => ryOn(store.settings.conn, ui.api);
 const cpMode = () => store.settings.conn === 'copy' && !!ui.api;   // סבב 10: העתק־הדבק — דרך השרת של המערכת (בלי עלות API)
 const curNorm = () => (apiMode() ? ui.normA || ui.normR : ui.normR);   // "הרגיל" של המנוע שבשימוש
 async function refreshServers() {
@@ -7519,7 +7540,9 @@ function pageConnect(p) {
   };
   let host = 'ibkr-proxy-wine.vercel.app';
   try { host = new URL(proxyBase()).host || host; } catch (e) {}
-  const hosts = [host].concat(HOSTS_EXTRA).join('\n');
+  // 24/10/2026: תור ההעברה ("המנוי שלי" דרך השרת) — ה־Routine פונה אליו ישירות
+  const hub = typeof window !== 'undefined' && window.SNB_ENV && window.SNB_ENV.name === 'staging' ? 'api-staging.thesnowball.app' : 'api.thesnowball.app';
+  const hosts = Array.from(new Set([host, hub])).concat(HOSTS_EXTRA).join('\n');
   const w = ui.wiz;
   const urlIn = h('input', 'st-in'); urlIn.type = 'url'; urlIn.inputMode = 'url'; urlIn.dir = 'ltr'; urlIn.autocomplete = 'off'; urlIn.spellcheck = false;
   urlIn.placeholder = 'https://api.anthropic.com/v1/claude_code/routines/trig_…/fire'; urlIn.value = w.url; urlIn.dataset.k = 'w:url';
