@@ -577,14 +577,37 @@ function monCard(x, r) {
   }
   return card;
 }
+const STO_NAME = { 'snb-studio': () => t('admStoStudio'), 'snb-learn': () => t('admStoLearn'), 'snb-staging': () => t('admStoStg') };
+const gbTxt = (g) => (g == null ? '—' : '\u2066' + (g < 1 ? Math.round(g * 1000) + ' MB' : (g < 10 ? g.toFixed(2) : Math.round(g)) + ' GB') + '\u2069');   // בידוד — בלי היפוך בשורה עברית
+const meterOf = (pc) => [pc, pc >= 90 ? 'x' : pc >= 80 ? 'w' : ''];
+const colOf = (pc) => (pc >= 90 ? 'red' : pc >= 80 ? 'orange' : 'green');
+function storeRows(S, servers) {
+  const out = [], r2 = S && S.r2, dr = S && S.drive;
+  if (r2 && r2.b && r2.b.length) {
+    const tot = r2.b.reduce((a, b) => a + (b.gb || 0), 0), pc = Math.round(tot / 10 * 100);   // 10GB חינם — משותף לכל הדליים
+    out.push(row({ c: colOf(pc), ic: '☁', t: t('admStoR2'), s: fmt(t('admStoOf'), { u: gbTxt(tot), l: gbTxt(10) }) + ' · ' + fmt(t('admStoAt'), { a: ago(r2.at * 1000) }), v: pc + '%', meter: meterOf(pc) }));
+    for (const b of r2.b) out.push(row({ c: 'gray', ic: '▤', t: (STO_NAME[b.name] || (() => b.name))(), s: b.n == null ? b.name : fmt(t('admStoFiles'), { n: b.n.toLocaleString(lang === 'he' ? 'he-IL' : 'en-US') }), v: gbTxt(b.gb) }));
+  } else out.push(row({ c: 'gray', ic: '☁', t: t('admStoR2'), s: t('admStoR2Off') }));
+  if (dr && dr.gb != null) {
+    const pc = dr.lim ? Math.round(dr.gb / dr.lim * 100) : null;
+    out.push(row({ c: pc == null ? 'blue' : colOf(pc), ic: '◫', t: t('admStoDrive'), s: (dr.lim ? fmt(t('admStoOf'), { u: gbTxt(dr.gb), l: gbTxt(dr.lim) }) : gbTxt(dr.gb)) + ' · ' + fmt(t('admStoAt'), { a: ago(dr.at * 1000) }), v: pc == null ? '' : pc + '%', meter: pc == null ? null : meterOf(pc) }));
+  } else out.push(row({ c: 'gray', ic: '◫', t: t('admStoDrive'), s: t('admStoDriveOff') }));
+  for (const x of servers || []) {
+    const hb = x.hb || {};
+    if (hb.disk == null) continue;
+    out.push(row({ c: colOf(hb.disk), ic: '▣', t: fmt(t('admStoSrv'), { n: x.name }), s: hb.free == null ? '' : fmt(t('admMonFree'), { g: Math.round(hb.free) }), v: Math.round(hb.disk) + '%', meter: meterOf(hb.disk) }));
+  }
+  return out;
+}
 const PROV_NAME = { vercel: () => t('admProvVercel'), r2: () => t('admProvR2'), fs: () => t('admProvFs') };
 const PROV_ITEM = { bw: () => t('admProvBw'), inv: () => t('admProvInv'), store: () => t('admProvStore'), ops: () => t('admProvOps'), reads: () => t('admProvReads'), writes: () => t('admProvWrites') };
-function provRow(name, P) {
+function provRow(name, P, skip) {
   if (!P || P.st === 'off') return row({ c: 'gray', ic: '☁', t: name, s: t('admProvOff') });
   if (P.st === 'err') return row({ c: 'red', ic: '!', t: name, s: t('admProvErr') + ' · ' + (P.err || '') });
-  const parts = (P.items || []).filter((x) => x.used != null).map((x) => (PROV_ITEM[x.k] || (() => x.k))() + ': ' + fmt(t('admProvOf'), { u: String(x.used), l: x.lim }) + ' ' + x.unit);
-  const worst = Math.max(0, ...(P.items || []).map((x) => x.pct || 0));
-  return row({ c: worst >= 80 ? 'orange' : 'green', ic: '☁', t: name, s: parts.join(' · ') || t('admProvOff'), v: worst ? Math.round(worst) + '%' : '', meter: worst ? [worst, worst >= 80 ? 'w' : ''] : null });
+  const items = (P.items || []).filter((x) => !skip || !skip.includes(x.k));
+  const parts = items.filter((x) => x.used != null).map((x) => (PROV_ITEM[x.k] || (() => x.k))() + ': ' + fmt(t('admProvOf'), { u: String(x.used), l: x.lim }) + ' ' + x.unit);
+  const worst = Math.max(0, ...items.map((x) => x.pct || 0));
+  return row({ c: worst >= 80 ? 'orange' : 'green', ic: '☁', t: name, s: parts.join(' · ') || (skip ? '' : t('admProvOff')), v: worst ? Math.round(worst) + '%' : '', meter: worst ? [worst, worst >= 80 ? 'w' : ''] : null });
 }
 page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
   if (!D.monT) needMon();
@@ -615,7 +638,10 @@ page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
   p.append(grp(t('admProvT')));
   const PV = D.prov;
   if (!PV) p.append(list(row({ c: 'gray', ic: '⋯', t: t('admLoading') })));
-  else p.append(list(...[[PROV_NAME.vercel(), PV.vercel], [PROV_NAME.r2(), PV.r2], [PROV_NAME.fs(), PV.firestore]].map(([name, P]) => provRow(name, P))), h('p', 'adm-foot', t('admProvNote')));
+  else p.append(list(...[[PROV_NAME.vercel(), PV.vercel], [PROV_NAME.r2(), PV.r2, D.sto && D.sto.r2 ? ['store'] : null], [PROV_NAME.fs(), PV.firestore]].map(([name, P, sk]) => provRow(name, P, sk))), h('p', 'adm-foot', t('admProvNote')));
+  // 24/10/2026 (בקשת המשתמש): כל מקומות האחסון שלנו במקום אחד — דליי R2, ה־Drive של הגיבוי והדיסק של כל שרת
+  p.append(grp(t('admStoT')));
+  p.append(list(...storeRows(D.sto, M.servers)), h('p', 'adm-foot', t('admStoNote')));
   // 23/10/2026: היסטוריית אחוזי השימוש של כל פרמטר (עד 31 ימים, נקודה לשעה)
   p.append(grp(t('admProvHist')));
   const HB = [['vbw', PROV_NAME.vercel() + ' · ' + PROV_ITEM.bw()], ['vinv', PROV_NAME.vercel() + ' · ' + PROV_ITEM.inv()], ['rst', PROV_NAME.r2() + ' · ' + PROV_ITEM.store()],
@@ -648,7 +674,7 @@ async function needMon() {
   clearTimeout(D.monT); D.monT = 0;
   const [r, pv] = await Promise.all([api('adminMon'), api('provUsage')]);
   if (r.ok) D.mon = r;
-  if (pv.ok) { D.prov = pv.prov; D.provHist = pv.hist || []; }
+  if (pv.ok) { D.prov = pv.prov; D.provHist = pv.hist || []; D.sto = pv.sto || null; }
   if (cur === 'mon') { D.monT = setTimeout(needMon, 30000); paint(); }   // מתרענן כל 30 שנ׳ כל עוד המסך פתוח
 }
 /* ---- שימוש ומשפכים (15/10/2026): כמה נכנסו לכל אפליקציה ועד איפה הגיעו. רק ספירות קיימות + עבודות 30 יום — בלי מעקב חדש ---- */

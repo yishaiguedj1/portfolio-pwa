@@ -70,9 +70,11 @@ async function r2Usage(env, f, now) {
   const tok = String(env.CF_USAGE_TOKEN || '').trim(), acc = String(env.R2_ACCOUNT_ID || '').trim();
   if (!tok || !acc) return off(LIMITS.r2);
   const d = new Date(now), start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
+  // 24/10/2026: לפי התיעוד של Cloudflare (r2/platform/metrics-analytics) הסינון הוא datetime_geq/datetime_leq — עד היום
+  // datetimeHour_*, שהשאילתה נדחתה עליו. האחסון = הנקודה האחרונה (orderBy datetime_DESC), לא שיא החודש
   const query = 'query($a:string,$s:Time,$e:Time){viewer{accounts(filter:{accountTag:$a}){' +
-    'r2StorageAdaptiveGroups(limit:1,filter:{datetimeHour_geq:$s,datetimeHour_lt:$e}){max{payloadSize}}' +
-    'r2OperationsAdaptiveGroups(limit:1,filter:{datetimeHour_geq:$s,datetimeHour_lt:$e}){sum{requests}}}}}';
+    'r2StorageAdaptiveGroups(limit:1,filter:{datetime_geq:$s,datetime_leq:$e},orderBy:[datetime_DESC]){max{payloadSize}}' +
+    'r2OperationsAdaptiveGroups(limit:1,filter:{datetime_geq:$s,datetime_leq:$e}){sum{requests}}}}}';
   const body = JSON.stringify({ query, variables: { a: acc, s: start, e: d.toISOString() } });
   const g = await getJson(f, 'https://api.cloudflare.com/client/v4/graphql', { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }, body }).catch(() => ({ err: 'net' }));
   if (g.err) return { st: 'err', err: g.err, items: [] };
@@ -95,6 +97,67 @@ async function firestoreUsage(env, f, now) {
     if (r1.err || r2.err) return { st: 'err', err: r1.err || r2.err, items: [] };
     return parseFs(r1.j, r2.j);
   } catch (e) { return { st: 'err', err: e.message === 'not_configured' ? 'off' : 'auth', items: [] }; }
+}
+
+/* ---- האחסון שלנו, לפי מקום (24/10/2026, בקשת המשתמש: "כל האחסונים שלנו כמו R2") ----
+   R2 — לכל דלי שהשרתון מכיר (R2_BUCKET, R2L_BUCKET ועוד ב־R2_USAGE_BUCKETS="snb-staging,..."): גודל ומספר קבצים מה־GraphQL
+   של Cloudflare (אותו CF_USAGE_TOKEN). דלי עם תחום שיפוט (EU) נשאל בשם eu_<דלי> — לא תמיד ידוע איפה הוא, לכן שתי השאלות
+   באותה בקשה ולוקחים את מי שענה. הכמות החינמית (10GB) משותפת לכל הדליים בחשבון. */
+const BUCKET_RE = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
+const STO_GAP = 55 * 60e3;   // מדידת האחסון לכל היותר פעם בשעה
+function r2Buckets(env) {
+  const out = [];
+  const add = (b) => { b = String(b || '').trim(); if (BUCKET_RE.test(b) && !out.includes(b)) out.push(b); };
+  add(env.R2_BUCKET); add(env.R2L_BUCKET);
+  for (const x of String(env.R2_USAGE_BUCKETS || '').split(',')) add(x);
+  return out.slice(0, 8);
+}
+function storeQuery(bs) {
+  const one = (al, name) => al + ':r2StorageAdaptiveGroups(limit:1,filter:{datetime_geq:$s,datetime_leq:$e,bucketName:"' + name + '"},' +
+    'orderBy:[datetime_DESC]){max{payloadSize metadataSize objectCount}}';
+  return 'query($a:string,$s:Time,$e:Time){viewer{accounts(filter:{accountTag:$a}){' +
+    bs.map((b, i) => one('p' + i, b) + ' ' + one('e' + i, 'eu_' + b)).join(' ') + '}}}';
+}
+function parseStore(j, bs) {
+  const acc = j && j.data && j.data.viewer && j.data.viewer.accounts && j.data.viewer.accounts[0];
+  if (!acc) return { st: 'err', err: 'shape', b: [] };
+  const b = [];
+  bs.forEach((name, i) => {
+    const g = ((acc['p' + i] || [])[0] || (acc['e' + i] || [])[0] || {}).max;
+    if (!g || g.payloadSize == null) return;
+    const bytes = +g.payloadSize + (+g.metadataSize || 0);
+    b.push({ name, gb: Math.round(bytes / GB * 1000) / 1000, n: Number.isFinite(+g.objectCount) ? +g.objectCount : null });
+  });
+  return { st: 'ok', b };
+}
+async function r2Store(env, f, now) {
+  const tok = String(env.CF_USAGE_TOKEN || '').trim(), acc = String(env.R2_ACCOUNT_ID || '').trim(), bs = r2Buckets(env);
+  if (!tok || !acc || !bs.length) return { st: 'off', b: [] };
+  const body = JSON.stringify({ query: storeQuery(bs), variables: { a: acc, s: new Date(now - 3 * 86400e3).toISOString(), e: new Date(now).toISOString() } });
+  const g = await getJson(f, 'https://api.cloudflare.com/client/v4/graphql', { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }, body }).catch(() => ({ err: 'net' }));
+  if (g.err) return { st: 'err', err: g.err, b: [] };
+  if (g.j && Array.isArray(g.j.errors) && g.j.errors.length && !g.j.data) return { st: 'err', err: 'gql', b: [] };
+  return parseStore(g.j, bs);
+}
+/* Google Drive — הגיבוי אצל ספק שני (lib/offsite.js) ב־Drive של המנהל: כמה תפוס מתוך המכסה. token = גישה של הלקוח של הספרייה */
+function parseDrive(j) {
+  const q = j && j.storageQuota;
+  if (!q || q.usage == null) return { st: 'err', err: 'shape' };
+  return { st: 'ok', gb: Math.round(+q.usage / GB * 100) / 100, lim: q.limit != null ? Math.round(+q.limit / GB) : null };
+}
+async function driveStore(token, f) {
+  if (!token) return { st: 'off' };
+  const g = await getJson(f, 'https://www.googleapis.com/drive/v3/about?fields=storageQuota', { headers: { Authorization: 'Bearer ' + token } }).catch(() => ({ err: 'net' }));
+  return g.err ? { st: 'err', err: g.err } : parseDrive(g.j);
+}
+/* המצב שנשמר (sysUsage/main.sto): רק מה שהצליח — ריצה בלי טוקן (למשל בשרתון שלנו, שהוקם בלי CF_USAGE_TOKEN) לא מוחקת
+   את מה שנמדד קודם (ב־Vercel) */
+function storeMerge(prev, r2, drive, now) {
+  const p = prev && typeof prev === 'object' ? prev : {};
+  const out = { r2: p.r2 || null, drive: p.drive || null };
+  if (r2 && r2.st === 'ok' && r2.b.length) out.r2 = { at: Math.round(now / 1000), b: r2.b };
+  if (drive && drive.st === 'ok') out.drive = { at: Math.round(now / 1000), gb: drive.gb, lim: drive.lim };
+  return out;
 }
 
 /* כל הספקים במקביל; ספק שנכשל לא מפיל את האחרים */
@@ -132,4 +195,4 @@ function histPush(hist, prov, now) {
   return arr.slice(-HIST_MAX);
 }
 
-module.exports = { HIST_KEYS, HIST_MAX, histDue, histPush, LIMITS, parseVercel, parseR2, parseFs, sumPoints, usageAll, item };
+module.exports = { STO_GAP, r2Buckets, storeQuery, parseStore, r2Store, parseDrive, driveStore, storeMerge, HIST_KEYS, HIST_MAX, histDue, histPush, LIMITS, parseVercel, parseR2, parseFs, sumPoints, usageAll, item };
