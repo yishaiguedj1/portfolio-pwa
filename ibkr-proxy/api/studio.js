@@ -1203,6 +1203,7 @@ async function updatePending(deps, ver, now) {
    שרת); בלי בדיקה חדשה — שאילתה אחת לדקה (בדיקה שנוצרה במופע אחר — Vercel כגיבוי — נלקחת עד דקה אחרי). */
 let probeHint = 0, probeScan = 0;
 const PROBE_SCAN_MS = 20e3;
+const PQ_DONE_MAX = 128 * 1024;   // התמונה (עד 80KB) + הפורמטים, הכתוביות והפרקים
 async function pqOp(deps, body, sid, now) {
   if (body.done === true) {
     const pid = String(body.pid || '');
@@ -1236,7 +1237,10 @@ async function server(req, res, body, deps) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'POST only' });
   let len = 0; try { len = JSON.stringify(body).length; } catch (e) { len = 1e9; }
-  if (len > (body.op === 'devLog' || body.op === 'devMet' ? DL.BODY_MAX : 4096)) return res.status(413).json({ ok: false, error: 'too_large' });
+  // 24/10/2026: תשובה לבדיקת קישור כוללת תמונה קטנה (עד TH_MAX) + כל הפורמטים — TED יצא 15.8KB, והתקרה של 4KB דחתה אותה
+  // בשקט (413): הבדיקה נשארה "בודקים" והטלפון הציג "השרת לא ענה בזמן". normProbe מגביל כל שדה
+  const cap = body.op === 'devLog' || body.op === 'devMet' ? DL.BODY_MAX : body.op === 'pq' && body.done === true ? PQ_DONE_MAX : 4096;
+  if (len > cap) return res.status(413).json({ ok: false, error: 'too_large' });
   const hd = req.headers || {};
   const m = /^Bearer (\S+)$/.exec(String(hd.authorization || hd.Authorization || ''));
   const p = m && S.parseServerToken(m[1]);

@@ -117,6 +117,15 @@ const { fakeR2, ENV } = require('./_r2fake');
   await srv({ op: 'pq' });
   await srv({ op: 'pq', done: true, pid: P3, ok: false, e: '<b>free text</b>' });
   ok((await api('urlProbe', { pid: P3 })).probe.e === 'fail', 'טקסט חופשי במקום קוד — "fail"');
+  // 24/10/2026 (בייצור: TED נתקע ב"בודקים" — התשובה 15.8KB, השרתון דחה כל בקשה מהשרת מעל 4KB): תשובה אמיתית עם תמונה עוברת
+  const P3b = (await api('urlProbe', { url: 'https://example.com/p3b' })).probe.id;
+  await srv({ op: 'pq' });
+  const BIG = Object.assign({}, RES, { th: 'data:image/jpeg;base64,' + 'A'.repeat(70 * 1024 - 30), fm: Array.from({ length: 40 }, (_, i) => ({ id: 'f' + i, k: 'v', h: 360 + i, c: 'avc1', sz: 1e7 })) });
+  const big = await srv({ op: 'pq', done: true, pid: P3b, ok: true, r: BIG });
+  ok(big.code === 200 && big.j.ok && JSON.stringify(BIG).length > 70000, 'תשובת בדיקה גדולה (תמונה של 70KB) מתקבלת — לא 413');
+  ok((await api('urlProbe', { pid: P3b })).probe.r.th.length > 70000, 'התמונה מגיעה לטלפון');
+  ok((await srv({ op: 'pq', done: true, pid: P3b, ok: true, r: Object.assign({}, BIG, { th: 'x'.repeat(200000) }) })).code === 413, 'מעל התקרה — עדיין 413');
+  ok((await srv({ op: 'pq', pad: 'x'.repeat(5000) })).code === 413, 'בקשה רגילה מהשרת מעל 4KB — עדיין 413');
 
   // שלב 2 (דפדפן הציד): קובץ שנמצא בדף — הבדיקה והעבודה נושאות את הדף (Referer) עד העובד
   ok((await api('urlProbe', { url: 'https://cdn.example.com/v/master.m3u8', ref: 'javascript:alert(1)' })).error === 'bad_url', 'Referer לא תקין — נדחה');
