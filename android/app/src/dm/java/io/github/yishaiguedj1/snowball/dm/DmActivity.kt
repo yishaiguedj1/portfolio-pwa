@@ -12,7 +12,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
+import io.github.yishaiguedj1.snowball.AppRoute
 import io.github.yishaiguedj1.snowball.DlEngine
+import io.github.yishaiguedj1.snowball.R
 import io.github.yishaiguedj1.snowball.VideoUrl
 import org.json.JSONObject
 
@@ -39,6 +41,11 @@ class DmActivity : ComponentActivity() {
         handle(intent)
         setContent { DmApp(this) }
     }
+
+    override fun onResume() { super.onResume(); visible = true }
+    override fun onPause() { visible = false; super.onPause() }
+
+    companion object { @Volatile var visible = false }
 
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); handle(intent) }
 
@@ -97,6 +104,20 @@ class DmActivity : ComponentActivity() {
         runCatching { startActivity(i) }
     }
 
+    /** "לתרגם ב־Studio": הקובץ שירד עובר ל־Studio (כמו שיתוף מהגלריה) — נשאר גם כאן */
+    fun translate(t: DmTask) {
+        if (!AppRoute.fileToStudio(this, Uri.parse(t.uri), DmMedia.mimeFor(t.name, t.mime), t.title.ifEmpty { t.name }))
+            android.widget.Toast.makeText(this, R.string.dmNoStudio, android.widget.Toast.LENGTH_LONG).show()
+    }
+
+    /** "ישר לענן של Studio": בלי להוריד לטלפון — Studio בוחר את הענן כשהמקור מאפשר */
+    fun toCloud(url: String, ref: String) {
+        if (!AppRoute.toStudio(this, url, ref, cloud = true))
+            android.widget.Toast.makeText(this, R.string.dmNoStudio, android.widget.Toast.LENGTH_LONG).show()
+    }
+
+    fun studioHere() = AppRoute.studioInstalled(this)
+
     fun share(t: DmTask) {
         val i = Intent(Intent.ACTION_SEND).setType(DmMedia.mimeFor(t.name, t.mime)).putExtra(Intent.EXTRA_STREAM, Uri.parse(t.uri))
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -146,16 +167,18 @@ class DmActivity : ComponentActivity() {
         catch (e: Throwable) { Found.Fail("fail") }
     }
 
-    fun addFile(f: Found.File, name: String, ref: String) {
+    fun addFile(f: Found.File, name: String, ref: String, tr: Boolean = false) {
         val t = DmTask(DmStore.newId(), f.url, ref, DmKind.HTTP).apply {
+            this.tr = tr
             this.name = DmName.clean(name).ifEmpty { f.name }; mime = f.mime; total = f.size; ranges = f.ranges
             created = System.currentTimeMillis(); ua = sheetUa; ck = sheetCk
         }
         DmStore.add(t); askNotifications(); DmEngine.pump(this)
     }
 
-    fun addVideo(v: Found.Video, q: JSONObject?, audio: Boolean, ref: String) {
+    fun addVideo(v: Found.Video, q: JSONObject?, audio: Boolean, ref: String, tr: Boolean = false) {
         val t = DmTask(DmStore.newId(), v.url, ref, DmKind.YTDL).apply {
+            this.tr = tr && !audio
             title = v.info.optString("t"); name = title
             audioOnly = audio
             if (q != null && !audio) { vf = q.optString("v"); af = q.optString("a"); height = q.optInt("h"); total = q.optLong("sz", -1) }

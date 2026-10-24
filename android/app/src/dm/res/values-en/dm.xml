@@ -134,4 +134,9 @@
     <string name="dmHashOk">✓ The file is intact — matches the checksum</string>
     <string name="dmHashBad">✕ No match — the file differs from what the site published</string>
     <string name="dmTileLabel">Download from clipboard</string>
+    <string name="dmDlTr">Download &amp; translate in Studio</string>
+    <string name="dmToCloud">Straight to the Studio cloud</string>
+    <string name="dmTranslate">Translate in Studio</string>
+    <string name="dmDoneTrN">Download finished — translate in Studio</string>
+    <string name="dmNoStudio">Studio isn’t installed on this phone</string>
 </resources>

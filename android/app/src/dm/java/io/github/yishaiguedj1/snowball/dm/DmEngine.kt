@@ -57,7 +57,13 @@ object DmEngine {
             val end = try { if (t.kind == DmKind.YTDL) runYt(ctx, t, r) else runHttp(ctx, t, r, conns, pr, host) } catch (e: Throwable) { "fail" }
             running.remove(t.id); speed.remove(t.id)
             when {
-                end == null -> { t.state = DmState.DONE; t.finishedAt = System.currentTimeMillis(); t.err = ""; DmNotif.done(ctx, t) }
+                end == null -> {
+                    t.state = DmState.DONE; t.finishedAt = System.currentTimeMillis(); t.err = ""; DmNotif.done(ctx, t)
+                    // "להוריד ולתרגם": DM פתוח מול המשתמש — ממשיכים ל־Studio מיד (מהרקע אנדרואיד לא מרשה; אז ההתראה)
+                    if (t.tr && DmActivity.visible) android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        runCatching { ctx.startActivity(DmNotif.studioSend(t)) }
+                    }
+                }
                 r.system || end == "stopped_sys" -> { t.state = DmState.QUEUED }
                 end == "stopped" -> { t.state = DmState.PAUSED }
                 else -> { t.state = DmState.FAILED; t.err = end; t.tries++; DmNotif.failed(ctx, t) }

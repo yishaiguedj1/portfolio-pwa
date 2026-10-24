@@ -13,6 +13,10 @@
     <uses-permission android:name="android.permission.RUN_USER_INITIATED_JOBS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- AppRoute: האפליקציה השנייה (Studio ↔ Studio DM) — בלי זה אנדרואיד 11+ "מסתיר" אותה -->
+    <queries>
+        <package android:name="app.thesnowball.studio" />
+    </queries>
     <application android:extractNativeLibs="true" tools:replace="android:theme"
         android:theme="@style/DmTheme">
 

@@ -139,4 +139,9 @@
     <string name="dmHashOk">✓ הקובץ שלם — זהה לסיכום</string>
     <string name="dmHashBad">✕ לא תואם — הקובץ שונה ממה שהאתר פרסם</string>
     <string name="dmTileLabel">הורדה מהלוח</string>
+    <string name="dmDlTr">להוריד ולתרגם ב־Studio</string>
+    <string name="dmToCloud">ישר לענן של Studio</string>
+    <string name="dmTranslate">לתרגם ב־Studio</string>
+    <string name="dmDoneTrN">ההורדה הסתיימה — לתרגם ב־Studio</string>
+    <string name="dmNoStudio">Studio לא מותקן בטלפון</string>
 </resources>

@@ -3148,11 +3148,12 @@ export function normDevProbe(r) {
   return { t: s(r.t, 200) || 'video', u, s: s(r.s, 40), up: s(r.up, 100), d: n(r.d, 0, 1e6), ud: /^\d{8}$/.test(r.ud || '') ? r.ud : '',
     lang: s(r.lang, 10), ch, sub, q, rec: n(r.rec, 0, 8640), ao, drm: r.drm ? 1 : 0, th, rf, alt };
 }
-function linkCheck(f, raw, ref, pre) {
+function linkCheck(f, raw, ref, pre, want) {
   // ref — שלב 2: קובץ/זרם שנמצא בדף (דפדפן הציד) → הדף, והטלפון מוריד עם ה־Referer שלו
   const L = f.link = { u: String(raw || '').trim(), ref: /^https?:\/\//i.test(String(ref || '')) ? String(ref).slice(0, 2048) : '', st: 'busy', e: '', r: null, v: '', sec: null, ch: 1, at: Date.now() };
   const seq = ++linkSeq;
-  L.to = devDl() ? 'dev' : 'cloud';
+  // 24/10/2026: "ישר לענן של Studio" מ־Studio DM — הענן נבחר מראש (רק כשמותר: ui.url, ומקור שלא חוסם — cloudOk בציור)
+  L.to = want === 'cloud' && ui.url ? 'cloud' : devDl() ? 'dev' : 'cloud';
   if (!devDl()) {   // בלי האפליקציה: רק לענן (כשמותר — ui.url), אחרת הסבר
     if (ui.url) linkCheckSrv(f, L, seq); else { L.st = 'err'; L.e = 'app'; }
     render('none'); return;
@@ -7746,7 +7747,7 @@ function closeStudio(instant) {
 let SA = null;
 /* 22/10/2026: "שיתוף ← Studio" / הבועה — טופס חדש ודף הקישור, והבדיקה מתחילה מיד (בלי להדביק).
    גם כש־Studio כבר פתוחה: אנדרואיד מעביר את הקישור ללשונית הקיימת כשינוי ב־hash, בלי טעינה (studio-app.js → hashchange) */
-export function studioShare(text, ref, pr) {
+export function studioShare(text, ref, pr, to) {
   const shared = typeof text === 'string' ? text.trim().slice(0, 4096) : '';
   if (!root || !shared || !/https?:\/\//i.test(shared)) return false;
   // 23/10/2026: מדפדפן הציד — הבדיקה כבר רצה בטלפון (DlActivity), והתוצאה הגיעה יחד עם הכתובת (pr = ‎<n>.<תוצאה>).
@@ -7754,7 +7755,7 @@ export function studioShare(text, ref, pr) {
   const pre = /^([A-Za-z0-9]{6,24})\./.exec(String(pr || ''));
   const L0 = form && form.link;
   if (pre && L0 && L0.n === pre[1] && L0.st === 'busy') return studioProbeRes(pr);   // הדף עוד מחכה לבדיקה הזו
-  form = freshForm(null); go('new', null, 'none'); go('link', null, 'none'); linkCheck(form, shared, ref, pre ? pre[1] : '');
+  form = freshForm(null); go('new', null, 'none'); go('link', null, 'none'); linkCheck(form, shared, ref, pre ? pre[1] : '', to);
   if (pre) studioProbeRes(pr);
   return true;
 }
@@ -7814,7 +7815,7 @@ export function openStudio(opt) {
   // מההתראה: לדף העבודה — מיד אם היא כבר בטלפון, אחרת אחרי שהרשימה מהשרתון מגיעה
   if (jobLink) { if (jobRec(jobLink)) goJobLink(jobLink, linkView, 'none'); else Promise.resolve(jobs0).then(() => { if (root && jobRec(jobLink)) goJobLink(jobLink, linkView); }); }
   // 22/10/2026: "שיתוף ← Studio" — טופס חדש ודף הקישור, והבדיקה מתחילה מיד (בלי להדביק)
-  if (opt) studioShare(opt.share, opt.ref, opt.probe);
+  if (opt) studioShare(opt.share, opt.ref, opt.probe, opt.to);
   if (opt && opt.got) studioGot(opt.got);      // 22/10/2026: הקובץ מההורדה בטלפון / מהגלריה (sw.js → ‎#got=)
   if (opt && opt.dle) studioDlErr(opt.dle);
   // העלאות שנקטעו (רענון): ממשיכים לבד כשיש ידית לקובץ עם הרשאה; אחרת המסך מבקש לבחור שוב

@@ -210,6 +210,8 @@ private fun Empty(a: DmActivity) {
     }
 }
 
+private fun isVideo(t: DmTask) = if (t.kind == DmKind.YTDL) !t.audioOnly else DmName.cat(t.name, t.mime) == DmName.Cat.VIDEO
+
 private fun catIcon(t: DmTask): ImageVector = when (if (t.kind == DmKind.YTDL) (if (t.audioOnly) DmName.Cat.AUDIO else DmName.Cat.VIDEO) else DmName.cat(t.name, t.mime)) {
     DmName.Cat.VIDEO -> DmIcons.Movie
     DmName.Cat.AUDIO -> DmIcons.Music
@@ -259,6 +261,7 @@ private fun TaskRow(a: DmActivity, t: DmTask, onDetails: (String) -> Unit) {
                 if (t.state == DmState.QUEUED || t.state == DmState.WAITING || t.state == DmState.PAUSED || t.state == DmState.FAILED)
                     DropdownMenuItem({ Text(stringResource(R.string.dmFirst)) }, { menu = false; DmEngine.startFirst(ctx, t.id) })
                 if (t.state == DmState.DONE) DropdownMenuItem({ Text(stringResource(R.string.dmShare)) }, { menu = false; a.share(t) })
+                if (t.state == DmState.DONE && isVideo(t) && a.studioHere()) DropdownMenuItem({ Text(stringResource(R.string.dmTranslate)) }, { menu = false; a.translate(t) })
                 DropdownMenuItem({ Text(stringResource(R.string.dmCopyLink)) }, { menu = false; copy(ctx, t.url) })
                 DropdownMenuItem({ Text(stringResource(R.string.dmRemove)) }, { menu = false; DmEngine.delete(ctx, t.id, false) })
                 if (t.state == DmState.DONE) DropdownMenuItem({ Text(stringResource(R.string.dmDeleteFile), color = MaterialTheme.colorScheme.error) },
@@ -304,7 +307,11 @@ private fun Details(a: DmActivity, t: DmTask, rev: Int, onClose: () -> Unit) {
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 when (t.state) {
-                    DmState.DONE -> { Button(onClick = { a.open(t) }) { Text(stringResource(R.string.dmOpen)) }; FilledTonalButton(onClick = { a.share(t) }) { Text(stringResource(R.string.dmShare)) } }
+                    DmState.DONE -> {
+                        Button(onClick = { a.open(t) }) { Text(stringResource(R.string.dmOpen)) }
+                        if (isVideo(t) && a.studioHere()) FilledTonalButton(onClick = { a.translate(t) }) { Text(stringResource(R.string.dmTranslate)) }
+                        else FilledTonalButton(onClick = { a.share(t) }) { Text(stringResource(R.string.dmShare)) }
+                    }
                     DmState.FAILED, DmState.PAUSED -> Button(onClick = { DmEngine.resume(ctx, t.id) }) { Text(stringResource(R.string.dmRetry)) }
                     else -> FilledTonalButton(onClick = { DmEngine.pause(ctx, t.id) }) { Text(stringResource(R.string.dmPause)) }
                 }
@@ -442,8 +449,10 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                             Text(stringResource(R.string.dmRefreshGo), fontSize = 17.sp)
                         }
                         TextButton(onClick = { a.refreshId.value = "" }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.dmRefreshNew)) }
-                    } else
-                    Button(onClick = { a.addFile(f, name, ref); onClose() }, Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(R.string.dmGo), fontSize = 17.sp) }
+                    } else {
+                        Button(onClick = { a.addFile(f, name, ref); onClose() }, Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(R.string.dmGo), fontSize = 17.sp) }
+                        if (DmName.cat(f.name, f.mime) == DmName.Cat.VIDEO) StudioRow(a, f.url, ref, true) { a.addFile(f, name, ref, tr = true); onClose() }
+                    }
                 }
                 is DmActivity.Found.Video -> {
                     val info = f.info
@@ -476,12 +485,27 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                     Button(onClick = { a.addVideo(f, list.getOrNull(qi), audio, ref); onClose() }, Modifier.fillMaxWidth().height(52.dp)) {
                         Text(stringResource(R.string.dmGo), fontSize = 17.sp)
                     }
+                    if (!audio) StudioRow(a, f.url, ref, cloudOk(info)) { a.addVideo(f, list.getOrNull(qi), false, ref, tr = true); onClose() }
                 }
             }
         }
     }
 }
 
+
+/** יוטיוב חוסם את השרת — שם "ישר לענן" לא אפשרי (כמו cloudBlocked ב־studio.js) */
+private fun cloudOk(info: JSONObject) = !Regex("^youtube", RegexOption.IGNORE_CASE).containsMatchIn(info.optString("s"))
+
+/** 24/10: סרטון — גם לעבודה ב־Studio: להוריד כאן ולתרגם, או ישר לענן של Studio בלי להוריד לטלפון */
+@Composable
+private fun StudioRow(a: DmActivity, url: String, ref: String, cloud: Boolean, downloadAndTranslate: () -> Unit) {
+    if (!a.studioHere()) return
+    Spacer(Modifier.height(6.dp))
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilledTonalButton(onClick = downloadAndTranslate, Modifier.weight(1f)) { Text(stringResource(R.string.dmDlTr), maxLines = 2) }
+        if (cloud) FilledTonalButton(onClick = { a.toCloud(url, ref) }, Modifier.weight(1f)) { Text(stringResource(R.string.dmToCloud), maxLines = 2) }
+    }
+}
 
 /* ---------- שלב 3: הוספה של הרבה קישורים / שחזור מגיבוי ---------- */
 @Composable
