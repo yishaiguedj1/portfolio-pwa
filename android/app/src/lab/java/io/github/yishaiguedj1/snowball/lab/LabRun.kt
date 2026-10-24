@@ -121,29 +121,27 @@ object LabRun {
             r("4. צריבה $lbl ($pix, ${Fmt.dur(sec)}): ${Fmt.n(b.ms / 1000.0)} שנ׳ = ${Fmt.n(sec / (b.ms / 1000.0), 2)}x זמן אמת (${Fmt.perHour(b.ms / 1000.0, sec)}) · " +
                 "${b.fps?.let { Fmt.n(it, 0) } ?: "?"}fps · ${Fmt.mb(out.length())} · שיא ${b.peakChildKb / 1024}MB · ${LabSys.heat(ctx)}")
 
-        // מקודדי החומרה: קודם ניסיון קצר (5 שנ׳) בכמה צורות, עם השגיאה המלאה; רק מה שעבר נמדד על כל [burnSec]
+        // מקודדי החומרה דרך ffmpeg: נכשלו בגרסה 2 בכל הצורות ("Could not open encoder", ‏-22). ניסיון אחד, והשורות של המקודד עצמו
         for ((name, rate) in hw) {
             ck()
             st("צריבה · $name")
-            val variants = listOf(
-                Triple("nv12 · NDK", "nv12", listOf("-ndk_codec", "1")),
-                Triple("yuv420p · NDK", "yuv420p", listOf("-ndk_codec", "1")),
-                Triple("nv12", "nv12", emptyList()),
-                Triple("nv12 · NDK · ‏CQ", "nv12", listOf("-ndk_codec", "1", "-bitrate_mode", "cq")),
-            )
-            var won: Triple<String, String, List<String>>? = null
-            for (v in variants) {
-                ck()
-                val codec = listOf("-c:v", name, "-b:v", "$rate") + v.third
-                val b = burn(name, v.second, codec, minOf(5.0, sec), listOf("-loglevel", "verbose"))
-                if (b.code == 0 && out.length() > 0) { won = v; r("4. $name · ${v.first}: ✓ בניסיון הקצר"); break }
-                r("4. $name · ${v.first}: ✕ קוד ${b.code}")
-                for (l in FfLine.errors(b.text, 6)) r("   $l")
-            }
-            val w = won ?: continue
-            val b = burn(name, w.second, listOf("-c:v", name, "-b:v", "$rate") + w.third, sec)
-            if (b.code == 0 && out.length() > 0) okLine("$name (${w.first})", w.second, b)
-            else { r("4. צריבה $name: ✕ קוד ${b.code} במדידה המלאה"); for (l in FfLine.errors(b.text, 6)) r("   $l") }
+            val b = burn(name, "nv12", listOf("-c:v", name, "-b:v", "$rate", "-ndk_codec", "1"), minOf(3.0, sec), listOf("-loglevel", "debug"))
+            if (b.code == 0 && out.length() > 0) { r("4. $name (ffmpeg): ✓"); continue }
+            r("4. $name (ffmpeg): ✕ קוד ${b.code}")
+            for (l in FfLine.own(b.text, name, 10)) r("   $l")
+        }
+
+        // המסלול החדש: ffmpeg צורב את הכתוביות ומוציא פריימים, MediaCodec של אנדרואיד מקודד (בתוך האפליקציה)
+        val fps = vid.third ?: 30.0
+        for ((mime, lbl, rate) in listOf(Triple("video/hevc", "HEVC", br), Triple("video/avc", "H.264", br * 3 / 2), Triple("video/av01", "AV1", br * 3 / 4))) {
+            ck()
+            st("צריבה · MediaCodec $lbl")
+            val res = LabCodec.burn(ctx, input, vf, sec, w, h, fps, mime, rate.toInt(), out, File(work, "ff.err"), { stop })
+            if (res.ok) {
+                val s = res.ms / 1000.0
+                r("4. צריבה MediaCodec $lbl · ${res.codec} (${Fmt.dur(sec)}): ${Fmt.n(s)} שנ׳ = ${Fmt.n(sec / s, 2)}x זמן אמת (${Fmt.perHour(s, sec)}) · " +
+                    "${Fmt.n(res.frames / s, 0)}fps · ${res.frames} פריימים · ${Fmt.mb(res.bytes)} · ${LabSys.heat(ctx)}")
+            } else r("4. צריבה MediaCodec $lbl: ✕ ${res.codec ?: ""} ${res.err ?: ""}".trim())
         }
         for ((lbl, codec) in sw) {
             ck()
