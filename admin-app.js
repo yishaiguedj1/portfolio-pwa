@@ -986,7 +986,8 @@ page('imp', { tab: 'imp', title: () => t('admTabImp'), render(p) {
 } });
 /* ---- ריצת מבחן (פריט 15 בסבב הייעול, 21/10/2026): עבודת זהב (תרגום אנושי לייחוס) × כמה מצבים, על השרת של המערכת.
    אומדן ואישור לפני; העבודות נוצרות ב־goldRun ומתחילות ב־start (כל השמירות הרגילות); הציון (chrF++, כיסוי זמן) — מהעובד ---- */
-const GOLD_XE = { main: 'medium', rv: 'medium' }, GOLD_MAX = 5;   // = S.GOLD_MAX בשרתון
+// ניסוי המאמץ: pr = ההגהה והביקורת במאמץ בינוני; all = גם התרגום (פריט 8 בסבב הייעול)
+const GOLD_XES = { pr: { main: 'medium', rv: 'medium' }, all: { main: 'medium', tl: 'medium', rv: 'medium' } }, GOLD_MAX = 5;   // = S.GOLD_MAX בשרתון
 const GOLD_MODES = ['haiku-medium', 'haiku-high', 'sonnet-low', 'sonnet-medium', 'sonnet-high', 'opus-medium'];
 const jobUsd = (j) => (Array.isArray(j.use) ? j.use : []).reduce((a, r) => a + (r && typeof r.usd === 'number' ? r.usd : 0), 0);
 async function needGold(force) {
@@ -1014,14 +1015,15 @@ page('gold', { tab: 'imp', parent: 'imp', title: () => t('admGoldT'), render(p) 
   p.append(grp(t('admGoldModes')), list(...GOLD_MODES.map((m) => { const e = goldEst(src, m); return row({ c: D.gModes.has(m) ? 'blue' : 'gray', ic: D.gModes.has(m) ? '✓' : '',
     t: modeName(m), v: e == null ? '' : '≈' + usd(e), on: () => { if (D.gModes.has(m)) D.gModes.delete(m); else D.gModes.add(m); paint(); } }); })));
   // 24/10/2026: ניסוי המאמץ — כל מצב שנבחר רץ פעמיים (רגיל + הגהה וביקורת במאמץ בינוני)
-  p.append(list(row({ c: D.gXe ? 'purple' : 'gray', ic: D.gXe ? '✓' : '', t: t('admGoldXe'), s: t('admGoldXeS'), on: () => { D.gXe = !D.gXe; paint(); } })));
+  const xeRow = (k, tt, ss) => row({ c: D.gXe === k ? 'purple' : 'gray', ic: D.gXe === k ? '✓' : '', t: tt, s: ss, on: () => { D.gXe = D.gXe === k ? '' : k; paint(); } });
+  p.append(list(xeRow('pr', t('admGoldXe'), t('admGoldXeS')), xeRow('all', t('admGoldXeAll'), t('admGoldXeAllS'))));
   const k = D.gXe ? 2 : 1, sel = GOLD_MODES.filter((m) => D.gModes.has(m)), tot = k * sel.reduce((a, m) => a + (goldEst(src, m) || 0), 0);
   const runs = jobs.filter((j) => j.gs === D.gSrc);
   const busy = runs.some((j) => ['new', 'queued', 'running'].includes(j.state));
   const go1 = h('button', 'btn', fmt(t('admGoldRun'), { n: k * sel.length, u: usd(tot) })); go1.type = 'button'; go1.disabled = !sel.length || busy || k * sel.length > GOLD_MAX;
   go1.addEventListener('click', () => askConfirm(fmt(t('admGoldQ'), { n: k * sel.length, u: usd(tot) }), async () => {
     go1.disabled = true;
-    const r = await api('goldRun', Object.assign({ ok: true, src: D.gSrc, modes: sel }, D.gXe ? { xe: GOLD_XE, both: true } : {}));
+    const r = await api('goldRun', Object.assign({ ok: true, src: D.gSrc, modes: sel }, D.gXe ? { xe: GOLD_XES[D.gXe], both: true } : {}));
     if (!r.ok) { flash(t('admErr') + ' · ' + (r.error || '')); go1.disabled = false; return; }
     let bad = 0;
     for (const j of r.jobs || []) { const s2 = await api('start', { job: j.id }); if (!s2.ok) bad++; }
@@ -1034,7 +1036,7 @@ page('gold', { tab: 'imp', parent: 'imp', title: () => t('admGoldT'), render(p) 
   if (runs.length) {
     const stTxt = (j) => (j.state === 'done' ? (j.gq ? 'chrF++ ' + j.gq.s + ' · ' + fmt(t('admGoldTm'), { n: j.gq.tm }) : t('admGoldNoScore')) : j.state === 'failed' ? t('admGoldFailed') : t('admGoldRunning'));
     p.append(grp(t('admGoldRes'), [t('admGoldRefresh'), () => needGold(true)]), list(...runs.sort((a, b) => (b.created || 0) - (a.created || 0)).slice(0, 18).map((j) =>
-      row({ c: j.state === 'done' ? (j.gq ? 'green' : 'gray') : j.state === 'failed' ? 'red' : 'blue', ic: '◎', t: modeName(j.spec && j.spec.mode) + (j.spec && j.spec.xe ? ' · ' + t('admGoldXeTag') : '') + ' · ' + day(j.created), s: stTxt(j),
+      row({ c: j.state === 'done' ? (j.gq ? 'green' : 'gray') : j.state === 'failed' ? 'red' : 'blue', ic: '◎', t: modeName(j.spec && j.spec.mode) + (j.spec && j.spec.xe ? ' · ' + (j.spec.xe.tl ? t('admGoldXeTagAll') : t('admGoldXeTag')) : '') + ' · ' + day(j.created), s: stTxt(j),
         v: jobUsd(j) ? usd(jobUsd(j)) : '' }))));
   }
   p.append(h('p', 'adm-foot', t('admGoldFoot')));
