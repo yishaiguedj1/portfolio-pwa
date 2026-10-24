@@ -56,6 +56,14 @@ const { fakeR2, ENV } = require('./_r2fake');
     ok(r.status === 403 && !(await r.json()).ok, 'קישור שפג (403 מ־R2) — כישלון גלוי (Background Fetch נכשל והטלפון חוזר להעלאה הרגילה)');
     r = await fwd(real, 10, Buffer.alloc(10), 500);
     ok(r.status === 502, 'תקלה ב־R2 — 502');
+    {
+      const big = await UP.upForward(new Request('https://studio.thesnowball.app/up?u=' + encodeURIComponent(real), {
+        method: 'POST', body: Buffer.alloc(10), headers: { 'content-length': '10' }, duplex: 'half' }),
+      { fetch: async () => new Response('', { status: 200, headers: { etag: '"' + 'x'.repeat(9000) + '"' } }) });
+      const sizes = [(await big.arrayBuffer()).byteLength];
+      for (const st of [403, 500]) sizes.push((await (await fwd(real, 10, Buffer.alloc(10), st)).arrayBuffer()).byteLength);
+      ok(sizes.every((n) => n > 0 && n < 400), 'כל תשובה של /up קטנה (גם עם ETag ענק) — מתחת לתקרה שהטלפון מצהיר ל־Chrome לכל חלק');
+    }
     const g = UP.onRequestGet();
     ok((await g.json()).up === 1, 'GET /up = "יש כאן נתיב העלאה" (הטלפון בודק לפני)');
   }
@@ -202,7 +210,7 @@ const { fakeR2, ENV } = require('./_r2fake');
       job: JOB, name: 'v.mp4', blob, size: 150, mime: 'video/mp4', onState: (x) => st.push(x), onProgress: (b) => prog.push(b), title: 'T' }, env);
     await new Promise((r) => setTimeout(r, 20));
     ok(apiCalls[0][0] === 'r2bg' && got.id === 'snbup-' + JOB && got.reqs.length === 2 && got.reqs[0].url === '/up?u=' + encodeURIComponent('https://r/1')
-      && got.reqs[0].o.method === 'POST' && got.reqs[0].o.body.size === 64 && got.reqs[1].o.body.size === 22 && got.opt.title === 'T',
+      && got.reqs[0].o.method === 'POST' && got.reqs[0].o.body.size === 64 && got.reqs[1].o.body.size === 22 && got.opt.title === 'T' && got.opt.downloadTotal === 2 * B.BG_RESP_MAX,
     'נרשם Background Fetch: POST ל־/up באותו מקור לכל חלק חסר, עם הקישור החתום שלו');
     ok(st[0].id === 'FID' && st[0].up === 'UP' && st[0].ps === 64, 'מצב ההעלאה נשמר (ההעלאה הרגילה ממשיכה מאותה העלאה)');
     ok(saved[0].id === 'snbup-' + JOB && saved[0].fk === 'K'.repeat(43) && saved[0].fid === 'FID' && saved[0].apis.length === 2 && saved[0].l === 'he',
