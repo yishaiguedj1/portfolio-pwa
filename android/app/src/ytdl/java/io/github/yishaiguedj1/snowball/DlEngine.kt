@@ -170,10 +170,10 @@ object DlEngine {
     /** הורדה לתיקייה של האפליקציה (yt-dlp צריך נתיב רגיל), מיזוג בלי קידוד מחדש — MP4 כשאפשר, אחרת MKV.
      *  progress: 0–100. מחזיר את הקובץ. כשל → IllegalArgumentException(קוד) */
     fun download(ctx: Context, url: String, ref: String, pick: Pick, id: String, progress: (Float, Long) -> Unit): File =
-        download(ctx, url, ref, pick, id, "", progress)
+        download(ctx, url, ref, pick, id, "", progress = progress)
 
     /** format = בורר yt-dlp משלך (Studio DM: "רק קול" — ‎ba/b‎); ריק = לפי pick, כמו ב־Studio */
-    fun download(ctx: Context, url: String, ref: String, pick: Pick, id: String, format: String, progress: (Float, Long) -> Unit): File {
+    fun download(ctx: Context, url: String, ref: String, pick: Pick, id: String, format: String, onLine: (String) -> Unit = {}, progress: (Float, Long) -> Unit): File {
         prepare(ctx)
         val dir = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "dl/$id").apply { mkdirs() }
         val req = base(YoutubeDLRequest(url), ref, cookiesFor(ctx, url, ref))
@@ -184,7 +184,7 @@ object DlEngine {
             .addOption("--print", "after_move:filepath")
         if (pick.s1 > pick.s0) req.addOption("--download-sections", "*${pick.s0}-${pick.s1}")
         val res = try {
-            YoutubeDL.getInstance().execute(req, id) { p, eta, _ -> progress(p, eta) }
+            YoutubeDL.getInstance().execute(req, id) { p, eta, line -> progress(p, eta); onLine(line) }
         } catch (e: YoutubeDL.CanceledException) {
             throw IllegalArgumentException("cancel")
         } catch (e: Throwable) {

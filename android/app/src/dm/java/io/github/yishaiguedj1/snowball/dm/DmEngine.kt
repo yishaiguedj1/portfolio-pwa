@@ -17,6 +17,9 @@ object DmEngine {
     @Volatile private var netCb: ConnectivityManager.NetworkCallback? = null
     /** מהירות לכל משימה (בתים לשנייה), לממשק בלבד */
     val speed = ConcurrentHashMap<String, Long>()
+    /** yt-dlp: השלב שרץ (מתחבר / מוריד / ממזג…) והזמן שנותר לפי yt-dlp — לשורת המצב (DmYt) */
+    val ytStage = ConcurrentHashMap<String, DmYt.Stage>()
+    val ytEta = ConcurrentHashMap<String, Long>()
 
     private class Runner(val id: String) {
         @Volatile var stop = false
@@ -55,7 +58,7 @@ object DmEngine {
             val host = DmLink.host(t.url)
             val conns = DmHostRules.conns(hostRule(pr, host), pr.conns)
             val end = try { if (t.kind == DmKind.YTDL) runYt(ctx, t, r) else runHttp(ctx, t, r, conns, pr, host) } catch (e: Throwable) { "fail" }
-            running.remove(t.id); speed.remove(t.id)
+            running.remove(t.id); speed.remove(t.id); ytStage.remove(t.id); ytEta.remove(t.id)
             when {
                 end == null -> {
                     t.state = DmState.DONE; t.finishedAt = System.currentTimeMillis(); t.err = ""; DmNotif.done(ctx, t)
@@ -121,17 +124,26 @@ object DmEngine {
         val pick = DlEngine.Pick(t.vf, t.af, t.height.coerceAtLeast(0), 0, 0)
         val fmt = if (t.audioOnly) "ba/b" else ""
         var lastP = 0L
+        val pr = DmYt.Progress(if (t.audioOnly || t.af.isEmpty()) 1 else 2, t.pctYt)
+        ytStage[t.id] = pr.stage
         val stopWatch = Thread {
             while (!r.stop && running.containsKey(t.id)) Thread.sleep(300)
             if (r.stop) DlEngine.cancel("dm-" + t.id)
         }.apply { isDaemon = true; start() }
         return try {
-            val f = DlEngine.download(ctx, t.url, t.ref, pick, "dm-" + t.id, fmt) { p, _ ->
+            // כל שורה של yt-dlp → שלב ואחוז של כל ההורדה (וידאו ואחריו קול); האחוז שלו לבדו מתאפס בכל חלק
+            val f = DlEngine.download(ctx, t.url, t.ref, pick, "dm-" + t.id, fmt, onLine = ln@{ line ->
+                if (!pr.feed(line)) return@ln
                 val now = System.currentTimeMillis()
-                t.pctYt = (p / 100f).coerceIn(0f, 1f)
-                t.bytesYt = if (t.total > 0) (t.total * t.pctYt).toLong() else 0
-                if (now - lastP > 2000) { lastP = now; DmStore.save(); DmNotif.update(ctx) }
-            }
+                val moved = ytStage.put(t.id, pr.stage) != pr.stage
+                if (pr.frac >= 0f) {
+                    t.pctYt = pr.frac
+                    t.bytesYt = if (t.total > 0) (t.total * pr.frac).toLong() else 0
+                }
+                if (pr.bps > 0) speed[t.id] = pr.bps else if (pr.stage != DmYt.Stage.DL) speed.remove(t.id)
+                if (pr.eta >= 0) ytEta[t.id] = pr.eta else ytEta.remove(t.id)
+                if (moved || now - lastP > 2000) { lastP = now; DmStore.save(); DmNotif.update(ctx) }
+            }) { _, _ -> }
             DmMedia.importFile(ctx, t, f)
             null
         } catch (e: IllegalArgumentException) {

@@ -139,4 +139,9 @@
     <string name="dmTranslate">Translate in Studio</string>
     <string name="dmDoneTrN">Download finished — translate in Studio</string>
     <string name="dmNoStudio">Studio isn’t installed on this phone</string>
+    <string name="dmStPrep">Preparing the download engine…</string>
+    <string name="dmStConn">Connecting to the site…</string>
+    <string name="dmStRetry">Retrying…</string>
+    <string name="dmStMerge">Merging video and audio…</string>
+    <string name="dmStPost">Finishing…</string>
 </resources>

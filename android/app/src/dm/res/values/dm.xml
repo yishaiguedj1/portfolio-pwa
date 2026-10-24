@@ -144,4 +144,9 @@
     <string name="dmTranslate">לתרגם ב־Studio</string>
     <string name="dmDoneTrN">ההורדה הסתיימה — לתרגם ב־Studio</string>
     <string name="dmNoStudio">Studio לא מותקן בטלפון</string>
+    <string name="dmStPrep">מכין את מנוע ההורדה…</string>
+    <string name="dmStConn">מתחבר לאתר…</string>
+    <string name="dmStRetry">מנסה שוב…</string>
+    <string name="dmStMerge">ממזג וידאו וקול…</string>
+    <string name="dmStPost">מסיים…</string>
 </resources>
