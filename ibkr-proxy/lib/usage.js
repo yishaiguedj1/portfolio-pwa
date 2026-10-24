@@ -62,7 +62,11 @@ async function getJson(f, url, opt) {
   if (r.status === 403) {
     // 24/10/2026: ב־Google 403 הוא שני דברים שונים — ה־API כבוי בפרויקט (SERVICE_DISABLED) או שחסר תפקיד. רק קוד, בלי ההודעה
     const tx = typeof r.text === 'function' ? await r.text().catch(() => '') : '';
-    return { err: /SERVICE_DISABLED|has not been used|is disabled/.test(tx) ? 'api_off' : 'http_403' };
+    // ההודעה של Google (איזו הרשאה, על איזה פרויקט) — קצרה ונקייה, למרכז הניהול בלבד
+    let m = '';
+    try { const e = JSON.parse(tx).error; m = e && e.message ? String(e.message) : ''; } catch (e) { m = ''; }
+    m = m.replace(/[^A-Za-z0-9 _.,:'"$!()\/\[\]@-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+    return Object.assign({ err: /SERVICE_DISABLED|has not been used|is disabled/.test(tx) ? 'api_off' : 'http_403' }, m ? { m } : {});
   }
   if (r.status !== 200) return { err: 'http_' + r.status };
   try { return { j: await r.json() }; } catch (e) { return { err: 'shape' }; }
@@ -105,7 +109,7 @@ async function firestoreUsage(env, f, now) {
     const tk = await cloudToken(f);
     const auth = { headers: { Authorization: 'Bearer ' + tk } };
     const r1 = await getJson(f, q('read_count'), auth), r2 = await getJson(f, q('write_count'), auth);
-    if (r1.err || r2.err) return { st: 'err', err: r1.err || r2.err, items: [] };
+    if (r1.err || r2.err) return Object.assign({ st: 'err', err: r1.err || r2.err, items: [] }, (r1.m || r2.m) ? { m: r1.m || r2.m } : {});
     return parseFs(r1.j, r2.j);
   } catch (e) { return { st: 'err', err: e.message === 'not_configured' ? 'off' : 'auth', items: [] }; }
 }
