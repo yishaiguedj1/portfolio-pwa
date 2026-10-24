@@ -56,6 +56,16 @@ MODES = {
 }
 # 15/10/2026 (בקשת המשתמש): ברירת המחדל = Haiku High ("רגיל"); Sonnet Medium = "ביצועים". = DEFAULT_MODE בשרתון ובטלפון
 DEFAULT_MODE = 'haiku-high'
+# 24/10/2026 (ניסוי המאמץ, סט הזהב): מאמץ אחר לתפקיד אחד — main = ההגהה והתדריך, tl = התרגום, rv = הביקורת.
+# = XE_KEYS / XE_EFFORTS בשרתון (lib/studio.js normXe). רק בהרצות של סט הזהב — לא נבחר בטופס.
+ROLE_EFFORT_KEYS = ('main', 'tl', 'rv')
+EFFORTS = ('low', 'medium', 'high', 'max')
+
+
+def norm_xe(x) -> dict:
+    if not isinstance(x, dict):
+        return {}
+    return {k: v for k, v in x.items() if k in ROLE_EFFORT_KEYS and v in EFFORTS}
 # 11/10/2026: Haiku Medium יצא; 20/10/2026 (בקשת המשתמש): חזר כמצב לבדיקות — לא ממופה יותר ל־High
 LEGACY_MODES = {'opus-high': 'opus-medium', 'opus-max': 'opus-medium'}   # = LEGACY_MODES בשרתון
 
@@ -214,6 +224,7 @@ class Engine:
 
     def __init__(self, spec: Spec, cap_usd: float | None = None, client=None, transport: str | None = None):
         self.spec = spec
+        self.role_effort: dict = {}      # 24/10/2026: ניסוי המאמץ — רק מעבודות של סט הזהב (spec.xe, ROLE_EFFORT_KEYS)
         # 'api' = Messages API עם המפתח של המערכת · 'cli' = claude -p במנוי · 'relay' = claude -p במנוי, דרך התור (העבודה בשרת שלנו)
         self.transport = transport or ('relay' if RELAY else None) or os.environ.get('SNB_LLM') or TRANSPORT
         self.cap = cap_usd
@@ -235,6 +246,10 @@ class Engine:
         with self._lock:
             return {'cw': self.cache_warns, 'rr': self.refusal_retries, 'tc': self.trunc, 'mr': self.mid_retries,
                     'fb': len(self._fixed_calls), 'th': dict(self.think)}
+
+    def effort(self) -> str:
+        """24/10/2026 (ניסוי המאמץ): מאמץ לפי התפקיד של הקריאה (role_effort: main / tl / rv), אחרת של המצב."""
+        return (self.role_effort.get(getattr(_tl, 'k', '')) if self.role_effort else None) or self.spec.effort or 'medium'
 
     # ------------------------------------------------------------------ ממשק אחד
     def complete(self, k: str, system_fixed: str, prompt: str, max_tokens: int = 32000,
@@ -386,7 +401,7 @@ class Engine:
         kw = dict(model=self.spec.model, max_tokens=max_tokens, system=system,
                   messages=[{'role': 'user', 'content': prompt}], thinking={'type': 'adaptive'},
                   # effort מקובע מפורשות תמיד — ברירות המחדל של המודלים שונות (Opus 5.5 = medium) ואסור לסמוך עליהן.
-                  output_config={'effort': self.spec.effort or 'medium'},
+                  output_config={'effort': self.effort()},
                   # cache diagnostics (GA, חינם): התשובה אומרת למה המטמון פוספס. חייב להישלח בכל בקשה —
                   # טביעת האצבע נשמרת רק לבקשות שכללו diagnostics.
                   extra_body={'diagnostics': {'previous_message_id': prev_id}})
@@ -462,7 +477,7 @@ class Engine:
         env = {k: v for k, v in os.environ.items() if k not in CLI_DROP_ENV}
         env.update(CLI_ENV)
         env['CLAUDE_CODE_MAX_OUTPUT_TOKENS'] = str(int(max_tokens))
-        cmd = [exe, '-p', '--model', self.spec.model, '--effort', self.spec.effort or 'medium',
+        cmd = [exe, '-p', '--model', self.spec.model, '--effort', self.effort(),
                '--system-prompt-file', str(sp), *CLI_FLAGS]
         user = (extra + '\n\n' + prompt) if extra else prompt
         try:
@@ -537,7 +552,7 @@ class Engine:
             raise LLMError('relay_error', 'אין תור')
         try:
             a = R.call(r['base'], r['job'], r['key'], k=getattr(_tl, 'k', ''), model=self.spec.model,
-                       effort=self.spec.effort or 'medium', max_tokens=max_tokens, fixed=fixed, extra=extra,
+                       effort=self.effort(), max_tokens=max_tokens, fixed=fixed, extra=extra,
                        prompt=prompt, on_first_token=on_first_token)
         except R.RelayError as e:
             raise LLMError(e.code, 'התור: ' + str(e)) from e
