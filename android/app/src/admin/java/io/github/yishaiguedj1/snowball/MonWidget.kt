@@ -140,6 +140,7 @@ private fun MonContent(context: Context, hasToken: Boolean, authBad: Boolean, sn
                     items(snap.servers, itemId = { it.id.hashCode().toLong() }) { s ->
                         ServerBlock(context, s, compact, first = s === snap.servers.first())
                     }
+                    snap.sto?.let { st -> item(itemId = -1L) { StoreBlock(context, st) } }
                 }
             }
         }
@@ -238,6 +239,66 @@ private fun ServerBlock(context: Context, s: MonServer, compact: Boolean, first:
         Spacer(GlanceModifier.height(10.dp))
     }
 }
+
+/**
+ * 24/10/2026: אחסון ועלות — באותה שפה של מדדי השרת: R2 (כל הדליים, מעל 10GB החינמיים = כתום), הצפי לחודש בדולרים,
+ * וה־Drive של הגיבוי באחוזים עם פס. מדידה שנכשלה — "!" (הקוד במרכז הניהול), לא מספר מומצא
+ */
+@Composable
+private fun StoreBlock(context: Context, st: MonSto) {
+    Column(GlanceModifier.fillMaxWidth()) {
+        Box(GlanceModifier.fillMaxWidth().height(1.dp).background(C.line)) {}
+        Spacer(GlanceModifier.height(10.dp))
+        Text(
+            context.getString(R.string.mon_sto_title), style = TextStyle(color = C.on, fontSize = 15.sp, fontWeight = FontWeight.Medium),
+            maxLines = 1,
+        )
+        Spacer(GlanceModifier.height(8.dp))
+        Row(GlanceModifier.fillMaxWidth()) {
+            val over = !st.r2Gb.isNaN() && st.r2Gb > 10.0
+            val r2v = when {
+                !st.r2Gb.isNaN() -> gb(st.r2Gb)
+                st.r2Err.isNotEmpty() -> "!"
+                else -> "—"
+            }
+            // אריח ברוחב שליש — תווית קצרה; מעל 10GB החינמיים הערך כתום, והכסף באריח הבא
+            val r2l = if (st.r2Gb.isNaN() && st.r2Err.isNotEmpty()) context.getString(R.string.mon_sto_r2_err) else context.getString(R.string.mon_sto_r2)
+            Tile(r2v, r2l, if (over || st.r2Gb.isNaN() && st.r2Err.isNotEmpty()) C.warn else C.on, null, C.cpu, GlanceModifier.defaultWeight())
+            Spacer(GlanceModifier.width(14.dp))
+            val costv = if (st.proj.isNaN()) "—" else usd(st.proj)
+            Tile(costv, context.getString(R.string.mon_sto_cost), if (!st.proj.isNaN() && st.proj > 0.0) C.warn else C.on, null, C.mem, GlanceModifier.defaultWeight())
+            Spacer(GlanceModifier.width(14.dp))
+            val dp = if (st.driveGb.isNaN() || st.driveLim.isNaN() || st.driveLim <= 0.0) Double.NaN else st.driveGb / st.driveLim * 100.0
+            val dwarn = !dp.isNaN() && dp >= 80.0
+            Tile(
+                if (!dp.isNaN()) pct(dp) else if (!st.driveGb.isNaN()) gb(st.driveGb) else "—",
+                context.getString(R.string.mon_sto_drive), if (dwarn) C.warn else C.on, dp, if (dwarn) C.warn else C.disk, GlanceModifier.defaultWeight(),
+            )
+        }
+        Spacer(GlanceModifier.height(10.dp))
+    }
+}
+
+/** אריח כמו Metric, עם ערך טקסט; פס רק כשיש אחוז */
+@Composable
+private fun Tile(value: String, label: String, tone: androidx.glance.unit.ColorProvider, pctV: Double?, color: androidx.glance.unit.ColorProvider, mod: GlanceModifier) {
+    Column(mod) {
+        Text(value, style = TextStyle(color = tone, fontSize = 22.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+        Text(label, style = TextStyle(color = C.variant, fontSize = 12.sp), maxLines = 1)
+        if (pctV != null && !pctV.isNaN()) {
+            Spacer(GlanceModifier.height(5.dp))
+            LinearProgressIndicator(
+                progress = (pctV / 100.0).toFloat().coerceIn(0f, 1f),
+                modifier = GlanceModifier.fillMaxWidth().height(4.dp).cornerRadius(2.dp),
+                color = color, backgroundColor = C.track,
+            )
+        }
+    }
+}
+
+private fun gb(v: Double): String = ltr(if (v < 1.0) "${(v * 1000).roundToInt()} MB" else if (v < 10.0) String.format(Locale.ROOT, "%.1f GB", v) else "${v.roundToInt()} GB")
+
+private fun usd(v: Double): String = ltr(String.format(Locale.ROOT, "$%.2f", v))
 
 /** מדד אחד: הערך בגדול, השם מתחתיו ופס דק. חורג מהסף = כתום */
 @Composable

@@ -2223,7 +2223,8 @@ async function handler(req, res, deps = {}) {
       const srv = raw.map((x) => { const v = S.serverView(x, now); return v && Object.assign(v, { mon: Array.isArray(x.mon) ? x.mon : [] }); }).filter(Boolean);
       const cfg = (await readDoc(deps, 'sysCfg', 'main').catch(() => null)) || {};
       const run = jobs.map((j) => ({ sid: j.sid, st: (j.prog || {}).st, p: (j.prog || {}).p }));
-      return res.status(200).json({ ok: true, now, tok: { on: !!cfg.monKh, at: cfg.monAt > 0 ? cfg.monAt : 0 }, mon: MON.monView(srv, run, now) });
+      const usg = await readDoc(deps, 'sysUsage', 'main').catch(() => null);   // 24/10/2026: האחסון והעלות גם בווידג'ט
+      return res.status(200).json({ ok: true, now, tok: { on: !!cfg.monKh, at: cfg.monAt > 0 ? cfg.monAt : 0 }, mon: MON.monView(srv, run, now), sto: USG.stoBrief(usg && usg.sto) });
     }
     if (op === 'provUsage') {
       // 23/10/2026: שימוש בפועל מול הספקים — רק מנהל (בלי טוקן ניטור). ספק בלי טוקן = off, ואף מספר לא מומצא

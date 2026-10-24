@@ -240,6 +240,19 @@ function provMerge(prov, kept) {
   return out;
 }
 
+/* 24/10/2026: תקציר האחסון לווידג'ט של מרכז הניהול (adminMon) — רק מספרים: R2 בסך הכל, העלות, השגיאה האחרונה ו־Drive */
+function stoBrief(sto) {
+  const S = sto && typeof sto === 'object' ? sto : {}, out = {};
+  const r2 = S.r2, dr = S.drive;
+  if (r2 && Array.isArray(r2.b) && r2.b.length) {
+    out.r2 = { gb: Math.round(r2.b.reduce((a, b) => a + (+b.gb || 0), 0) * 100) / 100, at: +r2.at || 0 };
+    if (r2.cost) out.r2.proj = +r2.cost.proj || 0, out.r2.mtd = +r2.cost.mtd || 0;
+  }
+  if (S.r2e && S.r2e.err) out.r2e = String(S.r2e.err).slice(0, 20);
+  if (dr && dr.gb != null) out.drive = { gb: +dr.gb, lim: dr.lim == null ? null : +dr.lim, at: +dr.at || 0 };
+  return Object.keys(out).length ? out : null;
+}
+
 /* כל הספקים במקביל; ספק שנכשל לא מפיל את האחרים */
 async function usageAll(env, f, now) {
   env = env || {}; f = f || fetch; now = now || Date.now();
@@ -275,4 +288,4 @@ function histPush(hist, prov, now) {
   return arr.slice(-HIST_MAX);
 }
 
-module.exports = { PROV_KEYS, provKeep, provMerge, R2_PRICE, opsByClass, r2Cost, gbMonthOf, costQuery, STO_GAP, r2Buckets, storeQuery, parseStore, r2Store, parseDrive, driveStore, storeMerge, HIST_KEYS, HIST_MAX, histDue, histPush, LIMITS, parseVercel, parseR2, parseFs, sumPoints, usageAll, item };
+module.exports = { stoBrief, PROV_KEYS, provKeep, provMerge, R2_PRICE, opsByClass, r2Cost, gbMonthOf, costQuery, STO_GAP, r2Buckets, storeQuery, parseStore, r2Store, parseDrive, driveStore, storeMerge, HIST_KEYS, HIST_MAX, histDue, histPush, LIMITS, parseVercel, parseR2, parseFs, sumPoints, usageAll, item };

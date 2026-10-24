@@ -123,5 +123,10 @@ assert.strictEqual(fs.items[1].used, 100);
   assert.strictEqual((await U.r2Store({ CF_USAGE_TOKEN: 't', R2_ACCOUNT_ID: 'a', R2_BUCKET: 'snb-learn' }, g403('{"reason":"SERVICE_DISABLED"}'), now0)).err, 'api_off');
   assert.strictEqual((await U.r2Store({ CF_USAGE_TOKEN: 't', R2_ACCOUNT_ID: 'a', R2_BUCKET: 'snb-learn' }, g403('PERMISSION_DENIED'), now0)).err, 'http_403');
 
+  // תקציר לווידג'ט
+  assert.strictEqual(U.stoBrief(null), null);
+  assert.deepStrictEqual(U.stoBrief({ r2: { at: 5, b: [{ name: 'a', gb: 1.234 }, { name: 'b', gb: 2 }], cost: { proj: 3.5, mtd: 1, st: 9 } }, r2e: { err: 'gql', at: 1 }, drive: { at: 6, gb: 4, lim: 15 } }),
+    { r2: { gb: 3.23, at: 5, proj: 3.5, mtd: 1 }, r2e: 'gql', drive: { gb: 4, lim: 15, at: 6 } });
+
   console.log('usage-monitor: כל הבדיקות עברו');
 })().catch((e) => { console.error(e); process.exit(1); });
