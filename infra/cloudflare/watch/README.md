@@ -3,6 +3,8 @@
 כל 10 דקות קורא ל־`GET /api/studio` בשרתון: שרת שנפל, "המשך" אוטומטי, בדיקת הכתובות, הגיבוי היומי, האצווה של מאגר הלמידה.
 ה־cron של GitHub (`studio-watch.yml`) רץ בפועל פעם ב־3–4 שעות, ולכן הניטור עבר לכאן. הקובץ ב־GitHub נשאר כגיבוי.
 
+מ־24/10/2026 הראשי הוא השרתון (`api.thesnowball.app`). אם הוא לא עונה או מחזיר 5xx — הבדיקה עוברת ל־Vercel (`ibkr-proxy-wine.vercel.app`), והלוג מציין מי ענה (`primary` / `backup`).
+
 ## הקמה בממשק (פעם אחת, מהטלפון)
 1. dash.cloudflare.com → Workers & Pages → Create → Create Worker (Start with Hello World).
 2. השם: `snb-studio-watch` → Deploy.

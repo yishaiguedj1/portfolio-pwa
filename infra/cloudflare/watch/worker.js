@@ -3,15 +3,31 @@
 // Cron Triggers של Cloudflare רצים בזמן, בחינם (Workers Free). אותה קריאה בדיוק של studio-watch.yml, שנשאר כגיבוי
 // (הבדיקה בשרתון אידמפוטנטית — כתיבות בתנאי, שתי קריאות לא שולחות שתי התראות).
 // אופציונלי: STUDIO_WATCH_SECRET — אותו ערך כמו ב־Vercel (Settings → Variables and Secrets של ה־Worker, סוג Secret).
-const URL_WATCH = 'https://ibkr-proxy-wine.vercel.app/api/studio';
+// 24/10/2026: הראשי = השרתון (api.thesnowball.app). Vercel = גיבוי: אם השרתון לא ענה (רשת / 5xx) — הבדיקה עוברת אליו.
+// ה־studio-watch.yml של GitHub נשאר על Vercel בכוונה: גיבוי עצמאי מהשרתון.
+const URL_PRIMARY = 'https://api.thesnowball.app/api/studio';
+const URL_BACKUP = 'https://ibkr-proxy-wine.vercel.app/api/studio';
 
-async function watch(env) {
+async function call(url, env) {
   const headers = {};
   if (env && env.STUDIO_WATCH_SECRET) headers.authorization = 'Bearer ' + env.STUDIO_WATCH_SECRET;
-  const r = await fetch(URL_WATCH, { headers });
+  const r = await fetch(url, { headers });
   const t = await r.text();
-  console.log('HTTP ' + r.status + ': ' + t.slice(0, 200));
   return { status: r.status, body: t.slice(0, 500) };
+}
+
+async function watch(env) {
+  let from = 'primary', res;
+  try {
+    res = await call(URL_PRIMARY, env);
+    if (res.status >= 500) throw new Error('HTTP ' + res.status);
+  } catch (e) {
+    console.log('השרתון לא ענה (' + (e && e.message) + ') — בודקים דרך Vercel');
+    from = 'backup';
+    res = await call(URL_BACKUP, env);
+  }
+  console.log(from + ' HTTP ' + res.status + ': ' + res.body.slice(0, 200));
+  return { from, status: res.status, body: res.body };
 }
 
 export default {

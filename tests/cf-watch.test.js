@@ -1,10 +1,15 @@
-// 22/10/2026: הניטור ב־Cloudflare Worker — אותה כתובת ואותו קצב של studio-watch.yml (שנשאר כגיבוי)
+// 22/10/2026: הניטור ב־Cloudflare Worker — קצב של studio-watch.yml (שנשאר כגיבוי)
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const R = (p) => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
 const w = R('infra/cloudflare/watch/worker.js'), t = R('infra/cloudflare/watch/wrangler.toml'), y = R('.github/workflows/studio-watch.yml');
-const url = (w.match(/URL_WATCH = '([^']+)'/) || [])[1];
-assert.ok(url && y.includes(url), 'אותה כתובת בשניהם');
+// 24/10/2026: הראשי = השרתון, הגיבוי = Vercel. ה־GitHub (studio-watch.yml) נשאר על הגיבוי העצמאי.
+const primary = (w.match(/URL_PRIMARY = '([^']+)'/) || [])[1];
+const backup = (w.match(/URL_BACKUP = '([^']+)'/) || [])[1];
+assert.ok(primary && primary.startsWith('https://api.thesnowball.app/'), 'הראשי = השרתון');
+assert.ok(backup && y.includes(backup), 'הגיבוי = אותה כתובת של studio-watch.yml (Vercel)');
+assert.ok(!/URL_WATCH/.test(w), 'אין שארית של הכתובת הישנה');
+assert.ok(/from = 'backup'/.test(w) && /status >= 500/.test(w), 'נפילה לגיבוי גם על 5xx');
 assert.ok(/crons = \["\*\/10 \* \* \* \*"\]/.test(t), 'כל 10 דקות');
 assert.ok(/async scheduled\(/.test(w) && /waitUntil/.test(w), 'cron עם waitUntil');
 assert.ok(!/console\.log\([^)]*SECRET/.test(w), 'הסוד לא נכתב ליומן');
-console.log('cf-watch: 4 ✓');
+console.log('cf-watch: 6 ✓');
