@@ -235,6 +235,14 @@ internal fun SignInButton(a: DmActivity, onOk: () -> Unit) {
     }) { if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text(stringResource(R.string.dmConsentGo)) }
 }
 
+/* "אחר כך" (24/10): ההורדה מתחילה כשיש Wi‑Fi והטלפון בטעינה — בלי הרשאת שעון מדויק (DmRun.scheduleLater) */
+@Composable
+private fun LaterRow(on: Boolean, set: (Boolean) -> Unit) {
+    ListItem(headlineContent = { Text(stringResource(R.string.dmLater)) }, supportingContent = { Text(stringResource(R.string.dmLaterS)) },
+        trailingContent = { Switch(on, set) }, colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+        modifier = Modifier.padding(bottom = 4.dp))
+}
+
 @Composable
 private fun Section(t: String) = Text(t, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
     modifier = Modifier.padding(top = 10.dp, start = 4.dp))
@@ -300,6 +308,8 @@ private fun TaskRow(a: DmActivity, t: DmTask, onDetails: (String) -> Unit) {
                 DropdownMenuItem({ Text(stringResource(R.string.dmDetails)) }, { menu = false; onDetails(t.id) })
                 if (t.state == DmState.QUEUED || t.state == DmState.WAITING || t.state == DmState.PAUSED || t.state == DmState.FAILED)
                     DropdownMenuItem({ Text(stringResource(R.string.dmFirst)) }, { menu = false; DmEngine.startFirst(ctx, t.id) })
+                if ((t.state == DmState.QUEUED || t.state == DmState.WAITING || t.state == DmState.PAUSED) && !t.later)
+                    DropdownMenuItem({ Text(stringResource(R.string.dmLaterAct)) }, { menu = false; DmEngine.setLater(ctx, t.id, true) })
                 if (t.state == DmState.DONE) DropdownMenuItem({ Text(stringResource(R.string.dmShare)) }, { menu = false; a.share(t) })
                 if (t.state == DmState.DONE && isVideo(t) && a.studioHere()) DropdownMenuItem({ Text(stringResource(R.string.dmTranslate)) }, { menu = false; a.translate(t) })
                 DropdownMenuItem({ Text(stringResource(R.string.dmCopyLink)) }, { menu = false; copy(ctx, t.url) })
@@ -420,6 +430,7 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
     var name by remember { mutableStateOf("") }
     var qi by remember { mutableIntStateOf(0) }
     var audio by remember { mutableStateOf(false) }
+    var later by remember { mutableStateOf(false) }   // "אחר כך" — Wi‑Fi וטעינה
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
     val pr = remember { DmPrefs(ctx) }
@@ -490,7 +501,8 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                         }
                         TextButton(onClick = { a.refreshId.value = "" }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.dmRefreshNew)) }
                     } else {
-                        Button(onClick = { a.addFile(f, name, ref); onClose() }, Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(R.string.dmGo), fontSize = 17.sp) }
+                        LaterRow(later) { later = it }
+                        Button(onClick = { a.addFile(f, name, ref, later = later); onClose() }, Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(if (later) R.string.dmGoLater else R.string.dmGo), fontSize = 17.sp) }
                         if (DmName.cat(f.name, f.mime) == DmName.Cat.VIDEO) StudioRow(a, f.url, ref, true) { a.addFile(f, name, ref, tr = true); onClose() }
                     }
                 }
@@ -523,9 +535,10 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                             FilterChip(audio, { audio = true }, label = { Text(stringResource(R.string.dmAudioOnly)) })
                         }
                     }
-                    Spacer(Modifier.height(14.dp))
-                    Button(onClick = { a.addVideo(f, list.getOrNull(qi), audio, ref); onClose() }, Modifier.fillMaxWidth().height(52.dp)) {
-                        Text(stringResource(R.string.dmGo), fontSize = 17.sp)
+                    Spacer(Modifier.height(8.dp))
+                    LaterRow(later) { later = it }
+                    Button(onClick = { a.addVideo(f, list.getOrNull(qi), audio, ref, later = later); onClose() }, Modifier.fillMaxWidth().height(52.dp)) {
+                        Text(stringResource(if (later) R.string.dmGoLater else R.string.dmGo), fontSize = 17.sp)
                     }
                     if (!audio) StudioRow(a, f.url, ref, cloudOk(info)) { a.addVideo(f, list.getOrNull(qi), false, ref, tr = true); onClose() }
                 }

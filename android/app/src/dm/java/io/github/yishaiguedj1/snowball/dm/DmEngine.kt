@@ -29,8 +29,11 @@ object DmEngine {
         @Volatile var conns = 0
     }
 
+    /** "אחר כך" (24/10): מתחילות רק ב־Wi‑Fi ובטעינה — עד אז לא מחזיקות שירות/משימה, רק משימת מערכת עם התנאים (DmRun.scheduleLater) */
+    @Volatile var laterReady = false
     fun busy() = running.isNotEmpty()
-    fun hasWork() = DmStore.all().any { it.state == DmState.QUEUED || it.state == DmState.RUNNING || it.state == DmState.WAITING }
+    fun hasWork() = DmStore.all().any { (it.state == DmState.QUEUED && (!it.later || laterReady)) || it.state == DmState.RUNNING || it.state == DmState.WAITING }
+    fun charging(ctx: Context) = runCatching { ctx.getSystemService(android.os.BatteryManager::class.java)?.isCharging == true }.getOrDefault(false)
 
     /** מתחיל מה שאפשר מהתור */
     @Synchronized
@@ -40,15 +43,17 @@ object DmEngine {
         DmLogFile.init(app)
         val pr = DmPrefs(app)
         val okNet = netOk(app, pr.wifiOnly)
+        laterReady = netOk(app, true) && charging(app)
         DmLimit.bytesPerSec = pr.limit
         // הישנה קודם; עד `parallel` בבת אחת ולכל היותר DmLink.PER_HOST מאותו אתר
-        val queued = DmStore.all().reversed().filter { !running.containsKey(it.id) && (it.state == DmState.QUEUED || it.state == DmState.WAITING) }
+        val queued = DmStore.all().reversed().filter { !running.containsKey(it.id) && (it.state == DmState.QUEUED || it.state == DmState.WAITING) && (!it.later || laterReady) }
         if (!okNet) queued.forEach { t -> if (t.state != DmState.WAITING) { t.state = DmState.WAITING; t.err = if (pr.wifiOnly) "wifi" else "net"; DmStore.save() } }
         else {
             val run = running.keys.mapNotNull { DmStore.get(it)?.url }
             DmLink.pickStart(queued.map { it.url }, run, pr.parallel - running.size).forEach { start(app, queued[it], pr) }
         }
         watchNet(app)
+        if (!laterReady && DmStore.all().any { it.later && it.state == DmState.QUEUED }) DmRun.scheduleLater(app)
         if (hasWork()) DmRun.ensure(app) else DmRun.idle(app)
         DmNotif.update(app)
     }
@@ -206,7 +211,13 @@ object DmEngine {
 
     fun startFirst(ctx: Context, id: String) {
         DmStore.moveFirst(id)
-        DmStore.get(id)?.let { if (it.state == DmState.PAUSED || it.state == DmState.FAILED) { it.state = DmState.QUEUED; it.err = "" } }
+        DmStore.get(id)?.let { it.later = false; if (it.state == DmState.PAUSED || it.state == DmState.FAILED) { it.state = DmState.QUEUED; it.err = "" } }
+        DmStore.save(); pump(ctx)
+    }
+
+    /** "אחר כך" / "עכשיו" למשימה שעוד לא הסתיימה */
+    fun setLater(ctx: Context, id: String, v: Boolean) {
+        DmStore.get(id)?.let { it.later = v }
         DmStore.save(); pump(ctx)
     }
 

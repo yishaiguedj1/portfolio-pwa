@@ -41,6 +41,23 @@ object DmRun {
         if (DmService.active) runCatching { ctx.stopService(Intent(ctx, DmService::class.java)) }
     }
 
+    private const val LATER_ID = 5101
+
+    /** "אחר כך": משימת מערכת שרצה כשיש Wi‑Fi וטעינה (בפועל — בלילה). בלי הרשאת שעון מדויק. UIDT כשאפשר (אנדרואיד 14+,
+     *  האפליקציה גלויה); אחרת משימה רגילה — חלון של כמה דקות, וההורדה ממשיכה מאותו בייט בפעם הבאה */
+    fun scheduleLater(ctx: Context) {
+        val js = ctx.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
+        if (js.getPendingJob(LATER_ID) != null) return
+        fun build(ui: Boolean) = JobInfo.Builder(LATER_ID, ComponentName(ctx, DmJob::class.java)).apply {
+            if (ui && Build.VERSION.SDK_INT >= 34) setUserInitiated(true)
+            setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED)
+            setRequiresCharging(true)
+            setPersisted(true)
+        }.build()
+        val ok = Build.VERSION.SDK_INT >= 34 && runCatching { js.schedule(build(true)) == JobScheduler.RESULT_SUCCESS }.getOrDefault(false)
+        if (!ok) runCatching { js.schedule(build(false)) }
+    }
+
     private fun scheduleJob(ctx: Context): Boolean {
         val info = JobInfo.Builder(JOB_ID, ComponentName(ctx, DmJob::class.java))
             .setUserInitiated(true)
@@ -55,7 +72,8 @@ object DmRun {
 class DmJob : JobService() {
     override fun onStartJob(params: JobParameters): Boolean {
         current = this; currentParams = params; active = true
-        setNotification(params, DmNotif.N_RUN, DmNotif.running(this), JOB_END_NOTIFICATION_POLICY_REMOVE)
+        // משימה רגילה ("אחר כך" בלי UIDT) — בלי התראה של משימה (רק ל־UIDT)
+        if (Build.VERSION.SDK_INT >= 34 && params.isUserInitiatedJob) setNotification(params, DmNotif.N_RUN, DmNotif.running(this), JOB_END_NOTIFICATION_POLICY_REMOVE)
         DmEngine.pump(this)
         return true
     }

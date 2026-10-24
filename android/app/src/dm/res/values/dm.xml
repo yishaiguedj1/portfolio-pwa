@@ -167,4 +167,9 @@
     <string name="dmSetCodec">פורמט וידאו</string>
     <string name="dmCodecSmall">חסכוני — הקובץ הקטן ביותר</string>
     <string name="dmCodecCompat">תואם — מתנגן בכל מכשיר</string>
+    <string name="dmLater">אחר כך — ב־Wi‑Fi ובטעינה</string>
+    <string name="dmLaterS">מתחילה לבד כשהטלפון בטעינה ומחובר ל־Wi‑Fi (למשל בלילה)</string>
+    <string name="dmGoLater">להוריד אחר כך</string>
+    <string name="dmQueuedLater">ממתינה ל־Wi‑Fi ולטעינה</string>
+    <string name="dmLaterAct">להוריד אחר כך (Wi‑Fi וטעינה)</string>
 </resources>

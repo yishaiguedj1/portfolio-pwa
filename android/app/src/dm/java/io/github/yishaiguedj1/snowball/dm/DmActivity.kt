@@ -167,18 +167,18 @@ class DmActivity : ComponentActivity() {
         catch (e: Throwable) { Found.Fail("fail") }
     }
 
-    fun addFile(f: Found.File, name: String, ref: String, tr: Boolean = false) {
+    fun addFile(f: Found.File, name: String, ref: String, tr: Boolean = false, later: Boolean = false) {
         val t = DmTask(DmStore.newId(), f.url, ref, DmKind.HTTP).apply {
-            this.tr = tr
+            this.tr = tr; this.later = later
             this.name = DmName.clean(name).ifEmpty { f.name }; mime = f.mime; total = f.size; ranges = f.ranges
             created = System.currentTimeMillis(); ua = sheetUa; ck = sheetCk
         }
         DmStore.add(t); askNotifications(); DmEngine.pump(this)
     }
 
-    fun addVideo(v: Found.Video, q: JSONObject?, audio: Boolean, ref: String, tr: Boolean = false) {
+    fun addVideo(v: Found.Video, q: JSONObject?, audio: Boolean, ref: String, tr: Boolean = false, later: Boolean = false) {
         val t = DmTask(DmStore.newId(), v.url, ref, DmKind.YTDL).apply {
-            this.tr = tr && !audio
+            this.tr = tr && !audio; this.later = later
             title = v.info.optString("t"); name = title
             audioOnly = audio
             if (q != null && !audio) {

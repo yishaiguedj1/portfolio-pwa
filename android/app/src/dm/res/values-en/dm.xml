@@ -162,4 +162,9 @@
     <string name="dmSetCodec">Video format</string>
     <string name="dmCodecSmall">Compact — smallest file</string>
     <string name="dmCodecCompat">Compatible — plays everywhere</string>
+    <string name="dmLater">Later — on Wi‑Fi while charging</string>
+    <string name="dmLaterS">Starts by itself when the phone is charging on Wi‑Fi (e.g. at night)</string>
+    <string name="dmGoLater">Download later</string>
+    <string name="dmQueuedLater">Waiting for Wi‑Fi and charging</string>
+    <string name="dmLaterAct">Download later (Wi‑Fi and charging)</string>
 </resources>
