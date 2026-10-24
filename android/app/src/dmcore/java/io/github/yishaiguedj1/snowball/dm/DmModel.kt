@@ -65,6 +65,9 @@ class DmTask(
     var ua = ""
     var ck = false
     var tr = false             // 24/10: "להוריד ולתרגם ב־Studio" — בסוף ההורדה הקובץ מוצע ל־Studio
+    var later = false          // 24/10: "אחר כך" — מתחילה רק ב־Wi‑Fi ובטעינה (DmRun.scheduleLater)
+    var subs = ""              // 24/10: כתוביות היוצר לצרף ("he,en") — DmSubs; subsAuto = כולל אוטומטיות
+    var subsAuto = false
 
     val got: Long get() = if (kind == DmKind.YTDL) bytesYt else segs.sumOf { it.done.coerceAtMost(it.end - it.start) }
     // yt-dlp לפני האחוז הראשון (מתחבר, פותר את בדיקת יוטיוב) = ‎-1‎ — פס בתנועה, לא "0" קפוא
@@ -78,7 +81,7 @@ class DmTask(
         put("sg", JSONArray().also { a -> segs.forEach { a.put(it.json()) } })
         put("c", created); put("f", finishedAt); put("uri", uri); put("tr", tries)
         put("vf", vf); put("af", af); put("h", height); put("ao", audioOnly); put("ti", title); put("by", bytesYt); put("py", pctYt.toDouble())
-        put("ua", ua); put("ck", ck); put("tr", tr)
+        put("ua", ua); put("ck", ck); put("st", tr); put("lt", later); put("sb", subs); put("sa", subsAuto)   // st: עד 24/10 "tr" — התנגש עם tries
     }
 
     companion object {
@@ -98,10 +101,10 @@ class DmTask(
                 err = o.optString("e")
                 val a = o.optJSONArray("sg")
                 if (a != null) for (i in 0 until a.length()) Seg.of(a.optJSONArray(i))?.let { segs.add(it) }
-                created = o.optLong("c"); finishedAt = o.optLong("f"); uri = o.optString("uri"); tries = o.optInt("tr")
+                created = o.optLong("c"); finishedAt = o.optLong("f"); uri = o.optString("uri"); tries = (o.opt("tr") as? Number)?.toInt() ?: 0
                 vf = o.optString("vf"); af = o.optString("af"); height = o.optInt("h"); audioOnly = o.optBoolean("ao")
                 title = o.optString("ti"); bytesYt = o.optLong("by"); pctYt = o.optDouble("py", -1.0).toFloat()
-                ua = o.optString("ua").take(400); ck = o.optBoolean("ck"); tr = o.optBoolean("tr")
+                ua = o.optString("ua").take(400); ck = o.optBoolean("ck"); tr = o.optBoolean("st", o.opt("tr") as? Boolean ?: false); later = o.optBoolean("lt"); subs = o.optString("sb").take(120); subsAuto = o.optBoolean("sa")
             }
         }
 

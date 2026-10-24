@@ -72,6 +72,10 @@ class DmPrefs(ctx: Context) {
     var conns: Int get() = p.getInt("conns", 8).coerceIn(1, DmSegs.MAX_CONNS); set(v) = p.edit().putInt("conns", v).apply()
     /** איכות ברירת מחדל לסרטונים: best / 2160 / 1080 / 720 / 480 / audio */
     var quality: String get() = p.getString("q", "best") ?: "best"; set(v) = p.edit().putString("q", v).apply()
+    /** פורמט הווידאו: small (AV1/VP9 — הקטן ביותר) / compat (H.264 — מתנגן בכל מכשיר) — DmCodec */
+    var codec: String get() = (p.getString("codec", DmCodec.SMALL) ?: DmCodec.SMALL).takeIf { it in DmCodec.MODES } ?: DmCodec.SMALL; set(v) = p.edit().putString("codec", v).apply()
+    /** לצרף כתוביות של היוצר כשיש (DmSubs) — הבחירה האחרונה בגיליון */
+    var subs: Boolean get() = p.getBoolean("subs", true); set(v) = p.edit().putBoolean("subs", v).apply()
     var quick: Boolean get() = p.getBoolean("quick", false); set(v) = p.edit().putBoolean("quick", v).apply()
     var firstRun: Boolean get() = p.getBoolean("first", true); set(v) = p.edit().putBoolean("first", v).apply()
     /** הגבלת מהירות לכל ההורדות יחד, בתים לשנייה (0 = בלי הגבלה) */

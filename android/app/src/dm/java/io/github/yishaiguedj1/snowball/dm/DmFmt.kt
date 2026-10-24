@@ -66,7 +66,7 @@ object DmFmt {
                 val l = if (eta >= 0) left(ctx, eta) else if (sp > 0 && tot > 0) left(ctx, (tot - got) / sp) else ""
                 listOf(sz, speed(ctx, sp), l).filter { it.isNotEmpty() }.joinToString(" · ")
             }
-            DmState.QUEUED -> ctx.getString(R.string.dmQueued) + if (got > 0) " · $sz" else ""
+            DmState.QUEUED -> ctx.getString(if (t.later && !DmEngine.laterReady) R.string.dmQueuedLater else R.string.dmQueued) + if (got > 0) " · $sz" else ""
             DmState.WAITING -> err(ctx, t.err)
             DmState.PAUSED -> ctx.getString(R.string.dmPaused) + " · " + sz
             DmState.FAILED -> err(ctx, t.err)

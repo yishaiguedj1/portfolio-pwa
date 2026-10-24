@@ -129,6 +129,9 @@ dependencies {
     "dmImplementation"("androidx.credentials:credentials:1.5.0")
     "dmImplementation"("androidx.credentials:credentials-play-services-auth:1.5.0")
     "dmImplementation"("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    // 24/10/2026: נגן בתוך DM (Media3 — ExoPlayer + PlayerView): כתוביות שבתוך הקובץ, מהירות, מסך מלא
+    "dmImplementation"("androidx.media3:media3-exoplayer:1.5.1")
+    "dmImplementation"("androidx.media3:media3-ui:1.5.1")
     "testDmImplementation"("junit:junit:4.13.2")
     "testDmImplementation"("org.json:json:20240303")
 }

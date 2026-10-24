@@ -56,6 +56,13 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -170,13 +177,26 @@ fun DmApp(a: DmActivity) {
 }
 
 /* ---------- הורדות ---------- */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Downloads(a: DmActivity, rev: Int, onDetails: (String) -> Unit) {
     val all = remember(rev) { DmStore.all() }
-    val active = all.filter { it.state != DmState.DONE }
-    val done = all.filter { it.state == DmState.DONE }.sortedByDescending { it.finishedAt }
+    // חיפוש (24/10, מפת המסכים בדוח: "חיפוש רק מ־10 פריטים") — שם, כותרת או אתר
+    var q by remember { mutableStateOf("") }
+    val shown = remember(rev, q) { if (q.isBlank()) all else all.filter { t -> DmFind.match(q, t.name, t.title, DmLink.host(t.url)) } }
+    val active = shown.filter { it.state != DmState.DONE }
+    val done = shown.filter { it.state == DmState.DONE }.sortedByDescending { it.finishedAt }
     val clip by a.clipUrl
+    val snack = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
+    Box(Modifier.fillMaxSize()) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (all.size >= 10) item {
+            OutlinedTextField(q, { q = it }, Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(24.dp),
+                placeholder = { Text(stringResource(R.string.dmSearch)) }, leadingIcon = { Icon(DmIcons.Search, null) },
+                trailingIcon = { if (q.isNotEmpty()) IconButton(onClick = { q = "" }) { Icon(DmIcons.Close, stringResource(R.string.dmClose)) } })
+        }
         if (clip.isNotEmpty()) item {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.padding(16.dp)) {
@@ -190,9 +210,28 @@ private fun Downloads(a: DmActivity, rev: Int, onDetails: (String) -> Unit) {
             }
         }
         if (all.isEmpty()) item { Empty(a) }
+        if (all.isNotEmpty() && shown.isEmpty()) item { Text(stringResource(R.string.dmNoMatch), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(8.dp)) }
         item { SignInCard(a) }
         if (active.isNotEmpty()) { item { Section(stringResource(R.string.dmActive)) }; items(active, key = { it.id }) { TaskRow(a, it, onDetails) } }
-        if (done.isNotEmpty()) { item { Section(stringResource(R.string.dmDone)) }; items(done.take(50), key = { it.id }) { TaskRow(a, it, onDetails) } }
+        if (done.isNotEmpty()) { item { Section(stringResource(R.string.dmDone)) }; items(done.take(50), key = { it.id }) { t ->
+            // החלקה = הסרה מהרשימה (הקובץ נשאר), עם "בטל" — כמו בדואר של Apple
+            val st = rememberSwipeToDismissBoxState(confirmValueChange = { v ->
+                if (v != SwipeToDismissBoxValue.Settled) {
+                    DmStore.remove(t.id)
+                    scope.launch {
+                        val r = snack.showSnackbar(ctx.getString(R.string.dmRemoved), ctx.getString(R.string.dmUndo), duration = SnackbarDuration.Short)
+                        if (r == SnackbarResult.ActionPerformed) DmStore.add(t)
+                    }
+                    true
+                } else false
+            })
+            SwipeToDismissBox(st, backgroundContent = {
+                Box(Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.errorContainer).padding(horizontal = 20.dp),
+                    contentAlignment = Alignment.CenterEnd) { Icon(DmIcons.Delete, null, tint = MaterialTheme.colorScheme.onErrorContainer) }
+            }) { TaskRow(a, t, onDetails) }
+        } }
+    }
+    SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).padding(16.dp))
     }
 }
 
@@ -228,11 +267,26 @@ internal fun SignInButton(a: DmActivity, onOk: () -> Unit) {
             busy = false
             when (r) {
                 is DmSync.R.Ok -> onOk()
-                is DmSync.R.Fail -> android.widget.Toast.makeText(ctx, R.string.dmSignFail, android.widget.Toast.LENGTH_LONG).show()
+                is DmSync.R.Fail -> android.widget.Toast.makeText(ctx, ctx.getString(R.string.dmSignFail) + "\n" + r.code + (if (r.why.isNotEmpty()) " · " + r.why else ""), android.widget.Toast.LENGTH_LONG).show()
                 else -> {}
             }
         }
     }) { if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text(stringResource(R.string.dmConsentGo)) }
+}
+
+/* רשימת השמעה (24/10): האיכויות לבחירה (בלי בדיקה של כל סרטון — "עד הגובה הזה") */
+private val PL_Q = listOf("best", "2160", "1080", "720", "480", "audio")
+private fun fmtCount(ctx: android.content.Context, n: Int) = ctx.resources.getQuantityString(R.plurals.dmPlCount, n, n)
+private fun fmtSel(ctx: android.content.Context, n: Int, of: Int) = ctx.getString(R.string.dmPlSel, n, of)
+private fun fmtGo(ctx: android.content.Context, n: Int) = ctx.resources.getQuantityString(R.plurals.dmPlGo, n, n)
+private fun durTxt(sec: Int) = if (sec >= 3600) String.format(java.util.Locale.US, "%d:%02d:%02d", sec / 3600, sec / 60 % 60, sec % 60) else String.format(java.util.Locale.US, "%d:%02d", sec / 60, sec % 60)
+
+/* "אחר כך" (24/10): ההורדה מתחילה כשיש Wi‑Fi והטלפון בטעינה — בלי הרשאת שעון מדויק (DmRun.scheduleLater) */
+@Composable
+private fun LaterRow(on: Boolean, set: (Boolean) -> Unit) {
+    ListItem(headlineContent = { Text(stringResource(R.string.dmLater)) }, supportingContent = { Text(stringResource(R.string.dmLaterS)) },
+        trailingContent = { Switch(on, set) }, colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+        modifier = Modifier.padding(bottom = 4.dp))
 }
 
 @Composable
@@ -300,7 +354,11 @@ private fun TaskRow(a: DmActivity, t: DmTask, onDetails: (String) -> Unit) {
                 DropdownMenuItem({ Text(stringResource(R.string.dmDetails)) }, { menu = false; onDetails(t.id) })
                 if (t.state == DmState.QUEUED || t.state == DmState.WAITING || t.state == DmState.PAUSED || t.state == DmState.FAILED)
                     DropdownMenuItem({ Text(stringResource(R.string.dmFirst)) }, { menu = false; DmEngine.startFirst(ctx, t.id) })
+                if ((t.state == DmState.QUEUED || t.state == DmState.WAITING || t.state == DmState.PAUSED) && !t.later)
+                    DropdownMenuItem({ Text(stringResource(R.string.dmLaterAct)) }, { menu = false; DmEngine.setLater(ctx, t.id, true) })
                 if (t.state == DmState.DONE) DropdownMenuItem({ Text(stringResource(R.string.dmShare)) }, { menu = false; a.share(t) })
+                if (t.state == DmState.DONE) DropdownMenuItem({ Text(stringResource(R.string.dmOpenWith)) }, { menu = false; a.openWith(t) })
+                if (t.state == DmState.DONE && t.name.endsWith(".zip", true)) DropdownMenuItem({ Text(stringResource(R.string.dmUnzip)) }, { menu = false; a.unzip(t) })
                 if (t.state == DmState.DONE && isVideo(t) && a.studioHere()) DropdownMenuItem({ Text(stringResource(R.string.dmTranslate)) }, { menu = false; a.translate(t) })
                 DropdownMenuItem({ Text(stringResource(R.string.dmCopyLink)) }, { menu = false; copy(ctx, t.url) })
                 DropdownMenuItem({ Text(stringResource(R.string.dmRemove)) }, { menu = false; DmEngine.delete(ctx, t.id, false) })
@@ -420,6 +478,9 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
     var name by remember { mutableStateOf("") }
     var qi by remember { mutableIntStateOf(0) }
     var audio by remember { mutableStateOf(false) }
+    var later by remember { mutableStateOf(false) }   // "אחר כך" — Wi‑Fi וטעינה
+    var plSel by remember { mutableStateOf(setOf<Int>()) }   // רשימת השמעה: מה נבחר
+    var plQ by remember { mutableStateOf("best") }
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
     val pr = remember { DmPrefs(ctx) }
@@ -437,6 +498,7 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
         val f = withContext(Dispatchers.IO) { a.probe(u, ref) }
         busy = false; found = f
         if (f is DmActivity.Found.File) name = f.name
+        if (f is DmActivity.Found.Playlist) { plSel = f.pl.entries.indices.toSet(); plQ = pr.quality }
         if (f is DmActivity.Found.Video) {
             audio = pr.quality == "audio"
             val qs = f.info.optJSONArray("q")
@@ -468,6 +530,9 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                     if (DmLink.all(url).size == 1 && DmImport.parse(url) !is DmImport.Parsed.Backup) scope.launch { check() }
                 }) { Icon(DmIcons.Paste, stringResource(R.string.dmPaste)) } })
             Spacer(Modifier.height(14.dp))
+            // כבר ברשימה (24/10): אותו קישור הורד / בתור — אזהרה, לא חסימה (אפשר להוריד שוב באיכות אחרת)
+            val dup = remember(url) { DmLink.first(url).let { u -> u.isNotEmpty() && refTask == null && DmStore.has(u) } }
+            if (dup && !multi) Text(stringResource(R.string.dmDup), color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))
             if (multi) BatchBlock(a, parsed, ref, onClose)
             else when (val f = found) {
                 null -> if (busy) Row(verticalAlignment = Alignment.CenterVertically) {
@@ -490,7 +555,8 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                         }
                         TextButton(onClick = { a.refreshId.value = "" }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.dmRefreshNew)) }
                     } else {
-                        Button(onClick = { a.addFile(f, name, ref); onClose() }, Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(R.string.dmGo), fontSize = 17.sp) }
+                        LaterRow(later) { later = it }
+                        Button(onClick = { a.addFile(f, name, ref, later = later); onClose() }, Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(if (later) R.string.dmGoLater else R.string.dmGo), fontSize = 17.sp) }
                         if (DmName.cat(f.name, f.mime) == DmName.Cat.VIDEO) StudioRow(a, f.url, ref, true) { a.addFile(f, name, ref, tr = true); onClose() }
                     }
                 }
@@ -513,19 +579,60 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(list.size) { i ->
                             val q = list[i]
+                            // הגודל לפי פורמט הווידאו שבהגדרות (תואם = H.264, גדול יותר) — מה שבאמת יירד
+                            val sz = DmCodec.prefer(q, info.optJSONArray("fm"), info.optJSONObject("ao"), DmPrefs(ctx).codec).sz
                             FilterChip(!audio && qi == i, { audio = false; qi = i }, label = {
-                                Text(q.optInt("h").toString() + "p" + (if (q.optLong("sz") > 0) " · " + DmFmt.size(ctx, q.optLong("sz")) else ""))
+                                Text(q.optInt("h").toString() + "p" + (if (sz > 0) " · " + DmFmt.size(ctx, sz) else ""))
                             })
                         }
                         if (info.optJSONObject("ao") != null) item {
                             FilterChip(audio, { audio = true }, label = { Text(stringResource(R.string.dmAudioOnly)) })
                         }
                     }
-                    Spacer(Modifier.height(14.dp))
-                    Button(onClick = { a.addVideo(f, list.getOrNull(qi), audio, ref); onClose() }, Modifier.fillMaxWidth().height(52.dp)) {
-                        Text(stringResource(R.string.dmGo), fontSize = 17.sp)
+                    Spacer(Modifier.height(8.dp))
+                    val subs = remember(info) { DmSubs.pick(info.optJSONArray("sub"), java.util.Locale.getDefault().language) }
+                    var withSubs by remember { mutableStateOf(pr.subs) }
+                    if (subs.isNotEmpty() && !audio) ListItem(headlineContent = { Text(stringResource(R.string.dmSubs)) },
+                        supportingContent = { Text(subs.joinToString(" · ") { it.n.ifEmpty { it.l } } + if (DmSubs.anyAuto(subs)) " · " + ctx.getString(R.string.dmSubsAuto) else "") },
+                        trailingContent = { Switch(withSubs, { withSubs = it; pr.subs = it }) },
+                        colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent))
+                    LaterRow(later) { later = it }
+                    Button(onClick = { a.addVideo(f, list.getOrNull(qi), audio, ref, later = later, subs = if (withSubs) subs else emptyList()); onClose() }, Modifier.fillMaxWidth().height(52.dp)) {
+                        Text(stringResource(if (later) R.string.dmGoLater else R.string.dmGo), fontSize = 17.sp)
                     }
                     if (!audio) StudioRow(a, f.url, ref, cloudOk(info)) { a.addVideo(f, list.getOrNull(qi), false, ref, tr = true); onClose() }
+                    val lu = remember(f.url) { DmPlaylist.listUrl(f.url) }
+                    if (lu.isNotEmpty()) TextButton(onClick = {
+                        scope.launch { busy = true; found = null; val r = withContext(Dispatchers.IO) { a.probeList(lu, ref) }; busy = false; found = r; if (r is DmActivity.Found.Playlist) { plSel = r.pl.entries.indices.toSet(); plQ = pr.quality } }
+                    }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.dmPlWhole)) }
+                }
+                is DmActivity.Found.Playlist -> {
+                    val pl = f.pl
+                    Text(pl.title.ifEmpty { stringResource(R.string.dmPlT) }, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(listOf(pl.up, fmtCount(ctx, pl.entries.size)).filter { it.isNotEmpty() }.joinToString(" · "),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.height(12.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(PL_Q.size) { i -> val o = PL_Q[i]; FilterChip(plQ == o, { plQ = o }, label = { Text(qName(o)) }) }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
+                        Text(fmtSel(ctx, plSel.size, pl.entries.size), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        TextButton(onClick = { plSel = if (plSel.size == pl.entries.size) emptySet() else pl.entries.indices.toSet() }) {
+                            Text(stringResource(if (plSel.size == pl.entries.size) R.string.dmPlNone else R.string.dmPlAll))
+                        }
+                    }
+                    pl.entries.forEachIndexed { i, e ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().combinedClickable(onClick = { plSel = if (i in plSel) plSel - i else plSel + i })) {
+                            androidx.compose.material3.Checkbox(i in plSel, { plSel = if (it) plSel + i else plSel - i })
+                            Text(e.title, Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+                            if (e.dur > 0) Text(durTxt(e.dur), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 8.dp))
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    LaterRow(later) { later = it }
+                    Button(enabled = plSel.isNotEmpty(), onClick = {
+                        a.addPlaylist(pl.entries.filterIndexed { i, _ -> i in plSel }, plQ.toIntOrNull() ?: 0, plQ == "audio", later); onClose()
+                    }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text(fmtGo(ctx, plSel.size), fontSize = 17.sp) }
                 }
             }
         }
@@ -630,6 +737,7 @@ private fun SettingsScreen(a: DmActivity) {
     var par by remember { mutableIntStateOf(pr.parallel) }
     var conns by remember { mutableIntStateOf(pr.conns) }
     var q by remember { mutableStateOf(pr.quality) }
+    var codec by remember { mutableStateOf(pr.codec) }
     var lang by remember { mutableStateOf(pr.lang) }
     var lim by remember { mutableStateOf(pr.limit) }
     var dlg by remember { mutableStateOf("") }
@@ -639,6 +747,8 @@ private fun SettingsScreen(a: DmActivity) {
     Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp, 0.dp, 16.dp, 24.dp)) {
         Group {
             SetRow(stringResource(R.string.dmSetQuality), qName(q)) { dlg = "q" }
+            Div()
+            SetRow(stringResource(R.string.dmSetCodec), codecName(codec)) { dlg = "k" }
             Div()
             SetRow(stringResource(R.string.dmSetWhere), stringResource(R.string.dmSavedWhere)) {}
             Div()
@@ -691,6 +801,7 @@ private fun SettingsScreen(a: DmActivity) {
         dismissButton = { TextButton(onClick = { dlg = "" }) { Text(stringResource(R.string.dmNotNow)) } })
     when (dlg) {
         "q" -> Choose(stringResource(R.string.dmSetQuality), listOf("best", "2160", "1080", "720", "480", "audio"), q, { qName(it) }) { q = it; pr.quality = it; dlg = "" }
+        "k" -> Choose(stringResource(R.string.dmSetCodec), DmCodec.MODES, codec, { codecName(it) }) { codec = it; pr.codec = it; dlg = "" }
         "p" -> Choose(stringResource(R.string.dmSetParallel), listOf("1", "2", "3", "4", "5"), par.toString(), { it }) { par = it.toInt(); pr.parallel = par; dlg = ""; DmEngine.pump(ctx) }
         "g" -> Choose(stringResource(R.string.dmSetLang), DmLang.MODES, lang, { langName(it) }) {
             dlg = ""; if (it != lang) { lang = it; pr.lang = it; a.recreate() }   // מחרוזות וכיוון — מההקשר החדש
@@ -705,6 +816,9 @@ private fun SettingsScreen(a: DmActivity) {
     }
     if (dlg == "x") dlg = ""
 }
+
+@Composable
+private fun codecName(c: String) = stringResource(if (c == DmCodec.COMPAT) R.string.dmCodecCompat else R.string.dmCodecSmall)
 
 @Composable
 private fun qName(q: String) = when (q) {

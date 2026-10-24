@@ -61,7 +61,7 @@ const done = () => de.classList.remove('lib-restoring', 'lib-curtain');
    (ערך, מגמה, גרף קטן, שורת מצב אחת), ומשורה נכנסים פנימה (לכל היותר שלוש רמות; "‹" חוזר). מסך שעוד לא נבנה = "בקרוב",
    בלי מספרים מומצאים. כל מסך: { tab, title, parent?, render(p) } */
 const TABS = [['ov', () => t('admTabOv'), '◉'], ['apps', () => t('admTabApps'), '▦'], ['sys', () => t('admTabSys'), '⚙'], ['imp', () => t('admTabImp'), '✦'], ['find', () => t('admTabFind'), '⌕']];
-const D = { bk: null, fb: null, us: null, ag: null, srv: null, sec: null, log: null, users: null, cfg: null, ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0, rd: null, rdAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
+const D = { bk: null, fb: null, us: null, ag: null, srv: null, sec: null, log: null, users: null, cfg: null, ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0, rd: null, rdAt: 0, dm: undefined };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
 const PAGES = {};
 const page = (k, o) => { PAGES[k] = o; };
 let cur = 'ov';
@@ -1426,6 +1426,7 @@ page('lab', { tab: 'imp', parent: 'imp', title: () => t('admLabT'), render(p) {
     row({ c: 'green', ic: '✓', t: t('admLabQual'), s: (v.jc && v.jc.c && v.jc.c[0]) ? fmt(t('admLabQualS'), { c: jgTxt(v.jc.c[0].k) }) : '', v: nz(k.jd) ? numTxt(k.jd) : nz(k.q) ? numTxt(k.q) : '', on: () => go('labQual') }),
     mxRow(v),
     verRow(v),
+    dmRow(),
     row({ c: 'red', ic: '✕', t: t('admLabFails'), s: fails.length ? ltr(fails[0].e) + ' · ' + fails[0].n : t('admLabFailsNone'), v: fails.length ? fails.reduce((a, x) => a + x.n, 0) : 0, on: () => go('labFails') }),
     row({ c: 'purple', ic: '⇆', t: t('admLabModes'), s: (v.modes || []).map((x) => modeTxt(x.m)).join(' · '), v: (v.modes || []).length, on: () => go('labModes') }),
     row({ c: 'blue', ic: '↻', t: t('admLabAfter'), s: fmt(t('admLabAfterS'), { e: (v.follow || {}).ed || 0, r: (v.follow || {}).rr || 0 }), v: nz(k.ht) ? pcTxt(k.ht) : '', tr: nz(k.ht) ? 'HTER' : '', on: () => go('labAfter') }),
@@ -1729,6 +1730,41 @@ page('labWk', { tab: 'imp', parent: 'lab', title: () => t('admLabWk'), render(p)
     : list(row({ c: 'gray', ic: '—', t: t('admWkNone') })));
   const top = (v.ins || [])[0];
   if (top) p.append(grp(t('admNowTop')), list(row({ c: SEV_C[top.sev], ic: '!', t: insName(top.k), s: insAct(top.k), on: () => { D.labI = 0; go('labIn'); } })));
+} });
+/* ---- Studio DM (24/10/2026): יומני ההורדות מהטלפונים (DmLog → dmLog → adminDm) — 14 הימים האחרונים, כבר מנוקים, בלי משתמשים.
+   הכל מחושב בשרתון (lib/dmlog.js dmView), כאן רק תצוגה ---- */
+async function needDm() {
+  const r = await api('adminDm');
+  D.dm = r.ok ? (r.dm || null) : null;
+  if (['labDm', 'lab'].includes(cur)) paint();
+}
+function dmRow() {
+  if (D.dm === undefined) { D.dm = 0; needDm(); }
+  const s = D.dm && D.dm.st;
+  return row({ c: 'studio', ic: '⇣', t: t('admDmT'), s: s && s.n ? fmt(t('admDmS'), { n: s.n, u: s.users }) : t('admNoData'), v: s && s.ok != null ? s.ok + '%' : '', tr: s && s.ok != null ? t('admDmOk') : '', on: () => go('labDm') });
+}
+page('labDm', { tab: 'imp', parent: 'lab', title: () => t('admDmT'), render(p) {
+  if (D.dm === undefined || D.dm === 0) { if (D.dm === undefined) { D.dm = 0; needDm(); } p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  const V = D.dm;
+  if (!V || !V.st || !V.st.n) { p.append(list(row({ c: 'gray', ic: '—', t: t('admNoData') })), h('p', 'adm-foot', t('admDmFoot'))); return; }
+  const s = V.st, k = s.k || {}, days = V.days || [];
+  p.append(tiles(
+    tileEl('green', t('admDmOk'), s.ok == null ? '—' : s.ok + '%', fmt(t('admDmEnded'), { n: (k.done || 0) + (k.fail || 0) }), '', days.map((d) => (d.done + d.fail ? d.done / (d.done + d.fail) : null))),
+    tileEl('studio', t('admDmDone'), numTxt(k.done || 0), fmt(t('admDmUsers'), { n: s.users }), '', days.map((d) => d.done)),
+    tileEl('red', t('admDmFail'), numTxt(k.fail || 0), fmt(t('admDmStop'), { n: k.stop || 0 }), '', days.map((d) => d.fail)),
+    tileEl('blue', t('admDmSpeed'), s.bps50 ? (s.bps50 / 1048576).toFixed(1) + ' MB/s' : '—', t('admDmMed'), '', null)));
+  const tot = Math.max(1, k.fail || 0);
+  p.append(grp(t('admDmCodes')), (s.codes || []).length ? list(...s.codes.map(([c, n]) => row({ c: 'red', ic: '✕', t: ltr(c), v: n, meter: [n / tot * 100, n / tot >= 0.3 ? 'x' : ''] })))
+    : list(row({ c: 'green', ic: '✓', t: t('admLabFailsNone') })));
+  p.append(grp(t('admDmSites')), list(...(s.doms || []).map(([d, v]) => { const e = (v.done || 0) + (v.fail || 0);
+    return row({ c: v.fail > v.done ? 'orange' : 'blue', ic: '◎', t: ltr(d), s: fmt(t('admDmSiteS'), { d: v.done || 0, f: v.fail || 0, s: v.stop || 0 }), v: e ? Math.round(v.done / e * 100) + '%' : '—', meter: [e ? v.done / e * 100 : 0, v.fail > v.done ? 'w' : ''] }); })));
+  if ((V.fails || []).length) p.append(grp(t('admDmLast')), list(...V.fails.map((f) => {
+    const sm = h('span'); sm.setAttribute('dir', 'auto');
+    sm.textContent = [day(f.t) + ' ' + clock(f.t), f.dom, f.name, f.ex, f.model].filter(Boolean).join(' · ') + (f.msg ? '\n' + f.msg : '') + ((f.tail || []).length ? '\n' + f.tail.join('\n') : '');
+    sm.style.whiteSpace = 'pre-wrap';
+    return row({ c: 'red', ic: f.kind === 'yt' ? '▶' : '⇣', t: ltr(f.code || '?'), s: sm });
+  })));
+  p.append(h('p', 'adm-foot', t('admDmFoot')));
 } });
 page('labFails', { tab: 'imp', parent: 'lab', title: () => t('admLabFails'), render(p) {
   const v = needLab(p); if (!v) return;

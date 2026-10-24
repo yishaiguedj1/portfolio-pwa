@@ -111,5 +111,18 @@ const { fakeR2, ACC } = require('./_r2fake');
   const DP = require(path.join(root, 'tools/dm-pull.js'));
   const md = DP.failsMd(pl.j.items), sm = DP.summaryMd(pl.j.items, 7);
   ok(md.includes('`blocked`') && md.includes('ERROR:') && sm.includes('הצלחה 33.3%'), 'tools/dm-pull.js: fails.md ו־summary.md');
+  /* ---------- 4. מרכז הניהול (adminDm) ---------- */
+  const callO = async (body) => {
+    const res = { code: 0, j: null, setHeader() {}, status(c) { res.code = c; return res; }, json(o) { res.j = o; return res; }, end() { return res; } };
+    await studio._handler({ method: 'POST', query: {}, body, headers: { origin: 'https://admin.thesnowball.app' }, socket: { remoteAddress: '9.9.9.8' } }, res, deps());
+    return res;
+  };
+  process.env.LIBRARY_READERS = 'a@example.com';   // המנהל = המייל הראשון ברשימה
+  ok(['not_admin', 'not_allowed'].includes((await callO({ op: 'adminDm', idToken: B })).j.error), 'adminDm: רק המנהל');
+  const ad = await callO({ op: 'adminDm', idToken: A });
+  const adS = JSON.stringify(ad.j);
+  ok(ad.j.ok && ad.j.dm.st.n === 3 && ad.j.dm.fails.length === 2 && ad.j.dm.days.length === 14, 'adminDm: סיכום, כשלים אחרונים ו־14 ימים');
+  ok(!/dmUser|@example\.com|videoplayback|"u":/.test(adS), 'adminDm: בלי uid, מייל, כתובת או hash של משתמש');
+  ok(D.dmView([], R.now, 14).st.n === 0, 'dmView: בלי נתונים — אפס');
   console.log('\n' + n + ' בדיקות עברו');
 })().catch((e) => { console.error(e); process.exit(1); });

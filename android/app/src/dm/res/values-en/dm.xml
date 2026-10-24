@@ -159,4 +159,32 @@
     <string name="dmPrivacyOn">Downloads go straight from the site to your phone, with no server in between. Only the download log — no addresses, no cookies, no files — is sent to our database, encrypted, to fix problems. You can turn it off and delete it above.</string>
     <string name="dmSetImproveS">No addresses, no cookies</string>
     <string name="dmSignNeed">Sign in to send</string>
+    <string name="dmSetCodec">Video format</string>
+    <string name="dmCodecSmall">Compact — smallest file</string>
+    <string name="dmCodecCompat">Compatible — plays everywhere</string>
+    <string name="dmLater">Later — on Wi‑Fi while charging</string>
+    <string name="dmLaterS">Starts by itself when the phone is charging on Wi‑Fi (e.g. at night)</string>
+    <string name="dmGoLater">Download later</string>
+    <string name="dmQueuedLater">Waiting for Wi‑Fi and charging</string>
+    <string name="dmLaterAct">Download later (Wi‑Fi and charging)</string>
+    <string name="dmPlT">Playlist</string>
+    <string name="dmPlWhole">The whole playlist</string>
+    <string name="dmPlAll">Select all</string>
+    <string name="dmPlNone">Clear all</string>
+    <string name="dmPlSel">%1$d of %2$d selected</string>
+    <plurals name="dmPlCount"><item quantity="one">%1$d video</item><item quantity="other">%1$d videos</item></plurals>
+    <plurals name="dmPlGo"><item quantity="one">Download %1$d video</item><item quantity="other">Download %1$d videos</item></plurals>
+    <string name="dmSubs">With subtitles</string>
+    <string name="dmSubsAuto">auto-generated</string>
+    <string name="dmDup">This link is already in your downloads.</string>
+    <string name="dmSearch">Search downloads</string>
+    <string name="dmNoMatch">No downloads found</string>
+    <string name="dmRemoved">Removed from the list — the file stays</string>
+    <string name="dmUndo">Undo</string>
+    <string name="dmOpenWith">Open in another app</string>
+    <string name="dmUnzip">Extract</string>
+    <string name="dmUnzipping">Extracting…</string>
+    <string name="dmUnzipped">Extracted %1$d files to %2$s</string>
+    <string name="dmUnzipBig">The archive is too large to extract</string>
+    <string name="dmUnzipFail">Extraction failed — the file is damaged or password-protected</string>
 </resources>

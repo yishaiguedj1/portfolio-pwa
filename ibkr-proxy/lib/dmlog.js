@@ -116,4 +116,18 @@ function dmStats(items) {
     codes: top(codes, 12), doms: top(doms, 15), bps50: bps.length ? bps[Math.floor(bps.length / 2)] : null };
 }
 
-module.exports = { keyTime, monthsBack, dmStats, DMC_V, KEEP_MONTHS, EV_MAX, clean, normEv, normBatch, uidHash, userPrefix, dmKey, parseKey, expiredKey };
+/* מרכז הניהול (מעבדת השיפור ← Studio DM): הסיכום, 20 הכשלים האחרונים (בלי משתמש) והימים האחרונים — רק מה שכבר מנוקה */
+function dmView(items, now, days) {
+  const fails = [], byDay = {};
+  for (const it of items || []) for (const e of it.ev || []) {
+    if (e.k === 'fail') fails.push({ t: e.t, code: e.code || '', kind: e.kind, dom: e.dom || '', name: e.name || '', ex: e.ex || '', msg: e.msg || '', tail: (e.tail || []).slice(-3),
+      model: (it.dev && it.dev.model) || '', v: (it.dev && it.dev.v) || '' });
+    if (e.k === 'done' || e.k === 'fail') { const d = new Date(e.t).toISOString().slice(0, 10); const x = (byDay[d] = byDay[d] || { d, done: 0, fail: 0 }); x[e.k]++; }
+  }
+  fails.sort((a, b) => b.t - a.t);
+  const daysList = [];
+  for (let i = Math.min(days || 14, 14) - 1; i >= 0; i--) { const d = new Date(now - i * 864e5).toISOString().slice(0, 10); daysList.push(byDay[d] || { d, done: 0, fail: 0 }); }
+  return { st: dmStats(items), fails: fails.slice(0, 20), days: daysList };
+}
+
+module.exports = { dmView, keyTime, monthsBack, dmStats, DMC_V, KEEP_MONTHS, EV_MAX, clean, normEv, normBatch, uidHash, userPrefix, dmKey, parseKey, expiredKey };
