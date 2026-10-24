@@ -211,6 +211,8 @@ module.exports = { createServer, startCron, SERVER_ONLY, parseBody, parseCron, c
 if (require.main === module) {
   const unpacked = unpackEnv(process.env);
   if (unpacked < 0) console.error('[snb-app] ✗ SNB_ENV_GZ לא נפתח — השרתון עולה בלי הסודות שבו');
+  // 24/10/2026: תור ההעברה של "המנוי שלי" (lib/relay.js) — חי בזיכרון של התהליך הזה בלבד (ב־Vercel אין)
+  if (process.env.SNB_RELAY_HUB_ON == null) process.env.SNB_RELAY_HUB_ON = '1';
   const server = createServer();
   const port = +process.env.PORT || 3000;
   server.listen(port, '0.0.0.0', () => console.log('[snb-app] מאזין על', port, '·', server.names.size, 'פונקציות'));

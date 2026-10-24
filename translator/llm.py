@@ -199,12 +199,23 @@ class Result:
         return self.stop == 'max_tokens'
 
 
+# 24/10/2026: ההעברה — עבודת "המנוי שלי" שרצה בשרת שלנו: הקריאות ל־Claude עוברות דרך התור בשרתון ל־Routine של המשתמש
+# (translator/relay.py). job.py auto קובע את זה כשהלקיחה החזירה כתובת תור (rh); כל מנוע שנוצר אחר כך בתהליך — דרכו.
+RELAY: dict | None = None
+
+
+def set_relay(base: str, job: str, key: str) -> None:
+    global RELAY
+    RELAY = {'base': base, 'job': job, 'key': key}
+
+
 class Engine:
     """מנוע אחד לכל עבודה. ledger צובר את העלות; cap_usd = תקרת העבודה (נבדקת לפני כל קריאה)."""
 
     def __init__(self, spec: Spec, cap_usd: float | None = None, client=None, transport: str | None = None):
         self.spec = spec
-        self.transport = transport or os.environ.get('SNB_LLM') or TRANSPORT   # 'api' = Messages API עם המפתח של המערכת · 'cli' = claude -p במנוי
+        # 'api' = Messages API עם המפתח של המערכת · 'cli' = claude -p במנוי · 'relay' = claude -p במנוי, דרך התור (העבודה בשרת שלנו)
+        self.transport = transport or ('relay' if RELAY else None) or os.environ.get('SNB_LLM') or TRANSPORT
         self.cap = cap_usd
         self.ledger = Ledger()
         self._client = client          # בבדיקות: לקוח מדומה עם messages.stream(...)
@@ -318,10 +329,10 @@ class Engine:
     def prompt_tokens(self, fixed: str, prompt: str, extra: str = '') -> int:
         """כמה טוקני קלט תהיה הבקשה. אומדן גס; כשהוא באזור הסף — count_tokens של ה־API (חינם, מכסה נפרדת)."""
         rough = est_tokens(fixed) + est_tokens(extra) + est_tokens(prompt) + 64
-        if self.transport == 'cli':
+        if self.transport in ('cli', 'relay'):
             rough += 1500                 # המעטפת של Claude Code (נמדד: ‎~1,400 טוקנים)
         lim = self.card_limit
-        if lim and 0.5 * lim <= rough <= 2 * lim and self.transport != 'cli':
+        if lim and 0.5 * lim <= rough <= 2 * lim and self.transport == 'api':
             try:
                 system = [{'type': 'text', 'text': fixed}] + ([{'type': 'text', 'text': extra}] if extra else [])
                 r = self._client_or_new().messages.count_tokens(model=self.spec.model, system=system,
@@ -355,7 +366,7 @@ class Engine:
         טוקנים ועלות — לכל קריאה, גם לזו שנכשלה. העטיפה לא משנה את ההתנהגות; תקלה ביומן נבלעת"""
         t0 = time.time()
         try:
-            res = (self._cli0 if self.transport == 'cli' else self._anthropic0)(fixed, extra, prompt, max_tokens, on_first_token)
+            res = {'cli': self._cli0, 'relay': self._relay0}.get(self.transport, self._anthropic0)(fixed, extra, prompt, max_tokens, on_first_token)
         except LLMError as e:
             call_log({'t': t0, 'ms': int((time.time() - t0) * 1000), 'k': getattr(_tl, 'k', ''), 'm': self.spec.model,
                       'a': getattr(_tl, 'a', 0), 'mt': max_tokens, 'err': e.code, 'em': str(e)[:300],
@@ -515,6 +526,40 @@ class Engine:
         usd = cost_anthropic(self.spec.model, usage['i'], usage['o'], usage['cr'], usage['c5'], usage['c1'])
         return Result(str(res_ev.get('result') or ''), usage, usd, res_ev.get('stop_reason') or 'end_turn',
                       think_chars=think, mid=res_ev.get('uuid'))
+
+    # ------------------------------------------------------------------ דרך התור (העבודה בשרת שלנו, Claude ב־Routine)
+    def _relay0(self, fixed: str, extra: str, prompt: str, max_tokens: int, on_first_token=None) -> Result:
+        """אותה קריאה כמו _cli0 — ה־Routine של המשתמש מריץ אותה (relay.serve → relay_answer). העלות = לפי המחירון,
+        כמו במנוי (לא נגבית מהמפתח של המערכת)."""
+        import relay as R
+        r = RELAY or {}
+        if not r:
+            raise LLMError('relay_error', 'אין תור')
+        try:
+            a = R.call(r['base'], r['job'], r['key'], k=getattr(_tl, 'k', ''), model=self.spec.model,
+                       effort=self.spec.effort or 'medium', max_tokens=max_tokens, fixed=fixed, extra=extra,
+                       prompt=prompt, on_first_token=on_first_token)
+        except R.RelayError as e:
+            raise LLMError(e.code, 'התור: ' + str(e)) from e
+        if a.get('err'):
+            raise LLMError(str(a['err']), 'ה־Routine: ' + str(a['err']))
+        u = a.get('u') or {}
+        usage = {f: int(u.get(f) or 0) for f in ('i', 'o', 'cr', 'c5', 'c1')}
+        usd = cost_anthropic(self.spec.model, usage['i'], usage['o'], usage['cr'], usage['c5'], usage['c1'])
+        return Result(str(a.get('t') or ''), usage, usd, a.get('st') or 'end_turn', think_chars=int(a.get('th') or 0))
+
+
+def relay_answer(req: dict, fixed: str, started=None) -> dict:
+    """ה־Routine: בקשה אחת מהתור → claude -p (אותה פונקציה כמו במצב 'cli') → תשובה לתור. רק מודלים ומאמצים מוכרים."""
+    model, effort = str(req.get('m') or ''), str(req.get('e') or 'medium')
+    if model not in ANTHROPIC_PRICES or effort not in ('low', 'medium', 'high', 'xhigh', 'max') or not isinstance(fixed, str):
+        return {'err': 'relay_bad'}
+    eng = Engine(Spec('anthropic', model, effort), transport='cli')
+    try:
+        res = eng._cli0(fixed, str(req.get('ex') or ''), str(req.get('pr') or ''), int(req.get('mt') or 32000), started)
+    except LLMError as e:
+        return {'err': e.code}
+    return {'t': res.text, 'u': res.usage, 'st': res.stop or 'end_turn', 'th': int(res.think_chars or 0)}
 
 
 _tl = threading.local()
