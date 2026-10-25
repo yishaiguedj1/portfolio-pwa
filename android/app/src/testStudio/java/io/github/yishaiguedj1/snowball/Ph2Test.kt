@@ -81,6 +81,31 @@ class Ph2Test {
             assertEquals(h.getInt(0), holes[i].i); assertEquals(h.getDouble(1), holes[i].a, 0.0); assertEquals(h.getDouble(2), holes[i].b, 0.0) }
     }
 
+    /** 25/10/2026: חלון בלי פיסוק ותמלול חוזר בחלונות קצרים — כמו flat/unflatten של השרת */
+    @Test fun flatWindowsLikeTheServer() {
+        val f = fx.getJSONObject("flat")
+        val cases = f.getJSONArray("cases"); val want = f.getJSONArray("flat"); val sh = f.getJSONArray("shape")
+        for (i in 0 until cases.length()) {
+            val ws = aw(cases.getJSONArray(i))
+            assertEquals("מקרה $i", want.getBoolean(i), AsrWords.flat(ws))
+            val (p, c) = AsrWords.shape(ws)
+            assertEquals(sh.getJSONArray(i).getDouble(0), p, 0.0); assertEquals(sh.getJSONArray(i).getDouble(1), c, 0.0)
+        }
+        val u = fx.getJSONObject("unflat")
+        val parts: MutableList<List<AWord>> = MutableList(u.getJSONArray("parts").length()) { aw(u.getJSONArray("parts").getJSONArray(it)) }
+        val calls = u.getJSONArray("calls"); var k = 0
+        val done = AsrWords.unflatten(parts, pairs(u.getJSONArray("chunks")), pairs(u.getJSONArray("segs")), u.getInt("n"), 16000) { a, b ->
+            val cl = calls.getJSONObject(k++)
+            assertEquals(cl.getInt("a"), a); assertEquals(cl.getInt("b"), b)
+            aw(cl.getJSONArray("w"))
+        }
+        assertEquals(calls.length(), k)
+        assertEquals(u.getInt("done"), done)
+        assertTrue("יש חלון שהוחלף", done > 0)
+        val out = u.getJSONArray("out")
+        for (i in parts.indices) same(out.getJSONArray(i), parts[i])
+    }
+
     @Test fun chunksWordsHolesAndRescueLikeTheServer() {
         val c = fx.getJSONObject("chunks")
         assertEquals(pairs(c.getJSONArray("out")), AsrWords.chunks(pairs(c.getJSONArray("segs")), c.getInt("n"), pad = (0.12 * 16000).toInt()))
