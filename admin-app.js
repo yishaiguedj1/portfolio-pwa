@@ -930,6 +930,12 @@ function ytLine(y) {
   return y.st === 'ok' ? fmt(t('admYtOk'), { a: ago(y.ok) }) : t('admYtNew');
 }
 const ytSc = (c) => c === 'blocked' ? t('admYtScBlocked') : c === 'login' ? t('admYtScLogin') : c === 'ck' ? t('admYtScCk') : '';
+/* 25/10/2026: ייצוא מלא של הדפדפן (התוסף של Firefox לאנדרואיד מייצא את כל האתרים) — לפני השליחה רק שורות של יוטיוב
+   וגוגל, כדי שייכנס במגבלת הגודל. השרתון מסנן שוב (lib/ytck.js) */
+const ytTrim = (s) => String(s || '').replace(/\r/g, '').split('\n').filter((l) => {
+  const f = l.replace(/^#HttpOnly_/, '').split('\t');
+  return f.length === 7 && /(^|\.)(youtube|google)\.com$/.test(f[0].toLowerCase().replace(/^\./, ''));
+}).join('\n');
 const YT_ERR = { not_logged_in: () => t('admYtErrIn'), too_large: () => t('admYtErrBig'), too_many: () => t('admYtErrBig') };
 page('yt', { tab: 'sys', parent: 'sys', title: () => t('admYt'), render(p) {
   const y = D.yt;
@@ -945,7 +951,9 @@ page('yt', { tab: 'sys', parent: 'sys', title: () => t('admYt'), render(p) {
   const save = h('button', 'btn', t('admYtSave')); save.type = 'button';
   save.addEventListener('click', async () => {
     if (!ta.value.trim()) return;
-    save.disabled = true; const r = await needYt({ set: ta.value }); save.disabled = false;
+    const ck = ytTrim(ta.value) || ta.value;
+    if (ck.length > 60000) { flash(t('admYtErrBig')); return; }
+    save.disabled = true; const r = await needYt({ set: ck }); save.disabled = false;
     if (r.ok) { ta.value = ''; flash(t('admSaved')); } else flash((YT_ERR[r.error] || (() => (r.error ? t('admYtErrFmt') : t('admErr'))))());
   });
   const br = h('div', 'btn-row'); br.append(save, pick);
