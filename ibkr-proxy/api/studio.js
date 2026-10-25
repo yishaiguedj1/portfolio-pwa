@@ -2207,7 +2207,8 @@ async function handler(req, res, deps = {}) {
   if (body.op === 'devPull') return devPull(req, res, body, deps);   // 15/10/2026: האיסוף המלא — לוגים, קריאות, מדדים, שגיאות (קריאה בלבד)
   if (body.op === 'dmPull') return dmPull(req, res, body, deps);   // שלב ג׳: יומני DM לניתוח (טוקן הניתוח, קריאה בלבד)
   if (body.op === 'dmLog' || body.op === 'dmForget') return dmOps(req, res, body, deps);   // 24/10/2026: Studio DM — אפליקציה נייטיב, בלי Origin
-  if (guard(req, res)) return;
+  // 25/10/2026: adminYt = קובץ cookies.txt (קובץ אמיתי 5–30KB) — עד 64KB; כל השאר 4KB כמו תמיד
+  if (guard(req, res, body.op === 'adminYt' ? 65536 : 4096)) return;
   if (body.op === 'cfg') {   // 15/10/2026: מצב התחזוקה והדגלים — לשלוש האפליקציות, בלי התחברות (רק מה שציבורי)
     if (limited('cfg|' + String(((req.socket || {}).remoteAddress) || ''), 30)) return res.status(429).json({ ok: false, error: 'rate_limited' });
     const now = deps.now || Date.now();
