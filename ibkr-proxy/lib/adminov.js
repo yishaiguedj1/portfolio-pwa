@@ -379,12 +379,12 @@ function serversAdmin(list, busy, now) {
     const warn = [];
     if (s.ba) warn.push('auth');
     if (!s.online && s.seen && !s.paused) warn.push('down');
-    if (hb.disk != null && hb.disk >= 85) warn.push('disk');
+    if ((hb.disk != null && hb.disk >= 85) || hb.dl) warn.push('disk');
     if (hb.mem != null && hb.mem >= 90) warn.push('mem');
     if (hb.iso === 'r') warn.push('iso');
     const b = B[s.id];
     return { id: s.id, n: s.name, online: s.online, paused: s.paused, seen: s.seen, created: s.created, warn,
-      hb: { v: hb.v || '', disk: hb.disk, free: hb.free, mem: hb.mem, load: hb.load, up: hb.up, iso: hb.iso || '', iw: hb.iw || '', al: hb.al || '', ev: Array.isArray(hb.ev) ? hb.ev.slice(-8) : [] },
+      hb: { v: hb.v || '', disk: hb.disk, free: hb.free, dl: hb.dl ? 1 : 0, mem: hb.mem, load: hb.load, up: hb.up, iso: hb.iso || '', iw: hb.iw || '', al: hb.al || '', ev: Array.isArray(hb.ev) ? hb.ev.slice(-8) : [] },
       job: b ? { st: String(b.st || '').slice(0, 24), p: typeof b.p === 'number' ? b.p : null } : null };
   }).sort((a, b) => (b.online - a.online) || (b.seen - a.seen));
   return { servers: out, online: out.filter((x) => x.online && !x.paused).length, warn: out.filter((x) => x.warn.length).length, at: now };
