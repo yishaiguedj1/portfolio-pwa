@@ -118,6 +118,48 @@ class AWord(var w: String, var s: Double, var e: Double)
 
 object AsrWords {
     const val HOLE_S = 0.9; const val HOLE_PAD = 2.0; const val WORD_S = 0.6; const val QUIET_S = 1.8; const val PIECE_S = 28.0
+    // 25/10/2026: חלון שבו Parakeet עבר למצב בלי פיסוק ובלי אותיות גדולות — כמו FLAT_* ב־asr_parakeet.py
+    const val FLAT_MIN = 40; const val FLAT_P = 0.035; const val FLAT_C = 0.04; const val FLAT_C2 = 0.08
+    const val FLAT_MAX_S = 20.0; const val FLAT_KEEP = 0.15
+
+    private val PUNCT_END = Regex("[.?!,;:]$")
+    private val LOW_I = Regex("i(?:'(?:m|ve|ll|d))?[.,?!]?")
+
+    /** _shape: (חלק המילים שנגמרות בסימן פיסוק, חלק המילים שמתחילות באות גדולה) */
+    fun shape(ws: List<AWord>): Pair<Double, Double> {
+        if (ws.isEmpty()) return 0.0 to 0.0
+        val p = ws.count { PUNCT_END.containsMatchIn(it.w) }.toDouble() / ws.size
+        val c = ws.count { it.w.firstOrNull()?.isUpperCase() == true }.toDouble() / ws.size
+        return p to c
+    }
+
+    fun flat(ws: List<AWord>): Boolean {
+        if (ws.size < FLAT_MIN) return false
+        val (p, c) = shape(ws)
+        val lowI = ws.any { LOW_I.matches(it.w) }
+        return (p < FLAT_P && c < FLAT_C) || (lowI && c < FLAT_C2)
+    }
+
+    /** unflatten: חלון שטוח מתומלל שוב בחלונות קצרים באותן שתיקות; נכנס רק אם חזר פיסוק ומספר המילים דומה.
+     *  recog(a, b) בדגימות. מחזיר כמה חלונות הוחלפו */
+    fun unflatten(parts: MutableList<List<AWord>>, chunks: List<Pair<Int, Int>>, segs: List<Pair<Int, Int>>, n: Int, sr: Int,
+                  recog: (Int, Int) -> List<AWord>): Int {
+        var done = 0
+        for ((k, ch) in chunks.withIndex()) {
+            val (a, b) = ch
+            if (!flat(parts[k])) continue
+            val inner = segs.filter { it.second > a && it.first < b }.map { max(it.first, a) to min(it.second, b) }
+            val sub = chunks(inner, n, sr, maxS = FLAT_MAX_S, pad = (0.12 * sr).toInt()).map { max(it.first, a) to min(it.second, b) }
+            val got = sub.flatMap { recog(it.first, it.second) }
+            val p0 = shape(parts[k]).first
+            val p1 = shape(got).first
+            if (p1 >= max(FLAT_P, 2 * p0) && Math.abs(got.size - parts[k].size) <= FLAT_KEEP * parts[k].size) {
+                parts[k] = got
+                done++
+            }
+        }
+        return done
+    }
 
     /** _chunks: חלונות של עד maxS, חיתוך רק בשתיקות, ריפוד pad דגימות לכל צד בתוך השתיקה */
     fun chunks(segs: List<Pair<Int, Int>>, n: Int, sr: Int = 16000, maxS: Double = 40.0, pad: Int = 0): List<Pair<Int, Int>> {
@@ -251,11 +293,14 @@ class PhoneAsr(private val vad: SileroVad, private val model: Parakeet, private 
         val sr = 16000
         val segs = SileroVad.segments(vad.probs(au) { i, t -> onStep("vad", i, t) }, au.n)
         val chunks = AsrWords.chunks(segs, au.n, sr, pad = (0.12 * sr).toInt())
-        val words = ArrayList<AWord>()
+        val parts = ArrayList<List<AWord>>()
         for ((k, c) in chunks.withIndex()) {
-            words.addAll(recognize(au, c.first, c.second, c.first.toDouble() / sr, c.second.toDouble() / sr))
+            parts.add(recognize(au, c.first, c.second, c.first.toDouble() / sr, c.second.toDouble() / sr))
             onStep("asr", k + 1, chunks.size)
         }
+        if (parts.any { AsrWords.flat(it) })
+            AsrWords.unflatten(parts, chunks, segs, au.n, sr) { a, b -> recognize(au, a, b, a.toDouble() / sr, b.toDouble() / sr) }
+        val words = ArrayList<AWord>(parts.flatten())
         val total = au.n.toDouble() / sr
         val found = AsrWords.holes(words, segs.map { it.first.toDouble() / sr to it.second.toDouble() / sr }, total)
         var n = 0
