@@ -63,9 +63,9 @@ const AAD = (uid) => 'studio|' + uid + '|r';
 const WORKER_OPS = new Set(['claim', 'token', 'report', 'qa', 'r2get', 'r2wup', 'r2wparts', 'r2wdone', 'r2del', 'learnPut', 'learnMedia', 'learnMediaDone', 'srcFile']);   // 22/10/2026: srcFile — הורדה מקישור
 const RELAY_OPS = new Set(['rlPut', 'rlFix', 'rlWait', 'rlEnd', 'rlNext', 'rlMark']);   // 24/10/2026: rlPut…rlEnd = העובד (kh), rlNext/rlMark = ה־Routine (rkh)
 // 24/10/2026: תרגום בטלפון — Studio לאנדרואיד (נייטיב, בלי Origin ובלי התחברות) עם מפתח לעבודה אחת (pkh — רק ה־hash)
-const PHONE_OPS = new Set(['phUp', 'phParts', 'phDone', 'phFile', 'phStart', 'phJob', 'phGet', 'phBurn', 'phProg', 'phAlive']);
+const PHONE_OPS = new Set(['phUp', 'phParts', 'phDone', 'phFile', 'phStart', 'phJob', 'phGet', 'phBurn', 'phProg', 'phAlive', 'phClaim']);   // phClaim — 25/10/2026, שלב 3: הטלפון לוקח את העבודה ומריץ אותה
 const PH_KEY_TTL = 7 * 24 * 3600e3;   // הצריבה יכולה לקרות ימים אחרי שהתרגום מוכן
-const SERVER_OPS = new Set(['poll', 'beat', 'devLog', 'devMet', 'pq', 'ytCk']);   // ytCk — עוגיות החשבון הייעודי (25/10/2026)   // pq — בדיקות קישור (22/10/2026)   // devLog/devMet — האיסוף המלא (lib/devlog.js)
+const SERVER_OPS = new Set(['poll', 'beat', 'devLog', 'devMet', 'pq', 'ytCk', 'ptNext', 'ptMark']);   // ptNext/ptMark — העונה לעבודות שהטלפון מריץ (25/10/2026)   // ytCk — עוגיות החשבון הייעודי (25/10/2026)   // pq — בדיקות קישור (22/10/2026)   // devLog/devMet — האיסוף המלא (lib/devlog.js)
 /* מצב API: תקציב חודשי לכל משתמש (מפתח ה־API של המערכת). מעבר לזה — התקרה ב־Console של Anthropic */
 const LEARN_MAX = 5000, LEARN_SYNC_MAX = 400;   // מאגר הלמידה: כמה רשומות קוראים, וכמה משלימים בכל פתיחה של לוח הבקרה
 const USER_MONTH = () => Math.max(1, Math.min(10000, Number(process.env.STUDIO_API_USER_MONTH_USD) || 30));
@@ -389,6 +389,7 @@ async function learnMedia(deps, job, k, now) {
   try {
     const c = learnCfg();
     if (!c.ok || job.kind !== 'tr' || !LC.MEDIA_KINDS.includes(k) || String(job.lm || '').includes(k)) return null;
+    if (job.spec && job.spec.ph === 1) return null;   // 25/10/2026: תרגום בטלפון — הסרטון והקול לא עוזבים את הטלפון
     if (await learnSkip(deps, job)) return null;
     const st = (await readDoc(deps, 'studioStats', job.uid)) || {};
     if (!(+st.lrm > 0)) return null;
@@ -1125,6 +1126,11 @@ async function queueApi(deps, uid, job, now) {
    ה־Routine מופעל כאן עם מפתח משלו (rkh) — הוא פותח רק את פעולות ההעברה של העבודה הזו, לא את הקבצים ולא את הדיווח.
    כשל ודאי בהפעלה = העבודה לא נכנסת לתור (נשארת כמו שהייתה, עם השגיאה של ההפעלה) */
 const relayJob = (job) => apiJob(job) && job.spec.ry === 1 && job.kind !== 'rr';   // הפקה מחדש — בלי Claude, בלי Routine
+/* 25/10/2026 (שלב 3 של "תרגום בטלפון"): pt = הטלפון מריץ את כל העבודה (גם שלבי הטקסט), והקריאות ל־Claude עוברות דרך אותו
+   תור — אבל העונה הוא השרת שלנו, עם המפתח של המערכת (agent.py, ptNext/ptMark). העלות נספרת כאן מכל תשובה (ptMark), לא
+   מהדיווח של הטלפון. השרת לא לוקח את העבודה (poll מדלג) — הטלפון לוקח אותה במפתח הטלפון (phClaim) */
+const ptJob = (job) => apiJob(job) && job.kind === 'tr' && job.spec.pt === 1;
+const hubJob = (job) => relayJob(job) || ptJob(job);
 async function fireRelay(deps, uid, job, now) {
   const v = await readVault(deps, uid);
   if (!v || !v.r) return { ok: false, error: 'conn_missing' };
@@ -1148,15 +1154,16 @@ const RELAY_HUB = () => process.env.SNB_RELAY_HUB || (PROJECT() === 'snowball-st
 const RL_AUTH_TTL = 90e3, rlAuth = new Map();
 async function relayAuth(deps, id, key, f, now) {
   const ck = id + '|' + f, h = S.keyHash(key), c = rlAuth.get(ck);
-  if (c && c.h === h && now - c.at < RL_AUTH_TTL && now <= c.kx) return { ok: true };
+  if (c && c.h === h && now - c.at < RL_AUTH_TTL && now <= c.kx) return { ok: true, pt: c.pt };
   const job = await readJob(deps, id);
   const fx = f === 'rkh' ? 'rkx' : 'kx';
-  if (!job || !relayJob(job) || !S.keyMatches(job, key, f) || now > (job[fx] || 0)) { rlAuth.delete(ck); return { ok: false, status: 403, error: 'bad_key' }; }
+  if (!job || !(f === 'rkh' ? relayJob(job) : hubJob(job)) || !S.keyMatches(job, key, f) || now > (job[fx] || 0)) { rlAuth.delete(ck); return { ok: false, status: 403, error: 'bad_key' }; }
   const e = S.effState(job, now);
   if (S.FINAL.includes(e.state)) { const hb = RL.hub(); if (hb) hb.end(id, e.state); return { ok: false, status: 200, error: 'stop', state: e.state }; }
   if (rlAuth.size > 500) rlAuth.clear();
-  rlAuth.set(ck, { h, at: now, kx: job[fx] });
-  return { ok: true, job };
+  const pt = ptJob(job);
+  rlAuth.set(ck, { h, at: now, kx: job[fx], pt });
+  return { ok: true, job, pt };
 }
 async function relayOp(req, res, body, deps) {
   res.setHeader('Cache-Control', 'no-store');
@@ -1173,7 +1180,7 @@ async function relayOp(req, res, body, deps) {
     const a = await relayAuth(deps, id, key, routine ? 'rkh' : 'kh', now);
     if (!a.ok) return res.status(a.status).json({ ok: false, error: a.error, stop: true, state: a.state });
     let out;
-    if (op === 'rlPut') out = hub.put(id, body);
+    if (op === 'rlPut') out = hub.put(id, body, a.pt);
     else if (op === 'rlFix') out = hub.fix(id, body.fh, body.fx);
     else if (op === 'rlWait') out = await hub.wait(id, body.rid, body.w);
     else if (op === 'rlEnd') out = hub.end(id, body.why);
@@ -1184,6 +1191,70 @@ async function relayOp(req, res, body, deps) {
     return res.status(502).json({ ok: false, error: /^(fs_http_|sa_http_)/.test(String(err.message)) ? String(err.message).slice(0, 30) : 'failed' });
   }
 }
+/* התקציב החודשי של המשתמש: קריאה וכתיבה בתנאי (updateTime) — שני דיווחים במקביל (שתי עבודות) לא דורסים זה את הסכום
+   של זה. תקלה כאן לא מפילה את מה שקרא לה */
+async function monthSpend(deps, uid, spent, now) {
+  for (let i = 0; i < 4; i++) {
+    const st = await readDocT(deps, 'studioStats', uid).catch(() => undefined);
+    if (st === undefined) break;
+    const o = { mu: S.addMonth(st && st.mu, spent, now), updated: now };
+    const ok = st && st._ut ? await patchIf(deps, 'studioStats', uid, o, st._ut).catch(() => true)
+      : await patchDoc(deps, 'studioStats', uid, o).then(() => true, () => true);
+    if (ok) break;
+  }
+}
+
+/* 25/10/2026 (שלב 3 של "תרגום בטלפון"): העונה בשרת שלנו (agent.py, טוקן שרת) — הבקשות ל־Claude של כל העבודות שהטלפון
+   מריץ (ptNext), והתשובות (ptMark). לפני שבקשה יוצאת: העבודה עדיין רצה, והתקרה שלה (capc — הנמוכה מהתקרה שלך ומהתקציב
+   החודשי שנשאר, בלקיחה) עוד לא נוצלה — אחרת התשובה היא budget_cap בלי לקרוא ל־Claude. העלות של כל תשובה (מחושבת בעונה —
+   המחירון בצד הפייתון) נרשמת ב־job.use ובתקציב החודשי, בתור לכל עבודה (שתי תשובות במקביל לא דורסות זו את זו) */
+const PT_PAR = 16, ptChain = new Map();
+function ptSerial(id, fn) {
+  const prev = ptChain.get(id) || Promise.resolve();
+  const p = prev.then(fn, fn);
+  ptChain.set(id, p.catch(() => {}));
+  p.finally(() => { if (ptChain.get(id) && ptChain.size > 200) ptChain.delete(id); }).catch(() => {});
+  return p;
+}
+async function ptOp(deps, body, now) {
+  const hb = RL.hub();
+  if (!hb) return { ok: false, error: 'no_hub', hub: RELAY_HUB() };
+  if (body.op === 'ptNext') {
+    const out = await hb.nextSrv(body.have, Math.min(PT_PAR, Number(body.max) || 0), body.w);
+    const seen = new Map(), reqs = [];
+    for (const r of out.reqs) {
+      if (!seen.has(r.job)) seen.set(r.job, await readJob(deps, r.job).catch(() => null));
+      const job = seen.get(r.job);
+      const e = job && S.effState(job, now);
+      if (!job || !ptJob(job) || !e || !['queued', 'running'].includes(e.state)) { hb.mark(r.job, r.rid, 'd', { err: 'relay_stop' }); continue; }
+      // התקרה של ההפעלה הזו (capc) — מול מה שעלה מאז הלקיחה (use כולל את הסשנים הקודמים — use0)
+      if (S.usdOf(job.use) - S.usdOf(job.use0) >= (Number(job.capc) || 0) / 100) { hb.mark(r.job, r.rid, 'd', { err: 'budget_cap' }); continue; }
+      reqs.push(Object.assign(r, { md: job.spec.mode }));
+    }
+    return { ok: true, reqs, fx: out.fx };
+  }
+  // ptMark
+  const id = String(body.job || ''), rid = String(body.rid || '');
+  if (!S.JOB_RE.test(id) || !RL.RID_RE.test(rid)) return { ok: false, error: 'bad_params' };
+  const pk = hb.peek(id, rid);
+  if (!pk || !pk.srv) return { ok: true, gone: true };
+  if (body.st === 's') return hb.mark(id, rid, 's');
+  const a = RL.normAns(body.ans);
+  if (!a) return { ok: false, error: 'bad_params' };
+  const usd = Number(body.usd);
+  if (!a.err || (a.u && (a.u.i || a.u.o))) {
+    // גם קריאה שנכשלה בסוף עלתה כסף (ה־ledger של llm.py רושם אותה) — נספרת
+    await ptSerial(id, async () => {
+      const job = await readJob(deps, id);
+      if (!job || !ptJob(job)) return;
+      // use = כל הסשנים (כמו בדיווח של העובד בשרת — mergeUse(use0, …)): אחרי "המשך" ממשיכים מ־use0
+      await patchJob(deps, id, { use: S.useAdd(Array.isArray(job.use) ? job.use : job.use0, pk.k, pk.m, a.u || {}, usd) });
+      if (usd > 0 && usd < 1e4) await monthSpend(deps, job.uid, usd, now);   // כל תשובה — התוספת שלה (בלי mucc)
+    }).catch(() => {});
+  }
+  return hb.mark(id, rid, 'd', a);
+}
+
 /* למה אין תקציב להפעלה: התקרה של העבודה נוצלה בסשנים הקודמים (budget_cap — "המשך" במצב זול יותר / תקרה גבוהה יותר), או החודש */
 const capWhy = (job, st, now) => (S.jobCap(job.spec, 0, USER_MONTH(), S.usdOf(job.use0)) ? 'month_cap' : 'budget_cap');
 const apiJob = (job) => (job.kind === 'tr' || job.kind === 'rr' || job.kind === 'ai') && job.spec && job.spec.eng === 'api';   // מ2 · מ7: הפקה מחדש וגיליון ה־AI — באותו מנוע כמו המקור   // מ2: הפקה מחדש — באותו מנוע כמו המקור
@@ -1294,13 +1365,15 @@ async function server(req, res, body, deps) {
   let len = 0; try { len = JSON.stringify(body).length; } catch (e) { len = 1e9; }
   // 24/10/2026: תשובה לבדיקת קישור כוללת תמונה קטנה (עד TH_MAX) + כל הפורמטים — TED יצא 15.8KB, והתקרה של 4KB דחתה אותה
   // בשקט (413): הבדיקה נשארה "בודקים" והטלפון הציג "השרת לא ענה בזמן". normProbe מגביל כל שדה
-  const cap = body.op === 'devLog' || body.op === 'devMet' ? DL.BODY_MAX : body.op === 'pq' && body.done === true ? PQ_DONE_MAX : body.op === 'ytCk' ? YT.OUT_MAX + 4096 : 4096;
+  const cap = body.op === 'devLog' || body.op === 'devMet' ? DL.BODY_MAX : body.op === 'pq' && body.done === true ? PQ_DONE_MAX : body.op === 'ytCk' ? YT.OUT_MAX + 4096
+    : body.op === 'ptMark' ? RL.MAX_TEXT + 8192 : 4096;   // 25/10/2026: תשובה של Claude לעבודה שהטלפון מריץ
   if (len > cap) return res.status(413).json({ ok: false, error: 'too_large' });
   const hd = req.headers || {};
   const m = /^Bearer (\S+)$/.exec(String(hd.authorization || hd.Authorization || ''));
   const p = m && S.parseServerToken(m[1]);
   if (!p) return res.status(401).json({ ok: false, error: 'no_auth' });
-  if (limited((body.op === 'pq' ? 'q|' : 's|') + p.sid, body.op === 'pq' ? 40 : 20)) return res.status(429).json({ ok: false, error: 'rate_limited' });   // pq — כל כמה שניות
+  const pt = body.op === 'ptNext' || body.op === 'ptMark';
+  if (limited((body.op === 'pq' ? 'q|' : pt ? 't|' : 's|') + p.sid, body.op === 'pq' ? 40 : pt ? 600 : 20)) return res.status(429).json({ ok: false, error: 'rate_limited' });   // pq — כל כמה שניות
   const now = deps.now || Date.now();
   try {
     const srv = await readDocT(deps, 'studioServers', p.sid);   // _ut — הרישום של טוקן שנדחה בכתיבה בתנאי
@@ -1309,6 +1382,7 @@ async function server(req, res, body, deps) {
       return res.status(401).json({ ok: false, error: 'no_auth', stop: true });
     }
     if (body.op === 'devLog' || body.op === 'devMet') return res.status(200).json({ ok: true, saved: await devSrv(deps, body, p.sid, now), now });   // האיסוף המלא
+    if (pt) return res.status(200).json(Object.assign(await ptOp(deps, body, now), { now }));   // 25/10/2026: העונה לעבודות שהטלפון מריץ
     if (body.op === 'pq') return res.status(200).json(Object.assign(await pqOp(deps, body, p.sid, now), { now }));   // 22/10/2026: בדיקת קישור
     if (body.op === 'ytCk') return res.status(200).json(Object.assign(await ytCkOp(deps, body, now), { now }));   // 25/10/2026: חשבון יוטיוב ייעודי
     const hb = S.normHb(body.hb);
@@ -1341,6 +1415,7 @@ async function server(req, res, body, deps) {
     const fit = S.normFit(body.fit);
     for (const job of qd) {
       if (!apiJob(job) || S.effState(job, now).state !== 'queued') continue;
+      if (ptJob(job)) continue;   // 25/10/2026: הטלפון לוקח אותה בעצמו (phClaim)
       if (job.vw && !((job.spec && job.spec.ph === 1 ? job.fph : job.fv) || {}).id) continue;   // 15/10/2026: מחכה לסרטון — לא תופסים שרת עד שהוא נרשם (24/10: בתרגום בטלפון — לקובץ המדידות)
       if (fit && S.peakNeed(job, fit) > fit.mb) break;
       const st = await readStats(deps, job.uid);
@@ -1615,6 +1690,24 @@ async function phoneOp(req, res, body, deps) {
       await patchJob(deps, id, { ppr });
       return res.status(200).json({ ok: true, now });
     }
+    if (op === 'phClaim') {
+      // 25/10/2026 (שלב 3): הטלפון לוקח את העבודה שלו — כמו poll של שרת: מפתח עבודה חדש (הקודם מת — Studio שהופעל מחדש
+      // לוקח שוב), התקרה לפי התקציב שנשאר. רק אחרי phStart (בתור), ורק עבודה שהטלפון מריץ (pt)
+      if (!ptJob(job)) return res.status(409).json({ ok: false, error: 'not_pt' });
+      if (!(e.state === 'queued' || (e.state === 'running' && job.sid === 'ph'))) return res.status(409).json({ ok: false, error: 'state', state: e.state });
+      const sbp = await sysBlock(deps, job, now, false, false);
+      if (sbp) return res.status(409).json(Object.assign({ ok: false }, sbp));
+      const stp = await readStats(deps, job.uid);
+      const cap = S.jobCap(job.spec, S.monthUsed(stp.mu, now), USER_MONTH(), S.usdOf(job.use0));
+      if (!cap) return res.status(409).json({ ok: false, error: capWhy(job, stp, now) });
+      const fresh = await readDocT(deps, 'studioJobs', id);
+      const k = S.newKey();
+      const got = fresh && await patchIf(deps, 'studioJobs', id, { sid: 'ph', pk: now, vw: 0, capc: Math.round(cap * 100), kh: S.keyHash(k), kx: now + S.KEY_TTL, updated: now }, fresh._ut).catch(() => false);
+      if (!got) return res.status(409).json({ ok: false, error: 'busy' });
+      rlAuth.delete(id + '|kh');
+      const dur = job.spec && job.spec.dur > 0 ? Math.round(job.spec.dur) : 0;
+      return res.status(200).json({ ok: true, now, job: Object.assign({ id, key: k, kind: job.kind }, dur ? { dur } : {}) });
+    }
     if (op === 'phUp' || op === 'phParts' || op === 'phDone') {
       if (op === 'phUp' && !(Number(body.size) > 0 && Number(body.size) <= S.PH_UP_MAX)) return res.status(400).json({ ok: false, error: 'too_big' });
       const [code, out] = await r2Files(deps, { phUp: 'up', phParts: 'parts', phDone: 'done' }[op], body, job.uid, job.folder, 'phone');
@@ -1858,7 +1951,7 @@ async function worker(req, res, body, deps) {
       }
       const full = (await learnFull(deps, job, stats)) ? 1 : 0;   // האיסוף המלא: העובד שולח גם את קבצי הטקסט ואת יומן הקריאות
       const wj = S.workerJob(job, nm, S.fbForWorker(stats.fb), stats.fm, stats.rl, gl);
-      if (relayJob(job)) wj.rh = RELAY_HUB();   // 24/10/2026: Claude דרך התור — לאן לשלוח
+      if (hubJob(job)) wj.rh = RELAY_HUB();   // 24/10/2026: Claude דרך התור — לאן לשלוח (25/10: גם בתרגום בטלפון — השרת עונה)
       return res.status(200).json({ ok: true, job: wj, drive: await driveFor(), pir, full, now });
     }
     if (body.op === 'token') return res.status(200).json({ ok: true, drive: await driveFor(), now });
@@ -2025,7 +2118,8 @@ async function worker(req, res, body, deps) {
     }
     // Firestore שומר כאן מספרים שלמים — לכן סנטים (mucc), לא דולרים
     // 24/10/2026: עבודת "המנוי שלי" (relayJob) — לא מהתקציב החודשי של המערכת
-    const spent = job.eng === 'api' && !relayJob(job) && up.use ? S.usdOf(up.use) - (job.mucc || 0) / 100 : 0;
+    if (ptJob(job)) delete up.use;   // 25/10/2026: תרגום בטלפון — השימוש נרשם בשרתון מכל תשובה (ptMark), לא ממה שהטלפון מדווח
+    const spent = job.eng === 'api' && !relayJob(job) && !ptJob(job) && up.use ? S.usdOf(up.use) - (job.mucc || 0) / 100 : 0;
     if (spent > 0) up.mucc = Math.round(S.usdOf(up.use) * 100);
     if (parked && up.use) { up.use0 = up.use; up.use = null; }   // הסשן הבא מדווח מאפס — הסכום שלו מצטרף ל־use0 (כמו ב"המשך")
     if (job.kind === 'tr' && up.state === 'failed' && (job.ar || 0) < S.AUTO_RESUME_MAX) {
@@ -2042,18 +2136,7 @@ async function worker(req, res, body, deps) {
     }
     await patchJob(deps, id, up);
     if (up.state === 'done' || up.state === 'failed') await learnSave(deps, Object.assign({}, job, up), now);
-    if (spent > 0) {
-      // מצב API: העלות נספרת בתקציב החודשי של המשתמש. תקלה כאן לא מפילה את הדיווח
-      // קריאה וכתיבה בתנאי (updateTime) — שני דיווחים במקביל (שתי עבודות) לא דורסים זה את הסכום של זה
-      for (let i = 0; i < 4; i++) {
-        const st = await readDocT(deps, 'studioStats', job.uid).catch(() => undefined);
-        if (st === undefined) break;
-        const o = { mu: S.addMonth(st && st.mu, spent, now), updated: now };
-        const ok = st && st._ut ? await patchIf(deps, 'studioStats', job.uid, o, st._ut).catch(() => true)
-          : await patchDoc(deps, 'studioStats', job.uid, o).then(() => true, () => true);
-        if (ok) break;
-      }
-    }
+    if (spent > 0) await monthSpend(deps, job.uid, spent, now);   // מצב API: העלות נספרת בתקציב החודשי של המשתמש
     if (job.kind === 'ping' && up.state === 'done') await patchVault(deps, job.uid, { ok: now, okj: id }).catch(() => {});
     // v364: ספר התיקונים — עצירה של המגדל נרשמת לפי טביעת האצבע; Claude רושם תיקון (אחרי אבחון בהמשך); המגדל הזכיר תיקון מוכר.
     // תקלה כאן לא מפילה את הדיווח עצמו

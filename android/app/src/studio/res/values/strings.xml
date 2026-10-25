@@ -57,6 +57,13 @@
     <string name="phAlign">מיישר כל מילה לזמן שלה…</string>
     <string name="phUpW">שולח את התמליל (בלי קול)</string>
     <string name="phStartPw">מתחיל את התרגום…</string>
+    <string name="phText">מתרגמים בטלפון…</string>
+    <string name="phTextTr">Claude מגיה את התמליל</string>
+    <string name="phTextTl">Claude מתרגם</string>
+    <string name="phTextRv">Claude בודק את התרגום</string>
+    <string name="phTextSv">בונים ושומרים את הכתוביות</string>
+    <string name="phTextDone">התרגום מוכן</string>
+    <string name="phTextDoneS">הכל נעשה בטלפון. נגיעה כאן — לצרוב או לצפות</string>
     <string name="phSent">התרגום רץ בשרת</string>
     <string name="phSentS">הסרטון נשאר בטלפון. כשהתרגום יהיה מוכן — נגיעה ב\"לצרוב בטלפון\" בדף העבודה</string>
     <string name="phFailed">התרגום בטלפון נעצר</string>

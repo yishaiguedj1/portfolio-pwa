@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1843 מפתחות מתוך 4063) */
+/* המחרוזות של studio (1844 מפתחות מתוך 4064) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -1090,6 +1090,7 @@ he: {
   "studioPhNote": "נשאר בטלפון · עולים רק הקול והמדידות",
   "studioPhOn": "נבחר",
   "studioPhOtherDev": "הצריבה — בטלפון שבו בחרתם את הסרטון (באפליקציה Studio)",
+  "studioPhPtQ": "מתחיל לתרגם בטלפון…",
   "studioPhPw": "הכל בטלפון",
   "studioPhPwS": "גם התמלול והיישור — הקול לא עוזב את הטלפון. בפעם הראשונה: הורדה של כ־1.8GB (גם בחבילת גלישה)",
   "studioPhResume": "להמשיך באפליקציה Studio",
@@ -2935,6 +2936,7 @@ en: {
   "studioPhNote": "Stays on the phone · only the audio and measurements are uploaded",
   "studioPhOn": "Chosen",
   "studioPhOtherDev": "Burning happens on the phone where you chose the video (in the Studio app)",
+  "studioPhPtQ": "Starting the translation on your phone…",
   "studioPhPw": "All on the phone",
   "studioPhPwS": "Transcription and alignment too — the audio never leaves the phone. First time: a ~1.8GB download (mobile data works too)",
   "studioPhResume": "Continue in the Studio app",

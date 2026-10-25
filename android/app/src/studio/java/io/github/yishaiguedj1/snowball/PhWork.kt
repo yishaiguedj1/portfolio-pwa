@@ -150,10 +150,19 @@ object PhWork {
                 if (!sr.optBoolean("ok")) throw Stop(sr.optString("error", "start"))
                 r = PhStore.update(ctx, pid) { it.put("started", true) } ?: r
             }
+            // 4. שלב 3: גם שלבי הטקסט כאן (job.py בפייתון של האפליקציה) — השרת רק מעביר את הקריאות ל־Claude
+            val pt = pw && r.optBoolean("pt")
+            if (pt && !r.optBoolean("ptDone")) {
+                q.stop()
+                stage("text", R.string.phText)
+                text(ctx, r, n, work, title, stopped)
+                r = PhStore.update(ctx, pid) { it.put("ptDone", true) } ?: r
+            }
             PhStore.update(ctx, pid) { it.put("st", "wait") }
             q.stop()
             nm(ctx).cancel(N_ID)
-            nm(ctx).notify(N_DONE, simple(ctx, s(ctx, R.string.phSent), s(ctx, R.string.phSentS), webIntent(ctx, r, "")))
+            nm(ctx).notify(N_DONE, if (pt) simple(ctx, s(ctx, R.string.phTextDone), s(ctx, R.string.phTextDoneS), webIntent(ctx, r, ""))
+                else simple(ctx, s(ctx, R.string.phSent), s(ctx, R.string.phSentS), webIntent(ctx, r, "")))
         } catch (e: Throwable) {
             val code = codeOf(e)
             if (code == "stopped" || stopped()) { q.stop(); return }   // המערכת עצרה — ממשיכים בפעם הבאה מאותו שלב
@@ -165,6 +174,36 @@ object PhWork {
     }
 
     /* ---------------------------------------------------------------- burn */
+    /** שלב 3: הטלפון לוקח את העבודה (phClaim — מפתח עבודה חדש) ומריץ job.py run ואז auto. כשל — job.py כבר דיווח
+     *  לשרתון (קוד 1); קריסה של התהליך — מדווחים כאן (worker_crash), כמו agent.py בשרת */
+    private fun text(ctx: Context, r: JSONObject, n: PhNet, work: File, title: String, stopped: () -> Boolean) {
+        val cl = n.call("phClaim", JSONObject())
+        if (!cl.optBoolean("ok")) throw Stop(cl.optString("error", "claim"))
+        val jb = cl.getJSONObject("job")
+        val job = File(PhPy.dir(ctx), "job.py").absolutePath
+        val (rc0, t0) = PhPy.run(ctx, work, listOf("-u", job, "run", "--job", jb.getString("id"), "--key", jb.getString("key"), "--server", r.getString("base")), stopped)
+        if (stopped()) throw Stop("stopped")
+        if (rc0 != 0) throw Stop(if (rc0 == 2) "stopped_srv" else "pt_run")
+        var last = ""
+        val (rc, tail) = PhPy.run(ctx, work, listOf("-u", job, "auto"), stopped) {
+            val (st, p) = PhPy.prog(work)
+            if (st.isNotEmpty() && st != last) { last = st; notify(ctx, progress(ctx, title, s(ctx, textLabel(st)), p)) }
+        }
+        if (stopped()) throw Stop("stopped")
+        when (rc) {
+            0, 3 -> return
+            1 -> throw Stop("pt_fail")           // job.py דיווח את הכשל לשרתון — הדף מציג אותו
+            2 -> throw Stop("stopped_srv")       // השרתון ביקש לעצור (בוטלה / מתג החירום)
+        }
+        PhPy.run(ctx, work, listOf("-c", "import sys; sys.path.insert(0, " + JSONObject.quote(PhPy.dir(ctx).absolutePath) + ")\nimport job as J\n" +
+            "J.Ctx(J.load_state()).report(fail=True, err='worker_crash', msg='התהליך בטלפון נעצר (קוד $rc)', force=True, usage=J.usage_safe())"), { false })
+        throw Stop("pt_crash")
+    }
+
+    private fun textLabel(st: String) = when (st) {
+        "tr" -> R.string.phTextTr; "al", "tl" -> R.string.phTextTl; "rv" -> R.string.phTextRv; else -> R.string.phTextSv
+    }
+
     fun burn(ctx: Context, pid: String, stopped: () -> Boolean) {
         var r = PhStore.get(ctx, pid) ?: return
         val title = r.optString("name")

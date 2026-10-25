@@ -18,6 +18,7 @@ const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
 function createHub(opt) {
   const now = (opt && opt.now) || (() => Date.now());
   const jobs = new Map();
+  const sw = new Set();                              // 25/10/2026 (שלב 3): העונה בשרת שלנו מחכה לבקשה מכל עבודה שהוא עונה לה
   let bytes = 0;
   function J(id, make) {
     let j = jobs.get(id);
@@ -52,9 +53,10 @@ function createHub(opt) {
   const str = (v, n) => (typeof v === 'string' && v.length <= n ? v : null);
 
   /* העובד: בקשה חדשה (או אותה בקשה שוב — אחרי שהשרתון עלה מחדש, למשל). fx = הבלוק הקבוע, רק כשהתור ביקש אותו */
-  function put(id, b) {
+  function put(id, b, srv) {
     const j = J(id, true);
     if (!j) return { ok: false, error: 'hub_full' };
+    if (srv) j.srv = true;                           // עבודה שהשרת שלנו עונה לה (תרגום בטלפון, שלב 3) — לא ה־Routine
     if (j.end) return { ok: false, error: 'ended' };
     const rid = String(b.rid || ''), fh = String(b.fh || '');
     if (!RID_RE.test(rid) || !FH_RE.test(fh) || !MODEL_RE.test(String(b.m || '')) || !EFFORTS.includes(b.e)) return { ok: false, error: 'bad_params' };
@@ -69,6 +71,7 @@ function createHub(opt) {
     bytes += sz;
     j.reqs.set(rid, { rid, k: String(b.k || '').slice(0, 8), m: b.m, e: b.e, mt, fh, ex, pr, st: 'q', at: now(), tk: 0, ans: null, sz });
     wake(j.rw);
+    if (j.srv) wake(sw);
     return { ok: true, st: 'q' };
   }
 
@@ -142,6 +145,45 @@ function createHub(opt) {
     });
   }
 
+  /* 25/10/2026 (שלב 3 של "תרגום בטלפון"): העונה בשרת שלנו — הבקשות שבתור מכל העבודות שהוא עונה להן (srv), עם
+     מזהה העבודה בכל בקשה. מחכה עד w כשאין. "נראה" מתעדכן בכל העבודות האלה — העובד בטלפון לא חושב שהעונה נעלם */
+  function nextSrv(have, max, w) {
+    const hv = new Set(Array.isArray(have) ? have.filter((x) => FH_RE.test(String(x))).slice(0, 256) : []);
+    const lim = Math.max(0, Math.min(16, max | 0));
+    const take = () => {
+      gc();
+      const list = [], fx = {};
+      for (const [id, j] of jobs) {
+        if (!j.srv) continue;
+        j.seen = now();
+        for (const r of j.reqs.values()) {
+          if (list.length >= lim) break;
+          if (r.st !== 'q') continue;
+          r.st = 't'; r.tk = now();
+          list.push({ job: id, rid: r.rid, k: r.k, m: r.m, e: r.e, mt: r.mt, fh: r.fh, ex: r.ex, pr: r.pr });
+          if (!hv.has(r.fh) && !(r.fh in fx)) fx[r.fh] = j.fx.get(r.fh);
+        }
+        if (list.some((x) => x.job === id)) wake(j.ww);
+      }
+      return { ok: true, reqs: list, fx };
+    };
+    const first = take();
+    if (first.reqs.length || !(lim > 0)) return Promise.resolve(first);
+    return new Promise((ok) => {
+      let done = false;
+      const fin = () => { if (done) return; done = true; clearTimeout(tm); sw.delete(f); ok(take()); };
+      const f = () => fin();
+      const tm = setTimeout(fin, Math.max(0, Math.min(WAIT_MAX, Number(w) || 0)));
+      sw.add(f);
+    });
+  }
+  /* הבקשה עצמה (שלב, מודל) — לחשבון העלות בשרתון לפני שהתשובה נרשמת */
+  function peek(id, rid) {
+    const j = jobs.get(id);
+    const r = j && j.reqs.get(String(rid || ''));
+    return r ? { k: r.k, m: r.m, st: r.st, srv: !!j.srv } : null;
+  }
+
   /* ה־Routine: Claude התחיל לענות (s), או התשובה (d). תשובה = טקסט + שימוש, או קוד שגיאה */
   function mark(id, rid, st, ans) {
     const j = J(id, false);
@@ -168,7 +210,7 @@ function createHub(opt) {
     return { ok: true };
   }
   const stats = () => ({ jobs: jobs.size, bytes, reqs: [...jobs.values()].reduce((n, j) => n + j.reqs.size, 0) });
-  return { put, fix, wait, next, mark, end, stats, _gc: gc };
+  return { put, fix, wait, next, nextSrv, peek, mark, end, stats, _gc: gc };
 }
 
 const sha1 = (t) => require('crypto').createHash('sha1').update(t, 'utf8').digest('hex');
