@@ -21,7 +21,7 @@ import math
 import re
 from pathlib import Path
 
-from .hebrew import normalize_he, visible_len, has_latin, latin_runs, numbers_in, number_ok_in_he
+from .hebrew import break_lines, normalize_he, visible_len, numbers_in, number_ok_in_he
 from .util import fmt_ts
 
 LINE_RE = re.compile(r"^#(\d+)\s?(.*)$")
@@ -279,7 +279,7 @@ def name_variants(cues: list[dict], he: dict[str, str]) -> list[str]:
                     if any(i in seen[w] for w in major) or rows[i][0] in flagged:
                         continue
                     flagged.add(rows[i][0])
-                    out.append(f"- #{rows[i][0]}: שם '{nm}' נכתב כאן '{min(f, key=len)}' ובשאר הכתוביות "
+                    out.append(f"- #{rows[i][0]}: [name] שם '{nm}' נכתב כאן '{min(f, key=len)}' ובשאר הכתוביות "
                                f"'{min(major, key=len)}' — לאחד לכתיב אחד")
     return out
 
@@ -305,17 +305,22 @@ def gl_found(opt: str, txt: str) -> bool:
         cands.add(w)
         cands.add(_HE_PREFIX.sub("", w, count=1) or w)
     stems = {_he_stem(c) for c in cands if c}
+    pool = stems | cands
+
+    def one(w: str) -> bool:
+        st = _he_stem(w)
+        if len(st) < 3:                     # מילה קצרה (אדם, פד) — רק כמו שהיא, עם אותיות שימוש
+            return w in pool or st in pool
+        return any(c.startswith(st) and len(c) - len(st) <= 3 for c in pool)
+
     for w in ow:
         if not re.match(r"[א-ת]", w):
             if w not in words:
                 return False
             continue
-        st = _he_stem(w)
-        pool = stems | cands
-        if len(st) < 3:                     # מילה קצרה (אדם, פד) — רק כמו שהיא, עם אותיות שימוש
-            if w not in pool and st not in pool:
-                return False
-        elif not any(c.startswith(st) and len(c) - len(st) <= 3 for c in pool):
+        # 25/10/2026 (ניתוח האיכות): ה' הידיעה של המילון נבלעת אחרי ב/ל/כ ("האו"ם" → "באו"ם", "הניו יורק טיימס" →
+        # "בניו יורק טיימס") — כמחצית מהתראות המילון שנשארו היו כאלה
+        if not (one(w) or (w.startswith("ה") and len(w) > 3 and one(w[1:]))):
             return False
     return True
 
@@ -367,6 +372,72 @@ def _real_question(en: str) -> bool:
     return False
 
 
+def _tag_question(en: str) -> bool:
+    """השאלה בסוף הכתובית היא רק מילת מילוי אחרי משפט ("..., right?", "..., you know?") — לא שאלה אמיתית."""
+    last = re.split(r"[.!…]\s+", en.rstrip())[-1]
+    q = last.rstrip().rstrip("?").strip()
+    tail = re.split(r"[,;—–]\s*|\s-\s", q)[-1].strip()
+    return bool(_TAG_Q.match(tail)) and len(q.split()) > len(tail.split())
+
+
+_LAT_WORD = re.compile(r"[A-Za-z][A-Za-z'\-]*")
+_URLISH = re.compile(r"\S+\.(?:com|org|net|io|ai|co|il|tv|app|me|gg|ly|so|us|uk)(?:/\S*)?", re.I)
+
+
+def untranslated_words(txt: str, keep: set[str] = frozenset()) -> list[str]:
+    """מילים באנגלית שלא תורגמו: רק מילים באותיות קטנות (3+ אותיות). שם, מותג וראשי תיבות (AI, CEO, OpenAI)
+    וכתובת אתר נשארים בלועזית לפי המדריך — לא נספרים."""
+    out: list[str] = []
+    for w in _LAT_WORD.findall(_URLISH.sub(" ", txt)):
+        if len(w) >= 3 and w.islower() and w not in keep and w not in out:
+            out.append(w)
+    return out
+
+
+_IMPERIAL = re.compile(r"(\d[\d,]*(?:\.\d+)?)[\s-]*(?:feet|foot|ft|miles?|inch(?:es)?|yards?|pounds?|lbs?|ounces?|oz|"
+                       r"gallons?|acres?|degrees?(?:\s*fahrenheit)?|°\s*f)\b", re.I)
+
+
+def _number_ok_ctx(num: str, en: str, txt: str) -> bool:
+    """מספר שמותר שלא יופיע כמו שהוא: עשור ("the 1990s" ← "שנות ה־90"), ‏9/11 ← "11 בספטמבר",
+    ומידה אמריקאית שהומרה ליחידה מטרית ("10 feet" ← "שלושה מטרים")."""
+    if re.fullmatch(r"(?:1[89]|20)\d0", num) and re.search(rf"{num}'?s\b", en) and num[2:] in numbers_in(txt):
+        return True
+    if num in ("9", "11") and re.search(r"\b9\s*/\s*11\b|\b9-11\b", en) and re.search(r"11\s*ב?ספטמבר", txt):
+        return True
+    for m in _IMPERIAL.finditer(en):
+        if m.group(1).replace(",", "").rstrip(".") == num:
+            return True
+    return False
+
+
+def _latin_kept(term: str, txt: str) -> bool:
+    """המונח מהמילון נשאר בתרגום בלועזית, כמו שהוא (AI, ‏OpenAI) — החלטה לגיטימית לפי המדריך."""
+    return bool(re.search(r"[A-Za-z]", term)) and bool(
+        re.search(rf"(?<![A-Za-z]){re.escape(term)}(?![A-Za-z])", txt, re.I))
+
+
+def _head_found(opts: list[str], txt: str) -> bool:
+    """לנוסח מהמילון יש כמה מילים, והתרגום מכיל את המילה הראשונה שלו ("הדוכן" ← "דוכן לימונדה")."""
+    for o in opts:
+        hw = re.findall(r"[א-ת'\"״׳]+", re.sub(r"\s*\([^)]*\)", "", o))
+        if len(hw) >= 2 and gl_found(hw[0], txt):
+            return True
+    return False
+
+
+# 25/10/2026 (ניתוח האיכות): קוד קבוע לכל סוג הודעה — "- #12: [num] …". מי שקורא את tr/check.md (pipeline.parse_issues)
+# מסווג לפי הקוד ולא לפי מילים בהודעה (ניסוח חדש שינה בשקט את העדיפות). h = חובה לתקן, s = לשקול, - = בלי סבב תיקון.
+# קוד חדש = כאן + בדיקה (test_qa_fixes) + דרגה ב־pipeline.
+CHECK_CODES = {
+    "id": "h", "miss": "h", "eq": "h", "drift": "h", "spk": "h", "len": "h", "dlg": "h", "brk": "h",
+    "nikud": "h", "dash": "h", "tag": "h", "part": "h",
+    "num": "s", "gls": "s", "lat": "s", "name": "s", "q": "s", "short": "s", "cps": "s", "cur": "s",
+    "dots": "-",
+}
+CHECK_CODE_RE = re.compile(r"^- #(\d+): \[([a-z]+)\] ")
+
+
 def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[str]]],
           max_chars: int = 84) -> tuple[list[str], dict]:
     """בדיקת התרגום מול התכנון. מחזיר (שורות דוח, סיכום)."""
@@ -374,9 +445,11 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
     stats = {"total": len(cues), "translated": 0, "missing": 0, "over_budget": 0,
              "numbers": 0, "latin": 0, "glossary": 0, "glossary_soft": 0, "names": 0, "questions": 0, "short": 0, "style": 0, "errors": 0, "drift": 0}
     ids = {str(c["id"]) for c in cues}
+    # מילים לועזיות שהמילון קובע שנשארות כך ("Claude", "if-else") — לא "לא תורגמו"
+    keep_latin = {w.lower() for _t, opts in glossary for o in opts for w in _LAT_WORD.findall(o)}
     for k in he:
         if k not in ids:
-            issues.append(f"- #{k}: מספר לא קיים בתכנון")
+            issues.append(f"- #{k}: [id] מספר לא קיים בתכנון")
             stats["errors"] += 1
     drift = drift_ids(cues, he)
     prev_text = None
@@ -392,91 +465,118 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
     for ci, c in enumerate(cues):
         k = str(c["id"])
         if k not in he:
-            issues.append(f"- #{k}: חסר תרגום")
+            issues.append(f"- #{k}: [miss] חסר תרגום")
             stats["missing"] += 1
             continue
         t = he[k]
         if t in ("=", "∅"):
             if t == "=" and prev_text is None:
-                issues.append(f"- #{k}: '=' בלי כתובית קודמת")
+                issues.append(f"- #{k}: [eq] '=' בלי כתובית קודמת")
                 stats["errors"] += 1
             stats["translated"] += 1
             continue
         prev_text = t
         stats["translated"] += 1
         if k in drift:
-            issues.append(f"- #{k}: נראה שהתרגום שייך לכתובית {'הבאה' if drift[k] > 0 else 'הקודמת'} (הזזה) — "
+            issues.append(f"- #{k}: [drift] נראה שהתרגום שייך לכתובית {'הבאה' if drift[k] > 0 else 'הקודמת'} (הזזה) — "
                           "לתרגם מחדש בדיוק את שורת המקור של הכתובית הזו")
             stats["errors"] += 1
             stats["drift"] += 1
         txt = normalize_he(t.replace("||", " ").replace("|", " "))
         n = visible_len(txt)
         if c.get("parts") and "||" not in t:
-            issues.append(f"- #{k}: כתובית של שני דוברים — חסר '||' בין הדוברים")
+            issues.append(f"- #{k}: [spk] כתובית של שני דוברים — חסר '||' בין הדוברים")
             stats["errors"] += 1
         if n > max_chars:
-            issues.append(f"- #{k}: {n} תווים — מעל {max_chars} (לא ייכנס בשתי שורות)")
+            issues.append(f"- #{k}: [len] {n} תווים — מעל {max_chars} (לא ייכנס בשתי שורות)")
+            stats["errors"] += 1
+        elif "||" in t and max(visible_len(normalize_he(x)) for x in t.split("||", 1)) > max_chars // 2:
+            # 25/10/2026 (ניתוח האיכות): דיאלוג מוצג בשורה לכל דובר — חלק ארוך מ־42 תווים לא נכנס, והבנייה שוברת
+            # רגיל בלי המקף (20 כתוביות ב־20 עבודות). "מקף דובר" בהודעה = חובה לתקן ב־parse_issues
+            issues.append(f"- #{k}: [dlg] דיאלוג (||) — החלק של אחד הדוברים ארוך מ־{max_chars // 2} תווים, "
+                          "לא ייכנס בשורה משלו ויוצג בלי מקף דובר — לקצר אותו")
+            stats["errors"] += 1
+        elif "||" not in t and n > max_chars // 2 and not break_lines(txt, max_chars // 2)[1]:
+            # 25/10/2026 (ניתוח האיכות): עד 84 תווים, אבל גבולות המילים לא מאפשרים שתי שורות של עד 42 — 10 שורות
+            # ארוכות יצאו לצופה כשגיאת בקרה. "מעל 84" בהודעה = חובה לתקן ב־parse_issues
+            issues.append(f"- #{k}: [brk] {n} תווים — אין חלוקה לשתי שורות של עד {max_chars // 2} "
+                          f"(דינו כמו מעל {max_chars}) — לקצר")
             stats["errors"] += 1
         elif n > eff_budget[k]:
-            issues.append(f"- #{k}: {n} תווים מול תקציב {eff_budget[k]} (קצב קריאה) — לשקול קיצור")
+            issues.append(f"- #{k}: [cps] {n} תווים מול תקציב {eff_budget[k]} (קצב קריאה) — לשקול קיצור")
             stats["over_budget"] += 1
         en = c["en"]
         if len(en) > 25 and n < len(en) * 0.3:
-            issues.append(f"- #{k}: התרגום קצר מאוד ביחס למקור — לוודא שלא הושמט תוכן")
+            issues.append(f"- #{k}: [short] התרגום קצר מאוד ביחס למקור — לוודא שלא הושמט תוכן")
             stats["short"] += 1
+        near_he = None
         for num in numbers_in(en):
-            if not number_ok_in_he(num, txt):
-                issues.append(f"- #{k}: המספר {num} מהמקור לא מופיע בתרגום")
-                stats["numbers"] += 1
+            if number_ok_in_he(num, txt) or _number_ok_ctx(num, en, txt):
+                continue
+            if near_he is None:     # 25/10/2026: מספר שעבר לכתובית השכנה (סדר המילים בעברית) — לא חסר
+                near_he = " ".join(normalize_he(str(he.get(str(x["id"]), "")))
+                                   for x in cues[max(0, ci - 1):ci + 2] if x is not c)
+            if number_ok_in_he(num, near_he):
+                continue
+            issues.append(f"- #{k}: [num] המספר {num} מהמקור לא מופיע בתרגום")
+            stats["numbers"] += 1
         if NIKUD_RE.search(txt):
-            issues.append(f"- #{k}: ניקוד בתרגום — כתוביות נכתבות בכתיב מלא בלי ניקוד (מילה דו־משמעית: לנסח מחדש)")
+            issues.append(f"- #{k}: [nikud] ניקוד בתרגום — כתוביות נכתבות בכתיב מלא בלי ניקוד (מילה דו־משמעית: לנסח מחדש)")
             stats["errors"] += 1
         # כללי נטפליקס־עברית (המסמך הנורמטיבי הפומבי היחיד לכתוביות עבריות):
         if re.match(r"^[-–־]", t.lstrip()):
-            issues.append(f"- #{k}: מקף דובר בתחילת הכתובית — המקף נוסף אוטומטית (לשני דוברים כותבים 'א || ב')")
+            issues.append(f"- #{k}: [dash] מקף דובר בתחילת הכתובית — המקף נוסף אוטומטית (לשני דוברים כותבים 'א || ב')")
             stats["errors"] += 1
         if re.search(r"</?[a-z]+>|\{\\", t):
-            issues.append(f"- #{k}: תג עיצוב בטקסט — בעברית בלי הטיה (italics) ובלי תגים")
+            issues.append(f"- #{k}: [tag] תג עיצוב בטקסט — בעברית בלי הטיה (italics) ובלי תגים")
             stats["errors"] += 1
         if re.search(r"[$€£₪]", txt):
-            issues.append(f"- #{k}: סמל מטבע — המטבע בשם המלא (\"3 מיליארד דולר\", לא \"$3B\") — לשקול")
+            issues.append(f"- #{k}: [cur] סמל מטבע — המטבע בשם המלא (\"3 מיליארד דולר\", לא \"$3B\") — לשקול")
             stats["style"] += 1
-        for sent_start in re.findall(r"(?:^|[.?!…]\s+)(\S)", txt.replace("|", " ")):
-            if sent_start.isdigit():
-                issues.append(f"- #{k}: ספרה בתחילת משפט — מספר שפותח משפט נכתב במילים — לשקול")
-                stats["style"] += 1
-                break
-        if has_latin(txt):
-            issues.append(f"- #{k}: אותיות לועזיות: {', '.join(latin_runs(txt))} (בסדר רק לשם מותג/מונח שנשאר בלועזית)")
+        # 25/10/2026 (ניתוח האיכות): בלי "ספרה בתחילת משפט" — סבב התיקון כתב מספרים במילים והאריך כתוביות;
+        # ובלי התראה על כל אות לועזית: 1,069 התראות על AI, שמות ומותגים, וההודעה הכילה את המילה "מונח" — ולכן
+        # נשלחה למתקן כבעיית מונח, לפני חריגות הקצב (בשחזור על הטיוטות של 20 עבודות: 205 מתוך 455 חריגות קצב
+        # נכנסו למכסת התיקון; בלי ההתראות האלה — 443), והמתקן תרגם AI ל"בינה מלאכותית". עכשיו רק מילים באותיות
+        # קטנות שלא תורגמו — אלה כן שווות תיקון.
+        bad_en = untranslated_words(txt, keep_latin)
+        if bad_en:
+            issues.append(f"- #{k}: [lat] מונח באנגלית שלא תורגם: {', '.join(bad_en)} — לתרגם, או להשאיר אם זה שם")
             stats["latin"] += 1
         if c.get("parts") and "||" in t:
             # 23/10/2026 (ניתוח המאגר): שאלה קצרה של דובר אחד נבלעה בכתובית של שני דוברים ("And what's your name?" → חסר)
             for pi, (p, seg) in enumerate(zip(c["parts"], t.split("||", 1))):
                 seg = normalize_he(seg.replace("|", " ")).strip()
                 if not seg:
-                    issues.append(f"- #{k}: החלק של הדובר {'הראשון' if pi == 0 else 'השני'} הושמט — כל דובר מקבל תרגום")
+                    issues.append(f"- #{k}: [part] החלק של הדובר {'הראשון' if pi == 0 else 'השני'} הושמט — כל דובר מקבל תרגום")
                     stats["errors"] += 1
                 elif str(p.get("en") or "").rstrip().endswith("?") and "?" not in seg:
-                    issues.append(f"- #{k}: שאלה במקור (הדובר {'הראשון' if pi == 0 else 'השני'}) — בתרגום אין סימן שאלה")
+                    issues.append(f"- #{k}: [q] שאלה במקור (הדובר {'הראשון' if pi == 0 else 'השני'}) — בתרגום אין סימן שאלה")
                     stats["questions"] += 1
-        elif en.rstrip().endswith("?") and not txt.rstrip().endswith(("?", "?!", "!?")) and not c.get("parts"):
-            issues.append(f"- #{k}: שאלה במקור — בתרגום אין סימן שאלה")
+        elif (en.rstrip().endswith("?") and not txt.rstrip().endswith(("?", "?!", "!?")) and not c.get("parts")
+              and not _tag_question(en)):          # 25/10/2026: "..., right?" — מילת מילוי, לא שאלה ("נכון?" נוסף בגללה)
+            issues.append(f"- #{k}: [q] שאלה במקור — בתרגום אין סימן שאלה")
             stats["questions"] += 1
         elif not c.get("parts") and "?" not in txt and _real_question(en):
-            issues.append(f"- #{k}: שאלה במקור (באמצע הכתובית) — בתרגום אין סימן שאלה, לוודא שלא הושמטה")
+            issues.append(f"- #{k}: [q] שאלה במקור (באמצע הכתובית) — בתרגום אין סימן שאלה, לוודא שלא הושמטה")
             stats["questions"] += 1
         near = " ".join(normalize_he(str(he.get(str(x["id"]), ""))) for x in cues[max(0, ci - 1):ci + 2])
         hit = [t2 for t2, _o in glossary if term_in_en(t2, en)]
         for term, opts in glossary:
             if term in hit and not _gl_inside(term, hit):
                 if not any(gl_found(o, txt) or gl_found(o, near) for o in opts):
+                    # 25/10/2026 (ניתוח האיכות): המונח נשאר בלועזית (AI, ‏OpenAI — כמו במדריך: "ה־AI"), או שהתרגום
+                    # מקצר לשם העצם הראשי ("הדוכן" אחרי "דוכן לימונדה") — המלצה בלבד. עד היום המתקן הכניס את המחרוזת
+                    # המלאה בכוח: "את הדוכן" → "את דוכן לימונדה", 9 פעמים בסרטון אחד
+                    if _latin_kept(term, txt) or _head_found(opts, txt):
+                        stats["glossary_soft"] += 1
+                        continue
                     if gl_strict(term, opts):
-                        issues.append(f"- #{k}: מונח '{term}' — לפי המילון: {' / '.join(opts)}")
+                        issues.append(f"- #{k}: [gls] מונח '{term}' — לפי המילון: {' / '.join(opts)}")
                         stats["glossary"] += 1
                     else:
                         stats["glossary_soft"] += 1   # מילה אחת שהתרגום שלה תלוי בהקשר — המלצה בלבד, בלי סבב תיקון
         if "..." in t:
-            issues.append(f"- #{k}: '...' — להשתמש בתו … (ינורמל אוטומטית)")
+            issues.append(f"- #{k}: [dots] '...' — להשתמש בתו … (ינורמל אוטומטית)")
     nv = name_variants(cues, he)
     issues += nv
     stats["names"] = len(nv)

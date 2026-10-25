@@ -101,7 +101,9 @@ def time_cues(cues: list[dict], grid: FrameGrid, shots: list[int] | None,
             if S <= c["fi"]:
                 continue
             e = c["so"] - S                    # כמה דיבור נשאר אחרי החילוף
-            pull_back_ok = (S - G) - c["fi"] >= MIN
+            # 25/10/2026 (ניתוח האיכות): נסוגים לפני החילוף רק כשנשאר זמן קריאה (need), לא רק המשך המינימלי —
+            # עד היום 9 כתוביות קוצרו כך מתחת לזמן הקריאה ויצאו לצופה כחריגת קצב, כשהיה מקום אחרי החילוף
+            pull_back_ok = (S - G) - c["fi"] >= max(MIN, c.get("need", MIN))
             if e <= R and pull_back_ok:
                 c["fo"] = S - G                # הדיבור (כמעט) נגמר לפני החילוף
                 c["snap_out"] = "before_cut"
