@@ -81,8 +81,7 @@ object PhWork {
             // 0. שלב 2 ("הכל בטלפון"): המודלים, ואז התמלול, הדוברים והיישור כאן — עולה רק קובץ המילים (בלי קול)
             if (pw && r.optString("wId").isEmpty()) {
                 if (!PhModels.ready(ctx)) {
-                    val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
-                    if (cm.isActiveNetworkMetered && !r.optBoolean("cell")) throw Stop("models_wifi")
+                    // גם בחבילת גלישה (בקשת המשתמש 25/10/2026 — עד היום רק ב־Wi‑Fi)
                     stage("models", R.string.phModels, 0f)
                     PhModels.fetch(ctx, stopped) { done, total ->
                         notify(ctx, progress(ctx, title, s(ctx, R.string.phModelsP, done shr 20, total shr 20), done.toFloat() / total))

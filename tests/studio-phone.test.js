@@ -296,6 +296,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   const local = fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhLocal.kt'), 'utf8');
   const lf = [...local.matchAll(/File\((?:md|am), "([^"]+)"\)/g)].map((m) => m[1]).filter((x) => /\./.test(x)).map((x) => have.has(x) ? x : 'aligner/model/' + x);
   ok(lf.length >= 5 && lf.every((x) => have.has(x)), 'כל קובץ ש־PhLocal פותח — בין המודלים: ' + lf.join(', '));
+  ok(!/models_wifi"\)/.test(work) && !/isActiveNetworkMetered/.test(work), 'הורדת המודלים גם בחבילת גלישה — בלי חובת Wi‑Fi (בקשת המשתמש 25/10/2026)');
   ok(/fun codeOf\(e: Throwable\)/.test(work) && /"x_" \+ e\.javaClass\.simpleName/.test(work) && (work.match(/val code = codeOf\(e\)/g) || []).length === 2, 'כשל לא צפוי מדווח עם סוג החריגה (x_…), לא "fail"');
   ok(/rec\.up\.ph && \(!rec\.srv \|\| !rec\.srv\.state \|\| rec\.srv\.state === 'new'\)/.test(src) && /T\('studioPhStopBig'\)/.test(src), 'עבודה שעוד בטלפון — בלי "הקבצים מוכנים בענן"');
 
