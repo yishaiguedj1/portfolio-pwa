@@ -146,6 +146,28 @@ const { fakeR2, ACC } = require('./_r2fake');
   ok((await nj.put(lc)).saved === true, 'דולק שוב — נשמר');
   ok(jid, 'עבודת המנהל נוצרה בזמן התחזוקה');
 
+  // 25/10/2026: חשבונות בדיקה (sysCfg.tsEm) — גישה לסטודיו כמו משתמש רגיל, בלי המצבים הנעולים
+  {
+    ok(SF.applyAdmin({}, { ts: 'A@Example.com', on: true }, T0).tsEm === 'a@example.com' && SF.applyAdmin({}, { ts: 'x', on: true }, T0) === null
+      && SF.applyAdmin({ tsEm: 'a@example.com,b@example.com' }, { ts: 'a@example.com', on: false }, T0).tsEm === 'b@example.com', 'חשבונות בדיקה: הוספה/הסרה, מייל לא תקין נדחה');
+    ok(SF.tsHas({ tsEm: 'a@example.com' }, { email: 'a@example.com', verified: true }) && !SF.tsHas({ tsEm: 'a@example.com' }, { email: 'a@example.com', verified: false })
+      && !('ts' in SF.publicCfg({ tsEm: 'a@example.com' }, T0)) && SF.adminCfg({ tsEm: 'a@example.com' }, T0).ts.join() === 'a@example.com', 'חשבונות בדיקה: רק מייל מאומת; לא יוצא ב־cfg הציבורי');
+    const TEST = tok('testUid00003', 'tester@example.com');
+    const tst = (op, b) => call(Object.assign({}, b, { op, idToken: TEST }));
+    ok((await tst('status', {})).j.error === 'not_allowed', 'חשבון שלא ברשימה — אין גישה לסטודיו');
+    const ad = await api('adminCfg', { set: { ts: 'tester@example.com', on: true } });
+    ok(ad.ok && ad.cfg.ts.join() === 'tester@example.com', 'המנהל מוסיף חשבון בדיקה');
+    studio._reset();
+    const st = (await tst('status', {})).j;
+    ok(st.ok && st.mf === false && st.url === false, 'חשבון בדיקה נכנס — בלי כל המודלים ובלי הורדה מקישור (כמו משתמש רגיל)');
+    ok((await tst('create', { spec: Object.assign({}, spec, { mode: 'opus-medium' }) })).j.error === 'mode_locked', 'חשבון בדיקה: מצב נעול — נחסם');
+    ok((await tst('create', { spec: Object.assign({}, spec, { mode: 'haiku-high' }) })).j.ok, 'חשבון בדיקה: "רגיל" — עובד');
+    const us = await api('adminUsers', {});
+    ok(us.ok && us.users.st.ts.join() === 'tester@example.com', 'במשתמשים והרשאות — הרשימה מוצגת');
+    await api('adminCfg', { set: { ts: 'tester@example.com', on: false } });
+    studio._reset();
+    ok((await tst('status', {})).j.error === 'not_allowed', 'הוסר מהרשימה — הגישה נסגרת');
+  }
   // 15/10/2026: הודעה מהמנהל (מרכז הניהול ← הודעות)
   {
     const t0 = Date.parse('2026-10-15T10:00:00Z');

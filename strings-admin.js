@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1075 מפתחות מתוך 4020) */
+/* המחרוזות של admin (1083 מפתחות מתוך 4028) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -513,6 +513,8 @@ he: {
   "admLgSrvDel": "שרת הוסר",
   "admLgSrvPause": "שרת הושהה",
   "admLgSrvResume": "שרת חזר לעבודה",
+  "admLgTsAdd": "נוסף לחשבונות הבדיקה",
+  "admLgTsDel": "הוסר מחשבונות הבדיקה",
   "admLoading": "טוען…",
   "admLogFoot": "כל שינוי ממרכז הניהול נרשם כאן: מה, מי ומתי. נשמר {n} יום.",
   "admLogNone": "עוד לא שונה כלום ממרכז הניהול",
@@ -898,6 +900,12 @@ he: {
   "admTeamNow": "בעבודה עכשיו",
   "admTeamS": "{n} משימות פתוחות · {w} בעבודה",
   "admTeamSrc": "משימות-פתוחות.md",
+  "admTesters": "חשבונות בדיקה",
+  "admTestersFoot": "האיסוף למאגר הלמידה דולק אצלם כברירת מחדל — ההודעה מוצגת, ואפשר לכבות בהגדרות. השרתון אוכף את הרשימה בכל בקשה; שינוי חל תוך חצי דקה.",
+  "admTestersList": "חשבונות בדיקה",
+  "admTestersN": "{n} חשבונות בדיקה",
+  "admTestersNone": "אין עדיין",
+  "admTestersSub": "מי שברשימה נכנס לסטודיו כמו משתמש רגיל: רגיל וביצועים, המנוי שלו ב־Claude, והשרת של המערכת. בלי שאר המודלים ובלי מגדל הפיקוח המלא.",
   "admToday": "היום",
   "admTok90": "טוקנים · 90 יום",
   "admTokCmd": "הפקודה לסשן",
@@ -1590,6 +1598,8 @@ en: {
   "admLgSrvDel": "Server removed",
   "admLgSrvPause": "Server paused",
   "admLgSrvResume": "Server resumed",
+  "admLgTsAdd": "Added to test accounts",
+  "admLgTsDel": "Removed from test accounts",
   "admLoading": "Loading…",
   "admLogFoot": "Every change made from the admin center is logged here: what, who and when. Kept for {n} days.",
   "admLogNone": "Nothing changed from the admin center yet",
@@ -1975,6 +1985,12 @@ en: {
   "admTeamNow": "In progress now",
   "admTeamS": "{n} open tasks · {w} in progress",
   "admTeamSrc": "the task list",
+  "admTesters": "Test accounts",
+  "admTestersFoot": "Learning data collection is on for them by default — the notice is shown, and they can turn it off in settings. The server enforces the list on every request; changes apply within half a minute.",
+  "admTestersList": "Test accounts",
+  "admTestersN": "{n} test accounts",
+  "admTestersNone": "None yet",
+  "admTestersSub": "People on the list get into Studio like a regular user: Standard and Performance, their own Claude subscription, and the system server. Not the other models and not the full control tower.",
   "admToday": "today",
   "admTok90": "Tokens · 90 days",
   "admTokCmd": "Command for the session",
