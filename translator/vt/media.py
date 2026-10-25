@@ -99,15 +99,77 @@ def extract_api_audio(src: Path, out: Path) -> None:
 _SCD = re.compile(r"lavfi\.scd\.score:\s*([\d.]+),\s*lavfi\.scd\.time:\s*([\d.]+)")
 
 
-def detect_shots(src: Path, threshold: float = 10.0, scale_w: int = 320) -> list[dict]:
-    """חילופי שוטים (חיתוכים) עם scdet של ffmpeg על עותק מוקטן — מהיר גם לשעה."""
+def detect_shots(src: Path, threshold: float = 10.0, scale_w: int = 320, burn_out: Path | None = None) -> list[dict]:
+    """חילופי שוטים (חיתוכים) עם scdet של ffmpeg על עותק מוקטן — מהיר גם לשעה.
+
+    burn_out (25/10/2026): באותו מעבר — גם טקסט שעל המסך בפסים העליון והתחתון (vt/burnin.py) → JSON בנתיב הזה.
+    בלי המודלים / תקלה בזיהוי → רק השוטים, כמו קודם."""
     log(f"מזהה חילופי שוטים (סף {threshold})…")
+    if burn_out is not None:
+        try:
+            from . import burnin
+            if burnin.available():
+                return _shots_and_burn(src, threshold, scale_w, Path(burn_out))
+        except Exception as e:                    # noqa: BLE001 — השוטים חשובים יותר
+            log(f"זיהוי הטקסט שעל המסך נכשל ({type(e).__name__}) — רק חילופי השוטים")
     cmd = ["ffmpeg", "-hide_banner", "-nostats", "-loglevel", "info", "-i", str(src), "-map", "0:v:0",
            "-vf", f"scale={scale_w}:-2,scdet=threshold={threshold}", "-an", "-f", "null", "-"]
     p = subprocess.run(cmd, text=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    shots = []
-    for m in _SCD.finditer(p.stderr):
-        shots.append({"t": float(m.group(2)), "score": float(m.group(1))})
+    return _parse_shots(p.stderr)
+
+
+def _parse_shots(err: str) -> list[dict]:
+    return [{"t": float(m.group(2)), "score": float(m.group(1))} for m in _SCD.finditer(err)]
+
+
+def _shots_and_burn(src: Path, threshold: float, scale_w: int, burn_out: Path) -> list[dict]:
+    """מעבר אחד: scdet על עותק ברוחב scale_w, ובמקביל 2 פריימים לשנייה ברוחב 640 לצינור → burnin.Detector."""
+    import threading
+    import time
+    import numpy as np
+    from . import burnin
+    info = probe(src)
+    v = info.get("video") or {}
+    fh = burnin.frame_height(int(v.get("width") or 1920), int(v.get("height") or 1080))
+    t0 = float(v.get("start") or 0.0)
+    fc = (f"[0:v:0]split=2[a][b];[a]scale={scale_w}:-2,scdet=threshold={threshold}[sa];"
+          f"[b]fps={burnin.FPS},scale={burnin.W}:{fh},format=rgb24[sb]")
+    cmd = ["ffmpeg", "-hide_banner", "-nostats", "-loglevel", "info", "-i", str(src), "-filter_complex", fc,
+           "-map", "[sa]", "-an", "-f", "null", "-", "-map", "[sb]", "-an", "-f", "rawvideo", "pipe:1"]
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.DEVNULL)
+    err: list[bytes] = []
+    th = threading.Thread(target=lambda: err.append(p.stderr.read()), daemon=True)
+    th.start()
+    det, frames, k, bad, a = None, [], 0, None, time.time()
+    n = burnin.W * fh * 3
+    try:
+        det = burnin.Detector()
+    except Exception as e:                        # noqa: BLE001
+        bad = type(e).__name__
+    while True:
+        buf = p.stdout.read(n)
+        if len(buf) < n:
+            break
+        if bad is None:
+            try:
+                t = round(t0 + k / burnin.FPS, 3)
+                bs = det.frame(np.frombuffer(buf, np.uint8).reshape(fh, burnin.W, 3), t)
+                if bs:
+                    frames.append([t, bs])
+            except Exception as e:                # noqa: BLE001 — ממשיכים לקרוא (אחרת ffmpeg נתקע) בלי זיהוי
+                bad = type(e).__name__
+        k += 1
+    p.wait()
+    th.join()
+    shots = _parse_shots(b"".join(err).decode("utf-8", "replace"))
+    if bad is None:
+        tmp = burn_out.with_suffix(burn_out.suffix + ".tmp")
+        tmp.write_text(json.dumps({"v": burnin.V, "fps": burnin.FPS, "w": burnin.W, "fh": fh, "n": k,
+                                   "frames": frames}, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(burn_out)
+        log(f"טקסט על המסך: {len(frames)} מתוך {k} פריימים ({round(time.time() - a)} שנ׳, {det.reads} קריאות)")
+    else:
+        log(f"זיהוי הטקסט שעל המסך נכשל ({bad}) — רק חילופי השוטים")
     return shots
 
 

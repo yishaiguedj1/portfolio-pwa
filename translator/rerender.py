@@ -27,9 +27,10 @@ def _num(x):
     return v if v == v and abs(v) < 1e7 else None
 
 
-def norm_cues(raw, dur=0.0):
+def norm_cues(raw, dur=0.0, pos=False):
     """רשימת כתוביות תקינה וממוינת: start/end בשניות (מקבל גם s/e), lines = עד 3 שורות טקסט.
-    פגומה / ריקה / הפוכה — בחוץ; אחרי סוף הסרטון — בחוץ; חפיפה — הקודמת נחתכת. id = מספר רץ (vt צריך אותו)."""
+    פגומה / ריקה / הפוכה — בחוץ; אחרי סוף הסרטון — בחוץ; חפיפה — הקודמת נחתכת. id = מספר רץ (vt צריך אותו).
+    pos (25/10/2026): המיקום מהבנייה — top (ראש המסך) ו־lift (מעל טקסט שעל המסך) — רק כשהתמונה לא השתנתה."""
     out = []
     for c in (raw if isinstance(raw, list) else [])[:MAX_CUES]:
         if not isinstance(c, dict):
@@ -47,8 +48,14 @@ def norm_cues(raw, dur=0.0):
             e = min(e, dur)
         if not lines or e - s < MIN_DUR:
             continue
-        out.append({'start': round(s, 3), 'end': round(e, 3), 'lines': lines,
-                    'spk': CTRL.sub('', str(c.get('spk') or ''))[:20], 'en': CTRL.sub('', str(c.get('en') or ''))[:400]})
+        o = {'start': round(s, 3), 'end': round(e, 3), 'lines': lines,
+             'spk': CTRL.sub('', str(c.get('spk') or ''))[:20], 'en': CTRL.sub('', str(c.get('en') or ''))[:400]}
+        if pos:
+            if c.get('top') is True:
+                o['top'] = True
+            elif isinstance(c.get('lift'), (int, float)) and not isinstance(c.get('lift'), bool) and 0 < c['lift'] <= 0.5:
+                o['lift'] = round(float(c['lift']), 3)
+        out.append(o)
     out.sort(key=lambda c: (c['start'], c['end']))
     for a, b in zip(out, out[1:]):
         if b['start'] < a['end']:
@@ -242,7 +249,7 @@ def main(argv=None):
     if ec and ec.get('sp') and isinstance(raw, list):   # סבב 3: מהירות — הזמנים מתחלקים בה
         raw = E.speed_cues([dict(c, start=_num(c.get('start', c.get('s'))), end=_num(c.get('end', c.get('e')))) for c in raw
                             if isinstance(c, dict) and _num(c.get('start', c.get('s'))) is not None and _num(c.get('end', c.get('e'))) is not None], ec['sp'])
-    cues = norm_cues(raw, float(info.get('duration') or 0))
+    cues = norm_cues(raw, float(info.get('duration') or 0), pos=not ec)
     if not cues:
         raise SystemExit('✗ אין כתוביות תקינות בקובץ.')
     if portrait:
