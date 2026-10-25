@@ -85,7 +85,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   /* ---------- 1. יצירה במצב שרת → תיקייה ב־R2 ---------- */
   const MiB = 1024 * 1024;
   const video = crypto.randomBytes(9 * MiB + 77), audio = crypto.randomBytes(300000);
-  const spec = { name: 'lecture.mp4', size: video.length, type: 'video/mp4', dur: 600, from: 'en', to: ['he'], mode: 'sonnet-medium', out: ['same'], eng: 'api', cap: 5 };
+  const spec = { name: 'lecture.mp4', size: video.length, type: 'video/mp4', dur: 600, from: 'en', to: ['he'], mode: 'haiku-high', out: ['same'], eng: 'api', cap: 5 };
   let j = await api('create', { spec });
   ok(j.ok && SR.isFolder(j.job.folder) && j.job.folder === SR.folderFor(j.job.id), 'עבודה במצב שרת נוצרת עם תיקייה ב־R2');
   const JOB = j.job.id, FOLDER = j.job.folder;

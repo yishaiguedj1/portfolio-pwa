@@ -17,7 +17,7 @@ ok(engKnown('api', { online: 1 }) === true, 'שרת עם תשובה — ידוע
 
 // השמירה בראש startFromForm — לפני כל המסלולים (כתוביות, קישור, קובץ, ההורדה מהטלפון)
 const body = src.slice(src.indexOf('function startFromForm()'));
-const g = body.indexOf('engKnown(store.settings.conn, ui.api)');
+const g = body.indexOf('engKnown(connNow(), ui.api)');
 ok(g > 0 && g < body.indexOf('startSubs(f)') && g < body.indexOf('startLink(f)') && g < body.indexOf('apiMode()'), 'נבדק לפני כל מסלול');
 ok(/engSettle\(\)\.then\(\(ok\) => \{[\s\S]{0,200}if \(form !== f\) return;[\s\S]{0,120}if \(ok\) startFromForm\(\); else \{ flashSafe\(T\('studioEngWait'\)\)/.test(body), 'אין תשובה — הודעה, בלי Routine');
 ok(/function gotFile[\s\S]*?startFromForm\(\)/.test(src), 'ההורדה מהטלפון עוברת דרך startFromForm');

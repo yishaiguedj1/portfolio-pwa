@@ -33,10 +33,14 @@ const WORKER_KINDS = ['ping', 'tr', 'rr', 'ai'];   // v358: העובד מתרג�
 // 10/10/2026 (בקשת המשתמש): Haiku 5.5 נכנס, Opus High/Max יצאו. 15/10: נוסף Sonnet Low (לבדיקות — איך הוא וכמה עולה).
 const MODES = ['sonnet-medium', 'haiku-high', 'sonnet-high', 'opus-medium', 'sonnet-low', 'haiku-medium'];   // 20/10/2026: Haiku Medium חזר — רק למנהל / לרשימת "כל המודלים"
 /* 15/10/2026 (בקשת המשתמש): לכל המשתמשים רק שני מצבים — "רגיל" (Haiku High, ברירת המחדל) ו"ביצועים" (Sonnet Medium).
-   כל השאר — רק למנהל ולמי שברשימת "כל המודלים" במרכז הניהול (sysCfg.amEm, lib/sysflags.js). **= PUBLIC_MODES בטלפון** */
-const PUBLIC_MODES = ['haiku-high', 'sonnet-medium'];
-const DEFAULT_MODE = 'haiku-high';
+   כל השאר — רק למנהל ולמי שברשימת "כל המודלים" במרכז הניהול (sysCfg.amEm, lib/sysflags.js). **= PUBLIC_MODES בטלפון**
+   25/10/2026 (בקשת המשתמש): "רגיל" = Haiku Medium (ברירת המחדל), "ביצועים" = Haiku High — רק Haiku למשתמשים */
+const PUBLIC_MODES = ['haiku-medium', 'haiku-high'];
+const DEFAULT_MODE = 'haiku-medium';
 const modeOk = (m, full) => !!full || PUBLIC_MODES.includes(m);
+/* 25/10/2026 (בקשת המשתמש): למשתמשים רק "השרת של המערכת" — Claude במפתח של המערכת. המנוי שלי (Routine / ry) והעתק־הדבק
+   (cp) — רק למנהל ולמי שברשימת "כל המודלים". **= engFor בטלפון** (connFor) */
+const engOk = (spec, full) => !!full || !!(spec && spec.eng === 'api' && spec.cp !== 1 && spec.ry !== 1);
 // מצבים שהוסרו → המצב הקיים הקרוב (עבודה / טיוטה / חוק שנשמרו לפני ההחלפה ממשיכים לעבוד, לא נופלים)
 const LEGACY_MODES = { 'opus-high': 'opus-medium', 'opus-max': 'opus-medium' };   // 11/10: Haiku Medium יצא (= המחיר של High)
 const modeNow = (m) => (MODES.includes(m) ? m : LEGACY_MODES[m] || DEFAULT_MODE);
@@ -1243,7 +1247,7 @@ function fromFields(f) {
 }
 
 module.exports = { useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
-  MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, LANG_READY, langReady,
+  MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normFil, FIL_MAX, normSty, normOv, normGl, glClean, normNoteText, noteView, NOTE_MAX,

@@ -1307,7 +1307,7 @@ function stubFetch(text, status = 200) {
     ok(S.normRoutine('  ' + RURL + ' ', 'Bearer ' + RKEY + '\n').trig === 'trig_01ABCDEFGHJKLMNOPQRSTUVW' && S.normRoutine('https://api.anthropic.com.evil.com/v1/claude_code/routines/trig_01ABCDEFGH/fire', RKEY).error === 'bad_url'
       && S.normRoutine(RURL.replace('https', 'http'), RKEY).error === 'bad_url' && S.normRoutine(RURL, 'sk-ant-api03-' + 'x'.repeat(40)).error === 'bad_key', 'סטודיו: כתובת ומפתח של Routine — רווחים ו־Bearer מתנקים, כתובת/מפתח מסוג אחר נדחים');
     const sp = S.normSpec({ name: 'Ackman\u0000 interview.mkv', size: 3.2 * 1024 ** 3, to: ['he', 'he', 'xx', 'en'], mode: 'nope', out: ['same', 'mkv', 'zip'], terms: 'Bill Ackman', from: 'en', dur: 4620.4 });
-    ok(sp && sp.name === 'Ackman interview.mkv' && sp.to.join() === 'he,en' && sp.mode === 'haiku-high' && S.normSpec({ name: 'x', size: 5, to: ['he'], mode: 'opus-max' }).mode === 'opus-medium' && sp.out.join() === 'same,mkv' && sp.dur === 4620 && !S.normSpec({ name: 'x', size: 0, to: ['he'] }) && !S.normSpec({ name: 'x', size: 5, to: ['xx'] }), 'סטודיו: פרטי עבודה — מנוקים ומוגבלים (שפות כפולות/לא מוכרות, מצב לא מוכר, גודל 0)');
+    ok(sp && sp.name === 'Ackman interview.mkv' && sp.to.join() === 'he,en' && sp.mode === 'haiku-medium' && S.normSpec({ name: 'x', size: 5, to: ['he'], mode: 'opus-max' }).mode === 'opus-medium' && sp.out.join() === 'same,mkv' && sp.dur === 4620 && !S.normSpec({ name: 'x', size: 0, to: ['he'] }) && !S.normSpec({ name: 'x', size: 5, to: ['xx'] }), 'סטודיו: פרטי עבודה — מנוקים ומוגבלים (שפות כפולות/לא מוכרות, מצב לא מוכר, גודל 0)');
     let rep = S.applyReport({ prog: null }, { st: 'tr', p: 0.4, msg: 'כותבים\u0007 כל מילה', ex: 'דקה 3 מתוך 77' }, 1000);
     rep = S.applyReport({ prog: rep.prog }, { st: 'al', p: 7 }, 5000);
     ok(rep.prog.stg.tr.s === 1000 && rep.prog.stg.tr.e === 5000 && rep.prog.stg.al.s === 5000 && rep.prog.p === 1 && rep.prog.st === 'al' && !/\u0007/.test(rep.prog.msg || 'כותבים כל מילה'), 'סטודיו: דיווח — שלב חדש סוגר את הקודם עם זמן אמיתי, אחוז מוגבל ל־0–1, תווי בקרה מנוקים');
@@ -1346,7 +1346,12 @@ function stubFetch(text, status = 200) {
       r = await run({ op: 'create', idToken: FRIEND, spec: { name: 'a.mp4', size: 1000, to: ['he'], mode: m, out: ['same'] } });
       ok(r.statusCode === 403 && r.payload.error === 'mode_locked', 'מצבים: ' + m + ' סגור למשתמש רגיל (403 mode_locked, לפני העלאה)');
     }
-    ok(S.modeOk('haiku-high', false) && S.modeOk('sonnet-medium', false) && !S.modeOk('sonnet-low', false) && S.modeOk('sonnet-low', true) && S.modeNow('nope') === 'haiku-high', 'מצבים: modeOk / ברירת המחדל Haiku High');
+    // 25/10/2026 (בקשת המשתמש): לכולם רק Haiku — "רגיל" = Medium (ברירת המחדל), "ביצועים" = High; Sonnet ו־Opus — רק לרשימה
+    ok(S.modeOk('haiku-high', false) && S.modeOk('haiku-medium', false) && !S.modeOk('sonnet-medium', false) && !S.modeOk('sonnet-low', false) && S.modeOk('sonnet-low', true) && S.modeNow('nope') === 'haiku-medium', 'מצבים: modeOk / ברירת המחדל Haiku Medium');
+    // 25/10/2026: ולמשתמשים רק השרת של המערכת — Routine, ry והעתק־הדבק נחסמים
+    ok(S.engOk({ eng: 'api' }, false) && !S.engOk({}, false) && !S.engOk({ eng: 'api', ry: 1 }, false) && !S.engOk({ eng: 'api', cp: 1 }, false) && S.engOk({}, true), 'מנועים: engOk — למשתמש רק השרת');
+    r = await run({ op: 'create', idToken: FRIEND, spec: { name: 'a.mp4', size: 1000, to: ['he'], mode: 'haiku-medium', out: ['same'] } });
+    ok(r.statusCode === 403 && r.payload.error === 'eng_locked', 'מנועים: עבודת Routine של משתמש רגיל — 403 eng_locked, לפני העלאה');
     r = await run({ op: 'adminCfg', idToken: FRIEND, set: { am: 'friend@example.com', on: true } });
     ok(r.statusCode === 403, 'מצבים: רק המנהל משנה את הרשימה');
     r = await run({ op: 'adminCfg', idToken: OWNER, set: { am: ' Reader@Example.com ', on: true } });
@@ -2104,7 +2109,7 @@ function stubFetch(text, status = 200) {
       ok(rr.statusCode === 400, 'סטודיו: גיליון AI — קובץ בקשה שלא בתיקיית העבודה נדחה');
       rr = await run({ op: 'aiRun', idToken: OWNER, job: JP, q: 'aiq1234567890' });
       const A1 = rr.payload.job;
-      ok(rr.payload.ok && A1.kind === 'ai' && A1.state === 'new' && A1.rp === JP && A1.files.q.id === 'aiq1234567890' && A1.spec.mode === 'haiku-high', 'סטודיו: גיליון AI — עבודה "חדשה" (Haiku High כברירת מחדל — 15/10)');
+      ok(rr.payload.ok && A1.kind === 'ai' && A1.state === 'new' && A1.rp === JP && A1.files.q.id === 'aiq1234567890' && A1.spec.mode === 'haiku-medium', 'סטודיו: גיליון AI — עבודה "חדשה" (Haiku Medium כברירת מחדל — 25/10)');
       ok((await run({ op: 'aiRun', idToken: OWNER, job: JP, q: 'aiq1234567890' })).payload.error === 'ai_busy', 'סטודיו: גיליון AI — אחד בכל פעם לכל עבודה');
       const f2 = fires.length;
       rr = await run({ op: 'start', idToken: OWNER, job: A1.id });
