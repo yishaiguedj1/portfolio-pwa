@@ -254,6 +254,10 @@ def active_state():
         return None
     if not J.JOB_RE.match(str(st.get('job') or '')) or not J.KEY_RE.match(str(st.get('key') or '')):
         return None
+    if st.get('kind') == 'relay':
+        # 25/10/2026: "המנוי שלי" דרך השרת — הסשן רק מעביר קריאות ל־Claude, והמפתח שלו לא מורשה לדווח (report = 403 → המגדל
+        # עצר את `go` לפני שהלולאה עלתה, והשרת קיבל relay_none). הפיקוח על העבודה ועל העלות — בשרת שלנו.
+        return None
     return st
 
 
