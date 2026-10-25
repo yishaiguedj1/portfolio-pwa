@@ -11,6 +11,7 @@ import java.security.SecureRandom
  * ונמחק אחרי הצריבה (או אחרי שבוע בלי צריבה).
  *
  * שלבים (st): picked → audio → upa → start → shots → upm → wait → burn → done; err = נעצר עם קוד (e)
+ * "הכל בטלפון" (pw): picked → models → wav → asr → diar → align → upw → shots → upm → start → wait → burn → done
  */
 object PhStore {
     const val KEEP_MS = 7 * 24 * 3600_000L

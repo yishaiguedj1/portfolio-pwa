@@ -89,6 +89,11 @@ object PhCore {
     fun audioArgs(src: String, out: String) =
         listOf("-hide_banner", "-nostdin", "-y", "-loglevel", "error", "-i", src, "-map", "0:a:0", "-vn", "-sn", "-dn", "-c:a", "copy", "-f", "matroska", out)
 
+    /** 25/10/2026 (שלב 2): הקול לתמלול וליישור בטלפון — בדיוק vt/media.py extract_audio (זמן 0 = תחילת ציר הסרטון) */
+    fun wav16Args(src: String, out: String) =
+        listOf("-hide_banner", "-loglevel", "error", "-y", "-nostdin", "-i", src, "-map", "0:a:0",
+            "-af", "aresample=async=1:first_pts=0", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", out)
+
     /** חילופי השוטים — בדיוק הפקודה של vt (scale=320 + scdet=10) */
     fun shotsArgs(src: String, th: Double = SHOT_TH) =
         listOf("-hide_banner", "-nostats", "-nostdin", "-loglevel", "info", "-i", src, "-map", "0:v:0", "-vf", "scale=320:-2,scdet=threshold=${fmt(th)}", "-an", "-f", "null", "-")

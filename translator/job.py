@@ -2556,7 +2556,7 @@ def ph_reapply(ctx):
 PW_V = 1
 PW_WORDS_MAX = 200000
 PW_SPK_RE = re.compile(r'^(S\d{1,2}|S\?)$')
-PW_ALIGN = ('ok', 'suspicious', 'approx')
+PW_ALIGN = ('qwen3', 'suspicious', 'approx')   # כמו vt/align.py
 
 
 def pw_mode(st) -> bool:
@@ -2596,7 +2596,7 @@ def pw_check(d, dur=None):
            'phone': 1, 'aligner': 'Qwen3-ForcedAligner-0.6B · ONNX INT8 (בטלפון)'}
     dz = d.get('diarize')
     if isinstance(dz, dict):
-        res['diarize'] = {k: dz[k] for k in ('speakers', 'segments', 'seconds') if _fin(dz.get(k), 0, 1e6)}
+        res['diarize'] = {k: dz[k] for k in ('speakers', 'units', 'seconds') if _fin(dz.get(k), 0, 1e6)}   # כמו vt/diarize.py (בלי talk_s — שמות)
     return res
 
 

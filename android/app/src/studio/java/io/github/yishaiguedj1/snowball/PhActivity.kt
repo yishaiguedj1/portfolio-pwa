@@ -28,7 +28,8 @@ import java.io.File
  * אבל כל ערך נבדק כאן כאילו הגיע מכל אפליקציה.
  *   snbstudio://phpick?w=<האתר>&l=he      → בחירת סרטון, העתקה לאחסון הפרטי (ffmpeg לא פותח content://), ffprobe →
  *                                            חזרה לאתר עם ‎#phpick=<pid>.<base64url> (שגיאה: ‎#phpick=!<קוד>)
- *   snbstudio://ph?pid=…&j=…&k=…&b=…&pb=…&ov=0|1   → העבודה נוצרה באתר: הקול, ההתחלה והמדידות (PhService, ברקע)
+ *   snbstudio://ph?pid=…&j=…&k=…&b=…&pb=…&ov=0|1[&pw=1&cell=1]   → העבודה נוצרה באתר: הקול, ההתחלה והמדידות (PhService, ברקע);
+ *                                            pw=1 — גם התמלול, הדוברים והיישור בטלפון (שלב 2)
  *   snbstudio://phburn?pid=…[&j&k&b]       → הצריבה כשהתרגום מוכן
  *   snbstudio://phgo?pid=…                 → להמשיך אחרי שנעצר
  */
@@ -128,7 +129,10 @@ class PhActivity : Activity() {
         if (r == null || !PhCore.JOB_RE.matches(j) || !PhCore.KEY_RE.matches(k) || !PhCore.hostOk(b)) { fail(R.string.phGone); return }
         if (r.optString("job").isNotEmpty() && r.optString("job") != j) { fail(R.string.phGone); return }   // סרטון אחד — עבודה אחת
         val pb = d.getQueryParameter("pb").takeIf { it == "same" || it == "small" } ?: ""
-        PhStore.update(this, pid) { it.put("job", j).put("key", k).put("base", b).put("pb", pb).put("ov", d.getQueryParameter("ov") == "1").put("web", web).remove("e") }
+        // pw=1 — "הכל בטלפון" (שלב 2); נקבע פעם אחת לעבודה, כמו בשרתון (spec.pw). cell=1 — מותר להוריד את המודלים בחבילת גלישה
+        val pw = if (r.has("pw")) r.optBoolean("pw") else d.getQueryParameter("pw") == "1"
+        PhStore.update(this, pid) { it.put("job", j).put("key", k).put("base", b).put("pb", pb).put("ov", d.getQueryParameter("ov") == "1").put("web", web)
+            .put("pw", pw).put("cell", d.getQueryParameter("cell") == "1").remove("e") }
         startWork(pid, false)
     }
 

@@ -49,6 +49,14 @@
     <string name="phStart">מתחיל את התרגום בשרת…</string>
     <string name="phShots">מזהה את חילופי השוטים (בזמן שהשרת מתמלל)…</string>
     <string name="phUpM">שולח את המדידות</string>
+    <string name="phModels">מוריד את המודלים לתרגום בטלפון (פעם אחת, כ־1.8GB)…</string>
+    <string name="phModelsP">מוריד את המודלים · %1$d מתוך %2$d MB</string>
+    <string name="phWav">מכין את הקול…</string>
+    <string name="phAsr">מתמלל בטלפון…</string>
+    <string name="phDiar">מזהה את הדוברים…</string>
+    <string name="phAlign">מיישר כל מילה לזמן שלה…</string>
+    <string name="phUpW">שולח את התמליל (בלי קול)</string>
+    <string name="phStartPw">מתחיל את התרגום…</string>
     <string name="phSent">התרגום רץ בשרת</string>
     <string name="phSentS">הסרטון נשאר בטלפון. כשהתרגום יהיה מוכן — נגיעה ב\"לצרוב בטלפון\" בדף העבודה</string>
     <string name="phFailed">התרגום בטלפון נעצר</string>

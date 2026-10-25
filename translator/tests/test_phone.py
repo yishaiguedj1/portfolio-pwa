@@ -119,10 +119,10 @@ class PhoneAttach(unittest.TestCase):
 
 
 def words_doc(**k):
-    d = {'v': 1, 'words': [{'w': 'Hello', 's': 0.5, 'e': 0.9, 'spk': 'S1', 'align': 'ok'},
+    d = {'v': 1, 'words': [{'w': 'Hello', 's': 0.5, 'e': 0.9, 'spk': 'S1', 'align': 'qwen3'},
                            {'w': 'world.', 's': 0.95, 'e': 1.4, 'spk': 'S1'},
                            {'w': 'Thanks', 's': 3.0, 'e': 3.4, 'spk': 'S2', 'align': 'approx'}],
-         'diarize': {'speakers': 2, 'segments': 3, 'seconds': 1.2, 'junk': 'x'}}
+         'diarize': {'speakers': 2, 'units': 3, 'seconds': 1.2, 'junk': 'x'}}
     d.update(k)
     return d
 
@@ -133,9 +133,17 @@ class PhoneWords(unittest.TestCase):
     def test_check_good(self):
         r = job.pw_check(words_doc(), 600)
         self.assertEqual([w['w'] for w in r['words']], ['Hello', 'world.', 'Thanks'])
-        self.assertEqual(r['words'][0], {'w': 'Hello', 's': 0.5, 'e': 0.9, 'spk': 'S1', 'align': 'ok'})
+        self.assertEqual(r['words'][0], {'w': 'Hello', 's': 0.5, 'e': 0.9, 'spk': 'S1', 'align': 'qwen3'})
         self.assertEqual(r['engine'], 'parakeet')
-        self.assertEqual(r['diarize'], {'speakers': 2, 'segments': 3, 'seconds': 1.2}, 'רק מספרים מוכרים')
+        self.assertEqual(r['diarize'], {'speakers': 2, 'units': 3, 'seconds': 1.2}, 'רק מספרים מוכרים')
+
+    def test_kotlin_words_file_accepted(self):
+        """קובץ המילים שה־Kotlin בונה (Ph2Test בודק שהוא בונה בדיוק את זה) — העובד מקבל אותו"""
+        fx = json.loads((Path(__file__).resolve().parents[2] / 'android/app/src/testStudio/resources/ph2/fixtures.json').read_text(encoding='utf-8'))
+        r = job.pw_check(fx['pw'], fx['align']['total'])
+        self.assertIsNotNone(r)
+        self.assertEqual(len(r['words']), len(fx['pw']['words']))
+        self.assertEqual(set(w.get('align') for w in r['words']) - {None} <= set(job.PW_ALIGN), True)
 
     def test_check_bad(self):
         W = words_doc()['words']

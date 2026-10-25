@@ -15,6 +15,8 @@ import java.io.File
  * 24/10/2026 — תרגום בטלפון, שלב 1: העבודה בטלפון. שני חלקים, כל אחד בשירות בחזית (PhService):
  *  up    — הקול בלי קידוד → העלאה → רישום → התחלת העבודה בשרת → השוטים וה־ffprobe → העלאת קובץ המדידות.
  *          השרת מתמלל ומתרגם בינתיים; הסרטון לא עוזב את הטלפון.
+ *          שלב 2 (pw, 25/10/2026): המודלים → תמלול, דוברים ויישור בטלפון (PhLocal) → קובץ המילים → המדידות → התחלה.
+ *          גם הקול לא עוזב את הטלפון.
  *  burn  — כשהתרגום מוכן: he.ass מהשרתון → ffmpeg (libass) → MediaCodec (חומרה) → הקול מהמקור → Movies/Studio.
  * כל שלב נשמר ברשומה (PhStore) — עצירה של המערכת באמצע = ממשיכים מאותו שלב (וההעלאה מאותו חלק).
  */
@@ -44,8 +46,31 @@ object PhWork {
         }
         try {
             val f = src(ctx, r)
+            val pw = r.optBoolean("pw")
+            // 0. שלב 2 ("הכל בטלפון"): המודלים, ואז התמלול, הדוברים והיישור כאן — עולה רק קובץ המילים (בלי קול)
+            if (pw && r.optString("wId").isEmpty()) {
+                if (!PhModels.ready(ctx)) {
+                    val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+                    if (cm.isActiveNetworkMetered && !r.optBoolean("cell")) throw Stop("models_wifi")
+                    stage("models", R.string.phModels, 0f)
+                    PhModels.fetch(ctx, stopped) { done, total ->
+                        notify(ctx, progress(ctx, title, s(ctx, R.string.phModelsP, done shr 20, total shr 20), done.toFloat() / total)) }
+                }
+                var lastSt = ""
+                val wf = PhLocal.run(ctx, work, f, stopped) { st, p ->
+                    if (st != lastSt) { lastSt = st; r = PhStore.update(ctx, pid) { it.put("st", st) } ?: r }
+                    val txt = when (st) { "wav" -> R.string.phWav; "asr" -> R.string.phAsr; "diar" -> R.string.phDiar; else -> R.string.phAlign }
+                    notify(ctx, progress(ctx, title, s(ctx, txt), p))
+                }
+                stage("upw", R.string.phUpW, 0f)
+                val id = n.upload(wf, "application/json", "words.json", r.optString("wUp0"), r.optString("wUp"),
+                    { id, up -> PhStore.update(ctx, pid) { it.put("wUp0", id).put("wUp", up) } }, stopped) {}
+                val fr = n.call("phFile", JSONObject().put("which", "w").put("id", id))
+                if (!fr.optBoolean("ok")) throw Stop(fr.optString("error", "file"))
+                r = PhStore.update(ctx, pid) { it.put("wId", id) } ?: r
+            }
             // 1. הקול כמו שהוא (שניות)
-            if (r.optString("aId").isEmpty()) {
+            if (!pw && r.optString("aId").isEmpty()) {
                 val a = File(work, "audio.mka")
                 if (!a.isFile || a.length() == 0L) {
                     stage("audio", R.string.phAudio)
@@ -62,8 +87,8 @@ object PhWork {
                 r = PhStore.update(ctx, pid) { it.put("aId", id) } ?: r
                 a.delete()
             }
-            // 2. העבודה מתחילה בשרת (התמלול והתרגום רצים בזמן שהטלפון מודד את השוטים)
-            if (!r.optBoolean("started")) {
+            // 2. העבודה מתחילה בשרת (התמלול והתרגום רצים בזמן שהטלפון מודד את השוטים). "הכל בטלפון" — אחרי המדידות
+            if (!pw && !r.optBoolean("started")) {
                 stage("start", R.string.phStart)
                 val sr = n.call("phStart", JSONObject().put("ov", r.optBoolean("ov")))
                 if (!sr.optBoolean("ok")) throw Stop(sr.optString("error", "start"))
@@ -86,6 +111,12 @@ object PhWork {
                 val fr = n.call("phFile", JSONObject().put("which", "m").put("id", id))
                 if (!fr.optBoolean("ok")) throw Stop(fr.optString("error", "file"))
                 r = PhStore.update(ctx, pid) { it.put("mId", id) } ?: r
+            }
+            if (pw && !r.optBoolean("started")) {
+                stage("start", R.string.phStartPw)
+                val sr = n.call("phStart", JSONObject().put("ov", r.optBoolean("ov")))
+                if (!sr.optBoolean("ok")) throw Stop(sr.optString("error", "start"))
+                r = PhStore.update(ctx, pid) { it.put("started", true) } ?: r
             }
             PhStore.update(ctx, pid) { it.put("st", "wait") }
             nm(ctx).cancel(N_ID)
