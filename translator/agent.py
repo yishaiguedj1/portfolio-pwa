@@ -1127,6 +1127,84 @@ def probe_loop(server: str, tok: str):
         time.sleep(0.2 if busy else PQ_S)
 
 
+# 25/10/2026 (בקשת המשתמש): יוטיוב בשרת דרך חשבון ייעודי. העוגיות (cookies.txt) מגיעות מהשרתון (op:'ytCk', הטוקן של
+# השרת) רק כשהגרסה השתנתה, ונשמרות ב־/cache/yt (0600) — fetchurl.py משתמש בהן רק לקישורי יוטיוב. מה ש־yt-dlp עדכן בקובץ
+# (ck.dirty) חוזר לשרתון, וההצלחה/החסימה האחרונה (ck.rep) מדווחת — כך מרכז הניהול יודע כשהחשבון נחסם. לא מדפיסים אותן לעולם
+YT_DIR = Path(os.environ.get('SNB_YT_DIR', '/cache/yt'))
+YT_SYNC_S = float(os.environ.get('SNB_YT_SYNC_S', '300'))
+
+
+def yt_sync(server: str, tok: str, http=None) -> int:
+    """סבב אחד: גרסה, דיווח ועדכון. מחזיר את הגרסה שבקובץ אחרי הסבב (0 = אין חשבון)."""
+    http = http or J.http
+    ck, vf, rep, dirty = YT_DIR / 'ck.txt', YT_DIR / 'ck.v', YT_DIR / 'ck.rep', YT_DIR / 'ck.dirty'
+    try:
+        v = int(vf.read_text().strip() or 0) if vf.is_file() and ck.is_file() else 0
+    except (OSError, ValueError):
+        v = 0
+    body = {'op': 'ytCk', 'v': v}
+    sent = []
+    try:
+        r = json.loads(rep.read_text())
+        if v and int(r.get('v') or 0) == v:
+            body['rep'] = {'ok': True} if r.get('ok') is True else {'ok': False, 'code': str(r.get('code') or '')[:12]}
+        sent.append(rep)
+    except (OSError, ValueError, AttributeError):
+        pass
+    if v and dirty.exists():
+        try:
+            body['put'] = ck.read_text()[:70000]
+        except OSError:
+            pass
+        sent.append(dirty)
+    try:
+        st, j, _ = http('POST', server + '/api/studio', body, headers={'Authorization': 'Bearer ' + tok}, timeout=30)
+    except (OSError, ValueError):
+        return v
+    if st != 200 or not isinstance(j, dict):
+        return v
+    for f in sent:
+        try:
+            f.unlink()
+        except OSError:
+            pass
+    nv = int(j.get('v') or 0)
+    if nv == v and j.get('same'):
+        return v
+    try:
+        YT_DIR.mkdir(parents=True, exist_ok=True)
+        os.chmod(YT_DIR, 0o700)
+        text = j.get('ck')
+        if nv and isinstance(text, str) and text.startswith('# Netscape HTTP Cookie File'):
+            tmp = YT_DIR / ('.ck.' + str(os.getpid()))
+            fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, 'w') as fh:
+                fh.write(text)
+            os.replace(str(tmp), str(ck))
+            vf.write_text(str(nv))
+            print('· חשבון היוטיוב של השרת עודכן', flush=True)
+            return nv
+        if ck.exists():
+            ck.unlink()
+            print('· חשבון היוטיוב של השרת הוסר', flush=True)
+        vf.write_text('0')
+    except OSError:
+        pass
+    return 0
+
+
+def yt_loop(server: str, tok: str):
+    while not _stop:
+        try:
+            yt_sync(server, tok)
+        except Exception as e:     # noqa: BLE001 — חוט רקע
+            print('· סנכרון חשבון היוטיוב נכשל (' + type(e).__name__ + ')', flush=True)
+        for _ in range(int(YT_SYNC_S)):
+            if _stop:
+                return
+            time.sleep(1)
+
+
 WARM_WAIT_S = 900
 
 
@@ -1168,6 +1246,9 @@ def main(once: bool = False) -> int:
         threading.Thread(target=beat_loop, args=(server, tok), daemon=True).start()
         if os.environ.get('SNB_PROBE', 'on') != 'off':
             threading.Thread(target=probe_loop, args=(server, tok), daemon=True).start()   # 22/10/2026: בדיקות קישור
+        if os.environ.get('SNB_YT', 'on') != 'off':
+            os.environ['SNB_YT_COOKIES'] = str(YT_DIR / 'ck.txt')   # יורש כל תהליך (בדיקה, עבודה) — fetchurl משתמש רק ביוטיוב
+            threading.Thread(target=yt_loop, args=(server, tok), daemon=True).start()   # 25/10/2026: חשבון יוטיוב ייעודי
     nmax = slots_max()
     if not once and nmax > 1:
         print('· עד ' + str(nmax) + ' עבודות במקביל, לפי הזיכרון (תקרה ' + str(mem_limit_mb()) + 'MB)', flush=True)

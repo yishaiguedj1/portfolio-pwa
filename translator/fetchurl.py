@@ -16,6 +16,7 @@ import re
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 from urllib.parse import urlsplit
 
@@ -377,7 +378,7 @@ def err_code(text):
 
 def ytdlp_base():
     """הפקודה הבסיסית: yt-dlp מהסביבה של העובד, בלי קבצי הגדרות מבחוץ, מטמון נגן ב־/cache (חוסך בקשה בכל הורדה).
-    עוגיות של חשבון ייעודי רק אם הוגדרו בשרת (SNB_YT_COOKIES — קובץ, לא בריפו). קצב עדין (מחקר: 5–10 שנ׳ בין בקשות)."""
+    קצב עדין (מחקר: 5–10 שנ׳ בין בקשות). העוגיות של החשבון הייעודי — רק ליוטיוב, דרך yt_cookies (לא כאן)."""
     py = os.environ.get('VT_PY') or sys.executable
     cmd = [py, '-m', 'yt_dlp', '--ignore-config', '--no-playlist', '--no-progress', '--no-color',
            '--socket-timeout', '20', '--retries', '5', '--fragment-retries', '10', '--extractor-retries', '2',
@@ -387,10 +388,86 @@ def ytdlp_base():
     vb = os.environ.get('VT_BIN', '')
     if vb and os.path.isfile(os.path.join(vb, 'ffmpeg')):
         cmd += ['--ffmpeg-location', vb]
-    ck = os.environ.get('SNB_YT_COOKIES', '')
-    if ck and os.path.isfile(ck):
-        cmd += ['--cookies', ck]
     return cmd
+
+
+YT_RE = re.compile(r'(^|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com)$', re.I)
+CK_BAD_RE = re.compile(r'cookies are no longer valid|cookies? (have|has) (likely )?been rotated', re.I)
+
+
+def yt_host(url):
+    """יוטיוב (כל הכתובות שלו) — זהה ל־ytHost ב־studio.js"""
+    try:
+        return bool(YT_RE.search(urlsplit(str(url or '').strip()).hostname or ''))
+    except ValueError:
+        return False
+
+
+class YtCookies:
+    """25/10/2026: חשבון יוטיוב ייעודי בשרת (SNB_YT_COOKIES — הקובץ שהסוכן מושך מהשרתון, 0600). רק לקישורי יוטיוב.
+    yt-dlp כותב את העוגיות בחזרה לקובץ — לכן עותק פרטי לכל הרצה (בדיקה והורדה במקביל לא כותבות לאותו קובץ), ובסוף
+    הצלחה העותק המעודכן מחליף את המשותף (רק אם הגרסה לא התחלפה בינתיים) ומסומן לשליחה לשרתון (ck.dirty). התוצאה
+    (הצליח / נחסם / לא מחובר / העוגיות פגו) נכתבת ל־ck.rep — הסוכן מדווח. העוגיות עצמן לא מודפסות לעולם."""
+
+    def __init__(self, url):
+        self.tmp = self.v = None
+        self.args = []
+        path = os.environ.get('SNB_YT_COOKIES', '')
+        if not path or not yt_host(url) or not os.path.isfile(path):
+            return
+        self.path = path
+        d = os.path.dirname(path)
+        try:
+            with open(os.path.join(d, 'ck.v')) as f:
+                self.v = int(f.read().strip() or 0)
+            with open(path, 'rb') as f:
+                self.orig = f.read()
+            fd, self.tmp = tempfile.mkstemp(prefix='.ck.', dir=d)
+            with os.fdopen(fd, 'wb') as f:
+                f.write(self.orig)
+        except (OSError, ValueError):
+            self.tmp = None
+            return
+        if self.v:
+            # מחקר 25/10/2026: לחשבון מחובר — קצב שמרני (‏‎-t sleep‎ של yt-dlp: 10–20 שנ׳ לפני הורדה). בבדיקה (בלי הורדה) — לא חל
+            self.args = ['--cookies', self.tmp, '--sleep-interval', '5', '--max-sleep-interval', '10']
+
+    def _rep(self, ok, code=''):
+        try:
+            with open(os.path.join(os.path.dirname(self.path), 'ck.rep'), 'w') as f:
+                json.dump({'ok': ok, 'code': code, 'v': self.v}, f)
+        except OSError:
+            pass
+
+    def done(self, ok, err=''):
+        if not self.tmp:
+            return
+        d = os.path.dirname(self.path)
+        try:
+            if ok:
+                self._rep(True)
+                with open(self.tmp, 'rb') as f:
+                    new = f.read()
+                with open(os.path.join(d, 'ck.v')) as f:
+                    same_v = int(f.read().strip() or 0) == self.v
+                if new != self.orig and same_v and new.startswith(b'# Netscape HTTP Cookie File'):
+                    os.chmod(self.tmp, 0o600)
+                    os.replace(self.tmp, self.path)
+                    self.tmp = None
+                    open(os.path.join(d, 'ck.dirty'), 'w').close()
+            else:
+                code = 'ck' if CK_BAD_RE.search(err or '') else err_code(err)
+                if code in ('blocked', 'login', 'ck'):
+                    self._rep(False, code)
+        except (OSError, ValueError):
+            pass
+        finally:
+            if self.tmp:
+                try:
+                    os.unlink(self.tmp)
+                except OSError:
+                    pass
+                self.tmp = None
 
 
 def ref_ok(ref):
@@ -410,14 +487,19 @@ def ref_args(ref):
 
 def probe(url, run=subprocess.run, timeout=PROBE_TIMEOUT, ref=''):
     """בדיקת קישור: yt-dlp -J (בלי הורדה) → summarize. כשל → ValueError(קוד)."""
+    yc = YtCookies(url)
     try:
-        r = run(ytdlp_base() + ref_args(ref) + ['-J', '--skip-download', '--', url], capture_output=True, text=True, timeout=timeout)
+        r = run(ytdlp_base() + yc.args[:2] + ref_args(ref) + ['-J', '--skip-download', '--', url], capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
+        yc.done(False)
         raise ValueError('timeout')
     except OSError:
+        yc.done(False)
         raise ValueError('no_tool')
     if r.returncode != 0 or not (r.stdout or '').strip():
+        yc.done(False, r.stderr)
         raise ValueError(err_code(r.stderr))
+    yc.done(True)
     try:
         info = json.loads(r.stdout)
     except ValueError:
@@ -431,7 +513,8 @@ PROG_RE = re.compile(r'^SNBP (\d+|NA) (\d+|NA) (\d+|NA)')
 def download(url, pick, out_tmpl, kind='v', section=None, on_progress=None, popen=subprocess.Popen, timeout=6 * 3600, ref=''):
     """הורדה: kind 'a' = רק הקול, 'v' = וידאו + קול ממוזגים בלי קידוד מחדש (MKV — מקבל כל צירוף קודקים).
     section = (מ, עד) בשניות — רק החלק הזה (yt-dlp חותך על פריימי מפתח; sync.py מיישר את הקול). מחזיר את הנתיב."""
-    cmd = ytdlp_base() + ref_args(ref) + ['--newline', '--progress', '--progress-template',
+    yc = YtCookies(url)
+    cmd = ytdlp_base() + yc.args + ref_args(ref) + ['--newline', '--progress', '--progress-template',
                           'download:SNBP %(progress.downloaded_bytes)s %(progress.total_bytes)s %(progress.total_bytes_estimate)s',
                           '--no-mtime', '--continue','--concurrent-fragments', '4',
                           '--max-filesize', '40G', '-o', out_tmpl, '--print', 'after_move:filepath']
@@ -445,6 +528,13 @@ def download(url, pick, out_tmpl, kind='v', section=None, on_progress=None, pope
         if b > a:
             cmd += ['--download-sections', '*%d-%d' % (a, b)]
     cmd += ['--', url]
+    try:
+        return _download(cmd, on_progress, popen, timeout, yc)
+    finally:
+        yc.done(False)                         # אחרי הצלחה / כישלון זה כבר לא עושה כלום (tmp נמחק)
+
+
+def _download(cmd, on_progress, popen, timeout, yc):
     t0 = time.time()
     p = popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
     path, last = '', 0.0
@@ -465,7 +555,9 @@ def download(url, pick, out_tmpl, kind='v', section=None, on_progress=None, pope
             raise ValueError('timeout')
     err = p.stderr.read() if p.stderr else ''
     if p.wait() != 0 or not path or not os.path.isfile(path):
+        yc.done(False, err)
         raise ValueError(err_code(err))
+    yc.done(True)
     return path
 
 

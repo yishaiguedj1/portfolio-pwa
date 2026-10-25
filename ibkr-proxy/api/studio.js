@@ -48,7 +48,8 @@ const DMLOG = require('../lib/dmlog');   // 24/10/2026: מאגר הנתונים 
 const SU = require('../lib/studiourl');   // 22/10/2026: הורדה מקישור — בדיקת קישור בתור לעובד
 const MON = require('../lib/studiomon');
 const USG = require('../lib/usage');   // 23/10/2026: מעקב תעבורה/אחסון של Vercel, R2 ו־Firestore (טוקנים לקריאה בלבד)   // 22/10/2026: ניטור השרתים — היסטוריית דופק + טוקן קריאה לווידג׳ט
-const SF = require('../lib/sysflags');   // 15/10/2026: מצב תחזוקה והגדרות ודגלים (sysCfg/main)   // 15/10/2026 (מ׳2): קורפוס הטקסט — לדלי נפרד snb-learn
+const SF = require('../lib/sysflags');
+const YT = require('../lib/ytck');   // 25/10/2026: חשבון יוטיוב ייעודי לשרת (עוגיות מוצפנות)   // 15/10/2026: מצב תחזוקה והגדרות ודגלים (sysCfg/main)   // 15/10/2026 (מ׳2): קורפוס הטקסט — לדלי נפרד snb-learn
 const AICACHE = require('../lib/aicache');   // 15/10/2026: התקרות היומיות של ה־AI (limits) — למסך AI ועלויות
 const AO = require('../lib/adminov');   // 15/10/2026: מרכז הניהול — הסקירה, "מחכה לך" ו"מה רץ איפה"   // 14/10/2026: מאגר הלמידה — רשומה אנונימית לכל עבודה + לוח הבקרה של המנהל
 const RL = require('../lib/relay');   // 24/10/2026: ההעברה — השרת עושה הכל, Claude דרך ה־Routine של המשתמש
@@ -64,7 +65,7 @@ const RELAY_OPS = new Set(['rlPut', 'rlFix', 'rlWait', 'rlEnd', 'rlNext', 'rlMar
 // 24/10/2026: תרגום בטלפון — Studio לאנדרואיד (נייטיב, בלי Origin ובלי התחברות) עם מפתח לעבודה אחת (pkh — רק ה־hash)
 const PHONE_OPS = new Set(['phUp', 'phParts', 'phDone', 'phFile', 'phStart', 'phJob', 'phGet', 'phBurn', 'phProg', 'phAlive']);
 const PH_KEY_TTL = 7 * 24 * 3600e3;   // הצריבה יכולה לקרות ימים אחרי שהתרגום מוכן
-const SERVER_OPS = new Set(['poll', 'beat', 'devLog', 'devMet', 'pq']);   // pq — בדיקות קישור (22/10/2026)   // devLog/devMet — האיסוף המלא (lib/devlog.js)
+const SERVER_OPS = new Set(['poll', 'beat', 'devLog', 'devMet', 'pq', 'ytCk']);   // ytCk — עוגיות החשבון הייעודי (25/10/2026)   // pq — בדיקות קישור (22/10/2026)   // devLog/devMet — האיסוף המלא (lib/devlog.js)
 /* מצב API: תקציב חודשי לכל משתמש (מפתח ה־API של המערכת). מעבר לזה — התקרה ב־Console של Anthropic */
 const LEARN_MAX = 5000, LEARN_SYNC_MAX = 400;   // מאגר הלמידה: כמה רשומות קוראים, וכמה משלימים בכל פתיחה של לוח הבקרה
 const USER_MONTH = () => Math.max(1, Math.min(10000, Number(process.env.STUDIO_API_USER_MONTH_USD) || 30));
@@ -215,7 +216,8 @@ async function readyNow(deps, now) {
   let sess = null; try { sess = main && main.s === 200 ? { last: JSON.parse(main.t).last || [] } : null; } catch (e) {}
   let nl = null; try { nl = links && links.s === 200 ? (JSON.parse(links.t) || []).filter((x) => x && x.target && x.target.package_name).length : null; } catch (e) {}
   const sm = sec && /^Expires:\s*(\S+)/m.exec(sec.t || '');
-  return AO.readyView({ now, cache, builds, sess, links: nl, api: { main: !!(main && main.s === 200), fb: !!(fb && fb.s === 200) }, sec: sm ? sm[1] : null });
+  const yt = YT.ytView(await ytDoc(deps, now, true).catch(() => null), now);
+  return AO.readyView({ now, cache, builds, sess, links: nl, api: { main: !!(main && main.s === 200), fb: !!(fb && fb.s === 200) }, sec: sm ? sm[1] : null, yt });
 }
 /* התשובות לבדיקות בטלפון (sysChecks) — { id: { st, n, at } } */
 async function checkAnswers(deps) {
@@ -1215,6 +1217,41 @@ async function updatePending(deps, ver, now) {
   return !!(w && w.sha && w.t && now - w.t >= 0 && now - w.t < UPD_WIN && !w.sha.startsWith(ver));
 }
 
+/* ---------- 25/10/2026 (בקשת המשתמש): יוטיוב בשרת דרך חשבון ייעודי ----------
+   המנהל מדביק את cookies.txt במרכז הניהול (adminYt) → מוצפן בכספת (studioVault/_ytck). שרת התרגום מושך אותו עם הטוקן שלו
+   (ytCk) רק כשהגרסה (v) השתנתה, מחזיר את הגרסה ש־yt-dlp עדכן (put — רק לאותה גרסה: עוגיות חדשות של המנהל גוברות),
+   ומדווח הצלחה/חסימה (rep). שתי חסימות ברצף = "נחסם": הטלפון חוזר להסביר שיוטיוב רק באנדרואיד, ובדיקת המוכנות שולחת התראה */
+const YT_DOC = '_ytck', YT_AAD = 'ytck|cookies', YT_BAD_N = 2;
+let ytC = { at: 0, v: null };
+async function ytDoc(deps, now, fresh) {
+  if (!fresh && ytC.v && Math.abs(now - ytC.at) < 60e3) return ytC.v;
+  const d = (await readDoc(deps, 'studioVault', YT_DOC).catch(() => null)) || {};
+  ytC = { at: now, v: d };
+  return d;
+}
+async function ytCkOp(deps, body, now) {
+  if (!vault.configured()) return { ok: true, v: 0 };
+  const d = await ytDoc(deps, now, true);
+  const v = +d.yv || 0;
+  const patch = {};
+  const rp = YT.normRep(body.rep);
+  if (rp && d.yk && +body.v === v) {
+    if (rp.ok) { if (d.ys !== 'ok' || now - (+d.yo || 0) > 600e3 || +d.yb) Object.assign(patch, { ys: 'ok', yo: now, yb: 0 }); }
+    else {
+      const yb = (+d.yb || 0) + 1;
+      Object.assign(patch, { yb, yc: rp.code, yt: now }, yb >= YT_BAD_N ? { ys: 'bad' } : {});
+    }
+  }
+  if (typeof body.put === 'string' && d.yk && +body.v === v) {
+    const c = YT.normCookies(body.put);
+    if (!c.error) Object.assign(patch, { yk: vault.seal({ t: c.text }, YT_AAD), yn: c.n, ye: c.exp, yp: now });
+  }
+  if (Object.keys(patch).length) { await patchDoc(deps, 'studioVault', YT_DOC, patch); ytC = { at: 0, v: null }; }
+  if (!d.yk) return { ok: true, v };
+  if (+body.v === v) return { ok: true, v, same: true };
+  const o = vault.open(d.yk, YT_AAD);
+  return o && o.t ? { ok: true, v, ck: o.t } : { ok: true, v: 0 };
+}
 /* ---------- 22/10/2026: הורדה מקישור — בדיקת קישור בתור לעובד ----------
    הטלפון יוצר מסמך ב־studioProbe (op:'urlProbe'), העובד לוקח (op:'pq' עם טוקן השרת) ומחזיר סיכום או קוד שגיאה.
    כדי לא לקרוא ל־Firestore בכל 4 שניות: probeHint = מתי נוצרה בדיקה במופע הזה (בייצור הטלפון והעובד מדברים עם אותו
@@ -1257,7 +1294,7 @@ async function server(req, res, body, deps) {
   let len = 0; try { len = JSON.stringify(body).length; } catch (e) { len = 1e9; }
   // 24/10/2026: תשובה לבדיקת קישור כוללת תמונה קטנה (עד TH_MAX) + כל הפורמטים — TED יצא 15.8KB, והתקרה של 4KB דחתה אותה
   // בשקט (413): הבדיקה נשארה "בודקים" והטלפון הציג "השרת לא ענה בזמן". normProbe מגביל כל שדה
-  const cap = body.op === 'devLog' || body.op === 'devMet' ? DL.BODY_MAX : body.op === 'pq' && body.done === true ? PQ_DONE_MAX : 4096;
+  const cap = body.op === 'devLog' || body.op === 'devMet' ? DL.BODY_MAX : body.op === 'pq' && body.done === true ? PQ_DONE_MAX : body.op === 'ytCk' ? YT.OUT_MAX + 4096 : 4096;
   if (len > cap) return res.status(413).json({ ok: false, error: 'too_large' });
   const hd = req.headers || {};
   const m = /^Bearer (\S+)$/.exec(String(hd.authorization || hd.Authorization || ''));
@@ -1273,6 +1310,7 @@ async function server(req, res, body, deps) {
     }
     if (body.op === 'devLog' || body.op === 'devMet') return res.status(200).json({ ok: true, saved: await devSrv(deps, body, p.sid, now), now });   // האיסוף המלא
     if (body.op === 'pq') return res.status(200).json(Object.assign(await pqOp(deps, body, p.sid, now), { now }));   // 22/10/2026: בדיקת קישור
+    if (body.op === 'ytCk') return res.status(200).json(Object.assign(await ytCkOp(deps, body, now), { now }));   // 25/10/2026: חשבון יוטיוב ייעודי
     const hb = S.normHb(body.hb);
     const seen = { seen: now, hb, updated: now, mon: MON.monPush(srv.mon, hb, now) };   // 22/10/2026: נקודת היסטוריה לכל 5 דק׳ (לא מוסיף קריאה — נכתב עם הדופק)
     if (!(srv.seen > 0)) {
@@ -2271,6 +2309,21 @@ async function handler(req, res, deps = {}) {
       const tk = md == null ? null : AO.tasksParse(md, now);
       return res.status(200).json({ ok: true, tk, prs, lane: AO.laneView(prs, ext.gh && ext.gh.waiting), ck: tk ? AO.checksView(tk, await checkAnswers(deps)) : null, at: now });
     }
+    if (op === 'adminYt') {
+      // 25/10/2026: חשבון יוטיוב ייעודי לשרת — מנהל בלבד. set = cookies.txt (נבדק ומסונן ל־youtube/google), clear = הסרה.
+      // העוגיות לא חוזרות לעולם — רק מצב (כמה, מתי, תקין/נחסם)
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      if (typeof body.set === 'string') {
+        const c = YT.normCookies(body.set);
+        if (c.error) return res.status(400).json({ ok: false, error: c.error });
+        await patchDoc(deps, 'studioVault', YT_DOC, { yk: vault.seal({ t: c.text }, YT_AAD), yv: now, ya: now, yn: c.n, ye: c.exp, ys: '', yc: '', yt: 0, yo: 0, yp: 0, yb: 0 });
+        await adminLog(deps, user, 'yt_set', String(c.n), now);
+      } else if (body.clear === true) {
+        await patchDoc(deps, 'studioVault', YT_DOC, { yk: '', yv: now, ya: now, yn: 0, ye: 0, ys: '', yc: '', yt: 0, yo: 0, yp: 0, yb: 0 });
+        await adminLog(deps, user, 'yt_clr', '', now);
+      }
+      return res.status(200).json({ ok: true, yt: YT.ytView(await ytDoc(deps, now, true), now), now });
+    }
     if (op === 'adminCfg') {
       // 15/10/2026: מצב תחזוקה והגדרות ודגלים — מנהל בלבד. בלי set — רק קריאה
       if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
@@ -2492,7 +2545,7 @@ async function handler(req, res, deps = {}) {
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
         norm: S.normsView(st.ns, 'r'), normA: S.normsView(st.ns, 'a') /* 11/10: הרגיל לפי המנוע */, sh: S.thView(st.thr) /* v384: מצב צל לכל מצב */, wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
         rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now, ((await readDoc(deps, 'studioEta', 'a').catch(() => null)) || {}).et),
-        pk: S.pickerCfg(process.env, gdrive.cfg().id), lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, lra: +st.lra || 0, lrt: +st.lrt || 0, lrm: +st.lrm || 0 /* מ׳4 */, mf: await fullModes() /* 15/10: כל מצבי התרגום (המנהל / הרשימה) */, url: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok /* 22/10: הורדה מקישור */, lrf: +st.lrf || 0 /* האיסוף המלא — הנוסח נקרא */, lf: +st.lf || 0 /* 15/10 (מ׳1): ההודעה נקראה / מתי נמחקו התרומות */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
+        pk: S.pickerCfg(process.env, gdrive.cfg().id), lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, lra: +st.lra || 0, lrt: +st.lrt || 0, lrm: +st.lrm || 0 /* מ׳4 */, mf: await fullModes() /* 15/10: כל מצבי התרגום (המנהל / הרשימה) */, url: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok /* 22/10: הורדה מקישור */, yc: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok && YT.ytCloud(await ytDoc(deps, now)) /* 25/10: יוטיוב לענן דרך החשבון הייעודי */, lrf: +st.lrf || 0 /* האיסוף המלא — הנוסח נקרא */, lf: +st.lf || 0 /* 15/10 (מ׳1): ההודעה נקראה / מתי נמחקו התרומות */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
     }
     if (op === 'push') {
       // שלב 4: התראות — key (המפתח הציבורי, ל־subscribe בטלפון) / on (מנוי של המכשיר) / off / test

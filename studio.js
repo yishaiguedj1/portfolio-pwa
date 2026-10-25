@@ -1198,6 +1198,7 @@ async function refreshStatus(force) {
     ui.lrt = num(j.lrt);                       // 15/10: הנוסח שאומר שגם הטקסט נשמר — נקרא
     ui.lrm = num(j.lrm);                       // מ׳4: הנוסח שאומר שגם הקול ועותק ב־240p נשמרים — נקרא
     ui.url = j.url === true;                   // 22/10/2026: הורדה מקישור (מנהל / "כל המודלים", הדגל, R2)
+    ui.yc = j.yc === true;                     // 25/10/2026: יוטיוב לענן דרך חשבון ייעודי בשרת (הוגדר במרכז הניהול ולא נחסם)
     ui.mf = j.mf === true;                     // 15/10: כל מצבי התרגום (המנהל / רשימת "כל המודלים") — אחרת רק "רגיל" ו"ביצועים"
     ui.lrf = num(j.lrf);                       // 15/10: הנוסח של האיסוף המלא (תקופת הפיתוח) — נקרא
     save();
@@ -3165,7 +3166,7 @@ let linkSeq = 0;
 export function devDl() { return grabOk(); }
 /* "לענן של Studio" (בחירת המשתמש 22/10/2026): רק כשהשרתון מתיר (ui.url — מנהל/"כל המודלים" + הדגל) ובמקור שלא חוסם
    את השרת. יוטיוב חוסם כתובות של חוות שרתים ("not a bot") — שם רק לטלפון */
-export const cloudBlocked = (r) => /^youtube/i.test(String((r && r.s) || ''));
+export const cloudBlocked = (r) => /^youtube/i.test(String((r && r.s) || '')) && !ui.yc;   // 25/10/2026: עם החשבון הייעודי בשרת — גם יוטיוב
 function cloudOk(L) { return !!(ui.url && L && L.r && !cloudBlocked(L.r)); }
 const DL_PKG = 'app.thesnowball.studio', DLP_KEY = 'pwa_studio_dlp', PROBE_WAIT_MS = 240e3;
 const LINK_POLL_MS = 1500, LINK_WAIT_MS = 300e3;   // הבדיקה בשרת (בדפדפן בלי האפליקציה). 24/10/2026: 150 שנ׳ היה צמוד מדי (סריקת התור + הבדיקה עצמה)
@@ -3234,7 +3235,7 @@ function linkCheck(f, raw, ref, pre, want) {
   L.to = want === 'cloud' && ui.url ? 'cloud' : devDl() ? 'dev' : 'cloud';
   if (!devDl()) {   // בלי האפליקציה: רק לענן (כשמותר — ui.url), אחרת הסבר
     // 25/10/2026: יוטיוב חוסם את השרת ("not a bot") — אומרים מיד, במקום בדיקה שתיכשל או עבודה שתיפול באמצע
-    if (ui.url && ytHost(L.u)) { L.st = 'err'; L.e = 'yt'; }
+    if (ui.url && !ui.yc && ytHost(L.u)) { L.st = 'err'; L.e = 'yt'; }
     else if (ui.url) linkCheckSrv(f, L, seq); else { L.st = 'err'; L.e = 'app'; }
     render('none'); return;
   }
@@ -3586,7 +3587,7 @@ export function blindOk(L, busy) {
   if (!L || !ui.url || devDl() || !L.u) return false;
   if (!busy && !BLIND_ERRS.includes(L.e) && !/^srv:(?!bad_url|flag_off)/.test(L.e || '')) return false;
   try { new URL(L.u); } catch (e) { return false; }
-  return !ytHost(L.u);
+  return !ytHost(L.u) || !!ui.yc;
 }
 /* יוטיוב (כל הכתובות שלו) — חוסם את השרת שלנו, לכן רק בטלפון עם Studio לאנדרואיד */
 export function ytHost(u) {
