@@ -95,23 +95,40 @@ def _pil_font(path: str, size: int):
 
 
 class Measurer:
-    """מודד רוחב שורה בפיקסלים כפי ש־libass יצייר אותה (בקירוב טוב)."""
+    """מודד רוחב שורה בפיקסלים כפי ש־libass יצייר אותה (בקירוב טוב).
+
+    25/10/2026 (שלב 3 של "תרגום בטלפון"): בלי PIL/fontTools (הפייתון של הטלפון) — אותו רוחב מ־fonts/metrics.json
+    (vt/textwidth.py), זהה ל־PIL בתמונת העובד (פריסה בסיסית — בלי fribidi)."""
 
     def __init__(self, font_path: Path, ass_size: float, spacing: float, outline: float):
         # libass (כמו VSFilter) מגדיר את גודל הגופן כך ש־usWinAscent+usWinDescent
         # מטבלת OS/2 = גודל ה־ASS. לכן em = size * unitsPerEm / (winAscent + winDescent).
-        from fontTools.ttLib import TTFont
-        t = TTFont(str(font_path), lazy=True)
-        upem = t["head"].unitsPerEm
-        h = 0
-        if "OS/2" in t:
-            h = t["OS/2"].usWinAscent + t["OS/2"].usWinDescent
-        if not h:
-            h = t["hhea"].ascent - t["hhea"].descent
-        t.close()
+        try:
+            from fontTools.ttLib import TTFont
+        except ImportError:
+            TTFont = None
+        if TTFont is not None:
+            t = TTFont(str(font_path), lazy=True)
+            upem = t["head"].unitsPerEm
+            h = 0
+            if "OS/2" in t:
+                h = t["OS/2"].usWinAscent + t["OS/2"].usWinDescent
+            if not h:
+                h = t["hhea"].ascent - t["hhea"].descent
+            t.close()
+        else:
+            from . import textwidth
+            upem, h = textwidth.em_height(Path(font_path).name) or (1000, 1000)
         self.em = ass_size * upem / h
-        self.font = _pil_font(str(font_path), max(8, int(round(self.em))))
-        self.scale = self.em / max(8, int(round(self.em)))
+        px = max(8, int(round(self.em)))
+        try:
+            self.font = _pil_font(str(font_path), px)
+        except ImportError:
+            from . import textwidth
+            self.font = textwidth.font(Path(font_path).name, px)
+            if self.font is None:
+                raise
+        self.scale = self.em / px
         self.spacing = spacing
         self.outline = outline
 

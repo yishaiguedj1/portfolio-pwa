@@ -48,6 +48,10 @@ class PhCoreTest {
     @Test fun shotsParse() {
         assertEquals(listOf(6.006 to 21.895), PhCore.shots(res("scdet.txt")))
         assertTrue(PhCore.shots("frame=  100 fps=0.0 q=-0.0").isEmpty())
+        // השורות ש־keep שמר + 12 השורות האחרונות (PhFf.run) — בלי כפולים, לפי הזמן
+        val l1 = "[Parsed_scdet_1 @ 0x1] lavfi.scd.score: 30.5, lavfi.scd.time: 9.5"
+        val l0 = "[Parsed_scdet_1 @ 0x1] lavfi.scd.score: 12.0, lavfi.scd.time: 2.25"
+        assertEquals(listOf(2.25 to 12.0, 9.5 to 30.5), PhCore.shots("$l1\n$l0\n$l1\nframe=1\n$l0"))
     }
 
     @Test fun infoRejects() {

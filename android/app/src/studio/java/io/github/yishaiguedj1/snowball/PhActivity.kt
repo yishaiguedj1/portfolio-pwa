@@ -30,6 +30,7 @@ import java.io.File
  *                                            חזרה לאתר עם ‎#phpick=<pid>.<base64url> (שגיאה: ‎#phpick=!<קוד>)
  *   snbstudio://ph?pid=…&j=…&k=…&b=…&pb=…&ov=0|1[&pw=1&cell=1]   → העבודה נוצרה באתר: הקול, ההתחלה והמדידות (PhService, ברקע);
  *                                            pw=1 — גם התמלול, הדוברים והיישור בטלפון (שלב 2)
+ *                                            pt=1 — גם שלבי הטקסט בטלפון (שלב 3, PhPy — job.py בפייתון של האפליקציה)
  *   snbstudio://phburn?pid=…[&j&k&b]       → הצריבה כשהתרגום מוכן
  *   snbstudio://phgo?pid=…                 → להמשיך אחרי שנעצר
  */
@@ -131,8 +132,10 @@ class PhActivity : Activity() {
         val pb = d.getQueryParameter("pb").takeIf { it == "same" || it == "small" } ?: ""
         // pw=1 — "הכל בטלפון" (שלב 2); נקבע פעם אחת לעבודה, כמו בשרתון (spec.pw). cell=1 — מותר להוריד את המודלים בחבילת גלישה
         val pw = if (r.has("pw")) r.optBoolean("pw") else d.getQueryParameter("pw") == "1"
+        // pt=1 — שלב 3: גם שלבי הטקסט בטלפון (PhPy). רק עם pw, נקבע פעם אחת לעבודה (spec.pt)
+        val pt = pw && (if (r.has("pt")) r.optBoolean("pt") else d.getQueryParameter("pt") == "1")
         PhStore.update(this, pid) { it.put("job", j).put("key", k).put("base", b).put("pb", pb).put("ov", d.getQueryParameter("ov") == "1").put("web", web)
-            .put("pw", pw).put("cell", d.getQueryParameter("cell") == "1").remove("e") }
+            .put("pw", pw).put("pt", pt).put("cell", d.getQueryParameter("cell") == "1").remove("e") }
         PhGcJob.schedule(this)          // הסרטון נשמר עד שהפרויקט נמחק — הבדיקה ברקע
         startWork(pid, false)
     }

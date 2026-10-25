@@ -18,7 +18,7 @@ class PhService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val i = intent ?: return START_NOT_STICKY
-        if (i.action == ACT_CANCEL) { stop = true; PhFf.cancel(); if (!busy) stopSelf(); return START_NOT_STICKY }
+        if (i.action == ACT_CANCEL) { stop = true; PhFf.cancel(); PhPy.cancel(); if (!busy) stopSelf(); return START_NOT_STICKY }
         val pid = i.getStringExtra(X_PID) ?: return START_NOT_STICKY
         val burn = i.action == ACT_BURN
         if (busy) return START_NOT_STICKY
@@ -40,7 +40,7 @@ class PhService : Service() {
 
     /** אנדרואיד 15: נגמרה המכסה של סוג השירות — עוצרים מיד (הרשומה זוכרת את השלב) */
     override fun onTimeout(startId: Int, fgsType: Int) {
-        stop = true; PhFf.cancel()
+        stop = true; PhFf.cancel(); PhPy.cancel()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }

@@ -56,6 +56,13 @@
     <string name="phAlign">Aligning every word to its time…</string>
     <string name="phUpW">Sending the transcript (no audio)</string>
     <string name="phStartPw">Starting the translation…</string>
+    <string name="phText">Translating on the phone…</string>
+    <string name="phTextTr">Claude is proofreading the transcript</string>
+    <string name="phTextTl">Claude is translating</string>
+    <string name="phTextRv">Claude is reviewing the translation</string>
+    <string name="phTextSv">Building and saving the subtitles</string>
+    <string name="phTextDone">The translation is ready</string>
+    <string name="phTextDoneS">Everything ran on the phone. Tap here to burn or watch</string>
     <string name="phSent">Translation is running on the server</string>
     <string name="phSentS">The video stays on the phone. When the translation is ready, tap \"Burn on the phone\" on the job page</string>
     <string name="phFailed">Translating on the phone stopped</string>
