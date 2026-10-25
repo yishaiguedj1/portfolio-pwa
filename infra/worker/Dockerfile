@@ -104,6 +104,27 @@ RUN HF_HOME=/tmp/hf HF_HUB_DISABLE_TELEMETRY=1 /opt/vt/bin/python -c \
  && echo "7bb2f06e9df17cdf1ef14ee8a15ab08ed28e8d0ef5054ee135741560df2ec068  /opt/speaker/voxceleb_resnet34_LM.onnx" | sha256sum -c - \
  && rm -rf /tmp/hf /opt/speaker/.cache
 
+# ---------------------------------------------------------------- שבירת שורות (25/10/2026, translator/vt/linebreak.py)
+# DictaBERT tiny joint (‏dicta-il, ‏CC-BY-4.0, ‏181MB): ניתוח תחבירי עברי — איפה לשבור כתובית לשתי שורות. המשקולות
+# מ־dictabert-tiny-joint והקוד של המודל (BertFor*.py, בלי רשת ובלי subprocess) מ־dictabert-joint — שניהם בגרסה נעולה
+# ונבדקים מול sha256. בלי המודל: הכללים של vt/hebrew.py, כמו קודם.
+FROM deps AS linebreak
+RUN HF_HOME=/tmp/hf HF_HUB_DISABLE_TELEMETRY=1 /opt/vt/bin/python -c \
+    "from huggingface_hub import hf_hub_download as d; [d('dicta-il/dictabert-tiny-joint', f, revision='708026b7297ffde293f14a3a592f8cf649f12c38', local_dir='/opt/linebreak') for f in ('config.json', 'model.safetensors', 'special_tokens_map.json', 'tokenizer.json', 'tokenizer_config.json', 'vocab.txt')]; [d('dicta-il/dictabert-joint', f, revision='7b1256fc0846e22d1af431eae299e2dcecee2778', local_dir='/opt/linebreak') for f in ('BertForJointParsing.py', 'BertForMorphTagging.py', 'BertForPrefixMarking.py', 'BertForSyntaxParsing.py')]" \
+ && cd /opt/linebreak && printf '%s\n' \
+    "7fdddffe2722c800c111d201ed2b35c45ef9de1fcbfae6be700a1a58ea242bde  config.json" \
+    "577997e9eded405f391d77db60072c0d1bcf37354865aacfdb514297288c6f90  model.safetensors" \
+    "5d5b662e421ea9fac075174bb0688ee0d9431699900b90662acd44b2a350503a  special_tokens_map.json" \
+    "00657b39a8a73b96ddcc3cda245c5e8fa02be36e31e318bd13a9169eb89c999b  tokenizer.json" \
+    "53fde6fe26f7b0f5c9e9e6cdaa549888b35266fb08dc8a57b60e385d4f860eb7  tokenizer_config.json" \
+    "0fb90bfa35244d26f0065d1fcd0b5becc3da3d44d616a7e2aacaf6320b9fa2d0  vocab.txt" \
+    "adff43130f5ab6a3c6c580c507f206709d4a51028db1a8eff2bbd92bcf244daa  BertForJointParsing.py" \
+    "f16fbd2a640194a07c3a52fd809000241746a19f491a7af6702f4eb86a2f7093  BertForMorphTagging.py" \
+    "6fed41e6041d824b4b5ed3b26ccf32b41ceb9b4ddaf1e961375064a2d0ded1d4  BertForPrefixMarking.py" \
+    "2aebe51bf2ca5f090e2e9347786a4b2c032517efd08ee379b5af790456fe2646  BertForSyntaxParsing.py" \
+    | sha256sum -c - \
+ && rm -rf /tmp/hf /opt/linebreak/.cache
+
 # ---------------------------------------------------------------- התמונה הסופית
 FROM ${PY_IMAGE}
 # 24/10/2026: ARG שמשתנה בכל בנייה (הקומיט, ה־sha של ffmpeg) נכנס לסביבה של כל RUN אחריו ומבטל את המטמון שלו —
@@ -120,12 +141,14 @@ COPY --from=bgutil /opt/bgutil /opt/bgutil
 COPY --from=deps /opt/vt /opt/vt
 COPY --from=aligner /opt/aligner /opt/aligner
 COPY --from=speaker /opt/speaker /opt/speaker
+COPY --from=linebreak /opt/linebreak /opt/linebreak
 COPY --chown=root:root translator /app/translator
 # 16/10/2026: הגדרת השרת לעדכון ידני בלי שרת חדש — נתונים בלבד, שום דבר לא מריץ אותם לבד (infra/worker/snb-host-apply)
 COPY --chown=root:root infra/host/snb-common.sh infra/compose.yaml infra/host/snb-update /opt/snb-host/
 COPY --chown=root:root --chmod=755 infra/worker/snb-host-apply /opt/snb-host/apply
 RUN rm -rf /app/translator/tests /app/translator/research /app/translator/__pycache__ \
  && find /app /opt/aligner /opt/speaker -type d -exec chmod 755 {} + && find /app /opt/aligner /opt/speaker -type f -exec chmod 644 {} + \
+ && find /opt/linebreak -type d -exec chmod 755 {} + && find /opt/linebreak -type f -exec chmod 644 {} + \
  && chmod 644 /opt/snb-host/snb-common.sh /opt/snb-host/compose.yaml /opt/snb-host/snb-update
 # 20/10/2026: בדיקת עשן מול הספריות האמיתיות שבתמונה (הבדיקות ב־CI רצות בלי anthropic) — בניית הלקוח של Claude
 # בלי רשת. anthropic 1.x עבר ל־httpx2 ודחה httpx.Timeout ב־TypeError: כל עבודה בשרת קרסה בקריאה הראשונה, והבנייה עברה
@@ -133,6 +156,8 @@ RUN rm -rf /app/translator/tests /app/translator/research /app/translator/__pyca
 RUN PATH=/opt/vt/bin:/opt/deno:$PATH /opt/vt/bin/python -c "import shutil, yt_dlp, curl_cffi; assert shutil.which('deno'), 'deno'; print(yt_dlp.version.__version__)"
 # 25/10/2026: הפלאגין של ה־PO token נטען (ובאמד64 גם הסקריפט שלו קיים)
 RUN /opt/vt/bin/python -c "import os, yt_dlp_plugins.extractor.getpot_bgutil_script as g; f = os.path.isfile('/opt/bgutil/server/src/generate_once.ts'); print('bgutil', f); assert f or os.uname().machine != 'x86_64'"
+# 25/10/2026: מודל שבירת השורות נטען ומנתח משפט, בלי רשת (בלי זה ה־build נופל בשקט לכללים)
+RUN cd /app/translator && HF_HUB_OFFLINE=1 /opt/vt/bin/python -c "from vt import linebreak as L; m = L.DepModel(); t = m.toks('הלכתי אתמול לבית הספר החדש'); assert t and len(t) >= 5, t; print('linebreak', len(t))"
 RUN cd /app/translator && ANTHROPIC_API_KEY=build-check /opt/vt/bin/python -B -c \
     "import llm; c = llm.Engine(llm.Spec.of(llm.DEFAULT_MODE))._client_or_new(); assert c.timeout.read == llm.API_READ_TIMEOUT, c.timeout" \
  && cd /app/translator && /opt/vt/bin/python -B -c \

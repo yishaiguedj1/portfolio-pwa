@@ -374,7 +374,21 @@ def cmd_tr_merge(a):
 
 
 def build(pr: Project, style_name: str | None = None) -> dict:
+    """25/10/2026: שבירת השורות בזמן הבנייה — בחירה של Haiku (tr/linebreak.json) › מודל תחבירי › הכללים (vt/linebreak.py)."""
+    from .hebrew import set_break_chooser
+    from . import linebreak as LB
+    model = LB.DepModel() if os.environ.get("SNB_LB", "") != "off" else None
+    chooser = LB.Chooser(LB.load_picks(pr.tr_dir / "linebreak.json"), model if model and model.available() else None)
+    set_break_chooser(chooser)
+    try:
+        return _build(pr, style_name, chooser)
+    finally:
+        set_break_chooser(None)
+
+
+def _build(pr: Project, style_name: str | None, chooser) -> dict:
     from .hebrew import layout_lines, Measurer, visible_len
+    from . import linebreak as LB
     from .media import grid_from
     from .qc import run_qc
     from .subs import write_ass, write_ass_compat, write_srt, write_vtt, frame_check
@@ -400,6 +414,11 @@ def build(pr: Project, style_name: str | None = None) -> dict:
     meas = Measurer(C.FONTS_DIR / style.font_file, st.size, st.spacing, st.outline)
 
     final, warns = apply_merges(cues, he, tr.max_dur_s)
+    if chooser.model is not None:            # ניתוח באצווה של כל מה שיישבר — לא טקסט־טקסט בתוך הלולאה
+        from .hebrew import normalize_he
+        chooser.model.parse([normalize_he(str(c.get("he") or "")) for c in final
+                             if "||" not in str(c.get("he") or "")
+                             and LB.needs_break(str(c.get("he") or ""), tx.max_chars_line, meas, st.max_line_px)])
 
     def refit(c):
         lines, ok = layout_lines(c["he"], bool(c.get("parts")), tx.max_chars_line, meas, st.max_line_px)
@@ -435,6 +454,10 @@ def build(pr: Project, style_name: str | None = None) -> dict:
     keep = ("id", "spk", "speech_s", "speech_e", "si", "so", "fi", "fo", "start", "end", "lines", "chars",
             "cps", "flags", "en", "he", "snap_in", "snap_out", "chained", "merged", "cps_merged", "it", "top", "tpl")
     write_json(od / "cues.final.json", [{k: c[k] for k in keep if k in c} for c in final])
+    # האפשרויות לבחירה של Haiku (pipeline: lb-prompt → Claude → lb-apply → build שוב)
+    lb_items = LB.items_for(final, tx.max_chars_line, meas, st.max_line_px)
+    pr.tr_dir.mkdir(parents=True, exist_ok=True)
+    write_json(pr.tr_dir / "lb_items.json", lb_items)
     rep, stats = run_qc(final, words, tr, tx, grid.fps_f, shots, meas, st.max_line_px)
     extra = []
     if warns:
@@ -446,12 +469,39 @@ def build(pr: Project, style_name: str | None = None) -> dict:
     write_text(od / "qc.md", rep + "\n" + "\n".join(extra))
     log(f"נבנו {len(final)} כתוביות ({style.name}) · שגיאות QC: {stats['errors']} · אזהרות: {stats['warnings']} "
         f"· לא נכנסו: {len(bad_fit)} → out/")
+    u = chooser.used
+    log(f"שבירת שורות: בחירה {u['pick']} · מודל {u['tree']} · כללים {u['rules']} · לבחירה של Claude: {len(lb_items)}")
     pr.mark("build", style=style.name, **stats)
     return {"cues": final, "stats": stats, "bad_fit": bad_fit}
 
 
 def cmd_build(a):
     build(Project(a.name), a.style)
+
+
+def cmd_lb_prompt(a):
+    """ההנחיה ל־Claude: לבחור שבירה לכל כתובית דו־שורתית (tr/lb_items.json מה־build האחרון) → tr/lb_prompt.md.
+    בלי פריטים — קובץ ריק (אין מה לשאול)."""
+    from . import linebreak as LB
+    pr = Project(a.name)
+    p = pr.tr_dir / "lb_items.json"
+    items = read_json(p) if p.exists() else []
+    write_text(pr.tr_dir / "lb_prompt.md", LB.prompt(items) if items else "")
+    log(f"שבירת שורות: {len(items)} כתוביות לבחירה → tr/lb_prompt.md")
+
+
+def cmd_lb_apply(a):
+    """התשובה של Claude (קובץ) → tr/linebreak.json. בחירות קודמות לכתוביות אחרות נשמרות; ה־build הבא מחיל."""
+    from . import linebreak as LB
+    pr = Project(a.name)
+    p = pr.tr_dir / "lb_items.json"
+    items = read_json(p) if p.exists() else []
+    ans = Path(a.answer).read_text(encoding="utf-8") if Path(a.answer).exists() else ""
+    got = LB.parse_answer(ans, items)
+    picks = LB.load_picks(pr.tr_dir / "linebreak.json")
+    picks.update(got)
+    write_json(pr.tr_dir / "linebreak.json", {"v": 1, "model": a.model or "", "picks": picks})
+    log(f"שבירת שורות: {len(got)} בחירות מתוך {len(items)} → tr/linebreak.json")
 
 
 def cmd_breaks(a):
@@ -716,6 +766,10 @@ def main(argv=None):
     p = add("build", cmd_build, "name", help="בניית כתוביות + QC")
     p.add_argument("--style", choices=list(C.STYLES))
     add("breaks", cmd_breaks, "name", help="רשימת שבירות שורה לבדיקה")
+    add("lb-prompt", cmd_lb_prompt, "name", help="שבירת שורות: ההנחיה לבחירה של Claude (tr/lb_prompt.md)")
+    p = add("lb-apply", cmd_lb_apply, "name", help="שבירת שורות: התשובה של Claude → tr/linebreak.json")
+    p.add_argument("--answer", required=True)
+    p.add_argument("--model", help="המודל שענה (לתיעוד)")
     p = add("snapshot", cmd_snapshot, "name", help="עותק של התוצרים (לפני/אחרי)")
     p.add_argument("label")
     p = add("preview", cmd_preview, "name", help="תמונות בדיקה")
