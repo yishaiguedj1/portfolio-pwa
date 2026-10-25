@@ -403,6 +403,18 @@ def yt_host(url):
         return False
 
 
+POT_HOME = os.environ.get('SNB_POT_HOME', '/opt/bgutil/server')
+
+
+def pot_args(url):
+    """25/10/2026: PO token ליוטיוב (bgutil, script-deno — רץ רק כשיוטיוב מבקש token). רק לקישורי יוטיוב, ורק כשהסקריפט
+    בתמונה (באמד64; בלי — yt-dlp ממשיך בלעדיו). לבד הוא לא עוקף חסימה של חוות שרתים — יחד עם החשבון הייעודי (YtCookies)"""
+    home = os.environ.get('SNB_POT_HOME', POT_HOME)
+    if not yt_host(url) or not os.path.isfile(os.path.join(home, 'src', 'generate_once.ts')):
+        return []
+    return ['--extractor-args', 'youtubepot-bgutilscript:server_home=' + home]
+
+
 class YtCookies:
     """25/10/2026: חשבון יוטיוב ייעודי בשרת (SNB_YT_COOKIES — הקובץ שהסוכן מושך מהשרתון, 0600). רק לקישורי יוטיוב.
     yt-dlp כותב את העוגיות בחזרה לקובץ — לכן עותק פרטי לכל הרצה (בדיקה והורדה במקביל לא כותבות לאותו קובץ), ובסוף
@@ -489,7 +501,7 @@ def probe(url, run=subprocess.run, timeout=PROBE_TIMEOUT, ref=''):
     """בדיקת קישור: yt-dlp -J (בלי הורדה) → summarize. כשל → ValueError(קוד)."""
     yc = YtCookies(url)
     try:
-        r = run(ytdlp_base() + yc.args[:2] + ref_args(ref) + ['-J', '--skip-download', '--', url], capture_output=True, text=True, timeout=timeout)
+        r = run(ytdlp_base() + yc.args[:2] + pot_args(url) + ref_args(ref) + ['-J', '--skip-download', '--', url], capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         yc.done(False)
         raise ValueError('timeout')
@@ -514,7 +526,7 @@ def download(url, pick, out_tmpl, kind='v', section=None, on_progress=None, pope
     """הורדה: kind 'a' = רק הקול, 'v' = וידאו + קול ממוזגים בלי קידוד מחדש (MKV — מקבל כל צירוף קודקים).
     section = (מ, עד) בשניות — רק החלק הזה (yt-dlp חותך על פריימי מפתח; sync.py מיישר את הקול). מחזיר את הנתיב."""
     yc = YtCookies(url)
-    cmd = ytdlp_base() + yc.args + ref_args(ref) + ['--newline', '--progress', '--progress-template',
+    cmd = ytdlp_base() + yc.args + pot_args(url) + ref_args(ref) + ['--newline', '--progress', '--progress-template',
                           'download:SNBP %(progress.downloaded_bytes)s %(progress.total_bytes)s %(progress.total_bytes_estimate)s',
                           '--no-mtime', '--continue','--concurrent-fragments', '4',
                           '--max-filesize', '40G', '-o', out_tmpl, '--print', 'after_move:filepath']
