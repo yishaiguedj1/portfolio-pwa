@@ -79,6 +79,12 @@ function stubFetch(text, status = 200) {
   ok(lastFetchUrl.startsWith('https://gdcdyn.interactivebrokers.com/AccountManagement/FlexWebService/GetStatement?t=1234567890&q=ABC123'),
     'משתמש ב-host ובנתיב ש-IBKR החזיר');
   ok(res.payload.data.trades.length === 1 && res.payload.data.trades[0].symbol === 'AAPL', 'עסקה נפרסה');
+  ok(res.payload.data.trades[0].time === '09:30:00', 'שעת העסקה נשמרת (25/10/2026)');
+  {
+    const ft = require('../lib/ibkr.js').flexTime;
+    ok(ft('20261023;093512') === '09:35:12' && ft('2026-10-23;09:35:12') === '09:35:12' && ft('2026-10-23, 09:35:12') === '09:35:12', 'flexTime: שלושת הפורמטים של Flex');
+    ok(ft('20261023') === '' && ft('') === '' && ft('20261023;996000') === '', 'flexTime: בלי שעה / שעה לא תקינה → ריק');
+  }
   ok(res.payload.data.trades[0].commission === -1, 'עמלת IBKR נפרסה (שלילית כמו ב־Flex)');
   ok(res.payload.data.trades[0].commissionCurrency === 'USD', 'מטבע העמלה נפרס');
   ok(res.payload.data.trades[0].netCash === -1806.5, 'netCash נפרס');
