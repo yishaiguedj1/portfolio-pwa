@@ -1,0 +1,50 @@
+# התקנת קובצי המארח בשרת בלי המסוף של Hetzner — tools/server-hostfix.js. 26/10/2026, בקשת המשתמש.
+#
+# מה זה עושה (apply): משהה את שרתי הסטודיו ומחכה לסוף העבודות → מפתח SSH חד־פעמי + כלל זמני בחומת האש (פורט 22 רק
+# מהכתובת של ההרצה) → מצב Rescue של Hetzner ואתחול → מתקין את snb-update, ‏common.sh ו־compose.yaml מהקומיט הזה
+# (אותם קבצים של snb-host-apply) ומודד מה תופס את הדיסק → אתחול רגיל → snb-update החדש מוחק תמונות שלא בשימוש.
+# תמיד בסוף: הכלל והמפתח נמחקים, Rescue כבוי, השרת דולק, ההשהיה יורדת. השרת לא זמין כ־5 דקות.
+#
+# check = מצב בלבד, בלי שום שינוי.
+name: hostfix
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'check = מצב בלבד · apply = להתקין את קובצי המארח (אתחול של כ־5 דק׳ אחרי סוף העבודות)'
+        type: choice
+        options: [check, apply]
+        default: check
+
+permissions: {}
+
+concurrency:
+  group: server-upgrade        # אותה קבוצה של השדרוג — לא שתי פעולות על השרת בבת אחת
+  cancel-in-progress: false
+
+jobs:
+  run:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    environment: production
+    permissions:
+      contents: read
+    env:
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+      PROD_FIREBASE_SA: ${{ secrets.PROD_FIREBASE_SA }}
+      STG_FIREBASE_SA: ${{ secrets.STG_FIREBASE_SA }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: מצב — בלי שום שינוי
+        run: node tools/server-hostfix.js check | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: התקנה דרך Rescue
+        id: fix
+        if: inputs.mode == 'apply'
+        run: node tools/server-hostfix.js apply | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: ניקוי (תמיד — גם בכישלון או ביטול)
+        if: always() && inputs.mode == 'apply'
+        run: node tools/server-hostfix.js clean | tee -a "$GITHUB_STEP_SUMMARY"

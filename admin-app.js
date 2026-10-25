@@ -474,7 +474,7 @@ page('servers', { tab: 'apps', parent: 'studio', title: () => t('admStudioSrv'),
     const hb = x.hb || {};
     const st = x.warn.includes('auth') ? ['red', t('admSvAuth')] : x.paused ? ['gray', t('admRunPaused')] : x.online ? ['green', x.job ? fmt(t('admSvBusy'), { s: (STG[x.job.st] || (() => '—'))() }) + (x.job.p != null ? ' · ' + Math.round(x.job.p * 100) + '%' : '') : t('admSvIdle')] : ['red', t('admSvDown')];
     const rows = [row({ c: st[0], ic: '◉', t: st[1], s: fmt(t('admItLast'), { a: ago(x.seen) }) + (hb.v ? ' · ' + hb.v : '') })];
-    if (hb.disk != null) rows.push(row({ c: x.warn.includes('disk') ? 'orange' : 'gray', ic: '▤', t: t('admSvDisk'), s: hb.free != null ? fmt(t('admSvFree'), { n: hb.free }) : '', v: Math.round(hb.disk) + '%', meter: [hb.disk, hb.disk >= 85 ? 'w' : ''] }));
+    if (hb.disk != null) rows.push(row({ c: x.warn.includes('disk') ? 'orange' : 'gray', ic: '▤', t: t('admSvDisk'), s: hb.dl ? t('admSvDiskHold') : hb.free != null ? fmt(t('admSvFree'), { n: hb.free }) : '', v: Math.round(hb.disk) + '%', meter: [hb.disk, hb.disk >= 85 ? 'w' : ''] }));
     if (hb.mem != null) rows.push(row({ c: x.warn.includes('mem') ? 'orange' : 'gray', ic: '▦', t: t('admSvMem'), v: Math.round(hb.mem) + '%', meter: [hb.mem, hb.mem >= 90 ? 'w' : ''] }));
     if (hb.load != null) rows.push(row({ c: 'gray', ic: '∿', t: t('admSvLoad'), s: hb.up != null ? fmt(t('admSvUp'), { a: upTxt(hb.up) }) : '', v: hb.load }));
     if (hb.iso) rows.push(row({ c: hb.iso === 'g' ? 'green' : 'orange', ic: '⛨', t: hb.iso === 'g' ? t('studioIsoG') : (ISO[hb.iw] || (() => t('studioIsoR')))(), s: hb.al === 'o' ? t('admSvAlO') : hb.al === 't' ? t('admSvAlT') : '' }));

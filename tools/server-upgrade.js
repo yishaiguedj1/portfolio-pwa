@@ -394,4 +394,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { UP, LATER_CODES, transient, theServer, powerDown, powerUp, snapshot, cordon, release, healthOnce, limitsWait, attempt, watch, check };
+module.exports = { UP, LATER_CODES, transient, theServer, serverNow, soft, action, waitStatus, powerDown, powerUp, snapshot, servers, ENVS, cordon, release, healthOnce, healthWait, limitsWait, attempt, watch, check };
