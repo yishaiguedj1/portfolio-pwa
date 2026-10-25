@@ -1,10 +1,10 @@
 [Unit]
-Description=THE SNOWBALL — בדיקת עדכון כל רבע שעה
+Description=THE SNOWBALL — בדיקת עדכון כל 2 דקות
 
 [Timer]
 OnBootSec=2min
-OnUnitActiveSec=15min
-RandomizedDelaySec=60
+OnUnitActiveSec=2min
+RandomizedDelaySec=20
 
 [Install]
 WantedBy=timers.target

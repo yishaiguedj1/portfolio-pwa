@@ -1,5 +1,5 @@
 #!/bin/sh
-# עדכון החדרים בשרת לגרסאות המאושרות. רץ כל רבע שעה (snb-update.timer) וידנית.
+# עדכון החדרים בשרת לגרסאות המאושרות. רץ כל 2 דקות (snb-update.timer) וידנית.
 #   1. לכל חדר דולק (snb_rooms_wanted — לפי קובצי הסודות) — התמונה שלו:
 #        prod       → snb-worker:prod (אחרי אישור שלך ב־GitHub)
 #        stg-worker → snb-worker:dev  (כל מיזוג — סביבת הניסוי)
@@ -42,6 +42,16 @@ resolve() {
 	fi
 	printf '%s=%s\n' "$var" "$ref"
 }
+
+# 25/10/2026: עד היום הבדיקה רצה כל רבע שעה, ובחלון העדכון (השרתון לא נותן עבודה חדשה לעובד בגרסה הישנה) עבודה
+# חיכתה "בתור לשרת" עד רבע שעה אחרי כל worker-image. שרת קיים מקבל את הקצב החדש מכאן (הטיימר נכתב רק בהקמה) —
+# קובץ השלמה לטיימר, פעם אחת. הבדיקה עצמה זולה: משיכה שלא השתנתה = רק ה־manifest
+TD=/etc/systemd/system/snb-update.timer.d
+if [ ! -s "$TD/10-fast.conf" ] && command -v systemctl >/dev/null 2>&1; then
+	mkdir -p "$TD"
+	printf '[Timer]\nOnUnitActiveSec=\nOnUnitActiveSec=2min\nRandomizedDelaySec=\nRandomizedDelaySec=20\n' >"$TD/10-fast.conf"
+	systemctl daemon-reload && systemctl restart snb-update.timer && snb_log "✓ בדיקת העדכון — כל 2 דקות" || true
+fi
 
 umask 022
 {

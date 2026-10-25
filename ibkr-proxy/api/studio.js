@@ -1188,7 +1188,7 @@ const apiJob = (job) => (job.kind === 'tr' || job.kind === 'rr' || job.kind === 
 
 /* 21/10/2026 (סבב הייעול, 9 — "חלון עדכון"): עבודה שנלקחה בדיוק כשהעובד מתעדכן נהרגה (worker_lost פעמיים). אחרי קידום
    של תמונת עובד ל־prod (ריצת worker-image מוצלחת על main — מה־API הציבורי של GitHub, מטמון 2 דק׳), עובד שעוד בגרסה
-   הקודמת (hb.v ≠ ה־SHA החדש) לא מקבל עבודה חדשה UPD_WIN — snb-update בודק כל 15 דק׳. אחרי החלון — עבודה כרגיל גם אם
+   הקודמת (hb.v ≠ ה־SHA החדש) לא מקבל עבודה חדשה UPD_WIN — snb-update בודק כל 2 דק׳ (עד 25/10/2026 — 15; בשרת שעוד לא קיבל את snb-update החדש). אחרי החלון — עבודה כרגיל גם אם
    העדכון לא קרה (לא תוקעים את התור). כל תקלה בבדיקה = אין חלון */
 const UPD_WIN = 20 * 60e3, UPD_TTL = 2 * 60e3;
 let _upd = { at: 0, sha: '', t: 0 };
@@ -1204,6 +1204,11 @@ async function latestWorker(deps, now) {
   } catch (e) {}
   return _upd;
 }
+/* 25/10/2026: מתי שרת שאל בפעם האחרונה וקיבל "חלון עדכון" (בזיכרון — הטלפון והעובד מדברים עם אותו שרתון בייצור;
+   במופע אחר בלי הסימון רק ההודעה הכללית "בתור לשרת"). עבודה בתור שרואה אותו — "השרת מתעדכן לגרסה חדשה" */
+let updWaitAt = 0;
+const UPD_SEEN_MS = 90e3;
+const updWaiting = (job, now) => now - updWaitAt < UPD_SEEN_MS && apiJob(job) && job.state === 'queued' && !job.sid && !job.vw;
 async function updatePending(deps, ver, now) {
   if (!/^[0-9a-f]{12}$/.test(String(ver || ''))) return false;      // dev / לא ידוע — בלי חלון
   const w = await latestWorker(deps, now);
@@ -1282,6 +1287,7 @@ async function server(req, res, body, deps) {
       return res.status(200).json({ ok: true, job: null, paused: srv.paused === true, now });
     }
     if (await updatePending(deps, hb.v, now).catch(() => false)) {
+      updWaitAt = now;   // 25/10/2026: לדף העבודה — "השרת מתעדכן" במקום "בתור לשרת"
       await patchDoc(deps, 'studioServers', p.sid, seen);
       return res.status(200).json({ ok: true, job: null, upd: true, now });   // חלון עדכון — העובד מתחלף בדקות הקרובות
     }
@@ -2126,7 +2132,7 @@ async function handler(req, res, deps = {}) {
     const j = await readJob(deps, id);
     return j && j.uid === uid ? j : null;
   };
-  const view = (j) => S.publicJob(j, now);
+  const view = (j) => Object.assign(S.publicJob(j, now), updWaiting(j, now) ? { uw: 1 } : {});
   // מצב API: התקציב החודשי, השרתים (למנהל — הכל; לאחרים — רק אם יש שרת פעיל)
   const servers = async () => (await query(deps, 'studioServers', null, S.SRV_MAX + 5)).map((x) => S.serverView(x, now)).filter(Boolean)
     .sort((a, b) => a.created - b.created);
@@ -3043,5 +3049,6 @@ async function handler(req, res, deps = {}) {
 
 module.exports = (req, res) => handler(req, res);
 module.exports._handler = handler;
-module.exports._reset = () => { hits.clear(); cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; _upd = { at: 0, sha: '', t: 0 }; };
+module.exports._reset = () => { hits.clear(); cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; _upd = { at: 0, sha: '', t: 0 }; updWaitAt = 0; };
 module.exports._updatePending = updatePending;
+module.exports._updWaiting = (job, now, at) => { if (at != null) updWaitAt = at; return updWaiting(job, now); };
