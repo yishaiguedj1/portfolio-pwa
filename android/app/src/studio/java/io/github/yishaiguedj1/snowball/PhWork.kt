@@ -40,9 +40,22 @@ object PhWork {
         val title = r.optString("name")
         val n = net(r)
         val work = PhStore.work(ctx, pid)
+        // שלב 2: מה הטלפון עושה — גם לדף העבודה (op:'phProg', לפני שהעבודה מתחילה; בתור — בלי לעכב את העבודה)
+        val pw0 = r.optBoolean("pw")
+        val q = java.util.concurrent.Executors.newSingleThreadExecutor()
+        var repAt = 0L; var repSt = ""
+        fun rep(st: String, p: Float, e: String? = null) {
+            if (!pw0 || r.optBoolean("started")) return
+            val now = System.currentTimeMillis()
+            if (st == repSt && e == null && now - repAt < 8000) return
+            repAt = now; repSt = st
+            val o = JSONObject().put("s", st).put("p", p.toDouble()); if (e != null) o.put("e", e)
+            q.execute { try { n.call("phProg", JSONObject().put("ppr", o)) } catch (x: Throwable) {} }
+        }
         fun stage(st: String, text: Int, p: Float = -1f) {
             r = PhStore.update(ctx, pid) { it.put("st", st) } ?: r
             notify(ctx, progress(ctx, title, s(ctx, text), p))
+            rep(st, p)
         }
         try {
             val f = src(ctx, r)
@@ -54,13 +67,15 @@ object PhWork {
                     if (cm.isActiveNetworkMetered && !r.optBoolean("cell")) throw Stop("models_wifi")
                     stage("models", R.string.phModels, 0f)
                     PhModels.fetch(ctx, stopped) { done, total ->
-                        notify(ctx, progress(ctx, title, s(ctx, R.string.phModelsP, done shr 20, total shr 20), done.toFloat() / total)) }
+                        notify(ctx, progress(ctx, title, s(ctx, R.string.phModelsP, done shr 20, total shr 20), done.toFloat() / total))
+                        rep("models", done.toFloat() / total) }
                 }
                 var lastSt = ""
                 val wf = PhLocal.run(ctx, work, f, stopped) { st, p ->
                     if (st != lastSt) { lastSt = st; r = PhStore.update(ctx, pid) { it.put("st", st) } ?: r }
                     val txt = when (st) { "wav" -> R.string.phWav; "asr" -> R.string.phAsr; "diar" -> R.string.phDiar; else -> R.string.phAlign }
                     notify(ctx, progress(ctx, title, s(ctx, txt), p))
+                    rep(st, p)
                 }
                 stage("upw", R.string.phUpW, 0f)
                 val id = n.upload(wf, "application/json", "words.json", r.optString("wUp0"), r.optString("wUp"),
@@ -119,11 +134,14 @@ object PhWork {
                 r = PhStore.update(ctx, pid) { it.put("started", true) } ?: r
             }
             PhStore.update(ctx, pid) { it.put("st", "wait") }
+            q.shutdown()
             nm(ctx).cancel(N_ID)
             nm(ctx).notify(N_DONE, simple(ctx, s(ctx, R.string.phSent), s(ctx, R.string.phSentS), webIntent(ctx, r, "")))
         } catch (e: Throwable) {
             val code = (e as? Stop)?.code ?: (e as? PhNet.Err)?.code ?: "fail"
-            if (code == "stopped" || stopped()) return                     // המערכת עצרה — ממשיכים בפעם הבאה מאותו שלב
+            if (code == "stopped" || stopped()) { q.shutdown(); return }   // המערכת עצרה — ממשיכים בפעם הבאה מאותו שלב
+            rep("err", -1f, code.lowercase().filter { it in 'a'..'z' || it in '0'..'9' || it == '_' }.take(32).padEnd(2, '_'))
+            q.shutdown(); try { q.awaitTermination(15, java.util.concurrent.TimeUnit.SECONDS) } catch (x: Throwable) {}
             PhStore.update(ctx, pid) { it.put("e", code).put("st", "err").put("est", r.optString("st")) }
             nm(ctx).cancel(N_ID)
             nm(ctx).notify(N_DONE, simple(ctx, s(ctx, R.string.phFailed), title, webIntent(ctx, r, code)))

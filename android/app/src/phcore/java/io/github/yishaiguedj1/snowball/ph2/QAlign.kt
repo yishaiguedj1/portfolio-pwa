@@ -33,9 +33,20 @@ object QAlign {
         cp in 0x2B740..0x2B81F || cp in 0x2B820..0x2CEAF || cp in 0xF900..0xFAFF
 
     /** tokenize_space_lang + split_segment_with_chinese */
+    /** str.split() של פייתון (רווח לבן ב־Unicode) — לא Regex("\\s"), שבאנדרואיד וב־JVM מתנהג אחרת */
+    fun pySplit(t: String): List<String> {
+        val out = ArrayList<String>(); val b = StringBuilder()
+        for (c in t) {
+            if (Character.isWhitespace(c) || c == '\u0085' || c == '\u00A0' || c == '\u2007' || c == '\u202F') { if (b.isNotEmpty()) { out.add(b.toString()); b.clear() } }
+            else b.append(c)
+        }
+        if (b.isNotEmpty()) out.add(b.toString())
+        return out
+    }
+
     fun wordList(text: String): List<String> {
         val out = ArrayList<String>()
-        for (seg in text.split(Regex("\\s+"))) {
+        for (seg in pySplit(text)) {
             val c = cleanToken(seg)
             if (c.isEmpty()) continue
             val buf = StringBuilder()

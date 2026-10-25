@@ -162,7 +162,7 @@ object AsrWords {
 
     private fun norm(w: String): String = buildString { w.lowercase().forEach { if (it.isLetterOrDigit()) append(it) } }
 
-    private val SPELLED = Regex("""[-/]|\.\w""")
+    private val SPELLED = Regex("""[-/]|\.[\p{L}\p{N}_]""")   // ‎\w‎ של פייתון (Unicode) — ב־JVM ‎\w‎ הוא ASCII ובאנדרואיד Unicode
 
     private fun dup(g: AWord, near: List<AWord>): Boolean {
         val t = norm(g.w)

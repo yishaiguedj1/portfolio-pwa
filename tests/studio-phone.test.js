@@ -181,6 +181,13 @@ const { fakeR2, ENV } = require('./_r2fake');
   const PJ3 = j3.job.id, PK3 = (await api('phKey', { job: PJ3 })).key;
   const ph3 = (op, b) => call(Object.assign({ op, job: PJ3, key: PK3 }, b), true).then((x) => x.j);
   const up3 = async (buf, name) => { const x = await ph3('phUp', { size: buf.length, type: 'application/json', name }); await R.fetch(x.urls[1], { method: 'PUT', body: buf }); await ph3('phDone', { id: x.id, up: x.up }); return x.id; };
+  // ההתקדמות בטלפון (op:'phProg') — רק כשהעבודה "חדשה", רק שלב מהרשימה ומספרים / קוד
+  ok((await ph3('phProg', { ppr: { s: 'asr', p: 0.4567 } })).ok, 'הטלפון מדווח שהוא מתמלל');
+  let pj = await api('job', { job: PJ3 });
+  ok(pj.job.ppr && pj.job.ppr.s === 'asr' && pj.job.ppr.p === 0.457 && pj.job.ppr.at > 0, 'הדף רואה את ההתקדמות בטלפון: ' + JSON.stringify(pj.job.ppr));
+  ok((await ph3('phProg', { ppr: { s: 'evil', p: 1 } })).error === 'bad_params' && (await ph3('phProg', { ppr: { s: 'err', e: '<b>' } })).error === 'bad_params', 'שלב לא מוכר / קוד לא תקין — נדחה');
+  ok((await ph3('phProg', { ppr: { s: 'diar' } })).ok && (await api('job', { job: PJ3 })).job.ppr.p === -1, 'שלב בלי אחוז — ‎-1');
+  ok(S.JSON_FIELDS.includes('ppr'), 'ppr נשמר כ־JSON');
   const aud3 = await up3(crypto.randomBytes(2000), 'talk.audio.mka');
   ok((await ph3('phFile', { which: 'a', id: aud3 })).error === 'bad_params', 'בשלב 2 הקול לא נרשם לעולם');
   const words = Buffer.from(JSON.stringify({ v: 1, words: [{ w: 'Hello', s: 0.5, e: 0.9, spk: 'S1' }] }));
@@ -192,6 +199,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok((await ph3('phJob', {})).job.w === true, 'הטלפון רואה שהמילים נרשמו');
   j = await ph3('phStart', {});
   ok(j.ok && j.state === 'queued', 'המילים והמדידות — מתחילים');
+  ok((await ph3('phProg', { ppr: { s: 'asr', p: 0.5 } })).error === 'state', 'אחרי ההתחלה — לא מדווחים התקדמות בטלפון');
   const f3 = db.get('studioJobs/' + PJ3).fields;
   ok(f3.fpw && f3.fph && !f3.fa, 'במסמך: fpw ו־fph, בלי קול');
   Object.assign(f3, { kh: { stringValue: crypto.createHash('sha256').update(KEY).digest('hex') }, kx: { integerValue: String(R.now + 3600e3) }, state: { stringValue: 'running' } });
@@ -222,7 +230,13 @@ const { fakeR2, ENV } = require('./_r2fake');
   const src = fs.readFileSync(path.join(root, 'studio.js'), 'utf8');
   const fnSrc = (name) => src.slice(src.indexOf('export function ' + name + '('), src.indexOf('\n}\n', src.indexOf('export function ' + name + '(')) + 2).replace(/^export /, '');
   const num = (v) => (Number.isFinite(+v) && +v > 0 ? +v : 0);
-  const W = new Function('num', 'TextDecoder', 'atob', fnSrc('parsePhPick') + '\n' + fnSrc('normPbn') + '\nreturn { parsePhPick, normPbn };')(num, TextDecoder, atob);
+  const W = new Function('num', 'TextDecoder', 'atob', 'PPR_S', fnSrc('parsePhPick') + '\n' + fnSrc('normPbn') + '\n' + fnSrc('normPpr') + '\nreturn { parsePhPick, normPbn, normPpr };')(num, TextDecoder, atob, S.PPR_S);
+  const pprSrc = /export const PPR_S = (\[[^\]]*\])/.exec(src);
+  ok(pprSrc && JSON.stringify(JSON.parse(pprSrc[1].replace(/'/g, '"'))) === JSON.stringify(S.PPR_S), 'רשימת השלבים בטלפון — זהה בדף ובשרתון');
+  for (const c of [{ s: 'asr', p: 0.4567, at: 9 }, { s: 'diar' }, { s: 'err', e: 'models_wifi' }, { s: 'err', e: 'X' }, { s: 'models', p: 7 }, { s: 'q' }, null]) {
+    const a = W.normPpr(c), b = S.normPpr(c, 9);
+    ok(JSON.stringify(a && Object.assign({}, a, { at: 0 })) === JSON.stringify(b && Object.assign({}, b, { at: 0 })), 'normPpr זהה בדף ובשרתון: ' + JSON.stringify(c));
+  }
   const enc = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
   const PID = 'p0123456789abcdef';
   let pp = W.parsePhPick(PID + '.' + enc({ pid: PID, name: 'הרצאה.mp4', size: 123456789, dur: 3600.5, w: 1920, h: 1080 }));
@@ -249,7 +263,8 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(/"https:\/\/studio\.thesnowball\.app\/", "https:\/\/studio-staging\.thesnowball\.app\/"/.test(act), 'האפליקציה חוזרת רק לאתר של Studio (ייצור / ניסוי)');
   ok(['studioPh', 'phburn', 'phKey'].every((x) => src.includes(x)) && !/net\.api\('phBurn'/.test(src), 'הדף לא מדווח צריבה (רק האפליקציה, במפתח של העבודה)');
   // 24/10/2026 (בטלפון: הצריבה הופיעה רק בהתראה) — עבודה שהסתיימה ממשיכה להיבדק בזמן הצריבה, והאחוז נשלח כל 5 שנ׳ ברקע
-  ok(/st === 'running' \|\| phBurnLive\(r\) \? 4000/.test(src) && /phBurnTap\.set\(rec\.id, Date\.now\(\)\)/.test(src), 'בזמן הצריבה דף העבודה שואל כל 4 שנ׳ (גם כשהעבודה "הסתיימה")');
+  ok(/st === 'running' \|\| phBurnLive\(r\) \|\| phPrepLive\(r\) \? 4000/.test(src) && /phBurnTap\.set\(rec\.id, Date\.now\(\)\)/.test(src), 'בזמן הצריבה (וגם כשהטלפון מתמלל/מיישר) דף העבודה שואל כל 4 שנ׳ (גם כשהעבודה "הסתיימה")');
+  ok(/kind === 'ph' && rec\.spec\.pw \? \{ pw: 1 \}/.test(src) && /if \(f\.pw !== false\) spec\.pw = 1/.test(src), 'הכל בטלפון: העבודה נוצרת עם pw, וה־intent מעביר pw=1');
   const work = fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhWork.kt'), 'utf8');
   ok(/lastRep > 5_000/.test(work) && /q\.execute \{ rep\(o\) \}/.test(work) && /repDone\(JSONObject\(\)\.put\("s", "done"\)/.test(work), 'הצריבה מדווחת כל 5 שנ׳ בתהליכון אחד לפי הסדר (בלי לעצור את הקידוד; "הסתיים" אחרון)');
 

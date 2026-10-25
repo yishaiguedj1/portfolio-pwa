@@ -340,6 +340,10 @@ a.st-wbtn:active { opacity: .7; }
 .st-stg.done .st-stg-t { color: var(--st-ok-ink); }
 .st-stg.now .st-stg-t { color: var(--on-surface); }
 .st-pbar[hidden] { display: none; }
+.st-pbar.ind i { width: 30% !important; animation: st-pind 1.4s ease-in-out infinite; }   /* 25/10/2026: שלב בלי אחוז (הטלפון מכין את הקול / מזהה דוברים) */
+@keyframes st-pind { from { transform: translateX(-110%); } to { transform: translateX(360%); } }
+[dir="rtl"] .st-pbar.ind i { animation-name: st-pind-rtl; }
+@keyframes st-pind-rtl { from { transform: translateX(110%); } to { transform: translateX(-360%); } }
 .st-pbar { display: block; height: 6px; margin-top: 7px; border-radius: 3px; background: var(--st-fill); overflow: hidden; }
 .st-pbar i { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--st-ok); transition: width .6s ease; }
 .st-stg .st-l .st-stg-ov { display: block; margin-top: 5px; color: var(--st-amber); font-weight: 600; }
@@ -355,7 +359,7 @@ a.st-wbtn:active { opacity: .7; }
 .st-l .st-srvev { margin: 2px 0 0; }
 .st-l .st-srvev > summary { padding: 4px 0; font-size: 13px; }
 .st-l .st-srvev > small { display: block; font-variant-numeric: tabular-nums; }
-@media (prefers-reduced-motion: reduce) { .st-spin { animation-duration: 4s; } .st-ring .arc, .st-pbar i, .st-tprog i { transition: none; } .st-thumb.img.in { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .st-pbar.ind i { animation: none; } .st-spin { animation-duration: 4s; } .st-ring .arc, .st-pbar i, .st-tprog i { transition: none; } .st-thumb.img.in { animation: none; } }
 
 /* חלונות והודעות של האפליקציה שהסטודיו פותח — מעל השכבה (900), כמו בספרייה (לקח v317) */
 #toast.toast { z-index: 1000; }

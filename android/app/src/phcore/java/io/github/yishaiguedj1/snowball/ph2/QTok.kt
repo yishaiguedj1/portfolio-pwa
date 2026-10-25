@@ -79,10 +79,13 @@ class QTok(vocabJson: String, merges: String, addedTokens: Map<String, Int>) {
     }
 
     companion object {
+        /** רווח לבן (Unicode White_Space) במפורש: ‎\\s‎ ב־JVM = ASCII בלבד, ובאנדרואיד (ICU) = Unicode, והדגל של Unicode ב־Java
+         *  נזרק באנדרואיד (studio-devdl). בפועל הטקסט ליישור = מילים נקיות (clean_token) ורווחים — אבל ההתנהגות אחידה בשניהם */
+        private const val WS = "\\t\\n\\u000B\\f\\r \\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000"
+
         /** Qwen2Tokenizer.PRETOKENIZE_REGEX */
         val PRE: java.util.regex.Pattern = java.util.regex.Pattern.compile(
-            "(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\\r\\n\\p{L}\\p{N}]?\\p{L}+|\\p{N}| ?[^\\s\\p{L}\\p{N}]+[\\r\\n]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+",
-            java.util.regex.Pattern.UNICODE_CHARACTER_CLASS)
+            "(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\\r\\n\\p{L}\\p{N}]?\\p{L}+|\\p{N}| ?[^$WS\\p{L}\\p{N}]+[\\r\\n]*|[$WS]*[\\r\\n]+|[$WS]+(?![^$WS])|[$WS]+")
 
         /** bytes_to_unicode של GPT-2 */
         val B2U: CharArray = run {

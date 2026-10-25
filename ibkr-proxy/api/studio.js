@@ -62,7 +62,7 @@ const AAD = (uid) => 'studio|' + uid + '|r';
 const WORKER_OPS = new Set(['claim', 'token', 'report', 'qa', 'r2get', 'r2wup', 'r2wparts', 'r2wdone', 'r2del', 'learnPut', 'learnMedia', 'learnMediaDone', 'srcFile']);   // 22/10/2026: srcFile — הורדה מקישור
 const RELAY_OPS = new Set(['rlPut', 'rlFix', 'rlWait', 'rlEnd', 'rlNext', 'rlMark']);   // 24/10/2026: rlPut…rlEnd = העובד (kh), rlNext/rlMark = ה־Routine (rkh)
 // 24/10/2026: תרגום בטלפון — Studio לאנדרואיד (נייטיב, בלי Origin ובלי התחברות) עם מפתח לעבודה אחת (pkh — רק ה־hash)
-const PHONE_OPS = new Set(['phUp', 'phParts', 'phDone', 'phFile', 'phStart', 'phJob', 'phGet', 'phBurn']);
+const PHONE_OPS = new Set(['phUp', 'phParts', 'phDone', 'phFile', 'phStart', 'phJob', 'phGet', 'phBurn', 'phProg']);
 const PH_KEY_TTL = 7 * 24 * 3600e3;   // הצריבה יכולה לקרות ימים אחרי שהתרגום מוכן
 const SERVER_OPS = new Set(['poll', 'beat', 'devLog', 'devMet', 'pq']);   // pq — בדיקות קישור (22/10/2026)   // devLog/devMet — האיסוף המלא (lib/devlog.js)
 /* מצב API: תקציב חודשי לכל משתמש (מפתח ה־API של המערכת). מעבר לזה — התקרה ב־Console של Anthropic */
@@ -1557,6 +1557,13 @@ async function phoneOp(req, res, body, deps) {
       return res.status(200).json({ ok: true, now });
     }
     if (!['new', 'queued', 'running', 'failed'].includes(e.state)) return res.status(409).json({ ok: false, error: 'state' });
+    if (op === 'phProg') {   // 25/10/2026 (שלב 2): התמלול/היישור בטלפון — לפני שהעבודה מתחילה בשרת (רק "חדשה")
+      if (e.state !== 'new') return res.status(409).json({ ok: false, error: 'state' });
+      const ppr = S.normPpr(body.ppr, now);
+      if (!ppr) return res.status(400).json({ ok: false, error: 'bad_params' });
+      await patchJob(deps, id, { ppr });
+      return res.status(200).json({ ok: true, now });
+    }
     if (op === 'phUp' || op === 'phParts' || op === 'phDone') {
       if (op === 'phUp' && !(Number(body.size) > 0 && Number(body.size) <= S.PH_UP_MAX)) return res.status(400).json({ ok: false, error: 'too_big' });
       const [code, out] = await r2Files(deps, { phUp: 'up', phParts: 'parts', phDone: 'done' }[op], body, job.uid, job.folder, 'phone');
