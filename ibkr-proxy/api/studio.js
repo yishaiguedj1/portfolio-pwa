@@ -3083,6 +3083,19 @@ async function handler(req, res, deps = {}) {
       await patchJob(deps, job.id, { pkh: S.keyHash(key), pkx: now + PH_KEY_TTL, pke: vault.seal({ k: key }, aad) });
       return res.status(200).json({ ok: true, key, exp: now + PH_KEY_TTL, api: 'studio' });
     }
+    if (op === 'rate') {
+      // 25/10/2026: המשוב שלך על התרגום — 👍/👎, מה לא היה טוב (קודים) והכתוביות שסימנת בנגן. שדה שלא נשלח — נשאר כמו שהיה
+      if (job.kind !== 'tr' || st !== 'done') return res.status(409).json({ ok: false, error: 'state' });
+      const hasR = body.r !== undefined, hasC = body.c !== undefined;
+      if ((!hasR && !hasC) || (hasR && ![1, -1, 0].includes(body.r)) || (hasR && body.w !== undefined && !Array.isArray(body.w))
+        || (hasC && !Array.isArray(body.c)) || (hasC && body.c.length > S.RATE_FLAG_MAX)) return res.status(400).json({ ok: false, error: 'bad_params' });
+      const cur = S.normRate(job.urt) || { r: 0 };
+      const urt = S.normRate({ r: hasR ? body.r : cur.r, w: hasR ? body.w : cur.w, c: hasC ? body.c : cur.c, at: now });
+      await patchJob(deps, job.id, { urt });
+      job.urt = urt;
+      await learnSave(deps, job, now);
+      return res.status(200).json({ ok: true, urt });
+    }
     if (op === 'learnUx') {
       // מ׳3: מה קרה אחרי העבודה — צפייה, הורדות ושיתוף, הצעות, גיליון ה־AI, מונחים (תוספת מספרים; LR.normUx)
       if (job.kind !== 'tr') return res.status(409).json({ ok: false, error: 'state' });

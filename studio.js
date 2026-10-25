@@ -238,6 +238,7 @@ export function normJob(j) {
     use: normUse(s.use),   // v359: טוקנים ועלות (מהעובד, דרך השרתון)
     eng: s.eng === 'api' ? 'api' : 'sub',   // מצב API: העבודה רצה על השרת של המערכת (בתור עד ששרת פנוי)
     vw: s.vw === 1 || s.vw === true,   // 15/10/2026: מחכה לסרטון בתור — השרת פנוי בינתיים
+    urt: normRate(s.urt),   // 25/10/2026: המשוב שלך על התרגום (👍/👎, סיבות, כתוביות שסימנת)
     sw: typeof s.sw === 'string' ? s.sw.slice(0, 40) : '',   // 25/10/2026: למה העבודה לא התחילה (קוד הסירוב בשרתון — גם ממכשיר אחר)
     uw: s.uw === 1,   // 25/10/2026: בתור, והשרת מתחלף לגרסה חדשה של העובד (חלון העדכון — דקה־שתיים)
     ry: s.ry === 1, rc: num(s.rc),   // 24/10/2026: "המנוי שלי" דרך השרת — ומתי ה־Routine שלך התחבר (0 = עוד לא)
@@ -1623,6 +1624,20 @@ function startDone(rec, j) {
   if (j.ok) { rec.up.started = Date.now(); rec.up.wait = ''; rec.up.wt = 0; }
   else { rec.up.wait = String(j.error || 'failed').slice(0, 40); rec.up.wt = Date.now(); }
 }
+/* 25/10/2026: המשוב שלך על התרגום (בקשת המשתמש, לפי התצוגה המקדימה). נגיעה אחת ב־👍/👎; אחרי 👎 — "מה לא היה טוב?"
+   (קודים קבועים) ואפשר לסמן כתוביות בנגן. לשרתון רק קודים ומספרי כתוביות (op:'rate'), בלי טקסט.
+   **RATE_WHY, RATE_FLAG_MAX ו־normRate זהים בשרתון (lib/studio.js)** — tests/studio-rate.test.js */
+export const RATE_WHY = ['acc', 'nat', 'tim', 'nm', 'brk', 'ovl', 'mis', 'oth'];
+export const RATE_FLAG_MAX = 60;
+export function normRate(o) {
+  if (!o || typeof o !== 'object') return null;
+  const r = o.r === 1 || o.r === -1 ? o.r : 0;
+  const w = r === -1 && Array.isArray(o.w) ? RATE_WHY.filter((k) => o.w.includes(k)) : [];
+  const c = Array.isArray(o.c) ? [...new Set(o.c.filter((x) => Number.isInteger(x) && x >= 0 && x < 1e6))].sort((a, b) => a - b).slice(0, RATE_FLAG_MAX) : [];
+  if (!r && !c.length) return null;
+  const at = Number.isFinite(+o.at) && +o.at > 0 ? Math.floor(+o.at) : 0;
+  return Object.assign({ r }, w.length ? { w } : {}, c.length ? { c } : {}, at ? { at } : {});
+}
 /* 25/10/2026: סירוב חולף — הטלפון מנסה שוב לבד (הבדיקה המתוזמנת בשרתון עושה את אותו דבר גם כשהטלפון סגור).
    **START_RETRY זהה ל־START_RETRY בשרתון (lib/studio.js)**. major — בנפרד (כשהתקלה הרחבה עוברת) */
 export const START_RETRY = ['maint', 'flag_off', 'major'];
@@ -1996,7 +2011,8 @@ function closeRequest() {
   if (!root) return;
   if (window.snbMenuClose && window.snbMenuClose()) { if (root) watch(); return; }   // התפריט של ההדר המשותף פתוח — "חזור" סוגר רק אותו
   // חלון אישור של האפליקציה (askConfirm) פתוח — "חזור" = הביטול שלו (יש לו רשומה משלו, והוא מוריד אותה)
-  if (pickerClose()) { if (root) watch(); return; }   // ה־Picker של Google פתוח — "חזור" סוגר רק אותו
+  if (pickerClose()) { if (root) watch(); return; }
+  if (rsClose()) { if (root) watch(); return; }   // 25/10/2026: הגיליון "מה לא היה טוב?" — "חזור" סוגר רק אותו   // ה־Picker של Google פתוח — "חזור" סוגר רק אותו
   const plm = document.querySelector('.st-pl-menu:not([hidden])');   // תפריט ההגדרות של הנגן — "חזור" סוגר אותו (כמו ב־YouTube)
   const dlg = document.querySelector('.dlg-veil.on');
   if (dlg) { const b = dlg.querySelector('.dlg-cancel') || dlg.querySelector('.dlg-ok'); if (b) b.click(); }
@@ -2069,7 +2085,7 @@ function stTab(k, v) {            // טאב פנימי — התוכן נכנס �
 function wireStSwipe() {
   if (typeof snbSwipe !== 'function' || !root) return;
   snbSwipe({ root: root, page: stSwipePage,
-    ok: () => !!root && !ST_NOSWIPE.includes(ui.view) && !document.querySelector('.dlg-veil.on, .st-pl-menu:not([hidden])') });
+    ok: () => !!root && !ST_NOSWIPE.includes(ui.view) && !document.querySelector('.dlg-veil.on, .st-pl-menu:not([hidden]), .st-rs') });
 }
 /* כמו בספרייה (v350, בקשת המשתמש): "חזור" מדף הבית של הסטודיו — לסקירה. מטאב ראשי app.js כבר עבר אליה בפתיחה */
 function appToOverview() {
@@ -2123,6 +2139,9 @@ const ICON = {   // סמלים קבועים בלבד — אף פעם לא תוכ
   down: '<path d="M12 4v11.5M7.5 11l4.5 4.5 4.5-4.5M5 20h14"/>',   // סבב 1: שיתוף / הורדה של התוצרים
   cc: '<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M10.2 10.3a2 2 0 1 0 0 3.4M16.2 10.3a2 2 0 1 0 0 3.4"/>',   // 22/10/2026: קובץ כתוביות
   edit: '<path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/>',
+  thumbUp: '<path d="M7 11v9H4v-9h3zM7 11l4-7c1.5 0 2.5 1 2.2 2.6L12.6 10H19a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 17.8 20H7"/>',   // 25/10/2026: המשוב שלך
+  thumbDn: '<path d="M17 13V4h3v9h-3zM17 13l-4 7c-1.5 0-2.5-1-2.2-2.6l.6-3.4H5a2 2 0 0 1-2-2.3l1.2-6A2 2 0 0 1 6.2 4H17"/>',
+  flag: '<path d="M5 21V4h11l-1.5 4L16 12H5"/>',
   clip: '<rect x="8" y="3" width="8" height="4" rx="1.5"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/>',   // 22/10/2026: הדבקה redo: '<path d="M20 8H9a5 5 0 0 0 0 10h3M16 4l4 4-4 4"/>',   // מ2: עריכת כתוביות, הפקה מחדש
 };
 function ico(k, cls) {
@@ -6360,7 +6379,7 @@ async function playLoad(rec, phFile) {
       me.url = URL.createObjectURL(f);
       me.cues = cues; me.iss = issuesList(cues);
       me.ctl = createPlayer({ src: me.url, burned: true, localFile: f, decodeAudio: null, cues, issues: me.iss, chapters: rec.chap || [], T,
-        pref: store.settings.pt, onPref: ptSave, poster: thumbFor(rec, (u) => { if (pl === me && me.ctl) me.ctl.setPoster(u); }) });
+        pref: store.settings.pt, onPref: ptSave, ...rateFlagOpts(rec), poster: thumbFor(rec, (u) => { if (pl === me && me.ctl) me.ctl.setPoster(u); }) });
       me.wt = bothTrack(watchTrack(rec, me.ctl.video), playStats(rec, me.ctl));
       me.st = 'ok'; plPaint(); return;
     }
@@ -6370,6 +6389,7 @@ async function playLoad(rec, phFile) {
     me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: me.iss, chapters: rec.chap || [], T,
       ladder: src ? ladderOf(rec) : null, alt: src ? altOf(rec) : null, pq: store.settings.pq, onPq: pqSave,   // איכויות כמו ב־YouTube
       pref: store.settings.pt, onPref: ptSave,   // 23/10/2026: קול וכתוביות — אוטומטי, או מה שנבחר ידנית
+      ...rateFlagOpts(rec),   // 25/10/2026: דגל — סימון הכתובית שעל המסך (המשוב שלך)
       poster: thumbFor(rec, (u) => { if (pl === me && me.ctl) me.ctl.setPoster(u); }) });   // 21/10/2026: התמונה לפני הניגון
     me.wt = bothTrack(watchTrack(rec, me.ctl.video), playStats(rec, me.ctl));   // מ׳3: כמה מהסרטון נצפה · 25/10/2026: ואיך ניגן
     me.st = 'ok';
@@ -7185,6 +7205,81 @@ function amMaybe(rec) {
   flashSafe(T('studioAmGo'));
   queueMicrotask(() => { if (ui.view === 'job' && ui.param === rec.id) go('subs', rec.id); });
 }
+/* ---------------- 25/10/2026: המשוב שלך על התרגום (לפי התצוגה המקדימה שאושרה) ----------------
+   כרטיס "איך יצא התרגום?" בדף העבודה (👍/👎 — נשמר מיד), אחרי 👎 גיליון "מה לא היה טוב?" (קודים קבועים + "לסמן כתוביות
+   בנגן"), ודגל בנגן שמסמן את הכתובית שעל המסך. נשלח op:'rate' — רק קודים ומספרי כתוביות */
+let rateChg = '';                          // העבודה שבה נגעת ב"שינוי" — שוב שני האגודלים
+const rateOk = (rec) => !!(rec && rec.srv && rec.srv.kind === 'tr' && rec.srv.state === 'done');
+function whyName(k) {
+  switch (k) {
+    case 'acc': return T('studioRateWAcc');
+    case 'nat': return T('studioRateWNat');
+    case 'tim': return T('studioRateWTim');
+    case 'nm': return T('studioRateWNm');
+    case 'brk': return T('studioRateWBrk');
+    case 'ovl': return T('studioRateWOvl');
+    case 'mis': return T('studioRateWMis');
+    default: return T('studioRateWOth');
+  }
+}
+async function rateSend(rec, patch, quiet) {
+  const prev = rec.srv.urt;
+  rec.srv.urt = normRate(Object.assign({ r: 0 }, prev || {}, patch, { at: Date.now() }));   // מיד על המסך; השרתון מאשר
+  save();
+  if (!quiet) render('none');
+  let j = null;
+  try { j = await net.api('rate', Object.assign({ job: rec.id }, patch)); } catch (e) { j = null; }
+  if (j && j.ok) { rec.srv.urt = normRate(j.urt); save(); return true; }
+  rec.srv.urt = prev; save();
+  if (!quiet) render('none');
+  flashSafe(T('studioRateErr'));
+  return false;
+}
+function rsClose() { const v = document.querySelector('.st-rs'); if (v) { v.remove(); return true; } return false; }
+function rateSheet(rec) {
+  rsClose();
+  const u = rec.srv.urt || {}, sel = new Set(u.w || []);
+  const veil = h('div', 'st-rs'); veil.setAttribute('role', 'dialog'); veil.setAttribute('aria-modal', 'true'); veil.setAttribute('aria-label', T('studioRateWhyT'));
+  const box = h('div', 'st-rs-box');
+  const chips = h('div', 'st-rs-chips');
+  for (const k of RATE_WHY) {
+    const c = btn('st-rs-chip', whyName(k), () => { if (sel.has(k)) sel.delete(k); else sel.add(k); c.classList.toggle('on', sel.has(k)); c.setAttribute('aria-pressed', sel.has(k) ? 'true' : 'false'); }, 'why:' + k);
+    c.classList.toggle('on', sel.has(k)); c.setAttribute('aria-pressed', sel.has(k) ? 'true' : 'false');
+    chips.append(c);
+  }
+  const n = (u.c || []).length;
+  box.append(h('div', 'st-rs-grab'), h('h2', 'st-rs-t', T('studioRateWhyT')), h('div', 'st-rs-s', T('studioRateWhyS')), chips);
+  if (canPlay(rec)) box.append(list(rowNav({ tile: tile('flag', 'red'), label: T('studioRateFlagRow'), sub: n ? T('studioRateFlagged', { n }) : '',
+    onClick: () => { rateSend(rec, { r: -1, w: [...sel] }, true); rsClose(); go('play', rec.id); }, k: 'rate-flag' })));   // הסיבות נשמרות גם בדרך לנגן
+  box.append(btn('st-btn wide', T('studioRateSend'), () => { rsClose(); rateSend(rec, { r: -1, w: [...sel] }); }, 'rate-send'));   // השורה בכרטיס כבר אומרת "תודה — נשמר"
+  veil.append(box);
+  veil.addEventListener('click', (e) => { if (e.target === veil) rsClose(); });
+  document.body.append(veil);
+  const f = chips.querySelector('button'); if (f) try { f.focus({ preventScroll: true }); } catch (e) {}
+}
+function rateCard(rec) {
+  const u = rec.srv.urt, r = u ? u.r : 0;
+  if (r && rateChg !== rec.id) {
+    const d = h('div', 'st-rate done');
+    d.append(ico('check'), h('span', 'st-rate-l', T('studioRateSaved')), btn('st-rate-chg', T('studioRateChange'), () => { rateChg = rec.id; render('none'); }, 'rate-chg'));
+    return d;
+  }
+  const d = h('div', 'st-rate');
+  const b = (k, icn, lbl, on) => { const x = btn('st-rate-b ' + k + (on ? ' on' : ''), null, null, 'rate-' + k); x.append(ico(icn)); x.setAttribute('aria-label', lbl); return x; };
+  const up = b('up', 'thumbUp', T('studioRateUp'), r === 1), dn = b('dn', 'thumbDn', T('studioRateDn'), r === -1);
+  up.addEventListener('click', () => { rateChg = ''; rateSend(rec, { r: 1 }); });
+  dn.addEventListener('click', () => { rateChg = ''; rateSend(rec, { r: -1 }).then((ok) => { if (ok) rateSheet(rec); }); });   // 👎 נשמר מיד — גם אם סוגרים את הגיליון
+  d.append(h('span', 'st-rate-l', T('studioRateQ')), up, dn);
+  return d;
+}
+const rateFlagT = new Map();               // סימונים בנגן — נשלחים שנייה וחצי אחרי האחרון (לא בכל נגיעה)
+function rateFlagOpts(rec) {
+  if (!rateOk(rec)) return {};
+  return { flags: (rec.srv.urt && rec.srv.urt.c) || [], flagMax: RATE_FLAG_MAX, onFlag: (ids) => {
+    clearTimeout(rateFlagT.get(rec.id));
+    rateFlagT.set(rec.id, setTimeout(() => { rateFlagT.delete(rec.id); rateSend(rec, { c: ids }, true); }, 1500));
+  } };
+}
 function pageJob(p) {
   const rec = jobRec(ui.param);
   if (!rec) { back(); return; }
@@ -7277,6 +7372,7 @@ function pageJob(p) {
       sub: rec.up.dx ? T('studioDxDone', { n: rec.up.dx.n }) : T('studioDxSub'), onClick: () => exportToDrive(rec), k: 'dx' }) : null,   // התוצר לתיקייה שבחרת ב־Drive
     jobFolder(rec) && !isR2Folder(jobFolder(rec)) ? rowExt({ href: 'https://drive.google.com/drive/folders/' + jobFolder(rec), tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null,
     btn('st-row st-act', T('studioRcpt'), () => shareReceipt(rec), 'receipt')));   // שלב 4: קבלה
+    if (rateOk(rec)) p.append(rateCard(rec));   // 25/10/2026: איך יצא התרגום? (המשוב שלך)
     const aa = canEdit(rec) ? afterAdvice(rec, { rrDone: !!(rrJobs.get(rec.id) && rrJobs.get(rec.id).srv && rrJobs.get(rec.id).srv.state === 'done') }) : [];
     if (aa.length) p.append(secT(T('studioAdvAfterT')), list(...aa.map((a) => rowNav(a.k === 'jd'
       ? { tile: tile('spark', 'teal'), label: T('studioAdvJd', { n: a.n }), sub: T('studioAdvJdS'), onClick: () => { aiPreset = { id: rec.id, ids: rec.srv.jd.f }; go('subs', rec.id); }, k: 'adv-jd' }
@@ -8054,6 +8150,7 @@ const repaint = () => { if (root) livePaint(); };
 function render(kind, still) {     // kind: none (ציור מחדש במקום) / push / pop; still = בלי אנימציה (Chrome כבר הנפיש)
   if (!root) return;
   const seq = ++renderSeq;
+  if (kind !== 'none') rsClose();   // מעבר דף — הגיליון של המשוב לא נשאר מעל
   const keepY = kind === 'none' ? root.scrollTop : ((kind === 'pop' || kind === 'sibpop') ? (scrolls[viewKey()] || 0) : 0);
   const ae = document.activeElement;
   const fk = ae && root.contains(ae) && ae.dataset ? ae.dataset.k : null;   // הפוקוס חוזר לאותו רכיב אחרי ציור מחדש

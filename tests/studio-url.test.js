@@ -224,5 +224,22 @@ const { fakeR2, ENV } = require('./_r2fake');
     && S.startDue({ state: 'new', kind: 'tr', created: R.now - 20 * 60e3, updated: R.now - 11 * 60e3, fa: { id: 'x' } }, R.now, 24 * 3600e3) === true
     && S.startDue({ state: 'new', kind: 'tr', created: R.now - 20 * 60e3, updated: R.now - 5 * 60e3, fa: { id: 'x' } }, R.now, 24 * 3600e3) === false, 'startDue: לא אחרי יום; העלאה — רק 10 דק׳ אחרי הכתיבה האחרונה');
 
+
+  /* 7. 25/10/2026: המשוב שלך על התרגום (op:'rate') — רק בעבודת תרגום שהסתיימה, רק קודים ומספרי כתוביות */
+  let rt = await api('rate', { job: JR, r: 1 });
+  ok(!rt.ok && rt.error === 'state', 'משוב — רק אחרי שהעבודה הסתיימה');
+  Object.assign(db.get('studioJobs/' + JR).fields, { state: { stringValue: 'done' }, ended: { integerValue: String(R.now) } });
+  rt = await api('rate', { job: JR, r: -1, w: ['acc', 'nm', 'zzz'] });
+  ok(rt.ok && rt.urt.r === -1 && JSON.stringify(rt.urt.w) === '["acc","nm"]', '👎 עם סיבות — רק קודים מהרשימה');
+  rt = await api('rate', { job: JR, c: [12, 3, 3, 7] });
+  ok(rt.ok && rt.urt.r === -1 && rt.urt.w.length === 2 && JSON.stringify(rt.urt.c) === '[3,7,12]', 'סימון בנגן — בלי לדרוס את הדירוג והסיבות');
+  rt = await api('rate', { job: JR, r: 1 });
+  ok(rt.ok && rt.urt.r === 1 && !rt.urt.w && JSON.stringify(rt.urt.c) === '[3,7,12]', 'שינוי ל־👍 — הסיבות יורדות, הסימונים נשארים');
+  ok((await api('job', { job: JR })).job.urt.r === 1, 'המשוב חוזר בעבודה (גם למכשיר אחר)');
+  ok(!(await api('rate', { job: JR, r: 2 })).ok && !(await api('rate', { job: JR, c: 'x' })).ok && !(await api('rate', { job: JR })).ok
+    && !(await api('rate', { job: JR, c: Array.from({ length: S.RATE_FLAG_MAX + 1 }, (x, i) => i) })).ok, 'ערכים לא תקינים — נדחים');
+  const LR = require(path.join(root, 'ibkr-proxy/lib/studiolearn.js'));
+  const lrec = LR.learnRec(Object.assign({}, S.fromFields(db.get('studioJobs/' + JR).fields), { id: JR }), R.now, S.effState);
+  ok(lrec.urt && lrec.urt.r === 1 && lrec.urt.c.length === 3 && !JSON.stringify(lrec).includes('ownerUid'), 'ברשומה למאגר — המשוב, בלי מזהה המשתמש');
   console.log('\nכל ' + n + ' הבדיקות עברו ✓');
 })().catch((e) => { console.error(e); process.exit(1); });

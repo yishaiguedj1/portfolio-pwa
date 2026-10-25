@@ -51,6 +51,15 @@ export function issuesList(cues) {
   return out;
 }
 
+/* 25/10/2026: סימון כתובית בנגן (המשוב שלך) — הכתובית שעל המסך, ואם אין (רווח קצר אחריה) — זו שהסתיימה עד 2 שנ׳ לפני.
+   מחזיר את המיקום ב־cues; -1 = אין מה לסמן */
+export function flagCue(cues, t) {
+  const i = cueAt(cues, t);
+  if (i >= 0) return i;
+  for (let k = cues.length - 1; k >= 0; k--) { if (cues[k].e <= t) return t - cues[k].e <= 2 ? k : -1; }
+  return -1;
+}
+
 /* הכתובית שבזמן t (חיפוש בינארי); -1 = אין */
 export function cueAt(cues, t) {
   let lo = 0, hi = cues.length - 1;
@@ -471,6 +480,7 @@ const PATHS = {
   speed: 'M20.4 8.6 19 10a8 8 0 0 1-.9 8H5.9A8 8 0 0 1 16.1 6l1.4-1.4A10 10 0 0 0 4.2 19l.3.5h15l.3-.5a10 10 0 0 0 .6-10.4zM10.6 15.4a2 2 0 0 0 2.8 0l5.7-8.5-8.5 5.7a2 2 0 0 0 0 2.8z',
   check: 'M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z', chev: 'M10 6 8.6 7.4 13.2 12l-4.6 4.6L10 18l6-6z', prev: 'M14 6l1.4 1.4L10.8 12l4.6 4.6L14 18l-6-6z',
   chap: 'M3 13h2v-2H3zm0 4h2v-2H3zm0-8h2V7H3zm4 4h14v-2H7zm0 4h14v-2H7zM7 7v2h14V7z',
+  flag: 'M14.4 6 14 4H5v17h2v-7h5.6l.4 2h7V6z',
 };
 function icon(k) {
   const s = document.createElementNS(SVG, 'svg'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('aria-hidden', 'true');
@@ -531,7 +541,13 @@ export function createPlayer(opts) {
   const fsB = ib('fs', 'full', T('studioPlFull'), () => {
     try { if (document.fullscreenElement) document.exitFullscreen(); else wrap.requestFullscreen && wrap.requestFullscreen(); } catch (e) {}
   });
-  top.append(ccB, gearB, fsB);
+  // 25/10/2026: סימון כתובית (המשוב שלך) — רק כשהדף ביקש (opts.onFlag); נשמר רק מזהה הכתובית, בלי טקסט
+  let flags = new Set(Array.isArray(opts.flags) ? opts.flags : []), ftT = 0;
+  const flagMax = opts.flagMax || 60;
+  const flagB = opts.onFlag ? ib('fl', 'flag', T('studioPlFlag'), () => flagNow()) : null;
+  const fToast = el('div', 'st-pl-ftoast'); fToast.hidden = true; fToast.dir = 'rtl';
+  const fMarks = el('div', 'st-pl-flags');
+  top.append(...[flagB, ccB, gearB, fsB].filter(Boolean));
   const backB = ib('sm', 'back', T('studioPlBack'), () => jump(-10));
   const playB = ib('bg', 'play', T('studioPlPlay'), () => toggle());
   const fwdB = ib('sm', 'fwd', T('studioPlFwd'), () => jump(10));
@@ -544,13 +560,13 @@ export function createPlayer(opts) {
   time.append(cur, chapB, tot);
   const bar = el('div', 'st-pl-bar'), track = el('div', 'st-pl-track'), buf = el('i', 'buf'), played = el('i', 'pl'), knob = el('span', 'st-pl-knob');
   const heat = el('div', 'st-pl-heat'), marks = el('div', 'st-pl-chs');
-  track.append(buf, played); bar.append(heat, track, marks, knob);
+  track.append(buf, played); bar.append(heat, track, marks, fMarks, knob);
   bar.setAttribute('role', 'slider'); bar.setAttribute('aria-label', T('studioPlSeek')); bar.tabIndex = 0;
   bot.append(time, bar);
   ui.append(top, mid, bot);
   const rl = el('div', 'st-pl-rip l'), rr = el('div', 'st-pl-rip r');
   const err = el('div', 'st-pl-err'); err.hidden = true;
-  wrap.append(v, sub, rl, rr, ui, err);
+  wrap.append(v, sub, rl, rr, ui, fToast, err);
 
   /* ---- איכות: hls.js על הקבצים שהעובד ארז (opts.ladder), ברירת מחדל = המקור ---- */
   let pq = normPq(opts.pq), hls = null, levels = [], autoNow = -1, mode = 'file', altsNow = [];
@@ -844,6 +860,39 @@ export function createPlayer(opts) {
     if (!(d > 0) || !Number.isFinite(d)) return;   // סרטון בלי אורך ידוע (עדיין) — בלי מפרידים; durationchange יצייר
     for (const c of chs) if (c.t > 0.5 && c.t < d - 0.5) { const m = el('i'); m.style.left = (c.t / d * 100) + '%'; marks.append(m); }
   }
+  function paintFlags() {   // סימן צהוב בפס לכל כתובית שסימנת
+    fMarks.replaceChildren();
+    const d = v.duration || 0;
+    if (!(d > 0) || !Number.isFinite(d) || !flags.size) return;
+    for (const c of cues) if (flags.has(c.i)) { const m = el('i'); m.style.left = (Math.min(1, c.s / d) * 100) + '%'; fMarks.append(m); }
+  }
+  function paintFlagB() {
+    if (!flagB) return;
+    const i = flagCue(cues, v.currentTime || 0), on = i >= 0 && flags.has(cues[i].i);
+    flagB.classList.toggle('on', on); flagB.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  function fSay(msg, undo) {
+    clearTimeout(ftT);
+    fToast.replaceChildren(el('span', null, msg));
+    if (undo) { const u = el('button', 'st-pl-fundo', T('studioPlFlagUndo')); u.type = 'button'; u.addEventListener('click', (e) => { e.stopPropagation(); undo(); }); fToast.append(u); }
+    fToast.hidden = false;
+    ftT = setTimeout(() => { fToast.hidden = true; }, 4000);
+  }
+  function setFlag(id, on) {
+    if (on) flags.add(id); else flags.delete(id);
+    paintFlags(); paintFlagB();
+    if (opts.onFlag) opts.onFlag([...flags]);
+  }
+  function flagNow() {
+    if (!cues.length) return;
+    const i = flagCue(cues, v.currentTime || 0);
+    if (i < 0) { fSay(T('studioPlFlagNone')); return; }
+    const c = cues[i], on = !flags.has(c.i);
+    if (on && flags.size >= flagMax) { fSay(T('studioPlFlagMax', { n: flagMax })); return; }
+    setFlag(c.i, on);
+    fSay(T(on ? 'studioPlFlagged' : 'studioPlUnflagged', { t: fmtT(c.s) }), () => { setFlag(c.i, !on); fToast.hidden = true; });
+    poke();
+  }
   function seekTo(t) { v.currentTime = Math.max(0, t || 0); paintBar(); paintSub(); paintChap(); poke(); }
   function paintPlay() {
     playB.replaceChildren(icon(v.paused ? 'play' : 'pause'));
@@ -886,10 +935,10 @@ export function createPlayer(opts) {
     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); jump(e.key === 'ArrowRight' ? 5 : -5); }
     else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggle(); }
   });
-  v.addEventListener('timeupdate', () => { paintBar(); paintSub(); paintChap(); if (opts.onTime) opts.onTime(v.currentTime); });
+  v.addEventListener('timeupdate', () => { paintBar(); paintSub(); paintChap(); paintFlagB(); if (opts.onTime) opts.onTime(v.currentTime); });
   v.addEventListener('progress', paintBar);
-  v.addEventListener('loadedmetadata', () => { paintBar(); paintHeat(); paintMarks(); });
-  v.addEventListener('durationchange', () => { paintHeat(); paintMarks(); });
+  v.addEventListener('loadedmetadata', () => { paintBar(); paintHeat(); paintMarks(); paintFlags(); });
+  v.addEventListener('durationchange', () => { paintHeat(); paintMarks(); paintFlags(); });
   v.addEventListener('play', () => { paintPlay(); poke(); });
   v.addEventListener('pause', () => { paintPlay(); poke(); });
   v.addEventListener('error', () => {
@@ -935,8 +984,9 @@ export function createPlayer(opts) {
       cues = c || []; issues = iss || issuesList(cues); shown = -2;
       if (opts.burned) ccB.disabled = !hasEn();
       if (!ccB.disabled) { cc = resolveCc(pref.cc, ccAuto(), hasEn(), !!opts.burned); paintCc(); }   // 23/10/2026: הכתוביות הגיעו — ברירת המחדל מחדש
-      paintSub(); paintHeat();
+      paintSub(); paintHeat(); paintFlags(); paintFlagB();
     },
+    flags: () => [...flags],   // QA ובדיקות
     /* סבב 5: תצוגה של העיצוב (גודל, צבע, רקע, גובה) — כמו שהצריבה תצא, בקירוב */
     setStyle(o) {
       const st = normSty(o) || {};
@@ -951,7 +1001,7 @@ export function createPlayer(opts) {
     audioBridge: () => (bridge ? bridge.state() : fBridge ? fBridge.state() : null),   // QA ובדיקות
     audio: () => ({ list: audList().map((a) => a.l || ''), now: audNow() }),             // QA ובדיקות
     destroy() {
-      if (destroyed) return; destroyed = true; clearTimeout(hideT); clearTimeout(tapT);
+      if (destroyed) return; destroyed = true; clearTimeout(hideT); clearTimeout(tapT); clearTimeout(ftT);
       if (bridge) { bridge.destroy(); bridge = null; }
       if (fBridge) { fBridge.destroy(); fBridge = null; }
       if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }

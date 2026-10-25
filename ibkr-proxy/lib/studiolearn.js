@@ -11,6 +11,7 @@ const { impactView } = require('./learnimpact');
 const crypto = require('crypto');
 
 const LR_V = 1;
+const rateRec = (o) => require('./studio').normRate(o);   // 25/10/2026: המשוב שלך — אותה בדיקה של השרתון (בלי מעגל ייבוא בטעינה)
 const STAGES = ['up', 'tr', 'al', 'tl', 'rv', 'bn', 'sv'];
 const ROLES = ['main', 'tl', 'rv', 'jg', 'sub'];
 const Q_KEYS = ['cps', 'len', 'lines', 'dur', 'en', 'chk'];
@@ -238,6 +239,7 @@ function learnRec(job, now, effState) {
     pv: job.pv && typeof job.pv === 'object' ? Object.fromEntries(Object.entries(job.pv).filter(([k, v]) => /^[a-z]{2,4}$/.test(k) && /^[0-9a-f]{8}$/.test(String(v)))) : null,
     lx: normLx(job.lx),
     ux: normUx(job.ux),
+    urt: rateRec(job.urt),   // 25/10/2026: המשוב שלך — 👍/👎, קודי הסיבות ומספרי הכתוביות שסימנת
     // 21/10/2026: מדידת ההעלאה מהטלפון (חילוץ, העלאה, זמן ברקע — op upTel, כבר מנורמל בכתיבה): רק מספרים
     ut: job.utl && typeof job.utl === 'object' && !Array.isArray(job.utl) ? Object.fromEntries(Object.entries(job.utl).filter(([k, v]) => /^[a-z0-9]{1,4}$/.test(k) && isNum(v))) : null,
   };
@@ -605,7 +607,8 @@ function learnView(records, now) {
     roles, tok: { i: sum(tk.map((t) => t.i)), o: sum(tk.map((t) => t.o)), cr: sum(tk.map((t) => t.cr)), cw: sum(tk.map((t) => t.cw)) },
     stages, vt: vtTime(rs), fails, jc, qf, modes, mx, ver, ws: weekSum(all, now, ver),
     eng: ['api', 'sub'].map((e) => ({ e, ...kpis(rs.filter((r) => r.eng === e)) })).filter((x) => x.n),
-    follow: { rr: rs.filter((r) => r.k === 'rr').length, ai: rs.filter((r) => r.k === 'ai').length, ed: rs.filter((r) => r.k === 'tr' && (r.ed > 0)).length, gold: rs.filter((r) => r.gold).length, ux: uxSum(rs.filter((r) => r.k === 'tr')) },
+    follow: { rr: rs.filter((r) => r.k === 'rr').length, ai: rs.filter((r) => r.k === 'ai').length, ed: rs.filter((r) => r.k === 'tr' && (r.ed > 0)).length, gold: rs.filter((r) => r.gold).length, ux: uxSum(rs.filter((r) => r.k === 'tr')),
+      ur: { up: rs.filter((r) => r.urt && r.urt.r === 1).length, dn: rs.filter((r) => r.urt && r.urt.r === -1).length, fl: rs.reduce((a, r) => a + ((r.urt && r.urt.c) || []).length, 0) } },   // 25/10/2026: המשוב שלך
     ins: insights(rs, k30, roles, stages, fails, jc, qf, modes, now, mx, ver),
     im: impactView(all, now),            // 21/10/2026: השפעת המאגר לאורך זמן (lib/learnimpact.js) — הבסיס מול עכשיו, לכל שיפור
     recent: all.filter((r) => r.k === 'tr').sort((a, b) => b.at - a.at).slice(0, 12).map((r) => ({ id: r.id.slice(0, 8), at: r.at, st: r.st, err: r.err, mode: r.mode, eng: r.eng,
