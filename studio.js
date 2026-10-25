@@ -2304,7 +2304,8 @@ function rowRadio(o) {
   const r = btn('st-row', null, o.disabled ? null : o.onClick, o.k);
   r.setAttribute('role', 'radio'); r.setAttribute('aria-checked', o.on ? 'true' : 'false');
   if (o.disabled) { r.disabled = true; r.classList.add('off'); }
-  r.append(h('span', 'st-radio' + (o.on ? ' on' : '')), rowTxt(o.label, o.sub));
+  const rd = h('span', 'st-radio' + (o.on ? ' on' : '')); rd.append(ico('check'));   // 25/10/2026: ✓ בסוף השורה (CSS), כמו ב־iOS
+  r.append(rd, rowTxt(o.label, o.sub));
   if (o.badge) r.append(h('span', 'st-badge gray', o.badge));
   return r;
 }
@@ -2390,51 +2391,45 @@ function copyBox(txt, label, k, prose) {
   return wrap;
 }
 
-/* בורר מצב התרגום — כרטיס המצב הנבחר + "רגיל" / "ביצועים" (לכולם) + "כל המודלים" (רק למנהל ולמי שברשימה — ui.mf)
-   + שורת המבחן. 15/10/2026 (בקשת המשתמש) */
+/* בורר מצב התרגום — 25/10/2026 (בקשת המשתמש: נקי ומינימלי כמו Apple): כרטיס אחד — בורר מקטעים "רגיל" / "ביצועים"
+   (+ "כל המודלים" רק למנהל ולמי שברשימה — ui.mf), ומתחתיו שורה אחת על המצב שנבחר: השם, ומדדי איכות, עלות וזמן.
+   עד 25/10 — כרטיס גדול עם סרט, שלושה אריחים, כרטיס בחירה נפרד ופסקת מבחן מתחתיו (אותו מידע שלוש פעמים) */
 const tierName = (m) => (m.tier === 'std' ? T('studioTierStd') : m.tier === 'perf' ? T('studioTierPerf') : modeShort(m));
 function modePicker(cur, onPick) {
   const m = modeById(modeFor(cur, ui.mf));
-  const best = h('div', 'st-mode-best' + (m.tier === 'std' ? '' : ' other'));
-  best.append(h('span', 'st-ribbon', m.tier === 'std' ? T('studioRibbonStd') : m.tier === 'perf' ? T('studioRibbonPerf') : T('studioRibbonLab')));
-  const mh = h('div', 'st-mh');
-  const mt = h('span', 'st-l'); mt.append(h('b', null, modeName(m)), h('small', null, modeSub(m.id)));
-  mh.append(tile('spark', 'green'), mt);
-  const bars = (n, cls) => { const b = h('span', 'st-bars' + (cls ? ' ' + cls : '')); for (let i = 0; i < 5; i++) b.append(h('i', i < n ? 'on' : null)); return b; };
-  const meter = (lbl, val) => { const d = h('div', 'st-meter'); d.append(h('small', null, lbl), val); return d; };
-  const meters = h('div', 'st-meters'); meters.setAttribute('aria-hidden', 'true');
-  meters.append(meter(T('studioQuality'), bars(m.q)), meter(T('studioUsage'), bars(m.u, 'amber')),
-    meter(T('studioHourEst'), h('b', null, T('studioHrs', { t: fmtHM(m.min) }))));
-  best.append(mh, meters);
-  const grp = (title, sub, ids, label) => {
-    const g = h('div', 'st-mode-grp' + (ids.length > 2 ? ' many' : ''));   // 15/10/2026: שלושה כרטיסים (כל המודלים) — גופן קטן יותר, השם בשורה אחת
-    const gh = h('div', 'st-gh');
-    gh.append(h('b', null, title), h('small', null, sub));
-    const ef = h('div', 'st-effort'); ef.setAttribute('role', 'radiogroup'); ef.setAttribute('aria-label', title);
+  const card = h('div', 'st-modecard');
+  const seg = (ids, label, aria, many) => {
+    const ef = h('div', 'st-seg2' + (many ? ' many' : '')); ef.setAttribute('role', 'radiogroup'); ef.setAttribute('aria-label', aria);
     for (const x of ids.map(modeById)) {
       const b = btn(null, null, () => onPick(x.id), 'm:' + x.id);
       b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', x.id === m.id ? 'true' : 'false');
       b.append(h('b', null, label(x)), h('small', null, label === tierName ? modeShort(x) : effortSub(x.id)));
       ef.append(b);
     }
-    g.append(gh, ef);
-    return g;
+    return ef;
   };
-  const groups = [grp(T('studioGrpMain'), T('studioGrpMainS'), PUBLIC_MODES, tierName)];
-  if (ui.mf) groups.push(grp(T('studioGrpLab'), T('studioGrpLabS'), MODE_ORDER.filter((id) => !PUBLIC_MODES.includes(id)), modeShort));
-  const sum = h('p', 'st-modesum');
-  const nb = h('b'); nb.append(h('bdi', 'st-nw', modeName(m)));   // מבודד — שם המודל לא "נדבק" לטקסט הלטיני שלפניו
-  sum.append(T('studioSumPre') + ' ', nb, ' — ' + modeSum(m.id));
+  card.append(seg(PUBLIC_MODES, tierName, T('studioGrpMain')));
+  if (ui.mf) {
+    const lab = h('div', 'st-modelab'); lab.append(h('small', null, T('studioGrpLab') + ' · ' + T('studioGrpLabS')));
+    card.append(lab, seg(MODE_ORDER.filter((id) => !PUBLIC_MODES.includes(id)), modeShort, T('studioGrpLab'), true));
+  }
+  const bars = (n, cls) => { const b = h('span', 'st-bars' + (cls ? ' ' + cls : '')); for (let i = 0; i < 5; i++) b.append(h('i', i < n ? 'on' : null)); return b; };
+  const info = h('div', 'st-modeinfo');
+  const nm = h('div', 'st-modenm'); nm.append(h('small', null, modeSub(m.id)));   // שם המודל כבר בבורר — כאן רק במה הוא טוב
+  const stat = (lbl, val) => { const d = h('span', 'st-mstat'); d.append(h('small', null, lbl), val); return d; };
+  const stats = h('div', 'st-mstats'); stats.setAttribute('aria-hidden', 'true');
+  stats.append(stat(T('studioQuality'), bars(m.q)), stat(T('studioUsage'), bars(m.u, 'amber')), stat(T('studioHourEst'), h('b', null, T('studioHrs', { t: fmtHM(m.min) }))));
+  info.append(nm, stats);
+  card.append(info);
   // v367: מעל המצב המקסימלי שבחוקים שלך — לפני שמתחילים נשאל אותך
   const over = modeOverMax(m.id, ui.rl.mx) ? banner('warn', T('studioRlOverForm', { m: modeShort(modeById(ui.rl.mx)) })) : null;
-  return [best, ...groups, sum, over].filter(Boolean);
+  return [card, over].filter(Boolean);
 }
 /* מה לקבל — שלוש אפשרויות + SRT קבוע. ההערכה לפי גודל הקובץ (כשיש) */
 function outRows(out, size, onToggle) {
   const est = size ? { same: approx(fmtSize(size)), compact: approx(fmtSize(size * COMPACT_RATIO)), mkv: approx(fmtSize(size)), small: approx(fmtSize(SMALL_MB * 1048576)) } : {};
   const rows = OUTS.map((k) => rowCheck({ label: outName(k), sub: outSub(k), value: est[k], on: !!out[k], onClick: () => onToggle(k), k: 'o:' + k }));
-  rows.push(rowCheck({ label: outName('srt'), sub: outSub('srt'), on: true, locked: true }));
-  return list(...rows);
+  return list(...rows);   // 25/10/2026: SRT (תמיד) — הערה מתחת לרשימה, לא שורה נעולה
 }
 /* מראה הכתוביות — שלושה כרטיסים עם דוגמה על "תמונה" כהה */
 function stylePicker(cur, onPick) {
@@ -2807,24 +2802,28 @@ function pageForm(p, editing) {
     txt.append(nm, sz, f.ph ? h('small', 'st-ok', T('studioPhNote')) : f.drive ? h('small', 'st-ok', T('studioInDriveNote')) : f.fileObj ? h('small', 'st-ok', T('studioPhoneOnly')) : h('small', 'st-warn', T('studioRepick')));
     card.append(th, txt);
   } else {
-    card = btn('st-newcard pick', null, pick, 'file');
+    // 25/10/2026: השורה הראשונה בקבוצת המקורות (לא כרטיס נפרד) — בולטת, וממנה ישר לבורר
+    card = btn('st-row st-ric st-pickrow', null, pick, 'file');
     const plus = h('span', 'st-plus'); plus.append(ico('film'));
-    card.append(plus, rowTxt(T('studioPick'), T('studioNewSub')));
+    card.append(plus, rowTxt(T('studioPick'), T('studioNewSub')), ico('chev', 'st-chev'));
   }
   if (f.subs) subsSection(p, f);   // 22/10/2026: קובץ כתוביות קיים — במקום הסרטון
   else {
-    p.append(inp, secT(T('studioSecVideo')), card);
+    p.append(inp, secT(T('studioSecVideo')));
+    const pickRow = card.classList.contains('st-row') ? card : null;   // 25/10/2026: בלי קובץ — הבורר והמקורות האחרים בקבוצה אחת
+    if (!pickRow) p.append(card);
     const subsRow = rowNav({ tile: tile('cc', 'orange'), label: T('studioSubsPick'), sub: subsOk() ? T('studioSubsPickS') : T('studioSubsApiOnly'), onClick: () => pickSubs(f), k: 'subs-pick' });
     // 22/10/2026: הורדה מקישור — שורה ראשונה (המנהל / "כל המודלים", כשהשרתון אומר שאפשר)
     // 25/10/2026: בלי האפליקציה לאנדרואיד (אייפון, מחשב) ההורדה רק לענן — ויוטיוב חוסם את השרת, אז לא מבטיחים אותו
     const linkRow = devDl() || ui.url ? rowNav({ tile: tile('link', 'red'), label: T('studioLinkRow'), sub: devDl() ? T('studioLinkRowS') : T('studioLinkRowSCloud'), onClick: () => go('link'), k: 'link' }) : null;
     // 24/10/2026: תרגום בטלפון — הסרטון לא עוזב את הטלפון (Studio לאנדרואיד בוחר, מודד, מעלה רק את הקול וצורב בסוף)
     const phRow = phOk() ? rowNav({ tile: tile('film', 'green'), label: T('studioPhRow'), value: f.ph ? T('studioPhOn') : '', sub: f.ph ? null : T('studioPhRowS'), onClick: () => phPick(), k: 'ph-pick' }) : null;
-    if (phRow) p.append(list(phRow));
     // 25/10/2026 (שלב 2): גם התמלול, הדוברים והיישור בטלפון — הקול לא עוזב אותו. פעם ראשונה: הורדת המודלים (Wi‑Fi)
-    if (f.ph) p.append(list(rowSwitch({ label: T('studioPhPw'), sub: T('studioPhPwS'), on: f.pw !== false, onClick: () => { f.pw = f.pw === false; render('none'); }, k: 'ph-pw' })));
-    p.append(list(linkRow, subsRow, canPick() ? rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'),
-      onClick: () => pickSourceFromDrive(f), k: 'from-drive' }) : null));   // סרטון שכבר ב־Drive — בלי העלאה
+    const pwRow = f.ph ? rowSwitch({ label: T('studioPhPw'), sub: T('studioPhPwS'), on: f.pw !== false, onClick: () => { f.pw = f.pw === false; render('none'); }, k: 'ph-pw' }) : null;
+    const driveRow = canPick() ? rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'),
+      onClick: () => pickSourceFromDrive(f), k: 'from-drive' }) : null;   // סרטון שכבר ב־Drive — בלי העלאה
+    // 25/10/2026 (בקשת המשתמש — "נקי ומסודר כמו Apple"): כל המקורות בקבוצה אחת, במקום שלוש קבוצות נפרדות
+    p.append(list(pickRow, phRow, pwRow, linkRow, subsRow, driveRow));
     const tk = f.trk && f.trk.tracks.length ? f.trk.tracks : null;   // שלב 4
     if (tk) p.append(list(rowNav({ tile: tile('cc', 'orange'), label: T('studioTrkRow'), value: T('studioTrkN', { n: fmtNum(tk.length) }), sub: T('studioTrkRowS'), onClick: () => go('tracks'), k: 'tracks' })));
     const adv = advRows(f, pick);
@@ -2838,23 +2837,9 @@ function pageForm(p, editing) {
   p.append(secT(T('studioSecLangs')), list(
     rowNav({ tile: tile('mic', 'blue'), label: T('studioFrom'), value: f.from === 'auto' ? T('studioAuto') : langName(f.from, ul), onClick: () => go('lang', 'from'), k: 'from' }),
     rowNav({ tile: tile('globe', 'teal'), label: T('studioTo'), value: langsSum(f.to), onClick: () => go('lang', 'to'), k: 'to' })));
-  const chips = h('div', 'st-chips'); chips.setAttribute('role', 'group'); chips.setAttribute('aria-label', T('studioTo'));
-  for (const c of QUICK_LANGS.concat(f.to.filter((x) => !QUICK_LANGS.includes(x)))) {
-    const on = f.to.includes(c);
-    const b = btn('st-chip' + (on ? ' on' : ''), null, () => toggleLang(f, c, false), 'c:' + c);
-    if (on) b.append(ico('check', 'st-chk'));
-    b.append(h('bdi', null, nativeName(c)));
-    b.setAttribute('aria-pressed', on ? 'true' : 'false');
-    chips.append(b);
-  }
-  chips.append(btn('st-chip', '+ ' + T('studioMore'), () => go('lang', 'to'), 'c:more'));
-  p.append(chips);
+  // 25/10/2026: שורת השבבים מתחת ל"לתרגם ל־" הוסרה — השורה עצמה פותחת את רשימת השפות (בחירה מרובה), בלי כפילות
 
-  // שמות ומונחים — Claude משתמש בהם בהגהה ובתרגום
-  const ta = h('textarea', 'st-ta'); ta.rows = 3; ta.maxLength = TERMS_MAX; ta.value = f.terms || '';
-  ta.placeholder = T('studioTermsPh'); ta.dataset.k = 'terms'; ta.setAttribute('aria-label', T('studioSecTerms'));
-  ta.addEventListener('input', () => { f.terms = ta.value; });
-  p.append(secT(T('studioSecTerms')), ta, note(T('studioTermsNote')));
+  // 25/10/2026: שדה "שמות ומונחים" הוסר מהטופס (בקשת המשתמש) — מילון המונחים בחוקים נשאר
 
   // מצב התרגום — המומלץ מסומן ונבחר מראש
   p.append(secT(T('studioSecMode')), ...modePicker(f.mode, (id) => { f.mode = id; render('none'); }));
@@ -2864,18 +2849,18 @@ function pageForm(p, editing) {
       rowCheck({ on: true, locked: true, label: 'WebVTT · ASS', sub: T('studioSubsOutAux') }),
       (() => { const r = h('div', 'st-row st-muted'); r.append(rowTxt(T('studioSubsOutVideo'), T('studioSubsOutVideoS'))); return r; })()));
   } else {
-    p.append(secT(T('studioSecOut')), outRows(f.out, f.file ? f.file.size : 0, (k) => { f.out[k] = !f.out[k]; render('none'); }));
+    p.append(secT(T('studioSecOut')), outRows(f.out, f.file ? f.file.size : 0, (k) => { f.out[k] = !f.out[k]; render('none'); }), note(T('studioOutSrtNote')));
     p.append(secT(T('studioSecStyle')), stylePicker(f.style, (k) => { f.style = k; render('none'); }));
   }
 
   // התחלה: יוצרים עבודה בשרתון ומעלים ל־Drive (הקול קודם). טיוטה — אפשרות משנית
   const startBtn = btn('st-btn wide', ui.starting ? T('studioStarting') : T('studioStart'), startFromForm, 'start');
   startBtn.disabled = !(f.fileObj || f.drive || f.subs || f.ph || (f.link && f.linkOk)) || ui.starting;   // ph — תרגום בטלפון
-  if (f.subs) { p.append(h('div', 'st-gap'), startBtn, note(T('studioSubsStartNote'))); return; }   // בלי טיוטה: הקובץ רק בזיכרון
-  const saveBtn = btn('st-btn tint wide', T('studioSaveDraft'), saveForm, 'save');
-  saveBtn.disabled = !f.file || !!f.ph;   // תרגום בטלפון — הבחירה באפליקציה, לא טיוטה
-  p.append(h('div', 'st-gap'), startBtn, h('div', 'st-gap sm'), saveBtn,
-    note(!f.file ? T('studioPickFirst') : !f.fileObj && !f.drive ? T('studioRepickNote') : f.drive ? T('studioStartNoteDrive') : T('studioStartNote')));
+  if (f.subs) { const ft = h('div', 'st-foot'); ft.append(startBtn, h('p', 'st-foot-n', T('studioSubsStartNote'))); p.append(ft); return; }   // בלי טיוטה: הקובץ רק בזיכרון
+  // 25/10/2026: כפתור אחד, דבוק לתחתית המסך. הטיוטה — "שמירה" בסרגל העליון (עד היום גם כפתור שני כאן, אותה פעולה)
+  const foot = h('div', 'st-foot');
+  foot.append(startBtn, h('p', 'st-foot-n', !f.file && !f.ph && !(f.link && f.linkOk) ? T('studioPickToStart') : !f.fileObj && !f.drive && !f.ph && !(f.link && f.linkOk) ? T('studioRepickNote') : f.drive ? T('studioStartNoteDrive') : T('studioStartNote')));
+  p.append(foot);
 }
 /* "התחלה" לקובץ כתוביות: אומדן ואישור → עבודה בשרתון → העלאה (קובץ קטן) → רישום → תור השרת */
 function startSubs(f) {
@@ -4223,7 +4208,7 @@ function noteCard(rec) {
       card.append(ta, row);
     }
   }
-  return [secT(T('studioNtSec')), card];
+  return [h('div', 'st-gap'), card];   // 25/10/2026: בלי כותרת מקטע — השורה עצמה אומרת "לכתוב הערה ל־Claude"
 }
 /* סבב 10: העתק־הדבק — "העתקת הבקשה" → מדביקים בשיחה עם Claude → מדביקים כאן את התשובה → העבודה ממשיכה.
    הבקשה והתשובה = קבצים בתיקיית העבודה; כאן רק הטקסט שהדבקת עד השליחה (לא נשמר) */
@@ -5400,7 +5385,7 @@ function askClean(x) {
 }
 function scFindRow(x) {
   const [title, fix] = scText(x);
-  const nav = x.k.startsWith('claude_') ? () => go('connect') : x.k === 'drive_missing' || x.k === 'drive_revoked' ? () => go('store') : x.k === 'budget_low' ? () => go('rules') : null;
+  const nav = x.k.startsWith('claude_') ? () => go('connect') : x.k === 'drive_missing' || x.k === 'drive_revoked' ? () => go('store') : x.k === 'budget_low' ? () => go('rlb') : null;
   const r = nav ? btn('st-fnd ' + SC_P_CLS[x.p], null, nav, 'sc:' + x.k) : h('div', 'st-fnd ' + SC_P_CLS[x.p]);
   if (!nav) r.dataset.k = 'sc:' + x.k;
   const l = h('span', 'st-l');
@@ -5784,19 +5769,15 @@ function pageRuleMax(p) {
   rulesMax(p, false);
 }
 function pageRules(p) {
-  p.append(navBar({ back: T('studioTwT') }), large(T('studioRlT')), h('p', 'st-lede', T('studioRlLede')));
+  /* 25/10/2026 (בקשת המשתמש — בלי כפילויות): התקציב, המצב המקסימלי, האישור לפני צריבה והמילון — במגדל עצמו (כל שורה שם
+     פותחת את העמוד שלה). כאן רק מה שאין שם: שופט האיכות, בדיקת המשמעות ומסלול התיקונים */
+  p.append(navBar({ back: T('studioTwT') }), large(T('studioUtMore')));
   const ab = accessBanner(); if (ab) p.append(ab);
   const rl = ui.rl, off = blocked() || rulesBusy;
-  rulesBudget(p, true);
-  rulesMax(p, true);
-  // אישור לפני צריבה — 5 כתוביות לדוגמה בטלפון
-  p.append(secT(T('studioRlAbT')), list(rowSwitch({ label: T('studioRlAb'), sub: T('studioRlAbS'), on: rl.ab, onClick: () => { if (!off) setRules({ ab: !rl.ab }); }, k: 'ra' })));
   // v375: שופט האיכות (Haiku, 40 כתוביות לדוגמה בסוף כל עבודה) — פועל כברירת מחדל (החלטה 4 בתוכנית)
   p.append(secT(T('studioRlJgT')), list(rowSwitch({ label: T('studioRlJg'), sub: T('studioRlJgS'), on: !rl.jx, onClick: () => { if (!off) setRules({ jx: !rl.jx }); }, k: 'rj' }),
     // סבב 10: אחרי השופט — בדיקת משמעות לכתוביות שסימן, אוטומטית כשנכנסים לעבודה (תמיד עם אומדן ואישור לפני שמתחילים)
     rowSwitch({ label: T('studioRlAm'), sub: T('studioRlAmS'), on: rl.am, onClick: () => { if (!off) setRules({ am: !rl.am }); }, k: 'ram' })));
-  // v380: זיכרון המונחים — מילון אחד לכל העבודות (ב־Drive שלך); כל עבודה מקבלת רק את המונחים שמופיעים בסרטון
-  p.append(secT(T('studioGlSec')), list(rowNav({ tile: tile('globe', 'blue'), label: T('studioGlT'), sub: gl.st === 'ok' ? T('studioGlN', { n: gl.rows.length }) : T('studioGlSub'), onClick: () => go('gloss'), k: 'rules-gloss' })));
   // v366: מסלול התיקונים — "הצעות לאישור" (ברירת המחדל) או "Claude מחליט לבד".
   // v368: עבר לכאן ממסך המגדל — כל מה שאתה קובע לסוכנים במקום אחד
   const fm = ui.fm === 'auto' ? 'auto' : 'suggest';
@@ -6153,7 +6134,10 @@ function goldCard(rec) {
     rows.push(btn('st-row st-act danger', T('studioGoldOff'), () => goldUnmark(rec), 'gold:off'));
     return [secT(T('studioGoldT')), list(...rows)];
   }
-  return [secT(T('studioGoldT')), list(btn('st-row st-act', busy ? T('studioGoldAdding') : T('studioGoldAdd'), () => goldMark(rec), 'gold:add')), note(T('studioGoldAddNote'))];
+  // 25/10/2026: שורה אחת עם הסבר קצר (במקום כותרת, כפתור ופסקת הסבר)
+  const add = btn('st-row st-ric', null, busy ? null : () => goldMark(rec), 'gold:add');
+  add.append(tile('spark', 'orange'), rowTxt(busy ? T('studioGoldAdding') : T('studioGoldAdd'), T('studioGoldAddS')), ico('chev', 'st-chev'));
+  return [h('div', 'st-gap'), list(add)];
 }
 /* בבקרת הסוכנים: העבודות שבסט הזהב, הציון האחרון של כל אחת, והרצה חוזרת — רק בלחיצה, אחרי אומדן ואישור */
 function goldSection() {
@@ -7155,8 +7139,9 @@ function pageJob(p) {
   const run0 = runs.get(id), ph0 = jobPhase(rec, run0);
   const toTxt = langsSum(rec.spec.to);
 
-  // למעלה: טבעת + "נשארו בערך…" + "יהיה מוכן בסביבות…"
-  const hero = h('div', 'st-twhero');
+  // למעלה: טבעת + "נשארו בערך…" + "יהיה מוכן בסביבות…" — 25/10/2026: כרטיס אחד, ובתוכו גם "מה קורה עכשיו" (עד היום שני כרטיסים)
+  const hero = h('div', 'st-jhero');
+  const htop = h('div', 'st-jtop');
   const ring = h('span', 'st-ring');
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 64 64'); svg.setAttribute('aria-hidden', 'true');
@@ -7168,13 +7153,15 @@ function pageJob(p) {
   const ht = h('span', 'st-hero-t');
   const big = h('span', 'st-left-big'), sub = h('span', 'st-left-sub');
   ht.append(big, sub);
-  hero.append(ring, ht);
+  htop.append(ring, ht);
+  hero.append(htop);
   live(hero, () => {
     const r = jobRec(id); if (!r) return;
     const run = runs.get(id), ph = jobPhase(r, run), hs = heroState(r, run, ph);
     const pv = hs.check ? hs.pct : shownPct(r, hs.pct, ph === 'failed' || ph === 'cancelled' || ph === 'stuck' ? '' : 'h');
     arc.style.strokeDashoffset = String(Math.round(170 * (1 - pv)));
     pctEl.textContent = hs.check ? '✓' : Math.round(pv * 100) + '%';
+    ring.classList.toggle('ok', !!hs.check);
     big.textContent = hs.big; sub.textContent = hs.sub; sub.hidden = !hs.sub;
   });
   p.append(hero);
@@ -7223,7 +7210,7 @@ function pageJob(p) {
   if (early.length && burning && canPlay(rec)) p.append(btn('st-btn wide', T('studioPlWatch'), () => go('play', id), 'play'));
   if (early.length) p.append(secT(T('studioSecResults')), list(...early.map((o) => rowOut(rec, o))), note(burning ? T('studioOutEarlySubs') : T('studioOutEarly')));
   if (outs.length) {
-    if (canPlay(rec)) p.append(btn('st-btn wide', T('studioPlWatch'), () => go('play', id), 'play'));   // מ1: הנגן
+    if (canPlay(rec)) hero.append(btn('st-btn in-card', T('studioPlWatch'), () => go('play', id), 'play'));   // מ1: הנגן — 25/10/2026: בתוך כרטיס הראש
     p.append(secT(T('studioSecResults')), list(...outs.map((o) => rowOut(rec, o)),
     canEdit(rec) ? rowNav({ tile: tile('edit', 'blue'), label: T('studioSeTitle'), sub: rec.srv.ev ? T('studioSeEdited', { n: rec.srv.ev }) : '', onClick: () => go('subs', id), k: 'subs' }) : null,   // מ2
     canEdit(rec) ? rowNav({ tile: tile('redo', 'green'), label: T('studioRrTitle'), sub: rrSub(rec), onClick: () => go('rr', id), k: 'rr' }) : null,
@@ -7238,7 +7225,8 @@ function pageJob(p) {
       : a.k === 'ask' ? { tile: tile('help', 'orange'), label: T('studioAdvAsk'), sub: T('studioAdvAskS', { a: rec.srv.qa.a.t }), onClick: () => { aiPreset = { id: rec.id, free: askFixNote(rec.srv.qa), run: true }; go('subs', rec.id); }, k: 'adv-ask' }
       : a.k === 'rvf' ? { tile: tile('edit', 'orange'), label: T('studioAdvRvf', { n: a.n }), sub: rvfSub(rec.srv.rvf), onClick: () => { seOnly = rec.id; go('subs', rec.id); }, k: 'adv-rvf' }   // סבב 4
       : { tile: tile('film', 'blue'), label: T('studioAdvVert'), sub: T('studioAdvVertS'), onClick: () => go('rr', rec.id), k: 'adv-vert' }))));   // סבב 2: הצעות אחרי
-  } else if (!quiet && !qaPending(rec) && !tstop) p.append(nowc);   // כרטיס העצירה כבר אומר מה קרה   // שאלה פתוחה — כרטיס השאלה הוא "מה קורה עכשיו"
+  } else if (!quiet && !qaPending(rec) && !tstop) { nowc.classList.add('in'); hero.append(nowc); }   // 25/10/2026: בתוך כרטיס הראש
+    // כרטיס העצירה כבר אומר מה קרה   // שאלה פתוחה — כרטיס השאלה הוא "מה קורה עכשיו"
   // פעולה לפי המצב: בחירה חוזרת / המשך / נסיון חוזר / התחלה
   const acts = [];
   if (ph0 === 'need') acts.push(btn('st-btn wide', T('studioRepickBtn'), () => repickFor(id), 'repick'));
@@ -7291,7 +7279,13 @@ function pageJob(p) {
     });
     stl.append(row);
   }
-  p.append(secT(T('studioSecStages')), stl);
+  if (ph0 === 'done') {   // 25/10/2026: הסתיימה — השלבים מקופלים בשורה אחת (כמה לקח בסך הכל); בזמן עבודה — גלויים
+    const tot = m0.stages.reduce((a, x) => a + (x.took || 0), 0);
+    const sd = h('details', 'st-stdet'); sd.dataset.k = 'stages';
+    const sm = h('summary', 'st-row st-ric'); sm.append(tile('check', 'green'), rowTxt(T('studioSecStages'), tot ? T('studioStagesDone', { t: fmtShort(tot) }) : null), ico('chev', 'st-chev'));
+    sd.append(sm, stl);
+    p.append(h('div', 'st-gap'), list(sd));
+  } else p.append(secT(T('studioSecStages')), stl);
   const nc = noteCard(rec);   // v382: הערה ל־Claude — נקראת בנקודת השמירה הבאה
   if (nc) p.append(...nc);
   if (rec.srv && rec.srv.sla) p.append(...slaCard(rec));   // v377: יעד זמן ותקציב
@@ -7421,9 +7415,11 @@ function pageGuide(p) {
   sec(T('studioGd5'), T('studioGd5a'));
 }
 /* כרטיס בעמוד ההגדרות — כמו בהגדרות של Invest (.card מ־styles.css): כותרת בתוך הכרטיס, השורות בלי רקע משלהן */
+/* 25/10/2026 (בקשת המשתמש — כמו ב־Apple): הכותרת קטנה ואפורה מעל הקבוצה, והקבוצה עצמה היא הכרטיס (עד היום — כרטיס עם
+   כותרת גדולה בפנים, ובתוכו עוד רשימה עם רקע משלה: כרטיס בתוך כרטיס) */
 function setCard(title, ...nodes) {
-  const c = h('section', 'card st-card' + (title ? '' : ' row-card'));
-  if (title) c.append(h('h2', null, title));
+  const c = h('section', 'st-setgrp');
+  if (title) c.append(secT(title));
   c.append(...nodes.filter(Boolean));
   return c;
 }
@@ -7445,7 +7441,7 @@ function pageSettings(p) {
   const C = SA && SA.cards, A = SA && SA.auth;
   const ab = C && A && A.state() === 'out' ? null : accessBanner();   // לא מחובר — הכניסה בכרטיס החשבון (בלי כפילות)
   if (ab) p.append(ab);
-  if (C) p.append(C.account(), C.advRow(() => go('adv')), C.display());   // הסדר של Invest: חשבון ← מתקדמות ← תצוגה
+  if (C) p.append(C.account());   // 25/10/2026: החשבון למעלה; התצוגה והמתקדמות — בסוף העמוד (מה שמשתמשים בו פחות)
   if (ui.push == null) refreshPush().then(() => { if (root && (ui.view === 'settings' || ui.view === 'push')) render('none'); });
   const ready = engReady(), apiOn = apiMode() || cpMode();
   const dr = store.drive, drOk = !!(dr && dr.connected);
@@ -7460,8 +7456,9 @@ function pageSettings(p) {
   p.append(setCard(T('studioGrpGen'), list(
     srow,
     rowNav({ tile: tile('bell', 'red'), label: T('studioSecPush'), value: pushOnNow ? T('studioOnShort') : T('studioOffShort'), onClick: () => go('push'), k: 'push' }),
-    rowNav({ tile: tile('help', 'blue'), label: T('studioGuide'), sub: T('studioGuideSub'), onClick: () => go('guide'), k: 'guide' }),   // מ9: מדריך קצר
-    lrnRow(), lrnForgetRow())));
+    rowNav({ tile: tile('help', 'blue'), label: T('studioGuide'), onClick: () => go('guide'), k: 'guide' }))));   // מ9: מדריך קצר
+  p.append(setCard(T('studioLrnGrp'), list(lrnRow(), lrnForgetRow())));   // 25/10/2026: מאגר הלמידה — קבוצה משלו
+  if (C) p.append(C.display(), C.advRow(() => go('adv')));
 }
 /* 14/10/2026 (בקשת המשתמש): מאגר הלמידה — אפשר לבטל. בלי שם ובלי פרטים אישיים; מה שכבר נאסף לא מקושר לחשבון */
 function lrnRow() {
@@ -7491,7 +7488,8 @@ function lrnNotice() {
 /* 15/10/2026 (מ׳1): "מחק את התרומות שלי" — הרשומות של כל העבודות שלך במאגר (גם של עבודות שנמחקו). באישור הרסני */
 let lrnForgetBusy = false;
 function lrnForgetRow() {
-  const r = rowNav({ tile: tile('alert', 'red'), label: T('studioLrnForget'), sub: T('studioLrnForgetS'), onClick: () => askConfirm(T('studioLrnForgetQ'), lrnForget, { danger: true, ok: T('studioLrnForgetOk') }), k: 'lrnf' });
+  // 25/10/2026: פעולה הרסנית = טקסט אדום בשורה, כמו ב־iOS (ההסבר בחלון האישור)
+  const r = btn('st-row st-act danger', T('studioLrnForget'), () => askConfirm(T('studioLrnForgetQ'), lrnForget, { danger: true, ok: T('studioLrnForgetOk') }), 'lrnf');
   if (lrnForgetBusy || blocked()) r.disabled = true;
   return r;
 }

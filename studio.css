@@ -119,6 +119,12 @@ a.st-row { color: inherit; text-decoration: none; -webkit-tap-highlight-color: t
 .st-check svg { width: 14px; height: 14px; stroke-width: 3; }
 .st-check.on { background: var(--st-ok); border-color: var(--st-ok); color: #06281A; }
 .st-check.lock { opacity: .55; }
+/* 25/10/2026 (בקשת המשתמש — כמו ב־Apple): בחירה מרובה ברשימה = סימן ✓ בסוף השורה, בלי עיגול ריק בשורות שלא נבחרו.
+   הירוק נשאר (סימון מצב — לא באדום של Studio) */
+.st-row > .st-check { order: 20; width: 24px; height: 24px; border: 0; background: none; }
+.st-row > .st-check svg { width: 20px; height: 20px; stroke-width: 2.8; }
+.st-row > .st-check.on { background: none; color: var(--st-ok); }
+.st-row > .st-check.lock { opacity: .45; }
 .st-radio.on { border-color: var(--primary); }
 .st-radio.on::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--primary); }
 .st-badge { display: inline-flex; align-items: center; gap: 4px; flex: none; padding: 2px 8px; border-radius: var(--pill); font-size: 12px; font-weight: 700; white-space: nowrap; }
@@ -209,40 +215,41 @@ a.st-row { color: inherit; text-decoration: none; -webkit-tap-highlight-color: t
 .st-ta:focus { box-shadow: 0 0 0 2px var(--primary) inset; }
 .st-ta::placeholder { color: var(--st-ter); }
 
-/* מצב התרגום — המומלץ בולט עם סרט, ומתחתיו שתי קבוצות מאמץ */
-.st-mode-best { position: relative; display: grid; gap: 10px; margin: 14px 16px 0; padding: 16px 14px 14px; border-radius: var(--radius); background: var(--st-card); box-shadow: 0 0 0 2px var(--primary) inset; }
-.st-mode-best.other { box-shadow: 0 0 0 2px var(--separator) inset; }
-.st-ribbon { position: absolute; top: -10px; inset-inline-start: 14px; max-width: calc(100% - 28px); padding: 3px 10px; border-radius: var(--pill); background: var(--primary); color: var(--on-primary);
-  font-size: 12px; font-weight: 800; letter-spacing: .2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 35%, transparent); }
-.st-mode-best.other .st-ribbon { background: var(--surface-2); color: var(--on-surface); box-shadow: none; }
-[data-theme="dark"] .st-mode-best.other .st-ribbon { background: #2C2C2E; }
-.st-mh { display: flex; align-items: center; gap: 10px; }
-.st-mh .st-tile { width: 40px; height: 40px; border-radius: var(--radius-xs); }
-.st-mh .st-tile svg { width: 22px; height: 22px; }
-.st-mh .st-l b { font-size: 17px; }
-.st-meters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.st-meter { display: grid; align-content: start; gap: 5px; padding: 8px 10px; border-radius: var(--radius-xs); background: var(--bg); }
-.st-meter small { font-size: 11.5px; font-weight: 600; line-height: 1.25; color: var(--on-surface-var); }
-.st-meter b { font-size: 15px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* מצב התרגום — 25/10/2026 (בקשת המשתמש: נקי ומינימלי כמו Apple): כרטיס אחד — בורר מקטעים, ומתחתיו שורת המצב שנבחר.
+   עד 25/10 — כרטיס עם סרט ושלושה אריחים, כרטיס בחירה נפרד ופסקה (אותו מידע שלוש פעמים) */
+.st-modecard { display: grid; gap: 12px; margin: 0 16px; padding: 12px; border-radius: var(--radius-sm); background: var(--st-card); }
+.st-seg2 { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; padding: 2px; border-radius: var(--radius-xs); background: var(--st-fill); }
+.st-seg2 button { display: grid; justify-items: center; gap: 0; min-width: 0; min-height: 50px; padding: 6px 4px; border-radius: 10px; color: var(--on-surface); transition: background .2s, box-shadow .2s; }
+.st-seg2 button b { max-width: 100%; font-size: 15.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-seg2 button small { max-width: 100%; font-size: 11.5px; font-weight: 600; color: var(--on-surface-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-seg2 button[aria-checked="true"] { background: var(--st-card); box-shadow: 0 1px 3px rgba(0, 0, 0, .12), 0 0 0 .5px rgba(0, 0, 0, .04); }
+[data-theme="dark"] .st-seg2 button[aria-checked="true"] { background: #636366; box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
+.st-seg2 button[aria-checked="true"] small { color: var(--on-surface); opacity: .75; }
+.st-seg2.many button b { font-size: clamp(11px, 3.4vw, 13.5px); letter-spacing: -.1px; }
+.st-modelab small { font-size: 12px; font-weight: 600; color: var(--on-surface-var); }
+.st-modelab { margin: 2px 4px -6px; }
+.st-modeinfo { display: grid; gap: 10px; padding: 2px 4px 2px; }
+.st-modenm { display: grid; gap: 1px; }
+.st-modenm b { font-size: 16px; font-weight: 700; }
+.st-modenm small { font-size: 13px; color: var(--on-surface-var); line-height: 1.35; }
+.st-mstats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding-top: 10px; border-top: 1px solid var(--separator); }
+.st-mstat { display: grid; align-content: start; gap: 6px; min-width: 0; }
+.st-mstat small { font-size: 11.5px; font-weight: 600; color: var(--on-surface-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-mstat b { font-size: 15px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .st-bars { display: flex; gap: 3px; }
 .st-bars i { flex: 1; height: 5px; border-radius: 3px; background: var(--st-fill); }
 .st-bars i.on { background: var(--st-ok); }   /* מד איכות — באדום נראה כמו ציון נמוך */
 .st-bars.amber i.on { background: var(--sys-orange); }
-.st-mode-grp { display: grid; gap: 9px; margin: 10px 16px 0; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--st-card); }
-.st-gh { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.st-gh b { font-size: 15.5px; }
-.st-gh small { font-size: 12.5px; color: var(--on-surface-var); }
-.st-effort { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; }
-.st-effort button { display: grid; justify-items: center; gap: 1px; min-width: 0; min-height: 50px; padding: 8px 3px; border-radius: var(--radius-xs); background: var(--st-fill); color: var(--on-surface); }
-.st-effort button b { max-width: 100%; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* 15/10/2026: "Opus Medium" נשבר לשתי שורות והגדיל את הכרטיס */
-.st-mode-grp.many .st-effort button { padding-inline: 1px; }
-.st-mode-grp.many .st-effort button b { font-size: clamp(11px, 3.5vw, 13px); letter-spacing: -.1px; }
-.st-effort button small { max-width: 100%; font-size: 11px; font-weight: 600; color: var(--on-surface-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.st-effort .star { color: var(--on-primary-container); font-weight: 800; }
-.st-effort button[aria-checked="true"] { background: var(--primary); color: var(--on-primary); }
-.st-effort button[aria-checked="true"] small { color: var(--on-primary); opacity: .85; }
-.st-modesum { margin: 10px 18px 0; font-size: 13px; line-height: 1.5; color: var(--on-surface-var); }
-.st-modesum b { color: var(--on-surface); }
+/* 25/10/2026: שורת "בחירת סרטון" — הראשונה בקבוצת המקורות, בולטת מהשאר */
+.st-row.st-pickrow { min-height: 66px; }
+.st-row.st-pickrow .st-plus { width: 44px; height: 44px; border-radius: var(--radius-xs); }
+.st-row.st-pickrow .st-plus svg { width: 24px; height: 24px; }
+.st-row.st-pickrow .st-l b { font-size: 17px; }
+.st-row.st-pickrow + .st-row.st-ric::before { inset-inline-start: 58px; }
+/* 25/10/2026: כפתור ההתחלה דבוק לתחתית המסך (הגלילה ממשיכה מתחתיו), עם הערה קצרה */
+.st-foot { position: sticky; bottom: 0; z-index: 4; margin-top: 22px; padding: 12px 0 calc(8px + env(safe-area-inset-bottom));
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 0%, transparent), var(--bg) 22px); }
+.st-foot-n { margin: 8px 24px 0; text-align: center; color: var(--on-surface-var); font-size: 12.5px; line-height: 1.45; }
 
 /* מראה הכתוביות — דוגמה על "סצנה" כהה */
 .st-styles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 16px; }
@@ -263,7 +270,9 @@ a.st-row { color: inherit; text-decoration: none; -webkit-tap-highlight-color: t
 .st-btn.tint { background: var(--primary-container); color: var(--on-primary-container); }
 .st-btn.wide + .st-btn.wide { margin-top: 10px; }   /* סבב 10: הפקה מלאה + צריבה לבדיקה */
 a.st-btn { text-decoration: none; }   /* סבב 10: "פתיחת Claude" בכרטיס העתק־הדבק */
-.st-btn.danger { background: transparent; color: var(--loss); box-shadow: 0 0 0 1.5px var(--loss) inset; }   /* הרסני משני = מתאר אדום */
+/* 25/10/2026 (בקשת המשתמש — כמו ב־Apple): פעולה הרסנית = שורה בקבוצה, טקסט אדום על רקע הכרטיס (עד היום — מתאר אדום בצורת גלולה) */
+.st-btn.danger { min-height: 50px; border-radius: var(--radius-sm); background: var(--st-card); color: var(--loss); box-shadow: none; font-size: 17px; font-weight: 600; }
+.st-btn.danger:not(:disabled):active { transform: none; background: var(--st-fill); }
 .st-btn:disabled { background: var(--st-fill); color: var(--st-ter); box-shadow: none; }
 .st-btn:not(:disabled):active { transform: scale(.98); }
 .st-btn.in-card { width: 100%; margin-inline: 0; margin-top: 4px; }
@@ -870,8 +879,8 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-card > .st-note { margin: 6px 14px 10px; }
 .st-card > .st-test { margin: 8px 8px 6px; background: var(--surface-2); }
 /* 15/10/2026: מגדל הפיקוח למשתמשים — מינימלי (התצוגה המקדימה שאושרה). מצב = ירוק/כתום/אדום (--st-ok), כפתורים בצבע האפליקציה */
-.st-ut-date { color: var(--on-surface-var); font-size: 14px; margin: -4px 4px 14px; }
-.st-ut-hero { display: flex; gap: 12px; align-items: center; background: var(--surface); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); margin-bottom: 6px; }
+.st-ut-date { color: var(--on-surface-var); font-size: 14px; margin: -6px 16px 14px; }   /* 25/10/2026: היה 4px — התאריך נצמד לקצה המסך */
+.st-ut-hero { display: flex; gap: 14px; align-items: center; background: var(--st-card); border-radius: var(--radius); padding: 16px; margin: 0 16px 6px; }   /* 25/10/2026: בלי שוליים הכרטיס יצא מהמסך; בלי צל — כמו שאר הכרטיסים */
 .st-ut-hic { width: 42px; height: 42px; border-radius: var(--pill); display: grid; place-items: center; flex: none; background: var(--st-ok-c); color: var(--st-ok); font-weight: 750; font-size: 18px; }
 .st-ut-hero.wait .st-ut-hic { background: rgba(245, 165, 36, .16); color: #F5A524; }
 .st-ut-ht { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -886,14 +895,14 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-ut-bar[hidden] { display: none; }
 .st-ut-bar i { display: block; height: 100%; background: var(--st-ok); border-radius: var(--pill); }
 .st-ut-tail { flex: none; display: flex; align-items: center; }
-.st-ut-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.st-ut-tile { display: flex; flex-direction: column; gap: 2px; background: var(--surface); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
+.st-ut-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 16px; }
+.st-ut-tile { display: flex; flex-direction: column; gap: 2px; background: var(--st-card); border-radius: var(--radius-sm); padding: 14px 16px; }
 .st-ut-tile > span { color: var(--on-surface-var); font-size: 13px; }
 .st-ut-tile b { font-size: 24px; font-variant-numeric: tabular-nums; }
 .st-ut-tile small { color: var(--on-surface-var); font-size: 12.5px; }
 .st-ut-meter { display: block; height: 6px; border-radius: var(--pill); background: color-mix(in srgb, var(--on-surface) 10%, transparent); margin-top: 8px; overflow: hidden; }
 .st-ut-meter i { display: block; height: 100%; background: var(--st-ok); border-radius: var(--pill); }
-.st-ut-cap { color: var(--on-surface-var); font-size: 13px; text-align: center; margin: 8px 0 0; }
+.st-ut-cap { color: var(--on-surface-var); font-size: 12.5px; text-align: center; margin: 8px 24px 0; }
 .st-se-body > .st-src { margin-top: 4px; }
 .st-se-row.open .st-src { margin-top: 2px; }
 
@@ -944,3 +953,43 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-grab-st { align-items: center; }
 .st-grab-n { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--pill); background: var(--primary-container); color: var(--on-primary-container); font-weight: 700; font-size: 15px; }
 .st-grab-col { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+
+/* ---------- 25/10/2026 (בקשת המשתמש: "נקי, מסודר ונעים בעין כמו Apple") — דף העבודה ----------
+   כרטיס ראש אחד: הטבעת, כמה נשאר ומתי יהיה מוכן, ובתוכו "מה קורה עכשיו" (עד היום — שני כרטיסים נפרדים, הטבעת מעל הטקסט) */
+.st-jhero { margin: 4px 16px 0; padding: 16px; border-radius: var(--radius); background: var(--st-card); display: grid; gap: 14px; }
+.st-jtop { display: flex; align-items: center; gap: 16px; }
+.st-jhero .st-ring { width: 72px; height: 72px; }
+.st-jhero .st-left-big { font-size: 22px; }
+.st-nowc.in { margin: 0; padding: 12px 0 0; border-radius: 0; background: none; border-top: 1px solid var(--separator); grid-template-columns: 30px minmax(0, 1fr); gap: 10px; align-items: center; }
+.st-nowc.in .st-nowic { width: 30px; height: 30px; border-radius: 8px; }
+.st-nowc.in .st-nowic svg { width: 17px; height: 17px; }
+.st-nowc.in .st-l b { font-size: 15px; font-weight: 600; }
+/* השלבים: ההסבר רק לשלב שרץ עכשיו — שלב שהסתיים או שמחכה = שורה אחת (עד היום — שתי שורות הסבר לכל שלב) */
+.st-stg:not(.now) .st-l > small:not(.st-stg-ov) { display: none; }
+.st-stg:not(.now) { align-items: center; padding: 9px 0; }
+.st-stg.done .st-l b { font-weight: 500; }
+/* עבודה שהסתיימה — השלבים מקופלים בשורה אחת */
+.st-stdet > summary { list-style: none; cursor: pointer; }
+.st-stdet > summary::-webkit-details-marker { display: none; }
+.st-stdet[open] > summary .st-chev { transform: rotate(-90deg); }
+[dir="ltr"] .st-stdet[open] > summary .st-chev { transform: scaleX(-1) rotate(-90deg); }
+.st-stdet > .st-stages { margin: 0; padding-top: 0; border-radius: 0; border-top: 1px solid var(--separator); }
+/* הערה ל־Claude — שורה אחת בקבוצה, בלי כותרת מקטע מעליה */
+.st-twcard.st-ntc { padding-block: 4px; }
+/* הסתיימה: ✓ גדול בטבעת, וכפתור הצפייה בתוך כרטיס הראש */
+.st-ring.ok b { font-size: 28px; font-weight: 700; color: var(--st-ok); }
+.st-jhero > .st-btn.in-card { margin-top: 0; }
+
+/* ---------- 25/10/2026 — ההגדרות והמגדל באותה שפה ----------
+   בחירה אחת מכמה = ✓ בסוף השורה (כמו ב־iOS), בלי עיגולים ריקים. הירוק — סימון מצב */
+.st-row > .st-radio { order: 20; width: 24px; height: 24px; border: 0; color: transparent; display: grid; place-items: center; }
+.st-row > .st-radio svg { width: 20px; height: 20px; stroke-width: 2.8; }
+.st-row > .st-radio.on { color: var(--st-ok); }
+.st-row > .st-radio.on::after { content: none; }
+.st-row > .st-badge { order: 19; }
+/* קבוצה בעמודי ההגדרות: כותרת אפורה קטנה מעליה, הרשימה היא הכרטיס */
+.st-setgrp > .st-sec-t:first-child { margin-top: 26px; }
+.st-setgrp:not(:has(> .st-sec-t)) { margin-top: 22px; }
+.st-setgrp > .st-note { margin-inline: 30px; }
+.st-root > .st-page > .card { margin-inline: 16px; }
+.st-root .card { border-radius: var(--radius-sm); box-shadow: none; }   /* כרטיסי החשבון והתצוגה (shell.js) — אותן פינות של שאר הסטודיו */
