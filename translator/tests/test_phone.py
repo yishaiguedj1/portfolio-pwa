@@ -118,6 +118,109 @@ class PhoneAttach(unittest.TestCase):
         self.assertIsNone(job.video_prefetch(self.ctx, None))
 
 
+def words_doc(**k):
+    d = {'v': 1, 'words': [{'w': 'Hello', 's': 0.5, 'e': 0.9, 'spk': 'S1', 'align': 'ok'},
+                           {'w': 'world.', 's': 0.95, 'e': 1.4, 'spk': 'S1'},
+                           {'w': 'Thanks', 's': 3.0, 'e': 3.4, 'spk': 'S2', 'align': 'approx'}],
+         'diarize': {'speakers': 2, 'segments': 3, 'seconds': 1.2, 'junk': 'x'}}
+    d.update(k)
+    return d
+
+
+class PhoneWords(unittest.TestCase):
+    """25/10/2026 (שלב 2): גם התמלול והיישור בטלפון — עולים רק המילים עם הזמנים והמדידות."""
+
+    def test_check_good(self):
+        r = job.pw_check(words_doc(), 600)
+        self.assertEqual([w['w'] for w in r['words']], ['Hello', 'world.', 'Thanks'])
+        self.assertEqual(r['words'][0], {'w': 'Hello', 's': 0.5, 'e': 0.9, 'spk': 'S1', 'align': 'ok'})
+        self.assertEqual(r['engine'], 'parakeet')
+        self.assertEqual(r['diarize'], {'speakers': 2, 'segments': 3, 'seconds': 1.2}, 'רק מספרים מוכרים')
+
+    def test_check_bad(self):
+        W = words_doc()['words']
+        bad = [None, {'v': 2, 'words': W}, words_doc(words=[]), words_doc(words='x'),
+               words_doc(words=[dict(W[0], w='')]), words_doc(words=[dict(W[0], w='a' * 65)]), words_doc(words=[dict(W[0], w='a\x01b')]),
+               words_doc(words=[dict(W[0], s='1')]), words_doc(words=[dict(W[0], e=0.1)]),                 # סוף לפני ההתחלה
+               words_doc(words=[dict(W[0], s=700, e=701)]),                                                # אחרי סוף הסרטון
+               words_doc(words=[W[2], dict(W[0], s=1.0, e=1.1)]),                                          # חוזר אחורה
+               words_doc(words=[dict(W[0], spk='<b>')]), words_doc(words=[dict(W[0], align='x')]),
+               words_doc(words=[dict(W[0], s=float('nan'))])]
+        for i, d in enumerate(bad):
+            self.assertIsNone(job.pw_check(d, 600), i)
+        self.assertIsNone(job.pw_check(words_doc(words=[W[0]] * (job.PW_WORDS_MAX + 1)), None), 'יותר מדי מילים')
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        self.pd = root / 'proj'
+        self.calls, self.cks, self.reports = [], [], []
+        self.o = (job.vt, job.fetch_input, job.save_state, job.VT_WORK, job.ensure_env, job.inject_guard, job.save_ck)
+        job.VT_WORK = root / 'work'
+
+        def vt(ctx, args, *a, **k):
+            self.calls.append(args[0])
+            if args[0] == 'new':
+                self.pd.mkdir(exist_ok=True)
+            return []
+        job.vt = vt
+        job.fetch_input = lambda ctx, fid, dest, size, *a: Path(dest).write_text(json.dumps(meta() if fid == 'R2_x_m' else words_doc()))
+        job.save_state = lambda st: None
+        job.ensure_env = lambda *a, **k: None
+        job.inject_guard = lambda *a, **k: None
+        job.save_ck = lambda ctx, s, *a: self.cks.append(s)
+        files = {'m': {'id': 'R2_x_m', 'size': 10}, 'w': {'id': 'R2_x_w', 'size': 10}}
+        self.ctx = SimpleNamespace(name='jx', pdir=self.pd, st={'spec': {'ph': 1, 'pw': 1, 'eng': 'api', 'name': 'talk.mp4'}, 'files': files, 'kind': 'tr'},
+                                   report=lambda *a, **k: self.reports.append((a, k)), refresh=lambda: None)
+
+    def tearDown(self):
+        job.vt, job.fetch_input, job.save_state, job.VT_WORK, job.ensure_env, job.inject_guard, job.save_ck = self.o
+        self.tmp.cleanup()
+
+    def test_prepare_from_phone(self):
+        self.assertTrue(job.pw_mode(self.ctx.st))
+        self.assertFalse(job.pw_mode({'spec': {'pw': 1}}), 'רק בתרגום בטלפון')
+        self.assertEqual(job.prepare_pw(self.ctx), 0)
+        self.assertEqual(self.calls, ['new', 'edit-export'], 'בלי ingest, asr ו־shots — הכל מהטלפון')
+        asr = json.loads((self.pd / 'asr' / 'parakeet.json').read_text())
+        self.assertEqual(len(asr['words']), 3)
+        self.assertEqual(asr['words'][2]['spk'], 'S2')
+        m = json.loads((self.pd / 'media.json').read_text())
+        self.assertEqual(m['video']['width'], 1920)
+        self.assertEqual(len(json.loads((self.pd / 'shots.json').read_text())['shots']), 2)
+        self.assertEqual(self.ctx.st['src'], 'ph')
+        self.assertEqual(self.cks, ['asr'])
+
+    def test_prepare_bad_words(self):
+        job.fetch_input = lambda ctx, fid, dest, size, *a: Path(dest).write_text(json.dumps(meta() if fid == 'R2_x_m' else {'v': 1, 'words': []}))
+        with self.assertRaises(job.StepError) as e:
+            job.prepare_pw(self.ctx)
+        self.assertEqual(e.exception.err, 'ph_words')
+
+    def test_prepare_missing_files(self):
+        self.ctx.st['files'] = {'m': {'id': 'R2_x_m'}}
+        with self.assertRaises(job.StepError) as e:
+            job.prepare_pw(self.ctx)
+        self.assertEqual(e.exception.err, 'ph_words')
+
+    def test_aligned_from_phone_times(self):
+        self.pd.mkdir()
+        ws = [{'w': 'Hello', 's': 0.5, 'e': 0.9, 'spk': 'S1'}, {'w': 'there', 's': 0.9, 'e': 1.2, 'spk': 'S1', 'edited': True}]
+        (self.pd / 'en.words.json').write_text(json.dumps({'source': 'parakeet', 'words': ws}))
+        job.pw_aligned(self.ctx)
+        d = json.loads((self.pd / 'en.aligned.json').read_text())
+        self.assertEqual(d['words'], ws, 'הזמנים מהטלפון כמו שהם')
+        self.assertEqual((d['stats']['aligned'], d['stats']['kept_approx']), (1, 1))
+        self.assertIn('בטלפון', d['aligner'])
+
+    def test_align_run_skips_vt_align(self):
+        self.pd.mkdir()
+        (self.pd / 'en.words.json').write_text(json.dumps({'words': [{'w': 'a', 's': 0, 'e': 0.2}]}))
+        job.align_run(self.ctx)
+        self.assertEqual(self.calls, ['retime'], 'בלי vt align — רק retime מהזמנים של הטלפון')
+        self.assertTrue((self.pd / 'en.aligned.json').exists())
+
+
 class SameFileAsPhone(unittest.TestCase):
     """הקובץ שה־Kotlin מייצר (PhCoreTest משווה אליו) — מה שהעובד מקבל. ffprobe ו־scdet אמיתיים."""
     FX = Path(__file__).resolve().parents[2] / 'android/app/src/testStudio/resources/ph'

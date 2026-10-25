@@ -1508,13 +1508,14 @@ async function r2Files(deps, op, body, uid, folder, by) {
 /* רישום קובץ שעלה ל־R2 בעבודה (op:'file' מהטלפון, ו־r2bgDone מה־service worker): קיים, בתיקייה של העבודה, והסרטון /
    הכתוביות בגודל של המקור. משנה את job במקום. מחזיר {} או { code, error } */
 async function r2Register(deps, job, which, fid, now) {
-  const fkey = which === 's' ? 'fsu' : which === 'm' ? 'fph' : 'f' + which;   // m = קובץ המדידות מהטלפון (תרגום בטלפון)
+  const fkey = which === 's' ? 'fsu' : which === 'm' ? 'fph' : which === 'w' ? 'fpw' : 'f' + which;   // m = קובץ המדידות, w = המילים (תרגום בטלפון)
   const m = await driveFileInFolder(deps, job.uid, job.folder, fid);
   if (m && m.error) return { code: 200, error: m.error };
   const f = m && S.normFile({ id: fid, name: m.name || (which === 'v' ? 'video' : which === 's' ? 'subs' : 'audio'), size: m.size, mimeType: m.mime });
   if (!f) return { code: 400, error: 'file_bad' };
   if ((which === 'v' || which === 's') && job.spec && f.size !== job.spec.size) return { code: 400, error: 'file_size' };
   if (which === 'm' && f.size > S.PH_META_MAX) return { code: 400, error: 'file_size' };
+  if (which === 'w' && f.size > S.PH_WORDS_MAX) return { code: 400, error: 'file_size' };
   f.at = now;
   await patchJob(deps, job.id, { [fkey]: f, updated: now });
   job[fkey] = f;
@@ -1540,7 +1541,7 @@ async function phoneOp(req, res, body, deps) {
     const e = S.effState(job, now), op = body.op;
     if (op === 'phJob') {
       return res.status(200).json({ ok: true, now, job: { id, state: e.state, err: e.err, prog: job.prog || null, pb: job.spec.pb || '',
-        out: (Array.isArray(job.fo) ? job.fo : []).map((o) => ({ id: o.id, k: o.k, size: o.size })), a: !!job.fa, m: !!job.fph, pbn: S.normPbn(job.pbn, job.pbn && job.pbn.at) } });
+        out: (Array.isArray(job.fo) ? job.fo : []).map((o) => ({ id: o.id, k: o.k, size: o.size })), a: !!job.fa, m: !!job.fph, w: !!job.fpw, pbn: S.normPbn(job.pbn, job.pbn && job.pbn.at) } });
     }
     if (op === 'phGet') {
       const fid = String(body.id || '');
@@ -1562,7 +1563,8 @@ async function phoneOp(req, res, body, deps) {
       return res.status(code).json(Object.assign({ now }, out));
     }
     if (op === 'phFile') {
-      const which = body.which === 'a' || body.which === 'm' ? body.which : '';
+      const pw = !!(job.spec && job.spec.pw === 1);
+      const which = (pw ? body.which === 'w' : body.which === 'a') || body.which === 'm' ? body.which : '';   // שלב 2: בלי קול, עם המילים
       const fid = String(body.id || '');
       if (!which || !S.FILE_ID_RE.test(fid) || !SR.inFolder(fid, job.folder)) return res.status(400).json({ ok: false, error: 'bad_params' });
       const rg = await r2Register(deps, job, which, fid, now);
@@ -1571,7 +1573,7 @@ async function phoneOp(req, res, body, deps) {
     }
     // phStart: פעם אחת, אחרי שהקול נרשם — אותן בדיקות של התחלה מהדף (תחזוקה ודגלים, מתג החירום והחוקים, תקלה רחבה)
     if (e.state !== 'new') return res.status(200).json({ ok: true, state: e.state, now });   // כבר התחילה — לא שוב
-    if (!job.fa) return res.status(409).json({ ok: false, error: 'no_files' });
+    if (job.spec && job.spec.pw === 1 ? !(job.fpw && job.fph) : !job.fa) return res.status(409).json({ ok: false, error: 'no_files' });   // שלב 2: המילים והמדידות לפני ההתחלה
     const sbs = await sysBlock(deps, job, now, false, false);
     if (sbs) return res.status(409).json(Object.assign({ ok: false }, sbs));
     const stop = await ruleBlock(deps, job.uid, job, { ov: body.ov === true });   // ov — מה שאישרת בדף לפני המסירה לאפליקציה
@@ -2835,7 +2837,7 @@ async function handler(req, res, deps = {}) {
     if (op === 'start') {
       if (!['tr', 'rr', 'ai'].includes(job.kind) || st !== 'new') return res.status(409).json({ ok: false, error: 'state', job: view(job) });
       const subsJob = !!(job.spec && job.spec.src === 'subs');
-      if (job.kind === 'ai' ? !job.fq : subsJob ? !job.fsu : job.spec && job.spec.src === 'url' ? !SR.isFolder(job.folder) : job.spec && job.spec.ph === 1 ? !job.fa || !SR.isFolder(job.folder) : !job.fa && !job.fv || job.kind === 'rr' && !(job.fv && job.fc)) return res.status(409).json({ ok: false, error: 'no_files' });
+      if (job.kind === 'ai' ? !job.fq : subsJob ? !job.fsu : job.spec && job.spec.src === 'url' ? !SR.isFolder(job.folder) : job.spec && job.spec.ph === 1 ? (job.spec.pw === 1 ? !(job.fpw && job.fph) : !job.fa) || !SR.isFolder(job.folder) : !job.fa && !job.fv || job.kind === 'rr' && !(job.fv && job.fc)) return res.status(409).json({ ok: false, error: 'no_files' });
       if (job.kind === 'tr' && !S.langReady(job.spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported', job: view(job) });
       if (job.kind !== 'rr' && await modeLocked(job.spec && job.spec.mode)) return res.status(403).json({ ok: false, error: 'mode_locked', job: view(job) });   // גם עבודה שנוצרה לפני שהרשימה השתנתה / סט הזהב
       if (!S.WORKER_KINDS.includes(job.kind)) return res.status(200).json({ ok: false, error: 'worker_not_ready', job: view(job) });

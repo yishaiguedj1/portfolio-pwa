@@ -1042,6 +1042,7 @@ function errText(code, extra) {
     case 'store_net': return T('studioErrStoreNet');   // 11/10/2026: האחסון (R2 / Drive) — ניתוק / חסימה
     case 'store_fail': return T('studioErrStoreFail');
     case 'ph_meta': return T('studioErrPhMeta');   // 24/10/2026: תרגום בטלפון
+    case 'ph_words': return T('studioErrPhWords');   // 25/10/2026: שלב 2
     case 'cp_timeout': case 'cp_empty': return T('studioErrCp');   // סבב 10: העתק־הדבק — לא הודבקה תשובה
     case 'r2_needed': return T('studioLinkApiOnly');
     default:
@@ -4554,6 +4555,7 @@ function incTitle(e) {
     case 'store_fail': return T('studioErrStoreFail');   // 11/10/2026
     case 'upload_timeout': return T('studioIncUpload');
     case 'ph_meta': return T('studioErrPhMeta');
+    case 'ph_words': return T('studioErrPhWords');
     case 'lang_unsupported': return T('studioIncLang');
     case 'max_tokens': return T('studioIncMaxTok');
     default: return /^routine_/.test(e) ? T('studioIncRDown') : T('studioIncWorker');

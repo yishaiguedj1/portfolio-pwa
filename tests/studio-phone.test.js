@@ -171,6 +171,48 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(j.job.pbn.s === 'done' && j.job.pbn.sz === 4e8 && (await ph2('phJob', {})).job.pbn.s === 'done', 'הדף והאפליקציה רואים את אותו מצב צריבה');
   ok((await ph2('phJob', { pad: 'x'.repeat(5000) })).error === 'too_large', 'גוף מעל 4KB — נדחה');
 
+  /* ---------- 5ב. שלב 2 (25/10/2026): גם התמלול והיישור בטלפון — המילים והמדידות, בלי קול ---------- */
+  sp = S.normSpec(Object.assign({}, base, { ph: 1, pw: 1 }));
+  ok(sp.ph === 1 && sp.pw === 1, 'pw נשמר רק עם ph');
+  ok(!('pw' in S.normSpec(Object.assign({}, base, { pw: 1 }))), 'pw בלי ph — לא נשמר');
+  ok(S.JSON_FIELDS.includes('fpw'), 'fpw נשמר כ־JSON');
+  const j3 = await api('create', { spec: Object.assign({}, base, { ph: 1, pw: 1 }) });
+  ok(j3.ok && j3.job.spec.pw === 1 && j3.job.files.w === null, 'עבודה בשלב 2 נוצרת (files.w)');
+  const PJ3 = j3.job.id, PK3 = (await api('phKey', { job: PJ3 })).key;
+  const ph3 = (op, b) => call(Object.assign({ op, job: PJ3, key: PK3 }, b), true).then((x) => x.j);
+  const up3 = async (buf, name) => { const x = await ph3('phUp', { size: buf.length, type: 'application/json', name }); await R.fetch(x.urls[1], { method: 'PUT', body: buf }); await ph3('phDone', { id: x.id, up: x.up }); return x.id; };
+  const aud3 = await up3(crypto.randomBytes(2000), 'talk.audio.mka');
+  ok((await ph3('phFile', { which: 'a', id: aud3 })).error === 'bad_params', 'בשלב 2 הקול לא נרשם לעולם');
+  const words = Buffer.from(JSON.stringify({ v: 1, words: [{ w: 'Hello', s: 0.5, e: 0.9, spk: 'S1' }] }));
+  const wid = await up3(words, 'talk.words.json');
+  ok((await ph3('phFile', { which: 'w', id: wid })).ok, 'המילים נרשמו (w)');
+  ok((await ph3('phStart', {})).error === 'no_files', 'בלי המדידות — לא מתחילים');
+  const mid3 = await up3(meta, 'talk.phone.json');
+  ok((await ph3('phFile', { which: 'm', id: mid3 })).ok, 'המדידות נרשמו');
+  ok((await ph3('phJob', {})).job.w === true, 'הטלפון רואה שהמילים נרשמו');
+  j = await ph3('phStart', {});
+  ok(j.ok && j.state === 'queued', 'המילים והמדידות — מתחילים');
+  const f3 = db.get('studioJobs/' + PJ3).fields;
+  ok(f3.fpw && f3.fph && !f3.fa, 'במסמך: fpw ו־fph, בלי קול');
+  Object.assign(f3, { kh: { stringValue: crypto.createHash('sha256').update(KEY).digest('hex') }, kx: { integerValue: String(R.now + 3600e3) }, state: { stringValue: 'running' } });
+  j = await call({ op: 'claim', job: PJ3, key: KEY }, true).then((x) => x.j);
+  ok(j.ok && j.job.files.w && j.job.files.w.id === wid && j.job.files.m.id === mid3 && !j.job.files.a && j.job.spec.pw === 1, 'בלקיחה: המילים והמדידות, בלי קול ובלי סרטון');
+  const j5 = await api('create', { spec: Object.assign({}, base, { ph: 1 }) });
+  const PK5 = (await api('phKey', { job: j5.job.id })).key;
+  const w1 = await call({ op: 'phFile', job: j5.job.id, key: PK5, which: 'w', id: SR.newId(j5.job.folder) }, true).then((x) => x.j);
+  ok(w1.error === 'bad_params', 'בעבודה של שלב 1 — w לא נרשם');
+  const j4 = await api('create', { spec: Object.assign({}, base, { ph: 1, pw: 1 }) });
+  const PK4 = (await api('phKey', { job: j4.job.id })).key;
+  const ph4 = (op, b) => call(Object.assign({ op, job: j4.job.id, key: PK4 }, b), true).then((x) => x.j);
+  const big = await (async () => {
+    const n = S.PH_WORDS_MAX + 10, x = await ph4('phUp', { size: n, type: 'application/json', name: 'w.json' });
+    for (const [k, url] of Object.entries(x.urls)) { const i = +k; await R.fetch(url, { method: 'PUT', body: Buffer.alloc(Math.min(x.ps, n - (i - 1) * x.ps)) }); }
+    await ph4('phDone', { id: x.id, up: x.up });
+    return x.id;
+  })();
+  const bg4 = await ph4('phFile', { which: 'w', id: big });
+  ok(bg4.error === 'file_size', 'מילים מעל התקרה — נדחה: ' + JSON.stringify(bg4));
+
   /* ---------- 6. תור: עבודת טלפון שחזרה לתור מחכה למדידות, לא לסרטון ---------- */
   const api_src = require('fs').readFileSync(path.join(root, 'ibkr-proxy/api/studio.js'), 'utf8');
   ok(/job\.vw && !\(\(job\.spec && job\.spec\.ph === 1 \? job\.fph : job\.fv\)/.test(api_src), 'השרת לוקח עבודת טלפון שחזרה לתור רק כשהמדידות נרשמו');
