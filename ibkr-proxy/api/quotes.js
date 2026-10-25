@@ -160,3 +160,4 @@ module.exports._cache = cache;
 module.exports._setCrumb = (c) => { crumbState = c; };
 module.exports._fetchChart = fetchChart; // v211: /api/widget משתמש באותה משיכה
 module.exports._fetchExt = fetchExt;
+module.exports._getCrumb = getCrumb; // 25/10/2026: lib/fundamentals.js (quoteSummary — פרופיל ואומדנים)

@@ -822,11 +822,15 @@ def learn_facts(ctx):
         pass
     pd = ctx.pdir
     # 20/10/2026: מה שקובע כמה זמן לוקחים הצריבה ואיכויות הצפייה — רזולוציה, קצב פריימים וקצב הווידאו (מספרים בלבד)
-    mv = (_read_json(pd / 'media.json') or {}).get('video') or {}
+    media = _read_json(pd / 'media.json') or {}
+    mv = media.get('video') or {}
     vid = {k: mv.get(src) for k, src in (('w', 'width'), ('h', 'height'), ('fps', 'fps_float'), ('kb', 'bitrate'))}
     vid = {k: (round(v / 1000) if k == 'kb' else v) for k, v in vid.items() if _num_ok(v) and v > 0}
     if vid:
         out['vid'] = vid
+    md = learn_media_facts(media)
+    if md:
+        out['md'] = md
     ps = {}
     meta = _read_json(pd / 'project.json') or {}
     for stg, info in (meta.get('stages') or {}).items():
@@ -890,6 +894,8 @@ def learn_facts(ctx):
             out['gl'] = {'n': len(rows), 'u': len([x for x in mine.splitlines() if x.strip() and not x.startswith('#')])}
         except OSError:
             pass
+        if ctx.st.get('gls') in GL_SRC:                  # 25/10/2026: מאיפה המילון שלך הגיע (0 אין · 1 R2 · 2 Drive · 3 לא נטען)
+            out.setdefault('gl', {})['ld'] = GL_SRC[ctx.st['gls']]
     en = ctx.st.get('eng_facts')
     if isinstance(en, dict):
         x = {k: v for k, v in en.items() if _LX_KEY.match(str(k)) and _num_ok(v)}
@@ -908,6 +914,25 @@ def learn_facts(ctx):
     if mx:
         out['mx'] = mx
     return out
+
+
+def learn_media_facts(media):
+    """25/10/2026 (מיפוי האיסוף של session_01UZAW): השרתון קיבל `md` ואף אחד לא שלח אותו. מה שבקובץ ולא ב־`vid` — רק
+    מספרים: הקול (קצב דגימה, ערוצים, קצב), כמה רצועות קול וכתוביות, VFR, HDR, גודל ואורך. בלי שמות קודקים, שפות או כותרות"""
+    if not isinstance(media, dict):
+        return None
+    ma = media.get('audio') or {}
+    st = [x for x in (media.get('streams') or []) if isinstance(x, dict)]
+    mv = media.get('video') or {}
+    md = {'ar': ma.get('sample_rate'), 'ac': ma.get('channels'),
+          'ak': round(ma['bitrate'] / 1000) if _num_ok(ma.get('bitrate')) else None,
+          'na': len([x for x in st if x.get('type') == 'audio']), 'ns': len([x for x in st if x.get('type') == 'subtitle']),
+          'vfr': 1 if mv.get('vfr') else 0,
+          'hdr': 1 if str(mv.get('color_transfer') or '') in ('smpte2084', 'arib-std-b67') else 0,
+          'mb': round(media['size'] / 1048576) if _num_ok(media.get('size')) else None,
+          'du': round(media['duration']) if _num_ok(media.get('duration')) else None}
+    md = {k: v for k, v in md.items() if _num_ok(v) and v >= 0}
+    return md if any(md.get(k) for k in ('ar', 'ac', 'na', 'mb', 'du')) else None
 
 
 def learn_metrics(ctx):
@@ -2865,26 +2890,45 @@ def gl_rows(v):
     return gl_parse('\n'.join('\t'.join(str(x) for x in r[:3]) for r in v[:GL_MAX] if isinstance(r, (list, tuple))))
 
 
+GL_SRC = {'none': 0, 'r2': 1, 'drive': 2, 'err': 3}   # 25/10/2026: מאיפה המילון — לרשומה במאגר (out['gl']['ld'])
+
+
 def gl_load(ctx):
-    """המילון של המשתמש: מ־R2 (הגיע בלקיחה), אחרת מ־Drive. None = לא הצלחנו לקרוא (לא עוצרים בגלל זה עבודה); [] = אין מילון."""
+    """המילון של המשתמש: מ־R2 (הגיע בלקיחה), אחרת מ־Drive. None = לא הצלחנו לקרוא (לא עוצרים בגלל זה עבודה); [] = אין מילון.
+    25/10/2026 (מיפוי האיסוף של session_01UZAW): בלי חיבור ל־Drive בכלל (משתמש חדש, עבודה ב־R2) = אין מילון — לא "לא נטען".
+    עד היום ctx.token() שנכשל החזיר None, וההודעה "המילון שלך לא נטען מ־Drive" הופיעה אצל מי שאין לו מילון. המקור — ctx.st['gls']"""
     got = gl_rows(ctx.st.get('gl'))
     if got is not None:
+        ctx.st['gls'] = 'r2' if got else 'none'
         return got
     try:
-        q = "appProperties has { key='snbGloss' and value='1' } and trashed=false"
         auth = {'Authorization': 'Bearer ' + ctx.token()}
+    except (SystemExit, Exception) as e:   # noqa: BLE001
+        if 'אין גישה ל־Drive' in str(e):     # Drive לא מחובר = אין מילון שם; תקלה אחרת (רשת) = "לא נטען" כמו קודם
+            ctx.st['gls'] = 'none'
+            return []
+        ctx.st['gls'] = 'err'
+        return None
+    try:
+        q = "appProperties has { key='snbGloss' and value='1' } and trashed=false"
         st, j, _ = http('GET', ctx.api + '/files?q=' + urllib.parse.quote(q) + '&fields=files(id,size)&pageSize=3&spaces=drive', headers=auth)
         if st != 200:
+            ctx.st['gls'] = 'err'
             return None
         files = j.get('files') or []
         if not files:
+            ctx.st['gls'] = 'none'
             return []
         if int(files[0].get('size') or 0) > GL_BYTES:
+            ctx.st['gls'] = 'err'
             return None
         req = urllib.request.Request(ctx.api + '/files/' + files[0]['id'] + '?alt=media', headers=dict(auth, **{'User-Agent': UA}))
         with urllib.request.urlopen(req, timeout=30) as r:
-            return gl_parse(r.read(GL_BYTES).decode('utf-8', 'replace'))
-    except (SystemExit, Exception):   # noqa: BLE001 — מילון שלא נטען לא מפיל עבודה (גם "אין גישה ל־Drive" מ־ctx.token(), 15/10/2026)
+            rows = gl_parse(r.read(GL_BYTES).decode('utf-8', 'replace'))
+        ctx.st['gls'] = 'drive' if rows else 'none'
+        return rows
+    except (SystemExit, Exception):   # noqa: BLE001 — מילון שלא נטען לא מפיל עבודה
+        ctx.st['gls'] = 'err'
         return None
 
 

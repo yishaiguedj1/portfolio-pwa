@@ -56,7 +56,7 @@ ok(!/<script[^>]+library\.js/.test(html), 'library.js לא נטען בפתיחת
 // כל מחרוזת גלויה בעברית ובאנגלית
 const keys = [...new Set([...lib.matchAll(/\bT\('([A-Za-z0-9]+)'/g)].map((m) => m[1]))];
 const heBlock = app.slice(app.indexOf('const STRINGS'), app.indexOf('\nen: {'));
-const enBlock = app.slice(app.indexOf('\nen: {'), app.indexOf('\nen: {') + 200000);
+const enBlock = app.slice(app.indexOf('\nen: {'), app.indexOf('\n};', app.indexOf('\nen: {'))); // עד סוף STRINGS (חלון קבוע נשבר כשהטבלה גדלה)
 const missing = keys.filter((k) => !new RegExp('\\b' + k + ':').test(heBlock) || !new RegExp('\\b' + k + ':').test(enBlock));
 ok(keys.length > 30 && !missing.length, 'כל ' + keys.length + ' המחרוזות של הספרייה קיימות בעברית ובאנגלית' + (missing.length ? ' (חסר: ' + missing + ')' : ''));
 

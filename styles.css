@@ -844,6 +844,8 @@ html.drag-active .tabpage { transform: none !important; }   /* v324: בלי anim
 .stock-body .edit-actions.stock-edit { flex: none; margin: 0; margin-inline-start: auto; padding: 0; }
 .stock-body .edit-actions .chip-btn { padding-block: 6px; font-size: 13.5px; white-space: nowrap; }
 .stock-foot .stock-edit .chip-btn { padding: 5px 12px; font-size: 13px; gap: 5px; }
+.stock-foot .stock-edit { display: flex; gap: 6px; }
+.stock-foot .an-open-btn svg { width: 15px; height: 15px; flex: none; } /* 25/10/2026: כפתור מנתח החברות */
 
 .chart-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .ranges { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; flex: 1; }
