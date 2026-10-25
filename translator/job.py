@@ -4689,6 +4689,25 @@ def restore(args):
     return 0
 
 
+VAL_OPTS = ('--job', '--key')
+
+
+def join_vals(argv):
+    """25/10/2026: המפתח (`newKey`) הוא base64url — בערך פעם ב־64 הוא מתחיל ב־'-', ו־argparse קורא אותו כדגל
+    ("expected one argument"): העבודה נכשלת לפני שהתחילה, בשרת, בטלפון וב־Routine. '--key X' → '--key=X'."""
+    out, i = [], 0
+    argv = list(argv)
+    while i < len(argv):
+        x = argv[i]
+        if x in VAL_OPTS and i + 1 < len(argv):
+            out.append(x + '=' + argv[i + 1])
+            i += 2
+            continue
+        out.append(x)
+        i += 1
+    return out
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description='העובד בענן של סטודיו התרגום')
     sub = p.add_subparsers(dest='cmd', required=True)
@@ -4738,7 +4757,7 @@ def main(argv=None):
     w.add_argument('--max', type=int, default=6600)
     v = sub.add_parser('vt', help='פקודת vt על הפרויקט של העבודה')
     v.add_argument('rest', nargs=argparse.REMAINDER)
-    a = p.parse_args(argv)
+    a = p.parse_args(join_vals(sys.argv[1:] if argv is None else argv))
     if a.cmd != 'run':
         return {'prepare': prepare, 'align': align, 'stage': stage, 'finish': finish, 'fail': fail, 'ask': ask, 'vt': vt_cmd,
                 'save': save, 'restore': restore, 'fix': fix, 'pir': pir, 'gate': gate_cmd, 'auto': auto_cmd, 'go': go, 'wait': wait_cmd, 'relay-loop': relay_loop,

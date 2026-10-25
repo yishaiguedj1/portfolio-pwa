@@ -168,7 +168,7 @@ function ok(c, name) { n++; if (!c) { console.error('FAIL - ' + name); process.e
     let out = ''; p.stdout.on('data', (c) => { out += c; }); p.stderr.on('data', (c) => { out += c; });
     p.on('exit', (code) => d({ code, out }));
   });
-  let r = await run(['run', '--job', JOB, '--key=' + cl.job.key, '--server', BASE]);
+  let r = await run(['run', '--job', JOB, '--key', cl.job.key, '--server', BASE]);
   if (r.code !== 0) console.error(r.out);
   ok(r.code === 0, 'job.py run (פייתון בלי ספריות)');
   const t0 = Date.now();
