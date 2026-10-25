@@ -117,7 +117,7 @@ class SileroVad(file: File, threads: Int = 1) : Closeable {
 class AWord(var w: String, var s: Double, var e: Double)
 
 object AsrWords {
-    const val HOLE_S = 1.2; const val HOLE_PAD = 2.0; const val WORD_S = 0.6; const val QUIET_S = 2.5; const val PIECE_S = 28.0
+    const val HOLE_S = 0.9; const val HOLE_PAD = 2.0; const val WORD_S = 0.6; const val QUIET_S = 1.8; const val PIECE_S = 28.0
 
     /** _chunks: חלונות של עד maxS, חיתוך רק בשתיקות, ריפוד pad דגימות לכל צד בתוך השתיקה */
     fun chunks(segs: List<Pair<Int, Int>>, n: Int, sr: Int = 16000, maxS: Double = 40.0, pad: Int = 0): List<Pair<Int, Int>> {
