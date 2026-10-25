@@ -188,7 +188,7 @@ function appsView(f) {
 }
 
 /* משתמשים והרשאות (15/10/2026, מסך 3 בתוכנית 5א): מי מורשה לאן. רק למנהל — כאן כן יש מיילים (זה כל העניין), אבל לא uid.
-   f = { admins, acEnv (LIBRARY_READERS), acApp ([{email, at}] מ־academy/config), acErr, stEnv (STUDIO_USERS), am (sysCfg.amEm),
+   f = { admins, acEnv (LIBRARY_READERS), acApp ([{email, at}] מ־academy/config), acErr, stEnv (STUDIO_USERS), am (sysCfg.amEm), ts (sysCfg.tsEm),
    ibEnv (IBKR_SYNC_USERS), counts: { ibkr, lib, studio } }. "*" ברשימת הקוראים = פתוח לכל מחובר (לא מייל) */
 const EM_RE = /^[^\s@,;]{1,64}@[^\s@,;]{1,190}\.[a-z]{2,24}$/i;
 function emList(l) { return Array.from(new Set((l || []).map((x) => String(x || '').trim().toLowerCase()).filter((x) => EM_RE.test(x)))).slice(0, 500); }
@@ -201,7 +201,7 @@ function usersView(f) {
   return { v: 1,
     admins: emList(f.admins),
     ac: { open: raw.includes('*'), env: emList(raw), app, store: f.acApp == null ? 'none' : f.acErr ? 'no_access' : 'ok', backup: num(c.lib) },
-    st: { env: emList(f.stEnv), am: emList(f.am), conn: num(c.studio) },
+    st: { env: emList(f.stEnv), am: emList(f.am), ts: emList(f.ts), conn: num(c.studio) },
     ib: { env: emList(f.ibEnv), on: num(c.ibkr) } };
 }
 
@@ -281,7 +281,7 @@ function laneView(prs, waiting) {
 
 /* יומן פעולות (15/10/2026, מסך 6 בתוכנית 5א): כל שינוי שהמנהל עושה ממרכז הניהול נרשם ב־sysLog — מה, מי (מייל), מתי, ופרט קצר.
    סוגים רק מהקטלוג (בלי טקסט חופשי בסוג), הפרט מנוקה (noteClean, עד 120). נשמר LOG_DAYS ימים */
-const LOG_KINDS = ['srv_pause', 'srv_resume', 'srv_del', 'an_on', 'an_off', 'fb_done', 'fb_del', 'mt_on', 'mt_upd', 'mt_off', 'fl_on', 'fl_off', 'am_add', 'am_del', 'ac_add', 'ac_del', 'ck_ok', 'ck_no', 'ck_clr'];
+const LOG_KINDS = ['srv_pause', 'srv_resume', 'srv_del', 'an_on', 'an_off', 'fb_done', 'fb_del', 'mt_on', 'mt_upd', 'mt_off', 'fl_on', 'fl_off', 'am_add', 'am_del', 'ts_add', 'ts_del', 'ac_add', 'ac_del', 'ck_ok', 'ck_no', 'ck_clr'];
 const LOG_DAYS = 90, LOG_SHOW = 200;
 function logEntry(k, d, who, now) {
   if (!LOG_KINDS.includes(k)) return null;
@@ -295,6 +295,7 @@ function cfgLogKind(set, before, now) {
   if (set.mt && typeof set.mt === 'object') return set.mt.on === true ? [before && before.mtOn && (!before.mtTil || before.mtTil > now) ? 'mt_upd' : 'mt_on', set.mt.msg] : ['mt_off', ''];
   if (typeof set.flag === 'string' && typeof set.on === 'boolean') return [set.on ? 'fl_on' : 'fl_off', set.flag];
   if (typeof set.am === 'string' && typeof set.on === 'boolean') return [set.on ? 'am_add' : 'am_del', set.am.trim().toLowerCase()];
+  if (typeof set.ts === 'string' && typeof set.on === 'boolean') return [set.on ? 'ts_add' : 'ts_del', set.ts.trim().toLowerCase()];
   return null;
 }
 function logView(list, now, me) {

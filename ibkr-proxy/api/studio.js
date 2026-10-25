@@ -2115,7 +2115,11 @@ async function handler(req, res, deps = {}) {
   }
   // 15/10/2026: מי שברשימת "כל המודלים" במרכז הניהול מקבל גם את הסטודיו (בלי לחכות לפתיחה לכולם / ל־STUDIO_USERS)
   // 22/10/2026: טוקן הניטור (mon) עובר רק ל־adminMon (נאכף למעלה) — בלי זהות אין רשימת הרשאות לבדוק
-  if (user.mon !== true && !allowed(user) && !SF.amHas(await sysCfg(deps, deps.now || Date.now()), user)) return res.status(403).json({ ok: false, error: 'not_allowed' });
+  // 25/10/2026: חשבונות הבדיקה (sysCfg.tsEm, מרכז הניהול) — גישה כמו משתמש רגיל, בלי המצבים הנעולים ובלי המגדל המורחב
+  if (user.mon !== true && !allowed(user)) {
+    const sc = await sysCfg(deps, deps.now || Date.now());
+    if (!SF.amHas(sc, user) && !SF.tsHas(sc, user)) return res.status(403).json({ ok: false, error: 'not_allowed' });
+  }
   if (limited('p|' + user.uid, 120)) return res.status(429).json({ ok: false, error: 'rate_limited' });
   if (body.op === 'devErr') return res.status(200).json({ ok: true, saved: await devErr(deps, user, body, deps.now || Date.now()) });   // שגיאות מהטלפון (האיסוף המלא)
   if (!vault.configured()) return res.status(503).json({ ok: false, error: 'vault_not_configured' });
@@ -2304,7 +2308,7 @@ async function handler(req, res, deps = {}) {
       }, now);
       return res.status(200).json({ ok: true, users: AO.usersView({ admins: admins.length ? admins : emails(process.env.LIBRARY_READERS).slice(0, 1),
         acEnv: String(process.env.LIBRARY_READERS || '').split(/[\s,;]+/), acApp: cur ? cur.list : null, acErr: cur ? cur.err : 'x',
-        stEnv: emails(process.env.STUDIO_USERS), am: SF.amList(await sysCfg(deps, now)), ibEnv: emails(process.env.IBKR_SYNC_USERS), counts }) });
+        stEnv: emails(process.env.STUDIO_USERS), am: SF.amList(await sysCfg(deps, now)), ts: SF.tsList(await sysCfg(deps, now)), ibEnv: emails(process.env.IBKR_SYNC_USERS), counts }) });
     }
     if (op === 'monTok') {
       // 22/10/2026: טוקן קריאה לווידג׳ט הניטור — רק מהמנהל. מוצג פעם אחת; השרתון שומר רק hash. ביטול = מחיקת ה-hash

@@ -6,6 +6,8 @@
      flOff — רשימה מופרדת בפסיקים של הדגלים שכבויים (כל דגל שלא ברשימה — דולק; דגל חדש דולק כברירת מחדל)
      amEm — מי מקבל את כל מצבי התרגום (15/10/2026, בקשת המשתמש): מיילים מופרדים בפסיקים, אותיות קטנות. לכולם — רק
      PUBLIC_MODES (lib/studio.js); המנהל ומי שברשימה — כל המצבים. נאכף ב־api/studio.js (modeOk). לא יוצא ב־publicCfg
+     tsEm — חשבונות הבדיקה של הסטודיו (25/10/2026, בקשת המשתמש): גישה לסטודיו כמו משתמש רגיל — "רגיל"/"ביצועים", "המנוי שלי"
+     והשרת; בלי המצבים הנעולים ובלי המגדל המורחב (אלה רק למנהל / amEm). = STUDIO_USERS, אבל בלי לערוך משתנים ב־Vercel
    מה שמוצג במסך הדגלים חייב להיות נאכף בקוד — לכל דגל המקום שבו הוא נבדק (where). דגל חדש = כאן + האכיפה + מחרוזות. */
 
 const FLAGS = [
@@ -27,6 +29,10 @@ const normEmail = (s) => { const e = String(s == null ? '' : s).trim().toLowerCa
 const amList = (doc) => Array.from(new Set(String((doc && doc.amEm) || '').split(',').map(normEmail).filter(Boolean))).slice(0, AM_MAX);
 /* מי שברשימה — רק עם מייל מאומת (כמו STUDIO_USERS) */
 const amHas = (doc, user) => !!(user && user.verified && user.email && amList(doc).includes(String(user.email).toLowerCase()));
+
+const TS_MAX = 100;   // חשבונות בדיקה
+const tsList = (doc) => Array.from(new Set(String((doc && doc.tsEm) || '').split(',').map(normEmail).filter(Boolean))).slice(0, TS_MAX);
+const tsHas = (doc, user) => !!(user && user.verified && user.email && tsList(doc).includes(String(user.email).toLowerCase()));
 
 /* הודעה למשתמשים: טקסט בלבד, שורה אחת, בלי קישורים ובלי תגיות */
 function normMsg(s) {
@@ -63,10 +69,10 @@ function publicCfg(doc, now) {
 /* למנהל: הכל, כולל מתי הודלק */
 function adminCfg(doc, now) {
   return Object.assign(publicCfg(doc, now), { mt: { on: +((doc && doc.mtOn) || 0) === 1, msg: normMsg(doc && doc.mtMsg), til: +((doc && doc.mtTil) || 0), at: +((doc && doc.mtAt) || 0) },
-    flags: FLAGS.map((x) => ({ k: x.k, app: x.app, on: !offSet(doc).has(x.k) })), am: amList(doc),
+    flags: FLAGS.map((x) => ({ k: x.k, app: x.app, on: !offSet(doc).has(x.k) })), am: amList(doc), ts: tsList(doc),
     anD: { t: normAn(doc && doc.anT, AN_T_MAX), b: normAn(doc && doc.anB, AN_B_MAX), apps: anApps(doc && doc.anApps), til: +((doc && doc.anTil) || 0), on: +((doc && doc.anId) || 0) > 0 } });
 }
-/* שינוי מהמנהל → השדות לכתיבה (או null — לא תקין). b = { mt: {on, msg, til} } או { flag: k, on } או { am: מייל, on } */
+/* שינוי מהמנהל → השדות לכתיבה (או null — לא תקין). b = { mt: {on, msg, til} } או { flag: k, on } או { am: מייל, on } או { ts: מייל, on } */
 function applyAdmin(doc, b, now) {
   if (b && b.mt && typeof b.mt === 'object') {
     const on = b.mt.on === true;
@@ -92,7 +98,14 @@ function applyAdmin(doc, b, now) {
     if (b.on) { if (l.length >= AM_MAX) return null; l.push(e); }
     return { amEm: l.join(',') };
   }
+  if (b && typeof b.ts === 'string' && typeof b.on === 'boolean') {   // חשבונות בדיקה
+    const e = normEmail(b.ts);
+    if (!e) return null;
+    const l = tsList(doc).filter((x) => x !== e);
+    if (b.on) { if (l.length >= TS_MAX) return null; l.push(e); }
+    return { tsEm: l.join(',') };
+  }
   return null;
 }
 
-module.exports = { AN_APPS, anView, normAn, FLAGS, KEYS, MSG_MAX, TIL_MAX, AM_MAX, normMsg, normEmail, maintOn, flagOn, publicCfg, adminCfg, applyAdmin, amList, amHas };
+module.exports = { AN_APPS, anView, normAn, FLAGS, KEYS, MSG_MAX, TIL_MAX, AM_MAX, normMsg, normEmail, maintOn, flagOn, publicCfg, adminCfg, applyAdmin, amList, amHas, TS_MAX, tsList, tsHas };

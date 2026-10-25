@@ -293,7 +293,8 @@ page('sys', { tab: 'sys', title: () => t('admTabSys'), render(p) {
   p.append(grp(t('admSecCtl')), list(
     row({ c: mOn ? 'red' : 'gray', ic: '⏻', t: t('admMaint'), s: !cf ? t('admLoading') : mOn ? t('admMaintOn') + (cf.m.msg ? ' · ' + cf.m.msg : '') : t('admMaintOffS'), badge: mOn ? 1 : 0, on: () => go('maint') }),
     row({ c: nOff ? 'orange' : 'green', ic: '⚙', t: t('admCfg'), s: !cf ? t('admLoading') : nOff ? fmt(t('admFlagsOffN'), { n: nOff }) : t('admFlagsAll'), on: () => go('flags') }),
-    row({ c: 'studio', ic: '✦', t: t('admModels'), s: !cf ? t('admLoading') : cf.am && cf.am.length ? fmt(t('admModelsN'), { n: cf.am.length }) : t('admModelsMe'), on: () => go('models') })));
+    row({ c: 'studio', ic: '✦', t: t('admModels'), s: !cf ? t('admLoading') : cf.am && cf.am.length ? fmt(t('admModelsN'), { n: cf.am.length }) : t('admModelsMe'), on: () => go('models') }),
+    row({ c: 'studio', ic: '◎', t: t('admTesters'), s: !cf ? t('admLoading') : cf.ts && cf.ts.length ? fmt(t('admTestersN'), { n: cf.ts.length }) : t('admTestersNone'), on: () => go('testers') })));
   if (!D.log) needLog();
   if (!D.sec) needSec();
   if (!D.bk) needBk();
@@ -347,6 +348,7 @@ page('users', { tab: 'apps', parent: 'apps', title: () => t('admUsersT'), render
   p.append(grp('Studio'), list(
     row({ c: 'studio', ic: '▶', t: t('admUsStEnv'), s: U.st.env.length ? U.st.env.join(' · ') : t('admUsNone'), v: U.st.env.length || '', tr: U.st.env.length ? env : '' }),
     row({ c: 'studio', ic: '✦', t: t('admModels'), s: U.st.am.length ? U.st.am.join(' · ') : t('admModelsMe'), v: U.st.am.length || '', on: () => go('models') }),
+    row({ c: 'studio', ic: '◎', t: t('admTesters'), s: (U.st.ts || []).length ? U.st.ts.join(' · ') : t('admTestersNone'), v: (U.st.ts || []).length || '', on: () => go('testers') }),
     U.st.conn != null ? row({ c: 'gray', ic: '☁', t: t('admUsStConn'), v: U.st.conn }) : null));
   // IBKR: הסנכרון ברקע — המנהל + IBKR_SYNC_USERS
   p.append(grp(t('admUsIb')), list(
@@ -366,6 +368,7 @@ function logRow(x) {
     mt_on: ['red', '⏻', t('admLgMtOn'), d], mt_upd: ['orange', '⏻', t('admLgMtUpd'), d], mt_off: ['green', '⏻', t('admLgMtOff'), ''],
     fl_on: ['green', '⚙', fmt(t('admLgFlOn'), { n: FLN(d) }), ''], fl_off: ['orange', '⚙', fmt(t('admLgFlOff'), { n: FLN(d) }), ''],
     am_add: ['studio', '✦', t('admLgAmAdd'), d], am_del: ['gray', '✦', t('admLgAmDel'), d],
+    ts_add: ['studio', '◎', t('admLgTsAdd'), d], ts_del: ['gray', '◎', t('admLgTsDel'), d],
     ac_add: ['academy', '▤', t('admLgAcAdd'), d], ac_del: ['gray', '▤', t('admLgAcDel'), d],
     srv_pause: ['orange', '☁', t('admLgSrvPause'), d], srv_resume: ['green', '☁', t('admLgSrvResume'), d], srv_del: ['red', '☁', t('admLgSrvDel'), d],
     an_on: ['purple', '📣', t('admLgAnOn'), d], an_off: ['gray', '📣', t('admLgAnOff'), ''], fb_done: ['green', '✉', t('admLgFbDone'), ''], fb_del: ['gray', '✉', t('admLgFbDel'), ''],
@@ -815,7 +818,7 @@ page('backups', { tab: 'sys', parent: 'sys', title: () => t('admBkT'), render(p)
 async function needCfg(set) {
   const r = await api('adminCfg', set ? { set } : {});
   if (set) { D.users = null; D.log = null; }   // הרשימה של "כל המודלים" מוצגת גם במשתמשים
-  if (r.ok) { D.cfg = r.cfg; if (['maint', 'flags', 'models', 'sys', 'news', 'apps'].includes(cur)) paint(); }
+  if (r.ok) { D.cfg = r.cfg; if (['maint', 'flags', 'models', 'testers', 'sys', 'news', 'apps'].includes(cur)) paint(); }
   return r;
 }
 const clock = (ms) => new Date(ms).toLocaleTimeString(lang === 'he' ? 'he-IL' : 'en-GB', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit' });
@@ -876,33 +879,40 @@ page('flags', { tab: 'sys', parent: 'sys', title: () => t('admCfg'), render(p) {
 } });
 /* 15/10/2026 (בקשת המשתמש): מצבי התרגום בסטודיו — לכולם "רגיל" (Haiku High) ו"ביצועים" (Sonnet Medium); כאן — מי מקבל את
    כל המודלים (גם Sonnet Low/High ו־Opus). המנהל תמיד. השרתון אוכף (modeOk ב־api/studio.js), וגם פותח לרשימה את הסטודיו */
-page('models', { tab: 'sys', parent: 'sys', title: () => t('admModels'), render(p) {
+/* רשימת מיילים במרכז הניהול (sysCfg): "כל המודלים" (am) וחשבונות הבדיקה (ts, 25/10/2026) — אותו מסך, מפתח אחר */
+function emListPage(p, k, L) {
   const cf = D.cfg;
   if (!cf) { needCfg(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
   const card = h('section', 'card adm-card');
-  card.append(h('p', 'adm-sub', t('admModelsSub')));
+  card.append(h('p', 'adm-sub', L.sub));
   const inp = h('input', 'adm-search'); inp.type = 'email'; inp.placeholder = t('admModelsPh'); inp.setAttribute('aria-label', t('admModelsPh')); inp.dir = 'ltr'; inp.autocomplete = 'off';
   const add = h('button', 'btn', t('admModelsAdd')); add.type = 'button';
   const doAdd = async () => {
     const e = inp.value.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) { flash(t('admModelsBad')); return; }
-    add.disabled = true; const r = await needCfg({ am: e, on: true }); add.disabled = false;
+    add.disabled = true; const r = await needCfg({ [k]: e, on: true }); add.disabled = false;
     flash(r.ok ? t('admSaved') : t('admErr'));
   };
   add.addEventListener('click', doAdd);
   inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') doAdd(); });
   const br = h('div', 'btn-row'); br.append(add);
   card.append(inp, br);
-  const rows = [h('div', 'ios-row adm-dim', t('admModelsMeRow'))].concat((cf.am || []).map((e) => {
+  const rows = [h('div', 'ios-row adm-dim', L.me)].concat((cf[k] || []).map((e) => {
     const r = h('div', 'ios-row adm-trow');
     const tx = h('span', 'adm-ttx'); const b = h('b'); b.append(h('bdi', null, e)); b.style.overflowWrap = 'anywhere'; tx.append(b);
     const del = h('button', 'mini-btn danger', t('admModelsDel')); del.type = 'button';
-    del.addEventListener('click', () => askConfirm(fmt(t('admModelsDelQ'), { e }), async () => { const r2 = await needCfg({ am: e, on: false }); flash(r2.ok ? t('admSaved') : t('admErr')); }, { danger: true, ok: t('admModelsDel') }));
+    del.addEventListener('click', () => askConfirm(fmt(t('admModelsDelQ'), { e }), async () => { const r2 = await needCfg({ [k]: e, on: false }); flash(r2.ok ? t('admSaved') : t('admErr')); }, { danger: true, ok: t('admModelsDel') }));
     r.append(tx, del);
     return r;
   }));
   const l = h('div', 'ios-list'); l.append(...rows);
-  p.append(card, h('div', 'adm-lbl', t('admModelsList')), l, h('p', 'adm-foot', t('admModelsFoot')));
+  p.append(card, h('div', 'adm-lbl', L.list), l, h('p', 'adm-foot', L.foot));
+}
+page('models', { tab: 'sys', parent: 'sys', title: () => t('admModels'), render(p) {
+  emListPage(p, 'am', { sub: t('admModelsSub'), me: t('admModelsMeRow'), list: t('admModelsList'), foot: t('admModelsFoot') });
+} });
+page('testers', { tab: 'sys', parent: 'sys', title: () => t('admTesters'), render(p) {
+  emListPage(p, 'ts', { sub: t('admTestersSub'), me: t('admModelsMeRow'), list: t('admTestersList'), foot: t('admTestersFoot') });
 } });
 page('infra', { tab: 'sys', parent: 'sys', title: () => t('admInfra'), render(p) {
   const o = D.ov;
