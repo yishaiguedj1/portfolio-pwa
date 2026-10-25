@@ -39,9 +39,10 @@ function isoDate(s) {
   if (!m || !MON[m[1].toLowerCase()]) return null;
   return m[3] + '-' + String(MON[m[1].toLowerCase()]).padStart(2, '0') + '-' + m[2].padStart(2, '0');
 }
-// ישויות מספריות (€ = &#8364;, ¥ = &#165;) — מפוענחות: קנה המידה והמטבע של עמודה כתובים בהן
+// ישויות מספריות (€ = &#8364;, ¥ = &#165;) — מפוענחות: קנה המידה והמטבע של עמודה כתובים בהן.
+// בסוף בלי < ו־> בכלל: ישות כמו &#60; הופכת לתו אחרי הסרת התגיות, והתוצאה = טקסט בלבד
 const strip = (s) => String(s).replace(/<sup[\s\S]*?<\/sup>/g, '').replace(/<br\s*\/?>|<\/div>/g, ' ').replace(/<[^>]+>/g, '').replace(/&#160;|&nbsp;/g, ' ').replace(/&amp;/g, '&')
-  .replace(/&#(\d+);/g, (_, n) => (+n < 0x10000 ? String.fromCharCode(+n) : '')).replace(/\s+/g, ' ').trim();
+  .replace(/&#(\d+);/g, (_, n) => (+n < 0x10000 ? String.fromCharCode(+n) : '')).replace(/[<>]/g, '').replace(/\s+/g, ' ').trim();
 function num(s) {
   // סימני מטבע (גם ₩, kr, CHF…) והערות שוליים יורדים — נשארות רק ספרות, נקודה, פסיק, סוגריים ומינוס
   const t = strip(s).replace(/\[\d+\]/g, '').replace(/[^\d.,()\-—–]/g, '');

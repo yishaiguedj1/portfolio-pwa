@@ -124,6 +124,9 @@ ${row('ro', 'us-gaap_WeightedAverageNumberOfDilutedSharesOutstanding', 'Diluted 
 const pr = SF.parseR(RIS);
 ok(pr.cols.map((c) => c.end + '/' + c.months).join() === '2025-12-31/12,2024-12-31/12' && pr.scale.cur === 1e6 && pr.scale.sh === 1e6, 'דף R: תאריכים, "12 Months Ended" וקנה מידה');
 ok(SF.rowVals(pr, pr.rows[0]).join() === '222000000,189000000' && SF.rowVals(pr, pr.rows[1]).join() === '-30000000,-25000000' && SF.rowVals(pr, pr.rows[2]).join() === '1.5,1.2' && SF.rowVals(pr, pr.rows[3])[0] === 1e8, 'דף R: מיליונים, סוגריים = מינוס, למניה בלי קנה מידה, מניות לפי "shares in"');
+// ישות של < בכותרת שורה (&#60;script&#62;) — אחרי הפענוח לא נשאר אף < או > (טקסט בלבד, CodeQL)
+{ const rx = SF.parseR(`<table><tr><th class="tl"><div><strong>Consolidated Balance Sheets - USD ($)<br> $ in Millions</strong></div></th><th class="th"><div>Dec. 31, 2025</div></th></tr>${row('ro', 'us-gaap_Assets', 'Assets &#60;script&#62;x&#60;/script&#62;', ['$ 5'])}</table>`);
+  ok(rx.rows[0] && !/[<>]/.test(rx.rows[0].label) && rx.rows[0].v[0] === 5, 'דף R: ישויות של < ו־> לא הופכות לתגית בכותרת השורה'); }
 // תגית בדוח גוברת על סדר העדיפות; כל ערך מושווה לדוח
 const FACEX = facts([
   ['RevenuesNetOfInterestExpense', 'USD', yrs([180, 210], 2024)],
