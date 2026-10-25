@@ -106,13 +106,34 @@ function sumFacts(parts) {
   return out;
 }
 
+/* מטבע הדיווח: המטבע שבו הוגשה ההגשה האחרונה (בתגיות של הכנסות, רווח ונכסים); כשיש שניים באותה הגשה (עמודת המרה
+   לדולר — Alibaba) — זה שיש בו יותר ערכים באותה הגשה. חברה שהחליפה מטבע (Nebius: רובל → דולר) — רק המטבע החדש */
+function reportCur(tax, tags) {
+  const last = {}, cnt = {};
+  for (const t of tags) for (const [u, rows] of Object.entries((tax[t] && tax[t].units) || {})) {
+    if (!/^[A-Z]{3}$/.test(u)) continue;
+    for (const x of rows) {
+      if (!FORMS.test(x.form || '')) continue;
+      if (!last[u] || x.filed > last[u]) { last[u] = x.filed; cnt[u] = 0; }
+      if (x.filed === last[u]) cnt[u]++;
+    }
+  }
+  const us = Object.keys(last);
+  if (us.length < 2) return us[0] || null;
+  us.sort((a, b) => (last[b] > last[a] ? 1 : last[b] < last[a] ? -1 : cnt[b] - cnt[a]));
+  return us[0];
+}
+
 /* ערכים של תגית אחת: { dur: Map("start|end" → {v, filed}), inst: Map(end → {v, filed}) } — האחרון שהוגש */
 function tagFacts(node, unitPref) {
   const out = { dur: new Map(), inst: new Map(), unit: null };
   if (!node || !node.units) return out;
   const units = Object.keys(node.units);
-  const unit = units.find((u) => u === unitPref) || units.find((u) => /^[A-Z]{3}$/.test(u) && unitPref === 'CUR') ||
-    units.find((u) => unitPref === 'PS' && /\/shares$/.test(u)) || units.find((u) => unitPref === 'shares' && u === 'shares') || units[0];
+  // מטבע דיווח ידוע ("USD", "EUR/shares") — רק הוא: ערכים במטבע אחר (חברה שהחליפה מטבע, עמודת המרה) לא מתערבבים
+  const exact = unitPref !== 'CUR' && /^[A-Z]{3}(\/shares)?$/.test(unitPref || '');
+  const unit = units.find((u) => u === unitPref) || (exact ? null : units.find((u) => /^[A-Z]{3}$/.test(u) && unitPref === 'CUR') ||
+    units.find((u) => unitPref === 'PS' && /\/shares$/.test(u)) || units.find((u) => unitPref === 'shares' && u === 'shares') || units[0]);
+  if (!unit) return out;
   out.unit = unit;
   for (const x of node.units[unit] || []) {
     if (!FORMS.test(x.form || '') || x.val == null) continue;
@@ -195,7 +216,8 @@ function normalizeSec(facts, splits = [], face = null) {
   if (!tax) return null;
   const isIfrs = tax === ifrs;
   const map = isIfrs ? IFRS : { ...FLOW, ...INST };
-  const unitOf = (k) => (PER_SHARE.has(k) ? 'PS' : k === 'sh' ? 'shares' : 'CUR');
+  const rc = reportCur(tax, [map.rev, map.ni, map.ta].flat().filter(Boolean));
+  const unitOf = (k) => (PER_SHARE.has(k) ? (rc ? rc + '/shares' : 'PS') : k === 'sh' ? 'shares' : (rc || 'CUR'));
   // לכל מפתח: תגית ראשית אחת + השלמות שמסכימות איתה (mergeTags)
   // התגיות שמופיעות בדוח שהחברה הגישה (10-K האחרון) — ראשונות
   const merged = {}, tags = {};
@@ -206,9 +228,10 @@ function normalizeSec(facts, splits = [], face = null) {
     let fs = order.map((tag) => tagFacts(tax[tag], unitOf(k))), names = order;
     if (k === 'capex' && !isIfrs) {
       const parts = CAPEX_PARTS.filter((t) => onFace.includes(t) && tax[t]);
-      if (parts.length > 1) { fs = [sumFacts(parts.map((t) => tagFacts(tax[t], 'CUR')))]; names = [parts.join('+')]; }
+      if (parts.length > 1) { fs = [sumFacts(parts.map((t) => tagFacts(tax[t], unitOf(k))))]; names = [parts.join('+')]; }
     }
     if (k === 'rev') { const f = fs.find((x) => x.unit && /^[A-Z]{3}$/.test(x.unit)); if (f) cur = f.unit; }
+    if (rc) cur = rc;
     merged[k] = mergeTags(fs);
     if (merged[k].spine != null) tags[k] = names[merged[k].spine];
   }
@@ -277,11 +300,14 @@ function normalizeSec(facts, splits = [], face = null) {
   for (const [sd, ratio] of splits) {
     for (const [D, ends] of [[A, fyEnds], [Q, qEnds]]) {
       const ref = ends.filter((e) => e >= sd && D.sh[e]).map((e) => D.sh[e])[0];
-      if (!ref) continue;
+      // אין עדיין תקופה אחרי הפיצול (HDFC Bank: מניות הטבה בספטמבר, השנה נגמרה במרץ) — אין קפיצה לאמת מולה;
+      // מחילים רק פיצול "נקי" (יחס שלם ≥2 או ההפך שלו), אחרת המחיר אחרי הפיצול מול רווח למניה לפניו = מכפיל כפול
+      const clean = Math.abs(ratio - Math.round(ratio)) < 1e-6 && ratio >= 2 || Math.abs(1 / ratio - Math.round(1 / ratio)) < 1e-6 && ratio <= 0.5;
+      if (!ref && !(clean && ends.some((e) => e < sd && D.sh[e]) && !ends.some((e) => e >= sd))) continue;
       for (const e of ends) {
         const v = D.sh[e];
         // רק פיצול אמיתי: יחס רחוק מ־1 ומספר המניות קפץ בערך באותו יחס (Yahoo רושם גם פיצול חברה — GE Vernova 1.25 — כ"ספליט")
-        if (e < sd && v && Math.abs(Math.log(ratio)) > Math.log(1.3) && ref / v > ratio * 0.8 && ref / v < ratio * 1.25) {
+        if (e < sd && v && Math.abs(Math.log(ratio)) > Math.log(1.3) && (ref ? ref / v > ratio * 0.8 && ref / v < ratio * 1.25 : clean)) {
           D.sh[e] = v * ratio;
           for (const k of PER_SHARE) if (D[k][e] != null) D[k][e] = Math.round(D[k][e] / ratio * 1e4) / 1e4;
         }
@@ -366,7 +392,7 @@ function crossCheck(d, y) { // מול Yahoo: הכנסות ורווח נקי בש
    השקעות הוניות מורכבות — מול סכום השורות. עד 0.5% (עיגול לאלפים/מיליונים); למניה — עד 1 סנט. */
 const FACE_KEYS = ['rev', 'cogs', 'gp', 'op', 'ni', 'pretax', 'tax', 'rnd', 'eps', 'sh', 'ocf', 'capex', 'sbc', 'dep', 'buy', 'divp', 'cash', 'eq', 'ta', 'tl', 'ca', 'cl', 're', 'ppe'];
 const SECFACE = require('./secface');
-const ABS_FACE = new Set(['cogs', 'tax', 'rnd', 'int', 'capex', 'buy', 'divp', 'dep', 'sbc']);
+const ABS_FACE = new Set(['cogs', 'tax', 'rnd', 'int', 'capex', 'buy', 'divp', 'dep', 'sbc', 'tl', 'cl']);   // התחייבויות — בבריטניה (IFRS) מודפסות במינוס
 function faceCheck(d, face) {
   const out = [], seen = { n: 0, ok: 0 };
   if (!face || !d || !d.tags) return { out, seen };
@@ -381,6 +407,7 @@ function faceCheck(d, face) {
       const vals = rows.map((r) => SECFACE.rowVals(S, r));
       S.cols.forEach((c, ci) => {
         if (st !== 'bs' && c.months != null && c.months !== 12) return;
+        if (!SECFACE.colOk(c, d.cur)) return;
         const i = d.fy.findIndex((e) => Math.abs(day(e) - day(c.end)) <= 8); if (i < 0) return;
         // הוצאות ותשלומים — לפי הערך המוחלט (בדוח הן לפעמים מודפסות במינוס)
         const ab = ABS_FACE.has(k), fv = vals.reduce((t, v) => (t == null || v[ci] == null ? null : t + (ab ? Math.abs(v[ci]) : v[ci])), 0);

@@ -214,6 +214,45 @@ const dmd = require(path.join(root, 'ibkr-proxy/lib/damodaran.json'));
 ok(dmd.erp > 0.02 && dmd.erp < 0.08 && dmd.crpIL > 0 && Object.keys(dmd.ind).length > 80, 'damodaran.json: פרמיית שוק, פרמיית ישראל ויותר מ־80 ענפים');
 
 /* ---------- המסלול המלא: /api/history עם op:'fund' / op:'macro' ---------- */
+
+/* ---------- דוחות של חברות זרות (25/10/2026, ריצת 500 החברות) ---------- */
+{
+  const th = (d, cur) => `<th class="th"><div>${d} </div><div>${cur}</div></th>`;
+  const R = (title, heads, rows) => `<table><tr><th class="tl"><div><strong>${title}</strong></div></th><th class="th" colspan="${heads.length}">12 Months Ended</th></tr><tr>${heads.join('')}</tr>${rows}</table>`;
+  // Alibaba: עמודת המרה לדולר באותה שנה; ¥ (&#165;) במיליונים
+  const baba = SF.parseR(R('INCOME STATEMENTS<br> &#165; in Millions, shares in Millions, $ in Millions', [th('Mar. 31, 2026', 'CNY (&#165;)'), th('Mar. 31, 2026', 'USD ($)'), th('Mar. 31, 2025', 'CNY (&#165;)')],
+    row('ro', 'us-gaap_Revenues', 'Revenue', ['1,023,670', '148,401', '996,347'])));
+  ok(baba.cols.map((c) => c.cur).join() === 'CNY,USD,CNY' && SF.rowVals(baba, baba.rows[0])[0] === 1023670e6, 'מטבע לכל עמודה; ¥ מפוענח (לא נמחק) — קנה מידה במיליונים');
+  ok(!SF.colOk(baba.cols[1], 'CNY') && SF.colOk(baba.cols[0], 'CNY') && SF.colOk({ end: 'x' }, 'CNY'), 'עמודת ההמרה לדולר לא נבדקת מול נתונים ביואן');
+  // ASML: "€ in Millions" בלי $
+  const asml = SF.parseR(R('Statements of Operations - EUR (&#8364;)<br> &#8364; in Millions, shares in Millions', [th('Dec. 31, 2025', ''), th('Dec. 31, 2024', '')], row('ro', 'ifrs-full_Revenue', 'Total net sales', ['32,667.3', '28,262.9'])));
+  ok(SF.rowVals(asml, asml.rows[0])[0] === 32667.3e6 && asml.scale.sh === 1e6, '€ במיליונים (עד היום רק "$ in" זוהה — ASML יצאה פי מיליון)');
+  // Chunghwa: "$ in Millions" רק לעמודת הדולר; NT$ ביחידות
+  const cht = SF.parseR(R('Balance Sheet<br> $ in Millions', [th('Dec. 31, 2025', 'TWD (NT$)'), th('Dec. 31, 2025', 'USD ($)')], row('ro', 'ifrs-full_CashAndCashEquivalents', 'Cash', ['36,944,000,000', '1,178'])));
+  ok(SF.rowVals(cht, cht.rows[0]).join() === '36944000000,1178000000', 'קנה מידה לפי מטבע העמודה ($ במיליונים, NT$ ביחידות)');
+  // TSMC: "$ in Millions, $ in Millions" — אותו סימן לשני המטבעות; לפי סדר ההופעה
+  const tsm = SF.parseR(R('Financial Position<br> $ in Millions, $ in Millions', [th('Dec. 31, 2025', 'TWD (NT$)'), th('Dec. 31, 2025', 'USD ($)')], row('ro', 'ifrs-full_Assets', 'Total assets', ['7,000,000', '220,000'])));
+  ok(SF.rowVals(tsm, tsm.rows[0]).join() === '7000000000000,220000000000', 'שני מקטעים לשני מטבעות — לפי הסדר');
+  // SAP: <td colspan="2" class="nump">
+  const sap = SF.parseR(R('Cash Flows - EUR (&#8364;)<br> &#8364; in Millions', [th('Dec. 31, 2025', ''), th('Dec. 31, 2024', '')],
+    `<tr class="ro"><td class="pl"><a onclick="Show.showAR( this, 'defref_ifrs-full_AdjustmentsForSharebasedPayments', window );">SBC</a></td><td class="th"><sup></sup></td><td colspan="2" class="nump">1,695<span></span></td><td class="nump">2,385<span></span></td><td class="fn"></td></tr>`));
+  ok(sap.rows[0].v.join() === '1695,2385', 'תא עם colspan לפני class נקרא (SAP: התזרים זז בשנה)');
+  ok(SF.num('₩ 1,234') === 1234 && SF.num('kr (56)') === -56 && SF.num('—') === null, 'סימני מטבע שונים והערות יורדים');
+  // מטבע הדיווח: Nebius (רובל → דולר) — רק דולר; Alibaba (יואן + דולר באותה הגשה) — יואן
+  const NB = facts([['Revenues', 'RUB', yrs([800e9, 900e9], 2021)], ['NetIncomeLoss', 'RUB', yrs([10e9, 11e9], 2021)]]);
+  NB.facts['us-gaap'].Revenues.units.USD = yrs([9.8e6, 117e6, 530e6], 2023).map(([start, end, val, form, filed]) => ({ start, end, val, form, filed, fy: 2099, fp: 'FY' }));
+  const dnb = F.normalizeSec(NB, []);
+  ok(dnb.cur === 'USD' && !dnb.A.rev.some((v) => v > 1e9) && !(dnb.A.ni || []).some((v) => v != null), 'חברה שהחליפה מטבע — רק המטבע החדש (בלי רובלים בגרף של דולרים)');
+  const BB = facts([['Revenues', 'CNY', yrs([941e9, 996e9, 1023e9], 2023)]]);
+  BB.facts['us-gaap'].Revenues.units.USD = [{ start: '2025-01-01', end: '2025-12-31', val: 148e9, form: '10-K', filed: '2026-02-01', fy: 2099, fp: 'FY' }];
+  const dbb = F.normalizeSec(BB, []);
+  ok(dbb.cur === 'CNY' && dbb.A.rev[dbb.A.rev.length - 1] === 1023e9, 'שני מטבעות באותה הגשה — זה שיש בו יותר ערכים (יואן, לא עמודת ההמרה)');
+  // פיצול אחרי סוף השנה האחרונה (HDFC Bank): אין תקופה אחרי — מחילים רק יחס שלם
+  const HD = facts([['NetIncomeLoss', 'INR', yrs([600e9, 670e9], 2024)], ['EarningsPerShareDiluted', 'INR/shares', yrs([88.31, 89.63], 2024)],
+    ['WeightedAverageNumberOfDilutedSharesOutstanding', 'shares', yrs([7.1e9, 7.6e9], 2024)]]);
+  ok(F.normalizeSec(HD, [['2026-09-08', 2]]).A.eps.join() === '44.155,44.815', 'פיצול 2:1 אחרי השנה האחרונה — מוחל (בלי זה המכפיל כפול)');
+  ok(F.normalizeSec(HD, [['2026-09-08', 1.25]]).A.eps.join() === '88.31,89.63', 'יחס לא שלם (פיצול חברה) בלי תקופה לאמת — לא מוחל');
+}
 (async () => {
   const calls = [];
   global.fetch = async (url, opts = {}) => {

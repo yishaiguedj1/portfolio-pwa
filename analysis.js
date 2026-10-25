@@ -666,10 +666,20 @@ function go(k) {
   S.tab = k; render(d);
   if (ROOT) ROOT.scrollTop = 0;
 }
+/* שם של שדה גולמי מהשרתון (co.fill, co.tags) — מדד מוכר לפי M, השאר לפי שם משלו */
+function rawName(k) {
+  if (M[k]) return T(M[k].n);
+  switch (k) {
+    case 'cogs': return T('anKCogs'); case 'msec': return T('anKMsec'); case 'cash': return T('anMCash'); case 'debt': case 'debtNc': case 'debtC': case 'stb': return T('anMDebt');
+    case 'capex': return T('anMCapex'); case 'sbc': return T('anMSbc'); case 'dep': return T('anKDep'); case 'int': return T('anKInt'); case 'tax': case 'pretax': return T('anKTax');
+    case 'ca': case 'cl': return T('anKCur'); case 'ppe': return T('anKPpe'); case 're': return T('anKRe'); case 'divp': return T('anMDps');
+    default: return T('anKOther');
+  }
+}
 function footer(co) {
   const src = [co.src === 'sec' ? 'SEC EDGAR' : 'Yahoo', 'Yahoo', co.nq ? 'Nasdaq/Zacks' : null, MAC && MAC.src && MAC.src.rf, 'Damodaran'].filter((x, i, a) => x && a.indexOf(x) === i).join(' · ');
   const extra = [];
-  if (co.fill && co.fill.length) extra.push(T('anFillNote', { k: co.fill.map((k) => (M[k] ? T(M[k].n) : k)).join(', ') }));
+  if (co.fill && co.fill.length) extra.push(T('anFillNote', { k: [...new Set(co.fill.map(rawName))].join(', ') }));
   if (co.fxNote) extra.push(T('anFxNote', { c: co.cur }));
   return h('p', { class: 'an-src' }, T('anSources', { s: src, d: dmy(co.asOf) }), extra.length ? h('br') : null, extra.join(' · '));
 }
@@ -990,9 +1000,13 @@ function chartSheet(def) {
       ratio ? null : segCtl(T('anCView'), [['v', T('anCVal')], ['g', T('anCGrowth'), noG], ['r', T('anCPctRev'), noPct]], 'v', (v) => { st.view = v; draw(); }),
       segCtl(T('anCPeriod'), [['fy', T('anCAnnual')], ['q', T('anCQuarter')]], 'fy', (v) => { st.mode = v; draw(); }),
       segCtl(T('anCShow'), [['c', T('anCChart')], ['t', T('anCTable')]], 'c', (v) => { chartW.hidden = v === 't'; tbl.hidden = v !== 't'; }),
+      srcBlock(co, def.s),
     ].filter(Boolean));
     function draw() {
       const d = seriesFor(co, def, st), one = d.series.length === 1 ? d.series[0].vals : null, avg = one ? mean(one) : null;
+      // שכבה 6: ערך שהבדיקות סימנו — מסומן בבועה ובטבלה
+      const fl = d.per.map((p) => flagsAt(co, def.s, p));
+      d.tipLabels = d.tipLabels.map((l, i) => (fl[i] ? l + ' · ' + T('anFlagTip') : l));
       drawChart(host, { ...d, co, h: 240, avg, tipHost: tip, title: def.n });
       stats.textContent = ''; stats.hidden = !one;
       if (one) {
@@ -1005,12 +1019,71 @@ function chartSheet(def) {
       tbl.textContent = '';
       const t = h('table', { class: 'an-tbl' });
       t.append(h('thead', {}, h('tr', {}, h('th', {}), ...d.labels.map((l) => h('th', {}, l)))),
-        h('tbody', {}, ...d.series.map((s) => h('tr', {}, h('td', {}, s.name), ...s.vals.map((v) => h('td', {}, strip(fmt(v, d.unit, co))))))));
+        h('tbody', {}, ...d.series.map((s) => h('tr', {}, h('td', {}, s.name), ...s.vals.map((v, i) => h('td', fl[i] ? { class: 'an-flagc', title: T('anFlagTip') } : {}, strip(fmt(v, d.unit, co))))))));
       tbl.append(t);
       requestAnimationFrame(() => { tbl.scrollLeft = -tbl.scrollWidth; });
     }
     rec.draw = draw;
   });
+}
+/* ---------- שכבה 6 (25/10/2026): מאיפה כל מספר ----------
+   לכל מדד: השורה בדוח (התגית שהחברה עצמה מציגה — co.tags) או איך הוא מחושב; הדוח ב־SEC וכמה ערכים נבדקו מולו (co.face);
+   ושנים שהבדיקות סימנו (co.flags). רק מה שכבר בתשובה — בלי פנייה לרשת */
+const RAWK = { rev: ['rev'], gp: ['gp', 'cogs'], op: ['op'], ni: ['ni'], eps: ['eps'], sh: ['sh'], ocf: ['ocf'], buy: ['buy'], dps: ['dps', 'divp'], eq: ['eq'], ta: ['ta'], tl: ['tl'],
+  cashT: ['cash', 'msec'], debt: ['debt', 'debtNc', 'debtC', 'stb'], capexN: ['capex'], sbcN: ['sbc'], fcf: ['ocf', 'capex'], fcfsbc: ['ocf', 'capex', 'sbc'],
+  gm: ['gp', 'rev'], om: ['op', 'rev'], nm: ['ni', 'rev'], cr: ['ca', 'cl'], de: ['debt', 'eq'], roe: ['ni', 'eq'], roic: ['op', 'eq', 'debt', 'cash'], r40: ['rev', 'ocf', 'capex'] };
+function srcDef(co, k) {
+  switch (k) {
+    case 'gp': return co.tags && co.tags.gp ? null : T('anDefGp');
+    case 'tl': return co.tags && co.tags.tl ? null : T('anDefTl');
+    case 'dps': return co.tags && co.tags.dps ? null : T('anDefDps');
+    case 'cashT': return T('anDefCash');
+    case 'debt': return T('anDefDebt');
+    case 'fcf': return T('anDefFcf');
+    case 'fcfsbc': return T('anDefOwn');
+    case 'capexN': return co.tags && /\+/.test(co.tags.capex || '') ? T('anDefCapex') : null;
+    case 'gm': case 'om': case 'nm': return T('anDefMargin');
+    case 'cr': return T('anDefCr');
+    case 'de': return T('anDefDe');
+    case 'roe': return T('anDefRoe');
+    case 'roic': return T('anDefRoic');
+    case 'r40': return T('anDefR40');
+    default: return null;
+  }
+}
+const OWN_TAG = { rev: 'rev', op: 'op', ni: 'ni', eps: 'eps', sh: 'sh', ocf: 'ocf', buy: 'buy', dps: 'dps', eq: 'eq', ta: 'ta', tl: 'tl', gp: 'gp', capexN: 'capex', sbcN: 'sbc', cashT: 'cash', debt: 'debt' };
+const flagMs = (f) => (f.m ? [f.m] : f.k === 'bal' ? ['ta', 'tl', 'eq'] : []);   // מאזן שלא מתאזן — שייך לשלושתם
+const flagOn = (f, raw) => f.k !== 'fix' && flagMs(f).some((m) => raw.has(m));
+function flagsAt(co, keys, p) {
+  if (!p || p.kind !== 'fy' || !co.flags.length) return null;
+  const raw = new Set(keys.flatMap((k) => RAWK[k] || [k]));
+  return co.flags.find((f) => f.p === p.end && flagOn(f, raw)) || null;
+}
+function srcBlock(co, keys) {
+  const rows = [];
+  const f = co.face;
+  if (co.src === 'sec' && f) {
+    const link = /^https:\/\/www\.sec\.gov\//.test(f.url || '') ? h('a', { href: f.url, target: '_blank', rel: 'noopener noreferrer', class: 'an-link' }, T('anSrcLink')) : null;
+    rows.push(h('div', { class: 'an-row' }, h('span', { class: 'an-ic ' + (f.n && f.ok === f.n ? 'y' : 'na') }, f.n && f.ok === f.n ? '✓' : '!'),
+      h('div', { class: 'an-rt' }, h('b', {}, T('anSrcSec', { f: iso(f.form || '10-K'), d: iso(dmy(f.filed)) })), h('span', {}, f.n ? T('anSrcOk', { ok: f.ok, n: f.n }) : T('anSrcNoChk'))), link));
+  } else rows.push(h('div', { class: 'an-row' }, h('span', { class: 'an-ic na' }, 'i'), h('div', { class: 'an-rt' }, h('b', {}, T(co.src === 'sec' ? 'anSrcSecOnly' : 'anSrcYahoo')))));
+  for (const k of keys) {
+    const tg = co.tags && OWN_TAG[k] && co.tags[OWN_TAG[k]], def = srcDef(co, k);
+    const sub = [];
+    if (def) sub.push(h('span', {}, def));
+    if (tg && (!def || k === 'capexN')) sub.push(h('span', { class: 'an-tag' }, h('bdi', {}, String(tg).split('+').join(' + '))));
+    if (k === 'debt' && co.tags && co.tags.debt) sub.push(h('span', { class: 'an-tag' }, h('bdi', {}, ['debt', 'debtNc', 'debtC', 'stb'].map((x) => co.tags[x]).filter(Boolean).join(' · '))));
+    if (!sub.length) continue;
+    rows.push(h('div', { class: 'an-row' }, h('div', { class: 'an-rt' }, h('b', {}, T(M[k].n)), ...sub)));
+  }
+  const raw = new Set(keys.flatMap((k) => RAWK[k] || [k]));
+  const yrs = [...new Set(co.flags.filter((x) => flagOn(x, raw)).map((x) => x.p.slice(0, 4)))].sort();
+  const fixed = co.flags.some((x) => x.k === 'fix' && x.m && raw.has(x.m));
+  if (yrs.length) rows.push(h('button', { class: 'an-row', type: 'button', on: { click: flagSheet } }, h('span', { class: 'an-ic na' }, '!'),
+    h('div', { class: 'an-rt' }, h('b', {}, T('anSrcFlag', { y: iso(yrs.join(', ')) })), h('span', {}, T('anSrcFlagS'))), h('span', { class: 'an-chev' })));
+  if (fixed) rows.push(h('div', { class: 'an-row' }, h('span', { class: 'an-ic y' }, '✓'), h('div', { class: 'an-rt' }, h('b', {}, T('anFlFix')))));
+  if (co.derived && keys.some((k) => (RAWK[k] || [k]).some((x) => (co.derived[x] || []).length))) rows.push(h('div', { class: 'an-row' }, h('div', { class: 'an-rt' }, h('span', {}, T('anSrcQ4')))));
+  return h('details', { class: 'an-prov' }, h('summary', {}, T('anSrcT'), h('span', { class: 'an-chev' })), h('div', { class: 'an-list' }, ...rows));
 }
 function checkSheet(k) {
   const C = checks(S.co, MAC)[k];
@@ -1058,5 +1131,5 @@ function flagSheet() {
 }
 
 /* בדיקות (node) — הפונקציות הטהורות */
-export const _test = { prep, indFix, pickPeers, peerRow, ctx, periodList, hasTTM, raw, multHist, autoInputs, dcf, scenarios, reverseG, multModel, uncertainty, checks, piotroski, altman, fmt, sgn, cagrN, epsPath,
+export const _test = { flagsAt, srcDef, rawName, RAWK, OWN_TAG, prep, indFix, pickPeers, peerRow, ctx, periodList, hasTTM, raw, multHist, autoInputs, dcf, scenarios, reverseG, multModel, uncertainty, checks, piotroski, altman, fmt, sgn, cagrN, epsPath,
   setEnv: (e) => { E = e; } };

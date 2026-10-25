@@ -1,0 +1,58 @@
+# בקרת הדיוק של מנתח החברות (25/10/2026, שכבה 5) — כל לילה.
+# מריץ את אותו fundamentals() של השרתון על 500 החברות הגדולות (tools/fund-audit.js): כל ערך שנתי מול הדוח
+# כפי שהחברה הדפיסה אותו, זהויות חשבונאיות וחוקי DQC, וסט הזהב (ibkr-proxy/lib/golden.json — ערכים שלא אמורים לזוז).
+# הסיכום (מספרים מ־SEC וסימבולים — מידע ציבורי בלבד, בלי שום נתון של משתמש) מתפרסם ב־Release ‏fund-audit,
+# והשרתון קורא משם: מרכז הניהול ← מעבדת השיפור ← "דיוק הנתונים", והתראה למנהל כשמשהו נשבר (lib/fundaudit.js).
+name: fund-audit
+
+on:
+  schedule:
+    - cron: '23 3 * * *'   # כל יום, 03:23 UTC (בבוקר בישראל — אחרי שהדוחות של היום הקודם נכנסו ל־EDGAR)
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/fund-audit.yml']   # הרצה ראשונה מיד כשהקובץ נוסף/משתנה
+
+permissions:
+  contents: write # Release ‏fund-audit בלבד
+
+concurrency:
+  group: fund-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20
+      - name: History from the previous run
+        run: |
+          mkdir -p out
+          gh release download fund-audit -p history.json -D out 2>/dev/null || echo '[]' > out/history.json
+      - name: Audit (500 companies)
+        run: |
+          rc=0
+          node tools/fund-audit.js --top 500 --out out --hist out/history.json || rc=$?
+          # 1 = סט הזהב זז (מגיע למנהל כהתראה דרך השרתון); כל קוד אחר = הכלי עצמו נכשל
+          echo "rc=$rc" >> "$GITHUB_ENV"
+          [ "$rc" = 0 ] || [ "$rc" = 1 ]
+      - name: Publish (fund-audit)
+        working-directory: out
+        run: |
+          if ! gh release view fund-audit > /dev/null 2>&1; then
+            gh release create fund-audit --title "בקרת דיוק — מנתח החברות" --notes "הסיכום הלילי של tools/fund-audit.js (מספרים ציבוריים מ־SEC)." --latest=false
+          fi
+          gh release upload fund-audit summary.json history.json report.md --clobber
+          gh release edit fund-audit --notes "$(head -6 report.md | tail -3)"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: fund-audit
+          path: out/report.md
+          retention-days: 14
