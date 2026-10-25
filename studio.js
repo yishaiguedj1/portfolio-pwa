@@ -2171,10 +2171,14 @@ function uxFlush() {
   clearTimeout(uxT); uxT = 0;
   for (const [id, ux] of uxQ) { uxQ.delete(id); try { Promise.resolve(net.api('learnUx', { job: id, ux })).catch(() => {}); } catch (e) {} }
 }
-/* כיסוי הצפייה בנגן: כל שנייה בסרטון שנוגנה (לא בהשהיה) נספרת פעם אחת. מחזיר פונקציה שמסיימת וסופרת */
-function watchTrack(rec, v) {
+/* כיסוי הצפייה בנגן: כל שנייה בסרטון שנוגנה (לא בהשהיה) נספרת פעם אחת. מחזיר פונקציה שמסיימת וסופרת.
+   25/10/2026 (מיפוי האיסוף של session_01UZAW): עד היום הצפייה נספרה רק בסגירת הנגן — אפליקציה שנסגרה / נהרגה בדף הנגן
+   איבדה את כל הצפייה. עכשיו `watchFlush` (בירידה לרקע ו־pagehide) מדווח את מה שנצבר מאז הדיווח הקודם, והנגן ממשיך לספור */
+const watchers = new Set();
+export function watchFlush() { for (const w of watchers) w.report(); }
+export function watchTrack(rec, v) {
   if (!rec || !v || !v.addEventListener) return () => {};
-  let seen = null, secs = 0, played = false;
+  let seen = null, secs = 0, played = false, sentN = false, sentSecs = 0;
   const tick = () => {
     const d = v.duration;
     if (!(d > 0) || !isFinite(d) || v.paused) return;
@@ -2184,14 +2188,21 @@ function watchTrack(rec, v) {
   };
   const onPlay = () => { played = true; };
   v.addEventListener('timeupdate', tick); v.addEventListener('play', onPlay);
+  const w = {
+    report() {                                     // רק מה שעוד לא דווח: n פעם אחת לנגן, השניות כהפרש, cov = המקסימום (בשרתון)
+      if (!played) return;
+      if (!sentN) { sentN = true; uxAdd(rec, 'pl', 'n'); }
+      if (secs > sentSecs) { uxAdd(rec, 'pl', 'sec', secs - sentSecs); sentSecs = secs; }
+      if (seen && seen.length && secs) uxAdd(rec, 'pl', 'cov', secs / seen.length);
+    },
+  };
+  watchers.add(w);
   let done = false;
   return () => {
     if (done) return; done = true;
     v.removeEventListener('timeupdate', tick); v.removeEventListener('play', onPlay);
-    if (!played) return;
-    uxAdd(rec, 'pl', 'n');
-    if (secs) uxAdd(rec, 'pl', 'sec', secs);
-    if (seen && seen.length && secs) uxAdd(rec, 'pl', 'cov', secs / seen.length);
+    watchers.delete(w);
+    w.report();
   };
 }
 /* סבב 1: שורת תוצר. 22/10/2026 (דיווח המשתמש: "חלון של Drive עם שגיאה ולא קורה כלום" — הקבצים ב־R2, והקישור היה תמיד ל־Drive):
@@ -2223,10 +2234,11 @@ function outDlName(rec, o) {
 }
 /* הורדה לטלפון: קישור חתום (שעה) עם Content-Disposition: attachment — הדפדפן מוריד (מנהל ההורדות), הדף נשאר */
 async function downloadOut(rec, o) {
-  uxAdd(rec, 'o', 'dl');   // מ׳3
-  if (!isR2Id(o.id)) { window.open('https://drive.google.com/uc?export=download&id=' + encodeURIComponent(o.id), '_blank', 'noopener'); return; }
+  // 25/10/2026 (מיפוי האיסוף של session_01UZAW): נספר רק כשההורדה באמת יצאה — עד היום גם קישור שנכשל נספר כהורדה
+  if (!isR2Id(o.id)) { uxAdd(rec, 'o', 'dl'); window.open('https://drive.google.com/uc?export=download&id=' + encodeURIComponent(o.id), '_blank', 'noopener'); return; }
   try {
     const g = await net.r2Get(o.id, outDlName(rec, o));
+    uxAdd(rec, 'o', 'dl');   // מ׳3
     flashSafe(T('studioOutDlStart'));
     location.href = g.url;
   } catch (e) { flashSafe(T('studioOutErr')); }
@@ -2264,26 +2276,27 @@ async function shareSmall(rec, o) {
     shareReady.clear(); shareReady.set(o.id, f);
   }
   try {
-    if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: f.name }); return; }
+    if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: f.name }); uxAdd(rec, 'o', 'sh'); return; }
   } catch (e) {
     if (e && e.name === 'AbortError') return;
     if (e && e.name === 'NotAllowedError') { flashSafe(T('studioShAgain')); return; }   // ההורדה לקחה יותר מדי — הנגיעה הבאה
   }
+  uxAdd(rec, 'o', 'dl');                            // בלי שיתוף — הקובץ ירד לטלפון
   const u = URL.createObjectURL(f), x = document.createElement('a');
   x.href = u; x.download = f.name; document.body.append(x); x.click(); x.remove();
   setTimeout(() => URL.revokeObjectURL(u), 5000);
 }
 async function shareOut(rec, o) {
   if (!isTextOut(o.k) && o.k !== 'small') return downloadOut(rec, o);
-  uxAdd(rec, 'o', 'sh');   // מ׳3
-  if (o.k === 'small') return shareSmall(rec, o);
+  if (o.k === 'small') return shareSmall(rec, o);   // מ׳3: 'sh' נספר רק אחרי שהשיתוף הצליח (ביטול — לא נספר)
   if (!isTextOut(o.k)) { downloadOut(rec, o); return; }
   let txt;
   try { txt = await net.driveText(o.id); } catch (e) { flashSafe(T('studioOutErr')); return; }
   const name = outFileName(rec, o.k), f = new File([txt], name, { type: 'text/plain' });
   try {
-    if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: name }); return; }
+    if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: name }); uxAdd(rec, 'o', 'sh'); return; }
   } catch (e) { if (e && e.name === 'AbortError') return; }   // אחרת (בלי שיתוף / פג אישור הנגיעה) — הורדה
+  uxAdd(rec, 'o', 'dl');
   const u = URL.createObjectURL(f), x = document.createElement('a');
   x.href = u; x.download = name; document.body.append(x); x.click(); x.remove();
   setTimeout(() => URL.revokeObjectURL(u), 5000);
@@ -6397,7 +6410,7 @@ function seDraftSoon(me, rec) {   // סבב 8: שנייה וחצי אחרי הע
     if (r) idbOp('drafts', 'put', rec.id, r); else draftDel(rec.id);
   }, 1500);
 }
-function seStop() { if (se && se.tl) { se.tl.destroy(); se.tl = null; } if (se && se.ctl) { se.ctl.destroy(); se.ctl = null; } }   // יציאה מהדף: הנגן נעצר, העריכה נשמרת בזיכרון
+function seStop() { if (se && se.tl) { se.tl.destroy(); se.tl = null; } if (se && se.wt) { se.wt(); se.wt = null; } if (se && se.ctl) { se.ctl.destroy(); se.ctl = null; } }   // יציאה מהדף: הנגן נעצר, העריכה נשמרת בזיכרון
 async function seLoad(rec) {
   const me = se;
   try {
@@ -6493,6 +6506,7 @@ function pageSubs(p) {
         ladder: src ? ladderOf(rec) : null, pq: store.settings.pq, onPq: pqSave, pref: store.settings.pt, onPref: ptSave,
         poster: at >= 0 ? '' : thumbFor(rec, (u) => { if (se === me && me.ctl && !(me.at >= 0)) me.ctl.setPoster(u); }),   // 21/10/2026: כמו ב־YouTube
         onTime: (t) => { if (me.ed && me.ctl) me.ed.time(t, !me.ctl.video.paused); } });
+      se.wt = watchTrack(rec, se.ctl.video);   // 25/10/2026: גם הצפייה בעורך הכתוביות
       if (at >= 0) {   // נפתח על נקודה — הפריים של הנקודה (גם אחרי שהסרטון נטען: לפני כן הדפדפן יכול להתעלם מהקפיצה)
         se.ctl.seek(at);
         se.ctl.video.addEventListener('loadedmetadata', () => { if (se === me && me.ctl && me.ctl.video.currentTime < 0.01) me.ctl.seek(at); }, { once: true });
@@ -6562,7 +6576,7 @@ function rrSub(rec) {
 const rrOpt = { out: { compact: true }, style: '' };
 const rrEdl = new Map();                   // מ5: העבודה → החיתוך שאחרי התרגום (עד ההפקה; בזיכרון)
 let ce = null;                             // מ4–מ5: דף החיתוך הפתוח { key, ctl, ed, url }
-function ceStop() { if (ce) { if (ce.ed) ce.ed.destroy(); if (ce.ctl) ce.ctl.destroy(); if (ce.url) try { URL.revokeObjectURL(ce.url); } catch (e) {} } ce = null; }
+function ceStop() { if (ce) { if (ce.wt) ce.wt(); if (ce.ed) ce.ed.destroy(); if (ce.ctl) ce.ctl.destroy(); if (ce.url) try { URL.revokeObjectURL(ce.url); } catch (e) {} } ce = null; }
 const fmtMin = (sec) => fmtT(sec);
 function edlSum(e, dur) {
   if (!e) return T('studioEdNone');
@@ -6603,6 +6617,7 @@ function pageCut(p, before) {
     if (!src) { p.append(h('div', 'st-empty st-empty-sm', T('studioPlNoSw'))); ce = null; return; }
     const me = ce;
     ce.ctl = createPlayer({ src, fallback: fb, burned, cues, T, poster: rec ? thumbFor(rec, (u) => { if (ce === me && me.ctl) me.ctl.setPoster(u); }) : '' });
+    ce.wt = watchTrack(rec, ce.ctl.video);   // בלי עבודה (חיתוך לפני התרגום) — לא נספר
     ce.ed = createEdlEditor({ video: ce.ctl.video, frame: ce.ctl.el, dur, edl, T, flash: flashSafe, full: !before,   // סבב 3: מהירות, סיבוב, מסגור ושמע — רק בהפקה מחדש
       onChange: (e) => { if (before) { if (form) form.edl = e; } else if (e) rrEdl.set(key, e); else rrEdl.delete(key); } });
   }
@@ -6715,7 +6730,7 @@ function stySum(st) {
 }
 function styColName(c) { return c === 'y' ? T('studioStyYellow') : c === 'c' ? T('studioStyCyan') : T('studioStyWhite'); }
 let sy = null;   // { key, ctl, cues } — הנגן של דף העיצוב (נשאר בין ציורים)
-function syStop() { if (sy && sy.ctl) sy.ctl.destroy(); sy = null; }
+function syStop() { if (sy && sy.wt) sy.wt(); if (sy && sy.ctl) sy.ctl.destroy(); sy = null; }
 function syPeek(me) {   // עוצרים על כתובית של שתי שורות (או הארוכה) — רואים את העיצוב בלי לנגן
   const cs = me.cues || [];
   if (!cs.length || !me.ctl) return;
@@ -6739,7 +6754,7 @@ function pageSty(p) {
     syStop();
     sy = { key: rec.id, ctl: null, cues: se && se.id === rec.id && se.ed ? se.ed.cues() : null };
     const src = rec.up.v && rec.up.v.id ? net.mediaUrl(rec.up.v.id) : '';
-    if (src) { const me = sy; sy.ctl = createPlayer({ src, cues: sy.cues || [], T, pq: store.settings.pq, poster: thumbFor(rec, (u) => { if (sy === me && me.ctl) me.ctl.setPoster(u); }) }); }
+    if (src) { const me = sy; sy.ctl = createPlayer({ src, cues: sy.cues || [], T, pq: store.settings.pq, poster: thumbFor(rec, (u) => { if (sy === me && me.ctl) me.ctl.setPoster(u); }) }); sy.wt = watchTrack(rec, sy.ctl.video); }
     const me = sy, co = outOf(rec, 'cues');
     if (!me.cues && co) net.driveJson(co.id).then((j) => { if (sy === me) { me.cues = normCues(j); if (me.ctl) { me.ctl.setCues(me.cues); syPeek(me); } } }, () => {});
     else syPeek(me);
@@ -6792,7 +6807,7 @@ async function logoFromFile(file) {
   } finally { URL.revokeObjectURL(url); }
 }
 let ovp = null;   // { key, ctl, tEl, lEl }
-function ovpStop() { if (ovp && ovp.ctl) ovp.ctl.destroy(); ovp = null; }
+function ovpStop() { if (ovp && ovp.wt) ovp.wt(); if (ovp && ovp.ctl) ovp.ctl.destroy(); ovp = null; }
 function ovPaint(o) {
   if (!ovp || !ovp.ctl) return;
   ovp.tEl.textContent = (o && o.t) || ''; ovp.tEl.hidden = !(o && o.t);
@@ -6809,7 +6824,7 @@ function pageOv(p) {
     ovp = { key: rec.id, ctl: null, tEl: h('div', 'st-ov-t'), lEl: document.createElement('img') };
     ovp.lEl.alt = ''; ovp.lEl.className = 'st-ov-l';
     const src = rec.up.v && rec.up.v.id ? net.mediaUrl(rec.up.v.id) : '';
-    if (src) { const me = ovp; ovp.ctl = createPlayer({ src, cues: [], T, burned: true, pq: store.settings.pq, poster: thumbFor(rec, (u) => { if (ovp === me && me.ctl) me.ctl.setPoster(u); }) }); ovp.ctl.el.append(ovp.tEl, ovp.lEl); }
+    if (src) { const me = ovp; ovp.ctl = createPlayer({ src, cues: [], T, burned: true, pq: store.settings.pq, poster: thumbFor(rec, (u) => { if (ovp === me && me.ctl) me.ctl.setPoster(u); }) }); ovp.wt = watchTrack(rec, ovp.ctl.video); ovp.ctl.el.append(ovp.tEl, ovp.lEl); }
   }
   const o = rrOv(rec.id) || {}, cur = ovT.get(rec.id) || {}, lg = store.settings.lg || null;
   if (ovp.ctl) { const top = h('div', 'st-se-top'); top.append(ovp.ctl.el); p.append(top); ovPaint(o); }
@@ -8182,8 +8197,9 @@ export function openStudio(opt) {
     window._stVis = true;
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') { if (wlWant) wakeOn(); if (root) pollNow(); }
-      else { clearTimeout(pollT); pollT = 0; uxFlush(); }   // מ׳3: מה שנאסף נשלח לפני שהאפליקציה יורדת לרקע
+      else { clearTimeout(pollT); pollT = 0; watchFlush(); uxFlush(); }   // מ׳3: מה שנאסף נשלח לפני שהאפליקציה יורדת לרקע
     });
+    window.addEventListener('pagehide', () => { watchFlush(); uxFlush(); });   // 25/10/2026: גם כשהדף נסגר / נהרג
   }
   document.body.append(root);
   if (typeof growWatch === 'function') growWatch(root, '.st-banner', () => ui.view + '|' + (ui.param || ''));   // 14/10/2026: פס שמופיע בדף מוצג — נפתח ברכות
