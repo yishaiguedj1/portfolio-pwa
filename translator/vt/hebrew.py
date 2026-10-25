@@ -329,6 +329,16 @@ def _break_cost(top: list[str], bottom: list[str], n_total: int, shape: bool = T
     return cost
 
 
+# 25/10/2026: בחירה חיצונית של נקודת השבירה (vt/linebreak.Chooser — Haiku / מודל תחבירי). מוגדרת רק בזמן build;
+# None = הכללים של _break_cost, כמו תמיד.
+_CHOOSER = None
+
+
+def set_break_chooser(fn) -> None:
+    global _CHOOSER
+    _CHOOSER = fn
+
+
 def break_lines(text: str, max_chars: int = 42, measure: Measurer | None = None,
                 max_px: float | None = None) -> tuple[list[str], bool]:
     """מחזיר (שורות, תקין). אם אין דרך לעמוד במגבלות — מחזיר את הטוב ביותר עם תקין=False.
@@ -350,6 +360,13 @@ def break_lines(text: str, max_chars: int = 42, measure: Measurer | None = None,
     toks = text.split(" ")
     if len(toks) < 2:
         return [text], False
+    if _CHOOSER is not None:
+        valid = [i for i in range(1, len(toks))
+                 if _fits([" ".join(toks[:i]), " ".join(toks[i:])], max_chars, measure, max_px)]
+        if valid:
+            i = _CHOOSER(toks, valid)
+            if i in valid:
+                return [" ".join(toks[:i]), " ".join(toks[i:])], True
     best, best_cost, best_ok = None, 1e9, False
     for i in range(1, len(toks)):
         top, bottom = toks[:i], toks[i:]
