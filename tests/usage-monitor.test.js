@@ -132,6 +132,18 @@ assert.strictEqual(fs.items[1].used, 100);
   // הודעת 403 של Google עוברת למרכז הניהול (קצרה)
   const gm = await U.r2Store({ CF_USAGE_TOKEN: 't', R2_ACCOUNT_ID: 'a', R2_BUCKET: 'snb-learn' }, async () => ({ status: 403, text: async () => JSON.stringify({ error: { message: 'Permission monitoring.timeSeries.list denied (or the resource may not exist).' } }) }), now0);
   assert.strictEqual(gm.err, 'http_403');
+  // 24/10/2026: orderBy על datetime — רק כשהוא ב־dimensions (אחרת "neither aggregated, nor a dimension"); השימוש = סכום האחרונה בכל דלי
+  assert.ok(/orderBy:\[datetime_DESC\]\)\{max\{[^}]*\} dimensions\{datetime\}\}/.test(U.storeQuery(['a-b'])));
+  let r2q = '';
+  await U.r2Usage({ CF_USAGE_TOKEN: 't', R2_ACCOUNT_ID: 'a' }, async (u, o) => { if (o && o.body) r2q = JSON.parse(o.body).query; return { status: 200, json: async () => ({ data: { viewer: { accounts: [{}] } } }) }; }, now0);
+  assert.ok(/orderBy:\[datetime_DESC\]\)\{max\{payloadSize\} dimensions\{datetime bucketName\}\}/.test(r2q), r2q);
+  const rb = U.parseR2({ data: { viewer: { accounts: [{ r2StorageAdaptiveGroups: [
+    { max: { payloadSize: 3e9 }, dimensions: { bucketName: 'a' } }, { max: { payloadSize: 2e9 }, dimensions: { bucketName: 'b' } },
+    { max: { payloadSize: 1e9 }, dimensions: { bucketName: 'a' } }], r2OperationsAdaptiveGroups: [] }] } } });
+  assert.strictEqual(rb.items[0].used, 5, 'האחרונה של a + של b, לא הישנה של a');
+  // "requires billing" — קוד משלו, לא "אין הרשאה"
+  const gb = await U.r2Store({ CF_USAGE_TOKEN: 't', R2_ACCOUNT_ID: 'a', R2_BUCKET: 'snb-learn' }, g403(JSON.stringify({ error: { message: 'This API method requires billing to be enabled.' } })), now0);
+  assert.strictEqual(gb.err, 'billing');
   // תקציר לווידג'ט
   assert.strictEqual(U.stoBrief(null), null);
   assert.deepStrictEqual(U.stoBrief({ r2: { at: 5, b: [{ name: 'a', gb: 1.234 }, { name: 'b', gb: 2 }], cost: { proj: 3.5, mtd: 1, st: 9 } }, r2e: { err: 'gql', at: 1 }, drive: { at: 6, gb: 4, lim: 15 } }),

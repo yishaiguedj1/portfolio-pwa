@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1074 מפתחות מתוך 3994) */
+/* המחרוזות של admin (1075 מפתחות מתוך 3995) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -637,6 +637,7 @@ he: {
   "admPerMo": "בחודש",
   "admPrev": "קודם: {n}",
   "admProvApiOff": "ה־API כבוי בפרויקט",
+  "admProvBilling": "דורש חשבון חיוב בפרויקט",
   "admProvBw": "תעבורה",
   "admProvErr": "שגיאה",
   "admProvFs": "Firestore",
@@ -1713,6 +1714,7 @@ en: {
   "admPerMo": "a month",
   "admPrev": "before: {n}",
   "admProvApiOff": "API is turned off in the project",
+  "admProvBilling": "Needs a billing account on the project",
   "admProvBw": "Bandwidth",
   "admProvErr": "Error",
   "admProvFs": "Firestore",
