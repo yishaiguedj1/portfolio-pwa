@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1845 מפתחות מתוך 4065) */
+/* המחרוזות של studio (1842 מפתחות מתוך 4062) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -1449,7 +1449,6 @@ he: {
   "studioSecStages": "השלבים",
   "studioSecStyle": "מראה הכתוביות",
   "studioSecSubs": "קובץ הכתוביות",
-  "studioSecTerms": "שמות ומונחים (לא חובה)",
   "studioSecUpload": "העלאה",
   "studioSecVideo": "הסרטון",
   "studioSecs": "{n} שנ׳",
@@ -1637,8 +1636,6 @@ he: {
   "studioSumSonMed": "ציון 88.6 · ‏14 שגיאות מהותיות. ההמלצה שלנו: האיזון בין איכות למחיר.",
   "studioTech": "פרטים טכניים",
   "studioTermsK": "שמות ומונחים",
-  "studioTermsNote": "Claude משתמש בהם בהגהה ובתרגום",
-  "studioTermsPh": "שמות של אנשים, חברות ומונחים מהסרטון",
   "studioTestClaimed": "Claude התחיל. עוד רגע…",
   "studioTestConn": "בדיקת חיבור",
   "studioTestDriveNo": "אבל מהסשן אין גישה ל־Google Drive. חברו את Drive בהגדרות",
@@ -3296,7 +3293,6 @@ en: {
   "studioSecStages": "Steps",
   "studioSecStyle": "Subtitle look",
   "studioSecSubs": "Subtitle file",
-  "studioSecTerms": "Names and terms (optional)",
   "studioSecUpload": "Upload",
   "studioSecVideo": "Video",
   "studioSecs": "{n}s",
@@ -3484,8 +3480,6 @@ en: {
   "studioSumSonMed": "score 88.6 · 14 major errors. Our pick: the balance of quality and price.",
   "studioTech": "Technical details",
   "studioTermsK": "Names and terms",
-  "studioTermsNote": "Claude uses them when proofreading and translating",
-  "studioTermsPh": "People, companies and terms from the video",
   "studioTestClaimed": "Claude started. One moment…",
   "studioTestConn": "Test connection",
   "studioTestDriveNo": "But the session can't reach Google Drive. Connect Drive in settings",

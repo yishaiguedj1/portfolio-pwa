@@ -2850,11 +2850,7 @@ function pageForm(p, editing) {
   chips.append(btn('st-chip', '+ ' + T('studioMore'), () => go('lang', 'to'), 'c:more'));
   p.append(chips);
 
-  // שמות ומונחים — Claude משתמש בהם בהגהה ובתרגום
-  const ta = h('textarea', 'st-ta'); ta.rows = 3; ta.maxLength = TERMS_MAX; ta.value = f.terms || '';
-  ta.placeholder = T('studioTermsPh'); ta.dataset.k = 'terms'; ta.setAttribute('aria-label', T('studioSecTerms'));
-  ta.addEventListener('input', () => { f.terms = ta.value; });
-  p.append(secT(T('studioSecTerms')), ta, note(T('studioTermsNote')));
+  // 25/10/2026: שדה "שמות ומונחים" הוסר מהטופס (בקשת המשתמש) — מילון המונחים בחוקים נשאר
 
   // מצב התרגום — המומלץ מסומן ונבחר מראש
   p.append(secT(T('studioSecMode')), ...modePicker(f.mode, (id) => { f.mode = id; render('none'); }));
