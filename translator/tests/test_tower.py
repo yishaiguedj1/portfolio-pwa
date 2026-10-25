@@ -249,6 +249,16 @@ class TestHook(unittest.TestCase):
         self.assertIn('בוטלה', out['stopReason'])
         self.assertIs(self.hook()['continue'], False)
 
+    def test_relay_not_watched(self):
+        """25/10/2026: מצב ההעברה — המפתח של ה־Routine לא מורשה ל־report; המגדל לא פונה לשרתון ולא חוסם את go."""
+        (self.state / 'job.json').unlink()
+        (self.state / 'job.json').write_text(json.dumps({'job': JOB, 'key': KEY, 'server': self.base, 'kind': 'relay', 'hub': self.base}))
+        self.spend(5_000_000)
+        self.fake.stop_all = True
+        self.assertIsNone(self.hook(inp={'command': 'python3 translator/job.py go'}))
+        self.assertIsNone(self.hook())
+        self.assertFalse(self.fake.reports)
+
     def test_new_job_starts_clean(self):
         self.spend(900_000)
         self.assertIs(self.hook()['continue'], False)
