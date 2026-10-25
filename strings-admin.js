@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1152 מפתחות מתוך 4558) */
+/* המחרוזות של admin (1153 מפתחות מתוך 4559) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -912,6 +912,7 @@ he: {
   "admSvBusy": "עובד · {s}",
   "admSvDelQ": "להסיר את {n}? הטוקן שלו מת מיד והשרת יפסיק לקחת עבודות. השרת עצמו ב־Hetzner לא נמחק.",
   "admSvDisk": "דיסק",
+  "admSvDiskHold": "פחות מ־8GB פנויים — לא לוקח עבודות חדשות",
   "admSvDown": "לא מדווח",
   "admSvFoot": "מה שהשרת מדווח בכל פנייה (כל כמה שניות). יצירה, מחיקה והקמה מחדש — רק ב־GitHub Actions וב־Hetzner, עם הזהות שלך.",
   "admSvFree": "{n}GB פנויים",
@@ -2066,6 +2067,7 @@ en: {
   "admSvBusy": "Working · {s}",
   "admSvDelQ": "Remove {n}? Its token dies immediately and it stops taking jobs. The Hetzner server itself is not deleted.",
   "admSvDisk": "Disk",
+  "admSvDiskHold": "Under 8GB free — not taking new jobs",
   "admSvDown": "Not reporting",
   "admSvFoot": "What the server reports on every call (every few seconds). Creating, deleting and rebuilding — only in GitHub Actions and Hetzner, with your identity.",
   "admSvFree": "{n}GB free",

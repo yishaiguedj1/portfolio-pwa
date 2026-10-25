@@ -181,12 +181,42 @@ def _set_booted():
     _boot = False
 
 
+# 26/10/2026: הדיסק בשרת הגיע ל־89% (תמונות עובד ישנות). עבודה שמתחילה בלי מקום נופלת באמצע (הורדה, צריבה,
+# איכויות — כמה GB לסרטון ארוך). פחות מזה פנוי = לא לוקחים עבודה חדשה (רק דופק); השרתון ממשיך לראות אותנו,
+# והעבודה מחכה בתור עד ש־snb-update מפנה תמונות. 0 = כבוי
+DISK_MIN_GB = float(os.environ.get('SNB_DISK_MIN_GB', '8') or 0)
+_disk_low_said = False
+
+
+def disk_low() -> bool:
+    """פחות מ־DISK_MIN_GB פנויים בדיסק של העבודות (= הדיסק של השרת). שגיאה במדידה = לא חוסמים"""
+    if DISK_MIN_GB <= 0:
+        return False
+    try:
+        du = shutil.disk_usage(str(J.VT_WORK if J.VT_WORK.exists() else '/'))
+    except OSError:
+        return False
+    return du.free / 1e9 < DISK_MIN_GB
+
+
 def poll(server: str, tok: str, op: str = 'poll', busy: str = '', fit: dict | None = None) -> dict:
     """{'job': {'id', 'key', 'kind'}} או {'job': None}. שגיאה → {'error': ...} (הלולאה מחכה ומנסה שוב).
-    op='beat' — רק דופק (באמצע עבודה), בלי לבקש עבודה. fit — כשכבר רצה עבודה: כמה זיכרון פנוי לעוד אחת (הזמנה)."""
+    op='beat' — רק דופק (באמצע עבודה), בלי לבקש עבודה. fit — כשכבר רצה עבודה: כמה זיכרון פנוי לעוד אחת (הזמנה).
+    אין מקום בדיסק (disk_low) — בקשת עבודה הופכת לדופק בלבד."""
+    global _disk_low_said
+    held = op == 'poll' and disk_low()
+    if held:
+        op = 'beat'
+        if not _disk_low_said:
+            print('· פחות מ־' + str(int(DISK_MIN_GB)) + 'GB פנויים בדיסק — לא לוקחים עבודה חדשה עד שיתפנה מקום', flush=True)
+        _disk_low_said = True
+    elif op == 'poll':
+        _disk_low_said = False
     try:
         hb = host_info(busy)
         hb['ev'] = ev_list()
+        if held:
+            hb['dl'] = 1                 # מסך השרת: "לא לוקח עבודות — הדיסק מלא"
         body = {'op': op, 'v': 1, 'hb': hb}
         if fit:
             body['fit'] = fit
@@ -207,7 +237,7 @@ def poll(server: str, tok: str, op: str = 'poll', busy: str = '', fit: dict | No
             if isinstance(jb.get('dur'), (int, float)) and 0 < jb['dur'] <= 86400:
                 out['dur'] = jb['dur']                 # 21/10/2026: אורך הסרטון — להזמנת הזיכרון
             return {'job': out}
-        return {'job': None, 'paused': j.get('paused') is True}
+        return {'job': None, 'paused': j.get('paused') is True, 'disk': held}
     return {'error': 'http_' + str(st)}
 
 
