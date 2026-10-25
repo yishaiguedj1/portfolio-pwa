@@ -57,7 +57,8 @@ def clean_answer(v: str) -> str:
 PART_RE = re.compile(r'^## חלק (\d+)/(\d+) → (batch_\d{3}\.he\.txt)\s*$')
 ISSUE_RE = re.compile(r'^- #(\d+): (.*)$')
 # בעיות שחייבות תיקון (שגיאה/חסר) מול הערות שכדאי לשקול (מעל תקציב, מספר, מילון, שאלה)
-HARD = ('חסר תרגום', 'מעל 84', "'=' בלי", "חסר '||'", 'מספר לא קיים', 'מופיע ביותר', 'ניקוד', 'מקף דובר', 'תג עיצוב', 'הושמט — כל דובר')
+HARD = ('חסר תרגום', 'מעל 84', "'=' בלי", "חסר '||'", 'מספר לא קיים', 'מופיע ביותר', 'ניקוד', 'מקף דובר', 'תג עיצוב', 'הושמט — כל דובר',
+        '(הזזה)')   # 25/10/2026: ההזזה נספרה כשגיאה ב־tr-check אבל לא נשלחה לתיקון → check_errors בלי ניסיון
 SOFT = ('תקציב', 'המספר', 'מונח', 'סימן שאלה', 'קצר מאוד', 'סמל מטבע', 'ספרה בתחילת', 'לכתיב אחד')
 
 SECTION_RE = re.compile(r'^=== (PATCH|BRIEF|GLOSSARY|QUESTIONS) ===\s*$', re.M)
@@ -347,14 +348,39 @@ def answer_lines(text: str, allowed: set[str]) -> dict[str, str]:
     return out
 
 
+# 25/10/2026 (session_01UZAW): vt כותב קוד קבוע לפני כל הודעה ב־tr/check.md (`- #12: [num] …`, ‏vt.translate.CHECK_CODES).
+# הסיווג לפי הקוד — הודעה חדשה בבודק לא משנה בשקט את העדיפות שלה (כך "אותיות לועזיות" עם המילה "מונח" דחקה את חריגות
+# הקצב, והודעת ההזזה לא נשלחה לתיקון בכלל). בלי קוד (vt ישן / נקודת שמירה ישנה) — לפי המילים, כמו עד היום.
+CODE_HARD = frozenset(('id', 'miss', 'eq', 'drift', 'spk', 'len', 'dlg', 'brk', 'nikud', 'dash', 'tag', 'part'))
+CODE_SOFT = frozenset(('num', 'gls', 'lat', 'name', 'q', 'short', 'cps', 'cur'))
+CODE_RANK = {'num': 0, 'gls': 1, 'lat': 1, 'name': 1, 'q': 2, 'short': 3, 'cps': 4, 'cur': 5}
+_CODE_RE = re.compile(r'^\[([a-z]+)\] ')
+
+
+def issue_code(msg: str) -> str:
+    m = _CODE_RE.match(msg)
+    return m.group(1) if m else ''
+
+
 def parse_issues(check_md: str) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
-    """tr/check.md → (בעיות שחייבות תיקון, הערות שכדאי לשקול), לפי מספר כתובית."""
+    """tr/check.md → (בעיות שחייבות תיקון, הערות שכדאי לשקול), לפי מספר כתובית.
+    ההודעות נשמרות עם הקוד (`[num] …`) — soft_order מדרג לפיו."""
     hard, soft = {}, {}
     for line in check_md.splitlines():
         m = ISSUE_RE.match(line.strip())
         if not m:
             continue
         k, msg = m.group(1), m.group(2)
+        code = issue_code(msg)
+        if code:
+            if code in CODE_HARD:
+                hard.setdefault(k, []).append(msg)
+            elif code in CODE_SOFT:
+                soft.setdefault(k, []).append(msg)
+            elif code != 'dots':                       # קוד שהצנרת לא מכירה — חובה (test_pipeline משווה ל־CHECK_CODES של vt)
+                print(f'· קוד בדיקה לא מוכר [{code}] בכתובית #{k} — נשלח לתיקון כ"חייב"')
+                hard.setdefault(k, []).append(msg)
+            continue
         if any(h in msg for h in HARD):
             hard.setdefault(k, []).append(msg)
         elif any(s in msg for s in SOFT):
@@ -373,7 +399,8 @@ def soft_order(soft: dict[str, list[str]]) -> list[str]:
     """מספרי הכתוביות לפי חומרה: מספר שנעלם › מונח › שאלה › קיצור חשוד › קצב קריאה (החריגה היחסית הגדולה קודם) › השאר"""
     def key(kk):
         msgs = soft[kk]
-        rank = min((r for m in msgs for w, r in SOFT_RANK if w in m), default=5)
+        rank = min([CODE_RANK.get(issue_code(m), 5) for m in msgs if issue_code(m)]
+                   + [r for m in msgs if not issue_code(m) for w, r in SOFT_RANK if w in m], default=5)
         over = 0.0
         for m in msgs:
             mo = _OVER_RE.search(m)

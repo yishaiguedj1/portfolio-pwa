@@ -728,6 +728,38 @@ class FixStages2510(unittest.TestCase):
         self.assertEqual(pl.qc_round(), {'qcn': 0, 'qcf': 0})
 
 
+class IssueCodes2510(unittest.TestCase):
+    """25/10/2026: הסיווג לפי הקוד שב־tr/check.md, ונפילה למילים כשאין קוד."""
+
+    def test_codes(self):
+        md = '\n'.join(['- #1: [lat] מונח באנגלית שלא תורגם: foo',        # היה "מונח" (דרגה 1) — עכשיו לפי הקוד
+                         '- #2: [cps] 50 תווים מול תקציב 40 (קצב קריאה)',
+                         '- #3: [drift] נראה שהתרגום שייך לכתובית הבאה (הזזה)',
+                         '- #4: [dots] שלוש נקודות',
+                         '- #5: [zzz] משהו חדש',
+                         '- #6: [num] המספר 120 לא בתרגום'])
+        hard, soft = P.parse_issues(md)
+        self.assertEqual(set(hard), {'3', '5'}, 'הזזה וקוד לא מוכר — חובה')
+        self.assertEqual(set(soft), {'1', '2', '6'}, 'dots — בלי סבב תיקון')
+        self.assertEqual(P.soft_order(soft), ['6', '1', '2'])
+
+    def test_drift_without_code(self):
+        hard, _ = P.parse_issues('- #7: נראה שהתרגום שייך לכתובית הקודמת (הזזה) — לבדוק')
+        self.assertEqual(set(hard), {'7'}, 'vt בלי קודים: ההזזה נשלחת לתיקון (עד היום — לא נשלחה, ונספרה כשגיאה)')
+
+    def test_codes_match_vt(self):
+        try:
+            from vt import translate as T
+        except Exception:                                # noqa: BLE001 — בלי vt בסביבה
+            self.skipTest('vt לא נטען')
+        cc = getattr(T, 'CHECK_CODES', None)
+        if not cc:
+            self.skipTest('vt עוד בלי CHECK_CODES')
+        self.assertEqual({k for k, v in cc.items() if v == 'h'}, set(P.CODE_HARD))
+        self.assertEqual({k for k, v in cc.items() if v == 's'}, set(P.CODE_SOFT))
+        self.assertEqual(set(P.CODE_RANK), set(P.CODE_SOFT))
+
+
 class PostIncident(unittest.TestCase):
     """15/10/2026: דוח אחרי תקלה גם במצב השרת — Sonnet כותב את הסיכום מהעובדות של הלקיחה, נשלח פעם אחת, כשל לא מפיל."""
     setUp, tearDown, engine = FlowTests.setUp, FlowTests.tearDown, FlowTests.engine
