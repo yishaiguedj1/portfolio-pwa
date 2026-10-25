@@ -1233,7 +1233,7 @@ class Pipeline:
         spec = llm.Spec(*LB_SPEC)
         leng = llm.Engine(spec, client=self.eng._client)
         try:
-            res = leng.complete('lb', RULES, prompt, max_tokens=LB_MAX_OUT, partial_ok=True)
+            res = leng.complete('lb', RULES, prompt, max_tokens=min(LB_MAX_OUT, 2000 + 12 * st['lbn']), partial_ok=True)
         except llm.LLMError as e:
             print('· שבירת השורות ב־Haiku נכשלה (' + e.code + ') — ממשיכים עם המודל התחבירי.')
             for r in leng.ledger.list():
@@ -1245,8 +1245,9 @@ class Pipeline:
         ans.write_text(kept_text(res).strip() + '\n', encoding='utf-8')
         try:
             self.J.vt(ctx, ['lb-apply', ctx.name, '--answer', str(ans), '--model', spec.model])
-            picks = json.loads((td / 'linebreak.json').read_text(encoding='utf-8'))
-            st['lbf'] = len(picks) if isinstance(picks, (dict, list)) else 0
+            lb = json.loads((td / 'linebreak.json').read_text(encoding='utf-8'))
+            picks = lb.get('picks') if isinstance(lb, dict) else None     # {"v":1, "model", "picks": {טקסט: n}}
+            st['lbf'] = len(picks) if isinstance(picks, dict) else 0
         except (OSError, ValueError, SystemExit):
             pass
         ctx.st['lbx'] = st

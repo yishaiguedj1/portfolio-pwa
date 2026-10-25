@@ -781,7 +781,7 @@ class LineBreaks2510(unittest.TestCase):
             if args[0] == 'lb-apply':
                 J.cmds.append('lb-apply')
                 self.applied = (args[3], args[5], Path(args[3]).read_text(encoding='utf-8'))
-                (td / 'linebreak.json').write_text(json.dumps({'abc': 1}), encoding='utf-8')
+                (td / 'linebreak.json').write_text(json.dumps({'v': 1, 'model': args[5], 'picks': {'א ב': 1}}), encoding='utf-8')
                 return []
             return base(ctx, args)
         J.vt = vt
