@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1836 מפתחות מתוך 4016) */
+/* המחרוזות של studio (1837 מפתחות מתוך 4017) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -965,6 +965,7 @@ he: {
   "studioNowQueuedApi": "בתור לשרת — מתחיל ברגע שהוא פנוי",
   "studioNowRunning": "Claude עובד על הסרטון",
   "studioNowRyWait": "העבודה רצה בשרת, ומחכה שה־Routine שלך יתחבר. אם זה נמשך — בדקו שהכתובת api.thesnowball.app ברשימת הכתובות של הסביבה ב־claude.ai",
+  "studioNowSrvUpd": "השרת מתעדכן לגרסה חדשה — העבודה תתחיל בעוד כמה דקות",
   "studioNowStuck": "Claude לא עדכן כבר שעתיים — כנראה הסשן נסגר. אפשר להמשיך מאותה נקודה",
   "studioNowVideo": "הסרטון המלא עולה לענן",
   "studioNowVideoOnly": "הסרטון עולה לענן",
@@ -2803,6 +2804,7 @@ en: {
   "studioNowQueuedApi": "In the server queue — starts as soon as it is free",
   "studioNowRunning": "Claude is working on the video",
   "studioNowRyWait": "Running on the server, waiting for your Routine to connect. If this persists, check that api.thesnowball.app is in the environment's allowed domains on claude.ai",
+  "studioNowSrvUpd": "The server is updating to a new version — your job starts in a few minutes",
   "studioNowStuck": "Claude hasn't reported for two hours — the session probably closed. You can continue from the same point",
   "studioNowVideo": "The full video is uploading to the cloud",
   "studioNowVideoOnly": "The video is uploading to the cloud",

@@ -230,6 +230,7 @@ export function normJob(j) {
     use: normUse(s.use),   // v359: טוקנים ועלות (מהעובד, דרך השרתון)
     eng: s.eng === 'api' ? 'api' : 'sub',   // מצב API: העבודה רצה על השרת של המערכת (בתור עד ששרת פנוי)
     vw: s.vw === 1 || s.vw === true,   // 15/10/2026: מחכה לסרטון בתור — השרת פנוי בינתיים
+    uw: s.uw === 1,   // 25/10/2026: בתור, והשרת מתחלף לגרסה חדשה של העובד (חלון העדכון — דקה־שתיים)
     ry: s.ry === 1, rc: num(s.rc),   // 24/10/2026: "המנוי שלי" דרך השרת — ומתי ה־Routine שלך התחבר (0 = עוד לא)
     qa: normQa(s.qa),      // שאלה מ־Claude באמצע העבודה (והתשובה)
     ck: normCk(s.ck),      // v361: נקודת השמירה האחרונה (אחרי איזה שלב)
@@ -2557,7 +2558,7 @@ function nowLine(rec, run, ph) {
   if (ph === 'paused') return T('studioPausedNow');
   if (ph === 'error') return errText(run.err);
   if (ph === 'ready') return rec.up.wait === 'worker_not_ready' ? T('studioWaitWorker') : rec.up.wait ? errText(rec.up.wait) : T('studioReady');
-  if (ph === 'queued') return rec.srv && rec.srv.vw ? (rec.spec.ph ? T('studioPhWaitM') : T('studioNowParked')) : rec.srv && rec.srv.eng === 'api' ? T('studioNowQueuedApi') : T('studioNowQueued');
+  if (ph === 'queued') return rec.srv && rec.srv.vw ? (rec.spec.ph ? T('studioPhWaitM') : T('studioNowParked')) : rec.srv && rec.srv.uw ? T('studioNowSrvUpd') : rec.srv && rec.srv.eng === 'api' ? T('studioNowQueuedApi') : T('studioNowQueued');
   if (ph === 'running' && ryWaiting(rec, Date.now())) return T('studioNowRyWait');
   if (ph === 'running') return (rec.srv && rec.srv.prog && rec.srv.prog.msg) || T('studioNowRunning');
   if (ph === 'done') return T('studioNowDone');
