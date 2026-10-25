@@ -24,8 +24,8 @@ html[data-app="studio"] .st-root:not(.leaving) { animation: none; }   /* 14/10/2
 @media (prefers-reduced-motion: reduce) { .st-root, .st-root.leaving, .st-page { animation: none !important; } }
 
 /* איפוס כפתורים בלי משקל — כל מחלקה של רכיב גוברת עליו (".lib-root button" גבר על צבעי רכיבים — לקח v334) */
-:where(.st-root button) { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; text-align: inherit; -webkit-tap-highlight-color: transparent; }
-:where(.st-root button:disabled) { cursor: default; }
+:where(.st-root button, .st-rs button) { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; text-align: inherit; -webkit-tap-highlight-color: transparent; }
+:where(.st-root button:disabled, .st-rs button:disabled) { cursor: default; }
 /* 13/10/2026: המבטא של Studio = אדום (--primary, styles.css) — כפתורים, קישורים, בוררים ובחירות.
    כל מה שמסמן מצב נשאר ירוק (--st-ok, בקשת המשתמש: "בכל מקום שעלול להיראות כמו שגיאה"): ✓ והושלם, מתגים ותיבות סימון,
    "מחובר", התקדמות העבודה, ציונים וגרפים, יעדי השירות, ומגדל הפיקוח (השורה בהגדרות ובדף העבודה) — באדום זה נראה כמו תקלה */
@@ -683,6 +683,14 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-pl-b svg { width: 22px; height: 22px; }
 .st-pl-top .st-pl-b { width: 40px; height: 40px; position: relative; }
 .st-pl-b.cc.on { color: #FFD60A; }
+.st-pl-b.fl.on { color: #FFD60A; }   /* 25/10/2026: הכתובית שעל המסך מסומנת (המשוב שלך) */
+.st-pl-flags { position: absolute; inset-inline: 0; top: 50%; height: 12px; margin-top: -6px; pointer-events: none; }
+.st-pl-flags i { position: absolute; top: 0; bottom: 0; width: 3px; margin-inline-start: -1.5px; border-radius: 2px; background: #FFD60A; }
+.st-pl-ftoast { position: absolute; inset-inline: 12px; bottom: 54px; z-index: 5; display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+  border-radius: var(--radius-xs); background: rgba(28, 28, 30, .94); color: #fff; font-size: 14.5px; pointer-events: auto; animation: stPlFade .18s ease; }
+.st-pl-ftoast[hidden] { display: none; }
+.st-pl-ftoast > span { flex: 1; min-width: 0; }
+.st-pl-fundo { border: 0; background: transparent; color: #FF8A94; font: inherit; font-weight: 600; padding: 4px 2px; cursor: pointer; }
 .st-pl-b:disabled { opacity: .35; }
 .st-pl-ccl { position: absolute; bottom: 1px; inset-inline: 0; font-size: 9px; font-weight: 800; text-align: center; }
 .st-pl-mid .st-pl-b { background: rgba(0, 0, 0, .35); }
@@ -993,3 +1001,35 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-setgrp > .st-note { margin-inline: 30px; }
 .st-root > .st-page > .card { margin-inline: 16px; }
 .st-root .card { border-radius: var(--radius-sm); box-shadow: none; }   /* כרטיסי החשבון והתצוגה (shell.js) — אותן פינות של שאר הסטודיו */
+
+/* 25/10/2026: המשוב שלך על התרגום (לפי התצוגה המקדימה) — כרטיס "איך יצא התרגום?" בדף העבודה, וגיליון "מה לא היה טוב?" */
+.st-rate { display: flex; align-items: center; gap: 12px; margin: 14px 16px 0; padding: 14px 16px; border-radius: var(--radius-sm); background: var(--st-card); }
+.st-rate-l { flex: 1; min-width: 0; font-size: 16px; font-weight: 600; }
+.st-rate-b { width: 48px; height: 48px; flex: none; display: grid; place-items: center; border-radius: var(--pill); }
+.st-rate-b svg { width: 22px; height: 22px; stroke-width: 2; }
+.st-rate-b.up { background: var(--st-ok-c); color: var(--st-ok-ink); }
+.st-rate-b.dn { background: var(--st-red-c); color: #C8102E; }
+.st-rate-b.on { outline: 2px solid currentColor; outline-offset: 2px; }
+.st-rate-b:active { transform: scale(.94); }
+[data-theme="dark"] .st-rate-b.up { color: var(--st-ok); }
+[data-theme="dark"] .st-rate-b.dn { color: #FF6961; }
+.st-rate.done { color: var(--st-ok-ink); font-size: 15px; gap: 10px; }
+.st-rate.done svg { width: 20px; height: 20px; flex: none; }
+.st-rate.done .st-rate-l { font-size: 15px; font-weight: 500; }
+[data-theme="dark"] .st-rate.done { color: var(--st-ok); }
+.st-rate-chg { color: var(--primary); font-size: 15px; padding: 4px 2px; }
+.st-rs { position: fixed; inset: 0; z-index: 1100; display: flex; align-items: flex-end; justify-content: center; background: rgba(0, 0, 0, .45);
+  color: var(--on-surface); font-family: var(--font); animation: stPlFade .18s ease;
+  --st-card: var(--surface); --st-fill: var(--search-fill); }
+[data-theme="dark"] .st-rs { --st-card: #2C2C2E; }
+.st-rs-box { width: 100%; max-width: 520px; max-height: 86vh; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 14px; padding: 10px 0 calc(20px + env(safe-area-inset-bottom)); border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--bg); box-shadow: 0 -8px 30px rgba(0, 0, 0, .25); animation: stPlUp .22s cubic-bezier(.2, .9, .3, 1); }
+.st-rs-grab { align-self: center; width: 40px; height: 5px; border-radius: var(--pill); background: var(--separator); }
+.st-rs-t { margin: 4px 16px 0; font-size: 20px; font-weight: 700; }
+.st-rs-s { margin: -8px 16px 0; font-size: 14px; color: var(--on-surface-var); }
+.st-rs-chips { display: flex; flex-wrap: wrap; gap: 8px; padding-inline: 16px; }
+.st-rs-chip { padding: 10px 14px; border-radius: var(--pill); background: var(--st-card); color: var(--on-surface); font-size: 15px; }
+.st-rs-chip.on { background: var(--primary); color: var(--on-primary); }
+.st-rs .st-list { margin-inline: 16px; }
+@media (prefers-reduced-motion: reduce) { .st-rs, .st-rs-box { animation: none; } }

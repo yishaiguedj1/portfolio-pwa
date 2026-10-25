@@ -218,7 +218,7 @@ export function normJob(j) {
   };
   const up = { folder: FID_RE.test(String(u.folder || '')) ? u.folder : '', a: part(u.a), v: part(u.v),
     noAudio: typeof u.noAudio === 'string' ? u.noAudio.slice(0, 20) : '', started: num(u.started),
-    wait: typeof u.wait === 'string' ? u.wait.slice(0, 40) : '', took: num(u.took),
+    wait: typeof u.wait === 'string' ? u.wait.slice(0, 40) : '', wt: num(u.wt), took: num(u.took),   // wt = מתי נדחה (לניסיון החוזר)
     ext: u.ext === true, extReg: u.extReg === true,   // מקור מ־Drive: בלי העלאה; extReg = נרשם בשרתון
     link: u.link === true,   // 22/10/2026: מקישור — העובד מוריד; בלי העלאה מהטלפון
     ph: PH_PID_RE.test(String(u.ph || '')) ? u.ph : '',   // 24/10/2026: תרגום בטלפון — Studio לאנדרואיד מעלה (הסרטון נשאר בטלפון)
@@ -238,6 +238,8 @@ export function normJob(j) {
     use: normUse(s.use),   // v359: טוקנים ועלות (מהעובד, דרך השרתון)
     eng: s.eng === 'api' ? 'api' : 'sub',   // מצב API: העבודה רצה על השרת של המערכת (בתור עד ששרת פנוי)
     vw: s.vw === 1 || s.vw === true,   // 15/10/2026: מחכה לסרטון בתור — השרת פנוי בינתיים
+    urt: normRate(s.urt),   // 25/10/2026: המשוב שלך על התרגום (👍/👎, סיבות, כתוביות שסימנת)
+    sw: typeof s.sw === 'string' ? s.sw.slice(0, 40) : '',   // 25/10/2026: למה העבודה לא התחילה (קוד הסירוב בשרתון — גם ממכשיר אחר)
     uw: s.uw === 1,   // 25/10/2026: בתור, והשרת מתחלף לגרסה חדשה של העובד (חלון העדכון — דקה־שתיים)
     ry: s.ry === 1, rc: num(s.rc),   // 24/10/2026: "המנוי שלי" דרך השרת — ומתי ה־Routine שלך התחבר (0 = עוד לא)
     qa: normQa(s.qa),      // שאלה מ־Claude באמצע העבודה (והתשובה)
@@ -1242,9 +1244,7 @@ async function refreshJobs(force) {
     const loc = have.get(sj.id);
     if (loc) adoptSrv(loc, sj);
     else {                         // עבודה ממכשיר אחר / אחרי ניקוי — מה שכבר עלה רשום בשרתון
-      const f = sj.files || {};
-      const rec = normJob({ id: sj.id, created: sj.created, spec: sj.spec, srv: sj,
-        up: { a: { done: !!f.a, id: f.a && f.a.id, size: f.a && f.a.size }, v: { done: !!f.v, id: f.v && f.v.id, size: f.v && f.v.size } } });
+      const rec = recFromSrv(sj);
       if (rec) store.jobs.push(rec);
     }
   }
@@ -1255,6 +1255,11 @@ async function refreshJobs(force) {
   save();
   // v371: התקלה הרחבה עברה — עבודות שחיכו לה מתחילות לבד
   if (ui.inc && !majorOn(ui.inc)) for (const r of store.jobs.filter((x) => x.up.wait === 'major' && !x.up.started)) { r.up.wait = ''; tryStart(r.id); }
+  // 25/10/2026: סירוב חולף (תחזוקה, דגל כבוי) — שוב לבד כל START_GAP. עבודה שהשרתון כבר התחיל (גם מהבדיקה המתוזמנת) — בלי המתנה
+  for (const r of store.jobs) {
+    if (r.srv && r.srv.state !== 'new') { if (r.up.wait && !r.up.started) { r.up.wait = ''; r.up.started = r.srv.fired || Date.now(); } continue; }
+    if (startRetryDue(r.up, Date.now()) && (r.up.link || r.up.ext || r.up.a.done || r.up.v.done)) tryStart(r.id);
+  }
   goldAuto();   // שלב 4
   repaint();
 }
@@ -1444,7 +1449,7 @@ async function pickWithHandle() {
    הצילום של המשתמש: "מוציאים את הקול ושולחים אותו קודם" — 17 דק׳, בזמן שהסרטון המלא עלה אחר כך ב־4–6MB/שנ׳. בלי מדידה
    מהטלפון אי אפשר לדעת אם זה החילוץ, דף מואט ברקע או משהו אחר. רק מספרים (בלי שמות) → op:'upTel' → job.utl.
    **UTL_KEYS זהה ל־UTL_KEYS בשרתון (lib/studio.js)** */
-export const UTL_KEYS = ['c2s', 'ex', 'ab', 'a', 'v', 'vb', 'hid', 'hn', 'rs', 'wt', 'wl', 'wlr', 'nt', 'dl', 'dm', 'hc', 'vf', 'bg'];   // bg — ההעלאה ברקע: 1 הצליחה, 2 חזרה לרגילה, 3 הדפדפן לא תומך
+export const UTL_KEYS = ['c2s', 'ex', 'ab', 'a', 'v', 'vb', 'hid', 'hn', 'rs', 'wt', 'wl', 'wlr', 'nt', 'dl', 'dm', 'hc', 'vf', 'bg', 'dvp', 'dvs', 'dvn'];   // 25/10/2026: dvp/dvs/dvn — המכשיר (devCodes)   // bg — ההעלאה ברקע: 1 הצליחה, 2 חזרה לרגילה, 3 הדפדפן לא תומך
 export function normUtl(o) {
   if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
   const out = {};
@@ -1452,8 +1457,20 @@ export function normUtl(o) {
   return Object.keys(out).length ? out : null;
 }
 const NET_CODE = { wifi: 1, cellular: 2, ethernet: 3 };
+/* 25/10/2026 (משתמש מאייפון — ולא ידענו מאיזה מכשיר עבד): רק קודים, בלי מחרוזת הדפדפן. dvp: 1 iOS (גם iPad שמציג את עצמו
+   כמק) · 2 אנדרואיד · 3 מחשב · 4 אחר. dvs: 1 בדפדפן · 2 מותקן במסך הבית. dvn (התראות לטלפון): 1 מאושר · 2 נחסם · 3 לא נשאל ·
+   4 לא נתמך (באייפון — רק כשמותקן במסך הבית) */
+export function devCodes(nav, win) {
+  const ua = String((nav && nav.userAgent) || ''), tp = (nav && nav.maxTouchPoints) || 0;
+  const dvp = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && tp > 1) ? 1 : /Android/.test(ua) ? 2 : /Windows|Macintosh|Linux|CrOS/.test(ua) ? 3 : 4;
+  let st = false;
+  try { st = !!(nav && nav.standalone) || !!(win && win.matchMedia && win.matchMedia('(display-mode: standalone)').matches); } catch (e) {}
+  const N = win && win.Notification, p = N && N.permission;
+  return { dvp, dvs: st ? 2 : 1, dvn: !N ? 4 : p === 'granted' ? 1 : p === 'denied' ? 2 : 3 };
+}
 function utlOf(rec) {
   const tl = rec.up.tl || (rec.up.tl = {});
+  try { if (typeof navigator !== 'undefined') Object.assign(tl, devCodes(navigator, typeof window !== 'undefined' ? window : null)); } catch (e) {}
   try {
     const c = navigator.connection;
     if (c) { tl.nt = NET_CODE[c.type] || (c.type ? 4 : 0); if (c.downlink > 0) tl.dl = Math.round(c.downlink * 10); }
@@ -1536,6 +1553,14 @@ const isAbortErr = (e) => !!e && (e.name === 'AbortError' || e.code === 'aborted
 /* 25/10/2026 (צילום מהטלפון: "עלו 38MB מתוך 90MB · ממשיך כשההעלאה חוזרת" אחרי שההתראה אמרה שהסרטון עלה): כש־Background Fetch
    מסתיים בלי הדף, ה־service worker רושם את הסרטון בשרתון (r2bgDone) — אבל המצב בטלפון (up.v) נשאר במה שנשמר לפני הסגירה.
    השרתון הוא מקור האמת: סרטון שרשום שם = עלה, גם כאן (בלי לגעת בהעלאה שרצה עכשיו בדף — היא נסגרת לבד) */
+/* עבודה ממכשיר אחר / אחרי ניקוי / הרצת זהב — מה שכבר רשום בשרתון. 25/10/2026: עבודה מקישור / מ־Drive — בלי העלאה מהטלפון
+   הזה (עד היום חיכתה כאן לקובץ שלא יגיע, ולא יכלה להתחיל), וקוד הסירוב מהשרתון (sw) */
+export function recFromSrv(sj) {
+  const f = sj.files || {}, link = !!(sj.spec && sj.spec.src === 'url'), ext = !!(f.v && f.v.ext), sw = sj.state === 'new' && typeof sj.sw === 'string' ? sj.sw : '';
+  return normJob({ id: sj.id, created: sj.created, spec: sj.spec, srv: sj,
+    up: { a: { done: !!f.a || link || ext, id: f.a && f.a.id, size: f.a && f.a.size }, v: { done: !!f.v || link, id: f.v && f.v.id, size: f.v && f.v.size },
+      link, ext, extReg: ext, noAudio: link ? 'link' : ext ? 'ext' : '', wait: sw, wt: sw ? Date.now() : 0 } });
+}
 function adoptSrv(rec, sj) {
   rec.srv = normJob({ id: rec.id, srv: sj }).srv;
   const fv = sj && sj.files && sj.files.v, run = runs.get(rec.id);
@@ -1591,9 +1616,34 @@ async function tryStart(id, ov, mo) {
   // v367: ov = "להתחיל בכל זאת" (מצב מעל המקסימום) · v371: mo = להתחיל למרות תקלה רחבה
   const j = await net.api('start', Object.assign({ job: id }, ov ? { ov: true } : {}, mo ? { mo: true } : {}));
   if (j.job) rec.srv = normJob({ id, srv: j.job }).srv;
-  if (j.ok) { rec.up.started = Date.now(); rec.up.wait = ''; }
-  else rec.up.wait = String(j.error || 'failed').slice(0, 40);
+  startDone(rec, j);
   save(); paintSoon();
+}
+/* 25/10/2026: תוצאת "התחל" — מהטלפון (tryStart) או מהיצירה של עבודה מקישור (create עם start:true) */
+function startDone(rec, j) {
+  if (j.ok) { rec.up.started = Date.now(); rec.up.wait = ''; rec.up.wt = 0; }
+  else { rec.up.wait = String(j.error || 'failed').slice(0, 40); rec.up.wt = Date.now(); }
+}
+/* 25/10/2026: המשוב שלך על התרגום (בקשת המשתמש, לפי התצוגה המקדימה). נגיעה אחת ב־👍/👎; אחרי 👎 — "מה לא היה טוב?"
+   (קודים קבועים) ואפשר לסמן כתוביות בנגן. לשרתון רק קודים ומספרי כתוביות (op:'rate'), בלי טקסט.
+   **RATE_WHY, RATE_FLAG_MAX ו־normRate זהים בשרתון (lib/studio.js)** — tests/studio-rate.test.js */
+export const RATE_WHY = ['acc', 'nat', 'tim', 'nm', 'brk', 'ovl', 'mis', 'oth'];
+export const RATE_FLAG_MAX = 60;
+export function normRate(o) {
+  if (!o || typeof o !== 'object') return null;
+  const r = o.r === 1 || o.r === -1 ? o.r : 0;
+  const w = r === -1 && Array.isArray(o.w) ? RATE_WHY.filter((k) => o.w.includes(k)) : [];
+  const c = Array.isArray(o.c) ? [...new Set(o.c.filter((x) => Number.isInteger(x) && x >= 0 && x < 1e6))].sort((a, b) => a - b).slice(0, RATE_FLAG_MAX) : [];
+  if (!r && !c.length) return null;
+  const at = Number.isFinite(+o.at) && +o.at > 0 ? Math.floor(+o.at) : 0;
+  return Object.assign({ r }, w.length ? { w } : {}, c.length ? { c } : {}, at ? { at } : {});
+}
+/* 25/10/2026: סירוב חולף — הטלפון מנסה שוב לבד (הבדיקה המתוזמנת בשרתון עושה את אותו דבר גם כשהטלפון סגור).
+   **START_RETRY זהה ל־START_RETRY בשרתון (lib/studio.js)**. major — בנפרד (כשהתקלה הרחבה עוברת) */
+export const START_RETRY = ['maint', 'flag_off', 'major'];
+const START_GAP = 2 * 60e3;
+export function startRetryDue(up, now) {
+  return !!up && !up.started && START_RETRY.includes(up.wait) && up.wait !== 'major' && now - (up.wt || 0) >= START_GAP;
 }
 function startRun(id, file) {
   const prev = runs.get(id);
@@ -1961,7 +2011,8 @@ function closeRequest() {
   if (!root) return;
   if (window.snbMenuClose && window.snbMenuClose()) { if (root) watch(); return; }   // התפריט של ההדר המשותף פתוח — "חזור" סוגר רק אותו
   // חלון אישור של האפליקציה (askConfirm) פתוח — "חזור" = הביטול שלו (יש לו רשומה משלו, והוא מוריד אותה)
-  if (pickerClose()) { if (root) watch(); return; }   // ה־Picker של Google פתוח — "חזור" סוגר רק אותו
+  if (pickerClose()) { if (root) watch(); return; }
+  if (rsClose()) { if (root) watch(); return; }   // 25/10/2026: הגיליון "מה לא היה טוב?" — "חזור" סוגר רק אותו   // ה־Picker של Google פתוח — "חזור" סוגר רק אותו
   const plm = document.querySelector('.st-pl-menu:not([hidden])');   // תפריט ההגדרות של הנגן — "חזור" סוגר אותו (כמו ב־YouTube)
   const dlg = document.querySelector('.dlg-veil.on');
   if (dlg) { const b = dlg.querySelector('.dlg-cancel') || dlg.querySelector('.dlg-ok'); if (b) b.click(); }
@@ -2034,7 +2085,7 @@ function stTab(k, v) {            // טאב פנימי — התוכן נכנס �
 function wireStSwipe() {
   if (typeof snbSwipe !== 'function' || !root) return;
   snbSwipe({ root: root, page: stSwipePage,
-    ok: () => !!root && !ST_NOSWIPE.includes(ui.view) && !document.querySelector('.dlg-veil.on, .st-pl-menu:not([hidden])') });
+    ok: () => !!root && !ST_NOSWIPE.includes(ui.view) && !document.querySelector('.dlg-veil.on, .st-pl-menu:not([hidden]), .st-rs') });
 }
 /* כמו בספרייה (v350, בקשת המשתמש): "חזור" מדף הבית של הסטודיו — לסקירה. מטאב ראשי app.js כבר עבר אליה בפתיחה */
 function appToOverview() {
@@ -2088,6 +2139,9 @@ const ICON = {   // סמלים קבועים בלבד — אף פעם לא תוכ
   down: '<path d="M12 4v11.5M7.5 11l4.5 4.5 4.5-4.5M5 20h14"/>',   // סבב 1: שיתוף / הורדה של התוצרים
   cc: '<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M10.2 10.3a2 2 0 1 0 0 3.4M16.2 10.3a2 2 0 1 0 0 3.4"/>',   // 22/10/2026: קובץ כתוביות
   edit: '<path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/>',
+  thumbUp: '<path d="M7 11v9H4v-9h3zM7 11l4-7c1.5 0 2.5 1 2.2 2.6L12.6 10H19a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 17.8 20H7"/>',   // 25/10/2026: המשוב שלך
+  thumbDn: '<path d="M17 13V4h3v9h-3zM17 13l-4 7c-1.5 0-2.5-1-2.2-2.6l.6-3.4H5a2 2 0 0 1-2-2.3l1.2-6A2 2 0 0 1 6.2 4H17"/>',
+  flag: '<path d="M5 21V4h11l-1.5 4L16 12H5"/>',
   clip: '<rect x="8" y="3" width="8" height="4" rx="1.5"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/>',   // 22/10/2026: הדבקה redo: '<path d="M20 8H9a5 5 0 0 0 0 10h3M16 4l4 4-4 4"/>',   // מ2: עריכת כתוביות, הפקה מחדש
 };
 function ico(k, cls) {
@@ -2157,7 +2211,7 @@ function rowExt(o) {
 /* ---------- מאגר הלמידה מ׳3 (15/10/2026): מה קרה אחרי העבודה ----------
    תוספות מספרים לכל עבודת תרגום (צפייה, הורדות ושיתוף, הצעות, גיליון ה־AI, מונחים), נשלחות יחד (op:'learnUx') אחרי
    8 שנ׳ שקט / כשהאפליקציה יורדת לרקע. השרתון מחליט אם לשמור (המתג של מאגר הלמידה). **UX_SHAPE זהה לשרתון (lib/studiolearn.js)** */
-export const UX_SHAPE = { e: ['s', 'ws', 'n', 'cd', 'wd', 'm', 'wa', 'ca', 'sb', 'sr', 'txt', 'tm', 'sp', 'mg', 'add', 'del', 'mx'], pl: ['n', 'sec', 'cov'], o: ['dl', 'sh', 'dx'], sg: ['a', 'r'], ai: ['q', 'a', 'r'], gl: ['a'] };
+export const UX_SHAPE = { e: ['s', 'ws', 'n', 'cd', 'wd', 'm', 'wa', 'ca', 'sb', 'sr', 'txt', 'tm', 'sp', 'mg', 'add', 'del', 'mx'], pl: ['n', 'sec', 'cov'], o: ['dl', 'sh', 'dx'], sg: ['a', 'r'], ai: ['q', 'a', 'r'], gl: ['a'], pv: ['h', 'f', 'st', 'er'] };   // pv — 25/10/2026: איך הנגן ניגן (playStats)
 const uxQ = new Map();
 let uxT = 0;
 function uxAdd(rec, g, k, v = 1) {
@@ -2171,6 +2225,26 @@ function uxFlush() {
   clearTimeout(uxT); uxT = 0;
   for (const [id, ux] of uxQ) { uxQ.delete(id); try { Promise.resolve(net.api('learnUx', { job: id, ux })).catch(() => {}); } catch (e) {} }
 }
+/* 25/10/2026 (משתמש מאייפון — באייפון הנגן לא הציע איכויות, ולא היה איך לדעת): איך הנגן ניגן — h באיכויות (hls), f כקובץ
+   (בלי MSE / תקלה / בלי איכויות), st = עצירות לטעינה אחרי שהניגון התחיל, er = שגיאות של הסרטון. מחזיר פונקציה שמסיימת */
+function playStats(rec, ctl) {
+  const v = ctl && ctl.video;
+  if (!rec || !v || !v.addEventListener) return () => {};
+  let on = false, st = 0, er = 0, mode = '';
+  const playing = () => { if (!on) { on = true; try { mode = ctl.quality().mode; } catch (e) {} } };
+  const waiting = () => { if (on && !v.seeking) st++; };
+  const error = () => { er++; };
+  v.addEventListener('playing', playing); v.addEventListener('waiting', waiting); v.addEventListener('error', error);
+  let done = false;
+  return () => {
+    if (done) return; done = true;
+    v.removeEventListener('playing', playing); v.removeEventListener('waiting', waiting); v.removeEventListener('error', error);
+    if (on) uxAdd(rec, 'pv', mode === 'hls' ? 'h' : 'f');
+    if (st) uxAdd(rec, 'pv', 'st', st);
+    if (er) uxAdd(rec, 'pv', 'er', er);
+  };
+}
+const bothTrack = (a, b) => () => { a(); b(); };
 /* כיסוי הצפייה בנגן: כל שנייה בסרטון שנוגנה (לא בהשהיה) נספרת פעם אחת. מחזיר פונקציה שמסיימת וסופרת.
    25/10/2026 (מיפוי האיסוף של session_01UZAW): עד היום הצפייה נספרה רק בסגירת הנגן — אפליקציה שנסגרה / נהרגה בדף הנגן
    איבדה את כל הצפייה. עכשיו `watchFlush` (בירידה לרקע ו־pagehide) מדווח את מה שנצבר מאז הדיווח הקודם, והנגן ממשיך לספור */
@@ -3644,20 +3718,25 @@ function startLinkCloud(f) {   // ישר לענן של Studio (העובד מור
       const yes = await new Promise((ok) => askConfirm(cpMode() ? T('studioEstCp') : estText(est, apiMode()), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) }));
       if (!yes || form !== f) { ui.starting = false; blindUndo(L); render('none'); return; }
     }
-    const j = await net.api('create', { spec });
+    // 25/10/2026: start — השרתון מתחיל כבר ביצירה. באייפון Safari מקפיא את הדף כשעוברים לאפליקציה אחרת, ו"התחל" נפרד
+    // לא הגיע (פרק של משתמש חיכה כך שעתיים)
+    const j = await net.api('create', { spec, start: true });
     ui.starting = false;
     if (!j.ok || !j.job) { flashSafe(errText(j.error)); blindUndo(L); render('none'); return; }
     const rec = normJob({ id: j.job.id, created: j.job.created || Date.now(), spec: j.job.spec || spec, srv: j.job,
       fp: { name: L.r.t, size: spec.size, lm: 0 }, up: { link: true, noAudio: 'link', a: { done: true }, v: { done: true }, folder: j.job.folder || '' } });   // אין מה להעלות מהטלפון
+    if (j.start) startDone(rec, j.start);   // שרתון ישן בלי start — runJob מתחיל כמו קודם
+    utlOf(rec);
     if (pick.ch && L.r.ch) rec.chap = normChapters(L.r.ch.map((c) => ({ t: c[0] - (pick.sec ? pick.sec[0] : 0), title: c[1] })).filter((c) => c.t >= 0), dur);
     if (L.r.th) { thumbs.set(rec.id, L.r.th); idbOp('thumbs', 'put', rec.id, L.r.th); }   // התמונה מהבדיקה — בלי לחכות לסרטון
     store.jobs.unshift(rec);
     if (f.id) store.drafts = store.drafts.filter((d) => d.id !== f.id);
     save();
+    if (j.start) utlSend(rec.id);   // 25/10/2026: בלי runJob — המכשיר נשלח כאן
     form = null;
-    if (!root) { startRun(rec.id, null); return; }
+    if (!root) { if (!j.start) startRun(rec.id, null); return; }
     replaceView('job', rec.id);
-    startRun(rec.id, null);
+    if (!j.start) startRun(rec.id, null);
   })();
 }
 /* ההורדה הסתיימה: sw.js שמר את הקובץ (IndexedDB snb-inbox) והעביר לכאן עם ‎#got=<מפתח>. הטופס מההורדה (אם יש) —
@@ -6179,9 +6258,7 @@ async function goldRun() {
     const j = await net.api('goldRun', { ok: true });
     if (!j.ok || !Array.isArray(j.jobs)) { flashSafe(errText(j.error)); return; }
     for (const sj of j.jobs) {
-      const f = sj.files || {};
-      const rec = normJob({ id: sj.id, created: sj.created, spec: sj.spec, srv: sj,
-        up: { a: { done: !!f.a, id: f.a && f.a.id, size: f.a && f.a.size }, v: { done: !!f.v, id: f.v && f.v.id, size: f.v && f.v.size } } });
+      const rec = recFromSrv(sj);
       if (rec && !jobRec(rec.id)) store.jobs.unshift(rec);
     }
     save();
@@ -6315,8 +6392,8 @@ async function playLoad(rec, phFile) {
       me.url = URL.createObjectURL(f);
       me.cues = cues; me.iss = issuesList(cues);
       me.ctl = createPlayer({ src: me.url, burned: true, localFile: f, decodeAudio: null, cues, issues: me.iss, chapters: rec.chap || [], T,
-        pref: store.settings.pt, onPref: ptSave, poster: thumbFor(rec, (u) => { if (pl === me && me.ctl) me.ctl.setPoster(u); }) });
-      me.wt = watchTrack(rec, me.ctl.video);
+        pref: store.settings.pt, onPref: ptSave, ...rateFlagOpts(rec), poster: thumbFor(rec, (u) => { if (pl === me && me.ctl) me.ctl.setPoster(u); }) });
+      me.wt = bothTrack(watchTrack(rec, me.ctl.video), playStats(rec, me.ctl));
       me.st = 'ok'; plPaint(); return;
     }
     const src = srcId ? net.mediaUrl(srcId) : '', fb = bo ? net.mediaUrl(bo.id) : '';
@@ -6325,8 +6402,9 @@ async function playLoad(rec, phFile) {
     me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: me.iss, chapters: rec.chap || [], T,
       ladder: src ? ladderOf(rec) : null, alt: src ? altOf(rec) : null, pq: store.settings.pq, onPq: pqSave,   // איכויות כמו ב־YouTube
       pref: store.settings.pt, onPref: ptSave,   // 23/10/2026: קול וכתוביות — אוטומטי, או מה שנבחר ידנית
+      ...rateFlagOpts(rec),   // 25/10/2026: דגל — סימון הכתובית שעל המסך (המשוב שלך)
       poster: thumbFor(rec, (u) => { if (pl === me && me.ctl) me.ctl.setPoster(u); }) });   // 21/10/2026: התמונה לפני הניגון
-    me.wt = watchTrack(rec, me.ctl.video);   // מ׳3: כמה מהסרטון נצפה
+    me.wt = bothTrack(watchTrack(rec, me.ctl.video), playStats(rec, me.ctl));   // מ׳3: כמה מהסרטון נצפה · 25/10/2026: ואיך ניגן
     me.st = 'ok';
   } catch (e) {
     if (pl !== me) return;
@@ -7142,6 +7220,81 @@ function amMaybe(rec) {
   flashSafe(T('studioAmGo'));
   queueMicrotask(() => { if (ui.view === 'job' && ui.param === rec.id) go('subs', rec.id); });
 }
+/* ---------------- 25/10/2026: המשוב שלך על התרגום (לפי התצוגה המקדימה שאושרה) ----------------
+   כרטיס "איך יצא התרגום?" בדף העבודה (👍/👎 — נשמר מיד), אחרי 👎 גיליון "מה לא היה טוב?" (קודים קבועים + "לסמן כתוביות
+   בנגן"), ודגל בנגן שמסמן את הכתובית שעל המסך. נשלח op:'rate' — רק קודים ומספרי כתוביות */
+let rateChg = '';                          // העבודה שבה נגעת ב"שינוי" — שוב שני האגודלים
+const rateOk = (rec) => !!(rec && rec.srv && rec.srv.kind === 'tr' && rec.srv.state === 'done');
+function whyName(k) {
+  switch (k) {
+    case 'acc': return T('studioRateWAcc');
+    case 'nat': return T('studioRateWNat');
+    case 'tim': return T('studioRateWTim');
+    case 'nm': return T('studioRateWNm');
+    case 'brk': return T('studioRateWBrk');
+    case 'ovl': return T('studioRateWOvl');
+    case 'mis': return T('studioRateWMis');
+    default: return T('studioRateWOth');
+  }
+}
+async function rateSend(rec, patch, quiet) {
+  const prev = rec.srv.urt;
+  rec.srv.urt = normRate(Object.assign({ r: 0 }, prev || {}, patch, { at: Date.now() }));   // מיד על המסך; השרתון מאשר
+  save();
+  if (!quiet) render('none');
+  let j = null;
+  try { j = await net.api('rate', Object.assign({ job: rec.id }, patch)); } catch (e) { j = null; }
+  if (j && j.ok) { rec.srv.urt = normRate(j.urt); save(); return true; }
+  rec.srv.urt = prev; save();
+  if (!quiet) render('none');
+  flashSafe(T('studioRateErr'));
+  return false;
+}
+function rsClose() { const v = document.querySelector('.st-rs'); if (v) { v.remove(); return true; } return false; }
+function rateSheet(rec) {
+  rsClose();
+  const u = rec.srv.urt || {}, sel = new Set(u.w || []);
+  const veil = h('div', 'st-rs'); veil.setAttribute('role', 'dialog'); veil.setAttribute('aria-modal', 'true'); veil.setAttribute('aria-label', T('studioRateWhyT'));
+  const box = h('div', 'st-rs-box');
+  const chips = h('div', 'st-rs-chips');
+  for (const k of RATE_WHY) {
+    const c = btn('st-rs-chip', whyName(k), () => { if (sel.has(k)) sel.delete(k); else sel.add(k); c.classList.toggle('on', sel.has(k)); c.setAttribute('aria-pressed', sel.has(k) ? 'true' : 'false'); }, 'why:' + k);
+    c.classList.toggle('on', sel.has(k)); c.setAttribute('aria-pressed', sel.has(k) ? 'true' : 'false');
+    chips.append(c);
+  }
+  const n = (u.c || []).length;
+  box.append(h('div', 'st-rs-grab'), h('h2', 'st-rs-t', T('studioRateWhyT')), h('div', 'st-rs-s', T('studioRateWhyS')), chips);
+  if (canPlay(rec)) box.append(list(rowNav({ tile: tile('flag', 'red'), label: T('studioRateFlagRow'), sub: n ? T('studioRateFlagged', { n }) : '',
+    onClick: () => { rateSend(rec, { r: -1, w: [...sel] }, true); rsClose(); go('play', rec.id); }, k: 'rate-flag' })));   // הסיבות נשמרות גם בדרך לנגן
+  box.append(btn('st-btn wide', T('studioRateSend'), () => { rsClose(); rateSend(rec, { r: -1, w: [...sel] }); }, 'rate-send'));   // השורה בכרטיס כבר אומרת "תודה — נשמר"
+  veil.append(box);
+  veil.addEventListener('click', (e) => { if (e.target === veil) rsClose(); });
+  document.body.append(veil);
+  const f = chips.querySelector('button'); if (f) try { f.focus({ preventScroll: true }); } catch (e) {}
+}
+function rateCard(rec) {
+  const u = rec.srv.urt, r = u ? u.r : 0;
+  if (r && rateChg !== rec.id) {
+    const d = h('div', 'st-rate done');
+    d.append(ico('check'), h('span', 'st-rate-l', T('studioRateSaved')), btn('st-rate-chg', T('studioRateChange'), () => { rateChg = rec.id; render('none'); }, 'rate-chg'));
+    return d;
+  }
+  const d = h('div', 'st-rate');
+  const b = (k, icn, lbl, on) => { const x = btn('st-rate-b ' + k + (on ? ' on' : ''), null, null, 'rate-' + k); x.append(ico(icn)); x.setAttribute('aria-label', lbl); return x; };
+  const up = b('up', 'thumbUp', T('studioRateUp'), r === 1), dn = b('dn', 'thumbDn', T('studioRateDn'), r === -1);
+  up.addEventListener('click', () => { rateChg = ''; rateSend(rec, { r: 1 }); });
+  dn.addEventListener('click', () => { rateChg = ''; rateSend(rec, { r: -1 }).then((ok) => { if (ok) rateSheet(rec); }); });   // 👎 נשמר מיד — גם אם סוגרים את הגיליון
+  d.append(h('span', 'st-rate-l', T('studioRateQ')), up, dn);
+  return d;
+}
+const rateFlagT = new Map();               // סימונים בנגן — נשלחים שנייה וחצי אחרי האחרון (לא בכל נגיעה)
+function rateFlagOpts(rec) {
+  if (!rateOk(rec)) return {};
+  return { flags: (rec.srv.urt && rec.srv.urt.c) || [], flagMax: RATE_FLAG_MAX, onFlag: (ids) => {
+    clearTimeout(rateFlagT.get(rec.id));
+    rateFlagT.set(rec.id, setTimeout(() => { rateFlagT.delete(rec.id); rateSend(rec, { c: ids }, true); }, 1500));
+  } };
+}
 function pageJob(p) {
   const rec = jobRec(ui.param);
   if (!rec) { back(); return; }
@@ -7234,6 +7387,7 @@ function pageJob(p) {
       sub: rec.up.dx ? T('studioDxDone', { n: rec.up.dx.n }) : T('studioDxSub'), onClick: () => exportToDrive(rec), k: 'dx' }) : null,   // התוצר לתיקייה שבחרת ב־Drive
     jobFolder(rec) && !isR2Folder(jobFolder(rec)) ? rowExt({ href: 'https://drive.google.com/drive/folders/' + jobFolder(rec), tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null,
     btn('st-row st-act', T('studioRcpt'), () => shareReceipt(rec), 'receipt')));   // שלב 4: קבלה
+    if (rateOk(rec)) p.append(rateCard(rec));   // 25/10/2026: איך יצא התרגום? (המשוב שלך)
     const aa = canEdit(rec) ? afterAdvice(rec, { rrDone: !!(rrJobs.get(rec.id) && rrJobs.get(rec.id).srv && rrJobs.get(rec.id).srv.state === 'done') }) : [];
     if (aa.length) p.append(secT(T('studioAdvAfterT')), list(...aa.map((a) => rowNav(a.k === 'jd'
       ? { tile: tile('spark', 'teal'), label: T('studioAdvJd', { n: a.n }), sub: T('studioAdvJdS'), onClick: () => { aiPreset = { id: rec.id, ids: rec.srv.jd.f }; go('subs', rec.id); }, k: 'adv-jd' }
@@ -8011,6 +8165,7 @@ const repaint = () => { if (root) livePaint(); };
 function render(kind, still) {     // kind: none (ציור מחדש במקום) / push / pop; still = בלי אנימציה (Chrome כבר הנפיש)
   if (!root) return;
   const seq = ++renderSeq;
+  if (kind !== 'none') rsClose();   // מעבר דף — הגיליון של המשוב לא נשאר מעל
   const keepY = kind === 'none' ? root.scrollTop : ((kind === 'pop' || kind === 'sibpop') ? (scrolls[viewKey()] || 0) : 0);
   const ae = document.activeElement;
   const fk = ae && root.contains(ae) && ae.dataset ? ae.dataset.k : null;   // הפוקוס חוזר לאותו רכיב אחרי ציור מחדש

@@ -23,7 +23,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
     && !S.langReady({ from: 'en', to: ['he', 'fr'] }) && !S.langReady({ from: 'en', to: [] }) && !S.langReady(null), 'langReady: מקור אנגלית/אוטומטי, יעד עברית בלבד');
   ok(st.langReady('auto', ['he']) && !st.langReady('fr', ['he']) && !st.langReady('en', ['he', 'en']), 'langReady בטלפון — אותו כלל');
   ok(/op === 'create'[\s\S]{0,400}!S\.langReady\(spec\)\) return res\.status\(400\)\.json\(\{ ok: false, error: 'lang_unsupported' \}\)/.test(api)
-    && /op === 'start'[\s\S]{0,800}!S\.langReady\(job\.spec\)\)/.test(api), 'השרתון: create ו־start דוחים שפה שלא נתמכת');
+    && /function startJob0[\s\S]{0,800}!S\.langReady\(job\.spec\)\)/.test(api) && /op === 'start'[\s\S]{0,800}startJob\(/.test(api),'השרתון: create ו־start דוחים שפה שלא נתמכת');
   const sj = read('studio.js');
   ok(/if \(!langReady\(f\.from, f\.to\)\) \{ flashSafe\(errText\('lang_unsupported'\)\); return; \}[^\n]*\n\s*ui\.starting = true/.test(sj), 'הטלפון: בודק לפני probe/create/העלאה');
   ok(/disabled: off, badge: off \? T\('studioSoon'\)/.test(sj) && /function rowCheck\(o\)[\s\S]{0,300}o\.disabled/.test(sj), 'בורר השפות: שפה שעוד לא נתמכת — "בקרוב" ולא נבחרת');

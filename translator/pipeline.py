@@ -428,8 +428,8 @@ def answer_lines(text: str, allowed: set[str]) -> dict[str, str]:
 # הסיווג לפי הקוד — הודעה חדשה בבודק לא משנה בשקט את העדיפות שלה (כך "אותיות לועזיות" עם המילה "מונח" דחקה את חריגות
 # הקצב, והודעת ההזזה לא נשלחה לתיקון בכלל). בלי קוד (vt ישן / נקודת שמירה ישנה) — לפי המילים, כמו עד היום.
 CODE_HARD = frozenset(('id', 'miss', 'eq', 'drift', 'spk', 'len', 'dlg', 'brk', 'nikud', 'dash', 'tag', 'part'))
-CODE_SOFT = frozenset(('num', 'gls', 'lat', 'name', 'q', 'hdg', 'short', 'cps', 'cur'))
-CODE_RANK = {'num': 0, 'gls': 1, 'lat': 1, 'name': 1, 'q': 2, 'hdg': 2, 'short': 3, 'cps': 4, 'cur': 5}
+CODE_SOFT = frozenset(('num', 'gls', 'lat', 'name', 'spl', 'q', 'hdg', 'short', 'cps', 'cur'))
+CODE_RANK = {'num': 0, 'gls': 1, 'lat': 1, 'name': 1, 'spl': 1, 'q': 2, 'hdg': 2, 'short': 3, 'cps': 4, 'cur': 5}
 _CODE_RE = re.compile(r'^\[([a-z]+)\] ')
 
 
