@@ -125,6 +125,17 @@ RUN HF_HOME=/tmp/hf HF_HUB_DISABLE_TELEMETRY=1 /opt/vt/bin/python -c \
     | sha256sum -c - \
  && rm -rf /tmp/hf /opt/linebreak/.cache
 
+# ---------------------------------------------------------------- טקסט שעל המסך (25/10/2026, translator/vt/burnin.py)
+# PP-OCRv3 det + rec (‏PaddleOCR, ‏Apache-2.0) מהגלגל הרשמי של rapidocr_onnxruntime 1.2.3 ב־PyPI — הגלגל והמודלים נבדקים
+# מול sha256. det מזהה איפה יש טקסט בפסים העליון/התחתון, rec מאשר שזה טקסט — הכתוביות מורמות מעליו. בלי המודלים: כמו קודם.
+FROM deps AS burnin
+RUN /opt/vt/bin/python -c \
+    "import hashlib, io, urllib.request, zipfile, os; u='https://files.pythonhosted.org/packages/b7/ef/0df9a58310895ab357f85df67935af6a8fb98f0965c7476cee6fcb966a7e/rapidocr_onnxruntime-1.2.3-py3-none-any.whl'; b=urllib.request.urlopen(u, timeout=120).read(); assert hashlib.sha256(b).hexdigest() == 'c707d3a6eb72d13119afe9602d3cc36d8b2a4a4d74e9575cf1b0e67ed6a27819', 'wheel'; z=zipfile.ZipFile(io.BytesIO(b)); os.makedirs('/opt/burnin', exist_ok=True); [open('/opt/burnin/' + f, 'wb').write(z.read('rapidocr_onnxruntime/models/' + f)) for f in ('ch_PP-OCRv3_det_infer.onnx', 'ch_PP-OCRv3_rec_infer.onnx')]" \
+ && cd /opt/burnin && printf '%s\n' \
+    "3439588c030faea393a54515f51e983d8e155b19a2e8aba7891934c1cf0de526  ch_PP-OCRv3_det_infer.onnx" \
+    "897a3ededb38fee0dae2c1ccee38241f37df202c9509e3abca02e9217c5ee615  ch_PP-OCRv3_rec_infer.onnx" \
+    | sha256sum -c -
+
 # ---------------------------------------------------------------- התמונה הסופית
 FROM ${PY_IMAGE}
 # 24/10/2026: ARG שמשתנה בכל בנייה (הקומיט, ה־sha של ffmpeg) נכנס לסביבה של כל RUN אחריו ומבטל את המטמון שלו —
@@ -142,6 +153,7 @@ COPY --from=deps /opt/vt /opt/vt
 COPY --from=aligner /opt/aligner /opt/aligner
 COPY --from=speaker /opt/speaker /opt/speaker
 COPY --from=linebreak /opt/linebreak /opt/linebreak
+COPY --from=burnin /opt/burnin /opt/burnin
 COPY --chown=root:root translator /app/translator
 # 16/10/2026: הגדרת השרת לעדכון ידני בלי שרת חדש — נתונים בלבד, שום דבר לא מריץ אותם לבד (infra/worker/snb-host-apply)
 COPY --chown=root:root infra/host/snb-common.sh infra/compose.yaml infra/host/snb-update /opt/snb-host/
@@ -149,6 +161,7 @@ COPY --chown=root:root --chmod=755 infra/worker/snb-host-apply /opt/snb-host/app
 RUN rm -rf /app/translator/tests /app/translator/research /app/translator/__pycache__ \
  && find /app /opt/aligner /opt/speaker -type d -exec chmod 755 {} + && find /app /opt/aligner /opt/speaker -type f -exec chmod 644 {} + \
  && find /opt/linebreak -type d -exec chmod 755 {} + && find /opt/linebreak -type f -exec chmod 644 {} + \
+ && find /opt/burnin -type d -exec chmod 755 {} + && find /opt/burnin -type f -exec chmod 644 {} + \
  && chmod 644 /opt/snb-host/snb-common.sh /opt/snb-host/compose.yaml /opt/snb-host/snb-update
 # 20/10/2026: בדיקת עשן מול הספריות האמיתיות שבתמונה (הבדיקות ב־CI רצות בלי anthropic) — בניית הלקוח של Claude
 # בלי רשת. anthropic 1.x עבר ל־httpx2 ודחה httpx.Timeout ב־TypeError: כל עבודה בשרת קרסה בקריאה הראשונה, והבנייה עברה
@@ -158,6 +171,7 @@ RUN PATH=/opt/vt/bin:/opt/deno:$PATH /opt/vt/bin/python -c "import shutil, yt_dl
 RUN /opt/vt/bin/python -c "import os, yt_dlp_plugins.extractor.getpot_bgutil_script as g; f = os.path.isfile('/opt/bgutil/server/src/generate_once.ts'); print('bgutil', f); assert f or os.uname().machine != 'x86_64'"
 # 25/10/2026: מודל שבירת השורות נטען ומנתח משפט, בלי רשת (בלי זה ה־build נופל בשקט לכללים)
 RUN cd /app/translator && HF_HUB_OFFLINE=1 /opt/vt/bin/python -c "from vt import linebreak as L; m = L.DepModel(); t = m.toks('הלכתי אתמול לבית הספר החדש'); assert t and len(t) >= 5, t; print('linebreak', len(t))"
+RUN cd /app/translator && /opt/vt/bin/python -c "from vt import burnin as B; import numpy as np; assert B.available(), 'burnin'; d = B.Detector(); print('burnin', len(d.frame(np.zeros((360, 640, 3), np.uint8), 0.0)))"
 RUN cd /app/translator && ANTHROPIC_API_KEY=build-check /opt/vt/bin/python -B -c \
     "import llm; c = llm.Engine(llm.Spec.of(llm.DEFAULT_MODE))._client_or_new(); assert c.timeout.read == llm.API_READ_TIMEOUT, c.timeout" \
  && cd /app/translator && /opt/vt/bin/python -B -c \
