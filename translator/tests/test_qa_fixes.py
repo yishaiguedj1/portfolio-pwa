@@ -13,7 +13,7 @@ from vt import config as C  # noqa: E402
 from vt.hebrew import break_lines, layout_lines, normalize_he, number_ok_in_he  # noqa: E402
 from vt.segment import cps_merge  # noqa: E402
 from vt.timing import time_cues  # noqa: E402
-from vt.translate import CHECK_CODE_RE, CHECK_CODES, check, untranslated_words  # noqa: E402
+from vt.translate import CHECK_CODE_RE, CHECK_CODES, check, spell_variants, untranslated_words  # noqa: E402
 from vt.util import FrameGrid  # noqa: E402
 import pipeline as P  # noqa: E402
 
@@ -269,6 +269,33 @@ class TestCheckCodes(unittest.TestCase):
             elif want == "s":
                 self.assertTrue(k in soft or k in hard, ln)
 
+
+
+class TestSpellVariants(unittest.TestCase):
+    """25/10/2026 (עבודה אמיתית: "הווקטור" ו"הוקטור" באותו סרטון): כתיב מלא/חסר של אותה מילה — הערה [spl] לכתיב של המיעוט"""
+
+    def run_(self, pairs):
+        cues = [{"id": i + 1, "en": en} for i, (en, _h) in enumerate(pairs)]
+        return spell_variants(cues, {str(i + 1): h for i, (_e, h) in enumerate(pairs)})
+
+    def test_minority_form_flagged(self):
+        out = self.run_([("this vector is long", "הווקטור הזה ארוך"), ("the vector and the scalar", "הווקטור והסקלר"),
+                         ("the vector is short", "הוקטור קצר")])
+        self.assertEqual(len(out), 1)
+        self.assertTrue(out[0].startswith("- #3: [spl] 'הוקטור'"), out)
+        self.assertIn("'הווקטור'", out[0])
+
+    def test_different_words_not_flagged(self):
+        # "בטוח" (sure) / "בטווח" (range) — מקור אחר באנגלית; ו־ו בהתחלה = "ו" + מילה; יי בסוף = צורה אחרת
+        self.assertEqual(self.run_([("I am sure", "אני בטוח"), ("I am sure about it", "אני בטוח בזה"),
+                                    ("in the long range", "בטווח הארוך")]), [])
+        self.assertEqual(self.run_([("he gave up", "ויתר על זה"), ("and he gave up", "וויתר על זה")]), [])
+        self.assertEqual(self.run_([("business people", "אנשי עסקים"), ("business people here", "אנשי עסקים כאן"),
+                                    ("business models", "מודלים עסקיים")]), [])
+
+    def test_code_is_soft(self):
+        self.assertEqual(CHECK_CODES["spl"], "s")
+        self.assertIn("spl", P.CODE_SOFT)
 
 if __name__ == "__main__":
     unittest.main()
