@@ -47,10 +47,10 @@ resolve() {
 # חיכתה "בתור לשרת" עד רבע שעה אחרי כל worker-image. שרת קיים מקבל את הקצב החדש מכאן (הטיימר נכתב רק בהקמה) —
 # קובץ השלמה לטיימר, פעם אחת. הבדיקה עצמה זולה: משיכה שלא השתנתה = רק ה־manifest
 TD=/etc/systemd/system/snb-update.timer.d
-if [ ! -s "$TD/10-fast.conf" ] && command -v systemctl >/dev/null 2>&1; then
-	mkdir -p "$TD"
-	printf '[Timer]\nOnUnitActiveSec=\nOnUnitActiveSec=2min\nRandomizedDelaySec=\nRandomizedDelaySec=20\n' >"$TD/10-fast.conf"
-	systemctl daemon-reload && systemctl restart snb-update.timer && snb_log "✓ בדיקת העדכון — כל 2 דקות" || true
+if [ ! -s "$TD/10-fast.conf" ] && [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1 \
+	&& mkdir -p "$TD" 2>/dev/null \
+	&& printf '[Timer]\nOnUnitActiveSec=\nOnUnitActiveSec=2min\nRandomizedDelaySec=\nRandomizedDelaySec=20\n' 2>/dev/null >"$TD/10-fast.conf"; then
+	{ systemctl daemon-reload && systemctl restart snb-update.timer && snb_log "✓ בדיקת העדכון — כל 2 דקות"; } || true
 fi
 
 umask 022
