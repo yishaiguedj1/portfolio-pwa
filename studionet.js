@@ -496,8 +496,9 @@ export function createNet(env) {
     if (!tk) return { ok: false, error: 'signin' };
     let r;
     try {
-      r = await E.fetch(E.base() + '/api/studio', { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, E.headers ? E.headers() : {}),
-        body: JSON.stringify(Object.assign({}, body || {}, { op, idToken: tk })) });
+      // 25/10/2026: learnUx נשלח גם כשהדף נסגר (pagehide) — keepalive כדי שהבקשה לא תבוטל עם הדף (גוף קטן, ≤64KB)
+      r = await E.fetch(E.base() + '/api/studio', Object.assign({ method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, E.headers ? E.headers() : {}),
+        body: JSON.stringify(Object.assign({}, body || {}, { op, idToken: tk })) }, op === 'learnUx' ? { keepalive: true } : {}));
     } catch (e) { return { ok: false, error: 'net' }; }
     let j = null; try { j = await r.json(); } catch (e) {}
     return j && typeof j === 'object' ? j : { ok: false, error: 'http_' + r.status };

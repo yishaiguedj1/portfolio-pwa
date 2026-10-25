@@ -63,6 +63,21 @@ class LearnFacts(unittest.TestCase):
         self.assertEqual(lx['sy'], {'c': 0.93, 'o': 0.12})
         self.assertEqual(lx['vid'], {'w': 1920, 'h': 1080, 'fps': 29.97, 'kb': 1100})   # 20/10/2026: לצפי הצריבה — מספרים בלבד
 
+    def test_media_facts(self):
+        # 25/10/2026 (מיפוי האיסוף): השרתון קיבל md ואף אחד לא שלח — מספרים בלבד מ־media.json, בלי קודקים ושפות
+        md = job.learn_media_facts({'size': 43306616, 'duration': 194.33, 'audio': {'sample_rate': 44100, 'channels': 6, 'bitrate': 448000, 'codec': 'eac3'},
+                                    'video': {'vfr': True, 'color_transfer': 'smpte2084'},
+                                    'streams': [{'type': 'video'}, {'type': 'audio', 'lang': 'eng'}, {'type': 'audio', 'lang': 'heb'}, {'type': 'subtitle'}]})
+        self.assertEqual(md, {'ar': 44100, 'ac': 6, 'ak': 448, 'na': 2, 'ns': 1, 'vfr': 1, 'hdr': 1, 'mb': 41, 'du': 194})
+        self.assertIsNone(job.learn_media_facts({}))
+        self.assertIsNone(job.learn_media_facts(None))
+        (self.ctx.pdir / 'media.json').write_text(json.dumps({'size': 1048576 * 5, 'duration': 60, 'audio': {'sample_rate': 48000, 'channels': 2, 'codec': 'eac3'}}))
+        self.ctx.st['gls'] = 'none'
+        lx = job.learn_facts(self.ctx)
+        self.assertEqual(lx['md']['ar'], 48000)
+        self.assertEqual(lx['gl']['ld'], 0, 'מאיפה המילון — 0 = אין')
+        self.assertNotIn('eac3', json.dumps(lx))
+
     def test_privacy(self):
         txt = json.dumps(job.learn_facts(self.ctx), ensure_ascii=False)
         self.assertNotIn(SECRET, txt)

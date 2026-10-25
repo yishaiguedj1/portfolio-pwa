@@ -240,8 +240,38 @@ function learnRec(job, now, effState) {
     ux: normUx(job.ux),
     // 21/10/2026: מדידת ההעלאה מהטלפון (חילוץ, העלאה, זמן ברקע — op upTel, כבר מנורמל בכתיבה): רק מספרים
     ut: job.utl && typeof job.utl === 'object' && !Array.isArray(job.utl) ? Object.fromEntries(Object.entries(job.utl).filter(([k, v]) => /^[a-z0-9]{1,4}$/.test(k) && isNum(v))) : null,
+    // 25/10/2026 (מיפוי האיסוף של session_01UZAW): עד היום אי אפשר היה לפלח לפי מסלול — עבודה מקישור נרשמה 'a', "הכל בטלפון" 'v'
+    rt: routeInfo(sp),
+    ph: phoneInfo(job),
   };
   return rec;
+}
+/* המסלול של העבודה — רק דגלים: s = מקור מיוחד (url/subs), ph/pw/pt = תרגום בטלפון (שלבים 1/2/3), ry = המנוי שלי דרך השרת */
+function routeInfo(sp) {
+  const o = {};
+  if (sp.src === 'url' || sp.src === 'subs') o.s = sp.src;
+  for (const k of ['ph', 'pw', 'pt', 'ry']) if (sp[k] === 1) o[k] = 1;
+  return Object.keys(o).length ? o : null;
+}
+/* מה קרה בטלפון בעבודת "תרגום בטלפון" (נשמר רק במסמך העבודה ונמחק איתו): השלב האחרון שדווח (ppr), הצריבה (pbn),
+   ואילו קבצים עלו (m = המדידות, w = המילים) — רק קודים ומספרים */
+function phoneInfo(job) {
+  const sp = job.spec || {};
+  if (sp.ph !== 1) return null;
+  const o = { m: job.fph ? 1 : 0, w: job.fpw ? 1 : 0 };
+  const pr = job.ppr;
+  if (pr && typeof pr === 'object' && /^[a-z]{2,8}$/.test(String(pr.s || ''))) {
+    o.pr = pr.s;
+    if (CODE_RE.test(String(pr.e || ''))) o.pe = pr.e;
+  }
+  const pb = job.pbn;
+  if (pb && typeof pb === 'object' && /^(run|done|fail)$/.test(String(pb.s || ''))) {
+    o.pb = pb.s;
+    if (CODE_RE.test(String(pb.e || ''))) o.be = pb.e;
+    if (isNum(pb.sz) && pb.sz > 0) o.mb = Math.round(pb.sz / 1048576);
+    if (isNum(pb.ms) && pb.ms > 0) o.bs = Math.round(pb.ms / 1000);   // זמן הצריבה בטלפון, בשניות
+  }
+  return o;
 }
 /* טביעה — כתיבה רק כשמשהו השתנה */
 const recHash = (rec) => crypto.createHash('sha1').update(JSON.stringify(rec)).digest('hex').slice(0, 16);
