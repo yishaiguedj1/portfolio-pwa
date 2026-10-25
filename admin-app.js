@@ -617,7 +617,9 @@ function provRow(name, P, skip) {
   const at = P.at ? ' · ' + fmt(t('admStoAt'), { a: ago(P.at * 1000) }) : '';   // נמדד ב־Vercel ונשמר (upv)
   if (P.st === 'err') return row({ c: 'red', ic: '!', t: name, s: provErr(P.err) + at + (P.m ? ' · ' + P.m : '') });   // ההודעה של הספק (Cloudflare GraphQL)
   const items = (P.items || []).filter((x) => !skip || !skip.includes(x.k));
-  const parts = items.filter((x) => x.used != null).map((x) => (PROV_ITEM[x.k] || (() => x.k))() + ': ' + fmt(t('admProvOf'), { u: String(x.used), l: x.lim }) + ' ' + x.unit);
+  // 25/10/2026: ספירה (n) בלי יחידה ועם מפרידי אלפים — "22,717 מתוך 11,000,000", לא "22717 מתוך 11000000 n"
+  const num = (v, u) => (u === 'n' ? Math.round(+v).toLocaleString('en-US') : String(Math.round(+v * 100) / 100));
+  const parts = items.filter((x) => x.used != null).map((x) => (PROV_ITEM[x.k] || (() => x.k))() + ': ' + fmt(t('admProvOf'), { u: num(x.used, x.unit), l: num(x.lim, x.unit) }) + (x.unit === 'n' ? '' : ' ' + x.unit));
   const worst = Math.max(0, ...items.map((x) => x.pct || 0));
   return row({ c: worst >= 80 ? 'orange' : 'green', ic: '☁', t: name, s: (parts.join(' · ') || (skip ? '' : t('admProvOff'))) + (parts.length ? at : ''), v: worst ? Math.round(worst) + '%' : '', meter: worst ? [worst, worst >= 80 ? 'w' : ''] : null });
 }
