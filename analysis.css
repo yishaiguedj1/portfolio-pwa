@@ -246,3 +246,14 @@ button.an-row { cursor: pointer; }
 .an-addf .an-btn { align-self: stretch; }
 .an-btn:disabled { opacity: .5; }
 .an-err { color: var(--an-bad); font-size: 14px; }
+/* שכבה 6 (25/10/2026): "מאיפה המספרים" בגיליון הגרף — מקופל, בתחתית */
+.an-prov { border-top: 1px solid var(--an-sep); padding-top: 4px; }
+.an-prov > summary { list-style: none; display: flex; align-items: center; gap: 8px; padding: 10px 0; font-size: 14.5px; font-weight: 600; color: var(--an-ink2); cursor: pointer; }
+.an-prov > summary::-webkit-details-marker { display: none; }
+.an-prov > summary .an-chev { margin-inline-start: auto; transform: rotate(45deg); transition: transform .2s; }
+.an-prov[open] > summary .an-chev { transform: rotate(-135deg); }
+.an-prov .an-rt span + span { margin-top: 2px; }
+.an-tag { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--an-ink3); overflow-wrap: anywhere; text-align: start; }
+.an-tbl td.an-flagc { color: var(--an-mid); }
+.an-tbl td.an-flagc::after { content: ' !'; font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .an-prov > summary .an-chev { transition: none; } }

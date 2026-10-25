@@ -132,6 +132,21 @@ const missing = [...keys].filter((k) => !(k in sbx.__S.he) || !(k in sbx.__S.en)
 ok(keys.size > 250 && missing.length === 0, 'כל מחרוזת של המנתח קיימת בעברית ובאנגלית (' + keys.size + ')' + (missing.length ? ': ' + missing.join(',') : ''));
 ok(!/[֐-׿]/.test(src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')), 'אין עברית קשיחה בקוד (רק בהערות)');
 
+
+/* ---------- שכבה 6: מאיפה כל מספר ---------- */
+{
+  const co = { flags: [{ k: 'bal', p: '2024-12-31' }, { k: 'face', m: 'rev', p: '2023-12-31', f: 1, v: 2 }, { k: 'fix', m: 'sh', p: '2022-12-31' }], tags: { capex: 'A+B', gp: 'GrossProfit' } };
+  const fy = (end) => ({ kind: 'fy', end });
+  ok(A.flagsAt(co, ['ta', 'tl'], fy('2024-12-31')) && A.flagsAt(co, ['eq'], fy('2024-12-31')) && !A.flagsAt(co, ['rev'], fy('2024-12-31')), 'מאזן שלא מתאזן — מסומן בגרפי הנכסים, ההתחייבויות וההון בלבד');
+  ok(A.flagsAt(co, ['rev'], fy('2023-12-31')) && A.flagsAt(co, ['gm'], fy('2023-12-31')) && !A.flagsAt(co, ['ni'], fy('2023-12-31')), 'הכנסות שלא תואמות לדוח — מסומנות בהכנסות ובשולי הרווח, לא ברווח הנקי');
+  ok(!A.flagsAt(co, ['sh'], fy('2022-12-31')) && !A.flagsAt(co, ['rev'], { kind: 'q', end: '2023-12-31' }), 'תיקון אוטומטי לא מסומן כ"לא אומת"; רבעון — לא');
+  ok(A.srcDef(co, 'gp') === null && A.srcDef({ tags: {} }, 'gp') === 'anDefGp' && A.srcDef(co, 'capexN') === 'anDefCapex' && A.srcDef(co, 'debt') === 'anDefDebt' && A.srcDef(co, 'rev') === null, 'הגדרה רק למה שמחושב (רווח גולמי בלי שורה, חוב, השקעות הוניות מכמה שורות)');
+  const ks = Object.keys(A.RAWK), mk = src.match(/^const M = \{[\s\S]*?^\};/m)[0];
+  ok(['rev', 'gp', 'op', 'ni', 'eps', 'sh', 'cashT', 'debt', 'eq', 'ta', 'tl', 'ocf', 'fcf', 'fcfsbc', 'sbcN', 'capexN', 'buy', 'dps', 'gm', 'om', 'nm', 'cr', 'de', 'roic', 'roe', 'r40'].every((k) => ks.includes(k) && mk.includes(k + ':')), 'לכל מדד בדוחות — שדות המקור');
+  ok(A.rawName('cogs') === 'anKCogs' && A.rawName('rev') === 'anMRev' && A.rawName('zzz') === 'anKOther', 'שם לשדה גולמי (לא מפתח פנימי במסך)');
+  ok(/srcBlock\(co, def\.s\),/.test(src) && /co\.src === 'sec' && f\)/.test(src) && /\/\^https:\\\/\\\/www\\\.sec\\\.gov\\\/\/\.test\(f\.url/.test(src) && /rel: 'noopener noreferrer'/.test(src), 'בגיליון הגרף: המקור, קישור רק ל־sec.gov (בלשונית חדשה)');
+  ok(/an-flagc/.test(src) && /T\('anFlagTip'\)/.test(src), 'ערך שלא עבר בדיקה — מסומן בטבלה ובבועה');
+}
 /* ---------- שילוב ואבטחה ---------- */
 ok(!/\bfetch\(|localStorage|sessionStorage|indexedDB|innerHTML\s*=\s*[^'"]*\+/.test(src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')), 'המודול לא פונה לרשת ולא שומר בטלפון — הכל דרך env');
 ok(/import\('\.\/analysis\.js'\)\.then\(\(m\) => m\.openAnalysis\(sym, analysisEnv\(\)\)\)/.test(app), 'נטען רק בלחיצה (import דינמי)');
@@ -139,6 +154,7 @@ ok(/classList\.contains\('an-open'\)\) return false;/.test(app), 'לולאת ה�
 ok(/'\.\/analysis\.js', '\.\/analysis\.css'/.test(sw), 'במעטפת של sw.js (אותה גרסה של app.js)');
 ok(/E\.modalPush\(\(\) => closeAnalysis\(true\)\)/.test(src) && /E\.modalPush\(\(\) => closeSheet\(true\)\)/.test(src), '"חזור" סוגר גיליון ואז את המסך (modalPush)');
 ok(/op: 'fund', sym/.test(src) && /op: 'macro'/.test(src), 'הנתונים מהשרתון: op fund + macro');
+ok(/document\.addEventListener\('pointerdown', off, true\)/.test(src) && /!tip\._svg\.contains\(e\.target\)\) tip\._hide\(\)/.test(src) && /i === cur/.test(src), 'בועת הגרף נסגרת בנגיעה מחוץ לגרף ובנגיעה חוזרת באותה עמודה');
 const sels = css.replace(/\/\*[\s\S]*?\*\//g, '').match(/(^|\})\s*([^{}@]+)\{/g) || [];
 const bad = sels.map((s) => s.replace(/^\}?\s*/, '').replace(/\{$/, '').trim()).filter((s) => s && !/^(from|to|\d)/.test(s) && !s.split(',').every((p) => /\.an-|an-open|\.an\b/.test(p)));
 ok(bad.length === 0, 'כל סלקטור בעיצוב בתחום an-' + (bad.length ? ': ' + bad.join(' | ') : ''));

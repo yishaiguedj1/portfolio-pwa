@@ -7,7 +7,8 @@
    הכללים (מהמחקר, והם הסיבה לרוב הקוד):
    1. fy/fp ב־companyfacts הם של הדוח שבו העובדה הוגשה, לא של התקופה — מסווגים רק לפי start/end.
    2. אותה תקופה מופיעה בכמה דוחות — לוקחים את מה שהוגש אחרון (כולל תיקונים לאחור).
-   3. תגיות מתחלפות (Revenues → RevenueFromContract…) — רשימת עדיפויות, תגית מאוחרת משלימה רק תקופות חסרות.
+   3. תגיות מתחלפות (Revenues → RevenueFromContract…) — רשימת עדיפויות, תגית מאוחרת משלימה רק תקופות חסרות,
+      ורק כשהיא מסכימה עם מה שכבר נבחר בתקופות המשותפות (mergeTags). בלי זה ערבוב של ברוטו ונטו (Mastercard) יצר +74%.
    4. תזרים ב־10-Q מצטבר מתחילת השנה — רבעון = מצטבר פחות המצטבר הקודם; רבעון 4 = שנה פחות 9 חודשים.
    5. ערכים למניה כפי שדווחו — לפני פיצולים. מתקנים לפי אירועי הפיצול מ־Yahoo וקפיצה במספר המניות.
    6. כל ספק מקבל תג בדיקה (checks), לא תיקון שקט. */
@@ -37,11 +38,12 @@ async function getText(url, opts = {}, ms = 9000) {
 
 /* ---------- SEC: מיפוי תגיות (סדר = עדיפות) ---------- */
 const FLOW = {
-  rev: ['RevenueFromContractWithCustomerExcludingAssessedTax', 'Revenues', 'SalesRevenueNet', 'RevenueFromContractWithCustomerIncludingAssessedTax', 'SalesRevenueGoodsNet'],
+  rev: ['RevenuesNetOfInterestExpense', 'Revenues', 'RevenueFromContractWithCustomerExcludingAssessedTax', 'SalesRevenueNet', 'RevenueFromContractWithCustomerIncludingAssessedTax', 'SalesRevenueGoodsNet'],
   cogs: ['CostOfRevenue', 'CostOfGoodsAndServicesSold', 'CostOfGoodsSold', 'CostOfServices'],
   gp: ['GrossProfit'],
   op: ['OperatingIncomeLoss'],
   ni: ['NetIncomeLoss', 'NetIncomeLossAvailableToCommonStockholdersBasic', 'ProfitLoss'],
+  nic: ['NetIncomeLossAvailableToCommonStockholdersDiluted', 'NetIncomeLossAvailableToCommonStockholdersBasic'], // לבעלי המניות הרגילות (אחרי דיבידנד בכורה) — לזהות EPS × מניות
   pretax: ['IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest', 'IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments'],
   tax: ['IncomeTaxExpenseBenefit'],
   rnd: ['ResearchAndDevelopmentExpense'],
@@ -62,6 +64,8 @@ const INST = {
   debt: ['LongTermDebt'],
   debtNc: ['LongTermDebtNoncurrent'], debtC: ['LongTermDebtCurrent'], stb: ['ShortTermBorrowings', 'CommercialPaper'],
   eq: ['StockholdersEquity', 'StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest'],
+  eqt: ['StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest'], // כולל זכויות מיעוט — לזהות המאזן
+  tmp: ['TemporaryEquityCarryingAmountIncludingPortionAttributableToNoncontrollingInterest', 'RedeemableNoncontrollingInterestEquityCarryingAmount', 'TemporaryEquityCarryingAmountAttributableToParent'],
   ta: ['Assets'], tl: ['Liabilities'], tle: ['LiabilitiesAndStockholdersEquity'],
   ca: ['AssetsCurrent'], cl: ['LiabilitiesCurrent'], re: ['RetainedEarningsAccumulatedDeficit'],
   ppe: ['PropertyPlantAndEquipmentNet', 'PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization'],
@@ -79,22 +83,77 @@ const IFRS = {
   ca: ['CurrentAssets'], cl: ['CurrentLiabilities'], re: ['RetainedEarnings'], ppe: ['PropertyPlantAndEquipment'],
 };
 const FORMS = /^(10-K|10-Q|20-F|40-F)(\/A)?$/;
+const NONNEG = ['rev', 'ta', 'tl', 'ca', 'cl', 'cash', 'sh', 'ppe'];
 const day = (s) => Date.parse(s + 'T00:00:00Z') / 864e5;
 const PER_SHARE = new Set(['eps', 'dps']);
+/* באיזה דוח מופיעה כל שורה (לבחירת התגית לפי הדוח שהחברה הגישה — lib/secface.js) */
+const STMT_OF = { rev: ['is'], cogs: ['is'], gp: ['is'], op: ['is'], ni: ['is', 'cf'], pretax: ['is'], tax: ['is'], rnd: ['is'], int: ['is'], eps: ['is'], sh: ['is'],
+  nic: ['is'], eqt: ['bs'], tmp: ['bs'], ocf: ['cf'], capex: ['cf'], sbc: ['cf'], dep: ['cf', 'is'], buy: ['cf'], divp: ['cf'],
+  cash: ['bs', 'cf'], msec: ['bs'], debtNc: ['bs'], debtC: ['bs'], stb: ['bs'], eq: ['bs'], ta: ['bs'], tl: ['bs'], tle: ['bs'], ca: ['bs'], cl: ['bs'], re: ['bs'], ppe: ['bs'] };
+/* השקעות הוניות = כל השורות של רכישת נכסים קבועים שהחברה מציגה בתזרים (Mastercard: רכוש קבוע + תוכנה מהוונת;
+   Caterpillar: + ציוד שמושכר ללקוחות). סכום רק כשיותר משורה אחת מופיעה בדוח, ורק בתקופות שבהן כל החלקים קיימים — אחרת קפיצה מדומה. */
+const CAPEX_PARTS = ['PaymentsToAcquirePropertyPlantAndEquipment', 'PaymentsToAcquireProductiveAssets', 'PaymentsToAcquireSoftware', 'PaymentsToDevelopSoftware',
+  'PaymentsForSoftware', 'PaymentsToAcquireEquipmentOnLease', 'PaymentsToAcquireOtherPropertyPlantAndEquipment', 'PaymentsForCapitalImprovements',
+  'PaymentsToAcquireOilAndGasPropertyAndEquipment', 'PaymentsToAcquireOilAndGasProperty', 'PaymentsToAcquireMiningAssets'];
+const faceTagList = (face, sts) => { const out = []; for (const st of sts || []) for (const r of (face && face[st] && face[st].rows) || []) if (/^(us-gaap|ifrs-full)$/.test(r.ns) && !out.includes(r.tag)) out.push(r.tag); return out; };
+/* הערכים השנתיים שהודפסו בדוח, לפי תגית: "tag|end" → ערך (עמודות של 12 חודשים במטבע הדיווח; מאזן — כל עמודה) */
+function faceYearVals(face, sts, cur) {
+  const out = new Map();
+  for (const st of sts || []) {
+    const S = face && face[st]; if (!S) continue;
+    for (const r of S.rows) {
+      const v = SECFACE.rowVals(S, r);
+      S.cols.forEach((c, i) => { if (v[i] == null || (st !== 'bs' && c.months != null && c.months !== 12) || !SECFACE.colOk(c, cur)) return; const kk = r.tag + '|' + c.end; if (!out.has(kk)) out.set(kk, v[i]); });
+    }
+  }
+  return out;
+}
+function sumFacts(parts) {
+  const out = { dur: new Map(), inst: new Map(), unit: parts[0] && parts[0].unit };
+  for (const [kk, h] of parts[0].dur) {
+    let v = h.v, filed = h.filed, all = true;
+    for (const p of parts.slice(1)) { const x = p.dur.get(kk); if (!x) { all = false; break; } v += x.v; if (x.filed > filed) filed = x.filed; }
+    if (all) out.dur.set(kk, { v, filed });
+  }
+  return out;
+}
+
+/* מטבע הדיווח: המטבע שבו הוגשה ההגשה האחרונה (בתגיות של הכנסות, רווח ונכסים); כשיש שניים באותה הגשה (עמודת המרה
+   לדולר — Alibaba) — זה שיש בו יותר ערכים באותה הגשה. חברה שהחליפה מטבע (Nebius: רובל → דולר) — רק המטבע החדש */
+function reportCur(tax, tags) {
+  const last = {}, cnt = {};
+  for (const t of tags) for (const [u, rows] of Object.entries((tax[t] && tax[t].units) || {})) {
+    if (!/^[A-Z]{3}$/.test(u)) continue;
+    for (const x of rows) {
+      if (!FORMS.test(x.form || '')) continue;
+      if (!last[u] || x.filed > last[u]) { last[u] = x.filed; cnt[u] = 0; }
+      if (x.filed === last[u]) cnt[u]++;
+    }
+  }
+  const us = Object.keys(last);
+  if (us.length < 2) return us[0] || null;
+  us.sort((a, b) => (last[b] > last[a] ? 1 : last[b] < last[a] ? -1 : cnt[b] - cnt[a]));
+  return us[0];
+}
 
 /* ערכים של תגית אחת: { dur: Map("start|end" → {v, filed}), inst: Map(end → {v, filed}) } — האחרון שהוגש */
 function tagFacts(node, unitPref) {
   const out = { dur: new Map(), inst: new Map(), unit: null };
   if (!node || !node.units) return out;
   const units = Object.keys(node.units);
-  const unit = units.find((u) => u === unitPref) || units.find((u) => /^[A-Z]{3}$/.test(u) && unitPref === 'CUR') ||
-    units.find((u) => unitPref === 'PS' && /\/shares$/.test(u)) || units.find((u) => unitPref === 'shares' && u === 'shares') || units[0];
+  // מטבע דיווח ידוע ("USD", "EUR/shares") — רק הוא: ערכים במטבע אחר (חברה שהחליפה מטבע, עמודת המרה) לא מתערבבים
+  const exact = unitPref !== 'CUR' && /^[A-Z]{3}(\/shares)?$/.test(unitPref || '');
+  const unit = units.find((u) => u === unitPref) || (exact ? null : units.find((u) => /^[A-Z]{3}$/.test(u) && unitPref === 'CUR') ||
+    units.find((u) => unitPref === 'PS' && /\/shares$/.test(u)) || units.find((u) => unitPref === 'shares' && u === 'shares') || units[0]);
+  if (!unit) return out;
   out.unit = unit;
   for (const x of node.units[unit] || []) {
     if (!FORMS.test(x.form || '') || x.val == null) continue;
     if (x.start) {
-      const k = x.start + '|' + x.end, h = out.dur.get(k);
-      if (!h || h.filed < x.filed) out.dur.set(k, { v: x.val, filed: x.filed });
+      // תקופה של שנה שלמה: ערך מדוח שנתי גובר על ערך מדוח רבעוני גם כשהרבעוני הוגש אחריו
+      // (Comfort Systems: 10-Q תייג "שנה" של $1.8B — במקום $9.1B של ה־10-K)
+      const k = x.start + '|' + x.end, h = out.dur.get(k), ann = !/^10-Q/.test(x.form), yr = day(x.end) - day(x.start) >= 350;
+      if (!h || (yr && h.ann !== ann ? ann : h.filed < x.filed)) out.dur.set(k, { v: x.val, filed: x.filed, ann });
     } else {
       const h = out.inst.get(x.end);
       if (!h || h.filed < x.filed) out.inst.set(x.end, { v: x.val, filed: x.filed });
@@ -103,27 +162,97 @@ function tagFacts(node, unitPref) {
   return out;
 }
 
+/* איחוד תגיות של אותו מדד: תגית ראשית, והשאר (לפי סדר העדיפות) משלימות תקופות חסרות.
+   תגית משלימה נכנסת רק כשבתקופות המשותפות היא מסכימה עם מה שכבר נבחר (לפחות בחצי מהן — עד MERGE_TOL):
+   תגית שמודדת דבר אחר (ברוטו מול נטו, רכיב מול סך) נדחית כולה — שנה חסרה עדיפה על קפיצה מדומה בגרף.
+   הראשית = הראשונה בסדר העדיפות מבין התגיות שהחברה עדיין מדווחת (תגית שהפסיקה — לא ראשית).
+   (Mastercard: RevenueFromContract… = ברוטו לפני הנחות ללקוחות רק ב־2018–2021, Revenues = נטו עד היום.) */
+const MERGE_TOL = 0.025;
+function tagGap(a, b) {
+  const diffs = [];
+  for (const [ma, mb] of [[a.dur, b.dur], [a.inst, b.inst]]) for (const [kk, v] of mb) {
+    const h = ma.get(kk);
+    if (h && h.v && v.v != null) diffs.push(Math.abs(v.v - h.v) / Math.abs(h.v));
+  }
+  if (!diffs.length) return null;
+  diffs.sort((x, y) => x - y);
+  return diffs[(diffs.length - 1) >> 1]; // מסכימה לפחות בחצי מהתקופות המשותפות = אותו מדד (עם תיקונים לאחור)
+}
+function mergeTags(fs, lock) {
+  const last = (f) => { let e = ''; for (const kk of f.dur.keys()) { const x = kk.split('|')[1]; if (x > e) e = x; } for (const x of f.inst.keys()) if (x > e) e = x; return e; };
+  const has = fs.map((f) => f.dur.size + f.inst.size > 0);
+  const m = { dur: new Map(), inst: new Map() };
+  // הראשית = הראשונה בסדר העדיפות מבין התגיות שעדיין מדווחות (עד שנה מהתקופה המאוחרת ביותר)
+  const top = Math.max(...fs.map((f, i) => (has[i] ? day(last(f)) : -Infinity)));
+  if (!isFinite(top)) return m;
+  const spine = fs.findIndex((f, i) => has[i] && day(last(f)) >= top - 400);
+  m.spine = spine;
+  for (const i of [spine, ...fs.map((_, j) => j).filter((j) => j !== spine && has[j])]) {
+    const f = fs[i];
+    if (i !== spine) { const g = tagGap(m, f); if (g != null && g > MERGE_TOL) continue; }
+    for (const [kk, v] of f.dur) if (!m.dur.has(kk)) m.dur.set(kk, v);
+    for (const [kk, v] of f.inst) if (!m.inst.has(kk)) m.inst.set(kk, v);
+  }
+  fixRuns(m, fs, lock && ((kk, v) => lock(spine, kk, v)));
+  return m;
+}
+/* רשת ביטחון שנייה — ערך שגוי בתוך התגית הנבחרת (Procter & Gamble: ‏Revenues = ‏$28B ב־2012–2014 במקום ‏$83B):
+   רצף שנים שבו תגית אחרת נותנת ערך שונה, והחלפה שלו מעלימה קפיצה חדה מול השנה שלפניו ושאחריו — מוחלף.
+   רק ערכים חיוביים, רק שנים שלמות, ורק כשהקפיצה גדולה (פי JUMP) וההחלפה מקטינה אותה לפחות בחצי ומתחת לסף. */
+const JUMP = Math.log(1.6);
+function fixRuns(m, fs, locked) {
+  const yr = (kk) => { const [a, b] = kk.split('|'); const d = day(b) - day(a); return d >= 350 && d <= 380; };
+  const ends = [...m.dur.keys()].filter(yr).sort((a, b) => (a.split('|')[1] < b.split('|')[1] ? -1 : 1));
+  if (ends.length < 3) return;
+  const lg = (a, b) => (a > 0 && b > 0 ? Math.abs(Math.log(a / b)) : null);
+  for (const f of fs) {
+    const alt = (kk) => { const h = f.dur.get(kk), cur = m.dur.get(kk); return h && cur && h.v > 0 && cur.v > 0 && Math.abs(h.v - cur.v) / cur.v > MERGE_TOL ? h : null; };
+    for (let i = 0; i < ends.length; i++) {
+      if (!alt(ends[i])) continue;
+      let j = i; while (j + 1 < ends.length && alt(ends[j + 1])) j++;
+      if (locked) { let ok = false; for (let x = i; x <= j; x++) if (locked(ends[x], m.dur.get(ends[x]).v)) ok = true; if (ok) { i = j; continue; } }
+      const prev = i > 0 ? m.dur.get(ends[i - 1]).v : null, next = j + 1 < ends.length ? m.dur.get(ends[j + 1]).v : null;
+      const was = [lg(prev, m.dur.get(ends[i]).v), lg(m.dur.get(ends[j]).v, next)].filter((x) => x != null);
+      const now = [lg(prev, f.dur.get(ends[i]).v), lg(f.dur.get(ends[j]).v, next)].filter((x) => x != null);
+      if (was.length && now.length === was.length) {
+        const w = Math.max(...was), n = Math.max(...now);
+        if (w > JUMP && n < JUMP && n < w / 2) for (let x = i; x <= j; x++) m.dur.set(ends[x], f.dur.get(ends[x]));
+      }
+      i = j;
+    }
+  }
+}
+
 /* נרמול companyfacts → { fy:[סופי שנים], q:[סופי רבעונים], A:{key:[...]}, Q:{key:[...]}, cur, derived } */
-function normalizeSec(facts, splits = []) {
+function normalizeSec(facts, splits = [], face = null) {
   const gaap = (facts && facts.facts && facts.facts['us-gaap']) || null;
   const ifrs = (facts && facts.facts && facts.facts['ifrs-full']) || null;
   const tax = gaap && Object.keys(gaap).length > 20 ? gaap : ifrs;
   if (!tax) return null;
   const isIfrs = tax === ifrs;
   const map = isIfrs ? IFRS : { ...FLOW, ...INST };
-  const unitOf = (k) => (PER_SHARE.has(k) ? 'PS' : k === 'sh' ? 'shares' : 'CUR');
-  // לכל מפתח: איחוד התגיות לפי סדר העדיפות (תגית מאוחרת משלימה רק תקופות חסרות)
-  const merged = {};
+  const rc = reportCur(tax, [map.rev, map.ni, map.ta].flat().filter(Boolean));
+  const unitOf = (k) => (PER_SHARE.has(k) ? (rc ? rc + '/shares' : 'PS') : k === 'sh' ? 'shares' : (rc || 'CUR'));
+  // לכל מפתח: תגית ראשית אחת + השלמות שמסכימות איתה (mergeTags)
+  // התגיות שמופיעות בדוח שהחברה הגישה (10-K האחרון) — ראשונות
+  const merged = {}, tags = {};
   let cur = null;
   for (const k of Object.keys(map)) {
-    const m = { dur: new Map(), inst: new Map() };
-    for (const tag of map[k]) {
-      const f = tagFacts(tax[tag], unitOf(k));
-      if (k === 'rev' && f.unit && !cur && /^[A-Z]{3}$/.test(f.unit)) cur = f.unit;
-      for (const [kk, v] of f.dur) if (!m.dur.has(kk)) m.dur.set(kk, v);
-      for (const [kk, v] of f.inst) if (!m.inst.has(kk)) m.inst.set(kk, v);
+    const onFace = faceTagList(face, STMT_OF[k]), list = map[k].slice();
+    const order = list.filter((t) => onFace.includes(t)).concat(list.filter((t) => !onFace.includes(t))); // בין אלה שבדוח — סדר העדיפות שלנו (מדולל לפני בסיסי)
+    let fs = order.map((tag) => tagFacts(tax[tag], unitOf(k))), names = order;
+    if (k === 'capex' && !isIfrs) {
+      const parts = CAPEX_PARTS.filter((t) => onFace.includes(t) && tax[t]);
+      if (parts.length > 1) { fs = [sumFacts(parts.map((t) => tagFacts(tax[t], unitOf(k))))]; names = [parts.join('+')]; }
     }
-    merged[k] = m;
+    if (k === 'rev') { const f = fs.find((x) => x.unit && /^[A-Z]{3}$/.test(x.unit)); if (f) cur = f.unit; }
+    if (rc) cur = rc;
+    // ערך שהדוח המודפס מאשר (התגית שבדוח, אותה שנה, אותו ערך) — fixRuns לא מחליף את הרצף שלו
+    // (Ares: ההכנסות באמת קופצות — דמי ביצוע; "Revenues" היא מדד אחר וחלק יותר)
+    const fv = faceYearVals(face, STMT_OF[k], rc || cur);
+    const lock = (si, kk, v) => { const t = names[si], e = kk.split('|')[1], x = t && fv.get(t + '|' + e); return x != null && Math.abs(Math.abs(x) - Math.abs(v)) <= 0.005 * Math.abs(x); };
+    merged[k] = mergeTags(fs, lock);
+    if (merged[k].spine != null) tags[k] = names[merged[k].spine];
   }
   // שנים פיסקליות: תקופות של ~שנה בהכנסות או ברווח הנקי (52/53 שבועות נכללים)
   const yearOf = new Map(); // end → start
@@ -190,41 +319,68 @@ function normalizeSec(facts, splits = []) {
   for (const [sd, ratio] of splits) {
     for (const [D, ends] of [[A, fyEnds], [Q, qEnds]]) {
       const ref = ends.filter((e) => e >= sd && D.sh[e]).map((e) => D.sh[e])[0];
-      if (!ref) continue;
+      // אין עדיין תקופה אחרי הפיצול (HDFC Bank: מניות הטבה בספטמבר, השנה נגמרה במרץ) — אין קפיצה לאמת מולה;
+      // מחילים רק פיצול "נקי" (יחס שלם ≥2 או ההפך שלו), אחרת המחיר אחרי הפיצול מול רווח למניה לפניו = מכפיל כפול
+      const clean = Math.abs(ratio - Math.round(ratio)) < 1e-6 && ratio >= 2 || Math.abs(1 / ratio - Math.round(1 / ratio)) < 1e-6 && ratio <= 0.5;
+      if (!ref && !(clean && ends.some((e) => e < sd && D.sh[e]) && !ends.some((e) => e >= sd))) continue;
       for (const e of ends) {
         const v = D.sh[e];
-        if (e < sd && v && v * ratio / 2 < ref && ref < v * ratio * 2) {
+        // רק פיצול אמיתי: יחס רחוק מ־1 ומספר המניות קפץ בערך באותו יחס (Yahoo רושם גם פיצול חברה — GE Vernova 1.25 — כ"ספליט")
+        if (e < sd && v && Math.abs(Math.log(ratio)) > Math.log(1.3) && (ref ? ref / v > ratio * 0.8 && ref / v < ratio * 1.25 : clean)) {
           D.sh[e] = v * ratio;
           for (const k of PER_SHARE) if (D[k][e] != null) D[k][e] = Math.round(D[k][e] / ratio * 1e4) / 1e4;
         }
       }
     }
   }
+  // מספר מניות שהוגש בקנה מידה שגוי (McDonald's: ‏716.4 "מניות" במקום 716.4 מיליון — טעות של החברה, מהסוג שחוקי DQC תופסים):
+  // רווח נקי ÷ רווח למניה = מספר המניות. פער של פי אלף / מיליון בדיוק (±15%) — מתקנים ורושמים.
+  const fixes = [];
+  for (const [D, ends] of [[A, fyEnds], [Q, qEnds]]) for (const e of ends) {
+    const sh = D.sh[e], eps = D.eps[e], ni = (D.nic && D.nic[e] != null ? D.nic[e] : D.ni[e]);
+    if (!(sh > 0) || !eps || !ni) continue;
+    const r = Math.abs(ni / eps) / sh;
+    for (const f of [1e3, 1e6]) if (Math.abs(r / f - 1) < 0.15) { D.sh[e] = sh * f; if (D === A) fixes.push({ m: 'sh', p: e, x: f }); }
+  }
   // שורות מחושבות
   for (const [D, ends] of [[A, fyEnds], [Q, qEnds]]) for (const e of ends) {
     if (D.gp && D.gp[e] == null && D.rev[e] != null && D.cogs && D.cogs[e] != null) D.gp[e] = D.rev[e] - D.cogs[e];
-    if (D.tl && D.tl[e] == null && D.tle && D.tle[e] != null && D.eq[e] != null) D.tl[e] = D.tle[e] - D.eq[e];
+    // סך התחייבויות שלא דווח = סך התחייבויות והון פחות כל ההון (כולל זכויות מיעוט והון ביניים)
+    if (D.tl && D.tl[e] == null && D.tle && D.tle[e] != null && D.eq[e] != null) D.tl[e] = D.tle[e] - (D.eqt && D.eqt[e] != null ? D.eqt[e] : D.eq[e]) - ((D.tmp && D.tmp[e]) || 0);
     if (D.debt && D.debt[e] == null) { const s = (D.debtNc[e] || 0) + (D.debtC[e] || 0); if (s) D.debt[e] = s; }
     if (D.debt && D.stb && D.stb[e]) D.debt[e] = (D.debt[e] || 0) + D.stb[e];
   }
-  const KEEP = ['rev', 'cogs', 'gp', 'op', 'ni', 'pretax', 'tax', 'rnd', 'int', 'eps', 'sh', 'ocf', 'capex', 'sbc', 'dep', 'buy', 'divp', 'dps',
+  const KEEP = ['rev', 'cogs', 'gp', 'op', 'ni', 'nic', 'eqt', 'tmp', 'tle', 'pretax', 'tax', 'rnd', 'int', 'eps', 'sh', 'ocf', 'capex', 'sbc', 'dep', 'buy', 'divp', 'dps',
     'cash', 'msec', 'debt', 'eq', 'ta', 'tl', 'ca', 'cl', 're', 'ppe'];
   const pack = (D, ends) => { const o = {}; for (const k of KEEP) { if (!D[k]) continue; const a = ends.map((e) => (D[k][e] != null ? D[k][e] : null)); if (a.some((v) => v != null)) o[k] = a; } return o; };
   const fy = fyEnds.filter((e) => A.rev[e] != null || A.ni[e] != null).slice(-20);
-  return { fy, q: qEnds, A: pack(A, fy), Q: pack(Q, qEnds), cur: cur || 'USD', ifrs: isIfrs, derived };
+  return { fy, q: qEnds, A: pack(A, fy), Q: pack(Q, qEnds), cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes };
 }
 
 /* ---------- בדיקות אימות — תג, לא תיקון ---------- */
 function validate(d) {
-  const out = [], A = d.A, Q = d.Q;
+  const out = (d.fixes || []).map((f) => ({ k: 'fix', m: f.m, p: f.p, x: f.x })), A = d.A, Q = d.Q;
   const near = (a, b, tol) => a != null && b != null && Math.abs(a - b) <= tol * Math.max(Math.abs(a), Math.abs(b), 1);
   d.fy.forEach((e, i) => {
-    const ta = A.ta && A.ta[i], tl = A.tl && A.tl[i], eq = A.eq && A.eq[i];
-    if (ta && tl != null && eq != null && !near(ta, tl + eq, 0.03)) out.push({ k: 'bal', p: e });          // נכסים ≈ התחייבויות + הון
-    if (A.ni && A.eps && A.sh && A.ni[i] && A.eps[i] && A.sh[i] && !near(A.ni[i], A.eps[i] * A.sh[i], 0.06)) out.push({ k: 'eps', p: e }); // רווח ≈ EPS × מניות
-    if (A.rev && A.rev[i] != null && A.rev[i] < 0) out.push({ k: 'neg', p: e });
-    const pr = i > 0 && A.rev ? A.rev[i - 1] : null;
-    if (pr > 0 && A.rev[i] > 0 && (A.rev[i] / pr > 8 || pr / A.rev[i] > 8)) out.push({ k: 'scale', p: e });   // קפיצה של סדר גודל
+    const g = (k) => (A[k] ? A[k][i] : null);
+    // נכסים = התחייבויות + הון (כולל זכויות מיעוט והון ביניים); כשיש "סך התחייבויות והון" — גם מולו
+    const ta = g('ta'), tl = g('tl'), eqx = g('eqt') != null ? g('eqt') : g('eq');
+    if (ta && g('tle') != null) { if (!near(ta, g('tle'), 0.001)) out.push({ k: 'bal', p: e }); }
+    else if (ta && tl != null && eqx != null && !near(ta, tl + eqx + (g('tmp') || 0), 0.01)) out.push({ k: 'bal', p: e });
+    const nin = g('nic') != null ? g('nic') : g('ni');
+    if (nin && g('eps') && g('sh') && !near(nin, g('eps') * g('sh'), 0.03)) out.push({ k: 'eps', p: e }); // רווח לבעלי המניות ≈ EPS × מניות
+    // ערכים שלא יכולים להיות שליליים (ברוח DQC 0015)
+    for (const k of NONNEG) if (g(k) != null && g(k) < 0) out.push({ k: 'neg', m: k, p: e });
+    // קפיצה של סדר גודל (פי 8) — לרוב קנה מידה שגוי בדיווח
+    for (const k of ['rev', 'ta', 'sh']) {
+      const pr = i > 0 && A[k] ? A[k][i - 1] : null, v = g(k);
+      if (pr > 0 && v > 0 && (v / pr > 8 || pr / v > 8)) out.push({ k: 'scale', m: k, p: e });
+    }
+    // רווח גולמי = הכנסות − עלות המכר (כשהשלושה דווחו); חלק ≤ שלם; רווח תפעולי ≤ הכנסות
+    if (g('gp') != null && g('rev') && g('cogs') != null && !near(g('gp'), g('rev') - Math.abs(g('cogs')), 0.01)) out.push({ k: 'gp', p: e });
+    if (g('ca') != null && g('ta') != null && g('ca') > g('ta') * 1.001) out.push({ k: 'part', m: 'ca', p: e });
+    if (g('cl') != null && g('tl') != null && g('cl') > g('tl') * 1.001) out.push({ k: 'part', m: 'cl', p: e });
+    if (g('op') != null && g('rev') > 0 && g('op') > g('rev') * 1.001) out.push({ k: 'part', m: 'op', p: e });
     // ארבעה רבעונים ישירים = השנה
     for (const k of ['rev', 'ni']) {
       if (!A[k] || !Q[k] || A[k][i] == null) continue;
@@ -232,6 +388,8 @@ function validate(d) {
       if (qs.length === 4 && qs.every(([, v]) => v != null) && !near(qs.reduce((s, [, v]) => s + v, 0), A[k][i], 0.01)) out.push({ k: 'q4', m: k, p: e });
     }
   });
+  // רבעון עם הכנסות שליליות — כמעט תמיד רבעון 4 מחושב (שנה פחות 9 חודשים) מדוחות בגרסאות שונות
+  d.q.forEach((e, j) => { if (Q.rev && Q.rev[j] != null && Q.rev[j] < 0) out.push({ k: 'qneg', m: 'rev', p: e }); });
   return out;
 }
 function crossCheck(d, y) { // מול Yahoo: הכנסות ורווח נקי בשתי השנים האחרונות, עד 2%
@@ -241,11 +399,53 @@ function crossCheck(d, y) { // מול Yahoo: הכנסות ורווח נקי בש
     for (let i = d.fy.length - 2; i < d.fy.length; i++) {
       if (i < 0) continue;
       const e = d.fy[i], j = y.fy.findIndex((x) => Math.abs(day(x) - day(e)) < 20);
-      const a = d.A[k] && d.A[k][i], b = j >= 0 && y.A[k] ? y.A[k][j] : null;
+      const kk = k === 'ni' && d.A.nic && d.A.nic[i] != null ? 'nic' : k; // Yahoo = רווח לבעלי המניות הרגילות
+      const a = d.A[kk] && d.A[kk][i], b = j >= 0 && y.A[k] ? y.A[k][j] : null;
       if (a != null && b != null && Math.abs(a - b) > 0.02 * Math.max(Math.abs(a), Math.abs(b))) out.push({ k: 'xy', m: k, p: e });
     }
   }
   return out;
+}
+
+/* מול הדוח עצמו (שכבה 1): כל ערך שנתי שמופיע ב־10-K האחרון — מול מה שהחברה הדפיסה באותה שורה (אותה תגית).
+   השקעות הוניות מורכבות — מול סכום השורות. עד 0.5% (עיגול לאלפים/מיליונים); למניה — עד 1 סנט. */
+const FACE_KEYS = ['rev', 'cogs', 'gp', 'op', 'ni', 'pretax', 'tax', 'rnd', 'eps', 'sh', 'ocf', 'capex', 'sbc', 'dep', 'buy', 'divp', 'cash', 'eq', 'ta', 'tl', 'ca', 'cl', 're', 'ppe'];
+const SECFACE = require('./secface');
+const ABS_FACE = new Set(['cogs', 'tax', 'rnd', 'int', 'capex', 'buy', 'divp', 'dep', 'sbc', 'tl', 'cl']);   // התחייבויות — בבריטניה (IFRS) מודפסות במינוס
+function faceCheck(d, face, splits = []) {
+  const out = [], seen = { n: 0, ok: 0 };
+  if (!face || !d || !d.tags) return { out, seen };
+  // פיצול שהיה אחרי הגשת הדוח (Booking 25:1, CrowdStrike 4:1): הדוח מודפס לפני הפיצול ואצלנו אחריו — משווים אחרי אותו פיצול
+  const post = (splits || []).filter(([sd, r]) => face.filed && sd > face.filed && Math.abs(Math.log(r)) > Math.log(1.3)).reduce((t, [, r]) => t * r, 1);
+  for (const k of FACE_KEYS) {
+    const tag = d.tags[k]; if (!tag || !d.A[k]) continue;
+    const parts = tag.split('+');
+    for (const st of STMT_OF[k] || []) {
+      const S = face[st]; if (!S) continue;
+      // בתזרים המזומן מופיע פעמיים (תחילת התקופה וסופה) — הסוף = השורה האחרונה
+      const rows = parts.map((t) => (st === 'cf' && k === 'cash' ? S.rows.filter((r) => r.tag === t).pop() : S.rows.find((r) => r.tag === t)));
+      if (rows.some((r) => !r)) continue;
+      const vals = rows.map((r) => SECFACE.rowVals(S, r));
+      S.cols.forEach((c, ci) => {
+        if (st !== 'bs' && c.months != null && c.months !== 12) return;
+        if (!SECFACE.colOk(c, d.cur)) return;
+        const i = d.fy.findIndex((e) => Math.abs(day(e) - day(c.end)) <= 8); if (i < 0) return;
+        // הוצאות ותשלומים — לפי הערך המוחלט (בדוח הן לפעמים מודפסות במינוס)
+        const ab = ABS_FACE.has(k), fv0 = vals.reduce((t, v) => (t == null || v[ci] == null ? null : t + (ab ? Math.abs(v[ci]) : v[ci])), 0);
+        const fv = fv0 == null || post === 1 ? fv0 : PER_SHARE.has(k) ? Math.round(fv0 / post * 1e4) / 1e4 : k === 'sh' ? fv0 * post : fv0;
+        const ours = d.A[k][i]; if (fv == null || ours == null) return;
+        const a = ab ? Math.abs(ours) : ours;
+        // מניות שתוקנו בקנה מידה (fixes) — הדוח מודפס באותה טעות; משווים אחרי אותו תיקון
+        const fx = k === 'sh' ? (d.fixes || []).find((f) => f.m === 'sh') : null;
+        if (fx && Math.abs(fv * fx.x - a) <= 0.005 * Math.abs(a)) { seen.n++; seen.ok++; return; }
+        const tol = k === 'eps' ? 0.011 : 0.005 * Math.max(Math.abs(fv), 1);
+        seen.n++;
+        if (Math.abs(a - fv) <= tol) seen.ok++; else out.push({ k: 'face', m: k, p: d.fy[i], f: fv, v: a });
+      });
+      break;
+    }
+  }
+  return { out, seen };
 }
 
 /* ---------- Yahoo: דוחות (גיבוי ות״א) ---------- */
@@ -438,6 +638,43 @@ async function macro() {
   return fred ? cset('macro', v) : v;
 }
 
+/* ישות שמחליפה ישות קודמת (חברת אחזקות חדשה) — ב־SEC אין קישור ביניהן, ולכן טבלה מתועדת.
+   הבדיקה הלילית (tools/fund-audit.js) מסמנת חברה עם פחות משנתיים היסטוריה — משם מוסיפים לכאן. */
+const CIK_PREV = {
+  '0002115436': '0000034088', // ExxonMobil Holdings Corp (2026) ← Exxon Mobil Corp
+};
+/* איחוד companyfacts של שתי ישויות: אותה תגית — כל הדיווחים יחד (האחרון שהוגש גובר בכל תקופה, כמו תמיד) */
+function mergeFacts(a, b) {
+  const out = { facts: {} };
+  for (const ns of new Set([...Object.keys((a && a.facts) || {}), ...Object.keys((b && b.facts) || {})])) {
+    const A = (a.facts && a.facts[ns]) || {}, B = (b.facts && b.facts[ns]) || {}, o = out.facts[ns] = {};
+    for (const t of new Set([...Object.keys(A), ...Object.keys(B)])) {
+      const units = {};
+      for (const src of [A[t], B[t]]) for (const [u, rows] of Object.entries((src && src.units) || {})) units[u] = (units[u] || []).concat(rows);
+      o[t] = { units };
+    }
+  }
+  return out;
+}
+
+/* הדוח השנתי האחרון כפי שהוגש: FilingSummary.xml → דפי R של רווח והפסד, מאזן ותזרים (lib/secface.js) */
+const ANNUAL = /^(10-K|20-F|40-F)$/;
+async function secFace(cik, sub) {
+  const r = sub && sub.filings && sub.filings.recent;
+  if (!r || !r.form) return null;
+  const i = r.form.findIndex((f) => ANNUAL.test(f));
+  if (i < 0) return null;
+  const acc = r.accessionNumber[i], key = 'face:' + acc;
+  const hit = cget(key, 864e5); if (hit) return hit;
+  const base = 'https://www.sec.gov/Archives/edgar/data/' + (+cik) + '/' + acc.replace(/-/g, '') + '/';
+  const H = { headers: { 'User-Agent': SEC_UA() } };
+  const pick = SECFACE.pickStatements(await getText(base + 'FilingSummary.xml', H, 7000));
+  const out = { form: r.form[i], filed: r.filingDate[i], acc, url: base };
+  await Promise.all(['is', 'bs', 'cf'].map(async (k) => { if (pick[k]) { try { out[k] = SECFACE.parseR(await getText(base + pick[k], H, 7000)); } catch (e) { /* דוח אחד חסר — השאר עדיין נבדקים */ } } }));
+  if (!out.is && !out.bs && !out.cf) return null;
+  return cset(key, out);
+}
+
 /* ---------- הכל יחד ---------- */
 const FUND_TTL = 12 * H;
 async function fundamentals(sym0) {
@@ -451,17 +688,23 @@ async function fundamentals(sym0) {
   const ysTs = safe(yahooTs(sym), 'yts');
   const nq = ta ? Promise.resolve(null) : safe(nasdaqForecast(sym), 'nq');
   const peersP = safe(yahooPeers(sym), 'peers');
-  let sec = null, cik = null;
+  let sec = null, cik = null, face = null;
   if (!ta) {
     try {
       cik = (await cikMap()).get(secSym(sym)) || null;
       if (cik) {
-        const [facts, sub] = await Promise.all([
-          getJson('https://data.sec.gov/api/xbrl/companyfacts/CIK' + cik + '.json', { headers: { 'User-Agent': SEC_UA() } }, 15000),
-          getJson('https://data.sec.gov/submissions/CIK' + cik + '.json', { headers: { 'User-Agent': SEC_UA() } }, 8000).catch(() => null),
-        ]);
+        const SH = { headers: { 'User-Agent': SEC_UA() } }, prev = CIK_PREV[cik];
+        const subP = getJson('https://data.sec.gov/submissions/CIK' + cik + '.json', SH, 8000).catch(() => null);
+        // חברת אחזקות חדשה בלי דוח שנתי עדיין — הדוח האחרון של הישות הקודמת
+        const faceP = subP.then(async (sb) => (await secFace(cik, sb)) || (prev ? secFace(prev, await getJson('https://data.sec.gov/submissions/CIK' + prev + '.json', SH, 8000)) : null))
+          .catch((e) => { errs.push('face:' + String((e && e.message) || 'x').slice(0, 24)); return null; });
+        const factsP = getJson('https://data.sec.gov/api/xbrl/companyfacts/CIK' + cik + '.json', SH, 15000);
+        const prevP = prev ? getJson('https://data.sec.gov/api/xbrl/companyfacts/CIK' + prev + '.json', SH, 15000).catch(() => null) : null;
+        const [facts0, sub, fc, pf] = await Promise.all([factsP, subP, faceP, prevP]);
+        const facts = pf ? mergeFacts(pf, facts0) : facts0;
+        face = fc;
         const m = await monthly;
-        sec = normalizeSec(facts, (m && m.splits) || []);
+        sec = normalizeSec(facts, (m && m.splits) || [], face);
         if (sec && sub) { sec.sic = sub.sic || null; sec.sicDesc = sub.sicDescription || null; sec.fye = sub.fiscalYearEnd || null;
           const fl = ((sub.filings && sub.filings.recent && sub.filings.recent.filingDate) || [])[0]; sec.lastFiled = fl || null; }
       }
@@ -471,7 +714,8 @@ async function fundamentals(sym0) {
   const useSec = sec && sec.fy.length >= 2;
   const base = useSec ? sec : y;
   if (!base || !base.fy || !base.fy.length) return { ok: false, error: 'no_data', errs };
-  const checks = useSec ? validate(sec).concat(crossCheck(sec, y)) : [];
+  const fcRes = useSec ? faceCheck(sec, face, (m && m.splits) || []) : { out: [], seen: { n: 0, ok: 0 } };
+  const checks = useSec ? validate(sec).concat(crossCheck(sec, y), fcRes.out) : [];
   // שורה שחסרה ב־SEC לגמרי (תגית פרטית של החברה, למשל השקעות הוניות ב־IFRS) — משלימים מ־Yahoo לפי תאריך, ומסמנים
   const fill = [];
   if (useSec && y && y.fy) for (const k of Object.keys(YMAP)) {
@@ -493,6 +737,9 @@ async function fundamentals(sym0) {
     est: s ? s.est : [], hist: s ? s.hist : [], nextEarn: s ? s.nextEarn : null, nq: n || null,
     px: m ? m.px : null, splits: m ? m.splits : [], peers: peers || [],
     ind: industryFor(s && s.prof && s.prof.industry), checks, errs,
+    // מקור ושקיפות (שכבה 6): התגית שנבחרה לכל שורה, הדוח שמולו נבדקנו, וכמה ערכים תאמו לו
+    tags: useSec ? sec.tags : null,
+    face: useSec && face ? { form: face.form, filed: face.filed, acc: face.acc, url: face.url, n: fcRes.seen.n, ok: fcRes.seen.ok } : null,
   };
   return cset('fund:' + sym, out);
 }
@@ -512,5 +759,5 @@ async function handle(body, res) {
   return res.status(200).json({ ...v, indData: industryData(v.ind) });
 }
 
-module.exports = { handle, fundamentals, macro, normalizeSec, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
+module.exports = { handle, fundamentals, macro, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
   industryFor, industryData, _cache: cache };

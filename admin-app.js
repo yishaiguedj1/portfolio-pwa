@@ -1553,6 +1553,7 @@ page('lab', { tab: 'imp', parent: 'imp', title: () => t('admLabT'), render(p) {
     row({ c: 'green', ic: '✓', t: t('admLabQual'), s: (v.jc && v.jc.c && v.jc.c[0]) ? fmt(t('admLabQualS'), { c: jgTxt(v.jc.c[0].k) }) : '', v: nz(k.jd) ? numTxt(k.jd) : nz(k.q) ? numTxt(k.q) : '', on: () => go('labQual') }),
     mxRow(v),
     verRow(v),
+    faRow(),
     dmRow(),
     row({ c: 'red', ic: '✕', t: t('admLabFails'), s: fails.length ? ltr(fails[0].e) + ' · ' + fails[0].n : t('admLabFailsNone'), v: fails.length ? fails.reduce((a, x) => a + x.n, 0) : 0, on: () => go('labFails') }),
     row({ c: 'purple', ic: '⇆', t: t('admLabModes'), s: (v.modes || []).map((x) => modeTxt(x.m)).join(' · '), v: (v.modes || []).length, on: () => go('labModes') }),
@@ -1892,6 +1893,50 @@ page('labDm', { tab: 'imp', parent: 'lab', title: () => t('admDmT'), render(p) {
     return row({ c: 'red', ic: f.kind === 'yt' ? '▶' : '⇣', t: ltr(f.code || '?'), s: sm });
   })));
   p.append(h('p', 'adm-foot', t('admDmFoot')));
+} });
+/* ---- דיוק נתוני החברות (25/10/2026, שכבה 5): הבדיקה הלילית של מנתח החברות (fund-audit.yml → Release fund-audit → adminFund).
+   הכל מחושב בשרתון (lib/fundaudit.js auditView), כאן רק תצוגה ---- */
+async function needFa() {
+  const r = await api('adminFund');
+  D.fa = r.ok ? (r.fa || null) : null;
+  if (['labFund', 'lab'].includes(cur)) paint();
+}
+function faKind(k) {
+  switch (k) {
+    case 'face': return t('admFaK_face'); case 'fix': return t('admFaK_fix'); case 'bal': return t('admFaK_bal'); case 'neg': return t('admFaK_neg');
+    case 'scale': return t('admFaK_scale'); case 'eps': return t('admFaK_eps'); case 'gp': return t('admFaK_gp'); case 'part': return t('admFaK_part');
+    case 'q4': return t('admFaK_q4'); case 'qneg': return t('admFaK_qneg'); case 'xy': return t('admFaK_xy'); case 'gold': return t('admFaK_gold');
+    default: return t('admFaK_other');
+  }
+}
+const faPct = (x) => (x == null ? '—' : x.toFixed(x >= 99.95 && x < 100 ? 2 : 1).replace(/\.0$/, '') + '%');
+function faRow() {
+  if (D.fa === undefined) { D.fa = 0; needFa(); }
+  const v = D.fa;
+  return row({ c: v && v.alert ? 'red' : 'green', ic: '✓', t: t('admFaT'), s: v ? fmt(t('admFaS'), { n: v.n, h: v.age }) : t('admNoData'),
+    v: v ? faPct(v.face.pct) : '', tr: v ? t('admFaFace') : '', on: () => go('labFund') });
+}
+const faNum = (x) => (x == null ? '—' : Math.abs(x) >= 1e6 ? numTxt(Math.round(x / 1e6)) + 'M' : String(Math.round(x * 100) / 100));
+page('labFund', { tab: 'imp', parent: 'lab', title: () => t('admFaT'), render(p) {
+  if (D.fa === undefined || D.fa === 0) { if (D.fa === undefined) { D.fa = 0; needFa(); } p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  const v = D.fa;
+  if (!v) { p.append(list(row({ c: 'gray', ic: '—', t: t('admFaNone') })), h('p', 'adm-foot', t('admFaFoot'))); return; }
+  if (v.alert) p.append(list(row({ c: 'red', ic: '!', t: t('admFaAlert'), s: v.alert.map((k) => (k === 'gold' ? t('admFaK_gold') : k === 'face' ? t('admFaK_face') : fmt(t('admFaFail'), { n: v.fail }))).join(' · ') })));
+  p.append(tiles(
+    tileEl('green', t('admFaFace'), faPct(v.face.pct), v.face.d != null && v.face.d !== 0 ? (v.face.d > 0 ? '+' : '−') + Math.abs(v.face.d) : fmt(t('admFaFaceS'), { ok: numTxt(v.face.ok), n: numTxt(v.face.n) }), v.face.d < 0 ? 'dn' : v.face.d > 0 ? 'up' : '', v.trend),
+    tileEl('blue', t('admFaCos'), faPct(v.face.coPct), fmt(t('admFaCosS'), { ok: v.face.coOk, n: v.face.cos }), '', null),
+    tileEl(v.gold.bad ? 'red' : 'purple', t('admFaGold'), v.gold.bad ? fmt(t('admFaGoldBad'), { n: v.gold.bad }) : t('admFaGoldOk'), fmt(t('admFaGoldS'), { n: v.gold.n }), v.gold.bad ? 'dn' : '', null)));
+  if ((v.gi || []).length) p.append(grp(t('admFaGoldList')), list(...v.gi.map((x) => row({ c: 'red', ic: '!', t: ltr(x.sym + ' · ' + x.m + ' · ' + x.p), s: fmt(t('admFaVs'), { f: faNum(x.f), v: faNum(x.v) }) }))));
+  if ((v.kinds || []).length) p.append(grp(t('admFaKinds')), list(...v.kinds.map((x) => row({ c: x.k === 'fix' ? 'blue' : x.k === 'xy' || x.k === 'q4' ? 'gray' : 'orange', ic: x.k === 'fix' ? '✓' : '!', t: faKind(x.k), s: ltr(x.k),
+    v: numTxt(x.n), tr: x.d ? (x.d > 0 ? '+' : '−') + Math.abs(x.d) : '', trc: x.d > 0 ? 'dn' : x.d < 0 ? 'up' : '' }))));
+  if ((v.cos || []).length) p.append(grp(t('admFaCo')), list(...v.cos.slice(0, 15).map((c) => row({ c: 'orange', ic: '≠', t: ltr(c.sym), s: fmt(t('admFaCosS'), { ok: c.ok, n: c.n }) + (c.form ? ' · ' + c.form : ''),
+    v: faPct(c.ok / c.n * 100), meter: [c.ok / c.n * 100, c.ok / c.n < 0.9 ? 'x' : 'w'], on: c.url ? () => { try { window.open(c.url, '_blank', 'noopener'); } catch (e) {} } : null }))));
+  if ((v.items || []).length) p.append(grp(t('admFaItems')), list(...v.items.slice(0, 20).map((x) => row({ c: 'gray', ic: '·', t: ltr(x.sym + (x.m ? ' · ' + x.m : '') + (x.p ? ' · ' + x.p : '')), s: faKind(x.k) + (x.f != null ? ' · ' + fmt(t('admFaVs'), { f: faNum(x.f), v: faNum(x.v) }) : '') }))),
+    v.ni > 20 ? h('p', 'adm-dt', fmt(t('admFaMore'), { n: numTxt(v.ni - 20) })) : null);
+  const ex = [v.yahoo ? fmt(t('admFaYahoo'), { n: v.yahoo }) : '', v.fail ? fmt(t('admFaFail'), { n: v.fail }) : ''].filter(Boolean);
+  if (ex.length) p.append(list(row({ c: 'gray', ic: 'i', t: ex.join(' · '), s: ltr([].concat(v.ys || [], v.fs || []).slice(0, 30).join(' ')) })));
+  p.append(list(row({ c: 'blue', ic: '↗', t: t('admFaReport'), on: () => { try { window.open('https://github.com/yishaiguedj1/portfolio-pwa/releases/tag/fund-audit', '_blank', 'noopener'); } catch (e) {} } })));
+  p.append(h('p', 'adm-foot', t('admFaFoot')));
 } });
 page('labFails', { tab: 'imp', parent: 'lab', title: () => t('admLabFails'), render(p) {
   const v = needLab(p); if (!v) return;

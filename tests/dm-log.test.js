@@ -36,7 +36,7 @@ const { fakeR2, ACC } = require('./_r2fake');
   Object.assign(process.env, {
     R2L_ACCOUNT_ID: ACC, R2L_ACCESS_KEY_ID: 'AKTEST', R2L_SECRET_ACCESS_KEY: 'sekret/xyz', R2L_BUCKET: 'snb-studio',
     GDRIVE_SA_KEY: JSON.stringify({ client_email: 'sa@p.iam.gserviceaccount.com', private_key: sa.privateKey.export({ type: 'pkcs8', format: 'pem' }) }),
-    LIBRARY_READERS: 'owner@example.com', SNB_SITEWATCH: 'off', SNB_ADMINWATCH: 'off',
+    LIBRARY_READERS: 'owner@example.com', SNB_SITEWATCH: 'off', SNB_ADMINWATCH: 'off', SNB_FUNDWATCH: 'off',
   });
   for (const k of ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'IBKR_VAULT_KEY', 'STUDIO_USERS']) delete process.env[k];
   const gauth = require(path.join(root, 'ibkr-proxy/lib/gauth.js'));

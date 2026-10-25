@@ -44,7 +44,8 @@ const LR = require('../lib/studiolearn');
 const LI = require('../lib/learnimpact');   // 21/10/2026: השפעת המאגר לאורך זמן
 const LC = require('../lib/learncorpus');
 const DL = require('../lib/devlog');   // 15/10/2026: האיסוף המלא בתקופת הפיתוח (הדגל learn_full) — לוגים, יומן הקריאות, מדדים, שגיאות מהטלפון
-const DMLOG = require('../lib/dmlog');   // 24/10/2026: מאגר הנתונים מ־Studio DM — יומן ההורדות, בהסכמה מפורשת
+const DMLOG = require('../lib/dmlog');
+const FAU = require('../lib/fundaudit');   // 25/10/2026: בקרת הדיוק של מנתח החברות — הסיכום הלילי מה־Release ‏fund-audit   // 24/10/2026: מאגר הנתונים מ־Studio DM — יומן ההורדות, בהסכמה מפורשת
 const SU = require('../lib/studiourl');   // 22/10/2026: הורדה מקישור — בדיקת קישור בתור לעובד
 const MON = require('../lib/studiomon');
 const USG = require('../lib/usage');   // 23/10/2026: מעקב תעבורה/אחסון של Vercel, R2 ו־Firestore (טוקנים לקריאה בלבד)   // 22/10/2026: ניטור השרתים — היסטוריית דופק + טוקן קריאה לווידג׳ט
@@ -878,7 +879,8 @@ async function watch(req, res, deps) {
   const lw = await learnWeekly(deps, now).catch(() => -1);   // 20/10/2026 (מ׳7): הסיכום השבועי של המעבדה — התראה למנהל
   const jg = await jobGc(deps, now).catch(() => -1);   // 21/10/2026: עבודות ב־R2 שהסתיימו לפני יותר מחודש
   const us = await usageSnap(deps, now).catch(() => -1);   // 23/10/2026: נקודה לשעה לאחוזי השימוש של הספקים (היסטוריה של חודש)
-  return res.status(200).json({ ok: true, down, ar, sa, st, bk, ob, aw, lc, lw, jg, us });
+  const fa = await fundWatch(deps, now).catch(() => -1);   // 25/10/2026: בקרת הדיוק של מנתח החברות — התראה כשמשהו נשבר
+  return res.status(200).json({ ok: true, down, ar, sa, st, bk, ob, aw, lc, lw, jg, us, fa });
 }
 /* 21/10/2026 (בקשת המשתמש): עבודה ב־R2 שהסתיימה לפני יותר מחודש (SC.expiredJob) נמחקת כמו "מחיקה" בטלפון —
    removeJobRec: קודם הרשומה במאגר הלמידה נשמרת (learnSave), ואז הרשומה, הקבצים ב־R2, ההפקות מחדש וגיליונות ה־AI.
@@ -917,6 +919,38 @@ async function learnWeekly(deps, now) {
   if (!n) return 0;   // שבוע בלי עבודות — בלי התראה, ובודקים שוב בעוד 6 שעות
   await patchDoc(deps, 'sysWatch', 'learnWk', { at: now, n });
   await notify(deps, cfg.uid, 'lab_week', '', now);
+  return 1;
+}
+/* 25/10/2026 (שכבה 5): בקרת הדיוק של מנתח החברות. ה־workflow הלילי (fund-audit.yml) מפרסם summary.json + history.json
+   ב־Release הציבורי fund-audit; כאן קוראים (מטמון AO_TTL), ושולחים התראה למנהל פעם אחת לכל ריצה שבה משהו נשבר
+   (FAU.auditAlert: סט הזהב זז / ההתאמה לדוח ירדה / חברות נכשלו). sysWatch/fund.at = הריצה האחרונה שנבדקה */
+async function fundAuditGet(deps, now) {
+  return aoGet(deps, 'fund', async () => {
+    const f = deps.fetch || fetch, get = async (n) => {
+      const r = await f(FAU.REL + n, { signal: AbortSignal.timeout(8000) });
+      return r.ok ? r.json() : null;
+    };
+    const [s, h] = await Promise.all([get('summary.json'), get('history.json').catch(() => [])]);
+    const cur = FAU.normAudit(s);
+    return cur ? { cur, hist: FAU.normHist(h) } : null;
+  }, now);
+}
+const FW_EVERY = 3 * 3600e3;
+let lastFw = 0;
+async function fundWatch(deps, now) {
+  if (process.env.SNB_FUNDWATCH === 'off' || Math.abs(now - lastFw) < FW_EVERY) return 0;
+  lastFw = now;
+  const a = await fundAuditGet(deps, now);
+  if (!a) return 0;
+  const w = (await readDoc(deps, 'sysWatch', 'fund').catch(() => null)) || {};
+  if (w.at === a.cur.at) return 0;
+  const prev = a.hist.filter((x) => x.at !== a.cur.at).pop() || null;
+  const why = FAU.auditAlert(a.cur, prev);
+  await patchDoc(deps, 'sysWatch', 'fund', { at: a.cur.at, why: why ? why.join(',') : '' });
+  if (!why) return 0;
+  const cfg = await readDoc(deps, 'sysBackup', 'cfg').catch(() => null);
+  if (!cfg || !UID_RE.test(String(cfg.uid || ''))) return 0;
+  await notify(deps, cfg.uid, 'fund_audit', '', now);
   return 1;
 }
 const AW_EVERY = 3600e3;
@@ -2580,6 +2614,12 @@ async function handler(req, res, deps = {}) {
         const { items } = await dmCollect(deps, c, now, 14, 0);
         return res.status(200).json({ ok: true, r2: true, dm: DMLOG.dmView(items, now, 14) });
       } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
+    }
+    if (op === 'adminFund') {
+      // 25/10/2026: מרכז הניהול ← מעבדת השיפור ← דיוק הנתונים — הסיכום הלילי של מנתח החברות (מידע ציבורי בלבד)
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const a = await fundAuditGet(deps, now);
+      return res.status(200).json({ ok: true, fa: a ? FAU.auditView(a.cur, a.hist, now) : null });
     }
     if (op === 'adminFb') {
       // 15/10/2026: מרכז הניהול ← משוב ופניות. 300 האחרונים; set = { id, st: 'd'|'n'|'x' } (טופל / חדש / מחיקה)
