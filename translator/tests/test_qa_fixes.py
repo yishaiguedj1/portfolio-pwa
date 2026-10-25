@@ -13,7 +13,7 @@ from vt import config as C  # noqa: E402
 from vt.hebrew import break_lines, layout_lines, normalize_he, number_ok_in_he  # noqa: E402
 from vt.segment import cps_merge  # noqa: E402
 from vt.timing import time_cues  # noqa: E402
-from vt.translate import check, untranslated_words  # noqa: E402
+from vt.translate import CHECK_CODE_RE, CHECK_CODES, check, untranslated_words  # noqa: E402
 from vt.util import FrameGrid  # noqa: E402
 import pipeline as P  # noqa: E402
 
@@ -226,6 +226,48 @@ class TestCheckNoise(unittest.TestCase):
         issues, st = self.run_check([("We met at the United Nations,", 'נפגשנו באו"ם,'),
                                      ("I read it in the New York Times", "קראתי את זה בניו יורק טיימס")], gl)
         self.assertEqual((st["glossary"], st["glossary_soft"]), (0, 0), issues)
+
+
+class TestCheckCodes(unittest.TestCase):
+    """לכל שורה ב־tr/check.md קוד קבוע ("- #12: [num] …") — pipeline מסווג לפיו ולא לפי מילים בהודעה."""
+
+    def test_every_message_in_source_has_a_code(self):
+        src = (Path(__file__).resolve().parents[1] / "vt" / "translate.py").read_text(encoding="utf-8")
+        lines = re.findall(r'(?:issues|out)\.append\(f"- #\{[^}]+\}: ([^\n]*)', src)
+        self.assertGreaterEqual(len(lines), 20)
+        for ln in lines:
+            m = re.match(r"\[([a-z]+)\] ", ln)
+            self.assertTrue(m, f"הודעה בלי קוד: {ln[:60]}")
+            self.assertIn(m.group(1), CHECK_CODES)
+
+    def test_report_lines_carry_codes(self):
+        gl = [("lemonade stand", ["דוכן לימונדה"])]
+        pairs = [("We raised 300 dollars.", "גייסנו כסף."),
+                 ("What do you do?", "מה אתה עושה."),
+                 ("and we sold it at the lemonade stand", "ומכרנו את זה בעמדה"),
+                 ("become AI native.", "ולהפוך ל־AI native."),
+                 ("Hello there", "-שלום שם"),
+                 ("x", " ".join(["אבגדהוזחטי"] * 7)),
+                 ("It was a very long sentence about many many things in our lives today", "כן")]
+        cues = [{"id": i + 1, "en": en, "budget": 84} for i, (en, _h) in enumerate(pairs)]
+        he = {str(i + 1): h for i, (_e, h) in enumerate(pairs)}
+        he["99"] = "שורה שלא קיימת"
+        issues, _ = check(cues, he, gl)
+        codes = set()
+        for ln in issues:
+            m = CHECK_CODE_RE.match(ln)
+            self.assertTrue(m, ln)
+            codes.add(m.group(2))
+        self.assertTrue({"num", "q", "gls", "lat", "dash", "brk", "short", "id"} <= codes, codes)
+        # הקוד לא שובר את הסיווג הישן לפי מילים (נקודות שמירה ישנות, pipeline לפני המעבר לקודים)
+        hard, soft = P.parse_issues("\n".join(issues))
+        for ln in issues:
+            k, code = CHECK_CODE_RE.match(ln).group(1, 2)
+            want = CHECK_CODES[code]
+            if want == "h":
+                self.assertIn(k, hard, ln)
+            elif want == "s":
+                self.assertTrue(k in soft or k in hard, ln)
 
 
 if __name__ == "__main__":
