@@ -35,8 +35,17 @@ function parseR2(j) {
   if (j && Array.isArray(j.errors) && j.errors.length && !j.data) return { st: 'err', err: 'gql', m: gqlMsg(j), items: [] };
   const acc = j && j.data && j.data.viewer && j.data.viewer.accounts && j.data.viewer.accounts[0];
   if (!acc) return { st: 'err', err: 'shape', items: [] };
-  const st = (acc.r2StorageAdaptiveGroups || [])[0], op = (acc.r2OperationsAdaptiveGroups || [])[0];
-  const storeBytes = st && st.max ? st.max.payloadSize : null, reqs = op && op.sum ? op.sum.requests : null;
+  const op = (acc.r2OperationsAdaptiveGroups || [])[0];
+  // מהחדש לישן: הנקודה הראשונה של כל דלי היא העדכנית שלו
+  const seen = new Set();
+  let storeBytes = null;
+  for (const g of acc.r2StorageAdaptiveGroups || []) {
+    const k = (g.dimensions && g.dimensions.bucketName) || '';
+    if (seen.has(k) || !g.max || g.max.payloadSize == null) continue;
+    seen.add(k);
+    storeBytes = (storeBytes || 0) + +g.max.payloadSize;
+  }
+  const reqs = op && op.sum ? op.sum.requests : null;
   if (storeBytes == null && reqs == null) return { st: 'ok', items: [item('store', null, LIMITS.r2.store.lim, 'GB'), item('ops', null, LIMITS.r2.ops.lim, 'n')] };
   return { st: 'ok', items: [item('store', storeBytes == null ? null : +storeBytes / GB, LIMITS.r2.store.lim, 'GB'), item('ops', reqs, LIMITS.r2.ops.lim, 'n')] };
 }
@@ -66,7 +75,9 @@ async function getJson(f, url, opt) {
     let m = '';
     try { const e = JSON.parse(tx).error; m = e && e.message ? String(e.message) : ''; } catch (e) { m = ''; }
     m = m.replace(/[^A-Za-z0-9 _.,:'"$!()\/\[\]@-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
-    return Object.assign({ err: /SERVICE_DISABLED|has not been used|is disabled/.test(tx) ? 'api_off' : 'http_403' }, m ? { m } : {});
+    // 24/10/2026: "requires billing to be enabled" — הפרויקט בלי חשבון חיוב (Spark), לא הרשאה חסרה
+    const err = /SERVICE_DISABLED|has not been used|is disabled/.test(tx) ? 'api_off' : /billing/i.test(tx) ? 'billing' : 'http_403';
+    return Object.assign({ err }, m ? { m } : {});
   }
   if (r.status !== 200) return { err: 'http_' + r.status };
   try { return { j: await r.json() }; } catch (e) { return { err: 'shape' }; }
@@ -88,7 +99,8 @@ async function r2Usage(env, f, now) {
   // 24/10/2026: לפי התיעוד של Cloudflare (r2/platform/metrics-analytics) הסינון הוא datetime_geq/datetime_leq — עד היום
   // datetimeHour_*, שהשאילתה נדחתה עליו. האחסון = הנקודה האחרונה (orderBy datetime_DESC), לא שיא החודש
   const query = 'query($a:string!,$s:Time,$e:Time){viewer{accounts(filter:{accountTag:$a}){' +
-    'r2StorageAdaptiveGroups(limit:1,filter:{datetime_geq:$s,datetime_leq:$e},orderBy:[datetime_DESC]){max{payloadSize}}' +
+    // 24/10/2026: orderBy על datetime דורש אותו ב־dimensions ("neither aggregated, nor a dimension"); לפי דלי — הסכום של האחרונה בכל אחד
+    'r2StorageAdaptiveGroups(limit:200,filter:{datetime_geq:$s,datetime_leq:$e},orderBy:[datetime_DESC]){max{payloadSize} dimensions{datetime bucketName}}' +
     'r2OperationsAdaptiveGroups(limit:1,filter:{datetime_geq:$s,datetime_leq:$e}){sum{requests}}}}}';
   const body = JSON.stringify({ query, variables: { a: acc, s: start, e: d.toISOString() } });
   const g = await getJson(f, 'https://api.cloudflare.com/client/v4/graphql', { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }, body }).catch(() => ({ err: 'net' }));
@@ -129,7 +141,7 @@ function r2Buckets(env) {
 }
 function storeQuery(bs) {
   const one = (al, name) => al + ':r2StorageAdaptiveGroups(limit:1,filter:{datetime_geq:$s,datetime_leq:$e,bucketName:"' + name + '"},' +
-    'orderBy:[datetime_DESC]){max{payloadSize metadataSize objectCount}}';
+    'orderBy:[datetime_DESC]){max{payloadSize metadataSize objectCount} dimensions{datetime}}';
   return 'query($a:string!,$s:Time,$e:Time){viewer{accounts(filter:{accountTag:$a}){' +
     bs.map((b, i) => one('p' + i, b) + ' ' + one('e' + i, 'eu_' + b)).join(' ') + '}}}';
 }
@@ -298,4 +310,4 @@ function histPush(hist, prov, now) {
   return arr.slice(-HIST_MAX);
 }
 
-module.exports = { gqlMsg, stoBrief, PROV_KEYS, provKeep, provMerge, R2_PRICE, opsByClass, r2Cost, gbMonthOf, costQuery, STO_GAP, r2Buckets, storeQuery, parseStore, r2Store, parseDrive, driveStore, storeMerge, HIST_KEYS, HIST_MAX, histDue, histPush, LIMITS, parseVercel, parseR2, parseFs, sumPoints, usageAll, item };
+module.exports = { gqlMsg, r2Usage, stoBrief, PROV_KEYS, provKeep, provMerge, R2_PRICE, opsByClass, r2Cost, gbMonthOf, costQuery, STO_GAP, r2Buckets, storeQuery, parseStore, r2Store, parseDrive, driveStore, storeMerge, HIST_KEYS, HIST_MAX, histDue, histPush, LIMITS, parseVercel, parseR2, parseFs, sumPoints, usageAll, item };

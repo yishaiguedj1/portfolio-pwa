@@ -611,7 +611,7 @@ function storeRows(S, servers) {
 const PROV_NAME = { vercel: () => t('admProvVercel'), r2: () => t('admProvR2'), fs: () => t('admProvFs') };
 const PROV_ITEM = { bw: () => t('admProvBw'), inv: () => t('admProvInv'), store: () => t('admProvStore'), ops: () => t('admProvOps'), reads: () => t('admProvReads'), writes: () => t('admProvWrites') };
 // 24/10/2026: קוד שגיאה → משפט (403 של Google: API כבוי / חסר תפקיד); אחר — "שגיאה · קוד"
-const provErr = (e) => (e === 'api_off' ? t('admProvApiOff') : e === 'http_403' ? t('admProvNoRole') : t('admProvErr') + ' · ' + (e || ''));
+const provErr = (e) => (e === 'api_off' ? t('admProvApiOff') : e === 'http_403' ? t('admProvNoRole') : e === 'billing' ? t('admProvBilling') : t('admProvErr') + ' · ' + (e || ''));
 function provRow(name, P, skip) {
   if (!P || P.st === 'off') return row({ c: 'gray', ic: '☁', t: name, s: t('admProvOff') });
   const at = P.at ? ' · ' + fmt(t('admStoAt'), { a: ago(P.at * 1000) }) : '';   // נמדד ב־Vercel ונשמר (upv)
