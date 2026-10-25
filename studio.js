@@ -7336,7 +7336,7 @@ function pageJob(p) {
         if (!fin) await net.api('cancel', { job: id });
         const j = await net.api('remove', { job: id });
         if (!j.ok && j.error !== 'no_job') { flashSafe(errText(j.error)); return; }
-        store.jobs = store.jobs.filter((x) => x.id !== id); runs.delete(id); handleOp('del', id); handleOp('del', 'po:' + id); draftDel(id); idbOp('thumbs', 'del', id); thumbs.delete(id); save();
+        store.jobs = store.jobs.filter((x) => x.id !== id); runs.delete(id); handleOp('del', id); draftDel(id); handleOp('del', 'po:' + id); idbOp('thumbs', 'del', id); thumbs.delete(id); save();
         flashSafe(T('studioJobDeleted')); back();
       } else {
         const j = await net.api('cancel', { job: id });
