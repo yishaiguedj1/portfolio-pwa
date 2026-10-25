@@ -127,6 +127,35 @@ class TestPlace(unittest.TestCase):
         st = B.place(cs, burned(every(0, 3, [tall, header])), ST, M, WD, HD)
         self.assertEqual((st['lift'], st['top']), (0, 0))
 
+    def test_table_row_on_the_side_goes_top(self):
+        # שקף עם טבלה: הכתובית בדרך לשורה התחתונה, והמקום שמעליה "פנוי" באמצע — אבל בצדדים יש תאים באותה שורה
+        # (המספרים באמצע — הגלאי מפספס). לא נדחסים לתוך הטבלה — לראש המסך
+        bottom = [0.3, 0.86, 0.7, 0.9]
+        side = [[0.02, 0.74, 0.12, 0.77], [0.88, 0.74, 0.98, 0.77]]
+        cs = [cue(1, 0.0, 3.0, ['שורה אחת קצרה'])]
+        st = B.place(cs, burned(every(0, 3, [bottom] + side)), ST, M, WD, HD)
+        self.assertEqual((st['lift'], st['top']), (0, 1))
+
+    def test_text_above_seen_once_blocks_lift(self):
+        # טקסט מעל המקום החדש, אפילו בפריים אחד (הגלאי מסמן כל פעם תאים אחרים) — לא מרימים
+        bottom = [0.3, 0.86, 0.7, 0.9]
+        cs = [cue(1, 0.0, 3.0, ['שורה אחת קצרה'])]
+        r = B.cue_rect(cs[0], ST, M, WD, HD, 0.1)
+        above = [0.45, r[1] - 0.04, 0.55, r[1] - 0.02]
+        frames = every(0, 3, [bottom])
+        frames[0] = (frames[0][0], [bottom, above])
+        st = B.place(cs, burned(frames), ST, M, WD, HD)
+        self.assertEqual(st['lift'], 0)
+        cs = [cue(1, 0.0, 3.0, ['שורה אחת קצרה'])]
+        st = B.place(cs, burned(every(0, 3, [bottom])), ST, M, WD, HD)   # בלעדיו — מרימים
+        self.assertEqual(st['lift'], 1)
+
+    def test_lift_capped(self):
+        # גוש שמתחיל ב־55% — הרמה מעליו גדולה מרבע מסך (כבר אמצע התמונה) — לראש המסך
+        cs = [cue(1, 0.0, 3.0, ['שורה'])]
+        st = B.place(cs, burned(every(0, 3, [[0.2, 0.55, 0.8, 0.9]])), ST, M, WD, HD)
+        self.assertEqual((st['lift'], st['top']), (0, 1))
+
     def test_imported_top_untouched_and_idempotent(self):
         cs = [cue(1, 0.0, 3.0, ['שורה']), cue(2, 3.5, 6.0, ['שורה ראשונה', 'ושורה שנייה'])]
         cs[0]['top'] = True

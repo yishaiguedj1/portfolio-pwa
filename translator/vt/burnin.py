@@ -30,7 +30,7 @@ SHA256 = {DET: "3439588c030faea393a54515f51e983d8e155b19a2e8aba7891934c1cf0de526
 FPS = 2                  # פריימים לשנייה לזיהוי
 W = 640                  # רוחב הפריים לזיהוי
 TOP_BAND = 0.25          # הפס העליון: 0–25% מהגובה
-BOT_BAND = 0.58          # הפס התחתון: 58%–100%
+BOT_BAND = 0.45          # הפס התחתון: 45%–100% (כתובית שהורמה + השטח שמעליה חייבים להיות בתוך מה שנסרק)
 THR = 0.3                # סף ההסתברות למפה (כמו RapidOCR)
 BOX_THR = 0.5            # ציון ממוצע מינימלי לתיבה (כמו RapidOCR)
 MIN_H = 0.012            # תיבה נמוכה מזה (חלק מהגובה) = רעש
@@ -45,6 +45,8 @@ REUSE_S = 5.0            # תיבה באותו מקום שנקראה ב־5 הש�
 SHARE = 0.3              # חלק מהפריימים בכתובית שבהם הטקסט בדרך — מתחת לזה לא מזיזים
 GAP = 0.012              # מרווח בין תחתית הכתובית שהורמה לטקסט שמתחתיה (חלק מהגובה)
 MAX_UP = 0.5             # ראש הכתובית שהורמה לא עולה מעל אמצע המסך — אחרת לראש המסך
+MAX_LIFT = 0.25          # הרמה של עד רבע מהגובה — פס תחתון (חדשות, שם דובר) נכנס בזה; יותר = כבר אמצע התמונה
+ABOVE = 0.06             # שטח פנוי מעל המקום המורם (חלק מהגובה). טקסט שם, אפילו בפריים אחד = הכתובית "נדחסת" בין שורות של שקף
 SAME = 0.03              # הרמות שההפרש ביניהן קטן מזה — מאוחדות בין כתוביות סמוכות
 NEAR_S = 1.0             # "סמוכות" — עד שנייה בין הכתוביות
 V = 1                    # גרסת burned.json
@@ -245,6 +247,25 @@ def _samples(frames: dict, s: float, e: float, fps: float) -> list[list]:
     return [frames.get(k, []) for k in range(k0, k1 + 1)]
 
 
+def _lift_ok(c, lift, smp, need, st, meas, width, height) -> bool:
+    """אפשר להרים לגובה הזה: לא יותר מ־MAX_LIFT, לא מעל אמצע המסך, פנוי במקום עצמו ובשטח שמעליו."""
+    r = cue_rect(c, st, meas, width, height, lift)
+    if lift > MAX_LIFT + 1e-9 or r[1] < MAX_UP or r[1] - ABOVE < BOT_BAND:
+        return False
+    # 25/10/2026 (הרצאה עם שקפים): בלי הבדיקה מעל, הכתובית עלתה לשורה ריקה באמצע טבלה, בין שורות טקסט
+    # (וחלק מהן הגלאי לא סימן) — עדיף לראש המסך
+    up = (r[0], r[1] - ABOVE, r[2], r[1])
+    if sum(1 for bs in smp if any(_hit(r, b) for b in bs)) >= need:
+        return False
+    # מעל — בכל פריים: בטבלה הגלאי מסמן כל פעם תאים אחרים (טקסט קטן), ויחד הם מראים שזה אמצע של שקף
+    if any(_hit(up, b) or (b[1] < r[1] and b[3] > r[1] - ABOVE and b[2] > r[0] and b[0] < r[2])
+           for bs in smp for b in bs):
+        return False
+    # באותה שורה, גם בצד: טקסט בגובה של המקום החדש = שורה של טבלה או של שקף (המספרים באמצע — הגלאי מפספס)
+    row = (0.0, r[1], 1.0, r[3])
+    return sum(1 for bs in smp if any(_hit(row, b) for b in bs)) < need
+
+
 def _decide(c, smp, st, meas, width, height):
     """→ ("stay"|"lift"|"top", lift)"""
     need = max(1, math.ceil(SHARE * len(smp)))
@@ -259,8 +280,7 @@ def _decide(c, smp, st, meas, width, height):
             break
         y_text = tops[0]                         # הטקסט הגבוה ביותר שבדרך — מעליו בכל הפריימים
         lift = max(lift, (st.bottom_y / height) - (y_text - GAP))
-    r = cue_rect(c, st, meas, width, height, lift)
-    if r[1] >= MAX_UP and sum(1 for bs in smp if any(_hit(r, b) for b in bs)) < need:
+    if _lift_ok(c, lift, smp, need, st, meas, width, height):
         return "lift", round(lift, 3)
     rt = cue_rect(c, st, meas, width, height, top=True)
     if sum(1 for bs in smp if any(_hit(rt, b) for b in bs)) < need:
@@ -301,7 +321,7 @@ def place(cues: list[dict], burned: dict, st, meas, width: int, height: int) -> 
             need = max(1, math.ceil(SHARE * len(smp)))
             r = cue_rect(c, st, meas, width, height, L)
             below = sum(1 for bs in smp if any(b[1] >= r[3] - 2 * GAP and b[2] > r[0] and b[0] < r[2] for b in bs))
-            if below >= need and sum(1 for bs in smp if any(_hit(r, b) for b in bs)) < need:
+            if below >= need and _lift_ok(c, L, smp, need, st, meas, width, height):
                 c["lift"] = L
                 changed = True
         if not changed:
@@ -319,7 +339,9 @@ def place(cues: list[dict], burned: dict, st, meas, width: int, height: int) -> 
             j += 1
         hi = max(cues[k]["lift"] for k in range(i, j + 1))
         for k in range(i, j + 1):
-            cues[k]["lift"] = hi
+            smp = _samples(frames, cues[k]["start"], cues[k]["end"], fps)
+            if _lift_ok(cues[k], hi, smp, max(1, math.ceil(SHARE * len(smp))), st, meas, width, height):
+                cues[k]["lift"] = hi
         i = j + 1
     for c in cues:
         if c.get("lift"):

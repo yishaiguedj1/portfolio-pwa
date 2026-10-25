@@ -159,8 +159,10 @@ def _shots_and_burn(src: Path, threshold: float, scale_w: int, burn_out: Path) -
             except Exception as e:                # noqa: BLE001 — ממשיכים לקרוא (אחרת ffmpeg נתקע) בלי זיהוי
                 bad = type(e).__name__
         k += 1
+    p.stdout.close()
     p.wait()
     th.join()
+    p.stderr.close()
     shots = _parse_shots(b"".join(err).decode("utf-8", "replace"))
     if bad is None:
         tmp = burn_out.with_suffix(burn_out.suffix + ".tmp")
