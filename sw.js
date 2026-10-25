@@ -8,8 +8,8 @@ const CACHE_NAME = 'portfolio-pwa-v534';
 const HASHES = {
   "./": "930248b23c4f0ec55737671e159c8dbd",
   "./index.html": "930248b23c4f0ec55737671e159c8dbd",
-  "./styles.css": "8b3bc2b54c238fd7cf64ea66528b781a",
-  "./app.js": "6c4fd0978a23d7d2360d0e4b35040a2f",
+  "./styles.css": "ac25c4971a7c800070960c6aea2f4756",
+  "./app.js": "0cd27e8801d67ce6312212fff9fd46c1",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "39bf52f7bb220ecf474e77b2572386d3",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -30,6 +30,8 @@ const HASHES = {
   "./apple-touch-icon.png": "113a5dd87df18077a64196f3d533e3e9",
   "./favicon-48.png": "b06144704421831d745fd553558517a7",
   "./ibkr-logo.png": "3c73fe172d48b3f58f11bcc146dd1987",
+  "./analysis.js": "0c270a0f2387b8e979613256d67e5a77",
+  "./analysis.css": "acb99f66921efa10b85d504007d4b056",
   "./library.js": "ebf4c7295ff22d17fb09b56be12d2cec",
   "./library.css": "76ff87750ae8fd22063cbd07b7f3d8ce",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
@@ -57,8 +59,8 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "e7f536140456bdf6163ff1f094fcfec2",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
-  "./strings-academy.js": "92824fdce31f747433c2a7049f7bfd0d",
-  "./core.js": "727b9151343b48c053002e09eb9d7a1c",
+  "./strings-academy.js": "3a2a25719992b07a17c755aefcffdcc0",
+  "./core.js": "f15407a7f84a87716f5b4afad8f4b45c",
   "./auth.js": "556d7250a03993819af63e6ade4382b1",
   "./shell.js": "76e0a41a1583a981587d8c8f44e77b94",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -79,7 +81,7 @@ const HASHES = {
   "./studiobg.js": "0c8209ab8125764aaca640e2cd2c3474",
   "./studio.html": "e797e443dfa76398884be3d9f012d250",
   "./studio-app.js": "3b8a0eb80a995f2b5824014c09e65f24",
-  "./strings-studio.js": "b1c2ed2560f68ca749c40747e830e462",
+  "./strings-studio.js": "06156d3e52ee4d6517bfd9702b07e658",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
@@ -104,7 +106,8 @@ const APP_SHELL = [
   './logo-header.png', './logo-invest.webp', './logo-invest-lg.webp', './face-invest.webp', './snow-far-light.png', './snow-mid-light.png', './snow-near-light.png', './snow-far-dark.png', './snow-mid-dark.png', './snow-near-dark.png',
   './apple-touch-icon.png',
   './favicon-48.png',
-  './ibkr-logo.png'
+  './ibkr-logo.png',
+  './analysis.js', './analysis.css'   // 25/10/2026: מנתח החברות — נטען בלחיצה, אבל באותה גרסה של app.js
 ];
 
 /* האקדמיה (שלב 8): קבצי הספרייה והקורא — נטענים מראש בכל עדכון רק אצל מי שכבר נכנס לספרייה
