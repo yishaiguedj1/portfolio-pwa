@@ -77,4 +77,13 @@ class DmCoreTest {
         assertTrue(DmTask.listOf("לא json").isEmpty())
         assertNull(DmTask.of(org.json.JSONObject().put("id", "../x").put("u", "https://e.com")))
     }
+
+    /* 25/10/2026: שם הקובץ מ־yt-dlp = הכותרת (שם השיעור מהדף), עם הסיומת של הקובץ */
+    @Test fun titledName() {
+        assertEquals("היכרות.mkv", DmName.titled("היכרות", "playlist [playlist].mkv"))
+        assertEquals("למה להשקיע חלק א.mp4", DmName.titled("  למה להשקיע?   חלק א ", "x [1].mp4"))
+        assertEquals("playlist [playlist].mkv", DmName.titled("", "playlist [playlist].mkv"))
+        assertEquals("שם", DmName.titled("שם", "בלי סיומת"))
+        assertEquals("שיעור 1 - מבוא.mp4", DmName.titled("שיעור 1: מבוא", "a.mp4"))
+    }
 }

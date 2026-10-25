@@ -28,6 +28,8 @@ class DmActivity : ComponentActivity() {
     val clipUrl = mutableStateOf("")
     /** מהדפדפן של DM: אותו User-Agent, עוגיות מהדפדפן, ו"רענון קישור" למשימה קיימת (מזהה) */
     var sheetUa = ""
+    /** כותרת הסרטון מהדף בדפדפן (רק ממסירה) — גוברת על playlist של yt-dlp */
+    var sheetTitle = ""
     var sheetCk = false
     val refreshId = mutableStateOf("")
 
@@ -67,6 +69,7 @@ class DmActivity : ComponentActivity() {
             val h = DmBrowser.take(i.getStringExtra(DmBrowser.EXTRA_TOKEN), u)
             sheetCk = h?.ck ?: false
             sheetUa = h?.ua ?: ""
+            sheetTitle = h?.title ?: ""
             refreshId.value = h?.refresh ?: ""
             if (h != null) sheetRef.value = h.ref
             sheetUrl.value = u
@@ -83,7 +86,7 @@ class DmActivity : ComponentActivity() {
         val pr = DmPrefs(this)
         if (clipOnFocus) {
             clipOnFocus = false
-            sheetRef.value = ""; sheetCk = false; sheetUa = ""; refreshId.value = ""
+            sheetRef.value = ""; sheetCk = false; sheetUa = ""; sheetTitle = ""; refreshId.value = ""
             sheetUrl.value = u   // ריק = הגיליון פתוח להדבקה
             clipUrl.value = ""
             return
@@ -179,7 +182,7 @@ class DmActivity : ComponentActivity() {
 
     /** רץ בתהליכון (לא בממשק) */
     /** הגיליון נסגר — מה שהגיע מהדפדפן לא עובר להוספה הבאה */
-    fun sheetDone() { sheetUrl.value = null; sheetCk = false; sheetUa = ""; refreshId.value = "" }
+    fun sheetDone() { sheetUrl.value = null; sheetCk = false; sheetUa = ""; sheetTitle = ""; refreshId.value = "" }
 
     private fun ckFn(): ((String) -> String?)? = if (!sheetCk) null else { u -> runCatching { android.webkit.CookieManager.getInstance().getCookie(u) }.getOrNull() }
 
@@ -195,12 +198,12 @@ class DmActivity : ComponentActivity() {
                 if (p.mime != "text/html" && p.mime != "application/xhtml+xml")
                     // נשמרת הכתובת שהמשתמש נתן, לא זו שאחרי ההפניה: קישור הורדה (GitHub, S3…) מפנה לכתובת חתומה שפגה תוך דקות,
                     // ו"המשך" מחר היה נכשל ב־expired. כל חיבור עוקב אחרי ההפניה מחדש; If-Range (ETag) שומר שלא מערבבים קבצים
-                    return Found.File(url, DmName.pick(p.disposition, p.finalUrl, p.mime), p.total, p.mime, p.ranges)
+                    return Found.File(url, DmName.pick(p.disposition, p.finalUrl, p.mime).let { if (sheetTitle.isEmpty()) it else DmName.titled(sheetTitle, it) }, p.total, p.mime, p.ranges)
             } catch (e: Throwable) {
                 if (e is DmHttpError && DmRetry.http(e.status).act == DmRetry.Act.FATAL) return Found.Fail(DmRetry.http(e.status).code)
             }
         }
-        return try { Found.Video(url, DlEngine.probe(this, url, ref, DlEngine.cookiesFor(this, url, ref))) }
+        return try { Found.Video(url, DlEngine.probe(this, url, ref, DlEngine.cookiesFor(this, url, ref)).also { if (sheetTitle.isNotEmpty()) it.put("t", sheetTitle) }) }
         catch (e: IllegalArgumentException) { if (e.message == "playlist") probeList(url, ref) else Found.Fail(e.message ?: "fail") }
         catch (e: Throwable) { Found.Fail("fail") }
     }

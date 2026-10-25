@@ -240,6 +240,17 @@ class DmBrowser : Activity() {
 
     /* מסירה ל־DmActivity: הקישור בגלוי (Intent), והשאר — בתוך התהליך עם אסימון */
     private fun send(url: String, ref: String, file: Boolean = false) {
+        // 25/10/2026: שם הסרטון מהדף (שם השיעור בקורס) — לא "playlist" של רשימת ה־HLS. באתר וידאו מוכר — הכותרת של yt-dlp
+        if (pageIsVideo()) { handOver(url, ref, file, ""); return }
+        var done = false
+        val go = { t: String -> if (!done) { done = true; handOver(url, ref, file, t) } }
+        ui.postDelayed({ go("") }, 1200)
+        try {
+            web.evaluateJavascript(TITLE_JS) { r -> go(if (r == null || !r.startsWith("\"")) "" else runCatching { org.json.JSONArray("[$r]").getString(0) }.getOrDefault("").trim().take(200)) }
+        } catch (e: Exception) { go("") }
+    }
+
+    private fun handOver(url: String, ref: String, file: Boolean, title: String) {
         val ua = web.settings.userAgentString ?: ""
         val cm = CookieManager.getInstance()
         try { cm.flush() } catch (e: Throwable) {}
@@ -249,7 +260,7 @@ class DmBrowser : Activity() {
             DlEngine.saveCookies(this, ref.ifEmpty { url }, DlDeep.netscape(urls.map { it to cm.getCookie(it) }, System.currentTimeMillis() / 1000), ua)
         } catch (e: Throwable) {}
         val tok = java.util.UUID.randomUUID().toString()
-        synchronized(Companion) { handoff = Handoff(tok, url, ref, ua.take(400), true, refresh, System.currentTimeMillis()) }
+        synchronized(Companion) { handoff = Handoff(tok, url, ref, ua.take(400), true, refresh, System.currentTimeMillis(), title) }
         try {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url), this, DmActivity::class.java).putExtra(EXTRA_TOKEN, tok))
             finish()
@@ -278,7 +289,7 @@ class DmBrowser : Activity() {
     }
 
     /** מה עובר לגיליון ההוספה מעבר לקישור */
-    data class Handoff(val token: String, val url: String, val ref: String, val ua: String, val ck: Boolean, val refresh: String, val at: Long)
+    data class Handoff(val token: String, val url: String, val ref: String, val ua: String, val ck: Boolean, val refresh: String, val at: Long, val title: String = "")
 
     companion object {
         const val EXTRA_START = "dm_start"
@@ -294,6 +305,19 @@ class DmBrowser : Activity() {
             handoff = null
             return h
         }
+
+        /**
+         * שם הסרטון בדף: כותרת h1 גלויה שאינה שם האתר/הקורס (ב־schooler: "היכרות" ולא "המדריך המלא…"), אחרת og:title, אחרת
+         * כותרת הדף. רק קורא טקסט
+         */
+        const val TITLE_JS = """(function(){try{
+function n(s){return (s||'').replace(/\s+/g,' ').trim();}
+function m(p){var e=document.querySelector('meta[property="'+p+'"]');return e?n(e.content):'';}
+var og=m('og:title'),site=[n(document.title),og,m('og:site_name')];
+var h=document.querySelectorAll('h1');
+for(var i=0;i<h.length;i++){var r=h[i].getBoundingClientRect(),t=n(h[i].innerText||h[i].textContent);
+if(r.width>0&&r.height>0&&t.length>1&&t.length<=150&&site.indexOf(t)<0)return t;}
+return og||n(document.title);}catch(e){return '';}})()"""
 
         /** הסקריפט בדף — זהה לזה של דפדפן הציד ב־Studio: רק מדווח כתובות (מחרוזות), לא משנה כלום */
         private const val HOOK = """(function(){try{
