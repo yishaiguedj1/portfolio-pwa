@@ -56,7 +56,7 @@ class LearnFacts(unittest.TestCase):
         self.assertEqual(lx['wd']['n'], 52)
         self.assertEqual(lx['wd']['spk'], 1)
         self.assertEqual(lx['wd']['unk'], 2)
-        self.assertEqual(lx['tl'], {'pt': 1, 'fx': 2, 'fr': 1, 'fz': 0, 'ntl': 2})
+        self.assertEqual(lx['tl'], {'pt': 1, 'fx': 2, 'fr': 1, 'fz': 0, 'fq': 0, 'ntl': 2})
         self.assertEqual(lx['gl'], {'n': 3, 'u': 2})
         self.assertEqual(lx['en']['tc'], 2)
         self.assertEqual(lx['en']['th'], {'tl': 9000, 'rv': 100})
