@@ -881,6 +881,7 @@ def learn_facts(ctx):
     if td.is_dir():
         out['tl'] = {'pt': len(list(td.glob('batch_*.he.txt'))), 'fx': _count_fix_lines(td / 'fixes.txt'),
                      'fr': _count_fix_lines(td / 'fixes_review.txt'), 'fz': _count_fix_lines(td / 'fixes_zfinal.txt'),
+                     'fq': _count_fix_lines(td / 'fixes_zqc.txt'),
                      'ntl': sum(1 for x in td.glob('fixes*.txt'))}
         try:
             gtxt = (td / 'glossary.tsv').read_text(encoding='utf-8')
@@ -896,9 +897,10 @@ def learn_facts(ctx):
         if isinstance(th, dict):
             x['th'] = {k: v for k, v in th.items() if _LX_KEY.match(str(k)) and _num_ok(v)}
         out['en'] = x
-    rvx = ctx.st.get('rvx')                      # 21/10/2026: הביקורת — כתוביות, קטעים, נקטעו, לא נבדקו (pipeline.review)
-    if isinstance(rvx, dict):
-        out.setdefault('en', {}).update({k: v for k, v in rvx.items() if _LX_KEY.match(str(k)) and _num_ok(v)})
+    for sk in ('rvx', 'qcx', 'lbx'):                    # 21/10: הביקורת (pipeline.review) · 25/10: הבקרה על המסך (qcn פסולות, qcf קוצרו)
+        x = ctx.st.get(sk)
+        if isinstance(x, dict):
+            out.setdefault('en', {}).update({k: v for k, v in x.items() if _LX_KEY.match(str(k)) and _num_ok(v)})
     sy = ctx.st.get('sync')
     if isinstance(sy, dict) and _num_ok(sy.get('conf')):
         out['sy'] = {'c': sy.get('conf'), 'o': sy.get('off') if _num_ok(sy.get('off')) else 0}
@@ -976,7 +978,7 @@ def learn_corpus(ctx):
     d = _lc_answers(sorted(td.glob('batch_*.he.txt')))
     f = dict(d, **_lc_answers([td / 'fixes.txt']))
     r = dict(f, **_lc_answers([td / 'fixes_review.txt']))
-    z = dict(r, **_lc_answers([td / 'fixes_zfinal.txt']))
+    z = dict(r, **_lc_answers([td / 'fixes_zfinal.txt', td / 'fixes_zqc.txt']))   # 25/10: גם סבב הבקרה על המסך
     cu = []
     for c in cues[:LC_MAX_CUES]:
         if not isinstance(c, dict) or not str(c.get('id', '')).isdigit():
@@ -1269,7 +1271,7 @@ def terms_line(spec):
 def spec_line(spec):
     mins = round((spec.get('dur') or 0) / 60)
     return '"' + str(spec.get('name') or '') + '"' + (' · ' + str(mins) + ' דק׳' if mins else '') + \
-        ' · מצב ' + str(spec.get('mode') or 'haiku-high') + ' · תוצרים: ' + '+'.join((spec.get('out') or []) + ['srt'])
+        ' · מצב ' + str(spec.get('mode') or 'haiku-medium') + ' · תוצרים: ' + '+'.join((spec.get('out') or []) + ['srt'])
 
 
 def mirror_prog(st, p):

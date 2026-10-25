@@ -69,6 +69,43 @@ class Ph2Test {
         assertEquals(pairs(o.getJSONArray("segs2")), SileroVad.segments(p, o.getInt("n"), maxSpeechS = 2.0, padMs = 30.0))
     }
 
+    /** 25/10/2026: הספים של התמלול החוזר זהים לשרת — מרווחים משני הצדדים של HOLE_S ושל QUIET_S */
+    @Test fun holeThresholdsLikeTheServer() {
+        val r = fx.getJSONObject("holes2")
+        val segs = r.getJSONArray("segs").let { a -> List(a.length()) { a.getJSONArray(it).let { x -> x.getDouble(0) to x.getDouble(1) } } }
+        val holes = AsrWords.holes(aw(r.getJSONArray("words")), segs, r.getDouble("total"))
+        val wh = r.getJSONArray("holes")
+        assertEquals(wh.length(), holes.size)
+        assertEquals("דיבור של 1.0 ושקט של 2.0 — חורים; 0.8 ו־1.7 לא", 2, holes.size)
+        for (i in holes.indices) { val h = wh.getJSONArray(i)
+            assertEquals(h.getInt(0), holes[i].i); assertEquals(h.getDouble(1), holes[i].a, 0.0); assertEquals(h.getDouble(2), holes[i].b, 0.0) }
+    }
+
+    /** 25/10/2026: חלון בלי פיסוק ותמלול חוזר בחלונות קצרים — כמו flat/unflatten של השרת */
+    @Test fun flatWindowsLikeTheServer() {
+        val f = fx.getJSONObject("flat")
+        val cases = f.getJSONArray("cases"); val want = f.getJSONArray("flat"); val sh = f.getJSONArray("shape")
+        for (i in 0 until cases.length()) {
+            val ws = aw(cases.getJSONArray(i))
+            assertEquals("מקרה $i", want.getBoolean(i), AsrWords.flat(ws))
+            val (p, c) = AsrWords.shape(ws)
+            assertEquals(sh.getJSONArray(i).getDouble(0), p, 0.0); assertEquals(sh.getJSONArray(i).getDouble(1), c, 0.0)
+        }
+        val u = fx.getJSONObject("unflat")
+        val parts: MutableList<List<AWord>> = MutableList(u.getJSONArray("parts").length()) { aw(u.getJSONArray("parts").getJSONArray(it)) }
+        val calls = u.getJSONArray("calls"); var k = 0
+        val done = AsrWords.unflatten(parts, pairs(u.getJSONArray("chunks")), pairs(u.getJSONArray("segs")), u.getInt("n"), 16000) { a, b ->
+            val cl = calls.getJSONObject(k++)
+            assertEquals(cl.getInt("a"), a); assertEquals(cl.getInt("b"), b)
+            aw(cl.getJSONArray("w"))
+        }
+        assertEquals(calls.length(), k)
+        assertEquals(u.getInt("done"), done)
+        assertTrue("יש חלון שהוחלף", done > 0)
+        val out = u.getJSONArray("out")
+        for (i in parts.indices) same(out.getJSONArray(i), parts[i])
+    }
+
     @Test fun chunksWordsHolesAndRescueLikeTheServer() {
         val c = fx.getJSONObject("chunks")
         assertEquals(pairs(c.getJSONArray("out")), AsrWords.chunks(pairs(c.getJSONArray("segs")), c.getInt("n"), pad = (0.12 * 16000).toInt()))
