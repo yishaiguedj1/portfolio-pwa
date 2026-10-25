@@ -61,6 +61,33 @@ class TestBreakRules(unittest.TestCase):
             self.assertNotEqual((top.split()[-1], bot.split()[0]), pair, "צירוף קבוע לא נחצה בין השורות: " + text)
 
 
+class TestBreakRules21(unittest.TestCase):
+    """2.1 — מה שהשיפוט העיוור על הבנייה מחדש מצא: אותיות שימוש מדומות, מילת שאלה בסוף שורה, "מאוד", "אחר כך"."""
+    def _two(self, text):
+        lines, ok = break_lines(text, 42)
+        self.assertTrue(ok)
+        self.assertEqual(len(lines), 2)
+        return lines
+
+    def test_false_prefix(self):
+        top, _ = self._two("בסוף כולנו נצטרך להבין שהלקוחות רוצים משהו אחר.")
+        self.assertTrue(top.endswith("להבין"), "'להבין' הוא לא ל+בין")
+        top, _ = self._two("המניה הזאת נחשבת היום להשקעה הבטוחה ביותר בשוק.")
+        self.assertTrue(top.endswith("היום"), "'היום' הוא לא ה+יום, ולא מפרקים 'להשקעה הבטוחה'")
+
+    def test_question_word_starts_line(self):
+        _, bot = self._two("בסוף כולם יצטרכו להבין מה הלקוחות באמת רוצים מהם.")
+        self.assertTrue(bot.startswith("מה "))
+
+    def test_meod_may_end_line(self):
+        top, _ = self._two("אז החברה תושפע מאוד אם המחירים יעלו שוב בשנה הבאה,")
+        self.assertTrue(top.endswith("מאוד"))
+
+    def test_achar_kach(self):
+        top, bot = self._two("ולכן כשהגענו אחר כך למשרד החדש שלנו בעיר הגדולה,")
+        self.assertNotEqual((top.split()[-1], bot.split()[0]), ("אחר", "כך"))
+
+
 class TestDialogueLayout(unittest.TestCase):
     def test_honored_without_parts(self):
         lines, ok = layout_lines("באמת? || כן.", parts=False)
@@ -177,6 +204,22 @@ class TestCheckNoise(unittest.TestCase):
         self.assertEqual(st["glossary_soft"], 2)
         issues, st = self.run_check([("and we sold it at the lemonade stand", "ומכרנו את זה בעמדה")], gl)
         self.assertEqual(st["glossary"], 1, "נוסח אחר לגמרי — עדיין התראה")
+
+    def test_dialogue_part_too_long_is_hard(self):
+        t = "החברה שלנו רואה תוצאות טובות בהרבה מבעבר והעסק גדל. || באמת?"
+        issues, _ = self.run_check([("Our company sees much better results and the business grew. Really?", t)])
+        hard, _ = P.parse_issues("\n".join(issues))
+        self.assertIn("1", hard, "דיאלוג שלא נכנס בשורה לכל דובר — חובה לקצר, אחרת המקף הולך לאיבוד")
+        issues, _ = self.run_check([("Really? Yes.", "באמת? || כן.")])
+        self.assertFalse(any("דיאלוג (||)" in x for x in issues))
+
+    def test_no_valid_two_line_break_is_hard(self):
+        long7 = " ".join(["אבגדהוזחטי"] * 7)                 # 76 תווים: 3 מילים = 32 | 43, ‏4 מילים = 43 | 32
+        issues, _ = self.run_check([("x", long7)])
+        hard, _ = P.parse_issues("\n".join(issues))
+        self.assertIn("1", hard, "עד 84 תווים אבל בלי חלוקה לשתי שורות של עד 42 — חובה לקצר")
+        issues, _ = self.run_check([("x", " ".join(["אבגדהוזחט"] * 7))])     # 69 תווים: 39 | 29
+        self.assertFalse(any("אין חלוקה" in x for x in issues))
 
     def test_glossary_definite_article_absorbed(self):
         gl = [("United Nations", ['האו"ם']), ("New York Times", ["הניו יורק טיימס"])]

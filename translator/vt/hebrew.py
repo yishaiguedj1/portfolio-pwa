@@ -164,7 +164,8 @@ _PFX = "והבכלמש"
 BIND_NEXT_X = (BIND_NEXT | {
     "במשך", "בתור", "כלפי", "לעומת", "למען", "בעקבות", "באמצעות", "בזכות", "במקום", "במהלך", "לקראת",
     "לצד", "בקרב", "לאורך", "בנוגע", "אודות", "מאחורי", "לפני", "מלבד", "חוץ", "פרט", "כולל",
-    "כמעט", "בערך", "כבר", "עדיין", "שום", "קצת", "כה", "הרבה", "מספר", "מעט", "אחרת", "אותי", "אותך"})
+    "כמעט", "בערך", "כבר", "עדיין", "שום", "קצת", "כה", "הרבה", "מספר", "מעט", "אותי", "אותך",
+    "איך", "מה", "למה", "מתי", "איפה", "היכן", "מדוע", "האם"})
 COPULA = {"הוא", "היא", "הם", "הן"}
 # מילים שנצמדות למילה שלפניהן — לא לפתוח בהן שורה
 BIND_PREV = {"ביותר", "מדי", "מאוד", "כל־כך", "בכלל", "עצמו", "עצמה", "עצמם", "עצמי", "עצמך", "עצמנו",
@@ -180,9 +181,9 @@ FIXED_BIGRAMS_X = FIXED_BIGRAMS | {
     ("כל", "אחת"), ("כל", "דבר"), ("כל", "מה"), ("מה", "שקורה"), ("זאת", "אומרת"), ("כלומר", "ש"),
     ("ראש", "הממשלה"), ("בית", "המשפט"), ("בית", "הספר"), ("ארצות", "הברית"), ("מזרח", "אירופה"),
     ("מערב", "אירופה"), ("מזרח", "אסיה"), ("דרום", "אסיה"), ("מזרח", "התיכון"), ("אמריקה", "הלטינית"),
-    ("תכנון", "משפחה")}
+    ("תכנון", "משפחה"), ("אחר", "כך"), ("תוך", "כדי"), ("כך", "הרבה"), ("לאחר", "מכן")}
 REL_SUBJECTS_X = REL_SUBJECTS | {"שזה", "שזו", "שזאת", "שאתן", "שאנו", "שהייתי", "שיש", "שאין"}
-CONJ_START_X = CONJ_START | {"כשהוא", "כשהיא", "כשאנחנו", "כשזה", "ואם", "אבל", "ולכן", "כך", "בעוד", "אלא",
+CONJ_START_X = CONJ_START | {"כשהוא", "כשהיא", "כשאנחנו", "כשזה", "ואם", "אבל", "ולכן", "אלא",
                              "שכן", "מאחר", "כיוון", "אילו", "לו", "ואילו", "למשל", "כלומר", "בקיצור"}
 _NEG = {"לא", "אין"}
 _SENT_END = re.compile(r'[.?!…]["\'״”]?$')
@@ -190,16 +191,23 @@ _COMMA_END = re.compile(r'[,;:]["\'״”]?$|[—–]$')
 _PUNCT_END = re.compile(r"[,;:.?!…—–]['\"״”]?$")
 
 
+# 25/10/2026 (2.1 — שיפוט עיוור על בנייה מחדש של 20 עבודות): הסרת אותיות שימוש בלי סדר יצרה "מילים" שלא במשפט —
+# "להבין" ← בין, "היום" ← יום, "להם" ← הם, "מדי" ← די — והשבירה זזה למקום גרוע. על 108 כתוביות שהשתנו: 72% מול 21%.
+_PFX_RE = re.compile(r"^(ו?)(כש|ש)?([בכלמ]?)")
+_SHORT_STEMS = {"לא", "כל", "גם", "עד", "על", "אם", "יש", "את", "אף", "רק", "אל", "עם", "של"}
+
+
 def _stems(w: str) -> list[str]:
-    """המילה בלי פיסוק, ועוד גרסאות בלי אותיות שימוש (עד 3, נשארות לפחות 2 אותיות): "שלא" → לא, "ובמשך" → במשך."""
+    """המילה בלי פיסוק, ועוד גרסאות בלי אותיות שימוש — רק לפי סדר הצירוף בעברית (ו, ש/כש, ב/כ/ל/מ) ובלי ה' הידיעה
+    ("שלא" → לא, "ובמשך" → במשך, "להבין" לא → "בין"); בסיס של 2 אותיות — רק מילת תפקיד ("מדי" לא → "די")."""
     b = bare(w).replace("־", "")
-    out, cur = [b], b
-    for _ in range(3):
-        if len(cur) > 2 and cur[0] in _PFX:
-            cur = cur[1:]
-            out.append(cur)
-        else:
-            break
+    out = [b]
+    m = _PFX_RE.match(b)
+    pre = "".join(g for g in m.groups() if g) if m else ""
+    for k in range(1, len(pre) + 1):
+        st = b[k:]
+        if st and st != b and (len(st) >= 3 or st in _SHORT_STEMS) and st not in out:
+            out.append(st)
     return out
 
 
@@ -235,7 +243,7 @@ def _break_cost(top: list[str], bottom: list[str], n_total: int, shape: bool = T
         if (ba in COPULA and len(top) >= 3 and bare(top[-2]) not in CONJ_START_X
                 and not bare(top[-2]).startswith("ו")):
             cost += 2.0                                    # "החלום שלי הוא | ש…" — אוגד, לא נושא
-        elif any(x in BIND_NEXT_X for x in sa):
+        elif ba not in BIND_PREV and any(x in BIND_NEXT_X for x in sa):
             cost += 6.0
     if bb in CONJ_START_X or (b.startswith("ו") and bare(b[1:]) in CONJ_START_X):
         cost -= 1.5
@@ -246,7 +254,7 @@ def _break_cost(top: list[str], bottom: list[str], n_total: int, shape: bool = T
     if bb in COPULA and len(top) >= 2 and not punct_end and len(bottom) >= 2:
         cost -= 1.0                                        # "ומה שאהבתי | הוא שזה…"
     if not punct_end:
-        if bb == "של" or (bb.startswith("של") and bb in POSSESSIVES):
+        if bb == "של":
             cost += 1.5
         if DIGIT.search(a) and not re.search(r"%$", ba):
             cost += 8.0 if any(x in UNITS for x in _stems(b)) else 5.0    # מספר | הנספר
@@ -265,7 +273,7 @@ def _break_cost(top: list[str], bottom: list[str], n_total: int, shape: bool = T
                 break
         if bb in INTENSIFIERS:
             cost += 2.0
-        if ba in {"קצת", "כה", "מאוד", "ממש", "די"}:
+        if ba in {"קצת", "כה", "ממש", "די"}:
             cost += 3.0
         if bb in BIND_PREV:
             cost += 5.0                                    # "הגדול | ביותר"
@@ -277,7 +285,7 @@ def _break_cost(top: list[str], bottom: list[str], n_total: int, shape: bool = T
             cost += 5.0                                    # "האלגוריתם | שלכם", "לסרטים | האלה"
         if any((x, bb) in FIXED_BIGRAMS_X for x in sa) or (ba, bb) in FIXED_BIGRAMS_X:
             cost += 9.0                                    # "אי | אפשר", "שוב | ושוב"
-        if any(x == "מה" for x in sa) and bb.startswith("ש"):
+        if ba == "מה" and bb.startswith("ש"):
             cost += 6.0                                    # "מה | שמאפשר"
         if any(x in REL_SUBJECTS_X for x in sa):
             cost += 4.0                                    # "שהם | מקבלים"

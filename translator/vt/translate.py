@@ -21,7 +21,7 @@ import math
 import re
 from pathlib import Path
 
-from .hebrew import normalize_he, visible_len, numbers_in, number_ok_in_he
+from .hebrew import break_lines, normalize_he, visible_len, numbers_in, number_ok_in_he
 from .util import fmt_ts
 
 LINE_RE = re.compile(r"^#(\d+)\s?(.*)$")
@@ -477,6 +477,18 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
             stats["errors"] += 1
         if n > max_chars:
             issues.append(f"- #{k}: {n} תווים — מעל {max_chars} (לא ייכנס בשתי שורות)")
+            stats["errors"] += 1
+        elif "||" in t and max(visible_len(normalize_he(x)) for x in t.split("||", 1)) > max_chars // 2:
+            # 25/10/2026 (ניתוח האיכות): דיאלוג מוצג בשורה לכל דובר — חלק ארוך מ־42 תווים לא נכנס, והבנייה שוברת
+            # רגיל בלי המקף (20 כתוביות ב־20 עבודות). "מקף דובר" בהודעה = חובה לתקן ב־parse_issues
+            issues.append(f"- #{k}: דיאלוג (||) — החלק של אחד הדוברים ארוך מ־{max_chars // 2} תווים, "
+                          "לא ייכנס בשורה משלו ויוצג בלי מקף דובר — לקצר אותו")
+            stats["errors"] += 1
+        elif "||" not in t and n > max_chars // 2 and not break_lines(txt, max_chars // 2)[1]:
+            # 25/10/2026 (ניתוח האיכות): עד 84 תווים, אבל גבולות המילים לא מאפשרים שתי שורות של עד 42 — 10 שורות
+            # ארוכות יצאו לצופה כשגיאת בקרה. "מעל 84" בהודעה = חובה לתקן ב־parse_issues
+            issues.append(f"- #{k}: {n} תווים — אין חלוקה לשתי שורות של עד {max_chars // 2} "
+                          f"(דינו כמו מעל {max_chars}) — לקצר")
             stats["errors"] += 1
         elif n > eff_budget[k]:
             issues.append(f"- #{k}: {n} תווים מול תקציב {eff_budget[k]} (קצב קריאה) — לשקול קיצור")
