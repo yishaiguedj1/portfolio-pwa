@@ -142,7 +142,34 @@ ok(dfx.tags.rev === 'Revenues' && dfx.A.rev.join() === '189000000,222000000', '�
 const fc = F.faceCheck(dfx, { is: pr });
 ok(fc.seen.n === 8 && fc.seen.ok === 8 && !fc.out.length, 'מול הדוח: הכנסות, מס (מינוס בדוח = הוצאה), רווח למניה ומניות — כולם תואמים');
 dfx.A.rev[1] = 230e6;
-ok(F.faceCheck(dfx, { is: pr }).out.some((c) => c.k === 'face' && c.m === 'rev' && c.p === '2025-12-31' && c.f === 222e6), 'ערך שלא תואם לדוח — מסומן עם הערך מהדוח');
+{ const f2 = F.faceCheck(dfx, { is: pr }), x = f2.fill.find((q) => q.m === 'rev');
+  ok(x && x.i === 1 && x.v === 222e6 && x.old === 230e6 && !f2.out.length && f2.seen.ok === f2.seen.n, 'ערך שלא תואם לדוח, בשורה אחת עם התגית — מוחלף בזה שהודפס (ffix)'); }
+dfx.A.rev[1] = null;
+{ const x = F.faceCheck(dfx, { is: pr }).fill.find((q) => q.m === 'rev'); ok(x && x.i === 1 && x.v === 222e6 && x.old === null, 'שנה שחסרה אצלנו והדוח הדפיס אותה — מושלמת (ffill)'); }
+dfx.A.rev[1] = 222e6;
+// כמה שורות עם אותה תגית: הקרובה ביותר, סכום כולן, שורה הפוכה בסימן — ושום החלפה כשאין שורה חד־משמעית
+{ const page = (rows) => SF.parseR(`<table><tr><th class="tl" colspan="1" rowspan="2"><div><strong>Statements of Operations - USD ($)<br> $ in Millions</strong></div></th><th class="th" colspan="2">12 Months Ended</th></tr>
+<tr><th class="th"><div>Dec. 31, 2025</div></th><th class="th"><div>Dec. 31, 2024</div></th></tr>${rows.map((v) => row('ro', 'us-gaap_Revenues', 'Revenue', v)).join('')}</table>`);
+  const D = (a) => ({ tags: { rev: 'Revenues' }, fy: ['2024-12-31', '2025-12-31'], A: { rev: a }, cur: 'USD' });
+  const sum = F.faceCheck(D([189e6, 222e6]), { is: page([['150', '120'], ['72', '69']]) });
+  ok(sum.seen.n === 2 && sum.seen.ok === 2 && !sum.fill.length, 'Carrier: מוצרים ושירותים באותה תגית — מושווה לסכום השורות');
+  const gap = F.faceCheck(D([189e6, null]), { is: page([['150', '120'], ['72', '69']]) }).fill;
+  ok(gap.length === 1 && gap[0].v === 222e6, 'שנה חסרה — מושלמת מהסכום שתאם בשנה אחרת');
+  const best = F.faceCheck(D([189e6, 222e6]), { is: page([['0', '0'], ['222', '189']]) });
+  ok(best.seen.ok === 2 && !best.out.length, 'Diamondback: שורה של חברת הבת עם אותה תגית — נבחרת השורה שתואמת');
+  const amb = F.faceCheck(D([189e6, 222e6]), { is: page([['300', '250'], ['50', '40']]) });
+  ok(amb.out.length === 2 && !amb.fill.length, 'אף שורה לא תואמת ויש כמה — פער מסומן, בלי החלפה');
+  const neg = F.faceCheck(D([189e6, 222e6]), { is: page([['(222)', '(189)']]) });
+  ok(neg.seen.ok === 2 && !neg.out.length && !neg.fill.length, 'Mettler: שורה שכולה הפוכה בסימן (תווית הפוכה) — לא פער ולא החלפה'); }
+// מאזן: הדוח השנתי גובר על השוואה בדוח רבעוני מאוחר יותר (eBay 2025)
+ok(F.normalizeSec(facts([['Revenues', 'USD', yrs([1, 1], 2024)], ['Assets', 'USD', [[null, '2024-12-31', 19365, '10-K', '2025-02-01'], [null, '2025-12-31', 17610, '10-K', '2026-02-19'], [null, '2025-12-31', 17437, '10-Q', '2026-04-29']]]]), []).A.ta.join() === '19365,17610',
+  'מאזן סוף שנה: ה־10-K גובר על 10-Q מאוחר שתיקן אותו לאחור');
+// פיצול חברה ש־Yahoo רושם כ"ספליט" (Western Digital/Sandisk 1.323) — מספר המניות עלה רק ב־10%: לא מתקנים
+{ const WD = facts([['Revenues', 'USD', yrs([1, 1, 1], 2023)], ['NetIncomeLoss', 'USD', yrs([-1700, -850, 1840], 2023)],
+    ['EarningsPerShareDiluted', 'USD/shares', yrs([-5.37, -2.61, 5.12], 2023)], ['WeightedAverageNumberOfDilutedSharesOutstanding', 'shares', yrs([318, 326, 359], 2023)]]);
+  ok(F.normalizeSec(WD, [['2025-02-24', 1.323]]).A.eps.join() === '-5.37,-2.61,5.12', 'פיצול חברה (1.323, מניות +10%) — הרווח למניה לא מחולק');
+  const SP = facts([['Revenues', 'USD', yrs([1, 1, 1], 2023)], ['EarningsPerShareDiluted', 'USD/shares', yrs([4, 4.4, 2.3], 2023)], ['WeightedAverageNumberOfDilutedSharesOutstanding', 'shares', yrs([100, 98, 196], 2023)]]);
+  ok(F.normalizeSec(SP, [['2025-03-01', 2]]).A.eps.join() === '2,2.2,2.3', 'פיצול אמיתי 2:1 (המניות קפצו פי 2) — השנים שלפני מותאמות'); }
 // השקעות הוניות = כל השורות שבדוח (רכוש קבוע + תוכנה), רק בשנים שבהן שתיהן קיימות
 const RCF = `<table><tr><th class="tl"><div><strong>Cash Flows - USD ($)<br> $ in Millions</strong></div></th><th class="th" colspan="1">12 Months Ended</th></tr><tr><th class="th"><div>Dec. 31, 2025</div></th></tr>
 ${row('ro', 'us-gaap_PaymentsToAcquirePropertyPlantAndEquipment', 'PP&E', ['(489)'])}${row('re', 'us-gaap_PaymentsToAcquireSoftware', 'Software', ['(726)'])}</table>`;
