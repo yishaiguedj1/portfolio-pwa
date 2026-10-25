@@ -33,6 +33,9 @@ const IMPROVEMENTS = [
   { id: 'i09', at: '2026-10-21T13:53:00Z', m: ['tot'], src: 'devlog',
     he: ['הכתוביות לפני הצריבה', 'הצריבה = 23 דק׳ בסוף עבודה של 87 דק׳ — הכתוביות והנגן זמינים מיד אחרי הבדיקה'],
     en: ['Subtitles before the burn', 'Burning takes 23 minutes on an 87-minute video — subtitles and the player are available right after the review'] },
+  { id: 'i10', at: null, m: ['q', 'jd', 'ht', 'cpm', 'rv'], src: 'lab',
+    he: ['שלבי התיקון לא מקלקלים', 'ניתוח האיכות: 22%–28% משינויי התיקון הזיקו ו־135 שגיאות קצב הגיעו לצופה — שכנים למתקן, התיקון האחרון לא מבטל את הביקורת, הביקורת רואה מה תוקן, וסבב בקרה על המסך אחרי הבנייה'],
+    en: ['Fix rounds stop doing harm', 'Quality analysis: 22%–28% of fix-round edits hurt, 135 reading-speed errors reached viewers — neighbours for the fixer, no undoing the review, review sees the auto-fixes, and an on-screen QC round after the build'] },
 ];
 
 module.exports = { IMPROVEMENTS };

@@ -45,6 +45,7 @@ RV_PARALLEL = int(os.environ.get('SNB_RV_PAR', '6'))
 # 11/10/2026 (תקלת max_tokens בעבודה אמיתית): תשובה של שורה לכל כתובית שנקטעה — שומרים מה שהגיע ומבקשים רק את החסר.
 TL_ATTEMPTS = 6        # ניסיונות לחלק אחד (כל עוד יש התקדמות)
 FIX_BATCH = 40         # כתוביות לבקשת תיקון אחת (קודם — הכל בבקשה אחת של 16K)
+AUTO_FIX_MAX = 300     # 25/10/2026: שורות "לפני → אחרי" של סבב התיקון לכל קטע ביקורת
 
 LINE_RE = re.compile(r'^#(\d+)\s?(.*)$')
 # **זהה ל־ECHO_RE ב־vt/translate.py** (tests/test_pipeline משווה): הד של סימון הקלט ("≤84") בתחילת התשובה — נמחק
@@ -56,7 +57,8 @@ def clean_answer(v: str) -> str:
 PART_RE = re.compile(r'^## חלק (\d+)/(\d+) → (batch_\d{3}\.he\.txt)\s*$')
 ISSUE_RE = re.compile(r'^- #(\d+): (.*)$')
 # בעיות שחייבות תיקון (שגיאה/חסר) מול הערות שכדאי לשקול (מעל תקציב, מספר, מילון, שאלה)
-HARD = ('חסר תרגום', 'מעל 84', "'=' בלי", "חסר '||'", 'מספר לא קיים', 'מופיע ביותר', 'ניקוד', 'מקף דובר', 'תג עיצוב', 'הושמט — כל דובר')
+HARD = ('חסר תרגום', 'מעל 84', "'=' בלי", "חסר '||'", 'מספר לא קיים', 'מופיע ביותר', 'ניקוד', 'מקף דובר', 'תג עיצוב', 'הושמט — כל דובר',
+        '(הזזה)')   # 25/10/2026: ההזזה נספרה כשגיאה ב־tr-check אבל לא נשלחה לתיקון → check_errors בלי ניסיון
 SOFT = ('תקציב', 'המספר', 'מונח', 'סימן שאלה', 'קצר מאוד', 'סמל מטבע', 'ספרה בתחילת', 'לכתיב אחד')
 
 SECTION_RE = re.compile(r'^=== (PATCH|BRIEF|GLOSSARY|QUESTIONS) ===\s*$', re.M)
@@ -346,14 +348,39 @@ def answer_lines(text: str, allowed: set[str]) -> dict[str, str]:
     return out
 
 
+# 25/10/2026 (session_01UZAW): vt כותב קוד קבוע לפני כל הודעה ב־tr/check.md (`- #12: [num] …`, ‏vt.translate.CHECK_CODES).
+# הסיווג לפי הקוד — הודעה חדשה בבודק לא משנה בשקט את העדיפות שלה (כך "אותיות לועזיות" עם המילה "מונח" דחקה את חריגות
+# הקצב, והודעת ההזזה לא נשלחה לתיקון בכלל). בלי קוד (vt ישן / נקודת שמירה ישנה) — לפי המילים, כמו עד היום.
+CODE_HARD = frozenset(('id', 'miss', 'eq', 'drift', 'spk', 'len', 'dlg', 'brk', 'nikud', 'dash', 'tag', 'part'))
+CODE_SOFT = frozenset(('num', 'gls', 'lat', 'name', 'q', 'short', 'cps', 'cur'))
+CODE_RANK = {'num': 0, 'gls': 1, 'lat': 1, 'name': 1, 'q': 2, 'short': 3, 'cps': 4, 'cur': 5}
+_CODE_RE = re.compile(r'^\[([a-z]+)\] ')
+
+
+def issue_code(msg: str) -> str:
+    m = _CODE_RE.match(msg)
+    return m.group(1) if m else ''
+
+
 def parse_issues(check_md: str) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
-    """tr/check.md → (בעיות שחייבות תיקון, הערות שכדאי לשקול), לפי מספר כתובית."""
+    """tr/check.md → (בעיות שחייבות תיקון, הערות שכדאי לשקול), לפי מספר כתובית.
+    ההודעות נשמרות עם הקוד (`[num] …`) — soft_order מדרג לפיו."""
     hard, soft = {}, {}
     for line in check_md.splitlines():
         m = ISSUE_RE.match(line.strip())
         if not m:
             continue
         k, msg = m.group(1), m.group(2)
+        code = issue_code(msg)
+        if code:
+            if code in CODE_HARD:
+                hard.setdefault(k, []).append(msg)
+            elif code in CODE_SOFT:
+                soft.setdefault(k, []).append(msg)
+            elif code != 'dots':                       # קוד שהצנרת לא מכירה — חובה (test_pipeline משווה ל־CHECK_CODES של vt)
+                print(f'· קוד בדיקה לא מוכר [{code}] בכתובית #{k} — נשלח לתיקון כ"חייב"')
+                hard.setdefault(k, []).append(msg)
+            continue
         if any(h in msg for h in HARD):
             hard.setdefault(k, []).append(msg)
         elif any(s in msg for s in SOFT):
@@ -372,7 +399,8 @@ def soft_order(soft: dict[str, list[str]]) -> list[str]:
     """מספרי הכתוביות לפי חומרה: מספר שנעלם › מונח › שאלה › קיצור חשוד › קצב קריאה (החריגה היחסית הגדולה קודם) › השאר"""
     def key(kk):
         msgs = soft[kk]
-        rank = min((r for m in msgs for w, r in SOFT_RANK if w in m), default=5)
+        rank = min([CODE_RANK.get(issue_code(m), 5) for m in msgs if issue_code(m)]
+                   + [r for m in msgs if not issue_code(m) for w, r in SOFT_RANK if w in m], default=5)
         over = 0.0
         for m in msgs:
             mo = _OVER_RE.search(m)
@@ -392,6 +420,26 @@ def soft_cap(pd) -> int:
 
 def fmt_lines(d: dict[str, str]) -> str:
     return '\n'.join(f'#{k} {v}' for k, v in sorted(d.items(), key=lambda kv: int(kv[0])))
+
+
+def neighbors(order: list[str], cur: dict[str, str], k: str, nb: int) -> str:
+    """ההקשר של כתובית בבקשת תיקון: nb כתוביות לפניה ואחריה, בנוסח הנוכחי (בלי `=`/`∅`, שאין בהן טקסט)."""
+    if nb <= 0 or k not in cur:
+        return ''
+    i = order.index(k)
+
+    def side(rng):
+        out = []
+        for j in rng:
+            v = cur.get(order[j], '')
+            if v and v not in ('=', '∅'):
+                out.append(v)
+            if len(out) >= nb:
+                break
+        return out
+    before = list(reversed(side(range(i - 1, max(-1, i - 1 - 3 * nb), -1))))
+    after = side(range(i + 1, min(len(order), i + 1 + 3 * nb)))
+    return (' · לפני: ' + ' / '.join(before) if before else '') + (' · אחרי: ' + ' / '.join(after) if after else '')
 
 
 # Haiku 5.5 (10/10/2026): בקשה מעל 100K טוקני קלט עולה פי 5. שני הצעדים שמחזיקים אותו בכרטיס הזול — רק כשצריך:
@@ -500,7 +548,25 @@ TL_TASK = """אתה מתרגם מקצועי של כתוביות מאנגלית �
 
 FIX_TASK = """תיקון כתוביות שבדיקה אוטומטית סימנה. לכל כתובית ברשימה: שורה אחת `#מספר טקסט` עם הנוסח המתוקן (או `=`/`∅`
 כשזה הפתרון הנכון). בעיה מסוג "חייב" — חובה לפתור; הערה מסוג "לשקול" — מתקנים רק אם זה משפר בלי לפגוע במשמעות,
-ואם לא — מחזירים את הנוסח הקיים כמו שהוא. לא כותבים כתוביות שלא ברשימה."""
+ואם לא — מחזירים את הנוסח הקיים כמו שהוא. לא כותבים כתוביות שלא ברשימה.
+`לפני:` / `אחרי:` = הכתוביות השכנות על המסך — רק להקשר (משפט שנמשך, מי מדבר); לא מתקנים אותן.
+שם, מותג או ראשי תיבות שמקובלים בעברית באותיות לטיניות (AI, Netflix) — משאירים; לא מתרגמים רק כדי שתהיה עברית."""
+
+# 25/10/2026 (ניתוח האיכות של session_01UZAW): התיקון האחרון ביטל שינויים של הביקורת ("הייתה אמורה לאסוף" → "אספה")
+ZF_NOTE = """הכתוביות שמסומנות "הביקורת שינתה" — העורך כבר בדק אותן בהקשר. לא מחזירים לנוסח שלפני הביקורת;
+פותרים רק את הבעיה שסומנה, בשינוי הקטן ביותר."""
+
+# 25/10/2026: סבב בקרה אחרי הבנייה — מה שהבקרה (qc.md) מצאה על המסך האמיתי, אחרי התזמון והמיזוגים.
+# עד היום אף שלב לא פעל לפיה: 135 שגיאות "חובה" (בעיקר קצב קריאה מעל 20) הגיעו לצופה ב־20 עבודות.
+QC_TASK = """תיקון כתוביות שהבקרה על המסך (אחרי התזמון) מצאה: מהירות מדי לקריאה, או ארוכות משתי שורות.
+לכל כתובית ברשימה: שורה אחת `#מספר טקסט` — נוסח מקוצר שנכנס בתקציב `≤N` (תווים כולל רווחים), בלי לאבד משמעות.
+לא `=` ולא `∅` (התזמון כבר נקבע). `לפני:` / `אחרי:` = הכתוביות השכנות — רק להקשר. כתובית שאי אפשר לקצר בלי לפגוע
+במשמעות — מחזירים את הנוסח הקיים כמו שהוא."""
+QC_CPS = 17.0                         # היעד בתקציב (כמו cps_max של vt); השגיאה מעל 20
+QC_KINDS = ('קצב קריאה', 'שורה של', 'רחבה מהמסך', 'שורות')   # מה שמתקנים בטקסט (חפיפה / מרווח / משך — בתזמון, לא כאן)
+_QC_ERR_RE = re.compile(r'^- #(\d+) `[^`]*`: (.*)$')
+LB_SPEC = ('anthropic', 'claude-haiku-5-5', 'low')     # 25/10/2026: בחירה מתוך רשימה — מאמץ נמוך מספיק
+LB_MAX_OUT = 16000
 
 JG_TASK = """אתה בודק איכות של כתוביות בעברית (מאנגלית). אתה לא מתקן ולא כותב תרגום — רק נותן ציון.
 במדגם: לכל כתובית `#מספר` והמקור באנגלית, ובשורה שאחריה `→` והתרגום.
@@ -516,6 +582,8 @@ RV_TASK = """אתה עורך כתוביות בכיר שבודק תרגום מא�
 ומגדר לא עקבי — פנייה ונטיות של כל דובר ונמען לפי טבלת הדוברים בתדריך, לאורך כל הראיון.
 לא טעם אישי ולא ניסוח מחדש של מה שתקין.
 התשובה: שורה לכל כתובית שמתקנים, `#מספר טקסט מתוקן` (דורס את התרגום), ולא שום דבר אחר. אין מה לתקן — תשובה ריקה.
+`<auto_fixes>` (כשיש) = מה שסבב התיקון האוטומטי שינה אחרי הטיוטה, `לפני → אחרי`. תיקון שפגע במשמעות או בטבעיות —
+מחזירים את הנוסח הטוב (או כותבים טוב משניהם).
 כתובית שאי אפשר להכריע בה בלי לראות או לשמוע את הסרטון — שורה נוספת `!#מספר קוד` (עד 40): g = מגדר הדובר או הנמען לא ידוע,
 s = לא ברור מי מדבר, t = מונח שתורגם בשתי דרכים ולא ברור איזו נכונה. לא לסמן מה שתיקנת."""
 
@@ -836,30 +904,52 @@ class Pipeline:
                     he[m.group(1)] = clean_answer(m.group(2))
         return he
 
-    def fix_round(self, fname: str, fixed, k: str, rounds: int = FIX_ROUNDS) -> int:
+    def draft(self) -> dict[str, str]:
+        """הטיוטה של המתרגם בלבד (batch_*), בלי אף קובץ תיקונים."""
+        he = {}
+        for f in sorted((self.pd / 'tr').glob('batch_*.he.txt')):
+            for raw in f.read_text(encoding='utf-8').splitlines():
+                m = LINE_RE.match(raw.strip())
+                if m:
+                    he[m.group(1)] = clean_answer(m.group(2))
+        return he
+
+    def fix_round(self, fname: str, fixed, k: str, rounds: int = FIX_ROUNDS, soft_only: set | None = None,
+                  keep: dict | None = None, nb: int = 1, note: str = '') -> int:
         """tr-check → רק הכתוביות שנפסלו חוזרות למודל (עם הנוסח הנוכחי והבעיה) → קובץ התיקונים. מחזיר כמה שגיאות נשארו.
-        fixed = מחרוזת, או (Haiku מעל הסף) פונקציה מ־tl_fixer שמחלקת את הכתוביות לפי חלון המקור שלהן."""
+        fixed = מחרוזת, או (Haiku מעל הסף) פונקציה מ־tl_fixer שמחלקת את הכתוביות לפי חלון המקור שלהן.
+        25/10/2026 (ניתוח האיכות): nb = כמה כתוביות שכנות מכל צד נשלחות להקשר (המתקן ראה כתובית אחת וקיצר בלי צורך);
+        soft_only = הערות "לשקול" רק לכתוביות האלה (בתיקון האחרון — רק מה שהביקורת שינתה);
+        keep = {מספר: הנוסח שלפני הביקורת} — תשובה שמחזירה אותו נזרקת (התיקון האחרון ביטל שינויים של הביקורת)."""
         hard, soft, n_err = self.check()
         r, best = 0, n_err
         while r < rounds:
             r += 1
             todo = dict(hard)
-            for kk in soft_order(soft)[:max(0, soft_cap(self.pd) - len(todo))]:
-                todo.setdefault(kk, []).extend(soft[kk])
+            sf = {kk: v for kk, v in soft.items() if soft_only is None or kk in soft_only}
+            for kk in soft_order(sf)[:max(0, soft_cap(self.pd) - len(todo))]:
+                todo.setdefault(kk, []).extend(sf[kk])
             if not todo:
                 return 0
             cur = self.current()
+            order = sorted(cur, key=int)
             got = {}
+            task = FIX_TASK + ('\n' + note if note else '')
             for fixed_g, ids_all in (fixed(set(todo)) if callable(fixed) else [(fixed, set(todo))]):
                 srt = sorted(ids_all, key=int)
                 # 11/10/2026: במנות — עשרות כתוביות + חשיבה במאמץ גבוה עברו את תקרת ה־16K בבקשה אחת
                 for b in range(0, len(srt), FIX_BATCH):
                     ids_g = set(srt[b:b + FIX_BATCH])
-                    req = '\n'.join(f'#{kk} [{"חייב" if kk in hard else "לשקול"}: {"; ".join(todo[kk])}] נוכחי: {cur.get(kk, "(חסר)")}'
+                    req = '\n'.join(f'#{kk} [{"חייב" if kk in hard else "לשקול"}: {"; ".join(todo[kk])}]'
+                                    + (' [הביקורת שינתה]' if keep and kk in keep else '')
+                                    + f' נוכחי: {cur.get(kk, "(חסר)")}' + neighbors(order, cur, kk, nb)
                                     for kk in sorted(ids_g, key=int))
-                    res = self.eng.complete(k, fixed_g, FIX_TASK + '\n\n' + block('to_fix', req), max_tokens=32000, partial_ok=True)
+                    res = self.eng.complete(k, fixed_g, task + '\n\n' + block('to_fix', req), max_tokens=32000, partial_ok=True)
                     self.save_usage()
-                    got.update(answer_lines(kept_text(res), ids_g))   # נקטעה — מה שלא הגיע נשאר לסבב הבא
+                    ans = answer_lines(kept_text(res), ids_g)          # נקטעה — מה שלא הגיע נשאר לסבב הבא
+                    if keep:
+                        ans = {kk: v for kk, v in ans.items() if not (kk in keep and kk not in hard and clean_answer(v) == keep[kk])}
+                    got.update(ans)
             fp = self.pd / 'tr' / fname
             old = fp.read_text(encoding='utf-8') if fp.exists() else ''
             fp.write_text(old + fmt_lines(got) + '\n', encoding='utf-8')
@@ -927,16 +1017,26 @@ class Pipeline:
         # 21/10/2026 (יומני הייצור): בקטע של ~700 כתוביות Haiku High חשב 63,405 מתוך 64,000 טוקני הפלט ולא כתב אף תיקון —
         # חצי סרטון בלי ביקורת. לכן גם לפי מספר הכתוביות (RV_SLICE_CUES), הקטעים במקביל (RV_PARALLEL), וקטע שנקטע בלי
         # תשובה מתפצל לשניים ומנסה פעם אחת
+        # 25/10/2026: מה שסבב התיקון האוטומטי שינה בטיוטה (לפני → אחרי) — הביקורת רואה אותו ויכולה להחזיר
+        # (ניתוח האיכות: 22% מהשינויים של סבב התיקון הזיקו; ב־Sonnet Medium — 17 מול 9 שהועילו)
+        pre = self.current()
+        dr = self.draft()
+        auto = {kk: (dr[kk], v) for kk, v in pre.items() if kk in dr and dr[kk] != v}
+
+        def auto_block(sl):
+            ids = set(re.findall(r'(?m)^#(\d+)', sl))
+            rows = [f'#{kk} {a} → {b}' for kk, (a, b) in sorted(auto.items(), key=lambda kv: int(kv[0])) if kk in ids][:AUTO_FIX_MAX]
+            return '\n\n' + block('auto_fixes', '\n'.join(rows)) if rows else ''
+
         n_cues = len(re.findall(r'(?m)^#\d+', pkg))
         n = max(1, -(-n_cues // RV_SLICE_CUES))
         slices = split_package(pkg, n) if n > 1 else [pkg]
-        while not self.eng.fits_card(fixed, block('review_package', slices[0])) and n < 64:
+        while not self.eng.fits_card(fixed, block('review_package', slices[0]) + auto_block(slices[0])) and n < 64:
             n *= 2
             slices = split_package(pkg, n)
         if len(slices) > 1:
             print(f'· {self.eng.spec.model}: הביקורת ב־{len(slices)} קטעים (עד {RV_SLICE_CUES} כתוביות, {RV_PARALLEL} במקביל)')
         got, flags = {}, []
-
         warm = threading.Event()                 # המטמון: הקטע הראשון כותב את הבלוק הקבוע, השאר מתחילים כשהוא כבר עונה
         if len(slices) == 1:
             warm.set()
@@ -944,7 +1044,7 @@ class Pipeline:
         def one(sl, depth=0):
             if sl is not slices[0]:
                 warm.wait(180)
-            res = self.eng.complete('rv', fixed, block('review_package', sl), max_tokens=64000, partial_ok=True,
+            res = self.eng.complete('rv', fixed, block('review_package', sl) + auto_block(sl), max_tokens=64000, partial_ok=True,
                                     on_first_token=warm.set if sl is slices[0] else None)
             warm.set()
             ids = set(re.findall(r'#(\d+)', sl))
@@ -980,10 +1080,179 @@ class Pipeline:
             (self.pd / 'review').mkdir(exist_ok=True)
             (self.pd / 'review' / 'flags.txt').write_text(''.join('!#%d %s\n' % (i, k) for i, k in flags[:40]), encoding='utf-8')
         ctx.report('rv', 0.7, f'הביקורת תיקנה {len(got)} כתוביות', force=True)
-        # בדיקה אחרונה: מה שהביקורת שברה מתוקן ב־fixes_zfinal.txt (נקרא אחרון ודורס)
-        left = self.fix_round('fixes_zfinal.txt', self.tl_fixer(), 'rv')
+        # בדיקה אחרונה: מה שהביקורת שברה מתוקן ב־fixes_zfinal.txt (נקרא אחרון ודורס).
+        # 25/10/2026 (ניתוח האיכות — 28% מהשינויים של השלב הזה הזיקו): "חייב" — תמיד; "לשקול" — רק בכתוביות שהביקורת שינתה;
+        # שתי כתוביות שכנות מכל צד; ותשובה שמחזירה את הנוסח שלפני הביקורת נזרקת
+        changed = {kk for kk, v in got.items() if clean_answer(v) != pre.get(kk)}
+        left = self.fix_round('fixes_zfinal.txt', self.tl_fixer(), 'rv', soft_only=changed,
+                              keep={kk: pre[kk] for kk in changed if kk in pre}, nb=2, note=ZF_NOTE)
         ctx.report('rv', 1.0, 'הבדיקה הסתיימה', force=True)
         return len(got), left
+
+
+    # -------------------------------------------------------------- 6.5 בקרה על המסך (25/10/2026)
+    def qc_targets(self) -> dict[str, dict]:
+        """out/qc.md + out/cues.final.json → הכתוביות שהבקרה פסלה בטקסט (קצב / אורך), לפי מספר הכתובית בתרגום.
+        כתובית שמוצגת יחד עם אחרות (`=` / מיזוג קצב) — המספר הראשון מקבל את כל הטקסט, והשאר `=`."""
+        od = self.pd / 'out'
+        try:
+            qc = (od / 'qc.md').read_text(encoding='utf-8')
+            final = json.loads((od / 'cues.final.json').read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            return {}
+        errs: dict[str, list[str]] = {}
+        sec = ''
+        for ln in qc.splitlines():
+            if ln.startswith('## '):
+                sec = ln
+                continue
+            if sec.startswith('## שגיאות'):
+                m = _QC_ERR_RE.match(ln.strip())
+                if m and any(w in m.group(2) for w in QC_KINDS):
+                    errs.setdefault(m.group(1), []).append(m.group(2).split(' — ')[0])
+            elif sec.startswith('## לא נכנס'):
+                for i in re.findall(r'#(\d+)', ln):
+                    errs.setdefault(i, []).append('לא נכנס בשתי שורות')
+        if not errs:
+            return {}
+        cur = self.current()
+        out = {}
+        for c in final if isinstance(final, list) else []:
+            k = str(c.get('id'))
+            if k not in errs or k not in cur:
+                continue
+            rest = [str(x) for x in (c.get('cps_merged') or [])[1:]]
+            if any(cur.get(x) in (None, '=', '∅') for x in rest):
+                continue                             # מיזוג שלא מתאים לצורה הפשוטה — משאירים לבדיקה האוטומטית
+            dur = float(c.get('end', 0)) - float(c.get('start', 0))
+            if dur <= 0:
+                continue
+            text = ' '.join([cur[k]] + [cur[x] for x in rest]).strip()
+            out[k] = {'why': errs[k], 'rest': rest, 'text': text, 'n': max(8, min(84, int(QC_CPS * dur))), 'dur': round(dur, 2)}
+        return out
+
+    def qc_round(self) -> dict:
+        """אחרי הביקורת: בנייה, ומה שהבקרה פסלה על המסך (קצב מעל 20, יותר משתי שורות) חוזר למודל פעם אחת עם התקציב
+        האמיתי של הכתובית ועם השכנות → tr/fixes_zqc.txt (נקרא אחרון). תיקון שלא קיצר / ששבר את tr-check — נזרק.
+        העתק־הדבק — בלי (עוד הדבקה)."""
+        if getattr(self.eng, 'manual', False):
+            return {}
+        ctx = self.ctx
+        sty = getattr(self.J, 'vt_style', lambda spec: 'bold')(ctx.st.get('spec'))
+        for cmd in ('tr-merge', 'build'):
+            self.J.vt(ctx, [cmd, ctx.name] + (['--style', sty] if cmd == 'build' else []))
+        tg = self.qc_targets()
+        st = {'qcn': len(tg), 'qcf': 0}
+        if not tg:
+            ctx.st['qcx'] = st
+            return st
+        ctx.report('rv', 0.95, f'הבקרה על המסך: {len(tg)} כתוביות מהירות מדי — Claude מקצר', force=True)
+        cur = self.current()
+        order = sorted(cur, key=int)
+        fx = self.tl_fixer()
+        got: dict[str, str] = {}
+        for fixed_g, ids_all in (fx(set(tg)) if callable(fx) else [(fx, set(tg))]):
+            srt = sorted(ids_all, key=int)
+            for b in range(0, len(srt), FIX_BATCH):
+                ids_g = set(srt[b:b + FIX_BATCH])
+                req = '\n'.join(f'#{kk} ≤{tg[kk]["n"]} [{"; ".join(tg[kk]["why"])} · על המסך {tg[kk]["dur"]} שנ׳] '
+                                f'נוכחי: {tg[kk]["text"]}' + neighbors(order, cur, kk, 1) for kk in sorted(ids_g, key=int))
+                try:
+                    res = self.eng.complete('rv', fixed_g, QC_TASK + '\n\n' + block('to_fix', req), max_tokens=32000, partial_ok=True)
+                except llm.LLMError as e:
+                    if e.code in ('sub_limit', 'budget_cap'):
+                        raise
+                    print('· סבב הבקרה נכשל (' + e.code + ') — ממשיכים בלעדיו.')
+                    break
+                self.save_usage()
+                for kk, v in answer_lines(kept_text(res), ids_g).items():
+                    v = clean_answer(v)
+                    if v and v not in ('=', '∅') and len(v) < len(tg[kk]['text']):
+                        got[kk] = v
+        if not got:
+            ctx.st['qcx'] = st
+            return st
+        fp = self.pd / 'tr' / 'fixes_zqc.txt'
+
+        def write(d):
+            lines = {}
+            for kk, v in d.items():
+                lines[kk] = v
+                for x in tg[kk]['rest']:
+                    lines[x] = '='
+            fp.write_text(fmt_lines(lines) + '\n', encoding='utf-8')
+        write(got)
+        hard, _, n_err = self.check()
+        broke = {kk for kk in got if kk in hard or any(x in hard for x in tg[kk]['rest'])}
+        if broke:
+            got = {kk: v for kk, v in got.items() if kk not in broke}
+            write(got) if got else fp.unlink()
+            hard, _, n_err = self.check()
+            if n_err and fp.exists():                # עדיין שבור — בלי הסבב (הבדיקה לפני הסבב הייתה נקייה)
+                fp.unlink()
+                got = {}
+                self.check()
+        st['qcf'] = len(got)
+        ctx.st['qcx'] = st
+        print(f'✓ הבקרה על המסך: {len(tg)} כתוביות מהירות מדי · {len(got)} קוצרו')
+        return st
+
+
+    # -------------------------------------------------------------- 6.6 שבירת שורות (25/10/2026, אישור המשתמש)
+    def line_breaks(self) -> dict:
+        """vt (session_01UZAW, ‏vt/linebreak.py) מציע לכל כתובית דו־שורתית כמה מקומות שבירה; Haiku 5.5 · low בוחר
+        (שיפוט עיוור: 2% לא קבילות מול 5–9% למודל התחבירי ו־14% לכללים). הבחירה משנה רק את מקום השבירה —
+        לא טקסט ולא תזמון — ו־build שאחריה (השופט, finish) מחיל אותה. כל תקלה / vt בלי הפקודות / העתק־הדבק —
+        ממשיכים בלי (המודל התחבירי / הכללים)."""
+        if getattr(self.eng, 'manual', False):
+            return {}
+        ctx, td = self.ctx, self.pd / 'tr'
+        sty = getattr(self.J, 'vt_style', lambda spec: 'bold')(ctx.st.get('spec'))
+        try:
+            for cmd in ('tr-merge', 'build'):
+                self.J.vt(ctx, [cmd, ctx.name] + (['--style', sty] if cmd == 'build' else []))
+            items = json.loads((td / 'lb_items.json').read_text(encoding='utf-8'))
+        except (OSError, ValueError, SystemExit):
+            return {}
+        st = {'lbn': len(items) if isinstance(items, list) else 0, 'lbf': 0}
+        if not st['lbn']:
+            ctx.st['lbx'] = st
+            return st
+        try:
+            self.J.vt(ctx, ['lb-prompt', ctx.name])
+            prompt = (td / 'lb_prompt.md').read_text(encoding='utf-8')
+        except (OSError, SystemExit):
+            return st
+        if not prompt.strip():
+            ctx.st['lbx'] = st
+            return st
+        spent = self.eng.ledger.total()
+        if self.eng.cap is not None and spent is not None and spent >= self.eng.cap:
+            print('· תקרת העבודה נוצלה — שבירת השורות בלי Haiku.')
+            return st
+        spec = llm.Spec(*LB_SPEC)
+        leng = llm.Engine(spec, client=self.eng._client)
+        try:
+            res = leng.complete('lb', RULES, prompt, max_tokens=min(LB_MAX_OUT, 2000 + 12 * st['lbn']), partial_ok=True)
+        except llm.LLMError as e:
+            print('· שבירת השורות ב־Haiku נכשלה (' + e.code + ') — ממשיכים עם המודל התחבירי.')
+            for r in leng.ledger.list():
+                self.eng.ledger.add('sub', r['m'], r, r['usd'])
+            return st
+        self.eng.ledger.add('sub', spec.model, res.usage, res.usd)    # 'sub' — בלי סוג עלות חדש בשלושת הצדדים
+        self.save_usage()
+        ans = td / 'lb_answer.txt'
+        ans.write_text(kept_text(res).strip() + '\n', encoding='utf-8')
+        try:
+            self.J.vt(ctx, ['lb-apply', ctx.name, '--answer', str(ans), '--model', spec.model])
+            lb = json.loads((td / 'linebreak.json').read_text(encoding='utf-8'))
+            picks = lb.get('picks') if isinstance(lb, dict) else None     # {"v":1, "model", "picks": {טקסט: n}}
+            st['lbf'] = len(picks) if isinstance(picks, dict) else 0
+        except (OSError, ValueError, SystemExit):
+            pass
+        ctx.st['lbx'] = st
+        print(f'✓ שבירת השורות: {st["lbn"]} כתוביות דו־שורתיות · Haiku בחר ל־{st["lbf"]}')
+        return st
 
 
 def start_attach(J, ctx):
@@ -1128,6 +1397,10 @@ def run_subs(J, eng, ns) -> int:
         pl.save_usage()
         if left:
             raise llm.LLMError('check_errors', f'נשארו {left} שגיאות בבדיקה האוטומטית אחרי התיקונים')
+        pl.qc_round()                        # 25/10/2026: גם בקובץ כתוביות — הבקרה על המסך
+        pl.save_usage()
+        pl.line_breaks()                 # 25/10/2026: Haiku בוחר את מקום השבירה; build שאחרי מחיל
+        pl.save_usage()
         pl.judge()
     pl.save_usage()
     return J.finish(SimpleNamespace(force=False))
@@ -1269,6 +1542,10 @@ def run_auto(jobmod, args) -> int:
             pl.save_usage()
             if left:
                 raise llm.LLMError('check_errors', f'נשארו {left} שגיאות בבדיקה האוטומטית אחרי התיקונים')
+            pl.qc_round()                    # 25/10/2026: מה שהבקרה על המסך פסלה (קצב, אורך) — סבב קצר אחד
+            pl.save_usage()
+            pl.line_breaks()                 # 25/10/2026: Haiku בוחר את מקום השבירה; build שאחרי מחיל
+            pl.save_usage()
             pl.judge()                       # שופט האיכות (v375) — ציון בלבד, Haiku; כשל/כיבוי לא עוצרים
         pl.save_usage()
         return J.finish(SimpleNamespace(force=False))
