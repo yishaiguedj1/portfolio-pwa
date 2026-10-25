@@ -21,7 +21,7 @@ const ERR_INFO = {
   no_server: ['server', 2], job_timeout: ['server', 2], month_cap: ['server', 3], worker_unknown_kind: ['server', 3],
   worker_oom: ['server', 2], worker_crash: ['server', 2], worker_lost: ['server', 3],   // 14/10: השרת הופעל מחדש באמצע עבודה
   tower_stop: ['claude', 2], budget_stop: ['claude', 3], worker_step: ['claude', 2], store_fail: ['drive', 2], store_net: ['drive', 3], stale: ['claude', 2], worker: ['claude', 2],
-  lang_unsupported: ['claude', 4], upload_timeout: ['phone', 3], ph_meta: ['phone', 3], net: ['drive', 3], drive: ['drive', 3], drive_net: ['drive', 3],
+  lang_unsupported: ['claude', 4], upload_timeout: ['phone', 3], ph_meta: ['phone', 3], ph_words: ['phone', 3], net: ['drive', 3], drive: ['drive', 3], drive_net: ['drive', 3],
   // מצב API (llm.py / pipeline.py): מפתח שנדחה / מודל שלא קיים = שום עבודת API לא תעבוד עד שמתקנים → P1
   api_auth: ['claude', 1], api_quota: ['claude', 1], api_model: ['claude', 1], api_rate: ['claude', 3], api_network: ['claude', 3], api_timeout: ['claude', 3],
   api_bad_request: ['claude', 2], api_error: ['claude', 2], budget_cap: ['claude', 3], model_refusal: ['claude', 3], check_errors: ['claude', 3],

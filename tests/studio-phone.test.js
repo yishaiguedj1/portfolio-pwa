@@ -171,6 +171,64 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(j.job.pbn.s === 'done' && j.job.pbn.sz === 4e8 && (await ph2('phJob', {})).job.pbn.s === 'done', 'הדף והאפליקציה רואים את אותו מצב צריבה');
   ok((await ph2('phJob', { pad: 'x'.repeat(5000) })).error === 'too_large', 'גוף מעל 4KB — נדחה');
 
+  /* ---------- 5ב. שלב 2 (25/10/2026): גם התמלול והיישור בטלפון — המילים והמדידות, בלי קול ---------- */
+  sp = S.normSpec(Object.assign({}, base, { ph: 1, pw: 1 }));
+  ok(sp.ph === 1 && sp.pw === 1, 'pw נשמר רק עם ph');
+  ok(!('pw' in S.normSpec(Object.assign({}, base, { pw: 1 }))), 'pw בלי ph — לא נשמר');
+  ok(S.JSON_FIELDS.includes('fpw'), 'fpw נשמר כ־JSON');
+  const j3 = await api('create', { spec: Object.assign({}, base, { ph: 1, pw: 1 }) });
+  ok(j3.ok && j3.job.spec.pw === 1 && j3.job.files.w === null, 'עבודה בשלב 2 נוצרת (files.w)');
+  const PJ3 = j3.job.id, PK3 = (await api('phKey', { job: PJ3 })).key;
+  const ph3 = (op, b) => call(Object.assign({ op, job: PJ3, key: PK3 }, b), true).then((x) => x.j);
+  const up3 = async (buf, name) => { const x = await ph3('phUp', { size: buf.length, type: 'application/json', name }); await R.fetch(x.urls[1], { method: 'PUT', body: buf }); await ph3('phDone', { id: x.id, up: x.up }); return x.id; };
+  // ההתקדמות בטלפון (op:'phProg') — רק כשהעבודה "חדשה", רק שלב מהרשימה ומספרים / קוד
+  ok((await ph3('phProg', { ppr: { s: 'asr', p: 0.4567 } })).ok, 'הטלפון מדווח שהוא מתמלל');
+  let pj = await api('job', { job: PJ3 });
+  ok(pj.job.ppr && pj.job.ppr.s === 'asr' && pj.job.ppr.p === 0.457 && pj.job.ppr.at > 0, 'הדף רואה את ההתקדמות בטלפון: ' + JSON.stringify(pj.job.ppr));
+  ok((await ph3('phProg', { ppr: { s: 'evil', p: 1 } })).error === 'bad_params' && (await ph3('phProg', { ppr: { s: 'err', e: '<b>' } })).error === 'bad_params', 'שלב לא מוכר / קוד לא תקין — נדחה');
+  ok((await ph3('phProg', { ppr: { s: 'diar' } })).ok && (await api('job', { job: PJ3 })).job.ppr.p === -1, 'שלב בלי אחוז — ‎-1');
+  ok(S.JSON_FIELDS.includes('ppr'), 'ppr נשמר כ־JSON');
+  const aud3 = await up3(crypto.randomBytes(2000), 'talk.audio.mka');
+  ok((await ph3('phFile', { which: 'a', id: aud3 })).error === 'bad_params', 'בשלב 2 הקול לא נרשם לעולם');
+  const words = Buffer.from(JSON.stringify({ v: 1, words: [{ w: 'Hello', s: 0.5, e: 0.9, spk: 'S1' }] }));
+  const wid = await up3(words, 'talk.words.json');
+  ok((await ph3('phFile', { which: 'w', id: wid })).ok, 'המילים נרשמו (w)');
+  ok((await ph3('phStart', {})).error === 'no_files', 'בלי המדידות — לא מתחילים');
+  const mid3 = await up3(meta, 'talk.phone.json');
+  ok((await ph3('phFile', { which: 'm', id: mid3 })).ok, 'המדידות נרשמו');
+  ok((await ph3('phJob', {})).job.w === true, 'הטלפון רואה שהמילים נרשמו');
+  j = await ph3('phStart', {});
+  ok(j.ok && j.state === 'queued', 'המילים והמדידות — מתחילים');
+  ok((await ph3('phProg', { ppr: { s: 'asr', p: 0.5 } })).error === 'state', 'אחרי ההתחלה — לא מדווחים התקדמות בטלפון');
+  const f3 = db.get('studioJobs/' + PJ3).fields;
+  ok(f3.fpw && f3.fph && !f3.fa, 'במסמך: fpw ו־fph, בלי קול');
+  Object.assign(f3, { kh: { stringValue: crypto.createHash('sha256').update(KEY).digest('hex') }, kx: { integerValue: String(R.now + 3600e3) }, state: { stringValue: 'running' } });
+  j = await call({ op: 'claim', job: PJ3, key: KEY }, true).then((x) => x.j);
+  ok(j.ok && j.job.files.w && j.job.files.w.id === wid && j.job.files.m.id === mid3 && !j.job.files.a && j.job.spec.pw === 1, 'בלקיחה: המילים והמדידות, בלי קול ובלי סרטון');
+  const j5 = await api('create', { spec: Object.assign({}, base, { ph: 1 }) });
+  const PK5 = (await api('phKey', { job: j5.job.id })).key;
+  const w1 = await call({ op: 'phFile', job: j5.job.id, key: PK5, which: 'w', id: SR.newId(j5.job.folder) }, true).then((x) => x.j);
+  ok(w1.error === 'bad_params', 'בעבודה של שלב 1 — w לא נרשם');
+  const j4 = await api('create', { spec: Object.assign({}, base, { ph: 1, pw: 1 }) });
+  const PK4 = (await api('phKey', { job: j4.job.id })).key;
+  const ph4 = (op, b) => call(Object.assign({ op, job: j4.job.id, key: PK4 }, b), true).then((x) => x.j);
+  const big = await (async () => {
+    const n = S.PH_WORDS_MAX + 10, x = await ph4('phUp', { size: n, type: 'application/json', name: 'w.json' });
+    for (const [k, url] of Object.entries(x.urls)) { const i = +k; await R.fetch(url, { method: 'PUT', body: Buffer.alloc(Math.min(x.ps, n - (i - 1) * x.ps)) }); }
+    await ph4('phDone', { id: x.id, up: x.up });
+    return x.id;
+  })();
+  const bg4 = await ph4('phFile', { which: 'w', id: big });
+  ok(bg4.error === 'file_size', 'מילים מעל התקרה — נדחה: ' + JSON.stringify(bg4));
+
+  /* ---------- 5ג. phAlive (25/10/2026): הסרטון נשמר בטלפון עד שהפרויקט נמחק ---------- */
+  const al1 = await call({ op: 'phAlive', job: PJ3, key: 'K'.repeat(43) }, true);
+  ok(al1.j.ok && al1.j.alive === true, 'העבודה קיימת — alive (גם עם מפתח שפג/לא תואם: רק קיום)');
+  const jx = await api('create', { spec: Object.assign({}, base, { ph: 1 }) });
+  ok((await api('remove', { job: jx.job.id })).ok, 'הפרויקט נמחק באתר');
+  const al2 = await call({ op: 'phAlive', job: jx.job.id, key: 'K'.repeat(43) }, true);
+  ok(al2.code === 404 && al2.j.error === 'gone', 'אחרי המחיקה — gone (404): ' + JSON.stringify(al2.j));
+
   /* ---------- 6. תור: עבודת טלפון שחזרה לתור מחכה למדידות, לא לסרטון ---------- */
   const api_src = require('fs').readFileSync(path.join(root, 'ibkr-proxy/api/studio.js'), 'utf8');
   ok(/job\.vw && !\(\(job\.spec && job\.spec\.ph === 1 \? job\.fph : job\.fv\)/.test(api_src), 'השרת לוקח עבודת טלפון שחזרה לתור רק כשהמדידות נרשמו');
@@ -180,7 +238,13 @@ const { fakeR2, ENV } = require('./_r2fake');
   const src = fs.readFileSync(path.join(root, 'studio.js'), 'utf8');
   const fnSrc = (name) => src.slice(src.indexOf('export function ' + name + '('), src.indexOf('\n}\n', src.indexOf('export function ' + name + '(')) + 2).replace(/^export /, '');
   const num = (v) => (Number.isFinite(+v) && +v > 0 ? +v : 0);
-  const W = new Function('num', 'TextDecoder', 'atob', fnSrc('parsePhPick') + '\n' + fnSrc('normPbn') + '\nreturn { parsePhPick, normPbn };')(num, TextDecoder, atob);
+  const W = new Function('num', 'TextDecoder', 'atob', 'PPR_S', fnSrc('parsePhPick') + '\n' + fnSrc('normPbn') + '\n' + fnSrc('normPpr') + '\nreturn { parsePhPick, normPbn, normPpr };')(num, TextDecoder, atob, S.PPR_S);
+  const pprSrc = /export const PPR_S = (\[[^\]]*\])/.exec(src);
+  ok(pprSrc && JSON.stringify(JSON.parse(pprSrc[1].replace(/'/g, '"'))) === JSON.stringify(S.PPR_S), 'רשימת השלבים בטלפון — זהה בדף ובשרתון');
+  for (const c of [{ s: 'asr', p: 0.4567, at: 9 }, { s: 'diar' }, { s: 'err', e: 'models_wifi' }, { s: 'err', e: 'X' }, { s: 'models', p: 7 }, { s: 'q' }, null]) {
+    const a = W.normPpr(c), b = S.normPpr(c, 9);
+    ok(JSON.stringify(a && Object.assign({}, a, { at: 0 })) === JSON.stringify(b && Object.assign({}, b, { at: 0 })), 'normPpr זהה בדף ובשרתון: ' + JSON.stringify(c));
+  }
   const enc = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
   const PID = 'p0123456789abcdef';
   let pp = W.parsePhPick(PID + '.' + enc({ pid: PID, name: 'הרצאה.mp4', size: 123456789, dur: 3600.5, w: 1920, h: 1080 }));
@@ -207,9 +271,15 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(/"https:\/\/studio\.thesnowball\.app\/", "https:\/\/studio-staging\.thesnowball\.app\/"/.test(act), 'האפליקציה חוזרת רק לאתר של Studio (ייצור / ניסוי)');
   ok(['studioPh', 'phburn', 'phKey'].every((x) => src.includes(x)) && !/net\.api\('phBurn'/.test(src), 'הדף לא מדווח צריבה (רק האפליקציה, במפתח של העבודה)');
   // 24/10/2026 (בטלפון: הצריבה הופיעה רק בהתראה) — עבודה שהסתיימה ממשיכה להיבדק בזמן הצריבה, והאחוז נשלח כל 5 שנ׳ ברקע
-  ok(/st === 'running' \|\| phBurnLive\(r\) \? 4000/.test(src) && /phBurnTap\.set\(rec\.id, Date\.now\(\)\)/.test(src), 'בזמן הצריבה דף העבודה שואל כל 4 שנ׳ (גם כשהעבודה "הסתיימה")');
+  ok(/st === 'running' \|\| phBurnLive\(r\) \|\| phPrepLive\(r\) \? 4000/.test(src) && /phBurnTap\.set\(rec\.id, Date\.now\(\)\)/.test(src), 'בזמן הצריבה (וגם כשהטלפון מתמלל/מיישר) דף העבודה שואל כל 4 שנ׳ (גם כשהעבודה "הסתיימה")');
+  ok(/kind === 'ph' && rec\.spec\.pw \? \{ pw: 1 \}/.test(src) && /if \(f\.pw !== false\) spec\.pw = 1/.test(src), 'הכל בטלפון: העבודה נוצרת עם pw, וה־intent מעביר pw=1');
   const work = fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhWork.kt'), 'utf8');
-  ok(/lastRep > 5_000/.test(work) && /q\.execute \{ rep\(o\) \}/.test(work) && /repDone\(JSONObject\(\)\.put\("s", "done"\)/.test(work), 'הצריבה מדווחת כל 5 שנ׳ בתהליכון אחד לפי הסדר (בלי לעצור את הקידוד; "הסתיים" אחרון)');
+  ok(/lastRep > 2_000/.test(work) && /class Latest/.test(work) && /pending\.getAndSet\(o\) == null/.test(work) && !/\* 0\.95/.test(work) && /repDone\(JSONObject\(\)\.put\("s", "done"\)/.test(work),
+    'הצריבה מדווחת כל 2 שנ׳, רק הערך האחרון (בלי תור שמפגר — 35% בדף מול 51% בהתראה), אותו אחוז של ההתראה; "הסתיים" אחרון');
+  ok(!/f\.delete\(\)/.test(work.slice(work.indexOf('fun burn('))), 'אחרי הצריבה הסרטון נשאר בטלפון (צריבה נוספת עד מחיקת הפרויקט)');
+  const phStore = fs.readFileSync(path.join(root, "android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhStore.kt"), "utf8");
+  ok(/optString\("error"\) == "gone"/.test(phStore) && /catch \(e: Throwable\) \{ update\(ctx, pid\) \{ it\.put\("chk", now\) \}; continue \}/.test(phStore), 'הסרטון נמחק מהטלפון רק כשהשרתון ענה במפורש "gone" — תקלה/רשת לא מוחקות');
+  ok(/android:name="\.PhGcJob"/.test(fs.readFileSync(path.join(root, 'android/app/src/studio/AndroidManifest.xml'), 'utf8')), 'הבדיקה ברקע (PhGcJob) במניפסט');
 
   console.log('\nכל ' + n + ' הבדיקות עברו ✓');
 })().catch((e) => { console.error(e); process.exit(1); });
