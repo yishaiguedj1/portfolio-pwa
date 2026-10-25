@@ -2719,7 +2719,8 @@ EARLY_SHOTS_PY = (
     'import json,os,sys,pathlib\n'
     'from vt import media\n'
     'th=float(sys.argv[3])\n'
-    's=media.detect_shots(pathlib.Path(sys.argv[1]),th)\n'
+    'b=None if os.environ.get("SNB_BURN")=="off" else pathlib.Path(sys.argv[2]+".burn")\n'
+    's=media.detect_shots(pathlib.Path(sys.argv[1]),th,burn_out=b)\n'
     't=sys.argv[2]+".tmp"\n'
     'json.dump({"threshold":th,"shots":s},open(t,"w"))\n'
     'os.replace(t,sys.argv[2])\n')
@@ -2740,10 +2741,11 @@ def early_shots_start(q, src):
     except (OSError, ValueError):
         th = 10.0
     out = q.pdir / 'shots.early.json'
-    try:
-        out.unlink()
-    except OSError:
-        pass
+    for f in (out, Path(str(out) + '.burn')):
+        try:
+            f.unlink()
+        except OSError:
+            pass
 
     def idle():
         try:
@@ -2792,6 +2794,12 @@ def early_shots_take(ctx):
     if not isinstance(d, dict) or not isinstance(d.get('shots'), list):
         return False
     (ctx.pdir / 'shots.json').write_text(json.dumps(d, ensure_ascii=False), encoding='utf-8')
+    burn = Path(str(out) + '.burn')             # 25/10/2026: טקסט שעל המסך מאותו מעבר (vt/burnin.py)
+    try:
+        if burn.exists():
+            os.replace(burn, ctx.pdir / 'burned.json')
+    except OSError:
+        pass
     try:
         out.unlink()
     except OSError:
