@@ -109,6 +109,12 @@ const GOOD = ['# Netscape HTTP Cookie File', '# comment', L('.youtube.com', 'SAP
   ok((await raw('adminYt', { set: L('.youtube.com', 'PREF', 'x') })).j.error === 'not_logged_in', 'עוגיות אורח — 400 not_logged_in');
   let a = await api('adminYt', { set: GOOD });
   ok(a.ok && a.yt.on && a.yt.n === 4 && a.yt.st === 'new' && !JSON.stringify(a).includes('aaaBBB'), 'המנהל שומר — המסך מקבל רק מצב, בלי העוגיות');
+  // 25/10/2026: קובץ אמיתי גדול מ־4KB — עד הבדיקה הזו השומר הכללי (4KB) דחה כל קובץ אמיתי ב־too_large
+  const BIG = GOOD + Array.from({ length: 160 }, (_, i) => L('.youtube.com', 'C' + i, 'v'.repeat(120))).join('\n') + '\n';
+  ok(BIG.length > 20000 && (await raw('adminYt', { set: BIG })).code === 200, 'קובץ עוגיות של ~23KB נשמר (לא נחסם בשומר הגודל)');
+  ok((await raw('adminYt', { set: 'x'.repeat(70000) })).code === 413, 'מעל 64KB — 413');
+  ok((await raw('status', { pad: 'x'.repeat(5000) })).code === 413, 'שאר הפעולות — עדיין 4KB');
+  a = await api('adminYt', { set: GOOD });
   const stored = JSON.stringify(db.get('studioVault/_ytck'));
   ok(!stored.includes('aaaBBB') && !stored.includes('x1y2z3'), 'בכספת — מוצפן (אין ערך גלוי ב־Firestore)');
   const log = [...db.entries()].filter(([k]) => k.startsWith('sysLog/')).map(([, v]) => v.fields.k.stringValue);
@@ -161,6 +167,12 @@ const GOOD = ['# Netscape HTTP Cookie File', '# comment', L('.youtube.com', 'SAP
   ok(/if \(ui\.url && !ui\.yc && ytHost\(L\.u\)\) \{ L\.st = 'err'; L\.e = 'yt'; \}/.test(st), 'בלי האפליקציה: יוטיוב נעצר רק כשאין חשבון בשרת');
   const adm = fs.readFileSync(path.join(root, 'admin-app.js'), 'utf8');
   ok(/page\('yt'/.test(adm) && /api\('adminYt'/.test(adm) && !/\.ck\b/.test(adm.slice(adm.indexOf("page('yt'"), adm.indexOf("page('infra'"))), 'מרכז הניהול: עמוד יוטיוב, בלי שדה עוגיות שחוזר');
+  const tr = adm.match(/const ytTrim = [\s\S]*?\n\}\)\.join\('\\n'\);/);
+  ok(!!tr, 'מרכז הניהול מסנן ייצוא מלא לפני השליחה (ytTrim)');
+  const ytTrim = tr && new Function(tr[0] + '; return ytTrim;')();
+  const ALL = ['# Netscape HTTP Cookie File', L('.facebook.com', 'c_user', '1'), L('.youtube.com', 'SAPISID', 'a'), '#HttpOnly_' + L('accounts.google.com', 'LSID', 'b'), L('.evil-youtube.com', 'X', 'c'), L('bank.co.il', 'S', 'd')].join('\r\n');
+  ok(ytTrim && ytTrim(ALL).split('\n').length === 2 && !/facebook|bank|evil/.test(ytTrim(ALL)), 'ytTrim משאיר רק יוטיוב וגוגל');
+  ok(/needYt\(\{ set: ck \}\)/.test(adm), 'נשלח הקובץ המסונן');
   const DL = require(path.join(root, 'ibkr-proxy/lib/devlog.js'));
   ok(!/aaaBBB|x1y2z3/.test(DL.redact(GOOD)) && !/q1w2/.test(DL.redact('SID=q1w2; __Secure-3PAPISID=q1w2')), 'עוגיות לא נכנסות ליומן (redact)');
 
