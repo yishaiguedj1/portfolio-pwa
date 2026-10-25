@@ -39,7 +39,7 @@ export async function upForward(request, env = {}) {
     r = await (env.fetch || fetch)(target, { method: 'PUT', body, headers: { 'content-length': String(len) }, duplex: 'half' });
   } catch (e) { return json(502, { ok: false, error: 'r2_net' }); }
   // Background Fetch: תשובה שאינה 2xx = כישלון (bad-status) — הטלפון ממשיך בהעלאה הרגילה מהחלקים שהגיעו
-  // התשובה קטנה תמיד (עד ~300 בתים): הטלפון מצהיר ל־Chrome על תקרה לכל חלק (BG_RESP_MAX ב־studiobg.js) כדי שיציג התקדמות
+  // התשובה קטנה תמיד (עד ~300 בתים) — גם כשה־ETag שחוזר מ־R2 ארוך
   if (r.status === 200) return json(200, { ok: true, etag: (r.headers.get('etag') || '').slice(0, 200) });
   return json(r.status === 403 || r.status === 404 ? r.status : 502, { ok: false, error: 'r2_http_' + r.status });
 }

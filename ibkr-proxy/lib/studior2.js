@@ -18,10 +18,14 @@ const PART_TTL = 3600;                // קישור לחלק — שעה
 const GET_TTL = 6 * 3600;             // קישור הורדה לעובד — 6 שעות (הורדה עם המשך; פג → מבקשים חדש)
 const VIEW_TTL = 3600;                // קישור צפייה / הורדה לטלפון
 /* 23/10/2026 (בקשת המשתמש: העלאה שממשיכה גם כשהאפליקציה סגורה): Background Fetch של Chrome. כל חלק = בקשה אחת דרך /up
-   באותו מקור (functions/up.js — Workers בחינם מקבלים עד 100MB לבקשה), ולכן חלק של 64MiB. הקישורים לכל החלקים מראש,
+   באותו מקור (functions/up.js — Workers בחינם מקבלים עד 100MB לבקשה), ולכן חלק של 64MiB לכל היותר. הקישורים לכל החלקים מראש,
    לשלושה ימים (הדפדפן יכול להשהות את ההעלאה בלי רשת). fk = מפתח סיום חד־פעמי: ה־service worker מסיים את ההעלאה ורושם
    את הסרטון בלי התחברות (op:'r2bgDone') — נשמר רק ה־hash שלו ברשומה (bk) */
 const BG_PS = 64 * 1024 * 1024;
+/* 24/10/2026: ההתראה של Chrome מתקדמת לפי חלקים שהסתיימו (studiobg.js) — כ־BG_STEPS צעדים לכל סרטון (צעד של ~1.5%),
+   בין 8MiB ל־64MiB לחלק. סרטון של 130MB = 16 חלקים, 650MB = 63, מ־4GB = 64MiB */
+const BG_STEPS = 64;
+const bgPartSize = (size) => R2.partSize(size, Math.min(BG_PS, Math.ceil(Math.max(1, size) / BG_STEPS / R2.MIB) * R2.MIB));
 const BG_PART_MAX = 95 * 1000 * 1000;
 const BG_TTL = 3 * 24 * 3600;
 const BG_MAX_PARTS = 400;
@@ -154,7 +158,7 @@ async function upBg(c, deps, { uid, folder, id, size, type, name, rec }) {
     id = id || newId(folder);
     const k = keyOf(uid, id);
     r = { k, s: size, t: okType(type), n: String(name || (r && r.n) || '').slice(0, 200), up: await R2.mpCreate(c, deps, k, okType(type)),
-      ps: R2.partSize(size, BG_PS), ok: 0, at: (deps.now || Date.now)(), by: 'phone', uid };
+      ps: bgPartSize(size), ok: 0, at: (deps.now || Date.now)(), by: 'phone', uid };
     m = missingOf(r, []);
   }
   if (r.ps > BG_PART_MAX || m.miss.length > BG_MAX_PARTS) return { res: { ok: false, error: 'no_bg' }, rec: normRec(r) };
@@ -215,4 +219,4 @@ async function purgeFolder(c, deps, { uid, folder, recs }) {
 }
 
 module.exports = { isFolder, isId, folderOfId, inFolder, folderFor, newId, keyOf, normRec, missingOf, upStart, upParts, upDone, upBg, bgDone, fileIn, getUrl, delFile,
-  purgeFolder, URLS_PER_CALL, MAX, BG_PS, BG_PART_MAX, BG_TTL, BG_MAX_PARTS };
+  purgeFolder, URLS_PER_CALL, MAX, BG_PS, BG_STEPS, bgPartSize, BG_PART_MAX, BG_TTL, BG_MAX_PARTS };
