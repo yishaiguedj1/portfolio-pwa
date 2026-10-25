@@ -134,6 +134,11 @@ def patch_line(s: str) -> str:
 
 
 def valid_patch(edit_text: str, patch_text: str) -> tuple[list[str], list[str]]:
+    ok, dropped, _cur = _valid_patch(edit_text, patch_text)
+    return ok, dropped
+
+
+def _valid_patch(edit_text: str, patch_text: str) -> tuple[list[str], list[str], str]:
     """שורות `ישן => חדש` שאפשר להחיל בבטחה (vt apply_patch: הישן מופיע בדיוק פעם אחת, בשורה אחת), לפי הסדר.
     21/10/2026 (יומני הייצור: "0 תיקונים — נזרקו 59 שלא התאימו לתמליל" — ההגהה שולמה ולא שינתה כלום): תיקון שהישן שלו
     (1) שונה רק ברווחים / במירכאות מעוגלות — נמצא את המופע היחיד ונכתב בדיוק כמו בתמליל; (2) מילה/ביטוי שלם שמופיע כמה
@@ -192,7 +197,78 @@ def valid_patch(edit_text: str, patch_text: str) -> tuple[list[str], list[str]]:
             dropped.append('nl: ' + old[:60] + f' ({done}/{len(ms)})')
             continue
         dropped.append('amb: ' + old[:60] + f' ({n})')
-    return ok, dropped
+    return ok, dropped, cur
+
+
+# 25/10/2026 (ניתוח האיכות): בתמליל ארוך ההגהה בבקשה אחת כותבת מעט תיקונים — 1–2 לכל 1,000 מילים, מול 6–13 בתמליל
+# קצר (20 עבודות בקורפוס), וטעויות שמיעה באמצע ובסוף הראיון הגיעו לתרגום כמו שהן. מעל PROOF_SPLIT_WORDS — מעבר נוסף
+# של תיקוני שמיעה בלבד, בחלקים של כ־PROOF_PART_WORDS מילים, במקביל, אחרי ההגהה הראשית (עם התדריך והמילון שלה).
+PROOF_SPLIT_WORDS = int(os.environ.get('SNB_PROOF_SPLIT', '4000'))
+PROOF_PART_WORDS = 2500
+PROOF_PAR = 4
+
+
+def proof_chunks(text: str, size: int = PROOF_PART_WORDS) -> list[tuple[int, int]]:
+    """[(התחלה, סוף)] של חלקים בגבולות שורה, כ־size מילים בכל אחד. שורות ההערה (#) בראש הקובץ — לא בחלק."""
+    out, start, words, pos = [], None, 0, 0
+    for line in text.splitlines(keepends=True):
+        if start is None and (line.startswith('#') or not line.strip()):
+            pos += len(line)
+            continue
+        if start is None:
+            start = pos
+        words += len(line.split())
+        pos += len(line)
+        if words >= size:
+            out.append((start, pos))
+            start, words = None, 0
+    if start is not None and pos > start:
+        if out and words < size // 3:              # שארית קטנה — מצטרפת לחלק האחרון
+            out[-1] = (out[-1][0], pos)
+        else:
+            out.append((start, pos))
+    return out
+
+
+def valid_patch_part(cur: str, patch_text: str, lo: int, hi: int) -> tuple[str, list[str], list[str]]:
+    """כמו valid_patch, לתיקונים שנכתבו על חלק [lo, hi) של התמליל: הישן נחפש רק בחלק (מופע אחד בדיוק), ואז מורחב
+    בהקשר עד שהוא ייחודי בכל הקובץ — כי vt apply_patch בודק ייחודיות בכל התמליל. מה שההגהה הראשית כבר תיקנה (החדש
+    כבר שם, הישן לא) — בשקט. מחזיר (התמליל אחרי התיקונים, שורות תקינות, הערות על מה שנזרק)."""
+    ok, dropped = [], []
+    for line in patch_text.splitlines():
+        s = line.rstrip()
+        if not s.strip() or s.lstrip().startswith('#') or s.startswith('```'):
+            continue
+        s = patch_line(s)
+        if ' => ' not in s:
+            dropped.append('bad: ' + s[:60])
+            continue
+        old, new = (_unwrap(x) for x in s.split(' => ', 1))
+        if not old or old == new:
+            continue
+        reg = cur[lo:hi]
+        ms = [(m.start() + lo, m.end() + lo) for m in re.finditer(re.escape(old), reg)]
+        if not ms:
+            toks = old.translate(_QUOTES).split()
+            pat = re.compile(r'[ \t]+'.join(re.escape(t) for t in toks)) if toks else None
+            ms = [(m.start() + lo, m.end() + lo) for m in pat.finditer(reg.translate(_QUOTES))] if pat else []
+        if len(ms) != 1:
+            if not ms and new.strip() and _wb(new.replace('\\n', '\n')).search(reg):
+                continue
+            dropped.append(('amb: ' if ms else 'nf: ') + old[:60])
+            continue
+        a, b = ms[0]
+        sp = _unique_span(cur, a, b)
+        if sp is None or '\n' in cur[sp[0]:sp[1]]:
+            dropped.append('amb: ' + old[:60])
+            continue
+        x, y = sp
+        new_ctx = cur[x:a] + new + cur[b:y]
+        ok.append(cur[x:y] + ' => ' + new_ctx)
+        new_txt = new_ctx.replace('\\n', '\n')
+        cur = cur[:x] + new_txt + cur[y:]
+        hi += len(new_txt) - (y - x)
+    return cur, ok, dropped
 
 
 def clean_glossary(text: str) -> str:
@@ -352,8 +428,8 @@ def answer_lines(text: str, allowed: set[str]) -> dict[str, str]:
 # הסיווג לפי הקוד — הודעה חדשה בבודק לא משנה בשקט את העדיפות שלה (כך "אותיות לועזיות" עם המילה "מונח" דחקה את חריגות
 # הקצב, והודעת ההזזה לא נשלחה לתיקון בכלל). בלי קוד (vt ישן / נקודת שמירה ישנה) — לפי המילים, כמו עד היום.
 CODE_HARD = frozenset(('id', 'miss', 'eq', 'drift', 'spk', 'len', 'dlg', 'brk', 'nikud', 'dash', 'tag', 'part'))
-CODE_SOFT = frozenset(('num', 'gls', 'lat', 'name', 'q', 'short', 'cps', 'cur'))
-CODE_RANK = {'num': 0, 'gls': 1, 'lat': 1, 'name': 1, 'q': 2, 'short': 3, 'cps': 4, 'cur': 5}
+CODE_SOFT = frozenset(('num', 'gls', 'lat', 'name', 'q', 'hdg', 'short', 'cps', 'cur'))
+CODE_RANK = {'num': 0, 'gls': 1, 'lat': 1, 'name': 1, 'q': 2, 'hdg': 2, 'short': 3, 'cps': 4, 'cur': 5}
 _CODE_RE = re.compile(r'^\[([a-z]+)\] ')
 
 
@@ -490,7 +566,8 @@ PROOF_TASK = """המשימה: הגהה של תמליל אנגלי אוטומטי
 תיקוני הגהה בלבד, שורה לכל תיקון: `טקסט ישן => טקסט חדש`. הטקסט הישן מועתק מהתמליל בדיוק ומופיע בו פעם אחת
 (האריכו אותו אם צריך). מתקנים: שמות, מספרים, מונחים שנקטעו, מילים שנשמעו לא נכון, תוויות דובר [S1]/[S2] שגויות.
 גם מילה תקינה שלא מתאימה להקשר היא כנראה טעות שמיעה ("test" בקטע על טעם = taste, "the guts and the machine" = of the machine).
-`\\n` בטקסט החדש = שורה חדשה (למשל החלפת דובר). לא כותבים מחדש את התמליל ולא משנים סגנון.
+`\\n` בטקסט החדש = שורה חדשה (למשל החלפת דובר). לא כותבים מחדש את התמליל ולא משנים סגנון, ולא מוחקים מה שנאמר
+(הסתייגות כמו I think / maybe / probably נשארת). עוברים על כל התמליל עד סופו — טעות בסוף חשובה כמו בהתחלה.
 
 === BRIEF ===
 התדריך למתרגם, לפי התבנית המצורפת (מלא, בעברית): נושא, דוברים (שם בכתיב עברי מקובל, תפקיד, מגדר, משלב),
@@ -510,6 +587,15 @@ PROOF_TASK = """המשימה: הגהה של תמליל אנגלי אוטומטי
 === QUESTIONS ===
 מערך JSON של לכל היותר 2 שאלות למשתמש, רק ספק אמיתי שאי אפשר להכריע מהתמליל (כתיב שם של דובר, מגדר של דובר):
 [{"q": "שאלה קצרה", "opts": ["אפשרות", "אפשרות"], "default": 0}]. אין ספק כזה — כותבים [] בלבד."""
+
+PROOF_PART_TASK = """המשימה: הגהה של קטע אחד מתמליל אנגלי אוטומטי ארוך — רק טעויות שמיעה. התדריך והמילון כבר נכתבו מכל הראיון.
+התשובה: רק שורות תיקון, שורה לכל תיקון: `טקסט ישן => טקסט חדש`. הטקסט הישן מועתק מהקטע בדיוק ומופיע בו פעם אחת
+(האריכו אותו אם צריך). אין מה לתקן — תשובה ריקה.
+מתקנים: שמות ומונחים לפי המילון והתדריך, מספרים, מילים שנשמעו לא נכון — גם מילה תקינה שלא מתאימה להקשר
+("test" בקטע על טעם = taste, "the guts and the machine" = of the machine), תוויות דובר [S1]/[S2] שגויות.
+עוברים על כל הקטע עד סופו — טעות בסוף חשובה כמו בהתחלה.
+לא כותבים מחדש, לא משנים סגנון ולא מוחקים מה שנאמר: הסתייגות (I think, maybe, probably), מילת מילוי ומשפט שנקטע
+נשארים — מתקנים רק מה שהתמלול שמע לא נכון. ספק — לא מתקנים."""
 
 SUBS_TASK = """המשימה: הכנה לתרגום של קובץ כתוביות אנגלי קיים (נכתב בידי אדם — לא תמלול אוטומטי, לא מגיהים אותו).
 כתוב שלושה מקטעים, כל אחד אחרי שורת סימון משלו:
@@ -543,6 +629,9 @@ TL_TASK = """אתה מתרגם מקצועי של כתוביות מאנגלית �
   שם שלא בטוחים בו — בתעתיק המקובל בעברית.
 - כשהמקור תמלול אוטומטי (לא קובץ כתוביות שכתב אדם): מילה שלא מסתדרת בהקשר נשמעה כנראה לא נכון — מתרגמים את מה שנאמר באמת, לא את הטעות.
 - כתובית של שני דוברים: כל דובר מקבל תרגום — שאלה קצרה לא נבלעת; מקצרים את התשובה.
+- הסתייגות היא חלק מהמשמעות: "maybe", "probably", "might", "I think", "I guess", "about/around + מספר" — נשארת בתרגום
+  (אולי, כנראה, לדעתי, בערך, כ־3). בלעדיה השערה נשמעת כמו עובדה. כשמקצרים — מקצרים משהו אחר.
+  "kind of", "sort of", "you know", "like" כמילת מילוי — מותר להשמיט.
 - כתיב מלא, בלי שום ניקוד (הבדיקה פוסלת תווי ניקוד). מילה דו־משמעית — מנסחים מחדש במקום לנקד.
 - שומרים על התדריך: אותו קול, אותה פנייה ואותם שמות לאורך כל הראיון."""
 
@@ -550,7 +639,8 @@ FIX_TASK = """תיקון כתוביות שבדיקה אוטומטית סימנה
 כשזה הפתרון הנכון). בעיה מסוג "חייב" — חובה לפתור; הערה מסוג "לשקול" — מתקנים רק אם זה משפר בלי לפגוע במשמעות,
 ואם לא — מחזירים את הנוסח הקיים כמו שהוא. לא כותבים כתוביות שלא ברשימה.
 `לפני:` / `אחרי:` = הכתוביות השכנות על המסך — רק להקשר (משפט שנמשך, מי מדבר); לא מתקנים אותן.
-שם, מותג או ראשי תיבות שמקובלים בעברית באותיות לטיניות (AI, Netflix) — משאירים; לא מתרגמים רק כדי שתהיה עברית."""
+שם, מותג או ראשי תיבות שמקובלים בעברית באותיות לטיניות (AI, Netflix) — משאירים; לא מתרגמים רק כדי שתהיה עברית.
+כשמקצרים — לא משמיטים הסתייגות (אולי, כנראה, לדעתי, בערך): היא חלק מהמשמעות. הערה "הסתייגות" — מחזירים אותה במילה אחת."""
 
 # 25/10/2026 (ניתוח האיכות של session_01UZAW): התיקון האחרון ביטל שינויים של הביקורת ("הייתה אמורה לאסוף" → "אספה")
 ZF_NOTE = """הכתוביות שמסומנות "הביקורת שינתה" — העורך כבר בדק אותן בהקשר. לא מחזירים לנוסח שלפני הביקורת;
@@ -561,7 +651,7 @@ ZF_NOTE = """הכתוביות שמסומנות "הביקורת שינתה" — �
 QC_TASK = """תיקון כתוביות שהבקרה על המסך (אחרי התזמון) מצאה: מהירות מדי לקריאה, או ארוכות משתי שורות.
 לכל כתובית ברשימה: שורה אחת `#מספר טקסט` — נוסח מקוצר שנכנס בתקציב `≤N` (תווים כולל רווחים), בלי לאבד משמעות.
 לא `=` ולא `∅` (התזמון כבר נקבע). `לפני:` / `אחרי:` = הכתוביות השכנות — רק להקשר. כתובית שאי אפשר לקצר בלי לפגוע
-במשמעות — מחזירים את הנוסח הקיים כמו שהוא."""
+במשמעות — מחזירים את הנוסח הקיים כמו שהוא. הסתייגות (אולי, כנראה, לדעתי, בערך) נשארת — מקצרים משהו אחר."""
 QC_CPS = 17.0                         # היעד בתקציב (כמו cps_max של vt); השגיאה מעל 20
 QC_KINDS = ('קצב קריאה', 'שורה של', 'רחבה מהמסך', 'שורות')   # מה שמתקנים בטקסט (חפיפה / מרווח / משך — בתזמון, לא כאן)
 _QC_ERR_RE = re.compile(r'^- #(\d+) `[^`]*`: (.*)$')
@@ -578,7 +668,8 @@ gram (דקדוק / מגדר) · flu (עברית לא טבעית) · term (מונ
 
 RV_TASK = """אתה עורך כתוביות בכיר שבודק תרגום מאנגלית לעברית בהקשר נקי.
 רק בעיות אמיתיות: משמעות שגויה או חסרה, עברית לא טבעית, מונח לא עקבי, מספר/שם שגוי, שבירת שורה פוגעת,
-טעות שמיעה בתמליל שתורגמה מילולית (מילה שלא מסתדרת בהקשר), שאלה של דובר שנבלעה,
+טעות שמיעה בתמליל שתורגמה מילולית (מילה שלא מסתדרת בהקשר — מתרגמים את מה שנאמר באמת), שאלה של דובר שנבלעה,
+הסתייגות שנשמטה ("maybe", "probably", "I think", "about 50" — בלעדיה השערה הופכת לעובדה),
 ומגדר לא עקבי — פנייה ונטיות של כל דובר ונמען לפי טבלת הדוברים בתדריך, לאורך כל הראיון.
 לא טעם אישי ולא ניסוח מחדש של מה שתקין.
 התשובה: שורה לכל כתובית שמתקנים, `#מספר טקסט מתוקן` (דורס את התרגום), ולא שום דבר אחר. אין מה לתקן — תשובה ריקה.
@@ -654,14 +745,16 @@ class Pipeline:
         res = self.eng.complete('main', fixed, prompt, max_tokens=64000)   # נקטעה — complete מנסה פעם אחת בתקרת המודל
         self.save_usage()
         sec = split_sections(res.text)
-        ok, dropped = valid_patch(edit, sec.get('PATCH', ''))
-        if ok:
-            (self.pd / 'en.patch.txt').write_text('\n'.join(ok) + '\n', encoding='utf-8')
+        ok, dropped, cur = _valid_patch(edit, sec.get('PATCH', ''))
         td = self.pd / 'tr'
         td.mkdir(parents=True, exist_ok=True)
         if sec.get('BRIEF', '').strip():
             (td / 'brief.md').write_text(sec['BRIEF'].strip() + '\n', encoding='utf-8')
         gl = write_glossary(td, sec.get('GLOSSARY', ''), ctx.st.get('spec'))
+        if len(edit.split()) > PROOF_SPLIT_WORDS and not getattr(self.eng, 'manual', False):
+            ok += self.proof_parts(fixed, cur, sec.get('BRIEF', ''), gl, terms)
+        if ok:
+            (self.pd / 'en.patch.txt').write_text('\n'.join(ok) + '\n', encoding='utf-8')
         why = {}
         for d in dropped:
             why[d.split(':', 1)[0]] = why.get(d.split(':', 1)[0], 0) + 1
@@ -670,6 +763,48 @@ class Pipeline:
         if dropped and not ok:                    # כולם נזרקו — שתי דוגמאות קצרות ליומן (לאבחון הפורמט, בלי כל התמליל)
             print('· דוגמאות שנזרקו: ' + ' | '.join(repr(d[:48]) for d in dropped[:2]))
         return parse_questions(sec.get('QUESTIONS', ''))
+
+    def proof_parts(self, fixed: str, cur: str, brief: str, gl: str, terms: str) -> list[str]:
+        """המעבר הנוסף בחלקים (PROOF_PART_TASK) על התמליל אחרי ההגהה הראשית. כל חלק בבקשה משלו, במקביל; חלק שנכשל —
+        מדלגים עליו (ההגהה הראשית כבר שם). fixed = הבלוק הקבוע של ההגהה הראשית — כבר במטמון, כל החלקים קוראים ממנו;
+        המשימה של החלק אחרי נקודת המטמון (system_extra). מחזיר שורות תיקון נוספות, לפי הסדר שבו vt יחיל אותן."""
+        spans = proof_chunks(cur)
+        if len(spans) < 2:
+            return []
+        head = '\n\n'.join(x for x in [block('user_terms', terms) if terms else '',
+                                        block('brief', brief) if brief.strip() else '',
+                                        block('glossary', gl) if gl else ''] if x)
+        n = len(spans)
+
+        def one(i):
+            a, b = spans[i]
+            prompt = '\n\n'.join(x for x in [head, block('transcript_part', f'(חלק {i + 1} מתוך {n})\n' + cur[a:b])] if x)
+            try:
+                return self.eng.complete('main', fixed, prompt, max_tokens=32000, system_extra=PROOF_PART_TASK,
+                                         partial_ok=True)
+            except llm.LLMError as e:
+                print(f'· הגהה בחלקים: חלק {i + 1} נכשל ({e.code}) — ממשיכים בלעדיו')
+                return None
+
+        with ThreadPoolExecutor(max_workers=min(PROOF_PAR, n)) as ex:
+            res = list(ex.map(one, range(n)))
+        self.save_usage()
+        ok, dropped = [], []
+        for i in reversed(range(n)):          # מהסוף — המיקומים של החלקים שלפני לא זזים
+            if res[i] is None:
+                continue
+            a, b = spans[i]
+            txt = kept_text(res[i])
+            txt = split_sections(txt).get('PATCH', txt) if '=== PATCH ===' in txt else txt   # כתב את כל המקטעים
+            cur, ok_i, dr_i = valid_patch_part(cur, txt, a, b)
+            ok += ok_i
+            dropped += dr_i
+        why = {}
+        for d in dropped:
+            why[d.split(':', 1)[0]] = why.get(d.split(':', 1)[0], 0) + 1
+        print(f'✓ הגהה בחלקים: +{len(ok)} תיקונים מ־{n} חלקים'
+              + (' (נזרקו ' + ', '.join(f'{k} {v}' for k, v in sorted(why.items())) + ')' if dropped else ''))
+        return ok
 
     def brief_subs(self) -> list[dict]:
         """22/10/2026: קובץ כתוביות קיים — במקום ההגהה: תדריך (דמויות, מגדר, מי פונה למי), מילון ושאלות. בלי PATCH:
