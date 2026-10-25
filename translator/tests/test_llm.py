@@ -268,7 +268,7 @@ class AnthropicTests(unittest.TestCase):
         self.assertEqual(sorted(llm.MODES), ['haiku-high', 'haiku-medium', 'opus-medium', 'sonnet-high', 'sonnet-low', 'sonnet-medium'])
         self.assertEqual((llm.Spec.of('sonnet-low').model, llm.Spec.of('sonnet-low').effort), ('claude-sonnet-5-5', 'low'))
         self.assertEqual((llm.Spec.of('haiku-medium').model, llm.Spec.of('haiku-medium').effort), ('claude-haiku-5-5', 'medium'))
-        self.assertEqual(llm.DEFAULT_MODE, 'haiku-high')
+        self.assertEqual(llm.DEFAULT_MODE, 'haiku-medium')   # 25/10/2026: "רגיל" = Haiku Medium
         self.assertEqual((llm.Spec.of('haiku-high').model, llm.Spec.of('haiku-high').effort), ('claude-haiku-5-5', 'high'))
         for old in ('opus-high', 'opus-max'):
             self.assertEqual((llm.Spec.of(old).model, llm.Spec.of(old).effort), ('claude-opus-5-5', 'medium'))

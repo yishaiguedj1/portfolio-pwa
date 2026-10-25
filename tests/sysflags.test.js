@@ -92,7 +92,7 @@ const { fakeR2, ACC } = require('./_r2fake');
   const api = (op, b) => call(Object.assign({}, b, { op, idToken: OWNER })).then((r) => r.j);
   const other = (op, b) => call(Object.assign({}, b, { op, idToken: OTHER })).then((r) => r.j);
   const raw = (op, b, who) => call(Object.assign({}, b, { op, idToken: who || OWNER }));
-  const spec = { name: 'lecture.mp4', size: 1000, type: 'video/mp4', dur: 600, from: 'en', to: ['he'], mode: 'sonnet-medium', out: ['srt'] };
+  const spec = { name: 'lecture.mp4', size: 1000, type: 'video/mp4', dur: 600, from: 'en', to: ['he'], mode: 'haiku-high', out: ['srt'] };
   const newJob = async () => {
     const j = await api('create', { spec });
     const id = j.job.id, key = crypto.randomBytes(32).toString('base64url');
@@ -123,7 +123,7 @@ const { fakeR2, ACC } = require('./_r2fake');
   NOW += 3601e3; R.now = NOW;
   studio._reset();
   ok((await call({ op: 'cfg' })).j.cfg.m === null, 'אחרי הזמן — נגמרת לבד');
-  c = await other('create', { spec });
+  c = await other('create', { spec: Object.assign({}, spec, { eng: 'api', cap: 3 }) });   // 25/10/2026: למשתמשים רק השרת של המערכת
   ok(c.ok, 'ואחריה אפשר ליצור שוב');
 
   /* דגלים */
@@ -166,7 +166,12 @@ const { fakeR2, ACC } = require('./_r2fake');
     const cu = await tst('create', { spec: Object.assign({}, spec, { mode: 'haiku-high', src: 'url', url: 'https://vimeo.com/76979871', type: 'video/url', eng: 'api' }) });
     ok(cu.j.error !== 'not_allowed', 'חשבון בדיקה: עבודה מקישור — לא נחסמת בהרשאה');
     ok((await tst('create', { spec: Object.assign({}, spec, { mode: 'opus-medium' }) })).j.error === 'mode_locked', 'חשבון בדיקה: מצב נעול — נחסם');
-    ok((await tst('create', { spec: Object.assign({}, spec, { mode: 'haiku-high' }) })).j.ok, 'חשבון בדיקה: "רגיל" — עובד');
+    ok((await tst('create', { spec: Object.assign({}, spec, { mode: 'haiku-medium', eng: 'api', cap: 3 }) })).j.ok, 'חשבון בדיקה: "רגיל" בשרת של המערכת — עובד');
+    // 25/10/2026 (בקשת המשתמש): למשתמשים רק השרת של המערכת — המנוי (Routine / ry) והעתק־הדבק נחסמים, גם בהתחלה של עבודה ישנה
+    ok((await tst('create', { spec: Object.assign({}, spec, { mode: 'haiku-medium' }) })).j.error === 'eng_locked', 'חשבון בדיקה: Routine — נחסם (eng_locked)');
+    ok((await tst('create', { spec: Object.assign({}, spec, { mode: 'haiku-medium', eng: 'api', cap: 3, ry: 1 }) })).j.error === 'eng_locked', 'חשבון בדיקה: המנוי דרך השרת (ry) — נחסם');
+    ok((await tst('create', { spec: Object.assign({}, spec, { mode: 'haiku-medium', eng: 'api', cap: 3, cp: 1 }) })).j.error === 'eng_locked', 'חשבון בדיקה: העתק־הדבק — נחסם');
+    ok((await api('create', { spec: Object.assign({}, spec, { mode: 'haiku-medium' }) })).ok, 'המנהל — כל המנועים (Routine) עדיין פתוחים');
     const us = await api('adminUsers', {});
     ok(us.ok && us.users.st.ts.join() === 'tester@example.com', 'במשתמשים והרשאות — הרשימה מוצגת');
     await api('adminCfg', { set: { ts: 'tester@example.com', on: false } });
