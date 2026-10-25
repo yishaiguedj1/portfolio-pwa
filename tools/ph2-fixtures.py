@@ -110,6 +110,35 @@ hseg = [(0.0, 3.2)]   # דיבור רק בשני המרווחים הראשוני
 htot = round(hst[-1] + P.WORD_S + 0.5, 3)
 fx['holes2'] = {'words': hw, 'segs': hseg, 'total': htot, 'holes': [list(h) for h in P.holes(json.loads(json.dumps(hw)), hseg, htot)]}
 
+# --- 25/10/2026: חלון בלי פיסוק (flat) ותמלול חוזר בחלונות קצרים (unflatten) ---
+def _fw(text, s0=0.0):
+    return [{'w': w, 's': round(s0 + 0.3 * i, 3), 'e': round(s0 + 0.3 * i + 0.25, 3), 'spk': None, 'conf': None}
+            for i, w in enumerate(text.split())]
+_F = ('so i think it shaped us it was a time when we all had to work and my mother had to become a salesperson to make some '
+      'money and she did it all herself and she really stepped up and we learned from her that you do what you have to do')
+_G = ('So I think it shaped us. It was a time when we all had to work, and my mother had to become a salesperson to make some '
+      'money. And she did it all herself. She really stepped up, and we learned from her that you do what you have to do.')
+_cases = [_fw(_F), _fw(_G), _fw(_F)[:39], _fw(_F.replace(' i ', ' I ')), _fw(_G.lower().replace(' i ', ' I ')),
+          _fw(_F.replace('work and', 'work, and').replace('money and', 'money, and').replace('herself and', 'herself, and')),
+          _fw(_F.replace(' i ', " i'm "))]
+fx['flat'] = {'cases': _cases, 'flat': [P.flat(json.loads(json.dumps(c))) for c in _cases],
+              'shape': [list(P._shape(c)) for c in _cases]}
+_ch = [(0, 16000 * 40), (16000 * 40, 16000 * 80), (16000 * 80, 16000 * 120)]
+_sg = [(0, 16000 * 18), (16000 * 19, 16000 * 39), (16000 * 40, 16000 * 79), (16000 * 80, 16000 * 119)]
+_parts = [_fw(_F), _fw(_G, 40.0), _fw(_F, 80.0)]
+_ucalls = []
+def _urecog(a, b):
+    g = _G.split() if a < 16000 * 80 else _G.split()[:20]          # השלישי — מילים חסרות: לא מחליפים
+    t0 = 80.0 if a >= 16000 * 80 else 0.0                          # המילה i נאמרה ב־t0 + 0.3i
+    out = [{'w': g[i], 's': round(t0 + 0.3 * i, 3), 'e': round(t0 + 0.3 * i + 0.25, 3), 'spk': None, 'conf': None}
+           for i in range(len(g)) if a / 16000 <= t0 + 0.3 * i < b / 16000]
+    _ucalls.append({'a': a, 'b': b, 'w': out})
+    return json.loads(json.dumps(out))
+_before = json.loads(json.dumps(_parts))
+_nu = P.unflatten(_parts, _ch, _sg, 16000 * 120, 16000, _urecog)
+fx['unflat'] = {'parts': _before, 'chunks': [list(c) for c in _ch], 'segs': [list(c) for c in _sg], 'n': 16000 * 120,
+                'calls': _ucalls, 'done': _nu, 'out': _parts}
+
 # --- טוקנייזר קטן באותה צורה של Qwen2 (byte-level BPE, הביטוי של Qwen2, NFC, טוקנים שנוספו) ---
 from tokenizers import Tokenizer, models, pre_tokenizers, normalizers, trainers, Regex
 PAT = r"""(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+"""
