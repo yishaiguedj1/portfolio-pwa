@@ -76,6 +76,11 @@ assert.strictEqual(fs.items[1].used, 100);
   assert.strictEqual(ps.st, 'ok');
   assert.deepStrictEqual(ps.b, [{ name: 'snb-studio', gb: 2.505, n: 1234 }, { name: 'snb-learn', gb: 1, n: 10 }]);
   assert.deepStrictEqual(U.parseStore({ data: { viewer: { accounts: [{ p0: [], e0: [] }] } } }, ['x-y']).b, [], 'דלי בלי נתון — לא מומצא');
+  // 25/10/2026: שורת 0 בשם הרגיל לא מסתירה את הדלי ב־EU, ונקודה עדכנית של 0 לא מסתירה את הנתון שלפניה
+  const z = U.parseStore({ data: { viewer: { accounts: [{ p0: [{ max: { payloadSize: 0, objectCount: 0 } }], e0: [{ max: { payloadSize: 0, objectCount: 0 } }, { max: { payloadSize: 41.7e9, objectCount: 900 } }] }] } } }, ['snb-studio']);
+  assert.deepStrictEqual(z.b, [{ name: 'snb-studio', gb: 41.7, n: 900 }]);
+  assert.deepStrictEqual(U.parseStore({ data: { viewer: { accounts: [{ p0: [], e0: [{ max: { payloadSize: 0, objectCount: 0 } }, { max: { payloadSize: 0, objectCount: 0 } }] }] } } }, ['x-y']).b, [{ name: 'x-y', gb: 0, n: 0 }], 'דלי ריק באמת — 0');
+  assert.ok(U.storeQuery(['snb-studio']).includes('limit:24,'), 'כמה נקודות לכל דלי');
   assert.strictEqual(U.parseStore({}, ['a-b']).err, 'shape');
   assert.deepStrictEqual(U.parseDrive({ storageQuota: { usage: '3200000000', limit: '15000000000' } }), { st: 'ok', gb: 3.2, lim: 15 });
   assert.strictEqual(U.parseDrive({}).st, 'err');

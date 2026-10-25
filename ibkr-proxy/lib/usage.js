@@ -132,6 +132,7 @@ async function firestoreUsage(env, f, now) {
    באותה בקשה ולוקחים את מי שענה. הכמות החינמית (10GB) משותפת לכל הדליים בחשבון. */
 const BUCKET_RE = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
 const STO_GAP = 55 * 60e3;   // מדידת האחסון לכל היותר פעם בשעה
+const STO_PTS = 24;          // נקודות אחרונות לכל דלי (Cloudflare מודד בערך פעם בשעה)
 function r2Buckets(env) {
   const out = [];
   const add = (b) => { b = String(b || '').trim(); if (BUCKET_RE.test(b) && !out.includes(b)) out.push(b); };
@@ -140,7 +141,8 @@ function r2Buckets(env) {
   return out.slice(0, 8);
 }
 function storeQuery(bs) {
-  const one = (al, name) => al + ':r2StorageAdaptiveGroups(limit:1,filter:{datetime_geq:$s,datetime_leq:$e,bucketName:"' + name + '"},' +
+  // 25/10/2026: כמה נקודות אחרונות, לא אחת — Cloudflare מחזיר לפעמים נקודה עדכנית של 0 (סטודיו "0 MB" כשבדלי 41GB)
+  const one = (al, name) => al + ':r2StorageAdaptiveGroups(limit:' + STO_PTS + ',filter:{datetime_geq:$s,datetime_leq:$e,bucketName:"' + name + '"},' +
     'orderBy:[datetime_DESC]){max{payloadSize metadataSize objectCount} dimensions{datetime}}';
   return 'query($a:string!,$s:Time,$e:Time){viewer{accounts(filter:{accountTag:$a}){' +
     bs.map((b, i) => one('p' + i, b) + ' ' + one('e' + i, 'eu_' + b)).join(' ') + '}}}';
@@ -150,10 +152,17 @@ function parseStore(j, bs) {
   if (!acc) return { st: 'err', err: 'shape', b: [] };
   const b = [];
   bs.forEach((name, i) => {
-    const g = ((acc['p' + i] || [])[0] || (acc['e' + i] || [])[0] || {}).max;
-    if (!g || g.payloadSize == null) return;
-    const bytes = +g.payloadSize + (+g.metadataSize || 0);
-    b.push({ name, gb: Math.round(bytes / GB * 1000) / 1000, n: Number.isFinite(+g.objectCount) ? +g.objectCount : null });
+    // 25/10/2026: הגדול מבין השם הרגיל ו־eu_ (עד היום — הראשון שענה, ושורה של 0 בשם הרגיל הסתירה את הדלי ב־EU),
+    // ובכל אחד הנקודה העדכנית שיש בה נתון (נקודת 0 באמצע רצף = תקלה במדידה של Cloudflare; דלי שהתרוקן באמת — כולן 0)
+    let best = null;
+    for (const rows of [acc['p' + i], acc['e' + i]]) {
+      const pts = (rows || []).map((r) => r && r.max).filter((m) => m && m.payloadSize != null);
+      const m = pts.find((x) => +x.payloadSize > 0) || pts[0];
+      if (m && (!best || +m.payloadSize > +best.payloadSize)) best = m;
+    }
+    if (!best) return;
+    const bytes = +best.payloadSize + (+best.metadataSize || 0);
+    b.push({ name, gb: Math.round(bytes / GB * 1000) / 1000, n: Number.isFinite(+best.objectCount) ? +best.objectCount : null });
   });
   return { st: 'ok', b };
 }
