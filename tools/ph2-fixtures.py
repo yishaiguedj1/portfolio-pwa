@@ -102,6 +102,13 @@ def recog(a, b):
 before = json.loads(json.dumps(words))
 nres = P.rescue(words, found, recog, total)
 fx['rescue'] = {'words': before, 'segs': vsegs, 'total': total, 'holes': [list(h) for h in found], 'calls': calls, 'n': nres, 'out': words}
+# 25/10/2026: מרווחים סביב הספים (HOLE_S 0.9, ‏QUIET_S 1.8; החור מתחיל WORD_S אחרי תחילת המילה) — בדיבור: 0.8 (לא),
+# 1.0 (כן); בשקט: 1.7 (לא), 2.0 (כן); בסוף 0.5 (לא)
+hst = [0.0, 1.4, 3.0, 5.3, 7.9]
+hw = [{'w': 'x', 's': x, 'e': round(x + 0.3, 3)} for x in hst]
+hseg = [(0.0, 3.2)]   # דיבור רק בשני המרווחים הראשונים
+htot = round(hst[-1] + P.WORD_S + 0.5, 3)
+fx['holes2'] = {'words': hw, 'segs': hseg, 'total': htot, 'holes': [list(h) for h in P.holes(json.loads(json.dumps(hw)), hseg, htot)]}
 
 # --- טוקנייזר קטן באותה צורה של Qwen2 (byte-level BPE, הביטוי של Qwen2, NFC, טוקנים שנוספו) ---
 from tokenizers import Tokenizer, models, pre_tokenizers, normalizers, trainers, Regex

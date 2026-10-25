@@ -68,10 +68,10 @@ def tokens_to_words(tokens: list[str], ts: list[float], offset: float, chunk_end
     return [w for w in words if w["w"] and w["w"] not in {",", "."}]
 
 
-HOLE_S = 1.2      # דיבור (לפי Silero) בלי אף מילה — חור
+HOLE_S = 0.9      # דיבור (לפי Silero) בלי אף מילה — חור (25/10/2026: 1.2→0.9 — עוד משפט לפרק בניסוי, בלי מילים מומצאות)
 HOLE_PAD = 2.0    # שוליים לחלון התמלול החוזר
 WORD_S = 0.6      # כמה זמן "תופסת" מילה כשאין לה סוף אמיתי
-QUIET_S = 2.5     # גם "שקט" ארוך: Silero מפספס דיבור ברעש (מסוק, רחוב — Undercover, ~70 מילים לפרק)
+QUIET_S = 1.8     # (25/10/2026: 2.5→1.8) גם "שקט" ארוך: Silero מפספס דיבור ברעש (מסוק, רחוב — Undercover, ~70 מילים לפרק)
 PIECE_S = 28.0    # חור ארוך מתומלל בחלקים
 
 
