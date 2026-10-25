@@ -300,5 +300,22 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(/fun codeOf\(e: Throwable\)/.test(work) && /"x_" \+ e\.javaClass\.simpleName/.test(work) && (work.match(/val code = codeOf\(e\)/g) || []).length === 2, 'כשל לא צפוי מדווח עם סוג החריגה (x_…), לא "fail"');
   ok(/rec\.up\.ph && \(!rec\.srv \|\| !rec\.srv\.state \|\| rec\.srv\.state === 'new'\)/.test(src) && /T\('studioPhStopBig'\)/.test(src), 'עבודה שעוד בטלפון — בלי "הקבצים מוכנים בענן"');
 
+  // 25/10/2026 (בקשת המשתמש): הסרטון שנצרב בטלפון — בנגן שלנו, עם בחירת קול וכתוביות
+  const SP = await import('../studioplay.js');
+  ok(SP.trackLang('und') === '' && SP.trackLang('HEB') === 'heb' && SP.trackLang('en') === 'en' && SP.trackLang('x-y') === '', 'trackLang: קוד ISO בלבד, und = בלי');
+  const isT = (t) => !/ec-3|ac-3/.test(t);
+  ok(!SP.fileNeedsBridge([{ c: 'aac' }, { c: 'opus' }], 0, isT) && SP.fileNeedsBridge([{ c: 'aac' }, { c: 'opus' }], 1, isT) && SP.fileNeedsBridge([{ c: 'eac3' }], 0, isT),
+    'גשר הקול: לכל רצועה חוץ מהראשונה, ולראשונה רק כשהדפדפן לא מכיר אותה');
+  ok(SP.pickAudio([{ l: 'eng', d: true }, { l: 'heb' }], 'heb') === 1 && SP.pickAudio([{ l: 'eng' }, { l: 'heb', d: true }], '') === 1, 'הרצועה ההתחלתית: השפה שנבחרה, אחרת ברירת המחדל של הקובץ');
+  const pls = fs.readFileSync(path.join(root, 'studioplay.js'), 'utf8');
+  ok(/if \(opts\.burned\) ccB\.disabled = !hasEn\(\);/.test(pls) && /page === 't' && opts\.burned/.test(pls), 'בסרטון צרוב — כתוביות המקור באנגלית מעל (בלי עברית כפולה)');
+  ok(/opts\.localFile \|\| mode !== 'file'/.test(pls) && /if \(opts\.localFile\) fileTracks\(\);/.test(pls) && /if \(fBridge\) \{ fBridge\.destroy\(\)/.test(pls), 'קובץ מקומי: רצועות מ־Mediabunny, בלי פענוח Dolby כפול, והגשר נסגר עם הנגן');
+  const iO = src.indexOf('export const phOutName'), oName = new Function(src.slice(iO + 7, src.indexOf('\n', iO)).replace(/^const phOutName = /, 'return ').replace(/;\s*\/\/.*$/, ''))();
+  ok(oName('My Clip.mp4', false) === 'My Clip — עברית.mp4' && oName('a/b:c.mkv', true) === 'a_b_c — עברית קטן.mp4' && oName('', false) === 'video — עברית.mp4', 'שם הקובץ שנצרב = PhCore.outName');
+  ok(/const phLocal = \(rec\) =>/.test(src) && /burnedOut\(rec\) \|\| phLocal\(rec\)/.test(src) && /handleOp\('get', 'po:' \+ rec\.id\)/.test(src) && /handleOp\('del', 'po:' \+ id\)/.test(src) && /phSizeOk/.test(src),
+    'צפייה בסרטון שנצרב: ידית שמורה לכל עבודה (נמחקת עם העבודה), נבדק לפי הגודל');
+  const pcore = fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhCore.kt'), 'utf8');
+  ok(/if \(all\) "1:a" else "1:a:0"/.test(pcore) && /info, aac, !small\)/.test(work), 'הצריבה: כל רצועות הקול (לוואטסאפ — רק הראשונה)');
+
   console.log('\nכל ' + n + ' הבדיקות עברו ✓');
 })().catch((e) => { console.error(e); process.exit(1); });
