@@ -54,8 +54,8 @@ MODES = {
     'sonnet-low': ('anthropic', 'claude-sonnet-5-5', 'low'),       # 15/10/2026: לבדיקות (רק למנהל / לרשימת "כל המודלים")
     'haiku-medium': ('anthropic', 'claude-haiku-5-5', 'medium'),   # 20/10/2026: חזר לבדיקות (כמו sonnet-low)
 }
-# 15/10/2026 (בקשת המשתמש): ברירת המחדל = Haiku High ("רגיל"); Sonnet Medium = "ביצועים". = DEFAULT_MODE בשרתון ובטלפון
-DEFAULT_MODE = 'haiku-high'
+# 25/10/2026 (בקשת המשתמש): ברירת המחדל = Haiku Medium ("רגיל"); Haiku High = "ביצועים". = DEFAULT_MODE בשרתון ובטלפון
+DEFAULT_MODE = 'haiku-medium'
 # 24/10/2026 (ניסוי המאמץ, סט הזהב): מאמץ אחר לתפקיד אחד — main = ההגהה והתדריך, tl = התרגום, rv = הביקורת.
 # = XE_KEYS / XE_EFFORTS בשרתון (lib/studio.js normXe). רק בהרצות של סט הזהב — לא נבחר בטופס.
 ROLE_EFFORT_KEYS = ('main', 'tl', 'rv')

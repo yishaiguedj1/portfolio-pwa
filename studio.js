@@ -29,16 +29,20 @@ export const LS_STUDIO = 'pwa_studio_v1';
    כל השאר — רק למנהל ולמי שברשימת "כל המודלים" במרכז הניהול (ui.mf מהשרתון, שאוכף — modeOk). נוסף Sonnet Low לבדיקות */
 export const MODES = [
   { id: 'opus-medium', fam: 'opus', effort: 'Medium', q: 4, u: 5, min: 105 },
-  { id: 'sonnet-medium', fam: 'sonnet', effort: 'Medium', q: 2, u: 3, min: 85, tier: 'perf' },
+  { id: 'sonnet-medium', fam: 'sonnet', effort: 'Medium', q: 2, u: 3, min: 85 },
   { id: 'sonnet-high', fam: 'sonnet', effort: 'High', q: 3, u: 4, min: 95 },
   { id: 'sonnet-low', fam: 'sonnet', effort: 'Low', q: 1, u: 2, min: 80 },   // 15/10: עוד לא נבדק — הערכה עד שיימדד
   // Haiku: min מהמדידות — זמן קבוע (תמלול, יישור, צריבה ‎~52 דק׳ לשעה) + חלק ה־LLM (Opus ‎~53) × המהירות היחסית
-  { id: 'haiku-high', fam: 'haiku', effort: 'High', q: 1, u: 1, min: 76, tier: 'std' },
-  { id: 'haiku-medium', fam: 'haiku', effort: 'Medium', q: 1, u: 1, min: 74 },   // 20/10/2026: חזר לבדיקות (רק למנהל / לרשימת "כל המודלים")
+  { id: 'haiku-high', fam: 'haiku', effort: 'High', q: 1, u: 1, min: 76, tier: 'perf' },
+  { id: 'haiku-medium', fam: 'haiku', effort: 'Medium', q: 1, u: 1, min: 74, tier: 'std' },   // 25/10/2026: "רגיל" — ברירת המחדל
 ];
-export const DEFAULT_MODE = 'haiku-high';
-export const PUBLIC_MODES = ['haiku-high', 'sonnet-medium'];   // **= PUBLIC_MODES בשרתון** (lib/studio.js)
+// 25/10/2026 (בקשת המשתמש): "רגיל" = Haiku Medium (ברירת המחדל), "ביצועים" = Haiku High
+export const DEFAULT_MODE = 'haiku-medium';
+export const PUBLIC_MODES = ['haiku-medium', 'haiku-high'];   // **= PUBLIC_MODES בשרתון** (lib/studio.js)
 export const modeOk = (id, full) => !!full || PUBLIC_MODES.includes(id);
+/* 25/10/2026 (בקשת המשתמש): למשתמשים רק "השרת של המערכת" — המנוי שלי והעתק־הדבק רק למנהל / "כל המודלים" (ui.mf).
+   **= engOk בשרתון** — השרתון אוכף, כאן רק מה שמוצג ונשלח */
+export const connFor = (conn, full) => (full ? conn : 'api');
 /* המצב שהמשתמש יכול להשתמש בו: מצב סגור (טיוטה / הגדרה ישנה, או שהוסר מהרשימה) → ברירת המחדל */
 export const modeFor = (id, full) => { const k = modeNow(id); return modeOk(k, full) ? k : DEFAULT_MODE; };
 // מצבים שהוסרו → המצב הקיים הקרוב (= LEGACY_MODES בשרתון ובעובד): עבודה / טיוטה / חוק ישנים ממשיכים לעבוד
@@ -79,7 +83,7 @@ const HOSTS_EXTRA = ['huggingface.co', '*.huggingface.co', '*.hf.co', '*.pytorch
 
 /* ---------------- טהורות (נבדקות ב־node) ---------------- */
 export function defaultSettings() {
-  return { mode: DEFAULT_MODE, to: ['he'], out: { same: true, compact: false, mkv: false }, style: 'bold', conn: 'sub', wifi: false, cap: 10, mv: 3, pq: 'src' };   // pq: איכות הצפייה בנגן (ברירת מחדל = המקור)
+  return { mode: DEFAULT_MODE, to: ['he'], out: { same: true, compact: false, mkv: false }, style: 'bold', conn: 'sub', wifi: false, cap: 10, mv: 4, pq: 'src' };   // pq: איכות הצפייה בנגן (ברירת מחדל = המקור)
 }
 function normOut(o) {
   const d = { same: true, compact: false, mkv: false };
@@ -836,9 +840,12 @@ export function normStore(o) {
 export function migrateSettings(o) {
   const s = normSettings(o);
   const mv = o && typeof o === 'object' ? o.mv : 0;
-  if (mv !== 2 && mv !== 3 && /^opus-(medium|high|max)$/.test(o && o.mode)) s.mode = DEFAULT_MODE;   // רק Opus (Haiku Medium → High דרך modeNow)
-  if (mv !== 3 && o && o.mode === 'sonnet-medium') s.mode = DEFAULT_MODE;
-  s.mv = 3;
+  if (mv !== 2 && mv !== 3 && mv !== 4 && /^opus-(medium|high|max)$/.test(o && o.mode)) s.mode = DEFAULT_MODE;   // רק Opus
+  // 25/10/2026: "רגיל" = Haiku Medium ו"ביצועים" = Haiku High — מי שנשמר על "רגיל" הקודם (Haiku High) נשאר "רגיל", ומי שעל
+  // "ביצועים" הקודם (Sonnet Medium) נשאר "ביצועים". פעם אחת (mv 4)
+  if (mv !== 4 && o && o.mode === 'haiku-high') s.mode = DEFAULT_MODE;
+  else if (mv !== 4 && o && o.mode === 'sonnet-medium') s.mode = 'haiku-high';
+  s.mv = 4;
   return s;
 }
 /* טיוטה מהטופס: רק פרטי הקובץ (שם, גודל, סוג) — הקובץ עצמו לא נשמר */
@@ -1007,6 +1014,7 @@ function errText(code, extra) {
     case 'worker_lost': return T('studioErrLost');   // 14/10/2026   // 11/10/2026: קריסה ≠ זיכרון (ההודעה המשותפת הטעתה — PR #66)
     case 'not_admin': return T('studioErrNotAdmin');
     case 'mode_locked': return T('studioErrModeLocked');   // 15/10: המצב לא פתוח לחשבון הזה
+    case 'eng_locked': return T('studioErrEngLocked');   // 25/10: רק השרת של המערכת לחשבון הזה
     case 'net': case 'http_0': return T('studioErrNet');
     case 'drive_full': return T('studioErrDriveFull');
     case 'not_connected': case 'revoked': case 'drive_auth': return T('studioErrDrive');
@@ -3903,12 +3911,12 @@ function saveForm() {
    עד היום עבודה מהורדה בטלפון (gotFile) התחילה מיד אחרי טעינת הדף, לפני ש־ui.api הגיע — ונפלה בשקט ל־Routine */
 export const engKnown = (conn, api) => !(conn === 'api' || conn === 'copy') || !!api;
 async function engSettle() {
-  for (let i = 0; i < 2 && !engKnown(store.settings.conn, ui.api); i++) { statusAt = 0; await refreshStatus(true); }
-  return engKnown(store.settings.conn, ui.api);
+  for (let i = 0; i < 2 && !engKnown(connNow(), ui.api); i++) { statusAt = 0; await refreshStatus(true); }
+  return engKnown(connNow(), ui.api);
 }
 function startFromForm() {
   const f = form;
-  if (f && !ui.starting && !engKnown(store.settings.conn, ui.api)) {
+  if (f && !ui.starting && !engKnown(connNow(), ui.api)) {
     ui.starting = true; render('none');
     engSettle().then((ok) => {
       ui.starting = false;
@@ -3919,7 +3927,7 @@ function startFromForm() {
   }
   // 24/10/2026: "המנוי שלי" — מחכים לתשובה פעם אחת כדי לדעת אם יש שרת (אז העבודה רצה בו, ו־Claude דרך ה־Routine).
   // אין תשובה — ממשיכים כמו קודם (רק ה־Routine), לא חוסמים
-  if (f && !ui.starting && store.settings.conn === 'sub' && !ui.api && !f.ryTried) {
+  if (f && !ui.starting && connNow() === 'sub' && !ui.api && !f.ryTried) {
     f.ryTried = true; ui.starting = true; render('none');
     statusAt = 0;
     refreshStatus(true).catch(() => {}).then(() => { ui.starting = false; if (form === f) startFromForm(); });
@@ -7514,7 +7522,7 @@ function pageEng(p) {
   // "המנוי שלי" (Routine) או "השרת של המערכת" (מפתח API בשרת שלנו, תקציב חודשי). העתק־הדבק — בשלב 7
   const isApi = apiMode();
   const pick = (c) => () => { s.conn = c; save(); render('none'); };
-  p.append(setCard(T('studioWhoT'), list(
+  if (ui.mf) p.append(setCard(T('studioWhoT'), list(   // 25/10/2026: למשתמשים — רק השרת של המערכת, בלי בחירה
     rowRadio({ label: T('studioConnSub'), sub: T('studioConnSubS'), on: !isApi && !cpMode(), onClick: pick('sub'), k: 'cn:sub' }),
     rowRadio({ label: T('studioConnCopy'), sub: T('studioConnCopyS'), on: cpMode(), onClick: pick('copy'), disabled: !ui.api, badge: ui.api ? null : T('studioSoon'), k: 'cn:copy' }),   // סבב 10
     rowRadio({ label: T('studioConnApi'), sub: T('studioConnApiS'), on: isApi, onClick: pick('api'), disabled: !ui.api, badge: ui.api ? null : T('studioSoon'), k: 'cn:api' }))));
@@ -7526,6 +7534,8 @@ function pageEng(p) {
       kvRow(T('studioApiMonth'), T('studioApiOf', { a: fmtUsd(a.month), b: fmtUsd(a.cap) })),
       rowNav({ label: T('studioApiCap'), value: '$' + s.cap, onClick: () => go('def', 'cap'), k: 'def:cap' }),
       rowNav({ tile: tile('cloud', a.online ? 'green' : 'orange'), label: T('studioSrvT'), sub: a.online ? T('studioSrvOnN', { n: a.online }) : T('studioSrvNone'), onClick: () => go('server'), k: 'server' }))));
+  } else if (!ui.mf) {
+    // 25/10/2026: משתמש בלי "כל המודלים" — אין Routine; השרת עוד לא ענה / לא מוגדר — בלי אשף
   } else if (c) {
     const st = c.ok ? T('studioConnChecked', { t: fmtDate(c.ok) }) : T('studioConnUnchecked');
     const head = h('div', 'st-row st-ric');
@@ -7647,13 +7657,14 @@ async function pushTest() {
 /* ---------------- מסך השרת (מצב API של המערכת) ----------------
    השרת לא פתוח לאינטרנט — הוא שואל את השרתון כל 20 שנ׳ ומדווח דופק. כאן רואים אותו ומנהלים אותו (המנהל בלבד):
    מחובר / לא, גרסה, דיסק, זיכרון, מה הוא מתרגם, השהיה, הסרה (הטוקן מת מיד), והוספה (הטוקן מוצג פעם אחת) */
-const apiMode = () => store.settings.conn === 'api' && !!ui.api;
+const connNow = () => connFor(store.settings.conn, ui.mf);   // 25/10/2026: מה שבשימוש בפועל (למשתמשים — תמיד השרת)
+const apiMode = () => connNow() === 'api' && !!ui.api;
 // 24/10/2026: "המנוי שלי" + יש שרת במערכת — העבודה רצה בשרת שלנו, ו־Claude דרך ה־Routine שלך (ry). בלי שרת — כמו קודם
 /* העבודה רצה בשרת, אבל ה־Routine שלך עוד לא התחבר אחרי 2 דק׳ (לרוב: הכתובת של התור חסרה ברשימת הכתובות של הסביבה) */
 export const ryWaiting = (rec, now) => !!(rec && rec.srv && rec.srv.ry && !rec.srv.rc && rec.srv.fired > 0 && now - rec.srv.fired > 120e3);
 export const ryOn = (conn, api) => conn === 'sub' && !!api && api.servers > 0;
-const ryMode = () => ryOn(store.settings.conn, ui.api);
-const cpMode = () => store.settings.conn === 'copy' && !!ui.api;   // סבב 10: העתק־הדבק — דרך השרת של המערכת (בלי עלות API)
+const ryMode = () => ryOn(connNow(), ui.api);
+const cpMode = () => connNow() === 'copy' && !!ui.api;   // סבב 10: העתק־הדבק — דרך השרת של המערכת (בלי עלות API)
 const curNorm = () => (apiMode() ? ui.normA || ui.normR : ui.normR);   // "הרגיל" של המנוע שבשימוש
 async function refreshServers() {
   if (!ui.api || !ui.api.admin) return;

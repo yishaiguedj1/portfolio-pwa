@@ -2249,6 +2249,8 @@ async function handler(req, res, deps = {}) {
   // 15/10/2026: מצבי התרגום — לכולם רק PUBLIC_MODES ("רגיל" / "ביצועים"); המנהל ומי שברשימת "כל המודלים" — הכל
   const fullModes = async () => isAdmin(user) || SF.amHas(await sysCfg(deps, now), user);
   const modeLocked = async (m) => !S.modeOk(S.modeNow(m), await fullModes());
+  // 25/10/2026 (בקשת המשתמש): למשתמשים רק השרת של המערכת — בלי Routine (גם לא ry) ובלי העתק־הדבק
+  const engLocked = async (spec) => !S.engOk(spec, await fullModes());
   // 25/10/2026 (בקשת המשתמש): הורדה מקישור — גם לחשבונות הבדיקה (sysCfg.tsEm), לא רק למנהל ול"כל המודלים"
   const urlAllowed = async () => (await fullModes()) || SF.tsHas(await sysCfg(deps, now), user);
   if ((op === 'status' || op === 'jobs') && watchDue(now)) await checkServers(deps, now, uid).catch(() => 0);
@@ -2866,6 +2868,7 @@ async function handler(req, res, deps = {}) {
       }
       const sbc = await sysBlock(deps, { kind: 'tr', spec }, now, false, isAdmin(user));   // 15/10/2026: לפני שמעלים כמה GB
       if (sbc) return res.status(409).json(Object.assign({ ok: false }, sbc));
+      if (await engLocked(spec)) return res.status(403).json({ ok: false, error: 'eng_locked' });   // 25/10/2026: אחרי התחזוקה והדגלים — ההודעה שלהם קודמת
       const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
       if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.maxActive(isAdmin(user))) return res.status(409).json({ ok: false, error: 'too_many' });
       for (const old of all.filter((j) => S.FINAL.includes(S.effState(j, now).state)).slice(S.MAX_STORED - 1)) { await learnSave(deps, old, now); await delDoc(deps, 'studioJobs', old.id); }
@@ -2904,7 +2907,7 @@ async function handler(req, res, deps = {}) {
       if ((await readStats(deps, uid)).halt) return res.status(409).json({ ok: false, error: 'halted' });
       const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
       // פריט 15 ("ריצת מבחן"): src = עבודת זהב אחת, modes = כמה מצבים עליה (השוואה בין מצבים על אותו סרטון)
-      const modes = Array.isArray(body.modes) ? Array.from(new Set(body.modes.map((m) => S.modeNow(m)))).filter((m) => S.MODES.includes(m)).slice(0, S.GOLD_MAX) : [];
+      const modes = Array.isArray(body.modes) ? Array.from(new Set(body.modes.filter((m) => S.MODES.includes(m) || S.LEGACY_MODES[m]).map((m) => S.modeNow(m)))).slice(0, S.GOLD_MAX) : [];   // מצב לא מוכר — נזרק (לא ברירת המחדל)
       if (Array.isArray(body.modes) && (!modes.length || !body.src)) return res.status(400).json({ ok: false, error: 'bad_params' });
       for (const m of modes) if (await modeLocked(m)) return res.status(403).json({ ok: false, error: 'mode_locked' });
       const gsrc = S.goldSources(all).filter((j) => !body.src || j.id === body.src);
@@ -3006,6 +3009,7 @@ async function handler(req, res, deps = {}) {
       if (!S.WORKER_KINDS.includes(job.kind)) return res.status(200).json({ ok: false, error: 'worker_not_ready', job: view(job) });
       const sbs = await sysBlock(deps, job, now, false, isAdmin(user));   // 15/10/2026: תחזוקה / דגל כבוי
       if (sbs) return res.status(409).json(Object.assign({ ok: false, job: view(job) }, sbs));
+      if (await engLocked(job.spec)) return res.status(403).json({ ok: false, error: 'eng_locked', job: view(job) });   // 25/10/2026: גם עבודה ישנה שנוצרה ב־Routine
       const stop = await ruleBlock(deps, uid, job, body);   // v367: מתג החירום / מצב מעל המקסימום
       if (stop) return res.status(409).json(Object.assign({ ok: false, job: view(job) }, stop));
       const mj = body.mo !== true ? await majorNow(deps, uid, job) : null;   // v371: תקלה רחבה — מחכים, או "להתחיל בכל זאת"
@@ -3150,6 +3154,7 @@ async function handler(req, res, deps = {}) {
     }
     if (op === 'resume') {
       if (body.mode != null && await modeLocked(body.mode)) return res.status(403).json({ ok: false, error: 'mode_locked', job: view(job) });   // "להמשיך במצב זול יותר" — רק למצב פתוח
+      if (await engLocked(job.spec)) return res.status(403).json({ ok: false, error: 'eng_locked', job: view(job) });   // 25/10/2026: המשך של עבודת Routine ישנה
       const r = await doResume(deps, uid, job, now, body, false, isAdmin(user));
       if (!r.json.job) r.json.job = view(job);
       return res.status(r.status).json(r.json);
