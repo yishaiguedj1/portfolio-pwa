@@ -1227,7 +1227,8 @@ async function ptOp(deps, body, now) {
       const job = seen.get(r.job);
       const e = job && S.effState(job, now);
       if (!job || !ptJob(job) || !e || !['queued', 'running'].includes(e.state)) { hb.mark(r.job, r.rid, 'd', { err: 'relay_stop' }); continue; }
-      if (S.usdOf(job.use) >= (Number(job.capc) || 0) / 100) { hb.mark(r.job, r.rid, 'd', { err: 'budget_cap' }); continue; }
+      // התקרה של ההפעלה הזו (capc) — מול מה שעלה מאז הלקיחה (use כולל את הסשנים הקודמים — use0)
+      if (S.usdOf(job.use) - S.usdOf(job.use0) >= (Number(job.capc) || 0) / 100) { hb.mark(r.job, r.rid, 'd', { err: 'budget_cap' }); continue; }
       reqs.push(Object.assign(r, { md: job.spec.mode }));
     }
     return { ok: true, reqs, fx: out.fx };
@@ -1246,10 +1247,9 @@ async function ptOp(deps, body, now) {
     await ptSerial(id, async () => {
       const job = await readJob(deps, id);
       if (!job || !ptJob(job)) return;
-      const use = S.useAdd(job.use, pk.k, pk.m, a.u || {}, usd);
-      const spent = S.usdOf(use) - (job.mucc || 0) / 100;
-      await patchJob(deps, id, Object.assign({ use }, spent > 0 ? { mucc: Math.round(S.usdOf(use) * 100) } : {}));
-      if (spent > 0) await monthSpend(deps, job.uid, spent, now);
+      // use = כל הסשנים (כמו בדיווח של העובד בשרת — mergeUse(use0, …)): אחרי "המשך" ממשיכים מ־use0
+      await patchJob(deps, id, { use: S.useAdd(Array.isArray(job.use) ? job.use : job.use0, pk.k, pk.m, a.u || {}, usd) });
+      if (usd > 0 && usd < 1e4) await monthSpend(deps, job.uid, usd, now);   // כל תשובה — התוספת שלה (בלי mucc)
     }).catch(() => {});
   }
   return hb.mark(id, rid, 'd', a);

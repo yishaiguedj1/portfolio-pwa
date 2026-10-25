@@ -133,7 +133,6 @@ const sha1 = (t) => crypto.createHash('sha1').update(t, 'utf8').digest('hex');
   ok(r.j.st === 'd' && r.j.ans.t === 'תרגום', 'והטלפון מקבל אותה');
   const use = JSON.parse(doc().use.stringValue);
   ok(use.length === 1 && use[0].k === 'tl' && use[0].m === 'claude-haiku-5-5' && use[0].i === 1000 && use[0].usd === 0.0125, 'העלות נרשמה בשרתון (job.use) מהתשובה עצמה');
-  ok(Number(doc().mucc.integerValue) === 1, 'ונספרת בתקציב החודשי (mucc, בסנטים)');
   const mu = JSON.parse((db.get('studioStats/ownerUid0001').fields.mu || {}).stringValue || '{}');
   ok(JSON.stringify(mu).includes('0.01'), 'התקציב החודשי של המשתמש עלה');
 
@@ -150,6 +149,16 @@ const sha1 = (t) => crypto.createHash('sha1').update(t, 'utf8').digest('hex');
   r = await wcall('rlWait', { rid: RID2, w: 0 }, WK2);
   ok(r.j.st === 'd' && r.j.ans.err === 'budget_cap', 'והטלפון מקבל budget_cap');
 
+  // אחרי "המשך": use מתחיל מ־use0 (כמו בדיווח של העובד בשרת), והתקרה של ההפעלה נמדדת רק על הסשן הזה
+  Object.assign(doc(), { use: { nullValue: null }, use0: { stringValue: JSON.stringify([{ k: 'tl', m: 'claude-haiku-5-5', n: 1, i: 1, o: 1, cr: 0, c5: 0, c1: 0, usd: 0.4 }]) }, capc: { integerValue: '10' } });
+  const RID4 = 'w'.repeat(24);
+  await wcall('rlPut', Object.assign({}, base, { rid: RID4 }), WK2);
+  r = await srv('ptNext', { have: [FH], max: 4, w: 0 });
+  ok(r.j.reqs.length === 1 && r.j.reqs[0].rid === RID4, '"המשך": מה שעלה בסשנים הקודמים (use0) לא נספר בתקרה של ההפעלה הזו');
+  await srv('ptMark', { job: JOB, rid: RID4, st: 'd', usd: 0.02, ans: { t: 'x', u: { i: 1, o: 1 }, st: 'end_turn' } });
+  const u4 = JSON.parse(doc().use.stringValue);
+  ok(u4.length === 1 && u4[0].n === 2 && Math.abs(u4[0].usd - 0.42) < 1e-9, 'והעלות ממשיכה מ־use0 (כל הסשנים, כמו בדיווח מהשרת)');
+
   // עבודה שבוטלה — הבקשה לא יוצאת
   doc().capc = { integerValue: '500' };
   const RID3 = 'z'.repeat(24);
@@ -162,5 +171,25 @@ const sha1 = (t) => crypto.createHash('sha1').update(t, 'utf8').digest('hex');
   delete process.env.SNB_RELAY_HUB_ON;
   r = await srv('ptNext', { have: [], max: 1, w: 0 });
   ok(r.j.error === 'no_hub', 'בלי תור (Vercel) — no_hub');
+
+  /* ---------- 3. החיווט: האתר, Studio לאנדרואיד והבנייה ---------- */
+  const fs = require('fs');
+  const rd = (f) => fs.readFileSync(path.join(root, f), 'utf8');
+  const A = 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/';
+  const web = rd('studio.js'), core = rd(A + 'PhCore.kt'), act = rd(A + 'PhActivity.kt'), wk = rd(A + 'PhWork.kt'), py = rd(A + 'PhPy.kt'), gr = rd('android/app/build.gradle.kts');
+  const st = await import(path.join(root, 'studio.js'));
+  ok(Number((core.match(/const val CAP = (\d+)/) || [])[1]) === st.PH_CAP_PT && /\.put\("cap", CAP\)/.test(core), 'Studio מדווח את היכולת (CAP) = PH_CAP_PT באתר');
+  const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  ok(st.parsePhPick('p' + 'a'.repeat(16) + '.' + b64({ pid: 'p' + 'a'.repeat(16), name: 'x.mp4', size: 9, cap: 3 })).cap === 3
+    && st.parsePhPick('p' + 'a'.repeat(16) + '.' + b64({ pid: 'p' + 'a'.repeat(16), name: 'x.mp4', size: 9 })).cap === 0, 'הבחירה מהאפליקציה: cap (ישנה — 0)');
+  ok(/else if \(spec\.pw && \(P\.cap \|\| 0\) >= PH_CAP_PT\) spec\.pt = 1/.test(web), 'האתר מבקש pt רק מ־Studio שיודע (אחרת העבודה הייתה מחכה לטלפון שלא לוקח)');
+  ok(st.normJob({ id: 'j' + 'A'.repeat(20), spec: { ph: 1, pw: 1, pt: 1, mode: 'haiku-high' } }).spec.pt === 1 && !('pt' in st.normJob({ id: 'j' + 'A'.repeat(20), spec: { ph: 1, pt: 1 } }).spec), 'normJob שומר pt רק עם pw');
+  ok(/rec\.spec\.pt \? \{ pt: 1 \}/.test(web) && /getQueryParameter\("pt"\) == "1"/.test(act) && /\.put\("pt", pt\)/.test(act), 'pt עובר מהאתר לאפליקציה ונשמר ברשומה');
+  ok(/n\.call\("phClaim"/.test(wk) && /"run", "--job"/.test(wk) && /listOf\("-u", job, "auto"\)/.test(wk) && /worker_crash/.test(wk), 'PhWork: phClaim → job.py run → auto, וקריסה מדווחת');
+  ok(/"SNB_PHONE" to "1"/.test(py) && /"VT_PY" to py\(ctx\)/.test(py) && /SecurityException\("zip"\)/.test(py), 'PhPy: מצב טלפון, vt באותו פייתון, פתיחת הארכיון בלי ../');
+  ok(/class PtPack/.test(gr) && /addGeneratedSourceDirectory\(ptPack/.test(gr) && /exclude\("tests\/\*\*"/.test(gr) && /withFlavor\("app" to "studio"\)/.test(gr), 'הבנייה: translator.zip ל־Studio בלבד, בלי הבדיקות');
+  const sx = (f) => rd('android/app/src/studio/res/' + f + '/strings.xml');
+  for (const k of ['phText', 'phTextTr', 'phTextTl', 'phTextRv', 'phTextSv', 'phTextDone', 'phTextDoneS']) ok(sx('values').includes('name="' + k + '"') && sx('values-en').includes('name="' + k + '"'), 'מחרוזת ' + k + ' בעברית ובאנגלית');
+  ok(rd('app.js').split('studioPhPtQ: "').length === 3, 'studioPhPtQ בעברית ובאנגלית');
   console.log('1..' + n);
 })().catch((e) => { console.error(e); process.exit(1); });

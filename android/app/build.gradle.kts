@@ -1,3 +1,6 @@
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -153,4 +156,36 @@ dependencies {
     "labImplementation"("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
     "testLabImplementation"("junit:junit:4.13.2")
     "testDmImplementation"("org.json:json:20240303")
+}
+
+/* 25/10/2026 (תרגום בטלפון, שלב 3): הקוד של העובד (translator/ — job.py, pipeline.py, llm.py, vt/…) כנכס של Studio
+   (translator.zip), שהפייתון של האפליקציה מריץ (PhPy). בלי הבדיקות, המודלים והמחקר; הגופנים כבר נכסים (בשורש). ארכיון
+   קבוע (סדר, זמנים) — אותו קוד = אותה טביעה = לא נפתח מחדש בטלפון */
+abstract class PtPack : DefaultTask() {
+    @get:Internal abstract val base: DirectoryProperty
+    @get:InputFiles @get:PathSensitive(PathSensitivity.RELATIVE) abstract val src: ConfigurableFileCollection
+    @get:OutputDirectory abstract val outDir: DirectoryProperty
+    @TaskAction fun pack() {
+        val root = base.get().asFile
+        val files = src.files.map { it.relativeTo(root).invariantSeparatorsPath }.sorted()
+        val out = outDir.get().asFile.apply { mkdirs() }
+        ZipOutputStream(File(out, "translator.zip").outputStream()).use { z ->
+            for (rel in files) {
+                val e = ZipEntry(rel).apply { time = 315532800000L }
+                z.putNextEntry(e); File(root, rel).inputStream().use { it.copyTo(z) }; z.closeEntry()
+            }
+        }
+    }
+}
+val ptPack = tasks.register<PtPack>("ptPack") {
+    val tr = layout.projectDirectory.dir("../../translator")
+    base.set(tr)
+    // בלי הבדיקות, המודלים, המחקר והכלים; הגופנים — כבר נכסים בשורש (לצריבה), PhPy מעתיק אותם
+    src.from(fileTree(tr) { exclude("tests/**", "models/**", "research/**", "bench/**", "tools/**", "fonts/**", "**/__pycache__/**", "**/*.pyc", "**/*.onnx", "**/*.lock") })
+    outDir.set(layout.buildDirectory.dir("generated/ptAssets"))
+}
+androidComponents {
+    onVariants(selector().withFlavor("app" to "studio")) { v ->
+        v.sources.assets?.addGeneratedSourceDirectory(ptPack, PtPack::outDir)
+    }
 }
