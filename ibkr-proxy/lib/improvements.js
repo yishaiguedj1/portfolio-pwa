@@ -33,9 +33,12 @@ const IMPROVEMENTS = [
   { id: 'i09', at: '2026-10-21T13:53:00Z', m: ['tot'], src: 'devlog',
     he: ['הכתוביות לפני הצריבה', 'הצריבה = 23 דק׳ בסוף עבודה של 87 דק׳ — הכתוביות והנגן זמינים מיד אחרי הבדיקה'],
     en: ['Subtitles before the burn', 'Burning takes 23 minutes on an 87-minute video — subtitles and the player are available right after the review'] },
-  { id: 'i10', at: null, m: ['q', 'jd', 'ht', 'cpm', 'rv'], src: 'lab',
+  { id: 'i10', at: '2026-10-25T17:00:20Z', m: ['q', 'jd', 'ht', 'cpm', 'rv'], src: 'lab',
     he: ['שלבי התיקון לא מקלקלים', 'ניתוח האיכות: 22%–28% משינויי התיקון הזיקו ו־135 שגיאות קצב הגיעו לצופה — שכנים למתקן, התיקון האחרון לא מבטל את הביקורת, הביקורת רואה מה תוקן, וסבב בקרה על המסך אחרי הבנייה'],
     en: ['Fix rounds stop doing harm', 'Quality analysis: 22%–28% of fix-round edits hurt, 135 reading-speed errors reached viewers — neighbours for the fixer, no undoing the review, review sees the auto-fixes, and an on-screen QC round after the build'] },
+  { id: 'i11', at: null, m: ['q', 'jd', 'ht'], src: 'lab',
+    he: ['הסתייגויות ותיקוני שמיעה', 'ניתוח האיכות: 16% מההסתייגויות במקור ("אולי", "אני חושב", "בערך") נשמטו, ותמליל ארוך קיבל 1–2 תיקוני הגהה ל־1,000 מילים מול 6–13 בקצר — בדיקה [hdg] בבודק, ההנחיות לכל השלבים, והגהה נוספת בחלקים לתמליל ארוך'],
+    en: ['Hedges and mishearings', 'Quality analysis: 16% of source hedges ("maybe", "I think", "about") were dropped, and long transcripts got 1–2 proofreading fixes per 1,000 words vs 6–13 in short ones — an [hdg] check, guidance in every stage, and a chunked proofreading pass for long transcripts'] },
 ];
 
 module.exports = { IMPROVEMENTS };
