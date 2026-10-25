@@ -38,7 +38,7 @@ object PhCore {
         SCD.findAll(stderr).mapNotNull { m ->
             val sc = m.groupValues[1].toDoubleOrNull(); val t = m.groupValues[2].toDoubleOrNull()
             if (sc == null || t == null) null else t to sc
-        }.toList()
+        }.distinctBy { it.first }.sortedBy { it.first }.toList()  // ‏PhFf.run מצרף גם את 12 השורות האחרונות — אותו שוט פעמיים (ניתוח 25/10/2026)
 
     fun meta(probe: JSONObject, shots: List<Pair<Double, Double>>, th: Double = SHOT_TH): JSONObject {
         val arr = JSONArray()
