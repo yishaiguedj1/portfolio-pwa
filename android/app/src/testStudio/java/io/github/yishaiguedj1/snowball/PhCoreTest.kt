@@ -83,6 +83,9 @@ class PhCoreTest {
         val mx = PhCore.muxArgs("/v.mp4", "/s.mkv", "/o.mp4", PhCore.Info(1920, 1080, 25, 1, 60.0, 0.0, 0.04, 0.0, "dts", true), true)
         assertFalse("בלי -itsoffset — הפער עד הווידאו כבר בפריימים (cfr)", mx.contains("-itsoffset"))
         assertEquals("aac", mx[mx.indexOf("-c:a") + 1])
+        // 25/10/2026: כל רצועות הקול (בחירת קול בנגן); לוואטסאפ — רק הראשונה
+        assertEquals("1:a", mx[mx.lastIndexOf("-map") + 1])
+        PhCore.muxArgs("/v", "/s", "/o", PhCore.Info(1920, 1080, 25, 1, 60.0, 0.0, 0.0, 0.0, "aac", true), true, false).let { assertEquals("1:a:0", it[it.lastIndexOf("-map") + 1]) }
         assertTrue(PhCore.mp4Audio("aac")); assertFalse(PhCore.mp4Audio("dts"))
         assertEquals(listOf("-map", "0:a:0", "-vn"), PhCore.audioArgs("/s", "/a.mka").let { it.subList(it.indexOf("-map"), it.indexOf("-map") + 3) })
         assertTrue(PhCore.shotsArgs("/s").contains("scale=320:-2,scdet=threshold=10"))

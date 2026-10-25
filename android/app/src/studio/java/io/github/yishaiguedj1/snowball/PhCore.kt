@@ -128,11 +128,12 @@ object PhCore {
     }
 
     /** הווידאו שקודד (מתחיל בבסיס — burnArgs) + הקול מהמקור, שנשאר במקומו יחסית לבסיס (ffmpeg מזיז כל קלט לפי ההתחלה שלו).
-     *  בלי ‎-itsoffset‎. copy כשאפשר; לוואטסאפ (או כשהעתקה נכשלה) — AAC */
-    fun muxArgs(video: String, src: String, out: String, i: Info, aac: Boolean): List<String> = buildList {
+     *  בלי ‎-itsoffset‎. copy כשאפשר; לוואטסאפ (או כשהעתקה נכשלה) — AAC.
+     *  25/10/2026 (בקשת המשתמש — בחירת קול בנגן): כל רצועות הקול של המקור (בשפות שלהן), לא רק הראשונה; לוואטסאפ — רק הראשונה */
+    fun muxArgs(video: String, src: String, out: String, i: Info, aac: Boolean, all: Boolean = true): List<String> = buildList {
         addAll(listOf("-hide_banner", "-nostdin", "-y", "-loglevel", "error"))
         addAll(listOf("-i", video, "-i", src, "-map", "0:v:0"))
-        if (i.hasAudio) addAll(listOf("-map", "1:a:0"))
+        if (i.hasAudio) addAll(listOf("-map", if (all) "1:a" else "1:a:0"))
         addAll(listOf("-c:v", "copy"))
         if (i.hasAudio) addAll(if (aac) listOf("-c:a", "aac", "-b:a", "96k") else listOf("-c:a", "copy"))
         addAll(listOf("-movflags", "+faststart", out))

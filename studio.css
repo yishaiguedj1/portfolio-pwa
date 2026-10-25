@@ -654,6 +654,9 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-pl.hide .st-pl-ui { opacity: 0; pointer-events: none; }
 .st-pl:not(.hide) .st-pl-sub { bottom: calc(24% + var(--sub-lift, 0%)); }
 .st-pl.hide .st-pl-sub { bottom: calc(6% + var(--sub-lift, 0%)); }
+/* 25/10/2026: סרטון צרוב — העברית כבר בתחתית התמונה, המקור באנגלית מעל (בראש) */
+.st-pl.burned .st-pl-sub, .st-pl.burned:not(.hide) .st-pl-sub, .st-pl.burned.hide .st-pl-sub { bottom: auto; top: 7%; }
+.st-pl.burned:not(.hide) .st-pl-sub { top: 20%; }
 /* סבב 5: עיצוב הכתוביות — גודל, צבע, רקע (תצוגה מקדימה של הצריבה) */
 .st-pl-sub { color: var(--sub-c, #fff); }
 .st-pl-sub > div { font-size: calc(1em * var(--sub-k, 1)); }
