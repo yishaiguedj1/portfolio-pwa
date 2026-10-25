@@ -2304,7 +2304,8 @@ function rowRadio(o) {
   const r = btn('st-row', null, o.disabled ? null : o.onClick, o.k);
   r.setAttribute('role', 'radio'); r.setAttribute('aria-checked', o.on ? 'true' : 'false');
   if (o.disabled) { r.disabled = true; r.classList.add('off'); }
-  r.append(h('span', 'st-radio' + (o.on ? ' on' : '')), rowTxt(o.label, o.sub));
+  const rd = h('span', 'st-radio' + (o.on ? ' on' : '')); rd.append(ico('check'));   // 25/10/2026: ✓ בסוף השורה (CSS), כמו ב־iOS
+  r.append(rd, rowTxt(o.label, o.sub));
   if (o.badge) r.append(h('span', 'st-badge gray', o.badge));
   return r;
 }
@@ -5384,7 +5385,7 @@ function askClean(x) {
 }
 function scFindRow(x) {
   const [title, fix] = scText(x);
-  const nav = x.k.startsWith('claude_') ? () => go('connect') : x.k === 'drive_missing' || x.k === 'drive_revoked' ? () => go('store') : x.k === 'budget_low' ? () => go('rules') : null;
+  const nav = x.k.startsWith('claude_') ? () => go('connect') : x.k === 'drive_missing' || x.k === 'drive_revoked' ? () => go('store') : x.k === 'budget_low' ? () => go('rlb') : null;
   const r = nav ? btn('st-fnd ' + SC_P_CLS[x.p], null, nav, 'sc:' + x.k) : h('div', 'st-fnd ' + SC_P_CLS[x.p]);
   if (!nav) r.dataset.k = 'sc:' + x.k;
   const l = h('span', 'st-l');
@@ -5768,19 +5769,15 @@ function pageRuleMax(p) {
   rulesMax(p, false);
 }
 function pageRules(p) {
-  p.append(navBar({ back: T('studioTwT') }), large(T('studioRlT')), h('p', 'st-lede', T('studioRlLede')));
+  /* 25/10/2026 (בקשת המשתמש — בלי כפילויות): התקציב, המצב המקסימלי, האישור לפני צריבה והמילון — במגדל עצמו (כל שורה שם
+     פותחת את העמוד שלה). כאן רק מה שאין שם: שופט האיכות, בדיקת המשמעות ומסלול התיקונים */
+  p.append(navBar({ back: T('studioTwT') }), large(T('studioUtMore')));
   const ab = accessBanner(); if (ab) p.append(ab);
   const rl = ui.rl, off = blocked() || rulesBusy;
-  rulesBudget(p, true);
-  rulesMax(p, true);
-  // אישור לפני צריבה — 5 כתוביות לדוגמה בטלפון
-  p.append(secT(T('studioRlAbT')), list(rowSwitch({ label: T('studioRlAb'), sub: T('studioRlAbS'), on: rl.ab, onClick: () => { if (!off) setRules({ ab: !rl.ab }); }, k: 'ra' })));
   // v375: שופט האיכות (Haiku, 40 כתוביות לדוגמה בסוף כל עבודה) — פועל כברירת מחדל (החלטה 4 בתוכנית)
   p.append(secT(T('studioRlJgT')), list(rowSwitch({ label: T('studioRlJg'), sub: T('studioRlJgS'), on: !rl.jx, onClick: () => { if (!off) setRules({ jx: !rl.jx }); }, k: 'rj' }),
     // סבב 10: אחרי השופט — בדיקת משמעות לכתוביות שסימן, אוטומטית כשנכנסים לעבודה (תמיד עם אומדן ואישור לפני שמתחילים)
     rowSwitch({ label: T('studioRlAm'), sub: T('studioRlAmS'), on: rl.am, onClick: () => { if (!off) setRules({ am: !rl.am }); }, k: 'ram' })));
-  // v380: זיכרון המונחים — מילון אחד לכל העבודות (ב־Drive שלך); כל עבודה מקבלת רק את המונחים שמופיעים בסרטון
-  p.append(secT(T('studioGlSec')), list(rowNav({ tile: tile('globe', 'blue'), label: T('studioGlT'), sub: gl.st === 'ok' ? T('studioGlN', { n: gl.rows.length }) : T('studioGlSub'), onClick: () => go('gloss'), k: 'rules-gloss' })));
   // v366: מסלול התיקונים — "הצעות לאישור" (ברירת המחדל) או "Claude מחליט לבד".
   // v368: עבר לכאן ממסך המגדל — כל מה שאתה קובע לסוכנים במקום אחד
   const fm = ui.fm === 'auto' ? 'auto' : 'suggest';
@@ -7418,9 +7415,11 @@ function pageGuide(p) {
   sec(T('studioGd5'), T('studioGd5a'));
 }
 /* כרטיס בעמוד ההגדרות — כמו בהגדרות של Invest (.card מ־styles.css): כותרת בתוך הכרטיס, השורות בלי רקע משלהן */
+/* 25/10/2026 (בקשת המשתמש — כמו ב־Apple): הכותרת קטנה ואפורה מעל הקבוצה, והקבוצה עצמה היא הכרטיס (עד היום — כרטיס עם
+   כותרת גדולה בפנים, ובתוכו עוד רשימה עם רקע משלה: כרטיס בתוך כרטיס) */
 function setCard(title, ...nodes) {
-  const c = h('section', 'card st-card' + (title ? '' : ' row-card'));
-  if (title) c.append(h('h2', null, title));
+  const c = h('section', 'st-setgrp');
+  if (title) c.append(secT(title));
   c.append(...nodes.filter(Boolean));
   return c;
 }
@@ -7442,7 +7441,7 @@ function pageSettings(p) {
   const C = SA && SA.cards, A = SA && SA.auth;
   const ab = C && A && A.state() === 'out' ? null : accessBanner();   // לא מחובר — הכניסה בכרטיס החשבון (בלי כפילות)
   if (ab) p.append(ab);
-  if (C) p.append(C.account(), C.advRow(() => go('adv')), C.display());   // הסדר של Invest: חשבון ← מתקדמות ← תצוגה
+  if (C) p.append(C.account());   // 25/10/2026: החשבון למעלה; התצוגה והמתקדמות — בסוף העמוד (מה שמשתמשים בו פחות)
   if (ui.push == null) refreshPush().then(() => { if (root && (ui.view === 'settings' || ui.view === 'push')) render('none'); });
   const ready = engReady(), apiOn = apiMode() || cpMode();
   const dr = store.drive, drOk = !!(dr && dr.connected);
@@ -7457,8 +7456,9 @@ function pageSettings(p) {
   p.append(setCard(T('studioGrpGen'), list(
     srow,
     rowNav({ tile: tile('bell', 'red'), label: T('studioSecPush'), value: pushOnNow ? T('studioOnShort') : T('studioOffShort'), onClick: () => go('push'), k: 'push' }),
-    rowNav({ tile: tile('help', 'blue'), label: T('studioGuide'), sub: T('studioGuideSub'), onClick: () => go('guide'), k: 'guide' }),   // מ9: מדריך קצר
-    lrnRow(), lrnForgetRow())));
+    rowNav({ tile: tile('help', 'blue'), label: T('studioGuide'), onClick: () => go('guide'), k: 'guide' }))));   // מ9: מדריך קצר
+  p.append(setCard(T('studioLrnGrp'), list(lrnRow(), lrnForgetRow())));   // 25/10/2026: מאגר הלמידה — קבוצה משלו
+  if (C) p.append(C.display(), C.advRow(() => go('adv')));
 }
 /* 14/10/2026 (בקשת המשתמש): מאגר הלמידה — אפשר לבטל. בלי שם ובלי פרטים אישיים; מה שכבר נאסף לא מקושר לחשבון */
 function lrnRow() {
@@ -7488,7 +7488,8 @@ function lrnNotice() {
 /* 15/10/2026 (מ׳1): "מחק את התרומות שלי" — הרשומות של כל העבודות שלך במאגר (גם של עבודות שנמחקו). באישור הרסני */
 let lrnForgetBusy = false;
 function lrnForgetRow() {
-  const r = rowNav({ tile: tile('alert', 'red'), label: T('studioLrnForget'), sub: T('studioLrnForgetS'), onClick: () => askConfirm(T('studioLrnForgetQ'), lrnForget, { danger: true, ok: T('studioLrnForgetOk') }), k: 'lrnf' });
+  // 25/10/2026: פעולה הרסנית = טקסט אדום בשורה, כמו ב־iOS (ההסבר בחלון האישור)
+  const r = btn('st-row st-act danger', T('studioLrnForget'), () => askConfirm(T('studioLrnForgetQ'), lrnForget, { danger: true, ok: T('studioLrnForgetOk') }), 'lrnf');
   if (lrnForgetBusy || blocked()) r.disabled = true;
   return r;
 }
