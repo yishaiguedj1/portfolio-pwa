@@ -36,7 +36,10 @@ object Ort {
 /** Parakeet TDT 0.6B v2 (INT8) — אותם קבצים של istupakov/parakeet-tdt-0.6b-v2-onnx שהשרת טוען דרך onnx_asr */
 class Parakeet(dir: File, threads: Int, arena: Boolean = true) : Closeable {
     val vocab = Vocab.parse(File(dir, "vocab.txt").readText())
-    private val pre = Ort.session(File(dir, "nemo128.onnx"), threads, arena)
+    // רק כשהמאפיינים לא מגיעים מבחוץ: בטלפון (Studio) הקובץ לא יורד בכלל — NemoMel במקומו. עד 25/10/2026 נפתח תמיד,
+    // ו"הכל בטלפון" נעצר מיד עם "fail" על קובץ חסר
+    private val preL = lazy { Ort.session(File(dir, "nemo128.onnx"), threads, arena) }
+    private val pre by preL
     private val enc = Ort.session(File(dir, "encoder-model.int8.onnx"), threads, arena)
     private val dec = Ort.session(File(dir, "decoder_joint-model.int8.onnx"), threads, arena)
     private val maxPerStep = 10
@@ -114,7 +117,7 @@ class Parakeet(dir: File, threads: Int, arena: Boolean = true) : Closeable {
         return Rec(r.tokens, r.frames, frames)
     }
 
-    override fun close() { pre.close(); enc.close(); dec.close() }
+    override fun close() { if (preL.isInitialized()) pre.close(); enc.close(); dec.close() }
 }
 
 /**

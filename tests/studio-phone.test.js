@@ -281,5 +281,23 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(/optString\("error"\) == "gone"/.test(phStore) && /catch \(e: Throwable\) \{ update\(ctx, pid\) \{ it\.put\("chk", now\) \}; continue \}/.test(phStore), 'הסרטון נמחק מהטלפון רק כשהשרתון ענה במפורש "gone" — תקלה/רשת לא מוחקות');
   ok(/android:name="\.PhGcJob"/.test(fs.readFileSync(path.join(root, 'android/app/src/studio/AndroidManifest.xml'), 'utf8')), 'הבדיקה ברקע (PhGcJob) במניפסט');
 
+  // 25/10/2026 (בטלפון: "נעצר בטלפון — משהו השתבש (fail)") — Parakeet פתח את nemo128.onnx תמיד, והטלפון לא מוריד אותו.
+  // כל קובץ מודל שהטלפון פותח בלי תנאי — חייב להיות ברשימת ההורדה
+  const models = fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhModels.kt'), 'utf8');
+  const have = new Set([...models.matchAll(/F\("([^"]+)"/g)].map((m) => m[1]));
+  const labOrt = fs.readFileSync(path.join(root, 'android/app/src/labcore/java/io/github/yishaiguedj1/snowball/lab/LabOrt.kt'), 'utf8');
+  const pkSrc = labOrt.slice(labOrt.indexOf('class Parakeet('), labOrt.indexOf('\n}\n', labOrt.indexOf('class Parakeet(')));
+  const eager = [...pkSrc.matchAll(/(?:private )?val \w+ = (?:Vocab\.parse\()?(?:Ort\.session\()?File\(dir, "([^"]+)"/g)].map((m) => 'parakeet/' + m[1]);
+  ok(eager.length >= 3 && eager.every((x) => have.has(x)), 'כל מה ש־Parakeet פותח בבנייה — בין המודלים שהטלפון מוריד: ' + eager.join(', '));
+  ok(/lazy \{ Ort\.session\(File\(dir, "nemo128\.onnx"\)/.test(pkSrc) && /preL\.isInitialized\(\)/.test(pkSrc) && !have.has('parakeet/nemo128.onnx'), 'nemo128.onnx נפתח רק כשהמאפיינים לא מבחוץ (בטלפון — NemoMel)');
+  const onnx = fs.readFileSync(path.join(root, 'android/app/src/phcore/java/io/github/yishaiguedj1/snowball/ph2/Onnx.kt'), 'utf8');
+  const qf = [...onnx.matchAll(/File\(dir, "([^"]+)"\)/g)].map((m) => 'aligner/' + m[1]);
+  ok(qf.length >= 5 && qf.every((x) => have.has(x)), 'כל מה ש־QwenAligner פותח — בין המודלים: ' + qf.join(', '));
+  const local = fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhLocal.kt'), 'utf8');
+  const lf = [...local.matchAll(/File\((?:md|am), "([^"]+)"\)/g)].map((m) => m[1]).filter((x) => /\./.test(x)).map((x) => have.has(x) ? x : 'aligner/model/' + x);
+  ok(lf.length >= 5 && lf.every((x) => have.has(x)), 'כל קובץ ש־PhLocal פותח — בין המודלים: ' + lf.join(', '));
+  ok(/fun codeOf\(e: Throwable\)/.test(work) && /"x_" \+ e\.javaClass\.simpleName/.test(work) && (work.match(/val code = codeOf\(e\)/g) || []).length === 2, 'כשל לא צפוי מדווח עם סוג החריגה (x_…), לא "fail"');
+  ok(/rec\.up\.ph && \(!rec\.srv \|\| !rec\.srv\.state \|\| rec\.srv\.state === 'new'\)/.test(src) && /T\('studioPhStopBig'\)/.test(src), 'עבודה שעוד בטלפון — בלי "הקבצים מוכנים בענן"');
+
   console.log('\nכל ' + n + ' הבדיקות עברו ✓');
 })().catch((e) => { console.error(e); process.exit(1); });
