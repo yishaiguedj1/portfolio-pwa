@@ -336,6 +336,21 @@ async function yahooMonthly(sym) {
   return parseMonthly(await getJson(url, { headers: { 'User-Agent': UA } }));
 }
 
+/* ---------- Yahoo: מניות "דומות" (מי שצפה בזו צפה גם ב…) — מועמדים לעמיתים; הסינון לפי ענף/סקטור בטלפון ---------- */
+function parsePeers(j, self) {
+  const r = j && j.finance && j.finance.result && j.finance.result[0];
+  const out = [];
+  for (const x of (r && r.recommendedSymbols) || []) {
+    const s = String((x && x.symbol) || '').toUpperCase();
+    if (/^[A-Z0-9][A-Z0-9.\-]{0,15}$/.test(s) && s !== self && !out.includes(s)) out.push(s);
+  }
+  return out.slice(0, 6);
+}
+async function yahooPeers(sym) {
+  const url = 'https://query2.finance.yahoo.com/v6/finance/recommendationsbysymbol/' + encodeURIComponent(sym);
+  return parsePeers(await getJson(url, { headers: { 'User-Agent': UA } }, 6000), sym);
+}
+
 /* ---------- Nasdaq (Zacks): תחזיות רווח למניה לכמה שנים — לא מתועד, ולכן רשות בלבד ---------- */
 function parseNasdaq(j) {
   const rows = (j && j.data && j.data.yearlyForecast && j.data.yearlyForecast.rows) || [];
@@ -435,6 +450,7 @@ async function fundamentals(sym0) {
   const summary = safe(monthly.then((m) => yahooSummary(sym, (m && m.div) || (ta ? 100 : 1))), 'qs');
   const ysTs = safe(yahooTs(sym), 'yts');
   const nq = ta ? Promise.resolve(null) : safe(nasdaqForecast(sym), 'nq');
+  const peersP = safe(yahooPeers(sym), 'peers');
   let sec = null, cik = null;
   if (!ta) {
     try {
@@ -451,7 +467,7 @@ async function fundamentals(sym0) {
       }
     } catch (e) { errs.push('sec:' + String(e.message || 'x').slice(0, 24)); }
   }
-  const [m, s, y, n] = await Promise.all([monthly, summary, ysTs, nq]);
+  const [m, s, y, n, peers] = await Promise.all([monthly, summary, ysTs, nq, peersP]);
   const useSec = sec && sec.fy.length >= 2;
   const base = useSec ? sec : y;
   if (!base || !base.fy || !base.fy.length) return { ok: false, error: 'no_data', errs };
@@ -475,7 +491,7 @@ async function fundamentals(sym0) {
     prof: s ? s.prof : null, price: s ? s.price : null, prev: s ? s.prev : null,
     sharesOut: sharesOut || (s && s.sharesOut) || null, fill, fpe: s ? s.fpe : null, peg: s ? s.peg : null, beta: s ? s.beta : null,
     est: s ? s.est : [], hist: s ? s.hist : [], nextEarn: s ? s.nextEarn : null, nq: n || null,
-    px: m ? m.px : null, splits: m ? m.splits : [],
+    px: m ? m.px : null, splits: m ? m.splits : [], peers: peers || [],
     ind: industryFor(s && s.prof && s.prof.industry), checks, errs,
   };
   return cset('fund:' + sym, out);
@@ -496,5 +512,5 @@ async function handle(body, res) {
   return res.status(200).json({ ...v, indData: industryData(v.ind) });
 }
 
-module.exports = { handle, fundamentals, macro, normalizeSec, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parseFred, parseTreasury,
+module.exports = { handle, fundamentals, macro, normalizeSec, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
   industryFor, industryData, _cache: cache };

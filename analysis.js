@@ -543,10 +543,10 @@ function rowSummary(co, def) {
 }
 
 /* ---------- המסך ---------- */
-const S = { co: null, mac: null, sym: '', tab: 'snap', rsub: 'is', ed: {}, open: null, err: null, modal: null, sheet: null, after: [], seq: 0 };
+const S = { co: null, mac: null, sym: '', tab: 'snap', rsub: 'is', ed: {}, open: null, err: null, modal: null, sheet: null, after: [], seq: 0, peers: null, peerBusy: false, peerAdd: [], peerDrop: new Set() };
 const CACHE = new Map();   // בזיכרון בלבד, לכל ריצה (השרתון שומר במטמון 12 שעות)
 let MAC = null;
-const TABS = ['snap', 'rep', 'val'];
+const TABS = ['snap', 'rep', 'val', 'cmp'];
 
 async function load(sym, force) {
   if (!force && CACHE.has(sym)) return CACHE.get(sym);
@@ -568,7 +568,7 @@ export async function openAnalysis(sym, env) {
   E = env || E;
   await ensureCss();
   if (ROOT) closeAnalysis(true);
-  S.sym = sym; S.tab = 'snap'; S.rsub = 'is'; S.ed = {}; S.open = null; S.err = null; S.co = null; const seq = ++S.seq;
+  S.sym = sym; S.tab = 'snap'; S.rsub = 'is'; S.ed = {}; S.open = null; S.err = null; S.co = null; S.peers = null; S.peerBusy = false; S.peerAdd = []; S.peerDrop = new Set(); const seq = ++S.seq;
   ROOT = h('div', { class: 'an-root no-swipe', role: 'dialog', 'aria-modal': 'true', 'aria-label': T('anTitle') });
   ROOT.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); if (S.sheet) closeSheet(); else closeAnalysis(); } });
   document.body.appendChild(ROOT);
@@ -611,7 +611,7 @@ function render(dir) {
   const wrap = h('div', { class: 'an-wrap' });
   wrap.append(header(co));
   const pg = h('div', { class: 'an-page' + (dir ? ' in' : ''), style: dir ? `--an-dx:${dir * 24}px` : null });
-  ({ snap: pageSnap, rep: pageRep, val: pageVal })[S.tab](co, pg);
+  ({ snap: pageSnap, rep: pageRep, val: pageVal, cmp: pageCmp })[S.tab](co, pg);
   wrap.append(pg, footer(co));
   ROOT.append(wrap);
   if (!dir) ROOT.scrollTop = y;
@@ -636,7 +636,7 @@ function header(co) {
     h('div', { class: 'an-facts' }, fact(T('anFMcap'), fmt(mcap, 'money', co), 'mcap'), fact(T('anFPe'), fmt(pe, 'x', co, 1), 'pe'),
       fact(T('anFFpe'), fmt(co.fpe, 'x', co, 1), 'fpe'), fact(T('anFFy'), pct(fy), 'fy'),
       fact(c.netcash >= 0 ? T('anNetCash') : T('anNetDebt'), fmt(Math.abs(c.netcash || 0), 'money', co), 'nc')),
-    h('div', { class: 'an-seg', role: 'tablist' }, ...[['snap', T('anTabSnap')], ['rep', T('anTabRep')], ['val', T('anTabVal')]].map(([k, tt]) =>
+    h('div', { class: 'an-seg', role: 'tablist' }, ...[['snap', T('anTabSnap')], ['rep', T('anTabRep')], ['val', T('anTabVal')], ['cmp', T('anTabCmp')]].map(([k, tt]) =>
       h('button', { type: 'button', role: 'tab', 'aria-selected': String(S.tab === k), 'aria-pressed': String(S.tab === k), on: { click: () => go(k) } }, tt))));
 }
 function go(k) {
@@ -826,6 +826,83 @@ function whyDiff(co, V, base, m) {
   return h('p', { class: 'an-sub an-warn' }, multUp ? T('anWhyA', { f: strip(pct(fcfY)), e: strip(pct(ey)) }) : T('anWhyB'));
 }
 
+/* --- השוואה: עמיתים = המניות ש־Yahoo מציג כדומות, מסוננות לפי ענף/סקטור, ומה שהמשתמש הוסיף --- */
+const PEER_MAX = 4;
+const prepFor = (d) => indFix(prep(d, E.quote && E.quote(d.sym), E.fx && E.fx()), MAC);
+/* דירוג טהור: מה שהמשתמש הוסיף (3) > אותו ענף (2) > אותו סקטור (1). "דומה" ב־Yahoo = מי שצפה בזו צפה גם בזו —
+   בלי אותו סקטור זה לא עמית (בנק ליד חברת מזון מטעה), אז לא מוצג; כשנמצאו מעט — מציעים להוסיף */
+function pickPeers(co, list, added) {
+  const rank = (p) => (added.includes(p.sym) ? 3 : p.industry && p.industry === co.industry ? 2 : p.sector && p.sector === co.sector ? 1 : 0);
+  const rows = list.map((p, i) => ({ p, r: rank(p), i })).filter((x) => x.r > 0).sort((a, b) => b.r - a.r || a.i - b.i);
+  return { list: rows.slice(0, PEER_MAX).map((x) => x.p), loose: rows.length < 2 };
+}
+function peerRow(c) {
+  const x = ctx(c, nowP(c)), mc = c.price * c.sharesOut, [g] = cagrN(c, 'rev', 5), C = checks(c, MAC);
+  const fy = fyList(c), old = fy.length > 3 ? ctx(c, fy[fy.length - 4]).sh : null;
+  return { sym: c.sym, g, om: x.om, roic: x.roic, fy: x.fcf != null && mc ? x.fcf / mc : null, pe: x.eps > 0 ? c.price / x.eps : null, fpe: c.fpe,
+    sh3: old && x.sh ? x.sh / old - 1 : null, q: Object.values(C).reduce((a, k) => a + passN(k), 0) };
+}
+async function loadPeers() {
+  if (S.peerBusy || !S.co) return;
+  S.peerBusy = true;
+  const seq = S.seq, want = [...(S.co.peers || []), ...S.peerAdd].filter((x, i, a) => a.indexOf(x) === i && x !== S.sym && !S.peerDrop.has(x));
+  const got = await Promise.all(want.map((x) => load(x).then(prepFor).catch(() => null)));
+  if (seq !== S.seq) return;
+  S.peers = got.filter((c) => c && c.price > 0 && c.sharesOut > 0);
+  S.peerBusy = false;
+  if (S.tab === 'cmp') render();
+}
+const CMP_MET = [['q', 'anMQ', 'anMQs', 'num', 1], ['g', 'anMGrowth', 'anCagr5', 'pct', 1], ['om', 'anMOm', 'anTtm12', 'pct', 1], ['roic', 'anMRoic', 'anTtm12', 'pct', 1],
+  ['fy', 'anMFy', 'anHiCheap', 'pct', 1], ['pe', 'anLPe', 'anLoCheap', 'x', -1], ['fpe', 'anFFpe', 'anLoCheap', 'x', -1], ['sh3', 'anMSh3', 'anMSh3s', 'pct', -1]];
+function pageCmp(co, pg) {
+  if (!S.peers) {
+    pg.append(card(h('h2', {}, T('anCmpTitle')), h('div', { class: 'an-skel an-skel-in' }), sub(T('anCmpLoading'))));
+    loadPeers();
+    return;
+  }
+  const pool = S.peers.filter((p) => !S.peerDrop.has(p.sym));
+  const { list, loose } = pickPeers(co, pool, S.peerAdd);
+  const chips = h('div', { class: 'an-chips' }, ...list.map((p) => h('button', { class: 'an-chip an-chip-x', type: 'button', 'aria-label': T('anCmpRemove', { s: p.sym }),
+    on: { click: () => { S.peerDrop.add(p.sym); S.peerAdd = S.peerAdd.filter((x) => x !== p.sym); render(); } } }, h('bdi', {}, p.sym.replace(/\.TA$/, '')), h('span', { 'aria-hidden': 'true' }, '×'))),
+    h('button', { class: 'an-chip an-chip-add', type: 'button', on: { click: addPeerSheet } }, T('anCmpAdd')));
+  if (!list.length) { pg.append(card(h('h2', {}, T('anCmpTitle')), sub(T('anCmpNone')), chips)); return; }
+  const rows = [co, ...list].map(peerRow);
+  const out = h('div', { class: 'an-list' });
+  for (const [k, n, st, u, dirn] of CMP_MET) {
+    const vs = rows.map((r) => r[k]), ok = fin(vs), mx = Math.max(...ok.map(Math.abs), 1e-9);
+    const best = ok.length > 1 && Math.max(...ok) !== Math.min(...ok) ? (dirn > 0 ? Math.max(...ok) : Math.min(...ok)) : null; // כולם שווים — בלי כוכב
+    out.append(h('div', { class: 'an-cmp' }, h('div', { class: 'an-cmp-t' }, T(n), h('span', {}, T(st, { n: 5 }))),
+      ...rows.map((r) => h('div', { class: 'an-cbar' + (r.sym === co.sym ? ' me' : '') + (r[k] != null && r[k] === best ? ' best' : '') },
+        h('bdi', { class: 'an-cnm' }, r.sym.replace(/\.TA$/, '')),
+        h('div', { class: 'an-bb' }, r[k] == null ? null : h('i', { style: `width:${(Math.abs(r[k]) / mx * 100).toFixed(0)}%` })),
+        h('span', { class: 'an-vv' }, r[k] == null ? '—' : k === 'q' ? iso(String(r[k])) : fmt(r[k], u, null, 1))))));
+  }
+  pg.append(card(h('h2', {}, T('anCmpTitle')), sub(T(loose ? 'anCmpSubAny' : 'anCmpSub')), chips, out));
+}
+function addPeerSheet() {
+  openSheet(T('anCmpAddTitle'), (b) => {
+    const inp = h('input', { class: 'an-in', type: 'text', inputmode: 'text', autocapitalize: 'characters', autocomplete: 'off', spellcheck: 'false', dir: 'ltr', placeholder: T('anCmpAddPh'), 'aria-label': T('anCmpAddTitle') });
+    const msg = h('p', { class: 'an-ex an-err', hidden: true });
+    const go = h('button', { class: 'an-btn', type: 'submit' }, T('anCmpAddBtn'));
+    const form = h('form', { class: 'an-addf', on: { submit: (e) => {
+      e.preventDefault();
+      const sym = String(inp.value || '').trim().toUpperCase();
+      if (!/^[A-Z0-9][A-Z0-9.\-]{0,15}$/.test(sym) || sym === S.sym) { msg.textContent = T('anCmpAddErr'); msg.hidden = false; return; }
+      go.disabled = true;
+      load(sym).then((d) => {
+        const c = prepFor(d);
+        if (!(c.price > 0 && c.sharesOut > 0)) throw new Error('x');
+        S.peerDrop.delete(sym);
+        if (!S.peerAdd.includes(sym)) S.peerAdd.push(sym);
+        S.peers = (S.peers || []).filter((p) => p.sym !== sym).concat(c);
+        closeSheet(); render();
+      }).catch(() => { go.disabled = false; msg.textContent = T('anCmpAddErr'); msg.hidden = false; });
+    } } }, inp, go);
+    b.append(form, msg);
+    setTimeout(() => inp.focus(), 50);
+  }, { small: true });
+}
+
 /* ---------- גיליונות ---------- */
 function openSheet(title, build, opt = {}) {
   if (S.sheet) closeSheet(true, true);
@@ -958,5 +1035,5 @@ function flagSheet() {
 }
 
 /* בדיקות (node) — הפונקציות הטהורות */
-export const _test = { prep, indFix, ctx, periodList, hasTTM, raw, multHist, autoInputs, dcf, scenarios, reverseG, multModel, uncertainty, checks, piotroski, altman, fmt, sgn, cagrN, epsPath,
+export const _test = { prep, indFix, pickPeers, peerRow, ctx, periodList, hasTTM, raw, multHist, autoInputs, dcf, scenarios, reverseG, multModel, uncertainty, checks, piotroski, altman, fmt, sgn, cagrN, epsPath,
   setEnv: (e) => { E = e; } };

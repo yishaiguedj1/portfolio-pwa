@@ -104,6 +104,18 @@ const pf = A.piotroski(co);
 ok(pf && pf.list.length === 9 && pf.f >= 0 && pf.f <= 9, 'Piotroski — 9 בדיקות');
 ok(A.altman(co) && A.altman(co).z > 0, 'Altman Z״');
 
+/* ---------- השוואה ---------- */
+const P = (sym, industry, sector) => ({ sym, industry, sector });
+const me = P('ME', 'Internet', 'Comm');
+let pk = A.pickPeers(me, [P('A', 'Retail', 'Cyc'), P('B', 'Ent', 'Comm'), P('C', 'Internet', 'Comm'), P('D', 'Bank', 'Fin')], []);
+ok(pk.list.map((x) => x.sym).join() === 'C,B' && !pk.loose, 'עמיתים: אותו ענף ואז אותו סקטור; בלי סקטור אחר');
+pk = A.pickPeers(me, [P('A', 'Retail', 'Cyc'), P('D', 'Bank', 'Fin')], ['D']);
+ok(pk.list.map((x) => x.sym).join() === 'D' && pk.loose, 'מה שהמשתמש הוסיף — תמיד, גם מסקטור אחר; מעט עמיתים = הצעה להוסיף');
+ok(A.pickPeers(me, [], []).list.length === 0, 'בלי מועמדים — רשימה ריקה');
+ok(A.pickPeers(me, 'CDEFGH'.split('').map((x) => P(x, 'Internet', 'Comm')), []).list.length === 4, 'עד 4 עמיתים');
+const pr = A.peerRow(co);
+ok(pr.sym === 'SYN' && pr.q >= 0 && pr.q <= 24 && Math.abs(pr.om - 0.25) < 0.01 && pr.pe > 0, 'שורת השוואה: ציון מתוך 24, שוליים ומכפיל');
+
 /* ---------- עיצוב מספרים ---------- */
 ok(A.fmt(-1234e6, 'money', co) === '⁦−$1.23B⁩', 'סכום שלילי — מינוס אמיתי ובידוד כיוון');
 ok(A.fmt(0.1234, 'pct') === '⁦12.3%⁩' && A.sgn(-0.05) === '⁦−5.0%⁩', 'אחוזים');
