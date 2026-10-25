@@ -178,11 +178,14 @@ function opsByClass(groups) {
    עד היום (mtd) וצפי לסוף החודש (proj; הפעולות בקצב של עד היום) */
 function r2Cost(o) {
   const P = R2_PRICE, day = Math.max(1, o.day || 1), days = Math.max(day, o.days || 30);
-  const st = Math.max(0, Math.ceil(o.gbMonth || 0) - P.freeGb) * P.gb;
+  // 25/10/2026: החיוב = ממוצע החודש כולו — הימים שנשארו בגודל של היום (cur), לא ממוצע הימים שעברו (40GB נראו כ־$0.06)
+  const gbFull = o.cur != null ? ((o.gbMonth || 0) * day + o.cur * (days - day)) / days : (o.gbMonth || 0);
+  const st = Math.max(0, Math.ceil(gbFull) - P.freeGb) * P.gb;
   const ca = (n) => Math.max(0, n - P.freeA) / 1e6 * P.a, cb = (n) => Math.max(0, n - P.freeB) / 1e6 * P.b;
   const k = days / day, pa = (o.a || 0) * k, pb = (o.b || 0) * k;
   const r2c = (x) => Math.round(x * 100) / 100;
-  return { st: r2c(st), a: r2c(ca(pa)), b: r2c(cb(pb)), proj: r2c(st + ca(pa) + cb(pb)), mtd: r2c(st * day / days + ca(o.a || 0) + cb(o.b || 0)),
+  const stNow = Math.max(0, Math.ceil(o.gbMonth || 0) - P.freeGb) * P.gb;   // עד היום — לפי מה שהיה בפועל
+  return { st: r2c(st), a: r2c(ca(pa)), b: r2c(cb(pb)), proj: r2c(st + ca(pa) + cb(pb)), mtd: r2c(stNow * day / days + ca(o.a || 0) + cb(o.b || 0)),
     gbm: Math.round((o.gbMonth || 0) * 100) / 100, pa: Math.round(pa), pb: Math.round(pb) };
 }
 /* השיא היומי מכל דלי (קבוצות לפי date) → ממוצע הסכום היומי */
@@ -213,7 +216,7 @@ async function r2Store(env, f, now) {
   if (ca) {
     const ops = opsByClass(ca.ops), cur = out.b.reduce((x, y) => x + y.gb, 0), gbm = gbMonthOf(ca, bs.length * 2);
     const days = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
-    out.cost = r2Cost({ gbMonth: gbm == null ? cur : gbm, a: ops.a, b: ops.b, day: d.getUTCDate(), days });
+    out.cost = r2Cost({ gbMonth: gbm == null ? cur : gbm, cur, a: ops.a, b: ops.b, day: d.getUTCDate(), days });
   }
   return out;
 }
