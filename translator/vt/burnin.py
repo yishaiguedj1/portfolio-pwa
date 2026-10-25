@@ -46,6 +46,7 @@ REUSE_S = 5.0            # תיבה באותו מקום שנקראה ב־5 הש�
 SHARE = 0.3              # חלק מהפריימים בכתובית שבהם הטקסט בדרך — מתחת לזה לא מזיזים
 GAP = 0.012              # מרווח בין תחתית הכתובית שהורמה לטקסט שמתחתיה (חלק מהגובה)
 MAX_UP = 0.5             # ראש הכתובית שהורמה לא עולה מעל אמצע המסך — אחרת לראש המסך
+MIN_LIFT = 0.03          # הרמה קטנה מזה — לא מרימים: רק המתאר נוגע (לוגו חסות מתחת), וקפיצה של 20 פיקסלים בין כתוביות גרועה יותר
 MAX_LIFT = 0.25          # הרמה של עד רבע מהגובה — פס תחתון (חדשות, שם דובר) נכנס בזה; יותר = כבר אמצע התמונה
 ABOVE = 0.06             # שטח פנוי מעל המקום המורם (חלק מהגובה). טקסט שם, אפילו בפריים אחד = הכתובית "נדחסת" בין שורות של שקף
 SAME = 0.03              # הרמות שההפרש ביניהן קטן מזה — מאוחדות בין כתוביות סמוכות
@@ -281,6 +282,8 @@ def _decide(c, smp, st, meas, width, height):
             break
         y_text = tops[0]                         # הטקסט הגבוה ביותר שבדרך — מעליו בכל הפריימים
         lift = max(lift, (st.bottom_y / height) - (y_text - GAP))
+    if lift < MIN_LIFT:
+        return "stay", 0.0
     if _lift_ok(c, lift, smp, need, st, meas, width, height):
         return "lift", round(lift, 3)
     rt = cue_rect(c, st, meas, width, height, top=True)
@@ -289,10 +292,18 @@ def _decide(c, smp, st, meas, width, height):
     return "stay", 0.0
 
 
+def grow(b, width: int, height: int) -> list[float]:
+    """תיבה מ־burned.json (מכווצת, כמו שהגלאי מוציא) → כל הטקסט, באותה הרחבה של unclip. 25/10/2026: עם התיבה
+    המכווצת (כשליש מגובה האותיות) הכתובית שהורמה נעצרה באמצע שם דובר גדול ונגעה בו."""
+    fh = frame_height(width, height)
+    x1, y1, x2, y2 = unclip(b, W, fh)
+    return [x1 / W, y1 / fh, x2 / W, y2 / fh]
+
+
 def place(cues: list[dict], burned: dict, st, meas, width: int, height: int) -> dict:
     """מסמן lift (חלק מהגובה) או top בכתוביות שהטקסט שעל המסך בדרכן. top קיים (מקובץ מיובא) — לא נוגעים."""
     fps = float(burned.get("fps") or FPS)
-    frames = {int(round(t * fps)): bs for t, bs in burned.get("frames") or []}
+    frames = {int(round(t * fps)): [grow(b, width, height) for b in bs] for t, bs in burned.get("frames") or []}
     stats = {"lift": 0, "top": 0, "n": len(cues)}
     if not frames:
         return stats

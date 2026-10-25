@@ -31,7 +31,7 @@ class Meas:
 
 
 M = Meas()
-BANNER = [0.1, 0.75, 0.9, 0.86]          # פס רחב בתחתית (כמו של ערוץ חדשות)
+BANNER = [0.1, 0.8, 0.9, 0.84]           # פס רחב בתחתית (כמו של ערוץ חדשות) — כמו שהגלאי מוציא: מכווץ, כשליש מגובה האותיות
 CORNER = [0.0, 0.88, 0.08, 0.95]         # לוגו בפינה — לא בדרך של כתובית ממורכזת
 
 
@@ -153,6 +153,23 @@ class TestPlace(unittest.TestCase):
         cs = [cue(1, 0.0, 3.0, ['שורה אחת קצרה'])]
         st = B.place(cs, burned(every(0, 3, [bottom])), ST, M, WD, HD)   # בלעדיו — מרימים
         self.assertEqual(st['lift'], 1)
+
+    def test_grown_box_and_gap(self):
+        # התיבה מהגלאי מכווצת — place מרחיב אותה כמו unclip, והכתובית שהורמה מעל כל הטקסט, לא רק מעל הפס האמצעי
+        g = B.grow(BANNER, WD, HD)
+        self.assertLess(g[1], BANNER[1] - 0.02)
+        self.assertGreater(g[3], BANNER[3] + 0.02)
+        cs = [cue(1, 0.0, 3.0, ['שורה ראשונה', 'ושורה שנייה'])]
+        B.place(cs, burned(every(0, 3, [BANNER])), ST, M, WD, HD)
+        self.assertLessEqual(B.cue_rect(cs[0], ST, M, WD, HD, cs[0]['lift'])[3], g[1])
+
+    def test_tiny_lift_skipped(self):
+        # לוגו קטן ממש מתחת לכתובית (חסות): רק המתאר נוגע — לא מרימים 2% (קפיצה בין כתוביות)
+        r = B.cue_rect(cue(1, 0.0, 3.0, ['שורה ארוכה יותר באמצע']), ST, M, WD, HD)
+        logo = [0.42, r[3] - 0.004, 0.58, r[3] + 0.008]
+        cs = [cue(1, 0.0, 3.0, ['שורה ארוכה יותר באמצע'])]
+        st = B.place(cs, burned(every(0, 3, [logo])), ST, M, WD, HD)
+        self.assertEqual((st['lift'], st['top']), (0, 0))
 
     def test_lift_capped(self):
         # גוש שמתחיל ב־55% — הרמה מעליו גדולה מרבע מסך (כבר אמצע התמונה) — לראש המסך
