@@ -39,23 +39,41 @@ object HuntMedia {
         return Hit(u.toString(), kind, host.removePrefix("www."))
     }
 
+    const val GRACE = 1500L
+
+    /** אותו "חלק" בדף — בלי ה־#: שינוי של נתיב או של שאילתה = שיעור / סרטון אחר */
+    fun samePage(a: String, b: String): Boolean = a.substringBefore('#') == b.substringBefore('#')
+
     /** רשימת הממצאים בדף: בלי כפולים (אותו נתיב עם חתימה אחרת = אותו קובץ), עד 30, והטוב קודם (רשימה ראשית לפני קבצים) */
     class Found {
         private val byKey = LinkedHashMap<String, Hit>()
+        private val at = HashMap<String, Long>()
         val list: List<Hit> get() = byKey.values.sortedBy { it.kind.ordinal }
 
-        /** true = חדש */
-        fun add(h: Hit): Boolean {
+        /** true = חדש. now = מתי נראה (לניקוי במעבר בין חלקים באותו דף — navigated) */
+        fun add(h: Hit, now: Long = 0L): Boolean {
             val k = try { URI(h.url).let { it.host + it.rawPath } } catch (e: Exception) { h.url }
             if (byKey.containsKey(k)) return false
             // רשימת HLS "ראשית" (master) מכילה את האחרות — אם כבר יש אחת מאותו שרת, רשימת משנה לא נוספת
             if (h.kind == Kind.HLS && byKey.values.any { it.kind == Kind.HLS && it.host == h.host && it.url.contains("master", true) } && !h.url.contains("master", true)) return false
             if (byKey.size >= 30) return false
             byKey[k] = h
+            at[k] = now
             return true
         }
 
-        fun clear() = byKey.clear()
+        fun clear() { byKey.clear(); at.clear() }
+
+        /**
+         * 25/10/2026 (דיווח המשתמש — קורס ב־schooler.biz): אתר של "דף אחד" מחליף שיעור בלי טעינת דף (pushState),
+         * ו־onPageStarted לא נקרא — הרשימה צברה את הסרטונים של כל השיעורים. במעבר כזה מוחקים מה שנראה לפני
+         * יותר מ־GRACE (הנגן החדש לפעמים מבקש את הסרטון רגע לפני שהכתובת מתעדכנת).
+         */
+        fun navigated(now: Long, grace: Long = GRACE): Boolean {
+            val old = at.filterValues { now - it > grace }.keys
+            old.forEach { byKey.remove(it); at.remove(it) }
+            return old.isNotEmpty()
+        }
         val size get() = byKey.size
     }
 }
