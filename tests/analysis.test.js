@@ -135,11 +135,12 @@ ok(!/[֐-׿]/.test(src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '
 
 /* ---------- שכבה 6: מאיפה כל מספר ---------- */
 {
-  const co = { flags: [{ k: 'bal', p: '2024-12-31' }, { k: 'face', m: 'rev', p: '2023-12-31', f: 1, v: 2 }, { k: 'fix', m: 'sh', p: '2022-12-31' }], tags: { capex: 'A+B', gp: 'GrossProfit' } };
+  const co = { flags: [{ k: 'bal', p: '2024-12-31' }, { k: 'face', m: 'rev', p: '2023-12-31', f: 1, v: 2 }, { k: 'fix', m: 'sh', p: '2022-12-31' }, { k: 'ffill', m: 'cogs', p: '2021-12-31', f: 5, v: null }, { k: 'ffix', m: 'eps', p: '2020-12-31', f: 1.16, v: 1.13 }], tags: { capex: 'A+B', gp: 'GrossProfit' } };
   const fy = (end) => ({ kind: 'fy', end });
   ok(A.flagsAt(co, ['ta', 'tl'], fy('2024-12-31')) && A.flagsAt(co, ['eq'], fy('2024-12-31')) && !A.flagsAt(co, ['rev'], fy('2024-12-31')), 'מאזן שלא מתאזן — מסומן בגרפי הנכסים, ההתחייבויות וההון בלבד');
   ok(A.flagsAt(co, ['rev'], fy('2023-12-31')) && A.flagsAt(co, ['gm'], fy('2023-12-31')) && !A.flagsAt(co, ['ni'], fy('2023-12-31')), 'הכנסות שלא תואמות לדוח — מסומנות בהכנסות ובשולי הרווח, לא ברווח הנקי');
   ok(!A.flagsAt(co, ['sh'], fy('2022-12-31')) && !A.flagsAt(co, ['rev'], { kind: 'q', end: '2023-12-31' }), 'תיקון אוטומטי לא מסומן כ"לא אומת"; רבעון — לא');
+  ok(!A.flagsAt(co, ['cogs', 'gm'], fy('2021-12-31')) && !A.flagsAt(co, ['eps'], fy('2020-12-31')), 'ערך שהושלם / הוחלף מהדוח השנתי — לא מסומן כ"לא אומת"');
   ok(A.srcDef(co, 'gp') === null && A.srcDef({ tags: {} }, 'gp') === 'anDefGp' && A.srcDef(co, 'capexN') === 'anDefCapex' && A.srcDef(co, 'debt') === 'anDefDebt' && A.srcDef(co, 'rev') === null, 'הגדרה רק למה שמחושב (רווח גולמי בלי שורה, חוב, השקעות הוניות מכמה שורות)');
   const ks = Object.keys(A.RAWK), mk = src.match(/^const M = \{[\s\S]*?^\};/m)[0];
   ok(['rev', 'gp', 'op', 'ni', 'eps', 'sh', 'cashT', 'debt', 'eq', 'ta', 'tl', 'ocf', 'fcf', 'fcfsbc', 'sbcN', 'capexN', 'buy', 'dps', 'gm', 'om', 'nm', 'cr', 'de', 'roic', 'roe', 'r40'].every((k) => ks.includes(k) && mk.includes(k + ':')), 'לכל מדד בדוחות — שדות המקור');

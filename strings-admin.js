@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1150 מפתחות מתוך 4504) */
+/* המחרוזות של admin (1152 מפתחות מתוך 4508) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -266,6 +266,8 @@ he: {
   "admFaK_bal": "המאזן לא מתאזן",
   "admFaK_eps": "רווח למניה לא מתאים לרווח ולמניות",
   "admFaK_face": "לא תואם לדוח",
+  "admFaK_ffill": "הושלם מהדוח",
+  "admFaK_ffix": "הוחלף בערך שבדוח",
   "admFaK_fix": "תוקן אוטומטית",
   "admFaK_gold": "סט הזהב זז",
   "admFaK_gp": "רווח גולמי לא מתאים",
@@ -1418,6 +1420,8 @@ en: {
   "admFaK_bal": "Balance sheet doesn’t balance",
   "admFaK_eps": "EPS doesn’t fit income and shares",
   "admFaK_face": "Doesn’t match the filing",
+  "admFaK_ffill": "Filled from the report",
+  "admFaK_ffix": "Replaced with the printed value",
   "admFaK_fix": "Fixed automatically",
   "admFaK_gold": "Golden set moved",
   "admFaK_gp": "Gross profit doesn’t fit",
