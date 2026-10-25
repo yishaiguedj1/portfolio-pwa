@@ -869,6 +869,7 @@ async function watch(req, res, deps) {
   try { down = await checkServers(deps, now); }
   catch (e) { return res.status(502).json({ ok: false }); }
   const ar = await recoverAll(deps, now).catch(() => -1);   // 14/10/2026: "המשך" אוטומטי גם כשהטלפון סגור
+  const sa = await startAll(deps, now).catch(() => -1);   // 25/10/2026: עבודות מוכנות שה"התחל" שלהן לא הגיע / סירוב חולף שעבר
   const st = await siteWatch(deps, now).catch(() => -1);   // שלב 5: הכתובות עצמן (השרתון שלנו ושלוש האפליקציות)
   const bk = await dailyBackup(deps, now);   // ת7: הגיבוי היומי — תקלה בו לא מפילה את הניטור
   const ob = await offsiteBackup(deps, now).catch(() => -1);   // 11/10/2026: ועותק ב־Drive (ספק אחר)
@@ -877,7 +878,7 @@ async function watch(req, res, deps) {
   const lw = await learnWeekly(deps, now).catch(() => -1);   // 20/10/2026 (מ׳7): הסיכום השבועי של המעבדה — התראה למנהל
   const jg = await jobGc(deps, now).catch(() => -1);   // 21/10/2026: עבודות ב־R2 שהסתיימו לפני יותר מחודש
   const us = await usageSnap(deps, now).catch(() => -1);   // 23/10/2026: נקודה לשעה לאחוזי השימוש של הספקים (היסטוריה של חודש)
-  return res.status(200).json({ ok: true, down, ar, st, bk, ob, aw, lc, lw, jg, us });
+  return res.status(200).json({ ok: true, down, ar, sa, st, bk, ob, aw, lc, lw, jg, us });
 }
 /* 21/10/2026 (בקשת המשתמש): עבודה ב־R2 שהסתיימה לפני יותר מחודש (SC.expiredJob) נמחקת כמו "מחיקה" בטלפון —
    removeJobRec: קודם הרשומה במאגר הלמידה נשמרת (learnSave), ואז הרשומה, הקבצים ב־R2, ההפקות מחדש וגיליונות ה־AI.
@@ -1554,6 +1555,63 @@ async function doResume(deps, uid, job, now, body, auto, adm) {
 /* 14/10/2026: עד היום ההמשך האוטומטי רץ רק כשהטלפון פתח את רשימת העבודות — עבודה שנכשלה בתקלה חולפת כשהסטודיו סגור
    נשארה "נכשלה" בשקט (בלי התראה, כי חיכתה להמשך). עכשיו גם הבדיקה המתוזמנת (watch) עוברת על העבודות שנכשלו.
    שאילתה עם שוויון אחד (state) — בלי אינדקס. מחזיר כמה עבודות הופעלו */
+/* 25/10/2026 (עבודה אמיתית מאייפון: פרק שחיכה שעתיים ל"התחל" שלא הגיע): ההתחלה במקום אחד — מהטלפון (op:'start'), ביצירה של
+   עבודה מקישור (create עם start:true), ומהבדיקה המתוזמנת (startAll — גם כשהטלפון סגור). סירוב נרשם במסמך העבודה
+   (sw = הקוד, swt = מתי): מכשיר אחר רואה למה העבודה מחכה, והבדיקה המתוזמנת מנסה שוב רק סירוב חולף (S.START_RETRY).
+   g = { adm, modeLocked, engLocked } — מהבקשה; בבדיקה המתוזמנת אין משתמש (adm שקר, והמצב / המנוע כבר נבדקו ביצירה) */
+const filesReady = (job) => !(job.kind === 'ai' ? !job.fq : job.spec && job.spec.src === 'subs' ? !job.fsu : job.spec && job.spec.src === 'url' ? !SR.isFolder(job.folder) : job.spec && job.spec.ph === 1 ? (job.spec.pw === 1 ? !(job.fpw && job.fph) : !job.fa) || !SR.isFolder(job.folder) : !job.fa && !job.fv || job.kind === 'rr' && !(job.fv && job.fc));
+const jobView = (j, now) => Object.assign(S.publicJob(j, now), updWaiting(j, now) ? { uw: 1 } : {});
+async function startJob(deps, uid, job, body, now, g) {
+  const r = await startJob0(deps, uid, job, body, now, g);
+  const o = r[1], e = !o.ok && o.error && !['state', 'no_files'].includes(o.error) ? String(o.error).slice(0, 40) : '';
+  if (e || (o.ok && job.sw)) {   // רישום הסירוב (או ניקוי שלו) לא מפיל את התשובה
+    await patchJob(deps, job.id, e ? { sw: e, swt: now } : { sw: '', swt: 0 }).catch(() => {});
+    if (o.job) o.job = Object.assign({}, o.job, { sw: e });
+  }
+  return r;
+}
+async function startJob0(deps, uid, job, body, now, g) {
+  const view = (x) => jobView(x, now);
+  const st = S.effState(job, now).state;
+  if (!['tr', 'rr', 'ai'].includes(job.kind) || st !== 'new') return [409, { ok: false, error: 'state', job: view(job) }];
+  if (!filesReady(job)) return [409, { ok: false, error: 'no_files' }];
+  if (job.kind === 'tr' && !S.langReady(job.spec)) return [400, { ok: false, error: 'lang_unsupported', job: view(job) }];
+  if (job.kind !== 'rr' && g.modeLocked && await g.modeLocked(job.spec && job.spec.mode)) return [403, { ok: false, error: 'mode_locked', job: view(job) }];   // גם עבודה שנוצרה לפני שהרשימה השתנתה / סט הזהב
+  if (!S.WORKER_KINDS.includes(job.kind)) return [200, { ok: false, error: 'worker_not_ready', job: view(job) }];
+  const sbs = await sysBlock(deps, job, now, false, !!g.adm);   // 15/10/2026: תחזוקה / דגל כבוי
+  if (sbs) return [409, Object.assign({ ok: false, job: view(job) }, sbs)];
+  if (g.engLocked && await g.engLocked(job.spec)) return [403, { ok: false, error: 'eng_locked', job: view(job) }];   // 25/10/2026: גם עבודה ישנה שנוצרה ב־Routine
+  const stop = await ruleBlock(deps, uid, job, body);   // v367: מתג החירום / מצב מעל המקסימום
+  if (stop) return [409, Object.assign({ ok: false, job: view(job) }, stop)];
+  const mj = body.mo !== true ? await majorNow(deps, uid, job) : null;   // v371: תקלה רחבה — מחכים, או "להתחיל בכל זאת"
+  if (mj) return [409, { ok: false, error: 'major', mi: { c: mj.c, e: mj.e, at: mj.at, n: mj.n || 0 }, job: view(job) }];
+  if (apiJob(job)) {
+    const q = await queueApi(deps, uid, job, now);
+    return [200, Object.assign({ ok: q.ok, job: view(await readJob(deps, job.id)) }, q.ok ? {} : { error: q.error })];
+  }
+  const v = await readVault(deps, uid);
+  if (!v || !v.r) return [200, { ok: false, error: 'conn_missing' }];
+  if (S.recentFires(v.fh, now).length >= S.FIRE_HOUR) return [429, { ok: false, error: 'budget' }];
+  const f = await fireJob(deps, uid, v, job, now);
+  const j = await readJob(deps, job.id);
+  return [200, Object.assign({ ok: f.ok, job: view(j) }, f.ok ? (f.unsure ? { unsure: f.unsure, detail: f.detail } : {}) : { error: f.error, retry: f.retry, detail: f.detail || '' })];
+}
+/* הבדיקה המתוזמנת (כל 10 דק׳): עבודות במצב השרת שמוכנות ולא התחילו — "התחל" לא הגיע (הדף הוקפא / נסגר אחרי היצירה או
+   אחרי שהקול עלה), או סירוב חולף שעבר (תחזוקה, דגל, תקלה רחבה, יותר מדי עבודות). רק במצב השרת (Routine = הפעלה של המנוי
+   שלך — לא מכאן), רק עד START_AGE מהיצירה, ועד START_MAX בריצה. מחזיר כמה התחילו */
+const START_AGE = 24 * 3600e3, START_MAX = 10;
+async function startAll(deps, now) {
+  if (process.env.SNB_STARTALL === 'off') return 0;
+  const cands = (await query(deps, 'studioJobs', { state: 'new' }, 200)).filter((j) => UID_RE.test(String(j.uid || '')) && S.startDue(j, now, START_AGE) && apiJob(j) && filesReady(j));
+  let n = 0;
+  for (const j of cands.slice(0, START_MAX)) {
+    const fresh = await readDocT(deps, 'studioJobs', j.id).catch(() => null);
+    if (!fresh || fresh.uid !== j.uid || !S.startDue(fresh, now, START_AGE)) continue;   // הטלפון הקדים בינתיים
+    const [, o] = await startJob(deps, j.uid, fresh, {}, now, { adm: false }).catch(() => [0, { ok: false }]);
+    if (o.ok) n++;
+  }
+  return n;
+}
 async function recoverAll(deps, now) {
   const failed = (await query(deps, 'studioJobs', { state: 'failed' }, 100)).filter((j) => j.kind === 'tr' && UID_RE.test(String(j.uid || '')));
   // תקלה רחבה מזוהה גם כשהטלפון סגור (syncInc) — רק למי שנכשלה לו עבודה ביממה האחרונה, עד 5 משתמשים בריצה
@@ -2875,6 +2933,14 @@ async function handler(req, res, deps = {}) {
       const job = { id: S.newJobId(), uid, kind: 'tr', state: 'new', created: now, updated: now, spec };
       if (apiJob(job) && R2.config().ok) job.folder = SR.folderFor(job.id);   // ת4: עבודה במצב שרת — הקבצים ב־R2 (Routine נשאר ב־Drive)
       await patchJob(deps, job.id, job);
+      // 25/10/2026: עבודה מקישור מתחילה כבר כאן — בלי לחכות שהטלפון יישאר פתוח עד op:'start' (באייפון Safari מקפיא את הדף
+      // כשעוברים לאפליקציה אחרת, ופרק של משתמש חיכה כך שעתיים). סירוב — העבודה נשארת "חדשה", עם הקוד (sw)
+      if (body.start === true && spec.src === 'url') {
+        const [, so] = await startJob(deps, uid, job, {}, now, { adm: isAdmin(user), modeLocked, engLocked });
+        const sx = {};
+        for (const k of ['error', 'mi', 'mx', 'msg', 'til', 'fl', 'retry']) if (so[k] !== undefined) sx[k] = so[k];
+        return res.status(200).json({ ok: true, job: so.job || view(job), start: Object.assign({ ok: !!so.ok }, sx) });
+      }
       return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'jobs') {
@@ -3001,29 +3067,8 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'start') {
-      if (!['tr', 'rr', 'ai'].includes(job.kind) || st !== 'new') return res.status(409).json({ ok: false, error: 'state', job: view(job) });
-      const subsJob = !!(job.spec && job.spec.src === 'subs');
-      if (job.kind === 'ai' ? !job.fq : subsJob ? !job.fsu : job.spec && job.spec.src === 'url' ? !SR.isFolder(job.folder) : job.spec && job.spec.ph === 1 ? (job.spec.pw === 1 ? !(job.fpw && job.fph) : !job.fa) || !SR.isFolder(job.folder) : !job.fa && !job.fv || job.kind === 'rr' && !(job.fv && job.fc)) return res.status(409).json({ ok: false, error: 'no_files' });
-      if (job.kind === 'tr' && !S.langReady(job.spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported', job: view(job) });
-      if (job.kind !== 'rr' && await modeLocked(job.spec && job.spec.mode)) return res.status(403).json({ ok: false, error: 'mode_locked', job: view(job) });   // גם עבודה שנוצרה לפני שהרשימה השתנתה / סט הזהב
-      if (!S.WORKER_KINDS.includes(job.kind)) return res.status(200).json({ ok: false, error: 'worker_not_ready', job: view(job) });
-      const sbs = await sysBlock(deps, job, now, false, isAdmin(user));   // 15/10/2026: תחזוקה / דגל כבוי
-      if (sbs) return res.status(409).json(Object.assign({ ok: false, job: view(job) }, sbs));
-      if (await engLocked(job.spec)) return res.status(403).json({ ok: false, error: 'eng_locked', job: view(job) });   // 25/10/2026: גם עבודה ישנה שנוצרה ב־Routine
-      const stop = await ruleBlock(deps, uid, job, body);   // v367: מתג החירום / מצב מעל המקסימום
-      if (stop) return res.status(409).json(Object.assign({ ok: false, job: view(job) }, stop));
-      const mj = body.mo !== true ? await majorNow(deps, uid, job) : null;   // v371: תקלה רחבה — מחכים, או "להתחיל בכל זאת"
-      if (mj) return res.status(409).json({ ok: false, error: 'major', mi: { c: mj.c, e: mj.e, at: mj.at, n: mj.n || 0 }, job: view(job) });
-      if (apiJob(job)) {
-        const q = await queueApi(deps, uid, job, now);
-        return res.status(200).json(Object.assign({ ok: q.ok, job: view(await readJob(deps, job.id)) }, q.ok ? {} : { error: q.error }));
-      }
-      const v = await readVault(deps, uid);
-      if (!v || !v.r) return res.status(200).json({ ok: false, error: 'conn_missing' });
-      if (S.recentFires(v.fh, now).length >= S.FIRE_HOUR) return res.status(429).json({ ok: false, error: 'budget' });
-      const f = await fireJob(deps, uid, v, job, now);
-      const j = await readJob(deps, job.id);
-      return res.status(200).json(Object.assign({ ok: f.ok, job: view(j) }, f.ok ? (f.unsure ? { unsure: f.unsure, detail: f.detail } : {}) : { error: f.error, retry: f.retry, detail: f.detail || '' }));
+      const [code, out] = await startJob(deps, uid, job, body, now, { adm: isAdmin(user), modeLocked, engLocked });
+      return res.status(code).json(out);
     }
     if (op === 'phKey') {
       // 24/10/2026: תרגום בטלפון — מפתח לעבודה אחת בשביל Studio לאנדרואיד (הקול, המדידות, ההתחלה, ההורדה והצריבה בלי

@@ -360,6 +360,19 @@ function canResume(job, now) {
   if ((job.fires || 0) >= RESUME_MAX) return 'resume_limit';
   return '';
 }
+/* 25/10/2026: עבודה "חדשה" שהשרתון מתחיל לבד בבדיקה המתוזמנת (startAll ב־api/studio.js). sw = קוד הסירוב האחרון.
+   סירוב חולף (START_RETRY) — שוב אחרי START_GAP; בלי סירוב — "התחל" לא הגיע: מקישור (הטלפון מתחיל ביצירה) אחרי
+   START_URL_WAIT, אחרת אחרי START_IDLE מהכתיבה האחרונה (הקול עלה, ו"התחל" לא הגיע). סירוב שצריך אותך (חוקים, מתג החירום,
+   מצב נעול...) — לא. START_RETRY זהה ל־START_RETRY ב־studio.js (הטלפון) */
+const START_RETRY = ['maint', 'flag_off', 'major'];
+const START_GAP = 2 * 60e3, START_URL_WAIT = 3 * 60e3, START_IDLE = 10 * 60e3;
+function startDue(job, now, age) {
+  if (!job || job.state !== 'new' || !['tr', 'rr', 'ai'].includes(job.kind)) return false;
+  if (!(now - (job.created || 0) < age) || effState(job, now).state !== 'new') return false;
+  if (job.sw) return START_RETRY.includes(job.sw) && now - (job.swt || 0) >= START_GAP;
+  if (job.spec && job.spec.src === 'url') return now - (job.created || 0) >= START_URL_WAIT;
+  return now - (job.updated || job.created || 0) >= START_IDLE;
+}
 /* v368: מתי ממשיכים לבד (0 = לא): נכשלה בתקלה חולפת, עוד לא המשכנו לבד, ואפשר להמשיך */
 function recoverAt(job, now) {
   if (!job || !job.rw || (job.ar || 0) >= AUTO_RESUME_MAX) return 0;
@@ -734,6 +747,7 @@ function publicJob(job, now) {
     eng: job.eng === 'api' || job.spec && job.spec.eng === 'api' ? 'api' : 'sub',   // מצב API: השרת של המערכת
     sid: job.eng === 'api' && SRV_ID_RE.test(String(job.sid || '')) ? job.sid : '',
     ry: job.spec && job.spec.ry === 1 ? 1 : 0, rc: job.spec && job.spec.ry === 1 ? (Number(job.rcl) || 0) : 0,   // 24/10/2026: "המנוי שלי" דרך השרת — מתי ה־Routine שלך התחבר (0 = עוד לא)
+    sw: job.state === 'new' && typeof job.sw === 'string' ? job.sw.slice(0, 40) : '',   // 25/10/2026: למה העבודה לא התחילה (קוד הסירוב האחרון)
     vw: job.vw && !job.pk ? 1 : 0,                   // 15/10/2026: מחכה לסרטון בתור — השרת פנוי בינתיים
     fr: job.fr && typeof job.fr.s === 'number' ? { s: job.fr.s, ms: Math.max(0, Math.round(job.fr.ms || 0)) } : null,   // v369: תוצאת ההפעלה האחרונה
     tr: normTrace(job.tr),                          // v373: עקיבה — פעולות לכל סוכן והקבוצות הנפוצות
@@ -1212,7 +1226,7 @@ function jobCap(spec, used, month, prev) {
 /* ---------- Firestore (REST) ---------- */
 /* 21/10/2026: מדידת ההעלאה מהטלפון (job.utl) — רק מספרים: זמן מהיצירה, החילוץ, העלאת הקול/הסרטון (ms), בייטים, זמן ברקע,
    ניסיונות, Wake Lock, סוג רשת, זיכרון וליבות של הטלפון. **UTL_KEYS זהה ל־UTL_KEYS ב־studio.js** */
-const UTL_KEYS = ['c2s', 'ex', 'ab', 'a', 'v', 'vb', 'hid', 'hn', 'rs', 'wt', 'wl', 'wlr', 'nt', 'dl', 'dm', 'hc', 'vf', 'bg'];   // vf = הסרטון עלה לפני שהחילוץ הסתיים · bg = ההעלאה ברקע (1 הצליחה, 2 חזרה לרגילה, 3 לא נתמכת)
+const UTL_KEYS = ['c2s', 'ex', 'ab', 'a', 'v', 'vb', 'hid', 'hn', 'rs', 'wt', 'wl', 'wlr', 'nt', 'dl', 'dm', 'hc', 'vf', 'bg', 'dvp', 'dvs', 'dvn'];   // 25/10/2026: המכשיר — dvp/dvs/dvn (devCodes ב־studio.js)   // vf = הסרטון עלה לפני שהחילוץ הסתיים · bg = ההעלאה ברקע (1 הצליחה, 2 חזרה לרגילה, 3 לא נתמכת)
 function normUtl(o) {
   if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
   const out = {};
@@ -1246,7 +1260,7 @@ function fromFields(f) {
   return o;
 }
 
-module.exports = { useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
+module.exports = { START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,

@@ -102,7 +102,7 @@ function normLx(o) {
    ai = גיליון ה־AI (q בקשות, a שינויים שהוחלו, r שנדחו) · gl = מונחים שנוספו למילון מתוך העבודה (a)
    הטלפון שולח תוספת (delta); המיזוג מחבר, חוץ מ־cov (המקסימום) ו־wa/ca (האחרון). **UX_SHAPE זהה ל־UX_SHAPE ב־studio.js** */
 const ED_KINDS = ['txt', 'tm', 'sp', 'mg', 'add', 'del', 'mx'];
-const UX_SHAPE = { e: ['s', 'ws', 'n', 'cd', 'wd', 'm', 'wa', 'ca', 'sb', 'sr'].concat(ED_KINDS), pl: ['n', 'sec', 'cov'], o: ['dl', 'sh', 'dx'], sg: ['a', 'r'], ai: ['q', 'a', 'r'], gl: ['a'] };
+const UX_SHAPE = { e: ['s', 'ws', 'n', 'cd', 'wd', 'm', 'wa', 'ca', 'sb', 'sr'].concat(ED_KINDS), pl: ['n', 'sec', 'cov'], o: ['dl', 'sh', 'dx'], sg: ['a', 'r'], ai: ['q', 'a', 'r'], gl: ['a'], pv: ['h', 'f', 'st', 'er'] };   // pv — 25/10/2026: איך הנגן ניגן
 const UX_LAST = ['wa', 'ca', 'sr'], UX_HI = 1e7;
 function normUx(o) {
   if (!o || typeof o !== 'object' || Array.isArray(o)) return null;

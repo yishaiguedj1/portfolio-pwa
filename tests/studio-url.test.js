@@ -179,5 +179,50 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok((await api('urlProbe', { url: 'https://youtu.be/abc' })).error === 'flag_off', 'הדגל "הורדה מקישור" כבוי — אין בדיקה');
   ok((await api('create', { spec })).error === 'flag_off', 'הדגל כבוי — אין עבודה חדשה מקישור');
 
+  /* ---------- 6. 25/10/2026 (פרק שחיכה שעתיים ל"התחל" מאייפון): מתחילה כבר ביצירה; סירוב נרשם; הבדיקה המתוזמנת מתחילה ---------- */
+  db.delete('sysCfg/main'); studio._reset();
+  for (const k of [...db.keys()]) if (k.startsWith('studioJobs/')) db.delete(k);   // מקום לעבודות פעילות (MAX_ACTIVE)
+  j = await api('create', { spec, start: true });
+  const J0 = j.job && j.job.id;
+  ok(j.ok && j.start && j.start.ok === true && j.job.state === 'queued' && j.job.sw === '', 'עבודה מקישור עם start — מתחילה כבר ביצירה, בלי לחכות שהטלפון יישאר פתוח');
+  db.set('studioStats/ownerUid0001', { fields: { halt: { integerValue: '1' } }, ut: 'th1' });
+  j = await api('create', { spec, start: true });
+  ok(j.ok && j.start.ok === false && j.start.error === 'halted' && j.job.state === 'new' && j.job.sw === 'halted',
+    'סירוב בהתחלה (מתג החירום) — העבודה נשמרת "חדשה", עם קוד הסירוב (sw)');
+  const JH = j.job.id;
+  db.delete('studioStats/ownerUid0001');
+  const JW = (await api('create', { spec })).job.id;
+  db.set('sysCfg/main', { fields: { flOff: { stringValue: 'st_api' } }, ut: 'tf2' }); studio._reset();
+  j = await api('start', { job: JW });
+  ok(j.error === 'flag_off' && j.job.sw === 'flag_off' && (await api('job', { job: JW })).job.sw === 'flag_off', 'סירוב מ"התחל" נרשם — גם מכשיר אחר רואה למה העבודה מחכה');
+  const wget = async () => { studio._reset(); const x = { code: 0, j: null, setHeader() {}, status(c) { x.code = c; return x; }, json(o) { x.j = o; return x; } };
+    await studio._handler({ method: 'GET', query: {}, headers: {} }, x, deps()); return x.j; };
+  R.now += 3 * 60e3;
+  let w = await wget();
+  ok(w.ok && w.sa === 0 && (await api('job', { job: JW })).job.state === 'new', 'הבדיקה המתוזמנת: הדגל עדיין כבוי — מנסה ונשארת "חדשה"');
+  db.delete('sysCfg/main'); studio._reset();
+  db.delete('studioJobs/' + J0);   // הראשונה שהתחילה — מפנה מקום
+  const late = (await api('create', { spec })).job.id;   // טלפון ישן / דף שהוקפא מיד אחרי היצירה — "התחל" לא הגיע
+  R.now += 60e3;
+  w = await wget();
+  ok(w.sa === 0, 'עבודה מקישור בלי "התחל" — בדקה הראשונה מחכים לטלפון');
+  R.now += 3 * 60e3;
+  w = await wget();
+  const a1 = await api('job', { job: JW }), a2 = await api('job', { job: late });
+  ok(w.sa === 2 && a1.job.state === 'queued' && a1.job.sw === '' && a2.job.state === 'queued',
+    'הבדיקה המתוזמנת התחילה את שתיהן: הסירוב החולף עבר (הדגל דלק), ו"התחל" שלא הגיע');
+  ok((await api('job', { job: JH })).job.state === 'new', 'מתג החירום — לא מתחילה לבד גם אחרי שהוא ירד (רק בלחיצה שלך)');
+  db.delete('studioJobs/' + JW); db.delete('studioJobs/' + late);   // מפנים מקום
+  db.set('studioStats/ownerUid0001', { fields: { halt: { integerValue: '1' } }, ut: 'th2' });
+  const JR = (await api('create', { spec, start: true })).job.id;
+  db.delete('studioStats/ownerUid0001');
+  db.get('studioJobs/' + JR).fields.sw = { stringValue: 'rule_mode' };
+  R.now += 5 * 60e3;
+  w = await wget();
+  ok(w.sa === 0 && (await api('job', { job: JR })).job.state === 'new', 'סירוב שצריך אותך (מצב מעל החוקים) — הבדיקה המתוזמנת לא מתחילה לבד');
+  ok(S.startDue({ state: 'new', kind: 'tr', created: R.now - 25 * 3600e3, spec: { src: 'url' } }, R.now, 24 * 3600e3) === false
+    && S.startDue({ state: 'new', kind: 'tr', created: R.now - 20 * 60e3, updated: R.now - 11 * 60e3, fa: { id: 'x' } }, R.now, 24 * 3600e3) === true
+    && S.startDue({ state: 'new', kind: 'tr', created: R.now - 20 * 60e3, updated: R.now - 5 * 60e3, fa: { id: 'x' } }, R.now, 24 * 3600e3) === false, 'startDue: לא אחרי יום; העלאה — רק 10 דק׳ אחרי הכתיבה האחרונה');
+
   console.log('\nכל ' + n + ' הבדיקות עברו ✓');
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -3,6 +3,13 @@
    נגיעה כפולה בצד = ±10 שנ׳, מהירות, ובפס ההתקדמות — מפת האזהרות (כתוביות שלא עומדות בכללים) כמו "הכי נצפה" ב־YouTube.
    הלוגיקה טהורה (נבדקת ב־node); ה־DOM נבנה רק ב־createPlayer. בלי רשת — studio.js נותן כתובת וכתוביות. */
 
+/* 25/10/2026 (משתמש מאייפון): באייפון אין window.MediaSource — רק ManagedMediaSource (iOS 17.1+). עד היום הנגן בדק רק את
+   הראשון, ולכן באייפון תמיד ניגן את הקובץ המקורי בלי בחירת איכות, גם כשהשרת בנה 6 איכויות. hls.js 1.6 בוחר לבד את
+   ManagedMediaSource כשאין MediaSource (ומכבה AirPlay לקטעים, כנדרש) */
+export function msOf(w) {
+  const g = w || (typeof window !== 'undefined' ? window : null);
+  return g ? g.MediaSource || g.ManagedMediaSource || null : null;
+}
 /* כללי הכתוביות — **זהים ל־Q_CPS/Q_LEN/Q_LINES/Q_MIN_DUR ו־_EN_RUN ב־translator/job.py** (מדד האיכות) */
 export const Q_CPS = 17, Q_LEN = 42, Q_LINES = 2, Q_MIN_DUR = 0.83;
 export const EN_RUN = /[A-Za-z]{2,}(?:[\s,'’-]+[A-Za-z]{2,}){2,}/;
@@ -313,7 +320,7 @@ export async function decodeDolby(url) {
   const MB = await import('./vendor/mediabunny/mediabunny.min.mjs');
   const input = new MB.Input({ source: new MB.UrlSource(url), formats: MB.ALL_FORMATS });
   const tr = await input.getPrimaryAudioTrack();
-  const isType = (t) => !!(window.MediaSource && MediaSource.isTypeSupported(t));
+  const isType = (t) => { const M = msOf(); return !!(M && M.isTypeSupported(t)); };
   if (!tr || !needAudioBridge(tr.codec, isType)) return null;
   if (!abReg) abReg = import('./vendor/mediabunny/mediabunny-ac3.min.mjs').then((m) => m.registerAc3Decoder());
   await abReg;
@@ -585,10 +592,10 @@ export function createPlayer(opts) {
   }
   async function startHls() {
     try {
-      if (typeof window === 'undefined' || !window.MediaSource) throw new Error('mse');
+      if (!msOf()) throw new Error('mse');   // 25/10/2026: באייפון אין MediaSource — יש ManagedMediaSource (iOS 17.1+), ו־hls.js יודע לעבוד איתו
       // 22/10/2026: הקול המקורי שהטלפון לא מנגן (Dolby/DTS…) + עותק Opus → hls.js המלא (רצועות קול חלופיות — הגרסה המקוצרת
       // לא תומכת), והקול מוסר מהקטעים. טלפון שמנגן את הקול המקורי — כמו קודם, בקול המקורי
-      const isType = (t) => window.MediaSource.isTypeSupported(t);
+      const isType = (t) => msOf().isTypeSupported(t);
       // 23/10/2026: כמה רצועות קול — תמיד דרך העותקים (MSE מנגן רק רצועה אחת מהקובץ), כדי שאפשר יהיה לבחור
       const alts0 = (opts.alt ? (Array.isArray(opts.alt) ? opts.alt : [opts.alt]) : []).filter((a) => a && a.url);
       const alts = alts0.length && (alts0.length > 1 || !audioPlayable(ladder[0].c, isType)) && isType('audio/mp4; codecs="opus"') ? alts0 : null;
@@ -752,7 +759,7 @@ export function createPlayer(opts) {
   let ftr = [], fNow = 0, fBridge = null, fSeq = 0;
   const fileAud = () => mode === 'file' && ftr.length > 1;
   const audList = () => (fileAud() ? ftr : altsNow);
-  const isTypeA = (t) => { try { return !!(window.MediaSource && MediaSource.isTypeSupported(t)); } catch (e) { return false; } };
+  const isTypeA = (t) => { try { const M = msOf(); return !!(M && M.isTypeSupported(t)); } catch (e) { return false; } };
   async function setFileAudio(i, force) {
     if (i < 0 || i >= ftr.length || (i === fNow && !force)) return;
     const seq = ++fSeq;
