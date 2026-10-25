@@ -79,8 +79,9 @@ def write_ass(cues: list[dict], style: Style, width: int, height: int, title: st
         top = bool(c.get("top"))                      # 22/10/2026: מקובץ קיים — בראש המסך (טקסט על המסך) ובהטיה
         an = 8 if top else 2
         ital = "\\i1" if c.get("it") else ""
+        base = st.bottom_y - float(c.get("lift") or 0.0) * height   # 25/10/2026: מעל טקסט שעל המסך (vt/burnin.py)
         for li, line in enumerate(lines):
-            y = (height - st.bottom_y) + li * st.line_pitch if top else st.bottom_y - (n - 1 - li) * st.line_pitch
+            y = (height - st.bottom_y) + li * st.line_pitch if top else base - (n - 1 - li) * st.line_pitch
             txt = _ass_escape(rtl(line))
             tag = f"{{\\an{an}\\pos({x:.1f},{y:.1f}){ital}" + (f"\\blur{st.blur:.2f}" if st.blur > 0 else "") + "}"
             ev.append(f"Dialogue: 0,{a},{b},Main,{c['id']},0,0,0,,{tag}{txt}")
@@ -115,7 +116,9 @@ def write_ass_compat(cues: list[dict], style: Style, width: int, height: int, ti
         "", "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
     ]
     blur = f"{{\\blur{st.blur:.2f}}}" if st.blur > 0 else ""
-    ev = [f"Dialogue: 0,{_ass_time(c['start'])},{_ass_time(c['end'])},Default,,0,0,0,,"
+    ev = [f"Dialogue: 0,{_ass_time(c['start'])},{_ass_time(c['end'])},Default,,0,0,"
+          + (str(int(round(margin_v + float(c.get("lift") or 0.0) * height))) if c.get("lift") and not c.get("top") else "0")
+          + ",,"
           + blur + ("{\\an8}" if c.get("top") else "") + ("{\\i1}" if c.get("it") else "")
           + "\\N".join(_ass_escape(rtl(x)) for x in c["lines"]) for c in cues]
     return "\n".join(head + ev) + "\n"

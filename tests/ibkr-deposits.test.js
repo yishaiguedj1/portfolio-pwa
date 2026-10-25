@@ -59,7 +59,7 @@ ok(mapped.length === 3, 'רק 3 הפקדות/משיכות אמיתיות מופ�
 ok(mapped[0].amount === -3500 && mapped[0].date === '2025-01-05', 'הפקדה בדולרים: סימן שלילי + המרה לשקלים');
 ok(mapped[1].amount === 700 && mapped[1].date === '2025-02-10', 'משיכה: סימן חיובי');
 ok(mapped[2].amount === -7000 && mapped[2].currency === undefined, 'הפקדה בשקלים נשארת כמו שהיא');
-ok(/USD 1,000/.test(mapped[0].place), 'הסכום המקורי נשמר לתצוגה');
+ok(mapped[0].cur === 'USD' && mapped[0].amt === 1000 && mapped[1].amt === -200, 'הסכום במטבע ההפקדה נשמר לתצוגה (cur/amt)');
 
 /* ---------- ibkrCashTxTypeList ---------- */
 const types = T.ibkrCashTxTypeList([

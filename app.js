@@ -5415,22 +5415,10 @@ function ibkrFinishImport(data, auto) {
   const kept = Object.keys(curSyms).length - replaced;
   // מזומן מהדוח — רק אם נמצא בדוח
   if (imp.cash) DB.cash = imp.cash;
-  // הפקדות: רק העברות חיצוניות מהדוח, מומרות לשקלים — בלי כפילויות בייבוא חוזר
-  const fxOf = (iso) => fxOnOrBefore(iso) || state.fx || 1;
-  const deps = ibkrMapDeposits(data.cashTransactions || [], fxOf);
-  // מודע־מופעים: שתי הפקדות זהות באותו יום הן לגיטימיות; יבוא חוזר לא מכפיל
-  const depKey = (d) => d.date + '|' + d.amount;
-  const existCount = {};
-  for (const d of (DB.deposits || [])) { const k = depKey(d); existCount[k] = (existCount[k] || 0) + 1; }
-  const usedCount = {};
-  const newDeps = deps.filter((d) => {
-    const k = depKey(d);
-    usedCount[k] = (usedCount[k] || 0) + 1;
-    return usedCount[k] > (existCount[k] || 0);
-  });
+  // הפקדות: רק העברות חיצוניות מהדוח הממוזג — נגזרות מחדש (בלי כפילויות בייבוא חוזר, 25/10/2026)
+  const depsChanged = ibkrSyncDeposits(data);
   const skipped = imp.skipped;
-  if (newDeps.length || imp.cash || (imp.positions || []).length) {
-    if (newDeps.length) DB.deposits = DB.deposits.concat(newDeps);
+  if (depsChanged || imp.cash || (imp.positions || []).length) {
     DB.source = 'ibkr';
     saveDB();
   }
@@ -5684,8 +5672,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.47.1';
-const APP_VERSION = 'v535';
+const APP_RELEASE = '2.47.2';
+const APP_VERSION = 'v536';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -5835,9 +5823,80 @@ let WISHLIST = DB.wishlist;
 let PENSION_FUNDS = DB.pensionFunds;
 let PENSION_DEPOSITS = DB.pensionDeposits;
 
+/* 25/10/2026: הסכום במטבע ההפקדה — {cur, amt} בסימן של IBKR (חיובי = נכנס), או null.
+   הפקדת IBKR ישנה (לפני השדות) — מהתיאור (" · USD 6,335"), ובלי סיומת = שקלים. טהורה. */
+function depNative(d) {
+  if (!d) return null;
+  if (d.cur && isFinite(Number(d.amt))) return { cur: String(d.cur).toUpperCase(), amt: Number(d.amt) };
+  if (!isIbkrDeposit(d)) return null;
+  const a = num(d.amount) || 0;
+  const m = / · ([A-Z]{3}) ([\d,]+(?:\.\d+)?)$/.exec(String(d.place || ''));
+  if (m) { const v = Number(m[2].replace(/,/g, '')); return { cur: m[1], amt: a > 0 ? -v : v }; }
+  return { cur: 'ILS', amt: -a };
+}
+/* הסכום בשקלים לסיכום (שלילי = נכנס): הפקדה במטבע זר — לפי שער יום ההפקדה כשהשערים נטענו,
+   כך שהסך לא תלוי בשער שהיה זמין ברגע הסנכרון. אחרת — מה שנשמר. */
+function depILS(d) {
+  const n = d && d.cur && isFinite(Number(d.amt)) ? { cur: String(d.cur), amt: Number(d.amt) } : null;
+  if (n && n.cur !== 'ILS' && fxHistCache) {
+    const fx = fxOnOrBefore(String(d.date || '').slice(0, 10));
+    const toUsd = n.cur === 'USD' ? 1 : (Number(d.fxb) || 0);
+    if (fx > 0 && toUsd > 0) return -Math.round(n.amt * toUsd * fx * 100) / 100;
+  }
+  if (n && n.cur === 'ILS') return -n.amt;
+  return num(d && d.amount) || 0;
+}
 /* סך הפקדות נטו — מחושב מהרשומות (סכום שלילי = כסף שנכנס לתיק) */
 function netDepositsILS() {
-  return -DEPOSITS.reduce((a, d) => a + (num(d.amount) || 0), 0);
+  return -DEPOSITS.reduce((a, d) => a + depILS(d), 0);
+}
+
+/* 25/10/2026 (באג: הסך גדל בכל סנכרון): הפקדות IBKR נגזרות מהדוח הממוזג (כל ההיסטוריה) —
+   בטווח שהדוח מכסה הן מוחלפות במיפוי הטרי, מחוץ לו (ונתונים ידניים) — נשארות.
+   עד היום זיהוי הכפילויות היה לפי הסכום בשקלים, שתלוי בשער שהיה זמין ברגע הסנכרון —
+   אותה הפקדה קיבלה סכום אחר ונוספה שוב. מחזיר רשימה חדשה, או null כשאין מה לגזור. טהורה. */
+function ibkrRebuildDeposits(list, data, fxOf) {
+  const txs = (data && data.cashTransactions) || [];
+  const meta = (data && data.meta) || {};
+  const iso = (v) => { const s = String(v || ''); return /^\d{8}$/.test(s) ? s.slice(0, 4) + '-' + s.slice(4, 6) + '-' + s.slice(6) : s.slice(0, 10); };
+  let from = iso(meta.fromDate), to = iso(meta.toDate);
+  for (const c of txs) {
+    const d = String((c && c.date) || '').slice(0, 10);
+    if (!d) continue;
+    if (!from || d < from) from = d;
+    if (!to || d > to) to = d;
+  }
+  if (!from || !to) return null;
+  const mapped = ibkrMapDeposits(txs, fxOf);
+  const keep = (list || []).filter((d) => {
+    if (!isIbkrDeposit(d)) return true;
+    const di = String(d.date || '').slice(0, 10);
+    return di < from || di > to;
+  });
+  return keep.concat(mapped);
+}
+/* מפתח זהות להשוואה (בלי הסכום בשקלים, שמשתנה עם השער) */
+function depIdentity(list) {
+  return (list || []).map((d) => {
+    const n = depNative(d);
+    return String(d.date || '') + '|' + (isIbkrDeposit(d) ? 'i' : 'm') + '|' + (n ? n.cur + ' ' + n.amt : num(d.amount));
+  }).sort().join(';');
+}
+/* מחיל את הגזירה על DB.deposits במקום (DEPOSITS מצביע לאותו מערך). מחזיר true אם השתנה. */
+function ibkrSyncDeposits(data) {
+  const fxOf = (d) => fxOnOrBefore(d) || state.fx || 1;
+  const next = ibkrRebuildDeposits(DB.deposits, data, fxOf);
+  if (!next || depIdentity(next) === depIdentity(DB.deposits)) return false;
+  DB.deposits.length = 0;
+  DB.deposits.push(...next);
+  return true;
+}
+/* תיקון חד־פעמי בטעינה: כפילויות שכבר נוצרו בבאג נעלמות מעצמן (אידמפוטנטי). */
+function ibkrRepairDeposits() {
+  if (!isIbkrMode() || (DB && DB.demo)) return false;
+  const data = ibkrCfg().data;
+  if (!data || !(data.cashTransactions || []).length) return false;
+  return ibkrSyncDeposits(data);
 }
 
 /* v145: כסף שנכנס לתיק מחוץ ל־IBKR — קניות/מכירות ידניות, בשקלים, בכיוון של הפקדה.
@@ -7972,16 +8031,18 @@ function ibkrMapDeposits(cashTx, fxOf) {
       ils = amt * toUsd * fx;
     }
     const r2 = (v) => Math.round(v * 100) / 100;
-    // ב־IBKR חיובי = נכנס; באפליקציה שלילי = נכנס. שומרים גם את הסכום המקורי לתצוגה.
-    const origTxt = (cur !== 'ILS' && amt)
-      ? ' · ' + cur + ' ' + Math.abs(amt).toLocaleString('en-US', { maximumFractionDigits: 2 })
-      : '';
-    out.push({
+    // ב־IBKR חיובי = נכנס; באפליקציה שלילי = נכנס.
+    // 25/10/2026: נשמר גם הסכום במטבע ההפקדה (cur/amt, בסימן של IBKR) — לתצוגה ולזיהוי כפילויות.
+    const dep = {
       date: String(c.date || '').slice(0, 10),
       amount: amt > 0 ? -r2(Math.abs(ils)) : r2(Math.abs(ils)),
-      place: String(c.description || type || 'IBKR').slice(0, 40) + origTxt,
+      place: String(c.description || type || 'IBKR').slice(0, 40),
       src: 'ibkr',
-    });
+      cur: cur,
+      amt: r2(amt),
+    };
+    if (cur !== 'ILS' && cur !== 'USD') dep.fxb = Number(c.fxToBase) || 0;
+    out.push(dep);
   }
   out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   return out;
@@ -14416,7 +14477,16 @@ function validDeposit(dateStr, amount) {
   return null;
 }
 
-function depositAmountHTML(amt) {
+/* 25/10/2026: הסכום במטבע ההפקדה (USD → $, ILS → ₪, אחר — קוד המטבע) */
+const DEP_CUR_SYM = { USD: '$', ILS: '₪', EUR: '€', GBP: '£' };
+function depositAmountHTML(amt, nat) {
+  if (nat && nat.cur && nat.cur !== 'ILS') {
+    const sym = DEP_CUR_SYM[nat.cur] || (nat.cur + ' ');
+    const v = Math.abs(nat.amt).toLocaleString('en-US', { maximumFractionDigits: 2 });
+    if (!nat.amt) return '<span class="r-amt zero">' + esc(sym) + '0</span>';
+    if (nat.amt < 0) return '<span class="r-amt in" title="' + t('adjTitle') + '">' + ltrNum('−' + esc(sym) + v) + '</span>';
+    return '<span class="r-amt out">' + ltrNum(esc(sym) + v) + '</span>';
+  }
   if (amt === 0) return '<span class="r-amt zero">₪0</span>';
   if (amt > 0) return '<span class="r-amt in" title="' + t('adjTitle') + '">−₪' + amt.toLocaleString('en-US') + '</span>'; // v151: משיכה — מינוס אפור, לא ירוק
   return '<span class="r-amt out">₪' + Math.abs(amt).toLocaleString('en-US') + '</span>';
@@ -14524,6 +14594,12 @@ function renderDeposits() {
     state._depFxLoading = true; // שער יום העסקה — נטען פעם אחת ומצייר שוב
     ensureFxHist().then(() => renderDeposits()).catch(() => null);
   }
+  // 25/10/2026: הפקדות IBKR במטבע זר — הסך בשקלים לפי שער יום ההפקדה (נטען פעם אחת)
+  const fxDeps = DEPOSITS.filter((d) => d.cur && d.cur !== 'ILS').map((d) => String(d.date || '').slice(0, 10)).sort();
+  if (fxDeps.length && !state._depFxHist) {
+    state._depFxHist = true;
+    ensureFxHist(fxDeps[0]).then(() => renderAll()).catch(() => null);
+  }
   const nd = netDepositsILS() + (hasMf ? mf.inILS : 0);
   const ndTxt = ltrNum((nd < 0 ? '−' : '') + '₪' + Math.abs(Math.round(nd * 100) / 100).toLocaleString('en-US'));
   document.getElementById('depTotal').textContent = ndTxt;
@@ -14597,7 +14673,7 @@ function buildDepositRow(d, i, ed) {
     (d.place ? '<br><span class="r-note">' + esc(d.place) + '</span>' : '');
   li.appendChild(main);
   const wrap = el('span');
-  wrap.innerHTML = depositAmountHTML(d.amount);
+  wrap.innerHTML = depositAmountHTML(d.amount, depNative(d));
   li.appendChild(wrap);
   if (ed) {
     const actions = el('span', 'row-actions');
@@ -14854,6 +14930,7 @@ function renderAllInner() {
   try { renderCashInputs(); } catch (e) {} // 23/10/2026: המזומן בתפריט מתעדכן אחרי סנכרון IBKR / טעינה מהענן (עד אז — רק בפתיחה)
   // v141: מניה שנוספה ביד במצב IBKR (לפני v141) מסומנת ידנית — נכללת בחישובים ונשמרת בסנכרון
   try { if (markManualPositions()) saveDB(); } catch (e) {}
+  try { if (ibkrRepairDeposits()) saveDB(); } catch (e) {} // 25/10/2026: הפקדות IBKR כפולות מהבאג
   // v157: מחירי ת"א שהוזנו באגורות לפני v157 — מתוקנים פעם אחת כשיש מחיר חי
   try {
     if (!isDemoMode()) {

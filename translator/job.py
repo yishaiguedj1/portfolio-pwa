@@ -2719,7 +2719,8 @@ EARLY_SHOTS_PY = (
     'import json,os,sys,pathlib\n'
     'from vt import media\n'
     'th=float(sys.argv[3])\n'
-    's=media.detect_shots(pathlib.Path(sys.argv[1]),th)\n'
+    'b=None if os.environ.get("SNB_BURN")=="off" else pathlib.Path(sys.argv[2]+".burn")\n'
+    's=media.detect_shots(pathlib.Path(sys.argv[1]),th,burn_out=b)\n'
     't=sys.argv[2]+".tmp"\n'
     'json.dump({"threshold":th,"shots":s},open(t,"w"))\n'
     'os.replace(t,sys.argv[2])\n')
@@ -2740,10 +2741,11 @@ def early_shots_start(q, src):
     except (OSError, ValueError):
         th = 10.0
     out = q.pdir / 'shots.early.json'
-    try:
-        out.unlink()
-    except OSError:
-        pass
+    for f in (out, Path(str(out) + '.burn')):
+        try:
+            f.unlink()
+        except OSError:
+            pass
 
     def idle():
         try:
@@ -2792,6 +2794,12 @@ def early_shots_take(ctx):
     if not isinstance(d, dict) or not isinstance(d.get('shots'), list):
         return False
     (ctx.pdir / 'shots.json').write_text(json.dumps(d, ensure_ascii=False), encoding='utf-8')
+    burn = Path(str(out) + '.burn')             # 25/10/2026: טקסט שעל המסך מאותו מעבר (vt/burnin.py)
+    try:
+        if burn.exists():
+            os.replace(burn, ctx.pdir / 'burned.json')
+    except OSError:
+        pass
     try:
         out.unlink()
     except OSError:
@@ -4681,6 +4689,25 @@ def restore(args):
     return 0
 
 
+VAL_OPTS = ('--job', '--key')
+
+
+def join_vals(argv):
+    """25/10/2026: המפתח (`newKey`) הוא base64url — בערך פעם ב־64 הוא מתחיל ב־'-', ו־argparse קורא אותו כדגל
+    ("expected one argument"): העבודה נכשלת לפני שהתחילה, בשרת, בטלפון וב־Routine. '--key X' → '--key=X'."""
+    out, i = [], 0
+    argv = list(argv)
+    while i < len(argv):
+        x = argv[i]
+        if x in VAL_OPTS and i + 1 < len(argv):
+            out.append(x + '=' + argv[i + 1])
+            i += 2
+            continue
+        out.append(x)
+        i += 1
+    return out
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description='העובד בענן של סטודיו התרגום')
     sub = p.add_subparsers(dest='cmd', required=True)
@@ -4730,7 +4757,7 @@ def main(argv=None):
     w.add_argument('--max', type=int, default=6600)
     v = sub.add_parser('vt', help='פקודת vt על הפרויקט של העבודה')
     v.add_argument('rest', nargs=argparse.REMAINDER)
-    a = p.parse_args(argv)
+    a = p.parse_args(join_vals(sys.argv[1:] if argv is None else argv))
     if a.cmd != 'run':
         return {'prepare': prepare, 'align': align, 'stage': stage, 'finish': finish, 'fail': fail, 'ask': ask, 'vt': vt_cmd,
                 'save': save, 'restore': restore, 'fix': fix, 'pir': pir, 'gate': gate_cmd, 'auto': auto_cmd, 'go': go, 'wait': wait_cmd, 'relay-loop': relay_loop,

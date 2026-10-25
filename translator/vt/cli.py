@@ -295,7 +295,8 @@ def cmd_shots(a):
         log("אין וידאו — אין חילופי שוטים")
         return
     th = a.threshold or meta.get("settings", {}).get("shot_threshold", 10.0)
-    shots = media.detect_shots(pr.source_path(), th)
+    shots = media.detect_shots(pr.source_path(), th, burn_out=None if os.environ.get("SNB_BURN") == "off"
+                               else pr.p("burned.json"))
     write_json(pr.p("shots.json"), {"threshold": th, "shots": shots})
     log(f"נמצאו {len(shots)} חילופי שוטים")
     pr.mark("shots", count=len(shots))
@@ -442,6 +443,16 @@ def _build(pr: Project, style_name: str | None, chooser) -> dict:
         warns.append(f"מיזוג מונע־CPS: {n_merged} זוגות כתוביות אוחדו כדי לעמוד בקצב הקריאה")
     bad_fit = [c["id"] for c in final if not c.pop("_fits", True)]
     issues = frame_check(final, grid)
+    # 25/10/2026: טקסט שעל המסך (burned.json מ־vt shots) — הכתובית מורמת מעליו או עוברת לראש המסך (vt/burnin.py)
+    if pr.p("burned.json").exists() and os.environ.get("SNB_BURN") != "off":
+        from . import burnin
+        try:
+            bst = burnin.place(final, read_json(pr.p("burned.json")), st, meas, W, H)
+            if bst["lift"] or bst["top"]:
+                log(f"טקסט על המסך: {bst['lift']} כתוביות הורמו מעליו · {bst['top']} בראש המסך")
+                warns.append(f"טקסט על המסך: {bst['lift']} כתוביות הורמו מעליו, {bst['top']} עברו לראש המסך")
+        except (ValueError, KeyError, TypeError) as e:
+            log(f"קובץ הטקסט שעל המסך לא תקין ({type(e).__name__}) — הכתוביות במקומן")
     od = pr.out_dir
     od.mkdir(parents=True, exist_ok=True)
     title = meta.get("title", pr.name)
@@ -452,7 +463,7 @@ def _build(pr: Project, style_name: str | None, chooser) -> dict:
     en_cues = [dict(c, en_lines=[c["en"]]) for c in final]
     write_text(od / "en.reference.srt", write_srt(en_cues, with_rlm=False, key="en_lines"))
     keep = ("id", "spk", "speech_s", "speech_e", "si", "so", "fi", "fo", "start", "end", "lines", "chars",
-            "cps", "flags", "en", "he", "snap_in", "snap_out", "chained", "merged", "cps_merged", "it", "top", "tpl")
+            "cps", "flags", "en", "he", "snap_in", "snap_out", "chained", "merged", "cps_merged", "it", "top", "lift", "tpl")
     write_json(od / "cues.final.json", [{k: c[k] for k in keep if k in c} for c in final])
     # האפשרויות לבחירה של Haiku (pipeline: lb-prompt → Claude → lb-apply → build שוב)
     lb_items = LB.items_for(final, tx.max_chars_line, meas, st.max_line_px)
