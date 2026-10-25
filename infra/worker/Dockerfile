@@ -55,6 +55,27 @@ RUN set -eu; \
     mkdir -p /opt/deno && unzip -q /tmp/deno.zip -d /opt/deno && chmod 755 /opt/deno/deno; \
     /opt/deno/deno --version | grep -q "deno ${DENO_VERSION}"
 
+# ---------------------------------------------------------------- PO token ליוטיוב (bgutil, מאומת) — 25/10/2026
+# הסקריפט שמייצר PO token (bgutil-ytdlp-pot-provider, GPL-3.0) — בתגית ובקומיט נעולים, התלויות לפי deno.lock (--frozen).
+# הפלאגין (requirements.lock) מריץ אותו ב־Deno רק כשיוטיוב מבקש token; בלי שרת שרץ כל הזמן (script-deno). רק לקישורי
+# יוטיוב (fetchurl.py). בארכיטקטורה שאין לה גרסה מוכנה של canvas — בלי (התיקייה ריקה ו־fetchurl מדלג), לא נכשלים
+FROM ${PY_IMAGE} AS bgutil
+ARG TARGETARCH
+ARG BGUTIL_TAG=2.0.2
+ARG BGUTIL_COMMIT=26475e9d3665b972c4aeb83b4dbaafcf64b88438
+COPY --from=deno /opt/deno /opt/deno
+RUN set -eu; \
+    apt-get update -qq && apt-get install -y -qq --no-install-recommends git ca-certificates >/dev/null; \
+    git clone -q --depth 1 --branch "$BGUTIL_TAG" https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git /tmp/b; \
+    test "$(git -C /tmp/b rev-parse HEAD)" = "$BGUTIL_COMMIT"; \
+    mkdir -p /opt/bgutil/server; \
+    if (cd /tmp/b/server && DENO_DIR=/tmp/dd /opt/deno/deno install --allow-scripts=npm:canvas --frozen); then \
+      cp -r /tmp/b/server/src /tmp/b/server/node_modules /tmp/b/server/deno.json /tmp/b/server/deno.lock /tmp/b/server/package.json /opt/bgutil/server/; \
+      cp /tmp/b/LICENSE /opt/bgutil/; \
+      test -f /opt/bgutil/server/src/generate_once.ts; \
+    elif [ "$TARGETARCH" = arm64 ]; then echo 'bgutil: בלי PO token בארכיטקטורה הזו'; else exit 1; fi; \
+    chmod -R a+rX /opt/bgutil
+
 # ---------------------------------------------------------------- ספריות Python (נעולות)
 FROM ${PY_IMAGE} AS deps
 ARG TARGETARCH
@@ -95,6 +116,7 @@ RUN apt-get update -qq \
  && mkdir -p /work /cache /state && chown snb:snb /work /cache /state && chmod 700 /work /cache /state
 COPY --from=ffmpeg /opt/ffmpeg /opt/ffmpeg
 COPY --from=deno /opt/deno /opt/deno
+COPY --from=bgutil /opt/bgutil /opt/bgutil
 COPY --from=deps /opt/vt /opt/vt
 COPY --from=aligner /opt/aligner /opt/aligner
 COPY --from=speaker /opt/speaker /opt/speaker
@@ -109,6 +131,8 @@ RUN rm -rf /app/translator/tests /app/translator/research /app/translator/__pyca
 # בלי רשת. anthropic 1.x עבר ל־httpx2 ודחה httpx.Timeout ב־TypeError: כל עבודה בשרת קרסה בקריאה הראשונה, והבנייה עברה
 # 22/10/2026: הורדה מקישור — yt-dlp רואה את Deno (מנוע ה־JavaScript של יוטיוב) ואת ההתחזות לדפדפן, בלי רשת
 RUN PATH=/opt/vt/bin:/opt/deno:$PATH /opt/vt/bin/python -c "import shutil, yt_dlp, curl_cffi; assert shutil.which('deno'), 'deno'; print(yt_dlp.version.__version__)"
+# 25/10/2026: הפלאגין של ה־PO token נטען (ובאמד64 גם הסקריפט שלו קיים)
+RUN /opt/vt/bin/python -c "import os, yt_dlp_plugins.extractor.getpot_bgutil_script as g; f = os.path.isfile('/opt/bgutil/server/src/generate_once.ts'); print('bgutil', f); assert f or os.uname().machine != 'x86_64'"
 RUN cd /app/translator && ANTHROPIC_API_KEY=build-check /opt/vt/bin/python -B -c \
     "import llm; c = llm.Engine(llm.Spec.of(llm.DEFAULT_MODE))._client_or_new(); assert c.timeout.read == llm.API_READ_TIMEOUT, c.timeout" \
  && cd /app/translator && /opt/vt/bin/python -B -c \

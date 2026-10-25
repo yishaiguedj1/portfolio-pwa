@@ -93,6 +93,40 @@ class YtCookiesTest(unittest.TestCase):
         self.assertEqual([p.name for p in self.d.iterdir() if p.name.startswith('.ck.')], [])   # אין עותקים יתומים
 
 
+class PotTest(unittest.TestCase):
+    """25/10/2026: PO token (bgutil, script-deno) — רק ליוטיוב, ורק כשהסקריפט בתמונה"""
+    def setUp(self):
+        self.h = Path(tempfile.mkdtemp())
+        os.environ['SNB_POT_HOME'] = str(self.h)
+
+    def tearDown(self):
+        os.environ.pop('SNB_POT_HOME', None)
+
+    def test_only_when_installed(self):
+        self.assertEqual(F.pot_args('https://youtu.be/x'), [])            # בלי הסקריפט — yt-dlp ממשיך בלעדיו
+        (self.h / 'src').mkdir()
+        (self.h / 'src' / 'generate_once.ts').write_text('')
+        self.assertEqual(F.pot_args('https://www.youtube.com/watch?v=x'), ['--extractor-args', 'youtubepot-bgutilscript:server_home=' + str(self.h)])
+        self.assertEqual(F.pot_args('https://vimeo.com/1'), [])
+
+    def test_in_probe_command(self):
+        (self.h / 'src').mkdir()
+        (self.h / 'src' / 'generate_once.ts').write_text('')
+        seen = []
+
+        class R:
+            returncode, stdout, stderr = 1, '', 'ERROR: x'
+
+        def run(cmd, **kw):
+            seen.append(cmd)
+            return R()
+        for u in ('https://youtu.be/abc', 'https://vimeo.com/1'):
+            with self.assertRaises(ValueError):
+                F.probe(u, run=run)
+        self.assertIn('youtubepot-bgutilscript:server_home=' + str(self.h), seen[0])
+        self.assertFalse(any('bgutil' in x for x in seen[1]))
+
+
 class AgentSyncTest(unittest.TestCase):
     def setUp(self):
         self.d = Path(tempfile.mkdtemp()) / 'yt'

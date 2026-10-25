@@ -164,6 +164,15 @@ const GOOD = ['# Netscape HTTP Cookie File', '# comment', L('.youtube.com', 'SAP
   const DL = require(path.join(root, 'ibkr-proxy/lib/devlog.js'));
   ok(!/aaaBBB|x1y2z3/.test(DL.redact(GOOD)) && !/q1w2/.test(DL.redact('SID=q1w2; __Secure-3PAPISID=q1w2')), 'עוגיות לא נכנסות ליומן (redact)');
 
+  /* ---------- 4ב. PO token בתמונת העובד (25/10/2026) ---------- */
+  const df = fs.readFileSync(path.join(root, 'infra/worker/Dockerfile'), 'utf8');
+  ok(/ARG BGUTIL_COMMIT=[0-9a-f]{40}\n/.test(df) && /test "\$\(git -C \/tmp\/b rev-parse HEAD\)" = "\$BGUTIL_COMMIT"/.test(df) && /deno install --allow-scripts=npm:canvas --frozen/.test(df), 'bgutil — תגית וקומיט נעולים, תלויות לפי deno.lock');
+  ok(/COPY --from=bgutil \/opt\/bgutil \/opt\/bgutil/.test(df) && /getpot_bgutil_script/.test(df), 'הסקריפט בתמונה הסופית, והפלאגין נבדק בבנייה');
+  for (const f of ['requirements.lock', 'requirements-arm64.lock']) {
+    ok(/bgutil-ytdlp-pot-provider==2\.0\.2 \\\n    --hash=sha256:[0-9a-f]{64}/.test(fs.readFileSync(path.join(root, 'infra/worker', f), 'utf8')), 'הפלאגין נעול עם hash — ' + f);
+  }
+  ok(/pot_args\(url\) \+ ref_args/.test(fs.readFileSync(path.join(root, 'translator/fetchurl.py'), 'utf8')), 'fetchurl מעביר את ה־PO token בבדיקה ובהורדה');
+
   /* ---------- 5. העובד (python) ---------- */
   const py = spawnSync('python3', ['-m', 'unittest', 'tests.test_ytck'], { encoding: 'utf8', cwd: path.join(root, 'translator') });
   ok(py.status === 0 && /\nOK\s*$/.test(py.stderr || ''), 'העובד: fetchurl + agent (' + String(py.stderr || '').trim().split('\n').slice(-3).join(' ') + ')');
