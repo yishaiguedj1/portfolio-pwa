@@ -5594,8 +5594,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.47.2';
-const APP_VERSION = 'v537';
+const APP_RELEASE = '2.48.0';
+const APP_VERSION = 'v538';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -14419,10 +14419,18 @@ function depositAmountHTML(amt, nat) {
 function ibkrTrades() {
   const d = ibkrCfg().data;
   const trs = ((d && d.trades) || []).filter((t) => t && t.symbol);
-  return trs.slice().sort((a, b) => {
-    const da = String(a.date || ''), db = String(b.date || '');
-    return db < da ? -1 : db > da ? 1 : 0;
-  });
+  return trs.slice().sort(tradeNewestFirst);
+}
+/* 25/10/2026: סדר כרונולוגי גם בתוך אותו יום — לפי השעה מ־IBKR (time), ובעסקאות שנשמרו
+   לפני שהשעה נשמרה — לפי מזהה העסקה של IBKR (רץ לפי סדר הביצוע). מהחדשה לישנה. טהורה. */
+function tradeNewestFirst(a, b) {
+  const da = String(a.date || '').slice(0, 10), db = String(b.date || '').slice(0, 10);
+  if (da !== db) return db < da ? -1 : 1;
+  const ta = String(a.time || ''), tb = String(b.time || '');
+  if (ta && tb && ta !== tb) return tb < ta ? -1 : 1;
+  const ia = String(a.tradeId || '').replace(/\D/g, ''), ib = String(b.tradeId || '').replace(/\D/g, '');
+  if (ia && ib && ia !== ib) return ia.length !== ib.length ? ib.length - ia.length : (ib < ia ? -1 : 1);
+  return 0;
 }
 
 /* עיצוב סכום במטבע העסקה (פונקציה טהורה — נבדקת). */
@@ -14446,6 +14454,7 @@ function tradeRowData(tr) {
   const commCur = String(t.commissionCurrency || cur).toUpperCase();
   return {
     date: String(t.date || '').slice(0, 10),
+    time: /^\d{2}:\d{2}/.test(String(t.time || '')) ? String(t.time).slice(0, 5) : '', // 25/10/2026: שעה ודקה
     symbol: String(t.symbol || ''),
     isBuy,
     qtyTxt: Number.isInteger(qty) ? String(qty) : String(+qty.toFixed(4)),
@@ -14459,7 +14468,8 @@ function buildTradeRow(tr, src) {
   const d = tradeRowData(tr);
   const li = el('li');
   const main = el('span');
-  main.innerHTML = '<span class="r-date">' + esc(fmtDateIL(d.date)) + '</span> ' +
+  main.innerHTML = '<span class="r-date">' + esc(fmtDateIL(d.date)) +
+    (d.time ? ' <span class="r-time">' + esc(d.time) + '</span>' : '') + '</span> ' +
     '<span class="side-chip ' + (d.isBuy ? 'buy' : 'sell') + '">' +
     esc(d.isBuy ? t('buySide') : t('sellSide')) + '</span>' + (src ? srcTagHTML(src) : '') + '<br>' +
     '<span class="r-note">' + esc(d.symbol) + ' · ' + esc(d.qtyTxt) + ' × ' + esc(d.priceTxt) + '</span>';
@@ -14501,7 +14511,7 @@ function renderTrades() {
   const rows = ib.map((x) => ({ d: String(x.date || '').slice(0, 10), ib: x }))
     .concat(man.map((x) => ({ d: mtNorm(x).date, mt: x })))
     .filter((r) => srcPass(sf, r.mt ? 'manual' : 'ibkr'))
-    .sort((a, b) => (a.d < b.d ? 1 : a.d > b.d ? -1 : 0));
+    .sort((a, b) => (a.d < b.d ? 1 : a.d > b.d ? -1 : 0)); // יציב — בתוך יום נשמר הסדר של ibkrTrades
   if (!rows.length) list.appendChild(el('p', 'fine', t('srcFilterEmpty')));
   for (const r of rows) list.appendChild(r.mt ? buildManualTradeRow(r.mt, edit) : buildTradeRow(r.ib, 'ibkr'));
 }

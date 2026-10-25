@@ -137,6 +137,13 @@ function rMergePreview(oldData, newData) {
 function rMergeData(a, b) {
   const A = a || {}, B = b || {};
   const trades = unionCount(A.trades, B.trades, tradeKey);
+  // 25/10/2026: עסקה שנשמרה לפני ששמרנו את השעה מקבלת אותה ממשיכה חדשה של אותה עסקה (לפי מזהה)
+  const tB = new Map();
+  for (const x of (B.trades || [])) if (x && x.time && x.tradeId) tB.set(String(x.tradeId), x.time);
+  for (let i = 0; i < trades.length; i++) {
+    const x = trades[i];
+    if (x && !x.time && x.tradeId && tB.has(String(x.tradeId))) trades[i] = Object.assign({}, x, { time: tB.get(String(x.tradeId)) });
+  }
   const cashTransactions = unionCount(A.cashTransactions, B.cashTransactions, cashKey);
   const seenP = rMergePeriods(A.navPeriods, B.navPeriods);
   const navPeriods = seenP.periods;
