@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1832 מפתחות מתוך 4012) */
+/* המחרוזות של studio (1836 מפתחות מתוך 4016) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -1062,6 +1062,8 @@ he: {
   "studioPermPush": "git push",
   "studioPermSessions": "ניהול סשנים אחרים",
   "studioPermT": "הרשאות · מה מותר לסוכנים",
+  "studioPhBig": "בעבודה בטלפון",
+  "studioPhBigS": "ממשיכים באפליקציה Studio",
   "studioPhBurnAgain": "לצרוב שוב",
   "studioPhBurnFail": "הצריבה בטלפון נכשלה",
   "studioPhBurnGo": "לצרוב בטלפון",
@@ -1080,6 +1082,7 @@ he: {
   "studioPhKeyBusy": "מכין…",
   "studioPhMeasured": "המדידות מהטלפון הגיעו ✓",
   "studioPhNotMeasured": "הטלפון מעלה את הקול ואת המדידות",
+  "studioPhNotMeasuredPw": "הטלפון מתמלל ומיישר — עולה רק טקסט",
   "studioPhNote": "נשאר בטלפון · עולים רק הקול והמדידות",
   "studioPhOn": "נבחר",
   "studioPhOtherDev": "הצריבה — בטלפון שבו בחרתם את הסרטון (באפליקציה Studio)",
@@ -1098,6 +1101,7 @@ he: {
   "studioPhStUpw": "בטלפון: שולח את התמליל",
   "studioPhStWav": "בטלפון: מכין את הקול",
   "studioPhStartApp": "להתחיל באפליקציה Studio",
+  "studioPhStopBig": "נעצר בטלפון",
   "studioPhStopped": "נעצר בטלפון",
   "studioPhWaitM": "מחכה למדידות מהטלפון — ממשיך לבד כשיגיעו",
   "studioPhoneDraft": "טיוטה · נשמרה בטלפון בלבד",
@@ -2896,6 +2900,8 @@ en: {
   "studioPermPush": "git push",
   "studioPermSessions": "Managing other sessions",
   "studioPermT": "Permissions · what agents may do",
+  "studioPhBig": "Working on the phone",
+  "studioPhBigS": "Continue in the Studio app",
   "studioPhBurnAgain": "Burn again",
   "studioPhBurnFail": "Burning on the phone failed",
   "studioPhBurnGo": "Burn on the phone",
@@ -2914,6 +2920,7 @@ en: {
   "studioPhKeyBusy": "Preparing…",
   "studioPhMeasured": "The measurements from the phone arrived ✓",
   "studioPhNotMeasured": "The phone is uploading the audio and the measurements",
+  "studioPhNotMeasuredPw": "The phone transcribes and aligns — only text is uploaded",
   "studioPhNote": "Stays on the phone · only the audio and measurements are uploaded",
   "studioPhOn": "Chosen",
   "studioPhOtherDev": "Burning happens on the phone where you chose the video (in the Studio app)",
@@ -2932,6 +2939,7 @@ en: {
   "studioPhStUpw": "On the phone: sending the transcript",
   "studioPhStWav": "On the phone: preparing the audio",
   "studioPhStartApp": "Start in the Studio app",
+  "studioPhStopBig": "Stopped on the phone",
   "studioPhStopped": "Stopped on the phone",
   "studioPhWaitM": "Waiting for the measurements from the phone — continues on its own when they arrive",
   "studioPhoneDraft": "Draft · saved on this phone only",
