@@ -42,6 +42,13 @@ class Holes(unittest.TestCase):
         words = [W("a", 0.2), W("b", 2.2)]                             # 1.4 שנ׳ שקט אחרי "a"
         self.assertEqual(holes(words, [(0.1, 0.7), (2.1, 2.6)], 2.6), [])
 
+    def test_thresholds_25_10(self):
+        """25/10/2026 (ניסוי על פרקי ריאליטי): HOLE_S 0.9, ‏QUIET_S 1.8 — עוד משפט לפרק, בלי מילים מומצאות.
+        החור מתחיל WORD_S אחרי תחילת המילה: דיבור 0.8 (לא), 1.0 (כן); שקט 1.7 (לא), 2.0 (כן)"""
+        st = [0.0, 1.4, 3.0, 5.3, 7.9]
+        f = holes([W("x", t) for t in st], [(0.0, 3.2)], 9.0)
+        self.assertEqual([(i, round(a, 2), round(b, 2)) for i, a, b in f], [(2, 2.0, 3.0), (4, 5.9, 7.9)])
+
     def test_long_quiet_is_a_hole_in_pieces(self):
         """Silero מפספס דיבור ברעש (מסוק — Undercover 14:35, 23 מילים): גם שקט ארוך מתומלל שוב, בחלקים"""
         words = [W("a", 0.5), W("b", 80.0)]

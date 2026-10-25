@@ -69,6 +69,18 @@ class Ph2Test {
         assertEquals(pairs(o.getJSONArray("segs2")), SileroVad.segments(p, o.getInt("n"), maxSpeechS = 2.0, padMs = 30.0))
     }
 
+    /** 25/10/2026: הספים של התמלול החוזר זהים לשרת — מרווחים משני הצדדים של HOLE_S ושל QUIET_S */
+    @Test fun holeThresholdsLikeTheServer() {
+        val r = fx.getJSONObject("holes2")
+        val segs = r.getJSONArray("segs").let { a -> List(a.length()) { a.getJSONArray(it).let { x -> x.getDouble(0) to x.getDouble(1) } } }
+        val holes = AsrWords.holes(aw(r.getJSONArray("words")), segs, r.getDouble("total"))
+        val wh = r.getJSONArray("holes")
+        assertEquals(wh.length(), holes.size)
+        assertEquals("דיבור של 1.0 ושקט של 2.0 — חורים; 0.8 ו־1.7 לא", 2, holes.size)
+        for (i in holes.indices) { val h = wh.getJSONArray(i)
+            assertEquals(h.getInt(0), holes[i].i); assertEquals(h.getDouble(1), holes[i].a, 0.0); assertEquals(h.getDouble(2), holes[i].b, 0.0) }
+    }
+
     @Test fun chunksWordsHolesAndRescueLikeTheServer() {
         val c = fx.getJSONObject("chunks")
         assertEquals(pairs(c.getJSONArray("out")), AsrWords.chunks(pairs(c.getJSONArray("segs")), c.getInt("n"), pad = (0.12 * 16000).toInt()))
