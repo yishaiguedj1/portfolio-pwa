@@ -159,7 +159,12 @@ const { fakeR2, ACC } = require('./_r2fake');
     ok(ad.ok && ad.cfg.ts.join() === 'tester@example.com', 'המנהל מוסיף חשבון בדיקה');
     studio._reset();
     const st = (await tst('status', {})).j;
-    ok(st.ok && st.mf === false && st.url === false, 'חשבון בדיקה נכנס — בלי כל המודלים ובלי הורדה מקישור (כמו משתמש רגיל)');
+    ok(st.ok && st.mf === false, 'חשבון בדיקה נכנס — בלי כל המודלים (כמו משתמש רגיל)');
+    // 25/10/2026: הורדה מקישור פתוחה לחשבונות הבדיקה — עוברים את בדיקת ההרשאה (כאן נעצרים רק כי R2 לא מוגדר בבדיקה)
+    const up = await tst('urlProbe', { url: 'https://vimeo.com/76979871' });
+    ok(up.code === 503 && up.j.error === 'r2_needed', 'חשבון בדיקה: בדיקת קישור — מותרת (לא not_allowed)');
+    const cu = await tst('create', { spec: Object.assign({}, spec, { mode: 'haiku-high', src: 'url', url: 'https://vimeo.com/76979871', type: 'video/url', eng: 'api' }) });
+    ok(cu.j.error !== 'not_allowed', 'חשבון בדיקה: עבודה מקישור — לא נחסמת בהרשאה');
     ok((await tst('create', { spec: Object.assign({}, spec, { mode: 'opus-medium' }) })).j.error === 'mode_locked', 'חשבון בדיקה: מצב נעול — נחסם');
     ok((await tst('create', { spec: Object.assign({}, spec, { mode: 'haiku-high' }) })).j.ok, 'חשבון בדיקה: "רגיל" — עובד');
     const us = await api('adminUsers', {});
@@ -167,6 +172,8 @@ const { fakeR2, ACC } = require('./_r2fake');
     await api('adminCfg', { set: { ts: 'tester@example.com', on: false } });
     studio._reset();
     ok((await tst('status', {})).j.error === 'not_allowed', 'הוסר מהרשימה — הגישה נסגרת');
+    const OUT = tok('outUid000004', 'out@example.com');
+    ok((await call({ op: 'urlProbe', url: 'https://vimeo.com/1', idToken: OUT })).j.error === 'not_allowed', 'מי שלא ברשימות — בלי בדיקת קישור');
   }
   // 15/10/2026: הודעה מהמנהל (מרכז הניהול ← הודעות)
   {
