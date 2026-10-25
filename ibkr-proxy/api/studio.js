@@ -1738,6 +1738,8 @@ async function phoneOp(req, res, body, deps) {
       const pbn = S.normPbn(body.pbn, now);
       if (!pbn) return res.status(400).json({ ok: false, error: 'bad_params' });
       await patchJob(deps, id, { pbn });
+      // 25/10/2026: הצריבה בטלפון מסתיימת אחרי שהעבודה "done" — בלי זה התוצאה שלה לא הגיעה לרשומה במאגר (רק בסוף, לא בכל אחוז)
+      if (pbn.s !== 'run') await learnSave(deps, Object.assign({}, job, { pbn }), now);
       return res.status(200).json({ ok: true, now });
     }
     if (!['new', 'queued', 'running', 'failed'].includes(e.state)) return res.status(409).json({ ok: false, error: 'state' });
@@ -3230,6 +3232,9 @@ async function handler(req, res, deps = {}) {
       if (!tl || job.kind !== 'tr') return res.status(400).json({ ok: false, error: 'bad_params' });
       if (limited('ut|' + uid, 30)) return res.status(429).json({ ok: false, error: 'rate_limited' });
       await patchJob(deps, job.id, { utl: tl });          // בלי updated — הוא השעון של "נתקעה" (isStale), והטלפון לא אומר שהעובד חי
+      // 25/10/2026 (מיפוי האיסוף): הרשומה במאגר נשמרת בסוף העבודה — מדידה שמגיעה אחרי הסוף (הסרטון סיים לעלות אחרי done)
+      // לא נכנסה אליה עד השמירה הבאה, שלפעמים לא הגיעה
+      if (S.FINAL.includes(st)) await learnSave(deps, Object.assign({}, job, { utl: tl }), now);
       return res.status(200).json({ ok: true });
     }
     if (op === 'cancel') {

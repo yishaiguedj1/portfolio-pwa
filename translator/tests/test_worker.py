@@ -929,9 +929,20 @@ class TestWorker(unittest.TestCase):
             st, api = {'gl': None}, 'https://www.googleapis.com/drive/v3'
             def token(self, force=False):
                 raise SystemExit('✗ אין גישה ל־Drive (not_connected)')
-        self.assertIsNone(J.gl_load(Ctx()), 'בלי Drive — None (לא נטען), לא SystemExit')
+        # 25/10/2026: בלי Drive מחובר = אין מילון ([]), לא "לא נטען" (ההודעה הופיעה אצל משתמש חדש בלי מילון)
+        c0 = Ctx(); c0.st = {'gl': None}
+        self.assertEqual(J.gl_load(c0), [], 'בלי Drive — אין מילון, לא SystemExit')
+        self.assertEqual(c0.st['gls'], 'none')
+        class Down(Ctx):
+            def token(self, force=False):
+                raise SystemExit('✗ השרתון לא ענה')
+        d = Down(); d.st = {'gl': None}
+        self.assertIsNone(J.gl_load(d), 'תקלה אחרת — None ("לא נטען") כמו קודם')
+        self.assertEqual(d.st['gls'], 'err')
         c = Ctx(); c.st = {'gl': [['Moat', 'חפיר', '']]}
         self.assertEqual([list(r) for r in J.gl_load(c)], [['Moat', 'חפיר', '']], 'המילון מ־R2 — בלי לגעת ב־Drive')
+        self.assertEqual(c.st['gls'], 'r2')
+        self.assertEqual(J.GL_SRC['r2'], 1)
 
     def test_note(self):
         # v382: הערה לעובד — הערות שכבר נקראו מגיעות בלקיחה; הערה חדשה נמסרת בתשובה לנקודת שמירה: מודפסת ל־Claude,
