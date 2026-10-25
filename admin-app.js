@@ -294,7 +294,9 @@ page('sys', { tab: 'sys', title: () => t('admTabSys'), render(p) {
     row({ c: mOn ? 'red' : 'gray', ic: '⏻', t: t('admMaint'), s: !cf ? t('admLoading') : mOn ? t('admMaintOn') + (cf.m.msg ? ' · ' + cf.m.msg : '') : t('admMaintOffS'), badge: mOn ? 1 : 0, on: () => go('maint') }),
     row({ c: nOff ? 'orange' : 'green', ic: '⚙', t: t('admCfg'), s: !cf ? t('admLoading') : nOff ? fmt(t('admFlagsOffN'), { n: nOff }) : t('admFlagsAll'), on: () => go('flags') }),
     row({ c: 'studio', ic: '✦', t: t('admModels'), s: !cf ? t('admLoading') : cf.am && cf.am.length ? fmt(t('admModelsN'), { n: cf.am.length }) : t('admModelsMe'), on: () => go('models') }),
-    row({ c: 'studio', ic: '◎', t: t('admTesters'), s: !cf ? t('admLoading') : cf.ts && cf.ts.length ? fmt(t('admTestersN'), { n: cf.ts.length }) : t('admTestersNone'), on: () => go('testers') })));
+    row({ c: 'studio', ic: '◎', t: t('admTesters'), s: !cf ? t('admLoading') : cf.ts && cf.ts.length ? fmt(t('admTestersN'), { n: cf.ts.length }) : t('admTestersNone'), on: () => go('testers') }),
+    row({ c: !D.yt ? 'gray' : D.yt.st === 'bad' ? 'red' : D.yt.st === 'off' ? 'gray' : 'green', ic: '▶', t: t('admYt'), s: !D.yt ? t('admLoading') : ytLine(D.yt), badge: D.yt && D.yt.st === 'bad' ? 1 : 0, on: () => go('yt') })));
+  if (!D.yt) needYt();
   if (!D.log) needLog();
   if (!D.sec) needSec();
   if (!D.bk) needBk();
@@ -369,6 +371,7 @@ function logRow(x) {
     fl_on: ['green', '⚙', fmt(t('admLgFlOn'), { n: FLN(d) }), ''], fl_off: ['orange', '⚙', fmt(t('admLgFlOff'), { n: FLN(d) }), ''],
     am_add: ['studio', '✦', t('admLgAmAdd'), d], am_del: ['gray', '✦', t('admLgAmDel'), d],
     ts_add: ['studio', '◎', t('admLgTsAdd'), d], ts_del: ['gray', '◎', t('admLgTsDel'), d],
+    yt_set: ['green', '▶', t('admLgYtSet'), d], yt_clr: ['gray', '▶', t('admLgYtClr'), ''],
     ac_add: ['academy', '▤', t('admLgAcAdd'), d], ac_del: ['gray', '▤', t('admLgAcDel'), d],
     srv_pause: ['orange', '☁', t('admLgSrvPause'), d], srv_resume: ['green', '☁', t('admLgSrvResume'), d], srv_del: ['red', '☁', t('admLgSrvDel'), d],
     an_on: ['purple', '📣', t('admLgAnOn'), d], an_off: ['gray', '📣', t('admLgAnOff'), ''], fb_done: ['green', '✉', t('admLgFbDone'), ''], fb_del: ['gray', '✉', t('admLgFbDel'), ''],
@@ -914,6 +917,56 @@ page('models', { tab: 'sys', parent: 'sys', title: () => t('admModels'), render(
 page('testers', { tab: 'sys', parent: 'sys', title: () => t('admTesters'), render(p) {
   emListPage(p, 'ts', { sub: t('admTestersSub'), me: t('admModelsMeRow'), list: t('admTestersList'), foot: t('admTestersFoot') });
 } });
+/* 25/10/2026 (בקשת המשתמש): יוטיוב בשרת דרך חשבון גוגל ייעודי — מדביקים cookies.txt. העוגיות לא חוזרות מהשרתון לעולם —
+   כאן רק המצב (כמה, מתי, עובד/נחסם). השרתון בודק ומסנן (lib/ytck.js), ושרת התרגום משתמש בהן רק לקישורי יוטיוב */
+async function needYt(body) {
+  const r = await api('adminYt', body || {});
+  if (r.ok) { D.yt = r.yt; if (body) D.log = null; if (['yt', 'sys'].includes(cur)) paint(); }
+  return r;
+}
+function ytLine(y) {
+  if (y.st === 'off') return t('admYtOff');
+  if (y.st === 'bad') return t('admYtBad') + (y.sc ? ' · ' + ytSc(y.sc) : '');
+  return y.st === 'ok' ? fmt(t('admYtOk'), { a: ago(y.ok) }) : t('admYtNew');
+}
+const ytSc = (c) => c === 'blocked' ? t('admYtScBlocked') : c === 'login' ? t('admYtScLogin') : c === 'ck' ? t('admYtScCk') : '';
+/* 25/10/2026: ייצוא מלא של הדפדפן (התוסף של Firefox לאנדרואיד מייצא את כל האתרים) — לפני השליחה רק שורות של יוטיוב
+   וגוגל, כדי שייכנס במגבלת הגודל. השרתון מסנן שוב (lib/ytck.js) */
+const ytTrim = (s) => String(s || '').replace(/\r/g, '').split('\n').filter((l) => {
+  const f = l.replace(/^#HttpOnly_/, '').split('\t');
+  return f.length === 7 && /(^|\.)(youtube|google)\.com$/.test(f[0].toLowerCase().replace(/^\./, ''));
+}).join('\n');
+const YT_ERR = { not_logged_in: () => t('admYtErrIn'), too_large: () => t('admYtErrBig'), too_many: () => t('admYtErrBig') };
+page('yt', { tab: 'sys', parent: 'sys', title: () => t('admYt'), render(p) {
+  const y = D.yt;
+  if (!y) { needYt(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  const card = h('section', 'card adm-card');
+  card.append(h('h2', null, ytLine(y)));
+  if (y.on) card.append(h('p', 'adm-sub', fmt(t('admYtN'), { n: y.n, a: ago(y.put || y.at) }) + (y.soon ? ' · ' + t('admYtSoon') : '')));
+  card.append(h('p', 'adm-sub', t('admYtSub')));
+  const ta = h('textarea', 'adm-search adm-note-in'); ta.rows = 4; ta.placeholder = t('admYtPh'); ta.dir = 'ltr'; ta.spellcheck = false; ta.autocomplete = 'off';
+  const fi = h('input'); fi.type = 'file'; fi.accept = '.txt,text/plain'; fi.hidden = true;
+  fi.addEventListener('change', async () => { const f = fi.files && fi.files[0]; if (f && f.size < 512 * 1024) ta.value = await f.text(); fi.value = ''; });
+  const pick = h('button', 'btn secondary-btn', t('admYtFile')); pick.type = 'button'; pick.addEventListener('click', () => fi.click());
+  const save = h('button', 'btn', t('admYtSave')); save.type = 'button';
+  save.addEventListener('click', async () => {
+    if (!ta.value.trim()) return;
+    const ck = ytTrim(ta.value) || ta.value;
+    if (ck.length > 60000) { flash(t('admYtErrBig')); return; }
+    save.disabled = true; const r = await needYt({ set: ck }); save.disabled = false;
+    if (r.ok) { ta.value = ''; flash(t('admSaved')); } else flash((YT_ERR[r.error] || (() => (r.error ? t('admYtErrFmt') : t('admErr'))))());
+  });
+  const br = h('div', 'btn-row'); br.append(save, pick);
+  card.append(ta, fi, br);
+  if (y.on) {
+    const clr = h('button', 'btn danger-btn', t('admYtClr')); clr.type = 'button';
+    clr.addEventListener('click', () => askConfirm(t('admYtClrQ'), async () => { const r = await needYt({ clear: true }); flash(r.ok ? t('admSaved') : t('admErr')); }, { danger: true, ok: t('admYtClr') }));
+    const b2 = h('div', 'btn-row'); b2.append(clr); card.append(b2);
+  }
+  const how = h('ol', 'adm-steps');
+  for (const x of [t('admYtS1'), t('admYtS2'), t('admYtS3'), t('admYtS4'), t('admYtS5')]) how.append(h('li', null, x));
+  p.append(card, h('div', 'adm-lbl', t('admYtHow')), how, h('p', 'adm-foot', t('admYtFoot')));
+} });
 page('infra', { tab: 'sys', parent: 'sys', title: () => t('admInfra'), render(p) {
   const o = D.ov;
   if (!o) { p.append(h('p', 'adm-note', t('admErr'))); return; }
@@ -996,6 +1049,7 @@ function readyRow(x) {
     sess: [t('admRdSess'), t('admRdSessOk'), v.read ? fmt(t('admRdSessBad'), { n: v.n }) : t('admRdNoRead'), t('admRdSessFix')],
     links: [t('admRdLinks'), t('admRdLinksOk'), v.n == null ? t('admRdNoRead') : fmt(t('admRdLinksBad'), { n: v.n }), t('admRdLinksFix')],
     sec: [t('admRdSec'), fmt(t('admRdSecOk'), { n: v.left }), v.left == null ? t('admRdNoRead') : fmt(t('admRdSecBad'), { n: v.left }), t('admRdSecFix')],
+    yt: [t('admRdYt'), t('admRdYtOk'), t('admRdYtBad') + (v.sc ? ' · ' + ytSc(v.sc) : ''), t('admRdYtFix')],
     dates: [t('admRdDates'), fmt(t('admRdDatesOk'), { n: v.next }), (v.soon || []).map((d) => (RD_DN[d.k] || (() => d.k))() + ' · ' + d.left).join(' · '), t('admRdDatesFix')] }[x.k];
   if (!T) return null;
   if (x.ok) return row({ c: 'green', ic: '✓', t: T[0], s: T[1] });

@@ -185,8 +185,12 @@ export function parsePhPick(arg) {
   const size = Math.floor(Number(o.size) || 0), dur = Number(o.dur) || 0;
   if (!(size > 0)) return null;
   return { pid: k[1], name: String(o.name || 'video.mp4').replace(/[\u0000-\u001f]/g, '').slice(0, 200) || 'video.mp4', size,
-    dur: dur > 0 && dur < 86400 ? dur : 0, w: Math.max(0, Math.floor(Number(o.w) || 0)), h: Math.max(0, Math.floor(Number(o.h) || 0)) };
+    dur: dur > 0 && dur < 86400 ? dur : 0, w: Math.max(0, Math.floor(Number(o.w) || 0)), h: Math.max(0, Math.floor(Number(o.h) || 0)),
+    cap: Math.max(0, Math.min(99, Math.floor(Number(o.cap) || 0))) };   // 25/10/2026: מה Studio הזה יודע (PH_CAP_PT = גם שלבי הטקסט)
 }
+/* 25/10/2026 (שלב 3): Studio לאנדרואיד שיודע להריץ גם את שלבי הטקסט (vt בפייתון של האפליקציה) מדווח cap ≥ 3 בבחירה.
+   ישן — בלי pt (אחרת העבודה הייתה מחכה בתור לטלפון שלא יודע לקחת אותה) */
+export const PH_CAP_PT = 3;
 export function normJob(j) {
   if (!j || typeof j !== 'object' || !JOB_RE.test(String(j.id || ''))) return null;
   const sp = j.spec && typeof j.spec === 'object' ? j.spec : {};
@@ -200,7 +204,7 @@ export function normJob(j) {
   if (edlPre(normEdl(sp.edl))) spec.edl = edlPre(normEdl(sp.edl));   // מ4: חיתוך לפני התרגום (הכתוביות על ציר הזמן שאחרי החיתוך)
   if (num(sp.px) >= 0.02 && num(sp.px) <= 16) spec.px = num(sp.px);   // 21/10/2026: פיקסלים לשנייה מול 1080p30 — לצפי
   if (sp.src === 'subs') { spec.src = 'subs'; spec.sdh = sp.sdh === 'keep' ? 'keep' : 'rm'; spec.out = []; }   // 22/10/2026: קובץ כתוביות קיים
-  if (sp.ph === 1) { spec.ph = 1; spec.out = []; if (PH_BURN.includes(sp.pb)) spec.pb = sp.pb; if (sp.pw === 1) spec.pw = 1; }   // pw — שלב 2: גם התמלול והיישור בטלפון   // 24/10/2026: תרגום בטלפון — הצריבה בטלפון
+  if (sp.ph === 1) { spec.ph = 1; spec.out = []; if (PH_BURN.includes(sp.pb)) spec.pb = sp.pb; if (sp.pw === 1) spec.pw = 1; if (sp.pw === 1 && sp.pt === 1) spec.pt = 1; }   // pt — שלב 3: גם שלבי הטקסט · pw — שלב 2: גם התמלול והיישור בטלפון   // 24/10/2026: תרגום בטלפון — הצריבה בטלפון
   const u = j.up && typeof j.up === 'object' ? j.up : {};
   const part = (x) => {
     x = x && typeof x === 'object' ? x : {};
@@ -1198,6 +1202,7 @@ async function refreshStatus(force) {
     ui.lrt = num(j.lrt);                       // 15/10: הנוסח שאומר שגם הטקסט נשמר — נקרא
     ui.lrm = num(j.lrm);                       // מ׳4: הנוסח שאומר שגם הקול ועותק ב־240p נשמרים — נקרא
     ui.url = j.url === true;                   // 22/10/2026: הורדה מקישור (מנהל / "כל המודלים", הדגל, R2)
+    ui.yc = j.yc === true;                     // 25/10/2026: יוטיוב לענן דרך חשבון ייעודי בשרת (הוגדר במרכז הניהול ולא נחסם)
     ui.mf = j.mf === true;                     // 15/10: כל מצבי התרגום (המנהל / רשימת "כל המודלים") — אחרת רק "רגיל" ו"ביצועים"
     ui.lrf = num(j.lrf);                       // 15/10: הנוסח של האיסוף המלא (תקופת הפיתוח) — נקרא
     save();
@@ -2558,6 +2563,7 @@ function nowLine(rec, run, ph) {
   if (ph === 'paused') return T('studioPausedNow');
   if (ph === 'error') return errText(run.err);
   if (ph === 'ready') return rec.up.wait === 'worker_not_ready' ? T('studioWaitWorker') : rec.up.wait ? errText(rec.up.wait) : T('studioReady');
+  if (ph === 'queued' && rec.spec.pt) return T('studioPhPtQ');   // שלב 3: הטלפון לוקח את העבודה ומתרגם בעצמו
   if (ph === 'queued') return rec.srv && rec.srv.vw ? (rec.spec.ph ? T('studioPhWaitM') : T('studioNowParked')) : rec.srv && rec.srv.uw ? T('studioNowSrvUpd') : rec.srv && rec.srv.eng === 'api' ? T('studioNowQueuedApi') : T('studioNowQueued');
   if (ph === 'running' && ryWaiting(rec, Date.now())) return T('studioNowRyWait');
   if (ph === 'running') return (rec.srv && rec.srv.prog && rec.srv.prog.msg) || T('studioNowRunning');
@@ -3165,7 +3171,7 @@ let linkSeq = 0;
 export function devDl() { return grabOk(); }
 /* "לענן של Studio" (בחירת המשתמש 22/10/2026): רק כשהשרתון מתיר (ui.url — מנהל/"כל המודלים" + הדגל) ובמקור שלא חוסם
    את השרת. יוטיוב חוסם כתובות של חוות שרתים ("not a bot") — שם רק לטלפון */
-export const cloudBlocked = (r) => /^youtube/i.test(String((r && r.s) || ''));
+export const cloudBlocked = (r) => /^youtube/i.test(String((r && r.s) || '')) && !ui.yc;   // 25/10/2026: עם החשבון הייעודי בשרת — גם יוטיוב
 function cloudOk(L) { return !!(ui.url && L && L.r && !cloudBlocked(L.r)); }
 const DL_PKG = 'app.thesnowball.studio', DLP_KEY = 'pwa_studio_dlp', PROBE_WAIT_MS = 240e3;
 const LINK_POLL_MS = 1500, LINK_WAIT_MS = 300e3;   // הבדיקה בשרת (בדפדפן בלי האפליקציה). 24/10/2026: 150 שנ׳ היה צמוד מדי (סריקת התור + הבדיקה עצמה)
@@ -3234,7 +3240,7 @@ function linkCheck(f, raw, ref, pre, want) {
   L.to = want === 'cloud' && ui.url ? 'cloud' : devDl() ? 'dev' : 'cloud';
   if (!devDl()) {   // בלי האפליקציה: רק לענן (כשמותר — ui.url), אחרת הסבר
     // 25/10/2026: יוטיוב חוסם את השרת ("not a bot") — אומרים מיד, במקום בדיקה שתיכשל או עבודה שתיפול באמצע
-    if (ui.url && ytHost(L.u)) { L.st = 'err'; L.e = 'yt'; }
+    if (ui.url && !ui.yc && ytHost(L.u)) { L.st = 'err'; L.e = 'yt'; }
     else if (ui.url) linkCheckSrv(f, L, seq); else { L.st = 'err'; L.e = 'app'; }
     render('none'); return;
   }
@@ -3586,7 +3592,7 @@ export function blindOk(L, busy) {
   if (!L || !ui.url || devDl() || !L.u) return false;
   if (!busy && !BLIND_ERRS.includes(L.e) && !/^srv:(?!bad_url|flag_off)/.test(L.e || '')) return false;
   try { new URL(L.u); } catch (e) { return false; }
-  return !ytHost(L.u);
+  return !ytHost(L.u) || !!ui.yc;
 }
 /* יוטיוב (כל הכתובות שלו) — חוסם את השרת שלנו, לכן רק בטלפון עם Studio לאנדרואיד */
 export function ytHost(u) {
@@ -3765,6 +3771,7 @@ function startPhone(f) {
     if (f.pw !== false) spec.pw = 1;   // שלב 2: הכל בטלפון (ברירת המחדל)
     const pb = phPb(f); if (pb) spec.pb = pb;
     if (cpMode()) spec.cp = 1; else if (ryMode()) spec.ry = 1;
+    else if (spec.pw && (P.cap || 0) >= PH_CAP_PT) spec.pt = 1;   // שלב 3: גם שלבי הטקסט בטלפון — השרת רק מעביר ל־Claude
     if (P.w > 0 && P.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, P.w * P.h / (1920 * 1080))) * 1000) / 1000;
     // קודם יוצרים את העבודה ומבקשים מפתח (רשת — בלי נגיעה), ורק אז האומדן: הנגיעה ב"להתחיל" היא זו שפותחת את
     // האפליקציה (Chrome פותח intent רק מתוך נגיעה; אחרי await של רשת — כבר לא). ביטול — העבודה נמחקת. העבודה נשארת
@@ -3831,7 +3838,7 @@ function phHand(rec, kind) {
   if (!rec.up.ph || !c) return false;
   if (kind === 'phburn') { phBurnTap.set(rec.id, Date.now()); setTimeout(schedulePoll, 0); }
   location.href = phIntent(kind, Object.assign({ pid: rec.up.ph, j: rec.id, k: c.k, b: proxyBase(), pb: rec.spec.pb || '' }, kind === 'phburn' ? { pb: rec.spec.pb || 'same' } : {},
-    kind === 'ph' && rec.spec.pw ? { pw: 1 } : {}));
+    kind === 'ph' && rec.spec.pw ? { pw: 1 } : {}, kind === 'ph' && rec.spec.pt ? { pt: 1 } : {}));
   return true;
 }
 /* שגיאה מהאפליקציה (‎#studio=<עבודה>&phe=<קוד>) */
@@ -3869,7 +3876,8 @@ function phCard(rec) {
   const ready = here && phKeys.has(rec.id);
   if (here && !ready) phKeyFor(rec.id).then((k) => { if (k && root && ui.view === 'job' && ui.param === rec.id) render('none'); });   // מראש — לפני הנגיעה
   const go = (cls, label, kind) => { const x = btn(cls, ready ? label : T('studioPhKeyBusy'), () => phHand(rec, kind), 'ph-' + kind); x.disabled = !ready; card.append(h('div', 'st-gap sm'), x); };
-  if ((st === 'new' && !phPrepLive(rec) || !srv.m && (st === 'queued' || st === 'running'))) {   // האפליקציה עוד לא העלתה הכל (או לא נפתחה) — להמשיך שם
+  // שלב 3 (pt): בתור = הטלפון עוד לא לקח את העבודה (נעצר / האפליקציה נסגרה) — להמשיך שם
+  if ((st === 'new' && !phPrepLive(rec) || !srv.m && (st === 'queued' || st === 'running') || rec.spec.pt && st === 'queued')) {   // האפליקציה עוד לא העלתה הכל (או לא נפתחה) — להמשיך שם
     if (here) go(st === 'new' ? 'st-btn wide' : 'st-btn ghost wide', st === 'new' ? T('studioPhStartApp') : T('studioPhResume'), 'ph'); else card.append(h('small', 'st-warn', T('studioPhOtherDev')));
   } else if (!burning && st === 'done' && rec.spec.pb && !(b && (b.s === 'run' || b.s === 'done'))) {
     if (here) go('st-btn wide', T('studioPhBurnGo'), 'phburn'); else card.append(h('small', 'st-warn', T('studioPhOtherDev')));

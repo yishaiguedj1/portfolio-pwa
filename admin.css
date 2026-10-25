@@ -88,6 +88,8 @@ html[data-app="admin"] .appbar .brand-logo { width: 64px; height: 64px; }
 .adm-nb:empty { display: none; }
 .adm-nb:empty + .adm-h1 { margin-top: 8px; }
 .adm-foot { color: var(--on-surface-var); font-size: 12.5px; line-height: 1.5; margin: 14px 4px 0; }
+.adm-steps { margin: 6px 0 0; padding-inline-start: 22px; font-size: 14px; line-height: 1.55; color: var(--on-surface); }
+.adm-steps li { margin-bottom: 6px; }
 .adm-list + .adm-list { margin-top: 14px; }
 .adm-note-in { display: block; width: 100%; box-sizing: border-box; resize: vertical; font: inherit; margin: 10px 0 12px; }
 .adm-fix { display: block; margin-top: 4px; color: var(--on-surface); white-space: normal; overflow-wrap: anywhere; }

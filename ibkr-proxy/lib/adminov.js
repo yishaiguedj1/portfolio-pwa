@@ -239,6 +239,8 @@ function readyView(f) {
   const ex = f.sec ? Date.parse(f.sec) : 0;
   const exLeft = ex ? Math.ceil((ex - now) / DAY) : null;
   out.push({ k: 'sec', sev: 2, ok: exLeft != null && exLeft > 30, v: { left: exLeft } });
+  // 25/10/2026: חשבון יוטיוב ייעודי לשרת — רק כשהוגדר. נחסם = כשל (ושתי בדיקות ברצף = התראה למנהל, כמו כל כשל כאן)
+  if (f.yt && f.yt.on) out.push({ k: 'yt', sev: 2, ok: f.yt.st !== 'bad', v: { sc: f.yt.sc || '', soon: !!f.yt.soon } });
   const soon = DATES.map((x) => ({ k: x.k, left: daysTo(x.d, now), warn: x.warn })).filter((x) => x.left <= x.warn);
   out.push({ k: 'dates', sev: 2, ok: !soon.length, v: { soon: soon.map((x) => ({ k: x.k, left: x.left })), next: DATES.map((x) => daysTo(x.d, now)).sort((a, c) => a - c)[0] } });
   const fails = out.filter((x) => !x.ok).sort((a, c) => a.sev - c.sev);
@@ -281,7 +283,7 @@ function laneView(prs, waiting) {
 
 /* יומן פעולות (15/10/2026, מסך 6 בתוכנית 5א): כל שינוי שהמנהל עושה ממרכז הניהול נרשם ב־sysLog — מה, מי (מייל), מתי, ופרט קצר.
    סוגים רק מהקטלוג (בלי טקסט חופשי בסוג), הפרט מנוקה (noteClean, עד 120). נשמר LOG_DAYS ימים */
-const LOG_KINDS = ['srv_pause', 'srv_resume', 'srv_del', 'an_on', 'an_off', 'fb_done', 'fb_del', 'mt_on', 'mt_upd', 'mt_off', 'fl_on', 'fl_off', 'am_add', 'am_del', 'ts_add', 'ts_del', 'ac_add', 'ac_del', 'ck_ok', 'ck_no', 'ck_clr'];
+const LOG_KINDS = ['srv_pause', 'srv_resume', 'srv_del', 'an_on', 'an_off', 'fb_done', 'fb_del', 'mt_on', 'mt_upd', 'mt_off', 'fl_on', 'fl_off', 'am_add', 'am_del', 'ts_add', 'ts_del', 'ac_add', 'ac_del', 'ck_ok', 'ck_no', 'ck_clr', 'yt_set', 'yt_clr'];
 const LOG_DAYS = 90, LOG_SHOW = 200;
 function logEntry(k, d, who, now) {
   if (!LOG_KINDS.includes(k)) return null;

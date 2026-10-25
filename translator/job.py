@@ -1873,6 +1873,11 @@ def report_px(ctx):
         pass
 
 
+# 25/10/2026 (שלב 3 של "תרגום בטלפון"): העבודה רצה בפייתון של Studio לאנדרואיד (SNB_PHONE=1) — רק שלבי הטקסט (vt בלי
+# מנועים כבדים: התמלול והיישור כבר נעשו ב־Kotlin, הצריבה ב־MediaCodec). אין התקנה (setup.sh/bash) ואין מנועים לבדוק
+PHONE = os.environ.get('SNB_PHONE') == '1'
+
+
 def engine_modules():
     """v359: רשימת המודולים — אחת, מתוך setup.sh (השורה SNB_MODULES), כך שההתקנה ובדיקת המוכנות לא נפרדות."""
     m = re.search(r'^SNB_MODULES="([a-z0-9_ ]+)"', (HERE / 'setup.sh').read_text(encoding='utf-8'), re.M)
@@ -1893,6 +1898,8 @@ sys.exit(bad)
 
 def env_missing():
     """המודולים שחסרים (או שבורים — import נכשל) בסביבת vt. ריק = מוכן."""
+    if PHONE:
+        return []
     mods = engine_modules()
     if not os.path.exists(VT_PY):
         return mods

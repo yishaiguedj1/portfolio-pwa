@@ -374,7 +374,7 @@ def cmd_tr_merge(a):
 
 
 def build(pr: Project, style_name: str | None = None) -> dict:
-    from .hebrew import break_lines, dual_lines, Measurer, visible_len
+    from .hebrew import layout_lines, Measurer, visible_len
     from .media import grid_from
     from .qc import run_qc
     from .subs import write_ass, write_ass_compat, write_srt, write_vtt, frame_check
@@ -402,13 +402,7 @@ def build(pr: Project, style_name: str | None = None) -> dict:
     final, warns = apply_merges(cues, he, tr.max_dur_s)
 
     def refit(c):
-        t = c["he"]
-        if c.get("parts") and "||" in t:
-            a_, b_ = t.split("||", 1)
-            lines = dual_lines(a_, b_)
-            ok = all(visible_len(x) <= tx.max_chars_line and meas.width(x) <= st.max_line_px for x in lines)
-        else:
-            lines, ok = break_lines(t.replace("||", " "), tx.max_chars_line, meas, st.max_line_px)
+        lines, ok = layout_lines(c["he"], bool(c.get("parts")), tx.max_chars_line, meas, st.max_line_px)
         c["lines"] = lines
         c["chars"] = sum(visible_len(x) for x in lines) + (len(lines) - 1)
         c["_fits"] = ok

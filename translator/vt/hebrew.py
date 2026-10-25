@@ -52,6 +52,12 @@ def visible_len(s: str) -> int:
     return len(strip_bidi(s).replace("\n", ""))
 
 
+# 25/10/2026 (ניתוח האיכות): Haiku כותב מקף לטיני אחרי אות שימוש ("ב-2010", "ה-AI") ובין מילים עבריות —
+# 581 מקרים הגיעו לצופה. מקף עברי (־) כמו ב־Sonnet וב־Opus ובמדריך הסגנון. טווח בין מספרים ("2010-2012") נשאר.
+_MAQAF_PFX = re.compile(r"(?<![א-ת'\"])([משהוכלב]{1,3})-(?=[0-9A-Za-z\"'])")
+_MAQAF_HEB = re.compile(r"(?<=[א-ת])-(?=[א-ת])")
+
+
 def normalize_he(text: str) -> str:
     t = strip_bidi(text)
     t = t.replace("\r", "")
@@ -60,6 +66,8 @@ def normalize_he(text: str) -> str:
     t = t.replace("’", "'").replace("‘", "'")
     t = re.sub(r"[ \t]+", " ", t)
     t = re.sub(r" +([,.;:?!…])", r"\1", t)
+    t = _MAQAF_PFX.sub(r"\1־", t)
+    t = _MAQAF_HEB.sub("־", t)
     t = "\n".join(x.strip() for x in t.split("\n"))
     return t.strip()
 
@@ -87,23 +95,40 @@ def _pil_font(path: str, size: int):
 
 
 class Measurer:
-    """מודד רוחב שורה בפיקסלים כפי ש־libass יצייר אותה (בקירוב טוב)."""
+    """מודד רוחב שורה בפיקסלים כפי ש־libass יצייר אותה (בקירוב טוב).
+
+    25/10/2026 (שלב 3 של "תרגום בטלפון"): בלי PIL/fontTools (הפייתון של הטלפון) — אותו רוחב מ־fonts/metrics.json
+    (vt/textwidth.py), זהה ל־PIL בתמונת העובד (פריסה בסיסית — בלי fribidi)."""
 
     def __init__(self, font_path: Path, ass_size: float, spacing: float, outline: float):
         # libass (כמו VSFilter) מגדיר את גודל הגופן כך ש־usWinAscent+usWinDescent
         # מטבלת OS/2 = גודל ה־ASS. לכן em = size * unitsPerEm / (winAscent + winDescent).
-        from fontTools.ttLib import TTFont
-        t = TTFont(str(font_path), lazy=True)
-        upem = t["head"].unitsPerEm
-        h = 0
-        if "OS/2" in t:
-            h = t["OS/2"].usWinAscent + t["OS/2"].usWinDescent
-        if not h:
-            h = t["hhea"].ascent - t["hhea"].descent
-        t.close()
+        try:
+            from fontTools.ttLib import TTFont
+        except ImportError:
+            TTFont = None
+        if TTFont is not None:
+            t = TTFont(str(font_path), lazy=True)
+            upem = t["head"].unitsPerEm
+            h = 0
+            if "OS/2" in t:
+                h = t["OS/2"].usWinAscent + t["OS/2"].usWinDescent
+            if not h:
+                h = t["hhea"].ascent - t["hhea"].descent
+            t.close()
+        else:
+            from . import textwidth
+            upem, h = textwidth.em_height(Path(font_path).name) or (1000, 1000)
         self.em = ass_size * upem / h
-        self.font = _pil_font(str(font_path), max(8, int(round(self.em))))
-        self.scale = self.em / max(8, int(round(self.em)))
+        px = max(8, int(round(self.em)))
+        try:
+            self.font = _pil_font(str(font_path), px)
+        except ImportError:
+            from . import textwidth
+            self.font = textwidth.font(Path(font_path).name, px)
+            if self.font is None:
+                raise
+        self.scale = self.em / px
         self.spacing = spacing
         self.outline = outline
 
@@ -149,73 +174,154 @@ _NUMBER_WORDS = {w for ws in (
     for w in ws}
 
 
-def _break_cost(top: list[str], bottom: list[str], n_total: int, shape: bool = True) -> float:
-    """עלות שבירה בין top[-1] ל־bottom[0]: תחביר קודם, צורת הפירמידה אחר כך.
+# 25/10/2026 (ניתוח האיכות — 665 כתוביות בשיפוט עיוור של שני שופטים): הכללים הקודמים בחרו שבירה לא קבילה ב־28%
+# מהכתוביות הדו־שורתיות (משוקלל), אלה — ב־14%. ההבדלים: מילים עם אותיות שימוש ("שלא", "במשך") נבדקות בלי האותיות,
+# גבול משפט ופסיק חזקים יותר, איזון האורכים רק כשובר שוויון, צירופים קבועים ומילות קישור נוספים, ומירכאות נספרות נכון.
+_PFX = "והבכלמש"
+BIND_NEXT_X = (BIND_NEXT | {
+    "במשך", "בתור", "כלפי", "לעומת", "למען", "בעקבות", "באמצעות", "בזכות", "במקום", "במהלך", "לקראת",
+    "לצד", "בקרב", "לאורך", "בנוגע", "אודות", "מאחורי", "לפני", "מלבד", "חוץ", "פרט", "כולל",
+    "כמעט", "בערך", "כבר", "עדיין", "שום", "קצת", "כה", "הרבה", "מספר", "מעט", "אותי", "אותך",
+    "איך", "מה", "למה", "מתי", "איפה", "היכן", "מדוע", "האם"})
+COPULA = {"הוא", "היא", "הם", "הן"}
+# מילים שנצמדות למילה שלפניהן — לא לפתוח בהן שורה
+BIND_PREV = {"ביותר", "מדי", "מאוד", "כל־כך", "בכלל", "עצמו", "עצמה", "עצמם", "עצמי", "עצמך", "עצמנו",
+             "בעצמו", "בעצמה", "בעצמם", "בעצמי"}
+FIXED_BIGRAMS_X = FIXED_BIGRAMS | {
+    ("יוצא", "דופן"), ("יוצאת", "דופן"), ("יוצאי", "דופן"), ("יוצאות", "דופן"), ("ככל", "האפשר"),
+    ("זה", "עתה"), ("קודם", "כל"), ("קודם", "כול"), ("אחר", "הצהריים"), ("אחר", "הצהרים"), ("שוב", "ושוב"),
+    ("פעם", "אחר"), ("אחר", "פעם"), ("דבר", "ראשון"), ("כל", "הזמן"), ("לפחות", "לא"), ("פה", "ושם"),
+    ("עד", "כדי"), ("על", "אף"), ("למרות", "זאת"), ("בית", "אבות"), ("בתי", "אבות"), ("משחקי", "וידאו"),
+    ("משחק", "וידאו"), ("הון", "סיכון"), ("סדרי", "עולם"), ("ללא", "מטרות"), ("מטרות", "רווח"),
+    ("שעות", "צפייה"), ("ביחס", "ל"), ("אלא", "גם"), ("כבר", "לא"), ("עוד", "לא"), ("עדיין", "לא"),
+    ("גם", "לא"), ("פשוט", "לא"), ("בכלל", "לא"), ("שום", "דבר"), ("שום", "מקום"), ("כל", "אחד"),
+    ("כל", "אחת"), ("כל", "דבר"), ("כל", "מה"), ("מה", "שקורה"), ("זאת", "אומרת"), ("כלומר", "ש"),
+    ("ראש", "הממשלה"), ("בית", "המשפט"), ("בית", "הספר"), ("ארצות", "הברית"), ("מזרח", "אירופה"),
+    ("מערב", "אירופה"), ("מזרח", "אסיה"), ("דרום", "אסיה"), ("מזרח", "התיכון"), ("אמריקה", "הלטינית"),
+    ("תכנון", "משפחה"), ("אחר", "כך"), ("תוך", "כדי"), ("כך", "הרבה"), ("לאחר", "מכן")}
+REL_SUBJECTS_X = REL_SUBJECTS | {"שזה", "שזו", "שזאת", "שאתן", "שאנו", "שהייתי", "שיש", "שאין"}
+CONJ_START_X = CONJ_START | {"כשהוא", "כשהיא", "כשאנחנו", "כשזה", "ואם", "אבל", "ולכן", "אלא",
+                             "שכן", "מאחר", "כיוון", "אילו", "לו", "ואילו", "למשל", "כלומר", "בקיצור"}
+_NEG = {"לא", "אין"}
+_SENT_END = re.compile(r'[.?!…]["\'״”]?$')
+_COMMA_END = re.compile(r'[,;:]["\'״”]?$|[—–]$')
+_PUNCT_END = re.compile(r"[,;:.?!…—–]['\"״”]?$")
 
-    הכללים (Netflix + נוהג כתוביות בעברית): לשבור אחרי פיסוק, לפני מילת קישור
-    או ו׳ החיבור; לא לפרק סמיכות ("הזמנת | התוכן"), מספר מהנספר ("6 מיליון | מנויים"),
-    שם עצם מהתואר שלו ("החלטות | טובות"), מילת יחס מהמילה שאחריה.
+
+# 25/10/2026 (2.1 — שיפוט עיוור על בנייה מחדש של 20 עבודות): הסרת אותיות שימוש בלי סדר יצרה "מילים" שלא במשפט —
+# "להבין" ← בין, "היום" ← יום, "להם" ← הם, "מדי" ← די — והשבירה זזה למקום גרוע. על 108 כתוביות שהשתנו: 72% מול 21%.
+_PFX_RE = re.compile(r"^(ו?)(כש|ש)?([בכלמ]?)")
+_SHORT_STEMS = {"לא", "כל", "גם", "עד", "על", "אם", "יש", "את", "אף", "רק", "אל", "עם", "של"}
+
+
+def _stems(w: str) -> list[str]:
+    """המילה בלי פיסוק, ועוד גרסאות בלי אותיות שימוש — רק לפי סדר הצירוף בעברית (ו, ש/כש, ב/כ/ל/מ) ובלי ה' הידיעה
+    ("שלא" → לא, "ובמשך" → במשך, "להבין" לא → "בין"); בסיס של 2 אותיות — רק מילת תפקיד ("מדי" לא → "די")."""
+    b = bare(w).replace("־", "")
+    out = [b]
+    m = _PFX_RE.match(b)
+    pre = "".join(g for g in m.groups() if g) if m else ""
+    for k in range(1, len(pre) + 1):
+        st = b[k:]
+        if st and st != b and (len(st) >= 3 or st in _SHORT_STEMS) and st not in out:
+            out.append(st)
+    return out
+
+
+def _qmarks(words: list[str]) -> int:
+    """מירכאות פותחות/סוגרות בגבולות מילה — בלי גרשיים בתוך ראשי תיבות (ארה"ב)."""
+    n = 0
+    for w in words:
+        w2 = w.strip(".,;:?!…")
+        if w2.startswith(('"', "״", "“")):
+            n += 1
+        if w2.endswith(('"', "״", "”")) and len(w2) > 1:
+            n += 1
+    return n
+
+
+def _break_cost(top: list[str], bottom: list[str], n_total: int, shape: bool = True) -> float:
+    """עלות שבירה בין top[-1] ל־bottom[0]: תחביר קודם, צורת הפירמידה רק שוברת שוויון.
+
+    הכללים (Netflix + נוהג כתוביות בעברית): לשבור בסוף משפט ואחרי פסיק, לפני מילת קישור או ו׳ החיבור;
+    לא לפרק סמיכות ("הזמנת | התוכן"), מספר מהנספר ("6 מיליון | מנויים"), שם עצם מהתואר שלו,
+    מילת יחס מהמילה שאחריה, צירוף קבוע, ולא לשבור בתוך מירכאות.
     """
     a, b = top[-1], bottom[0]
     ba, bb = bare(a), bare(b)
-    punct_end = bool(re.search(r"[,;:.?!…—–]$", a))
+    sa = _stems(a)
+    punct_end = bool(_PUNCT_END.search(a))
     cost = 0.0
-    if re.search(r"[.?!…]$", a):
-        cost -= 4.0
-    elif re.search(r"[,;:]$", a) or a.endswith("—") or a.endswith("–"):
-        cost -= 3.0
-    if ba in BIND_NEXT:
-        cost += 6.0
-    if bb in CONJ_START or (b.startswith("ו") and bare(b[1:]) in CONJ_START):
+    if _SENT_END.search(a):
+        cost -= 6.0
+    elif _COMMA_END.search(a):
+        cost -= 3.5
+    if not punct_end:
+        if (ba in COPULA and len(top) >= 3 and bare(top[-2]) not in CONJ_START_X
+                and not bare(top[-2]).startswith("ו")):
+            cost += 2.0                                    # "החלום שלי הוא | ש…" — אוגד, לא נושא
+        elif ba not in BIND_PREV and any(x in BIND_NEXT_X for x in sa):
+            cost += 6.0
+    if bb in CONJ_START_X or (b.startswith("ו") and bare(b[1:]) in CONJ_START_X):
         cost -= 1.5
     elif b.startswith("ו") and len(bb) > 2 and bb not in VAV_WORDS and not punct_end:
-        cost -= 0.75                       # לפני ו׳ החיבור — שבירה סבירה
-    elif bb in PREP_START and not punct_end:
-        cost -= 1.0                        # לפני צירוף יחס
+        cost -= 0.75                                       # לפני ו׳ החיבור — שבירה סבירה
+    elif bb in PREP_START and bb != "של" and not punct_end:
+        cost -= 1.0                                        # לפני צירוף יחס
+    if bb in COPULA and len(top) >= 2 and not punct_end and len(bottom) >= 2:
+        cost -= 1.0                                        # "ומה שאהבתי | הוא שזה…"
     if not punct_end:
+        if bb == "של":
+            cost += 1.5
         if DIGIT.search(a) and not re.search(r"%$", ba):
-            cost += 8.0 if bb in UNITS else 5.0           # מספר | הנספר
-        if ba in NUM_NOUN_HEADS or ba in _NUMBER_WORDS:
-            cost += 6.0                                    # "חמישה | כוכבים", "מיליון | מנויים"
-        if ba in CONSTRUCT_HEADS:
+            cost += 8.0 if any(x in UNITS for x in _stems(b)) else 5.0    # מספר | הנספר
+        if any(x in NUM_NOUN_HEADS or x in _NUMBER_WORDS for x in sa):
+            cost += 6.0                                    # "משישה | מיליון", "מיליון | מנויים"
+        if any(x in CONSTRUCT_HEADS for x in sa):
             cost += 6.0
         elif len(ba) > 2 and len(bb) > 2 and bb.startswith("ה") and (ba.endswith("ת") or ba.endswith("י")):
             cost += 4.0                                    # סמיכות: "הזמנת | התוכן", "ערוצי | הכבלים"
         if (len(ba) > 2 and len(bb) > 2 and ba.startswith("ה") and bb.startswith("ה")
-                and ba not in BIND_NEXT and ba not in DEMONSTRATIVES):
+                and ba not in BIND_NEXT_X and ba not in DEMONSTRATIVES):
             cost += 2.5                                    # שם מיודע + תואר מיודע
         for suf in ("ות", "ים"):
             if len(ba) > 3 and len(bb) > 3 and ba.endswith(suf) and bb.endswith(suf) and not bb.startswith("ו"):
-                cost += 1.5                                # "החלטות | טובות" (או נושא + בינוני — לכן חלש)
+                cost += 1.5                                # "החלטות | טובות"
                 break
         if bb in INTENSIFIERS:
             cost += 2.0
+        if ba in {"קצת", "כה", "ממש", "די"}:
+            cost += 3.0
+        if bb in BIND_PREV:
+            cost += 5.0                                    # "הגדול | ביותר"
         if bb == "את":
             cost += 1.5                                    # פועל | מושא
         if bb in CLITICS:
             cost += 3.0                                    # כינוי שנצמד לפועל: "מקבלים | בה"
         if bb in POSSESSIVES or bb in DEMONSTRATIVES:
             cost += 5.0                                    # "האלגוריתם | שלכם", "לסרטים | האלה"
-        if (ba, bb) in FIXED_BIGRAMS:
-            cost += 9.0                                    # "אי | אפשר", "בדרך | כלל"
+        if any((x, bb) in FIXED_BIGRAMS_X for x in sa) or (ba, bb) in FIXED_BIGRAMS_X:
+            cost += 9.0                                    # "אי | אפשר", "שוב | ושוב"
         if ba == "מה" and bb.startswith("ש"):
             cost += 6.0                                    # "מה | שמאפשר"
-        if ba in REL_SUBJECTS:
+        if any(x in REL_SUBJECTS_X for x in sa):
             cost += 4.0                                    # "שהם | מקבלים"
+        if bb in _NEG and ba in {"כבר", "עוד", "עדיין", "גם", "פשוט", "ממש", "בכלל", "כמעט", "בטח", "אולי"}:
+            cost += 5.0                                    # "כבר | לא"
     if has_latin(a) and has_latin(b) and not re.search(r"[,.;:?!]$", a):
-        cost += 6.0  # לא לפצל שם/מונח לועזי
+        cost += 6.0                                        # לא לפצל שם/מונח לועזי
     if a.endswith("־") or b.startswith("־"):
         cost += 10.0
-    if a.count('"') % 2 == 1 and " ".join(top).count('"') % 2 == 1:
-        cost += 4.0                                        # שבירה בתוך מירכאות
+    if _qmarks(top) % 2 == 1:
+        cost += 5.0                                        # שבירה בתוך מירכאות
     if not shape:
         return cost
     lt, lb = len(" ".join(top)), len(" ".join(bottom))
     if lt > lb:
-        cost += (lt - lb) * 0.2           # עדיפות לשורה תחתונה ארוכה יותר
-    cost += abs(lt - lb) * 0.05
+        cost += (lt - lb) * 0.08                           # עדיפות קלה לשורה תחתונה ארוכה יותר
+    cost += abs(lt - lb) * 0.03
     if min(lt, lb) < 0.35 * max(lt, lb):
-        cost += 2.5                       # שורה קצרצרה מול ארוכה — נראה שבור
+        cost += 2.0                                        # שורה קצרצרה מול ארוכה — נראה שבור
     if len(top) == 1 and n_total > 3:
         cost += 3.0
     if len(bottom) == 1 and n_total > 3:
@@ -273,6 +379,22 @@ def dual_lines(a: str, b: str) -> list[str]:
     return [normalize_he(a).lstrip("-– "), "-" + normalize_he(b).lstrip("-– ")]
 
 
+def layout_lines(text: str, parts: bool, max_chars: int = 42, measure: Measurer | None = None,
+                 max_px: float | None = None) -> tuple[list[str], bool]:
+    """שורות התצוגה של כתובית: '||' = שני דוברים (שורה לכל דובר, מקף לשני), אחרת break_lines.
+
+    25/10/2026 (ניתוח האיכות): '||' של המתרגם כובד עד היום רק כשהתכנון זיהה שני דוברים (parts), כלומר רק עם
+    זיהוי דוברים מהקול — והבנייה מחקה 315 מתוך 316 סימונים ("שני דוברים בלי מקף"). עכשיו תמיד; רק כשאין parts
+    והדיאלוג לא נכנס בשתי שורות — שבירה רגילה כמו קודם, כדי לא לייצר כתובית שלא נכנסת."""
+    if "||" in text:
+        a, b = text.split("||", 1)
+        dual = dual_lines(a, b)
+        ok = _fits(dual, max_chars, measure, max_px)
+        if ok or parts:
+            return dual, ok
+    return break_lines(text.replace("||", " "), max_chars, measure, max_px)
+
+
 def rtl(line: str) -> str:
     """סימן RLM בתחילת השורה קובע כיוון בסיס מימין לשמאל גם כשהשורה מתחילה
     במילה לועזית או במספר — כך הפיסוק לא "קופץ" לצד הלא נכון."""
@@ -288,6 +410,9 @@ HE_NUMBER_WORDS = {
     4: {"ארבעה", "ארבע"}, 5: {"חמישה", "חמש"}, 6: {"שישה", "שש"}, 7: {"שבעה", "שבע"},
     8: {"שמונה"}, 9: {"תשעה", "תשע"}, 10: {"עשרה", "עשר"},
 }
+# 25/10/2026: עשרות ומאות במילים ("עשרים שנה", "מאה אנשים") — לא "מספר שנעלם"
+HE_ROUND_WORDS = {20: {"עשרים"}, 30: {"שלושים"}, 40: {"ארבעים"}, 50: {"חמישים"}, 60: {"שישים"}, 70: {"שבעים"},
+                  80: {"שמונים"}, 90: {"תשעים"}, 100: {"מאה"}, 200: {"מאתיים"}}
 
 
 def numbers_in(text: str) -> list[str]:
@@ -308,6 +433,10 @@ def number_ok_in_he(num: str, he: str) -> bool:
         words = set(re.findall(r"[א-ת]+", he))
         bare_words = {w[1:] if w[:1] in "והבלמשכ" else w for w in words} | words
         if HE_NUMBER_WORDS[int(v)] & bare_words:
+            return True
+    if v.is_integer() and int(v) in HE_ROUND_WORDS:
+        words = set(re.findall(r"[א-ת]+", he))
+        if HE_ROUND_WORDS[int(v)] & ({w[1:] if w[:1] in "והבלמשכ" else w for w in words} | words):
             return True
     # 1,000 → "אלף", ‏1,000,000 → "מיליון" וכו'
     if v.is_integer():

@@ -577,6 +577,28 @@ def relay_answer(req: dict, fixed: str, started=None) -> dict:
     return {'t': res.text, 'u': res.usage, 'st': res.stop or 'end_turn', 'th': int(res.think_chars or 0)}
 
 
+def pt_answer(req: dict, fixed: str, started=None, client=None) -> dict:
+    """25/10/2026 (שלב 3 של "תרגום בטלפון"): השרת שלנו עונה לבקשה מהתור של עבודה שהטלפון מריץ — Messages API עם המפתח של
+    המערכת (אותה קריאה כמו במצב השרת: זרם, ניסיונות באמצע, מטמון על הבלוק הקבוע). הבקשה הגיעה מהטלפון — לא מהימנה: רק
+    המודל של המצב של העבודה (md), השופט ודוח התקלה, ורק מאמץ מוכר; התקרה עד MAX_OUT. מחזיר {t,u,st,th,usd} או {err}."""
+    model, effort, md = str(req.get('m') or ''), str(req.get('e') or 'medium'), str(req.get('md') or '')
+    allowed = {JUDGE[1], 'claude-sonnet-5-5'}          # השופט ודוח התקלה (pipeline.PIR_SPEC)
+    try:
+        allowed.add(Spec.of(md).model)
+    except (KeyError, ValueError, LLMError):
+        return {'err': 'relay_bad'}
+    if model not in allowed or model not in ANTHROPIC_PRICES or effort not in ('low', 'medium', 'high', 'xhigh', 'max') or not isinstance(fixed, str):
+        return {'err': 'relay_bad'}
+    mt = max(256, min(MAX_OUT, int(req.get('mt') or 32000)))
+    eng = Engine(Spec('anthropic', model, effort), transport='api', client=client)
+    try:
+        res = eng._call_retrying(fixed, str(req.get('ex') or ''), str(req.get('pr') or ''), mt, started)
+    except LLMError as e:
+        return {'err': e.code}
+    return {'t': res.text, 'u': res.usage, 'st': res.stop or 'end_turn', 'th': int(res.think_chars or 0),
+            'usd': float(res.usd or 0)}
+
+
 _tl = threading.local()
 _log_lock = threading.Lock()
 
