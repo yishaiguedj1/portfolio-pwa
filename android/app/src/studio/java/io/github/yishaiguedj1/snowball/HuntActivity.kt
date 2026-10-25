@@ -165,6 +165,15 @@ class HuntActivity : Activity() {
                 if (!bar.hasFocus()) bar.setText(url)
             }
 
+            // אתר של "דף אחד" (קורס, פיד): שיעור אחר בלי טעינת דף — onPageStarted לא נקרא, והרשימה צברה את כולם
+            override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
+                if (page.isNotEmpty() && !HuntMedia.samePage(url, page)) {
+                    synchronized(headSeen) { headSeen.clear() }; if (found.navigated(android.os.SystemClock.uptimeMillis())) paintPill()
+                }
+                page = url
+                if (!bar.hasFocus()) bar.setText(url)
+            }
+
             override fun onPageFinished(view: WebView, url: String) {
                 if (!bar.hasFocus()) bar.setText(url)
                 page = url
@@ -195,7 +204,8 @@ class HuntActivity : Activity() {
     /* מכל חוט (בקשות רשת מגיעות מחוט רקע) → הסינון → הרשימה בחוט הראשי */
     private fun seen(url: String) {
         val h = HuntMedia.classify(url) ?: return
-        if (h.kind != HuntMedia.Kind.FILE) { ui.post { if (found.add(h)) paintPill() }; return }
+        val t = android.os.SystemClock.uptimeMillis()
+        if (h.kind != HuntMedia.Kind.FILE) { ui.post { if (found.add(h, t)) paintPill() }; return }
         // 23/10/2026 (buffett.cnbc.com: "נמצא סרטון" על קובץ של 5KB לפני שנוגעים ב־▶): קובץ ישיר נבדק קודם (HEAD) —
         // קטן מ־DlDeep.MIN_BYTES או דף/תמונה לא נספר. גודל לא ידוע — נספר
         synchronized(headSeen) { if (!headSeen.add(h.url) || headSeen.size > 60) return }
@@ -211,7 +221,7 @@ class HuntActivity : Activity() {
                 c.disconnect()
                 if ((len in 1 until DlDeep.MIN_BYTES) || type.startsWith("text/") || type.startsWith("image/") || type.contains("json")) ok = false
             } catch (e: Throwable) {}
-            if (ok) ui.post { if (found.add(h)) paintPill() }
+            if (ok) ui.post { if (found.add(h, t)) paintPill() }
         }.start()
     }
     private val headSeen = HashSet<String>()
@@ -329,7 +339,7 @@ class HuntActivity : Activity() {
         private const val HOOK = """(function(){try{
 var ch=window.snbHunt;if(!ch||window.__snbHunt)return;window.__snbHunt=1;
 var R=/\.(m3u8?|mpd|mp4|m4v|webm|mov|mkv)(\?|#|$)|format=m3u8|m3u8-aapl|mpd-time-csf/i,seen={};
-function rep(u){try{if(!u)return;u=new URL(String(u),location.href).href;if(u.indexOf('http')!==0||seen[u]||!R.test(u))return;seen[u]=1;ch.postMessage(u);}catch(e){}}
+var pg='';function rep(u){try{if(!u)return;var p=location.pathname+location.search;if(p!==pg){pg=p;seen={};}u=new URL(String(u),location.href).href;if(u.indexOf('http')!==0||seen[u]||!R.test(u))return;seen[u]=1;ch.postMessage(u);}catch(e){}}
 var f=window.fetch;if(f)window.fetch=function(i){try{rep(i&&i.url?i.url:i);}catch(e){}return f.apply(this,arguments);};
 var o=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){rep(u);return o.apply(this,arguments);};
 function scan(){var v=document.querySelectorAll('video,source');for(var k=0;k<v.length;k++){var s=v[k].currentSrc||v[k].src;if(s&&s.indexOf('blob:')!==0)rep(s);}}

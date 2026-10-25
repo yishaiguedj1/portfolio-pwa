@@ -29,4 +29,17 @@ class HuntMediaTest {
         assertEquals(HuntMedia.Kind.HLS, f.list.first().kind)                               // הזרם לפני הקובץ
         assertEquals(2, f.size)
     }
+
+    /* 25/10/2026: מעבר בין שיעורים באתר של "דף אחד" — רק מה שנראה ממש לפני המעבר נשאר */
+    @Test fun navigated() {
+        val f = HuntMedia.Found()
+        f.add(HuntMedia.classify("https://c.com/l1/master.m3u8")!!, 1_000)
+        f.add(HuntMedia.classify("https://d.com/l2/master.m3u8")!!, 9_500)            // הנגן החדש — רגע לפני שהכתובת התעדכנה
+        assertTrue(f.navigated(10_000))
+        assertEquals(listOf("https://d.com/l2/master.m3u8"), f.list.map { it.url })
+        assertTrue(!f.navigated(10_100))
+        assertTrue(f.add(HuntMedia.classify("https://c.com/l1/master.m3u8")!!, 20_000))  // חזרה לשיעור הראשון — מוצע שוב
+        assertTrue(HuntMedia.samePage("https://s.com/a?x=1#t", "https://s.com/a?x=1"))
+        assertTrue(!HuntMedia.samePage("https://s.com/s/1/abc", "https://s.com/s/1/def"))
+    }
 }
