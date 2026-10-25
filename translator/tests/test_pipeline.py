@@ -760,6 +760,72 @@ class IssueCodes2510(unittest.TestCase):
         self.assertEqual(set(P.CODE_RANK), set(P.CODE_SOFT))
 
 
+class LineBreaks2510(unittest.TestCase):
+    """25/10/2026: Haiku 5.5 · low בוחר מקום שבירה מתוך האפשרויות של vt (lb-prompt → lb-apply)."""
+    setUp, tearDown, engine = FlowTests.setUp, FlowTests.tearDown, FlowTests.engine
+
+    def vt(self, items, old_vt=False):
+        td, J, base = self.pd / 'tr', self.J, self.J.vt
+
+        def vt(ctx, args):
+            if args[0] == 'build':
+                J.cmds.append('build')
+                (td / 'lb_items.json').write_text(json.dumps(items), encoding='utf-8')
+                return []
+            if args[0] in ('lb-prompt', 'lb-apply') and old_vt:
+                raise SystemExit('vt: invalid choice')
+            if args[0] == 'lb-prompt':
+                J.cmds.append('lb-prompt')
+                (td / 'lb_prompt.md').write_text('<items>\n#4 א / ב\n</items>\n' if items else '', encoding='utf-8')
+                return []
+            if args[0] == 'lb-apply':
+                J.cmds.append('lb-apply')
+                self.applied = (args[3], args[5], Path(args[3]).read_text(encoding='utf-8'))
+                (td / 'linebreak.json').write_text(json.dumps({'abc': 1}), encoding='utf-8')
+                return []
+            return base(ctx, args)
+        J.vt = vt
+
+    def test_haiku_low_picks(self):
+        self.vt([{'id': 4, 'text': 'א ב', 'cands': ['א / ב', 'א ב /']}])
+
+        def h(kw):
+            self.assertEqual(kw['model'], 'claude-haiku-5-5', 'מתרגם Sonnet — הבחירה ב־Haiku')
+            self.assertIn("'low'", repr({k: v for k, v in kw.items() if k != 'messages' and k != 'system'}), 'מאמץ נמוך')
+            self.assertIn('<items>', kw['messages'][0]['content'])
+            return msg('#4 1')
+        pl = P.Pipeline(self.ctx, self.J, self.engine(h, 'sonnet-medium'))
+        st = pl.line_breaks()
+        self.assertEqual(st, {'lbn': 1, 'lbf': 1})
+        self.assertEqual(self.ctx.st['lbx'], st)
+        self.assertEqual(self.applied[1], 'claude-haiku-5-5')
+        self.assertEqual(self.applied[2], '#4 1\n')
+        rows = {r['k']: r for r in pl.eng.ledger.list()}
+        self.assertEqual(rows['sub']['m'], 'claude-haiku-5-5', 'העלות בספר הראשי — בסוג קיים')
+        self.assertEqual(self.J.cmds[:3], ['tr-merge', 'build', 'lb-prompt'])
+
+    def test_nothing_to_choose(self):
+        self.vt([])
+        pl = P.Pipeline(self.ctx, self.J, self.engine(lambda kw: self.fail('בלי פריטים — בלי קריאה')))
+        self.assertEqual(pl.line_breaks(), {'lbn': 0, 'lbf': 0})
+
+    def test_old_vt_and_failure_continue(self):
+        self.vt([{'id': 4, 'text': 'א ב', 'cands': ['א / ב']}], old_vt=True)
+        pl = P.Pipeline(self.ctx, self.J, self.engine(lambda kw: self.fail('vt בלי lb-prompt — בלי קריאה')))
+        self.assertEqual(pl.line_breaks()['lbf'], 0)
+        self.vt([{'id': 4, 'text': 'א ב', 'cands': ['א / ב']}])
+
+        def boom(kw):
+            raise llm.LLMError('api_overloaded', 'עומס')
+        pl = P.Pipeline(self.ctx, self.J, self.engine(boom))
+        try:
+            st = pl.line_breaks()
+        except llm.LLMError:
+            self.fail('כשל ב־Haiku לא עוצר את העבודה')
+        self.assertEqual(st['lbf'], 0)
+        self.assertFalse((self.pd / 'tr' / 'linebreak.json').exists())
+
+
 class PostIncident(unittest.TestCase):
     """15/10/2026: דוח אחרי תקלה גם במצב השרת — Sonnet כותב את הסיכום מהעובדות של הלקיחה, נשלח פעם אחת, כשל לא מפיל."""
     setUp, tearDown, engine = FlowTests.setUp, FlowTests.tearDown, FlowTests.engine
@@ -982,6 +1048,10 @@ class RunAutoResume(unittest.TestCase):
                 log.append('qc')
                 return {}
 
+            def line_breaks(self):                   # 25/10/2026: שבירת השורות — אחרי הבקרה, לפני השופט
+                log.append('lb')
+                return {}
+
             def judge(self):
                 log.append('judge')
 
@@ -1007,18 +1077,18 @@ class RunAutoResume(unittest.TestCase):
 
     def test_fresh(self):
         self.check_parallel(self.flow([], None),
-                            ['prepare', 'proofread', 'ck:asr+pr', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'qc', 'judge', 'finish'])
+                            ['prepare', 'proofread', 'ck:asr+pr', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'qc', 'lb', 'judge', 'finish'])
 
     def test_resume_points(self):
         ck = [{'s': 'asr', 'id': 'x'}]
         self.check_parallel(self.flow(ck, 'asr'),
-                            ['restore', 'proofread', 'ck:asr+pr', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'qc', 'judge', 'finish'])
-        self.assertEqual(self.flow(ck, 'al'), ['restore', 'translate', 'ck:tl', 'review', 'qc', 'judge', 'finish'])
+                            ['restore', 'proofread', 'ck:asr+pr', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'qc', 'lb', 'judge', 'finish'])
+        self.assertEqual(self.flow(ck, 'al'), ['restore', 'translate', 'ck:tl', 'review', 'qc', 'lb', 'judge', 'finish'])
 
-        self.assertEqual(self.flow(ck, 'tl'), ['restore', 'review', 'qc', 'judge', 'finish'], 'אחרי התרגום — לא מתרגמים שוב')
+        self.assertEqual(self.flow(ck, 'tl'), ['restore', 'review', 'qc', 'lb', 'judge', 'finish'], 'אחרי התרגום — לא מתרגמים שוב')
         self.assertEqual(self.flow(ck, 'rv'), ['restore', 'finish'])
         self.check_parallel(self.flow(ck, None),
-                            ['restore', 'prepare', 'proofread', 'ck:asr+pr', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'qc', 'judge', 'finish'],
+                            ['restore', 'prepare', 'proofread', 'ck:asr+pr', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'qc', 'lb', 'judge', 'finish'],
                             )
 
     def test_translate_failure_waits_for_align_checkpoint(self):
@@ -1034,12 +1104,12 @@ class RunAutoResume(unittest.TestCase):
         # 09/10/2026: העבודה הראשונה בשרת נכשלה ביישור אחרי ההגהה — "המשך" לא משלם על ההגהה שוב
         ck = [{'s': 'asr', 'id': 'x'}]
         self.check_parallel(self.flow(ck, 'asr', proofed=True),
-                            ['restore', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'qc', 'judge', 'finish'])
+                            ['restore', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'qc', 'lb', 'judge', 'finish'])
 
     def test_audio_first_stays_sequential(self):
         # "הקול קודם": הצירוף עלול לתמלל מחדש והתכנון היה נפסל — נשארים בטור (align המלא)
         self.assertEqual(self.flow([], None, src='a'),
-                         ['prepare', 'proofread', 'ck:asr+pr', 'align', 'translate', 'ck:tl', 'review', 'qc', 'judge', 'finish'])
+                         ['prepare', 'proofread', 'ck:asr+pr', 'align', 'translate', 'ck:tl', 'review', 'qc', 'lb', 'judge', 'finish'])
 
     def test_park_while_waiting_for_video(self):
         # 15/10/2026: השרת לא תפוס עד 12 שעות כשהסרטון לא עולה. ההגהה (ששולמה) נשמרת, העבודה חוזרת לתור (קוד 3)
@@ -1048,7 +1118,7 @@ class RunAutoResume(unittest.TestCase):
         self.assertLess(log.index('ck:asr+pr'), log.index('park'), 'שומרים לפני שחוזרים לתור')
         # בלקיחה הבאה (הסרטון כבר נרשם): מאותה נקודה, בלי לשלם על ההגהה שוב
         self.check_parallel(self.flow([{'s': 'asr', 'id': 'x'}], 'asr', proofed=True, src='a', attach=True),
-                            ['restore', 'attach', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'qc', 'judge', 'finish'])
+                            ['restore', 'attach', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'qc', 'lb', 'judge', 'finish'])
 
     def test_audio_first_never_waits_for_video(self):
         # 21/10/2026 (בקשת המשתמש): ההגהה, התכנון, היישור והתרגום רצים על הקול; הסרטון יורד ברקע ומצטרף רק לפני הבדיקה
@@ -1057,7 +1127,7 @@ class RunAutoResume(unittest.TestCase):
         self.assertLess(log.index('prefetch'), log.index('proofread'))
         self.check_parallel([x for x in log if x != 'prefetch'],
                             ['prepare', 'proofread', 'ck:asr+pr', 'align_prep', 'translate', 'fix', 'ck:tl',
-                             'attach_late', 'review', 'qc', 'judge', 'finish'])
+                             'attach_late', 'review', 'qc', 'lb', 'judge', 'finish'])
 
     def test_late_attach_park_and_resume(self):
         # הסרטון עוד לא הגיע כשצריך אותו — התרגום כבר שמור (ck:tl), העבודה חוזרת לתור; בהמשך — רק הצירוף והבדיקה
@@ -1065,7 +1135,7 @@ class RunAutoResume(unittest.TestCase):
         self.assertIn('ck:tl', log)
         self.assertLess(log.index('ck:tl'), log.index('park'))
         log = self.flow([{'s': 'tl', 'id': 'x'}], 'tl', src='a', late=True)
-        self.assertEqual([x for x in log if x != 'prefetch'], ['restore', 'attach_late', 'review', 'qc', 'judge', 'finish'])
+        self.assertEqual([x for x in log if x != 'prefetch'], ['restore', 'attach_late', 'review', 'qc', 'lb', 'judge', 'finish'])
 
     def test_park_before_anything_paid(self):
         # בלי קול נפרד: מחכים לסרטון עוד בהכנה — אין מה לשמור, פשוט חוזרים לתור
@@ -1079,10 +1149,10 @@ class RunAutoResume(unittest.TestCase):
         self.assertLess(log.index('attach'), log.index('ck:asr+pr'), 'הצירוף מסתיים לפני נקודת השמירה')
         self.assertGreater(log.index('attach'), log.index('prepare'))
         self.check_parallel([x for x in log if x != 'attach'],
-                            ['prepare', 'proofread', 'ck:asr+pr', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'qc', 'judge', 'finish'])
+                            ['prepare', 'proofread', 'ck:asr+pr', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'qc', 'lb', 'judge', 'finish'])
         # המשך מנקודת התמלול של עבודה שהתחילה מהקול — גם כן מצרפים ואז במקביל
         self.check_parallel(self.flow([{'s': 'asr', 'id': 'x'}], 'asr', proofed=True, src='a', attach=True),
-                            ['restore', 'attach', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'qc', 'judge', 'finish'])
+                            ['restore', 'attach', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'qc', 'lb', 'judge', 'finish'])
 
 
 
@@ -1350,6 +1420,10 @@ class SubsFlow(unittest.TestCase):
                 log.append('qc')
                 return {}
 
+            def line_breaks(self):                   # 25/10/2026: שבירת השורות — אחרי הבקרה, לפני השופט
+                log.append('lb')
+                return {}
+
             def judge(self):
                 log.append('judge')
 
@@ -1366,14 +1440,14 @@ class SubsFlow(unittest.TestCase):
 
     def test_fresh(self):
         self.assertEqual(self.flow([], None), ['prepare_subs', 'brief', 'ck:asr+pr', 'subs_prep', 'ck:al', 'translate',
-                                               'ck:tl', 'review', 'qc', 'judge', 'finish'])
+                                               'ck:tl', 'review', 'qc', 'lb', 'judge', 'finish'])
 
     def test_resume(self):
         ck = [{'s': 'asr', 'id': 'x'}]
-        self.assertEqual(self.flow(ck, 'asr', proofed=True), ['restore', 'subs_prep', 'ck:al', 'translate', 'ck:tl', 'review', 'qc', 'judge', 'finish'],
+        self.assertEqual(self.flow(ck, 'asr', proofed=True), ['restore', 'subs_prep', 'ck:al', 'translate', 'ck:tl', 'review', 'qc', 'lb', 'judge', 'finish'],
                          'התדריך כבר שולם — לא שוב')
-        self.assertEqual(self.flow(ck, 'al'), ['restore', 'translate', 'ck:tl', 'review', 'qc', 'judge', 'finish'])
-        self.assertEqual(self.flow(ck, 'tl'), ['restore', 'review', 'qc', 'judge', 'finish'])
+        self.assertEqual(self.flow(ck, 'al'), ['restore', 'translate', 'ck:tl', 'review', 'qc', 'lb', 'judge', 'finish'])
+        self.assertEqual(self.flow(ck, 'tl'), ['restore', 'review', 'qc', 'lb', 'judge', 'finish'])
         self.assertEqual(self.flow(ck, 'rv'), ['restore', 'finish'])
 
 

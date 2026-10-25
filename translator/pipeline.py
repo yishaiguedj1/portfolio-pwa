@@ -565,6 +565,8 @@ QC_TASK = """תיקון כתוביות שהבקרה על המסך (אחרי הת
 QC_CPS = 17.0                         # היעד בתקציב (כמו cps_max של vt); השגיאה מעל 20
 QC_KINDS = ('קצב קריאה', 'שורה של', 'רחבה מהמסך', 'שורות')   # מה שמתקנים בטקסט (חפיפה / מרווח / משך — בתזמון, לא כאן)
 _QC_ERR_RE = re.compile(r'^- #(\d+) `[^`]*`: (.*)$')
+LB_SPEC = ('anthropic', 'claude-haiku-5-5', 'low')     # 25/10/2026: בחירה מתוך רשימה — מאמץ נמוך מספיק
+LB_MAX_OUT = 16000
 
 JG_TASK = """אתה בודק איכות של כתוביות בעברית (מאנגלית). אתה לא מתקן ולא כותב תרגום — רק נותן ציון.
 במדגם: לכל כתובית `#מספר` והמקור באנגלית, ובשורה שאחריה `→` והתרגום.
@@ -1196,6 +1198,62 @@ class Pipeline:
         return st
 
 
+    # -------------------------------------------------------------- 6.6 שבירת שורות (25/10/2026, אישור המשתמש)
+    def line_breaks(self) -> dict:
+        """vt (session_01UZAW, ‏vt/linebreak.py) מציע לכל כתובית דו־שורתית כמה מקומות שבירה; Haiku 5.5 · low בוחר
+        (שיפוט עיוור: 2% לא קבילות מול 5–9% למודל התחבירי ו־14% לכללים). הבחירה משנה רק את מקום השבירה —
+        לא טקסט ולא תזמון — ו־build שאחריה (השופט, finish) מחיל אותה. כל תקלה / vt בלי הפקודות / העתק־הדבק —
+        ממשיכים בלי (המודל התחבירי / הכללים)."""
+        if getattr(self.eng, 'manual', False):
+            return {}
+        ctx, td = self.ctx, self.pd / 'tr'
+        sty = getattr(self.J, 'vt_style', lambda spec: 'bold')(ctx.st.get('spec'))
+        try:
+            for cmd in ('tr-merge', 'build'):
+                self.J.vt(ctx, [cmd, ctx.name] + (['--style', sty] if cmd == 'build' else []))
+            items = json.loads((td / 'lb_items.json').read_text(encoding='utf-8'))
+        except (OSError, ValueError, SystemExit):
+            return {}
+        st = {'lbn': len(items) if isinstance(items, list) else 0, 'lbf': 0}
+        if not st['lbn']:
+            ctx.st['lbx'] = st
+            return st
+        try:
+            self.J.vt(ctx, ['lb-prompt', ctx.name])
+            prompt = (td / 'lb_prompt.md').read_text(encoding='utf-8')
+        except (OSError, SystemExit):
+            return st
+        if not prompt.strip():
+            ctx.st['lbx'] = st
+            return st
+        spent = self.eng.ledger.total()
+        if self.eng.cap is not None and spent is not None and spent >= self.eng.cap:
+            print('· תקרת העבודה נוצלה — שבירת השורות בלי Haiku.')
+            return st
+        spec = llm.Spec(*LB_SPEC)
+        leng = llm.Engine(spec, client=self.eng._client)
+        try:
+            res = leng.complete('lb', RULES, prompt, max_tokens=LB_MAX_OUT, partial_ok=True)
+        except llm.LLMError as e:
+            print('· שבירת השורות ב־Haiku נכשלה (' + e.code + ') — ממשיכים עם המודל התחבירי.')
+            for r in leng.ledger.list():
+                self.eng.ledger.add('sub', r['m'], r, r['usd'])
+            return st
+        self.eng.ledger.add('sub', spec.model, res.usage, res.usd)    # 'sub' — בלי סוג עלות חדש בשלושת הצדדים
+        self.save_usage()
+        ans = td / 'lb_answer.txt'
+        ans.write_text(kept_text(res).strip() + '\n', encoding='utf-8')
+        try:
+            self.J.vt(ctx, ['lb-apply', ctx.name, '--answer', str(ans), '--model', spec.model])
+            picks = json.loads((td / 'linebreak.json').read_text(encoding='utf-8'))
+            st['lbf'] = len(picks) if isinstance(picks, (dict, list)) else 0
+        except (OSError, ValueError, SystemExit):
+            pass
+        ctx.st['lbx'] = st
+        print(f'✓ שבירת השורות: {st["lbn"]} כתוביות דו־שורתיות · Haiku בחר ל־{st["lbf"]}')
+        return st
+
+
 def start_attach(J, ctx):
     """צירוף הסרטון בתהליכון רקע. None = אין צירוף במצב הזה (job.py ישן / בדיקה)."""
     if not (hasattr(J, 'attach_video') and hasattr(J, 'align_prep')):
@@ -1340,6 +1398,8 @@ def run_subs(J, eng, ns) -> int:
             raise llm.LLMError('check_errors', f'נשארו {left} שגיאות בבדיקה האוטומטית אחרי התיקונים')
         pl.qc_round()                        # 25/10/2026: גם בקובץ כתוביות — הבקרה על המסך
         pl.save_usage()
+        pl.line_breaks()                 # 25/10/2026: Haiku בוחר את מקום השבירה; build שאחרי מחיל
+        pl.save_usage()
         pl.judge()
     pl.save_usage()
     return J.finish(SimpleNamespace(force=False))
@@ -1482,6 +1542,8 @@ def run_auto(jobmod, args) -> int:
             if left:
                 raise llm.LLMError('check_errors', f'נשארו {left} שגיאות בבדיקה האוטומטית אחרי התיקונים')
             pl.qc_round()                    # 25/10/2026: מה שהבקרה על המסך פסלה (קצב, אורך) — סבב קצר אחד
+            pl.save_usage()
+            pl.line_breaks()                 # 25/10/2026: Haiku בוחר את מקום השבירה; build שאחרי מחיל
             pl.save_usage()
             pl.judge()                       # שופט האיכות (v375) — ציון בלבד, Haiku; כשל/כיבוי לא עוצרים
         pl.save_usage()

@@ -897,7 +897,7 @@ def learn_facts(ctx):
         if isinstance(th, dict):
             x['th'] = {k: v for k, v in th.items() if _LX_KEY.match(str(k)) and _num_ok(v)}
         out['en'] = x
-    for sk in ('rvx', 'qcx'):                    # 21/10: הביקורת (pipeline.review) · 25/10: הבקרה על המסך (qcn פסולות, qcf קוצרו)
+    for sk in ('rvx', 'qcx', 'lbx'):                    # 21/10: הביקורת (pipeline.review) · 25/10: הבקרה על המסך (qcn פסולות, qcf קוצרו)
         x = ctx.st.get(sk)
         if isinstance(x, dict):
             out.setdefault('en', {}).update({k: v for k, v in x.items() if _LX_KEY.match(str(k)) and _num_ok(v)})
