@@ -97,6 +97,10 @@ class TestHaikuFiles(unittest.TestCase):
         got = LB.parse_answer(ans, items)
         self.assertEqual(got, {items[0]["text"]: items[0]["cands"][1]})
         self.assertEqual(LB.parse_answer("#1 0", items), {})
+        head, body = LB.prompt_parts(items)
+        self.assertEqual(head, LB.PROMPT_HEAD)
+        self.assertEqual(head + body, p)
+        self.assertNotIn("### 1", head)
 
     def test_picks_file(self):
         with tempfile.TemporaryDirectory() as td:

@@ -249,7 +249,8 @@ PROMPT_HEAD = """אתה עורך כתוביות עברית בסטנדרט של N
 """
 
 
-def prompt(items: list[dict]) -> str:
+def prompt_parts(items: list[dict]) -> tuple[str, str]:
+    """(בלוק קבוע — טוב למטמון, הבקשה עם הפריטים). prompt() = שניהם יחד."""
     rows = []
     for it in items:
         toks = it["text"].split(" ")
@@ -257,7 +258,12 @@ def prompt(items: list[dict]) -> str:
         for n, i in enumerate(it["cands"], 1):
             rows.append(f"{n}) {' '.join(toks[:i])} / {' '.join(toks[i:])}")
         rows.append("")
-    return PROMPT_HEAD + "\n<items>\n" + "\n".join(rows) + "</items>\n"
+    return PROMPT_HEAD, "\n<items>\n" + "\n".join(rows) + "</items>\n"
+
+
+def prompt(items: list[dict]) -> str:
+    head, body = prompt_parts(items)
+    return head + body
 
 
 _ANS = re.compile(r"^\s*#?(\d+)\s*[:\-)]?\s+(\d+)\s*$")
