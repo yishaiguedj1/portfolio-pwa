@@ -90,7 +90,10 @@ function parseR(html) {
     scale.cols = cols.map((c) => {
       if (!c.cur) return scale.cur;
       const m = bySym.find(([sy]) => (SYM_CUR[sy] || [sy.toUpperCase()]).includes(c.cur));
-      return m ? m[1] : bySym.length === 1 && !(SYM_CUR[bySym[0][0]] || []).length ? scale.cur : 1;
+      // מקטע אחד ומטבע אחד בעמודות (בנקים קנדיים: "$ in Millions" על עמודות CAD) — הוא שלהן
+      // ...וכל המקטעים באותו קנה מידה ("$ in Millions, $ in Millions" על עמודות CAD — Canadian Pacific) — גם הוא שלהן
+      const same = bySym.every(([, f]) => f === bySym[0][1]);
+      return m ? m[1] : (bySym.length === 1 && (curs.length === 1 || !(SYM_CUR[bySym[0][0]] || []).length)) || (same && curs.length === 1) ? scale.cur : 1;
     });
   }
   const rows = [];

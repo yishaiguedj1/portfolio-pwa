@@ -96,6 +96,18 @@ const CAPEX_PARTS = ['PaymentsToAcquirePropertyPlantAndEquipment', 'PaymentsToAc
   'PaymentsForSoftware', 'PaymentsToAcquireEquipmentOnLease', 'PaymentsToAcquireOtherPropertyPlantAndEquipment', 'PaymentsForCapitalImprovements',
   'PaymentsToAcquireOilAndGasPropertyAndEquipment', 'PaymentsToAcquireOilAndGasProperty', 'PaymentsToAcquireMiningAssets'];
 const faceTagList = (face, sts) => { const out = []; for (const st of sts || []) for (const r of (face && face[st] && face[st].rows) || []) if (/^(us-gaap|ifrs-full)$/.test(r.ns) && !out.includes(r.tag)) out.push(r.tag); return out; };
+/* הערכים השנתיים שהודפסו בדוח, לפי תגית: "tag|end" → ערך (עמודות של 12 חודשים במטבע הדיווח; מאזן — כל עמודה) */
+function faceYearVals(face, sts, cur) {
+  const out = new Map();
+  for (const st of sts || []) {
+    const S = face && face[st]; if (!S) continue;
+    for (const r of S.rows) {
+      const v = SECFACE.rowVals(S, r);
+      S.cols.forEach((c, i) => { if (v[i] == null || (st !== 'bs' && c.months != null && c.months !== 12) || !SECFACE.colOk(c, cur)) return; const kk = r.tag + '|' + c.end; if (!out.has(kk)) out.set(kk, v[i]); });
+    }
+  }
+  return out;
+}
 function sumFacts(parts) {
   const out = { dur: new Map(), inst: new Map(), unit: parts[0] && parts[0].unit };
   for (const [kk, h] of parts[0].dur) {
@@ -138,8 +150,10 @@ function tagFacts(node, unitPref) {
   for (const x of node.units[unit] || []) {
     if (!FORMS.test(x.form || '') || x.val == null) continue;
     if (x.start) {
-      const k = x.start + '|' + x.end, h = out.dur.get(k);
-      if (!h || h.filed < x.filed) out.dur.set(k, { v: x.val, filed: x.filed });
+      // תקופה של שנה שלמה: ערך מדוח שנתי גובר על ערך מדוח רבעוני גם כשהרבעוני הוגש אחריו
+      // (Comfort Systems: 10-Q תייג "שנה" של $1.8B — במקום $9.1B של ה־10-K)
+      const k = x.start + '|' + x.end, h = out.dur.get(k), ann = !/^10-Q/.test(x.form), yr = day(x.end) - day(x.start) >= 350;
+      if (!h || (yr && h.ann !== ann ? ann : h.filed < x.filed)) out.dur.set(k, { v: x.val, filed: x.filed, ann });
     } else {
       const h = out.inst.get(x.end);
       if (!h || h.filed < x.filed) out.inst.set(x.end, { v: x.val, filed: x.filed });
@@ -164,7 +178,7 @@ function tagGap(a, b) {
   diffs.sort((x, y) => x - y);
   return diffs[(diffs.length - 1) >> 1]; // מסכימה לפחות בחצי מהתקופות המשותפות = אותו מדד (עם תיקונים לאחור)
 }
-function mergeTags(fs) {
+function mergeTags(fs, lock) {
   const last = (f) => { let e = ''; for (const kk of f.dur.keys()) { const x = kk.split('|')[1]; if (x > e) e = x; } for (const x of f.inst.keys()) if (x > e) e = x; return e; };
   const has = fs.map((f) => f.dur.size + f.inst.size > 0);
   const m = { dur: new Map(), inst: new Map() };
@@ -179,14 +193,14 @@ function mergeTags(fs) {
     for (const [kk, v] of f.dur) if (!m.dur.has(kk)) m.dur.set(kk, v);
     for (const [kk, v] of f.inst) if (!m.inst.has(kk)) m.inst.set(kk, v);
   }
-  fixRuns(m, fs);
+  fixRuns(m, fs, lock && ((kk, v) => lock(spine, kk, v)));
   return m;
 }
 /* רשת ביטחון שנייה — ערך שגוי בתוך התגית הנבחרת (Procter & Gamble: ‏Revenues = ‏$28B ב־2012–2014 במקום ‏$83B):
    רצף שנים שבו תגית אחרת נותנת ערך שונה, והחלפה שלו מעלימה קפיצה חדה מול השנה שלפניו ושאחריו — מוחלף.
    רק ערכים חיוביים, רק שנים שלמות, ורק כשהקפיצה גדולה (פי JUMP) וההחלפה מקטינה אותה לפחות בחצי ומתחת לסף. */
 const JUMP = Math.log(1.6);
-function fixRuns(m, fs) {
+function fixRuns(m, fs, locked) {
   const yr = (kk) => { const [a, b] = kk.split('|'); const d = day(b) - day(a); return d >= 350 && d <= 380; };
   const ends = [...m.dur.keys()].filter(yr).sort((a, b) => (a.split('|')[1] < b.split('|')[1] ? -1 : 1));
   if (ends.length < 3) return;
@@ -196,6 +210,7 @@ function fixRuns(m, fs) {
     for (let i = 0; i < ends.length; i++) {
       if (!alt(ends[i])) continue;
       let j = i; while (j + 1 < ends.length && alt(ends[j + 1])) j++;
+      if (locked) { let ok = false; for (let x = i; x <= j; x++) if (locked(ends[x], m.dur.get(ends[x]).v)) ok = true; if (ok) { i = j; continue; } }
       const prev = i > 0 ? m.dur.get(ends[i - 1]).v : null, next = j + 1 < ends.length ? m.dur.get(ends[j + 1]).v : null;
       const was = [lg(prev, m.dur.get(ends[i]).v), lg(m.dur.get(ends[j]).v, next)].filter((x) => x != null);
       const now = [lg(prev, f.dur.get(ends[i]).v), lg(f.dur.get(ends[j]).v, next)].filter((x) => x != null);
@@ -232,7 +247,11 @@ function normalizeSec(facts, splits = [], face = null) {
     }
     if (k === 'rev') { const f = fs.find((x) => x.unit && /^[A-Z]{3}$/.test(x.unit)); if (f) cur = f.unit; }
     if (rc) cur = rc;
-    merged[k] = mergeTags(fs);
+    // ערך שהדוח המודפס מאשר (התגית שבדוח, אותה שנה, אותו ערך) — fixRuns לא מחליף את הרצף שלו
+    // (Ares: ההכנסות באמת קופצות — דמי ביצוע; "Revenues" היא מדד אחר וחלק יותר)
+    const fv = faceYearVals(face, STMT_OF[k], rc || cur);
+    const lock = (si, kk, v) => { const t = names[si], e = kk.split('|')[1], x = t && fv.get(t + '|' + e); return x != null && Math.abs(Math.abs(x) - Math.abs(v)) <= 0.005 * Math.abs(x); };
+    merged[k] = mergeTags(fs, lock);
     if (merged[k].spine != null) tags[k] = names[merged[k].spine];
   }
   // שנים פיסקליות: תקופות של ~שנה בהכנסות או ברווח הנקי (52/53 שבועות נכללים)
@@ -393,9 +412,11 @@ function crossCheck(d, y) { // מול Yahoo: הכנסות ורווח נקי בש
 const FACE_KEYS = ['rev', 'cogs', 'gp', 'op', 'ni', 'pretax', 'tax', 'rnd', 'eps', 'sh', 'ocf', 'capex', 'sbc', 'dep', 'buy', 'divp', 'cash', 'eq', 'ta', 'tl', 'ca', 'cl', 're', 'ppe'];
 const SECFACE = require('./secface');
 const ABS_FACE = new Set(['cogs', 'tax', 'rnd', 'int', 'capex', 'buy', 'divp', 'dep', 'sbc', 'tl', 'cl']);   // התחייבויות — בבריטניה (IFRS) מודפסות במינוס
-function faceCheck(d, face) {
+function faceCheck(d, face, splits = []) {
   const out = [], seen = { n: 0, ok: 0 };
   if (!face || !d || !d.tags) return { out, seen };
+  // פיצול שהיה אחרי הגשת הדוח (Booking 25:1, CrowdStrike 4:1): הדוח מודפס לפני הפיצול ואצלנו אחריו — משווים אחרי אותו פיצול
+  const post = (splits || []).filter(([sd, r]) => face.filed && sd > face.filed && Math.abs(Math.log(r)) > Math.log(1.3)).reduce((t, [, r]) => t * r, 1);
   for (const k of FACE_KEYS) {
     const tag = d.tags[k]; if (!tag || !d.A[k]) continue;
     const parts = tag.split('+');
@@ -410,7 +431,8 @@ function faceCheck(d, face) {
         if (!SECFACE.colOk(c, d.cur)) return;
         const i = d.fy.findIndex((e) => Math.abs(day(e) - day(c.end)) <= 8); if (i < 0) return;
         // הוצאות ותשלומים — לפי הערך המוחלט (בדוח הן לפעמים מודפסות במינוס)
-        const ab = ABS_FACE.has(k), fv = vals.reduce((t, v) => (t == null || v[ci] == null ? null : t + (ab ? Math.abs(v[ci]) : v[ci])), 0);
+        const ab = ABS_FACE.has(k), fv0 = vals.reduce((t, v) => (t == null || v[ci] == null ? null : t + (ab ? Math.abs(v[ci]) : v[ci])), 0);
+        const fv = fv0 == null || post === 1 ? fv0 : PER_SHARE.has(k) ? Math.round(fv0 / post * 1e4) / 1e4 : k === 'sh' ? fv0 * post : fv0;
         const ours = d.A[k][i]; if (fv == null || ours == null) return;
         const a = ab ? Math.abs(ours) : ours;
         // מניות שתוקנו בקנה מידה (fixes) — הדוח מודפס באותה טעות; משווים אחרי אותו תיקון
@@ -692,7 +714,7 @@ async function fundamentals(sym0) {
   const useSec = sec && sec.fy.length >= 2;
   const base = useSec ? sec : y;
   if (!base || !base.fy || !base.fy.length) return { ok: false, error: 'no_data', errs };
-  const fcRes = useSec ? faceCheck(sec, face) : { out: [], seen: { n: 0, ok: 0 } };
+  const fcRes = useSec ? faceCheck(sec, face, (m && m.splits) || []) : { out: [], seen: { n: 0, ok: 0 } };
   const checks = useSec ? validate(sec).concat(crossCheck(sec, y), fcRes.out) : [];
   // שורה שחסרה ב־SEC לגמרי (תגית פרטית של החברה, למשל השקעות הוניות ב־IFRS) — משלימים מ־Yahoo לפי תאריך, ומסמנים
   const fill = [];

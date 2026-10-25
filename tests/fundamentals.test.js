@@ -253,6 +253,37 @@ ok(dmd.erp > 0.02 && dmd.erp < 0.08 && dmd.crpIL > 0 && Object.keys(dmd.ind).len
   ok(F.normalizeSec(HD, [['2026-09-08', 2]]).A.eps.join() === '44.155,44.815', 'פיצול 2:1 אחרי השנה האחרונה — מוחל (בלי זה המכפיל כפול)');
   ok(F.normalizeSec(HD, [['2026-09-08', 1.25]]).A.eps.join() === '88.31,89.63', 'יחס לא שלם (פיצול חברה) בלי תקופה לאמת — לא מוחל');
 }
+
+/* ---------- ריצת 500 החברות, סבב 2 (25/10/2026) ---------- */
+{
+  // Comfort Systems: 10-Q שהוגש אחרי ה־10-K תייג "שנה" בערך שגוי — הדוח השנתי גובר
+  const CF = facts([['Revenues', 'USD', yrs([5206e6, 7027e6, 9101e6], 2023)]]);
+  CF.facts['us-gaap'].Revenues.units.USD.push({ start: '2025-01-01', end: '2025-12-31', val: 1831e6, form: '10-Q', filed: '2026-04-23', fy: 2099, fp: 'Q1' });
+  ok(F.normalizeSec(CF, []).A.rev.slice(-1)[0] === 9101e6, 'שנה שלמה: הדוח השנתי גובר על 10-Q מאוחר יותר');
+  // Ares: הכנסות שבאמת קופצות (דמי ביצוע), והדוח המודפס מאשר אותן — fixRuns לא מחליף בתגית אחרת
+  const AR = facts([['RevenueFromContractWithCustomerExcludingAssessedTax', 'USD', yrs([1765e6, 1764e6, 4212e6, 3055e6, 3632e6, 3885e6, 5601e6], 2019)],
+    ['Revenues', 'USD', yrs([1433e6, 1754e6, 2289e6, 2880e6, 3236e6, 3691e6, 4756e6], 2019)]]);
+  const th2 = (d) => `<th class="th"><div>${d}</div></th>`;
+  const arF = SF.parseR(`<table><tr><th class="tl"><div><strong>Income - USD ($)<br> $ in Millions</strong></div></th><th class="th" colspan="3">12 Months Ended</th></tr><tr>${th2('Dec. 31, 2025')}${th2('Dec. 31, 2024')}${th2('Dec. 31, 2023')}</tr>
+${row('ro', 'us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax', 'Total revenues', ['5,601', '3,885', '3,632'])}</table>`);
+  const dar = F.normalizeSec(AR, [], { is: arF });
+  ok(dar.tags.rev === 'RevenueFromContractWithCustomerExcludingAssessedTax' && dar.A.rev.join() === [1765e6, 1764e6, 4212e6, 3055e6, 3632e6, 3885e6, 5601e6].join(), 'קפיצה אמיתית שהדוח מאשר — לא "מתוקנת" בתגית אחרת');
+  // פיצול אחרי הגשת הדוח: הדוח לפני הפיצול, אצלנו אחריו — משווים אחרי אותו פיצול
+  const BK = facts([['NetIncomeLoss', 'USD', yrs([4e9, 5e9], 2024)], ['EarningsPerShareDiluted', 'USD/shares', yrs([120, 165], 2024)],
+    ['WeightedAverageNumberOfDilutedSharesOutstanding', 'shares', yrs([33e6, 30e6], 2024)]]);
+  const dbk = F.normalizeSec(BK, [['2026-06-01', 25]]);
+  const bkF = SF.parseR(`<table><tr><th class="tl"><div><strong>Income - USD ($)<br> $ in Millions</strong></div></th><th class="th" colspan="2">12 Months Ended</th></tr><tr>${th2('Dec. 31, 2025')}${th2('Dec. 31, 2024')}</tr>
+${row('ro', 'us-gaap_EarningsPerShareDiluted', 'Diluted', ['165', '120'])}</table>`);
+  const fbk = F.faceCheck(dbk, { is: bkF, filed: '2026-02-20' }, [['2026-06-01', 25]]);
+  ok(dbk.A.eps.join() === '4.8,6.6' && fbk.seen.n === 2 && fbk.seen.ok === 2, 'פיצול 25:1 אחרי ההגשה — רווח למניה תואם לדוח אחרי אותו פיצול');
+  // Canadian Pacific: "$ in Millions, $ in Millions" על עמודות CAD
+  const cp = SF.parseR(`<table><tr><th class="tl"><div><strong>Cash Flows<br> $ in Millions, $ in Millions</strong></div></th><th class="th" colspan="1">12 Months Ended</th></tr><tr><th class="th"><div>Dec. 31, 2025</div><div>CAD ($)</div></th></tr>
+${row('ro', 'us-gaap_NetCashProvidedByUsedInOperatingActivities', 'Cash from operations', ['5,309'])}</table>`);
+  ok(SF.rowVals(cp, cp.rows[0])[0] === 5309e6, 'מטבע אחד ושני מקטעים באותו קנה מידה — במיליונים');
+  const bmo = SF.parseR(`<table><tr><th class="tl"><div><strong>Income<br> $ in Millions</strong></div></th><th class="th" colspan="1">12 Months Ended</th></tr><tr><th class="th"><div>Oct. 31, 2025</div><div>CAD ($)</div></th></tr>
+${row('ro', 'us-gaap_Revenues', 'Revenue', ['36,274'])}</table>`);
+  ok(SF.rowVals(bmo, bmo.rows[0])[0] === 36274e6, 'בנק קנדי: "$ in Millions" על עמודת CAD');
+}
 (async () => {
   const calls = [];
   global.fetch = async (url, opts = {}) => {
