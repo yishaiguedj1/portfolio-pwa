@@ -230,7 +230,10 @@ function normSpec(s) {
   }, subs ? Object.assign({ src: 'subs', sdh: s.sdh === 'keep' ? 'keep' : 'rm' }, SUBS_FPS.includes(String(s.fps)) ? { fps: String(s.fps) } : {}) : {},
   link ? Object.assign({ src: 'url', url, pick }, ref ? { ref } : {}) : {},
   // 25/10/2026 (שלב 2): pw = גם התמלול והיישור בטלפון — עולים רק המילים עם הזמנים (w) והמדידות (m), בלי קול
-  ph ? Object.assign({ ph: 1 }, s.pw === 1 ? { pw: 1 } : {}, PH_BURN.includes(s.pb) ? { pb: s.pb } : {}) : {},   // pb = מה הטלפון צורב בסוף (ריק = רק כתוביות)
+  // 25/10/2026 (שלב 3): pt = גם שלבי הטקסט בטלפון (vt בפייתון של Studio) — השרת רק מעביר את הקריאות ל־Claude (התור, המפתח של
+  // המערכת) ומחשב את העלות. רק עם pw, ורק במפתח של המערכת (לא העתק־הדבק ולא "המנוי שלי")
+  ph ? Object.assign({ ph: 1 }, s.pw === 1 ? { pw: 1 } : {}, s.pw === 1 && s.pt === 1 && s.cp !== 1 && s.ry !== 1 ? { pt: 1 } : {},
+    PH_BURN.includes(s.pb) ? { pb: s.pb } : {}) : {},   // pb = מה הטלפון צורב בסוף (ריק = רק כתוביות)
   !subs && !link && !ph && edlPre(normEdl(s.edl)) ? { edl: edlPre(normEdl(s.edl)) } : {},   // מ4: חיתוך לפני התרגום (dur = האורך אחרי החיתוך)
   // 21/10/2026: פיקסלים לשנייה ביחס ל־1080p30 (מהמידות שהטלפון קרא; העובד מתקן אחרי הקליטה) — לצפי של הצריבה
   Number.isFinite(+s.px) && +s.px >= 0.02 && +s.px <= 16 ? { px: Math.round(+s.px * 1000) / 1000 } : {},
@@ -587,6 +590,25 @@ function normRules(r) {
 /* המצב יקר מהמקסימום? לפי הצפוי לשעת סרטון (NORM_DEF): Haiku Medium < Haiku High < Sonnet Medium < Sonnet High < Opus Medium */
 const modeOver = (mode, mx) => !!mx && MODES.includes(mode) && MODES.includes(mx) && NORM_DEF[mode] > NORM_DEF[mx];
 /* כמה כבר עלו הסשנים הקודמים של העבודה (אחרי "המשך") — התקציב הוא לכל העבודה, לא לסשן */
+/* 25/10/2026 (שלב 3 של "תרגום בטלפון"): העלות של עבודה שהטלפון מריץ — נספרת כאן, מכל תשובה של Claude שהשרת שלנו העביר
+   (העונה בשרת מחשב את המחיר), לא מהדיווח של הטלפון. שורה לכל שלב (k), בפורמט של normUsage */
+function useAdd(list, k, m, u, usd) {
+  const out = (Array.isArray(list) ? list : []).map((r) => Object.assign({}, r));
+  k = USE_KINDS.includes(k) ? k : 'main';
+  let r = out.find((x) => x && x.k === k);
+  if (!r) {
+    if (out.length >= 6) r = out[out.length - 1];
+    else { r = { k, m: USE_MODEL_RE.test(String(m || '')) ? m : 'claude-unknown', n: 0, i: 0, o: 0, cr: 0, c5: 0, c1: 0, usd: 0 }; out.push(r); }
+  }
+  r.n = (r.n || 0) + 1;
+  for (const f of ['i', 'o', 'cr', 'c5', 'c1']) {
+    const v = Number(u && u[f]);
+    r[f] = (r[f] || 0) + (Number.isFinite(v) && v >= 0 && v < 1e9 ? Math.round(v) : 0);
+  }
+  const d = Number(usd);
+  r.usd = Math.round(((typeof r.usd === 'number' ? r.usd : 0) + (Number.isFinite(d) && d >= 0 && d < 1e4 ? d : 0)) * 1e4) / 1e4;
+  return out;
+}
 const usdOf = (use) => Math.round((Array.isArray(use) ? use : []).reduce((s, r) => s + (r && typeof r.usd === 'number' ? r.usd : 0), 0) * 100) / 100;
 /* שער: b = הגענו לתקציב (להמשיך / לעצור), r = לפני הצריבה (לצרוב / רק קובץ כתוביות). ברירת המחדל — הזהירה (d = 1) */
 const GATE_KINDS = ['b', 'r'];
@@ -1220,7 +1242,7 @@ function fromFields(f) {
   return o;
 }
 
-module.exports = { PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
+module.exports = { useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,

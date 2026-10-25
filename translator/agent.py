@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import collections
+import hashlib
 import json
 import os
 import platform
@@ -1115,6 +1116,79 @@ def probe_once(server: str, tok: str, run=subprocess.run) -> bool:
     return True
 
 
+# ---------------------------------------------------------------- תרגום בטלפון, שלב 3 (25/10/2026)
+# הטלפון מריץ את כל העבודה, וכל קריאה ל־Claude מגיעה לתור בשרתון (lib/relay.js). כאן — העונה: מושך בקשות של כל העבודות
+# שהטלפון מריץ (op:'ptNext', הטוקן של השרת), קורא ל־Claude עם המפתח של המערכת (llm.pt_answer) ומחזיר (op:'ptMark') —
+# עם המחיר, כדי שהשרתון יספור את העלות (לא הטלפון). התור חי בחדר האפליקציה — שרתון בלי תור עונה no_hub עם הכתובת שלו.
+PT_PAR = int(os.environ.get('SNB_PT_PAR', '8'))
+
+
+def pt_loop(server: str, tok: str, answer=None, post=None):
+    answer = answer or llm_answer
+    post = post or (lambda base, body, t: J.http('POST', base + '/api/studio', body, headers={'Authorization': 'Bearer ' + tok}, timeout=t))
+    base, fixed, busy, lock = server, {}, {}, threading.Lock()
+
+    def mark(b, body):
+        for _ in range(20):
+            try:
+                st, j, _ = post(b, dict(body, op='ptMark'), 60)
+                if st == 200:
+                    return
+            except (OSError, ValueError):
+                pass
+            time.sleep(3)
+
+    def one(b, r):
+        flag = {'s': False}
+
+        def started():
+            if not flag['s']:
+                flag['s'] = True
+                mark(b, {'job': r['job'], 'rid': r['rid'], 'st': 's'})
+        try:
+            ans = answer(r, fixed.get(r['fh']), started)
+        except Exception as e:     # noqa: BLE001 — כל תקלה = קוד, לא קריסה של הלולאה
+            ans = {'err': getattr(e, 'code', None) or 'api_error'}
+        usd = ans.pop('usd', 0) if isinstance(ans, dict) else 0
+        mark(b, {'job': r['job'], 'rid': r['rid'], 'st': 'd', 'ans': ans, 'usd': usd})
+        with lock:
+            busy.pop(r['rid'], None)
+
+    while not _stop:
+        with lock:
+            free = max(0, PT_PAR - len(busy))
+        try:
+            st, j, _ = post(base, {'op': 'ptNext', 'have': list(fixed)[:256], 'max': free, 'w': 25000 if free else 3000}, 40)
+        except (OSError, ValueError):
+            time.sleep(5)
+            continue
+        if st != 200 or not isinstance(j, dict) or not j.get('ok'):
+            hub = str((j or {}).get('hub') or '') if isinstance(j, dict) else ''
+            if (j or {}).get('error') == 'no_hub' and hub in J.SERVERS and hub != base:
+                base = hub                                # התור בחדר האפליקציה — לשם (אותו טוקן שרת)
+                continue
+            time.sleep(10)
+            continue
+        for h, t in (j.get('fx') or {}).items():
+            if isinstance(t, str) and hashlib.sha1(t.encode('utf-8')).hexdigest() == h:
+                fixed[h] = t
+        if len(fixed) > 400:
+            fixed.clear()
+        for r in j.get('reqs') or []:
+            if not isinstance(r, dict) or r.get('fh') not in fixed or not J.JOB_RE.match(str(r.get('job') or '')):
+                continue
+            with lock:
+                busy[r['rid']] = r
+            threading.Thread(target=one, args=(base, r), daemon=True).start()
+        if not free:
+            time.sleep(1)
+
+
+def llm_answer(r, fx, started):
+    import llm
+    return llm.pt_answer(r, fx, started)
+
+
 def probe_loop(server: str, tok: str):
     """חוט נפרד: בדיקות קישור לא מחכות לעבודה שרצה (הן קלות — שניות, כ־100MB). השרתון לא קורא ל־Firestore כשאין
     בדיקה חדשה, כך שהשאלה כל 4 שניות זולה."""
@@ -1244,6 +1318,8 @@ def main(once: bool = False) -> int:
     ev('up')
     if not once:
         threading.Thread(target=beat_loop, args=(server, tok), daemon=True).start()
+        if os.environ.get('SNB_PT', 'on') != 'off' and os.environ.get('ANTHROPIC_API_KEY'):
+            threading.Thread(target=pt_loop, args=(server, tok), daemon=True).start()   # 25/10/2026: תרגום בטלפון — Claude
         if os.environ.get('SNB_PROBE', 'on') != 'off':
             threading.Thread(target=probe_loop, args=(server, tok), daemon=True).start()   # 22/10/2026: בדיקות קישור
         if os.environ.get('SNB_YT', 'on') != 'off':

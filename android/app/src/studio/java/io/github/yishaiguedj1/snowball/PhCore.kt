@@ -162,6 +162,8 @@ object PhCore {
 
     // ---------------------------------------------------------------- מסירה לאתר
     /** ‎#phpick=<pid>.<base64url של JSON> — מה שהטופס צריך כדי ליצור את העבודה (השם, הגודל, האורך, המידות) */
-    fun pickJson(pid: String, name: String, size: Long, i: Info?): JSONObject = JSONObject().put("pid", pid).put("name", name.take(200)).put("size", size)
+    /** מה Studio הזה יודע — האתר קובע לפיו את העבודה (studio.js PH_CAP_PT). 3 = גם שלבי הטקסט בטלפון (שלב 3) */
+    const val CAP = 3
+    fun pickJson(pid: String, name: String, size: Long, i: Info?): JSONObject = JSONObject().put("pid", pid).put("name", name.take(200)).put("size", size).put("cap", CAP)
         .put("dur", i?.dur ?: 0.0).put("w", i?.w ?: 0).put("h", i?.h ?: 0).put("fps", i?.fps ?: 0.0).put("a", i?.hasAudio ?: false)
 }
