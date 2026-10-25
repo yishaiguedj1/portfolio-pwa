@@ -17,7 +17,7 @@ for (const u of ['https://vimeo.com/1', 'https://www.ted.com/talks/x', 'https://
   ok(ytHost(u) === false, 'לא יוטיוב: ' + (u || '(ריק)'));
 
 const lc = src.slice(src.indexOf('function linkCheck('), src.indexOf('function linkCheckSrv('));
-ok(/if \(ui\.url && ytHost\(L\.u\)\) \{ L\.st = 'err'; L\.e = 'yt'; \}/.test(lc), 'בלי האפליקציה — יוטיוב נעצר לפני הבדיקה בשרת');
+ok(/if \(ui\.url && !ui\.yc && ytHost\(L\.u\)\) \{ L\.st = 'err'; L\.e = 'yt'; \}/.test(lc), 'בלי האפליקציה — יוטיוב נעצר לפני הבדיקה בשרת');
 ok(lc.indexOf("L.e = 'yt'") < lc.indexOf('linkCheckSrv(f, L, seq)'), 'שאר האתרים — לבדיקה בשרת');
 ok(/case 'yt': return T\('studioLinkEYt'\);/.test(src), 'טקסט לשגיאת יוטיוב');
 const sc = src.slice(src.indexOf('function startLinkCloud('), src.indexOf('function startLinkCloud(') + 700);

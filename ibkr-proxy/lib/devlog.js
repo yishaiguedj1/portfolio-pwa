@@ -37,7 +37,9 @@ function redact(s) {
     .replace(/(--key[ =])\S+/g, '$1⟨key⟩')
     .replace(/\b((?:key|token|access_token|refresh_token|code|secret|password|sig|signature|X-Amz-Signature|X-Amz-Credential|X-Goog-Signature)=)[^&\s"']+/gi, '$1⟨…⟩')
     .replace(/\b(ya29\.)[A-Za-z0-9._-]{10,}/g, '$1⟨…⟩')
-    .replace(/"(key|token|secret|password|access_token|refresh_token|at)"\s*:\s*"[^"]{8,}"/gi, '"$1":"⟨…⟩"');
+    .replace(/"(key|token|secret|password|access_token|refresh_token|at)"\s*:\s*"[^"]{8,}"/gi, '"$1":"⟨…⟩"')
+    // 25/10/2026: עוגיות של חשבון היוטיוב הייעודי (שורת cookies.txt או "שם=ערך") — לא נכנסות ליומן גם אם נדפסו בטעות
+    .replace(/\b((?:__Secure-|__Host-)[A-Za-z0-9_-]+|SAPISID|APISID|HSID|SSID|SIDCC|SID|LOGIN_INFO|VISITOR_INFO1_LIVE|VISITOR_PRIVACY_METADATA|YSC|PREF)(=|\t)[^\s;"']+/g, '$1$2⟨…⟩');
 }
 /* טקסט חופשי: בלי תווי בקרה (חוץ משורה חדשה וטאב), בלי סודות, חתוך מהסוף (בלוג — הסוף חשוב יותר) */
 function text(v, max, fromEnd) {
