@@ -80,7 +80,7 @@ object DmMedia {
 
     /** yt-dlp כותב לקובץ רגיל (צריך נתיב) — בסוף מעתיקים פנימה */
     fun importFile(ctx: Context, t: DmTask, f: File) {
-        t.name = DmName.clean(f.name)
+        t.name = DmName.titled(t.title, f.name)
         t.mime = DmName.mimeOfExt(DmName.ext(t.name))
         t.uri = ""
         val u = pending(ctx, t)

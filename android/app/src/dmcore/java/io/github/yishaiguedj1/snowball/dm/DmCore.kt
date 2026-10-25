@@ -122,6 +122,18 @@ object DmName {
         return t
     }
 
+    /**
+     * 25/10/2026 (בקשת המשתמש): השם של קובץ שירד ב־yt-dlp = הכותרת (מהדף בדפדפן, או של yt-dlp), עם הסיומת של הקובץ.
+     * עד היום "<כותרת> [<מזהה>]" — ובקורס עם רשימת HLS יצא "playlist [playlist].mkv". בלי כותרת — שם הקובץ כמו שהוא
+     */
+    fun titled(title: String, file: String): String {
+        // כותרת = טקסט לקריאה: סימן שאלה וכו' יורדים (לא "_"), נקודתיים/לוכסן → מקף
+        val t = clean(title.replace(Regex("[?*\"<>|]"), "").replace(Regex("\\s*[:/\\\\]\\s*"), " - ").replace(Regex("\\s+"), " ").take(110))
+        if (t.isEmpty()) return clean(file)
+        val e = ext(file)
+        return if (e.isEmpty()) t else "$t.$e"
+    }
+
     fun ext(name: String): String {
         val i = name.lastIndexOf('.')
         if (i <= 0 || i == name.length - 1) return ""
