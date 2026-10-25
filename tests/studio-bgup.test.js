@@ -135,8 +135,8 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok((await api('file', { job: JOB, which: 'a', id: fa.id, folder: FOLDER })).ok, 'הקול עלה ונרשם (כמו היום)');
 
   j = await api('r2bg', { job: JOB, size: video.length, type: 'video/mp4', name: 'lecture.mp4' });
-  ok(j.ok && SR.inFolder(j.id, FOLDER) && j.ps === SR.BG_PS && Object.keys(j.urls).length === 1 && /^[A-Za-z0-9_-]{43}$/.test(j.fk) && j.exp > R.now,
-    'r2bg: חלקים של 64MiB, קישור לכל חלק חסר, מפתח סיום חד־פעמי');
+  ok(j.ok && SR.inFolder(j.id, FOLDER) && j.ps === SR.bgPartSize(video.length) && j.ps === 8 * MiB && Object.keys(j.urls).length === 2 && /^[A-Za-z0-9_-]{43}$/.test(j.fk) && j.exp > R.now,
+    'r2bg: חלקים לפי bgPartSize, קישור לכל חלק חסר, מפתח סיום חד־פעמי');
   const urlTtl = Number(new URL(j.urls[1]).searchParams.get('X-Amz-Expires'));
   ok(urlTtl === SR.BG_TTL, 'הקישורים לשלושה ימים (הדפדפן יכול להשהות בלי רשת)');
   ok(UP.upTarget(j.urls[1]) === j.urls[1], 'הקישור שהשרתון נותן עובר את הבדיקה של /up');
@@ -148,7 +148,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   const done = (b, origin) => call(Object.assign({ op: 'r2bgDone', job: JOB }, b), origin);
   let r = await done({ id: BG.id, up: BG.up, fk: BG.fk });
   ok(r.code === 200 && r.j.ok === false && r.j.error === 'r2_parts', 'לפני שהחלקים הגיעו — לא נסגר');
-  await R.fetch(BG.urls[1], { method: 'PUT', body: video });
+  for (const [n, u] of Object.entries(BG.urls)) await R.fetch(u, { method: 'PUT', body: video.subarray((n - 1) * BG.ps, n * BG.ps) });
   r = await done({ id: BG.id, up: BG.up, fk: 'x'.repeat(43) });
   ok(r.code === 403 && !db.get('studioJobs/' + JOB).fields.fv, 'מפתח שגוי — 403, הסרטון לא נרשם');
   r = await done({ id: BG.id, up: BG.up, fk: BG.fk }, '');
@@ -171,7 +171,14 @@ const { fakeR2, ENV } = require('./_r2fake');
   const big = { s: 9 * MiB * 450, k: SR.keyOf('ownerUid0001', SR.newId(FOLDER)) };
   const recSmall = { k: big.k, s: big.s, t: 'video/mp4', n: 'x', up: await R2.mpCreate(c, { fetch: R.fetch, now: () => R.now }, big.k, 'video/mp4'), ps: 8 * MiB, ok: 0, at: R.now, by: 'phone', uid: 'ownerUid0001' };
   const o1 = await SR.upBg(c, { fetch: R.fetch, now: () => R.now }, { uid: 'ownerUid0001', folder: FOLDER, id: big.k.split('/').pop(), size: big.s, rec: recSmall });
-  ok(o1.res.ok && o1.res.ps === SR.BG_PS && o1.res.up !== recSmall.up, 'העלאה רגילה בחלקים קטנים שעוד בתחילתה — מתחילים מחדש בחלקים של 64MiB');
+  ok(o1.res.ok && o1.res.ps === SR.bgPartSize(big.s) && o1.res.ps === SR.BG_PS && o1.res.up !== recSmall.up, 'העלאה רגילה בחלקים קטנים שעוד בתחילתה — מתחילים מחדש בחלקים גדולים (64MiB לסרטון של 4GB)');
+
+  // 24/10/2026: ההתראה של Chrome מתקדמת לפי חלקים — כ־64 צעדים, בין 8MiB ל־64MiB לחלק
+  const steps = (sz) => Math.ceil(sz / SR.bgPartSize(sz));
+  ok(SR.bgPartSize(130e6) === 8 * MiB && steps(130e6) === 16 && SR.bgPartSize(650e6) === 10 * MiB && steps(650e6) <= SR.BG_STEPS
+    && SR.bgPartSize(5e9) === SR.BG_PS && SR.bgPartSize(SR.MAX.phone) <= SR.BG_PART_MAX && steps(SR.MAX.phone) <= SR.BG_MAX_PARTS
+    && [70e6, 200e6, 1e9, 3e9, 4.2e9].every((sz) => SR.bgPartSize(sz) % MiB === 0 && SR.bgPartSize(sz) >= 8 * MiB && SR.bgPartSize(sz) <= SR.BG_PS && steps(sz) <= SR.BG_STEPS + 1),
+    'bgPartSize: צעדים קטנים בהתראה (עד ~64), חלק בין 8MiB ל־64MiB, מתחת לתקרת /up ולמספר החלקים');
 
   /* ---------- 3. studiobg.js ---------- */
   const B = await import(path.join(root, 'studiobg.js'));
@@ -210,8 +217,8 @@ const { fakeR2, ENV } = require('./_r2fake');
       job: JOB, name: 'v.mp4', blob, size: 150, mime: 'video/mp4', onState: (x) => st.push(x), onProgress: (b) => prog.push(b), title: 'T' }, env);
     await new Promise((r) => setTimeout(r, 20));
     ok(apiCalls[0][0] === 'r2bg' && got.id === 'snbup-' + JOB && got.reqs.length === 2 && got.reqs[0].url === '/up?u=' + encodeURIComponent('https://r/1')
-      && got.reqs[0].o.method === 'POST' && got.reqs[0].o.body.size === 64 && got.reqs[1].o.body.size === 22 && got.opt.title === 'T' && got.opt.downloadTotal === 2 * B.BG_RESP_MAX,
-    'נרשם Background Fetch: POST ל־/up באותו מקור לכל חלק חסר, עם הקישור החתום שלו');
+      && got.reqs[0].o.method === 'POST' && got.reqs[0].o.body.size === 64 && got.reqs[1].o.body.size === 22 && got.opt.title === 'T' && !('downloadTotal' in got.opt),
+    'נרשם Background Fetch: POST ל־/up באותו מקור לכל חלק חסר, עם הקישור החתום שלו — בלי downloadTotal (ההתראה לפי חלקים, בלי ספירה כפולה)');
     ok(st[0].id === 'FID' && st[0].up === 'UP' && st[0].ps === 64, 'מצב ההעלאה נשמר (ההעלאה הרגילה ממשיכה מאותה העלאה)');
     ok(saved[0].id === 'snbup-' + JOB && saved[0].fk === 'K'.repeat(43) && saved[0].fid === 'FID' && saved[0].apis.length === 2 && saved[0].l === 'he',
       'מה שה־service worker צריך — נשמר (העבודה, הקובץ, המפתח, השרתונים, השפה)');
