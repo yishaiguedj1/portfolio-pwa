@@ -94,8 +94,9 @@ assert.strictEqual(fs.items[1].used, 100);
   assert.strictEqual(gc, 0);
   const rs = await U.r2Store({ CF_USAGE_TOKEN: 't', R2_ACCOUNT_ID: 'a', R2_BUCKET: 'snb-learn' }, gql, now0);
   assert.strictEqual(gc, 2, 'גודל ואז עלות'); assert.deepStrictEqual(rs.b, [{ name: 'snb-learn', gb: 4, n: 7 }]);
-  // 24 באוקטובר: 32GB ממוצע שיא יומי → 22 מעל החינם × 0.015 = 0.33; A: 3M עד היום → צפי 3M×31/24 = 3.875M → 2.875M × 4.5 = 12.94; B: 20M → 25.83M → 15.83M × 0.36 = 5.70
-  assert.deepStrictEqual(rs.cost, { st: 0.33, a: 12.94, b: 5.7, proj: 18.97, mtd: 12.86, gbm: 32, pa: 3875000, pb: 25833333 });
+  // 24 באוקטובר: 32GB ממוצע עד היום, היום 4GB → החודש כולו (32×24+4×7)/31 = 25.7 → 26 → 16 מעל החינם × 0.015 = 0.24;
+  // A: 3M עד היום → צפי 3M×31/24 = 3.875M → 2.875M × 4.5 = 12.94; B: 20M → 25.83M → 15.83M × 0.36 = 5.70
+  assert.deepStrictEqual(rs.cost, { st: 0.24, a: 12.94, b: 5.7, proj: 18.88, mtd: 12.86, gbm: 32, pa: 3875000, pb: 25833333 });
   const gerr = async () => ({ status: 200, json: async () => ({ errors: [{ message: 'unknown field' }], data: null }) });
   assert.strictEqual((await U.r2Store({ CF_USAGE_TOKEN: 't', R2_ACCOUNT_ID: 'a', R2_BUCKET: 'snb-learn' }, gerr, now0)).err, 'gql');
 
@@ -103,6 +104,10 @@ assert.strictEqual(fs.items[1].used, 100);
   assert.deepStrictEqual(U.opsByClass([{ sum: { requests: 5 }, dimensions: { actionType: 'ListObjects' } }, { sum: { requests: 2 }, dimensions: { actionType: 'Mystery' } }, { sum: { requests: 9 }, dimensions: { actionType: 'AbortMultipartUpload' } }]), { a: 5, b: 2 }, 'לא מוכר = B (זול), מחיקה = חינם');
   assert.strictEqual(U.r2Cost({ gbMonth: 9.2, a: 1000, b: 1000, day: 1, days: 30 }).proj, 0, 'בתוך החינם — אפס');
   assert.strictEqual(U.r2Cost({ gbMonth: 10.1, day: 10, days: 30 }).st, 0.02, 'מעוגל למעלה ל־11GB ($0.015 → סנטים)');
+  // 25/10/2026: הצפי = ממוצע החודש כולו — הימים שנשארו בגודל של היום (13.5GB ממוצע עד 25/31, היום 40GB → 19GB → $0.14)
+  const cp = U.r2Cost({ gbMonth: 13.5, cur: 40, day: 25, days: 31 });
+  assert.strictEqual(cp.st, 0.14);
+  assert.strictEqual(cp.mtd, 0.05, 'עד היום — לפי מה שהיה בפועל (14GB)');
   assert.ok(U.costQuery(['snb-studio']).includes('dimensions{actionType}') && U.costQuery(['snb-studio']).includes('bucketName:"eu_snb-studio"'));
   const mc = U.storeMerge({ r2: { at: 1, b: [{ name: 'x-y', gb: 1, n: 1 }], cost: { proj: 3 } } }, { st: 'ok', b: [{ name: 'x-y', gb: 2, n: 1 }] }, null, 7200e3);
   assert.deepStrictEqual(mc.r2.cost, { proj: 3 }, 'העלות נשארת כשהשאלה עליה נכשלה');

@@ -1226,7 +1226,7 @@ async function refreshJobs(force) {
     if (sj.kind === 'rr') { const x = normJob({ id: sj.id, srv: sj }); if (x && x.srv.rp) (sj.spec && sj.spec.prv === 1 ? pv : rr).set(x.srv.rp, x); continue; }   // מ2; סבב 10: צריבה לבדיקה — בנפרד
     ids.add(sj.id);
     const loc = have.get(sj.id);
-    if (loc) loc.srv = normJob({ id: sj.id, srv: sj }).srv;
+    if (loc) adoptSrv(loc, sj);
     else {                         // עבודה ממכשיר אחר / אחרי ניקוי — מה שכבר עלה רשום בשרתון
       const f = sj.files || {};
       const rec = normJob({ id: sj.id, created: sj.created, spec: sj.spec, srv: sj,
@@ -1519,6 +1519,17 @@ function tickRate(run, bytes) {
   if (dt >= 2) { const r = (bytes - run.rs.b) / dt; run.rate = run.rate ? run.rate * 0.65 + r * 0.35 : r; run.rs = { t: now, b: bytes }; }
 }
 const isAbortErr = (e) => !!e && (e.name === 'AbortError' || e.code === 'aborted');
+/* 25/10/2026 (צילום מהטלפון: "עלו 38MB מתוך 90MB · ממשיך כשההעלאה חוזרת" אחרי שההתראה אמרה שהסרטון עלה): כש־Background Fetch
+   מסתיים בלי הדף, ה־service worker רושם את הסרטון בשרתון (r2bgDone) — אבל המצב בטלפון (up.v) נשאר במה שנשמר לפני הסגירה.
+   השרתון הוא מקור האמת: סרטון שרשום שם = עלה, גם כאן (בלי לגעת בהעלאה שרצה עכשיו בדף — היא נסגרת לבד) */
+function adoptSrv(rec, sj) {
+  rec.srv = normJob({ id: rec.id, srv: sj }).srv;
+  const fv = sj && sj.files && sj.files.v, run = runs.get(rec.id);
+  if (!fv || !FID_RE.test(String(fv.id || '')) || fv.ext || rec.up.v.done || (run && run.active)) return;
+  rec.up.v = { done: true, id: String(fv.id), size: num(fv.size) || rec.spec.size, uri: '', sent: num(fv.size) || rec.spec.size };
+  if (run && run.need) runs.delete(rec.id);
+  if (bgStore) bgStore.del(bgIdOf(rec.id)).catch(() => {});
+}
 async function register(id, which, fid, folder, ext) {
   const j = await net.api('file', Object.assign({ job: id, which, id: fid, folder }, ext ? { ext: true } : {}));
   if (!j.ok) throw Object.assign(new Error(j.error || 'file'), { code: j.error || 'file' });
@@ -8016,7 +8027,7 @@ async function pollNow() {
     if (ui.view === 'job' && JOB_RE.test(String(ui.param || ''))) {
       const id = ui.param, j = await net.api('job', { job: id });
       const r = jobRec(id);
-      if (j.ok && j.job && r) { r.srv = normJob({ id, srv: j.job }).srv; save(); goldAuto(); }
+      if (j.ok && j.job && r) { adoptSrv(r, j.job); save(); goldAuto(); }
     } else if (ui.view === 'rr' && (rrJobs.get(ui.param) || rrPv.get(ui.param))) {
       for (const x of [rrJobs.get(ui.param), rrPv.get(ui.param)].filter(rrRunning)) {
         const j = await net.api('job', { job: x.id });
