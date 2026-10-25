@@ -360,6 +360,33 @@ function canResume(job, now) {
   if ((job.fires || 0) >= RESUME_MAX) return 'resume_limit';
   return '';
 }
+/* 25/10/2026: המשוב שלך על התרגום (בקשת המשתמש, לפי התצוגה המקדימה) — 👍/👎 (r: 1 / -1, 0 = לא דירגת),
+   מה לא היה טוב (קודים קבועים בלבד, רק עם 👎) והכתוביות שסימנת בנגן (מזהי vt). בלי טקסט חופשי.
+   **RATE_WHY, RATE_FLAG_MAX ו־normRate זהים ב־studio.js (הטלפון)** — tests/studio-rate.test.js */
+const RATE_WHY = ['acc', 'nat', 'tim', 'nm', 'brk', 'ovl', 'mis', 'oth'];
+const RATE_FLAG_MAX = 60;
+function normRate(o) {
+  if (!o || typeof o !== 'object') return null;
+  const r = o.r === 1 || o.r === -1 ? o.r : 0;
+  const w = r === -1 && Array.isArray(o.w) ? RATE_WHY.filter((k) => o.w.includes(k)) : [];
+  const c = Array.isArray(o.c) ? [...new Set(o.c.filter((x) => Number.isInteger(x) && x >= 0 && x < 1e6))].sort((a, b) => a - b).slice(0, RATE_FLAG_MAX) : [];
+  if (!r && !c.length) return null;
+  const at = Number.isFinite(+o.at) && +o.at > 0 ? Math.floor(+o.at) : 0;
+  return Object.assign({ r }, w.length ? { w } : {}, c.length ? { c } : {}, at ? { at } : {});
+}
+/* 25/10/2026: עבודה "חדשה" שהשרתון מתחיל לבד בבדיקה המתוזמנת (startAll ב־api/studio.js). sw = קוד הסירוב האחרון.
+   סירוב חולף (START_RETRY) — שוב אחרי START_GAP; בלי סירוב — "התחל" לא הגיע: מקישור (הטלפון מתחיל ביצירה) אחרי
+   START_URL_WAIT, אחרת אחרי START_IDLE מהכתיבה האחרונה (הקול עלה, ו"התחל" לא הגיע). סירוב שצריך אותך (חוקים, מתג החירום,
+   מצב נעול...) — לא. START_RETRY זהה ל־START_RETRY ב־studio.js (הטלפון) */
+const START_RETRY = ['maint', 'flag_off', 'major'];
+const START_GAP = 2 * 60e3, START_URL_WAIT = 3 * 60e3, START_IDLE = 10 * 60e3;
+function startDue(job, now, age) {
+  if (!job || job.state !== 'new' || !['tr', 'rr', 'ai'].includes(job.kind)) return false;
+  if (!(now - (job.created || 0) < age) || effState(job, now).state !== 'new') return false;
+  if (job.sw) return START_RETRY.includes(job.sw) && now - (job.swt || 0) >= START_GAP;
+  if (job.spec && job.spec.src === 'url') return now - (job.created || 0) >= START_URL_WAIT;
+  return now - (job.updated || job.created || 0) >= START_IDLE;
+}
 /* v368: מתי ממשיכים לבד (0 = לא): נכשלה בתקלה חולפת, עוד לא המשכנו לבד, ואפשר להמשיך */
 function recoverAt(job, now) {
   if (!job || !job.rw || (job.ar || 0) >= AUTO_RESUME_MAX) return 0;
@@ -734,6 +761,8 @@ function publicJob(job, now) {
     eng: job.eng === 'api' || job.spec && job.spec.eng === 'api' ? 'api' : 'sub',   // מצב API: השרת של המערכת
     sid: job.eng === 'api' && SRV_ID_RE.test(String(job.sid || '')) ? job.sid : '',
     ry: job.spec && job.spec.ry === 1 ? 1 : 0, rc: job.spec && job.spec.ry === 1 ? (Number(job.rcl) || 0) : 0,   // 24/10/2026: "המנוי שלי" דרך השרת — מתי ה־Routine שלך התחבר (0 = עוד לא)
+    urt: normRate(job.urt),                         // 25/10/2026: המשוב שלך (👍/👎, סיבות, כתוביות שסימנת)
+    sw: job.state === 'new' && typeof job.sw === 'string' ? job.sw.slice(0, 40) : '',   // 25/10/2026: למה העבודה לא התחילה (קוד הסירוב האחרון)
     vw: job.vw && !job.pk ? 1 : 0,                   // 15/10/2026: מחכה לסרטון בתור — השרת פנוי בינתיים
     fr: job.fr && typeof job.fr.s === 'number' ? { s: job.fr.s, ms: Math.max(0, Math.round(job.fr.ms || 0)) } : null,   // v369: תוצאת ההפעלה האחרונה
     tr: normTrace(job.tr),                          // v373: עקיבה — פעולות לכל סוכן והקבוצות הנפוצות
@@ -1212,14 +1241,14 @@ function jobCap(spec, used, month, prev) {
 /* ---------- Firestore (REST) ---------- */
 /* 21/10/2026: מדידת ההעלאה מהטלפון (job.utl) — רק מספרים: זמן מהיצירה, החילוץ, העלאת הקול/הסרטון (ms), בייטים, זמן ברקע,
    ניסיונות, Wake Lock, סוג רשת, זיכרון וליבות של הטלפון. **UTL_KEYS זהה ל־UTL_KEYS ב־studio.js** */
-const UTL_KEYS = ['c2s', 'ex', 'ab', 'a', 'v', 'vb', 'hid', 'hn', 'rs', 'wt', 'wl', 'wlr', 'nt', 'dl', 'dm', 'hc', 'vf', 'bg'];   // vf = הסרטון עלה לפני שהחילוץ הסתיים · bg = ההעלאה ברקע (1 הצליחה, 2 חזרה לרגילה, 3 לא נתמכת)
+const UTL_KEYS = ['c2s', 'ex', 'ab', 'a', 'v', 'vb', 'hid', 'hn', 'rs', 'wt', 'wl', 'wlr', 'nt', 'dl', 'dm', 'hc', 'vf', 'bg', 'dvp', 'dvs', 'dvn'];   // 25/10/2026: המכשיר — dvp/dvs/dvn (devCodes ב־studio.js)   // vf = הסרטון עלה לפני שהחילוץ הסתיים · bg = ההעלאה ברקע (1 הצליחה, 2 חזרה לרגילה, 3 לא נתמכת)
 function normUtl(o) {
   if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
   const out = {};
   for (const k of UTL_KEYS) { const v = Number(o[k]); if (Number.isFinite(v) && v >= 0 && v <= 1e11) out[k] = Math.round(v); }
   return Object.keys(out).length ? out : null;
 }
-const JSON_FIELDS = ['mon', 'uh', 'sto', 'upv', 'spec','fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'hla', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl', 'pbr', 'fph', 'pbn', 'fpw', 'ppr'];   // 25/10/2026: ppr = ההתקדמות בטלפון לפני ההתחלה (שלב 2)   // 25/10/2026: fpw = המילים עם הזמנים מהטלפון (שלב 2)   // 24/10/2026: fph = קובץ המדידות מהטלפון, pbn = הצריבה בטלפון   // 22/10/2026: pbr = סיכום בדיקת קישור (studioProbe)   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['mon', 'uh', 'sto', 'upv', 'spec','fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'hla', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl', 'pbr', 'fph', 'pbn', 'fpw', 'ppr', 'urt'];   // 25/10/2026: ppr = ההתקדמות בטלפון לפני ההתחלה (שלב 2)   // 25/10/2026: fpw = המילים עם הזמנים מהטלפון (שלב 2)   // 24/10/2026: fph = קובץ המדידות מהטלפון, pbn = הצריבה בטלפון   // 22/10/2026: pbr = סיכום בדיקת קישור (studioProbe)   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -1246,7 +1275,7 @@ function fromFields(f) {
   return o;
 }
 
-module.exports = { useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
+module.exports = { RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,

@@ -284,6 +284,55 @@ def name_variants(cues: list[dict], he: dict[str, str]) -> list[str]:
     return out
 
 
+# 25/10/2026 (עבודה אמיתית: "הווקטור" ו"הוקטור" באותו סרטון): אותה מילה בכתיב מלא ובכתיב חסר — ו/י כפולות באמצע המילה
+# (לא באות הראשונה: "ו" + מילה שמתחילה ב־ו היא מילה אחרת). הכתיב של רוב הכתוביות מנצח; מילה בת פחות מ־4 אותיות — לא.
+# נמדד על 18 עבודות מהמאגר: 4 התראות, 3 נכונות ("לוקטורים", "הוירטואלי", "שהלוה"), אחת שגויה ("לשווק" / "לשוק" — לכן "אם זו אותה מילה").
+_SPL_KEY = re.compile(r"(?<=.)(ו)ו|(?<=.)(י)י(?=[א-ת]{2})")   # יי בסוף המילה = צורה אחרת ("עסקים" / "עסקיים", "אליך" / "אלייך")
+
+
+_SPL_STOP = frozenset("that this with have from they there what when which would about their your just like into then than them were been also because these those very some more only other could should here where going really think know".split())
+
+
+def _spl_key(w: str) -> str:
+    return _SPL_KEY.sub(lambda m: m.group(1) or m.group(2), w)
+
+
+def spell_variants(cues: list[dict], he: dict[str, str]) -> list[str]:
+    """אותה מילה בשני כתיבים (ו/י כפולות). כדי לא לבלבל בין מילים שונות ("בטוח" / "בטווח", "ממדים" / "ממדיים") — רק
+    כשהמקור באנגלית של הכתובית חולק מילה עם רוב הכתוביות של הכתיב השני (vector ↔ "וקטור")"""
+    rows = []
+    for c in cues:
+        t = he.get(str(c["id"]))
+        if t and t not in ("=", "∅"):
+            en = {w[:5] for w in re.findall(r"[a-z]{4,}", str(c.get("en") or "").lower()) if w not in _SPL_STOP}
+            rows.append((str(c["id"]), set(re.findall(r"[א-ת]{4,}", normalize_he(str(t)))), en))
+    seen: dict[str, dict[str, list[int]]] = {}
+    for i, (_k, ws, _en) in enumerate(rows):
+        for w in ws:
+            seen.setdefault(_spl_key(w), {}).setdefault(w, []).append(i)
+    out, flagged = [], set()
+    for forms in seen.values():
+        if len(forms) < 2:
+            continue
+        major = max(forms, key=lambda w: (len(forms[w]), w.count("ו") + w.count("י")))   # שוויון — הכתיב המלא
+        en_cnt: dict[str, int] = {}
+        for i in forms[major]:
+            for e in rows[i][2]:
+                en_cnt[e] = en_cnt.get(e, 0) + 1
+        need = max(1, (len(forms[major]) + 1) // 2)
+        for w, idx in sorted(forms.items()):
+            if w == major:
+                continue
+            for i in idx:
+                if rows[i][0] in flagged or i in forms[major]:
+                    continue
+                if not any(en_cnt.get(e, 0) >= need for e in rows[i][2]):
+                    continue                          # מקור אחר — כנראה מילה אחרת
+                flagged.add(rows[i][0])
+                out.append(f"- #{rows[i][0]}: [spl] '{w}' — בשאר הכתוביות '{major}'; אם זו אותה מילה — לאחד לכתיב אחד")
+    return out
+
+
 def _he_stem(w: str) -> str:
     b = _HE_SUFFIX.sub("", w) if len(w) > 3 else w
     return b
@@ -472,7 +521,7 @@ def _head_found(opts: list[str], txt: str) -> bool:
 CHECK_CODES = {
     "id": "h", "miss": "h", "eq": "h", "drift": "h", "spk": "h", "len": "h", "dlg": "h", "brk": "h",
     "nikud": "h", "dash": "h", "tag": "h", "part": "h",
-    "num": "s", "gls": "s", "lat": "s", "name": "s", "q": "s", "short": "s", "cps": "s", "cur": "s", "hdg": "s",
+    "num": "s", "gls": "s", "lat": "s", "name": "s", "spl": "s", "q": "s", "short": "s", "cps": "s", "cur": "s", "hdg": "s",
     "dots": "-",
 }
 CHECK_CODE_RE = re.compile(r"^- #(\d+): \[([a-z]+)\] ")
@@ -483,7 +532,7 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
     """בדיקת התרגום מול התכנון. מחזיר (שורות דוח, סיכום)."""
     issues: list[str] = []
     stats = {"total": len(cues), "translated": 0, "missing": 0, "over_budget": 0,
-             "numbers": 0, "latin": 0, "glossary": 0, "glossary_soft": 0, "names": 0, "questions": 0, "short": 0, "style": 0, "errors": 0, "drift": 0, "hedges": 0}
+             "numbers": 0, "latin": 0, "glossary": 0, "glossary_soft": 0, "names": 0, "spell": 0, "questions": 0, "short": 0, "style": 0, "errors": 0, "drift": 0, "hedges": 0}
     ids = {str(c["id"]) for c in cues}
     # מילים לועזיות שהמילון קובע שנשארות כך ("Claude", "if-else") — לא "לא תורגמו"
     keep_latin = {w.lower() for _t, opts in glossary for o in opts for w in _LAT_WORD.findall(o)}
@@ -632,6 +681,9 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
     nv = name_variants(cues, he)
     issues += nv
     stats["names"] = len(nv)
+    sv = spell_variants(cues, he)   # 25/10/2026: כתיב מלא/חסר של אותה מילה
+    issues += sv
+    stats["spell"] = len(sv)
     return issues, stats
 
 
@@ -640,7 +692,7 @@ def check_report(issues: list[str], stats: dict) -> str:
             f"- כתוביות: {stats['total']} · תורגמו: {stats['translated']} · חסרות: {stats['missing']}",
             f"- שגיאות: {stats['errors']} · מעל התקציב: {stats['over_budget']} · מספרים: {stats['numbers']}",
             f"- לועזית: {stats['latin']} · מילון מונחים: {stats['glossary']} · שאלות: {stats['questions']} · "
-            f"קצרים: {stats['short']} · סגנון: {stats.get('style', 0)} · שם בשני כתיבים: {stats.get('names', 0)}",
+            f"קצרים: {stats['short']} · סגנון: {stats.get('style', 0)} · שם בשני כתיבים: {stats.get('names', 0)} · כתיב לא אחיד: {stats.get('spell', 0)}",
             ""]
     return "\n".join(head + (issues or ["אין הערות."])) + "\n"
 

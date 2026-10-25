@@ -304,6 +304,6 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(/stopRun\(id\);\s*bgAbort\(id\);/.test(st), 'מחיקה / ביטול עבודה — מבטלים גם את ההעלאה ברקע (גם כשהדף לא מריץ אותה)');
   ok(/if \(r\.unsupported\) \{ store\.settings\.bgNo = Date\.now\(\); save\(\); \}/.test(st) && /s\.bgNo = Math\.floor\(\+o\.bgNo\)/.test(st), 'דפדפן שסירב — נשמר, ולא מנסים שוב חודש');
   const SS = require(path.join(root, 'ibkr-proxy/lib/studio.js'));
-  ok(SS.UTL_KEYS.includes('bg') && /'vf', 'bg'\]/.test(st), 'המדידה מהטלפון כוללת את ההעלאה ברקע (bg) — זהה בשני הצדדים');
+  ok(SS.UTL_KEYS.includes('bg') && /'vf', 'bg'[,\]]/.test(st), 'המדידה מהטלפון כוללת את ההעלאה ברקע (bg) — זהה בשני הצדדים');
   console.log('\nכל ' + n + ' הבדיקות עברו ✓');
 })().catch((e) => { console.error(e); process.exit(1); });
