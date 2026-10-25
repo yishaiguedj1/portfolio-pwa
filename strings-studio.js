@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1836 מפתחות מתוך 4016) */
+/* המחרוזות של studio (1839 מפתחות מתוך 4019) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -1148,6 +1148,9 @@ he: {
   "studioPlNormal": "רגילה",
   "studioPlOpenDrive": "צפייה ב־Drive",
   "studioPlPause": "השהיה",
+  "studioPlPhPick": "הסרטון המתורגם שמור בטלפון, בתיקייה Movies/Studio. בפעם הראשונה בוחרים אותו — אחר כך הוא נפתח ישר:",
+  "studioPlPhPickB": "לבחור את הסרטון",
+  "studioPlPhWrong": "זה לא הסרטון של הצריבה האחרונה — בחרו את הקובץ מ־Movies/Studio",
   "studioPlPlay": "ניגון",
   "studioPlQuality": "איכות",
   "studioPlSec": "שנ׳",
@@ -2986,6 +2989,9 @@ en: {
   "studioPlNormal": "Normal",
   "studioPlOpenDrive": "Watch in Drive",
   "studioPlPause": "Pause",
+  "studioPlPhPick": "The translated video is saved on the phone, in Movies/Studio. Pick it the first time — after that it opens directly:",
+  "studioPlPhPickB": "Pick the video",
+  "studioPlPhWrong": "This is not the video from the last burn — pick the file in Movies/Studio",
   "studioPlPlay": "Play",
   "studioPlQuality": "Quality",
   "studioPlSec": "s",
