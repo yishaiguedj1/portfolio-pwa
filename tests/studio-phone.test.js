@@ -221,6 +221,14 @@ const { fakeR2, ENV } = require('./_r2fake');
   const bg4 = await ph4('phFile', { which: 'w', id: big });
   ok(bg4.error === 'file_size', 'מילים מעל התקרה — נדחה: ' + JSON.stringify(bg4));
 
+  /* ---------- 5ג. phAlive (25/10/2026): הסרטון נשמר בטלפון עד שהפרויקט נמחק ---------- */
+  const al1 = await call({ op: 'phAlive', job: PJ3, key: 'K'.repeat(43) }, true);
+  ok(al1.j.ok && al1.j.alive === true, 'העבודה קיימת — alive (גם עם מפתח שפג/לא תואם: רק קיום)');
+  const jx = await api('create', { spec: Object.assign({}, base, { ph: 1 }) });
+  ok((await api('remove', { job: jx.job.id })).ok, 'הפרויקט נמחק באתר');
+  const al2 = await call({ op: 'phAlive', job: jx.job.id, key: 'K'.repeat(43) }, true);
+  ok(al2.code === 404 && al2.j.error === 'gone', 'אחרי המחיקה — gone (404): ' + JSON.stringify(al2.j));
+
   /* ---------- 6. תור: עבודת טלפון שחזרה לתור מחכה למדידות, לא לסרטון ---------- */
   const api_src = require('fs').readFileSync(path.join(root, 'ibkr-proxy/api/studio.js'), 'utf8');
   ok(/job\.vw && !\(\(job\.spec && job\.spec\.ph === 1 \? job\.fph : job\.fv\)/.test(api_src), 'השרת לוקח עבודת טלפון שחזרה לתור רק כשהמדידות נרשמו');
@@ -266,7 +274,12 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(/st === 'running' \|\| phBurnLive\(r\) \|\| phPrepLive\(r\) \? 4000/.test(src) && /phBurnTap\.set\(rec\.id, Date\.now\(\)\)/.test(src), 'בזמן הצריבה (וגם כשהטלפון מתמלל/מיישר) דף העבודה שואל כל 4 שנ׳ (גם כשהעבודה "הסתיימה")');
   ok(/kind === 'ph' && rec\.spec\.pw \? \{ pw: 1 \}/.test(src) && /if \(f\.pw !== false\) spec\.pw = 1/.test(src), 'הכל בטלפון: העבודה נוצרת עם pw, וה־intent מעביר pw=1');
   const work = fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhWork.kt'), 'utf8');
-  ok(/lastRep > 5_000/.test(work) && /q\.execute \{ rep\(o\) \}/.test(work) && /repDone\(JSONObject\(\)\.put\("s", "done"\)/.test(work), 'הצריבה מדווחת כל 5 שנ׳ בתהליכון אחד לפי הסדר (בלי לעצור את הקידוד; "הסתיים" אחרון)');
+  ok(/lastRep > 2_000/.test(work) && /class Latest/.test(work) && /pending\.getAndSet\(o\) == null/.test(work) && !/\* 0\.95/.test(work) && /repDone\(JSONObject\(\)\.put\("s", "done"\)/.test(work),
+    'הצריבה מדווחת כל 2 שנ׳, רק הערך האחרון (בלי תור שמפגר — 35% בדף מול 51% בהתראה), אותו אחוז של ההתראה; "הסתיים" אחרון');
+  ok(!/f\.delete\(\)/.test(work.slice(work.indexOf('fun burn('))), 'אחרי הצריבה הסרטון נשאר בטלפון (צריבה נוספת עד מחיקת הפרויקט)');
+  const phStore = fs.readFileSync(path.join(root, "android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhStore.kt"), "utf8");
+  ok(/optString\("error"\) == "gone"/.test(phStore) && /catch \(e: Throwable\) \{ update\(ctx, pid\) \{ it\.put\("chk", now\) \}; continue \}/.test(phStore), 'הסרטון נמחק מהטלפון רק כשהשרתון ענה במפורש "gone" — תקלה/רשת לא מוחקות');
+  ok(/android:name="\.PhGcJob"/.test(fs.readFileSync(path.join(root, 'android/app/src/studio/AndroidManifest.xml'), 'utf8')), 'הבדיקה ברקע (PhGcJob) במניפסט');
 
   console.log('\nכל ' + n + ' הבדיקות עברו ✓');
 })().catch((e) => { console.error(e); process.exit(1); });

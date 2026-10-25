@@ -8,7 +8,7 @@ import java.security.SecureRandom
 /**
  * 24/10/2026 — תרגום בטלפון: רשומה לכל סרטון שנבחר (filesDir/ph/<pid>.json) — כך העבודה ממשיכה אחרי שהמערכת עצרה את
  * האפליקציה, מאותו שלב ומאותו בייט בהעלאה. העותק של הסרטון (ffmpeg לא פותח content://) — ב־noBackupFilesDir/ph/<pid>,
- * ונמחק אחרי הצריבה (או אחרי שבוע בלי צריבה).
+ * ונשמר עד שהפרויקט נמחק באתר (לצריבה נוספת — gcRemote), או אחרי שבוע כשלא נוצרה לו עבודה.
  *
  * שלבים (st): picked → audio → upa → start → shots → upm → wait → burn → done; err = נעצר עם קוד (e)
  * "הכל בטלפון" (pw): picked → models → wav → asr → diar → align → upw → shots → upm → start → wait → burn → done
@@ -47,12 +47,39 @@ object PhStore {
         File(dir(ctx), "$pid.json").delete()
     }
 
-    /** ניקוי: עותקים של סרטונים שלא נצרבו שבוע, ורשומות שהסתיימו לפני שבוע */
+    /** ניקוי מקומי (בלי רשת): סרטון שנבחר ולא נוצרה לו עבודה — אחרי שבוע. סרטון של עבודה נשמר עד שהפרויקט נמחק
+     *  (25/10/2026, בקשת המשתמש — לצריבה נוספת): gcRemote שואל את השרתון */
     fun gc(ctx: Context, now: Long = System.currentTimeMillis()) {
         for (f in dir(ctx).listFiles() ?: emptyArray()) {
             if (!f.name.endsWith(".json")) continue
             val r = try { JSONObject(f.readText()) } catch (e: Throwable) { f.delete(); continue }
-            if (now - r.optLong("at") > KEEP_MS) drop(ctx, r.optString("pid"))
+            if (r.optString("job").isEmpty() && now - r.optLong("at") > KEEP_MS) drop(ctx, r.optString("pid"))
         }
+    }
+
+    const val CHK_MS = 6 * 3600_000L
+
+    /** הפרויקט נמחק באתר (גם ממכשיר אחר) → הסרטון והרשומה נמחקים מהטלפון. רק כשהשרתון ענה במפורש "gone" (‏404 של
+     *  Firestore); בלי רשת / תקלה — לא נוגעים. כל רשומה נבדקת לכל היותר פעם ב־6 שעות. ברקע — לא מהתהליכון הראשי */
+    fun gcRemote(ctx: Context, now: Long = System.currentTimeMillis()) {
+        for (f in dir(ctx).listFiles() ?: emptyArray()) {
+            if (!f.name.endsWith(".json")) continue
+            val r = try { JSONObject(f.readText()) } catch (e: Throwable) { continue }
+            val pid = r.optString("pid"); val job = r.optString("job")
+            if (job.isEmpty() || now - r.optLong("chk") < CHK_MS || PhService.busy) continue
+            val gone = try {
+                val j = PhNet(r.optString("base"), job, r.optString("key")).call("phAlive")
+                !j.optBoolean("ok") && j.optString("error") == "gone"
+            } catch (e: Throwable) { update(ctx, pid) { it.put("chk", now) }; continue }
+            if (gone) drop(ctx, pid) else update(ctx, pid) { it.put("chk", now) }
+        }
+    }
+
+    fun hasJobs(ctx: Context): Boolean = (dir(ctx).listFiles() ?: emptyArray()).any { f ->
+        f.name.endsWith(".json") && try { JSONObject(f.readText()).optString("job").isNotEmpty() } catch (e: Throwable) { false } }
+
+    fun gcRemoteAsync(ctx: Context) {
+        val app = ctx.applicationContext
+        Thread { try { gcRemote(app) } catch (e: Throwable) {} }.start()
     }
 }

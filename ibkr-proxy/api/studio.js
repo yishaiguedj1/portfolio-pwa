@@ -62,7 +62,7 @@ const AAD = (uid) => 'studio|' + uid + '|r';
 const WORKER_OPS = new Set(['claim', 'token', 'report', 'qa', 'r2get', 'r2wup', 'r2wparts', 'r2wdone', 'r2del', 'learnPut', 'learnMedia', 'learnMediaDone', 'srcFile']);   // 22/10/2026: srcFile — הורדה מקישור
 const RELAY_OPS = new Set(['rlPut', 'rlFix', 'rlWait', 'rlEnd', 'rlNext', 'rlMark']);   // 24/10/2026: rlPut…rlEnd = העובד (kh), rlNext/rlMark = ה־Routine (rkh)
 // 24/10/2026: תרגום בטלפון — Studio לאנדרואיד (נייטיב, בלי Origin ובלי התחברות) עם מפתח לעבודה אחת (pkh — רק ה־hash)
-const PHONE_OPS = new Set(['phUp', 'phParts', 'phDone', 'phFile', 'phStart', 'phJob', 'phGet', 'phBurn', 'phProg']);
+const PHONE_OPS = new Set(['phUp', 'phParts', 'phDone', 'phFile', 'phStart', 'phJob', 'phGet', 'phBurn', 'phProg', 'phAlive']);
 const PH_KEY_TTL = 7 * 24 * 3600e3;   // הצריבה יכולה לקרות ימים אחרי שהתרגום מוכן
 const SERVER_OPS = new Set(['poll', 'beat', 'devLog', 'devMet', 'pq']);   // pq — בדיקות קישור (22/10/2026)   // devLog/devMet — האיסוף המלא (lib/devlog.js)
 /* מצב API: תקציב חודשי לכל משתמש (מפתח ה־API של המערכת). מעבר לזה — התקרה ב־Console של Anthropic */
@@ -1537,6 +1537,13 @@ async function phoneOp(req, res, body, deps) {
   const now = deps.now || Date.now();
   try {
     const job = await readJob(deps, id);
+    // 25/10/2026: הסרטון נשמר בטלפון לצריבה נוספת עד שהפרויקט נמחק — הטלפון שואל אם העבודה עדיין קיימת. "נמחקה" רק
+    // כש־Firestore ענה 404 (תקלה = חריגה = 5xx, והטלפון לא מוחק). בלי בדיקת המפתח: הוא פג אחרי זמן, והתשובה אומרת רק
+    // אם מזהה (21 תווים אקראיים) קיים — בלי שום פרט ממנו
+    if (body.op === 'phAlive') {
+      if (!job) return res.status(404).json({ ok: false, error: 'gone' });
+      return res.status(200).json({ ok: true, now, alive: true });
+    }
     if (!job || !(job.spec && job.spec.ph === 1) || job.kind !== 'tr' || !S.keyMatches(job, key, 'pkh') || now > (job.pkx || 0)) return res.status(403).json({ ok: false, error: 'bad_key' });
     const e = S.effState(job, now), op = body.op;
     if (op === 'phJob') {

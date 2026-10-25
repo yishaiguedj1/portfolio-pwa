@@ -55,7 +55,7 @@ class PhActivity : Activity() {
         if (d == null || d.scheme != "snbstudio") { finish(); return }
         DlLang.set(this, d.getQueryParameter("l"))
         web = webOk(d.getQueryParameter("w")) ?: s(R.string.launchUrl)
-        PhStore.gc(this)
+        PhStore.gc(this); PhStore.gcRemoteAsync(this)
         when (d.host) {
             "phpick" -> pick()
             "ph" -> go(d)
@@ -133,6 +133,7 @@ class PhActivity : Activity() {
         val pw = if (r.has("pw")) r.optBoolean("pw") else d.getQueryParameter("pw") == "1"
         PhStore.update(this, pid) { it.put("job", j).put("key", k).put("base", b).put("pb", pb).put("ov", d.getQueryParameter("ov") == "1").put("web", web)
             .put("pw", pw).put("cell", d.getQueryParameter("cell") == "1").remove("e") }
+        PhGcJob.schedule(this)          // הסרטון נשמר עד שהפרויקט נמחק — הבדיקה ברקע
         startWork(pid, false)
     }
 

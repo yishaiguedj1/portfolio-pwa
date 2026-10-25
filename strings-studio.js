@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1831 מפתחות מתוך 4011) */
+/* המחרוזות של studio (1832 מפתחות מתוך 4012) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -1076,6 +1076,7 @@ he: {
   "studioPhESpace": "אין מספיק מקום בטלפון (צריך בערך פי 2 מגודל הסרטון)",
   "studioPhEWifi": "צריך Wi‑Fi להורדת המודלים בפעם הראשונה (כ־1.8GB) — התחברו ונסו שוב",
   "studioPhFail": "תרגום בטלפון",
+  "studioPhKept": "הסרטון שמור בטלפון לצריבה נוספת — נמחק ממנו כשמוחקים את הפרויקט",
   "studioPhKeyBusy": "מכין…",
   "studioPhMeasured": "המדידות מהטלפון הגיעו ✓",
   "studioPhNotMeasured": "הטלפון מעלה את הקול ואת המדידות",
@@ -2909,6 +2910,7 @@ en: {
   "studioPhESpace": "Not enough space on the phone (about twice the video size is needed)",
   "studioPhEWifi": "Wi‑Fi is needed to download the models the first time (~1.8GB) — connect and try again",
   "studioPhFail": "Translate on the phone",
+  "studioPhKept": "The video stays on the phone for another burn — it is removed when you delete the project",
   "studioPhKeyBusy": "Preparing…",
   "studioPhMeasured": "The measurements from the phone arrived ✓",
   "studioPhNotMeasured": "The phone is uploading the audio and the measurements",

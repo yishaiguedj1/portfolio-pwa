@@ -3823,6 +3823,7 @@ function phCard(rec) {
   const burning = phBurnLive(rec);
   if (b && b.s === 'done' && !burning) lines.push(T('studioPhBurned', { s: b.sz ? fmtSize(b.sz) : '' }));
   else if (b && b.s === 'fail' && !burning) lines.push(T('studioPhBurnFail') + (b.e ? ' (' + b.e + ')' : ''));
+  if (st === 'done' && rec.up.ph && b && b.s === 'done') lines.push(T('studioPhKept'));   // 25/10/2026: הסרטון נשמר בטלפון לצריבה נוספת עד מחיקת הפרויקט
   for (const l of lines) card.append(h('small', null, l));
   if (rec.spec.pw && st === 'new' && srv.ppr) {   // שלב 2: התמלול/היישור בטלפון — שלב ופס שמתעדכנים במקום
     const cur = () => { const x = jobRec(rec.id) || rec; return x.srv && x.srv.ppr; };
