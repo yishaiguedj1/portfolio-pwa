@@ -257,22 +257,38 @@ def cps_merge(cues: list[dict], timing: TimingRules, text: TextRules, refit) -> 
     merges = 0
     max_chars = text.max_chars_line * text.max_lines
     i = 0
+
+    def flagged(x, f):
+        return x is not None and f in (x.get('flags') or ())
+
     while i < len(cues):
         c = cues[i]
         nxt = cues[i + 1] if i + 1 < len(cues) else None
-        slow = 'reading_speed' in (c.get('flags') or ()) or (nxt and 'reading_speed' in (nxt.get('flags') or ()))
-        can = (nxt is not None and slow
+        slow = flagged(c, 'reading_speed') or flagged(nxt, 'reading_speed')
+        # 25/10/2026 (ניתוח האיכות): כתובית שמוצגת פחות מהמינימום ("נכון." ל־0.21 שנ׳) — גם היא מתאחדת, אבל רק
+        # כשהדובר ידוע: בלי זיהוי דוברים (S?) מילה קצרה היא לרוב תשובה של הדובר השני
+        short = ((flagged(c, 'under_min_duration') or flagged(nxt, 'under_min_duration'))
+                 and c.get('spk') not in (None, 'S?'))
+        ca, cb = str(c.get('he') or ''), str((nxt or {}).get('he') or '')
+        can = (nxt is not None and (slow or short)
                and c.get('spk') == nxt.get('spk') and not c.get('parts') and not nxt.get('parts')
+               and '||' not in ca and '||' not in cb          # 25/10/2026: דיאלוג שהמתרגם סימן — לא ממזגים
                and c.get('it') == nxt.get('it') and c.get('top') == nxt.get('top')   # הטיה / ראש המסך — לא מערבבים
                and c.get('he') not in (None, '=', '∅') and nxt.get('he') not in (None, '=', '∅')
                and nxt['speech_s'] - c['speech_e'] <= timing.chain_gap_s
                and nxt['speech_e'] - c['speech_s'] <= timing.max_dur_s - 0.2)
         if can:
             trial = dict(c)
-            trial['he'] = (str(c['he']).rstrip() + ' ' + str(nxt['he']).lstrip()).strip()
             trial['en'] = (c.get('en', '') + ' ' + nxt.get('en', '')).strip()
             trial['speech_e'] = nxt['speech_e']
+            trial['he'] = (ca.rstrip() + ' ' + cb.lstrip()).strip()
             fits = refit(trial)
+            # 25/10/2026: מה שלא נכנס בשורה אחת נשבר בנקודת החיבור — הגבול הטבעי בין שתי הכתוביות. עד היום השבירה
+            # חושבה מחדש לכל הטקסט ונפלה באמצע משפט (בעבודה אחת: 11 מתוך 21 מיזוגים). רק כשכל חלק נכנס בשורה משלו.
+            if not (fits and len(trial.get('lines') or ()) == 1) and '|' not in ca and '|' not in cb:
+                jt = dict(trial, he=ca.strip() + ' | ' + cb.strip())
+                if refit(jt):
+                    trial, fits = jt, True
             # הזמן הזמין למאוחדת: עד הדיבור של הכתובית שאחרי הבאה (או linger), כמו ב־budgets
             nn = cues[i + 2]['speech_s'] if i + 2 < len(cues) else nxt['speech_e'] + 2.0
             avail = min(nxt['speech_e'] + timing.linger_s, nn - 0.085) - c['speech_s']
