@@ -198,6 +198,17 @@ function flexDate(dt) {
   return String(dt).split(';')[0];
 }
 
+/* 25/10/2026: שעת העסקה מ־dateTime של Flex ("20261023;093512", "2026-10-23;09:35:12",
+   "2026-10-23, 09:35:12") → "09:35:12"; בלי שעה (רק תאריך) → ''. כמו ש־IBKR מדווח, בלי המרת אזור זמן. */
+function flexTime(dt) {
+  const m = /^[^;, T]+[;, T]+\s*(\d{1,2}):?(\d{2}):?(\d{2})?/.exec(String(dt || '').trim());
+  if (!m) return '';
+  const h = Number(m[1]), mi = Number(m[2]), se = Number(m[3] || 0);
+  if (h > 23 || mi > 59 || se > 59) return '';
+  const p = (v) => String(v).padStart(2, '0');
+  return p(h) + ':' + p(mi) + ':' + p(se);
+}
+
 /* ---------- Flex statement -> clean JSON ---------- */
 function statementToJson(tree) {
   const st = firstKid(tree, 'FlexStatement') || { attrs: {}, children: [] };
@@ -221,6 +232,7 @@ function statementToJson(tree) {
     out.trades.push({
       symbol: x.symbol || '',
       date: flexDate(x.dateTime || x.date || x.tradeDate),
+      time: flexTime(x.dateTime),
       qty: num(x.quantity),
       price: num(x.tradePrice),
       proceeds: num(x.proceeds),
@@ -440,6 +452,7 @@ async function ibkrGetMulti(path, firstHost, budgetMs) {
 }
 
 module.exports = {
+  flexTime,
   IBKR_HOST, IBKR_HOSTS, IBKR_HOSTS_LIST, FLEX_SEND_PATH, FLEX_GET_PATH, ibkrUserAgent,
   statementBaseFrom, statementEndpointFrom, cors, guard, originAllowed, STAGING_ORIGIN_RE, safeEqual, TOKEN_RE, QUERY_RE, CODE_RE, rateLimited, parseXml, findKids, firstKid,
   statementToJson, ibkrGet, ibkrGetMulti, errorXml, flexDate, num,
