@@ -2744,3 +2744,6 @@ yt-dlp==2026.10.21 \
 yt-dlp-ejs==0.8.0 \
     --hash=sha256:79300e5fca7f937a1eeede11f0456862c1b41107ce1d726871e0207424f4bdb4
     # via -r requirements.in
+bgutil-ytdlp-pot-provider==2.0.2 \
+    --hash=sha256:4f488008d25a715837df79472aad06ea052d20e14ad3a02609bbb0fbd746b8be
+    # via -r requirements.in

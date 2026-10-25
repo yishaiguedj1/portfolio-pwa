@@ -17,3 +17,5 @@ anthropic
 yt-dlp
 yt-dlp-ejs
 curl-cffi
+# 25/10/2026: PO token ליוטיוב (הפלאגין; הסקריפט עצמו ב־/opt/bgutil מהתמונה, רץ ב־Deno) — רק לקישורי יוטיוב
+bgutil-ytdlp-pot-provider==2.0.2
