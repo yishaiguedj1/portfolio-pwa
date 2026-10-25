@@ -259,7 +259,8 @@ export function createAudioBridge(v, open, mkCtx, opt = {}) {
     for (const n of nodes) { try { n.stop(); } catch (e) {} try { n.disconnect(); } catch (e) {} }
     nodes.clear();
   };
-  const vol = () => { if (gain) gain.gain.value = v.muted ? 0 : (v.volume == null ? 1 : v.volume); };
+  // opt.vol — כשהקול של הווידאו מושתק בכוונה (רצועה אחרת מקובץ מקומי), לא לפי v.muted
+  const vol = () => { if (gain) gain.gain.value = opt.vol ? opt.vol() : v.muted ? 0 : (v.volume == null ? 1 : v.volume); };
   async function run() {
     stop();
     if (dead || v.paused || v.ended || v.seeking) return;
@@ -319,6 +320,30 @@ export async function decodeDolby(url) {
   if (!(await tr.canDecode())) return null;
   return { open: async () => new MB.AudioBufferSink(tr), ctx: () => new AudioContext({ latencyHint: 'playback' }) };
 }
+
+/* ---- 25/10/2026 (בקשת המשתמש): הסרטון שנצרב בטלפון — קובץ מקומי (Movies/Studio) עם כל רצועות הקול של המקור ----
+   הדפדפן מנגן רק את הרצועה הראשונה בקובץ. רצועה אחרת — פענוח שלה (Mediabunny מתוך הקובץ, בלי רשת), באותו גשר של Dolby,
+   והקול של הווידאו מושתק. השפה = קוד ISO מהקובץ ('und' = בלי) */
+export function trackLang(code) { const c = String(code || '').toLowerCase(); return /^[a-z]{2,3}$/.test(c) && c !== 'und' ? c : ''; }
+export async function localTracks(file) {
+  if (typeof window === 'undefined' || !file) return [];
+  const MB = await import('./vendor/mediabunny/mediabunny.min.mjs');
+  const input = new MB.Input({ source: new MB.BlobSource(file), formats: MB.ALL_FORMATS });
+  const trs = await input.getAudioTracks();
+  return trs.map((t, i) => ({ i, l: trackLang(t.languageCode), d: !!(t.disposition && t.disposition.default), c: t.codec || '' }));
+}
+export async function localDecode(file, idx) {
+  if (typeof window === 'undefined' || !window.AudioContext || !file) return null;
+  const MB = await import('./vendor/mediabunny/mediabunny.min.mjs');
+  const input = new MB.Input({ source: new MB.BlobSource(file), formats: MB.ALL_FORMATS });
+  const tr = (await input.getAudioTracks())[idx];
+  if (!tr) return null;
+  if (AB_CODECS[tr.codec]) { if (!abReg) abReg = import('./vendor/mediabunny/mediabunny-ac3.min.mjs').then((m) => m.registerAc3Decoder()); await abReg; }
+  if (!(await tr.canDecode())) return null;
+  return { open: async () => new MB.AudioBufferSink(tr), ctx: () => new AudioContext({ latencyHint: 'playback' }) };
+}
+/* איזו רצועה צריכה את הגשר: כל רצועה חוץ מהראשונה (שהדפדפן מנגן), וגם הראשונה כשהדפדפן לא מכיר את הקודק שלה */
+export function fileNeedsBridge(tracks, i, isType) { return i > 0 || !!(tracks[i] && needAudioBridge(tracks[i].c, isType)); }
 
 /* "1080p" — לפי הצלע הקצרה (אנכי 1080×1920 הוא 1080p, כמו ב־YouTube) */
 export const qShort = (l) => Math.min(l.w || l.width || 0, l.h || l.height || 0);
@@ -476,11 +501,11 @@ export function createPlayer(opts) {
   let cues = opts.cues || [], issues = opts.issues || [], chs = normChapters(opts.chapters), chNow = -2;
   let pref = normTrackPref(opts.pref);
   const hasEn = () => cues.some((c) => c.en);
-  const curLang = () => { const i = audNow(); return i >= 0 && altsNow[i] ? altsNow[i].l || '' : ''; };
+  const curLang = () => { const i = audNow(), L = audList(); return i >= 0 && L[i] ? L[i].l || '' : ''; };
   const ccAuto = () => autoCc(curLang(), cues.length > 0, !!opts.burned, opts.subLang);
   const savePref = (p) => { pref = normTrackPref(Object.assign({}, pref, p)); if (opts.onPref) opts.onPref(pref); };
   let cc = resolveCc(pref.cc, autoCc('', (opts.cues || []).length > 0, !!opts.burned, opts.subLang), (opts.cues || []).some((c) => c.en), !!opts.burned), hideT = 0, lastTap = 0, tapT = 0, dragging = false, destroyed = false;
-  const wrap = el('div', 'st-pl'); wrap.dir = 'ltr';
+  const wrap = el('div', 'st-pl' + (opts.burned ? ' burned' : '')); wrap.dir = 'ltr';
   const v = el('video', 'st-pl-v'); v.playsInline = true; v.preload = 'metadata'; v.setAttribute('playsinline', '');
   // 21/10/2026 (בקשת המשתמש — כמו ב־YouTube): תמונה לפני הניגון. קפיצה לנקודה (seek) מורידה אותה ומציגה את הפריים של הנקודה
   const setPoster = (u) => { if (typeof u === 'string' && /^(data:image\/(jpeg|png|webp);base64,|blob:)/.test(u)) v.poster = u; };
@@ -488,7 +513,8 @@ export function createPlayer(opts) {
   const sub = el('div', 'st-pl-sub'); sub.dir = 'rtl'; sub.setAttribute('aria-live', 'off');
   const ui = el('div', 'st-pl-ui');
   const top = el('div', 'st-pl-top'), mid = el('div', 'st-pl-mid'), bot = el('div', 'st-pl-bot');
-  const ccB = ib('cc', 'cc', T('studioPlCc'), () => { cc = nextCc(cc, hasEn()); savePref({ cc }); paintCc(); paintSub(); });
+  // 25/10/2026: בסרטון צרוב — רק המקור באנגלית מעל (העברית כבר בתמונה), בלי לשמור העדפה
+  const ccB = ib('cc', 'cc', T('studioPlCc'), () => { if (opts.burned) cc = cc === 'en' ? 'off' : 'en'; else { cc = nextCc(cc, hasEn()); savePref({ cc }); } paintCc(); paintSub(); });
   const ccL = el('span', 'st-pl-ccl'); ccB.append(ccL);
   // ההגדרות — כמו ב־YouTube: גלגל שיניים → איכות / מהירות (בתוך הנגן, גם במסך מלא)
   const gearB = ib('gear', 'gear', T('studioPlSettings'), () => openMenu(''));
@@ -659,8 +685,8 @@ export function createPlayer(opts) {
       if (mode === 'hls' && levels.length > 1) box.append(mRow('tune', T('studioPlQuality'), qNow(), () => openMenu('q')));
       box.append(mRow('speed', T('studioPlSpeed'), speedName(v.playbackRate), () => openMenu('s')));
       const ai = audNow();
-      if (ai >= 0) box.append(mRow('aud', T('studioPlAudio'), altName(altsNow[ai], ai, T, uiLang()), () => openMenu('a')));
-      if (!opts.burned && cues.length && !ccB.disabled) box.append(mRow('cc', T('studioPlCc'), ccName(cc), () => openMenu('t')));
+      if (ai >= 0) box.append(mRow('aud', T('studioPlAudio'), altName(audList()[ai], ai, T, uiLang()), () => openMenu('a')));
+      if (cues.length && !ccB.disabled) box.append(mRow('cc', T('studioPlCc'), ccName(cc), () => openMenu('t')));
       if (chs.length) box.append(mRow('chap', T('studioPlChaps'), String(chs.length), () => openMenu('c')));
     } else {
       box.append(mRow('prev', page === 'q' ? T('studioPlQuality') : page === 'c' ? T('studioPlChaps') : page === 'a' ? T('studioPlAudio') : page === 't' ? T('studioPlCc') : T('studioPlSpeed'), null, () => openMenu('')));
@@ -675,11 +701,13 @@ export function createPlayer(opts) {
             () => { setPq(i === top ? 'src' : qShort(l)); closeMenu(); }, { on: sel, hd: qHd(l) }));
         }
       } else if (page === 'a') {
-        const ai = audNow(), auto = pickAudio(altsNow, '');
-        box.append(mRow('', T('studioPlAutoNow', { q: altName(altsNow[auto], auto, T, uiLang()) }), null, () => { savePref({ a: '' }); setAudio(auto); closeMenu(); }, { on: !pref.a && !audManual }));
-        altsNow.forEach((a, i) => box.append(mRow('', altName(a, i, T, uiLang()), null, () => {
+        const L = audList(), ai = audNow(), auto = pickAudio(L, '');
+        box.append(mRow('', T('studioPlAutoNow', { q: altName(L[auto], auto, T, uiLang()) }), null, () => { savePref({ a: '' }); setAudio(auto); closeMenu(); }, { on: !pref.a && !audManual }));
+        L.forEach((a, i) => box.append(mRow('', altName(a, i, T, uiLang()), null, () => {
           audManual = true; if (a.l) savePref({ a: a.l }); setAudio(i); closeMenu();
         }, { on: (!!pref.a || audManual) && i === ai })));
+      } else if (page === 't' && opts.burned) {   // צרוב: כבויות / המקור באנגלית מעל
+        for (const m of ['off', 'en']) box.append(mRow('', ccName(m), null, () => { setCc(m); closeMenu(); }, { on: cc === m }));
       } else if (page === 't') {
         const en = hasEn();
         box.append(mRow('', T('studioPlAutoNow', { q: ccName(ccAuto()) }), null, () => { savePref({ cc: '' }); setCc(ccAuto()); closeMenu(); }, { on: !pref.cc }));
@@ -709,14 +737,51 @@ export function createPlayer(opts) {
   function ccName(m) { return m === 'off' ? T('studioPlCcOff') : m === 'en' ? T('studioPlCcEnL') : m === 'both' ? T('studioPlCcBothL') : T('studioPlCcHeL'); }
   function setCc(m) { cc = m; paintCc(); paintSub(); }
   function setAudio(i) {
+    if (fileAud()) { setFileAudio(i); return; }
     if (!hls || i < 0) return;
     if (hls.audioTrack !== i) hls.audioTrack = i;
     if (!pref.cc) setCc(ccAuto());               // הכתוביות האוטומטיות תלויות בשפת הקול
   }
   // 23/10/2026: כמה רצועות קול — הרצועה שמתנגנת עכשיו (hls.audioTracks באותו סדר של העותקים), ‎-1 = אין בחירה
   function audNow() {
+    if (fileAud()) return fNow;
     if (mode !== 'hls' || !hls || altsNow.length < 2 || !hls.audioTracks || hls.audioTracks.length !== altsNow.length) return -1;
     return Math.max(0, Math.min(altsNow.length - 1, hls.audioTrack | 0));
+  }
+  // 25/10/2026: קובץ מקומי עם כמה רצועות קול (localFile)
+  let ftr = [], fNow = 0, fBridge = null, fSeq = 0;
+  const fileAud = () => mode === 'file' && ftr.length > 1;
+  const audList = () => (fileAud() ? ftr : altsNow);
+  const isTypeA = (t) => { try { return !!(window.MediaSource && MediaSource.isTypeSupported(t)); } catch (e) { return false; } };
+  async function setFileAudio(i, force) {
+    if (i < 0 || i >= ftr.length || (i === fNow && !force)) return;
+    const seq = ++fSeq;
+    fNow = i;
+    if (fBridge) { fBridge.destroy(); fBridge = null; }
+    if (!fileNeedsBridge(ftr, i, isTypeA)) { v.muted = false; wrap.classList.remove('ab'); }
+    else {
+      try {
+        const D = await (opts.decodeTrack || localDecode)(opts.localFile, ftr[i].i);
+        if (destroyed || seq !== fSeq) return;
+        if (!D) throw new Error('decode');
+        v.muted = true;
+        fBridge = createAudioBridge(v, D.open, D.ctx, { vol: () => (v.volume == null ? 1 : v.volume), onError: () => {} });
+        wrap.classList.add('ab');
+      } catch (e) { if (seq === fSeq) { fNow = 0; v.muted = false; } }
+    }
+    if (!pref.cc && !opts.burned) setCc(ccAuto());
+  }
+  async function fileTracks() {
+    if (!opts.localFile) return;
+    try {
+      const list = await (opts.listTracks || localTracks)(opts.localFile);
+      if (destroyed || !list || !list.length) return;
+      if (list.length < 2 && !fileNeedsBridge(list, 0, isTypeA)) return;
+      ftr = list.length > 1 ? list : [];
+      if (!ftr.length) { ftr = list; await setFileAudio(0, true); ftr = []; return; }   // רצועה אחת שהדפדפן לא מכיר
+      const want = pickAudio(ftr, pref.a);
+      await setFileAudio(want, true);
+    } catch (e) {}
   }
   function uiLang() { return (typeof document !== 'undefined' && document.documentElement.lang) || 'he'; }
   function closeMenu() { menu.hidden = true; wrap.classList.remove('menu'); poke(); }
@@ -835,13 +900,13 @@ export function createPlayer(opts) {
   v.addEventListener('seeked', () => { paintBar(); paintSub(); paintChap(); });
 
   paintCc(); paintPlay(); paintBar(); paintChap();
-  if (opts.burned) ccB.disabled = true;
+  if (opts.burned) ccB.disabled = !hasEn();
   if (ladder && !opts.burned) startHls(); else v.src = opts.src || opts.fallback || '';
   // 22/10/2026: קול Dolby שהטלפון לא מנגן — פענוח בדפדפן (רק כשמנגנים קובץ, לא hls — שם יש עותק Opus)
   let bridge = null, bridgeSrc = '';
   async function audioFix() {
     const dec = opts.decodeAudio === undefined ? decodeDolby : opts.decodeAudio;
-    if (!dec || destroyed || mode !== 'file' || !v.currentSrc || bridgeSrc === v.currentSrc) return;
+    if (!dec || destroyed || opts.localFile || mode !== 'file' || !v.currentSrc || bridgeSrc === v.currentSrc) return;
     bridgeSrc = v.currentSrc;
     if (bridge) { bridge.destroy(); bridge = null; }
     try {
@@ -852,6 +917,7 @@ export function createPlayer(opts) {
     } catch (e) {}
   }
   v.addEventListener('loadedmetadata', audioFix);
+  if (opts.localFile) fileTracks();
   return {
     el: wrap, video: v,
     seek: seekTo,
@@ -860,6 +926,7 @@ export function createPlayer(opts) {
     pause() { v.pause(); },
     setCues(c, iss) {
       cues = c || []; issues = iss || issuesList(cues); shown = -2;
+      if (opts.burned) ccB.disabled = !hasEn();
       if (!ccB.disabled) { cc = resolveCc(pref.cc, ccAuto(), hasEn(), !!opts.burned); paintCc(); }   // 23/10/2026: הכתוביות הגיעו — ברירת המחדל מחדש
       paintSub(); paintHeat();
     },
@@ -874,10 +941,12 @@ export function createPlayer(opts) {
     setChapters(c) { chs = normChapters(c); chNow = -2; paintChap(); paintMarks(); if (!menu.hidden && menu.dataset.p === 'c') openMenu('c'); },
     chapters: () => chs.slice(),   // QA ובדיקות
     quality: () => ({ mode, pq, levels: levels.map(qLabel), now: qNow() }),   // QA ובדיקות
-    audioBridge: () => (bridge ? bridge.state() : null),                      // QA ובדיקות
+    audioBridge: () => (bridge ? bridge.state() : fBridge ? fBridge.state() : null),   // QA ובדיקות
+    audio: () => ({ list: audList().map((a) => a.l || ''), now: audNow() }),             // QA ובדיקות
     destroy() {
       if (destroyed) return; destroyed = true; clearTimeout(hideT); clearTimeout(tapT);
       if (bridge) { bridge.destroy(); bridge = null; }
+      if (fBridge) { fBridge.destroy(); fBridge = null; }
       if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
       menu.remove();
       try { v.pause(); v.removeAttribute('src'); v.load(); } catch (e) {}

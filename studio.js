@@ -6234,11 +6234,49 @@ function altOf(rec) {
 }
 const pqSave = (q) => { if (store.settings.pq !== q) { store.settings.pq = q; save(); } };
 const ptSave = (p) => { const n = normTrackPref(p); if (JSON.stringify(store.settings.pt) !== JSON.stringify(n)) { store.settings.pt = n; save(); } };
-const canPlay = (rec) => !!(rec && (outOf(rec, 'cues') || outOf(rec, 'srt')) && ((rec.up.v && rec.up.v.id) || burnedOut(rec)));
+/* 25/10/2026 (בקשת המשתמש): הסרטון שנצרב בטלפון — בנגן שלנו, מהקובץ שבטלפון (Movies/Studio; לא עולה לשום מקום).
+   הדף לא רואה את הקבצים של האפליקציה: בפעם הראשונה בוחרים את הקובץ (ידית שמורה לפי העבודה — 'po:<מזהה>'), ואחר כך
+   הוא נפתח ישר. הקובץ נבדק לפי הגודל שהאפליקציה דיווחה (pbn.sz) — צריבה חדשה = בוחרים שוב */
+export const phOutName = (name, small) => (String(name || '').replace(/\.[^.]*$/, '').replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').slice(0, 90).trim() || 'video') + (small ? ' — עברית קטן' : ' — עברית') + '.mp4';   // = PhCore.outName
+const phLocal = (rec) => !!(rec && rec.up && rec.up.ph && rec.srv && rec.srv.pbn && rec.srv.pbn.s === 'done' && !phBurnLive(rec));
+const canPlay = (rec) => !!(rec && (outOf(rec, 'cues') || outOf(rec, 'srt')) && ((rec.up.v && rec.up.v.id) || burnedOut(rec) || phLocal(rec)));
 let pl = null;                    // { id, st: 'load'|'ok'|'err', ctl, cues, iss, err }
-function playClose() { if (pl && pl.wt) pl.wt(); if (pl && pl.ctl) pl.ctl.destroy(); pl = null; }
+function playClose() { if (pl && pl.wt) pl.wt(); if (pl && pl.ctl) pl.ctl.destroy(); if (pl && pl.url) { try { URL.revokeObjectURL(pl.url); } catch (e) {} } pl = null; }
+/* הקובץ מהטלפון לפי הידית השמורה (בלי לשאול) — רק כשהגודל תואם לצריבה האחרונה */
+const phSizeOk = (rec, f) => !!f && (!(rec.srv.pbn.sz > 0) || f.size === rec.srv.pbn.sz);
+async function phFileSaved(rec, byUser) {
+  const hnd = await handleOp('get', 'po:' + rec.id);
+  if (!hnd || typeof hnd.getFile !== 'function') return null;
+  try {
+    let perm = typeof hnd.queryPermission === 'function' ? await hnd.queryPermission({ mode: 'read' }) : 'granted';
+    if (perm !== 'granted' && byUser && typeof hnd.requestPermission === 'function') perm = await hnd.requestPermission({ mode: 'read' });
+    if (perm !== 'granted') return null;
+    const f = await hnd.getFile();
+    return phSizeOk(rec, f) ? f : null;
+  } catch (e) { return null; }
+}
+/* "לבחור את הסרטון" (בתוך הלחיצה — הרשאה / בורר) */
+async function phPickPlay(rec) {
+  const me = pl;
+  const use = (f, hnd) => {
+    if (!phSizeOk(rec, f)) { flashSafe(T('studioPlPhWrong')); return; }
+    if (hnd) handleOp('put', 'po:' + rec.id, hnd);
+    if (pl !== me) return;
+    me.st = 'load'; plPaint(); playLoad(rec, f);
+  };
+  const f0 = await phFileSaved(rec, true);
+  if (f0) { use(f0, null); return; }
+  if (canPickHandle()) {
+    try {
+      const [hnd] = await window.showOpenFilePicker({ multiple: false, startIn: 'videos', types: [{ description: 'Video', accept: { 'video/mp4': ['.mp4'] } }] });
+      use(await hnd.getFile(), hnd);
+    } catch (e) { if (!(e && e.name === 'AbortError')) pickInput((f) => use(f, null)); }
+    return;
+  }
+  pickInput((f) => use(f, null));
+}
 const plPaint = () => queueMicrotask(() => { if (shapeKey() !== lastShape) render('none'); });   // מ9: גם כשהטעינה מיידית (מהעורך) — בלי ציור מקונן
-async function playLoad(rec) {
+async function playLoad(rec, phFile) {
   const me = pl;
   try {
     const co = outOf(rec, 'cues'), so = outOf(rec, 'srt');
@@ -6247,6 +6285,17 @@ async function playLoad(rec) {
     if (!cues.length && so) cues = normCues(parseSrt(await net.driveText(so.id)));
     if (pl !== me) return;
     const srcId = rec.up.v && rec.up.v.id, bo = burnedOut(rec);
+    if (!srcId && !bo && phLocal(rec)) {   // 25/10/2026: הסרטון שנצרב בטלפון — מהקובץ שבטלפון
+      const f = phFile || await phFileSaved(rec, false);
+      if (pl !== me) return;
+      if (!f) { me.st = 'pick'; plPaint(); return; }
+      me.url = URL.createObjectURL(f);
+      me.cues = cues; me.iss = issuesList(cues);
+      me.ctl = createPlayer({ src: me.url, burned: true, localFile: f, decodeAudio: null, cues, issues: me.iss, chapters: rec.chap || [], T,
+        pref: store.settings.pt, onPref: ptSave, poster: thumbFor(rec, (u) => { if (pl === me && me.ctl) me.ctl.setPoster(u); }) });
+      me.wt = watchTrack(rec, me.ctl.video);
+      me.st = 'ok'; plPaint(); return;
+    }
     const src = srcId ? net.mediaUrl(srcId) : '', fb = bo ? net.mediaUrl(bo.id) : '';
     if (!src && !fb) { me.st = 'err'; me.err = 'nosw'; plPaint(); return; }
     me.cues = cues; me.iss = issuesList(cues);
@@ -6292,6 +6341,12 @@ function pagePlay(p) {
   p.append(navBar({ back: fileTitle(rec.spec.name) || T('studioUntitled') }));
   if (!pl || pl.id !== rec.id) { playClose(); pl = { id: rec.id, st: 'load', ctl: null, cues: [], iss: [], err: '' }; playLoad(rec); }
   if (pl.st === 'load') { p.append(h('div', 'st-pl-ph', T('studioPlLoading'))); return; }
+  if (pl.st === 'pick') {   // 25/10/2026: הסרטון שנצרב בטלפון — בפעם הראשונה בוחרים אותו
+    const nm = h('bdi', null, phOutName(rec.spec.name, rec.spec.pb === 'small'));
+    const tx = h('div', 'st-empty st-empty-sm'); tx.append(T('studioPlPhPick') + ' ', nm);
+    p.append(tx, btn('st-btn wide', T('studioPlPhPickB'), () => phPickPlay(rec), 'pl-pick'));
+    return;
+  }
   if (pl.st === 'err') {
     const bo = burnedOut(rec);
     p.append(h('div', 'st-empty st-empty-sm', pl.err === 'nosw' ? T('studioPlNoSw') : T('studioPlLoadErr')));
@@ -7281,7 +7336,7 @@ function pageJob(p) {
         if (!fin) await net.api('cancel', { job: id });
         const j = await net.api('remove', { job: id });
         if (!j.ok && j.error !== 'no_job') { flashSafe(errText(j.error)); return; }
-        store.jobs = store.jobs.filter((x) => x.id !== id); runs.delete(id); handleOp('del', id); draftDel(id); idbOp('thumbs', 'del', id); thumbs.delete(id); save();
+        store.jobs = store.jobs.filter((x) => x.id !== id); runs.delete(id); handleOp('del', id); draftDel(id); handleOp('del', 'po:' + id); idbOp('thumbs', 'del', id); thumbs.delete(id); save();
         flashSafe(T('studioJobDeleted')); back();
       } else {
         const j = await net.api('cancel', { job: id });

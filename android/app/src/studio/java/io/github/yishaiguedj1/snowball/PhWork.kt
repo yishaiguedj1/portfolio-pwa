@@ -211,8 +211,8 @@ object PhWork {
             val outDir = File(work, "out").apply { deleteRecursively(); mkdirs() }
             val out = File(outDir, PhCore.outName(title, small))
             val aac = small || !PhCore.mp4Audio(info.aCodec)
-            var mx = PhFf.run(ctx, PhCore.muxArgs(v.absolutePath, f.absolutePath, out.absolutePath, info, aac), stop = stopped)
-            if ((mx.code != 0 || !out.isFile) && !aac) mx = PhFf.run(ctx, PhCore.muxArgs(v.absolutePath, f.absolutePath, out.absolutePath, info, true), stop = stopped)
+            var mx = PhFf.run(ctx, PhCore.muxArgs(v.absolutePath, f.absolutePath, out.absolutePath, info, aac, !small), stop = stopped)
+            if ((mx.code != 0 || !out.isFile) && !aac) mx = PhFf.run(ctx, PhCore.muxArgs(v.absolutePath, f.absolutePath, out.absolutePath, info, true, !small), stop = stopped)
             if (mx.code != 0 || !out.isFile) throw Stop("mux")
             val sz = out.length()
             val uri = DlEngine.publish(ctx, out)                 // Movies/Studio (מוחק את התיקייה הזמנית)
