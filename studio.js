@@ -2802,7 +2802,8 @@ function pageForm(p, editing) {
     p.append(inp, secT(T('studioSecVideo')), card);
     const subsRow = rowNav({ tile: tile('cc', 'orange'), label: T('studioSubsPick'), sub: subsOk() ? T('studioSubsPickS') : T('studioSubsApiOnly'), onClick: () => pickSubs(f), k: 'subs-pick' });
     // 22/10/2026: הורדה מקישור — שורה ראשונה (המנהל / "כל המודלים", כשהשרתון אומר שאפשר)
-    const linkRow = devDl() || ui.url ? rowNav({ tile: tile('link', 'red'), label: T('studioLinkRow'), sub: T('studioLinkRowS'), onClick: () => go('link'), k: 'link' }) : null;
+    // 25/10/2026: בלי האפליקציה לאנדרואיד (אייפון, מחשב) ההורדה רק לענן — ויוטיוב חוסם את השרת, אז לא מבטיחים אותו
+    const linkRow = devDl() || ui.url ? rowNav({ tile: tile('link', 'red'), label: T('studioLinkRow'), sub: devDl() ? T('studioLinkRowS') : T('studioLinkRowSCloud'), onClick: () => go('link'), k: 'link' }) : null;
     // 24/10/2026: תרגום בטלפון — הסרטון לא עוזב את הטלפון (Studio לאנדרואיד בוחר, מודד, מעלה רק את הקול וצורב בסוף)
     const phRow = phOk() ? rowNav({ tile: tile('film', 'green'), label: T('studioPhRow'), value: f.ph ? T('studioPhOn') : '', sub: f.ph ? null : T('studioPhRowS'), onClick: () => phPick(), k: 'ph-pick' }) : null;
     if (phRow) p.append(list(phRow));
@@ -3149,6 +3150,7 @@ function linkErrText(e) {
     case 'no_take': return T('studioLinkENoTake');   // 24/10/2026: הבדיקה בשרת לא נלקחה — העובד לא שאל
     case 'timeout': case 'net': case 'no_server': return T('studioLinkENet');
     case 'app': return T('studioLinkEApp');
+    case 'yt': return T('studioLinkEYt');
     case 'noapp': return T('studioLinkENoApp');
     case 'store': return T('studioLinkEStore');
     default: return T('studioLinkEFail');
@@ -3231,7 +3233,9 @@ function linkCheck(f, raw, ref, pre, want) {
   // 24/10/2026: "ישר לענן של Studio" מ־Studio DM — הענן נבחר מראש (רק כשמותר: ui.url, ומקור שלא חוסם — cloudOk בציור)
   L.to = want === 'cloud' && ui.url ? 'cloud' : devDl() ? 'dev' : 'cloud';
   if (!devDl()) {   // בלי האפליקציה: רק לענן (כשמותר — ui.url), אחרת הסבר
-    if (ui.url) linkCheckSrv(f, L, seq); else { L.st = 'err'; L.e = 'app'; }
+    // 25/10/2026: יוטיוב חוסם את השרת ("not a bot") — אומרים מיד, במקום בדיקה שתיכשל או עבודה שתיפול באמצע
+    if (ui.url && ytHost(L.u)) { L.st = 'err'; L.e = 'yt'; }
+    else if (ui.url) linkCheckSrv(f, L, seq); else { L.st = 'err'; L.e = 'app'; }
     render('none'); return;
   }
   if (pre) { L.n = pre; render('none'); return; }   // הבדיקה כבר רצה בטלפון (דפדפן הציד) — התוצאה מגיעה מיד
@@ -3405,7 +3409,7 @@ function pageLink(p) {
     r.ch && r.ch.length ? rowSwitch({ label: T('studioLinkCh'), sub: T('studioLinkChS', { n: fmtNum(r.ch.length) }), on: !!L.ch, onClick: () => { L.ch = L.ch ? 0 : 1; render('none'); }, k: 'link-ch' }) : null,
     rowNav({ tile: tile('sliders', 'gray'), label: T('studioLinkAll'), sub: T('studioLinkAllS'), onClick: () => go('linkfmt'), k: 'link-all' }),
     rowNav({ tile: tile('help', 'gray'), label: T('studioFmtHelpT'), sub: T('studioFmtHelpS'), onClick: () => go('fmthelp'), k: 'fmthelp' })));
-  p.append(note(L.to === 'cloud' ? T('studioLinkCloudNote') : T('studioLinkSrvNote')));
+  p.append(note(L.to !== 'cloud' ? T('studioLinkSrvNote') : devDl() ? T('studioLinkCloudNote') : T('studioLinkCloudNoteWeb')));   // 25/10: בלי האפליקציה אין "להוריד לטלפון"
   const go2 = btn('st-btn wide', T('studioLinkAdd'), () => { f.linkOk = true; back(); }, 'link-add2');
   go2.disabled = !L.v;
   p.append(h('div', 'st-gap'), go2);
@@ -3581,7 +3585,12 @@ const BLIND_ERRS = ['timeout', 'no_take', 'net'];
 export function blindOk(L, busy) {
   if (!L || !ui.url || devDl() || !L.u) return false;
   if (!busy && !BLIND_ERRS.includes(L.e) && !/^srv:(?!bad_url|flag_off)/.test(L.e || '')) return false;
-  try { return !/(^|\.)(youtube\.com|youtu\.be)$/i.test(new URL(L.u).hostname); } catch (e) { return false; }
+  try { new URL(L.u); } catch (e) { return false; }
+  return !ytHost(L.u);
+}
+/* יוטיוב (כל הכתובות שלו) — חוסם את השרת שלנו, לכן רק בטלפון עם Studio לאנדרואיד */
+export function ytHost(u) {
+  try { return /(^|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com)$/i.test(new URL(String(u || '').trim()).hostname); } catch (e) { return false; }
 }
 export function urlTitle(u) {
   try {
@@ -3604,7 +3613,7 @@ function startLinkCloud(f) {   // ישר לענן של Studio (העובד מור
   const L = f.link;
   if (!L || L.st !== 'ok' || ui.starting) return;
   if (ui.access === 'signin' || ui.access === 'denied') { flashSafe(ui.access === 'signin' ? T('studioErrSignin') : T('studioErrDenied')); return; }
-  if (!apiMode() && !cpMode()) { flashSafe(T('studioLinkApiOnly')); return; }
+  if (!apiMode() && !cpMode() && !ryMode()) { flashSafe(T('studioLinkApiOnly')); return; }   // 25/10: גם "המנוי שלי" כשיש שרת (ry)
   if (!langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }
   const pick = L.blind ? { h: 0 } : linkPick(L);   // 24/10/2026: "בלי בדיקה" — העובד בוחר לבד (הכי טוב עד 1080p, fetchurl.selector)
   if (!pick) return;

@@ -2127,6 +2127,8 @@ async function handler(req, res, deps = {}) {
   // 15/10/2026: מצבי התרגום — לכולם רק PUBLIC_MODES ("רגיל" / "ביצועים"); המנהל ומי שברשימת "כל המודלים" — הכל
   const fullModes = async () => isAdmin(user) || SF.amHas(await sysCfg(deps, now), user);
   const modeLocked = async (m) => !S.modeOk(S.modeNow(m), await fullModes());
+  // 25/10/2026 (בקשת המשתמש): הורדה מקישור — גם לחשבונות הבדיקה (sysCfg.tsEm), לא רק למנהל ול"כל המודלים"
+  const urlAllowed = async () => (await fullModes()) || SF.tsHas(await sysCfg(deps, now), user);
   if ((op === 'status' || op === 'jobs') && watchDue(now)) await checkServers(deps, now, uid).catch(() => 0);
   if (op === 'status' && isAdmin(user)) await offsiteOwner(deps, uid).catch(() => {});   // 11/10/2026: בעל הגיבוי ב־Drive
   // v357: חיבור Drive של הסטודיו (חלון ההסכמה של Google — אותו מנגנון של גיבוי הספרייה, לקוח אחר)
@@ -2490,7 +2492,7 @@ async function handler(req, res, deps = {}) {
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
         norm: S.normsView(st.ns, 'r'), normA: S.normsView(st.ns, 'a') /* 11/10: הרגיל לפי המנוע */, sh: S.thView(st.thr) /* v384: מצב צל לכל מצב */, wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
         rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now, ((await readDoc(deps, 'studioEta', 'a').catch(() => null)) || {}).et),
-        pk: S.pickerCfg(process.env, gdrive.cfg().id), lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, lra: +st.lra || 0, lrt: +st.lrt || 0, lrm: +st.lrm || 0 /* מ׳4 */, mf: await fullModes() /* 15/10: כל מצבי התרגום (המנהל / הרשימה) */, url: (await fullModes()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok /* 22/10: הורדה מקישור */, lrf: +st.lrf || 0 /* האיסוף המלא — הנוסח נקרא */, lf: +st.lf || 0 /* 15/10 (מ׳1): ההודעה נקראה / מתי נמחקו התרומות */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
+        pk: S.pickerCfg(process.env, gdrive.cfg().id), lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, lra: +st.lra || 0, lrt: +st.lrt || 0, lrm: +st.lrm || 0 /* מ׳4 */, mf: await fullModes() /* 15/10: כל מצבי התרגום (המנהל / הרשימה) */, url: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok /* 22/10: הורדה מקישור */, lrf: +st.lrf || 0 /* האיסוף המלא — הנוסח נקרא */, lf: +st.lf || 0 /* 15/10 (מ׳1): ההודעה נקראה / מתי נמחקו התרומות */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
     }
     if (op === 'push') {
       // שלב 4: התראות — key (המפתח הציבורי, ל־subscribe בטלפון) / on (מנוי של המכשיר) / off / test
@@ -2694,8 +2696,8 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json(Object.assign({ ok: f.ok, job: view(j) }, f.ok ? (f.unsure ? { unsure: f.unsure, detail: f.detail } : {}) : { error: f.error, retry: f.retry, detail: f.detail || '' }));
     }
     if (op === 'urlProbe') {
-      // 22/10/2026: בדיקת קישור — רק למנהל ולמי שברשימת "כל המודלים" (שלב ראשון), והדגל st_url. pid = מצב בדיקה קיימת
-      if (!(await fullModes())) return res.status(403).json({ ok: false, error: 'not_allowed' });
+      // 22/10/2026: בדיקת קישור — למנהל, ל"כל המודלים" ולחשבונות הבדיקה (25/10), והדגל st_url. pid = מצב בדיקה קיימת
+      if (!(await urlAllowed())) return res.status(403).json({ ok: false, error: 'not_allowed' });
       if (!(await flagOn(deps, 'st_url', now))) return res.status(409).json({ ok: false, error: 'flag_off', fl: 'st_url' });
       if (body.pid != null) {
         const pid = String(body.pid || '');
@@ -2720,8 +2722,8 @@ async function handler(req, res, deps = {}) {
       if (!S.langReady(spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported' });   // לפני ההעלאה, לא אחריה
       if (await modeLocked(spec.mode)) return res.status(403).json({ ok: false, error: 'mode_locked' });
       if (spec.ph && !R2.config().ok) return res.status(503).json({ ok: false, error: 'r2_needed' });   // 24/10/2026: תרגום בטלפון — הקבצים הקטנים ב־R2
-      if (spec.src === 'url') {   // 22/10/2026: הורדה מקישור — כמו בבדיקה: מנהל / "כל המודלים", הדגל, ו־R2 (העובד מוריד לשם)
-        if (!(await fullModes())) return res.status(403).json({ ok: false, error: 'not_allowed' });
+      if (spec.src === 'url') {   // 22/10/2026: הורדה מקישור — כמו בבדיקה: מנהל / "כל המודלים" / חשבונות הבדיקה, הדגל, ו־R2
+        if (!(await urlAllowed())) return res.status(403).json({ ok: false, error: 'not_allowed' });
         if (!(await flagOn(deps, 'st_url', now))) return res.status(409).json({ ok: false, error: 'flag_off', fl: 'st_url' });
         if (!R2.config().ok) return res.status(503).json({ ok: false, error: 'r2_needed' });
       }

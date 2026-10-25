@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1840 מפתחות מתוך 4028) */
+/* המחרוזות של studio (1843 מפתחות מתוך 4031) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -828,7 +828,7 @@ he: {
   "studioLinkAltQ": "קובץ וידאו",
   "studioLinkAltT": "מקורות נוספים בדף",
   "studioLinkAltUpTo": "עד {q}",
-  "studioLinkApiOnly": "הורדה מקישור זמינה רק במצב השרת של המערכת.",
+  "studioLinkApiOnly": "הורדה מקישור צריכה את השרת של המערכת — כרגע הוא לא זמין. נסו שוב בעוד כמה דקות.",
   "studioLinkApk": "להתקין את הגרסה החדשה של Studio",
   "studioLinkAudioS": "הקול הכי טוב בשפה המקורית — נבחר לבד",
   "studioLinkAudioT": "קול",
@@ -843,6 +843,7 @@ he: {
   "studioLinkCheckingS": "הטלפון מחפש את הסרטון ואת כל האיכויות שלו. בדרך כלל כמה שניות (בפעם הראשונה קצת יותר).",
   "studioLinkClear": "ניקוי הקישור",
   "studioLinkCloudNote": "יורד ישר לענן של Studio — בלי נתונים ובלי סוללה מהטלפון. התמלול מתחיל מהקול עוד לפני שהסרטון גמר לרדת. אם האתר חוסם את השרת, העבודה תיכשל — אז מורידים לטלפון.",
+  "studioLinkCloudNoteWeb": "יורד ישר לענן של Studio — בלי נתונים ובלי סוללה מהטלפון. התמלול מתחיל מהקול עוד לפני שהסרטון גמר לרדת.",
   "studioLinkDlWait": "מוריד לטלפון… ההתקדמות בחלון של Studio ובהתראה.",
   "studioLinkEApp": "הורדה מקישור עובדת באפליקציה Studio לאנדרואיד — הסרטון תמיד יורד לטלפון שלך.",
   "studioLinkEBad": "הקישור לא תקין.",
@@ -862,6 +863,7 @@ he: {
   "studioLinkESlow": "האתר לא ענה בזמן. אפשר לנסות שוב או לבחור את הסרטון בדפדפן הציד.",
   "studioLinkEStore": "לא הצלחנו לשמור את הסרטון בטלפון (אין מקום?).",
   "studioLinkETiny": "מה שנמצא קטן מדי — כנראה פרסומת או קטע קצר, לא הסרטון. נגנו את הסרטון עצמו בדפדפן הציד.",
+  "studioLinkEYt": "יוטיוב חוסם את השרתים שלנו, ולכן כאן אפשר להוריד ממנו רק באפליקציה Studio לאנדרואיד. מאתרים אחרים (Vimeo, TED ועוד) — זה עובד גם כאן.",
   "studioLinkFailT": "ההורדה בטלפון נכשלה",
   "studioLinkFcNote": "{q} · {s} · יורד ישר לשרת",
   "studioLinkFrom": "מ־",
@@ -888,6 +890,7 @@ he: {
   "studioLinkRetry": "לנסות שוב",
   "studioLinkRow": "מקישור",
   "studioLinkRowS": "YouTube ועוד מאות אתרים — יורד לטלפון שלך",
+  "studioLinkRowSCloud": "Vimeo, TED ומאות אתרים — יורד ישר לענן של Studio",
   "studioLinkSec": "רק חלק מהסרטון",
   "studioLinkSecAll": "הכל",
   "studioLinkSecAllBtn": "כל הסרטון",
@@ -2670,7 +2673,7 @@ en: {
   "studioLinkAltQ": "Video file",
   "studioLinkAltT": "More sources on the page",
   "studioLinkAltUpTo": "Up to {q}",
-  "studioLinkApiOnly": "Downloading from a link is available only in the system’s server mode.",
+  "studioLinkApiOnly": "Downloading from a link needs the system server — it isn’t available right now. Try again in a few minutes.",
   "studioLinkApk": "Install the new version of Studio",
   "studioLinkAudioS": "The best audio in the original language — picked for you",
   "studioLinkAudioT": "Audio",
@@ -2685,6 +2688,7 @@ en: {
   "studioLinkCheckingS": "Your phone is finding the video and all its qualities. Usually a few seconds (a bit longer the first time).",
   "studioLinkClear": "Clear the link",
   "studioLinkCloudNote": "Downloads straight to the Studio cloud — no data or battery from your phone. Transcription starts from the audio before the video finishes. If the site blocks the server, the job will fail — then download to your phone.",
+  "studioLinkCloudNoteWeb": "Downloads straight to the Studio cloud — no data or battery from your phone. Transcription starts from the audio before the video finishes downloading.",
   "studioLinkDlWait": "Downloading to your phone… progress is in the Studio window and the notification.",
   "studioLinkEApp": "Downloading from a link works in the Studio Android app — the video always downloads to your phone.",
   "studioLinkEBad": "The link isn’t valid.",
@@ -2704,6 +2708,7 @@ en: {
   "studioLinkESlow": "The site didn’t answer in time. Try again, or pick the video in the hunt browser.",
   "studioLinkEStore": "Couldn’t save the video on your phone (out of space?).",
   "studioLinkETiny": "What we found is too small — probably an ad or a short clip, not the video. Play the video itself in the hunt browser.",
+  "studioLinkEYt": "YouTube blocks our servers, so here you can only download from it in the Studio app for Android. Other sites (Vimeo, TED and more) work here too.",
   "studioLinkFailT": "The download on your phone failed",
   "studioLinkFcNote": "{q} · {s} · downloads straight to the server",
   "studioLinkFrom": "From",
@@ -2730,6 +2735,7 @@ en: {
   "studioLinkRetry": "Try again",
   "studioLinkRow": "From a link",
   "studioLinkRowS": "YouTube and hundreds of other sites — downloads to your phone",
+  "studioLinkRowSCloud": "Vimeo, TED and hundreds of sites — downloads straight to the Studio cloud",
   "studioLinkSec": "Only part of the video",
   "studioLinkSecAll": "All",
   "studioLinkSecAllBtn": "Whole video",
