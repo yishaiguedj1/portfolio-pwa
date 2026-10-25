@@ -163,6 +163,15 @@ export function normPbn(o) {
   if (o.s === 'done' && num(o.sz) > 0) out.sz = num(o.sz);
   return out;
 }
+/* 25/10/2026 (שלב 2, "הכל בטלפון"): מה הטלפון עושה לפני שהעבודה מתחילה (op:'phProg') — **normPpr זהה לשרתון** */
+export const PPR_S = ['models', 'wav', 'asr', 'diar', 'align', 'upw', 'shots', 'upm', 'start', 'err'];
+export function normPpr(o) {
+  if (!o || typeof o !== 'object' || !PPR_S.includes(o.s)) return null;
+  const p = Number(o.p);
+  const out = { s: o.s, p: Number.isFinite(p) && p >= 0 ? Math.min(1, Math.round(p * 1000) / 1000) : -1, at: num(o.at) };
+  if (o.s === 'err') { if (!/^[a-z0-9_]{2,32}$/.test(String(o.e || ''))) return null; out.e = o.e; }
+  return out;
+}
 /* ‎#phpick=<pid>.<base64url של JSON> מ־PhActivity (או ‎!<קוד>) → { pid, name, size, dur, w, h } / { e } / null. טהור */
 export function parsePhPick(arg) {
   const a = String(arg || '');
@@ -191,7 +200,7 @@ export function normJob(j) {
   if (edlPre(normEdl(sp.edl))) spec.edl = edlPre(normEdl(sp.edl));   // מ4: חיתוך לפני התרגום (הכתוביות על ציר הזמן שאחרי החיתוך)
   if (num(sp.px) >= 0.02 && num(sp.px) <= 16) spec.px = num(sp.px);   // 21/10/2026: פיקסלים לשנייה מול 1080p30 — לצפי
   if (sp.src === 'subs') { spec.src = 'subs'; spec.sdh = sp.sdh === 'keep' ? 'keep' : 'rm'; spec.out = []; }   // 22/10/2026: קובץ כתוביות קיים
-  if (sp.ph === 1) { spec.ph = 1; spec.out = []; if (PH_BURN.includes(sp.pb)) spec.pb = sp.pb; }   // 24/10/2026: תרגום בטלפון — הצריבה בטלפון
+  if (sp.ph === 1) { spec.ph = 1; spec.out = []; if (PH_BURN.includes(sp.pb)) spec.pb = sp.pb; if (sp.pw === 1) spec.pw = 1; }   // pw — שלב 2: גם התמלול והיישור בטלפון   // 24/10/2026: תרגום בטלפון — הצריבה בטלפון
   const u = j.up && typeof j.up === 'object' ? j.up : {};
   const part = (x) => {
     x = x && typeof x === 'object' ? x : {};
@@ -244,6 +253,8 @@ export function normJob(j) {
     hla: s.hl ? normAlt(s.hla) : null,        // 22/10/2026: עותק הקול לנגן (הקול המקורי — Dolby/DTS… — נשאר במקור)
     cp: normCp(s.cp),                         // סבב 10: העתק־הדבק — בקשה שמחכה לתשובה שלך
     pbn: normPbn(s.pbn),                      // 24/10/2026: הצריבה בטלפון
+    ppr: normPpr(s.ppr),                      // 25/10/2026: מה הטלפון עושה לפני ההתחלה (שלב 2)
+    w: !!(s.files && s.files.w && s.files.w.id),   // 25/10/2026: המילים מהטלפון הגיעו (שלב 2)
     m: !!(s.files && s.files.m && s.files.m.id),   // 24/10/2026: המדידות מהטלפון הגיעו
   } : null;
   const chap = normChapters(j.chap);   // פרקים בנגן (מ"רעיונות"); נשמרים בטלפון עם העבודה
@@ -1042,6 +1053,7 @@ function errText(code, extra) {
     case 'store_net': return T('studioErrStoreNet');   // 11/10/2026: האחסון (R2 / Drive) — ניתוק / חסימה
     case 'store_fail': return T('studioErrStoreFail');
     case 'ph_meta': return T('studioErrPhMeta');   // 24/10/2026: תרגום בטלפון
+    case 'ph_words': return T('studioErrPhWords');   // 25/10/2026: שלב 2
     case 'cp_timeout': case 'cp_empty': return T('studioErrCp');   // סבב 10: העתק־הדבק — לא הודבקה תשובה
     case 'r2_needed': return T('studioLinkApiOnly');
     default:
@@ -2788,6 +2800,8 @@ function pageForm(p, editing) {
     // 24/10/2026: תרגום בטלפון — הסרטון לא עוזב את הטלפון (Studio לאנדרואיד בוחר, מודד, מעלה רק את הקול וצורב בסוף)
     const phRow = phOk() ? rowNav({ tile: tile('film', 'green'), label: T('studioPhRow'), value: f.ph ? T('studioPhOn') : '', sub: f.ph ? null : T('studioPhRowS'), onClick: () => phPick(), k: 'ph-pick' }) : null;
     if (phRow) p.append(list(phRow));
+    // 25/10/2026 (שלב 2): גם התמלול, הדוברים והיישור בטלפון — הקול לא עוזב אותו. פעם ראשונה: הורדת המודלים (Wi‑Fi)
+    if (f.ph) p.append(list(rowSwitch({ label: T('studioPhPw'), sub: T('studioPhPwS'), on: f.pw !== false, onClick: () => { f.pw = f.pw === false; render('none'); }, k: 'ph-pw' })));
     p.append(list(linkRow, subsRow, canPick() ? rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'),
       onClick: () => pickSourceFromDrive(f), k: 'from-drive' }) : null));   // סרטון שכבר ב־Drive — בלי העלאה
     const tk = f.trk && f.trk.tracks.length ? f.trk.tracks : null;   // שלב 4
@@ -3705,8 +3719,12 @@ export function studioPhPick(arg) {
   if (root) { if (ui.view !== 'new') go('new', null, 'none'); else render('none'); }
   return true;
 }
+const PH_ERR_RE = /^(space|no_audio|no_video|probe|noapp|models_wifi|models_sha|models_net|models_io|no_speech)$/;
 function phErrText(c) {
   switch (c) {
+    case 'models_wifi': return T('studioPhEWifi');
+    case 'models_sha': case 'models_net': case 'models_io': return T('studioPhEModels');
+    case 'no_speech': return T('studioPhENoSpeech');
     case 'space': return T('studioPhESpace');
     case 'no_audio': return T('studioPhENoAudio');
     case 'no_video': case 'probe': return T('studioPhEProbe');
@@ -3729,6 +3747,7 @@ function startPhone(f) {
   (async () => {
     const spec = { name: f.file.name, size: f.file.size, type: 'video/*', dur: P.dur || 0, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
       out: [], style: f.style, terms: f.terms, ph: 1, eng: 'api', cap: store.settings.cap };
+    if (f.pw !== false) spec.pw = 1;   // שלב 2: הכל בטלפון (ברירת המחדל)
     const pb = phPb(f); if (pb) spec.pb = pb;
     if (cpMode()) spec.cp = 1; else if (ryMode()) spec.ry = 1;
     if (P.w > 0 && P.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, P.w * P.h / (1920 * 1080))) * 1000) / 1000;
@@ -3775,17 +3794,35 @@ async function phKeyFor(id) {
 const phBurnTap = new Map(), PH_BURN_WAIT = 5 * 60e3;
 const phBurnLive = (r) => !!(r && r.spec && r.spec.ph && r.srv && (r.srv.pbn && r.srv.pbn.s === 'run'
   || Date.now() - (phBurnTap.get(r.id) || 0) < PH_BURN_WAIT && !(r.srv.pbn && r.srv.pbn.at > phBurnTap.get(r.id) - 60e3 && r.srv.pbn.s !== 'run')));   // דקה — שעון הטלפון מול השרתון
+/* הטלפון עובד על עבודה "הכל בטלפון" (דיווח מהדקות האחרונות) — הדף ממשיך לשאול, והכפתור "להמשיך באפליקציה" לא מוצג */
+const PPR_LIVE = 3 * 60e3;
+const phPrepLive = (r) => !!(r && r.spec && r.spec.pw && r.srv && r.srv.state === 'new' && r.srv.ppr && r.srv.ppr.s !== 'err' && Date.now() - r.srv.ppr.at < PPR_LIVE);
+function pprText(q) {
+  const pc = q.p >= 0 ? ' · ' + Math.round(q.p * 100) + '%' : '';
+  switch (q.s) {
+    case 'models': return T('studioPhStModels') + pc;
+    case 'wav': return T('studioPhStWav');
+    case 'asr': return T('studioPhStAsr') + pc;
+    case 'diar': return T('studioPhStDiar');
+    case 'align': return T('studioPhStAlign') + pc;
+    case 'upw': return T('studioPhStUpw');
+    case 'shots': return T('studioPhStShots');
+    case 'upm': return T('studioPhStUpm');
+    default: return T('studioPhStStart');
+  }
+}
 function phHand(rec, kind) {
   const c = phKeys.get(rec.id);
   if (!rec.up.ph || !c) return false;
   if (kind === 'phburn') { phBurnTap.set(rec.id, Date.now()); setTimeout(schedulePoll, 0); }
-  location.href = phIntent(kind, Object.assign({ pid: rec.up.ph, j: rec.id, k: c.k, b: proxyBase(), pb: rec.spec.pb || '' }, kind === 'phburn' ? { pb: rec.spec.pb || 'same' } : {}));
+  location.href = phIntent(kind, Object.assign({ pid: rec.up.ph, j: rec.id, k: c.k, b: proxyBase(), pb: rec.spec.pb || '' }, kind === 'phburn' ? { pb: rec.spec.pb || 'same' } : {},
+    kind === 'ph' && rec.spec.pw ? { pw: 1 } : {}));
   return true;
 }
 /* שגיאה מהאפליקציה (‎#studio=<עבודה>&phe=<קוד>) */
 export function studioPhErr(id, code) {
   if (!/^[a-z0-9_]{1,24}$/.test(String(code || ''))) return false;
-  flashSafe(T('studioPhFail') + ' — ' + (/^(space|no_audio|no_video|probe|noapp)$/.test(code) ? phErrText(code) : errText(code)));
+  flashSafe(T('studioPhFail') + ' — ' + (PH_ERR_RE.test(code) ? phErrText(code) : errText(code)));
   return true;
 }
 /* הכרטיס בדף העבודה: הסרטון בטלפון · המדידות · הצריבה (מצב מהשרתון — pbn — וכפתור) */
@@ -3797,7 +3834,17 @@ function phCard(rec) {
   const burning = phBurnLive(rec);
   if (b && b.s === 'done' && !burning) lines.push(T('studioPhBurned', { s: b.sz ? fmtSize(b.sz) : '' }));
   else if (b && b.s === 'fail' && !burning) lines.push(T('studioPhBurnFail') + (b.e ? ' (' + b.e + ')' : ''));
+  if (st === 'done' && rec.up.ph && b && b.s === 'done') lines.push(T('studioPhKept'));   // 25/10/2026: הסרטון נשמר בטלפון לצריבה נוספת עד מחיקת הפרויקט
   for (const l of lines) card.append(h('small', null, l));
+  if (rec.spec.pw && st === 'new' && srv.ppr) {   // שלב 2: התמלול/היישור בטלפון — שלב ופס שמתעדכנים במקום
+    const cur = () => { const x = jobRec(rec.id) || rec; return x.srv && x.srv.ppr; };
+    if (srv.ppr.s === 'err') card.append(h('small', 'st-warn', T('studioPhStopped') + ' — ' + (PH_ERR_RE.test(srv.ppr.e) ? phErrText(srv.ppr.e) : errText(srv.ppr.e))));
+    else {
+      const pb = h('span', 'st-pbar'), pi = h('i'); pb.append(pi);
+      card.append(live(h('small'), (el) => { const q = cur(); el.textContent = q && q.s !== 'err' ? pprText(q) : ''; }),
+        live(pb, () => { const q = cur(); pi.style.width = (q && q.p >= 0 ? Math.round(q.p * 100) : 0) + '%'; pb.classList.toggle('ind', !(q && q.p >= 0)); }));
+    }
+  }
   if (burning) {   // הצריבה רצה — אחוז ופס שמתעדכנים במקום
     const cur = () => { const x = jobRec(rec.id) || rec, q = x.srv && x.srv.pbn; return q && q.s === 'run' ? q.p || 0 : 0; };
     const pb = h('span', 'st-pbar'), pi = h('i'); pb.append(pi);
@@ -3807,7 +3854,7 @@ function phCard(rec) {
   const ready = here && phKeys.has(rec.id);
   if (here && !ready) phKeyFor(rec.id).then((k) => { if (k && root && ui.view === 'job' && ui.param === rec.id) render('none'); });   // מראש — לפני הנגיעה
   const go = (cls, label, kind) => { const x = btn(cls, ready ? label : T('studioPhKeyBusy'), () => phHand(rec, kind), 'ph-' + kind); x.disabled = !ready; card.append(h('div', 'st-gap sm'), x); };
-  if ((st === 'new' || !srv.m && (st === 'queued' || st === 'running'))) {   // האפליקציה עוד לא העלתה הכל (או לא נפתחה) — להמשיך שם
+  if ((st === 'new' && !phPrepLive(rec) || !srv.m && (st === 'queued' || st === 'running'))) {   // האפליקציה עוד לא העלתה הכל (או לא נפתחה) — להמשיך שם
     if (here) go(st === 'new' ? 'st-btn wide' : 'st-btn ghost wide', st === 'new' ? T('studioPhStartApp') : T('studioPhResume'), 'ph'); else card.append(h('small', 'st-warn', T('studioPhOtherDev')));
   } else if (!burning && st === 'done' && rec.spec.pb && !(b && (b.s === 'run' || b.s === 'done'))) {
     if (here) go('st-btn wide', T('studioPhBurnGo'), 'phburn'); else card.append(h('small', 'st-warn', T('studioPhOtherDev')));
@@ -4565,6 +4612,7 @@ function incTitle(e) {
     case 'store_fail': return T('studioErrStoreFail');   // 11/10/2026
     case 'upload_timeout': return T('studioIncUpload');
     case 'ph_meta': return T('studioErrPhMeta');
+    case 'ph_words': return T('studioErrPhWords');
     case 'lang_unsupported': return T('studioIncLang');
     case 'max_tokens': return T('studioIncMaxTok');
     default: return /^routine_/.test(e) ? T('studioIncRDown') : T('studioIncWorker');
@@ -7825,7 +7873,7 @@ let lastShape = '';
 /* "צורת" הדף — כשהיא משתנה (שלב חדש, העלאה הסתיימה, שגיאה) בונים את הדף מחדש; אחרת רק מעדכנים במקום */
 function shapeKey() {
   const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x + (rec.srv.tw.sh ? 's' : '') : '') + (recovering(rec) ? 'R' : '') + (rec.srv && rec.srv.nt ? 'n' + rec.srv.nt.h.length + (rec.srv.nt.p ? 'p' : '') : '') + (rec.srv && rec.srv.cp ? 'c' + rec.srv.cp.n + (rec.srv.cp.a ? 'a' : '') : '') + (cpBusy ? 'B' : '') + (rec.srv && rec.srv.out.length ? 'o' + rec.srv.out.length : '')
-    + (rec.spec.ph && rec.srv ? 'P' + (rec.srv.m ? 1 : 0) + (rec.srv.pbn ? rec.srv.pbn.s + (rec.srv.pbn.at || '') : '') + (phBurnLive(rec) ? 'b' : '') + (phKeys.has(rec.id) ? 'k' : '') : ''); };   // 24/10/2026: תרגום בטלפון — המדידות והצריבה   // v382: הערה שנקראה / ממתינה; סבב 10: העתק־הדבק
+    + (rec.spec.ph && rec.srv ? 'P' + (rec.srv.m ? 1 : 0) + (rec.srv.pbn ? rec.srv.pbn.s + (rec.srv.pbn.at || '') : '') + (phBurnLive(rec) ? 'b' : '') + (phKeys.has(rec.id) ? 'k' : '') + (rec.srv.ppr ? (rec.srv.ppr.s === 'err' ? 'E' : phPrepLive(rec) ? 'L' : '') : '') : ''); };   // 24/10/2026: תרגום בטלפון — המדידות והצריבה   // v382: הערה שנקראה / ממתינה; סבב 10: העתק־הדבק
   const incK = (j) => { const x = ui.inc && ui.inc.list.find((y) => y.j === j); return x ? x.no + x.st + x.s : ''; };
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : '') + '|' + incK(ui.param); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join() + '|' + (majorOn(ui.inc) ? ui.inc.mi.no + ':' + ui.inc.mi.n : '');
@@ -7960,7 +8008,7 @@ function schedulePoll() {
   let ms = 0;
   // v368: עבודה שמתאוששת — בודקים שוב בסוף החלון (אז השרתון ממשיך אותה)
   const recMs = (list) => { const t = Math.min(...list.filter(recovering).map((r) => r.srv.rw)); return Number.isFinite(t) ? Math.max(2000, Math.min(60000, t - Date.now() + 1500)) : 0; };
-  if (ui.view === 'job') { const r = jobRec(ui.param), st = r && r.srv ? r.srv.state : 'new'; ms = st === 'queued' || st === 'running' || phBurnLive(r) ? 4000 : st === 'new' && r && r.up.started ? 15000 : r ? recMs([r]) : 0; }
+  if (ui.view === 'job') { const r = jobRec(ui.param), st = r && r.srv ? r.srv.state : 'new'; ms = st === 'queued' || st === 'running' || phBurnLive(r) || phPrepLive(r) ? 4000 : st === 'new' && r && r.up.started ? 15000 : r ? recMs([r]) : 0; }
   else if (ui.view === 'home') ms = store.jobs.some((r) => r.srv && (r.srv.state === 'queued' || r.srv.state === 'running')) ? 15000 : recMs(store.jobs);
   else if (ui.view === 'rr') { ms = rrRunning(rrJobs.get(ui.param)) || rrRunning(rrPv.get(ui.param)) ? 4000 : 0; }   // מ2; סבב 10: גם הבדיקה
   else if (ui.view === 'server' && ui.api && ui.api.admin) ms = 15000;   // מסך השרת: הדופק מתעדכן כל 15 שנ׳

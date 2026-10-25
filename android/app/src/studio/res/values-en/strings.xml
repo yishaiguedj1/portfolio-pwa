@@ -48,6 +48,14 @@
     <string name="phStart">Starting the translation on the server…</string>
     <string name="phShots">Detecting shot changes (while the server transcribes)…</string>
     <string name="phUpM">Sending the measurements</string>
+    <string name="phModels">Downloading the models for on-phone translation (once, about 1.8GB)…</string>
+    <string name="phModelsP">Downloading the models · %1$d of %2$d MB</string>
+    <string name="phWav">Preparing the audio…</string>
+    <string name="phAsr">Transcribing on the phone…</string>
+    <string name="phDiar">Identifying the speakers…</string>
+    <string name="phAlign">Aligning every word to its time…</string>
+    <string name="phUpW">Sending the transcript (no audio)</string>
+    <string name="phStartPw">Starting the translation…</string>
     <string name="phSent">Translation is running on the server</string>
     <string name="phSentS">The video stays on the phone. When the translation is ready, tap \"Burn on the phone\" on the job page</string>
     <string name="phFailed">Translating on the phone stopped</string>

@@ -45,28 +45,43 @@ class Parakeet(dir: File, threads: Int, arena: Boolean = true) : Closeable {
     class Res(val text: String, val tokens: Int, val frames: Int)
 
     /** קטע אחד (16kHz מונו). זמן כל טוקן = פריים × 80ms — כמו window_step × subsampling ב־onnx_asr */
-    fun transcribe(wav: FloatArray): Res {
+    fun transcribe(wav: FloatArray): Res { val o = recognize(wav); return Res(vocab.text(o.tokens), o.tokens.size, o.n) }
+
+    /** הטוקנים, הפריים של כל אחד (זמן = פריים × 0.08, ‏timestamps של onnx_asr) ומספר הפריימים — לתמלול בטלפון */
+    class Rec(val tokens: List<Int>, val idx: List<Int>, val n: Int)
+
+    /** [feats] (אופציונלי) = המאפיינים מבחוץ, (128 × T בשורות, האורך האמיתי) — בטלפון NemoMel, כמו onnx_asr על מעבד */
+    fun recognize(wav: FloatArray, feats: ((FloatArray) -> Pair<FloatArray, Int>)? = null): Rec {
         val env = Ort.env
+        if (feats != null) {
+            val (f, n) = feats(wav)
+            val t = f.size / 128
+            Ort.floats(f, 1, 128, t.toLong()).use { x ->
+                OnnxTensor.createTensor(env, LongBuffer.wrap(longArrayOf(n.toLong())), longArrayOf(1)).use { l -> return encode(x, l) }
+            }
+        }
         Ort.floats(wav, 1, wav.size.toLong()).use { w ->
             OnnxTensor.createTensor(env, LongBuffer.wrap(longArrayOf(wav.size.toLong())), longArrayOf(1)).use { wl ->
                 pre.run(mapOf("waveforms" to w, "waveforms_lens" to wl)).use { p ->
-                    val feats = p.get("features").get() as OnnxTensor
-                    val flen = p.get("features_lens").get() as OnnxTensor
-                    enc.run(mapOf("audio_signal" to feats, "length" to flen)).use { e ->
-                        val out = e.get("outputs").get() as OnnxTensor            // (1, 1024, T')
-                        val n = (e.get("encoded_lengths").get() as OnnxTensor).longBuffer.get(0).toInt()
-                        val tFull = out.info.shape[2].toInt()
-                        val d = out.info.shape[1].toInt()
-                        val buf = out.floatBuffer
-                        val all = FloatArray(buf.remaining()); buf.get(all)
-                        return decode(all, d, tFull, minOf(n, tFull))
-                    }
+                    return encode(p.get("features").get() as OnnxTensor, p.get("features_lens").get() as OnnxTensor)
                 }
             }
         }
     }
 
-    private fun decode(all: FloatArray, d: Int, tFull: Int, frames: Int): Res {
+    private fun encode(feats: OnnxTensor, flen: OnnxTensor): Rec {
+        enc.run(mapOf("audio_signal" to feats, "length" to flen)).use { e ->
+            val out = e.get("outputs").get() as OnnxTensor            // (1, 1024, T')
+            val n = (e.get("encoded_lengths").get() as OnnxTensor).longBuffer.get(0).toInt()
+            val tFull = out.info.shape[2].toInt()
+            val d = out.info.shape[1].toInt()
+            val buf = out.floatBuffer
+            val all = FloatArray(buf.remaining()); buf.get(all)
+            return decode(all, d, tFull, minOf(n, tFull))
+        }
+    }
+
+    private fun decode(all: FloatArray, d: Int, tFull: Int, frames: Int): Rec {
         val env = Ort.env
         val v = vocab.size
         val frame = FloatArray(d)
@@ -96,7 +111,7 @@ class Parakeet(dir: File, threads: Int, arena: Boolean = true) : Closeable {
                 }
             }
         }
-        return Res(vocab.text(r.tokens), r.tokens.size, frames)
+        return Rec(r.tokens, r.frames, frames)
     }
 
     override fun close() { pre.close(); enc.close(); dec.close() }

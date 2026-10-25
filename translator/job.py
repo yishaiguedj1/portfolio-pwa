@@ -2172,6 +2172,8 @@ def prepare(args):
     """v360: התמלול מתחיל מהקול שהטלפון העלה ראשון — בלי לחכות לסרטון (שממשיך לעלות במקביל).
     הסרטון מצטרף ב־align (attach_video). אין קובץ קול (קודק שאי אפשר להעתיק) — מחכים לסרטון כמו קודם."""
     ctx = Ctx(load_state())
+    if pw_mode(ctx.st):
+        return prepare_pw(ctx)                     # 25/10/2026: תרגום בטלפון, שלב 2 — התמלול והיישור כבר בטלפון
     url_fetch(ctx)                                 # 22/10/2026: הורדה מקישור — הקול עכשיו, הסרטון ברקע
     files = ctx.st.get('files') or {}
     a = files.get('a') if (files.get('a') or {}).get('id') else None
@@ -2545,6 +2547,127 @@ def ph_reapply(ctx):
     ph_media_write(ctx, _ph_meta_load(ctx, m)[0])
 
 
+
+# ---------------------------------------------------------------- תרגום בטלפון, שלב 2 (25/10/2026): גם הקול לא עולה
+# spec.pw = הטלפון מתמלל (Parakeet), מזהה דוברים (WeSpeaker) ומיישר (Qwen) בעצמו — אותם מודלים של השרת — ומעלה רק את
+# המילים עם הזמנים (קובץ w) ואת קובץ המדידות (m), לפני ההתחלה. השרת: ההגהה, התכנון, התרגום, הביקורת והבנייה. בלי קול:
+# אין ingest/asr/align כאן; en.aligned.json = המילים המוגהות עם הזמנים של הטלפון (edit-import שומר את זמני המילים
+# שלא השתנו). אין CTC בטלפון (MMS_FA ‏CC-BY-NC — לא מפיצים) — רק Qwen, כמו vt align ‏--no-ctc.
+PW_V = 1
+PW_WORDS_MAX = 200000
+PW_SPK_RE = re.compile(r'^(S\d{1,2}|S\?)$')
+PW_ALIGN = ('qwen3', 'suspicious', 'approx')   # כמו vt/align.py
+
+
+def pw_mode(st) -> bool:
+    return ph_mode(st) and (st.get('spec') or {}).get('pw') == 1
+
+
+def pw_check(d, dur=None):
+    """{"v":1, "engine":"parakeet", "aligner":"...", "words":[{"w","s","e","spk"?,"align"?}], "diarize"?}. מחזיר את
+    התוכן של asr/parakeet.json או None. קלט מהטלפון: כל מה שלא בצורה — נזרק כולו."""
+    if not isinstance(d, dict) or d.get('v') != PW_V or not isinstance(d.get('words'), list):
+        return None
+    ws = d['words']
+    if not ws or len(ws) > PW_WORDS_MAX:
+        return None
+    hi = float(dur) + 5 if isinstance(dur, (int, float)) and dur > 0 else 24 * 3600
+    out, prev = [], -1.0
+    for w in ws:
+        if not isinstance(w, dict) or not isinstance(w.get('w'), str):
+            return None
+        t = w['w'].strip()
+        if not t or len(t) > 64 or any(ord(c) < 32 for c in t):
+            return None
+        if not _fin(w.get('s'), 0, hi) or not _fin(w.get('e'), 0, hi) or w['e'] < w['s'] or w['s'] < prev - 0.5:
+            return None
+        prev = w['s']
+        x = {'w': t, 's': round(float(w['s']), 3), 'e': round(float(w['e']), 3)}
+        if w.get('spk') is not None:
+            if not isinstance(w['spk'], str) or not PW_SPK_RE.match(w['spk']):
+                return None
+            x['spk'] = w['spk']
+        if w.get('align') is not None:
+            if w['align'] not in PW_ALIGN:
+                return None
+            x['align'] = w['align']
+        out.append(x)
+    res = {'engine': 'parakeet', 'model': 'nemo-parakeet-tdt-0.6b-v2', 'language': 'en', 'words': out, 'events': [],
+           'phone': 1, 'aligner': 'Qwen3-ForcedAligner-0.6B · ONNX INT8 (בטלפון)'}
+    dz = d.get('diarize')
+    if isinstance(dz, dict):
+        res['diarize'] = {k: dz[k] for k in ('speakers', 'units', 'seconds') if _fin(dz.get(k), 0, 1e6)}   # כמו vt/diarize.py (בלי talk_s — שמות)
+    return res
+
+
+def _pw_load(ctx, f, dur):
+    dest = VT_WORK / '_in' / (ctx.name + '.words.json')
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.unlink(missing_ok=True)
+    fetch_input(ctx, f['id'], dest, int(f.get('size') or 0))
+    try:
+        res = pw_check(json.loads(dest.read_text(encoding='utf-8')), dur)
+    except (OSError, ValueError):
+        res = None
+    if not res:
+        raise StepError('✗ קובץ המילים מהטלפון לא תקין.', 'ph_words')
+    return res
+
+
+def prepare_pw(ctx):
+    """במקום prepare: הטלפון כבר תמלל ויישר. מורידים את המדידות ואת המילים (שני קבצים קטנים), פרויקט vt בלי מקור
+    מדיה, media.json מה־ffprobe של הטלפון, asr/parakeet.json מהמילים — ואז edit-export כרגיל."""
+    files = ctx.st.get('files') or {}
+    m, w = files.get('m') or {}, files.get('w') or {}
+    if not m.get('id') or not w.get('id'):
+        raise StepError('✗ חסרים קבצים מהטלפון (המילים או המדידות).', 'ph_words')
+    ctx.report('tr', 0, 'מקבלים את התמליל מהטלפון', force=True)
+    probe, shots = _ph_meta_load(ctx, m)
+    ensure_env(ctx)
+    title = os.path.splitext(str(ctx.st['spec'].get('name') or ctx.name))[0][:120]
+    vt(ctx, ['new', ctx.name, '--source', 'phone:' + (ctx.st['spec'].get('name') or 'video')[:120], '--title', title, '--force'])
+    pd = ctx.pdir
+    ph_media_write(ctx, probe)
+    (pd / 'shots.json').write_text(json.dumps(shots, ensure_ascii=False), encoding='utf-8')
+    dur = None
+    try:
+        dur = float(probe['format'].get('duration') or 0) or None
+    except (TypeError, ValueError, KeyError):
+        pass
+    res = _pw_load(ctx, w, dur)
+    (pd / 'asr').mkdir(exist_ok=True)
+    (pd / 'asr' / 'parakeet.json').write_text(json.dumps(res, ensure_ascii=False), encoding='utf-8')
+    try:                                         # הסימונים ביומן הפרויקט — מידע בלבד
+        subprocess.run([VT_PY, '-c', 'import sys\nfrom vt.project import Project\np=Project(sys.argv[1])\np.mark("asr", engine="parakeet", words=int(sys.argv[2]), phone=1)\np.mark("shots", count=int(sys.argv[3]), phone=1)',
+                        ctx.name, str(len(res['words'])), str(len(shots['shots']))], cwd=str(HERE), env=vt_env(), capture_output=True)
+    except OSError:
+        pass
+    vt(ctx, ['edit-export', ctx.name])
+    inject_guard(ctx)
+    ctx.st['src'] = 'ph'
+    ctx.st['sync'] = {'off': 0.0, 'conf': 1.0}
+    save_state(ctx.st)
+    save_ck(ctx, 'asr')
+    spk = sorted({x.get('spk') for x in res['words'] if x.get('spk') and x['spk'] != 'S?'})
+    print('✓ התמליל מהטלפון: %d מילים · דוברים: %s · %d חילופי שוטים' % (len(res['words']), spk or '—', len(shots['shots'])))
+    ctx.report('tr', 1, 'התמליל מוכן — Claude מגיה אותו', force=True)
+    return 0
+
+
+def pw_aligned(ctx):
+    """במקום vt align: הזמנים כבר מהיישור בטלפון. en.aligned.json = המילים המוגהות (edit-import שמר את זמני המילים
+    שלא השתנו; מילה שהוגהה — זמן משוער בטווח של המקור, כמו לפני יישור)."""
+    pd = ctx.pdir
+    d = json.loads((pd / 'en.words.json').read_text(encoding='utf-8'))
+    words = d.get('words') or []
+    n_ed = sum(1 for x in words if x.get('edited'))
+    out = {'aligner': 'Qwen3-ForcedAligner-0.6B · ONNX INT8 (בטלפון)',
+           'stats': {'aligned': len(words) - n_ed, 'suspicious': 0, 'kept_approx': n_ed, 'seconds': 0, 'engine': 'phone'}, 'words': words}
+    tmp = pd / 'en.aligned.json.tmp'
+    tmp.write_text(json.dumps(out, ensure_ascii=False), encoding='utf-8')
+    tmp.replace(pd / 'en.aligned.json')
+    print('✓ הזמנים מהיישור בטלפון: %d מילים (%d שהוגהו — זמן משוער)' % (len(words), n_ed))
+
 # 21/10/2026 (מהיומנים של הייצור): זיהוי השוטים בסרטון של 87 דק׳ — 8.5 דק׳ ב־97% מעבד, ובמסלול "הקול קודם" הוא היה על
 # הנתיב הקריטי (לפני הביקורת). השוטים משמשים רק לתזמון בבנייה (הצמדה לחיתוכים); הביקורת והשופט עוסקים בטקסט, והם בעיקר
 # מחכים ל־Claude — המעבד פנוי. לכן: ברקע מהצירוף, ו־finish מחכה לו לפני הבנייה הסופית. SNB_SHOTS_BG=off = כמו קודם.
@@ -2871,7 +2994,10 @@ def align(args):
         base = 0.3                               # ההורדה וההתאמה כבר הזיזו את השלב — הפס לא חוזר אחורה
     vt(ctx, ['edit-import', ctx.name])
     ctx.report('al', base, 'מתאימים כל מילה לרגע שבו נאמרה', force=True)
-    vt(ctx, ['align', ctx.name], 'al', base, 0.9)
+    if pw_mode(ctx.st):
+        pw_aligned(ctx)                            # 25/10/2026: היישור כבר בטלפון
+    else:
+        vt(ctx, ['align', ctx.name], 'al', base, 0.9)
     vt(ctx, ['plan', ctx.name])
     vt(ctx, ['tr-prep', ctx.name])
     gl_merge(ctx)                                # v380: המונחים מהמילון שלך שמופיעים בסרטון
@@ -2899,7 +3025,10 @@ def align_prep(ctx):
 
 def align_run(ctx):
     """היישור המלא + עדכון הזמנים לכתוביות שכבר תוכננו. רץ ברקע בזמן שהתרגום עובד."""
-    vt(ctx, ['align', ctx.name], 'al', 0.05, 0.9)
+    if pw_mode(ctx.st):
+        pw_aligned(ctx)                            # 25/10/2026: היישור כבר בטלפון
+    else:
+        vt(ctx, ['align', ctx.name], 'al', 0.05, 0.9)
     vt(ctx, ['retime', ctx.name])
     save_ck(ctx, 'al')
     ctx.report('al', 1, 'כל מילה הותאמה לרגע שבו נאמרה', force=True)
@@ -4448,6 +4577,17 @@ def restore(args):
     apply_notes(ctx)                             # v382: הערות שכבר נקראו בסשן הקודם → לתדריך המשוחזר
     ctx.refresh()
     files = ctx.st.get('files') or {}
+    if pw_mode(ctx.st):
+        # 25/10/2026: תרגום בטלפון, שלב 2 — אין קול ואין סרטון בשרת; הפרויקט ששוחזר כולל את המילים מהטלפון
+        ensure_env(ctx, st_next)
+        ph_reapply(ctx)
+        ctx.st['src'] = 'ph'
+        ctx.st['resumed'] = used
+        ctx.st['proofed'] = bool(info.get('pr'))
+        save_state(ctx.st)
+        ctx.report(st_next, 0, 'ממשיכים מאותה נקודה', force=True)
+        print('✓ הפרויקט שוחזר מנקודת השמירה: אחרי ' + CK_LABEL[used] + '.')
+        return 0
     if info.get('src') == 's' or (ctx.st.get('spec') or {}).get('src') == 'subs':
         # 22/10/2026: קובץ כתוביות — אין מדיה להוריד; הפרויקט ששוחזר כבר כולל את הכתוביות המיובאות
         ensure_env(ctx, st_next)

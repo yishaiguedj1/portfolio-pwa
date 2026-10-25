@@ -94,6 +94,12 @@
             android:process=":ph"
             android:exported="false"
             android:foregroundServiceType="dataSync|mediaProcessing" />
+        <!-- 25/10/2026: הסרטון של "לתרגם בטלפון" נשמר עד שהפרויקט נמחק באתר — בדיקה ברקע פעם ב־12 שעות -->
+        <service
+            android:name=".PhGcJob"
+            android:process=":ph"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="false" />
         <service
             android:name=".DlJob"
             android:process=":dl"

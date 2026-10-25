@@ -15,6 +15,8 @@ import java.io.File
  * 24/10/2026 — תרגום בטלפון, שלב 1: העבודה בטלפון. שני חלקים, כל אחד בשירות בחזית (PhService):
  *  up    — הקול בלי קידוד → העלאה → רישום → התחלת העבודה בשרת → השוטים וה־ffprobe → העלאת קובץ המדידות.
  *          השרת מתמלל ומתרגם בינתיים; הסרטון לא עוזב את הטלפון.
+ *          שלב 2 (pw, 25/10/2026): המודלים → תמלול, דוברים ויישור בטלפון (PhLocal) → קובץ המילים → המדידות → התחלה.
+ *          גם הקול לא עוזב את הטלפון.
  *  burn  — כשהתרגום מוכן: he.ass מהשרתון → ffmpeg (libass) → MediaCodec (חומרה) → הקול מהמקור → Movies/Studio.
  * כל שלב נשמר ברשומה (PhStore) — עצירה של המערכת באמצע = ממשיכים מאותו שלב (וההעלאה מאותו חלק).
  */
@@ -24,6 +26,19 @@ object PhWork {
     private const val CH = "ph"
 
     class Stop(val code: String) : Exception(code)
+
+    /** דיווח התקדמות לשרתון: רק הערך האחרון נשלח, קריאה אחת בכל רגע. עד 25/10/2026 כל דיווח נכנס לתור — כשקריאה לקחה
+     *  יותר מ־5 שנ׳ התור גדל, ודף העבודה פיגר אחרי ההתראה (35% מול 51%, דיווח המשתמש) */
+    class Latest(private val send: (JSONObject) -> Unit) {
+        private val pending = java.util.concurrent.atomic.AtomicReference<JSONObject?>(null)
+        private val q = java.util.concurrent.Executors.newSingleThreadExecutor()
+        fun post(o: JSONObject) {
+            if (pending.getAndSet(o) == null) try { q.execute { while (true) { val x = pending.getAndSet(null) ?: break; try { send(x) } catch (e: Throwable) {} } } } catch (e: Throwable) {}
+        }
+        /** ההודעה האחרונה ("הסתיים"/"נכשל") — אחרי כל מה שבדרך, ומחכים לה */
+        fun last(o: JSONObject) { pending.set(null); try { q.execute { try { send(o) } catch (e: Throwable) {} } } catch (e: Throwable) {}; q.shutdown(); try { q.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS) } catch (e: Throwable) {} }
+        fun stop() { pending.set(null); q.shutdown() }
+    }
 
     private fun net(r: JSONObject) = PhNet(r.getString("base"), r.getString("job"), r.getString("key"))
     private fun src(ctx: Context, r: JSONObject): File {
@@ -38,14 +53,52 @@ object PhWork {
         val title = r.optString("name")
         val n = net(r)
         val work = PhStore.work(ctx, pid)
+        // שלב 2: מה הטלפון עושה — גם לדף העבודה (op:'phProg', לפני שהעבודה מתחילה; בתור — בלי לעכב את העבודה)
+        val pw0 = r.optBoolean("pw")
+        val q = Latest { o -> n.call("phProg", JSONObject().put("ppr", o)) }
+        var repAt = 0L; var repSt = ""
+        fun rep(st: String, p: Float, e: String? = null) {
+            if (!pw0 || r.optBoolean("started")) return
+            val now = System.currentTimeMillis()
+            if (st == repSt && e == null && now - repAt < 3000) return
+            repAt = now; repSt = st
+            val o = JSONObject().put("s", st).put("p", p.toDouble()); if (e != null) o.put("e", e)
+            if (e != null) q.last(o) else q.post(o)
+        }
         fun stage(st: String, text: Int, p: Float = -1f) {
             r = PhStore.update(ctx, pid) { it.put("st", st) } ?: r
             notify(ctx, progress(ctx, title, s(ctx, text), p))
+            rep(st, p)
         }
         try {
             val f = src(ctx, r)
+            val pw = r.optBoolean("pw")
+            // 0. שלב 2 ("הכל בטלפון"): המודלים, ואז התמלול, הדוברים והיישור כאן — עולה רק קובץ המילים (בלי קול)
+            if (pw && r.optString("wId").isEmpty()) {
+                if (!PhModels.ready(ctx)) {
+                    val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+                    if (cm.isActiveNetworkMetered && !r.optBoolean("cell")) throw Stop("models_wifi")
+                    stage("models", R.string.phModels, 0f)
+                    PhModels.fetch(ctx, stopped) { done, total ->
+                        notify(ctx, progress(ctx, title, s(ctx, R.string.phModelsP, done shr 20, total shr 20), done.toFloat() / total))
+                        rep("models", done.toFloat() / total) }
+                }
+                var lastSt = ""
+                val wf = PhLocal.run(ctx, work, f, stopped) { st, p ->
+                    if (st != lastSt) { lastSt = st; r = PhStore.update(ctx, pid) { it.put("st", st) } ?: r }
+                    val txt = when (st) { "wav" -> R.string.phWav; "asr" -> R.string.phAsr; "diar" -> R.string.phDiar; else -> R.string.phAlign }
+                    notify(ctx, progress(ctx, title, s(ctx, txt), p))
+                    rep(st, p)
+                }
+                stage("upw", R.string.phUpW, 0f)
+                val id = n.upload(wf, "application/json", "words.json", r.optString("wUp0"), r.optString("wUp"),
+                    { id, up -> PhStore.update(ctx, pid) { it.put("wUp0", id).put("wUp", up) } }, stopped) {}
+                val fr = n.call("phFile", JSONObject().put("which", "w").put("id", id))
+                if (!fr.optBoolean("ok")) throw Stop(fr.optString("error", "file"))
+                r = PhStore.update(ctx, pid) { it.put("wId", id) } ?: r
+            }
             // 1. הקול כמו שהוא (שניות)
-            if (r.optString("aId").isEmpty()) {
+            if (!pw && r.optString("aId").isEmpty()) {
                 val a = File(work, "audio.mka")
                 if (!a.isFile || a.length() == 0L) {
                     stage("audio", R.string.phAudio)
@@ -62,8 +115,8 @@ object PhWork {
                 r = PhStore.update(ctx, pid) { it.put("aId", id) } ?: r
                 a.delete()
             }
-            // 2. העבודה מתחילה בשרת (התמלול והתרגום רצים בזמן שהטלפון מודד את השוטים)
-            if (!r.optBoolean("started")) {
+            // 2. העבודה מתחילה בשרת (התמלול והתרגום רצים בזמן שהטלפון מודד את השוטים). "הכל בטלפון" — אחרי המדידות
+            if (!pw && !r.optBoolean("started")) {
                 stage("start", R.string.phStart)
                 val sr = n.call("phStart", JSONObject().put("ov", r.optBoolean("ov")))
                 if (!sr.optBoolean("ok")) throw Stop(sr.optString("error", "start"))
@@ -87,12 +140,20 @@ object PhWork {
                 if (!fr.optBoolean("ok")) throw Stop(fr.optString("error", "file"))
                 r = PhStore.update(ctx, pid) { it.put("mId", id) } ?: r
             }
+            if (pw && !r.optBoolean("started")) {
+                stage("start", R.string.phStartPw)
+                val sr = n.call("phStart", JSONObject().put("ov", r.optBoolean("ov")))
+                if (!sr.optBoolean("ok")) throw Stop(sr.optString("error", "start"))
+                r = PhStore.update(ctx, pid) { it.put("started", true) } ?: r
+            }
             PhStore.update(ctx, pid) { it.put("st", "wait") }
+            q.stop()
             nm(ctx).cancel(N_ID)
             nm(ctx).notify(N_DONE, simple(ctx, s(ctx, R.string.phSent), s(ctx, R.string.phSentS), webIntent(ctx, r, "")))
         } catch (e: Throwable) {
             val code = (e as? Stop)?.code ?: (e as? PhNet.Err)?.code ?: "fail"
-            if (code == "stopped" || stopped()) return                     // המערכת עצרה — ממשיכים בפעם הבאה מאותו שלב
+            if (code == "stopped" || stopped()) { q.stop(); return }   // המערכת עצרה — ממשיכים בפעם הבאה מאותו שלב
+            if (pw0 && !r.optBoolean("started")) rep("err", -1f, code.lowercase().filter { it in 'a'..'z' || it in '0'..'9' || it == '_' }.take(32).padEnd(2, '_')) else q.stop()
             PhStore.update(ctx, pid) { it.put("e", code).put("st", "err").put("est", r.optString("st")) }
             nm(ctx).cancel(N_ID)
             nm(ctx).notify(N_DONE, simple(ctx, s(ctx, R.string.phFailed), title, webIntent(ctx, r, code)))
@@ -107,10 +168,10 @@ object PhWork {
         val work = PhStore.work(ctx, pid)
         val small = r.optString("pb") == "small"
         val t0 = System.currentTimeMillis()
-        fun rep(o: JSONObject) { try { n.call("phBurn", JSONObject().put("pbn", o)) } catch (e: Throwable) {} }
-        // ההתקדמות נשלחת בתהליכון אחד, לפי הסדר — קריאה לרשת לא עוצרת את הקידוד, ו"הסתיים" לא נדרס ע"י אחוז שהגיע אחריו
-        val q = java.util.concurrent.Executors.newSingleThreadExecutor()
-        fun repDone(o: JSONObject) { q.shutdown(); try { q.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS) } catch (e: Throwable) {}; rep(o) }
+        // ההתקדמות נשלחת בתהליכון אחד (רק הערך האחרון) — קריאה לרשת לא עוצרת את הקידוד, ו"הסתיים" לא נדרס ע"י אחוז שהגיע אחריו
+        val q = Latest { o -> n.call("phBurn", JSONObject().put("pbn", o)) }
+        fun rep(o: JSONObject) = q.post(o)
+        fun repDone(o: JSONObject) = q.last(o)
         try {
             val f = src(ctx, r)
             r = PhStore.update(ctx, pid) { it.put("st", "burn").remove("e") } ?: r
@@ -137,8 +198,8 @@ object PhWork {
                 PhCore.bitrate(f.length(), info.dur, small), v, File(work, "ff.err"), (info.dur * info.fps).toInt(), stopped) { p ->
                 notify(ctx, progress(ctx, title, s(ctx, R.string.phBurning, (p * 100).toInt().coerceIn(0, 100)), p))
                 val now = System.currentTimeMillis()
-                // כל 5 שנ׳, בתהליכון נפרד — דף העבודה מציג את האחוז, והקריאה לרשת לא עוצרת את הקידוד
-                if (now - lastRep > 5_000) { lastRep = now; val o = JSONObject().put("s", "run").put("p", p * 0.95); q.execute { rep(o) } }
+                // כל 2 שנ׳ (רק האחרון נשלח) — דף העבודה מציג אותו אחוז של ההתראה
+                if (now - lastRep > 2_000) { lastRep = now; rep(JSONObject().put("s", "run").put("p", p.coerceIn(0f, 1f).toDouble())) }
             }
             if (stopped()) throw Stop("stopped")
             if (!res.ok) throw Stop(res.err ?: "encode")
@@ -154,12 +215,12 @@ object PhWork {
             v.delete()
             repDone(JSONObject().put("s", "done").put("sz", sz).put("ms", System.currentTimeMillis() - t0))
             PhStore.update(ctx, pid) { it.put("st", "done").put("out", uri.toString()) }
-            f.delete()                                             // העותק של הסרטון — כבר לא נחוץ
+            // העותק של הסרטון נשמר לצריבה נוספת — עד שהפרויקט נמחק באתר (PhStore.gcRemote, בקשת המשתמש 25/10/2026)
             nm(ctx).cancel(N_ID)
             nm(ctx).notify(N_DONE, savedNotif(ctx, title, uri))
         } catch (e: Throwable) {
             val code = (e as? Stop)?.code ?: (e as? PhNet.Err)?.code ?: "fail"
-            if (code == "stopped" || stopped()) { q.shutdown(); return }
+            if (code == "stopped" || stopped()) { q.stop(); return }
             repDone(JSONObject().put("s", "fail").put("e", code))
             PhStore.update(ctx, pid) { it.put("e", code).put("st", "err").put("est", "burn") }
             nm(ctx).cancel(N_ID)

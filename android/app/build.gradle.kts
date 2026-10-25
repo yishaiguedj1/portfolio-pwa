@@ -62,7 +62,7 @@ android {
     }
     sourceSets {
         getByName("academy").java.srcDir("src/lite/java")
-        getByName("studio").java.srcDirs("src/lite/java", "src/grab/java", "src/ytdl/java")
+        getByName("studio").java.srcDirs("src/lite/java", "src/grab/java", "src/ytdl/java", "src/phcore/java", "src/labcore/java")   // 25/10/2026: phcore = התמלול, הדוברים והיישור בטלפון (שלב 2); labcore = ONNX Runtime ו־Parakeet של Studio Lab
         getByName("studio").assets.srcDir("../../translator/fonts")   // 24/10/2026: הגופנים של הכתוביות (vt) — לצריבה בטלפון (PhWork)   // grab = VideoUrl (גם דפדפן הציד וגם הבועה); ytdl = מנוע yt-dlp (משותף עם Studio DM)
         getByName("bubble").java.srcDirs("src/lite/java", "src/grab/java")
         getByName("dm").java.srcDirs("src/lite/java", "src/dmcore/java", "src/ytdl/java", "src/grab/java")   // lite = Flavor (MainActivity של main נבנה גם כאן, ויוצא מהמניפסט)
@@ -121,6 +121,7 @@ dependencies {
     // יוטיוב) ו־ffmpeg (מיזוג בלי קידוד). GPL-3.0. yt-dlp עצמו מתעדכן מתוך האפליקציה (DlEngine.prepare)
     "studioImplementation"("io.github.junkfood02.youtubedl-android:library:0.18.1")
     "studioImplementation"("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
+    "studioImplementation"("com.microsoft.onnxruntime:onnxruntime-android:1.30.0")   // 25/10/2026: תרגום בטלפון, שלב 2 — אותה גרסה של השרת
     "testStudioImplementation"("org.json:json:20240303")   // org.json של אנדרואיד לא רץ ב־JVM (DlProbeTest)
     // 23/10/2026: ווידג'ט מדדי השרתים (admin) — אותן גרסאות כמו Invest (Glance, WorkManager) + Compose runtime כמו שאר הטעמים
     "adminImplementation"("androidx.glance:glance-appwidget:1.2.0")
