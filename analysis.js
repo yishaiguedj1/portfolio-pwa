@@ -1046,12 +1046,14 @@ function estSheet() {
       h('div', { class: 'an-rv' }, fmt(e, 'ps', co), g != null ? h('small', { class: g >= 0 ? 'an-up' : 'an-down' }, sgn(g)) : null)))));
   });
 }
-const FLAG_KEYS = { bal: 'anFlBal', eps: 'anFlEps', neg: 'anFlNeg', scale: 'anFlScale', q4: 'anFlQ4', xy: 'anFlXy' };
+const FLAG_KEYS = { bal: 'anFlBal', eps: 'anFlEps', neg: 'anFlNeg', scale: 'anFlScale', q4: 'anFlQ4', xy: 'anFlXy', face: 'anFlFace', fix: 'anFlFix', gp: 'anFlGp', part: 'anFlPart' };
+const flagUnit = (m) => (m === 'eps' ? 'ps' : m === 'sh' ? 'shares' : (M[m] && M[m].u) || 'money');
 function flagSheet() {
   const co = S.co;
   openSheet(T('anFlTitle'), (b) => {
     b.append(h('p', { class: 'an-ex' }, T('anFlEx')), h('div', { class: 'an-list' }, ...co.flags.map((f) => h('div', { class: 'an-row' },
-      h('span', { class: 'an-ic na' }, '!'), h('div', { class: 'an-rt' }, h('b', {}, T(FLAG_KEYS[f.k] || 'anFlOther')), h('span', {}, T('anYearOf', { y: f.p.slice(0, 4) }) + (f.m && M[f.m] ? ' · ' + T(M[f.m].n) : '')))))));
+      h('span', { class: 'an-ic na' }, '!'), h('div', { class: 'an-rt' }, h('b', {}, T(FLAG_KEYS[f.k] || 'anFlOther')), h('span', {}, T('anYearOf', { y: f.p.slice(0, 4) }) + (f.m && M[f.m] ? ' · ' + T(M[f.m].n) : '')
+        + (f.k === 'face' && f.f != null ? ' · ' + T('anFlFaceV', { f: fmt(f.f, flagUnit(f.m), co), v: fmt(f.v, flagUnit(f.m), co) }) : '')))))));
   });
 }
 

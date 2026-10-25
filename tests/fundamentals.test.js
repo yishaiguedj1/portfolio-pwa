@@ -105,6 +105,73 @@ ok(F.normalizeSec(facts([['Revenues', 'USD', yrs([38, 41], 2024)], ['RevenuesNet
 // צניחה אמיתית (בלי תגית חלופית) לא נוגעים בה
 ok(F.normalizeSec(facts([['Revenues', 'USD', yrs([100, 40, 110], 2019)]]), []).A.rev.join() === '100,40,110', 'צניחה אמיתית בלי חלופה — נשארת');
 
+/* ---------- שכבה 1: הדוח כפי שהוגש (FilingSummary + דפי R) ---------- */
+const SF = require(path.join(root, 'ibkr-proxy/lib/secface.js'));
+const FSUM = `<FilingSummary><MyReports>
+<Report instance="x"><HtmlFileName>R2.htm</HtmlFileName><ShortName>Cover</ShortName><MenuCategory>Cover</MenuCategory></Report>
+<Report instance="x"><HtmlFileName>R3.htm</HtmlFileName><ShortName>Consolidated Statements of Operations</ShortName><MenuCategory>Statements</MenuCategory></Report>
+<Report instance="x"><HtmlFileName>R4.htm</HtmlFileName><ShortName>Consolidated Statements of Comprehensive Income</ShortName><MenuCategory>Statements</MenuCategory></Report>
+<Report instance="x"><HtmlFileName>R5.htm</HtmlFileName><ShortName>Consolidated Balance Sheets</ShortName><MenuCategory>Statements</MenuCategory></Report>
+<Report instance="x"><HtmlFileName>R6.htm</HtmlFileName><ShortName>Consolidated Balance Sheets (Parenthetical)</ShortName><MenuCategory>Statements</MenuCategory></Report>
+<Report instance="x"><HtmlFileName>R8.htm</HtmlFileName><ShortName>Consolidated Statements of Cash Flows</ShortName><MenuCategory>Statements</MenuCategory></Report>
+</MyReports></FilingSummary>`;
+ok(JSON.stringify(SF.pickStatements(FSUM)) === '{"is":"R3.htm","bs":"R5.htm","cf":"R8.htm"}', 'FilingSummary: רווח והפסד, מאזן ותזרים — בלי "רווח כולל" ובלי Parenthetical');
+const row = (cls, tag, label, vals) => `<tr class="${cls}"><td class="pl"><a onclick="Show.showAR( this, 'defref_${tag}', window );">${label}</a></td>${vals.map((v) => `<td class="nump">${v}<span></span></td>`).join('')}</tr>`;
+const RIS = `<table><tr><th class="tl" colspan="1" rowspan="2"><div><strong>Consolidated Statements of Operations - USD ($)<br> shares in Millions, $ in Millions</strong></div></th><th class="th" colspan="2">12 Months Ended</th></tr>
+<tr><th class="th"><div>Dec. 31, 2025</div></th><th class="th"><div>Dec. 31, 2024</div></th></tr>
+${row('ro', 'us-gaap_Revenues', 'Net revenue', ['$ 222', '$ 189'])}${row('re', 'us-gaap_IncomeTaxExpenseBenefit', 'Income tax', ['(30)', '(25)'])}${row('reu', 'us-gaap_EarningsPerShareDiluted', 'Diluted EPS', ['$ 1.50', '$ 1.20'])}
+${row('ro', 'us-gaap_WeightedAverageNumberOfDilutedSharesOutstanding', 'Diluted shares', ['100', '100'])}</table>`;
+const pr = SF.parseR(RIS);
+ok(pr.cols.map((c) => c.end + '/' + c.months).join() === '2025-12-31/12,2024-12-31/12' && pr.scale.cur === 1e6 && pr.scale.sh === 1e6, 'דף R: תאריכים, "12 Months Ended" וקנה מידה');
+ok(SF.rowVals(pr, pr.rows[0]).join() === '222000000,189000000' && SF.rowVals(pr, pr.rows[1]).join() === '-30000000,-25000000' && SF.rowVals(pr, pr.rows[2]).join() === '1.5,1.2' && SF.rowVals(pr, pr.rows[3])[0] === 1e8, 'דף R: מיליונים, סוגריים = מינוס, למניה בלי קנה מידה, מניות לפי "shares in"');
+// תגית בדוח גוברת על סדר העדיפות; כל ערך מושווה לדוח
+const FACEX = facts([
+  ['RevenuesNetOfInterestExpense', 'USD', yrs([180, 210], 2024)],
+  ['Revenues', 'USD', yrs([189, 222], 2024)],
+  ['IncomeTaxExpenseBenefit', 'USD', yrs([25e6, 30e6], 2024)],
+  ['EarningsPerShareDiluted', 'USD/shares', yrs([1.2, 1.5], 2024)],
+  ['WeightedAverageNumberOfDilutedSharesOutstanding', 'shares', yrs([100e6, 100e6], 2024)],
+]);
+FACEX.facts['us-gaap'].Revenues.units.USD.forEach((r) => { r.val *= 1e6; });
+FACEX.facts['us-gaap'].RevenuesNetOfInterestExpense.units.USD.forEach((r) => { r.val *= 1e6; });
+const dfx = F.normalizeSec(FACEX, [], { is: pr });
+ok(dfx.tags.rev === 'Revenues' && dfx.A.rev.join() === '189000000,222000000', 'התגית שהחברה הציגה בדוח גוברת על סדר העדיפות');
+const fc = F.faceCheck(dfx, { is: pr });
+ok(fc.seen.n === 8 && fc.seen.ok === 8 && !fc.out.length, 'מול הדוח: הכנסות, מס (מינוס בדוח = הוצאה), רווח למניה ומניות — כולם תואמים');
+dfx.A.rev[1] = 230e6;
+ok(F.faceCheck(dfx, { is: pr }).out.some((c) => c.k === 'face' && c.m === 'rev' && c.p === '2025-12-31' && c.f === 222e6), 'ערך שלא תואם לדוח — מסומן עם הערך מהדוח');
+// השקעות הוניות = כל השורות שבדוח (רכוש קבוע + תוכנה), רק בשנים שבהן שתיהן קיימות
+const RCF = `<table><tr><th class="tl"><div><strong>Cash Flows - USD ($)<br> $ in Millions</strong></div></th><th class="th" colspan="1">12 Months Ended</th></tr><tr><th class="th"><div>Dec. 31, 2025</div></th></tr>
+${row('ro', 'us-gaap_PaymentsToAcquirePropertyPlantAndEquipment', 'PP&E', ['(489)'])}${row('re', 'us-gaap_PaymentsToAcquireSoftware', 'Software', ['(726)'])}</table>`;
+const CPX = facts([
+  ['Revenues', 'USD', yrs([1, 1, 1], 2023)],
+  ['PaymentsToAcquirePropertyPlantAndEquipment', 'USD', yrs([371e6, 474e6, 489e6], 2023)],
+  ['PaymentsToAcquireSoftware', 'USD', yrs([720e6, 726e6], 2024)],
+]);
+const dcx = F.normalizeSec(CPX, [], { cf: SF.parseR(RCF) });
+ok(dcx.A.capex.join() === ',' + [1194e6, 1215e6].join() || (dcx.A.capex[0] == null && dcx.A.capex[1] === 1194e6 && dcx.A.capex[2] === 1215e6), 'השקעות הוניות = רכוש קבוע + תוכנה; שנה בלי אחד החלקים — ריקה (לא קפיצה)');
+// מספר מניות בקנה מידה שגוי (McDonald's): רווח ÷ EPS = מניות × מיליון
+const MCDX = facts([['NetIncomeLoss', 'USD', yrs([8223e6, 8563e6], 2024)], ['EarningsPerShareDiluted', 'USD/shares', yrs([11.39, 11.95], 2024)],
+  ['WeightedAverageNumberOfDilutedSharesOutstanding', 'shares', yrs([721.9, 716.4], 2024)]]);
+const dmc = F.normalizeSec(MCDX, []);
+ok(Math.round(dmc.A.sh[1]) === 716400000 && dmc.fixes.length === 2 && F.validate(dmc).some((c) => c.k === 'fix' && c.m === 'sh'), 'מניות במיליונים בלי קנה מידה — מתוקן ונרשם');
+// פיצול חברה ש־Yahoo רושם כ"ספליט" (GE Vernova, 1.25) — לא נוגעים ב־EPS
+const SPIN = facts([['NetIncomeLoss', 'USD', yrs([9e9, 6e9], 2023)], ['EarningsPerShareDiluted', 'USD/shares', yrs([8.36, 5.5], 2023)],
+  ['WeightedAverageNumberOfDilutedSharesOutstanding', 'shares', yrs([1.09e9, 1.09e9], 2023)]]);
+ok(F.normalizeSec(SPIN, [['2024-04-02', 1.253]]).A.eps[0] === 8.36, 'פיצול חברה (יחס 1.25, המניות לא קפצו) — לא "ספליט"');
+// זהויות חדשות
+const IDN = facts([
+  ['Revenues', 'USD', yrs([100, 110], 2024)], ['CostOfRevenue', 'USD', yrs([60, 70], 2024)], ['GrossProfit', 'USD', yrs([40, 30], 2024)],
+  ['OperatingIncomeLoss', 'USD', yrs([20, 120], 2024)],
+  ['Assets', 'USD', [[null, '2024-12-31', 100, '10-K', '2025-02-01'], [null, '2025-12-31', 100, '10-K', '2026-02-01']]],
+  ['AssetsCurrent', 'USD', [[null, '2025-12-31', 120, '10-K', '2026-02-01']]],
+  ['LiabilitiesAndStockholdersEquity', 'USD', [[null, '2024-12-31', 100, '10-K', '2025-02-01'], [null, '2025-12-31', 104, '10-K', '2026-02-01']]],
+]);
+const vi = F.validate(F.normalizeSec(IDN, []));
+ok(vi.some((c) => c.k === 'gp' && c.p === '2025-12-31') && !vi.some((c) => c.k === 'gp' && c.p === '2024-12-31'), 'רווח גולמי ≠ הכנסות − עלות המכר — מסומן');
+ok(vi.some((c) => c.k === 'part' && c.m === 'ca') && vi.some((c) => c.k === 'part' && c.m === 'op'), 'רכוש שוטף > סך נכסים, רווח תפעולי > הכנסות — מסומנים');
+ok(vi.some((c) => c.k === 'bal' && c.p === '2025-12-31') && !vi.some((c) => c.k === 'bal' && c.p === '2024-12-31'), 'נכסים ≠ סך התחייבויות והון — מסומן');
+
 /* ---------- Yahoo ---------- */
 const ts = { timeseries: { result: [
   ['annualTotalRevenue', [['2024-12-31', 1000], ['2025-12-31', 1100]]],
