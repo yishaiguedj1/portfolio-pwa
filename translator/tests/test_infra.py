@@ -251,6 +251,7 @@ class Rooms(unittest.TestCase):
             open(os.path.join(d, 'rev-' + tag), 'w').write(r)
         def sub(t):
             t = t.replace('/etc/snb', etc).replace('/opt/snb', opt).replace('/var/lib/snb', d + '/var')
+            t = t.replace('/etc/systemd/system', d + '/systemd').replace('/run/systemd/system', d + '/var')   # 25/10/2026: קובץ ההשלמה לטיימר
             t = t.replace('. /usr/local/lib/snb/common.sh', '. ' + lib + '/common.sh')
             if mem_kb:
                 t = t.replace("/proc/meminfo", d + '/meminfo')
@@ -259,13 +260,21 @@ class Rooms(unittest.TestCase):
         open(d + '/upd', 'w').write(sub(read('infra/host/snb-update')))
         if mem_kb:
             open(d + '/meminfo', 'w').write('MemTotal: %d kB\n' % mem_kb)
-        for name, body in (('docker', FAKE_DOCKER), ('cosign', FAKE_COSIGN), ('logger', '#!/bin/sh\nexit 0\n'), ('runsc', '#!/bin/sh\n')):
+        for name, body in (('docker', FAKE_DOCKER), ('cosign', FAKE_COSIGN), ('logger', '#!/bin/sh\nexit 0\n'), ('runsc', '#!/bin/sh\n'),
+                           ('systemctl', '#!/bin/sh\necho "$*" >> "$T/systemctl"\n')):
             p = os.path.join(binp, name); open(p, 'w').write(body); os.chmod(p, 0o755)
         env = dict(os.environ, PATH=binp + ':' + os.environ['PATH'], LOG=d + '/log', T=d, FAIL_PULL=fail_pull, BAD_APP_SIG=bad_app)
         r = subprocess.run(['sh', d + '/upd'] + (['--now'] if now else []), capture_output=True, text=True, env=env, timeout=30)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         rd = lambda f: open(os.path.join(d, f)).read() if os.path.exists(os.path.join(d, f)) else ''
-        return {'env': rd('opt/.env'), 'compose': rd('compose'), 'pulled': rd('pulled'), 'out': r.stdout, 'dir': d}
+        return {'env': rd('opt/.env'), 'compose': rd('compose'), 'pulled': rd('pulled'), 'out': r.stdout, 'dir': d,
+                'timer': rd('systemd/snb-update.timer.d/10-fast.conf'), 'systemctl': rd('systemctl')}
+
+    def test_timer_fast(self):
+        """25/10/2026: שרת קיים — snb-update כותב פעם אחת קובץ השלמה (בדיקה כל 2 דקות) וטוען מחדש את הטיימר"""
+        r = self.run_update(['worker.env'])
+        self.assertIn('OnUnitActiveSec=\nOnUnitActiveSec=2min', r['timer'])
+        self.assertEqual(r['systemctl'].split('\n')[:2], ['daemon-reload', 'restart snb-update.timer'])
 
     def test_prod_only_unchanged(self):
         r = self.run_update(['worker.env'])
