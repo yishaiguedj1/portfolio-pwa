@@ -1903,7 +1903,7 @@ async function needFa() {
 }
 function faKind(k) {
   switch (k) {
-    case 'face': return t('admFaK_face'); case 'fix': return t('admFaK_fix'); case 'bal': return t('admFaK_bal'); case 'neg': return t('admFaK_neg');
+    case 'face': return t('admFaK_face'); case 'fix': return t('admFaK_fix'); case 'ffill': return t('admFaK_ffill'); case 'ffix': return t('admFaK_ffix'); case 'bal': return t('admFaK_bal'); case 'neg': return t('admFaK_neg');
     case 'scale': return t('admFaK_scale'); case 'eps': return t('admFaK_eps'); case 'gp': return t('admFaK_gp'); case 'part': return t('admFaK_part');
     case 'q4': return t('admFaK_q4'); case 'qneg': return t('admFaK_qneg'); case 'xy': return t('admFaK_xy'); case 'gold': return t('admFaK_gold');
     default: return t('admFaK_other');
@@ -1927,7 +1927,7 @@ page('labFund', { tab: 'imp', parent: 'lab', title: () => t('admFaT'), render(p)
     tileEl('blue', t('admFaCos'), faPct(v.face.coPct), fmt(t('admFaCosS'), { ok: v.face.coOk, n: v.face.cos }), '', null),
     tileEl(v.gold.bad ? 'red' : 'purple', t('admFaGold'), v.gold.bad ? fmt(t('admFaGoldBad'), { n: v.gold.bad }) : t('admFaGoldOk'), fmt(t('admFaGoldS'), { n: v.gold.n }), v.gold.bad ? 'dn' : '', null)));
   if ((v.gi || []).length) p.append(grp(t('admFaGoldList')), list(...v.gi.map((x) => row({ c: 'red', ic: '!', t: ltr(x.sym + ' · ' + x.m + ' · ' + x.p), s: fmt(t('admFaVs'), { f: faNum(x.f), v: faNum(x.v) }) }))));
-  if ((v.kinds || []).length) p.append(grp(t('admFaKinds')), list(...v.kinds.map((x) => row({ c: x.k === 'fix' ? 'blue' : x.k === 'xy' || x.k === 'q4' ? 'gray' : 'orange', ic: x.k === 'fix' ? '✓' : '!', t: faKind(x.k), s: ltr(x.k),
+  if ((v.kinds || []).length) p.append(grp(t('admFaKinds')), list(...v.kinds.map((x) => row({ c: /^(fix|ffill|ffix)$/.test(x.k) ? 'blue' : x.k === 'xy' || x.k === 'q4' ? 'gray' : 'orange', ic: /^(fix|ffill|ffix)$/.test(x.k) ? '✓' : '!', t: faKind(x.k), s: ltr(x.k),
     v: numTxt(x.n), tr: x.d ? (x.d > 0 ? '+' : '−') + Math.abs(x.d) : '', trc: x.d > 0 ? 'dn' : x.d < 0 ? 'up' : '' }))));
   if ((v.cos || []).length) p.append(grp(t('admFaCo')), list(...v.cos.slice(0, 15).map((c) => row({ c: 'orange', ic: '≠', t: ltr(c.sym), s: fmt(t('admFaCosS'), { ok: c.ok, n: c.n }) + (c.form ? ' · ' + c.form : ''),
     v: faPct(c.ok / c.n * 100), meter: [c.ok / c.n * 100, c.ok / c.n < 0.9 ? 'x' : 'w'], on: c.url ? () => { try { window.open(c.url, '_blank', 'noopener'); } catch (e) {} } : null }))));
