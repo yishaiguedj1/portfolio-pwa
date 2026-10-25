@@ -100,6 +100,8 @@ const PG = facts([
   ['SalesRevenueNet', 'USD', yrs([77, 81, 82, 80, 74, 71], 2010)],
 ]);
 ok(F.normalizeSec(PG, []).A.rev.join() === '77,81,82,80,74,71,65,65,67', 'רצף שגוי באמצע מוחלף בתגית שמתיישרת עם השכנים');
+// בנק / כרטיסי אשראי (American Express): הסך = הכנסות נטו מהוצאות ריבית, Revenues = רק חלק
+ok(F.normalizeSec(facts([['Revenues', 'USD', yrs([38, 41], 2024)], ['RevenuesNetOfInterestExpense', 'USD', yrs([66, 72], 2024)]]), []).A.rev.join() === '66,72', 'בנקים: RevenuesNetOfInterestExpense קודם ל־Revenues');
 // צניחה אמיתית (בלי תגית חלופית) לא נוגעים בה
 ok(F.normalizeSec(facts([['Revenues', 'USD', yrs([100, 40, 110], 2019)]]), []).A.rev.join() === '100,40,110', 'צניחה אמיתית בלי חלופה — נשארת');
 
