@@ -74,6 +74,10 @@ class TestComponents(unittest.TestCase):
         p[40:46, 100:300] = 0.35         # ציון נמוך
         bs = B.prob_boxes(p, 200, fh, fw)
         self.assertEqual(len(bs), 1)
+        big = np.zeros((200, fw), np.float32)
+        big[10:70, 100:300] = 0.95       # גוש של 60 שורות (0.17 מהגובה) — רגליים ודוכן, לא שורת טקסט
+        self.assertEqual(B.prob_boxes(big, 0, fh, fw), [])
+        self.assertEqual(len(bs), 1)
         x1, y1, x2, y2 = bs[0]
         self.assertAlmostEqual(y1, 220 / fh, places=3)
         self.assertAlmostEqual(x1, 100 / fw, places=3)

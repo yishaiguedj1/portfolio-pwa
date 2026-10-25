@@ -36,6 +36,7 @@ BOX_THR = 0.5            # ציון ממוצע מינימלי לתיבה (כמו
 MIN_H = 0.012            # תיבה נמוכה מזה (חלק מהגובה) = רעש
 MIN_W = 0.03             # תיבה צרה מזה (חלק מהרוחב) = רעש (פרחים, נצנוץ) — טקסט אמיתי רחב
 MIN_AR = 1.0             # רוחב/גובה (בפיקסלים) — טקסט הוא לפחות מרובע
+MAX_H = 0.12             # תיבה גבוהה מזה = לא שורת טקסט (רגליים ודוכן נאום בהרצאה, 0.15–0.33 מהגובה) — בשקפים 99% עד 0.04
 REC_H = 48               # גובה הקלט של rec
 REC_SCORE = 0.5          # ביטחון ממוצע מינימלי בתווים (כמו text_score של RapidOCR)
 REC_MIN = 2              # לפחות 2 תווים
@@ -119,7 +120,7 @@ def prob_boxes(prob, y0: int, fh: int, fw: int = W) -> list[list[float]]:
     """מפת ההסתברות של פס (שמתחיל בשורה y0) → [[x1, y1, x2, y2], ...] יחסית לפריים (0–1)."""
     out = []
     for ya, yb, xa, xb, g in components(prob > THR):
-        if (yb - ya) / fh < MIN_H or (xb - xa) / fw < MIN_W or (xb - xa) < MIN_AR * (yb - ya):
+        if (not MIN_H <= (yb - ya) / fh <= MAX_H) or (xb - xa) / fw < MIN_W or (xb - xa) < MIN_AR * (yb - ya):
             continue
         tot = sum(float(prob[y, a:b].sum()) for y, a, b in g)
         if tot / max(1, sum(b - a for _, a, b in g)) < BOX_THR:
