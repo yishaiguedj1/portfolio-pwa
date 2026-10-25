@@ -2520,6 +2520,11 @@ function heroState(rec, run, ph) {
   }
   if (ph === 'failed' || ph === 'cancelled') return { pct: m.pct, big: ph === 'failed' ? T('studioBFailed') : T('studioBCancelled'), sub: '' };
   if (ph === 'stuck') return { pct: m.pct, big: T('studioStuckBig'), sub: '' };
+  if (rec.up.ph && (!rec.srv || !rec.srv.state || rec.srv.state === 'new')) {   // 25/10/2026: העבודה עוד בטלפון — לא "הקבצים מוכנים בענן"
+    const q = rec.srv && rec.srv.ppr;
+    if (q && q.s === 'err') return { pct: 0, big: T('studioPhStopBig'), sub: '' };
+    return { pct: q && q.p >= 0 ? q.p : 0, big: T('studioPhBig'), sub: q ? pprText(q) : T('studioPhBigS') };
+  }
   if (ph === 'ready') return { pct: 1, check: true, big: T('studioReadyBig'),
     sub: rec.up.wait === 'worker_not_ready' ? T('studioWaitWorkerS') : rec.up.wait === 'conn_missing' ? T('studioNeedConnS') : T('studioTotalEst', { t: fmtLeft(m.left80) }) };
   const u = uploadLeft(rec, run);
@@ -3830,7 +3835,7 @@ function phCard(rec) {
   const srv = rec.srv || {}, b = srv.pbn, st = srv.state;
   const card = h('div', 'st-card st-ph');
   card.append(h('b', null, T('studioPhCardT')));
-  const lines = [srv.m ? T('studioPhMeasured') : T('studioPhNotMeasured')];
+  const lines = [srv.m ? T('studioPhMeasured') : rec.spec.pw ? T('studioPhNotMeasuredPw') : T('studioPhNotMeasured')];
   const burning = phBurnLive(rec);
   if (b && b.s === 'done' && !burning) lines.push(T('studioPhBurned', { s: b.sz ? fmtSize(b.sz) : '' }));
   else if (b && b.s === 'fail' && !burning) lines.push(T('studioPhBurnFail') + (b.e ? ' (' + b.e + ')' : ''));

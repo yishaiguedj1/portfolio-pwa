@@ -40,6 +40,11 @@ object PhWork {
         fun stop() { pending.set(null); q.shutdown() }
     }
 
+    /** קוד לכשל: שלנו כמו שהוא; כל חריגה אחרת — ‎x_<סוג החריגה>‎ (עד 25/10/2026 "fail" לכולן, ולא היה אפשר לדעת מה קרה) */
+    fun codeOf(e: Throwable): String = (e as? Stop)?.code ?: (e as? PhNet.Err)?.code
+        ?: ("x_" + e.javaClass.simpleName.lowercase().filter { it in 'a'..'z' || it in '0'..'9' }).take(32).let { if (it == "x_") "fail" else it }
+            .also { android.util.Log.e("PhWork", "fail", e) }
+
     private fun net(r: JSONObject) = PhNet(r.getString("base"), r.getString("job"), r.getString("key"))
     private fun src(ctx: Context, r: JSONObject): File {
         val f = File(r.optString("src"))
@@ -76,8 +81,7 @@ object PhWork {
             // 0. שלב 2 ("הכל בטלפון"): המודלים, ואז התמלול, הדוברים והיישור כאן — עולה רק קובץ המילים (בלי קול)
             if (pw && r.optString("wId").isEmpty()) {
                 if (!PhModels.ready(ctx)) {
-                    val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
-                    if (cm.isActiveNetworkMetered && !r.optBoolean("cell")) throw Stop("models_wifi")
+                    // גם בחבילת גלישה (בקשת המשתמש 25/10/2026 — עד היום רק ב־Wi‑Fi)
                     stage("models", R.string.phModels, 0f)
                     PhModels.fetch(ctx, stopped) { done, total ->
                         notify(ctx, progress(ctx, title, s(ctx, R.string.phModelsP, done shr 20, total shr 20), done.toFloat() / total))
@@ -151,7 +155,7 @@ object PhWork {
             nm(ctx).cancel(N_ID)
             nm(ctx).notify(N_DONE, simple(ctx, s(ctx, R.string.phSent), s(ctx, R.string.phSentS), webIntent(ctx, r, "")))
         } catch (e: Throwable) {
-            val code = (e as? Stop)?.code ?: (e as? PhNet.Err)?.code ?: "fail"
+            val code = codeOf(e)
             if (code == "stopped" || stopped()) { q.stop(); return }   // המערכת עצרה — ממשיכים בפעם הבאה מאותו שלב
             if (pw0 && !r.optBoolean("started")) rep("err", -1f, code.lowercase().filter { it in 'a'..'z' || it in '0'..'9' || it == '_' }.take(32).padEnd(2, '_')) else q.stop()
             PhStore.update(ctx, pid) { it.put("e", code).put("st", "err").put("est", r.optString("st")) }
@@ -219,7 +223,7 @@ object PhWork {
             nm(ctx).cancel(N_ID)
             nm(ctx).notify(N_DONE, savedNotif(ctx, title, uri))
         } catch (e: Throwable) {
-            val code = (e as? Stop)?.code ?: (e as? PhNet.Err)?.code ?: "fail"
+            val code = codeOf(e)
             if (code == "stopped" || stopped()) { q.stop(); return }
             repDone(JSONObject().put("s", "fail").put("e", code))
             PhStore.update(ctx, pid) { it.put("e", code).put("st", "err").put("est", "burn") }

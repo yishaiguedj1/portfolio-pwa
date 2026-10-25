@@ -343,6 +343,9 @@ a.st-wbtn:active { opacity: .7; }
 .st-pbar.ind i { width: 30% !important; animation: st-pind 1.4s ease-in-out infinite; }   /* 25/10/2026: שלב בלי אחוז (הטלפון מכין את הקול / מזהה דוברים) */
 @keyframes st-pind { from { transform: translateX(-110%); } to { transform: translateX(360%); } }
 [dir="rtl"] .st-pbar.ind i { animation-name: st-pind-rtl; }
+/* 25/10/2026: כרטיס "הסרטון בטלפון" — כל שורה בשורה משלה (עד היום השורות התחברו: "…בטלפוןהטלפון…") */
+.st-root .st-ph > b, .st-root .st-ph > small { display: block; }
+.st-root .st-ph > small + small, .st-root .st-ph > b + small { margin-top: 4px; }
 @keyframes st-pind-rtl { from { transform: translateX(110%); } to { transform: translateX(-360%); } }
 .st-pbar { display: block; height: 6px; margin-top: 7px; border-radius: 3px; background: var(--st-fill); overflow: hidden; }
 .st-pbar i { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--st-ok); transition: width .6s ease; }
