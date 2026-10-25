@@ -139,6 +139,7 @@ ok(/classList\.contains\('an-open'\)\) return false;/.test(app), 'לולאת ה�
 ok(/'\.\/analysis\.js', '\.\/analysis\.css'/.test(sw), 'במעטפת של sw.js (אותה גרסה של app.js)');
 ok(/E\.modalPush\(\(\) => closeAnalysis\(true\)\)/.test(src) && /E\.modalPush\(\(\) => closeSheet\(true\)\)/.test(src), '"חזור" סוגר גיליון ואז את המסך (modalPush)');
 ok(/op: 'fund', sym/.test(src) && /op: 'macro'/.test(src), 'הנתונים מהשרתון: op fund + macro');
+ok(/document\.addEventListener\('pointerdown', off, true\)/.test(src) && /!tip\._svg\.contains\(e\.target\)\) tip\._hide\(\)/.test(src) && /i === cur/.test(src), 'בועת הגרף נסגרת בנגיעה מחוץ לגרף ובנגיעה חוזרת באותה עמודה');
 const sels = css.replace(/\/\*[\s\S]*?\*\//g, '').match(/(^|\})\s*([^{}@]+)\{/g) || [];
 const bad = sels.map((s) => s.replace(/^\}?\s*/, '').replace(/\{$/, '').trim()).filter((s) => s && !/^(from|to|\d)/.test(s) && !s.split(',').every((p) => /\.an-|an-open|\.an\b/.test(p)));
 ok(bad.length === 0, 'כל סלקטור בעיצוב בתחום an-' + (bad.length ? ': ' + bad.join(' | ') : ''));

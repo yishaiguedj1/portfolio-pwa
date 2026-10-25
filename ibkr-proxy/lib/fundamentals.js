@@ -7,7 +7,8 @@
    הכללים (מהמחקר, והם הסיבה לרוב הקוד):
    1. fy/fp ב־companyfacts הם של הדוח שבו העובדה הוגשה, לא של התקופה — מסווגים רק לפי start/end.
    2. אותה תקופה מופיעה בכמה דוחות — לוקחים את מה שהוגש אחרון (כולל תיקונים לאחור).
-   3. תגיות מתחלפות (Revenues → RevenueFromContract…) — רשימת עדיפויות, תגית מאוחרת משלימה רק תקופות חסרות.
+   3. תגיות מתחלפות (Revenues → RevenueFromContract…) — רשימת עדיפויות, תגית מאוחרת משלימה רק תקופות חסרות,
+      ורק כשהיא מסכימה עם מה שכבר נבחר בתקופות המשותפות (mergeTags). בלי זה ערבוב של ברוטו ונטו (Mastercard) יצר +74%.
    4. תזרים ב־10-Q מצטבר מתחילת השנה — רבעון = מצטבר פחות המצטבר הקודם; רבעון 4 = שנה פחות 9 חודשים.
    5. ערכים למניה כפי שדווחו — לפני פיצולים. מתקנים לפי אירועי הפיצול מ־Yahoo וקפיצה במספר המניות.
    6. כל ספק מקבל תג בדיקה (checks), לא תיקון שקט. */
@@ -37,7 +38,7 @@ async function getText(url, opts = {}, ms = 9000) {
 
 /* ---------- SEC: מיפוי תגיות (סדר = עדיפות) ---------- */
 const FLOW = {
-  rev: ['RevenueFromContractWithCustomerExcludingAssessedTax', 'Revenues', 'SalesRevenueNet', 'RevenueFromContractWithCustomerIncludingAssessedTax', 'SalesRevenueGoodsNet'],
+  rev: ['Revenues', 'RevenueFromContractWithCustomerExcludingAssessedTax', 'SalesRevenueNet', 'RevenueFromContractWithCustomerIncludingAssessedTax', 'SalesRevenueGoodsNet'],
   cogs: ['CostOfRevenue', 'CostOfGoodsAndServicesSold', 'CostOfGoodsSold', 'CostOfServices'],
   gp: ['GrossProfit'],
   op: ['OperatingIncomeLoss'],
@@ -103,6 +104,65 @@ function tagFacts(node, unitPref) {
   return out;
 }
 
+/* איחוד תגיות של אותו מדד: תגית ראשית, והשאר (לפי סדר העדיפות) משלימות תקופות חסרות.
+   תגית משלימה נכנסת רק כשבתקופות המשותפות היא מסכימה עם מה שכבר נבחר (לפחות בחצי מהן — עד MERGE_TOL):
+   תגית שמודדת דבר אחר (ברוטו מול נטו, רכיב מול סך) נדחית כולה — שנה חסרה עדיפה על קפיצה מדומה בגרף.
+   הראשית = הראשונה בסדר העדיפות מבין התגיות שהחברה עדיין מדווחת (תגית שהפסיקה — לא ראשית).
+   (Mastercard: RevenueFromContract… = ברוטו לפני הנחות ללקוחות רק ב־2018–2021, Revenues = נטו עד היום.) */
+const MERGE_TOL = 0.025;
+function tagGap(a, b) {
+  const diffs = [];
+  for (const [ma, mb] of [[a.dur, b.dur], [a.inst, b.inst]]) for (const [kk, v] of mb) {
+    const h = ma.get(kk);
+    if (h && h.v && v.v != null) diffs.push(Math.abs(v.v - h.v) / Math.abs(h.v));
+  }
+  if (!diffs.length) return null;
+  diffs.sort((x, y) => x - y);
+  return diffs[(diffs.length - 1) >> 1]; // מסכימה לפחות בחצי מהתקופות המשותפות = אותו מדד (עם תיקונים לאחור)
+}
+function mergeTags(fs) {
+  const last = (f) => { let e = ''; for (const kk of f.dur.keys()) { const x = kk.split('|')[1]; if (x > e) e = x; } for (const x of f.inst.keys()) if (x > e) e = x; return e; };
+  const has = fs.map((f) => f.dur.size + f.inst.size > 0);
+  const m = { dur: new Map(), inst: new Map() };
+  // הראשית = הראשונה בסדר העדיפות מבין התגיות שעדיין מדווחות (עד שנה מהתקופה המאוחרת ביותר)
+  const top = Math.max(...fs.map((f, i) => (has[i] ? day(last(f)) : -Infinity)));
+  if (!isFinite(top)) return m;
+  const spine = fs.findIndex((f, i) => has[i] && day(last(f)) >= top - 400);
+  for (const i of [spine, ...fs.map((_, j) => j).filter((j) => j !== spine && has[j])]) {
+    const f = fs[i];
+    if (i !== spine) { const g = tagGap(m, f); if (g != null && g > MERGE_TOL) continue; }
+    for (const [kk, v] of f.dur) if (!m.dur.has(kk)) m.dur.set(kk, v);
+    for (const [kk, v] of f.inst) if (!m.inst.has(kk)) m.inst.set(kk, v);
+  }
+  fixRuns(m, fs);
+  return m;
+}
+/* רשת ביטחון שנייה — ערך שגוי בתוך התגית הנבחרת (Procter & Gamble: ‏Revenues = ‏$28B ב־2012–2014 במקום ‏$83B):
+   רצף שנים שבו תגית אחרת נותנת ערך שונה, והחלפה שלו מעלימה קפיצה חדה מול השנה שלפניו ושאחריו — מוחלף.
+   רק ערכים חיוביים, רק שנים שלמות, ורק כשהקפיצה גדולה (פי JUMP) וההחלפה מקטינה אותה לפחות בחצי ומתחת לסף. */
+const JUMP = Math.log(1.6);
+function fixRuns(m, fs) {
+  const yr = (kk) => { const [a, b] = kk.split('|'); const d = day(b) - day(a); return d >= 350 && d <= 380; };
+  const ends = [...m.dur.keys()].filter(yr).sort((a, b) => (a.split('|')[1] < b.split('|')[1] ? -1 : 1));
+  if (ends.length < 3) return;
+  const lg = (a, b) => (a > 0 && b > 0 ? Math.abs(Math.log(a / b)) : null);
+  for (const f of fs) {
+    const alt = (kk) => { const h = f.dur.get(kk), cur = m.dur.get(kk); return h && cur && h.v > 0 && cur.v > 0 && Math.abs(h.v - cur.v) / cur.v > MERGE_TOL ? h : null; };
+    for (let i = 0; i < ends.length; i++) {
+      if (!alt(ends[i])) continue;
+      let j = i; while (j + 1 < ends.length && alt(ends[j + 1])) j++;
+      const prev = i > 0 ? m.dur.get(ends[i - 1]).v : null, next = j + 1 < ends.length ? m.dur.get(ends[j + 1]).v : null;
+      const was = [lg(prev, m.dur.get(ends[i]).v), lg(m.dur.get(ends[j]).v, next)].filter((x) => x != null);
+      const now = [lg(prev, f.dur.get(ends[i]).v), lg(f.dur.get(ends[j]).v, next)].filter((x) => x != null);
+      if (was.length && now.length === was.length) {
+        const w = Math.max(...was), n = Math.max(...now);
+        if (w > JUMP && n < JUMP && n < w / 2) for (let x = i; x <= j; x++) m.dur.set(ends[x], f.dur.get(ends[x]));
+      }
+      i = j;
+    }
+  }
+}
+
 /* נרמול companyfacts → { fy:[סופי שנים], q:[סופי רבעונים], A:{key:[...]}, Q:{key:[...]}, cur, derived } */
 function normalizeSec(facts, splits = []) {
   const gaap = (facts && facts.facts && facts.facts['us-gaap']) || null;
@@ -112,18 +172,13 @@ function normalizeSec(facts, splits = []) {
   const isIfrs = tax === ifrs;
   const map = isIfrs ? IFRS : { ...FLOW, ...INST };
   const unitOf = (k) => (PER_SHARE.has(k) ? 'PS' : k === 'sh' ? 'shares' : 'CUR');
-  // לכל מפתח: איחוד התגיות לפי סדר העדיפות (תגית מאוחרת משלימה רק תקופות חסרות)
+  // לכל מפתח: תגית ראשית אחת + השלמות שמסכימות איתה (mergeTags)
   const merged = {};
   let cur = null;
   for (const k of Object.keys(map)) {
-    const m = { dur: new Map(), inst: new Map() };
-    for (const tag of map[k]) {
-      const f = tagFacts(tax[tag], unitOf(k));
-      if (k === 'rev' && f.unit && !cur && /^[A-Z]{3}$/.test(f.unit)) cur = f.unit;
-      for (const [kk, v] of f.dur) if (!m.dur.has(kk)) m.dur.set(kk, v);
-      for (const [kk, v] of f.inst) if (!m.inst.has(kk)) m.inst.set(kk, v);
-    }
-    merged[k] = m;
+    const fs = map[k].map((tag) => tagFacts(tax[tag], unitOf(k)));
+    if (k === 'rev') { const f = fs.find((x) => x.unit && /^[A-Z]{3}$/.test(x.unit)); if (f) cur = f.unit; }
+    merged[k] = mergeTags(fs);
   }
   // שנים פיסקליות: תקופות של ~שנה בהכנסות או ברווח הנקי (52/53 שבועות נכללים)
   const yearOf = new Map(); // end → start
@@ -512,5 +567,5 @@ async function handle(body, res) {
   return res.status(200).json({ ...v, indData: industryData(v.ind) });
 }
 
-module.exports = { handle, fundamentals, macro, normalizeSec, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
+module.exports = { handle, fundamentals, macro, normalizeSec, mergeTags, fixRuns, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
   industryFor, industryData, _cache: cache };

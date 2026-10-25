@@ -71,6 +71,38 @@ const JUNE = facts([
 const dj = F.normalizeSec(JUNE, []);
 ok(dj.fy.join() === '2025-06-30' && dj.Q.rev[dj.q.indexOf('2025-06-30')] === 105, 'שנה ביוני: רבעון 4 = 400 − (90+100+105)');
 
+/* שתי תגיות הכנסות שמודדות דברים שונים (Mastercard 2018–2021: RevenueFromContract… = ברוטו לפני הנחות, Revenues = נטו) */
+const yrs = (a, y0) => a.map((v, i) => [...Y(y0 + i), v, '10-K', (y0 + i + 1) + '-02-01']);
+const MAX = facts([
+  ['Revenues', 'USD', yrs([125, 150, 169, 153, 189, 222, 251], 2017)],
+  ['RevenueFromContractWithCustomerExcludingAssessedTax', 'USD', yrs([218, 250, 236, 298], 2018)],
+]);
+const dm = F.normalizeSec(MAX, []);
+const g = (dd, e1, e0) => dd.A.rev[dd.fy.indexOf(e1)] / dd.A.rev[dd.fy.indexOf(e0)] - 1;
+ok(dm.A.rev.join() === '125,150,169,153,189,222,251', 'ברוטו מול נטו: נשארת סדרה אחת (נטו) בכל השנים');
+ok(near(g(dm, '2020-12-31', '2019-12-31'), 153 / 169 - 1) && near(g(dm, '2022-12-31', '2021-12-31'), 222 / 189 - 1), 'צמיחה 2020 ו־2022 מהנטו בלבד');
+// גם כשהתגית הלא נכונה ראשונה ברשימה — היא הפסיקה לדווח, ולכן לא ראשית
+const MAX2 = facts([
+  ['SalesRevenueNet', 'USD', yrs([218, 250, 236, 298], 2018)],
+  ['SalesRevenueGoodsNet', 'USD', yrs([125, 150, 169, 153, 189, 222, 251], 2017)],
+]);
+ok(F.normalizeSec(MAX2, []).A.rev.join() === '125,150,169,153,189,222,251', 'תגית שהפסיקה לדווח לא נבחרת כראשית גם כשהיא ראשונה בסדר');
+// השלמה תקינה: תגית ישנה שמסכימה בשנה המשותפת משלימה שנים חסרות
+const FILL = facts([
+  ['Revenues', 'USD', yrs([95, 100, 120, 140], 2016).filter((r) => r[1] !== '2017-12-31')],
+  ['SalesRevenueNet', 'USD', yrs([94, 95, 100], 2015)],
+]);
+const df = F.normalizeSec(FILL, []);
+ok(df.A.rev.join() === '94,95,100,120,140', 'תגית ישנה שמסכימה משלימה רק את מה שחסר');
+// ערך שגוי בתוך התגית הנבחרת (Procter & Gamble: ‏Revenues = ‏28 במקום 83 ב־2012–2014)
+const PG = facts([
+  ['Revenues', 'USD', [...yrs([77, 81], 2010), ...yrs([28, 29, 29], 2012), ...yrs([71, 65, 65, 67], 2015)]],
+  ['SalesRevenueNet', 'USD', yrs([77, 81, 82, 80, 74, 71], 2010)],
+]);
+ok(F.normalizeSec(PG, []).A.rev.join() === '77,81,82,80,74,71,65,65,67', 'רצף שגוי באמצע מוחלף בתגית שמתיישרת עם השכנים');
+// צניחה אמיתית (בלי תגית חלופית) לא נוגעים בה
+ok(F.normalizeSec(facts([['Revenues', 'USD', yrs([100, 40, 110], 2019)]]), []).A.rev.join() === '100,40,110', 'צניחה אמיתית בלי חלופה — נשארת');
+
 /* ---------- Yahoo ---------- */
 const ts = { timeseries: { result: [
   ['annualTotalRevenue', [['2024-12-31', 1000], ['2025-12-31', 1100]]],

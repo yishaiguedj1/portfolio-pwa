@@ -30,7 +30,7 @@ const HASHES = {
   "./apple-touch-icon.png": "113a5dd87df18077a64196f3d533e3e9",
   "./favicon-48.png": "b06144704421831d745fd553558517a7",
   "./ibkr-logo.png": "3c73fe172d48b3f58f11bcc146dd1987",
-  "./analysis.js": "0c270a0f2387b8e979613256d67e5a77",
+  "./analysis.js": "36ced3a97db8f08371f7622a31a0caf8",
   "./analysis.css": "acb99f66921efa10b85d504007d4b056",
   "./library.js": "ebf4c7295ff22d17fb09b56be12d2cec",
   "./library.css": "76ff87750ae8fd22063cbd07b7f3d8ce",

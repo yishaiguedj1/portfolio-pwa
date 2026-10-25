@@ -442,9 +442,30 @@ function drawChart(host, opt) {
     tip.hidden = false;
   };
   const idx = (e) => { const r = svg.getBoundingClientRect(); return Math.floor(((e.clientX - r.left) * W / r.width - x0) / band); };
-  svg.addEventListener('pointerdown', (e) => show(idx(e)));
-  svg.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' || e.buttons) show(idx(e)); });
-  svg.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') { hl.setAttribute('opacity', 0); if (tip) tip.hidden = true; } });
+  let cur = -1, shut = false;
+  svg.addEventListener('pointerdown', (e) => {
+    const i = idx(e);
+    // נגיעה חוזרת באותה עמודה סוגרת
+    shut = !!tip && !tip.hidden && i === cur;
+    if (shut) { tip._hide(); cur = -1; } else { show(i); cur = i; }
+  });
+  svg.addEventListener('pointermove', (e) => {
+    if (shut || !(e.pointerType === 'mouse' || e.buttons)) return;
+    const i = idx(e); if (i !== cur) { show(i); cur = i; }
+  });
+  const hide = () => { hl.setAttribute('opacity', 0); cur = -1; if (tip) tip.hidden = true; };
+  svg.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') hide(); });
+  if (!tip) return;
+  // נגיעה בכל מקום מחוץ לגרף סוגרת את הבועה — שלא תסתיר את שאר העמודות
+  tip._svg = svg; tip._hide = hide;
+  if (!tip._wired) {
+    tip._wired = true;
+    const off = (e) => {
+      if (!tip.isConnected) { document.removeEventListener('pointerdown', off, true); return; }
+      if (!tip.hidden && !tip._svg.contains(e.target)) tip._hide();
+    };
+    document.addEventListener('pointerdown', off, true);
+  }
 }
 function spark(host, vals, color, line) {
   const W = 112, H = 44, v = vals.map((x) => (x == null || !isFinite(x) ? null : x)), ok = fin(v);
