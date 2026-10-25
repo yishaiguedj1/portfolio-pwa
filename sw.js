@@ -8,8 +8,8 @@ const CACHE_NAME = 'portfolio-pwa-v529';
 const HASHES = {
   "./": "930248b23c4f0ec55737671e159c8dbd",
   "./index.html": "930248b23c4f0ec55737671e159c8dbd",
-  "./styles.css": "8b3bc2b54c238fd7cf64ea66528b781a",
-  "./app.js": "8525222c1dbcf0c6d032ccf116021f91",
+  "./styles.css": "ac25c4971a7c800070960c6aea2f4756",
+  "./app.js": "745800cf36111fbc22f32699419eee38",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "39bf52f7bb220ecf474e77b2572386d3",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -30,6 +30,8 @@ const HASHES = {
   "./apple-touch-icon.png": "113a5dd87df18077a64196f3d533e3e9",
   "./favicon-48.png": "b06144704421831d745fd553558517a7",
   "./ibkr-logo.png": "3c73fe172d48b3f58f11bcc146dd1987",
+  "./analysis.js": "a79ad9761c37b769a486e0ca18fc3a74",
+  "./analysis.css": "9db4babddbbac2f11212489e073833b3",
   "./library.js": "ebf4c7295ff22d17fb09b56be12d2cec",
   "./library.css": "76ff87750ae8fd22063cbd07b7f3d8ce",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
@@ -104,7 +106,8 @@ const APP_SHELL = [
   './logo-header.png', './logo-invest.webp', './logo-invest-lg.webp', './face-invest.webp', './snow-far-light.png', './snow-mid-light.png', './snow-near-light.png', './snow-far-dark.png', './snow-mid-dark.png', './snow-near-dark.png',
   './apple-touch-icon.png',
   './favicon-48.png',
-  './ibkr-logo.png'
+  './ibkr-logo.png',
+  './analysis.js', './analysis.css'   // 25/10/2026: מנתח החברות — נטען בלחיצה, אבל באותה גרסה של app.js
 ];
 
 /* האקדמיה (שלב 8): קבצי הספרייה והקורא — נטענים מראש בכל עדכון רק אצל מי שכבר נכנס לספרייה
