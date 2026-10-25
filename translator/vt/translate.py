@@ -380,6 +380,46 @@ def _tag_question(en: str) -> bool:
     return bool(_TAG_Q.match(tail)) and len(q.split()) > len(tail.split())
 
 
+# 25/10/2026 (ניתוח האיכות, session_01UZAW + המאגר): הסתייגות שנשמטה הופכת השערה לעובדה ("maybe", "I think", "about three
+# hours"). בקורפוס של 20 עבודות: 171 מתוך 1,090 כתוביות עם הסתייגות במקור הגיעו לצופה בלעדיה (16%), והשלבים שאחרי הטיוטה
+# לא החזירו אותה. בלי "kind of" ו־"try to" — כמעט תמיד מילת מילוי (בבדיקה: שליש מההתראות, רובן נכונות להשמטה).
+_HEDGE_NUM = (r"(?:\$?\d[\d,.]*|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|"
+              r"fifty|sixty|seventy|eighty|ninety|a hundred|hundred|a thousand|thousand|a million|million|a billion|billion|"
+              r"a dozen|a couple|half|a third|a quarter)")
+_HEDGE_EN = re.compile("|".join([
+    r"\b(?:maybe|perhaps|probably|possibly|likely|might|somewhat|apparently|supposedly|allegedly|reportedly)\b",
+    r"\b(?:seems?|seemed)\b", r"\bmore or less\b", r"\bor so\b", r"\bto (?:some|a certain) (?:extent|degree)\b",
+    r"\b(?:i|we) (?:still |really |do |would |'d )?think\b(?! (?:about|of|through)\b)",
+    r"\b(?:i|we) (?:don't|do not|didn't) think\b", r"\bi (?:guess|suppose|imagine)\b", r"\b(?:i|we) believe\b(?! in\b)",
+    r"\b(?:i'd|i would) say\b", r"\bi feel like\b", r"\bi'm told\b", r"\bnot sure\b",
+    r"\bi don't know (?:if|that|whether)\b",
+    r"\b(?:about|around|roughly|approximately|nearly|almost|close to|something like|like) " + _HEDGE_NUM + r"\b",
+]), re.I)
+_HEDGE_MAY = re.compile(r"\bmay\b(?! \d)")          # רק באות קטנה — May = החודש
+_HEDGE_HE = re.compile(
+    r"אולי|כנראה|מן הסתם|סביר|ייתכן|יתכן|יכול להיות|יכולים להיות|עשוי|עשויה|עשויים|עלול|עלולה|עלולים|בערך|בסביבות|סביב|"
+    r"כמעט|קרוב ל|משהו כמו|פחות או יותר|יותר או פחות|לדעתי|לדעתנו|בעיניי|חושב|חושבת|חושבים|נראה|נדמה|מניח|מניחה|מניחים|"
+    r"משער|מאמין|מאמינה|מאמינים|לא בטוח|לא יודע|במידה|מעין|סוג של|קצת|כביכול|לכאורה|אומרים|סיפרו לי|שמעתי|מתברר|מסתבר|"
+    r"אפשר ש|מרגיש|מרגישה|הייתי אומר|לפחות|נשמע|"
+    r"(?:^|\s)כ[־-]?(?:\d|אחד|שניים|שתיים|שני|שתי|שלוש|ארבע|חמש|שש|שבע|שמונה|תשע|עשר|עשרים|שלושים|ארבעים|חמישים|שישים|"
+    r"שבעים|שמונים|תשעים|מאה|מאתיים|מאות|אלף|אלפיים|אלפים|מיליון|מיליארד|חצי|רבע|שליש|שבוע|שנה|שנתיים|שעה|שעתיים|דקה|יומיים)")
+
+
+def hedges_in(en: str) -> list[str]:
+    """ההסתייגויות במקור ("maybe", "I think", "about 50") — בצורה שבה הופיעו, בלי כפולים."""
+    out: list[str] = []
+    for m in list(_HEDGE_EN.finditer(en)) + list(_HEDGE_MAY.finditer(en)):
+        w = m.group(0).strip()
+        if w.lower() not in (x.lower() for x in out):
+            out.append(w)
+    return out
+
+
+def hedge_kept_he(txt: str) -> bool:
+    """יש בעברית מילה שמסתייגת (אולי, כנראה, בערך, לדעתי, כ־3…) — גסה בכוונה: בספק לא מתריעים."""
+    return bool(_HEDGE_HE.search(txt))
+
+
 _LAT_WORD = re.compile(r"[A-Za-z][A-Za-z'\-]*")
 _URLISH = re.compile(r"\S+\.(?:com|org|net|io|ai|co|il|tv|app|me|gg|ly|so|us|uk)(?:/\S*)?", re.I)
 
@@ -432,7 +472,7 @@ def _head_found(opts: list[str], txt: str) -> bool:
 CHECK_CODES = {
     "id": "h", "miss": "h", "eq": "h", "drift": "h", "spk": "h", "len": "h", "dlg": "h", "brk": "h",
     "nikud": "h", "dash": "h", "tag": "h", "part": "h",
-    "num": "s", "gls": "s", "lat": "s", "name": "s", "q": "s", "short": "s", "cps": "s", "cur": "s",
+    "num": "s", "gls": "s", "lat": "s", "name": "s", "q": "s", "short": "s", "cps": "s", "cur": "s", "hdg": "s",
     "dots": "-",
 }
 CHECK_CODE_RE = re.compile(r"^- #(\d+): \[([a-z]+)\] ")
@@ -443,7 +483,7 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
     """בדיקת התרגום מול התכנון. מחזיר (שורות דוח, סיכום)."""
     issues: list[str] = []
     stats = {"total": len(cues), "translated": 0, "missing": 0, "over_budget": 0,
-             "numbers": 0, "latin": 0, "glossary": 0, "glossary_soft": 0, "names": 0, "questions": 0, "short": 0, "style": 0, "errors": 0, "drift": 0}
+             "numbers": 0, "latin": 0, "glossary": 0, "glossary_soft": 0, "names": 0, "questions": 0, "short": 0, "style": 0, "errors": 0, "drift": 0, "hedges": 0}
     ids = {str(c["id"]) for c in cues}
     # מילים לועזיות שהמילון קובע שנשארות כך ("Claude", "if-else") — לא "לא תורגמו"
     keep_latin = {w.lower() for _t, opts in glossary for o in opts for w in _LAT_WORD.findall(o)}
@@ -520,6 +560,18 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
                 continue
             issues.append(f"- #{k}: [num] המספר {num} מהמקור לא מופיע בתרגום")
             stats["numbers"] += 1
+        hg = hedges_in(en)
+        if hg and not hedge_kept_he(txt):
+            # 25/10/2026: ההסתייגות עברה לשכנה (סדר המילים) או לכתובית שאוחדה ('=' אחרי הזו) — לא חסרה
+            j = ci + 1
+            while j < len(cues) and he.get(str(cues[j]["id"])) == "=":
+                j += 1
+            near_h = " ".join(normalize_he(str(he.get(str(x["id"]), "")))
+                              for x in cues[max(0, ci - 1):j + 1] if x is not c)
+            if not hedge_kept_he(near_h):
+                issues.append(f"- #{k}: [hdg] במקור הסתייגות ({', '.join(hg[:3])}) — בתרגום נשמטה, וההשערה נשמעת "
+                              "כמו עובדה. להחזיר בקצרה (אולי, כנראה, בערך, לדעתי) — לשקול")
+                stats["hedges"] += 1
         if NIKUD_RE.search(txt):
             issues.append(f"- #{k}: [nikud] ניקוד בתרגום — כתוביות נכתבות בכתיב מלא בלי ניקוד (מילה דו־משמעית: לנסח מחדש)")
             stats["errors"] += 1

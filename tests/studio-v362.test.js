@@ -73,7 +73,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(M.canResume(M.normJob({ id: 'jAbCdEfGhIjKlMnOpQrSt', spec: {}, up: { a: { done: true } }, srv: { state: 'failed', err: 'tower_stop', tw: { lv: 'red', why: 'idle', min: 25 } } })),
     'טלפון: אחרי עצירה של המגדל — "להמשיך מאותה נקודה"');
   const st = read('studio.js');
-  ok(/const tstop = towerStopCard\(rec\)/.test(st) && /&& !tstop\) p\.append\(nowc\)/.test(st) && /function towerLine\(rec\)/.test(st), 'טלפון: כרטיס העצירה (במקום "מה קורה עכשיו") ושורת המצב');
+  ok(/const tstop = towerStopCard\(rec\)/.test(st) && /&& !tstop\) (?:p\.append\(nowc\)|\{ nowc\.classList\.add\('in'\); hero\.append\(nowc\); \})/.test(st) && /function towerLine\(rec\)/.test(st), 'טלפון: כרטיס העצירה (במקום "מה קורה עכשיו") ושורת המצב');
   const app = read('app.js');
   for (const k of ['studioTwOk', 'studioTwWarn', 'studioTwStopT', 'studioTwWhyCost', 'studioTwWhyLoop', 'studioTwWhyIdle', 'studioErrTower'])
     ok((app.match(new RegExp(k + ': "', 'g')) || []).length === 2, 'טלפון: ' + k + ' — עברית ואנגלית');

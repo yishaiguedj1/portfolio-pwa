@@ -75,6 +75,54 @@ QUIET_S = 1.8     # (25/10/2026: 2.5→1.8) גם "שקט" ארוך: Silero מפ�
 PIECE_S = 28.0    # חור ארוך מתומלל בחלקים
 
 
+# 25/10/2026 (ניתוח האיכות): בחלון ארוך (כ־40 שנ׳) Parakeet עובר לפעמים למצב בלי פיסוק ובלי אותיות גדולות — לכל
+# החלון ("i'm looking for a mop and people are chatting outside..."). ב־Uber ‏12 חלונות מתוך 165 (8%), ב־AppLovin ‏9 מתוך
+# 140; בחלון רגיל 13%–18% מהמילים נגמרות בסימן פיסוק. אותו קול בחלונות של עד 20 שנ׳ — חוזר עם פיסוק. בכתוביות שנבנו
+# מקטע כזה היו פי 1.5 בעיות בחומרה בינונית ומעלה (חלוקה לכתוביות פי 6.5, זרימה פי 7.5 — אין גבולות משפט).
+FLAT_MIN = 40       # מילים בחלון — פחות מזה, מעט פיסוק הוא טבעי
+FLAT_P = 0.035      # מתחת לזה סימני פיסוק (חלק מהמילים) — וגם
+FLAT_C = 0.04       # אותיות גדולות — החלון "שטוח"
+FLAT_C2 = 0.08      # או: "i" קטנה כמילה (i, i'm) ומעט אותיות גדולות — חלון "חצי שטוח", במצב רגיל היא תמיד I
+FLAT_MAX_S = 20.0   # תמלול חוזר בחלונות של עד כך
+FLAT_KEEP = 0.15    # התוצאה החדשה נכנסת רק אם מספר המילים בטווח הזה מהקודם (לא מאבדים ולא ממציאים מילים)
+
+
+def _shape(ws: list[dict]) -> tuple[float, float]:
+    """(חלק המילים שנגמרות בסימן פיסוק, חלק המילים שמתחילות באות גדולה)"""
+    if not ws:
+        return 0.0, 0.0
+    p = sum(1 for w in ws if re.search(r"[.?!,;:]$", w["w"])) / len(ws)
+    c = sum(1 for w in ws if w["w"][:1].isupper()) / len(ws)
+    return p, c
+
+
+def flat(ws: list[dict]) -> bool:
+    if len(ws) < FLAT_MIN:
+        return False
+    p, c = _shape(ws)
+    low_i = any(re.fullmatch(r"i(?:'(?:m|ve|ll|d))?[.,?!]?", w["w"]) for w in ws)
+    return (p < FLAT_P and c < FLAT_C) or (low_i and c < FLAT_C2)
+
+
+def unflatten(parts: list[list[dict]], chunks: list[tuple[int, int]], segs: list[tuple[int, int]], n: int, sr: int,
+              recog) -> int:
+    """parts[k] = המילים של חלון k. חלון שטוח מתומלל שוב בחלונות קצרים (באותן שתיקות); נכנס רק אם חזר פיסוק ומספר
+    המילים דומה. recog(a, b) → מילים (בדגימות). מחזיר כמה חלונות הוחלפו."""
+    done = 0
+    for k, (a, b) in enumerate(chunks):
+        if not flat(parts[k]):
+            continue
+        inner = [(max(s, a), min(e, b)) for s, e in segs if e > a and s < b]
+        sub = [(max(x, a), min(y, b)) for x, y in _chunks(inner, n, sr, max_s=FLAT_MAX_S, pad=int(0.12 * sr))]
+        got = [w for x, y in sub for w in recog(x, y)]
+        p0, _c0 = _shape(parts[k])
+        p1, _c1 = _shape(got)
+        if p1 >= max(FLAT_P, 2 * p0) and abs(len(got) - len(parts[k])) <= FLAT_KEEP * len(parts[k]):
+            parts[k] = got
+            done += 1
+    return done
+
+
 def _norm(w: str) -> str:
     return "".join(c for c in w.lower() if c.isalnum())
 
@@ -161,16 +209,22 @@ def transcribe(wav_path: str, quantization: str | None = "int8", batch: int = 4)
                                        min_speech_duration_ms=150, speech_pad_ms=0)))
     chunks = _chunks(segs, len(audio), sr, pad=int(0.12 * sr))
     log(f"Parakeet: {len(chunks)} קטעים, {len(audio) / sr / 60:.1f} דקות אודיו")
-    words: list[dict] = []
+    parts: list[list[dict]] = []
     for i in range(0, len(chunks), batch):
         part = chunks[i:i + batch]
         res = model.recognize([audio[s:e] for s, e in part], sample_rate=16000)
         for (s, e), r in zip(part, res):
-            if r.tokens:
-                words += tokens_to_words(r.tokens, r.timestamps, s / sr, e / sr)
+            parts.append(tokens_to_words(r.tokens, r.timestamps, s / sr, e / sr) if r.tokens else [])
         if (i // batch) % 10 == 0:
             done = part[-1][1] / sr
             log(f"  {done / 60:.1f}/{len(audio) / sr / 60:.1f} דק׳ ({time.time() - t0:.0f} שנ׳)")
+    nf = sum(1 for x in parts if flat(x))
+    if nf:
+        def recog_s(a: int, b: int) -> list[dict]:
+            r = model.recognize(audio[a:b], sample_rate=16000)
+            return tokens_to_words(r.tokens, r.timestamps, a / sr, b / sr) if r.tokens else []
+        log(f"Parakeet: {nf} חלונות בלי פיסוק — תמלול חוזר בחלונות קצרים החליף {unflatten(parts, chunks, segs, len(audio), sr, recog_s)}")
+    words: list[dict] = [w for x in parts for w in x]
     total = len(audio) / sr
     found = holes(words, [(a / sr, b / sr) for a, b in segs], total)
     if found:
