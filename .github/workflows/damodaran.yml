@@ -1,0 +1,47 @@
+# 26/10/2026: עדכון חודשי אוטומטי של נתוני Damodaran למנתח החברות (ibkr-proxy/lib/damodaran.json) — ב־3 לכל חודש.
+# פרמיית השוק (ERP) מתעדכנת אצלו בתחילת כל חודש, פרמיית המדינה פעם ברבעון ונתוני הענפים בינואר.
+# מריץ את tools/damodaran.py (מידע ציבורי), בודק שמנתח החברות עדיין עובד, ודוחף רק אם משהו השתנה.
+# הדחיפה נוגעת ב־ibkr-proxy/ → Vercel מפרס את השרתון לבד; השרת שלנו מקבל את הקובץ במיזוג הבא.
+name: damodaran
+
+on:
+  schedule:
+    - cron: '23 5 3 * *'   # 3 לחודש, 05:23 UTC
+  workflow_dispatch:
+
+# כתיבה רק לתוכן הריפו (קובץ הנתונים); שאר ה־CI נשאר לקריאה בלבד
+permissions:
+  contents: write
+
+concurrency:
+  group: damodaran
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20
+      - name: deps
+        run: python3 -m venv /tmp/dv && /tmp/dv/bin/pip install --quiet --require-hashes -r tools/damodaran-requirements.txt
+      - name: fetch Damodaran
+        run: /tmp/dv/bin/python tools/damodaran.py --dir /tmp/dmd
+      - name: analyzer still works
+        run: |
+          node tests/fundamentals.test.js > /tmp/t1.log 2>&1 || { tail -30 /tmp/t1.log; exit 1; }
+          node tests/analysis.test.js > /tmp/t2.log 2>&1 || { tail -30 /tmp/t2.log; exit 1; }
+          node tests/damodaran-tool.test.js
+      - name: commit if changed
+        run: |
+          if git diff --quiet -- ibkr-proxy/lib/damodaran.json; then
+            echo "הנתונים לא השתנו"; exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ibkr-proxy/lib/damodaran.json
+          git commit -m "עדכון חודשי אוטומטי: נתוני Damodaran (damodaran.json)"
+          git push
