@@ -28,9 +28,9 @@ const CLAIM_WAIT = { ping: 6 * 60e3, tr: 30 * 60e3 };   // הופעל ולא נ�
 const STAGES = ['up', 'tr', 'al', 'tl', 'rv', 'bn', 'sv'];
 const FINAL = ['done', 'failed', 'cancelled'];
 const ACTIVE = ['new', 'queued', 'running'];
-const KINDS = ['ping', 'tr', 'rr', 'ai'];   // מ2: rr = הפקה מחדש (כתוביות ערוכות / רשימת עריכות → צריבה; בלי טוקנים)
+const KINDS = ['ping', 'tr', 'rr', 'ai', 'dx'];   // 26/10/2026: dx = שמירת התוצרים מ־R2 בתיקייה ב־Drive (בשרת, בלי הטלפון)   // מ2: rr = הפקה מחדש (כתוביות ערוכות / רשימת עריכות → צריבה; בלי טוקנים)
 /* מה העובד בענן יודע לבצע. שלב 2: רק "בדיקת חיבור"; התרגום עצמו מגיע בשלב 3 — אז 'tr' נכנס לכאן, והאפליקציה לא משתנה */
-const WORKER_KINDS = ['ping', 'tr', 'rr', 'ai'];   // v358: העובד מתרגם (שלב 3); מ2: הפקה מחדש
+const WORKER_KINDS = ['ping', 'tr', 'rr', 'ai', 'dx'];   // v358: העובד מתרגם (שלב 3); מ2: הפקה מחדש
 // 10/10/2026 (בקשת המשתמש): Haiku 5.5 נכנס, Opus High/Max יצאו. 15/10: נוסף Sonnet Low (לבדיקות — איך הוא וכמה עולה).
 const MODES = ['sonnet-medium', 'haiku-high', 'sonnet-high', 'opus-medium', 'sonnet-low', 'haiku-medium'];   // 20/10/2026: Haiku Medium חזר — רק למנהל / לרשימת "כל המודלים"
 /* 15/10/2026 (בקשת המשתמש): לכל המשתמשים רק שני מצבים — "רגיל" (Haiku High, ברירת המחדל) ו"ביצועים" (Sonnet Medium).
@@ -383,7 +383,7 @@ function normRate(o) {
 const START_RETRY = ['maint', 'flag_off', 'major'];
 const START_GAP = 2 * 60e3, START_URL_WAIT = 3 * 60e3, START_IDLE = 10 * 60e3;
 function startDue(job, now, age) {
-  if (!job || job.state !== 'new' || !['tr', 'rr', 'ai'].includes(job.kind)) return false;
+  if (!job || job.state !== 'new' || !['tr', 'rr', 'ai', 'dx'].includes(job.kind)) return false;
   if (!(now - (job.created || 0) < age) || effState(job, now).state !== 'new') return false;
   if (job.sw) return START_RETRY.includes(job.sw) && now - (job.swt || 0) >= START_GAP;
   if (job.spec && job.spec.src === 'url') return now - (job.created || 0) >= START_URL_WAIT;
@@ -874,6 +874,28 @@ function aiJob(parent, fq, mode, id, uid, now) {
     spec: { name: sp.name || '', size: sp.size || 0, type: '', dur: 0, from: sp.from || 'auto', to: sp.to || ['he'], mode: modeNow(mode || DEFAULT_MODE), out: [], style: STYLES[0], terms: '',
       ...(sp.eng === 'api' ? Object.assign({ eng: 'api', cap: CAP_MIN_JOB }, sp.ry === 1 ? { ry: 1 } : {}) : {}) } };   // 24/10/2026: ry — גם הבקשה מהגיליון במנוי שלך
 }
+/* 26/10/2026 (בקשת המשתמש): שמירה ב־Drive בלי שהסרטון עובר בטלפון — העובד בשרת מעתיק את התוצרים מ־R2 לתיקייה שבחרת
+   ב"הסרטונים שלי" (לקוח ה־OAuth של הסטודיו, drive.file — רק תיקיות שהאפליקציה יצרה). it = עד DX_MAX קבצים מהתוצרים של
+   העבודה, כל אחד עם השם שלו ב־Drive; f = התיקייה. רק תווים בטוחים בשם */
+const DX_MAX = 6;
+const dxName = (x) => String(x == null ? '' : x).replace(/[\u0000-\u001f\u007f<>"\\/:*?|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+function normDx(o, outs) {
+  if (!o || typeof o !== 'object' || !FILE_ID_RE.test(String(o.f || '')) || String(o.f).startsWith('R2_')) return null;
+  const have = new Map((Array.isArray(outs) ? outs : []).filter((x) => x && FILE_ID_RE.test(String(x.id || ''))).map((x) => [String(x.id), x]));
+  const it = [], seen = new Set();
+  for (const x of Array.isArray(o.it) ? o.it.slice(0, DX_MAX) : []) {
+    const id = String(x && x.id || ''), n = dxName(x && x.n);
+    if (!have.has(id) || seen.has(id) || !n || !id.startsWith('R2_')) return null;
+    seen.add(id); it.push({ id, n, s: Math.max(0, Math.floor(+have.get(id).size || 0)) });
+  }
+  return it.length ? { f: String(o.f), n: dxName(o.n).slice(0, 120), it } : null;
+}
+function dxJob(parent, dx, id, uid, now) {
+  const sp = parent.spec || {};
+  return { id, uid, kind: 'dx', state: 'new', created: now, updated: now, folder: parent.folder, rp: parent.id,
+    spec: { name: sp.name || '', size: 0, type: '', dur: 0, from: sp.from || 'auto', to: sp.to || ['he'], mode: modeNow(sp.mode || DEFAULT_MODE), out: [], style: STYLES[0], terms: '',
+      eng: 'api', cap: CAP_MIN_JOB, dx } };
+}
 /* פריט 15 (21/10/2026, "ריצת מבחן"): mode = מצב אחר מזה של המקור (השוואה בין מצבים על אותו סרטון); gr = קובץ הייחוס
    (באותה תיקייה) — העובד מחשב את הציון בעצמו בסוף (translator/goldscore.py), בלי שהטלפון פתוח */
 /* 24/10/2026 (ניסוי המאמץ): מאמץ אחר לתפקיד אחד בהרצה של סט הזהב — main = ההגהה והתדריך, tl = התרגום, rv = הביקורת.
@@ -1198,7 +1220,7 @@ function normFit(f) {
 /* השיא הצפוי של עבודה (MB) לפי המודל של השרת: תרגום / הפקה מחדש לפי האורך, גיליון AI — קבוע */
 function peakNeed(job, fit) {
   const m = ((job && job.spec && job.spec.dur) || 3600) / 60;
-  if (job && (job.kind === 'ai' || (job.spec && job.spec.src === 'subs'))) return fit.ai;   // 22/10/2026: קובץ כתוביות — בלי מודלים כבדים
+  if (job && (job.kind === 'ai' || job.kind === 'dx' || (job.spec && job.spec.src === 'subs'))) return fit.ai;   // 26/10/2026: dx — רק העתקה   // 22/10/2026: קובץ כתוביות — בלי מודלים כבדים
   if (job && job.kind === 'rr') return fit.ra + fit.rb * m;
   return fit.a + fit.b * m;
 }
@@ -1286,7 +1308,7 @@ function fromFields(f) {
 module.exports = { bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
-  GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,
+  GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, cuesSwap, rrSpec, rrJob,
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normFil, FIL_MAX, normSty, normOv, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,

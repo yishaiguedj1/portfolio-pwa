@@ -739,7 +739,7 @@ def end_code(rc: int) -> str:
     return {'job_timeout': 'timeout', 'worker_oom': 'oom'}.get(crash_code(rc), 'crash')
 
 
-AUTO_KINDS = ('tr', 'rr', 'ai')     # = WORKER_KINDS בשרתון חוץ מ־ping — job.py auto מטפל בכולם
+AUTO_KINDS = ('tr', 'rr', 'ai', 'dx')     # 26/10/2026: dx = שמירה ב־Drive; = WORKER_KINDS בשרתון חוץ מ־ping — job.py auto מטפל בכולם
 
 
 def handle(jb: dict, server: str, tok: str = '') -> int:
@@ -804,7 +804,7 @@ SLOTS_MAX = 4
 MEM_DB = Path(os.environ.get('SNB_MEM_DB', '/cache/snb-mem.json'))
 # השיא הצפוי לפי סוג העבודה: [קבוע MB, MB לדקת סרטון]. תרגום: היישור ב־ONNX תחת gVisor 4.2GB ל־5 דק׳ (נמדד 10/10),
 # ‏CTC לפני השחרור 5.3GB לשעה ועשרים (20/10) — לכן קבוע גבוה ושיפוע מתון. הפקה מחדש = צריבה; גיליון AI = קריאות בלבד.
-MEM_PRIOR = {'tr': (4600, 22), 'rr': (2200, 6), 'ai': (700, 0)}
+MEM_PRIOR = {'tr': (4600, 22), 'rr': (2200, 6), 'ai': (700, 0), 'dx': (400, 0)}   # dx — רק העתקה
 MEM_MARGIN = 1.1                    # ההזמנה = השיא הצפוי + 10%
 MEM_BASE_MB = 400                   # הסוכן עצמו + ההכנה מראש של המודלים
 PSI_MAX = 10.0                      # some avg10 מעל 10% — הזיכרון כבר בלחץ: לא מכניסים עבודה
