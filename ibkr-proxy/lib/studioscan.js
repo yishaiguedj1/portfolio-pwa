@@ -175,13 +175,47 @@ function scanView(sc) {
 /* 21/10/2026 (בקשת המשתמש): עבודה שהקבצים שלה ב־R2 שלנו נשמרת חודש מהסיום, ואז נמחקת לבד (רשומה + קבצים).
    לא נמחקות: עבודת זהב (gd — הייחוס לבדיקות), עבודה שעוד רצה, ועבודה שהקבצים שלה ב־Drive של המשתמש (שם הם שלו) */
 const JOB_TTL = 30 * DAY;
-function expiredJob(j, now) {
+/* 26/10/2026 (בקשת המשתמש): כמה זמן הקבצים של עבודה ב־R2 נשמרים — בלי אחסון כפול לחודש.
+   הסרטון הצרוב וכל שאר העבודה: jobTtl מהסיום — ייצור 30 יום, סביבת הניסוי 7 — בלי קשר לפתיחה חוזרת של הפרויקט.
+   ההפקות מחדש באותה תיקייה נספרות (endAt = הסיום האחרון בתיקייה — folderEnds), כדי שסרטון שנצרב מחדש יקבל את הימים שלו.
+   סרטון המקור והקבצים שנגזרים ממנו (הקול, איכויות הצפייה, עותקי הקול, נקודות השמירה) — SRC_TTL מפתיחת הפרויקט (created),
+   כדי לערוך ולצרוב מחדש באותו יום בלי להעלות שוב; ולא פחות מ־SRC_GRACE אחרי הסיום (עבודה ארוכה / שחיכתה לסרטון).
+   אחרי המחיקה sx = מתי; הפקה מחדש, "המשך" וסט הזהב — לא אפשריים (src_gone). עבודת זהב והרצות שלה (gs) — לא נוגעים במקור */
+const SRC_TTL = DAY, SRC_GRACE = 6 * 3600e3;
+const STAGING_PROJECT = 'snowball-staging-758f6';
+const jobTtl = (project) => (project === STAGING_PROJECT ? 7 : 30) * DAY;
+const endOf = (j) => (j && (j.ended || j.updated)) || 0;
+function folderEnds(jobs) {
+  const m = new Map();
+  for (const j of Array.isArray(jobs) ? jobs : []) if (j && R2_FOLDER_RE.test(String(j.folder || ''))) m.set(j.folder, Math.max(m.get(j.folder) || 0, endOf(j)));
+  return m;
+}
+function expiredJob(j, now, ttl = JOB_TTL, endAt = 0) {
+  const e = Math.max(endOf(j), endAt || 0);
   return !!(j && j.kind === 'tr' && !j.gd && FINAL.includes(j.state) && R2_FOLDER_RE.test(String(j.folder || ''))
-    && (j.ended || j.updated || 0) > 0 && now - (j.ended || j.updated) > JOB_TTL);
+    && e > 0 && now - e > ttl);
+}
+const srcDueAt = (j) => (j && (j.created || 0) > 0 ? Math.max(j.created + SRC_TTL, endOf(j) + SRC_GRACE) : 0);
+/* המזהים של סרטון המקור והקבצים שנגזרים ממנו — רק בתיקייה של העבודה ב־R2 (מקור מ־Drive של המשתמש לא נוגעים בו) */
+function srcFiles(j) {
+  if (!j || !R2_FOLDER_RE.test(String(j.folder || ''))) return [];
+  const ids = [j.fa && j.fa.id, j.fv && !j.fv.ext && j.fv.id];
+  for (const k of ['hl', 'hla', 'ck']) for (const x of Array.isArray(j[k]) ? j[k] : []) ids.push(x && x.id);
+  const pre = j.folder + '_';
+  return Array.from(new Set(ids.filter((id) => typeof id === 'string' && id.startsWith(pre) && /^[A-Za-z0-9_-]{30,80}$/.test(id))));
+}
+/* מקור שעוד לא נמחק (עבודה שהסתיימה, ב־R2, לא זהב ולא הרצה של זהב) */
+const srcPending = (j) => !!(j && j.kind === 'tr' && !j.gd && !j.gs && !(j.sx > 0) && FINAL.includes(j.state) && srcFiles(j).length > 0);
+const srcExpired = (j, now) => srcPending(j) && srcDueAt(j) > 0 && now >= srcDueAt(j);
+/* מה הטלפון רואה: עד מתי סרטון המקור (s, 0 = כבר נמחק / לא נמחק לבד) ועד מתי העבודה (j). רק לעבודה שהסתיימה ב־R2 */
+function retention(j, project, endAt) {
+  if (!j || j.kind !== 'tr' || j.gd || !FINAL.includes(j.state) || !R2_FOLDER_RE.test(String(j.folder || ''))) return null;
+  const e = Math.max(endOf(j), endAt || 0);
+  return { s: srcPending(j) ? srcDueAt(j) : 0, j: e > 0 ? e + jobTtl(project) : 0 };
 }
 
 module.exports = {
-  JOB_TTL, expiredJob,
+  JOB_TTL, expiredJob, SRC_TTL, SRC_GRACE, jobTtl, folderEnds, srcDueAt, srcFiles, srcPending, srcExpired, retention,
   DAY, GB, PEN, PASS, STALE_OK, OLD_JOB, QUOTA_LOW, QUOTA_CRIT, FIRES_WARN, MAX_FOLDERS, R2_GRACE, CHECKS, CHECK_KEYS, KINDS, CLEAN_KINDS,
   FINAL, orphanFolders, dupeFolders, r2Folders, r2Orphans, doneCheckpoints, oldJobs, scanFindings, scanView,
 };
