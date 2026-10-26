@@ -304,6 +304,7 @@ he: {
   anVsToday: 'המחיר היום {p}. האחוז מתחת לכל ערך = ההפרש מהמחיר.',
   anSrcKeHurdle: 'לפחות 10% — הרף של באפט ומנגר (לפי CAPM: {c})',
   anInYears: 'ב־{n} שנים',
+  anGone: 'המניה לא נסחרת מאז {d} — המחיר והנתונים מאותו יום',
   anHMcap: 'מחיר כל החברה',
   anHPe: 'כמה שנים של רווח משלמים',
   anHFpe: 'לפי הרווח הצפוי',
@@ -1411,6 +1412,7 @@ en: {
   anVsToday: 'Price today {p}. The percentage under each value = its gap from the price.',
   anSrcKeHurdle: 'At least 10% — the Buffett and Munger hurdle (CAPM: {c})',
   anInYears: 'In {n} years',
+  anGone: 'Not traded since {d} — price and data are from that day',
   anHMcap: 'Price of the whole company',
   anHPe: 'Years of profit you pay for',
   anHFpe: 'On expected profit',
@@ -5921,8 +5923,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.60.0';
-const APP_VERSION = 'v563';
+const APP_RELEASE = '2.60.1';
+const APP_VERSION = 'v564';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
