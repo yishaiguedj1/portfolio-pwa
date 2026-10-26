@@ -14,7 +14,8 @@ import java.io.File
  */
 data class BrVisit(val url: String, val title: String, val at: Long)
 // imp = יובאה מ־Chrome (התיקייה "מיובאות מ־Chrome"); x = מתי יצאה ל־Chrome בקובץ (0 = עוד לא) — BrSync.toExport
-data class BrMark(val url: String, val title: String, val at: Long, val imp: Boolean = false, val x: Long = 0L)
+// sid = המזהה בסנכרון עם Chrome (n… = הסימנייה ב־Chrome, a… = נשמרה כאן ועוד לא הגיעה) — BrChrome
+data class BrMark(val url: String, val title: String, val at: Long, val imp: Boolean = false, val x: Long = 0L, val sid: String = "")
 data class BrTabRec(val url: String, val title: String)
 
 object BrStore {
@@ -27,12 +28,15 @@ object BrStore {
     private val gone = LinkedHashSet<String>()
     private const val GONE_MAX = 3000
     private var dirty = false
+    /** הסנכרון עם Chrome (BrChrome) מקשיב: סימנייה נוספה / נמחקה, וביקור — רק מה שקרה כאן, לא מה שהגיע מ־Chrome */
+    var onMark: ((add: Boolean, m: BrMark) -> Unit)? = null
+    var onVisit: ((BrVisit) -> Unit)? = null
 
     fun init(ctx: Context) {
         if (::dir.isInitialized) return
         dir = File(ctx.filesDir, "br").apply { mkdirs() }
         read("history.json")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { history.add(BrVisit(it.optString("u"), it.optString("t"), it.optLong("a"))) } }
-        read("marks.json")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { marks.add(BrMark(it.optString("u"), it.optString("t"), it.optLong("a"), it.optBoolean("i"), it.optLong("x"))) } }
+        read("marks.json")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { marks.add(BrMark(it.optString("u"), it.optString("t"), it.optLong("a"), it.optBoolean("i"), it.optLong("x"), it.optString("s"))) } }
         read("gone.json")?.let { a -> for (i in 0 until a.length()) a.optString(i).takeIf { it.isNotEmpty() }?.let { gone.add(it) } }
     }
 
@@ -55,7 +59,7 @@ object BrStore {
     fun saveNow() {
         if (!::dir.isInitialized) return
         write("history.json", JSONArray().apply { history.forEach { put(JSONObject().put("u", it.url).put("t", it.title).put("a", it.at)) } })
-        write("marks.json", JSONArray().apply { marks.forEach { put(JSONObject().put("u", it.url).put("t", it.title).put("a", it.at).apply { if (it.imp) put("i", true); if (it.x > 0) put("x", it.x) }) } })
+        write("marks.json", JSONArray().apply { marks.forEach { put(JSONObject().put("u", it.url).put("t", it.title).put("a", it.at).apply { if (it.imp) put("i", true); if (it.x > 0) put("x", it.x); if (it.sid.isNotEmpty()) put("s", it.sid) }) } })
         write("gone.json", JSONArray().apply { gone.forEach { put(it) } })
     }
 
@@ -63,7 +67,7 @@ object BrStore {
         if (!url.startsWith("http")) return
         val last = history.lastOrNull()
         if (last != null && last.url == url) { if (title.isNotEmpty() && title != last.title) history[history.size - 1] = last.copy(title = title) }
-        else history.add(BrVisit(url, title, System.currentTimeMillis()))
+        else BrVisit(url, title, System.currentTimeMillis()).let { history.add(it); onVisit?.invoke(it) }
         while (history.size > HISTORY_MAX) history.removeAt(0)
         later()
     }
@@ -81,15 +85,32 @@ object BrStore {
     fun isMarked(url: String) = markOf(url) != null
     fun toggleMark(url: String, title: String): Boolean {
         val m = markOf(url)
-        if (m != null) forget(m) else { gone.remove(BrSync.key(url)); marks.add(0, BrMark(url, title.ifEmpty { hostOf(url) }, System.currentTimeMillis())) }
+        if (m != null) forget(m) else {
+            gone.remove(BrSync.key(url))
+            val n = BrMark(url, title.ifEmpty { hostOf(url) }, System.currentTimeMillis())
+            marks.add(0, n); onMark?.invoke(true, n)
+        }
         later()
         return m == null
     }
     fun removeMark(m: BrMark) { forget(m); later() }
     private fun forget(m: BrMark) {
-        marks.remove(m)
+        marks.remove(m); onMark?.invoke(false, m)
         gone.remove(BrSync.key(m.url)); gone.add(BrSync.key(m.url))
         while (gone.size > GONE_MAX) gone.remove(gone.first())
+    }
+
+    /** הסימניות אחרי סנכרון עם Chrome (BrSync.applyState) — מחליף את הרשימה כולה */
+    fun replaceMarks(list: List<BrMark>) { marks.clear(); marks.addAll(list); saveNow() }
+
+    /** ביקורים מ־Chrome (state.json של התוסף) — רק מה שעוד אין */
+    fun addVisits(items: List<BrImport.Item>): Int {
+        val nv = BrSync.planVisits(history, items)
+        if (nv.isEmpty()) return 0
+        history.addAll(nv); history.sortBy { it.at }
+        while (history.size > HISTORY_MAX) history.removeAt(0)
+        later()
+        return nv.size
     }
 
     class ImportStat(val marks: Int, val visits: Int, val known: Int)

@@ -166,6 +166,7 @@ dependencies {
     "browserImplementation"("androidx.credentials:credentials:1.5.0")
     "browserImplementation"("androidx.credentials:credentials-play-services-auth:1.5.0")
     "browserImplementation"("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    "browserImplementation"("com.google.android.gms:play-services-auth:21.1.1")   // סנכרון עם Chrome: הרשאת drive.appdata (AuthorizationClient)
     "browserImplementation"("androidx.media3:media3-exoplayer:1.5.1")
     "browserImplementation"("androidx.media3:media3-ui:1.5.1")
     // 24/10/2026: Studio Lab — Compose כמו DM, ‏ONNX Runtime באותה גרסה של השרת (onnxruntime==1.30.0), ffmpeg של youtubedl-android

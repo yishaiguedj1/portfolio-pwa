@@ -162,6 +162,7 @@ fun BrApp(a: BrowserActivity) {
                     BrowserActivity.Screen.PRIVACY -> PrivacyScreen(a)
                     BrowserActivity.Screen.BARPOS -> BarPosScreen(a)
                     BrowserActivity.Screen.IMPORT -> ImportScreen(a)
+                    BrowserActivity.Screen.CHROME -> ChromeScreen(a)
                 }
                 a.customView?.let { v ->
                     AndroidView({ ctx -> FrameLayout(ctx).apply { setBackgroundColor(AColor.BLACK) } }, Modifier.fillMaxSize(),
@@ -1086,6 +1087,8 @@ private fun SettingsScreen(a: BrowserActivity) {
             Group {
                 IRow(stringResource(R.string.brPrivacy), lead = { Tile(BrIcons.Shield, Color(0xFF5856D6)) }) { a.screen = BrowserActivity.Screen.PRIVACY }
                 Sep()
+                IRow(stringResource(R.string.brSyncTitle), lead = { Tile(BrIcons.Refresh, Color(0xFF34C759)) }, value = syncValue(a)) { a.screen = BrowserActivity.Screen.CHROME }
+                Sep()
                 IRow(stringResource(R.string.brImportTitle), lead = { Tile(BrIcons.StarOn, Color(0xFF007AFF)) }) { a.screen = BrowserActivity.Screen.IMPORT }
                 Sep()
                 IRow(stringResource(R.string.brDownloads), lead = { Tile(BrIcons.Dl, Color(0xFFFF9500)) }, value = "Studio DM") { a.dlSettings() }
@@ -1209,6 +1212,96 @@ private fun BigBtn(label: String, primary: Boolean, on: () -> Unit) {
     Box(Modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(12.dp)).background(if (primary) c.tint else c.tint.copy(alpha = 0.12f)).clickable(onClick = on),
         contentAlignment = Alignment.Center) {
         Text(label, color = if (primary) (if (c.dark) Color.Black else Color.White) else c.tint, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+/* ======================= סנכרון עם Chrome (התוסף במחשב) ======================= */
+
+@Composable
+private fun syncValue(a: BrowserActivity): String {
+    a.chromeRev
+    return stringResource(when {
+        !BrChrome.on -> R.string.brSyncOffShort
+        BrChrome.err.isNotEmpty() -> R.string.brSyncErrShort
+        BrChrome.stateAt == 0L -> R.string.brSyncWaitShort
+        else -> R.string.brSyncOnShort
+    })
+}
+
+/** לפי התצוגה המקדימה (claude.ai/artifact/MXE9EGTVzjchDQK8bHkhmb): לא מחובר = שני צעדים; מחובר = המצב, מה מסתנכרן, המחשב */
+@Composable
+private fun ChromeScreen(a: BrowserActivity) {
+    val c = LocalBr.current
+    a.chromeRev
+    SubPage(stringResource(R.string.brSyncTitle), back = stringResource(R.string.brSettings), onBack = { a.screen = BrowserActivity.Screen.SETTINGS }) {
+        if (!BrChrome.on) {
+            item {
+                Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 28.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.card).padding(18.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.size(64.dp).shadow(8.dp, RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp))
+                        .background(Brush.linearGradient(listOf(Color(0xFF4C8DF6), Color(0xFF1A73E8)))), contentAlignment = Alignment.Center) {
+                        Icon(BrIcons.Refresh, null, Modifier.size(34.dp), tint = Color.White)
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text(stringResource(R.string.brSyncHero), color = c.fg, fontSize = 20.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(6.dp))
+                    Text(stringResource(R.string.brSyncHeroSub), color = c.mute, fontSize = 15.sp, textAlign = TextAlign.Center, lineHeight = 21.sp)
+                }
+            }
+            item {
+                Group(footer = stringResource(R.string.brSyncFootOff)) {
+                    Step(1, stringResource(R.string.brSyncStep1), stringResource(R.string.brSyncStep1Sub), stringResource(R.string.brSyncStep1Btn), false) { a.chromeShareExt() }
+                    Sep()
+                    Step(2, stringResource(R.string.brSyncStep2), stringResource(R.string.brSyncStep2Sub), stringResource(R.string.brSyncStep2Btn), true) { a.chromeConnect() }
+                }
+            }
+            return@SubPage
+        }
+        item {
+            val err = BrChrome.err
+            val wait = BrChrome.stateAt == 0L
+            val (title, sub) = when {
+                err.isNotEmpty() -> stringResource(R.string.brSyncErr) to stringResource(if (err.contains("auth")) R.string.brSyncErrAuth else R.string.brSyncErrNet)
+                wait -> stringResource(R.string.brSyncWait) to stringResource(R.string.brSyncWaitSub)
+                else -> stringResource(R.string.brSyncOk) to stringResource(R.string.brSyncOkSub, DateUtils.getRelativeTimeSpanString(BrChrome.stateAt).toString())
+            }
+            val col = if (err.isEmpty() && !wait) Green else Color(0xFFFF9500)
+            Row(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 28.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.card).padding(horizontal = 18.dp, vertical = 20.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(48.dp).clip(CircleShape).background(col.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+                    Icon(if (err.isEmpty() && !wait) BrIcons.Check else BrIcons.Warn, null, Modifier.size(26.dp), tint = col)
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(title, color = c.fg, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text(sub, color = c.mute, fontSize = 14.sp, lineHeight = 19.sp)
+                }
+            }
+        }
+        item {
+            Group(stringResource(R.string.brSyncWhat), stringResource(R.string.brSyncWhatFoot)) {
+                IRow(stringResource(R.string.brSyncMarks), lead = { Tile(BrIcons.StarOn, Color(0xFFFF9500)) }, chevron = false,
+                    trailing = { IosSwitch(BrChrome.marksOn) { BrChrome.marksOn = it; a.chromeRev++ } })
+                Sep()
+                IRow(stringResource(R.string.brSyncHist), lead = { Tile(BrIcons.History, Color(0xFF5856D6)) }, chevron = false,
+                    trailing = { IosSwitch(BrChrome.histOn) { BrChrome.histOn = it; a.chromeRev++ } })
+            }
+        }
+        item {
+            Group(stringResource(R.string.brSyncPc)) {
+                IRow(stringResource(R.string.brSyncPcRow), if (BrChrome.stateAt > 0) stringResource(R.string.brSyncPcSeen, DateUtils.getRelativeTimeSpanString(BrChrome.stateAt).toString()) else stringResource(R.string.brSyncPcNone),
+                    lead = { Tile(BrIcons.Desktop, Color(0xFF8E8E93)) }, chevron = false)
+                Sep(16.dp)
+                IRow(stringResource(R.string.brSyncNow), color = c.tint, chevron = false) { a.chromeNow() }
+                Sep(16.dp)
+                IRow(stringResource(R.string.brSyncShareAgain), color = c.tint, chevron = false) { a.chromeShareExt() }
+            }
+        }
+        item {
+            Group(footer = stringResource(R.string.brSyncStopFoot)) {
+                IRow(stringResource(R.string.brSyncStop), color = Color(0xFFFF3B30), chevron = false) { a.chromeOff() }
+            }
+        }
     }
 }
 

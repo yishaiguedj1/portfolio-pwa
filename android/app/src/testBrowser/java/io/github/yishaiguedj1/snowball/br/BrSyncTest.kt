@@ -56,4 +56,19 @@ class BrSyncTest {
         assertEquals(2, back.marks.size)
         assertTrue(BrSync.planMarks(marks, back.marks, emptySet(), 1).add.isEmpty())
     }
+
+    @Test fun chromeStateWins() {
+        val st = listOf(BrSync.SMark("n1", "https://ynet.co.il/", "ynet", 30, "c"), BrSync.SMark("n2", "https://mine.com/", "m", 20, "a"),
+            BrSync.SMark("n3", "https://www.ynet.co.il", "dup", 10, "c"), BrSync.SMark("n4", "https://gone.com/", "g", 5, "c"))
+        val pending = listOf(BrSync.Op(8, "add", "a8", "https://new.com/", "new", 40), BrSync.Op(9, "del", "n4", "https://gone.com/", "", 0),
+            BrSync.Op(10, "add", "a10", "https://mine.com", "dup", 1), BrSync.Op(11, "ren", "a7", "", "שם חדש", 0),
+            BrSync.Op(12, "add", "a12", "https://tmp.com/", "t", 2), BrSync.Op(13, "del", "a12", "https://tmp.com/", "", 0))
+        val r = BrSync.applyState(st, pending, mapOf("a7" to "n2"))
+        assertEquals(listOf("https://new.com/", "https://ynet.co.il/", "https://mine.com/"), r.map { it.url })   // בלי כפולה, בלי שנמחקה, בלי זו שנוספה ונמחקה
+        assertTrue(r[1].imp && !r[2].imp && !r[0].imp)                    // מ־Chrome / נשמרה כאן
+        assertEquals("שם חדש", r[2].title)                                // שינוי שם שעוד לא הגיע — דרך המזהה הזמני
+        assertEquals(listOf("a8", "n1", "n2"), r.map { it.sid })
+        // כשכל הפעולות אושרו — הרשימה = המצב של Chrome בלבד
+        assertEquals(3, BrSync.applyState(st, emptyList(), emptyMap()).size)
+    }
 }

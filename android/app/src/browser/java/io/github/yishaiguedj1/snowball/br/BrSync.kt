@@ -84,5 +84,38 @@ object BrSync {
         return sb.append("    </DL><p>\n</DL><p>\n").toString()
     }
 
+    /* ---------- הסנכרון האוטומטי עם Chrome (דרך התוסף במחשב — android/chrome-ext) ---------- */
+
+    /** סימנייה כפי שהתוסף כתב אותה ב־state.json; o = a (נשמרה בטלפון) / c (Chrome) */
+    data class SMark(val id: String, val u: String, val t: String, val at: Long, val o: String)
+    /** פעולה מהטלפון שעוד לא אושרה (s > ack): add / del / ren */
+    data class Op(val s: Long, val k: String, val id: String, val u: String, val t: String, val at: Long)
+
+    /**
+     * הסימניות בטלפון אחרי שהגיע state.json: Chrome הוא המקור — מה שבמצב, פחות מה שמחקת כאן ועוד לא הגיע ל־Chrome,
+     * ועוד מה ששמרת כאן ועוד לא הגיע. בלי כפולים (`key`). `imp` = הגיעה מ־Chrome (התיקייה "מ־Chrome").
+     */
+    fun applyState(state: List<SMark>, pending: List<Op>, alias: Map<String, String>): List<BrMark> {
+        fun sid(id: String) = if (id.startsWith("a")) alias[id] ?: id else id
+        val delIds = HashSet<String>(); val delKeys = HashSet<String>()
+        val adds = LinkedHashMap<String, Op>()
+        val ren = HashMap<String, String>()
+        for (o in pending.sortedBy { it.s }) when (o.k) {
+            "add" -> { adds[o.id] = o; delIds.remove(o.id); delKeys.remove(key(o.u)) }
+            "del" -> { if (adds.remove(o.id) == null) { delIds += sid(o.id); if (o.u.isNotEmpty()) delKeys += key(o.u) } }
+            "ren" -> ren[sid(o.id)] = o.t
+        }
+        val seen = HashSet<String>()
+        val out = ArrayList<BrMark>()
+        for (m in state) {
+            val k = key(m.u)
+            if (m.id in delIds || k in delKeys || !seen.add(k)) continue
+            out += BrMark(m.u, ren[m.id] ?: m.t.ifEmpty { hostOf(m.u) }, m.at, imp = m.o != "a", sid = m.id)
+        }
+        for (o in adds.values) if (seen.add(key(o.u))) out += BrMark(o.u, o.t.ifEmpty { hostOf(o.u) }, o.at, sid = o.id)
+        out.sortByDescending { it.at }
+        return out
+    }
+
     fun hostOf(url: String): String = key(url).substringBefore('/').substringBefore('?').substringBefore(':')
 }

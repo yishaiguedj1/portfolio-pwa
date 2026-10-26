@@ -16,7 +16,7 @@ ok(/app\("browser", "app\.thesnowball\.browser", "Studio Browser"/.test(gradle),
 ok(/getByName\("browser"\)\.java\.srcDirs\([^)]*"src\/dm\/java"\)/.test(gradle), 'הדפדפן על הקוד של DM (ההורדות בתוך האפליקציה)');
 ok(/getByName\("browser"\)\.res\.srcDir\("src\/dm\/res"\)/.test(gradle), 'המשאבים של DM (מחרוזות ההורדות)');
 const yml = R('.github/workflows/android.yml');
-ok(/app-browser-release\.apk the-snowball-browser\.apk/.test(yml) && /the-snowball-browser\.apk --clobber/.test(yml), 'APK בקישור הקבוע');
+ok(/app-browser-release\.apk the-snowball-browser\.apk/.test(yml) && /the-snowball-browser\.apk( studio-browser-chrome\.zip)? --clobber/.test(yml), 'APK בקישור הקבוע');
 
 const man = R('android/app/src/browser/AndroidManifest.xml');
 ok(/android:name="\.MainActivity" tools:node="remove"/.test(man), 'לא TWA');
@@ -117,6 +117,12 @@ ok(/k in gone -> dead\+\+/.test(sync) && /gone\.json/.test(store) && /private fu
 ok(/!it\.imp && \(all \|\| it\.x == 0L\)/.test(sync) && /BrStore\.markExported\(list\)/.test(R(B + 'BrowserActivity.kt')), 'ייצוא: רק מה ש־Chrome עוד לא קיבל, ומסומן אחרי שנשמר');
 ok(/distinctBy \{ BrSync\.key\(it\.url\) \}/.test(imp), 'בתוך קובץ אחד — בלי כפולים לפי המפתח');
 ok(fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yishaiguedj1/snowball/br/BrSyncTest.kt')), 'בדיקת JVM לכפילויות');
+const chr = R(B + 'BrChrome.kt');
+ok(/drive\.appdata/.test(chr) && /appDataFolder/.test(chr) && !/thesnowball\.app|vercel/i.test(chr), 'סנכרון עם Chrome: רק appDataFolder ב־Drive של המשתמש, לא השרת שלנו');
+ok(/write\(t, "ops\.json"/.test(chr) && !/write\(t, "state\.json"/.test(chr), 'הטלפון כותב רק ops.json — state.json רק התוסף');
+ok(/BrSync\.applyState\(/.test(chr) && /fun applyState\(/.test(sync), 'הסימניות אחרי סנכרון — דרך applyState (נבדק ב־JVM)');
+ok(/Screen\.CHROME -> ChromeScreen\(a\)/.test(R(B + 'BrUi.kt')) && /Screen\.IMPORT, Screen\.CHROME\)/.test(R(B + 'BrowserActivity.kt')), 'מסך "סנכרון עם Chrome" בהגדרות');
+ok(/studio-browser-chrome\.zip/.test(chr), 'הקישור לתוסף');
 ok(/testBrowserReleaseUnitTest/.test(R('.github/workflows/android.yml')) && fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yishaiguedj1/snowball/br/BrImportTest.kt')), 'בדיקת JVM לייבוא ב־CI');
 
 // 26/10/2026 (בקשת המשתמש: "יותר זהה ל־Chrome במראה, יותר Apple בעיצוב", לפי התצוגה המקדימה שאושרה)

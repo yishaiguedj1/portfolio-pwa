@@ -44,6 +44,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -72,9 +73,9 @@ import io.github.yishaiguedj1.snowball.dm.DmStore
  * כך שהעוגיות של האתרים לא יוצאות מהאפליקציה. הממשק — BrUi.kt.
  */
 class BrowserActivity : ComponentActivity() {
-    enum class Screen { PAGE, SWITCHER, HISTORY, BOOKMARKS, SETTINGS, ENGINE, PASSWORDS, PRIVACY, BARPOS, IMPORT }
+    enum class Screen { PAGE, SWITCHER, HISTORY, BOOKMARKS, SETTINGS, ENGINE, PASSWORDS, PRIVACY, BARPOS, IMPORT, CHROME }
     /** עמודי המשנה של ההגדרות — "חזור" מהם חוזר להגדרות, לא לדף */
-    private val settingsSubs = setOf(Screen.ENGINE, Screen.PASSWORDS, Screen.PRIVACY, Screen.BARPOS, Screen.IMPORT)
+    private val settingsSubs = setOf(Screen.ENGINE, Screen.PASSWORDS, Screen.PRIVACY, Screen.BARPOS, Screen.IMPORT, Screen.CHROME)
     data class PermAsk(val host: String, val kind: Int, val go: (Boolean) -> Unit)   // kind: 1 מצלמה, 2 מיקרופון, 3 שניהם, 4 מיקום
 
     val tabs = mutableStateListOf<BrTab>()
@@ -89,6 +90,8 @@ class BrowserActivity : ComponentActivity() {
     var permAsk by mutableStateOf<PermAsk?>(null)
     var swPrivate by mutableStateOf(false)
     var markRev by mutableIntStateOf(0)
+    /** הסנכרון עם Chrome (BrChrome) השתנה — המסך מתעדכן */
+    var chromeRev by mutableIntStateOf(0)
     var barBottom by mutableStateOf(false)
     var homeBtn by mutableStateOf(false)
     var engine by mutableStateOf("google")
@@ -120,6 +123,10 @@ class BrowserActivity : ComponentActivity() {
     }
     private val roleLaunch = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { checkDefault() }
     private val importLaunch = registerForActivityResult(ActivityResultContracts.OpenDocument()) { u -> if (u != null) importFrom(u) }
+    private val chromeLaunch = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { r ->
+        if (!BrChrome.connected(this, r.data)) Toast.makeText(this, R.string.brSyncNoAuth, Toast.LENGTH_LONG).show()
+        chromeRev++
+    }
     private val exportLaunch = registerForActivityResult(ActivityResultContracts.CreateDocument("text/html")) { u -> if (u != null) exportTo(u) }
     private val voiceLaunch = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         val q = r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
@@ -135,6 +142,8 @@ class BrowserActivity : ComponentActivity() {
         barBottom = prefs.barBottom; homeBtn = prefs.homeBtn; engine = prefs.engine; bubble = prefs.bubble
         suggestOn = prefs.suggest; zoom = prefs.zoom; lastImport = prefs.lastImport
         BrStore.init(this)
+        BrChrome.init(this); BrChrome.attach(this)
+        BrChrome.onChange = { chromeRev++; markRev++ }
         DmStore.init(this)
         DmEngine.pump(this)
         swClient()
@@ -150,8 +159,11 @@ class BrowserActivity : ComponentActivity() {
     }
 
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); handle(intent) }
-    override fun onResume() { super.onResume(); checkDefault(); checkFill(); cur?.web?.onResume() }
+    override fun onResume() { super.onResume(); checkDefault(); checkFill(); cur?.web?.onResume(); BrChrome.sync(this); ui.postDelayed(chromeTick, CHROME_EVERY) }
+    /** כל עוד האפליקציה פתוחה — סנכרון עם Chrome כל כמה דקות (התוסף במחשב מסנכרן בקצב דומה) */
+    private val chromeTick: Runnable = Runnable { BrChrome.sync(this); ui.postDelayed(chromeTick, CHROME_EVERY) }
     override fun onPause() {
+        ui.removeCallbacks(chromeTick)
         cur?.web?.onPause()
         saveSession()
         super.onPause()
@@ -760,6 +772,22 @@ class BrowserActivity : ComponentActivity() {
         Toast.makeText(this, if (ok) getString(R.string.brExportedN, list.size) else getString(R.string.dmErrFail), Toast.LENGTH_SHORT).show()
     }
 
+    /* ---------------- סנכרון עם Chrome (התוסף במחשב) ---------------- */
+
+    fun chromeConnect() {
+        BrChrome.connect(this, { s -> runCatching { chromeLaunch.launch(IntentSenderRequest.Builder(s).build()) } }) { ok ->
+            if (!ok && !BrChrome.on) Toast.makeText(this, R.string.brSyncNoAuth, Toast.LENGTH_LONG).show()
+            chromeRev++
+        }
+    }
+    fun chromeNow() { BrChrome.sync(this, force = true); chromeRev++ }
+    fun chromeOff() { BrChrome.disable(); chromeRev++ }
+    /** הקישור לתוסף — לשלוח לעצמך ולפתוח במחשב (עד שיעלה לחנות: התקנה במצב מפתח) */
+    fun chromeShareExt() {
+        val txt = getString(R.string.brSyncShareText, BrChrome.EXT_ZIP)
+        runCatching { startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, txt), getString(R.string.brShare))) }
+    }
+
     fun dlSettings() { runCatching { startActivity(Intent(this, DmActivity::class.java)) } }
 
     fun version(): String = runCatching { packageManager.getPackageInfo(packageName, 0).versionName ?: "" }.getOrDefault("")
@@ -769,6 +797,7 @@ class BrowserActivity : ComponentActivity() {
         const val LIVE_MAX = 6
         /** מהבועה ב־Chrome: כמה זמן מחכים לממצא הראשון כדי לפתוח את הרשימה לבד */
         const val HUNT_MS = 45_000L
+        const val CHROME_EVERY = 5 * 60_000L
         const val GMS = "com.google.android.gms"
         const val TAKEOUT = "https://takeout.google.com/settings/takeout/custom/chrome"
 
