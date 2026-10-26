@@ -518,6 +518,117 @@ def neighbors(order: list[str], cur: dict[str, str], k: str, nb: int) -> str:
     return (' · לפני: ' + ' / '.join(before) if before else '') + (' · אחרי: ' + ' / '.join(after) if after else '')
 
 
+# ------------------------------------------------------------------ 26/10/2026: שתי טיוטות והכרעה
+# ניתוח המאגר: שתי ריצות של אותו מודל על אותו סרטון — אף טעות משמעותית לא הופיעה בשתיהן (אקמן: 1–3 לכל ריצה, כל פעם במקום
+# אחר); ב־AppLovin ריצה אחת "הוסטה" לאורך עשרות כתוביות והשנייה לא. לכן: טיוטה שנייה (B) לכל החלקים, וקטעים שבהם
+# הטיוטות שונות (דמיון מתחת ל־DUAL_TH) — מכריע אחד בוחר A או B לכל הקטע כולו (לא לכל כתובית: מתרגם אחד מעביר מילה
+# לכתובית הבאה, ובחירה לסירוגין הייתה מוחקת/מכפילה אותה). גבול של קטע = כתובית שבה הטיוטות כמעט זהות.
+# רק ב־Haiku (התרגום שם ~חצי מהעבודה, התוספת כ־12 סנט לשעת סרטון); `SNB_TL_DUAL=off` מכבה, `on` מדליק לכל מודל.
+DUAL_TH = 0.7
+ARB_MAX_CUES = 120                    # כתוביות לבקשת הכרעה אחת (קטע ארוך — לבד בבקשה)
+ARB_FILE = 'fixes-ab.txt'             # נקרא לפני fixes.txt (סדר אלפביתי: '-' < '.'), כלומר "הטיוטה" אחרי ההכרעה
+_NORM_CMP = re.compile(r'[^\w\s]')
+
+
+def _cmp_norm(s: str) -> str:
+    return _NORM_CMP.sub('', re.sub(r'\s+', ' ', s or '')).strip()
+
+
+def text_sim(a: str, b: str) -> float:
+    import difflib
+    a, b = _cmp_norm(a), _cmp_norm(b)
+    if a == b:
+        return 1.0
+    return difflib.SequenceMatcher(None, a, b, autojunk=False).ratio()
+
+
+def dual_segments(order: list[str], a: dict[str, str], b: dict[str, str], th: float = DUAL_TH) -> list[list[str]]:
+    """רצפים מקסימליים של כתוביות שבהן הטיוטות שונות. קטע עם '=' / '∅' באחת הטיוטות (מבנה שונה — איחוד/השמטה) לא נכנס:
+    בחירה בו הייתה משנה את חלוקת הכתוביות, וזה כבר לא "אותו קטע בשני נוסחים"."""
+    out, cur = [], []
+    for k in order:
+        va, vb = a.get(k), b.get(k)
+        if va is None or vb is None or text_sim(va, vb) >= th:
+            if cur:
+                out.append(cur)
+                cur = []
+            continue
+        cur.append(k)
+    if cur:
+        out.append(cur)
+    return [g for g in out if not any(x in ('=', '∅') for k in g for x in (a.get(k), b.get(k)))]
+
+
+def arb_request(segs: list[list[str]], en: dict[str, str], a: dict[str, str], b: dict[str, str], first: int = 1) -> str:
+    rows = []
+    for n, g in enumerate(segs, first):
+        rows.append(f'§{n}')
+        rows += [f'EN #{k}: {en.get(k, "")}' for k in g]
+        rows.append('A: ' + ' | '.join(f'#{k} {a[k]}' for k in g))
+        rows.append('B: ' + ' | '.join(f'#{k} {b[k]}' for k in g))
+        rows.append('')
+    return '\n'.join(rows).strip()
+
+
+_PICK_RE = re.compile(r'^\s*§\s*(\d+)\s*[:.\-–]?\s*([AB])\b', re.M)
+
+
+def parse_picks(text: str, lo: int, hi: int) -> dict[int, str]:
+    """`§מספר A|B` → {מספר: 'A'|'B'} — רק מספרים מהבקשה; כפול / לא מובן — לא נבחר (נשאר A)."""
+    out, seen = {}, set()
+    for m in _PICK_RE.finditer(text or ''):
+        n = int(m.group(1))
+        if lo <= n <= hi:
+            if n in seen and out.get(n) != m.group(2):
+                out.pop(n, None)
+                continue
+            seen.add(n)
+            out[n] = m.group(2)
+    return out
+
+
+ARB_TASK = """הכרעה בין שני תרגומים של אותן כתוביות. שני מתרגמים תרגמו את אותו סרטון, ובקטעים שלמטה הם יצאו שונים.
+לכל קטע (§מספר): שורות המקור באנגלית (EN #מספר), ואחריהן שתי גרסאות עבריות לאותן כתוביות — A ו־B.
+בחר לכל קטע את הגרסה הטובה יותר, לפי הסדר הזה:
+1. נאמנות למשמעות: בלי טעות תרגום, בלי השמטה של מידע ובלי תוספת שלא נאמרה. כל כתובית מתרגמת את השורה שלה — לא את השורה הבאה או הקודמת.
+2. עברית נכונה וטבעית: דקדוק, מגדר הדובר והנמען לפי התדריך, ניסוח שנשמע כמו דיבור ולא כמו תרגום מילה במילה.
+3. קצר יותר — רק כששתיהן שוות בשני הקודמים.
+כשהן שקולות — A.
+התשובה: שורה אחת לכל קטע, `§מספר A` או `§מספר B`. בלי הסברים."""
+
+
+# ------------------------------------------------------------------ 26/10/2026: סבבי התיקון — "לא להזיק"
+# ניתוח המאגר (15 סרטונים, כל שינוי של סבב תיקון סווג): סבב התיקון של המתרגם — 31% שיפרו, 22% קלקלו, 47% לא שינו כלום;
+# התיקון האחרון — 37% / 28%. הקלקולים מהערות "לשקול" שהמודל ניסה לרצות: מספרים (27 קלקלו מול 12 שיפרו — "רגל" במקום
+# מטר, "שנות ה־90" למספר, מספר מתמלול שגוי) ומחרוזות מילון (29 מול 12 — יחיד במקום רבים, סמיכות שבורה). הן נשארות בבדיקה
+# (בדוח, אצל השופט ובביקורת) — רק לא נשלחות לתיקון אוטומטי. וכל תשובה עוברת fix_ok לפני שהיא נכנסת.
+FIX_SKIP = frozenset(('num', 'gls'))
+_NUM_RE = re.compile(r'\d+(?:[.,]\d+)*')
+
+
+def fix_ok(old: str, new: str, msgs: list[str], en: str = '', hard: bool = False) -> bool:
+    """תיקון שמחמיר נזרק (הכתובית נשארת כמו שהייתה):
+    - בלי שינוי, או '='/'∅' בלי בעיה שחייבת תיקון;
+    - מספר שהיה בכתובית ובמקור ונעלם;
+    - קיצור: כשכל הבעיות הן קצב קריאה — רק אם באמת קצר יותר, ולא חיתוך של יותר מ־45% (שם נמחקו פעלים ומשמעות);
+      בכל הערה "לשקול" אחרת — לא חיתוך של יותר מחצי."""
+    o, n = (old or '').strip(), (new or '').strip()
+    if not n or n == o:
+        return False
+    if n in ('=', '∅') or o in ('=', '∅'):
+        return hard
+    if hard:
+        return True
+    lost = [x for x in _NUM_RE.findall(o) if x in _NUM_RE.findall(en or '') and x not in _NUM_RE.findall(n)]
+    if lost:
+        return False
+    codes = {issue_code(m) for m in msgs}
+    lo, ln = len(o.replace('|', '')), len(n.replace('|', ''))
+    if codes and codes <= {'cps', 'cur'}:
+        return ln < lo and ln >= 0.55 * lo
+    return ln >= 0.5 * lo
+
+
 # Haiku 5.5 (10/10/2026): בקשה מעל 100K טוקני קלט עולה פי 5. שני הצעדים שמחזיקים אותו בכרטיס הזול — רק כשצריך:
 WIN_RADIUS = 1          # חלון המקור לכל חלק: החלק עצמו + חלק אחד מכל צד (ההקשר הקרוב — האנטצדנט כמעט תמיד שם)
 
@@ -699,6 +810,7 @@ class Pipeline:
         self.ctx, self.J, self.eng, self.sleep = ctx, jobmod, eng, sleep
         # 14/10/2026: עצירה מיידית — היישור ברקע קיבל "עצור" / חלק אחר נכשל: חלקים שעוד לא שלחו בקשה לא שולחים
         self.halt = threading.Event()
+        self.fix_rej = 0                    # 26/10/2026: תיקונים שנזרקו כי החמירו (fix_ok)
 
     def halted(self):
         stop = getattr(self.J, 'Stop', None)
@@ -722,6 +834,8 @@ class Pipeline:
         self.ctx.st['api_usage'] = self.eng.ledger.list()
         if hasattr(self.eng, 'facts'):
             self.ctx.st['eng_facts'] = self.eng.facts()      # 14/10/2026: מאגר הלמידה
+        if self.fix_rej:
+            self.ctx.st['fxr'] = self.fix_rej
         self.J.save_state(self.ctx.st)
 
     # -------------------------------------------------------------- 2. הגהה + תדריך + מילון + שאלות
@@ -921,12 +1035,13 @@ class Pipeline:
             return [(self.fixed_tl(source_window(head, parts, n)), g) for n, g in sorted(groups.items())]
         return fx
 
-    def _tl_part(self, p: dict, fixed: str, warm: threading.Event | None = None):
+    def _tl_part(self, p: dict, fixed: str, warm: threading.Event | None = None, out_dir: Path | None = None):
         """תרגום חלק אחד (עם ניסיון נוסף לכתוביות שהמודל דילג עליהן) וכתיבת הקובץ שלו.
-        warm מסומן ברגע שהשרת התחיל לענות (= הבלוק הקבוע במטמון) — ובכל מקרה בסוף, שכשל לא יתקע את השאר."""
+        warm מסומן ברגע שהשרת התחיל לענות (= הבלוק הקבוע במטמון) — ובכל מקרה בסוף, שכשל לא יתקע את השאר.
+        out_dir (26/10/2026) = tr/alt — הטיוטה השנייה (אותה בקשה בדיוק, תשובה אחרת)."""
         try:
             ids = set(p['ids'])
-            out = self.pd / 'tr' / p['file']
+            out = (out_dir or self.pd / 'tr') / p['file']
             # "המשך": חלק שנכתב חלקית — ממשיכים ממה שכבר תורגם (לא מאפס)
             got: dict[str, str] = answer_lines(out.read_text(encoding='utf-8'), ids) if out.exists() else {}
             stalled, cut = 0, False
@@ -991,37 +1106,125 @@ class Pipeline:
                 continue                                  # כבר תורגם (המשך אחרי הפסקה)
             pending.append(p)
         done_n = n - len(pending)
+        dual = self.dual_on()
+        alt = td / 'alt'
+        pend_b = []
+        if dual and not (td / ARB_FILE).exists():
+            alt.mkdir(exist_ok=True)
+            for p in parts:
+                out = alt / p['file']
+                if not (out.exists() and set(answer_lines(out.read_text(encoding='utf-8'), set(p['ids']))) >= set(p['ids'])):
+                    pend_b.append(p)
         if not quiet:
             ctx.report('tl', 0.0, 'Claude מתרגם', force=True)
         if pending and getattr(self.eng, 'manual', False):
             self._tl_manual(pending, fx)               # סבב 10: העתק־הדבק — כל החלקים בבקשה אחת (ומה שחסר — בעוד אחת)
-        elif pending:
+        elif pending or pend_b:
             # החלק הראשון כותב את המטמון; ברגע שהשרת התחיל לענות לו — שאר החלקים במקביל, כולם קוראים
             # מהמטמון (קודם החלקים רצו בטור — אותו מחיר, הרבה יותר זמן קיר).
+            # 26/10/2026: הטיוטה השנייה (tr/alt) — אותן בקשות, באותו מאגר, אחרי שהמטמון חם; לא מאריכה את זמן הקיר
             warm = threading.Event()
-            with ThreadPoolExecutor(max_workers=min(TL_PARALLEL, len(pending))) as ex:
+            jobs = [(p, None) for p in pending] + [(p, alt) for p in pend_b]
+            with ThreadPoolExecutor(max_workers=min(TL_PARALLEL * (2 if pend_b else 1), len(jobs))) as ex:
+                futs = {}
                 if windowed:                              # לכל חלק בלוק משלו — אין מטמון משותף לחמם, כולם במקביל
-                    futs = [ex.submit(self._tl_part, p, fx(set(p['ids']))[0][0]) for p in pending]
+                    for p, od in jobs:
+                        futs[ex.submit(self._tl_part, p, fx(set(p['ids']))[0][0], None, od)] = od
                 else:
-                    futs = [ex.submit(self._tl_part, pending[0], fx, warm)]
-                    if len(pending) > 1:
+                    p0, od0 = jobs[0]
+                    futs[ex.submit(self._tl_part, p0, fx, warm, od0)] = od0
+                    if len(jobs) > 1:
                         warm.wait(timeout=1800)
-                        futs += [ex.submit(self._tl_part, p, fx) for p in pending[1:]]
+                        for p, od in jobs[1:]:
+                            futs[ex.submit(self._tl_part, p, fx, None, od)] = od
                 try:
                     for f in as_completed(futs):
-                        f.result()                        # שגיאה בחלק כלשהו עולה כאן
-                        done_n += 1
+                        try:
+                            f.result()                    # שגיאה בחלק כלשהו עולה כאן
+                        except llm.LLMError as e:
+                            if futs[f] is None:
+                                raise
+                            # הטיוטה השנייה היא תוספת — כשל בה לא מפיל עבודה (בקטעים האלה נשארת הראשונה)
+                            print(f'· טיוטה שנייה: חלק נכשל ({e.code}) — ממשיכים עם הראשונה')
+                            continue
                         self.save_usage()
-                        if not quiet:
-                            ctx.report('tl', done_n / n, f'Claude מתרגם · חלק {done_n} מתוך {n}')
+                        if futs[f] is None:
+                            done_n += 1
+                            if not quiet:
+                                ctx.report('tl', done_n / n, f'Claude מתרגם · חלק {done_n} מתוך {n}')
                 except BaseException:
                     # 14/10/2026: חלק נכשל / "עצור" — שאר החלקים לא מתחילים (עד היום היציאה מה־with חיכתה לכולם, בתשלום)
                     self.halt.set()
                     for f in futs:
                         f.cancel()
                     raise
+        if dual:
+            self.arbitrate(fx)
         if fix:
             self.fix_round('fixes.txt', fx, 'tl')
+
+    def dual_on(self) -> bool:
+        v = os.environ.get('SNB_TL_DUAL', '')
+        if v == 'off' or getattr(self.eng, 'manual', False):
+            return False
+        return v == 'on' or 'haiku' in str(getattr(getattr(self.eng, 'spec', None), 'model', ''))
+
+    def _raw(self, files) -> dict[str, str]:
+        he = {}
+        for f in files:
+            for raw in f.read_text(encoding='utf-8').splitlines():
+                m = LINE_RE.match(raw.strip())
+                if m:
+                    he[m.group(1)] = clean_answer(m.group(2))
+        return he
+
+    def arbitrate(self, fx):
+        """26/10/2026: ההכרעה בין שתי הטיוטות — רק בקטעים שבהם הן שונות; הבחירה ב־B נכתבת ל־ARB_FILE. "המשך" — לא שוב."""
+        td = self.pd / 'tr'
+        out = td / ARB_FILE
+        if out.exists():
+            return
+        a = self._raw(sorted(td.glob('batch_*.he.txt')))
+        b = self._raw(sorted((td / 'alt').glob('batch_*.he.txt')))
+        try:
+            en = {str(c['id']): str(c.get('en') or '') for c in json.loads((self.pd / 'cues.en.json').read_text(encoding='utf-8'))}
+        except Exception:            # noqa: BLE001
+            en = {}
+        order = sorted(a, key=int)
+        segs = dual_segments(order, a, b)
+        picks: dict[str, str] = {}
+        nb = 0
+        batches, cur = [], []
+        for g in segs:
+            if cur and sum(len(x) for x in cur) + len(g) > ARB_MAX_CUES:
+                batches.append(cur)
+                cur = []
+            cur.append(g)
+        if cur:
+            batches.append(cur)
+        first = 1
+        for bt in batches:
+            ids = {k for g in bt for k in g}
+            fixed_g = fx(ids)[0][0] if callable(fx) else fx
+            req = arb_request(bt, en, a, b, first)
+            try:
+                res = self.eng.complete('tl', fixed_g, ARB_TASK + '\n\n' + block('compare', req), max_tokens=8000)
+                pk = parse_picks(getattr(res, 'text', '') or '', first, first + len(bt) - 1)
+            except llm.LLMError as e:
+                print(f'· ההכרעה בין הטיוטות נכשלה ({e.code}) — נשארים עם הטיוטה הראשונה בקטעים האלה')
+                pk = {}
+            for i, g in enumerate(bt, first):
+                if pk.get(i) == 'B':
+                    nb += 1
+                    picks.update({k: b[k] for k in g})
+            first += len(bt)
+            self.save_usage()
+        tmp = out.with_name(out.name + '.part')
+        tmp.write_text(fmt_lines(picks) + '\n' if picks else '', encoding='utf-8')
+        tmp.replace(out)
+        self.ctx.st['dual'] = {'sg': len(segs), 'c': sum(len(g) for g in segs), 'b': nb, 'bc': len(picks), 'n': len(order)}
+        print(f'· שתי טיוטות: {len(segs)} קטעים שונים ({sum(len(g) for g in segs)} כתוביות מתוך {len(order)}), '
+              f'בטיוטה השנייה נבחרו {nb} ({len(picks)} כתוביות)')
 
     def check(self) -> tuple[dict, dict, int]:
         lines = self.J.vt(self.ctx, ['tr-check', self.ctx.name])
@@ -1040,9 +1243,10 @@ class Pipeline:
         return he
 
     def draft(self) -> dict[str, str]:
-        """הטיוטה של המתרגם בלבד (batch_*), בלי אף קובץ תיקונים."""
+        """הטיוטה של המתרגם (batch_*, ואחריה ההכרעה בין שתי הטיוטות — ARB_FILE), בלי אף קובץ תיקונים."""
         he = {}
-        for f in sorted((self.pd / 'tr').glob('batch_*.he.txt')):
+        td = self.pd / 'tr'
+        for f in sorted(td.glob('batch_*.he.txt')) + ([td / ARB_FILE] if (td / ARB_FILE).exists() else []):
             for raw in f.read_text(encoding='utf-8').splitlines():
                 m = LINE_RE.match(raw.strip())
                 if m:
@@ -1058,10 +1262,15 @@ class Pipeline:
         keep = {מספר: הנוסח שלפני הביקורת} — תשובה שמחזירה אותו נזרקת (התיקון האחרון ביטל שינויים של הביקורת)."""
         hard, soft, n_err = self.check()
         r, best = 0, n_err
+        try:
+            en = {str(c['id']): str(c.get('en') or '') for c in json.loads((self.pd / 'cues.en.json').read_text(encoding='utf-8'))}
+        except Exception:            # noqa: BLE001
+            en = {}
         while r < rounds:
             r += 1
             todo = dict(hard)
-            sf = {kk: v for kk, v in soft.items() if soft_only is None or kk in soft_only}
+            sf = {kk: [m for m in v if issue_code(m) not in FIX_SKIP] for kk, v in soft.items() if soft_only is None or kk in soft_only}
+            sf = {kk: v for kk, v in sf.items() if v}
             for kk in soft_order(sf)[:max(0, soft_cap(self.pd) - len(todo))]:
                 todo.setdefault(kk, []).extend(sf[kk])
             if not todo:
@@ -1082,13 +1291,25 @@ class Pipeline:
                     res = self.eng.complete(k, fixed_g, task + '\n\n' + block('to_fix', req), max_tokens=32000, partial_ok=True)
                     self.save_usage()
                     ans = answer_lines(kept_text(res), ids_g)          # נקטעה — מה שלא הגיע נשאר לסבב הבא
+                    # 26/10/2026: תיקון שמחמיר (מספר שנעלם, חיתוך עמוק, "קיצור" שלא קיצר) — נזרק
+                    rej = [kk for kk, v in ans.items() if not fix_ok(cur.get(kk, ''), v, todo.get(kk, []), en.get(kk, ''), kk in hard)]
+                    for kk in rej:
+                        ans.pop(kk, None)
+                    self.fix_rej += len(rej)
                     if keep:
                         ans = {kk: v for kk, v in ans.items() if not (kk in keep and kk not in hard and clean_answer(v) == keep[kk])}
                     got.update(ans)
             fp = self.pd / 'tr' / fname
             old = fp.read_text(encoding='utf-8') if fp.exists() else ''
             fp.write_text(old + fmt_lines(got) + '\n', encoding='utf-8')
+            was = set(hard)
             hard, soft, n_err = self.check()
+            # 26/10/2026: תיקון שיצר בעיה חמורה בכתובית שלא הייתה בה — חוזרים לנוסח הקודם
+            back = {kk: cur[kk] for kk in got if kk in hard and kk not in was and cur.get(kk)}
+            if back:
+                fp.write_text(fp.read_text(encoding='utf-8') + fmt_lines(back) + '\n', encoding='utf-8')
+                self.fix_rej += len(back)
+                hard, soft, n_err = self.check()
             if not hard:
                 break
             if r == rounds and n_err < best and rounds < FIX_ROUNDS_MAX:
