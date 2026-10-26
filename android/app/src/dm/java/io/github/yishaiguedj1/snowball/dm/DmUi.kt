@@ -212,7 +212,7 @@ private fun Downloads(a: DmActivity, rev: Int, onDetails: (String) -> Unit) {
         if (all.isEmpty()) item { Empty(a) }
         if (all.isNotEmpty() && shown.isEmpty()) item { Text(stringResource(R.string.dmNoMatch), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(8.dp)) }
         item { SignInCard(a) }
-        if (active.isNotEmpty()) { item { Section(stringResource(R.string.dmActive)) }; items(active, key = { it.id }) { TaskRow(a, it, onDetails) } }
+        if (active.isNotEmpty()) { item { Section(stringResource(R.string.dmActive)) }; items(active, key = { it.id }) { TaskRow(a, it, rev, onDetails) } }
         if (done.isNotEmpty()) { item { Section(stringResource(R.string.dmDone)) }; items(done.take(50), key = { it.id }) { t ->
             // החלקה = הסרה מהרשימה (הקובץ נשאר), עם "בטל" — כמו בדואר של Apple
             val st = rememberSwipeToDismissBoxState(confirmValueChange = { v ->
@@ -228,7 +228,7 @@ private fun Downloads(a: DmActivity, rev: Int, onDetails: (String) -> Unit) {
             SwipeToDismissBox(st, backgroundContent = {
                 Box(Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.errorContainer).padding(horizontal = 20.dp),
                     contentAlignment = Alignment.CenterEnd) { Icon(DmIcons.Delete, null, tint = MaterialTheme.colorScheme.onErrorContainer) }
-            }) { TaskRow(a, t, onDetails) }
+            }) { TaskRow(a, t, rev, onDetails) }
         } }
     }
     SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).padding(16.dp))
@@ -319,7 +319,10 @@ private fun catIcon(t: DmTask): ImageVector = when (if (t.kind == DmKind.YTDL) (
 
 /** שורה: נגיעה = עצירה/המשך (או פתיחה בסיום), לחיצה ארוכה = תפריט */
 @Composable
-private fun TaskRow(a: DmActivity, t: DmTask, onDetails: (String) -> Unit) {
+// 26/10/2026 (סרטון של המשתמש: ההתראה מתעדכנת בזמן אמת והרשימה לא): המשימה היא אותו אובייקט בכל רענון, ו־Compose
+// מדלג על שורה שהפרמטרים שלה לא השתנו — rev (עולה כל שנייה כשמשהו רץ) הוא מה שמכריח אותה להתעדכן
+@Suppress("UNUSED_PARAMETER")
+private fun TaskRow(a: DmActivity, t: DmTask, rev: Int, onDetails: (String) -> Unit) {
     val ctx = LocalContext.current
     var menu by remember { mutableStateOf(false) }
     Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceContainer,
@@ -732,7 +735,7 @@ private fun Library(a: DmActivity, rev: Int) {
         val list = done.filter { cat == null || catOf(it) == cat || (cat == DmName.Cat.OTHER && catOf(it) in setOf(DmName.Cat.OTHER, DmName.Cat.APK, DmName.Cat.IMAGE)) }
         if (list.isEmpty()) Text(stringResource(R.string.dmLibEmpty), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(24.dp))
         LazyColumn(contentPadding = PaddingValues(16.dp, 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(list, key = { it.id }) { TaskRow(a, it) {} }
+            items(list, key = { it.id }) { TaskRow(a, it, rev) {} }
         }
     }
 }
