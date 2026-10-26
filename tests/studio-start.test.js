@@ -19,7 +19,7 @@ ok(!S.START_RETRY.includes('halted') && !S.START_RETRY.includes('rule_mode') && 
 /* 2 */
 ok(/net\.api\('create', \{ spec, start: true \}\)/.test(st), 'עבודה מקישור נשלחת עם start:true');
 ok(/if \(j\.start\) startDone\(rec, j\.start\)/.test(st) && /if \(!j\.start\) startRun\(rec\.id, null\)/.test(st), 'התשובה של ההתחלה נשמרת; שרתון ישן בלי start — "התחל" כמו קודם');
-ok(/body\.start === true && spec\.src === 'url'/.test(api) && /const sa = await startAll\(deps, now\)/.test(api), 'השרתון: מתחיל ביצירה, ומהבדיקה המתוזמנת');
+ok(/body\.start === true && spec\.src === 'url'/.test(api) && /const sa = recent \? await startAll\(deps, now, recent\)/.test(api), 'השרתון: מתחיל ביצירה, ומהבדיקה המתוזמנת');
 
 /* 3 + 4 — הפונקציות עצמן, עם normJob שמחזיר את מה שקיבל */
 const grab = (name) => { const a = st.indexOf('export function ' + name + '('); return st.slice(a, st.indexOf('\n}\n', a) + 2).replace(/^export /, ''); };

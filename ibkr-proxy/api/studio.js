@@ -181,6 +181,13 @@ function jobs30(deps, now) {
       .map((x) => Object.assign(S.fromFields(x.document.fields), { id: String(x.document.name).split('/').pop() }));
   }, now);
 }
+let provC = { at: 0, v: null };
+async function provGet(deps, now) {
+  if (provC.v && now >= provC.at && now - provC.at < 120e3) return provC.v;
+  const v = await USG.usageAll(process.env, deps.fetch || fetch, now);
+  provC = { at: now, v };
+  return v;
+}
 async function aoJson(deps, url) {
   const h = { Accept: 'application/vnd.github+json', 'User-Agent': 'snb-admin' };
   if (process.env.GITHUB_TOKEN) h.Authorization = 'Bearer ' + process.env.GITHUB_TOKEN;
@@ -226,12 +233,29 @@ async function checkAnswers(deps) {
   const o = {}; for (const x of l) o[x.id] = { st: x.st, n: x.n || '', at: x.at || 0, t: x.t || '' };
   return o;
 }
+/* 26/10/2026 (מכסת Firestore נגמרה, ומרכז הניהול איטי): כל פתיחה של מרכז הניהול קראה את *כל* מאגר הלמידה ואת *כל*
+   העבודות (עד 5,000 כל אחד) — אלפי קריאות ומגה־בייטים בכל כניסה. עכשיו בזיכרון של המופע: קריאה מלאה פעם ב־LEARN_FULL_MS,
+   בין לבין רק העבודות שהשתנו מאז הסנכרון הקודם (טווח על updated — אינדקס אוטומטי), ותוך LEARN_TTL_MS — בלי לקרוא בכלל.
+   "מחק את התרומות שלי" מאפס (learnMem = null) */
+const LEARN_TTL_MS = 60e3, LEARN_FULL_MS = 6 * 3600e3, LEARN_OVERLAP_MS = 10 * 60e3;
+let learnMem = null;
+async function jobsSince(deps, since, limit) {
+  const r = await fsCall(deps, 'POST', ':runQuery', { structuredQuery: { from: [{ collectionId: 'studioJobs' }],
+    where: { fieldFilter: { field: { fieldPath: 'updated' }, op: 'GREATER_THAN_OR_EQUAL', value: { integerValue: String(Math.round(since)) } } },
+    orderBy: [{ field: { fieldPath: 'updated' }, direction: 'DESCENDING' }], limit } });
+  if (r.status !== 200) throw new Error('fs_http_' + r.status);
+  return (Array.isArray(r.j) ? r.j : []).filter((x) => x && x.document && x.document.name)
+    .map((x) => Object.assign(S.fromFields(x.document.fields), { id: String(x.document.name).split('/').pop() }));
+}
 async function learnLoad(deps, now) {
-  const docs = await query(deps, 'studioLearn', null, LEARN_MAX);
-  const have = new Map(docs.map((d) => [d.id, d]));
+  const m = learnMem;
+  if (m && now >= m.at && now - m.at < LEARN_TTL_MS) return { recs: m.recs, wrote: 0 };
+  const full = !m || !(now >= m.full && now - m.full < LEARN_FULL_MS);
+  const have = full ? new Map((await query(deps, 'studioLearn', null, LEARN_MAX)).map((d) => [d.id, d])) : m.have;
   let wrote = 0;
   const offs = new Map();
-  for (const j of await query(deps, 'studioJobs', null, LEARN_MAX)) {
+  const jobs = full ? await query(deps, 'studioJobs', null, LEARN_MAX) : await jobsSince(deps, m.sync - LEARN_OVERLAP_MS, LEARN_SYNC_MAX);
+  for (const j of jobs) {
     if (wrote >= LEARN_SYNC_MAX) break;
     if (await learnSkip(deps, j, offs)) continue;   // המשתמש כיבה את המתג / מחק את התרומות שלו
     const rec = LR.learnRec(j, now, S.effState);
@@ -243,6 +267,8 @@ async function learnLoad(deps, now) {
     wrote++;
   }
   const recs = [...have.values()].map((d) => d.lr).filter(Boolean).sort((a, b) => (a.at || 0) - (b.at || 0));
+  // כתיבה שנעצרה ב־LEARN_SYNC_MAX — הפעם הבאה קריאה מלאה (כמו עד היום: כל פתיחה ממשיכה להשלים)
+  learnMem = { have, recs, at: now, full: wrote >= LEARN_SYNC_MAX ? -Infinity : full ? now : m.full, sync: now };
   return { recs, wrote };
 }
 /* טוקני ניתוח: המזהה = sha256 של הטוקן (40 תווים) — הטוקן עצמו לא נשמר. לטלפון: שם, מתי נוצר/פג/שימוש אחרון — בלי מי יצר */
@@ -869,8 +895,9 @@ async function watch(req, res, deps) {
   let down;
   try { down = await checkServers(deps, now); }
   catch (e) { return res.status(502).json({ ok: false }); }
-  const ar = await recoverAll(deps, now).catch(() => -1);   // 14/10/2026: "המשך" אוטומטי גם כשהטלפון סגור
-  const sa = await startAll(deps, now).catch(() => -1);   // 25/10/2026: עבודות מוכנות שה"התחל" שלהן לא הגיע / סירוב חולף שעבר
+  const recent = await recentJobs(deps, now).catch(() => null);   // 26/10/2026: קריאה אחת לשתי הבדיקות (מכסת Firestore)
+  const ar = recent ? await recoverAll(deps, now, recent).catch(() => -1) : -1;   // 14/10/2026: "המשך" אוטומטי גם כשהטלפון סגור
+  const sa = recent ? await startAll(deps, now, recent).catch(() => -1) : -1;   // 25/10/2026: עבודות מוכנות שה"התחל" שלהן לא הגיע / סירוב חולף שעבר
   const st = await siteWatch(deps, now).catch(() => -1);   // שלב 5: הכתובות עצמן (השרתון שלנו ושלוש האפליקציות)
   const bk = await dailyBackup(deps, now);   // ת7: הגיבוי היומי — תקלה בו לא מפילה את הניטור
   const ob = await offsiteBackup(deps, now).catch(() => -1);   // 11/10/2026: ועותק ב־Drive (ספק אחר)
@@ -1390,6 +1417,21 @@ async function ytCkOp(deps, body, now) {
   const o = vault.open(d.yk, YT_AAD);
   return o && o.t ? { ok: true, v, ck: o.t } : { ok: true, v: 0 };
 }
+/* 26/10/2026: אימות שרת בזיכרון לפעולות הקלות (ראו server). שרת שהוסר / טוקן שהוחלף — עד SRV_AUTH_MS בפעולות האלה בלבד;
+   poll (לקיחת עבודה) תמיד מול Firestore */
+const SRV_LIGHT = new Set(['pq', 'ptNext', 'ptMark', 'ytCk', 'devLog', 'devMet']);
+const SRV_AUTH_MS = 5 * 60e3;
+const srvAuthMem = new Map();
+function srvAuthHit(sid, tok, now) {
+  const e = srvAuthMem.get(sid);
+  return e && now - e.at >= 0 && now - e.at < SRV_AUTH_MS && S.serverMatches(e.srv, tok) ? e.srv : null;
+}
+function srvAuthPut(sid, srv, now) {
+  if (srv) srvAuthMem.set(sid, { srv, at: now });
+  else srvAuthMem.delete(sid);
+  if (srvAuthMem.size > 200) srvAuthMem.clear();
+}
+
 /* ---------- 22/10/2026: הורדה מקישור — בדיקת קישור בתור לעובד ----------
    הטלפון יוצר מסמך ב־studioProbe (op:'urlProbe'), העובד לוקח (op:'pq' עם טוקן השרת) ומחזיר סיכום או קוד שגיאה.
    כדי לא לקרוא ל־Firestore בכל 4 שניות: probeHint = מתי נוצרה בדיקה במופע הזה (בייצור הטלפון והעובד מדברים עם אותו
@@ -1443,7 +1485,13 @@ async function server(req, res, body, deps) {
   if (limited((body.op === 'pq' ? 'q|' : pt ? 't|' : 's|') + p.sid, body.op === 'pq' ? 40 : pt ? 600 : 20)) return res.status(429).json({ ok: false, error: 'rate_limited' });   // pq — כל כמה שניות
   const now = deps.now || Date.now();
   try {
-    const srv = await readDocT(deps, 'studioServers', p.sid);   // _ut — הרישום של טוקן שנדחה בכתיבה בתנאי
+    // 26/10/2026: מכסת הקריאות היומית של Firestore (50 אלף בתוכנית החינמית) נגמרה בבוקר — רק משרת התרגום כשהוא פנוי:
+    // pq כל 4 שניות, ptNext, devMet — כל אחת קראה את מסמך השרת. הפעולות הקלות מאמתות מול עותק בזיכרון (SRV_AUTH_MS);
+    // poll/beat (שכותבים למסמך בתנאי) — תמיד קריאה טרייה, שגם מרעננת את העותק
+    const light = SRV_LIGHT.has(body.op);
+    const hit = light && srvAuthHit(p.sid, p.tok, now);
+    const srv = hit || await readDocT(deps, 'studioServers', p.sid);   // _ut — הרישום של טוקן שנדחה בכתיבה בתנאי
+    if (!hit) srvAuthPut(p.sid, srv, now);
     if (!srv || !S.serverMatches(srv, p.tok)) {
       if (srv) await badAuth(deps, srv, p.sid, now).catch(() => {});   // 15/10/2026: שרת קיים שהטוקן שלו נדחה — מדווחים, לא בשקט
       return res.status(401).json({ ok: false, error: 'no_auth', stop: true });
@@ -1473,7 +1521,7 @@ async function server(req, res, body, deps) {
     // 20/10/2026: הסוכן עלה (boot) — עבודה שהשרת הזה לקח ועוד "רצה" נקטעה בהפעלה מחדש. עד היום רק הסוכן דיווח עליה
     // (report_lost), אבל מצב העבודה שלו ב־/state (tmpfs) נמחק בהפעלה מחדש — והעבודה "רצה" שעתיים בלי שאף אחד עובד עליה
     if (body.boot === true) await lostOnBoot(deps, p.sid, now).catch(() => {});
-    else if (hb.nj === 0) await lostOnBoot(deps, p.sid, now, true).catch(() => {});   // שרת פנוי — עבודה "רצה" אצלו = יתומה
+    else if (hb.nj === 0 && orphanDue(p.sid, now)) await lostOnBoot(deps, p.sid, now, true).catch(() => {});   // 26/10: פעם ב־ORPHAN_MS, לא בכל poll   // שרת פנוי — עבודה "רצה" אצלו = יתומה
     if (body.boot === true) await smokeAfterUpdate(deps, srv, p.sid, hb.v, now).catch(() => {});   // פריט 13: עבודת בדיקה אחרי עדכון
     // poll: העבודה הוותיקה ביותר שמחכה לשרת
     const qd = (await query(deps, 'studioJobs', { state: 'queued', eng: 'api', sid: '' }, 30)).sort((a, b) => (a.fired || 0) - (b.fired || 0));
@@ -1530,6 +1578,15 @@ async function smokeAfterUpdate(deps, srv, sid, v, now) {
    ועבודה רשומה "רצה" אצלו יותר מ־ORPHAN_MS — אף אחד לא עובד עליה. כמו בעלייה מחדש: worker_lost (+ "המשך" אוטומטי לתרגום),
    במקום לחכות לשעתיים של STALE_MS. רק סוכן שמדווח nj (מ־21/10) */
 const ORPHAN_MS = 3 * 60 * 1000;
+/* 26/10/2026: שאילתת היתומות של שרת פנוי — לכל היותר פעם ב־ORPHAN_MS לשרת (עד היום בכל poll, כל 20 שניות) */
+const orphanAt = new Map();
+function orphanDue(sid, now) {
+  const t = orphanAt.get(sid) || 0;
+  if (now >= t && now - t < ORPHAN_MS) return false;
+  orphanAt.set(sid, now);
+  if (orphanAt.size > 200) orphanAt.clear();
+  return true;
+}
 async function lostOnBoot(deps, sid, now, idle) {
   let n = 0;
   for (const job of await query(deps, 'studioJobs', { sid, state: 'running' }, 20)) {
@@ -1666,9 +1723,22 @@ async function startJob0(deps, uid, job, body, now, g) {
    אחרי שהקול עלה), או סירוב חולף שעבר (תחזוקה, דגל, תקלה רחבה, יותר מדי עבודות). רק במצב השרת (Routine = הפעלה של המנוי
    שלך — לא מכאן), רק עד START_AGE מהיצירה, ועד START_MAX בריצה. מחזיר כמה התחילו */
 const START_AGE = 24 * 3600e3, START_MAX = 10;
-async function startAll(deps, now) {
+/* 26/10/2026 (מכסת Firestore נגמרה): הבדיקה המתוזמנת קראה כל 10 דק׳ את *כל* העבודות במצב "נכשלה" (עד 100) ו"חדשה" (עד 200)
+   — גם בנות חודשים. שתיהן צריכות רק עבודות שהשתנו ביממה האחרונה (START_AGE; חלון ההתאוששות ותקלה רחבה — 24 שעות), לכן
+   שאילתה אחת עם טווח על updated (אינדקס אוטומטי, כמו jobs30) — כל עבודה פעם אחת, משותפת לשתי הבדיקות באותה ריצה */
+const RECENT_MS = 26 * 3600e3, RECENT_MAX = 300;
+async function recentJobs(deps, now) {
+  const r = await fsCall(deps, 'POST', ':runQuery', { structuredQuery: { from: [{ collectionId: 'studioJobs' }],
+    where: { fieldFilter: { field: { fieldPath: 'updated' }, op: 'GREATER_THAN_OR_EQUAL', value: { integerValue: String(Math.round(now - RECENT_MS)) } } },
+    orderBy: [{ field: { fieldPath: 'updated' }, direction: 'DESCENDING' }], limit: RECENT_MAX } });
+  if (r.status !== 200) throw new Error('fs_http_' + r.status);
+  const v = (Array.isArray(r.j) ? r.j : []).filter((x) => x && x.document && x.document.name)
+    .map((x) => Object.assign(S.fromFields(x.document.fields), { id: String(x.document.name).split('/').pop(), _ut: x.document.updateTime || '' }));
+  return v;
+}
+async function startAll(deps, now, recent) {
   if (process.env.SNB_STARTALL === 'off') return 0;
-  const cands = (await query(deps, 'studioJobs', { state: 'new' }, 200)).filter((j) => UID_RE.test(String(j.uid || '')) && S.startDue(j, now, START_AGE) && apiJob(j) && filesReady(j));
+  const cands = (recent || await recentJobs(deps, now)).filter((j) => j.state === 'new').filter((j) => UID_RE.test(String(j.uid || '')) && S.startDue(j, now, START_AGE) && apiJob(j) && filesReady(j));
   let n = 0;
   for (const j of cands.slice(0, START_MAX)) {
     const fresh = await readDocT(deps, 'studioJobs', j.id).catch(() => null);
@@ -1678,11 +1748,16 @@ async function startAll(deps, now) {
   }
   return n;
 }
-async function recoverAll(deps, now) {
-  const failed = (await query(deps, 'studioJobs', { state: 'failed' }, 100)).filter((j) => j.kind === 'tr' && UID_RE.test(String(j.uid || '')));
+const incSeen = new Map();
+async function recoverAll(deps, now, recent) {
+  const failed = (recent || await recentJobs(deps, now)).filter((j) => j.state === 'failed' && j.kind === 'tr' && UID_RE.test(String(j.uid || '')));
   // תקלה רחבה מזוהה גם כשהטלפון סגור (syncInc) — רק למי שנכשלה לו עבודה ביממה האחרונה, עד 5 משתמשים בריצה
-  const fresh = Array.from(new Set(failed.filter((j) => now - (j.ended || j.updated || 0) < 864e5).map((j) => j.uid))).slice(0, 5);
-  for (const uid of fresh) await syncInc(deps, uid, await listJobs(deps, uid), now);
+  // 26/10/2026: רק כשהופיע כישלון חדש מאז הסנכרון האחרון למשתמש (incSeen) — עד היום כל 10 דק׳ קראו את כל העבודות שלו
+  // (עד 300 קריאות) כל עוד היה כישלון אחד ביממה האחרונה
+  const last = {};
+  for (const j of failed) if (now - (j.ended || j.updated || 0) < 864e5) last[j.uid] = Math.max(last[j.uid] || 0, +j.updated || +j.ended || 0);
+  const fresh = Object.keys(last).filter((uid) => last[uid] > (incSeen.get(uid) || 0)).slice(0, 5);
+  for (const uid of fresh) { await syncInc(deps, uid, await listJobs(deps, uid), now); incSeen.set(uid, last[uid]); }
   const due = failed.filter((j) => S.recoverAt(j, now) && now >= S.recoverAt(j, now));
   const by = {};
   for (const j of due) (by[j.uid] = by[j.uid] || []).push(j);
@@ -2346,7 +2421,9 @@ async function handler(req, res, deps = {}) {
   const monTok = String((req.headers || {})['x-mon-token'] || '');
   if (body.op === 'adminMon' && monTok) {
     // 22/10/2026: הווידג׳ט באנדרואיד — טוקן קריאה בלבד (sysCfg/main.monKh, רק hash), בלי התחברות. מותר רק ל־adminMon
-    const cfg = await readDoc(deps, 'sysCfg', 'main').catch(() => null);
+    // 26/10/2026: Firestore שלא ענה (מכסה, 429) = 503 — לא 401: הווידג׳ט הציג "הטוקן לא תקף — לחבר מחדש" על טוקן תקין
+    let cfg;
+    try { cfg = await readDoc(deps, 'sysCfg', 'main'); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
     if (!MON.monTokOk(monTok, cfg && cfg.monKh)) return res.status(401).json({ ok: false, error: 'no_auth' });
     user = { mon: true, uid: '' };
   } else {
@@ -2467,8 +2544,10 @@ async function handler(req, res, deps = {}) {
       const { recs, wrote } = await learnLoad(deps, now);
       if (op === 'learnExport') return res.status(200).json({ ok: true, v: LR.LR_V, at: now, records: recs });
       if (op === 'learnBrief') return res.status(200).json({ ok: true, v: LR.LR_V, at: now, brief: LR.learnBrief(LR.learnView(recs, now), now), records: recs });
-      const corpus = await learnCorpusView(deps, 0).catch(() => ({ on: false, error: 'r2' }));   // מ׳2: רק המספרים
-      const dev = await devView(deps, now).catch(() => ({ on: false, error: 'r2' }));             // מ׳6: האיסוף המלא — רק ספירות
+      // 26/10/2026: הספירות מהדלי = עשרות בקשות רשימה ל־R2 (עד 165 אלף מפתחות) בכל פתיחה של מרכז הניהול — מטמון AO_TTL, במקביל
+      const [corpus, dev] = await Promise.all([
+        aoGet(deps, 'lcorp', () => learnCorpusView(deps, 0), now).then((v) => v || { on: false, error: 'r2' }),   // מ׳2: רק המספרים
+        aoGet(deps, 'ldev', () => devView(deps, now), now).then((v) => v || { on: false, error: 'r2' })]);         // מ׳6: האיסוף המלא — רק ספירות
       return res.status(200).json({ ok: true, view: LR.learnView(recs, now), insL: LR.INS_HE, synced: wrote, corpus, dev, now });
     }
     if (op === 'adminOv') {
@@ -2481,7 +2560,7 @@ async function handler(req, res, deps = {}) {
       // 15/10/2026: התראות לטלפון — כמה מכשירים רשומים אצלך, והאם ההתראות של המערכת נשלחות אליך (בעל הגיבוי, sysBackup/cfg.uid)
       const myst = await readStats(deps, uid).catch(() => ({}));
       const push = { n: W.normSubs(myst.wp).length, me: !!(backup && backup.uid === uid) };
-      const jobs = await listJobs(deps, uid).catch(() => []);   // פריט 16: ריצת מבחן מומלצת (סט הזהב שלך)
+      const jobs = (await aoGet(deps, 'ovj|' + uid, () => listJobs(deps, uid), now)) || [];   // פריט 16: ריצת מבחן מומלצת (סט הזהב שלך) · 26/10: מטמון AO_TTL (עד 300 קריאות בכל כניסה)
       return res.status(200).json({ ok: true, push, ov: AO.overview(Object.assign({ now, servers: srvs, backup: bk, sites: sites ? { sd: sites.sd || '' } : null, jobs }, ext)) });
     }
     if (op === 'adminAi') {
@@ -2606,7 +2685,8 @@ async function handler(req, res, deps = {}) {
       // 23/10/2026: שימוש בפועל מול הספקים — רק מנהל (בלי טוקן ניטור). ספק בלי טוקן = off, ואף מספר לא מומצא
       if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
       const cfg = (await readDoc(deps, 'sysUsage', 'main').catch(() => null)) || {};
-      const prov = USG.provMerge(await USG.usageAll(process.env, deps.fetch || fetch, now), cfg.upv);   // בלי טוקן כאן — מה ש־Vercel מדד
+      // 26/10/2026: מסך הניטור מתרענן כל 30 שנ׳ — שלושת הספקים (בקשות חיצוניות איטיות) רק פעם ב־2 דק׳ למופע
+      const prov = USG.provMerge(await provGet(deps, now), cfg.upv);   // בלי טוקן כאן — מה ש־Vercel מדד
       return res.status(200).json({ ok: true, prov, hist: USG.histPush(cfg.uh, prov, now), sto: cfg.sto || null });   // sto: נמדד פעם בשעה ב־watch
     }
     if (op === 'adminAgents' || op === 'adminServers') {
@@ -2741,6 +2821,7 @@ async function handler(req, res, deps = {}) {
       if (body.ack === true && body.on === undefined) { await patchDoc(deps, 'studioStats', uid, Object.assign({ lra: now, updated: now }, tx)); return res.status(200).json(Object.assign({ ok: true, lra: now }, tx)); }
       const on = body.on === true;
       await patchDoc(deps, 'studioStats', uid, Object.assign({ lo: on ? 0 : 1, updated: now }, body.ack === true ? Object.assign({ lra: now }, tx) : {}));
+      learnMem = null;   // 26/10/2026: המתג השתנה — הסנכרון הבא של מאגר הלמידה קורא הכל (העבודות הישנות שלך לא "השתנו")
       return res.status(200).json({ ok: true, lrn: on });
     }
     if (op === 'learnForget') {
@@ -2752,6 +2833,7 @@ async function handler(req, res, deps = {}) {
       await patchDoc(deps, 'studioStats', uid, { lf: now, lgn: '', updated: now });
       let n = 0;
       for (const id of ids) { try { if (await readDoc(deps, 'studioLearn', id)) { await delDoc(deps, 'studioLearn', id); n++; } } catch (e) {} }
+      learnMem = null;   // 26/10/2026: הרשומות שנמחקו לא נשארות במטמון של מרכז הניהול
       const nc = await learnCorpusForget(deps, ids);   // מ׳2: גם הטקסט בדלי (בתור ובחודשים)
       return res.status(200).json({ ok: true, n, nc, lf: now });
     }
@@ -2870,6 +2952,7 @@ async function handler(req, res, deps = {}) {
         if (op === 'srvPause') await patchDoc(deps, 'studioServers', sid, { paused: body.paused === true, updated: now });
         else {
           await delDoc(deps, 'studioServers', sid);   // הטוקן מת מיד — השרת יקבל 401
+          srvAuthPut(sid, null, now);   // 26/10/2026: הטוקן מת מיד גם בפעולות הקלות (האימות בזיכרון)
           if (sd.dn) await downClear(deps, sd.by || uid, sid, now);   // ת7: שרת שנפל והוסר — ההתראה נסגרת
           if (sd.ba) await authBack(deps, Object.assign({ by: uid }, sd), sid, now);   // 15/10: שרת שהטוקן שלו נדחה והוסר — גם
         }
@@ -3334,6 +3417,7 @@ async function handler(req, res, deps = {}) {
 
 module.exports = (req, res) => handler(req, res);
 module.exports._handler = handler;
-module.exports._reset = () => { hits.clear(); cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; srcSoon = new Map(); _upd = { at: 0, sha: '', t: 0 }; updWaitAt = 0; };
+module.exports._reset = () => { hits.clear(); cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; srcSoon = new Map(); _upd = { at: 0, sha: '', t: 0 }; updWaitAt = 0; srvAuthMem.clear(); orphanAt.clear();
+  incSeen.clear(); learnMem = null; provC = { at: 0, v: null }; aoCache.clear(); };   // 26/10/2026: המטמונים של מכסת Firestore
 module.exports._updatePending = updatePending;
 module.exports._updWaiting = (job, now, at) => { if (at != null) updWaitAt = at; return updWaiting(job, now); };
