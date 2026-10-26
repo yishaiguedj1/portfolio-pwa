@@ -1385,6 +1385,21 @@ async function ytCkOp(deps, body, now) {
   const o = vault.open(d.yk, YT_AAD);
   return o && o.t ? { ok: true, v, ck: o.t } : { ok: true, v: 0 };
 }
+/* 26/10/2026: אימות שרת בזיכרון לפעולות הקלות (ראו server). שרת שהוסר / טוקן שהוחלף — עד SRV_AUTH_MS בפעולות האלה בלבד;
+   poll (לקיחת עבודה) תמיד מול Firestore */
+const SRV_LIGHT = new Set(['pq', 'ptNext', 'ptMark', 'ytCk', 'devLog', 'devMet']);
+const SRV_AUTH_MS = 5 * 60e3;
+const srvAuthMem = new Map();
+function srvAuthHit(sid, tok, now) {
+  const e = srvAuthMem.get(sid);
+  return e && now - e.at >= 0 && now - e.at < SRV_AUTH_MS && S.serverMatches(e.srv, tok) ? e.srv : null;
+}
+function srvAuthPut(sid, srv, now) {
+  if (srv) srvAuthMem.set(sid, { srv, at: now });
+  else srvAuthMem.delete(sid);
+  if (srvAuthMem.size > 200) srvAuthMem.clear();
+}
+
 /* ---------- 22/10/2026: הורדה מקישור — בדיקת קישור בתור לעובד ----------
    הטלפון יוצר מסמך ב־studioProbe (op:'urlProbe'), העובד לוקח (op:'pq' עם טוקן השרת) ומחזיר סיכום או קוד שגיאה.
    כדי לא לקרוא ל־Firestore בכל 4 שניות: probeHint = מתי נוצרה בדיקה במופע הזה (בייצור הטלפון והעובד מדברים עם אותו
@@ -1420,18 +1435,6 @@ async function pqOp(deps, body, sid, now) {
   return { ok: true, pr: null };
 }
 
-/* מטמון האימות של שרתי התרגום (בזיכרון של המופע): sid → { h: hash של הטוקן, srv, at }. הסרת שרת מנקה מיד */
-const SRV_AUTH_MS = 5 * 60e3;
-const srvAuth = new Map();
-const tokH = (tok) => crypto.createHash('sha256').update(String(tok)).digest('hex');
-function srvAuthGet(sid, tok, now) {
-  const c = srvAuth.get(sid);
-  return c && now - c.at < SRV_AUTH_MS && now >= c.at && c.h === tokH(tok) ? c.srv : null;
-}
-function srvAuthPut(sid, tok, srv, now) {
-  if (srvAuth.size > 50) srvAuth.clear();
-  srvAuth.set(sid, { h: tokH(tok), srv, at: now });
-}
 async function server(req, res, body, deps) {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -1450,13 +1453,13 @@ async function server(req, res, body, deps) {
   if (limited((body.op === 'pq' ? 'q|' : pt ? 't|' : 's|') + p.sid, body.op === 'pq' ? 40 : pt ? 600 : 20)) return res.status(429).json({ ok: false, error: 'rate_limited' });   // pq — כל כמה שניות
   const now = deps.now || Date.now();
   try {
-    // 26/10/2026: מכסת הקריאות של Firestore (50 אלף ביום) נגמרה — כל פנייה של שרת (בדיקת קישור כל 4 שנ׳, התור של התרגום
-    // בטלפון, היומנים) קראה את מסמך השרת רק כדי לאמת את הטוקן: ~25 אלף קריאות ביום לשרת אחד. עכשיו האימות נשמר בזיכרון
-    // SRV_AUTH_MS לפעולות האלה; poll/beat (הדופק, ההיסטוריה, ההשהיה, העבודה הבאה) — תמיד מהמסמך
-    const lite = body.op === 'pq' || pt || body.op === 'ytCk' || body.op === 'devLog' || body.op === 'devMet';
-    const ca = lite && srvAuthGet(p.sid, p.tok, now);
-    const srv = ca || await readDocT(deps, 'studioServers', p.sid);   // _ut — הרישום של טוקן שנדחה בכתיבה בתנאי
-    if (!ca && srv && S.serverMatches(srv, p.tok)) srvAuthPut(p.sid, p.tok, srv, now);
+    // 26/10/2026: מכסת הקריאות היומית של Firestore (50 אלף בתוכנית החינמית) נגמרה בבוקר — רק משרת התרגום כשהוא פנוי:
+    // pq כל 4 שניות, ptNext, devMet — כל אחת קראה את מסמך השרת. הפעולות הקלות מאמתות מול עותק בזיכרון (SRV_AUTH_MS);
+    // poll/beat (שכותבים למסמך בתנאי) — תמיד קריאה טרייה, שגם מרעננת את העותק
+    const light = SRV_LIGHT.has(body.op);
+    const hit = light && srvAuthHit(p.sid, p.tok, now);
+    const srv = hit || await readDocT(deps, 'studioServers', p.sid);   // _ut — הרישום של טוקן שנדחה בכתיבה בתנאי
+    if (!hit) srvAuthPut(p.sid, srv, now);
     if (!srv || !S.serverMatches(srv, p.tok)) {
       if (srv) await badAuth(deps, srv, p.sid, now).catch(() => {});   // 15/10/2026: שרת קיים שהטוקן שלו נדחה — מדווחים, לא בשקט
       return res.status(401).json({ ok: false, error: 'no_auth', stop: true });
@@ -1486,7 +1489,7 @@ async function server(req, res, body, deps) {
     // 20/10/2026: הסוכן עלה (boot) — עבודה שהשרת הזה לקח ועוד "רצה" נקטעה בהפעלה מחדש. עד היום רק הסוכן דיווח עליה
     // (report_lost), אבל מצב העבודה שלו ב־/state (tmpfs) נמחק בהפעלה מחדש — והעבודה "רצה" שעתיים בלי שאף אחד עובד עליה
     if (body.boot === true) await lostOnBoot(deps, p.sid, now).catch(() => {});
-    else if (hb.nj === 0 && orphanDue(p.sid, now)) await lostOnBoot(deps, p.sid, now, true).catch(() => {});   // שרת פנוי — עבודה "רצה" אצלו = יתומה (26/10: פעם ב־ORPHAN_MS לשרת, לא בכל דופק)
+    else if (hb.nj === 0 && orphanDue(p.sid, now)) await lostOnBoot(deps, p.sid, now, true).catch(() => {});   // 26/10: פעם ב־ORPHAN_MS, לא בכל poll   // שרת פנוי — עבודה "רצה" אצלו = יתומה
     if (body.boot === true) await smokeAfterUpdate(deps, srv, p.sid, hb.v, now).catch(() => {});   // פריט 13: עבודת בדיקה אחרי עדכון
     // poll: העבודה הוותיקה ביותר שמחכה לשרת
     const qd = (await query(deps, 'studioJobs', { state: 'queued', eng: 'api', sid: '' }, 30)).sort((a, b) => (a.fired || 0) - (b.fired || 0));
@@ -1543,12 +1546,13 @@ async function smokeAfterUpdate(deps, srv, sid, v, now) {
    ועבודה רשומה "רצה" אצלו יותר מ־ORPHAN_MS — אף אחד לא עובד עליה. כמו בעלייה מחדש: worker_lost (+ "המשך" אוטומטי לתרגום),
    במקום לחכות לשעתיים של STALE_MS. רק סוכן שמדווח nj (מ־21/10) */
 const ORPHAN_MS = 3 * 60 * 1000;
+/* 26/10/2026: שאילתת היתומות של שרת פנוי — לכל היותר פעם ב־ORPHAN_MS לשרת (עד היום בכל poll, כל 20 שניות) */
 const orphanAt = new Map();
 function orphanDue(sid, now) {
   const t = orphanAt.get(sid) || 0;
   if (now >= t && now - t < ORPHAN_MS) return false;
-  if (orphanAt.size > 50) orphanAt.clear();
   orphanAt.set(sid, now);
+  if (orphanAt.size > 200) orphanAt.clear();
   return true;
 }
 async function lostOnBoot(deps, sid, now, idle) {
@@ -2916,7 +2920,7 @@ async function handler(req, res, deps = {}) {
         if (op === 'srvPause') await patchDoc(deps, 'studioServers', sid, { paused: body.paused === true, updated: now });
         else {
           await delDoc(deps, 'studioServers', sid);   // הטוקן מת מיד — השרת יקבל 401
-          srvAuth.delete(sid);
+          srvAuthPut(sid, null, now);   // 26/10/2026: הטוקן מת מיד גם בפעולות הקלות (האימות בזיכרון)
           if (sd.dn) await downClear(deps, sd.by || uid, sid, now);   // ת7: שרת שנפל והוסר — ההתראה נסגרת
           if (sd.ba) await authBack(deps, Object.assign({ by: uid }, sd), sid, now);   // 15/10: שרת שהטוקן שלו נדחה והוסר — גם
         }
@@ -3379,7 +3383,7 @@ async function handler(req, res, deps = {}) {
 
 module.exports = (req, res) => handler(req, res);
 module.exports._handler = handler;
-module.exports._reset = () => { hits.clear(); cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; _upd = { at: 0, sha: '', t: 0 }; updWaitAt = 0;
-  srvAuth.clear(); orphanAt.clear(); incSeen.clear(); learnMem = null; provC = { at: 0, v: null }; aoCache.clear(); };   // 26/10/2026: המטמונים של מכסת Firestore
+module.exports._reset = () => { hits.clear(); cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; _upd = { at: 0, sha: '', t: 0 }; updWaitAt = 0; srvAuthMem.clear(); orphanAt.clear();
+  incSeen.clear(); learnMem = null; provC = { at: 0, v: null }; aoCache.clear(); };   // 26/10/2026: המטמונים של מכסת Firestore
 module.exports._updatePending = updatePending;
 module.exports._updWaiting = (job, now, at) => { if (at != null) updWaitAt = at; return updWaiting(job, now); };

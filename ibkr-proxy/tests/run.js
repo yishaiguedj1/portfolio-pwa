@@ -3439,9 +3439,7 @@ function stubFetch(text, status = 200) {
       ok(db.get('studioJobs/' + JO).fields.state.stringValue === 'running', 'יתומה: השרת מדווח שיש אצלו עבודה — לא נוגעים');
       await srvRun({ op: 'poll', hb: {} }, STOK);
       ok(db.get('studioJobs/' + JO).fields.state.stringValue === 'running', 'יתומה: סוכן ישן (בלי nj) — לא נוגעים');
-      await srvRun({ op: 'poll', hb: { nj: 0 } }, STOK);
-      ok(db.get('studioJobs/' + JO).fields.state.stringValue === 'running', 'יתומה: 26/10 — הבדיקה פעם ב־ORPHAN_MS לשרת, לא בכל דופק (מכסת Firestore)');
-      studio._reset();                     // השעון של הבדיקות לא זז — "עברו 3 דקות"
+      studio._reset();                     // 26/10/2026: שאילתת היתומות — פעם ב־ORPHAN_MS לשרת (orphanDue); כאן "עברו 3 דקות"
       await srvRun({ op: 'poll', hb: { nj: 0 } }, STOK);
       const fo = db.get('studioJobs/' + JO).fields;
       ok(fo.state.stringValue === 'failed' && fo.err.stringValue === 'worker_lost' && !fo.kh.stringValue,
