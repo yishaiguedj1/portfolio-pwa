@@ -1127,7 +1127,8 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(len(J.terms_line({'terms': 'א' * 5000})), 1000)
         self.assertEqual([J.vt_style({'style': s}) for s in ('bold', 'classic', 'karaoke', None)], ['bold', 'classic', 'bold', 'bold'])
         src = (HERE / 'job.py').read_text(encoding='utf-8')
-        self.assertNotIn("['build', ctx.name]", src)            # כל build עם --style
+        # כל build עם --style (26/10/2026: דרך build_args — הסגנון והעיצוב שנבחרו)
+        self.assertEqual(src.count("['build', ctx.name]"), src.count("['build', ctx.name] + build_args(ctx)"))
         self.assertIn("המונחים שביקשת", (HERE / 'RUNBOOK.md').read_text(encoding='utf-8'))
 
     def test_rerender(self):
