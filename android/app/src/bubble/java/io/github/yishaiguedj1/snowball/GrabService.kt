@@ -36,6 +36,9 @@ import kotlin.math.abs
 /**
  * 22/10/2026 (שלב 1.5 של ההורדה מקישור, בקשת המשתמש: "כמו IDM, בלי פעולה נוספת"): בועה שמופיעה לבד כשפותחים
  * סרטון בדפדפן, ונגיעה בה שולחת את הקישור ל־Studio (אותו מסלול של "שיתוף ← Studio": MainActivity → ‎#share=).
+ * 26/10/2026: מחוברת ל־Studio Browser — דף עם נגן (ולחיצה ארוכה על כל בועה) נפתח שם, והצייד שם מוצא את הזרמים
+ * האמיתיים ופותח את רשימת ההורדה. בתוך Studio Browser עצמו הבועה הזו נעלמת — שם יש בועה משלו (BrUi.HuntBubble),
+ * שמחוברת ישירות לצייד.
  *
  * פרטיות: השירות מקבל אירועים רק מדפדפנים (packageNames ב־res/xml/grab_service.xml), קורא רק את שורת הכתובת
  * (לפי המזהה שלה), לא שומר ולא שולח כלום — רק בנגיעה, ורק את הקישור.
@@ -254,17 +257,22 @@ class GrabService : AccessibilityService() {
 
     private fun wireTouch(b: View, box: View, p: WindowManager.LayoutParams) {
         val slop = ViewConfiguration.get(this).scaledTouchSlop
-        var sx = 0f; var sy = 0f; var y0 = 0; var dragging = false; var low = false
+        var sx = 0f; var sy = 0f; var y0 = 0; var dragging = false; var low = false; var held = false
         val dm = resources.displayMetrics
+        // 26/10/2026: לחיצה ארוכה = לפתוח את הדף ב־Studio Browser (הצייד שם רואה את הזרמים האמיתיים של הדף)
+        val hold = Runnable {
+            if (!dragging && AppRoute.browserInstalled(this)) { held = true; b.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS); send(toBr = true) }
+        }
         b.setOnTouchListener { v, ev ->
             when (ev.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    sx = ev.rawX; sy = ev.rawY; y0 = p.y; dragging = false; low = false
+                    sx = ev.rawX; sy = ev.rawY; y0 = p.y; dragging = false; low = false; held = false
                     v.animate().scaleX(0.92f).scaleY(0.92f).setDuration(90).start()
+                    h.postDelayed(hold, ViewConfiguration.getLongPressTimeout().toLong())
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = ev.rawX - sx; val dy = ev.rawY - sy
-                    if (!dragging && (abs(dx) > slop || abs(dy) > slop)) { dragging = true; hideHint() }
+                    if (!dragging && (abs(dx) > slop || abs(dy) > slop)) { dragging = true; h.removeCallbacks(hold); hideHint() }
                     if (dragging) {
                         p.y = (y0 + dy).toInt().coerceIn(dp(24f).toInt(), dm.heightPixels - dp(90f).toInt())
                         // גרירה לצד השני: x נמדד מהקצה שהבועה צמודה אליו
@@ -280,8 +288,10 @@ class GrabService : AccessibilityService() {
                     }
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    h.removeCallbacks(hold)
                     v.animate().scaleX(1f).scaleY(1f).setDuration(120).start()
-                    if (!dragging) {
+                    if (held) Unit
+                    else if (!dragging) {
                         if (ev.actionMasked == MotionEvent.ACTION_UP) { v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY); send() }
                     } else if (low) {
                         shownFor?.let { dismissed.add(it); while (dismissed.size > 50) dismissed.remove(dismissed.first()) }
@@ -309,18 +319,19 @@ class GrabService : AccessibilityService() {
         a.start()
     }
 
-    /* נגיעה: הקישור → Studio (כמו "שיתוף"). כשהשורה מציגה רק את שם האתר — פותחים אותה רגע כדי לקרוא את הכתובת המלאה */
-    private fun send() {
+    /* נגיעה: הקישור → Studio (כמו "שיתוף"). כשהשורה מציגה רק את שם האתר — פותחים אותה רגע כדי לקרוא את הכתובת המלאה.
+       toBr = לחיצה ארוכה: הדף ל־Studio Browser */
+    private fun send(toBr: Boolean = false) {
         when (val c = hit) {
-            is VideoUrl.Hit.Video -> open(c.url)
-            is VideoUrl.Hit.Page -> if (c.bare) readFull(c.url) else open(c.url)
-            is VideoUrl.Hit.SiteOnly -> readFull(null)
+            is VideoUrl.Hit.Video -> open(c.url, toBr, false)
+            is VideoUrl.Hit.Page -> if (c.bare) readFull(c.url, toBr) else open(c.url, toBr, true)
+            is VideoUrl.Hit.SiteOnly -> readFull(null, toBr)
             else -> hide()
         }
     }
 
     /* page = הדף שבו נמצא נגן (השורה הציגה רק שם אתר): מה שנקרא בשורה הפתוחה — ואם לא נקרא, הדף עצמו */
-    private fun readFull(page: String?) {
+    private fun readFull(page: String?, toBr: Boolean) {
         val pkg = hitPkg ?: return
         val r = try { rootInActiveWindow } catch (e: Exception) { null } ?: return
         val node = findBar(r, pkg, URL_BAR[pkg] ?: return) ?: return
@@ -330,15 +341,20 @@ class GrabService : AccessibilityService() {
             val n2 = r2?.let { findBar(it, pkg, URL_BAR[pkg] ?: emptyList()) }
             val c = VideoUrl.classify(n2?.text)
             performGlobalAction(GLOBAL_ACTION_BACK)          // סוגרים את שורת הכתובת שפתחנו
-            if (c is VideoUrl.Hit.Video) open(c.url)
-            else if (page != null) open(VideoUrl.page(n2?.text) ?: page)
+            if (c is VideoUrl.Hit.Video) open(c.url, toBr, false)
+            else if (page != null) open(VideoUrl.page(n2?.text) ?: page, toBr, true)
             else Toast.makeText(this, R.string.grabNoVideo, Toast.LENGTH_SHORT).show()
         }, 350)
     }
 
-    private fun open(url: String) {
+    /* isPage = דף שבו נמצא נגן, לא סרטון שהמנוע מכיר (יוטיוב, ‏Vimeo…) */
+    private fun open(url: String, toBr: Boolean, isPage: Boolean) {
         hide()
+        if (toBr && AppRoute.toBrowser(this, url)) return
         if (hitKnown && AppRoute.toDmBrowser(this, url)) return
+        // 26/10/2026: דף עם נגן → Studio Browser כשהוא מותקן: הצייד שם רואה את הזרמים האמיתיים (כמו הצייד בדפדפן של
+        // DM), עם ההתחברות שלך שם, ופותח את רשימת ההורדה לבד. סרטון שהמנוע מכיר — ישר ל־DM כמו קודם
+        if (isPage && AppRoute.toBrowser(this, url)) return
         // 24/10/2026: Studio DM מותקן → ההורדה אליו (ברירת המחדל; משם "לתרגם ב־Studio" / "ישר לענן של Studio")
         if (AppRoute.toDm(this, url)) return
         // לאפליקציית Studio (הבועה ב־APK נפרד). Studio לא מותקנת — האתר שלה מכאן (אותו MainActivity, ‎#share=)

@@ -32,6 +32,8 @@ class BrTab(val id: Long, url: String, title: String, val private: Boolean, var 
     val found = HuntMedia.Found()
     val headSeen = HashSet<String>()
     @Volatile var page = ""
+    /** נפתח מהבועה ב־Chrome ("לצוד בדפדפן שלנו"): עד מתי לפתוח לבד את רשימת ההורדה כשנמצא משהו */
+    var autoPick = 0L
 
     val isNtp get() = !url.startsWith("http") && web == null && state == null
     fun pageIsVideo() = VideoUrl.classify(page) is VideoUrl.Hit.Video

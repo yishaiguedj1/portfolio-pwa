@@ -53,6 +53,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.webkit.ProfileStore
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
+import io.github.yishaiguedj1.snowball.AppRoute
 import io.github.yishaiguedj1.snowball.HuntMedia
 import io.github.yishaiguedj1.snowball.R
 import io.github.yishaiguedj1.snowball.dm.DmActivity
@@ -87,6 +88,9 @@ class BrowserActivity : ComponentActivity() {
     var homeBtn by mutableStateOf(false)
     var engine by mutableStateOf("google")
     var isDefault by mutableStateOf(false)
+    var bubble by mutableStateOf(true)
+    /** דפים שבהם גררת את הבועה לתחתית ("לא עכשיו") — עד שהאפליקציה נסגרת, כמו ב־Studio Bubble */
+    val bubbleGone = mutableStateListOf<String>()
 
     private val ui = Handler(Looper.getMainLooper())
     private var nextId = 1L
@@ -110,7 +114,7 @@ class BrowserActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         prefs = BrPrefs(this)
-        barBottom = prefs.barBottom; homeBtn = prefs.homeBtn; engine = prefs.engine
+        barBottom = prefs.barBottom; homeBtn = prefs.homeBtn; engine = prefs.engine; bubble = prefs.bubble
         BrStore.init(this)
         DmStore.init(this)
         DmEngine.pump(this)
@@ -158,7 +162,10 @@ class BrowserActivity : ComponentActivity() {
         }
         if (url.isEmpty()) return false
         screen = Screen.PAGE; editing = false
-        newTab(url, fromApp = i.action == Intent.ACTION_VIEW)
+        val t = newTab(url, fromApp = i.action == Intent.ACTION_VIEW)
+        // מהבועה ב־Chrome: הצייד כאן רואה את הזרמים האמיתיים של הדף — כשנמצא משהו, רשימת ההורדה נפתחת לבד.
+        // רק פותח את הרשימה — שום הורדה לא מתחילה בלי נגיעה שלך
+        if (i.getBooleanExtra(AppRoute.EXTRA_HUNT, false)) { t.autoPick = SystemClock.uptimeMillis() + HUNT_MS; autoPick(t) }
         return true
     }
 
@@ -319,7 +326,7 @@ class BrowserActivity : ComponentActivity() {
             }
             override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? { seen(t, req.url.toString(), headers = req.requestHeaders); return null }
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
-                if (url != t.page) { t.page = url; t.found.clear(); synchronized(t.headSeen) { t.headSeen.clear() }; t.recount() }
+                if (url != t.page) { t.page = url; t.found.clear(); synchronized(t.headSeen) { t.headSeen.clear() }; t.recount(); autoPick(t) }
                 if (BrStore.hostOf(url) != BrStore.hostOf(t.url)) t.icon = null
                 t.url = url; if (favicon != null) t.icon = favicon
                 navState(t, view)
@@ -417,12 +424,32 @@ class BrowserActivity : ComponentActivity() {
     private fun seen(t: BrTab, url: String, hook: Boolean = false, headers: Map<String, String>? = null) {
         val h = (if (hook) HuntMedia.fromHook(url) else HuntMedia.fromRequest(url, headers)) ?: return
         val now = SystemClock.uptimeMillis()
-        if (h.kind != HuntMedia.Kind.FILE) { ui.post { if (t.found.add(h, now)) t.recount() }; return }
+        if (h.kind != HuntMedia.Kind.FILE) { ui.post { if (t.found.add(h, now)) { t.recount(); autoPick(t) } }; return }
         synchronized(t.headSeen) { if (!t.headSeen.add(h.url) || t.headSeen.size > 60) return }
         val ref = t.page
         val ua = runCatching { t.web?.settings?.userAgentString }.getOrNull() ?: ""
-        Thread { if (DmBrowser.headProbe(h, ref, ua)) ui.post { if (t.found.add(h, now)) t.recount() } }.start()
+        Thread { if (DmBrowser.headProbe(h, ref, ua)) ui.post { if (t.found.add(h, now)) { t.recount(); autoPick(t) } } }.start()
     }
+
+    /* נפתח מהבועה ב־Chrome: הממצא הראשון → הרשימה נפתחת אחרי רגע (שיספיקו להגיע עוד איכויות). דף שהוא עצמו סרטון
+       מוכר (יוטיוב…) — מיד כשנטען */
+    private fun autoPick(t: BrTab) {
+        if (t.autoPick == 0L) return
+        if (SystemClock.uptimeMillis() > t.autoPick) { t.autoPick = 0L; return }
+        if (t.foundN == 0) return
+        t.autoPick = 0L
+        ui.postDelayed({ if (cur === t && screen == Screen.PAGE && !editing && !pick && picks(t).isNotEmpty()) pick = true }, 1500)
+    }
+
+    /** הבועה (BrUi.HuntBubble): כמו ⬇ בשורת הכתובת — ממצא אחד מוריד מיד, כמה — הרשימה */
+    fun bubbleTap() {
+        val t = cur ?: return
+        val ps = picks(t)
+        if (ps.size == 1) download(ps[0]) else if (ps.isNotEmpty()) pick = true
+    }
+
+    /** גרירה לתחתית — לא עכשיו, לדף הזה */
+    fun bubbleDismiss() { cur?.page?.takeIf { it.isNotEmpty() }?.let { bubbleGone.add(it); while (bubbleGone.size > 50) bubbleGone.removeAt(0) } }
 
     data class Pick(val label: Int, val host: String, val url: String, val file: Boolean, val page: Boolean)
 
@@ -538,6 +565,7 @@ class BrowserActivity : ComponentActivity() {
     fun pickEngine(e: String) { engine = e; prefs.engine = e }
     fun pickBarBottom(b: Boolean) { barBottom = b; prefs.barBottom = b }
     fun pickHomeBtn(b: Boolean) { homeBtn = b; prefs.homeBtn = b }
+    fun pickBubble(b: Boolean) { bubble = b; prefs.bubble = b }
 
     private fun checkDefault() {
         isDefault = if (Build.VERSION.SDK_INT >= 29) runCatching { getSystemService(RoleManager::class.java)?.isRoleHeld(RoleManager.ROLE_BROWSER) == true }.getOrDefault(false) else false
@@ -569,6 +597,8 @@ class BrowserActivity : ComponentActivity() {
     companion object {
         const val PRIV = "private"
         const val LIVE_MAX = 6
+        /** מהבועה ב־Chrome: כמה זמן מחכים לממצא הראשון כדי לפתוח את הרשימה לבד */
+        const val HUNT_MS = 45_000L
 
         /** "אתר למחשב": ה־User-Agent של Chrome במחשב, באותה גרסה של המנוע */
         fun desktopUa(def: String): String {

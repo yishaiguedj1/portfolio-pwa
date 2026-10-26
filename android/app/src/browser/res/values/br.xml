@@ -76,4 +76,6 @@
     <string name="brTranslate">תרגום</string>
     <string name="brVideos">סרטונים בדף</string>
     <string name="brOpenLabel">פתיחה ב־Studio Browser</string>
+    <string name="brBubble">הורדת הסרטון</string>
+    <string name="brSetBubble">בועת הורדה</string>
 </resources>

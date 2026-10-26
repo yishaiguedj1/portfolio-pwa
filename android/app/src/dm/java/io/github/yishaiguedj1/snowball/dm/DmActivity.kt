@@ -45,7 +45,11 @@ class DmActivity : ComponentActivity() {
         setContent { DmApp(this) }
     }
 
-    override fun onResume() { super.onResume(); visible = true }
+    override fun onResume() {
+        super.onResume(); visible = true
+        // חזרה מ"התקנת אפליקציות לא מוכרות": אושר — ממשיכים להתקנה; לא אושר — לא שואלים שוב
+        apkWait?.let { t -> apkWait = null; if (canInstall()) install(t) }
+    }
     override fun onPause() { visible = false; super.onPause() }
 
     companion object {
@@ -109,12 +113,33 @@ class DmActivity : ComponentActivity() {
     }
 
     fun open(t: DmTask) {
-        // סרטון וקול — בנגן שלנו (DmPlayer); כל השאר — באפליקציה שמתאימה לסוג
+        // סרטון וקול — בנגן שלנו (DmPlayer); APK — התקנה; כל השאר — באפליקציה שמתאימה לסוג
         val cat = if (t.kind == DmKind.YTDL) (if (t.audioOnly) DmName.Cat.AUDIO else DmName.Cat.VIDEO) else DmName.cat(t.name, t.mime)
+        if (cat == DmName.Cat.APK && t.uri.startsWith("content://")) { install(t); return }
         if ((cat == DmName.Cat.VIDEO || cat == DmName.Cat.AUDIO) && t.uri.startsWith("content://")) {
             if (runCatching { startActivity(Intent(this, DmPlayer::class.java).setData(Uri.parse(t.uri)).putExtra(DmPlayer.EXTRA_TITLE, t.title.ifEmpty { t.name })) }.isSuccess) return
         }
         openWith(t)
+    }
+
+    /* 26/10/2026 (בקשת המשתמש: "לא מצליח להתקין APK שירד דרך DM"): עד היום DM לא ביקש את ההרשאה להתקין, ולכן
+       מתקין החבילות של אנדרואיד סירב בלי אפשרות לאשר. עכשיו (REQUEST_INSTALL_PACKAGES במניפסט): פעם ראשונה — מסך
+       ההגדרה "התקנת אפליקציות לא מוכרות" של DM, ובחזרה ההתקנה ממשיכה לבד. מתקין החבילות עצמו מבקש אישור על כל
+       התקנה — DM לא מתקין שום דבר בלי שתאשר. הסוג תמיד APK (שרת ששולח octet-stream — המתקין לא היה מזהה). */
+    private var apkWait: DmTask? = null
+
+    private fun canInstall() = Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls()
+
+    fun install(t: DmTask) {
+        if (!canInstall()) {
+            apkWait = t
+            android.widget.Toast.makeText(this, R.string.dmApkAllow, android.widget.Toast.LENGTH_LONG).show()
+            if (runCatching { startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))) }.isFailure) apkWait = null
+            return
+        }
+        val i = Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(t.uri), DmMedia.APK)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        if (runCatching { startActivity(i) }.isFailure) android.widget.Toast.makeText(this, R.string.dmApkFail, android.widget.Toast.LENGTH_LONG).show()
     }
 
     /** חילוץ ZIP ברקע — בסוף הודעה עם מספר הקבצים / הסיבה */

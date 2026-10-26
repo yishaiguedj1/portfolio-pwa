@@ -128,6 +128,7 @@ fun BrApp(a: BrowserActivity) {
                         update = { f -> if (v.parent !== f) { (v.parent as? ViewGroup)?.removeView(v); f.removeAllViews(); f.addView(v, FrameLayout.LayoutParams(-1, -1)) } },
                         onRelease = { it.removeAllViews() })
                 }
+                HuntBubble(a)   // מעל הדף וגם מעל סרטון במסך מלא — כמו Studio Bubble
                 a.permAsk?.let { PermDialog(it) }
             }
         }
@@ -661,7 +662,13 @@ private fun SettingsScreen(a: BrowserActivity) {
             Caption(R.string.brSetPrivacy)
             Group { SetRow(stringResource(R.string.brSetClear), null, onClick = { ask = true }) {} }
             Caption(R.string.brDownloads)
-            Group { SetRow(stringResource(R.string.brSetDl), null, onClick = { a.dlSettings() }) {} }
+            Group {
+                SetRow(stringResource(R.string.brSetBubble), null, onClick = { a.pickBubble(!a.bubble) }) {
+                    Switch(a.bubble, { a.pickBubble(it) }, colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF30D158), checkedThumbColor = Color.White))
+                }
+                HorizontalDivider(Modifier.padding(start = 16.dp), thickness = 0.5.dp, color = c.line)
+                SetRow(stringResource(R.string.brSetDl), null, onClick = { a.dlSettings() }) {}
+            }
             Caption(R.string.brAbout)
             Group { SetRow("Studio Browser", a.version()) {} }
             Spacer(Modifier.height(30.dp))

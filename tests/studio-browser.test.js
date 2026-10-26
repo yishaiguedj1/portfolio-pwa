@@ -38,7 +38,8 @@ ok(/deleteProfile\(PRIV\)/.test(act) && /WebViewCompat\.setProfile\(w, PRIV\)/.t
 ok(/if \(!isUserGesture\) return false/.test(act), 'חלון קופץ בלי נגיעה — חסום');
 ok(/component = null; selector = null/.test(act), 'קישור intent: — בלי רכיב מפורש (לא נפתח רכיב פנימי של אפליקציה אחרת)');
 ok(/s\.allowFileAccess = false/.test(act) && /s\.allowContentAccess = false/.test(act), 'בלי גישה לקבצים מהדף');
-const code = [act, ui, store, R(B + 'BrTab.kt'), R(B + 'BrIcons.kt')];
+const bub = R(B + 'BrBubble.kt');
+const code = [act, ui, store, bub, R(B + 'BrTab.kt'), R(B + 'BrIcons.kt')];
 for (const s of code) ok(!/thesnowball\.app|vercel\.app|workers\.dev|\/api\//.test(s), 'בלי השרת שלנו בקוד של הדפדפן');
 
 const used = new Set([...code.join('\n').matchAll(/R\.string\.(br\w+)/g)].map((m) => m[1]));
@@ -48,5 +49,40 @@ const H = names(he), E = names(en);
 for (const k of used) ok(H.has(k) && E.has(k), 'מחרוזת בעברית ובאנגלית: ' + k);
 ok([...H].every((k) => E.has(k)), 'כל מחרוזת עברית — גם באנגלית');
 ok(fs.existsSync(path.join(ROOT, 'android/app/src/browser/res/mipmap-xxxhdpi/br_launcher.png')), 'אייקון משלו');
+
+// 26/10/2026 (בקשת המשתמש: "שהבועה מחוברת לדפדפן שלנו באופן מלא ועובדת ממש כמו הצייד"):
+// בועה בתוך הדפדפן — מחוברת לצייד של הטאב, לא לשורת הכתובת; נגיעה = ⬇; מעל סרטון במסך מלא
+ok(/fun HuntBubble\(a: BrowserActivity\)/.test(bub) && /t\?\.foundN/.test(bub), 'הבועה מופיעה לפי מה שהצייד של הטאב מצא');
+ok(/a\.customView\?\.let[\s\S]{0,600}HuntBubble\(a\)/.test(ui), 'הבועה מעל הדף וגם מעל סרטון במסך מלא');
+ok(/fun bubbleTap\(\)[\s\S]{0,200}if \(ps\.size == 1\) download\(ps\[0\]\) else if \(ps\.isNotEmpty\(\)\) pick = true/.test(act)
+  && /if \(ps\.size == 1\) a\.download\(ps\[0\]\) else a\.pick = true/.test(ui), 'נגיעה בבועה = ⬇ בשורת הכתובת (אותה בחירה)');
+ok(/onLongPress = \{[^}]*a\.pick = true/.test(bub), 'לחיצה ארוכה = כל האפשרויות');
+ok(/a\.bubbleDismiss\(\)/.test(bub) && /bubbleGone/.test(act), 'גרירה לתחתית = לא עכשיו לדף הזה (כמו Studio Bubble)');
+ok(/var bubble: Boolean get\(\) = sp\.getBoolean\("bub", true\)/.test(store) && /pickBubble/.test(ui), 'אפשר לכבות בהגדרות; פועלת כברירת מחדל');
+ok(/absoluteOffset/.test(bub) && !/\.offset \{/.test(bub), 'מיקום מוחלט — לא מתהפך בעברית');
+// מהבועה ב־Chrome: הדף נפתח כאן, והרשימה נפתחת לבד כשנמצא משהו — בלי הורדה אוטומטית
+ok(/getBooleanExtra\(AppRoute\.EXTRA_HUNT, false\)/.test(act), 'snb_hunt — מהבועה ב־Chrome');
+const ap = (act.match(/private fun autoPick\(t: BrTab\) \{[\s\S]*?\n    \}/) || [''])[0];
+ok(ap && /pick = true/.test(ap) && !/download|handOff|send\(/.test(ap), 'הציד האוטומטי רק פותח את הרשימה — לא מוריד');
+ok(/HUNT_MS = 45_000L/.test(act), 'הציד האוטומטי מוגבל בזמן');
+const route = R('android/app/src/grab/java/io/github/yishaiguedj1/snowball/AppRoute.kt');
+ok(/const val BROWSER_PKG = "app\.thesnowball\.browser"/.test(route) && /fun toBrowser\([\s\S]{0,300}setPackage\(BROWSER_PKG\)/.test(route), 'AppRoute.toBrowser — רק לחבילה שלנו');
+const gs = R('android/app/src/bubble/java/io/github/yishaiguedj1/snowball/GrabService.kt');
+ok(/if \(isPage && AppRoute\.toBrowser\(this, url\)\) return/.test(gs), 'הבועה ב־Chrome: דף עם נגן → Studio Browser (ציד מלא)');
+ok(/if \(toBr && AppRoute\.toBrowser\(this, url\)\) return/.test(gs) && /getLongPressTimeout/.test(gs), 'לחיצה ארוכה על הבועה ב־Chrome → Studio Browser');
+ok(/<package android:name="app\.thesnowball\.browser" \/>/.test(R('android/app/src/bubble/AndroidManifest.xml')), 'Studio Bubble רואה את Studio Browser (queries)');
+ok(!/app\.thesnowball\.browser/.test(R('android/app/src/bubble/res/xml/grab_service.xml')) && !/"app\.thesnowball\.browser" to/.test(gs), 'בלי שתי בועות: Studio Bubble לא פועלת בתוך Studio Browser');
+
+// 26/10/2026 (בקשת המשתמש: "לא מצליח להתקין APK שהורדתי דרך מנהל ההורדות"): התקנה, תמיד באישור במסך של המערכת
+const da = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmActivity.kt');
+for (const f of ['dm', 'browser'])
+  ok(/android\.permission\.REQUEST_INSTALL_PACKAGES/.test(R('android/app/src/' + f + '/AndroidManifest.xml')), f + ': מבקש את ההרשאה להתקין');
+for (const f of ['main', 'studio', 'invest', 'lite', 'bubble'])
+  if (fs.existsSync(path.join(ROOT, 'android/app/src', f, 'AndroidManifest.xml')))
+    ok(!/REQUEST_INSTALL_PACKAGES/.test(R('android/app/src/' + f + '/AndroidManifest.xml')), f + ': בלי הרשאת התקנה (רק מנהל ההורדות)');
+ok(/if \(cat == DmName\.Cat\.APK && t\.uri\.startsWith\("content:\/\/"\)\) \{ install\(t\); return \}/.test(da), 'APK שירד → התקנה');
+ok(/canRequestPackageInstalls\(\)/.test(da) && /ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri\.parse\("package:\$packageName"\)/.test(da), 'בלי אישור — מסך ההגדרה של DM עצמו, וחזרה ממשיכה');
+ok(/ACTION_VIEW\)\.setDataAndType\(Uri\.parse\(t\.uri\), DmMedia\.APK\)/.test(da) && !/PackageInstaller|INSTALL_PACKAGES"\)|ACTION_INSTALL_PACKAGE/.test(da), 'מתקין החבילות של המערכת (תמיד באישור) — לא התקנה שקטה');
+ok(/if \(DmName\.ext\(name\)\.equals\("apk", true\)\) APK/.test(R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmMedia.kt')), 'קובץ .apk = הסוג של חבילה גם כשהשרת שלח octet-stream');
 
 console.log('studio-browser: ' + n + ' בדיקות עברו');
