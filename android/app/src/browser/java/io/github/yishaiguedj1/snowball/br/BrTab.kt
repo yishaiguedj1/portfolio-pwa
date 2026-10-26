@@ -26,6 +26,9 @@ class BrTab(val id: Long, url: String, title: String, val private: Boolean, var 
     var thumb by mutableStateOf<Bitmap?>(null)
     /** הנגן שעל המסך (BrVideo): [x, y, רוחב, גובה] כחלקים מהדף הנראה; null = אין — הבועה נעלמת */
     var vid by mutableStateOf<FloatArray?>(null)
+    /** שלב 3: כמה בקשות של פרסום/מעקב נחסמו בדף הזה, ואם משהו מתנגן בו עכשיו (BrShield.PLAY_JS) */
+    var blocked by mutableIntStateOf(0)
+    @Volatile var playing = false
 
     var web: WebView? = null
     var state: Bundle? = null

@@ -149,6 +149,8 @@ fun BrApp(a: BrowserActivity) {
             a.cur?.private == true && a.screen == BrowserActivity.Screen.PAGE -> Priv
             else -> LocalBr.current
         }
+        // טאב פרטי על המסך — בלי צילומי מסך ובלי תמונה במסך האפליקציות האחרונות
+        LaunchedEffect(a.screen, a.cur?.private, a.swPrivate, a.privLocked) { a.applySecure() }
         CompositionLocalProvider(LocalBr provides c) {
             Box(Modifier.fillMaxSize().background(if (a.screen == BrowserActivity.Screen.PAGE) c.bar else c.screen)) {
                 when (a.screen) {
@@ -163,13 +165,17 @@ fun BrApp(a: BrowserActivity) {
                     BrowserActivity.Screen.BARPOS -> BarPosScreen(a)
                     BrowserActivity.Screen.IMPORT -> ImportScreen(a)
                     BrowserActivity.Screen.CHROME -> ChromeScreen(a)
+                    BrowserActivity.Screen.SITES -> SitesScreen(a)
+                    BrowserActivity.Screen.SITE -> SiteScreen(a)
+                    BrowserActivity.Screen.VIDEO -> VideoScreen(a)
                 }
+                if (a.privLocked && a.showsPrivate()) LockScreen(a)
                 a.customView?.let { v ->
                     AndroidView({ ctx -> FrameLayout(ctx).apply { setBackgroundColor(AColor.BLACK) } }, Modifier.fillMaxSize(),
                         update = { f -> if (v.parent !== f) { (v.parent as? ViewGroup)?.removeView(v); f.removeAllViews(); f.addView(v, FrameLayout.LayoutParams(-1, -1)) } },
                         onRelease = { it.removeAllViews() })
                 }
-                FullBubble(a)   // סרטון במסך מלא — הבועה בפינה של המסך
+                if (!a.inPip) FullBubble(a)   // סרטון במסך מלא — הבועה בפינה של המסך (לא בחלון הקטן)
                 a.permAsk?.let { PermDialog(it) }
                 if (a.clearAsk) ClearDialog(a)
             }
@@ -185,7 +191,7 @@ private val FavPal = listOf(0xFF1A73E8, 0xFFEA4335, 0xFF34A853, 0xFFF29900, 0xFF
 @Composable
 private fun Fav(a: BrowserActivity, url: String, size: Dp, radius: Dp = size / 4, icon: Bitmap? = null) {
     val host = BrStore.hostOf(url)
-    val ic = icon ?: remember(host, a.tabs.size) { a.tabs.firstOrNull { it.icon != null && BrStore.hostOf(it.url) == host }?.icon }
+    val ic = icon ?: remember(host, a.tabs.size) { a.tabs.firstOrNull { it.icon != null && BrStore.hostOf(it.url) == host }?.icon ?: BrPics.icon(host) }
     if (ic != null) { Image(ic.asImageBitmap(), null, Modifier.size(size).clip(RoundedCornerShape(radius))); return }
     val name = if (host.isEmpty()) "?" else BrStore.siteName(host)
     val col = Color(FavPal[(host.hashCode() and 0x7fffffff) % FavPal.size])
@@ -351,6 +357,7 @@ private fun PageScreen(a: BrowserActivity) {
     if (a.pick && t != null) PickSheet(a, t)
     if (a.info && t != null) InfoSheet(a, t)
     if (a.zoomSheet) ZoomSheet(a)
+    if (a.speedSheet) SpeedSheet(a)
 }
 
 /** קו ההתקדמות מתחת לשורת הכתובת (כחול, דק) — או קו הפרדה כשהדף נטען */
@@ -706,6 +713,9 @@ private fun MenuSheet(a: BrowserActivity) {
                 Sep(16.dp); Act(R.string.brFind, BrIcons.Search) { a.startFind() }
                 Sep(16.dp); Act(R.string.brDesktop, BrIcons.Desktop, check = t.desktop) { a.toggleDesktop() }
                 Sep(16.dp); Act(R.string.brTextSize, BrIcons.TextSize) { close(); a.zoomSheet = true }
+                if (t.vid != null || t.playing || a.speedOf(t) != 100) {
+                    Sep(16.dp); Act(R.string.brSpeed, BrIcons.Speed, badge = speedLabel(a.speedOf(t))) { close(); a.speedSheet = true }
+                }
                 Sep(16.dp); Act(R.string.brInstall, BrIcons.Install) { a.install() }
             }
             if ((t?.foundN ?: 0) > 0) MCard {
@@ -806,6 +816,17 @@ private fun InfoSheet(a: BrowserActivity, t: BrTab) {
             Group {
                 IRow(stringResource(if (secure) R.string.brSecure else R.string.brNotSecureShort), stringResource(if (secure) R.string.brSecureSub else R.string.brNotSecure),
                     lead = { Tile(if (secure) BrIcons.Lock else BrIcons.Warn, if (secure) Green else Color(0xFFFF3B30)) }, chevron = false)
+            }
+            @Suppress("UNUSED_VARIABLE") val rv = a.sitesRev
+            val host = BrStore.hostOf(t.url)
+            if (a.shield) Group(footer = if (a.shieldOn(host)) stringResource(R.string.brShieldSiteOn, t.blocked) else stringResource(R.string.brShieldSiteOff)) {
+                IRow(stringResource(R.string.brShieldSite), lead = { Tile(BrIcons.Shield, Color(0xFFFF9500)) }, chevron = false,
+                    trailing = { IosSwitch(a.shieldOn(host)) { a.toggleSiteShield(t) } })
+            }
+            if (!t.private) Group {
+                IRow(stringResource(R.string.brSiteSettings), lead = { Tile(BrIcons.Tune, Color(0xFF5856D6)) }) {
+                    a.info = false; a.siteHost = host; a.screen = BrowserActivity.Screen.SITE
+                }
             }
             Group {
                 IRow(stringResource(R.string.brCopyLink), lead = { Tile(BrIcons.Copy, Color(0xFF8E8E93)) }, chevron = false) { a.copyLink(); a.info = false }
@@ -1102,6 +1123,9 @@ private fun SettingsScreen(a: BrowserActivity) {
                     value = stringResource(if (a.barBottom) R.string.brBarBottom else R.string.brBarTop)) { a.screen = BrowserActivity.Screen.BARPOS }
                 Sep()
                 IRow(stringResource(R.string.brSetHome), lead = { Tile(BrIcons.Home, Color(0xFF8E8E93)) }, chevron = false, trailing = { IosSwitch(a.homeBtn) { a.pickHomeBtn(it) } })
+                Sep()
+                IRow(stringResource(R.string.brVideoTitle), lead = { Tile(BrIcons.Video, Color(0xFFFF2D55)) },
+                    value = if (a.bgPlay) stringResource(R.string.brBgShort) else null) { a.screen = BrowserActivity.Screen.VIDEO }
             }
         }
         item { Group { IRow(stringResource(R.string.brAboutApp), lead = { Tile(BrIcons.Info, Color(0xFF8E8E93)) }, value = a.version(), chevron = false) } }
@@ -1148,7 +1172,31 @@ private fun BarPosScreen(a: BrowserActivity) {
 private fun PrivacyScreen(a: BrowserActivity) {
     val eng = when (a.engine) { "ddg" -> "DuckDuckGo"; "bing" -> "Bing"; else -> "Google" }
     SubPage(stringResource(R.string.brPrivacy), back = stringResource(R.string.brSettings), onBack = { a.screen = BrowserActivity.Screen.SETTINGS }) {
-        item { Group { IRow(stringResource(R.string.brClearData), lead = { Tile(BrIcons.Trash, Color(0xFFFF3B30)) }) { a.clearAsk = true } } }
+        item {
+            val n = remember(a.screen) { a.blockedAll() }
+            Group(footer = if (a.shield) stringResource(R.string.brShieldFoot, java.text.NumberFormat.getIntegerInstance().format(n)) else stringResource(R.string.brShieldOffFoot)) {
+                IRow(stringResource(R.string.brShield), lead = { Tile(BrIcons.Shield, Color(0xFFFF9500)) }, chevron = false, trailing = { IosSwitch(a.shield) { a.pickShield(it) } })
+                if (a.shield) {
+                    Sep()
+                    IRow(stringResource(R.string.brCookies), lead = { Tile(BrIcons.Cookie, Color(0xFFA2845E)) }, chevron = false, trailing = { IosSwitch(a.cookies) { a.pickCookies(it) } })
+                }
+            }
+        }
+        item {
+            val ok = a.canLock()
+            Group(footer = stringResource(if (ok) R.string.brLockFoot else R.string.brLockNoScreen)) {
+                IRow(stringResource(R.string.brLockPriv), lead = { Tile(BrIcons.Finger, Color(0xFF5856D6)) }, chevron = false,
+                    trailing = { if (ok) IosSwitch(a.lockPriv) { a.pickLockPriv(it) } })
+            }
+        }
+        item {
+            @Suppress("UNUSED_VARIABLE") val rv = a.sitesRev
+            Group {
+                IRow(stringResource(R.string.brSites), lead = { Tile(BrIcons.Tune, Color(0xFF007AFF)) }, value = a.rules.size.takeIf { it > 0 }?.toString()) { a.screen = BrowserActivity.Screen.SITES }
+                Sep()
+                IRow(stringResource(R.string.brClearData), lead = { Tile(BrIcons.Trash, Color(0xFFFF3B30)) }) { a.clearAsk = true }
+            }
+        }
         item {
             Group(footer = stringResource(R.string.brSuggestSub, eng)) {
                 IRow(stringResource(R.string.brSuggest), lead = { Tile(BrIcons.Search, Color(0xFF007AFF)) }, chevron = false, trailing = { IosSwitch(a.suggestOn) { a.pickSuggest(it) } })
@@ -1367,4 +1415,159 @@ private fun Step(n: Int, title: String, sub: String, btn: String, primary: Boole
             }
         }
     }
+}
+
+/* ======================= שלב 3: פרטיות ווידאו (26/10/2026) ======================= */
+
+private fun speedLabel(p: Int): String = if (p == 100) "1×" else ((p / 100.0).toString().trimEnd('0').trimEnd('.') + "×")
+
+/** מהירות הסרטון — לדף הזה עכשיו, ונזכרת לאתר */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SpeedSheet(a: BrowserActivity) {
+    val c = LocalBr.current
+    val now = a.speedOf(a.cur)
+    ModalBottomSheet(onDismissRequest = { a.speedSheet = false }, containerColor = c.screen) {
+        Column(Modifier.verticalScroll(rememberScrollState()).navigationBarsPadding()) {
+            SheetHead(stringResource(R.string.brSpeed), a.cur?.let { BrStore.hostOf(it.url) }, close = { a.speedSheet = false })
+            Group(footer = if (a.cur?.private == true) null else stringResource(R.string.brSpeedFoot)) {
+                BrShield.SPEEDS.forEachIndexed { i, p ->
+                    if (i > 0) Sep(16.dp)
+                    IRow(if (p == 100) stringResource(R.string.brSpeedNormal) else speedLabel(p), chevron = false,
+                        trailing = { if (p == now) Icon(BrIcons.Check, null, Modifier.size(22.dp), tint = c.tint) }) { a.pickSpeed(p) }
+                }
+            }
+        }
+    }
+}
+
+/** האתרים שיש להם הגדרה משלהם (הגנה כבויה, הרשאה שזכרנו, מהירות) */
+@Composable
+private fun SitesScreen(a: BrowserActivity) {
+    val c = LocalBr.current
+    @Suppress("UNUSED_VARIABLE") val rv = a.sitesRev
+    var ask by remember { mutableStateOf(false) }
+    val list = a.rules.values.sortedBy { it.host }
+    SubPage(stringResource(R.string.brSites), back = stringResource(R.string.brPrivacy), onBack = { a.screen = BrowserActivity.Screen.PRIVACY }) {
+        if (list.isEmpty()) item { Empty(R.string.brSitesNone) }
+        else {
+            item {
+                Group(footer = stringResource(R.string.brSitesFoot)) {
+                    list.forEachIndexed { i, r ->
+                        if (i > 0) Sep()
+                        IRow(r.host, siteSummary(r), lead = { Fav(a, "https://" + r.host, 29.dp, 7.dp) }, ltrSub = false) { a.siteHost = r.host; a.screen = BrowserActivity.Screen.SITE }
+                    }
+                }
+            }
+            item { Group { IRow(stringResource(R.string.brSitesReset), color = Color(0xFFFF3B30), chevron = false) { ask = true } } }
+        }
+    }
+    if (ask) AlertDialog(onDismissRequest = { ask = false }, text = { Text(stringResource(R.string.brSitesResetQ)) },
+        confirmButton = { TextButton({ ask = false; a.forgetAllSites() }) { Text(stringResource(R.string.brDelete), color = Color(0xFFFF3B30)) } },
+        dismissButton = { TextButton({ ask = false }) { Text(stringResource(R.string.brCancel)) } })
+}
+
+@Composable
+private fun siteSummary(r: BrShield.SiteRule): String {
+    val parts = buildList {
+        if (!r.shield) add(stringResource(R.string.brShieldOffShort))
+        if (r.cam != 0) add(stringResource(R.string.brCam) + " · " + stringResource(if (r.cam > 0) R.string.brAllowed else R.string.brBlocked))
+        if (r.mic != 0) add(stringResource(R.string.brMic) + " · " + stringResource(if (r.mic > 0) R.string.brAllowed else R.string.brBlocked))
+        if (r.loc != 0) add(stringResource(R.string.brLoc) + " · " + stringResource(if (r.loc > 0) R.string.brAllowed else R.string.brBlocked))
+        if (r.speed != 100) add(speedLabel(r.speed))
+    }
+    return parts.joinToString("   ")
+}
+
+/** אתר אחד: ההגנה, המצלמה, המיקרופון, המיקום והמהירות — כל אחד לשנות או להחזיר ל"לשאול" */
+@Composable
+private fun SiteScreen(a: BrowserActivity) {
+    val c = LocalBr.current
+    @Suppress("UNUSED_VARIABLE") val rv = a.sitesRev
+    val h = a.siteHost
+    val r = a.rule(h)
+    SubPage(h, back = stringResource(R.string.brSites), onBack = { a.screen = BrowserActivity.Screen.SITES }) {
+        item {
+            Group(footer = stringResource(R.string.brShieldSiteFoot)) {
+                IRow(stringResource(R.string.brShieldSite), lead = { Tile(BrIcons.Shield, Color(0xFFFF9500)) }, chevron = false,
+                    trailing = { IosSwitch(r.shield) { v -> a.setRule(h) { it.copy(shield = v) } } })
+            }
+        }
+        item {
+            Group(stringResource(R.string.brPerms)) {
+                PermRow(stringResource(R.string.brCam), BrIcons.Camera, Color(0xFF34C759), r.cam) { v -> a.setRule(h) { it.copy(cam = v) } }
+                Sep()
+                PermRow(stringResource(R.string.brMic), BrIcons.Mic, Color(0xFFFF9500), r.mic) { v -> a.setRule(h) { it.copy(mic = v) } }
+                Sep()
+                PermRow(stringResource(R.string.brLoc), BrIcons.Place, Color(0xFF007AFF), r.loc) { v -> a.setRule(h) { it.copy(loc = v) } }
+            }
+        }
+        item {
+            Group {
+                var open by remember { mutableStateOf(false) }
+                Box {
+                    IRow(stringResource(R.string.brSpeed), lead = { Tile(BrIcons.Speed, Color(0xFFFF2D55)) }, value = speedLabel(r.speed)) { open = true }
+                    DropdownMenu(open, { open = false }, containerColor = c.card) {
+                        BrShield.SPEEDS.forEach { p -> DropdownMenuItem({ Text(if (p == 100) stringResource(R.string.brSpeedNormal) else speedLabel(p)) },
+                            { open = false; a.setRule(h) { it.copy(speed = p) } }, trailingIcon = { if (p == r.speed) Icon(BrIcons.Check, null, tint = c.tint) }) }
+                    }
+                }
+            }
+        }
+        if (a.rules.containsKey(h)) item { Group { IRow(stringResource(R.string.brSiteForget), color = Color(0xFFFF3B30), chevron = false) { a.forgetSite(h) } } }
+    }
+}
+
+/** הרשאה אחת: לשאול / מותר / חסום (כמו ב־Chrome) */
+@Composable
+private fun PermRow(title: String, icon: ImageVector, color: Color, v: Int, set: (Int) -> Unit) {
+    val c = LocalBr.current
+    var open by remember { mutableStateOf(false) }
+    val label = @Composable { x: Int -> stringResource(when (x) { 1 -> R.string.brAllowed; -1 -> R.string.brBlocked; else -> R.string.brAskEach }) }
+    Box {
+        IRow(title, lead = { Tile(icon, color) }, value = label(v)) { open = true }
+        DropdownMenu(open, { open = false }, containerColor = c.card) {
+            listOf(0, 1, -1).forEach { x -> DropdownMenuItem({ Text(label(x)) }, { open = false; set(x) }, trailingIcon = { if (x == v) Icon(BrIcons.Check, null, tint = c.tint) }) }
+        }
+    }
+}
+
+/** וידאו: ניגון ברקע ובמסך נעול, תמונה בתוך תמונה */
+@Composable
+private fun VideoScreen(a: BrowserActivity) {
+    SubPage(stringResource(R.string.brVideoTitle), back = stringResource(R.string.brSettings), onBack = { a.screen = BrowserActivity.Screen.SETTINGS }) {
+        item {
+            Group(footer = stringResource(R.string.brBgFoot)) {
+                IRow(stringResource(R.string.brBgPlay), lead = { Tile(BrIcons.Headphones, Color(0xFFFF2D55)) }, chevron = false, trailing = { IosSwitch(a.bgPlay) { a.pickBgPlay(it) } })
+            }
+        }
+        item {
+            Group(footer = stringResource(R.string.brPipFoot)) {
+                IRow(stringResource(R.string.brPip), lead = { Tile(BrIcons.Pip, Color(0xFF007AFF)) }, chevron = false, trailing = { IosSwitch(a.pip) { a.pickPip(it) } })
+            }
+        }
+    }
+}
+
+/** הטאבים הפרטיים נעולים — מעל הדף, עד טביעת אצבע / קוד המסך */
+@Composable
+private fun LockScreen(a: BrowserActivity) {
+    Box(Modifier.fillMaxSize().background(Priv.screen).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}, contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
+            Box(Modifier.size(72.dp).clip(CircleShape).background(Priv.fill), contentAlignment = Alignment.Center) { Icon(BrIcons.Private, null, Modifier.size(38.dp), tint = Color.White) }
+            Spacer(Modifier.height(16.dp))
+            Text(stringResource(R.string.brLockTitle), color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(24.dp))
+            Box(Modifier.height(48.dp).clip(RoundedCornerShape(24.dp)).background(Priv.tint).clickable { a.unlockPriv() }.padding(horizontal = 26.dp), contentAlignment = Alignment.Center) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(BrIcons.Finger, null, Modifier.size(22.dp), tint = Color.Black); Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.brUnlock), color = Color.Black, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Text(stringResource(R.string.brLockOther), Modifier.clickable { a.leavePrivate() },
+                color = Priv.tint, fontSize = 16.sp)
+        }
+    }
+    LaunchedEffect(Unit) { a.unlockPriv() }
 }

@@ -229,4 +229,14 @@ class BrPrefs(ctx: Context) {
     var zoom: Int get() = sp.getInt("zoom", 100); set(v) { sp.edit().putInt("zoom", v).apply() }
     /** הייבוא האחרון מ־Chrome: "סימניות,ביקורים,זמן" — לשורת התוצאה במסך הייבוא */
     var lastImport: String get() = sp.getString("imp", "") ?: ""; set(v) { sp.edit().putString("imp", v).apply() }
+    // שלב 3 (26/10): חסימת פרסומות ומעקב, הודעות עוגיות, נעילת הטאבים הפרטיים, ניגון ברקע ותמונה בתוך תמונה
+    var shield: Boolean get() = sp.getBoolean("shield", true); set(v) { sp.edit().putBoolean("shield", v).apply() }
+    var cookies: Boolean get() = sp.getBoolean("ck", true); set(v) { sp.edit().putBoolean("ck", v).apply() }
+    var lockPriv: Boolean get() = sp.getBoolean("lockP", false); set(v) { sp.edit().putBoolean("lockP", v).apply() }
+    var bgPlay: Boolean get() = sp.getBoolean("bgPlay", true); set(v) { sp.edit().putBoolean("bgPlay", v).apply() }
+    var pip: Boolean get() = sp.getBoolean("pip", true); set(v) { sp.edit().putBoolean("pip", v).apply() }
+    /** ההגדרות לכל אתר — BrShield.encode/decode */
+    var sites: String get() = sp.getString("sites", "") ?: ""; set(v) { sp.edit().putString("sites", v).apply() }
+    /** כמה בקשות נחסמו מאז ההתקנה — למסך הפרטיות */
+    var blockedAll: Long get() = sp.getLong("blk", 0L); set(v) { sp.edit().putLong("blk", v).apply() }
 }
