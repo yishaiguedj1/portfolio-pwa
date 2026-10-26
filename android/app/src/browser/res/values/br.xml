@@ -242,4 +242,6 @@
     <string name="brPipFoot">סרטון במסך מלא ממשיך בחלון קטן כשיוצאים מהדפדפן.</string>
     <string name="brUnlock">פתיחה</string>
     <string name="brLockOther">לטאבים הרגילים</string>
+    <string name="brPreparing">מכין את האיכויות…</string>
+    <string name="brMoreFiles">קבצים נוספים שנמצאו בדף (%1$d)</string>
 </resources>

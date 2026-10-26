@@ -157,21 +157,28 @@ object DmEngine {
         var lastP = 0L
         val pr = DmYt.Progress(if (t.audioOnly || t.af.isEmpty()) 1 else 2, t.pctYt)
         ytStage[t.id] = pr.stage
+        t.pctYt = pr.frac
+        // 26/10/2026: גם בשלבים בלי אחוז (הכנת המנוע, חיבור, איחוד) הפס זוחל — באפליקציה ובהתראה
         val stopWatch = Thread {
-            while (!r.stop && running.containsKey(t.id)) Thread.sleep(300)
+            try {
+                while (!r.stop && running.containsKey(t.id)) {
+                    Thread.sleep(300)
+                    if (synchronized(pr) { pr.creep() }) { t.pctYt = pr.frac; DmNotif.update(ctx) }
+                }
+            } catch (e: InterruptedException) {}
             if (r.stop) DlEngine.cancel("dm-" + t.id)
         }.apply { isDaemon = true; start() }
         return try {
             // כל שורה של yt-dlp → שלב ואחוז של כל ההורדה (וידאו ואחריו קול); האחוז שלו לבדו מתאפס בכל חלק
             val f = DlEngine.download(ctx, t.url, t.ref, pick, "dm-" + t.id, fmt, subs = if (t.audioOnly) "" else t.subs, auto = t.subsAuto, onLine = ln@{ line ->
                 r.tail.add(line)
-                if (!pr.feed(line)) return@ln
+                if (!synchronized(pr) { pr.feed(line) }) return@ln
                 val now = System.currentTimeMillis()
                 val moved = ytStage.put(t.id, pr.stage) != pr.stage
-                if (pr.frac >= 0f) {
-                    t.pctYt = pr.frac
-                    t.bytesYt = if (t.total > 0) (t.total * pr.frac).toLong() else 0
-                }
+                t.pctYt = pr.frac
+                // הבתים — רק מההורדה עצמה (לא מהזחילה של ההכנה)
+                val dl = ((pr.frac - DmYt.CONN_END) / (DmYt.DL_END - DmYt.CONN_END)).coerceIn(0f, 1f)
+                t.bytesYt = if (t.total > 0) (t.total * dl).toLong() else 0
                 if (pr.bps > 0) speed[t.id] = pr.bps else if (pr.stage != DmYt.Stage.DL) speed.remove(t.id)
                 if (pr.eta >= 0) ytEta[t.id] = pr.eta else ytEta.remove(t.id)
                 if (moved || now - lastP > 2000) { lastP = now; DmStore.save(); DmNotif.update(ctx) }

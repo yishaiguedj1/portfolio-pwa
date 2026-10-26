@@ -18,6 +18,13 @@ class HuntMediaTest {
         listOf("https://cdn.site.com/v/seg-001.ts", "https://cdn.site.com/v/chunk-5.m4s", "https://cdn.site.com/page.html",
             "https://pubads.g.doubleclick.net/ad.mp4", "https://cdn.site.com/preview/clip.mp4", "blob:https://site.com/abc",
             "javascript:void(0)", "https://cdn.site.com/thumb.jpg").forEach { assertNull(it, HuntMedia.classify(it)) }
+        // 26/10/2026: פרסומות וידאו
+        listOf("https://v.fwmrm.net/ad/g/1/clip.mp4", "https://cdn.spotxchange.com/media/v.mp4", "https://s.innovid.com/x/ad.m3u8",
+            "https://cdn.site.com/preroll/intro.mp4", "https://cdn.site.com/media/vast/ad1.mp4", "https://a.teads.tv/v/1.mp4",
+            "https://cdn.site.com/vpaid/clip.mp4").forEach { assertNull(it, HuntMedia.classify(it)) }
+        // לא פרסומת: מילים שמכילות "ad" ושמות כמו download / vastu / headline
+        listOf("https://cdn.site.com/download/movie.mp4", "https://cdn.site.com/headline/clip.mp4", "https://skyfire.vimeocdn.com/1/a/v.mp4",
+            "https://cdn.site.com/vastu/talk.mp4").forEach { assertTrue(it, HuntMedia.classify(it) != null) }
     }
 
     @Test fun found() {

@@ -16,8 +16,12 @@ object HuntMedia {
     private val HLS = Regex("""\.m3u8?$""", RegexOption.IGNORE_CASE)
     private val DASH = Regex("""\.mpd$""", RegexOption.IGNORE_CASE)
     private val FILE = Regex("""\.(mp4|m4v|webm|mov|mkv|flv)$""", RegexOption.IGNORE_CASE)
-    /* בלי פרסומות ובלי תמונות־תצוגה: שמות נפוצים של שרתי פרסום וקובצי preview */
-    private val NOISE = Regex("""(doubleclick|googlesyndication|googleads|adservice|imasdk|/ads?/|[?&]ad_|preview|thumbnail|sprite|storyboard)""", RegexOption.IGNORE_CASE)
+    /* בלי פרסומות ובלי תמונות־תצוגה: שמות נפוצים של שרתי פרסום וקובצי preview.
+       26/10/2026 (בקשת המשתמש: "שהמערכת תזהה פרסומות ותסנן אותן כמו IDM"): גם רשתות הפרסום של וידאו (VAST/VPAID, ‏FreeWheel,
+       ‏SpotX, ‏Innovid, ‏Teads…) ושמות של פרסומת לפני/באמצע סרטון. רק שמות חד־משמעיים — לא "ad" לבד (download, ‏head) */
+    private val NOISE = Regex("""(doubleclick|googlesyndication|googleads|adservice|imasdk|/ads?/|[?&]ad_|preview|thumbnail|sprite|storyboard|""" +
+        """[./_-]vast[./_?-]|vpaid|pre-?roll|mid-?roll|post-?roll|adserver|adsystem|adnxs|fwmrm|freewheel|springserve|spotx|innovid|teads|""" +
+        """serving-sys|tremorhub|smartadserver|pubmatic|moatads|/advert|[./_-]adcontent|adtech)""", RegexOption.IGNORE_CASE)
 
     fun classify(raw: String?): Hit? {
         val s = raw?.trim() ?: return null
