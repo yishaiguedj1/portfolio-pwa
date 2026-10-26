@@ -13,7 +13,9 @@ import java.io.File
  * והטאבים הפתוחים. קבצי JSON באחסון הפרטי של האפליקציה (filesDir/br), כתיבה אטומית. טאב פרטי — לא נשמר כאן לעולם.
  */
 data class BrVisit(val url: String, val title: String, val at: Long)
-data class BrMark(val url: String, val title: String, val at: Long)
+// imp = יובאה מ־Chrome (התיקייה "מיובאות מ־Chrome"); x = מתי יצאה ל־Chrome בקובץ (0 = עוד לא) — BrSync.toExport
+// sid = המזהה בסנכרון עם Chrome (n… = הסימנייה ב־Chrome, a… = נשמרה כאן ועוד לא הגיעה) — BrChrome
+data class BrMark(val url: String, val title: String, val at: Long, val imp: Boolean = false, val x: Long = 0L, val sid: String = "")
 data class BrTabRec(val url: String, val title: String)
 
 object BrStore {
@@ -22,13 +24,20 @@ object BrStore {
     private val ui = Handler(Looper.getMainLooper())
     val history = ArrayList<BrVisit>()   // מהישן לחדש
     val marks = ArrayList<BrMark>()       // מהחדש לישן
+    /** סימניות שמחקת כאן (לפי BrSync.key) — ייבוא מ־Chrome לא מחזיר אותן. עד GONE_MAX, הישנות יוצאות */
+    private val gone = LinkedHashSet<String>()
+    private const val GONE_MAX = 3000
     private var dirty = false
+    /** הסנכרון עם Chrome (BrChrome) מקשיב: סימנייה נוספה / נמחקה, וביקור — רק מה שקרה כאן, לא מה שהגיע מ־Chrome */
+    var onMark: ((add: Boolean, m: BrMark) -> Unit)? = null
+    var onVisit: ((BrVisit) -> Unit)? = null
 
     fun init(ctx: Context) {
         if (::dir.isInitialized) return
         dir = File(ctx.filesDir, "br").apply { mkdirs() }
         read("history.json")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { history.add(BrVisit(it.optString("u"), it.optString("t"), it.optLong("a"))) } }
-        read("marks.json")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { marks.add(BrMark(it.optString("u"), it.optString("t"), it.optLong("a"))) } }
+        read("marks.json")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { marks.add(BrMark(it.optString("u"), it.optString("t"), it.optLong("a"), it.optBoolean("i"), it.optLong("x"), it.optString("s"))) } }
+        read("gone.json")?.let { a -> for (i in 0 until a.length()) a.optString(i).takeIf { it.isNotEmpty() }?.let { gone.add(it) } }
     }
 
     private fun read(name: String): JSONArray? = try { File(dir, name).takeIf { it.exists() }?.readText()?.let { JSONArray(it) } } catch (e: Exception) { null }
@@ -50,14 +59,15 @@ object BrStore {
     fun saveNow() {
         if (!::dir.isInitialized) return
         write("history.json", JSONArray().apply { history.forEach { put(JSONObject().put("u", it.url).put("t", it.title).put("a", it.at)) } })
-        write("marks.json", JSONArray().apply { marks.forEach { put(JSONObject().put("u", it.url).put("t", it.title).put("a", it.at)) } })
+        write("marks.json", JSONArray().apply { marks.forEach { put(JSONObject().put("u", it.url).put("t", it.title).put("a", it.at).apply { if (it.imp) put("i", true); if (it.x > 0) put("x", it.x); if (it.sid.isNotEmpty()) put("s", it.sid) }) } })
+        write("gone.json", JSONArray().apply { gone.forEach { put(it) } })
     }
 
     fun visit(url: String, title: String) {
         if (!url.startsWith("http")) return
         val last = history.lastOrNull()
         if (last != null && last.url == url) { if (title.isNotEmpty() && title != last.title) history[history.size - 1] = last.copy(title = title) }
-        else history.add(BrVisit(url, title, System.currentTimeMillis()))
+        else BrVisit(url, title, System.currentTimeMillis()).let { history.add(it); onVisit?.invoke(it) }
         while (history.size > HISTORY_MAX) history.removeAt(0)
         later()
     }
@@ -70,30 +80,67 @@ object BrStore {
     fun removeVisit(v: BrVisit) { history.remove(v); later() }
     fun clearHistory() { history.clear(); later() }
 
-    fun isMarked(url: String) = marks.any { it.url == url }
+    /** אותה סימנייה גם בכתובת שנכתבה אחרת (www, "/" בסוף, utm…) — BrSync.key */
+    private fun markOf(url: String): BrMark? { val k = BrSync.key(url); return marks.firstOrNull { it.url == url || BrSync.key(it.url) == k } }
+    fun isMarked(url: String) = markOf(url) != null
     fun toggleMark(url: String, title: String): Boolean {
-        val m = marks.firstOrNull { it.url == url }
-        if (m != null) marks.remove(m) else marks.add(0, BrMark(url, title.ifEmpty { hostOf(url) }, System.currentTimeMillis()))
+        val m = markOf(url)
+        if (m != null) forget(m) else {
+            gone.remove(BrSync.key(url))
+            val n = BrMark(url, title.ifEmpty { hostOf(url) }, System.currentTimeMillis())
+            marks.add(0, n); onMark?.invoke(true, n)
+        }
         later()
         return m == null
     }
-    fun removeMark(m: BrMark) { marks.remove(m); later() }
+    fun removeMark(m: BrMark) { forget(m); later() }
+    private fun forget(m: BrMark) {
+        marks.remove(m); onMark?.invoke(false, m)
+        gone.remove(BrSync.key(m.url)); gone.add(BrSync.key(m.url))
+        while (gone.size > GONE_MAX) gone.remove(gone.first())
+    }
 
-    /** ייבוא מ־Chrome (BrImport): סימנייה שכבר קיימת — לא נוספת שוב; ביקורים — ממוזגים לפי הזמן, בלי כפולים,
-     *  והחדשים נשארים כשעוברים את התקרה. מחזיר כמה נוספו מכל סוג */
-    fun importAll(r: BrImport.Result): Pair<Int, Int> {
-        val have = marks.mapTo(HashSet()) { it.url }
-        val nm = r.marks.filter { have.add(it.url) }.sortedByDescending { it.at }
-            .map { BrMark(it.url, it.title.ifEmpty { hostOf(it.url) }, if (it.at > 0) it.at else System.currentTimeMillis()) }
-        marks.addAll(nm)
-        val seen = history.mapTo(HashSet()) { it.url + "\u0000" + it.at }
-        val nv = r.visits.filter { it.at > 0 && seen.add(it.url + "\u0000" + it.at) }.map { BrVisit(it.url, it.title, it.at) }
+    /** הסימניות אחרי סנכרון עם Chrome (BrSync.applyState) — מחליף את הרשימה כולה */
+    fun replaceMarks(list: List<BrMark>) { marks.clear(); marks.addAll(list); saveNow() }
+
+    /** ביקורים מ־Chrome (state.json של התוסף) — רק מה שעוד אין */
+    fun addVisits(items: List<BrImport.Item>): Int {
+        val nv = BrSync.planVisits(history, items)
+        if (nv.isEmpty()) return 0
+        history.addAll(nv); history.sortBy { it.at }
+        while (history.size > HISTORY_MAX) history.removeAt(0)
+        later()
+        return nv.size
+    }
+
+    class ImportStat(val marks: Int, val visits: Int, val known: Int)
+
+    /** ייבוא מ־Chrome (BrImport): רק מה שחדש — BrSync.planMarks/planVisits (בלי כפולים גם בכתובת שנכתבה אחרת, ובלי
+     *  מה שמחקת כאן). הביקורים ממוזגים לפי הזמן, והחדשים נשארים כשעוברים את התקרה */
+    fun importAll(r: BrImport.Result): ImportStat {
+        val now = System.currentTimeMillis()
+        val pm = BrSync.planMarks(marks, r.marks, gone, now)
+        marks.addAll(pm.add)
+        val nv = BrSync.planVisits(history, r.visits)
         if (nv.isNotEmpty()) {
             history.addAll(nv); history.sortBy { it.at }
             while (history.size > HISTORY_MAX) history.removeAt(0)
         }
-        if (nm.isNotEmpty() || nv.isNotEmpty()) saveNow()
-        return nm.size to nv.size
+        if (pm.add.isNotEmpty() || nv.isNotEmpty()) saveNow()
+        return ImportStat(pm.add.size, nv.size, pm.known + pm.gone + (r.visits.size - nv.size))
+    }
+
+    /** ייצוא ל־Chrome (26/10/2026, בקשת המשתמש: "שגם Chrome יתעדכן ממנו"): Chrome Sync סגור לאפליקציות אחרות, אז
+     *  הסימניות יוצאות בפורמט הקובץ של הדפדפנים — "ייבוא סימניות" של Chrome קורא אותו. רק מה ש־Chrome עוד לא קיבל */
+    fun exportList(all: Boolean) = BrSync.toExport(marks, all)
+    fun anyExported() = marks.any { it.x > 0 }
+
+    /** אחרי שהקובץ נשמר — מסמנים שיצאו, כדי שהקובץ הבא לא יכיל אותן שוב */
+    fun markExported(list: List<BrMark>) {
+        val now = System.currentTimeMillis()
+        val ks = list.mapTo(HashSet()) { BrSync.key(it.url) }
+        for (i in marks.indices) if (!marks[i].imp && BrSync.key(marks[i].url) in ks) marks[i] = marks[i].copy(x = now)
+        saveNow()
     }
 
     /** הצעות בשורת הכתובת: סימניות קודם, אחר כך היסטוריה לפי כמה פעמים ומתי — כמו Chrome */
@@ -177,4 +224,9 @@ class BrPrefs(ctx: Context) {
     // בועת ההורדה על הנגן: פועלת, וכמה פעמים הוצגה התווית שלידה
     var bubble: Boolean get() = sp.getBoolean("bub", true); set(v) { sp.edit().putBoolean("bub", v).apply() }
     var bubHints: Int get() = sp.getInt("bubH", 0); set(v) { sp.edit().putInt("bubH", v).apply() }
+    // הצעות חיפוש תוך כדי הקלדה (כמו Chrome — מה שמקלידים נשלח למנוע החיפוש שנבחר), גודל הטקסט בדפים (%)
+    var suggest: Boolean get() = sp.getBoolean("sug", true); set(v) { sp.edit().putBoolean("sug", v).apply() }
+    var zoom: Int get() = sp.getInt("zoom", 100); set(v) { sp.edit().putInt("zoom", v).apply() }
+    /** הייבוא האחרון מ־Chrome: "סימניות,ביקורים,זמן" — לשורת התוצאה במסך הייבוא */
+    var lastImport: String get() = sp.getString("imp", "") ?: ""; set(v) { sp.edit().putString("imp", v).apply() }
 }
