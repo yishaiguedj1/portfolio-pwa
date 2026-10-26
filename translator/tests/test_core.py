@@ -4,6 +4,7 @@
 """
 
 import sys
+import re
 import unittest
 from fractions import Fraction
 from pathlib import Path
@@ -195,6 +196,47 @@ class TestSegment(unittest.TestCase):
         ws += words_from("and saying no to almost everything else.", 3.4)
         cues = plan(ws, C.TimingRules(), C.TextRules())
         self.assertFalse(any("Mm-hmm" in c["en"] for c in cues))
+
+
+    def test_question_and_short_answer_unknown_speaker(self):
+        # 26/10/2026: שאלה ותשובה בלי זיהוי דוברים (S?) — לא כתובית אחת בלי מקף, אלא כתובית דיאלוג (parts)
+        ws = words_from("Do you know this story?", 0.0, spk="S?")
+        ws += words_from("Yeah.", 2.1, spk="S?")
+        cues = plan(ws, C.TimingRules(), C.TextRules())
+        self.assertEqual(len(cues), 1)
+        self.assertEqual([p["en"] for p in cues[0]["parts"]], ["Do you know this story?", "Yeah."])
+
+    def test_rhetorical_question_stays_one_speaker(self):
+        ws = words_from("Why? Because it works.", 0.0, spk="S?")
+        cues = plan(ws, C.TimingRules(), C.TextRules())
+        self.assertFalse(any(c.get("parts") for c in cues))
+        self.assertEqual(" ".join(c["en"] for c in cues), "Why? Because it works.")
+
+    def test_answer_not_glued_to_long_question(self):
+        # השאלה ארוכה מכדי לשמש שורת דיאלוג — התשובה נשארת כתובית נפרדת, לא מודבקת לשאלה
+        ws = words_from("And I am on my way to meet with her right now. Are you Stacy?", 0.0, spk="S?")
+        ws += words_from("Yes.", 5.0, spk="S?")
+        cues = plan(ws, C.TimingRules(), C.TextRules())
+        self.assertFalse(any(re.search(r"\?\s+Yes", c["en"]) and not c.get("parts") for c in cues))
+
+    def test_no_cue_ends_with_subordinating_conjunction(self):
+        # הפסקה בדיבור אחרי "because" — עד היום הכתובית נשברה שם ונשארה תלויה ("…average data because")
+        ws = words_from("Now, that's dangerous to use average data because", 0.0)
+        ws += words_from("there's such a lot of difference within countries and between the people.", ws[-1]["e"] + 0.45)
+        cues = plan(ws, C.TimingRules(), C.TextRules())
+        self.assertGreater(len(cues), 1)
+        for c in cues:
+            self.assertNotIn(c["en"].split()[-1].lower(), {"because", "if", "where", "which", "when"})
+
+    def test_sentence_head_not_split_from_its_sentence(self):
+        # "Too many people" (ואחריו הפסקה) פותח משפט ארוך — עד היום נחתך ממנו ונדבק לסוף המשפט הקודם
+        ws = words_from("Don't chase the money, chase the opportunity.", 0.0)
+        ws += words_from("Too many people", ws[-1]["e"] + 0.1)
+        ws += words_from("settle for this much money-a little bit of a tiny piece of cheese-rather than chasing "
+                         "the opportunity.", ws[-1]["e"] + 0.4)
+        cues = plan(ws, C.TimingRules(), C.TextRules())
+        self.assertEqual(cues[0]["en"], "Don't chase the money, chase the opportunity.")
+        self.assertTrue(cues[1]["en"].startswith("Too many people settle"))
 
 
 class TestTranscript(unittest.TestCase):
