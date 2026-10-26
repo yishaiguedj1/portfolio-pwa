@@ -38,6 +38,8 @@
     <string name="dmRemove">הסרה מהרשימה</string>
     <string name="dmDeleteFile">מחיקה עם הקובץ</string>
     <string name="dmRetry">לנסות שוב</string>
+    <string name="dmOpenBr">לפתוח בדפדפן של DM</string>
+    <string name="dmOpenBrHint">אם האתר דורש התחברות, מתחברים שם פעם אחת. הסרטון יופיע כשהוא מתנגן.</string>
     <string name="dmPause">השהיה</string>
     <string name="dmClose">סגירה</string>
     <string name="dmSegs">%1$d חיבורים פעילים · %2$d מקטעים</string>

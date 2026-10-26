@@ -134,4 +134,23 @@ for (const k of ke) ok(kh.has(k), 'בעברית: ' + k);
 const used = new Set(code.flatMap((f) => [...R(f).matchAll(/R\.string\.(dm\w+)/g)].map((m) => m[1])));
 for (const k of used) ok(kh.has(k), 'מחרוזת קיימת: ' + k);
 
+// 26/10/2026 (שלב 1 בתוכנית הדפדפן): אתרים שבהם הורדת דרך הדפדפן — לבועה; בדיקת קובץ עם העוגיות של הדף
+{
+  const bman = R('android/app/src/bubble/AndroidManifest.xml');
+  const prov = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmSitesProvider.kt');
+  const grab = R('android/app/src/bubble/java/io/github/yishaiguedj1/snowball/GrabService.kt');
+  const brw = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmBrowser.kt');
+  const perm = /<permission android:name="app\.thesnowball\.permission\.DM_SITES" android:protectionLevel="signature" \/>/;
+  ok(perm.test(man) && perm.test(bman), 'הרשאת האתרים — חתימה, מוגדרת בשתי האפליקציות (בלי תלות בסדר ההתקנה)');
+  ok(/<provider[\s\S]{0,200}DmSitesProvider[\s\S]{0,200}android:permission="app\.thesnowball\.permission\.DM_SITES"/.test(man), 'הספק מוגן בהרשאה (קריאה וכתיבה)');
+  ok(/fun insert[^\n]*= null/.test(prov) && /fun update[^\n]*= 0/.test(prov) && /fun delete[^\n]*= 0/.test(prov), 'הספק — קריאה בלבד');
+  ok(/arrayOf\("h"\)/.test(prov) && !/brSites\s*=/.test(prov), 'הספק מגיש רק שמות אתרים');
+  ok(/getBooleanExtra\(AppRoute\.EXTRA_BR, false\)\) \{ openBrowser\(u\); return \}/.test(act), 'בקשה לפתוח בדפדפן — רק פתיחת כתובת, בלי מסירה של עוגיות');
+  ok(/private fun rememberSite[\s\S]{0,80}if \(!sheetCk\) return/.test(act), 'אתר נשמר רק כשההורדה הגיעה מהדפדפן של DM');
+  ok(/if \(hitKnown && AppRoute\.toDmBrowser\(this, url\)\) return/.test(grab), 'הבועה באתר מהרשימה → הדפדפן של DM');
+  ok(/instanceFollowRedirects = false/.test(brw) && /ck\(u\.toString\(\)\)/.test(brw) && /u\.protocol == "https" && next\.protocol == "http"/.test(brw), 'בדיקת הקובץ: עוגיות לכל קפיצה לפי הכתובת שלה, בלי ירידה ל־http');
+  ok(/'\\n' !in it && '\\r' !in it/.test(brw), 'בלי הזרקת כותרות דרך העוגייה בבדיקה');
+  ok(!/setRequestProperty\("Cookie"|getCookie\(/.test(R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/HuntActivity.kt')), 'הדפדפן של Studio — לא שולח עוגיות');
+}
+
 console.log('studio-dm: ' + n + ' בדיקות עברו');
