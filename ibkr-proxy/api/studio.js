@@ -1830,7 +1830,7 @@ async function r2Files(deps, op, body, uid, folder, by) {
 /* רישום קובץ שעלה ל־R2 בעבודה (op:'file' מהטלפון, ו־r2bgDone מה־service worker): קיים, בתיקייה של העבודה, והסרטון /
    הכתוביות בגודל של המקור. משנה את job במקום. מחזיר {} או { code, error } */
 async function r2Register(deps, job, which, fid, now) {
-  const fkey = which === 's' ? 'fsu' : which === 'm' ? 'fph' : which === 'w' ? 'fpw' : 'f' + which;   // m = קובץ המדידות, w = המילים (תרגום בטלפון)
+  const fkey = which === 's' ? 'fsu' : which === 'm' ? 'fph' : which === 'w' ? 'fpw' : which === 'r' ? 'fsr' : 'f' + which;   // m = קובץ המדידות, w = המילים (תרגום בטלפון), r = עזר להגהה
   const m = await driveFileInFolder(deps, job.uid, job.folder, fid);
   if (m && m.error) return { code: 200, error: m.error };
   const f = m && S.normFile({ id: fid, name: m.name || (which === 'v' ? 'video' : which === 's' ? 'subs' : 'audio'), size: m.size, mimeType: m.mime });
@@ -1838,6 +1838,7 @@ async function r2Register(deps, job, which, fid, now) {
   if ((which === 'v' || which === 's') && job.spec && f.size !== job.spec.size) return { code: 400, error: 'file_size' };
   if (which === 'm' && f.size > S.PH_META_MAX) return { code: 400, error: 'file_size' };
   if (which === 'w' && f.size > S.PH_WORDS_MAX) return { code: 400, error: 'file_size' };
+  if (which === 'r' && f.size > S.SUBS_MAX) return { code: 400, error: 'file_size' };
   f.at = now;
   await patchJob(deps, job.id, { [fkey]: f, updated: now });
   job[fkey] = f;
@@ -3213,8 +3214,10 @@ async function handler(req, res, deps = {}) {
       // 22/10/2026: s = קובץ כתוביות קיים (spec.src = 'subs') — נשמר ב־fsu, בגודל של המקור ועד SUBS_MAX
       const subs = !!(job.spec && job.spec.src === 'subs');
       const ph = !!(job.spec && job.spec.ph === 1);   // 24/10/2026: תרגום בטלפון — הקול וקובץ המדידות; הסרטון לא עולה לעולם
-      const which = subs ? (body.which === 's' ? 's' : '') : ph ? (body.which === 'a' || body.which === 'm' ? body.which : '') : body.which === 'v' ? 'v' : body.which === 'a' ? 'a' : '';
-      const fkey = which === 's' ? 'fsu' : 'f' + which;
+      // 26/10/2026: r = רצועת הכתוביות שבקובץ (בשפת המקור), עזר להגהת התמלול — רק כשהשרת שלנו מגיה (eng api), עד SUBS_MAX
+      const hlp = body.which === 'r' && !subs && !!(job.spec && job.spec.eng === 'api');
+      const which = hlp ? 'r' : subs ? (body.which === 's' ? 's' : '') : ph ? (body.which === 'a' || body.which === 'm' ? body.which : '') : body.which === 'v' ? 'v' : body.which === 'a' ? 'a' : '';
+      const fkey = which === 's' ? 'fsu' : which === 'r' ? 'fsr' : 'f' + which;
       const fid = String(body.id || ''), folder = String(body.folder || ''), ext = body.ext === true && which === 'v';   // ext: סרטון שבחרת ב־Drive (Picker) — נשאר במקומו
       const bx = ext && body.bx === true;   // 26/10/2026: נבחר ברשימה של Studio (gbrowse) — רק במצב השרת, והאימות בגישה של הרשימה
       if (!which || !S.FILE_ID_RE.test(fid) || !S.FILE_ID_RE.test(folder) || (job.folder && job.folder !== folder)) return res.status(400).json({ ok: false, error: 'bad_params' });
@@ -3240,6 +3243,7 @@ async function handler(req, res, deps = {}) {
       if (ext) f.ext = true;
       if (bx) f.bx = true;
       if ((which === 'v' || which === 's') && job.spec && f.size !== job.spec.size) return res.status(400).json({ ok: false, error: 'file_size' });
+      if (which === 'r' && f.size > S.SUBS_MAX) return res.status(400).json({ ok: false, error: 'file_size' });
       f.at = now;
       await patchJob(deps, job.id, { [fkey]: f, folder, updated: now });
       job[fkey] = f; job.folder = folder;

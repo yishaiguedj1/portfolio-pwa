@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1891 מפתחות מתוך 4612) */
+/* המחרוזות של studio (1895 מפתחות מתוך 4616) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -1689,6 +1689,10 @@ he: {
   "studioTrkErr": "לא הצלחנו לקרוא את הרצועה",
   "studioTrkForced": "מאולצת",
   "studioTrkFrom": "מתוך הסרטון",
+  "studioTrkHlpNone": "בלי",
+  "studioTrkHlpNote": "Claude ייעזר בכתוביות האלה כדי לתקן שמות, מספרים ומילים שהתמלול שמע לא נכון. התרגום עצמו — מהקול.",
+  "studioTrkHlpRow": "עזר להגהה: {l}",
+  "studioTrkHlpT": "עזר להגהה",
   "studioTrkImage": "תמונה — זיהוי הטקסט יגיע בהמשך",
   "studioTrkN": "{n} רצועות",
   "studioTrkOther": "פורמט שעוד לא נתמך",
@@ -3582,6 +3586,10 @@ en: {
   "studioTrkErr": "Couldn't read this track",
   "studioTrkForced": "Forced",
   "studioTrkFrom": "From the video",
+  "studioTrkHlpNone": "None",
+  "studioTrkHlpNote": "Claude uses these subtitles to fix names, numbers and words the transcription misheard. The translation itself comes from the audio.",
+  "studioTrkHlpRow": "Proofreading aid: {l}",
+  "studioTrkHlpT": "Proofreading aid",
   "studioTrkImage": "Image — text recognition coming later",
   "studioTrkN": "{n} tracks",
   "studioTrkOther": "Format not supported yet",

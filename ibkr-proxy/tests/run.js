@@ -3423,6 +3423,34 @@ function stubFetch(text, status = 200) {
       await run({ op: 'remove', idToken: OWNER, job: JS_ });
     }
     {
+      // 26/10/2026: רצועת הכתוביות שבקובץ כעזר להגהה (r → fsr) — רק כשהשרת שלנו מגיה, עד SUBS_MAX, ועוברת לעובד
+      const SN = require('../lib/studio');
+      driveFiles.set('hlp1234567890', { id: 'hlp1234567890', name: 'en.ref.txt', size: '9000', mimeType: 'text/plain', parents: ['fold1234567890'], trashed: false });
+      driveFiles.set('hlpbig1234567', { id: 'hlpbig1234567', name: 'en.ref.txt', size: String(SN.SUBS_MAX + 1), mimeType: 'text/plain', parents: ['fold1234567890'], trashed: false });
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPECA });
+      const JH = rr.payload.job.id;
+      rr = await run({ op: 'file', idToken: OWNER, job: JH, which: 'r', id: 'hlpbig1234567', folder: 'fold1234567890' });
+      ok(rr.payload.error === 'file_size', 'עזר להגהה: קובץ מעל 5MB — נדחה');
+      rr = await run({ op: 'file', idToken: OWNER, job: JH, which: 'r', id: 'hlp1234567890', folder: 'fold1234567890' });
+      ok(rr.payload.ok && rr.payload.job.files.r && rr.payload.job.files.r.id === 'hlp1234567890' && !rr.payload.job.files.s, 'עזר להגהה: נרשם (r), לא כקובץ המקור');
+      await run({ op: 'file', idToken: OWNER, job: JH, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JH });
+      rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+      const KH = rr.payload.job && rr.payload.job.key;
+      rr = await wrk({ op: 'claim', job: JH, key: KH });
+      ok(rr.payload.ok && rr.payload.job.files.r && rr.payload.job.files.r.id === 'hlp1234567890', 'עזר להגהה: העובד מקבל אותו בלקיחה');
+      await wrk({ op: 'report', job: JH, key: KH, done: true, usage: [{ k: 'tl', m: 'claude-haiku-5-5', n: 1, i: 10, o: 10, cr: 0, c5: 0, c1: 0, usd: 0 }] });
+      await run({ op: 'remove', idToken: OWNER, job: JH });
+      const SPR = Object.assign({}, SPECA); delete SPR.eng; delete SPR.cap;
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPR });
+      const JR = rr.payload.job && rr.payload.job.id;
+      if (JR) {
+        rr = await run({ op: 'file', idToken: OWNER, job: JR, which: 'r', id: 'hlp1234567890', folder: 'fold1234567890' });
+        ok(rr.payload.error === 'bad_params', 'עזר להגהה: בלי השרת שלנו (Routine) — לא נרשם');
+        await run({ op: 'remove', idToken: OWNER, job: JR });
+      }
+    }
+    {
       // 15/10/2026: עבודה שמחכה לסרטון לא תופסת את השרת — חוזרת לתור (park) עד שהסרטון נרשם, ואז ממשיכה
       rr = await run({ op: 'create', idToken: OWNER, spec: SPECA });
       const JP = rr.payload.job.id;

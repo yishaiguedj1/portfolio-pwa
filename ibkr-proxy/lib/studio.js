@@ -747,7 +747,7 @@ function publicJob(job, now) {
   return {
     id: job.id, kind: job.kind, state: e.state, err: e.err, created: job.created || 0, updated: job.updated || 0,
     fired: job.fired || 0, claimed: job.claimed || 0, ended: job.ended || e.at || 0,
-    spec: job.spec || null, files: { a: fileView(job.fa), v: fileView(job.fv), s: fileView(job.fsu), o: Array.isArray(job.fo) ? job.fo : [], c: fileView(job.fc), q: fileView(job.fq), m: fileView(job.fph), w: fileView(job.fpw) },
+    spec: job.spec || null, files: { a: fileView(job.fa), v: fileView(job.fv), s: fileView(job.fsu), r: fileView(job.fsr), o: Array.isArray(job.fo) ? job.fo : [], c: fileView(job.fc), q: fileView(job.fq), m: fileView(job.fph), w: fileView(job.fpw) },
     folder: FILE_ID_RE.test(String(job.folder || '')) ? job.folder : '',
     rp: job.rp || '', ev: job.ev || 0, vh: Array.isArray(job.vh) ? job.vh.map((x) => (x && x.at) || 0) : [],   // מ2: הפקה מחדש (העבודה המקורית), גרסת הכתוביות, מתי נשמרה כל גרסה קודמת
     sess: job.sess && job.sess.url ? { url: job.sess.url } : null,
@@ -1112,7 +1112,7 @@ function workerJob(job, nm, fb, fm, rl, gl) {
     fb: fb || [],            // v364: ספר התיקונים — תקלות מוכרות עם התיקון שלהן
     ls: job.ls && FP_RE.test(String(job.ls.fp || '')) ? job.ls : null,   // v364: העצירה שלפני ההמשך (לאבחון)
     cap: job.eng === 'api' && job.capc > 0 ? job.capc / 100 : null,   // מצב API: תקרת העבודה ($; נשמרת בסנטים) — כבר אחרי התקציב החודשי שנשאר
-    id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv), s: fileView(job.fsu), c: fileView(job.fc), q: fileView(job.fq), m: fileView(job.fph), w: fileView(job.fpw) },
+    id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv), s: fileView(job.fsu), r: fileView(job.fsr), c: fileView(job.fc), q: fileView(job.fq), m: fileView(job.fph), w: fileView(job.fpw) },
     qa: job.qa && job.qa.id ? { id: job.qa.id, q: job.qa.q, a: job.qa.a || null, g: job.qa.g || '' } : null,   // v361: גם השאלה — להמשך בסשן חדש
     ck: Array.isArray(job.ck) ? job.ck.map((c) => ({ s: c.s, id: c.id, size: c.size })) : [],   // v361: להמשך (מהאחרונה)
     sh: job.sh && job.sh.n > 0 ? { n: job.sh.n, old: job.sh.old || null } : null,   // v384: מצב צל — המגדל אוכף את הספים הישנים
@@ -1278,7 +1278,7 @@ function normUtl(o) {
   for (const k of UTL_KEYS) { const v = Number(o[k]); if (Number.isFinite(v) && v >= 0 && v <= 1e11) out[k] = Math.round(v); }
   return Object.keys(out).length ? out : null;
 }
-const JSON_FIELDS = ['mon', 'uh', 'sto', 'upv', 'spec','fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'hla', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl', 'pbr', 'fph', 'pbn', 'fpw', 'ppr', 'urt'];   // 25/10/2026: ppr = ההתקדמות בטלפון לפני ההתחלה (שלב 2)   // 25/10/2026: fpw = המילים עם הזמנים מהטלפון (שלב 2)   // 24/10/2026: fph = קובץ המדידות מהטלפון, pbn = הצריבה בטלפון   // 22/10/2026: pbr = סיכום בדיקת קישור (studioProbe)   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['mon', 'uh', 'sto', 'upv', 'spec','fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'hla', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl', 'pbr', 'fph', 'pbn', 'fpw', 'ppr', 'urt', 'fsr'];   // 26/10/2026: fsr = רצועת הכתוביות שבקובץ, עזר להגהה   // 25/10/2026: ppr = ההתקדמות בטלפון לפני ההתחלה (שלב 2)   // 25/10/2026: fpw = המילים עם הזמנים מהטלפון (שלב 2)   // 24/10/2026: fph = קובץ המדידות מהטלפון, pbn = הצריבה בטלפון   // 22/10/2026: pbr = סיכום בדיקת קישור (studioProbe)   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {

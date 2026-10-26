@@ -2931,7 +2931,8 @@ function pageForm(p, editing) {
     const driveRow = ui.gb ? rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'), onClick: () => { if (dp.st !== 'ok') dp.st = ''; go('dpick'); }, k: 'from-drive' }) : null;
     p.append(list(pickRow, phRow, pwRow, linkRow, subsRow, driveRow));
     const tk = f.trk && f.trk.tracks.length ? f.trk.tracks : null;   // שלב 4
-    if (tk) p.append(list(rowNav({ tile: tile('cc', 'orange'), label: T('studioTrkRow'), value: T('studioTrkN', { n: fmtNum(tk.length) }), sub: T('studioTrkRowS'), onClick: () => go('tracks'), k: 'tracks' })));
+    const hl = tk && f.trk.hlp != null && f.trk.src == null && hlpEngine() ? tk.find((t) => t.id === f.trk.hlp) : null;   // 26/10/2026
+    if (tk) p.append(list(rowNav({ tile: tile('cc', 'orange'), label: T('studioTrkRow'), value: T('studioTrkN', { n: fmtNum(tk.length) }), sub: hl ? T('studioTrkHlpRow', { l: trkLabel(hl) }) : T('studioTrkRowS'), onClick: () => go('tracks'), k: 'tracks' })));
     const adv = advRows(f, pick);
     if (adv) p.append(h('div', 'st-gap sm'), adv);
     if (f.fileObj || (f.drive && !f.drive.bx)) p.append(list(rowNav({ tile: tile('film', 'blue'), label: T('studioEdBefore'), value: f.edl ? edlSum(f.edl, f.dur || 0) : T('studioEdOptional'), onClick: () => go('cutsrc'), k: 'cutsrc' })));   // מ4
@@ -3080,8 +3081,10 @@ function tracksFor(f, file) {
   if (!/\.(mkv|mk3d|webm|mp4|m4v|mov)$/i.test(file.name || '')) return;
   listTracks(file).then((L) => {
     if (form !== f || !(f.fileObj === file || (f._rb === file && f.drive && f.drive.id === file.id)) || !L || !L.tracks.length) return;   // _rb — הסרטון ב־Drive (dpPick)
-    f.trk = { file, vname: file.name, tracks: L.tracks, x: {}, src: null, ref: null, p: 0, busy: false };
-    render('none');
+    f.trk = { file, vname: file.name, tracks: L.tracks, x: {}, src: null, ref: null, hlp: null, p: 0, busy: false };
+    // 26/10/2026: רצועה באנגלית = עזר להגהת התמלול, מראש — רק כשהקובץ בטלפון (מ־Drive החילוץ קורא את כל הקובץ ברשת)
+    const h0 = hlpEngine() && !file.remote ? trkHlpAuto(L.tracks) : null;
+    if (h0) { f.trk.hlp = h0.id; trkEnsure(f, [h0.id]); } else render('none');
   }, () => {});
 }
 function trkLabel(t) {
@@ -3150,6 +3153,50 @@ function trkRefSrt(f) {
   const txt = cuesToFile('srt', imp.cues.map((c) => ({ s: c.s, e: c.e, t: c.lines.join('\n') })));
   return txt.length <= GOLD_REF_MAX ? txt : '';
 }
+/* 26/10/2026 (בקשת המשתמש): רצועת הכתוביות שבקובץ, בשפת המקור, כעזר להגהת התמלול — רק כשהשרת שלנו מגיה
+   (pipeline.py: SUBREF_NOTE). התרגום עצמו נשאר מהקול. בפורמט שהעובד קורא: שורה לכל כתובית, `[HH:MM:SS] טקסט` */
+const hlpEngine = () => apiMode() || cpMode() || ryMode();
+export function trkHlpAuto(tracks) {
+  const en = (tracks || []).filter((t) => t.kind === 'text' && t.lang === 'en');
+  return en.find((t) => !t.forced && !t.sdh) || en.find((t) => !t.forced) || null;
+}
+export function hlpText(cues) {
+  const two = (n) => String(n).padStart(2, '0');
+  const out = [];
+  let n = 0;
+  for (const c of cues || []) {
+    const t = Math.max(0, Math.floor(Number(c.s) || 0));
+    const body = (c.lines || []).join(' ').replace(/[\u0000-\u001f\u007f<>]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!body) continue;
+    const line = '[' + two(Math.floor(t / 3600)) + ':' + two(Math.floor(t / 60) % 60) + ':' + two(t % 60) + '] ' + body;
+    n += line.length + 1;
+    if (n > SUBS_MAX) break;
+    out.push(line);
+  }
+  return out.length ? out.join('\n') + '\n' : '';
+}
+function trkHlpTxt(f) {
+  const k = f && f.trk;
+  const x = k && k.src == null && k.hlp != null ? k.x[k.hlp] : null;
+  if (!x || x.st !== 'ok') return '';
+  return hlpText(importSubs(trkBytes(x), { sdh: true }).cues);
+}
+function trkChooseHlp(f, id) {
+  f.trk.hlp = id;
+  if (id != null) trkEnsure(f, [id]); else render('none');
+}
+/* חילוץ שעוד רץ בלחיצה על "התחלה" — מחכים לו (עד דקה), אחרת מתחילים בלי העזר */
+async function trkWait(f) {
+  for (let i = 0; i < 120 && f.trk && f.trk.busy; i++) await new Promise((r) => setTimeout(r, 500));
+}
+async function hlpUpload(rec, text) {
+  try {
+    const folder = rec.up.folder || await net.jobFolder(rec.id, fileTitle(rec.spec.name));
+    if (!rec.up.folder && folder) rec.up.folder = folder;
+    const id = await net.textUpload(folder, 'en.ref.txt', 'text/plain', text, { snbHlp: '1' });
+    await net.api('file', { job: rec.id, which: 'r', id, folder });
+  } catch (e) { /* העזר רשות — העבודה ממשיכה בלעדיו */ }
+}
 async function refUpload(rec, text) {
   try {
     const folder = rec.up.folder || await net.jobFolder(rec.id, fileTitle(rec.spec.name));
@@ -3181,6 +3228,10 @@ function pageTracks(p) {
       rowRadio({ on: k.src == null, label: T('studioTrkAudio'), sub: T('studioTrkAudioS'), onClick: () => trkChooseSrc(f, null), k: 'trk-src:a' }),
       ...text.map((t) => rowRadio({ on: k.src === t.id, label: trkLabel(t), sub: trkSub(f, t), disabled: !subsOk() || k.busy, onClick: () => trkChooseSrc(f, t.id), k: 'trk-src:' + t.id }))));
     if (!subsOk()) p.append(note(T('studioSubsApiOnly')));
+    if (k.src == null && hlpEngine()) p.append(secT(T('studioTrkHlpT')), list(   // 26/10/2026: מהקול — הרצועה כעזר להגהה
+      rowRadio({ on: k.hlp == null, label: T('studioTrkHlpNone'), onClick: () => trkChooseHlp(f, null), k: 'trk-hlp:0' }),
+      ...text.map((t) => rowRadio({ on: k.hlp === t.id, label: trkLabel(t), sub: trkSub(f, t), disabled: k.busy, onClick: () => trkChooseHlp(f, t.id), k: 'trk-hlp:' + t.id }))),
+      note(T('studioTrkHlpNote')));
     const refs = text.filter((t) => t.id !== k.src);   // רק כשיש רצועה נוספת להשוות אליה
     if (refs.length) p.append(secT(T('studioTrkRefT')), list(
       rowRadio({ on: k.ref == null, label: T('studioTrkRefNone'), onClick: () => trkChooseRef(f, null), k: 'trk-ref:0' }),
@@ -4202,6 +4253,11 @@ function startFromForm() {
     if (f.handle) handleOp('put', rec.id, f.handle);   // {inbox} — מההורדה בטלפון: הקובץ ב־snb-inbox (המשך אחרי רענון)
     if (f.dl && f.dl.th) { thumbs.set(rec.id, f.dl.th); idbOp('thumbs', 'put', rec.id, f.dl.th); }
     else if (f.fileObj) thumbFor(rec, null, f.fileObj);   // 21/10/2026: התמונה מהקובץ שבטלפון — בלי לחכות שיעלה
+    if (f.trk && f.trk.hlp != null && spec.eng === 'api') {   // 26/10/2026: עזר להגהה — לפני ההתחלה, כדי שהעובד יראה אותו בלקיחה
+      await trkWait(f);
+      const ht = trkHlpTxt(f);
+      if (ht) await hlpUpload(rec, ht);
+    }
     form = null;
     if (!root) { startRun(rec.id, ext ? null : file); return; }
     replaceView('job', rec.id);
