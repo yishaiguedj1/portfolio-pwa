@@ -13,6 +13,8 @@ let syms = (arg('syms', '') || '').split(',').map((s) => s.trim().toUpperCase())
 if (!syms.length && arg('file')) syms = fs.readFileSync(arg('file'), 'utf8').split(/\s+/).map((s) => s.trim().toUpperCase().replace('.', '-')).filter(Boolean);
 const UA = process.env.SEC_UA || 'TheSnowball/1.0 data@thesnowball.app';
 const BR = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36';
+// ok/okd/est/def/yfill — לא בעיה; bug/spl/ext/one/estx — לבדוק (X.PROBLEM)
+const COLS = ['ok', 'okd', 'est', 'def', 'yfill', 'ext', 'spl', 'bug', 'one', 'estx', 'none'];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function json(url, headers, tries = 3) {
   for (let t = 0; t < tries; t++) {
@@ -25,10 +27,11 @@ const YK = { rev: 'TotalRevenue', gp: 'GrossProfit', op: 'OperatingIncome', ni: 
   ocf: 'OperatingCashFlow', capex: 'CapitalExpenditure', cash: 'CashAndCashEquivalents', ta: 'TotalAssets', tl: 'TotalLiabilitiesNetMinorityInterest',
   eq: 'StockholdersEquity', ca: 'CurrentAssets', cl: 'CurrentLiabilities' };
 async function yahoo(sym) {
-  const types = ['annual', 'quarterly'].flatMap((p) => Object.values(YK).map((t) => p + t)).join(',');
+  // השדות הראשיים + החלופיים של מילון ההגדרות (X.YALT_TYPES) — אותה בקשה
+  const types = ['annual', 'quarterly'].flatMap((p) => Object.values(YK).concat(X.YALT_TYPES).map((t) => p + t)).join(',');
   const j = await json('https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/' + encodeURIComponent(sym) + '?type=' + types +
     '&period1=1262304000&period2=' + Math.floor(Date.now() / 1000 + 86400), { 'User-Agent': BR });
-  return j ? F.parseYahooTs(j) : null;
+  return j ? { y: F.parseYahooTs(j), ya: X.parseYahooAlt(j) } : null;
 }
 async function nasdaq(sym, f) {
   const j = await json('https://api.nasdaq.com/api/company/' + encodeURIComponent(sym) + '/financials?frequency=' + f, { 'User-Agent': BR, Accept: 'application/json' });
@@ -50,7 +53,7 @@ async function nasdaq(sym, f) {
           const [facts, y, nA, nQ] = await Promise.all([
             json('https://data.sec.gov/api/xbrl/companyfacts/CIK' + String(d.cik).padStart(10, '0') + '.json', { 'User-Agent': UA }),
             yahoo(sym), nasdaq(sym, 1), nasdaq(sym, 2)]);
-          x = X.xcheck(d, facts, y, { A: nA, Q: nQ });
+          x = X.xcheck(d, facts, y && y.y, { A: nA, Q: nQ }, { ya: y && y.ya, cand: F.TAGS && (d.ifrs ? F.TAGS.ifrs : F.TAGS.gaap) });
         }
       } catch (e) { err = String(e.message || e).slice(0, 60); }
       res.push({ sym, src, err, x });
@@ -61,8 +64,9 @@ async function nasdaq(sym, f) {
   const S = X.summarizeX(res);
   const lines = ['# שכבה 8 — כל ערך מול כמה מקורות', '', `${new Date().toISOString().slice(0, 16)} · ${res.length} חברות · ${S.n} ערכים · ${Math.round((Date.now() - t0) / 60000)} דק׳`, '',
     '| הכרעה | ערכים |', '|---|---|', ...Object.entries(S.c).sort((a, b) => b[1] - a[1]).map(([k, n]) => `| ${k} | ${n} |`), '',
-    '| מדד | ok | def | ext | bug | one | none |', '|---|---|---|---|---|---|---|',
-    ...Object.entries(S.byM).sort().map(([m, b]) => `| ${m} | ${b.ok || 0} | ${b.def || 0} | ${b.ext || 0} | ${b.bug || 0} | ${b.one || 0} | ${b.none || 0} |`), '',
+    '| מדד | ' + COLS.join(' | ') + ' |', '|---|' + COLS.map(() => '---|').join(''),
+    ...Object.entries(S.byM).sort().map(([m, b]) => `| ${m} | ${COLS.map((c) => b[c] || 0).join(' | ')} |`), '',
+    '| הכרעה · הסבר | ערכים |', '|---|---|', ...Object.entries(S.why).sort((a, b) => b[1] - a[1]).map(([k, n]) => `| ${k} | ${n} |`), '',
     `נכשלו / לא SEC: ${res.filter((r) => r.err || r.src !== 'sec').map((r) => r.sym + (r.err ? '(' + r.err + ')' : '·' + r.src)).join(', ')}`];
   if (out) {
     fs.mkdirSync(out, { recursive: true });

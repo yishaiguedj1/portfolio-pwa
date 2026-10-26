@@ -263,12 +263,13 @@ function normalizeSec(facts, splits = [], face = null) {
     merged[k] = mergeTags(fs, lock);
     if (merged[k].spine != null) tags[k] = names[merged[k].spine];
   }
-  // שנים פיסקליות: תקופות של ~שנה בהכנסות או ברווח הנקי (52/53 שבועות נכללים)
+  // שנים פיסקליות: תקופות של ~שנה בהכנסות או ברווח הנקי (52/53 שבועות נכללים) — רק מדוח שנתי.
+  // Amazon מדפיסה ב־10-Q גם עמודה של 12 החודשים האחרונים: בלי התנאי כל רבעון נעשה "סוף שנה" והטבלה השנתית התערבבה
   const yearOf = new Map(); // end → start
   for (const k of ['rev', 'ni', 'op']) {
-    for (const kk of merged[k] ? merged[k].dur.keys() : []) {
+    for (const [kk, h] of merged[k] ? merged[k].dur : []) {
       const [s, e] = kk.split('|'), d = day(e) - day(s);
-      if (d >= 350 && d <= 380 && !yearOf.has(e)) yearOf.set(e, s);
+      if (d >= 350 && d <= 380 && h.ann !== false && !yearOf.has(e)) yearOf.set(e, s);
     }
   }
   const fyEnds = [...yearOf.keys()].sort();
@@ -951,4 +952,6 @@ async function handle(body, res) {
 }
 
 module.exports = { handle, fundamentals, q4Eps, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
-  industryFor, industryData, _cache: cache };
+  industryFor, industryData, _cache: cache,
+  // התגיות המועמדות לכל שורה — לכלי ההשוואה (fundxcheck: SEC גולמי גם לתקופות שהושלמו מתגית משנית)
+  TAGS: { gaap: { ...FLOW, ...INST }, ifrs: IFRS } };
