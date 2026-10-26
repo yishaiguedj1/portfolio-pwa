@@ -318,6 +318,24 @@ const fmtX = (n) => '\u2066' + n + '×\u2069';   // בידוד LTR — בעבר�
 const EXTRAS = ['y', 'af', 'z', 'sp', 'rt', 'fh', 'fv', 'vo', 'mu', 'fi', 'fo', 'ln', 'dn', 'br', 'ct', 'sa', 'fx', 'bl', 'tr', 'th'], FADES = [0, 1, 2, 3];
 const fmtM = (sec) => { const t = Math.max(0, Math.round(sec)), h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = t % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0'); };
 
+/* 26/10/2026 (Vid Hub, שלב א׳): זמן שמקלידים בעורך החיתוך — "83", "1:23", "1:23.4", "1:02:03". לא תקין = null */
+export function parseTime(str) {
+  const t = String(str == null ? '' : str).trim().replace(/[,٫]/g, '.');
+  if (!/^\d{1,3}(:\d{1,2}){0,2}(\.\d{1,3})?$/.test(t)) return null;
+  const parts = t.split(':'), sec = Number(parts.pop());
+  if (parts.length && sec >= 60) return null;
+  let v = sec, k = 60;
+  for (let i = parts.length - 1; i >= 0; i--) { const n = Number(parts[i]); if (i > 0 && n >= 60) return null; v += n * k; k *= 60; }
+  return Number.isFinite(v) ? Math.round(v * 1000) / 1000 : null;
+}
+/* הזמן בשדה — עם עשירית (1:23.4); תמיד ספרה אחרי הנקודה, כדי שהשדה לא "יקפוץ" ברוחב */
+export function fmtTenth(sec) {
+  const d = Math.max(0, Math.round((Number(sec) || 0) * 10)), t = Math.floor(d / 10), h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s2 = t % 60;
+  return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s2).padStart(2, '0') + '.' + (d % 10);
+}
+/* התמונות הממוזערות לאורך הציר: N רגעים במרכז כל חלק */
+export function thumbTimes(dur, n) { return dur > 0 && n > 0 ? Array.from({ length: n }, (_, i) => Math.round((i + 0.5) / n * dur * 100) / 100) : []; }
+const NUDGE = [-1, -0.1, 0.1, 1], THUMBS_N = 8, THUMB_MS = 15000;
 /* opts: { video (HTMLVideoElement של הנגן), frame (המסגרת של הנגן — למסגרת החיתוך), dur, edl, T, onChange(edl), flash, full } → { el, edl(), destroy }.
    full = הפקה מחדש: גם מהירות, סיבוב, מסגור ושמע (סבב 3).
    בתצוגה המקדימה הנגן מדלג על מה שנחתך */
@@ -352,7 +370,50 @@ export function createEdlEditor(opts) {
   const afB = opts.full ? b('sm', T('studioEdAf'), () => { if (ex.af) delete ex.af; else ex.af = true; changed(); }, 'ed-af') : null;
   const afHint = el('div', 'st-se-el st-ed-hint', T('studioEdAfHint'));
   if (afB) afRow.append(afB);
-  wrap.append(tl, sum, ops, arRow, xRow, afRow, afHint);
+  // 26/10/2026 (Vid Hub): זמן מדויק — הקלדה, −/+ שנייה ועשירית, וניגון של הקטע שבו הסמן בלבד
+  const tRow = el('div', 'st-se-arow st-ed-trow'); tRow.dir = 'ltr';
+  const tIn = el('input', 'st-ed-tin'); tIn.type = 'text'; tIn.inputMode = 'decimal'; tIn.dir = 'ltr'; tIn.dataset.k = 'ed-tin'; tIn.setAttribute('aria-label', T('studioEdTimeAt'));
+  tIn.autocomplete = 'off'; tIn.spellcheck = false;
+  const goTyped = () => { const t = parseTime(tIn.value); if (t == null || !v) { if (opts.flash && tIn.value.trim()) opts.flash(T('studioEdTimeBad')); paintTime(true); return; } v.currentTime = Math.max(0, Math.min(dur > 0 ? dur : t, t)); paintHead(); paintTime(true); };
+  tIn.addEventListener('change', goTyped);
+  tIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); tIn.blur(); } });
+  const nudge = (d) => { if (!v) return; stopAt = null; v.currentTime = Math.max(0, Math.min(dur > 0 ? dur : Infinity, now() + d)); paintHead(); paintTime(true); };
+  const nb = NUDGE.map((d) => { const bt = b('sm st-ed-nb', (d > 0 ? '+' : '\u2212') + (Math.abs(d) < 1 ? '0.1' : '1'), () => nudge(d), 'ed-nudge:' + d);
+    bt.setAttribute('aria-label', d === -1 ? T('studioEdBack1') : d === 1 ? T('studioEdFwd1') : d < 0 ? T('studioEdBackT') : T('studioEdFwdT')); return bt; });
+  let stopAt = null;
+  const segB = b('sm', T('studioEdPlaySeg'), () => {
+    if (!v) return;
+    let i = segAt(segs, now()); if (i < 0) i = segs.findIndex(([a]) => a > now());
+    if (i < 0) i = 0;
+    const sg = segs[i]; if (!sg) return;
+    stopAt = sg[1]; v.currentTime = sg[0]; const pr = v.play(); if (pr && pr.catch) pr.catch(() => {});
+  }, 'ed-playseg');
+  tRow.append(nb[0], nb[1], tIn, nb[2], nb[3], segB);
+  function paintTime(force) { if (force || document.activeElement !== tIn) tIn.value = fmtTenth(now()); }
+  // תמונות ממוזערות על הציר — מנגן נסתר נוסף על אותו מקור (קובץ מקומי / קישור; MSE — לא, ואז פשוט בלי)
+  const thumbs = el('div', 'st-ed-thumbs'); tl.prepend(thumbs);
+  let thV = null, thDone = false;
+  function loadThumbs() {
+    if (thDone || !v || !(dur > 0) || typeof document === 'undefined') return;
+    const src = v.currentSrc || v.src;
+    if (!src || v.srcObject) return;
+    thDone = true;
+    const times = thumbTimes(dur, THUMBS_N), cells = times.map(() => { const c = el('canvas'); c.width = 96; c.height = 54; thumbs.append(c); return c; });
+    thV = el('video'); thV.muted = true; thV.preload = 'auto'; thV.playsInline = true; if (v.crossOrigin) thV.crossOrigin = v.crossOrigin;
+    let i = 0;
+    const stop = () => { if (!thV) return; try { thV.removeAttribute('src'); thV.load(); } catch (e) {} thV = null; };
+    const tmo = setTimeout(stop, THUMB_MS);
+    const next = () => { if (!thV) return; if (i >= times.length) { clearTimeout(tmo); stop(); return; } thV.currentTime = times[i]; };
+    thV.addEventListener('seeked', () => {
+      if (!thV) return;
+      try { const c = cells[i], w = thV.videoWidth, h = thV.videoHeight; if (w && h) { const k = Math.max(c.width / w, c.height / h); c.getContext('2d').drawImage(thV, (c.width - w * k) / 2, (c.height - h * k) / 2, w * k, h * k); } } catch (e) {}
+      i++; next();
+    });
+    thV.addEventListener('loadedmetadata', next, { once: true });
+    thV.addEventListener('error', () => { clearTimeout(tmo); stop(); thumbs.replaceChildren(); }, { once: true });
+    thV.src = src;
+  }
+  wrap.append(tl, sum, tRow, ops, arRow, xRow, afRow, afHint);
 
   /* ---------- סבב 3: מהירות וסיבוב · מסגור · שמע — מקטעים מקופלים, רק בהפקה מחדש ---------- */
   const set = (f, val, def) => { if (val === def || val == null) delete ex[f]; else ex[f] = val; changed(); };
@@ -538,28 +599,31 @@ export function createEdlEditor(opts) {
   function paintHead() { head.style.left = (dur > 0 ? Math.min(1, now() / dur) * 100 : 0) + '%'; }
   function seekX(cx) { const r = tl.getBoundingClientRect(); if (!(r.width > 0) || !(dur > 0) || !v) return; v.currentTime = Math.max(0, Math.min(1, (cx - r.left) / r.width)) * dur; paintHead(); }
   let drag = false;
-  tl.addEventListener('pointerdown', (e) => { drag = true; try { tl.setPointerCapture(e.pointerId); } catch (z) {} seekX(e.clientX); });
+  tl.addEventListener('pointerdown', (e) => { drag = true; stopAt = null; try { tl.setPointerCapture(e.pointerId); } catch (z) {} seekX(e.clientX); });
   tl.addEventListener('pointermove', (e) => { if (drag) seekX(e.clientX); });
   tl.addEventListener('pointerup', () => { drag = false; });
   tl.addEventListener('pointercancel', () => { drag = false; });
   tl.addEventListener('keydown', (e) => { if (!v) return; if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); v.currentTime = Math.max(0, now() + (e.key === 'ArrowRight' ? 1 : -1)); } });
   // תצוגה מקדימה: בניגון מדלגים על החלקים שנחתכו
   const onTime = () => {
-    paintHead();
+    paintHead(); paintTime();
     if (!v || v.paused || drag) return;
     const t = now();
+    if (stopAt != null && t >= stopAt - 0.03) { stopAt = null; v.pause(); return; }   // "נגן את הקטע" — עוצר בסופו
     if (segAt(segs, t) >= 0) return;
     const nx = segs.find(([a]) => a > t);
     if (nx) v.currentTime = nx[0]; else v.pause();
   };
-  const onMeta = () => { paintCrop(); paintExtras(); preview(); if (!(dur > 0) && v && v.duration > 0 && Number.isFinite(v.duration)) { dur = v.duration; segs = segsOf(opts.edl ? normEdl(opts.edl, dur) : null, dur); paint(); } };
-  if (v) { v.addEventListener('timeupdate', onTime); v.addEventListener('seeked', paintHead); v.addEventListener('loadedmetadata', onMeta); }
-  paint();
+  const onMeta = () => { paintCrop(); paintExtras(); preview(); if (!(dur > 0) && v && v.duration > 0 && Number.isFinite(v.duration)) { dur = v.duration; segs = segsOf(opts.edl ? normEdl(opts.edl, dur) : null, dur); paint(); } loadThumbs(); };
+  const onSeekUser = () => { paintHead(); paintTime(); };
+  if (v) { v.addEventListener('timeupdate', onTime); v.addEventListener('seeked', onSeekUser); v.addEventListener('loadedmetadata', onMeta); }
+  paint(); paintTime(true);
+  if (v && v.readyState >= 1) loadThumbs();
   return {
     el: wrap, edl: cur,
     segs: () => segs,
     /* מ8: שינוי מבחוץ (הסרת שקטים, חיתוך לפי התמליל) — צעד ביטול רגיל */
     set(next, failMsg) { act(next, failMsg || ''); },
-    destroy() { if (ro) ro.disconnect(); crop.remove(); blr.remove(); if (v && opts.full) { v.style.transform = ''; v.style.filter = ''; try { v.playbackRate = 1; v.volume = 1; v.muted = false; } catch (e) {} } if (v) { v.removeEventListener('timeupdate', onTime); v.removeEventListener('seeked', paintHead); v.removeEventListener('loadedmetadata', onMeta); } },
+    destroy() { if (ro) ro.disconnect(); crop.remove(); blr.remove(); if (v && opts.full) { v.style.transform = ''; v.style.filter = ''; try { v.playbackRate = 1; v.volume = 1; v.muted = false; } catch (e) {} } if (v) { v.removeEventListener('timeupdate', onTime); v.removeEventListener('seeked', onSeekUser); v.removeEventListener('loadedmetadata', onMeta); } if (thV) { try { thV.removeAttribute('src'); thV.load(); } catch (e) {} thV = null; } },
   };
 }

@@ -49,6 +49,7 @@ const LI = require('../lib/learnimpact');   // 21/10/2026: השפעת המאגר
 const LC = require('../lib/learncorpus');
 const DL = require('../lib/devlog');   // 15/10/2026: האיסוף המלא בתקופת הפיתוח (הדגל learn_full) — לוגים, יומן הקריאות, מדדים, שגיאות מהטלפון
 const DMLOG = require('../lib/dmlog');
+const FNL = require('../lib/studiofnl');   // 26/10/2026: המסלול שלפני העבודה + "למה ויתרת?" (מונים בלבד)
 const FAU = require('../lib/fundaudit');   // 25/10/2026: בקרת הדיוק של מנתח החברות — הסיכום הלילי מה־Release ‏fund-audit   // 24/10/2026: מאגר הנתונים מ־Studio DM — יומן ההורדות, בהסכמה מפורשת
 const SU = require('../lib/studiourl');   // 22/10/2026: הורדה מקישור — בדיקת קישור בתור לעובד
 const MON = require('../lib/studiomon');
@@ -2819,6 +2820,15 @@ async function handler(req, res, deps = {}) {
         return res.status(200).json({ ok: true, r2: true, dm: DMLOG.dmView(items, now, 14) });
       } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
     }
+    if (op === 'adminFnl') {
+      // 26/10/2026: מרכז הניהול ← מעבדת השיפור ← המסלול שלפני העבודה — 14 הימים האחרונים (14 קריאות, רק למנהל)
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      try {
+        const ids = Array.from({ length: FNL.FNL_DAYS }, (_, i) => FNL.fnlDay(now - i * 86400000));
+        const docs = await Promise.all(ids.map((id) => readDoc(deps, 'studioFunnel', id)));
+        return res.status(200).json({ ok: true, fn: FNL.fnlView(docs.filter(Boolean), now) });
+      } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
+    }
     if (op === 'adminFund') {
       // 25/10/2026: מרכז הניהול ← מעבדת השיפור ← דיוק הנתונים — הסיכום הלילי של מנתח החברות (מידע ציבורי בלבד)
       if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
@@ -2996,6 +3006,16 @@ async function handler(req, res, deps = {}) {
       const rd = r2deps(deps);
       return res.status(200).json({ ok: true, r2: true, get: await R2.presign(c, rd, { method: 'GET', key, expires: 300 }),
         put: await R2.presign(c, rd, { method: 'PUT', key, expires: 300 }) });
+    }
+    if (op === 'fnl') {
+      // 26/10/2026 (Vid Hub, שלב א׳): צעדים קבועים במסלול שלפני העבודה ו"למה ויתרת?" — מונים ליום (studioFunnel/<יום>), בלי משתמש.
+      // תקלה בכתיבה לא מפריעה לכלום — זו מדידה בלבד
+      const f = FNL.normFnl(body);
+      if (!f) return res.status(400).json({ ok: false, error: 'bad_params' });
+      if (limited('fnl:' + uid, 30)) return res.status(429).json({ ok: false, error: 'rate' });
+      const doc = 'projects/' + PROJECT() + '/databases/(default)/documents/studioFunnel/' + FNL.fnlDay(now);
+      const r = await fsCall(deps, 'POST', ':commit', FNL.fnlWrite(doc, f)).catch(() => ({ status: 0 }));
+      return res.status(200).json({ ok: r.status === 200 });
     }
     if (op === 'price') {
       // v377: מחיר מתרגם אנושי לדקת סרטון (ל"חסכת"). 0 / ריק = ברירת המחדל ($5)
