@@ -372,3 +372,31 @@ button.an-row { cursor: pointer; }
 .an-ptag { position: absolute; transform: translate(-50%, calc(-100% - 6px)); font-size: 11px; font-weight: 600; color: var(--an-ink2); white-space: nowrap; pointer-events: none;
   background: color-mix(in srgb, var(--bg) 80%, transparent); padding: 0 4px; border-radius: var(--pill); }
 .an-ptag::after { content: ""; position: absolute; left: 50%; bottom: -5px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--an-ink3); }
+/* דוחות: כרטיס ברוחב המסך לכל מדד */
+.an-rcards { display: flex; flex-direction: column; gap: 12px; }
+.an-rcard { border: 1px solid var(--card-border); background: var(--an-card); box-shadow: var(--shadow); border-radius: var(--radius-xl); padding: 16px 16px 10px;
+  text-align: start; cursor: pointer; display: flex; flex-direction: column; gap: 2px; min-width: 0; color: var(--an-ink); transition: transform .25s cubic-bezier(.3, 1.3, .5, 1); }
+.an-rcard:active { transform: scale(.98); }
+.an-rc-h { display: flex; align-items: center; gap: 8px; }
+.an-rc-h b { font-size: 17px; font-weight: 700; }
+.an-rc-h .an-chev { margin-inline-start: auto; }
+.an-rc-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-top: 8px; }
+.an-rc-big { display: flex; flex-direction: column; min-width: 0; }
+.an-rc-big b { font-size: 28px; font-weight: 800; letter-spacing: -.5px; line-height: 1.1; white-space: nowrap; }
+.an-rc-big small { font-size: 12px; color: var(--an-ink2); }
+.an-rstats { display: flex; gap: 16px; }
+.an-rstat { display: flex; flex-direction: column; align-items: flex-end; text-align: end; }
+.an-rstat span { font-size: 11.5px; color: var(--an-ink2); white-space: nowrap; }
+.an-rstat b { font-size: 15px; font-weight: 700; white-space: nowrap; }
+.an-legend2 { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 12.5px; color: var(--an-ink2); }
+.an-legend2 i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-inline-end: 5px; }
+.an-legend2 b { color: var(--an-ink); font-weight: 700; }
+.an-mc { margin-top: 10px; direction: ltr; min-height: 132px; }
+.an-mc svg { display: block; width: 100%; overflow: visible; }
+.an-mc text { font-family: var(--font); font-size: 10.5px; fill: var(--an-ink3); font-variant-numeric: tabular-nums; paint-order: stroke; stroke: var(--an-card); stroke-width: 3px; stroke-linejoin: round; }
+.an-mc .an-mc-xl { fill: var(--an-ink2); font-weight: 700; }
+.an-mc .an-mc-v0 { fill: var(--an-ink2); font-weight: 600; font-size: 11px; }
+.an-mc .an-mc-vl { fill: var(--an-ink); font-weight: 800; font-size: 11.5px; }
+.an-mc .an-mc-avgt { fill: var(--an-ink2); font-size: 10px; }
+.an-mc-avg { stroke: var(--an-ink3); stroke-width: 1; stroke-dasharray: 3 4; opacity: .8; }
+.an-mc-zero { stroke: var(--an-sep); stroke-width: 1; }

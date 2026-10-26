@@ -966,26 +966,84 @@ function pageRep(co, pg) {
   pg.append(h('div', { class: 'an-seg sm', role: 'group', 'aria-label': T('anTabRep') }, ...[['is', T('anRIs')], ['bs', T('anRBs')], ['cf', T('anRCf')], ['rt', T('anRRt')]].map(([k, tt]) =>
     h('button', { type: 'button', 'aria-pressed': String(S.rsub === k), on: { click: () => { S.rsub = k; render(); } } }, tt))));
   if (co.flags.some((f) => !FL_INFO.has(f.k))) pg.append(h('button', { class: 'an-note an-note-btn', type: 'button', on: { click: flagSheet } }, T('anFlags', { n: new Set(co.flags.filter((f) => !FL_INFO.has(f.k)).map((f) => f.p)).size }), h('span', { class: 'an-chev' })));
-  // אריח לכל מדד (שניים בשורה, כמו הסיכום של Health): שם, הסבר, ערך, צמיחה, גרף רחב עם השנים וערך ההתחלה
-  const grid = h('div', { class: 'an-mgrid' });
-  for (const r of ROWS[S.rsub]) {
-    const def = rowDef(r), sm = rowSummary(co, def), sp = h('div', { class: 'an-mtsp' });
-    const hint = rowHint(def) || (!sm.v ? sm.s : '');
-    grid.append(h('button', { class: 'an-mtile', type: 'button', on: { click: () => chartSheet(def) } },
-      h('span', { class: 'an-mtile-n' }, def.n, h('span', { class: 'an-chev' })), hint ? h('span', { class: 'an-hint' }, hint) : null,
-      sm.v ? h('b', {}, sm.v) : null, sm.v && sm.s ? h('small', {}, sm.s.split('|').join(' · ')) : null, sp));
-    S.after.push(() => {
-      if (def.line) {
-        const Hh = multHist(co), t = Hh.t.slice(-60);
-        spark(sp, multClean(Hh[def.line[1]].slice(-60), def.line[1]), cssv(def.line[2]), true, { w: 150, h: 54, px: 6, labels: t.length ? [t[0].slice(0, 4), T('anToday')] : null });
-        return;
+  // כרטיס לכל מדד ברוחב המסך: שם והסבר, ערך גדול ושני נתונים, וגרף של 10 שנים עם השנים, הערכים וקו ממוצע
+  const list = h('div', { class: 'an-rcards' });
+  for (const r of ROWS[S.rsub]) list.append(repCard(co, rowDef(r)));
+  pg.append(list);
+}
+const stat = (label, v, cls) => h('div', { class: 'an-rstat' }, h('span', {}, label), h('b', { class: cls || null }, v));
+const tone = (g) => (g == null ? null : g >= 0 ? 'an-up' : 'an-down');
+function repCard(co, def) {
+  const host = h('div', { class: 'an-mc' }), hint = rowHint(def), stats = h('div', { class: 'an-rstats' }), legend = h('div', { class: 'an-legend2' });
+  let big = '', bigSub = '';
+  if (def.line) {   // מכפיל — 10 שנים חודשי, חציון, טווח
+    const Hh = multHist(co), k = def.line[1], a = multClean(Hh[k].slice(-120), k), ok = fin(a), md = median(ok), now = fin(Hh[k]).pop();
+    big = fmt(now, 'x', co, 1); bigSub = T('anToday');
+    if (md != null) stats.append(stat(T('anMed10'), fmt(md, 'x', co, 1)), stat(T('anRange'), iso(Math.min(...ok).toFixed(0) + '–' + Math.max(...ok).toFixed(0) + '×')));
+    const t = Hh.t.slice(-120), labels = t.map((x, i) => (x.slice(5, 7) === '01' && (+x.slice(0, 4)) % 2 === 0 ? x.slice(0, 4) : ''));
+    S.after.push(() => miniChart(host, { labels, series: [{ vals: a, color: cssv(def.line[2]) }], unit: 'x', co, line: true, avg: md, avgName: T('anMedian') }));
+  } else {
+    const d = seriesFor(co, def, { mode: 'fy', range: '10', view: 'v' }), one = d.series.length === 1, k0 = def.s[0], m = M[k0];
+    const lastP = d.per[d.per.length - 1];
+    if (one) {
+      const vals = d.series[0].vals, last = vals[vals.length - 1];
+      big = fmt(last, d.unit, co); bigSub = lastP && lastP.kind === 'ttm' ? T('anTtm12') : lastP ? lastP.label : '';
+      if (m.ratio) {
+        const a5 = mean(fyList(co).slice(-5).map((p) => mval(co, k0, p)));
+        stats.append(stat(T('anAvg5'), fmt(a5, d.unit, co)), stat(T('anYearAgo'), fmt(vals.length > 1 ? vals[vals.length - 2] : null, d.unit, co)));
+      } else {
+        const [g5, n5] = cagrN(co, k0, 5), yoy = m.f ? null : growthOf(co, nowP(co), k0);
+        stats.append(stat(T('anGrowthN', { n: n5 || 5 }), sgn(g5), tone(g5)), stat(T('anVsPrev'), sgn(yoy), tone(yoy)));
       }
-      const d = seriesFor(co, def, { mode: 'fy', range: '5', view: 'v' }), s0 = d.series[0], i0 = s0.vals.findIndex((x) => x != null);
-      spark(sp, s0.vals, s0.color, false, { w: 150, h: 54, labels: [d.labels[Math.max(0, i0)], d.labels[d.labels.length - 1]],
-        tag0: i0 >= 0 && s0.vals.length > 1 ? strip(fmt(s0.vals[i0], d.unit, co)) : null });
-    });
+    } else {
+      for (const sr of d.series) { const v = sr.vals[sr.vals.length - 1]; legend.append(h('span', {}, h('i', { style: `background:${sr.color}` }), sr.name, ' ', h('b', {}, fmt(v, d.unit, co)))); }
+    }
+    S.after.push(() => miniChart(host, { labels: d.labels, series: d.series, unit: d.unit, co, line: !one, avg: one ? mean(d.series[0].vals) : null, avgName: T('anAvg') }));
   }
-  pg.append(grid);
+  return h('button', { class: 'an-rcard', type: 'button', on: { click: () => chartSheet(def) } },
+    h('div', { class: 'an-rc-h' }, h('b', {}, def.n), h('span', { class: 'an-chev' })),
+    hint ? h('span', { class: 'an-hint' }, hint) : null,
+    big ? h('div', { class: 'an-rc-row' }, h('div', { class: 'an-rc-big' }, h('b', {}, big), h('small', {}, bigSub)), stats) : null,
+    legend.childElementCount ? legend : null, host);
+}
+/* גרף ברוחב הכרטיס בפיקסלים אמיתיים (טקסט לא נמתח): עמודות לסדרה אחת, קווים לכמה; שנים למטה, ערך ראשון ואחרון, קו ממוצע */
+function miniChart(host, o) {
+  host.textContent = '';
+  const W = Math.max(200, host.clientWidth || 320), H = o.h || 132, pT = 20, pB = 20;
+  const all = fin(o.series.flatMap((s) => s.vals)); if (!all.length) return;
+  let lo = o.line ? Math.min(...all) : Math.min(0, ...all), hi = o.line ? Math.max(...all) : Math.max(0, ...all);
+  if (o.line && o.series.length === 1 && all.length > 20) { lo = quant(all, 0.03); hi = quant(all, 0.97); }   // קפיצה חד־פעמית לא מועכת את הגרף
+  if (o.line) { const pd = (hi - lo) * 0.12 || 1; lo -= pd; hi += pd; }
+  const n = o.labels.length, band = W / n, y = (v) => pT + (hi - clamp(v, lo, hi)) / (hi - lo || 1) * (H - pT - pB), cx = (i) => i * band + band / 2;
+  const svg = sv('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, 'aria-hidden': 'true' }, host);
+  const short = (v) => strip(fmt(v, o.unit, o.co, o.unit === 'x' ? 0 : undefined));
+  const txt = (x, yy, t, cls, anchor) => { const e = sv('text', { x, y: yy, 'text-anchor': anchor || 'middle', class: cls }, svg); e.textContent = t; return e; };
+  if (!o.line && lo < 0) sv('line', { x1: 0, x2: W, y1: y(0), y2: y(0), class: 'an-mc-zero' }, svg);
+  if (o.avg != null && isFinite(o.avg)) {
+    sv('line', { x1: 0, x2: W, y1: y(o.avg), y2: y(o.avg), class: 'an-mc-avg' }, svg);
+    // בצד של השנים הישנות (לא על העמודה האחרונה); טקסט עברי + מספר — בכיוון של השפה, המספר מבודד
+    const at = txt(2, y(o.avg) - 4, '', 'an-mc-avgt', 'end');
+    at.setAttribute('direction', document.documentElement.dir === 'rtl' ? 'rtl' : 'ltr'); if (document.documentElement.dir !== 'rtl') at.setAttribute('text-anchor', 'start');
+    at.textContent = o.avgName + ' ' + iso(short(o.avg));
+  }
+  if (!o.line) {
+    const v = o.series[0].vals, bw = Math.min(28, band * 0.62);
+    v.forEach((x, i) => { if (x == null) return; const y1 = y(Math.max(x, 0)), y2 = y(Math.min(x, 0));
+      sv('rect', { x: cx(i) - bw / 2, y: y1, width: bw, height: Math.max(1.5, y2 - y1), rx: Math.min(5, bw / 2), fill: o.series[0].color, opacity: i === n - 1 ? 1 : 0.42, class: 'an-bar', style: `--an-bi:${i}` }, svg); });
+    const idx = v.map((x, i) => (x == null ? -1 : i)).filter((i) => i >= 0), f = idx[0], l = idx[idx.length - 1];
+    for (const i of f === l ? [l] : [f, l]) txt(i === l ? Math.min(cx(i), W - 18) : Math.max(cx(i), 18), v[i] >= 0 ? y(v[i]) - 5 : y(v[i]) + 12, short(v[i]), i === l ? 'an-mc-vl' : 'an-mc-v0');
+  } else {
+    for (const sr of o.series) {
+      let d = ''; sr.vals.forEach((x, i) => { if (x != null) d += (d && sr.vals[i - 1] != null ? 'L' : 'M') + cx(i).toFixed(1) + ',' + y(x).toFixed(1); });
+      sv('path', { d, fill: 'none', stroke: sr.color, 'stroke-width': 2.2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', pathLength: 1, class: 'an-draw' }, svg);
+      const li = sr.vals.map((x, i) => (x == null ? -1 : i)).filter((i) => i >= 0).pop();
+      if (li != null) sv('circle', { cx: cx(li), cy: y(sr.vals[li]), r: 3.5, fill: sr.color }, svg);
+    }
+    if (o.series.length === 1) { const v = o.series[0].vals, li = v.map((x, i) => (x == null ? -1 : i)).filter((i) => i >= 0).pop(); if (li != null) txt(cx(li) - 6, y(v[li]) - 8, short(v[li]), 'an-mc-vl', 'end'); }
+  }
+  // שנים: כל העמודות כשיש מקום, אחרת כל שנייה (האחרונה תמיד)
+  const step = band >= 30 ? 1 : 2;
+  o.labels.forEach((lb, i) => { if (!lb || ((n - 1 - i) % step && o.labels.some((x) => !x) === false)) return; txt(cx(i), H - 5, band >= 36 ? String(lb) : String(lb).replace(/^(19|20)(\d\d)$/, "'$2"), i === n - 1 ? 'an-mc-xl' : 'an-mc-x'); });
 }
 
 /* --- שווי --- */
