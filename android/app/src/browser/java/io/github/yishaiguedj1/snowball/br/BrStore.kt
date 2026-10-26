@@ -13,7 +13,7 @@ import java.io.File
  * והטאבים הפתוחים. קבצי JSON באחסון הפרטי של האפליקציה (filesDir/br), כתיבה אטומית. טאב פרטי — לא נשמר כאן לעולם.
  */
 data class BrVisit(val url: String, val title: String, val at: Long)
-data class BrMark(val url: String, val title: String, val at: Long)
+data class BrMark(val url: String, val title: String, val at: Long, val imp: Boolean = false)   // imp = יובאה מ־Chrome (התיקייה "מיובאות מ־Chrome")
 data class BrTabRec(val url: String, val title: String)
 
 object BrStore {
@@ -28,7 +28,7 @@ object BrStore {
         if (::dir.isInitialized) return
         dir = File(ctx.filesDir, "br").apply { mkdirs() }
         read("history.json")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { history.add(BrVisit(it.optString("u"), it.optString("t"), it.optLong("a"))) } }
-        read("marks.json")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { marks.add(BrMark(it.optString("u"), it.optString("t"), it.optLong("a"))) } }
+        read("marks.json")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { marks.add(BrMark(it.optString("u"), it.optString("t"), it.optLong("a"), it.optBoolean("i"))) } }
     }
 
     private fun read(name: String): JSONArray? = try { File(dir, name).takeIf { it.exists() }?.readText()?.let { JSONArray(it) } } catch (e: Exception) { null }
@@ -50,7 +50,7 @@ object BrStore {
     fun saveNow() {
         if (!::dir.isInitialized) return
         write("history.json", JSONArray().apply { history.forEach { put(JSONObject().put("u", it.url).put("t", it.title).put("a", it.at)) } })
-        write("marks.json", JSONArray().apply { marks.forEach { put(JSONObject().put("u", it.url).put("t", it.title).put("a", it.at)) } })
+        write("marks.json", JSONArray().apply { marks.forEach { put(JSONObject().put("u", it.url).put("t", it.title).put("a", it.at).apply { if (it.imp) put("i", true) }) } })
     }
 
     fun visit(url: String, title: String) {
@@ -84,7 +84,7 @@ object BrStore {
     fun importAll(r: BrImport.Result): Pair<Int, Int> {
         val have = marks.mapTo(HashSet()) { it.url }
         val nm = r.marks.filter { have.add(it.url) }.sortedByDescending { it.at }
-            .map { BrMark(it.url, it.title.ifEmpty { hostOf(it.url) }, if (it.at > 0) it.at else System.currentTimeMillis()) }
+            .map { BrMark(it.url, it.title.ifEmpty { hostOf(it.url) }, if (it.at > 0) it.at else System.currentTimeMillis(), imp = true) }
         marks.addAll(nm)
         val seen = history.mapTo(HashSet()) { it.url + "\u0000" + it.at }
         val nv = r.visits.filter { it.at > 0 && seen.add(it.url + "\u0000" + it.at) }.map { BrVisit(it.url, it.title, it.at) }
@@ -94,6 +94,21 @@ object BrStore {
         }
         if (nm.isNotEmpty() || nv.isNotEmpty()) saveNow()
         return nm.size to nv.size
+    }
+
+    /** ייצוא ל־Chrome (26/10/2026, בקשת המשתמש: "שגם Chrome יתעדכן ממנו"): Chrome Sync סגור לאפליקציות אחרות, אז
+     *  הסימניות יוצאות בפורמט הקובץ של הדפדפנים (Netscape) — "ייבוא סימניות" של Chrome במחשב קורא אותו. שתי תיקיות כמו כאן */
+    fun exportHtml(): String {
+        fun e(x: String) = x.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+        val sb = StringBuilder("<!DOCTYPE NETSCAPE-Bookmark-file-1>\n<META HTTP-EQUIV=\"Content-Type\" CONTENT=\"text/html; charset=UTF-8\">\n<TITLE>Bookmarks</TITLE>\n<H1>Bookmarks</H1>\n<DL><p>\n")
+        for ((name, list) in listOf("Studio Browser" to marks.filter { !it.imp }, "Chrome" to marks.filter { it.imp })) {
+            if (list.isEmpty()) continue
+            sb.append("    <DT><H3>").append(e(name)).append("</H3>\n    <DL><p>\n")
+            for (m in list) if (m.url.startsWith("http://") || m.url.startsWith("https://"))
+                sb.append("        <DT><A HREF=\"").append(e(m.url)).append("\" ADD_DATE=\"").append(m.at / 1000).append("\">").append(e(m.title)).append("</A>\n")
+            sb.append("    </DL><p>\n")
+        }
+        return sb.append("</DL><p>\n").toString()
     }
 
     /** הצעות בשורת הכתובת: סימניות קודם, אחר כך היסטוריה לפי כמה פעמים ומתי — כמו Chrome */
@@ -177,4 +192,9 @@ class BrPrefs(ctx: Context) {
     // בועת ההורדה על הנגן: פועלת, וכמה פעמים הוצגה התווית שלידה
     var bubble: Boolean get() = sp.getBoolean("bub", true); set(v) { sp.edit().putBoolean("bub", v).apply() }
     var bubHints: Int get() = sp.getInt("bubH", 0); set(v) { sp.edit().putInt("bubH", v).apply() }
+    // הצעות חיפוש תוך כדי הקלדה (כמו Chrome — מה שמקלידים נשלח למנוע החיפוש שנבחר), גודל הטקסט בדפים (%)
+    var suggest: Boolean get() = sp.getBoolean("sug", true); set(v) { sp.edit().putBoolean("sug", v).apply() }
+    var zoom: Int get() = sp.getInt("zoom", 100); set(v) { sp.edit().putInt("zoom", v).apply() }
+    /** הייבוא האחרון מ־Chrome: "סימניות,ביקורים,זמן" — לשורת התוצאה במסך הייבוא */
+    var lastImport: String get() = sp.getString("imp", "") ?: ""; set(v) { sp.edit().putString("imp", v).apply() }
 }

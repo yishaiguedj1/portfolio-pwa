@@ -6,6 +6,7 @@ import android.app.SearchManager
 import android.app.role.RoleManager
 import android.content.ActivityNotFoundException
 import android.content.ClipData
+import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
@@ -23,7 +24,9 @@ import android.os.Looper
 import android.os.Message
 import android.os.SystemClock
 import android.provider.Settings
+import android.speech.RecognizerIntent
 import android.view.View
+import android.view.textclassifier.TextClassifier
 import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
 import android.webkit.PermissionRequest
@@ -69,7 +72,9 @@ import io.github.yishaiguedj1.snowball.dm.DmStore
  * כך שהעוגיות של האתרים לא יוצאות מהאפליקציה. הממשק — BrUi.kt.
  */
 class BrowserActivity : ComponentActivity() {
-    enum class Screen { PAGE, SWITCHER, HISTORY, BOOKMARKS, SETTINGS }
+    enum class Screen { PAGE, SWITCHER, HISTORY, BOOKMARKS, SETTINGS, ENGINE, PASSWORDS, PRIVACY, BARPOS, IMPORT }
+    /** עמודי המשנה של ההגדרות — "חזור" מהם חוזר להגדרות, לא לדף */
+    private val settingsSubs = setOf(Screen.ENGINE, Screen.PASSWORDS, Screen.PRIVACY, Screen.BARPOS, Screen.IMPORT)
     data class PermAsk(val host: String, val kind: Int, val go: (Boolean) -> Unit)   // kind: 1 מצלמה, 2 מיקרופון, 3 שניהם, 4 מיקום
 
     val tabs = mutableStateListOf<BrTab>()
@@ -89,6 +94,15 @@ class BrowserActivity : ComponentActivity() {
     var engine by mutableStateOf("google")
     var isDefault by mutableStateOf(false)
     var bubble by mutableStateOf(true)
+    var suggestOn by mutableStateOf(true)
+    var zoom by mutableIntStateOf(100)
+    var lastImport by mutableStateOf("")
+    /** גיליונות ותיבות שפתוחים מעל הדף — "חזור" סוגר אותם קודם */
+    var info by mutableStateOf(false)
+    var zoomSheet by mutableStateOf(false)
+    var clearAsk by mutableStateOf(false)
+    /** בסימניות: 0 = הכל, 1 = סימניות בנייד, 2 = מיובאות מ־Chrome */
+    var markFolder by mutableIntStateOf(0)
 
     private val ui = Handler(Looper.getMainLooper())
     private var nextId = 1L
@@ -106,6 +120,11 @@ class BrowserActivity : ComponentActivity() {
     }
     private val roleLaunch = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { checkDefault() }
     private val importLaunch = registerForActivityResult(ActivityResultContracts.OpenDocument()) { u -> if (u != null) importFrom(u) }
+    private val exportLaunch = registerForActivityResult(ActivityResultContracts.CreateDocument("text/html")) { u -> if (u != null) exportTo(u) }
+    private val voiceLaunch = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val q = r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
+        if (!q.isNullOrEmpty()) { screen = Screen.PAGE; go(q) }
+    }
 
     override fun attachBaseContext(base: Context) { super.attachBaseContext(DmLang.wrap(base)) }
 
@@ -114,6 +133,7 @@ class BrowserActivity : ComponentActivity() {
         enableEdgeToEdge()
         prefs = BrPrefs(this)
         barBottom = prefs.barBottom; homeBtn = prefs.homeBtn; engine = prefs.engine; bubble = prefs.bubble
+        suggestOn = prefs.suggest; zoom = prefs.zoom; lastImport = prefs.lastImport
         BrStore.init(this)
         DmStore.init(this)
         DmEngine.pump(this)
@@ -275,10 +295,15 @@ class BrowserActivity : ComponentActivity() {
             customView != null -> hideCustom()
             permAsk != null -> { permAsk?.go?.invoke(false); permAsk = null }
             pick -> pick = false
+            clearAsk -> clearAsk = false
+            zoomSheet -> zoomSheet = false
+            info -> info = false
             menu -> menu = false
             finding -> stopFind()
             editing -> editing = false
-            screen != Screen.PAGE -> screen = if (screen == Screen.SWITCHER) Screen.PAGE else Screen.PAGE
+            screen in settingsSubs -> screen = Screen.SETTINGS
+            screen == Screen.BOOKMARKS && markFolder != 0 -> markFolder = 0
+            screen != Screen.PAGE -> screen = Screen.PAGE
             t?.web?.canGoBack() == true -> t.web?.goBack()
             t != null && t.fromApp -> { close(t); moveTaskToBack(true) }   // כמו Chrome: קישור מאפליקציה — "חזור" חוזר אליה
             else -> moveTaskToBack(true)
@@ -314,6 +339,7 @@ class BrowserActivity : ComponentActivity() {
         s.builtInZoomControls = true
         s.displayZoomControls = false
         s.setGeolocationEnabled(true)
+        s.textZoom = zoom
         if (t.desktop) s.userAgentString = desktopUa(s.userAgentString)
         runCatching { (if (t.private && privOk) ProfileStore.getInstance().getProfile(PRIV)?.cookieManager else CookieManager.getInstance())?.setAcceptThirdPartyCookies(w, true) }
 
@@ -568,6 +594,78 @@ class BrowserActivity : ComponentActivity() {
     fun pickBarBottom(b: Boolean) { barBottom = b; prefs.barBottom = b }
     fun pickHomeBtn(b: Boolean) { homeBtn = b; prefs.homeBtn = b }
     fun pickBubble(b: Boolean) { bubble = b; prefs.bubble = b }
+    fun pickSuggest(b: Boolean) { suggestOn = b; prefs.suggest = b }
+    /** גודל הטקסט בדפים — כמו "גודל הטקסט" ב־Chrome; חל על כל הטאבים */
+    fun pickZoom(v: Int) { zoom = v.coerceIn(50, 300); prefs.zoom = zoom; tabs.forEach { t -> runCatching { t.web?.settings?.textZoom = zoom } } }
+
+    /* ---------------- שורת הכתובת: הצעות, הקישור שהעתקת, חיפוש קולי ---------------- */
+
+    /** הצעות החיפוש של המנוע שנבחר (כמו Chrome). רק כשהמתג פועל; בלי עוגיות; עד 2 שניות; רק טקסט */
+    fun fetchSuggest(q: String): List<String> {
+        val t = q.trim()
+        if (!suggestOn || t.length < 2 || t.length > 200 || BrStore.toUrl(t, engine).let { it.isNotEmpty() && it != BrStore.searchUrl(engine, t) }) return emptyList()
+        val lang = resources.configuration.locales[0].language.let { if (it == "iw") "he" else it }
+        val u = when (engine) {
+            "ddg" -> "https://duckduckgo.com/ac/?type=list&q="
+            "bing" -> "https://api.bing.com/osjson.aspx?query="
+            else -> "https://suggestqueries.google.com/complete/search?client=firefox&ie=utf-8&oe=utf-8&hl=$lang&q="
+        } + Uri.encode(t)
+        return runCatching {
+            val c = java.net.URL(u).openConnection() as java.net.HttpURLConnection
+            c.connectTimeout = 2000; c.readTimeout = 2000; c.instanceFollowRedirects = false; c.useCaches = false
+            c.setRequestProperty("Cookie", "")
+            try {
+                if (c.responseCode != 200) return@runCatching emptyList<String>()
+                val body = c.inputStream.use { it.readBytes().take(64 * 1024).toByteArray() }.toString(Charsets.UTF_8)
+                val a = org.json.JSONArray(body).optJSONArray(1) ?: return@runCatching emptyList<String>()
+                (0 until a.length()).mapNotNull { a.optString(it).trim().takeIf { s -> s.isNotEmpty() && s.length <= 200 } }
+                    .filter { !it.equals(t, true) }.distinct().take(4)
+            } finally { c.disconnect() }
+        }.getOrDefault(emptyList())
+    }
+
+    /** "הקישור שהעתקת" — בלי לקרוא את הלוח (אנדרואיד מציג הודעה על כל קריאה): רק הסיווג שהמערכת כבר עשתה */
+    fun clipHasUrl(): Boolean {
+        if (Build.VERSION.SDK_INT < 31) return false
+        val d = runCatching { getSystemService(ClipboardManager::class.java)?.primaryClipDescription }.getOrNull() ?: return false
+        return d.classificationStatus == ClipDescription.CLASSIFICATION_COMPLETE &&
+            runCatching { d.getConfidenceScore(TextClassifier.TYPE_URL) }.getOrDefault(0f) >= 0.5f
+    }
+
+    /** הקריאה של הלוח — רק בנגיעה */
+    fun pasteGo() {
+        val txt = runCatching { getSystemService(ClipboardManager::class.java)?.primaryClip?.getItemAt(0)?.coerceToText(this)?.toString() }.getOrNull()?.trim()
+        if (!txt.isNullOrEmpty()) go(txt.take(4000))
+    }
+
+    fun voice() {
+        val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_WEB_SEARCH)
+        try { voiceLaunch.launch(i) } catch (e: ActivityNotFoundException) { Toast.makeText(this, R.string.brNoVoice, Toast.LENGTH_SHORT).show() }
+    }
+
+    /* ---------------- פרטי האתר ---------------- */
+
+    /** מחיקת הנתונים של האתר הזה בלבד: עוגיות (בפרופיל של הטאב) ואחסון, וטעינה מחדש */
+    fun clearSite(t: BrTab) {
+        val u = runCatching { Uri.parse(t.url) }.getOrNull() ?: return
+        val host = u.host ?: return
+        if (u.scheme != "http" && u.scheme != "https") return
+        val prof = if (t.private && privOk) runCatching { ProfileStore.getInstance().getProfile(PRIV) }.getOrNull() else null
+        val cm = prof?.cookieManager ?: CookieManager.getInstance()
+        val ws = prof?.webStorage ?: WebStorage.getInstance()
+        runCatching {
+            cm.getCookie(t.url)?.split(";")?.map { it.substringBefore("=").trim() }?.filter { it.isNotEmpty() }?.forEach { n ->
+                cm.setCookie(t.url, "$n=; Max-Age=0; Path=/")
+                cm.setCookie(t.url, "$n=; Max-Age=0; Path=/; Domain=$host")
+            }
+            cm.flush()
+        }
+        runCatching { ws.deleteOrigin("${u.scheme}://$host") }
+        info = false
+        t.web?.reload()
+        Toast.makeText(this, R.string.brSiteCleared, Toast.LENGTH_SHORT).show()
+    }
 
     private fun checkDefault() {
         isDefault = if (Build.VERSION.SDK_INT >= 29) runCatching { getSystemService(RoleManager::class.java)?.isRoleHeld(RoleManager.ROLE_BROWSER) == true }.getOrDefault(false) else false
@@ -620,6 +718,7 @@ class BrowserActivity : ComponentActivity() {
 
     /** מנהל הסיסמאות של Google — באתר שלו, בטאב חדש (מחובר דרך החשבון שלך בדפדפן) */
     fun openPasswords() { screen = Screen.PAGE; newTab("https://passwords.google.com/") }
+    fun openCheckup() { screen = Screen.PAGE; newTab("https://passwords.google.com/checkup") }
 
     /* ---------------- ייבוא מ־Chrome ---------------- */
 
@@ -634,10 +733,19 @@ class BrowserActivity : ComponentActivity() {
             ui.post {
                 if (r == null || (r.marks.isEmpty() && r.visits.isEmpty())) { Toast.makeText(this, R.string.brImportNone, Toast.LENGTH_LONG).show(); return@post }
                 val (m, v) = BrStore.importAll(r)
+                lastImport = "$m,$v,${System.currentTimeMillis()}"; prefs.lastImport = lastImport
                 markRev++
                 Toast.makeText(this, getString(R.string.brImported, m, v), Toast.LENGTH_LONG).show()
             }
         }.apply { isDaemon = true }.start()
+    }
+
+    fun exportMarks() { runCatching { exportLaunch.launch("studio-browser-bookmarks.html") } }
+
+    private fun exportTo(u: Uri) {
+        val html = BrStore.exportHtml()
+        val ok = runCatching { contentResolver.openOutputStream(u, "wt")?.use { it.write(html.toByteArray(Charsets.UTF_8)) } != null }.getOrDefault(false)
+        Toast.makeText(this, if (ok) R.string.brExported else R.string.dmErrFail, Toast.LENGTH_SHORT).show()
     }
 
     fun dlSettings() { runCatching { startActivity(Intent(this, DmActivity::class.java)) } }

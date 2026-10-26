@@ -113,4 +113,21 @@ ok(/startsWith\("http:\/\/"\) && !url\.startsWith\("https:\/\/"\)/.test(imp), '�
 ok(/fun importAll\(r: BrImport\.Result\)/.test(store) && /have\.add\(it\.url\)/.test(store), 'ייבוא: בלי כפולים');
 ok(/testBrowserReleaseUnitTest/.test(R('.github/workflows/android.yml')) && fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yishaiguedj1/snowball/br/BrImportTest.kt')), 'בדיקת JVM לייבוא ב־CI');
 
+// 26/10/2026 (בקשת המשתמש: "יותר זהה ל־Chrome במראה, יותר Apple בעיצוב", לפי התצוגה המקדימה שאושרה)
+ok(/tint = Color\(0xFF1A73E8\)|Color\(0xFF1A73E8\), Color\(0xFFC7C7CC\)/.test(ui) && /private fun Toolbar\(a: BrowserActivity\)/.test(ui), 'הכחול של Chrome לפעולות, וסרגל כלים למטה כמו ב־Chrome לאייפון');
+ok(/private fun MenuSheet\(a: BrowserActivity\)/.test(ui) && /ModalBottomSheet/.test(ui) && /private fun Dest\(/.test(ui), 'התפריט ⋯ = גיליון עם שורת יעדים');
+ok(/val Grid = BrC\(/.test(ui) && /BrowserActivity\.Screen\.SWITCHER -> Grid/.test(ui), 'מסך הטאבים תמיד כהה');
+for (const s of ['ENGINE', 'PASSWORDS', 'PRIVACY', 'BARPOS', 'IMPORT'])
+  ok(new RegExp('Screen\\.' + s + ' -> ').test(ui) && new RegExp('Screen\\.' + s).test(act), 'עמוד הגדרות: ' + s);
+ok(/screen in settingsSubs -> screen = Screen\.SETTINGS/.test(act), '"חזור" מעמוד משנה של ההגדרות חוזר להגדרות');
+// הצעות חיפוש: רק כשהמתג פועל, בלי עוגיות, בלי הפניות; הקישור שהעתקת — בלי לקרוא את הלוח עד הנגיעה
+ok(/if \(!suggestOn \|\|/.test(act) && /instanceFollowRedirects = false/.test(act) && /setRequestProperty\("Cookie", ""\)/.test(act), 'הצעות חיפוש: רק עם המתג, בלי עוגיות');
+ok(/primaryClipDescription/.test(act) && /getConfidenceScore\(TextClassifier\.TYPE_URL\)/.test(act), 'הקישור שהעתקת: לפי הסיווג של המערכת, בלי לקרוא את הלוח');
+ok(/fun pasteGo\(\)/.test(act) && !/fun clipHasUrl\(\)[\s\S]{0,400}primaryClip\?\./.test(act), 'הלוח נקרא רק בנגיעה');
+// סנכרון עם Chrome: סיסמאות — דרך Google; סימניות — ייבוא וייצוא בקובץ (Chrome Sync סגור)
+ok(/fun exportHtml\(\)/.test(store) && /NETSCAPE-Bookmark-file-1/.test(store) && /replace\("<", "&lt;"\)/.test(store), 'ייצוא סימניות בפורמט של הדפדפנים, עם בריחה');
+ok(/CreateDocument\("text\/html"\)/.test(act), 'הייצוא נשמר במקום שבוחרים');
+ok(/private fun PasswordsScreen/.test(ui) && /fillSettings\(\)/.test(ui) && /openPasswords\(\)/.test(ui), 'מנהל הסיסמאות: Google ממלא, והרשימה אצל Google');
+ok(/fun clearSite\(t: BrTab\)/.test(act) && /deleteOrigin/.test(act), 'מחיקת הנתונים של אתר אחד (גם בפרופיל הפרטי)');
+
 console.log('studio-browser: ' + n + ' בדיקות עברו');
