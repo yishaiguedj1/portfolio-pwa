@@ -52,6 +52,9 @@ const DMLOG = require('../lib/dmlog');
 const FAU = require('../lib/fundaudit');   // 25/10/2026: בקרת הדיוק של מנתח החברות — הסיכום הלילי מה־Release ‏fund-audit   // 24/10/2026: מאגר הנתונים מ־Studio DM — יומן ההורדות, בהסכמה מפורשת
 const SU = require('../lib/studiourl');   // 22/10/2026: הורדה מקישור — בדיקת קישור בתור לעובד
 const MON = require('../lib/studiomon');
+const MAILER = require('../lib/mailer');
+const SVC = require('../lib/services');
+const DNSX = require('../lib/dnsexport');   // 26/10/2026: שליחת מיילים משלנו (מרכז הניהול ← שליחת מיילים)
 const USG = require('../lib/usage');   // 23/10/2026: מעקב תעבורה/אחסון של Vercel, R2 ו־Firestore (טוקנים לקריאה בלבד)   // 22/10/2026: ניטור השרתים — היסטוריית דופק + טוקן קריאה לווידג׳ט
 const SF = require('../lib/sysflags');
 const YT = require('../lib/ytck');   // 25/10/2026: חשבון יוטיוב ייעודי לשרת (עוגיות מוצפנות)   // 15/10/2026: מצב תחזוקה והגדרות ודגלים (sysCfg/main)   // 15/10/2026 (מ׳2): קורפוס הטקסט — לדלי נפרד snb-learn
@@ -920,7 +923,8 @@ async function watch(req, res, deps) {
   const jg = await jobGc(deps, now).catch(() => -1);   // 21/10/2026: עבודות ב־R2 שהסתיימו לפני יותר מחודש
   const us = await usageSnap(deps, now).catch(() => -1);   // 23/10/2026: נקודה לשעה לאחוזי השימוש של הספקים (היסטוריה של חודש)
   const fa = await fundWatch(deps, now).catch(() => -1);   // 25/10/2026: בקרת הדיוק של מנתח החברות — התראה כשמשהו נשבר
-  return res.status(200).json({ ok: true, down, ar, sa, st, bk, ob, aw, lc, lw, jg, us, fa });
+  const sv = await svcWatch(deps, now).catch(() => -1);   // 26/10/2026: כל השירותים — התראה למנהל מ־70% מהמכסה
+  return res.status(200).json({ ok: true, down, ar, sa, st, bk, ob, aw, lc, lw, jg, us, fa, sv });
 }
 /* 21/10/2026 (בקשת המשתמש): עבודה ב־R2 שהסתיימה לפני SC.jobTtl (ייצור 30 יום, ניסוי 7 — 26/10/2026) נמחקת כמו "מחיקה" בטלפון —
    removeJobRec: קודם הרשומה במאגר הלמידה נשמרת (learnSave), ואז הרשומה, הקבצים ב־R2, ההפקות מחדש וגיליונות ה־AI.
@@ -1023,6 +1027,35 @@ async function fundWatch(deps, now) {
   const cfg = await readDoc(deps, 'sysBackup', 'cfg').catch(() => null);
   if (!cfg || !UID_RE.test(String(cfg.uid || ''))) return 0;
   await notify(deps, cfg.uid, 'fund_audit', '', now);
+  return 1;
+}
+/* 26/10/2026 (שלב 1 ב־תוכנית-עמידות-שירותים.md): כל השירותים במקום אחד. בלי פנייה לספקים — רק מה שכבר נמדד (sysUsage/main,
+   נמדד פעם בשעה ב־usageSnap), השרתים ושרשרת המיילים. sysWatch/svc.ks = המדדים שכבר הותרעו (מחרוזת — לא שדה JSON),
+   התראה אחת לכל מדד עד שהוא יורד מתחת ל־60%. פעם בשעה למופע */
+async function svcFacts(deps, now, live) {
+  const cfg = (await readDoc(deps, 'sysUsage', 'main').catch(() => null)) || {};
+  const prov = USG.provMerge(live ? await provGet(deps, now).catch(() => null) : null, cfg.upv);
+  let servers = [];
+  try { servers = (await query(deps, 'studioServers', null, S.SRV_MAX + 5)) || []; } catch (e) {}
+  const mail = await MAILER.view({ fetch: deps.fetch || fetch, token: () => datastoreToken(deps.fetch) }, now).catch(() => null);
+  return { prov, sto: cfg.sto || null, servers: servers.map((x) => ({ seen: +x.seen || 0, paused: !!x.paused, dn: +x.dn || 0, hb: x.hb && typeof x.hb === 'object' ? { disk: x.hb.disk } : null })), mail, now };
+}
+const SV_EVERY = 3600e3;
+let lastSv = 0;
+async function svcWatch(deps, now) {
+  if (process.env.SNB_SVCWATCH === 'off' || Math.abs(now - lastSv) < SV_EVERY) return 0;
+  lastSv = now;
+  const v = SVC.servicesView(await svcFacts(deps, now, false));
+  const w = (await readDoc(deps, 'sysWatch', 'svc').catch(() => null)) || {};
+  const prev = {};
+  for (const k of String(w.ks || '').split(',')) if (k) prev[k] = 1;
+  const a = SVC.alertsDue(v, prev);
+  const ks = Object.keys(a.keep).sort().join(',');
+  if (ks !== String(w.ks || '')) await patchDoc(deps, 'sysWatch', 'svc', { ks, at: now });
+  if (!a.fire.length) return 0;
+  const cfg = await readDoc(deps, 'sysBackup', 'cfg').catch(() => null);
+  if (!cfg || !UID_RE.test(String(cfg.uid || ''))) return 0;
+  await notify(deps, cfg.uid, 'svc_quota', '', now);
   return 1;
 }
 const AW_EVERY = 3600e3;
@@ -1145,6 +1178,7 @@ async function fsListCol(deps, col, max) {
   }
   return out;
 }
+let dnsTry = '';
 async function dailyBackup(deps, now) {
   const c = R2.config();
   if (!c.ok) return -1;
@@ -1154,6 +1188,7 @@ async function dailyBackup(deps, now) {
       listCol: (col, max) => fsListCol(deps, col, max),
       head: (k) => R2.head(c, rd, k), get: (k, max) => R2.getBuf(c, rd, k, max), put: (k, b, t) => R2.putBuf(c, rd, k, b, t),
       list: (p) => R2.list(c, rd, p, 2000), del: (k) => R2.del(c, rd, k),
+      dns: () => { const d = new Date(now).toISOString().slice(0, 10); if (dnsTry === d) return null; dnsTry = d; return DNSX.dnsExport(process.env, deps.fetch || fetch); },   // 26/10/2026: רשומות הדומיין — ניסיון אחד ביום למופע
     }, now);
     if (r.done) await LM.dailyGc(deps, now).catch(() => null);   // ס׳9: ניקוי הספרייה — פעם ביום, אחרי שהקטלוג גובה
     return r.done ? 1 : 0;
@@ -2643,6 +2678,25 @@ async function handler(req, res, deps = {}) {
       }
       return res.status(200).json({ ok: true, yt: YT.ytView(await ytDoc(deps, now, true), now), now });
     }
+    if (op === 'adminMail') {
+      // 26/10/2026: שליחת מיילים משלנו (lib/mailer.js) — מנהל בלבד. set = { k, key } (key ריק = הסרה; המפתח לא חוזר לעולם),
+      // test = שליחת מייל בדיקה למנהל דרך השרשרת. בלי — רק המצב: לכל שירות מוגדר?, היום/מכסה, החודש/מכסה, שגיאה אחרונה
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const md = { fetch: deps.fetch || fetch, token: () => datastoreToken(deps.fetch) };
+      if (body.set && typeof body.set === 'object') {
+        const k = String(body.set.k || ''), key = body.set.key === '' ? '' : MAILER.normKey(k, body.set.key);
+        if (!MAILER.KEYS.includes(k) || (body.set.key !== '' && !key)) return res.status(400).json({ ok: false, error: 'bad_params' });
+        if (!vault.configured()) return res.status(503).json({ ok: false, error: 'vault_not_configured' });
+        await MAILER.saveKey(md, k, key, now);
+        await adminLog(deps, user, key ? 'mail_key' : 'mail_key_del', k, now);
+      }
+      let test = null;
+      if (body.test === true) {
+        const lang = body.lang === 'en' ? 'en' : 'he';
+        test = await MAILER.send(md, Object.assign({ to: user.email }, MAILER.render('test', lang, {})), now).catch(() => ({ ok: false, error: 'x' }));
+      }
+      return res.status(200).json({ ok: true, mail: await MAILER.view(md, now), test: test ? { ok: !!test.ok, via: test.via || '', error: test.error || '', tried: test.tried || [] } : null });
+    }
     if (op === 'adminCfg') {
       // 15/10/2026: מצב תחזוקה והגדרות ודגלים — מנהל בלבד. בלי set — רק קריאה
       if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
@@ -2710,6 +2764,13 @@ async function handler(req, res, deps = {}) {
       // 24/10/2026: האחסון והעלות גם בווידג'ט · 26/10: נמדדים פעם בשעה — מטמון AO_TTL (הווידג׳ט מתרענן כל דקה)
       const usg = await aoGet(deps, 'monUsg', () => readDoc(deps, 'sysUsage', 'main'), now);
       return res.status(200).json({ ok: true, now, tok: { on: !!cfg.monKh, at: cfg.monAt > 0 ? cfg.monAt : 0 }, mon: MON.monView(srv, run, now), sto: USG.stoBrief(usg && usg.sto) });
+    }
+    if (op === 'adminServices') {
+      // 26/10/2026: מרכז הניהול ← "שירותים" — כל שירות: מצב, אחוז מהמכסה, הגיבוי, מתי נמדד (lib/services.js)
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const v = SVC.servicesView(await svcFacts(deps, now, true));
+      const w = (await readDoc(deps, 'sysWatch', 'svc').catch(() => null)) || {};
+      return res.status(200).json({ ok: true, svc: Object.assign(v, { al: String(w.ks || '').split(',').filter(Boolean) }) });
     }
     if (op === 'provUsage') {
       // 23/10/2026: שימוש בפועל מול הספקים — רק מנהל (בלי טוקן ניטור). ספק בלי טוקן = off, ואף מספר לא מומצא

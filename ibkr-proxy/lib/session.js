@@ -14,7 +14,8 @@
    - רק מקורות מרשימה סגורה, ולכל סביבה שלה בלבד: הייצור לא מקבל את הניסוי (אותו "אתר" — thesnowball.app — ולכן
      הדפדפן כן היה שולח את העוגייה).
    - עוגייה נוצרת רק מהתחברות אמיתית עם Google בחמש הדקות האחרונות — לא מטוקן מותאם ולא מאסימון ישן.
-   - הפעולות: login · who ("מי מחובר?" → ct = טוקן מותאם) · logout · merge (מיזוג שני חשבונות, lib/acmerge.js).
+   - הפעולות: login · who ("מי מחובר?" → ct = טוקן מותאם) · logout · merge (מיזוג שני חשבונות, lib/acmerge.js) ·
+     mailSend / mailCode (מיילים משלנו — כניסה בקוד או בקישור, איפוס, אימות; lib/mailer.js).
    - תקלה באחסון = לא מנפיקים טוקן (נכשל סגור). הטלפון מתנתק רק על תשובה מפורשת "אין חיבור". */
 const crypto = require('crypto');
 const G = require('./gauth');
@@ -176,6 +177,55 @@ function limited(ip, now) {
   return arr.length > 60;
 }
 
+/* ---------------------------------------------------------------- מיילים משלנו (26/10/2026, lib/mailer.js + lib/fbadmin.js)
+   mailSend: Firebase מייצר את הקישור (בלי לשלוח), אנחנו שולחים — עם קוד בן 6 ספרות לכניסה. mailCode: הקוד → oobCode,
+   והטלפון נכנס איתו (signInWithEmailLink) — אותו חשבון Firebase, אותם מזהים. מסמך לכל מייל ב־authCodes/<hmac של המייל>:
+   הקוד רק כ־HMAC, ה־oobCode מוצפן, 10 דקות, 5 ניסיונות, עד 5 שליחות בשעה למייל ו־10 לכתובת. תשובה זהה כשאין משתמש (איפוס). */
+const MAIL_CODE_MS = 10 * 60e3, MAIL_TRIES = 5, MAIL_SENDS = 5, MAIL_IP_MAX = 10;
+const MAIL_KINDS = ['in', 'reset', 'verify'];
+const PATH_RE = /^\/(?:[a-z][a-z-]{0,20}\.html)?$/;
+const mailIp = new Map();
+function mailIpLimited(ip, now) {
+  const arr = (mailIp.get(ip) || []).filter((t) => now - t < 3600e3);
+  if (arr.length >= MAIL_IP_MAX) return true;
+  arr.push(now); mailIp.set(ip, arr);
+  if (mailIp.size > 5000) mailIp.clear();
+  return false;
+}
+const hmacHex = (key, s) => crypto.createHmac('sha256', key).update(s).digest('hex');
+function sealOc(key, id, oc) {
+  const k = Buffer.from(crypto.hkdfSync('sha256', key, Buffer.from('snb-mail'), Buffer.from('oob|' + id), 32));
+  const iv = crypto.randomBytes(12), c = crypto.createCipheriv('aes-256-gcm', k, iv);
+  const ct = Buffer.concat([c.update(oc, 'utf8'), c.final(), c.getAuthTag()]);
+  return b64url(iv) + '.' + b64url(ct);
+}
+function openOc(key, id, s) {
+  try {
+    const [ivs, cts] = String(s || '').split('.');
+    const k = Buffer.from(crypto.hkdfSync('sha256', key, Buffer.from('snb-mail'), Buffer.from('oob|' + id), 32));
+    const iv = unb64url(ivs), all = unb64url(cts), d = crypto.createDecipheriv('aes-256-gcm', k, iv);
+    d.setAuthTag(all.subarray(all.length - 16));
+    return Buffer.concat([d.update(all.subarray(0, all.length - 16)), d.final()]).toString('utf8');
+  } catch (e) { return ''; }
+}
+const CODES = (id) => 'https://firestore.googleapis.com/v1/projects/' + PROJECT() + '/databases/(default)/documents/authCodes/' + id;
+async function codeGet(deps, id) {
+  const tk = await deps.token();
+  const r = await deps.fetch(CODES(id), { headers: { Authorization: 'Bearer ' + tk } });
+  if (r.status === 404) return null;
+  if (r.status !== 200) throw new Error('fs_http_' + r.status);
+  const o = {};
+  for (const [k, v] of Object.entries((await r.json()).fields || {})) o[k] = 'integerValue' in v ? +v.integerValue : v.stringValue;
+  return o;
+}
+async function codePut(deps, id, o) {
+  const tk = await deps.token(), f = {};
+  for (const [k, v] of Object.entries(o)) f[k] = typeof v === 'number' ? { integerValue: String(Math.round(v)) } : { stringValue: String(v) };
+  const r = await deps.fetch(CODES(id), { method: 'PATCH', headers: { Authorization: 'Bearer ' + tk, 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: f }) });
+  if (r.status !== 200) throw new Error('fs_http_' + r.status);
+}
+const sixDigits = () => String(crypto.randomInt(0, 1e6)).padStart(6, '0');
+
 /* ---------------------------------------------------------------- אבחון (14/10/2026)
    מונים בלבד — בלי uid, מייל או עוגייה: איזה שלב הצליח ואיזה נכשל ובאיזה קוד, ו־20 האירועים האחרונים (זמן, קוד,
    אפליקציה). GET /api/session מחזיר אותם, כדי שאפשר יהיה לדעת מבחוץ למה החיבור המשותף לא עבד בטלפון. */
@@ -212,6 +262,10 @@ function makeHandler(over = {}) {
       sa: over.sa || (() => G.serviceAccount()),
       iamToken: over.iamToken || (() => G.cloudToken(over.fetch)),
       env: over.env || process.env,
+      mail: over.mail || ((m, now) => require('./mailer').send({ fetch: over.fetch || fetch, token: over.token || (() => G.datastoreToken(over.fetch)) }, m, now)),
+      oob: over.oob || ((kind, email, url) => require('./fbadmin').oobLink({ fetch: over.fetch || fetch }, kind, email, url)),
+      render: over.render || ((kind, lang, o) => require('./mailer').render(kind, lang, o)),
+      mailRe: require('./mailer').EMAIL_RE,
       merge: over.merge || ((from, to, keep) => require('./acmerge').mergeAccounts({ fetch: over.fetch || fetch, token: over.token || (() => G.datastoreToken(over.fetch)) }, from, to, keep)),
     };
     const h = req.headers || {};
@@ -298,6 +352,62 @@ function makeHandler(over = {}) {
       try { await writeVs(b.uid, now + 1, deps); } catch (e) {}
       tally('merge:ok', app);
       return res.status(200).json({ ok: true, keep: r.keep, inv: r.inv, ac: r.ac, jobs: r.jobs, files: r.files, kept: r.kept, dropped: r.dropped });
+    }
+
+    /* שליחת מייל משלנו: כניסה (קוד + קישור), איפוס סיסמה, אימות מייל. נכשל → mail_off והטלפון שולח דרך Firebase */
+    if (op === 'mailSend') {
+      const kind = String(body.kind || ''), lang = body.lang === 'en' ? 'en' : 'he';
+      const path = PATH_RE.test(String(body.path || '/')) ? String(body.path || '/') : '/';
+      if (!MAIL_KINDS.includes(kind)) return res.status(400).json({ ok: false, error: 'bad_params' });
+      let email = String(body.email || '').trim().toLowerCase();
+      if (kind === 'verify') {
+        let u;
+        try { u = await deps.verify(String(body.idToken || '')); } catch (e) { return res.status(401).json({ ok: false, error: 'bad_token' }); }
+        if (u.verified) return res.status(200).json({ ok: true, already: true });
+        email = u.email;
+      }
+      if (!deps.mailRe.test(email)) return res.status(400).json({ ok: false, error: 'bad_email' });
+      if (mailIpLimited(ip, nowMs)) { tally('mail:ip', app); return res.status(429).json({ ok: false, error: 'rate' }); }
+      const id = hmacHex(key, 'mail|' + email).slice(0, 40);
+      let rec = null;
+      try { rec = await codeGet(deps, id); } catch (e) { tally('mail:store', app); return res.status(503).json({ ok: false, error: 'mail_off' }); }
+      const win = rec && nowMs - (+rec.sw || 0) < 3600e3;
+      if (win && (+rec.s || 0) >= MAIL_SENDS) { tally('mail:email_rate', app); return res.status(429).json({ ok: false, error: 'rate' }); }
+      let L;
+      try { L = await deps.oob(kind, email, origin + path); }
+      catch (e) {
+        if (String(e && e.message) === 'no_user' && kind === 'reset') { tally('mail:no_user', app); return res.status(200).json({ ok: true, sent: true }); }
+        tally('mail:oob:' + String((e && e.message) || 'x').slice(0, 30), app); return res.status(503).json({ ok: false, error: 'mail_off' });
+      }
+      const code = kind === 'in' ? sixDigits() : '';
+      const m = deps.render(kind, lang, { code, link: L.link });
+      const sent = await deps.mail(Object.assign({ to: email }, m), nowMs).catch(() => ({ ok: false }));
+      if (!sent.ok) { tally('mail:send:' + (sent.error || 'x'), app); return res.status(503).json({ ok: false, error: 'mail_off' }); }
+      const next = { s: win ? (+rec.s || 0) + 1 : 1, sw: win ? +rec.sw : nowMs, at: nowMs };
+      if (code) Object.assign(next, { h: hmacHex(key, 'code|' + id + '|' + code), oc: sealOc(key, id, L.oobCode), x: nowMs + MAIL_CODE_MS, n: 0 });
+      try { await codePut(deps, id, next); } catch (e) {}
+      tally('mail:ok:' + kind + ':' + sent.via, app);
+      return res.status(200).json({ ok: true, sent: true, code: !!code });
+    }
+    /* הקוד מהמייל → oobCode לכניסה. 5 ניסיונות, 10 דקות, שימוש אחד */
+    if (op === 'mailCode') {
+      const email = String(body.email || '').trim().toLowerCase(), code = String(body.code || '').replace(/\D/g, '');
+      if (!deps.mailRe.test(email) || code.length !== 6) return res.status(400).json({ ok: false, error: 'bad_params' });
+      const id = hmacHex(key, 'mail|' + email).slice(0, 40);
+      let rec;
+      try { rec = await codeGet(deps, id); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
+      if (!rec || !rec.h || !(+rec.x > nowMs)) { tally('mailcode:expired', app); return res.status(200).json({ ok: false, error: 'expired' }); }
+      if ((+rec.n || 0) >= MAIL_TRIES) { tally('mailcode:tries', app); return res.status(200).json({ ok: false, error: 'tries' }); }
+      const want = Buffer.from(String(rec.h)), got = Buffer.from(hmacHex(key, 'code|' + id + '|' + code));
+      if (want.length !== got.length || !crypto.timingSafeEqual(want, got)) {
+        try { await codePut(deps, id, Object.assign({}, rec, { n: (+rec.n || 0) + 1 })); } catch (e) {}
+        tally('mailcode:bad', app); return res.status(200).json({ ok: false, error: 'bad_code', left: MAIL_TRIES - (+rec.n || 0) - 1 });
+      }
+      const oc = openOc(key, id, rec.oc);
+      try { await codePut(deps, id, { s: +rec.s || 0, sw: +rec.sw || 0, at: nowMs }); } catch (e) {}   // שימוש אחד: הקוד וה־oobCode נמחקים
+      if (!oc) return res.status(200).json({ ok: false, error: 'expired' });
+      tally('mailcode:ok', app);
+      return res.status(200).json({ ok: true, oc });
     }
 
     /* הטלפון מדווח שהטוקן המותאם נדחה ב־Firebase (רק הקוד של השגיאה) */
