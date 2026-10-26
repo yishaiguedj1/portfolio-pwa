@@ -2910,10 +2910,9 @@ function pageForm(p, editing) {
     const phRow = phOk() ? rowNav({ tile: tile('film', 'green'), label: T('studioPhRow'), value: f.ph ? T('studioPhOn') : '', sub: f.ph ? null : T('studioPhRowS'), onClick: () => phPick(), k: 'ph-pick' }) : null;
     // 25/10/2026 (שלב 2): גם התמלול, הדוברים והיישור בטלפון — הקול לא עוזב אותו. פעם ראשונה: הורדת המודלים (Wi‑Fi)
     const pwRow = f.ph ? rowSwitch({ label: T('studioPhPw'), sub: T('studioPhPwS'), on: f.pw !== false, onClick: () => { f.pw = f.pw === false; render('none'); }, k: 'ph-pw' }) : null;
-    const driveRow = canPick() ? rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'),
-      onClick: () => pickSourceFromDrive(f), k: 'from-drive' }) : null;   // סרטון שכבר ב־Drive — בלי העלאה
     // 25/10/2026 (בקשת המשתמש — "נקי ומסודר כמו Apple"): כל המקורות בקבוצה אחת, במקום שלוש קבוצות נפרדות
-    p.append(list(pickRow, phRow, pwRow, linkRow, subsRow, driveRow));
+    // 26/10/2026 (בקשת המשתמש): בלי שורת "מ־Google Drive" (ה־Picker לא עבד טוב) — Drive נבחר מבורר הקבצים של המכשיר
+    p.append(list(pickRow, phRow, pwRow, linkRow, subsRow));
     const tk = f.trk && f.trk.tracks.length ? f.trk.tracks : null;   // שלב 4
     if (tk) p.append(list(rowNav({ tile: tile('cc', 'orange'), label: T('studioTrkRow'), value: T('studioTrkN', { n: fmtNum(tk.length) }), sub: T('studioTrkRowS'), onClick: () => go('tracks'), k: 'tracks' })));
     const adv = advRows(f, pick);
@@ -4151,24 +4150,6 @@ async function legacyPick(kind) {
 }
 /* "חזור" כשה־Picker פתוח — סוגר אותו (ולא את הדף) */
 function pickerClose() { if (!pickerNow) return false; const x = pickerNow; pickerNow = null; try { x.pk.setVisible(false); } catch (e) {} x.res(null); return true; }
-/* מהטופס: בוחרים סרטון ב־Drive → הפרטים מ־Drive (שם, גודל, אורך) — בלי להוריד ובלי להעלות */
-async function pickSourceFromDrive(f) {
-  if (!onepickOk(store.settings, Date.now()) && (!store.drive || !store.drive.connected)) {   // הבורר במסך מלא גם מחבר; הנוכחי צריך חיבור קודם
-    if (typeof askConfirm === 'function') askConfirm(T('studioNeedDrive'), connectDrive, { ok: T('studioDriveConnect') });
-    return;
-  }
-  try {
-    const x = await drivePick('video');
-    if (!x || form !== f) return;
-    const m = x.meta || await net.driveMeta(x.id);
-    if (!m || m.trashed || !(Number(m.size) > 0)) { flashSafe(T('studioFromDriveBad')); return; }
-    const dur = Math.round(Number(m.videoMediaMetadata && m.videoMediaMetadata.durationMillis) / 1000) || 0;
-    f.drive = { id: x.id, name: String(m.name || x.name).slice(0, 200), size: Number(m.size), type: String(m.mimeType || '').slice(0, 60), dur };
-    f.fileObj = null; f.handle = null; f.edl = null; f.sa = null;
-    f.file = { name: f.drive.name, size: f.drive.size, type: f.drive.type };
-    render('none');
-  } catch (e) { flashSafe(errText(e && e.code || 'drive')); }
-}
 /* בסוף העבודה: התוצר לתיקייה שבחרת. הסרטון המתורגם עובר (בלי עותק — לא תופס אחסון פעמיים), הכתוביות מועתקות
    (קטנות, והעורך וסט הזהב קוראים מהעותק שבתיקיית העבודה) */
 const DX_MOVE = ['same', 'compact', 'small', 'mkv'];
