@@ -276,6 +276,85 @@ def assign(words: list[dict], audio: np.ndarray, embed) -> dict:
     return {"speakers": len(order), "units": len(us), "talk_s": talk}
 
 
+# --- מגדר לפי גובה הקול (26/10/2026, בקשת המשתמש: בלי שאלה "מה מגדר הדובר?" — המערכת מחליטה לבד) ---
+# תדר יסודי חציוני לכל דובר: גברים בוגרים ~85–155Hz, נשים ~165–255Hz. בין הספים — לא מכריעים (ההקשר מכריע).
+# זה רמז למודל, לא קביעה: שם, כינוי ("she", "Mr.") או ילד בהקלטה גוברים — כך כתוב גם בהנחיה.
+F0_LO, F0_HI = 60.0, 400.0
+F0_M, F0_F = 155.0, 172.0      # מתחת = גבר, מעל = אישה, ביניהם — לא ידוע
+F0_MIN_FR = 80                 # לפחות כ־1.6 שנ׳ של דיבור קולי
+F0_MAX_S = 90.0                # לכל דובר — מספיק דגימה, ולא כל ההקלטה
+F0_FRAME, F0_HOP = 640, 320    # 40ms / 20ms
+
+
+def f0_frames(x: np.ndarray) -> np.ndarray:
+    """F0 לכל מסגרת קולית (אוטוקורלציה מנורמלת, בלי ספריות). מסגרת שקטה או לא מחזורית — לא נכללת."""
+    if len(x) < F0_FRAME:
+        return np.zeros(0, dtype=np.float32)
+    n = 1 + (len(x) - F0_FRAME) // F0_HOP
+    idx = np.arange(F0_FRAME)[None, :] + F0_HOP * np.arange(n)[:, None]
+    fr = x[idx].astype(np.float64)
+    fr -= fr.mean(axis=1, keepdims=True)
+    en = (fr ** 2).sum(axis=1)
+    keep = en > max(1e-6, float(np.percentile(en, 40)))
+    fr = fr[keep] * np.hanning(F0_FRAME)
+    if not len(fr):
+        return np.zeros(0, dtype=np.float32)
+    nf = 2048
+    F = np.fft.rfft(fr, nf)
+    ac = np.fft.irfft(np.abs(F) ** 2, nf)[:, :F0_FRAME]
+    wac = np.fft.irfft(np.abs(np.fft.rfft(np.hanning(F0_FRAME), nf)) ** 2, nf)[:F0_FRAME]
+    ac = ac / np.maximum(ac[:, :1], 1e-12) / np.maximum(wac / wac[0], 1e-3)    # תיקון ההחלשה של החלון
+    lo, hi = int(SR / F0_HI), int(SR / F0_LO)
+    seg = ac[:, lo:hi]
+    k = seg.argmax(axis=1)
+    pk = seg[np.arange(len(seg)), k]
+    # שגיאת אוקטבה: שיא בחצי ההשהיה כמעט באותו גובה = התדר האמיתי גבוה פי 2
+    lag = k + lo
+    half = lag // 2
+    ok_h = half >= lo
+    hv = np.where(ok_h, ac[np.arange(len(ac)), np.clip(half, 0, F0_FRAME - 1)], 0)
+    lag = np.where(ok_h & (hv > 0.9 * pk), half, lag)
+    v = (pk > 0.5) & (k > 0) & (k < seg.shape[1] - 1)     # שיא בקצה הטווח = לא מחזורי (מוזיקה, רעש נמוך)
+    return (SR / lag[v]).astype(np.float32)
+
+
+def voice_gender(words: list[dict], audio: np.ndarray) -> dict:
+    """{"S1": {"g": "m"|"f"|"?", "hz": 118}} — לפי המילים שכבר קיבלו spk."""
+    by = {}
+    for w in words:
+        s = w.get("spk")
+        if not s or s == "S?" or w.get("e") is None or w.get("s") is None:
+            continue
+        by.setdefault(s, []).append((float(w["s"]), float(w["e"])))
+    out = {}
+    for s, spans in by.items():
+        # רצפים של מילים צמודות = קטעים; הארוכים קודם, עד F0_MAX_S
+        segs, a, b = [], None, None
+        for x, y in spans:
+            if a is not None and x - b <= GAP_S:
+                b = max(b, y)
+                continue
+            if a is not None:
+                segs.append((a, b))
+            a, b = x, y
+        if a is not None:
+            segs.append((a, b))
+        segs.sort(key=lambda t: t[1] - t[0], reverse=True)
+        got, tot = [], 0.0
+        for a, b in segs:
+            if tot >= F0_MAX_S:
+                break
+            clip = audio[int(a * SR):int(b * SR)]
+            got.append(f0_frames(clip))
+            tot += b - a
+        f = np.concatenate(got) if got else np.zeros(0)
+        if len(f) < F0_MIN_FR:
+            continue
+        hz = float(np.median(f))
+        out[s] = {"g": "m" if hz < F0_M else "f" if hz > F0_F else "?", "hz": int(round(hz))}
+    return out
+
+
 def diarize(words: list[dict], wav_path: str) -> dict | None:
     """נקודת הכניסה מ־vt asr. רק כשאין דוברים מהמנוע. כל תקלה — None, והמילים בלי שינוי."""
     if os.environ.get("SNB_DIARIZE") == "off" or not words or any(w.get("spk") not in (None, "S?") for w in words):
@@ -299,6 +378,12 @@ def diarize(words: list[dict], wav_path: str) -> dict | None:
             for w, s in zip(words, before):
                 w["spk"] = s
             raise
+        try:
+            vg = voice_gender(words, audio)
+            if vg:
+                st["voice"] = vg
+        except Exception as e:                   # noqa: BLE001 — רמז בלבד
+            log(f"גובה הקול נכשל ({type(e).__name__}) — בלי רמז מגדר")
         st["seconds"] = round(time.time() - t0, 1)
         log(f"זיהוי דוברים: {st['speakers']} דוברים ({st['units']} קטעים, {st['seconds']} שנ׳)")
         return st
