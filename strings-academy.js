@@ -1,9 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-<<<<<<< HEAD
-/* המחרוזות של academy (624 מפתחות מתוך 4582) */
-=======
-/* המחרוזות של academy (686 מפתחות מתוך 4680) */
->>>>>>> origin/main
+/* המחרוזות של academy (686 מפתחות מתוך 4697) */
 const STRINGS = {
 he: {
   "acAiNote": "הניתוח נכתב בעזרת AI מתוך הטקסט של המכתב.",

@@ -1,9 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-<<<<<<< HEAD
-/* המחרוזות של admin (1170 מפתחות מתוך 4582) */
-=======
-/* המחרוזות של admin (1217 מפתחות מתוך 4680) */
->>>>>>> origin/main
+/* המחרוזות של admin (1232 מפתחות מתוך 4697) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1555,7 +1551,7 @@ en: {
   "admFaFace": "Vs. the filing",
   "admFaFaceS": "{ok} of {n} values",
   "admFaFail": "{n} companies failed",
-  "admFaFoot": "Every night, the 500 largest companies: every annual value vs. the filing as the company printed it, accounting identities, and a golden set of hand-checked values. Plus the S&P 500 and Nasdaq-100: every annual and quarterly value vs. SEC, the filing, Yahoo and Nasdaq. Public numbers only.",
+  "admFaFoot": "Every night, the 500 largest companies: every annual value vs. the filing as the company printed it, accounting identities, and a golden set of hand-checked values. Public SEC numbers only.",
   "admFaGold": "Golden set",
   "admFaGoldBad": "moved in {n}",
   "admFaGoldList": "Golden set — what moved",
