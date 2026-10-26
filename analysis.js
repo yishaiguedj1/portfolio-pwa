@@ -253,6 +253,10 @@ function multHist(co) {
 
 /* ---------- הערכת שווי אוטומטית ---------- */
 const DEF_RF = 0.042, DEF_ERP = 0.042;
+/* שיעור ההיוון: הרף של באפט ומנגר — לפחות 10% בשנה (מה שאפשר לקבל במדד לאורך זמן). CAPM מוצג לידו לעיון,
+   וכשהוא גבוה יותר (בטא גבוהה, סיכון מדינה) — הוא גובר */
+const HURDLE = 0.10;
+const hurdleKe = (capm, src) => (capm > HURDLE ? [capm, src] : [HURDLE, T('anSrcKeHurdle', { c: strip(pct(capm, 2)) })]);
 function autoInputs(co, mac) {
   mac = mac || {};
   const P = nowP(co), c = ctx(co, P), fy = fyList(co), ind = co.ind || {};
@@ -276,9 +280,9 @@ function autoInputs(co, mac) {
   const mcap = co.price * co.sharesOut, t = il ? (mac.taxIL || 0.23) : 0.25;
   const bu = ind.bu ?? 1, bl = clamp(bu * (1 + (1 - t) * (c.debt || 0) / (mcap || 1)), 0.8, 2);
   const rf = il ? (mac.rfIL || 0.0407) : (mac.rf || DEF_RF), erp = mac.erp || DEF_ERP, crp = il ? (mac.crpIL || 0) : 0;
-  val.ke = rf + bl * erp + crp;
-  src.ke = il ? T('anSrcKeIL', { rf: strip(pct(rf, 2)), b: bl.toFixed(2), erp: strip(pct(erp, 1)), crp: strip(pct(crp, 2)) })
-    : T('anSrcKe', { rf: strip(pct(rf, 2)), b: bl.toFixed(2), erp: strip(pct(erp, 1)) });
+  val.capm = rf + bl * erp + crp;
+  [val.ke, src.ke] = hurdleKe(val.capm, il ? T('anSrcKeIL', { rf: strip(pct(rf, 2)), b: bl.toFixed(2), erp: strip(pct(erp, 1)), crp: strip(pct(crp, 2)) })
+    : T('anSrcKe', { rf: strip(pct(rf, 2)), b: bl.toFixed(2), erp: strip(pct(erp, 1)) }));
   val.tg = Math.min(rf, 0.03); src.tg = T('anSrcTg');
   // מכפיל יציאה: אחוזונים של מכפיל הרווח של החברה עצמה ב־10 שנים
   const H = multHist(co), pes = H.pe.filter((x) => x > 0 && x < 150);
@@ -361,8 +365,8 @@ function finInputs(co, mac) {
   val.bv = c.eq > 0 && sh ? c.eq / sh : null; src.bv = T('anSrcBv');
   const rf = il ? (mac.rfIL || 0.0407) : (mac.rf || DEF_RF), erp = mac.erp || DEF_ERP, crp = il ? (mac.crpIL || 0) : 0;
   const b = clamp(ind.bl ?? ind.bu ?? 1, 0.8, 2);
-  val.ke = rf + b * erp + crp;
-  src.ke = T(il ? 'anSrcKeFinIL' : 'anSrcKeFin', { rf: strip(pct(rf, 2)), b: b.toFixed(2), erp: strip(pct(erp, 1)), crp: strip(pct(crp, 2)) });
+  val.capm = rf + b * erp + crp;
+  [val.ke, src.ke] = hurdleKe(val.capm, T(il ? 'anSrcKeFinIL' : 'anSrcKeFin', { rf: strip(pct(rf, 2)), b: b.toFixed(2), erp: strip(pct(erp, 1)), crp: strip(pct(crp, 2)) }));
   val.tg = Math.min(rf, 0.03); src.tg = T('anSrcTg');
   const ttm = hasTTM(co) ? [c.roe] : [], r5 = fin([...fyVals(co, 'roe', 5), ...ttm]), r10 = fin([...fyVals(co, 'roe', 10), ...ttm]);
   // תקרה: ROE מתמשך לא יותר מפי 1.5 מהענף (ולפחות מחיר ההון + 4 נק׳) — שנה חריגה לא נמשכת לנצח
@@ -416,7 +420,6 @@ function lossView(co) {
   const burn = f != null && f < 0 ? -f : null, runway = burn && c.cashT != null ? c.cashT / burn : null;
   return { psNow: fin(H.ps).pop() ?? null, psMed: ps.length >= 12 ? median(ps) : null, years: Math.round(ps.length / 12), g, m, r40, burn, cash: c.cashT, runway };
 }
-const uncName = (lv) => [T('anUnc0'), T('anUnc1'), T('anUnc2'), T('anUnc3')][lv];
 
 /* ---------- בדיקות הבריאות (4 × 6) ---------- */
 function piotroski(co) {
@@ -442,7 +445,7 @@ function checks(co, mac) {
   const mcap = co.price * co.sharesOut, ev = mcap + c.debt - (c.cashT || 0);
   const pe = c.eps > 0 ? co.price / c.eps : null, pfcf = c.fcf > 0 ? mcap / c.fcf : null;
   const peMed = median(H.pe.filter((x) => x > 0 && x < 150)), pfMed = median(H.pfcf.filter((x) => x > 0 && x < 300));
-  const ey = c.op > 0 && ev > 0 ? c.op / ev : null, FV = fairOf(co, mac), fair = FV && FV.base.ps > 0 ? FV.base.ps : null;
+  const ey = c.op > 0 && ev > 0 ? c.op / ev : null;
   const e1 = (co.est || []).find((e) => e.p === '+1y'), e0 = (co.est || []).find((e) => e.p === '0y');
   const fpe = co.fpe, epsG = e0 && e0.eps && e1 && e1.eps ? e1.eps / e0.eps - 1 : null, peg = fpe && epsG > 0 ? fpe / (epsG * 100) : null;
   const [r5, nr] = cagrN(co, 'rev', 5), [eg, ne] = cagrN(co, 'eps', 5);
@@ -459,7 +462,6 @@ function checks(co, mac) {
       X(T('anCv1'), fmt(pe, 'x', co, 1), T('anCv1t', { v: strip(fmt(peMed, 'x', co, 1)) }), pe && peMed ? pe < peMed : null, T('anCv1x')),
       X(T('anCv2'), fmt(pfcf, 'x', co, 1), T('anCv2t', { v: strip(fmt(pfMed, 'x', co, 1)) }), pfcf && pfMed ? pfcf < pfMed : null, T('anCv2x')),
       X(T('anCv3'), pct(ey), T('anCv3t', { v: strip(pct(I.rf, 2)) }), ey != null ? ey > I.rf : null, T('anCv3x')),
-      X(T('anCv4'), fmt(co.price, 'ps', co), T('anCv4t', { v: strip(fmt(fair, 'ps', co)) }), fair > 0 ? co.price < fair : null, T('anCv4x')),
       X(T('anCv5'), peg ? iso(peg.toFixed(2)) : '—', T('anCv5t'), peg ? peg < 1.5 : null, T('anCv5x')),
       X(T('anCv6'), fmt(fpe, 'x', co, 1), iname + ' ' + strip(fmt(ind.fpe, 'x', co, 1)), fpe && ind.fpe ? fpe < ind.fpe : null, T('anCv6x')),
     ] },
@@ -596,26 +598,26 @@ function drawChart(host, opt) {
     document.addEventListener('pointerdown', off, true);
   }
 }
-function spark(host, vals, color, line) {
-  const W = 112, H = 44, v = vals.map((x) => (x == null || !isFinite(x) ? null : x)), ok = fin(v);
+let GID = 0;
+function spark(host, vals, color, line, opt = {}) {
+  const W = opt.w || 112, H = opt.h || 44, v = vals.map((x) => (x == null || !isFinite(x) ? null : x)), ok = fin(v);
   host.textContent = ''; if (!ok.length) return;
-  const svg = sv('svg', { viewBox: `0 0 ${W} ${H}`, 'aria-hidden': 'true' }, host);
+  const svg = sv('svg', { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'none', 'aria-hidden': 'true' }, host);
   const lo = line ? Math.min(...ok) : Math.min(0, ...ok), hi = line ? Math.max(...ok) : Math.max(0, ...ok), span = hi - lo || 1;
-  const y = (x) => 2 + (hi - x) / span * (H - 4), n = v.length, band = W / n;
+  const pad = line ? 4 : 2, y = (x) => pad + (hi - x) / span * (H - pad * 2), n = v.length, band = W / n;
   if (line) {
-    let d = ''; v.forEach((x, i) => { if (x != null) d += (d ? 'L' : 'M') + (i * band + band / 2).toFixed(1) + ',' + y(x).toFixed(1); });
-    sv('path', { d, fill: 'none', stroke: color, 'stroke-width': 2, 'stroke-linejoin': 'round' }, svg);
+    const ex = opt.px ?? 3, pts = []; v.forEach((x, i) => { if (x != null) pts.push([n > 1 ? i * (W - ex * 2) / (n - 1) + ex : W / 2, y(x)]); });
+    const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join('');
+    const id = 'anG' + (++GID), g = sv('linearGradient', { id, x1: 0, y1: 0, x2: 0, y2: 1 }, sv('defs', {}, svg));
+    sv('stop', { offset: 0, 'stop-color': color, 'stop-opacity': 0.28 }, g); sv('stop', { offset: 1, 'stop-color': color, 'stop-opacity': 0 }, g);
+    const L = pts[pts.length - 1];
+    sv('path', { d: d + `L${L[0].toFixed(1)},${H}L${pts[0][0].toFixed(1)},${H}Z`, fill: `url(#${id})`, class: 'an-area' }, svg);
+    sv('path', { d, fill: 'none', stroke: color, 'stroke-width': opt.sw || 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', 'vector-effect': 'non-scaling-stroke', pathLength: 1, class: 'an-draw' }, svg);
+    if (!opt.noDot) { const dot = h('i', { class: 'an-dot', style: `left:${(L[0] / W * 100).toFixed(1)}%;top:${(L[1] / H * 100).toFixed(1)}%;background:${color};--an-dc:${color}` }); host.append(dot); }
     return;
   }
-  const bw = band * 0.64;
-  v.forEach((x, i) => { if (x == null) return; const y1 = y(Math.max(x, 0)), y2 = y(Math.min(x, 0)); sv('rect', { x: i * band + (band - bw) / 2, y: y1, width: bw, height: Math.max(1.5, y2 - y1), rx: 2.5, fill: color, opacity: i === n - 1 ? 1 : 0.55 }, svg); });
-}
-function ring(host, score, max, color) {
-  const r = 26, c = 2 * Math.PI * r, f = max ? score / max : 0;
-  const svg = sv('svg', { viewBox: '0 0 64 64', 'aria-hidden': 'true' }, host);
-  sv('circle', { cx: 32, cy: 32, r, fill: 'none', stroke: 'var(--an-fill)', 'stroke-width': 7 }, svg);
-  sv('circle', { cx: 32, cy: 32, r, fill: 'none', stroke: color, 'stroke-width': 7, 'stroke-linecap': 'round', 'stroke-dasharray': (c * f).toFixed(1) + ' ' + c.toFixed(1), transform: 'rotate(-90 32 32)' }, svg);
-  sv('text', { x: 32, y: 38, 'text-anchor': 'middle', class: 'an-ring-n' }, svg).textContent = String(score);
+  const bw = band * 0.62;
+  v.forEach((x, i) => { if (x == null) return; const y1 = y(Math.max(x, 0)), y2 = y(Math.min(x, 0)); sv('rect', { x: i * band + (band - bw) / 2, y: y1, width: bw, height: Math.max(1.5, y2 - y1), rx: Math.min(3, bw / 2), fill: color, opacity: i === n - 1 ? 1 : 0.4, class: 'an-bar', style: `--an-bi:${i}` }, svg); });
 }
 
 /* ---------- עזרי DOM ---------- */
@@ -628,7 +630,6 @@ function h(tag, attrs = {}, ...kids) {
   for (const c of kids.flat()) if (c != null && c !== false) e.append(c);
   return e;
 }
-const tone = (s, max) => (s / max >= 0.66 ? 'good' : s / max >= 0.34 ? 'mid' : 'bad');
 const card = (...kids) => h('section', { class: 'an-card' }, ...kids);
 const sub = (txt) => h('p', { class: 'an-sub' }, txt);
 
@@ -680,6 +681,7 @@ function seriesFor(co, def, st) {
   const tipLabels = per.map((p) => (p.kind === 'ttm' ? T('anTtm') : p.kind === 'q' ? T('anQuarterOf', { q: Math.ceil(+p.end.slice(5, 7) / 3), y: p.end.slice(0, 4) }) : T('anYearOf', { y: p.label })));
   return { per, series, unit, labels: per.map((p) => p.label), tipLabels };
 }
+const rowHint = (def) => (def.line ? T(def.line[3]) : def.s.length === 1 && M[def.s[0]].q ? T(M[def.s[0]].q) : '');
 function rowSummary(co, def) {
   if (def.line) {
     const a = multHist(co)[def.line[1]], now = fin(a).pop(), md = median(a.filter((x) => x > 0 && x < 300));
@@ -718,19 +720,29 @@ export async function openAnalysis(sym, env) {
   E = env || E;
   await ensureCss();
   if (ROOT) closeAnalysis(true);
+  S.first = true; S.segX = null; S.sub = [];
   S.sym = sym; S.tab = 'snap'; S.rsub = 'is'; S.ed = {}; S.open = null; S.err = null; S.co = null; S.peers = null; S.peerBusy = false; S.peerAdd = []; S.peerDrop = new Set(); const seq = ++S.seq;
   ROOT = h('div', { class: 'an-root no-swipe', role: 'dialog', 'aria-modal': 'true', 'aria-label': T('anTitle') });
-  ROOT.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); if (S.sheet) closeSheet(); else closeAnalysis(); } });
+  document.addEventListener('keydown', onEsc, true);
   document.body.appendChild(ROOT);
+  wireSwipe();
   document.documentElement.classList.add('an-open');
   S.modal = E.modalPush ? E.modalPush(() => closeAnalysis(true)) : null;
   render();
   load(sym).then((d) => { if (seq !== S.seq) return; S.co = indFix(prep(d, E.quote && E.quote(sym), E.fx && E.fx()), MAC); render(); })
     .catch((e) => { if (seq !== S.seq) return; S.err = e.code || 'fail'; render(); });
 }
+function onEsc(e) {
+  if (e.key !== 'Escape' || !ROOT) return;
+  e.stopPropagation(); e.preventDefault();
+  if (S.sheet) closeSheet(); else if (S.sub.length) popSub(); else closeAnalysis();
+}
 function closeAnalysis(fromPop) {
   if (!ROOT) return;
+  document.removeEventListener('keydown', onEsc, true);
   if (S.sheet) closeSheet(true);
+  for (let i = S.sub.length - 1; i >= 0; i--) { const m0 = S.sub[i].modal; if (!fromPop && m0 && E.modalDone) E.modalDone(m0); }
+  S.sub = [];
   const r = ROOT; ROOT = null; S.seq++;
   document.documentElement.classList.remove('an-open');
   const m = S.modal; S.modal = null;
@@ -758,42 +770,103 @@ function render(dir) {
     ROOT.append(body);
     return;
   }
+  if (S.sub.length) { renderSub(co); return; }
   const wrap = h('div', { class: 'an-wrap' });
   wrap.append(header(co));
   const pg = h('div', { class: 'an-page' + (dir ? ' in' : ''), style: dir ? `--an-dx:${dir * 24}px` : null });
   ({ snap: pageSnap, rep: pageRep, val: pageVal, cmp: pageCmp })[S.tab](co, pg);
-  wrap.append(pg, footer(co));
+  wrap.append(pg);
   ROOT.append(wrap);
+  if (dir || S.first) { [...pg.children].forEach((el, i) => { el.classList.add('an-rise'); el.style.setProperty('--an-i', i); }); S.first = false; }
   if (!dir) ROOT.scrollTop = y;
   requestAnimationFrame(() => S.after.forEach((f) => f()));
 }
+/* תת־עמוד: כותרת גדולה וכרטיס אחד. נבנה מחדש בכל ציור (כמו לשונית) — build(body, rec), rec.draw אחרי הציור */
+function renderSub(co) {
+  const s = S.sub[S.sub.length - 1], rec = { draw: null };
+  const body = h('div', { class: 'an-sh-b an-subb' });
+  s.build(body, rec);
+  ROOT.append(h('div', { class: 'an-wrap an-subw' }, h('h1', { class: 'an-h1', dir: 'auto' }, s.title), body.childElementCount && !s.bare ? h('section', { class: 'an-card' }, body) : body, footer(co)));
+  if (rec.draw) S.after.push(() => rec.draw());
+  requestAnimationFrame(() => S.after.forEach((f) => f()));
+}
+/* מעבר בין עמודים בקובייה (המנוע של האפליקציה — env.cube). mutate משנה את המצב; y = הגלילה בעמוד החדש */
+function navTo(fwd, mutate, y) {
+  if (!ROOT) return;
+  const C = E.cube, cube = C && C.clone && C.run && !(C.reduce && C.reduce());
+  const ghost = cube ? C.clone(ROOT) : null;
+  mutate();
+  render(cube ? 0 : (fwd ? -1 : 1));
+  if (ROOT) ROOT.scrollTop = y || 0;
+  if (ghost) C.run(ROOT, ghost, C.side(fwd));
+}
+function pushSub(title, build, opt = {}) {
+  const rec = { title, build, bare: !!opt.bare, y: ROOT ? ROOT.scrollTop : 0, modal: null };
+  rec.modal = E.modalPush ? E.modalPush(() => popSub(true)) : null;
+  navTo(true, () => S.sub.push(rec), 0);
+}
+function popSub(fromPop) {
+  if (!S.sub.length) return;
+  const rec = S.sub[S.sub.length - 1];
+  if (!fromPop && rec.modal && E.modalDone) E.modalDone(rec.modal);
+  navTo(false, () => S.sub.pop(), rec.y);
+}
+/* החלקה: בין הלשוניות (קובייה), ובתת־עמוד — אחורה = חזרה */
+function wireSwipe() {
+  if (!E.cube || !E.cube.swipe) return;
+  E.cube.swipe({ root: ROOT, ok: () => !!S.co && !S.sheet, page: (next) => {
+    if (S.sub.length) {
+      if (next) return null;
+      let rec = null, y = 0;
+      return { render: () => { rec = S.sub.pop(); y = rec.y; render(); ROOT.scrollTop = y; }, undo: () => { S.sub.push(rec); render(); ROOT.scrollTop = 0; },
+        commit: () => { if (rec.modal && E.modalDone) E.modalDone(rec.modal); } };
+    }
+    const i = TABS.indexOf(S.tab), j = i + (next ? 1 : -1);
+    if (j < 0 || j >= TABS.length) return null;
+    const prev = S.tab, y = ROOT.scrollTop;
+    return { render: () => { S.tab = TABS[j]; render(); ROOT.scrollTop = 0; }, undo: () => { S.tab = prev; S.segX = null; render(); ROOT.scrollTop = y; }, commit: () => {} };
+  } });
+}
 function navBar() {
-  const back = h('button', { class: 'an-back', type: 'button', 'aria-label': T('anClose'), on: { click: () => closeAnalysis() } }, h('span', { class: 'an-chev', 'aria-hidden': 'true' }), T('anBack'));
+  const inSub = S.sub && S.sub.length, parent = inSub > 1 ? S.sub[inSub - 2].title : inSub ? T({ snap: 'anTabSnap', rep: 'anTabRep', val: 'anTabVal', cmp: 'anTabCmp' }[S.tab]) : T('anBack');
+  const back = h('button', { class: 'an-back', type: 'button', 'aria-label': inSub ? parent : T('anClose'), on: { click: () => (inSub ? popSub() : closeAnalysis()) } }, h('span', { class: 'an-chev', 'aria-hidden': 'true' }), h('span', { class: 'an-back-t' }, parent));
   const logo = h('span', { class: 'an-logo' });
   if (E.logoHTML) logo.innerHTML = E.logoHTML(S.sym);
   const nm = S.co ? S.co.name : (E.name && E.name(S.sym)) || S.sym;
   return h('div', { class: 'an-nav' }, back, h('div', { class: 'an-nav-t' }, logo, h('b', { dir: 'auto' }, nm)));
 }
 function header(co) {
-  const c = ctx(co, nowP(co)), mcap = co.price * co.sharesOut, ch = co.prev ? co.price / co.prev - 1 : null;
-  const pe = c.eps > 0 ? co.price / c.eps : null, fy = c.fcf != null && mcap ? c.fcf / mcap : null;
-  const fact = (tt, v, key) => h('button', { class: 'an-fact', type: 'button', on: { click: () => factSheet(key) } }, h('span', {}, tt), h('b', {}, v));
+  const ch = co.prev ? co.price / co.prev - 1 : null;
   const meta = [co.sym.replace(/\.TA$/, ''), co.exch, co.sector].filter(Boolean).join(' · ');
+  // 10 שנים של מחיר (חודשי) — רקע גרפי לראש המסך
+  const px = co.px && co.px.c ? co.px.c.slice(-121).filter((x) => x != null) : [], p0 = px[0], ch10 = p0 > 0 && px.length > 24 ? co.price / p0 - 1 : null;
+  const yrs = Math.round(px.length / 12), chart = h('div', { class: 'an-pxc' });
+  if (ch10 != null) S.after.push(() => spark(chart, px.concat(co.price), ch10 >= 0 ? cssv('good') : cssv('bad'), true, { w: 340, h: 64, sw: 2, px: 10 }));
+  const seg = h('div', { class: 'an-seg an-seg-main', role: 'tablist' }, h('span', { class: 'an-seg-th', 'aria-hidden': 'true' }), ...[['snap', T('anTabSnap')], ['rep', T('anTabRep')], ['val', T('anTabVal')], ['cmp', T('anTabCmp')]].map(([k, tt]) =>
+    h('button', { type: 'button', role: 'tab', 'data-k': k, 'aria-selected': String(S.tab === k), 'aria-pressed': String(S.tab === k), on: { click: () => go(k) } }, tt)));
+  S.after.push(() => segThumb(seg));
   return h('div', { class: 'an-head' },
-    h('div', { class: 'an-idrow' },
-      h('div', { class: 'an-idn' }, h('span', { dir: 'auto' }, meta)),
-      h('div', { class: 'an-px' }, h('b', {}, fmt(co.price, 'ps', co)), ch != null ? h('span', { class: ch >= 0 ? 'an-up' : 'an-down' }, sgn(ch, 2)) : null)),
-    h('div', { class: 'an-facts' }, fact(T('anFMcap'), fmt(mcap, 'money', co), 'mcap'), fact(T('anFPe'), fmt(pe, 'x', co, 1), 'pe'),
-      fact(T('anFFpe'), fmt(co.fpe, 'x', co, 1), 'fpe'), fact(T('anFFy'), pct(fy), 'fy'),
-      fact(c.netcash >= 0 ? T('anNetCash') : T('anNetDebt'), fmt(Math.abs(c.netcash || 0), 'money', co), 'nc')),
-    h('div', { class: 'an-seg', role: 'tablist' }, ...[['snap', T('anTabSnap')], ['rep', T('anTabRep')], ['val', T('anTabVal')], ['cmp', T('anTabCmp')]].map(([k, tt]) =>
-      h('button', { type: 'button', role: 'tab', 'aria-selected': String(S.tab === k), 'aria-pressed': String(S.tab === k), on: { click: () => go(k) } }, tt))));
+    h('div', { class: 'an-hero' },
+      h('div', { class: 'an-idrow' },
+        h('div', { class: 'an-px' }, h('b', {}, fmt(co.price, 'ps', co)), ch != null ? h('span', { class: ch >= 0 ? 'an-up' : 'an-down' }, sgn(ch, 2), h('small', {}, ' ' + T('anToday'))) : null),
+        h('div', { class: 'an-idn' }, h('span', { dir: 'auto' }, meta), ch10 != null ? h('span', { class: 'an-ch10' }, T('anInYears', { n: yrs }), ' ', h('b', { class: ch10 >= 0 ? 'an-up' : 'an-down' }, sgn(ch10, 0))) : null)),
+      ch10 != null ? chart : null),
+    seg);
+}
+/* לשונית הבורר מחליקה מהמקום הקודם (הבורר נבנה מחדש בכל ציור — FLIP לפי המיקום השמור) */
+function segThumb(seg) {
+  const th = seg.querySelector('.an-seg-th'), b = seg.querySelector('[aria-pressed="true"]');
+  if (!th || !b) return;
+  const x = b.offsetLeft, w = b.offsetWidth;
+  th.style.transform = `translateX(${x}px)`; th.style.width = w + 'px';
+  const from = S.segX;
+  S.segX = x;
+  if (from == null || from === x || typeof th.animate !== 'function' || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+  th.animate([{ transform: `translateX(${from}px)` }, { transform: `translateX(${x}px)` }], { duration: 380, easing: 'cubic-bezier(.3, 1.3, .5, 1)' });
 }
 function go(k) {
   if (k === S.tab) return;
-  const d = TABS.indexOf(k) > TABS.indexOf(S.tab) ? -1 : 1;
-  S.tab = k; render(d);
-  if (ROOT) ROOT.scrollTop = 0;
+  navTo(TABS.indexOf(k) > TABS.indexOf(S.tab), () => { S.tab = k; }, 0);
 }
 /* שם של שדה גולמי מהשרתון (co.fill, co.tags) — מדד מוכר לפי M, השאר לפי שם משלו */
 function rawName(k) {
@@ -813,54 +886,56 @@ function footer(co) {
   return h('p', { class: 'an-src' }, T('anSources', { s: src, d: dmy(co.asOf) }), extra.length ? h('br') : null, extra.join(' · '));
 }
 
-/* --- תמונת מצב --- */
+/* --- תמונת מצב: רק נתונים — ארבע הקבוצות כמספר מוביל (בלי ציון), ומה חדש בדוחות --- */
+/* סמלים קטנים בסגנון SF Symbols (קווים בלבד) */
+const ICONS = {
+  value: 'M4 18h16M7 15V9m5 6V5m5 10v-4',
+  growth: 'M4 17l5-5 4 4 7-8M15 8h5v5',
+  profit: 'M12 3v18M16.5 7.5c0-1.7-2-3-4.5-3s-4.5 1.3-4.5 3 2 2.6 4.5 3 4.5 1.3 4.5 3-2 3-4.5 3-4.5-1.3-4.5-3',
+  safe: 'M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z',
+};
+const icon = (k) => { const s0 = sv('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' }); sv('path', { d: ICONS[k], fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, s0); return s0; };
+function keyTiles(co) {
+  const c = ctx(co, nowP(co)), H = multHist(co), pe = c.eps > 0 ? co.price / c.eps : null, peMed = median(H.pe.filter((x) => x > 0 && x < 150));
+  const [g5, n5] = cagrN(co, 'rev', 5), lev = c.ebitda > 0 && c.netcash != null ? -c.netcash / c.ebitda : null, cs = curSym(co.cur);
+  return [
+    ['value', 'c1', fmt(pe, 'x', co, 1), peMed ? T('anKHValue', { v: strip(fmt(peMed, 'x', co, 1)) }) : T('anKHValue0'), H.pe.slice(-120), true],
+    ['growth', 'c1', sgn(g5), T('anKHGrowth', { n: n5 || 5 }), fyVals(co, 'rev', 10), false],
+    ['profit', 'c1', pct(c.roic, 0), c.roic != null ? T('anKHProfit', { v: iso(cs + Math.round(c.roic * 100)), c: iso(cs + '100') }) : T('anKHProfit0'), fyVals(co, 'roic', 10), true],
+    ['safe', c.netcash >= 0 ? 'c1' : 'c4', c.netcash >= 0 ? fmt(c.netcash, 'money', co) : lev != null ? iso(lev.toFixed(1) + '×') : '—',
+      c.netcash >= 0 ? T('anKHCash') : T('anKHDebt'), fyVals(co, 'netcash', 10), false],
+  ];
+}
+function factsEl(co) {
+  const c = ctx(co, nowP(co)), mcap = co.price * co.sharesOut, pe = c.eps > 0 ? co.price / c.eps : null, fy = c.fcf != null && mcap ? c.fcf / mcap : null;
+  const fact = (tt, v, hint, key) => h('button', { class: 'an-fact', type: 'button', on: { click: () => factSheet(key) } }, h('span', {}, tt), h('b', {}, v), h('small', {}, hint));
+  return h('div', { class: 'an-facts' }, fact(T('anFMcap'), fmt(mcap, 'money', co), T('anHMcap'), 'mcap'), fact(T('anFPe'), fmt(pe, 'x', co, 1), T('anHPe'), 'pe'),
+    fact(T('anFFpe'), fmt(co.fpe, 'x', co, 1), T('anHFpe'), 'fpe'), fact(T('anFFy'), pct(fy), T('anHFy'), 'fy'),
+    fact(c.netcash >= 0 ? T('anNetCash') : T('anNetDebt'), fmt(Math.abs(c.netcash || 0), 'money', co), T('anHNc'), 'nc'));
+}
+/* שורת רשימה שפותחת תת־עמוד: שם, הסבר קטן, ערך וחץ */
+const navRow = (tt, hint, v, on) => h('button', { class: 'an-row an-nrow', type: 'button', on: { click: on } },
+  h('div', { class: 'an-rt' }, h('b', {}, tt), hint ? h('span', {}, hint) : null), v != null && v !== '' ? h('div', { class: 'an-rv' }, v) : null, h('span', { class: 'an-chev' }));
 function pageSnap(co, pg) {
-  const C = checks(co, MAC), I = autoInputs(co, MAC);
-  const sc = { value: passN(C.value), growth: passN(C.growth), profit: passN(C.profit), safe: passN(C.safe) };
-  const sens = fairOf(co, MAC);
-  let verdict;
-  const parts = [sc.profit >= 4 ? T('anVProfHi') : sc.profit >= 3 ? T('anVProf') : T('anVProfLo'),
-    sc.growth >= 4 ? T('anVGrowHi') : sc.growth >= 3 ? T('anVGrow') : T('anVGrowLo'),
-    sc.safe >= 4 ? T('anVSafeHi') : sc.safe >= 3 ? T('anVSafe') : T('anVSafeLo')].join(T('anComma'));
-  const U = uncertainty(co);
-  if (sens && sens.base.ps > 0) {
-    const ratio = co.price / sens.base.ps;
-    verdict = parts + '. ' + (ratio <= U.band[0] ? T('anVCheap') : ratio >= U.band[1] ? T('anVDear') : T('anVFair'));
-  } else verdict = parts + '.';
-  const gauges = h('div', { class: 'an-gauges' });
-  for (const k of ['value', 'growth', 'profit', 'safe']) {
-    const b = h('button', { class: 'an-gauge', type: 'button', 'aria-label': T('anGaugeAria', { n: C[k].n, s: sc[k] }), on: { click: () => checkSheet(k) } });
-    ring(b, sc[k], 6, `var(--an-${tone(sc[k], 6)})`);
-    b.append(h('span', { class: 'an-gl' }, C[k].n), h('span', { class: 'an-gs' }, T('anOf6')));
-    gauges.append(b);
+  const C = checks(co, MAC);
+  pg.append(factsEl(co));
+  const keys = h('div', { class: 'an-keys' });
+  for (const [k, col, v, hint, hist, line] of keyTiles(co)) {
+    const sp = h('div', { class: 'an-key-sp' });
+    keys.append(h('button', { class: 'an-key', type: 'button', style: `--an-k:var(--an-${col})`, 'aria-label': C[k].n + ' — ' + strip(v), on: { click: () => checkSheet(k) } },
+      h('span', { class: 'an-key-l' }, h('span', { class: 'an-key-ic' }, icon(k)), C[k].n, h('span', { class: 'an-chev' })),
+      h('b', {}, v), h('span', { class: 'an-key-s' }, hint), sp));
+    S.after.push(() => spark(sp, hist, cssv(col), line, { w: 140, h: 30, noDot: !line, px: 10 }));
   }
-  pg.append(card(h('p', { class: 'an-verdict' }, verdict), gauges));
-  // שווי מול מחיר
-  if (sens && sens.base.ps > 0) {
-    const { bear, base, bull } = sens;
-    const lo = Math.min(bear.ps, co.price) * 0.85, hi = Math.max(bull.ps, co.price) * 1.1, X = (v) => ((v - lo) / (hi - lo) * 100).toFixed(1) + '%';
-    const mos = 1 - co.price / base.ps;
-    const tk = (lbl, v) => h('div', { class: 'an-tk', style: `left:${X(v)}` }, lbl, h('b', {}, strip(fmt(v, 'ps', co, 0))));
-    const vbar = h('div', { class: 'an-vbar' }, h('div', { class: 'an-track' }), h('div', { class: 'an-rng', style: `left:${X(bear.ps)};width:calc(${X(bull.ps)} - ${X(bear.ps)})` }),
-      tk(T('anBear'), bear.ps), tk(T('anBase'), base.ps), tk(T('anBull'), bull.ps),
-      h('div', { class: 'an-me', style: `left:${X(co.price)}` }), h('div', { class: 'an-mel', style: `left:${X(co.price)}` }, T('anToday') + ' ' + strip(fmt(co.price, 'ps', co, 0))));
-    pg.append(card(h('div', { class: 'an-h2row' }, h('h2', {}, T('anFairVsPrice')), h('button', { class: 'an-link', type: 'button', on: { click: () => go('val') } }, T('anToCalc'))),
-      vbar, h('p', { class: 'an-legend' }, T(mos >= 0 ? 'anMosBelow' : 'anMosAbove'), h('b', { class: mos >= 0 ? 'an-up' : 'an-down' }, pct(Math.abs(mos), 0)), '. ',
-        T('anUncLine', { u: uncName(U.lv), b: strip(pct(U.band[0], 0)) }))));
-  } else pg.append(card(h('h2', {}, T('anFairVsPrice')), sub(noFair(co, I))));
-  // מה חדש
+  pg.append(keys);
+  // הדוחות: האחרון, הבא, והתחזיות בתת־עמוד
   const hist = (co.hist || []).filter((x) => x.a != null && x.e != null), lh = hist[hist.length - 1];
-  const e0 = (co.est || []).find((e) => e.p === '0y'), e1 = (co.est || []).find((e) => e.p === '+1y');
+  const e0 = (co.est || []).find((e) => e.p === '0y');
   const rows = [];
-  const row = (tt, st, right, on) => h(on ? 'button' : 'div', { class: 'an-row', type: on ? 'button' : null, on: on ? { click: on } : null }, h('div', { class: 'an-rt' }, h('b', {}, tt), h('span', {}, st)), right);
-  if (lh) { const s = lh.e ? lh.a / lh.e - 1 : 0, beat = lh.a >= lh.e; rows.push(row(T('anLastRep'), T('anLastRepS', { a: strip(fmt(lh.a, 'ps', co)), e: strip(fmt(lh.e, 'ps', co)) }), h('span', { class: 'an-pill ' + (beat ? 'good' : 'bad') }, T(beat ? 'anBeat' : 'anMiss', { v: strip(pct(Math.abs(s), 0)) })))); }
-  const estRow = (e, key) => row(T(key), T('anEstS', { n: e.n || '?', r: strip(fmt(e.rev, 'money', co)) }), h('div', { class: 'an-rv' }, fmt(e.eps, 'ps', co), e.g != null ? h('small', { class: e.g >= 0 ? 'an-up' : 'an-down' }, sgn(e.g)) : null));
-  if (e0 && e0.eps) rows.push(estRow(e0, 'anEst0'));
-  if (e1 && e1.eps) rows.push(estRow(e1, 'anEst1'));
-  if (co.nq && co.nq.length) rows.push(row(T('anEstTo', { y: String(co.nq[co.nq.length - 1].fy).slice(-4) }), T('anEstToS'), h('span', { class: 'an-chev' }), estSheet));
-  if (co.nextEarn && co.nextEarn >= co.asOf) rows.push(row(T('anNextRep'), dmy(co.nextEarn), h('span', { class: 'an-pill neu' }, daysTo(co.nextEarn, co.asOf))));
-  if (!(e0 && e0.eps)) rows.push(row(T('anNoEst'), T('anNoEstS'), null));
-  pg.append(card(h('h2', {}, T('anWhatsNew')), h('div', { class: 'an-list' }, ...rows)));
+  if (lh) { const s0 = lh.e ? lh.a / lh.e - 1 : 0; rows.push(h('div', { class: 'an-row' }, h('div', { class: 'an-rt' }, h('b', {}, T('anLastRep')), h('span', {}, T('anLastRepS', { a: strip(fmt(lh.a, 'ps', co)), e: strip(fmt(lh.e, 'ps', co)) }))), h('div', { class: 'an-rv' }, fmt(lh.a, 'ps', co), h('small', { class: s0 >= 0 ? 'an-up' : 'an-down' }, sgn(s0, 0))))); }
+  if (co.nextEarn && co.nextEarn >= co.asOf) rows.push(h('div', { class: 'an-row' }, h('div', { class: 'an-rt' }, h('b', {}, T('anNextRep')), h('span', {}, dmy(co.nextEarn))), h('span', { class: 'an-rv an-dim2' }, daysTo(co.nextEarn, co.asOf))));
+  rows.push(e0 && e0.eps ? navRow(T('anEstAll'), T('anEstAllS', { n: e0.n || '?' }), fmt(e0.eps, 'ps', co), estSheet) : h('div', { class: 'an-row' }, h('div', { class: 'an-rt' }, h('b', {}, T('anNoEst')), h('span', {}, T('anNoEstS')))));
+  pg.append(h('section', { class: 'an-card an-card-list' }, h('div', { class: 'an-list' }, ...rows)));
   if (co.years.length < 6) pg.append(h('div', { class: 'an-note' }, T(/\.TA$/.test(co.sym) ? 'anShortTA' : 'anShort', { n: co.years.length })));
 }
 function daysTo(d, asOf) {
@@ -876,12 +951,14 @@ function pageRep(co, pg) {
   const list = h('div', { class: 'an-list' });
   for (const r of ROWS[S.rsub]) {
     const def = rowDef(r), sm = rowSummary(co, def), sp = h('div', { class: 'an-spark' });
+    const hint = rowHint(def) || (!sm.v ? sm.s : '');
     list.append(h('button', { class: 'an-mrow', type: 'button', on: { click: () => chartSheet(def) } },
-      h('div', { class: 'an-mt' }, h('b', {}, def.n), sm.v ? h('span', { class: 'an-v' }, sm.v) : null, h('span', {}, sm.s)), sp));
+      h('div', { class: 'an-mt' }, h('b', {}, def.n), hint ? h('span', { class: 'an-hint' }, hint) : null), sp,
+      h('div', { class: 'an-mv2' }, sm.v ? h('b', {}, sm.v) : null, sm.v && sm.s ? h('small', {}, sm.s) : null), h('span', { class: 'an-chev' })));
     S.after.push(() => {
-      if (def.line) { spark(sp, multHist(co)[def.line[1]].slice(-60), cssv(def.line[2]), true); return; }
+      if (def.line) { spark(sp, multHist(co)[def.line[1]].slice(-60), cssv(def.line[2]), true, { w: 64, h: 30, noDot: true }); return; }
       const d = seriesFor(co, def, { mode: 'fy', range: '5', view: 'v' });
-      spark(sp, d.series[0].vals, d.series[0].color, false);
+      spark(sp, d.series[0].vals, d.series[0].color, false, { w: 64, h: 30 });
     });
   }
   pg.append(h('section', { class: 'an-card an-card-list' }, list));
@@ -890,19 +967,26 @@ function pageRep(co, pg) {
 /* --- שווי --- */
 /* חלקים משותפים לשלושת המודלים: תרחישים, כוכבים, הנחות עם מחוון, ושורות בדיקה */
 const scenEl = (co, list) => h('div', { class: 'an-scen' }, ...list.map(([tt, v, small, cls, i]) => h('div', { class: i === 1 ? 'base' : '' }, h('span', {}, tt), h('b', {}, fmt(v, 'ps', co, 0)), h('small', { class: cls }, small))));
-const vsPrice = (co, v) => [sgn(v / co.price - 1, 0), v >= co.price ? 'an-up' : 'an-down'];
+const vsPrice = (co, v) => [sgn(v / co.price - 1, 0), ''];
+/* פס: איפה המחיר של היום עומד מול שלושת הערכים — מיקום בלבד, בלי צבע של טוב/רע */
+const mark = (el, d) => { for (const k in d) if (d[k] != null && d[k] !== '') el.dataset[k] = d[k]; return el; };
+function valBar(co, v3) {
+  const all = [...v3, co.price].filter((x) => x > 0); if (all.length < 2) return null;
+  const lo = Math.min(...all) * 0.9, hi = Math.max(...all) * 1.06, X = (v) => ((v - lo) / (hi - lo) * 100).toFixed(1) + '%';
+  // לפי כיוון השפה (inset-inline-start) — הנמוך בצד של "פסימי", כמו הכרטיסים מעליו
+  return h('div', { class: 'an-vbar' }, h('div', { class: 'an-track' }), h('div', { class: 'an-rng', style: `inset-inline-start:${X(v3[0])};width:calc(${X(v3[2])} - ${X(v3[0])})` }),
+    ...v3.map((v, i) => h('i', { class: 'an-vt' + (i === 1 ? ' base' : ''), style: `inset-inline-start:${X(v)}` })),
+    h('div', { class: 'an-me', style: `inset-inline-start:${X(co.price)}` }), h('div', { class: 'an-mel', style: `inset-inline-start:${X(co.price)}` }, T('anToday') + ' ' + strip(fmt(co.price, 'ps', co, 0))));
+}
 function fairCard(co, F, tag, subTxt, extra, labels) {
-  const { bear, base, bull } = F, U = uncertainty(co), mos = 1 - co.price / base.ps, ratio = co.price / base.ps;
-  const stars = ratio <= U.band[0] ? 5 : ratio <= (U.band[0] + 1) / 2 ? 4 : ratio < (1 + U.band[1]) / 2 ? 3 : ratio < U.band[1] ? 2 : 1;
+  const { bear, base, bull } = F;
   const L = labels || [T('anBear'), T('anBase'), T('anBull')];
-  return card(
+  return mark(card(
     h('div', { class: 'an-h2row' }, h('h2', {}, T('anFair')), h('span', { class: 'an-pill neu' }, tag)),
-    sub(subTxt),
+    co.fin || co.reit ? sub(subTxt) : null,   // מודל אחר מהרגיל — ההסבר נשאר
     scenEl(co, [[L[0], bear.ps, ...vsPrice(co, bear.ps), 0], [L[1], base.ps, ...vsPrice(co, base.ps), 1], [L[2], bull.ps, ...vsPrice(co, bull.ps), 2]]),
-    h('p', { class: 'an-big' }, h('span', { class: 'an-stars', 'aria-label': T('anStars', { n: stars }) }, '★'.repeat(stars), h('span', { class: 'an-dim' }, '★'.repeat(5 - stars))), ' ',
-      T(mos >= 0 ? 'anMosBelow' : 'anMosAbove'), h('strong', { class: mos >= 0 ? 'an-up' : 'an-down' }, pct(Math.abs(mos), 0))),
-    sub(T(co.fin ? 'anUncLongFin' : 'anUncLong', { u: uncName(U.lv), b: strip(pct(U.band[0], 0)) })),
-    ...(extra || []));
+    valBar(co, [bear.ps, base.ps, bull.ps]),
+    ...(extra || [])), { main: 1 });
 }
 function assumeCard(fields, V, ed, extra) {
   const inp = h('div', { class: 'an-inp' });
@@ -915,11 +999,11 @@ function assumeCard(fields, V, ed, extra) {
     inp.append(h('div', { class: 'an-inr' + (edited ? ' ed' : '') }, btn, h('span', { class: 'an-srcline' }, edited ? T('anEdited') : s), slider));
   }
   for (const [tt, v, s] of extra || []) inp.append(h('div', { class: 'an-inr' }, h('div', { class: 'an-l an-l-static' }, h('span', {}, tt), h('b', {}, v)), h('span', { class: 'an-srcline' }, s)));
-  return card(h('div', { class: 'an-h2row' }, h('h2', {}, T('anAssume')), Object.keys(ed).length ? h('button', { class: 'an-link', type: 'button', on: { click: () => { S.ed = {}; S.open = null; render(); } } }, T('anReset')) : null),
-    sub(T('anAssumeSub')), inp);
+  return mark(card(h('div', { class: 'an-h2row' }, h('h2', {}, T('anAssume')), Object.keys(ed).length ? h('button', { class: 'an-link', type: 'button', on: { click: () => { S.ed = {}; S.open = null; render(); } } }, T('anReset')) : null),
+    sub(T('anAssumeSub')), inp), { live: 1, hint: T('anHAssume') });
 }
 const chkRows = (list) => h('div', { class: 'an-list' }, ...list.map(([tt, v, k, s]) =>
-  h('div', { class: 'an-row' }, h('span', { class: 'an-ic ' + (k === 'good' ? 'y' : k === 'bad' ? 'n' : 'na') }, k === 'good' ? '✓' : k === 'bad' ? '!' : '–'), h('div', { class: 'an-rt' }, h('b', {}, tt), h('span', {}, s)), h('div', { class: 'an-rv' }, v))));
+  h('div', { class: 'an-row' }, h('div', { class: 'an-rt' }, h('b', {}, tt), h('span', {}, s)), h('div', { class: 'an-rv' }, v))));
 /* למה אין שווי — לפי סוג החברה */
 function noFair(co, I) {
   if (co.reit) return T(reitInputs(co).ffops > 0 ? 'anFfoNone' : 'anFfoNo');
@@ -927,9 +1011,24 @@ function noFair(co, I) {
   return (I || autoInputs(co, MAC)).src.base;
 }
 
+/* העמוד: רק הערך הפנימי, וכל השאר (מכפילים, הנחות, רגישות, יעד) — שורה שנפתחת לתת־עמוד באותו מבנה */
+const valCards = (co) => { const t = h('div'); (co.fin ? pageValFin : co.reit ? pageValReit : pageValDef)(co, t); return [...t.children]; };
 function pageVal(co, pg) {
-  if (co.fin) { pageValFin(co, pg); return; }
-  if (co.reit) { pageValReit(co, pg); return; }
+  const cards = valCards(co), main = cards.find((c) => c.dataset.main) || cards[0], rest = cards.filter((c) => c !== main && c.classList.contains('an-card'));
+  if (main) pg.append(main);
+  cards.filter((c) => c !== main && !c.classList.contains('an-card')).forEach((c) => pg.append(c));
+  if (!rest.length) return;
+  pg.append(h('section', { class: 'an-card an-card-list' }, h('div', { class: 'an-list' }, ...rest.map((c, i) => {
+    const t = c.querySelector('h2'), title = t ? t.textContent : '';
+    return navRow(title, c.dataset.hint || '', c.dataset.v || '', () => pushSub(title, (b) => {
+      const fresh = valCards(S.co), m = fresh.find((x) => x.dataset.main) || fresh[0], card0 = fresh.filter((x) => x !== m && x.classList.contains('an-card'))[i];
+      const sc = m && c.dataset.live ? m.querySelector('.an-scen') : null;
+      if (sc) b.append(h('div', { class: 'an-live' }, sc));
+      if (card0) b.append(card0);
+    }, { bare: true }));
+  }))));
+}
+function pageValDef(co, pg) {
   const I = autoInputs(co, MAC), ed = S.ed, V = { ...I.val, ...ed };
   multCard(co, pg);
   if (!(V.base > 0)) { lossCard(co, pg, I); return; }
@@ -959,26 +1058,25 @@ function pageVal(co, pg) {
     [T('anS3'), rev == null ? '—' : pct(rev), rev != null && hc != null && rev > hc * 1.3 ? 'bad' : 'good', T('anS3s', { v: strip(sgn(hc)) })],
     [T('anS4'), iso('×' + rev10.toFixed(1)), rev10 > 8 ? 'mid' : 'good', T('anS4s')],
   ];
-  pg.append(card(h('h2', {}, T('anSanity')), chkRows(san)));
+  pg.append(mark(card(h('h2', {}, T('anSanity')), chkRows(san)), { hint: T('anHSanity') }));
   // רגישות
   const kes = [-0.02, -0.01, 0, 0.01, 0.02].map((d) => V.ke + d), gss = [0.6, 0.8, 1, 1.2, 1.4];
   const tb = h('table', { class: 'an-sens' });
   const thr = h('tr', {}, h('th', {}, T('anSensCorner')), ...kes.map((k) => h('th', {}, strip(pct(k, 1)))));
   tb.append(h('thead', {}, thr), h('tbody', {}, ...gss.map((g) => h('tr', {}, h('th', {}, '×' + g), ...kes.map((k) => {
     const p = dcf(V, { ke: k, gs: g }).ps;
-    return h('td', { class: (p >= co.price ? 'g' : 'b') + (g === 1 && k === V.ke ? ' cur' : '') }, strip(fmt(p, 'ps', co, 0)));
+    return h('td', { class: g === 1 && k === V.ke ? 'cur' : null }, strip(fmt(p, 'ps', co, 0)));
   })))));
-  pg.append(card(h('h2', {}, T('anSens')), sub(T('anSensSub')), h('div', { class: 'an-tblw' }, tb)));
+  pg.append(mark(card(h('h2', {}, T('anSens')), sub(T('anSensSub')), h('div', { class: 'an-tblw' }, tb)), { live: 1, hint: T('anHSens') }));
   // יעד לפי מכפיל (כמו iCharts, עם מכפיל היסטורי של החברה עצמה)
   const mm = ['lo', 'mid', 'hi'].map((s) => multModel(co, V, s));
   if (mm[1] && mm[0] && mm[2]) {
-    pg.append(card(h('div', { class: 'an-h2row' }, h('h2', {}, T('anTgt', { y: mm[1].year })), h('span', { class: 'an-pill neu' }, T('anTgtTag'))),
+    pg.append(mark(card(h('div', { class: 'an-h2row' }, h('h2', {}, T('anTgt', { y: mm[1].year })), h('span', { class: 'an-pill neu' }, T('anTgtTag'))),
       sub(T('anTgtSub', { s: I.src.pe })),
-      scen([[T('anBear') + ' · ' + fmt(mm[0].pe, 'x', co, 0), mm[0].tgt, mm[0].ret == null ? '—' : T('anPerYear', { v: strip(sgn(mm[0].ret)) }), mm[0].ret >= V.ke ? 'an-up' : mm[0].ret >= 0 ? '' : 'an-down', 0],
-        [T('anBase') + ' · ' + fmt(mm[1].pe, 'x', co, 0), mm[1].tgt, mm[1].ret == null ? '—' : T('anPerYear', { v: strip(sgn(mm[1].ret)) }), mm[1].ret >= V.ke ? 'an-up' : mm[1].ret >= 0 ? '' : 'an-down', 1],
-        [T('anBull') + ' · ' + fmt(mm[2].pe, 'x', co, 0), mm[2].tgt, mm[2].ret == null ? '—' : T('anPerYear', { v: strip(sgn(mm[2].ret)) }), mm[2].ret >= V.ke ? 'an-up' : mm[2].ret >= 0 ? '' : 'an-down', 2]]),
-      whyDiff(co, V, base, mm[1]),
-      sub(T('anTgtFoot', { y: mm[1].year, e: strip(fmt(mm[1].eps5, 'ps', co)), how: V.epsPath.pts.length ? T('anTgtCons', { y: V.epsPath.pts[V.epsPath.pts.length - 1][0] }) : T('anTgtHist'), k: strip(pct(V.ke, 1)) }))));
+      scen([[T('anBear') + ' · ' + fmt(mm[0].pe, 'x', co, 0), mm[0].tgt, mm[0].ret == null ? '—' : T('anPerYear', { v: strip(sgn(mm[0].ret)) }), '', 0],
+        [T('anBase') + ' · ' + fmt(mm[1].pe, 'x', co, 0), mm[1].tgt, mm[1].ret == null ? '—' : T('anPerYear', { v: strip(sgn(mm[1].ret)) }), '', 1],
+        [T('anBull') + ' · ' + fmt(mm[2].pe, 'x', co, 0), mm[2].tgt, mm[2].ret == null ? '—' : T('anPerYear', { v: strip(sgn(mm[2].ret)) }), '', 2]]),
+      sub(T('anTgtFoot', { y: mm[1].year, e: strip(fmt(mm[1].eps5, 'ps', co)), how: V.epsPath.pts.length ? T('anTgtCons', { y: V.epsPath.pts[V.epsPath.pts.length - 1][0] }) : T('anTgtHist'), k: strip(pct(V.ke, 1)) }))), { v: fmt(mm[1].tgt, 'ps', co, 0), hint: T('anHTgt') }));
   }
 }
 /* --- בנקים, ביטוח והשקעות --- */
@@ -986,7 +1084,7 @@ function pageValFin(co, pg) {
   const I = finInputs(co, MAC), ed = S.ed, V = { ...I.val, ...ed };
   multCard(co, pg);
   const base = riValue(V);
-  if (!base) { pg.append(card(h('h2', {}, T('anFair')), sub(T(V.bv > 0 ? 'anRiNone' : 'anRiNoBv')))); return; }
+  if (!base) { pg.append(mark(card(h('h2', {}, T('anFair')), sub(T(V.bv > 0 ? 'anRiNone' : 'anRiNoBv'))), { main: 1 })); return; }
   // דוב ושור זזים יחד עם ה־ROE שנבחר (אותו מרחק כמו בהיסטוריה)
   const dLo = I.val.roe - I.val.roeLo, dHi = I.val.roeHi - I.val.roe;
   const bear = riValue(V, { roe: V.roe - dLo }) || { ps: 0 }, bull = riValue(V, { roe: V.roe + dHi }) || base;
@@ -1009,16 +1107,16 @@ function pageValFin(co, pg) {
   const tb = h('table', { class: 'an-sens' });
   tb.append(h('thead', {}, h('tr', {}, h('th', {}, T('anSensRoe')), ...kes.map((k) => h('th', {}, strip(pct(k, 1)))))), h('tbody', {}, ...roes.map((r, ri) => h('tr', {}, h('th', {}, strip(pct(r, 0))), ...kes.map((k, ki) => {
     const v = riValue(V, { roe: r, ke: k }), p = v ? v.ps : null;
-    return h('td', { class: (p != null && p >= co.price ? 'g' : 'b') + (ri === 2 && ki === 2 ? ' cur' : '') }, p == null ? '—' : strip(fmt(p, 'ps', co, 0)));
+    return h('td', { class: ri === 2 && ki === 2 ? 'cur' : null }, p == null ? '—' : strip(fmt(p, 'ps', co, 0)));
   })))));
-  pg.append(card(h('h2', {}, T('anSens')), sub(T('anSensRiSub')), h('div', { class: 'an-tblw' }, tb)));
+  pg.append(mark(card(h('h2', {}, T('anSens')), sub(T('anSensRiSub')), h('div', { class: 'an-tblw' }, tb)), { live: 1, hint: T('anHSens') }));
 }
 
 /* --- ריט --- */
 function pageValReit(co, pg) {
   const R = reitInputs(co);
   multCard(co, pg);
-  if (!(R.ffops > 0) || !R.m) { pg.append(card(h('h2', {}, T('anFair')), sub(T(R.ffops > 0 ? 'anFfoNone' : 'anFfoNo')))); if (!(R.ffops > 0)) return; }
+  if (!(R.ffops > 0) || !R.m) { pg.append(mark(card(h('h2', {}, T('anFair')), sub(T(R.ffops > 0 ? 'anFfoNone' : 'anFfoNo'))), { main: 1 })); if (!(R.ffops > 0)) return; }
   else {
     const F = { bear: { ps: R.ffops * R.m[0] }, base: { ps: R.ffops * R.m[1] }, bull: { ps: R.ffops * R.m[2] } };
     const lbl = (t, i) => t + ' · ' + iso(R.m[i].toFixed(0) + '×');
@@ -1035,35 +1133,28 @@ function pageValReit(co, pg) {
 /* --- חברה שעוד לא מרוויחה --- */
 function lossCard(co, pg, I) {
   const L = lossView(co), yrs = (x) => iso(x.toFixed(1)) + ' ' + T('anYrs');
-  pg.append(card(h('h2', {}, T('anLossT')), sub(I.src.base), chkRows([
+  pg.append(mark(card(h('h2', {}, T('anLossT')), sub(I.src.base), chkRows([
     [T('anLPs'), L.psNow ? iso(L.psNow.toFixed(1) + '×') : '—', L.psNow && L.psMed ? (L.psNow < L.psMed ? 'good' : 'bad') : 'neu', L.psMed ? T('anLs1s', { n: L.years, v: iso(L.psMed.toFixed(1) + '×') }) : T('anLs1n')],
     [T('anLs2'), L.r40 != null ? pct(L.r40, 0) : '—', L.r40 == null ? 'neu' : L.r40 >= 0.4 ? 'good' : L.r40 >= 0 ? 'mid' : 'bad', L.r40 != null ? T('anLs2s', { g: iso(strip(sgn(L.g, 0))), m: iso(strip(sgn(L.m, 0))) }) : T('anLs2n')],
     [T('anLs3'), L.runway != null ? yrs(L.runway) : '—', L.runway == null ? (L.burn ? 'neu' : 'good') : L.runway >= 3 ? 'good' : L.runway >= 1.5 ? 'mid' : 'bad',
       L.burn ? T('anLs3s', { c: iso(strip(fmt(L.cash, 'money', co))), b: iso(strip(fmt(L.burn, 'money', co))) }) : T('anLs3pos')],
-  ])));
+  ])), { main: 1 }));
 }
 
 const MULT_SET = { def: [['pe', 'anLPe'], ['pfcf', 'anLPfcf'], ['ps', 'anLPs'], ['evebit', 'anLEv']], fin: [['pb', 'anLPb'], ['pe', 'anLPe']], reit: [['pffo', 'anLPffo'], ['pb', 'anLPb'], ['ps', 'anLPs']] };
+const MULT_HINT = { pe: 'anHPe', pfcf: 'anHPfcf', ps: 'anHPs', evebit: 'anHEv', pb: 'anHPb', pffo: 'anHPffo' };
 function multCard(co, pg) {
   const Hh = multHist(co), mc = h('div', { class: 'an-list' });
   for (const [k, n] of MULT_SET[co.fin ? 'fin' : co.reit ? 'reit' : 'def']) {
     const a = Hh[k].filter((x) => x > 0 && x < 300); if (a.length < 6) continue;
     const now = fin(Hh[k]).pop(), mn = Math.min(...a), mx = Math.max(...a), q1 = quant(a, 0.25), q3 = quant(a, 0.75), md = quant(a, 0.5);
     const P = (v) => ((clamp(v, mn, mx) - mn) / (mx - mn || 1) * 100).toFixed(1) + '%';
-    const where = now > q3 ? ['anDear', 'bad'] : now < q1 ? ['anCheap', 'good'] : ['anNormal', 'neu'];
-    mc.append(h('div', { class: 'an-mult' }, h('div', { class: 'an-mult-t' }, h('b', {}, T(n)), h('span', {}, fmt(now, 'x', co, 1), ' ', h('span', { class: 'an-pill ' + where[1] }, T(where[0])))),
+    mc.append(h('div', { class: 'an-mult' }, h('div', { class: 'an-mult-t' }, h('span', { class: 'an-rt' }, h('b', {}, T(n)), h('span', { class: 'an-hint' }, T(MULT_HINT[k]))), h('span', { class: 'an-mv' }, fmt(now, 'x', co, 1))),
       h('div', { class: 'an-rbar' }, h('div', { class: 'an-tr' }), h('div', { class: 'an-iq', style: `left:${P(q1)};width:calc(${P(q3)} - ${P(q1)})` }), h('div', { class: 'an-md', style: `left:${P(md)}` }), h('div', { class: 'an-nw', style: `left:${P(now)}` })),
       h('div', { class: 'an-lb' }, h('span', {}, strip(fmt(mn, 'x', co, 1))), h('span', {}, T('anMedian') + ' ' + strip(fmt(md, 'x', co, 1))), h('span', {}, strip(fmt(mx, 'x', co, 1))))));
   }
   if (!mc.children.length) return;
-  pg.append(card(h('h2', {}, T('anMultHist')), sub(T('anMultHistSub', { n: Math.round(Hh.t.length / 12) })), mc));
-}
-function whyDiff(co, V, base, m) {
-  if (m.ret == null) return null;
-  const dcfUp = base.ps >= co.price, multUp = m.ret >= V.ke;
-  if (dcfUp === multUp) return null;
-  const c = ctx(co, nowP(co)), mcap = co.price * co.sharesOut, fcfY = V.base / mcap, ey = c.ni > 0 ? c.ni / mcap : null;
-  return h('p', { class: 'an-sub an-warn' }, multUp ? T('anWhyA', { f: strip(pct(fcfY)), e: strip(pct(ey)) }) : T('anWhyB'));
+  pg.append(mark(card(h('h2', {}, T('anMultHist')), sub(T('anMultHistSub', { n: Math.round(Hh.t.length / 12) })), mc), { hint: T('anHMult') }));
 }
 
 /* --- השוואה: עמיתים = המניות ש־Yahoo מציג כדומות, מסוננות לפי ענף/סקטור, ומה שהמשתמש הוסיף --- */
@@ -1077,10 +1168,10 @@ function pickPeers(co, list, added) {
   return { list: rows.slice(0, PEER_MAX).map((x) => x.p), loose: rows.length < 2 };
 }
 function peerRow(c) {
-  const x = ctx(c, nowP(c)), mc = c.price * c.sharesOut, [g] = cagrN(c, 'rev', 5), C = checks(c, MAC);
+  const x = ctx(c, nowP(c)), mc = c.price * c.sharesOut, [g] = cagrN(c, 'rev', 5);
   const fy = fyList(c), old = fy.length > 3 ? ctx(c, fy[fy.length - 4]).sh : null;
   return { sym: c.sym, g, om: x.om, roic: x.roic, fy: x.fcf != null && mc ? x.fcf / mc : null, pe: x.eps > 0 ? c.price / x.eps : null, fpe: c.fpe,
-    sh3: old && x.sh ? x.sh / old - 1 : null, q: Object.values(C).reduce((a, k) => a + passN(k), 0) };
+    sh3: old && x.sh ? x.sh / old - 1 : null };
 }
 async function loadPeers() {
   if (S.peerBusy || !S.co) return;
@@ -1092,7 +1183,7 @@ async function loadPeers() {
   S.peerBusy = false;
   if (S.tab === 'cmp') render();
 }
-const CMP_MET = [['q', 'anMQ', 'anMQs', 'num', 1], ['g', 'anMGrowth', 'anCagr5', 'pct', 1], ['om', 'anMOm', 'anTtm12', 'pct', 1], ['roic', 'anMRoic', 'anTtm12', 'pct', 1],
+const CMP_MET = [['g', 'anMGrowth', 'anCagr5', 'pct', 1], ['om', 'anMOm', 'anTtm12', 'pct', 1], ['roic', 'anMRoic', 'anTtm12', 'pct', 1],
   ['fy', 'anMFy', 'anHiCheap', 'pct', 1], ['pe', 'anLPe', 'anLoCheap', 'x', -1], ['fpe', 'anFFpe', 'anLoCheap', 'x', -1], ['sh3', 'anMSh3', 'anMSh3s', 'pct', -1]];
 function pageCmp(co, pg) {
   if (!S.peers) {
@@ -1106,18 +1197,15 @@ function pageCmp(co, pg) {
     on: { click: () => { S.peerDrop.add(p.sym); S.peerAdd = S.peerAdd.filter((x) => x !== p.sym); render(); } } }, h('bdi', {}, p.sym.replace(/\.TA$/, '')), h('span', { 'aria-hidden': 'true' }, '×'))),
     h('button', { class: 'an-chip an-chip-add', type: 'button', on: { click: addPeerSheet } }, T('anCmpAdd')));
   if (!list.length) { pg.append(card(h('h2', {}, T('anCmpTitle')), sub(T('anCmpNone')), chips)); return; }
+  // טבלה אחת: מדד בכל שורה, חברה בכל עמודה (החברה שלך ראשונה ומודגשת). פס קטן מתחת לכל ערך — גודל יחסי בשורה
   const rows = [co, ...list].map(peerRow);
-  const out = h('div', { class: 'an-list' });
-  for (const [k, n, st, u, dirn] of CMP_MET) {
-    const vs = rows.map((r) => r[k]), ok = fin(vs), mx = Math.max(...ok.map(Math.abs), 1e-9);
-    const best = ok.length > 1 && Math.max(...ok) !== Math.min(...ok) ? (dirn > 0 ? Math.max(...ok) : Math.min(...ok)) : null; // כולם שווים — בלי כוכב
-    out.append(h('div', { class: 'an-cmp' }, h('div', { class: 'an-cmp-t' }, T(n), h('span', {}, T(st, { n: 5 }))),
-      ...rows.map((r) => h('div', { class: 'an-cbar' + (r.sym === co.sym ? ' me' : '') + (r[k] != null && r[k] === best ? ' best' : '') },
-        h('bdi', { class: 'an-cnm' }, r.sym.replace(/\.TA$/, '')),
-        h('div', { class: 'an-bb' }, r[k] == null ? null : h('i', { style: `width:${(Math.abs(r[k]) / mx * 100).toFixed(0)}%` })),
-        h('span', { class: 'an-vv' }, r[k] == null ? '—' : k === 'q' ? iso(String(r[k])) : fmt(r[k], u, null, 1))))));
-  }
-  pg.append(card(h('h2', {}, T('anCmpTitle')), sub(T(loose ? 'anCmpSubAny' : 'anCmpSub')), chips, out));
+  const t = h('table', { class: 'an-ctbl' }, h('thead', {}, h('tr', {}, h('th', {}), ...rows.map((r, i) => h('th', { class: i ? null : 'me' }, h('bdi', {}, r.sym.replace(/\.TA$/, '')))))),
+    h('tbody', {}, ...CMP_MET.map(([k, n, st, u]) => {
+      const ok = fin(rows.map((r) => r[k])), mx = Math.max(...ok.map(Math.abs), 1e-9);
+      return h('tr', {}, h('th', {}, T(n), h('small', {}, T(st, { n: 5 }))), ...rows.map((r, i) => h('td', { class: i ? null : 'me' },
+        r[k] == null ? '—' : fmt(r[k], u, null, 1), r[k] == null ? null : h('i', { style: `--an-w:${(Math.abs(r[k]) / mx * 100).toFixed(0)}%` }))));
+    })));
+  pg.append(card(h('h2', {}, T('anCmpTitle')), sub(T(loose ? 'anCmpSubAny' : 'anCmpSub')), chips, h('div', { class: 'an-tblw no-swipe' }, t)));
 }
 function addPeerSheet() {
   openSheet(T('anCmpAddTitle'), (b) => {
@@ -1145,6 +1233,7 @@ function addPeerSheet() {
 
 /* ---------- גיליונות ---------- */
 function openSheet(title, build, opt = {}) {
+  if (!opt.small) { pushSub(title, build); return; }
   if (S.sheet) closeSheet(true, true);
   const veil = h('div', { class: 'an-veil', on: { click: () => closeSheet() } });
   const body = h('div', { class: 'an-sh-b' });
@@ -1183,7 +1272,7 @@ function chartSheet(def) {
   if (def.line) {
     openSheet(def.n, (b, rec) => {
       const Hh = multHist(co), a = Hh[def.line[1]], ok = a.filter((x) => x > 0 && x < 300), md = median(ok);
-      const host = h('div', { class: 'an-chart' }), tip = h('div', { class: 'an-tip', hidden: true });
+      const host = h('div', { class: 'an-chart no-swipe' }), tip = h('div', { class: 'an-tip', hidden: true });
       const stat = (tt, v) => h('div', {}, h('span', {}, tt), h('b', {}, v));
       b.append(h('p', { class: 'an-ex' }, T(def.line[3])), h('div', { class: 'an-chartw' }, tip, host),
         h('div', { class: 'an-stats' }, stat(T('anToday'), fmt(fin(a).pop(), 'x', co, 1)), stat(T('anMed10'), fmt(md, 'x', co, 1)),
@@ -1197,7 +1286,7 @@ function chartSheet(def) {
   const st = { mode: 'fy', range: long ? '10' : 'all', view: 'v', hide: new Set() };
   const ratio = def.s.every((k) => M[k].ratio), noPct = def.s.some((k) => M[k].noPct || M[k].ratio), noG = def.s.length > 1 && def.s.some((k) => M[k].f);
   openSheet(def.n, (b, rec) => {
-    const host = h('div', { class: 'an-chart' }), tip = h('div', { class: 'an-tip', hidden: true }), stats = h('div', { class: 'an-stats' }), tbl = h('div', { class: 'an-tblw', hidden: true });
+    const host = h('div', { class: 'an-chart no-swipe' }), tip = h('div', { class: 'an-tip', hidden: true }), stats = h('div', { class: 'an-stats' }), tbl = h('div', { class: 'an-tblw', hidden: true });
     const chartW = h('div', { class: 'an-chartw' }, tip, host);
     const q = def.s.length === 1 && M[def.s[0]].q;
     b.append(...[q ? h('p', { class: 'an-ex' }, T(q)) : null,
@@ -1310,15 +1399,9 @@ function srcBlock(co, keys) {
 function checkSheet(k) {
   const C = checks(S.co, MAC)[k];
   openSheet(C.n, (b) => {
-    b.append(h('p', { class: 'an-ex' }, T('anChkSub', { n: passN(C) })));
-    const list = h('div', { class: 'an-list' });
-    for (const x of C.chk) {
-      const exp = h('p', { class: 'an-ex an-exp', hidden: true }, x.ex);
-      list.append(h('div', {}, h('button', { class: 'an-row', type: 'button', 'aria-expanded': 'false', on: { click: (e) => { exp.hidden = !exp.hidden; e.currentTarget.setAttribute('aria-expanded', String(!exp.hidden)); } } },
-        h('span', { class: 'an-ic ' + (x.pass === true ? 'y' : x.pass === false ? 'n' : 'na') }, x.pass === true ? '✓' : x.pass === false ? '✕' : '–'),
-        h('div', { class: 'an-rt' }, h('b', {}, x.q), h('span', {}, x.thr)), h('div', { class: 'an-rv' }, x.v)), exp));
-    }
-    b.append(list);
+    b.append(h('p', { class: 'an-ex' }, T('anChkSub')));
+    b.append(h('div', { class: 'an-list' }, ...C.chk.map((x) => h('div', { class: 'an-row an-row-x' },
+      h('div', { class: 'an-rt' }, h('b', {}, x.q), h('span', {}, x.thr), x.ex ? h('span', { class: 'an-hint' }, x.ex) : null), h('div', { class: 'an-rv' }, x.v)))));
   });
 }
 function factSheet(key) {
@@ -1333,6 +1416,12 @@ function factSheet(key) {
 function estSheet() {
   const co = S.co;
   openSheet(T('anEstTitle'), (b) => {
+    const est = co.est || [], e0 = est.find((e) => e.p === '0y'), e1 = est.find((e) => e.p === '+1y');
+    const er = (e, key) => h('div', { class: 'an-row' }, h('div', { class: 'an-rt' }, h('b', {}, T(key)), h('span', {}, T('anEstS', { n: e.n || '?', r: strip(fmt(e.rev, 'money', co)) }))),
+      h('div', { class: 'an-rv' }, fmt(e.eps, 'ps', co), e.g != null ? h('small', { class: e.g >= 0 ? 'an-up' : 'an-down' }, sgn(e.g)) : null));
+    const near = [e0 && e0.eps ? er(e0, 'anEst0') : null, e1 && e1.eps ? er(e1, 'anEst1') : null].filter(Boolean);
+    if (near.length) b.append(h('div', { class: 'an-list' }, ...near));
+    if (!(co.nq && co.nq.length)) return;
     const fy0 = co.years[co.years.length - 1], eps = co.A.eps || [], base = eps[eps.length - 1];
     let prev = base;
     const rows = [[T('anActual', { y: fy0 }), base, null, null]].concat(co.nq.map((r) => { const g = prev ? r.eps / prev - 1 : null; prev = r.eps; return [String(r.fy).slice(-4), r.eps, g, r.n]; }));
