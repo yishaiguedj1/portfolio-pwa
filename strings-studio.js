@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1859 מפתחות מתוך 4567) */
+/* המחרוזות של studio (1856 מפתחות מתוך 4565) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -573,8 +573,6 @@ he: {
   "studioFmtVp9S": "הדחיסה של Google — טובה כמעט כמו AV1, נפוצה מאוד ביוטיוב.",
   "studioFrom": "שפת הדיבור",
   "studioFromDrive": "מ־Google Drive",
-  "studioFromDriveBad": "את הקובץ הזה אי אפשר לתרגם — בחרו סרטון",
-  "studioFromDriveSub": "סרטון שכבר אצלך ב־Drive — בלי העלאה",
   "studioGateBAuto": "לא ענית בזמן — עצרנו בתקציב",
   "studioGateBDef": "בלי תשובה עד {t} — עוצרים (הכל נשמר)",
   "studioGateBGo": "המשכנו — התקציב גדל",
@@ -727,7 +725,6 @@ he: {
   "studioIdSub": "פרקים, יוטיוב, שורטס ושאלות על הסרטון",
   "studioIdTitle": "רעיונות",
   "studioIdYt": "כותרת ותיאור ליוטיוב",
-  "studioInDrive": "נבחר",
   "studioInDriveNote": "ב־Drive שלך · נשאר במקומו",
   "studioIncApiKey": "המפתח או המודל של השרת נדחו",
   "studioIncApiNet": "תקלת רשת מול Anthropic",
@@ -953,7 +950,7 @@ he: {
   "studioNeedDrive": "הסרטון עולה ל־Google Drive שלך. לחבר עכשיו?",
   "studioNeedFile": "כדי להמשיך מאותה נקודה, בחרו שוב את אותו סרטון",
   "studioNew": "פרויקט חדש",
-  "studioNewSub": "מהטלפון · כל גודל",
+  "studioNewSub": "מהטלפון או מ־Google Drive · כל גודל",
   "studioNoAudio": "אין. Claude יוציא אותה מהסרטון",
   "studioNotConn": "לא מחובר",
   "studioNowAudio": "שולחים קודם את הקול, כדי ש־Claude יתחיל מהר",
@@ -2434,8 +2431,6 @@ en: {
   "studioFmtVp9S": "Google’s compression — almost as good as AV1, very common on YouTube.",
   "studioFrom": "Spoken language",
   "studioFromDrive": "From Google Drive",
-  "studioFromDriveBad": "This file can't be translated — choose a video",
-  "studioFromDriveSub": "A video already in your Drive — no upload",
   "studioGateBAuto": "No answer in time — stopped at the budget",
   "studioGateBDef": "No answer by {t} — we stop (everything is saved)",
   "studioGateBGo": "Continued — budget increased",
@@ -2588,7 +2583,6 @@ en: {
   "studioIdSub": "Chapters, YouTube, shorts and questions about the video",
   "studioIdTitle": "Ideas",
   "studioIdYt": "YouTube title and description",
-  "studioInDrive": "Selected",
   "studioInDriveNote": "In your Drive · stays where it is",
   "studioIncApiKey": "Server key or model rejected",
   "studioIncApiNet": "Network trouble with Anthropic",
@@ -2814,7 +2808,7 @@ en: {
   "studioNeedDrive": "The video uploads to your Google Drive. Connect it now?",
   "studioNeedFile": "To continue where it stopped, choose the same video again",
   "studioNew": "New project",
-  "studioNewSub": "From your phone · any size",
+  "studioNewSub": "From your phone or Google Drive · any size",
   "studioNoAudio": "None. Claude will take it from the video",
   "studioNotConn": "Not connected",
   "studioNowAudio": "Sending the audio first so Claude can start fast",
