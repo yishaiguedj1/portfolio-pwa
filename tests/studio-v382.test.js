@@ -47,11 +47,8 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const tn = st.normNote({ p: null, h: Array.from({ length: 8 }, (_, i) => ({ t: 'הערה ' + i, at: i, d: i })), n: 99, max: 5 });
   ok(tn.h.length === 5 && tn.n === 5 && tn.h[0].t === 'הערה 3', 'normNote: עד 5, המונה לא מעבר למקסימום');
   const sj = read('studio.js');
-  ok(/nt: normNote\(s\.nt\)/.test(sj) && /net\.api\('note', \{ job: id, t \}\)/.test(sj), 'הטלפון: שומר ושולח דרך השרתון');
-  const seg = sj.slice(sj.indexOf('function noteCard('), sj.indexOf('function noteCard(') + 4000);
-  ok(!/innerHTML/.test(seg) && /tx\.dir = 'auto'/.test(seg), 'הטקסט שלך מוצג רק כטקסט, בכיוון שלו');
-  ok(/const nc = noteCard\(rec\);/.test(sj) && /rec\.srv\.nt \? 'n' \+ rec\.srv\.nt\.h\.length/.test(sj), 'דף העבודה: הכרטיס, ומתעדכן כשהערה נקראת');
-  ok(/\.st-ntr \{/.test(read('studio.css')) && /\.st-ntr\.wait/.test(read('studio.css')), 'עיצוב: שורת הערה וממתינה');
+  ok(/nt: normNote\(s\.nt\)/.test(sj), 'הטלפון: שומר את ההערות מהשרתון');
+  ok(!/function noteCard\(/.test(sj) && !/noteCard\(rec\)/.test(sj), 'דף העבודה: בלי כרטיס "הערה ל־Claude" (הוסר 26/10/2026, בקשת המשתמש)');
   const app = read('app.js');
   for (const k of (sj.match(/T\('studioNt[A-Za-z]+'/g) || []).map((x) => x.slice(3, -1)).filter((x, i, a) => a.indexOf(x) === i))
     ok((app.match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, 'מחרוזת בעברית ובאנגלית: ' + k);

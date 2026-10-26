@@ -637,16 +637,10 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-glc { display: grid; gap: 6px; }
 .st-glh { font-size: 14px; font-weight: 700; margin-top: 2px; }
 .st-glc .st-row { padding-inline: 0; min-height: 52px; }
-/* v382: הערה ל־Claude — ההערות שנקראו, זו שמחכה, וכתיבה */
-.st-ntc { display: grid; gap: 10px; }
-.st-ntr { display: grid; gap: 2px; padding-inline-start: 10px; border-inline-start: 3px solid var(--primary); }
-.st-ntr.wait { border-inline-start-color: var(--on-surface-var); }
-.st-ntr small { font-size: 12.5px; color: var(--on-surface-var); }
-.st-ntr p { margin: 0; font-size: 14.5px; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
+/* שורת כפתורים בכרטיס (העתק־הדבק) */
 .st-ntb { display: flex; gap: 8px; }
 .st-ntb .st-btn.ghost { flex: none; }
 .st-ntb .st-btn.wide { flex: 1; width: auto; min-width: 0; margin: 0; }
-.st-ntc > .st-row { padding-inline: 0; }
 
 /* ---------- מ1 (10/10/2026): הנגן — כהה תמיד (כמו עורך התמונות של Apple, YouTube ו־CapCut), בשתי הערכות ---------- */
 .st-root:has(> .st-page.st-dark) { background: #000; color-scheme: dark; }
@@ -980,7 +974,6 @@ button.st-fnd:active { background: var(--st-fill); }
 [dir="ltr"] .st-stdet[open] > summary .st-chev { transform: scaleX(-1) rotate(-90deg); }
 .st-stdet > .st-stages { margin: 0; padding-top: 0; border-radius: 0; border-top: 1px solid var(--separator); }
 /* הערה ל־Claude — שורה אחת בקבוצה, בלי כותרת מקטע מעליה */
-.st-twcard.st-ntc { padding-block: 4px; }
 /* הסתיימה: ✓ גדול בטבעת, וכפתור הצפייה בתוך כרטיס הראש */
 .st-ring.ok b { font-size: 28px; font-weight: 700; color: var(--st-ok); }
 .st-jhero > .st-btn.in-card { margin-top: 0; }

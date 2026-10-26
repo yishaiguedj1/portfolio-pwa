@@ -255,6 +255,49 @@ const { fakeR2, ENV } = require('./_r2fake');
     ok((await p).aborted && bg.aborted, 'עצירה / מחיקה בדף → מבטלים גם את ה־Background Fetch');
   }
 
+  // 26/10/2026 (בטלפון: "עלו 1KB מתוך 187MB" יותר מדקה): Chrome קיבל ולא התחיל — שעון תקיעה, רק כשהדף מוצג
+  {
+    ok(B.bgStallLimit(false, 8 * MiB) === B.BG_FIRST_MS && B.bgStallLimit(true, 8 * MiB) === B.BG_STALL_MS
+      && B.bgStallLimit(true, 64 * MiB) === 512 * 1000, 'הסף: בלי בית אחד — דקה וחצי; אחרי שהתחיל — חלק שלם בקצב איטי, לפחות 3 דק׳');
+    const run = async ({ start = 0, vis = () => true, steps }) => {
+      const bg = fakeBg(); bg.uploadTotal = 100; bg.uploaded = start;
+      let t = 1000;
+      const m = mkEnv({ get: async () => bg }); m.env.now = () => t; m.env.visible = vis;
+      const ctl = new AbortController();
+      const p = B.bgUpload({ api: async () => ({}), job: JOB, blob: new Blob([]), size: 150, st: { id: 'FID', up: 'UP', ps: 8 * MiB }, signal: ctl.signal }, m.env);
+      await new Promise((r) => setTimeout(r, 5));
+      let res = null; p.then((x) => { res = x; });
+      for (const s of steps) { t += s.dt; if (s.up != null) bg.uploaded = s.up; bg.fire(); await new Promise((r) => setTimeout(r, 2)); if (res) break; }
+      await new Promise((r) => setTimeout(r, 5));
+      const out = { res, bg, aborted: bg.aborted, saved: m.saved };
+      if (!res) { ctl.abort(); await p; }   // התרחיש שלא הסתיים — עוצרים (בלי טיימר שנשאר)
+      return out;
+    };
+    const tens = (n, extra = {}) => Array.from({ length: n }, () => Object.assign({ dt: 10000 }, extra));
+    let r = await run({ steps: tens(8) });
+    ok(!r.res, 'פחות מדקה וחצי בלי התקדמות — מחכים');
+    r = await run({ steps: tens(10) });
+    ok(r.res && r.res.stall && r.res.fallback === 'bg_stall' && !r.res.started && r.bg.aborted && r.saved.some((x) => x.del === 'snbup-' + JOB),
+      'דקה וחצי בלי בית אחד כשהדף מוצג → מבטלים את ה־Background Fetch, מוחקים את הרשומה, וההעלאה הרגילה ממשיכה');
+    r = await run({ vis: () => false, steps: tens(40) });
+    ok(!r.res && !r.aborted, 'הדף ברקע — לא סופרים (שם Background Fetch הוא כל הטעם)');
+    r = await run({ steps: [{ dt: 10000, up: 0 }, { dt: 60000, up: 0 }, { dt: 60000, up: 0 }] });
+    ok(!r.res, 'טיק אחד אחרי הפסקה ארוכה (טיימר מואט) — לא נספר כולו');
+    r = await run({ start: 10, steps: tens(15).concat([{ dt: 10000, up: 20 }], tens(15)) });
+    ok(!r.res, 'אחרי שהתחיל: עד 3 דק׳ בין עדכונים — תקין (Chrome מעדכן רק כשחלק נגמר)');
+    r = await run({ start: 10, steps: tens(19) });
+    ok(r.res && r.res.stall && r.res.started, 'התחיל ונעצר יותר מ־3 דק׳ → נתקע');
+  }
+  {
+    const st = read('studio.js');
+    ok(/visible: \(\) => typeof document === 'undefined' \|\| document\.visibilityState === 'visible'/.test(st), 'studio.js: השעון יודע אם הדף מוצג');
+    ok(/r\.stall \? 4/.test(st) && /if \(st >= 2\) store\.settings\.bgNo = Date\.now\(\)/.test(st) && /s\.bgSt = Math\.min\(9/.test(st),
+      'studio.js: נתקע = 4 במדידה; פעם שנייה בטלפון הזה — לא מנסים חודש; המונה נשמר בהגדרות');
+    ok(/run\.bg\) parts\.push\(T\('studioBgNote'\)\)/.test(st) && (read('app.js').match(/\bstudioBgNote: "/g) || []).length === 2,
+      'בזמן העלאה ברקע הכרטיס אומר שההתקדמות בהתראה של Chrome (בשתי השפות)');
+    ok(/if \(n <= 0\) return '0KB'/.test(st), '"0KB" כשלא עלה כלום — לא "1KB"');
+  }
+
   /* ---------- 4. sw.js ---------- */
   const sw = read('sw.js');
   ok(/'\.\/studiobg\.js'/.test(sw.match(/const STUDIO_SHELL = \[[^\]]*\]/)[0]), 'studiobg.js בקבצי הסטודיו של sw.js (נפתח אופליין)');
