@@ -275,6 +275,9 @@ const root = path.join(__dirname, '..');
     ok(NA.u && NA.u.n === 1 && FA.auditView(NA, [], Date.now()).u.items[0].sym === 'ABC', 'השרתון מעביר את הרשימה למרכז הניהול');
     const wf2 = fs.readFileSync(path.join(root, '.github/workflows/fund-audit.yml'), 'utf8');
     ok(/--xsyms ibkr-proxy\/lib\/xsyms\.txt --seen/.test(wf2), 'workflow: --seen — גם המניות שמשתמשים פתחו');
+    const su = fs.readFileSync(path.join(root, '.github/workflows/stock-universe.yml'), 'utf8');
+    ok(/node tools\/xsyms\.js \|\|/.test(su) && /git diff --quiet -- [^\n]*xsyms\.txt/.test(su) && /git add [^\n]*xsyms\.txt/.test(su),
+      'stock-universe.yml: רשימת שכבה 8 מתעדכנת כל חודש, וכשל במקור לא עוצר את עדכון החיפוש');
     const an = fs.readFileSync(path.join(root, 'analysis.js'), 'utf8');
     const fl = /const FL_INFO = new Set\((\[[^\]]*\])\)/.exec(an)[1].replace(/'/g, '"');
     ok(JSON.stringify(JSON.parse(fl).sort()) === JSON.stringify([...F.CHECK_INFO].sort()), 'CHECK_INFO בשרתון = FL_INFO במסך');
