@@ -145,8 +145,7 @@
     <string name="brPwAlready">כבר כאן — Google Password Manager ממלא אותן</string>
     <string name="brToChrome">ל־Chrome</string>
     <string name="brExport">ייצוא הסימניות לקובץ</string>
-    <string name="brExportSub">קובץ סימניות שאפשר לייבא ל־Chrome במחשב</string>
-    <string name="brExported">הסימניות נשמרו בקובץ</string>
+    <string name="brExportSub">רק מה ששמרת כאן ועוד לא יצא — בלי כפילויות ב־Chrome</string>
     <string name="brExportFoot">Google לא פותחת את הסנכרון של Chrome לאפליקציות אחרות — לכן הסימניות עוברות בקובץ. הסיסמאות מסונכרנות לבד.</string>
     <string name="brPromoTitle">הסימניות מ־Chrome</string>
     <string name="brPromoSub">להביא את הסימניות וההיסטוריה בפעולה אחת</string>
@@ -159,4 +158,10 @@
     <string name="brStop">עצירה</string>
     <string name="brRecent">נוספו לאחרונה</string>
     <string name="brImportedN">נוספו %1$d סימניות ו־%2$d ביקורים</string>
+    <string name="brImportNothingNew">הכל כבר היה כאן — לא נוסף כלום</string>
+    <string name="brSkippedN">%d כבר היו</string>
+    <string name="brExportNone">אין סימניות חדשות — כל מה ששמרת כבר יצא ל־Chrome</string>
+    <string name="brExportedN">%d סימניות נשמרו בקובץ</string>
+    <string name="brExportAll">לייצא שוב את כולן</string>
+    <string name="brExportAllSub">רק אם הקובץ הקודם לא יובא ל־Chrome</string>
 </resources>

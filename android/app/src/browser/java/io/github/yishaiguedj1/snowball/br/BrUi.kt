@@ -1226,7 +1226,7 @@ private fun ImportScreen(a: BrowserActivity) {
             }
         }
         val li = a.lastImport.split(',')
-        if (li.size == 3) item {
+        if (li.size >= 3) item {
             val at = li[2].toLongOrNull() ?: 0L
             Row(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 28.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.card).padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically) {
@@ -1234,13 +1234,18 @@ private fun ImportScreen(a: BrowserActivity) {
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(stringResource(R.string.brImportedN, li[0].toIntOrNull() ?: 0, li[1].toIntOrNull() ?: 0), color = c.fg, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    Text(stringResource(R.string.brLastImport, DateUtils.getRelativeTimeSpanString(at).toString()), color = c.mute, fontSize = 13.sp)
+                    Text(stringResource(R.string.brLastImport, DateUtils.getRelativeTimeSpanString(at).toString()) +
+                        (li.getOrNull(3)?.toIntOrNull()?.takeIf { it > 0 }?.let { " · " + stringResource(R.string.brSkippedN, it) } ?: ""), color = c.mute, fontSize = 13.sp)
                 }
             }
         }
         item {
             Group(stringResource(R.string.brToChrome), stringResource(R.string.brExportFoot)) {
                 IRow(stringResource(R.string.brExport), stringResource(R.string.brExportSub), lead = { Tile(BrIcons.Share, Color(0xFF007AFF)) }) { a.exportMarks() }
+                if (a.markRev >= 0 && BrStore.anyExported()) {
+                    Sep()
+                    IRow(stringResource(R.string.brExportAll), stringResource(R.string.brExportAllSub), lead = { Tile(BrIcons.Append, Color(0xFF8E8E93)) }) { a.exportMarks(all = true) }
+                }
             }
         }
         item {

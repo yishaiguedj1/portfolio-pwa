@@ -145,8 +145,7 @@
     <string name="brPwAlready">Already here — Google Password Manager fills them</string>
     <string name="brToChrome">To Chrome</string>
     <string name="brExport">Export bookmarks to a file</string>
-    <string name="brExportSub">A bookmarks file Chrome on a computer can import</string>
-    <string name="brExported">Bookmarks saved to a file</string>
+    <string name="brExportSub">Only what you saved here and haven’t exported yet — no duplicates in Chrome</string>
     <string name="brExportFoot">Google doesn’t open Chrome sync to other apps — so bookmarks move by file. Passwords sync on their own.</string>
     <string name="brPromoTitle">Your Chrome bookmarks</string>
     <string name="brPromoSub">Bring your bookmarks and history in one step</string>
@@ -159,4 +158,10 @@
     <string name="brStop">Stop</string>
     <string name="brRecent">Recently added</string>
     <string name="brImportedN">Added %1$d bookmarks and %2$d visits</string>
+    <string name="brImportNothingNew">Everything was already here — nothing added</string>
+    <string name="brSkippedN">%d already here</string>
+    <string name="brExportNone">No new bookmarks — everything you saved is already in Chrome</string>
+    <string name="brExportedN">%d bookmarks saved to a file</string>
+    <string name="brExportAll">Export all again</string>
+    <string name="brExportAllSub">Only if the previous file wasn’t imported into Chrome</string>
 </resources>

@@ -110,7 +110,13 @@ ok(!/password|סיסמ/i.test(store) && !/getUsernamePassword|setHttpAuthUsernam
 ok(/takeout\.google\.com\/settings\/takeout\/custom\/chrome/.test(act) && /OpenDocument\(\)/.test(act), 'ייבוא: Takeout של Chrome + בחירת הקובץ');
 ok(/NETSCAPE-Bookmark-file/.test(imp) && /"Browser History"/.test(imp) && /ENTRY_MAX/.test(imp) && /TOTAL_MAX/.test(imp), 'ייבוא: לפי התוכן, עם תקרות גודל');
 ok(/startsWith\("http:\/\/"\) && !url\.startsWith\("https:\/\/"\)/.test(imp), 'ייבוא: רק http/https (לא javascript:)');
-ok(/fun importAll\(r: BrImport\.Result\)/.test(store) && /have\.add\(it\.url\)/.test(store), 'ייבוא: בלי כפולים');
+const sync = R(B + 'BrSync.kt');
+ok(/fun importAll\(r: BrImport\.Result\)/.test(store) && /BrSync\.planMarks\(marks, r\.marks, gone/.test(store) && /BrSync\.planVisits/.test(store), 'ייבוא: רק מה שחדש, דרך BrSync');
+ok(/fun key\(url: String\)/.test(sync) && /utm_/.test(sync) && /removePrefix\("www\."\)/.test(sync), 'זהות סימנייה: מתעלמת מ־www, ‏utm ו־"/" בסוף');
+ok(/k in gone -> dead\+\+/.test(sync) && /gone\.json/.test(store) && /private fun forget\(m: BrMark\)/.test(store), 'סימנייה שנמחקה כאן לא חוזרת בייבוא');
+ok(/!it\.imp && \(all \|\| it\.x == 0L\)/.test(sync) && /BrStore\.markExported\(list\)/.test(R(B + 'BrowserActivity.kt')), 'ייצוא: רק מה ש־Chrome עוד לא קיבל, ומסומן אחרי שנשמר');
+ok(/distinctBy \{ BrSync\.key\(it\.url\) \}/.test(imp), 'בתוך קובץ אחד — בלי כפולים לפי המפתח');
+ok(fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yishaiguedj1/snowball/br/BrSyncTest.kt')), 'בדיקת JVM לכפילויות');
 ok(/testBrowserReleaseUnitTest/.test(R('.github/workflows/android.yml')) && fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yishaiguedj1/snowball/br/BrImportTest.kt')), 'בדיקת JVM לייבוא ב־CI');
 
 // 26/10/2026 (בקשת המשתמש: "יותר זהה ל־Chrome במראה, יותר Apple בעיצוב", לפי התצוגה המקדימה שאושרה)
@@ -125,7 +131,7 @@ ok(/if \(!suggestOn \|\|/.test(act) && /instanceFollowRedirects = false/.test(ac
 ok(/primaryClipDescription/.test(act) && /getConfidenceScore\(TextClassifier\.TYPE_URL\)/.test(act), 'הקישור שהעתקת: לפי הסיווג של המערכת, בלי לקרוא את הלוח');
 ok(/fun pasteGo\(\)/.test(act) && !/fun clipHasUrl\(\)[\s\S]{0,400}primaryClip\?\./.test(act), 'הלוח נקרא רק בנגיעה');
 // סנכרון עם Chrome: סיסמאות — דרך Google; סימניות — ייבוא וייצוא בקובץ (Chrome Sync סגור)
-ok(/fun exportHtml\(\)/.test(store) && /NETSCAPE-Bookmark-file-1/.test(store) && /replace\("<", "&lt;"\)/.test(store), 'ייצוא סימניות בפורמט של הדפדפנים, עם בריחה');
+ok(/fun exportHtml\(list: List<BrMark>, folder: String\)/.test(sync) && /NETSCAPE-Bookmark-file-1/.test(sync) && /replace\("<", "&lt;"\)/.test(sync), 'ייצוא סימניות בפורמט של הדפדפנים, עם בריחה');
 ok(/CreateDocument\("text\/html"\)/.test(act), 'הייצוא נשמר במקום שבוחרים');
 ok(/private fun PasswordsScreen/.test(ui) && /fillSettings\(\)/.test(ui) && /openPasswords\(\)/.test(ui), 'מנהל הסיסמאות: Google ממלא, והרשימה אצל Google');
 ok(/fun clearSite\(t: BrTab\)/.test(act) && /deleteOrigin/.test(act), 'מחיקת הנתונים של אתר אחד (גם בפרופיל הפרטי)');

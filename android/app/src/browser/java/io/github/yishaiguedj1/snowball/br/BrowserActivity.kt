@@ -732,20 +732,32 @@ class BrowserActivity : ComponentActivity() {
             val r = runCatching { contentResolver.openInputStream(u)?.use { BrImport.read(it, u.lastPathSegment ?: "") } }.getOrNull()
             ui.post {
                 if (r == null || (r.marks.isEmpty() && r.visits.isEmpty())) { Toast.makeText(this, R.string.brImportNone, Toast.LENGTH_LONG).show(); return@post }
-                val (m, v) = BrStore.importAll(r)
-                lastImport = "$m,$v,${System.currentTimeMillis()}"; prefs.lastImport = lastImport
+                val st = BrStore.importAll(r)
+                lastImport = "${st.marks},${st.visits},${System.currentTimeMillis()},${st.known}"; prefs.lastImport = lastImport
                 markRev++
-                Toast.makeText(this, getString(R.string.brImported, m, v), Toast.LENGTH_LONG).show()
+                Toast.makeText(this, if (st.marks + st.visits == 0) getString(R.string.brImportNothingNew)
+                    else getString(R.string.brImported, st.marks, st.visits), Toast.LENGTH_LONG).show()
             }
         }.apply { isDaemon = true }.start()
     }
 
-    fun exportMarks() { runCatching { exportLaunch.launch("studio-browser-bookmarks.html") } }
+    /** רק הסימניות ש־Chrome עוד לא קיבל (BrSync.toExport); `all` = שוב את כולן — רק אם הקובץ הקודם לא יובא */
+    private var exportList: List<BrMark> = emptyList()
+    fun exportMarks(all: Boolean = false) {
+        val list = BrStore.exportList(all)
+        if (list.isEmpty()) { Toast.makeText(this, R.string.brExportNone, Toast.LENGTH_LONG).show(); return }
+        exportList = list
+        val day = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT).format(java.util.Date())
+        runCatching { exportLaunch.launch("studio-browser-bookmarks-$day.html") }
+    }
 
     private fun exportTo(u: Uri) {
-        val html = BrStore.exportHtml()
+        val list = exportList.ifEmpty { return }
+        val day = java.text.DateFormat.getDateInstance(java.text.DateFormat.SHORT).format(java.util.Date())
+        val html = BrSync.exportHtml(list, "Studio Browser · $day")
         val ok = runCatching { contentResolver.openOutputStream(u, "wt")?.use { it.write(html.toByteArray(Charsets.UTF_8)) } != null }.getOrDefault(false)
-        Toast.makeText(this, if (ok) R.string.brExported else R.string.dmErrFail, Toast.LENGTH_SHORT).show()
+        if (ok) { BrStore.markExported(list); exportList = emptyList(); markRev++ }
+        Toast.makeText(this, if (ok) getString(R.string.brExportedN, list.size) else getString(R.string.dmErrFail), Toast.LENGTH_SHORT).show()
     }
 
     fun dlSettings() { runCatching { startActivity(Intent(this, DmActivity::class.java)) } }
