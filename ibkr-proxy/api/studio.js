@@ -909,21 +909,53 @@ async function watch(req, res, deps) {
   const fa = await fundWatch(deps, now).catch(() => -1);   // 25/10/2026: בקרת הדיוק של מנתח החברות — התראה כשמשהו נשבר
   return res.status(200).json({ ok: true, down, ar, sa, st, bk, ob, aw, lc, lw, jg, us, fa });
 }
-/* 21/10/2026 (בקשת המשתמש): עבודה ב־R2 שהסתיימה לפני יותר מחודש (SC.expiredJob) נמחקת כמו "מחיקה" בטלפון —
+/* 21/10/2026 (בקשת המשתמש): עבודה ב־R2 שהסתיימה לפני SC.jobTtl (ייצור 30 יום, ניסוי 7 — 26/10/2026) נמחקת כמו "מחיקה" בטלפון —
    removeJobRec: קודם הרשומה במאגר הלמידה נשמרת (learnSave), ואז הרשומה, הקבצים ב־R2, ההפקות מחדש וגיליונות ה־AI.
-   הדלי של מאגר הלמידה (snb-learn) לא נוגעים בו. פעם ב־6 שעות למופע, עד GC_MAX בריצה (זמן הפונקציה). מספר שנמחקו, ‎-1 = תקלה */
-const GC_EVERY = 6 * 3600e3, GC_MAX = 20;
-let lastGc = 0;
+   הדלי של מאגר הלמידה (snb-learn) לא נוגעים בו. סריקה מלאה פעם ב־6 שעות למופע, עד GC_MAX בריצה (זמן הפונקציה).
+   26/10/2026: סרטון המקור — יום מפתיחת הפרויקט (SC.srcDueAt). הסריקה המלאה רושמת בזיכרון את המקורות שהזמן שלהם מגיע
+   ב־6 השעות הבאות (srcSoon), וכל בדיקה מתוזמנת (10 דק׳) קוראת רק את העבודות שהגיע זמנן — בלי עוד סריקות של כל העבודות
+   (מכסת הקריאות של Firestore). מופע שעלה מחדש — הסריקה הראשונה בונה את הרשימה שוב. מספר שנמחקו, ‎-1 = תקלה */
+const GC_EVERY = 6 * 3600e3, GC_MAX = 20, SRC_MAX = 20;
+let lastGc = 0, srcSoon = new Map();
 async function jobGc(deps, now) {
-  if (process.env.SNB_JOBGC === 'off' || Math.abs(now - lastGc) < GC_EVERY) return 0;
-  lastGc = now;
-  const all = [];
-  for (const st of SC.FINAL) all.push(...await query(deps, 'studioJobs', { state: st }, 300));
+  if (process.env.SNB_JOBGC === 'off') return 0;
   let n = 0;
-  for (const j of all.filter((x) => UID_RE.test(String(x.uid || '')) && SC.expiredJob(x, now)).slice(0, GC_MAX)) {
-    try { await removeJobRec(deps, j.uid, j, now); n++; } catch (e) {}
+  if (Math.abs(now - lastGc) >= GC_EVERY) {
+    lastGc = now;
+    const all = [];
+    for (const st of SC.FINAL) all.push(...await query(deps, 'studioJobs', { state: st }, 300));
+    const ok = all.filter((x) => UID_RE.test(String(x.uid || '')));
+    const ttl = SC.jobTtl(PROJECT()), ends = SC.folderEnds(ok), gone = new Set();
+    for (const j of ok.filter((x) => SC.expiredJob(x, now, ttl, ends.get(x.folder))).slice(0, GC_MAX)) {
+      try { await removeJobRec(deps, j.uid, j, now); gone.add(j.id); n++; } catch (e) {}
+    }
+    srcSoon = new Map();
+    for (const j of ok) if (!gone.has(j.id) && SC.srcPending(j) && SC.srcDueAt(j) <= now + GC_EVERY) srcSoon.set(j.id, { uid: j.uid, due: SC.srcDueAt(j) });
+  }
+  let k = 0;
+  for (const [id, x] of Array.from(srcSoon)) {
+    if (x.due > now) continue;
+    if (k++ >= SRC_MAX) break;
+    srcSoon.delete(id);
+    const j = await readJob(deps, id).catch(() => null);
+    if (j && j.uid === x.uid && SC.srcExpired(j, now)) { try { if (await srcPurge(deps, j, now)) n++; } catch (e) {} }
   }
   return n;
+}
+/* מחיקת סרטון המקור של עבודה (והקבצים שנגזרים ממנו). לא כשעבודה אחרת באותה תיקייה עוד רצה (הפקה מחדש / AI) או היא עבודת זהב —
+   אז נשאר, והסריקה הבאה תנסה שוב. הרשומה מסומנת sx; איכויות הצפייה ונקודות השמירה יורדות ממנה */
+async function srcPurge(deps, j, now) {
+  if (!R2.config().ok) return false;
+  const jobs = await listJobs(deps, j.uid);
+  if (jobs.some((c) => c.id !== j.id && c.folder === j.folder && (S.ACTIVE.includes(S.effState(c, now).state) || c.gd))) return false;
+  const recs = await query(deps, 'studioUp', { f: j.folder }, 500).catch(() => []);
+  const byId = new Map(recs.map((r) => [r.id, r]));
+  for (const id of SC.srcFiles(j)) {
+    await SR.delFile(R2.config(), r2deps(deps), { uid: j.uid, folder: j.folder, id, rec: byId.get(id) });
+    if (byId.has(id)) await delDoc(deps, 'studioUp', id).catch(() => null);
+  }
+  await patchJob(deps, j.id, { sx: now, hl: null, hla: null, ck: [] });
+  return true;
 }
 /* שלב 5 (ב2): ניטור הכתובות מבחוץ (lib/sitewatch.js). המצב ב־sysWatch/sites (sd = נפלו, sp = נכשלו פעם אחת); ההתראה —
    למנהל שרשום כבעל הגיבוי (sysBackup/cfg.uid). מחזיר כמה כתובות למטה כרגע, ‎-1 = תקלה בבדיקה עצמה */
@@ -3126,6 +3158,7 @@ async function handler(req, res, deps = {}) {
     if (op === 'gold') {
       // v387: לסמן עבודה שהסתיימה כ"זהב" עם תרגום אנושי לייחוס (הקובץ כבר בתיקיית העבודה ב־Drive), או להסיר (ref: null)
       if (job.kind !== 'tr' || st !== 'done' || job.gs || !S.FILE_ID_RE.test(String(job.folder || ''))) return res.status(409).json({ ok: false, error: 'state' });
+      if (body.ref != null && job.sx > 0) return res.status(409).json({ ok: false, error: 'src_gone' });   // 26/10/2026: בלי מקור אין הרצה חוזרת
       if (body.ref != null && !(Array.isArray(job.fo) && job.fo.some((o) => o && o.k === 'srt'))) return res.status(409).json({ ok: false, error: 'no_srt' });   // בלי SRT אין מה להשוות
       if (body.ref == null) { await patchJob(deps, job.id, { gd: null, gq: null, updated: now }); job.gd = null; job.gq = null; return res.status(200).json({ ok: true, job: view(job) }); }
       const ref = String(body.ref || '');
@@ -3270,6 +3303,7 @@ async function handler(req, res, deps = {}) {
     if (op === 'rerender') {
       // מ2: הפקה מחדש מהכתוביות הנוכחיות — עבודה חדשה (rr) באותה תיקייה; מתחילים אותה ב־op:'start' (כל השמירות הרגילות)
       if (job.kind !== 'tr' || st !== 'done' || !job.fv || !(Array.isArray(job.fo) && job.fo.some((o) => o && o.k === 'cues'))) return res.status(409).json({ ok: false, error: 'state' });
+      if (job.sx > 0) return res.status(409).json({ ok: false, error: 'src_gone' });   // 26/10/2026: סרטון המקור נמחק (יום מפתיחת הפרויקט)
       if ((await readStats(deps, uid)).halt) return res.status(409).json({ ok: false, error: 'halted' });
       const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
       if (all.some((j) => j.kind === 'rr' && j.rp === job.id && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'rr_busy' });
@@ -3383,7 +3417,7 @@ async function handler(req, res, deps = {}) {
 
 module.exports = (req, res) => handler(req, res);
 module.exports._handler = handler;
-module.exports._reset = () => { hits.clear(); cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; _upd = { at: 0, sha: '', t: 0 }; updWaitAt = 0; srvAuthMem.clear(); orphanAt.clear();
+module.exports._reset = () => { hits.clear(); cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; srcSoon = new Map(); _upd = { at: 0, sha: '', t: 0 }; updWaitAt = 0; srvAuthMem.clear(); orphanAt.clear();
   incSeen.clear(); learnMem = null; provC = { at: 0, v: null }; aoCache.clear(); };   // 26/10/2026: המטמונים של מכסת Firestore
 module.exports._updatePending = updatePending;
 module.exports._updWaiting = (job, now, at) => { if (at != null) updWaitAt = at; return updWaiting(job, now); };
