@@ -24,7 +24,11 @@ object DmMedia {
         else -> MediaStore.Downloads.EXTERNAL_CONTENT_URI to "Download/$DIR"
     }
 
-    fun mimeFor(name: String, mime: String) = mime.ifEmpty { DmName.mimeOfExt(DmName.ext(name)) }.ifEmpty { "application/octet-stream" }
+    const val APK = "application/vnd.android.package-archive"
+
+    /** קובץ .apk = תמיד הסוג של חבילת אנדרואיד (גם כשהשרת שלח octet-stream — אחרת מתקין החבילות לא מזהה אותו) */
+    fun mimeFor(name: String, mime: String) = if (DmName.ext(name).equals("apk", true)) APK
+        else mime.ifEmpty { DmName.mimeOfExt(DmName.ext(name)) }.ifEmpty { "application/octet-stream" }
 
     /** קובץ ממתין חדש (או הקיים, אם עוד שלנו) */
     fun pending(ctx: Context, t: DmTask): Uri {

@@ -11,6 +11,7 @@
     <queries>
         <package android:name="app.thesnowball.studio" />
         <package android:name="app.thesnowball.studiodm" />
+        <package android:name="app.thesnowball.browser" />
     </queries>
     <application>
         <activity android:name=".MainActivity" android:exported="false" tools:replace="android:exported">

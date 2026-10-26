@@ -128,6 +128,7 @@ fun BrApp(a: BrowserActivity) {
                         update = { f -> if (v.parent !== f) { (v.parent as? ViewGroup)?.removeView(v); f.removeAllViews(); f.addView(v, FrameLayout.LayoutParams(-1, -1)) } },
                         onRelease = { it.removeAllViews() })
                 }
+                FullBubble(a)   // סרטון במסך מלא — הבועה בפינה של המסך
                 a.permAsk?.let { PermDialog(it) }
             }
         }
@@ -146,7 +147,7 @@ private fun PageScreen(a: BrowserActivity) {
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
         if (!a.barBottom) { Bar(a, q, { q = it }); Progress(t) }
         Box(Modifier.weight(1f).fillMaxWidth().background(c.page)) {
-            if (t == null || t.isNtp) Ntp(a) else WebHost(a, t)
+            if (t == null || t.isNtp) Ntp(a) else { WebHost(a, t); VideoBubble(a, t) }   // הבועה צמודה לנגן שעל המסך
             if (a.editing) Suggest(a, q.text)
             if (a.menu) Menu(a, Modifier.align(if (a.barBottom) Alignment.BottomEnd else Alignment.TopEnd)) { info = true }
         }
@@ -658,10 +659,31 @@ private fun SettingsScreen(a: BrowserActivity) {
                     Switch(a.homeBtn, { a.pickHomeBtn(it) }, colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF30D158), checkedThumbColor = Color.White))
                 }
             }
+            Caption(R.string.brSetPw)
+            Group {
+                val sub = when (val b = a.fillBy) { null -> stringResource(R.string.brPwNoSupport); "" -> stringResource(R.string.brPwOff); else -> b }
+                SetRow(stringResource(R.string.brPwFill), sub, onClick = { a.fillSettings() }) {
+                    if (a.fillBy != null && !a.fillGoogle) Text(stringResource(R.string.brPwPick), color = Red, fontSize = 15.sp)
+                }
+                HorizontalDivider(Modifier.padding(start = 16.dp), thickness = 0.5.dp, color = c.line)
+                SetRow(stringResource(R.string.brPwGoogle), null, onClick = { a.openPasswords() }) {}
+            }
+            Caption(R.string.brSetChrome)
+            Group {
+                SetRow(stringResource(R.string.brImport), stringResource(R.string.brImportSub), onClick = { a.pickImport() }) {}
+                HorizontalDivider(Modifier.padding(start = 16.dp), thickness = 0.5.dp, color = c.line)
+                SetRow(stringResource(R.string.brTakeout), stringResource(R.string.brTakeoutSub), onClick = { a.openTakeout() }) {}
+            }
             Caption(R.string.brSetPrivacy)
             Group { SetRow(stringResource(R.string.brSetClear), null, onClick = { ask = true }) {} }
             Caption(R.string.brDownloads)
-            Group { SetRow(stringResource(R.string.brSetDl), null, onClick = { a.dlSettings() }) {} }
+            Group {
+                SetRow(stringResource(R.string.brSetBubble), null, onClick = { a.pickBubble(!a.bubble) }) {
+                    Switch(a.bubble, { a.pickBubble(it) }, colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF30D158), checkedThumbColor = Color.White))
+                }
+                HorizontalDivider(Modifier.padding(start = 16.dp), thickness = 0.5.dp, color = c.line)
+                SetRow(stringResource(R.string.brSetDl), null, onClick = { a.dlSettings() }) {}
+            }
             Caption(R.string.brAbout)
             Group { SetRow("Studio Browser", a.version()) {} }
             Spacer(Modifier.height(30.dp))

@@ -111,7 +111,7 @@ const route = R('android/app/src/grab/java/io/github/yishaiguedj1/snowball/AppRo
 const grab = R('android/app/src/bubble/java/io/github/yishaiguedj1/snowball/GrabService.kt');
 const dla = R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/DlActivity.kt');
 ok(/const val DM_PKG = "app\.thesnowball\.studiodm"/.test(route) && /const val STUDIO_PKG = "app\.thesnowball\.studio"/.test(route), 'AppRoute: החבילות שלנו בלבד');
-ok(/private fun open\(url: String\) \{\s*hide\(\)[\s\S]{0,200}if \(AppRoute\.toDm\(this, url\)\) return/.test(grab), 'הבועה → Studio DM כשמותקן (ברירת המחדל)');
+ok(/private fun open\(url: String, toBr: Boolean, isPage: Boolean\) \{\s*hide\(\)[\s\S]{0,700}if \(AppRoute\.toDm\(this, url\)\) return/.test(grab), 'הבועה → Studio DM כשמותקן (ברירת המחדל)');
 ok(/getQueryParameter\("o"\) == "1" && DlState\.id != nonce && AppRoute\.toDm\(this, u, ref\)/.test(dla), '"רק להוריד לטלפון" ב־Studio → Studio DM כשמותקן');
 for (const [m, pkg] of [['bubble', 'studiodm'], ['studio', 'studiodm'], ['dm', 'studio']])
   ok(new RegExp('<package android:name="app\\.thesnowball\\.' + pkg + '" />').test(R('android/app/src/' + m + '/AndroidManifest.xml')), 'queries ב־' + m + ' → ' + pkg);

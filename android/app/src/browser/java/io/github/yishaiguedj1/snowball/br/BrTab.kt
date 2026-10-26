@@ -24,6 +24,8 @@ class BrTab(val id: Long, url: String, title: String, val private: Boolean, var 
     var desktop by mutableStateOf(false)
     var icon by mutableStateOf<Bitmap?>(null)
     var thumb by mutableStateOf<Bitmap?>(null)
+    /** הנגן שעל המסך (BrVideo): [x, y, רוחב, גובה] כחלקים מהדף הנראה; null = אין — הבועה נעלמת */
+    var vid by mutableStateOf<FloatArray?>(null)
 
     var web: WebView? = null
     var state: Bundle? = null
@@ -32,6 +34,8 @@ class BrTab(val id: Long, url: String, title: String, val private: Boolean, var 
     val found = HuntMedia.Found()
     val headSeen = HashSet<String>()
     @Volatile var page = ""
+    /** נפתח מהבועה ב־Chrome ("לצוד בדפדפן שלנו"): עד מתי לפתוח לבד את רשימת ההורדה כשנמצא משהו */
+    var autoPick = 0L
 
     val isNtp get() = !url.startsWith("http") && web == null && state == null
     fun pageIsVideo() = VideoUrl.classify(page) is VideoUrl.Hit.Video
