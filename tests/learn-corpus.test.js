@@ -26,6 +26,8 @@ const { fakeR2, ACC } = require('./_r2fake');
   ok(it && it.m === '2026-10' && it.cu.length === 2 && !('uid' in it) && !('name' in it) && !('folder' in it) && !('at' in it), 'רק השדות המותרים (uid, שם, תיקייה וזמן — לא)');
   ok(it.cu[0].en === 'Call ⟨מספר⟩' && it.cu[0].f === 'התקשרו' && !('secret' in it.cu[0]) && !('r' in it.cu[0]), 'הכתובית: מנוקה, ורק השלבים ששינו משהו');
   ok(it.cu[1].k === 'S?', 'שם דובר במקום S1/S2 — לא נשמר');
+  const ab = LC.normCorpus({ v: 1, cu: [{ i: 1, s: 0, e: 1, k: 'S1', en: 'x', d: 'א', b: 'ב', p: 1 }, { i: 2, s: 0, e: 1, k: 'S1', en: 'y', d: 'א', p: 1 }, { i: 3, s: 0, e: 1, k: 'S1', en: 'z', d: 'א', b: 'ג', p: 'yes' }] }, '2026-10');
+  ok(ab.cu[0].b === 'ב' && ab.cu[0].p === 1 && !('p' in ab.cu[1]) && ab.cu[2].b === 'ג' && !('p' in ab.cu[2]), '26/10: הטיוטה השנייה (b) ומה נבחר (p) — p רק 1 ורק עם b');
   ok(it.wd.length === 1 && it.wd[0].length === 8 && it.fin[0].h === 'התקשרו\nעכשיו' && !('id' in it.fin[0]), 'זמני המילים והסופי — בצורה קבועה');
   ok(JSON.stringify(it.sp) === JSON.stringify({ S1: { n: 'Warren Buffett', r: 'CEO', g: 'm' }, S2: { n: 'call ⟨מספר⟩' } }), 'שמות הדוברים נשמרים (בקשת המשתמש) — רק S1/S2, שם/תפקיד/מגדר, מנוקים');
   ok(LC.normCorpus(Object.assign({}, raw, { v: 2 }), '2026-10') === null && LC.normCorpus({ v: 1, cu: [] }, 'x') === null, 'גרסה אחרת / בלי כתוביות — לא נשמר');

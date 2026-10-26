@@ -1001,7 +1001,9 @@ def learn_corpus(ctx):
         return None
     td = pd / 'tr'
     d = _lc_answers(sorted(td.glob('batch_*.he.txt')))
-    f = dict(d, **_lc_answers([td / 'fixes.txt']))
+    alt = _lc_answers(sorted((td / 'alt').glob('batch_*.he.txt')))     # 26/10/2026: הטיוטה השנייה (Haiku)
+    ab = _lc_answers([td / 'fixes-ab.txt'])                            # מה שנבחר ממנה
+    f = dict(d, **ab, **_lc_answers([td / 'fixes.txt']))
     r = dict(f, **_lc_answers([td / 'fixes_review.txt']))
     z = dict(r, **_lc_answers([td / 'fixes_zfinal.txt', td / 'fixes_zqc.txt']))   # 25/10: גם סבב הבקרה על המסך
     cu = []
@@ -1011,7 +1013,11 @@ def learn_corpus(ctx):
         k = str(c['id'])
         row = {'i': int(k), 's': _lc_num(c.get('speech_s')), 'e': _lc_num(c.get('speech_e')),
                'k': c.get('spk') if _LC_SPK.match(str(c.get('spk') or '')) else 'S?', 'en': _lc_txt(c.get('en')), 'd': _lc_txt(d.get(k))}
-        for key, cur, prev in (('f', f, d), ('r', r, f), ('z', z, r)):   # רק כשהשלב שינה משהו — כך רואים מה כל סוכן תיקן
+        if alt.get(k) is not None and alt.get(k) != d.get(k):            # b = הטיוטה השנייה, p = היא נבחרה
+            row['b'] = _lc_txt(alt.get(k))
+            if k in ab:
+                row['p'] = 1
+        for key, cur, prev in (('f', f, dict(d, **ab)), ('r', r, f), ('z', z, r)):   # רק כשהשלב שינה משהו — כך רואים מה כל סוכן תיקן
             if cur.get(k) != prev.get(k):
                 row[key] = _lc_txt(cur.get(k))
         cu.append(row)
