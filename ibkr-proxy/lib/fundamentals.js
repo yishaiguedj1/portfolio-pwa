@@ -1029,6 +1029,27 @@ function crossCheck(d, y) { // מול Yahoo: הכנסות ורווח נקי בש
    אינו ממוצע הרבעונים (Bank of America 2025: הערכה ‎0.94 מול ‎0.98 שהחברה פרסמה). המספר שהחברה פרסמה בהודעה לעיתונות
    (דרך Yahoo) גובר כשהוא קרוב לחישוב שלנו (עד 15% — אחרת לא אותו בסיס: פיצול, מניות בכורה); נרשם qeps (מידע) */
 // רבעון ש־parseYahooTs חישב בעצמו (שנה פחות שלושה) — לא מה שהחברה פרסמה (EchoStar: ‎−4.269999 = ‎−50.41 פחות שלושה רבעונים)
+// זרוע מימון בדוח רווח והפסד (שורה "Financial services/products", "Ford Credit", "GM Financial") — ראו finArm ב־fundamentals
+const finArmOf = (rows) => !!rows && rows.some((r) => !/\btax/i.test(r.label || '') && /\b(financial (services|products)|financing|credit)\b|\b[A-Z]{2,4} Financial\b/i.test(r.label || ''));
+function yQuarterFill(sec, y, grossOnFace, checks) {
+  const qfill = {};
+  if (y && y.q && y.Q) for (const k of Object.keys(YMAP)) {
+    if (!y.Q[k] || !QFILL.has(k)) continue; // רק זרימות שההגדרה שלהן אצל Yahoo כמו שלנו (לא מאזן, ריבית, מניות, רווח למניה)
+    if ((k === 'gp' || k === 'cogs') && sec.gpx !== 'fin' && (sec.gpx === 'part' || !grossOnFace)) continue;
+    const fin = sec.gpx === 'fin' && (k === 'gp' || k === 'cogs');
+    if ((k === 'gp' || k === 'cogs') && !fin) continue; // רווח גולמי: אצל Yahoo לעתים בסיס אחר מהשנה שלנו (Snap-on — כולל שירותי מימון) — לא מערבבים
+    if (!fin && !(sec.Q[k] && sec.Q[k].some((v) => v != null))) continue; // מדד שאין לנו ברבעונים — לא ממציאים סדרה
+    const Q = sec.Q[k] || (sec.Q[k] = sec.q.map(() => null));
+    sec.q.forEach((e, i) => {
+      if (Q[i] != null) return;
+      const j = y.q.findIndex((x) => Math.abs(day(x) - day(e)) < 10);
+      if (j < 0 || y.Q[k][j] == null || yComp(y, k, y.q[j])) return;
+      Q[i] = y.Q[k][j]; (qfill[k] = qfill[k] || []).push(e); checks.push({ k: 'qfy', m: k, p: e });
+    });
+  }
+  return qfill;
+}
+const QFILL = new Set(['rev', 'cogs', 'gp', 'op', 'ni', 'pretax', 'tax', 'ocf', 'capex', 'dep', 'sbc', 'rnd']);
 const yComp = (y, k, e) => !!(y && y.qc && y.qc[k] && y.qc[k].includes(e));
 function q4Eps(sec, y) {
   const out = [], der = (sec.derived && sec.derived.eps) || [];
@@ -1435,12 +1456,26 @@ async function fundamentals(sym0) {
   // יש שורה כזו בתגית פרטית של החברה (הכותרת: "Gross profit" / "Cost of sales…"), או כשאין דוח לבדוק
   const isRows = (face && face.is && face.is.rows) || null;
   const grossOnFace = !isRows || isRows.some((r) => /gross (profit|margin)|\bcosts? of (sales|revenues?|goods|products|services)\b/i.test(r.label || ''));
+  // חברה עם זרוע מימון (Ford Credit, ‏GM Financial, ‏Cat Financial, ‏Snap-on Credit): ההכנסות כוללות הכנסות מימון, ועלויות המימון
+  // (ריבית, הפסדי אשראי — מתויגות עם ממד, לא ב־companyfacts) לא בעלות המכר — רווח גולמי מ־SEC מנופח (Ford ‏14% מול 8%).
+  // כמו בממשקים שאנחנו משווים אליהם (Yahoo = Nasdaq בכל הארבע): רווח גולמי ועלות מכר מ־Yahoo, שנים ורבעונים (gpx 'fin')
+  // (גם כשמודפס "רווח גולמי" — Snap-on מדפיסה אותו רק על המוצרים, וכל המקורות מוסיפים את שירותי המימון)
+  const finArm = useSec && finArmOf(isRows);
+  if (finArm && (sec.gpx === 'ok' || sec.gpx === 'gp') && y && y.A && y.A.gp) {
+    for (const k of ['gp', 'cogs']) { delete sec.A[k]; delete sec.Q[k]; if (sec.derived) delete sec.derived[k]; }
+    sec.gpx = 'fin';
+  }
   if (useSec && y && y.fy) for (const k of Object.keys(YMAP)) {
     if (sec.A[k] || !y.A[k]) continue;
-    if ((k === 'gp' || k === 'cogs') && (sec.gpx === 'part' || !grossOnFace)) continue; // 'off' עם שורת "Cost of…" בדוח (Thermo Fisher, Deere: לפי מוצרים ושירותים) — כן
+    if ((k === 'gp' || k === 'cogs') && sec.gpx !== 'fin' && (sec.gpx === 'part' || !grossOnFace)) continue; // 'off' עם שורת "Cost of…" בדוח (Thermo Fisher, Deere: לפי מוצרים ושירותים) — כן
     const a = sec.fy.map((e) => { const j = y.fy.findIndex((x) => Math.abs(day(x) - day(e)) < 20); return j >= 0 ? y.A[k][j] : null; });
     if (a.some((v) => v != null)) { sec.A[k] = a; fill.push(k); }
   }
+  // רבעון ש־SEC לא מאפשר לחשב מאותו בסיס (שנה שהוצגה מחדש מול תשעה חודשים ישנים — Bank of America; רבעונים שאינם מאותו בסיס
+  // כמו השנה; זרוע מימון) — כמו בממשקים שאנחנו משווים אליהם: המספר שהחברה פרסמה (Yahoo, רק רבעון שהוא דיווח ולא חישב בעצמו).
+  // רק תאריך שכבר קיים אצלנו; נרשם qfy (מידע) ובתשובה qfill — כלי ההשוואה לא בודק אותו מול Yahoo
+  const qfill = useSec ? yQuarterFill(sec, y, grossOnFace, checks) : {};
+  if (sec.gpx === 'fin') checks.push({ k: 'gpfin', m: 'gp', p: sec.fy[sec.fy.length - 1] });
   // מניות לשווי השוק: בדילול מהדוח האחרון (ב־Yahoo "sharesOutstanding" הוא לפעמים רק סוג מניות אחד — Meta: 2.2B מתוך 2.57B)
   const lastSh = (D) => (D && D.sh ? D.sh.filter((v) => v > 0).pop() : null);
   const sharesOut = useSec ? (lastSh(sec.Q) || lastSh(sec.A)) : ((y && y.sharesOut) || lastSh(y && y.Q) || (s && s.sharesOut));
@@ -1451,7 +1486,7 @@ async function fundamentals(sym0) {
     derived: useSec ? sec.derived : null, gpx: useSec ? sec.gpx || null : null, opx: useSec ? sec.opx || null : null, C: useSec ? sec.C : null, ifrs: useSec ? !!sec.ifrs : false,
     sic: useSec ? sec.sic : null, sicDesc: useSec ? sec.sicDesc : null, fye: useSec ? sec.fye : null, lastFiled: useSec ? sec.lastFiled : null,
     prof: s ? s.prof : null, price: s ? s.price : null, prev: s ? s.prev : null,
-    sharesOut: sharesOut || (s && s.sharesOut) || null, fill, fpe: s ? s.fpe : null, peg: s ? s.peg : null, beta: s ? s.beta : null,
+    sharesOut: sharesOut || (s && s.sharesOut) || null, fill, qfill, fpe: s ? s.fpe : null, peg: s ? s.peg : null, beta: s ? s.beta : null,
     est: s ? s.est : [], hist: s ? s.hist : [], nextEarn: s ? s.nextEarn : null, nq: n || null,
     px: m ? m.px : null, splits: m ? m.splits : [], splitsUsed: useSec ? sec.splitsUsed || [] : [], peers: peers || [],
     ind: industryFor(s && s.prof && s.prof.industry), checks, errs,
@@ -1477,7 +1512,7 @@ async function handle(body, res) {
   return res.status(200).json({ ...v, indData: industryData(v.ind) });
 }
 
-module.exports = { handle, fundamentals, q4Eps, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
+module.exports = { handle, fundamentals, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
   industryFor, industryData, _cache: cache,
   // התגיות המועמדות לכל שורה — לכלי ההשוואה (fundxcheck: SEC גולמי גם לתקופות שהושלמו מתגית משנית). נשמט ב־f9db4c74 — tools/fund-xcheck.js מצפה לו
   TAGS: { gaap: { ...FLOW, ...INST }, ifrs: IFRS } };

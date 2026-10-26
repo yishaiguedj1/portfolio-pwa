@@ -562,7 +562,7 @@ function xcheck(d, facts, y, nq, opt = {}) {
         // רבעון רביעי ש־Yahoo לא פרסם וחושב ב־parseYahooTs (שנה − 3 רבעונים; למניות — ממוצע שלושת האחרים): לא מקור למניות / רווח למניה
         const yd = !!(ya && yv != null && kind === 'Q' && ya[YPRIM[m]] == null);
         if (yd && NOSUM.has(m)) yv = null;
-        const yf = kind === 'A' && fill.has(m) && raw == null;
+        const yf = (kind === 'A' && fill.has(m) && raw == null) || (kind === 'Q' && d.qfill && d.qfill[m] && d.qfill[m].includes(e)) || (d.gpx === 'fin' && (m === 'gp' || m === 'cogs'));
         const N = nq && nq[kind], ni = N ? nearEnd(N.ends, e, 20) : -1;
         const nk = m === 'ni' ? 'nic' : m;
         let nv = ni >= 0 && N.v[nk] ? N.v[nk][N.ends[ni]] ?? null : null;

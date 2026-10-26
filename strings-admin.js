@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1232 מפתחות מתוך 4697) */
+/* המחרוזות של admin (1234 מפתחות מתוך 4701) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -332,12 +332,14 @@ he: {
   "admFaK_fix": "תוקן אוטומטית",
   "admFaK_gold": "סט הזהב זז",
   "admFaK_gp": "רווח גולמי לא מתאים",
+  "admFaK_gpfin": "רווח גולמי — זרוע מימון",
   "admFaK_gr": "צמיחה שלא תואמת לדוח",
   "admFaK_neg": "ערך שלילי שלא אמור להיות",
   "admFaK_other": "בדיקה אחרת",
   "admFaK_part": "חלק גדול מהשלם",
   "admFaK_q4": "הרבעונים לא מסתכמים לשנה",
   "admFaK_qeps": "רבעון רביעי — כפי שהחברה פרסמה",
+  "admFaK_qfy": "רבעון כפי שהחברה פרסמה",
   "admFaK_qmix": "רבעונים לא מאותו בסיס כמו השנה",
   "admFaK_qneg": "רבעון שלילי חשוד",
   "admFaK_rst": "החברה הציגה מחדש (מטופל)",
@@ -1566,12 +1568,14 @@ en: {
   "admFaK_fix": "Fixed automatically",
   "admFaK_gold": "Golden set moved",
   "admFaK_gp": "Gross profit doesn’t fit",
+  "admFaK_gpfin": "Gross profit — finance arm",
   "admFaK_gr": "Growth that doesn’t match the filing",
   "admFaK_neg": "Negative where it can’t be",
   "admFaK_other": "Other check",
   "admFaK_part": "Part larger than the whole",
   "admFaK_q4": "Quarters don’t add up to the year",
   "admFaK_qeps": "Q4 — as the company announced",
+  "admFaK_qfy": "Quarter as the company reported",
   "admFaK_qmix": "Quarters on a different basis than the year",
   "admFaK_qneg": "Suspicious negative quarter",
   "admFaK_rst": "Restated by the company (handled)",

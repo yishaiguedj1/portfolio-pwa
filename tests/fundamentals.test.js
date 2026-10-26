@@ -101,6 +101,14 @@ ok(!d.fy.includes('2020-12-31') || A('rev', '2020-12-31') === 200, 'טופס 8-K
     ['NetIncomeLoss', 'USD', [[...Y(2023), 40, '10-K', '2024-02-01'], [...Y(2024), 44, '10-K', '2025-02-01']]]]);
   ok(F.normalizeSec(TTMQ, []).fy.join() === '2023-12-31,2024-12-31', 'עמודת 12 חודשים אחרונים בדוח רבעוני — לא נעשית סוף שנה');
   ok(F.TAGS && F.TAGS.gaap && F.TAGS.gaap.rev, 'התגיות המועמדות מיוצאות לכלי ההשוואה');
+  // זרוע מימון — כמו הממשקים: רווח גולמי מ־Yahoo; רבעון ש־SEC לא מאפשר — המספר שהחברה פרסמה (Yahoo), רק זרימות שיש לנו
+  ok(F.finArmOf([{ label: 'Automotive' }, { label: 'GM Financial' }]) && F.finArmOf([{ label: 'Interest expense on Company debt excluding Ford Credit' }]) &&
+    !F.finArmOf([{ label: 'Net sales' }, { label: 'Income tax credit' }]), 'זרוע מימון בדוח רווח והפסד — מזוהה (לא זיכוי מס)');
+  const sq3 = { q: ['2025-09-30', '2025-12-31'], Q: { rev: [10, null], debt: [5, null] }, gpx: 'ok' }, ch3 = [];
+  const qf3 = F.yQuarterFill(sq3, { q: ['2025-09-30', '2025-12-31'], Q: { rev: [10, 11], debt: [5, 6], gp: [3, 4] }, qc: {} }, true, ch3);
+  ok(sq3.Q.rev[1] === 11 && sq3.Q.debt[1] == null && !sq3.Q.gp && qf3.rev.join() === '2025-12-31' && ch3[0].k === 'qfy', 'רבעון חסר — כפי שפורסם (Yahoo), רק זרימה שיש לנו (לא מאזן, לא רווח גולמי)');
+  const sq4 = { q: ['2025-12-31'], Q: { rev: [null] }, gpx: 'ok' };
+  ok(!F.yQuarterFill(sq4, { q: ['2025-12-31'], Q: { rev: [11] }, qc: { rev: ['2025-12-31'] } }, true, []).rev, 'רבעון ש־Yahoo חישב בעצמו — לא');
   const dd = F.normalizeSec(ODD, []);
   ok(dd.Q.sh[dd.q.indexOf('2024-12-31')] === 100, 'הערכה רחוקה מהשנה ביותר מ־12% (40 מול 100) — ממוצע השנה');
 }
