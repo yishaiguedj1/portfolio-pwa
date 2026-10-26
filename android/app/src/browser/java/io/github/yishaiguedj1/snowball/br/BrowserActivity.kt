@@ -66,6 +66,8 @@ import androidx.webkit.ProfileStore
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import io.github.yishaiguedj1.snowball.AppRoute
+import io.github.yishaiguedj1.snowball.DlEngine
+import io.github.yishaiguedj1.snowball.YtPage
 import io.github.yishaiguedj1.snowball.HuntMedia
 import io.github.yishaiguedj1.snowball.R
 import io.github.yishaiguedj1.snowball.dm.DmActivity
@@ -166,6 +168,9 @@ class BrowserActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         prefs = BrPrefs(this)
+        // 26/10/2026: מנוע ההורדות (פייתון + yt-dlp, והעדכון היומי שלו) מתחמם ברקע מההתחלה — הבדיקה הראשונה של סרטון לא
+        // מחכה לו (עד עכשיו: חלק מה"חצי דקה, דקה" ביוטיוב)
+        Thread { runCatching { DlEngine.prepare(applicationContext) } }.apply { isDaemon = true; name = "dm-warm" }.start()
         barBottom = prefs.barBottom; homeBtn = prefs.homeBtn; engine = prefs.engine; bubble = prefs.bubble
         suggestOn = prefs.suggest; zoom = prefs.zoom; lastImport = prefs.lastImport
         shield = prefs.shield; cookies = prefs.cookies; lockPriv = prefs.lockPriv; bgPlay = prefs.bgPlay; pip = prefs.pip
@@ -692,6 +697,24 @@ class BrowserActivity : ComponentActivity() {
         ui.postDelayed({ if (cur === t && screen == Screen.PAGE && !editing && !pick && picks(t).isNotEmpty()) pick = true }, 1500)
     }
 
+    /**
+     * 26/10/2026 (דיווח המשתמש: ביוטיוב הפרטים נטענו אחרי חצי דקה עד דקה): רשימת הפורמטים מהנגן שבדף (YtPage) — מיד
+     * כשהנגן עלה, בלי לחכות לבדיקה של yt-dlp (שממשיכה ברקע וגוברת כשהיא מסתיימת). רק בטאב שעל המסך, לא בטאב פרטי
+     */
+    fun ytSeed(t: BrTab) {
+        if (t.private || cur !== t) return
+        val page = t.page
+        if (!YtPage.isYt(page) || !t.pageIsVideo() || DmPre.seeded(page) || DmPre.state(page) == 2) return
+        val w = t.web ?: return
+        runCatching {
+            w.evaluateJavascript(YtPage.JS) { raw ->
+                if (t.page != page) return@evaluateJavascript
+                val info = YtPage.toInfo(raw, page) ?: return@evaluateJavascript
+                if (DmPre.seed(page, info)) pushDl(t)
+            }
+        }
+    }
+
     /** הכפתור שעל הנגן (BrVideo): המצב לדף — כמה נמצא (0 = בלי כפתור; גם כשכובה בהגדרות) והתווית */
     fun pushDl(t: BrTab) {
         val w = t.web ?: return
@@ -759,6 +782,7 @@ class BrowserActivity : ComponentActivity() {
      */
     fun prefetch(t: BrTab) {
         if (t.private || cur !== t || t.foundN == 0) return
+        ytSeed(t)
         val ua = t.web?.settings?.userAgentString ?: ""
         val urls = listOf(t.page) + t.found.list.map { it.url }
         mainCands(t).forEach { p -> DmPre.start(this, p.url, if (p.page) "" else t.page, ua, urls) }

@@ -349,13 +349,16 @@ private fun PageScreen(a: BrowserActivity) {
                 WebHost(a, t)
                 // הכפתור שעל הנגן חי בתוך הדף (BrVideo); כאן — המצב שלו, והבדיקה ברקע כדי שהאיכויות יהיו מוכנות (DmPre)
                 // ואז, כשהבדיקה מסתיימת — התפריט עם האיכויות עובר לדף (עד שתי דקות וחצי)
-                LaunchedEffect(t.id, t.foundN, a.bubble, t.web) {
+                // 26/10/2026: גם הכתובת (t.url, מצב של Compose) — ביוטיוב מעבר לסרטון הבא הוא בלי טעינת דף, ומספר הממצאים נשאר 1; בלי זה הסרטון
+                // החדש לא נבדק מראש והפרטים חיכו לנגיעה
+                LaunchedEffect(t.id, t.foundN, a.bubble, t.web, t.url) {
                     a.pushDl(t)
                     if (t.foundN > 0) {
                         delay(1500); a.prefetch(t); a.pushDl(t)
                         var last = a.menuJson(t)
                         repeat(150) {
                             delay(1000)
+                            a.ytSeed(t)   // ביוטיוב: הנגן עלה — הרשימה מהדף, בלי לחכות ל־yt-dlp
                             val m = a.menuJson(t)
                             if (m != last) { last = m; a.pushDl(t) }
                             if (!m.startsWith("{\"w\"")) return@LaunchedEffect

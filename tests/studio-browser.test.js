@@ -76,7 +76,7 @@ ok(/fun bubbleTap\(\)[\s\S]{0,200}if \(ps\.size == 1 && ps\[0\]\.file\) download
   && /if \(ps\.size == 1 && ps\[0\]\.file\) a\.download\(ps\[0\]\) else a\.pick = true/.test(ui), 'הכפתור = ⬇ בשורת הכתובת (אותה בחירה)');
 ok(/var bubble: Boolean get\(\) = sp\.getBoolean\("bub", true\)/.test(store) && /pickBubble/.test(ui) && /prefs\.bubble = b; cur\?\.let \{ pushDl\(it\) \}/.test(act), 'אפשר לכבות בהגדרות; פועל כברירת מחדל');
 // האיכויות מוכנות מראש
-ok(/LaunchedEffect\(t\.id, t\.foundN, a\.bubble, t\.web\) \{\s*a\.pushDl\(t\)\s*if \(t\.foundN > 0\) \{\s*delay\(1500\); a\.prefetch\(t\); a\.pushDl\(t\)/.test(ui) && /if \(m != last\) \{ last = m; a\.pushDl\(t\) \}/.test(ui), 'הסרטון שעל המסך נבדק ברקע, והתפריט עובר לדף כשהבדיקה מסתיימת');
+ok(/LaunchedEffect\(t\.id, t\.foundN, a\.bubble, t\.web, t\.url\) \{\s*a\.pushDl\(t\)\s*if \(t\.foundN > 0\) \{\s*delay\(1500\); a\.prefetch\(t\); a\.pushDl\(t\)/.test(ui) && /if \(m != last\) \{ last = m; a\.pushDl\(t\) \}/.test(ui), 'הסרטון שעל המסך נבדק ברקע, והתפריט עובר לדף כשהבדיקה מסתיימת');
 ok(/if \(t\.private \|\| cur !== t \|\| t\.foundN == 0\) return/.test(act) && /ps\.firstOrNull \{ !it\.page && !it\.file \}/.test(act), 'רק הטאב שעל המסך, לא פרטי, ורק מה שנבדק ב־yt-dlp');
 ok(/DmPre\.await\(url\)\?\.let \{ return Found\.Video/.test(R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmActivity.kt')), 'מנהל ההורדות לוקח את התוצאה המוכנה');
 ok(/if \(url in busy \|\| fresh\(done\[url\], now\)\) return/.test(pre) && /while \(url in busy\)/.test(pre) && /JSONObject\(e\.info\.toString\(\)\)/.test(pre), 'בדיקה אחת לכל כתובת, מחכים לבדיקה שרצה, ועותק לכל מי שמבקש');
@@ -190,5 +190,19 @@ const he3 = R('android/app/src/browser/res/values/br.xml'), en3 = R('android/app
 for (const k of ['brShield', 'brCookies', 'brLockPriv', 'brSites', 'brSpeed', 'brBgPlay', 'brPip', 'brChMedia', 'brUnlock'])
   ok(he3.includes(`name="${k}"`) && en3.includes(`name="${k}"`), 'מחרוזת בשתי השפות: ' + k);
 ok(fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yishaiguedj1/snowball/br/BrShieldTest.kt')), 'בדיקת JVM לחסימה ולהגדרות האתרים');
+
+// 26/10/2026: ביוטיוב — הרשימה מהנגן שבדף מיד (YtPage), גם במעבר לסרטון הבא בלי טעינת דף; המנוע מתחמם מההתחלה
+{
+  const yt = fs.readFileSync('android/app/src/ytdl/java/io/github/yishaiguedj1/snowball/YtPage.kt', 'utf8');
+  const pre = fs.readFileSync('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmPre.kt', 'utf8');
+  const eng = fs.readFileSync('android/app/src/ytdl/java/io/github/yishaiguedj1/snowball/DlEngine.kt', 'utf8');
+  ok(/a\.ytSeed\(t\)/.test(ui) && /fun prefetch\(t: BrTab\) \{[^}]*ytSeed\(t\)/.test(act) && /YtPage\.toInfo\(raw, page\)/.test(act) && /DmPre\.seed\(page, info\)/.test(act), 'ביוטיוב: הרשימה מהנגן שבדף בלי לחכות ל־yt-dlp');
+  ok(/if \(t\.private \|\| cur !== t\) return/.test(act.slice(act.indexOf('fun ytSeed'))), 'לא בטאב פרטי ורק בטאב שעל המסך');
+  ok(!/url|signatureCipher/.test(yt.slice(yt.indexOf('const val JS'), yt.indexOf('"""', yt.indexOf('const val JS') + 20))), 'מהנגן רק מספרים וקודים — לא כתובות של קבצים');
+  ok(/id != want/.test(yt), 'נגן שעוד מחזיק את הסרטון הקודם — לא נלקח');
+  ok(/fun seed\(/.test(pre) && /seededInfo\(url, System\.currentTimeMillis\(\)\)\?\.let \{ return/.test(pre), 'מידע מהנגן לא מחכה לבדיקה המלאה');
+  ok(/DlEngine\.prepare\(applicationContext\)/.test(act), 'המנוע מתחמם כשהדפדפן נפתח');
+  ok(!/"--print"/.test(eng) && /"--newline"/.test(eng) && /DlProbe\.outFile\(dir\)/.test(eng), 'בלי ‎--print‎ (משתיק את ההתקדמות) — שורה לכל עדכון');
+}
 
 console.log('studio-browser: ' + n + ' בדיקות עברו');
