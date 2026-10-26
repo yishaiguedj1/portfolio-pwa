@@ -97,6 +97,16 @@ object HuntMedia {
         return true
     }
 
+    /* 26/10/2026 (דיווח המשתמש ב־Vimeo): חתימה שמשתנה בכל טעינה בתוך הנתיב (‎/1793027351-0x12d6…a8/98a3d4df/…‎) —
+       אותו קובץ נראה "חדש". חלק בנתיב שנראה כמו חתימה (ארוך עם ספרות, ‎0x…‎, ‎exp=…‎, ‏~) לא נכנס למפתח */
+    private val TOKEN = Regex("""^(?=.*\d)[A-Za-z0-9_~=-]{24,}$|0x[0-9a-f]{12,}|^(exp|hmac|token|sig|auth|hdnts|acl)[=_~-]""", RegexOption.IGNORE_CASE)
+
+    /** המפתח של קובץ לזיהוי כפולים: השרת והנתיב, בלי השאילתה ובלי חלקים שהם חתימה */
+    fun keyOf(url: String): String = try {
+        val u = URI(url)
+        u.host + (u.rawPath ?: "").split('/').joinToString("/") { if (TOKEN.containsMatchIn(it)) "*" else it }
+    } catch (e: Exception) { url }
+
     /** רשימת הממצאים בדף: בלי כפולים (אותו נתיב עם חתימה אחרת = אותו קובץ), עד 30, והטוב קודם (רשימה ראשית לפני קבצים) */
     class Found {
         private val byKey = LinkedHashMap<String, Hit>()
@@ -105,7 +115,7 @@ object HuntMedia {
 
         /** true = חדש. now = מתי נראה (לניקוי במעבר בין חלקים באותו דף — navigated) */
         fun add(h: Hit, now: Long = 0L): Boolean {
-            val k = try { URI(h.url).let { it.host + it.rawPath } } catch (e: Exception) { h.url }
+            val k = keyOf(h.url)
             if (byKey.containsKey(k)) return false
             // רשימת HLS "ראשית" (master) מכילה את האחרות — אם כבר יש אחת מאותו שרת, רשימת משנה לא נוספת
             if (h.kind == Kind.HLS && byKey.values.any { it.kind == Kind.HLS && it.host == h.host && it.url.contains("master", true) } && !h.url.contains("master", true)) return false
