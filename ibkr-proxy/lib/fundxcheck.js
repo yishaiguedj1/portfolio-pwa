@@ -148,7 +148,10 @@ function rawSeries(facts, tag, adj, cur) {
       if (!FORMS.test(x.form || '') || x.val == null) continue;
       const key = x.start ? x.start + '|' + x.end : x.end, M = x.start ? dur : inst, h = M.get(key);
       const v = x.val * adjFactor(adj, x.filed);
-      if (!h || x.filed > h.filed) M.set(key, { v, filed: x.filed, vk: h && h.vk, fk: h && h.fk, nr: h && h.nr });
+      // שנה שלמה: דוח שנתי גובר על 10-Q מאוחר שתייג "שנה" עם ערכי רבעון (Comfort Systems 2025: ‏$403M במקום ‏$2.2B; Axon 2021) —
+      // אותו כלל של tagFacts בשרתון, אחרת ההשוואה מסמנת "bug" על הערך הנכון (וגם על הרבעון הרביעי שנגזר ממנו)
+      const ann = !/^10-Q/.test(x.form), yr = !!x.start && day(x.end) - day(x.start) >= 350;
+      if (!h || (yr && h.ann !== ann ? ann : x.filed > h.filed)) M.set(key, { v, filed: x.filed, ann, vk: h && h.vk, fk: h && h.fk, nr: h && h.nr });
       // הערך מהדוח השנתי האחרון — במאזן 10-K גובר על 10-Q מאוחר (המדיניות של fundamentals; Honeywell: 10-Q של 2026 הציג מחדש את 31/12/2025)
       const g2 = M.get(key);
       if (/^(10-K|20-F|40-F|10-KT)/.test(x.form)) {
@@ -276,9 +279,11 @@ function xcheck(d, facts, y, nq, opt = {}) {
     for (const m of XK) {
       if (!D[m]) continue;
       const adj = NOSUM.has(m) ? { splits: d.splits, ps: PER_SHARE.has(m) } : null;
-      const cur = m === 'sh' ? null : d.cur, tag = d.tags[m], rs = rawSeries(facts, tag, adj, cur);
+      // שורה שהשרתון הוריד בכוונה (opx / gpx: לא בדוח רווח והפסד, או עלות מכר חלקית) — התגית לא מקור אמת להשוואה
+      const dropped = (m === 'op' && d.opx === 'off') || (m === 'gp' && (d.gpx === 'part' || d.gpx === 'off'));
+      const cur = m === 'sh' ? null : d.cur, tag = d.tags[m], rs = dropped ? null : rawSeries(facts, tag, adj, cur);
       // תגיות חלופיות (מועמדות ב־fundamentals — mergeTags משלים מהן תקופות שאין בתגית הראשית)
-      const alts = ((opt.cand && opt.cand[m]) || []).filter((t) => t !== tag).map((t) => [t, rawSeries(facts, t, adj, cur)]).filter(([, x]) => x);
+      const alts = dropped ? [] : ((opt.cand && opt.cand[m]) || []).filter((t) => t !== tag).map((t) => [t, rawSeries(facts, t, adj, cur)]).filter(([, x]) => x);
       for (let i = from; i < ends.length; i++) {
         const e = ends[i];
         let v = D[m][i]; if (v == null) continue;
@@ -291,7 +296,7 @@ function xcheck(d, facts, y, nq, opt = {}) {
         const fsr = NOSUM.has(m) ? null : fs0;
         if (rs) raw = rawAt(rs, e, kind, fsr);
         if (raw == null) for (const [t, x] of alts) { const v2 = rawAt(x, e, kind, fsr); if (v2 != null) { raw = v2; rf = t; break; } }
-        if (raw == null && facts) { const f = rawFormula(m, d, (t) => secAt(t, e, kind, BAL.has(m) ? null : fs0)); if (f) { raw = f.v; rf = f.rf; } }
+        if (raw == null && facts && !dropped) { const f = rawFormula(m, d, (t) => secAt(t, e, kind, BAL.has(m) ? null : fs0)); if (f) { raw = f.v; rf = f.rf; } }
         if (raw != null && m === 'capex' && rs && rs.neg && !rf) raw = -raw;
         else if (raw != null && m === 'capex' && rf) raw = Math.abs(raw);
         // רבעון מחושב שלילי של השקעה ברוטו (שנה פחות 9 חודשים מבסיסים שונים) — לא ייחוס
@@ -309,7 +314,8 @@ function xcheck(d, facts, y, nq, opt = {}) {
         let nv = ni >= 0 && N.v[nk] ? N.v[nk][N.ends[ni]] ?? null : null;
         const nqAt = ni >= 0 ? Object.fromEntries(Object.entries(N.v).map(([k, o]) => [k, o[N.ends[ni]]]).filter(([, x]) => x != null)) : null;
         const face = faceBad.has(m + '|' + e) ? false : null;
-        const r = { m, k: kind, p: e, v: vv, raw, y: yv, n: nv, face, der: !!(d.derived && d.derived[m] && d.derived[m].includes(e)) };
+        // derived = רבעונים מחושבים (גם רבעון רביעי, שמסתיים בסוף השנה) — לא השנה עצמה
+        const r = { m, k: kind, p: e, v: vv, raw, y: yv, n: nv, face, der: kind === 'Q' && !!(d.derived && d.derived[m] && d.derived[m].includes(e)) };
         if (rf) r.rf = rf; if (yd) r.yd = 1; if (yf) r.yf = 1;
         // ni: מול Yahoo/Nasdaq גם הרווח הכולל וגם הרווח לבעלי המניות — Nasdaq ‏"Applicable to Common" לפעמים = הכולל
         const sm = (a) => (a == null ? null : same(m, vc, a, sc) || (m === 'ni' && same(m, vv, a, sc)) ? true : false);

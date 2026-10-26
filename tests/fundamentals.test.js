@@ -259,6 +259,67 @@ dfx.A.rev[1] = 222e6;
   ok(amb.out.length === 2 && !amb.fill.length, 'אף שורה לא תואמת ויש כמה — פער מסומן, בלי החלפה');
   const neg = F.faceCheck(D([189e6, 222e6]), { is: page([['(222)', '(189)']]) });
   ok(neg.seen.ok === 2 && !neg.out.length && !neg.fill.length, 'Mettler: שורה שכולה הפוכה בסימן (תווית הפוכה) — לא פער ולא החלפה'); }
+/* ---------- רווח גולמי, רווח תפעולי, רווח נקי והכנסות — מה שהדוח באמת מציג (26/10/2026) ---------- */
+{
+  const page = (rows, title = 'Consolidated Statements of Operations') => SF.parseR(`<table><tr><th class="tl" colspan="1" rowspan="2"><div><strong>${title} - USD ($)<br> $ in Millions</strong></div></th><th class="th" colspan="2">12 Months Ended</th></tr>
+<tr><th class="th"><div>Dec. 31, 2025</div></th><th class="th"><div>Dec. 31, 2024</div></th></tr>${rows.map(([c, t, l, v]) => row(c, t, l, v)).join('')}</table>`);
+  const M = (a) => a.map((v) => v * 1e6);
+  // UnitedHealth: "Cost of products sold" ליד "Medical costs" — עלות מכר חלקית: בלי עלות מכר ובלי רווח גולמי מחושב
+  const UN = facts([['Revenues', 'USD', yrs(M([400, 447]), 2024)], ['CostOfGoodsAndServicesSold', 'USD', yrs(M([46, 50]), 2024)],
+    ['OperatingIncomeLoss', 'USD', yrs(M([32, 19]), 2024)], ['NetIncomeLoss', 'USD', yrs(M([14, 12]), 2024)]]);
+  const unF = { is: page([['ro', 'us-gaap_Revenues', 'Total revenues', ['447', '400']], ['ro', 'us-gaap_PolicyholderBenefitsAndClaimsIncurredNet', 'Medical costs', ['365', '300']],
+    ['ro', 'us-gaap_CostOfGoodsAndServicesSold', 'Cost of products sold', ['50', '46']], ['rou', 'us-gaap_CostsAndExpenses', 'Total operating costs', ['428', '368']],
+    ['rou', 'us-gaap_OperatingIncomeLoss', 'Earnings from operations', ['19', '32']], ['rou', 'us-gaap_NetIncomeLoss', 'Net earnings', ['12', '14']]]) };
+  const du = F.normalizeSec(UN, [], unF);
+  ok(du.gpx === 'part' && !du.A.gp && !du.A.cogs && !du.tags.cogs && du.A.op.join() === M([32, 19]).join(), 'עלות מכר חלקית (UnitedHealth) — בלי עלות מכר ובלי "רווח גולמי" של 89%');
+  // Alphabet: "Cost of revenues" ליד מחקר ושיווק, בלי שורת רווח גולמי — הכנסות פחות עלות ההכנסות (כמו אצל כולם)
+  const GO = facts([['Revenues', 'USD', yrs(M([350, 403]), 2024)], ['CostOfRevenue', 'USD', yrs(M([146, 163]), 2024)], ['NetIncomeLoss', 'USD', yrs(M([100, 132]), 2024)]]);
+  const dg = F.normalizeSec(GO, [], { is: page([['ro', 'us-gaap_Revenues', 'Revenues', ['403', '350']], ['ro', 'us-gaap_CostOfRevenue', 'Cost of revenues', ['163', '146']],
+    ['ro', 'us-gaap_ResearchAndDevelopmentExpense', 'R&D', ['60', '49']], ['rou', 'us-gaap_NetIncomeLoss', 'Net income', ['132', '100']]]) });
+  ok(dg.gpx === 'ok' && dg.A.gp.join() === M([204, 240]).join() && dg.gpd.length === 2, 'עלות ההכנסות בלי שורת רווח גולמי (Alphabet) — מחושב, ונרשם כמחושב בשנים');
+  // McDonald's: CostOfGoodsAndServicesSold רק ב־10-Q (רכיב אחד), ב־10-K אין שורה כזו — גם הרבעונים בלי רווח גולמי
+  const MC = facts([['Revenues', 'USD', [...yrs(M([25920, 26885]), 2024), ['2025-01-01', '2025-03-31', 5956e6, '10-Q', '2025-05-01'], ['2025-04-01', '2025-06-30', 6843e6, '10-Q', '2025-08-01']]],
+    ['CostOfGoodsAndServicesSold', 'USD', [['2025-01-01', '2025-03-31', 620e6, '10-Q', '2025-05-01'], ['2025-04-01', '2025-06-30', 654e6, '10-Q', '2025-08-01']]],
+    ['NetIncomeLoss', 'USD', yrs(M([8223, 8563]), 2024)]]);
+  const dm = F.normalizeSec(MC, [], { is: page([['ro', 'us-gaap_Revenues', 'Total revenues', ['26885', '25920']], ['ro', 'mcd_FoodAndPaperCosts', 'Food & paper', ['3006', '2995']],
+    ['rou', 'us-gaap_NetIncomeLoss', 'Net income', ['8563', '8223']]]) });
+  ok(dm.gpx === 'off' && !dm.Q.gp && !dm.Q.cogs, 'עלות מכר שלא מופיעה בדוח השנתי (McDonald\'s ב־10-Q) — בלי רווח גולמי ברבעונים');
+  // Honeywell: OperatingIncomeLoss = "Total Segment profit" בביאור; בדוח רווח והפסד אין רווח תפעולי
+  const HO = facts([['Revenues', 'USD', yrs(M([38, 37]), 2024)], ['OperatingIncomeLoss', 'USD', yrs(M([8.6, 8.1]), 2024)], ['NetIncomeLoss', 'USD', yrs(M([5.7, 4.9]), 2024)]]);
+  const dh = F.normalizeSec(HO, [], { is: page([['ro', 'us-gaap_Revenues', 'Net sales', ['37', '38']], ['rou', 'us-gaap_IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest', 'Income before taxes', ['5.5', '6.2']],
+    ['rou', 'us-gaap_NetIncomeLoss', 'Net income', ['4.9', '5.7']]]) });
+  ok(dh.opx === 'off' && !dh.A.op && !dh.tags.op, 'רווח תפעולי שלא בדוח רווח והפסד (Honeywell — רווח המגזרים מהביאור) — לא מוצג');
+  ok(F.normalizeSec(HO, []).A.op.join() === M([8.6, 8.1]).join(), '...ובלי דוח לבדוק — כמו קודם');
+  // GrossProfit שמתויג רק בביאור (Oracle / Booking: מגזר או מוצר) — לא "הרווח הגולמי" כשהדוח לא מציג אותו
+  const OR = facts([['Revenues', 'USD', yrs(M([57, 67]), 2024)], ['GrossProfit', 'USD', yrs(M([21, 24]), 2024)], ['NetIncomeLoss', 'USD', yrs(M([12, 17]), 2024)]]);
+  ok(!F.normalizeSec(OR, [], { is: page([['ro', 'us-gaap_Revenues', 'Total revenues', ['67', '57']], ['rou', 'us-gaap_NetIncomeLoss', 'Net income', ['17', '12']]]) }).A.gp
+    && F.normalizeSec(OR, []).A.gp.join() === M([21, 24]).join(), 'GrossProfit מהביאורים כשבדוח אין שורת רווח גולמי — לא מוצג (בלי דוח לבדוק — כמו קודם)');
+  // Devon: בלי דוח רווח והפסד שזוהה, התזרים מתחיל ב־ProfitLoss (כולל זכויות מיעוט) — הרווח הנקי נשאר NetIncomeLoss
+  const DV = facts([['Revenues', 'USD', yrs(M([15, 16]), 2024)], ['NetIncomeLoss', 'USD', yrs(M([2891, 2681]), 2024)], ['ProfitLoss', 'USD', yrs(M([2942, 2731]), 2024)]]);
+  const cf = SF.parseR(`<table><tr><th class="tl"><div><strong>Consolidated Statements of Cash Flows - USD ($)<br> $ in Millions</strong></div></th><th class="th" colspan="2">12 Months Ended</th></tr><tr><th class="th"><div>Dec. 31, 2025</div></th><th class="th"><div>Dec. 31, 2024</div></th></tr>${row('ro', 'us-gaap_ProfitLoss', 'Net earnings', ['2731', '2942'])}</table>`);
+  ok(F.normalizeSec(DV, [], { cf }).tags.ni === 'NetIncomeLoss', 'Devon: "רווח נקי" מהתזרים (כולל זכויות מיעוט) לא קודם לרווח המיוחס לחברה');
+  // NiSource: שורת הסיכום שהחברה מציגה גוברת על רכיב שקודם לה ברשימה
+  const NI = facts([['RevenueFromContractWithCustomerExcludingAssessedTax', 'USD', yrs(M([5283, 6523]), 2024)], ['RegulatedOperatingRevenue', 'USD', yrs(M([5455, 6642]), 2024)], ['NetIncomeLoss', 'USD', yrs(M([1, 1]), 2024)]]);
+  const dn = F.normalizeSec(NI, [], { is: page([['ro', 'us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax', 'Customer revenues', ['6523', '5283']],
+    ['ro', 'us-gaap_RegulatedOperatingRevenueOther', 'Other revenues', ['119', '172']], ['rou', 'us-gaap_RegulatedOperatingRevenue', 'Total Operating Revenues', ['6642', '5455']]]) });
+  ok(dn.tags.rev === 'RegulatedOperatingRevenue' && dn.A.rev.join() === M([5455, 6642]).join(), 'הכנסות: שורת הסך שבדוח (NiSource) — לא "הכנסות מלקוחות"');
+  // Camden: בלי שורת סך — השורה הגדולה ("Property revenues", ‏OperatingLeaseLeaseIncome), לא דמי הניהול
+  const CP = facts([['RevenueFromContractWithCustomerExcludingAssessedTax', 'USD', yrs(M([7, 13]), 2024)], ['OperatingLeaseLeaseIncome', 'USD', yrs(M([1544, 1574]), 2024)], ['NetIncomeLoss', 'USD', yrs(M([1, 1]), 2024)]]);
+  const dcp = F.normalizeSec(CP, [], { is: page([['ro', 'us-gaap_OperatingLeaseLeaseIncome', 'Property revenues', ['1574', '1544']], ['ro', 'us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax', 'Fee and asset management', ['13', '7']]]) });
+  ok(dcp.tags.rev === 'OperatingLeaseLeaseIncome' && dcp.A.rev.join() === M([1544, 1574]).join(), 'הכנסות בלי שורת סך (Camden) — השורה הגדולה שבדוח');
+  // דוח "רווח כולל" משולב — רק כשאין דוח רווח והפסד אחר (Royal Caribbean, Devon)
+  const fs1 = (n) => SF.pickStatements(`<FilingSummary><MyReports><Report><HtmlFileName>R2.htm</HtmlFileName><ShortName>${n}</ShortName><MenuCategory>Statements</MenuCategory></Report></MyReports></FilingSummary>`);
+  ok(fs1('CONSOLIDATED STATEMENTS OF COMPREHENSIVE INCOME (LOSS)').isAlt === true && fs1('Consolidated Statements of Comprehensive Earnings').is === 'R2.htm' && fs1('Consolidated Statements of (Loss) Earnings').is === 'R2.htm',
+    'דוח רווח והפסד: "Comprehensive Earnings", ‏"(Loss) Earnings", ודוח רווח כולל משולב כשאין אחר');
+  ok(!SF.pickStatements(FSUM).isAlt, '...ולא כשיש דוח רווח והפסד נפרד');
+  // כותרת שורה בתגית פרטית (class="pl custom")
+  const cu = SF.parseR(`<table><tr><th class="tl"><div><strong>Statements of Income - USD ($)<br> $ in Millions</strong></div></th><th class="th"><div>Dec. 31, 2025</div></th></tr><tr class="ro"><td class="pl custom"><a onclick="Show.showAR( this, 'defref_ice_Section31Fees', window );">Section 31 fees</a></td><td class="nump">412</td></tr></table>`);
+  ok(cu.rows[0].label === 'Section 31 fees', 'דף R: כותרת של שורה בתגית פרטית (pl custom)');
+  // כלי ההשוואה: SEC הגולמי — דוח שנתי גובר על 10-Q מאוחר שתייג "שנה" (Comfort Systems)
+  const X = require(path.join(root, 'ibkr-proxy/lib/fundxcheck.js'));
+  const rs = X.rawSeries(facts([['GrossProfit', 'USD', [[...Y(2025), 2195.9e6, '10-K', '2026-02-19'], [...Y(2025), 403.4e6, '10-Q', '2026-04-23']]]]), 'GrossProfit');
+  ok(X.rawAt(rs, '2025-12-31', 'A') === 2195.9e6, 'כלי ההשוואה: שנה מה־10-K, לא מ־10-Q מאוחר שתייג את הרבעון כשנה');
+}
 // מאזן: הדוח השנתי גובר על השוואה בדוח רבעוני מאוחר יותר (eBay 2025)
 ok(F.normalizeSec(facts([['Revenues', 'USD', yrs([1, 1], 2024)], ['Assets', 'USD', [[null, '2024-12-31', 19365, '10-K', '2025-02-01'], [null, '2025-12-31', 17610, '10-K', '2026-02-19'], [null, '2025-12-31', 17437, '10-Q', '2026-04-29']]]]), []).A.ta.join() === '19365,17610',
   'מאזן סוף שנה: ה־10-K גובר על 10-Q מאוחר שתיקן אותו לאחור');

@@ -38,8 +38,8 @@ async function getText(url, opts = {}, ms = 9000) {
 
 /* ---------- SEC: מיפוי תגיות (סדר = עדיפות) ---------- */
 const FLOW = {
-  rev: ['RevenuesNetOfInterestExpense', 'Revenues', 'RevenueFromContractWithCustomerExcludingAssessedTax', 'SalesRevenueNet', 'RevenueFromContractWithCustomerIncludingAssessedTax', 'SalesRevenueGoodsNet'],
-  cogs: ['CostOfRevenue', 'CostOfGoodsAndServicesSold', 'CostOfGoodsSold', 'CostOfServices'],
+  rev: ['RevenuesNetOfInterestExpense', 'Revenues', 'RegulatedAndUnregulatedOperatingRevenue', 'RevenueFromContractWithCustomerExcludingAssessedTax', 'SalesRevenueNet', 'RevenueFromContractWithCustomerIncludingAssessedTax', 'SalesRevenueGoodsNet', 'RegulatedOperatingRevenue', 'OperatingLeaseLeaseIncome'],
+  cogs: ['CostOfRevenue', 'CostOfGoodsAndServicesSold', 'CostOfGoodsSold', 'CostOfServices', 'CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization'], // האחרונה: Uber, ‏Newmont ("Costs applicable to sales")
   gp: ['GrossProfit'],
   op: ['OperatingIncomeLoss'],
   ni: ['NetIncomeLoss', 'NetIncomeLossAvailableToCommonStockholdersBasic', 'ProfitLoss'],
@@ -129,6 +129,24 @@ function sumFacts(parts) {
   return out;
 }
 
+/* בסיס עלות המכר (26/10/2026): רווח גולמי = הכנסות − עלות המכר רק כשעלות המכר היא באמת עלות ההכנסות.
+   חברה שלא מציגה רווח גולמי ומתייגת CostOfGoodsAndServicesSold על שורה אחת מתוך כמה עלויות ישירות — UnitedHealth
+   ("Cost of products sold" ‏$50B מול "Medical costs" ‏$299B ⇒ "רווח גולמי" של 89%), Cigna, Crown Castle (שכירות האתרים
+   בתגית אחרת), CenterPoint ו־Alliant (דלק וגז בתגיות של חברות חשמל), EQT (עלויות הפקה) — אצל Yahoo, ‏S&P ו־Nasdaq
+   שלושה מספרים שונים, ו־S&P לא מציג בכלל ל־UnitedHealth. גם תגית שלא מופיעה בדוח השנתי (McDonald's: ב־10-Q בלבד, רכיב אחד)
+   לא מגדירה עלות מכר. מחזיר: 'gp' (החברה מציגה רווח גולמי), 'ok', 'part' (שורה חלקית), 'off' (לא בדוח), null (אין דוח לבדוק) */
+const COST_SIB = /^(PolicyholderBenefitsAndClaimsIncurred|BenefitsLossesAndExpenses$|LiabilityForFuturePolicyBenefitsPeriodExpense|DirectCostsOfLeasedAndRentedPropertyOrEquipment|CostOfOtherPropertyOperatingExpense|UtilitiesOperatingExpense|CostOfPurchasedPower|FuelCosts|CostOfNaturalGasPurchases|ResultsOfOperations(ProductionOrLiftingCosts|ExpenseFromOilAndGasProducingActivities)|OilAndGasProductionExpense)/;
+function cogsBasis(face, tags, cogsTags) {
+  const S = face && face.is; if (!S || !S.rows || !S.rows.length) return null;
+  const rows = S.rows.filter((r) => /^(us-gaap|ifrs-full)$/.test(r.ns));
+  if (rows.some((r) => r.tag === 'GrossProfit')) return 'gp';
+  if (!rows.some((r) => r.tag === tags.rev || r.tag === tags.ni || r.tag === tags.op)) return null; // לא דוח רווח והפסד שזיהינו
+  const c = tags.cogs; if (!c) return null;
+  const row = rows.find((r) => r.tag === c);
+  if (!row) return 'off';
+  if (c === 'CostOfRevenue' || c === 'CostOfSales' || row.total) return 'ok';
+  return rows.some((r) => !r.total && r.tag !== c && (COST_SIB.test(r.tag) || cogsTags.includes(r.tag))) ? 'part' : 'ok';
+}
 /* מטבע הדיווח: המטבע שבו הוגשה ההגשה האחרונה (בתגיות של הכנסות, רווח ונכסים); כשיש שניים באותה הגשה (עמודת המרה
    לדולר — Alibaba) — זה שיש בו יותר ערכים באותה הגשה. חברה שהחליפה מטבע (Nebius: רובל → דולר) — רק המטבע החדש */
 function reportCur(tax, tags) {
@@ -318,8 +336,19 @@ function normalizeSec(facts, splits = [], face = null) {
   const merged = {}, tags = {};
   let cur = null;
   for (const k of Object.keys(map)) {
-    const onFace = faceTagList(face, STMT_OF[k]), list = map[k].slice();
+    // הרווח הנקי — רק מדוח רווח והפסד: התזרים מתחיל ב"רווח נקי" כולל זכויות מיעוט (ProfitLoss), ובלי דוח רווח והפסד
+    // שזוהה הוא קפץ לפני NetIncomeLoss (Devon 2024: ‏$2.94B במקום ‏$2.89B; Royal Caribbean, General Mills)
+    const onFace = faceTagList(face, k === 'ni' ? (face && face.is ? ['is'] : []) : STMT_OF[k]), list = map[k].slice();
     let order = list.filter((t) => onFace.includes(t)).concat(list.filter((t) => !onFace.includes(t))); // בין אלה שבדוח — סדר העדיפות שלנו (מדולל לפני בסיסי)
+    // הכנסות: שורת הסיכום שהחברה עצמה מציגה ("Total operating revenues") — לפני שורת רכיב שקודמת לה ברשימה שלנו
+    // (NiSource: ‏RegulatedOperatingRevenue ‏$6.64B הוא הסך, RevenueFromContract… ‏$6.52B רק "הכנסות מלקוחות");
+    // בלי שורת סך — השורה הגדולה בדוח קודם (Camden: "Property revenues" ‏$1.57B בתגית OperatingLeaseLeaseIncome, ולא דמי ניהול ‏$13M)
+    if (k === 'rev' && face && face.is) {
+      const big = (t) => Math.max(0, ...face.is.rows.filter((r) => r.tag === t).map((r) => Math.abs(SECFACE.rowVals(face.is, r).find((x) => x != null) || 0)));
+      const tot = list.filter((t) => face.is.rows.some((r) => r.total && r.tag === t));
+      const rest = list.filter((t) => onFace.includes(t) && !tot.includes(t)).sort((a, b) => big(b) - big(a));
+      order = tot.concat(rest, order.filter((t) => !tot.includes(t) && !rest.includes(t)));
+    }
     // מזומן: סדר קבוע — הכולל מזומן מוגבל אחרון גם כשהוא השורה במאזן (בשנים קודמות הוא סך התזרים: IFF 2022 ‏$552M כולל
     // מזומן של פעילות מוחזקת למכירה, מול "מזומן ושווי מזומנים" ‏$483M שהודפס במאזן)
     if (k === 'cash') order = list;
@@ -524,9 +553,26 @@ function normalizeSec(facts, splits = [], face = null) {
       }
     }
   }
+  // עלות מכר שאינה עלות ההכנסות (cogsBasis) — בלי עלות המכר ובלי רווח גולמי מחושב; רווח גולמי שהחברה דיווחה נשאר
+  // שורה שלא בדוח רווח והפסד (כשיש דוח שזיהינו) = מדד מהביאורים, לא השורה: Honeywell מתייגת OperatingIncomeLoss על
+  // "Total Segment profit" בביאור המגזרים (2023: ‏$7.56B; הדוח לא מציג רווח תפעולי) — כמו Parker-Hannifin, ‏Rockwell, ‏Regency,
+  // ‏Deere, ‏Disney; ‏GrossProfit של Oracle / Booking / CVS — מגזר או מוצר. לא מציגים (opx / gpOff); בלי דוח לבדוק — כמו קודם
+  const isRows = face && face.is && face.is.rows ? face.is.rows.filter((r) => /^(us-gaap|ifrs-full)$/.test(r.ns)) : null;
+  const realIs = !!isRows && isRows.some((r) => r.tag === tags.rev || r.tag === tags.ni);
+  const opx = realIs && tags.op && !isRows.some((r) => (map.op || []).includes(r.tag)) ? 'off' : null;
+  if (opx) { A.op = {}; Q.op = {}; delete tags.op; delete derived.op; }
+  const gpx = A.cogs ? cogsBasis(face, tags, map.cogs || []) : null;
+  // GrossProfit שלא בדוח נשאר רק כשהוא = הכנסות − עלות מכר תקינה ברוב השנים (Honeywell: מתויג, ותואם — כולל ברבעונים)
+  if (realIs && tags.gp && !isRows.some((r) => (map.gp || []).includes(r.tag))) {
+    const ys = fyEnds.filter((e) => A.gp[e] != null && A.rev[e] != null && A.cogs && A.cogs[e] != null);
+    const agree = gpx === 'ok' && ys.length && ys.filter((e) => Math.abs(A.rev[e] - A.cogs[e] - A.gp[e]) <= 0.01 * Math.abs(A.rev[e])).length * 2 > ys.length;
+    if (!agree) { A.gp = {}; Q.gp = {}; delete tags.gp; delete derived.gp; }
+  }
+  if (gpx === 'part' || gpx === 'off') { A.cogs = {}; Q.cogs = {}; delete tags.cogs; delete derived.cogs; qmix.splice(0, qmix.length, ...qmix.filter((x) => x.m !== 'cogs')); }
   // שורות מחושבות
+  const gpd = []; // שנים שבהן הרווח הגולמי מחושב (לא דווח) — derived.gp הוא של רבעונים
   for (const [D, ends] of [[A, fyEnds], [Q, qEnds]]) for (const e of ends) {
-    if (D.gp && D.gp[e] == null && D.rev[e] != null && D.cogs && D.cogs[e] != null) D.gp[e] = D.rev[e] - D.cogs[e];
+    if (D.gp && D.gp[e] == null && D.rev[e] != null && D.cogs && D.cogs[e] != null) { D.gp[e] = D.rev[e] - D.cogs[e]; if (D === A) gpd.push(e); }
     // סך התחייבויות שלא דווח = סך התחייבויות והון פחות כל ההון (כולל זכויות מיעוט והון ביניים)
     if (D.tl && D.tl[e] == null && D.tle && D.tle[e] != null && D.eq[e] != null) D.tl[e] = D.tle[e] - (D.eqt && D.eqt[e] != null ? D.eqt[e] : D.eq[e]) - ((D.tmp && D.tmp[e]) || 0);
     if (D.debt && D.debt[e] == null) { const s = (D.debtNc[e] || 0) + (D.debtC[e] || 0); if (s) D.debt[e] = s; }
@@ -589,7 +635,7 @@ function normalizeSec(facts, splits = [], face = null) {
   const pack = (D, ends) => { const o = {}; for (const k of KEEP) { if (!D[k]) continue; const a = ends.map((e) => (D[k][e] != null ? D[k][e] : null)); if (a.some((v) => v != null)) o[k] = a; } return o; };
   const fy = fyEnds.filter((e) => A.rev[e] != null || A.ni[e] != null).slice(-20);
   const C = { A: pack(GA, fy), Q: pack(GQ, qEnds) };
-  return { fy, q: qEnds, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes, qmix };
+  return { fy, q: qEnds, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes, qmix, gpx, gpd, opx };
 }
 
 /* ---------- בדיקות אימות — תג, לא תיקון ---------- */
@@ -960,6 +1006,8 @@ async function secFace(cik, sub) {
   const pick = SECFACE.pickStatements(await getText(base + 'FilingSummary.xml', H, 7000));
   const out = { form: r.form[i], filed: r.filingDate[i], acc, url: base };
   await Promise.all(['is', 'bs', 'cf'].map(async (k) => { if (pick[k]) { try { out[k] = SECFACE.parseR(await getText(base + pick[k], H, 7000)); } catch (e) { /* דוח אחד חסר — השאר עדיין נבדקים */ } } }));
+  // דוח "רווח כולל" שנבחר כי אין דוח רווח והפסד נפרד — רק אם יש בו רווח למניה (אחרת זה רק הרווח הכולל האחר)
+  if (pick.isAlt && out.is && !out.is.rows.some((r) => /^EarningsPerShare|EarningsLossPerShare/.test(r.tag))) delete out.is;
   if (!out.is && !out.bs && !out.cf) return null;
   return cset(key, out);
 }
@@ -1009,15 +1057,21 @@ async function fundamentals(sym0) {
   for (const f of fcRes.fill) {
     sec.A[f.m][f.i] = f.v;
     ffix.push({ k: f.old == null ? 'ffill' : 'ffix', m: f.m, p: sec.fy[f.i], f: f.v, v: f.old });
-    if ((f.m === 'rev' || f.m === 'cogs') && sec.A.gp && sec.A.rev[f.i] != null && sec.A.cogs && sec.A.cogs[f.i] != null && (sec.A.gp[f.i] == null || (sec.derived && (sec.derived.gp || []).includes(sec.fy[f.i]))))
+    if ((f.m === 'rev' || f.m === 'cogs') && sec.A.gp && sec.A.rev[f.i] != null && sec.A.cogs && sec.A.cogs[f.i] != null && (sec.A.gp[f.i] == null || (sec.gpd || []).includes(sec.fy[f.i])))
       sec.A.gp[f.i] = sec.A.rev[f.i] - sec.A.cogs[f.i];
   }
   const qeps = useSec ? q4Eps(sec, y) : [];
   const checks = useSec ? validate(sec).concat(crossCheck(sec, y), fcRes.out, ffix, qeps) : [];
   // שורה שחסרה ב־SEC לגמרי (תגית פרטית של החברה, למשל השקעות הוניות ב־IFRS) — משלימים מ־Yahoo לפי תאריך, ומסמנים
   const fill = [];
+  // רווח גולמי ועלות מכר — לא מ־Yahoo כשהחברה לא מציגה אותם: לרכבות, חברות תעופה, נפט וגז, ביטוח ומנהלי השקעות אין
+  // "עלות המכר" בדוח, וכל ספק בונה אחת משלו (CSX 2025: ‏Yahoo ‏$4.69B, ‏S&P ‏$6.42B, ‏Nasdaq ‏$9.98B). משלימים רק כשבדוח
+  // יש שורה כזו בתגית פרטית של החברה (הכותרת: "Gross profit" / "Cost of sales…"), או כשאין דוח לבדוק
+  const isRows = (face && face.is && face.is.rows) || null;
+  const grossOnFace = !isRows || isRows.some((r) => /gross (profit|margin)|\bcosts? of (sales|revenues?|goods|products|services)\b/i.test(r.label || ''));
   if (useSec && y && y.fy) for (const k of Object.keys(YMAP)) {
     if (sec.A[k] || !y.A[k]) continue;
+    if ((k === 'gp' || k === 'cogs') && (sec.gpx === 'part' || !grossOnFace)) continue; // 'off' עם שורת "Cost of…" בדוח (Thermo Fisher, Deere: לפי מוצרים ושירותים) — כן
     const a = sec.fy.map((e) => { const j = y.fy.findIndex((x) => Math.abs(day(x) - day(e)) < 20); return j >= 0 ? y.A[k][j] : null; });
     if (a.some((v) => v != null)) { sec.A[k] = a; fill.push(k); }
   }
@@ -1028,7 +1082,7 @@ async function fundamentals(sym0) {
     ok: true, v: 1, sym, src: useSec ? 'sec' : 'yahoo', cik, asOf: new Date().toISOString().slice(0, 10),
     cur: (useSec ? sec.cur : (s && s.finCur)) || (ta ? 'ILS' : 'USD'),
     fy: base.fy, q: base.q, A: base.A, Q: base.Q, T: useSec ? null : (y && y.T) || null,
-    derived: useSec ? sec.derived : null, C: useSec ? sec.C : null, ifrs: useSec ? !!sec.ifrs : false,
+    derived: useSec ? sec.derived : null, gpx: useSec ? sec.gpx || null : null, opx: useSec ? sec.opx || null : null, C: useSec ? sec.C : null, ifrs: useSec ? !!sec.ifrs : false,
     sic: useSec ? sec.sic : null, sicDesc: useSec ? sec.sicDesc : null, fye: useSec ? sec.fye : null, lastFiled: useSec ? sec.lastFiled : null,
     prof: s ? s.prof : null, price: s ? s.price : null, prev: s ? s.prev : null,
     sharesOut: sharesOut || (s && s.sharesOut) || null, fill, fpe: s ? s.fpe : null, peg: s ? s.peg : null, beta: s ? s.beta : null,

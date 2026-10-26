@@ -5,7 +5,7 @@
    טהור ובלי תלויות; הרשת — ב־fundamentals.js. */
 
 const STMT = {
-  is: /statements? of (consolidated )?(operations|income|earnings)|income statements?|statements? of (comprehensive )?(income|loss)|profit (and|or) loss|operations and comprehensive|results of operations/i,
+  is: /statements? of (consolidated )?(\((loss|income)\) )?(operations|income|earnings)|statements? of comprehensive (earnings|\(loss\) earnings)|income statements?|statements? of (comprehensive )?(income|loss)|profit (and|or) loss|operations and comprehensive|results of operations/i,
   bs: /balance sheets?|(statements? of )?financial (position|condition)|statement of condition/i,
   cf: /cash flows?/i,
 };
@@ -14,6 +14,7 @@ const SKIP = /parenthetical|comprehensive income(?! and)|changes in|equity|segme
 /* מתוך FilingSummary.xml — קובץ ה־R של כל אחד משלושת הדוחות (הראשון שמתאים בקטגוריה Statements) */
 function pickStatements(xml) {
   const out = {};
+  let alt = null; // "Statements of Comprehensive Income" — רק כשאין דוח רווח והפסד אחר (Royal Caribbean: דוח אחד משולב)
   const re = /<Report\b[^>]*>([\s\S]*?)<\/Report>/g;
   let m;
   while ((m = re.exec(String(xml || '')))) {
@@ -24,12 +25,13 @@ function pickStatements(xml) {
     for (const k of ['is', 'bs', 'cf']) {
       if (out[k] || !STMT[k].test(name)) continue;
       // "Statements of Comprehensive Income" לבד — לא דוח רווח והפסד; "of Operations and Comprehensive Income" — כן
-      if (k === 'is' && SKIP.test(name) && !/operations|income and comprehensive|earnings/i.test(name)) continue;
+      if (k === 'is' && SKIP.test(name) && !/operations|income and comprehensive|earnings/i.test(name)) { if (!alt && !/parenthetical|changes in|equity|segment|supplement/i.test(name)) alt = file; continue; }
       if (k !== 'is' && /parenthetical/i.test(name)) continue;
       out[k] = file;
       break;
     }
   }
+  if (!out.is && alt) { out.is = alt; out.isAlt = true; }
   return out;
 }
 
@@ -109,7 +111,7 @@ function parseR(html) {
     if (tr[1] === 'rh') { if (/defref_dei_LegalEntityAxis/.test(tr[2])) break; continue; }
     const body = tr[2], tag = (/defref_([A-Za-z0-9-]+)_([A-Za-z0-9_]+)/.exec(body) || []);
     if (!tag[2]) continue;
-    const lab = /<td class="pl"[\s\S]*?<\/td>/.exec(body);
+    const lab = /<td class="pl(?: [^"]*)?"[\s\S]*?<\/td>/.exec(body); // גם "pl custom" — שורה בתגית פרטית של החברה
     // תא עם מאפיינים נוספים (<td colspan="2" class="nump"> — SAP) הוא עדיין תא של ערך; תאי הערות שוליים (fn) — לא
     const v = [...body.matchAll(/<td\b[^>]*\bclass="(?:nump|num|text)"[^>]*>([\s\S]*?)<\/td>/g)].map((x) => num(x[1]));
     if (!v.some((x) => x != null)) continue;
