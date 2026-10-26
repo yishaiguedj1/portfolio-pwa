@@ -81,7 +81,7 @@ print(json.dumps(E.probe(os.path.join(d, "o.mp4"))))`);
   ok(/def title_event\(/.test(rp) && /_ass_escape\(rtl\(ov\['t'\]\)\)/.test(rp) && /\{\\\\an8\\\\pos/.test(rp), 'הכותרת: שורת ASS נפרדת בראש התמונה (libass — עברית נכונה), מנוקה ומוסלשת');
   ok(/\('thumb', '\{n\}\.thumb\.jpg', ' \(תמונה\)\.jpg', 'image\/jpeg'\)/.test(jp) && /k == 'thumb' and \(od \/ fn\.format\(n=ctx\.name\)\)\.exists\(\)/.test(jp), 'התמונה הממוזערת עולה כשנוצרה');
   ok(/OV_LG_RE\.match\(lg\) if isinstance\(lg, str\) and len\(lg\) <= 65536/.test(jp) && /k != 'lg'/.test(jp), 'job.py: הלוגו לקובץ (רק data URL תקין), ול־rerender.py בלי התמונה');
-  ok(S.OUT_KINDS.includes('thumb') && /'meta', 'thumb'\]/.test(read('studio.js')), 'thumb = סוג תוצר מוכר');
+  ok(S.OUT_KINDS.includes('thumb') && /'meta', 'thumb'[,\]]/.test(read('studio.js')), 'thumb = סוג תוצר מוכר');
   if (vt && FF) {
     const d = fs.mkdtempSync(path.join(os.tmpdir(), 'r7-'));
     execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=320x180:rate=25:duration=10', '-f', 'lavfi', '-i', 'sine=duration=10', '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', '-shortest', path.join(d, 's.mp4')]);
