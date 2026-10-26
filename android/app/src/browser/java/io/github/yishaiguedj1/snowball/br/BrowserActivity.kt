@@ -53,6 +53,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.webkit.ProfileStore
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
+import io.github.yishaiguedj1.snowball.AppRoute
 import io.github.yishaiguedj1.snowball.HuntMedia
 import io.github.yishaiguedj1.snowball.R
 import io.github.yishaiguedj1.snowball.dm.DmActivity
@@ -87,6 +88,7 @@ class BrowserActivity : ComponentActivity() {
     var homeBtn by mutableStateOf(false)
     var engine by mutableStateOf("google")
     var isDefault by mutableStateOf(false)
+    var bubble by mutableStateOf(true)
 
     private val ui = Handler(Looper.getMainLooper())
     private var nextId = 1L
@@ -103,6 +105,7 @@ class BrowserActivity : ComponentActivity() {
         permThen?.invoke(m.values.all { it }); permThen = null
     }
     private val roleLaunch = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { checkDefault() }
+    private val importLaunch = registerForActivityResult(ActivityResultContracts.OpenDocument()) { u -> if (u != null) importFrom(u) }
 
     override fun attachBaseContext(base: Context) { super.attachBaseContext(DmLang.wrap(base)) }
 
@@ -110,7 +113,7 @@ class BrowserActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         prefs = BrPrefs(this)
-        barBottom = prefs.barBottom; homeBtn = prefs.homeBtn; engine = prefs.engine
+        barBottom = prefs.barBottom; homeBtn = prefs.homeBtn; engine = prefs.engine; bubble = prefs.bubble
         BrStore.init(this)
         DmStore.init(this)
         DmEngine.pump(this)
@@ -127,7 +130,7 @@ class BrowserActivity : ComponentActivity() {
     }
 
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); handle(intent) }
-    override fun onResume() { super.onResume(); checkDefault(); cur?.web?.onResume() }
+    override fun onResume() { super.onResume(); checkDefault(); checkFill(); cur?.web?.onResume() }
     override fun onPause() {
         cur?.web?.onPause()
         saveSession()
@@ -158,7 +161,10 @@ class BrowserActivity : ComponentActivity() {
         }
         if (url.isEmpty()) return false
         screen = Screen.PAGE; editing = false
-        newTab(url, fromApp = i.action == Intent.ACTION_VIEW)
+        val t = newTab(url, fromApp = i.action == Intent.ACTION_VIEW)
+        // מהבועה ב־Chrome: הצייד כאן רואה את הזרמים האמיתיים של הדף — כשנמצא משהו, רשימת ההורדה נפתחת לבד.
+        // רק פותח את הרשימה — שום הורדה לא מתחילה בלי נגיעה שלך
+        if (i.getBooleanExtra(AppRoute.EXTRA_HUNT, false)) { t.autoPick = SystemClock.uptimeMillis() + HUNT_MS; autoPick(t) }
         return true
     }
 
@@ -288,6 +294,9 @@ class BrowserActivity : ComponentActivity() {
     fun ensureWeb(t: BrTab): WebView {
         t.web?.let { return it }
         val w = WebView(this)
+        // מנהל הסיסמאות של Google (וכל שירות מילוי אחר) ממלא בדפים דרך המילוי האוטומטי של אנדרואיד — WebView תומך בו;
+        // כאן רק מוודאים שהוא לא כבוי בטעות לאזור הדף
+        if (Build.VERSION.SDK_INT >= 26) w.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_YES
         if (t.private && privOk) runCatching {
             ProfileStore.getInstance().getOrCreateProfile(PRIV)
             WebViewCompat.setProfile(w, PRIV)
@@ -319,7 +328,7 @@ class BrowserActivity : ComponentActivity() {
             }
             override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? { seen(t, req.url.toString(), headers = req.requestHeaders); return null }
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
-                if (url != t.page) { t.page = url; t.found.clear(); synchronized(t.headSeen) { t.headSeen.clear() }; t.recount() }
+                if (url != t.page) { t.page = url; t.vid = null; t.found.clear(); synchronized(t.headSeen) { t.headSeen.clear() }; t.recount(); autoPick(t) }
                 if (BrStore.hostOf(url) != BrStore.hostOf(t.url)) t.icon = null
                 t.url = url; if (favicon != null) t.icon = favicon
                 navState(t, view)
@@ -383,6 +392,9 @@ class BrowserActivity : ComponentActivity() {
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
             WebViewCompat.addWebMessageListener(w, "snbHunt", setOf("*")) { _, msg, _, _, _ -> msg.data?.let { seen(t, it, hook = true) } }
             if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) WebViewCompat.addDocumentStartJavaScript(w, DmBrowser.hook, setOf("*"))
+            // הנגן שעל המסך — רק מהמסגרת הראשית (הבועה נצמדת אליו; BrVideo)
+            WebViewCompat.addWebMessageListener(w, "snbVid", setOf("*")) { _, msg, _, main, _ -> if (main) t.vid = BrVideo.parse(msg.data) }
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) WebViewCompat.addDocumentStartJavaScript(w, BrVideo.JS, setOf("*"))
         }
         w.setFindListener { active, count, done -> if (done) findRes = (if (count == 0) 0 else active + 1) to count }
         t.web = w
@@ -417,11 +429,28 @@ class BrowserActivity : ComponentActivity() {
     private fun seen(t: BrTab, url: String, hook: Boolean = false, headers: Map<String, String>? = null) {
         val h = (if (hook) HuntMedia.fromHook(url) else HuntMedia.fromRequest(url, headers)) ?: return
         val now = SystemClock.uptimeMillis()
-        if (h.kind != HuntMedia.Kind.FILE) { ui.post { if (t.found.add(h, now)) t.recount() }; return }
+        if (h.kind != HuntMedia.Kind.FILE) { ui.post { if (t.found.add(h, now)) { t.recount(); autoPick(t) } }; return }
         synchronized(t.headSeen) { if (!t.headSeen.add(h.url) || t.headSeen.size > 60) return }
         val ref = t.page
         val ua = runCatching { t.web?.settings?.userAgentString }.getOrNull() ?: ""
-        Thread { if (DmBrowser.headProbe(h, ref, ua)) ui.post { if (t.found.add(h, now)) t.recount() } }.start()
+        Thread { if (DmBrowser.headProbe(h, ref, ua)) ui.post { if (t.found.add(h, now)) { t.recount(); autoPick(t) } } }.start()
+    }
+
+    /* נפתח מהבועה ב־Chrome: הממצא הראשון → הרשימה נפתחת אחרי רגע (שיספיקו להגיע עוד איכויות). דף שהוא עצמו סרטון
+       מוכר (יוטיוב…) — מיד כשנטען */
+    private fun autoPick(t: BrTab) {
+        if (t.autoPick == 0L) return
+        if (SystemClock.uptimeMillis() > t.autoPick) { t.autoPick = 0L; return }
+        if (t.foundN == 0) return
+        t.autoPick = 0L
+        ui.postDelayed({ if (cur === t && screen == Screen.PAGE && !editing && !pick && picks(t).isNotEmpty()) pick = true }, 1500)
+    }
+
+    /** הבועה (BrBubble): כמו ⬇ בשורת הכתובת — ממצא אחד מוריד מיד, כמה — הרשימה */
+    fun bubbleTap() {
+        val t = cur ?: return
+        val ps = picks(t)
+        if (ps.size == 1) download(ps[0]) else if (ps.isNotEmpty()) pick = true
     }
 
     data class Pick(val label: Int, val host: String, val url: String, val file: Boolean, val page: Boolean)
@@ -538,6 +567,7 @@ class BrowserActivity : ComponentActivity() {
     fun pickEngine(e: String) { engine = e; prefs.engine = e }
     fun pickBarBottom(b: Boolean) { barBottom = b; prefs.barBottom = b }
     fun pickHomeBtn(b: Boolean) { homeBtn = b; prefs.homeBtn = b }
+    fun pickBubble(b: Boolean) { bubble = b; prefs.bubble = b }
 
     private fun checkDefault() {
         isDefault = if (Build.VERSION.SDK_INT >= 29) runCatching { getSystemService(RoleManager::class.java)?.isRoleHeld(RoleManager.ROLE_BROWSER) == true }.getOrDefault(false) else false
@@ -562,6 +592,54 @@ class BrowserActivity : ComponentActivity() {
         Toast.makeText(this, R.string.brClearDone, Toast.LENGTH_SHORT).show()
     }
 
+    /* ---------------- סיסמאות ---------------- */
+
+    /** מי ממלא סיסמאות בטלפון: שם השירות; "" = כבוי; null = הטלפון לא תומך */
+    var fillBy by mutableStateOf<String?>("")
+    val fillGoogle get() = fillPkg == GMS
+    private var fillPkg = ""
+
+    private fun checkFill() {
+        if (Build.VERSION.SDK_INT < 28) { fillBy = null; return }
+        val am = getSystemService(android.view.autofill.AutofillManager::class.java)
+        if (am == null || !am.isAutofillSupported) { fillBy = null; return }
+        val cn = runCatching { am.autofillServiceComponentName }.getOrNull()
+        fillPkg = cn?.packageName ?: ""
+        fillBy = if (cn == null) "" else runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(cn.packageName, 0)).toString() }.getOrDefault(cn.packageName)
+    }
+
+    /** "שירות המילוי האוטומטי" של הטלפון — שם בוחרים ב־Google (אנדרואיד 14+: "סיסמאות, מפתחות גישה וחשבונות") */
+    fun fillSettings() {
+        val tries = buildList {
+            if (Build.VERSION.SDK_INT >= 34) add(Intent(Settings.ACTION_CREDENTIAL_PROVIDER))
+            add(Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE, Uri.parse("package:$GMS")))
+            add(Intent(Settings.ACTION_SETTINGS))
+        }
+        for (i in tries) if (runCatching { startActivity(i) }.isSuccess) return
+    }
+
+    /** מנהל הסיסמאות של Google — באתר שלו, בטאב חדש (מחובר דרך החשבון שלך בדפדפן) */
+    fun openPasswords() { screen = Screen.PAGE; newTab("https://passwords.google.com/") }
+
+    /* ---------------- ייבוא מ־Chrome ---------------- */
+
+    /** Google Takeout עם Chrome בלבד — שם מבקשים את הייצוא (מגיע במייל, ומורד לתיקיית ההורדות) */
+    fun openTakeout() { screen = Screen.PAGE; newTab(TAKEOUT) }
+    fun pickImport() { runCatching { importLaunch.launch(arrayOf("application/zip", "application/x-zip-compressed", "text/html", "application/json", "application/octet-stream")) } }
+
+    private fun importFrom(u: Uri) {
+        Toast.makeText(this, R.string.brImporting, Toast.LENGTH_SHORT).show()
+        Thread {
+            val r = runCatching { contentResolver.openInputStream(u)?.use { BrImport.read(it, u.lastPathSegment ?: "") } }.getOrNull()
+            ui.post {
+                if (r == null || (r.marks.isEmpty() && r.visits.isEmpty())) { Toast.makeText(this, R.string.brImportNone, Toast.LENGTH_LONG).show(); return@post }
+                val (m, v) = BrStore.importAll(r)
+                markRev++
+                Toast.makeText(this, getString(R.string.brImported, m, v), Toast.LENGTH_LONG).show()
+            }
+        }.apply { isDaemon = true }.start()
+    }
+
     fun dlSettings() { runCatching { startActivity(Intent(this, DmActivity::class.java)) } }
 
     fun version(): String = runCatching { packageManager.getPackageInfo(packageName, 0).versionName ?: "" }.getOrDefault("")
@@ -569,6 +647,10 @@ class BrowserActivity : ComponentActivity() {
     companion object {
         const val PRIV = "private"
         const val LIVE_MAX = 6
+        /** מהבועה ב־Chrome: כמה זמן מחכים לממצא הראשון כדי לפתוח את הרשימה לבד */
+        const val HUNT_MS = 45_000L
+        const val GMS = "com.google.android.gms"
+        const val TAKEOUT = "https://takeout.google.com/settings/takeout/custom/chrome"
 
         /** "אתר למחשב": ה־User-Agent של Chrome במחשב, באותה גרסה של המנוע */
         fun desktopUa(def: String): String {

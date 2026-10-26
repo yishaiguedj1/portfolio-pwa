@@ -305,6 +305,7 @@ private fun Empty(a: DmActivity) {
 }
 
 private fun isVideo(t: DmTask) = if (t.kind == DmKind.YTDL) !t.audioOnly else DmName.cat(t.name, t.mime) == DmName.Cat.VIDEO
+private fun isApk(t: DmTask) = t.kind != DmKind.YTDL && DmName.cat(t.name, t.mime) == DmName.Cat.APK
 
 private fun catIcon(t: DmTask): ImageVector = when (if (t.kind == DmKind.YTDL) (if (t.audioOnly) DmName.Cat.AUDIO else DmName.Cat.VIDEO) else DmName.cat(t.name, t.mime)) {
     DmName.Cat.VIDEO -> DmIcons.Movie
@@ -406,7 +407,7 @@ private fun Details(a: DmActivity, t: DmTask, rev: Int, onClose: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 when (t.state) {
                     DmState.DONE -> {
-                        Button(onClick = { a.open(t) }) { Text(stringResource(R.string.dmOpen)) }
+                        Button(onClick = { a.open(t) }) { Text(stringResource(if (isApk(t)) R.string.dmInstall else R.string.dmOpen)) }
                         if (isVideo(t) && a.studioHere()) FilledTonalButton(onClick = { a.translate(t) }) { Text(stringResource(R.string.dmTranslate)) }
                         else FilledTonalButton(onClick = { a.share(t) }) { Text(stringResource(R.string.dmShare)) }
                     }

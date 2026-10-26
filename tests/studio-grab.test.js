@@ -50,7 +50,7 @@ ok(!/HuntActivity|snbstudio/.test(R('android/app/src/main/AndroidManifest.xml'))
   ok(/HandlerThread\("grab-deep"\)/.test(gs) && /deepH\.post \{[\s\S]{0,200}findVideo\(/.test(gs), 'סריקת הנגן ברקע');
   const ms = +(gs.match(/DEEP_MS = (\d+)L/) || [])[1];
   ok(ms >= 300, 'תקציב הסריקה מספיק לדף כבד');
-  ok(/is VideoUrl\.Hit\.Page -> if \(c\.bare\) readFull\(c\.url\)/.test(gs), 'שם אתר בלבד בשורה → קוראים את הכתובת המלאה בנגיעה'); }
+  ok(/is VideoUrl\.Hit\.Page -> if \(c\.bare\) readFull\(c\.url, toBr\)/.test(gs), 'שם אתר בלבד בשורה → קוראים את הכתובת המלאה בנגיעה'); }
 // 23/10/2026: Chrome מסווג שירות שמבקש רק אירועים של מנהל סיסמאות כ"מנהל סיסמאות" ומעביר רק שדות טופס — הנגן לא נראה
 { const x = R('android/app/src/bubble/res/xml/grab_service.xml'), ev = (x.match(/accessibilityEventTypes="([^"]+)"/) || [])[1] || '';
   const PW = ['typeViewClicked', 'typeViewFocused', 'typeViewTextChanged', 'typeWindowStateChanged', 'typeWindowContentChanged'];

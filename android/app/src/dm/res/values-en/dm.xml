@@ -29,6 +29,9 @@
     <string name="dmDetails">Details</string>
     <string name="dmShare">Share</string>
     <string name="dmOpen">Open</string>
+    <string name="dmInstall">Install</string>
+    <string name="dmApkAllow">Allow installing apps from here once — turn the switch on and come back</string>
+    <string name="dmApkFail">Couldn\'t open the installer. You can open the file from your Downloads folder</string>
     <string name="dmCopyLink">Copy link</string>
     <string name="dmRemove">Remove from list</string>
     <string name="dmDeleteFile">Delete with file</string>

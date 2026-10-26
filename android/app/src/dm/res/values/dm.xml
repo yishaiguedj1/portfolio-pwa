@@ -34,6 +34,9 @@
     <string name="dmDetails">פרטים</string>
     <string name="dmShare">שיתוף</string>
     <string name="dmOpen">פתיחה</string>
+    <string name="dmInstall">התקנה</string>
+    <string name="dmApkAllow">צריך לאשר פעם אחת התקנת אפליקציות מכאן — מדליקים את המתג וחוזרים</string>
+    <string name="dmApkFail">לא הצלחנו לפתוח את ההתקנה. אפשר לפתוח את הקובץ מתיקיית ההורדות</string>
     <string name="dmCopyLink">העתקת הקישור</string>
     <string name="dmRemove">הסרה מהרשימה</string>
     <string name="dmDeleteFile">מחיקה עם הקובץ</string>
