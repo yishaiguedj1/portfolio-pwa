@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>Studio Browser</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="head"><img src="icon-128.png" alt=""><div class="grow"><div class="t">Studio Browser</div><div class="s">סנכרון עם Chrome</div></div></div>
+
+  <section id="off" hidden>
+    <div class="card msg">הסימניות וההיסטוריה של Chrome יגיעו לבד ל־Studio Browser בטלפון, ומה ששומרים בטלפון יופיע ב־Chrome — בלי כפילויות. מתחברים עם אותו חשבון Google שבטלפון.</div>
+    <button class="btn" id="connect">להתחבר עם Google</button>
+    <div class="foot">הנתונים נשמרים רק ב־Google Drive שלך, בתיקייה מוסתרת שרק Studio Browser רואה.</div>
+  </section>
+
+  <section id="on" hidden>
+    <div class="card hero"><span class="ring" id="ring"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path id="ico" d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><div class="grow"><div class="t" id="title"></div><div class="s" id="sub"></div></div></div>
+    <div class="card" id="holdCard" hidden><div class="msg" id="holdMsg"></div><button class="btn" id="allow">לאשר את המחיקה</button></div>
+    <div class="card">
+      <label class="row"><span class="tile" style="background:#FF9500"><svg width="16" height="16" viewBox="0 0 24 24" fill="#FFFFFF" aria-hidden="true"><path d="M6 3h12v18l-6-4.5L6 21z"/></svg></span><span class="l">סימניות</span><span class="v" id="count"></span><input type="checkbox" class="sw" id="pMarks" aria-label="סימניות"></label>
+      <label class="row"><span class="tile" style="background:#5856D6"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></span><span class="l">היסטוריה</span><span class="v">30 ימים</span><input type="checkbox" class="sw" id="pHist" aria-label="היסטוריה"></label>
+    </div>
+    <div class="card acct"><span class="g">G</span><div class="grow"><div id="email"></div><div class="s">אותו חשבון כמו ב־Studio Browser</div></div></div>
+    <div class="grow"></div>
+    <button class="btn" id="now">לסנכרן עכשיו</button>
+    <div class="card"><button class="link" id="disc">להפסיק את הסנכרון</button></div>
+    <div class="foot">מסתנכרן לבד כל כמה דקות, כל עוד Chrome פתוח במחשב הזה</div>
+  </section>
+</div>
+<script src="popup.js" type="module"></script>
+</body>
+</html>
