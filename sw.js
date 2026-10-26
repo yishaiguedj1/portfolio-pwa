@@ -4,14 +4,14 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v554';
+const CACHE_NAME = 'portfolio-pwa-v555';
 const HASHES = {
-  "./": "930248b23c4f0ec55737671e159c8dbd",
-  "./index.html": "930248b23c4f0ec55737671e159c8dbd",
-  "./styles.css": "ac25c4971a7c800070960c6aea2f4756",
-  "./app.js": "0d88d94e467d4ebae369e6a516140254",
+  "./": "bc8388e7e4b43e677c9136601994b16e",
+  "./index.html": "bc8388e7e4b43e677c9136601994b16e",
+  "./styles.css": "7db2d832ba3fe44b2df6e748464c1eb9",
+  "./app.js": "8748058f375a392712b6cf90261695fd",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
-  "./cloud.js": "39bf52f7bb220ecf474e77b2572386d3",
+  "./cloud.js": "62f2819a245bf5f879b7837b18aa79f7",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
   "./move.js": "5f2580e686bc4768e65086b897398db6",
   "./manifest.webmanifest": "933cd57a01bc2c47f5e1904be166220b",
@@ -30,6 +30,7 @@ const HASHES = {
   "./apple-touch-icon.png": "113a5dd87df18077a64196f3d533e3e9",
   "./favicon-48.png": "b06144704421831d745fd553558517a7",
   "./ibkr-logo.png": "3c73fe172d48b3f58f11bcc146dd1987",
+  "./acclink.js": "216c6528da215cbfeb4ba4df93c94047",
   "./analysis.js": "351748b3af922da332e50ca3d7a6ec47",
   "./analysis.css": "ace1558da3810867110e2a6f780069f7",
   "./library.js": "ebf4c7295ff22d17fb09b56be12d2cec",
@@ -59,10 +60,10 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "e7f536140456bdf6163ff1f094fcfec2",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
-  "./strings-academy.js": "b6593959f4b4d8b04e385ba2973b6aa6",
-  "./core.js": "0e869fc14b94831cc9de41fccafb4b29",
-  "./auth.js": "556d7250a03993819af63e6ade4382b1",
-  "./shell.js": "76e0a41a1583a981587d8c8f44e77b94",
+  "./strings-academy.js": "8a607fdf70578d9ee198783efd23c099",
+  "./core.js": "7a05a6f8eafe8f159fb1cc544fbcb571",
+  "./auth.js": "6cab4d3f891300f03eb0d4e0925fe4f5",
+  "./shell.js": "27b88094b994f6c63e668f98d84f1389",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
   "./logo-academy-lg.webp": "a116879278b6fa9d301f98fc24137cab",
   "./face-academy.webp": "9aea37be25db82a7a48a5343a8b351b2",
@@ -81,7 +82,7 @@ const HASHES = {
   "./studiobg.js": "905919c4704022748ff40869755d2292",
   "./studio.html": "e797e443dfa76398884be3d9f012d250",
   "./studio-app.js": "3b8a0eb80a995f2b5824014c09e65f24",
-  "./strings-studio.js": "5475f28d30da2d8aed485c63b8c0bbd8",
+  "./strings-studio.js": "7304e7e541c806b2c7dce1a09eb4633a",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
@@ -107,6 +108,7 @@ const APP_SHELL = [
   './apple-touch-icon.png',
   './favicon-48.png',
   './ibkr-logo.png',
+  './acclink.js',   // 26/10/2026: כניסה עם מייל ושיטות הכניסה (נטען בלחיצה)
   './analysis.js', './analysis.css'   // 25/10/2026: מנתח החברות — נטען בלחיצה, אבל באותה גרסה של app.js
 ];
 
@@ -119,7 +121,7 @@ const LIB_SHELL = [
   './vendor/foliate-js/search.js', './vendor/foliate-js/text-walker.js', './vendor/foliate-js/footnotes.js',
   './vendor/foliate-js/mobi.js', './vendor/foliate-js/fb2.js', './vendor/foliate-js/comic-book.js',
   './vendor/foliate-js/fixed-layout.js', './vendor/foliate-js/vendor/zip.js', './vendor/foliate-js/vendor/fflate.js',
-  './academy.html', './academy-app.js', './strings-academy.js', './core.js', './auth.js',   // שלב 3ג: Academy כדף עצמאי
+  './academy.html', './academy-app.js', './strings-academy.js', './core.js', './auth.js', './acclink.js',   // שלב 3ג: Academy כדף עצמאי
   './shell.js', './logo-academy.webp', './logo-academy-lg.webp', './face-academy.webp', './snow-far-light.png', './snow-mid-light.png', './snow-near-light.png', './snow-far-dark.png', './snow-mid-dark.png', './snow-near-dark.png', './icon-academy-192.png', './apple-touch-academy.png', './favicon-academy-48.png'   // ההדר המשותף + הלוגו של Academy
 ];
 
@@ -127,7 +129,7 @@ const LIB_SHELL = [
    v355: גם studionet.js ו־libbackup.js (המודולים שהסטודיו מייבא) — בלעדיהם הסטודיו לא נפתח אופליין.
    Mediabunny (vendor/mediabunny) לא כאן: חילוץ הקול צריך רשת בכל מקרה (ההעלאה), והוא נשמר במטמון בשימוש הראשון */
 const STUDIO_SHELL = ['./studio.js', './studio.css', './studionet.js', './libbackup.js', './studioplay.js', './studiosubs.js', './studiotracks.js', './studioedl.js', './studioai.js', './studiostore.js', './studiobg.js',
-  './studio.html', './studio-app.js', './strings-studio.js', './core.js', './auth.js', './shell.js', './logo-studio.webp', './logo-studio-lg.webp', './face-studio.webp', './snow-far-light.png', './snow-mid-light.png', './snow-near-light.png', './snow-far-dark.png', './snow-mid-dark.png', './snow-near-dark.png', './icon-studio-192.png', './apple-touch-studio.png', './favicon-studio-48.png'];   // שלב 3ד: Studio כדף עצמאי   // מ1: הנגן · מ2: עורך הכתוביות · מ4: עורך הווידאו · מ7: גיליון ה־AI · ת4: studiostore.js (מזהי R2)
+  './studio.html', './studio-app.js', './strings-studio.js', './core.js', './auth.js', './acclink.js', './shell.js', './logo-studio.webp', './logo-studio-lg.webp', './face-studio.webp', './snow-far-light.png', './snow-mid-light.png', './snow-near-light.png', './snow-far-dark.png', './snow-mid-dark.png', './snow-near-dark.png', './icon-studio-192.png', './apple-touch-studio.png', './favicon-studio-48.png'];   // שלב 3ד: Studio כדף עצמאי   // מ1: הנגן · מ2: עורך הכתוביות · מ4: עורך הווידאו · מ7: גיליון ה־AI · ת4: studiostore.js (מזהי R2)
 
 /* 12/10/2026 (פס פריסה אחד): קובץ מהרשת רק אם הוא בדיוק הקובץ שהגרסה הזו נבנתה ממנו.
    ‎?v=<טביעה> = כתובת חדשה ל־CDN (לא עותק ישן מהמטמון שלו), cache:'reload' = לא מהמטמון של הדפדפן.

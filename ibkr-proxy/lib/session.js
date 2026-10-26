@@ -14,7 +14,7 @@
    - רק מקורות מרשימה סגורה, ולכל סביבה שלה בלבד: הייצור לא מקבל את הניסוי (אותו "אתר" — thesnowball.app — ולכן
      הדפדפן כן היה שולח את העוגייה).
    - עוגייה נוצרת רק מהתחברות אמיתית עם Google בחמש הדקות האחרונות — לא מטוקן מותאם ולא מאסימון ישן.
-   - הפעולות: login · who ("מי מחובר?" → ct = טוקן מותאם) · logout.
+   - הפעולות: login · who ("מי מחובר?" → ct = טוקן מותאם) · logout · merge (מיזוג שני חשבונות, lib/acmerge.js).
    - תקלה באחסון = לא מנפיקים טוקן (נכשל סגור). הטלפון מתנתק רק על תשובה מפורשת "אין חיבור". */
 const crypto = require('crypto');
 const G = require('./gauth');
@@ -212,6 +212,7 @@ function makeHandler(over = {}) {
       sa: over.sa || (() => G.serviceAccount()),
       iamToken: over.iamToken || (() => G.cloudToken(over.fetch)),
       env: over.env || process.env,
+      merge: over.merge || ((from, to) => require('./acmerge').mergeAccounts({ fetch: over.fetch || fetch, token: over.token || (() => G.datastoreToken(over.fetch)) }, from, to)),
     };
     const h = req.headers || {};
     const origin = String(h.origin || '');
@@ -281,6 +282,22 @@ function makeHandler(over = {}) {
         try { await writeVs(cur.u, now + 1, deps); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
       }
       return res.status(200).json({ ok: true, all: !!(body.all && cur) });
+    }
+
+    /* מיזוג חשבונות (26/10/2026, lib/acmerge.js): המשתמש מחובר ב־A (כל סוג טוקן, גם מותאם) והוכיח שהוא מחזיק גם את B —
+       טוקן של B מהתחברות אמיתית של עד 5 דקות (כמו login). הנתונים של B עוברים ל־A, והעוגיות של B מתבטלות.
+       את B עצמו ב־Firebase הטלפון מוחק (user.delete() — אין לנו הרשאת מנהל על Auth), ואז מקשר את שיטת הכניסה ל־A */
+    if (op === 'merge') {
+      let a, b;
+      try { a = await deps.verify(String(body.idToken || '')); b = await deps.verify(String(body.idTokenB || '')); } catch (e) { tally('merge:bad_token', app); return res.status(401).json({ ok: false, error: 'bad_token' }); }
+      if (!UID_RE.test(a.uid) || !UID_RE.test(b.uid) || a.uid === b.uid) { tally('merge:uid', app); return res.status(400).json({ ok: false, error: 'bad_uid' }); }
+      if (b.provider === 'custom' || !(b.authTime > 0) || now - b.authTime > LOGIN_FRESH || b.authTime > now + 300) { tally('merge:not_fresh', app); return res.status(403).json({ ok: false, error: 'not_fresh' }); }
+      let r;
+      try { r = await deps.merge(b.uid, a.uid); } catch (e) { tally('merge:store', app); return res.status(503).json({ ok: false, error: 'store' }); }
+      if (r.busy) { tally('merge:busy', app); return res.status(409).json({ ok: false, error: 'busy' }); }
+      try { await writeVs(b.uid, now + 1, deps); } catch (e) {}
+      tally('merge:ok', app);
+      return res.status(200).json({ ok: true, inv: r.inv, ac: r.ac, jobs: r.jobs, files: r.files, kept: r.kept });
     }
 
     /* הטלפון מדווח שהטוקן המותאם נדחה ב־Firebase (רק הקוד של השגיאה) */

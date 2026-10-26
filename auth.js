@@ -134,6 +134,20 @@
     }
   }
 
+  /* 26/10/2026 (בקשת המשתמש): כניסה גם עם מייל רגיל (סיסמה או קישור במייל), וקישור / מיזוג של כמה שיטות כניסה לאותו
+     משתמש. הממשק והלוגיקה ב־acclink.js (נטען רק כשצריך, משותף לשלוש האפליקציות); כאן רק הגישה ל־Firebase ולחיבור המשותף,
+     וזיהוי חזרה מקישור הכניסה שנשלח במייל */
+  window.SnbAcct = {
+    auth: () => auth,
+    base: () => sessBase(),
+    busy: (on) => { sessBusy = !!on; },
+    login: (u) => sessLogin(u),
+    flush: () => flushSave(),
+  };
+  function emailLinkLanding() {
+    try { if (auth && auth.isSignInWithEmailLink(location.href)) import('./acclink.js').then((m) => m.finishLink()).catch(() => {}); } catch (e) {}
+  }
+
   /* v313: מעבר בעלים → טעינה מחדש של הדף (שום דבר מהחשבון הקודם לא נשאר בזיכרון). שומר מפני לולאה. */
   function switchOwner(uid, hasDoc) {
     if (typeof accountSwitchTo !== 'function') return false;
@@ -175,6 +189,7 @@
     if (!isConfigured) { set('off'); return; }
     loadSdk().then((ok) => {
       if (!ok || !initSdk()) { set('off'); return; }
+      emailLinkLanding();                                  // חזרה מקישור הכניסה במייל (acclink.js)
       auth.onAuthStateChanged(async (u) => {
         user = u;
         if (!u) {
