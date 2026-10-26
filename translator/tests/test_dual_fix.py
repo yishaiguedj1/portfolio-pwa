@@ -128,19 +128,23 @@ class Flow(unittest.TestCase):
         self.assertFalse(P.Pipeline(self.ctx, self.J, self.engine(h, 'sonnet-medium')).dual_on(), 'רק Haiku')
 
     def test_second_draft_failure_is_harmless(self):
-        n = {'p2': 0}
-
+        # שתי הטיוטות שולחות בדיוק אותה בקשה ורצות במקביל — הכשל מוזרק לפי היעד (tr/alt), לא לפי סדר הקריאות
         def h(kw):
             p = kw['messages'][0]['content']
             if 'חלק 1/2' in p:
                 return msg('#1 שלום.\n#2 תודה.')
-            n['p2'] += 1
-            if n['p2'] == 1:
-                return msg('#3 נטפליקס.')
-            raise llm.LLMError('api_error', 'boom')
+            return msg('#3 נטפליקס.')
         pl = P.Pipeline(self.ctx, self.J, self.engine(h))
+        orig = pl._tl_part
+
+        def part(p, fixed, warm=None, out_dir=None):
+            if out_dir is not None and p['file'].startswith('batch_002'):
+                raise llm.LLMError('api_error', 'boom')
+            return orig(p, fixed, warm, out_dir)
+        pl._tl_part = part
         pl.translate(fix=False)
         self.assertEqual(pl.current()['3'], 'נטפליקס.', 'כשל בטיוטה השנייה — הראשונה נשארת, העבודה ממשיכה')
+        self.assertFalse((self.pd / 'tr' / 'alt' / 'batch_002.he.txt').exists())
 
     def test_fix_guard_and_revert(self):
         td = self.pd / 'tr'
