@@ -647,7 +647,87 @@ def job_metrics(corpus, shots=None, fps=None):
     rj = rej_metrics(corpus.get('rj'))
     if rj:
         out['rj'] = rj
+    rf = ref_metrics(corpus)
+    if rf:
+        out['rf'] = rf
     return out
+
+
+# 26/10/2026 — כתוביות אנושיות שכבר קיימות למקור (job.learn_refs → corpus['ref']): השוואה בלי טוקנים.
+# he: chrF++ מול התרגום האנושי — הסופי (c, ובחלונות ‏cs; lr יחס מילים, cov חלק החלונות שיש בהם תרגום שלנו), ולכל שלב
+#     (d טיוטה, f תיקוני המתרגם, r ביקורת, z תיקון אחרון) — האם כל סוכן קירב או הרחיק מהאדם.
+# en: WER של התמליל שלנו (אחרי ההגהה) מול הכתוביות האנושיות באנגלית — w, ופירוק s/d/i (החלפות/השמטות/תוספות).
+# אותו ציר זמן (עבודה מקישור, בלי קטע) — הזיווג לפי חלונות הייחוס כמו tedeval, בלי היסט.
+REF_MIN = 20                    # פחות כתוביות ייחוס — לא מודדים
+_WER_RE = re.compile(r"[^\w'’]+", re.U)
+
+
+def _ref_rows(rows):
+    return [{'s': c['s'], 'e': c['e'], 'text': _clean(c.get('h'))} for c in rows or []
+            if isinstance(c, dict) and isinstance(c.get('s'), (int, float)) and isinstance(c.get('e'), (int, float)) and c.get('h')]
+
+
+def wer_counts(hyp_words, ref_words):
+    """(החלפות, השמטות, תוספות) — difflib על רצפי מילים (מספיק מדויק לאלפי מילים, ומהיר)"""
+    import difflib
+    sm = difflib.SequenceMatcher(None, ref_words, hyp_words, autojunk=False)
+    sub = dele = ins = 0
+    for op, a1, a2, b1, b2 in sm.get_opcodes():
+        if op == 'replace':
+            k = min(a2 - a1, b2 - b1)
+            sub += k
+            dele += (a2 - a1) - k
+            ins += (b2 - b1) - k
+        elif op == 'delete':
+            dele += a2 - a1
+        elif op == 'insert':
+            ins += b2 - b1
+    return sub, dele, ins
+
+
+def _en_words(t):
+    return [w for w in _WER_RE.split(str(t or '').lower().replace('’', "'")) if w]
+
+
+def ref_metrics(corpus):
+    ref = corpus.get('ref') if isinstance(corpus, dict) else None
+    if not isinstance(ref, dict):
+        return None
+    try:
+        import tedeval as TE
+    except ImportError:
+        from translator import tedeval as TE
+    cu = [c for c in corpus.get('cu') or [] if isinstance(c, dict)]
+    out = {}
+    he = _ref_rows(ref.get('he'))
+    fin = _ref_rows(corpus.get('fin'))
+    if len(he) >= REF_MIN and fin:
+        lo, hi = min(c['s'] for c in fin) - 5, max(c['e'] for c in fin) + 5
+        he = [c for c in he if lo <= c['s'] <= hi]
+    if len(he) >= REF_MIN and fin:
+        ev = TE.evaluate(TE.pair_segments(fin, he, 0.0))
+        out.update({'he.n': len(he), 'he.c': ev['chrf_doc'], 'he.cs': ev['chrf_seg_mean'], 'he.lr': ev['len_ratio_words'],
+                    'he.cov': _r(ev['covered'] / max(1, ev['segments']))})
+        rows = _stage_texts(cu)
+        tm = [(c.get('s'), c.get('e')) for c in cu]
+        for st in ('d', 'f', 'r', 'z'):
+            ours = [{'s': a, 'e': b, 'text': x[st]} for x, (a, b) in zip(rows, tm)
+                    if isinstance(a, (int, float)) and isinstance(b, (int, float)) and x[st] and x[st] not in ('=', '∅')]
+            if ours:
+                out['he.' + st] = TE.evaluate(TE.pair_segments(ours, he, 0.0))['chrf_doc']
+    en = _ref_rows(ref.get('en'))
+    if len(en) >= REF_MIN:
+        ts = [c.get('s') for c in cu if isinstance(c.get('s'), (int, float))]
+        if ts:
+            lo, hi = min(ts) - 5, max(c.get('e') or 0 for c in cu) + 5
+            en = [c for c in en if lo <= c['s'] <= hi]
+        rw = [w for c in en for w in _en_words(c['text'])]
+        hw = [w for c in cu for w in _en_words(c.get('en'))]
+        if len(rw) >= 50 and hw:
+            sb, dl, ins = wer_counts(hw, rw)
+            out.update({'en.n': len(rw), 'en.w': _r(100.0 * (sb + dl + ins) / len(rw), 2),
+                        'en.s': sb, 'en.d': dl, 'en.i': ins})
+    return out or None
 
 
 # 26/10/2026 — "מה כל שלב תיקן ומה קלקל" בלי שיפוט ידני: קודי הבודק לכל כתובית בכל נקודה (cc בקורפוס).

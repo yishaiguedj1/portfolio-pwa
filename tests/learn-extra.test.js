@@ -27,4 +27,18 @@ const lx = SL.normLx({ mx: { ck: { 'f0f1.fx': 3, 'f0f1.nw': 1, 'nw.num': 1, 'Bad
 ok(lx.mx.ck['f0f1.fx'] === 3 && lx.mx.ck['nw.num'] === 1 && !('Bad Key' in lx.mx.ck), 'lx.mx.ck נכנס לרשומה');
 ok(lx.mx.rj['f.ok'] === 2 && !('zz' in lx.mx), 'lx.mx.rj נכנס, קבוצה לא מוכרת — בחוץ');
 
+/* ---------- (1) כתוביות אנושיות מהמקור כייחוס ---------- */
+const r = LC.normCorpus(Object.assign({}, base, { ref: { he: [{ s: 1, e: 2, h: 'שלום' }, { s: 3, e: 4, h: '' }, 'x'], en: [{ s: 1, e: 2, h: 'mail me at a@b.co' }], fr: [{ s: 1, e: 2, h: 'x' }] } }), '2026-10');
+ok(r.ref.he.length === 1 && r.ref.he[0].h === 'שלום', 'ref.he — כתוביות ריקות / לא תקינות בחוץ');
+ok(r.ref.en[0].h === 'mail me at ⟨מייל⟩' && !('fr' in r.ref), 'ref.en מנוקה, שפה אחרת — בחוץ');
+ok(!('ref' in LC.normCorpus(Object.assign({}, base, { ref: ['x'] }), '2026-10')), 'ref שאינו אובייקט — בחוץ');
+const lr = SL.normLx({ mx: { rf: { 'he.c': 61.2, 'he.d': 55, 'en.w': 7.4, 'en.n': 3000 } } });
+ok(lr.mx.rf['he.c'] === 61.2 && lr.mx.rf['en.w'] === 7.4, 'lx.mx.rf נכנס לרשומה');
+
+/* ---------- (2) ביטחון התמלול ומצב הקול ---------- */
+const w = LC.normCorpus(Object.assign({}, base, { wd: [['hi', 1, 1.2, 'S1', 1, 1, 1, 'qwen3', 0.873], ['x', 1, 2, 'S1', 1, 1, 1, '', 7], ['y', 1, 2]] }), '2026-10');
+ok(w.wd[0][8] === 0.873 && w.wd[1][8] === null && w.wd[2][8] === null, 'wd[8] = ביטחון 0–1, אחר — null');
+const la = SL.normLx({ au: { sp: 0.71, snr: 18.4, cm: 0.93, lc: 0.04, holes: 3, 'Bad': 1 } });
+ok(la.au.snr === 18.4 && la.au.lc === 0.04 && !('Bad' in la.au), 'lx.au נכנס לרשומה');
+
 console.log(`\n${n} בדיקות עברו`);

@@ -69,7 +69,7 @@ function normRj(a) {
 function normWord(w) {
   if (!Array.isArray(w) || w.length < 3) return null;
   return [T(w[0], 60), n3(w[1]), n3(w[2]), SPK_RE.test(String(w[3] || '')) ? w[3] : 'S?', n3(w[4]), n3(w[5]), n3(w[6]),
-    ALIGN_RE.test(String(w[7] || '')) ? String(w[7] || '') : ''];
+    ALIGN_RE.test(String(w[7] || '')) ? String(w[7] || '') : '', isNum(w[8]) && w[8] >= 0 && w[8] <= 1 ? n3(w[8]) : null];   // [8] ביטחון התמלול (26/10/2026)
 }
 
 /* הגוף מהעובד → הפריט שנשמר (או null). month = 'YYYY-MM' מהשרתון */
@@ -113,6 +113,11 @@ function normCorpus0(o, month, full) {
     if (Object.keys(sp).length) out.sp = sp;
   }
   if (Array.isArray(o.gl)) out.gl = o.gl.slice(0, MAX_GL).filter((x) => typeof x === 'string').map((x) => T(x, 200));
+  if (o.ref && typeof o.ref === 'object' && !Array.isArray(o.ref)) {    // 26/10/2026: כתוביות אנושיות מהמקור (ציבוריות) — ייחוס
+    const ref = {};
+    for (const l of ['he', 'en']) if (Array.isArray(o.ref[l])) { const a = o.ref[l].slice(0, MAX_CUES).filter((c) => c && typeof c === 'object').map((c) => ({ s: n3(c.s), e: n3(c.e), h: T(c.h) })).filter((c) => c.h); if (a.length) ref[l] = a; }
+    if (Object.keys(ref).length) out.ref = ref;
+  }
   if (Array.isArray(o.ccs)) { const x = o.ccs.filter((v) => CK_STAGES.includes(v)); if (x.length) out.ccs = x; }
   const rj = normRj(o.rj);
   if (rj) out.rj = rj;

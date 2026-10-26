@@ -903,6 +903,11 @@ def learn_facts(ctx):
             pass
         if ctx.st.get('gls') in GL_SRC:                  # 25/10/2026: מאיפה המילון שלך הגיע (0 אין · 1 R2 · 2 Drive · 3 לא נטען)
             out.setdefault('gl', {})['ld'] = GL_SRC[ctx.st['gls']]
+    au = (_read_json(pd / 'asr' / 'parakeet.json') or {}).get('audio')   # 26/10/2026: מצב הקול וביטחון התמלול (asr_parakeet.audio_stats)
+    if isinstance(au, dict):
+        x = {k: v for k, v in au.items() if _LX_KEY.match(str(k)) and _num_ok(v)}
+        if x:
+            out['au'] = x
     en = ctx.st.get('eng_facts')
     if isinstance(en, dict):
         x = {k: v for k, v in en.items() if _LX_KEY.match(str(k)) and _num_ok(v)}
@@ -1092,11 +1097,12 @@ def learn_corpus(ctx):
     wj = _read_json(pd / 'en.aligned.json') or _read_json(pd / 'en.words.json') or {}
     words = wj.get('words') if isinstance(wj, dict) else None
     if isinstance(words, list):
-        # [מילה, התחלה, סוף, דובר, תמלול, Qwen, CTC, איך הוכרע] — הפערים בין מנועי היישור
+        # [מילה, התחלה, סוף, דובר, תמלול, Qwen, CTC, איך הוכרע, ביטחון התמלול 0–1 (26/10/2026)] — הפערים בין מנועי היישור
         out['wd'] = [[_lc_txt(w.get('w'))[:60], _lc_num(w.get('s')), _lc_num(w.get('e')),
                       w.get('spk') if _LC_SPK.match(str(w.get('spk') or '')) else 'S?',
                       _lc_num(w.get('s_asr')), _lc_num(w.get('s_qwen')), _lc_num(w.get('s_ctc')),
-                      str(w.get('align') or '')[:12] if re.match(r'^[a-z0-9_]{0,12}$', str(w.get('align') or '')) else '']
+                      str(w.get('align') or '')[:12] if re.match(r'^[a-z0-9_]{0,12}$', str(w.get('align') or '')) else '',
+                      _lc_num(w.get('conf'))]
                      for w in words[:LC_MAX_WORDS] if isinstance(w, dict)]
     pt = []
     for p in sorted(pd.glob('en.patch.applied.*.txt')):            # ההגהה: מה התמלול שמע לא נכון
@@ -1112,6 +1118,9 @@ def learn_corpus(ctx):
             out['gl'] = gl[:300]
     except OSError:
         pass
+    rf = learn_refs(pd)
+    if rf:
+        out['ref'] = rf
     if ctx.st.get('full'):
         tx = project_texts(pd)
         if tx:
@@ -1136,7 +1145,7 @@ def project_texts(pd):
             rel = p.relative_to(pd).as_posix()
         except ValueError:
             continue
-        if not p.is_file() or p.suffix.lower() not in TX_EXT or p.name in TX_SKIP or rel.startswith(('asr/', '_learn/', '_ladder/')) \
+        if not p.is_file() or p.suffix.lower() not in TX_EXT or p.name in TX_SKIP or rel.startswith(('asr/', '_learn/', '_ladder/', REF_DIR + '/')) \
                 or p.name.startswith('source.') or not re.match(r'^[\w][\w./-]{0,119}$', rel):
             continue
         try:
@@ -1147,6 +1156,59 @@ def project_texts(pd):
             continue
         out[rel] = t
         left -= len(t)
+    return out
+
+
+# 26/10/2026 (מאגר הלמידה): כתוביות אנושיות שכבר קיימות למקור — בעבודה מקישור, הכתוביות של היוצר (לא האוטומטיות)
+# בעברית ובאנגלית נשמרות ב־<פרויקט>/ref/ ונכנסות לקורפוס (ref) — chrF מול מתרגם אנושי ו־WER של התמלול בכל עבודה כזו,
+# בלי טוקנים. רק כשהציר זהה לסרטון שלנו (בלי הורדה של קטע). SNB_LEARNREF=off מכבה. כל כשל — בלי ייחוס.
+REF_JOIN_S = 60
+REF_DIR = 'ref'
+
+
+def learn_refs_start(ctx):
+    sp = url_spec(ctx)
+    if not sp or os.environ.get('SNB_LEARNREF', 'on') == 'off' or (sp.get('pick') or {}).get('sec'):
+        return None
+    if (ctx.pdir / REF_DIR).is_dir():
+        return None                               # המשך מנקודת שמירה — כבר נאסף
+
+    def go():
+        try:
+            import fetchurl as F
+            tmp = VT_WORK / '_ref' / str(ctx.st.get('job') or ctx.name)
+            shutil.rmtree(tmp, ignore_errors=True)
+            got = F.get_subs(sp['url'], str(tmp), ref=sp.get('ref') or '')
+            if got:
+                d = ctx.pdir / REF_DIR
+                d.mkdir(parents=True, exist_ok=True)
+                for lang, path in got.items():
+                    shutil.copyfile(path, d / (lang + '.srt'))
+                print('· כתוביות אנושיות מהמקור לייחוס: ' + ', '.join(sorted(got)))
+            shutil.rmtree(tmp, ignore_errors=True)
+        except (SystemExit, Exception):           # noqa: BLE001 — מידע משני
+            pass
+    th = threading.Thread(target=go, name='learn-ref', daemon=True)
+    th.start()
+    return th
+
+
+def learn_refs(pd):
+    """<פרויקט>/ref/{he,en}.srt → {he: [{s, e, h}], en: [...]} (כתוביות צלילים — "(מחיאות כפיים)" — בחוץ)"""
+    out = {}
+    try:
+        import tedeval as TE
+    except ImportError:
+        return out
+    for lang in ('he', 'en'):
+        p = pd / REF_DIR / (lang + '.srt')
+        try:
+            cues = TE.drop_sound_cues(TE.parse_srt(p.read_text(encoding='utf-8', errors='replace')))
+        except OSError:
+            continue
+        rows = [{'s': _lc_num(c['s']), 'e': _lc_num(c['e']), 'h': _lc_txt(c['text'])} for c in cues[:LC_MAX_CUES] if c.get('text')]
+        if rows:
+            out[lang] = rows
     return out
 
 
@@ -4564,6 +4626,7 @@ def finish(args):
     if (not errs or int(errs[-1]) > 0) and not args.force:
         raise SystemExit('✗ tr-check מצא שגיאות — לתקן ב־tr/fixes_zfinal.txt ולהריץ שוב: grep -A2 "שגיא" ' + str(ctx.pdir / 'tr' / 'check.md'))
     shots_join(ctx)                              # 21/10/2026: השוטים רצו ברקע בזמן הביקורת — לפני הנקודה (שתכלול אותם) והבנייה
+    ref_th = learn_refs_start(ctx)               # 26/10/2026: כתוביות אנושיות מהמקור כייחוס — ברקע, נאסף לפני learn_put
     save_ck(ctx, 'rv')                           # התרגום אחרי הביקורת — אם הצריבה או ההעלאה נקטעות, ממשיכים מכאן
     vt(ctx, ['tr-merge', ctx.name])
     vt(ctx, ['build', ctx.name] + build_args(ctx))
@@ -4654,6 +4717,8 @@ def finish(args):
     hl = ladder_finish(ctx)                      # איכויות הצפייה (אם מוכנות) — המקור מוחלף בגרסה הארוזה
     note_timing(ctx, 'sv-ladder', t_l, time.time())
     t_l = time.time()
+    if ref_th is not None:
+        ref_th.join(REF_JOIN_S)                  # לא מחכים יותר מזה — בלי ייחוס, הקורפוס יוצא כרגיל
     learn_put(ctx)                               # 15/10/2026 (מ׳2): קורפוס הטקסט למאגר הלמידה — לפני הדיווח האחרון (אחריו המפתח מת)
     if lm_th is not None:
         lm_th.join()                             # רץ במקביל להעלאה — לפני הדיווח האחרון (אחריו המפתח מת)
