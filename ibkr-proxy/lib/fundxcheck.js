@@ -217,6 +217,9 @@ function rawFormula(m, d, at) {
   }
   return null;
 }
+// הפיצולים שהשרתון החיל (splitsUsed: מ־Yahoo אחרי הוכחה + מה ש־SEC עצמו מראה — Honeywell 1:2) — לא כל הרשימה של
+// Yahoo: פיצול חברה (DuPont/Qnity 2.39) היה "מתקן" את SEC הגולמי ומסמן את הערך הנכון שלנו כ־bug
+const splitsOf = (d) => d.splitsUsed || d.splits;
 // פיצולים אחרי התקופה (יחס מצטבר) — לזיהוי spl
 function splitRatioAfter(splits, e) { let r = 1; for (const [sd, x] of splits || []) if (sd > e && Math.abs(Math.log(x)) > Math.log(1.3)) r *= x; return r; }
 // הסבר מהמילון: האם ההבדל מול המקור s ידוע. ctx = { ya (Yahoo גולמי לתקופה), nq (Nasdaq לתקופה), sec(tag) → ערך גולמי }
@@ -249,12 +252,24 @@ function estimate(m, kind, e, rs, d, facts, adj, fyS, fs0, secAt) {
   if (m !== 'eps' || !facts) return null;
   const t = d.tags || {};
   const ni = (t.nic && secAt(t.nic, e, kind, fs0)) ?? (t.ni ? secAt(t.ni, e, kind, fs0) : null);
-  const shr = t.sh ? rawSeries(facts, t.sh, { splits: d.splits }) : null;
+  const shr = t.sh ? rawSeries(facts, t.sh, { splits: splitsOf(d) }) : null;
   let sh = shr ? rawAt(shr, e, kind) : null;
   if (sh == null && kind === 'Q' && shr && d.fy.includes(e)) { const a = rawAt(shr, e, 'A'), qs = rawQuarters(shr, e, fyS(e)); if (a != null && qs) sh = 4 * a - qs.reduce((x, y) => x + y, 0); }
   return ni != null && sh ? ni / sh : null;
 }
 
+// רבעון רביעי של ממוצע מניות כשיש הפסד באחד הרבעונים (fundamentals: q4Shares): המדולל לא מצטבר, אז fundamentals מחשב
+// מהבסיסי — 4 × השנה פחות שלושה — ועוד עד 4 × הדילול של השנה. הטווח הזה מ־SEC הגולמי (Uber, DoorDash, IBM 2024: בתוכו
+// ותואם להודעה לעיתונות; האומדן המדולל רחוק ממנה ב־3%–10%)
+function shBand(e, d, facts, adj, fyS) {
+  const rb = rawSeries(facts, 'WeightedAverageNumberOfSharesOutstandingBasic', adj) || rawSeries(facts, 'WeightedAverageShares', adj);
+  const rd = d.tags && d.tags.sh ? rawSeries(facts, d.tags.sh, adj) : null;
+  if (!rb || !rd) return null;
+  const ab = rawAt(rb, e, 'A'), qb = rawQuarters(rb, e, fyS(e)), ad = rawAt(rd, e, 'A');
+  if (ab == null || !qb || ad == null) return null;
+  const b4 = 4 * ab - qb.reduce((t, x) => t + x, 0);
+  return b4 > 0 ? [b4, b4 + Math.max(0, 4 * (ad - ab))] : null;
+}
 /* d = תשובת fundamentals (src sec), facts = companyfacts, y = parseYahooTs, nq = { A: parseNasdaq(שנתי), Q: parseNasdaq(רבעוני) },
    opt.cand = { m: [תגיות מועמדות] } (רשות — F.TAGS; בלעדיו רק התגית הראשית), opt.ya = parseYahooAlt (רשות — בלעדיו אין הגדרות Yahoo חלופיות ואין זיהוי של רבעון רביעי ש־Yahoo לא פרסם)
    מחזיר רשימת ערכים: { m, k:'A'|'Q', p, v, raw, y, n, face, c, why?, rf?, est?, yd?, yf?, near? } — c = ההכרעה */
@@ -278,7 +293,7 @@ function xcheck(d, facts, y, nq, opt = {}) {
     const from = Math.max(0, ends.length - (kind === 'A' ? nA : nQ));
     for (const m of XK) {
       if (!D[m]) continue;
-      const adj = NOSUM.has(m) ? { splits: d.splits, ps: PER_SHARE.has(m) } : null;
+      const adj = NOSUM.has(m) ? { splits: splitsOf(d), ps: PER_SHARE.has(m) } : null;
       // שורה שהשרתון הוריד בכוונה (opx / gpx: לא בדוח רווח והפסד, או עלות מכר חלקית) — התגית לא מקור אמת להשוואה
       const dropped = (m === 'op' && d.opx === 'off') || (m === 'gp' && (d.gpx === 'part' || d.gpx === 'off'));
       const cur = m === 'sh' ? null : d.cur, tag = d.tags[m], rs = dropped ? null : rawSeries(facts, tag, adj, cur);
@@ -341,9 +356,9 @@ function xcheck(d, facts, y, nq, opt = {}) {
         const sn = sm(nv), syRaw = sm(yv), sy = yf ? null : syRaw, yn = same(m, yv, nv, sc);
         const ctx = { ya, nq: nqAt, sec: (t) => secAt(t, e, kind, BAL.has(m) ? null : fs0), fin, gpc: m === 'gp' && (rf === 'rev-cogs' || !d.tags.gp) };
         // מספר מניות שהחברה הגישה בקנה מידה שגוי ותוקן אצלנו (fixes) — SEC הגולמי פי אלף / מיליון קטן
-        const fixd = sr === false && m === 'sh' && raw > 0 && [1e3, 1e6].some((f) => Math.abs(vv / raw / f - 1) < 0.02);
+        const fixd = sr === false && m === 'sh' && raw > 0 && [1e3, 1e6, 1e-3, 1e-6].some((f) => Math.abs(vv / raw / f - 1) < 0.02); // Waters: SEC הגולמי פי אלף גדול
         // פיצול: היחס מול מקור חיצוני = הפיצולים שאחרי התקופה (או ההפך) — אנחנו לא החלנו / החלנו פעמיים
-        const spr = NOSUM.has(m) ? splitRatioAfter(d.splits, e) : 1;
+        const spr = NOSUM.has(m) ? splitRatioAfter(splitsOf(d), e) : 1;
         const splitOff = (x) => { if (spr === 1 || x == null || !vv || !x) return false; const q = m === 'sh' ? x / vv : vv / x; return Math.abs(q / spr - 1) < 0.03 || Math.abs(q * spr - 1) < 0.03; };
         // ההסבר לכל מקור שונה
         const ex = {};
@@ -362,7 +377,16 @@ function xcheck(d, facts, y, nq, opt = {}) {
             if (est != null) {
               r.est = m === 'sh' ? Math.round(est) : Math.round(est * 1000) / 1000;
               // רווח למניה: סכום רבעונים ≠ שנה כשמספר המניות זז / יש הפסד ברבעון — עד 5 סנט או 5%; מניות — 1%
-              const okE = m === 'sh' ? relDiff(vv, est) <= 0.01 : Math.abs(vv - est) <= Math.max(0.05, 0.05 * Math.abs(vv));
+              let okE = m === 'sh' ? relDiff(vv, est) <= 0.01 : Math.abs(vv - est) <= Math.max(0.05, 0.05 * Math.abs(vv));
+              const band = !okE && kind === 'Q' && d.fy.includes(e) ? shBand(e, d, facts, { splits: splitsOf(d) }, fyS) : null;
+              if (band) {
+                if (m === 'sh') okE = vv >= band[0] * 0.99 && vv <= band[1] * 1.01;
+                else {
+                  const t = d.tags || {}, ni = (t.nic && secAt(t.nic, e, kind, fs0)) ?? (t.ni ? secAt(t.ni, e, kind, fs0) : null), tol = Math.max(0.05, 0.05 * Math.abs(vv));
+                  if (ni != null) { const xs = band.map((b) => ni / b); okE = vv >= Math.min(...xs) - tol && vv <= Math.max(...xs) + tol; }
+                }
+                if (okE) r.why = 'q4_basic';
+              }
               r.c = okE ? 'est' : 'estx';
             } else r.c = 'none';
           } else {

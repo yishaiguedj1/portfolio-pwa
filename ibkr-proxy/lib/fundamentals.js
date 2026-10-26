@@ -321,6 +321,82 @@ function fixRuns(m, fs, locked) {
   }
 }
 
+/* הפיצולים שמחילים, ותאריך כל אחד. שני מקורות:
+   (1) SEC עצמו — אותה תקופה בשתי הגשות עוקבות, ומספר המניות השתנה ביחס "נקי" (2, 3, 1.5, ½…) בשתי תקופות לפחות
+       באותו חלון: זה פיצול, והחלון = בין ההגשה האחרונה שלפניו לראשונה שאחריו. Yahoo רושם פיצול הפוך שבא יחד עם פיצול
+       חברה כיחס אחר (DuPont 2019: ‏1:3 + Corteva = ‏0.4725; Honeywell 2026: ‏1:2 נרשם כ־0.9535; Hilton, Motorola, Leidos),
+       ולפעמים לא בכלל (Arconic 2016). התאריך: של Yahoo כשהוא בתוך החלון, אחרת ההגשה הראשונה שכבר מוצגת מחדש
+       (A. O. Smith 2013: ‏10-Q הוגש עשרה ימים לפני הפיצול ש־Yahoo רושם, וכבר הוצג מחדש).
+   (2) פיצול של Yahoo שאין לו חלון כזה — אמיתי רק כשהוא מוכח: תקופה שהוגשה לפניו ואחריו (מניות פי היחס, רווח למניה
+       חלקי היחס, במרחק לוגריתמי עד 35%); בלי תקופה כזו — הקפיצה בין התקופה האחרונה שהוגשה לפניו לראשונה שאחריו;
+       בלי תקופה אחריו — רק פיצול "נקי". פיצול חברה (GE Vernova 1.25, Western Digital 1.323, DuPont/Qnity 2.39) לא עובר */
+const SPLIT_CLEAN = [1.5, 2, 3, 4, 5, 6, 7, 8, 10, 15, 20, 25, 50, 100];
+function splitPairs(f, sgn) {
+  const out = [];
+  for (const [k, h] of (f && f.dur) || []) {
+    if (!h.all || h.all.size < 2) continue;
+    const v = [...h.all].filter(([, x]) => x).sort((p, q) => (p[0] < q[0] ? -1 : 1));
+    for (let i = 1; i < v.length; i++) if (v[i][1] * v[i - 1][1] > 0) out.push({ k, a: v[i - 1][0], b: v[i][0], lr: sgn * Math.log(v[i][1] / v[i - 1][1]) });
+  }
+  return out;
+}
+function splitPlan(merged, splits) {
+  const shp = splitPairs(merged.sh, 1), all = shp.concat(splitPairs(merged.eps, -1));
+  // (1) חלונות מ־SEC
+  const ev = [];
+  for (const p of shp.slice().sort((x, y) => (x.b < y.b ? -1 : 1))) {
+    const c = SPLIT_CLEAN.flatMap((x) => [x, 1 / x]).find((x) => Math.abs(p.lr - Math.log(x)) < 0.015); if (!c) continue;
+    const o = ev.find((e) => Math.abs(Math.log(e.c / c)) < 0.02 && p.a < e.b && p.b > e.a);
+    if (o) { if (p.a > o.a) o.a = p.a; if (p.b < o.b) o.b = p.b; o.n.add(p.k); } else ev.push({ c, a: p.a, b: p.b, n: new Set([p.k]) });
+  }
+  const used = [], wins = ev.filter((e) => e.n.size >= 2);
+  for (const e of wins) {
+    // תקופה שלא השתנתה בין שתי הגשות — אין פיצול ביניהן: מצמצם את החלון (DuPont: הרבעון הראשון של 2025 זהה במאי 2025
+    // ובמאי 2026 — הפיצול ההפוך אחרי מאי 2026, לא פיצול החברה של נובמבר 2025)
+    for (const p of shp) if (Math.abs(p.lr) < 0.015) { if (p.b > e.a && p.b < e.b) e.a = p.b; if (p.a > e.a && p.a < e.b && p.b >= e.b) e.b = p.a; }
+    const ys = (splits || []).filter(([sd]) => sd > e.a && sd <= e.b), prod = ys.reduce((t, [, r]) => t * r, 1);
+    if (ys.length && Math.abs(Math.log(prod / e.c)) < 0.02) { used.push(...ys); continue; }
+    const y1 = ys.slice().sort((x, y) => Math.abs(Math.log(x[1] / e.c)) - Math.abs(Math.log(y[1] / e.c)))[0];
+    used.push([ys.length === 1 || (y1 && Math.abs(Math.log(y1[1] / e.c)) < 0.02) ? (y1 || ys[0])[0] : e.b, e.c]);
+  }
+  // (2) פיצולים של Yahoo מחוץ לחלונות
+  const inWin = (x, y) => wins.some((e) => x < e.b && y > e.a); // זוג / תאריך שחוצה חלון — לא ראיה לפיצול אחר
+  // פיצול של Yahoo שהוא אותו אירוע כמו חלון (אותו יחס, עד 45 יום מהחלון — A. O. Smith: ‏10 ימים אחרי ההגשה שכבר הוצגה מחדש) — כבר נספר
+  const sameEv = (sd, r) => wins.some((e) => Math.abs(Math.log(r / e.c)) < 0.02 && day(sd) > day(e.a) - 45 && day(sd) <= day(e.b) + 45);
+  const cand = (splits || []).filter(([sd, r]) => r > 0 && Math.abs(Math.log(r)) > Math.log(1.3) && !wins.some((e) => sd > e.a && sd <= e.b) && !sameEv(sd, r));
+  const fsh = merged.sh || { dur: new Map() };
+  for (const [sd, ratio] of cand) {
+    const lr = Math.log(ratio), clean = Math.abs(ratio - Math.round(ratio)) < 1e-6 && ratio >= 2 || Math.abs(1 / ratio - Math.round(1 / ratio)) < 1e-6 && ratio <= 0.5;
+    const other = (a, b) => cand.some(([s2]) => s2 !== sd && s2 > a && s2 <= b) || inWin(a, b);
+    const evd = all.filter((p) => p.a < sd && p.b >= sd && !other(p.a, p.b)).map((p) => p.lr).sort((a, b) => a - b);
+    let real;
+    if (evd.length) real = Math.abs(evd[Math.floor(evd.length / 2)] - lr) < 0.35 * Math.abs(lr);
+    else {
+      let jump = null;
+      for (const want of [[350, 380], [80, 100]]) {
+        let b = null, a = null;
+        for (const [kk, h] of fsh.dur) {
+          const [s0, e0] = kk.split('|'), L = day(e0) - day(s0); if (L < want[0] || L > want[1] || !(h.v > 0)) continue;
+          if (h.filed < sd && (!b || e0 > b[0])) b = [e0, h.v]; else if (h.filed >= sd && (!a || e0 < a[0])) a = [e0, h.v];
+        }
+        if (b && a) { jump = Math.log(a[1] / b[1]); break; }
+      }
+      real = jump != null ? Math.abs(jump - lr) < 0.35 * Math.abs(lr) : clean;
+    }
+    if (real) used.push([sd, ratio]);
+  }
+  const seen = new Set();
+  return used.filter(([sd]) => !seen.has(sd) && seen.add(sd)).sort((x, y) => (x[0] < y[0] ? -1 : 1));
+}
+/* ערכים של תגית (אחרי mergeTags) לבסיס של היום: ממוצע מניות × היחס, למניה ÷ היחס — לכל פיצול שאחרי תאריך ההגשה של הערך */
+function splitAdj(f, used, isSh) {
+  if (!used.length) return f;
+  const fac = (fd) => used.reduce((t, [sd, r]) => (fd < sd ? t * r : t), 1);
+  const adj = (v, fd) => { const x = fac(fd); return x === 1 || v == null ? v : isSh ? v * x : Math.round(v / x * 1e4) / 1e4; };
+  const one = (h) => { const o = { ...h, v: adj(h.v, h.filed) }; if (h.all) o.all = new Map([...h.all].map(([fd, v]) => [fd, adj(v, fd)])); return o; };
+  return { ...f, dur: new Map([...f.dur].map(([k, h]) => [k, one(h)])), inst: new Map([...f.inst].map(([k, h]) => [k, one(h)])) };
+}
+
 /* נרמול companyfacts → { fy:[סופי שנים], q:[סופי רבעונים], A:{key:[...]}, Q:{key:[...]}, cur, derived } */
 function normalizeSec(facts, splits = [], face = null) {
   const gaap = (facts && facts.facts && facts.facts['us-gaap']) || null;
@@ -379,6 +455,18 @@ function normalizeSec(facts, splits = [], face = null) {
     merged[k] = k === 'cash' ? cashMerge(fs, rsub ? RCASH.map((g) => g.map((t) => tagFacts(tax[t], unitOf(k)))) : null) : mergeTags(fs, lock, k === 'capex'); // רק בהשקעות הוניות: בהכנסות/תזרים התגית המשלימה היא לפעמים הרבעון היחיד (Dollar Tree)
     if (merged[k].spine != null) tags[k] = names[merged[k].spine];
   }
+  // פיצולים לפי תאריך ההגשה (26/10/2026): ערך למניה / ממוצע מניות שהוגש לפני הפיצול — מותאם; שהוגש אחריו — החברה
+  // כבר הציגה אותו מחדש (ASC 260: כל התקופות בדוח שהוגש אחרי הפיצול), גם כשהתקופה שלו לפני הפיצול. עד היום ההתאמה
+  // הייתה לפי תאריך התקופה, וערך שהוצג מחדש (רבעון של שנה קודמת כהשוואה ב־10-Q שאחרי הפיצול — ServiceNow, Carvana,
+  // Texas Pacific Land, DuPont בפיצול הפוך) הותאם פעם שנייה; ורבעון אחרון שכבר הוצג מחדש (Booking: ‏10-Q של מרץ
+  // הוגש אחרי הפיצול של אפריל) "הוכיח" שאין קפיצה, וכל הרבעונים הישנים נשארו בלי התאמה. לפני כל חישוב — כך שהרבעון
+  // הרביעי (4 × שנה פחות שלושה) והרווח למניה הנגזר מחושבים מאותו בסיס
+  const splitsUsed = splitPlan(merged, splits);
+  for (const k of ['sh', ...PER_SHARE]) if (merged[k]) merged[k] = splitAdj(merged[k], splitsUsed, k === 'sh');
+  // ממוצע המניות הבסיסי — לרבעון הרביעי כשיש הפסד (q4Shares)
+  const shB = { A: {}, Q: {} };
+  { const fb = splitAdj(tagFacts(tax[isIfrs ? 'WeightedAverageShares' : 'WeightedAverageNumberOfSharesOutstandingBasic'], 'shares'), splitsUsed, true);
+    for (const [kk, h] of fb.dur) { const [s0, e0] = kk.split('|'), L = day(e0) - day(s0); if (L >= 350 && L <= 380) shB.A[e0] = h.v; else if (L >= 80 && L <= 100) shB.Q[e0] = h.v; } }
   // שנים פיסקליות: תקופות של ~שנה בהכנסות או ברווח הנקי (52/53 שבועות נכללים) — רק מדוח שנתי.
   // Amazon מדפיסה ב־10-Q גם עמודה של 12 החודשים האחרונים: בלי התנאי כל רבעון נעשה "סוף שנה" והטבלה השנתית התערבבה
   const yearOf = new Map(); // end → start
@@ -507,13 +595,35 @@ function normalizeSec(facts, splits = [], face = null) {
     const r = Q.sh[e] > 0 && as > 0 ? Math.max(Q.sh[e] / as, as / Q.sh[e]) : 0;
     if ([1e3, 1e6].some((f) => Math.abs(r / f - 1) < 0.2)) Q.sh[e] = null;
   }
+  // ממוצע המניות ברבעון הרביעי (26/10/2026). המדולל לא מצטבר כשיש הפסד באחד הרבעונים או בשנה: ברבעון של הפסד המדולל
+  // = הבסיסי (מניות שמדללות נשמטות), והשנה מחושבת לפי השנה כולה. Southwest 2025: הפסד ברבעון הראשון — 4 × ‏558 פחות
+  // שלושת הרבעונים = ‏581, ההודעה: ‏521; Coinbase: הפסד ברבעון הרביעי — ‏307 מול ‏268. אז מהבסיסי (מצטבר — ממוצע ימים):
+  // 4 × השנה פחות שלושה, ועוד הדילול כשהרביעי ברווח. ההערכה מתקבלת קרוב לשנה או לרבעון השלישי
+  // (Capital One: רכישה באמצע השנה — הרבעון הרביעי ‏632 מול ממוצע שנתי ‏541; Omnicom, Synopsys — רכישה ברבעון הרביעי):
+  // עד 50% מאחד מהם (נמדד על 512 רבעונים רביעיים מול ההודעות לעיתונות דרך Yahoo — בלי שגיאה חדשה; 12% דחה רכישות)
+  const niOf = (D, e) => (D.nic && D.nic[e] != null ? D.nic[e] : D.ni[e]);
+  const q4Shares = (e, y, as, qs) => {
+    if (qs.length !== 3) return null;
+    let est = 4 * as - qs.reduce((t, q) => t + Q.sh[q], 0);
+    const loss = [...qs, e].some((q) => niOf(Q, q) < 0) || niOf(A, e) < 0;
+    const bq = qs.map((q) => shB.Q[q]), ba = shB.A[e];
+    if (loss && ba > 0 && bq.every((x) => x > 0)) {
+      const b4 = 4 * ba - bq.reduce((t, x) => t + x, 0);
+      // הדילול כשהרביעי ברווח: הקטן מבין הרבעון האחרון שהיה ברווח (מדולל פחות בסיסי) ו־4 × הדילול של השנה
+      // (Lumentum: רק הרביעי ברווח — הדילול של השנה כולו ממנו; HPE: הרבעון השלישי כלל בכורה ניתנת להמרה — 96M, בפועל 29M)
+      const pq = qs.filter((q) => niOf(Q, q) > 0).pop(), inc = [4 * (as - ba)];
+      if (pq) inc.push(Q.sh[pq] - shB.Q[pq]);
+      est = b4 + (niOf(Q, e) > 0 ? Math.max(0, Math.min(...inc)) : 0);
+    }
+    const q3 = Q.sh[qs[2]];
+    return est > 0 && (Math.abs(est / as - 1) <= 0.5 || (q3 > 0 && Math.abs(est / q3 - 1) <= 0.5)) ? est : null;
+  };
   for (const e of qEnds) {
     if (Q.sh[e] == null) {
       const s = yearAt(e), as = s && A.sh[s[0]];
       if (as != null) {
         const qs = s[0] === e ? qEnds.filter((q) => q > s[1] && q < e && Q.sh[q] > 0) : [];
-        const est = qs.length === 3 ? 4 * as - qs.reduce((t, q) => t + Q.sh[q], 0) : null;
-        Q.sh[e] = est != null && Math.abs(est / as - 1) <= 0.12 ? est : as;
+        Q.sh[e] = q4Shares(e, s, as, qs) ?? as;
       }
     }
     // החלק של הרווח שבבסיס הרווח למניה (אחרי דיבידנד בכורה, התאמות דילול) — לפי השנה כפי שהחברה הציגה אותה:
@@ -528,30 +638,6 @@ function normalizeSec(facts, splits = [], face = null) {
   // מניות חסרות (דיווח לפי סוגי מניות): רווח נקי ÷ רווח למניה
   for (const [D, ends] of [[A, fyEnds], [Q, qEnds]]) for (const e of ends) {
     if (!D.sh[e] && D.eps[e] && D.ni[e]) D.sh[e] = Math.abs(D.ni[e] / D.eps[e]);
-  }
-  // פיצולים: תקופות שדווחו רק לפני הפיצול — קפיצה במספר המניות פי היחס
-  for (const [sd, ratio] of splits) {
-    for (const [D, ends] of [[A, fyEnds], [Q, qEnds]]) {
-      const ref = ends.filter((e) => e >= sd && D.sh[e]).map((e) => D.sh[e])[0];
-      // אין עדיין תקופה אחרי הפיצול (HDFC Bank: מניות הטבה בספטמבר, השנה נגמרה במרץ) — אין קפיצה לאמת מולה;
-      // מחילים רק פיצול "נקי" (יחס שלם ≥2 או ההפך שלו), אחרת המחיר אחרי הפיצול מול רווח למניה לפניו = מכפיל כפול
-      const clean = Math.abs(ratio - Math.round(ratio)) < 1e-6 && ratio >= 2 || Math.abs(1 / ratio - Math.round(1 / ratio)) < 1e-6 && ratio <= 0.5;
-      if (!ref && !(clean && ends.some((e) => e < sd && D.sh[e]) && !ends.some((e) => e >= sd))) continue;
-      // רק פיצול אמיתי: יחס רחוק מ־1, ומספר המניות קפץ בערך באותו יחס בין התקופה שלפני לזו שאחרי (במרחק לוגריתמי,
-      // עד 35% מהיחס). Yahoo רושם גם פיצול חברה כ"ספליט" — GE Vernova 1.25, Western Digital/Sandisk 1.323 (מספר המניות
-      // עלה רק ב־10%; עד 25/10/2026 עבר בבדיקה כל שנה לחוד מול טווח רחב, והרווח למניה של 2024 חולק ב־1.323).
-      // החלטה אחת לכל התקופות שלפני — לא שנה ישנה (לפני רכישות חוזרות) שעוברת ושנה שלא
-      const lr = Math.log(ratio), before = ends.filter((e) => e < sd && D.sh[e]).pop();
-      const real = Math.abs(lr) > Math.log(1.3) && (ref ? before && Math.abs(Math.log(ref / D.sh[before]) - lr) < 0.35 * Math.abs(lr) : clean);
-      if (!real) continue;
-      for (const e of ends) {
-        const v = D.sh[e];
-        if (e < sd && v) {
-          D.sh[e] = v * ratio;
-          for (const k of PER_SHARE) if (D[k][e] != null) D[k][e] = Math.round(D[k][e] / ratio * 1e4) / 1e4;
-        }
-      }
-    }
   }
   // עלות מכר שאינה עלות ההכנסות (cogsBasis) — בלי עלות המכר ובלי רווח גולמי מחושב; רווח גולמי שהחברה דיווחה נשאר
   // שורה שלא בדוח רווח והפסד (כשיש דוח שזיהינו) = מדד מהביאורים, לא השורה: Honeywell מתייגת OperatingIncomeLoss על
@@ -635,7 +721,7 @@ function normalizeSec(facts, splits = [], face = null) {
   const pack = (D, ends) => { const o = {}; for (const k of KEEP) { if (!D[k]) continue; const a = ends.map((e) => (D[k][e] != null ? D[k][e] : null)); if (a.some((v) => v != null)) o[k] = a; } return o; };
   const fy = fyEnds.filter((e) => A.rev[e] != null || A.ni[e] != null).slice(-20);
   const C = { A: pack(GA, fy), Q: pack(GQ, qEnds) };
-  return { fy, q: qEnds, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes, qmix, gpx, gpd, opx };
+  return { fy, q: qEnds, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes, qmix, gpx, gpd, opx, splitsUsed };
 }
 
 /* ---------- בדיקות אימות — תג, לא תיקון ---------- */
@@ -715,7 +801,8 @@ function faceCheck(d, face, splits = []) {
   const out = [], seen = { n: 0, ok: 0 }, fill = [];
   if (!face || !d || !d.tags) return { out, seen, fill };
   // פיצול שהיה אחרי הגשת הדוח (Booking 25:1, CrowdStrike 4:1): הדוח מודפס לפני הפיצול ואצלנו אחריו — משווים אחרי אותו פיצול
-  const post = (splits || []).filter(([sd, r]) => face.filed && sd > face.filed && Math.abs(Math.log(r)) > Math.log(1.3)).reduce((t, [, r]) => t * r, 1);
+  // רק פיצולים ש־normalizeSec הכיר כאמיתיים (splitsUsed) — פיצול חברה (DuPont/Qnity 2.39) לא מחלק את הדוח
+  const post = (d.splitsUsed || (splits || []).filter(([, r]) => Math.abs(Math.log(r)) > Math.log(1.3))).filter(([sd]) => face.filed && sd > face.filed).reduce((t, [, r]) => t * r, 1);
   for (const k of FACE_KEYS) {
     const tag = d.tags[k]; if (!tag || !d.A[k]) continue;
     const parts = tag.split('+');
@@ -1087,7 +1174,7 @@ async function fundamentals(sym0) {
     prof: s ? s.prof : null, price: s ? s.price : null, prev: s ? s.prev : null,
     sharesOut: sharesOut || (s && s.sharesOut) || null, fill, fpe: s ? s.fpe : null, peg: s ? s.peg : null, beta: s ? s.beta : null,
     est: s ? s.est : [], hist: s ? s.hist : [], nextEarn: s ? s.nextEarn : null, nq: n || null,
-    px: m ? m.px : null, splits: m ? m.splits : [], peers: peers || [],
+    px: m ? m.px : null, splits: m ? m.splits : [], splitsUsed: useSec ? sec.splitsUsed || [] : [], peers: peers || [],
     ind: industryFor(s && s.prof && s.prof.industry), checks, errs,
     // מקור ושקיפות (שכבה 6): התגית שנבחרה לכל שורה, הדוח שמולו נבדקנו, וכמה ערכים תאמו לו
     tags: useSec ? sec.tags : null,
