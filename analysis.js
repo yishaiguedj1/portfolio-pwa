@@ -91,7 +91,22 @@ function indFix(co, mac) {
 /* ---------- תקופות ומדדים בסיסיים ---------- */
 const INST = new Set(['cash', 'msec', 'debt', 'eq', 'ta', 'tl', 'ca', 'cl', 're', 'ppe']);
 const SUMQ = (k) => !INST.has(k) && k !== 'sh'; // זרימה (כולל רווח למניה) = סכום 4 רבעונים; מאזן ומניות = הרבעון האחרון
-const hasTTM = (co) => co.q.length >= 4 && co.q[co.q.length - 1] > co.fyE[co.fyE.length - 1];
+const hasTTM = (co) => co.q.length >= 4 && co.q[co.q.length - 1] > co.fyE[co.fyE.length - 1] && qRun(co, co.q.length - 4, co.q.length - 1); // בלי רצף — "עכשיו" = השנה האחרונה
+/* רבעונים רצופים (26/10/2026): רבעון שחסר ברשימה (דוח שלא הוגש ב־XBRL / בלי הכנסות) לא נבלע — ארבע נקודות סמוכות ברשימה
+   עם חור ביניהן הן 15 חודשים, לא 12. כל רבעון 75–105 יום אחרי הקודם; "שנה קודם" = הרבעון שמסתיים 365±15 יום לפני
+   (בדרך כלל 4 מקומות אחורה — כשחסר רבעון ביניהם, לפי התאריך) */
+const qDays = (a, b) => (Date.parse(b) - Date.parse(a)) / 864e5;
+function qRun(co, a, b) {
+  if (a < 0) return false;
+  for (let j = a + 1; j <= b; j++) { const d = qDays(co.q[j - 1], co.q[j]); if (!(d >= 75 && d <= 105)) return false; }
+  return true;
+}
+function qBack(co, i, n = 1) {
+  const near = (j) => j >= 0 && j < i && Math.abs(qDays(co.q[j], co.q[i]) - 365.25 * n) <= 15 * n;
+  if (near(i - 4 * n)) return i - 4 * n;
+  for (let j = i - 1; j >= 0; j--) if (near(j)) return j;
+  return -1;
+}
 /* השנה הקודמת כפי שהוצגה באותו דוח (26/10/2026, AppLovin): co.C = יחסי הצמיחה מהשרתון — רק לתקופות שהחברה הציגה
    מחדש (פעילות שנמכרה, שינוי מדיניות). ערך ההשוואה = הערך ÷ היחס; undefined = אין הצגה מחדש (הערך הקודם בסדרה) */
 const cmpDiv = (v, r) => (v != null && r ? v / r : null);
@@ -103,10 +118,10 @@ function cmpPrev(co, k, p) {
   if (p.kind === 'q') return R[p.i] != null ? cmpDiv(Q[p.i], R[p.i]) : undefined; // 0 = על בסיס אחר ואין דרך להשוות — בלי צמיחה
   // TTM: כל רבעון מול הרבעון שלו שנה קודם — מאותו דוח כשהוצג מחדש
   if (!SUMQ(k) || (co.T && co.T[k] != null)) return undefined;
-  const end = co.q.length - 1; if (end < 7) return undefined;
+  const end = co.q.length - 1; if (end < 7 || !qRun(co, end - 3, end)) return undefined;
   let s = 0, any = false;
   for (let j = end - 3; j <= end; j++) {
-    const x = R[j] != null ? cmpDiv(Q[j], R[j]) : Q[j - 4];
+    const x = R[j] != null ? cmpDiv(Q[j], R[j]) : Q[qBack(co, j)] ?? null;
     if (x == null) return R[j] != null || any ? null : undefined;
     s += x; any = any || R[j] != null;
   }
@@ -117,12 +132,12 @@ function raw(co, k, p, back = 0, cmp = false) {
   if (cmp && back === 1) { const c = cmpPrev(co, k, p); if (c !== undefined) return c; }
   if (p.kind === 'fy') { const i = p.i - back; return i >= 0 ? co.A[k]?.[i] ?? null : null; }
   const Q = co.Q[k] || [];
-  if (p.kind === 'q') { const i = p.i - back * 4; return i >= 0 ? Q[i] ?? null : null; }
+  if (p.kind === 'q') { const i = back ? qBack(co, p.i, back) : p.i; return i >= 0 ? Q[i] ?? null : null; }
   if (!back && co.T && co.T[k] != null) return co.T[k];
-  const end = co.q.length - 1 - back * 4;
+  const end = back ? qBack(co, co.q.length - 1, back) : co.q.length - 1;
   if (end < 0) return null;
   if (!SUMQ(k)) return Q[end] ?? null;
-  if (end < 3) return null;
+  if (!qRun(co, end - 3, end)) return null;
   let s = 0; for (let j = end - 3; j <= end; j++) { if (Q[j] == null) return null; s += Q[j]; }
   return s;
 }
@@ -187,12 +202,16 @@ function cagrN(co, k, n) {
 
 /* ---------- היסטוריה חודשית של מכפילים (10 שנים) ---------- */
 function ttmPoints(co, k) {
-  const pts = [];
-  co.fyE.forEach((e, i) => { const v = co.A[k]?.[i]; if (v != null) pts.push([e, v]); });
-  const Q = co.Q[k] || [];
+  const pts = [], Q = co.Q[k] || [];
+  // מספר מניות בסוף שנה — של הרבעון האחרון (קונה מניות חוזרות: הממוצע השנתי גבוה ממה שהיה בסוף השנה)
+  const qAt = k === 'sh' ? new Set(co.q.filter((e, j) => Q[j] != null)) : new Set();
+  co.fyE.forEach((e, i) => { const v = co.A[k]?.[i]; if (v != null && !qAt.has(e)) pts.push([e, v]); });
+  const fyAt = new Set(pts.map((x) => x[0]));
   for (let j = 3; j < co.q.length; j++) {
+    if (fyAt.has(co.q[j])) continue; // סוף שנה: המספר השנתי מהדוח, לא סכום רבעונים (רווח למניה לא מצטבר) — ולא שתי נקודות באותו תאריך
     if (co.T && j === co.q.length - 1 && co.T[k] != null) { pts.push([co.q[j], co.T[k]]); continue; }
     if (!SUMQ(k)) { if (Q[j] != null) pts.push([co.q[j], Q[j]]); continue; }
+    if (!qRun(co, j - 3, j)) continue;
     let s = 0, ok = true; for (let x = j - 3; x <= j; x++) { if (Q[x] == null) { ok = false; break; } s += Q[x]; }
     if (ok) pts.push([co.q[j], s]);
   }
@@ -1250,7 +1269,7 @@ function srcDef(co, k) {
 const OWN_TAG = { rev: 'rev', op: 'op', ni: 'ni', eps: 'eps', sh: 'sh', ocf: 'ocf', buy: 'buy', dps: 'dps', eq: 'eq', ta: 'ta', tl: 'tl', gp: 'gp', capexN: 'capex', sbcN: 'sbc', cashT: 'cash', debt: 'debt' };
 const flagMs = (f) => (f.m ? [f.m] : f.k === 'bal' ? ['ta', 'tl', 'eq'] : []);   // מאזן שלא מתאזן — שייך לשלושתם
 // תיקון אוטומטי והשלמה מהדוח עצמו — מידע, לא "לבדוק": הערך כמו שהודפס
-const FL_INFO = new Set(['fix', 'ffill', 'ffix', 'rst']);
+const FL_INFO = new Set(['fix', 'ffill', 'ffix', 'rst', 'qeps', 'qmix', 'qfy', 'gpfin']);
 const flagOn = (f, raw) => !FL_INFO.has(f.k) && flagMs(f).some((m) => raw.has(m));
 function flagsAt(co, keys, p) {
   if (!p || p.kind !== 'fy' || !co.flags.length) return null;
@@ -1281,7 +1300,7 @@ function srcBlock(co, keys) {
   if (yrs.length) rows.push(h('button', { class: 'an-row', type: 'button', on: { click: flagSheet } }, h('span', { class: 'an-ic na' }, '!'),
     h('div', { class: 'an-rt' }, h('b', {}, T('anSrcFlag', { y: iso(yrs.join(', ')) })), h('span', {}, T('anSrcFlagS'))), h('span', { class: 'an-chev' })));
   if (fixed) rows.push(h('div', { class: 'an-row' }, h('span', { class: 'an-ic y' }, '✓'), h('div', { class: 'an-rt' }, h('b', {}, T('anFlFix')))));
-  for (const [kk, lb] of [['ffill', 'anFlFill'], ['ffix', 'anFlFfix']]) {
+  for (const [kk, lb] of [['ffill', 'anFlFill'], ['ffix', 'anFlFfix'], ['qeps', 'anFlQeps'], ['qmix', 'anFlQmix'], ['qfy', 'anFlQfy'], ['gpfin', 'anFlGpfin']]) {
     const ys = fromRep(kk);
     if (ys.length) rows.push(h('div', { class: 'an-row' }, h('span', { class: 'an-ic y' }, '✓'), h('div', { class: 'an-rt' }, h('b', {}, T(lb)), h('span', {}, iso(ys.join(', '))))));
   }
@@ -1322,7 +1341,7 @@ function estSheet() {
       h('div', { class: 'an-rv' }, fmt(e, 'ps', co), g != null ? h('small', { class: g >= 0 ? 'an-up' : 'an-down' }, sgn(g)) : null)))));
   });
 }
-const FLAG_KEYS = { bal: 'anFlBal', eps: 'anFlEps', neg: 'anFlNeg', scale: 'anFlScale', q4: 'anFlQ4', xy: 'anFlXy', face: 'anFlFace', fix: 'anFlFix', ffill: 'anFlFill', ffix: 'anFlFfix', rst: 'anFlRst', gp: 'anFlGp', part: 'anFlPart' };
+const FLAG_KEYS = { bal: 'anFlBal', eps: 'anFlEps', neg: 'anFlNeg', scale: 'anFlScale', q4: 'anFlQ4', xy: 'anFlXy', face: 'anFlFace', fix: 'anFlFix', ffill: 'anFlFill', ffix: 'anFlFfix', rst: 'anFlRst', qeps: 'anFlQeps', qmix: 'anFlQmix', qfy: 'anFlQfy', gpfin: 'anFlGpfin', gp: 'anFlGp', part: 'anFlPart' };
 const flagUnit = (m) => (m === 'eps' ? 'ps' : m === 'sh' ? 'shares' : (M[m] && M[m].u) || 'money');
 function flagSheet() {
   const co = S.co;
@@ -1334,5 +1353,5 @@ function flagSheet() {
 }
 
 /* בדיקות (node) — הפונקציות הטהורות */
-export const _test = { cmpPrev, restated, cagrBetween, growthOf, finInputs, riValue, impliedRoe, reitInputs, lossView, fairOf, flagsAt, srcDef, rawName, RAWK, OWN_TAG, prep, indFix, pickPeers, peerRow, ctx, periodList, hasTTM, raw, multHist, autoInputs, dcf, scenarios, reverseG, multModel, uncertainty, checks, piotroski, altman, fmt, sgn, cagrN, epsPath,
+export const _test = { qRun, qBack, ttmPoints, cmpPrev, restated, cagrBetween, growthOf, finInputs, riValue, impliedRoe, reitInputs, lossView, fairOf, flagsAt, srcDef, rawName, RAWK, OWN_TAG, prep, indFix, pickPeers, peerRow, ctx, periodList, hasTTM, raw, multHist, autoInputs, dcf, scenarios, reverseG, multModel, uncertainty, checks, piotroski, altman, fmt, sgn, cagrN, epsPath,
   setEnv: (e) => { E = e; } };

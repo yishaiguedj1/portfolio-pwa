@@ -2,6 +2,8 @@ package io.github.yishaiguedj1.snowball.br
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.KeyguardManager
+import android.app.PictureInPictureParams
 import android.app.SearchManager
 import android.app.role.RoleManager
 import android.content.ActivityNotFoundException
@@ -11,6 +13,9 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.hardware.biometrics.BiometricManager
+import android.hardware.biometrics.BiometricPrompt
 import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
 import android.graphics.Bitmap
@@ -22,10 +27,13 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.Message
+import android.os.CancellationSignal
 import android.os.SystemClock
+import android.util.Rational
 import android.provider.Settings
 import android.speech.RecognizerIntent
 import android.view.View
+import android.view.WindowManager
 import android.view.textclassifier.TextClassifier
 import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
@@ -73,9 +81,9 @@ import io.github.yishaiguedj1.snowball.dm.DmStore
  * כך שהעוגיות של האתרים לא יוצאות מהאפליקציה. הממשק — BrUi.kt.
  */
 class BrowserActivity : ComponentActivity() {
-    enum class Screen { PAGE, SWITCHER, HISTORY, BOOKMARKS, SETTINGS, ENGINE, PASSWORDS, PRIVACY, BARPOS, IMPORT, CHROME }
-    /** עמודי המשנה של ההגדרות — "חזור" מהם חוזר להגדרות, לא לדף */
-    private val settingsSubs = setOf(Screen.ENGINE, Screen.PASSWORDS, Screen.PRIVACY, Screen.BARPOS, Screen.IMPORT, Screen.CHROME)
+    enum class Screen { PAGE, SWITCHER, HISTORY, BOOKMARKS, SETTINGS, ENGINE, PASSWORDS, PRIVACY, BARPOS, IMPORT, CHROME, SITES, SITE, VIDEO }
+    /** עמודי המשנה של ההגדרות — "חזור" מהם חוזר להגדרות, לא לדף (אתר אחד — חוזר לרשימת האתרים) */
+    private val settingsSubs = setOf(Screen.ENGINE, Screen.PASSWORDS, Screen.PRIVACY, Screen.BARPOS, Screen.IMPORT, Screen.CHROME, Screen.SITES, Screen.VIDEO)
     data class PermAsk(val host: String, val kind: Int, val go: (Boolean) -> Unit)   // kind: 1 מצלמה, 2 מיקרופון, 3 שניהם, 4 מיקום
 
     val tabs = mutableStateListOf<BrTab>()
@@ -106,6 +114,22 @@ class BrowserActivity : ComponentActivity() {
     var clearAsk by mutableStateOf(false)
     /** בסימניות: 0 = הכל, 1 = סימניות בנייד, 2 = מיובאות מ־Chrome */
     var markFolder by mutableIntStateOf(0)
+
+    /* שלב 3 (26/10): פרטיות ווידאו */
+    var shield by mutableStateOf(true)
+    var cookies by mutableStateOf(true)
+    var lockPriv by mutableStateOf(false)
+    var bgPlay by mutableStateOf(true)
+    var pip by mutableStateOf(true)
+    var speedSheet by mutableStateOf(false)
+    /** הטאבים הפרטיים נעולים עד טביעת אצבע / קוד המסך (אחרי שהאפליקציה יצאה לרקע) */
+    var privLocked by mutableStateOf(false)
+    var inPip by mutableStateOf(false)
+    /** האתר שפתוח במסך "הגדרות האתר" */
+    var siteHost by mutableStateOf("")
+    var sitesRev by mutableIntStateOf(0)
+    /** ההגדרות לכל אתר — מתחלף כולו בכל שינוי (נקרא גם מהת׳רד של הרשת) */
+    @Volatile var rules: Map<String, BrShield.SiteRule> = emptyMap()
 
     private val ui = Handler(Looper.getMainLooper())
     private var nextId = 1L
@@ -141,7 +165,11 @@ class BrowserActivity : ComponentActivity() {
         prefs = BrPrefs(this)
         barBottom = prefs.barBottom; homeBtn = prefs.homeBtn; engine = prefs.engine; bubble = prefs.bubble
         suggestOn = prefs.suggest; zoom = prefs.zoom; lastImport = prefs.lastImport
+        shield = prefs.shield; cookies = prefs.cookies; lockPriv = prefs.lockPriv; bgPlay = prefs.bgPlay; pip = prefs.pip
+        rules = BrShield.decode(prefs.sites)
         BrStore.init(this)
+        BrPics.init(this)
+        BrMedia.onCmd = { play -> ui.post { mediaCmd(play) } }
         BrChrome.init(this); BrChrome.attach(this)
         BrChrome.onChange = { chromeRev++; markRev++ }
         DmStore.init(this)
@@ -150,7 +178,7 @@ class BrowserActivity : ComponentActivity() {
         // טאבים פרטיים לא שורדים סגירה של האפליקציה — מה שנשאר מהפעם הקודמת נמחק
         if (privOk) runCatching { ProfileStore.getInstance().deleteProfile(PRIV) }
         val (saved, at) = BrStore.loadTabs()
-        saved.forEach { tabs.add(BrTab(nextId++, it.url, it.title, false)) }
+        saved.forEach { tabs.add(BrTab(nextId++, it.url, it.title, false).apply { thumb = BrPics.thumb(it.url) }) }
         if (!handle(intent)) {
             if (tabs.isEmpty()) newTab("") else select(tabs[at.coerceIn(0, tabs.size - 1)])
         }
@@ -159,17 +187,104 @@ class BrowserActivity : ComponentActivity() {
     }
 
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); handle(intent) }
-    override fun onResume() { super.onResume(); checkDefault(); checkFill(); cur?.web?.onResume(); BrChrome.sync(this); ui.postDelayed(chromeTick, CHROME_EVERY) }
+    override fun onResume() {
+        super.onResume(); checkDefault(); checkFill(); cur?.web?.onResume(); BrChrome.sync(this); ui.postDelayed(chromeTick, CHROME_EVERY)
+        // חזרה מניגון ברקע — הדף שוב יודע שהוא מוצג, והשירות נעצר
+        if (bgOn) { bgOn = false; runCatching { bgTab?.web?.evaluateJavascript(BrShield.bgJs(false), null) }; bgTab = null; BrMedia.stop(this) }
+        if (privLocked && showsPrivate()) unlockPriv()
+    }
+    /** ניגון ברקע: הטאב שממשיך לנגן כשהאפליקציה לא מוצגת */
+    private var bgOn = false
+    private var bgTab: BrTab? = null
     /** כל עוד האפליקציה פתוחה — סנכרון עם Chrome כל כמה דקות (התוסף במחשב מסנכרן בקצב דומה) */
     private val chromeTick: Runnable = Runnable { BrChrome.sync(this); ui.postDelayed(chromeTick, CHROME_EVERY) }
     override fun onPause() {
         ui.removeCallbacks(chromeTick)
-        cur?.web?.onPause()
+        val t = cur
+        when {
+            isInPictureInPictureMode -> {}   // תמונה בתוך תמונה — הסרטון ממשיך
+            // משהו מתנגן ו"ניגון ברקע" פועל: לא משהים את הדף, מסתירים ממנו שהאפליקציה ברקע, ומעלים שירות עם התראה
+            bgPlay && t != null && t.playing && t.web != null -> {
+                bgOn = true; bgTab = t
+                runCatching { t.web?.evaluateJavascript(BrShield.bgJs(true), null) }
+                // טאב פרטי — בלי שם הדף והאתר בהתראה (היא מופיעה גם במסך הנעילה)
+                if (t.private) BrMedia.start(this, getString(R.string.brPrivate), "") else BrMedia.start(this, t.title, BrStore.hostOf(t.url))
+            }
+            else -> t?.web?.onPause()
+        }
         saveSession()
         super.onPause()
     }
 
+    override fun onStop() {
+        super.onStop()
+        if (lockPriv && tabs.any { it.private } && canLock()) privLocked = true
+    }
+
+    /** פקודה מההתראה / מסך הנעילה / האוזניות: true = להמשיך, false = להשהות, null = לסגור */
+    private fun mediaCmd(play: Boolean?) {
+        val w = bgTab?.web ?: return
+        runCatching { w.evaluateJavascript(if (play == true) BrShield.RESUME_JS else BrShield.PAUSE_JS, null) }
+        if (play == null) { bgOn = false; bgTab = null }
+    }
+
+    /* תמונה בתוך תמונה: סרטון במסך מלא + יציאה מהאפליקציה (כפתור הבית / החלקה) — ממשיך בחלון קטן, כמו ב־Chrome */
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (Build.VERSION.SDK_INT < 31 && pip && customView != null && !privLocked) runCatching { enterPictureInPictureMode(pipParams(false)) }
+    }
+
+    private fun pipParams(auto: Boolean): PictureInPictureParams {
+        val b = PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9))
+        if (Build.VERSION.SDK_INT >= 31) b.setAutoEnterEnabled(auto).setSeamlessResizeEnabled(true)
+        return b.build()
+    }
+
+    override fun onPictureInPictureModeChanged(isInPip: Boolean, newConfig: Configuration) {
+        super.onPictureInPictureModeChanged(isInPip, newConfig)
+        inPip = isInPip
+        if (!isInPip && !hasWindowFocus() && customView != null) runCatching { cur?.web?.onPause() }   // סגרת את החלון הקטן
+    }
+
+    /* ---------------- נעילת הטאבים הפרטיים ---------------- */
+
+    fun showsPrivate() = (screen == Screen.PAGE && cur?.private == true) || (screen == Screen.SWITCHER && swPrivate)
+
+    /** יש בטלפון נעילת מסך — בלעדיה אין במה לנעול */
+    fun canLock(): Boolean = runCatching { getSystemService(KeyguardManager::class.java)?.isDeviceSecure == true }.getOrDefault(false)
+
+    private var unlocking = false
+    fun unlockPriv() {
+        if (!privLocked || unlocking) return
+        if (!canLock()) { privLocked = false; return }
+        unlocking = true
+        val b = BiometricPrompt.Builder(this).setTitle(getString(R.string.brLockTitle)).setSubtitle(getString(R.string.brLockSub))
+        if (Build.VERSION.SDK_INT >= 30) b.setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+        else @Suppress("DEPRECATION") b.setDeviceCredentialAllowed(true)
+        runCatching {
+            b.build().authenticate(CancellationSignal(), mainExecutor, object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(r: BiometricPrompt.AuthenticationResult) { unlocking = false; privLocked = false }
+                override fun onAuthenticationError(code: Int, msg: CharSequence) { unlocking = false }
+            })
+        }.onFailure { unlocking = false }
+    }
+
+    /** "לטאבים הרגילים" ממסך הנעילה */
+    fun leavePrivate() {
+        swPrivate = false
+        if (cur?.private == true) tabs.lastOrNull { !it.private }?.let { select(it) } ?: newTab("")
+        if (screen != Screen.SWITCHER) screen = Screen.PAGE
+    }
+
+    /** טאב פרטי על המסך (או במסך הטאבים) — בלי צילומי מסך ובלי תמונה במסך האפליקציות האחרונות, כמו ב־Chrome */
+    fun applySecure() {
+        if (showsPrivate() || (screen == Screen.SWITCHER && tabs.any { it.private } && privLocked)) window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+    }
+
     override fun onDestroy() {
+        BrMedia.onCmd = null
+        if (isFinishing) BrMedia.stop(this)
         tabs.forEach { t -> runCatching { t.web?.destroy() } }
         if (privOk) runCatching { ProfileStore.getInstance().deleteProfile(PRIV) }
         super.onDestroy()
@@ -178,6 +293,9 @@ class BrowserActivity : ComponentActivity() {
     private fun saveSession() {
         val pub = tabs.filter { !it.private && it.url.startsWith("http") }
         BrStore.saveTabs(pub.map { BrTabRec(it.url, it.title) }, pub.indexOf(cur).coerceAtLeast(0))
+        cur?.takeIf { !it.private }?.let { snap(it) }
+        if (blkNew > 0) { prefs.blockedAll = prefs.blockedAll + blkNew; blkNew = 0 }
+        BrPics.keepThumbs(pub.map { it.url })
         BrStore.saveNow()
     }
 
@@ -270,6 +388,7 @@ class BrowserActivity : ComponentActivity() {
             val b = Bitmap.createBitmap((w.width * s).toInt().coerceAtLeast(1), (w.height * s).toInt().coerceAtLeast(1), Bitmap.Config.RGB_565)
             val c = Canvas(b); c.scale(s, s); c.translate(-w.scrollX.toFloat(), -w.scrollY.toFloat())
             w.draw(c); t.thumb = b
+            if (!t.private) BrPics.saveThumb(t.url, b)   // שורד סגירה של האפליקציה (מסך הטאבים אחרי ההפעלה הבאה)
         }
     }
 
@@ -309,10 +428,12 @@ class BrowserActivity : ComponentActivity() {
             pick -> pick = false
             clearAsk -> clearAsk = false
             zoomSheet -> zoomSheet = false
+            speedSheet -> speedSheet = false
             info -> info = false
             menu -> menu = false
             finding -> stopFind()
             editing -> editing = false
+            screen == Screen.SITE -> screen = Screen.SITES
             screen in settingsSubs -> screen = Screen.SETTINGS
             screen == Screen.BOOKMARKS && markFolder != 0 -> markFolder = 0
             screen != Screen.PAGE -> screen = Screen.PAGE
@@ -364,11 +485,14 @@ class BrowserActivity : ComponentActivity() {
                 external(u, t)
                 return true
             }
-            override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? { seen(t, req.url.toString(), headers = req.requestHeaders); return null }
+            override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? {
+                if (!req.isForMainFrame && blockReq(t, req.url.host)) return EMPTY()
+                seen(t, req.url.toString(), headers = req.requestHeaders); return null
+            }
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
-                if (url != t.page) { t.page = url; t.vid = null; t.found.clear(); synchronized(t.headSeen) { t.headSeen.clear() }; t.recount(); autoPick(t) }
+                if (url != t.page) { t.page = url; t.vid = null; t.blocked = 0; t.playing = false; t.found.clear(); synchronized(t.headSeen) { t.headSeen.clear() }; t.recount(); autoPick(t) }
                 if (BrStore.hostOf(url) != BrStore.hostOf(t.url)) t.icon = null
-                t.url = url; if (favicon != null) t.icon = favicon
+                t.url = url; if (favicon != null) { t.icon = favicon; if (!t.private) BrPics.saveIcon(BrStore.hostOf(url), favicon) }
                 navState(t, view)
             }
             // אתר של "דף אחד" (קורס, פיד): מעבר בלי טעינת דף — כמו ב־DmBrowser
@@ -385,12 +509,13 @@ class BrowserActivity : ComponentActivity() {
                 view.title?.let { if (it.isNotEmpty()) { t.title = it; if (!t.private) BrStore.setTitle(url, it) } }
                 t.recount(); navState(t, view)
                 markRev++
+                pageScripts(t, view, url)
             }
         }
         w.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView, p: Int) { t.progress = p }
             override fun onReceivedTitle(view: WebView, title: String?) { if (!title.isNullOrEmpty()) { t.title = title; if (!t.private) BrStore.setTitle(t.url, title) } }
-            override fun onReceivedIcon(view: WebView, icon: Bitmap?) { if (icon != null) t.icon = icon }
+            override fun onReceivedIcon(view: WebView, icon: Bitmap?) { if (icon != null) { t.icon = icon; if (!t.private) BrPics.saveIcon(BrStore.hostOf(t.url), icon) } }
             override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
                 if (!isUserGesture) return false   // חלון קופץ בלי נגיעה — חסום, כמו ב־Chrome
                 val nt = newTab("", private = t.private, after = t)
@@ -407,6 +532,7 @@ class BrowserActivity : ComponentActivity() {
             }
             override fun onShowCustomView(v: View, cb: CustomViewCallback) {
                 customCb?.onCustomViewHidden(); customCb = cb; customView = v
+                if (Build.VERSION.SDK_INT >= 31) runCatching { setPictureInPictureParams(pipParams(pip && !t.private)) }   // יציאה מהאפליקציה = חלון קטן
                 WindowInsetsControllerCompat(window, window.decorView).apply {
                     hide(WindowInsetsCompat.Type.systemBars()); systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 }
@@ -417,12 +543,12 @@ class BrowserActivity : ComponentActivity() {
                 val mic = PermissionRequest.RESOURCE_AUDIO_CAPTURE in req.resources
                 if (!cam && !mic) { req.deny(); return }
                 val need = buildList { if (cam) add(Manifest.permission.CAMERA); if (mic) add(Manifest.permission.RECORD_AUDIO) }
-                ask(req.origin.host ?: "", if (cam && mic) 3 else if (cam) 1 else 2, need) { ok ->
+                ask(req.origin.host ?: "", if (cam && mic) 3 else if (cam) 1 else 2, need, t.private) { ok ->
                     if (ok) req.grant(req.resources.filter { it == PermissionRequest.RESOURCE_VIDEO_CAPTURE && cam || it == PermissionRequest.RESOURCE_AUDIO_CAPTURE && mic }.toTypedArray()) else req.deny()
                 }
             }
             override fun onGeolocationPermissionsShowPrompt(origin: String, cb: GeolocationPermissions.Callback) {
-                ask(Uri.parse(origin).host ?: origin, 4, listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) { ok -> cb.invoke(origin, ok, false) }
+                ask(Uri.parse(origin).host ?: origin, 4, listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), t.private) { ok -> cb.invoke(origin, ok, false) }
             }
         }
         // הורדה שהדף מתחיל — למנהל ההורדות (DmActivity), עם העוגיות של האתר
@@ -433,6 +559,12 @@ class BrowserActivity : ComponentActivity() {
             // הנגן שעל המסך — רק מהמסגרת הראשית (הבועה נצמדת אליו; BrVideo)
             WebViewCompat.addWebMessageListener(w, "snbVid", setOf("*")) { _, msg, _, main, _ -> if (main) t.vid = BrVideo.parse(msg.data) }
             if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) WebViewCompat.addDocumentStartJavaScript(w, BrVideo.JS, setOf("*"))
+            // מה מתנגן בדף (כל המסגרות) — לניגון ברקע; ובאותו סקריפט מהירות הווידאו של האתר
+            WebViewCompat.addWebMessageListener(w, "snbPlay", setOf("*")) { _, msg, _, _, _ ->
+                val p = msg.data == "1"; t.playing = p
+                if (bgOn && bgTab === t) BrMedia.state(this, p)
+            }
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) WebViewCompat.addDocumentStartJavaScript(w, BrShield.PLAY_JS, setOf("*"))
         }
         w.setFindListener { active, count, done -> if (done) findRes = (if (count == 0) 0 else active + 1) to count }
         t.web = w
@@ -441,6 +573,66 @@ class BrowserActivity : ComponentActivity() {
     }
 
     private fun navState(t: BrTab, w: WebView) { t.canBack = w.canGoBack(); t.canFwd = w.canGoForward() }
+
+    /* ---------------- שלב 3: ההגנה, הודעות העוגיות ומהירות הווידאו ---------------- */
+
+    /** ההגנה פועלת באתר הזה? (המתג הכללי, וכלום לא כובה לאתר — "הגנה באתר הזה" בפרטי האתר) */
+    fun shieldOn(host: String) = shield && rules[host.lowercase().removePrefix("www.")]?.shield != false
+    fun rule(host: String) = rules[host] ?: BrShield.SiteRule(host)
+
+    /** רץ בת׳רד של הרשת: בקשה של פרסום/מעקב מצד שלישי — נחסמת ונספרת */
+    private fun blockReq(t: BrTab, reqHost: String?): Boolean {
+        val pageHost = BrStore.hostOf(t.page)
+        if (reqHost == null || !shieldOn(pageHost) || !BrShield.blocks(reqHost, pageHost)) return false
+        ui.post { t.blocked++; blkNew++ }
+        return true
+    }
+
+    /** אחרי שהדף נטען: הודעות העוגיות (דחייה / הסתרה) ומהירות הווידאו שבחרת לאתר */
+    private fun pageScripts(t: BrTab, w: WebView, url: String) {
+        if (!url.startsWith("http")) return
+        val host = BrStore.hostOf(url)
+        if (cookies && shieldOn(host)) runCatching { w.evaluateJavascript(BrShield.COOKIE_JS, null) }
+        val sp = rules[host]?.speed ?: 100
+        if (sp != 100) runCatching { w.evaluateJavascript(BrShield.speedJs(sp), null) }
+    }
+
+    /** שינוי בהגדרות של אתר אחד — נשמר מיד; הגדרה שחזרה לברירת המחדל נמחקת מהרשימה */
+    fun setRule(host: String, f: (BrShield.SiteRule) -> BrShield.SiteRule) {
+        val m = LinkedHashMap(rules)
+        val r = f(m[host] ?: BrShield.SiteRule(host))
+        if (r.empty) m.remove(host) else m[host] = r
+        rules = m; prefs.sites = BrShield.encode(m.values); sitesRev++
+    }
+
+    fun forgetSite(host: String) { setRule(host) { BrShield.SiteRule(host) }; if (screen == Screen.SITE) screen = Screen.SITES }
+    fun forgetAllSites() { rules = emptyMap(); prefs.sites = ""; sitesRev++ }
+
+    /** "הגנה באתר הזה" (מפרטי האתר) — ונטען מחדש, כדי שיראו מיד את ההבדל */
+    fun toggleSiteShield(t: BrTab) {
+        val h = BrStore.hostOf(t.url).ifEmpty { return }
+        setRule(h) { it.copy(shield = !it.shield) }
+        t.web?.reload()
+    }
+
+    /** מהירות הווידאו — לדף הזה עכשיו, ונזכרת לאתר (100 = רגיל) */
+    fun pickSpeed(pct: Int) {
+        val t = cur ?: return
+        val h = BrStore.hostOf(t.url)
+        if (h.isNotEmpty() && !t.private) setRule(h) { it.copy(speed = pct) }
+        runCatching { t.web?.evaluateJavascript(BrShield.speedJs(pct), null) }
+        speedSheet = false
+    }
+    fun speedOf(t: BrTab?): Int = t?.let { rules[BrStore.hostOf(it.url)]?.speed } ?: 100
+
+    fun pickShield(b: Boolean) { shield = b; prefs.shield = b; tabs.forEach { runCatching { it.web?.reload() } } }
+    fun pickCookies(b: Boolean) { cookies = b; prefs.cookies = b }
+    fun pickLockPriv(b: Boolean) { lockPriv = b; prefs.lockPriv = b; if (!b) privLocked = false }
+    fun pickBgPlay(b: Boolean) { bgPlay = b; prefs.bgPlay = b }
+    fun pickPip(b: Boolean) { pip = b; prefs.pip = b; if (Build.VERSION.SDK_INT >= 31 && customView != null) runCatching { setPictureInPictureParams(pipParams(b)) } }
+    /** הספירה נשמרת רק ביציאה מהאפליקציה — לא כתיבה לקובץ בכל בקשה שנחסמה */
+    private var blkNew = 0L
+    fun blockedAll() = prefs.blockedAll + blkNew
 
     /** בקשות של Service Worker — לטאב הנוכחי (אין דרך לדעת מאיזה טאב) */
     private fun swClient() = runCatching {
@@ -570,7 +762,10 @@ class BrowserActivity : ComponentActivity() {
         if (!t.url.startsWith("http")) return
         val sm = getSystemService(ShortcutManager::class.java) ?: return
         if (!sm.isRequestPinShortcutSupported) return
-        val icon = t.icon?.let { Icon.createWithBitmap(it) } ?: Icon.createWithResource(this, R.mipmap.br_launcher)
+        // סמל אדפטיבי בגודל של אפליקציה: סמל האתר במרכז (או האות שלו), לא 16 פיקסלים מתוחים
+        val host = BrStore.hostOf(t.url)
+        val ic = t.icon ?: BrPics.icon(host)
+        val icon = Icon.createWithAdaptiveBitmap(BrPics.shortcutIcon(this, ic, BrStore.siteName(host).ifEmpty { "?" }, FAV_COLORS[(host.hashCode() and 0x7fffffff) % FAV_COLORS.size]))
         val info = ShortcutInfo.Builder(this, "br-" + t.url.hashCode())
             .setShortLabel(t.title.ifEmpty { BrStore.hostOf(t.url) }.take(24))
             .setIcon(icon)
@@ -587,14 +782,34 @@ class BrowserActivity : ComponentActivity() {
     private fun hideCustom(notify: Boolean = true) {
         if (notify) runCatching { customCb?.onCustomViewHidden() }
         customCb = null; customView = null
+        if (Build.VERSION.SDK_INT >= 31) runCatching { setPictureInPictureParams(pipParams(false)) }
         WindowInsetsControllerCompat(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
     }
 
-    /** הרשאה לאתר: קודם שואלים אותך (בשם האתר), ואז את אנדרואיד — רק מה שחסר */
-    private fun ask(host: String, kind: Int, need: List<String>, then: (Boolean) -> Unit) {
+    /**
+     * הרשאה לאתר: מה שכבר החלטת לאתר הזה (הגדרות האתר) — בלי לשאול שוב, כמו ב־Chrome; אחרת שואלים אותך (בשם האתר)
+     * וזוכרים. ואז את אנדרואיד — רק מה שחסר. בטאב פרטי — שואלים בכל פעם ולא זוכרים
+     */
+    private fun ask(host: String, kind: Int, need: List<String>, private: Boolean, then: (Boolean) -> Unit) {
+        val h = host.lowercase().removePrefix("www.")
+        val r = rules[h]
+        val known = if (private || r == null) 0 else when (kind) {
+            1 -> r.cam; 2 -> r.mic; 4 -> r.loc
+            else -> if (r.cam == r.mic) r.cam else 0
+        }
+        if (known == -1) { then(false); return }
+        if (known == 1) { osAsk(need, then); return }
         permAsk = PermAsk(host, kind) { ok ->
             permAsk = null
+            if (!private && h.isNotEmpty()) setRule(h) { x -> val v = if (ok) 1 else -1
+                when (kind) { 1 -> x.copy(cam = v); 2 -> x.copy(mic = v); 3 -> x.copy(cam = v, mic = v); else -> x.copy(loc = v) } }
             if (!ok) { then(false); return@PermAsk }
+            osAsk(need, then)
+        }
+    }
+
+    private fun osAsk(need: List<String>, then: (Boolean) -> Unit) {
+        run {
             val miss = need.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
             if (miss.isEmpty()) then(true) else { permThen = { g -> then(g || need.any { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }) }; permLaunch.launch(miss.toTypedArray()) }
         }
@@ -698,6 +913,7 @@ class BrowserActivity : ComponentActivity() {
         runCatching { CookieManager.getInstance().removeAllCookies(null); CookieManager.getInstance().flush() }
         runCatching { WebStorage.getInstance().deleteAllData() }
         tabs.forEach { t -> runCatching { t.web?.clearCache(true) } }
+        BrPics.clear()
         markRev++
         Toast.makeText(this, R.string.brClearDone, Toast.LENGTH_SHORT).show()
     }
@@ -799,6 +1015,10 @@ class BrowserActivity : ComponentActivity() {
         const val HUNT_MS = 45_000L
         const val CHROME_EVERY = 5 * 60_000L
         const val GMS = "com.google.android.gms"
+        /** הצבעים של האות במקום סמל — אותם צבעים של Fav במסך */
+        val FAV_COLORS = intArrayOf(0xFF1A73E8.toInt(), 0xFFEA4335.toInt(), 0xFF34A853.toInt(), 0xFFF29900.toInt(), 0xFF9334E6.toInt(), 0xFFE8710A.toInt(), 0xFF129EAF.toInt(), 0xFFD01884.toInt())
+        /** תשובה ריקה לבקשה שנחסמה (204 — הדף ממשיך כאילו השרת לא החזיר כלום) */
+        fun EMPTY() = WebResourceResponse("text/plain", "utf-8", 204, "No Content", emptyMap(), java.io.ByteArrayInputStream(ByteArray(0)))
         const val TAKEOUT = "https://takeout.google.com/settings/takeout/custom/chrome"
 
         /** "אתר למחשב": ה־User-Agent של Chrome במחשב, באותה גרסה של המנוע */

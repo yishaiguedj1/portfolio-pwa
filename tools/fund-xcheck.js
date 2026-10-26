@@ -1,0 +1,89 @@
+#!/usr/bin/env node
+/* שכבה 8 בבקרת הדיוק (26/10/2026): כל ערך שנתי ורבעוני מול SEC גולמי, הדוח המודפס, Yahoo ו־Nasdaq.
+   שימוש: node tools/fund-xcheck.js [--syms A,B | --file syms.txt] [--out <dir>] [--pool 3]
+   כותב <out>/rows.json (כל ערך שאינו ok) + summary.json + report.md. מידע ציבורי בלבד.
+   גם ספרייה (require): sources / checkOne — הבדיקה הלילית (tools/fund-audit.js --xsyms) מריצה את אותה השוואה על S&P 500 ו־Nasdaq-100. */
+const fs = require('fs');
+const path = require('path');
+const F = require('../ibkr-proxy/lib/fundamentals.js');
+const X = require('../ibkr-proxy/lib/fundxcheck.js');
+
+const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
+const out = arg('out', '');
+let syms = (arg('syms', '') || '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+if (!syms.length && arg('file')) syms = fs.readFileSync(arg('file'), 'utf8').split(/\s+/).map((s) => s.trim().toUpperCase().replace('.', '-')).filter(Boolean);
+const UA = process.env.SEC_UA || 'TheSnowball/1.0 data@thesnowball.app';
+const BR = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36';
+// ok/okd/est/def/yfill — לא בעיה; bug/spl/ext/one/estx/odd — לבדוק (X.PROBLEM)
+const COLS = ['ok', 'okd', 'est', 'def', 'yfill', 'ext', 'spl', 'bug', 'one', 'estx', 'odd', 'none'];
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function json(url, headers, tries = 3) {
+  for (let t = 0; t < tries; t++) {
+    try { const r = await fetch(url, { headers }); if (r.status === 200) return await r.json(); if (r.status === 404) return null; } catch (e) { /* ניסיון נוסף */ }
+    await sleep(1500 * (t + 1));
+  }
+  return null;
+}
+const YK = { rev: 'TotalRevenue', gp: 'GrossProfit', op: 'OperatingIncome', ni: 'NetIncomeCommonStockholders', eps: 'DilutedEPS', sh: 'DilutedAverageShares',
+  ocf: 'OperatingCashFlow', capex: 'CapitalExpenditure', cash: 'CashAndCashEquivalents', ta: 'TotalAssets', tl: 'TotalLiabilitiesNetMinorityInterest',
+  eq: 'StockholdersEquity', ca: 'CurrentAssets', cl: 'CurrentLiabilities' };
+async function yahoo(sym) {
+  // השדות הראשיים + החלופיים של מילון ההגדרות (X.YALT_TYPES) — אותה בקשה
+  const types = ['annual', 'quarterly'].flatMap((p) => Object.values(YK).concat(X.YALT_TYPES).map((t) => p + t)).join(',');
+  const j = await json('https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/' + encodeURIComponent(sym) + '?type=' + types +
+    '&period1=1262304000&period2=' + Math.floor(Date.now() / 1000 + 86400), { 'User-Agent': BR });
+  return j ? { y: F.parseYahooTs(j), ya: X.parseYahooAlt(j) } : null;
+}
+async function nasdaq(sym, f) {
+  const j = await json('https://api.nasdaq.com/api/company/' + encodeURIComponent(sym) + '/financials?frequency=' + f, { 'User-Agent': BR, Accept: 'application/json' });
+  return j ? X.parseNasdaq(j) : null;
+}
+
+/* הדוח השנתי האחרון כפי שהודפס — fundamentals כבר הביא אותו (במטמון שלו), בלי בקשה נוספת. לקרוא מיד אחרי fundamentals(),
+   לפני await אחר: עובדים מקבילים מנקים את המטמון בתחילת כל חברה */
+const faceOf = (d) => { const h = d && d.face && d.face.acc && F._cache && F._cache.get('face:' + d.face.acc); return h ? h.v : null; };
+/* כל המקורות החיצוניים לחברה אחת, והבדיקה. facts = companyfacts (כשכבר יש — fund-audit מביא אותו לשכבה 7), face = faceOf(d) */
+async function checkOne(sym, d, facts, face) {
+  if (!d || !d.ok || d.src !== 'sec' || !d.cik) return [];
+  // ישות קודמת (ExxonMobil 2026: חברת אחזקות חדשה) — אותו איחוד של fundamentals, אחרת לשנים הישנות אין SEC גולמי
+  const ck = String(d.cik).padStart(10, '0'), prev = F.CIK_PREV && F.CIK_PREV[ck]; // גם כש־facts הגיע מבחוץ (fund-audit) — הוא של הישות הנוכחית בלבד
+  const cf = (c) => json('https://data.sec.gov/api/xbrl/companyfacts/CIK' + c + '.json', { 'User-Agent': UA });
+  const [fc0, pf, y, nA, nQ] = await Promise.all([facts || cf(ck), prev ? cf(prev) : null, yahoo(sym), nasdaq(sym, 1), nasdaq(sym, 2)]);
+  const fc = pf && fc0 ? F.mergeFacts(pf, fc0) : fc0;
+  if (!fc) return [];
+  return X.xcheck(d, fc, y && y.y, { A: nA, Q: nQ }, { ya: y && y.ya, cand: F.TAGS && (d.ifrs ? F.TAGS.ifrs : F.TAGS.gaap), face });
+}
+module.exports = { checkOne, faceOf, yahoo, nasdaq };
+if (require.main === module) (async () => {
+  const res = [], t0 = Date.now(), pool = +arg('pool', 3);
+  let next = 0;
+  async function worker() {
+    while (next < syms.length) {
+      const sym = syms[next++];
+      let x = [], err = null, src = null;
+      try {
+        F._cache.delete('fund:' + sym);   // לא clear(): עובד מקביל היה מוחק את הדוח המודפס (face) של חברה אחרת באמצע
+        const d = await F.fundamentals(sym);
+        src = d && d.src;
+        x = await checkOne(sym, d, null, faceOf(d));
+      } catch (e) { err = String(e.message || e).slice(0, 60); }
+      res.push({ sym, src, err, x });
+      if (res.length % 20 === 0) process.stderr.write(res.length + '/' + syms.length + ' · ' + Math.round((Date.now() - t0) / 1000) + 's\n');
+    }
+  }
+  await Promise.all(Array.from({ length: pool }, worker));
+  const S = X.summarizeX(res);
+  const lines = ['# שכבה 8 — כל ערך מול כמה מקורות', '', `${new Date().toISOString().slice(0, 16)} · ${res.length} חברות · ${S.n} ערכים · ${Math.round((Date.now() - t0) / 60000)} דק׳`, '',
+    '| הכרעה | ערכים |', '|---|---|', ...Object.entries(S.c).sort((a, b) => b[1] - a[1]).map(([k, n]) => `| ${k} | ${n} |`), '',
+    '| מדד | ' + COLS.join(' | ') + ' |', '|---|' + COLS.map(() => '---|').join(''),
+    ...Object.entries(S.byM).sort().map(([m, b]) => `| ${m} | ${COLS.map((c) => b[c] || 0).join(' | ')} |`), '',
+    '| הכרעה · הסבר | ערכים |', '|---|---|', ...Object.entries(S.why).sort((a, b) => b[1] - a[1]).map(([k, n]) => `| ${k} | ${n} |`), '',
+    `נכשלו / לא SEC: ${res.filter((r) => r.err || r.src !== 'sec').map((r) => r.sym + (r.err ? '(' + r.err + ')' : '·' + r.src)).join(', ')}`];
+  if (out) {
+    fs.mkdirSync(out, { recursive: true });
+    fs.writeFileSync(path.join(out, 'rows.json'), JSON.stringify(res.map((r) => ({ sym: r.sym, src: r.src, err: r.err, x: r.x.filter((v) => v.c !== 'ok') }))));
+    fs.writeFileSync(path.join(out, 'summary.json'), JSON.stringify(S, null, 1));
+    fs.writeFileSync(path.join(out, 'report.md'), lines.join('\n'));
+  }
+  console.log(lines.join('\n'));
+})();
