@@ -1,0 +1,31 @@
+# קריוקי (26/10/2026, translator/karaoke.py): audio-separator והתלויות שאין בעובד — מותקנים בנפרד ל־/opt/sepdeps
+# (--no-deps, --target), כך שהשכבה הכבדה של /opt/vt לא נבנית מחדש. בלי diffq ו־onnx2torch: רק Demucs/MDX צריכים
+# אותם, ואנחנו משתמשים רק במודלי RoFormer. כל הגלגלים טהורים — אותו קובץ לשתי הארכיטקטורות. נוצר ב־uv pip compile
+# עם requirements.lock כ־constraints (infra/README.md).
+audio-separator==0.47.1 \
+    --hash=sha256:0709bc45b7d1a0672d822acb975dff0a6b7abd13c8581e03bdb11a48becac87b \
+    --hash=sha256:73193b42f1fc94c7e95d0a2e3d83d5a7b9e24f62b992888ad8205c7b67114069
+absl-py==2.5.1 \
+    --hash=sha256:286e71c82c1a38e75bbcf185f9b37d0305ad7786535107cb49bf4df9ff2e1f95 \
+    --hash=sha256:721200f2f0e9960f2ca9dc3a2a706b201f5f75d812c158f059cbbe29eeafbdb8
+beartype==0.18.5 \
+    --hash=sha256:264ddc2f1da9ec94ff639141fbe33d22e12a9f75aa863b83b7046ffff1381927 \
+    --hash=sha256:5301a14f2a9a5540fe47ec6d34d758e9cd8331d36c4760fc7a5499ab86310089
+einops==0.8.2 \
+    --hash=sha256:54058201ac7087911181bfec4af6091bb59380360f069276601256a76af08193 \
+    --hash=sha256:609da665570e5e265e27283aab09e7f279ade90c4f01bcfca111f3d3e13f2827
+julius==0.2.8 \
+    --hash=sha256:6891235cbc355e629d839f87489bff8ca46e57a0e7cc35abb909c7a2aa538c25 \
+    --hash=sha256:d691e651200930affea4f6c849c26e95fec846087281ae3d1a7757eac90253d5
+ml-collections==1.1.0 \
+    --hash=sha256:0ac1ac6511b9f1566863e0bb0afad0c64e906ea278ad3f4d2144a55322671f6f \
+    --hash=sha256:23b6fa4772aac1ae745a96044b925a5746145a70734f087eaca6626e92c05cbc
+resampy==0.4.3 \
+    --hash=sha256:a0d1c28398f0e55994b739650afef4e3974115edbe96cd4bb81968425e916e47 \
+    --hash=sha256:ad2ed64516b140a122d96704e32bc0f92b23f45419e8b8f478e5a05f83edcebd
+rotary-embedding-torch==0.6.5 \
+    --hash=sha256:96c0b27b688820cbde652dd7869cf035b4f653eee53ddaf78133cf7cdd4aab19 \
+    --hash=sha256:a3623274c559e0215922edc7cd14068d5a64dea1ca469e1ecd642b293ee8af78
+samplerate==0.1.0 \
+    --hash=sha256:75ef725e6cd9c4545569caf4c47147beab7b53b2c36e5122e8c285d348f88847 \
+    --hash=sha256:f55e5c9d0a8ba3c82a53b7d9c34a2d145439c61166a7f310efaec88f2781b8f8
