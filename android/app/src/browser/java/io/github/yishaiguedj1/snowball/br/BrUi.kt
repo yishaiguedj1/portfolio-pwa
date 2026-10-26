@@ -175,7 +175,6 @@ fun BrApp(a: BrowserActivity) {
                         update = { f -> if (v.parent !== f) { (v.parent as? ViewGroup)?.removeView(v); f.removeAllViews(); f.addView(v, FrameLayout.LayoutParams(-1, -1)) } },
                         onRelease = { it.removeAllViews() })
                 }
-                if (!a.inPip) FullBubble(a)   // סרטון במסך מלא — הבועה בפינה של המסך (לא בחלון הקטן)
                 a.permAsk?.let { PermDialog(it) }
                 if (a.clearAsk) ClearDialog(a)
             }
@@ -343,7 +342,11 @@ private fun PageScreen(a: BrowserActivity) {
     Column(Modifier.fillMaxSize().background(if (!showBar && !a.barBottom) c.page else c.bar).statusBarsPadding().imePadding()) {
         if (!a.barBottom && showBar) { TopBar(a, q) { q = it }; Line(t) }
         Box(Modifier.weight(1f).fillMaxWidth().background(c.page)) {
-            if (t == null || t.isNtp) Ntp(a) else { WebHost(a, t); VideoBubble(a, t) }   // הבועה צמודה לנגן שעל המסך
+            if (t == null || t.isNtp) Ntp(a) else {
+                WebHost(a, t)
+                // הכפתור שעל הנגן חי בתוך הדף (BrVideo); כאן — המצב שלו, והבדיקה ברקע כדי שהאיכויות יהיו מוכנות (DmPre)
+                LaunchedEffect(t.id, t.foundN, a.bubble, t.web) { a.pushDl(t); if (t.foundN > 0) { delay(1500); a.prefetch(t) } }
+            }
             if (a.editing) Suggest(a, q) { q = it }
         }
         if (a.barBottom && showBar) { Line(t); TopBar(a, q) { q = it } }

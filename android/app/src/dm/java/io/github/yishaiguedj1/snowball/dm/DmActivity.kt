@@ -226,6 +226,8 @@ class DmActivity : ComponentActivity() {
     }
 
     fun probe(url: String, ref: String): Found {
+        // Studio Browser כבר בדק את הסרטון ברקע (DmPre) — האיכויות מוכנות מיד
+        DmPre.await(url)?.let { return Found.Video(url, it.also { if (sheetTitle.isNotEmpty()) it.put("t", sheetTitle) }) }
         val known = VideoUrl.classify(url).let { it is VideoUrl.Hit.Video && DmName.cat(DmName.fromUrl(url), "") == DmName.Cat.OTHER }
         if (!known) {
             try {
