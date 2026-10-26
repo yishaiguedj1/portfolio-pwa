@@ -18,6 +18,25 @@ from vt.util import FrameGrid  # noqa: E402
 import pipeline as P  # noqa: E402
 
 
+class TestKtivMale(unittest.TestCase):
+    """26/10/2026: כתיב חסר שעבר את כל השלבים — רק מילים שאין בהן ספק, עם אות שימוש לפניהן."""
+
+    def test_fixed(self):
+        for a, b in [("לעתים קרובות", "לעיתים קרובות"), ("ולעתים", "ולעיתים"), ("זה לא הכל.", "זה לא הכול."), ("שהכל", "שהכול"),
+                     ("מקווה שתהנו", "מקווה שתיהנו"), ("כדי להנות", "כדי ליהנות"), ("הדוח השנתי", 'הדו"ח השנתי'),
+                     ("בשבדיה", "בשוודיה"), ("השבדים", "השוודים"), ("זה איפשר לנו", "זה אפשר לנו"), ("לא היתה", "לא הייתה"),
+                     ("זכרונות", "זיכרונות"), ("דכאון", "דיכאון"), ("אפליקציית הכרויות", "אפליקציית היכרויות"), ("מסיכה", "מסכה")]:
+            self.assertEqual(normalize_he(a), b, a)
+
+    def test_doubtful_unchanged(self):
+        for a in ["מאד מן", "נתן לי", "הכרות רבות", "הוא יכנס את הצוות", "עלי", "יגע", "כל", "מכל", "דוחה", "שבדיחה", 'דו"ח']:
+            self.assertEqual(normalize_he(a), a, a)
+
+    def test_idempotent(self):
+        t = normalize_he("לעתים הדוח הכל שתהנו")
+        self.assertEqual(normalize_he(t), t)
+
+
 class TestMaqaf(unittest.TestCase):
     def test_prefix_before_digit_or_latin(self):
         self.assertEqual(normalize_he("ב-2010 ה-AI"), "ב־2010 ה־AI")
