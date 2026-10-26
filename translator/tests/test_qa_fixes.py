@@ -13,7 +13,8 @@ from vt import config as C  # noqa: E402
 from vt.hebrew import break_lines, layout_lines, normalize_he, number_ok_in_he  # noqa: E402
 from vt.segment import cps_merge  # noqa: E402
 from vt.timing import time_cues  # noqa: E402
-from vt.translate import CHECK_CODE_RE, CHECK_CODES, check, spell_variants, untranslated_words  # noqa: E402
+from vt.translate import (CHECK_CODE_RE, CHECK_CODES, check, gender_issues, gender_slips, speaker_label,  # noqa: E402
+                          speakers_from_brief, spell_variants, untranslated_words)
 from vt.util import FrameGrid  # noqa: E402
 import pipeline as P  # noqa: E402
 
@@ -35,6 +36,63 @@ class TestKtivMale(unittest.TestCase):
     def test_idempotent(self):
         t = normalize_he("לעתים הדוח הכל שתהנו")
         self.assertEqual(normalize_he(t), t)
+
+
+class TestSpeakerGender(unittest.TestCase):
+    """26/10/2026: טבלת הדוברים מהתדריך → תווית עם מגדר לכל החלפת דובר, והערה [gen] כשהדובר מדבר על עצמו במגדר ההפוך."""
+
+    BRIEF = """# תדריך
+
+## 2. הדוברים
+| תווית | שם (כתיב עברי + מקור) | תפקיד | מגדר | איך מדבר |
+|---|---|---|---|---|
+| S1 | דנה כהן (Dana Cohen) | מראיינת | נקבה (לפי השם) | ישירה |
+| S2 | יוסי לוי (Yossi Levi) | מייסד | זכר | רגוע |
+| S3 | לא דובר נפרד | — | — | תווית שגויה |
+
+## 3. חברות
+| באנגלית | בכתוביות |
+|---|---|
+| S4 Corp | אס־4 |
+"""
+
+    def test_brief_table(self):
+        sp = speakers_from_brief(self.BRIEF)
+        self.assertEqual(set(sp), {"S1", "S2"})
+        self.assertEqual(sp["S1"]["name"], "דנה כהן")
+        self.assertEqual(sp["S1"]["gender"], "נקבה (לפי השם)")
+        self.assertEqual(sp["S2"]["role"], "מייסד")
+        self.assertEqual(speakers_from_brief("אין טבלה"), {})
+
+    def test_label(self):
+        sp = speakers_from_brief(self.BRIEF)
+        self.assertEqual(speaker_label("S1", sp), "S1 · דנה כהן · אישה")
+        self.assertEqual(speaker_label("S2", sp), "S2 · יוסי לוי · גבר")
+        self.assertEqual(speaker_label("S9", sp), "S9")
+
+    def test_slips(self):
+        self.assertEqual(gender_slips("אני לא בטוח שזה נכון.", "f"), ["אני לא בטוח"])
+        self.assertEqual(gender_slips("אני חושבת שכן.", "m"), ["אני חושבת"])
+        self.assertEqual(gender_slips("אני חושבת שכן.", "f"), [])
+        self.assertEqual(gender_slips("אני רוצה לנסות.", "f"), [])          # אותה צורה בשני המגדרים
+        self.assertEqual(gender_slips('הוא אמר לי: "אני חושב שכן"', "f"), [])  # ציטוט — מישהו אחר מדבר
+        self.assertEqual(gender_slips("אני חושב.", ""), [])
+
+    def test_issues(self):
+        sp = speakers_from_brief(self.BRIEF)
+        cues = [{"id": 1, "spk": "S1", "en": "I think so."}, {"id": 2, "spk": "S2", "en": "I know."},
+                {"id": 3, "spk": "S1", "en": "Ready? Yes, I'm ready.",
+                 "parts": [{"spk": "S1", "en": "Ready?"}, {"spk": "S2", "en": "Yes, I'm ready."}]}]
+        he = {"1": "אני חושב שכן.", "2": "אני יודע.", "3": "מוכן? || כן, אני מוכנה."}
+        out = gender_issues(cues, he, sp)
+        self.assertEqual([CHECK_CODE_RE.match(x).group(1) for x in out], ["1", "3"])
+        self.assertTrue(all("[gen]" in x for x in out))
+        self.assertEqual(gender_issues(cues, he, {}), [])
+        self.assertEqual(CHECK_CODES["gen"], "s")
+        for c in cues:
+            c.update(budget=60, dur=3.0, speech_s=0.0, speech_e=3.0)
+        issues, stats = check(cues, he, [], speakers=sp)
+        self.assertEqual(stats["gender"], 2)
 
 
 class TestMaqaf(unittest.TestCase):
