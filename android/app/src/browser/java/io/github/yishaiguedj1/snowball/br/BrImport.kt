@@ -71,7 +71,7 @@ object BrImport {
         val title = unescape(m.groupValues[2].replace(Regex("<[^>]+>"), "")).trim().take(300)
         val at = (ADD.find(attrs)?.groupValues?.get(1)?.toLongOrNull() ?: 0L) * 1000L
         Item(url.take(4000), title, at)
-    }.distinctBy { it.url }.toList()
+    }.distinctBy { BrSync.key(it.url) }.toList()
 
     /** "Browser History" של Takeout: ‏time_usec = מיקרו־שניות */
     fun history(s: String): List<Item> {

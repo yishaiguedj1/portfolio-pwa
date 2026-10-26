@@ -16,7 +16,7 @@ ok(/app\("browser", "app\.thesnowball\.browser", "Studio Browser"/.test(gradle),
 ok(/getByName\("browser"\)\.java\.srcDirs\([^)]*"src\/dm\/java"\)/.test(gradle), 'הדפדפן על הקוד של DM (ההורדות בתוך האפליקציה)');
 ok(/getByName\("browser"\)\.res\.srcDir\("src\/dm\/res"\)/.test(gradle), 'המשאבים של DM (מחרוזות ההורדות)');
 const yml = R('.github/workflows/android.yml');
-ok(/app-browser-release\.apk the-snowball-browser\.apk/.test(yml) && /the-snowball-browser\.apk --clobber/.test(yml), 'APK בקישור הקבוע');
+ok(/app-browser-release\.apk the-snowball-browser\.apk/.test(yml) && /the-snowball-browser\.apk( studio-browser-chrome\.zip)? --clobber/.test(yml), 'APK בקישור הקבוע');
 
 const man = R('android/app/src/browser/AndroidManifest.xml');
 ok(/android:name="\.MainActivity" tools:node="remove"/.test(man), 'לא TWA');
@@ -110,7 +110,36 @@ ok(!/password|סיסמ/i.test(store) && !/getUsernamePassword|setHttpAuthUsernam
 ok(/takeout\.google\.com\/settings\/takeout\/custom\/chrome/.test(act) && /OpenDocument\(\)/.test(act), 'ייבוא: Takeout של Chrome + בחירת הקובץ');
 ok(/NETSCAPE-Bookmark-file/.test(imp) && /"Browser History"/.test(imp) && /ENTRY_MAX/.test(imp) && /TOTAL_MAX/.test(imp), 'ייבוא: לפי התוכן, עם תקרות גודל');
 ok(/startsWith\("http:\/\/"\) && !url\.startsWith\("https:\/\/"\)/.test(imp), 'ייבוא: רק http/https (לא javascript:)');
-ok(/fun importAll\(r: BrImport\.Result\)/.test(store) && /have\.add\(it\.url\)/.test(store), 'ייבוא: בלי כפולים');
+const sync = R(B + 'BrSync.kt');
+ok(/fun importAll\(r: BrImport\.Result\)/.test(store) && /BrSync\.planMarks\(marks, r\.marks, gone/.test(store) && /BrSync\.planVisits/.test(store), 'ייבוא: רק מה שחדש, דרך BrSync');
+ok(/fun key\(url: String\)/.test(sync) && /utm_/.test(sync) && /removePrefix\("www\."\)/.test(sync), 'זהות סימנייה: מתעלמת מ־www, ‏utm ו־"/" בסוף');
+ok(/k in gone -> dead\+\+/.test(sync) && /gone\.json/.test(store) && /private fun forget\(m: BrMark\)/.test(store), 'סימנייה שנמחקה כאן לא חוזרת בייבוא');
+ok(/!it\.imp && \(all \|\| it\.x == 0L\)/.test(sync) && /BrStore\.markExported\(list\)/.test(R(B + 'BrowserActivity.kt')), 'ייצוא: רק מה ש־Chrome עוד לא קיבל, ומסומן אחרי שנשמר');
+ok(/distinctBy \{ BrSync\.key\(it\.url\) \}/.test(imp), 'בתוך קובץ אחד — בלי כפולים לפי המפתח');
+ok(fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yishaiguedj1/snowball/br/BrSyncTest.kt')), 'בדיקת JVM לכפילויות');
+const chr = R(B + 'BrChrome.kt');
+ok(/drive\.appdata/.test(chr) && /appDataFolder/.test(chr) && !/thesnowball\.app|vercel/i.test(chr), 'סנכרון עם Chrome: רק appDataFolder ב־Drive של המשתמש, לא השרת שלנו');
+ok(/write\(t, "ops\.json"/.test(chr) && !/write\(t, "state\.json"/.test(chr), 'הטלפון כותב רק ops.json — state.json רק התוסף');
+ok(/BrSync\.applyState\(/.test(chr) && /fun applyState\(/.test(sync), 'הסימניות אחרי סנכרון — דרך applyState (נבדק ב־JVM)');
+ok(/Screen\.CHROME -> ChromeScreen\(a\)/.test(R(B + 'BrUi.kt')) && /Screen\.IMPORT, Screen\.CHROME\)/.test(R(B + 'BrowserActivity.kt')), 'מסך "סנכרון עם Chrome" בהגדרות');
+ok(/studio-browser-chrome\.zip/.test(chr), 'הקישור לתוסף');
 ok(/testBrowserReleaseUnitTest/.test(R('.github/workflows/android.yml')) && fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yishaiguedj1/snowball/br/BrImportTest.kt')), 'בדיקת JVM לייבוא ב־CI');
+
+// 26/10/2026 (בקשת המשתמש: "יותר זהה ל־Chrome במראה, יותר Apple בעיצוב", לפי התצוגה המקדימה שאושרה)
+ok(/tint = Color\(0xFF1A73E8\)|Color\(0xFF1A73E8\), Color\(0xFFC7C7CC\)/.test(ui) && /private fun Toolbar\(a: BrowserActivity\)/.test(ui), 'הכחול של Chrome לפעולות, וסרגל כלים למטה כמו ב־Chrome לאייפון');
+ok(/private fun MenuSheet\(a: BrowserActivity\)/.test(ui) && /ModalBottomSheet/.test(ui) && /private fun Dest\(/.test(ui), 'התפריט ⋯ = גיליון עם שורת יעדים');
+ok(/val Grid = BrC\(/.test(ui) && /BrowserActivity\.Screen\.SWITCHER -> Grid/.test(ui), 'מסך הטאבים תמיד כהה');
+for (const s of ['ENGINE', 'PASSWORDS', 'PRIVACY', 'BARPOS', 'IMPORT'])
+  ok(new RegExp('Screen\\.' + s + ' -> ').test(ui) && new RegExp('Screen\\.' + s).test(act), 'עמוד הגדרות: ' + s);
+ok(/screen in settingsSubs -> screen = Screen\.SETTINGS/.test(act), '"חזור" מעמוד משנה של ההגדרות חוזר להגדרות');
+// הצעות חיפוש: רק כשהמתג פועל, בלי עוגיות, בלי הפניות; הקישור שהעתקת — בלי לקרוא את הלוח עד הנגיעה
+ok(/if \(!suggestOn \|\|/.test(act) && /instanceFollowRedirects = false/.test(act) && /setRequestProperty\("Cookie", ""\)/.test(act), 'הצעות חיפוש: רק עם המתג, בלי עוגיות');
+ok(/primaryClipDescription/.test(act) && /getConfidenceScore\(TextClassifier\.TYPE_URL\)/.test(act), 'הקישור שהעתקת: לפי הסיווג של המערכת, בלי לקרוא את הלוח');
+ok(/fun pasteGo\(\)/.test(act) && !/fun clipHasUrl\(\)[\s\S]{0,400}primaryClip\?\./.test(act), 'הלוח נקרא רק בנגיעה');
+// סנכרון עם Chrome: סיסמאות — דרך Google; סימניות — ייבוא וייצוא בקובץ (Chrome Sync סגור)
+ok(/fun exportHtml\(list: List<BrMark>, folder: String\)/.test(sync) && /NETSCAPE-Bookmark-file-1/.test(sync) && /replace\("<", "&lt;"\)/.test(sync), 'ייצוא סימניות בפורמט של הדפדפנים, עם בריחה');
+ok(/CreateDocument\("text\/html"\)/.test(act), 'הייצוא נשמר במקום שבוחרים');
+ok(/private fun PasswordsScreen/.test(ui) && /fillSettings\(\)/.test(ui) && /openPasswords\(\)/.test(ui), 'מנהל הסיסמאות: Google ממלא, והרשימה אצל Google');
+ok(/fun clearSite\(t: BrTab\)/.test(act) && /deleteOrigin/.test(act), 'מחיקת הנתונים של אתר אחד (גם בפרופיל הפרטי)');
 
 console.log('studio-browser: ' + n + ' בדיקות עברו');

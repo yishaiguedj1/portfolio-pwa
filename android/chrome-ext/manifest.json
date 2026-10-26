@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Studio Browser — סנכרון עם Chrome",
+  "short_name": "Studio Browser",
+  "description": "הסימניות וההיסטוריה של Chrome גם ב־Studio Browser בטלפון, בשני הכיוונים, בלי כפילויות.",
+  "version": "1.0.0",
+  "minimum_chrome_version": "120",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArDihPslhGMkKOi6GGUiBJIAQAgVBz88lEV2dK1N2g9wfPILsm0xiOV+bXn4OA5aHZqrtUhgmAlavZqTMgi5aUY7ndSTYGevbbMVnbzeibOsELDdGuHAa+E/XcpiRh6j/ODHTgkkhpjFYtansx9Dh42ZaldnIynMLO1Ze/t6+sk9Bx5zUvU7P+EivT/a6PdDNggmYXDrqZWfK5o/zMUfnqI5dPmT0n4pmYdIPNuh1eMBE/6/M1kAvuGPmqIcwt9GyBE6qx48hXZ1yTCayweVHOVssyXzM5xZjoDb9d0lhz++OZYi21KmFGpnClAkG74e3+MMr/NoeKysIxGE+6TQwHwIDAQAB",
+  "permissions": ["bookmarks", "history", "identity", "identity.email", "storage", "alarms"],
+  "host_permissions": ["https://www.googleapis.com/*", "https://oauth2.googleapis.com/*"],
+  "oauth2": {
+    "client_id": "OAUTH_CLIENT_ID.apps.googleusercontent.com",
+    "scopes": ["https://www.googleapis.com/auth/drive.appdata"]
+  },
+  "background": { "service_worker": "sync.js", "type": "module" },
+  "action": { "default_title": "Studio Browser", "default_popup": "popup.html", "default_icon": { "32": "icon-32.png", "128": "icon-128.png" } },
+  "icons": { "32": "icon-32.png", "128": "icon-128.png" }
+}
