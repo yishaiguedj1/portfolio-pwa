@@ -187,7 +187,7 @@ const jobTtl = (project) => (project === STAGING_PROJECT ? 7 : 30) * DAY;
 const endOf = (j) => (j && (j.ended || j.updated)) || 0;
 function folderEnds(jobs) {
   const m = new Map();
-  for (const j of Array.isArray(jobs) ? jobs : []) if (j && R2_FOLDER_RE.test(String(j.folder || ''))) m.set(j.folder, Math.max(m.get(j.folder) || 0, endOf(j)));
+  for (const j of Array.isArray(jobs) ? jobs : []) if (j && j.kind !== 'dx' && R2_FOLDER_RE.test(String(j.folder || ''))) m.set(j.folder, Math.max(m.get(j.folder) || 0, endOf(j)));
   return m;
 }
 function expiredJob(j, now, ttl = JOB_TTL, endAt = 0) {
