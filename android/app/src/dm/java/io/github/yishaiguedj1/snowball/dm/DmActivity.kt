@@ -254,30 +254,12 @@ class DmActivity : ComponentActivity() {
         DmStore.add(t); rememberSite(ref); askNotifications(); DmEngine.pump(this)
     }
 
-    /* הורדה שהגיעה מהדפדפן של DM (עם העוגיות שלו) — האתר נשמר לבועה ב־Chrome (SiteList, DmSitesProvider) */
-    private fun rememberSite(ref: String) {
-        if (!sheetCk) return
-        val h = SiteList.hostOf(ref)
-        if (h.isEmpty()) return
-        val pr = DmPrefs(this)
-        pr.brSites = SiteList.add(SiteList.parse(pr.brSites), h).joinToString("\n")
-    }
+    /* הורדה שהגיעה מהדפדפן של DM (עם העוגיות שלו) — האתר נשמר לבועה ב־Chrome (DmPre.rememberSite) */
+    private fun rememberSite(ref: String) = DmPre.rememberSite(this, ref, sheetCk)
 
     fun addVideo(v: Found.Video, q: JSONObject?, audio: Boolean, ref: String, tr: Boolean = false, later: Boolean = false, subs: List<DmSubs.Sub> = emptyList()) {
-        val t = DmTask(DmStore.newId(), v.url, ref, DmKind.YTDL).apply {
-            this.tr = tr && !audio; this.later = later
-            if (!audio) { this.subs = DmSubs.langs(subs); subsAuto = DmSubs.anyAuto(subs) }
-            title = v.info.optString("t"); name = title
-            audioOnly = audio
-            if (q != null && !audio) {
-                // פורמט הווידאו מההגדרות (DmCodec): חסכוני = מה שנבחר (AV1/VP9), תואם = H.264 + AAC באותה רזולוציה
-                val pk = DmCodec.prefer(q, v.info.optJSONArray("fm"), v.info.optJSONObject("ao"), DmPrefs(this@DmActivity).codec)
-                vf = pk.v; af = pk.a; height = q.optInt("h"); total = pk.sz
-            }
-            if (audio) total = v.info.optJSONObject("ao")?.optLong("sz", -1) ?: -1
-            created = System.currentTimeMillis(); ck = sheetCk
-        }
-        DmStore.add(t); rememberSite(ref); askNotifications(); DmEngine.pump(this)
+        DmPre.enqueue(this, v.url, v.info, q, audio, ref, sheetCk, tr, later, subs)
+        askNotifications()
     }
 
     /**

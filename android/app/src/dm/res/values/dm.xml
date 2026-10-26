@@ -197,4 +197,8 @@
     <string name="dmUnzipped">חולצו %1$d קבצים ל־%2$s</string>
     <string name="dmUnzipBig">הארכיון גדול מדי לחילוץ</string>
     <string name="dmUnzipFail">החילוץ לא הצליח — הקובץ פגום או מוגן בסיסמה</string>
+    <string name="dmMenuVideo">וידאו</string>
+    <string name="dmMenuAudio">שמע</string>
+    <string name="dmMenuMore">עוד אפשרויות…</string>
+    <string name="dmMenuStarted">ההורדה התחילה</string>
 </resources>

@@ -5921,8 +5921,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.59.0';
-const APP_VERSION = 'v561';
+const APP_RELEASE = '2.59.1';
+const APP_VERSION = 'v562';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -13988,6 +13988,7 @@ function analysisEnv() {
       return j;
     },
     modalPush, modalDone,
+    back: (n) => navBack(-n),   // סגירת המסך מכמה רמות — "חזור" אחד של n צעדים (unwind ב־analysis.js)
     quote: (s) => state.quotes[s] || null,
     fx: () => state.fx || null,
     name: (s) => companyName(s, s),

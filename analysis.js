@@ -713,6 +713,7 @@ const S = { co: null, mac: null, sym: '', tab: 'snap', rsub: 'is', ed: {}, open:
 const CACHE = new Map();   // בזיכרון בלבד, לכל ריצה (השרתון שומר במטמון 12 שעות)
 let MAC = null;
 const TABS = ['snap', 'rep', 'val', 'cmp'];
+const TAB_T = { snap: 'anTabSnap', rep: 'anTabRep', val: 'anTabVal', cmp: 'anTabCmp' };
 
 async function load(sym, force) {
   if (!force && CACHE.has(sym)) return CACHE.get(sym);
@@ -734,7 +735,7 @@ export async function openAnalysis(sym, env) {
   E = env || E;
   await ensureCss();
   if (ROOT) closeAnalysis(true);
-  S.first = true; S.segX = null; S.sub = [];
+  S.first = true; S.heroDone = false; S.segX = null; S.sub = []; S.tabRec = null; S.seen = new Set();
   S.sym = sym; S.tab = 'snap'; S.rsub = 'is'; S.ed = {}; S.open = null; S.err = null; S.co = null; S.peers = null; S.peerBusy = false; S.peerAdd = []; S.peerDrop = new Set(); const seq = ++S.seq;
   ROOT = h('div', { class: 'an-root no-swipe', role: 'dialog', 'aria-modal': 'true', 'aria-label': T('anTitle') });
   document.addEventListener('keydown', onEsc, true);
@@ -749,18 +750,42 @@ export async function openAnalysis(sym, env) {
 function onEsc(e) {
   if (e.key !== 'Escape' || !ROOT) return;
   e.stopPropagation(); e.preventDefault();
-  if (S.sheet) closeSheet(); else if (S.sub.length) popSub(); else closeAnalysis();
+  if (S.sheet) closeSheet(); else if (S.sub.length) popSub(); else if (S.tab !== 'snap') go('snap'); else closeAnalysis();
+}
+/* "חזור" (26/10/2026, בקשת המשתמש — "חזור" יצא מכל לשונית ישר ל־Invest): כל רמה = רשומה בהיסטוריה —
+   המסך, לשונית שאינה "תמונה" (אחת לכל הלשוניות — "חזור" מהן = "תמונה"), כל תת־עמוד וגיליון. */
+function tabLevel() {
+  if (S.tab !== 'snap' && !S.tabRec) S.tabRec = E.modalPush ? E.modalPush(() => tabPop()) || true : true;
+  else if (S.tab === 'snap' && S.tabRec) { const r = S.tabRec; S.tabRec = null; if (r !== true && E.modalDone) E.modalDone(r); }
+}
+function tabPop() {
+  S.tabRec = null;
+  if (ROOT && S.co && S.tab !== 'snap') navTab('snap');
+}
+/* סגירה של כמה רמות בבת אחת (סגירת המסך): כל הרשומות יוצאות ב"חזור" אחד של כמה צעדים — modalDone לכל אחת
+   בנפרד מחזיר רק את העליונה (בודק את הרשומה הנוכחית, וה"חזור" הקודם עוד לא נחת) ומשאיר רשומות יתומות */
+function unwind(recs) {
+  let n = 0;
+  for (const r of recs) {
+    if (!r || r === true || r.done) continue;
+    if (r.pushed) n++;
+    r.popping = true;
+    if (E.modalDone) E.modalDone(r);
+  }
+  if (n && E.back) E.back(n);
+  else if (n) { try { history.go(-n); } catch (e) {} }
 }
 function closeAnalysis(fromPop) {
   if (!ROOT) return;
   document.removeEventListener('keydown', onEsc, true);
-  if (S.sheet) closeSheet(true);
-  for (let i = S.sub.length - 1; i >= 0; i--) { const m0 = S.sub[i].modal; if (!fromPop && m0 && E.modalDone) E.modalDone(m0); }
-  S.sub = [];
+  const sh = S.sheet;
+  if (sh) closeSheet(true);
+  const recs = [sh && sh.modal, ...S.sub.map((x) => x.modal).reverse(), S.tabRec, S.modal];
+  S.sub = []; S.tabRec = null;
   const r = ROOT; ROOT = null; S.seq++;
   document.documentElement.classList.remove('an-open');
-  const m = S.modal; S.modal = null;
-  if (!fromPop && m && E.modalDone) E.modalDone(m);
+  S.modal = null;
+  if (!fromPop) unwind(recs);
   if (typeof r.animate === 'function' && !(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
     r.style.pointerEvents = 'none';
     const a = r.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(28px)' }], { duration: 220, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' });
@@ -784,9 +809,13 @@ function render(dir) {
     ROOT.append(body);
     return;
   }
+  // עמוד שכבר הוצג — בלי אנימציות הכניסה (גרפים שמצטיירים, עמודות שגדלות): חוזרים אליו והוא פשוט שם
+  const key = S.sub.length ? 'sub:' + S.sub[S.sub.length - 1].title : S.tab + ':' + S.rsub;
+  ROOT.classList.toggle('an-still', S.seen.has(key));
+  S.seen.add(key);
   if (S.sub.length) { renderSub(co); return; }
   const wrap = h('div', { class: 'an-wrap' });
-  wrap.append(header(co));
+  wrap.append(header(co), tabsBar());
   const pg = h('div', { class: 'an-page' + (dir ? ' in' : ''), style: dir ? `--an-dx:${dir * 24}px` : null });
   ({ snap: pageSnap, rep: pageRep, val: pageVal, cmp: pageCmp })[S.tab](co, pg);
   wrap.append(pg);
@@ -805,14 +834,59 @@ function renderSub(co) {
   requestAnimationFrame(() => S.after.forEach((f) => f()));
 }
 /* מעבר בין עמודים בקובייה (המנוע של האפליקציה — env.cube). mutate משנה את המצב; y = הגלילה בעמוד החדש */
-function navTo(fwd, mutate, y) {
+function navTo(fwd, mutate, y, hold) {
   if (!ROOT) return;
   const C = E.cube, cube = C && C.clone && C.run && !(C.reduce && C.reduce());
   const ghost = cube ? C.clone(ROOT) : null;
   mutate();
   render(cube ? 0 : (fwd ? -1 : 1));
-  if (ROOT) ROOT.scrollTop = y || 0;
-  if (ghost) C.run(ROOT, ghost, C.side(fwd));
+  if (ROOT) ROOT.scrollTop = typeof y === 'function' ? y() : y || 0;
+  // הרצועה הקבועה היא העתק של העמוד החדש ברגע הזה — הגרף בראש (שמצויר בפריים הבא) חייב להיות בה כבר עכשיו
+  if (ghost && hold) { const a = S.after; S.after = []; a.forEach((f) => f()); }
+  if (ghost) C.run(ROOT, ghost, C.side(fwd), hold ? { y: hold.y(), on: hold.on } : undefined);
+}
+/* מעבר בין הלשוניות: הראש והלשוניות זהים בכל הלשוניות — הם נשארים במקום (רצועה קבועה של המנוע, cubeHold),
+   ורק מה שמתחתם מסתובב. הגלילה נשמרת עד הנקודה שבה הלשוניות נדבקות למעלה — בלי קפיצה של הראש */
+function stickY() {
+  const seg = ROOT && ROOT.querySelector('.an-seg-main');
+  if (!seg) return 0;
+  const prev = seg.previousElementSibling;   // הראש (לא דביק) — המקום הטבעי של הלשוניות בלי השפעת ההדבקה
+  const nat = prev ? prev.offsetTop + prev.offsetHeight + (parseFloat(getComputedStyle(seg.parentElement).rowGap) || 0) : seg.offsetTop;
+  return Math.max(0, nat - (parseFloat(getComputedStyle(seg).top) || 0));
+}
+function holdY() {
+  const seg = ROOT && ROOT.querySelector('.an-seg-main');
+  if (!seg) return 0;
+  const b = seg.getBoundingClientRect();
+  return b.bottom > 0 && b.bottom < innerHeight * 0.7 ? b.bottom + 7 : 0;
+}
+/* הסימון בלשוניות שברצועה הקבועה — זז עם האצבע, ובסוף משלים את התנועה (או חוזר בביטול) */
+function holdOn(from, to) {
+  return (el, p) => {
+    const seg = el.querySelector('.an-seg-main'), th = seg && seg.querySelector('.an-seg-th');
+    if (!th) return;
+    const bs = [...seg.querySelectorAll('button')], a = bs[TABS.indexOf(from)], b = bs[TABS.indexOf(to)];
+    if (!a || !b) return;
+    const at = (q) => [a.offsetLeft + (b.offsetLeft - a.offsetLeft) * q, a.offsetWidth + (b.offsetWidth - a.offsetWidth) * q];
+    const mark = (k) => bs.forEach((x, i) => { const on = TABS[i] === k; x.setAttribute('aria-pressed', String(on)); x.setAttribute('aria-selected', String(on)); });
+    if (p === 'commit' || p === 'cancel') {
+      const q = p === 'commit' ? 1 : 0, cur = th.style.transform, [x, w] = at(q);
+      mark(p === 'commit' ? to : from);
+      th.style.transform = `translateX(${x}px)`; th.style.width = w + 'px';
+      if (cur && typeof th.animate === 'function') th.animate([{ transform: cur }, { transform: `translateX(${x}px)` }], { duration: 380, easing: 'cubic-bezier(.3, 1.3, .5, 1)' });
+      return;
+    }
+    const [x, w] = at(p);
+    th.style.transform = `translateX(${x}px)`; th.style.width = w + 'px';
+    mark(p > 0.5 ? to : from);
+  };
+}
+function navTab(k) {
+  if (!ROOT || k === S.tab) return;
+  const from = S.tab, y = Math.min(ROOT.scrollTop, stickY());
+  // הרצועה הקבועה מציגה את הסימון מהלשונית הקודמת וזזה ממנה; הלשוניות בעמוד עצמו כבר במקום (מוסתרות מתחת לרצועה)
+  navTo(TABS.indexOf(k) > TABS.indexOf(from), () => { S.tab = k; S.segX = null; }, y, { y: holdY, on: (el, p) => { if (p === 0) holdOn(from, k)(el, 0); else if (p === 'commit') holdOn(from, k)(el, 'commit'); } });
+  tabLevel();
 }
 function pushSub(title, build, opt = {}) {
   const rec = { title, build, bare: !!opt.bare, y: ROOT ? ROOT.scrollTop : 0, modal: null };
@@ -837,12 +911,13 @@ function wireSwipe() {
     }
     const i = TABS.indexOf(S.tab), j = i + (next ? 1 : -1);
     if (j < 0 || j >= TABS.length) return null;
-    const prev = S.tab, y = ROOT.scrollTop;
-    return { render: () => { S.tab = TABS[j]; render(); ROOT.scrollTop = 0; }, undo: () => { S.tab = prev; S.segX = null; render(); ROOT.scrollTop = y; }, commit: () => {} };
+    const prev = S.tab, to = TABS[j], y = ROOT.scrollTop, y1 = Math.min(y, stickY());
+    return { render: () => { S.tab = to; S.segX = null; render(); ROOT.scrollTop = y1; }, undo: () => { S.tab = prev; S.segX = null; render(); ROOT.scrollTop = y; },
+      hold: holdY, holdOn: holdOn(prev, to), commit: () => tabLevel() };
   } });
 }
 function navBar() {
-  const inSub = S.sub && S.sub.length, parent = inSub > 1 ? S.sub[inSub - 2].title : inSub ? T({ snap: 'anTabSnap', rep: 'anTabRep', val: 'anTabVal', cmp: 'anTabCmp' }[S.tab]) : T('anBack');
+  const inSub = S.sub && S.sub.length, parent = inSub > 1 ? S.sub[inSub - 2].title : inSub ? T(TAB_T[S.tab]) : T('anBack');
   const back = h('button', { class: 'an-back', type: 'button', 'aria-label': inSub ? parent : T('anClose'), on: { click: () => (inSub ? popSub() : closeAnalysis()) } }, h('span', { class: 'an-chev', 'aria-hidden': 'true' }), h('span', { class: 'an-back-t' }, parent));
   const logo = h('span', { class: 'an-logo' });
   if (E.logoHTML) logo.innerHTML = E.logoHTML(S.sym);
@@ -854,20 +929,24 @@ function header(co) {
   const meta = [co.sym.replace(/\.TA$/, ''), co.exch, co.sector].filter(Boolean).join(' · ');
   // 10 שנים של מחיר (חודשי) — רקע גרפי לראש המסך
   const px = co.px && co.px.c ? co.px.c.slice(-121).filter((x) => x != null) : [], p0 = px[0], ch10 = p0 > 0 && px.length > 24 ? co.price / p0 - 1 : null;
-  const yrs = Math.round(px.length / 12), chart = h('div', { class: 'an-pxc' });
+  const yrs = Math.round(px.length / 12), chart = h('div', { class: 'an-pxc' + (S.heroDone ? ' an-still' : '') });
+  S.heroDone = true;   // הגרף בראש מצטייר פעם אחת — לא בכל מעבר לשונית
   const pt = co.px && co.px.t ? co.px.t.slice(-121) : [], hiPx = px.length ? Math.max(...px, co.price) : null;
   if (ch10 != null) S.after.push(() => spark(chart, px.concat(co.price), ch10 >= 0 ? cssv('good') : cssv('bad'), true,
     { w: 340, h: 64, sw: 2, px: 10, labels: pt.length ? [pt[0].slice(0, 4), T('anToday')] : null, peak: hiPx ? T('anPeak', { v: strip(fmt(hiPx, 'ps', co, 0)) }) : null }));
-  const seg = h('div', { class: 'an-seg an-seg-main', role: 'tablist' }, h('span', { class: 'an-seg-th', 'aria-hidden': 'true' }), ...[['snap', T('anTabSnap')], ['rep', T('anTabRep')], ['val', T('anTabVal')], ['cmp', T('anTabCmp')]].map(([k, tt]) =>
-    h('button', { type: 'button', role: 'tab', 'data-k': k, 'aria-selected': String(S.tab === k), 'aria-pressed': String(S.tab === k), on: { click: () => go(k) } }, tt)));
-  S.after.push(() => segThumb(seg));
   return h('div', { class: 'an-head' },
     h('div', { class: 'an-hero' },
       h('div', { class: 'an-idrow' },
         h('div', { class: 'an-px' }, h('b', {}, fmt(co.price, 'ps', co)), ch != null ? h('span', { class: ch >= 0 ? 'an-up' : 'an-down' }, sgn(ch, 2), h('small', {}, ' ' + T('anToday'))) : null),
         h('div', { class: 'an-idn' }, h('span', { dir: 'auto' }, meta), ch10 != null ? h('span', { class: 'an-ch10' }, T('anInYears', { n: yrs }), ' ', h('b', { class: ch10 >= 0 ? 'an-up' : 'an-down' }, sgn(ch10, 0))) : null)),
-      ch10 != null ? chart : null),
-    seg);
+      ch10 != null ? chart : null));
+}
+/* הלשוניות — ילד ישיר של העמוד (לא של הראש), כדי שיישארו דבוקות מתחת לסרגל העליון לאורך כל הגלילה */
+function tabsBar() {
+  const seg = h('div', { class: 'an-seg an-seg-main', role: 'tablist' }, h('span', { class: 'an-seg-th', 'aria-hidden': 'true' }), ...TABS.map((k) =>
+    h('button', { type: 'button', role: 'tab', 'data-k': k, 'aria-selected': String(S.tab === k), 'aria-pressed': String(S.tab === k), on: { click: () => go(k) } }, T(TAB_T[k]))));
+  S.after.push(() => segThumb(seg));
+  return seg;
 }
 /* לשונית הבורר מחליקה מהמקום הקודם (הבורר נבנה מחדש בכל ציור — FLIP לפי המיקום השמור) */
 function segThumb(seg) {
@@ -882,7 +961,7 @@ function segThumb(seg) {
 }
 function go(k) {
   if (k === S.tab) return;
-  navTo(TABS.indexOf(k) > TABS.indexOf(S.tab), () => { S.tab = k; }, 0);
+  navTab(k);
 }
 /* שם של שדה גולמי מהשרתון (co.fill, co.tags) — מדד מוכר לפי M, השאר לפי שם משלו */
 function rawName(k) {
@@ -964,11 +1043,22 @@ function daysTo(d, asOf) {
 /* --- דוחות --- */
 function pageRep(co, pg) {
   pg.append(h('div', { class: 'an-seg sm', role: 'group', 'aria-label': T('anTabRep') }, ...[['is', T('anRIs')], ['bs', T('anRBs')], ['cf', T('anRCf')], ['rt', T('anRRt')]].map(([k, tt]) =>
-    h('button', { type: 'button', 'aria-pressed': String(S.rsub === k), on: { click: () => { S.rsub = k; render(); } } }, tt))));
+    h('button', { type: 'button', 'aria-pressed': String(S.rsub === k), on: { click: () => repSub(k) } }, tt))));
   // כרטיס לכל מדד ברוחב המסך: שם והסבר, ערך גדול ושני נתונים, וגרף של 10 שנים עם השנים, הערכים וקו ממוצע
   const list = h('div', { class: 'an-rcards' });
   for (const r of ROWS[S.rsub]) list.append(repCard(co, rowDef(r)));
   pg.append(list);
+}
+/* רווח והפסד / מאזן / תזרים / יחסים: הגלילה נשמרת עד הנקודה שבה הלשוניות נדבקות (בלי לקפוץ לראש העמוד או
+   להישאר באמצע רשימה אחרת), והרשימה החדשה נכנסת מהצד */
+function repSub(k) {
+  if (!ROOT || k === S.rsub) return;
+  const dir = ['is', 'bs', 'cf', 'rt'].indexOf(k) > ['is', 'bs', 'cf', 'rt'].indexOf(S.rsub) ? 1 : -1, y = Math.min(ROOT.scrollTop, stickY());
+  S.rsub = k; render();
+  ROOT.scrollTop = y;
+  const list = ROOT.querySelector('.an-rcards'), rtl = document.documentElement.dir === 'rtl';
+  if (list && typeof list.animate === 'function' && !(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches))
+    list.animate([{ opacity: 0, transform: `translateX(${(rtl ? -28 : 28) * dir}px)` }, { opacity: 1, transform: 'none' }], { duration: 320, easing: 'cubic-bezier(.2, .9, .25, 1)' });
 }
 const stat = (label, v, cls) => h('div', { class: 'an-rstat' }, h('span', {}, label), h('b', { class: cls || null }, v));
 const tone = (g) => (g == null ? null : g >= 0 ? 'an-up' : 'an-down');
@@ -1345,7 +1435,10 @@ function closeSheet(fromPop, quiet) {
 }
 function segCtl(label, opts, cur, on) {
   const s = h('div', { class: 'an-seg sm', role: 'group', 'aria-label': label }, ...opts.map(([v, tt, dis]) =>
-    h('button', { type: 'button', 'aria-pressed': String(cur === v), disabled: dis ? true : null, on: { click: () => { [...s.children].forEach((b, i) => b.setAttribute('aria-pressed', String(opts[i][0] === v))); on(v); } } }, tt)));
+    h('button', { type: 'button', 'aria-pressed': String(cur === v), disabled: dis ? true : null, on: { click: () => {
+      [...s.children].forEach((b, i) => b.setAttribute('aria-pressed', String(opts[i][0] === v)));
+      on(v);
+    } } }, tt)));
   return h('div', { class: 'an-ctl' }, h('span', {}, label), s);
 }
 function chartSheet(def) {
@@ -1393,12 +1486,13 @@ function chartSheet(def) {
         const stat = (tt, v) => h('div', {}, h('span', {}, tt), h('b', {}, v));
         stats.append(stat(T('anAvg'), fmt(avg, d.unit, co)), stat(T('anGrowthYr'), g == null ? '—' : sgn(g)), stat(T('anLast'), fmt(one[one.length - 1], d.unit, co)));
       }
+      // טבלה לאורך (26/10/2026): שורה לכל תקופה, מהחדשה לישנה, ועמודה לכל סדרה — בלי גלילה הצידה
+      // (עד היום שנה לכל עמודה: גלילה אופקית בתוך גלילה אנכית, והטבלה נפתחה דווקא בשנים הישנות)
       tbl.textContent = '';
-      const t = h('table', { class: 'an-tbl' });
-      t.append(h('thead', {}, h('tr', {}, h('th', {}), ...d.labels.map((l) => h('th', {}, l)))),
-        h('tbody', {}, ...d.series.map((s) => h('tr', {}, h('td', {}, s.name), ...s.vals.map((v) => h('td', {}, strip(fmt(v, d.unit, co))))))));
+      const t = h('table', { class: 'an-tbl an-vtbl' }), idx = d.labels.map((_, i) => i).reverse();
+      t.append(h('thead', {}, h('tr', {}, h('th', {}), ...d.series.map((s) => h('th', { dir: 'auto' }, s.name)))),
+        h('tbody', {}, ...idx.map((i) => h('tr', {}, h('th', { scope: 'row' }, d.labels[i]), ...d.series.map((s) => h('td', {}, strip(fmt(s.vals[i], d.unit, co))))))));
       tbl.append(t);
-      requestAnimationFrame(() => { tbl.scrollLeft = -tbl.scrollWidth; });
     }
     rec.draw = draw;
   });

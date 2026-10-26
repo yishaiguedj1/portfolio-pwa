@@ -175,6 +175,13 @@ ok(!/[֐-׿]/.test(src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '
   ok(/srcBlock\(co, def\.s\),/.test(src) && /co\.src === 'sec' && f\)/.test(src) && /\/\^https:\\\/\\\/www\\\.sec\\\.gov\\\/\/\.test\(f\.url/.test(src) && /rel: 'noopener noreferrer'/.test(src), 'בגיליון הגרף: המקור, קישור רק ל־sec.gov (בלשונית חדשה)');
   // 26/10/2026 (בקשת המשתמש): אי־התאמה לא מוצגת למשתמש — נאספת אצלנו (השרתון → הבקרה הלילית) ומתוקנת בקוד
   ok(!/an-flagc|anFlagTip|anSrcFlag|flagSheet|an-flagrow/.test(src), 'אי־התאמה בבדיקות — בלי הודעה ובלי סימון במסך');
+  // 26/10/2026 (בקשת המשתמש): "חזור" לא יוצא מכל לשונית ישר ל־Invest, והמעברים והגלילה בלי קפיצות
+  ok(/function tabLevel\(\)/.test(src) && /commit: \(\) => tabLevel\(\)/.test(src) && /navTab\('snap'\)/.test(src), 'לשונית שאינה "תמונה" = רמה בהיסטוריה — "חזור" ממנה = "תמונה"');
+  ok(/function unwind\(recs\)/.test(src) && /if \(!fromPop\) unwind\(recs\)/.test(src) && /E\.back\(n\)/.test(src), 'סגירת המסך מכמה רמות — "חזור" אחד של כל הרשומות (בלי רשומות יתומות)');
+  ok(/back: \(n\) => navBack\(-n\)/.test(fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8')), 'Invest מעביר למודול back — navBack (נבלע ב־_navSkipPop)');
+  ok(/wrap\.append\(header\(co\), tabsBar\(\)\)/.test(src) && /min\(ROOT\.scrollTop, stickY\(\)\)/.test(src) && /hold: holdY, holdOn: holdOn\(prev, to\)/.test(src), 'הלשוניות דבוקות לאורך כל העמוד; במעבר — הגלילה נשמרת עד הנקודה שבה הן נדבקות, והראש לא מסתובב');
+  ok(/an-vtbl/.test(src) && !/tbl\.scrollLeft/.test(src), 'טבלה לאורך — שורה לכל תקופה, בלי גלילה הצידה');
+  ok(/S\.seen\.has\(key\)/.test(src) && /\.an-still \.an-draw/.test(fs.readFileSync(path.join(__dirname, '..', 'analysis.css'), 'utf8')), 'עמוד שכבר הוצג — בלי אנימציות כניסה');
 }
 /* ---------- שילוב ואבטחה ---------- */
 ok(!/\bfetch\(|localStorage|sessionStorage|indexedDB|innerHTML\s*=\s*[^'"]*\+/.test(src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')), 'המודול לא פונה לרשת ולא שומר בטלפון — הכל דרך env');
