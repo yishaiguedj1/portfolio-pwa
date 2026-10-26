@@ -20,7 +20,20 @@ const JOB_RE = /^j[A-Za-z0-9_-]{20}$/;
    (אז רואים שלא זז, וההעלאה הרגילה באמת מהירה): בלי בית אחד — BG_FIRST_MS; אחרי שהתחיל — חלק שלם בקצב איטי
    (ps ÷ BG_SLOW_BPS), לפחות BG_STALL_MS (Chrome מעדכן את uploaded רק כשחלק נגמר). תקוע → מבטלים, וההעלאה הרגילה ממשיכה
    מהחלקים שכבר הגיעו */
-export const BG_FIRST_MS = 90 * 1000;
+export const BG_FIRST_MS = 2 * 60 * 1000;
+/* 26/10/2026 (בטלפון: ההעלאה ברקע הסתיימה בסוף — רק הדף ראה אפס כל הזמן): Chrome באנדרואיד לא תמיד מדווח לדף.
+   לכן בזמן שהדף מוצג שואלים את השרתון כל BG_POLL_MS אילו חלקים כבר ב־R2 (o.poll → r2parts): זו ההתקדמות האמיתית
+   שמוצגת, והיא גם מה ששעון התקיעה סופר — העלאה שעובדת בלי דיווח לא תבוטל */
+export const BG_POLL_MS = 20 * 1000;
+/* כמה בתים ב־R2 לפי רשימת החלקים שהגיעו (טהורה) */
+export function partsBytes(size, ps, done) {
+  size = Number(size) || 0; ps = Number(ps) || 0;
+  if (!(size > 0 && ps > 0) || !Array.isArray(done)) return 0;
+  const n = Math.ceil(size / ps);
+  let b = 0;
+  for (const k of new Set(done.map(Number))) if (Number.isInteger(k) && k >= 1 && k <= n) b += k < n ? ps : size - ps * (n - 1);
+  return Math.min(size, b);
+}
 export const BG_STALL_MS = 3 * 60 * 1000;
 export const BG_SLOW_BPS = 128 * 1024;
 export const bgStallLimit = (started, ps) => (started ? Math.max(BG_STALL_MS, Math.ceil((Number(ps) || 0) / BG_SLOW_BPS) * 1000) : BG_FIRST_MS);
@@ -57,7 +70,7 @@ export function bgPlan(size, ps, urls) {
 }
 
 /* env: { reg() → ServiceWorkerRegistration, Request, put(rec), del(id), base(), lang(), now(), visible() }
-   o: { api, job, name, blob, size, mime, st, onState, onProgress, signal, title, icon }
+   o: { api, job, name, blob, size, mime, st, onState, onProgress, signal, title, icon, poll() → תשובת r2parts }
    מחזיר { ok:true } כשה־Background Fetch הסתיים בהצלחה, { fallback: '<סיבה>' } כשצריך את ההעלאה הרגילה,
    { unsupported: true } כשהדפדפן לא מקבל העלאה כזו (לא לנסות שוב בטלפון הזה),
    { fallback: 'bg_stall', stall: true } כשקיבל ולא מתקדם (בוטל — ממשיכים בהעלאה הרגילה) */
@@ -92,16 +105,35 @@ export async function bgUpload(o, env) {
   return new Promise((resolve) => {
     let fin = false;
     const now = () => (env.now ? env.now() : Date.now());
-    let seen = bg.uploaded || 0, started = seen > 0, quiet = 0, last = now();
-    const tick = () => {
-      if (fin) return;
+    const vis = () => !env.visible || env.visible();
+    let srv = 0, polled = now(), polling = false;   // srv = בתים שהשרתון ראה ב־R2 (o.poll)
+    const shown = () => {
       // מה שהגיע לפני ה־Background Fetch הזה (חלקים שהשרתון כבר ראה) = הגודל פחות מה שהוא צריך להעלות
       const base = Math.max(0, o.size - (bg.uploadTotal || o.size));
-      if (o.onProgress) o.onProgress(Math.min(o.size, base + (bg.uploaded || 0)));
+      return Math.min(o.size, Math.max(srv, base + (bg.uploaded || 0)));
+    };
+    let seen = shown(), started = (bg.uploaded || 0) > 0, quiet = 0, last = now();
+    const poll = () => {
+      if (!o.poll || polling || fin || !vis() || now() - polled < BG_POLL_MS) return;
+      polling = true; polled = now();
+      Promise.resolve().then(() => o.poll()).catch(() => null).then((j) => {
+        polling = false;
+        if (fin || !j) return;
+        if (j.file) { srv = o.size; fin = true; cleanup(); if (o.onProgress) o.onProgress(o.size); resolve({ ok: true }); return; }   // הכל כבר ב־R2
+        const b = partsBytes(o.size, j.ps || ps, j.done);
+        if (b > srv) { srv = b; tick(); }
+      });
+    };
+    const tick = () => {
+      if (fin) return;
+      const cur = shown();
+      if (o.onProgress) o.onProgress(cur);
       if (bg.result) { fin = true; cleanup(); resolve(bg.result === 'success' ? { ok: true } : { fallback: 'bg_' + (bg.failureReason || 'fail') }); return; }
-      const t = now(), up = bg.uploaded || 0;
-      if (up !== seen) { seen = up; started = started || up > 0; quiet = 0; }
-      else if (!env.visible || env.visible()) quiet += Math.min(10000, Math.max(0, t - last));   // טיק אחרי רקע ארוך — לא נספר כולו
+      poll();
+      const t = now();
+      // כל החלקים כבר ב־R2 — רק הסגירה נשארה (ה־service worker עושה אותה); לא מבטלים ולא סוגרים במקביל אליו
+      if (cur !== seen || srv >= o.size) { started = started || cur > seen; seen = cur; quiet = 0; }
+      else if (vis()) quiet += Math.min(10000, Math.max(0, t - last));   // טיק אחרי רקע ארוך — לא נספר כולו
       last = t;
       if (quiet >= bgStallLimit(started, ps)) {
         fin = true; cleanup();
