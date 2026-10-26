@@ -72,6 +72,7 @@ import io.github.yishaiguedj1.snowball.dm.DmActivity
 import io.github.yishaiguedj1.snowball.dm.DmBrowser
 import io.github.yishaiguedj1.snowball.dm.DmEngine
 import io.github.yishaiguedj1.snowball.dm.DmLang
+import io.github.yishaiguedj1.snowball.dm.DmPre
 import io.github.yishaiguedj1.snowball.dm.DmStore
 
 /**
@@ -557,7 +558,13 @@ class BrowserActivity : ComponentActivity() {
             WebViewCompat.addWebMessageListener(w, "snbHunt", setOf("*")) { _, msg, _, _, _ -> msg.data?.let { seen(t, it, hook = true) } }
             if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) WebViewCompat.addDocumentStartJavaScript(w, DmBrowser.hook, setOf("*"))
             // הנגן שעל המסך — רק מהמסגרת הראשית (הבועה נצמדת אליו; BrVideo)
-            WebViewCompat.addWebMessageListener(w, "snbVid", setOf("*")) { _, msg, _, main, _ -> if (main) t.vid = BrVideo.parse(msg.data) }
+            WebViewCompat.addWebMessageListener(w, "snbVid", setOf("*")) { _, msg, _, main, _ ->
+                if (main) when (val d = msg.data) {
+                    BrVideo.TAP -> if (cur === t && screen == Screen.PAGE) bubbleTap()   // הכפתור שעל הנגן
+                    BrVideo.HELLO -> pushDl(t)                                         // מסמך חדש — כמה נמצא והתווית
+                    else -> t.vid = BrVideo.parse(d)
+                }
+            }
             if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) WebViewCompat.addDocumentStartJavaScript(w, BrVideo.JS, setOf("*"))
             // מה מתנגן בדף (כל המסגרות) — לניגון ברקע; ובאותו סקריפט מהירות הווידאו של האתר
             WebViewCompat.addWebMessageListener(w, "snbPlay", setOf("*")) { _, msg, _, _, _ ->
@@ -676,7 +683,24 @@ class BrowserActivity : ComponentActivity() {
         ui.postDelayed({ if (cur === t && screen == Screen.PAGE && !editing && !pick && picks(t).isNotEmpty()) pick = true }, 1500)
     }
 
-    /** הבועה (BrBubble): כמו ⬇ בשורת הכתובת — ממצא אחד מוריד מיד, כמה — הרשימה */
+    /** הכפתור שעל הנגן (BrVideo): המצב לדף — כמה נמצא (0 = בלי כפתור; גם כשכובה בהגדרות) והתווית */
+    fun pushDl(t: BrTab) {
+        val w = t.web ?: return
+        runCatching { w.evaluateJavascript(BrVideo.stateJs(if (bubble) t.foundN else 0, getString(R.string.brBubble)), null) }
+    }
+
+    /**
+     * 26/10/2026 (בקשת המשתמש: "שהקבצים יהיו כבר מוכנים להורדה תמיד"): הסרטון בטאב שעל המסך נבדק ברקע (DmPre) — כשנוגעים
+     * בכפתור, רשימת האיכויות במנהל ההורדות מוכנה מיד. רק מה שאפשר לבדוק ב־yt-dlp (לא קובץ ישיר — הוא נבדק בחצי שנייה),
+     * ולא בטאב פרטי (העוגיות שלו לא נשמרות בשום מקום)
+     */
+    fun prefetch(t: BrTab) {
+        if (t.private || cur !== t || t.foundN == 0) return
+        val p = picks(t).firstOrNull { !it.file } ?: return
+        DmPre.start(this, p.url, if (p.page) "" else t.page, t.web?.settings?.userAgentString ?: "", listOf(t.page, p.url) + t.found.list.map { it.url })
+    }
+
+    /** הכפתור שעל הנגן (BrVideo) — כמו ⬇ בשורת הכתובת: ממצא אחד מוריד מיד, כמה — הרשימה */
     fun bubbleTap() {
         val t = cur ?: return
         val ps = picks(t)
@@ -820,7 +844,7 @@ class BrowserActivity : ComponentActivity() {
     fun pickEngine(e: String) { engine = e; prefs.engine = e }
     fun pickBarBottom(b: Boolean) { barBottom = b; prefs.barBottom = b }
     fun pickHomeBtn(b: Boolean) { homeBtn = b; prefs.homeBtn = b }
-    fun pickBubble(b: Boolean) { bubble = b; prefs.bubble = b }
+    fun pickBubble(b: Boolean) { bubble = b; prefs.bubble = b; cur?.let { pushDl(it) } }
     fun pickSuggest(b: Boolean) { suggestOn = b; prefs.suggest = b }
     /** גודל הטקסט בדפים — כמו "גודל הטקסט" ב־Chrome; חל על כל הטאבים */
     fun pickZoom(v: Int) { zoom = v.coerceIn(50, 300); prefs.zoom = zoom; tabs.forEach { t -> runCatching { t.web?.settings?.textZoom = zoom } } }

@@ -38,9 +38,9 @@ ok(/deleteProfile\(PRIV\)/.test(act) && /WebViewCompat\.setProfile\(w, PRIV\)/.t
 ok(/if \(!isUserGesture\) return false/.test(act), 'חלון קופץ בלי נגיעה — חסום');
 ok(/component = null; selector = null/.test(act), 'קישור intent: — בלי רכיב מפורש (לא נפתח רכיב פנימי של אפליקציה אחרת)');
 ok(/s\.allowFileAccess = false/.test(act) && /s\.allowContentAccess = false/.test(act), 'בלי גישה לקבצים מהדף');
-const bub = R(B + 'BrBubble.kt');
+const pre = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmPre.kt');
 const imp = R(B + 'BrImport.kt');
-const code = [act, ui, store, bub, imp, R(B + 'BrTab.kt'), R(B + 'BrIcons.kt')];
+const code = [act, ui, store, imp, R(B + 'BrTab.kt'), R(B + 'BrIcons.kt')];
 for (const s of code) ok(!/thesnowball\.app|vercel\.app|workers\.dev|\/api\//.test(s), 'בלי השרת שלנו בקוד של הדפדפן');
 
 const used = new Set([...code.join('\n').matchAll(/R\.string\.(br\w+)/g)].map((m) => m[1]));
@@ -51,21 +51,28 @@ for (const k of used) ok(H.has(k) && E.has(k), 'מחרוזת בעברית ובא
 ok([...H].every((k) => E.has(k)), 'כל מחרוזת עברית — גם באנגלית');
 ok(fs.existsSync(path.join(ROOT, 'android/app/src/browser/res/mipmap-xxxhdpi/br_launcher.png')), 'אייקון משלו');
 
-// 26/10/2026 (בקשת המשתמש: "שהבועה מחוברת לדפדפן שלנו באופן מלא ועובדת ממש כמו הצייד", ואחר כך "צמודה לחלק העליון
-// הימני של הנגן ונעלמת כשאין וידאו על המסך — כמו IDM"): בועה בתוך הדפדפן, מחוברת לצייד ולמיקום של הנגן
-ok(/fun VideoBubble\(a: BrowserActivity, t: BrTab\)/.test(bub) && /t\.foundN > 0/.test(bub), 'הבועה מופיעה רק כשהצייד מצא משהו');
-ok(/val show = canShow\(a, t\) && \(v != null \|\| late\)/.test(bub) && /delay\(2500\); late = true/.test(bub), '...ורק כשיש נגן על המסך, ובגיבוי — 2.5 שנ׳ בלי דיווח על נגן');
-ok(/\+\+beat>=3/.test(R(B + 'BrVideo.kt')), 'מיקום הנגן נשלח שוב גם בלי שינוי (דיווח שאבד בטעינת הדף)');
+// 26/10/2026 (בקשת המשתמש: "לא בועה מרחפת — תמיד צמוד לחלק העליון של הסרטון, ושרשימת האיכויות כבר תופיע כשלוחצים"):
+// הבועה של Compose מעל ה־WebView לא הופיעה בטלפון — הכפתור בתוך הדף, והבדיקה של yt-dlp רצה מראש
+const vjs = R(B + 'BrVideo.kt');
+ok(!fs.existsSync(path.join(ROOT, B + 'BrBubble.kt')) && !/VideoBubble|FullBubble/.test(ui), 'בלי הבועה המרחפת של Compose');
+ok(/attachShadow\(\{mode:'closed'\}\)/.test(vjs) && /position:fixed/.test(vjs) && /box\.left\+box\.width\/2/.test(vjs), 'הכפתור בתוך הדף: shadow DOM סגור, באמצע החלק העליון של הנגן');
+ok(/var n=\+window\.__snbN\|\|0;/.test(vjs) && /if\(!box\|\|n<=0\)/.test(vjs), 'מופיע רק כשיש נגן על המסך וגם הדפדפן מצא מה להוריד');
+ok(/document\.fullscreenElement/.test(vjs), 'במסך מלא — בתוך האלמנט שבמסך מלא');
+ok(/ch\.postMessage\('!dl'\)/.test(vjs) && /BrVideo\.TAP -> if \(cur === t && screen == Screen\.PAGE\) bubbleTap\(\)/.test(act), 'נגיעה בכפתור = ⬇ בשורת הכתובת');
+ok(/ch\.postMessage\('!\?'\)/.test(vjs) && /BrVideo\.HELLO -> pushDl\(t\)/.test(act) && /if \(bubble\) t\.foundN else 0/.test(act), 'מסמך חדש מבקש את המצב; כבוי בהגדרות = בלי כפתור');
+ok(/\+\+beat>=3/.test(vjs), 'מיקום הנגן נשלח שוב גם בלי שינוי (דיווח שאבד בטעינת הדף)');
 ok(/web && \(t!!\.foundN > 0\) -> IBtn\(BrIcons\.Dl/.test(ui), '⬇ בשורת הכתובת כשיש מה להוריד');
-ok(/val x = \(right - size - m\)/.test(bub) && /val y = maxOf\(top, 0f\) \+ m/.test(bub), 'בפינה העליונה הימנית של הנגן (או בראש החלק הגלוי שלו)');
-ok(/WebHost\(a, t\); VideoBubble\(a, t\)/.test(ui) && /a\.customView\?\.let[\s\S]{0,600}FullBubble\(a\)/.test(ui), 'באותו אזור של הדף; במסך מלא — בפינה של המסך');
 ok(/fun bubbleTap\(\)[\s\S]{0,200}if \(ps\.size == 1\) download\(ps\[0\]\) else if \(ps\.isNotEmpty\(\)\) pick = true/.test(act)
-  && /if \(ps\.size == 1\) a\.download\(ps\[0\]\) else a\.pick = true/.test(ui), 'נגיעה בבועה = ⬇ בשורת הכתובת (אותה בחירה)');
-ok(/onLongPress = \{[^}]*a\.pick = true/.test(bub), 'לחיצה ארוכה = כל האפשרויות');
-ok(/var bubble: Boolean get\(\) = sp\.getBoolean\("bub", true\)/.test(store) && /pickBubble/.test(ui), 'אפשר לכבות בהגדרות; פועלת כברירת מחדל');
-ok(/absoluteOffset/.test(bub) && !/\.offset \{/.test(bub), 'מיקום מוחלט — לא מתהפך בעברית');
+  && /if \(ps\.size == 1\) a\.download\(ps\[0\]\) else a\.pick = true/.test(ui), 'הכפתור = ⬇ בשורת הכתובת (אותה בחירה)');
+ok(/var bubble: Boolean get\(\) = sp\.getBoolean\("bub", true\)/.test(store) && /pickBubble/.test(ui) && /prefs\.bubble = b; cur\?\.let \{ pushDl\(it\) \}/.test(act), 'אפשר לכבות בהגדרות; פועל כברירת מחדל');
+// האיכויות מוכנות מראש
+ok(/LaunchedEffect\(t\.id, t\.foundN, a\.bubble, t\.web\) \{ a\.pushDl\(t\); if \(t\.foundN > 0\) \{ delay\(1500\); a\.prefetch\(t\) \} \}/.test(ui), 'הסרטון שעל המסך נבדק ברקע');
+ok(/if \(t\.private \|\| cur !== t \|\| t\.foundN == 0\) return/.test(act) && /firstOrNull \{ !it\.file \}/.test(act), 'רק הטאב שעל המסך, לא פרטי, ורק מה שנבדק ב־yt-dlp');
+ok(/DmPre\.await\(url\)\?\.let \{ return Found\.Video/.test(R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmActivity.kt')), 'מנהל ההורדות לוקח את התוצאה המוכנה');
+ok(/if \(url in busy \|\| fresh\(done\[url\], now\)\) return/.test(pre) && /while \(url in busy\)/.test(pre) && /JSONObject\(e\.info\.toString\(\)\)/.test(pre), 'בדיקה אחת לכל כתובת, מחכים לבדיקה שרצה, ועותק לכל מי שמבקש');
+ok(!/https?:\/\//.test(pre.replace(/^\s*(\/\/|\*).*$/mg, '')), 'הבדיקה מראש לא פונה לשום שרת שלנו');
 const vid = R(B + 'BrVideo.kt');
-ok(/if\(window\.top!==window/.test(vid) && /\{ _, msg, _, main, _ -> if \(main\) t\.vid = BrVideo\.parse\(msg\.data\) \}/.test(act), 'המיקום רק מהמסגרת הראשית (גם בסקריפט וגם בדפדפן)');
+ok(/if\(window\.top!==window/.test(vid) && /\{ _, msg, _, main, _ ->\s*if \(main\) when/.test(act) && /else -> t\.vid = BrVideo\.parse\(d\)/.test(act), 'המיקום רק מהמסגרת הראשית (גם בסקריפט וגם בדפדפן)');
 ok(/addDocumentStartJavaScript\(w, BrVideo\.JS/.test(act) && /t\.vid = null/.test(act), 'הסקריפט בכל דף; דף חדש — בלי מיקום ישן');
 ok(/visualViewport/.test(vid) && /iy<40/.test(vid), 'יחסית לאזור הנראה (גם בהגדלה); נגן כמעט מחוץ למסך — לא נחשב');
 { // BrVideo.parse — כמו בקוטלין: ארבעה מספרים סבירים, אחרת "אין נגן"
