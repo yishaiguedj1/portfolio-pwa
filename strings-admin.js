@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1283 מפתחות מתוך 4746) */
+/* המחרוזות של admin (1284 מפתחות מתוך 4747) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1034,6 +1034,7 @@ he: {
   "admSvcAttn": "{n} דורשים תשומת לב",
   "admSvcBk": "גיבוי",
   "admSvcBkAnt": "Routine, העתק־הדבק, תרגום בטלפון",
+  "admSvcBkDns": "עותק יומי של הרשומות — לשחזור",
   "admSvcBkFs": "עותק יומי לשחזור בלבד — עדיין בלי גיבוי חי",
   "admSvcBkGemini": "Mistral, MyMemory",
   "admSvcBkHetzner": "השרתון — Vercel · התרגום — Routine, העתק־הדבק, הטלפון",
@@ -2319,6 +2320,7 @@ en: {
   "admSvcAttn": "{n} need attention",
   "admSvcBk": "Backup",
   "admSvcBkAnt": "Routine, copy-paste, phone translation",
+  "admSvcBkDns": "Daily copy of the records — for restore",
   "admSvcBkFs": "Daily copy for restore only — no live backup yet",
   "admSvcBkGemini": "Mistral, MyMemory",
   "admSvcBkHetzner": "Proxy — Vercel · translation — Routine, copy-paste, the phone",

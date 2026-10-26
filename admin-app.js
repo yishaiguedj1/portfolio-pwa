@@ -1041,7 +1041,7 @@ async function needSvc() {
 const SVC_NAME = { fs: () => 'Firebase', vercel: () => 'Vercel', hetzner: () => t('admSvcNHetzner'), r2: () => 'Cloudflare R2', mail: () => t('admMail'), pages: () => 'Cloudflare Pages',
   dns: () => t('admSvcNDns'), drive: () => 'Google Drive', gemini: () => 'Gemini', anthropic: () => 'Anthropic API', market: () => t('admSvcNMarket'), hf: () => 'Hugging Face' };
 const SVC_BK = { fs: () => t('admSvcBkFs'), vercel: () => t('admSvcBkVercel'), hetzner: () => t('admSvcBkHetzner'), r2: () => t('admSvcBkR2'), mail: () => t('admSvcBkMail'),
-  pages: () => t('admSvcBkPages'), none: () => t('admSvcBkNone'), gemini: () => t('admSvcBkGemini'), anthropic: () => t('admSvcBkAnt'), market: () => t('admSvcBkMarket'), hf: () => t('admSvcBkHf') };
+  pages: () => t('admSvcBkPages'), dns: () => t('admSvcBkDns'), none: () => t('admSvcBkNone'), gemini: () => t('admSvcBkGemini'), anthropic: () => t('admSvcBkAnt'), market: () => t('admSvcBkMarket'), hf: () => t('admSvcBkHf') };
 const SVC_ST = { ok: () => t('admSvcStOk'), warn: () => t('admSvcStWarn'), crit: () => t('admSvcStCrit'), down: () => t('admSvcStDown'), off: () => t('admSvcStOff'), na: () => t('admSvcStNa') };
 const SVC_M = Object.assign({ disk: () => t('admSvcMDisk'), day: () => t('admSvcMDay') }, PROV_ITEM);
 const SVC_COL = { ok: 'green', warn: 'orange', crit: 'red', down: 'red', off: 'gray', na: 'gray' };

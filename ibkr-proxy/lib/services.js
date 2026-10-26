@@ -16,7 +16,7 @@ const SERVICES = [
   { k: 'r2', bk: 'r2' },          // קבצים — Drive של המנהל לספרים ולגיבוי היומי
   { k: 'mail', bk: 'mail' },      // שרשרת שירותי השליחה — ואחריה Firebase
   { k: 'pages', bk: 'pages' },    // Cloudflare Pages — GitHub Pages נפרס במקביל
-  { k: 'dns', bk: 'none' },       // Cloudflare DNS — אין גיבוי
+  { k: 'dns', bk: 'dns' },        // Cloudflare DNS — עותק יומי של הרשומות בגיבוי (lib/dnsexport.js), לשחזור ידני
   { k: 'drive', bk: 'none' },     // Google Drive של המנהל — הגיבוי עצמו
   { k: 'gemini', bk: 'gemini' },  // Mistral, MyMemory
   { k: 'anthropic', bk: 'anthropic' }, // Routine, העתק־הדבק, תרגום בטלפון

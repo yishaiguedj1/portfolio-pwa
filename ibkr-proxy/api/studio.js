@@ -53,7 +53,8 @@ const FAU = require('../lib/fundaudit');   // 25/10/2026: בקרת הדיוק ש
 const SU = require('../lib/studiourl');   // 22/10/2026: הורדה מקישור — בדיקת קישור בתור לעובד
 const MON = require('../lib/studiomon');
 const MAILER = require('../lib/mailer');
-const SVC = require('../lib/services');   // 26/10/2026: שליחת מיילים משלנו (מרכז הניהול ← שליחת מיילים)
+const SVC = require('../lib/services');
+const DNSX = require('../lib/dnsexport');   // 26/10/2026: שליחת מיילים משלנו (מרכז הניהול ← שליחת מיילים)
 const USG = require('../lib/usage');   // 23/10/2026: מעקב תעבורה/אחסון של Vercel, R2 ו־Firestore (טוקנים לקריאה בלבד)   // 22/10/2026: ניטור השרתים — היסטוריית דופק + טוקן קריאה לווידג׳ט
 const SF = require('../lib/sysflags');
 const YT = require('../lib/ytck');   // 25/10/2026: חשבון יוטיוב ייעודי לשרת (עוגיות מוצפנות)   // 15/10/2026: מצב תחזוקה והגדרות ודגלים (sysCfg/main)   // 15/10/2026 (מ׳2): קורפוס הטקסט — לדלי נפרד snb-learn
@@ -1177,6 +1178,7 @@ async function fsListCol(deps, col, max) {
   }
   return out;
 }
+let dnsTry = '';
 async function dailyBackup(deps, now) {
   const c = R2.config();
   if (!c.ok) return -1;
@@ -1186,6 +1188,7 @@ async function dailyBackup(deps, now) {
       listCol: (col, max) => fsListCol(deps, col, max),
       head: (k) => R2.head(c, rd, k), get: (k, max) => R2.getBuf(c, rd, k, max), put: (k, b, t) => R2.putBuf(c, rd, k, b, t),
       list: (p) => R2.list(c, rd, p, 2000), del: (k) => R2.del(c, rd, k),
+      dns: () => { const d = new Date(now).toISOString().slice(0, 10); if (dnsTry === d) return null; dnsTry = d; return DNSX.dnsExport(process.env, deps.fetch || fetch); },   // 26/10/2026: רשומות הדומיין — ניסיון אחד ביום למופע
     }, now);
     if (r.done) await LM.dailyGc(deps, now).catch(() => null);   // ס׳9: ניקוי הספרייה — פעם ביום, אחרי שהקטלוג גובה
     return r.done ? 1 : 0;

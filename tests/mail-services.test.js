@@ -221,7 +221,7 @@ const NOW = Date.UTC(2026, 9, 26, 10, 0, 0);
   ok(R('hetzner').st === 'ok' && R('hetzner').pct === 50, 'השרת מדווח, הדיסק 50%');
   ok(R('mail').st === 'ok' && R('mail').left === 260 && R('mail').n === 1, 'מיילים: שירות אחד מוגדר, נשארו 260 היום');
   ok(['pages', 'dns', 'gemini', 'anthropic', 'market', 'hf'].every((k) => R(k).st === 'na'), 'שירות בלי מונה — "אין מונה", לא "תקין"');
-  ok(R('dns').bk === 'none' && R('drive').bk === 'none' && V.sum.risk === 2, 'בלי גיבוי: DNS ו־Drive');
+  ok(R('dns').bk === 'dns' && R('drive').bk === 'none' && V.sum.risk === 1, 'בלי גיבוי: רק Drive (ל־DNS עותק יומי של הרשומות)');
   const V0 = SVC.servicesView({ now: NOW });
   ok(['fs', 'vercel', 'r2', 'drive', 'mail', 'hetzner'].every((k) => R && V0.rows.find((x) => x.k === k).st === 'off'), 'בלי מדידות — "לא נמדד" (אף מספר לא מומצא)');
   const Vd = SVC.servicesView({ servers: [{ seen: NOW - 30 * 60e3 }], prov: { firestore: { st: 'err', err: 'api_off' } }, mail: { list: [{ k: 'brevo', on: true, day: 270, dayMax: 300 }], left: 0 }, now: NOW });
@@ -239,6 +239,32 @@ const NOW = Date.UTC(2026, 9, 26, 10, 0, 0);
   const a50 = SVC.alertsDue(V50, a.keep);
   ok(!a50.keep['fs.reads'] && SVC.alertsDue(V, a50.keep).fire.includes('fs.reads'), 'מתחת ל־60% — מתאפס, ועלייה הבאה מתריעה שוב');
   { const fd = SVC.alertsDue(Vd, {}).fire; ok(fd.includes('mail.down') && !fd.includes('hetzner.down') && !fd.includes('fs.down'), 'נפילה מתריעה רק במיילים (לשרת התראה משלו, תקלה במדידה אינה נפילה)'); }
+
+  /* ---------------------------------------------------------------- 6ב. רשומות הדומיין בגיבוי היומי */
+  {
+    const DX = require(P('dnsexport.js')), BK = require(P('backup.js')), zlib = require('zlib');
+    const BIND = ';; zone\nthesnowball.app.\t1\tIN\tA\t192.0.2.1\ninvest.thesnowball.app.\t1\tIN\tCNAME\tthesnowball.pages.dev.\n';
+    ok(DX.looksBind(BIND, 'thesnowball.app') && !DX.looksBind('<html>error</html>', 'thesnowball.app') && !DX.looksBind('', 'thesnowball.app'), 'קובץ BIND תקין מול תשובה אחרת');
+    let calls = [];
+    const cf = (zoneOk, exp) => async (url, init) => { calls.push(url); if (/\/zones\?name=/.test(url)) return zoneOk ? { status: 200, json: async () => ({ result: [{ id: 'a'.repeat(32) }] }) } : { status: 403, json: async () => ({}) };
+      return { status: 200, text: async () => exp }; };
+    ok(await DX.dnsExport({}, cf(true, BIND)) === null && calls.length === 0, 'בלי טוקן — לא פונים ל־Cloudflare');
+    ok(await DX.dnsExport({ CF_DNS_TOKEN: 't' }, cf(true, BIND)) === BIND && calls[1] === 'https://api.cloudflare.com/client/v4/zones/' + 'a'.repeat(32) + '/dns_records/export', 'עם טוקן — מייצא את הרשומות');
+    ok(await DX.dnsExport({ CF_USAGE_TOKEN: 't' }, cf(false, BIND)) === null, 'בלי הרשאה לאזור — null');
+    ok(await DX.dnsExport({ CF_DNS_TOKEN: 't' }, cf(true, '<html>')) === null, 'תשובה שאינה BIND — לא נשמרת');
+    ok(await DX.dnsExport({ CF_DNS_TOKEN: 't', CF_ZONE: 'bad zone' }, cf(true, BIND)) === null, 'שם אזור לא תקין — לא פונים');
+    const store = new Map();
+    const io = { listCol: async () => [], head: async (k) => store.has(k), get: async () => null, put: async (k, b) => { store.set(k, b); }, list: async () => [], del: async () => {}, dns: async () => BIND };
+    const r1 = await BK.runBackup(io, NOW);
+    const dk = BK.bkDnsKey('2026-10-26');
+    ok(r1.done && r1.dns && zlib.gunzipSync(store.get(dk)).toString() === BIND, 'הגיבוי היומי כולל את רשומות הדומיין (dns.txt.gz)');
+    store.delete(dk);
+    const r2 = await BK.runBackup(io, NOW + 60e3);
+    ok(!r2.done && r2.dns && store.has(dk), 'גיבוי שכבר נעשה בלי הרשומות (מופע בלי טוקן) — משלימים אותן');
+    const r3 = await BK.runBackup(Object.assign({}, io, { dns: async () => null }), NOW + 864e5);
+    ok(r3.done && !r3.dns, 'בלי רשומות — הגיבוי של שאר הנתונים לא נפגע');
+    ok(BK.bkExpired([dk], NOW + 20 * 864e5).length === 1, 'רשומות הדומיין נמחקות אחרי 14 יום כמו שאר הגיבוי');
+  }
 
   /* ---------------------------------------------------------------- 7. החיבור לשאר המערכת */
   const root = path.join(__dirname, '..');
