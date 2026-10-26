@@ -184,11 +184,14 @@ object DlEngine {
     fun download(ctx: Context, url: String, ref: String, pick: Pick, id: String, progress: (Float, Long) -> Unit): File =
         download(ctx, url, ref, pick, id, "", progress = progress)
 
+    /** התיקייה שאליה yt-dlp כותב את ההורדה — גם כדי למדוד כמה כבר ירד (Studio DM) */
+    fun dirOf(ctx: Context, id: String) = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "dl/$id")
+
     /** format = בורר yt-dlp משלך (Studio DM: "רק קול" — ‎ba/b‎); ריק = לפי pick, כמו ב־Studio */
     /** subs = שפות כתוביות לצרף לקובץ ("he,en"; Studio DM — DmSubs), auto = כולל כתוביות אוטומטיות */
     fun download(ctx: Context, url: String, ref: String, pick: Pick, id: String, format: String, onLine: (String) -> Unit = {}, subs: String = "", auto: Boolean = false, progress: (Float, Long) -> Unit): File {
         prepare(ctx)
-        val dir = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "dl/$id").apply { mkdirs() }
+        val dir = dirOf(ctx, id).apply { mkdirs() }
         val req = base(YoutubeDLRequest(url), ref, cookiesFor(ctx, url, ref))
             .addOption("-f", format.ifEmpty { DlProbe.selector(pick.v, pick.a, pick.h) })
             .addOption("--merge-output-format", "mp4/mkv")

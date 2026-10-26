@@ -103,6 +103,23 @@ object DmYt {
             return true
         }
 
+        /**
+         * 26/10/2026 (סרטון של המשתמש: "מתחבר לאתר · 2%" כל ההורדה, ואז קפיצה ל־97%): בטלפון שורות ההתקדמות של yt-dlp לא
+         * תמיד מגיעות בזמן ההורדה — לכן גם הבתים שכבר בתיקייה (got) מתוך הגודל הצפוי (total) מזיזים את הפס. אף פעם לא אחורה.
+         */
+        fun disk(got: Long, total: Long, now: Long = System.currentTimeMillis()): Boolean {
+            if (total <= 0 || got <= 0 || stage == Stage.MERGE || stage == Stage.POST) return false
+            val g = dlToAll((got.toDouble() / total).toFloat().coerceAtMost(1f))
+            if (g <= frac) return false
+            if (stage == Stage.PREP || stage == Stage.CONN) { stage = Stage.DL; stageAt = now; stageFrom = frac }
+            if (diskAt > 0 && now > diskAt && got > diskGot) bps = ((got - diskGot) * 1000 / (now - diskAt))
+            diskAt = now; diskGot = got
+            frac = g
+            return true
+        }
+        private var diskAt = 0L
+        private var diskGot = 0L
+
         /** הזמן עובר בשלב בלי אחוז (הכנה, חיבור, איחוד) — הפס זוחל לכיוון סוף השלב: חצי מהדרך כל ~8 שניות */
         fun creep(now: Long = System.currentTimeMillis()): Boolean {
             if (stageAt < 0) { stageAt = now; return false }
