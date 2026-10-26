@@ -1033,3 +1033,21 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-rs-chip.on { background: var(--primary); color: var(--on-primary); }
 .st-rs .st-list { margin-inline: 16px; }
 @media (prefers-reduced-motion: reduce) { .st-rs, .st-rs-box { animation: none; } }
+
+/* 26/10/2026: סרטון מ־Google Drive — הרשימה של Studio (במקום Google Picker) */
+.st-root .st-dp-q { display: block; width: calc(100% - 32px); margin: 8px 16px 0; min-height: 40px; padding: 8px 12px; border-radius: var(--radius-xs); background: var(--st-fill); font-family: inherit; font-size: 16px; }
+.st-root .st-dp-row { min-height: 64px; }
+.st-root .st-dp-th { width: 72px; border-radius: 8px; }
+.st-root .st-dp-th svg { width: 20px; height: 20px; }
+.st-root .st-dp-th img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .25s ease; }
+.st-root .st-dp-th.ok img { opacity: 1; }
+.st-root .st-dp-dur { position: absolute; inset-inline-end: 4px; bottom: 3px; padding: 0 4px; border-radius: 4px; background: rgba(0, 0, 0, .62); color: #fff; font-size: 11px; font-weight: 600; line-height: 16px; direction: ltr; }
+.st-root .st-dp-row .st-l b { overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.st-root .st-dp-up { display: inline-flex; align-items: center; gap: 4px; margin: 12px 12px 0; padding: 4px; color: var(--primary); font-size: 15px; }
+.st-root .st-dp-up svg { width: 18px; height: 18px; }
+.st-root .st-dp-conn { margin: 28px 24px 18px; display: grid; justify-items: center; gap: 8px; text-align: center; }
+.st-root .st-dp-conn b { font-size: 20px; }
+.st-root .st-dp-conn p { margin: 0; color: var(--on-surface-var); font-size: 15px; line-height: 1.45; }
+.st-root .st-dp-ic { width: 64px; height: 64px; border-radius: var(--radius-sm); display: grid; place-items: center; background: linear-gradient(135deg, #64D2FF, #0A84FF); color: #fff; margin-bottom: 6px; }
+.st-root .st-dp-ic svg { width: 34px; height: 34px; }
+@media (prefers-reduced-motion: reduce) { .st-root .st-dp-th img { transition: none; } }

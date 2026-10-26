@@ -23,7 +23,11 @@ const { guard } = require('../lib/ibkr');
 const { verifyIdToken, datastoreToken, isAdmin, emails } = require('../lib/gauth');
 const SW = require('../lib/sitewatch');
 const vault = require('../lib/vault');
-const gdrive = require('../lib/gdrive').studio;   // v357: לקוח OAuth נפרד לסטודיו — לא רואה את גיבוי הספרייה
+const gdrive = require('../lib/gdrive').studio;
+const gbrowse = require('../lib/gdrive').browse;   // 26/10/2026: רשימת הקבצים ב־Drive (drive.readonly) — לקוח נפרד
+/* הסודות של השרת שלנו נקבעים בהקמה (SNB_ENV_GZ) — משתנה חדש ב־Vercel לא מגיע אליו עד הקמה מחדש. בינתיים: 421 = "לא כאן",
+   והטלפון שולח את אותה בקשה ל־Vercel (installFailover ב־firebase-config.js), כמו במאגר הלמידה */
+const gbRemote = () => !gbrowse.configured() && process.env.SNB_RELAY_HUB_ON === '1';   // v357: לקוח OAuth נפרד לסטודיו — לא רואה את גיבוי הספרייה
 const S = require('../lib/studio');
 const O = require('../lib/studioops');
 const I = require('../lib/studioinc');
@@ -2155,7 +2159,15 @@ async function worker(req, res, body, deps) {
       if (hubJob(job)) wj.rh = RELAY_HUB();   // 24/10/2026: Claude דרך התור — לאן לשלוח (25/10: גם בתרגום בטלפון — השרת עונה)
       return res.status(200).json({ ok: true, job: wj, drive: await driveFor(), pir, full, now });
     }
-    if (body.op === 'token') return res.status(200).json({ ok: true, drive: await driveFor(), now });
+    if (body.op === 'token') {
+      // 26/10/2026: src — הגישה של רשימת הקבצים, רק לעבודה במצב השרת שהמקור שלה נבחר שם (העובד ב־Routine לא מקבל אותה)
+      if (body.src === true) {
+        if (!(job.fv && job.fv.bx && S.bxOk(job))) return res.status(200).json({ ok: true, src: { error: 'bx_engine' }, now });
+        const t = await gbrowse.accessToken(deps, job.uid).catch(() => ({ ok: false, error: 'gd_failed' }));
+        return res.status(200).json({ ok: true, src: t.ok ? { token: t.token, exp: t.exp } : { error: t.error }, now });
+      }
+      return res.status(200).json({ ok: true, drive: await driveFor(), now });
+    }
     if (body.op === 'learnPut') return res.status(200).json({ ok: true, saved: await learnPut(deps, job, body.lc, now), now });   // מ׳2
     if (body.op === 'learnMedia') return res.status(200).json(Object.assign({ ok: true, now }, (await learnMedia(deps, job, String(body.k || ''), now)) || { skip: true }));   // מ׳4
     if (body.op === 'learnMediaDone') return res.status(200).json({ ok: true, saved: await learnMediaDone(deps, job, String(body.k || '')), now });
@@ -2416,6 +2428,8 @@ async function handler(req, res, deps = {}) {
     return res.status(200).json({ ok: true, cfg: SF.publicCfg(await sysCfg(deps, now), now), now });
   }
   if (body.op === 'r2bgDone') return r2BgDone(req, res, body, deps);   // 23/10/2026: Background Fetch — מפתח הסיום במקום התחברות
+  if (body.op === 'gbConfig' && gbRemote()) return res.status(421).json({ ok: false, error: 'gb_remote' });
+  if (body.op === 'gbConfig') return res.status(200).json({ ok: true, clientId: gbrowse.cfg().id, configured: gbrowse.configured() });   // 26/10/2026: הלקוח של רשימת הקבצים
   if (body.op === 'gdConfig') return res.status(200).json({ ok: true, clientId: gdrive.cfg().id, configured: gdrive.configured(), picker: !!S.pickerCfg(process.env, gdrive.cfg().id) });   // המזהה ציבורי · picker = האם מפתח ה־Picker נטען (רק כן/לא — לאבחון בלי התחברות)
   let user;
   const monTok = String((req.headers || {})['x-mon-token'] || '');
@@ -2460,6 +2474,8 @@ async function handler(req, res, deps = {}) {
   if (op === 'status' && isAdmin(user)) await offsiteOwner(deps, uid).catch(() => {});   // 11/10/2026: בעל הגיבוי ב־Drive
   // v357: חיבור Drive של הסטודיו (חלון ההסכמה של Google — אותו מנגנון של גיבוי הספרייה, לקוח אחר)
   if (op === 'gdConnect' || op === 'gdStatus' || op === 'gdToken' || op === 'gdDisconnect') return gdrive.handle(body, user, res, deps);
+  if (/^gb[A-Z]/.test(op) && gbRemote()) return res.status(421).json({ ok: false, error: 'gb_remote' });
+  if (op === 'gbConnect' || op === 'gbStatus' || op === 'gbToken' || op === 'gbDisconnect') return gbrowse.handle(body, user, res, deps);   // 26/10/2026
   const mine = async (id) => {
     if (!S.JOB_RE.test(String(id || ''))) return null;
     const j = await readJob(deps, id);
@@ -2845,7 +2861,7 @@ async function handler(req, res, deps = {}) {
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
         norm: S.normsView(st.ns, 'r'), normA: S.normsView(st.ns, 'a') /* 11/10: הרגיל לפי המנוע */, sh: S.thView(st.thr) /* v384: מצב צל לכל מצב */, wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
         rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now, ((await readDoc(deps, 'studioEta', 'a').catch(() => null)) || {}).et),
-        pk: S.pickerCfg(process.env, gdrive.cfg().id), lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, lra: +st.lra || 0, lrt: +st.lrt || 0, lrm: +st.lrm || 0 /* מ׳4 */, mf: await fullModes() /* 15/10: כל מצבי התרגום (המנהל / הרשימה) */, url: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok /* 22/10: הורדה מקישור */, yc: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok && YT.ytCloud(await ytDoc(deps, now)) /* 25/10: יוטיוב לענן דרך החשבון הייעודי */, lrf: +st.lrf || 0 /* האיסוף המלא — הנוסח נקרא */, lf: +st.lf || 0 /* 15/10 (מ׳1): ההודעה נקראה / מתי נמחקו התרומות */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
+        pk: S.pickerCfg(process.env, gdrive.cfg().id), gb: gbrowse.configured() || (gbRemote() ? 'r' : false) /* 26/10: רשימת הקבצים ב־Drive — 'r' = אולי ב־Vercel (gbConfig) */, lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, lra: +st.lra || 0, lrt: +st.lrt || 0, lrm: +st.lrm || 0 /* מ׳4 */, mf: await fullModes() /* 15/10: כל מצבי התרגום (המנהל / הרשימה) */, url: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok /* 22/10: הורדה מקישור */, yc: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok && YT.ytCloud(await ytDoc(deps, now)) /* 25/10: יוטיוב לענן דרך החשבון הייעודי */, lrf: +st.lrf || 0 /* האיסוף המלא — הנוסח נקרא */, lf: +st.lf || 0 /* 15/10 (מ׳1): ההודעה נקראה / מתי נמחקו התרומות */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
     }
     if (op === 'push') {
       // שלב 4: התראות — key (המפתח הציבורי, ל־subscribe בטלפון) / on (מנוי של המכשיר) / off / test
@@ -3199,8 +3215,11 @@ async function handler(req, res, deps = {}) {
       const which = subs ? (body.which === 's' ? 's' : '') : ph ? (body.which === 'a' || body.which === 'm' ? body.which : '') : body.which === 'v' ? 'v' : body.which === 'a' ? 'a' : '';
       const fkey = which === 's' ? 'fsu' : 'f' + which;
       const fid = String(body.id || ''), folder = String(body.folder || ''), ext = body.ext === true && which === 'v';   // ext: סרטון שבחרת ב־Drive (Picker) — נשאר במקומו
+      const bx = ext && body.bx === true;   // 26/10/2026: נבחר ברשימה של Studio (gbrowse) — רק במצב השרת, והאימות בגישה של הרשימה
       if (!which || !S.FILE_ID_RE.test(fid) || !S.FILE_ID_RE.test(folder) || (job.folder && job.folder !== folder)) return res.status(400).json({ ok: false, error: 'bad_params' });
       if (ph && !SR.isFolder(folder)) return res.status(400).json({ ok: false, error: 'bad_params' });
+      if (bx && !S.bxOk(job)) return res.status(400).json({ ok: false, error: 'bx_engine' });
+      if (bx && gbRemote()) return res.status(421).json({ ok: false, error: 'gb_remote' });
       if (SR.isFolder(folder) && !ext) {
         // ת4: קובץ ב־R2 — קיים, בתיקייה של העבודה, והסרטון בגודל של המקור (מקור מ־Drive — ext — נשאר ב־Drive, בבדיקה שלמטה)
         if (folder !== job.folder) return res.status(400).json({ ok: false, error: 'bad_params' });
@@ -3209,15 +3228,16 @@ async function handler(req, res, deps = {}) {
         return res.status(200).json({ ok: true, job: view(job) });
       }
       // מאמתים מול Drive עצמו: הקובץ קיים, בתיקיית העבודה, והווידאו בגודל של המקור — העובד יוריד בדיוק את זה
-      const t = await gdrive.accessToken(deps, uid);
+      const t = await (bx ? gbrowse : gdrive).accessToken(deps, uid);
       if (!t.ok) return res.status(200).json({ ok: false, error: t.error });
-      const r = await (deps.fetch || fetch)(DRIVE + fid + '?fields=id,name,size,mimeType,parents,trashed', { headers: { Authorization: 'Bearer ' + t.token } });
+      const r = await (deps.fetch || fetch)(DRIVE + fid + '?supportsAllDrives=true&fields=id,name,size,mimeType,parents,trashed', { headers: { Authorization: 'Bearer ' + t.token } });
       let meta = null; try { meta = await r.json(); } catch (e) {}
       if (r.status === 404) return res.status(400).json({ ok: false, error: 'file_missing' });
       if (r.status !== 200 || !meta) return res.status(502).json({ ok: false, error: 'drive_http_' + r.status });
       const f = S.normFile(meta);
       if (!f || meta.trashed || (ext ? !S.extVideoOk(meta) : !(Array.isArray(meta.parents) && meta.parents.includes(folder)))) return res.status(400).json({ ok: false, error: 'file_bad' });
       if (ext) f.ext = true;
+      if (bx) f.bx = true;
       if ((which === 'v' || which === 's') && job.spec && f.size !== job.spec.size) return res.status(400).json({ ok: false, error: 'file_size' });
       f.at = now;
       await patchJob(deps, job.id, { [fkey]: f, folder, updated: now });

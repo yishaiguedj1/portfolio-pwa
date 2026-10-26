@@ -726,7 +726,7 @@ function effState(job, now) {
   if (job && job.state === 'queued' && job.fired && now - job.fired > (CLAIM_WAIT[job.kind] || CLAIM_WAIT.tr)) return { state: 'failed', err: job.warn || 'no_claim', at: job.fired + (CLAIM_WAIT[job.kind] || CLAIM_WAIT.tr) };
   return { state: job ? job.state : 'failed', err: job ? job.err || '' : '' };
 }
-const fileView = (f) => (f && f.id ? Object.assign({ id: f.id, name: f.name || '', size: f.size || 0, at: f.at || 0 }, f.ext ? { ext: true } : {}) : null);   // ext = מקור מ־Drive של המשתמש (נבחר ב־Picker) — לא בתיקיית העבודה, ולא נוגעים בו
+const fileView = (f) => (f && f.id ? Object.assign({ id: f.id, name: f.name || '', size: f.size || 0, at: f.at || 0 }, f.ext ? { ext: true } : {}, f.bx ? { bx: true } : {}) : null);   // ext = מקור מ־Drive של המשתמש (נבחר ב־Picker) — לא בתיקיית העבודה, ולא נוגעים בו
 /* בחירת קבצים ותיקיות מ־Drive (Google Picker): מפתח דפדפן (מוגבל לאתר ול־Picker API — ב־Vercel, לא בריפו) ומספר הפרויקט
    (מהמזהה של לקוח ה־OAuth של הסטודיו — "123…-xxx.apps.googleusercontent.com"). בלי מפתח — אין כפתור Drive בטלפון */
 function pickerCfg(env, clientId) {
@@ -1077,6 +1077,9 @@ function normCpq(x) {
 }
 const cpView = (cp) => (cp && cp.n ? { n: cp.n, r: cp.r, f: cp.f, at: cp.at || 0, a: !!cp.a } : null);
 const cpWorker = (cp) => (cp && cp.n ? { n: cp.n, a: cp.a || '', as: cp.as || 0 } : null);
+/* 26/10/2026: מקור שנבחר ברשימת הקבצים של Studio (gbrowse, drive.readonly) — רק כשהעובד הוא השרת שלנו (מצב השרת,
+   גם העתק־הדבק והמנוי דרך השרת). Routine מריץ Claude עם כלים על תוכן לא מהימן — הגישה הרחבה לא מגיעה אליו */
+const bxOk = (job) => !!(job && ['tr', 'rr', 'ai'].includes(job.kind) && job.spec && job.spec.eng === 'api' && job.spec.ph !== 1);
 function workerJob(job, nm, fb, fm, rl, gl) {
   return { nm: nm || null,   // v363: "הרגיל" של המשתמש למצב הזה (או null — המגדל משתמש במדידות שלנו)
     gl: Array.isArray(gl) ? gl : null,   // 11/10: המילון מ־R2 (null = אין שם — העובד קורא מ־Drive כמו קודם)
@@ -1280,7 +1283,7 @@ function fromFields(f) {
   return o;
 }
 
-module.exports = { RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
+module.exports = { bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,

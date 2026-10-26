@@ -7,15 +7,15 @@ const CHUNK = 8 * 1024 * 1024;
 
 /* קורא מהקובץ בחלון נע: קריאות קטנות קרובות זו לזו — מאותו חלון */
 class Reader {
-  constructor(blob) { this.b = blob; this.size = blob.size; this.wp = 0; this.w = new Uint8Array(0); }
+  constructor(blob) { this.b = blob; this.size = blob.size; this.wp = 0; this.w = new Uint8Array(0); this.ck = blob.chunk > 0 ? blob.chunk : CHUNK; }   // chunk — קובץ ב־Drive (studionet rangeBlob)
   async need(pos, len) {
     if (pos >= this.wp && pos + len <= this.wp + this.w.length) return;
-    const end = Math.min(this.size, pos + Math.max(len, CHUNK));
+    const end = Math.min(this.size, pos + Math.max(len, this.ck));
     this.w = new Uint8Array(await this.b.slice(pos, end).arrayBuffer());
     this.wp = pos;
   }
   async bytes(pos, len) {
-    if (len > CHUNK) return new Uint8Array(await this.b.slice(pos, pos + len).arrayBuffer());
+    if (len > this.ck) return new Uint8Array(await this.b.slice(pos, pos + len).arrayBuffer());
     await this.need(pos, len);
     return this.w.subarray(pos - this.wp, pos - this.wp + len);
   }
