@@ -30,15 +30,20 @@ jobs:
           node-version: 20
       - name: build universe
         run: node tools/stock-universe.js
+      # 26/10/2026: גם רשימת שכבה 8 של הבדיקה הלילית (S&P 500 + Nasdaq-100 → ibkr-proxy/lib/xsyms.txt).
+      # מקור שהשתנה (קוד 2) = הרשימה הקיימת נשארת, ושאר העדכון ממשיך
+      - name: S&P 500 and Nasdaq-100 (nightly accuracy check list)
+        run: |
+          node tools/xsyms.js || echo "xsyms - לא עודכן (קוד $?)"
       - name: search still works (proxy tests)
         run: node ibkr-proxy/tests/run.js
       - name: commit if changed
         run: |
-          if git diff --quiet -- ibkr-proxy/lib/universe.txt; then
-            echo "הרשימה לא השתנתה"; exit 0
+          if git diff --quiet -- ibkr-proxy/lib/universe.txt ibkr-proxy/lib/xsyms.txt; then
+            echo "הרשימות לא השתנו"; exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ibkr-proxy/lib/universe.txt
-          git commit -m "עדכון חודשי אוטומטי: רשימת המניות לחיפוש (universe.txt)"
+          git add ibkr-proxy/lib/universe.txt ibkr-proxy/lib/xsyms.txt
+          git commit -m "עדכון חודשי אוטומטי: רשימת המניות לחיפוש ורשימת הבדיקה הלילית (universe.txt, xsyms.txt)"
           git push
