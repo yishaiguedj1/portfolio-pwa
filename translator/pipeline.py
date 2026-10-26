@@ -914,12 +914,9 @@ class Pipeline:
         prompt = '\n\n'.join(x for x in [
             block('user_terms', terms) if terms else '',
             candidates_block(edit),
-<<<<<<< HEAD
             block('voice', voice_block(self.pd)) if voice_block(self.pd) else '',
-=======
             SUBREF_NOTE if ref else '',
             block('existing_subtitles', '\n'.join(l for _, l in ref)) if ref else '',
->>>>>>> origin/main
             block('transcript', edit)] if x)
         if not self.eng.fits_card(fixed, prompt):
             # תמליל של שעות רבות: ההגהה צריכה את כל התמליל בבת אחת — נשארת בקריאה אחת, במחיר המלא (רשום ב־ledger)
