@@ -338,13 +338,13 @@ dfx.A.rev[1] = 222e6;
     ['2025-10-01', '2025-12-31', 5800e6, '10-K', '2026-02-12']]], ['NetIncomeLoss', 'USD', yrs(M([1500, 1600]), 2024)]]);
   const dl2 = F.normalizeSec(LH2, []);
   ok(dl2.Q.rev[dl2.q.indexOf('2025-12-31')] === 5800e6, '...רבעון רביעי רגיל — לא נוגעים');
-  // Chevron: הסך "Total Revenues and Other Income" בתגית Revenues (מכירות + חברות כלולות + הכנסות אחרות) — ההכנסות = שורת המכירות
+  // Chevron: הסך "Total Revenues and Other Income" בתגית Revenues (מכירות + חברות כלולות + הכנסות אחרות) — נשאר ההכנסות (סט הזהב)
   const CV = facts([['Revenues', 'USD', yrs(M([200949, 202792]), 2023)], ['RevenueFromContractWithCustomerExcludingAssessedTax', 'USD', yrs(M([196913, 193414]), 2023)],
     ['NetIncomeLoss', 'USD', yrs(M([21369, 17661]), 2023)]]);
   const cvF = (lab) => ({ is: page([['ro', 'us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax', 'Sales and other operating revenues', ['193414', '196913']],
     ['ro', 'cvx_EquityMethodInvestmentIncome', 'Income from equity affiliates', ['4596', '5131']], ['rou', 'us-gaap_Revenues', lab, ['202792', '200949']],
     ['rou', 'us-gaap_NetIncomeLoss', 'Net income', ['17661', '21369']]]) });
-  ok(F.normalizeSec(CV, [], cvF('Total Revenues and Other Income')).tags.rev === 'RevenueFromContractWithCustomerExcludingAssessedTax', 'Chevron: סך "…and Other Income" — ההכנסות = שורת המכירות');
+  ok(F.normalizeSec(CV, [], cvF('Total Revenues and Other Income')).tags.rev === 'Revenues', 'Chevron: סך "…and Other Income" — ההכנסות = הסך כפי שמודפס (כמו בסט הזהב ו־ExxonMobil)');
   ok(F.normalizeSec(CV, [], cvF('Total revenues')).tags.rev === 'Revenues', '...סך "Total revenues" — הסך, כמו קודם');
   // AvalonBay: ה־10-K של 2025 תייג את 2022 (שכבר לא עמודה בדוח) בערך של 2025 — שלושת הדוחות שבהם 2022 מודפסת גוברים
   const AV = facts([['Revenues', 'USD', [[...Y(2022), 2735e6, '10-K', '2023-02-16'], [...Y(2022), 2735e6, '10-K', '2025-02-13'], [...Y(2023), 2874e6, '10-K', '2025-02-13'],

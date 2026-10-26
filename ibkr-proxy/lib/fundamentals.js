@@ -540,9 +540,9 @@ function normalizeSec(facts, splits = [], face = null) {
     // בלי שורת סך — השורה הגדולה בדוח קודם (Camden: "Property revenues" ‏$1.57B בתגית OperatingLeaseLeaseIncome, ולא דמי ניהול ‏$13M)
     if (k === 'rev' && face && face.is) {
       const big = (t) => Math.max(0, ...face.is.rows.filter((r) => r.tag === t).map((r) => Math.abs(SECFACE.rowVals(face.is, r).find((x) => x != null) || 0)));
-      // סך שהכותרת שלו "…and Other Income" (Chevron: "Total Revenues and Other Income" בתגית Revenues = מכירות + חברות כלולות + הכנסות
-      // אחרות) — לא הכנסות: שורת המכירות קודמת, כמו אצל ConocoPhillips ו־Marathon Petroleum (שם הסך בתגית פרטית) ואצל Yahoo ו־Nasdaq
-      const oi = list.filter((t) => face.is.rows.some((r) => r.total && r.tag === t && /\bother income\b/i.test(r.label || '')));
+      // סך שהכותרת שלו "…and Other Income" (Chevron) נשאר ההכנסות — כפי שמודפס, כמו בסט הזהב וכמו ExxonMobil; שורת המכירות
+      // קיימת אצל Chevron רק מ־2018 (8 שנים במקום 19). ההבדל מול Yahoo/Nasdaq (שורת המכירות) = הגדרה, rev_ctr ב־fundxcheck
+      const oi = [];
       const tot = list.filter((t) => !oi.includes(t) && face.is.rows.some((r) => r.total && r.tag === t));
       const rest = list.filter((t) => onFace.includes(t) && !tot.includes(t) && !oi.includes(t)).sort((a, b) => big(b) - big(a));
       order = tot.concat(rest, oi, order.filter((t) => !tot.includes(t) && !rest.includes(t) && !oi.includes(t)));
