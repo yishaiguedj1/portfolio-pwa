@@ -212,7 +212,7 @@ function makeHandler(over = {}) {
       sa: over.sa || (() => G.serviceAccount()),
       iamToken: over.iamToken || (() => G.cloudToken(over.fetch)),
       env: over.env || process.env,
-      merge: over.merge || ((from, to) => require('./acmerge').mergeAccounts({ fetch: over.fetch || fetch, token: over.token || (() => G.datastoreToken(over.fetch)) }, from, to)),
+      merge: over.merge || ((from, to, keep) => require('./acmerge').mergeAccounts({ fetch: over.fetch || fetch, token: over.token || (() => G.datastoreToken(over.fetch)) }, from, to, keep)),
     };
     const h = req.headers || {};
     const origin = String(h.origin || '');
@@ -293,11 +293,11 @@ function makeHandler(over = {}) {
       if (!UID_RE.test(a.uid) || !UID_RE.test(b.uid) || a.uid === b.uid) { tally('merge:uid', app); return res.status(400).json({ ok: false, error: 'bad_uid' }); }
       if (b.provider === 'custom' || !(b.authTime > 0) || now - b.authTime > LOGIN_FRESH || b.authTime > now + 300) { tally('merge:not_fresh', app); return res.status(403).json({ ok: false, error: 'not_fresh' }); }
       let r;
-      try { r = await deps.merge(b.uid, a.uid); } catch (e) { tally('merge:store', app); return res.status(503).json({ ok: false, error: 'store' }); }
+      try { r = await deps.merge(b.uid, a.uid, String(body.keep || 'both')); } catch (e) { tally('merge:store', app); return res.status(503).json({ ok: false, error: 'store' }); }
       if (r.busy) { tally('merge:busy', app); return res.status(409).json({ ok: false, error: 'busy' }); }
       try { await writeVs(b.uid, now + 1, deps); } catch (e) {}
       tally('merge:ok', app);
-      return res.status(200).json({ ok: true, inv: r.inv, ac: r.ac, jobs: r.jobs, files: r.files, kept: r.kept });
+      return res.status(200).json({ ok: true, keep: r.keep, inv: r.inv, ac: r.ac, jobs: r.jobs, files: r.files, kept: r.kept, dropped: r.dropped });
     }
 
     /* הטלפון מדווח שהטוקן המותאם נדחה ב־Firebase (רק הקוד של השגיאה) */

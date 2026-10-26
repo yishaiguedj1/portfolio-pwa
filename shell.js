@@ -269,7 +269,8 @@ export function accountCard(A, icon) {   // icon — תמונה כשאין תמ�
   if (u) {
     const img = h('img'); img.alt = ''; img.src = u.photoURL || icon || 'icon-192.png';
     img.addEventListener('error', () => { img.src = icon || 'icon-192.png'; }, { once: true });
-    box.append(accIdRow(img, u.displayName || t('userLabel'), u.email || ''),
+    const unver = !u.emailVerified && (u.providerData || []).some((p) => p && p.providerId === 'password');   // כמו ב־cloud.js
+    box.append(accIdRow(img, u.displayName || t('userLabel'), (u.email || '') + (unver ? ' · ' + t('accUnverified') : '')),
       accActRow('acc-keys', ACC_IC.key, t('accMethods'), () => { import('./acclink.js').then((m) => m.methodsSheet()).catch(() => {}); }),
       accActRow('acc-out', ACC_IC.out, t('signOut'), () => A.signOut()));   // החיבור משתנה → הדף נטען מחדש (academy-app.js / studio-app.js)
   } else if (A) {

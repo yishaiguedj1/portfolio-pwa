@@ -161,6 +161,21 @@
   };
   function emailLinkLanding() {
     try { if (auth && auth.isSignInWithEmailLink(location.href)) import('./acclink.js').then((m) => m.finishLink()).catch(() => {}); } catch (e) {}
+    setTimeout(verifyCheck, 2500);
+  }
+  /* מייל + סיסמה שעוד לא אומת: אחרי שאימתו (בחלון אחר / מהמייל) — רענון המשתמש והטוקן מיד, כי ההרשאות בשרתון לפי email_verified.
+     משתמש עם מייל בלי Google מקבל אז בדיוק מה שמקבל משתמש Google */
+  async function verifyCheck() {
+    const u = auth && auth.currentUser;
+    if (!u || u.emailVerified || !(u.providerData || []).some((p) => p && p.providerId === 'password')) return;
+    try {
+      await u.reload();
+      const v = auth.currentUser;
+      if (v && v.emailVerified) { await v.getIdToken(true); if (typeof flash === 'function') flash(t('accVerified')); }
+    } catch (e) {}
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) verifyCheck(); });
   }
   /* </auth> */
 
@@ -317,7 +332,8 @@
     };
 
     if (user) {
-      const row = idRow('<img alt="" src="' + esc(user.photoURL || 'icon-192.png') + '">', user.displayName || t('userLabel'), user.email || '');
+      const unver = !user.emailVerified && (user.providerData || []).some((p) => p && p.providerId === 'password');   // מייל שעוד לא אומת — בלי הרשאות עד האימות
+      const row = idRow('<img alt="" src="' + esc(user.photoURL || 'icon-192.png') + '">', user.displayName || t('userLabel'), (user.email || '') + (unver ? ' · ' + t('accUnverified') : ''));
       const img = row.querySelector('img');
       if (img) img.addEventListener('error', () => { img.src = 'icon-192.png'; }, { once: true });
       box.appendChild(row);

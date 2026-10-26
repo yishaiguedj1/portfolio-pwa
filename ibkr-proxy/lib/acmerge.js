@@ -139,34 +139,11 @@ const del = (deps, col, id) => fs(deps, 'DELETE', '/' + col + '/' + id).catch(()
 /* האם אפשר למזג עכשיו: עבודה של B בתור / רצה = לא (העובד כותב אליה עם ה־uid הישן). טיוטה ('new') עוברת */
 const busyJob = (j) => (j.state === 'queued' || j.state === 'running') && j.kind !== 'ping';
 
-/* ---------------------------------------------------------------- המיזוג */
-async function mergeAccounts(deps, from, to) {
-  if (!UID_RE.test(String(from || '')) || !UID_RE.test(String(to || '')) || from === to) throw new Error('bad_uid');
-  const out = { inv: 0, ac: false, jobs: 0, files: 0, kept: 0, stats: false };
-  const jobs = await jobsOf(deps, from);
-  if (jobs.some(busyJob)) return Object.assign(out, { busy: true });
-
-  // Invest
-  const bd = await fs(deps, 'GET', '/users/' + from);
-  const bdb = bd && bd.fields && bd.fields.db ? fsToJs(bd.fields.db) : null;
-  if (bdb && !bdb.demo) {
-    const ad = await fs(deps, 'GET', '/users/' + to);
-    const adb = ad && ad.fields && ad.fields.db ? fsToJs(ad.fields.db) : { positions: [], deposits: [] };
-    out.inv = investMerge(adb, bdb).n;
-    await patch(deps, 'users', to, { v: { integerValue: '1' }, db: jsToFs(adb) });
-  }
-  // Academy
-  const bl = await fs(deps, 'GET', '/academyUsers/' + from);
-  if (bl && bl.fields && bl.fields.lib) {
-    const al = await fs(deps, 'GET', '/academyUsers/' + to);
-    await patch(deps, 'academyUsers', to, { lib: LM.merged(bl.fields.lib, al && al.fields && al.fields.lib) });
-    out.ac = true;
-  }
-  // Studio — העבודות והקבצים שלהן
+/* ---------------------------------------------------------------- Studio: העברה / מחיקה של העבודות של חשבון */
+async function moveJobs(deps, jobs, from, to, out) {
   const c = (deps.r2config || R2.config)();
   const rd = { fetch: deps.fetch, now: deps.nowMs || Date.now };
   for (const j of jobs) {
-    let ok = true;
     if (/^R2_/.test(String(j.folder || ''))) {
       if (!c.ok) { out.kept++; continue; }
       try {
@@ -180,20 +157,77 @@ async function mergeAccounts(deps, from, to) {
           await patch(deps, 'studioUp', r.id, Object.assign({ uid: { stringValue: to } }, k ? { k: { stringValue: k } } : {}));
         }
         for (const it of items) await R2.del(c, rd, it.key).catch(() => null);
-      } catch (e) { ok = false; }
+      } catch (e) { out.kept++; continue; }
     }
-    if (!ok) { out.kept++; continue; }
     await patch(deps, 'studioJobs', j.id, { uid: { stringValue: to } });
     out.jobs++;
   }
+}
+/* "להשאיר רק את הנתונים של אחד" — העבודות של השני נמחקות, עם הקבצים שלהן ב־R2 (תיקייה ב־Drive של המשתמש לא נוגעים) */
+async function dropJobs(deps, jobs, uid, out) {
+  const c = (deps.r2config || R2.config)();
+  const rd = { fetch: deps.fetch, now: deps.nowMs || Date.now };
+  for (const j of jobs) {
+    if (/^R2_/.test(String(j.folder || '')) && c.ok) {
+      try {
+        for (const it of await R2.list(c, rd, 'st/' + uid + '/' + j.folder + '_')) await R2.del(c, rd, it.key).catch(() => null);
+        for (const r of await upRecs(deps, j.folder)) await del(deps, 'studioUp', r.id);
+      } catch (e) {}
+    }
+    await del(deps, 'studioJobs', j.id);
+    out.dropped++;
+  }
+}
+
+/* ---------------------------------------------------------------- המיזוג
+   keep: 'both' (ברירת מחדל) = הנתונים של B מצטרפים ל־A בלי כפילויות; 'a' = רק מה שכבר ב־A (של B נמחק);
+   'b' = רק הנתונים של B (מחליפים את של A). בכל מקרה החשבון שנשאר הוא A, ו־B נמחק */
+const KEEP = ['both', 'a', 'b'];
+async function mergeAccounts(deps, from, to, keep) {
+  if (!UID_RE.test(String(from || '')) || !UID_RE.test(String(to || '')) || from === to) throw new Error('bad_uid');
+  const k = KEEP.includes(keep) ? keep : 'both';
+  const out = { keep: k, inv: 0, ac: false, jobs: 0, files: 0, kept: 0, dropped: 0, stats: false };
+  const jobsB = await jobsOf(deps, from);
+  const jobsA = k === 'b' ? await jobsOf(deps, to) : [];
+  if (jobsB.some(busyJob) || jobsA.some(busyJob)) return Object.assign(out, { busy: true });
+
+  // Invest
+  const bd = await fs(deps, 'GET', '/users/' + from);
+  const bdb = bd && bd.fields && bd.fields.db ? fsToJs(bd.fields.db) : null;
+  if (k === 'both' && bdb && !bdb.demo) {
+    const ad = await fs(deps, 'GET', '/users/' + to);
+    const adb = ad && ad.fields && ad.fields.db ? fsToJs(ad.fields.db) : { positions: [], deposits: [] };
+    out.inv = investMerge(adb, bdb).n;
+    await patch(deps, 'users', to, { v: { integerValue: '1' }, db: jsToFs(adb) });
+  } else if (k === 'b') {
+    if (bdb && !bdb.demo) { await patch(deps, 'users', to, { v: { integerValue: '1' }, db: bd.fields.db }); out.inv = -1; }
+    else await del(deps, 'users', to);
+  }
+  // Academy
+  const bl = await fs(deps, 'GET', '/academyUsers/' + from);
+  const blib = bl && bl.fields && bl.fields.lib;
+  if (k === 'both' && blib) {
+    const al = await fs(deps, 'GET', '/academyUsers/' + to);
+    await patch(deps, 'academyUsers', to, { lib: LM.merged(blib, al && al.fields && al.fields.lib) });
+    out.ac = true;
+  } else if (k === 'b') {
+    if (blib) { await patch(deps, 'academyUsers', to, { lib: blib }); out.ac = true; }
+    else await del(deps, 'academyUsers', to);
+  }
+  // Studio
+  if (k === 'a') await dropJobs(deps, jobsB, from, out);
+  else {
+    if (k === 'b') await dropJobs(deps, jobsA, to, out);
+    await moveJobs(deps, jobsB, from, to, out);
+  }
   const bs = await fs(deps, 'GET', '/studioStats/' + from);
-  if (bs && bs.fields) {
-    const as = await fs(deps, 'GET', '/studioStats/' + to);
-    if (!as) { await patch(deps, 'studioStats', to, bs.fields); out.stats = true; }
+  if (k !== 'a' && bs && bs.fields) {
+    const as = k === 'b' ? null : await fs(deps, 'GET', '/studioStats/' + to);
+    if (!as) { if (k === 'b') await del(deps, 'studioStats', to); await patch(deps, 'studioStats', to, bs.fields); out.stats = true; }
   }
   // B — המסמכים נמחקים (העבודות שלא עברו נשארות עם B, וייקו בניקוי הרגיל)
   for (const col of ['users', 'academyUsers', 'studioStats'].concat(VAULTS)) await del(deps, col, from);
   return out;
 }
 
-module.exports = { mergeAccounts, investMerge, fsToJs, jsToFs, busyJob };
+module.exports = { mergeAccounts, investMerge, fsToJs, jsToFs, busyJob, KEEP };

@@ -168,6 +168,49 @@ const { fakeR2, ENV } = require('./_r2fake.js');
   await assert.rejects(() => M.mergeAccounts(deps, 'uidA111111', 'uidA111111'), /bad_uid/);
   ok(true, 'מיזוג חשבון לעצמו — נדחה');
 
+  // בלי כפילויות: מיזוג של אותם נתונים פעמיים = כלום לא נוסף
+  const same = { positions: [{ sym: 'AAPL', qty: 1 }], manualTrades: [{ id: 't1', sym: 'NVDA', date: '2026-01-02', side: 'buy', qty: 1, price: 100 }],
+    deposits: [{ date: '01/01/2026', amount: 100 }, { date: '01/01/2026', amount: 100 }], pensionFunds: [{ name: 'קרן' }], pensionDeposits: [{ d: 1, a: 2 }],
+    wishlist: [{ sym: 'KO' }], wlExtra: [{ id: 'w1', name: 'טק', items: [{ sym: 'MSFT' }] }] };
+  const twin = JSON.parse(JSON.stringify(same));
+  ok(M.investMerge(twin, JSON.parse(JSON.stringify(same))).n === 0 && JSON.stringify(twin) === JSON.stringify(same), 'בלי כפילויות: מיזוג של נתונים זהים לא מוסיף כלום (גם שתי הפקדות זהות נשארות שתיים)');
+  const tw2 = JSON.parse(JSON.stringify(same));
+  M.investMerge(tw2, { manualTrades: [{ id: 'other', sym: 'NVDA', date: '2026-01-02', side: 'buy', qty: 1, price: 100 }], wlExtra: [{ id: 'w9', name: 'טק', items: [{ sym: 'msft' }, { sym: 'AMD' }] }] });
+  ok(tw2.manualTrades.length === 1 && tw2.wlExtra.length === 1 && tw2.wlExtra[0].items.map((x) => x.sym).join() === 'MSFT,AMD', 'בלי כפילויות: עסקה זהה במזהה אחר, ורשימה באותו שם — מתאחדות');
+
+  // להשאיר רק את הנתונים של אחד
+  const seed = () => {
+    docs.clear();
+    put('users', 'uidB222222', { v: { integerValue: '1' }, db: M.jsToFs({ positions: [{ sym: 'MSFT', qty: 2 }], deposits: [] }) });
+    put('users', 'uidA111111', { v: { integerValue: '1' }, db: M.jsToFs({ positions: [{ sym: 'AAPL', qty: 1 }], deposits: [] }) });
+    put('academyUsers', 'uidB222222', { lib: { mapValue: { fields: { p: { mapValue: { fields: { bookB: { stringValue: 'b' } } } } } } } });
+    put('academyUsers', 'uidA111111', { lib: { mapValue: { fields: { p: { mapValue: { fields: { bookA: { stringValue: 'a' } } } } } } } });
+    put('studioJobs', 'jobB', { uid: { stringValue: 'uidB222222' }, state: { stringValue: 'done' }, kind: { stringValue: 'tr' }, folder: { stringValue: 'R2_jobB' } });
+    put('studioJobs', 'jobA', { uid: { stringValue: 'uidA111111' }, state: { stringValue: 'done' }, kind: { stringValue: 'tr' }, folder: { stringValue: 'R2_jobA' } });
+    R.objs.set('st/uidB222222/R2_jobB_bbbbbbbbbbbb', Buffer.from('b'));
+    R.objs.set('st/uidA111111/R2_jobA_aaaaaaaaaaaa', Buffer.from('a'));
+  };
+  seed();
+  out = await M.mergeAccounts(deps, 'uidB222222', 'uidA111111', 'a');
+  ok(out.keep === 'a' && M.fsToJs(docs.get('users/uidA111111').fields.db).positions.map((p) => p.sym).join() === 'AAPL', 'רק של החשבון הזה: התיק של A כמו שהוא');
+  ok(Object.keys(docs.get('academyUsers/uidA111111').fields.lib.mapValue.fields.p.mapValue.fields).join() === 'bookA', 'רק של החשבון הזה: הספרייה של A כמו שהיא');
+  ok(!docs.has('studioJobs/jobB') && docs.has('studioJobs/jobA') && !R.objs.has('st/uidB222222/R2_jobB_bbbbbbbbbbbb') && !R.objs.has('st/uidA111111/R2_jobB_bbbbbbbbbbbb'), 'רק של החשבון הזה: העבודות והקבצים של B נמחקו, לא עברו');
+  ok(!docs.has('users/uidB222222') && !docs.has('academyUsers/uidB222222'), 'רק של החשבון הזה: המסמכים של B נמחקו');
+  seed();
+  out = await M.mergeAccounts(deps, 'uidB222222', 'uidA111111', 'b');
+  ok(out.keep === 'b' && M.fsToJs(docs.get('users/uidA111111').fields.db).positions.map((p) => p.sym).join() === 'MSFT', 'רק של השני: התיק של A הוחלף בזה של B');
+  ok(Object.keys(docs.get('academyUsers/uidA111111').fields.lib.mapValue.fields.p.mapValue.fields).join() === 'bookB', 'רק של השני: הספרייה הוחלפה');
+  ok(!docs.has('studioJobs/jobA') && !R.objs.has('st/uidA111111/R2_jobA_aaaaaaaaaaaa') && docs.get('studioJobs/jobB').fields.uid.stringValue === 'uidA111111'
+    && R.objs.has('st/uidA111111/R2_jobB_bbbbbbbbbbbb'), 'רק של השני: העבודות של A נמחקו, של B עברו ל־A עם הקבצים');
+  seed();
+  docs.delete('users/uidB222222'); docs.delete('academyUsers/uidB222222');
+  await M.mergeAccounts(deps, 'uidB222222', 'uidA111111', 'b');
+  ok(!docs.has('users/uidA111111') && !docs.has('academyUsers/uidA111111'), 'רק של השני, ולשני אין תיק/ספרייה — של A נמחקים (מתחילים ריק)');
+  seed();
+  put('studioJobs', 'jobA2', { uid: { stringValue: 'uidA111111' }, state: { stringValue: 'running' }, kind: { stringValue: 'tr' }, folder: { stringValue: 'R2_jobA2' } });
+  out = await M.mergeAccounts(deps, 'uidB222222', 'uidA111111', 'b');
+  ok(out.busy && docs.has('users/uidB222222'), 'רק של השני, ובחשבון הזה עבודה רצה — לא נוגעים');
+
   /* ---------------------------------------------------------------- 4. הטלפון */
   const src = read('acclink.js');
   const mod = await import('data:text/javascript;base64,' + Buffer.from(src).toString('base64'));
@@ -176,15 +219,18 @@ const { fakeR2, ENV } = require('./_r2fake.js');
   const mm = mod.methodsOf({ email: 'me@example.com', emailVerified: false, providerData: [{ providerId: 'password', email: 'me@example.com' }, { providerId: 'google.com', email: 'me@googlemail.com' }] });
   ok(mm.google === 'me@googlemail.com' && mm.mail === 'me@example.com' && !mm.verified && mm.n === 2, 'שיטות הכניסה של החשבון');
   ok(mod.methodsOf({ providerData: [{ providerId: 'google.com', email: 'g@googlemail.com' }] }).mail === null, 'רק Google — בלי מייל וסיסמה');
+  ok(/function chooseKeep/.test(src) && /keep \}\)/.test(src) && /'both'/.test(src) && /accKeepAQ/.test(src) && /accKeepBQ/.test(src), 'במיזוג: בחירה — למזג את שניהם / רק של החשבון הזה / רק של השני (עם אישור נוסף)');
+  ok(/verifyCheck/.test(read('auth.js')) && /accUnverified/.test(read('shell.js')) && /accUnverified/.test(read('cloud.js')), 'מייל שאומת — הטוקן מתרענן מיד; "לא אומת" בכרטיס החשבון');
   ok(!/\bfetch\(/.test(src.replace(/await fetch\(base \+ '\/api\/session'/, '')), 'acclink.js פונה רק ל־/api/session (המיזוג)');
   ok(/window\.__snbHold = true/.test(src) && /held\(\)/.test(read('cloud.js')), 'בזמן מיזוג — cloud.js לא דורס את המסמך הממוזג');
   const app = read('app.js');
   const tks = new Set([...src.matchAll(/\bt\('([A-Za-z]\w*)'/g)].map((x) => x[1]));
-  const heBlock = app.slice(app.indexOf('const STRINGS = {'), app.indexOf("  googleSignIn: 'Sign in with Google'"));
-  const enBlock = app.slice(app.indexOf("  googleSignIn: 'Sign in with Google'"));
-  const miss = [...tks].filter((k) => !heBlock.includes('  ' + k + ':') || !enBlock.includes('  ' + k + ':'));
+  const heBlock = app.slice(app.indexOf('const STRINGS = {'), app.indexOf('\nen: {'));
+  const enBlock = app.slice(app.indexOf('\nen: {'));
+  const has = (b, k) => new RegExp('[\\s{,]' + k + ':').test(b);
+  const miss = [...tks].filter((k) => !has(heBlock, k) || !has(enBlock, k));
   ok(miss.length === 0, 'כל מחרוזת של acclink.js בעברית ובאנגלית' + (miss.length ? ': ' + miss.join(',') : ''));
-  for (const f of ['strings-academy.js', 'strings-studio.js', 'strings-admin.js']) ok(read(f).includes('"accMergeQ":'), f + ' כולל את המחרוזות (coregen)');
+  for (const f of ['strings-academy.js', 'strings-studio.js', 'strings-admin.js']) ok(read(f).includes('"accKeepBoth":'), f + ' כולל את המחרוזות (coregen)');
   ok(/id="emailLoginBtn"/.test(read('index.html')) && /emailLoginBtn/.test(read('cloud.js')) && /emailLoginBtn/.test(read('shell.js')), 'כפתור "כניסה עם מייל" ב־Invest וב־Academy/Studio');
   ok(/accMethods/.test(read('cloud.js')) && /accMethods/.test(read('shell.js')), 'שורת "שיטות כניסה" בכרטיס החשבון בשלוש האפליקציות');
   ok(/emailLinkLanding\(\)/.test(read('auth.js')) && /window\.SnbAcct/.test(read('auth.js')), 'auth.js (Academy/Studio) — אותם אזורים <auth>: חזרה מקישור במייל + SnbAcct');

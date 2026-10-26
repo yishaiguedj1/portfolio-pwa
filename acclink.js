@@ -295,6 +295,32 @@ function addMailSheet(u) {
 }
 
 /* ---------------------------------------------------------------- מיזוג */
+/* מה עושים עם הנתונים כששני החשבונות קיימים (בקשת המשתמש): למזג את שניהם (בלי כפילויות — השרתון), או להשאיר רק של אחד.
+   מחזיר 'both' / 'a' (רק של החשבון הזה) / 'b' (רק של השני) / null (ביטול). להשאיר רק אחד = אישור נוסף, הרסני */
+function chooseKeep(other, mine) {
+  return new Promise((res) => {
+    let done = false;
+    const s = sheet(t('accMergeT'));
+    const finish = (v) => { if (done) return; done = true; s.close(); res(v); };
+    const opt = (label, sub, v, danger) => {
+      const b = btn('acx-opt' + (danger ? ' danger' : ''), '', async () => {
+        if (v === 'both') { finish(v); return; }
+        const q = v === 'a' ? t('accKeepAQ', { m: other }) : t('accKeepBQ', { me: mine });
+        const ok = typeof askConfirmP === 'function' ? await askConfirmP(q, { danger: true, ok: t('accKeepGo') }) : false;
+        if (ok) finish(v);
+      });
+      const b1 = h('b'); b1.append(h('bdi', null, label)); b.append(b1, h('small', null, sub));
+      return b;
+    };
+    s.body.append(h('p', 'acx-note acx-q', t('accMergeQ2', { m: other })),
+      opt(t('accKeepBoth'), t('accKeepBothS'), 'both'),
+      opt(t('accKeepA', { me: mine }), t('accKeepAS', { m: other }), 'a', true),
+      opt(t('accKeepB', { m: other }), t('accKeepBS', { me: mine }), 'b', true),
+      btn('link-btn acx-link', t('btnCancel'), () => finish(null)));
+    const v = s.veil;
+    new MutationObserver((_, ob) => { if (!v.isConnected) { ob.disconnect(); if (!done) { done = true; res(null); } } }).observe(document.body, { childList: true });
+  });
+}
 /* who = מה מנסים להוסיף: { cred } (Google / מייל+סיסמה) או { link: {e, href} } (קישור כניסה — חד־פעמי, לכן אחרי המיזוג
    שולחים קישור חדש לקשר אותו). label — מה מוצג למשתמש */
 async function mergeWith(who, label) {
@@ -303,8 +329,8 @@ async function mergeWith(who, label) {
   const base = A().base ? A().base() : '';
   if (!me) return;
   if (!base) { if (typeof askAlert === 'function') askAlert(t('accMergeNoSrv')); return; }
-  const ok = typeof askConfirmP === 'function' ? await askConfirmP(t('accMergeQ', { m: label }), { danger: true, ok: t('accMergeGo') }) : false;
-  if (!ok) return;
+  const keep = await chooseKeep(label, me.email || t('accThis'));
+  if (!keep) return;
   const F = fb();
   let side = null;
   try {
@@ -320,7 +346,7 @@ async function mergeWith(who, label) {
     window.__snbHold = true;                            // מכאן ועד הטעינה מחדש — לא כותבים את המסמך הישן מעל הממוזג
     const [ta, tb] = await Promise.all([me.getIdToken(true), other.getIdToken(true)]);
     const res = await fetch(base + '/api/session', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ op: 'merge', idToken: ta, idTokenB: tb }) });
+      body: JSON.stringify({ op: 'merge', idToken: ta, idTokenB: tb, keep }) });
     const j = await res.json().catch(() => ({}));
     if (res.status !== 200 || !j.ok) {
       window.__snbHold = false;
@@ -334,7 +360,8 @@ async function mergeWith(who, label) {
       await au.sendSignInLinkToEmail(who.link.e, { url: backUrl(), handleCodeInApp: true }).catch(() => null);
     }
     const done = () => location.reload();               // הנתונים הממוזגים נטענים מהענן
-    if (typeof askAlert === 'function') askAlert(t(who.link ? 'accMergedLink' : 'accMerged'), done); else done();
+    const msg = who.link ? t('accMergedLink') : keep === 'both' ? t('accMerged') : t('accMergedKeep');
+    if (typeof askAlert === 'function') askAlert(msg, done); else done();
   } catch (x) {
     window.__snbHold = false;
     const k = errKey(x && x.code);
