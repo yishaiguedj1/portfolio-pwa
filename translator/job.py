@@ -2264,6 +2264,13 @@ def prepare(args):
     ctx.report('tr', 1, 'התמליל מוכן — Claude מגיה אותו', force=True)
     print('✓ התמלול הסתיים' + (' (מהקול — הסרטון יצורף ב־align).' if a else '.'))
     print('ההגהה: ' + str(ctx.pdir / 'en.edit.txt') + '  →  תיקונים ב־' + str(ctx.pdir / 'en.patch.txt'))
+    try:                                         # 26/10/2026: רמז המגדר מגובה הקול — בלי שאלה למשתמש (RUNBOOK)
+        import pipeline as _pl
+        vb = _pl.voice_block(ctx.pdir)
+        if vb:
+            print('גובה הקול (רמז למגדר — ההקשר גובר): ' + ' · '.join(vb.splitlines()))
+    except Exception:                            # noqa: BLE001 — רמז בלבד
+        pass
     print('אחר כך (ברקע): python3 translator/job.py align')
     return 0
 
