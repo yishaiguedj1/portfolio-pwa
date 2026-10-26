@@ -1229,8 +1229,10 @@ function stubFetch(text, status = 200) {
     let fireMode = 'ok', fires = [], driveFiles = new Map(), now = Date.UTC(2026, 9, 7, 9, 0), pushes = [];
     let driveQuota = { limit: '16106127360', usage: '1000' }, driveListFail = false;   // v378: המכסה ותקלה ברשימה
     const J = (o, st = 200, hd = {}) => ({ status: st, json: async () => o, headers: { get: (k) => hd[String(k).toLowerCase()] || null } });
+    let fsQuota = false;   // 26/10/2026: "מכסת הקריאות נגמרה" — כל פנייה ל־Firestore עונה 429
     const fake = async (url, opt = {}) => {
       calls.push({ url, method: opt.method || 'GET', body: opt.body || '' });
+      if (fsQuota && url.startsWith('https://firestore.googleapis.com/')) return J({ error: { code: 429, status: 'RESOURCE_EXHAUSTED' } }, 429);
       if (url.startsWith('https://fcm.googleapis.com/fcm/send/')) { pushes.push({ url, headers: opt.headers, body: opt.body }); return J({}, url.includes('gone') ? 410 : 201); }   // שלב 4: שירות ה־push
       if (url.includes('oauth2.googleapis.com/token')) {
         const p = new URLSearchParams(opt.body || '');
@@ -1280,10 +1282,17 @@ function stubFetch(text, status = 200) {
         return f ? J(f) : J({}, 404);
       }
       if (url.endsWith('/documents:runQuery')) {
-        // שוויונות בלבד (אחד או AND), כמו בשרתון
+        // שוויונות (אחד או AND), וטווח >= על מספר עם מיון לפי אותו שדה (26/10/2026 — recentJobs, jobsSince, jobs30)
         const q = JSON.parse(opt.body).structuredQuery, w = q.where, col = q.from[0].collectionId;
         const fl = !w ? [] : w.fieldFilter ? [w.fieldFilter] : w.compositeFilter.filters.map((f) => f.fieldFilter);
-        return J([...db.entries()].filter(([k, v]) => k.startsWith(col + '/') && fl.every((f) => v.fields[f.field.fieldPath] && v.fields[f.field.fieldPath].stringValue === f.value.stringValue))
+        const iv = (v, p) => +((v.fields[p] || {}).integerValue || 0);
+        const pass = (v, f) => f.op === 'GREATER_THAN_OR_EQUAL' ? iv(v, f.field.fieldPath) >= +f.value.integerValue
+          : v.fields[f.field.fieldPath] && v.fields[f.field.fieldPath].stringValue === f.value.stringValue;
+        let rows = [...db.entries()].filter(([k, v]) => k.startsWith(col + '/') && fl.every((f) => pass(v, f)));
+        const ob = q.orderBy && q.orderBy[0];
+        if (ob) rows.sort((a, b) => (iv(b[1], ob.field.fieldPath) - iv(a[1], ob.field.fieldPath)) * (ob.direction === 'DESCENDING' ? 1 : -1));
+        if (q.limit) rows = rows.slice(0, q.limit);
+        return J(rows
           .map(([k, v]) => ({ document: { name: 'projects/p/databases/(default)/documents/' + k, fields: v.fields, updateTime: v.ut || 't0' } })).concat([{ readTime: 'x' }]));
       }
       const m = url.match(/\/documents\/([A-Za-z]+)\/([A-Za-z0-9_-]+)(?:\?(.*))?$/);
@@ -3948,6 +3957,38 @@ function stubFetch(text, status = 200) {
       const mtOff = await monRun({ op: 'monTok', idToken: OWNER, rev: true });
       ok(mtOff.payload.ok && mtOff.payload.on === false, 'ניטור: ביטול טוקן');
       ok((await monRun({ op: 'adminMon' }, { 'x-mon-token': monTokVal })).statusCode === 401, 'ניטור: טוקן שבוטל נדחה');
+      // 26/10/2026: מכסת הקריאות של Firestore נגמרה (429) — הווידג׳ט הציג "הטוקן לא תקף" והמסך נשאר על "טוען…"
+      {
+        const mt2 = (await monRun({ op: 'monTok', idToken: OWNER })).payload.tok;
+        fsQuota = true;
+        const q1 = await monRun({ op: 'adminMon' }, { 'x-mon-token': mt2 });
+        fsQuota = false;
+        ok(q1.statusCode === 503 && q1.payload.error === 'store', 'מכסה: Firestore לא עונה — 503 לווידג׳ט, לא 401 ("הטוקן לא תקף")');
+        ok((await monRun({ op: 'adminMon' }, { 'x-mon-token': mt2 })).payload.ok, 'מכסה: כשהמכסה חוזרת — הווידג׳ט קורא שוב עם אותו טוקן');
+        await monRun({ op: 'monTok', idToken: OWNER, rev: true });
+        // שרת התרגום: בדיקת קישור כל 4 שנ׳ — האימות מהזיכרון, לא קריאה של מסמך השרת בכל פנייה
+        const srvGets = () => calls.filter((c) => c.method === 'GET' && c.url.includes('/studioServers/' + monSid)).length;
+        await srvRun({ op: 'beat', v: 1, hb: {} }, sc.payload.token);
+        const g0 = srvGets();
+        for (let i = 0; i < 5; i++) await srvRun({ op: 'pq' }, sc.payload.token);
+        ok(srvGets() === g0, 'מכסה: 5 בדיקות קישור — בלי קריאה של מסמך השרת (' + (srvGets() - g0) + ')');
+        await srvRun({ op: 'beat', v: 1, hb: {} }, sc.payload.token);
+        ok(srvGets() === g0 + 1, 'מכסה: הדופק — תמיד מהמסמך (ההיסטוריה, ההשהיה)');
+        // מאגר הלמידה: פתיחה שנייה של מרכז הניהול בתוך דקה — בלי קריאה; אחרי דקה — רק העבודות שהשתנו
+        studio._reset();
+        const qOf = (col) => calls.filter((c) => c.url.endsWith(':runQuery') && JSON.parse(c.body).structuredQuery.from[0].collectionId === col);
+        await run({ op: 'learn', idToken: OWNER });
+        const l0 = qOf('studioLearn').length, j0 = qOf('studioJobs').length;
+        await run({ op: 'learn', idToken: OWNER });
+        ok(qOf('studioLearn').length === l0 && qOf('studioJobs').length === j0, 'מכסה: מאגר הלמידה — פתיחה שנייה בתוך דקה בלי שאילתה');
+        now += 2 * 60e3;
+        const lr2 = await run({ op: 'learn', idToken: OWNER });
+        const jq = qOf('studioJobs').slice(j0);
+        ok(lr2.payload.ok && qOf('studioLearn').length === l0 && jq.length === 1 && JSON.parse(jq[0].body).structuredQuery.where.fieldFilter.field.fieldPath === 'updated',
+          'מכסה: מאגר הלמידה — אחרי דקה רק עבודות שהשתנו (טווח על updated), בלי לקרוא שוב את כל המאגר');
+        now -= 2 * 60e3;
+        studio._reset();
+      }
       // 23/10/2026: מעקב תעבורה לספקים — רק מנהל; בלי טוקנים בסביבת הבדיקה כל ספק "off" ואין מספרים מומצאים
       ok((await monRun({ op: 'provUsage', idToken: FRIEND })).payload.error === 'not_admin', 'תעבורה: רק המנהל רואה');
       const pvR = await monRun({ op: 'provUsage', idToken: OWNER });

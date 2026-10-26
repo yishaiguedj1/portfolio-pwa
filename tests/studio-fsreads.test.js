@@ -21,7 +21,7 @@ const root = path.join(__dirname, '..');
 
   /* Firestore מדומה — סופר קריאות כמו החיוב: מסמך = 1, שאילתה = מספר המסמכים שחזרו (לפחות 1) */
   const db = new Map();
-  let reads = 0, utSeq = 0;
+  let reads = 0, jobReads = 0, utSeq = 0;
   const J = (o, st = 200) => ({ status: st, ok: st < 300, json: async () => o, text: async () => JSON.stringify(o), headers: { get: () => null } });
   const fetchAll = async (url, opt = {}) => {
     if (url.includes('oauth2.googleapis.com/token')) return J({ access_token: 'SA', expires_in: 3600 });
@@ -29,8 +29,16 @@ const root = path.join(__dirname, '..');
     if (url.endsWith('/documents:runQuery')) {
       const q = JSON.parse(opt.body).structuredQuery, w = q.where, col = q.from[0].collectionId;
       const fl = !w ? [] : w.fieldFilter ? [w.fieldFilter] : w.compositeFilter.filters.map((f) => f.fieldFilter);
-      const hit = [...db.entries()].filter(([k, v]) => k.startsWith(col + '/') && fl.every((f) => v.fields[f.field.fieldPath] && v.fields[f.field.fieldPath].stringValue === f.value.stringValue));
+      // שוויונות, וגם טווח >= על מספר עם מיון ו־limit (26/10/2026 — recentJobs של הבדיקה המתוזמנת)
+      const iv = (v, p) => +((v.fields[p] || {}).integerValue || 0);
+      const pass = (v, f) => f.op === 'GREATER_THAN_OR_EQUAL' ? iv(v, f.field.fieldPath) >= +f.value.integerValue
+        : v.fields[f.field.fieldPath] && v.fields[f.field.fieldPath].stringValue === f.value.stringValue;
+      let hit = [...db.entries()].filter(([k, v]) => k.startsWith(col + '/') && fl.every((f) => pass(v, f)));
+      const ob = q.orderBy && q.orderBy[0];
+      if (ob) hit.sort((a, b) => (iv(b[1], ob.field.fieldPath) - iv(a[1], ob.field.fieldPath)) * (ob.direction === 'DESCENDING' ? 1 : -1));
+      if (q.limit) hit = hit.slice(0, q.limit);
       reads += Math.max(1, hit.length);
+      if (col === 'studioJobs') jobReads += Math.max(1, hit.length);
       return J(hit.map(([k, v]) => ({ document: { name: 'projects/p/databases/(default)/documents/' + k, fields: v.fields, updateTime: v.ut } })).concat([{ readTime: 'x' }]));
     }
     const m = url.match(/\/documents\/([A-Za-z]+)\/([A-Za-z0-9_-]+)(?:\?(.*))?$/);
@@ -91,6 +99,22 @@ const root = path.join(__dirname, '..');
   put(T2 + '-' + crypto.randomBytes(32).toString('base64url'));
   clock += 5 * 60e3 + 1;
   ok((await srv({ op: 'pq' }, TK2)).code === 401, 'טוקן שהוחלף — נדחה אחרי 5 דקות לכל המאוחר');
+
+  /* ---------- 4. הבדיקה המתוזמנת (כל 10 דק׳): לא קוראת עבודות ישנות ---------- */
+  // עד 26/10/2026 recoverAll/startAll קראו את כל ה"נכשלה" (עד 100) וכל ה"חדשה" (עד 200) בכל ריצה — גם בנות חודשים
+  Object.assign(process.env, { SNB_SITEWATCH: 'off', SNB_JOBGC: 'off', SNB_LEARNWEEK: 'off', SNB_STARTALL: '' });
+  const old = clock - 10 * 86400e3;
+  for (let i = 0; i < 150; i++) {
+    const st = i % 2 ? 'failed' : 'new', id = 'jOld' + String(i).padStart(17, '0');
+    db.set('studioJobs/' + id, { fields: { uid: { stringValue: 'ownerUid0001' }, kind: { stringValue: 'tr' }, state: { stringValue: st },
+      created: { integerValue: String(old) }, updated: { integerValue: String(old) }, ended: { integerValue: String(old) } }, ut: 't0' });
+  }
+  studio._reset();
+  jobReads = 0;
+  const wres = { code: 0, j: null, setHeader() {}, status(c) { wres.code = c; return wres; }, json(o) { wres.j = o; return wres; } };
+  await studio._handler({ method: 'GET', query: {}, headers: {} }, wres, deps());
+  ok(wres.code === 200, 'הבדיקה המתוזמנת ענתה');
+  ok(jobReads <= 2, 'הבדיקה המתוזמנת — 150 עבודות ישנות לא נקראות (' + jobReads + ' קריאות של studioJobs; לפני התיקון ~150)');
 
   Date.now = realNow;
   console.log('\n' + n + ' בדיקות עברו');
