@@ -192,4 +192,8 @@
     <string name="dmUnzipped">Extracted %1$d files to %2$s</string>
     <string name="dmUnzipBig">The archive is too large to extract</string>
     <string name="dmUnzipFail">Extraction failed — the file is damaged or password-protected</string>
+    <string name="dmMenuVideo">Video</string>
+    <string name="dmMenuAudio">Audio</string>
+    <string name="dmMenuMore">More options…</string>
+    <string name="dmMenuStarted">Download started</string>
 </resources>
