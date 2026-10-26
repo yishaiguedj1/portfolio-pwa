@@ -193,9 +193,9 @@ ok(fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yis
 
 // 26/10/2026: ביוטיוב — הרשימה מהנגן שבדף מיד (YtPage), גם במעבר לסרטון הבא בלי טעינת דף; המנוע מתחמם מההתחלה
 {
-  const yt = fs.readFileSync('android/app/src/ytdl/java/io/github/yishaiguedj1/snowball/YtPage.kt', 'utf8');
-  const pre = fs.readFileSync('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmPre.kt', 'utf8');
-  const eng = fs.readFileSync('android/app/src/ytdl/java/io/github/yishaiguedj1/snowball/DlEngine.kt', 'utf8');
+  const yt = R('android/app/src/ytdl/java/io/github/yishaiguedj1/snowball/YtPage.kt');
+  const pre = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmPre.kt');
+  const eng = R('android/app/src/ytdl/java/io/github/yishaiguedj1/snowball/DlEngine.kt');
   ok(/a\.ytSeed\(t\)/.test(ui) && /fun prefetch\(t: BrTab\) \{[^}]*ytSeed\(t\)/.test(act) && /YtPage\.toInfo\(raw, page\)/.test(act) && /DmPre\.seed\(page, info\)/.test(act), 'ביוטיוב: הרשימה מהנגן שבדף בלי לחכות ל־yt-dlp');
   ok(/if \(t\.private \|\| cur !== t\) return/.test(act.slice(act.indexOf('fun ytSeed'))), 'לא בטאב פרטי ורק בטאב שעל המסך');
   ok(!/url|signatureCipher/.test(yt.slice(yt.indexOf('const val JS'), yt.indexOf('"""', yt.indexOf('const val JS') + 20))), 'מהנגן רק מספרים וקודים — לא כתובות של קבצים');
