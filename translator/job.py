@@ -997,6 +997,40 @@ def _lc_answers(paths):
     return out
 
 
+# 26/10/2026: מה כל שלב תיקן ומה קלקל (pipeline.ck_record/rej_record) — LC_CK_STAGES = CK_STAGES ב־learncorpus.js
+LC_CK_STAGES = ('f0', 'f1', 'z0', 'z1', 'q1')
+LC_REJ_W = ('ok', 'back', 'keep', 'qs', 'qb', 'p_nf', 'p_amb', 'p_nl', 'p_bad', 'p_x')
+_LC_CODE = re.compile(r'^[a-z?]{1,8}$')
+
+
+def _lc_checks(p):
+    d = _read_json(p)
+    out = {}
+    for st in LC_CK_STAGES:
+        x = d.get(st) if isinstance(d, dict) else None
+        if isinstance(x, dict):
+            out[st] = {str(k): [c for c in v if _LC_CODE.match(str(c))][:8] for k, v in x.items()
+                       if str(k).isdigit() and isinstance(v, list)}
+    return out
+
+
+def _lc_rej(p):
+    out = []
+    try:
+        lines = Path(p).read_text(encoding='utf-8').splitlines()
+    except OSError:
+        return out
+    for raw in lines[:2000]:
+        try:
+            r = json.loads(raw)
+        except ValueError:
+            continue
+        if isinstance(r, dict) and r.get('w') in LC_REJ_W and re.match(r'^[a-z0-9_.]{1,24}$', str(r.get('s') or '')) \
+                and re.match(r'^\d{1,6}$', str(r.get('i') or '')):
+            out.append({'s': r['s'], 'i': str(r['i']), 't': _lc_txt(r.get('t')), 'w': r['w']})
+    return out
+
+
 def _lc_num(v):
     return round(float(v), 3) if _num_ok(v) else None
 
@@ -1007,6 +1041,7 @@ def learn_corpus(ctx):
     if not isinstance(cues, list) or not cues:
         return None
     td = pd / 'tr'
+    ck = _lc_checks(td / 'learn_checks.json')
     d = _lc_answers(sorted(td.glob('batch_*.he.txt')))
     alt = _lc_answers(sorted((td / 'alt').glob('batch_*.he.txt')))     # 26/10/2026: הטיוטה השנייה (Haiku)
     ab = _lc_answers([td / 'fixes-ab.txt'])                            # מה שנבחר ממנה
@@ -1027,8 +1062,16 @@ def learn_corpus(ctx):
         for key, cur, prev in (('f', f, dict(d, **ab)), ('r', r, f), ('z', z, r)):   # רק כשהשלב שינה משהו — כך רואים מה כל סוכן תיקן
             if cur.get(k) != prev.get(k):
                 row[key] = _lc_txt(cur.get(k))
+        cc = {st: ck[st][k] for st in ck if k in ck[st]}
+        if cc:
+            row['cc'] = cc
         cu.append(row)
     out = {'v': LC_V, 'cu': cu}
+    if ck:
+        out['ccs'] = [st for st in LC_CK_STAGES if st in ck]
+    rj = _lc_rej(td / 'learn_rej.jsonl')
+    if rj:
+        out['rj'] = rj
     spec = ctx.st.get('spec') or {}
     for key, val in (('mode', spec.get('mode')), ('src', spec.get('from')), ('dst', ','.join(spec.get('to') or []) if isinstance(spec.get('to'), list) else '')):
         if re.match(r'^[a-z][a-z0-9,-]{0,47}$', str(val or '')):

@@ -641,4 +641,48 @@ def job_metrics(corpus, shots=None, fps=None):
         out['tm'] = tm
     out['cs'] = consistency_metrics(rows, corpus.get('gl'))
     out['om'] = omission_metrics(rows)
+    ck = check_metrics(corpus)
+    if ck:
+        out['ck'] = ck
+    rj = rej_metrics(corpus.get('rj'))
+    if rj:
+        out['rj'] = rj
     return out
+
+
+# 26/10/2026 — "מה כל שלב תיקן ומה קלקל" בלי שיפוט ידני: קודי הבודק לכל כתובית בכל נקודה (cc בקורפוס).
+# לכל מעבר בין שתי נקודות סמוכות שנמדדו: fx = בעיה שהייתה ונעלמה, kp = נשארה, nw = נוצרה (כתובית×קוד).
+# בנוסף nw.<קוד> = כמה בעיות מכל סוג נוצרו בכל השלבים יחד — הקודים שמופיעים הכי הרבה (עד CK_TOP).
+CK_ORDER = ('f0', 'f1', 'z0', 'z1', 'q1')
+CK_TOP = 8
+
+
+def check_metrics(corpus):
+    stages = [x for x in CK_ORDER if x in (corpus.get('ccs') or [])]
+    if len(stages) < 2:
+        return None
+    cu = [c for c in corpus.get('cu') or [] if isinstance(c, dict)]
+    sets = {st: {(c.get('i'), code) for c in cu for code in ((c.get('cc') or {}).get(st) or [])} for st in stages}
+    out, born = {}, {}
+    for a, b in zip(stages, stages[1:]):
+        A, B = sets[a], sets[b]
+        out[f'{a}{b}.fx'] = len(A - B)
+        out[f'{a}{b}.kp'] = len(A & B)
+        out[f'{a}{b}.nw'] = len(B - A)
+        for _, code in B - A:
+            born[code] = born.get(code, 0) + 1
+    out['n0'] = len(sets[stages[0]])
+    out['n1'] = len(sets[stages[-1]])
+    for code, n in sorted(born.items(), key=lambda kv: (-kv[1], kv[0]))[:CK_TOP]:
+        out['nw.' + code.replace('?', 'x')] = n
+    return out
+
+
+def rej_metrics(rj):
+    """תשובות שנזרקו לפי שלב וסיבה: '<שלב>.<סיבה>' → כמה (השלב f/z/q/p)"""
+    out = {}
+    for r in rj or []:
+        if isinstance(r, dict) and r.get('s') and r.get('w'):
+            k = str(r['s'])[:6] + '.' + str(r['w'])
+            out[k] = out.get(k, 0) + 1
+    return dict(sorted(out.items())[:30]) or None
