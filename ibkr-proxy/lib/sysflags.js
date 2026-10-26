@@ -28,11 +28,11 @@ const EMAIL_RE = /^[a-z0-9._%+-]{1,64}@[a-z0-9.-]{1,190}\.[a-z]{2,24}$/;
 const normEmail = (s) => { const e = String(s == null ? '' : s).trim().toLowerCase(); return EMAIL_RE.test(e) ? e : ''; };
 const amList = (doc) => Array.from(new Set(String((doc && doc.amEm) || '').split(',').map(normEmail).filter(Boolean))).slice(0, AM_MAX);
 /* מי שברשימה — רק עם מייל מאומת (כמו STUDIO_USERS) */
-const amHas = (doc, user) => !!(user && user.verified && user.email && amList(doc).includes(String(user.email).toLowerCase()));
+const amHas = (doc, user) => require('./gauth').hasEmail(user, amList(doc));
 
 const TS_MAX = 100;   // חשבונות בדיקה
 const tsList = (doc) => Array.from(new Set(String((doc && doc.tsEm) || '').split(',').map(normEmail).filter(Boolean))).slice(0, TS_MAX);
-const tsHas = (doc, user) => !!(user && user.verified && user.email && tsList(doc).includes(String(user.email).toLowerCase()));
+const tsHas = (doc, user) => require('./gauth').hasEmail(user, tsList(doc));
 
 /* הודעה למשתמשים: טקסט בלבד, שורה אחת, בלי קישורים ובלי תגיות */
 function normMsg(s) {

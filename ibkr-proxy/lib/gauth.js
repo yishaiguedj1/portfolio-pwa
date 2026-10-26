@@ -40,16 +40,81 @@ async function verifyIdToken(token, opts = {}) {
   if (!(claims.exp > now) || claims.iat > now + 300) throw new Error('expired');
   if (!claims.sub) throw new Error('bad_token');
   // authTime/provider — לחיבור המשותף (lib/session.js): עוגייה רק מהתחברות טרייה עם Google, לא מטוקן מותאם
-  return { uid: claims.sub, email: String(claims.email || '').toLowerCase(), verified: !!claims.email_verified,
+  const u = { uid: claims.sub, email: String(claims.email || '').toLowerCase(), verified: !!claims.email_verified,
     authTime: +claims.auth_time || 0, provider: String((claims.firebase || {}).sign_in_provider || '') };
+  u.linked = await linkedEmails(token, claims, u, opts, project);
+  return u;
 }
+
+/* 26/10/2026 (בקשת המשתמש): כניסה גם עם מייל רגיל, וקישור חשבון Google לאותו משתמש. בטוקן יש רק המייל הראשי — מייל
+   ה־Google שקושר (למשל Yahoo ראשי + Gmail מקושר) לא מופיע בו. לכן, רק כשיש זהות google.com והמייל הראשי לא של Gmail,
+   שואלים את Firebase על החשבון — עם הטוקן של המשתמש עצמו (accounts:lookup, בלי הרשאת מנהל) — ומוסיפים את מיילי Google
+   (Google מאמת אותם). מטמון לפי uid לעשר דקות; תקלה = רק המייל הראשי. ההרשאות לפי emailsOf — תמיד רק מיילים מאומתים */
+/* מפתח ה־Web של Firebase פומבי מטבעו, אבל השומר (privacy-guard) מתיר אותו רק ב־firebase-config.js — לכן קוראים אותו
+   מהקובץ הפומבי באתר (פעם אחת למופע), או מ־FIREBASE_API_KEY */
+const CFG_URL = 'https://invest.thesnowball.app/firebase-config.js';
+const apiKeys = { at: 0, map: null };
+async function apiKeyFor(project, opts) {
+  if (opts.apiKey) return opts.apiKey;
+  if (process.env.FIREBASE_API_KEY) return process.env.FIREBASE_API_KEY;
+  const now = Date.now();
+  if (!apiKeys.map || (!apiKeys.map[project] && now - apiKeys.at > 3600e3)) {
+    apiKeys.at = now;
+    try {
+      const r = await (opts.fetch || fetch)(CFG_URL);
+      const txt = r.status === 200 ? await r.text() : '';
+      const map = {};
+      for (const m of txt.matchAll(/apiKey:\s*["']([\w-]{20,60})["'][\s\S]{0,400}?projectId:\s*["']([a-z0-9-]{4,40})["']/g)) map[m[2]] = m[1];
+      apiKeys.map = map;
+    } catch (e) { apiKeys.map = apiKeys.map || {}; }
+  }
+  return apiKeys.map[project] || '';
+}
+const GMAIL_RE = /@(gmail|googlemail)\.com$/;
+const LINK_TTL = 10 * 60e3;
+const linkCache = new Map();
+function needLookup(claims, u) {
+  const ids = (claims.firebase && claims.firebase.identities) || {};
+  return Array.isArray(ids['google.com']) && ids['google.com'].length > 0 && !(u.verified && GMAIL_RE.test(u.email));
+}
+async function linkedEmails(token, claims, u, opts, project) {
+  const base = [];
+  if (opts.lookup === false || !needLookup(claims, u)) return base;
+  const hit = linkCache.get(u.uid);
+  const now = Date.now();
+  if (hit && now - hit.at < LINK_TTL) return hit.e.slice();
+  const key = await apiKeyFor(project, opts);
+  if (!key) return base;
+  let extra = [];
+  try {
+    const r = await (opts.fetch || fetch)('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' + encodeURIComponent(key), {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Referer: 'https://thesnowball.app/' }, body: JSON.stringify({ idToken: token }) });
+    if (r.status !== 200) return base;
+    const j = await r.json();
+    const acc = (j && j.users && j.users[0]) || {};
+    if (acc.localId !== u.uid) return base;
+    extra = (acc.providerUserInfo || []).filter((p) => p && p.providerId === 'google.com' && p.email)
+      .map((p) => String(p.email).toLowerCase()).filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+  } catch (e) { return base; }
+  if (linkCache.size > 2000) linkCache.clear(); apiKeys.at = 0; apiKeys.map = null;
+  linkCache.set(u.uid, { at: now, e: extra });
+  return extra.slice();
+}
+/* כל המיילים המאומתים של המשתמש: הראשי כשהוא מאומת + מיילי Google שקושרו (linked) */
+function emailsOf(user) {
+  if (!user) return [];
+  const out = user.verified && user.email ? [String(user.email).toLowerCase()] : [];
+  for (const e of Array.isArray(user.linked) ? user.linked : []) if (!out.includes(e)) out.push(e);
+  return out;
+}
+const hasEmail = (user, list) => { const l = list || []; return emailsOf(user).some((e) => l.includes(e)); };
 
 /* רשימת הקוראים המורשים: LIBRARY_READERS = מיילים מופרדים בפסיק ("*" = כל משתמש מחובר) */
 function readerAllowed(user, list, extra) {
   const raw = String(list == null ? process.env.LIBRARY_READERS || '' : list).toLowerCase();
   const set = raw.split(/[\s,;]+/).filter(Boolean);
   if (set.includes('*')) return true;
-  return !!(user && user.email && user.verified && (set.includes(user.email) || (extra || []).includes(user.email)));
+  return hasEmail(user, set) || hasEmail(user, extra);
 }
 
 function serviceAccount() {
@@ -92,9 +157,8 @@ const cloudToken = (f) => saToken('https://www.googleapis.com/auth/cloud-platfor
 /* שלב 6: מנהלי הספרייה — LIBRARY_ADMINS (מיילים), ואם לא הוגדר: המייל הראשון ב־LIBRARY_READERS */
 const emails = (raw) => String(raw || '').toLowerCase().split(/[\s,;]+/).filter((x) => x && x !== '*');
 function isAdmin(user) {
-  if (!user || !user.email || !user.verified) return false;
   const admins = emails(process.env.LIBRARY_ADMINS);
-  return (admins.length ? admins : emails(process.env.LIBRARY_READERS).slice(0, 1)).includes(user.email);
+  return hasEmail(user, admins.length ? admins : emails(process.env.LIBRARY_READERS).slice(0, 1));
 }
 /* חתימה על רשימת הקוראים שנשמרת ב־Firestore — רק השרתון (שמחזיק את המפתח) יכול לייצר אותה,
    כך שגם אם חוקי Firestore מתירים כתיבה למשתמש, אי אפשר להוסיף את עצמך */
@@ -104,5 +168,5 @@ function signList(list) {
   return crypto.createHmac('sha256', key).update(JSON.stringify(list)).digest('hex');
 }
 
-module.exports = { verifyIdToken, readerAllowed, driveToken, datastoreToken, cloudToken, serviceAccount, isAdmin, signList, emails,
-  _reset: () => { certs = { at: 0, ttl: 0, keys: null }; Object.keys(toks).forEach((k) => delete toks[k]); } };
+module.exports = { verifyIdToken, readerAllowed, driveToken, datastoreToken, cloudToken, serviceAccount, isAdmin, signList, emails, emailsOf, hasEmail,
+  _reset: () => { certs = { at: 0, ttl: 0, keys: null }; linkCache.clear(); apiKeys.at = 0; apiKeys.map = null; Object.keys(toks).forEach((k) => delete toks[k]); } };

@@ -20,7 +20,7 @@
    הפעלת Routine: אין מפתח למניעת כפילות, ולכן לעולם לא מנסים שוב לבד — אחרת ייפתחו שני סשנים. */
 const crypto = require('crypto');
 const { guard } = require('../lib/ibkr');
-const { verifyIdToken, datastoreToken, isAdmin, emails } = require('../lib/gauth');
+const { verifyIdToken, datastoreToken, isAdmin, emails, hasEmail } = require('../lib/gauth');
 const SW = require('../lib/sitewatch');
 const vault = require('../lib/vault');
 const gdrive = require('../lib/gdrive').studio;
@@ -84,7 +84,7 @@ function limited(key, max) {
   if (hits.size > 5000) hits.clear();
   return arr.length > max;
 }
-const allowed = (u) => isAdmin(u) || (u.verified && emails(process.env.STUDIO_USERS).includes(u.email));
+const allowed = (u) => isAdmin(u) || hasEmail(u, emails(process.env.STUDIO_USERS));
 
 /* ---------- Firestore ---------- */
 async function fsCall(deps, method, path, body) {
