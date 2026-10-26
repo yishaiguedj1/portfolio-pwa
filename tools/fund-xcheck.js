@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /* שכבה 8 בבקרת הדיוק (26/10/2026): כל ערך שנתי ורבעוני מול SEC גולמי, הדוח המודפס, Yahoo ו־Nasdaq.
    שימוש: node tools/fund-xcheck.js [--syms A,B | --file syms.txt] [--out <dir>] [--pool 3]
-   כותב <out>/rows.json (כל ערך שאינו ok) + summary.json + report.md. מידע ציבורי בלבד. */
+   כותב <out>/rows.json (כל ערך שאינו ok) + summary.json + report.md. מידע ציבורי בלבד.
+   גם ספרייה (require): sources / checkOne — הבדיקה הלילית (tools/fund-audit.js --xsyms) מריצה את אותה השוואה על S&P 500 ו־Nasdaq-100. */
 const fs = require('fs');
 const path = require('path');
 const F = require('../ibkr-proxy/lib/fundamentals.js');
@@ -13,8 +14,8 @@ let syms = (arg('syms', '') || '').split(',').map((s) => s.trim().toUpperCase())
 if (!syms.length && arg('file')) syms = fs.readFileSync(arg('file'), 'utf8').split(/\s+/).map((s) => s.trim().toUpperCase().replace('.', '-')).filter(Boolean);
 const UA = process.env.SEC_UA || 'TheSnowball/1.0 data@thesnowball.app';
 const BR = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36';
-// ok/okd/est/def/yfill — לא בעיה; bug/spl/ext/one/estx — לבדוק (X.PROBLEM)
-const COLS = ['ok', 'okd', 'est', 'def', 'yfill', 'ext', 'spl', 'bug', 'one', 'estx', 'none'];
+// ok/okd/est/def/yfill — לא בעיה; bug/spl/ext/one/estx/odd — לבדוק (X.PROBLEM)
+const COLS = ['ok', 'okd', 'est', 'def', 'yfill', 'ext', 'spl', 'bug', 'one', 'estx', 'odd', 'none'];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function json(url, headers, tries = 3) {
   for (let t = 0; t < tries; t++) {
@@ -38,7 +39,20 @@ async function nasdaq(sym, f) {
   return j ? X.parseNasdaq(j) : null;
 }
 
-(async () => {
+/* הדוח השנתי האחרון כפי שהודפס — fundamentals כבר הביא אותו (במטמון שלו), בלי בקשה נוספת. לקרוא מיד אחרי fundamentals(),
+   לפני await אחר: עובדים מקבילים מנקים את המטמון בתחילת כל חברה */
+const faceOf = (d) => { const h = d && d.face && d.face.acc && F._cache && F._cache.get('face:' + d.face.acc); return h ? h.v : null; };
+/* כל המקורות החיצוניים לחברה אחת, והבדיקה. facts = companyfacts (כשכבר יש — fund-audit מביא אותו לשכבה 7), face = faceOf(d) */
+async function checkOne(sym, d, facts, face) {
+  if (!d || !d.ok || d.src !== 'sec' || !d.cik) return [];
+  const [fc, y, nA, nQ] = await Promise.all([
+    facts || json('https://data.sec.gov/api/xbrl/companyfacts/CIK' + String(d.cik).padStart(10, '0') + '.json', { 'User-Agent': UA }),
+    yahoo(sym), nasdaq(sym, 1), nasdaq(sym, 2)]);
+  if (!fc) return [];
+  return X.xcheck(d, fc, y && y.y, { A: nA, Q: nQ }, { ya: y && y.ya, cand: F.TAGS && (d.ifrs ? F.TAGS.ifrs : F.TAGS.gaap), face });
+}
+module.exports = { checkOne, faceOf, yahoo, nasdaq };
+if (require.main === module) (async () => {
   const res = [], t0 = Date.now(), pool = +arg('pool', 3);
   let next = 0;
   async function worker() {
@@ -46,15 +60,10 @@ async function nasdaq(sym, f) {
       const sym = syms[next++];
       let x = [], err = null, src = null;
       try {
-        F._cache.clear();
+        F._cache.delete('fund:' + sym);   // לא clear(): עובד מקביל היה מוחק את הדוח המודפס (face) של חברה אחרת באמצע
         const d = await F.fundamentals(sym);
         src = d && d.src;
-        if (d && d.ok && d.src === 'sec' && d.cik) {
-          const [facts, y, nA, nQ] = await Promise.all([
-            json('https://data.sec.gov/api/xbrl/companyfacts/CIK' + String(d.cik).padStart(10, '0') + '.json', { 'User-Agent': UA }),
-            yahoo(sym), nasdaq(sym, 1), nasdaq(sym, 2)]);
-          x = X.xcheck(d, facts, y && y.y, { A: nA, Q: nQ }, { ya: y && y.ya, cand: F.TAGS && (d.ifrs ? F.TAGS.ifrs : F.TAGS.gaap) });
-        }
+        x = await checkOne(sym, d, null, faceOf(d));
       } catch (e) { err = String(e.message || e).slice(0, 60); }
       res.push({ sym, src, err, x });
       if (res.length % 20 === 0) process.stderr.write(res.length + '/' + syms.length + ' · ' + Math.round((Date.now() - t0) / 1000) + 's\n');

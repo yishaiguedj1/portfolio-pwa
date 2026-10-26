@@ -76,7 +76,7 @@ const find = (x, m, k, p) => x.find((r) => r.m === m && r.k === k && r.p === p);
   let r = find(X.xcheck(d, f, y, null, { ya }), 'op', 'A', '2024-12-31');
   ok(r.c === 'okd' && r.why === 'y_op_asrep', 'רווח תפעולי מול Yahoo: okd (ההגדרה של Yahoo, as-reported תואם)');
   r = find(X.xcheck(d, f, y, null), 'op', 'A', '2024-12-31');
-  ok(r.c === 'def', 'בלי השדות החלופיים — נשאר def');
+  ok(r.c === 'odd' && !r.why, 'בלי השדות החלופיים — אין הסבר: odd (בעיה לבדוק), לא def');
 }
 // 6. Nasdaq "מזומן" כולל מזומן מוגבל — Nasdaq = CashCashEquivalentsRestricted… ב־SEC
 {
@@ -163,4 +163,76 @@ const find = (x, m, k, p) => x.find((r) => r.m === m && r.k === k && r.p === p);
   const r3 = find(X.xcheck(d3, f3, null, null), 'cash', 'A', '2024-12-31');
   ok(r3.c === 'ok' && r3.rf === 'cash-restr', 'מזומן = הסך הכולל פחות המזומן המוגבל — מאושר מ־SEC (rf = cash-restr)');
 }
+/* ---------- סבב 2 (26/10/2026): def בלי הסבר → odd, ומילון ההגדרות מורחב (כל הסבר נבדק מול הדוח המודפס) ---------- */
+// (א) Nasdaq בדולרים לחברה שמדווחת באירו: אותו יחס בכל המדדים של התקופה (ASML 2024: ‏1.035)
+{
+  const tags = [['Revenues', 1000e6], ['NetIncomeLoss', 200e6], ['Assets', 5000e6], ['Liabilities', 3000e6]];
+  const f = facts(tags.map(([t, v]) => [t, 'EUR', [[...(t === 'Assets' || t === 'Liabilities' ? [null, '2024-12-31'] : Y(2024)), v, '10-K', '2025-02-01']]]));
+  const d = base({ cur: 'EUR', tags: { rev: 'Revenues', ni: 'NetIncomeLoss', ta: 'Assets', tl: 'Liabilities' }, A: { rev: [null, 1000e6], ni: [null, 200e6], ta: [null, 5000e6], tl: [null, 3000e6] } });
+  const nq = { A: { ends: ['2024-12-31'], v: { rev: { '2024-12-31': 1035e6 }, nic: { '2024-12-31': 207e6 }, ta: { '2024-12-31': 5175e6 }, tl: { '2024-12-31': 3105e6 } } } };
+  const x = X.xcheck(d, f, null, nq);
+  ok(['rev', 'ni', 'ta', 'tl'].every((m) => { const r = find(x, m, 'A', '2024-12-31'); return r.c === 'okd' && r.why === 'n_fx'; }), 'Nasdaq בדולרים (יחס אחיד 1.035 בכל המדדים) — okd n_fx');
+  nq.A.v.rev['2024-12-31'] = 1100e6;
+  ok(find(X.xcheck(d, f, null, nq), 'rev', 'A', '2024-12-31').c === 'odd', 'מדד אחד ביחס אחר מהשער — לא n_fx (odd)');
+}
+// (ב) הוצג מחדש: Yahoo = מה שהוגש לראשונה; אבל ערך של תקופה ישנה מהגשה מאוחרת בשנים (באור) — לא "הצגה מחדש"
+{
+  const rows = [[...Y(2023), 2.31, '10-K', '2024-02-01'], [...Y(2023), 2.33, '10-K', '2025-02-01']];
+  const f = facts([['EarningsPerShareDiluted', 'USD/shares', rows]]);
+  const d = base({ tags: { eps: 'EarningsPerShareDiluted' }, fy: ['2023-12-31', '2024-12-31'], A: { eps: [2.33, null] } });
+  const y = { fy: ['2023-12-31'], q: [], A: { eps: [2.31] }, Q: {} };
+  const r = find(X.xcheck(d, f, y, null), 'eps', 'A', '2023-12-31');
+  ok(r.c === 'okd' && r.why === 'restated', 'Yahoo = הגשה קודמת, אנחנו = הדוח שהציג מחדש (Axon 2023) — okd restated');
+  const g = facts([['OperatingLeaseLeaseIncome', 'USD', [[...Y(2022), 2735e6, '10-K', '2023-02-20'], [...Y(2022), 3094e6, '10-K', '2026-02-20']]]]);
+  const d2 = base({ tags: { rev: 'OperatingLeaseLeaseIncome' }, fy: ['2022-12-31', '2023-12-31'], A: { rev: [3094e6, null] } });
+  const r2 = find(X.xcheck(d2, g, null, { A: { ends: ['2022-12-31'], v: { rev: { '2022-12-31': 2735e6 } } } }), 'rev', 'A', '2022-12-31');
+  ok(r2.c === 'odd', 'ערך של 2022 מדוח 2025 (באור, לא עמודת השוואה) — לא מוסבר כהצגה מחדש (AvalonBay): odd');
+}
+// (ג) Yahoo ביחידה אחרת: רווח למניה ÷4 (Digital Realty) / ADS = 4 מניות (PDD) — okd y_unit; יחס לא שלם — לא
+{
+  const f = facts([['EarningsPerShareDiluted', 'USD/shares', [[...Y(2024), 1.61, '10-K', '2025-02-01']]]]);
+  const d = base({ tags: { eps: 'EarningsPerShareDiluted' }, A: { eps: [null, 1.61] } });
+  const y = (v) => ({ fy: ['2024-12-31'], q: [], A: { eps: [v] }, Q: {} });
+  ok(find(X.xcheck(d, f, y(0.4025), null), 'eps', 'A', '2024-12-31').why === 'y_unit' && find(X.xcheck(d, f, y(6.44), null), 'eps', 'A', '2024-12-31').why === 'y_unit', 'רווח למניה פי 4 / חלקי 4 — y_unit');
+  ok(find(X.xcheck(d, f, y(0.6), null), 'eps', 'A', '2024-12-31').c === 'odd', 'יחס 2.7 — לא יחידה (odd)');
+}
+// (ד) Nasdaq: רווח תפעולי אחרי ריבית (בורסות) — okd; קנה מידה פי אלף — okd; רבעון = המצטבר מתחילת השנה — okd
+{
+  const f = facts([['OperatingIncomeLoss', 'USD', [[...Y(2024), 4309e6, '10-K', '2025-02-01']]], ['InterestExpenseNonoperating', 'USD', [[...Y(2024), 910e6, '10-K', '2025-02-01']]]]);
+  const d = base({ tags: { op: 'OperatingIncomeLoss' }, A: { op: [null, 4309e6] } });
+  ok(find(X.xcheck(d, f, null, { A: { ends: ['2024-12-31'], v: { op: { '2024-12-31': 3399e6 } } } }), 'op', 'A', '2024-12-31').why === 'n_op_int', 'Nasdaq = רווח תפעולי פחות ריבית (ICE) — n_op_int');
+  const g = facts([['PaymentsToAcquirePropertyPlantAndEquipment', 'USD', [[...Y(2024), 25.4e6, '10-K', '2025-02-01']]]]);
+  const d2 = base({ tags: { capex: 'PaymentsToAcquirePropertyPlantAndEquipment' }, A: { capex: [null, 25.4e6] } });
+  ok(find(X.xcheck(d2, g, null, { A: { ends: ['2024-12-31'], v: { capex: { '2024-12-31': 25000 } } } }), 'capex', 'A', '2024-12-31').why === 'n_scale', 'Nasdaq פי אלף (PulteGroup) — n_scale');
+  const q = facts([['Revenues', 'USD', [['2025-01-01', '2025-09-30', 13067e6, '10-Q', '2025-11-01'], ['2025-07-01', '2025-09-30', 4331e6, '10-Q', '2025-11-01']]]]);
+  const d3 = base({ tags: { rev: 'Revenues' }, fy: ['2024-12-31'], q: ['2025-09-30'], A: { rev: [16e9] }, Q: { rev: [4331e6] } });
+  ok(find(X.xcheck(d3, q, null, { Q: { ends: ['2025-09-30'], v: { rev: { '2025-09-30': 13067e6 } } } }), 'rev', 'Q', '2025-09-30').why === 'n_ytd', 'Nasdaq ברבעון = 9 חודשים מצטבר (Devon) — n_ytd');
+}
+// (ה) השקעות הוניות: אנחנו רכוש קבוע + תוכנה, המקור רק רכוש קבוע — def capex_part (בחירה שלנו, נשאר def עם הסבר)
+{
+  const f = facts([['PaymentsToAcquirePropertyPlantAndEquipment', 'USD', [[...Y(2024), 390e6, '10-K', '2025-02-01']]], ['PaymentsForSoftware', 'USD', [[...Y(2024), 295e6, '10-K', '2025-02-01']]]]);
+  const d = base({ tags: { capex: 'PaymentsToAcquirePropertyPlantAndEquipment+PaymentsForSoftware' }, A: { capex: [null, 685e6] } });
+  const r = find(X.xcheck(d, f, null, { A: { ends: ['2024-12-31'], v: { capex: { '2024-12-31': 390e6 } } } }), 'capex', 'A', '2024-12-31');
+  ok(r.c === 'def' && r.why === 'capex_part', 'Nasdaq = רק שורת הרכוש הקבוע (Akamai) — def capex_part');
+}
+// (ו) מול הדוח המודפס (opt.face): הערך שלנו מודפס → okd face; המקור = אנחנו + שורה מודפסת אחרת → odd fline (אולי חסרה לנו שורה — Host);
+//     התגית שלנו לא מודפסת → odd nf; שורת רכישות מודפסת (תגית פרטית) → def capex_acq (Devon)
+{
+  const C = 'PaymentsForCapitalImprovements';
+  const f = facts([[C, 'USD', [[...Y(2024), 260e6, '10-K', '2025-02-01']]]]);
+  const d = base({ tags: { capex: C }, A: { capex: [null, 260e6], rev: [null, 5e9] } });
+  const face = (rows) => ({ cf: { cols: [{ end: '2024-12-31', months: 12, cur: null }], scale: { cur: 1e6, sh: 1 }, rows: rows.map(([tag, label, v]) => ({ ns: 'us-gaap', tag, label, v: [v] })) } });
+  const nq = (v) => ({ A: { ends: ['2024-12-31'], v: { capex: { '2024-12-31': v } } } });
+  let r = find(X.xcheck(d, f, null, nq(300e6), { face: face([[C, 'Return on investment', -260]]) }), 'capex', 'A', '2024-12-31');
+  ok(r.c === 'okd' && r.why === 'face', 'הערך שלנו = השורה המודפסת, ו־Nasdaq לא מוסבר — okd face');
+  r = find(X.xcheck(d, f, null, nq(548e6), { face: face([[C, 'Return on investment', -260], ['PaymentsToAcquireOtherProductiveAssets', 'Renewals and replacements', -288]]) }), 'capex', 'A', '2024-12-31');
+  ok(r.c === 'odd' && r.why === 'fline', 'המקור = אנחנו + שורה מודפסת אחרת (Host: ‏Renewals and replacements) — odd fline');
+  r = find(X.xcheck(d, f, null, nq(300e6), { face: face([['PaymentsToAcquireProductiveAssets', 'Capital expenditures', -300]]) }), 'capex', 'A', '2024-12-31');
+  ok(r.c === 'odd' && r.why === 'nf', 'התגית שלנו לא מודפסת בדוח — odd nf (Kimco)');
+  r = find(X.xcheck(d, f, null, nq(3905e6), { face: face([[C, 'Capital expenditures', -260], ['PaymentsToPropertyAndEquipmentAcquisition', 'Acquisitions of property and equipment', -3645]]) }), 'capex', 'A', '2024-12-31');
+  ok(r.c === 'def' && r.why === 'capex_acq', 'המקור כולל שורת רכישות מודפסת (תגית פרטית, אין ב־companyfacts) — def capex_acq');
+  r = find(X.xcheck(d, f, null, nq(300e6)), 'capex', 'A', '2024-12-31');
+  ok(r.c === 'odd' && !r.why, 'בלי הדוח המודפס — odd בלי הסבר');
+}
+ok(X.PROBLEM.has('odd') && !X.PROBLEM.has('def') && !X.PROBLEM.has('okd'), 'odd = בעיה בסיכום; def (עם הסבר) ו־okd — לא');
 console.log('\nכל ' + n + ' הבדיקות עברו ✓');

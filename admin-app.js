@@ -1931,11 +1931,30 @@ function faRow() {
     v: v ? faPct(v.face.pct) : '', tr: v ? t('admFaFace') : '', on: () => go('labFund') });
 }
 const faNum = (x) => (x == null ? '—' : Math.abs(x) >= 1e6 ? numTxt(Math.round(x / 1e6)) + 'M' : String(Math.round(x * 100) / 100));
+/* שכבה 8 (26/10/2026): כל ערך שנתי ורבעוני של S&P 500 ו־Nasdaq-100 מול SEC, הדוח, Yahoo ו־Nasdaq (lib/fundxcheck.js) — הספירה, לפי סוג, והערכים לבדוק */
+function faXc(k) {
+  switch (k) {
+    case 'bug': return t('admFaXC_bug'); case 'spl': return t('admFaXC_spl'); case 'estx': return t('admFaXC_estx');
+    case 'ext': return t('admFaXC_ext'); case 'odd': return t('admFaXC_odd'); case 'one': return t('admFaXC_one');
+    default: return ltr(k);
+  }
+}
+function faXSection(p, x) {
+  const prob = new Set((x.pc || []).map((c) => c.k));
+  p.append(grp(t('admFaX')), list(
+    row({ c: x.b ? 'red' : x.p ? 'orange' : 'green', ic: x.p ? '!' : '✓', t: t('admFaXP'), s: fmt(t('admFaXS'), { n: numTxt(x.n), c: x.cos }), v: numTxt(x.p),
+      tr: x.d ? (x.d > 0 ? '+' : '−') + Math.abs(x.d) : '', trc: x.d > 0 ? 'dn' : x.d < 0 ? 'up' : '' }),
+    ...(x.pc || []).map((c) => row({ c: c.k === 'bug' ? 'red' : 'orange', ic: '!', t: faXc(c.k), s: ltr(c.k), v: numTxt(c.n) })),
+    row({ c: 'gray', ic: '✓', t: t('admFaXOk'), s: ltr((x.c || []).filter((c) => !prob.has(c.k)).map((c) => c.k + ' ' + c.n).join(' · ')) })));
+  if ((x.items || []).length) p.append(grp(t('admFaXItems')), list(...x.items.slice(0, 20).map((r) => row({ c: r.c === 'bug' ? 'red' : 'gray', ic: '·',
+    t: ltr(r.sym + ' · ' + r.k + ':' + r.m + ' · ' + r.p), s: faXc(r.c) + (r.why ? ' · ' + r.why : '') + ' · ' + fmt(t('admFaXVs'), { v: faNum(r.v), r: faNum(r.raw), y: faNum(r.y), n: faNum(r.n) }) }))),
+    x.p > 20 ? h('p', 'adm-dt', fmt(t('admFaMore'), { n: numTxt(x.p - 20) })) : null);
+}
 page('labFund', { tab: 'imp', parent: 'lab', title: () => t('admFaT'), render(p) {
   if (D.fa === undefined || D.fa === 0) { if (D.fa === undefined) { D.fa = 0; needFa(); } p.append(h('p', 'adm-dt', t('admLoading'))); return; }
   const v = D.fa;
   if (!v) { p.append(list(row({ c: 'gray', ic: '—', t: t('admFaNone') })), h('p', 'adm-foot', t('admFaFoot'))); return; }
-  if (v.alert) p.append(list(row({ c: 'red', ic: '!', t: t('admFaAlert'), s: v.alert.map((k) => (k === 'gold' ? t('admFaK_gold') : k === 'face' ? t('admFaK_face') : k === 'gr' ? t('admFaK_gr') : fmt(t('admFaFail'), { n: v.fail }))).join(' · ') })));
+  if (v.alert) p.append(list(row({ c: 'red', ic: '!', t: t('admFaAlert'), s: v.alert.map((k) => (k === 'gold' ? t('admFaK_gold') : k === 'face' ? t('admFaK_face') : k === 'gr' ? t('admFaK_gr') : k === 'x' ? t('admFaK_x') : fmt(t('admFaFail'), { n: v.fail }))).join(' · ') })));
   p.append(tiles(
     tileEl('green', t('admFaFace'), faPct(v.face.pct), v.face.d != null && v.face.d !== 0 ? (v.face.d > 0 ? '+' : '−') + Math.abs(v.face.d) : fmt(t('admFaFaceS'), { ok: numTxt(v.face.ok), n: numTxt(v.face.n) }), v.face.d < 0 ? 'dn' : v.face.d > 0 ? 'up' : '', v.trend),
     tileEl('blue', t('admFaCos'), faPct(v.face.coPct), fmt(t('admFaCosS'), { ok: v.face.coOk, n: v.face.cos }), '', null),
@@ -1943,6 +1962,7 @@ page('labFund', { tab: 'imp', parent: 'lab', title: () => t('admFaT'), render(p)
   if ((v.gi || []).length) p.append(grp(t('admFaGoldList')), list(...v.gi.map((x) => row({ c: 'red', ic: '!', t: ltr(x.sym + ' · ' + x.m + ' · ' + x.p), s: fmt(t('admFaVs'), { f: faNum(x.f), v: faNum(x.v) }) }))));
   if ((v.kinds || []).length) p.append(grp(t('admFaKinds')), list(...v.kinds.map((x) => row({ c: /^(fix|ffill|ffix)$/.test(x.k) ? 'blue' : x.k === 'xy' || x.k === 'q4' ? 'gray' : 'orange', ic: /^(fix|ffill|ffix)$/.test(x.k) ? '✓' : '!', t: faKind(x.k), s: ltr(x.k),
     v: numTxt(x.n), tr: x.d ? (x.d > 0 ? '+' : '−') + Math.abs(x.d) : '', trc: x.d > 0 ? 'dn' : x.d < 0 ? 'up' : '' }))));
+  if (v.x) faXSection(p, v.x);
   if ((v.cos || []).length) p.append(grp(t('admFaCo')), list(...v.cos.slice(0, 15).map((c) => row({ c: 'orange', ic: '≠', t: ltr(c.sym), s: fmt(t('admFaCosS'), { ok: c.ok, n: c.n }) + (c.form ? ' · ' + c.form : ''),
     v: faPct(c.ok / c.n * 100), meter: [c.ok / c.n * 100, c.ok / c.n < 0.9 ? 'x' : 'w'], on: c.url ? () => { try { window.open(c.url, '_blank', 'noopener'); } catch (e) {} } : null }))));
   if ((v.items || []).length) p.append(grp(t('admFaItems')), list(...v.items.slice(0, 20).map((x) => row({ c: 'gray', ic: '·', t: ltr(x.sym + (x.m ? ' · ' + x.m : '') + (x.p ? ' · ' + x.p : '')), s: faKind(x.k) + (x.f != null ? ' · ' + fmt(t('admFaVs'), { f: faNum(x.f), v: faNum(x.v) }) : '') }))),

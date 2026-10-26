@@ -3,13 +3,17 @@
    המקורות: (1) SEC גולמי — אותה תגית, ההגשה האחרונה, חישוב נפרד ופשוט של הרבעון (שנה פחות 9 חודשים);
    כשהערך שלנו מחושב (רווח גולמי = הכנסות − עלות, סך התחייבויות = סך התחייבויות והון − הון, השקעות הוניות = סכום תגיות,
    רבעון רביעי = שנה − שלושה רבעונים) — אותה נוסחה מחדש מהערכים הגולמיים של SEC (rf);
-   (2) הדוח כפי שהודפס (faceCheck — הסימון 'face' ב־checks); (3) Yahoo (כולל שדות חלופיים — "מילון ההגדרות"); (4) Nasdaq (EDGAR Online).
+   (2) הדוח כפי שהודפס (faceCheck — הסימון 'face' ב־checks; ו־opt.face = הדוח השנתי האחרון עצמו, לשנים שבו); (3) Yahoo (כולל שדות חלופיים — "מילון ההגדרות"); (4) Nasdaq (EDGAR Online).
    הכרעה לכל ערך:
      ok   — תואם את כל המקורות שיש;
      okd  — שונה ממקור חיצוני בהגדרה ידועה שלו (DEFS), ותואם את הגדרת החלופה שלו — לא טעות של אף אחד (why = מזהה ההגדרה);
+            why 'face' = בשנה שבדוח המודפס: הערך שלנו הוא השורה שהחברה הדפיסה, והמקור לא = אנחנו ± שורה אחרת — המקור טועה / מגדיר אחרת;
      est  — ערך שאין לו מקור (רבעון רביעי של רווח למניה / ממוצע מניות) ותואם את האומדן מ־SEC (שנה פחות שלושה רבעונים);
      estx — כמו est, אבל רחוק מהאומדן — לבדוק;
-     def  — תואם את SEC (או מקור חיצוני אחד), ומקור חיצוני אחר שונה בלי הסבר ידוע (why כשיש הסבר שהוא בחירה שלנו);
+     def  — תואם את SEC (או מקור חיצוני אחד), ומקור חיצוני אחר שונה בגלל בחירה שלנו (why תמיד — DEFS בלי ok, או 'est');
+     odd  — תואם את SEC, ומקור חיצוני שונה בלי שום הסבר ידוע — בעיה לבדוק (סבב 2, 26/10/2026: עד אז "def" בלי why — 1,788 ב־517 חברות).
+            why: fline = המקור = אנחנו ± שורה אחרת שמודפסת בדוח (אולי חסרה לנו שורה — Host, Zimmer); nf = התגית שלנו לא מודפסת בדוח;
+            a:<הסבר> = רמז — באותו מדד הוסבר כך בשנים שבדוח (ברבעונים / בשנים ישנות אין דוח לבדוק מולו);
      ext  — שני המקורות החיצוניים קרובים זה לזה (עד 5%) ורחוקים מאיתנו, ואנחנו = SEC — לבדוק את בחירת התגית;
      spl  — מניות / רווח למניה ביחס של פיצול שמופיע ברשימת הפיצולים — לא הוחל אצלנו (או הוחל פעמיים);
      bug  — שונה מ־SEC הגולמי של אותה תגית / מאותה נוסחה, או שהדוח המודפס שונה, או "שנה" שהיא לא שנה (ttm);
@@ -17,6 +21,7 @@
      yfill — שורה שאין ב־SEC ו־fundamentals השלים מ־Yahoo: Yahoo הוא המקור, לא בדיקה (nd = Nasdaq שונה);
      none — אין אף מקור ואין נוסחה לבדוק. */
 
+const SF = require('./secface');
 const DAY = 864e5;
 const day = (e) => Date.parse(e + 'T00:00:00Z') / DAY;
 const nearEnd = (list, e, tol = 20) => { let b = -1, bd = 1e9; (list || []).forEach((x, i) => { const d = Math.abs(day(x) - day(e)); if (d < bd) { bd = d; b = i; } }); return bd <= tol ? b : -1; };
@@ -34,6 +39,8 @@ function same(m, a, b, scale) {
   return d <= 0.005 * mx || d <= Math.max(2e6, 1e-3 * (scale || 0));
 }
 const relDiff = (a, b) => { const mx = Math.max(Math.abs(a), Math.abs(b)); return mx ? Math.abs(a - b) / mx : 0; };
+// מול שורה בדוח המודפס — סטייה צרה (0.2%, בלי סף מוחלט לפי גודל החברה): בדוח יש עשרות שורות, וסף רחב מוצא צירוף מקרי
+const fsame = (a, b) => a != null && b != null && Math.abs(a - b) <= 0.002 * Math.max(Math.abs(a), Math.abs(b), 1);
 
 /* ---------- Nasdaq: api.nasdaq.com/api/company/<SYM>/financials?frequency=1|2 (ערכים באלפים) ---------- */
 const NQ_ROWS = {
@@ -99,27 +106,62 @@ function parseYahooAlt(j) {
    או לערך שלנו ועוד תגית SEC (plus). ok:true = הגדרה של המקור בלבד → okd; בלי ok = הבחירה שלנו (התגית) — נשאר def/ext עם why, כדי שיראו.
    lim = יחס מרבי בין הערכים (בלי — כל יחס), כדי שהסבר לא יכסה ערך שרחוק פי כמה (AEP: ההשקעות ההוניות שלנו 2% מהאמת). */
 const DEFS = {
-  op: [{ id: 'y_op_asrep', s: 'y', y: ['TotalOperatingIncomeAsReported'], ok: true }], // Yahoo "OperatingIncome" = בלי פריטים חריגים (ארגון מחדש, ירידת ערך, IPR&D)
+  op: [{ id: 'y_op_asrep', s: 'y', y: ['TotalOperatingIncomeAsReported'], ok: true }, // Yahoo "OperatingIncome" = בלי פריטים חריגים (ארגון מחדש, ירידת ערך, IPR&D)
+    { id: 'n_op_int', s: 'n', minus: ['InterestExpenseNonoperating', 'InterestAndDebtExpense', 'InterestExpense', 'InterestExpenseDebt', 'InterestExpenseOperating'], ok: true }, // Nasdaq: רווח תפעולי אחרי הוצאות ריבית (בורסות, מנהלי השקעות)
+    { id: 'n_op_inv', s: 'n', plus: ['InvestmentIncomeNonoperating', 'NetInvestmentIncome', 'InvestmentIncomeInterestAndDividend', 'NetInvestmentIncomeAndIncomeLossFromEquityMethodInvestments'], ok: true }, // Nasdaq: כולל הכנסות השקעה (Erie)
+    { id: 'n_op_other', s: 'n', flab: /^other (income|\(income\)|expense)|derivative/i, fsub: true, ok: true }, // Nasdaq מזיז "הכנסות אחרות" / רווחי נגזרים אל הרווח התפעולי או ממנו (Otis, EQT)
+    { id: 'y_op_unusual', s: 'y', flab: /^other\b|restructur|impairment|acquisition|litigation|transaction/i, ok: true }], // Yahoo בלי פריטים חריגים שמודפסים בדוח (Qualcomm "Other", ICE)
   ni: [{ id: 'y_ni_total', s: 'y', y: ['NetIncome', 'NetIncomeFromContinuingOperationNetMinorityInterest'], ok: true }, // Yahoo "לבעלי המניות" מנכה ניירות משתתפים / בכורה
     { id: 'n_ni_total', s: 'n', n: ['ni'], ok: true }],
   rev: [{ id: 'y_rev_op', s: 'y', y: ['OperatingRevenue'], ok: true }, // Yahoo TotalRevenue כולל רווחי השקעות (מבטחים) / ההפך
     { id: 'n_rev_gross', s: 'n', plus: ['InterestExpense', 'InterestExpenseOperating'], ok: true }, // Nasdaq בבנקים: הכנסות ריבית ברוטו
-    { id: 'fin_rev', s: 'yn', when: (c) => c.fin }, // בנק/מבטח: הכנסות נטו מול ברוטו, רווחי השקעות — כל מקור אחרת
+    { id: 'fin_rev', s: 'yn', when: (c) => c.fin },
+    { id: 'n_rev_int', s: 'n', flab: /interest|income from loans|financial services|fees$/i, fsub: true, ok: true }, // Nasdaq בלי הכנסות ריבית / מימון שבתוך סך ההכנסות (Paccar, Healthpeak, Welltower) // בנק/מבטח: הכנסות נטו מול ברוטו, רווחי השקעות — כל מקור אחרת
     { id: 'rev_ctr', s: 'yn', sec: ['RevenueFromContractWithCustomerExcludingAssessedTax', 'RevenueFromContractWithCustomerIncludingAssessedTax'], lim: 1.25 }], // אנחנו "Revenues" (כולל הכנסות אחרות) — בחירה
   cash: [{ id: 'y_cash_fin', s: 'y', y: ['CashFinancial', 'CashCashEquivalentsAndFederalFundsSold'], ok: true }, // בנקים: Yahoo כולל פיקדונות בבנק המרכזי
-    { id: 'n_cash_restr', s: 'n', sec: ['CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents'], ok: true, // Nasdaq = כולל מזומן מוגבל / מופרד
-      plus: ['RestrictedCashAndCashEquivalentsAtCarryingValue', 'RestrictedCash', 'RestrictedCashCurrent', 'RestrictedCashAndCashEquivalentsCurrent',
+    { id: 'n_cash_restr', s: 'n', sec: ['CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents', 'CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsIncludingDisposalGroupAndDiscontinuedOperations'], ok: true, // Nasdaq = כולל מזומן מוגבל / מופרד
+      plus: ['RestrictedCashAndCashEquivalentsAtCarryingValue', 'RestrictedCash', 'RestrictedCashCurrent', 'RestrictedCashAndCashEquivalentsCurrent', 'RestrictedCashAndCashEquivalents',
         'RestrictedCashAndInvestmentsCurrent', 'CashAndSecuritiesSegregatedUnderFederalAndOtherRegulations', 'CashSegregatedUnderOtherRegulations'] },
     { id: 'y_cash_sti', s: 'y', y: ['CashCashEquivalentsAndShortTermInvestments'] },
-    { id: 'fin_cash', s: 'yn', when: (c) => c.fin, ok: true }], // בנק: "מזומן" = מזומן ופיקדונות בבנקים — כל מקור כולל רכיבים אחרים, ולא משמש בניתוח בנק
+    { id: 'fin_cash', s: 'yn', when: (c) => c.fin, ok: true }, // בנק: "מזומן" = מזומן ופיקדונות בבנקים — כל מקור כולל רכיבים אחרים, ולא משמש בניתוח בנק
+    { id: 'y_cash_cust', s: 'y', flab: /customer funds/i, ok: true }, // Yahoo כולל כספי לקוחות (Block)
+    // Yahoo מפריד את המזומן המוגבל: שלנו = המזומן של Yahoo + המוגבל שלו (NXPI, Fiserv), או ההפך — Yahoo = השורה המשולבת במאזן (Devon)
+    { id: 'y_cash_restr', s: 'y', y: ['EndCashPosition'], ysum: [['CashAndCashEquivalents', 'RestrictedCash']], ok: true,
+      sec: ['CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents', 'RestrictedCashAndCashEquivalents'],
+      plus: ['RestrictedCashAndCashEquivalentsAtCarryingValue', 'RestrictedCash', 'RestrictedCashCurrent', 'RestrictedCashAndCashEquivalentsCurrent'] }], // בנק: "מזומן" = מזומן ופיקדונות בבנקים — כל מקור כולל רכיבים אחרים, ולא משמש בניתוח בנק
   capex: [{ id: 'y_capex_ppe', s: 'y', y: ['PurchaseOfPPE', 'CapitalExpenditureReported', 'NetPPEPurchaseAndSale'], abs: true, ok: true }, // Yahoo CapitalExpenditure כולל נכסים בלתי מוחשיים
-    { id: 'capex_intang', s: 'yn', plus: ['PaymentsToAcquireIntangibleAssets', 'PaymentsToAcquireSoftware', 'PaymentsForSoftware', 'PaymentsForNuclearFuel'], lim: 3 }], // תוכנה שהוונה / דלק גרעיני — בחירה שלנו
-  eq: [{ id: 'y_eq_nci', s: 'y', y: ['TotalEquityGrossMinorityInterest'] }, // ההון שלנו כולל זכויות מיעוט — בחירה (לתשואה על ההון עדיף בלי)
+    { id: 'capex_intang', s: 'yn', plus: ['PaymentsToAcquireIntangibleAssets', 'PaymentsToAcquireSoftware', 'PaymentsForSoftware', 'PaymentsToDevelopSoftware', 'PaymentsForNuclearFuel',
+      'PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities'], flab: /software|intangible|enterprise resource/i, lim: 3 }, // תוכנה שהוונה / דלק גרעיני — בחירה שלנו
+    { id: 'capex_part', s: 'yn', part: true }, // אנחנו = רכוש קבוע + תוכנה (שתי שורות בתזרים), המקור רק את שורת הרכוש הקבוע — בחירה שלנו
+    { id: 'capex_acq', s: 'yn', flab: /\bacqui|\bpurchases? of (businesses|oil and gas|leasehold)/i, plus: ['PaymentsToPropertyAndEquipmentAcquisition', 'PaymentsToAcquireBusinessesNetOfCashAcquired', 'PaymentsToAcquireRealEstate', 'PaymentsToAcquireProperty',
+      'PaymentsToAcquireOilAndGasProperty', 'PaymentsToAcquireOilAndGasPropertyAndEquipment', 'PaymentsToAcquireBusinessesGross', 'PaymentForAcquisitionCryptoAsset'] }, // המקור כולל רכישות (נכסים, עסקים, נדל"ן) — אצלנו רק השקעה הונית
+    // קרן ריט: המקור = השקעה בנדל"ן (רכישות / פיתוח), אצלנו = שיפורים בנכסים קיימים (Realty Income: ‏Nasdaq ‏$4.6B "Investment in real estate" מול ‏$132M)
+    { id: 'capex_re', s: 'yn', when0: (c) => c.reit, sec: ['PaymentsToAcquireCommercialRealEstate', 'PaymentsToAcquireRealEstate', 'PaymentsToDevelopRealEstateAssets', 'PaymentsToAcquireAndDevelopRealEstate'],
+      flab: /acqui|investments? in real estate|development|construction/i, fone: true }, // לא "Improvements" — זו השקעה הונית (Kimco: אצלנו תגית אחרת, כמעט אפס)
+    { id: 'n_scale', s: 'n', scale: true, ok: true }, // Nasdaq פי אלף (PulteGroup: 25,000 במקום ‏$25M)
+    { id: 'n_abs', s: 'n', abs1: true, ok: true }], // השקעה נטו שלילית (מכירות > קניות — Hartford): Nasdaq מציג ערך מוחלט
+  eq: [{ id: 'y_eq_nci', s: 'y', y: ['TotalEquityGrossMinorityInterest'], minus: ['MinorityInterest'], flab: /noncontrolling|minority/i, fsub: true }, // ההון שלנו כולל זכויות מיעוט — בחירה (לתשואה על ההון עדיף בלי)
     { id: 'y_eq_common', s: 'y', y: ['CommonStockEquity'] }],
-  sh: [{ id: 'y_sh_basic', s: 'y', y: ['BasicAverageShares'] }],
-  gp: [{ id: 'gp_calc', s: 'yn', when: (c) => c.gpc }], // אין שורת רווח גולמי בדוח — כל מקור מחשב אחרת (Chevron, Honeywell, UnitedHealth) — בחירה: אולי לא להציג
-  eps: [{ id: 'y_eps_basic', s: 'y', y: ['BasicEPS'] }],
+  sh: [{ id: 'y_sh_basic', s: 'y', y: ['BasicAverageShares'] },
+    { id: 'y_unit', s: 'y', unit: true, ok: true }], // Yahoo ביחידה אחרת (ADS = 4 מניות ב־PDD) או מוכפל במספר שלם
+  // תזרים: אצלנו מפעילות נמשכת (כמו בדוח), המקור — כולל הפעילות שהופסקה
+  ocf: [{ id: 'y_ocf_cont', s: 'y', y: ['CashFlowFromContinuingOperatingActivities'], ok: true },
+    { id: 'ocf_disc', s: 'yn', plus: ['CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations'], minus: ['CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations'], ok: true }],
+  gp: [{ id: 'gp_calc', s: 'yn', when: (c) => c.gpc },
+    { id: 'n_op_int', s: 'n', minus: ['InterestExpenseNonoperating', 'InterestAndDebtExpense', 'InterestExpense'], ok: true }], // Nasdaq מנכה הוצאות ריבית גם מהרווח הגולמי (Nasdaq Inc.) // אין שורת רווח גולמי בדוח — כל מקור מחשב אחרת (Chevron, Honeywell, UnitedHealth) — בחירה: אולי לא להציג
+  eps: [{ id: 'y_eps_basic', s: 'y', y: ['BasicEPS'] },
+    { id: 'y_unit', s: 'y', unit: true, ok: true }, // Yahoo ביחידה אחרת (למניית ADS) או מחולק במספר שלם (Digital Realty, FirstEnergy: ‏÷4)
+    { id: 'y_eps_isbasic', s: 'y', sec: ['EarningsPerShareBasic'], ok: true }, // Yahoo "מדולל" = הבסיסי שבדוח
+    { id: 'y_eps_cont', s: 'y', sec: ['IncomeLossFromContinuingOperationsPerDilutedShare', 'IncomeLossFromContinuingOperationsPerBasicAndDilutedShare', 'DilutedEarningsLossPerShareFromContinuingOperations'], flab: /discontinued/i, fsub: true, ok: true }], // Yahoo = מפעילות נמשכת
 };
+// לכל המדדים: הבדלים מכניים שמאומתים מ־SEC עצמו
+const DEFS_ALL = [
+  // המקור = השורה שלנו פחות אחד הרכיבים שלה שמודפסים באותו דוח באותה תגית (Deere: Yahoo בלי "Other income" שבתוך "Net sales and revenues")
+  { id: 'face_sub', s: 'yn', own: true, ok: true },
+  { id: 'n_fx', s: 'n', fx: true, ok: true }, // Nasdaq מתרגם לדולרים (חברה שמדווחת באירו / ביואן): אותו יחס בכל המדדים של התקופה
+  { id: 'restated', s: 'yn', orig: true, ok: true }, // המקור = מה שהוגש לראשונה; אנחנו = ההגשה האחרונה (הצגה מחדש)
+  { id: 'n_ytd', s: 'n', ytd: true, ok: true }, // Nasdaq ברבעון = המצטבר מתחילת השנה
+];
 
 /* ---------- SEC גולמי: אותה תגית, חישוב נפרד ---------- */
 // companyfacts → לכל תקופה (start|end או end) הערך מההגשה האחרונה (10-K/10-Q/20-F/40-F ותיקוניהם)
@@ -199,12 +241,45 @@ function rawQuarters(rs, e, fyStart) {
   return by.size === 3 ? [...by.values()].map((h) => h.v) : null;
 }
 
+// כל הערכים שהוגשו לתקופה בתגית אחת (כל ההגשות, במטבע הדיווח): שנה ~365 יום, רבעון ~91, מאזן — נקודה; cum = מצטבר 6/9 חודשים
+function rawAll(facts, tag, e, kind, cur, bal, cum) {
+  const out = [];
+  if (!facts || !tag || /\+/.test(tag)) return out;
+  for (const ns of ['us-gaap', 'ifrs-full']) {
+    const g = facts.facts && facts.facts[ns] && facts.facts[ns][tag]; if (!g) continue;
+    const us = Object.keys(g.units || {}), pick = cur ? us.filter((u) => u === cur || u === cur + '/shares') : [];
+    for (const u of pick.length ? pick : us) for (const x of g.units[u]) {
+      if (!FORMS.test(x.form || '') || x.val == null || Math.abs(day(x.end) - day(e)) > 3) continue;
+      if (bal) { if (!x.start) out.push({ v: x.val, f: x.filed }); continue; }
+      if (!x.start) continue;
+      const L = day(x.end) - day(x.start);
+      if (cum ? L >= 170 && L <= 290 : kind === 'A' ? L >= 350 && L <= 380 : L >= 80 && L <= 100) out.push({ v: x.val, f: x.filed });
+    }
+    break;
+  }
+  return out;
+}
+
+/* "הוצג מחדש": הערכים מהגשות שקדמו להגשה שממנה הערך שלנו. רק כשההגשה שלנו היא דוח שבו התקופה מופיעה כעמודת השוואה
+   (שנה — עד שלוש שנים בדוח השנתי; רבעון / מאזן — שנה אחת): ערך של תקופה ישנה מהגשה מאוחרת בהרבה הוא מבאור (טבלת 5 שנים,
+   באור חכירות) — AvalonBay 2022: ‏"OperatingLeaseLeaseIncome" ‏$3.09B מהדוח של 2025, במקום ההכנסות של 2022 */
+function origVals(all, ours, e, kind, bal, m) {
+  let f0 = null; for (const x of all) if (same(m, x.v, ours, 0) && (!f0 || x.f > f0)) f0 = x.f;
+  if (!f0 || day(f0) - day(e) > (kind === 'A' && !bal ? 2 * 366 + 130 : 366 + 130)) return [];
+  return all.filter((x) => x.f < f0).map((x) => x.v);
+}
+
 /* ---------- ההשוואה ---------- */
 // המזומן המוגבל שמחוסר מהסך הכולל כשאין שורת מאזן (RCASH ב־fundamentals.js — אותן קבוצות, אותו סדר)
 const CASH_RESTR = [['RestrictedCashCurrent', 'RestrictedCashNoncurrent'], ['RestrictedCashAndCashEquivalentsCurrent', 'RestrictedCashAndCashEquivalentsNoncurrent'],
   ['RestrictedCash'], ['RestrictedCashAndCashEquivalentsAtCarryingValue']];
 const XK = ['rev', 'gp', 'op', 'ni', 'eps', 'sh', 'ocf', 'capex', 'cash', 'ta', 'tl', 'eq', 'ca', 'cl'];
 const BAL = new Set(['cash', 'ta', 'tl', 'eq', 'ca', 'cl']);
+// כותרת שורה בדוח שמתאימה למדד (לזיהוי הערך שלנו כשהחברה הדפיסה אותו בתגית אחרת)
+const FLAB = { rev: /revenue|sales/i, gp: /gross/i, op: /operat|income from/i, ni: /net (income|earnings|loss)|profit/i, eps: /per share|diluted/i, sh: /shares|diluted/i,
+  ocf: /operating/i, capex: /property|capital|equipment|plant|additions/i, cash: /^cash/i, ta: /^total assets|^assets$/i, tl: /^total liabilities|^liabilities$/i,
+  eq: /equity/i, ca: /current assets/i, cl: /current liabilities/i };
+const FST = { rev: 'is', gp: 'is', op: 'is', ni: 'is', eps: 'is', sh: 'is', ocf: 'cf', capex: 'cf', cash: 'bs', ta: 'bs', tl: 'bs', eq: 'bs', ca: 'bs', cl: 'bs' };
 const YK = { ni: 'ni' }; // Yahoo: NetIncomeCommonStockholders — מול nic כשיש
 // ערך שלנו שמחושב בנוסחה (לא תגית אחת) — אותה נוסחה מ־SEC הגולמי
 // (כמו "שורות מחושבות" ב־normalizeSec; ההון — כולל זכויות מיעוט כשיש לתקופה, אחרת של בעלי המניות)
@@ -224,9 +299,10 @@ const splitsOf = (d) => d.splitsUsed || d.splits;
 function splitRatioAfter(splits, e) { let r = 1; for (const [sd, x] of splits || []) if (sd > e && Math.abs(Math.log(x)) > Math.log(1.3)) r *= x; return r; }
 // הסבר מהמילון: האם ההבדל מול המקור s ידוע. ctx = { ya (Yahoo גולמי לתקופה), nq (Nasdaq לתקופה), sec(tag) → ערך גולמי }
 function explain(m, s, ours, ext, ctx, sc) {
-  for (const D of DEFS[m] || []) {
+  for (const D of (DEFS[m] || []).concat(DEFS_ALL)) {
     if (!D.s.includes(s)) continue;
     if (D.when) { if (D.when(ctx)) return D; continue; }
+    if (D.when0 && !D.when0(ctx)) continue;
     if (D.lim && ours && ext && Math.max(Math.abs(ours / ext), Math.abs(ext / ours)) > D.lim) continue;
     let hit = false;
     if (s === 'y' && D.y) for (const ty of D.y) { const v = ctx.ya && ctx.ya[ty]; if (v != null && same(m, ours, D.abs ? Math.abs(v) : v, sc)) hit = true; }
@@ -236,6 +312,32 @@ function explain(m, s, ours, ext, ctx, sc) {
       const vs = D.plus.map((tag) => ctx.sec(tag)).filter((v) => v != null);
       if (vs.some((v) => same(m, Math.abs(ext), Math.abs(ours) + Math.abs(v), sc)) || (vs.length > 1 && same(m, Math.abs(ext), Math.abs(ours) + vs.reduce((t, v) => t + Math.abs(v), 0), sc))) hit = true;
     }
+    // המקור = אנחנו פחות תגית (Nasdaq: רווח תפעולי אחרי הוצאות ריבית)
+    if (!hit && D.minus) for (const tag of D.minus) { const v = ctx.sec(tag); if (v != null && v !== 0 && same(m, ext, ours - Math.abs(v), sc)) hit = true; }
+    // המקור = חלק מהסכום שלנו (השקעות הוניות: רכוש קבוע + תוכנה — המקור רק את השורה הראשונה)
+    if (!hit && D.part && ctx.parts && ctx.parts.length > 1) {
+      const pv = ctx.parts.map((t) => ctx.sec(t));
+      if (pv.every((v) => v != null)) for (let b = 1; b < (1 << pv.length) - 1 && !hit; b++) { let t = 0; pv.forEach((v, i) => { if (b & (1 << i)) t += Math.abs(v); }); if (same(m, Math.abs(ext), t, sc)) hit = true; }
+    }
+    // המקור = מה שהוגש לראשונה, לפני הצגה מחדש (אותה תגית, אותה תקופה, הגשה מוקדמת יותר)
+    if (!hit && D.orig && ctx.orig) for (const v of ctx.orig()) if (same(m, ext, v, sc) && !same(m, ours, v, sc)) hit = true;
+    // Nasdaq בדולרים (חברה שמדווחת במטבע אחר): היחס = שער ההמרה של התקופה, אותו יחס כמו בשאר המדדים
+    if (!hit && D.fx && ctx.fx && ours && Math.abs(ext / ours / ctx.fx - 1) <= 0.015) hit = true;
+    // יחידה אחרת למניה (ADS = כמה מניות, או Yahoo שמחלק / מכפיל במספר שלם): היחס מספר שלם 2–20
+    if (!hit && D.unit && ours && ext && Math.sign(ours) === Math.sign(ext)) {
+      const q = m === 'sh' ? ext / ours : ours / ext, k = q >= 1 ? q : 1 / q, kr = Math.round(k);
+      if (kr >= 2 && kr <= 20 && Math.abs(k / kr - 1) <= 0.01) hit = true;
+    }
+    // Yahoo: הערך שלנו = סכום של שני שדות שלו (מזומן + מזומן מוגבל — Yahoo מפריד את המוגבל מהשורה שבמאזן)
+    if (!hit && s === 'y' && D.ysum && ctx.ya) for (const fl of D.ysum) { const vs = fl.map((f) => ctx.ya[f]); if (vs.every((v) => v != null) && same(m, Math.abs(ours), vs.reduce((t, v) => t + Math.abs(v), 0), sc)) hit = true; }
+    // המקור = הערך שלנו ועוד / פחות שורה שמודפסת באותו דוח שהכותרת שלה מתאימה (תגית פרטית של החברה — אין אותה ב־companyfacts)
+    if (!hit && D.flab && ctx.face) for (const fr of ctx.face.rows) { if (!D.flab.test(fr.label) || fr.mine || Math.abs(fr.v) < 0.002 * Math.abs(ours)) continue; if (fsame(Math.abs(ext), Math.abs(ours) + Math.abs(fr.v)) || (D.fsub && fsame(Math.abs(ext), Math.abs(ours) - Math.abs(fr.v))) || (D.fone && fsame(Math.abs(ext), Math.abs(fr.v)))) hit = true; }
+    if (!hit && D.own && ctx.face) { const mine = ctx.face.rows.filter((fr) => fr.mine && !fsame(Math.abs(fr.v), Math.abs(ours))); if (mine.some((fr) => fsame(Math.abs(ext), Math.abs(ours) - Math.abs(fr.v)))) hit = true; }
+    // Nasdaq בקנה מידה שגוי (פי אלף) / ערך מוחלט של השקעה נטו שלילית
+    if (!hit && D.scale && ours && ext) { const q = Math.abs(ext / ours); if ([1e3, 1e-3, 1e6, 1e-6].some((f) => Math.abs(q / f - 1) <= 0.03)) hit = true; }
+    if (!hit && D.abs1 && ours < 0 && ext > 0 && same(m, -ours, ext, sc)) hit = true;
+    // Nasdaq ברבעון = המצטבר מתחילת השנה (6 / 9 חודשים) של אותה תגית
+    if (!hit && D.ytd && ctx.cum) for (const v of ctx.cum()) if (same(m, Math.abs(ext), Math.abs(v), sc) && !same(m, ours, v, sc)) hit = true;
     if (hit) return D;
   }
   return null;
@@ -288,6 +390,26 @@ function xcheck(d, facts, y, nq, opt = {}) {
   // "שנים" שהן לא שנה (Amazon: דוחות רבעוניים עם 12 חודשים אחרונים — כל רבעון נראה כסוף שנה)
   const ttm = new Set(d.fy.filter((e, i) => i > 0 && day(e) - day(d.fy[i - 1]) < 300));
   const rsCache = {}, secAt = (tag, e, kind, fs) => { if (!(tag in rsCache)) rsCache[tag] = rawSeries(facts, tag, null, d.cur); return rawAt(rsCache[tag], e, kind, fs); };
+  // הדוח השנתי האחרון כפי שהודפס (opt.face = secFace): לכל מדד ושנה — השורות של אותו דוח באותה עמודה
+  const faceAt = (m, e) => {
+    const S = opt.face && opt.face[FST[m]]; if (!S || !S.cols || !S.rows) return null;
+    const bal = FST[m] === 'bs', i = S.cols.findIndex((c) => Math.abs(day(c.end) - day(e)) <= 8 && (bal || c.months == null || c.months === 12) && SF.colOk(c, d.cur));
+    if (i < 0) return null;
+    const rows = []; for (const r of S.rows) { const v = SF.rowVals(S, r)[i]; if (v != null) rows.push({ tag: r.tag, label: r.label || '', v }); }
+    return rows.length ? { rows } : null;
+  };
+  // Nasdaq בדולרים לחברה שמדווחת במטבע אחר (ASML, CCEP, PDD): לכל תקופה — היחס החציוני Nasdaq ÷ שלנו על פני כל המדדים (= שער ההמרה)
+  const fxAt = { A: {}, Q: {} };
+  if (d.cur && d.cur !== 'USD' && nq) for (const kind of ['A', 'Q']) {
+    const N = nq[kind], ends = kind === 'A' ? d.fy : d.q, D = kind === 'A' ? d.A : d.Q; if (!N) continue;
+    ends.forEach((e, i) => {
+      const ni = nearEnd(N.ends, e, 20); if (ni < 0) return;
+      const rs = [];
+      for (const m of XK) { if (NOSUM.has(m) || !D[m] || !D[m][i]) continue; const v = (N.v[m === 'ni' ? 'nic' : m] || {})[N.ends[ni]]; if (v) rs.push(v / D[m][i]); }
+      rs.sort((a, b) => a - b);
+      if (rs.length >= 3) { const md = rs[rs.length >> 1]; if (Math.abs(md - 1) > 0.02 && rs.filter((x) => Math.abs(x / md - 1) <= 0.015).length >= rs.length / 2) fxAt[kind][e] = md; }
+    });
+  }
   for (const kind of ['A', 'Q']) {
     const ends = kind === 'A' ? d.fy : d.q, D = kind === 'A' ? d.A : d.Q;
     const from = Math.max(0, ends.length - (kind === 'A' ? nA : nQ));
@@ -354,7 +476,22 @@ function xcheck(d, facts, y, nq, opt = {}) {
           }
         }
         const sn = sm(nv), syRaw = sm(yv), sy = yf ? null : syRaw, yn = same(m, yv, nv, sc);
-        const ctx = { ya, nq: nqAt, sec: (t) => secAt(t, e, kind, BAL.has(m) ? null : fs0), fin, gpc: m === 'gp' && (rf === 'rev-cogs' || !d.tags.gp) };
+        // השנה בדוח המודפס: השורות שלנו (לפי התגית) מסומנות mine; printed = הערך שלנו הוא בדיוק השורה (או סכום השורות) שהחברה הדפיסה
+        // רווח נקי: מול המקורות משווים את הרווח לבעלי המניות (nic) — אז גם בדוח בודקים אותו (PNC: ‏"לבעלי המניות" המודפס ≠ התגית המדוללת שלנו)
+        const useNic = m === 'ni' && vc !== vv && d.tags.nic, ftag = useNic ? d.tags.nic : tag, fval = useNic ? vc : vv;
+        const parts = ftag ? ftag.split('+') : [], fc = kind === 'A' && !rf && ftag && !dropped ? faceAt(m, e) : null;
+        let printed = false;
+        if (fc) {
+          for (const fr of fc.rows) if (parts.includes(fr.tag)) fr.mine = true;
+          const pv = parts.map((t) => { const fr = fc.rows.find((x) => x.tag === t); return fr ? fr.v : null; });
+          printed = pv.every((v) => v != null) && (PER_SHARE.has(m) ? same(m, fval, pv[0], 0) : fsame(Math.abs(fval), pv.reduce((t, v) => t + Math.abs(v), 0)));
+          // אותו ערך בשורה אחרת של הדוח שהכותרת שלה מתאימה למדד (ASML: המזומן מודפס בתגית של "כולל מוגבל", אצלנו מהבאור באותו סכום)
+          if (!printed && parts.length === 1) printed = fc.rows.some((fr) => FLAB[m] && FLAB[m].test(fr.label) && (PER_SHARE.has(m) ? same(m, fval, fr.v, 0) : fsame(Math.abs(fval), Math.abs(fr.v))));
+        }
+        const ctx = { ya, nq: nqAt, face: fc, sec: (t) => secAt(t, e, kind, BAL.has(m) ? null : fs0), fin, gpc: m === 'gp' && (rf === 'rev-cogs' || !d.tags.gp),
+          reit: d.sic === 6798, parts: tag && /\+/.test(tag) ? tag.split('+') : null, fx: fxAt[kind][e] || null,
+          orig: () => origVals(rawAll(facts, rf ? null : tag, e, kind, cur, BAL.has(m)), vv, e, kind, BAL.has(m), m),
+          cum: () => (kind === 'Q' && !BAL.has(m) && !NOSUM.has(m) ? rawAll(facts, tag, e, kind, cur, false, true).map((x) => x.v) : []) };
         // מספר מניות שהחברה הגישה בקנה מידה שגוי ותוקן אצלנו (fixes) — SEC הגולמי פי אלף / מיליון קטן
         const fixd = sr === false && m === 'sh' && raw > 0 && [1e3, 1e6, 1e-3, 1e-6].some((f) => Math.abs(vv / raw / f - 1) < 0.02); // Waters: SEC הגולמי פי אלף גדול
         // פיצול: היחס מול מקור חיצוני = הפיצולים שאחרי התקופה (או ההפך) — אנחנו לא החלנו / החלנו פעמיים
@@ -409,18 +546,37 @@ function xcheck(d, facts, y, nq, opt = {}) {
             if (r.c === 'def') r.why = r.why || 'est';
           }
           if (why) r.why = why;
+          // אנחנו = SEC ומקור חיצוני שונה בלי שום הסבר ידוע — לא "הגדרה" עד שהוכח: לבדוק (odd).
+          // בשנה שבדוח המודפס: הערך שלנו הוא השורה שהחברה הדפיסה, והמקור לא = אנחנו ± שורה אחרת בדוח → המקור טועה / מגדיר אחרת (okd face);
+          // המקור = אנחנו ± שורה מודפסת (fline — אולי חסרה לנו שורה: Host, Zimmer); התגית שלנו לא מודפסת בדוח (nf)
+          if (r.c === 'def' && !r.why) {
+            r.c = 'odd';
+            if (fc) {
+              const un = [['y', sy, yv], ['n', sn, nv]].filter(([s, okk]) => okk === false && !ex[s]).map(([, , x]) => x);
+              const fl = !NOSUM.has(m) && un.some((x) => fc.rows.some((fr) => !fr.mine && Math.abs(fr.v) >= 0.005 * Math.abs(fval) &&
+                (fsame(Math.abs(x), Math.abs(fval) + Math.abs(fr.v)) || fsame(Math.abs(x), Math.abs(fval) - Math.abs(fr.v)))));
+              if (fl) r.why = 'fline';
+              else if (printed) { r.c = 'okd'; r.why = 'face'; }
+              else r.why = 'nf';
+            }
+          }
         }
+        if (opt.debug) r.ex = Object.fromEntries(Object.entries(ex).map(([k, x]) => [k, x ? x.id : null]));
         // הבדל קטן (0.1%–0.5%) שעבר כ־ok — לסטטיסטיקה (הגדרה קטנה, לא עיגול)
         if (r.c === 'ok' || r.c === 'okd') for (const x of [r.y, r.n]) if (x != null && !PER_SHARE.has(m) && relDiff(vc, x) > 1e-3 && relDiff(vc, x) <= 5e-3) r.near = 1;
         out.push(r);
       }
     }
   }
+  // רבעון / שנה ישנה בלי הסבר (אין דוח מודפס לבדוק מולו): אותו מקור באותו מדד הוסבר בשנים שבדוח — רמז (a:<הסבר>), עדיין odd
+  const yrEx = {};
+  for (const r of out) if (r.k === 'A' && (r.c === 'okd' || r.c === 'def') && r.why) (yrEx[r.m] = yrEx[r.m] || new Set()).add(r.why);
+  for (const r of out) if (r.c === 'odd' && !r.why && yrEx[r.m]) r.why = 'a:' + [...yrEx[r.m]].sort()[0];
   return out;
 }
 
 /* סיכום: לכל הכרעה, לכל מדד ולכל חברה; ולכל הסבר (why) */
-const PROBLEM = new Set(['bug', 'ext', 'one', 'spl', 'estx']); // לא בעיה: ok, okd, est, def, yfill, fix, none
+const PROBLEM = new Set(['bug', 'ext', 'one', 'spl', 'estx', 'odd']); // לא בעיה: ok, okd, est, def (עם הסבר), yfill, fix, none
 function summarizeX(rows) {
   const S = { n: 0, c: {}, byM: {}, why: {}, cos: {} };
   for (const { sym, x } of rows) {
@@ -434,4 +590,4 @@ function summarizeX(rows) {
   return S;
 }
 
-module.exports = { xcheck, summarizeX, parseNasdaq, parseYahooAlt, rawSeries, rawAt, rawQuarters, estimate, same, explain, XK, DEFS, YALT_TYPES, YPRIM, PROBLEM };
+module.exports = { xcheck, summarizeX, parseNasdaq, parseYahooAlt, rawSeries, rawAt, rawQuarters, estimate, same, explain, XK, DEFS, DEFS_ALL, YALT_TYPES, YPRIM, PROBLEM };
