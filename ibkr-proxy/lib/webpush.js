@@ -15,7 +15,7 @@ const SUB_MAX = 5;                 // מכשירים לאדם
 const TTL = 24 * 3600;             // שעות שההתראה מחכה לטלפון כבוי
 const ADMIN_URL = 'https://admin.thesnowball.app/';   // 20/10/2026: הכתובת של מרכז הניהול (מאחורי Cloudflare Access)
 const SUBJECT = 'https://yishaiguedj1.github.io/portfolio-pwa/';   // VAPID "sub" — כתובת ולא מייל (פרטיות)
-const KINDS = ['done', 'fail', 'ask', 'gate', 'cp', 'srv_down', 'srv_up', 'srv_auth', 'srv_new', 'site_down', 'site_up', 'major', 'bk_fail', 'ready_fail', 'lab_week', 'fund_audit'];   // 25/10/2026: fund_audit = בקרת הדיוק הלילית של מנתח החברות מצאה שמשהו נשבר (למנהל)   // 20/10/2026 (מ׳7): lab_week = הסיכום השבועי של המעבדה (למנהל)   // 15/10/2026: srv_new = שרת שהתחבר בפעם הראשונה (גם מהזמנה אוטומטית)   // 15/10/2026: למנהל — הגיבוי נכשל / בדיקת המוכנות נכשלה (נפתח במרכז הניהול)   // 14/10/2026: major = תקלה רחבה (studioinc majorSync)   // שלב 5: הכתובות עצמן (lib/sitewatch.js)   // סבב 10: cp = העתק־הדבק מחכה לך
+const KINDS = ['done', 'fail', 'ask', 'gate', 'cp', 'srv_down', 'srv_up', 'srv_auth', 'srv_new', 'site_down', 'site_up', 'major', 'bk_fail', 'ready_fail', 'lab_week', 'fund_audit', 'svc_quota'];   // 26/10/2026: svc_quota = שירות חיצוני הגיע ל־70% מהמכסה החינמית / המיילים לא נשלחים (למנהל)   // 25/10/2026: fund_audit = בקרת הדיוק הלילית של מנתח החברות מצאה שמשהו נשבר (למנהל)   // 20/10/2026 (מ׳7): lab_week = הסיכום השבועי של המעבדה (למנהל)   // 15/10/2026: srv_new = שרת שהתחבר בפעם הראשונה (גם מהזמנה אוטומטית)   // 15/10/2026: למנהל — הגיבוי נכשל / בדיקת המוכנות נכשלה (נפתח במרכז הניהול)   // 14/10/2026: major = תקלה רחבה (studioinc majorSync)   // שלב 5: הכתובות עצמן (lib/sitewatch.js)   // סבב 10: cp = העתק־הדבק מחכה לך
 const TEXT = {
   he: { done: ['התרגום מוכן ✓', 'הכתוביות והסרטון מחכים בסטודיו'], fail: ['העבודה נעצרה', 'פתחו את הסטודיו לפרטים'],
     ask: ['שאלה מ־Claude', 'העבודה מחכה לתשובה שלך'], gate: ['צריך את האישור שלך', 'העבודה מחכה לאישור'],
@@ -29,6 +29,7 @@ const TEXT = {
     ready_fail: ['בדיקת מוכנות נכשלה', 'משהו בהגדרות השתנה — מה ומה עושים, במרכז הניהול'],
     lab_week: ['סיכום השבוע במעבדה', 'מה השתנה השבוע, ואם הגרסה החדשה עזרה — במרכז הניהול'],
     fund_audit: ['נתוני החברות — משהו זז', 'הבדיקה הלילית מצאה ערך שלא תואם לדוח — מה ואיפה, במרכז הניהול'],
+    svc_quota: ['שירות מתקרב לסוף המכסה', 'אחד השירותים עבר 70% מהמכסה החינמית — מה ומה הגיבוי, במרכז הניהול'],
     test: ['ההתראות עובדות ✓', 'כך תדעו כשתרגום מוכן או כש־Claude שואל משהו'] },
   en: { done: ['Translation ready ✓', 'Subtitles and video are waiting in the studio'], fail: ['The job stopped', 'Open the studio for details'],
     ask: ['Claude has a question', 'The job is waiting for your answer'], gate: ['Your approval is needed', 'The job is waiting for approval'],
@@ -42,6 +43,7 @@ const TEXT = {
     ready_fail: ['A readiness check failed', 'Something in the setup changed — what and how to fix it, in the admin center'],
     lab_week: ['This week in the lab', 'What changed this week, and whether the new version helped — in the admin center'],
     fund_audit: ['Company data — something moved', 'The nightly check found a value that no longer matches the filing — what and where, in the admin center'],
+    svc_quota: ['A service is near its quota', 'One of the services passed 70% of its free quota — which one and its backup, in the admin center'],
     test: ['Notifications work ✓', 'You will know when a translation is ready or Claude asks something'] },
 };
 
@@ -113,7 +115,7 @@ function message(kind, jobId, lang) {
   const t = (TEXT[lang] || TEXT.he)[kind];
   if (!t) return null;
   const j = /^j[A-Za-z0-9_-]{20}$/.test(String(jobId || '')) ? jobId : '';
-  const adm = { bk_fail: 'ready', ready_fail: 'ready', lab_week: 'labWk', fund_audit: 'labFund' }[kind];   // התראות המנהל — נפתחות במרכז הניהול
+  const adm = { bk_fail: 'ready', ready_fail: 'ready', lab_week: 'labWk', fund_audit: 'labFund', svc_quota: 'svc' }[kind];   // התראות המנהל — נפתחות במרכז הניהול
   const m = { t: t[0], b: t[1], k: kind, j, u: SUBJECT + (j ? '#studio=' + j : '') };
   if (adm) m.u = ADMIN_URL + '#' + adm;
   return m;

@@ -109,7 +109,7 @@ export function emailSheet(prefill) {
   const forgot = btn('link-btn acx-link', t('accForgot'), () => busy(forgot, async () => {
     const e = em.value.trim().toLowerCase();
     if (!EMAIL_RE.test(e)) { err.textContent = t('accErrEmail'); err.hidden = false; em.focus(); return; }
-    try { await au.sendPasswordResetEmail(e, { url: backUrl() }); err.hidden = true; say(t('accResetSent')); } catch (x) { showErr(err, x); }
+    try { await sendReset(e); err.hidden = true; say(t('accResetSent')); } catch (x) { showErr(err, x); }
   }));
   async function submit() {
     const e = em.value.trim().toLowerCase();
@@ -120,7 +120,7 @@ export function emailSheet(prefill) {
     try {
       const cred = mode === 'in' ? await au.signInWithEmailAndPassword(e, pw.value) : await au.createUserWithEmailAndPassword(e, pw.value);
       if (mode === 'up' && cred && cred.user && !cred.user.emailVerified) {
-        try { await cred.user.sendEmailVerification({ url: backUrl() }); say(t('accVerifySent')); } catch (x) {}
+        try { await sendVerify(cred.user); say(t('accVerifySent')); } catch (x) {}
       }
       if (A().login) await A().login(cred && cred.user);   // העוגייה של החיבור המשותף — כמו בכניסה עם Google
       s.close();
@@ -138,19 +138,86 @@ export function emailSheet(prefill) {
   setTimeout(() => (prefill ? pw : em).focus(), 60);
 }
 
-/* קישור כניסה במייל: s = כניסה, l = הוספה לחשבון המחובר */
+/* ---------------------------------------------------------------- מיילים משלנו (26/10/2026) — קודם השרת, אחר כך Firebase
+   השרת (/api/session, lib/mailer.js) שולח מהדומיין שלנו, בחינם, עם קוד בן 6 ספרות לכניסה — בלי המגבלה של Firebase
+   (5 קישורי כניסה ביום). השרת לא ענה / אין לו שירות שליחה → השליחה של Firebase, כמו קודם (הגיבוי) */
+async function srv(body) {
+  const base = A().base ? A().base() : '';
+  if (!base) return null;
+  try {
+    const r = await fetch(base + '/api/session', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    return { status: r.status, j: await r.json().catch(() => ({})) };
+  } catch (e) { return null; }
+}
+/* הנתיב של הדף הנוכחי, לכתובת החזרה מהמייל: "/" או "/academy.html" */
+export function pagePath(p) {
+  const m = /\/([a-z][a-z-]{0,20}\.html)$/.exec(String(p || ''));
+  return m ? '/' + m[1] : '/';
+}
+/* השרת שלח? true = נשלח בשרת, 'rate' = יותר מדי, false = לא (→ Firebase) */
+async function srvSend(kind, email, extra) {
+  const r = await srv(Object.assign({ op: 'mailSend', kind, email, path: pagePath(location.pathname), lang: lang() }, extra || {}));
+  if (r && r.status === 200 && r.j && r.j.ok) return true;
+  if (r && r.status === 429) return 'rate';
+  return false;
+}
+async function sendReset(e) {
+  const sv = await srvSend('reset', e);
+  if (sv === 'rate') throw Object.assign(new Error('rate'), { code: 'auth/too-many-requests' });
+  if (sv !== true) await auth().sendPasswordResetEmail(e, { url: backUrl() });
+}
+async function sendVerify(u) {
+  const sv = await srvSend('verify', u.email || '', { idToken: await u.getIdToken() });
+  if (sv === 'rate') throw Object.assign(new Error('rate'), { code: 'auth/too-many-requests' });
+  if (sv !== true) await u.sendEmailVerification({ url: backUrl() });
+}
+
+/* כניסה במייל: s = כניסה, l = הוספה לחשבון המחובר. בשרת — מסך הקוד; ב־Firebase — קישור בלבד */
 async function sendLink(em, err, why) {
   const au = auth();
   const e = em.value.trim().toLowerCase();
   if (!EMAIL_RE.test(e)) { err.textContent = t('accErrEmail'); err.hidden = false; em.focus(); return false; }
   try {
     au.languageCode = lang();
-    await au.sendSignInLinkToEmail(e, { url: backUrl(), handleCodeInApp: true });
+    const sv = await srvSend('in', e);
+    if (sv === 'rate') { err.textContent = t('accErrMany'); err.hidden = false; return false; }
     try { localStorage.setItem(LS_LINK, JSON.stringify({ e, w: why, at: Date.now() })); } catch (x) {}
     err.hidden = true;
+    if (sv === true) { codeSheet(e, why); return true; }
+    await au.sendSignInLinkToEmail(e, { url: backUrl(), handleCodeInApp: true });
     if (typeof askAlert === 'function') askAlert(t('accLinkSent', { e })); else say(t('accLinkSent', { e }));
     return true;
   } catch (x) { showErr(err, x); return false; }
+}
+/* מסך הקוד: 6 ספרות, נשלח לבד כשהוקלדו כולן; גם הקישור שבמייל עובד */
+function codeSheet(e, why) {
+  const s = sheet(t('accCodeT'));
+  const inp = input('text', '••••••', 'one-time-code');
+  inp.inputMode = 'numeric'; inp.maxLength = 6; inp.className = 'acx-in acx-code'; inp.setAttribute('aria-label', t('accCodeT'));
+  const err = h('p', 'acx-err'); err.hidden = true; err.setAttribute('role', 'alert');
+  const go = btn('btn acx-go', t('accContinue'), () => busy(go, check));
+  async function check() {
+    const code = inp.value.replace(/\D/g, '');
+    if (code.length !== 6) { err.textContent = t('accCodeShort'); err.hidden = false; return; }
+    const r = await srv({ op: 'mailCode', email: e, code });
+    const j = (r && r.j) || {};
+    if (!j.ok || !j.oc) {
+      err.textContent = j.error === 'bad_code' ? t('accCodeBad', { n: Math.max(0, +j.left || 0) }) : j.error === 'tries' || j.error === 'expired' ? t('accCodeOld') : t('accErrNet');
+      err.hidden = false; inp.select(); return;
+    }
+    const cfg = window.FIREBASE_CONFIG || {};
+    const href = location.origin + location.pathname + '?mode=signIn&oobCode=' + encodeURIComponent(j.oc) + '&apiKey=' + encodeURIComponent(cfg.apiKey || '') + '&lang=' + lang();
+    s.close();
+    await completeLink(e, href, why);
+  }
+  inp.addEventListener('input', () => { inp.value = inp.value.replace(/\D/g, '').slice(0, 6); err.hidden = true; if (inp.value.length === 6) go.click(); });
+  const again = btn('link-btn acx-link', t('accCodeAgain'), () => busy(again, async () => {
+    const sv = await srvSend('in', e);
+    err.textContent = sv === true ? t('accCodeSent2') : sv === 'rate' ? t('accErrMany') : t('accErrNet'); err.hidden = false;
+  }));
+  const sub = h('p', 'acx-note acx-q'); sub.textContent = t('accCodeSub', { e });
+  s.body.append(sub, inp, err, go, again);
+  setTimeout(() => inp.focus(), 60);
 }
 
 /* ---------------------------------------------------------------- חזרה מהקישור שבמייל */
@@ -170,9 +237,14 @@ export async function finishLink(typed) {
   if (!EMAIL_RE.test(e)) { askEmailForLink(); return; }           // נפתח במכשיר אחר — שואלים לאיזה מייל נשלח
   const href = location.href;
   cleanUrl();                                   // לפני הכניסה: מעבר בעלים טוען את הדף מחדש, והקוד בכתובת כבר שומש
+  await completeLink(e, href, saved && saved.e === e ? saved.w : 's');
+}
+/* הכניסה עצמה — מהקישור שבמייל או מהקוד (אותו oobCode): w = 'l' → הוספה לחשבון המחובר (ומיזוג אם צריך), אחרת כניסה */
+async function completeLink(e, href, w) {
+  const au = auth();
   const cur = au.currentUser || await firstUser(au);
   try {
-    if (cur && saved && saved.w === 'l' && saved.e === e) {
+    if (cur && w === 'l') {
       try { await cur.linkWithCredential(fb().auth.EmailAuthProvider.credentialWithLink(e, href)); say(t('accLinked')); }
       catch (x) {
         if (/credential-already-in-use|email-already-in-use/.test(String(x && x.code))) await mergeWith({ link: { e, href } }, e);
@@ -182,6 +254,8 @@ export async function finishLink(typed) {
       A().busy && A().busy(true);
       const cred = await au.signInWithEmailLink(e, href);
       if (A().login) await A().login(cred && cred.user);
+      const ov = document.getElementById('loginOverlay');
+      if (ov && ov.classList.contains('sa')) ov.remove();
     }
     try { localStorage.removeItem(LS_LINK); } catch (x) {}
   } catch (x) {
@@ -238,7 +312,7 @@ export function methodsSheet() {
   s.body.append(list);
   if (!M.verified && M.email) {
     const vb = btn('link-btn acx-link', t('accVerifyNow'), () => busy(vb, async () => {
-      try { await u.sendEmailVerification({ url: backUrl() }); say(t('accVerifySent')); } catch (x) { if (typeof askAlert === 'function') askAlert(t(errKey(x && x.code) || 'accErrGen')); }
+      try { await sendVerify(u); say(t('accVerifySent')); } catch (x) { if (typeof askAlert === 'function') askAlert(t(errKey(x && x.code) || 'accErrGen')); }
     }));
     s.body.append(vb);
   }
@@ -248,7 +322,7 @@ export function methodsSheet() {
   if (M.mail == null) add.append(withIc(btn('google-btn acx-g mail-btn', t('accAddMail'), () => addMailSheet(u)), MAIL_IC));
   else if (M.mail) {
     const rp = btn('link-btn acx-link', t('accChangePw'), () => busy(rp, async () => {
-      try { await au.sendPasswordResetEmail(M.mail, { url: backUrl() }); say(t('accResetSent')); } catch (x) { if (typeof askAlert === 'function') askAlert(t(errKey(x && x.code) || 'accErrGen')); }
+      try { await sendReset(M.mail); say(t('accResetSent')); } catch (x) { if (typeof askAlert === 'function') askAlert(t(errKey(x && x.code) || 'accErrGen')); }
     }));
     add.append(rp);
   }
@@ -282,7 +356,7 @@ function addMailSheet(u) {
     const cred = fb().auth.EmailAuthProvider.credential(e, pw.value);
     try {
       await u.linkWithCredential(cred);
-      if (!u.emailVerified) { try { await u.sendEmailVerification({ url: backUrl() }); } catch (x) {} }
+      if (!u.emailVerified) { try { await sendVerify(u); } catch (x) {} }
       say(t('accLinked')); s.close(); methodsSheet();
     } catch (x) {
       if (/credential-already-in-use|email-already-in-use/.test(String(x && x.code))) { s.close(); await mergeWith({ cred }, e); return; }
@@ -357,7 +431,7 @@ async function mergeWith(who, label) {
     if (who.cred) await me.linkWithCredential(who.cred).catch(() => null);
     else if (who.link) {
       try { localStorage.setItem(LS_LINK, JSON.stringify({ e: who.link.e, w: 'l', at: Date.now() })); } catch (x) {}
-      await au.sendSignInLinkToEmail(who.link.e, { url: backUrl(), handleCodeInApp: true }).catch(() => null);
+      if ((await srvSend('in', who.link.e)) !== true) await au.sendSignInLinkToEmail(who.link.e, { url: backUrl(), handleCodeInApp: true }).catch(() => null);
     }
     const done = () => location.reload();               // הנתונים הממוזגים נטענים מהענן
     const msg = who.link ? t('accMergedLink') : keep === 'both' ? t('accMerged') : t('accMergedKeep');
