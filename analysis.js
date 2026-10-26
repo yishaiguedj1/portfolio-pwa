@@ -614,10 +614,24 @@ function spark(host, vals, color, line, opt = {}) {
     sv('path', { d: d + `L${L[0].toFixed(1)},${H}L${pts[0][0].toFixed(1)},${H}Z`, fill: `url(#${id})`, class: 'an-area' }, svg);
     sv('path', { d, fill: 'none', stroke: color, 'stroke-width': opt.sw || 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', 'vector-effect': 'non-scaling-stroke', pathLength: 1, class: 'an-draw' }, svg);
     if (!opt.noDot) { const dot = h('i', { class: 'an-dot', style: `left:${(L[0] / W * 100).toFixed(1)}%;top:${(L[1] / H * 100).toFixed(1)}%;background:${color};--an-dc:${color}` }); host.append(dot); }
+    if (opt.peak) { const P = pts.reduce((m, q) => (q[1] < m[1] ? q : m), pts[0]);   // השיא = ה־y הנמוך ביותר
+      if (P !== L) host.append(h('span', { class: 'an-ptag', style: `left:${(P[0] / W * 100).toFixed(1)}%;top:${(P[1] / H * 100).toFixed(1)}%` }, opt.peak)); }
+    sparkAxis(host, opt, L[0] / W, L[1] / H);
     return;
   }
   const bw = band * 0.62;
-  v.forEach((x, i) => { if (x == null) return; const y1 = y(Math.max(x, 0)), y2 = y(Math.min(x, 0)); sv('rect', { x: i * band + (band - bw) / 2, y: y1, width: bw, height: Math.max(1.5, y2 - y1), rx: Math.min(3, bw / 2), fill: color, opacity: i === n - 1 ? 1 : 0.4, class: 'an-bar', style: `--an-bi:${i}` }, svg); });
+  let last = null, first = null;
+  v.forEach((x, i) => { if (x == null) return; const y1 = y(Math.max(x, 0)), y2 = y(Math.min(x, 0)); last = [i * band + band / 2, y1]; if (!first) first = last; sv('rect', { x: i * band + (band - bw) / 2, y: y1, width: bw, height: Math.max(1.5, y2 - y1), rx: Math.min(3, bw / 2), fill: color, opacity: i === n - 1 ? 1 : 0.4, class: 'an-bar', style: `--an-bi:${i}` }, svg); });
+  if (first && opt.tag0 && first !== last) host.append(h('span', { class: 'an-vtag an-vtag0', style: `left:${(first[0] / W * 100).toFixed(1)}%;top:${(first[1] / H * 100).toFixed(1)}%` }, opt.tag0));
+  if (last) sparkAxis(host, opt, last[0] / W, last[1] / H);
+}
+/* מתחת לגרף: השנה הראשונה והאחרונה; מעל הנקודה האחרונה — הערך שלה */
+function sparkAxis(host, opt, fx, fy) {
+  if (opt.tag) host.append(h('span', { class: 'an-vtag', style: `left:${(fx * 100).toFixed(1)}%;top:${(fy * 100).toFixed(1)}%` }, opt.tag));
+  if (opt.labels) {
+    const nx = host.nextElementSibling; if (nx && nx.classList.contains('an-axis')) nx.remove();
+    host.after(h('div', { class: 'an-axis' }, h('span', {}, opt.labels[0]), h('span', {}, opt.labels[1])));
+  }
 }
 
 /* ---------- עזרי DOM ---------- */
@@ -689,9 +703,9 @@ function rowSummary(co, def) {
   }
   const k = def.s[0], m = M[k], per = periodList(co, 'fy'), last = mval(co, k, per[per.length - 1]);
   if (def.s.length > 1) return { v: '', s: def.s.map((x) => T(M[x].n)).join(' · ') };
-  if (m.ratio) { const a = mean(fyList(co).slice(-5).map((p) => mval(co, k, p))); return { v: fmt(last, m.u, co), s: a != null ? T('anAvg5v', { v: strip(fmt(a, m.u, co)) }) : '' }; }
+  if (m.ratio) { const a = mean(fyList(co).slice(-5).map((p) => mval(co, k, p))); return { v: fmt(last, m.u, co), s: a != null ? T('anAvg5v', { v: fmt(a, m.u, co) }) : '' }; }
   const [g, n] = cagrN(co, k, 5);
-  return { v: fmt(last, m.u, co), s: g != null ? T('anCagrRow', { n, v: strip(sgn(g)) }) : m.q ? T(m.q) : '' };
+  return { v: fmt(last, m.u, co), s: g != null ? T('anCagrRow', { n, v: sgn(g) }) : '' };
 }
 
 /* ---------- המסך ---------- */
@@ -841,7 +855,9 @@ function header(co) {
   // 10 שנים של מחיר (חודשי) — רקע גרפי לראש המסך
   const px = co.px && co.px.c ? co.px.c.slice(-121).filter((x) => x != null) : [], p0 = px[0], ch10 = p0 > 0 && px.length > 24 ? co.price / p0 - 1 : null;
   const yrs = Math.round(px.length / 12), chart = h('div', { class: 'an-pxc' });
-  if (ch10 != null) S.after.push(() => spark(chart, px.concat(co.price), ch10 >= 0 ? cssv('good') : cssv('bad'), true, { w: 340, h: 64, sw: 2, px: 10 }));
+  const pt = co.px && co.px.t ? co.px.t.slice(-121) : [], hiPx = px.length ? Math.max(...px, co.price) : null;
+  if (ch10 != null) S.after.push(() => spark(chart, px.concat(co.price), ch10 >= 0 ? cssv('good') : cssv('bad'), true,
+    { w: 340, h: 64, sw: 2, px: 10, labels: pt.length ? [pt[0].slice(0, 4), T('anToday')] : null, peak: hiPx ? T('anPeak', { v: strip(fmt(hiPx, 'ps', co, 0)) }) : null }));
   const seg = h('div', { class: 'an-seg an-seg-main', role: 'tablist' }, h('span', { class: 'an-seg-th', 'aria-hidden': 'true' }), ...[['snap', T('anTabSnap')], ['rep', T('anTabRep')], ['val', T('anTabVal')], ['cmp', T('anTabCmp')]].map(([k, tt]) =>
     h('button', { type: 'button', role: 'tab', 'data-k': k, 'aria-selected': String(S.tab === k), 'aria-pressed': String(S.tab === k), on: { click: () => go(k) } }, tt)));
   S.after.push(() => segThumb(seg));
@@ -894,16 +910,18 @@ const ICONS = {
   profit: 'M12 3v18M16.5 7.5c0-1.7-2-3-4.5-3s-4.5 1.3-4.5 3 2 2.6 4.5 3 4.5 1.3 4.5 3-2 3-4.5 3-4.5-1.3-4.5-3',
   safe: 'M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z',
 };
+const multClean = (a, k) => a.map((x) => (x > 0 && x < (k === 'pe' ? 150 : 300) ? x : null));
 const icon = (k) => { const s0 = sv('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' }); sv('path', { d: ICONS[k], fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, s0); return s0; };
 function keyTiles(co) {
   const c = ctx(co, nowP(co)), H = multHist(co), pe = c.eps > 0 ? co.price / c.eps : null, peMed = median(H.pe.filter((x) => x > 0 && x < 150));
+  const fyl = fyList(co).slice(-10), yr = fyl.length ? [fyl[0].label, fyl[fyl.length - 1].label] : null, ht = H.t.slice(-120), pyr = ht.length ? [ht[0].slice(0, 4), T('anToday')] : null;
   const [g5, n5] = cagrN(co, 'rev', 5), lev = c.ebitda > 0 && c.netcash != null ? -c.netcash / c.ebitda : null, cs = curSym(co.cur);
   return [
-    ['value', 'c1', fmt(pe, 'x', co, 1), peMed ? T('anKHValue', { v: strip(fmt(peMed, 'x', co, 1)) }) : T('anKHValue0'), H.pe.slice(-120), true],
-    ['growth', 'c1', sgn(g5), T('anKHGrowth', { n: n5 || 5 }), fyVals(co, 'rev', 10), false],
-    ['profit', 'c1', pct(c.roic, 0), c.roic != null ? T('anKHProfit', { v: iso(cs + Math.round(c.roic * 100)), c: iso(cs + '100') }) : T('anKHProfit0'), fyVals(co, 'roic', 10), true],
-    ['safe', c.netcash >= 0 ? 'c1' : 'c4', c.netcash >= 0 ? fmt(c.netcash, 'money', co) : lev != null ? iso(lev.toFixed(1) + '×') : '—',
-      c.netcash >= 0 ? T('anKHCash') : T('anKHDebt'), fyVals(co, 'netcash', 10), false],
+    ['value', 'c1', fmt(pe, 'x', co, 1), peMed ? T('anKHValue', { v: strip(fmt(peMed, 'x', co, 1)) }) : T('anKHValue0'), multClean(H.pe.slice(-120), 'pe'), true, pyr],
+    ['growth', 'c1', sgn(g5), T('anKHGrowth', { n: n5 || 5 }), fyVals(co, 'rev', 10), false, yr],
+    ['profit', 'c1', pct(c.roic, 0), c.roic != null ? T('anKHProfit', { v: iso(cs + Math.round(c.roic * 100)), c: iso(cs + '100') }) : T('anKHProfit0'), fyVals(co, 'roic', 10), true, yr],
+    ['safe', lev != null && lev >= 3 ? 'c4' : 'c1', c.netcash >= 0 ? fmt(c.netcash, 'money', co) : lev != null ? iso(lev.toFixed(1) + '×') : '—',
+      c.netcash >= 0 ? T('anKHCash') : T('anKHDebt'), fyVals(co, 'netcash', 10), false, yr],
   ];
 }
 function factsEl(co) {
@@ -920,12 +938,12 @@ function pageSnap(co, pg) {
   const C = checks(co, MAC);
   pg.append(factsEl(co));
   const keys = h('div', { class: 'an-keys' });
-  for (const [k, col, v, hint, hist, line] of keyTiles(co)) {
+  for (const [k, col, v, hint, hist, line, yl] of keyTiles(co)) {
     const sp = h('div', { class: 'an-key-sp' });
     keys.append(h('button', { class: 'an-key', type: 'button', style: `--an-k:var(--an-${col})`, 'aria-label': C[k].n + ' — ' + strip(v), on: { click: () => checkSheet(k) } },
       h('span', { class: 'an-key-l' }, h('span', { class: 'an-key-ic' }, icon(k)), C[k].n, h('span', { class: 'an-chev' })),
       h('b', {}, v), h('span', { class: 'an-key-s' }, hint), sp));
-    S.after.push(() => spark(sp, hist, cssv(col), line, { w: 140, h: 30, noDot: !line, px: 10 }));
+    S.after.push(() => spark(sp, hist, cssv(col), line, { w: 140, h: 40, noDot: !line, px: 10, labels: yl }));
   }
   pg.append(keys);
   // הדוחות: האחרון, הבא, והתחזיות בתת־עמוד
@@ -948,20 +966,26 @@ function pageRep(co, pg) {
   pg.append(h('div', { class: 'an-seg sm', role: 'group', 'aria-label': T('anTabRep') }, ...[['is', T('anRIs')], ['bs', T('anRBs')], ['cf', T('anRCf')], ['rt', T('anRRt')]].map(([k, tt]) =>
     h('button', { type: 'button', 'aria-pressed': String(S.rsub === k), on: { click: () => { S.rsub = k; render(); } } }, tt))));
   if (co.flags.some((f) => !FL_INFO.has(f.k))) pg.append(h('button', { class: 'an-note an-note-btn', type: 'button', on: { click: flagSheet } }, T('anFlags', { n: new Set(co.flags.filter((f) => !FL_INFO.has(f.k)).map((f) => f.p)).size }), h('span', { class: 'an-chev' })));
-  const list = h('div', { class: 'an-list' });
+  // אריח לכל מדד (שניים בשורה, כמו הסיכום של Health): שם, הסבר, ערך, צמיחה, גרף רחב עם השנים וערך ההתחלה
+  const grid = h('div', { class: 'an-mgrid' });
   for (const r of ROWS[S.rsub]) {
-    const def = rowDef(r), sm = rowSummary(co, def), sp = h('div', { class: 'an-spark' });
+    const def = rowDef(r), sm = rowSummary(co, def), sp = h('div', { class: 'an-mtsp' });
     const hint = rowHint(def) || (!sm.v ? sm.s : '');
-    list.append(h('button', { class: 'an-mrow', type: 'button', on: { click: () => chartSheet(def) } },
-      h('div', { class: 'an-mt' }, h('b', {}, def.n), hint ? h('span', { class: 'an-hint' }, hint) : null), sp,
-      h('div', { class: 'an-mv2' }, sm.v ? h('b', {}, sm.v) : null, sm.v && sm.s ? h('small', {}, sm.s) : null), h('span', { class: 'an-chev' })));
+    grid.append(h('button', { class: 'an-mtile', type: 'button', on: { click: () => chartSheet(def) } },
+      h('span', { class: 'an-mtile-n' }, def.n, h('span', { class: 'an-chev' })), hint ? h('span', { class: 'an-hint' }, hint) : null,
+      sm.v ? h('b', {}, sm.v) : null, sm.v && sm.s ? h('small', {}, sm.s.split('|').join(' · ')) : null, sp));
     S.after.push(() => {
-      if (def.line) { spark(sp, multHist(co)[def.line[1]].slice(-60), cssv(def.line[2]), true, { w: 64, h: 30, noDot: true }); return; }
-      const d = seriesFor(co, def, { mode: 'fy', range: '5', view: 'v' });
-      spark(sp, d.series[0].vals, d.series[0].color, false, { w: 64, h: 30 });
+      if (def.line) {
+        const Hh = multHist(co), t = Hh.t.slice(-60);
+        spark(sp, multClean(Hh[def.line[1]].slice(-60), def.line[1]), cssv(def.line[2]), true, { w: 150, h: 54, px: 6, labels: t.length ? [t[0].slice(0, 4), T('anToday')] : null });
+        return;
+      }
+      const d = seriesFor(co, def, { mode: 'fy', range: '5', view: 'v' }), s0 = d.series[0], i0 = s0.vals.findIndex((x) => x != null);
+      spark(sp, s0.vals, s0.color, false, { w: 150, h: 54, labels: [d.labels[Math.max(0, i0)], d.labels[d.labels.length - 1]],
+        tag0: i0 >= 0 && s0.vals.length > 1 ? strip(fmt(s0.vals[i0], d.unit, co)) : null });
     });
   }
-  pg.append(h('section', { class: 'an-card an-card-list' }, list));
+  pg.append(grid);
 }
 
 /* --- שווי --- */
