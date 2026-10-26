@@ -239,6 +239,7 @@ ok(fr.rf === 0.05 && fr.rfDate === '2026-10-23' && near(fr.rf5, 0.0505, 1e-6), '
 const tr = F.parseTreasury('Date,"1 Mo","10 Yr","30 Yr"\n10/23/2026,4.11,5.00,5.33\n10/22/2026,4.11,4.96,5.29\n');
 ok(tr.length === 2 && tr[1][0] === '2026-10-23' && tr[1][1] === 5, 'Treasury: עמודת 10 Yr ותאריך ISO');
 ok(F.industryFor('Internet Content & Information') === 'Software (Internet)' && F.industryFor('Packaged Foods') === 'Food Processing' && F.industryFor('???') === 'Total Market (without financials)', 'ענף Damodaran לפי הענף של Yahoo');
+ok(F.industryFor('Beverages - Non - Alcoholic') === 'Beverage (Soft)' && F.industryFor('Beverages—Non-Alcoholic') === 'Beverage (Soft)' && F.industryFor('Beverages - Brewers') === 'Beverage (Alcoholic)', 'קוקה־קולה = משקאות קלים (Yahoo כותב היום "Non - Alcoholic")');
 ok(JSON.stringify(F.parsePeers({ finance: { result: [{ recommendedSymbols: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => ({ symbol: 'S' + i })) }] } }, 'X')) === '["S1","S2","S3","S4","S5","S6"]' && F.parsePeers(null, 'X').length === 0, 'parsePeers: עד 6, ותשובה ריקה = רשימה ריקה');
 const dmd = require(path.join(root, 'ibkr-proxy/lib/damodaran.json'));
 ok(dmd.erp > 0.02 && dmd.erp < 0.08 && dmd.crpIL > 0 && Object.keys(dmd.ind).length > 80, 'damodaran.json: פרמיית שוק, פרמיית ישראל ויותר מ־80 ענפים');
@@ -355,5 +356,16 @@ ${row('ro', 'us-gaap_Revenues', 'Revenue', ['36,274'])}</table>`);
   r = await call({ op: 'macro' });
   ok(r.code === 200 && r.body.rf === 0.05 && r.body.rfSrc === 'US Treasury' && r.body.erp === dmd.erp && r.body.ind['Software (Internet)'], 'op:macro — FRED נפל → Treasury; פרמיות וענפים');
   ok(!calls.some((u) => /portfolio|uid|token/i.test(u)), 'שום פנייה החוצה לא נושאת מידע של המשתמש');
+  // היסטוריה ארוכה (JPM מ־1984): ‏range=max מחזיר נרות של 3 חודשים — בקשה נוספת ל־25 שנה בחודשים, הפיצולים מהמלאה
+  const seen = [];
+  global.fetch = async (url) => {
+    const u = String(url); seen.push(u);
+    const J = (o) => ({ status: 200, ok: true, headers: { get: () => null }, json: async () => o, text: async () => JSON.stringify(o) });
+    const ts = (n, step) => Array.from({ length: n }, (_, i) => 1e9 + i * step);
+    if (u.includes('range=max')) return J({ chart: { result: [{ meta: { currency: 'USD', dataGranularity: '3mo' }, timestamp: ts(10, 7776000), indicators: { quote: [{ close: ts(10, 1).map(() => 10) }] }, events: { splits: { a: { date: 900000000, numerator: 2, denominator: 1 } } } }] } });
+    return J({ chart: { result: [{ meta: { currency: 'USD', dataGranularity: '1mo' }, timestamp: ts(30, 2629800), indicators: { quote: [{ close: ts(30, 1).map(() => 12) }] } }] } });
+  };
+  const ym = await F.yahooMonthly('JPM');
+  ok(seen.length === 2 && /period1=\d+&period2=\d+&interval=1mo/.test(seen[1]) && ym.px.t.length === 30 && ym.px.c[0] === 12 && ym.splits.length === 1, 'מחירים חודשיים גם לחברה ותיקה — והפיצולים נשמרים');
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });

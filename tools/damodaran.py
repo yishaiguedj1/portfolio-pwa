@@ -2,7 +2,8 @@
 """מחולל ibkr-proxy/lib/damodaran.json — נתוני הענפים של Damodaran (NYU) למחשבון הערכת השווי.
 
 מקור: https://pages.stern.nyu.edu/~adamodar/ (חינם, "no strings attached"; ייחוס מבוקש — מוצג באפליקציה).
-מה נלקח: בטא לא ממונפת מתוקנת למזומן (betas.xls), שולי רווח (margin.xls), מכפילים (pedata.xls),
+מה נלקח: בטא לא ממונפת מתוקנת למזומן וגם הממונפת (betas.xls — הממונפת לבנקים וביטוח, שם החוב הוא חומר הגלם),
+שולי רווח (margin.xls), מכפילים (pedata.xls), מכפיל ההון ותשואה על ההון (pbvdata.xls),
 ופרמיית הסיכון של ישראל (ctrypremXXX.xlsx — הקובץ האחרון; מתעדכן בינואר, אפריל ויולי).
 פרמיית השוק האמריקאית (ERP) מתעדכנת כל חודש — עדכון ידני של ERP/ERP_DATE למטה, מ־ERPbymonth.xlsx.
 
@@ -16,7 +17,7 @@
 import json, os, sys, urllib.request, datetime as dt
 
 BASE = 'https://pages.stern.nyu.edu/~adamodar/pc/datasets/'
-FILES = ['betas.xls', 'margin.xls', 'pedata.xls']
+FILES = ['betas.xls', 'margin.xls', 'pedata.xls', 'pbvdata.xls']
 CTRY = 'ctrypremJuly26.xlsx'          # הקובץ הרבעוני האחרון — להחליף כשיוצא חדש
 ERP = 0.042                           # ERPbymonth.xlsx — ERP מרומז, 1/10/2026
 ERP_DATE = '2026-10-01'
@@ -85,12 +86,13 @@ def israel(path):
 def main():
   d = sys.argv[sys.argv.index('--dir') + 1] if '--dir' in sys.argv else os.path.join(os.path.dirname(OUT), '.damodaran')
   os.makedirs(d, exist_ok=True)
-  beta = table(fetch('betas.xls', d), {'bu': 'Unlevered beta corrected', 'n': 'Number of firms'})
+  beta = table(fetch('betas.xls', d), {'bu': 'Unlevered beta corrected', 'bl': 'Beta', 'n': 'Number of firms'})
   marg = table(fetch('margin.xls', d), {'gm': 'Gross Margin', 'om': 'Pre-tax Unadjusted Operating', 'nm': 'Net Margin', 'sbc': 'Stock-Based Compensation'})
   pe = table(fetch('pedata.xls', d), {'fpe': 'Forward PE', 'ape': 'Aggregate Mkt Cap/ Trailing', 'g5': 'Expected growth'})
+  pbv = table(fetch('pbvdata.xls', d), {'pbv': 'PBV', 'roe': 'ROE'})
   ind = {}
   for n, b in beta.items():
-    r = dict(b); r.update(marg.get(n, {})); r.update(pe.get(n, {}))
+    r = dict(b); r.update(marg.get(n, {})); r.update(pe.get(n, {})); r.update(pbv.get(n, {}))
     r['n'] = int(r['n']) if r.get('n') else None
     ind[n] = r
   il = {}

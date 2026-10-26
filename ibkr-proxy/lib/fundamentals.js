@@ -567,8 +567,19 @@ function parseMonthly(j) {
   return { px: t.length ? { t, c } : null, splits, div };
 }
 async function yahooMonthly(sym) {
-  const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym) + '?range=max&interval=1mo&events=split';
-  return parseMonthly(await getJson(url, { headers: { 'User-Agent': UA } }));
+  const base = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym);
+  const j = await getJson(base + '?range=max&interval=1mo&events=split', { headers: { 'User-Agent': UA } });
+  const m = parseMonthly(j), r = j && j.chart && j.chart.result && j.chart.result[0];
+  // היסטוריה ארוכה מאוד (JPM מ־1984, KO…): ב־range=max ‏Yahoo מוריד לנרות של 3 חודשים — מכפילי ה־10 שנים יוצאים דלים.
+  // אז עוד בקשה ל־25 השנים האחרונות בחודשים; הפיצולים נשארים מהבקשה המלאה
+  if (r && r.meta && r.meta.dataGranularity && r.meta.dataGranularity !== '1mo') {
+    const now = Math.floor(Date.now() / 1000);
+    try {
+      const m2 = parseMonthly(await getJson(base + '?period1=' + (now - 25 * 31557600) + '&period2=' + now + '&interval=1mo', { headers: { 'User-Agent': UA } }));
+      if (m2.px && m2.px.t.length > (m.px ? m.px.t.filter((x) => x >= m2.px.t[0]).length : 0)) m.px = m2.px;
+    } catch (e) { /* נשארים עם הרבעוניים */ }
+  }
+  return m;
 }
 
 /* ---------- Yahoo: מניות "דומות" (מי שצפה בזו צפה גם ב…) — מועמדים לעמיתים; הסינון לפי ענף/סקטור בטלפון ---------- */
@@ -620,7 +631,7 @@ const IND = [
   [/banks.*diversified/i, 'Bank (Money Center)'], [/banks/i, 'Banks (Regional)'], [/insurance.*life/i, 'Insurance (Life)'], [/insurance.*property/i, 'Insurance (Prop/Cas.)'],
   [/insurance/i, 'Insurance (General)'], [/asset management/i, 'Investments & Asset Management'], [/capital markets/i, 'Brokerage & Investment Banking'],
   [/credit services|financial/i, 'Financial Svcs. (Non-bank & Insurance)'], [/reit/i, 'R.E.I.T.'], [/real estate.*develop/i, 'Real Estate (Development)'], [/real estate/i, 'Real Estate (Operations & Services)'],
-  [/packaged foods|confectioners|food distribution/i, 'Food Processing'], [/grocery/i, 'Retail (Grocery and Food)'], [/beverages.*non-alcoholic/i, 'Beverage (Soft)'],
+  [/packaged foods|confectioners|food distribution/i, 'Food Processing'], [/grocery/i, 'Retail (Grocery and Food)'], [/beverages.*non\s*-\s*alcoholic/i, 'Beverage (Soft)'],
   [/beverages/i, 'Beverage (Alcoholic)'], [/tobacco/i, 'Tobacco'], [/household/i, 'Household Products'], [/discount stores|department stores/i, 'Retail (General)'],
   [/specialty retail|apparel retail|home improvement/i, 'Retail (Special Lines)'], [/restaurants/i, 'Restaurant/Dining'], [/apparel|footwear/i, 'Apparel'],
   [/auto manufacturers/i, 'Auto & Truck'], [/auto parts/i, 'Auto Parts'], [/aerospace|defense/i, 'Aerospace/Defense'], [/airlines/i, 'Air Transport'],
@@ -802,5 +813,5 @@ async function handle(body, res) {
   return res.status(200).json({ ...v, indData: industryData(v.ind) });
 }
 
-module.exports = { handle, fundamentals, macro, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
+module.exports = { handle, fundamentals, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
   industryFor, industryData, _cache: cache };
