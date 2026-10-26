@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1155 מפתחות מתוך 4565) */
+/* המחרוזות של admin (1156 מפתחות מתוך 4567) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -276,6 +276,7 @@ he: {
   "admFaK_other": "בדיקה אחרת",
   "admFaK_part": "חלק גדול מהשלם",
   "admFaK_q4": "הרבעונים לא מסתכמים לשנה",
+  "admFaK_qeps": "רבעון רביעי — כפי שהחברה פרסמה",
   "admFaK_qneg": "רבעון שלילי חשוד",
   "admFaK_rst": "החברה הציגה מחדש (מטופל)",
   "admFaK_scale": "קנה מידה חשוד",
@@ -1433,6 +1434,7 @@ en: {
   "admFaK_other": "Other check",
   "admFaK_part": "Part larger than the whole",
   "admFaK_q4": "Quarters don’t add up to the year",
+  "admFaK_qeps": "Q4 — as the company announced",
   "admFaK_qneg": "Suspicious negative quarter",
   "admFaK_rst": "Restated by the company (handled)",
   "admFaK_scale": "Suspicious scale",

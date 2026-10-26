@@ -321,16 +321,39 @@ function normalizeSec(facts, splits = [], face = null) {
   // רווח למניה ברבעון רביעי = רווח לבעלי המניות ÷ ממוצע המניות של הרבעון (לא חיסור — רווח למניה לא מצטבר; מסומן כנגזר).
   // ממוצע המניות ברבעון הרביעי (26/10/2026): ממוצע השנה ≈ ממוצע ארבעת הרבעונים, כך שהרביעי ≈ 4 × השנה פחות שלושת
   // האחרים — חברה שקונה מניות חוזרות מקבלת ברבעון האחרון פחות מניות מהממוצע השנתי. רחוק מ־12% מהשנה = ממוצע השנה
+  // מספר מניות שהוגש בקנה מידה שגוי (McDonald's: ‏716.4 "מניות" במקום 716.4 מיליון — טעות של החברה, מהסוג שחוקי DQC תופסים).
+  // לפני חישוב הרבעון הרביעי — אחרת הוא נגזר מהשנה השגויה (רווח למניה של מיליונים):
+  // רווח נקי ÷ רווח למניה = מספר המניות. פער של פי אלף / מיליון בדיוק (±15%) — מתקנים ורושמים.
+  const fixes = [];
+  for (const [D, ends] of [[A, fyEnds], [Q, qEnds]]) for (const e of ends) {
+    const sh = D.sh[e], eps = D.eps[e], ni = (D.nic && D.nic[e] != null ? D.nic[e] : D.ni[e]);
+    if (!(sh > 0) || !eps || !ni) continue;
+    const r = Math.abs(ni / eps) / sh;
+    for (const f of [1e3, 1e6]) if (Math.abs(r / f - 1) < 0.15) { D.sh[e] = sh * f; if (D === A) fixes.push({ m: 'sh', p: e, x: f }); }
+  }
+  // רשת ביטחון: ממוצע מניות ברבעון שרחוק פי 50 ויותר מהשנה (אחרי תיקון קנה המידה) = לא פיצול, טעות תיוג —
+  // נזרק ומחושב כמו רבעון חסר
+  const yearAt = (e) => [...yearOf].find(([e2, s2]) => e > s2 && e <= e2);
+  for (const e of qEnds) {
+    const y = yearAt(e), as = y && A.sh[y[0]];
+    if (Q.sh[e] > 0 && as > 0 && (Q.sh[e] / as > 50 || as / Q.sh[e] > 50)) Q.sh[e] = null;
+  }
   for (const e of qEnds) {
     if (Q.sh[e] == null) {
-      const s = [...yearOf].find(([e2, s2]) => e > s2 && e <= e2), as = s && A.sh[s[0]];
+      const s = yearAt(e), as = s && A.sh[s[0]];
       if (as != null) {
         const qs = s[0] === e ? qEnds.filter((q) => q > s[1] && q < e && Q.sh[q] > 0) : [];
         const est = qs.length === 3 ? 4 * as - qs.reduce((t, q) => t + Q.sh[q], 0) : null;
         Q.sh[e] = est != null && Math.abs(est / as - 1) <= 0.12 ? est : as;
       }
     }
-    const niq = Q.nic && Q.nic[e] != null ? Q.nic[e] : Q.ni[e];
+    // החלק של הרווח שבבסיס הרווח למניה (אחרי דיבידנד בכורה, התאמות דילול) — לפי השנה כפי שהחברה הציגה אותה:
+    // רווח למניה × מניות ÷ רווח נקי. P&G: הרווח "לבעלי המניות" בתגית הוא הבסיסי, והמדולל מחזיר את הבכורה — 1.23 במקום 1.26
+    // הבסיס = הרווח לבעלי המניות הרגילות כשיש (בנקים: אחרי דיבידנד בכורה שמשתנה מרבעון לרבעון — Bank of America), אחרת הרווח הנקי
+    const nicq = Q.nic && Q.nic[e] != null, y = yearAt(e);
+    let niq = nicq ? Q.nic[e] : Q.ni[e];
+    const an = y && (nicq && A.nic && A.nic[y[0]] ? A.nic[y[0]] : A.ni[y[0]]), yr = y && an ? A.eps[y[0]] * A.sh[y[0]] / an : null;
+    if (y && y[0] === e && niq != null && yr > 0.8 && yr < 1.2) niq *= yr;
     if (Q.eps[e] == null && niq != null && Q.sh[e]) { Q.eps[e] = Math.round(niq / Q.sh[e] * 100) / 100; (derived.eps = derived.eps || []).push(e); }
   }
   // מניות חסרות (דיווח לפי סוגי מניות): רווח נקי ÷ רווח למניה
@@ -360,15 +383,6 @@ function normalizeSec(facts, splits = [], face = null) {
         }
       }
     }
-  }
-  // מספר מניות שהוגש בקנה מידה שגוי (McDonald's: ‏716.4 "מניות" במקום 716.4 מיליון — טעות של החברה, מהסוג שחוקי DQC תופסים):
-  // רווח נקי ÷ רווח למניה = מספר המניות. פער של פי אלף / מיליון בדיוק (±15%) — מתקנים ורושמים.
-  const fixes = [];
-  for (const [D, ends] of [[A, fyEnds], [Q, qEnds]]) for (const e of ends) {
-    const sh = D.sh[e], eps = D.eps[e], ni = (D.nic && D.nic[e] != null ? D.nic[e] : D.ni[e]);
-    if (!(sh > 0) || !eps || !ni) continue;
-    const r = Math.abs(ni / eps) / sh;
-    for (const f of [1e3, 1e6]) if (Math.abs(r / f - 1) < 0.15) { D.sh[e] = sh * f; if (D === A) fixes.push({ m: 'sh', p: e, x: f }); }
   }
   // שורות מחושבות
   for (const [D, ends] of [[A, fyEnds], [Q, qEnds]]) for (const e of ends) {
@@ -487,6 +501,22 @@ function crossCheck(d, y) { // מול Yahoo: הכנסות ורווח נקי בש
       if (a != null && b != null && Math.abs(a - b) > 0.02 * Math.max(Math.abs(a), Math.abs(b))) out.push({ k: 'xy', m: k, p: e });
     }
   }
+  return out;
+}
+
+/* רווח למניה ברבעון מחושב (בעיקר הרביעי — אין לו 10-Q): ב־10-K אין את ממוצע המניות של הרבעון, והממוצע השנתי המדולל
+   אינו ממוצע הרבעונים (Bank of America 2025: הערכה ‎0.94 מול ‎0.98 שהחברה פרסמה). המספר שהחברה פרסמה בהודעה לעיתונות
+   (דרך Yahoo) גובר כשהוא קרוב לחישוב שלנו (עד 15% — אחרת לא אותו בסיס: פיצול, מניות בכורה); נרשם qeps (מידע) */
+function q4Eps(sec, y) {
+  const out = [], der = (sec.derived && sec.derived.eps) || [];
+  if (!y || !y.q || !y.Q || !y.Q.eps || !sec.Q.eps) return out;
+  sec.q.forEach((e, i) => {
+    if (!der.includes(e)) return;
+    const j = y.q.findIndex((x) => Math.abs(day(x) - day(e)) < 10), v = j >= 0 ? y.Q.eps[j] : null, ours = sec.Q.eps[i];
+    if (v == null || ours == null || !ours || Math.abs(v - ours) < 0.005) return;
+    if (Math.sign(v) !== Math.sign(ours) || Math.abs(v / ours - 1) > 0.15) return;
+    sec.Q.eps[i] = v; out.push({ k: 'qeps', m: 'eps', p: e, f: v, v: ours });
+  });
   return out;
 }
 
@@ -842,7 +872,8 @@ async function fundamentals(sym0) {
     if ((f.m === 'rev' || f.m === 'cogs') && sec.A.gp && sec.A.rev[f.i] != null && sec.A.cogs && sec.A.cogs[f.i] != null && (sec.A.gp[f.i] == null || (sec.derived && (sec.derived.gp || []).includes(sec.fy[f.i]))))
       sec.A.gp[f.i] = sec.A.rev[f.i] - sec.A.cogs[f.i];
   }
-  const checks = useSec ? validate(sec).concat(crossCheck(sec, y), fcRes.out, ffix) : [];
+  const qeps = useSec ? q4Eps(sec, y) : [];
+  const checks = useSec ? validate(sec).concat(crossCheck(sec, y), fcRes.out, ffix, qeps) : [];
   // שורה שחסרה ב־SEC לגמרי (תגית פרטית של החברה, למשל השקעות הוניות ב־IFRS) — משלימים מ־Yahoo לפי תאריך, ומסמנים
   const fill = [];
   if (useSec && y && y.fy) for (const k of Object.keys(YMAP)) {
@@ -886,5 +917,5 @@ async function handle(body, res) {
   return res.status(200).json({ ...v, indData: industryData(v.ind) });
 }
 
-module.exports = { handle, fundamentals, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
+module.exports = { handle, fundamentals, q4Eps, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
   industryFor, industryData, _cache: cache };

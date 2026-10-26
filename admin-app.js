@@ -1919,7 +1919,7 @@ function faKind(k) {
   switch (k) {
     case 'face': return t('admFaK_face'); case 'fix': return t('admFaK_fix'); case 'ffill': return t('admFaK_ffill'); case 'ffix': return t('admFaK_ffix'); case 'bal': return t('admFaK_bal'); case 'neg': return t('admFaK_neg');
     case 'scale': return t('admFaK_scale'); case 'eps': return t('admFaK_eps'); case 'gp': return t('admFaK_gp'); case 'part': return t('admFaK_part');
-    case 'q4': return t('admFaK_q4'); case 'qneg': return t('admFaK_qneg'); case 'xy': return t('admFaK_xy'); case 'gold': return t('admFaK_gold'); case 'gr': return t('admFaK_gr'); case 'rst': return t('admFaK_rst');
+    case 'q4': return t('admFaK_q4'); case 'qneg': return t('admFaK_qneg'); case 'xy': return t('admFaK_xy'); case 'gold': return t('admFaK_gold'); case 'gr': return t('admFaK_gr'); case 'rst': return t('admFaK_rst'); case 'qeps': return t('admFaK_qeps');
     default: return t('admFaK_other');
   }
 }
