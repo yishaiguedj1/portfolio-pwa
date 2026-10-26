@@ -941,6 +941,28 @@ function normalizeSec(facts, splits = [], face = null) {
     if (!agree) { A.gp = {}; Q.gp = {}; delete tags.gp; delete derived.gp; }
   }
   if (gpx === 'part' || gpx === 'off' || gpx === 'sum') { A.cogs = {}; Q.cogs = {}; delete tags.cogs; delete derived.cogs; qmix.splice(0, qmix.length, ...qmix.filter((x) => x.m !== 'cogs')); }
+  // בסיס אחד לתקופה — הכנסות, עלות מכר ורווח גולמי מאותה הגשה (26/10/2026). כל שורה נבחרת לבד ("האחרון שהוגש"), וכשחברה
+  // מציגה מחדש תקופות (פעילות שנפרדה) ולא מתייגת שוב את כל השלוש — מתערבבים בסיסים: Honeywell רבעון 3 2025 — הכנסות ועלות
+  // מה־10-Q של 2026 (‏$4.93B/‏$3.16B), רווח גולמי מה־10-K (‏$3.23B, הבסיס הקודם); J&J 2022 — הכנסות ורווח גולמי מה־10-K של 2024,
+  // עלות המכר מה־10-Q של 2023 (‏8%). ב־500 החברות: כ־95 תקופות. העוגן = ההגשה שממנה ההכנסות (הן לא משתנות לעולם): עלות המכר
+  // והרווח הגולמי מאותה הגשה (‏h.all — הערך לפי תאריך הגשה), ומה שלא תויג בה = ההפרש. בלי אף אחד מהשניים בה — לא נוגעים.
+  // כשכל השלוש מאותה הגשה ולא שוות (Altria — מס בלו, ‏LITE) — הגדרה של החברה, לא נוגעים
+  const durOf = (k, e, ann) => { const d = merged[k] && merged[k].dur; if (!d) return null;
+    if (ann) return d.get(yearOf.get(e) + '|' + e) || null;
+    for (const [kk, h] of d) { const [s, e2] = kk.split('|'); if (e2 === e && day(e) - day(s) >= 80 && day(e) - day(s) <= 100) return h; } return null; };
+  const inB = (h, B) => (!h ? null : h.filed === B ? h.v : h.all && h.all.has(B) ? h.all.get(B) : null);
+  if (tags.gp && tags.cogs && Object.keys(A.gp).length && Object.keys(A.cogs).length) for (const [D, ends, ann] of [[A, fyEnds, true], [Q, qEnds, false]]) for (const e of ends) {
+    const rv = D.rev[e], hr = durOf('rev', e, ann); if (rv == null || D.gp[e] == null || D.cogs[e] == null || !hr || hr.v !== rv) continue;
+    if (Math.abs(rv - Math.abs(D.cogs[e]) - D.gp[e]) <= 0.001 * Math.abs(rv)) continue;
+    const hg = durOf('gp', e, ann), hc = durOf('cogs', e, ann); if (!hg || !hc || hg.v !== D.gp[e] || Math.abs(hc.v) !== Math.abs(D.cogs[e])) continue;
+    const B = hr.filed, g = inB(hg, B), c = inB(hc, B);
+    if (g == null && c == null) continue;
+    const ng = g != null ? g : rv - Math.abs(c), nc = c != null ? Math.abs(c) : rv - g;
+    if (ng === D.gp[e] && nc === Math.abs(D.cogs[e])) continue;
+    if (ng !== D.gp[e]) fixes.push({ m: 'gp', p: e });
+    if (nc !== Math.abs(D.cogs[e])) fixes.push({ m: 'cogs', p: e });
+    D.gp[e] = ng; D.cogs[e] = nc;
+  }
   // שורות מחושבות
   const gpd = []; // שנים שבהן הרווח הגולמי מחושב (לא דווח) — derived.gp הוא של רבעונים
   for (const [D, ends] of [[A, fyEnds], [Q, qEnds]]) for (const e of ends) {
