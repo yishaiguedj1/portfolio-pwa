@@ -102,7 +102,11 @@ function parseR(html) {
     });
   }
   const rows = [];
-  for (const tr of h.matchAll(/<tr class="(r[eo]u?)">([\s\S]*?)<\/tr>/g)) {
+  for (const tr of h.matchAll(/<tr class="(r[eoh]u?)">([\s\S]*?)<\/tr>/g)) {
+    // דוח משותף לכמה ישויות מדווחות (Dominion + Virginia Electric, Entergy + חברות הבת): אחרי החברה המאוחדת באה שורת
+    // כותרת של ישות משפטית (dei_LegalEntityAxis) — ומשם הדוחות של חברות הבת. רק המאוחדת היא שלנו (Dominion: ההשקעות
+    // ההוניות של 2023–2025 הושלמו מהשורה של Virginia Electric — ‏$10.3B במקום ‏$12.6B)
+    if (tr[1] === 'rh') { if (/defref_dei_LegalEntityAxis/.test(tr[2])) break; continue; }
     const body = tr[2], tag = (/defref_([A-Za-z0-9-]+)_([A-Za-z0-9_]+)/.exec(body) || []);
     if (!tag[2]) continue;
     const lab = /<td class="pl"[\s\S]*?<\/td>/.exec(body);

@@ -127,18 +127,20 @@ const FORMS = /^(10-K|10-Q|20-F|40-F|10-KT|10-QT)(\/A)?$/;
 // adj = { splits, ps } — למניות / רווח למניה: ערך מהגשה שלפני פיצול מוכפל (מניות) / מחולק (רווח למניה) ביחס הפיצול,
 // כדי ש־SEC הגולמי יהיה באותו בסיס כמו הערך שלנו אחרי הפיצול (Netflix 10:1 בנובמבר 2025: 2022 מופיע רק בהגשות שלפניו)
 function adjFactor(adj, filed) { if (!adj || !adj.splits) return 1; let r = 1; for (const [sd, x] of adj.splits) if (sd > filed && Math.abs(Math.log(x)) > Math.log(1.3)) r *= x; return adj.ps ? 1 / r : r; }
-function rawSeries(facts, tag, adj) {
+function rawSeries(facts, tag, adj, cur) {
   if (!facts || !tag) return null;
   if (/\+/.test(tag)) { // סכום תגיות (השקעות הוניות בחלקים) — כל תקופה שכל החלקים קיימים בה
-    const parts = tag.split('+').map((t) => rawSeries(facts, t, adj));
+    const parts = tag.split('+').map((t) => rawSeries(facts, t, adj, cur));
     if (parts.some((p) => !p)) return null;
     const sum = (k) => { const M = new Map(); for (const [key, h] of parts[0][k]) { let v = h.v, f = h.filed, okk = true; for (const p of parts.slice(1)) { const x = p[k].get(key); if (!x) { okk = false; break; } v += x.v; if (x.filed > f) f = x.filed; } if (okk) M.set(key, { v, filed: f }); } return M; };
-    return { dur: sum('dur'), inst: sum('inst') };
+    return { dur: sum('dur'), inst: sum('inst'), neg: parts[0].neg };
   }
   for (const ns of ['us-gaap', 'ifrs-full']) {
     const g = facts.facts && facts.facts[ns] && facts.facts[ns][tag]; if (!g) continue;
     const dur = new Map(), inst = new Map();
-    for (const rows of Object.values(g.units || {})) for (const x of rows) {
+    // רק מטבע הדיווח (Nebius: רובל ואחר כך דולר באותה תגית — בלי זה הייחוס מערבב מטבעות)
+    const us = Object.keys(g.units || {}), pick = cur ? us.filter((u) => u === cur || u === cur + '/shares') : [];
+    for (const u of pick.length ? pick : us) for (const x of g.units[u]) {
       if (!FORMS.test(x.form || '') || x.val == null) continue;
       const key = x.start ? x.start + '|' + x.end : x.end, M = x.start ? dur : inst, h = M.get(key);
       const v = x.val * adjFactor(adj, x.filed);
@@ -147,7 +149,9 @@ function rawSeries(facts, tag, adj) {
       const g2 = M.get(key);
       if (/^(10-K|20-F|40-F|10-KT)/.test(x.form) && (!g2.fk || x.filed > g2.fk)) { g2.vk = v; g2.fk = x.filed; }
     }
-    return { dur, inst };
+    // סימן התגית: רוב הערכים שליליים (השקעות הוניות שמדווחות במינוס) — לא Math.abs לכל ערך (רבעון "נטו" שלילי אמיתי)
+    let n = 0, ng = 0; for (const h of dur.values()) { n++; if (h.v < 0) ng++; }
+    return { dur, inst, neg: n > 0 && ng > n / 2 };
   }
   return null;
 }
@@ -246,23 +250,25 @@ function xcheck(d, facts, y, nq, opt = {}) {
   if (!d || !d.ok || !d.tags) return out;
   const nA = opt.nA || 5, nQ = opt.nQ || 8, YA = opt.ya || null;
   const faceBad = new Set((d.checks || []).filter((c) => c.k === 'face').map((c) => c.m + '|' + c.p));
-  const fyS = (e) => { const i = d.fy.indexOf(e); return i > 0 ? new Date((day(d.fy[i - 1]) + 1) * DAY).toISOString().slice(0, 10) : null; };
-  const fyOf = (qe) => d.fy.find((e) => day(e) >= day(qe) - 1 && day(e) - day(qe) < 366);
+  // השנה הפתוחה (אחרי השנה האחרונה) מתחילה ביום שאחרי סוף השנה האחרונה — אחרת לרבעונים שלה אין ייחוס מ־SEC
+  const nextD = (e) => new Date((day(e) + 1) * DAY).toISOString().slice(0, 10);
+  const fyS = (e) => { if (e === 'open') return nextD(d.fy[d.fy.length - 1]); const i = d.fy.indexOf(e); return i > 0 ? nextD(d.fy[i - 1]) : null; };
+  const fyOf = (qe) => d.fy.find((e) => day(e) >= day(qe) - 1 && day(e) - day(qe) < 366) || (d.fy.length && day(qe) > day(d.fy[d.fy.length - 1]) ? 'open' : undefined);
   const scaleA = (i) => Math.abs((d.A.rev && d.A.rev[i]) || 0);
   const fin = d.sic >= 6000 && d.sic < 6500; // בנקים, ברוקרים, ביטוח — Yahoo/Nasdaq מתקננים את הדוחות שלהם אחרת
   const fill = new Set(d.fill || []); // שורות שהושלמו מ־Yahoo (אין ב־SEC) — Yahoo הוא המקור שלהן, לא בדיקה
   // "שנים" שהן לא שנה (Amazon: דוחות רבעוניים עם 12 חודשים אחרונים — כל רבעון נראה כסוף שנה)
   const ttm = new Set(d.fy.filter((e, i) => i > 0 && day(e) - day(d.fy[i - 1]) < 300));
-  const rsCache = {}, secAt = (tag, e, kind, fs) => { if (!(tag in rsCache)) rsCache[tag] = rawSeries(facts, tag); return rawAt(rsCache[tag], e, kind, fs); };
+  const rsCache = {}, secAt = (tag, e, kind, fs) => { if (!(tag in rsCache)) rsCache[tag] = rawSeries(facts, tag, null, d.cur); return rawAt(rsCache[tag], e, kind, fs); };
   for (const kind of ['A', 'Q']) {
     const ends = kind === 'A' ? d.fy : d.q, D = kind === 'A' ? d.A : d.Q;
     const from = Math.max(0, ends.length - (kind === 'A' ? nA : nQ));
     for (const m of XK) {
       if (!D[m]) continue;
       const adj = NOSUM.has(m) ? { splits: d.splits, ps: PER_SHARE.has(m) } : null;
-      const tag = d.tags[m], rs = rawSeries(facts, tag, adj);
+      const cur = m === 'sh' ? null : d.cur, tag = d.tags[m], rs = rawSeries(facts, tag, adj, cur);
       // תגיות חלופיות (מועמדות ב־fundamentals — mergeTags משלים מהן תקופות שאין בתגית הראשית)
-      const alts = ((opt.cand && opt.cand[m]) || []).filter((t) => t !== tag).map((t) => [t, rawSeries(facts, t, adj)]).filter(([, x]) => x);
+      const alts = ((opt.cand && opt.cand[m]) || []).filter((t) => t !== tag).map((t) => [t, rawSeries(facts, t, adj, cur)]).filter(([, x]) => x);
       for (let i = from; i < ends.length; i++) {
         const e = ends[i];
         let v = D[m][i]; if (v == null) continue;
@@ -276,7 +282,10 @@ function xcheck(d, facts, y, nq, opt = {}) {
         if (rs) raw = rawAt(rs, e, kind, fsr);
         if (raw == null) for (const [t, x] of alts) { const v2 = rawAt(x, e, kind, fsr); if (v2 != null) { raw = v2; rf = t; break; } }
         if (raw == null && facts) { const f = rawFormula(m, d, (t) => secAt(t, e, kind, BAL.has(m) ? null : fs0)); if (f) { raw = f.v; rf = f.rf; } }
-        if (raw != null && m === 'capex') raw = Math.abs(raw);
+        if (raw != null && m === 'capex' && rs && rs.neg && !rf) raw = -raw;
+        else if (raw != null && m === 'capex' && rf) raw = Math.abs(raw);
+        // רבעון מחושב שלילי של השקעה ברוטו (שנה פחות 9 חודשים מבסיסים שונים) — לא ייחוס
+        if (raw != null && m === 'capex' && kind === 'Q' && raw < 0 && vv >= 0) raw = null;
         const rawK = BAL.has(m) && rs && !rf ? rawAt(rs, e, kind, null, true) : null;
         const yi = y && nearEnd(kind === 'A' ? y.fy : y.q, e, 20), ys = y && (kind === 'A' ? y.A : y.Q);
         let yv = yi >= 0 && ys && ys[YK[m] || m] ? ys[YK[m] || m][yi] : null;

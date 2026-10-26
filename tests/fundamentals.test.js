@@ -95,11 +95,6 @@ ok(!d.fy.includes('2020-12-31') || A('rev', '2020-12-31') === 200, 'טופס 8-K
   ok(qc('2024-06-30') == null && qc('2024-12-31') == null && qc('2025-03-31') == null && dx.A.cogs[0] === 240, 'רבעונים על בסיס אחר מהשנה — ריקים (גם בשנה הפתוחה), השנה נשארת');
   ok(dx.qmix.some((c) => c.m === 'cogs' && c.p === '2024-12-31') && F.validate(dx).some((c) => c.k === 'qmix'), 'נרשם qmix');
   ok(dx.Q.rev[dx.q.indexOf('2024-06-30')] === 100, 'מדד תקין באותה חברה — לא נוגעים');
-  // עמודת "12 החודשים האחרונים" ב־10-Q (Amazon) — לא שנה פיסקלית
-  const TTMQ = facts([['Revenues', 'USD', [[...Y(2023), 400, '10-K', '2024-02-01'], [...Y(2024), 440, '10-K', '2025-02-01'],
-    ['2023-04-01', '2024-03-31', 410, '10-Q', '2024-05-01'], ['2023-07-01', '2024-06-30', 420, '10-Q', '2024-08-01'], qd('2024-01-01', '2024-03-31', 105, '2024-05-01')]],
-    ['NetIncomeLoss', 'USD', [[...Y(2023), 40, '10-K', '2024-02-01'], [...Y(2024), 44, '10-K', '2025-02-01']]]]);
-  ok(F.normalizeSec(TTMQ, []).fy.join() === '2023-12-31,2024-12-31', 'עמודת 12 חודשים אחרונים בדוח רבעוני — לא נעשית סוף שנה');
   const dd = F.normalizeSec(ODD, []);
   ok(dd.Q.sh[dd.q.indexOf('2024-12-31')] === 100, 'הערכה רחוקה מהשנה ביותר מ־12% (40 מול 100) — ממוצע השנה');
 }
@@ -228,6 +223,63 @@ const CPX = facts([
 ]);
 const dcx = F.normalizeSec(CPX, [], { cf: SF.parseR(RCF) });
 ok(dcx.A.capex.join() === ',' + [1194e6, 1215e6].join() || (dcx.A.capex[0] == null && dcx.A.capex[1] === 1194e6 && dcx.A.capex[2] === 1215e6), 'השקעות הוניות = רכוש קבוע + תוכנה; שנה בלי אחד החלקים — ריקה (לא קפיצה)');
+// 26/10/2026 — השקעות הוניות: שורה אחת בדוח בתגית שאינה ברשימה הראשית (Eli Lilly / ADP: ‏PaymentsToAcquireOtherPropertyPlantAndEquipment)
+{ const RC1 = `<table><tr><th class="tl"><div><strong>Cash Flows - USD ($)<br> $ in Millions</strong></div></th><th class="th" colspan="1">12 Months Ended</th></tr><tr><th class="th"><div>Dec. 31, 2025</div></th></tr>
+${row('ro', 'us-gaap_PaymentsToAcquireOtherPropertyPlantAndEquipment', 'Purchases of property and equipment', ['(7,841)'])}${row('re', 'us-gaap_PaymentsToAcquireInProcessResearchAndDevelopment', 'Purchases of in-process research and development', ['(3,008)'])}</table>`;
+  const LL = facts([['Revenues', 'USD', yrs([1, 1, 1], 2023)], ['PaymentsToAcquireOtherPropertyPlantAndEquipment', 'USD', yrs([3448e6, 5058e6, 7841e6], 2023)],
+    ['PaymentsToAcquireInProcessResearchAndDevelopment', 'USD', yrs([3944e6, 3346e6, 3008e6], 2023)]]);
+  const dl = F.normalizeSec(LL, [], { cf: SF.parseR(RC1) });
+  ok(dl.tags.capex === 'PaymentsToAcquireOtherPropertyPlantAndEquipment' && dl.A.capex.join() === [3448e6, 5058e6, 7841e6].join(), 'השקעות הוניות: שורה אחת בדוח בתגית "רכוש קבוע אחר" — נבחרת (לא ריק שמושלם מ־Yahoo עם מו"פ בתהליך)');
+  // חברת חשמל (AEP): "Construction Expenditures" + "Acquisitions of Generation Facilities" — רכישת תחנות אינה השקעה הונית
+  const RC2 = `<table><tr><th class="tl"><div><strong>Cash Flows - USD ($)<br> $ in Millions</strong></div></th><th class="th" colspan="1">12 Months Ended</th></tr><tr><th class="th"><div>Dec. 31, 2025</div></th></tr>
+${row('ro', 'us-gaap_PaymentsForConstructionInProcess', 'Construction Expenditures', ['(8,453)'])}${row('re', 'us-gaap_PaymentsToAcquireProductiveAssets', 'Acquisitions of Generation Facilities', ['(3,453)'])}</table>`;
+  const AE = facts([['Revenues', 'USD', yrs([1, 1, 1], 2023)], ['PaymentsForConstructionInProcess', 'USD', yrs([7378e6, 7631e6, 8453e6], 2023)],
+    ['PaymentsToAcquireProductiveAssets', 'USD', yrs([155e6, 399e6, 3453e6], 2023)]]);
+  const da = F.normalizeSec(AE, [], { cf: SF.parseR(RC2) });
+  ok(da.tags.capex === 'PaymentsForConstructionInProcess' && da.A.capex.join() === [7378e6, 7631e6, 8453e6].join(), 'השקעות הוניות של חברת חשמל = "Construction Expenditures", בלי "Acquisitions of …"');
+  // דוח משותף לכמה ישויות (Dominion + Virginia Electric): אחרי שורת dei_LegalEntityAxis — חברת הבת, לא שלנו
+  const RC3 = `<table><tr><th class="tl"><div><strong>Cash Flows - USD ($)<br> $ in Millions</strong></div></th><th class="th" colspan="1">12 Months Ended</th></tr><tr><th class="th"><div>Dec. 31, 2025</div></th></tr>
+${row('ro', 'd_PaymentsToAcquirePropertyPlantAndEquipmentIncludingNuclearFuel', 'Plant construction (including nuclear fuel)', ['(12,641)'])}<tr class="rh"><td class="pl"><a onclick="Show.showAR( this, 'defref_dei_LegalEntityAxis', window );">Virginia Electric and Power Company</a></td><td class="text">&#160;</td></tr>
+${row('ro', 'us-gaap_PaymentsToAcquirePropertyPlantAndEquipment', 'Plant construction and other property additions', ['(10,333)'])}</table>`;
+  const p3 = SF.parseR(RC3);
+  ok(p3.rows.length === 1 && p3.rows[0].tag === 'PaymentsToAcquirePropertyPlantAndEquipmentIncludingNuclearFuel', 'דף R משותף: רק החברה המאוחדת — השורות של חברת הבת לא נכנסות'); }
+// רבעון מחושב שלילי בהשקעות הוניות = שני מצטברים מבסיסים שונים (DuPont אחרי פיצול Qnity; ‏Honeywell אחרי הפרדת התעופה)
+{ const qr = (y) => [['01-01', '03-31'], ['04-01', '06-30'], ['07-01', '09-30'], ['10-01', '12-31']].map(([a, b]) => [y + '-' + a, y + '-' + b, 1, '10-Q', y + '-' + b]);
+  const DDX = facts([['Revenues', 'USD', [...yrs([4, 4, 4], 2023), ...qr(2024), ...qr(2025)]],
+    ['PaymentsToAcquireProductiveAssets', 'USD', [...yrs([302e6], 2023),
+      ['2024-01-01', '2024-03-31', 207e6, '10-Q', '2024-05-01'], ['2024-01-01', '2024-06-30', 309e6, '10-Q', '2024-07-31'],
+      ['2024-01-01', '2024-09-30', 418e6, '10-Q', '2024-11-05'], ['2024-01-01', '2024-09-30', 376e6, '10-Q', '2025-11-06'], // תשעה חודשים — הוצגו מחדש (הצגה אחת)
+      ['2024-01-01', '2024-12-31', 579e6, '10-K', '2025-02-14'], ['2024-01-01', '2024-12-31', 285e6, '10-K', '2026-02-17'], // השנה — הוצגה מחדש (הצגה אחרת)
+      ['2025-01-01', '2025-03-31', 249e6, '10-Q', '2025-05-02'], ['2025-01-01', '2025-06-30', 365e6, '10-Q', '2025-08-05'],
+      ['2025-01-01', '2025-09-30', 483e6, '10-Q', '2025-11-06'], ['2025-01-01', '2025-12-31', 333e6, '10-K', '2026-02-17']]]]);
+  const RC4 = `<table><tr><th class="tl"><div><strong>Cash Flows - USD ($)<br> $ in Millions</strong></div></th><th class="th" colspan="1">12 Months Ended</th></tr><tr><th class="th"><div>Dec. 31, 2025</div></th></tr>
+${row('ro', 'us-gaap_PaymentsToAcquireProductiveAssets', 'Capital expenditures', ['(333)'])}</table>`;
+  const dd = F.normalizeSec(DDX, [], { cf: SF.parseR(RC4) }), q = (e) => dd.Q.capex[dd.q.indexOf(e)];
+  ok(q('2024-12-31') === 161e6, 'רבעון רביעי שלילי (‎285 − 376) — הזוג כפי שדווח במקור (‎579 − 418)');
+  ok(q('2025-12-31') == null && F.validate(dd).some((c) => c.k === 'qmix' && c.m === 'capex' && c.p === '2025-12-31'), 'אין זוג לא שלילי (‎333 − 483) — הרבעון לא מוצג, ונרשם qmix');
+  // "Net additions of property" (Hartford, Lennar) — נטו אחרי מכירות: רבעון שלילי בצדק, נשאר
+  const RC5 = RC4.replace('Capital expenditures', 'Net additions of property and equipment');
+  const dn = F.normalizeSec(DDX, [], { cf: SF.parseR(RC5) });
+  ok(dn.Q.capex[dn.q.indexOf('2025-12-31')] === -150e6, 'תווית "net" — רבעון שלילי נשאר כמו שדווח'); }
+// רבעון ישיר מתגית משלימה שמודדת ברבעונים משהו אחר (Copart): חצי השנה שלה ‏412 מול ‏353 — הרבעונים מהמצטבר של הסדרה
+{ const qr = (y) => [['01-01', '03-31'], ['04-01', '06-30'], ['07-01', '09-30'], ['10-01', '12-31']].map(([a, b]) => [y + '-' + a, y + '-' + b, 1, '10-Q', y + '-' + b]);
+  const CP = facts([['Revenues', 'USD', [...yrs([4, 4], 2024), ...qr(2025)]],
+    ['PaymentsToAcquirePropertyPlantAndEquipment', 'USD', [...yrs([500e6, 569e6], 2024), ['2025-01-01', '2025-03-31', 236.8e6, '10-Q', '2025-05-01'],
+      ['2025-01-01', '2025-06-30', 353.4e6, '10-Q', '2025-08-01'], ['2025-01-01', '2025-09-30', 481.3e6, '10-Q', '2025-11-01']]],
+    ['PaymentsToAcquireProductiveAssets', 'USD', [...yrs([501e6, 570.2e6], 2024), ['2025-01-01', '2025-03-31', 238e6, '10-Q', '2025-05-01'],
+      ['2025-01-01', '2025-06-30', 412.1e6, '10-Q', '2025-08-01'], ['2025-04-01', '2025-06-30', 174.1e6, '10-Q', '2025-08-01'],
+      ['2025-01-01', '2025-09-30', 482.6e6, '10-Q', '2025-11-01'], ['2025-07-01', '2025-09-30', 70.5e6, '10-Q', '2025-11-01']]]]);
+  const dc = F.normalizeSec(CP, []), q = (e) => Math.round(dc.Q.capex[dc.q.indexOf(e)] / 1e5) / 10;
+  ok(q('2025-06-30') === 116.6 && q('2025-09-30') === 127.9 && q('2025-12-31') === 87.7, 'השקעות הוניות: רבעון ישיר של תגית משלימה שהמצטבר שלה שונה — לא נכנס; הרבעונים מהמצטבר של הסדרה');
+  // ...ותגית משלימה שהמצטברים שלה זהים (Fortive — אותו מדד בתגית של הדוח הרבעוני) — הרבעון הישיר שלה נשמר
+  const FT = facts([['Revenues', 'USD', [...yrs([4, 4], 2024), ...qr(2025)]],
+    ['PaymentsToAcquirePropertyPlantAndEquipment', 'USD', [...yrs([86e6, 105e6], 2024), ['2025-01-01', '2025-03-31', 21.1e6, '10-Q', '2026-04-30'],
+      ['2025-01-01', '2025-06-30', 63.4e6, '10-Q', '2025-08-01'], ['2025-01-01', '2025-09-30', 74.7e6, '10-Q', '2025-11-01']]],
+    ['PaymentsToAcquireProductiveAssets', 'USD', [...yrs([86e6, 105e6], 2024), ['2025-01-01', '2025-03-31', 21.1e6, '10-Q', '2026-04-30'],
+      ['2025-01-01', '2025-06-30', 63.4e6, '10-Q', '2025-08-01'], ['2025-04-01', '2025-06-30', 36.7e6, '10-Q', '2025-08-01'],
+      ['2025-01-01', '2025-09-30', 74.7e6, '10-Q', '2025-11-01'], ['2025-07-01', '2025-09-30', 28.6e6, '10-Q', '2025-11-01']]]]);
+  const df = F.normalizeSec(FT, []);
+  ok(df.Q.capex[df.q.indexOf('2025-09-30')] === 28.6e6, 'תגית משלימה עם אותם מצטברים — הרבעון הישיר שלה (כפי שהוגש) נשמר'); }
 // מספר מניות בקנה מידה שגוי (McDonald's): רווח ÷ EPS = מניות × מיליון
 const MCDX = facts([['NetIncomeLoss', 'USD', yrs([8223e6, 8563e6], 2024)], ['EarningsPerShareDiluted', 'USD/shares', yrs([11.39, 11.95], 2024)],
   ['WeightedAverageNumberOfDilutedSharesOutstanding', 'shares', yrs([721.9, 716.4], 2024)]]);

@@ -96,7 +96,11 @@ const STMT_OF = { rev: ['is'], cogs: ['is'], gp: ['is'], op: ['is'], ni: ['is', 
    Caterpillar: + ציוד שמושכר ללקוחות). סכום רק כשיותר משורה אחת מופיעה בדוח, ורק בתקופות שבהן כל החלקים קיימים — אחרת קפיצה מדומה. */
 const CAPEX_PARTS = ['PaymentsToAcquirePropertyPlantAndEquipment', 'PaymentsToAcquireProductiveAssets', 'PaymentsToAcquireSoftware', 'PaymentsToDevelopSoftware',
   'PaymentsForSoftware', 'PaymentsToAcquireEquipmentOnLease', 'PaymentsToAcquireOtherPropertyPlantAndEquipment', 'PaymentsForCapitalImprovements',
-  'PaymentsToAcquireOilAndGasPropertyAndEquipment', 'PaymentsToAcquireOilAndGasProperty', 'PaymentsToAcquireMiningAssets'];
+  'PaymentsToAcquireOilAndGasPropertyAndEquipment', 'PaymentsToAcquireOilAndGasProperty', 'PaymentsToAcquireMiningAssets',
+  // חברות חשמל: "Construction Expenditures" (AEP — עד 26/10/2026 נבחרה במקומה "Acquisitions of Generation Facilities", ‏$155M
+  // במקום ‏$7.4B); Dow: "Capital expenditures" בתגית מכונות וציוד
+  'PaymentsForConstructionInProcess', 'PaymentsToAcquireMachineryAndEquipment'];
+const CAPEX_SOFT = ['PaymentsToAcquireSoftware', 'PaymentsToDevelopSoftware', 'PaymentsForSoftware']; // תוכנה לבד אינה כל ההשקעה ההונית
 const faceTagList = (face, sts) => { const out = []; for (const st of sts || []) for (const r of (face && face[st] && face[st].rows) || []) if (/^(us-gaap|ifrs-full)$/.test(r.ns) && !out.includes(r.tag)) out.push(r.tag); return out; };
 /* הערכים השנתיים שהודפסו בדוח, לפי תגית: "tag|end" → ערך (עמודות של 12 חודשים במטבע הדיווח; מאזן — כל עמודה) */
 function faceYearVals(face, sts, cur) {
@@ -185,7 +189,7 @@ function tagGap(a, b) {
   diffs.sort((x, y) => x - y);
   return diffs[(diffs.length - 1) >> 1]; // מסכימה לפחות בחצי מהתקופות המשותפות = אותו מדד (עם תיקונים לאחור)
 }
-function mergeTags(fs, lock) {
+function mergeTags(fs, lock, qclash) {
   const last = (f) => { let e = ''; for (const kk of f.dur.keys()) { const x = kk.split('|')[1]; if (x > e) e = x; } for (const x of f.inst.keys()) if (x > e) e = x; return e; };
   const has = fs.map((f) => f.dur.size + f.inst.size > 0);
   const m = { dur: new Map(), inst: new Map() };
@@ -196,8 +200,38 @@ function mergeTags(fs, lock) {
   m.spine = spine;
   for (const i of [spine, ...fs.map((_, j) => j).filter((j) => j !== spine && has[j])]) {
     const f = fs[i];
-    if (i !== spine) { const g = tagGap(m, f); if (g != null && g > MERGE_TOL) continue; }
-    for (const [kk, v] of f.dur) if (!m.dur.has(kk)) m.dur.set(kk, v);
+    if (i !== spine) {
+      const g = tagGap(m, f);
+      if (g != null && g > MERGE_TOL) {
+        // השקעות הוניות (qclash): תגית שנדחתה בגלל שנים שלא מסכימות — המצטברים הרבעוניים שלה עדיין נכנסים בשנים שאין לה
+        // בהן ערך שנתי משלה (אין עדות שהיא מודדת שם משהו אחר). WEC: ב־10-K ‏"Capital expenditures" עבר ל־
+        // PaymentsToAcquireOtherPropertyPlantAndEquipment, וב־10-Q נשאר PaymentsToAcquirePropertyPlantAndEquipment
+        // (רק תקופות של פחות משנה: שנים שלמות שלה ליד שנים של הסדרה = קפיצה, ו־fixRuns היה מחליף בהן את כל הסדרה)
+        if (qclash) {
+          const yrs = [...f.dur.keys()].map((k) => k.split('|')).filter(([a, b]) => day(b) - day(a) >= 350);
+          for (const [kk, v] of f.dur) {
+            const [a, b] = kk.split('|'); if (day(b) - day(a) >= 350 || m.dur.has(kk)) continue;
+            if (!yrs.some(([ya, yb]) => ya <= a && yb >= b)) m.dur.set(kk, v);
+          }
+        }
+        continue;
+      }
+    }
+    // רבעון ישיר (3 חודשים) מתגית משלימה — לא כשהמצטבר של התגית עצמה (מתחילת השנה עד סוף הרבעון, או עד הרבעון שלפניו)
+    // שונה מהמצטבר של הסדרה באותה תקופה: היא מודדת ברבעונים משהו אחר. Copart: ‏PaymentsToAcquireProductiveAssets מסכימה
+    // בשנים, אבל חצי השנה שלה ‏$412M מול ‏$353M — הרבעון השני שלה ‏$174M נכנס במקום ‏$117M, והשלישי ‏$70M במקום ‏$128M.
+    // מצטברים שווים (Fortive: אותו מדד בתגית של הדוח הרבעוני) — הרבעון הישיר נכנס (הוא על בסיס הדוח שבו הוא מופיע). רק בהשקעות הוניות (qclash)
+    const clash = (kk) => {
+      const [s, e] = kk.split('|'), L = day(e) - day(s); if (L < 80 || L > 100) return false;
+      const diff = (k2) => { const h = f.dur.get(k2), x = m.dur.get(k2); return !!(h && x && x.v && Math.abs(h.v - x.v) > MERGE_TOL * Math.abs(x.v)); };
+      for (const k2 of f.dur.keys()) {
+        const [s2, e2] = k2.split('|'); if (e2 !== e || day(s) - day(s2) < 60) continue; // מצטבר מתחילת השנה עד סוף הרבעון
+        if (diff(k2)) return true;
+        for (const k1 of f.dur.keys()) { const [s1, e1] = k1.split('|'), g = day(e) - day(e1); if (s1 === s2 && g >= 80 && g <= 100 && diff(k1)) return true; }
+      }
+      return false;
+    };
+    for (const [kk, v] of f.dur) if (!m.dur.has(kk) && (i === spine || !qclash || !clash(kk))) m.dur.set(kk, v);
     for (const [kk, v] of f.inst) if (!m.inst.has(kk)) m.inst.set(kk, v);
   }
   fixRuns(m, fs, lock && ((kk, v) => lock(spine, kk, v)));
@@ -249,10 +283,18 @@ function normalizeSec(facts, splits = [], face = null) {
     const order = list.filter((t) => onFace.includes(t)).concat(list.filter((t) => !onFace.includes(t))); // בין אלה שבדוח — סדר העדיפות שלנו (מדולל לפני בסיסי)
     let fs = order.map((tag) => tagFacts(tax[tag], unitOf(k))), names = order;
     if (k === 'capex' && !isIfrs) {
-      const parts = CAPEX_PARTS.filter((t) => onFace.includes(t) && tax[t]);
+      let parts = CAPEX_PARTS.filter((t) => onFace.includes(t) && tax[t]);
+      // שורה שהתווית שלה "Acquisition(s) of …" לצד שורת השקעות הוניות אחרת = רכישת נכסים קיימים (תחנות כוח, AEP), לא השקעה הונית.
+      // חוץ מציוד להשכרה ללקוחות (PACCAR: "Acquisitions of equipment for operating leases" — חלק מההשקעה, כמו ב־Caterpillar)
+      const lab = (t) => { for (const r of (face && face.cf && face.cf.rows) || []) if (r.tag === t) return r.label || ''; return ''; };
+      if (parts.length > 1) { const keep = parts.filter((t) => t === 'PaymentsToAcquireEquipmentOnLease' || !/^acquisitions?\s+of\b/i.test(lab(t))); if (keep.length) parts = keep; }
       // הסכום הוא מועמד אחד לצד התגיות לחוד — mergeTags בוחר את הראשית מבין אלה שעדיין מדווחות
       // (Entergy: חברת בת הציגה PaymentsToAcquireProductiveAssets בעמוד, הסכום קיים רק ל־2023, ו־2024–2025 יצאו ריקות)
       if (parts.length > 1) { fs = [sumFacts(parts.map((t) => tagFacts(tax[t], unitOf(k)))), ...fs]; names = [parts.join('+'), ...names]; }
+      // שורה אחת בדוח בתגית רכוש קבוע שאינה ברשימה הראשית (Eli Lilly, ADP: PaymentsToAcquireOtherPropertyPlantAndEquipment =
+      // "Purchases of property and equipment" / "Capital expenditures") — היא ההשקעות ההוניות. עד 26/10/2026 נשאר ריק והושלם
+      // מ־Yahoo, שמחבר גם רכישת מו"פ בתהליך (Lilly ‏$10.8B במקום ‏$7.8B) או תוספות לנכסים בלתי מוחשיים (ADP)
+      else if (parts.length === 1 && !list.includes(parts[0]) && !CAPEX_SOFT.includes(parts[0])) { fs = [tagFacts(tax[parts[0]], unitOf(k)), ...fs]; names = [parts[0], ...names]; }
     }
     if (k === 'rev') { const f = fs.find((x) => x.unit && /^[A-Z]{3}$/.test(x.unit)); if (f) cur = f.unit; }
     if (rc) cur = rc;
@@ -260,16 +302,15 @@ function normalizeSec(facts, splits = [], face = null) {
     // (Ares: ההכנסות באמת קופצות — דמי ביצוע; "Revenues" היא מדד אחר וחלק יותר)
     const fv = faceYearVals(face, STMT_OF[k], rc || cur);
     const lock = (si, kk, v) => { const t = names[si], e = kk.split('|')[1], x = t && fv.get(t + '|' + e); return x != null && Math.abs(Math.abs(x) - Math.abs(v)) <= 0.005 * Math.abs(x); };
-    merged[k] = mergeTags(fs, lock);
+    merged[k] = mergeTags(fs, lock, k === 'capex'); // רק בהשקעות הוניות: בהכנסות/תזרים התגית המשלימה היא לפעמים הרבעון היחיד (Dollar Tree)
     if (merged[k].spine != null) tags[k] = names[merged[k].spine];
   }
-  // שנים פיסקליות: תקופות של ~שנה בהכנסות או ברווח הנקי (52/53 שבועות נכללים) — רק מדוח שנתי.
-  // Amazon מדפיסה ב־10-Q גם עמודה של 12 החודשים האחרונים: בלי התנאי כל רבעון נעשה "סוף שנה" והטבלה השנתית התערבבה
+  // שנים פיסקליות: תקופות של ~שנה בהכנסות או ברווח הנקי (52/53 שבועות נכללים)
   const yearOf = new Map(); // end → start
   for (const k of ['rev', 'ni', 'op']) {
-    for (const [kk, h] of merged[k] ? merged[k].dur : []) {
+    for (const kk of merged[k] ? merged[k].dur.keys() : []) {
       const [s, e] = kk.split('|'), d = day(e) - day(s);
-      if (d >= 350 && d <= 380 && h.ann !== false && !yearOf.has(e)) yearOf.set(e, s);
+      if (d >= 350 && d <= 380 && !yearOf.has(e)) yearOf.set(e, s);
     }
   }
   const fyEnds = [...yearOf.keys()].sort();
@@ -279,6 +320,20 @@ function normalizeSec(facts, splits = [], face = null) {
   const qset = new Set();
   const dq = {}; // רבעונים מחושבים ממצטבר: מאילו תקופות ומאיזה דוח — להשוואה מול שנה קודם (cmpRatio)
   const valAfter = (h, d) => { if (!h.all) return null; let F = null; for (const f of h.all.keys()) if (f >= d && (!F || f < F)) F = f; return F; };
+  // השקעות הוניות כפי שמודפסות ("Capital expenditures", "Purchases of property…") לא שליליות. רבעון מחושב שיצא שלילי =
+  // שני מצטברים מבסיסים שונים — הצגה מחדש אחרי פיצול/מכירה שנגעה רק באחד (DuPont: 2024 אחרי Qnity ‏$285M פחות תשעה חודשים
+  // מהצגה מחדש אחרת ‏$376M; ‏Honeywell: תשעה חודשים אחרי הפרדת התעופה פחות חצי שנה לפניה). קודם — הזוג כפי שדווח במקור
+  // (הדוח הראשון של המצטבר הארוך מול הקצר שהיה בתוקף אז), אחר כך — הקצר שהיה בתוקף כשהארוך האחרון הוגש; אין זוג לא שלילי —
+  // הרבעון לא מוצג (qmix). תווית "net" בדוח (Hartford, Lennar: "Net additions of property") — נטו אחרי מכירות, שלילי בצדק
+  const netCapex = !!(tags.capex && !/\+/.test(tags.capex) && ((face && face.cf && face.cf.rows) || []).some((r) => r.tag === tags.capex && /\bnet\b/i.test(r.label || '')));
+  const qneg = [];
+  const pairAt = (h2, h1, o) => { const g = o && h1.all ? [...h1.all.keys()].filter((f) => f <= o).sort().pop() : null; return g ? h2.all.get(o) - h1.all.get(g) : null; };
+  const nonNegQ = (k, h2, h1, v) => {
+    if (!(v < 0) || k !== 'capex' || netCapex) return v;
+    const fs = h2.all ? [...h2.all.keys()].sort() : [];
+    for (const x of [pairAt(h2, h1, fs[0]), pairAt(h2, h1, fs[fs.length - 1])]) if (x != null && x >= 0) return x;
+    return null;
+  };
   const FLOWK = Object.keys(map).filter((k) => !(k in INST) && !['cash', 'eq', 'ta', 'tl', 'ca', 'cl', 're', 'ppe'].includes(k));
   for (const k of Object.keys(map)) { A[k] = {}; Q[k] = {}; }
   for (const k of FLOWK) {
@@ -300,9 +355,10 @@ function normalizeSec(facts, splits = [], face = null) {
         if (gap >= 80 && gap <= 100 && Q[k][e2] == null) {
           // השנה כפי שדווחה מול אותם תשעה חודשים — לא אחרי הצגה מחדש מאוחרת (AppLovin: 2023 אחרי ההצגה מחדש ‏$1.84B
           // פחות תשעה חודשים כפי שדווחו אז ‏$2.33B = רבעון שלילי). הדוח השנתי הראשון שהוגש אחרי החלק הקודם
-          const F = valAfter(h2, h1.filed);
-          Q[k][e2] = (F ? h2.all.get(F) : h2.v) - h1.v; qset.add(e2); (derived[k] = derived[k] || []).push(e2);
-          (dq[k] = dq[k] || {})[e2] = { k2, k1, F };
+          const F = valAfter(h2, h1.filed), v0 = (F ? h2.all.get(F) : h2.v) - h1.v, v = nonNegQ(k, h2, h1, v0);
+          if (v == null) { if (!qneg.some((x) => x.m === k && x.p === e2)) qneg.push({ k: 'qmix', m: k, p: e2 }); continue; }
+          Q[k][e2] = v; qset.add(e2); (derived[k] = derived[k] || []).push(e2);
+          if (v === v0) (dq[k] = dq[k] || {})[e2] = { k2, k1, F };
         }
       }
     }
@@ -313,7 +369,11 @@ function normalizeSec(facts, splits = [], face = null) {
     for (const e of fyEnds) {
       if (Q[k][e] != null || A[k][e] == null) continue;
       const s0 = yearOf.get(e), qs = Object.keys(Q[k]).filter((q) => q > s0 && q < e && day(e) - day(q) < 300);
-      if (qs.length === 3) { Q[k][e] = A[k][e] - qs.reduce((t, q) => t + Q[k][q], 0); qset.add(e); (derived[k] = derived[k] || []).push(e); }
+      if (qs.length === 3) {
+        const v = A[k][e] - qs.reduce((t, q) => t + Q[k][q], 0);
+        if (v < 0 && k === 'capex' && !netCapex) { if (!qneg.some((x) => x.m === k && x.p === e)) qneg.push({ k: 'qmix', m: k, p: e }); continue; }
+        Q[k][e] = v; qset.add(e); (derived[k] = derived[k] || []).push(e);
+      }
     }
   }
   for (const k of Object.keys(map).filter((x) => !FLOWK.includes(x))) {
@@ -324,7 +384,7 @@ function normalizeSec(facts, splits = [], face = null) {
   // רבעונים שהתגית שלהם אומרת משהו אחר מאשר בשנה (McDonald's: CostOfGoodsAndServicesSold ב־10-Q = רכיב אחד, ‎$0.67B
   // לרבעון; ב־10-K = כל העלות, ‎$11.5B). שלושת הרבעונים הראשונים פחות מ־40% מהשנה או יותר ממנה — לא מאותו בסיס:
   // הרבעונים של השנה לא מוצגים (עדיף ריק משגוי), וגם השנה הפתוחה כשהיא רחוקה פי 2.5 מרבע השנה האחרונה. נרשם qmix
-  const qmix = [];
+  const qmix = qneg;
   for (const k of QPOS) {
     if (!Q[k] || !A[k]) continue;
     let lastBad = false;
@@ -952,6 +1012,4 @@ async function handle(body, res) {
 }
 
 module.exports = { handle, fundamentals, q4Eps, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
-  industryFor, industryData, _cache: cache,
-  // התגיות המועמדות לכל שורה — לכלי ההשוואה (fundxcheck: SEC גולמי גם לתקופות שהושלמו מתגית משנית)
-  TAGS: { gaap: { ...FLOW, ...INST }, ifrs: IFRS } };
+  industryFor, industryData, _cache: cache };
