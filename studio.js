@@ -4390,57 +4390,6 @@ function pageProject(p) {
 
 /* שלב 3 סבב ד׳: "Claude שואל" — שאלה קצרה באמצע העבודה. תשובה מוכנה בנגיעה, או טקסט כשאין תשובות מוכנות.
    לא ענית עד הזמן שכתוב — העבודה ממשיכה עם ברירת המחדל (העובד מדווח, והכרטיס מתחלף לשורה אחת) */
-/* v382: הערה לעובד — שליחה מהטלפון; השרתון מוסר אותה בנקודת השמירה הבאה */
-let noteBusy = false;
-async function sendNote(id, t) {
-  if (noteBusy) return;
-  noteBusy = true; render('none');
-  try {
-    const j = await net.api('note', { job: id, t });
-    const r = jobRec(id);
-    if (j.job && r) { r.srv = normJob({ id, srv: j.job }).srv; save(); }
-    if (j.ok) { ui.noteOpen = false; ui.noteDraft = ''; flashSafe(T('studioNtSent')); } else flashSafe(j.error === 'note_limit' ? T('studioNtLimit') : errText(j.error));
-  } finally { noteBusy = false; render('none'); }
-}
-function noteCard(rec) {
-  const nt = rec.srv && rec.srv.nt;
-  const canSend = rec.srv && (rec.srv.state === 'queued' || rec.srv.state === 'running');
-  if (!nt && !canSend) return null;
-  const card = h('div', 'st-twcard st-ntc');
-  card.dataset.k = 'note';
-  for (const x of (nt ? nt.h : [])) {
-    const r = h('div', 'st-ntr');
-    const tx = h('p', null, x.t); tx.dir = 'auto';
-    r.append(h('small', null, T('studioNtRead', { t: fmtClock(x.d) })), tx);
-    card.append(r);
-  }
-  if (nt && nt.p) {
-    const r = h('div', 'st-ntr wait');
-    const tx = h('p', null, nt.p.t); tx.dir = 'auto';
-    r.append(h('small', null, T('studioNtWait')), tx);
-    card.append(r);
-  }
-  if (canSend) {
-    const full = nt && !nt.p && nt.n >= nt.max;
-    if (full) card.append(h('small', 'st-muted', T('studioNtFull', { n: nt.max })));
-    else if (!ui.noteOpen) {
-      const b = btn('st-row st-ric', null, () => { ui.noteOpen = true; render('none'); const t = root && root.querySelector('[data-k="note-t"]'); if (t) try { t.focus({ preventScroll: true }); } catch (e) {} }, 'note-open');
-      b.append(tile('spark', 'blue'), rowTxt(nt && nt.p ? T('studioNtReplace') : T('studioNtT'), T('studioNtSub')), ico('chev', 'st-chev'));
-      card.append(b);
-    } else {
-      const ta = h('textarea', 'st-in st-ask-in'); ta.rows = 3; ta.maxLength = NOTE_LEN; ta.dir = 'auto'; ta.dataset.k = 'note-t';
-      ta.placeholder = T('studioNtPh'); ta.setAttribute('aria-label', T('studioNtT')); ta.value = ui.noteDraft || '';
-      ta.addEventListener('input', () => { ui.noteDraft = ta.value; });
-      const row = h('div', 'st-ntb');
-      const send = btn('st-btn wide', noteBusy ? T('studioNtSending') : T('studioNtSend'), () => { const t = noteText(ui.noteDraft); if (t) sendNote(rec.id, t); else flashSafe(T('studioNtEmpty')); }, 'note-send');
-      const cancel = btn('st-btn ghost', T('studioNtCancel'), () => { ui.noteOpen = false; render('none'); }, 'note-cancel');
-      if (noteBusy || blocked()) send.disabled = true;
-      row.append(cancel, send);
-      card.append(ta, row);
-    }
-  }
-  return [h('div', 'st-gap'), card];   // 25/10/2026: בלי כותרת מקטע — השורה עצמה אומרת "לכתוב הערה ל־Claude"
-}
 /* סבב 10: העתק־הדבק — "העתקת הבקשה" → מדביקים בשיחה עם Claude → מדביקים כאן את התשובה → העבודה ממשיכה.
    הבקשה והתשובה = קבצים בתיקיית העבודה; כאן רק הטקסט שהדבקת עד השליחה (לא נשמר) */
 let cpBusy = false;
@@ -7611,8 +7560,6 @@ function pageJob(p) {
     sd.append(sm, stl);
     p.append(h('div', 'st-gap'), list(sd));
   } else p.append(secT(T('studioSecStages')), stl);
-  const nc = noteCard(rec);   // v382: הערה ל־Claude — נקראת בנקודת השמירה הבאה
-  if (nc) p.append(...nc);
   if (rec.srv && rec.srv.sla) p.append(...slaCard(rec));   // v377: יעד זמן ותקציב
   p.append(...anJobRows(rec));   // v385: השלבים שחרגו מהרגיל שלך
 
