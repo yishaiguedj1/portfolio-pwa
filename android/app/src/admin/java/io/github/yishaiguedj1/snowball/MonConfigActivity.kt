@@ -1,6 +1,8 @@
 package io.github.yishaiguedj1.snowball
 
 import android.app.Activity
+import android.content.Intent
+import android.appwidget.AppWidgetManager
 import android.graphics.Color
 import android.os.Bundle
 import android.text.InputType
@@ -22,6 +24,9 @@ class MonConfigActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 26/10/2026: נפתח גם כ"הגדרות הווידג'ט" (APPWIDGET_CONFIGURE) — מאשרים מיד, כדי שהמסך אף פעם לא יבטל ווידג'ט
+        val wid = intent?.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID) ?: AppWidgetManager.INVALID_APPWIDGET_ID
+        if (wid != AppWidgetManager.INVALID_APPWIDGET_ID) setResult(RESULT_OK, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, wid))
         title = getString(R.string.mon_cfg_title)
         setContentView(build())
         status.text = getString(if (MonStore.token(this).isEmpty()) R.string.mon_cfg_hint else R.string.mon_cfg_stored)
@@ -76,7 +81,7 @@ class MonConfigActivity : Activity() {
                 is MonApi.Res.Ok -> {
                     val snap = MonParse.parse(r.json)
                     if (snap == null) getString(R.string.mon_cfg_fail)
-                    else getString(R.string.mon_cfg_ok, snap.servers.size, snap.jobs)
+                    else getString(R.string.mon_cfg_ok, snap.servers.size, snap.jobs.size)
                 }
                 MonApi.Res.NoAuth -> getString(R.string.mon_cfg_noauth)
                 MonApi.Res.Fail -> getString(R.string.mon_cfg_fail)

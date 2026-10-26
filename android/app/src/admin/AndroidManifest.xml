@@ -2,12 +2,20 @@
 <!-- admin (23/10/2026): מרכז הניהול — ווידג'ט מדדי השרתים ומסך הטוקן. ‏INTERNET כבר ב־src/main. בלי הרשאות נוספות. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
-        <!-- מסך הטוקן: לא מיוצא — נפתח רק מהווידג'ט (PendingIntent של האפליקציה עצמה) -->
+        <!-- מסך הטוקן: נפתח מהווידג'ט, ו־26/10/2026 גם בלחיצה ארוכה ← "הגדרות הווידג'ט" (APPWIDGET_CONFIGURE — לכן מיוצא).
+             הוא רק מציג שדה; הטוקן נשמר רק כשהמשתמש מדביק ושומר, ולא מוצג אף פעם -->
         <activity
             android:name=".MonConfigActivity"
-            android:exported="false"
+            android:exported="true"
             android:label="@string/mon_cfg_title"
-            android:theme="@android:style/Theme.Material.NoActionBar" />
+            android:theme="@android:style/Theme.Material.NoActionBar">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
+        <!-- 26/10/2026: הרענון כל דקה (התראה לא־מעירה) -->
+        <receiver android:name=".MonTickReceiver" android:exported="false" />
 
         <!-- ווידג'ט מדדי השרתים למסך הבית -->
         <receiver
