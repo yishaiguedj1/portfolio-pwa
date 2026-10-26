@@ -8,7 +8,7 @@
    כשהדפדפן תומך — כדי להמשיך העלאה אחרי רענון בלי לבחור שוב.
    "חזור" של המכשיר: עם CloseWatcher — רשומה אחת ומחסנית דפים בזיכרון; בלי — רשומה לכל דף (סעיף 18 ב־CLAUDE.md).
    מחרוזות: t() של app.js (STRINGS.he/en, מפתחות studio*) — כל מפתח כתוב כאן מילולית, והבדיקות מאמתות שהוא קיים בשתי השפות. */
-import { createNet, probeVideo, extractAudio, uploadBoth, stageEstimates, progressModel, monoPct, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX, inspectSource, QUIET_DB, subsPlan } from './studionet.js';
+import { createNet, probeVideo, extractAudio, uploadBoth, stageEstimates, progressModel, monoPct, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX, inspectSource, QUIET_DB, subsPlan, kaPlan } from './studionet.js';
 import { createBackup, waitOAuthCode } from './libbackup.js';
 // ת4: מזהים של R2 (העלאה ותוצרים בעבודה במצב שרת)
 import { isR2Folder, isR2Id } from './studiostore.js';
@@ -974,6 +974,10 @@ function outName(k) {
     case 'small': return T('studioOutSmall');   // מ1
     case 'thumb': return T('studioOutThumb');   // סבב 7
     case 'en': return T('studioOutEn');
+    case 'inst': return T('studioOutInst');   // 26/10/2026: קריוקי
+    case 'lrc': return T('studioOutLrc');
+    case 'elrc': return T('studioOutElrc');
+    case 'ass': return T('studioOutAss');
     default: return T('studioOutSrt');
   }
 }
@@ -997,6 +1001,7 @@ function styleName(k) {
 }
 /* שלבי העבודה — שם פשוט ומשפט הסבר (מהתוכנית: "שגם ילד וגם אדם מבוגר יבינו") */
 function stageName(id, to, subs) {
+  if (subs === 'ka' && (id === 'up' || id === 'tr' || id === 'al' || id === 'bn')) return id === 'up' ? T('studioStgUpKa') : id === 'tr' ? T('studioStgTrKa') : id === 'al' ? T('studioStgAlKa') : T('studioStgBnKa');   // 26/10/2026: קריוקי
   if (subs && (id === 'up' || id === 'tr' || id === 'al' || id === 'bn')) return id === 'up' ? T('studioStgUpSubs') : id === 'tr' ? T('studioStgTrSubs') : id === 'al' ? T('studioStgAlSubs') : T('studioStgBnSubs');   // 22/10/2026
   switch (id) {
     case 'up': return T('studioStgUp');
@@ -1009,6 +1014,7 @@ function stageName(id, to, subs) {
   }
 }
 function stageSub(id, subs) {
+  if (subs === 'ka' && (id === 'up' || id === 'tr' || id === 'al' || id === 'bn')) return id === 'up' ? T('studioStgUpKaS') : id === 'tr' ? T('studioStgTrKaS') : id === 'al' ? T('studioStgAlKaS') : T('studioStgBnKaS');
   if (subs && (id === 'up' || id === 'tr' || id === 'al' || id === 'bn')) return id === 'up' ? T('studioStgUpSubsS') : id === 'tr' ? T('studioStgTrSubsS') : id === 'al' ? T('studioStgAlSubsS') : T('studioStgBnSubsS');
   switch (id) {
     case 'up': return T('studioStgUpS');
@@ -1053,6 +1059,8 @@ function errText(code, extra) {
     case 'wait': return T('studioErrWait', { s: Math.max(1, (extra && extra.retry) || 60) });
     case 'worker_not_ready': return T('studioWaitWorker');
     case 'lang_unsupported': return T('studioLangSoon');
+    case 'ka_lyrics': return T('studioKaNeedLyr');   // 26/10/2026: קריוקי
+    case 'ka_noaudio': return T('studioKaNoAudio');
     case 'bad_url': return T('studioErrBadUrl');
     case 'bad_key': return T('studioErrBadKey');
     case 'vault_not_configured': return T('studioErrVault');
@@ -1948,7 +1956,7 @@ function repickFor(id) {           // "בחרו שוב את הסרטון" — א
 }
 function pickInput(cb) {
   const inp = document.createElement('input'); inp.type = 'file';
-  inp.accept = 'video/*,.mkv,.mov,.mp4,.m4v,.webm,.avi';
+  inp.accept = f.ka ? 'audio/*,video/*,.mp3,.m4a,.wav,.flac,.ogg,.opus,.mkv,.mov,.mp4,.webm' : 'video/*,.mkv,.mov,.mp4,.m4v,.webm,.avi';   // קריוקי — גם שיר בלי וידאו
   inp.addEventListener('change', () => { const f = inp.files && inp.files[0]; if (f) cb(f, null); });
   inp.click();
 }
@@ -2597,6 +2605,7 @@ function planFor(rec) {
   const eng = (rec.srv && rec.srv.eng) === 'api' || rec.spec.eng === 'api' ? 'a' : 'r';
   const md = ui.eta && ui.eta[eng];
   const pl = (md && planFrom(md, modeById(rec.spec.mode).min, rec.spec.dur || 0, rec.spec.px)) || { s: stageEstimates(modeById(rec.spec.mode).min, rec.spec.dur || 0), q: Q_DEF, n: 0 };
+  if (rec.spec.ka) return kaPlan(pl, rec.spec.dur);   // 26/10/2026: קריוקי (= השרתון בלקיחה)
   return rec.spec.src === 'subs' ? subsPlan(pl) : pl;   // 22/10/2026: קובץ כתוביות — בלי תמלול, יישור וצריבה (= השרתון בלקיחה)
 }
 function modelFor(rec) {
@@ -2949,7 +2958,9 @@ function pageForm(p, editing) {
     // 25/10/2026 (בקשת המשתמש — "נקי ומסודר כמו Apple"): כל המקורות בקבוצה אחת, במקום שלוש קבוצות נפרדות
     // 26/10/2026 (בקשת המשתמש): "מ־Google Drive" = רשימה שלנו (pageDrivePick), לא Google Picker — הסרטון נשאר ב־Drive, בלי העלאה
     const driveRow = ui.gb ? rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'), onClick: () => { if (dp.st !== 'ok') dp.st = ''; go('dpick'); }, k: 'from-drive' }) : null;
-    p.append(list(pickRow, phRow, pwRow, linkRow, subsRow, driveRow));
+    // 26/10/2026: קריוקי משיר רגיל — הליווי בלי הקול, והמילים נצבעות כשהן נשמעות (רק בשרת שלנו)
+    const kaRow = kaOk() ? rowSwitch({ label: T('studioKaRow'), sub: T('studioKaRowS'), on: !!f.ka, onClick: () => { f.ka = !f.ka; if (f.ka) { f.ph = false; f.pw = undefined; } render('none'); }, k: 'ka' }) : null;
+    p.append(list(pickRow, f.ka ? null : phRow, f.ka ? null : pwRow, linkRow, f.ka ? null : subsRow, driveRow), kaRow ? list(kaRow) : '');
     const tk = f.trk && f.trk.tracks.length ? f.trk.tracks : null;   // שלב 4
     const hl = tk && f.trk.hlp != null && f.trk.src == null && hlpEngine() ? tk.find((t) => t.id === f.trk.hlp) : null;   // 26/10/2026
     if (tk) p.append(list(rowNav({ tile: tile('cc', 'orange'), label: T('studioTrkRow'), value: T('studioTrkN', { n: fmtNum(tk.length) }), sub: hl ? T('studioTrkHlpRow', { l: trkLabel(hl) }) : T('studioTrkRowS'), onClick: () => go('tracks'), k: 'tracks' })));
@@ -2959,6 +2970,15 @@ function pageForm(p, editing) {
     if (isIOS()) p.append(note(T('studioIosTip')));
   }
 
+  if (f.ka) {   // 26/10/2026: קריוקי — המילים, הקול, ומה לקבל (בלי שפות ובלי מצב תרגום)
+    kaSection(p, f);
+    p.append(secT(T('studioSecOut')), list(...KA_OUTS.map((k) => rowCheck({ label: outName(k), sub: outSub(k), on: !!f.out[k], onClick: () => { f.out[k] = !f.out[k]; render('none'); }, k: 'o:' + k }))), note(T('studioKaOutNote')));
+    p.append(secT(T('studioSecStyle')), stylePicker(f.style, (k) => { f.style = k; render('none'); }));
+    const startKa = btn('st-btn wide', ui.starting ? T('studioStarting') : T('studioKaStart'), startFromForm, 'start');
+    startKa.disabled = !(f.fileObj || f.drive || (f.link && f.linkOk)) || !kaLyr(f.lyr).trim() || ui.starting;
+    const ft = h('div', 'st-foot'); ft.append(startKa, h('p', 'st-foot-n', !kaLyr(f.lyr).trim() ? T('studioKaNeedLyr') : T('studioKaStartNote'))); p.append(ft);
+    return;
+  }
   // שפות
   const ul = uiLang();
   p.append(secT(T('studioSecLangs')), list(
@@ -3039,6 +3059,37 @@ function startSubs(f) {
    ומה שמצאנו מוצג לפני ההתחלה. רק במצב השרת (ה־Routine לא מכיר את המסלול) */
 const SUBS_MAX = 5 * 1024 * 1024;   // = SUBS_MAX בשרתון
 const subsOk = () => apiMode() || cpMode();
+/* 26/10/2026: קריוקי משיר רגיל — רץ כולו בשרת שלנו (הפרדה, יישור, צריבה; בלי Claude), ולכן בכל מנוע כשיש שרת ואחסון */
+const kaOk = () => !!(ui.api && ui.api.servers > 0 && ui.r2);
+export const KA_LYR_MAX = 8000;   // = KA_LYR_MAX בשרתון ו־LYR_MAX ב־translator/vt/karaoke.py
+const KA_OUTS = ['compact', 'same', 'small'];
+const KA_GV = [0, 10, 20, 30];
+/* המילים מהמשתמש — בלי תווי בקרה וכיווניות (= normLyr בשרתון) */
+export function kaLyr(t) {
+  return String(t == null ? '' : t).replace(/[\u0000-\u0008\u000b-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+    .replace(/\r\n?/g, '\n').slice(0, KA_LYR_MAX);
+}
+/* השדות של הקריוקי ל־spec (קובץ או קישור). המנוע — תמיד השרת שלנו */
+function kaSpec(f, spec) {
+  if (!f.ka) return spec;
+  const out = KA_OUTS.filter((k) => f.out[k]);
+  Object.assign(spec, { ka: 1, lyr: kaLyr(f.lyr), out: out.length ? out : ['compact'], eng: 'api', cap: store.settings.cap },
+    f.bv ? { bv: 1 } : {}, f.gv > 0 ? { gv: f.gv } : {});
+  delete spec.cp; delete spec.ry; delete spec.edl;
+  return spec;
+}
+function kaSection(p, f) {
+  const ta = h('textarea', 'st-ask-in st-ka-lyr');
+  ta.dir = 'auto'; ta.rows = 8; ta.maxLength = KA_LYR_MAX; ta.value = f.lyr || ''; ta.placeholder = T('studioKaLyrPh');
+  ta.setAttribute('aria-label', T('studioKaLyr'));
+  ta.addEventListener('input', () => { f.lyr = ta.value; });
+  p.append(secT(T('studioKaLyr')), ta, note(T('studioKaLyrNote')));
+  const chip = (lbl, on, fn, k) => { const b = btn('st-chip' + (on ? ' on' : ''), lbl, fn, k); b.setAttribute('aria-pressed', on ? 'true' : 'false'); return b; };
+  const gv = h('div', 'st-chips');
+  gv.append(...KA_GV.map((x) => chip(x ? '\u2066' + x + '%\u2069' : T('studioKaGv0'), (f.gv || 0) === x, () => { f.gv = x; render('none'); }, 'ka-gv:' + x)));
+  p.append(secT(T('studioKaVoice')), list(rowSwitch({ label: T('studioKaBv'), sub: T('studioKaBvS'), on: !!f.bv, onClick: () => { f.bv = !f.bv; render('none'); }, k: 'ka-bv' })),
+    secT(T('studioKaGv')), gv);
+}
 function pickSubs(f) {
   if (!subsOk()) { flashSafe(T('studioSubsApiOnly')); return; }
   const inp = h('input'); inp.type = 'file'; inp.hidden = true;
@@ -3917,8 +3968,8 @@ function startLinkCloud(f) {   // ישר לענן של Studio (העובד מור
   const L = f.link;
   if (!L || L.st !== 'ok' || ui.starting) return;
   if (ui.access === 'signin' || ui.access === 'denied') { flashSafe(ui.access === 'signin' ? T('studioErrSignin') : T('studioErrDenied')); return; }
-  if (!apiMode() && !cpMode() && !ryMode()) { flashSafe(T('studioLinkApiOnly')); return; }   // 25/10: גם "המנוי שלי" כשיש שרת (ry)
-  if (!langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }
+  if (!apiMode() && !cpMode() && !ryMode() && !(f.ka && kaOk())) { flashSafe(T('studioLinkApiOnly')); return; }   // 25/10: גם "המנוי שלי" כשיש שרת (ry)
+  if (!f.ka && !langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }
   const pick = L.blind ? { h: 0 } : linkPick(L);   // 24/10/2026: "בלי בדיקה" — העובד בוחר לבד (הכי טוב עד 1080p, fetchurl.selector)
   if (!pick) return;
   ui.starting = true; render('none');
@@ -3928,11 +3979,12 @@ function startLinkCloud(f) {   // ישר לענן של Studio (העובד מור
     const spec = { name: L.r.t, size: L.blind ? 1 : Math.max(1, linkSize(L)), type: 'video/url', dur, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
       out: OUTS.filter((k) => f.out[k]), style: f.style, ...(f.sty ? { sty: f.sty } : {}), terms: f.terms, src: 'url', url: L.r.u || L.u, pick, eng: 'api', cap: store.settings.cap };
     if (L.ref) spec.ref = L.ref;
-    if (cpMode()) spec.cp = 1;
+    if (f.ka) kaSpec(f, spec);   // 26/10/2026: קריוקי מקישור — כמו בסרטונים
+    else if (cpMode()) spec.cp = 1;
     else if (ryMode()) spec.ry = 1;   // 24/10/2026: המנוי שלך — Claude דרך ה־Routine, לא מהמפתח של המערכת
     if (o.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, (o.h * o.h * 16 / 9) / (1920 * 1080))) * 1000) / 1000;
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
-    if (est.min && typeof askConfirm === 'function') {
+    if (est.min && !f.ka && typeof askConfirm === 'function') {
       const yes = await new Promise((ok) => askConfirm(cpMode() ? T('studioEstCp') : estText(est, apiMode()), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) }));
       if (!yes || form !== f) { ui.starting = false; blindUndo(L); render('none'); return; }
     }
@@ -4237,13 +4289,14 @@ function startFromForm() {
   // 26/10/2026: מקור מהרשימה של Studio (bx) — רק כשהשרת שלנו מתרגם; את Drive הוא קורא בחיבור של הרשימה, לא של הסטודיו
   const bx = !!(f.drive && f.drive.bx);
   if (bx && !(apiMode() || cpMode() || ryMode())) { flashSafe(T('studioDpEng')); return; }
-  const needDrive = !((apiMode() || cpMode() || (bx && ryMode())) && ui.r2 && (!f.drive || bx));
+  const needDrive = !((apiMode() || cpMode() || (bx && ryMode()) || (f.ka && kaOk())) && ui.r2 && (!f.drive || bx));
   if (needDrive && (!store.drive || !store.drive.connected)) {
     if (typeof askConfirm === 'function') askConfirm(T('studioNeedDrive'), connectDrive, { ok: T('studioDriveConnect') });
     else connectDrive();
     return;
   }
-  if (!langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }   // לפני ההעלאה, לא אחריה
+  if (!f.ka && !langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }   // לפני ההעלאה, לא אחריה
+  if (f.ka && (!kaOk() || !kaLyr(f.lyr).trim())) { flashSafe(kaOk() ? T('studioKaNeedLyr') : T('studioKaNoSrv')); return; }
   ui.starting = true; render('none');
   (async () => {
     const file = f.fileObj || f.drive;   // מ־Drive: הפרטים מ־Drive (בלי לקרוא את הקובץ בטלפון)
@@ -4258,9 +4311,10 @@ function startFromForm() {
     if (apiMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap });   // השרת של המערכת — בלי Routine
     else if (cpMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap, cp: 1 });   // סבב 10: העתק־הדבק — השרת מתמלל וצורב, Claude שלך מתרגם
     else if (ryMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap, ry: 1 });   // 24/10/2026: המנוי שלך — השרת עושה הכל, Claude דרך ה־Routine
+    kaSpec(f, spec);   // 26/10/2026: קריוקי — בלי Claude, בלי אומדן עלות
     // מ6 (כלל 2): אומדן ואישור לפני ההתחלה — עוד לפני שנוצרת עבודה ולפני ההעלאה
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
-    if (est.min && !f.estOk && typeof askConfirm === 'function') {   // estOk — מקישור: האומדן אושר לפני ההורדה בטלפון
+    if (est.min && !f.ka && !f.estOk && typeof askConfirm === 'function') {   // estOk — מקישור: האומדן אושר לפני ההורדה בטלפון
       const yes = await new Promise((ok) => askConfirm(cpMode() ? T('studioEstCp') : estText(est, apiMode()), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) }));
       if (!yes || form !== f) { ui.starting = false; render('none'); return; }
     }
@@ -5055,6 +5109,8 @@ function incTitle(e) {
     case 'ph_meta': return T('studioErrPhMeta');
     case 'ph_words': return T('studioErrPhWords');
     case 'lang_unsupported': return T('studioIncLang');
+    case 'ka_lyrics': return T('studioKaNeedLyr');
+    case 'ka_noaudio': return T('studioKaNoAudio');
     case 'max_tokens': return T('studioIncMaxTok');
     default: return /^routine_/.test(e) ? T('studioIncRDown') : T('studioIncWorker');
   }
@@ -7829,12 +7885,14 @@ function pageJob(p) {
   const m0 = modelFor(rec);
   const stl = h('div', 'st-stages');
   for (const s of m0.stages) {
+    if (rec.spec.ka && (s.id === 'tl' || s.id === 'rv')) continue;   // 26/10/2026: קריוקי — בלי תרגום וביקורת
     const row = h('div', 'st-stg ' + s.state);
     const dot = h('span', 'dot');
     if (s.state === 'done') dot.append(ico('check'));
     else if (s.state === 'now') dot.append(h('span', 'st-spin'));
     const txt = h('span', 'st-l');
-    txt.append(h('b', null, stageName(s.id, toTxt, rec.spec.src === 'subs')), h('small', null, stageSub(s.id, rec.spec.src === 'subs')));
+    const sk = rec.spec.ka ? 'ka' : rec.spec.src === 'subs';
+    txt.append(h('b', null, stageName(s.id, toTxt, sk)), h('small', null, stageSub(s.id, sk)));
     const tm = h('span', 'st-stg-t');
     row.append(dot, txt, tm);
     if (s.state === 'now') { const pb = h('span', 'st-pbar'); const pi = h('i'); pb.append(pi); txt.append(pb); live(pb, () => { const mm = modelFor(jobRec(id) || rec).stages.find((x) => x.id === s.id); pi.style.width = Math.round(100 * shownPct(jobRec(id) || rec, mm && (mm.pv != null ? mm.pv : mm.p), s.id)) + '%'; }); }

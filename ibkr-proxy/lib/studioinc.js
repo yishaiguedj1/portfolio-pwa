@@ -18,6 +18,7 @@ const ERR_RE = /^[a-z][a-z0-9_]{1,29}$/;
 const ERR_INFO = {
   no_claim: ['routine', 2], routine_auth: ['routine', 1], routine_forbidden: ['routine', 1], routine_missing: ['routine', 1],
   routine_paused: ['routine', 1], routine_rate: ['routine', 3], routine_down: ['routine', 2], routine_net: ['routine', 2], routine_bad: ['routine', 2],
+  ka_lyrics: ['phone', 3], ka_noaudio: ['phone', 3],   // 26/10/2026: קריוקי — בלי מילים / בלי שמע
   no_server: ['server', 2], job_timeout: ['server', 2], month_cap: ['server', 3], worker_unknown_kind: ['server', 3],
   worker_oom: ['server', 2], worker_crash: ['server', 2], worker_lost: ['server', 3],   // 14/10: השרת הופעל מחדש באמצע עבודה
   tower_stop: ['claude', 2], budget_stop: ['claude', 3], worker_step: ['claude', 2], store_fail: ['drive', 2], store_net: ['drive', 3], stale: ['claude', 2], worker: ['claude', 2],

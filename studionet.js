@@ -143,6 +143,13 @@ export function subsPlan(pl) {
   const s = Object.assign({}, pl.s, SUBS_STG);
   return Object.assign({}, pl, { s, t: ['tr', 'al', 'tl', 'rv', 'bn', 'sv'].reduce((a, k) => a + (s[k] || 0), 0) });
 }
+/* 26/10/2026: קריוקי — = kaPlan ב־ibkr-proxy/lib/studioeta.js (אותם KA_STG): הפרדה, יישור וצריבה, בלי תרגום וביקורת */
+export const KA_STG = { tr: [60, 90], al: [40, 30], bn: [30, 40], sv: [20, 2] };
+export function kaPlan(pl, durSec) {
+  const m = Math.max(0, Number(durSec) || 0) / 60, s = Object.assign({}, (pl && pl.s) || {});
+  for (const k of ['tr', 'al', 'tl', 'rv', 'bn', 'sv']) s[k] = KA_STG[k] ? Math.round(KA_STG[k][0] + KA_STG[k][1] * m) : 0;
+  return Object.assign({}, pl || {}, { s, t: ['tr', 'al', 'tl', 'rv', 'bn', 'sv'].reduce((a, k) => a + (s[k] || 0), 0) });
+}
 export function progressModel(job, est, up, now, q) {
   const prog = (job && job.prog) || {};
   const stg = prog.stg || {};
