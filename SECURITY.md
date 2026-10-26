@@ -19,6 +19,7 @@
 | `IBKR_VAULT_KEY` | Vercel (מומלץ להגדיר) | מפתח ההצפנה של הכספות (IBKR, ‏Drive, ‏Routine) | אחרי החלפה הכספות הישנות לא נפתחות. משתמשים מתחברים מחדש (IBKR, ‏Drive, ‏Routine). לא להחליף בלי סיבה |
 | `GDRIVE_CLIENT_ID/SECRET` | Vercel | חיבור Drive של הספרייה (OAuth) | Google Cloud ← Credentials ← Reset secret ← Vercel ← Redeploy |
 | `STUDIO_GDRIVE_CLIENT_ID/SECRET` | Vercel | חיבור Drive של הסטודיו (לקוח נפרד) | כמו בשורה הקודמת |
+| `STUDIO_BROWSE_CLIENT_ID/SECRET` | Vercel | רשימת הקבצים ב־Drive בסטודיו (drive.readonly, לקוח שלישי — לא מגיע לחיבור של הסטודיו ולא ל־Routine) | כמו בשורה הקודמת |
 | `GEMINI_API_KEY`, `MISTRAL_API_KEY`, `GOOGLE_BOOKS_KEY` | Vercel | תרגום, ניתוח מכתבים, פרטי ספרים | יוצרים מפתח חדש אצל הספק ← Vercel ← Redeploy ← מוחקים את הישן |
 | `CRON_SECRET` | Vercel (רשות) | הפעלת הסנכרון היומי של IBKR | מחרוזת אקראית חדשה ← Vercel |
 | `SNB_SESSION_KEY` | השרת (רשות; בלעדיו — נגזר מחשבון השירות) | חתימת עוגיית החיבור המשותף (`lib/session.js`) | 32 בתים אקראיים ב־base64 ← הסודות של השרת. אחרי החלפה (או החלפת חשבון השירות כשהוא לא מוגדר) כולם מתחברים מחדש פעם אחת |
