@@ -15,6 +15,15 @@ export const BG_DB = 'snb-bgup';                   // מה שה־service worker 
    התשובה — components/background_fetch/job_details.cc), והאחוז קופץ בחלק שלם ויורד חזרה. לכן לפי חלקים, והשרתון קובע
    גודל חלק שנותן צעדים קטנים (bgPartSize ב־lib/studior2.js) */
 const JOB_RE = /^j[A-Za-z0-9_-]{20}$/;
+/* 26/10/2026 (בטלפון: "עלו 1KB מתוך 187MB" יותר מדקה — הפעם הראשונה שהמסלול רץ באנדרואיד): Chrome יכול לקבל את
+   ה־Background Fetch ולא להתחיל אותו (תור של המערכת), ועד היום חיכינו לו בלי סוף. שעון תקיעה — נספר רק כשהדף מוצג
+   (אז רואים שלא זז, וההעלאה הרגילה באמת מהירה): בלי בית אחד — BG_FIRST_MS; אחרי שהתחיל — חלק שלם בקצב איטי
+   (ps ÷ BG_SLOW_BPS), לפחות BG_STALL_MS (Chrome מעדכן את uploaded רק כשחלק נגמר). תקוע → מבטלים, וההעלאה הרגילה ממשיכה
+   מהחלקים שכבר הגיעו */
+export const BG_FIRST_MS = 90 * 1000;
+export const BG_STALL_MS = 3 * 60 * 1000;
+export const BG_SLOW_BPS = 128 * 1024;
+export const bgStallLimit = (started, ps) => (started ? Math.max(BG_STALL_MS, Math.ceil((Number(ps) || 0) / BG_SLOW_BPS) * 1000) : BG_FIRST_MS);
 
 export const bgIdOf = (job) => (JOB_RE.test(String(job || '')) ? BG_PREFIX + job : '');
 export const jobOfBgId = (id) => { const j = String(id || '').slice(BG_PREFIX.length); return String(id || '').startsWith(BG_PREFIX) && JOB_RE.test(j) ? j : ''; };
@@ -47,17 +56,18 @@ export function bgPlan(size, ps, urls) {
   return out;
 }
 
-/* env: { reg() → ServiceWorkerRegistration, Request, put(rec), del(id), base(), lang(), now() }
+/* env: { reg() → ServiceWorkerRegistration, Request, put(rec), del(id), base(), lang(), now(), visible() }
    o: { api, job, name, blob, size, mime, st, onState, onProgress, signal, title, icon }
    מחזיר { ok:true } כשה־Background Fetch הסתיים בהצלחה, { fallback: '<סיבה>' } כשצריך את ההעלאה הרגילה,
-   { unsupported: true } כשהדפדפן לא מקבל העלאה כזו (לא לנסות שוב בטלפון הזה) */
+   { unsupported: true } כשהדפדפן לא מקבל העלאה כזו (לא לנסות שוב בטלפון הזה),
+   { fallback: 'bg_stall', stall: true } כשקיבל ולא מתקדם (בוטל — ממשיכים בהעלאה הרגילה) */
 export async function bgUpload(o, env) {
   const id = bgIdOf(o.job);
   if (!id) return { fallback: 'bad_job' };
   let reg;
   try { reg = await env.reg(); } catch (e) { reg = null; }
   if (!reg || !reg.backgroundFetch) return { unsupported: true };
-  let bg = null;
+  let bg = null, ps = Number(o.st && o.st.ps) || 0;
   try { bg = await reg.backgroundFetch.get(id); } catch (e) { bg = null; }
   if (!bg || bg.result) {
     if (bg && bg.result === 'success') return { ok: true };   // הסתיים כשהדף היה סגור — ההעלאה הרגילה רק תסגור / תאשר
@@ -65,6 +75,7 @@ export async function bgUpload(o, env) {
     if (!j || !j.ok) return { fallback: (j && j.error) || 'net' };
     if (j.file) return { ok: true };
     if (o.onState) o.onState({ id: j.id, up: j.up, ps: j.ps });
+    ps = Number(j.ps) || ps;
     const plan = bgPlan(o.size, j.ps, j.urls);
     if (!plan.length) return { ok: true };
     await env.put({ id, job: o.job, fid: j.id, up: j.up, fk: j.fk, apis: bgApis(env.base()), l: env.lang(), at: env.now(), exp: j.exp || 0 });
@@ -80,12 +91,23 @@ export async function bgUpload(o, env) {
   /* מחכים לסוף — עם התקדמות. ביטול (עצירה / מחיקה) = מבטלים גם אצל הדפדפן */
   return new Promise((resolve) => {
     let fin = false;
+    const now = () => (env.now ? env.now() : Date.now());
+    let seen = bg.uploaded || 0, started = seen > 0, quiet = 0, last = now();
     const tick = () => {
       if (fin) return;
       // מה שהגיע לפני ה־Background Fetch הזה (חלקים שהשרתון כבר ראה) = הגודל פחות מה שהוא צריך להעלות
       const base = Math.max(0, o.size - (bg.uploadTotal || o.size));
       if (o.onProgress) o.onProgress(Math.min(o.size, base + (bg.uploaded || 0)));
-      if (bg.result) { fin = true; cleanup(); resolve(bg.result === 'success' ? { ok: true } : { fallback: 'bg_' + (bg.failureReason || 'fail') }); }
+      if (bg.result) { fin = true; cleanup(); resolve(bg.result === 'success' ? { ok: true } : { fallback: 'bg_' + (bg.failureReason || 'fail') }); return; }
+      const t = now(), up = bg.uploaded || 0;
+      if (up !== seen) { seen = up; started = started || up > 0; quiet = 0; }
+      else if (!env.visible || env.visible()) quiet += Math.min(10000, Math.max(0, t - last));   // טיק אחרי רקע ארוך — לא נספר כולו
+      last = t;
+      if (quiet >= bgStallLimit(started, ps)) {
+        fin = true; cleanup();
+        Promise.resolve().then(() => bg.abort()).catch(() => {}).then(() => env.del && env.del(id)).catch(() => {})
+          .then(() => resolve({ fallback: 'bg_stall', stall: true, started }));
+      }
     };
     const iv = setInterval(tick, 2000);   // גם בלי אירוע progress (חלק Chrome לא שולחים אחרי הסיום)
     const onAbort = () => { if (fin) return; fin = true; cleanup(); try { bg.abort(); } catch (e) {} resolve({ aborted: true }); };

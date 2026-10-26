@@ -107,6 +107,7 @@ export function normSettings(o) {
   s.pq = normPq(o.pq);
   s.pt = normTrackPref(o.pt);   // 23/10/2026: הקול והכתוביות שנבחרו ידנית בנגן (ריק = אוטומטי)
   if (Number.isFinite(+o.op1) && +o.op1 > 0) s.op1 = Math.floor(+o.op1);
+  if (Number.isFinite(+o.bgSt) && +o.bgSt > 0) s.bgSt = Math.min(9, Math.floor(+o.bgSt));   // 26/10/2026: כמה פעמים העלאה ברקע נתקעה (מהשנייה — לא מנסים חודש)
   if (Number.isFinite(+o.bgNo) && +o.bgNo > 0) s.bgNo = Math.floor(+o.bgNo);   // 23/10/2026: מתי הדפדפן סירב להעלאה ברקע (ננסה שוב אחרי חודש)   // מתי Google סירב לבורר במסך מלא (ננסה שוב אחרי חודש)
   const sty = normSty(o.sty); if (sty) s.sty = sty;   // סבב 5: עיצוב הכתוביות האחרון (ברירת המחדל להפקה הבאה)
   if (o.lg && typeof o.lg === 'object') { const ov = normOv({ lg: o.lg.d, lp: o.lg.p, ls: o.lg.s }); if (ov) s.lg = { d: ov.lg, p: ov.lp, s: ov.ls }; }   // סבב 7: הלוגו שלך
@@ -868,6 +869,7 @@ export function fmtSize(n) {
   const G = 1073741824, M = 1048576;
   if (n >= G) return (n / G).toFixed(n >= 10 * G ? 0 : 1) + 'GB';
   if (n >= M) return Math.round(n / M) + 'MB';
+  if (n <= 0) return '0KB';   // 26/10/2026: עד היום "1KB" גם כשלא עלה כלום ("עלו 1KB מתוך 187MB" — נראה כמו תקיעה באמצע)
   return Math.max(1, Math.round(n / 1024)) + 'KB';
 }
 /* 105 → "1:45" */
@@ -1824,6 +1826,7 @@ const bgEnv = {
   Request: typeof Request !== 'undefined' ? Request : null,
   put: (x) => (bgStore ? bgStore.put(x) : null), del: (k) => (bgStore ? bgStore.del(k).catch(() => {}) : null),
   base: () => proxyBase(), lang: () => uiLang(), now: () => Date.now(),
+  visible: () => typeof document === 'undefined' || document.visibilityState === 'visible',
 };
 async function bgCan(rec, file) {
   const s = store.settings, up = rec.up;
@@ -1837,8 +1840,11 @@ async function bgTry(rec, id, file, sig, onProgress) {
   const r = await bgUpload({ api: net.api, job: id, name: rec.spec.name, blob: file, size: file.size, mime: file.type || 'application/octet-stream',
     st: up.v.r2, onState: (x) => { up.v.r2 = x; save(); }, onProgress, signal: sig, title: T('studioBgTitle'), icon: 'icon-studio-192.png' }, bgEnv)
     .catch(() => ({ fallback: 'bg_err' }));
-  utlOf(rec).bg = r.ok ? 1 : r.unsupported ? 3 : 2;
+  utlOf(rec).bg = r.ok ? 1 : r.unsupported ? 3 : r.stall ? 4 : 2;   // 4 = Chrome קיבל ולא התקדם
   if (r.unsupported) { store.settings.bgNo = Date.now(); save(); }
+  // 26/10/2026: נתקע — הפעם ממשיכים בהעלאה הרגילה; פעם שנייה בטלפון הזה = לא מנסים חודש. הצליח — מתחילים לספור מחדש
+  if (r.stall) { const st = (store.settings.bgSt || 0) + 1; store.settings.bgSt = st; if (st >= 2) store.settings.bgNo = Date.now(); save(); }
+  else if (r.ok && store.settings.bgSt) { delete store.settings.bgSt; save(); }
   if (r.aborted) throw Object.assign(new Error('aborted'), { name: 'AbortError' });
   return r;
 }
@@ -2612,7 +2618,9 @@ const shownPct = (rec, v, x) => monoPct(pctMemo, pctKey(rec, x), v || 0);
 function videoLine(rec, run) {    // "עלו 1.2GB מתוך 3.2GB · 4.3MB לשנייה · נשארו 8 דק׳"
   const sent = run && run.phase === 'video' ? run.sent || 0 : rec.up.v.sent || 0, size = rec.spec.size;
   const parts = [T('studioUpOf', { a: fmtSize(sent), b: fmtSize(size) })];
-  if (run && run.active && run.phase === 'video' && run.rate > 0) {
+  // 26/10/2026: ברקע Chrome מדווח רק כשחלק שלם נגמר — המספר כאן מפגר; ההתקדמות החיה בהתראה שלו
+  if (run && run.active && run.phase === 'video' && run.bg) parts.push(T('studioBgNote'));
+  else if (run && run.active && run.phase === 'video' && run.rate > 0) {
     parts.push(T('studioPerSec', { v: fmtSize(run.rate) }));
     parts.push(T('studioStageLeft', { t: fmtShort(Math.max(0, size - sent) / run.rate) }));
   }
@@ -4382,57 +4390,6 @@ function pageProject(p) {
 
 /* שלב 3 סבב ד׳: "Claude שואל" — שאלה קצרה באמצע העבודה. תשובה מוכנה בנגיעה, או טקסט כשאין תשובות מוכנות.
    לא ענית עד הזמן שכתוב — העבודה ממשיכה עם ברירת המחדל (העובד מדווח, והכרטיס מתחלף לשורה אחת) */
-/* v382: הערה לעובד — שליחה מהטלפון; השרתון מוסר אותה בנקודת השמירה הבאה */
-let noteBusy = false;
-async function sendNote(id, t) {
-  if (noteBusy) return;
-  noteBusy = true; render('none');
-  try {
-    const j = await net.api('note', { job: id, t });
-    const r = jobRec(id);
-    if (j.job && r) { r.srv = normJob({ id, srv: j.job }).srv; save(); }
-    if (j.ok) { ui.noteOpen = false; ui.noteDraft = ''; flashSafe(T('studioNtSent')); } else flashSafe(j.error === 'note_limit' ? T('studioNtLimit') : errText(j.error));
-  } finally { noteBusy = false; render('none'); }
-}
-function noteCard(rec) {
-  const nt = rec.srv && rec.srv.nt;
-  const canSend = rec.srv && (rec.srv.state === 'queued' || rec.srv.state === 'running');
-  if (!nt && !canSend) return null;
-  const card = h('div', 'st-twcard st-ntc');
-  card.dataset.k = 'note';
-  for (const x of (nt ? nt.h : [])) {
-    const r = h('div', 'st-ntr');
-    const tx = h('p', null, x.t); tx.dir = 'auto';
-    r.append(h('small', null, T('studioNtRead', { t: fmtClock(x.d) })), tx);
-    card.append(r);
-  }
-  if (nt && nt.p) {
-    const r = h('div', 'st-ntr wait');
-    const tx = h('p', null, nt.p.t); tx.dir = 'auto';
-    r.append(h('small', null, T('studioNtWait')), tx);
-    card.append(r);
-  }
-  if (canSend) {
-    const full = nt && !nt.p && nt.n >= nt.max;
-    if (full) card.append(h('small', 'st-muted', T('studioNtFull', { n: nt.max })));
-    else if (!ui.noteOpen) {
-      const b = btn('st-row st-ric', null, () => { ui.noteOpen = true; render('none'); const t = root && root.querySelector('[data-k="note-t"]'); if (t) try { t.focus({ preventScroll: true }); } catch (e) {} }, 'note-open');
-      b.append(tile('spark', 'blue'), rowTxt(nt && nt.p ? T('studioNtReplace') : T('studioNtT'), T('studioNtSub')), ico('chev', 'st-chev'));
-      card.append(b);
-    } else {
-      const ta = h('textarea', 'st-in st-ask-in'); ta.rows = 3; ta.maxLength = NOTE_LEN; ta.dir = 'auto'; ta.dataset.k = 'note-t';
-      ta.placeholder = T('studioNtPh'); ta.setAttribute('aria-label', T('studioNtT')); ta.value = ui.noteDraft || '';
-      ta.addEventListener('input', () => { ui.noteDraft = ta.value; });
-      const row = h('div', 'st-ntb');
-      const send = btn('st-btn wide', noteBusy ? T('studioNtSending') : T('studioNtSend'), () => { const t = noteText(ui.noteDraft); if (t) sendNote(rec.id, t); else flashSafe(T('studioNtEmpty')); }, 'note-send');
-      const cancel = btn('st-btn ghost', T('studioNtCancel'), () => { ui.noteOpen = false; render('none'); }, 'note-cancel');
-      if (noteBusy || blocked()) send.disabled = true;
-      row.append(cancel, send);
-      card.append(ta, row);
-    }
-  }
-  return [h('div', 'st-gap'), card];   // 25/10/2026: בלי כותרת מקטע — השורה עצמה אומרת "לכתוב הערה ל־Claude"
-}
 /* סבב 10: העתק־הדבק — "העתקת הבקשה" → מדביקים בשיחה עם Claude → מדביקים כאן את התשובה → העבודה ממשיכה.
    הבקשה והתשובה = קבצים בתיקיית העבודה; כאן רק הטקסט שהדבקת עד השליחה (לא נשמר) */
 let cpBusy = false;
@@ -7603,8 +7560,6 @@ function pageJob(p) {
     sd.append(sm, stl);
     p.append(h('div', 'st-gap'), list(sd));
   } else p.append(secT(T('studioSecStages')), stl);
-  const nc = noteCard(rec);   // v382: הערה ל־Claude — נקראת בנקודת השמירה הבאה
-  if (nc) p.append(...nc);
   if (rec.srv && rec.srv.sla) p.append(...slaCard(rec));   // v377: יעד זמן ותקציב
   p.append(...anJobRows(rec));   // v385: השלבים שחרגו מהרגיל שלך
 
