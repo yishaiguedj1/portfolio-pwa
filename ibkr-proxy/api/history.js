@@ -102,7 +102,7 @@ module.exports = async (req, res) => {
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } }
   /* 25/10/2026: דוחות כספיים לניתוח חברה (op:'fund' {sym}) ונתוני מקרו למחשבון (op:'macro') — lib/fundamentals.js.
      כאן ולא בפונקציה חדשה: ב־Vercel Hobby כבר 12 מתוך 12. מידע ציבורי בלבד, כמו המחירים. */
-  if (body && (body.op === 'fund' || body.op === 'macro')) return require('../lib/fundamentals').handle(body, res);
+  if (body && (body.op === 'fund' || body.op === 'macro' || body.op === 'fundFlags')) return require('../lib/fundamentals').handle(body, res);
   const range = RANGES.has(body && body.range) ? body.range : '5y';
   const raw = Array.isArray(body && body.syms) ? body.syms : [];
   const syms = [...new Set(raw.map((s) => String(s || '').trim().toUpperCase()))].filter((s) => SYM_RE.test(s));

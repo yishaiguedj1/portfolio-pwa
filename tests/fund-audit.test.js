@@ -253,5 +253,33 @@ const root = path.join(__dirname, '..');
       'מרכז הניהול: שכבה 8 בעמוד labFund, התראה x, מחרוזות בשתי השפות');
   }
 
+
+  /* 26/10/2026: אי־התאמה לא מוצגת למשתמש — השרתון רושם את המניה, והבקרה הלילית בודקת אותה (בנפרד מ־500 הגדולות) */
+  {
+    const F = require(path.join(root, 'ibkr-proxy/lib/fundamentals.js'));
+    const { fakeR2, ENV } = require('./_r2fake.js');
+    const R2L = require(path.join(root, 'ibkr-proxy/lib/r2.js'));
+    const S = fakeR2(), deps = Object.assign({}, S.deps, { r2c: R2L.config(ENV), wait: 5000 });
+    ok(F.warnKinds({ checks: [{ k: 'qsh' }, { k: 'rst' }, { k: 'face' }, { k: 'bal' }, { k: 'face' }] }).join() === 'bal,face', 'רק סימון אמיתי נרשם — לא תיקון/מידע (qsh, rst…)');
+    ok(await F.noteFlags('ZZZ', { checks: [{ k: 'qsh' }] }, deps) === false, 'מניה עם תיקונים בלבד — לא נרשמת');
+    ok(await F.noteFlags('ABC', { checks: [{ k: 'face', m: 'rev', p: '2024-12-31' }] }, deps) === true, 'מניה עם אי־התאמה — נרשמת');
+    ok(await F.noteFlags('ABC', { checks: [{ k: 'face' }] }, deps) === false, 'פעם ביום למניה במופע');
+    const body = S.objs.get('fund/flag/ABC.json') || [...S.objs.entries()].find(([k]) => /fund\/flag\/ABC\.json$/.test(k))?.[1];
+    const txt = body ? Buffer.from(body.body || body).toString() : '';
+    ok(/"sym":"ABC"/.test(txt) && /"k":\["face"\]/.test(txt) && !/uid|email|@/.test(txt), 'הקובץ: רק הסימבול וסוג הבדיקה — בלי שום פרט על מי פתח');
+    const got = await F.flaggedSyms(deps);
+    ok(Array.isArray(got) && got.join() === 'ABC', 'הרשימה לבקרה הלילית');
+    const SU = FA.summarize([{ sym: 'ABC', uo: 1, r: { ok: true, src: 'sec', checks: [{ k: 'face', m: 'rev', p: '2024-12-31', f: 10, v: 11 }, { k: 'qsh', m: 'sh', p: '2024-12-31' }] } }], null, Date.now(), 0);
+    ok(SU.n === 0 && SU.sec === 0 && SU.items.length === 0 && SU.u && SU.u.n === 1 && SU.u.items.length === 1 && SU.u.items[0].k === 'face', 'בסיכום: מניה של משתמש — רק ברשימה נפרדת, בלי לשנות את המספרים של 500');
+    const NA = FA.normAudit(JSON.parse(JSON.stringify(SU)));
+    ok(NA.u && NA.u.n === 1 && FA.auditView(NA, [], Date.now()).u.items[0].sym === 'ABC', 'השרתון מעביר את הרשימה למרכז הניהול');
+    const wf2 = fs.readFileSync(path.join(root, '.github/workflows/fund-audit.yml'), 'utf8');
+    ok(/--xsyms ibkr-proxy\/lib\/xsyms\.txt --seen/.test(wf2), 'workflow: --seen — גם המניות שמשתמשים פתחו');
+    const an = fs.readFileSync(path.join(root, 'analysis.js'), 'utf8');
+    const fl = /const FL_INFO = new Set\((\[[^\]]*\])\)/.exec(an)[1].replace(/'/g, '"');
+    ok(JSON.stringify(JSON.parse(fl).sort()) === JSON.stringify([...F.CHECK_INFO].sort()), 'CHECK_INFO בשרתון = FL_INFO במסך');
+    ok(/admFaUser/.test(fs.readFileSync(path.join(root, 'admin-app.js'), 'utf8')), 'מרכז הניהול מציג את הרשימה');
+  }
+
   console.log('\n' + n + ' בדיקות עברו');
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -41,7 +41,7 @@ jobs:
       - name: Audit (500 companies + layer 8 on S&P 500 and Nasdaq-100)
         run: |
           rc=0
-          node tools/fund-audit.js --top 500 --out out --hist out/history.json --xsyms ibkr-proxy/lib/xsyms.txt || rc=$?
+          node tools/fund-audit.js --top 500 --out out --hist out/history.json --xsyms ibkr-proxy/lib/xsyms.txt --seen || rc=$?
           # 1 = סט הזהב זז (מגיע למנהל כהתראה דרך השרתון); כל קוד אחר = הכלי עצמו נכשל
           echo "rc=$rc" >> "$GITHUB_ENV"
           [ "$rc" = 0 ] || [ "$rc" = 1 ]
