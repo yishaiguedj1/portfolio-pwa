@@ -54,6 +54,8 @@ function prep(d, q, fx) {
   const q0 = k > 0 ? d.fy[k - 1] : '0000';
   let j = d.q.findIndex((e) => e > q0); if (j < 0) j = d.q.length;
   co.q = d.q.slice(j); co.Q = {}; for (const m in d.Q) co.Q[m] = (d.Q[m] || []).slice(j);
+  co.C = null;
+  if (d.C) { co.C = { A: {}, Q: {} }; for (const m in d.C.A || {}) co.C.A[m] = d.C.A[m].slice(k); for (const m in d.C.Q || {}) co.C.Q[m] = d.C.Q[m].slice(j); }
   const p = d.prof || {};
   co.name = p.name || d.sym; co.exch = p.exch || ''; co.sector = p.sector || ''; co.industry = p.industry || '';
   co.ind = d.indData || {}; co.indName = d.ind || '';
@@ -90,7 +92,29 @@ function indFix(co, mac) {
 const INST = new Set(['cash', 'msec', 'debt', 'eq', 'ta', 'tl', 'ca', 'cl', 're', 'ppe']);
 const SUMQ = (k) => !INST.has(k) && k !== 'sh'; // זרימה (כולל רווח למניה) = סכום 4 רבעונים; מאזן ומניות = הרבעון האחרון
 const hasTTM = (co) => co.q.length >= 4 && co.q[co.q.length - 1] > co.fyE[co.fyE.length - 1];
-function raw(co, k, p, back = 0) {
+/* השנה הקודמת כפי שהוצגה באותו דוח (26/10/2026, AppLovin): co.C = יחסי הצמיחה מהשרתון — רק לתקופות שהחברה הציגה
+   מחדש (פעילות שנמכרה, שינוי מדיניות). ערך ההשוואה = הערך ÷ היחס; undefined = אין הצגה מחדש (הערך הקודם בסדרה) */
+const cmpDiv = (v, r) => (v != null && r ? v / r : null);
+function cmpPrev(co, k, p) {
+  const C = co.C; if (!C) return undefined;
+  if (p.kind === 'fy') { const r = C.A[k]?.[p.i]; return r != null ? cmpDiv(co.A[k]?.[p.i], r) : undefined; }
+  const Q = co.Q[k] || [], R = C.Q[k];
+  if (!R) return undefined;
+  if (p.kind === 'q') return R[p.i] != null ? cmpDiv(Q[p.i], R[p.i]) : undefined; // 0 = על בסיס אחר ואין דרך להשוות — בלי צמיחה
+  // TTM: כל רבעון מול הרבעון שלו שנה קודם — מאותו דוח כשהוצג מחדש
+  if (!SUMQ(k) || (co.T && co.T[k] != null)) return undefined;
+  const end = co.q.length - 1; if (end < 7) return undefined;
+  let s = 0, any = false;
+  for (let j = end - 3; j <= end; j++) {
+    const x = R[j] != null ? cmpDiv(Q[j], R[j]) : Q[j - 4];
+    if (x == null) return R[j] != null || any ? null : undefined;
+    s += x; any = any || R[j] != null;
+  }
+  return any ? s : undefined;
+}
+const restated = (co, keys) => (co.C ? co.fyE.map((_, i) => i).filter((i) => keys.some((k) => co.C.A[k]?.[i] != null)) : []);
+function raw(co, k, p, back = 0, cmp = false) {
+  if (cmp && back === 1) { const c = cmpPrev(co, k, p); if (c !== undefined) return c; }
   if (p.kind === 'fy') { const i = p.i - back; return i >= 0 ? co.A[k]?.[i] ?? null : null; }
   const Q = co.Q[k] || [];
   if (p.kind === 'q') { const i = p.i - back * 4; return i >= 0 ? Q[i] ?? null : null; }
@@ -111,8 +135,8 @@ function periodList(co, mode) {
 }
 const fyList = (co) => periodList(co, 'fy').filter((p) => p.kind === 'fy');
 const nowP = (co) => { const l = periodList(co, 'fy'); return l[l.length - 1]; };
-function ctx(co, p, back = 0) {
-  const v = (k) => raw(co, k, p, back);
+function ctx(co, p, back = 0, cmp = false) {
+  const v = (k) => raw(co, k, p, back, cmp);
   const ann = p.kind === 'q' ? 4 : 1;
   const o = {};
   o.rev = v('rev'); o.gp = v('gp') ?? (o.rev != null && v('cogs') != null ? o.rev - v('cogs') : null);
@@ -141,12 +165,24 @@ function ctx(co, p, back = 0) {
   o.conv = o.fcf != null && o.ni > 0 ? o.fcf / o.ni : null;
   return o;
 }
-const growthOf = (co, p, k) => { const a = ctx(co, p)[k], b = ctx(co, p, 1)[k]; return a != null && b != null && b > 0 ? a / b - 1 : null; };
+const growthOf = (co, p, k) => { const a = ctx(co, p)[k], b = ctx(co, p, 1, true)[k]; return a != null && b != null && b > 0 ? a / b - 1 : null; };
 const fyVals = (co, k, n) => fyList(co).slice(-n).map((p) => ctx(co, p)[k]);
+// צמיחה שנתית ממוצעת בין שתי שנים: כשבדרך יש שנה שהוצגה מחדש — מכפלת הצמיחות שנה אחר שנה (כל אחת באותו דוח),
+// לא הסוף מול ההתחלה (AppLovin: 2025 בלי עסק האפליקציות מול 2020 איתו)
+function cagrBetween(co, k, fy, a, b) {
+  const n = b - a;
+  if (n < 1) return null;
+  if (fy.slice(a + 1, b + 1).some((p) => co.C?.A[k]?.[p.i] != null)) {
+    let m = 1;
+    for (let i = a + 1; i <= b; i++) { const g = growthOf(co, fy[i], k); if (g == null) { m = null; break; } m *= 1 + g; }
+    if (m > 0) return Math.pow(m, 1 / n) - 1;
+  }
+  return cagr(ctx(co, fy[a])[k], ctx(co, fy[b])[k], n);
+}
 function cagrN(co, k, n) {
   const fy = fyList(co); if (fy.length <= n) n = fy.length - 1;
   if (n < 1) return [null, 0];
-  return [cagr(ctx(co, fy[fy.length - 1 - n])[k], ctx(co, fy[fy.length - 1])[k], n), n];
+  return [cagrBetween(co, k, fy, fy.length - 1 - n, fy.length - 1), n];
 }
 
 /* ---------- היסטוריה חודשית של מכפילים (10 שנים) ---------- */
@@ -617,7 +653,7 @@ function seriesFor(co, def, st) {
   const keys = def.s.filter((k) => !st.hide || !st.hide.has(k));
   const series = keys.map((k) => ({ key: k, name: T(M[k].n), color: cssv(M[k].c), vals: per.map((p) => {
     const v = mval(co, k, p);
-    if (st.view === 'g') { const b = M[k].f ? null : ctx(co, p, 1)[k]; return v != null && b != null && b > 0 ? v / b - 1 : null; }
+    if (st.view === 'g') { const b = M[k].f ? null : ctx(co, p, 1, true)[k]; return v != null && b != null && b > 0 ? v / b - 1 : null; }
     if (st.view === 'r') { const r = ctx(co, p).rev; return v != null && r ? v / r : null; }
     return v;
   }) }));
@@ -1149,7 +1185,7 @@ function chartSheet(def) {
       def.s.length > 1 ? h('div', { class: 'an-chips' }, ...def.s.map((k) => h('button', { class: 'an-chip', type: 'button', 'aria-pressed': 'true', on: { click: (e) => {
         if (st.hide.has(k)) st.hide.delete(k); else if (st.hide.size < def.s.length - 1) st.hide.add(k); else return;
         e.currentTarget.setAttribute('aria-pressed', String(!st.hide.has(k))); draw(); } } }, h('i', { style: `background:${cssv(M[k].c)}` }), T(M[k].n)))) : null,
-      chartW, tbl, stats,
+      chartW, tbl, stats, restNote(co, def.s),
       long ? segCtl(T('anCRange'), [['5', T('anC5')], ['10', T('anC10')], ['all', T('anCAll')]], st.range, (v) => { st.range = v; draw(); }) : null,
       ratio ? null : segCtl(T('anCView'), [['v', T('anCVal')], ['g', T('anCGrowth'), noG], ['r', T('anCPctRev'), noPct]], 'v', (v) => { st.view = v; draw(); }),
       segCtl(T('anCPeriod'), [['fy', T('anCAnnual')], ['q', T('anCQuarter')]], 'fy', (v) => { st.mode = v; draw(); }),
@@ -1166,7 +1202,8 @@ function chartSheet(def) {
       if (one) {
         const fyv = d.per.map((p, i) => [p, one[i]]).filter(([p, v]) => p.kind !== 'ttm' && v != null);
         const n = fyv.length > 1 ? (st.mode === 'q' ? (fyv.length - 1) / 4 : fyv.length - 1) : 0;
-        const g = st.view === 'v' && !M[def.s[0]].ratio && n ? cagr(fyv[0][1], fyv[fyv.length - 1][1], n) : null;
+        const fyp = fyv.map(([p]) => p), cK = def.s[0];
+        const g = st.view === 'v' && !M[cK].ratio && n ? (st.mode === 'fy' && !M[cK].f ? cagrBetween(co, cK, fyp, 0, fyp.length - 1) : cagr(fyv[0][1], fyv[fyv.length - 1][1], n)) : null;
         const stat = (tt, v) => h('div', {}, h('span', {}, tt), h('b', {}, v));
         stats.append(stat(T('anAvg'), fmt(avg, d.unit, co)), stat(T('anGrowthYr'), g == null ? '—' : sgn(g)), stat(T('anLast'), fmt(one[one.length - 1], d.unit, co)));
       }
@@ -1179,6 +1216,11 @@ function chartSheet(def) {
     }
     rec.draw = draw;
   });
+}
+// שנים שהוצגו מחדש (בגרף זה): מאיזו שנה המספרים לפי הדוח המעודכן, ואיך מחושבת הצמיחה
+function restNote(co, keys) {
+  const r = restated(co, keys.flatMap((k) => RAWK[k] || [k]));
+  return r.length ? h('p', { class: 'an-ex an-rest' }, T('anRestated', { y: co.years[r[r.length - 1]] })) : null;
 }
 /* ---------- שכבה 6 (25/10/2026): מאיפה כל מספר ----------
    לכל מדד: השורה בדוח (התגית שהחברה עצמה מציגה — co.tags) או איך הוא מחושב; הדוח ב־SEC וכמה ערכים נבדקו מולו (co.face);
@@ -1208,7 +1250,7 @@ function srcDef(co, k) {
 const OWN_TAG = { rev: 'rev', op: 'op', ni: 'ni', eps: 'eps', sh: 'sh', ocf: 'ocf', buy: 'buy', dps: 'dps', eq: 'eq', ta: 'ta', tl: 'tl', gp: 'gp', capexN: 'capex', sbcN: 'sbc', cashT: 'cash', debt: 'debt' };
 const flagMs = (f) => (f.m ? [f.m] : f.k === 'bal' ? ['ta', 'tl', 'eq'] : []);   // מאזן שלא מתאזן — שייך לשלושתם
 // תיקון אוטומטי והשלמה מהדוח עצמו — מידע, לא "לבדוק": הערך כמו שהודפס
-const FL_INFO = new Set(['fix', 'ffill', 'ffix']);
+const FL_INFO = new Set(['fix', 'ffill', 'ffix', 'rst']);
 const flagOn = (f, raw) => !FL_INFO.has(f.k) && flagMs(f).some((m) => raw.has(m));
 function flagsAt(co, keys, p) {
   if (!p || p.kind !== 'fy' || !co.flags.length) return null;
@@ -1280,7 +1322,7 @@ function estSheet() {
       h('div', { class: 'an-rv' }, fmt(e, 'ps', co), g != null ? h('small', { class: g >= 0 ? 'an-up' : 'an-down' }, sgn(g)) : null)))));
   });
 }
-const FLAG_KEYS = { bal: 'anFlBal', eps: 'anFlEps', neg: 'anFlNeg', scale: 'anFlScale', q4: 'anFlQ4', xy: 'anFlXy', face: 'anFlFace', fix: 'anFlFix', ffill: 'anFlFill', ffix: 'anFlFfix', gp: 'anFlGp', part: 'anFlPart' };
+const FLAG_KEYS = { bal: 'anFlBal', eps: 'anFlEps', neg: 'anFlNeg', scale: 'anFlScale', q4: 'anFlQ4', xy: 'anFlXy', face: 'anFlFace', fix: 'anFlFix', ffill: 'anFlFill', ffix: 'anFlFfix', rst: 'anFlRst', gp: 'anFlGp', part: 'anFlPart' };
 const flagUnit = (m) => (m === 'eps' ? 'ps' : m === 'sh' ? 'shares' : (M[m] && M[m].u) || 'money');
 function flagSheet() {
   const co = S.co;
@@ -1292,5 +1334,5 @@ function flagSheet() {
 }
 
 /* בדיקות (node) — הפונקציות הטהורות */
-export const _test = { finInputs, riValue, impliedRoe, reitInputs, lossView, fairOf, flagsAt, srcDef, rawName, RAWK, OWN_TAG, prep, indFix, pickPeers, peerRow, ctx, periodList, hasTTM, raw, multHist, autoInputs, dcf, scenarios, reverseG, multModel, uncertainty, checks, piotroski, altman, fmt, sgn, cagrN, epsPath,
+export const _test = { cmpPrev, restated, cagrBetween, growthOf, finInputs, riValue, impliedRoe, reitInputs, lossView, fairOf, flagsAt, srcDef, rawName, RAWK, OWN_TAG, prep, indFix, pickPeers, peerRow, ctx, periodList, hasTTM, raw, multHist, autoInputs, dcf, scenarios, reverseG, multModel, uncertainty, checks, piotroski, altman, fmt, sgn, cagrN, epsPath,
   setEnv: (e) => { E = e; } };

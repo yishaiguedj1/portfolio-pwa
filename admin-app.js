@@ -1905,7 +1905,7 @@ function faKind(k) {
   switch (k) {
     case 'face': return t('admFaK_face'); case 'fix': return t('admFaK_fix'); case 'ffill': return t('admFaK_ffill'); case 'ffix': return t('admFaK_ffix'); case 'bal': return t('admFaK_bal'); case 'neg': return t('admFaK_neg');
     case 'scale': return t('admFaK_scale'); case 'eps': return t('admFaK_eps'); case 'gp': return t('admFaK_gp'); case 'part': return t('admFaK_part');
-    case 'q4': return t('admFaK_q4'); case 'qneg': return t('admFaK_qneg'); case 'xy': return t('admFaK_xy'); case 'gold': return t('admFaK_gold');
+    case 'q4': return t('admFaK_q4'); case 'qneg': return t('admFaK_qneg'); case 'xy': return t('admFaK_xy'); case 'gold': return t('admFaK_gold'); case 'gr': return t('admFaK_gr'); case 'rst': return t('admFaK_rst');
     default: return t('admFaK_other');
   }
 }
@@ -1921,7 +1921,7 @@ page('labFund', { tab: 'imp', parent: 'lab', title: () => t('admFaT'), render(p)
   if (D.fa === undefined || D.fa === 0) { if (D.fa === undefined) { D.fa = 0; needFa(); } p.append(h('p', 'adm-dt', t('admLoading'))); return; }
   const v = D.fa;
   if (!v) { p.append(list(row({ c: 'gray', ic: '—', t: t('admFaNone') })), h('p', 'adm-foot', t('admFaFoot'))); return; }
-  if (v.alert) p.append(list(row({ c: 'red', ic: '!', t: t('admFaAlert'), s: v.alert.map((k) => (k === 'gold' ? t('admFaK_gold') : k === 'face' ? t('admFaK_face') : fmt(t('admFaFail'), { n: v.fail }))).join(' · ') })));
+  if (v.alert) p.append(list(row({ c: 'red', ic: '!', t: t('admFaAlert'), s: v.alert.map((k) => (k === 'gold' ? t('admFaK_gold') : k === 'face' ? t('admFaK_face') : k === 'gr' ? t('admFaK_gr') : fmt(t('admFaFail'), { n: v.fail }))).join(' · ') })));
   p.append(tiles(
     tileEl('green', t('admFaFace'), faPct(v.face.pct), v.face.d != null && v.face.d !== 0 ? (v.face.d > 0 ? '+' : '−') + Math.abs(v.face.d) : fmt(t('admFaFaceS'), { ok: numTxt(v.face.ok), n: numTxt(v.face.n) }), v.face.d < 0 ? 'dn' : v.face.d > 0 ? 'up' : '', v.trend),
     tileEl('blue', t('admFaCos'), faPct(v.face.coPct), fmt(t('admFaCosS'), { ok: v.face.coOk, n: v.face.cos }), '', null),

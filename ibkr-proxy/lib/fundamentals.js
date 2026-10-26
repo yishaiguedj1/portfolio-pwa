@@ -147,12 +147,14 @@ function tagFacts(node, unitPref) {
     units.find((u) => unitPref === 'PS' && /\/shares$/.test(u)) || units.find((u) => unitPref === 'shares' && u === 'shares') || units[0]);
   if (!unit) return out;
   out.unit = unit;
+  const allv = new Map(); // לכל תקופה: כל הערכים לפי תאריך ההגשה — לצמיחה מול השנה הקודמת באותו דוח (comparable)
   for (const x of node.units[unit] || []) {
     if (!FORMS.test(x.form || '') || x.val == null) continue;
     if (x.start) {
       // תקופה של שנה שלמה: ערך מדוח שנתי גובר על ערך מדוח רבעוני גם כשהרבעוני הוגש אחריו
       // (Comfort Systems: 10-Q תייג "שנה" של $1.8B — במקום $9.1B של ה־10-K)
       const k = x.start + '|' + x.end, h = out.dur.get(k), ann = !/^10-Q/.test(x.form), yr = day(x.end) - day(x.start) >= 350;
+      if (!yr || ann) { let a = allv.get(k); if (!a) allv.set(k, (a = new Map())); a.set(x.filed, x.val); }
       if (!h || (yr && h.ann !== ann ? ann : h.filed < x.filed)) out.dur.set(k, { v: x.val, filed: x.filed, ann });
     } else {
       // גם במאזן: ערך מדוח שנתי גובר על השוואה בדוח רבעוני מאוחר יותר (תיקון לאחור ב־10-Q — eBay: הון 2025
@@ -161,6 +163,7 @@ function tagFacts(node, unitPref) {
       if (!h || (h.ann !== ann ? ann : h.filed < x.filed)) out.inst.set(x.end, { v: x.val, filed: x.filed, ann });
     }
   }
+  for (const [k, h] of out.dur) h.all = allv.get(k);
   return out;
 }
 
@@ -271,6 +274,8 @@ function normalizeSec(facts, splits = [], face = null) {
   const yStarts = [...new Set(fyEnds.map((e) => yearOf.get(e)).concat(fyEnds.length ? [nextDay(fyEnds[fyEnds.length - 1])] : []))];
   const A = {}, Q = {}, derived = {};
   const qset = new Set();
+  const dq = {}; // רבעונים מחושבים ממצטבר: מאילו תקופות ומאיזה דוח — להשוואה מול שנה קודם (cmpRatio)
+  const valAfter = (h, d) => { if (!h.all) return null; let F = null; for (const f of h.all.keys()) if (f >= d && (!F || f < F)) F = f; return F; };
   const FLOWK = Object.keys(map).filter((k) => !(k in INST) && !['cash', 'eq', 'ta', 'tl', 'ca', 'cl', 're', 'ppe'].includes(k));
   for (const k of Object.keys(map)) { A[k] = {}; Q[k] = {}; }
   for (const k of FLOWK) {
@@ -285,11 +290,17 @@ function normalizeSec(facts, splits = [], face = null) {
     // מצטבר מתחילת השנה → רבעונים חסרים (כולל השנה הפתוחה — מתחילה ביום שאחרי סוף השנה האחרונה)
     for (const s of yStarts) {
       const cum = [];
-      for (const [kk, h] of dur) { const [s2, e2] = kk.split('|'); if (s2 === s && day(e2) - day(s) >= 80) cum.push([e2, h.v]); }
+      for (const [kk, h] of dur) { const [s2, e2] = kk.split('|'); if (s2 === s && day(e2) - day(s) >= 80) cum.push([e2, h, kk]); }
       cum.sort((a, b) => (a[0] < b[0] ? -1 : 1));
       for (let i = 1; i < cum.length; i++) {
-        const [e2, v2] = cum[i], [e1, v1] = cum[i - 1], gap = day(e2) - day(e1);
-        if (gap >= 80 && gap <= 100 && Q[k][e2] == null) { Q[k][e2] = v2 - v1; qset.add(e2); (derived[k] = derived[k] || []).push(e2); }
+        const [e2, h2, k2] = cum[i], [e1, h1, k1] = cum[i - 1], gap = day(e2) - day(e1);
+        if (gap >= 80 && gap <= 100 && Q[k][e2] == null) {
+          // השנה כפי שדווחה מול אותם תשעה חודשים — לא אחרי הצגה מחדש מאוחרת (AppLovin: 2023 אחרי ההצגה מחדש ‏$1.84B
+          // פחות תשעה חודשים כפי שדווחו אז ‏$2.33B = רבעון שלילי). הדוח השנתי הראשון שהוגש אחרי החלק הקודם
+          const F = valAfter(h2, h1.filed);
+          Q[k][e2] = (F ? h2.all.get(F) : h2.v) - h1.v; qset.add(e2); (derived[k] = derived[k] || []).push(e2);
+          (dq[k] = dq[k] || {})[e2] = { k2, k1, F };
+        }
       }
     }
   }
@@ -360,11 +371,64 @@ function normalizeSec(facts, splits = [], face = null) {
     if (D.debt && D.debt[e] == null) { const s = (D.debtNc[e] || 0) + (D.debtC[e] || 0); if (s) D.debt[e] = s; }
     if (D.debt && D.stb && D.stb[e]) D.debt[e] = (D.debt[e] || 0) + D.stb[e];
   }
+  // צמיחה ברת השוואה (26/10/2026, AppLovin): חברה שהציגה מחדש שנים קודמות (פעילות שנמכרה, שינוי מדיניות) — הערך
+  // האחרון של 2023 הוא אחרי ההצגה מחדש (‏$1.84B בלי עסק האפליקציות), ו־2022 נשאר כפי שדווח אז (‏$2.82B כולל אותו):
+  // היחס ביניהם = צמיחה מדומה (‎−35% במקום ‎+16.5%). לכל תקופה: היחס מהדוח האחרון שמציג גם אותה וגם את התקופה
+  // המקבילה שנה קודם — כמו שהחברה עצמה הציגה את ההשוואה. נשמר רק כשהוא שונה מהיחס בין הערכים שבסדרה.
+  const CMP_TOL = 2e-4; // יחס שונה ב־0.02% ומעלה — נשמר (תיקון קטן לאחור משנה צמיחה ברבע נקודה — JPM 2018)
+  const prevKey = (dur, kk) => {
+    const [s0, e0] = kk.split('|'), L = day(e0) - day(s0), t = day(e0) - 365;
+    let best = null, bd = 11;
+    for (const k2 of dur.keys()) {
+      const [s2, e2] = k2.split('|'), dd = Math.abs(day(e2) - t);
+      if (dd < bd && Math.abs(day(e2) - day(s2) - L) <= 10) { best = k2; bd = dd; }
+    }
+    return best;
+  };
+  const cmpRatio = (dur, kk) => {
+    const h = dur.get(kk), pk = h && h.all ? prevKey(dur, kk) : null, p = pk && dur.get(pk);
+    if (!p || !p.all) return null;
+    let F = null;
+    for (const f of h.all.keys()) if (p.all.has(f) && (!F || f > F)) F = f;
+    const a = F && h.all.get(F), b = F && p.all.get(F);
+    if (!a || !b) return null;
+    const r = a / b, naive = p.v ? h.v / p.v : null;
+    return naive != null && Math.abs(r / naive - 1) <= CMP_TOL ? null : Math.round(r * 1e6) / 1e6;
+  };
+  const GA = {}, GQ = {};
+  for (const k of FLOWK) {
+    const dur = merged[k].dur;
+    for (const e of fyEnds) { const r = cmpRatio(dur, yearOf.get(e) + '|' + e); if (r != null) (GA[k] = GA[k] || {})[e] = r; }
+    for (const kk of dur.keys()) {
+      const [s0, e0] = kk.split('|'), d0 = day(e0) - day(s0);
+      if (d0 >= 80 && d0 <= 100 && Q[k][e0] != null) { const r = cmpRatio(dur, kk); if (r != null) (GQ[k] = GQ[k] || {})[e0] = r; }
+    }
+    // רבעון מחושב (שנה − תשעה חודשים): גם הרבעון של שנה קודם צריך להיות על אותו בסיס. מחשבים מהדוח השנתי שממנו
+    // נלקחה השנה (שמציג גם את השנה הקודמת) ומהדוח הרבעוני של תשעת החודשים; אי אפשר ויש הצגה מחדש — 0 = לא ידוע
+    for (const [e0, x] of Object.entries(dq[k] || {})) {
+      const h2 = dur.get(x.k2), h1 = dur.get(x.k1), p2k = prevKey(dur, x.k2), p1k = prevKey(dur, x.k1);
+      const p2 = p2k && dur.get(p2k), p1 = p1k && dur.get(p1k), pe = Object.keys(dq[k]).find((e) => Math.abs(day(e) - day(e0) + 365) <= 10);
+      const qPrev = pe ? Q[k][pe] : null;
+      if (!p2 || !p1 || qPrev == null) continue;
+      const restat = (h) => { if (!h.all) return false; const v = [...h.all.values()]; return Math.max(...v) - Math.min(...v) > 0.005 * Math.max(...v.map(Math.abs)); };
+      let G = null;
+      if (h1.all && p1.all) for (const f of h1.all.keys()) if (p1.all.has(f) && h1.all.get(f) === h1.v && (!G || f > G)) G = f;
+      const a2 = x.F ? h2.all.get(x.F) : h2.v, b2 = x.F && p2.all ? p2.all.get(x.F) : null, b1 = G ? p1.all.get(G) : null;
+      let r = null;
+      if (b2 != null && b1 != null && b2 - b1 > 0 && a2 - h1.v > 0) r = (a2 - h1.v) / (b2 - b1);
+      else if (restat(h2) || restat(p2) || restat(h1) || restat(p1)) r = 0;
+      if (r == null) continue;
+      const naive = qPrev ? Q[k][e0] / qPrev : null;
+      if (r && naive != null && Math.abs(r / naive - 1) <= CMP_TOL) continue;
+      (GQ[k] = GQ[k] || {})[e0] = r ? Math.round(r * 1e6) / 1e6 : 0;
+    }
+  }
   const KEEP = ['rev', 'cogs', 'gp', 'op', 'ni', 'nic', 'eqt', 'tmp', 'tle', 'pretax', 'tax', 'rnd', 'int', 'eps', 'sh', 'ocf', 'capex', 'sbc', 'dep', 'buy', 'divp', 'dps',
     'cash', 'msec', 'debt', 'eq', 'ta', 'tl', 'ca', 'cl', 're', 'ppe'];
   const pack = (D, ends) => { const o = {}; for (const k of KEEP) { if (!D[k]) continue; const a = ends.map((e) => (D[k][e] != null ? D[k][e] : null)); if (a.some((v) => v != null)) o[k] = a; } return o; };
   const fy = fyEnds.filter((e) => A.rev[e] != null || A.ni[e] != null).slice(-20);
-  return { fy, q: qEnds, A: pack(A, fy), Q: pack(Q, qEnds), cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes };
+  const C = { A: pack(GA, fy), Q: pack(GQ, qEnds) };
+  return { fy, q: qEnds, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes };
 }
 
 /* ---------- בדיקות אימות — תג, לא תיקון ---------- */
@@ -391,8 +455,10 @@ function validate(d) {
     if (g('ca') != null && g('ta') != null && g('ca') > g('ta') * 1.001) out.push({ k: 'part', m: 'ca', p: e });
     if (g('cl') != null && g('tl') != null && g('cl') > g('tl') * 1.001) out.push({ k: 'part', m: 'cl', p: e });
     if (g('op') != null && g('rev') > 0 && g('op') > g('rev') * 1.001) out.push({ k: 'part', m: 'op', p: e });
-    // ארבעה רבעונים ישירים = השנה
+    // ארבעה רבעונים ישירים = השנה. שנה שהחברה הציגה מחדש (d.C — רבעונים על בסיס אחר) = מידע, לא "לבדוק"
     for (const k of ['rev', 'ni']) {
+      const rst = d.C && ((d.C.A[k] && d.C.A[k][i] != null) || d.q.some((qe, j) => qe > (d.fy[i - 1] || '0000') && qe <= e && d.C.Q[k] && d.C.Q[k][j] != null));
+      if (rst) { out.push({ k: 'rst', m: k, p: e }); continue; }
       if (!A[k] || !Q[k] || A[k][i] == null) continue;
       const qs = d.q.map((qe, j) => [qe, Q[k][j]]).filter(([qe]) => qe > (d.fy[i - 1] || '0000') && qe <= e);
       if (qs.length === 4 && qs.every(([, v]) => v != null) && !near(qs.reduce((s, [, v]) => s + v, 0), A[k][i], 0.01)) out.push({ k: 'q4', m: k, p: e });
@@ -784,7 +850,7 @@ async function fundamentals(sym0) {
     ok: true, v: 1, sym, src: useSec ? 'sec' : 'yahoo', cik, asOf: new Date().toISOString().slice(0, 10),
     cur: (useSec ? sec.cur : (s && s.finCur)) || (ta ? 'ILS' : 'USD'),
     fy: base.fy, q: base.q, A: base.A, Q: base.Q, T: useSec ? null : (y && y.T) || null,
-    derived: useSec ? sec.derived : null, ifrs: useSec ? !!sec.ifrs : false,
+    derived: useSec ? sec.derived : null, C: useSec ? sec.C : null, ifrs: useSec ? !!sec.ifrs : false,
     sic: useSec ? sec.sic : null, sicDesc: useSec ? sec.sicDesc : null, fye: useSec ? sec.fye : null, lastFiled: useSec ? sec.lastFiled : null,
     prof: s ? s.prof : null, price: s ? s.price : null, prev: s ? s.prev : null,
     sharesOut: sharesOut || (s && s.sharesOut) || null, fill, fpe: s ? s.fpe : null, peg: s ? s.peg : null, beta: s ? s.beta : null,

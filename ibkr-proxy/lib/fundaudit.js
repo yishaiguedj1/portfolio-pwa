@@ -21,11 +21,36 @@ function goldCheck(gold, sym, r) {
   return bad;
 }
 
+/* שכבה 7 (26/10/2026, AppLovin — צמיחה של ‎−35% שלא הייתה): הצמיחה שהמסך מציג מול הדוחות עצמם, בחישוב נפרד ופשוט.
+   לכל שנה: הדוח השנתי האחרון שמציג גם אותה וגם את השנה שלפניה (באותה תגית שהשרתון בחר) — היחס שהחברה עצמה הציגה.
+   facts = companyfacts של SEC, tag = התגית (r.tags[k]), fy = סופי השנים, got = הצמיחה שהמסך חישב לכל שנה (null = לא מוצגת).
+   מחזיר פערים מעל 0.1 נקודת אחוז: [{m, p, f: מהדוח, v: במסך}] */
+const ANN_FORMS = /^(10-K|20-F|40-F)(\/A)?$/;
+function growthAudit(facts, tag, fy, got, m) {
+  const tx = facts && facts.facts && (facts.facts['us-gaap'] || {})[tag] || (facts && facts.facts && (facts.facts['ifrs-full'] || {})[tag]);
+  if (!tx || !tx.units || !Array.isArray(fy)) return [];
+  const rows = Object.entries(tx.units).filter(([u]) => /^[A-Z]{3}$/.test(u)).flatMap(([u, a]) => a.map((x) => ({ ...x, u })));
+  const day = (d) => Date.parse(d + 'T00:00:00Z') / 864e5;
+  const yr = rows.filter((x) => x.start && ANN_FORMS.test(x.form || '') && x.val != null && day(x.end) - day(x.start) >= 350 && day(x.end) - day(x.start) <= 380);
+  const at = (e) => yr.filter((x) => Math.abs(day(x.end) - day(e)) <= 8);
+  const out = [];
+  for (let i = 1; i < fy.length; i++) {
+    if (got[i] == null) continue;
+    const cur = at(fy[i]), prv = at(fy[i - 1]);
+    let best = null;
+    for (const a of cur) for (const b of prv) if (a.accn === b.accn && a.u === b.u && (!best || a.filed > best.a.filed)) best = { a, b };
+    if (!best || !(best.b.val > 0)) continue;
+    const want = best.a.val / best.b.val - 1;
+    if (Math.abs(want - got[i]) > 0.001) out.push({ m, p: fy[i], f: Math.round(want * 1e4) / 1e4, v: Math.round(got[i] * 1e4) / 1e4 });
+  }
+  return out;
+}
+
 /* res = [{sym, r}] (r = התשובה של fundamentals) → הסיכום שמתפרסם */
-const KIND_W = { gold: 0, face: 1, fix: 2, bal: 3, neg: 4, scale: 5, eps: 6, gp: 7, part: 8, q4: 9, xy: 10 };
+const KIND_W = { gold: 0, gr: 1, face: 1, fix: 2, bal: 3, neg: 4, scale: 5, eps: 6, gp: 7, part: 8, q4: 9, xy: 10 };
 function summarize(res, gold, now, ms) {
   const S = { v: 1, at: new Date(now).toISOString(), n: res.length, sec: 0, yahoo: 0, fail: 0,
-    face: { n: 0, ok: 0, cos: 0, coOk: 0 }, kinds: {}, gold: { n: 0, bad: 0 }, cos: [], items: [], ms: ms || 0, ys: [], fs: [] };
+    face: { n: 0, ok: 0, cos: 0, coOk: 0 }, kinds: {}, gold: { n: 0, bad: 0 }, gr: { n: 0 }, cos: [], items: [], ms: ms || 0, ys: [], fs: [] };
   for (const { sym, r } of res) {
     if (!r || !r.ok) { S.fail++; S.fs.push(sym); continue; }
     if (r.src !== 'sec') { S.yahoo++; S.ys.push(sym); continue; }
@@ -38,6 +63,11 @@ function summarize(res, gold, now, ms) {
     for (const c of r.checks || []) {
       S.kinds[c.k] = (S.kinds[c.k] || 0) + 1;
       S.items.push({ sym, k: c.k, m: c.m || null, p: c.p || null, f: c.f != null ? c.f : null, v: c.v != null ? c.v : null });
+    }
+    // שכבה 7: הצמיחה במסך מול הדוחות (r.gr — tools/fund-audit.js מחשב מול companyfacts)
+    if (Array.isArray(r.gr)) {
+      S.gr.n += r.grn || 0;
+      for (const g of r.gr) { S.kinds.gr = (S.kinds.gr || 0) + 1; S.items.push({ sym, k: 'gr', m: g.m, p: g.p, f: g.f, v: g.v }); }
     }
     if (gold && gold.companies && gold.companies[sym]) {
       const gb = goldCheck(gold, sym, r); S.gold.n++; if (gb.length) S.gold.bad++;
@@ -78,7 +108,7 @@ function normAudit(o) {
   return {
     at: new Date(Date.parse(o.at)).toISOString(), n: n0(o.n), sec: n0(o.sec), yahoo: n0(o.yahoo), fail: n0(o.fail), ms: n0(o.ms), ni: n0(o.ni),
     face: { n: n0(f.n), ok: n0(f.ok), cos: n0(f.cos), coOk: n0(f.coOk) },
-    gold: { n: n0(g.n), bad: n0(g.bad) }, kinds: normKinds(o.kinds), ys: syms(o.ys, 100), fs: syms(o.fs, 100),
+    gold: { n: n0(g.n), bad: n0(g.bad) }, gr: { n: n0(o.gr && o.gr.n) }, kinds: normKinds(o.kinds), ys: syms(o.ys, 100), fs: syms(o.fs, 100),
     cos: (Array.isArray(o.cos) ? o.cos : []).filter((c) => c && SYM_RE.test(str(c.sym, 12))).slice(0, 200)
       .map((c) => ({ sym: str(c.sym, 12), n: n0(c.n), ok: n0(c.ok), form: str(c.form, 6), url: /^https:\/\/www\.sec\.gov\/Archives\//.test(String(c.url || '')) ? str(c.url, 200) : '' })),
     items: (Array.isArray(o.items) ? o.items : []).filter((x) => x && SYM_RE.test(str(x.sym, 12)) && /^[a-z0-9]{1,8}$/.test(str(x.k, 8))).slice(0, ITEMS_MAX)
@@ -102,6 +132,8 @@ function auditAlert(cur, prev) {
   const fp = pct(cur.face.ok, cur.face.n), pp = prev ? pct(prev.fo, prev.fn) : null;
   if (fp != null && pp != null && pp - fp > 0.5) why.push('face');
   if (cur.n && cur.fail / cur.n > 0.05) why.push('fail');
+  // שכבה 7: צמיחה שלא תואמת לדוח — יותר מבריצה הקודמת (אמור להיות 0)
+  if ((cur.kinds.gr || 0) > (prev ? (prev.k.gr || 0) : 0)) why.push('gr');
   return why.length ? why : null;
 }
 
@@ -122,4 +154,4 @@ function auditView(cur, hist, now) {
   };
 }
 
-module.exports = { REL, goldCheck, summarize, histEntry, pushHist, normAudit, normHist, auditAlert, auditView, HIST_MAX, ITEMS_MAX };
+module.exports = { REL, growthAudit, goldCheck, summarize, histEntry, pushHist, normAudit, normHist, auditAlert, auditView, HIST_MAX, ITEMS_MAX };
