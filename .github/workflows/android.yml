@@ -6,7 +6,9 @@
 #   https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball-bubble.apk   (22/10/2026: הבועה בדפדפן — נפרדת, כי Play Protect חוסם שירות נגישות)
 #   https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball-admin.apk     (22/10/2026: ממשק הניהול + ווידג׳ט הניטור)
 #   https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball-studio-dm.apk (23/10/2026: Studio DM — מנהל הורדות נייטיב)
+#   https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball-browser.apk  (26/10/2026: Studio Browser — הדפדפן)
 #   https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball-lab.apk       (24/10/2026: Studio Lab — כלי המדידה של התרגום בטלפון)
+#   https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/studio-browser-chrome.zip  (26/10/2026: התוסף ל־Chrome — סנכרון עם Studio Browser)
 # רץ רק כשמשהו ב־android/ משתנה (או ידנית).
 # חתימה: הסוד SNOWBALL_KEYSTORE_B64 (+ SNOWBALL_KS_PASS). בלי הסוד — בונה עם מפתח debug ומעלה רק כ־artifact
 # (לא לקישור הקבוע), כי APK עם מפתח אחר לא מתקין את עצמו מעל הגרסה הקודמת.
@@ -66,7 +68,7 @@ jobs:
           SNOWBALL_KS_PASS: ${{ secrets.SNOWBALL_KS_PASS }}
           SNOWBALL_VERSION_CODE: ${{ github.run_number }}
           SNOWBALL_VERSION_NAME: 1.0.${{ github.run_number }}
-        run: gradle --no-daemon assembleRelease testStudioReleaseUnitTest testBubbleReleaseUnitTest testDmReleaseUnitTest testLabReleaseUnitTest
+        run: gradle --no-daemon assembleRelease testStudioReleaseUnitTest testBubbleReleaseUnitTest testDmReleaseUnitTest testLabReleaseUnitTest testBrowserReleaseUnitTest
       - name: Rename
         run: |
           cp android/app/build/outputs/apk/invest/release/app-invest-release.apk the-snowball.apk
@@ -76,6 +78,9 @@ jobs:
           cp android/app/build/outputs/apk/admin/release/app-admin-release.apk the-snowball-admin.apk
           cp android/app/build/outputs/apk/dm/release/app-dm-release.apk the-snowball-studio-dm.apk
           cp android/app/build/outputs/apk/lab/release/app-lab-release.apk the-snowball-lab.apk
+          cp android/app/build/outputs/apk/browser/release/app-browser-release.apk the-snowball-browser.apk
+          # התוסף ל־Chrome (סנכרון עם Studio Browser) — קובץ להתקנה במצב מפתח, עד שיעלה לחנות
+          (cd android/chrome-ext && zip -qr ../../studio-browser-chrome.zip . -x "*.md")
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: the-snowball-apk
@@ -89,5 +94,5 @@ jobs:
           if ! gh release view android-latest > /dev/null 2>&1; then
             gh release create android-latest --title "THE SNOWBALL — אנדרואיד" --notes "הגרסה האחרונה של אפליקציית האנדרואיד. הקישור להורדה קבוע." --latest=false
           fi
-          gh release upload android-latest the-snowball.apk the-snowball-academy.apk the-snowball-studio.apk the-snowball-bubble.apk the-snowball-admin.apk the-snowball-studio-dm.apk the-snowball-lab.apk --clobber
+          gh release upload android-latest the-snowball.apk the-snowball-academy.apk the-snowball-studio.apk the-snowball-bubble.apk the-snowball-admin.apk the-snowball-studio-dm.apk the-snowball-lab.apk the-snowball-browser.apk studio-browser-chrome.zip --clobber
           gh release edit android-latest --notes "הגרסה האחרונה: 1.0.${{ github.run_number }} (${GITHUB_SHA::7})"

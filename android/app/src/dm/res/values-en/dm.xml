@@ -29,10 +29,15 @@
     <string name="dmDetails">Details</string>
     <string name="dmShare">Share</string>
     <string name="dmOpen">Open</string>
+    <string name="dmInstall">Install</string>
+    <string name="dmApkAllow">Allow installing apps from here once — turn the switch on and come back</string>
+    <string name="dmApkFail">Couldn\'t open the installer. You can open the file from your Downloads folder</string>
     <string name="dmCopyLink">Copy link</string>
     <string name="dmRemove">Remove from list</string>
     <string name="dmDeleteFile">Delete with file</string>
     <string name="dmRetry">Try again</string>
+    <string name="dmOpenBr">Open in the DM browser</string>
+    <string name="dmOpenBrHint">If the site needs a sign-in, sign in there once. The video shows up when it plays.</string>
     <string name="dmPause">Pause</string>
     <string name="dmClose">Close</string>
     <string name="dmSegs">%1$d active connections · %2$d segments</string>

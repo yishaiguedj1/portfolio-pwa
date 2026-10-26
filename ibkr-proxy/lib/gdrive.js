@@ -17,6 +17,7 @@ const vault = require('./vault');
 const { datastoreToken } = require('./gauth');
 
 const SCOPE_FILE = 'https://www.googleapis.com/auth/drive.file';
+const SCOPE_RO = 'https://www.googleapis.com/auth/drive.readonly';   // 26/10/2026: רשימת הקבצים של Studio (gdrive.browse)
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const REVOKE_URL = 'https://oauth2.googleapis.com/revoke';
 const PROJECT = () => process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e';
@@ -41,6 +42,7 @@ const revoke = (deps, token) => (deps.fetch || fetch)(REVOKE_URL, { method: 'POS
 
 /* לקוח OAuth אחד: מאיפה המזהה והסוד, איפה ההרשאה הקבועה נשמרת, ובאיזה AAD היא מוצפנת */
 function makeDrive(o) {
+  const OP = o.op || 'gd', NEED = o.scope || SCOPE_FILE;   // שמות הפעולות (gd… / gb…) וההרשאה שחייבת להינתן
   const COL = () => 'https://firestore.googleapis.com/v1/projects/' + PROJECT() + '/databases/(default)/documents/' + o.col;
   const AAD = (uid) => o.aad + '|' + uid + '|r';
   const cfg = () => ({ id: String(process.env[o.idEnv] || '').trim(), secret: String(process.env[o.secretEnv] || '').trim() });
@@ -92,11 +94,11 @@ function makeDrive(o) {
     if (!configured()) return res.status(503).json({ ok: false, error: 'gd_not_configured', diag: { id: !!cfg().id, secret: !!cfg().secret, vault: vault.configured() } });
     const uid = user.uid, c = cfg();
     try {
-      if (body.op === 'gdStatus') {
+      if (body.op === OP + 'Status') {
         const rec = await readRec(deps, uid);
         return res.status(200).json({ ok: true, connected: !!(rec && rec.rt), email: rec ? rec.email || '' : '' });
       }
-      if (body.op === 'gdConnect') {
+      if (body.op === OP + 'Connect') {
         const code = String(body.code || ''), redirect = String(body.redirect || ''), verifier = body.verifier == null ? '' : String(body.verifier);
         if (!code || code.length > 512 || !REDIRECT_RE.test(redirect) || (verifier && !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier))) return res.status(400).json({ ok: false, error: 'bad_params' });
         // PKCE: הקוד הונפק עם code_challenge — Google מחליף אותו רק עם ה־verifier מהטלפון (קוד שיורט — לא שמיש, גם דרך השרתון).
@@ -104,7 +106,7 @@ function makeDrive(o) {
         const t = await tokenCall(deps, Object.assign({ code, client_id: c.id, client_secret: c.secret, redirect_uri: redirect, grant_type: 'authorization_code' }, verifier ? { code_verifier: verifier } : {}));
         if (t.status !== 200 || !t.j.access_token) return res.status(400).json({ ok: false, error: 'gd_' + String(t.j.error || 'code').slice(0, 24) });
         const scopes = String(t.j.scope || '').split(/\s+/);
-        if (!scopes.includes(SCOPE_FILE)) {      // המשתמש הוריד את הסימון של Drive בחלון ההסכמה
+        if (!scopes.includes(NEED)) {      // המשתמש הוריד את הסימון של Drive בחלון ההסכמה
           await revoke(deps, t.j.access_token);
           return res.status(400).json({ ok: false, error: 'gd_no_scope' });
         }
@@ -115,12 +117,12 @@ function makeDrive(o) {
         await writeRec(deps, uid, { rt, email, at: Date.now() });
         return res.status(200).json({ ok: true, access_token: t.j.access_token, expires_in: t.j.expires_in || 3600, email });
       }
-      if (body.op === 'gdToken') {
+      if (body.op === OP + 'Token') {
         const t = await accessToken(deps, uid);
         if (!t.ok) return res.status(/^gd_http_/.test(t.error) ? 502 : 200).json({ ok: false, error: t.error });
         return res.status(200).json({ ok: true, access_token: t.token, expires_in: t.expiresIn, email: t.email });
       }
-      if (body.op === 'gdDisconnect') {
+      if (body.op === OP + 'Disconnect') {
         const rec = await readRec(deps, uid).catch(() => null);
         if (rec && rec.rt) await revoke(deps, rec.rt);
         const r = await delRec(deps, uid);
@@ -137,5 +139,10 @@ function makeDrive(o) {
 
 const library = makeDrive({ idEnv: 'GDRIVE_CLIENT_ID', secretEnv: 'GDRIVE_CLIENT_SECRET', col: 'driveVault', aad: 'gdrive' });
 const studio = makeDrive({ idEnv: 'STUDIO_GDRIVE_CLIENT_ID', secretEnv: 'STUDIO_GDRIVE_CLIENT_SECRET', col: 'studioDrive', aad: 'sdrive' });
+/* 26/10/2026 (בקשת המשתמש): לבחור סרטון מ־Drive ברשימה בעיצוב של Studio, בלי Google Picker — צריך לראות את הקבצים (drive.readonly).
+   לקוח שלישי, נפרד: ההרשאה הרחבה לא מגיעה לחיבור של הסטודיו (שהעובד ב־Routine מקבל). הגישה לשעה — לטלפון (הרשימה),
+   ולעובד רק בעבודה במצב השרת שהמקור שלה נבחר כך (op:'token' עם src — api/studio.js), רק בשביל הקובץ הזה.
+   המשתנים (STUDIO_BROWSE_CLIENT_ID/SECRET) ב־Vercel נטענים רק בבנייה עם שינוי ב־ibkr-proxy/ — Redeploy נעצר ב־ignore-build.sh */
+const browse = makeDrive({ idEnv: 'STUDIO_BROWSE_CLIENT_ID', secretEnv: 'STUDIO_BROWSE_CLIENT_SECRET', col: 'studioBrowse', aad: 'sbrowse', op: 'gb', scope: SCOPE_RO });
 
-module.exports = Object.assign({}, library, { studio, makeDrive, REDIRECT_RE, SCOPE_FILE, emailOf });
+module.exports = Object.assign({}, library, { studio, browse, makeDrive, REDIRECT_RE, SCOPE_FILE, SCOPE_RO, emailOf });

@@ -15,6 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import io.github.yishaiguedj1.snowball.AppRoute
 import io.github.yishaiguedj1.snowball.DlEngine
 import io.github.yishaiguedj1.snowball.R
+import io.github.yishaiguedj1.snowball.SiteList
 import io.github.yishaiguedj1.snowball.VideoUrl
 import org.json.JSONObject
 
@@ -44,10 +45,17 @@ class DmActivity : ComponentActivity() {
         setContent { DmApp(this) }
     }
 
-    override fun onResume() { super.onResume(); visible = true }
+    override fun onResume() {
+        super.onResume(); visible = true
+        // חזרה מ"התקנת אפליקציות לא מוכרות": אושר — ממשיכים להתקנה; לא אושר — לא שואלים שוב
+        apkWait?.let { t -> apkWait = null; if (canInstall()) install(t) }
+    }
     override fun onPause() { visible = false; super.onPause() }
 
-    companion object { @Volatile var visible = false }
+    companion object {
+        @Volatile var visible = false
+        const val FULL_BROWSER = "io.github.yishaiguedj1.snowball.br.BrowserActivity"
+    }
 
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); handle(intent) }
 
@@ -62,6 +70,9 @@ class DmActivity : ComponentActivity() {
             Intent.ACTION_VIEW -> i.dataString?.takeIf { it.startsWith("http") } ?: ""
             else -> ""
         }
+        // 26/10/2026: הבועה ב־Chrome באתר שכבר הורדת ממנו דרך הדפדפן — הדף עצמו לדפדפן של DM (שם ההתחברות), לא להורדה.
+        // רק פתיחת כתובת בדפדפן שלנו — בלי עוגיות, User-Agent או רענון מה־extras
+        if (u.isNotEmpty() && i.action == Intent.ACTION_SEND && i.getBooleanExtra(AppRoute.EXTRA_BR, false)) { openBrowser(u); return }
         if (u.isNotEmpty()) {
             sheetRef.value = DmLink.first(i.getStringExtra("snb_ref") ?: i.getStringExtra("extra_referer"))
             // עוגיות, User-Agent ורענון — רק ממסירה בתוך התהליך (DmBrowser.take עם אסימון חד־פעמי). אפליקציה אחרת
@@ -102,12 +113,33 @@ class DmActivity : ComponentActivity() {
     }
 
     fun open(t: DmTask) {
-        // סרטון וקול — בנגן שלנו (DmPlayer); כל השאר — באפליקציה שמתאימה לסוג
+        // סרטון וקול — בנגן שלנו (DmPlayer); APK — התקנה; כל השאר — באפליקציה שמתאימה לסוג
         val cat = if (t.kind == DmKind.YTDL) (if (t.audioOnly) DmName.Cat.AUDIO else DmName.Cat.VIDEO) else DmName.cat(t.name, t.mime)
+        if (cat == DmName.Cat.APK && t.uri.startsWith("content://")) { install(t); return }
         if ((cat == DmName.Cat.VIDEO || cat == DmName.Cat.AUDIO) && t.uri.startsWith("content://")) {
             if (runCatching { startActivity(Intent(this, DmPlayer::class.java).setData(Uri.parse(t.uri)).putExtra(DmPlayer.EXTRA_TITLE, t.title.ifEmpty { t.name })) }.isSuccess) return
         }
         openWith(t)
+    }
+
+    /* 26/10/2026 (בקשת המשתמש: "לא מצליח להתקין APK שירד דרך DM"): עד היום DM לא ביקש את ההרשאה להתקין, ולכן
+       מתקין החבילות של אנדרואיד סירב בלי אפשרות לאשר. עכשיו (REQUEST_INSTALL_PACKAGES במניפסט): פעם ראשונה — מסך
+       ההגדרה "התקנת אפליקציות לא מוכרות" של DM, ובחזרה ההתקנה ממשיכה לבד. מתקין החבילות עצמו מבקש אישור על כל
+       התקנה — DM לא מתקין שום דבר בלי שתאשר. הסוג תמיד APK (שרת ששולח octet-stream — המתקין לא היה מזהה). */
+    private var apkWait: DmTask? = null
+
+    private fun canInstall() = Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls()
+
+    fun install(t: DmTask) {
+        if (!canInstall()) {
+            apkWait = t
+            android.widget.Toast.makeText(this, R.string.dmApkAllow, android.widget.Toast.LENGTH_LONG).show()
+            if (runCatching { startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))) }.isFailure) apkWait = null
+            return
+        }
+        val i = Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(t.uri), DmMedia.APK)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        if (runCatching { startActivity(i) }.isFailure) android.widget.Toast.makeText(this, R.string.dmApkFail, android.widget.Toast.LENGTH_LONG).show()
     }
 
     /** חילוץ ZIP ברקע — בסוף הודעה עם מספר הקבצים / הסיבה */
@@ -187,6 +219,9 @@ class DmActivity : ComponentActivity() {
     private fun ckFn(): ((String) -> String?)? = if (!sheetCk) null else { u -> runCatching { android.webkit.CookieManager.getInstance().getCookie(u) }.getOrNull() }
 
     fun openBrowser(start: String, refresh: String = "") {
+        // 26/10/2026: ב־Studio Browser (אותו קוד) — הדפדפן המלא. רענון קישור של הורדה נשאר בדפדפן הקטן של DM
+        val full = if (refresh.isEmpty()) runCatching { Class.forName(FULL_BROWSER) }.getOrNull() else null
+        if (full != null && runCatching { startActivity(Intent(this, full).putExtra(DmBrowser.EXTRA_START, start)) }.isSuccess) return
         runCatching { startActivity(Intent(this, DmBrowser::class.java).putExtra(DmBrowser.EXTRA_START, start).putExtra(DmBrowser.EXTRA_REFRESH, refresh)) }
     }
 
@@ -214,7 +249,16 @@ class DmActivity : ComponentActivity() {
             this.name = DmName.clean(name).ifEmpty { f.name }; mime = f.mime; total = f.size; ranges = f.ranges
             created = System.currentTimeMillis(); ua = sheetUa; ck = sheetCk
         }
-        DmStore.add(t); askNotifications(); DmEngine.pump(this)
+        DmStore.add(t); rememberSite(ref); askNotifications(); DmEngine.pump(this)
+    }
+
+    /* הורדה שהגיעה מהדפדפן של DM (עם העוגיות שלו) — האתר נשמר לבועה ב־Chrome (SiteList, DmSitesProvider) */
+    private fun rememberSite(ref: String) {
+        if (!sheetCk) return
+        val h = SiteList.hostOf(ref)
+        if (h.isEmpty()) return
+        val pr = DmPrefs(this)
+        pr.brSites = SiteList.add(SiteList.parse(pr.brSites), h).joinToString("\n")
     }
 
     fun addVideo(v: Found.Video, q: JSONObject?, audio: Boolean, ref: String, tr: Boolean = false, later: Boolean = false, subs: List<DmSubs.Sub> = emptyList()) {
@@ -231,7 +275,7 @@ class DmActivity : ComponentActivity() {
             if (audio) total = v.info.optJSONObject("ao")?.optLong("sz", -1) ?: -1
             created = System.currentTimeMillis(); ck = sheetCk
         }
-        DmStore.add(t); askNotifications(); DmEngine.pump(this)
+        DmStore.add(t); rememberSite(ref); askNotifications(); DmEngine.pump(this)
     }
 
     /**

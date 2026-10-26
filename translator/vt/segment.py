@@ -28,6 +28,13 @@ BIND_FWD = {"the", "a", "an", "of", "to", "in", "on", "for", "with", "at", "by",
             "can", "could", "should", "must", "might", "may", "very", "really", "not", "no", "and",
             "or", "but", "i", "we", "you", "they", "he", "she", "it", "i'm", "we're", "you're",
             "they're", "it's", "there's", "about", "than", "like", "just", "more", "most", "so"}
+# 26/10/2026 (ניתוח האיכות, "משפט שנשבר בין כתוביות"): כתובית שנגמרת ב"כי"/"אם"/"כש..." תלויה באוויר ("And House of
+# Cards absolutely did that because"). רק מילות קישור שלא סוגרות משפט — לא before/after/that/so (מופיעות גם בסוף משפט).
+BIND_CONJ = {"because", "if", "when", "which", "who", "whom", "whose", "where", "while", "although", "though",
+             "since", "unless", "until", "whether", "nor"}
+# תשובה קצרה בתחילת קבוצה — סימן לחילוף דוברים אחרי שאלה, גם כשזיהוי הדוברים לא הפריד ביניהם
+REPLY = {"yes", "yeah", "yep", "yup", "no", "nope", "nah", "sure", "exactly", "absolutely", "definitely", "sometimes",
+         "correct", "totally", "never", "maybe", "probably", "okay", "ok", "true", "kind", "sort"}
 
 
 def _ends_sentence(word: str) -> bool:
@@ -109,7 +116,7 @@ def _break_after_cost(words: list[dict], j: int, last_in_sentence: bool) -> floa
         cost = min(cost, 2.5)
     if norm(nxt["w"]) in CONJ:
         cost = min(cost, 3.0)
-    if norm(t) in BIND_FWD and not re.search(r"[,;:]$", t):
+    if (norm(t) in BIND_FWD or norm(t) in BIND_CONJ) and not re.search(r"[,;:]$", t):
         cost = max(cost, 9.0)
     if t[:1].isupper() and nxt["w"][:1].isupper() and norm(t) not in {"i"}:
         cost += 4.0   # כנראה שם פרטי ארוך — לא לפצל
@@ -144,6 +151,10 @@ def plan_sentence(words: list[dict], idx: list[int], timing: TimingRules, text: 
                 c += (cps - timing.cps_max) * 1.5
             if dur < 1.5 and n > 1:
                 c += (1.5 - dur) * 4.0
+            # 26/10/2026: פתיחה קצרה של משפט ארוך ("Too many people" / "And the approach") שנחתכת מהמשך המשפט —
+            # נשארת לבד או נדבקת לסוף המשפט הקודם; עדיף לחתוך את ההמשך במקום אחר
+            if i == 0 and j < n and len(seg) <= 3:
+                c += 4.0
             if dur > 5.5:
                 c += (dur - 5.5) * 1.5
             if est > text.max_chars_line * 1.6:
@@ -164,6 +175,33 @@ def _span(words, ids):
     return words[ids[0]]["s"], words[ids[-1]]["e"]
 
 
+def _content(words, ids):
+    return [words[i]["w"] for i in ids if not words[i].get("filler")]
+
+
+def _joinable(words, p: dict, g: dict, max_chars: int, text: TextRules) -> bool:
+    """שתי קבוצות סמוכות של אותו דובר שאחת מהן קצרה — מתאחדות לכתובית אחת."""
+    ps, pe = _span(words, p["ids"])
+    gs, ge = _span(words, g["ids"])
+    est = _est_chars(words, p["ids"] + g["ids"], text.he_en_ratio)
+    short = (pe - ps) < 1.6 or (ge - gs) < 1.6
+    return (p.get("spk") == g.get("spk") and short and gs - pe <= 0.6
+            and ge - ps <= 6.0 and est <= max_chars * 0.85)
+
+
+def _qa_turn(words, a: list[int], b: list[int]) -> bool:
+    """שאלה ואחריה תשובה קצרה ("Have you been to Tower Records? Yeah.") — כמעט תמיד שני דוברים.
+
+    26/10/2026 (ניתוח האיכות): 107 מתוך 153 ממצאי התכנון היו שני דוברים בכתובית אחת בלי מקף. בלי זיהוי דוברים
+    (S?) או כשהוא איחד את שניהם (S1 בלבד) האיחוד של "קצרות סמוכות של אותו דובר" הדביק את התשובה לשאלה.
+    התנאי צר בכוונה: שאלה רטורית ("Why? Because…") לא מתחילה במילת תשובה ולא נתפסת."""
+    ta, tb = _content(words, a), _content(words, b)
+    if not ta or not tb or not re.search(r"\?[\"')\]]*$", ta[-1]):
+        return False
+    bs, be = _span(words, b)
+    return norm(tb[0]) in REPLY and len(tb) <= 6 and be - bs <= 2.5
+
+
 def plan(words: list[dict], timing: TimingRules, text: TextRules) -> list[dict]:
     mark_backchannels(words)
     groups: list[dict] = []
@@ -179,15 +217,17 @@ def plan(words: list[dict], timing: TimingRules, text: TextRules) -> list[dict]:
     # איחוד כתוביות קצרות סמוכות של אותו דובר
     merged: list[dict] = []
     max_chars = text.max_chars_line * text.max_lines
-    for g in groups:
+    for k, g in enumerate(groups):
         if merged:
             p = merged[-1]
-            ps, pe = _span(words, p["ids"])
-            gs, ge = _span(words, g["ids"])
-            est = _est_chars(words, p["ids"] + g["ids"], text.he_en_ratio)
-            short = (pe - ps) < 1.6 or (ge - gs) < 1.6
-            if (p.get("spk") == g.get("spk") and "parts" not in p and short and gs - pe <= 0.6
-                    and ge - ps <= 6.0 and est <= max_chars * 0.85):
+            # קטע קצר מתחילת משפט שממשיך בקבוצה הבאה ("Now," / "And the approach") — מתאחד קדימה עם המשך המשפט
+            # שלו, לא אחורה לסוף המשפט הקודם (שם "עכשיו" נקרא כחלק ממשפט אחר). רק כשהאיחוד קדימה אפשרי — קטע
+            # שנשאר לבד גרוע יותר מקטע בסוף כתובית
+            nx = groups[k + 1] if k + 1 < len(groups) else None
+            head = (nx is not None and groups[k - 1].get("sent") != g.get("sent") and nx.get("sent") == g.get("sent")
+                    and len(_content(words, g["ids"])) <= 3 and _joinable(words, g, nx, max_chars, text))
+            if (_joinable(words, p, g, max_chars, text) and "parts" not in p
+                    and not head and not _qa_turn(words, p["ids"], g["ids"])):
                 p["ids"] = p["ids"] + g["ids"]
                 continue
         merged.append(g)
@@ -203,8 +243,12 @@ def plan(words: list[dict], timing: TimingRules, text: TextRules) -> list[dict]:
             bs, be = _span(words, b["ids"])
             ea = _est_chars(words, a["ids"], text.he_en_ratio)
             eb = _est_chars(words, b["ids"], text.he_en_ratio)
-            if (a.get("spk") != b.get("spk") and ae - as_ <= 1.8 and be - bs <= 1.8
-                    and ea <= 30 and eb <= 30 and bs - ae <= 0.5 and be - as_ <= 4.0):
+            two = (a.get("spk") != b.get("spk") and ae - as_ <= 1.8 and be - bs <= 1.8
+                   and ea <= 30 and eb <= 30 and bs - ae <= 0.5 and be - as_ <= 4.0)
+            # 26/10/2026: גם שאלה ותשובה קצרה כשזיהוי הדוברים לא הבדיל ביניהם — כל צד בשורה אחת (≤30 תווים)
+            qa = (not two and _qa_turn(words, a["ids"], b["ids"]) and ae - as_ <= 3.0
+                  and ea <= 30 and eb <= 30 and bs - ae <= 0.8 and be - as_ <= 5.0)
+            if two or qa:
                 final.append({"ids": a["ids"] + b["ids"], "spk": a.get("spk"),
                               "parts": [{"ids": a["ids"], "spk": a.get("spk")},
                                         {"ids": b["ids"], "spk": b.get("spk")}]})

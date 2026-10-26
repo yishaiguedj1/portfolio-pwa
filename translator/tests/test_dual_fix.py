@@ -183,3 +183,11 @@ class Flow(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class LiteralTranslationRules(unittest.TestCase):
+    def test_tl_task_against_calques(self):
+        # 26/10/2026: ארבע השורות נגד תרגום מילולי (נבדקו בשיפוט עיוור) — בהנחיה של התרגום
+        for frag in ('קוראים את העברית לבד', '"you want to…" כעצה = "כדאי"', 'לא "עכשיו"', 'לפי המובן בהקשר'):
+            self.assertIn(frag, P.TL_TASK)
+

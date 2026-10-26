@@ -305,6 +305,7 @@ private fun Empty(a: DmActivity) {
 }
 
 private fun isVideo(t: DmTask) = if (t.kind == DmKind.YTDL) !t.audioOnly else DmName.cat(t.name, t.mime) == DmName.Cat.VIDEO
+private fun isApk(t: DmTask) = t.kind != DmKind.YTDL && DmName.cat(t.name, t.mime) == DmName.Cat.APK
 
 private fun catIcon(t: DmTask): ImageVector = when (if (t.kind == DmKind.YTDL) (if (t.audioOnly) DmName.Cat.AUDIO else DmName.Cat.VIDEO) else DmName.cat(t.name, t.mime)) {
     DmName.Cat.VIDEO -> DmIcons.Movie
@@ -406,7 +407,7 @@ private fun Details(a: DmActivity, t: DmTask, rev: Int, onClose: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 when (t.state) {
                     DmState.DONE -> {
-                        Button(onClick = { a.open(t) }) { Text(stringResource(R.string.dmOpen)) }
+                        Button(onClick = { a.open(t) }) { Text(stringResource(if (isApk(t)) R.string.dmInstall else R.string.dmOpen)) }
                         if (isVideo(t) && a.studioHere()) FilledTonalButton(onClick = { a.translate(t) }) { Text(stringResource(R.string.dmTranslate)) }
                         else FilledTonalButton(onClick = { a.share(t) }) { Text(stringResource(R.string.dmShare)) }
                     }
@@ -541,6 +542,14 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                 } else Button(onClick = { scope.launch { check() } }, Modifier.fillMaxWidth(), enabled = url.isNotBlank()) { Text(stringResource(R.string.dmCheck)) }
                 is DmActivity.Found.Fail -> {
                     Text(if (f.code == "bad") stringResource(R.string.dmErrBad) else DmFmt.err(ctx, f.code), color = MaterialTheme.colorScheme.error)
+                    // 26/10/2026: דף שלא ירד (למשל קורס שדורש התחברות) — לפתוח אותו בדפדפן של DM, שם הצייד רואה את הסרטון
+                    // וההורדה עוברת עם ההתחברות. התחברות אחת לכל אתר נשמרת בדפדפן
+                    val page = DmLink.first(url)
+                    if (f.code != "bad" && page.startsWith("http") && refTask == null) {
+                        Spacer(Modifier.height(10.dp))
+                        Button(onClick = { onClose(); a.openBrowser(page) }, Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(R.string.dmOpenBr), fontSize = 17.sp) }
+                        Text(stringResource(R.string.dmOpenBrHint), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
+                    }
                     TextButton(onClick = { scope.launch { check() } }) { Text(stringResource(R.string.dmRetry)) }
                 }
                 is DmActivity.Found.File -> {

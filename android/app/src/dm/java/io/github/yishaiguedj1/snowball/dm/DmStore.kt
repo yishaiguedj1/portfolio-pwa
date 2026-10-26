@@ -83,6 +83,8 @@ class DmPrefs(ctx: Context) {
     /** כללים לפי אתר (נלמדים — DmHostRules): "host=n;host=n" */
     var hostRules: String get() = p.getString("hr", "") ?: ""; set(v) = p.edit().putString("hr", v).apply()
     var lastClip: String get() = p.getString("clip", "") ?: ""; set(v) = p.edit().putString("clip", v).apply()
+    /** אתרים שבהם הורדת דרך הדפדפן של DM, אחד בשורה (SiteList) — לבועה ב־Chrome */
+    var brSites: String get() = p.getString("brs", "") ?: ""; set(v) = p.edit().putString("brs", v).apply()
     /** שפת הממשק: he (ברירת המחדל — כמו בשאר האפליקציות) / en / sys = כמו בטלפון */
     var lang: String get() = (p.getString("lang", "he") ?: "he").takeIf { it in DmLang.MODES } ?: "he"; set(v) = p.edit().putString("lang", v).apply()
 }

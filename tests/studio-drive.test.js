@@ -14,11 +14,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const body = st.replace(/^export (const|function) /gm, '$1 ').replace(/^import \{([^}]+)\} from '[^']+';$/gm, 'const {$1} = __stubs;');
   const STUBS = { createNet: () => ({}), probeVideo: async () => ({}), extractAudio: async () => ({}), uploadBoth: async () => {}, stageEstimates: N.stageEstimates, progressModel: N.progressModel,
     createBackup: () => ({}), waitOAuthCode: () => {}, normEdl: ED.normEdl, edlPre: ED.edlPre, outDur: ED.outDur, edlDur: ED.edlDur, normTrackPref: (x) => ({ a: '', cc: '', ...(x || {}) }), normPq: (v) => v || 'src', normLadder: () => null, normChapters: () => [], normSty: () => null, STY_COLORS: {}, STY_Y: 40 };
-  const S = new Function('t', '__stubs', body + '\nreturn { normPicker, normDraft, newDraft, normJob };')(undefined, STUBS);
-
-  /* ---------- הגדרות ה־Picker מהשרתון ---------- */
-  ok(S.normPicker({ key: 'TESTpickerKEYtestPICKERkey000', app: '123456789012' }).app === '123456789012', 'מפתח + מספר פרויקט תקינים');
-  ok(S.normPicker(null) === null && S.normPicker({ key: '<x>', app: '1' }) === null, 'בלי הגדרה / ערכים לא תקינים — בלי כפתור Drive');
+  const S = new Function('t', '__stubs', body + '\nreturn { normDraft, newDraft, normJob };')(undefined, STUBS);
 
   /* ---------- טיוטה ועבודה ---------- */
   const dr = S.normDraft({ id: 'abcd1234', name: 'הרצאה.mkv', size: 900, drive: { id: 'mydrive1234567', dur: 3600 } });
@@ -53,23 +49,17 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(threw === 3, 'מזהים לא תקינים — לא יוצאת בקשה');
 
   /* ---------- החיבור ---------- */
-  ok(/register\(id, 'v', up\.v\.id, up\.folder, true\)/.test(st) && /ext \? \{ ext: true \} : \{\}/.test(st), 'מקור מ־Drive — רישום בשרתון עם ext (מאומת שם: קיים, סרטון, בגודל)');
+  ok(/register\(id, 'v', up\.v\.id, up\.folder, true(, up\.bx)?\)/.test(st) && /ext \? \{ ext: true \} : \{\}/.test(st), 'מקור מ־Drive — רישום בשרתון עם ext (מאומת שם: קיים, סרטון, בגודל)');
   ok(/const pr = f\.fileObj \? \(sm && sm\.dur \? \{ dur: sm\.dur \} : await probeVideo\(file\)\) : \{ dur: f\.drive\.dur \|\| 0 \}/.test(st), 'בלי לקרוא את הקובץ בטלפון — האורך מ־Drive');
-  ok(/DocsView\(G\.ViewId\.DOCS_VIDEOS\)/.test(st) && /setSelectFolderEnabled\(true\)/.test(st) && /setAppId\(cfg\.app\)/.test(st), 'Google Picker: סרטונים / תיקייה, עם מספר הפרויקט (הרשאה לקובץ שנבחר)');
-  ok(/v\.setMode\(G\.DocsViewMode\.LIST\)/.test(st) && /for \(const v of views\) pb\.addView\(v\)/.test(st), 'ה־Picker: רשימה (שם, תאריך, גודל) — בלי ריבועי תמונה ממוזערת');
-  ok(/setParent\('root'\), T\('studioPkMine'\)\)/.test(st) && /setStarred\(true\), T\('studioPkStar'\)\)/.test(st) && /T\('studioPkVideos'\)/.test(st), 'ה־Picker: לשוניות — סרטונים · התיקיות שלי · מסומנים בכוכב');
-  ok(/typeof v\.setLabel === 'function'/.test(st), 'ה־Picker: שם ללשונית רק כשהגרסה של Google תומכת');
-  ok(/if \(pickerClose\(\)\) \{ if \(root\) watch\(\); return; \}/.test(st), '"חזור" כשה־Picker פתוח — סוגר רק אותו');
   ok(/rec\.up\.ext\) \{ if \(\(!rec\.up\.extReg \|\| !rec\.up\.started\) && st === 'new'/.test(st), 'פתיחה מחדש: עבודה מ־Drive שלא נרשמה / התחילה — ממשיכה לבד');
-  ok(/for \(const o of vids\)[\s\S]{0,300}await net\.driveMove/.test(st) && /net\.driveCopy\(srt\.id/.test(st), 'בסוף: הסרטון עובר, הכתוביות מועתקות');
-  ok(/isR2Id\(o\.id\)\) await net\.r2ToDrive/.test(st) && /isR2Id\(srt\.id\) \? net\.r2ToDrive/.test(st), 'ת4: תוצר מ־R2 — עותק לתיקייה שבחרת (זורם)');
+  ok(/for \(const o of items\)[\s\S]{0,300}await net\.driveMove/.test(st) && /else await net\.driveCopy\(o\.id, dest\.id, outDlName\(rec, o\)\)/.test(st), 'בסוף (Routine): הסרטון עובר, הכתוביות מועתקות');
+  ok(/if \(items\.every\(\(o\) => isR2Id\(o\.id\)\)\) \{[\s\S]{0,200}net\.api\('dxRun'/.test(st), '26/10/2026: תוצר מ־R2 — העובד בשרת מעתיק (dxRun), לא דרך הטלפון');
   const idx = read('index.html'), css = read('studio.css');
   ok(/frame-src[^;]*https:\/\/docs\.google\.com/.test(idx) && /script-src[^;]*https:\/\/apis\.google\.com/.test(idx), 'CSP: ה־Picker (docs.google.com) והסקריפט שלו (apis.google.com)');
-  ok(/\.picker-dialog \{ z-index: 1101 !important; \}/.test(css), 'ה־Picker מעל שכבת הסטודיו (900)');
   const job = read('translator/job.py');
   ok(/\(\(ctx\.st\.get\('files'\) or \{\}\)\.get\('v'\) or \{\}\)\.get\('ext'\)/.test(job) && /v\.get\('ext'\)/.test(job), 'העובד: מקור מ־Drive — לא נוגעים בקובץ שלך (בלי החלפה לאיכויות)');
   const app = read('app.js');
-  for (const k of ['studioFromDrive', 'studioInDrive', 'studioInDriveNote', 'studioStartNoteDrive', 'studioDxPickT', 'studioDxT', 'studioDxSub', 'studioDxDone', 'studioDxErr', 'studioDxBusy', 'studioPkVideos', 'studioPkMine', 'studioPkStar'])
+  for (const k of ['studioFromDrive', 'studioInDrive', 'studioInDriveNote', 'studioStartNoteDrive', 'studioDxPickT', 'studioDxT', 'studioDxSub', 'studioDxDone', 'studioDxErr', 'studioDxBusy', 'studioPkMine', 'studioPkStar'])
     ok((app.match(new RegExp(k + ': "', 'g')) || []).length === 2, 'מחרוזת בשתי השפות: ' + k);
   console.log(`\n${n} בדיקות עברו`);
 })().catch((e) => { console.error(e); process.exit(1); });

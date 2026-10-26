@@ -43,7 +43,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const job = read('translator/job.py');
   ok(/sub\.add_parser\('ask'/.test(job) && /'ask': ask/.test(job) && /askTimeout=qid/.test(job), 'העובד: job.py ask — שולח, מחכה, וברירת מחדל בסוף הזמן');
   const rb = read('translator/RUNBOOK.md');
-  ok(/\$J ask --q/.test(rb) && /לכל היותר 2 שאלות לעבודה/.test(rb) && /בחזית, לא ברקע/.test(rb), 'RUNBOOK: מתי שואלים, כמה, ואיך מחכים');
+  ok(!/\$J ask --q/.test(rb) && /בלי שאלות למשתמש/.test(rb) && /אסור\*\* להשתמש ב־`\$J ask`/.test(rb), 'RUNBOOK (26/10/2026): בלי שאלות למשתמש — מכריעים לבד');
 
   /* ---------- 4. גרסה ---------- */
   const ver = (app.match(/const APP_VERSION = '(v\d+)'/) || [])[1];

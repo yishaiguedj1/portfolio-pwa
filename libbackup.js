@@ -152,7 +152,7 @@ export function createBackup(env) {
       const redirect = E.redirectUri();
       const base = extra
         ? [['scope', SCOPE_FILE]]          // בורר הקבצים: רק drive.file, בלי הרשאות קודמות (כך ב־Google)
-        : [['scope', SCOPES], ['include_granted_scopes', 'true']];
+        : E.scopes ? [['scope', E.scopes]] : [['scope', SCOPES], ['include_granted_scopes', 'true']];   // 26/10/2026: scopes — חיבור אחר (רשימת הקבצים ב־Studio), בלי לצרף הרשאות של חיבורים אחרים
       const url = 'https://accounts.google.com/o/oauth2/v2/auth?' + [['client_id', cf.clientId], ['redirect_uri', redirect], ['response_type', 'code']].concat(base,
         [['access_type', 'offline'], ['prompt', 'consent'], ['state', state], ['code_challenge', challenge], ['code_challenge_method', 'S256']],
         hint ? [['login_hint', hint]] : [], extra || [])

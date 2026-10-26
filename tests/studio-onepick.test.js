@@ -84,17 +84,10 @@ const ID = '1AbCdEfGhIjKlMnOpQrStUvWxYz0123';
   global.t = (k) => k;
   const st = await import(path.join(root, 'studio.js'));
   const now = Date.UTC(2026, 9, 11);
-  ok(st.onepickOk({}, now) && st.onepickOk({ op1: now - 31 * 864e5 }, now) && !st.onepickOk({ op1: now - 864e5 }, now), 'אחרי ש־Google סירב — הבורר הנוכחי לחודש, ואז מנסים שוב');
   ok(st.normSettings({ op1: now }).op1 === now && !('op1' in st.normSettings({ op1: -5 })) && !('op1' in st.defaultSettings()), 'normSettings: op1 נשמר רק כשיש');
-  ok(st.canPickDrive(null, {}, { configured: true }, now) && !st.canPickDrive(null, {}, null, now) && !st.canPickDrive(null, { op1: now }, { configured: true }, now)
-    && st.canPickDrive({ key: 'k', app: '1' }, { op1: now }, null, now), 'שורת "מ־Google Drive": בורר חדש (Drive מוגדר) או מפתח Picker');
   const sj = read('studio.js');
-  const dp = sj.slice(sj.indexOf('async function drivePick(kind)'), sj.indexOf('async function legacyPick(kind)'));
-  ok(/^async function drivePick\(kind\) \{\n  if \(onepickOk\(store\.settings, Date\.now\(\)\)\) \{\n    let ids, why = 'picker';\n    try \{ ids = await gd\(\)\.pick\(/.test(dp), 'gd().pick נקרא ראשון — בלי await לפני (החלון בתוך הלחיצה)');
-  ok(/if \(c === 'gd_denied' \|\| c === 'gd_cancel'\) return null;/.test(dp) && /if \(ids\) \{ store\.settings\.op1 = Date\.now\(\); save\(\); \}/.test(dp) && /return legacyPick\(kind\)/.test(dp),
-    'ביטול = ביטול; Google לא הציג בורר = זוכרים ועוברים לבורר הנוכחי בלי לחיצה נוספת');
-  ok(/net\._forget\(\)/.test(dp) && /net\.driveMeta\(ids\[0\]\)/.test(dp), 'אחרי הבחירה — גישה חדשה ופרטי הקובץ מ־Drive');
-  ok(!/pickSourceFromDrive|'from-drive'/.test(sj) && /dest = await drivePick\('folder'\)/.test(sj), 'בלי שורת "מ־Google Drive" בטופס (26/10/2026); השמירה בתיקייה — דרך הבורר החדש');
-  ok(/canPick\(\) && outs\.some/.test(sj), 'שורת השמירה מוצגת גם בלי מפתח Picker');
+  // 26/10/2026 (בקשת המשתמש): בלי Google Picker בכלל — המקור מהרשימה של Studio, והשמירה ב״הסרטונים שלי״ (דף שלנו)
+  ok(!/pickSourceFromDrive|drivePick|legacyPick|google\.picker|canPick\(\)/.test(sj) && /go\('dpick'\); \}, k: 'from-drive'/.test(sj), 'מקור מ־Drive — הרשימה של Studio, לא Picker');
+  ok(/driveOk\(\) && outs\.some\(\(o\) => DX_MOVE\.includes\(o\.k\) \|\| o\.k === 'srt'\) \? dxRow\(rec\)/.test(sj) && /goVids\('S:' \+ rec\.id\)/.test(sj), 'השמירה ב־Drive — דרך ״הסרטונים שלי״');
   console.log('# ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL - ' + (e && e.stack || e)); process.exit(1); });

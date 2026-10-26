@@ -1239,6 +1239,9 @@ function stubFetch(text, status = 200) {
         if (p.get('assertion')) return J({ access_token: 'SA', expires_in: 3600 });
         // v357: לסטודיו לקוח OAuth משלו — ההרשאה של הסטודיו עובדת רק איתו, וזו של גיבוי הספרייה לא מגיעה לסטודיו
         const cid = p.get('client_id');
+        if (p.get('grant_type') === 'refresh_token' && p.get('refresh_token') === 'BRT-1') return cid === 'bcid.apps.googleusercontent.com' ? J({ access_token: 'BROWSE-AT', expires_in: 3599 }) : J({ error: 'invalid_grant' }, 400);   // 26/10/2026: רשימת הקבצים
+        if (p.get('grant_type') === 'authorization_code' && p.get('code') === 'BCODE' && cid === 'bcid.apps.googleusercontent.com')
+          return J({ access_token: 'B-AT1', expires_in: 3599, refresh_token: 'BRT-1', scope: p.get('client_secret') === 'bsecret' ? 'openid email https://www.googleapis.com/auth/drive.readonly' : 'openid email', id_token: 'x.' + b64u({ email: 'drive.owner@example.com' }) + '.y' });
         if (p.get('grant_type') === 'refresh_token') return p.get('refresh_token') === 'SRT-1' && cid === 'scid.apps.googleusercontent.com' ? J({ access_token: 'DRIVE-AT', expires_in: 3599 })
           : p.get('refresh_token') === 'RT-1' && cid === 'cid.apps.googleusercontent.com' ? J({ access_token: 'LIB-AT', expires_in: 3599 }) : J({ error: 'invalid_grant' }, 400);
         if (p.get('grant_type') === 'authorization_code' && p.get('code') === 'SCODE' && cid === 'scid.apps.googleusercontent.com' && p.get('client_secret') === 'ssecret')
@@ -1276,6 +1279,7 @@ function stubFetch(text, status = 200) {
       }
       const dm = url.match(/^https:\/\/www\.googleapis\.com\/drive\/v3\/files\/([A-Za-z0-9_-]+)\?/);
       if (dm) {
+        if ((opt.headers || {}).Authorization === 'Bearer BROWSE-AT' && !opt.method) { const f = driveFiles.get(dm[1]); return f ? J(f) : J({}, 404); }   // 26/10/2026: רשימת הקבצים — קריאה בלבד
         if ((opt.headers || {}).Authorization !== 'Bearer DRIVE-AT') return J({}, 401);
         if (opt.method === 'PATCH') { const f = driveFiles.get(dm[1]); if (!f) return J({}, 404); f.trashed = JSON.parse(opt.body || '{}').trashed === true; return J({ id: dm[1] }); }
         const f = driveFiles.get(dm[1]);
@@ -1409,7 +1413,7 @@ function stubFetch(text, status = 200) {
     r = await run({ op: 'gdConnect', idToken: OWNER, code: 'SCODE', redirect: 'https://yishaiguedj1.github.io/portfolio-pwa/oauth.html', verifier: 'short&bad' });
     ok(r.statusCode === 400 && calls.filter((c) => c.url.includes('oauth2.googleapis.com/token')).length === nTok, 'PKCE: verifier בצורה לא תקינה — נדחה, בלי פנייה ל־Google');
     r = await run({ op: 'status', idToken: OWNER });
-    ok(r.payload.ok && r.payload.conn === null && r.payload.drive.connected && r.payload.drive.email === 'drive.owner@example.com' && r.payload.kinds.join() === 'ping,tr,rr,ai', 'סטודיו: מצב — Drive של הסטודיו מחובר, עדיין לא Claude; העובד יודע לבדוק חיבור, לתרגם, להפיק מחדש ולענות על גיליון AI');
+    ok(r.payload.ok && r.payload.conn === null && r.payload.drive.connected && r.payload.drive.email === 'drive.owner@example.com' && r.payload.kinds.join() === 'ping,tr,rr,ai,dx', 'סטודיו: מצב — Drive של הסטודיו מחובר, עדיין לא Claude; העובד יודע לבדוק חיבור, לתרגם, להפיק מחדש, לענות על גיליון AI ולשמור ב־Drive');
 
     // חיבור: כספת
     r = await run({ op: 'connect', idToken: OWNER, url: 'https://evil.example/fire', key: RKEY });
@@ -1551,6 +1555,54 @@ function stubFetch(text, status = 200) {
         'סטודיו (Drive): סרטון שבחרת ב־Drive נרשם כמו שהוא (ext — העובד מוריד אותו, ולא נוגע בו)');
       rx = await run({ op: 'remove', idToken: OWNER, job: JX });
       ok(rx.payload.ok, 'סטודיו (Drive): עבודת הבדיקה נמחקה');
+      // 26/10/2026: רשימת הקבצים של Studio (במקום Picker) — לקוח שלישי עם drive.readonly, רק במצב השרת
+      rx = await run({ op: 'gbConfig' });
+      ok(rx.payload.ok && rx.payload.configured === false, 'סטודיו (רשימת Drive): בלי משתני הלקוח — לא מוגדר');
+      { const hub0 = process.env.SNB_RELAY_HUB_ON; process.env.SNB_RELAY_HUB_ON = '1';   // השרת שלנו, שהוקם לפני המשתנים
+        rx = await run({ op: 'gbConfig' });
+        const rs = await run({ op: 'status', idToken: OWNER });
+        if (hub0 == null) delete process.env.SNB_RELAY_HUB_ON; else process.env.SNB_RELAY_HUB_ON = hub0;
+        ok(rx.statusCode === 421 && rs.payload.gb === 'r', 'סטודיו (רשימת Drive): בשרת שלנו בלי המשתנים — 421 (הטלפון שולח ל־Vercel), ו־status אומר "אולי"'); }
+      process.env.STUDIO_BROWSE_CLIENT_ID = 'bcid.apps.googleusercontent.com'; process.env.STUDIO_BROWSE_CLIENT_SECRET = 'bsecret';
+      rx = await run({ op: 'gbConfig' });
+      ok(rx.payload.configured === true && rx.payload.clientId === 'bcid.apps.googleusercontent.com', 'סטודיו (רשימת Drive): gbConfig — המזהה של הלקוח הנפרד');
+      rx = await run({ op: 'status', idToken: OWNER });
+      ok(rx.payload.gb === true, 'סטודיו (רשימת Drive): status אומר שהרשימה מוגדרת (בלי קריאה נוספת)');
+      const sd0 = JSON.stringify(db.get('studioDrive/ownerUid0001'));
+      process.env.STUDIO_BROWSE_CLIENT_SECRET = 'other';   // Google לא נתן drive.readonly — נדחה
+      rx = await run({ op: 'gbConnect', idToken: OWNER, code: 'BCODE', redirect: 'https://yishaiguedj1.github.io/portfolio-pwa/oauth.html' });
+      ok(rx.payload.error === 'gd_no_scope' && !db.has('studioBrowse/ownerUid0001'), 'סטודיו (רשימת Drive): בלי הרשאת הקריאה — לא נשמר');
+      process.env.STUDIO_BROWSE_CLIENT_SECRET = 'bsecret';
+      rx = await run({ op: 'gbConnect', idToken: OWNER, code: 'BCODE', redirect: 'https://yishaiguedj1.github.io/portfolio-pwa/oauth.html' });
+      ok(rx.payload.ok && db.has('studioBrowse/ownerUid0001') && !('refresh_token' in rx.payload) && JSON.stringify(db.get('studioDrive/ownerUid0001')) === sd0,
+        'סטודיו (רשימת Drive): חיבור נשמר מוצפן ב־studioBrowse, בלי לגעת בחיבור של הסטודיו');
+      rx = await run({ op: 'gbToken', idToken: OWNER });
+      ok(rx.payload.ok && rx.payload.access_token === 'BROWSE-AT', 'סטודיו (רשימת Drive): גישה לשעה לטלפון');
+      driveFiles.set('mylist12345678', { id: 'mylist12345678', name: 'שיחה.mp4', size: String(SPEC.size), mimeType: 'video/mp4', parents: ['someoneElse12'], trashed: false });
+      // Routine — לא: העובד שם מריץ Claude עם כלים על תוכן לא מהימן
+      rx = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const JR = rx.payload.job.id;
+      rx = await run({ op: 'file', idToken: OWNER, job: JR, which: 'v', id: 'mylist12345678', folder: 'fold1234567890', ext: true, bx: true });
+      ok(rx.payload.error === 'bx_engine', 'סטודיו (רשימת Drive): עבודת Routine — מקור מהרשימה נדחה');
+      await run({ op: 'remove', idToken: OWNER, job: JR });
+      const SA = Object.assign({}, SPEC, { eng: 'api', cap: 5 });
+      rx = await run({ op: 'create', idToken: OWNER, spec: SA });
+      const JA = rx.payload.job && rx.payload.job.id;
+      if (JA) {
+        rx = await run({ op: 'file', idToken: OWNER, job: JA, which: 'v', id: 'mylist12345678', folder: rx.payload.job.folder || 'fold1234567890', ext: true, bx: true });
+        ok(rx.payload.ok && rx.payload.job.files.v.bx === true && rx.payload.job.files.v.ext === true, 'סטודיו (רשימת Drive): מצב השרת — המקור נרשם (נבדק בגישה של הרשימה), bx לעובד');
+        const jd = db.get('studioJobs/' + JA), kh = crypto.randomBytes(32).toString('base64url');
+        jd.fields.kh = { stringValue: crypto.createHash('sha256').update(kh).digest('hex') }; jd.fields.kx = { integerValue: String(Date.now() + 36e5) };
+        let tw = await wrk({ op: 'token', job: JA, key: kh, src: true });
+        ok(tw.payload.ok && tw.payload.src && tw.payload.src.token === 'BROWSE-AT' && !tw.payload.drive, 'סטודיו (רשימת Drive): העובד בשרת מקבל את הגישה של הרשימה (רק עם src)');
+        tw = await wrk({ op: 'token', job: JA, key: kh });
+        ok(tw.payload.drive && tw.payload.drive.token !== 'BROWSE-AT', 'סטודיו (רשימת Drive): בלי src — הגישה הרגילה בלבד');
+        jd.fields.state = { stringValue: 'done' };
+        await run({ op: 'remove', idToken: OWNER, job: JA });
+      } else ok(false, 'סטודיו (רשימת Drive): לא נוצרה עבודה במצב השרת (' + JSON.stringify(rx.payload).slice(0, 80) + ')');
+      rx = await run({ op: 'gbDisconnect', idToken: OWNER });
+      ok(rx.payload.ok && !db.has('studioBrowse/ownerUid0001'), 'סטודיו (רשימת Drive): ניתוק מוחק את ההרשאה');
+      delete process.env.STUDIO_BROWSE_CLIENT_ID; delete process.env.STUDIO_BROWSE_CLIENT_SECRET;
       studio._reset();
     }
 
@@ -2137,6 +2189,34 @@ function stubFetch(text, status = 200) {
       rr = await wrk({ op: 'report', job: A1.id, key: ka, done: true, out: [{ id: 'aio1234567890', name: 'Talk (AI).json', size: 300, k: 'aiout' }], usage: [{ k: 'main', m: 'claude-sonnet-5-5', n: 1, i: 900, o: 200, cr: 0, c5: 0, c1: 0, usd: 0.01 }] });
       const A2 = SR.fromFields(db.get('studioJobs/' + A1.id).fields);
       ok(rr.payload.ok && A2.state === 'done' && A2.fo[0].k === 'aiout' && A2.use[0].m === 'claude-sonnet-5-5', 'סטודיו: גיליון AI — התשובה והמודל שענה נשמרים');
+      // 26/10/2026: שמירה ב״הסרטונים שלי״ ב־Drive — העובד בשרת מעתיק מ־R2 (עבודת dx), רק לתיקייה שהסטודיו רואה
+      {
+        const DP = 'jDXparentAAAAAAAAAAAA', DF = 'R2_' + DP, vO = DF + '_aaaaaaaaaaaa', sO = DF + '_bbbbbbbbbbbb';
+        db.set('studioJobs/' + DP, { fields: SR.toFields({ id: DP, uid: 'ownerUid0001', kind: 'tr', state: 'done', created: now - 9e5, updated: now - 6e5, ended: now - 6e5, folder: DF, eng: 'api',
+          spec: { name: 'Talk.mp4', size: 900, type: 'video/mp4', dur: 600, from: 'en', to: ['he'], mode: 'haiku-high', out: ['compact', 'srt'], eng: 'api', cap: 5 },
+          fo: [{ id: vO, name: 'Talk.he.compact.mp4', size: 800, k: 'compact' }, { id: sO, name: 'Talk.he.srt', size: 30, k: 'srt' }] }) });
+        driveFiles.set('vidsFold123456', { id: 'vidsFold123456', name: 'הרצאות', mimeType: 'application/vnd.google-apps.folder', trashed: false, capabilities: { canAddChildren: true } });
+        driveFiles.set('roFold12345678', { id: 'roFold12345678', name: 'x', mimeType: 'application/vnd.google-apps.folder', trashed: false, capabilities: { canAddChildren: false } });
+        const DX = (dx) => run({ op: 'dxRun', idToken: OWNER, job: DP, dx });
+        const it = [{ id: vO, n: 'Talk — דחוס.mp4' }, { id: sO, n: 'Talk.he.srt' }];
+        ok((await DX({ f: 'vidsFold123456', it: [{ id: DF + '_cccccccccccc', n: 'x.mp4' }] })).statusCode === 400, 'סטודיו (dx): רק תוצרים של העבודה');
+        ok((await DX({ f: 'R2_jXXXXXXXXXXXXXXXXXXXX', it })).statusCode === 400, 'סטודיו (dx): היעד רק ב־Drive (לא R2)');
+        ok((await DX({ f: 'roFold12345678', it })).payload.error === 'dx_folder', 'סטודיו (dx): תיקייה שאי אפשר להוסיף אליה — נדחה');
+        ok((await DX({ f: 'missing1234567', it })).payload.error === 'dx_folder', 'סטודיו (dx): תיקייה שהסטודיו לא רואה — נדחה');
+        rr = await DX({ f: 'vidsFold123456', n: 'שם מהטלפון', it: it.concat([{ id: vO, n: 'כפול.mp4' }]) });
+        ok(rr.statusCode === 400, 'סטודיו (dx): אותו קובץ פעמיים — נדחה');
+        rr = await DX({ f: 'vidsFold123456', n: 'שם מהטלפון', it: [{ id: vO, n: 'Talk/../a:b.mp4' }, it[1]] });
+        const X1 = rr.payload.job;
+        ok(rr.payload.ok && X1.kind === 'dx' && X1.rp === DP && X1.spec.dx.f === 'vidsFold123456' && X1.spec.dx.n === 'הרצאות' && X1.spec.dx.it[0].n === 'Talk .. a b.mp4' && X1.spec.dx.it[0].s === 800,
+          'סטודיו (dx): עבודה "חדשה" — השם של התיקייה מ־Drive, שם קובץ בלי תווים אסורים, הגודל מהתוצר');
+        ok((await DX({ f: 'vidsFold123456', it })).payload.error === 'dx_busy', 'סטודיו (dx): אחת בכל פעם לכל עבודה');
+        const f3 = fires.length;
+        rr = await run({ op: 'start', idToken: OWNER, job: X1.id });
+        const X2 = SR.fromFields(db.get('studioJobs/' + X1.id).fields);
+        ok(rr.payload.ok && fires.length === f3 && X2.state === 'queued', 'סטודיו (dx): מתחילה בתור של השרת (בלי Routine)');
+        await run({ op: 'remove', idToken: OWNER, job: DP });
+        ok(!db.get('studioJobs/' + X1.id), 'סטודיו (dx): נמחקת יחד עם העבודה המקורית');
+      }
       for (const id of [JP, JN]) await run({ op: 'remove', idToken: OWNER, job: id });
       ok(!db.get('studioJobs/' + R3), 'סטודיו: הפקה מחדש — נמחקת יחד עם העבודה המקורית');
       const odE = db.get('studioOps/ownerUid0001');
@@ -3343,6 +3423,34 @@ function stubFetch(text, status = 200) {
       await run({ op: 'remove', idToken: OWNER, job: JS_ });
     }
     {
+      // 26/10/2026: רצועת הכתוביות שבקובץ כעזר להגהה (r → fsr) — רק כשהשרת שלנו מגיה, עד SUBS_MAX, ועוברת לעובד
+      const SN = require('../lib/studio');
+      driveFiles.set('hlp1234567890', { id: 'hlp1234567890', name: 'en.ref.txt', size: '9000', mimeType: 'text/plain', parents: ['fold1234567890'], trashed: false });
+      driveFiles.set('hlpbig1234567', { id: 'hlpbig1234567', name: 'en.ref.txt', size: String(SN.SUBS_MAX + 1), mimeType: 'text/plain', parents: ['fold1234567890'], trashed: false });
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPECA });
+      const JH = rr.payload.job.id;
+      rr = await run({ op: 'file', idToken: OWNER, job: JH, which: 'r', id: 'hlpbig1234567', folder: 'fold1234567890' });
+      ok(rr.payload.error === 'file_size', 'עזר להגהה: קובץ מעל 5MB — נדחה');
+      rr = await run({ op: 'file', idToken: OWNER, job: JH, which: 'r', id: 'hlp1234567890', folder: 'fold1234567890' });
+      ok(rr.payload.ok && rr.payload.job.files.r && rr.payload.job.files.r.id === 'hlp1234567890' && !rr.payload.job.files.s, 'עזר להגהה: נרשם (r), לא כקובץ המקור');
+      await run({ op: 'file', idToken: OWNER, job: JH, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JH });
+      rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+      const KH = rr.payload.job && rr.payload.job.key;
+      rr = await wrk({ op: 'claim', job: JH, key: KH });
+      ok(rr.payload.ok && rr.payload.job.files.r && rr.payload.job.files.r.id === 'hlp1234567890', 'עזר להגהה: העובד מקבל אותו בלקיחה');
+      await wrk({ op: 'report', job: JH, key: KH, done: true, usage: [{ k: 'tl', m: 'claude-haiku-5-5', n: 1, i: 10, o: 10, cr: 0, c5: 0, c1: 0, usd: 0 }] });
+      await run({ op: 'remove', idToken: OWNER, job: JH });
+      const SPR = Object.assign({}, SPECA); delete SPR.eng; delete SPR.cap;
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPR });
+      const JR = rr.payload.job && rr.payload.job.id;
+      if (JR) {
+        rr = await run({ op: 'file', idToken: OWNER, job: JR, which: 'r', id: 'hlp1234567890', folder: 'fold1234567890' });
+        ok(rr.payload.error === 'bad_params', 'עזר להגהה: בלי השרת שלנו (Routine) — לא נרשם');
+        await run({ op: 'remove', idToken: OWNER, job: JR });
+      }
+    }
+    {
       // 15/10/2026: עבודה שמחכה לסרטון לא תופסת את השרת — חוזרת לתור (park) עד שהסרטון נרשם, ואז ממשיכה
       rr = await run({ op: 'create', idToken: OWNER, spec: SPECA });
       const JP = rr.payload.job.id;
@@ -3965,6 +4073,11 @@ function stubFetch(text, status = 200) {
         fsQuota = false;
         ok(q1.statusCode === 503 && q1.payload.error === 'store', 'מכסה: Firestore לא עונה — 503 לווידג׳ט, לא 401 ("הטוקן לא תקף")');
         ok((await monRun({ op: 'adminMon' }, { 'x-mon-token': mt2 })).payload.ok, 'מכסה: כשהמכסה חוזרת — הווידג׳ט קורא שוב עם אותו טוקן');
+        // 26/10/2026: הווידג׳ט מתרענן כל דקה — ה־hash של הטוקן מהזיכרון (קריאה אחת ל־sysCfg בדקה), ביטול — מיד
+        const cfgGets = () => calls.filter((c) => c.method === 'GET' && c.url.includes('/sysCfg/main')).length;
+        const cg0 = cfgGets();
+        for (let i = 0; i < 3; i++) await monRun({ op: 'adminMon' }, { 'x-mon-token': mt2 });
+        ok(cfgGets() - cg0 <= 1, 'מכסה: שלוש פניות של הווידג׳ט בתוך דקה — לכל היותר קריאה אחת של ההגדרות (' + (cfgGets() - cg0) + ')');
         await monRun({ op: 'monTok', idToken: OWNER, rev: true });
         // שרת התרגום: בדיקת קישור כל 4 שנ׳ — האימות מהזיכרון, לא קריאה של מסמך השרת בכל פנייה
         const srvGets = () => calls.filter((c) => c.method === 'GET' && c.url.includes('/studioServers/' + monSid)).length;

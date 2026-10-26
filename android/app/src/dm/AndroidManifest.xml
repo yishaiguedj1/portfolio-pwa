@@ -5,6 +5,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- 26/10/2026 (בקשת המשתמש): התקנת APK שירד — בלי ההצהרה מתקין החבילות מסרב בלי אפשרות לאשר. ההתקנה עצמה
+         תמיד באישור שלך במסך של המערכת (DmActivity.install) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
@@ -12,6 +15,10 @@
     <!-- אנדרואיד 14+: ההורדה כמשימת העברה שהמשתמש התחיל (UIDT) — בלי מגבלת 6 השעות של dataSync -->
     <uses-permission android:name="android.permission.RUN_USER_INITIATED_JOBS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- 26/10/2026: רשימת האתרים לבועה (DmSitesProvider) — רק לאפליקציות שחתומות במפתח שלנו. מוגדרת גם ב־Studio Bubble,
+         כדי שההרשאה תינתן בלי קשר לסדר ההתקנה -->
+    <permission android:name="app.thesnowball.permission.DM_SITES" android:protectionLevel="signature" />
 
     <!-- AppRoute: האפליקציה השנייה (Studio ↔ Studio DM) — בלי זה אנדרואיד 11+ "מסתיר" אותה -->
     <queries>
@@ -35,6 +42,12 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
+
+        <provider
+            android:name=".dm.DmSitesProvider"
+            android:authorities="app.thesnowball.studiodm.sites"
+            android:exported="true"
+            android:permission="app.thesnowball.permission.DM_SITES" />
 
         <!-- הדפדפן של DM — רק מתוך האפליקציה -->
         <activity

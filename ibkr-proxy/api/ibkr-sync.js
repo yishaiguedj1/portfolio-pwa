@@ -10,7 +10,7 @@
    מסמך ב־Firestore: ibkrVault/{uid} — c (פרטי חיבור), a (מאיפה להמשיך), s (חלקים מוכנים): מוצפנים;
    run/ok/err (זמנים וקוד שגיאה קצר): גלויים, בלי שום נתון של התיק. */
 const { guard, ibkrGetMulti, errorXml, statementEndpointFrom, parseXml, statementToJson, FLEX_SEND_PATH, FLEX_GET_PATH, IBKR_HOST, TOKEN_RE, QUERY_RE } = require('../lib/ibkr');
-const { verifyIdToken, datastoreToken, isAdmin, emails } = require('../lib/gauth');
+const { verifyIdToken, datastoreToken, isAdmin, emails, hasEmail } = require('../lib/gauth');
 const vault = require('../lib/vault');
 const D = require('../lib/ibkrdates');
 
@@ -131,7 +131,7 @@ async function cron(req, res, deps) {
 }
 
 function allowed(user) {
-  return !!(user && user.verified && (isAdmin(user) || emails(process.env.IBKR_SYNC_USERS).includes(user.email)));
+  return !!(user && (isAdmin(user) || hasEmail(user, emails(process.env.IBKR_SYNC_USERS))));
 }
 
 async function handler(req, res, deps = {}) {

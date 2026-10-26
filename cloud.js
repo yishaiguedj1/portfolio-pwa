@@ -148,6 +148,37 @@
   }
   /* </auth> */
 
+  /* <auth> */
+  /* 26/10/2026 (בקשת המשתמש): כניסה גם עם מייל רגיל (סיסמה או קישור במייל), וקישור / מיזוג של כמה שיטות כניסה לאותו
+     משתמש. הממשק והלוגיקה ב־acclink.js (נטען רק כשצריך, משותף לשלוש האפליקציות); כאן רק הגישה ל־Firebase ולחיבור המשותף,
+     וזיהוי חזרה מקישור הכניסה שנשלח במייל */
+  window.SnbAcct = {
+    auth: () => auth,
+    base: () => sessBase(),
+    busy: (on) => { sessBusy = !!on; },
+    login: (u) => sessLogin(u),
+    flush: () => flushSave(),
+  };
+  function emailLinkLanding() {
+    try { if (auth && auth.isSignInWithEmailLink(location.href)) import('./acclink.js').then((m) => m.finishLink()).catch(() => {}); } catch (e) {}
+    setTimeout(verifyCheck, 2500);
+  }
+  /* מייל + סיסמה שעוד לא אומת: אחרי שאימתו (בחלון אחר / מהמייל) — רענון המשתמש והטוקן מיד, כי ההרשאות בשרתון לפי email_verified.
+     משתמש עם מייל בלי Google מקבל אז בדיוק מה שמקבל משתמש Google */
+  async function verifyCheck() {
+    const u = auth && auth.currentUser;
+    if (!u || u.emailVerified || !(u.providerData || []).some((p) => p && p.providerId === 'password')) return;
+    try {
+      await u.reload();
+      const v = auth.currentUser;
+      if (v && v.emailVerified) { await v.getIdToken(true); if (typeof flash === 'function') flash(t('accVerified')); }
+    } catch (e) {}
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) verifyCheck(); });
+  }
+  /* </auth> */
+
   function userDoc() {
     return fs.collection('users').doc(user.uid);
   }
@@ -193,14 +224,15 @@
      אחרת שמירה שהתחילה בזמן הטעינה הייתה כותבת את התיק של החשבון הקודם למסמך של החדש */
   let ready = false;
   function ownsLocal() { return !!user && (typeof accountOwner !== 'function' || accountOwner() === user.uid); }
+  const held = () => typeof window !== 'undefined' && !!window.__snbHold;   // מיזוג חשבונות באמצע (acclink.js) — לא דורסים את המסמך הממוזג
   function scheduleSave() {
-    if (!user || !fs || localMode || demoOn() || !ready || !ownsLocal()) return;
+    if (held() || !user || !fs || localMode || demoOn() || !ready || !ownsLocal()) return;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(flushSave, 2000);
   }
 
   async function flushSave() {
-    if (!user || !fs || localMode || demoOn() || !ready || !ownsLocal()) return;
+    if (held() || !user || !fs || localMode || demoOn() || !ready || !ownsLocal()) return;
     clearTimeout(saveTimer);
     try {
       await userDoc().set({
@@ -251,6 +283,11 @@
         }
       });
     }
+    const mailBtn = document.getElementById('emailLoginBtn');
+    if (mailBtn && !mailBtn._wired) {
+      mailBtn._wired = true;
+      mailBtn.addEventListener('click', () => { import('./acclink.js').then((m) => m.emailSheet()).catch(() => {}); });
+    }
     const skipBtn = document.getElementById('skipLoginBtn');
     if (skipBtn && !skipBtn._wired) {
       skipBtn._wired = true;
@@ -283,6 +320,7 @@
     // v297 (בקשת המשתמש, אחרי תצוגה מקדימה): בסגנון Apple ID — תמונה + שם + מייל, ופעולה כשורת רשימה
     const OUT_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 17l5-5-5-5"/><path d="M20 12H9"/><path d="M12 20H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6"/></svg>';
     const PHONE_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M11 18h2"/></svg>';
+    const KEY_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3"/><path d="M17 6l3 3"/><path d="M15 8l2 2"/></svg>';
     const CLOUD_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 0 0 .5-8.97A6 6 0 0 0 6.2 9.1 4 4 0 0 0 6.5 19z"/></svg>';
     const idRow = (avatarHTML, title, sub) => mk('<div class="acc-id">' + avatarHTML +
       '<div class="acc-txt"><b>' + esc(title) + '</b><span>' + esc(sub) + '</span></div></div>').firstChild;
@@ -294,10 +332,12 @@
     };
 
     if (user) {
-      const row = idRow('<img alt="" src="' + esc(user.photoURL || 'icon-192.png') + '">', user.displayName || t('userLabel'), user.email || '');
+      const unver = !user.emailVerified && (user.providerData || []).some((p) => p && p.providerId === 'password');   // מייל שעוד לא אומת — בלי הרשאות עד האימות
+      const row = idRow('<img alt="" src="' + esc(user.photoURL || 'icon-192.png') + '">', user.displayName || t('userLabel'), (user.email || '') + (unver ? ' · ' + t('accUnverified') : ''));
       const img = row.querySelector('img');
       if (img) img.addEventListener('error', () => { img.src = 'icon-192.png'; }, { once: true });
       box.appendChild(row);
+      box.appendChild(actRow('acc-keys', KEY_IC, t('accMethods'), () => { import('./acclink.js').then((m) => m.methodsSheet()).catch(() => {}); }));
       box.appendChild(actRow('acc-out', OUT_IC, t('signOut'), signOut));
       // v289: שורת "מחובר — הנתונים נשמרים בענן…" הוסרה (בקשת המשתמש)
       return;
@@ -338,6 +378,7 @@
       if (!ok || !initSdk()) { renderAccountCard(); fallback(); return; }
       wireLoginUi();
       watchAuth();
+      emailLinkLanding();
     });
     if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => setTimeout(go, 0)); else setTimeout(go, 0);
   }
