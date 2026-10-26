@@ -61,19 +61,23 @@ ok(/if\(!box\|\|N<=0\)/.test(vjs) && /function up\(n,l,m,k\)\{N=\+n\|\|0/.test(v
 ok(/Object\.defineProperty\(window,'__snbUp',\{value:up,writable:false,configurable:false\}\)/.test(vjs), 'הדף לא יכול להחליף את __snbUp (ולגנוב את המפתח)');
 ok(/if\(!M\)\{ch\.postMessage\('!dl'\);return;\}/.test(vjs), 'בלי תפריט מוכן — הנגיעה פותחת את מנהל ההורדות כמו קודם');
 ok(/ch\.postMessage\('!q:'\+K\+':'\+k\)/.test(vjs) && /textContent/.test(vjs) && !/innerHTML/.test(vjs), 'בחירה עם המפתח; טקסט התפריט רק כטקסט');
-ok(/BrVideo\.pickOf\(it, dlKey\)/.test(act) && /fun menuPick[\s\S]{0,400}DmPre\.choice\(info, k\) \?: return/.test(act) && /menuPickOf[^\n]*if \(t\.private\) null/.test(act), 'רק בחירה שהתפריט הציע, לא בטאב פרטי');
+ok(/BrVideo\.pickOf\(it, dlKey\)/.test(act) && /fun menuPick[\s\S]{0,400}DmPre\.choice\(info, k\) \?: return/.test(act) && /fun mainCands[^\n]*\{\s*if \(t\.private\) return emptyList\(\)/.test(act), 'רק בחירה שהתפריט הציע, לא בטאב פרטי');
+// 26/10/2026: הסרטון הראשי = הדף או הזרם, מה שהצליח (ב־Vimeo הדף נכשל והזרם עבד); הרשימה כמו IDM — איכויות, ושאר הקבצים מקופלים
+ok(/listOfNotNull\(ps\.firstOrNull \{ it\.page \}, ps\.firstOrNull \{ !it\.page && !it\.file \}\)/.test(act) && /mainCands\(t\)\.forEach \{ p -> DmPre\.start/.test(act), 'הדף והזרם נבדקים במקביל');
+ok(/DmPre\.quals\(ctx, m\.info\)/.test(ui) && /brMoreFiles/.test(ui) && /a\.menuPick\(t, q\.k\)/.test(ui), 'רשימת ההורדה: שורה לכל איכות, בחירה מורידה מיד, שאר הקבצים מקופלים');
+ok(/if \(ps\.size == 1 && ps\[0\]\.file\) a\.download\(ps\[0\]\)/.test(ui), '⬇ מוריד מיד רק קובץ ישיר יחיד');
 ok(/DmPre\.enqueue\(this, p\.url, info, q, audio/.test(act) && /DmPre\.enqueue\(this, v\.url, v\.info/.test(R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmActivity.kt')), 'אותה הוספה מהתפריט ומהגיליון');
 ok(/document\.fullscreenElement/.test(vjs), 'במסך מלא — בתוך האלמנט שבמסך מלא');
 ok(/ch\.postMessage\('!dl'\)/.test(vjs) && /BrVideo\.TAP -> if \(cur === t && screen == Screen\.PAGE\) bubbleTap\(\)/.test(act), 'נגיעה בכפתור = ⬇ בשורת הכתובת');
 ok(/ch\.postMessage\('!\?'\)/.test(vjs) && /BrVideo\.HELLO -> pushDl\(t\)/.test(act) && /if \(bubble\) t\.foundN else 0/.test(act), 'מסמך חדש מבקש את המצב; כבוי בהגדרות = בלי כפתור');
 ok(/\+\+beat>=3/.test(vjs), 'מיקום הנגן נשלח שוב גם בלי שינוי (דיווח שאבד בטעינת הדף)');
 ok(/web && \(t!!\.foundN > 0\) -> IBtn\(BrIcons\.Dl/.test(ui), '⬇ בשורת הכתובת כשיש מה להוריד');
-ok(/fun bubbleTap\(\)[\s\S]{0,200}if \(ps\.size == 1\) download\(ps\[0\]\) else if \(ps\.isNotEmpty\(\)\) pick = true/.test(act)
-  && /if \(ps\.size == 1\) a\.download\(ps\[0\]\) else a\.pick = true/.test(ui), 'הכפתור = ⬇ בשורת הכתובת (אותה בחירה)');
+ok(/fun bubbleTap\(\)[\s\S]{0,200}if \(ps\.size == 1 && ps\[0\]\.file\) download\(ps\[0\]\) else if \(ps\.isNotEmpty\(\)\) pick = true/.test(act)
+  && /if \(ps\.size == 1 && ps\[0\]\.file\) a\.download\(ps\[0\]\) else a\.pick = true/.test(ui), 'הכפתור = ⬇ בשורת הכתובת (אותה בחירה)');
 ok(/var bubble: Boolean get\(\) = sp\.getBoolean\("bub", true\)/.test(store) && /pickBubble/.test(ui) && /prefs\.bubble = b; cur\?\.let \{ pushDl\(it\) \}/.test(act), 'אפשר לכבות בהגדרות; פועל כברירת מחדל');
 // האיכויות מוכנות מראש
 ok(/LaunchedEffect\(t\.id, t\.foundN, a\.bubble, t\.web\) \{\s*a\.pushDl\(t\)\s*if \(t\.foundN > 0\) \{\s*delay\(1500\); a\.prefetch\(t\); a\.pushDl\(t\)/.test(ui) && /if \(m != last\) \{ last = m; a\.pushDl\(t\) \}/.test(ui), 'הסרטון שעל המסך נבדק ברקע, והתפריט עובר לדף כשהבדיקה מסתיימת');
-ok(/if \(t\.private \|\| cur !== t \|\| t\.foundN == 0\) return/.test(act) && /firstOrNull \{ !it\.file \}/.test(act), 'רק הטאב שעל המסך, לא פרטי, ורק מה שנבדק ב־yt-dlp');
+ok(/if \(t\.private \|\| cur !== t \|\| t\.foundN == 0\) return/.test(act) && /ps\.firstOrNull \{ !it\.page && !it\.file \}/.test(act), 'רק הטאב שעל המסך, לא פרטי, ורק מה שנבדק ב־yt-dlp');
 ok(/DmPre\.await\(url\)\?\.let \{ return Found\.Video/.test(R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmActivity.kt')), 'מנהל ההורדות לוקח את התוצאה המוכנה');
 ok(/if \(url in busy \|\| fresh\(done\[url\], now\)\) return/.test(pre) && /while \(url in busy\)/.test(pre) && /JSONObject\(e\.info\.toString\(\)\)/.test(pre), 'בדיקה אחת לכל כתובת, מחכים לבדיקה שרצה, ועותק לכל מי שמבקש');
 ok(!/https?:\/\//.test(pre.replace(/^\s*(\/\/|\*).*$/mg, '')), 'הבדיקה מראש לא פונה לשום שרת שלנו');

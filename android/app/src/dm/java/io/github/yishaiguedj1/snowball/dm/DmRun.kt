@@ -166,13 +166,21 @@ object DmNotif {
     fun running(ctx0: Context): Notification {
         val ctx = DmLang.wrap(ctx0)   // השפה שנבחרה באפליקציה, לא של הטלפון
         val act = DmStore.all().filter { it.state == DmState.RUNNING }
-        val tot = act.sumOf { it.total.coerceAtLeast(0) }; val got = act.sumOf { it.got }
-        val pct = if (tot > 0) (got * 100 / tot).toInt() else -1
+        // 26/10/2026 (דיווח המשתמש: "בהתראה נשאר 0%"): האחוז = אותו של הפס באפליקציה (frac — גם בהורדה מיוטיוב, שבה
+        // הבתים לא ידועים עד הסוף), ובהורדה אחת — אותה שורת מצב ("מכין את מנוע ההורדה…", "42 MB מתוך 158 MB · 3 MB/s")
+        val fr = act.map { it.frac }
+        val pct = if (act.isNotEmpty() && fr.all { it >= 0f }) {
+            val tot = act.sumOf { it.total.coerceAtLeast(0) }
+            if (act.size > 1 && act.all { it.total > 0 }) (act.sumOf { it.total * it.frac.toDouble() } * 100 / tot).toInt()
+            else (fr.average() * 100).toInt()
+        } else -1
         val title = if (act.size == 1) act[0].name.ifEmpty { act[0].title } else ctx.getString(R.string.dmNRunning, act.size)
         val sp = DmEngine.speed.values.sum()
+        val txt = if (act.size == 1) DmFmt.line(ctx, act[0])
+            else listOf(if (pct >= 0) "$pct%" else "", DmFmt.speed(ctx, sp)).filter { it.isNotEmpty() }.joinToString(" · ")
         return builder(ctx, CH).setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle(title.ifEmpty { ctx.getString(R.string.app_name) })
-            .setContentText((if (pct >= 0) "$pct% · " else "") + DmFmt.speed(ctx, sp))
+            .setContentText(txt)
             .setOngoing(true).setOnlyAlertOnce(true).setContentIntent(openApp(ctx))
             .addAction(0, ctx.getString(R.string.dmPauseAll), PendingIntent.getBroadcast(ctx, 7, Intent(ctx, DmAct::class.java).setAction(DmAct.PAUSE_ALL), PendingIntent.FLAG_IMMUTABLE))
             .setProgress(100, pct.coerceAtLeast(0), pct < 0).build()

@@ -47,28 +47,64 @@ object DmYt {
     /** כמה חלקים yt-dlp יוריד: וידאו + קול נפרדים = 2 (הווידאו הוא רוב הקובץ — VIDEO_W), אחרת 1 */
     const val VIDEO_W = 0.85f
 
-    /** ההתקדמות של כל ההורדה — לפי החלק הנוכחי, ולא פחות ממה שכבר הוצג */
+    /**
+     * 26/10/2026 (בקשת המשתמש: "שהטעינה תהיה רציפה וברורה מתחילת ההורדה עד סופה, גם בהתראה"): סקאלה אחת לכל ההורדה —
+     * הכנת המנוע 0–3%, חיבור (ובדיקת ה־JavaScript של יוטיוב) עד 6%, ההורדה עצמה 6–97%, איחוד וסיום עד 100%.
+     * בשלבים בלי אחוז מ־yt-dlp הפס זוחל לפי הזמן (creep) לכיוון סוף השלב ולא מגיע אליו — תמיד זז, אף פעם לא חוזר.
+     */
+    const val PREP_END = 0.03f
+    const val CONN_END = 0.06f
+    const val DL_END = 0.97f
+
+    /** האחוז של החלק בהורדה עצמה (0–1) → המקום בסקאלה של כל ההורדה */
+    fun dlToAll(f: Float) = CONN_END + f.coerceIn(0f, 1f) * (DL_END - CONN_END)
+
+    /** ההתקדמות של כל ההורדה — לפי השלב והחלק הנוכחי, ולא פחות ממה שכבר הוצג */
     class Progress(private val parts: Int, start: Float) {
-        var frac = start.coerceIn(-1f, 1f); private set
+        var frac = start.coerceIn(0f, 1f); private set
         var stage = Stage.PREP; private set
         var bps = 0L; private set
         var eta = -1L; private set
         private var part = 0
+        private var stageAt = -1L
+        private var stageFrom = frac
 
-        fun feed(raw: String?): Boolean {
+        private fun enter(s: Stage, now: Long) { if (s != stage || stageAt < 0) { stage = s; stageAt = now; stageFrom = frac } }
+
+        fun feed(raw: String?, now: Long = System.currentTimeMillis()): Boolean {
             val x = parse(raw)
             val s = x.stage ?: return false
+            if (stageAt < 0) stageAt = now
             if (x.newPart) part++
-            stage = if (s == Stage.CONN && frac > 0f) stage else s
+            enter(if (s == Stage.CONN && frac > CONN_END) stage else s, now)
             if (x.pct >= 0f) {
                 val k = part.coerceAtLeast(1)
                 val f = if (parts < 2) x.pct
                     else if (k == 1) x.pct * VIDEO_W
                     else VIDEO_W + x.pct * (1f - VIDEO_W)
-                if (f > frac) frac = f.coerceAtMost(1f)
+                val g = dlToAll(f)
+                if (g > frac) frac = g.coerceAtMost(1f)
                 bps = x.bps; eta = x.eta
             } else if (s != Stage.DL) { bps = 0; eta = -1 }
-            if (s == Stage.MERGE || s == Stage.POST) frac = maxOf(frac, 0.99f)
+            if (s == Stage.MERGE) frac = maxOf(frac, DL_END)
+            if (s == Stage.POST) frac = maxOf(frac, 0.99f)
+            return true
+        }
+
+        /** הזמן עובר בשלב בלי אחוז (הכנה, חיבור, איחוד) — הפס זוחל לכיוון סוף השלב: חצי מהדרך כל ~8 שניות */
+        fun creep(now: Long = System.currentTimeMillis()): Boolean {
+            if (stageAt < 0) { stageAt = now; return false }
+            val end = when (stage) {
+                Stage.PREP -> PREP_END
+                Stage.CONN, Stage.RETRY -> if (frac < CONN_END) CONN_END else return false
+                Stage.MERGE -> 0.995f
+                else -> return false
+            }
+            if (frac >= end) return false
+            val k = 1.0 - Math.pow(0.5, (now - stageAt) / 8000.0)
+            val g = (stageFrom + (end - stageFrom) * k * 0.95).toFloat()
+            if (g <= frac) return false
+            frac = g
             return true
         }
     }

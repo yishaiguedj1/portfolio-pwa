@@ -16,6 +16,9 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -742,7 +745,7 @@ private fun MenuSheet(a: BrowserActivity) {
             if ((t?.foundN ?: 0) > 0) MCard {
                 // אותה בחירה של הבועה: ממצא אחד מוריד מיד, כמה — הרשימה
                 Act(R.string.brVideos, BrIcons.Video, iconTint = Red, badge = "${t!!.foundN}") {
-                    close(); val ps = a.picks(t); if (ps.size == 1) a.download(ps[0]) else a.pick = true
+                    close(); val ps = a.picks(t); if (ps.size == 1 && ps[0].file) a.download(ps[0]) else a.pick = true
                 }
             }
             Spacer(Modifier.height(12.dp))
@@ -793,11 +796,26 @@ private fun SheetHead(title: String, sub: String?, lead: (@Composable () -> Unit
     }
 }
 
+/**
+ * 26/10/2026 (בקשת המשתמש: "כמו ב־IDM — בחירת איכויות, בדיוק מה הקובץ, הסוג והמשקל, בלי פרסומות"): בראש הרשימה
+ * הסרטון הראשי (BrowserActivity.mainOf — הדף או הזרם, מה שהצליח) כשורה לכל איכות: הרזולוציה, הקודקים והמשקל;
+ * "שמע" — רק קול; ולהוריד ולתרגם ב־Studio. כל מה שהנגן ביקש בדרך (זרמים, קטעים) — מקופל תחת "קבצים נוספים".
+ * בחירה = ההורדה מתחילה מיד (menuPick), בלי מסך נוסף
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PickSheet(a: BrowserActivity, t: BrTab) {
     val c = LocalBr.current
+    val ctx = LocalContext.current
+    var tick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(t.id) { a.prefetch(t); while (true) { delay(700); tick++ } }
+    @Suppress("UNUSED_VARIABLE") val tk = tick
+    val m = a.mainOf(t)
     val ps = a.picks(t)
+    // מה שלא הסרטון הראשי: בלי המועמד שנבחר, ובלי הדף כשהוא לא נקרא (נכשל) — אותו סרטון שכבר מוצג
+    val extra = ps.filter { p -> p.url != m.p?.url && !(p.page && m.info != null) && !(p.page && io.github.yishaiguedj1.snowball.dm.DmPre.state(p.url) == 3) }
+    var more by remember { mutableStateOf(false) }
+    val showRaw = m.st == 0 || m.st == 3
     ModalBottomSheet(onDismissRequest = { a.pick = false }, containerColor = c.screen) {
         Column(Modifier.verticalScroll(rememberScrollState()).navigationBarsPadding()) {
             SheetHead(stringResource(R.string.brPick), BrStore.hostOf(t.url), close = { a.pick = false })
@@ -811,14 +829,47 @@ private fun PickSheet(a: BrowserActivity, t: BrTab) {
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(t.title.ifEmpty { BrStore.hostOf(t.url) }, color = c.fg, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp)
-                    Text(stringResource(R.string.brOptions, ps.size), color = c.mute, fontSize = 13.sp)
+                    val d = m.info?.optInt("d") ?: 0
+                    Text(if (d > 0) "%d:%02d".format(d / 60, d % 60) else BrStore.hostOf(t.url), color = c.mute, fontSize = 13.sp)
                 }
             }
-            Group(stringResource(R.string.brFoundInPage)) {
-                ps.forEachIndexed { i, p ->
-                    if (i > 0) Sep()
-                    IRow(stringResource(p.label), p.host, lead = { Tile(BrIcons.Video, if (p.page) Red else Color(0xFF007AFF)) }, chevron = false, ltrSub = true,
-                        trailing = { Icon(BrIcons.Dl, null, Modifier.size(22.dp), tint = c.tint) }) { a.download(p) }
+            if (m.info != null) {
+                val (vs, au) = remember(m.info.toString()) { io.github.yishaiguedj1.snowball.dm.DmPre.quals(ctx, m.info) }
+                @Composable fun SizeDl(sz: Long) = Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (sz > 0) Text(io.github.yishaiguedj1.snowball.dm.DmFmt.size(ctx, sz), color = c.mute, fontSize = 15.sp, modifier = Modifier.padding(end = 10.dp))
+                    Icon(BrIcons.Dl, null, Modifier.size(22.dp), tint = c.tint)
+                }
+                if (vs.isNotEmpty()) Group(stringResource(R.string.dmMenuVideo)) {
+                    vs.forEachIndexed { i, q ->
+                        if (i > 0) Sep()
+                        IRow(q.t, q.f.ifEmpty { null }, lead = { Tile(BrIcons.Video, Red) }, chevron = false, ltrSub = true, trailing = { SizeDl(q.sz) }) { a.menuPick(t, q.k) }
+                    }
+                }
+                if (au != null) Group(stringResource(R.string.dmMenuAudio)) {
+                    IRow(au.t, au.f.ifEmpty { null }, lead = { Tile(BrIcons.Headphones, Color(0xFFFF9500)) }, chevron = false, ltrSub = true, trailing = { SizeDl(au.sz) }) { a.menuPick(t, au.k) }
+                }
+                if (vs.isNotEmpty() && io.github.yishaiguedj1.snowball.AppRoute.studioInstalled(ctx)) Group {
+                    IRow(stringResource(R.string.dmDlTr), color = Red, chevron = false) { a.menuPick(t, "t" + vs[0].k) }
+                }
+            } else if (m.st == 1) Group {
+                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = c.mute)
+                    Spacer(Modifier.width(10.dp))
+                    Text(stringResource(R.string.brPreparing), color = c.mute, fontSize = 15.sp)
+                }
+            }
+            if (extra.isNotEmpty()) {
+                val open = showRaw || more
+                if (!showRaw) Group {
+                    IRow(stringResource(R.string.brMoreFiles, extra.size), chevron = false,
+                        trailing = { Icon(BrIcons.Down, null, Modifier.size(22.dp).rotate(if (more) 180f else 0f), tint = c.mute) }) { more = !more }
+                }
+                if (open) Group(if (showRaw) stringResource(R.string.brFoundInPage) else null) {
+                    extra.forEachIndexed { i, p ->
+                        if (i > 0) Sep()
+                        IRow(stringResource(p.label), p.host, lead = { Tile(BrIcons.Video, if (p.page) Red else Color(0xFF007AFF)) }, chevron = false, ltrSub = true,
+                            trailing = { Icon(BrIcons.Dl, null, Modifier.size(22.dp), tint = c.tint) }) { a.download(p) }
+                    }
                 }
             }
         }

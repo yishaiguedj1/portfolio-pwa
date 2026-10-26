@@ -494,6 +494,9 @@ class BrowserActivity : ComponentActivity() {
             }
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
                 if (url != t.page) { t.page = url; t.vid = null; t.blocked = 0; t.playing = false; t.found.clear(); synchronized(t.headSeen) { t.headSeen.clear() }; t.recount(); autoPick(t) }
+                // 26/10/2026 (דיווח המשתמש: אחרי רענון של אותו דף הרשימה גדלה בכפילויות): מסמך חדש באותה כתובת (רענון) —
+                // הנגן מבקש את הכל מחדש, עם חתימות חדשות. מה שנמצא במסמך הקודם כבר לא רלוונטי
+                else { t.found.clear(); synchronized(t.headSeen) { t.headSeen.clear() }; t.recount() }
                 if (BrStore.hostOf(url) != BrStore.hostOf(t.url)) t.icon = null
                 t.url = url; if (favicon != null) { t.icon = favicon; if (!t.private) BrPics.saveIcon(BrStore.hostOf(url), favicon) }
                 navState(t, view)
@@ -698,49 +701,74 @@ class BrowserActivity : ComponentActivity() {
     /** מפתח אקראי לתפריט שעל הנגן (BrVideo.pickOf) — חדש בכל פתיחה של הדפדפן */
     private val dlKey = java.util.UUID.randomUUID().toString().replace("-", "")
 
-    /** הסרטון שהתפריט שעל הנגן מציע — אותו שנבדק ברקע (prefetch) */
-    private fun menuPickOf(t: BrTab) = if (t.private) null else picks(t).firstOrNull { !it.file }
+    /**
+     * 26/10/2026 (דיווח המשתמש: ב־Vimeo "הסרטון בדף" נכשל ורק הזרם הכחול עבד): המועמדים לסרטון הראשי — הדף עצמו
+     * (כשהאתר מוכר ל־yt-dlp) והזרם הראשון שנמצא בו (HLS/DASH). שניהם נבדקים במקביל ברקע (DmPre), והראשון שהצליח (הדף
+     * קודם) הוא "הסרטון" ברשימה ובתפריט שעל הנגן — כמו ב־IDM, שורה לכל איכות במקום כל קובץ שהנגן ביקש.
+     * לא בטאב פרטי (העוגיות שלו לא נשמרות בשום מקום)
+     */
+    fun mainCands(t: BrTab): List<Pick> {
+        if (t.private) return emptyList()
+        val ps = picks(t)
+        return listOfNotNull(ps.firstOrNull { it.page }, ps.firstOrNull { !it.page && !it.file })
+    }
 
-    /** התפריט לדף: האיכויות כשהבדיקה מוכנה, {"w":1} כשהיא עוד רצה, null = אין (נגיעה פותחת את מנהל ההורדות) */
+    /** הסרטון הראשי שנבדק: המועמד והמידע. st = 2 מוכן, 1 עוד בודק, 3 כולם נכשלו, 0 אין מועמד */
+    data class Main(val p: Pick?, val info: org.json.JSONObject?, val st: Int)
+
+    fun mainOf(t: BrTab): Main {
+        val cs = mainCands(t)
+        if (cs.isEmpty()) return Main(null, null, 0)
+        for (p in cs) DmPre.get(p.url)?.let { info ->
+            // הזרם לבד לא יודע איך קוראים לסרטון ("playlist") — השם מהדף
+            if (!p.page && t.title.isNotBlank()) info.put("t", t.title.take(200))
+            return Main(p, info, 2)
+        }
+        return Main(null, null, if (cs.any { DmPre.state(it.url) <= 1 }) 1 else 3)
+    }
+
+    /** התפריט לדף: האיכויות כשהבדיקה מוכנה, {"w":1} כשהיא עוד רצה, null = אין (נגיעה פותחת את הרשימה) */
     fun menuJson(t: BrTab): String {
-        val p = menuPickOf(t) ?: return "null"
-        DmPre.get(p.url)?.let { return DmPre.menu(this, it, AppRoute.studioInstalled(this)).toString() }
-        return if (DmPre.busy(p.url)) org.json.JSONObject().put("w", 1).put("more", getString(R.string.dmMenuMore)).toString() else "null"
+        val m = mainOf(t)
+        if (m.info != null) return DmPre.menu(this, m.info, AppRoute.studioInstalled(this)).toString()
+        return if (m.st == 1) org.json.JSONObject().put("w", 1).put("more", getString(R.string.dmMenuMore)).toString() else "null"
     }
 
     /**
-     * בחירה מהתפריט שעל הנגן: ההורדה נכנסת לתור של מנהל ההורדות (DmPre.enqueue) — בלי לצאת מהדף. רק בחירה שהתפריט הציע
-     * (DmPre.choice), רק לסרטון שנבדק, בטאב שעל המסך; העוגיות של הדף כבר נשמרו בבדיקה (DmPre.start)
+     * בחירה מהתפריט שעל הנגן או מהרשימה: ההורדה נכנסת לתור של מנהל ההורדות (DmPre.enqueue) — בלי לצאת מהדף. רק בחירה
+     * שהוצעה (DmPre.choice), רק לסרטון שנבדק, בטאב שעל המסך; העוגיות של הדף כבר נשמרו בבדיקה (DmPre.start)
      */
     fun menuPick(t: BrTab, k: String) {
         if (cur !== t || screen != Screen.PAGE) return
-        val p = menuPickOf(t) ?: return
-        val info = DmPre.get(p.url) ?: run { bubbleTap(); return }
+        val m = mainOf(t)
+        val p = m.p ?: run { bubbleTap(); return }
+        val info = m.info ?: return
         val (q, audio, tr) = DmPre.choice(info, k) ?: return
         if (tr && !AppRoute.studioInstalled(this)) return
         val subs = if (!audio && DmPrefs(this).subs) DmSubs.pick(info.optJSONArray("sub"), java.util.Locale.getDefault().language) else emptyList()
         DmPre.enqueue(this, p.url, info, q, audio, if (p.page) "" else t.page, ck = true, tr = tr, subs = subs)
+        pick = false
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             runCatching { requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 7) }
         Toast.makeText(this, R.string.dmMenuStarted, Toast.LENGTH_SHORT).show()
     }
 
     /**
-     * 26/10/2026 (בקשת המשתמש: "שהקבצים יהיו כבר מוכנים להורדה תמיד"): הסרטון בטאב שעל המסך נבדק ברקע (DmPre) — כשנוגעים
-     * בכפתור, רשימת האיכויות במנהל ההורדות מוכנה מיד. רק מה שאפשר לבדוק ב־yt-dlp (לא קובץ ישיר — הוא נבדק בחצי שנייה),
-     * ולא בטאב פרטי (העוגיות שלו לא נשמרות בשום מקום)
+     * 26/10/2026 (בקשת המשתמש: "שהקבצים יהיו כבר מוכנים להורדה תמיד"): המועמדים לסרטון הראשי נבדקים ברקע (DmPre) —
+     * כשנוגעים בכפתור / ב־⬇, האיכויות מוכנות מיד
      */
     fun prefetch(t: BrTab) {
         if (t.private || cur !== t || t.foundN == 0) return
-        val p = picks(t).firstOrNull { !it.file } ?: return
-        DmPre.start(this, p.url, if (p.page) "" else t.page, t.web?.settings?.userAgentString ?: "", listOf(t.page, p.url) + t.found.list.map { it.url })
+        val ua = t.web?.settings?.userAgentString ?: ""
+        val urls = listOf(t.page) + t.found.list.map { it.url }
+        mainCands(t).forEach { p -> DmPre.start(this, p.url, if (p.page) "" else t.page, ua, urls) }
     }
 
-    /** הכפתור שעל הנגן (BrVideo) — כמו ⬇ בשורת הכתובת: ממצא אחד מוריד מיד, כמה — הרשימה */
+    /** הכפתור שעל הנגן (BrVideo) — כמו ⬇ בשורת הכתובת: קובץ ישיר יחיד מוריד מיד, אחרת הרשימה עם האיכויות */
     fun bubbleTap() {
         val t = cur ?: return
         val ps = picks(t)
-        if (ps.size == 1) download(ps[0]) else if (ps.isNotEmpty()) pick = true
+        if (ps.size == 1 && ps[0].file) download(ps[0]) else if (ps.isNotEmpty()) pick = true
     }
 
     data class Pick(val label: Int, val host: String, val url: String, val file: Boolean, val page: Boolean)

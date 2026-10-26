@@ -242,4 +242,6 @@
     <string name="brPipFoot">A full-screen video keeps playing in a small window when you leave the browser.</string>
     <string name="brUnlock">Unlock</string>
     <string name="brLockOther">Go to regular tabs</string>
+    <string name="brPreparing">Preparing the qualities…</string>
+    <string name="brMoreFiles">Other files on this page (%1$d)</string>
 </resources>

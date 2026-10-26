@@ -59,12 +59,15 @@ object DmFmt {
                     DmYt.Stage.POST -> R.string.dmStPost
                     else -> 0
                 }
+                // 26/10/2026 (בקשת המשתמש): האחוז תמיד ראשון — באפליקציה ובהתראה, מההתחלה ועד הסוף
+                val f = t.frac
+                val pc = if (f >= 0f) "${(f * 100).toInt()}%" else ""
                 // לפני שהבתים מתחילים לזרום — מה קורה עכשיו, לא "0 B" קפוא
-                if (stage != 0 && (got <= 0 || st != DmYt.Stage.CONN && st != DmYt.Stage.PREP)) return ctx.getString(stage)
+                if (stage != 0 && (got <= 0 || st != DmYt.Stage.CONN && st != DmYt.Stage.PREP)) return listOf(pc, ctx.getString(stage)).filter { it.isNotEmpty() }.joinToString(" · ")
                 val sp = DmEngine.speed[t.id] ?: 0
                 val eta = if (st != null) DmEngine.ytEta[t.id] ?: -1 else -1
                 val l = if (eta >= 0) left(ctx, eta) else if (sp > 0 && tot > 0) left(ctx, (tot - got) / sp) else ""
-                listOf(sz, speed(ctx, sp), l).filter { it.isNotEmpty() }.joinToString(" · ")
+                listOf(pc, sz, speed(ctx, sp), l).filter { it.isNotEmpty() }.joinToString(" · ")
             }
             DmState.QUEUED -> ctx.getString(if (t.later && !DmEngine.laterReady) R.string.dmQueuedLater else R.string.dmQueued) + if (got > 0) " · $sz" else ""
             DmState.WAITING -> err(ctx, t.err)

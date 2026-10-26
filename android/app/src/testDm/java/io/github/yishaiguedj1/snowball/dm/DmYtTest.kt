@@ -30,19 +30,36 @@ class DmYtTest {
 
     @Test fun progressNeverGoesBack() {
         val p = DmYt.Progress(2, -1f)
-        assertEquals(DmYt.Stage.PREP, p.stage); assertEquals(-1f, p.frac, 0f)
-        p.feed("[youtube] Extracting URL: https://youtu.be/abc")
-        assertEquals(DmYt.Stage.CONN, p.stage); assertEquals(-1f, p.frac, 0f)
-        p.feed("[download] Destination: a.f399.mp4")
-        p.feed("[download] 100.0% of 80.00MiB at 3.00MiB/s ETA 00:00")
-        assertEquals(DmYt.VIDEO_W, p.frac, 0.0001f)
-        p.feed("[download] Destination: a.f251.webm")          // הקול — האחוז של yt-dlp מתחיל מאפס
-        p.feed("[download]   0.5% of 30.00MiB at 1.00MiB/s ETA 00:30")
-        assertTrue(p.frac >= DmYt.VIDEO_W)
-        p.feed("[download]  50.0% of 30.00MiB at 1.00MiB/s ETA 00:15")
-        assertEquals(DmYt.VIDEO_W + 0.5f * (1 - DmYt.VIDEO_W), p.frac, 0.0001f)
-        p.feed("[Merger] Merging formats into \"a.mp4\"")
-        assertEquals(DmYt.Stage.MERGE, p.stage); assertTrue(p.frac >= 0.99f)
+        assertEquals(DmYt.Stage.PREP, p.stage); assertEquals(0f, p.frac, 0f)
+        p.feed("[youtube] Extracting URL: https://youtu.be/abc", 0)
+        assertEquals(DmYt.Stage.CONN, p.stage)
+        p.feed("[download] Destination: a.f399.mp4", 10)
+        p.feed("[download] 100.0% of 80.00MiB at 3.00MiB/s ETA 00:00", 20)
+        assertEquals(DmYt.dlToAll(DmYt.VIDEO_W), p.frac, 0.0001f)
+        p.feed("[download] Destination: a.f251.webm", 30)          // הקול — האחוז של yt-dlp מתחיל מאפס
+        p.feed("[download]   0.5% of 30.00MiB at 1.00MiB/s ETA 00:30", 40)
+        assertTrue(p.frac >= DmYt.dlToAll(DmYt.VIDEO_W))
+        p.feed("[download]  50.0% of 30.00MiB at 1.00MiB/s ETA 00:15", 50)
+        assertEquals(DmYt.dlToAll(DmYt.VIDEO_W + 0.5f * (1 - DmYt.VIDEO_W)), p.frac, 0.0001f)
+        p.feed("[Merger] Merging formats into \"a.mp4\"", 60)
+        assertEquals(DmYt.Stage.MERGE, p.stage); assertTrue(p.frac >= DmYt.DL_END)
+        p.feed("[MoveFiles] Moving file", 70)
+        assertTrue(p.frac >= 0.99f)
+    }
+
+    /** 26/10: בשלבים בלי אחוז הפס זוחל לפי הזמן — תמיד זז קדימה, לא עובר את סוף השלב, ולא חוזר אחורה */
+    @Test fun creepIsContinuous() {
+        val p = DmYt.Progress(2, -1f)
+        p.creep(0)
+        var last = p.frac
+        for (t in 1..60) { p.creep(t * 1000L); assertTrue(p.frac >= last); last = p.frac }
+        assertTrue(p.frac > 0.02f && p.frac < DmYt.PREP_END)            // הכנה: עד 3%, לא מגיע
+        p.feed("[youtube] Extracting URL: https://youtu.be/abc", 61_000)
+        for (t in 62..120) { p.creep(t * 1000L); assertTrue(p.frac >= last); last = p.frac }
+        assertTrue(p.frac > DmYt.PREP_END && p.frac < DmYt.CONN_END)
+        p.feed("[download]   1.0% of 80.00MiB at 3.00MiB/s ETA 00:30", 121_000)
+        assertTrue(p.frac >= last)                                        // האחוז הראשון לא מחזיר אחורה
+        assertTrue(!p.creep(200_000))                                     // בהורדה — רק האחוז של yt-dlp
     }
 
     @Test fun singlePartAndResume() {
@@ -51,7 +68,7 @@ class DmYtTest {
         p.feed("[download]  10.0% of 10.00MiB at 1.00MiB/s ETA 00:09")
         assertEquals(0.3f, p.frac, 0f)
         p.feed("[download]  60.0% of 10.00MiB at 1.00MiB/s ETA 00:04")
-        assertEquals(0.6f, p.frac, 0.0001f)
+        assertEquals(DmYt.dlToAll(0.6f), p.frac, 0.0001f)
         p.feed("[youtube] something late")                    // שורת חיבור באמצע ההורדה לא מחזירה ל"מתחבר"
         assertEquals(DmYt.Stage.DL, p.stage)
     }

@@ -18,6 +18,13 @@ class HuntMediaTest {
         listOf("https://cdn.site.com/v/seg-001.ts", "https://cdn.site.com/v/chunk-5.m4s", "https://cdn.site.com/page.html",
             "https://pubads.g.doubleclick.net/ad.mp4", "https://cdn.site.com/preview/clip.mp4", "blob:https://site.com/abc",
             "javascript:void(0)", "https://cdn.site.com/thumb.jpg").forEach { assertNull(it, HuntMedia.classify(it)) }
+        // 26/10/2026: פרסומות וידאו
+        listOf("https://v.fwmrm.net/ad/g/1/clip.mp4", "https://cdn.spotxchange.com/media/v.mp4", "https://s.innovid.com/x/ad.m3u8",
+            "https://cdn.site.com/preroll/intro.mp4", "https://cdn.site.com/media/vast/ad1.mp4", "https://a.teads.tv/v/1.mp4",
+            "https://cdn.site.com/vpaid/clip.mp4").forEach { assertNull(it, HuntMedia.classify(it)) }
+        // לא פרסומת: מילים שמכילות "ad" ושמות כמו download / vastu / headline
+        listOf("https://cdn.site.com/download/movie.mp4", "https://cdn.site.com/headline/clip.mp4", "https://skyfire.vimeocdn.com/1/a/v.mp4",
+            "https://cdn.site.com/vastu/talk.mp4").forEach { assertTrue(it, HuntMedia.classify(it) != null) }
     }
 
     @Test fun found() {
@@ -31,6 +38,20 @@ class HuntMediaTest {
     }
 
     /* 25/10/2026: מעבר בין שיעורים באתר של "דף אחד" — רק מה שנראה ממש לפני המעבר נשאר */
+    /** 26/10: אותו קובץ עם חתימה אחרת בנתיב (רענון ב־Vimeo) = כפול; קבצים שונים — לא */
+    @Test fun signedPathDedupe() {
+        val a = "https://skyfire.vimeocdn.com/1793027351-0x12d667a707d12429a386b0a870fb95f41458ade4/98a3d4df/v2/playlist/av/primary/playlist.m3u8"
+        val b = "https://skyfire.vimeocdn.com/1793030999-0x99ff00aa07d12429a386b0a870fb95f41458aaaa/98a3d4df/v2/playlist/av/primary/playlist.m3u8"
+        assertEquals(HuntMedia.keyOf(a), HuntMedia.keyOf(b))
+        val f = HuntMedia.Found()
+        assertTrue(f.add(HuntMedia.classify(a)!!)); assertTrue(!f.add(HuntMedia.classify(b)!!))
+        assertTrue(HuntMedia.keyOf("https://c.com/v/clip1.mp4") != HuntMedia.keyOf("https://c.com/v/clip2.mp4"))
+        assertTrue(HuntMedia.keyOf("https://c.com/exp=1700000000~acl=x/a.mp4") == HuntMedia.keyOf("https://c.com/exp=1800000000~acl=y/a.mp4"))
+        assertTrue(HuntMedia.keyOf("https://c.com/videos/98a3d4df/a.mp4") != HuntMedia.keyOf("https://c.com/videos/11223344/a.mp4"))
+        // שם קובץ ארוך עם ספרות — לא חתימה
+        assertTrue(HuntMedia.keyOf("https://c.com/v/lesson-2023-intro-part-one-final.mp4") != HuntMedia.keyOf("https://c.com/v/lesson-2023-intro-part-two-final.mp4"))
+    }
+
     @Test fun navigated() {
         val f = HuntMedia.Found()
         f.add(HuntMedia.classify("https://c.com/l1/master.m3u8")!!, 1_000)
