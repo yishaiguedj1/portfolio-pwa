@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1153 מפתחות מתוך 4563) */
+/* המחרוזות של admin (1155 מפתחות מתוך 4567) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -271,11 +271,13 @@ he: {
   "admFaK_fix": "תוקן אוטומטית",
   "admFaK_gold": "סט הזהב זז",
   "admFaK_gp": "רווח גולמי לא מתאים",
+  "admFaK_gr": "צמיחה שלא תואמת לדוח",
   "admFaK_neg": "ערך שלילי שלא אמור להיות",
   "admFaK_other": "בדיקה אחרת",
   "admFaK_part": "חלק גדול מהשלם",
   "admFaK_q4": "הרבעונים לא מסתכמים לשנה",
   "admFaK_qneg": "רבעון שלילי חשוד",
+  "admFaK_rst": "החברה הציגה מחדש (מטופל)",
   "admFaK_scale": "קנה מידה חשוד",
   "admFaK_xy": "שונה מ־Yahoo",
   "admFaKinds": "מה הבדיקות מצאו",
@@ -1426,11 +1428,13 @@ en: {
   "admFaK_fix": "Fixed automatically",
   "admFaK_gold": "Golden set moved",
   "admFaK_gp": "Gross profit doesn’t fit",
+  "admFaK_gr": "Growth that doesn’t match the filing",
   "admFaK_neg": "Negative where it can’t be",
   "admFaK_other": "Other check",
   "admFaK_part": "Part larger than the whole",
   "admFaK_q4": "Quarters don’t add up to the year",
   "admFaK_qneg": "Suspicious negative quarter",
+  "admFaK_rst": "Restated by the company (handled)",
   "admFaK_scale": "Suspicious scale",
   "admFaK_xy": "Differs from Yahoo",
   "admFaKinds": "What the checks found",

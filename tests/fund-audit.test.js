@@ -177,5 +177,29 @@ const root = path.join(__dirname, '..');
   const adm = fs.readFileSync(path.join(root, 'admin-app.js'), 'utf8');
   ok(/page\('labFund'/.test(adm) && /api\('adminFund'\)/.test(adm) && /faRow\(\),\n\s*dmRow\(\)/.test(adm), 'מרכז הניהול: עמוד labFund ושורה במעבדה');
   ok(!/fetch\(/.test(adm.slice(adm.indexOf('async function needFa'), adm.indexOf("page('labFails'"))), 'מרכז הניהול: רק תצוגה (בלי fetch)');
+  /* ---------- 7. שכבה 7 (26/10/2026): הצמיחה במסך מול הדוחות ---------- */
+  {
+    const F = (val, s, e, filed, accn, form = '10-K') => ({ start: s, end: e, val, filed, accn, form });
+    const facts = { facts: { 'us-gaap': { Revenues: { units: { USD: [
+      F(2817, '2022-01-01', '2022-12-31', '2025-02-27', 'a25'), F(3283, '2023-01-01', '2023-12-31', '2025-02-27', 'a25'), F(4709, '2024-01-01', '2024-12-31', '2025-02-27', 'a25'),
+      F(1842, '2023-01-01', '2023-12-31', '2026-02-19', 'a26'), F(3224, '2024-01-01', '2024-12-31', '2026-02-19', 'a26'), F(5481, '2025-01-01', '2025-12-31', '2026-02-19', 'a26'),
+      F(9999, '2024-01-01', '2024-12-31', '2026-05-01', 'q26', '10-Q')] } } } } };
+    const fy = ['2022-12-31', '2023-12-31', '2024-12-31', '2025-12-31'];
+    const good = [null, 3283 / 2817 - 1, 3224 / 1842 - 1, 5481 / 3224 - 1];
+    ok(FA.growthAudit(facts, 'Revenues', fy, good, 'rev').length === 0, 'שכבה 7: צמיחה מהדוח האחרון שמציג את שתי השנים — תקין (גם אחרי הצגה מחדש; 10-Q לא נספר)');
+    const bad = FA.growthAudit(facts, 'Revenues', fy, [null, 1842 / 2817 - 1, good[2], good[3]], 'rev');
+    ok(bad.length === 1 && bad[0].p === '2023-12-31' && Math.abs(bad[0].f - 0.1654) < 1e-4 && bad[0].v < -0.34, 'שכבה 7: צמיחה שמערבבת בסיסים (‎−35% במקום ‎+16.5%) — נתפסת');
+    ok(FA.growthAudit(facts, 'Missing', fy, good, 'rev').length === 0 && FA.growthAudit(null, 'Revenues', fy, good, 'rev').length === 0, 'שכבה 7: בלי נתונים — בלי ממצאים (לא מנחשים)');
+    const S7 = FA.summarize([{ sym: 'APP', r: { ok: true, src: 'sec', checks: [], gr: bad, grn: 3 } }], null, Date.UTC(2026, 9, 26), 1);
+    ok(S7.gr.n === 3 && S7.kinds.gr === 1 && S7.items[0].k === 'gr', 'שכבה 7: נספר בסיכום');
+    const N7 = FA.normAudit(S7);
+    ok(N7.gr.n === 3 && N7.kinds.gr === 1, 'שכבה 7: עובר את הצורה של ה־Release');
+    ok((FA.auditAlert(N7, { k: {} }) || []).includes('gr') && !(FA.auditAlert(N7, { k: { gr: 1 } }) || []).includes('gr'), 'שכבה 7: התראה למנהל כשמספר הפערים עולה');
+    const tool = fs.readFileSync(path.join(root, 'tools/fund-audit.js'), 'utf8');
+    ok(/growthCheck\(r\)/.test(tool) && /analysis\.js/.test(tool) && /AN\.growthOf/.test(tool), 'שכבה 7: הבדיקה הלילית מריצה את הקוד של המסך עצמו (analysis.js) מול companyfacts');
+    const adm = fs.readFileSync(path.join(root, 'admin-app.js'), 'utf8'), appS = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    ok(/case 'gr': return t\('admFaK_gr'\)/.test(adm) && (appS.match(/admFaK_gr:/g) || []).length === 2 && (appS.match(/admFaK_rst:/g) || []).length === 2, 'שכבה 7: תווית במרכז הניהול בשתי השפות');
+  }
+
   console.log('\n' + n + ' בדיקות עברו');
 })().catch((e) => { console.error(e); process.exit(1); });

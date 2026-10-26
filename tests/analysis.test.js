@@ -186,4 +186,24 @@ const bad = sels.map((s) => s.replace(/^\}?\s*/, '').replace(/\{$/, '').trim()).
 ok(bad.length === 0, 'כל סלקטור בעיצוב בתחום an-' + (bad.length ? ': ' + bad.join(' | ') : ''));
 ok(/z-index: 900/.test(css) && /\.an-sheet \{[^}]*z-index: 941/.test(css), 'שכבה מעל האפליקציה, גיליון מעליה');
 
+/* ---------- הצגה מחדש (26/10/2026, AppLovin): צמיחה מול השנה הקודמת באותו דוח ---------- */
+{
+  // 2023–2025 הוצגו מחדש בלי עסק שנמכר (60% מההכנסות); 2020–2022 כפי שדווחו. היחס מהדוח: ‎+10% כל שנה
+  const cut = (a, from) => a.map((x, i) => (i >= from && x != null ? x * 0.6 : x));
+  const R = { ...D, A: { ...A0, rev: cut(A0.rev, 3) }, Q: { ...Q, rev: cut(Q.rev, 12) },
+    C: { A: { rev: [null, null, null, 1.1, null, null] }, Q: { rev: Q.rev.map((_, j) => (j >= 12 && j < 16 ? 1.1 : null)) } } };
+  const c = A.prep(R, null, 3.7), fyp = A.periodList(c, 'fy');
+  const g = fyp.map((p) => A.growthOf(c, p, 'rev'));
+  ok(Math.abs(g[3] - 0.1) < 1e-9, 'שנה שהוצגה מחדש: צמיחה מול השנה הקודמת באותו דוח (+10%, לא −34%)');
+  ok(Math.abs(g[4] - (146 / 133 - 1)) < 1e-9 && Math.abs(g[2] - 0.1) < 1e-9, 'שנים אחרות — מהסדרה כרגיל');
+  ok(Math.abs(A.cagrN(c, 'rev', 5)[0] - Math.pow(1.1 * 146 / 133 * 161 / 146 * 1.1 * 1.1, 1 / 5) + 1) < 1e-9, 'צמיחה ממוצעת על פני הצגה מחדש — מכפלת הצמיחות שנה אחר שנה (לא 2025 החדש מול 2020 הישן)');
+  ok(Math.abs(A.cagrN(co, 'rev', 5)[0] - A.cagrN({ ...co, C: null }, 'rev', 5)[0]) < 1e-12, 'בלי הצגה מחדש — אותה צמיחה ממוצעת כמו תמיד');
+  ok(A.restated(c, ['rev']).join() === '3' && !A.restated(co, ['rev']).length, 'השנים שהוצגו מחדש — להערה בגיליון');
+  const qp = A.periodList(c, 'q'), q2 = qp.find((p) => p.end === '2023-06-30');
+  ok(Math.abs(A.growthOf(c, q2, 'rev') - 0.1) < 1e-9, 'רבעון שהוצג מחדש — מול הרבעון המקביל באותו דוח');
+  const R0 = { ...R, C: { A: {}, Q: { rev: Q.rev.map((_, j) => (j === 13 ? 0 : null)) } } }, c0 = A.prep(R0, null, 3.7);
+  ok(A.growthOf(c0, A.periodList(c0, 'q').find((p) => p.end === '2023-06-30'), 'rev') === null, 'רבעון על בסיס אחר שאין איך להשוות (0) — בלי צמיחה, לא צמיחה שגויה');
+  ok(/anRestated: 'מ־\{y\}/.test(app) && /anRestated: 'From \{y\}/.test(app) && /restNote\(co, def\.s\)/.test(src), 'הערה בגיליון כשהגרף כולל שנה שהוצגה מחדש — בשתי השפות');
+}
+
 console.log('\nכל בדיקות מנתח החברות עברו: ' + n);

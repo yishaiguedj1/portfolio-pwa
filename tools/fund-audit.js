@@ -12,6 +12,31 @@ const path = require('path');
 const F = require('../ibkr-proxy/lib/fundamentals.js');
 const GOLD = require('../ibkr-proxy/lib/golden.json');
 const FA = require('../ibkr-proxy/lib/fundaudit.js');
+const vm = require('vm');
+
+/* שכבה 7: הצמיחה כפי שהמסך עצמו מחשב (analysis.js — אותו קוד שרץ בטלפון) מול הדוחות ב־SEC (FA.growthAudit) */
+const AN = (() => {
+  const sb = { console, Date, Math, JSON };
+  vm.createContext(sb);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../analysis.js'), 'utf8').replace(/^export (async )?(function|const)/gm, '$1$2') + '\n;globalThis.A = _test;', sb);
+  sb.A.setEnv({ t: (k) => k });
+  return sb.A;
+})();
+const UA = { headers: { 'User-Agent': process.env.SEC_UA || 'TheSnowball/1.0 data@thesnowball.app' } };
+async function growthCheck(r) {
+  if (!r || !r.ok || r.src !== 'sec' || !r.cik || !r.tags) return;
+  let facts = null;
+  try { const x = await fetch('https://data.sec.gov/api/xbrl/companyfacts/CIK' + String(r.cik).padStart(10, '0') + '.json', UA); if (x.status === 200) facts = await x.json(); } catch (e) { facts = null; }
+  if (!facts) return;
+  const co = AN.prep(r, null, 0), fy = AN.periodList(co, 'fy').filter((p) => p.kind === 'fy');
+  r.gr = []; r.grn = 0;
+  for (const m of ['rev', 'ni']) {
+    const tag = r.tags[m]; if (!tag || /\+/.test(tag)) continue;
+    const got = fy.map((p) => AN.growthOf(co, p, m));
+    r.grn += got.filter((g) => g != null).length;
+    r.gr.push(...FA.growthAudit(facts, tag, co.fyE, got, m));
+  }
+}
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const out = arg('out', '');
@@ -34,7 +59,7 @@ if (!syms.length) {
     while (next < syms.length) {
       const sym = syms[next++];
       let r = null;
-      try { F._cache.clear(); r = await F.fundamentals(sym); } catch (e) { r = { ok: false, error: String(e.message || e).slice(0, 40) }; }
+      try { F._cache.clear(); r = await F.fundamentals(sym); await growthCheck(r); } catch (e) { r = { ok: false, error: String(e.message || e).slice(0, 40) }; }
       res.push({ sym, r });
       if (res.length % 25 === 0) process.stderr.write(res.length + '/' + syms.length + '\n');
     }
@@ -44,7 +69,8 @@ if (!syms.length) {
   const pct = (a, b) => (b ? (a / b * 100).toFixed(2) + '%' : '—');
   const md = ['# בקרת דיוק — מנתח החברות', '', `${S.at} · ${S.n} חברות (${S.sec} מ־SEC, ${S.yahoo} מ־Yahoo, ${S.fail} נכשלו)`, '',
     `**מול הדוח השנתי עצמו:** ${S.face.ok}/${S.face.n} ערכים תואמים (${pct(S.face.ok, S.face.n)}); חברות שכל הערכים שלהן תואמים: ${S.face.coOk}/${S.face.cos} (${pct(S.face.coOk, S.face.cos)})`,
-    `**סט הזהב:** ${S.gold.n - S.gold.bad}/${S.gold.n} חברות בלי סטייה`, '', '| בדיקה | מספר |', '|---|---|',
+    `**סט הזהב:** ${S.gold.n - S.gold.bad}/${S.gold.n} חברות בלי סטייה`,
+    `**צמיחה מול הדוחות (שכבה 7):** ${S.gr.n - (S.kinds.gr || 0)}/${S.gr.n} שנים תואמות (הכנסות ורווח נקי, כפי שהמסך מחשב)`, '', '| בדיקה | מספר |', '|---|---|',
     ...Object.entries(S.kinds).sort((a, b) => b[1] - a[1]).map(([k, n]) => `| ${k} | ${n} |`), '', '## חריגים', '',
     ...S.items.map((x) => `- ${x.sym} · ${x.k}${x.m ? ' · ' + x.m : ''} · ${x.p}${x.f != null ? ` · בדוח ${x.f} מול ${x.v}` : ''}`),
     ...(S.ni > S.items.length ? ['', `ועוד ${S.ni - S.items.length}`] : [])].join('\n');
