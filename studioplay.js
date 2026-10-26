@@ -826,7 +826,8 @@ export function createPlayer(opts) {
     const c = cues[i];
     const lines = cc === 'en' ? (c.en ? [c.en] : []) : c.lines;
     sub.dir = cc === 'en' ? 'ltr' : 'rtl';
-    for (const x of lines) { const d = el('div'); d.append(el('span', null, x)); sub.append(d); }   // span — הרקע של "עם רקע" לפי אורך השורה
+    const enCls = cc === 'en' && opts.burned ? 'st-pl-sub2' : null;   // 26/10/2026: מעל עברית צרובה = שתי השפות — האנגלית בצהוב
+    for (const x of lines) { const d = el('div', enCls); d.append(el('span', null, x)); sub.append(d); }   // span — הרקע של "עם רקע" לפי אורך השורה
     if (cc === 'both' && c.en) { const d = el('div', 'st-pl-sub2'); d.dir = 'ltr'; d.append(el('span', null, c.en)); sub.append(d); }   // 23/10/2026: שתי השפות — המקור מתחת
   }
   function paintBar() {

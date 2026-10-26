@@ -666,6 +666,8 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-sty-dot { width: 14px; height: 14px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25); }
 .st-pl.boxed .st-pl-sub span { background: rgba(0, 0, 0, .62); padding: 0 .3em; border-radius: 3px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .st-pl-sub { transition: bottom .2s ease; }
+/* 26/10/2026 (בקשת המשתמש): שתי השפות יחד — העברית בצבע הרגיל, המקור באנגלית בצהוב של הקריוקי (SUNG ב־karaoke.py) */
+.st-pl-sub .st-pl-sub2 { color: #FFD700; }
 .st-pl-top { position: absolute; top: 6px; inset-inline-end: 6px; display: flex; gap: 2px; align-items: center; }
 .st-pl-mid { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 42px; pointer-events: none; }
 .st-pl-mid .st-pl-b { pointer-events: auto; }
