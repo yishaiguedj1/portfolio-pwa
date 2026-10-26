@@ -43,8 +43,8 @@ stop();
 ok(sum('sec') === 50 && ctx.watchers.size === 0 && !ev.timeupdate, 'סגירה: בלי כפילות, המעקב משתחרר');
 ctx.watchFlush();
 ok(sum('sec') === 50, 'אחרי הסגירה — לא מדווח');
-ok(/visibilityState === 'visible'[\s\S]{0,200}watchFlush\(\); uxFlush\(\)/.test(st) && /addEventListener\('pagehide', \(\) => \{ watchFlush\(\); uxFlush\(\); \}\)/.test(st), 'ברקע וב־pagehide — watchFlush ואז uxFlush');
-ok(/op === 'learnUx' \? \{ keepalive: true \}/.test(net), 'learnUx עם keepalive (לא מבוטל עם הדף)');
+ok(/visibilityState === 'visible'[\s\S]{0,200}watchFlush\(\); uxFlush\(\)/.test(st) && /addEventListener\('pagehide', \(\) => \{ watchFlush\(\); uxFlush\(\);( fnlFlush\(\);)? \}\)/.test(st), 'ברקע וב־pagehide — watchFlush ואז uxFlush');
+ok(/op === 'learnUx'( \|\| op === 'fnl')? \? \{ keepalive: true \}/.test(net), 'learnUx עם keepalive (לא מבוטל עם הדף)');
 for (const [x, stop] of [['se', 'seStop'], ['ce', 'ceStop'], ['sy', 'syStop'], ['ovp', 'ovpStop']]) {
   ok(new RegExp(x + '\\.wt = watchTrack\\(rec, ' + x + '\\.ctl\\.video\\)').test(st), 'נגן ' + x + ' נמדד');
   ok(new RegExp('function ' + stop + '\\(\\) \\{[^\\n]*' + x + '\\.wt\\(\\)').test(st), stop + ' סוגר את המעקב');

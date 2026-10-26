@@ -8,7 +8,7 @@
    כשהדפדפן תומך — כדי להמשיך העלאה אחרי רענון בלי לבחור שוב.
    "חזור" של המכשיר: עם CloseWatcher — רשומה אחת ומחסנית דפים בזיכרון; בלי — רשומה לכל דף (סעיף 18 ב־CLAUDE.md).
    מחרוזות: t() של app.js (STRINGS.he/en, מפתחות studio*) — כל מפתח כתוב כאן מילולית, והבדיקות מאמתות שהוא קיים בשתי השפות. */
-import { createNet, probeVideo, extractAudio, uploadBoth, stageEstimates, progressModel, monoPct, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX, inspectSource, QUIET_DB, subsPlan, kaPlan } from './studionet.js';
+import { createNet, probeVideo, extractAudio, uploadBoth, stageEstimates, progressModel, monoPct, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX, inspectSource, QUIET_DB, subsPlan, kaPlan, lyrGuess } from './studionet.js';
 import { createBackup, waitOAuthCode } from './libbackup.js';
 // ת4: מזהים של R2 (העלאה ותוצרים בעבודה במצב שרת)
 import { isR2Folder, isR2Id } from './studiostore.js';
@@ -922,6 +922,12 @@ export function jobPhase(rec, run) {
   return rec.up.started ? 'queued' : 'ready';
 }
 
+/* 26/10/2026: מה להגיד כשאין רשת בדף העבודה — רק כשהעבודה כבר בשרת (ההעלאה מהטלפון מציגה "מחכים לחיבור" משלה) */
+export function offlineNote(rec, run, offline) {
+  if (!offline || !rec) return '';
+  const ph = jobPhase(rec, run);
+  return ph === 'queued' || ph === 'running' ? 'studioOfflRun' : ph === 'done' ? 'studioOfflDone' : '';
+}
 /* 23/10/2026: העלאה שנחסמת (CORS / קישור חתום / חיבור שנתקע) נראתה "תקועה" בלי מילה — הטלפון ניסה שוב בשקט.
    upBlockStep מעדכן את מצב החסימה בכל ניסיון חוזר (onWait); upBlocked אומר מתי להגיד למשתמש: ניסיונות רצופים
    בלי שום בייט שהתקדם, ולפחות UP_BLOCK_MS. טביעת ההתקדמות = הבייטים של הקול + הסרטון + ההעלאה הנוכחית. */
@@ -2288,6 +2294,31 @@ function uxFlush() {
   clearTimeout(uxT); uxT = 0;
   for (const [id, ux] of uxQ) { uxQ.delete(id); try { Promise.resolve(net.api('learnUx', { job: id, ux })).catch(() => {}); } catch (e) {} }
 }
+/* 26/10/2026 (Vid Hub, שלב א׳): המסלול שלפני העבודה — צעדים קבועים ו"למה ויתרת?", מונים בלבד (lib/studiofnl.js).
+   נאסף בזיכרון ונשלח 8 שנ׳ אחרי הצעד האחרון / כשהדף יורד לרקע. FNL_STEPS/FNL_WHY = אותן רשימות בשרתון */
+export const FNL_STEPS = ['pick', 'link', 'est', 'quit', 'start', 'cut', 'sty', 'lyr'];
+export const FNL_WHY = ['exp', 'slow', 'test', 'later'];
+const fnlQ = { s: {}, w: {} };
+let fnlT = 0;
+function fnlAdd(k, grp) {
+  const g = grp === 'w' ? 'w' : 's';
+  if (!(g === 'w' ? FNL_WHY : FNL_STEPS).includes(k)) return;
+  fnlQ[g][k] = (fnlQ[g][k] || 0) + 1;
+  clearTimeout(fnlT); fnlT = setTimeout(fnlFlush, 8000);
+}
+/* האומדן לפני ההתחלה — צעד 'est'; "לא" = 'quit', ובטופס עולה שאלה אחת בנגיעה: למה (f.why, whyCard) */
+function estAsk(est, f) {
+  fnlAdd('est');
+  return new Promise((ok) => askConfirm(cpMode() ? T('studioEstCp') : estText(est, apiMode()), () => ok(true),
+    { ok: T('studioEstGo'), onNo: () => { fnlAdd('quit'); if (f && !f.whyDone) f.why = 1; ok(false); } }));
+}
+function fnlFlush() {
+  clearTimeout(fnlT); fnlT = 0;
+  if (!Object.keys(fnlQ.s).length && !Object.keys(fnlQ.w).length) return;
+  const body = {}; if (Object.keys(fnlQ.s).length) body.s = fnlQ.s; if (Object.keys(fnlQ.w).length) body.w = fnlQ.w;
+  fnlQ.s = {}; fnlQ.w = {};
+  try { Promise.resolve(net.api('fnl', body)).catch(() => {}); } catch (e) {}
+}
 /* 25/10/2026 (משתמש מאייפון — באייפון הנגן לא הציע איכויות, ולא היה איך לדעת): איך הנגן ניגן — h באיכויות (hls), f כקובץ
    (בלי MSE / תקלה / בלי איכויות), st = עצירות לטעינה אחרי שהניגון התחיל, er = שגיאות של הסרטון. מחזיר פונקציה שמסיימת */
 function playStats(rec, ctl) {
@@ -2896,6 +2927,18 @@ function advRows(f, pick) {
     return r;
   }));
 }
+/* 26/10/2026 (Vid Hub, שלב א׳): "למה לא עכשיו?" — פעם אחת לטופס, ארבע תשובות קבועות + סגירה. רק קוד נשלח (fnlAdd) */
+function whyCard(f) {
+  const c = h('div', 'st-why');
+  const top = h('div', 'st-why-t'); top.append(h('b', null, T('studioWhyT')));
+  const x = btn('st-advx', null, () => { f.why = 0; f.whyDone = 1; render('none'); }, 'why-x'); x.append(ico('x')); x.setAttribute('aria-label', T('studioCancel'));
+  top.append(x);
+  const ch = h('div', 'st-chips');
+  ch.append(...FNL_WHY.map((k) => btn('st-chip', whyTxt(k), () => { fnlAdd(k, 'w'); f.why = 0; f.whyDone = 1; render('none'); flashSafe(T('studioWhyThanks')); }, 'why:' + k)));
+  c.append(top, ch);
+  return c;
+}
+const whyTxt = (k) => (k === 'exp' ? T('studioWhy_exp') : k === 'slow' ? T('studioWhy_slow') : k === 'test' ? T('studioWhy_test') : T('studioWhy_later'));
 function pageForm(p, editing) {
   if (!form) {
     const d = editing ? store.drafts.find((x) => x.id === ui.param) : null;
@@ -2906,12 +2949,14 @@ function pageForm(p, editing) {
   const saveTop = btn('st-txt bold', T('studioSave'), saveForm, 'nav-save');
   saveTop.disabled = !f.file || !!f.subs;   // 22/10/2026: קובץ כתוביות — בלי טיוטה (הקובץ רק בזיכרון)
   p.append(navBar({ cancel: T('studioCancel'), title: editing ? T('studioEditT') : T('studioNew'), end: saveTop }));
+  if (f.why) p.append(whyCard(f));   // 26/10/2026 (Vid Hub): אחרי "לא" באומדן — שאלה אחת בנגיעה
 
   // הסרטון — מהטלפון. הקובץ נשאר בזיכרון רק עד ההתחלה; בטיוטה נשמרים רק השם, הגודל והסוג
   const inp = h('input', 'st-file'); inp.type = 'file'; inp.hidden = true;
   inp.accept = 'video/*,.mkv,.mov,.mp4,.m4v,.webm,.avi';
   const took = (file, handle) => {
     f.fileObj = file; f.handle = handle || null; f.drive = null; f.file = { name: file.name, size: file.size, type: file.type || '' };
+    fnlAdd('pick');   // 26/10/2026: המסלול שלפני העבודה
     f.edl = null; f.dur = 0; inspectFor(f, file);   // סבב 2: קובץ חדש — חיתוך ישן לא שייך לו; בדיקה ברקע (חינם)
     tracksFor(f, file);   // שלב 4: רצועות כתוביות בתוך הסרטון
     render('none');
@@ -2966,7 +3011,7 @@ function pageForm(p, editing) {
     if (tk) p.append(list(rowNav({ tile: tile('cc', 'orange'), label: T('studioTrkRow'), value: T('studioTrkN', { n: fmtNum(tk.length) }), sub: hl ? T('studioTrkHlpRow', { l: trkLabel(hl) }) : T('studioTrkRowS'), onClick: () => go('tracks'), k: 'tracks' })));
     const adv = advRows(f, pick);
     if (adv) p.append(h('div', 'st-gap sm'), adv);
-    if (f.fileObj || (f.drive && !f.drive.bx)) p.append(list(rowNav({ tile: tile('film', 'blue'), label: T('studioEdBefore'), value: f.edl ? edlSum(f.edl, f.dur || 0) : T('studioEdOptional'), onClick: () => go('cutsrc'), k: 'cutsrc' })));   // מ4
+    if (f.fileObj || (f.drive && !f.drive.bx)) p.append(list(rowNav({ tile: tile('film', 'blue'), label: T('studioEdBefore'), value: f.edl ? edlSum(f.edl, f.dur || 0) : T('studioEdOptional'), onClick: () => { fnlAdd('cut'); go('cutsrc'); }, k: 'cutsrc' })));   // מ4
     if (isIOS()) p.append(note(T('studioIosTip')));
   }
 
@@ -3000,6 +3045,7 @@ function pageForm(p, editing) {
     p.append(secT(T('studioSecStyle')), stylePicker(f.style, (k) => { f.style = k; render('none'); }));
     // 26/10/2026 (בעקבות Vid Hub): גודל, צבע, רקע וגובה כבר בטופס — הצריבה הראשונה משתמשת בהם (עד היום רק בהפקה מחדש)
     if (OUTS.some((k) => f.out[k])) p.append(styFold('form', f.sty || {}, (patch) => {
+      fnlAdd('sty');
       const next = normSty(Object.assign({}, f.sty || {}, patch));
       f.sty = next || null;
       store.settings.sty = next || undefined; if (!next) delete store.settings.sty; save();   // ברירת המחדל לעבודה הבאה
@@ -3036,12 +3082,13 @@ function startSubs(f) {
     else Object.assign(spec, { eng: 'api', cap: store.settings.cap, cp: 1 });
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
     if (est.min && typeof askConfirm === 'function') {
-      const yes = await new Promise((ok) => askConfirm(cpMode() ? T('studioEstCp') : estText(est, apiMode()), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) }));
+      const yes = await estAsk(est, f);
       if (!yes || form !== f) { ui.starting = false; render('none'); return; }
     }
     const j = await net.api('create', { spec });
     ui.starting = false;
     if (!j.ok || !j.job) { flashSafe(errText(j.error)); render('none'); return; }
+    fnlAdd('start');
     const rec = normJob({ id: j.job.id, created: j.job.created || Date.now(), spec: j.job.spec || spec, srv: j.job,
       fp: { name: s.name, size: s.size, lm: 0 }, up: Object.assign({ noAudio: 'subs' }, isR2Folder(j.job.folder) ? { folder: j.job.folder } : {}) });
     store.jobs.unshift(rec);
@@ -3078,12 +3125,40 @@ function kaSpec(f, spec) {
   delete spec.cp; delete spec.ry; delete spec.edl;
   return spec;
 }
+/* 26/10/2026: חיפוש מילים ב־LRCLIB — השאילתה משם הקובץ / הכותרת של הקישור, התוצאה הקרובה באורך לשיר קודם.
+   נגיעה בתוצאה = המילים בשדה (טקסט בלבד). f.lq השאילתה, f.lr התוצאות (null = עוד לא חיפשו), f.lb בחיפוש, f.le שגיאה */
+const kaDur = (f) => Math.round(f.dur || (f.link && f.link.r && Number(f.link.r.d)) || 0);
+function kaFind(f) {
+  const box = h('div', 'st-ka-find');
+  if (f.lq == null) f.lq = lyrGuess((f.file && f.file.name) || (f.link && f.link.r && f.link.r.t) || '');
+  const inp = h('input', 'st-in st-ka-q'); inp.type = 'search'; inp.dir = 'auto'; inp.value = f.lq; inp.placeholder = T('studioKaFindPh');
+  inp.setAttribute('aria-label', T('studioKaFindPh')); inp.maxLength = 120;
+  inp.addEventListener('input', () => { f.lq = inp.value; });
+  const go = async () => {
+    if (f.lb || String(f.lq || '').trim().length < 2) return;
+    f.lb = true; f.le = ''; fnlAdd('lyr'); render('none');
+    const r = await net.lyricsSearch(f.lq, kaDur(f));
+    f.lb = false; f.lr = r.ok ? r.list : []; f.le = r.ok ? '' : 'err';
+    if (form === f) render('none');
+  };
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+  const b = btn('st-btn st-ka-go', f.lb ? '…' : T('studioKaFind'), go, 'ka-find');
+  b.disabled = !!f.lb;
+  const row = h('div', 'st-ka-qrow'); row.append(inp, b); box.append(row);
+  if (f.le) box.append(note(T('studioKaFindErr')));
+  else if (Array.isArray(f.lr) && !f.lr.length) box.append(note(T('studioKaFindNone')));
+  else if (Array.isArray(f.lr)) {
+    box.append(list(...f.lr.map((x, i) => rowNav({ label: x.t || '—', sub: [x.a, x.d ? '\u2066' + fmtDur(x.d) + '\u2069' : '', x.m ? T('studioKaFindLen') : ''].filter(Boolean).join(' · '),
+      onClick: () => { f.lyr = x.plain; f.lr = null; render('none'); flashSafe(T('studioKaFindUsed')); }, k: 'ka-res:' + i }))), note(T('studioKaFindSrc')));
+  }
+  return box;
+}
 function kaSection(p, f) {
   const ta = h('textarea', 'st-ask-in st-ka-lyr');
   ta.dir = 'auto'; ta.rows = 8; ta.maxLength = KA_LYR_MAX; ta.value = f.lyr || ''; ta.placeholder = T('studioKaLyrPh');
   ta.setAttribute('aria-label', T('studioKaLyr'));
   ta.addEventListener('input', () => { f.lyr = ta.value; });
-  p.append(secT(T('studioKaLyr')), ta, note(T('studioKaLyrNote')));
+  p.append(secT(T('studioKaLyr')), kaFind(f), ta, note(T('studioKaLyrNote')));
   const chip = (lbl, on, fn, k) => { const b = btn('st-chip' + (on ? ' on' : ''), lbl, fn, k); b.setAttribute('aria-pressed', on ? 'true' : 'false'); return b; };
   const gv = h('div', 'st-chips');
   gv.append(...KA_GV.map((x) => chip(x ? '\u2066' + x + '%\u2069' : T('studioKaGv0'), (f.gv || 0) === x, () => { f.gv = x; render('none'); }, 'ka-gv:' + x)));
@@ -3489,7 +3564,7 @@ function linkCheckSrv(f, L, seq) {   // הבדיקה בשרת — רק בדפד�
     }
     if (seq !== linkSeq || f.link !== L || L.blind) return;
     if (!j || !j.ok) { L.st = 'err'; L.e = j && j.error === 'bad_url' ? 'bad_url' : j && j.error === 'flag_off' ? 'flag' : j && j.error ? 'srv:' + j.error : 'net'; }
-    else if (j.probe.st === 'd' && j.probe.r) { L.st = 'ok'; L.r = j.probe.r; const rec = linkRec(L.r); L.v = rec ? rec.v : ''; }
+    else if (j.probe.st === 'd' && j.probe.r) { L.st = 'ok'; fnlAdd('link'); L.r = j.probe.r; const rec = linkRec(L.r); L.v = rec ? rec.v : ''; }
     else { L.st = 'err'; L.e = j.probe.st === 'e' ? j.probe.e : j.probe.st === 'q' ? 'no_take' : 'timeout'; }   // 24/10/2026: q = אף שרת לא לקח את הבדיקה
     render('none');
   })();
@@ -3506,7 +3581,7 @@ export function studioProbeRes(arg) {
     let r = null;
     try { r = normDevProbe(JSON.parse(b64uText(m[3]))); } catch (e) {}
     if (!r) { L.st = 'err'; L.e = 'fail'; }
-    else { L.st = 'ok'; L.r = r; if (r.rf && !L.ref) L.ref = r.rf; const rec = linkRec(r); L.v = rec ? rec.v : ''; }
+    else { L.st = 'ok'; fnlAdd('link'); L.r = r; if (r.rf && !L.ref) L.ref = r.rf; const rec = linkRec(r); L.v = rec ? rec.v : ''; }
   }
   render('none');
   return true;
@@ -3912,7 +3987,7 @@ function startLink(f) {
     const dur = pick.sec ? pick.sec[1] - pick.sec[0] : L.r.d || 0;
     const est = startEstimate(modeFor(f.mode, ui.mf), dur, curNorm(), ui.api, apiMode());
     if (est.min && typeof askConfirm === 'function') {
-      const yes = await new Promise((ok) => askConfirm(cpMode() ? T('studioEstCp') : estText(est, apiMode()), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) }));
+      const yes = await estAsk(est, f);
       if (!yes || form !== f) { ui.starting = false; render('none'); return; }
     }
     const n = dlNonce();
@@ -3985,7 +4060,7 @@ function startLinkCloud(f) {   // ישר לענן של Studio (העובד מור
     if (o.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, (o.h * o.h * 16 / 9) / (1920 * 1080))) * 1000) / 1000;
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
     if (est.min && !f.ka && typeof askConfirm === 'function') {
-      const yes = await new Promise((ok) => askConfirm(cpMode() ? T('studioEstCp') : estText(est, apiMode()), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) }));
+      const yes = await estAsk(est, f);
       if (!yes || form !== f) { ui.starting = false; blindUndo(L); render('none'); return; }
     }
     // 25/10/2026: start — השרתון מתחיל כבר ביצירה. באייפון Safari מקפיא את הדף כשעוברים לאפליקציה אחרת, ו"התחל" נפרד
@@ -3993,6 +4068,7 @@ function startLinkCloud(f) {   // ישר לענן של Studio (העובד מור
     const j = await net.api('create', { spec, start: true });
     ui.starting = false;
     if (!j.ok || !j.job) { flashSafe(errText(j.error)); blindUndo(L); render('none'); return; }
+    fnlAdd('start');
     const rec = normJob({ id: j.job.id, created: j.job.created || Date.now(), spec: j.job.spec || spec, srv: j.job,
       fp: { name: L.r.t, size: spec.size, lm: 0 }, up: { link: true, noAudio: 'link', a: { done: true }, v: { done: true }, folder: j.job.folder || '' } });   // אין מה להעלות מהטלפון
     if (j.start) startDone(rec, j.start);   // שרתון ישן בלי start — runJob מתחיל כמו קודם
@@ -4133,11 +4209,12 @@ function startPhone(f) {
     // "חדשה" עד שהאפליקציה מעלה את הקול ומתחילה אותה — לא עולה כלום עד אז
     const j = await net.api('create', { spec });
     if (!j.ok || !j.job) { ui.starting = false; flashSafe(errText(j.error)); render('none'); return; }
+    fnlAdd('start');
     const k = await phKeyFor(j.job.id);
     if (!k) { ui.starting = false; net.api('remove', { job: j.job.id }).catch(() => {}); flashSafe(errText('phkey')); render('none'); return; }
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
     if (est.min && typeof askConfirm === 'function') {
-      const yes = await new Promise((ok) => askConfirm(cpMode() ? T('studioEstCp') : estText(est, apiMode()), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) }));
+      const yes = await estAsk(est, f);
       if (!yes || form !== f) { ui.starting = false; net.api('remove', { job: j.job.id }).catch(() => {}); render('none'); return; }
     }
     ui.starting = false;
@@ -4315,13 +4392,14 @@ function startFromForm() {
     // מ6 (כלל 2): אומדן ואישור לפני ההתחלה — עוד לפני שנוצרת עבודה ולפני ההעלאה
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
     if (est.min && !f.ka && !f.estOk && typeof askConfirm === 'function') {   // estOk — מקישור: האומדן אושר לפני ההורדה בטלפון
-      const yes = await new Promise((ok) => askConfirm(cpMode() ? T('studioEstCp') : estText(est, apiMode()), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) }));
+      const yes = await estAsk(est, f);
       if (!yes || form !== f) { ui.starting = false; render('none'); return; }
     }
     if (f.dl && f.dl.t) spec.name = (f.dl.t + '.' + ((file.name.match(/\.(\w{2,4})$/) || [0, 'mp4'])[1])).slice(0, 200);   // השם מהאתר, לא שם הקובץ
     const j = await net.api('create', { spec });
     ui.starting = false;
     if (!j.ok || !j.job) { flashSafe(errText(j.error)); render('none'); return; }
+    fnlAdd('start');
     const ext = !f.fileObj;
     const rec = normJob({ id: j.job.id, created: j.job.created || Date.now(), spec: j.job.spec || spec, srv: j.job,
       fp: { name: file.name, size: file.size, lm: file.lastModified || 0 }, vm: sm && sm.w && sm.h ? { w: sm.w, h: sm.h } : null,
@@ -7786,6 +7864,8 @@ function pageJob(p) {
     big.textContent = hs.big; sub.textContent = hs.sub; sub.hidden = !hs.sub;
   });
   p.append(hero);
+  // 26/10/2026 (בעקבות Vid Hub): הטלפון בלי רשת בזמן שהעבודה רצה בשרת — פס קטן, נעלם לבד כשהחיבור חוזר (offlineNote)
+  p.append(live(h('p', 'st-offl'), (el) => { const r = jobRec(id), t = r && offlineNote(r, runs.get(id), navigator.onLine === false); el.hidden = !t; if (t) el.textContent = t === 'studioOfflRun' ? T('studioOfflRun') : T('studioOfflDone'); }));
   const ask = askCard(rec);   // שאלה מ־Claude — מעל הכל, כי היא מחכה לך
   if (ask) p.append(ask);
   if (rec.spec.ph) p.append(phCard(rec));   // 24/10/2026: תרגום בטלפון — הסרטון, המדידות והצריבה בטלפון
@@ -8811,9 +8891,10 @@ export function openStudio(opt) {
     window._stVis = true;
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') { if (wlWant) wakeOn(); if (root) pollNow(); }
-      else { clearTimeout(pollT); pollT = 0; watchFlush(); uxFlush(); }   // מ׳3: מה שנאסף נשלח לפני שהאפליקציה יורדת לרקע
+      else { clearTimeout(pollT); pollT = 0; watchFlush(); uxFlush(); fnlFlush(); }   // מ׳3: מה שנאסף נשלח לפני שהאפליקציה יורדת לרקע
     });
-    window.addEventListener('pagehide', () => { watchFlush(); uxFlush(); });   // 25/10/2026: גם כשהדף נסגר / נהרג
+    window.addEventListener('pagehide', () => { watchFlush(); uxFlush(); fnlFlush(); });   // 25/10/2026: גם כשהדף נסגר / נהרג
+    window.addEventListener('offline', repaint); window.addEventListener('online', () => { repaint(); if (root) pollNow(); });   // 26/10/2026: הפס "אין חיבור" בדף העבודה
   }
   document.body.append(root);
   if (typeof growWatch === 'function') growWatch(root, '.st-banner', () => ui.view + '|' + (ui.param || ''));   // 14/10/2026: פס שמופיע בדף מוצג — נפתח ברכות

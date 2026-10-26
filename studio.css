@@ -1056,3 +1056,24 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-sty-pv .st-pl-sub { font-size: clamp(13px, 4.6cqw, 22px); }
 /* 26/10/2026: קריוקי — המילים של השיר (טקסט ארוך, שורה לכל שורה) */
 .st-ka-lyr { display: block; width: calc(100% - 32px); margin: 0 16px; min-height: 9em; resize: vertical; line-height: 1.5; font-family: inherit; }
+/* 26/10/2026: חיפוש מילים לקריוקי (LRCLIB) — שדה + כפתור בשורה אחת מעל שדה המילים */
+.st-ka-find { margin: 0 0 10px; }
+.st-ka-qrow { display: flex; gap: 8px; align-items: center; margin: 0 16px 8px; }
+.st-ka-q { flex: 1; min-width: 0; font-family: inherit; }
+.st-ka-go { flex: none; }
+/* 26/10/2026: אין רשת — העבודה ממשיכה בשרת */
+.st-offl { margin: 10px 16px 0; padding: 8px 12px; border-radius: var(--radius-xs); background: color-mix(in srgb, var(--on-surface-var) 12%, transparent); color: var(--on-surface-var); font-size: 14px; }
+.st-offl[hidden] { display: none; }
+/* 26/10/2026 (Vid Hub): "מה עצר אותך?" אחרי "לא" באומדן — שאלה אחת בנגיעה */
+.st-why { margin: 10px 16px 0; padding: 10px 0 10px; border-radius: var(--radius-sm); background: var(--surface); }
+.st-why-t { display: flex; align-items: center; justify-content: space-between; padding-inline: 16px 6px; font-size: 15px; }
+.st-why .st-chips { flex-wrap: wrap; overflow: visible; padding-top: 6px; }
+.st-why button.st-chip { border: 0; cursor: pointer; }
+/* 26/10/2026 (Vid Hub): בעורך החיתוך — תמונות ממוזערות על הציר, זמן מוקלד, −/+ וניגון הקטע */
+.st-ed-thumbs { position: absolute; inset: 0; display: flex; pointer-events: none; opacity: .55; }
+.st-ed-thumbs canvas { flex: 1; min-width: 0; height: 100%; object-fit: cover; }
+.st-ed-thumbs:not(:empty) ~ .st-ed-segs i { background: color-mix(in srgb, var(--primary) 38%, transparent); }
+.st-ed-trow { align-items: center; justify-content: center; }
+.st-ed-tin { width: 84px; min-height: 36px; padding: 0 8px; border: 0; border-radius: var(--radius-xs); background: rgba(255, 255, 255, .08); color: inherit; font: inherit; font-size: 15px; text-align: center; font-variant-numeric: tabular-nums; }
+.st-ed-tin:focus { outline: 2px solid var(--primary); outline-offset: 0; }
+.st-root .st-ed-nb { min-width: 44px; font-variant-numeric: tabular-nums; }

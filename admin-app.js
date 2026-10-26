@@ -1660,6 +1660,7 @@ page('lab', { tab: 'imp', parent: 'imp', title: () => t('admLabT'), render(p) {
     verRow(v),
     faRow(),
     dmRow(),
+    fnlRow(),
     row({ c: 'red', ic: '✕', t: t('admLabFails'), s: fails.length ? ltr(fails[0].e) + ' · ' + fails[0].n : t('admLabFailsNone'), v: fails.length ? fails.reduce((a, x) => a + x.n, 0) : 0, on: () => go('labFails') }),
     row({ c: 'purple', ic: '⇆', t: t('admLabModes'), s: (v.modes || []).map((x) => modeTxt(x.m)).join(' · '), v: (v.modes || []).length, on: () => go('labModes') }),
     row({ c: 'blue', ic: '↻', t: t('admLabAfter'), s: fmt(t('admLabAfterS'), { e: (v.follow || {}).ed || 0, r: (v.follow || {}).rr || 0 }), v: nz(k.ht) ? pcTxt(k.ht) : '', tr: nz(k.ht) ? 'HTER' : '', on: () => go('labAfter') }),
@@ -1998,6 +1999,46 @@ page('labDm', { tab: 'imp', parent: 'lab', title: () => t('admDmT'), render(p) {
     return row({ c: 'red', ic: f.kind === 'yt' ? '▶' : '⇣', t: ltr(f.code || '?'), s: sm });
   })));
   p.append(h('p', 'adm-foot', t('admDmFoot')));
+} });
+/* ---- המסלול שלפני העבודה (26/10/2026, בעקבות Vid Hub): מונים של צעדים ו"למה ויתרת?" באומדן (op:'fnl' → studioFunnel/<יום> → adminFnl).
+   הכל מחושב בשרתון (lib/studiofnl.js fnlView), כאן רק תצוגה ---- */
+async function needFnl() {
+  const r = await api('adminFnl');
+  D.fnl = r.ok ? (r.fn || null) : null;
+  if (['labFnl', 'lab'].includes(cur)) paint();
+}
+function fnlStep(k) {
+  switch (k) {
+    case 'pick': return t('admFnlS_pick'); case 'link': return t('admFnlS_link'); case 'est': return t('admFnlS_est'); case 'quit': return t('admFnlS_quit');
+    case 'start': return t('admFnlS_start'); case 'cut': return t('admFnlS_cut'); case 'sty': return t('admFnlS_sty'); case 'lyr': return t('admFnlS_lyr');
+    default: return k;
+  }
+}
+function fnlWhy(k) {
+  switch (k) {
+    case 'exp': return t('admFnlW_exp'); case 'slow': return t('admFnlW_slow'); case 'test': return t('admFnlW_test'); case 'later': return t('admFnlW_later');
+    default: return k;
+  }
+}
+function fnlRow() {
+  if (D.fnl === undefined) { D.fnl = 0; needFnl(); }
+  const v = D.fnl;
+  return row({ c: 'studio', ic: '⤳', t: t('admFnlT'), s: v && v.n ? fmt(t('admFnlS'), { e: v.tot.s.est, s: v.tot.s.start }) : t('admNoData'), v: v && v.est2start != null ? v.est2start + '%' : '', tr: v && v.est2start != null ? t('admFnlConv') : '', on: () => go('labFnl') });
+}
+page('labFnl', { tab: 'imp', parent: 'lab', title: () => t('admFnlT'), render(p) {
+  if (D.fnl === undefined || D.fnl === 0) { if (D.fnl === undefined) { D.fnl = 0; needFnl(); } p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  const V = D.fnl;
+  if (!V || !V.n) { p.append(list(row({ c: 'gray', ic: '—', t: t('admNoData') })), h('p', 'adm-foot', t('admFnlFoot'))); return; }
+  const days = V.days || [], S = V.tot.s;
+  p.append(tiles(
+    tileEl('green', t('admFnlConv'), V.est2start == null ? '—' : V.est2start + '%', fmt(t('admFnlConvS'), { e: S.est, s: S.start }), '', days.map((d) => (d.s.est ? d.s.start / d.s.est : null))),
+    tileEl('red', t('admFnlS_quit'), numTxt(S.quit), V.quit == null ? '' : V.quit + '%', '', days.map((d) => d.s.quit)),
+    tileEl('studio', t('admFnlS_start'), numTxt(S.start), '', '', days.map((d) => d.s.start))));
+  const top = Math.max(1, ...['pick', 'link', 'est', 'start', 'cut', 'sty', 'lyr'].map((k) => S[k] || 0));
+  p.append(grp(t('admFnlSteps')), list(...['pick', 'link', 'est', 'quit', 'start', 'cut', 'sty', 'lyr'].map((k) => row({ c: k === 'quit' ? 'red' : 'blue', ic: '›', t: fnlStep(k), v: numTxt(S[k] || 0), meter: [Math.min(100, (S[k] || 0) / top * 100), ''] }))));
+  p.append(grp(t('admFnlWhy')), (V.why || []).length ? list(...V.why.map(([k, n]) => row({ c: 'orange', ic: '?', t: fnlWhy(k), v: n, meter: [n / Math.max(1, V.whyN) * 100, ''] })))
+    : list(row({ c: 'gray', ic: '—', t: t('admFnlWhyNone') })));
+  p.append(h('p', 'adm-foot', t('admFnlFoot')));
 } });
 /* ---- דיוק נתוני החברות (25/10/2026, שכבה 5): הבדיקה הלילית של מנתח החברות (fund-audit.yml → Release fund-audit → adminFund).
    הכל מחושב בשרתון (lib/fundaudit.js auditView), כאן רק תצוגה ---- */
