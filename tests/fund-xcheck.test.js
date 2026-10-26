@@ -142,4 +142,25 @@ const find = (x, m, k, p) => x.find((r) => r.m === m && r.k === k && r.p === p);
   const r = find(X.xcheck(d, f, null, null, { cand: { rev: ['Revenues', 'RevenueFromContractWithCustomerExcludingAssessedTax'] } }), 'rev', 'A', '2023-12-31');
   ok(r.c === 'ok' && r.raw === 900 && r.rf === 'RevenueFromContractWithCustomerExcludingAssessedTax', 'תקופה מתגית משנית — נבדקת מול אותה תגית');
 }
+// מאזן (בדיקת המאזן, 26/10/2026): מטבע, דוח שנתי "קרוב", ומזומן מכמה תגיות
+{
+  // (א) Nebius: אותה תגית ברובל ובדולר — SEC הגולמי רק במטבע הדיווח
+  const f1 = { facts: { 'us-gaap': { CashAndCashEquivalentsAtCarryingValue: { units: {
+    RUB: [{ end: '2024-12-31', val: 79275e6, form: '20-F', filed: '2025-04-20' }], USD: [{ end: '2024-12-31', val: 1127e6, form: '20-F', filed: '2025-04-01' }] } } } } };
+  const d1 = base({ cur: 'USD', tags: { cash: 'CashAndCashEquivalentsAtCarryingValue' }, A: { cash: [null, 1127e6] } });
+  ok(find(X.xcheck(d1, f1, null, null), 'cash', 'A', '2024-12-31').c === 'ok', 'SEC גולמי רק במטבע הדיווח — לא ערך ברובל שהוגש אחר כך');
+  // (ב) מאזן 2023: מה שהודפס במאזן (10-K של 2023/2024) — לא יתרת פתיחה בתזרים של 10-K מאוחר בשנתיים
+  const C = 'CashAndCashEquivalentsAtCarryingValue', i = (end, val, filed) => ({ end, val, form: '10-K', filed, accn: 'a' + filed });
+  const f2 = { facts: { 'us-gaap': { [C]: { units: { USD: [i('2023-12-31', 100e6, '2024-02-01'), i('2023-12-31', 100e6, '2025-02-01'), i('2024-12-31', 110e6, '2025-02-01'),
+    i('2023-12-31', 90e6, '2026-02-01'), i('2025-12-31', 120e6, '2026-02-01')] } } } } };
+  const d2 = base({ cur: 'USD', tags: { cash: C }, A: { cash: [100e6, 110e6] } });
+  ok(find(X.xcheck(d2, f2, null, null), 'cash', 'A', '2023-12-31').c === 'ok', 'מאזן: מול הדוח השנתי שבמאזן שלו מופיע התאריך (100), לא מול הצגה מחדש בתזרים שנתיים אחר כך (90)');
+  // (ג) מזומן מהסך הכולל מזומן מוגבל פחות המזומן המוגבל (Chevron) — SEC מאשר
+  const R = 'CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents', k = (end, val) => ({ end, val, form: '10-K', filed: '2025-02-01' });
+  const f3 = { facts: { 'us-gaap': { [R]: { units: { USD: [k('2024-12-31', 7285e6)] } }, RestrictedCashCurrent: { units: { USD: [k('2024-12-31', 174e6)] } },
+    RestrictedCashNoncurrent: { units: { USD: [k('2024-12-31', 818e6)] } } } } };
+  const d3 = base({ cur: 'USD', tags: { cash: R }, A: { cash: [null, 6293e6] } });
+  const r3 = find(X.xcheck(d3, f3, null, null), 'cash', 'A', '2024-12-31');
+  ok(r3.c === 'ok' && r3.rf === 'cash-restr', 'מזומן = הסך הכולל פחות המזומן המוגבל — מאושר מ־SEC (rf = cash-restr)');
+}
 console.log('\nכל ' + n + ' הבדיקות עברו ✓');

@@ -59,13 +59,18 @@ const FLOW = {
   dps: ['CommonStockDividendsPerShareDeclared', 'CommonStockDividendsPerShareCashPaid'],
 };
 const INST = {
-  cash: ['CashAndCashEquivalentsAtCarryingValue', 'CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents'],
+  // מזומן = השורה במאזן. 'Cash' — מבטחים ושירותים (AIG, Hartford, Eversource מדפיסים "Cash"); הכולל מזומן מוגבל
+  // (סך תזרים המזומנים — כולל מזומן של פעילות שנמכרה / מוחזקת למכירה) רק כשאין שורת מאזן לאותו תאריך (cashMerge)
+  cash: ['CashAndCashEquivalentsAtCarryingValue', 'CashAndCashEquivalentsAtCarryingValueIncludingDiscontinuedOperations', 'Cash',
+    'CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents'],
   msec: ['MarketableSecuritiesCurrent', 'AvailableForSaleSecuritiesDebtSecuritiesCurrent', 'ShortTermInvestments'],
   debt: ['LongTermDebt'],
   debtNc: ['LongTermDebtNoncurrent'], debtC: ['LongTermDebtCurrent'], stb: ['ShortTermBorrowings', 'CommercialPaper'],
   eq: ['StockholdersEquity', 'StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest'],
   eqt: ['StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest'], // כולל זכויות מיעוט — לזהות המאזן
-  tmp: ['TemporaryEquityCarryingAmountIncludingPortionAttributableToNoncontrollingInterest', 'RedeemableNoncontrollingInterestEquityCarryingAmount', 'TemporaryEquityCarryingAmountAttributableToParent'],
+  // ADM: ‏…NoncontrollingInterests (ברבים) — בלעדיה ההון הזמני ($287M) נספר בסך ההתחייבויות המחושב
+  tmp: ['TemporaryEquityCarryingAmountIncludingPortionAttributableToNoncontrollingInterest', 'TemporaryEquityCarryingAmountIncludingPortionAttributableToNoncontrollingInterests',
+    'RedeemableNoncontrollingInterestEquityCarryingAmount', 'TemporaryEquityCarryingAmountAttributableToParent'],
   ta: ['Assets'], tl: ['Liabilities'], tle: ['LiabilitiesAndStockholdersEquity'],
   ca: ['AssetsCurrent'], cl: ['LiabilitiesCurrent'], re: ['RetainedEarningsAccumulatedDeficit'],
   ppe: ['PropertyPlantAndEquipmentNet', 'PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization'],
@@ -91,7 +96,7 @@ const QPOS = ['cogs', 'dep', 'sbc', 'int']; // הכנסות, מחקר והשקע
 /* באיזה דוח מופיעה כל שורה (לבחירת התגית לפי הדוח שהחברה הגישה — lib/secface.js) */
 const STMT_OF = { rev: ['is'], cogs: ['is'], gp: ['is'], op: ['is'], ni: ['is', 'cf'], pretax: ['is'], tax: ['is'], rnd: ['is'], int: ['is'], eps: ['is'], sh: ['is'],
   nic: ['is'], eqt: ['bs'], tmp: ['bs'], ocf: ['cf'], capex: ['cf'], sbc: ['cf'], dep: ['cf', 'is'], buy: ['cf'], divp: ['cf'],
-  cash: ['bs', 'cf'], msec: ['bs'], debtNc: ['bs'], debtC: ['bs'], stb: ['bs'], eq: ['bs'], ta: ['bs'], tl: ['bs'], tle: ['bs'], ca: ['bs'], cl: ['bs'], re: ['bs'], ppe: ['bs'] };
+  cash: ['bs'], msec: ['bs'], debtNc: ['bs'], debtC: ['bs'], stb: ['bs'], eq: ['bs'], ta: ['bs'], tl: ['bs'], tle: ['bs'], ca: ['bs'], cl: ['bs'], re: ['bs'], ppe: ['bs'] };
 /* השקעות הוניות = כל השורות של רכישת נכסים קבועים שהחברה מציגה בתזרים (Mastercard: רכוש קבוע + תוכנה מהוונת;
    Caterpillar: + ציוד שמושכר ללקוחות). סכום רק כשיותר משורה אחת מופיעה בדוח, ורק בתקופות שבהן כל החלקים קיימים — אחרת קפיצה מדומה. */
 const CAPEX_PARTS = ['PaymentsToAcquirePropertyPlantAndEquipment', 'PaymentsToAcquireProductiveAssets', 'PaymentsToAcquireSoftware', 'PaymentsToDevelopSoftware',
@@ -153,6 +158,10 @@ function tagFacts(node, unitPref) {
     units.find((u) => unitPref === 'PS' && /\/shares$/.test(u)) || units.find((u) => unitPref === 'shares' && u === 'shares') || units[0]);
   if (!unit) return out;
   out.unit = unit;
+  // סוף התקופה של כל הגשה (המאוחר ביותר שהיא מדווחת בתגית הזו) — ערך מאזן "קרוב" = מופיע במאזן של אותה הגשה
+  // (השנה או השנה שלפניה); "רחוק" = שנתיים ויותר לפני (מתוך תזרים המזומנים / דוח ההון / ביאור — לרוב אחרי הצגה מחדש של פעילות שנמכרה)
+  const accEnd = new Map(), accK = (x) => x.accn || x.form + '|' + x.filed;
+  for (const x of node.units[unit] || []) { const a = accK(x), e = accEnd.get(a); if (!e || x.end > e) accEnd.set(a, x.end); }
   const allv = new Map(); // לכל תקופה: כל הערכים לפי תאריך ההגשה — לצמיחה מול השנה הקודמת באותו דוח (comparable)
   for (const x of node.units[unit] || []) {
     if (!FORMS.test(x.form || '') || x.val == null) continue;
@@ -165,8 +174,12 @@ function tagFacts(node, unitPref) {
     } else {
       // גם במאזן: ערך מדוח שנתי גובר על השוואה בדוח רבעוני מאוחר יותר (תיקון לאחור ב־10-Q — eBay: הון 2025
       // ‏$4.48B ב־10-Q של 2026 מול $4.62B שהודפס ב־10-K). דוח שנתי מאוחר יותר עדיין גובר לפי תאריך ההגשה
+      // דירוג: דוח שנתי שבמאזן שלו מופיע התאריך (2) > דוח שנתי מאוחר בשנתיים ויותר (1) > דוח רבעוני (0); באותה דרגה — האחרון שהוגש.
+      // (Baxter/Carrier/Leidos: מזומן 2022 מה־10-K של 2024 = יתרת פתיחה בתזרים אחרי הפרדת פעילות — לא מה שהודפס במאזן;
+      // MicroStrategy: ההון של 2024 בדוח ההון של 2026 = אחרי אימוץ תקן. במדגם של 97 חברות: זהות המאזן נשברה ב־44 שנים, אחרי — ב־5)
       const h = out.inst.get(x.end), ann = !/^10-Q/.test(x.form);
-      if (!h || (h.ann !== ann ? ann : h.filed < x.filed)) out.inst.set(x.end, { v: x.val, filed: x.filed, ann });
+      const q = ann ? (day(accEnd.get(accK(x))) - day(x.end) <= 400 ? 2 : 1) : 0;
+      if (!h || (h.q !== q ? q > h.q : h.filed < x.filed)) out.inst.set(x.end, { v: x.val, filed: x.filed, ann, q });
     }
   }
   for (const [k, h] of out.dur) h.all = allv.get(k);
@@ -237,6 +250,32 @@ function mergeTags(fs, lock, qclash) {
   fixRuns(m, fs, lock && ((kk, v) => lock(spine, kk, v)));
   return m;
 }
+/* מזומן — לכל תאריך בנפרד: הערך הטוב ביותר (מאזן שנתי > שנתי רחוק > רבעוני), ובאותה דרגה — לפי סדר התגיות.
+   כל התגיות הן אותה שורה במאזן בשמות שונים (Eversource: "Cash and cash equivalents" ב־2022, "Cash" מאז; Zoetis: התגית
+   הכוללת ב־10-K ‏$2.31B, התגית הרגילה רק בהשוואה המוצגת מחדש ב־10-Q ‏$2.45B) — בלי דחיית תגית שלמה כמו ב־mergeTags.
+   הראשית (לתצוגת "מאיפה המספרים") = התגית של התאריך האחרון.
+   תאריך שיש לו רק את הסך הכולל מזומן מוגבל: פחות המזומן המוגבל שדווח לאותו תאריך באותה דרגה (Chevron: שורת המאזן בתגית
+   של החברה ‏$6.29B = ‏$7.29B פחות ‏$0.17B + ‏$0.82B מזומן מוגבל) — rp = רשימות של תגיות מזומן מוגבל, החלופה הראשונה שקיימת */
+const RCASH = [['RestrictedCashCurrent', 'RestrictedCashNoncurrent'], ['RestrictedCashAndCashEquivalentsCurrent', 'RestrictedCashAndCashEquivalentsNoncurrent'],
+  ['RestrictedCash'], ['RestrictedCashAndCashEquivalentsAtCarryingValue']];
+function cashMerge(fs, rp) {
+  const m = { dur: new Map(), inst: new Map() }, from = new Map();
+  fs.forEach((f, i) => { for (const [kk, v] of f.inst) { const h = m.inst.get(kk); if (!h || v.q > h.q) { m.inst.set(kk, v); from.set(kk, i); } } });
+  const ri = fs.length - 1; // הכולל מזומן מוגבל — אחרון ברשימה
+  if (rp) for (const [kk, v] of m.inst) {
+    if (from.get(kk) !== ri) continue;
+    for (const grp of rp) {
+      const xs = grp.map((f) => f.inst.get(kk)).filter((x) => x && x.q === v.q);
+      if (!xs.length) continue;
+      const r = xs.reduce((t, x) => t + x.v, 0);
+      if (r > 0 && r < v.v) m.inst.set(kk, { ...v, v: v.v - r });
+      break;
+    }
+  }
+  let last = null; for (const kk of m.inst.keys()) if (!last || kk > last) last = kk;
+  if (last) m.spine = from.get(last);
+  return m;
+}
 /* רשת ביטחון שנייה — ערך שגוי בתוך התגית הנבחרת (Procter & Gamble: ‏Revenues = ‏$28B ב־2012–2014 במקום ‏$83B):
    רצף שנים שבו תגית אחרת נותנת ערך שונה, והחלפה שלו מעלימה קפיצה חדה מול השנה שלפניו ושאחריו — מוחלף.
    רק ערכים חיוביים, רק שנים שלמות, ורק כשהקפיצה גדולה (פי JUMP) וההחלפה מקטינה אותה לפחות בחצי ומתחת לסף. */
@@ -280,7 +319,10 @@ function normalizeSec(facts, splits = [], face = null) {
   let cur = null;
   for (const k of Object.keys(map)) {
     const onFace = faceTagList(face, STMT_OF[k]), list = map[k].slice();
-    const order = list.filter((t) => onFace.includes(t)).concat(list.filter((t) => !onFace.includes(t))); // בין אלה שבדוח — סדר העדיפות שלנו (מדולל לפני בסיסי)
+    let order = list.filter((t) => onFace.includes(t)).concat(list.filter((t) => !onFace.includes(t))); // בין אלה שבדוח — סדר העדיפות שלנו (מדולל לפני בסיסי)
+    // מזומן: סדר קבוע — הכולל מזומן מוגבל אחרון גם כשהוא השורה במאזן (בשנים קודמות הוא סך התזרים: IFF 2022 ‏$552M כולל
+    // מזומן של פעילות מוחזקת למכירה, מול "מזומן ושווי מזומנים" ‏$483M שהודפס במאזן)
+    if (k === 'cash') order = list;
     let fs = order.map((tag) => tagFacts(tax[tag], unitOf(k))), names = order;
     if (k === 'capex' && !isIfrs) {
       let parts = CAPEX_PARTS.filter((t) => onFace.includes(t) && tax[t]);
@@ -302,15 +344,19 @@ function normalizeSec(facts, splits = [], face = null) {
     // (Ares: ההכנסות באמת קופצות — דמי ביצוע; "Revenues" היא מדד אחר וחלק יותר)
     const fv = faceYearVals(face, STMT_OF[k], rc || cur);
     const lock = (si, kk, v) => { const t = names[si], e = kk.split('|')[1], x = t && fv.get(t + '|' + e); return x != null && Math.abs(Math.abs(x) - Math.abs(v)) <= 0.005 * Math.abs(x); };
-    merged[k] = mergeTags(fs, lock, k === 'capex'); // רק בהשקעות הוניות: בהכנסות/תזרים התגית המשלימה היא לפעמים הרבעון היחיד (Dollar Tree)
+    // מזומן: החיסור רק כשהסך הכולל אינו שורה במאזן של ה־10-K האחרון (Bank of America, GE, Erie: "Cash and cash equivalents"
+    // במאזן בתגית הכוללת, והמזומן המוגבל — ביאור; חיסור שם = מספר שלא הודפס). בלי מאזן מודפס (לא נטען) — לא מחסרים
+    const rsub = k === 'cash' && face && face.bs && face.bs.rows && !onFace.includes(list[list.length - 1]);
+    merged[k] = k === 'cash' ? cashMerge(fs, rsub ? RCASH.map((g) => g.map((t) => tagFacts(tax[t], unitOf(k)))) : null) : mergeTags(fs, lock, k === 'capex'); // רק בהשקעות הוניות: בהכנסות/תזרים התגית המשלימה היא לפעמים הרבעון היחיד (Dollar Tree)
     if (merged[k].spine != null) tags[k] = names[merged[k].spine];
   }
-  // שנים פיסקליות: תקופות של ~שנה בהכנסות או ברווח הנקי (52/53 שבועות נכללים)
+  // שנים פיסקליות: תקופות של ~שנה בהכנסות או ברווח הנקי (52/53 שבועות נכללים) — רק מדוח שנתי.
+  // Amazon מדפיסה ב־10-Q גם עמודה של 12 החודשים האחרונים: בלי התנאי כל רבעון נעשה "סוף שנה" והטבלה השנתית התערבבה
   const yearOf = new Map(); // end → start
   for (const k of ['rev', 'ni', 'op']) {
-    for (const kk of merged[k] ? merged[k].dur.keys() : []) {
+    for (const [kk, h] of merged[k] ? merged[k].dur : []) {
       const [s, e] = kk.split('|'), d = day(e) - day(s);
-      if (d >= 350 && d <= 380 && !yearOf.has(e)) yearOf.set(e, s);
+      if (d >= 350 && d <= 380 && h.ann !== false && !yearOf.has(e)) yearOf.set(e, s);
     }
   }
   const fyEnds = [...yearOf.keys()].sort();
@@ -1012,4 +1058,6 @@ async function handle(body, res) {
 }
 
 module.exports = { handle, fundamentals, q4Eps, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
-  industryFor, industryData, _cache: cache };
+  industryFor, industryData, _cache: cache,
+  // התגיות המועמדות לכל שורה — לכלי ההשוואה (fundxcheck: SEC גולמי גם לתקופות שהושלמו מתגית משנית). נשמט ב־f9db4c74 — tools/fund-xcheck.js מצפה לו
+  TAGS: { gaap: { ...FLOW, ...INST }, ifrs: IFRS } };

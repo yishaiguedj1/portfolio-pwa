@@ -140,14 +140,21 @@ function rawSeries(facts, tag, adj, cur) {
     const dur = new Map(), inst = new Map();
     // רק מטבע הדיווח (Nebius: רובל ואחר כך דולר באותה תגית — בלי זה הייחוס מערבב מטבעות)
     const us = Object.keys(g.units || {}), pick = cur ? us.filter((u) => u === cur || u === cur + '/shares') : [];
+    // סוף התקופה של כל הגשה בתגית הזו — במאזן, הערך מהדוח השנתי שבמאזן שלו מופיע התאריך (השנה או השנה שלפניה) גובר על
+    // דוח שנתי מאוחר בשנתיים (יתרת פתיחה בתזרים / בדוח ההון אחרי הצגה מחדש) — כמו tagFacts ב־fundamentals
+    const accEnd = new Map(), accK = (x) => x.accn || x.form + '|' + x.filed;
+    for (const u of pick.length ? pick : us) for (const x of g.units[u]) { const a = accK(x), e = accEnd.get(a); if (!e || x.end > e) accEnd.set(a, x.end); }
     for (const u of pick.length ? pick : us) for (const x of g.units[u]) {
       if (!FORMS.test(x.form || '') || x.val == null) continue;
       const key = x.start ? x.start + '|' + x.end : x.end, M = x.start ? dur : inst, h = M.get(key);
       const v = x.val * adjFactor(adj, x.filed);
-      if (!h || x.filed > h.filed) M.set(key, { v, filed: x.filed, vk: h && h.vk, fk: h && h.fk });
+      if (!h || x.filed > h.filed) M.set(key, { v, filed: x.filed, vk: h && h.vk, fk: h && h.fk, nr: h && h.nr });
       // הערך מהדוח השנתי האחרון — במאזן 10-K גובר על 10-Q מאוחר (המדיניות של fundamentals; Honeywell: 10-Q של 2026 הציג מחדש את 31/12/2025)
       const g2 = M.get(key);
-      if (/^(10-K|20-F|40-F|10-KT)/.test(x.form) && (!g2.fk || x.filed > g2.fk)) { g2.vk = v; g2.fk = x.filed; }
+      if (/^(10-K|20-F|40-F|10-KT)/.test(x.form)) {
+        const nr = x.start ? 1 : day(accEnd.get(accK(x))) - day(x.end) <= 400 ? 1 : 0;
+        if (!g2.fk || (nr !== g2.nr ? nr > g2.nr : x.filed > g2.fk)) { g2.vk = v; g2.fk = x.filed; g2.nr = nr; }
+      }
     }
     // סימן התגית: רוב הערכים שליליים (השקעות הוניות שמדווחות במינוס) — לא Math.abs לכל ערך (רבעון "נטו" שלילי אמיתי)
     let n = 0, ng = 0; for (const h of dur.values()) { n++; if (h.v < 0) ng++; }
@@ -190,6 +197,9 @@ function rawQuarters(rs, e, fyStart) {
 }
 
 /* ---------- ההשוואה ---------- */
+// המזומן המוגבל שמחוסר מהסך הכולל כשאין שורת מאזן (RCASH ב־fundamentals.js — אותן קבוצות, אותו סדר)
+const CASH_RESTR = [['RestrictedCashCurrent', 'RestrictedCashNoncurrent'], ['RestrictedCashAndCashEquivalentsCurrent', 'RestrictedCashAndCashEquivalentsNoncurrent'],
+  ['RestrictedCash'], ['RestrictedCashAndCashEquivalentsAtCarryingValue']];
 const XK = ['rev', 'gp', 'op', 'ni', 'eps', 'sh', 'ocf', 'capex', 'cash', 'ta', 'tl', 'eq', 'ca', 'cl'];
 const BAL = new Set(['cash', 'ta', 'tl', 'eq', 'ca', 'cl']);
 const YK = { ni: 'ni' }; // Yahoo: NetIncomeCommonStockholders — מול nic כשיש
@@ -304,7 +314,25 @@ function xcheck(d, facts, y, nq, opt = {}) {
         // ni: מול Yahoo/Nasdaq גם הרווח הכולל וגם הרווח לבעלי המניות — Nasdaq ‏"Applicable to Common" לפעמים = הכולל
         const sm = (a) => (a == null ? null : same(m, vc, a, sc) || (m === 'ni' && same(m, vv, a, sc)) ? true : false);
         const srMain = same(m, vv, raw, sc), srK = rawK != null ? same(m, vv, rawK, sc) : null;
-        const sr = srMain === true || srK === true ? true : srMain, sn = sm(nv), syRaw = sm(yv), sy = yf ? null : syRaw, yn = same(m, yv, nv, sc);
+        let sr = srMain === true || srK === true ? true : srMain;
+        // מאזן: הערך שלנו נבחר לכל תאריך מכמה תגיות (מזומן — cashMerge): תואם דוח שנתי של תגית מועמדת אחרת, או את הסך הכולל
+        // מזומן מוגבל פחות המזומן המוגבל (Chevron) — SEC מאשר
+        if (sr === false && BAL.has(m)) {
+          // ישירות מ־inst (rawAt מדלג על inst כשלתגית יש גם ערכי תקופה — Zoetis); רק ערך מדוח שנתי
+          const k10 = (x) => { for (const [kk, h] of x.inst) if (Math.abs(day(kk) - day(e)) <= 3) return h.vk != null ? h.vk : null; return null; };
+          const hit = alts.find(([, x]) => same(m, vv, k10(x), sc));
+          if (hit) { sr = true; r.rf = hit[0]; }
+          else if (m === 'cash') {
+            const tot = secAt('CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents', e, kind, null);
+            for (const grp of CASH_RESTR) {
+              const xs = grp.map((t) => secAt(t, e, kind, null)).filter((x) => x != null);
+              if (!xs.length) continue;
+              if (tot != null && same(m, vv, tot - xs.reduce((a, b) => a + b, 0), sc)) { sr = true; r.rf = 'cash-restr'; }
+              break;
+            }
+          }
+        }
+        const sn = sm(nv), syRaw = sm(yv), sy = yf ? null : syRaw, yn = same(m, yv, nv, sc);
         const ctx = { ya, nq: nqAt, sec: (t) => secAt(t, e, kind, BAL.has(m) ? null : fs0), fin, gpc: m === 'gp' && (rf === 'rev-cogs' || !d.tags.gp) };
         // מספר מניות שהחברה הגישה בקנה מידה שגוי ותוקן אצלנו (fixes) — SEC הגולמי פי אלף / מיליון קטן
         const fixd = sr === false && m === 'sh' && raw > 0 && [1e3, 1e6].some((f) => Math.abs(vv / raw / f - 1) < 0.02);
