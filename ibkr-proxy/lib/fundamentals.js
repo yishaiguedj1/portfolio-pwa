@@ -86,6 +86,8 @@ const FORMS = /^(10-K|10-Q|20-F|40-F)(\/A)?$/;
 const NONNEG = ['rev', 'ta', 'tl', 'ca', 'cl', 'cash', 'sh', 'ppe'];
 const day = (s) => Date.parse(s + 'T00:00:00Z') / 864e5;
 const PER_SHARE = new Set(['eps', 'dps']);
+// זרימות שתמיד חיוביות — בהן אפשר לבדוק שהרבעונים מאותו בסיס כמו השנה (רווח והפסד יכולים להתהפך בסימן)
+const QPOS = ['rev', 'cogs', 'rnd', 'capex', 'dep', 'sbc', 'int'];
 /* באיזה דוח מופיעה כל שורה (לבחירת התגית לפי הדוח שהחברה הגישה — lib/secface.js) */
 const STMT_OF = { rev: ['is'], cogs: ['is'], gp: ['is'], op: ['is'], ni: ['is', 'cf'], pretax: ['is'], tax: ['is'], rnd: ['is'], int: ['is'], eps: ['is'], sh: ['is'],
   nic: ['is'], eqt: ['bs'], tmp: ['bs'], ocf: ['cf'], capex: ['cf'], sbc: ['cf'], dep: ['cf', 'is'], buy: ['cf'], divp: ['cf'],
@@ -318,6 +320,26 @@ function normalizeSec(facts, splits = [], face = null) {
   }
   // רבעונים: רק כאלה שיש להם הכנסות או רווח נקי, 48 האחרונים
   const qEnds = [...qset].filter((e) => Q.rev[e] != null || Q.ni[e] != null).sort().slice(-48);
+  // רבעונים שהתגית שלהם אומרת משהו אחר מאשר בשנה (McDonald's: CostOfGoodsAndServicesSold ב־10-Q = רכיב אחד, ‎$0.67B
+  // לרבעון; ב־10-K = כל העלות, ‎$11.5B). שלושת הרבעונים הראשונים פחות מ־40% מהשנה או יותר ממנה — לא מאותו בסיס:
+  // הרבעונים של השנה לא מוצגים (עדיף ריק משגוי), וגם השנה הפתוחה כשהיא רחוקה פי 2.5 מרבע השנה האחרונה. נרשם qmix
+  const qmix = [];
+  for (const k of QPOS) {
+    if (!Q[k] || !A[k]) continue;
+    let bad = false;
+    for (const e of fyEnds) {
+      const av = A[k][e], s0 = yearOf.get(e); if (!(av > 0)) continue;
+      const qs = qEnds.filter((q) => q > s0 && q < e && day(e) - day(q) < 300 && Q[k][q] != null);
+      if (qs.length !== 3) continue;
+      const s3 = qs.reduce((t, q) => t + Q[k][q], 0);
+      if (s3 < 0.4 * av || s3 > 1.1 * av) {
+        bad = true; qmix.push({ k: 'qmix', m: k, p: e });
+        for (const q of qs.concat([e])) delete Q[k][q];
+      }
+    }
+    const le = fyEnds[fyEnds.length - 1], la = le && A[k][le];
+    if (bad && la > 0) for (const q of qEnds) if (q > le && Q[k][q] != null && (Q[k][q] < la / 4 / 2.5 || Q[k][q] > la / 4 * 2.5)) delete Q[k][q];
+  }
   // רווח למניה ברבעון רביעי = רווח לבעלי המניות ÷ ממוצע המניות של הרבעון (לא חיסור — רווח למניה לא מצטבר; מסומן כנגזר).
   // ממוצע המניות ברבעון הרביעי (26/10/2026): ממוצע השנה ≈ ממוצע ארבעת הרבעונים, כך שהרביעי ≈ 4 × השנה פחות שלושת
   // האחרים — חברה שקונה מניות חוזרות מקבלת ברבעון האחרון פחות מניות מהממוצע השנתי. רחוק מ־12% מהשנה = ממוצע השנה
@@ -449,12 +471,12 @@ function normalizeSec(facts, splits = [], face = null) {
   const pack = (D, ends) => { const o = {}; for (const k of KEEP) { if (!D[k]) continue; const a = ends.map((e) => (D[k][e] != null ? D[k][e] : null)); if (a.some((v) => v != null)) o[k] = a; } return o; };
   const fy = fyEnds.filter((e) => A.rev[e] != null || A.ni[e] != null).slice(-20);
   const C = { A: pack(GA, fy), Q: pack(GQ, qEnds) };
-  return { fy, q: qEnds, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes };
+  return { fy, q: qEnds, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes, qmix };
 }
 
 /* ---------- בדיקות אימות — תג, לא תיקון ---------- */
 function validate(d) {
-  const out = (d.fixes || []).map((f) => ({ k: 'fix', m: f.m, p: f.p, x: f.x })), A = d.A, Q = d.Q;
+  const out = (d.fixes || []).map((f) => ({ k: 'fix', m: f.m, p: f.p, x: f.x })).concat(d.qmix || []), A = d.A, Q = d.Q;
   const near = (a, b, tol) => a != null && b != null && Math.abs(a - b) <= tol * Math.max(Math.abs(a), Math.abs(b), 1);
   d.fy.forEach((e, i) => {
     const g = (k) => (A[k] ? A[k][i] : null);
