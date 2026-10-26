@@ -72,4 +72,24 @@ class DmYtTest {
         p.feed("[youtube] something late")                    // שורת חיבור באמצע ההורדה לא מחזירה ל"מתחבר"
         assertEquals(DmYt.Stage.DL, p.stage)
     }
+
+    /** 26/10/2026: הכתוביות יורדות לפני הווידאו — לא קופצים ל־83% ולא זוחלים ב־15% האחרונים */
+    @Test fun subtitlesDoNotJump() {
+        val p = DmYt.Progress(2, 0f)
+        p.feed("[info] abc: Writing video subtitles to: /x/a [abc].he.vtt")
+        p.feed("[download] Destination: /x/a [abc].he.vtt")
+        p.feed("[download] 100% of   41.20KiB in 00:00:00 at 300.00KiB/s")
+        p.feed("[download] Destination: /x/a [abc].en.vtt")
+        p.feed("[download] 100% of   38.00KiB in 00:00:00 at 300.00KiB/s")
+        assertTrue(p.frac < 0.07f)
+        p.feed("[download] Destination: /x/a [abc].f399.mp4")
+        p.feed("[download]  50.0% of   60.00MiB at    5.00MiB/s ETA 00:06")
+        assertEquals(DmYt.dlToAll(0.5f * DmYt.VIDEO_W), p.frac, 0.001f)
+        p.feed("[download] 100% of   60.00MiB in 00:00:12 at 5.00MiB/s")
+        p.feed("[download] Destination: /x/a [abc].f251.webm")
+        p.feed("[download]  50.0% of    5.00MiB at    5.00MiB/s ETA 00:01")
+        assertEquals(DmYt.dlToAll(DmYt.VIDEO_W + 0.5f * (1 - DmYt.VIDEO_W)), p.frac, 0.001f)
+        assertTrue(DmYt.parse("[download] /x/a [abc].he.vtt has already been downloaded").side)
+        assertTrue(!DmYt.parse("[download] /x/a [abc].mp4 has already been downloaded").side)
+    }
 }
