@@ -125,6 +125,7 @@ class Image(unittest.TestCase):
         main = set(re.findall(r'(?m)^([A-Za-z0-9_.-]+)==', read('infra/worker/requirements.lock')))
         self.assertFalse(main & set(names), 'חבילה ששתי הרשימות מתקינות — הגרסה ב־/opt/vt גוברת, לא להכפיל')
         self.assertNotIn('diffq', names, 'אין לה גלגל ל־3.12 — ו־RoFormer לא צריך אותה')
+        self.assertIn('audioread', names, 'uvr_lib_v5/spec_utils מייבא אותו ישירות — בלעדיו הבנייה נופלת (26/10/2026)')
         d = read('infra/worker/Dockerfile')
         self.assertIn('--no-deps', d[d.index('FROM deps AS separator'):])
         self.assertIn('--target /opt/sepdeps', d)

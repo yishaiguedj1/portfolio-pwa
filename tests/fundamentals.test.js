@@ -104,6 +104,16 @@ ok(!d.fy.includes('2020-12-31') || A('rev', '2020-12-31') === 200, 'טופס 8-K
   // זרוע מימון — כמו הממשקים: רווח גולמי מ־Yahoo; רבעון ש־SEC לא מאפשר — המספר שהחברה פרסמה (Yahoo), רק זרימות שיש לנו
   ok(F.finArmOf([{ label: 'Automotive' }, { label: 'GM Financial' }]) && F.finArmOf([{ label: 'Interest expense on Company debt excluding Ford Credit' }]) &&
     !F.finArmOf([{ label: 'Net sales' }, { label: 'Income tax credit' }]), 'זרוע מימון בדוח רווח והפסד — מזוהה (לא זיכוי מס)');
+  // Snap-on: השורות של שירותי המימון בלי שם הזרוע ("Net sales" עם ממד) — הזרוע רק בכותרת (h). עלות מימון של החברה עצמה — לא זרוע
+  ok(F.finArmOf([{ label: 'Net sales' }, { label: 'Net sales', h: 'Financial Service' }]) && F.finArmOf([{ label: 'Interest expense of Financial Products' }]) &&
+    F.finArmOf([{ label: 'Financing income' }, { label: 'Financing cost' }]) && F.finArmOf([{ label: 'Financial Services expenses' }]),
+    'זרוע מימון — גם בכותרת שמעל השורות, וגם "Financial Service" ביחיד');
+  ok(!['Write-off of financing costs on extinguished debt', 'Financing costs, net', 'Provision for credit losses', 'Provision for Credit Losses',
+    'Net income (loss) attributable to Principal Financial Group, Inc.', 'Interest and other financing expenses', 'Amortization of deferred financing costs',
+    'Mortgage and other financing income, net', 'Letter of credit and loan fees', 'Net losses on financial instruments',
+    'Gains on Mark-to-Market Financial Commodity and Other Derivative Contracts, Net', 'Net income attributable to Prudential Financial, Inc.'].some((l) => F.finArmOf([{ label: l }])) &&
+    !F.finArmOf([{ label: 'Net sales', h: 'Income tax credit' }]),
+    'זרוע מימון — לא עלות מימון / הפרשה להפסדי אשראי / שם החברה (CBRE, ‏APA, בנקים, Principal)');
   const sq3 = { q: ['2025-09-30', '2025-12-31'], Q: { rev: [10, null], debt: [5, null] }, gpx: 'ok' }, ch3 = [];
   const qf3 = F.yQuarterFill(sq3, { q: ['2025-09-30', '2025-12-31'], Q: { rev: [10, 11], debt: [5, 6], gp: [3, 4] }, qc: {} }, true, ch3);
   ok(sq3.Q.rev[1] === 11 && sq3.Q.debt[1] == null && !sq3.Q.gp && qf3.rev.join() === '2025-12-31' && ch3[0].k === 'qfy', 'רבעון חסר — כפי שפורסם (Yahoo), רק זרימה שיש לנו (לא מאזן, לא רווח גולמי)');
@@ -233,6 +243,11 @@ ok(SF.rowVals(pr, pr.rows[0]).join() === '222000000,189000000' && SF.rowVals(pr,
 // ישות של < בכותרת שורה (&#60;script&#62;) — אחרי הפענוח לא נשאר אף < או > (טקסט בלבד, CodeQL)
 { const rx = SF.parseR(`<table><tr><th class="tl"><div><strong>Consolidated Balance Sheets - USD ($)<br> $ in Millions</strong></div></th><th class="th"><div>Dec. 31, 2025</div></th></tr>${row('ro', 'us-gaap_Assets', 'Assets &#60;script&#62;x&#60;/script&#62;', ['$ 5'])}</table>`);
   ok(rx.rows[0] && !/[<>]/.test(rx.rows[0].label) && rx.rows[0].v[0] === 5, 'דף R: ישויות של < ו־> לא הופכות לתגית בכותרת השורה'); }
+// שורת כותרת (rh) בתוך הדוח — נשמרת בשורות שאחריה (h); לפניה — בלי h (Snap-on: "Financial Service" מעל "Net sales" עם ממד)
+{ const rh = (label) => `<tr class="rh"><td class="pl"><a onclick="Show.showAR( this, 'defref_srt_ProductOrServiceAxis=x_FinancialServicesMember', window );">${label}</a></td><td class="text">&#160;<span></span></td></tr>`;
+  const rx = SF.parseR(`<table><tr><th class="tl"><div><strong>Consolidated Statements of Earnings - USD ($)<br> $ in Millions</strong></div></th><th class="th"><div>Jan. 03, 2026</div></th></tr>${row('re', 'us-gaap_Revenues', 'Net sales', ['$ 5,156.1'])}${rh('Financial Service')}${row('ro', 'us-gaap_Revenues', 'Net sales', ['412.9'])}</table>`);
+  ok(rx.rows.length === 2 && rx.rows[0].h === undefined && rx.rows[1].h === 'Financial Service' && rx.rows[1].v[0] === 412.9 && F.finArmOf(rx.rows),
+    'דף R: כותרת של ממד נשמרת בשורות שאחריה (h), וזרוע המימון מזוהה ממנה'); }
 // תגית בדוח גוברת על סדר העדיפות; כל ערך מושווה לדוח
 const FACEX = facts([
   ['RevenuesNetOfInterestExpense', 'USD', yrs([180, 210], 2024)],
@@ -758,6 +773,14 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
   ok(Math.round(s2.Q.sh[iq] / 1e5) === 950, 'רבעון ש־Yahoo חישב בעצמו (ממוצע שלושה) — לא גובר');
   const s3 = dby(); F.qShares(s3, { ...yq, Q: { sh: [100e6, 130e6], eps: [1, null] } });
   ok(Math.round(s3.Q.sh[iq] / 1e5) === 950, 'רחוק מההערכה ביותר מ־10% — ההערכה נשארת');
+  // LyondellBasell (26/10/2026): ממוצע המניות מתויג רק עם ממד — אין ב־companyfacts; רווח נקי ÷ רווח למניה (‏115 ÷ ‏0.34 = ‏338M) הוא
+  // הערכה (פעילות שהופסקה, ניירות משתתפים, עיגול לסנט) — מסומן shEst, ומה שפורסם בביאור (322M, דרך Yahoo) גובר
+  const LY = facts([['NetIncomeLoss', 'USD', [...yrs([1360e6], 2024), ...TDq([177e6, 115e6, -890e6])]],
+    ['EarningsPerShareDiluted', 'USD/shares', [...yrs([4.15], 2024), ...TDq([0.54, 0.34, -2.77])]]]);
+  const sly = F.normalizeSec(LY, []), il = sly.q.indexOf('2025-06-30');
+  ok(Math.round(sly.Q.sh[il] / 1e6) === 338 && sly.shEst.includes('2025-06-30'), 'מניות מרווח ÷ רווח למניה ברבעון — מסומנות כהערכה');
+  const cly = F.qShares(sly, { q: ['2025-06-30'], Q: { sh: [322e6], eps: [0.34] }, qc: {} });
+  ok(sly.Q.sh[il] === 322e6 && sly.Q.eps[il] === 0.34 && cly.length === 1, 'מה שפורסם (322M) גובר על רווח ÷ רווח למניה; הרווח למניה שדווח נשאר');
   ok(y.qc && y.qc.rev && y.qc.rev.includes('2025-12-31') && !F.q4Eps({ q: ['2025-12-31'], Q: { eps: [0.94] }, derived: { eps: ['2025-12-31'] } },
     { q: ['2025-12-31'], Q: { eps: [0.97] }, qc: { eps: ['2025-12-31'] } }).length, 'parseYahooTs מסמן רבעון שחישב (qc), ו־q4Eps לא מאמץ אותו');
 }
@@ -785,6 +808,39 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
   const cp = F.normalizeSec(CP, [], cfF([['PaymentsToDevelopRealEstateAssets', 'Development and capital improvements, including land', -440], ['PaymentsToAcquireOtherPropertyPlantAndEquipment', 'Increase in non-real estate assets', -2.4]]));
   const cq = (d, e) => (d.q.includes(e) ? d.Q.capex[d.q.indexOf(e)] : undefined);
   ok(near(cp.A.capex[2], 442.4) && cq(cp, '2026-03-31') === 94 && cq(cp, '2026-06-30') === 146, 'ריט: פיתוח ושיפורים בהשקעות ההוניות, ורבעונים מהחלק העיקרי (Camden)');
+  /* סבב 3 (26/10/2026): שורת השקעה הונית בתגית פרטית לצד התגית שלנו, וחלק של סכום שאינו "תיקון" שלו */
+  const cfX = (rows, ends = ['2025-12-31']) => ({ cf: { title: '', cols: ends.map((end) => ({ end, months: 12 })), scale: { cur: 1, sh: 1 },
+    rows: rows.map(([tag, label, v]) => ({ ns: /:/.test(tag) ? tag.split(':')[0] : 'us-gaap', tag: tag.split(':').pop(), label, v: Array.isArray(v) ? v : [v] })) } });
+  // CoStar: ‏"…for new campuses" (שלנו) ‏$307M + "Purchases of property, equipment, and other assets" (פרטית) ‏$82M — לא רק $307M
+  const CS = F.normalizeSec(facts([REV, ['PaymentsToAcquirePropertyPlantAndEquipment', 'USD', yrs([118, 579, 307], 2023)]]), [],
+    cfX([['PaymentsToAcquirePropertyPlantAndEquipment', 'Purchases of property, equipment, and other assets for new campuses', [-307, -579, -118]],
+      ['csgp:PaymentsToAcquirePropertyAndEquipmentAndOtherAssets', 'Purchases of property, equipment, and other assets', [-82, -59, -25]],
+      ['csgp:CapitalExpendituresIncurredButNotYetPaidAndNoncashLandlordIncentives', 'Accrued capital expenditures and non-cash landlord incentives', [74, 64, 29]]], ['2025-12-31', '2024-12-31', '2023-12-31']));
+  ok(!CS.A.capex && !CS.tags.capex && CS.capFace && CS.capFace.map((c) => c.v).join() === '389,638,143', 'השקעות הוניות: התגית שלנו + שורה בתגית פרטית — לא חלק; capFace = הסכום שהודפס לכל שנה (CoStar), בלי הצבירה שלא שולמה');
+  // Weyerhaeuser: ‏"…for timberlands reforestation" (שלנו) + "Capital expenditures for property and equipment" (פרטית), ובלי "Acquisition of timberlands"
+  const WY = F.normalizeSec(facts([REV, ['PaymentsForCapitalImprovements', 'USD', yrs([57, 52, 51], 2023)], ['PaymentsToAcquireTimberlands', 'USD', yrs([233, 251, 469], 2023)]]), [],
+    cfX([['wy:PaymentsForCapitalExpendituresOfPropertyPlantAndEquipment', 'Capital expenditures for property and equipment', -423], ['PaymentsForCapitalImprovements', 'Capital expenditures for timberlands reforestation', -51],
+      ['PaymentsToAcquireTimberlands', 'Acquisition of timberlands (Note 4)', -469]]));
+  ok(!WY.A.capex && WY.capFace && WY.capFace[0].v === 474, 'השקעות הוניות = שתי שורות "Capital expenditures" (Weyerhaeuser ‏423 + 51), בלי רכישת היערות');
+  // שורה פרטית שהיא כבר הסך ("Total capital expenditures") — לבד, לא פעמיים
+  const TT = F.normalizeSec(facts([REV, ['PaymentsToAcquirePropertyPlantAndEquipment', 'USD', yrs([90, 95, 100], 2023)]]), [],
+    cfX([['PaymentsToAcquirePropertyPlantAndEquipment', 'Purchases of property and equipment', -100], ['xx:PaymentsForCapitalExpendituresTotal', 'Total capital expenditures', -130]]));
+  ok(TT.capFace && TT.capFace[0].v === 130, 'שורה פרטית של הסך — הסך לבד (לא 230)');
+  // התגית שלנו = הסכום שהודפס עם השורה הפרטית — נשארת (ConocoPhillips)
+  const SM = F.normalizeSec(facts([REV, ['PaymentsToAcquirePropertyPlantAndEquipment', 'USD', yrs([90, 95, 130], 2023)]]), [],
+    cfX([['PaymentsToAcquirePropertyPlantAndEquipment', 'Purchases of property and equipment', -100], ['xx:PaymentsForCapex', 'Capital expenditures — other', -30]]));
+  ok(SM.tags.capex === 'PaymentsToAcquirePropertyPlantAndEquipment' && !SM.capFace, 'הערך שלנו = כל השורות שבדוח — לא נוגעים');
+  // Dow / Exelon / Strategy: שורות פרטיות "קשורות" להשקעה — גידור, תמריצים, השקעות שלא שולמו, מקדמות — לא השקעה הונית
+  const DX = F.normalizeSec(facts([REV, ['PaymentsToAcquireMachineryAndEquipment', 'USD', yrs([2356, 2940, 2479], 2023)]]), [],
+    cfX([['PaymentsToAcquireMachineryAndEquipment', 'Capital expenditures', -2479], ['dow:ProceedsFromIncentivesRelatedToCapitalExpenditures', 'Proceeds from incentives related to capital expenditures', 145],
+      ['dow:CashFlowHedgingRelatedToCapitalExpenditures', 'Cash flow hedging related to capital expenditures', -40], ['exc:ChangeInCapex', 'Increase (decrease) in capital expenditures not paid', -215],
+      ['mstr:AdvanceDeposits', 'Advance deposits on purchases of property and equipment', -37]]));
+  ok(DX.tags.capex === 'PaymentsToAcquireMachineryAndEquipment' && DX.A.capex.join() === '2356,2940,2479' && !DX.capFace, 'שורות "related to" / "not paid" / מקדמות בתגית פרטית — לא נוגעים בהשקעות ההוניות (Dow)');
+  // Robinhood: הסכום (תוכנה שפותחה + רכוש קבוע) ‏83/57 ב־2021–2022; ‏PaymentsToAcquireProductiveAssets ‏63/28 = רק הרכוש הקבוע — לא "תיקון" של הרצף
+  const HD = F.normalizeSec(facts([['Revenues', 'USD', yrs([9, 9, 9, 9, 9], 2021)], ['PaymentsToDevelopSoftware', 'USD', yrs([20, 29, 19, 37, 39], 2021)],
+    ['PaymentsToAcquireOtherProductiveAssets', 'USD', yrs([63, 28, 2, 13, 15], 2021)], ['PaymentsToAcquireProductiveAssets', 'USD', yrs([63, 28], 2021)]]), [],
+    cfX([['PaymentsToAcquireOtherProductiveAssets', 'Purchases of property, software, and equipment', -15], ['PaymentsToDevelopSoftware', 'Capitalization of internally developed software', -39]]));
+  ok(HD.A.capex.join() === '83,57,21,50,54', 'השקעות הוניות: תגית שהיא אחד מחלקי הסכום לא מחליפה שנים שלו (Robinhood ‏2021–2022)');
   // Republic Services: רבעון ישיר בתגית משלימה = ביאור המגזרים (453.7); בתזרים 1357.4 − 917.9 = 439.5
   const q = (s, e, v, form, filed) => [s, e, v, form, filed];
   const RS = facts([['Revenues', 'USD', [...yrs([16, 16], 2023), q('2024-01-01', '2024-03-31', 4, '10-Q', '2024-05-01'), q('2024-04-01', '2024-06-30', 4, '10-Q', '2024-07-25'), q('2024-07-01', '2024-09-30', 4, '10-Q', '2024-10-30')]],

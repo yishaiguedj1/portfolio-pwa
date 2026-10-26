@@ -106,18 +106,23 @@ function parseR(html) {
     });
   }
   const rows = [];
+  // שורת כותרת בתוך הדוח ("Financial Service", ‏"Product and Services, excluding Financial Services" — Snap-on): נשמרת
+  // בשורות שאחריה (h) — השורות עצמן באותה כותרת ("Net sales") והממד רק בכותרת; finArmOf ב־fundamentals קורא אותה
+  let head = '';
   for (const tr of h.matchAll(/<tr class="(r[eoh]u?)">([\s\S]*?)<\/tr>/g)) {
     // דוח משותף לכמה ישויות מדווחות (Dominion + Virginia Electric, Entergy + חברות הבת): אחרי החברה המאוחדת באה שורת
     // כותרת של ישות משפטית (dei_LegalEntityAxis) — ומשם הדוחות של חברות הבת. רק המאוחדת היא שלנו (Dominion: ההשקעות
     // ההוניות של 2023–2025 הושלמו מהשורה של Virginia Electric — ‏$10.3B במקום ‏$12.6B)
-    if (tr[1] === 'rh') { if (/defref_dei_LegalEntityAxis/.test(tr[2])) break; continue; }
+    if (tr[1] === 'rh') { if (/defref_dei_LegalEntityAxis/.test(tr[2])) break; head = strip(tr[2]).slice(0, 120); continue; }
     const body = tr[2], tag = (/defref_([A-Za-z0-9-]+)_([A-Za-z0-9_]+)/.exec(body) || []);
     if (!tag[2]) continue;
     const lab = /<td class="pl(?: [^"]*)?"[\s\S]*?<\/td>/.exec(body); // גם "pl custom" — שורה בתגית פרטית של החברה
     // תא עם מאפיינים נוספים (<td colspan="2" class="nump"> — SAP) הוא עדיין תא של ערך; תאי הערות שוליים (fn) — לא
     const v = [...body.matchAll(/<td\b[^>]*\bclass="(?:nump|num|text)"[^>]*>([\s\S]*?)<\/td>/g)].map((x) => num(x[1]));
     if (!v.some((x) => x != null)) continue;
-    rows.push({ ns: tag[1], tag: tag[2], label: lab ? strip(lab[0]) : '', total: /u$/.test(tr[1]), v });
+    const row = { ns: tag[1], tag: tag[2], label: lab ? strip(lab[0]) : '', total: /u$/.test(tr[1]), v };
+    if (head) row.h = head;
+    rows.push(row);
   }
   return { title, cols, scale, rows };
 }
