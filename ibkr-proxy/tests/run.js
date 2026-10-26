@@ -4073,6 +4073,11 @@ function stubFetch(text, status = 200) {
         fsQuota = false;
         ok(q1.statusCode === 503 && q1.payload.error === 'store', 'מכסה: Firestore לא עונה — 503 לווידג׳ט, לא 401 ("הטוקן לא תקף")');
         ok((await monRun({ op: 'adminMon' }, { 'x-mon-token': mt2 })).payload.ok, 'מכסה: כשהמכסה חוזרת — הווידג׳ט קורא שוב עם אותו טוקן');
+        // 26/10/2026: הווידג׳ט מתרענן כל דקה — ה־hash של הטוקן מהזיכרון (קריאה אחת ל־sysCfg בדקה), ביטול — מיד
+        const cfgGets = () => calls.filter((c) => c.method === 'GET' && c.url.includes('/sysCfg/main')).length;
+        const cg0 = cfgGets();
+        for (let i = 0; i < 3; i++) await monRun({ op: 'adminMon' }, { 'x-mon-token': mt2 });
+        ok(cfgGets() - cg0 <= 1, 'מכסה: שלוש פניות של הווידג׳ט בתוך דקה — לכל היותר קריאה אחת של ההגדרות (' + (cfgGets() - cg0) + ')');
         await monRun({ op: 'monTok', idToken: OWNER, rev: true });
         // שרת התרגום: בדיקת קישור כל 4 שנ׳ — האימות מהזיכרון, לא קריאה של מסמך השרת בכל פנייה
         const srvGets = () => calls.filter((c) => c.method === 'GET' && c.url.includes('/studioServers/' + monSid)).length;

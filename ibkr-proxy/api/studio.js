@@ -192,6 +192,15 @@ async function provGet(deps, now) {
   provC = { at: now, v };
   return v;
 }
+/* 26/10/2026: ההגדרות של טוקן הניטור (monKh/monAt) לפניות של הווידג׳ט ושל מסך הניטור. כשל קריאה — נזרק (503), לא נשמר */
+const MON_CFG_MS = 60e3;
+let monCfgC = { at: 0, v: null };
+async function monCfg(deps, now) {
+  if (monCfgC.v && now >= monCfgC.at && now - monCfgC.at < MON_CFG_MS) return monCfgC.v;
+  const d = (await readDoc(deps, 'sysCfg', 'main')) || {};
+  monCfgC = { at: now, v: { monKh: d.monKh || '', monAt: d.monAt || 0 } };
+  return monCfgC.v;
+}
 async function aoJson(deps, url) {
   const h = { Accept: 'application/vnd.github+json', 'User-Agent': 'snb-admin' };
   if (process.env.GITHUB_TOKEN) h.Authorization = 'Bearer ' + process.env.GITHUB_TOKEN;
@@ -2438,8 +2447,9 @@ async function handler(req, res, deps = {}) {
   if (body.op === 'adminMon' && monTok) {
     // 22/10/2026: הווידג׳ט באנדרואיד — טוקן קריאה בלבד (sysCfg/main.monKh, רק hash), בלי התחברות. מותר רק ל־adminMon
     // 26/10/2026: Firestore שלא ענה (מכסה, 429) = 503 — לא 401: הווידג׳ט הציג "הטוקן לא תקף — לחבר מחדש" על טוקן תקין
+    // 26/10/2026: הווידג׳ט מתרענן כל דקה — ה־hash של הטוקן בזיכרון MON_CFG_MS (יצירה/ביטול באותו מופע מנקים מיד)
     let cfg;
-    try { cfg = await readDoc(deps, 'sysCfg', 'main'); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
+    try { cfg = await monCfg(deps, deps.now || Date.now()); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
     if (!MON.monTokOk(monTok, cfg && cfg.monKh)) return res.status(401).json({ ok: false, error: 'no_auth' });
     user = { mon: true, uid: '' };
   } else {
@@ -2677,6 +2687,7 @@ async function handler(req, res, deps = {}) {
     if (op === 'monTok') {
       // 22/10/2026: טוקן קריאה לווידג׳ט הניטור — רק מהמנהל. מוצג פעם אחת; השרתון שומר רק hash. ביטול = מחיקת ה-hash
       if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      monCfgC = { at: 0, v: null };   // 26/10/2026: טוקן חדש / ביטול — הווידג׳ט רואה מיד
       if (body.rev === true) {
         await patchDoc(deps, 'sysCfg', 'main', { monKh: '', monAt: 0, updated: now });
         await adminLog(deps, user, 'mon_tok_off', '', now);
@@ -2694,9 +2705,10 @@ async function handler(req, res, deps = {}) {
       try { raw = await query(deps, 'studioServers', null, S.SRV_MAX + 5); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
       const jobs = await query(deps, 'studioJobs', { state: 'running' }, 50).catch(() => []);
       const srv = raw.map((x) => { const v = S.serverView(x, now); return v && Object.assign(v, { mon: Array.isArray(x.mon) ? x.mon : [] }); }).filter(Boolean);
-      const cfg = (await readDoc(deps, 'sysCfg', 'main').catch(() => null)) || {};
+      const cfg = (await monCfg(deps, now).catch(() => null)) || {};
       const run = jobs.map((j) => ({ sid: j.sid, st: (j.prog || {}).st, p: (j.prog || {}).p }));
-      const usg = await readDoc(deps, 'sysUsage', 'main').catch(() => null);   // 24/10/2026: האחסון והעלות גם בווידג'ט
+      // 24/10/2026: האחסון והעלות גם בווידג'ט · 26/10: נמדדים פעם בשעה — מטמון AO_TTL (הווידג׳ט מתרענן כל דקה)
+      const usg = await aoGet(deps, 'monUsg', () => readDoc(deps, 'sysUsage', 'main'), now);
       return res.status(200).json({ ok: true, now, tok: { on: !!cfg.monKh, at: cfg.monAt > 0 ? cfg.monAt : 0 }, mon: MON.monView(srv, run, now), sto: USG.stoBrief(usg && usg.sto) });
     }
     if (op === 'provUsage') {
@@ -3462,7 +3474,7 @@ async function handler(req, res, deps = {}) {
 
 module.exports = (req, res) => handler(req, res);
 module.exports._handler = handler;
-module.exports._reset = () => { hits.clear(); cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; srcSoon = new Map(); _upd = { at: 0, sha: '', t: 0 }; updWaitAt = 0; srvAuthMem.clear(); orphanAt.clear();
+module.exports._reset = () => { hits.clear(); cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; srcSoon = new Map(); _upd = { at: 0, sha: '', t: 0 }; updWaitAt = 0; srvAuthMem.clear(); orphanAt.clear(); monCfgC = { at: 0, v: null };
   incSeen.clear(); learnMem = null; provC = { at: 0, v: null }; aoCache.clear(); };   // 26/10/2026: המטמונים של מכסת Firestore
 module.exports._updatePending = updatePending;
 module.exports._updWaiting = (job, now, at) => { if (at != null) updWaitAt = at; return updWaiting(job, now); };
