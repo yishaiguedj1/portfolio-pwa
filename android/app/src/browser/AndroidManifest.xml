@@ -11,6 +11,9 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- שלב 3 (26/10/2026): ניגון ברקע ובמסך נעול (BrMediaService), ונעילת הטאבים הפרטיים בטביעת אצבע -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RUN_USER_INITIATED_JOBS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -49,6 +52,8 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode|density"
             android:label="@string/app_name">
             <intent-filter>
@@ -73,6 +78,12 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+
+        <!-- ניגון ברקע: סרטון/שיר שמתנגנים ממשיכים כשיוצאים מהדפדפן, עם שליטה מההתראה, ממסך הנעילה ומהאוזניות -->
+        <service
+            android:name=".br.BrMediaService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
 
         <!-- הדפדפן הקטן של DM — רק לרענון קישור של הורדה -->
         <activity

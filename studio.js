@@ -3060,7 +3060,7 @@ function startSubs(f) {
 const SUBS_MAX = 5 * 1024 * 1024;   // = SUBS_MAX בשרתון
 const subsOk = () => apiMode() || cpMode();
 /* 26/10/2026: קריוקי משיר רגיל — רץ כולו בשרת שלנו (הפרדה, יישור, צריבה; בלי Claude), ולכן בכל מנוע כשיש שרת ואחסון */
-const kaOk = () => !!(ui.api && ui.api.servers > 0 && ui.r2);
+const kaOk = () => !!(ui.api && ui.api.servers > 0 && ui.r2 && ui.api.admin);   // עד שמודל ההפרדה בתמונת העובד — רק המנהל (בבדיקה)
 export const KA_LYR_MAX = 8000;   // = KA_LYR_MAX בשרתון ו־LYR_MAX ב־translator/vt/karaoke.py
 const KA_OUTS = ['compact', 'same', 'small'];
 const KA_GV = [0, 10, 20, 30];

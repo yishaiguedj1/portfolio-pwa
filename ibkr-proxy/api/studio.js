@@ -3107,6 +3107,8 @@ async function handler(req, res, deps = {}) {
       if (!S.langReady(spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported' });   // לפני ההעלאה, לא אחריה
       if (await modeLocked(spec.mode)) return res.status(403).json({ ok: false, error: 'mode_locked' });
       if (spec.ph && !R2.config().ok) return res.status(503).json({ ok: false, error: 'r2_needed' });   // 24/10/2026: תרגום בטלפון — הקבצים הקטנים ב־R2
+      if (spec.ka && !isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_allowed' });   // 26/10/2026: קריוקי — רק המנהל עד שמודל ההפרדה בתמונת העובד
+      if (spec.ka && !R2.config().ok) return res.status(503).json({ ok: false, error: 'r2_needed' });
       if (spec.src === 'url') {   // 22/10/2026: הורדה מקישור — כמו בבדיקה: מנהל / "כל המודלים" / חשבונות הבדיקה, הדגל, ו־R2
         if (!(await urlAllowed())) return res.status(403).json({ ok: false, error: 'not_allowed' });
         if (!(await flagOn(deps, 'st_url', now))) return res.status(409).json({ ok: false, error: 'flag_off', fl: 'st_url' });
