@@ -21,11 +21,22 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-# המודלים: רק מה שהרישיון שלו פתוח (MIT / Apache / GPL) — 26/10/2026, החלטת המשתמש. ברירת המחדל נקבעת
-# אחרי המדידה (שלב 0); עד אז — מה שבסביבה (SNB_KA_SEP / SNB_KA_KAR), ואחרת המודל הפתוח המוכר של UVR
-SEP_DEFAULT = os.environ.get('SNB_KA_SEP') or 'UVR-MDX-NET-Inst_HQ_5.onnx'
-KAR_DEFAULT = os.environ.get('SNB_KA_KAR') or ''
+# המודלים: רק מה שהרישיון שלו פתוח (MIT / Apache / GPL) — 26/10/2026, החלטת המשתמש. בתמונת העובד (שלב separator
+# ב־infra/worker/Dockerfile): MelBand RoFormer של Kim לקול/ליווי, BS RoFormer karaoke של anvuew לקולות הרקע.
+# SNB_KA_SEP / SNB_KA_KAR גוברים (לבדיקות ולהשוואה).
+SEP_DEFAULT = os.environ.get('SNB_KA_SEP') or 'vocals_mel_band_roformer.ckpt'
+KAR_DEFAULT = os.environ.get('SNB_KA_KAR') or 'bs_roformer_karaoke_anvuew.ckpt'
 MODEL_DIR = os.environ.get('SNB_KA_MODELS') or '/opt/separator'
+# audio-separator מותקן בנפרד מ־/opt/vt (requirements-karaoke.lock) — בסוף הנתיב, כך שהספריות של העובד גוברות
+SEP_DEPS = os.environ.get('SNB_KA_DEPS') or '/opt/sepdeps'
+if os.path.isdir(SEP_DEPS) and SEP_DEPS not in sys.path:
+    sys.path.append(SEP_DEPS)
+
+
+def sep_ready(model: str = '') -> bool:
+    """המודל (וקובץ ההגדרות שלו) בתיקיית המודלים — בלי רשת. אחרת audio-separator היה מוריד אותו בזמן העבודה."""
+    m = Path(MODEL_DIR) / (model or SEP_DEFAULT)
+    return m.is_file() and (Path(MODEL_DIR) / 'download_checks.json').is_file()
 
 
 def _pick(files, *keys):
@@ -41,7 +52,7 @@ def separate(src: Path, out: Path, model: str, prefix: str) -> dict:
     from audio_separator.separator import Separator
     tmp = out / ('_' + prefix)
     tmp.mkdir(parents=True, exist_ok=True)
-    sep = Separator(output_dir=str(tmp), model_file_dir=MODEL_DIR, output_format='WAV',
+    sep = Separator(output_dir=str(tmp), model_file_dir=MODEL_DIR, output_format='WAV', use_autocast=True,
                     mdxc_params={'overlap': 2, 'segment_size': 256, 'batch_size': 1, 'pitch_shift': 0})
     sep.load_model(model_filename=model)
     files = sep.separate(str(src))

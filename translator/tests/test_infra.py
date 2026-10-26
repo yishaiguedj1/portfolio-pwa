@@ -114,11 +114,30 @@ class Image(unittest.TestCase):
         self.assertIn('ubuntu-24.04-arm', w, 'בנייה על מכונת Arm אמיתית, בלי אמולציה')
         self.assertIn('[ "$archs" = "amd64 arm64" ]', w, 'לא נחתמת תמונה שחסרה בה ארכיטקטורה')
 
+    def test_karaoke_separator(self):
+        """26/10/2026: הפרדת הקול לקריוקי — שכבה נפרדת (/opt/sepdeps), נעולה ב־hash, והמודלים מאומתים מול sha256."""
+        lk = read('infra/worker/requirements-karaoke.lock')
+        names = re.findall(r'(?m)^([A-Za-z0-9_.-]+)==', lk)
+        self.assertIn('audio-separator', names)
+        for b in re.split(r'(?m)^(?=[A-Za-z])', lk):
+            if re.match(r'[A-Za-z]', b):
+                self.assertIn('--hash=sha256:', b, 'לכל חבילה hash: ' + b.split()[0])
+        main = set(re.findall(r'(?m)^([A-Za-z0-9_.-]+)==', read('infra/worker/requirements.lock')))
+        self.assertFalse(main & set(names), 'חבילה ששתי הרשימות מתקינות — הגרסה ב־/opt/vt גוברת, לא להכפיל')
+        self.assertNotIn('diffq', names, 'אין לה גלגל ל־3.12 — ו־RoFormer לא צריך אותה')
+        d = read('infra/worker/Dockerfile')
+        self.assertIn('--no-deps', d[d.index('FROM deps AS separator'):])
+        self.assertIn('--target /opt/sepdeps', d)
+        for f in ('vocals_mel_band_roformer.ckpt', 'bs_roformer_karaoke_anvuew.ckpt'):
+            self.assertRegex(d, r"'[0-9a-f]{64}  " + re.escape(f) + "'", 'sha256 למודל: ' + f)
+        self.assertIn('COPY --from=separator /opt/separator /opt/separator', d)
+        self.assertIn('K.sep_ready()', d, 'בדיקת עשן בתמונה')
+
     def test_dockerignore_keeps_context_small(self):
         di = read('.dockerignore').splitlines()
         self.assertEqual(di[1], '*', 'ברירת המחדל: שום דבר לא נכנס')
         self.assertIn('!translator/', di)
-        for f in ('requirements.lock', 'requirements-arm64.lock'):
+        for f in ('requirements.lock', 'requirements-arm64.lock', 'requirements-karaoke.lock'):
             self.assertIn('!infra/worker/' + f, di, 'קובץ שה־Dockerfile מעתיק חייב להיכנס להקשר: ' + f)
 
 

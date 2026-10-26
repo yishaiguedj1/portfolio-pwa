@@ -125,6 +125,26 @@ RUN HF_HOME=/tmp/hf HF_HUB_DISABLE_TELEMETRY=1 /opt/vt/bin/python -c \
     | sha256sum -c - \
  && rm -rf /tmp/hf /opt/linebreak/.cache
 
+# ---------------------------------------------------------------- קריוקי — הפרדת קול וליווי (26/10/2026, translator/karaoke.py)
+# audio-separator 0.47.1 (MIT) לתוך /opt/sepdeps בלבד (requirements-karaoke.lock, --no-deps) — /opt/vt לא משתנה.
+# המודלים (רק ברישיון פתוח — החלטת המשתמש), מהמקורות ש־audio-separator עצמו מוריד מהם, נבדקים מול sha256:
+#   • "בלי שום קול": MelBand RoFormer של Kimberley Jensen ‏(MIT) — המוביל החינמי לקול/ליווי (SDR 17.3 ב־MVSEP)
+#   • "עם קולות רקע": BS RoFormer karaoke של anvuew ‏(GPL-3.0) — הקול הראשי מול קולות הרקע
+# נמדד בסקרץ' (4 ליבות, autocast): כ־3 דק׳ לדקת שיר ל־Kim, שיא זיכרון ~3GB. download_checks.json — רשימת נתונים בלבד.
+FROM deps AS separator
+COPY infra/worker/requirements-karaoke.lock /tmp/requirements-karaoke.lock
+RUN /opt/vt/bin/pip install --no-cache-dir -q --require-hashes --no-deps --only-binary=:all: \
+        --target /opt/sepdeps -r /tmp/requirements-karaoke.lock \
+ && PYTHONPATH=/opt/sepdeps PYTEST_CURRENT_TEST=build /opt/vt/bin/python -c \
+    "from audio_separator.separator import Separator as S; s = S(model_file_dir='/opt/separator', output_dir='/tmp/o'); [s.download_model_files(m) for m in ('vocals_mel_band_roformer.ckpt', 'bs_roformer_karaoke_anvuew.ckpt')]" \
+ && cd /opt/separator && printf '%s\n' \
+    '87201f4d31afb5bc79993230fc49446918425574db48c01c405e44f365c7559e  vocals_mel_band_roformer.ckpt' \
+    'b958b29c8f7195f0d86bee6759a33980db675c4ecaf2fcaa80fa125828e6cd38  vocals_mel_band_roformer.yaml' \
+    '206d04757cb5f75ca3b55f8a0a48f5c26aa2351d4ff3c7adbfc9affa30ea3ae4  bs_roformer_karaoke_anvuew.ckpt' \
+    '5cb3f127ecbc6a8e37f31ea7e05f60f360a44da43e857bde805b7b68558f6338  config_bs_roformer_karaoke_anvuew.yaml' \
+    | sha256sum -c - \
+ && test -s download_checks.json && rm -rf /tmp/o
+
 # ---------------------------------------------------------------- טקסט שעל המסך (25/10/2026, translator/vt/burnin.py)
 # PP-OCRv3 det + rec (‏PaddleOCR, ‏Apache-2.0) מהגלגל הרשמי של rapidocr_onnxruntime 1.2.3 ב־PyPI — הגלגל והמודלים נבדקים
 # מול sha256. det מזהה איפה יש טקסט בפסים העליון/התחתון, rec מאשר שזה טקסט — הכתוביות מורמות מעליו. בלי המודלים: כמו קודם.
@@ -154,6 +174,8 @@ COPY --from=aligner /opt/aligner /opt/aligner
 COPY --from=speaker /opt/speaker /opt/speaker
 COPY --from=linebreak /opt/linebreak /opt/linebreak
 COPY --from=burnin /opt/burnin /opt/burnin
+COPY --from=separator /opt/sepdeps /opt/sepdeps
+COPY --from=separator /opt/separator /opt/separator
 COPY --chown=root:root translator /app/translator
 # 16/10/2026: הגדרת השרת לעדכון ידני בלי שרת חדש — נתונים בלבד, שום דבר לא מריץ אותם לבד (infra/worker/snb-host-apply)
 COPY --chown=root:root infra/host/snb-common.sh infra/compose.yaml infra/host/snb-update /opt/snb-host/
@@ -162,6 +184,7 @@ RUN rm -rf /app/translator/tests /app/translator/research /app/translator/__pyca
  && find /app /opt/aligner /opt/speaker -type d -exec chmod 755 {} + && find /app /opt/aligner /opt/speaker -type f -exec chmod 644 {} + \
  && find /opt/linebreak -type d -exec chmod 755 {} + && find /opt/linebreak -type f -exec chmod 644 {} + \
  && find /opt/burnin -type d -exec chmod 755 {} + && find /opt/burnin -type f -exec chmod 644 {} + \
+ && find /opt/sepdeps /opt/separator -type d -exec chmod 755 {} + && find /opt/sepdeps /opt/separator -type f -exec chmod 644 {} + \
  && chmod 644 /opt/snb-host/snb-common.sh /opt/snb-host/compose.yaml /opt/snb-host/snb-update
 # 20/10/2026: בדיקת עשן מול הספריות האמיתיות שבתמונה (הבדיקות ב־CI רצות בלי anthropic) — בניית הלקוח של Claude
 # בלי רשת. anthropic 1.x עבר ל־httpx2 ודחה httpx.Timeout ב־TypeError: כל עבודה בשרת קרסה בקריאה הראשונה, והבנייה עברה
@@ -172,6 +195,8 @@ RUN /opt/vt/bin/python -c "import os, yt_dlp_plugins.extractor.getpot_bgutil_scr
 # 25/10/2026: מודל שבירת השורות נטען ומנתח משפט, בלי רשת (בלי זה ה־build נופל בשקט לכללים)
 RUN cd /app/translator && HF_HUB_OFFLINE=1 /opt/vt/bin/python -c "from vt import linebreak as L; m = L.DepModel(); t = m.toks('הלכתי אתמול לבית הספר החדש'); assert t and len(t) >= 5, t; print('linebreak', len(t))"
 RUN cd /app/translator && /opt/vt/bin/python -c "from vt import burnin as B; import numpy as np; assert B.available(), 'burnin'; d = B.Detector(); print('burnin', len(d.frame(np.zeros((360, 640, 3), np.uint8), 0.0)))"
+# 26/10/2026: קריוקי — הספרייה נטענת מ־/opt/sepdeps, ושני המודלים נמצאים (בלי רשת; diffq/onnx2torch לא נדרשים ל־RoFormer)
+RUN cd /app/translator && /opt/vt/bin/python -c "import karaoke as K; assert K.sep_ready(), 'karaoke'; from audio_separator.separator import Separator; print('karaoke', K.SEP_DEFAULT, K.KAR_DEFAULT)"
 RUN cd /app/translator && ANTHROPIC_API_KEY=build-check /opt/vt/bin/python -B -c \
     "import llm; c = llm.Engine(llm.Spec.of(llm.DEFAULT_MODE))._client_or_new(); assert c.timeout.read == llm.API_READ_TIMEOUT, c.timeout" \
  && cd /app/translator && /opt/vt/bin/python -B -c \
