@@ -281,9 +281,13 @@ page('sys', { tab: 'sys', title: () => t('admTabSys'), render(p) {
   const ai = D.ai, k = D.lab && D.lab.view && D.lab.view.k;
   if (!ai) needAi();
   if (!D.rd) needReady();
+  needSvc();
+  if (!D.mail) needMail();
   p.append(list(
     row({ c: 'orange', ic: '$', t: t('admAiCost'), s: ai && ai.month ? fmt(t('admAiCostS'), { u: usd(ai.month.usd), n: ai.today.t }) : k ? fmt(t('admAiCostS2'), { u: usd(k.usd) }) : '', badge: ai ? ai.warn.filter((w) => w.sev <= 2).length : 0, on: () => go('ai') }),
     row({ c: 'blue', ic: '▦', t: t('admMonRow'), s: t('admMonRowS'), on: () => go('mon') }),
+    row({ c: !D.svc ? 'gray' : D.svc.sum.crit + D.svc.sum.down ? 'red' : D.svc.sum.warn ? 'orange' : 'green', ic: '◇', t: t('admSvc'), s: svcLine(D.svc), badge: D.svc ? D.svc.sum.warn + D.svc.sum.crit + D.svc.sum.down : 0, on: () => go('svc') }),
+    row({ c: !D.mail ? 'gray' : D.mail.list.some((x) => x.on) ? (D.mail.left > 0 ? 'green' : 'red') : 'orange', ic: '✉', t: t('admMail'), s: mailLine(D.mail), on: () => go('mail') }),
     row({ c: 'blue', ic: '%', t: t('admQuota'), s: o && o.dates && o.dates[0] ? fmt(t('admQuotaS'), { n: o.dates[0].left }) : '', on: () => go('quota') }),
     row({ c: !D.rd ? 'gray' : D.rd.pass === D.rd.n ? 'green' : D.rd.checks[0].sev === 1 ? 'red' : 'orange', ic: '✓', t: t('admRdT'), s: D.rd ? fmt(t('admRdS'), { p: D.rd.pass, n: D.rd.n }) : t('admLoading'), badge: D.rd ? D.rd.n - D.rd.pass : 0, on: () => go('ready') }),
     row({ c: !D.bk ? 'gray' : D.bk.warn.length ? 'orange' : 'green', ic: '⟲', t: t('admBkT'), s: !D.bk ? t('admLoading') : D.bk.warn.length ? fmt(t('admBkWarnN'), { n: D.bk.warn.length }) : fmt(t('admBkOkS'), { d: D.bk.r2 && D.bk.r2.last ? D.bk.r2.last.split('-').reverse().slice(0, 2).join('/') : '—' }), badge: D.bk ? D.bk.warn.filter((w) => /none|err/.test(w)).length : 0, on: () => go('backups') }),
@@ -976,6 +980,93 @@ page('yt', { tab: 'sys', parent: 'sys', title: () => t('admYt'), render(p) {
   const how = h('ol', 'adm-steps');
   for (const x of [t('admYtS1'), t('admYtS2'), t('admYtS3'), t('admYtS4'), t('admYtS5')]) how.append(h('li', null, x));
   p.append(card, h('div', 'adm-lbl', t('admYtHow')), how, h('p', 'adm-foot', t('admYtFoot')));
+} });
+/* ---- שליחת מיילים משלנו (26/10/2026, lib/mailer.js): שרשרת שירותים חינמיים מהדומיין שלנו — קוד בן 6 ספרות ואיפוס סיסמה בלי
+   המגבלות של Firebase. כאן רק המצב (כמה נשלח היום והחודש מול המכסה) והוספת מפתח — המפתח לא חוזר מהשרתון לעולם ---- */
+const MAIL_NAME = { brevo: 'Brevo', mailjet: 'Mailjet', resend: 'Resend', smtp2go: 'SMTP2GO' };
+async function needMail(body) {
+  const r = await api('adminMail', body || {});
+  if (r.ok) { D.mail = r.mail; if (body && body.set) D.log = null; if (['mail', 'sys', 'svc'].includes(cur)) paint(); }
+  return r;
+}
+const mailLine = (M) => (!M ? t('admLoading') : !M.list.some((x) => x.on) ? t('admMailOff') : fmt(t('admMailLeft'), { n: M.left }));
+page('mail', { tab: 'sys', parent: 'sys', title: () => t('admMail'), render(p) {
+  const M = D.mail;
+  if (!M) { needMail(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  const card = h('section', 'card adm-card');
+  card.append(h('h2', null, mailLine(M)), h('p', 'adm-sub', fmt(t('admMailFrom'), { f: M.from })));
+  const test = h('button', 'btn secondary-btn', t('admMailTest')); test.type = 'button';
+  test.disabled = !M.list.some((x) => x.on);
+  test.addEventListener('click', async () => {
+    test.disabled = true; const r = await needMail({ test: true, lang }); test.disabled = false;
+    const T = r.ok && r.test;
+    flash(T && T.ok ? fmt(t('admMailTestOk'), { k: MAIL_NAME[T.via] || T.via }) : fmt(t('admMailTestBad'), { e: (T && T.error) || r.error || '' }));
+  });
+  const br = h('div', 'btn-row'); br.append(test); card.append(br);
+  p.append(card, grp(t('admMailList')), list(...M.list.map((x) => {
+    const pc = x.dayMax ? Math.round(x.day / x.dayMax * 100) : 0;
+    const sub = !x.on ? t('admMailNoKey') : [fmt(t('admMailDay'), { n: x.day, m: x.dayMax }), fmt(t('admMailMonth'), { n: x.month, m: x.monthMax })]
+      .concat(x.err && x.errAt && Date.now() - x.errAt < 864e5 ? [fmt(t('admMailErr'), { e: x.err, a: ago(x.errAt) })] : []).concat(x.next ? [t('admMailNext')] : []).join(' · ');
+    return row({ c: !x.on ? 'gray' : x.err && x.errAt && Date.now() - x.errAt < 3600e3 ? 'red' : pc >= 70 ? 'orange' : 'green', ic: '✉', t: MAIL_NAME[x.k] || x.k, s: sub, v: x.on ? pc + '%' : '', meter: x.on ? [pc, pc >= 90 ? 'x' : pc >= 70 ? 'w' : ''] : null });
+  })));
+  const kc = h('section', 'card adm-card');
+  kc.append(h('h2', null, t('admMailKeyT')));
+  const sel = h('select', 'adm-search'); sel.setAttribute('aria-label', t('admMailKeyT'));
+  for (const x of M.list) { const o = h('option', null, MAIL_NAME[x.k] || x.k); o.value = x.k; sel.append(o); }
+  const inp = h('input', 'adm-search'); inp.type = 'password'; inp.dir = 'ltr'; inp.autocomplete = 'off'; inp.spellcheck = false;
+  const ph = () => { inp.placeholder = sel.value === 'mailjet' ? t('admMailKeyPhMj') : t('admMailKeyPh'); inp.setAttribute('aria-label', inp.placeholder); };
+  sel.addEventListener('change', ph); ph();
+  const save = h('button', 'btn', t('admMailSave')); save.type = 'button';
+  save.addEventListener('click', async () => {
+    const key = inp.value.trim(); if (!key) return;
+    save.disabled = true; const r = await needMail({ set: { k: sel.value, key } }); save.disabled = false;
+    if (r.ok) { inp.value = ''; flash(t('admSaved')); } else flash(r.error === 'bad_params' ? t('admMailKeyBad') : t('admErr'));
+  });
+  const del = h('button', 'mini-btn danger', t('admMailDel')); del.type = 'button';
+  del.addEventListener('click', () => { const k = sel.value; askConfirm(fmt(t('admMailDelQ'), { k: MAIL_NAME[k] || k }), async () => { const r = await needMail({ set: { k, key: '' } }); flash(r.ok ? t('admSaved') : t('admErr')); }, { danger: true, ok: t('admMailDel') }); });
+  const b2 = h('div', 'btn-row'); b2.append(save, del);
+  kc.append(sel, inp, b2);
+  const how = h('ol', 'adm-steps');
+  for (const x of [t('admMailS1'), t('admMailS2'), t('admMailS3'), t('admMailS4'), t('admMailS5')]) how.append(h('li', null, x));
+  p.append(kc, h('div', 'adm-lbl', t('admMailHow')), how, h('p', 'adm-foot', t('admMailFoot')));
+} });
+/* ---- שירותים (26/10/2026, שלב 1 ב־תוכנית-עמידות-שירותים.md): כל השירות שאנחנו נשענים עליהם חוץ מ־GitHub — מצב, אחוז מהמכסה,
+   מה הגיבוי ומתי נמדד (lib/services.js). התראה לטלפון מ־70% (svc_quota). שירות שלא נמדד — "לא נמדד", לא "תקין" ---- */
+async function needSvc() {
+  if (D.svcAt && Date.now() - D.svcAt < 60000) return;
+  D.svcAt = Date.now();
+  const r = await api('adminServices');
+  if (r.ok) { D.svc = r.svc; if (['svc', 'sys'].includes(cur)) paint(); } else D.svcAt = 0;
+}
+const SVC_NAME = { fs: () => 'Firebase', vercel: () => 'Vercel', hetzner: () => t('admSvcNHetzner'), r2: () => 'Cloudflare R2', mail: () => t('admMail'), pages: () => 'Cloudflare Pages',
+  dns: () => t('admSvcNDns'), drive: () => 'Google Drive', gemini: () => 'Gemini', anthropic: () => 'Anthropic API', market: () => t('admSvcNMarket'), hf: () => 'Hugging Face' };
+const SVC_BK = { fs: () => t('admSvcBkFs'), vercel: () => t('admSvcBkVercel'), hetzner: () => t('admSvcBkHetzner'), r2: () => t('admSvcBkR2'), mail: () => t('admSvcBkMail'),
+  pages: () => t('admSvcBkPages'), dns: () => t('admSvcBkDns'), none: () => t('admSvcBkNone'), gemini: () => t('admSvcBkGemini'), anthropic: () => t('admSvcBkAnt'), market: () => t('admSvcBkMarket'), hf: () => t('admSvcBkHf') };
+const SVC_ST = { ok: () => t('admSvcStOk'), warn: () => t('admSvcStWarn'), crit: () => t('admSvcStCrit'), down: () => t('admSvcStDown'), off: () => t('admSvcStOff'), na: () => t('admSvcStNa') };
+const SVC_M = Object.assign({ disk: () => t('admSvcMDisk'), day: () => t('admSvcMDay') }, PROV_ITEM);
+const SVC_COL = { ok: 'green', warn: 'orange', crit: 'red', down: 'red', off: 'gray', na: 'gray' };
+function svcRow(r) {
+  const parts = [];
+  if (r.m && r.m.length) parts.push(r.m.map((x) => (SVC_M[x.k] || (() => x.k))() + ' ' + Math.round(x.pct) + '%').join(' · '));
+  else parts.push(SVC_ST[r.st]());
+  if (r.paid) parts.push(fmt(t('admSvcPaid'), { g: gbTxt(r.gb) }));
+  if (r.k === 'hetzner' && r.dn) parts.push(fmt(t('admSvcSrvDn'), { n: r.dn }));
+  if (r.k === 'mail' && r.st !== 'off') parts.push(fmt(t('admMailLeft'), { n: r.left }));
+  parts.push((r.bk === 'none' ? '⚠ ' : t('admSvcBk') + ': ') + SVC_BK[r.bk]());
+  if (r.at) parts.push(fmt(t('admSvcAt'), { a: ago(r.at) }));
+  const on = r.k === 'mail' ? () => go('mail') : ['fs', 'vercel', 'r2', 'drive', 'hetzner'].includes(r.k) ? () => go('mon') : null;
+  return row({ c: r.bk === 'none' && r.st === 'na' ? 'orange' : SVC_COL[r.st] || 'gray', ic: r.st === 'down' || r.st === 'crit' ? '!' : '◇', t: SVC_NAME[r.k] ? SVC_NAME[r.k]() : r.k, s: parts.join(' · '),
+    v: r.pct != null ? Math.round(r.pct) + '%' : '', meter: r.pct != null ? [r.pct, r.pct >= 90 ? 'x' : r.pct >= 70 ? 'w' : ''] : null, on });
+}
+const svcLine = (V) => (!V ? t('admLoading') : V.sum.warn + V.sum.crit + V.sum.down ? fmt(t('admSvcAttn'), { n: V.sum.warn + V.sum.crit + V.sum.down }) : fmt(t('admSvcAllOk'), { r: V.sum.risk }));
+page('svc', { tab: 'sys', parent: 'sys', title: () => t('admSvc'), render(p) {
+  needSvc();
+  const V = D.svc;
+  if (!V) { p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  p.append(h('p', 'adm-dt', svcLine(V)));
+  const bad = V.rows.filter((r) => ['warn', 'crit', 'down'].includes(r.st));
+  if (bad.length) p.append(grp(t('admSvcSecW')), list(...bad.map(svcRow)));
+  p.append(grp(t('admSvcSecAll')), list(...V.rows.filter((r) => !bad.includes(r)).map(svcRow)), h('p', 'adm-foot', t('admSvcFoot')));
 } });
 page('infra', { tab: 'sys', parent: 'sys', title: () => t('admInfra'), render(p) {
   const o = D.ov;
@@ -1919,7 +2010,7 @@ function faKind(k) {
   switch (k) {
     case 'face': return t('admFaK_face'); case 'fix': return t('admFaK_fix'); case 'ffill': return t('admFaK_ffill'); case 'ffix': return t('admFaK_ffix'); case 'bal': return t('admFaK_bal'); case 'neg': return t('admFaK_neg');
     case 'scale': return t('admFaK_scale'); case 'eps': return t('admFaK_eps'); case 'gp': return t('admFaK_gp'); case 'part': return t('admFaK_part');
-    case 'q4': return t('admFaK_q4'); case 'qneg': return t('admFaK_qneg'); case 'xy': return t('admFaK_xy'); case 'gold': return t('admFaK_gold'); case 'gr': return t('admFaK_gr'); case 'rst': return t('admFaK_rst');
+    case 'q4': return t('admFaK_q4'); case 'qneg': return t('admFaK_qneg'); case 'xy': return t('admFaK_xy'); case 'gold': return t('admFaK_gold'); case 'gr': return t('admFaK_gr'); case 'rst': return t('admFaK_rst'); case 'qeps': return t('admFaK_qeps'); case 'qmix': return t('admFaK_qmix'); case 'qfy': return t('admFaK_qfy'); case 'gpfin': return t('admFaK_gpfin');
     default: return t('admFaK_other');
   }
 }
@@ -1931,11 +2022,30 @@ function faRow() {
     v: v ? faPct(v.face.pct) : '', tr: v ? t('admFaFace') : '', on: () => go('labFund') });
 }
 const faNum = (x) => (x == null ? '—' : Math.abs(x) >= 1e6 ? numTxt(Math.round(x / 1e6)) + 'M' : String(Math.round(x * 100) / 100));
+/* שכבה 8 (26/10/2026): כל ערך שנתי ורבעוני של S&P 500 ו־Nasdaq-100 מול SEC, הדוח, Yahoo ו־Nasdaq (lib/fundxcheck.js) — הספירה, לפי סוג, והערכים לבדוק */
+function faXc(k) {
+  switch (k) {
+    case 'bug': return t('admFaXC_bug'); case 'spl': return t('admFaXC_spl'); case 'estx': return t('admFaXC_estx');
+    case 'ext': return t('admFaXC_ext'); case 'odd': return t('admFaXC_odd'); case 'one': return t('admFaXC_one');
+    default: return ltr(k);
+  }
+}
+function faXSection(p, x) {
+  const prob = new Set((x.pc || []).map((c) => c.k));
+  p.append(grp(t('admFaX')), list(
+    row({ c: x.b ? 'red' : x.p ? 'orange' : 'green', ic: x.p ? '!' : '✓', t: t('admFaXP'), s: fmt(t('admFaXS'), { n: numTxt(x.n), c: x.cos }), v: numTxt(x.p),
+      tr: x.d ? (x.d > 0 ? '+' : '−') + Math.abs(x.d) : '', trc: x.d > 0 ? 'dn' : x.d < 0 ? 'up' : '' }),
+    ...(x.pc || []).map((c) => row({ c: c.k === 'bug' ? 'red' : 'orange', ic: '!', t: faXc(c.k), s: ltr(c.k), v: numTxt(c.n) })),
+    row({ c: 'gray', ic: '✓', t: t('admFaXOk'), s: ltr((x.c || []).filter((c) => !prob.has(c.k)).map((c) => c.k + ' ' + c.n).join(' · ')) })));
+  if ((x.items || []).length) p.append(grp(t('admFaXItems')), list(...x.items.slice(0, 20).map((r) => row({ c: r.c === 'bug' ? 'red' : 'gray', ic: '·',
+    t: ltr(r.sym + ' · ' + r.k + ':' + r.m + ' · ' + r.p), s: faXc(r.c) + (r.why ? ' · ' + r.why : '') + ' · ' + fmt(t('admFaXVs'), { v: faNum(r.v), r: faNum(r.raw), y: faNum(r.y), n: faNum(r.n) }) }))),
+    x.p > 20 ? h('p', 'adm-dt', fmt(t('admFaMore'), { n: numTxt(x.p - 20) })) : null);
+}
 page('labFund', { tab: 'imp', parent: 'lab', title: () => t('admFaT'), render(p) {
   if (D.fa === undefined || D.fa === 0) { if (D.fa === undefined) { D.fa = 0; needFa(); } p.append(h('p', 'adm-dt', t('admLoading'))); return; }
   const v = D.fa;
   if (!v) { p.append(list(row({ c: 'gray', ic: '—', t: t('admFaNone') })), h('p', 'adm-foot', t('admFaFoot'))); return; }
-  if (v.alert) p.append(list(row({ c: 'red', ic: '!', t: t('admFaAlert'), s: v.alert.map((k) => (k === 'gold' ? t('admFaK_gold') : k === 'face' ? t('admFaK_face') : k === 'gr' ? t('admFaK_gr') : fmt(t('admFaFail'), { n: v.fail }))).join(' · ') })));
+  if (v.alert) p.append(list(row({ c: 'red', ic: '!', t: t('admFaAlert'), s: v.alert.map((k) => (k === 'gold' ? t('admFaK_gold') : k === 'face' ? t('admFaK_face') : k === 'gr' ? t('admFaK_gr') : k === 'x' ? t('admFaK_x') : fmt(t('admFaFail'), { n: v.fail }))).join(' · ') })));
   p.append(tiles(
     tileEl('green', t('admFaFace'), faPct(v.face.pct), v.face.d != null && v.face.d !== 0 ? (v.face.d > 0 ? '+' : '−') + Math.abs(v.face.d) : fmt(t('admFaFaceS'), { ok: numTxt(v.face.ok), n: numTxt(v.face.n) }), v.face.d < 0 ? 'dn' : v.face.d > 0 ? 'up' : '', v.trend),
     tileEl('blue', t('admFaCos'), faPct(v.face.coPct), fmt(t('admFaCosS'), { ok: v.face.coOk, n: v.face.cos }), '', null),
@@ -1943,6 +2053,7 @@ page('labFund', { tab: 'imp', parent: 'lab', title: () => t('admFaT'), render(p)
   if ((v.gi || []).length) p.append(grp(t('admFaGoldList')), list(...v.gi.map((x) => row({ c: 'red', ic: '!', t: ltr(x.sym + ' · ' + x.m + ' · ' + x.p), s: fmt(t('admFaVs'), { f: faNum(x.f), v: faNum(x.v) }) }))));
   if ((v.kinds || []).length) p.append(grp(t('admFaKinds')), list(...v.kinds.map((x) => row({ c: /^(fix|ffill|ffix)$/.test(x.k) ? 'blue' : x.k === 'xy' || x.k === 'q4' ? 'gray' : 'orange', ic: /^(fix|ffill|ffix)$/.test(x.k) ? '✓' : '!', t: faKind(x.k), s: ltr(x.k),
     v: numTxt(x.n), tr: x.d ? (x.d > 0 ? '+' : '−') + Math.abs(x.d) : '', trc: x.d > 0 ? 'dn' : x.d < 0 ? 'up' : '' }))));
+  if (v.x) faXSection(p, v.x);
   if ((v.cos || []).length) p.append(grp(t('admFaCo')), list(...v.cos.slice(0, 15).map((c) => row({ c: 'orange', ic: '≠', t: ltr(c.sym), s: fmt(t('admFaCosS'), { ok: c.ok, n: c.n }) + (c.form ? ' · ' + c.form : ''),
     v: faPct(c.ok / c.n * 100), meter: [c.ok / c.n * 100, c.ok / c.n < 0.9 ? 'x' : 'w'], on: c.url ? () => { try { window.open(c.url, '_blank', 'noopener'); } catch (e) {} } : null }))));
   if ((v.items || []).length) p.append(grp(t('admFaItems')), list(...v.items.slice(0, 20).map((x) => row({ c: 'gray', ic: '·', t: ltr(x.sym + (x.m ? ' · ' + x.m : '') + (x.p ? ' · ' + x.p : '')), s: faKind(x.k) + (x.f != null ? ' · ' + fmt(t('admFaVs'), { f: faNum(x.f), v: faNum(x.v) }) : '') }))),

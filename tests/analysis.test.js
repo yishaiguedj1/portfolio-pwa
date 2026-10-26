@@ -67,7 +67,8 @@ ok(A.prep({ ...D, sic: 6021 }, null, 3.7).fin && A.prep({ ...D, ind: 'Bank (Mone
 /* ---------- בנקים וביטוח (עודף תשואה), ריט (FFO), חברה מפסידה ---------- */
 const bank = A.indFix(A.prep({ ...D, sic: 6021, ind: 'Bank (Money Center)', indData: { bu: 0.44, bl: 1.1, roe: 0.13, pbv: 1.6, n: 15 } }, null, 3.7), MAC);
 const FI = A.finInputs(bank, MAC);
-ok(Math.abs(FI.val.ke - (0.042 + 1.1 * 0.042)) < 1e-12, 'בנק: הבטא הממונפת של הענף, בלי מינוף מחדש על הפיקדונות');
+ok(Math.abs(FI.val.capm - (0.042 + 1.1 * 0.042)) < 1e-12, 'בנק: הבטא הממונפת של הענף, בלי מינוף מחדש על הפיקדונות');
+ok(FI.val.ke === Math.max(0.10, FI.val.capm), 'שיעור ההיוון: לפחות 10% — הרף של באפט ומנגר; CAPM גבוה יותר גובר');
 ok(Math.abs(FI.val.bv - rev[5] * 0.9 / 1e9) < 1e-9, 'הון למניה = ההון בדוח האחרון ÷ המניות');
 ok(Math.abs(FI.val.roe - 0.195) < 1e-9 && /anSrcRoeCap/.test(FI.src.roe), 'ROE מתמשך עד פי 1.5 מהענף (22% → 19.5%)');
 const rv = A.riValue(FI.val);
@@ -104,7 +105,8 @@ ok(n5 === 5 && Math.abs(g5 - ((161 / 100) ** (1 / 5) - 1)) < 1e-9, 'CAGR של 5 
 /* ---------- הערכת שווי ---------- */
 const I = A.autoInputs(co, MAC);
 ok(Math.abs(I.val.g1 - (175e9 / rev[5] - 1)) < 1e-9, 'צמיחה בשנה 1 = קונצנזוס ההכנסות מול השנה האחרונה');
-ok(Math.abs(I.val.ke - (0.042 + I.bl * 0.042)) < 1e-12 && I.bl >= 0.8 && I.bl <= 2, 'מחיר ההון = CAPM עם בטא ענפית בגבולות');
+ok(Math.abs(I.val.capm - (0.042 + I.bl * 0.042)) < 1e-12 && I.bl >= 0.8 && I.bl <= 2, 'CAPM עם בטא ענפית בגבולות');
+ok(I.val.ke === Math.max(0.10, I.val.capm), 'שיעור ההיוון = לפחות 10% (הרף של באפט), CAPM לעיון');
 ok(I.val.tg === 0.03, 'צמיחה סופית = הנמוך מבין 3% לריבית');
 const base = A.dcf(I.val);
 ok(base.ps > 0 && base.tvShare > 0 && base.tvShare < 1, 'DCF מחזיר שווי חיובי');
@@ -123,7 +125,7 @@ ok(u.band[0] < 1 && u.band[1] > 1 && u.lv >= 0 && u.lv <= 3, 'רצועת אי־�
 
 /* ---------- בדיקות הבריאות ---------- */
 const C = A.checks(co, MAC);
-ok(['value', 'growth', 'profit', 'safe'].every((k) => C[k].chk.length === 6), '4 קבוצות × 6 בדיקות');
+ok(C.value.chk.length === 5 && ['growth', 'profit', 'safe'].every((k) => C[k].chk.length === 6), '4 קבוצות: שווי 5 (בלי "מתחת לשווי ההוגן" — דעה), השאר 6');
 ok(C.growth.chk[0].pass === true && C.profit.chk[5].pass === true, 'צמיחה של 10% בשנה ותזרים חיובי בכל השנים — עוברות');
 const pf = A.piotroski(co);
 ok(pf && pf.list.length === 9 && pf.f >= 0 && pf.f <= 9, 'Piotroski — 9 בדיקות');
@@ -139,7 +141,7 @@ ok(pk.list.map((x) => x.sym).join() === 'D' && pk.loose, 'מה שהמשתמש ה
 ok(A.pickPeers(me, [], []).list.length === 0, 'בלי מועמדים — רשימה ריקה');
 ok(A.pickPeers(me, 'CDEFGH'.split('').map((x) => P(x, 'Internet', 'Comm')), []).list.length === 4, 'עד 4 עמיתים');
 const pr = A.peerRow(co);
-ok(pr.sym === 'SYN' && pr.q >= 0 && pr.q <= 24 && Math.abs(pr.om - 0.25) < 0.01 && pr.pe > 0, 'שורת השוואה: ציון מתוך 24, שוליים ומכפיל');
+ok(pr.sym === 'SYN' && !('q' in pr) && Math.abs(pr.om - 0.25) < 0.01 && pr.pe > 0, 'שורת השוואה: נתונים בלבד (בלי ציון איכות), שוליים ומכפיל');
 
 /* ---------- עיצוב מספרים ---------- */
 ok(A.fmt(-1234e6, 'money', co) === '⁦−$1.23B⁩', 'סכום שלילי — מינוס אמיתי ובידוד כיוון');
@@ -204,6 +206,30 @@ ok(/z-index: 900/.test(css) && /\.an-sheet \{[^}]*z-index: 941/.test(css), 'שכ
   const R0 = { ...R, C: { A: {}, Q: { rev: Q.rev.map((_, j) => (j === 13 ? 0 : null)) } } }, c0 = A.prep(R0, null, 3.7);
   ok(A.growthOf(c0, A.periodList(c0, 'q').find((p) => p.end === '2023-06-30'), 'rev') === null, 'רבעון על בסיס אחר שאין איך להשוות (0) — בלי צמיחה, לא צמיחה שגויה');
   ok(/anRestated: 'מ־\{y\}/.test(app) && /anRestated: 'From \{y\}/.test(app) && /restNote\(co, def\.s\)/.test(src), 'הערה בגיליון כשהגרף כולל שנה שהוצגה מחדש — בשתי השפות');
+}
+
+/* ---------- 12 החודשים האחרונים: רבעונים רצופים, וסוף שנה = המספר השנתי (26/10/2026) ---------- */
+{
+  // רבעון שחסר ברשימה (2025-06-30) — ארבע נקודות סמוכות הן 15 חודשים, לא 12
+  const drop = (a, j) => a.filter((_, i) => i !== j), jx = q.indexOf('2025-06-30');
+  const G = { ...D, q: drop(q, jx), Q: Object.fromEntries(Object.keys(Q).map((k) => [k, drop(Q[k], jx)])) };
+  const c = A.prep(G, null, 3.7), last = c.q.length - 1;
+  ok(!A.qRun(c, last - 3, last) && A.qRun(co, co.q.length - 4, co.q.length - 1), 'רבעון חסר ברשימה = לא רצף של 12 חודשים');
+  const pt = A.periodList(c, 'fy').pop(), tt = { kind: 'ttm', i: last, end: c.q[last] };
+  ok(!A.hasTTM(c) && pt.kind === 'fy' && A.ctx(c, pt).rev === rev[5], 'ארבעת הרבעונים האחרונים לא רצופים — "עכשיו" = השנה האחרונה (לא מסך ריק)');
+  ok(A.raw(c, 'rev', tt) === null && A.raw(c, 'debt', tt) === 20e9, 'TTM עם רבעון חסר — בלי סכום מומצא (מאזן — הרבעון האחרון כרגיל)');
+  const q3 = A.periodList(c, 'q').find((p) => p.end === '2025-09-30');
+  ok(A.growthOf(c, q3, 'rev') !== null && Math.abs(A.growthOf(c, q3, 'rev') - (161 / 146 - 1)) < 1e-9, 'רבעון מול המקביל לו — לפי התאריך, גם כשחסר רבעון ביניהם');
+  const q1 = A.periodList(c, 'q').find((p) => p.end === '2026-03-31');
+  ok(A.raw(c, 'rev', q1, 1) === rev[5] / 4 && A.qBack(c, last, 1) === last - 3, 'שנה קודם = הרבעון שהסתיים שנה לפני (3 מקומות אחורה כשחסר רבעון), לא 4 מקומות אחורה');
+  ok(A.qBack(c, 2, 1) === -1, 'אין רבעון שנה קודם — בלי השוואה');
+  ok(!A.ttmPoints(c, 'rev').some(([e]) => e === '2025-09-30' || e === '2026-03-31'), 'היסטוריית המכפילים — בלי נקודה שנשענת על חור');
+  // סוף שנה: הרווח למניה השנתי מהדוח, לא סכום ארבעת הרבעונים (רווח למניה לא מצטבר)
+  const E = { ...D, Q: { ...Q, eps: Q.eps.map((x, j) => (q[j] === '2024-12-31' ? x + 1 : x)) } }, ce = A.prep(E, null, 3.7);
+  const sp = A.ttmPoints(co, 'sh').filter(([e]) => e === '2024-12-31');
+  ok(sp.length === 1, 'מספר מניות בסוף שנה — נקודה אחת (של הרבעון)');
+  const at = A.ttmPoints(ce, 'eps').filter(([e]) => e === '2024-12-31');
+  ok(at.length === 1 && Math.abs(at[0][1] - A0.eps[4]) < 1e-9, 'סוף שנה בהיסטוריה = נקודה אחת, הרווח למניה מהדוח השנתי');
 }
 
 console.log('\nכל בדיקות מנתח החברות עברו: ' + n);

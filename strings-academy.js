@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של academy (686 מפתחות מתוך 4680) */
+/* המחרוזות של academy (693 מפתחות מתוך 4787) */
 const STRINGS = {
 he: {
   "acAiNote": "הניתוח נכתב בעזרת AI מתוך הטקסט של המכתב.",
@@ -28,6 +28,13 @@ he: {
   "accAddMailFoot": "אפשר להוסיף גם מייל של Yahoo, Outlook או כל ספק אחר.",
   "accAddMailGo": "הוספה",
   "accChangePw": "החלפת סיסמה (במייל)",
+  "accCodeAgain": "לשלוח קוד חדש",
+  "accCodeBad": "הקוד לא נכון — נשארו {n} ניסיונות",
+  "accCodeOld": "הקוד לא בתוקף — שלחו קוד חדש",
+  "accCodeSent2": "נשלח קוד חדש",
+  "accCodeShort": "הקוד הוא 6 ספרות",
+  "accCodeSub": "שלחנו קוד בן 6 ספרות ל־{e}. אפשר גם ללחוץ על הקישור במייל.",
+  "accCodeT": "הקוד מהמייל",
   "accContinue": "המשך",
   "accCreate": "יצירת חשבון",
   "accEmail": "מייל",
@@ -716,6 +723,13 @@ en: {
   "accAddMailFoot": "Yahoo, Outlook or any other provider works too.",
   "accAddMailGo": "Add",
   "accChangePw": "Change password (by email)",
+  "accCodeAgain": "Send a new code",
+  "accCodeBad": "Wrong code — {n} tries left",
+  "accCodeOld": "The code has expired — send a new one",
+  "accCodeSent2": "A new code was sent",
+  "accCodeShort": "The code is 6 digits",
+  "accCodeSub": "We sent a 6-digit code to {e}. You can also tap the link in the email.",
+  "accCodeT": "Code from the email",
   "accContinue": "Continue",
   "accCreate": "Create account",
   "accEmail": "Email",

@@ -8,7 +8,7 @@
    כשהדפדפן תומך — כדי להמשיך העלאה אחרי רענון בלי לבחור שוב.
    "חזור" של המכשיר: עם CloseWatcher — רשומה אחת ומחסנית דפים בזיכרון; בלי — רשומה לכל דף (סעיף 18 ב־CLAUDE.md).
    מחרוזות: t() של app.js (STRINGS.he/en, מפתחות studio*) — כל מפתח כתוב כאן מילולית, והבדיקות מאמתות שהוא קיים בשתי השפות. */
-import { createNet, probeVideo, extractAudio, uploadBoth, stageEstimates, progressModel, monoPct, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX, inspectSource, QUIET_DB, subsPlan } from './studionet.js';
+import { createNet, probeVideo, extractAudio, uploadBoth, stageEstimates, progressModel, monoPct, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX, inspectSource, QUIET_DB, subsPlan, kaPlan } from './studionet.js';
 import { createBackup, waitOAuthCode } from './libbackup.js';
 // ת4: מזהים של R2 (העלאה ותוצרים בעבודה במצב שרת)
 import { isR2Folder, isR2Id } from './studiostore.js';
@@ -55,8 +55,8 @@ export const SOURCE_LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt
 export const LANG_READY = { from: ['auto', 'en'], to: ['he'] };
 export const langReady = (from, to) => LANG_READY.from.includes(from) && Array.isArray(to) && to.length > 0 && to.every((c) => LANG_READY.to.includes(c));
 /* מ1: כל סוגי התוצרים (= OUT_KINDS בשרתון). MAIN — שורות ב"התוצרים"; השאר קבצי עזר (הנגן, העורך) */
-export const OUT_ALL = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta', 'thumb'];   // סבב 6: meta — לציר בעורך; סבב 7: thumb — תמונה ממוזערת
-export const OUT_MAIN = ['compact', 'same', 'mkv', 'small', 'srt', 'en'];
+export const OUT_ALL = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta', 'thumb', 'inst', 'lrc', 'elrc'];   // סבב 6: meta — לציר בעורך; סבב 7: thumb — תמונה ממוזערת
+export const OUT_MAIN = ['compact', 'same', 'mkv', 'small', 'srt', 'en', 'inst', 'lrc', 'elrc'];   // 26/10/2026: קריוקי — הליווי ו־LRC
 export const TARGET_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
 const QUICK_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr'];
 export const STYLES = ['bold', 'classic', 'karaoke'];
@@ -309,7 +309,14 @@ export function startEstimate(mode, dur, norm, api, apiOn) {
 function estText(e, apiOn) {
   const t = e.min < 60 ? T('studioMinShort', { m: e.min }) : T('studioHMShort', { t: fmtHM(e.min) });
   if (!apiOn) return T('studioEstSub', { t, usd: fmtUsd(e.usd) });
-  return T('studioEstApi', { t, usd: fmtUsd(e.usd), left: fmtUsd(e.left || 0) }) + (e.over ? ' ' + T('studioEstOver') : '');
+  return T('studioEstApi', { t, usd: fmtUsd(e.usd), left: fmtUsd(e.left || 0) }) + (e.over ? ' ' + T('studioEstOver') : '') + keepLine();
+}
+/* 26/10/2026 (בעקבות Vid Hub): כמה זמן נשמר — כבר לפני ההתחלה (עד היום רק בדף העבודה, אחריה). רק במצב השרת (R2) */
+function keepLine() {
+  const k = ui.kt;
+  if (!k || !ui.r2) return '';
+  const hrs = Math.round(k.s / 3600e3), days = Math.round(k.j / 86400e3);
+  return ' ' + T('studioEstKeep', { s: hrs <= 24 ? T('studioKeepDay') : T('studioKeepHours', { n: hrs }), d: days });
 }
 /* ---------- סבב 2: הצעות לפני ההתחלה — מהבדיקה של הסרטון בטלפון (חינם). לכל הצעה פעולה אחת ----------
    bad = כנראה אין מה לתרגם (אין קול / שקט), warn = כדאי לבדוק (שפה, כבר תורגם), tip = חוסך זמן וכסף (שקט בקצוות) */
@@ -967,6 +974,10 @@ function outName(k) {
     case 'small': return T('studioOutSmall');   // מ1
     case 'thumb': return T('studioOutThumb');   // סבב 7
     case 'en': return T('studioOutEn');
+    case 'inst': return T('studioOutInst');   // 26/10/2026: קריוקי
+    case 'lrc': return T('studioOutLrc');
+    case 'elrc': return T('studioOutElrc');
+    case 'ass': return T('studioOutAss');
     default: return T('studioOutSrt');
   }
 }
@@ -990,6 +1001,7 @@ function styleName(k) {
 }
 /* שלבי העבודה — שם פשוט ומשפט הסבר (מהתוכנית: "שגם ילד וגם אדם מבוגר יבינו") */
 function stageName(id, to, subs) {
+  if (subs === 'ka' && (id === 'up' || id === 'tr' || id === 'al' || id === 'bn')) return id === 'up' ? T('studioStgUpKa') : id === 'tr' ? T('studioStgTrKa') : id === 'al' ? T('studioStgAlKa') : T('studioStgBnKa');   // 26/10/2026: קריוקי
   if (subs && (id === 'up' || id === 'tr' || id === 'al' || id === 'bn')) return id === 'up' ? T('studioStgUpSubs') : id === 'tr' ? T('studioStgTrSubs') : id === 'al' ? T('studioStgAlSubs') : T('studioStgBnSubs');   // 22/10/2026
   switch (id) {
     case 'up': return T('studioStgUp');
@@ -1002,6 +1014,7 @@ function stageName(id, to, subs) {
   }
 }
 function stageSub(id, subs) {
+  if (subs === 'ka' && (id === 'up' || id === 'tr' || id === 'al' || id === 'bn')) return id === 'up' ? T('studioStgUpKaS') : id === 'tr' ? T('studioStgTrKaS') : id === 'al' ? T('studioStgAlKaS') : T('studioStgBnKaS');
   if (subs && (id === 'up' || id === 'tr' || id === 'al' || id === 'bn')) return id === 'up' ? T('studioStgUpSubsS') : id === 'tr' ? T('studioStgTrSubsS') : id === 'al' ? T('studioStgAlSubsS') : T('studioStgBnSubsS');
   switch (id) {
     case 'up': return T('studioStgUpS');
@@ -1046,6 +1059,8 @@ function errText(code, extra) {
     case 'wait': return T('studioErrWait', { s: Math.max(1, (extra && extra.retry) || 60) });
     case 'worker_not_ready': return T('studioWaitWorker');
     case 'lang_unsupported': return T('studioLangSoon');
+    case 'ka_lyrics': return T('studioKaNeedLyr');   // 26/10/2026: קריוקי
+    case 'ka_noaudio': return T('studioKaNoAudio');
     case 'bad_url': return T('studioErrBadUrl');
     case 'bad_key': return T('studioErrBadKey');
     case 'vault_not_configured': return T('studioErrVault');
@@ -1117,7 +1132,8 @@ function freshForm(d) {
     fileObj: null, handle: null,    // הקובץ עצמו — רק בזיכרון, רק עד ההתחלה
     drive: d && d.drive && d.name ? Object.assign({ id: d.drive.id, name: d.name, size: d.size, type: d.type, dur: d.drive.dur || 0 }, d.drive.bx ? { bx: true } : {}) : null,   // או סרטון שכבר ב־Drive
     from: d ? d.from : 'auto',
-    to: s.to.slice(), mode: s.mode, out: Object.assign({}, s.out), style: s.style,
+    to: s.to.slice(), mode: s.mode, out: Object.assign({}, s.out), style: s.style === 'karaoke' ? 'bold' : s.style,
+    sty: normSty(store.settings.sty),   // 26/10/2026: העיצוב האחרון שבחרת = ברירת המחדל
     terms: d ? d.terms : '',
     subs: null, sdh: 'rm', trk: null,   // שלב 4: רצועות הכתוביות שבתוך הסרטון (רק בזיכרון)   // 22/10/2026: קובץ כתוביות קיים (בזיכרון בלבד — בלי טיוטה) ומה עושים עם SDH
   };
@@ -1232,6 +1248,7 @@ async function refreshStatus(force) {
     ui.api = normApi(j.api) || ui.api;   // מצב API של המערכת: תקציב חודשי ושרתים
     ui.eta = normEta(j.eta) || ui.eta;   // 10/10/2026: מודל הצפי (לעבודות שעוד לא נלקחו)
     ui.sc = normScan(j.sc) || ui.sc;   // v378: בדיקת המוכנות האחרונה
+    ui.kt = j.kt && j.kt.s > 0 && j.kt.j > 0 ? { s: +j.kt.s, j: +j.kt.j } : null;   // 26/10: כמה זמן הקבצים נשמרים (לאומדן)
     ui.r2 = j.r2 === true;              // 11/10: האחסון שלנו (R2) מוגדר — המילון שם, בלי צורך ב־Drive
     ui.gb = j.gb === true;              // 26/10/2026: רשימת הקבצים ב־Drive מוגדרת בשרתון
     if (j.gb === 'r' && !gbAsked) { gbAsked = true; gb().config().then((c) => { if (c.configured) { ui.gb = true; gbAsked = 'y'; if (root) render('none'); } }).catch(() => {}); }   // השרת שלנו בלי המשתנים — אולי ב־Vercel
@@ -1939,7 +1956,7 @@ function repickFor(id) {           // "בחרו שוב את הסרטון" — א
 }
 function pickInput(cb) {
   const inp = document.createElement('input'); inp.type = 'file';
-  inp.accept = 'video/*,.mkv,.mov,.mp4,.m4v,.webm,.avi';
+  inp.accept = f.ka ? 'audio/*,video/*,.mp3,.m4a,.wav,.flac,.ogg,.opus,.mkv,.mov,.mp4,.webm' : 'video/*,.mkv,.mov,.mp4,.m4v,.webm,.avi';   // קריוקי — גם שיר בלי וידאו
   inp.addEventListener('change', () => { const f = inp.files && inp.files[0]; if (f) cb(f, null); });
   inp.click();
 }
@@ -2550,12 +2567,11 @@ function outRows(out, size, onToggle) {
 /* מראה הכתוביות — שלושה כרטיסים עם דוגמה על "תמונה" כהה */
 function stylePicker(cur, onPick) {
   const g = h('div', 'st-styles'); g.setAttribute('role', 'radiogroup'); g.setAttribute('aria-label', T('studioSecStyle'));
-  for (const k of STYLES) {
+  for (const k of STYLES.filter((x) => x !== 'karaoke')) {   // 26/10/2026: קריוקי לא קיים בצריבה (תרגום — המילים בעברית לא נאמרות בסרטון)
     const b = btn('st-sty' + (k === cur ? ' on' : ''), null, () => onPick(k), 's:' + k);
     b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', k === cur ? 'true' : 'false');
     const s = h('span', 's s-' + k);
-    if (k === 'karaoke') s.append(T('studioSampleK1') + ' ', h('em', null, T('studioSampleK2')));
-    else s.textContent = T('studioSample');
+    s.textContent = T('studioSample');
     b.append(h('span', 'n', styleName(k)), s);
     g.append(b);
   }
@@ -2589,6 +2605,7 @@ function planFor(rec) {
   const eng = (rec.srv && rec.srv.eng) === 'api' || rec.spec.eng === 'api' ? 'a' : 'r';
   const md = ui.eta && ui.eta[eng];
   const pl = (md && planFrom(md, modeById(rec.spec.mode).min, rec.spec.dur || 0, rec.spec.px)) || { s: stageEstimates(modeById(rec.spec.mode).min, rec.spec.dur || 0), q: Q_DEF, n: 0 };
+  if (rec.spec.ka) return kaPlan(pl, rec.spec.dur);   // 26/10/2026: קריוקי (= השרתון בלקיחה)
   return rec.spec.src === 'subs' ? subsPlan(pl) : pl;   // 22/10/2026: קובץ כתוביות — בלי תמלול, יישור וצריבה (= השרתון בלקיחה)
 }
 function modelFor(rec) {
@@ -2941,7 +2958,9 @@ function pageForm(p, editing) {
     // 25/10/2026 (בקשת המשתמש — "נקי ומסודר כמו Apple"): כל המקורות בקבוצה אחת, במקום שלוש קבוצות נפרדות
     // 26/10/2026 (בקשת המשתמש): "מ־Google Drive" = רשימה שלנו (pageDrivePick), לא Google Picker — הסרטון נשאר ב־Drive, בלי העלאה
     const driveRow = ui.gb ? rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'), onClick: () => { if (dp.st !== 'ok') dp.st = ''; go('dpick'); }, k: 'from-drive' }) : null;
-    p.append(list(pickRow, phRow, pwRow, linkRow, subsRow, driveRow));
+    // 26/10/2026: קריוקי משיר רגיל — הליווי בלי הקול, והמילים נצבעות כשהן נשמעות (רק בשרת שלנו)
+    const kaRow = kaOk() ? rowSwitch({ label: T('studioKaRow'), sub: T('studioKaRowS'), on: !!f.ka, onClick: () => { f.ka = !f.ka; if (f.ka) { f.ph = false; f.pw = undefined; } render('none'); }, k: 'ka' }) : null;
+    p.append(list(pickRow, f.ka ? null : phRow, f.ka ? null : pwRow, linkRow, f.ka ? null : subsRow, driveRow), kaRow ? list(kaRow) : '');
     const tk = f.trk && f.trk.tracks.length ? f.trk.tracks : null;   // שלב 4
     const hl = tk && f.trk.hlp != null && f.trk.src == null && hlpEngine() ? tk.find((t) => t.id === f.trk.hlp) : null;   // 26/10/2026
     if (tk) p.append(list(rowNav({ tile: tile('cc', 'orange'), label: T('studioTrkRow'), value: T('studioTrkN', { n: fmtNum(tk.length) }), sub: hl ? T('studioTrkHlpRow', { l: trkLabel(hl) }) : T('studioTrkRowS'), onClick: () => go('tracks'), k: 'tracks' })));
@@ -2951,6 +2970,15 @@ function pageForm(p, editing) {
     if (isIOS()) p.append(note(T('studioIosTip')));
   }
 
+  if (f.ka) {   // 26/10/2026: קריוקי — המילים, הקול, ומה לקבל (בלי שפות ובלי מצב תרגום)
+    kaSection(p, f);
+    p.append(secT(T('studioSecOut')), list(...KA_OUTS.map((k) => rowCheck({ label: outName(k), sub: outSub(k), on: !!f.out[k], onClick: () => { f.out[k] = !f.out[k]; render('none'); }, k: 'o:' + k }))), note(T('studioKaOutNote')));
+    p.append(secT(T('studioSecStyle')), stylePicker(f.style, (k) => { f.style = k; render('none'); }));
+    const startKa = btn('st-btn wide', ui.starting ? T('studioStarting') : T('studioKaStart'), startFromForm, 'start');
+    startKa.disabled = !(f.fileObj || f.drive || (f.link && f.linkOk)) || !kaLyr(f.lyr).trim() || ui.starting;
+    const ft = h('div', 'st-foot'); ft.append(startKa, h('p', 'st-foot-n', !kaLyr(f.lyr).trim() ? T('studioKaNeedLyr') : T('studioKaStartNote'))); p.append(ft);
+    return;
+  }
   // שפות
   const ul = uiLang();
   p.append(secT(T('studioSecLangs')), list(
@@ -2970,6 +2998,13 @@ function pageForm(p, editing) {
   } else {
     p.append(secT(T('studioSecOut')), outRows(f.out, f.file ? f.file.size : 0, (k) => { f.out[k] = !f.out[k]; render('none'); }), note(T('studioOutSrtNote')));
     p.append(secT(T('studioSecStyle')), stylePicker(f.style, (k) => { f.style = k; render('none'); }));
+    // 26/10/2026 (בעקבות Vid Hub): גודל, צבע, רקע וגובה כבר בטופס — הצריבה הראשונה משתמשת בהם (עד היום רק בהפקה מחדש)
+    if (OUTS.some((k) => f.out[k])) p.append(styFold('form', f.sty || {}, (patch) => {
+      const next = normSty(Object.assign({}, f.sty || {}, patch));
+      f.sty = next || null;
+      store.settings.sty = next || undefined; if (!next) delete store.settings.sty; save();   // ברירת המחדל לעבודה הבאה
+      render('none');
+    }));
   }
 
   // התחלה: יוצרים עבודה בשרתון ומעלים ל־Drive (הקול קודם). טיוטה — אפשרות משנית
@@ -3024,6 +3059,37 @@ function startSubs(f) {
    ומה שמצאנו מוצג לפני ההתחלה. רק במצב השרת (ה־Routine לא מכיר את המסלול) */
 const SUBS_MAX = 5 * 1024 * 1024;   // = SUBS_MAX בשרתון
 const subsOk = () => apiMode() || cpMode();
+/* 26/10/2026: קריוקי משיר רגיל — רץ כולו בשרת שלנו (הפרדה, יישור, צריבה; בלי Claude), ולכן בכל מנוע כשיש שרת ואחסון */
+const kaOk = () => !!(ui.api && ui.api.servers > 0 && ui.r2 && ui.api.admin);   // עד שמודל ההפרדה בתמונת העובד — רק המנהל (בבדיקה)
+export const KA_LYR_MAX = 8000;   // = KA_LYR_MAX בשרתון ו־LYR_MAX ב־translator/vt/karaoke.py
+const KA_OUTS = ['compact', 'same', 'small'];
+const KA_GV = [0, 10, 20, 30];
+/* המילים מהמשתמש — בלי תווי בקרה וכיווניות (= normLyr בשרתון) */
+export function kaLyr(t) {
+  return String(t == null ? '' : t).replace(/[\u0000-\u0008\u000b-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+    .replace(/\r\n?/g, '\n').slice(0, KA_LYR_MAX);
+}
+/* השדות של הקריוקי ל־spec (קובץ או קישור). המנוע — תמיד השרת שלנו */
+function kaSpec(f, spec) {
+  if (!f.ka) return spec;
+  const out = KA_OUTS.filter((k) => f.out[k]);
+  Object.assign(spec, { ka: 1, lyr: kaLyr(f.lyr), out: out.length ? out : ['compact'], eng: 'api', cap: store.settings.cap },
+    f.bv ? { bv: 1 } : {}, f.gv > 0 ? { gv: f.gv } : {});
+  delete spec.cp; delete spec.ry; delete spec.edl;
+  return spec;
+}
+function kaSection(p, f) {
+  const ta = h('textarea', 'st-ask-in st-ka-lyr');
+  ta.dir = 'auto'; ta.rows = 8; ta.maxLength = KA_LYR_MAX; ta.value = f.lyr || ''; ta.placeholder = T('studioKaLyrPh');
+  ta.setAttribute('aria-label', T('studioKaLyr'));
+  ta.addEventListener('input', () => { f.lyr = ta.value; });
+  p.append(secT(T('studioKaLyr')), ta, note(T('studioKaLyrNote')));
+  const chip = (lbl, on, fn, k) => { const b = btn('st-chip' + (on ? ' on' : ''), lbl, fn, k); b.setAttribute('aria-pressed', on ? 'true' : 'false'); return b; };
+  const gv = h('div', 'st-chips');
+  gv.append(...KA_GV.map((x) => chip(x ? '\u2066' + x + '%\u2069' : T('studioKaGv0'), (f.gv || 0) === x, () => { f.gv = x; render('none'); }, 'ka-gv:' + x)));
+  p.append(secT(T('studioKaVoice')), list(rowSwitch({ label: T('studioKaBv'), sub: T('studioKaBvS'), on: !!f.bv, onClick: () => { f.bv = !f.bv; render('none'); }, k: 'ka-bv' })),
+    secT(T('studioKaGv')), gv);
+}
 function pickSubs(f) {
   if (!subsOk()) { flashSafe(T('studioSubsApiOnly')); return; }
   const inp = h('input'); inp.type = 'file'; inp.hidden = true;
@@ -3851,7 +3917,7 @@ function startLink(f) {
     }
     const n = dlNonce();
     const ch = pick.ch && L.r.ch ? L.r.ch.map((c) => [c[0] - (pick.sec ? pick.sec[0] : 0), c[1]]).filter((c) => c[0] >= 0) : [];
-    const pend = { n, at: Date.now(), dur, f: { from: f.from, to: f.to, mode: f.mode, out: f.out, style: f.style, terms: f.terms, edl: null },
+    const pend = { n, at: Date.now(), dur, f: { from: f.from, to: f.to, mode: f.mode, out: f.out, style: f.style, sty: f.sty || null, terms: f.terms, edl: null },
       t: L.r.t, u: L.r.u || L.u, ch, th: L.r.th || '' };
     try { sessionStorage.setItem(DLP_KEY, JSON.stringify(pend)); } catch (e) {}
     ui.starting = false; ui.dlWait = n; render('none');
@@ -3902,8 +3968,8 @@ function startLinkCloud(f) {   // ישר לענן של Studio (העובד מור
   const L = f.link;
   if (!L || L.st !== 'ok' || ui.starting) return;
   if (ui.access === 'signin' || ui.access === 'denied') { flashSafe(ui.access === 'signin' ? T('studioErrSignin') : T('studioErrDenied')); return; }
-  if (!apiMode() && !cpMode() && !ryMode()) { flashSafe(T('studioLinkApiOnly')); return; }   // 25/10: גם "המנוי שלי" כשיש שרת (ry)
-  if (!langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }
+  if (!apiMode() && !cpMode() && !ryMode() && !(f.ka && kaOk())) { flashSafe(T('studioLinkApiOnly')); return; }   // 25/10: גם "המנוי שלי" כשיש שרת (ry)
+  if (!f.ka && !langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }
   const pick = L.blind ? { h: 0 } : linkPick(L);   // 24/10/2026: "בלי בדיקה" — העובד בוחר לבד (הכי טוב עד 1080p, fetchurl.selector)
   if (!pick) return;
   ui.starting = true; render('none');
@@ -3911,13 +3977,14 @@ function startLinkCloud(f) {   // ישר לענן של Studio (העובד מור
     const dur = pick.sec ? pick.sec[1] - pick.sec[0] : L.r.d || 0;
     const o = L.blind ? {} : L.r.q.find((x) => x.v === pick.v) || {};
     const spec = { name: L.r.t, size: L.blind ? 1 : Math.max(1, linkSize(L)), type: 'video/url', dur, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
-      out: OUTS.filter((k) => f.out[k]), style: f.style, terms: f.terms, src: 'url', url: L.r.u || L.u, pick, eng: 'api', cap: store.settings.cap };
+      out: OUTS.filter((k) => f.out[k]), style: f.style, ...(f.sty ? { sty: f.sty } : {}), terms: f.terms, src: 'url', url: L.r.u || L.u, pick, eng: 'api', cap: store.settings.cap };
     if (L.ref) spec.ref = L.ref;
-    if (cpMode()) spec.cp = 1;
+    if (f.ka) kaSpec(f, spec);   // 26/10/2026: קריוקי מקישור — כמו בסרטונים
+    else if (cpMode()) spec.cp = 1;
     else if (ryMode()) spec.ry = 1;   // 24/10/2026: המנוי שלך — Claude דרך ה־Routine, לא מהמפתח של המערכת
     if (o.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, (o.h * o.h * 16 / 9) / (1920 * 1080))) * 1000) / 1000;
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
-    if (est.min && typeof askConfirm === 'function') {
+    if (est.min && !f.ka && typeof askConfirm === 'function') {
       const yes = await new Promise((ok) => askConfirm(cpMode() ? T('studioEstCp') : estText(est, apiMode()), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) }));
       if (!yes || form !== f) { ui.starting = false; blindUndo(L); render('none'); return; }
     }
@@ -3958,7 +4025,7 @@ async function gotFile(key) {
   ui.dlWait = '';
   form = freshForm(null);
   const f = form;
-  if (pend && pend.f) for (const k of ['from', 'to', 'mode', 'out', 'style', 'terms']) if (pend.f[k] != null) f[k] = pend.f[k];
+  if (pend && pend.f) for (const k of ['from', 'to', 'mode', 'out', 'style', 'sty', 'terms']) if (pend.f[k] != null) f[k] = k === 'sty' ? normSty(pend.f[k]) : pend.f[k];
   f.fileObj = file; f.handle = { inbox: key }; f.drive = null; f.file = { name: file.name, size: file.size, type: file.type || '' };
   f.dl = pend ? { t: pend.t, ch: pend.ch || [], th: pend.th || '' } : null;
   inspectFor(f, file); tracksFor(f, file);
@@ -4222,13 +4289,14 @@ function startFromForm() {
   // 26/10/2026: מקור מהרשימה של Studio (bx) — רק כשהשרת שלנו מתרגם; את Drive הוא קורא בחיבור של הרשימה, לא של הסטודיו
   const bx = !!(f.drive && f.drive.bx);
   if (bx && !(apiMode() || cpMode() || ryMode())) { flashSafe(T('studioDpEng')); return; }
-  const needDrive = !((apiMode() || cpMode() || (bx && ryMode())) && ui.r2 && (!f.drive || bx));
+  const needDrive = !((apiMode() || cpMode() || (bx && ryMode()) || (f.ka && kaOk())) && ui.r2 && (!f.drive || bx));
   if (needDrive && (!store.drive || !store.drive.connected)) {
     if (typeof askConfirm === 'function') askConfirm(T('studioNeedDrive'), connectDrive, { ok: T('studioDriveConnect') });
     else connectDrive();
     return;
   }
-  if (!langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }   // לפני ההעלאה, לא אחריה
+  if (!f.ka && !langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }   // לפני ההעלאה, לא אחריה
+  if (f.ka && (!kaOk() || !kaLyr(f.lyr).trim())) { flashSafe(kaOk() ? T('studioKaNeedLyr') : T('studioKaNoSrv')); return; }
   ui.starting = true; render('none');
   (async () => {
     const file = f.fileObj || f.drive;   // מ־Drive: הפרטים מ־Drive (בלי לקרוא את הקובץ בטלפון)
@@ -4236,16 +4304,17 @@ function startFromForm() {
     const pr = f.fileObj ? (sm && sm.dur ? { dur: sm.dur } : await probeVideo(file)) : { dur: f.drive.dur || 0 };
     const ed = edlPre(normEdl(f.edl, pr.dur || 0));   // מ4: חיתוך לפני התרגום — האורך (ומכאן ההערכות) אחרי החיתוך
     const spec = { name: file.name, size: file.size, type: file.type || '', dur: ed ? edlDur(ed, pr.dur || 0) : pr.dur || 0, from: f.from, to: f.to,
-      mode: modeFor(f.mode, ui.mf), out: OUTS.filter((k) => f.out[k]), style: f.style, terms: f.terms };   // 15/10: מצב שסגור למשתמש → ברירת המחדל
+      mode: modeFor(f.mode, ui.mf), out: OUTS.filter((k) => f.out[k]), style: f.style, ...(f.sty ? { sty: f.sty } : {}), terms: f.terms };   // 15/10: מצב שסגור למשתמש → ברירת המחדל
     if (ed) spec.edl = ed;
     // 21/10/2026: מידות הסרטון (מהבדיקה בבחירה) → px לצפי של הצריבה; הקצב לא ידוע כאן — 30 פריימים (העובד מתקן אחרי הקליטה)
     if (sm && sm.w > 0 && sm.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, sm.w * sm.h / (1920 * 1080))) * 1000) / 1000;
     if (apiMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap });   // השרת של המערכת — בלי Routine
     else if (cpMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap, cp: 1 });   // סבב 10: העתק־הדבק — השרת מתמלל וצורב, Claude שלך מתרגם
     else if (ryMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap, ry: 1 });   // 24/10/2026: המנוי שלך — השרת עושה הכל, Claude דרך ה־Routine
+    kaSpec(f, spec);   // 26/10/2026: קריוקי — בלי Claude, בלי אומדן עלות
     // מ6 (כלל 2): אומדן ואישור לפני ההתחלה — עוד לפני שנוצרת עבודה ולפני ההעלאה
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
-    if (est.min && !f.estOk && typeof askConfirm === 'function') {   // estOk — מקישור: האומדן אושר לפני ההורדה בטלפון
+    if (est.min && !f.ka && !f.estOk && typeof askConfirm === 'function') {   // estOk — מקישור: האומדן אושר לפני ההורדה בטלפון
       const yes = await new Promise((ok) => askConfirm(cpMode() ? T('studioEstCp') : estText(est, apiMode()), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) }));
       if (!yes || form !== f) { ui.starting = false; render('none'); return; }
     }
@@ -5040,6 +5109,8 @@ function incTitle(e) {
     case 'ph_meta': return T('studioErrPhMeta');
     case 'ph_words': return T('studioErrPhWords');
     case 'lang_unsupported': return T('studioIncLang');
+    case 'ka_lyrics': return T('studioKaNeedLyr');
+    case 'ka_noaudio': return T('studioKaNoAudio');
     case 'max_tokens': return T('studioIncMaxTok');
     default: return /^routine_/.test(e) ? T('studioIncRDown') : T('studioIncWorker');
   }
@@ -7155,6 +7226,67 @@ function stySet(patch) {
   if (sy && sy.ctl) sy.ctl.setStyle(next);
   render('none');
 }
+/* 26/10/2026 (בעקבות Vid Hub): הבקרות של העיצוב — משותפות לטופס, לדף העבודה (בזמן שהיא רצה) ולהפקה מחדש */
+function styControls(st, set) {
+  const out = [];
+  const chipRow = (items) => { const r = h('div', 'st-chips st-sty-row'); r.append(...items); return r; };
+  const chip = (lbl, on, fn, k) => { const b = btn('st-chip' + (on ? ' on' : ''), lbl, fn, k); b.setAttribute('aria-pressed', on ? 'true' : 'false'); return b; };
+  const k = st.k || 100, sizes = [80, 90, 100, 120, 140].concat(st.k && ![80, 90, 100, 120, 140].includes(st.k) ? [st.k] : []).sort((a, b) => a - b);   // שורה אחת (מינימליזם)
+  out.push(secT(T('studioStySize')), chipRow(sizes.map((x) => chip('\u2066' + x + '%\u2069', x === k, () => set({ k: x }), 'sty-k:' + x))));
+  out.push(secT(T('studioStyColor')), chipRow(Object.keys(STY_COLORS).map((c) => {
+    const b = chip('', (st.c || 'w') === c, () => set({ c }), 'sty-c:' + c);
+    const dot = h('span', 'st-sty-dot'); dot.style.background = STY_COLORS[c];
+    b.append(dot, document.createTextNode(styColName(c)));
+    return b;
+  })));
+  out.push(list(rowSwitch({ label: T('studioStyBox'), sub: T('studioStyBoxS'), on: !!st.bx, onClick: () => set({ bx: !st.bx }), k: 'sty-bx' })));
+  const ys = [0, 10, 20, 30, STY_Y];
+  out.push(secT(T('studioStyHeight')), chipRow(ys.map((y) => chip(y ? '\u2066+' + y + '%\u2069' : T('studioStyBottom'), (st.y || 0) === y, () => set({ y }), 'sty-y:' + y))));
+  return out;
+}
+/* תצוגה מיידית בלי סרטון — אותו CSS של הכתוביות בנגן (setStyle), על "תמונה" כהה */
+function stySample(st) {
+  const box = h('div', 'st-pl hide st-sty-pv' + (st.bx ? ' boxed' : ''));
+  box.setAttribute('aria-hidden', 'true');
+  box.style.setProperty('--sub-k', String((st.k || 100) / 100));
+  box.style.setProperty('--sub-c', STY_COLORS[st.c || 'w']);
+  box.style.setProperty('--sub-lift', (st.y || 0) + '%');
+  const sub = h('div', 'st-pl-sub'), d = h('div');
+  d.append(h('span', null, T('studioStySample1')), document.createElement('br'), h('span', null, T('studioStySample2')));
+  sub.append(d); box.append(sub);
+  return box;
+}
+/* מקטע מתקפל: "עיצוב הכתוביות · <סיכום>" → תצוגה + הבקרות. key = איזה מקטע פתוח (ui.styOpen) */
+function styFold(key, st, set) {
+  const open = ui.styOpen === key;
+  const wrap = h('div', 'st-sty-fold');
+  wrap.append(list(rowNav({ label: T('studioStyT'), value: stySum(normSty(st)), onClick: () => { ui.styOpen = open ? '' : key; render('none'); }, k: 'styfold:' + key })));
+  if (open) wrap.append(stySample(st || {}), ...styControls(st || {}, set));
+  return wrap;
+}
+/* העיצוב של עבודה שכבר רצה — נשמר מיד בעבודה, ונשלח לשרתון אחרי 600ms בלי נגיעה (רק הבחירה האחרונה) */
+const styT = new Map();
+function jobStySet(rec, patch) {
+  const next = normSty(Object.assign({}, rec.spec.sty || {}, patch));
+  if (next) rec.spec.sty = next; else delete rec.spec.sty;
+  store.settings.sty = next || undefined; if (!next) delete store.settings.sty;   // גם ברירת המחדל לעבודה הבאה
+  save();
+  clearTimeout(styT.get(rec.id));
+  styT.set(rec.id, setTimeout(() => {
+    styT.delete(rec.id);
+    Promise.resolve(net.api('sty', { job: rec.id, sty: rec.spec.sty || null })).then((k) => { if (k && !k.ok && k.error !== 'state') flashSafe(errText(k.error)); }, () => {});
+  }, 600));
+  render('none');
+}
+/* אפשר לשנות עד שהצריבה מתחילה: עבודת תרגום עם תוצר וידאו, שלא בטלפון, ושעוד לא הגיעה לשלב הצריבה */
+function styEditable(rec) {
+  const sp = rec && rec.spec || {};
+  if (sp.ph || sp.src === 'subs' || !(sp.out || []).some((k) => OUTS.includes(k))) return false;
+  const st = rec.srv && rec.srv.state;
+  if (st && st !== 'new' && st !== 'queued' && st !== 'running') return false;
+  const stg = rec.srv && rec.srv.prog && rec.srv.prog.st;
+  return !stg || !['bn', 'sv'].includes(stg);
+}
 function pageSty(p) {
   const rec = jobRec(ui.param);
   if (!rec || !canEdit(rec)) { back(); return; }
@@ -7172,19 +7304,7 @@ function pageSty(p) {
   const st = rrSty() || {};
   if (sy.ctl) { sy.ctl.setStyle(st); const top = h('div', 'st-se-top'); top.append(sy.ctl.el); p.append(top); }
   else p.append(h('div', 'st-pl-ph', T('studioPlNoSw')));
-  const chipRow = (items) => { const r = h('div', 'st-chips st-sty-row'); r.append(...items); return r; };
-  const chip = (lbl, on, fn, k) => { const b = btn('st-chip' + (on ? ' on' : ''), lbl, fn, k); b.setAttribute('aria-pressed', on ? 'true' : 'false'); return b; };
-  const k = st.k || 100, sizes = [80, 90, 100, 120, 140].concat(st.k && ![80, 90, 100, 120, 140].includes(st.k) ? [st.k] : []).sort((a, b) => a - b);   // שורה אחת (מינימליזם)
-  p.append(secT(T('studioStySize')), chipRow(sizes.map((x) => chip('\u2066' + x + '%\u2069', x === k, () => stySet({ k: x }), 'sty-k:' + x))));
-  p.append(secT(T('studioStyColor')), chipRow(Object.keys(STY_COLORS).map((c) => {
-    const b = chip('', (st.c || 'w') === c, () => stySet({ c }), 'sty-c:' + c);
-    const dot = h('span', 'st-sty-dot'); dot.style.background = STY_COLORS[c];
-    b.append(dot, document.createTextNode(styColName(c)));
-    return b;
-  })));
-  p.append(list(rowSwitch({ label: T('studioStyBox'), sub: T('studioStyBoxS'), on: !!st.bx, onClick: () => stySet({ bx: !st.bx }), k: 'sty-bx' })));
-  const ys = [0, 10, 20, 30, STY_Y];
-  p.append(secT(T('studioStyHeight')), chipRow(ys.map((y) => chip(y ? '\u2066+' + y + '%\u2069' : T('studioStyBottom'), (st.y || 0) === y, () => stySet({ y }), 'sty-y:' + y))));
+  p.append(...styControls(st, stySet));
   if (rrSty()) p.append(btn('st-btn ghost wide', T('studioStyReset'), () => { rrOpt.sty = null; delete store.settings.sty; save(); if (sy && sy.ctl) sy.ctl.setStyle(null); render('none'); }, 'sty-reset'));
   p.append(note(T('studioStyNote')));
 }
@@ -7677,6 +7797,8 @@ function pageJob(p) {
   if (tline) p.append(tline);
   const ix = ui.inc && ui.inc.list.find((x) => x.j === rec.id);   // v371: התקלה של העבודה — שורה אחת, הפרטים בדף התקלה
   if (ix) p.append(list(incRow(ix, true)));
+  // 26/10/2026 (בעקבות Vid Hub): העיצוב אפשר לשנות גם בזמן ההמתנה — העובד שואל לפני הבנייה, עד שהצריבה מתחילה
+  if (styEditable(rec)) p.append(styFold('job:' + rec.id, rec.spec.sty || {}, (patch) => jobStySet(rec, patch)));
 
   // מה קורה עכשיו — משפט אחד + דוגמה חיה
   const nowc = h('div', 'st-nowc');
@@ -7763,12 +7885,14 @@ function pageJob(p) {
   const m0 = modelFor(rec);
   const stl = h('div', 'st-stages');
   for (const s of m0.stages) {
+    if (rec.spec.ka && (s.id === 'tl' || s.id === 'rv')) continue;   // 26/10/2026: קריוקי — בלי תרגום וביקורת
     const row = h('div', 'st-stg ' + s.state);
     const dot = h('span', 'dot');
     if (s.state === 'done') dot.append(ico('check'));
     else if (s.state === 'now') dot.append(h('span', 'st-spin'));
     const txt = h('span', 'st-l');
-    txt.append(h('b', null, stageName(s.id, toTxt, rec.spec.src === 'subs')), h('small', null, stageSub(s.id, rec.spec.src === 'subs')));
+    const sk = rec.spec.ka ? 'ka' : rec.spec.src === 'subs';
+    txt.append(h('b', null, stageName(s.id, toTxt, sk)), h('small', null, stageSub(s.id, sk)));
     const tm = h('span', 'st-stg-t');
     row.append(dot, txt, tm);
     if (s.state === 'now') { const pb = h('span', 'st-pbar'); const pi = h('i'); pb.append(pi); txt.append(pb); live(pb, () => { const mm = modelFor(jobRec(id) || rec).stages.find((x) => x.id === s.id); pi.style.width = Math.round(100 * shownPct(jobRec(id) || rec, mm && (mm.pv != null ? mm.pv : mm.p), s.id)) + '%'; }); }

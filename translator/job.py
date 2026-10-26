@@ -1300,6 +1300,37 @@ def vt_style(spec):
     return s if s in VT_STYLES else 'bold'
 
 
+def sty_refresh(ctx):
+    """26/10/2026: העיצוב (גודל, צבע, רקע, גובה) אפשר לשנות גם בזמן שהעבודה רצה — לפני כל בנייה בודקים מה נבחר עכשיו.
+    קריאה אחת ל־op qa (קריאה בלבד); תקלה = מה שנשמר בלקיחה."""
+    spec = ctx.st.get('spec')
+    if not isinstance(spec, dict) or getattr(ctx, 'c', None) is None:
+        return
+    try:
+        j = ctx.c.call('qa') or {}
+    except (SystemExit, Exception):
+        return
+    if not isinstance(j, dict) or 'sty' not in j:
+        return                                   # שרתון ישן — לא יודע לענות
+    sty = j.get('sty') if isinstance(j.get('sty'), dict) else None
+    if sty != spec.get('sty'):
+        if sty:
+            spec['sty'] = sty
+        else:
+            spec.pop('sty', None)
+        save_state(ctx.st)
+
+
+def build_args(ctx):
+    """הדגלים של vt build: הסגנון מהטופס + העיצוב (רק מספרים וקודים — vt/sty.py מנרמל שוב)."""
+    sty_refresh(ctx)
+    spec = ctx.st.get('spec') or {}
+    out = ['--style', vt_style(spec)]
+    if isinstance(spec.get('sty'), dict) and spec['sty']:
+        out += ['--sty', json.dumps(spec['sty'], separators=(',', ':'))]
+    return out
+
+
 def terms_line(spec):
     """השדה "שמות ומונחים" מהטופס — שורה אחת, בלי תווי בקרה (נתונים מהמשתמש, לא הוראות)."""
     t = re.sub(r'[\x00-\x1f\x7f]+', ' / ', str((spec or {}).get('terms') or ''))
@@ -3538,7 +3569,7 @@ def judge_prep(args):
     if (ctx.st.get('rl') or {}).get('jx'):
         print('· שופט האיכות כבוי בחוקים שלך — מדלגים ישר ל־finish.')
         return 0
-    for c in (['tr-merge', ctx.name], ['build', ctx.name, '--style', vt_style(ctx.st.get('spec'))], ['review-pack', ctx.name]):
+    for c in (['tr-merge', ctx.name], ['build', ctx.name] + build_args(ctx), ['review-pack', ctx.name]):
         vt(ctx, c)
     try:
         pkg = (ctx.pdir / 'review' / 'package.md').read_text(encoding='utf-8')
@@ -3707,6 +3738,8 @@ def auto(args):
             return ai_auto(args)
         if load_state().get('kind') == 'dx':      # 26/10/2026: התוצרים ל־Drive
             return dx_auto(args)
+        if (load_state().get('spec') or {}).get('ka') == 1:   # 26/10/2026: קריוקי משיר רגיל — בלי Claude
+            return karaoke(args)
         import pipeline
         return pipeline.run_auto(sys.modules[__name__], args)
     except Stop as e:
@@ -4080,6 +4113,115 @@ def render(args):
     return 0
 
 
+# 26/10/2026: קריוקי משיר רגיל (spec.ka = 1) — הפרדה, יישור המילים שהודבקו, מילה שנצבעת כשהיא נשמעת, צריבה מעל הליווי.
+# בלי Claude ובלי טוקנים. השלבים (אותם מפתחות של התרגום — הטלפון מציג להם שמות של קריוקי): up הורדה · tr הפרדה ·
+# al יישור · bn צריבה · sv שמירה
+KA_OUTS = ('compact', 'same', 'small')
+
+
+def ka_spec(spec):
+    """מה שהעובד לוקח מהטופס: המילים (טקסט — רק לקובץ), עם קולות רקע, הקול המנחה באחוזים, ואיזה סרטון."""
+    spec = spec or {}
+    want = [k for k in (spec.get('out') or []) if k in KA_OUTS] or ['compact']
+    try:
+        gv = max(0, min(60, int(spec.get('gv') or 0)))
+    except (TypeError, ValueError):
+        gv = 0
+    return {'lyr': str(spec.get('lyr') or ''), 'bv': spec.get('bv') == 1, 'gv': gv, 'want': want}
+
+
+@guarded
+def karaoke(args):
+    ctx = Ctx(load_state())
+    spec = ctx.st.get('spec') or {}
+    ks = ka_spec(spec)
+    if not ks['lyr'].strip():
+        ctx.report(fail=True, err='ka_lyrics', force=True)
+        raise SystemExit('✗ אין מילים לשיר — בשלב הזה מדביקים אותן בטופס.')
+    url_fetch(ctx)                                   # מקישור — כמו בסרטונים
+    files = ctx.st.get('files') or {}
+    v = files.get('v') if (files.get('v') or {}).get('id') else None
+    f = v or wait_video(ctx, 'up', 'מחכה שהשיר יסיים לעלות')
+    src = in_path(ctx, f, 'v')
+    ctx.report('up', 0, 'מורידים את השיר', force=True)
+    fetch_input(ctx, f['id'], src, int(f.get('size') or 0), lambda x: ctx.report('up', x))
+    ensure_env(ctx, 'tr')
+    work = VT_WORK / '_ka' / ctx.name
+    work.mkdir(parents=True, exist_ok=True)
+    info = json.loads(subprocess.run(['ffprobe', '-v', 'error', '-print_format', 'json', '-show_streams', '-show_format', str(src)],
+                                     capture_output=True, text=True, check=True).stdout or '{}')
+    vs = [x for x in info.get('streams') or [] if x.get('codec_type') == 'video' and not (x.get('disposition') or {}).get('attached_pic')]
+    dur = float((info.get('format') or {}).get('duration') or 0)
+    if not any(x.get('codec_type') == 'audio' for x in info.get('streams') or []) or dur <= 0:
+        ctx.report(fail=True, err='ka_noaudio', force=True)
+        raise SystemExit('✗ אין בקובץ שמע.')
+    song = work / 'song.wav'
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(src), '-vn', '-ac', '2', '-ar', '44100', str(song)], check=True)
+    # 1. הפרדה — הכבד ביותר (שלב כבד: לא במקביל לשום דבר)
+    ctx.report('tr', 0, 'מפרידים את הקול מהליווי', force=True)
+    script(ctx, 'karaoke.py', ['sep', '--src', str(song), '--out', str(work)] + (['--backing'] if ks['bv'] else []), 'tr')
+    inst = work / ('inst_bv.wav' if ks['bv'] and (work / 'inst_bv.wav').exists() else 'inst.wav')
+    voc16 = work / 'voc16k.wav'
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(work / 'voc.wav'), '-ac', '1', '-ar', '16000', str(voc16)], check=True)
+    # 2. המילים → עיגון לתמלול של הקול → יישור לכל מילה
+    lyr = work / 'lyrics.txt'
+    lyr.write_text(ks['lyr'], encoding='utf-8')
+    ctx.report('al', 0, 'מתאימים כל מילה לרגע שבו היא נשמעת', force=True)
+    script(ctx, 'karaoke.py', ['align', '--voc', str(voc16), '--lyrics', str(lyr), '--out', str(work / 'words.json')], 'al')
+    # 3. הכתוביות והסרטון
+    W, H = (int(vs[0].get('width') or 1920), int(vs[0].get('height') or 1080)) if vs else (1920, 1080)
+    title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120]
+    out = work / 'out'
+    script(ctx, 'karaoke.py', ['build', '--words', str(work / 'words.json'), '--out', str(out), '--W', str(W), '--H', str(H),
+                               '--title', title, '--style', vt_style(spec)], 'bn', 0, 0.05)
+    base = src
+    if not vs:                                       # שיר בלי וידאו — רקע באורך השיר
+        base = work / 'bg.mp4'
+        script(ctx, 'karaoke.py', ['video', '--audio', str(song), '--dur', f'{dur:.3f}', '--out', str(base)], 'bn', 0.05, 0.15)
+    res = []
+    for i, k in enumerate(ks['want']):
+        burned = work / ('burn_' + k + '.mp4')
+        ctx.report('bn', 0.15 + 0.8 * i / len(ks['want']), 'צורבים את המילים', force=True)
+        script(ctx, 'karaoke.py', ['burn', '--src', str(base), '--ass', str(out / 'karaoke.ass'), '--out', str(burned),
+                                   '--work', str(work / 'ov'), '--profile', 'same' if k == 'same' else 'small'],
+               'bn', 0.15 + 0.8 * i / len(ks['want']), 0.15 + 0.8 * (i + 1) / len(ks['want']))
+        final = work / (ctx.name + '.' + k + '.mp4')
+        script(ctx, 'karaoke.py', ['mix', '--video', str(burned), '--inst', str(inst), '--voc', str(work / 'voc.wav'),
+                                   '--gv', str(ks['gv']), '--out', str(final)], 'bn')
+        if k == 'small':
+            subprocess.run([VT_PY, '-c', 'import sys; sys.path.insert(0, sys.argv[1]); from pathlib import Path; '
+                            'from vt.render import small_copy; small_copy(Path(sys.argv[2]), Path(sys.argv[3]), float(sys.argv[4]))',
+                            str(HERE), str(final), str(work / 'small.mp4'), str(SMALL_MB)], check=True, env=vt_env(), cwd=str(HERE))
+            final = work / 'small.mp4'
+        res.append((k, final, title + {'compact': ' (קריוקי).mp4', 'same': ' (קריוקי, איכות מקור).mp4',
+                                        'small': ' (קריוקי, קטן).mp4'}[k], 'video/mp4'))
+    ia = work / 'inst.m4a'
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(inst), '-c:a', 'aac', '-b:a', '192k', str(ia)], check=True)
+    res += [('inst', ia, title + ' (ליווי).m4a', 'audio/mp4'),
+            ('lrc', out / 'karaoke.lrc', title + '.lrc', 'text/plain'),
+            ('elrc', out / 'karaoke.elrc.lrc', title + ' (מילה אחר מילה).lrc', 'text/plain'),
+            ('ass', out / 'karaoke.ass', title + '.ass', 'text/x-ssa')]
+    # 4. שמירה
+    ctx.report('sv', 0, 'שומרים', force=True)
+    total = sum(p.stat().st_size for _, p, _, _ in res if p.exists()) or 1
+    done, up = 0, []
+    for k, p, name, mime in res:
+        if not p.exists():
+            raise SystemExit('✗ התוצר ' + p.name + ' לא נוצר.')
+        size = p.stat().st_size
+        fid = put_output(ctx, p, name, k, mime, lambda x, b=done, s=size: ctx.report('sv', (b + x * s) / total))
+        done += size
+        up.append({'id': fid, 'name': name, 'size': size, 'k': k})
+    ctx.report(done=True, out=up, msg='הקריוקי מוכן', force=True)
+    shutil.rmtree(work, ignore_errors=True)
+    try:
+        src.unlink()
+    except OSError:
+        pass
+    print('✓ הקריוקי מוכן: ' + ', '.join(o['name'] for o in up))
+    return 0
+
+
 OUT_FILES = (                                     # (סוג, קובץ של vt, סיומת לשם, mime)
     ('compact', '{n}.he.compact.mp4', ' (עברית).mp4', 'video/mp4'),
     ('same', '{n}.he.mp4', ' (עברית, איכות מקור).mp4', 'video/mp4'),
@@ -4381,7 +4523,7 @@ def finish(args):
     shots_join(ctx)                              # 21/10/2026: השוטים רצו ברקע בזמן הביקורת — לפני הנקודה (שתכלול אותם) והבנייה
     save_ck(ctx, 'rv')                           # התרגום אחרי הביקורת — אם הצריבה או ההעלאה נקטעות, ממשיכים מכאן
     vt(ctx, ['tr-merge', ctx.name])
-    vt(ctx, ['build', ctx.name, '--style', vt_style(ctx.st.get('spec'))])
+    vt(ctx, ['build', ctx.name] + build_args(ctx))
     if want and (ctx.st.get('rl') or {}).get('ab') and not approve_render(ctx):
         print('· בלי צריבה (המשתמש בחר רק קובץ כתוביות, או לא ענה בזמן) — מעלים את קובץ הכתוביות.')
         want = []

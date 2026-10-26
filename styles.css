@@ -1213,6 +1213,7 @@ footer.fine { text-align: center; }
   background: var(--surface); color: var(--on-surface); text-align: start;
 }
 .acx-in:focus { outline: 2px solid var(--primary); outline-offset: -1px; }
+.acx-in.acx-code { direction: ltr; text-align: center; font-size: 28px; letter-spacing: .35em; font-variant-numeric: tabular-nums; }
 .acx-go { width: 100%; justify-content: center; }
 .acx-links, .acx-add { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .acx-add { gap: 0; margin-top: 4px; }

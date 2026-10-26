@@ -386,7 +386,7 @@ def cmd_tr_merge(a):
     pr.mark("tr_merge", count=len(out), missing=len(missing))
 
 
-def build(pr: Project, style_name: str | None = None) -> dict:
+def build(pr: Project, style_name: str | None = None, sty: dict | None = None) -> dict:
     """25/10/2026: שבירת השורות בזמן הבנייה — בחירה של Haiku (tr/linebreak.json) › מודל תחבירי › הכללים (vt/linebreak.py)."""
     from .hebrew import set_break_chooser
     from . import linebreak as LB
@@ -394,12 +394,12 @@ def build(pr: Project, style_name: str | None = None) -> dict:
     chooser = LB.Chooser(LB.load_picks(pr.tr_dir / "linebreak.json"), model if model and model.available() else None)
     set_break_chooser(chooser)
     try:
-        return _build(pr, style_name, chooser)
+        return _build(pr, style_name, chooser, sty)
     finally:
         set_break_chooser(None)
 
 
-def _build(pr: Project, style_name: str | None, chooser) -> dict:
+def _build(pr: Project, style_name: str | None, chooser, sty: dict | None = None) -> dict:
     from .hebrew import layout_lines, Measurer, visible_len
     from . import linebreak as LB
     from .media import grid_from
@@ -412,8 +412,11 @@ def _build(pr: Project, style_name: str | None, chooser) -> dict:
     info = _info(pr)
     v = info.get("video") or {"width": 1920, "height": 1080}
     W, H = int(v["width"]), int(v["height"])
-    style = _style(meta, style_name)
+    # 26/10/2026: העיצוב שנבחר בטופס (או בזמן העבודה) כבר בבנייה — גם המדידה ושבירת השורות לפי הגודל החדש
+    from .sty import apply_sty, box_ass
+    style = apply_sty(_style(meta, style_name), sty)
     st = style.scaled(W, H)
+    fix = box_ass if sty and sty.get("bx") else (lambda t: t)
     tr = C.timing_rules(meta["settings"].get("timing"))
     tx = C.text_rules(meta["settings"].get("text"))
     grid = grid_from(info)
@@ -468,10 +471,10 @@ def _build(pr: Project, style_name: str | None, chooser) -> dict:
     od = pr.out_dir
     od.mkdir(parents=True, exist_ok=True)
     title = meta.get("title", pr.name)
-    write_text(od / "he.ass", write_ass(final, style, W, H, title))
+    write_text(od / "he.ass", fix(write_ass(final, style, W, H, title)))
     write_text(od / "he.srt", write_srt(final), bom=True)
     write_text(od / "he.vtt", write_vtt(final))
-    write_text(od / "he.player.ass", write_ass_compat(final, style, W, H, title))   # לרצועה הרכה ב־MKV
+    write_text(od / "he.player.ass", fix(write_ass_compat(final, style, W, H, title)))   # לרצועה הרכה ב־MKV
     en_cues = [dict(c, en_lines=[c["en"]]) for c in final]
     write_text(od / "en.reference.srt", write_srt(en_cues, with_rlm=False, key="en_lines"))
     keep = ("id", "spk", "speech_s", "speech_e", "si", "so", "fi", "fo", "start", "end", "lines", "chars",
@@ -494,12 +497,18 @@ def _build(pr: Project, style_name: str | None, chooser) -> dict:
         f"· לא נכנסו: {len(bad_fit)} → out/")
     u = chooser.used
     log(f"שבירת שורות: בחירה {u['pick']} · מודל {u['tree']} · כללים {u['rules']} · לבחירה של Claude: {len(lb_items)}")
-    pr.mark("build", style=style.name, **stats)
+    pr.mark("build", style=style.name, **({"sty": sty} if sty else {}), **stats)
     return {"cues": final, "stats": stats, "bad_fit": bad_fit}
 
 
 def cmd_build(a):
-    build(Project(a.name), a.style)
+    import json
+    from .sty import norm_sty
+    try:
+        sty = norm_sty(json.loads(a.sty)) if a.sty else None
+    except ValueError:
+        sty = None
+    build(Project(a.name), a.style, sty)
 
 
 def cmd_lb_prompt(a):
@@ -788,6 +797,7 @@ def main(argv=None):
     p.add_argument("--allow-missing", action="store_true")
     p = add("build", cmd_build, "name", help="בניית כתוביות + QC")
     p.add_argument("--style", choices=list(C.STYLES))
+    p.add_argument("--sty", default="", help="עיצוב הכתוביות (JSON: k/c/bx/y — מספרים וקודים בלבד)")
     add("breaks", cmd_breaks, "name", help="רשימת שבירות שורה לבדיקה")
     add("lb-prompt", cmd_lb_prompt, "name", help="שבירת שורות: ההנחיה לבחירה של Claude (tr/lb_prompt.md)")
     p = add("lb-apply", cmd_lb_apply, "name", help="שבירת שורות: התשובה של Claude → tr/linebreak.json")

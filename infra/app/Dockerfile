@@ -15,7 +15,9 @@ COPY --chown=root:root ibkr-proxy/server.js ibkr-proxy/vercel.json ibkr-proxy/pa
 RUN find /app -type d -exec chmod 755 {} + && find /app -type f -exec chmod 644 {} + \
  && node --check /app/server.js && for f in /app/api/*.js; do node --check "$f"; done
 
-ENV NODE_ENV=production PORT=3000
+# 26/10/2026: ה־commit שממנו נבנתה התמונה — ב־/healthz?v=1 (app-image.yml מעביר אותו)
+ARG SNB_GIT_SHA=
+ENV NODE_ENV=production PORT=3000 SNB_GIT_SHA=${SNB_GIT_SHA}
 USER 10001:10001
 WORKDIR /app
 EXPOSE 3000
