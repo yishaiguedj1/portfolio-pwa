@@ -114,6 +114,24 @@ const find = (x, m, k, p) => x.find((r) => r.m === m && r.k === k && r.p === p);
   const y = { fy: ['2024-12-31'], q: [], A: { eps: [2.5] }, Q: {} };
   ok(find(X.xcheck(d, facts([]), y, null), 'eps', 'A', '2024-12-31').c === 'yfill', 'השלמה מ־Yahoo — yfill (לא ok)');
 }
+// 10ב. זרוע מימון (gpx 'fin'): רווח גולמי מ־Yahoo, שונה מ־SEC הגולמי — לא bug; Nasdaq שמאשר → ok (Ford: ‏Yahoo = Nasdaq)
+{
+  const f = facts([['Revenues', 'USD', [[...Y(2024), 1000e6, '10-K', '2025-02-01']]], ['CostOfRevenue', 'USD', [[...Y(2024), 400e6, '10-K', '2025-02-01']]]]);
+  const d = base({ gpx: 'fin', tags: { rev: 'Revenues', cogs: 'CostOfRevenue' }, A: { rev: [null, 1000e6], gp: [null, 520e6] } });
+  const y = { fy: ['2024-12-31'], q: [], A: { gp: [520e6], rev: [1000e6] }, Q: {} };
+  const nq = { A: { ends: ['2024-12-31'], v: { gp: { '2024-12-31': 520e6 } } } };
+  ok(find(X.xcheck(d, f, y, null), 'gp', 'A', '2024-12-31').c === 'yfill', 'זרוע מימון בלי Nasdaq — yfill');
+  const r = find(X.xcheck(d, f, y, nq), 'gp', 'A', '2024-12-31');
+  ok(r.c === 'ok' && r.raw === 600e6, 'זרוע מימון — Nasdaq מאשר את הרווח הגולמי של Yahoo: ok, לא bug מול הכנסות − עלות המכר');
+}
+// 10ג. רבעון רביעי של רווח גולמי מחושב, כש־9 החודשים הוצגו מחדש בדוח מאוחר (Becton Dickinson): הייחוס כפי שדווח לראשונה
+{
+  const f = facts([['Revenues', 'USD', [[...Y(2024), 1000e6, '10-K', '2025-02-01'], ['2024-01-01', '2024-09-30', 700e6, '10-Q', '2024-11-01'], ['2024-01-01', '2024-09-30', 600e6, '10-Q', '2025-11-01']]],
+    ['CostOfRevenue', 'USD', [[...Y(2024), 600e6, '10-K', '2025-02-01'], ['2024-01-01', '2024-09-30', 400e6, '10-Q', '2024-11-01'], ['2024-01-01', '2024-09-30', 380e6, '10-Q', '2025-11-01']]]]);
+  const d = base({ tags: { rev: 'Revenues', cogs: 'CostOfRevenue' }, q: ['2024-12-31'], A: { rev: [null, 1000e6], gp: [null, 400e6] }, Q: { rev: [300e6], gp: [100e6] }, derived: { gp: ['2024-12-31'] } });
+  const r = find(X.xcheck(d, f, null, null), 'gp', 'Q', '2024-12-31');
+  ok(r && r.c !== 'bug' && r.raw === 100e6 && r.rf === 'rev-cogs·orig', 'רבעון רביעי של רווח גולמי — 9 חודשים כפי שדווחו לראשונה (לא מעורב עם ההצגה מחדש)');
+}
 // 11. מאזן: 10-Q מאוחר הציג מחדש את סוף השנה — הערך מה־10-K תקף (המדיניות של fundamentals)
 {
   const f = facts([['CashAndCashEquivalentsAtCarryingValue', 'USD', [[null, '2024-12-31', 12487e6, '10-K', '2025-02-17'], [null, '2024-12-31', 12273e6, '10-Q', '2025-10-22']]]]);
@@ -216,7 +234,7 @@ const find = (x, m, k, p) => x.find((r) => r.m === m && r.k === k && r.p === p);
   ok(r.c === 'def' && r.why === 'capex_part', 'Nasdaq = רק שורת הרכוש הקבוע (Akamai) — def capex_part');
 }
 // (ו) מול הדוח המודפס (opt.face): הערך שלנו מודפס → okd face; המקור = אנחנו + שורה מודפסת אחרת → odd fline (אולי חסרה לנו שורה — Host);
-//     התגית שלנו לא מודפסת → odd nf; שורת רכישות מודפסת (תגית פרטית) → def capex_acq (Devon)
+//     התגית שלנו לא מודפסת → odd nf; שורת רכישות מודפסת (תגית פרטית) → okd capex_acq (Devon; מ־26/10/2026 — ההגדרה של המקור)
 {
   const C = 'PaymentsForCapitalImprovements';
   const f = facts([[C, 'USD', [[...Y(2024), 260e6, '10-K', '2025-02-01']]]]);
@@ -230,7 +248,7 @@ const find = (x, m, k, p) => x.find((r) => r.m === m && r.k === k && r.p === p);
   r = find(X.xcheck(d, f, null, nq(300e6), { face: face([['PaymentsToAcquireProductiveAssets', 'Capital expenditures', -300]]) }), 'capex', 'A', '2024-12-31');
   ok(r.c === 'odd' && r.why === 'nf', 'התגית שלנו לא מודפסת בדוח — odd nf (Kimco)');
   r = find(X.xcheck(d, f, null, nq(3905e6), { face: face([[C, 'Capital expenditures', -260], ['PaymentsToPropertyAndEquipmentAcquisition', 'Acquisitions of property and equipment', -3645]]) }), 'capex', 'A', '2024-12-31');
-  ok(r.c === 'def' && r.why === 'capex_acq', 'המקור כולל שורת רכישות מודפסת (תגית פרטית, אין ב־companyfacts) — def capex_acq');
+  ok(r.c === 'okd' && r.why === 'capex_acq', 'המקור כולל שורת רכישות מודפסת (תגית פרטית, אין ב־companyfacts) — ההגדרה של המקור (okd capex_acq, מ־26/10/2026)');
   r = find(X.xcheck(d, f, null, nq(300e6)), 'capex', 'A', '2024-12-31');
   ok(r.c === 'odd' && !r.why, 'בלי הדוח המודפס — odd בלי הסבר');
 }
@@ -351,5 +369,67 @@ ok(X.PROBLEM.has('odd') && !X.PROBLEM.has('def') && !X.PROBLEM.has('okd'), 'odd 
   const q4 = { fy: [], q: ['2024-12-31'], A: {}, Q: { gp: [415.2e6] } }, nq4 = { A: null, Q: { ends: ['2024-12-31'], v: { gp: { '2024-12-31': 415.2e6 } } } };
   const r7 = find(X.xcheck(d7, f7, q4, nq4), 'gp', 'Q', '2024-12-31');
   ok(r7.c === 'okd' && r7.why === 'q_orig', 'רבעון רביעי מטבלת הרבעונים המעודכנת — המקורות = שנה פחות 9 חודשים כפי שדווחו: okd q_orig');
+}
+// סבב 3 (26/10/2026): הגדרות של המקורות שאומתו מול הדוחות
+// (א) q_mix — רבעון מחושב: המקור = תשעת החודשים כפי שהוגשו פחות ששת החודשים כפי שהוצגו מחדש בשנה שאחריה (DuPont אחרי הפרדת Qnity)
+{
+  const T = 'NetCashProvidedByUsedInOperatingActivities';
+  const f = facts([[T, 'USD', [['2025-01-01', '2025-06-30', 763e6, '10-Q', '2025-08-05'], ['2025-01-01', '2025-06-30', 151e6, '10-Q', '2026-08-04'],
+    ['2025-01-01', '2025-09-30', 1260e6, '10-Q', '2025-11-06']]]]);
+  const d = base({ tags: { ocf: T }, fy: ['2024-12-31', '2025-12-31'], q: ['2025-09-30'], A: { ocf: [null, null] }, Q: { ocf: [497e6] }, derived: { ocf: ['2025-09-30'] } });
+  const y = { fy: [], q: ['2025-09-30'], A: {}, Q: { ocf: [1109e6] } }, nq = { A: null, Q: { ends: ['2025-09-30'], v: { ocf: { '2025-09-30': 1109e6 } } } };
+  const r = find(X.xcheck(d, f, y, nq), 'ocf', 'Q', '2025-09-30');
+  ok(r.c === 'okd' && r.why === 'q_mix' && r.raw === 497e6, 'רבעון מחושב: המקורות ערבבו מצטבר מקורי עם מצטבר מוצג מחדש — okd q_mix (אנחנו מאותו בסיס)');
+}
+// (ב) restated_near — המקור ליד הערך שלפני ההצגה מחדש, ועוד הגדרה משלו (Lennox, רבעון 3 2025)
+{
+  const T = 'OperatingIncomeLoss';
+  const f = facts([[T, 'USD', [['2025-07-01', '2025-09-30', 310.2e6, '10-Q', '2025-10-22'], ['2025-07-01', '2025-09-30', 328.8e6, '10-K', '2026-02-17']]]]);
+  const d = base({ tags: { op: T }, fy: ['2024-12-31', '2025-12-31'], q: ['2025-09-30'], A: { op: [null, null] }, Q: { op: [328.8e6] } });
+  const y = { fy: [], q: ['2025-09-30'], A: {}, Q: { op: [307e6] } }, nq = (v) => ({ A: null, Q: { ends: ['2025-09-30'], v: { op: { '2025-09-30': v } } } });
+  let r = find(X.xcheck(d, f, y, nq(302.8e6)), 'op', 'Q', '2025-09-30');
+  ok(r.c === 'okd' && r.why === 'restated_near', 'שני המקורות ליד הערך שלפני ההצגה מחדש (310.2) — okd restated_near');
+  r = find(X.xcheck(d, f, { ...y, Q: { op: [280e6] } }, nq(276e6)), 'op', 'Q', '2025-09-30');
+  ok(r.c === 'ext', 'רחוק גם מהערך הישן (10%) — נשאר ext');
+}
+// (ג) הכנסות בפיננסים: מבטח — המקור כולל הכנסות השקעה (Erie); בנק — Nasdaq אחרי ההפרשה להפסדי אשראי (JPMorgan)
+{
+  const f = facts([['RevenueFromContractWithCustomerExcludingAssessedTax', 'USD', [[...Y(2024), 3795.115e6, '10-K', '2025-02-01']]],
+    ['InvestmentIncomeNonoperating', 'USD', [[...Y(2024), 69.26e6, '10-K', '2025-02-01']]]]);
+  const d = base({ sic: 6411, tags: { rev: 'RevenueFromContractWithCustomerExcludingAssessedTax' }, A: { rev: [null, 3795.115e6] } });
+  const y = { fy: ['2024-12-31'], q: [], A: { rev: [3862.404e6] }, Q: {} }, nq = { A: { ends: ['2024-12-31'], v: { rev: { '2024-12-31': 3864.375e6 } } } };
+  let r = find(X.xcheck(d, f, y, nq), 'rev', 'A', '2024-12-31');
+  ok(r.c === 'okd' && r.why === 'fin_rev_inv', 'מבטח: המקורות = ההכנסות התפעוליות + הכנסות ההשקעה — okd fin_rev_inv');
+  r = find(X.xcheck({ ...d, sic: 3500 }, f, y, nq), 'rev', 'A', '2024-12-31');
+  ok(r.c === 'ext', 'לא פיננסים — ההסבר לא חל (ext)');
+  const fj = facts([['RevenuesNetOfInterestExpense', 'USD', [[...Y(2024), 182447e6, '10-K', '2025-02-01']]],
+    ['ProvisionForLoanLeaseAndOtherLosses', 'USD', [[...Y(2024), 14212e6, '10-K', '2025-02-01']]]]);
+  const dj = base({ sic: 6021, tags: { rev: 'RevenuesNetOfInterestExpense' }, A: { rev: [null, 182447e6] } });
+  r = find(X.xcheck(dj, fj, { fy: ['2024-12-31'], q: [], A: { rev: [181847e6] }, Q: {} }, { A: { ends: ['2024-12-31'], v: { rev: { '2024-12-31': 168235e6 } } } }), 'rev', 'A', '2024-12-31');
+  ok(r.c === 'okd' && r.why === 'n_rev_prov', 'בנק: Nasdaq = ההכנסות נטו פחות ההפרשה להפסדי אשראי — okd n_rev_prov');
+}
+// (ד) המקור = אחד הרכיבים של השורה שלנו באותה תגית בדוח (ExxonMobil: Revenues = מכירות + חברות כלולות + הכנסות אחרות) — ושנה / רבעון בלי דוח
+{
+  const T = 'Revenues';
+  const f = facts([[T, 'USD', [[...Y(2023), 344582e6, '10-K', '2024-02-01'], [...Y(2024), 349585e6, '10-K', '2025-02-01'],
+    ['2025-01-01', '2025-03-31', 85294e6, '10-Q', '2025-05-01'], ['2025-04-01', '2025-06-30', 90000e6, '10-Q', '2025-08-01']]]]);
+  const d = base({ tags: { rev: T }, q: ['2025-03-31', '2025-06-30'], A: { rev: [344582e6, 349585e6] }, Q: { rev: [85294e6, 90000e6] } });
+  const face = { is: { cols: [{ end: '2024-12-31', months: 12, cur: null }, { end: '2023-12-31', months: 12, cur: null }], scale: { cur: 1, sh: 1 },
+    rows: [[349585e6, 344582e6], [339247e6, 334697e6], [6194e6, 6385e6], [4144e6, 3500e6]].map((v) => ({ ns: 'us-gaap', tag: T, label: 'Revenues', v })) } };
+  const y = { fy: ['2023-12-31', '2024-12-31'], q: ['2025-03-31', '2025-06-30'], A: { rev: [334697e6, 339247e6] }, Q: { rev: [83331e6, 80000e6] } };
+  const nq = { A: { ends: ['2023-12-31', '2024-12-31'], v: { rev: { '2023-12-31': 334697e6, '2024-12-31': 339247e6 } } }, Q: { ends: ['2025-03-31', '2025-06-30'], v: { rev: { '2025-03-31': 83331e6, '2025-06-30': 80000e6 } } } };
+  const x = X.xcheck(d, f, y, nq, { face });
+  ok(find(x, 'rev', 'A', '2024-12-31').c === 'okd' && find(x, 'rev', 'A', '2024-12-31').why === 'face_sub', 'המקור = רכיב (המכירות) שמודפס באותה תגית — okd face_sub');
+  const q1 = find(x, 'rev', 'Q', '2025-03-31'), q2 = find(x, 'rev', 'Q', '2025-06-30');
+  ok(q1.c === 'okd' && q1.why === 'a:face_sub', 'רבעון בלי דוח באותו כיוון ופער (2.3%) — okd a:face_sub');
+  ok(q2.c === 'ext' && !q2.why, 'רבעון שהפער בו פי 4 (11%) — נשאר ext');
+}
+// (ה) cash_disc — שנה שהוצגה מחדש בלי הפעילות שהופסקה; המקור = המזומן המאוחד, מתורגם בעצמו מהמטבע המקורי (Nebius 2022)
+{
+  const f = facts([['CashAndCashEquivalentsAtCarryingValue', 'USD', [[null, '2024-12-31', 288.5e6, '10-K', '2025-04-30']]],
+    ['CashAndCashEquivalentsAtCarryingValueIncludingDiscontinuedOperations', 'USD', [[null, '2024-12-31', 1181.9e6, '10-K', '2025-04-30']]]]);
+  const d = base({ tags: { cash: 'CashAndCashEquivalentsAtCarryingValue' }, A: { cash: [null, 288.5e6] } });
+  const r = find(X.xcheck(d, f, { fy: ['2024-12-31'], q: [], A: { cash: [1115.85e6] }, Q: {} }, { A: { ends: ['2024-12-31'], v: { cash: { '2024-12-31': 1138.8e6 } } } }), 'cash', 'A', '2024-12-31');
+  ok(r.c === 'okd' && r.why === 'cash_disc', 'המקורות = המזומן כולל פעילות שהופסקה (עד 8%, מתורגם) — okd cash_disc');
 }
 console.log('\nכל ' + n + ' הבדיקות עברו ✓');

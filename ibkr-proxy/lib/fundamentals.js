@@ -426,6 +426,11 @@ function fixRuns(m, fs, locked) {
       if (!alt(ends[i])) continue;
       let j = i; while (j + 1 < ends.length && alt(ends[j + 1])) j++;
       if (locked) { let ok = false; for (let x = i; x <= j; x++) if (locked(ends[x], m.dur.get(ends[x]).v)) ok = true; if (ok) { i = j; continue; } }
+      // הסדרה היא סכום של שורות (השקעות הוניות: רכוש קבוע + תוכנה), והחלופה = אחד החלקים באותן שנים — היא חלק, לא תיקון
+      // (Robinhood 2021–2022: ‏PaymentsToAcquireProductiveAssets ‏$63M/$28M = רק "Purchases of property, software, and equipment";
+      // הסכום עם התוכנה שפותחה ‏$83M/$57M, כמו בדוח של 2022 ובשנים שאחריו)
+      const sp = m.fs && m.fs[m.spine] && m.fs[m.spine].parts;
+      if (sp && sp.length > 1) { let sub = true; for (let x = i; x <= j && sub; x++) { const fv = f.dur.get(ends[x]).v; sub = sp.some((p) => { const h = p.dur.get(ends[x]); return h && Math.abs(h.v - fv) <= MERGE_TOL * Math.abs(fv); }); } if (sub) { i = j; continue; } }
       const prev = i > 0 ? m.dur.get(ends[i - 1]).v : null, next = j + 1 < ends.length ? m.dur.get(ends[j + 1]).v : null;
       const was = [lg(prev, m.dur.get(ends[i]).v), lg(m.dur.get(ends[j]).v, next)].filter((x) => x != null);
       const now = [lg(prev, f.dur.get(ends[i]).v), lg(f.dur.get(ends[j]).v, next)].filter((x) => x != null);
@@ -527,7 +532,7 @@ function normalizeSec(facts, splits = [], face = null) {
   // לכל מפתח: תגית ראשית אחת + השלמות שמסכימות איתה (mergeTags)
   // התגיות שמופיעות בדוח שהחברה הגישה (10-K האחרון) — ראשונות
   const merged = {}, tags = {};
-  let cur = null, cogsRows = null;
+  let cur = null, cogsRows = null, capRows = [], capFace = null;
   for (const k of Object.keys(map)) {
     // הרווח הנקי — רק מדוח רווח והפסד: התזרים מתחיל ב"רווח נקי" כולל זכויות מיעוט (ProfitLoss), ובלי דוח רווח והפסד
     // שזוהה הוא קפץ לפני NetIncomeLoss (Devon 2024: ‏$2.94B במקום ‏$2.89B; Royal Caribbean, General Mills)
@@ -573,11 +578,13 @@ function normalizeSec(facts, splits = [], face = null) {
       if (parts.length > 1) { const keep = parts.filter((t) => !acq(t)); if (keep.length) parts = keep; }
       if (parts.some((t) => !CAPEX_LAST.includes(t))) parts = parts.filter((t) => !CAPEX_LAST.includes(t));
       parts = parts.filter((t) => capexLabel(t, lab(t)));
+      capRows = parts.slice(); // השורות שבדוח (גם פיתוח נדל"ן לבד) — לסכום מול שורה בתגית פרטית של החברה (למטה)
       if (parts.length === 1 && CAPEX_PAIR.includes(parts[0])) parts = [];
       // הסכום הוא מועמד אחד לצד התגיות לחוד — mergeTags בוחר את הראשית מבין אלה שעדיין מדווחות
       // (Entergy: חברת בת הציגה PaymentsToAcquireProductiveAssets בעמוד, הסכום קיים רק ל־2023, ו־2024–2025 יצאו ריקות)
       if (parts.length > 1) {
         const pf = parts.map((t) => tagFacts(tax[t], unitOf(k))), sf = sumFacts(pf);
+        sf.parts = pf; // fixRuns: תגית שהיא אחד החלקים — לא "תיקון" של הסכום
         // חלק שהוא כמעט כל הסכום (97% ומעלה בחמש השנים האחרונות) — גם מועמד לבד, להשלים רבעונים שבהם החלק הקטן לא דווח
         // (Camden: "Increase in non-real estate assets" ‏$2.4M רק בחלק מה־10-Q — בלעדיו לא היו רבעונים בכלל)
         const yrs = [...sf.dur.keys()].filter((kk) => { const [a, b] = kk.split('|'); return day(b) - day(a) >= 350; }).sort((a, b) => (a.split('|')[1] < b.split('|')[1] ? -1 : 1)).slice(-5);
@@ -605,11 +612,39 @@ function normalizeSec(facts, splits = [], face = null) {
   // ‏United Rentals) והתגית שלנו אינה שורה בתזרים (ביאור, ‏$18.4M) — עדיף ריק (ומושלם מ־Yahoo) מחלק קטן. לא ב־companyfacts.
   if (!isIfrs && tags.capex && face && face.cf && face.cf.rows && face.cf.rows.length) {
     const rows = face.cf.rows, mine = tags.capex.split('+'), c0 = face.cf.cols && face.cf.cols[0];
-    const own = rows.filter((r) => !/^(us-gaap|ifrs-full)$/.test(r.ns) && /capital expenditure|improvements? to|purchases? (of|for) (property|rental|non-rental|equipment)/i.test(r.label || '') && !/accru|incurred|not yet paid|payable|unpaid|non-?cash/i.test(r.label || ''));
+    const own = rows.filter((r) => !/^(us-gaap|ifrs-full)$/.test(r.ns) && /capital expenditure|improvements? to|purchases? (of|for) (property|rental|non-rental|equipment)/i.test(r.label || '') && !/accru|incurred|not yet paid|payable|unpaid|non-?cash/i.test(r.label || '')
+      // לא תקבולים ולא שורות "קשורות" להשקעה (Dow: ‏"Proceeds from incentives related to…", ‏"Cash flow hedging related to capital expenditures")
+      // ולא מקדמות ושורות מימון (Strategy: ‏"Advance deposits on purchases of property and equipment"; PG&E: ‏"…financed through…");
+      // שורת תשלום — עם ערך שלילי בדוח (שינוי בהשקעות שלא שולמו — Exelon, ‏"…not paid")
+      && !/proceeds|hedg|incentive|reimburs|related to|not paid|deposit|advance|financ/i.test(r.label || '') && SECFACE.rowVals(face.cf, r).some((v) => v != null && v < 0));
     // רק כשהערך שלנו לשנה האחרונה שבדוח שונה מסכום השורות (ConocoPhillips: אותו סכום גם בביאור בתגית רגילה — נשאר)
     const tot = own.reduce((t, r) => t + Math.abs(SECFACE.rowVals(face.cf, r)[0] || 0), 0);
     let ours = null; for (const [kk, h] of merged.capex.dur) { const [a, b] = kk.split('|'); if (c0 && b === c0.end && day(b) - day(a) >= 350) ours = Math.abs(h.v); }
-    if (own.length && !rows.some((r) => mine.includes(r.tag)) && !(ours != null && tot > 0 && Math.abs(ours - tot) <= MERGE_TOL * tot)) { merged.capex = { dur: new Map(), inst: new Map() }; delete tags.capex; }
+    // (26/10/2026) גם כשהתגית שלנו בדוח, לצד שורה בתגית פרטית: CoStar — "Purchases of property, equipment, and other assets"
+    // ‏$82M (פרטית) + "…for new campuses" ‏$307M (שלנו); ‏Weyerhaeuser — "Capital expenditures for property and equipment" ‏$423M
+    // (פרטית) + "…for timberlands reforestation" ‏$51M (שלנו); ‏Ventas — "Capital expenditures" (פרטית) + "Development project
+    // expenditures". ההשקעה ההונית = כל השורות שבדוח: בכל עמודה של 12 חודשים — השורות הפרטיות + שורות ההשקעה ההונית
+    // הרגילות (capRows; כל תגית פעם אחת — Valero מדפיסה אותה תגית שוב לכל ישות). שורה פרטית שהיא כבר הסך ("Total …", או
+    // שווה לסכום השורות האחרות) — היא לבד. capFace עובר ל־fundamentals: Yahoo רק כשהוא תואם לסכום בכל שנה שבדוח, אחרת הסכום
+    const onF = mine.some((t) => rows.some((r) => r.tag === t));
+    if (own.length) {
+      const reg = [...new Set(capRows.concat(onF ? mine : []))].map((t) => rows.find((r) => r.tag === t)).filter(Boolean);
+      const vals = [];
+      (face.cf.cols || []).forEach((c, ci) => {
+        if ((c.months != null && c.months !== 12) || !SECFACE.colOk(c, rc || cur || 'USD')) return; // לא עמודת המרה לדולר (PDD)
+        const o = own.map((r) => Math.abs(SECFACE.rowVals(face.cf, r)[ci] || 0)), g = reg.map((r) => Math.abs(SECFACE.rowVals(face.cf, r)[ci] || 0));
+        const so = o.reduce((t, v) => t + v, 0), sg = g.reduce((t, v) => t + v, 0);
+        const ti = own.findIndex((r, i) => /\btotal\b/i.test(r.label || '') || (own.length + reg.length > 1 && Math.abs(o[i] - (so - o[i] + sg)) <= MERGE_TOL * o[i]));
+        const v = ti >= 0 ? o[ti] : so + sg;
+        if (v > 0) vals.push({ end: c.end, v });
+      });
+      const all = vals.length && c0 && vals[0].end === c0.end ? vals[0].v : null;
+      const same = (x) => ours != null && x > 0 && Math.abs(ours - x) <= MERGE_TOL * x;
+      if (!same(tot) && !same(all) && (onF ? all != null : !rows.some((r) => mine.includes(r.tag)))) {
+        merged.capex = { dur: new Map(), inst: new Map() }; delete tags.capex;
+        if (vals.length) capFace = vals;
+      }
+    }
   }
   // פיצולים לפי תאריך ההגשה (26/10/2026): ערך למניה / ממוצע מניות שהוגש לפני הפיצול — מותאם; שהוגש אחריו — החברה
   // כבר הציגה אותו מחדש (ASC 260: כל התקופות בדוח שהוגש אחרי הפיצול), גם כשהתקופה שלו לפני הפיצול. עד היום ההתאמה
@@ -882,9 +917,11 @@ function normalizeSec(facts, splits = [], face = null) {
     }
     if (Q.eps[e] == null && niq != null && Q.sh[e]) { Q.eps[e] = Math.round(niq / Q.sh[e] * 100) / 100; (derived.eps = derived.eps || []).push(e); epsNum[e] = niq; }
   }
-  // מניות חסרות (דיווח לפי סוגי מניות): רווח נקי ÷ רווח למניה
+  // מניות חסרות (דיווח לפי סוגי מניות): רווח נקי ÷ רווח למניה. ברבעון זו הערכה (shEst) — הרווח הנקי אינו המונה של הרווח למניה
+  // (פעילות שהופסקה, ניירות משתתפים, דיבידנד לזכויות מיעוט) והרווח למניה מעוגל לסנט: LyondellBasell מתייגת את ממוצע המניות רק
+  // עם ממד (נמשכת / הופסקה — אין ב־companyfacts), ורבעון 2 2025: ‏115 ÷ ‏0.34 = ‏338M מול ‏322M בביאור. qShares: מה שפורסם (Yahoo) גובר
   for (const [D, ends] of [[A, fyEnds], [Q, qEnds]]) for (const e of ends) {
-    if (!D.sh[e] && D.eps[e] && D.ni[e]) D.sh[e] = Math.abs(D.ni[e] / D.eps[e]);
+    if (!D.sh[e] && D.eps[e] && D.ni[e]) { D.sh[e] = Math.abs(D.ni[e] / D.eps[e]); if (D === Q && !shEst.includes(e)) shEst.push(e); }
   }
   // עלות מכר שאינה עלות ההכנסות (cogsBasis) — בלי עלות המכר ובלי רווח גולמי מחושב; רווח גולמי שהחברה דיווחה נשאר
   // שורה שלא בדוח רווח והפסד (כשיש דוח שזיהינו) = מדד מהביאורים, לא השורה: Honeywell מתייגת OperatingIncomeLoss על
@@ -970,7 +1007,7 @@ function normalizeSec(facts, splits = [], face = null) {
   const pack = (D, ends) => { const o = {}; for (const k of KEEP) { if (!D[k]) continue; const a = ends.map((e) => (D[k][e] != null ? D[k][e] : null)); if (a.some((v) => v != null)) o[k] = a; } return o; };
   const fy = fyEnds.filter((e) => A.rev[e] != null || A.ni[e] != null).slice(-20);
   const C = { A: pack(GA, fy), Q: pack(GQ, qEnds) };
-  return { fy, q: qEnds, shEst: shEst.filter((e) => Q.sh[e] != null), epsNum, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes, qmix, gpx, gpd, opx, splitsUsed };
+  return { fy, q: qEnds, shEst: shEst.filter((e) => Q.sh[e] != null), epsNum, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes, qmix, gpx, gpd, opx, splitsUsed, capFace };
 }
 
 /* ---------- בדיקות אימות — תג, לא תיקון ---------- */
@@ -1029,8 +1066,15 @@ function crossCheck(d, y) { // מול Yahoo: הכנסות ורווח נקי בש
    אינו ממוצע הרבעונים (Bank of America 2025: הערכה ‎0.94 מול ‎0.98 שהחברה פרסמה). המספר שהחברה פרסמה בהודעה לעיתונות
    (דרך Yahoo) גובר כשהוא קרוב לחישוב שלנו (עד 15% — אחרת לא אותו בסיס: פיצול, מניות בכורה); נרשם qeps (מידע) */
 // רבעון ש־parseYahooTs חישב בעצמו (שנה פחות שלושה) — לא מה שהחברה פרסמה (EchoStar: ‎−4.269999 = ‎−50.41 פחות שלושה רבעונים)
-// זרוע מימון בדוח רווח והפסד (שורה "Financial services/products", "Ford Credit", "GM Financial") — ראו finArm ב־fundamentals
-const finArmOf = (rows) => !!rows && rows.some((r) => !/\btax/i.test(r.label || '') && /\b(financial (services|products)|financing|credit)\b|\b[A-Z]{2,4} Financial\b/i.test(r.label || ''));
+// זרוע מימון בדוח רווח והפסד (שורה "Financial services/products", "Ford Credit", "GM Financial") — ראו finArm ב־fundamentals.
+// גם בשורת הכותרת שמעל השורות (h, ‏secface): ב־Snap-on השורות של שירותי המימון הן "Net sales" / "Operating expenses" עם ממד,
+// והזרוע מופיעה רק בכותרת "Financial Service" (יחיד). שם של זרוע — לא עלות מימון של החברה עצמה: "Write-off of financing costs"
+// (CBRE), "Financing costs, net" (APA), "Provision for credit losses" (בנקים), "Principal Financial Group, Inc.", "Mark-to-Market Financial
+// Commodity…" (EOG) — לא זרוע
+const FIN_ARM = [/\bfinancial (services?|products?)\b/i, /\b[A-Z][A-Za-z&]+ (Credit|Financial)(?=\s*$|\s+[a-z]|,(?! Inc))/, /^financing (income|revenues?)\b|^financing cost$/i];
+const FIN_NOT = /\btax|credit loss|write-?off|extinguish|attributable/i;
+const finArmText = (t) => !!t && !FIN_NOT.test(t) && FIN_ARM.some((re) => re.test(t));
+const finArmOf = (rows) => !!rows && rows.some((r) => finArmText(r.label) || finArmText(r.h));
 function yQuarterFill(sec, y, grossOnFace, checks) {
   const qfill = {};
   if (y && y.q && y.Q) for (const k of Object.keys(YMAP)) {
@@ -1465,6 +1509,17 @@ async function fundamentals(sym0) {
     for (const k of ['gp', 'cogs']) { delete sec.A[k]; delete sec.Q[k]; if (sec.derived) delete sec.derived[k]; }
     sec.gpx = 'fin';
   }
+  // השקעות הוניות בשורות של תגית פרטית (capFace מ־normalizeSec — הסכום שהודפס בכל שנה שבדוח): Yahoo משלים רק כשהוא תואם
+  // לסכום הזה בכל שנה שבדוח (CoStar, Ventas, United Rentals — Yahoo = הדוח, עם שנה רביעית). אחרת (Weyerhaeuser: Yahoo מוסיף
+  // את רכישת היערות, ‏$943M מול ‏$474M) — השנים שבדוח מהסכום שהודפס, השאר ריק; נרשם ffill (מהדוח עצמו)
+  if (useSec && sec.capFace && !sec.A.capex) {
+    const ya = (e) => { const j = y && y.fy && y.A && y.A.capex ? y.fy.findIndex((x) => Math.abs(day(x) - day(e)) < 20) : -1; return j >= 0 ? y.A.capex[j] : null; };
+    const yOk = sec.capFace.every((c) => { const v = ya(c.end); return v != null && Math.abs(Math.abs(v) - c.v) <= 0.01 * c.v; });
+    if (!yOk) {
+      const a = sec.fy.map((e) => { const c = sec.capFace.find((x) => Math.abs(day(x.end) - day(e)) <= 8); return c ? c.v : null; });
+      if (a.some((v) => v != null)) { sec.A.capex = a; for (const c of sec.capFace) if (a.includes(c.v)) checks.push({ k: 'ffill', m: 'capex', p: c.end, f: c.v, v: null }); }
+    }
+  }
   if (useSec && y && y.fy) for (const k of Object.keys(YMAP)) {
     if (sec.A[k] || !y.A[k]) continue;
     if ((k === 'gp' || k === 'cogs') && sec.gpx !== 'fin' && (sec.gpx === 'part' || !grossOnFace)) continue; // 'off' עם שורת "Cost of…" בדוח (Thermo Fisher, Deere: לפי מוצרים ושירותים) — כן
@@ -1475,7 +1530,7 @@ async function fundamentals(sym0) {
   // כמו השנה; זרוע מימון) — כמו בממשקים שאנחנו משווים אליהם: המספר שהחברה פרסמה (Yahoo, רק רבעון שהוא דיווח ולא חישב בעצמו).
   // רק תאריך שכבר קיים אצלנו; נרשם qfy (מידע) ובתשובה qfill — כלי ההשוואה לא בודק אותו מול Yahoo
   const qfill = useSec ? yQuarterFill(sec, y, grossOnFace, checks) : {};
-  if (sec.gpx === 'fin') checks.push({ k: 'gpfin', m: 'gp', p: sec.fy[sec.fy.length - 1] });
+  if (useSec && sec.gpx === 'fin') checks.push({ k: 'gpfin', m: 'gp', p: sec.fy[sec.fy.length - 1] });
   // מניות לשווי השוק: בדילול מהדוח האחרון (ב־Yahoo "sharesOutstanding" הוא לפעמים רק סוג מניות אחד — Meta: 2.2B מתוך 2.57B)
   const lastSh = (D) => (D && D.sh ? D.sh.filter((v) => v > 0).pop() : null);
   const sharesOut = useSec ? (lastSh(sec.Q) || lastSh(sec.A)) : ((y && y.sharesOut) || lastSh(y && y.Q) || (s && s.sharesOut));
