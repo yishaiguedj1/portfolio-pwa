@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v556';
+const CACHE_NAME = 'portfolio-pwa-v557';
 const HASHES = {
   "./": "bc8388e7e4b43e677c9136601994b16e",
   "./index.html": "bc8388e7e4b43e677c9136601994b16e",
   "./styles.css": "5b753592e4350642d4864a6c32d1ae46",
-  "./app.js": "a71edca12154a42067bd3ee5a5d9831b",
+  "./app.js": "cec9c0c9a38d18488c35c2d6a9520efa",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "5d9505a0e3f827ee0e32eb00e948e2b2",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -31,8 +31,8 @@ const HASHES = {
   "./favicon-48.png": "b06144704421831d745fd553558517a7",
   "./ibkr-logo.png": "3c73fe172d48b3f58f11bcc146dd1987",
   "./acclink.js": "bba45251097814f285cefb533dd8210f",
-  "./analysis.js": "8ce45d012df8a347023213b96193f531",
-  "./analysis.css": "ace1558da3810867110e2a6f780069f7",
+  "./analysis.js": "2fe9e19c825b742f7328e880d759013e",
+  "./analysis.css": "7a10ef73f77fc7ee08cb546527456187",
   "./library.js": "ebf4c7295ff22d17fb09b56be12d2cec",
   "./library.css": "76ff87750ae8fd22063cbd07b7f3d8ce",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
@@ -60,8 +60,8 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "e7f536140456bdf6163ff1f094fcfec2",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
-  "./strings-academy.js": "bc9a29a257e950b04041e9ac5b6ebc06",
-  "./core.js": "426c40003e10cc2f93637039a8e7c9af",
+  "./strings-academy.js": "adf76418f97c0515ecbf6f63085b72ea",
+  "./core.js": "ecdcebc2dbae9db13b559c02e6f3cc1a",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "d6703c288cfb84be0bc06cbc61912c68",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -82,7 +82,7 @@ const HASHES = {
   "./studiobg.js": "905919c4704022748ff40869755d2292",
   "./studio.html": "e797e443dfa76398884be3d9f012d250",
   "./studio-app.js": "3b8a0eb80a995f2b5824014c09e65f24",
-  "./strings-studio.js": "005e172d81f19bd222aa5da913084429",
+  "./strings-studio.js": "dd9ff6d851647e89e25c97be94ddded5",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
