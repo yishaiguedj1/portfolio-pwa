@@ -488,6 +488,8 @@ he: {
   wlAdd: '＋ הוסף למעקב',
   wlEmpty: 'עוד לא הוספת מניות למעקב.',
   wlAdded: 'נוסף למעקב ✓',
+  ssInList: 'ברשימה',
+  ssInPf: 'בתיק',
   wlRemoved: 'הוסר מהמעקב',
   wlRemove: 'הסר {sym} מהמעקב',
   wlDelConfirm: 'להסיר את {sym} מרשימת המעקב?',
@@ -1595,6 +1597,8 @@ en: {
   wlAdd: '＋ Add to watchlist',
   wlEmpty: 'No stocks on your watchlist yet.',
   wlAdded: 'Added to watchlist ✓',
+  ssInList: 'In list',
+  ssInPf: 'Owned',
   wlRemoved: 'Removed from watchlist',
   wlRemove: 'Remove {sym} from watchlist',
   wlDelConfirm: 'Remove {sym} from the watchlist?',
@@ -5922,7 +5926,7 @@ function stripLegacyDemo(db) {
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
 const APP_RELEASE = '2.59.0';
-const APP_VERSION = 'v560';
+const APP_VERSION = 'v561';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -11681,14 +11685,17 @@ function renderStockSearchResults(items, status, boxId, onPick) {
       '<span class="ss-logo">' + stockLogoHTML(it.sym) + '</span>' +
       '<span class="ss-sym" dir="ltr">' + esc(dispSym(it.sym)) + '</span>' +
       '<span class="ss-name" dir="auto">' + esc(it.name) + '</span>' +
-      '<span class="ss-type">' + esc(mktTypeLabel(it)) + '</span>' +
-      '<span class="ss-add" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 7.5v9M7.5 12h9"/></svg></span>';
+      '<span class="ss-type">' + esc(it.have ? (it.have === 'wl' ? t('ssInList') : t('ssInPf')) : mktTypeLabel(it)) + '</span>' +
+      '<span class="ss-add' + (it.have ? ' have' : '') + '" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="'
+      + (it.have ? 'M7.5 12.3l3 3 6-6.3' : 'M12 7.5v9M7.5 12h9') + '"/></svg></span>';
+    if (it.have) row.classList.add('have');
     row.addEventListener('click', () => {
       box.classList.add('hidden');
       const sw = box.closest ? box.closest('.stock-search-wrap') : null;
       const inp = sw && sw.querySelector('input');
       if (inp) { inp.value = ''; inp.blur(); }
       if (sw) { sw.classList.remove('active'); const sc = sw.querySelector('.sf-clear'); if (sc) sc.classList.add('hidden'); }
+      if (it.have) { openStockCard(it.sym, it.have === 'wl' ? 'wishlist' : 'stocks'); return; }
       (onPick || ((x) => openAddStockWithSymbol(x.sym, x.name)))(it);
     });
     box.appendChild(row);
@@ -11757,7 +11764,8 @@ function initStockSearch(pfx, owned, onPick, opts) {
       // v255: מדדים רק ברשימות המעקב (בראש התוצאות); בתיק — אף פעם (רק קרנות הסל שעוקבות אחריהם)
       const idx = opts.indices ? indexSearch(q) : [];
       const f = idx.concat((items || []).filter((r) => (opts.indices || !isWatchOnlySym(r.sym)) && !idx.some((i) => i.sym === r.sym)))
-        .filter((r) => !owned.has(r.sym)).slice(0, 10);
+        .slice(0, 10).map((r) => (owned.has(r.sym) ? Object.assign({}, r, { have: opts.indices ? 'wl' : 'pf' }) : r));
+      // 26/10/2026: מה שכבר ברשימה/בתיק לא מוסתר (MELI "לא נמצא" כשהיה ב"פיננסים") — מסומן ✓ ונגיעה פותחת את הכרטיס
       if (f.length) render(f, loading ? 'loading' : 'ok');
       else render(null, loading ? 'loading' : 'empty');
     };

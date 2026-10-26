@@ -52,7 +52,7 @@ const TOP_ETF = ['SPY', 'VOO', 'IVV', 'QQQ', 'VTI', 'VT', 'SCHD', 'VUG', 'VEA', 
     .filter((x) => /^[A-Z][A-Z0-9\-]{0,7}$/.test(x.s) && !/-P[A-Z]?$/.test(x.s) && x.n && !JUNK.test(x.n)) // -PA = מניית בכורה
     .sort((a, b) => b.cap - a.cap);
   const seen = new Set(stocks.map((x) => x.s));
-  const etfs = [];
+  const etfs = [], spare = [];
   for (const [url, symCol] of [['https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt', 'ACT Symbol'], ['https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt', 'Symbol']]) {
     const lines = (await (await fetch(url, { headers: { 'User-Agent': UA } })).text()).split('\n');
     const h = lines[0].split('|');
@@ -60,6 +60,8 @@ const TOP_ETF = ['SPY', 'VOO', 'IVV', 'QQQ', 'VTI', 'VT', 'SCHD', 'VUG', 'VEA', 
     for (const ln of lines.slice(1)) {
       const c = ln.split('|');
       const s = String(c[iS] || '').trim().toUpperCase();
+      // 26/10/2026: מניה רגילה שלא בשום מקור אחר (הנפקה חדשה, בלי שווי שוק ב־Nasdaq) — לרשת הביטחון בסוף
+      if (c[iE] === 'N' && c[iT] !== 'Y' && /^[A-Z][A-Z0-9.]{0,7}$/.test(s) && c[iN] && !JUNK.test(c[iN]) && !/When-Issued|Capital Trust|Trust Securities|%/i.test(c[iN])) spare.push({ s: s.replace(/\./g, '-'), n: cleanName(c[iN]).replace(/\s*-\s*$/, '') });
       if (c[iE] !== 'Y' || JUNK_ETF.test(c[iN] || '') || c[iT] === 'Y' || !/^[A-Z][A-Z0-9]{0,6}$/.test(s) || seen.has(s)) continue;
       seen.add(s);
       etfs.push({ s, n: cleanName(c[iN]) });
@@ -81,6 +83,8 @@ const TOP_ETF = ['SPY', 'VOO', 'IVV', 'QQQ', 'VTI', 'VT', 'SCHD', 'VUG', 'VEA', 
     if (isStock) stocks.push({ s: sym, n: cleanName(desc), cap: cap || 0 }); else etfs.push({ s: sym, n: cleanName(desc) });
   }
   stocks.sort((a, b) => b.cap - a.cap);
+  let addSpare = 0;
+  for (const x of spare) if (!seen.has(x.s) && x.n) { seen.add(x.s); stocks.push({ s: x.s, n: x.n, cap: 0 }); addSpare++; }
   // v274: ת"א — כל המניות וקרנות הסל
   const file0 = path.join(__dirname, '..', 'ibkr-proxy', 'lib', 'universe.txt');
   const tvIl = await tvScan('israel', { columns: ['name', 'description', 'type', 'subtype', 'market_cap_basic', 'Value.Traded'], range: [0, 5000] });
@@ -113,5 +117,5 @@ const TOP_ETF = ['SPY', 'VOO', 'IVV', 'QQQ', 'VTI', 'VT', 'SCHD', 'VUG', 'VEA', 
   try { prevStocks = fs.readFileSync(file, 'utf8').split('\n').filter((l) => l && !l.endsWith('|E') && !/^[^|]*\.TA\|/.test(l)).length; } catch (e) {}
   if (prevStocks && stocks.length < prevStocks * 0.85) throw new Error('stocks dropped ' + prevStocks + ' → ' + stocks.length + ' — not overwriting');
   fs.writeFileSync(file, out.join('\n') + '\n');
-  console.log('stocks', stocks.length, 'etfs', etfs.length, 'tv-us added', addUs, 'tase', taStocks.length, '+', taFunds.length, 'bytes', fs.statSync(file).size, '→', file);
+  console.log('stocks', stocks.length, 'etfs', etfs.length, 'tv-us added', addUs, 'nasdaqtrader added', addSpare, 'tase', taStocks.length, '+', taFunds.length, 'bytes', fs.statSync(file).size, '→', file);
 })().catch((e) => { console.error(e); process.exit(1); });

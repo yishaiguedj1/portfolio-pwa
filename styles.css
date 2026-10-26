@@ -1419,6 +1419,8 @@ html[data-app="academy"] .login-overlay { background: linear-gradient(160deg, #1
 .ss-add svg { width: 24px; height: 24px; }
 .ss-add circle { fill: var(--primary); }
 .ss-add path { stroke: #fff; stroke-width: 2.4; stroke-linecap: round; fill: none; }
+.ss-add.have circle { fill: var(--primary-container); }
+.ss-add.have path { stroke: var(--primary); stroke-linejoin: round; }
 .stock-search-empty, .stock-search-loading {
   padding: 16px; text-align: center; font-size: 14px; color: var(--on-surface-var);
 }
