@@ -86,8 +86,8 @@ const FORMS = /^(10-K|10-Q|20-F|40-F)(\/A)?$/;
 const NONNEG = ['rev', 'ta', 'tl', 'ca', 'cl', 'cash', 'sh', 'ppe'];
 const day = (s) => Date.parse(s + 'T00:00:00Z') / 864e5;
 const PER_SHARE = new Set(['eps', 'dps']);
-// זרימות שתמיד חיוביות — בהן אפשר לבדוק שהרבעונים מאותו בסיס כמו השנה (רווח והפסד יכולים להתהפך בסימן)
-const QPOS = ['rev', 'cogs', 'rnd', 'capex', 'dep', 'sbc', 'int'];
+// זרימות שבהן אפשר לבדוק שהרבעונים מאותו בסיס כמו השנה (qmix)
+const QPOS = ['cogs', 'dep', 'sbc', 'int']; // הכנסות, מחקר והשקעות הוניות — יכולים להיות מרוכזים ברבעון אחד בצדק
 /* באיזה דוח מופיעה כל שורה (לבחירת התגית לפי הדוח שהחברה הגישה — lib/secface.js) */
 const STMT_OF = { rev: ['is'], cogs: ['is'], gp: ['is'], op: ['is'], ni: ['is', 'cf'], pretax: ['is'], tax: ['is'], rnd: ['is'], int: ['is'], eps: ['is'], sh: ['is'],
   nic: ['is'], eqt: ['bs'], tmp: ['bs'], ocf: ['cf'], capex: ['cf'], sbc: ['cf'], dep: ['cf', 'is'], buy: ['cf'], divp: ['cf'],
@@ -326,19 +326,29 @@ function normalizeSec(facts, splits = [], face = null) {
   const qmix = [];
   for (const k of QPOS) {
     if (!Q[k] || !A[k]) continue;
-    let bad = false;
+    let lastBad = false;
     for (const e of fyEnds) {
       const av = A[k][e], s0 = yearOf.get(e); if (!(av > 0)) continue;
       const qs = qEnds.filter((q) => q > s0 && q < e && day(e) - day(q) < 300 && Q[k][q] != null);
-      if (qs.length !== 3) continue;
+      if (qs.length !== 3) { if (e === fyEnds[fyEnds.length - 1]) lastBad = false; continue; }
       const s3 = qs.reduce((t, q) => t + Q[k][q], 0);
-      if (s3 < 0.4 * av || s3 > 1.1 * av) {
-        bad = true; qmix.push({ k: 'qmix', m: k, p: e });
+      // עלות המכר — ביחס להכנסות של אותם רבעונים (עסק עונתי: גם ההכנסות וגם העלות מרוכזות ברבעון הרביעי);
+      // פחת, תגמול במניות וריבית — כמעט קבועים לאורך השנה: שלושה רבעונים = 30%–120% מהשנה
+      let bad;
+      if (k === 'cogs') {
+        const rv = qs.map((q) => Q.rev[q]), ra = A.rev[e];
+        if (!(ra > 0) || rv.some((x) => !(x > 0))) continue;
+        const r = (s3 / rv.reduce((t, x) => t + x, 0)) / (av / ra);
+        bad = r < 0.4 || r > 2.5;
+      } else bad = s3 < 0.3 * av || s3 > 1.2 * av;
+      if (e === fyEnds[fyEnds.length - 1]) lastBad = bad;
+      if (bad) {
+        qmix.push({ k: 'qmix', m: k, p: e });
         for (const q of qs.concat([e])) delete Q[k][q];
       }
     }
-    const le = fyEnds[fyEnds.length - 1], la = le && A[k][le];
-    if (bad && la > 0) for (const q of qEnds) if (q > le && Q[k][q] != null && (Q[k][q] < la / 4 / 2.5 || Q[k][q] > la / 4 * 2.5)) delete Q[k][q];
+    // השנה הפתוחה — רק כשהשנה האחרונה עצמה הייתה על בסיס אחר (לא בגלל שנה ישנה)
+    if (lastBad) for (const q of qEnds) if (q > fyEnds[fyEnds.length - 1]) delete Q[k][q];
   }
   // רווח למניה ברבעון רביעי = רווח לבעלי המניות ÷ ממוצע המניות של הרבעון (לא חיסור — רווח למניה לא מצטבר; מסומן כנגזר).
   // ממוצע המניות ברבעון הרביעי (26/10/2026): ממוצע השנה ≈ ממוצע ארבעת הרבעונים, כך שהרביעי ≈ 4 × השנה פחות שלושת
@@ -353,12 +363,13 @@ function normalizeSec(facts, splits = [], face = null) {
     const r = Math.abs(ni / eps) / sh;
     for (const f of [1e3, 1e6]) if (Math.abs(r / f - 1) < 0.15) { D.sh[e] = sh * f; if (D === A) fixes.push({ m: 'sh', p: e, x: f }); }
   }
-  // רשת ביטחון: ממוצע מניות ברבעון שרחוק פי 50 ויותר מהשנה (אחרי תיקון קנה המידה) = לא פיצול, טעות תיוג —
-  // נזרק ומחושב כמו רבעון חסר
+  // רשת ביטחון: ממוצע מניות ברבעון בקנה מידה אחר מהשנה (אחרי תיקון קנה המידה) — נזרק ומחושב כמו רבעון חסר
   const yearAt = (e) => [...yearOf].find(([e2, s2]) => e > s2 && e <= e2);
   for (const e of qEnds) {
     const y = yearAt(e), as = y && A.sh[y[0]];
-    if (Q.sh[e] > 0 && as > 0 && (Q.sh[e] / as > 50 || as / Q.sh[e] > 50)) Q.sh[e] = null;
+    // רק בחתימה של טעות קנה מידה — פי אלף / מיליון (±20%); יחס אחר (פיצול הפוך 1:100, פיצול 50:1) = פיצול אמיתי שהלולאה שלו מתקנת
+    const r = Q.sh[e] > 0 && as > 0 ? Math.max(Q.sh[e] / as, as / Q.sh[e]) : 0;
+    if ([1e3, 1e6].some((f) => Math.abs(r / f - 1) < 0.2)) Q.sh[e] = null;
   }
   for (const e of qEnds) {
     if (Q.sh[e] == null) {

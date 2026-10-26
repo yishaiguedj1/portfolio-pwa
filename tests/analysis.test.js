@@ -213,8 +213,9 @@ ok(/z-index: 900/.test(css) && /\.an-sheet \{[^}]*z-index: 941/.test(css), 'שכ
   const G = { ...D, q: drop(q, jx), Q: Object.fromEntries(Object.keys(Q).map((k) => [k, drop(Q[k], jx)])) };
   const c = A.prep(G, null, 3.7), last = c.q.length - 1;
   ok(!A.qRun(c, last - 3, last) && A.qRun(co, co.q.length - 4, co.q.length - 1), 'רבעון חסר ברשימה = לא רצף של 12 חודשים');
-  const pt = A.periodList(c, 'fy').pop();
-  ok(pt.kind === 'ttm' && A.raw(c, 'rev', pt) === null && A.raw(c, 'debt', pt) === 20e9, 'TTM עם רבעון חסר — בלי סכום מומצא (מאזן — הרבעון האחרון כרגיל)');
+  const pt = A.periodList(c, 'fy').pop(), tt = { kind: 'ttm', i: last, end: c.q[last] };
+  ok(!A.hasTTM(c) && pt.kind === 'fy' && A.ctx(c, pt).rev === rev[5], 'ארבעת הרבעונים האחרונים לא רצופים — "עכשיו" = השנה האחרונה (לא מסך ריק)');
+  ok(A.raw(c, 'rev', tt) === null && A.raw(c, 'debt', tt) === 20e9, 'TTM עם רבעון חסר — בלי סכום מומצא (מאזן — הרבעון האחרון כרגיל)');
   const q3 = A.periodList(c, 'q').find((p) => p.end === '2025-09-30');
   ok(A.growthOf(c, q3, 'rev') !== null && Math.abs(A.growthOf(c, q3, 'rev') - (161 / 146 - 1)) < 1e-9, 'רבעון מול המקביל לו — לפי התאריך, גם כשחסר רבעון ביניהם');
   const q1 = A.periodList(c, 'q').find((p) => p.end === '2026-03-31');
@@ -223,6 +224,8 @@ ok(/z-index: 900/.test(css) && /\.an-sheet \{[^}]*z-index: 941/.test(css), 'שכ
   ok(!A.ttmPoints(c, 'rev').some(([e]) => e === '2025-09-30' || e === '2026-03-31'), 'היסטוריית המכפילים — בלי נקודה שנשענת על חור');
   // סוף שנה: הרווח למניה השנתי מהדוח, לא סכום ארבעת הרבעונים (רווח למניה לא מצטבר)
   const E = { ...D, Q: { ...Q, eps: Q.eps.map((x, j) => (q[j] === '2024-12-31' ? x + 1 : x)) } }, ce = A.prep(E, null, 3.7);
+  const sp = A.ttmPoints(co, 'sh').filter(([e]) => e === '2024-12-31');
+  ok(sp.length === 1, 'מספר מניות בסוף שנה — נקודה אחת (של הרבעון)');
   const at = A.ttmPoints(ce, 'eps').filter(([e]) => e === '2024-12-31');
   ok(at.length === 1 && Math.abs(at[0][1] - A0.eps[4]) < 1e-9, 'סוף שנה בהיסטוריה = נקודה אחת, הרווח למניה מהדוח השנתי');
 }

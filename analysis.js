@@ -91,7 +91,7 @@ function indFix(co, mac) {
 /* ---------- תקופות ומדדים בסיסיים ---------- */
 const INST = new Set(['cash', 'msec', 'debt', 'eq', 'ta', 'tl', 'ca', 'cl', 're', 'ppe']);
 const SUMQ = (k) => !INST.has(k) && k !== 'sh'; // זרימה (כולל רווח למניה) = סכום 4 רבעונים; מאזן ומניות = הרבעון האחרון
-const hasTTM = (co) => co.q.length >= 4 && co.q[co.q.length - 1] > co.fyE[co.fyE.length - 1];
+const hasTTM = (co) => co.q.length >= 4 && co.q[co.q.length - 1] > co.fyE[co.fyE.length - 1] && qRun(co, co.q.length - 4, co.q.length - 1); // בלי רצף — "עכשיו" = השנה האחרונה
 /* רבעונים רצופים (26/10/2026): רבעון שחסר ברשימה (דוח שלא הוגש ב־XBRL / בלי הכנסות) לא נבלע — ארבע נקודות סמוכות ברשימה
    עם חור ביניהן הן 15 חודשים, לא 12. כל רבעון 75–105 יום אחרי הקודם; "שנה קודם" = הרבעון שמסתיים 365±15 יום לפני
    (בדרך כלל 4 מקומות אחורה — כשחסר רבעון ביניהם, לפי התאריך) */
@@ -202,12 +202,14 @@ function cagrN(co, k, n) {
 
 /* ---------- היסטוריה חודשית של מכפילים (10 שנים) ---------- */
 function ttmPoints(co, k) {
-  const pts = [];
-  co.fyE.forEach((e, i) => { const v = co.A[k]?.[i]; if (v != null) pts.push([e, v]); });
-  const Q = co.Q[k] || [], fyAt = new Set(pts.map((x) => x[0]));
+  const pts = [], Q = co.Q[k] || [];
+  // מספר מניות בסוף שנה — של הרבעון האחרון (קונה מניות חוזרות: הממוצע השנתי גבוה ממה שהיה בסוף השנה)
+  const qAt = k === 'sh' ? new Set(co.q.filter((e, j) => Q[j] != null)) : new Set();
+  co.fyE.forEach((e, i) => { const v = co.A[k]?.[i]; if (v != null && !qAt.has(e)) pts.push([e, v]); });
+  const fyAt = new Set(pts.map((x) => x[0]));
   for (let j = 3; j < co.q.length; j++) {
-    if (co.T && j === co.q.length - 1 && co.T[k] != null) { pts.push([co.q[j], co.T[k]]); continue; }
     if (fyAt.has(co.q[j])) continue; // סוף שנה: המספר השנתי מהדוח, לא סכום רבעונים (רווח למניה לא מצטבר) — ולא שתי נקודות באותו תאריך
+    if (co.T && j === co.q.length - 1 && co.T[k] != null) { pts.push([co.q[j], co.T[k]]); continue; }
     if (!SUMQ(k)) { if (Q[j] != null) pts.push([co.q[j], Q[j]]); continue; }
     if (!qRun(co, j - 3, j)) continue;
     let s = 0, ok = true; for (let x = j - 3; x <= j; x++) { if (Q[x] == null) { ok = false; break; } s += Q[x]; }
