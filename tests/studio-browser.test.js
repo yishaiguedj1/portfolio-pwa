@@ -54,7 +54,9 @@ ok(fs.existsSync(path.join(ROOT, 'android/app/src/browser/res/mipmap-xxxhdpi/br_
 // 26/10/2026 (בקשת המשתמש: "שהבועה מחוברת לדפדפן שלנו באופן מלא ועובדת ממש כמו הצייד", ואחר כך "צמודה לחלק העליון
 // הימני של הנגן ונעלמת כשאין וידאו על המסך — כמו IDM"): בועה בתוך הדפדפן, מחוברת לצייד ולמיקום של הנגן
 ok(/fun VideoBubble\(a: BrowserActivity, t: BrTab\)/.test(bub) && /t\.foundN > 0/.test(bub), 'הבועה מופיעה רק כשהצייד מצא משהו');
-ok(/val show = canShow\(a, t\) && v != null/.test(bub), '...ורק כשיש נגן על המסך (אחרת נעלמת)');
+ok(/val show = canShow\(a, t\) && \(v != null \|\| late\)/.test(bub) && /delay\(2500\); late = true/.test(bub), '...ורק כשיש נגן על המסך, ובגיבוי — 2.5 שנ׳ בלי דיווח על נגן');
+ok(/\+\+beat>=3/.test(R(B + 'BrVideo.kt')), 'מיקום הנגן נשלח שוב גם בלי שינוי (דיווח שאבד בטעינת הדף)');
+ok(/web && \(t!!\.foundN > 0\) -> IBtn\(BrIcons\.Dl/.test(ui), '⬇ בשורת הכתובת כשיש מה להוריד');
 ok(/val x = \(right - size - m\)/.test(bub) && /val y = maxOf\(top, 0f\) \+ m/.test(bub), 'בפינה העליונה הימנית של הנגן (או בראש החלק הגלוי שלו)');
 ok(/WebHost\(a, t\); VideoBubble\(a, t\)/.test(ui) && /a\.customView\?\.let[\s\S]{0,600}FullBubble\(a\)/.test(ui), 'באותו אזור של הדף; במסך מלא — בפינה של המסך');
 ok(/fun bubbleTap\(\)[\s\S]{0,200}if \(ps\.size == 1\) download\(ps\[0\]\) else if \(ps\.isNotEmpty\(\)\) pick = true/.test(act)
