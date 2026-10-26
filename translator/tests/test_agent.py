@@ -339,6 +339,41 @@ class BootPollUnit(unittest.TestCase):
         self.assertEqual([b.get('boot') for b in sent], [None, True, True, None])
 
 
+
+class DiskLowUnit(unittest.TestCase):
+    """26/10/2026: פחות מ־DISK_MIN_GB פנויים — בקשת עבודה הופכת לדופק בלבד (hb.dl), וחוזרת כשיש מקום."""
+
+    def test_no_new_job_when_disk_low(self):
+        sys.path.insert(0, str(HERE))
+        import agent
+        sent = []
+
+        def fake_http(method, url, body, headers=None, timeout=None):
+            sent.append(dict(body))
+            return 200, {'ok': True, 'job': None}, {}
+        free = {'gb': 3.0}
+        real = agent.shutil.disk_usage
+
+        def fake_du(p):
+            return type('U', (), {'total': 150e9, 'used': 150e9 - free['gb'] * 1e9, 'free': free['gb'] * 1e9})()
+        saved = (agent.J.http, agent.DISK_MIN_GB, agent._boot)
+        agent.J.http, agent.DISK_MIN_GB, agent._boot = fake_http, 8.0, False
+        agent.shutil.disk_usage = fake_du
+        self.addCleanup(setattr, agent.shutil, 'disk_usage', real)
+        self.addCleanup(lambda: (setattr(agent.J, 'http', saved[0]), setattr(agent, 'DISK_MIN_GB', saved[1]), setattr(agent, '_boot', saved[2])))
+        r = agent.poll('https://x', 't')
+        self.assertEqual(sent[-1]['op'], 'beat')
+        self.assertEqual(sent[-1]['hb'].get('dl'), 1)
+        self.assertTrue(r.get('disk'))
+        free['gb'] = 30.0
+        agent.poll('https://x', 't')
+        self.assertEqual(sent[-1]['op'], 'poll')
+        self.assertNotIn('dl', sent[-1]['hb'])
+        agent.DISK_MIN_GB = 0                     # כבוי
+        free['gb'] = 1.0
+        agent.poll('https://x', 't')
+        self.assertEqual(sent[-1]['op'], 'poll')
+
 JOB2 = 'jZyXwVuTsRqPoNmLkJiH-'
 KEY2 = 'Q' * 40 + '_-8'
 

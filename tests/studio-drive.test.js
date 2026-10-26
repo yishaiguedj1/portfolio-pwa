@@ -69,7 +69,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const job = read('translator/job.py');
   ok(/\(\(ctx\.st\.get\('files'\) or \{\}\)\.get\('v'\) or \{\}\)\.get\('ext'\)/.test(job) && /v\.get\('ext'\)/.test(job), 'העובד: מקור מ־Drive — לא נוגעים בקובץ שלך (בלי החלפה לאיכויות)');
   const app = read('app.js');
-  for (const k of ['studioFromDrive', 'studioFromDriveSub', 'studioInDrive', 'studioInDriveNote', 'studioFromDriveBad', 'studioStartNoteDrive', 'studioDxPickT', 'studioDxT', 'studioDxSub', 'studioDxDone', 'studioDxErr', 'studioDxBusy', 'studioPkVideos', 'studioPkMine', 'studioPkStar'])
+  for (const k of ['studioFromDrive', 'studioInDrive', 'studioInDriveNote', 'studioStartNoteDrive', 'studioDxPickT', 'studioDxT', 'studioDxSub', 'studioDxDone', 'studioDxErr', 'studioDxBusy', 'studioPkVideos', 'studioPkMine', 'studioPkStar'])
     ok((app.match(new RegExp(k + ': "', 'g')) || []).length === 2, 'מחרוזת בשתי השפות: ' + k);
   console.log(`\n${n} בדיקות עברו`);
 })().catch((e) => { console.error(e); process.exit(1); });

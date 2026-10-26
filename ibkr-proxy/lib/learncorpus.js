@@ -39,7 +39,8 @@ let T = txt;   // המנקה של הקריאה הנוכחית (normCorpus מחל
 function normCue(c) {
   if (!c || typeof c !== 'object' || !Number.isInteger(c.i) || c.i < 0 || c.i > 1e6) return null;
   const o = { i: c.i, s: n3(c.s), e: n3(c.e), k: SPK_RE.test(String(c.k || '')) ? c.k : 'S?', en: T(c.en), d: T(c.d) };
-  for (const k of ['f', 'r', 'z']) if (typeof c[k] === 'string') o[k] = T(c[k]);
+  for (const k of ['b', 'f', 'r', 'z']) if (typeof c[k] === 'string') o[k] = T(c[k]);
+  if (c.p === 1 && typeof c.b === 'string') o.p = 1;      // 26/10/2026: b = הטיוטה השנייה, p = היא נבחרה בהכרעה
   return o;
 }
 function normWord(w) {

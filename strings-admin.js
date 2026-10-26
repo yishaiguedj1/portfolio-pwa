@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1152 מפתחות מתוך 4508) */
+/* המחרוזות של admin (1155 מפתחות מתוך 4565) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -271,11 +271,13 @@ he: {
   "admFaK_fix": "תוקן אוטומטית",
   "admFaK_gold": "סט הזהב זז",
   "admFaK_gp": "רווח גולמי לא מתאים",
+  "admFaK_gr": "צמיחה שלא תואמת לדוח",
   "admFaK_neg": "ערך שלילי שלא אמור להיות",
   "admFaK_other": "בדיקה אחרת",
   "admFaK_part": "חלק גדול מהשלם",
   "admFaK_q4": "הרבעונים לא מסתכמים לשנה",
   "admFaK_qneg": "רבעון שלילי חשוד",
+  "admFaK_rst": "החברה הציגה מחדש (מטופל)",
   "admFaK_scale": "קנה מידה חשוד",
   "admFaK_xy": "שונה מ־Yahoo",
   "admFaKinds": "מה הבדיקות מצאו",
@@ -912,6 +914,7 @@ he: {
   "admSvBusy": "עובד · {s}",
   "admSvDelQ": "להסיר את {n}? הטוקן שלו מת מיד והשרת יפסיק לקחת עבודות. השרת עצמו ב־Hetzner לא נמחק.",
   "admSvDisk": "דיסק",
+  "admSvDiskHold": "פחות מ־8GB פנויים — לא לוקח עבודות חדשות",
   "admSvDown": "לא מדווח",
   "admSvFoot": "מה שהשרת מדווח בכל פנייה (כל כמה שניות). יצירה, מחיקה והקמה מחדש — רק ב־GitHub Actions וב־Hetzner, עם הזהות שלך.",
   "admSvFree": "{n}GB פנויים",
@@ -1425,11 +1428,13 @@ en: {
   "admFaK_fix": "Fixed automatically",
   "admFaK_gold": "Golden set moved",
   "admFaK_gp": "Gross profit doesn’t fit",
+  "admFaK_gr": "Growth that doesn’t match the filing",
   "admFaK_neg": "Negative where it can’t be",
   "admFaK_other": "Other check",
   "admFaK_part": "Part larger than the whole",
   "admFaK_q4": "Quarters don’t add up to the year",
   "admFaK_qneg": "Suspicious negative quarter",
+  "admFaK_rst": "Restated by the company (handled)",
   "admFaK_scale": "Suspicious scale",
   "admFaK_xy": "Differs from Yahoo",
   "admFaKinds": "What the checks found",
@@ -2066,6 +2071,7 @@ en: {
   "admSvBusy": "Working · {s}",
   "admSvDelQ": "Remove {n}? Its token dies immediately and it stops taking jobs. The Hetzner server itself is not deleted.",
   "admSvDisk": "Disk",
+  "admSvDiskHold": "Under 8GB free — not taking new jobs",
   "admSvDown": "Not reporting",
   "admSvFoot": "What the server reports on every call (every few seconds). Creating, deleting and rebuilding — only in GitHub Actions and Hetzner, with your identity.",
   "admSvFree": "{n}GB free",

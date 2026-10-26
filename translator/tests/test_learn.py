@@ -132,6 +132,18 @@ class LearnCorpus(unittest.TestCase):
         self.assertEqual(c['sp'], {'S1': {'n': 'Warren Buffett', 'r': 'CEO', 'g': 'm'}})   # בקשת המשתמש: שמות הדוברים נשמרים
         self.assertEqual((c['mode'], c['src'], c['dst'], c['dur']), ('sonnet-medium', 'en', 'he', 300))
 
+    def test_second_draft(self):
+        # 26/10/2026: b = הטיוטה השנייה כשהיא שונה, p = היא נבחרה; f נמדד מול הטיוטה אחרי ההכרעה
+        pd = self.ctx.pdir
+        (pd / 'tr' / 'alt').mkdir()
+        (pd / 'tr' / 'alt' / 'batch_001.he.txt').write_text('#1 אחת\n#2 שתיים\n#3 שלושה\n#4 ארבעה\n', encoding='utf-8')
+        (pd / 'tr' / 'fixes-ab.txt').write_text('#4 ארבעה\n', encoding='utf-8')
+        cu = {x['i']: x for x in job.learn_corpus(self.ctx)['cu']}
+        self.assertNotIn('b', cu[1])
+        self.assertEqual((cu[3]['b'], cu[3].get('p')), ('שלושה', None))
+        self.assertEqual((cu[4]['b'], cu[4]['p'], cu[4]['d']), ('ארבעה', 1, 'ארבע'))
+        self.assertNotIn('f', cu[4], 'הבחירה בטיוטה השנייה היא לא תיקון של המתרגם')
+
     def test_privacy(self):
         txt = json.dumps(job.learn_corpus(self.ctx), ensure_ascii=False)
         for bad in (SECRET, 'my-private-video-name', '/tmp', 'Dana'):   # Dana = דובר בלי מזהה S1/S2 — לא בטבלת השמות

@@ -333,6 +333,18 @@ def cmd_tr_prep(a):
     for tpl, dest in (("brief.md", "brief.md"), ("glossary.tsv", "glossary.tsv")):
         if not (td / dest).exists():
             shutil.copy(C.TEMPLATES_DIR / tpl, td / dest)
+    # 26/10/2026: טבלת הדוברים מהתדריך (S1 = שם, מגדר) → project.json, כך שהמתרגם רואה מי מדבר ובאיזה מגדר בכל החלפת
+    # דובר (ולא רק בטבלה שבתדריך). דובר שכבר נקבע ביד (vt speakers) — לא נדרס
+    if (td / "brief.md").exists():
+        from .translate import speakers_from_brief
+        sp = meta.setdefault("speakers", {})
+        add = {k: v for k, v in speakers_from_brief((td / "brief.md").read_text(encoding="utf-8")).items()
+               if not (sp.get(k) or {}).get("name")}
+        if add:
+            for k, v in add.items():
+                sp.setdefault(k, {}).update(v)
+            pr.save(meta)
+            log("דוברים מהתדריך: " + ", ".join(f"{k} = {v['name']}" for k, v in add.items()))
     src, nb = render_source(cues, meta.get("speakers", {}), a.size)
     write_text(td / "source.md", src)
     if a.batches:                       # הפורמט הישן (מנה לקובץ עם הקשר חוזר) — רק לבקשה
@@ -351,7 +363,7 @@ def cmd_tr_check(a):
     pr = Project(a.name)
     cues = read_json(pr.p("cues.en.json"))
     he, dups = load_answers(pr.tr_dir)
-    issues, stats = check(cues, he, load_glossary(pr.tr_dir / "glossary.tsv"))
+    issues, stats = check(cues, he, load_glossary(pr.tr_dir / "glossary.tsv"), speakers=pr.load().get("speakers") or {})
     for d in dups:
         issues.insert(0, f"- #{d}: מופיע ביותר ממנה אחת")
     write_text(pr.tr_dir / "check.md", check_report(issues, stats))

@@ -265,6 +265,8 @@ export function normJob(j) {
     cp: normCp(s.cp),                         // סבב 10: העתק־הדבק — בקשה שמחכה לתשובה שלך
     pbn: normPbn(s.pbn),                      // 24/10/2026: הצריבה בטלפון
     ppr: normPpr(s.ppr),                      // 25/10/2026: מה הטלפון עושה לפני ההתחלה (שלב 2)
+    sx: num(s.sx),                            // 26/10/2026: מתי סרטון המקור נמחק (0 = עוד שמור)
+    rt: s.rt && typeof s.rt === 'object' ? { s: num(s.rt.s), j: num(s.rt.j) } : null,   // עד מתי המקור (s) ועד מתי הקבצים (j)
     w: !!(s.files && s.files.w && s.files.w.id),   // 25/10/2026: המילים מהטלפון הגיעו (שלב 2)
     m: !!(s.files && s.files.m && s.files.m.id),   // 24/10/2026: המדידות מהטלפון הגיעו
   } : null;
@@ -365,7 +367,7 @@ export function afterAdvice(rec, o) {
   if (sv.rvf && sv.rvf.length) out.push({ k: 'rvf', act: 'subs', n: new Set(sv.rvf.map((f) => f[0])).size });   // סבב 4: לבדיקה שלך
   if (askFixDue(sv.qa)) out.push({ k: 'ask', act: 'ai' });   // 20/10/2026: התשובה שלך הגיעה אחרי התרגום — לתקן לפיה
   if (sv.jd && sv.jd.f && sv.jd.f.length) out.push({ k: 'jd', act: 'ai', n: sv.jd.f.length });
-  if (rec.vm && rec.vm.h > rec.vm.w && !x.rrDone) out.push({ k: 'vert', act: 'rr' });
+  if (rec.vm && rec.vm.h > rec.vm.w && !x.rrDone && !(sv.sx > 0)) out.push({ k: 'vert', act: 'rr' });   // 26/10/2026: בלי מקור — לא מציעים לצרוב מחדש
   return out;
 }
 /* v387: אומדן להרצת סט הזהב — "הרגיל" לשעה של כל מצב (נלמד או ברירת המחדל) × אורך הסרטון. טהור */
@@ -757,7 +759,7 @@ export function normCk(c) {
 /* אפשר "המשך"? עבודת תרגום שנכשלה / בוטלה / נתקעה (השרתון בודק שוב) */
 export function canResume(rec) {
   const s = rec && rec.srv;
-  if (!s || !(rec.up.a.done || rec.up.v.done || rec.up.started)) return false;
+  if (!s || s.sx > 0 || !(rec.up.a.done || rec.up.v.done || rec.up.started)) return false;
   return s.state === 'failed' || s.state === 'cancelled' || ((s.state === 'running' || s.state === 'queued') && s.stale);
 }
 /* v368: נכשלה בתקלה חולפת (Drive / רשת) — מחכה לחלון ההתאוששות ואז ממשיכה לבד, פעם אחת */
@@ -1047,6 +1049,7 @@ function errText(code, extra) {
     case 'maint': return T('studioErrMaint') + (extra && extra.msg ? ' · ' + extra.msg : '');   // 15/10/2026: מצב תחזוקה
     case 'flag_off': return T('studioErrFlagOff');
     case 'gold_full': return T('studioErrGoldFull');   // v387: סט הזהב
+    case 'src_gone': return T('studioSrcGone');   // 26/10/2026: סרטון המקור נשמר יום מפתיחת הפרויקט
     case 'gold_busy': return T('studioErrGoldBusy');
     case 'no_gold': return T('studioGoldNone');
     case 'no_srt': return T('studioGoldNoSrt');
@@ -2907,10 +2910,9 @@ function pageForm(p, editing) {
     const phRow = phOk() ? rowNav({ tile: tile('film', 'green'), label: T('studioPhRow'), value: f.ph ? T('studioPhOn') : '', sub: f.ph ? null : T('studioPhRowS'), onClick: () => phPick(), k: 'ph-pick' }) : null;
     // 25/10/2026 (שלב 2): גם התמלול, הדוברים והיישור בטלפון — הקול לא עוזב אותו. פעם ראשונה: הורדת המודלים (Wi‑Fi)
     const pwRow = f.ph ? rowSwitch({ label: T('studioPhPw'), sub: T('studioPhPwS'), on: f.pw !== false, onClick: () => { f.pw = f.pw === false; render('none'); }, k: 'ph-pw' }) : null;
-    const driveRow = canPick() ? rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'),
-      onClick: () => pickSourceFromDrive(f), k: 'from-drive' }) : null;   // סרטון שכבר ב־Drive — בלי העלאה
     // 25/10/2026 (בקשת המשתמש — "נקי ומסודר כמו Apple"): כל המקורות בקבוצה אחת, במקום שלוש קבוצות נפרדות
-    p.append(list(pickRow, phRow, pwRow, linkRow, subsRow, driveRow));
+    // 26/10/2026 (בקשת המשתמש): בלי שורת "מ־Google Drive" (ה־Picker לא עבד טוב) — Drive נבחר מבורר הקבצים של המכשיר
+    p.append(list(pickRow, phRow, pwRow, linkRow, subsRow));
     const tk = f.trk && f.trk.tracks.length ? f.trk.tracks : null;   // שלב 4
     if (tk) p.append(list(rowNav({ tile: tile('cc', 'orange'), label: T('studioTrkRow'), value: T('studioTrkN', { n: fmtNum(tk.length) }), sub: T('studioTrkRowS'), onClick: () => go('tracks'), k: 'tracks' })));
     const adv = advRows(f, pick);
@@ -4148,24 +4150,6 @@ async function legacyPick(kind) {
 }
 /* "חזור" כשה־Picker פתוח — סוגר אותו (ולא את הדף) */
 function pickerClose() { if (!pickerNow) return false; const x = pickerNow; pickerNow = null; try { x.pk.setVisible(false); } catch (e) {} x.res(null); return true; }
-/* מהטופס: בוחרים סרטון ב־Drive → הפרטים מ־Drive (שם, גודל, אורך) — בלי להוריד ובלי להעלות */
-async function pickSourceFromDrive(f) {
-  if (!onepickOk(store.settings, Date.now()) && (!store.drive || !store.drive.connected)) {   // הבורר במסך מלא גם מחבר; הנוכחי צריך חיבור קודם
-    if (typeof askConfirm === 'function') askConfirm(T('studioNeedDrive'), connectDrive, { ok: T('studioDriveConnect') });
-    return;
-  }
-  try {
-    const x = await drivePick('video');
-    if (!x || form !== f) return;
-    const m = x.meta || await net.driveMeta(x.id);
-    if (!m || m.trashed || !(Number(m.size) > 0)) { flashSafe(T('studioFromDriveBad')); return; }
-    const dur = Math.round(Number(m.videoMediaMetadata && m.videoMediaMetadata.durationMillis) / 1000) || 0;
-    f.drive = { id: x.id, name: String(m.name || x.name).slice(0, 200), size: Number(m.size), type: String(m.mimeType || '').slice(0, 60), dur };
-    f.fileObj = null; f.handle = null; f.edl = null; f.sa = null;
-    f.file = { name: f.drive.name, size: f.drive.size, type: f.drive.type };
-    render('none');
-  } catch (e) { flashSafe(errText(e && e.code || 'drive')); }
-}
 /* בסוף העבודה: התוצר לתיקייה שבחרת. הסרטון המתורגם עובר (בלי עותק — לא תופס אחסון פעמיים), הכתוביות מועתקות
    (קטנות, והעורך וסט הזהב קוראים מהעותק שבתיקיית העבודה) */
 const DX_MOVE = ['same', 'compact', 'small', 'mkv'];
@@ -6316,8 +6300,22 @@ function costCard(cv, tr) {
 const outOf = (rec, k) => ((rec.srv && rec.srv.out) || []).find((o) => o.k === k) || null;
 const burnedOut = (rec) => outOf(rec, 'compact') || outOf(rec, 'same') || outOf(rec, 'small');
 /* איכויות הצפייה של העבודה → מה שהנגן צריך (כתובת מלאה דרך ה־SW לכל קובץ); רק כשהראשונה היא הסרטון שהנגן מנגן */
+/* 26/10/2026: סרטון המקור נמחק (יום מפתיחת הפרויקט) — הנגן מנגן את הצרוב, ואין הפקה מחדש */
+const srcGone = (rec) => !!(rec && rec.srv && rec.srv.sx > 0);
+const srcVid = (rec) => (!srcGone(rec) && rec.up.v && rec.up.v.id) || '';
+/* עד מתי אפשר לצרוב מחדש / עד מתי הקבצים נשמרים — שורה אחת מתחת לתוצרים */
+function keepNote(rec) {
+  const rt = rec.srv && rec.srv.rt;
+  if (!rt) return null;
+  const a = [srcGone(rec) ? T('studioSrcGoneS') : rt.s > 0 ? T('studioKeepSrc', { t: fmtDate(rt.s) }) : '', rt.j > 0 ? T('studioKeepJob', { t: fmtDate(rt.j) }) : ''].filter(Boolean);
+  return a.length ? note(a.join(' · ')) : null;
+}
+/* שורת "הפקה מחדש" — אחרי שהמקור נמחק: הסבר במקום מעבר */
+const rrRow = (rec, k) => (srcGone(rec)
+  ? rowNav({ tile: tile('redo', 'green'), label: T('studioRrTitle'), sub: T('studioSrcGoneS'), onClick: () => flashSafe(T('studioSrcGone')), k })
+  : rowNav({ tile: tile('redo', 'green'), label: T('studioRrTitle'), sub: rrSub(rec), onClick: () => go('rr', rec.id), k }));
 function ladderOf(rec) {
-  const hl = rec && rec.srv && rec.srv.hl, vid = rec && rec.up.v && rec.up.v.id;
+  const hl = rec && rec.srv && rec.srv.hl, vid = srcVid(rec);
   if (!hl || !vid || hl[0].id !== vid || rec.spec.edl) return null;
   const out = [];
   for (const l of hl) { const u = net.mediaUrl(l.id); if (!u) return null; out.push(Object.assign({}, l, { url: new URL(u, location.href).href })); }
@@ -6339,7 +6337,7 @@ const ptSave = (p) => { const n = normTrackPref(p); if (JSON.stringify(store.set
    הוא נפתח ישר. הקובץ נבדק לפי הגודל שהאפליקציה דיווחה (pbn.sz) — צריבה חדשה = בוחרים שוב */
 export const phOutName = (name, small) => (String(name || '').replace(/\.[^.]*$/, '').replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').slice(0, 90).trim() || 'video') + (small ? ' — עברית קטן' : ' — עברית') + '.mp4';   // = PhCore.outName
 const phLocal = (rec) => !!(rec && rec.up && rec.up.ph && rec.srv && rec.srv.pbn && rec.srv.pbn.s === 'done' && !phBurnLive(rec));
-const canPlay = (rec) => !!(rec && (outOf(rec, 'cues') || outOf(rec, 'srt')) && ((rec.up.v && rec.up.v.id) || burnedOut(rec) || phLocal(rec)));
+const canPlay = (rec) => !!(rec && (outOf(rec, 'cues') || outOf(rec, 'srt')) && (srcVid(rec) || burnedOut(rec) || phLocal(rec)));
 let pl = null;                    // { id, st: 'load'|'ok'|'err', ctl, cues, iss, err }
 function playClose() { if (pl && pl.wt) pl.wt(); if (pl && pl.ctl) pl.ctl.destroy(); if (pl && pl.url) { try { URL.revokeObjectURL(pl.url); } catch (e) {} } pl = null; }
 /* הקובץ מהטלפון לפי הידית השמורה (בלי לשאול) — רק כשהגודל תואם לצריבה האחרונה */
@@ -6384,7 +6382,7 @@ async function playLoad(rec, phFile) {
     if (!cues.length && co) cues = normCues(await net.driveJson(co.id));
     if (!cues.length && so) cues = normCues(parseSrt(await net.driveText(so.id)));
     if (pl !== me) return;
-    const srcId = rec.up.v && rec.up.v.id, bo = burnedOut(rec);
+    const srcId = srcVid(rec), bo = burnedOut(rec);
     if (!srcId && !bo && phLocal(rec)) {   // 25/10/2026: הסרטון שנצרב בטלפון — מהקובץ שבטלפון
       const f = phFile || await phFileSaved(rec, false);
       if (pl !== me) return;
@@ -6575,7 +6573,7 @@ function pageSubs(p) {
   if (se.st === 'load') { p.append(h('div', 'st-pl-ph', T('studioSeLoading'))); return; }
   if (se.st === 'err') { p.append(h('div', 'st-empty st-empty-sm', T('studioSeLoadErr'))); return; }
   if (!se.ctl) {
-    const srcId = rec.up.v && rec.up.v.id, bo = burnedOut(rec);
+    const srcId = srcVid(rec), bo = burnedOut(rec);
     const src = srcId ? net.mediaUrl(srcId) : '', fb = bo ? net.mediaUrl(bo.id) : '';
     if (src || fb) {
       const me = se;
@@ -6604,7 +6602,7 @@ function pageSubs(p) {
   if (se.tl) { top.append(se.tl.el); requestAnimationFrame(() => se && se.tl && se.tl.draw()); }
   p.append(top, se.ed.el);
   // הפקה מחדש וגרסאות — מתחת לרשימה (פעולות של כל הקובץ)
-  p.append(list(rowNav({ tile: tile('redo', 'green'), label: T('studioRrTitle'), sub: rrSub(rec), onClick: () => go('rr', rec.id), k: 'se-rr' })));
+  p.append(list(rrRow(rec, 'se-rr')));
   // מ7: ייצוא — הכתוביות כמו שהן עכשיו בעורך (גם לפני שמירה), קובץ להורדה
   const ex = h('details', 'st-details');
   const dl = (ext, mime, txt) => {
@@ -6948,6 +6946,7 @@ function pageOv(p) {
 function pageRr(p) {
   const rec = jobRec(ui.param);
   if (!rec || !canEdit(rec)) { back(); return; }
+  if (srcGone(rec) && !rrJobs.get(rec.id)) { flashSafe(T('studioSrcGone')); back(); return; }   // 26/10/2026: בלי מקור אין הפקה מחדש
   p.append(navBar({ back: fileTitle(rec.spec.name) || T('studioUntitled') }), large(T('studioRrTitle')));
   const r = rrJobs.get(rec.id), st = r ? r.srv.state : '';
   if (r && (st === 'new' || st === 'queued' || st === 'running')) {
@@ -7381,12 +7380,14 @@ function pageJob(p) {
     if (canPlay(rec)) hero.append(btn('st-btn in-card', T('studioPlWatch'), () => go('play', id), 'play'));   // מ1: הנגן — 25/10/2026: בתוך כרטיס הראש
     p.append(secT(T('studioSecResults')), list(...outs.map((o) => rowOut(rec, o)),
     canEdit(rec) ? rowNav({ tile: tile('edit', 'blue'), label: T('studioSeTitle'), sub: rec.srv.ev ? T('studioSeEdited', { n: rec.srv.ev }) : '', onClick: () => go('subs', id), k: 'subs' }) : null,   // מ2
-    canEdit(rec) ? rowNav({ tile: tile('redo', 'green'), label: T('studioRrTitle'), sub: rrSub(rec), onClick: () => go('rr', id), k: 'rr' }) : null,
+    canEdit(rec) ? rrRow(rec, 'rr') : null,
     canEdit(rec) ? rowNav({ tile: tile('spark', 'teal'), label: T('studioIdTitle'), sub: T('studioIdSub'), onClick: () => go('ideas', id), k: 'ideas' }) : null,   // מ8
     canPick() && outs.some((o) => DX_MOVE.includes(o.k) || o.k === 'srt') ? rowNav({ tile: tile('cloud', 'green'), label: dxBusy === rec.id ? T('studioDxBusy') : T('studioDxT'),
       sub: rec.up.dx ? T('studioDxDone', { n: rec.up.dx.n }) : T('studioDxSub'), onClick: () => exportToDrive(rec), k: 'dx' }) : null,   // התוצר לתיקייה שבחרת ב־Drive
     jobFolder(rec) && !isR2Folder(jobFolder(rec)) ? rowExt({ href: 'https://drive.google.com/drive/folders/' + jobFolder(rec), tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null,
     btn('st-row st-act', T('studioRcpt'), () => shareReceipt(rec), 'receipt')));   // שלב 4: קבלה
+    const kn = keepNote(rec);   // 26/10/2026: עד מתי אפשר לצרוב מחדש ועד מתי הקבצים נשמרים
+    if (kn) p.append(kn);
     if (rateOk(rec)) p.append(rateCard(rec));   // 25/10/2026: איך יצא התרגום? (המשוב שלך)
     const aa = canEdit(rec) ? afterAdvice(rec, { rrDone: !!(rrJobs.get(rec.id) && rrJobs.get(rec.id).srv && rrJobs.get(rec.id).srv.state === 'done') }) : [];
     if (aa.length) p.append(secT(T('studioAdvAfterT')), list(...aa.map((a) => rowNav(a.k === 'jd'
@@ -8266,7 +8267,7 @@ function schedulePoll() {
   // v368: עבודה שמתאוששת — בודקים שוב בסוף החלון (אז השרתון ממשיך אותה)
   const recMs = (list) => { const t = Math.min(...list.filter(recovering).map((r) => r.srv.rw)); return Number.isFinite(t) ? Math.max(2000, Math.min(60000, t - Date.now() + 1500)) : 0; };
   if (ui.view === 'job') { const r = jobRec(ui.param), st = r && r.srv ? r.srv.state : 'new'; ms = st === 'queued' || st === 'running' || phBurnLive(r) || phPrepLive(r) ? 4000 : st === 'new' && r && r.up.started ? 15000 : r ? recMs([r]) : 0; }
-  else if (ui.view === 'home') ms = store.jobs.some((r) => r.srv && (r.srv.state === 'queued' || r.srv.state === 'running')) ? 15000 : recMs(store.jobs);
+  else if (ui.view === 'home') ms = store.jobs.some((r) => r.srv && (r.srv.state === 'queued' || r.srv.state === 'running')) ? 30000 : recMs(store.jobs);   // 26/10/2026: 30 שנ׳ (op:'jobs' = כל העבודות שלך — קריאה מ־Firestore לכל אחת)
   else if (ui.view === 'rr') { ms = rrRunning(rrJobs.get(ui.param)) || rrRunning(rrPv.get(ui.param)) ? 4000 : 0; }   // מ2; סבב 10: גם הבדיקה
   else if (ui.view === 'server' && ui.api && ui.api.admin) ms = 15000;   // מסך השרת: הדופק מתעדכן כל 15 שנ׳
   if (ms) pollT = setTimeout(pollNow, ms);

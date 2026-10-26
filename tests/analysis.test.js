@@ -64,6 +64,31 @@ ok(Math.abs(ta.price - 400) < 1e-9 && ta.fxNote, 'מניה בת״א שמדווח
 const many = A.prep({ ...D, fy: Array.from({ length: 15 }, (_, i) => (2011 + i) + '-12-31'), A: Object.fromEntries(Object.keys(A0).map((k) => [k, Array(15).fill(1)])) }, null, 3.7);
 ok(many.years.length === 12 && many.years[0] === 2014, 'עד 12 שנים מוצגות');
 ok(A.prep({ ...D, sic: 6021 }, null, 3.7).fin && A.prep({ ...D, ind: 'Bank (Money Center)' }, null, 3.7).fin && !co.fin, 'בנקים וביטוח מזוהים (קוד SIC או ענף)');
+/* ---------- בנקים וביטוח (עודף תשואה), ריט (FFO), חברה מפסידה ---------- */
+const bank = A.indFix(A.prep({ ...D, sic: 6021, ind: 'Bank (Money Center)', indData: { bu: 0.44, bl: 1.1, roe: 0.13, pbv: 1.6, n: 15 } }, null, 3.7), MAC);
+const FI = A.finInputs(bank, MAC);
+ok(Math.abs(FI.val.ke - (0.042 + 1.1 * 0.042)) < 1e-12, 'בנק: הבטא הממונפת של הענף, בלי מינוף מחדש על הפיקדונות');
+ok(Math.abs(FI.val.bv - rev[5] * 0.9 / 1e9) < 1e-9, 'הון למניה = ההון בדוח האחרון ÷ המניות');
+ok(Math.abs(FI.val.roe - 0.195) < 1e-9 && /anSrcRoeCap/.test(FI.src.roe), 'ROE מתמשך עד פי 1.5 מהענף (22% → 19.5%)');
+const rv = A.riValue(FI.val);
+ok(Math.abs(rv.ps - FI.val.bv * (0.195 - 0.03) / (FI.val.ke - 0.03)) < 1e-9, 'עודף תשואה: ההון × (ROE − g) ÷ (Ke − g)');
+ok(Math.abs(A.impliedRoe(FI.val, rv.ps) - FI.val.roe) < 1e-9, 'ROE שהמחיר מגלם: במחיר = השווי, יוצא ה־ROE שהונח');
+ok(A.riValue(FI.val, { roe: 0.02 }) === null, 'ROE מתחת לצמיחה — אין שווי חיובי');
+const F1 = A.fairOf(bank, MAC);
+ok(F1.kind === 'ri' && F1.bear.ps < F1.base.ps && F1.bull.ps > F1.base.ps, 'בנק: דוב < בסיס < שור גם כשה־ROE בתקרה');
+ok(A.uncertainty(bank).s < 0.01, 'בנק: אי־הוודאות לפי תנודתיות ה־ROE');
+const reit = A.prep({ ...D, sic: 6798, ind: 'R.E.I.T.' }, null, 3.7);
+ok(reit.reit && !reit.fin && A.prep({ ...D, ind: 'Retail (REITs)' }, null, 3.7).reit, 'ריט מזוהה (SIC 6798 או ענף), לא כבנק');
+const RI = A.reitInputs(reit), crt = A.ctx(reit, A.periodList(reit, 'fy').pop());
+ok(Math.abs(RI.ffops - (crt.ni + crt.dep) / 1e9) < 1e-9, 'FFO = רווח נקי + פחת והפחתות');
+ok(RI.m && RI.m[0] <= RI.m[1] && RI.m[1] <= RI.m[2] && A.fairOf(reit, MAC).kind === 'ffo', 'ריט: שווי לפי המחיר ל־FFO של הריט עצמו');
+ok(A.multHist(reit).pffo.filter((x) => x > 0).length >= 36 && A.multHist(bank).pb.filter((x) => x > 0).length >= 36, 'היסטוריה חודשית של מחיר ל־FFO ומכפיל הון');
+const neg = (a) => a.map((x) => -Math.abs(x));
+const lco = A.prep({ ...D, A: { ...A0, ocf: neg(A0.ocf) }, Q: { ...Q, ocf: neg(Q.ocf) } }, null, 3.7);
+const L = A.lossView(lco), clo = A.ctx(lco, A.periodList(lco, 'fy').pop());
+ok(Math.abs(L.m - (clo.fcf - clo.sbc) / clo.rev) < 1e-9 && Math.abs(L.r40 - (L.g + L.m)) < 1e-12, 'Rule of 40 = צמיחת הכנסות + שולי תזרים לבעלים (אחרי תגמול במניות)');
+ok(Math.abs(L.runway - clo.cashT / -clo.fcf) < 1e-9, 'כמה זמן המזומן מספיק = מזומן ÷ שריפה בשנה');
+ok(A.fairOf(lco, MAC) === null && A.fairOf(co, MAC).kind === 'dcf', 'בלי תזרים חיובי — אין DCF; חברה רגילה — DCF');
 const small = A.indFix(A.prep({ ...D, indData: { bu: 2, fpe: 90, n: 5 } }, null, 3.7), MAC);
 ok(small.ind.n === 6000 && small.indName === 'anIndMarket', 'ענף עם פחות מ־15 חברות — השוואה לשוק כולו');
 ok(A.indFix(A.prep(D, null, 3.7), MAC).ind.n === 300, 'ענף גדול נשאר');
@@ -160,5 +185,25 @@ const sels = css.replace(/\/\*[\s\S]*?\*\//g, '').match(/(^|\})\s*([^{}@]+)\{/g)
 const bad = sels.map((s) => s.replace(/^\}?\s*/, '').replace(/\{$/, '').trim()).filter((s) => s && !/^(from|to|\d)/.test(s) && !s.split(',').every((p) => /\.an-|an-open|\.an\b/.test(p)));
 ok(bad.length === 0, 'כל סלקטור בעיצוב בתחום an-' + (bad.length ? ': ' + bad.join(' | ') : ''));
 ok(/z-index: 900/.test(css) && /\.an-sheet \{[^}]*z-index: 941/.test(css), 'שכבה מעל האפליקציה, גיליון מעליה');
+
+/* ---------- הצגה מחדש (26/10/2026, AppLovin): צמיחה מול השנה הקודמת באותו דוח ---------- */
+{
+  // 2023–2025 הוצגו מחדש בלי עסק שנמכר (60% מההכנסות); 2020–2022 כפי שדווחו. היחס מהדוח: ‎+10% כל שנה
+  const cut = (a, from) => a.map((x, i) => (i >= from && x != null ? x * 0.6 : x));
+  const R = { ...D, A: { ...A0, rev: cut(A0.rev, 3) }, Q: { ...Q, rev: cut(Q.rev, 12) },
+    C: { A: { rev: [null, null, null, 1.1, null, null] }, Q: { rev: Q.rev.map((_, j) => (j >= 12 && j < 16 ? 1.1 : null)) } } };
+  const c = A.prep(R, null, 3.7), fyp = A.periodList(c, 'fy');
+  const g = fyp.map((p) => A.growthOf(c, p, 'rev'));
+  ok(Math.abs(g[3] - 0.1) < 1e-9, 'שנה שהוצגה מחדש: צמיחה מול השנה הקודמת באותו דוח (+10%, לא −34%)');
+  ok(Math.abs(g[4] - (146 / 133 - 1)) < 1e-9 && Math.abs(g[2] - 0.1) < 1e-9, 'שנים אחרות — מהסדרה כרגיל');
+  ok(Math.abs(A.cagrN(c, 'rev', 5)[0] - Math.pow(1.1 * 146 / 133 * 161 / 146 * 1.1 * 1.1, 1 / 5) + 1) < 1e-9, 'צמיחה ממוצעת על פני הצגה מחדש — מכפלת הצמיחות שנה אחר שנה (לא 2025 החדש מול 2020 הישן)');
+  ok(Math.abs(A.cagrN(co, 'rev', 5)[0] - A.cagrN({ ...co, C: null }, 'rev', 5)[0]) < 1e-12, 'בלי הצגה מחדש — אותה צמיחה ממוצעת כמו תמיד');
+  ok(A.restated(c, ['rev']).join() === '3' && !A.restated(co, ['rev']).length, 'השנים שהוצגו מחדש — להערה בגיליון');
+  const qp = A.periodList(c, 'q'), q2 = qp.find((p) => p.end === '2023-06-30');
+  ok(Math.abs(A.growthOf(c, q2, 'rev') - 0.1) < 1e-9, 'רבעון שהוצג מחדש — מול הרבעון המקביל באותו דוח');
+  const R0 = { ...R, C: { A: {}, Q: { rev: Q.rev.map((_, j) => (j === 13 ? 0 : null)) } } }, c0 = A.prep(R0, null, 3.7);
+  ok(A.growthOf(c0, A.periodList(c0, 'q').find((p) => p.end === '2023-06-30'), 'rev') === null, 'רבעון על בסיס אחר שאין איך להשוות (0) — בלי צמיחה, לא צמיחה שגויה');
+  ok(/anRestated: 'מ־\{y\}/.test(app) && /anRestated: 'From \{y\}/.test(app) && /restNote\(co, def\.s\)/.test(src), 'הערה בגיליון כשהגרף כולל שנה שהוצגה מחדש — בשתי השפות');
+}
 
 console.log('\nכל בדיקות מנתח החברות עברו: ' + n);

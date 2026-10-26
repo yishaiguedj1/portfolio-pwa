@@ -65,6 +65,7 @@ const D = { bk: null, fb: null, us: null, ag: null, srv: null, sec: null, log: n
 const PAGES = {};
 const page = (k, o) => { PAGES[k] = o; };
 let cur = 'ov';
+let booted = false;   // 26/10/2026: הסקירה כבר צוירה — מאגר הלמידה שמגיע אחריה מצייר שוב
 function go(k, push = true) {
   if (!PAGES[k]) k = 'ov';
   cur = k;
@@ -474,7 +475,7 @@ page('servers', { tab: 'apps', parent: 'studio', title: () => t('admStudioSrv'),
     const hb = x.hb || {};
     const st = x.warn.includes('auth') ? ['red', t('admSvAuth')] : x.paused ? ['gray', t('admRunPaused')] : x.online ? ['green', x.job ? fmt(t('admSvBusy'), { s: (STG[x.job.st] || (() => '—'))() }) + (x.job.p != null ? ' · ' + Math.round(x.job.p * 100) + '%' : '') : t('admSvIdle')] : ['red', t('admSvDown')];
     const rows = [row({ c: st[0], ic: '◉', t: st[1], s: fmt(t('admItLast'), { a: ago(x.seen) }) + (hb.v ? ' · ' + hb.v : '') })];
-    if (hb.disk != null) rows.push(row({ c: x.warn.includes('disk') ? 'orange' : 'gray', ic: '▤', t: t('admSvDisk'), s: hb.free != null ? fmt(t('admSvFree'), { n: hb.free }) : '', v: Math.round(hb.disk) + '%', meter: [hb.disk, hb.disk >= 85 ? 'w' : ''] }));
+    if (hb.disk != null) rows.push(row({ c: x.warn.includes('disk') ? 'orange' : 'gray', ic: '▤', t: t('admSvDisk'), s: hb.dl ? t('admSvDiskHold') : hb.free != null ? fmt(t('admSvFree'), { n: hb.free }) : '', v: Math.round(hb.disk) + '%', meter: [hb.disk, hb.disk >= 85 ? 'w' : ''] }));
     if (hb.mem != null) rows.push(row({ c: x.warn.includes('mem') ? 'orange' : 'gray', ic: '▦', t: t('admSvMem'), v: Math.round(hb.mem) + '%', meter: [hb.mem, hb.mem >= 90 ? 'w' : ''] }));
     if (hb.load != null) rows.push(row({ c: 'gray', ic: '∿', t: t('admSvLoad'), s: hb.up != null ? fmt(t('admSvUp'), { a: upTxt(hb.up) }) : '', v: hb.load }));
     if (hb.iso) rows.push(row({ c: hb.iso === 'g' ? 'green' : 'orange', ic: '⛨', t: hb.iso === 'g' ? t('studioIsoG') : (ISO[hb.iw] || (() => t('studioIsoR')))(), s: hb.al === 'o' ? t('admSvAlO') : hb.al === 't' ? t('admSvAlT') : '' }));
@@ -632,7 +633,8 @@ function provRow(name, P, skip) {
 page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
   if (!D.monT) needMon();
   const V = D.mon;
-  if (!V) { p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  // 26/10/2026: תקלה (למשל מכסת Firestore) — הודעה במקום "טוען…" לנצח; ממשיך לנסות כל 30 שנ׳
+  if (!V) { p.append(h('p', 'adm-dt', D.monErr ? t('admErr') + ' · ' + D.monErr : t('admLoading'))); return; }
   const M = V.mon;
   p.append(h('p', 'adm-dt', t('admMonDt')));
   p.append(grp(t('admMonSrv')));
@@ -691,11 +693,19 @@ page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
   p.append(list(row({ c: 'blue', ic: '▣', t: t('admMonApk'), s: t('admMonApkS'), on: monOpen('https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball-admin.apk') })));
 } });
 async function needMon() {
-  clearTimeout(D.monT); D.monT = 0;
-  const [r, pv] = await Promise.all([api('adminMon'), api('provUsage')]);
-  if (r.ok) D.mon = r;
-  if (pv.ok) { D.prov = pv.prov; D.provHist = pv.hist || []; D.sto = pv.sto || null; }
-  if (cur === 'mon') { D.monT = setTimeout(needMon, 30000); paint(); }   // מתרענן כל 30 שנ׳ כל עוד המסך פתוח
+  clearTimeout(D.monT); D.monT = -1;   // ‎-1 = בטעינה (לא טוענים שוב מהציור)
+  // 26/10/2026: השרתים מוצגים מיד — לא מחכים לשימוש מול הספקים (בקשות חיצוניות איטיות), והוא מתרענן רק פעם בדקה
+  const pvDue = !D.provAt || Date.now() - D.provAt > 60000;
+  const pvP = pvDue ? api('provUsage') : null;
+  const r = await api('adminMon');
+  if (r.ok) { D.mon = r; D.monErr = ''; } else D.monErr = String(r.error || '');
+  if (cur === 'mon') paint();
+  if (pvP) {
+    const pv = await pvP;
+    if (pv.ok) { D.prov = pv.prov; D.provHist = pv.hist || []; D.sto = pv.sto || null; D.provAt = Date.now(); }
+    if (cur === 'mon') paint();
+  }
+  D.monT = cur === 'mon' ? setTimeout(needMon, 30000) : 0;   // מתרענן כל 30 שנ׳ כל עוד המסך פתוח
 }
 /* ---- שימוש ומשפכים (15/10/2026): כמה נכנסו לכל אפליקציה ועד איפה הגיעו. רק ספירות קיימות + עבודות 30 יום — בלי מעקב חדש ---- */
 async function needUsage() {
@@ -1265,24 +1275,28 @@ page('find', { tab: 'find', title: () => t('admTabFind'), render(p) {
 if (first === 'out') { loginGate({ app: 'admin', auth: A, logo: 'logo-invest.webp', logoLg: 'logo-invest-lg.webp', name: t('admT') }); done(); }
 else boot();
 
-async function load() {
-  const [ov, lab] = await Promise.all([api('adminOv'), api('learn')]);
-  D.ov = ov.ok ? ov.ov : null; D.push = ov.ok ? ov.push : null; D.lab = lab; D.ovAt = Date.now();
-  return { ov, lab };
+/* 26/10/2026 (בקשת המשתמש: "הטעינה איטית וכבדה"): הסקירה מוצגת ברגע ש־adminOv עונה — מאגר הלמידה (learn, הכבד) מגיע
+   אחריה ומשלים את מה שתלוי בו (לא חוסם את הציור הראשון) */
+async function load(wait) {
+  const ovP = api('adminOv'), labP = api('learn').then((lab) => { D.lab = lab; if (!wait && booted) paint(); return lab; });
+  const ov = await ovP;
+  D.ov = ov.ok ? ov.ov : null; D.push = ov.ok ? ov.push : null; D.ovAt = Date.now();
+  return { ov, lab: wait ? await labP : null };
 }
 async function boot() {
   root.append(h('p', 'adm-wait', t('admLoading')));
-  const { ov, lab } = await load();
+  const { ov } = await load();
   done();
-  if ([ov.error, lab.error].some((e) => e === 'not_admin' || e === 'not_allowed')) {
+  if ([ov.error].some((e) => e === 'not_admin' || e === 'not_allowed')) {
     root.replaceChildren(h('p', 'adm-note', t('admNoAdmin')), accountCard(A, 'icon-192.png'));
     return;
   }
   const k = (location.hash || '#ov').slice(1);
   cur = PAGES[k] ? k : 'ov';
   try { history.replaceState({ adm: cur }, '', '#' + cur); } catch (e) {}
+  booted = true;
   paint();
-  document.addEventListener('visibilitychange', async () => { if (!document.hidden && Date.now() - D.ovAt > 60000) { await load(); paint(); } });
+  document.addEventListener('visibilitychange', async () => { if (!document.hidden && Date.now() - D.ovAt > 60000) { await load(true); paint(); } });
 }
 
 /* ---- לנתח עם Claude: חבילה להדבקה, קובץ, וטוקן לסשן של Claude Code ---- */
@@ -1905,7 +1919,7 @@ function faKind(k) {
   switch (k) {
     case 'face': return t('admFaK_face'); case 'fix': return t('admFaK_fix'); case 'ffill': return t('admFaK_ffill'); case 'ffix': return t('admFaK_ffix'); case 'bal': return t('admFaK_bal'); case 'neg': return t('admFaK_neg');
     case 'scale': return t('admFaK_scale'); case 'eps': return t('admFaK_eps'); case 'gp': return t('admFaK_gp'); case 'part': return t('admFaK_part');
-    case 'q4': return t('admFaK_q4'); case 'qneg': return t('admFaK_qneg'); case 'xy': return t('admFaK_xy'); case 'gold': return t('admFaK_gold');
+    case 'q4': return t('admFaK_q4'); case 'qneg': return t('admFaK_qneg'); case 'xy': return t('admFaK_xy'); case 'gold': return t('admFaK_gold'); case 'gr': return t('admFaK_gr'); case 'rst': return t('admFaK_rst');
     default: return t('admFaK_other');
   }
 }
@@ -1921,7 +1935,7 @@ page('labFund', { tab: 'imp', parent: 'lab', title: () => t('admFaT'), render(p)
   if (D.fa === undefined || D.fa === 0) { if (D.fa === undefined) { D.fa = 0; needFa(); } p.append(h('p', 'adm-dt', t('admLoading'))); return; }
   const v = D.fa;
   if (!v) { p.append(list(row({ c: 'gray', ic: '—', t: t('admFaNone') })), h('p', 'adm-foot', t('admFaFoot'))); return; }
-  if (v.alert) p.append(list(row({ c: 'red', ic: '!', t: t('admFaAlert'), s: v.alert.map((k) => (k === 'gold' ? t('admFaK_gold') : k === 'face' ? t('admFaK_face') : fmt(t('admFaFail'), { n: v.fail }))).join(' · ') })));
+  if (v.alert) p.append(list(row({ c: 'red', ic: '!', t: t('admFaAlert'), s: v.alert.map((k) => (k === 'gold' ? t('admFaK_gold') : k === 'face' ? t('admFaK_face') : k === 'gr' ? t('admFaK_gr') : fmt(t('admFaFail'), { n: v.fail }))).join(' · ') })));
   p.append(tiles(
     tileEl('green', t('admFaFace'), faPct(v.face.pct), v.face.d != null && v.face.d !== 0 ? (v.face.d > 0 ? '+' : '−') + Math.abs(v.face.d) : fmt(t('admFaFaceS'), { ok: numTxt(v.face.ok), n: numTxt(v.face.n) }), v.face.d < 0 ? 'dn' : v.face.d > 0 ? 'up' : '', v.trend),
     tileEl('blue', t('admFaCos'), faPct(v.face.coPct), fmt(t('admFaCosS'), { ok: v.face.coOk, n: v.face.cos }), '', null),
