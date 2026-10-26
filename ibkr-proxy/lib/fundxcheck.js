@@ -180,7 +180,7 @@ function rawSeries(facts, tag, adj, cur) {
   if (/\+/.test(tag)) { // סכום תגיות (השקעות הוניות בחלקים) — כל תקופה שכל החלקים קיימים בה
     const parts = tag.split('+').map((t) => rawSeries(facts, t, adj, cur));
     if (parts.some((p) => !p)) return null;
-    const sum = (k) => { const M = new Map(); for (const [key, h] of parts[0][k]) { let v = h.v, f = h.filed, okk = true; for (const p of parts.slice(1)) { const x = p[k].get(key); if (!x) { okk = false; break; } v += x.v; if (x.filed > f) f = x.filed; } if (okk) M.set(key, { v, filed: f }); } return M; };
+    const sum = (k) => { const M = new Map(); for (const [key, h] of parts[0][k]) { let v = h.v, f = h.filed, okk = true; for (const p of parts.slice(1)) { const x = p[k].get(key); if (!x) { okk = false; break; } v += x.v; if (x.filed > f) f = x.filed; } if (okk) M.set(key, { v, filed: f, all: [] }); } return M; };
     return { dur: sum('dur'), inst: sum('inst'), neg: parts[0].neg };
   }
   for (const ns of ['us-gaap', 'ifrs-full']) {
@@ -201,7 +201,8 @@ function rawSeries(facts, tag, adj, cur) {
       const ann = !/^10-Q/.test(x.form), yr = !!x.start && day(x.end) - day(x.start) >= 350;
       // v0/f0 = הערך שהוגש ראשון (בשנה — מדוח שנתי) — "כפי שדווח לראשונה", להשוואה למקור חיצוני שלא עדכן הצגה מחדש
       const first = !h || ((!yr || ann) && (h.f0 == null || x.filed < h.f0));
-      if (!h || (yr && h.ann !== ann ? ann : x.filed > h.filed)) M.set(key, { v, filed: x.filed, ann, vk: h && h.vk, fk: h && h.fk, nr: h && h.nr, v0: h && h.v0, f0: h && h.f0 });
+      if (!h || (yr && h.ann !== ann ? ann : x.filed > h.filed)) M.set(key, { v, filed: x.filed, ann, vk: h && h.vk, fk: h && h.fk, nr: h && h.nr, v0: h && h.v0, f0: h && h.f0, all: (h && h.all) || [] });
+      M.get(key).all.push([x.filed, v]); // כל ההגשות — לרבעון "כפי שדווח" ולערך שהוחלף (הוצג מחדש)
       if (first && (!yr || ann)) { const g = M.get(key); g.v0 = v; g.f0 = x.filed; }
       // הערך מהדוח השנתי האחרון — במאזן 10-K גובר על 10-Q מאוחר (המדיניות של fundamentals; Honeywell: 10-Q של 2026 הציג מחדש את 31/12/2025)
       const g2 = M.get(key);
@@ -282,6 +283,45 @@ function origVals(all, ours, e, kind, bal, m) {
   return all.filter((x) => x.f < f0).map((x) => x.v);
 }
 
+// רבעון מחושב "כפי שדווח" (כמו valAfter ב־fundamentals): המצטבר עד e כפי שהוגש בדוח הראשון אחרי המצטבר הקודם — לא אחרי
+// הצגה מחדש מאוחרת שנגעה רק בו (Alnylam 2025: חצי השנה הוצג מחדש ‏$9.5M במקום ‏$35.4M; Becton Dickinson: חצי השנה הראשונה
+// של 2025 אחרי מכירת העסק ‏$489M במקום ‏$857M — הרבעון השני שלנו ‏$164M מהדוח עצמו, החיסור של הכלי ‏‎−$204M)
+function rawAsFiled(rs, e, fyStart) {
+  if (!rs || !fyStart) return [];
+  let cum = null, prev = null;
+  for (const [k, h] of rs.dur) {
+    const [s, en] = k.split('|'); if (Math.abs(day(s) - day(fyStart)) > 3) continue;
+    const off = day(e) - day(en);
+    if (Math.abs(off) <= 3) cum = h; else if (off >= 80 && off <= 100 && (!prev || h.filed > prev.filed)) prev = h;
+  }
+  if (!cum || !prev || !cum.all || !prev.all) return [];
+  const out = [];
+  for (const [pf, pv] of prev.all) { const nx = cum.all.filter(([f]) => f >= pf).sort((a, b) => (a[0] < b[0] ? -1 : 1))[0]; if (nx) out.push(nx[1] - pv); }
+  return out;
+}
+// רבעון ישיר בתגית משלימה (Fortive: ‏PaymentsToAcquireProductiveAssets ב־10-Q אחרי Ralliant, כשהראשית מדווחת רק מצטברים) —
+// אותו כלל של mergeTags: לא כשהמצטבר של הראשית באותו דוח הוא עדיין הערך הראשון שדווח (גם של השנה הקודמת לצידו),
+// והחיסור ממנו שונה (Republic Services: ביאור המגזרים)
+function altDirectQ(rs, alt, e, fyStart) {
+  if (!alt || !fyStart) return null;
+  let q = null; for (const [k, h] of alt.dur) { const [s, en] = k.split('|'), L = day(en) - day(s); if (Math.abs(day(en) - day(e)) <= 3 && L >= 80 && L <= 100 && (!q || h.filed > q.filed)) q = h; }
+  if (!q || !rs) return q ? q.v : null;
+  const near = (a, b) => Math.abs(a - b) <= 0.025 * Math.max(Math.abs(a), Math.abs(b));
+  const at = (h, f) => { const x = (h.all || []).filter(([g]) => g === f); return x.length ? x[x.length - 1][1] : null; };
+  const first = (h) => (h.all && h.all.length ? [...h.all].sort((a, b) => (a[0] < b[0] ? -1 : 1))[0][1] : h.v);
+  let cum = null, prev = null, py = null;
+  for (const [k, h] of rs.dur) {
+    const [s, en] = k.split('|'); if (Math.abs(day(s) - day(fyStart)) > 3) continue;
+    const off = day(e) - day(en);
+    if (Math.abs(off) <= 3) cum = h; else if (off >= 80 && off <= 100) prev = h;
+  }
+  for (const [k, h] of rs.dur) { const [s, en] = k.split('|'); if (Math.abs(day(s) - day(fyStart) + 365) <= 8 && Math.abs(day(en) - day(e) + 365) <= 8) py = h; }
+  const c = cum && at(cum, q.filed);
+  if (c == null || !near(first(cum), c) || !py || at(py, q.filed) == null || !near(first(py), at(py, q.filed))) return q.v;
+  const pv = prev && (prev.all || []).filter(([f]) => f <= q.filed).sort((a, b) => (a[0] < b[0] ? -1 : 1)).pop();
+  return pv && !near(c - pv[1], q.v) ? null : q.v;
+}
+
 /* ---------- ההשוואה ---------- */
 // המזומן המוגבל שמחוסר מהסך הכולל כשאין שורת מאזן (RCASH ב־fundamentals.js — אותן קבוצות, אותו סדר)
 const CASH_RESTR = [['RestrictedCashCurrent', 'RestrictedCashNoncurrent'], ['RestrictedCashAndCashEquivalentsCurrent', 'RestrictedCashAndCashEquivalentsNoncurrent'],
@@ -296,10 +336,13 @@ const FST = { rev: 'is', gp: 'is', op: 'is', ni: 'is', eps: 'is', sh: 'is', ocf:
 const YK = { ni: 'ni' }; // Yahoo: NetIncomeCommonStockholders — מול nic כשיש
 // ערך שלנו שמחושב בנוסחה (לא תגית אחת) — אותה נוסחה מ־SEC הגולמי
 // (כמו "שורות מחושבות" ב־normalizeSec; ההון — כולל זכויות מיעוט כשיש לתקופה, אחרת של בעלי המניות)
-function rawFormula(m, d, at) {
+function rawFormula(m, d, at, atK) {
   const t = d.tags || {};
   if (m === 'gp' && t.rev && t.cogs) { const a = at(t.rev), b = at(t.cogs); return a != null && b != null ? { v: a - b, rf: 'rev-cogs' } : null; }
   if (m === 'tl' && t.tle && (t.eqt || t.eq)) {
+    // כל רכיב — מהמאזן השנתי שבו התאריך מופיע, אחרת האחרון (Berkshire 2021: ההון בדוח ההון של 2024 אחרי אימוץ תקן ‏$510.3B,
+    // במאזן שבו 2021 הודפס ‏$514.9B — סך ההתחייבויות המודפס ‏$443.9B)
+    if (atK) at = atK;
     const a = at(t.tle), b = (t.eqt && at(t.eqt)) ?? (t.eq ? at(t.eq) : null), c = t.tmp ? at(t.tmp) : 0;
     return a != null && b != null ? { v: a - b - (c || 0), rf: 'tle-eq' } : null;
   }
@@ -415,6 +458,7 @@ function xcheck(d, facts, y, nq, opt = {}) {
   // "שנים" שהן לא שנה (Amazon: דוחות רבעוניים עם 12 חודשים אחרונים — כל רבעון נראה כסוף שנה)
   const ttm = new Set(d.fy.filter((e, i) => i > 0 && day(e) - day(d.fy[i - 1]) < 300));
   const rsCache = {}, secAt = (tag, e, kind, fs) => { if (!(tag in rsCache)) rsCache[tag] = rawSeries(facts, tag, null, d.cur); return rawAt(rsCache[tag], e, kind, fs); };
+  const secK = (tag, e, kind) => { secAt(tag, e, kind, null); const x = rawAt(rsCache[tag], e, kind, null, true); return x != null ? x : rawAt(rsCache[tag], e, kind, null); };
   // הדוח השנתי האחרון כפי שהודפס (opt.face = secFace): לכל מדד ושנה — השורות של אותו דוח באותה עמודה
   const faceAt = (m, e) => {
     const S = opt.face && opt.face[FST[m]]; if (!S || !S.cols || !S.rows) return null;
@@ -470,7 +514,7 @@ function xcheck(d, facts, y, nq, opt = {}) {
           const ro = ['cum', true].map((o) => [o, rawAt(rsU, e, kind, fsr, null, o)]).find(([, x]) => x != null && same(m, vv, x, sc));
           if (ro) { raw = ro[1]; rf = (rf ? rf + '·' : '') + (ro[0] === 'cum' ? 'cum' : 'orig'); }
         }
-        if (raw == null && facts && !dropped) { const f = rawFormula(m, d, (t) => secAt(t, e, kind, BAL.has(m) ? null : fs0)); if (f) { raw = f.v; rf = f.rf; } }
+        if (raw == null && facts && !dropped) { const f = rawFormula(m, d, (t) => secAt(t, e, kind, BAL.has(m) ? null : fs0), BAL.has(m) ? (t) => secK(t, e, kind) : null); if (f) { raw = f.v; rf = f.rf; } }
         if (raw != null && m === 'capex' && rs && rs.neg && !rf) raw = -raw;
         else if (raw != null && m === 'capex' && rf) raw = Math.abs(raw);
         // רבעון מחושב שלילי של השקעה ברוטו (שנה פחות 9 חודשים מבסיסים שונים) — לא ייחוס
@@ -495,6 +539,12 @@ function xcheck(d, facts, y, nq, opt = {}) {
         const sm = (a) => (a == null ? null : same(m, vc, a, sc) || (m === 'ni' && same(m, vv, a, sc)) ? true : false);
         const srMain = same(m, vv, raw, sc), srK = rawK != null ? same(m, vv, rawK, sc) : null;
         let sr = srMain === true || srK === true ? true : srMain;
+        // רבעון מחושב של זרימה: גם הזוג "כפי שדווח" (המצטבר מהדוח הראשון אחרי הקודם), וגם רבעון ישיר בתגית משלימה
+        if (sr === false && kind === 'Q' && !BAL.has(m) && !NOSUM.has(m) && !rf) {
+          const eq = (x) => x != null && same(m, m === 'capex' ? Math.abs(vv) : vv, m === 'capex' ? Math.abs(x) : x, sc);
+          if (rawAsFiled(rs, e, fsr).some(eq)) { sr = true; r.rf = 'asfiled'; }
+          else for (const [t, x] of alts) if (eq(altDirectQ(rs, x, e, fsr)) || eq(rawAt(x, e, kind, fsr))) { sr = true; r.rf = t + ':q'; break; }
+        }
         // מאזן: הערך שלנו נבחר לכל תאריך מכמה תגיות (מזומן — cashMerge): תואם דוח שנתי של תגית מועמדת אחרת, או את הסך הכולל
         // מזומן מוגבל פחות המזומן המוגבל (Chevron) — SEC מאשר
         if (sr === false && BAL.has(m)) {

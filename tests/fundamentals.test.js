@@ -689,6 +689,80 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
   ok(y.qc && y.qc.rev && y.qc.rev.includes('2025-12-31') && !F.q4Eps({ q: ['2025-12-31'], Q: { eps: [0.94] }, derived: { eps: ['2025-12-31'] } },
     { q: ['2025-12-31'], Q: { eps: [0.97] }, qc: { eps: ['2025-12-31'] } }).length, 'parseYahooTs מסמן רבעון שחישב (qc), ו־q4Eps לא מאמץ אותו');
 }
+/* ---------- 26/10/2026 (סבב 2): השקעות הוניות, מזומן וסך התחייבויות — מול הדוחות עצמם ---------- */
+{
+  const cfF = (rows) => ({ cf: { title: '', cols: [{ end: '2025-12-31', months: 12 }], scale: { cur: 1, sh: 1 }, rows: rows.map(([tag, label, v]) => ({ ns: 'us-gaap', tag, label, v: [v] })) } });
+  const bsF = (rows) => ({ bs: { title: '', cols: [{ end: '2025-12-31' }], scale: { cur: 1, sh: 1 }, rows: rows.map(([tag, label, v]) => ({ ns: 'us-gaap', tag, label, v: [v] })) } });
+  const REV = ['Revenues', 'USD', yrs([9, 9, 9], 2023)];
+  // Dow: ‏"Capital expenditures" + "Purchases of previously leased assets" + "Investment in gas field developments" — רק הראשונה
+  const DW = facts([REV, ['PaymentsToAcquireMachineryAndEquipment', 'USD', yrs([1501, 1823, 2356], 2023)], ['PaymentsToAcquireEquipmentOnLease', 'USD', yrs([694, 7, 7], 2023)],
+    ['PaymentsToExploreAndDevelopOilAndGasProperties', 'USD', yrs([215, 203, 157], 2023)]]);
+  const dw = F.normalizeSec(DW, [], cfF([['PaymentsToAcquireMachineryAndEquipment', 'Capital expenditures', -2356], ['PaymentsToExploreAndDevelopOilAndGasProperties', 'Investment in gas field developments', -157],
+    ['PaymentsToAcquireEquipmentOnLease', 'Purchases of previously leased assets', -7]]));
+  ok(dw.A.capex.join() === '1501,1823,2356', 'השקעות הוניות: בלי רכישת נכסים שהיו בחכירה ובלי פיתוח שדה גז לצד "Capital expenditures" (Dow)');
+  // Diamondback: ‏"Additions to oil and natural gas properties" + "Property acquisitions" — רק הקידוח והפיתוח
+  const FG = facts([REV, ['PaymentsToExploreAndDevelopOilAndGasProperties', 'USD', yrs([2701, 2867, 3523], 2023)], ['PaymentsToAcquireOilAndGasProperty', 'USD', yrs([2013, 8920, 5938], 2023)]]);
+  const fg = F.normalizeSec(FG, [], cfF([['PaymentsToExploreAndDevelopOilAndGasProperties', 'Additions to oil and natural gas properties', -3523], ['PaymentsToAcquireOilAndGasProperty', 'Property acquisitions', -5938]]));
+  ok(fg.tags.capex === 'PaymentsToExploreAndDevelopOilAndGasProperties' && fg.A.capex.join() === '2701,2867,3523', 'השקעות הוניות של נפט וגז: הקידוח, לא "Property acquisitions" (Diamondback)');
+  // Host Hotels: ‏"Renewals and replacements" + "Return on investment"
+  const HS = facts([REV, ['PaymentsToAcquireOtherProductiveAssets', 'USD', yrs([451, 288, 362], 2023)], ['PaymentsForCapitalImprovements', 'USD', yrs([195, 260, 282], 2023)]]);
+  ok(F.normalizeSec(HS, [], cfF([['PaymentsToAcquireOtherProductiveAssets', 'Renewals and replacements', -362], ['PaymentsForCapitalImprovements', 'Return on investment', -282]])).A.capex.join() === '646,548,644', 'השקעות הוניות = חידושים + השקעה בשיפורים (Host)');
+  // Camden: פיתוח (כמעט הכל) + נכסים אחרים (רק בחלק מה־10-Q) — הרבעונים מהפיתוח
+  const CP = facts([['Revenues', 'USD', [...yrs([9, 9, 9], 2023), ['2026-01-01', '2026-03-31', 2, '10-Q', '2026-05-01'], ['2026-04-01', '2026-06-30', 2, '10-Q', '2026-07-31']]], ['PaymentsToDevelopRealEstateAssets', 'USD', [...yrs([411, 394, 440], 2023), ['2026-01-01', '2026-03-31', 94, '10-Q', '2026-05-01'], ['2026-01-01', '2026-06-30', 240, '10-Q', '2026-07-31']]],
+    ['PaymentsToAcquireOtherPropertyPlantAndEquipment', 'USD', yrs([5.6, 3.8, 2.4], 2023)]]);
+  const cp = F.normalizeSec(CP, [], cfF([['PaymentsToDevelopRealEstateAssets', 'Development and capital improvements, including land', -440], ['PaymentsToAcquireOtherPropertyPlantAndEquipment', 'Increase in non-real estate assets', -2.4]]));
+  const cq = (d, e) => (d.q.includes(e) ? d.Q.capex[d.q.indexOf(e)] : undefined);
+  ok(near(cp.A.capex[2], 442.4) && cq(cp, '2026-03-31') === 94 && cq(cp, '2026-06-30') === 146, 'ריט: פיתוח ושיפורים בהשקעות ההוניות, ורבעונים מהחלק העיקרי (Camden)');
+  // Republic Services: רבעון ישיר בתגית משלימה = ביאור המגזרים (453.7); בתזרים 1357.4 − 917.9 = 439.5
+  const q = (s, e, v, form, filed) => [s, e, v, form, filed];
+  const RS = facts([['Revenues', 'USD', [...yrs([16, 16], 2023), q('2024-01-01', '2024-03-31', 4, '10-Q', '2024-05-01'), q('2024-04-01', '2024-06-30', 4, '10-Q', '2024-07-25'), q('2024-07-01', '2024-09-30', 4, '10-Q', '2024-10-30')]],
+    ['PaymentsToAcquirePropertyPlantAndEquipment', 'USD', [...yrs([1300, 1631], 2022), q('2023-01-01', '2023-09-30', 1100, '10-Q', '2023-10-30'), q('2023-01-01', '2023-09-30', 1100, '10-Q', '2024-10-30'),
+      q('2024-01-01', '2024-03-31', 514.5, '10-Q', '2024-05-01'), q('2024-01-01', '2024-06-30', 917.9, '10-Q', '2024-07-25'), q('2024-01-01', '2024-09-30', 1357.4, '10-Q', '2024-10-30')]],
+    ['PaymentsToAcquireProductiveAssets', 'USD', [...yrs([1300, 1631], 2022), q('2024-04-01', '2024-06-30', 403.4, '10-Q', '2024-07-25'), q('2024-07-01', '2024-09-30', 453.7, '10-Q', '2024-10-30')]]]);
+  const rs = F.normalizeSec(RS, []);
+  ok(near(cq(rs, '2024-09-30'), 439.5) && near(cq(rs, '2024-06-30'), 403.4), 'רבעון ישיר בתגית משלימה שסותר את המצטברים מאותו דוח — לא נכנס (Republic Services); רבעון שמתיישב — נכנס');
+  // Fortive: אחרי הפרדה התשעה חודשים הוצגו מחדש (63.5 במקום 83.4) — הרבעון הישיר מהבסיס החדש נכנס
+  const FV = facts([['Revenues', 'USD', [...yrs([16, 16], 2023), q('2024-07-01', '2024-09-30', 4, '10-Q', '2024-10-30')]],
+    ['PaymentsToAcquirePropertyPlantAndEquipment', 'USD', [...yrs([80, 78.6], 2022), q('2023-01-01', '2023-09-30', 60, '10-Q', '2023-10-30'), q('2023-01-01', '2023-09-30', 50, '10-Q', '2025-10-29'),
+      q('2024-01-01', '2024-06-30', 55.6, '10-Q', '2024-07-24'), q('2024-01-01', '2024-09-30', 83.4, '10-Q', '2024-10-30'), q('2024-01-01', '2024-09-30', 63.5, '10-Q', '2025-10-29')]],
+    ['PaymentsToAcquireProductiveAssets', 'USD', [...yrs([80, 78.6], 2022), q('2024-06-29', '2024-09-30', 21.6, '10-Q', '2025-10-29')]]]);
+  ok(cq(F.normalizeSec(FV, []), '2024-09-30') === 21.6, 'רבעון ישיר מדוח שהציג מחדש — נכנס (Fortive)');
+  // Fortinet: ב־10-Q של 2026 השורה בתזרים עברה לתגית אחרת; התגית הקודמת בביאור (בלי 2025 לצידה)
+  const FT = facts([['Revenues', 'USD', [...yrs([16, 16, 16], 2023), q('2026-01-01', '2026-03-31', 4, '10-Q', '2026-05-08'), q('2026-04-01', '2026-06-30', 4, '10-Q', '2026-07-30')]],
+    ['PaymentsToAcquireProductiveAssets', 'USD', [...yrs([204, 379, 365], 2023), q('2025-01-01', '2025-03-31', 66.5, '10-Q', '2025-05-08'), q('2025-01-01', '2025-06-30', 234.3, '10-Q', '2025-08-08'),
+      q('2026-01-01', '2026-03-31', 47.1, '10-Q', '2026-05-08'), q('2026-01-01', '2026-06-30', 62.1, '10-Q', '2026-07-30')]],
+    ['PaymentsToAcquirePropertyPlantAndEquipment', 'USD', [q('2025-01-01', '2025-03-31', 66.5, '10-Q', '2025-05-08'), q('2025-01-01', '2025-03-31', 66.5, '10-Q', '2026-05-08'),
+      q('2025-01-01', '2025-06-30', 234.3, '10-Q', '2025-08-08'), q('2025-01-01', '2025-06-30', 234.3, '10-Q', '2026-07-30'),
+      q('2026-01-01', '2026-03-31', 70.6, '10-Q', '2026-05-08'), q('2026-01-01', '2026-06-30', 148.6, '10-Q', '2026-07-30')]]]);
+  const ft = F.normalizeSec(FT, [], cfF([['PaymentsToAcquireProductiveAssets', 'Purchases of property and equipment', -365]]));
+  ok(near(cq(ft, '2026-03-31'), 70.6) && near(cq(ft, '2026-06-30'), 78), 'השקעות הוניות: ערך בלי השוואה לשנה הקודמת באותו דוח מוחלף בשורה שיש לה (Fortinet 2026)');
+  // מזומן — Gen Digital: ‏"Cash" בביאור; המאזן בתגית הכוללת מזומן מוגבל
+  const inst = (end, val, form, filed) => [null, end, val, form, filed];
+  const R = 'CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents';
+  const GN = facts([REV, ['CashAndCashEquivalentsAtCarryingValue', 'USD', [inst('2024-12-31', 1006, '10-K', '2025-02-01')]],
+    ['Cash', 'USD', [inst('2024-12-31', 462, '10-K', '2025-02-01'), inst('2025-12-31', 283, '10-K', '2026-02-01')]],
+    [R, 'USD', [inst('2024-12-31', 1006, '10-K', '2026-02-01'), inst('2025-12-31', 411, '10-K', '2026-02-01')]]]);
+  const gn = F.normalizeSec(GN, [], bsF([[R, 'Cash, cash equivalents and restricted cash', 411]]));
+  ok(gn.A.cash.join() === ',1006,411', 'מזומן: "Cash" שאינה בשורה במאזן — לא נכנסת (Gen Digital)');
+  // 3M: השורה במאזן בתגית שכוללת מזומן של פעילות שנמכרה — 2023 כפי שבמאזן (5735), לא סך התזרים (5933)
+  const DG = 'CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsIncludingDisposalGroupAndDiscontinuedOperations';
+  const MM = facts([REV, [R, 'USD', [inst('2023-12-31', 5933, '10-K', '2024-02-01'), inst('2023-12-31', 5933, '10-K', '2025-02-01'), inst('2024-12-31', 5600, '10-K', '2025-02-01')]],
+    [DG, 'USD', [inst('2023-12-31', 5933, '10-K', '2024-02-01'), inst('2023-12-31', 5735, '10-K', '2025-02-01'), inst('2024-12-31', 5600, '10-K', '2025-02-01'), inst('2025-12-31', 5235, '10-K', '2026-02-01')]]]);
+  ok(F.normalizeSec(MM, [], bsF([[DG, 'Cash and cash equivalents', 5235]])).A.cash.join() === '5735,5600,5235', 'מזומן: התגית שבמאזן גם כשהיא כוללת פעילות שנמכרה (3M)');
+  // McKesson: ‏"Redeemable noncontrolling interests" לא בסך ההתחייבויות המחושב
+  const MK = facts([REV, ['LiabilitiesAndStockholdersEquity', 'USD', [inst('2025-12-31', 82323, '10-K', '2026-02-01')]],
+    ['StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest', 'USD', [inst('2025-12-31', -1777, '10-K', '2026-02-01')]],
+    ['StockholdersEquity', 'USD', [inst('2025-12-31', -2172, '10-K', '2026-02-01')]],
+    ['RedeemableNoncontrollingInterestEquityCommonCarryingAmount', 'USD', [inst('2025-12-31', 943, '10-K', '2026-02-01')]]]);
+  ok(F.normalizeSec(MK, [], bsF([['RedeemableNoncontrollingInterestEquityCommonCarryingAmount', 'Redeemable noncontrolling interests', 943]])).A.tl[2] === 83157, 'סך התחייבויות מחושב בלי זכויות מיעוט שניתנות לפדיון — השורה במאזן (McKesson)');
+  ok(F.normalizeSec(MK, [], bsF([['StockholdersEquity', 'Total stockholders equity', -2172]])).A.tl[2] === 84100, 'אותה תגית בביאור בלבד — לא מחסרים (NiSource: זכויות המיעוט כבר בתוך ההון)');
+  // Nebius: דוח ברובל עם עמודת המרה לדולר — העמודה לא נכנסת; דוח בדולר (השוואה מוצגת מחדש) — כן
+  const NB = facts([['Revenues', 'USD', yrs([13.5, 9.8, 91.5], 2022).map((r) => [...r.slice(0, 3), '20-F', '2026-04-30'])], ['Assets', 'RUB', [inst('2021-12-31', 515496e6, '20-F', '2023-04-20'), inst('2022-12-31', 616719e6, '20-F', '2023-04-20')]]]);
+  NB.facts['us-gaap'].Assets.units.USD = [{ end: '2022-12-31', val: 8768e6, form: '20-F', filed: '2023-04-20', fy: 2022, fp: 'FY' }, { end: '2023-12-31', val: 8755e6, form: '20-F', filed: '2026-04-30', fy: 2025, fp: 'FY' },
+    { end: '2024-12-31', val: 3549e6, form: '20-F', filed: '2026-04-30', fy: 2025, fp: 'FY' }];
+  const nb = F.normalizeSec(NB, []);
+  ok(nb.cur === 'USD' && nb.A.ta.join() === [null, 8755e6, 3549e6].join(), 'עמודת המרה (הדוח ברובל, הדולר רק לשנה האחרונה) — לא נכנסת (Nebius 2022)');
+}
 
 (async () => {
   const calls = [];

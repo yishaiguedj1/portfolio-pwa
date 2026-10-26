@@ -273,4 +273,40 @@ ok(X.PROBLEM.has('odd') && !X.PROBLEM.has('def') && !X.PROBLEM.has('okd'), 'odd 
   const rf = find(X.xcheck(df, ff, null, null), 'sh', 'Q', '2024-12-31');
   ok(rf.c === 'est' && rf.est === 721900000, 'אומדן מניות ברבעון רביעי בקנה המידה שלנו (721.9M, לא 720 מניות)');
 }
+// 26/10/2026 (סבב 2) — רבעון "כפי שדווח", רבעון ישיר בתגית משלימה, סך התחייבויות מהמאזן שבו התאריך הודפס, הצגה מחדש, רכישות בהשקעות ההוניות
+{
+  const M = 1e6, R = (s, e, v, form, filed) => [s, e, v * M, form, filed];
+  // Becton Dickinson: חצי השנה הוצג מחדש אחרי מכירת עסק (489 במקום 857) — הרבעון השני שלנו 857 − 693 = 164, לא 489 − 693
+  const f1 = facts([['NetCashProvidedByUsedInOperatingActivities', 'USD', [R(...Y(2024), 3000, '10-K', '2025-02-01'), R(...Q(2025, 1), 693, '10-Q', '2025-05-01'),
+    R('2025-01-01', '2025-06-30', 857, '10-Q', '2025-08-01'), R('2025-01-01', '2025-06-30', 489, '10-Q', '2026-08-01')]]]);
+  const d1 = base({ fy: ['2023-12-31', '2024-12-31'], q: ['2025-06-30'], tags: { ocf: 'NetCashProvidedByUsedInOperatingActivities' }, A: { ocf: [null, 3000 * M] }, Q: { ocf: [164 * M] }, derived: { ocf: ['2025-06-30'] } });
+  const r1 = find(X.xcheck(d1, f1, null, null), 'ocf', 'Q', '2025-06-30');
+  ok(r1.c === 'ok' && /asfiled|orig/.test(r1.rf), 'רבעון מחושב "כפי שדווח" (המצטבר מהדוח הראשון אחרי הקודם) — לא bug מול חיסור של מצטבר שהוצג מחדש');
+  // Fortive: רבעון ישיר רק בתגית משלימה, מדוח שהציג מחדש את התשעה חודשים
+  const f2 = facts([['PaymentsToAcquirePropertyPlantAndEquipment', 'USD', [R(...Y(2023), 78.6, '10-K', '2024-02-01'), R('2023-01-01', '2023-09-30', 60, '10-Q', '2023-10-30'), R('2023-01-01', '2023-09-30', 50, '10-Q', '2025-10-29'),
+    R('2024-01-01', '2024-06-30', 55.6, '10-Q', '2024-07-24'), R('2024-01-01', '2024-09-30', 83.4, '10-Q', '2024-10-30'), R('2024-01-01', '2024-09-30', 63.5, '10-Q', '2025-10-29')]],
+    ['PaymentsToAcquireProductiveAssets', 'USD', [R('2024-07-01', '2024-09-30', 21.6, '10-Q', '2025-10-29')]]]);
+  const d2 = base({ fy: ['2023-12-31'], q: ['2024-09-30'], tags: { capex: 'PaymentsToAcquirePropertyPlantAndEquipment' }, A: { capex: [78.6 * M] }, Q: { capex: [21.6 * M] } });
+  const r2 = find(X.xcheck(d2, f2, null, null, { cand: { capex: ['PaymentsToAcquirePropertyPlantAndEquipment', 'PaymentsToAcquireProductiveAssets'] } }), 'capex', 'Q', '2024-09-30');
+  ok(r2.c === 'ok' && r2.rf === 'PaymentsToAcquireProductiveAssets:q', 'רבעון ישיר בתגית משלימה (מדוח שהציג מחדש) — מאושר, לא bug מול חיסור בין בסיסים');
+  // Berkshire: ההון של 2021 בדוח ההון של 2024 (510.3) מול המאזן שבו 2021 הודפס (514.9) — סך ההתחייבויות מהמאזן
+  const i = (e, v, form, filed) => [null, e, v * M, form, filed];
+  const f3 = facts([['LiabilitiesAndStockholdersEquity', 'USD', [i('2021-12-31', 958784, '10-K', '2022-02-28')]],
+    ['StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest', 'USD', [i('2021-12-31', 514930, '10-K', '2022-02-28'), i('2022-12-31', 1, '10-K', '2023-02-27'), i('2021-12-31', 514930, '10-K', '2023-02-27'),
+      i('2023-12-31', 1, '10-K', '2024-02-26'), i('2021-12-31', 510299, '10-K', '2024-02-26')]]]);
+  const d3 = base({ fy: ['2021-12-31'], tags: { tle: 'LiabilitiesAndStockholdersEquity', eqt: 'StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest' }, A: { tl: [443854 * M] } });
+  const r3 = find(X.xcheck(d3, f3, null, null), 'tl', 'A', '2021-12-31');
+  ok(r3.c === 'ok' && r3.raw === 443854 * M, 'סך התחייבויות מחושב — מהמאזן שבו התאריך הודפס, לא מדוח ההון של שנתיים אחר כך');
+  // Monolithic Power: מאזן רבעוני שהוצג מחדש ב־10-K; Yahoo ו־Nasdaq — כפי שדווח ב־10-Q
+  const f4 = facts([['Assets', 'USD', [i('2025-09-30', 4206, '10-Q', '2025-11-05'), i('2025-09-30', 4107, '10-K', '2026-02-27')]]]);
+  const d4 = base({ fy: ['2024-12-31'], q: ['2025-09-30'], tags: { ta: 'Assets' }, Q: { ta: [4107 * M] } });
+  const nq4 = { Q: { ends: ['2025-09-30'], v: { ta: { '2025-09-30': 4206 * M } } } };
+  const r4 = find(X.xcheck(d4, f4, { fy: [], q: ['2025-09-30'], A: {}, Q: { ta: [4206 * M] } }, nq4), 'ta', 'Q', '2025-09-30');
+  ok(r4.c === 'okd' && r4.why === 'restated', 'מקור חיצוני = הערך כפי שדווח לפני הצגה מחדש — הגדרה שלו (restated)');
+  // Diamondback: Yahoo ו־Nasdaq = הקידוח + רכישת שטחים
+  const f5 = facts([['PaymentsToExploreAndDevelopOilAndGasProperties', 'USD', [R(...Y(2025), 3523, '10-K', '2026-02-01')]], ['PaymentsToAcquireOilAndGasProperty', 'USD', [R(...Y(2025), 5938, '10-K', '2026-02-01')]]]);
+  const d5 = base({ fy: ['2025-12-31'], tags: { capex: 'PaymentsToExploreAndDevelopOilAndGasProperties' }, A: { capex: [3523 * M] } });
+  const r5 = find(X.xcheck(d5, f5, { fy: ['2025-12-31'], q: [], A: { capex: [9461 * M] }, Q: {} }, { A: { ends: ['2025-12-31'], v: { capex: { '2025-12-31': 9461 * M } } } }), 'capex', 'A', '2025-12-31');
+  ok(r5.c !== 'bug' && r5.why === 'capex_acq', 'השקעות הוניות: Yahoo ו־Nasdaq כוללים רכישת שטחים — מוסבר (capex_acq)');
+}
 console.log('\nכל ' + n + ' הבדיקות עברו ✓');
