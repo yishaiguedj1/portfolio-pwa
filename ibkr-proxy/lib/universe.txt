@@ -143,9 +143,9 @@ BMO|Bank Of Montreal
 BKNG|Booking Holdings Inc.
 MCK|McKesson Corporation
 NET|Cloudflare Inc.
+BNS|Bank of Nova Scotia
 SBUX|Starbucks Corporation
 SNOW|Snowflake Inc.
-BNS|Bank of Nova Scotia
 CNQ|Canadian Natural Resources Limited
 HDB|HDFC Bank Limited
 NEM|Newmont Corporation
@@ -548,9 +548,9 @@ GFS|GlobalFoundries Inc.
 PPG|PPG Industries Inc.
 BRO|Brown & Brown Inc.
 RF|Regions Financial Corporation
-BIP|Brookfield Infrastructure Partners L.P.
 DRI|Darden Restaurants Inc.
 IFF|International Flavors & Fragrances Inc.
+BIP|Brookfield Infrastructure Partners L.P.
 IHG|Intercontinental Hotels Group
 SYM|Symbotic Inc.
 HUBB|Hubbell Inc
@@ -719,13 +719,13 @@ W|Wayfair Inc.
 RBA|RB Global Inc.
 EG|Everest Group Ltd.
 ZTO|ZTO Express (Cayman) Inc.
+SUN|Sunoco LP
 YUMC|Yum China Holdings Inc.
 CRBG|Corebridge Financial Inc.
 JHX|James Hardie Industries plc.
 PNFP|Pinnacle Financial Partners Inc.
 ALLE|Allegion plc
 EMA|Emera Incorporated
-SUN|Sunoco LP
 MAS|Masco Corporation
 SWK|Stanley Black & Decker Inc.
 PFGC|Performance Food Group Company
@@ -799,8 +799,8 @@ FIG|Figma Inc.
 TIGO|Millicom International Cellular S.A.
 CNA|CNA Financial Corporation
 BAX|Baxter International Inc.
-LII|Lennox International Inc.
 MKC-V|McCormick & Company, Incorporated
+LII|Lennox International Inc.
 MKC|McCormick & Company Incorporated
 SNN|Smith & Nephew SNATS Inc.
 TOL|Toll Brothers Inc.
@@ -888,11 +888,11 @@ SUZ|Suzano S.A.
 FRHC|Freedom Holding Corp.
 MOH|Molina Healthcare Inc
 QXO|QXO Inc.
+MOG-A|Moog Inc. Class A
 TXRH|Texas Roadhouse Inc.
 STRL|Sterling Infrastructure Inc.
 DDS|Dillard's, Inc. Class A
 ESTC|Elastic N.V.
-MOG-A|Moog Inc. Class A
 FNF|Fidelity National Financial Inc.
 BMRN|BioMarin Pharmaceutical Inc.
 UHAL|U-Haul Holding Company
@@ -916,7 +916,6 @@ ELPC|Companhia Paranaense de Energia (COPEL)
 R|Ryder System Inc.
 PODD|Insulet Corporation
 DPZ|Domino's Pizza Inc
-MOG-B|Moog Inc. Class B
 UMBF|UMB Financial Corporation
 JEF|Jefferies Financial Group Inc.
 CPT|Camden Property Trust
@@ -926,6 +925,7 @@ WTFC|Wintrust Financial Corporation
 PAYP|PayPay Corporation American Depository Shares
 BPOP|Popular Inc.
 GGB|Gerdau S.A.
+MOG-B|Moog Inc. Class B
 IREN|IREN Limited
 SF|Stifel Financial Corporation
 HMY|Harmony Gold Mining Company Limited
@@ -946,10 +946,10 @@ WMS|Advanced Drainage Systems Inc.
 DCI|Donaldson Company Inc.
 MUSA|Murphy USA Inc.
 AMKR|Amkor Technology Inc.
+UHAL-B|U-Haul Holding Company Series N Non-Voting
 HBM|Hudbay Minerals Inc.
 CFR|Cullen/Frost Bankers Inc.
 ONTO|Onto Innovation Inc.
-UHAL-B|U-Haul Holding Company Series N Non-Voting
 QNT|Quantinuum Inc.
 EVR|Evercore Inc.
 ONB|Old National Bancorp
@@ -1028,13 +1028,13 @@ REXR|Rexford Industrial Realty Inc.
 UGP|Ultrapar Participacoes S.A. (New)
 YMM|Full Truck Alliance Co. Ltd.
 HQY|HealthEquity Inc.
-BEP|Brookfield Renewable Partners LP
 EAI|Entergy Arkansas LLC First Mortgage Bonds 4.875% Series Due September 1 2066
 DBX|Dropbox Inc.
 ZETA|Zeta Global Holdings Corp.
 ENJ|Entergy New Orleans LLC First Mortgage Bonds 5.0% Series due December 1 2052
 CYTK|Cytokinetics Incorporated
 EMP|Entergy Mississippi LLC First Mortgage Bonds 4.90% Series Due October 1 2066
+BEP|Brookfield Renewable Partners LP
 VSAT|ViaSat Inc.
 MHK|Mohawk Industries Inc.
 PRI|Primerica Inc.
@@ -1599,11 +1599,11 @@ BRC|Brady Corporation
 LQDA|Liquidia Corporation
 DPC|DPC Holdings PLC
 CBT|Cabot Corporation
-SUNC|SunocoCorp LLC
 RGC|Regencell Bioscience Holdings Limited
 RNST|Renasant Corporation
 OTTR|Otter Tail Corporation
 GEF|Greif Inc.
+SUNC|SunocoCorp LLC
 NVST|Envista Holdings Corporation
 LILAP|Liberty Latin America Ltd. 9.0% Fixed Rate Cumulative Perpetual Redeemable Series A Preference Shares
 PLSE|Pulse Biosciences Inc
@@ -1635,7 +1635,6 @@ CNS|Cohen & Steers Inc
 FA|First Advantage Corporation
 UEC|Uranium Energy Corp.
 ATMU|Atmus Filtration Technologies Inc.
-USAC|USA Compression Partners LP
 LAZ|Lazard Inc.
 CIFR|Cipher Digital Inc.
 THO|Thor Industries Inc.
@@ -1652,6 +1651,7 @@ CAR|Avis Budget Group Inc.
 MANU|Manchester United Ltd.
 SLG|SL Green Realty Corp
 SLM|SLM Corporation
+USAC|USA Compression Partners LP
 POST|Post Holdings Inc.
 ZIM|ZIM Integrated Shipping Services Ltd.
 IRT|Independence Realty Trust Inc.
@@ -1719,10 +1719,10 @@ WING|Wingstop Inc.
 SBCF|Seacoast Banking Corporation of Florida
 KN|Knowles Corporation
 TDC|Teradata Corporation
+AB|AllianceBernstein Holding L.P.
 CPK|Chesapeake Utilities Corporation
 SBLK|Star Bulk Carriers Corp.
 COCO|The Vita Coco Company Inc.
-AB|AllianceBernstein Holding L.P.
 PENG|Penguin Solutions Inc.
 KD|Kyndryl Holdings Inc.
 VTMX|Corporacion Inmobiliaria Vesta S.A.B de C.V.
@@ -2243,8 +2243,8 @@ SBH|Sally Beauty Holdings Inc. (Name to be changed from Sally Holdings Inc.)
 LOB|Live Oak Bancshares Inc.
 HAPN|Happen Inc.
 SNDA|Sonida Senior Living Inc.
-DSGR|Distribution Solutions Group Inc.
 OBK|Origin Bancorp, Inc.
+DSGR|Distribution Solutions Group Inc.
 MGRT|Mega Fortune Company Limited
 STOK|Stoke Therapeutics Inc.
 OCFC|OceanFirst Financial Corp.
@@ -2392,8 +2392,8 @@ STC|Stewart Information Services Corporation
 COUR|Coursera Inc.
 FOIL|Londian Wason New Energy Tech Inc.
 KEEL|Keel Infrastructure Corp.
-OGCP|Empire State Realty OP LP Series 60
 FISK|Empire State Realty OP LP Series 250
+OGCP|Empire State Realty OP LP Series 60
 ESBA|Empire State Realty OP LP Series ES
 FOR|Forestar Group Inc
 UAN|CVR Partners LP
@@ -2434,11 +2434,11 @@ ALX|Alexander's Inc.
 GTM|ZoomInfo Technologies Inc
 BVS|Bioventus Inc.
 CRAI|CRA International Inc.
+BH-A|Biglari Holdings, Inc. Class A
 IAUX|i-80 Gold Corp.
 IE|Ivanhoe Electric Inc.
 AIIR|Air Global PLC
 LBRX|LB Pharmaceuticals Inc
-BH-A|Biglari Holdings, Inc. Class A
 RSKD|Riskified Ltd.
 RAPP|Rapport Therapeutics Inc.
 OSBC|Old Second Bancorp Inc.
@@ -3144,7 +3144,6 @@ AMSF|AMERISAFE Inc.
 FRBA|First Bank
 OCS|Oculis Holding AG
 VKQ|Invesco Municipal Trust
-GTN-A|Gray Media, Inc. Class A
 ALOY|REalloys Inc.
 QUAD|Quad Graphics Inc
 INDP|Indaptus Therapeutics Inc.
@@ -3190,6 +3189,7 @@ UAMY|United States Antimony Corporation
 NOAH|Noah Holdings Limited
 IIIV|i3 Verticals Inc.
 ELVR|Elevra Lithium Limited American Depository Shares
+GTN-A|Gray Media, Inc. Class A
 HQL|abrdn Life Sciences Investors Shares of Beneficial Interest
 AHRT|AH Realty Trust Inc.
 CLB|Core Laboratories Inc.
@@ -3259,6 +3259,7 @@ GTE|Gran Tierra Energy Inc.
 GLAD|Gladstone Capital Corporation
 CINT|CI&T Inc Class A
 MNRO|Monro Inc.
+BSRT|BSR Real Estate Investment Trust
 ALT|Altimmune Inc.
 NAUT|Nautilus Biotechnology Inc.
 SRTA|Strata Critical Medical Inc.
@@ -3270,7 +3271,6 @@ FNLC|First Bancorp Inc (ME)
 AUTL|Autolus Therapeutics plc
 AUXX|Gold X2 Mining Inc.
 RLGT|Radiant Logistics Inc.
-BSRT|BSR Real Estate Investment Trust
 SI|Shoulder Innovations Inc.
 CDRO|Codere Online Luxembourg S.A.
 BLW|Blackrock Limited Duration Income Trust
@@ -3957,6 +3957,7 @@ BANX|ArrowMark Financial Corp.
 RNA|Atrium Therapeutics Inc.
 CDXS|Codexis Inc.
 OXSQ|Oxford Square Capital Corp.
+GUNN|Gunnison Copper Corp
 AMRO|Amaero Inc.
 DPRO|Draganfly Inc.
 HURA|TuHURA Biosciences Inc.
@@ -4051,10 +4052,10 @@ BSBK|Bogota Financial Corp.
 UP|Wheels Up Experience Inc.
 SKYX|SKYX Platforms Corp.
 AKA|a.k.a. Brands Holding Corp.
+GHI|Greystone Housing Impact Investors LP
 DAVA|Endava plc
 NXG|NXG NextGen Infrastructure Income Fund
 SFBC|Sound Financial Bancorp Inc.
-GHI|Greystone Housing Impact Investors LP
 ATOM|Atomera Incorporated
 UNB|Union Bankshares Inc.
 FEAM|5E Advanced Materials Inc.
@@ -4358,8 +4359,8 @@ DTCX|Datacentrex Inc.
 AMOD|Alpha Modus Holdings Inc.
 GGR|Gogoro Inc.
 SORA|AsiaStrategy
-PVL|Permianville Royalty Trust
 VOC|VOC Energy Trust
+PVL|Permianville Royalty Trust
 DIT|AMCON Distributing Company
 YTRA|Yatra Online Inc.
 XBIT|XBiotech Inc.
@@ -4523,6 +4524,7 @@ SCWO|374Water Inc.
 REKR|Rekor Systems Inc.
 AVX|Avax One Technology Ltd.
 XBP|XBP Global Holdings Inc.
+AETR|Westport Fuel Systems Inc
 XTIA|XTI Aerospace Inc.
 NIPG|NIP Group Inc.
 CENN|Cenntro Inc.
@@ -4742,6 +4744,7 @@ PLCE|Children's Place Inc. (The)
 EXYN|Exyn Technologies Inc.
 GPMT|Granite Point Mortgage Trust Inc.
 SHPH|Shuttle Pharmaceuticals Holdings Inc.
+PTIV|Pineapple Financial, Inc.
 LIVE|Live Ventures Incorporated
 NXPL|NextPlat Corp
 FNUC|Frontier Nuclear and Minerals Inc.
@@ -4816,9 +4819,9 @@ MRNO|Murano Global Investments PLC
 ZEO|Zeo Energy Corporation
 BCG|Binah Capital Group Inc.
 BDAI|Biddance AI Systems Inc.
+PRT|PermRock Royalty Trust
 BYSI|BeyondSpring Inc.
 CCM|Concord Medical Services Holdings Limited
-PRT|PermRock Royalty Trust
 MDXH|MDxHealth SA
 PMI|Picard Medical Inc.
 RVP|Retractable Technologies Inc.
@@ -5041,13 +5044,13 @@ CLRO|ClearOne Inc.
 OFAL|OFA Group
 TPST|Tempest Therapeutics Inc.
 BNKK|Bonk Inc.
-MARPS|Marine Petroleum Trust
 BTCT|BTC Digital Ltd.
 CISO|CISO Global Inc.
 OPTT|Ocean Power Technologies Inc.
 RMCF|Rocky Mountain Chocolate Factory Inc.
 JCSE|JE Cleantech Holdings Limited
 SFHG|Samfine Creation Holdings Group Limited
+MARPS|Marine Petroleum Trust
 CALC|CalciMedica Inc.
 AMS|American Shared Hospital Services
 NMTC|NeuroOne Medical Technologies Corporation
@@ -5158,6 +5161,7 @@ ACON|Aclarion Inc.
 UCAR|U Power Limited
 BAOS|Baosheng Media Group Holdings Limited
 AUUD|Auddia Inc.
+AZTR|Azitra Inc
 MTEK|Maris-Tech Ltd.
 BTTC|Black Titan Corporation
 BGL|Blue Gold Limited
@@ -5228,7 +5232,6 @@ APUS|Apimeds Pharmaceuticals US Inc.
 SOS|SOS Limited
 CODX|Co-Diagnostics Inc.
 INTJ|Intelligent Group Limited
-AZTR|Azitra Inc
 WLDS|Wearable Devices Ltd.
 EJH|E-Home Household Service Holdings Limited
 SEGG|Sports Entertainment Gaming Global Corporation
@@ -5274,6 +5277,7 @@ BGLC|BioNexus Gene Lab Corp
 XAIR|Beyond Air Inc.
 ICCM|IceCure Medical Ltd.
 ENLV|Enlivex Ltd.
+FCDH|VS Media Holdings Limited Class A
 CVKD|Cadrenal Therapeutics Inc.
 FAMI|Farmmi Inc.
 TAOP|Taoping Inc.
@@ -6000,22 +6004,7 @@ YHNA|YHN Acquisition I Limited
 YICC|Yorkville International Capital Corp.
 ZKP|Lafayette Digital Acquisition Corp. I
 ZTR|Virtus Total Return Fund Inc.
-WWB|Windward Bio Group AG
 MSGR-I|MSG Rangers Corp Class A
-AGM-A|Federal Agricultural Mortgage Corporation
-GUNN|Gunnison Copper Corp.
-PTIV|Pineapple Financial Inc.
-AETR|Aetherion Technologies Inc.
-EFTY|Etoiles Capital Group Co., Ltd.
-FCDH|Forcendra Holding Limited
-HCHL|Happy City Holdings Limited
-LAWR|Robot Consulting Co., Ltd.
-MAGH|Magnitude International Ltd
-MCTA|Charming Medical Limited
-OST|Ostin Technology Group Co., Ltd.
-PC|Premium Catering (Holdings) Limited
-SVA|Sinovac Biotech, Ltd.
-UCFI|CN Healthy Food Tech Group Corp.
 CYBR.TA|Palo Alto Networks, Inc.
 TEVA.TA|Teva Pharmaceutical Industries Limited
 LUMI.TA|Bank Leumi Le-Israel B.M.
@@ -6548,15 +6537,15 @@ RTEN.TA|ROTEM ENERGY MINERAL (REM)
 WATR-M.TA|Water.io Ltd
 TKUN-M.TA|Tikun Olam-Cannbit Pharmaceuticals Ltd.
 MLD-M.TA|MirLand Development Corporation Plc
+AXN.TA|Axon Vision Ltd.
 GABY.TA|Gabay Group Construction Initiation Management and Real Estate Holdings Ltd.
+YAAZ.TA|Y.E.Z. Entrepreneurship, Construction and Urban Renewal Ltd.
+TANM.TA|T & M Group Ltd
 DLAS.TA|Delek Property Development Ltd.
-SOLA.TA|Sola Renewable Energies Ltd.
+LUDT.TA|LUDAN-TECH LTD
 MUTG.TA|Urban Brand Ltd.
 GLAM.TA|Galam Ltd.
-TANM.TA|T & M Group Ltd
-YAAZ.TA|Y.E.Z. Entrepreneurship, Construction and Urban Renewal Ltd.
-AXN.TA|Axon Vision Ltd.
-LUDT.TA|LUDAN-TECH LTD
+SOLA.TA|Sola Renewable Energies Ltd.
 SPY|State Street SPDR S&P 500 ETF Trust|E
 VOO|Vanguard S&P 500 ETF|E
 IVV|iShares Core S&P 500 ETF|E
@@ -12339,30 +12328,30 @@ ZTEN|F/m 10-Year Investment Grade Corporate Bond ETF|E
 ZTOP|F/m High Yield 100 ETF|E
 ZTRE|F/m 3-Year Investment Grade Corporate Bond ETF|E
 ZTWO|F/m 2-Year Investment Grade Corporate Bond ETF|E
-FNGO|MicroSectors FANG+ Index 2X Leveraged ETNs|E
-DGP|DB Gold Double Long Exchange Traded Notes|E
-ZZZTT|ETF|E
-AMUB|ETRACS Alerian MLP Index ETN Class B|E
-HPF|John Hancock Preferred Income Fund II|E
-UCIB|ETRACS CMCI Total Return ETN Series B|E
-PTA|Cohen & Steers Tax-Advantaged Preferred Securities and Income Fund|E
-DJP|iPath Bloomberg Commodity Index Total Return ETN|E
 DGZ|DB Gold Short Exchange Traded Notes|E
+DGP|DB Gold Double Long Exchange Traded Notes|E
+FNGO|MicroSectors FANG+ Index 2X Leveraged ETNs|E
+HPF|John Hancock Preferred Income Fund II|E
+GRN|iPath Series B Carbon Exchange-Traded Notes|E
+DJP|iPath Bloomberg Commodity Index Total Return ETN|E
 ATMP|Barclays ETN+ Select MLP ETN|E
+VXX|iPath Series B S&P 500 VIX Short-Term Futures ETN|E
+AMUB|ETRACS Alerian MLP Index ETN Class B|E
 BAR|GraniteShares Gold Shares|E
+UCIB|ETRACS CMCI Total Return ETN Series B|E
+FNGD|MicroSectors FANG+ Index -3X Inverse Leveraged ETN|E
+VXZ|iPath Series B S&P 500 VIX Mid-Term Futures ETN|E
 DZZ|Deutsche Bank Ag London Gold Double Short Exchange Traded (Nts)|E
+ZZZTT|ETF|E
+PTA|Cohen & Steers Tax-Advantaged Preferred Securities and Income Fund|E
+SMHB|ETRACS 2xMonthly Pay Leveraged US Small Cap High Dividend ETN Series B|E
+PFFL|ETRACS 2xMonthly Pay Leveraged Preferred Stock Index ETN|E
 MLPB|ETRACS Alerian MLP Infrastructure Index ETN Series B|E
 BDCZ|ETRACS MarketVector Business Development Companies Liquid Index ETN|E
-VXX|iPath Series B S&P 500 VIX Short-Term Futures ETN|E
-PFFL|ETRACS 2xMonthly Pay Leveraged Preferred Stock Index ETN|E
-FNGD|MicroSectors FANG+ Index -3X Inverse Leveraged ETN|E
-GRN|iPath Series B Carbon Exchange-Traded Notes|E
-VXZ|iPath Series B S&P 500 VIX Mid-Term Futures ETN|E
-SMHB|ETRACS 2xMonthly Pay Leveraged US Small Cap High Dividend ETN Series B|E
 TCH-F172.TA|Tachlit SAL (40) TA-Insurance Units|E
 TCH-F1.TA|Tachlit SAL (40) TA 35 Units|E
-KSM-F74.TA|KSM ETF (4A) TA-125|E
 TCH-F2.TA|Tachlit SAL (40) TA 125 IL|E
+KSM-F74.TA|KSM ETF (4A) TA-125|E
 IBI-F182.TA|I.B.I. SAL (4A) TA-90 IL Units|E
 MTF-F19.TA|MTF SAL (4A) TA-125 IL|E
 KSM-F72.TA|KSM ETF (4A) TA-90|E
@@ -12370,34 +12359,38 @@ TCH-F9.TA|Tachlit SAL (40) TA 90 IL|E
 TCH-F34.TA|Tachlit SAL (00) Tel Bond-Shekel|E
 KSM-F59.TA|KSM ETF (4A) TA-35 Units|E
 HRL-F7.TA|Harel Sal (4A) TA 35 IL|E
-IS-FF702.TA|iShares Core S&P 500 UCITS ETF|E
 HRL-F11.TA|Harel Sal TA 90 ETF|E
 MTF-F17.TA|MTF SAL (4A) TA-90 IL|E
+IS-FF702.TA|iShares Core S&P 500 UCITS ETF|E
 MORE-S8.TA|MORE SAL TA-90 IL ETF Units|E
-TCH-F104.TA|Tachlit SAL (0B) Tel Bond-Composite Units|E
 KSM-F46.TA|KSM ETF (6A) Leveraged TA-35 x3 Monthly Units|E
+TCH-F104.TA|Tachlit SAL (0B) Tel Bond-Composite Units|E
 IN-FF1.TA|Invesco S&P 500 UCITS ETF|E
 MTF-F8.TA|MTF SAL (00) Non-Linked Fixed Interest Gov. Bonds 5+ Years|E
 HRL-F2.TA|Harel Sal (4A) TA 125|E
-MORE-S10.TA|MORE SAL (00) Tel Bond 60 CPI Linked IL|E
-MTF-F58.TA|MTF Sal (00) Index Banks and Insurance Bonds - Tier 2 ETF|E
-IS-FF505.TA|iShares V PLC - iShares MSCI All Country World UCITS ETF Accum.Shs USD|E
-IBI-F180.TA|I.B.I. SAL (4A) Nasdaq 100 Currency-Hedged|E
-IN-FF7.TA|Invesco MSCI World UCITS ETF|E
-KSM-F112.TA|KSM ETF (6D) Leveraged NASDAQ 100 x3 Monthly Units|E
 MORE-S4.TA|MORE SAL (4A) NASDAQ 100 Currency Hedged Units|E
+MORE-S10.TA|MORE SAL (00) Tel Bond 60 CPI Linked IL|E
+IBI-F180.TA|I.B.I. SAL (4A) Nasdaq 100 Currency-Hedged|E
+KSM-F112.TA|KSM ETF (6D) Leveraged NASDAQ 100 x3 Monthly Units|E
+IS-FF505.TA|iShares V PLC - iShares MSCI All Country World UCITS ETF Accum.Shs USD|E
+MTF-F58.TA|MTF Sal (00) Index Banks and Insurance Bonds - Tier 2 ETF|E
+IN-FF7.TA|Invesco MSCI World UCITS ETF|E
 HRL-F300.TA|Harel Sal (00) Tel Bond Shekel - 50 IL|E
+KSM-F48.TA|KSM ETF (00) Tel Bond-Shekel|E
+MTF-F52.TA|MTF SAL (4A) S&P 500 Currency-Hedged|E
+MTF-F96.TA|MTF Sal (4A) Nasdaq 100 Currency Hedged Units|E
 KSM-F77.TA|KSM ETF (4A) Banks Units|E
 TCH-F3.TA|Tachlit SAL (40) INDEX ISRAEL BANKS IL|E
 MORE-S2.TA|MORE SAL (4A) S&P 500 Currency Hedged ETF|E
+MTF-F113.TA|MTF SAL (00) Tel Bond-Shekel 1-3 IL Units|E
 MORE-S7.TA|MORE SAL (4A) TA-35 IL|E
 IN-FF17.TA|Invesco FTSE All-World UCITS ETF AccumUSD|E
 MTF-F11.TA|MTF SAL (00) Tel Bond - CPI Linked IL|E
 KSM-F34.TA|KSM ETF (4A) TA-Insurance IL|E
-MTF-F52.TA|MTF SAL (4A) S&P 500 Currency-Hedged|E
-MORE-S9.TA|MORE SAL TA-125 IL ETF Units|E
-HRL-F25.TA|Harel Sal (4D) S&P 500|E
 TCH-F4.TA|Tachlit SAL (4A) NASDAQ 100 Currency-Hedged|E
+MORE-S9.TA|MORE SAL TA-125 IL ETF Units|E
+MTF-F16.TA|MTF SAL (4A) TA-35|E
+HRL-F25.TA|Harel Sal (4D) S&P 500|E
 HRL-F26.TA|Harel Sal (4D) NASDAQ 100|E
 HRL-F61.TA|Harel Sal (00) Tel Bond CPI Linked IL|E
 MORE-S1.TA|MORE SAL (4D) S&P 500|E
@@ -12406,58 +12399,57 @@ IBI-FK4.TA|I.B.I. SAL (4A) Kosher TA-125 IL|E
 HRL-F12.TA|Harel Sal (4A) Index Israel Banks IL|E
 KSM-F80.TA|KSM ETF (4D) S&P 500|E
 KSM-F206.TA|KSM ETF (4A) TA-Construction Units|E
-MTF-F16.TA|MTF SAL (4A) TA-35|E
 IN-FF12.TA|Invesco NASDAQ-100 Swap UCITS ETF AccumUSD|E
 TCH-F77.TA|Tachlit SAL (4D) NASDAQ 100|E
 IBI-F42.TA|I.B.I. SAL (4A) TA-125 IL ETF|E
+IBI-F179.TA|I.B.I. SAL (4A) S&P 500 Currency-Hedged|E
 MTF-F136.TA|MTF Sal (6A) Short TA-Construction Units|E
+TCH-F11.TA|Tachlit SAL (4A) S&P 500 Currency-Hedged|E
 HRL-FK43.TA|Harel Sal (4A) Kosher TA 125 IL|E
 MTF-F23.TA|MTF SAL (4D) S&P 500|E
 KSM-F82.TA|KSM ETF (4A) S&P 500 Currency Hedged Units|E
 TCH-FK4.TA|Tachlit SAL (40) Kosher TA 125 IL|E
 KSM-F56.TA|KSM ETF (4A) TA-RealEstate Units|E
 IS-FF701.TA|iShares NASDAQ 100 UCITS ETF USD|E
+MTF-F71.TA|MTF Sal (4A) Index Israeli Renewable Energy Equityl IL|E
 YELN-F1.TA|YLETF (4D) S&P 500|E
+KSM-F115.TA|KSM ETF (6D) Short Leveraged NASDAQ 100 x3 Monthly Units|E
 TCH-F98.TA|Tachlit SAL (60) Long Leveraged 3 TA 35 Monthly|E
+KSM-F111.TA|KSM ETF (6D) Leveraged S&P 500 x3 Monthly|E
+KSM-F27.TA|KSM ETF (6A) Short Leveraged TA-35 x2 Monthly Units|E
 MTF-F95.TA|MTF Sal (4D) Nasdaq 100 Units|E
 IBI-F183.TA|I.B.I. SAL (4A) TA-Insurance IL Units|E
-IBI-F179.TA|I.B.I. SAL (4A) S&P 500 Currency-Hedged|E
-KSM-F27.TA|KSM ETF (6A) Short Leveraged TA-35 x2 Monthly Units|E
-KSM-F239.TA|KSM ETF 4A Israel 100 Profitability Equally Weighted IDX|E
 HRL-F50.TA|Harel Sal (4A) S&P 500 Currency-Hedged|E
-KSM-F115.TA|KSM ETF (6D) Short Leveraged NASDAQ 100 x3 Monthly Units|E
-KSM-F49.TA|KSM ETF (4A) LBMA Gold Price PM USD Currency Hedged|E
+KSM-F239.TA|KSM ETF 4A Israel 100 Profitability Equally Weighted IDX|E
+MTF-F140.TA|MTF SAL (0A) Index US Gov 10Y Fixed Duration Currency-Hedged Units|E
+TCH-F131.TA|Tachlit SAL (4D) Russell 2000|E
+KSM-F107.TA|KSM ETF (00) Tel Bond-CPI Linked|E
 MTF-F79.TA|MTF Sal (00) Tel Bond CPI-Linked A Units|E
-TCH-F11.TA|Tachlit SAL (4A) S&P 500 Currency-Hedged|E
+KSM-F49.TA|KSM ETF (4A) LBMA Gold Price PM USD Currency Hedged|E
 KSM-F96.TA|KSM ETF (6A) Short TA-35 (3288.18) IL|E
 TCH-F158.TA|Tel Bond Shekel 50 Units|E
-MTF-F96.TA|MTF Sal (4A) Nasdaq 100 Currency Hedged Units|E
 IS-FF301.TA|iShares Core MSCI Europe UCITS ETF EUR (Acc)|E
 ANLT-F2.TA|ATF ETF (4A) S&P 500 Currency Hedged|E
 MTF-F33.TA|MTF SAL (4D) Russell 2000|E
-TCH-F27.TA|Tachlit SAL (00) Tel Bond 60 CPI-Linked IL|E
 KSM-F83.TA|KSM ETF (4A) NASDAQ 100 Currency Hedged Units|E
+TCH-F27.TA|Tachlit SAL (00) Tel Bond 60 CPI-Linked IL|E
+MTF-F104.TA|MTF Sal (6D) Leveraged Nasdaq 100x3 Monthly Units|E
 YELN-F5.TA|Yletf 4A Tel Aviv Stock Exchange Banks Il|E
 KSM-F220.TA|Ksm Etf 00 Tel Bond-Shekel Aa-Aaa Il|E
 IBI-F186.TA|I.B.I. SAL (4A) TA-35 IL Units|E
-ANLT-F1.TA|ATF ETF S&P 500 Units|E
 IS-FF101.TA|iShares Core MSCI EM IMI UCITS ETF|E
+ANLT-F1.TA|ATF ETF S&P 500 Units|E
 IBI-F181.TA|I.B.I. SAL (4D) Nasdaq 100|E
 KSM-F218.TA|KSM ETF (00) Tel Bond-CPI Linked AA-AAA IL|E
 MTF-F125.TA|MTF Sal (0D) Index US Gov 10Y Fixed Duration Units|E
-MTF-F71.TA|MTF Sal (4A) Index Israeli Renewable Energy Equityl IL|E
-MTF-F140.TA|MTF SAL (0A) Index US Gov 10Y Fixed Duration Currency-Hedged Units|E
 IN-FF6.TA|Invesco MSCI Emerging Markets UCITS ETF|E
 KSM-F53.TA|KSM ETF (4D) DAX|E
 HRL-F49.TA|Harel Sal (4A) NASDAQ 100 Currency-Hedged|E
 TCH-F171.TA|Tachlit SAL (40) TA-Construction|E
-KSM-F111.TA|KSM ETF (6D) Leveraged S&P 500 x3 Monthly|E
 KSM-F209.TA|KSM ETF (6D) Short Leveraged Future Bloomberg Brent Crude x2 Monthly|E
 HRL-F15.TA|Harel Sal (4A) TA-RealEstate IL|E
 TCH-F76.TA|Tachlit SAL (4D) S&P 500|E
-TCH-F131.TA|Tachlit SAL (4D) Russell 2000|E
 IBI-F14.TA|I.B.I. SAL (00) Tel-Bond 60 CPI - LINKED IL|E
-MTF-F104.TA|MTF Sal (6D) Leveraged Nasdaq 100x3 Monthly Units|E
 HRL-F214.TA|Harel Sal (4A) Kosher TA 90 Units|E
 TCH-F118.TA|Tachlit SAL (40) TA Finance IL|E
 IN-FF15.TA|Invesco Russell 2000 UCITS ETF|E
@@ -12467,135 +12459,139 @@ KSM-F60.TA|KSM ETF (4D) Russell 2000|E
 KSM-F243.TA|KSM ETF (0A) iBoxx Dollar Treasuries 10Y+ Currency Hedged Units|E
 IN-FF14.TA|Invesco EURO STOXX 50 UCITS ETF|E
 TCH-F71.TA|Tachlit SAL (4A) MSCI AC World U.S.D Hedged|E
-KSM-F107.TA|KSM ETF (00) Tel Bond-CPI Linked|E
 IBI-F65.TA|I.B.I. SAL (4D) S&P 500|E
 MORE-S6.TA|MORE SAL (4A) Index Banks EW IL|E
 YELN-F2.TA|YLETF (4A) S&P 500 Currency Hedged Units|E
 KSM-F113.TA|KSM ETF (6D) Leveraged DAX x3 Monthly|E
-TCH-FK3.TA|Tachlit SAL(00) Kosher Tel Bond-Shekel|E
 ANLT-F3.TA|ATF ETF (4A) TA 125 IL|E
+TCH-FK3.TA|Tachlit SAL(00) Kosher Tel Bond-Shekel|E
+YELN-F4.TA|YLETF (4A) Nasdaq 100 Currency Hedged Units|E
 KSM-F178.TA|KSM ETF (0D) S&P U.S. Treasury Bond 7-10 Year Units|E
 MTF-F5.TA|MTF SAL (00) Tel Bond Shekel IL|E
 KSM-F52.TA|KSM ETF (4D) NASDAQ 100 ETF|E
 MTF-F4.TA|MTF SAL (00) Tel-Bond 60 CPI-Linked IL|E
 MTF-F31.TA|MTF SAL (4D) STOXX Europe 600|E
+KSM-F31.TA|KSM ETF(4D) IBOVESPA Units|E
 IBI-F177.TA|I.B.I. SAL (4D) Index Global Value|E
 HRL-F65.TA|Harel Sal 4D Euro Stoxx 50|E
+HRL-F220.TA|Harel Sal (4A) TA-Technology Units|E
+TCH-F113.TA|Tachlit SAL (4D) DAX|E
 HRL-F109.TA|Harel Sal (00) Tel Bond Yields Shekel|E
 KSM-F203.TA|KSM ETF (4D) MVIS US Listed Semiconductor 25|E
 IBI-FK1.TA|I.B.I. SAL (00) Kosher Tel-Bond 60 CPI - LINKED IL|E
 HRL-F217.TA|Harel Sal (6A) 3 Time Leverage Nasdaq 100 Monthly Currency-Hedged|E
 MORE-S11.TA|MORE SAL (0A)Tel Bond Composite IL ETF Units|E
-KSM-F48.TA|KSM ETF (00) Tel Bond-Shekel|E
-KSM-F221.TA|Ksm Etf 00 Tel Bond-Cpi Linked 5-15 Il|E
-HRL-F220.TA|Harel Sal (4A) TA-Technology Units|E
 KSM-FK3.TA|KSM ETF (4A) KOSHER TA-125 Units|E
+KSM-F221.TA|Ksm Etf 00 Tel Bond-Cpi Linked 5-15 Il|E
+HRL-F67.TA|Harel Sal (4A) NIKKEI 225 Currency-Hedged|E
 KSM-F230.TA|KSM ETF (4A) S&P Regional Banks Currency-Hedged Units|E
+MTF-F60.TA|MTF Sal (4D) S&P 500 Scored & Screened|E
 TCH-F75.TA|Tachlit SAL (00) Tel Bond-Global|E
+KSM-F116.TA|KSM ETF (6D) Short Leveraged DAX x2 Monthly|E
 IBI-F112.TA|I.B.I. SAL (4A) DAX Currency-Hedged|E
 TCH-F21.TA|Tachlit SAL (40) SME60 Units|E
-TCH-F113.TA|Tachlit SAL (4D) DAX|E
 TCH-F79.TA|Tachlit SAL (4D) EURO STOXX 50|E
+HRL-F205.TA|Harel Sal (4A) MSCI AC World Dollar-Hedged|E
+MORE-S3.TA|MORE SAL (4D) NASDAQ 100 Units ETF|E
 HRL-F95.TA|Harel Sal (4A) S&P 500 Equal Weight Currency-Hedged|E
-KSM-F116.TA|KSM ETF (6D) Short Leveraged DAX x2 Monthly|E
-KSM-F31.TA|KSM ETF(4D) IBOVESPA Units|E
+MTF-F65.TA|MTF SAL (4A) TA - Construction Units|E
+KSM-F64.TA|KSM ETF (4D) KOSPI 200|E
 KSM-F144.TA|KSM ETF (0A) Tel Bond-Composite|E
 MTF-FK56.TA|MTF Sal (4A) Kosher TA-125 Units|E
-KSM-F64.TA|KSM ETF (4D) KOSPI 200|E
-MTF-F65.TA|MTF SAL (4A) TA - Construction Units|E
+MTF-F80.TA|MTF Sal (00) Tel Bond - Shekel A Units|E
 HRL-F233.TA|Harel Sal (4A) TA - 90 & Banks IL Units|E
 KSM-F36.TA|KSM ETF (00) Tel Gov-CPI-Linked 2-5|E
-HRL-F205.TA|Harel Sal (4A) MSCI AC World Dollar-Hedged|E
+TCH-F164.TA|Tachlit SAL (4D) PHLX Semiconductor Sector|E
 MTF-F44.TA|MTF SAL (4A) S&P Energy Currency-Hedged|E
 HRL-F238.TA|Harel Sal (4A) TA Securities IL Units|E
-HRL-F67.TA|Harel Sal (4A) NIKKEI 225 Currency-Hedged|E
-MTF-F80.TA|MTF Sal (00) Tel Bond - Shekel A Units|E
+MTF-F100.TA|MTF Sal (4A) TA Real Estate IL Units|E
 KSM-F129.TA|KSM ETF (4A) MDAX Currency Hedged Units|E
-TCH-F164.TA|Tachlit SAL (4D) PHLX Semiconductor Sector|E
+MTF-F28.TA|MTF SAL (4D) S&P Health Care|E
 TCH-F173.TA|Tachlit SAL (4D) Index World Value U.S.D Hedged- Units|E
+MTF-F50.TA|MTF SAL (4A) Nikkei 225 Currency-Hedged|E
 HRL-F28.TA|Harel Sal (4D) DAX|E
 TCH-F40.TA|Tachlit SAL (4A) composite INT. Equity Currency-Hedged Monthly Units|E
-YELN-F4.TA|YLETF (4A) Nasdaq 100 Currency Hedged Units|E
 KSM-F57.TA|KSM ETF (4A) TA-Finance Units|E
-MORE-S3.TA|MORE SAL (4D) NASDAQ 100 Units ETF|E
 KSM-F41.TA|KSM ETF (00) Tel Bond-60 CPI Linked IL|E
 KSM-F37.TA|KSM ETF (00) Tel Gov-Shekel 0-2|E
 KSM-F39.TA|KSM ETF (00) Tel Gov-Shekel 2-5|E
 KSM-F174.TA|KSM ETF (00) Tel Bond-Shekel 3-5|E
-KSM-F207.TA|KSM ETF (00) Tel Bond-Shekel 5-15 IL Units|E
 IBI-F16.TA|I.B.I. SAL (00) Tel Bond-CPI Linked IL|E
 TCH-F41.TA|Tachlit SAL (00) Tel Bond-Yields|E
 KSM-F114.TA|KSM ETF (6D) Short Leveraged S&P 500 x3 Monthly Units|E
+HRL-F224.TA|Harel Sal (4A) S&P North American Expanded Tech Software Currency-Hedged|E
 MTF-F6.TA|MTF SAL (00) Tel Gov - CPI Linked 2-5 IL|E
 YELN-F3.TA|YLETF (4D) Nasdaq 100|E
-MTF-F28.TA|MTF SAL (4D) S&P Health Care|E
-MTF-F100.TA|MTF Sal (4A) TA Real Estate IL Units|E
-MTF-F85.TA|MTF SAL (4A) MSCI AC World USD-Hedged Units|E
+TCH-F82.TA|Tachlit SAL (4D) Future Bloomberg Silver|E
 KSM-F94.TA|KSM ETF (4A) Russell 2000 Currency Hedged Units|E
+MTF-F85.TA|MTF SAL (4A) MSCI AC World USD-Hedged Units|E
+HRL-F69.TA|Harel Sal (00) Tel Bond-Yields CPI Linked IL|E
 KSM-F217.TA|KSM ETF (00) Tel Bond-CPI Linked 1-3 IL|E
 KSM-F40.TA|KSM ETF (00) Tel Bond-40 CPI Linked IL|E
-TCH-F82.TA|Tachlit SAL (4D) Future Bloomberg Silver|E
 KSM-F176.TA|KSM ETF (0D) S&P U.S. Treasury Bond 1-3 Year Units|E
-MTF-F60.TA|MTF Sal (4D) S&P 500 Scored & Screened|E
+TCH-F124.TA|Tachlit SAL (4D) MSCI AC World|E
 KSM-F208.TA|(1676) KSM ETF (60) Short TA-RealEstate IL|E
 KSM-F5.TA|KSM ETF (4D) S&P MidCap 400 Units|E
+TCH-F157.TA|Tachlit SAL (60) Short TA 90 (3650.64) IL|E
 HRL-F76.TA|Harel Sal 4D S&P Consumer Staples|E
 HRL-F221.TA|Harel Sal (0A) Tel Bond Composite Units|E
-TCH-F124.TA|Tachlit SAL (4D) MSCI AC World|E
-HRL-F224.TA|Harel Sal (4A) S&P North American Expanded Tech Software Currency-Hedged|E
-KSM-F55.TA|KSM ETF (4A) TA-SME60 Units|E
 MTF-F34.TA|MTF SAL (4D) MSCI Emerging Markets|E
+TCH-F69.TA|Tachlit SAL (4D) S&P Aerospace & Defense|E
+KSM-F55.TA|KSM ETF (4A) TA-SME60 Units|E
 KSM-F3.TA|KSM ETF (00) Tel Bond-Global|E
+TCH-F83.TA|Tachlit SAL (40) TA REAL-ESTATE|E
 TCH-F186.TA|Tachlit Sal (0A) Index US Gov 10Y Fixed Duration Currency-Hedged Units|E
-MTF-F50.TA|MTF SAL (4A) Nikkei 225 Currency-Hedged|E
 IS-FF703.TA|iShares USD Treasury Bond 7-10yr UCITS ETF USD (Acc) USD|E
-HRL-F69.TA|Harel Sal (00) Tel Bond-Yields CPI Linked IL|E
 MTF-F139.TA|MTF SAL (4A) Index Israeli Infrastructure IL Units|E
 IS-FF102.TA|iShares USD Treasury Bond 1-3yr UCITS ETF|E
 IBI-F126.TA|I.B.I. SAL (4A) S&P Health Care Currency-Hedged|E
 HRL-F87.TA|Harel Sal (4D) S&P Technology|E
-TCH-F83.TA|Tachlit SAL (40) TA REAL-ESTATE|E
 TCH-F81.TA|Tachlit SAL (4D) Future Bloomberg Brent Crude|E
 TCH-F51.TA|Tachlit SAL (4A) S&P Industrial Currency-Hedged|E
 IS-FF103.TA|iShares USD Corp Bond UCITS ETF Acc|E
 KSM-F213.TA|KSM ETF (00) Index Israeli Gov CPI-Linked 5Y Duration IL Units|E
 TCH-F32.TA|Tachlit SAL (00) Tel Gov-Non-Linked Fixed Int 5+ Years IL|E
 MTF-F12.TA|MTF SAL (00)(!) Tel - Bond Yields CPI Linked IL|E
+TCH-F185.TA|Tachlit SAL 4A Index Israeli Defense Industries Il|E
+MTF-F27.TA|MTF SAL (4D) S&P Financial|E
+TCH-F63.TA|Tachlit SAL (4D) ISE Cyber Security|E
 TCH-F150.TA|Tachlit SAL (4A) IPOX 100 US Currency-Hedge|E
 TCH-F140.TA|Tachlit SAL (4A) S&P Financial Currency-Hedged|E
 KSM-F143.TA|KSM ETF (4A) MSCI World Dollar Hedged Units|E
 HRL-F16.TA|Harel Sal (4A) TA-Finance|E
-TCH-F157.TA|Tachlit SAL (60) Short TA 90 (3650.64) IL|E
+MTF-F46.TA|MTF SAL (4A) S&P Health Care Currency-Hedged|E
 KSM-F86.TA|KSM ETF (0A) Government Bonds|E
 KSM-F103.TA|KSM ETF (4A) TA-Oil&Gas Units|E
 KSM-F228.TA|KSM ETF (4A) S&P MidCap 400 Currency-Hedged|E
 TCH-F10.TA|Tachlit SAL (00) Tel Bond 20 CPI-Linked IL|E
-TCH-F69.TA|Tachlit SAL (4D) S&P Aerospace & Defense|E
-TCH-F63.TA|Tachlit SAL (4D) ISE Cyber Security|E
 IS-FF501.TA|iShares S&P 500 Information Technology Sector UCITS ETF|E
+MTF-F127.TA|MTF Sal (4D) Index US Semiconductors Top10|E
 KSM-F10.TA|KSM ETF (4D) ISE Clean Edge Water|E
+MTF-F45.TA|MTF SAL (4A) S&P Financial Currency-Hedged|E
 TCH-F64.TA|Tachlit SAL (00) Tel Bond-Yield NIS|E
-TCH-F185.TA|Tachlit SAL 4A Index Israeli Defense Industries Il|E
+HRL-F4.TA|Harel Sal (00) Tel Bond 60 CPI Linked IL|E
 MTF-F40.TA|MTF SAL (4A) STOXX Europe 600 Currency-Hedged|E
 KSM-F109.TA|KSM ETF (4D) S&P Homebuilders|E
-MTF-F127.TA|MTF Sal (4D) Index US Semiconductors Top10|E
 TCH-F94.TA|Tachlit SAL (4D) LBMA Gold Price AM|E
 KSM-F121.TA|KSM ETF (4A) STOXX Europe 600 Euro Hedged|E
 KSM-F150.TA|KSM ETF (4D) Composite US Equity Monthly Units|E
 MTF-F9.TA|MTF SAL (00) Tel Gov - CPI Linked 5-10 IL|E
 KSM-F18.TA|KSM ETF (00) Tel Bond-20 CPI Linked IL|E
+TCH-F49.TA|Tachlit SAL (4A) S&P Health Care Currency-Hedged|E
 IBI-F61.TA|I.B.I. SAL (4D) LBMA Gold Price AM|E
 KSM-F2.TA|KSM ETF (00) Tel Bond Shekel-50|E
+MTF-F25.TA|MTF SAL (4D) S&P Consumer Discretionary|E
 MTF-F15.TA|MTF SAL (00) Tel Bond Shekel 50 IL|E
 MTF-F13.TA|MTF SAL (00)(!) Tel Bond - Gobal IL|E
+HRL-F235.TA|Harel Sal (4D) CME CF Bitcoin Reference Rate (BRRNY)|E
 TCH-F93.TA|Tachlit 60 Leveraged x2 TA 35 Monthly|E
 MTF-F43.TA|MTF SAL (4A) S&P Consumer Staples Currency-Hedged|E
-KSM-F223.TA|KSM ETF 00 Tel Bond-Shekel 1- 3 Il|E
-HRL-F235.TA|Harel Sal (4D) CME CF Bitcoin Reference Rate (BRRNY)|E
-TCH-F44.TA|Tachlit SAL (4D) MDAX|E
+MTF-F42.TA|MTF SAL (4A) S&P Consumer Discretionary Currency-Hedged ETF|E
 TCH-F136.TA|Tachlit SAL (40) TA Oil & Gas|E
+TCH-F44.TA|Tachlit SAL (4D) MDAX|E
 HRL-F64.TA|Harel Sal (4D) DJ Industrial Average|E
 HRL-F68.TA|Harel Sal (4D) S&P Industrial|E
+KSM-F158.TA|KSM ETF (4D) S&P Technology Units|E
 HRL-F14.TA|Harel Sal (4A) TA-SME60 IL|E
 HRL-F74.TA|Harel Sal 4D S&P Health Care ETF|E
 KSM-F38.TA|KSM ETF 00 Tel Gov-Shekel 5+|E
@@ -12605,19 +12601,21 @@ KSM-F162.TA|KSM ETF 4-D Bluestar Israel Global Technology|E
 KSM-F186.TA|KSM ETF (60) Short TA-90 (3817.09) IL|E
 KSM-F161.TA|KSM ETF (0A) iBoxx $ Corps Liquid 3-7 Years Currency Hedged ETF|E
 KSM-F237.TA|KSM ETF (4D) S&P 500 Equal Weight Units|E
+HRL-F72.TA|Harel Sal (4D) MSCI Emerging Markets|E
 KSM-F236.TA|KSM ETF (4D) S&P Consumer Staples Units|E
+TCH-F58.TA|Tachlit SAL (4D) S&P Health Care|E
 KSM-F58.TA|KSM ETF 00 Tel Gov-Shekel|E
-MTF-F46.TA|MTF SAL (4A) S&P Health Care Currency-Hedged|E
 KSM-F229.TA|KSM ETF (4A) S&P Consumer Discretionary Currency-Hedged Units|E
 IS-FF704.TA|iShares USD Treasury Bond 3-7yr UCITS ETF|E
 TCH-F138.TA|Tachlit SAL (00) Tel Bond-CPI Linked Bank|E
 HRL-F241.TA|Harel Sal (4A) TA - Israel Energy IL Units|E
 KSM-F126.TA|KSM ETF (00) Tel Bond-CPI Linked Bank Without COCO IL|E
-HRL-F72.TA|Harel Sal (4D) MSCI Emerging Markets|E
 KSM-F188.TA|KSM ETF (60) Short TA-125 (4263.6) IL|E
 TCH-F39.TA|Tachlit SAL (4A) Russell 2000 Currency-Hedged|E
-KSM-F175.TA|KSM ETF (0D) Tel Bond-DOLLAR Units|E
 KSM-F84.TA|KSM ETF (4A) Bloomberg Brent Crude Currency Hedged Units|E
+KSM-F175.TA|KSM ETF (0D) Tel Bond-DOLLAR Units|E
+KSM-F223.TA|KSM ETF 00 Tel Bond-Shekel 1- 3 Il|E
+MTF-F116.TA|MTF Sal (0A) Tel Bond-Composite IL Units|E
 KSM-F139.TA|KSM ETF (4A) DJ Internet Composite Currency Hedged Units|E
 MTF-F49.TA|MTF SAL (4A) S&P Utilities Currency-Hedged|E
 TCH-F178.TA|Tachlit SAL (4A) Index World Quality U.S.D Hedged Units|E
@@ -12626,9 +12624,10 @@ MTF-F120.TA|MTF SAL (4A) Index Israel-120 IL|E
 KSM-F14.TA|KSM ETF (4D) Bloomberg Brent Crude Future|E
 KSM-F110.TA|KSM ETF (00) Tel Bond-Yields CPI Linked IL|E
 KSM-F210.TA|KSM ETF (4D) Index World Value ETF Units|E
+HRL-F240.TA|Harel Sal (4A) MSCI Emerging Markets Dollar-Hedged Units|E
 TCH-F7.TA|Tachlit SAL (40) EURO STOXX 50 Currency-Hedged|E
-HRL-F4.TA|Harel Sal (00) Tel Bond 60 CPI Linked IL|E
-TCH-F49.TA|Tachlit SAL (4A) S&P Health Care Currency-Hedged|E
+MTF-F128.TA|MTF Sal (4D) iNDEX US Top10 Pure Cyber Security ETF|E
+HRL-F80.TA|Harel Sal (4A) STOXX Europe 600 Euro-Hedged|E
 MTF-F18.TA|MTF SAL (4A) TA Tech - Elite IL|E
 KSM-F6.TA|KSM ETF (4D) LBMA Gold Price PM USD Units|E
 KSM-F248.TA|KSM ETF Poland 50 iNDEX Units|E
@@ -12638,10 +12637,9 @@ IN-FF13.TA|Invesco MSCI China All Shares Connect UCITS ETF AccumUSD|E
 IS-FF302.TA|iShares Core Global Aggregate Bond UCITS ETF Accum Hedged USD|E
 HRL-F53.TA|Harel Sal (4A) DAX 30 Currency-Hedged|E
 HRL-F3.TA|Harel Sal (00) Tel Bond 20 CPI Linked IL|E
-HRL-F240.TA|Harel Sal (4A) MSCI Emerging Markets Dollar-Hedged Units|E
+KSM-F12.TA|KSM ETF (4D) S&P Energy ETF|E
 KSM-F42.TA|KSM ETF (00) CPI-Linked Fixed Interest Government Bonds|E
 TCH-F101.TA|Tachlit SAL (4A) STOXX Europe 600 EURO Hedged|E
-KSM-F158.TA|KSM ETF (4D) S&P Technology Units|E
 KSM-F192.TA|KSM ETF (4A) TA Sector-Balance Units|E
 IN-FF16.TA|Invesco S&P 500 Equal Weight UCITS ETF AccumUSD|E
 HRL-F303.TA|Harel Sal (00) Tel Bond - Shekel Bank & Insurance IL|E
@@ -12659,13 +12657,14 @@ KSM-F28.TA|KSM ETF (4D) DJ US Dividend Units|E
 MTF-F106.TA|MTF Sal (4D) Index World Value ETF|E
 HRL-F96.TA|Harel Sal (4D) S&P Energy|E
 TCH-F25.TA|Tachlit SAL (00) Tel Gov-CPI-Linked 2-5 Years IL|E
+MTF-F90.TA|MTF SAL (6A) Short TA-90 (4,574.35) IL|E
 HRL-F82.TA|Harel Sal (4A) S&P 500 Low Volatility Currency-Hedged|E
 KSM-F141.TA|KSM ETF (2A) Comp Gov Bond (55%) Cor Bond (30%) Equity (15%) Monthly CurrHedged|E
 TCH-F20.TA|Tachlit SAL (40) TEL DIV|E
+TCH-F14.TA|Tachlit SAL (00) Tel Gov-Non-Linked IL|E
+KSM-F133.TA|KSM ETF (4D) S&P Industrial Units|E
 KSM-F171.TA|KSM ETF (4A) MSCI AC World Dollar Hedged|E
 KSM-F205.TA|KSM ETF (00) Tel Bond-CPI Linked A Units|E
-TCH-F58.TA|Tachlit SAL (4D) S&P Health Care|E
-KSM-F12.TA|KSM ETF (4D) S&P Energy ETF|E
 KSM-F214.TA|KSM ETF (00) Index Israeli Gov Non-Linked 5Y Duration IL Units|E
 TCH-F26.TA|Tachlit SAL (00) Tel Bond 40 CPI-Linked IL|E
 KSM-FK1.TA|KSM ETF (00) KOSHER Tel Bond-60 CPI Linked IL|E
@@ -12675,13 +12674,10 @@ KSM-F62.TA|KSM ETF (00) Tel Gov-CPI-Linked 5-10|E
 MTF-F131.TA|MTF Sal (4A) S&P Israel 100 (ILS) IL Units|E
 KSM-F128.TA|KSM ETF (4D) MDAX Units|E
 HRL-F239.TA|Harel Sal (4A) TA Infrastructure IL Units|E
-HRL-F80.TA|Harel Sal (4A) STOXX Europe 600 Euro-Hedged|E
 MTF-F78.TA|MTF Sal (4D) Bluestar China Internet Software ETF Units|E
-KSM-F133.TA|KSM ETF (4D) S&P Industrial Units|E
 TCH-F100.TA|Tachlit SAL 4D STOXX Europe 600 Units|E
 TCH-F46.TA|Tachlit SAL (4D) MDAX Currency-Hedged|E
 KSM-F1.TA|KSM ETF (00) Tel Bond-CPI Linked 3-5|E
-MTF-F90.TA|MTF SAL (6A) Short TA-90 (4,574.35) IL|E
 KSM-F9.TA|KSM ETF (4D) DJ Health Care Titans 30 Units|E
 TCH-F97.TA|Tachlit SAL (00) Tel Bond-CPI Linked SmallCap IL ETF|E
 KSM-F108.TA|KSM ETF (00) Tel Bond-CPI Linked SmallCap|E
@@ -12693,7 +12689,6 @@ MTF-F115.TA|MTF Sal (0A) Tel-Gov IL Units|E
 KSM-F191.TA|KSM ETF 4D CSI300 ETF|E
 KSM-F68.TA|KSM ETF (4D) MSCI Emerging Markets|E
 MTF-F138.TA|MTF Sal 4D Indxx Us industrial Electrification Ecosystem ETF Units|E
-MTF-F128.TA|MTF Sal (4D) iNDEX US Top10 Pure Cyber Security ETF|E
 IS-FF404.TA|iShares Automation & Robotics UCITS ETF|E
 TCH-F91.TA|Tachlit SAL (00) Tel Gov-Short Term Treasury Bill IL|E
 KSM-F219.TA|KSM ETF (00) Tel Bond-Shekel A IL|E
@@ -12702,7 +12697,6 @@ HRL-F24.TA|Harel Sal (00) Tel Bond - Shekel IL|E
 MTF-F112.TA|MTF SAL (00) Tel Bond-CPI Linked 1-3 IL|E
 MTF-F74.TA|MTF Sal (4A) TA-Technology Units|E
 KSM-F91.TA|KSM ETF (2A) Composite Gen Bond Israel (80%) Equity (20%) Monthly Units|E
-MTF-F27.TA|MTF SAL (4D) S&P Financial|E
 MTF-F76.TA|MTF Sal (4D) Index Shopping Centers REIT Units|E
 MTF-F2.TA|MTF SAL (00)Tel Gov - Shekel 2-5 IL|E
 MTF-FK55.TA|MTF SAL (00) Kosher Tel - Bond 60 CPI-Linked IL|E
@@ -12711,7 +12705,9 @@ MTF-F124.TA|MTF SAL MSCI AC World ETF|E
 KSM-F120.TA|KSM ETF (4A) NASDAQ US BuyBack Achievers Currency Hedged|E
 KSM-F152.TA|KSM ETF (4D) S&P Health Care Units|E
 HRL-F81.TA|Harel Sal (4A) S&P Financial Currency-Hedged|E
+HRL-F237.TA|HRL TIGV NOL IL ETF|E
 IBI-F106.TA|I.B.I. SAL (4D) MSCI AC World|E
+TCH-F78.TA|Tachlit SAL (4D) NIKKEI 225|E
 TCH-F155.TA|Tachlit SAL (4D) Indxx US Industrial Real Estate & Logistics|E
 KSM-F132.TA|KSM ETF (4D) S&P Financial Units|E
 KSM-F22.TA|KSM ETF (4D) STOXX Europe MID 200 Units|E
@@ -12719,19 +12715,17 @@ KSM-F177.TA|KSM ETF (0D) S&P U.S. Treasury Bond 3-5 Year Units|E
 HRL-F236.TA|Harel Sal (4A) TA-Oil & Gas IL Units|E
 HRL-F301.TA|Harel Sal 00 Tel Bond Global|E
 IBI-F178.TA|I.B.I. SAL (4D) Index Global Growth|E
-TCH-F78.TA|Tachlit SAL (4D) NIKKEI 225|E
 MTF-F30.TA|MTF SAL (4D) S&P Technology|E
 HRL-FK41.TA|Harel Sal (00) Kosher Tel Bond 60 CPI Linked IL|E
 KSM-F67.TA|KSM ETF (4D) MSCI World Units|E
-MTF-F116.TA|MTF Sal (0A) Tel Bond-Composite IL Units|E
 MTF-F1.TA|MTF SAL 00 Tel Gov - Shekel IL Units|E
 KSM-F136.TA|KSM ETF (4A) FTSE 250 Currency Hedged Units|E
 TCH-F179.TA|Tachlit SAL (4D) CME CF Bitcoin Reference Rate (BRRNY)|E
-HRL-F237.TA|HRL TIGV NOL IL ETF|E
 TCH-F151.TA|Tachlit SAL (4A) S&P MidCap 400 Currency-Hedged|E
 IN-FF2.TA|Invesco Markets PLC - Invesco S&P 500 Scored & Screened UCITS ETF|E
 KSM-F181.TA|KSM ETF (4D) NIFTY 50|E
 KSM-F88.TA|KSM ETF (2A) Composite Gen Bond Israel (90%) Israel Equity (10%) Monthly Units|E
+HRL-F207.TA|Harel Sal (4D) ISE Cyber Security|E
 TCH-F31.TA|Tachlit SAL (00) Tel Gov-Non-Linked Fixed Int 2-5 Years IL|E
 KSM-F16.TA|KSM ETF (4A) NIKKEI 225 Currency Hedged|E
 KSM-F69.TA|KSM ETF (4D) MSCI AC Far East EX Japan Units|E
@@ -12743,7 +12737,6 @@ TCH-F29.TA|Tachlit SAL (4A) FTSE 100 Currency-Hedged|E
 KSM-F117.TA|KSM ETF (4A) S&P SmallCap 600 Currency Hedged|E
 KSM-F119.TA|KSM ETF (4A) Composite US Equity Monthly Currency Hedged Units|E
 MTF-F133.TA|MTF SAL (4D) Indxx Top 10 US Oil Industry ETF Units|E
-HRL-F207.TA|Harel Sal (4D) ISE Cyber Security|E
 KSM-F17.TA|KSM ETF (4A) EURO STOXX 50 Currency Hedged|E
 TCH-F85.TA|Tachlit SAL (40) TA Growth|E
 KSM-F233.TA|KSM ETF (4D) S&P 500 TOP 50 Units|E
@@ -12770,6 +12763,7 @@ TCH-F56.TA|Tachlit SAL (4A) S&P Technology Currency-Hedged|E
 KSM-F247.TA|(KSM ETF (4D) Composite TA-125 (50% S&P 500 (50%) Monthly Units|E
 KSM-F76.TA|KSM ETF (4D) EURO STOXX 50 Units|E
 KSM-F199.TA|KSM ETF (4D) Indxx China Internet Units|E
+KSM-F207.TA|KSM ETF (00) Tel Bond-Shekel 5-15 IL Units|E
 MTF-F36.TA|MTF SAL (4A) DAX Currency-Hedged|E
 KSM-F123.TA|KSM ETF (4D) NASDAQ US BuyBack Achievers Units|E
 MTF-FK57.TA|MTF Sal (00) Kosher Tel Bond shekel Units|E
@@ -12806,7 +12800,6 @@ KSM-F232.TA|KSM ETF (4A) S&P Consumer Staples Currency-Hedged|E
 IBI-F176.TA|I.B.I. SAL (4A) Index US Momentum Currency-Hedged|E
 KSM-F148.TA|KSM ETF (00) Short Tel Bond-Yields Units|E
 KSM-F122.TA|KSM ETF (4D) STOXX Europe 600 ETF|E
-MTF-F42.TA|MTF SAL (4A) S&P Consumer Discretionary Currency-Hedged ETF|E
 KSM-F85.TA|KSM ETF (00)Comp Tel-Gov (65%) Cor Bond IL (35%) Monthly ETF|E
 IS-FF405.TA|iShares USD Short Duration Corp Bond UCITS ETF Unhedged USD|E
 KSM-F43.TA|KSM ETF (00) Tel Gov T-Bills (MAKAM)|E
@@ -12824,7 +12817,6 @@ KSM-F35.TA|KSM ETF (00) CPI-Linked Gov Bonds 0-2 Years|E
 TCH-F102.TA|Tachlit SAL (E) MSCI World U.S.D Hdgd (4A) Units|E
 IBI-F184.TA|I.B.I. SAL (4A) Index Israeli Mid Cap & Banks IL Units|E
 TCH-F108.TA|Tachlit SAL (4A) CAC 40 Currency-Hedged|E
-TCH-F14.TA|Tachlit SAL (00) Tel Gov-Non-Linked IL|E
 IS-FF503.TA|iShares S&P 500 Financials Sector UCITS ETF|E
 MTF-F109.TA|MTF Sal (0D) iBoxx US Liquid Investment Grade Top 30 Units|E
 IS-FF201.TA|iShares J.P. Morgan USD EM Bond UCITS ETF Acc|E
@@ -12846,12 +12838,10 @@ KSM-F212.TA|KSM ETF (4D) MSCI ACWI Sustainable Development|E
 MTF-F117.TA|MTF Sal (00) Tel Bond-Shekel 5-15 IL|E
 TCH-F129.TA|Tachlit SAL (4A) NIKKEI 225 Currency-Hedged|E
 KSM-F92.TA|KSM ETF (4A) DAX 30 Currency Hedged|E
-MTF-F45.TA|MTF SAL (4A) S&P Financial Currency-Hedged|E
 HRL-F226.TA|Harel Sal (4A) Index Israel 100 profitability Equal Weight IL|E
 TCH-F114.TA|Tachlit SAL (4D) MSCI India|E
 TCH-F65.TA|Tachlit SAL (4D) S&P Energy|E
 TCH-F12.TA|Tachlit SAL (4A) DAX Currency-Hedged|E
-MTF-F25.TA|MTF SAL (4D) S&P Consumer Discretionary|E
 TCH-F88.TA|Tachlit SAL (00) Tel Gov-Non-Linked Fixed Int 0-2 Years IL|E
 MTF-F107.TA|MTF Sal (4D) Index World Growth|E
 HRL-F13.TA|Harel Sal (00) Tel Bond 40 CPI Linked IL|E
@@ -12861,4 +12851,3 @@ KSM-F125.TA|KSM ETF (4A) Composite Euro Equity Monthly Euro Hedged Units|E
 MTF-F114.TA|MTF Sal (00) Tel Bond-Shekel 5-15 IL|E
 MTF-F134.TA|MTF SAL (4D) Indxx Top 10 Europe Defense Euro-Hedged Units|E
 IS-FF403.TA|iShares Digitalisation UCITS ETF|E
-MTF-F113.TA|MTF SAL (00) Tel Bond-Shekel 1-3 IL Units|E

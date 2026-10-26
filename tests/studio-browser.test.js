@@ -56,7 +56,13 @@ ok(fs.existsSync(path.join(ROOT, 'android/app/src/browser/res/mipmap-xxxhdpi/br_
 const vjs = R(B + 'BrVideo.kt');
 ok(!fs.existsSync(path.join(ROOT, B + 'BrBubble.kt')) && !/VideoBubble|FullBubble/.test(ui), 'בלי הבועה המרחפת של Compose');
 ok(/attachShadow\(\{mode:'closed'\}\)/.test(vjs) && /position:fixed/.test(vjs) && /box\.left\+box\.width\/2/.test(vjs), 'הכפתור בתוך הדף: shadow DOM סגור, באמצע החלק העליון של הנגן');
-ok(/var n=\+window\.__snbN\|\|0;/.test(vjs) && /if\(!box\|\|n<=0\)/.test(vjs), 'מופיע רק כשיש נגן על המסך וגם הדפדפן מצא מה להוריד');
+ok(/if\(!box\|\|N<=0\)/.test(vjs) && /function up\(n,l,m,k\)\{N=\+n\|\|0/.test(vjs), 'מופיע רק כשיש נגן על המסך וגם הדפדפן מצא מה להוריד');
+// 26/10/2026: התפריט שנפתח מהכפתור — האיכויות מהבדיקה ברקע, הבחירה עם המפתח של הטאב, ההורדה בלי לצאת מהדף
+ok(/Object\.defineProperty\(window,'__snbUp',\{value:up,writable:false,configurable:false\}\)/.test(vjs), 'הדף לא יכול להחליף את __snbUp (ולגנוב את המפתח)');
+ok(/if\(!M\)\{ch\.postMessage\('!dl'\);return;\}/.test(vjs), 'בלי תפריט מוכן — הנגיעה פותחת את מנהל ההורדות כמו קודם');
+ok(/ch\.postMessage\('!q:'\+K\+':'\+k\)/.test(vjs) && /textContent/.test(vjs) && !/innerHTML/.test(vjs), 'בחירה עם המפתח; טקסט התפריט רק כטקסט');
+ok(/BrVideo\.pickOf\(it, dlKey\)/.test(act) && /fun menuPick[\s\S]{0,400}DmPre\.choice\(info, k\) \?: return/.test(act) && /menuPickOf[^\n]*if \(t\.private\) null/.test(act), 'רק בחירה שהתפריט הציע, לא בטאב פרטי');
+ok(/DmPre\.enqueue\(this, p\.url, info, q, audio/.test(act) && /DmPre\.enqueue\(this, v\.url, v\.info/.test(R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmActivity.kt')), 'אותה הוספה מהתפריט ומהגיליון');
 ok(/document\.fullscreenElement/.test(vjs), 'במסך מלא — בתוך האלמנט שבמסך מלא');
 ok(/ch\.postMessage\('!dl'\)/.test(vjs) && /BrVideo\.TAP -> if \(cur === t && screen == Screen\.PAGE\) bubbleTap\(\)/.test(act), 'נגיעה בכפתור = ⬇ בשורת הכתובת');
 ok(/ch\.postMessage\('!\?'\)/.test(vjs) && /BrVideo\.HELLO -> pushDl\(t\)/.test(act) && /if \(bubble\) t\.foundN else 0/.test(act), 'מסמך חדש מבקש את המצב; כבוי בהגדרות = בלי כפתור');
@@ -66,15 +72,21 @@ ok(/fun bubbleTap\(\)[\s\S]{0,200}if \(ps\.size == 1\) download\(ps\[0\]\) else 
   && /if \(ps\.size == 1\) a\.download\(ps\[0\]\) else a\.pick = true/.test(ui), 'הכפתור = ⬇ בשורת הכתובת (אותה בחירה)');
 ok(/var bubble: Boolean get\(\) = sp\.getBoolean\("bub", true\)/.test(store) && /pickBubble/.test(ui) && /prefs\.bubble = b; cur\?\.let \{ pushDl\(it\) \}/.test(act), 'אפשר לכבות בהגדרות; פועל כברירת מחדל');
 // האיכויות מוכנות מראש
-ok(/LaunchedEffect\(t\.id, t\.foundN, a\.bubble, t\.web\) \{ a\.pushDl\(t\); if \(t\.foundN > 0\) \{ delay\(1500\); a\.prefetch\(t\) \} \}/.test(ui), 'הסרטון שעל המסך נבדק ברקע');
+ok(/LaunchedEffect\(t\.id, t\.foundN, a\.bubble, t\.web\) \{\s*a\.pushDl\(t\)\s*if \(t\.foundN > 0\) \{\s*delay\(1500\); a\.prefetch\(t\); a\.pushDl\(t\)/.test(ui) && /if \(m != last\) \{ last = m; a\.pushDl\(t\) \}/.test(ui), 'הסרטון שעל המסך נבדק ברקע, והתפריט עובר לדף כשהבדיקה מסתיימת');
 ok(/if \(t\.private \|\| cur !== t \|\| t\.foundN == 0\) return/.test(act) && /firstOrNull \{ !it\.file \}/.test(act), 'רק הטאב שעל המסך, לא פרטי, ורק מה שנבדק ב־yt-dlp');
 ok(/DmPre\.await\(url\)\?\.let \{ return Found\.Video/.test(R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmActivity.kt')), 'מנהל ההורדות לוקח את התוצאה המוכנה');
 ok(/if \(url in busy \|\| fresh\(done\[url\], now\)\) return/.test(pre) && /while \(url in busy\)/.test(pre) && /JSONObject\(e\.info\.toString\(\)\)/.test(pre), 'בדיקה אחת לכל כתובת, מחכים לבדיקה שרצה, ועותק לכל מי שמבקש');
 ok(!/https?:\/\//.test(pre.replace(/^\s*(\/\/|\*).*$/mg, '')), 'הבדיקה מראש לא פונה לשום שרת שלנו');
 const vid = R(B + 'BrVideo.kt');
-ok(/if\(window\.top!==window/.test(vid) && /\{ _, msg, _, main, _ ->\s*if \(main\) when/.test(act) && /else -> t\.vid = BrVideo\.parse\(d\)/.test(act), 'המיקום רק מהמסגרת הראשית (גם בסקריפט וגם בדפדפן)');
+ok(/if\(window\.top!==window/.test(vid) && /\{ _, msg, _, main, _ ->\s*if \(main\) when/.test(act) && /else if \(d\?\.startsWith\(BrVideo\.PICK\) != true\) t\.vid = BrVideo\.parse\(d\)/.test(act), 'המיקום רק מהמסגרת הראשית (גם בסקריפט וגם בדפדפן)');
 ok(/addDocumentStartJavaScript\(w, BrVideo\.JS/.test(act) && /t\.vid = null/.test(act), 'הסקריפט בכל דף; דף חדש — בלי מיקום ישן');
 ok(/visualViewport/.test(vid) && /iy<40/.test(vid), 'יחסית לאזור הנראה (גם בהגדלה); נגן כמעט מחוץ למסך — לא נחשב');
+{ // BrVideo.pickOf — רק עם המפתח הנכון, ובחירה קצרה של אותיות וספרות
+  const pickOf = (d, key) => { if (!d.startsWith('!q:') || !key) return null; const r = d.slice(3), i = r.indexOf(':'); if (i <= 0 || r.slice(0, i) !== key) return null; const v = r.slice(i + 1); return v.length >= 1 && v.length <= 8 && /^[\p{L}\p{N}]+$/u.test(v) ? v : null; };
+  ok(pickOf('!q:k1:1080', 'k1') === '1080' && pickOf('!q:k1:t720', 'k1') === 't720' && pickOf('!q:k1:a', 'k1') === 'a', 'בחירה תקינה');
+  ok(pickOf('!q:xx:1080', 'k1') === null && pickOf('!q::1080', 'k1') === null && pickOf('!q:k1:1080', '') === null && pickOf('!q:k1:a b', 'k1') === null, 'מפתח לא נכון / בחירה מוזרה — כלום');
+  ok(/fun pickOf[\s\S]{0,400}r\.substring\(0, i\) != key[\s\S]{0,200}isLetterOrDigit/.test(vid), 'אותה בדיקה בקוטלין');
+}
 { // BrVideo.parse — כמו בקוטלין: ארבעה מספרים סבירים, אחרת "אין נגן"
   const parse = (s) => { const p = String(s ?? '').split(','); if (p.length !== 4) return null; const v = p.map(Number);
     if (v.some((x) => !isFinite(x) || x < -10 || x > 10) || v[2] <= 0 || v[3] <= 0) return null; return v; };

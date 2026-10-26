@@ -73,6 +73,8 @@ import io.github.yishaiguedj1.snowball.dm.DmBrowser
 import io.github.yishaiguedj1.snowball.dm.DmEngine
 import io.github.yishaiguedj1.snowball.dm.DmLang
 import io.github.yishaiguedj1.snowball.dm.DmPre
+import io.github.yishaiguedj1.snowball.dm.DmPrefs
+import io.github.yishaiguedj1.snowball.dm.DmSubs
 import io.github.yishaiguedj1.snowball.dm.DmStore
 
 /**
@@ -562,7 +564,11 @@ class BrowserActivity : ComponentActivity() {
                 if (main) when (val d = msg.data) {
                     BrVideo.TAP -> if (cur === t && screen == Screen.PAGE) bubbleTap()   // הכפתור שעל הנגן
                     BrVideo.HELLO -> pushDl(t)                                         // מסמך חדש — כמה נמצא והתווית
-                    else -> t.vid = BrVideo.parse(d)
+                    else -> {
+                        val k = d?.let { BrVideo.pickOf(it, dlKey) }
+                        if (k != null) menuPick(t, k)                                  // בחירה מהתפריט שעל הנגן
+                        else if (d?.startsWith(BrVideo.PICK) != true) t.vid = BrVideo.parse(d)
+                    }
                 }
             }
             if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) WebViewCompat.addDocumentStartJavaScript(w, BrVideo.JS, setOf("*"))
@@ -686,7 +692,37 @@ class BrowserActivity : ComponentActivity() {
     /** הכפתור שעל הנגן (BrVideo): המצב לדף — כמה נמצא (0 = בלי כפתור; גם כשכובה בהגדרות) והתווית */
     fun pushDl(t: BrTab) {
         val w = t.web ?: return
-        runCatching { w.evaluateJavascript(BrVideo.stateJs(if (bubble) t.foundN else 0, getString(R.string.brBubble)), null) }
+        runCatching { w.evaluateJavascript(BrVideo.stateJs(if (bubble) t.foundN else 0, getString(R.string.brBubble), menuJson(t), dlKey), null) }
+    }
+
+    /** מפתח אקראי לתפריט שעל הנגן (BrVideo.pickOf) — חדש בכל פתיחה של הדפדפן */
+    private val dlKey = java.util.UUID.randomUUID().toString().replace("-", "")
+
+    /** הסרטון שהתפריט שעל הנגן מציע — אותו שנבדק ברקע (prefetch) */
+    private fun menuPickOf(t: BrTab) = if (t.private) null else picks(t).firstOrNull { !it.file }
+
+    /** התפריט לדף: האיכויות כשהבדיקה מוכנה, {"w":1} כשהיא עוד רצה, null = אין (נגיעה פותחת את מנהל ההורדות) */
+    fun menuJson(t: BrTab): String {
+        val p = menuPickOf(t) ?: return "null"
+        DmPre.get(p.url)?.let { return DmPre.menu(this, it, AppRoute.studioInstalled(this)).toString() }
+        return if (DmPre.busy(p.url)) org.json.JSONObject().put("w", 1).put("more", getString(R.string.dmMenuMore)).toString() else "null"
+    }
+
+    /**
+     * בחירה מהתפריט שעל הנגן: ההורדה נכנסת לתור של מנהל ההורדות (DmPre.enqueue) — בלי לצאת מהדף. רק בחירה שהתפריט הציע
+     * (DmPre.choice), רק לסרטון שנבדק, בטאב שעל המסך; העוגיות של הדף כבר נשמרו בבדיקה (DmPre.start)
+     */
+    fun menuPick(t: BrTab, k: String) {
+        if (cur !== t || screen != Screen.PAGE) return
+        val p = menuPickOf(t) ?: return
+        val info = DmPre.get(p.url) ?: run { bubbleTap(); return }
+        val (q, audio, tr) = DmPre.choice(info, k) ?: return
+        if (tr && !AppRoute.studioInstalled(this)) return
+        val subs = if (!audio && DmPrefs(this).subs) DmSubs.pick(info.optJSONArray("sub"), java.util.Locale.getDefault().language) else emptyList()
+        DmPre.enqueue(this, p.url, info, q, audio, if (p.page) "" else t.page, ck = true, tr = tr, subs = subs)
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+            runCatching { requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 7) }
+        Toast.makeText(this, R.string.dmMenuStarted, Toast.LENGTH_SHORT).show()
     }
 
     /**
