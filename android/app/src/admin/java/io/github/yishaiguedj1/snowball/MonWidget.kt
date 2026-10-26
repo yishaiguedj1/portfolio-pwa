@@ -26,8 +26,6 @@ import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
-import androidx.glance.appwidget.lazy.LazyColumn
-import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.color.ColorProvider
@@ -52,10 +50,11 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 /*
- * ווידג'ט מדדי השרתים (מרכז הניהול). 24/10/2026 — עיצוב חדש (בקשת המשתמש: "נקי כמו Apple, כתב קריא"):
- * לכל שרת שם ומצב, ומתחתיהם שלושה מדדים גדולים (מעבד, זיכרון, דיסק) עם פס דק, ושורה קטנה של רשת ומקום פנוי.
- * צבע הנקודה: אפור = מושהה, אדום = לא מחובר, כתום = אזהרה (מעבד/זיכרון/דיסק/לחץ), ירוק = תקין.
- * כיוון: הטלפון קובע את כיוון הפריסה (השפה), ולכן אין הפיכת סדר ידנית כמו ב־Invest — הממשק בעברית או אנגלית לפי השפה.
+ * ווידג'ט מדדי השרתים (מרכז הניהול). 26/10/2026 — עיצוב 2 (בקשת המשתמש: "כמה שיותר מידע, נקי כמו Apple, הכי קטן שאפשר",
+ * התצוגה המקדימה שאושרה): 4×2 משבצות. שרת אחד — שורת מצב (נקודה, שם, מה עושה עכשיו: שלב העבודה ואחוז / פנוי / חורג /
+ * דיסק מלא, מתי עודכן, ↻), ארבעה מדדים (מעבד, זיכרון, דיסק, רשת) עם פס דק, ושורת תחתית: R2, צפי לחודש, Drive, פנוי, זמן פעולה.
+ * כמה שרתים — טבלה: שורה לכל שרת. ההגדרות — בלחיצה ארוכה על הווידג'ט (reconfigurable); נגיעה בשם פותחת את מרכז הניהול.
+ * צבע הנקודה: אפור = מושהה, אדום = לא מחובר, כתום = חריגה / דיסק מלא, ירוק = תקין.
  */
 class MonWidget : GlanceAppWidget() {
 
@@ -105,12 +104,10 @@ class MonRefreshAction : ActionCallback {
     }
 }
 
-// צבעים: בהיר/כהה לפי מצב המערכת — הצבעים של iOS (רקע, טקסט משני, ירוק/כתום/אדום של המערכת)
+// צבעים: בהיר/כהה לפי מצב המערכת — הצבעים של iOS (רקע, טקסט משני, ירוק/כתום/אדום וצבעי המדדים של המערכת)
 private object C {
     val bg = ColorProvider(Color(0xFFFFFFFF), Color(0xFF1C1C1E))
-    val chip = ColorProvider(Color(0xFFF2F2F7), Color(0xFF2C2C2E))
     val track = ColorProvider(Color(0x1F3C3C43), Color(0x33EBEBF5))
-    val line = ColorProvider(Color(0x1A3C3C43), Color(0x26EBEBF5))
     val on = ColorProvider(Color(0xFF000000), Color(0xFFFFFFFF))
     val variant = ColorProvider(Color(0xFF6C6C70), Color(0xFF98989F))
     val pos = ColorProvider(Color(0xFF248A3D), Color(0xFF30D158))
@@ -120,211 +117,217 @@ private object C {
     val cpu = ColorProvider(Color(0xFF007AFF), Color(0xFF0A84FF))
     val mem = ColorProvider(Color(0xFF5856D6), Color(0xFF5E5CE6))
     val disk = ColorProvider(Color(0xFF34C759), Color(0xFF30D158))
+    val net = ColorProvider(Color(0xFFFF9500), Color(0xFFFF9F0A))
 }
+private typealias Tone = androidx.glance.unit.ColorProvider
 
 // ספרות ומספרים בתוך טקסט עברי: בידוד LTR כדי שלא יתהפכו (כמו ltrNum באפליקציה)
-private fun ltr(s: String) = "\u2066$s\u2069"
+private fun ltr(s: String) = "⁦$s⁩"
 
 @Composable
 private fun MonContent(context: Context, hasToken: Boolean, authBad: Boolean, snap: MonSnap?, updated: Long) {
-    val compact = LocalSize.current.height < 170.dp
+    val size = LocalSize.current
     Box(GlanceModifier.fillMaxSize().background(C.bg).cornerRadius(22.dp)) {
-        Column(GlanceModifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 12.dp)) {
-            Header(context, updated)
+        Column(GlanceModifier.fillMaxSize().padding(horizontal = 13.dp, vertical = 11.dp)) {
             when {
-                !hasToken -> Hint(context.getString(R.string.mon_no_token), openConfig = true)
-                authBad -> Hint(context.getString(R.string.mon_auth_bad), openConfig = true)
-                snap == null -> Hint(context.getString(R.string.mon_loading), openConfig = false)
-                snap.servers.isEmpty() -> Hint(context.getString(R.string.mon_no_servers), openConfig = false)
-                else -> LazyColumn(GlanceModifier.fillMaxWidth().defaultWeight()) {
-                    items(snap.servers, itemId = { it.id.hashCode().toLong() }) { s ->
-                        ServerBlock(context, s, compact, first = s === snap.servers.first())
-                    }
-                    snap.sto?.let { st -> item(itemId = -1L) { StoreBlock(context, st) } }
-                }
+                !hasToken -> Hint(context, context.getString(R.string.mon_no_token), updated, openConfig = true)
+                authBad -> Hint(context, context.getString(R.string.mon_auth_bad), updated, openConfig = true)
+                snap == null -> Hint(context, context.getString(R.string.mon_loading), updated, openConfig = false)
+                snap.servers.isEmpty() -> Hint(context, context.getString(R.string.mon_no_servers), updated, openConfig = false)
+                snap.servers.size == 1 -> One(context, snap, snap.servers[0], updated, size.height >= 118.dp, size.width >= 300.dp)
+                else -> Many(context, snap, updated, size.height >= 118.dp)
             }
         }
     }
 }
 
-/** פתיחת האפליקציה (מרכז הניהול) מנגיעה בכותרת */
+/** פתיחת האפליקציה (מרכז הניהול) מנגיעה בשם */
 private fun openApp(c: Context): Intent =
     (c.packageManager.getLaunchIntentForPackage(c.packageName) ?: Intent()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
-@Composable
-private fun Header(context: Context, updated: Long) {
-    Row(GlanceModifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(GlanceModifier.defaultWeight().clickable(actionStartActivity(openApp(context)))) {
-            Text(
-                context.getString(R.string.mon_title),
-                style = TextStyle(color = C.on, fontSize = 17.sp, fontWeight = FontWeight.Bold),
-                maxLines = 1,
-            )
-            Text(
-                if (updated <= 0L) context.getString(R.string.mon_never) else context.getString(R.string.mon_updated, ago(context, updated)),
-                style = TextStyle(color = C.variant, fontSize = 12.sp),
-                maxLines = 1,
-            )
+/** מצב השרת: הצבע והטקסט. מה שהוא עושה עכשיו — השלב והאחוז של העבודה שרצה בו (mon.jobs לפי sid) */
+private class St(val tone: Tone, val text: String)
+
+private fun stateOf(c: Context, s: MonServer, jobs: List<MonJob>): St {
+    val mine = jobs.filter { it.sid == s.id }
+    val hb = s.hb
+    return when {
+        s.paused -> St(C.dot, c.getString(R.string.mon_st_paused))
+        !s.online -> St(C.neg, if (s.seen <= 0L) c.getString(R.string.mon_st_off) else c.getString(R.string.mon_st_off_ago, ago(c, s.seen)))
+        hb?.dl == true -> St(C.warn, c.getString(R.string.mon_st_disk_low))
+        s.warn.isNotEmpty() -> St(C.warn, c.getString(R.string.mon_st_warn, s.warn.joinToString(", ") { warnName(c, it) }))
+        mine.isNotEmpty() -> {
+            val j = mine[0]
+            val stg = stageName(c, j.st)
+            val p = if (j.p.isNaN()) "" else " " + ltr("${(j.p * 100).roundToInt()}%")
+            val more = if (mine.size > 1) " · " + c.getString(R.string.mon_more, mine.size - 1) else ""
+            St(C.pos, (stg ?: c.getString(R.string.mon_st_busy)) + p + more)
         }
-        IconBtn(R.drawable.ic_widget_refresh, context.getString(R.string.mon_refresh), actionRunCallback<MonRefreshAction>())
-        Spacer(GlanceModifier.width(8.dp))
-        IconBtn(R.drawable.ic_widget_settings, context.getString(R.string.mon_settings), actionStartActivity<MonConfigActivity>())
+        hb?.busy?.isNotEmpty() == true -> St(C.pos, c.getString(R.string.mon_st_busy))
+        else -> St(C.pos, c.getString(R.string.mon_st_idle))
     }
 }
 
+/** שורת הכותרת: נקודה, שם (פותח את מרכז הניהול), מצב, מתי עודכן, ↻ */
 @Composable
-private fun IconBtn(icon: Int, desc: String, action: androidx.glance.action.Action) {
-    Box(
-        GlanceModifier.size(32.dp).cornerRadius(16.dp).background(C.chip).clickable(action),
-        contentAlignment = Alignment.Center,
-    ) {
-        Image(ImageProvider(icon), contentDescription = desc, modifier = GlanceModifier.size(17.dp))
+private fun Head(c: Context, name: String, st: St?, updated: Long) {
+    Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Row(GlanceModifier.defaultWeight().clickable(actionStartActivity(openApp(c))), verticalAlignment = Alignment.CenterVertically) {
+            if (st != null) {
+                Box(GlanceModifier.size(8.dp).cornerRadius(4.dp).background(st.tone)) {}
+                Spacer(GlanceModifier.width(6.dp))
+            }
+            Text(name, style = TextStyle(color = C.on, fontSize = 14.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+            if (st != null) {
+                Spacer(GlanceModifier.width(6.dp))
+                Text(st.text, style = TextStyle(color = st.tone, fontSize = 12.sp, fontWeight = FontWeight.Medium), maxLines = 1,
+                    modifier = GlanceModifier.defaultWeight())
+            }
+        }
+        Text(
+            if (updated <= 0L) c.getString(R.string.mon_never) else ago(c, updated),
+            style = TextStyle(color = C.variant, fontSize = 11.sp), maxLines = 1,
+        )
+        Box(GlanceModifier.size(26.dp).cornerRadius(13.dp).clickable(actionRunCallback<MonRefreshAction>()), contentAlignment = Alignment.Center) {
+            Image(ImageProvider(R.drawable.ic_widget_refresh), contentDescription = c.getString(R.string.mon_refresh), modifier = GlanceModifier.size(15.dp))
+        }
     }
 }
 
-/** הודעה במקום הרשימה. openConfig = נגיעה פותחת את מסך הטוקן */
+/** הודעה במקום המדדים. openConfig = נגיעה פותחת את מסך הטוקן */
 @Composable
-private fun ColumnScope.Hint(text: String, openConfig: Boolean) {
+private fun ColumnScope.Hint(c: Context, text: String, updated: Long, openConfig: Boolean) {
+    Head(c, c.getString(R.string.mon_title), null, updated)
     val mod = if (openConfig) GlanceModifier.fillMaxWidth().defaultWeight().clickable(actionStartActivity<MonConfigActivity>())
     else GlanceModifier.fillMaxWidth().defaultWeight()
     Box(mod, contentAlignment = Alignment.Center) {
-        Text(text, style = TextStyle(color = C.variant, fontSize = 15.sp, textAlign = TextAlign.Center))
+        Text(text, style = TextStyle(color = C.variant, fontSize = 14.sp, textAlign = TextAlign.Center))
     }
 }
 
+/** שרת אחד: ארבעה מדדים + שורת תחתית */
 @Composable
-private fun ServerBlock(context: Context, s: MonServer, compact: Boolean, first: Boolean) {
-    val tone = when {
-        s.paused -> C.dot
-        !s.online -> C.neg
-        s.warn.isNotEmpty() -> C.warn
-        else -> C.pos
-    }
-    Column(GlanceModifier.fillMaxWidth()) {
-        if (!first) Box(GlanceModifier.fillMaxWidth().height(1.dp).background(C.line)) {}
-        Spacer(GlanceModifier.height(10.dp))
-        Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Box(GlanceModifier.size(9.dp).cornerRadius(5.dp).background(tone)) {}
-            Spacer(GlanceModifier.width(7.dp))
-            Text(
-                s.name, style = TextStyle(color = C.on, fontSize = 15.sp, fontWeight = FontWeight.Medium),
-                maxLines = 1, modifier = GlanceModifier.defaultWeight(),
-            )
-            Text(statusText(context, s), style = TextStyle(color = tone, fontSize = 13.sp, fontWeight = FontWeight.Medium), maxLines = 1)
+private fun ColumnScope.One(c: Context, snap: MonSnap, s: MonServer, updated: Long, tall: Boolean, wide: Boolean) {
+    Head(c, s.name, stateOf(c, s, snap.jobs), updated)
+    val hb = s.hb
+    if (!s.online || hb == null) {
+        Box(GlanceModifier.fillMaxWidth().defaultWeight(), contentAlignment = Alignment.Center) {
+            Text(c.getString(if (s.online) R.string.mon_no_data else R.string.mon_off_hint),
+                style = TextStyle(color = C.variant, fontSize = 13.sp, textAlign = TextAlign.Center))
         }
-        val hb = s.hb
-        if (!s.online || hb == null) {
-            Text(
-                line1(context, s), style = TextStyle(color = C.variant, fontSize = 13.sp),
-                maxLines = 1, modifier = GlanceModifier.padding(top = 4.dp, bottom = 8.dp),
-            )
-            return@Column
-        }
-        Spacer(GlanceModifier.height(8.dp))
+    } else {
+        Spacer(GlanceModifier.height(if (tall) 9.dp else 6.dp))
         Row(GlanceModifier.fillMaxWidth()) {
-            Metric(context.getString(R.string.mon_l_cu), hb.cu, "cu" in s.warn, C.cpu, GlanceModifier.defaultWeight())
-            Spacer(GlanceModifier.width(14.dp))
-            Metric(context.getString(R.string.mon_l_mem), hb.mem, "mem" in s.warn, C.mem, GlanceModifier.defaultWeight())
-            Spacer(GlanceModifier.width(14.dp))
-            Metric(context.getString(R.string.mon_l_disk), hb.disk, "disk" in s.warn, C.disk, GlanceModifier.defaultWeight())
+            Metric(pct(hb.cu), c.getString(R.string.mon_l_cu), "cu" in s.warn, hb.cu / 100.0, C.cpu, GlanceModifier.defaultWeight())
+            Spacer(GlanceModifier.width(10.dp))
+            Metric(pct(hb.mem), c.getString(R.string.mon_l_mem), "mem" in s.warn || hb.psi >= 20.0, hb.mem / 100.0, C.mem, GlanceModifier.defaultWeight())
+            Spacer(GlanceModifier.width(10.dp))
+            Metric(pct(hb.disk), c.getString(R.string.mon_l_disk), "disk" in s.warn || hb.dl, hb.disk / 100.0, C.disk, GlanceModifier.defaultWeight())
+            Spacer(GlanceModifier.width(10.dp))
+            val net = netOf(hb)
+            // הפס של הרשת — יחסי ל־10MB/s (קו של שרת ענן רגיל), כדי שגם תעבורה קטנה תיראה
+            Metric(rateShort(net), c.getString(R.string.mon_l_net), false, if (net.isNaN()) Double.NaN else net / 10_000_000.0, C.net, GlanceModifier.defaultWeight())
         }
-        if (!compact) {
-            val parts = mutableListOf(context.getString(R.string.mon_net, rate(hb.rx), rate(hb.tx)))
-            if (!hb.free.isNaN()) parts += context.getString(R.string.mon_free, ltr("${hb.free.roundToInt()}GB"))
-            Text(
-                parts.joinToString("  ·  "), style = TextStyle(color = C.variant, fontSize = 12.sp),
-                maxLines = 1, modifier = GlanceModifier.padding(top = 8.dp),
-            )
-        }
-        Spacer(GlanceModifier.height(10.dp))
     }
+    Spacer(GlanceModifier.defaultWeight())
+    if (tall) Foot(c, snap, hb, wide)
 }
 
-/**
- * 24/10/2026: אחסון ועלות — באותה שפה של מדדי השרת: R2 (כל הדליים, מעל 10GB החינמיים = כתום), הצפי לחודש בדולרים,
- * וה־Drive של הגיבוי באחוזים עם פס. מדידה שנכשלה — "!" (הקוד במרכז הניהול), לא מספר מומצא
- */
+/** כמה שרתים: טבלה — שם ומצב, ואחריהם מעבד, זיכרון, דיסק ורשת */
 @Composable
-private fun StoreBlock(context: Context, st: MonSto) {
-    Column(GlanceModifier.fillMaxWidth()) {
-        Box(GlanceModifier.fillMaxWidth().height(1.dp).background(C.line)) {}
-        Spacer(GlanceModifier.height(10.dp))
-        Text(
-            context.getString(R.string.mon_sto_title), style = TextStyle(color = C.on, fontSize = 15.sp, fontWeight = FontWeight.Medium),
-            maxLines = 1,
-        )
-        Spacer(GlanceModifier.height(8.dp))
-        Row(GlanceModifier.fillMaxWidth()) {
-            val over = !st.r2Gb.isNaN() && st.r2Gb > 10.0
-            val r2v = when {
-                !st.r2Gb.isNaN() -> gb(st.r2Gb)
-                st.r2Err.isNotEmpty() -> "!"
-                else -> "—"
+private fun ColumnScope.Many(c: Context, snap: MonSnap, updated: Long, tall: Boolean) {
+    Head(c, c.getString(R.string.mon_title), null, updated)
+    Spacer(GlanceModifier.height(5.dp))
+    Row(GlanceModifier.fillMaxWidth()) {
+        Spacer(GlanceModifier.defaultWeight())
+        for (l in listOf(R.string.mon_l_cu, R.string.mon_l_mem, R.string.mon_l_disk, R.string.mon_l_net)) {
+            Text(c.getString(l), style = TextStyle(color = C.variant, fontSize = 10.sp, textAlign = TextAlign.End), maxLines = 1,
+                modifier = GlanceModifier.width(44.dp))
+        }
+    }
+    for (s in snap.servers.take(if (tall) 3 else 2)) {
+        val st = stateOf(c, s, snap.jobs)
+        val hb = if (s.online) s.hb else null
+        Row(GlanceModifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(GlanceModifier.size(8.dp).cornerRadius(4.dp).background(st.tone)) {}
+            Spacer(GlanceModifier.width(6.dp))
+            Column(GlanceModifier.defaultWeight()) {
+                Text(s.name, style = TextStyle(color = if (s.paused || !s.online) C.variant else C.on, fontSize = 13.sp, fontWeight = FontWeight.Medium), maxLines = 1)
+                if (st.tone != C.pos || st.text != c.getString(R.string.mon_st_idle)) {
+                    Text(st.text, style = TextStyle(color = st.tone, fontSize = 10.sp), maxLines = 1)
+                }
             }
-            // אריח ברוחב שליש — תווית קצרה; מעל 10GB החינמיים הערך כתום, והכסף באריח הבא
-            val r2l = if (st.r2Gb.isNaN() && st.r2Err.isNotEmpty()) context.getString(R.string.mon_sto_r2_err) else context.getString(R.string.mon_sto_r2)
-            Tile(r2v, r2l, if (over || st.r2Gb.isNaN() && st.r2Err.isNotEmpty()) C.warn else C.on, null, C.cpu, GlanceModifier.defaultWeight())
-            Spacer(GlanceModifier.width(14.dp))
-            val costv = if (st.proj.isNaN()) "—" else usd(st.proj)
-            Tile(costv, context.getString(R.string.mon_sto_cost), if (!st.proj.isNaN() && st.proj > 0.0) C.warn else C.on, null, C.mem, GlanceModifier.defaultWeight())
-            Spacer(GlanceModifier.width(14.dp))
-            val dp = if (st.driveGb.isNaN() || st.driveLim.isNaN() || st.driveLim <= 0.0) Double.NaN else st.driveGb / st.driveLim * 100.0
-            val dwarn = !dp.isNaN() && dp >= 80.0
-            Tile(
-                if (!dp.isNaN()) pct(dp) else if (!st.driveGb.isNaN()) gb(st.driveGb) else "—",
-                context.getString(R.string.mon_sto_drive), if (dwarn) C.warn else C.on, dp, if (dwarn) C.warn else C.disk, GlanceModifier.defaultWeight(),
-            )
+            Cell(hb?.let { pct(it.cu) } ?: "—", "cu" in s.warn)
+            Cell(hb?.let { pct(it.mem) } ?: "—", "mem" in s.warn)
+            Cell(hb?.let { pct(it.disk) } ?: "—", "disk" in s.warn || hb?.dl == true)
+            Cell(hb?.let { rateShort(netOf(it)) } ?: "—", false)
         }
-        Spacer(GlanceModifier.height(10.dp))
     }
+    Spacer(GlanceModifier.defaultWeight())
+    if (tall) Foot(c, snap, null, false)
 }
 
-/** אריח כמו Metric, עם ערך טקסט; פס רק כשיש אחוז */
 @Composable
-private fun Tile(value: String, label: String, tone: androidx.glance.unit.ColorProvider, pctV: Double?, color: androidx.glance.unit.ColorProvider, mod: GlanceModifier) {
-    Column(mod) {
-        Text(value, style = TextStyle(color = tone, fontSize = 22.sp, fontWeight = FontWeight.Bold), maxLines = 1)
-        Text(label, style = TextStyle(color = C.variant, fontSize = 12.sp), maxLines = 1)
-        if (pctV != null && !pctV.isNaN()) {
-            Spacer(GlanceModifier.height(5.dp))
-            LinearProgressIndicator(
-                progress = (pctV / 100.0).toFloat().coerceIn(0f, 1f),
-                modifier = GlanceModifier.fillMaxWidth().height(4.dp).cornerRadius(2.dp),
-                color = color, backgroundColor = C.track,
-            )
+private fun Cell(v: String, warn: Boolean) {
+    Text(v, style = TextStyle(color = if (warn) C.warn else C.on, fontSize = 13.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.End),
+        maxLines = 1, modifier = GlanceModifier.width(44.dp))
+}
+
+/** שורת התחתית: R2, צפי לחודש, Drive, פנוי בדיסק, וכמה זמן השרת פועל (כשיש מקום). מדידה שנכשלה — "!" */
+@Composable
+private fun Foot(c: Context, snap: MonSnap, hb: MonHb?, wide: Boolean) {
+    val st = snap.sto
+    val parts = mutableListOf<Pair<String, String>>()
+    if (st != null) {
+        val r2 = when {
+            !st.r2Gb.isNaN() -> gb(st.r2Gb)
+            st.r2Err.isNotEmpty() -> "!"
+            else -> ""
+        }
+        if (r2.isNotEmpty()) parts += "R2" to r2
+        if (!st.proj.isNaN()) parts += c.getString(R.string.mon_f_proj) to usd(st.proj)
+        if (!st.driveGb.isNaN() && !st.driveLim.isNaN() && st.driveLim > 0.0) parts += "Drive" to pct(st.driveGb / st.driveLim * 100.0)
+    }
+    if (hb != null && !hb.free.isNaN()) parts += c.getString(R.string.mon_f_free) to gb(hb.free)
+    if (hb != null && wide && !hb.up.isNaN()) parts += c.getString(R.string.mon_f_up) to dur(c, hb.up)
+    if (hb == null && snap.jobs.isNotEmpty()) parts += c.getString(R.string.mon_f_jobs) to ltr("${snap.jobs.size}")
+    if (parts.isEmpty()) return
+    Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        parts.forEachIndexed { i, (k, v) ->
+            if (i > 0) Spacer(GlanceModifier.width(10.dp))
+            Text(k + " ", style = TextStyle(color = C.variant, fontSize = 11.sp), maxLines = 1)
+            Text(v, style = TextStyle(color = C.on, fontSize = 11.sp, fontWeight = FontWeight.Medium), maxLines = 1)
         }
     }
 }
-
-private fun gb(v: Double): String = ltr(if (v < 1.0) "${(v * 1000).roundToInt()} MB" else if (v < 10.0) String.format(Locale.ROOT, "%.1f GB", v) else "${v.roundToInt()} GB")
-
-private fun usd(v: Double): String = ltr(String.format(Locale.ROOT, "$%.2f", v))
 
 /** מדד אחד: הערך בגדול, השם מתחתיו ופס דק. חורג מהסף = כתום */
 @Composable
-private fun Metric(label: String, v: Double, warn: Boolean, color: androidx.glance.unit.ColorProvider, mod: GlanceModifier) {
+private fun Metric(value: String, label: String, warn: Boolean, frac: Double, color: Tone, mod: GlanceModifier) {
     Column(mod) {
-        Text(
-            pct(v), style = TextStyle(color = if (warn) C.warn else C.on, fontSize = 22.sp, fontWeight = FontWeight.Bold),
-            maxLines = 1,
-        )
-        Text(label, style = TextStyle(color = C.variant, fontSize = 12.sp), maxLines = 1)
-        Spacer(GlanceModifier.height(5.dp))
+        Text(value, style = TextStyle(color = if (warn) C.warn else C.on, fontSize = 19.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+        Text(label, style = TextStyle(color = C.variant, fontSize = 11.sp), maxLines = 1)
+        Spacer(GlanceModifier.height(4.dp))
         LinearProgressIndicator(
-            progress = if (v.isNaN()) 0f else (v / 100.0).toFloat().coerceIn(0f, 1f),
-            modifier = GlanceModifier.fillMaxWidth().height(4.dp).cornerRadius(2.dp),
+            progress = if (frac.isNaN()) 0f else frac.toFloat().coerceIn(0f, 1f),
+            modifier = GlanceModifier.fillMaxWidth().height(3.dp).cornerRadius(2.dp),
             color = if (warn) C.warn else color,
             backgroundColor = C.track,
         )
     }
 }
 
-private fun statusText(c: Context, s: MonServer): String = when {
-    s.paused -> c.getString(R.string.mon_st_paused)
-    !s.online -> c.getString(R.string.mon_st_off)
-    s.warn.isNotEmpty() -> c.getString(R.string.mon_st_warn, s.warn.joinToString(", ") { warnName(c, it) })
-    s.hb?.busy?.isNotEmpty() == true -> c.getString(R.string.mon_st_busy)
-    else -> c.getString(R.string.mon_st_on)
+private fun netOf(hb: MonHb): Double = if (hb.rx.isNaN() && hb.tx.isNaN()) Double.NaN else (if (hb.rx.isNaN()) 0.0 else hb.rx) + (if (hb.tx.isNaN()) 0.0 else hb.tx)
+
+private fun stageName(c: Context, st: String): String? = when (st) {
+    "up" -> c.getString(R.string.mon_stg_up)
+    "tr" -> c.getString(R.string.mon_stg_tr)
+    "al" -> c.getString(R.string.mon_stg_al)
+    "tl" -> c.getString(R.string.mon_stg_tl)
+    "rv" -> c.getString(R.string.mon_stg_rv)
+    "bn" -> c.getString(R.string.mon_stg_bn)
+    "sv" -> c.getString(R.string.mon_stg_sv)
+    else -> null
 }
 
 private fun warnName(c: Context, code: String): String = when (code) {
@@ -335,18 +338,27 @@ private fun warnName(c: Context, code: String): String = when (code) {
     else -> code
 }
 
-/** שרת שלא מדווח — מתי נראה לאחרונה (seen במילישניות, כמו בשרתון); בלי מדדים — הודעה */
-private fun line1(c: Context, s: MonServer): String = when {
-    !s.online -> if (s.seen <= 0L) c.getString(R.string.mon_never) else c.getString(R.string.mon_seen, ago(c, s.seen))
-    else -> c.getString(R.string.mon_no_data)
-}
+private fun gb(v: Double): String = ltr(if (v < 1.0) "${(v * 1000).roundToInt()}MB" else if (v < 10.0) String.format(Locale.ROOT, "%.1fGB", v) else "${v.roundToInt()}GB")
+
+private fun usd(v: Double): String = ltr(String.format(Locale.ROOT, "$%.2f", v))
 
 private fun pct(v: Double): String = if (v.isNaN()) "—" else ltr("${v.roundToInt()}%")
 
-private fun rate(v: Double): String = when {
+/** קצב רשת קצר לאריח: "1.4MB/s", "320KB/s" */
+private fun rateShort(v: Double): String = when {
     v.isNaN() -> "—"
-    v >= 1_000_000 -> ltr(String.format(Locale.ROOT, "%.1f MB/s", v / 1_000_000))
-    else -> ltr("${(v / 1_000).roundToInt()} KB/s")
+    v >= 1_000_000 -> ltr(String.format(Locale.ROOT, if (v >= 10_000_000) "%.0fMB/s" else "%.1fMB/s", v / 1_000_000))
+    else -> ltr("${(v / 1_000).roundToInt()}KB/s")
+}
+
+/** זמן פעולה (שניות) — "3 ימ׳" / "5 שע׳" / "12 דק׳" */
+private fun dur(c: Context, sec: Double): String {
+    val m = (sec / 60.0).toLong()
+    return when {
+        m < 60L -> c.getString(R.string.mon_dur_m, m.toInt())
+        m < 48L * 60L -> c.getString(R.string.mon_dur_h, (m / 60L).toInt())
+        else -> c.getString(R.string.mon_dur_d, (m / 1440L).toInt())
+    }
 }
 
 /** "עכשיו" / "לפני 5 דק׳" / "לפני 3 שע׳" / "לפני 2 ימים" — לפי השעון של הטלפון, מ־ms */

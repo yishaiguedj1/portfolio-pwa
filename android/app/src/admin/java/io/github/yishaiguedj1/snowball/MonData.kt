@@ -45,7 +45,13 @@ class MonHb(
     val rx: Double,      // בייטים לשנייה (קבלה)
     val tx: Double,      // בייטים לשנייה (שליחה)
     val busy: String,    // מזהה עבודה, או ""
+    val psi: Double = Double.NaN,  // 26/10/2026: לחץ זיכרון %
+    val up: Double = Double.NaN,   // כמה זמן השרת פועל (שניות)
+    val dl: Boolean = false,       // פחות מ־8GB פנויים — לא לוקח עבודה חדשה
 ) // ערך שחסר/לא מספרי = NaN
+
+/** 26/10/2026: עבודה שרצה עכשיו (mon.jobs): על איזה שרת, השלב (up/tr/al/tl/rv/bn/sv) והאחוז (0–1, NaN = לא ידוע) */
+class MonJob(val sid: String, val st: String, val p: Double)
 
 class MonServer(
     val id: String,
@@ -67,7 +73,7 @@ class MonSto(
     val driveLim: Double, // המכסה של ה־Drive (GB)
 )
 
-class MonSnap(val now: Long, val servers: List<MonServer>, val jobs: Int, val sto: MonSto? = null)
+class MonSnap(val now: Long, val servers: List<MonServer>, val jobs: List<MonJob>, val sto: MonSto? = null)
 
 object MonParse {
     /** מחזיר null אם ok=false או שהמבנה לא תקין (לא זורק) */
@@ -81,7 +87,8 @@ object MonParse {
             MonSnap(
                 now = o.optLong("now", 0L),
                 servers = List(arr.length()) { arr.getJSONObject(it).toServer() },
-                jobs = m.optJSONArray("jobs")?.length() ?: 0,
+                jobs = m.optJSONArray("jobs")?.let { a -> List(a.length()) { a.getJSONObject(it).let { j ->
+                    MonJob(j.optString("sid"), j.optString("st"), if (j.isNull("p")) Double.NaN else j.optDouble("p", Double.NaN)) } } } ?: emptyList(),
                 sto = o.optJSONObject("sto")?.toSto(),
             )
         } catch (e: Exception) {
@@ -122,6 +129,9 @@ object MonParse {
                     rx = it.optDouble("rx", Double.NaN),
                     tx = it.optDouble("tx", Double.NaN),
                     busy = it.optString("busy"),
+                    psi = it.optDouble("psi", Double.NaN),
+                    up = it.optDouble("up", Double.NaN),
+                    dl = it.optInt("dl", 0) == 1,
                 )
             },
         )

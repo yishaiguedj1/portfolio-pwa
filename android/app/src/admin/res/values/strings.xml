@@ -5,7 +5,7 @@
 
     <string name="mon_title">שרתים</string>
     <string name="mon_widget_label">מרכז הניהול</string>
-    <string name="mon_widget_desc">מדדי השרתים בזמן כמעט אמת: מעבד, זיכרון, דיסק ורשת לכל שרת. נגיעה ב־↻ מרעננת.</string>
+    <string name="mon_widget_desc">מדדי השרתים כמעט בזמן אמת: מעבד, זיכרון, דיסק, רשת, העבודה שרצה, אחסון ועלות. מתרענן כל דקה כשהמסך דלוק.</string>
     <string name="mon_updated">עודכן %1$s</string>
     <string name="mon_now">עכשיו</string>
     <string name="mon_ago_m">לפני %1$d דק׳</string>
@@ -39,6 +39,28 @@
     <string name="mon_sto_cost">צפי לחודש</string>
     <string name="mon_sto_drive">גיבוי Drive</string>
     <string name="mon_no_data">אין נתוני מדדים</string>
+
+    <!-- 26/10/2026: עיצוב 2 של הווידג'ט -->
+    <string name="mon_st_idle">פנוי</string>
+    <string name="mon_st_off_ago">לא מחובר · נראה %1$s</string>
+    <string name="mon_st_disk_low">דיסק מלא — לא לוקח עבודות</string>
+    <string name="mon_more">ועוד %1$d</string>
+    <string name="mon_off_hint">השרת לא מדווח</string>
+    <string name="mon_l_net">רשת</string>
+    <string name="mon_f_proj">צפי</string>
+    <string name="mon_f_free">פנוי</string>
+    <string name="mon_f_up">פועל</string>
+    <string name="mon_f_jobs">עבודות</string>
+    <string name="mon_dur_m">%1$d דק׳</string>
+    <string name="mon_dur_h">%1$d שע׳</string>
+    <string name="mon_dur_d">%1$d ימ׳</string>
+    <string name="mon_stg_up">העלאה</string>
+    <string name="mon_stg_tr">תמלול</string>
+    <string name="mon_stg_al">יישור</string>
+    <string name="mon_stg_tl">תרגום</string>
+    <string name="mon_stg_rv">ביקורת</string>
+    <string name="mon_stg_bn">צריבה</string>
+    <string name="mon_stg_sv">שמירה</string>
 
     <string name="mon_cfg_title">חיבור מרכז הניהול</string>
     <string name="mon_cfg_hint">הדבק את הטוקן של מרכז הניהול. הוא נשמר רק במכשיר הזה ולא מוצג שוב.</string>

@@ -192,6 +192,15 @@ async function provGet(deps, now) {
   provC = { at: now, v };
   return v;
 }
+/* 26/10/2026: ההגדרות של טוקן הניטור (monKh/monAt) לפניות של הווידג׳ט ושל מסך הניטור. כשל קריאה — נזרק (503), לא נשמר */
+const MON_CFG_MS = 60e3;
+let monCfgC = { at: 0, v: null };
+async function monCfg(deps, now) {
+  if (monCfgC.v && now >= monCfgC.at && now - monCfgC.at < MON_CFG_MS) return monCfgC.v;
+  const d = (await readDoc(deps, 'sysCfg', 'main')) || {};
+  monCfgC = { at: now, v: { monKh: d.monKh || '', monAt: d.monAt || 0 } };
+  return monCfgC.v;
+}
 async function aoJson(deps, url) {
   const h = { Accept: 'application/vnd.github+json', 'User-Agent': 'snb-admin' };
   if (process.env.GITHUB_TOKEN) h.Authorization = 'Bearer ' + process.env.GITHUB_TOKEN;
@@ -806,7 +815,7 @@ const flagOn = async (deps, k, now) => SF.flagOn(await sysCfg(deps, now || Date.
 async function sysBlock(deps, job, now, auto, adm) {
   const d = await sysCfg(deps, now);
   if (SF.maintOn(d, now) && !adm) return { error: 'maint', msg: SF.normMsg(d.mtMsg), til: +d.mtTil || 0 };
-  if (['tr', 'rr', 'ai'].includes(job.kind)) {
+  if (['tr', 'rr', 'ai', 'dx'].includes(job.kind)) {
     const fl = apiJob(job) ? 'st_api' : 'st_routine';
     if (!SF.flagOn(d, fl)) return { error: 'flag_off', fl };
   }
@@ -1355,7 +1364,7 @@ async function ptOp(deps, body, now) {
 
 /* למה אין תקציב להפעלה: התקרה של העבודה נוצלה בסשנים הקודמים (budget_cap — "המשך" במצב זול יותר / תקרה גבוהה יותר), או החודש */
 const capWhy = (job, st, now) => (S.jobCap(job.spec, 0, USER_MONTH(), S.usdOf(job.use0)) ? 'month_cap' : 'budget_cap');
-const apiJob = (job) => (job.kind === 'tr' || job.kind === 'rr' || job.kind === 'ai') && job.spec && job.spec.eng === 'api';   // מ2 · מ7: הפקה מחדש וגיליון ה־AI — באותו מנוע כמו המקור   // מ2: הפקה מחדש — באותו מנוע כמו המקור
+const apiJob = (job) => (job.kind === 'tr' || job.kind === 'rr' || job.kind === 'ai' || job.kind === 'dx') && job.spec && job.spec.eng === 'api';   // מ2 · מ7: הפקה מחדש וגיליון ה־AI — באותו מנוע כמו המקור   // מ2: הפקה מחדש — באותו מנוע כמו המקור
 
 /* 21/10/2026 (סבב הייעול, 9 — "חלון עדכון"): עבודה שנלקחה בדיוק כשהעובד מתעדכן נהרגה (worker_lost פעמיים). אחרי קידום
    של תמונת עובד ל־prod (ריצת worker-image מוצלחת על main — מה־API הציבורי של GitHub, מטמון 2 דק׳), עובד שעוד בגרסה
@@ -1686,7 +1695,7 @@ async function doResume(deps, uid, job, now, body, auto, adm) {
    עבודה מקישור (create עם start:true), ומהבדיקה המתוזמנת (startAll — גם כשהטלפון סגור). סירוב נרשם במסמך העבודה
    (sw = הקוד, swt = מתי): מכשיר אחר רואה למה העבודה מחכה, והבדיקה המתוזמנת מנסה שוב רק סירוב חולף (S.START_RETRY).
    g = { adm, modeLocked, engLocked } — מהבקשה; בבדיקה המתוזמנת אין משתמש (adm שקר, והמצב / המנוע כבר נבדקו ביצירה) */
-const filesReady = (job) => !(job.kind === 'ai' ? !job.fq : job.spec && job.spec.src === 'subs' ? !job.fsu : job.spec && job.spec.src === 'url' ? !SR.isFolder(job.folder) : job.spec && job.spec.ph === 1 ? (job.spec.pw === 1 ? !(job.fpw && job.fph) : !job.fa) || !SR.isFolder(job.folder) : !job.fa && !job.fv || job.kind === 'rr' && !(job.fv && job.fc));
+const filesReady = (job) => job.kind === 'dx' || !(job.kind === 'ai' ? !job.fq : job.spec && job.spec.src === 'subs' ? !job.fsu : job.spec && job.spec.src === 'url' ? !SR.isFolder(job.folder) : job.spec && job.spec.ph === 1 ? (job.spec.pw === 1 ? !(job.fpw && job.fph) : !job.fa) || !SR.isFolder(job.folder) : !job.fa && !job.fv || job.kind === 'rr' && !(job.fv && job.fc));
 const jobView = (j, now) => Object.assign(S.publicJob(j, now), updWaiting(j, now) ? { uw: 1 } : {});
 async function startJob(deps, uid, job, body, now, g) {
   const r = await startJob0(deps, uid, job, body, now, g);
@@ -1700,10 +1709,10 @@ async function startJob(deps, uid, job, body, now, g) {
 async function startJob0(deps, uid, job, body, now, g) {
   const view = (x) => jobView(x, now);
   const st = S.effState(job, now).state;
-  if (!['tr', 'rr', 'ai'].includes(job.kind) || st !== 'new') return [409, { ok: false, error: 'state', job: view(job) }];
+  if (!['tr', 'rr', 'ai', 'dx'].includes(job.kind) || st !== 'new') return [409, { ok: false, error: 'state', job: view(job) }];
   if (!filesReady(job)) return [409, { ok: false, error: 'no_files' }];
   if (job.kind === 'tr' && !S.langReady(job.spec)) return [400, { ok: false, error: 'lang_unsupported', job: view(job) }];
-  if (job.kind !== 'rr' && g.modeLocked && await g.modeLocked(job.spec && job.spec.mode)) return [403, { ok: false, error: 'mode_locked', job: view(job) }];   // גם עבודה שנוצרה לפני שהרשימה השתנתה / סט הזהב
+  if (job.kind !== 'rr' && job.kind !== 'dx' && g.modeLocked && await g.modeLocked(job.spec && job.spec.mode)) return [403, { ok: false, error: 'mode_locked', job: view(job) }];   // גם עבודה שנוצרה לפני שהרשימה השתנתה / סט הזהב
   if (!S.WORKER_KINDS.includes(job.kind)) return [200, { ok: false, error: 'worker_not_ready', job: view(job) }];
   const sbs = await sysBlock(deps, job, now, false, !!g.adm);   // 15/10/2026: תחזוקה / דגל כבוי
   if (sbs) return [409, Object.assign({ ok: false, job: view(job) }, sbs)];
@@ -1830,7 +1839,7 @@ async function r2Files(deps, op, body, uid, folder, by) {
 /* רישום קובץ שעלה ל־R2 בעבודה (op:'file' מהטלפון, ו־r2bgDone מה־service worker): קיים, בתיקייה של העבודה, והסרטון /
    הכתוביות בגודל של המקור. משנה את job במקום. מחזיר {} או { code, error } */
 async function r2Register(deps, job, which, fid, now) {
-  const fkey = which === 's' ? 'fsu' : which === 'm' ? 'fph' : which === 'w' ? 'fpw' : 'f' + which;   // m = קובץ המדידות, w = המילים (תרגום בטלפון)
+  const fkey = which === 's' ? 'fsu' : which === 'm' ? 'fph' : which === 'w' ? 'fpw' : which === 'r' ? 'fsr' : 'f' + which;   // m = קובץ המדידות, w = המילים (תרגום בטלפון), r = עזר להגהה
   const m = await driveFileInFolder(deps, job.uid, job.folder, fid);
   if (m && m.error) return { code: 200, error: m.error };
   const f = m && S.normFile({ id: fid, name: m.name || (which === 'v' ? 'video' : which === 's' ? 'subs' : 'audio'), size: m.size, mimeType: m.mime });
@@ -1838,6 +1847,7 @@ async function r2Register(deps, job, which, fid, now) {
   if ((which === 'v' || which === 's') && job.spec && f.size !== job.spec.size) return { code: 400, error: 'file_size' };
   if (which === 'm' && f.size > S.PH_META_MAX) return { code: 400, error: 'file_size' };
   if (which === 'w' && f.size > S.PH_WORDS_MAX) return { code: 400, error: 'file_size' };
+  if (which === 'r' && f.size > S.SUBS_MAX) return { code: 400, error: 'file_size' };
   f.at = now;
   await patchJob(deps, job.id, { [fkey]: f, updated: now });
   job[fkey] = f;
@@ -2031,8 +2041,9 @@ async function removeJobRec(deps, uid, job, now) {
   await delDoc(deps, 'studioJobs', job.id);
   await r2Purge(deps, uid, job);   // ת4
   const gone = [job.id];
-  if (job.kind === 'tr' && Array.isArray(job.fo) && job.fo.some((o) => o && o.k === 'cues')) {   // מ2 · מ7: ההפקות מחדש וגיליונות ה־AI של העבודה הולכים איתה
-    for (const r of (await listJobs(deps, uid)).filter((j) => (j.kind === 'rr' || j.kind === 'ai') && j.rp === job.id)) { await delDoc(deps, 'studioJobs', r.id); gone.push(r.id); }
+  if (job.kind === 'tr' && Array.isArray(job.fo) && job.fo.length) {   // מ2 · מ7: ההפקות מחדש, גיליונות ה־AI והשמירות ל־Drive (dx) של העבודה הולכים איתה
+    const sub = job.fo.some((o) => o && o.k === 'cues') ? ['rr', 'ai', 'dx'] : ['dx'];
+    for (const r of (await listJobs(deps, uid)).filter((j) => sub.includes(j.kind) && j.rp === job.id)) { await delDoc(deps, 'studioJobs', r.id); gone.push(r.id); }
   }
   await learnGone(deps, uid, gone, now);   // 15/10 (מ׳1): כדי ש"מחק את התרומות שלי" ימצא גם אותן
   await closeJobOps(deps, uid, job.id, now);
@@ -2436,8 +2447,9 @@ async function handler(req, res, deps = {}) {
   if (body.op === 'adminMon' && monTok) {
     // 22/10/2026: הווידג׳ט באנדרואיד — טוקן קריאה בלבד (sysCfg/main.monKh, רק hash), בלי התחברות. מותר רק ל־adminMon
     // 26/10/2026: Firestore שלא ענה (מכסה, 429) = 503 — לא 401: הווידג׳ט הציג "הטוקן לא תקף — לחבר מחדש" על טוקן תקין
+    // 26/10/2026: הווידג׳ט מתרענן כל דקה — ה־hash של הטוקן בזיכרון MON_CFG_MS (יצירה/ביטול באותו מופע מנקים מיד)
     let cfg;
-    try { cfg = await readDoc(deps, 'sysCfg', 'main'); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
+    try { cfg = await monCfg(deps, deps.now || Date.now()); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
     if (!MON.monTokOk(monTok, cfg && cfg.monKh)) return res.status(401).json({ ok: false, error: 'no_auth' });
     user = { mon: true, uid: '' };
   } else {
@@ -2675,6 +2687,7 @@ async function handler(req, res, deps = {}) {
     if (op === 'monTok') {
       // 22/10/2026: טוקן קריאה לווידג׳ט הניטור — רק מהמנהל. מוצג פעם אחת; השרתון שומר רק hash. ביטול = מחיקת ה-hash
       if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      monCfgC = { at: 0, v: null };   // 26/10/2026: טוקן חדש / ביטול — הווידג׳ט רואה מיד
       if (body.rev === true) {
         await patchDoc(deps, 'sysCfg', 'main', { monKh: '', monAt: 0, updated: now });
         await adminLog(deps, user, 'mon_tok_off', '', now);
@@ -2692,9 +2705,10 @@ async function handler(req, res, deps = {}) {
       try { raw = await query(deps, 'studioServers', null, S.SRV_MAX + 5); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
       const jobs = await query(deps, 'studioJobs', { state: 'running' }, 50).catch(() => []);
       const srv = raw.map((x) => { const v = S.serverView(x, now); return v && Object.assign(v, { mon: Array.isArray(x.mon) ? x.mon : [] }); }).filter(Boolean);
-      const cfg = (await readDoc(deps, 'sysCfg', 'main').catch(() => null)) || {};
+      const cfg = (await monCfg(deps, now).catch(() => null)) || {};
       const run = jobs.map((j) => ({ sid: j.sid, st: (j.prog || {}).st, p: (j.prog || {}).p }));
-      const usg = await readDoc(deps, 'sysUsage', 'main').catch(() => null);   // 24/10/2026: האחסון והעלות גם בווידג'ט
+      // 24/10/2026: האחסון והעלות גם בווידג'ט · 26/10: נמדדים פעם בשעה — מטמון AO_TTL (הווידג׳ט מתרענן כל דקה)
+      const usg = await aoGet(deps, 'monUsg', () => readDoc(deps, 'sysUsage', 'main'), now);
       return res.status(200).json({ ok: true, now, tok: { on: !!cfg.monKh, at: cfg.monAt > 0 ? cfg.monAt : 0 }, mon: MON.monView(srv, run, now), sto: USG.stoBrief(usg && usg.sto) });
     }
     if (op === 'provUsage') {
@@ -3212,8 +3226,10 @@ async function handler(req, res, deps = {}) {
       // 22/10/2026: s = קובץ כתוביות קיים (spec.src = 'subs') — נשמר ב־fsu, בגודל של המקור ועד SUBS_MAX
       const subs = !!(job.spec && job.spec.src === 'subs');
       const ph = !!(job.spec && job.spec.ph === 1);   // 24/10/2026: תרגום בטלפון — הקול וקובץ המדידות; הסרטון לא עולה לעולם
-      const which = subs ? (body.which === 's' ? 's' : '') : ph ? (body.which === 'a' || body.which === 'm' ? body.which : '') : body.which === 'v' ? 'v' : body.which === 'a' ? 'a' : '';
-      const fkey = which === 's' ? 'fsu' : 'f' + which;
+      // 26/10/2026: r = רצועת הכתוביות שבקובץ (בשפת המקור), עזר להגהת התמלול — רק כשהשרת שלנו מגיה (eng api), עד SUBS_MAX
+      const hlp = body.which === 'r' && !subs && !!(job.spec && job.spec.eng === 'api');
+      const which = hlp ? 'r' : subs ? (body.which === 's' ? 's' : '') : ph ? (body.which === 'a' || body.which === 'm' ? body.which : '') : body.which === 'v' ? 'v' : body.which === 'a' ? 'a' : '';
+      const fkey = which === 's' ? 'fsu' : which === 'r' ? 'fsr' : 'f' + which;
       const fid = String(body.id || ''), folder = String(body.folder || ''), ext = body.ext === true && which === 'v';   // ext: סרטון שבחרת ב־Drive (Picker) — נשאר במקומו
       const bx = ext && body.bx === true;   // 26/10/2026: נבחר ברשימה של Studio (gbrowse) — רק במצב השרת, והאימות בגישה של הרשימה
       if (!which || !S.FILE_ID_RE.test(fid) || !S.FILE_ID_RE.test(folder) || (job.folder && job.folder !== folder)) return res.status(400).json({ ok: false, error: 'bad_params' });
@@ -3239,6 +3255,7 @@ async function handler(req, res, deps = {}) {
       if (ext) f.ext = true;
       if (bx) f.bx = true;
       if ((which === 'v' || which === 's') && job.spec && f.size !== job.spec.size) return res.status(400).json({ ok: false, error: 'file_size' });
+      if (which === 'r' && f.size > S.SUBS_MAX) return res.status(400).json({ ok: false, error: 'file_size' });
       f.at = now;
       await patchJob(deps, job.id, { [fkey]: f, folder, updated: now });
       job[fkey] = f; job.folder = folder;
@@ -3333,6 +3350,26 @@ async function handler(req, res, deps = {}) {
       const r = S.rrJob(job, body, S.newJobId(), uid, now);
       await patchJob(deps, r.id, r);
       return res.status(200).json({ ok: true, job: view(r) });
+    }
+    if (op === 'dxRun') {
+      // 26/10/2026 (בקשת המשתמש): התוצרים מ־R2 לתיקייה שבחרת ב"הסרטונים שלי" ב־Drive — העובד בשרת מעתיק, הסרטון לא עובר
+      // בטלפון. התיקייה נבדקת בגישה של הסטודיו (drive.file — רק תיקייה שהאפליקציה יצרה / שנבחרה בה)
+      if (job.kind !== 'tr' || st !== 'done' || !SR.isFolder(job.folder) || !apiJob(job)) return res.status(409).json({ ok: false, error: 'state' });
+      if ((await readStats(deps, uid)).halt) return res.status(409).json({ ok: false, error: 'halted' });
+      const dx = S.normDx(body.dx, job.fo);
+      if (!dx) return res.status(400).json({ ok: false, error: 'bad_params' });
+      const t = await gdrive.accessToken(deps, uid);
+      if (!t.ok) return res.status(200).json({ ok: false, error: t.error || 'gd_failed' });
+      const r = await (deps.fetch || fetch)(DRIVE + dx.f + '?fields=id,name,mimeType,trashed,capabilities(canAddChildren)', { headers: { Authorization: 'Bearer ' + t.token } });
+      let fm = null; try { fm = await r.json(); } catch (e) {}
+      if (r.status !== 200 || !fm || fm.trashed || fm.mimeType !== 'application/vnd.google-apps.folder' || !(fm.capabilities && fm.capabilities.canAddChildren)) return res.status(200).json({ ok: false, error: 'dx_folder' });
+      dx.n = S.dxName(fm.name || dx.n).slice(0, 120);
+      const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
+      if (all.some((j) => j.kind === 'dx' && j.rp === job.id && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'dx_busy' });
+      for (const old of all.filter((j) => j.kind === 'dx' && j.rp === job.id && S.FINAL.includes(S.effState(j, now).state))) await delDoc(deps, 'studioJobs', old.id);
+      const d = S.dxJob(job, dx, S.newJobId(), uid, now);
+      await patchJob(deps, d.id, d);
+      return res.status(200).json({ ok: true, job: view(d) });
     }
     if (op === 'aiRun') {
       // מ7: גיליון ה־AI בהפעלה אחת — הבקשה כבר בתיקיית העבודה (הטלפון העלה); עבודה "חדשה" שמתחילים ב־start (אחרי אומדן ואישור בטלפון)
@@ -3437,7 +3474,7 @@ async function handler(req, res, deps = {}) {
 
 module.exports = (req, res) => handler(req, res);
 module.exports._handler = handler;
-module.exports._reset = () => { hits.clear(); cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; srcSoon = new Map(); _upd = { at: 0, sha: '', t: 0 }; updWaitAt = 0; srvAuthMem.clear(); orphanAt.clear();
+module.exports._reset = () => { hits.clear(); cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; srcSoon = new Map(); _upd = { at: 0, sha: '', t: 0 }; updWaitAt = 0; srvAuthMem.clear(); orphanAt.clear(); monCfgC = { at: 0, v: null };
   incSeen.clear(); learnMem = null; provC = { at: 0, v: null }; aoCache.clear(); };   // 26/10/2026: המטמונים של מכסת Firestore
 module.exports._updatePending = updatePending;
 module.exports._updWaiting = (job, now, at) => { if (at != null) updWaitAt = at; return updWaiting(job, now); };

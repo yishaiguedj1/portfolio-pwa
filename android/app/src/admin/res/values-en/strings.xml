@@ -4,7 +4,7 @@
 
     <string name="mon_title">Servers</string>
     <string name="mon_widget_label">Admin monitor</string>
-    <string name="mon_widget_desc">Server metrics in near real time: CPU, memory, disk and network per server. Tap ↻ to refresh.</string>
+    <string name="mon_widget_desc">Server metrics in near real time: CPU, memory, disk, network, the running job, storage and cost. Refreshes every minute while the screen is on.</string>
     <string name="mon_updated">Updated %1$s</string>
     <string name="mon_now">now</string>
     <string name="mon_ago_m">%1$d min ago</string>
@@ -38,6 +38,28 @@
     <string name="mon_sto_cost">Monthly estimate</string>
     <string name="mon_sto_drive">Drive backup</string>
     <string name="mon_no_data">No metrics</string>
+
+    <!-- 26/10/2026: עיצוב 2 של הווידג'ט -->
+    <string name="mon_st_idle">Idle</string>
+    <string name="mon_st_off_ago">Offline · seen %1$s</string>
+    <string name="mon_st_disk_low">Disk full — no new jobs</string>
+    <string name="mon_more">+%1$d more</string>
+    <string name="mon_off_hint">Server not reporting</string>
+    <string name="mon_l_net">Net</string>
+    <string name="mon_f_proj">Proj.</string>
+    <string name="mon_f_free">Free</string>
+    <string name="mon_f_up">Up</string>
+    <string name="mon_f_jobs">Jobs</string>
+    <string name="mon_dur_m">%1$dm</string>
+    <string name="mon_dur_h">%1$dh</string>
+    <string name="mon_dur_d">%1$dd</string>
+    <string name="mon_stg_up">Upload</string>
+    <string name="mon_stg_tr">Transcribe</string>
+    <string name="mon_stg_al">Align</string>
+    <string name="mon_stg_tl">Translate</string>
+    <string name="mon_stg_rv">Review</string>
+    <string name="mon_stg_bn">Burn-in</string>
+    <string name="mon_stg_sv">Saving</string>
 
     <string name="mon_cfg_title">Admin monitor connection</string>
     <string name="mon_cfg_hint">Paste the admin monitor token. It is stored only on this device and is never shown again.</string>
