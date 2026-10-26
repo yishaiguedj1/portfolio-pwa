@@ -614,10 +614,24 @@ function spark(host, vals, color, line, opt = {}) {
     sv('path', { d: d + `L${L[0].toFixed(1)},${H}L${pts[0][0].toFixed(1)},${H}Z`, fill: `url(#${id})`, class: 'an-area' }, svg);
     sv('path', { d, fill: 'none', stroke: color, 'stroke-width': opt.sw || 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', 'vector-effect': 'non-scaling-stroke', pathLength: 1, class: 'an-draw' }, svg);
     if (!opt.noDot) { const dot = h('i', { class: 'an-dot', style: `left:${(L[0] / W * 100).toFixed(1)}%;top:${(L[1] / H * 100).toFixed(1)}%;background:${color};--an-dc:${color}` }); host.append(dot); }
+    if (opt.peak) { const P = pts.reduce((m, q) => (q[1] < m[1] ? q : m), pts[0]);   // השיא = ה־y הנמוך ביותר
+      if (P !== L) host.append(h('span', { class: 'an-ptag', style: `left:${(P[0] / W * 100).toFixed(1)}%;top:${(P[1] / H * 100).toFixed(1)}%` }, opt.peak)); }
+    sparkAxis(host, opt, L[0] / W, L[1] / H);
     return;
   }
   const bw = band * 0.62;
-  v.forEach((x, i) => { if (x == null) return; const y1 = y(Math.max(x, 0)), y2 = y(Math.min(x, 0)); sv('rect', { x: i * band + (band - bw) / 2, y: y1, width: bw, height: Math.max(1.5, y2 - y1), rx: Math.min(3, bw / 2), fill: color, opacity: i === n - 1 ? 1 : 0.4, class: 'an-bar', style: `--an-bi:${i}` }, svg); });
+  let last = null, first = null;
+  v.forEach((x, i) => { if (x == null) return; const y1 = y(Math.max(x, 0)), y2 = y(Math.min(x, 0)); last = [i * band + band / 2, y1]; if (!first) first = last; sv('rect', { x: i * band + (band - bw) / 2, y: y1, width: bw, height: Math.max(1.5, y2 - y1), rx: Math.min(3, bw / 2), fill: color, opacity: i === n - 1 ? 1 : 0.4, class: 'an-bar', style: `--an-bi:${i}` }, svg); });
+  if (first && opt.tag0 && first !== last) host.append(h('span', { class: 'an-vtag an-vtag0', style: `left:${(first[0] / W * 100).toFixed(1)}%;top:${(first[1] / H * 100).toFixed(1)}%` }, opt.tag0));
+  if (last) sparkAxis(host, opt, last[0] / W, last[1] / H);
+}
+/* מתחת לגרף: השנה הראשונה והאחרונה; מעל הנקודה האחרונה — הערך שלה */
+function sparkAxis(host, opt, fx, fy) {
+  if (opt.tag) host.append(h('span', { class: 'an-vtag', style: `left:${(fx * 100).toFixed(1)}%;top:${(fy * 100).toFixed(1)}%` }, opt.tag));
+  if (opt.labels) {
+    const nx = host.nextElementSibling; if (nx && nx.classList.contains('an-axis')) nx.remove();
+    host.after(h('div', { class: 'an-axis' }, h('span', {}, opt.labels[0]), h('span', {}, opt.labels[1])));
+  }
 }
 
 /* ---------- עזרי DOM ---------- */
@@ -689,9 +703,9 @@ function rowSummary(co, def) {
   }
   const k = def.s[0], m = M[k], per = periodList(co, 'fy'), last = mval(co, k, per[per.length - 1]);
   if (def.s.length > 1) return { v: '', s: def.s.map((x) => T(M[x].n)).join(' · ') };
-  if (m.ratio) { const a = mean(fyList(co).slice(-5).map((p) => mval(co, k, p))); return { v: fmt(last, m.u, co), s: a != null ? T('anAvg5v', { v: strip(fmt(a, m.u, co)) }) : '' }; }
+  if (m.ratio) { const a = mean(fyList(co).slice(-5).map((p) => mval(co, k, p))); return { v: fmt(last, m.u, co), s: a != null ? T('anAvg5v', { v: fmt(a, m.u, co) }) : '' }; }
   const [g, n] = cagrN(co, k, 5);
-  return { v: fmt(last, m.u, co), s: g != null ? T('anCagrRow', { n, v: strip(sgn(g)) }) : m.q ? T(m.q) : '' };
+  return { v: fmt(last, m.u, co), s: g != null ? T('anCagrRow', { n, v: sgn(g) }) : '' };
 }
 
 /* ---------- המסך ---------- */
@@ -841,7 +855,9 @@ function header(co) {
   // 10 שנים של מחיר (חודשי) — רקע גרפי לראש המסך
   const px = co.px && co.px.c ? co.px.c.slice(-121).filter((x) => x != null) : [], p0 = px[0], ch10 = p0 > 0 && px.length > 24 ? co.price / p0 - 1 : null;
   const yrs = Math.round(px.length / 12), chart = h('div', { class: 'an-pxc' });
-  if (ch10 != null) S.after.push(() => spark(chart, px.concat(co.price), ch10 >= 0 ? cssv('good') : cssv('bad'), true, { w: 340, h: 64, sw: 2, px: 10 }));
+  const pt = co.px && co.px.t ? co.px.t.slice(-121) : [], hiPx = px.length ? Math.max(...px, co.price) : null;
+  if (ch10 != null) S.after.push(() => spark(chart, px.concat(co.price), ch10 >= 0 ? cssv('good') : cssv('bad'), true,
+    { w: 340, h: 64, sw: 2, px: 10, labels: pt.length ? [pt[0].slice(0, 4), T('anToday')] : null, peak: hiPx ? T('anPeak', { v: strip(fmt(hiPx, 'ps', co, 0)) }) : null }));
   const seg = h('div', { class: 'an-seg an-seg-main', role: 'tablist' }, h('span', { class: 'an-seg-th', 'aria-hidden': 'true' }), ...[['snap', T('anTabSnap')], ['rep', T('anTabRep')], ['val', T('anTabVal')], ['cmp', T('anTabCmp')]].map(([k, tt]) =>
     h('button', { type: 'button', role: 'tab', 'data-k': k, 'aria-selected': String(S.tab === k), 'aria-pressed': String(S.tab === k), on: { click: () => go(k) } }, tt)));
   S.after.push(() => segThumb(seg));
@@ -894,16 +910,18 @@ const ICONS = {
   profit: 'M12 3v18M16.5 7.5c0-1.7-2-3-4.5-3s-4.5 1.3-4.5 3 2 2.6 4.5 3 4.5 1.3 4.5 3-2 3-4.5 3-4.5-1.3-4.5-3',
   safe: 'M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z',
 };
+const multClean = (a, k) => a.map((x) => (x > 0 && x < (k === 'pe' ? 150 : 300) ? x : null));
 const icon = (k) => { const s0 = sv('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' }); sv('path', { d: ICONS[k], fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, s0); return s0; };
 function keyTiles(co) {
   const c = ctx(co, nowP(co)), H = multHist(co), pe = c.eps > 0 ? co.price / c.eps : null, peMed = median(H.pe.filter((x) => x > 0 && x < 150));
+  const fyl = fyList(co).slice(-10), yr = fyl.length ? [fyl[0].label, fyl[fyl.length - 1].label] : null, ht = H.t.slice(-120), pyr = ht.length ? [ht[0].slice(0, 4), T('anToday')] : null;
   const [g5, n5] = cagrN(co, 'rev', 5), lev = c.ebitda > 0 && c.netcash != null ? -c.netcash / c.ebitda : null, cs = curSym(co.cur);
   return [
-    ['value', 'c1', fmt(pe, 'x', co, 1), peMed ? T('anKHValue', { v: strip(fmt(peMed, 'x', co, 1)) }) : T('anKHValue0'), H.pe.slice(-120), true],
-    ['growth', 'c1', sgn(g5), T('anKHGrowth', { n: n5 || 5 }), fyVals(co, 'rev', 10), false],
-    ['profit', 'c1', pct(c.roic, 0), c.roic != null ? T('anKHProfit', { v: iso(cs + Math.round(c.roic * 100)), c: iso(cs + '100') }) : T('anKHProfit0'), fyVals(co, 'roic', 10), true],
-    ['safe', c.netcash >= 0 ? 'c1' : 'c4', c.netcash >= 0 ? fmt(c.netcash, 'money', co) : lev != null ? iso(lev.toFixed(1) + '×') : '—',
-      c.netcash >= 0 ? T('anKHCash') : T('anKHDebt'), fyVals(co, 'netcash', 10), false],
+    ['value', 'c1', fmt(pe, 'x', co, 1), peMed ? T('anKHValue', { v: strip(fmt(peMed, 'x', co, 1)) }) : T('anKHValue0'), multClean(H.pe.slice(-120), 'pe'), true, pyr],
+    ['growth', 'c1', sgn(g5), T('anKHGrowth', { n: n5 || 5 }), fyVals(co, 'rev', 10), false, yr],
+    ['profit', 'c1', pct(c.roic, 0), c.roic != null ? T('anKHProfit', { v: iso(cs + Math.round(c.roic * 100)), c: iso(cs + '100') }) : T('anKHProfit0'), fyVals(co, 'roic', 10), true, yr],
+    ['safe', lev != null && lev >= 3 ? 'c4' : 'c1', c.netcash >= 0 ? fmt(c.netcash, 'money', co) : lev != null ? iso(lev.toFixed(1) + '×') : '—',
+      c.netcash >= 0 ? T('anKHCash') : T('anKHDebt'), fyVals(co, 'netcash', 10), false, yr],
   ];
 }
 function factsEl(co) {
@@ -920,12 +938,12 @@ function pageSnap(co, pg) {
   const C = checks(co, MAC);
   pg.append(factsEl(co));
   const keys = h('div', { class: 'an-keys' });
-  for (const [k, col, v, hint, hist, line] of keyTiles(co)) {
+  for (const [k, col, v, hint, hist, line, yl] of keyTiles(co)) {
     const sp = h('div', { class: 'an-key-sp' });
     keys.append(h('button', { class: 'an-key', type: 'button', style: `--an-k:var(--an-${col})`, 'aria-label': C[k].n + ' — ' + strip(v), on: { click: () => checkSheet(k) } },
       h('span', { class: 'an-key-l' }, h('span', { class: 'an-key-ic' }, icon(k)), C[k].n, h('span', { class: 'an-chev' })),
       h('b', {}, v), h('span', { class: 'an-key-s' }, hint), sp));
-    S.after.push(() => spark(sp, hist, cssv(col), line, { w: 140, h: 30, noDot: !line, px: 10 }));
+    S.after.push(() => spark(sp, hist, cssv(col), line, { w: 140, h: 40, noDot: !line, px: 10, labels: yl }));
   }
   pg.append(keys);
   // הדוחות: האחרון, הבא, והתחזיות בתת־עמוד
@@ -947,21 +965,84 @@ function daysTo(d, asOf) {
 function pageRep(co, pg) {
   pg.append(h('div', { class: 'an-seg sm', role: 'group', 'aria-label': T('anTabRep') }, ...[['is', T('anRIs')], ['bs', T('anRBs')], ['cf', T('anRCf')], ['rt', T('anRRt')]].map(([k, tt]) =>
     h('button', { type: 'button', 'aria-pressed': String(S.rsub === k), on: { click: () => { S.rsub = k; render(); } } }, tt))));
-  if (co.flags.some((f) => !FL_INFO.has(f.k))) pg.append(h('button', { class: 'an-note an-note-btn', type: 'button', on: { click: flagSheet } }, T('anFlags', { n: new Set(co.flags.filter((f) => !FL_INFO.has(f.k)).map((f) => f.p)).size }), h('span', { class: 'an-chev' })));
-  const list = h('div', { class: 'an-list' });
-  for (const r of ROWS[S.rsub]) {
-    const def = rowDef(r), sm = rowSummary(co, def), sp = h('div', { class: 'an-spark' });
-    const hint = rowHint(def) || (!sm.v ? sm.s : '');
-    list.append(h('button', { class: 'an-mrow', type: 'button', on: { click: () => chartSheet(def) } },
-      h('div', { class: 'an-mt' }, h('b', {}, def.n), hint ? h('span', { class: 'an-hint' }, hint) : null), sp,
-      h('div', { class: 'an-mv2' }, sm.v ? h('b', {}, sm.v) : null, sm.v && sm.s ? h('small', {}, sm.s) : null), h('span', { class: 'an-chev' })));
-    S.after.push(() => {
-      if (def.line) { spark(sp, multHist(co)[def.line[1]].slice(-60), cssv(def.line[2]), true, { w: 64, h: 30, noDot: true }); return; }
-      const d = seriesFor(co, def, { mode: 'fy', range: '5', view: 'v' });
-      spark(sp, d.series[0].vals, d.series[0].color, false, { w: 64, h: 30 });
-    });
+  // כרטיס לכל מדד ברוחב המסך: שם והסבר, ערך גדול ושני נתונים, וגרף של 10 שנים עם השנים, הערכים וקו ממוצע
+  const list = h('div', { class: 'an-rcards' });
+  for (const r of ROWS[S.rsub]) list.append(repCard(co, rowDef(r)));
+  pg.append(list);
+}
+const stat = (label, v, cls) => h('div', { class: 'an-rstat' }, h('span', {}, label), h('b', { class: cls || null }, v));
+const tone = (g) => (g == null ? null : g >= 0 ? 'an-up' : 'an-down');
+function repCard(co, def) {
+  const host = h('div', { class: 'an-mc' }), hint = rowHint(def), stats = h('div', { class: 'an-rstats' }), legend = h('div', { class: 'an-legend2' });
+  let big = '', bigSub = '';
+  if (def.line) {   // מכפיל — 10 שנים חודשי, חציון, טווח
+    const Hh = multHist(co), k = def.line[1], a = multClean(Hh[k].slice(-120), k), ok = fin(a), md = median(ok), now = fin(Hh[k]).pop();
+    big = fmt(now, 'x', co, 1); bigSub = T('anToday');
+    if (md != null) stats.append(stat(T('anMed10'), fmt(md, 'x', co, 1)), stat(T('anRange'), iso(Math.min(...ok).toFixed(0) + '–' + Math.max(...ok).toFixed(0) + '×')));
+    const t = Hh.t.slice(-120), labels = t.map((x, i) => (x.slice(5, 7) === '01' && (+x.slice(0, 4)) % 2 === 0 ? x.slice(0, 4) : ''));
+    S.after.push(() => miniChart(host, { labels, series: [{ vals: a, color: cssv(def.line[2]) }], unit: 'x', co, line: true, avg: md, avgName: T('anMedian') }));
+  } else {
+    const d = seriesFor(co, def, { mode: 'fy', range: '10', view: 'v' }), one = d.series.length === 1, k0 = def.s[0], m = M[k0];
+    const lastP = d.per[d.per.length - 1];
+    if (one) {
+      const vals = d.series[0].vals, last = vals[vals.length - 1];
+      big = fmt(last, d.unit, co); bigSub = lastP && lastP.kind === 'ttm' ? T('anTtm12') : lastP ? lastP.label : '';
+      if (m.ratio) {
+        const a5 = mean(fyList(co).slice(-5).map((p) => mval(co, k0, p)));
+        stats.append(stat(T('anAvg5'), fmt(a5, d.unit, co)), stat(T('anYearAgo'), fmt(vals.length > 1 ? vals[vals.length - 2] : null, d.unit, co)));
+      } else {
+        const [g5, n5] = cagrN(co, k0, 5), yoy = m.f ? null : growthOf(co, nowP(co), k0);
+        stats.append(stat(T('anGrowthN', { n: n5 || 5 }), sgn(g5), tone(g5)), stat(T('anVsPrev'), sgn(yoy), tone(yoy)));
+      }
+    } else {
+      for (const sr of d.series) { const v = sr.vals[sr.vals.length - 1]; legend.append(h('span', {}, h('i', { style: `background:${sr.color}` }), sr.name, ' ', h('b', {}, fmt(v, d.unit, co)))); }
+    }
+    S.after.push(() => miniChart(host, { labels: d.labels, series: d.series, unit: d.unit, co, line: !one, avg: one ? mean(d.series[0].vals) : null, avgName: T('anAvg') }));
   }
-  pg.append(h('section', { class: 'an-card an-card-list' }, list));
+  return h('button', { class: 'an-rcard', type: 'button', on: { click: () => chartSheet(def) } },
+    h('div', { class: 'an-rc-h' }, h('b', {}, def.n), h('span', { class: 'an-chev' })),
+    hint ? h('span', { class: 'an-hint' }, hint) : null,
+    big ? h('div', { class: 'an-rc-row' }, h('div', { class: 'an-rc-big' }, h('b', {}, big), h('small', {}, bigSub)), stats) : null,
+    legend.childElementCount ? legend : null, host);
+}
+/* גרף ברוחב הכרטיס בפיקסלים אמיתיים (טקסט לא נמתח): עמודות לסדרה אחת, קווים לכמה; שנים למטה, ערך ראשון ואחרון, קו ממוצע */
+function miniChart(host, o) {
+  host.textContent = '';
+  const W = Math.max(200, host.clientWidth || 320), H = o.h || 132, pT = 20, pB = 20;
+  const all = fin(o.series.flatMap((s) => s.vals)); if (!all.length) return;
+  let lo = o.line ? Math.min(...all) : Math.min(0, ...all), hi = o.line ? Math.max(...all) : Math.max(0, ...all);
+  if (o.line && o.series.length === 1 && all.length > 20) { lo = quant(all, 0.03); hi = quant(all, 0.97); }   // קפיצה חד־פעמית לא מועכת את הגרף
+  if (o.line) { const pd = (hi - lo) * 0.12 || 1; lo -= pd; hi += pd; }
+  const n = o.labels.length, band = W / n, y = (v) => pT + (hi - clamp(v, lo, hi)) / (hi - lo || 1) * (H - pT - pB), cx = (i) => i * band + band / 2;
+  const svg = sv('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, 'aria-hidden': 'true' }, host);
+  const short = (v) => strip(fmt(v, o.unit, o.co, o.unit === 'x' ? 0 : undefined));
+  const txt = (x, yy, t, cls, anchor) => { const e = sv('text', { x, y: yy, 'text-anchor': anchor || 'middle', class: cls }, svg); e.textContent = t; return e; };
+  if (!o.line && lo < 0) sv('line', { x1: 0, x2: W, y1: y(0), y2: y(0), class: 'an-mc-zero' }, svg);
+  if (o.avg != null && isFinite(o.avg)) {
+    sv('line', { x1: 0, x2: W, y1: y(o.avg), y2: y(o.avg), class: 'an-mc-avg' }, svg);
+    // בצד של השנים הישנות (לא על העמודה האחרונה); טקסט עברי + מספר — בכיוון של השפה, המספר מבודד
+    const at = txt(2, y(o.avg) - 4, '', 'an-mc-avgt', 'end');
+    at.setAttribute('direction', document.documentElement.dir === 'rtl' ? 'rtl' : 'ltr'); if (document.documentElement.dir !== 'rtl') at.setAttribute('text-anchor', 'start');
+    at.textContent = o.avgName + ' ' + iso(short(o.avg));
+  }
+  if (!o.line) {
+    const v = o.series[0].vals, bw = Math.min(28, band * 0.62);
+    v.forEach((x, i) => { if (x == null) return; const y1 = y(Math.max(x, 0)), y2 = y(Math.min(x, 0));
+      sv('rect', { x: cx(i) - bw / 2, y: y1, width: bw, height: Math.max(1.5, y2 - y1), rx: Math.min(5, bw / 2), fill: o.series[0].color, opacity: i === n - 1 ? 1 : 0.42, class: 'an-bar', style: `--an-bi:${i}` }, svg); });
+    const idx = v.map((x, i) => (x == null ? -1 : i)).filter((i) => i >= 0), f = idx[0], l = idx[idx.length - 1];
+    for (const i of f === l ? [l] : [f, l]) txt(i === l ? Math.min(cx(i), W - 18) : Math.max(cx(i), 18), v[i] >= 0 ? y(v[i]) - 5 : y(v[i]) + 12, short(v[i]), i === l ? 'an-mc-vl' : 'an-mc-v0');
+  } else {
+    for (const sr of o.series) {
+      let d = ''; sr.vals.forEach((x, i) => { if (x != null) d += (d && sr.vals[i - 1] != null ? 'L' : 'M') + cx(i).toFixed(1) + ',' + y(x).toFixed(1); });
+      sv('path', { d, fill: 'none', stroke: sr.color, 'stroke-width': 2.2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', pathLength: 1, class: 'an-draw' }, svg);
+      const li = sr.vals.map((x, i) => (x == null ? -1 : i)).filter((i) => i >= 0).pop();
+      if (li != null) sv('circle', { cx: cx(li), cy: y(sr.vals[li]), r: 3.5, fill: sr.color }, svg);
+    }
+    if (o.series.length === 1) { const v = o.series[0].vals, li = v.map((x, i) => (x == null ? -1 : i)).filter((i) => i >= 0).pop(); if (li != null) txt(cx(li) - 6, y(v[li]) - 8, short(v[li]), 'an-mc-vl', 'end'); }
+  }
+  // שנים: כל העמודות כשיש מקום, אחרת כל שנייה (האחרונה תמיד)
+  const step = band >= 30 ? 1 : 2;
+  o.labels.forEach((lb, i) => { if (!lb || ((n - 1 - i) % step && o.labels.some((x) => !x) === false)) return; txt(cx(i), H - 5, band >= 36 ? String(lb) : String(lb).replace(/^(19|20)(\d\d)$/, "'$2"), i === n - 1 ? 'an-mc-xl' : 'an-mc-x'); });
 }
 
 /* --- שווי --- */
@@ -1302,9 +1383,6 @@ function chartSheet(def) {
     ].filter(Boolean));
     function draw() {
       const d = seriesFor(co, def, st), one = d.series.length === 1 ? d.series[0].vals : null, avg = one ? mean(one) : null;
-      // שכבה 6: ערך שהבדיקות סימנו — מסומן בבועה ובטבלה
-      const fl = d.per.map((p) => flagsAt(co, def.s, p));
-      d.tipLabels = d.tipLabels.map((l, i) => (fl[i] ? l + ' · ' + T('anFlagTip') : l));
       drawChart(host, { ...d, co, h: 240, avg, tipHost: tip, title: def.n });
       stats.textContent = ''; stats.hidden = !one;
       if (one) {
@@ -1318,7 +1396,7 @@ function chartSheet(def) {
       tbl.textContent = '';
       const t = h('table', { class: 'an-tbl' });
       t.append(h('thead', {}, h('tr', {}, h('th', {}), ...d.labels.map((l) => h('th', {}, l)))),
-        h('tbody', {}, ...d.series.map((s) => h('tr', {}, h('td', {}, s.name), ...s.vals.map((v, i) => h('td', fl[i] ? { class: 'an-flagc', title: T('anFlagTip') } : {}, strip(fmt(v, d.unit, co))))))));
+        h('tbody', {}, ...d.series.map((s) => h('tr', {}, h('td', {}, s.name), ...s.vals.map((v) => h('td', {}, strip(fmt(v, d.unit, co))))))));
       tbl.append(t);
       requestAnimationFrame(() => { tbl.scrollLeft = -tbl.scrollWidth; });
     }
@@ -1358,7 +1436,7 @@ function srcDef(co, k) {
 const OWN_TAG = { rev: 'rev', op: 'op', ni: 'ni', eps: 'eps', sh: 'sh', ocf: 'ocf', buy: 'buy', dps: 'dps', eq: 'eq', ta: 'ta', tl: 'tl', gp: 'gp', capexN: 'capex', sbcN: 'sbc', cashT: 'cash', debt: 'debt' };
 const flagMs = (f) => (f.m ? [f.m] : f.k === 'bal' ? ['ta', 'tl', 'eq'] : []);   // מאזן שלא מתאזן — שייך לשלושתם
 // תיקון אוטומטי והשלמה מהדוח עצמו — מידע, לא "לבדוק": הערך כמו שהודפס
-const FL_INFO = new Set(['fix', 'ffill', 'ffix', 'rst', 'qeps', 'qmix', 'qfy', 'gpfin']);
+const FL_INFO = new Set(['fix', 'ffill', 'ffix', 'rst', 'qeps', 'qmix', 'qfy', 'gpfin', 'qsh']);
 const flagOn = (f, raw) => !FL_INFO.has(f.k) && flagMs(f).some((m) => raw.has(m));
 function flagsAt(co, keys, p) {
   if (!p || p.kind !== 'fy' || !co.flags.length) return null;
@@ -1383,11 +1461,8 @@ function srcBlock(co, keys) {
     rows.push(h('div', { class: 'an-row' }, h('div', { class: 'an-rt' }, h('b', {}, T(M[k].n)), ...sub)));
   }
   const raw = new Set(keys.flatMap((k) => RAWK[k] || [k]));
-  const yrs = [...new Set(co.flags.filter((x) => flagOn(x, raw)).map((x) => x.p.slice(0, 4)))].sort();
   const fixed = co.flags.some((x) => x.k === 'fix' && x.m && raw.has(x.m));
   const fromRep = (kk) => [...new Set(co.flags.filter((x) => x.k === kk && x.m && raw.has(x.m)).map((x) => x.p.slice(0, 4)))].sort();
-  if (yrs.length) rows.push(h('button', { class: 'an-row', type: 'button', on: { click: flagSheet } }, h('span', { class: 'an-ic na' }, '!'),
-    h('div', { class: 'an-rt' }, h('b', {}, T('anSrcFlag', { y: iso(yrs.join(', ')) })), h('span', {}, T('anSrcFlagS'))), h('span', { class: 'an-chev' })));
   if (fixed) rows.push(h('div', { class: 'an-row' }, h('span', { class: 'an-ic y' }, '✓'), h('div', { class: 'an-rt' }, h('b', {}, T('anFlFix')))));
   for (const [kk, lb] of [['ffill', 'anFlFill'], ['ffix', 'anFlFfix'], ['qeps', 'anFlQeps'], ['qmix', 'anFlQmix'], ['qfy', 'anFlQfy'], ['gpfin', 'anFlGpfin']]) {
     const ys = fromRep(kk);
@@ -1428,16 +1503,6 @@ function estSheet() {
     b.append(h('p', { class: 'an-ex' }, T('anEstEx')), h('div', { class: 'an-list' }, ...rows.map(([y, e, g, n]) => h('div', { class: 'an-row' },
       h('div', { class: 'an-rt' }, h('b', {}, String(y)), h('span', {}, n ? T('anNAnalysts', { n }) : T('anAnnualRep'))),
       h('div', { class: 'an-rv' }, fmt(e, 'ps', co), g != null ? h('small', { class: g >= 0 ? 'an-up' : 'an-down' }, sgn(g)) : null)))));
-  });
-}
-const FLAG_KEYS = { bal: 'anFlBal', eps: 'anFlEps', neg: 'anFlNeg', scale: 'anFlScale', q4: 'anFlQ4', xy: 'anFlXy', face: 'anFlFace', fix: 'anFlFix', ffill: 'anFlFill', ffix: 'anFlFfix', rst: 'anFlRst', qeps: 'anFlQeps', qmix: 'anFlQmix', qfy: 'anFlQfy', gpfin: 'anFlGpfin', gp: 'anFlGp', part: 'anFlPart' };
-const flagUnit = (m) => (m === 'eps' ? 'ps' : m === 'sh' ? 'shares' : (M[m] && M[m].u) || 'money');
-function flagSheet() {
-  const co = S.co;
-  openSheet(T('anFlTitle'), (b) => {
-    b.append(h('p', { class: 'an-ex' }, T('anFlEx')), h('div', { class: 'an-list' }, ...co.flags.map((f) => h('div', { class: 'an-row' },
-      FL_INFO.has(f.k) ? h('span', { class: 'an-ic y' }, '✓') : h('span', { class: 'an-ic na' }, '!'), h('div', { class: 'an-rt' }, h('b', {}, T(FLAG_KEYS[f.k] || 'anFlOther')), h('span', {}, T('anYearOf', { y: f.p.slice(0, 4) }) + (f.m && M[f.m] ? ' · ' + T(M[f.m].n) : '')
-        + (f.k === 'face' && f.f != null ? ' · ' + T('anFlFaceV', { f: fmt(f.f, flagUnit(f.m), co), v: fmt(f.v, flagUnit(f.m), co) }) : '')))))));
   });
 }
 

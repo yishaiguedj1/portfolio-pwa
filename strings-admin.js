@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1301 מפתחות מתוך 4787) */
+/* המחרוזות של admin (1302 מפתחות מתוך 4774) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -359,6 +359,7 @@ he: {
   "admFaReport": "הדוח המלא",
   "admFaS": "{n} חברות · לפני {h} שע׳",
   "admFaT": "דיוק נתוני החברות",
+  "admFaUser": "מניות שמשתמשים פתחו · {n} — לתיקון",
   "admFaVs": "בדוח {f} · אצלנו {v}",
   "admFaX": "כל ערך מול כמה מקורות",
   "admFaXC_bug": "שונה מ־SEC או מהדוח",
@@ -1662,6 +1663,7 @@ en: {
   "admFaReport": "Full report",
   "admFaS": "{n} companies · {h}h ago",
   "admFaT": "Company data accuracy",
+  "admFaUser": "Stocks users opened · {n} — to fix",
   "admFaVs": "Filing {f} · ours {v}",
   "admFaX": "Every value vs. several sources",
   "admFaXC_bug": "Differs from SEC or the filing",

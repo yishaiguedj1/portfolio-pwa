@@ -49,7 +49,7 @@ html.an-open { overflow: hidden; }
 .an-idn { flex: 1; min-width: 0; font-size: 13px; color: var(--an-ink2); display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: end; }
 .an-ch10 { font-size: 13px; }
 .an-ch10 b { font-weight: 600; }
-.an-pxc { position: relative; height: 46px; margin-inline: -16px; direction: ltr; }
+.an-pxc { position: relative; height: 64px; margin-top: 14px; margin-inline: -16px; direction: ltr; }
 .an-pxc svg { width: 100%; height: 100%; display: block; overflow: visible; }
 .an-px { flex: none; text-align: start; display: flex; flex-direction: column; }
 .an-px small { color: var(--an-ink2); font-weight: 500; }
@@ -92,8 +92,6 @@ html.an-open { overflow: hidden; }
 .an-warn { color: var(--an-mid); font-weight: 600; margin: 0; }
 .an-src { font-size: 12px; color: var(--an-ink3); text-align: center; margin: 2px 0 0; line-height: 1.5; }
 .an-note { background: var(--an-mid-c); color: var(--an-mid); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 13.5px; font-weight: 600; margin: 0; }
-.an-note-btn { border: 0; display: flex; align-items: center; gap: 10px; text-align: start; cursor: pointer; width: 100%; }
-.an-note-btn .an-chev { border-color: var(--an-mid); margin-inline-start: auto; }
 .an-btn { align-self: flex-start; border: 0; background: var(--primary); color: var(--on-primary); border-radius: var(--pill); padding: 9px 18px; font-weight: 700; cursor: pointer; }
 
 /* טעינה */
@@ -117,7 +115,7 @@ html.an-open { overflow: hidden; }
 .an-key-ic svg { width: 16px; height: 16px; }
 .an-key b { font-size: 26px; font-weight: 800; letter-spacing: -.5px; margin-top: 4px; }
 .an-key-s { font-size: 12px; color: var(--an-ink2); line-height: 1.3; min-height: 2.6em; }
-.an-key-sp { position: relative; height: 34px; margin: 6px -14px 0; direction: ltr; }
+.an-key-sp { position: relative; height: 30px; margin: 8px 0 14px; direction: ltr; }
 .an-key-sp svg { width: 100%; height: 100%; display: block; }
 .an-hint { display: block; font-size: 12px; color: var(--an-ink3); font-weight: 400; line-height: 1.35; margin-top: 2px; }
 .an-row-x { align-items: flex-start; }
@@ -142,14 +140,14 @@ button.an-row { cursor: pointer; }
 .an-pill.bad { color: var(--an-bad); background: var(--an-bad-c); } .an-pill.neu { color: var(--an-ink2); background: var(--an-fill); }
 
 /* דוחות */
-.an-mrow { display: grid; grid-template-columns: minmax(0, 1fr) 64px minmax(64px, auto) 8px; gap: 10px; align-items: center; padding: 10px 0; border: 0; border-top: .5px solid var(--an-sep);
+.an-mrow { display: grid; grid-template-columns: minmax(0, 1fr) 56px 92px 8px; gap: 10px; align-items: center; padding: 10px 0; border: 0; border-top: .5px solid var(--an-sep);
   background: none; width: 100%; text-align: start; cursor: pointer; }
 .an-list > .an-mrow:first-child { border-top: 0; }
 .an-mt { min-width: 0; }
 .an-mt b { display: block; font-size: 15px; font-weight: 500; }
 .an-mt .an-v { color: var(--an-ink); font-size: 20px; font-weight: 700; display: block; margin-top: 1px; }
 .an-mt span { display: block; font-size: 12.5px; color: var(--an-ink2); }
-.an-spark { height: 30px; width: 64px; direction: ltr; }
+.an-spark { height: 30px; width: 56px; direction: ltr; }
 .an-spark svg { width: 100%; height: 100%; display: block; overflow: visible; }
 
 /* גרפים */
@@ -270,8 +268,6 @@ button.an-row { cursor: pointer; }
 .an-prov[open] > summary .an-chev { transform: rotate(-135deg); }
 .an-prov .an-rt span + span { margin-top: 2px; }
 .an-tag { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--an-ink3); overflow-wrap: anywhere; text-align: start; }
-.an-tbl td.an-flagc { color: var(--an-mid); }
-.an-tbl td.an-flagc::after { content: ' !'; font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .an-prov > summary .an-chev { transition: none; } }
 
 /* גרפים קטנים */
@@ -317,7 +313,7 @@ button.an-row { cursor: pointer; }
 /* דוחות: ערך וצמיחה בצד */
 .an-mv2 { display: flex; flex-direction: column; align-items: flex-end; text-align: end; min-width: 0; }
 .an-mv2 b { font-size: 16px; font-weight: 700; white-space: nowrap; }
-.an-mv2 small { font-size: 11.5px; color: var(--an-ink2); white-space: nowrap; }
+.an-mv2 small { font-size: 11.5px; color: var(--an-ink2); line-height: 1.25; }
 .an-mrow > .an-chev, .an-nrow > .an-chev { justify-self: end; }
 .an-nrow .an-rv { color: var(--an-ink2); font-weight: 500; }
 .an-nrow .an-rt span { font-size: 12.5px; color: var(--an-ink3); }
@@ -341,10 +337,63 @@ button.an-row { cursor: pointer; }
 .an-ctbl thead .me { color: var(--on-primary-container); border-radius: var(--radius-xs) var(--radius-xs) 0 0; }
 .an-ctbl td.me i { background: var(--primary); opacity: 1; }
 .cube-flat .an-nav, .cube-flat .an-seg-main { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
-.an-mrow .an-hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.an-mrow .an-hint { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.an-mrow .an-mt b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .an-key-s { min-height: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 /* בוררי הגרף בתת־עמוד: תווית ובורר באותה שורה */
 .an-subb .an-ctl { flex-direction: row; align-items: center; gap: 10px; }
 .an-subb .an-ctl > span { flex: none; width: 52px; }
 .an-subb .an-ctl > .an-seg { flex: 1; min-width: 0; }
 .an-subb .an-ctl .an-seg button { padding-block: 5px; font-size: 13px; }
+/* דוחות: אריח לכל מדד, שניים בשורה — גרף רחב עם השנים וערך ההתחלה */
+.an-mgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.an-mtile { position: relative; border: 1px solid var(--card-border); background: var(--an-card); box-shadow: var(--shadow); border-radius: var(--radius-xl);
+  padding: 12px 14px 10px; text-align: start; cursor: pointer; display: flex; flex-direction: column; gap: 1px; min-width: 0; color: var(--an-ink);
+  transition: transform .25s cubic-bezier(.3, 1.3, .5, 1); }
+.an-mtile:active { transform: scale(.97); }
+.an-mtile-n { display: flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 600; }
+.an-mtile-n .an-chev { margin-inline-start: auto; width: 6px; height: 6px; border-width: 0 1.5px 1.5px 0; }
+.an-mtile .an-hint { font-size: 11.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.7em; }
+.an-mtile b { font-size: 21px; font-weight: 800; letter-spacing: -.4px; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.an-mtile small { font-size: 11.5px; color: var(--an-ink2); }
+.an-mtsp { position: relative; height: 54px; margin-top: 16px; direction: ltr; }
+.an-mtsp svg, .an-key-sp svg { width: 100%; height: 100%; display: block; overflow: visible; }
+/* ציר: השנה הראשונה והאחרונה */
+.an-axis { display: flex; justify-content: space-between; direction: ltr; font-size: 10.5px; color: var(--an-ink3); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.an-key .an-axis { margin: -10px 0 10px; }
+.an-hero .an-axis { padding-inline: 8px; margin-top: 2px; }
+/* תגיות ערך: מעל העמודה הראשונה, ושיא המחיר */
+.an-vtag { position: absolute; transform: translate(-50%, calc(-100% - 4px)); font-size: 10.5px; font-weight: 700; white-space: nowrap; color: var(--an-ink); pointer-events: none; }
+.an-vtag0 { transform: translate(-15%, calc(-100% - 4px)); color: var(--an-ink2); font-weight: 600; }
+.an-ptag { position: absolute; transform: translate(-50%, calc(-100% - 6px)); font-size: 11px; font-weight: 600; color: var(--an-ink2); white-space: nowrap; pointer-events: none;
+  background: color-mix(in srgb, var(--bg) 80%, transparent); padding: 0 4px; border-radius: var(--pill); }
+.an-ptag::after { content: ""; position: absolute; left: 50%; bottom: -5px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--an-ink3); }
+/* דוחות: כרטיס ברוחב המסך לכל מדד */
+.an-rcards { display: flex; flex-direction: column; gap: 12px; }
+.an-rcard { border: 1px solid var(--card-border); background: var(--an-card); box-shadow: var(--shadow); border-radius: var(--radius-xl); padding: 16px 16px 10px;
+  text-align: start; cursor: pointer; display: flex; flex-direction: column; gap: 2px; min-width: 0; color: var(--an-ink); transition: transform .25s cubic-bezier(.3, 1.3, .5, 1); }
+.an-rcard:active { transform: scale(.98); }
+.an-rc-h { display: flex; align-items: center; gap: 8px; }
+.an-rc-h b { font-size: 17px; font-weight: 700; }
+.an-rc-h .an-chev { margin-inline-start: auto; }
+.an-rc-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-top: 8px; }
+.an-rc-big { display: flex; flex-direction: column; min-width: 0; }
+.an-rc-big b { font-size: 28px; font-weight: 800; letter-spacing: -.5px; line-height: 1.1; white-space: nowrap; }
+.an-rc-big small { font-size: 12px; color: var(--an-ink2); }
+.an-rstats { display: flex; gap: 16px; }
+.an-rstat { display: flex; flex-direction: column; align-items: flex-end; text-align: end; }
+.an-rstat span { font-size: 11.5px; color: var(--an-ink2); white-space: nowrap; }
+.an-rstat b { font-size: 15px; font-weight: 700; white-space: nowrap; }
+.an-legend2 { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 12.5px; color: var(--an-ink2); }
+.an-legend2 i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-inline-end: 5px; }
+.an-legend2 b { color: var(--an-ink); font-weight: 700; }
+.an-mc { margin-top: 10px; direction: ltr; min-height: 132px; }
+.an-mc svg { display: block; width: 100%; overflow: visible; }
+.an-mc text { font-family: var(--font); font-size: 10.5px; fill: var(--an-ink3); font-variant-numeric: tabular-nums; paint-order: stroke; stroke: var(--an-card); stroke-width: 3px; stroke-linejoin: round; }
+.an-mc .an-mc-xl { fill: var(--an-ink2); font-weight: 700; }
+.an-mc .an-mc-v0 { fill: var(--an-ink2); font-weight: 600; font-size: 11px; }
+.an-mc .an-mc-vl { fill: var(--an-ink); font-weight: 800; font-size: 11.5px; }
+.an-mc .an-mc-avgt { fill: var(--an-ink2); font-size: 10px; }
+.an-mc-avg { stroke: var(--an-ink3); stroke-width: 1; stroke-dasharray: 3 4; opacity: .8; }
+.an-mc-zero { stroke: var(--an-sep); stroke-width: 1; }
+
