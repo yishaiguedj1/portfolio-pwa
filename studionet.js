@@ -494,6 +494,45 @@ export function goldCompare(hypText, refText) {
   return { s: Math.round(chrfpp(doc(h), doc(r))), tm: Math.round(timeCover(h, r)), n: r.length };
 }
 
+/* 26/10/2026: מילים לקריוקי מ־LRCLIB (מאגר פתוח, בלי מפתח, CORS פתוח) — ישירות מהטלפון, רק שם השיר יוצא.
+   התשובה = טקסט מאתר חיצוני: רק שדות מוכרים, אורך מוגבל, ומוצג/נכנס לשדה רק כטקסט */
+export const LRC_API = 'https://lrclib.net/api/search';
+const LRC_MAX = 8000;   // = KA_LYR_MAX
+const LRC_CTL = /[\u0000-\u0008\u000b-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
+const lrcStr = (v, n) => String(v == null ? '' : v).replace(LRC_CTL, '').replace(/\r\n?/g, '\n').slice(0, n);
+/* שורות מתוזמנות [mm:ss.xx] → טקסט רגיל (שורות ריקות של מעבר נשמרות כרווח בין בתים) */
+export function lrcPlain(synced) {
+  return lrcStr(synced, LRC_MAX * 2).split('\n').map((l) => l.replace(/^(\s*\[\d{1,3}:\d{2}(?:[.:]\d{1,3})?\])+\s*/, '')).join('\n')
+    .replace(/\n{3,}/g, '\n\n').trim().slice(0, LRC_MAX);
+}
+/* שם הקובץ / הכותרת → שאילתה: בלי סיומת, סוגריים ("Official Video", "[HD]") ומילים של יוטיוב */
+export function lyrGuess(name) {
+  let t = String(name || '').replace(/\.[A-Za-z0-9]{2,4}$/, '').replace(/[_]+/g, ' ');
+  t = t.replace(/[([{][^)\]}]*[)\]}]/g, ' ')
+    .replace(/\b(official|music|lyric|lyrics|video|audio|clip|hd|hq|4k|1080p|720p|remaster(?:ed)?|live)\b/gi, ' ')
+    .replace(/(^|\s)(?:הקליפ הרשמי|קליפ רשמי|גרסה רשמית|הקליפ|קליפ|מילים)(?=\s|$)/g, ' ')   // \b לא מכיר עברית
+    .replace(/\s*[|•·]\s*/g, ' - ').replace(/\s+/g, ' ').replace(/(\s-)+\s*$/, '').replace(/^[\s-]+|[\s-]+$/g, '');
+  return t.slice(0, 120);
+}
+/* תשובת LRCLIB → עד 8 תוצאות עם מילים, הקרובות באורך לשיר קודם (ואז מתוזמנות). dur = אורך השיר בשניות (0 = לא ידוע) */
+export function lrcResults(json, dur) {
+  if (!Array.isArray(json)) return [];
+  const out = [];
+  for (const x of json.slice(0, 40)) {
+    if (!x || typeof x !== 'object' || x.instrumental) continue;
+    const sy = typeof x.syncedLyrics === 'string' ? x.syncedLyrics : '';
+    const plain = lrcStr(typeof x.plainLyrics === 'string' && x.plainLyrics.trim() ? x.plainLyrics : lrcPlain(sy), LRC_MAX).trim();
+    if (!plain) continue;
+    const d = Number(x.duration) > 0 && Number(x.duration) < 7200 ? Math.round(Number(x.duration)) : 0;
+    out.push({ t: lrcStr(x.trackName, 120).trim(), a: lrcStr(x.artistName, 120).trim(), d, s: !!sy, plain });
+  }
+  const off = (r) => (dur > 0 && r.d > 0 ? Math.abs(r.d - dur) : 999);
+  const seen = new Set();
+  return out.map((r, i) => ({ r, i })).sort((x, y) => (Math.min(off(x.r), 999) > 3) - (Math.min(off(y.r), 999) > 3) || off(x.r) - off(y.r) || (y.r.s - x.r.s) || x.i - y.i)
+    .map((x) => x.r).filter((r) => { const k = r.plain.slice(0, 200); if (seen.has(k)) return false; seen.add(k); return true; })
+    .slice(0, 8).map((r) => Object.assign(r, { m: dur > 0 && r.d > 0 && Math.abs(r.d - dur) <= 3 }));
+}
+
 export function createNet(env) {
   const E = Object.assign({ fetch: (...a) => fetch(...a), now: () => Date.now(), sleep: (ms) => new Promise((r) => setTimeout(r, ms)), put: xhrPut }, env);
   let dtok = null;      // { at, exp } — גישה זמנית ל־Drive (שעה), רק בזיכרון
@@ -506,7 +545,7 @@ export function createNet(env) {
     try {
       // 25/10/2026: learnUx נשלח גם כשהדף נסגר (pagehide) — keepalive כדי שהבקשה לא תבוטל עם הדף (גוף קטן, ≤64KB)
       r = await E.fetch(E.base() + '/api/studio', Object.assign({ method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, E.headers ? E.headers() : {}),
-        body: JSON.stringify(Object.assign({}, body || {}, { op, idToken: tk })) }, op === 'learnUx' ? { keepalive: true } : {}));
+        body: JSON.stringify(Object.assign({}, body || {}, { op, idToken: tk })) }, op === 'learnUx' || op === 'fnl' ? { keepalive: true } : {}));
     } catch (e) { return { ok: false, error: 'net' }; }
     let j = null; try { j = await r.json(); } catch (e) {}
     return j && typeof j === 'object' ? j : { ok: false, error: 'http_' + r.status };
@@ -906,8 +945,20 @@ export function createNet(env) {
     if (!r.ok) throw await driveErr(r);
     return (await r.json()).id;
   }
+  /* מילים לשיר (LRCLIB) — 8 שנ׳ לכל היותר; תקלה = רשימה ריקה עם קוד */
+  async function lyricsSearch(qs, dur) {
+    const qq = String(qs || '').trim().slice(0, 120);
+    if (qq.length < 2) return { ok: false, error: 'short', list: [] };
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    const tm = ctl ? setTimeout(() => ctl.abort(), 8000) : 0;
+    try {
+      const r = await E.fetch(LRC_API + '?q=' + encodeURIComponent(qq), ctl ? { signal: ctl.signal } : {});
+      if (!r.ok) return { ok: false, error: 'http_' + r.status, list: [] };
+      return { ok: true, list: lrcResults(await r.json(), dur || 0) };
+    } catch (e) { return { ok: false, error: 'net', list: [] }; } finally { if (tm) clearTimeout(tm); }
+  }
   const goldUpload = (folderId, text) => textUpload(folderId, GOLD_REF_NAME, 'application/x-subrip', text, { snbRef: '1' });
 
 
-  return { api, driveApi, driveToken, browseList, rangeBlob, vidsRoot, vidsList, vidsFolder, vidsSub, driveRename, driveTrash, driveMoveTo, jobFolder, upload, r2ToDrive, r2Get, cloudInitTemplate, glossLoad, glossSave, driveText, driveBlob, driveJson, goldUpload, textUpload, mediaUrl, driveMeta, driveMove, driveCopy, _forget: () => { dtok = null; } };
+  return { api, driveApi, driveToken, browseList, rangeBlob, vidsRoot, vidsList, vidsFolder, vidsSub, driveRename, driveTrash, driveMoveTo, jobFolder, upload, r2ToDrive, r2Get, cloudInitTemplate, glossLoad, glossSave, driveText, driveBlob, driveJson, goldUpload, textUpload, mediaUrl, driveMeta, driveMove, driveCopy, lyricsSearch, _forget: () => { dtok = null; } };
 }
