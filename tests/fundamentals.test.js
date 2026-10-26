@@ -298,6 +298,70 @@ dfx.A.rev[1] = 222e6;
   const DV = facts([['Revenues', 'USD', yrs(M([15, 16]), 2024)], ['NetIncomeLoss', 'USD', yrs(M([2891, 2681]), 2024)], ['ProfitLoss', 'USD', yrs(M([2942, 2731]), 2024)]]);
   const cf = SF.parseR(`<table><tr><th class="tl"><div><strong>Consolidated Statements of Cash Flows - USD ($)<br> $ in Millions</strong></div></th><th class="th" colspan="2">12 Months Ended</th></tr><tr><th class="th"><div>Dec. 31, 2025</div></th><th class="th"><div>Dec. 31, 2024</div></th></tr>${row('ro', 'us-gaap_ProfitLoss', 'Net earnings', ['2731', '2942'])}</table>`);
   ok(F.normalizeSec(DV, [], { cf }).tags.ni === 'NetIncomeLoss', 'Devon: "רווח נקי" מהתזרים (כולל זכויות מיעוט) לא קודם לרווח המיוחס לחברה');
+  // עלות המכר בכמה שורות "Cost of …" בדוח (26/10/2026) — כל השורות, לא רק התגית שבדוח
+  // EchoStar: "Cost of services" + "Cost of sales - equipment and other" — שתיהן ב־SEC: הסכום (גם ברבעונים)
+  const EC = facts([['RevenueFromContractWithCustomerExcludingAssessedTax', 'USD', [...yrs(M([158, 150]), 2024), ['2025-01-01', '2025-03-31', 40e6, '10-Q', '2025-05-01']]],
+    ['CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization', 'USD', [...yrs(M([101, 94]), 2024), ['2025-01-01', '2025-03-31', 25e6, '10-Q', '2025-05-01']]],
+    ['OtherCostOfOperatingRevenue', 'USD', [...yrs(M([16, 17]), 2024), ['2025-01-01', '2025-03-31', 4e6, '10-Q', '2025-05-01']]], ['NetIncomeLoss', 'USD', yrs(M([-1, -14]), 2024)]]);
+  const ecF = { is: page([['ro', 'us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax', 'Total revenue', ['150', '158']],
+    ['ro', 'us-gaap_CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization', 'Cost of services', ['94', '101']],
+    ['ro', 'us-gaap_OtherCostOfOperatingRevenue', 'Cost of sales - equipment and other', ['17', '16']], ['rou', 'us-gaap_NetIncomeLoss', 'Net loss', ['(14)', '(1)']]]) };
+  const de = F.normalizeSec(EC, [], ecF);
+  ok(de.gpx === 'ok' && /\+OtherCostOfOperatingRevenue$/.test(de.tags.cogs) && de.A.gp.join() === M([41, 39]).join() && de.Q.gp[de.q.indexOf('2025-03-31')] === 11e6,
+    'EchoStar: שתי שורות "Cost of" בתגיות של SEC — עלות המכר = הסכום, הרווח הגולמי 39 (לא 56), גם ברבעון');
+  // SBA: "Cost of site leasing" בתגית פרטית + "Cost of site development"; הסך ב־CostOfRevenue (לא בדוח) — הוא עלות המכר
+  const SB = facts([['Revenues', 'USD', yrs(M([268, 281]), 2024)], ['CostOfGoodsAndServicesSold', 'USD', yrs(M([12, 20]), 2024)],
+    ['CostOfRevenue', 'USD', yrs(M([58, 69]), 2024)], ['NetIncomeLoss', 'USD', yrs(M([75, 105]), 2024)]]);
+  const sbF = { is: page([['rou', 'us-gaap_Revenues', 'Total revenues', ['281', '268']], ['ro', 'sbac_CostOfGoodsSoldDirectOperatingLease', 'Cost of site leasing', ['49', '46']],
+    ['ro', 'us-gaap_CostOfGoodsAndServicesSold', 'Cost of site development', ['20', '12']], ['rou', 'us-gaap_NetIncomeLoss', 'Net income', ['105', '75']]]) };
+  const ds = F.normalizeSec(SB, [], sbF);
+  ok(ds.gpx === 'ok' && ds.tags.cogs === 'CostOfRevenue' && ds.A.gp.join() === M([210, 212]).join(), 'SBA: הסך שאינו בדוח (= סכום שורות העלות) גובר על השורה שבדוח — רווח גולמי 212 (לא 261)');
+  // Alnylam: שורה בתגית פרטית שאין ב־SEC, מעל 0.5% מההכנסות — בלי עלות מכר ורווח גולמי מ־SEC ('sum'; Yahoo משלים)
+  const AL = facts([['RevenueFromContractWithCustomerExcludingAssessedTax', 'USD', yrs(M([1828, 2248]), 2024)], ['CostOfGoodsAndServicesSold', 'USD', yrs(M([268, 306]), 2024)],
+    ['NetIncomeLoss', 'USD', yrs(M([-440, -278]), 2024)]]);
+  const alF = (x) => ({ is: page([['ro', 'us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax', 'Total revenues', ['2248', '1828']],
+    ['ro', 'us-gaap_CostOfGoodsAndServicesSold', 'Cost of goods sold', ['306', '268']], ['ro', 'alny_CostOfCollaborationManufacturingAndRoyalties', 'Cost of collaborations and royalties', x],
+    ['rou', 'us-gaap_NetIncomeLoss', 'Net loss', ['(278)', '(440)']]]) });
+  const da = F.normalizeSec(AL, [], alF(['17', '42']));
+  ok(da.gpx === 'sum' && !da.A.cogs && !da.A.gp && !da.tags.cogs, 'Alnylam: שורת עלות בתגית פרטית (2.3% מההכנסות) — לא רווח גולמי חלקי מ־SEC');
+  const da2 = F.normalizeSec(AL, [], alF(['2', '1']));
+  ok(da2.gpx === 'ok' && da2.tags.cogs === 'CostOfGoodsAndServicesSold' && da2.A.gp.join() === M([1560, 1942]).join(), '...שורה זניחה (פחות מ־0.5%) — השורה הגדולה מספיקה');
+  // L3Harris: בדוח השנתי ערכי השנה תויגו על הקשר של רבעון רביעי (הכנסות — רק שם; רווח תפעולי — גם שנה) — השנה = הערך, הרבעון = השנה פחות 9 חודשים
+  const LH = facts([['RevenueFromContractWithCustomerExcludingAssessedTax', 'USD', [...yrs(M([20000]), 2024), ['2025-01-01', '2025-09-30', 16200e6, '10-Q', '2025-11-01'],
+    ['2025-07-01', '2025-09-30', 5600e6, '10-Q', '2025-11-01'], ['2025-10-01', '2025-12-31', 21800e6, '10-K', '2026-02-12']]],
+    ['OperatingIncomeLoss', 'USD', [...yrs(M([1900, 2100]), 2024), ['2025-01-01', '2025-09-30', 1700e6, '10-Q', '2025-11-01'], ['2025-07-01', '2025-09-30', 600e6, '10-Q', '2025-11-01'],
+      ['2025-10-01', '2025-12-31', 2100e6, '10-K', '2026-02-12']]], ['NetIncomeLoss', 'USD', yrs(M([1500, 1600]), 2024)]]);
+  const dl = F.normalizeSec(LH, []), iq = dl.q.indexOf('2025-12-31');
+  ok(dl.A.rev[dl.fy.indexOf('2025-12-31')] === 21800e6 && dl.Q.rev[iq] === 5600e6 && dl.Q.op[iq] === 400e6 && dl.derived.rev.includes('2025-12-31'),
+    'L3Harris: "רבעון רביעי" שהוא השנה — השנה 21,800, הרבעון 5,600 (לא 21,800), רווח תפעולי ברבעון 400 (לא 2,100)');
+  const LH2 = facts([['RevenueFromContractWithCustomerExcludingAssessedTax', 'USD', [...yrs(M([20000, 22000]), 2024), ['2025-01-01', '2025-09-30', 16200e6, '10-Q', '2025-11-01'],
+    ['2025-10-01', '2025-12-31', 5800e6, '10-K', '2026-02-12']]], ['NetIncomeLoss', 'USD', yrs(M([1500, 1600]), 2024)]]);
+  const dl2 = F.normalizeSec(LH2, []);
+  ok(dl2.Q.rev[dl2.q.indexOf('2025-12-31')] === 5800e6, '...רבעון רביעי רגיל — לא נוגעים');
+  // Chevron: הסך "Total Revenues and Other Income" בתגית Revenues (מכירות + חברות כלולות + הכנסות אחרות) — ההכנסות = שורת המכירות
+  const CV = facts([['Revenues', 'USD', yrs(M([200949, 202792]), 2023)], ['RevenueFromContractWithCustomerExcludingAssessedTax', 'USD', yrs(M([196913, 193414]), 2023)],
+    ['NetIncomeLoss', 'USD', yrs(M([21369, 17661]), 2023)]]);
+  const cvF = (lab) => ({ is: page([['ro', 'us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax', 'Sales and other operating revenues', ['193414', '196913']],
+    ['ro', 'cvx_EquityMethodInvestmentIncome', 'Income from equity affiliates', ['4596', '5131']], ['rou', 'us-gaap_Revenues', lab, ['202792', '200949']],
+    ['rou', 'us-gaap_NetIncomeLoss', 'Net income', ['17661', '21369']]]) });
+  ok(F.normalizeSec(CV, [], cvF('Total Revenues and Other Income')).tags.rev === 'RevenueFromContractWithCustomerExcludingAssessedTax', 'Chevron: סך "…and Other Income" — ההכנסות = שורת המכירות');
+  ok(F.normalizeSec(CV, [], cvF('Total revenues')).tags.rev === 'Revenues', '...סך "Total revenues" — הסך, כמו קודם');
+  // AvalonBay: ה־10-K של 2025 תייג את 2022 (שכבר לא עמודה בדוח) בערך של 2025 — שלושת הדוחות שבהם 2022 מודפסת גוברים
+  const AV = facts([['Revenues', 'USD', [[...Y(2022), 2735e6, '10-K', '2023-02-16'], [...Y(2022), 2735e6, '10-K', '2025-02-13'], [...Y(2023), 2874e6, '10-K', '2025-02-13'],
+    [...Y(2024), 2980e6, '10-K', '2025-02-13'], [...Y(2022), 3094e6, '10-K', '2026-02-13'], [...Y(2025), 3094e6, '10-K', '2026-02-13'], [...Y(2024), 2980e6, '10-K', '2026-02-13']]],
+    ['NetIncomeLoss', 'USD', yrs(M([1137, 929, 1081, 1100]), 2022)]]);
+  const dv = F.normalizeSec(AV, []);
+  ok(dv.A.rev[dv.fy.indexOf('2022-12-31')] === 2735e6 && dv.A.rev[dv.fy.indexOf('2024-12-31')] === 2980e6, 'AvalonBay: שנה ישנה מדוח מאוחר (לא עמודת השוואה) לא גוברת על הדוחות שבהם היא מודפסת');
+  const AV2 = facts([['Revenues', 'USD', [[...Y(2023), 2874e6, '10-K', '2024-02-15'], [...Y(2023), 2900e6, '10-K', '2025-02-13'], [...Y(2024), 2980e6, '10-K', '2025-02-13']]],
+    ['NetIncomeLoss', 'USD', yrs(M([929, 1081]), 2023)]]);
+  ok(F.normalizeSec(AV2, []).A.rev[0] === 2900e6, '...הצגה מחדש בדוח שבו השנה עדיין עמודה — גוברת כמו קודם');
+  // Gartner: GrossProfit בביאור (לא בדוח) בלי עלות אחרת של ‏0.5% — לא "תואם"; הרווח הגולמי = ההכנסות פחות שורת העלות שבדוח
+  const GT = facts([['RevenueFromContractWithCustomerExcludingAssessedTax', 'USD', yrs(M([5907, 6267]), 2024)], ['CostOfGoodsAndServicesSold', 'USD', yrs(M([1903, 2023]), 2024)],
+    ['GrossProfit', 'USD', yrs(M([4035, 4277]), 2024)], ['NetIncomeLoss', 'USD', yrs(M([882, 1250]), 2024)]]);
+  const gtF = { is: page([['ro', 'us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax', 'Total revenues', ['6267', '5907']],
+    ['ro', 'us-gaap_CostOfGoodsAndServicesSold', 'Cost of services and product development', ['2023', '1903']], ['rou', 'us-gaap_NetIncomeLoss', 'Net income', ['1250', '882']]]) };
+  const dt = F.normalizeSec(GT, [], gtF);
+  ok(!dt.tags.gp && dt.A.gp.join() === M([4004, 4244]).join(), 'Gartner: GrossProfit מהביאור שונה ב־0.5% מהדוח — לא גובר על ההכנסות פחות עלות המכר');
   // NiSource: שורת הסיכום שהחברה מציגה גוברת על רכיב שקודם לה ברשימה
   const NI = facts([['RevenueFromContractWithCustomerExcludingAssessedTax', 'USD', yrs(M([5283, 6523]), 2024)], ['RegulatedOperatingRevenue', 'USD', yrs(M([5455, 6642]), 2024)], ['NetIncomeLoss', 'USD', yrs(M([1, 1]), 2024)]]);
   const dn = F.normalizeSec(NI, [], { is: page([['ro', 'us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax', 'Customer revenues', ['6523', '5283']],

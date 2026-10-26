@@ -163,19 +163,48 @@ function sumFacts(parts) {
   return out;
 }
 
+/* עלות המכר בכמה שורות בדוח (26/10/2026): חברה שלא מציגה רווח גולמי ומדפיסה כמה שורות "Cost of …" בתגיות שונות — EchoStar
+   ("Cost of services" ‏9,445 + "Cost of sales - equipment and other" ‏1,685 ב־OtherCostOfOperatingRevenue), SBA ("Cost of site leasing"
+   בתגית פרטית + "Cost of site development"; הסך ב־CostOfRevenue — לא בדוח), Alnylam ("Cost of collaborations and royalties" בתגית
+   פרטית). עד היום נלקחה שורה אחת (התגית שבדוח גוברת), והרווח הגולמי כלל את שאר העלות (SBA ‏2025: ‏93% במקום 75%; Yahoo ו־Nasdaq —
+   הכל). מחזיר null (שורה אחת), { tot } — תגית שאינה בדוח וערכה = סכום השורות בכל שנה מודפסת (גוברת), { parts } — כל השורות
+   בתגיות של SEC (הסכום הוא מועמד, כמו בהשקעות ההוניות), או { ext } — שורה בתגית פרטית שאין ב־SEC ומעל 0.5% מההכנסות */
+const COST_LAB = /^\s*(total\s+)?costs?\s+(of|applicable)\b/i;
+function costRows(face, tax, list, unit, revTag) {
+  const S = face && face.is; if (!S || !S.rows || S.rows.some((r) => r.tag === 'GrossProfit')) return null;
+  const cr = S.rows.filter((r) => !r.total && COST_LAB.test(r.label || '')), ctags = [...new Set(cr.map((r) => r.tag))];
+  if (ctags.length < 2) return null;
+  const fv = faceYearVals(face, ['is'], unit), ends = [...new Set([...fv.keys()].map((kk) => kk.split('|')[1]))];
+  const sumAt = (e) => { let t = 0; for (const g of ctags) { const v = fv.get(g + '|' + e); if (v == null) return null; t += Math.abs(v); } return t; };
+  const ys = ends.map((e) => [e, sumAt(e)]).filter(([, v]) => v != null);
+  if (!ys.length) return null;
+  const at = (tag, e) => { const n = tax[tag]; if (!n) return null; let b = null; for (const x of (n.units && n.units[unit]) || []) if (x.end === e && x.start && day(e) - day(x.start) >= 350 && (!b || x.filed > b.filed)) b = x; return b ? Math.abs(b.val) : null; };
+  const tot = list.concat(['CostOfRevenue', 'CostOfGoodsAndServicesSold', 'CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization'])
+    .find((t) => !ctags.includes(t) && ys.every(([e, v]) => { const x = at(t, e); return x != null && Math.abs(x - v) <= 0.005 * v; }));
+  if (tot) return { tot };
+  if (ctags.every((t) => tax[t] && cr.some((r) => r.tag === t && /^(us-gaap|ifrs-full)$/.test(r.ns)))) return { parts: ctags };
+  // תגית פרטית: מהותי רק מעל 0.5% מההכנסות בשנה מודפסת כלשהי (הסטייה המותרת בבדיקות) — אחרת השורה הגדולה מספיקה
+  const big = ctags.filter((t) => !tax[t] || !cr.some((r) => r.tag === t && /^(us-gaap|ifrs-full)$/.test(r.ns)));
+  return ys.some(([e]) => { const rv = fv.get(revTag + '|' + e), x = big.reduce((t, g) => t + Math.abs(fv.get(g + '|' + e) || 0), 0); return !rv || x > 0.005 * Math.abs(rv); }) ? { ext: big } : null;
+}
+
 /* בסיס עלות המכר (26/10/2026): רווח גולמי = הכנסות − עלות המכר רק כשעלות המכר היא באמת עלות ההכנסות.
    חברה שלא מציגה רווח גולמי ומתייגת CostOfGoodsAndServicesSold על שורה אחת מתוך כמה עלויות ישירות — UnitedHealth
    ("Cost of products sold" ‏$50B מול "Medical costs" ‏$299B ⇒ "רווח גולמי" של 89%), Cigna, Crown Castle (שכירות האתרים
    בתגית אחרת), CenterPoint ו־Alliant (דלק וגז בתגיות של חברות חשמל), EQT (עלויות הפקה) — אצל Yahoo, ‏S&P ו־Nasdaq
    שלושה מספרים שונים, ו־S&P לא מציג בכלל ל־UnitedHealth. גם תגית שלא מופיעה בדוח השנתי (McDonald's: ב־10-Q בלבד, רכיב אחד)
-   לא מגדירה עלות מכר. מחזיר: 'gp' (החברה מציגה רווח גולמי), 'ok', 'part' (שורה חלקית), 'off' (לא בדוח), null (אין דוח לבדוק) */
+   לא מגדירה עלות מכר. מחזיר: 'gp' (החברה מציגה רווח גולמי), 'ok', 'part' (שורה חלקית), 'off' (לא בדוח), 'sum' (עוד שורת "Cost of" בתגית
+   פרטית שאין ב־SEC — costRows; Yahoo משלים את השנים), null (אין דוח לבדוק) */
 const COST_SIB = /^(PolicyholderBenefitsAndClaimsIncurred|BenefitsLossesAndExpenses$|LiabilityForFuturePolicyBenefitsPeriodExpense|DirectCostsOfLeasedAndRentedPropertyOrEquipment|CostOfOtherPropertyOperatingExpense|UtilitiesOperatingExpense|CostOfPurchasedPower|FuelCosts|CostOfNaturalGasPurchases|ResultsOfOperations(ProductionOrLiftingCosts|ExpenseFromOilAndGasProducingActivities)|OilAndGasProductionExpense)/;
-function cogsBasis(face, tags, cogsTags) {
+function cogsBasis(face, tags, cogsTags, cs) {
   const S = face && face.is; if (!S || !S.rows || !S.rows.length) return null;
   const rows = S.rows.filter((r) => /^(us-gaap|ifrs-full)$/.test(r.ns));
   if (rows.some((r) => r.tag === 'GrossProfit')) return 'gp';
   if (!rows.some((r) => r.tag === tags.rev || r.tag === tags.ni || r.tag === tags.op)) return null; // לא דוח רווח והפסד שזיהינו
   const c = tags.cogs; if (!c) return null;
+  // עלות המכר בכמה שורות בדוח (costRows): הסכום / התגית הכוללת שנבחרו = כל השורות — 'ok'; שורה בתגית פרטית שאין ב־SEC — 'sum'
+  if (cs && cs.pick && c === cs.pick) return 'ok';
+  if (cs && cs.ext) return 'sum';
   const row = rows.find((r) => r.tag === c);
   if (!row) return 'off';
   if (c === 'CostOfRevenue' || c === 'CostOfSales' || row.total) return 'ok';
@@ -214,6 +243,8 @@ function tagFacts(node, unitPref) {
   // (השנה או השנה שלפניה); "רחוק" = שנתיים ויותר לפני (מתוך תזרים המזומנים / דוח ההון / ביאור — לרוב אחרי הצגה מחדש של פעילות שנמכרה)
   const accEnd = new Map(), accK = (x) => x.accn || x.form + '|' + x.filed;
   for (const x of node.units[unit] || []) { const a = accK(x), e = accEnd.get(a); if (!e || x.end > e) accEnd.set(a, x.end); }
+  const accYr = new Map(); // לכל הגשה: [סוף, ערך] של השנים שבה (cmp)
+  for (const x of node.units[unit] || []) if (x.start && day(x.end) - day(x.start) >= 350) { const a = accK(x); if (!accYr.has(a)) accYr.set(a, []); accYr.get(a).push([x.end, x.val]); }
   // עמודת המרה (convenience translation): דוח שבו התגית מדווחת ביותר ערכים במטבע אחר (השנה והשוואות) — הדוח הוגש במטבע
   // האחר, והעמודה במטבע הדיווח של היום היא תרגום בשער של סוף השנה (Nebius עד 2023: רובל, ולצידו דולר בשער 70.34) — לא נכנסת.
   // (Alibaba: יואן לכל השנים, דולר רק לשנה האחרונה — היואן נשאר)
@@ -231,7 +262,11 @@ function tagFacts(node, unitPref) {
       // (Comfort Systems: 10-Q תייג "שנה" של $1.8B — במקום $9.1B של ה־10-K)
       const k = x.start + '|' + x.end, h = out.dur.get(k), ann = !/^10-Q/.test(x.form), yr = day(x.end) - day(x.start) >= 350;
       if (!yr || ann) { let a = allv.get(k); if (!a) allv.set(k, (a = new Map())); a.set(x.filed, x.val); }
-      if (!h || (yr && h.ann !== ann ? ann : h.filed < x.filed)) out.dur.set(k, { v: x.val, filed: x.filed, ann });
+      // שנה מדוח שנתי שבו היא כבר לא עמודת השוואה (יותר משנתיים לפני השנה האחרונה של אותה הגשה), וערכה = ערך של שנה אחרת באותה
+      // הגשה — העתקה שגויה של החברה: נחותה מדוח שבו היא עמודה (AvalonBay: ה־10-K של 2025 תייג את 2022 בערך של 2025, ‏$3.09B; שלושת
+      // הדוחות שבהם 2022 מודפסת: ‏$2.74B). הצגה מחדש אמיתית בטבלת חמש השנים (GE, CME) — נשארת, כמו קודם
+      const cmp = yr && ann ? (day(accEnd.get(accK(x))) - day(x.end) <= 2 * 366 + 130 || !(accYr.get(accK(x)) || []).some(([e2, v2]) => e2 !== x.end && v2 === x.val) ? 1 : 0) : null;
+      if (!h || (yr && h.ann !== ann ? ann : yr && ann && h.cmp !== cmp ? cmp > h.cmp : h.filed < x.filed)) out.dur.set(k, { v: x.val, filed: x.filed, ann, cmp });
     } else {
       // גם במאזן: ערך מדוח שנתי גובר על השוואה בדוח רבעוני מאוחר יותר (תיקון לאחור ב־10-Q — eBay: הון 2025
       // ‏$4.48B ב־10-Q של 2026 מול $4.62B שהודפס ב־10-K). דוח שנתי מאוחר יותר עדיין גובר לפי תאריך ההגשה
@@ -492,7 +527,7 @@ function normalizeSec(facts, splits = [], face = null) {
   // לכל מפתח: תגית ראשית אחת + השלמות שמסכימות איתה (mergeTags)
   // התגיות שמופיעות בדוח שהחברה הגישה (10-K האחרון) — ראשונות
   const merged = {}, tags = {};
-  let cur = null;
+  let cur = null, cogsRows = null;
   for (const k of Object.keys(map)) {
     // הרווח הנקי — רק מדוח רווח והפסד: התזרים מתחיל ב"רווח נקי" כולל זכויות מיעוט (ProfitLoss), ובלי דוח רווח והפסד
     // שזוהה הוא קפץ לפני NetIncomeLoss (Devon 2024: ‏$2.94B במקום ‏$2.89B; Royal Caribbean, General Mills)
@@ -505,9 +540,12 @@ function normalizeSec(facts, splits = [], face = null) {
     // בלי שורת סך — השורה הגדולה בדוח קודם (Camden: "Property revenues" ‏$1.57B בתגית OperatingLeaseLeaseIncome, ולא דמי ניהול ‏$13M)
     if (k === 'rev' && face && face.is) {
       const big = (t) => Math.max(0, ...face.is.rows.filter((r) => r.tag === t).map((r) => Math.abs(SECFACE.rowVals(face.is, r).find((x) => x != null) || 0)));
-      const tot = list.filter((t) => face.is.rows.some((r) => r.total && r.tag === t));
-      const rest = list.filter((t) => onFace.includes(t) && !tot.includes(t)).sort((a, b) => big(b) - big(a));
-      order = tot.concat(rest, order.filter((t) => !tot.includes(t) && !rest.includes(t)));
+      // סך שהכותרת שלו "…and Other Income" (Chevron: "Total Revenues and Other Income" בתגית Revenues = מכירות + חברות כלולות + הכנסות
+      // אחרות) — לא הכנסות: שורת המכירות קודמת, כמו אצל ConocoPhillips ו־Marathon Petroleum (שם הסך בתגית פרטית) ואצל Yahoo ו־Nasdaq
+      const oi = list.filter((t) => face.is.rows.some((r) => r.total && r.tag === t && /\bother income\b/i.test(r.label || '')));
+      const tot = list.filter((t) => !oi.includes(t) && face.is.rows.some((r) => r.total && r.tag === t));
+      const rest = list.filter((t) => onFace.includes(t) && !tot.includes(t) && !oi.includes(t)).sort((a, b) => big(b) - big(a));
+      order = tot.concat(rest, oi, order.filter((t) => !tot.includes(t) && !rest.includes(t) && !oi.includes(t)));
     }
     // מזומן: סדר קבוע — הכולל מזומן מוגבל אחרון גם כשהוא השורה במאזן (בשנים קודמות הוא סך התזרים: IFF 2022 ‏$552M כולל
     // מזומן של פעילות מוחזקת למכירה, מול "מזומן ושווי מזומנים" ‏$483M שהודפס במאזן)
@@ -521,7 +559,9 @@ function normalizeSec(facts, splits = [], face = null) {
       if (bsT.includes(DG)) order.splice(order.length - 1, 0, DG);
       if (!bsT.includes('Cash') && order.some((t) => bsT.includes(t))) order = order.filter((t) => t !== 'Cash');
     }
+    if (k === 'cogs') { cogsRows = costRows(face, tax, list, rc || cur || 'USD', tags.rev); if (cogsRows && cogsRows.tot) order = [cogsRows.tot, ...order.filter((t) => t !== cogsRows.tot)]; }
     let fs = order.map((tag) => (/-/.test(tag) ? diffFacts(...tag.split('-').map((t) => tagFacts(tax[t], unitOf(k)))) : tagFacts(tax[tag], unitOf(k)))), names = order;
+    if (k === 'cogs' && cogsRows && cogsRows.parts) { fs = [sumFacts(cogsRows.parts.map((t) => tagFacts(tax[t], unitOf(k)))), ...fs]; names = [cogsRows.parts.join('+'), ...names]; }
     if (k === 'capex' && !isIfrs) {
       let parts = CAPEX_PARTS.filter((t) => onFace.includes(t) && tax[t]);
       // שורה שהתווית שלה "Acquisition(s) of …" לצד שורת השקעות הוניות אחרת = רכישת נכסים קיימים (תחנות כוח, AEP), לא השקעה הונית.
@@ -706,6 +746,25 @@ function normalizeSec(facts, splits = [], face = null) {
       }
     }
   }
+  // "רבעון רביעי" שהוא השנה — כשלשורה אין שנה בכלל (26/10/2026, L3Harris FY2025): בדוח השנתי החברה תייגה את ערכי השנה על הקשר של
+  // רבעון; ברווח התפעולי יש גם שנה (‏2,110 בשניהם — הכלל של Tractor Supply למעלה מדלג על ה"רבעון"), אבל להכנסות ולעלות המכר יש רק
+  // את ה"רבעון" (‏21,865, ותשעת החודשים ‏16,217) — אז הוא נכנס כרבעון והשנה נשארה ריקה. כשבאותו סוף שנה שורה אחרת מראה את התיוג
+  // השגוי (רבעון ישיר = השנה שלה): "רבעון" גדול מתשעת החודשים שלפניו, בשורה בלי שנה, הוא השנה — והרבעון = השנה פחות תשעה חודשים
+  {
+    const KS = FLOWK.filter((k) => k !== 'eps' && k !== 'sh');
+    const q4dir = (k, e) => [...merged[k].dur].find(([kk, h]) => { const [s0, e0] = kk.split('|'); return e0 === e && day(e) - day(s0) >= 80 && day(e) - day(s0) <= 100 && h.ann !== false; });
+    for (const e of fyEnds) {
+      const y0 = yearOf.get(e);
+      if (!KS.some((k) => { const a = A[k][e], x = q4dir(k, e); return a && x && Math.abs(x[1].v - a) <= 1e-3 * Math.abs(a); })) continue;
+      for (const k of KS) {
+        const x = q4dir(k, e); if (A[k][e] != null || !x || Q[k][e] !== x[1].v) continue;
+        let c9 = null;
+        for (const [kk, h] of merged[k].dur) { const [s2, e2] = kk.split('|'), g = day(e) - day(e2); if (s2 === y0 && g >= 80 && g <= 100) c9 = h.v; }
+        if (!(c9 > 0 && x[1].v > c9)) continue;
+        A[k][e] = x[1].v; Q[k][e] = x[1].v - c9; (derived[k] = derived[k] || []).push(e);
+      }
+    }
+  }
   for (const k of Object.keys(map).filter((x) => !FLOWK.includes(x))) {
     for (const [e, h] of merged[k].inst) { if (yearOf.has(e)) A[k][e] = h.v; Q[k][e] = h.v; }
   }
@@ -835,14 +894,16 @@ function normalizeSec(facts, splits = [], face = null) {
   const realIs = !!isRows && isRows.some((r) => r.tag === tags.rev || r.tag === tags.ni);
   const opx = realIs && tags.op && !isRows.some((r) => (map.op || []).includes(r.tag)) ? 'off' : null;
   if (opx) { A.op = {}; Q.op = {}; delete tags.op; delete derived.op; }
-  const gpx = A.cogs ? cogsBasis(face, tags, map.cogs || []) : null;
-  // GrossProfit שלא בדוח נשאר רק כשהוא = הכנסות − עלות מכר תקינה ברוב השנים (Honeywell: מתויג, ותואם — כולל ברבעונים)
+  const gpx = A.cogs ? cogsBasis(face, tags, map.cogs || [], cogsRows && { pick: cogsRows.tot || (cogsRows.parts && cogsRows.parts.join('+')), ext: !!cogsRows.ext }) : null;
+  // GrossProfit שלא בדוח נשאר רק כשהוא = הכנסות − עלות מכר תקינה ברוב השנים (Honeywell: מתויג, ותואם — כולל ברבעונים).
+  // "שווה" = עד 0.1% מההכנסות (עד 26/10/2026 — 1%): Gartner מתייגת GrossProfit בביאור בלי OtherCostOfOperatingRevenue (‏$33M, ‏0.5%),
+  // והוא גבר על ההכנסות פחות "Cost of services and product development" שבדוח (Yahoo ו־Nasdaq — הדוח)
   if (realIs && tags.gp && !isRows.some((r) => (map.gp || []).includes(r.tag))) {
     const ys = fyEnds.filter((e) => A.gp[e] != null && A.rev[e] != null && A.cogs && A.cogs[e] != null);
-    const agree = gpx === 'ok' && ys.length && ys.filter((e) => Math.abs(A.rev[e] - A.cogs[e] - A.gp[e]) <= 0.01 * Math.abs(A.rev[e])).length * 2 > ys.length;
+    const agree = gpx === 'ok' && ys.length && ys.filter((e) => Math.abs(A.rev[e] - A.cogs[e] - A.gp[e]) <= 0.001 * Math.abs(A.rev[e])).length * 2 > ys.length;
     if (!agree) { A.gp = {}; Q.gp = {}; delete tags.gp; delete derived.gp; }
   }
-  if (gpx === 'part' || gpx === 'off') { A.cogs = {}; Q.cogs = {}; delete tags.cogs; delete derived.cogs; qmix.splice(0, qmix.length, ...qmix.filter((x) => x.m !== 'cogs')); }
+  if (gpx === 'part' || gpx === 'off' || gpx === 'sum') { A.cogs = {}; Q.cogs = {}; delete tags.cogs; delete derived.cogs; qmix.splice(0, qmix.length, ...qmix.filter((x) => x.m !== 'cogs')); }
   // שורות מחושבות
   const gpd = []; // שנים שבהן הרווח הגולמי מחושב (לא דווח) — derived.gp הוא של רבעונים
   for (const [D, ends] of [[A, fyEnds], [Q, qEnds]]) for (const e of ends) {

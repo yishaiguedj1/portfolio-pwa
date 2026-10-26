@@ -309,4 +309,47 @@ ok(X.PROBLEM.has('odd') && !X.PROBLEM.has('def') && !X.PROBLEM.has('okd'), 'odd 
   const r5 = find(X.xcheck(d5, f5, { fy: ['2025-12-31'], q: [], A: { capex: [9461 * M] }, Q: {} }, { A: { ends: ['2025-12-31'], v: { capex: { '2025-12-31': 9461 * M } } } }), 'capex', 'A', '2025-12-31');
   ok(r5.c !== 'bug' && r5.why === 'capex_acq', 'השקעות הוניות: Yahoo ו־Nasdaq כוללים רכישת שטחים — מוסבר (capex_acq)');
 }
+// 26/10/2026 (סבב 2) — רווח גולמי, הכנסות ורווח תפעולי
+{
+  const yy = (o) => ({ fy: ['2024-12-31'], q: [], A: o, Q: {} });
+  const nq = (o) => ({ A: { ends: ['2024-12-31'], v: Object.fromEntries(Object.entries(o).map(([k, v]) => [k, { '2024-12-31': v }])) }, Q: null });
+  // (א) Ball: השרתון חישב הכנסות − עלות מכר (GrossProfit של SEC — טבלת הרבעונים אחרי פחת — נדחה); הייחוס = אותה נוסחה, לא GrossProfit
+  const f1 = facts([['Revenues', 'USD', [[...Y(2024), 3082e6, '10-K', '2025-02-01']]], ['CostOfRevenue', 'USD', [[...Y(2024), 2425e6, '10-K', '2025-02-01']]],
+    ['GrossProfit', 'USD', [[...Y(2024), 545e6, '10-K', '2025-02-01']]]]);
+  const d1 = base({ tags: { rev: 'Revenues', cogs: 'CostOfRevenue' }, A: { rev: [null, 3082e6], gp: [null, 657e6] } });
+  const r1 = find(X.xcheck(d1, f1, null, null, { cand: { gp: ['GrossProfit'] } }), 'gp', 'A', '2024-12-31');
+  ok(r1.c === 'ok' && r1.rf === 'rev-cogs', 'רווח גולמי מחושב — מול הנוסחה, לא מול GrossProfit שהשרתון דחה (לא bug)');
+  // (ב) Marathon Petroleum: הרווח התפעולי שבדוח כולל חברות כלולות, מכירת נכסים והכנסות אחרות — Yahoo ו־Nasdaq מוציאים: okd
+  const f2 = facts([['OperatingIncomeLoss', 'USD', [[...Y(2024), 6796e6, '10-K', '2025-02-01']]], ['IncomeLossFromEquityMethodInvestments', 'USD', [[...Y(2024), 1048e6, '10-K', '2025-02-01']]],
+    ['GainLossOnDispositionOfAssets1', 'USD', [[...Y(2024), 28e6, '10-K', '2025-02-01']]], ['OtherOperatingIncome', 'USD', [[...Y(2024), 472e6, '10-K', '2025-02-01']]]]);
+  const d2 = base({ tags: { op: 'OperatingIncomeLoss' }, A: { op: [null, 6796e6] } });
+  const r2 = find(X.xcheck(d2, f2, yy({ op: [5248e6] }), nq({ op: 5248e6 })), 'op', 'A', '2024-12-31');
+  ok(r2.c === 'okd' && r2.why === 'op_oi', 'רווח תפעולי כולל הכנסות אחרות (Marathon) — okd op_oi, לא ext');
+  d2.A.op = [null, 7000e6];
+  ok(find(X.xcheck(d2, f2, yy({ op: [5248e6] }), nq({ op: 5248e6 })), 'op', 'A', '2024-12-31').c === 'bug', '...ערך שלא תואם ל־SEC — עדיין bug');
+  // (ג) EQT: "Total operating revenues" כולל רווח / הפסד מנגזרים (שלילי — הסימן נשמר) — Yahoo ו־Nasdaq = המכירות
+  const f3 = facts([['Revenues', 'USD', [[...Y(2024), 7498e6, '10-K', '2025-02-01']]], ['DerivativeInstrumentsNotDesignatedAsHedgingInstrumentsGainLossNet', 'USD', [[...Y(2024), -4643e6, '10-K', '2025-02-01']]]]);
+  const d3 = base({ tags: { rev: 'Revenues' }, A: { rev: [null, 7498e6] } });
+  const r3 = find(X.xcheck(d3, f3, yy({ rev: [12141e6] }), nq({ rev: 12141e6 })), 'rev', 'A', '2024-12-31');
+  ok(r3.c === 'okd' && r3.why === 'rev_oi', 'הכנסות כולל הפסד מנגזרים (EQT) — okd rev_oi');
+  // (ד) WEC: רווח גולמי מחושב; Yahoo ו־Nasdaq מנכים גם תפעול ואחזקה — okd gp_opx (לפני gp_calc)
+  const f5 = facts([['Revenues', 'USD', [[...Y(2024), 8599.9e6, '10-K', '2025-02-01']]], ['CostOfGoodsAndServicesSold', 'USD', [[...Y(2024), 2656e6, '10-K', '2025-02-01']]],
+    ['OtherCostAndExpenseOperating', 'USD', [[...Y(2024), 2158e6, '10-K', '2025-02-01']]]]);
+  const d5 = base({ tags: { rev: 'Revenues', cogs: 'CostOfGoodsAndServicesSold' }, A: { rev: [null, 8599.9e6], gp: [null, 5943.9e6] } });
+  const r5 = find(X.xcheck(d5, f5, yy({ gp: [3785.9e6] }), nq({ gp: 3785.9e6 })), 'gp', 'A', '2024-12-31');
+  ok(r5.c === 'okd' && r5.why === 'gp_opx', 'רווח גולמי של חברת חשמל — המקור מנכה גם תפעול ואחזקה: okd gp_opx');
+  // (ה) L3Harris: ב־SEC "רבעון רביעי" = השנה (תיוג שגוי של החברה); השרתון מחשב שנה פחות 9 חודשים — הייחוס בלי הערך הישיר
+  const f6 = facts([['OperatingIncomeLoss', 'USD', [[...Y(2024), 2110e6, '10-K', '2025-02-12'], ['2024-01-01', '2024-09-30', 1717e6, '10-Q', '2024-11-01'],
+    [...Q(2024, 4), 2110e6, '10-K', '2025-02-12']]]]);
+  const d6 = base({ tags: { op: 'OperatingIncomeLoss' }, q: ['2024-12-31'], A: { op: [null, 2110e6] }, Q: { op: [393e6] }, derived: { op: ['2024-12-31'] } });
+  const r6 = find(X.xcheck(d6, f6, null, null), 'op', 'Q', '2024-12-31');
+  ok(r6.c === 'ok' && r6.raw === 393e6 && /cum/.test(r6.rf), 'רבעון רביעי שתויג כשנה ב־SEC — הייחוס = שנה פחות 9 חודשים (לא bug על הערך הנכון)');
+  // (ו) Lennox: הרבעון הרביעי מטבלת הרבעונים של ה־10-K; Yahoo ו־Nasdaq = השנה פחות תשעת החודשים כפי שדווחו ב־10-Q
+  const f7 = facts([['GrossProfit', 'USD', [[...Y(2024), 1734.8e6, '10-K', '2025-02-17'], ['2024-01-01', '2024-09-30', 1319.6e6, '10-Q', '2024-10-22'],
+    ['2024-01-01', '2024-09-30', 1345.5e6, '10-K', '2025-02-17'], [...Q(2024, 4), 389.3e6, '10-K', '2025-02-17']]]]);
+  const d7 = base({ tags: { gp: 'GrossProfit' }, q: ['2024-12-31'], A: { gp: [null, 1734.8e6] }, Q: { gp: [389.3e6] } });
+  const q4 = { fy: [], q: ['2024-12-31'], A: {}, Q: { gp: [415.2e6] } }, nq4 = { A: null, Q: { ends: ['2024-12-31'], v: { gp: { '2024-12-31': 415.2e6 } } } };
+  const r7 = find(X.xcheck(d7, f7, q4, nq4), 'gp', 'Q', '2024-12-31');
+  ok(r7.c === 'okd' && r7.why === 'q_orig', 'רבעון רביעי מטבלת הרבעונים המעודכנת — המקורות = שנה פחות 9 חודשים כפי שדווחו: okd q_orig');
+}
 console.log('\nכל ' + n + ' הבדיקות עברו ✓');

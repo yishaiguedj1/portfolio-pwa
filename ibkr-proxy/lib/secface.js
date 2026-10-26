@@ -20,7 +20,9 @@ function pickStatements(xml) {
   while ((m = re.exec(String(xml || '')))) {
     const r = m[1], g = (t) => { const x = new RegExp('<' + t + '>([\\s\\S]*?)</' + t + '>').exec(r); return x ? x[1].trim() : ''; };
     if (g('MenuCategory') !== 'Statements') continue;
-    const name = g('ShortName'), file = g('HtmlFileName');
+    // רווח שהפך ל־"??" בכותרת (Sherwin-Williams: "STATEMENTS??OF??CONSOLIDATED??INCOME" — כך בקובץ של SEC) / רווח קשיח — בלי זה הדוח לא זוהה, ו־OperatingIncomeLoss
+    // מביאור המגזרים (סך רווח המגזרים, ‏$4.16B ב־2023) נשאר "רווח תפעולי" בלי דוח לבדוק מולו
+    const name = g('ShortName').replace(/&#160;|&nbsp;|\?+|\s+/g, ' '), file = g('HtmlFileName');
     if (!/^R\d+\.htm$/.test(file)) continue;
     for (const k of ['is', 'bs', 'cf']) {
       if (out[k] || !STMT[k].test(name)) continue;
