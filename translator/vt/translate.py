@@ -57,7 +57,57 @@ def speaker_label(spk: str | None, speakers: dict) -> str:
         return "?"
     info = speakers.get(spk, {})
     name = info.get("name")
-    return f"{spk} · {name}" if name else spk
+    g = gender_of(info)
+    # 26/10/2026 (ניתוח האיכות: 57 הערות מגדר): המגדר ליד השם בכל החלפת דובר — עד היום רק בטבלה שבתדריך, והמתרגם
+    # (בעיקר Haiku) כתב "אני חושב" למראיינת ו"אני מוכנה" לגבר
+    tail = " · " + ("אישה" if g == "f" else "גבר") if g else ""
+    return (f"{spk} · {name}" if name else spk) + tail
+
+
+def gender_of(info: dict | None) -> str:
+    """'f' / 'm' / '' מתוך שדה המגדר של הדובר (כמו שההגהה כתבה בטבלה: "נקבה", "זכר (לפי השם)")."""
+    g = str((info or {}).get("gender") or "")
+    f, m = ("נקבה" in g or "אישה" in g), ("זכר" in g or "גבר" in g)
+    return "f" if f and not m else "m" if m and not f else ""
+
+
+_SPK_LABEL = re.compile(r"^\s*\**\s*(S\d{1,2})\b")
+
+
+def speakers_from_brief(text: str) -> dict[str, dict]:
+    """טבלת הדוברים שההגהה כותבת בתדריך (| S1 | שם | תפקיד | מגדר | …) → {S1: {name, role, gender}}.
+    לפי שורת הכותרת של הטבלה; תווית שהטבלה אומרת שאינה דובר ("לא דובר נפרד") — בחוץ."""
+    out: dict[str, dict] = {}
+    cols: dict[str, int] = {}
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if not line.startswith("|"):
+            cols = {} if not line else cols
+            continue
+        cells = [x.strip() for x in line.strip("|").split("|")]
+        if all(re.fullmatch(r":?-{2,}:?", x) for x in cells if x):
+            continue
+        m = _SPK_LABEL.match(cells[0]) if cells else None
+        if not m:
+            hdr = {}
+            for i, h in enumerate(cells):
+                if "מגדר" in h and "gender" not in hdr:
+                    hdr["gender"] = i
+                elif "תפקיד" in h and "role" not in hdr:
+                    hdr["role"] = i
+                elif "שם" in h and "name" not in hdr:
+                    hdr["name"] = i
+            if "gender" in hdr:
+                cols = hdr
+            continue
+        if not cols:
+            continue
+        get = lambda k: cells[cols[k]] if k in cols and cols[k] < len(cells) else ""
+        name = re.sub(r"\s*\([^)]*\)\s*", " ", get("name")).strip(" ,*")
+        if not name or name in ("—", "-") or "לא דובר" in name:
+            continue
+        out[m.group(1)] = {"name": name[:40], "role": get("role")[:60], "gender": get("gender")[:30]}
+    return out
 
 
 def render_batch(k: int, total: int, batch: list[dict], prev: list[dict], he: dict,
@@ -521,18 +571,64 @@ def _head_found(opts: list[str], txt: str) -> bool:
 CHECK_CODES = {
     "id": "h", "miss": "h", "eq": "h", "drift": "h", "spk": "h", "len": "h", "dlg": "h", "brk": "h",
     "nikud": "h", "dash": "h", "tag": "h", "part": "h",
-    "num": "s", "gls": "s", "lat": "s", "name": "s", "spl": "s", "q": "s", "short": "s", "cps": "s", "cur": "s", "hdg": "s",
+    "num": "s", "gls": "s", "lat": "s", "name": "s", "spl": "s", "q": "s", "short": "s", "cps": "s", "cur": "s", "hdg": "s", "gen": "s",
     "dots": "-",
 }
 CHECK_CODE_RE = re.compile(r"^- #(\d+): \[([a-z]+)\] ")
 
 
+# 26/10/2026: דובר שמדבר על עצמו בהווה ("אני חושב") — רק צורות שהזכר והנקבה בהן שונים. ("רוצה", "עושה" — זהות; בחוץ)
+_GEN_PAIRS = (
+    ("חושב", "חושבת"), ("יודע", "יודעת"), ("מניח", "מניחה"), ("מרגיש", "מרגישה"), ("בטוח", "בטוחה"), ("מוכן", "מוכנה"),
+    ("אוהב", "אוהבת"), ("מבין", "מבינה"), ("זוכר", "זוכרת"), ("מאמין", "מאמינה"), ("מסכים", "מסכימה"), ("צריך", "צריכה"),
+    ("יכול", "יכולה"), ("הולך", "הולכת"), ("מתכוון", "מתכוונת"), ("שמח", "שמחה"), ("אומר", "אומרת"), ("לוקח", "לוקחת"),
+    ("מדבר", "מדברת"), ("נותן", "נותנת"), ("חוזר", "חוזרת"), ("עובד", "עובדת"), ("לחוץ", "לחוצה"), ("המום", "המומה"),
+    ("עייף", "עייפה"), ("מצטער", "מצטערת"), ("משוכנע", "משוכנעת"), ("סקרן", "סקרנית"), ("גורם", "גורמת"), ("מנסה", ""),
+    ("מתרגש", "מתרגשת"), ("מודאג", "מודאגת"), ("מופתע", "מופתעת"), ("גאה", ""), ("חושש", "חוששת"), ("מקשיב", "מקשיבה"),
+)
+_GEN_M = {m: f for m, f in _GEN_PAIRS if f}
+_GEN_F = {f: m for m, f in _GEN_PAIRS if f}
+_GEN_RE = re.compile(r"(?<![א-ת])אני\s+((?:(?:לא|ממש|די|באמת|גם|עדיין|פשוט|מאוד|רק|תמיד|כבר|כל\s+כך)\s+){0,2})([א-ת]+)")
+
+
+def gender_slips(text: str, g: str) -> list[str]:
+    """צורות בגוף ראשון במגדר ההפוך מהדובר ("אני חושב" כשהדוברת אישה). ציטוט ("…") — לא נבדק: מישהו אחר מדבר."""
+    t = normalize_he(text)
+    if '"' in t or not g:
+        return []
+    bad = _GEN_M if g == "f" else _GEN_F
+    return [m.group(0) for m in _GEN_RE.finditer(t) if m.group(2) in bad]
+
+
+def gender_issues(cues: list[dict], he: dict[str, str], speakers: dict | None) -> list[str]:
+    out = []
+    if not speakers:
+        return out
+    for c in cues:
+        k = str(c["id"])
+        t = he.get(k)
+        if not t or t in ("=", "∅"):
+            continue
+        if c.get("parts"):
+            segs = list(zip([p.get("spk") for p in c["parts"]], t.split("||"))) if "||" in t else []
+        else:
+            segs = [(c.get("spk"), t)]
+        for spk, txt in segs:
+            info = speakers.get(spk or "") or {}
+            g = gender_of(info)
+            for hit in gender_slips(txt, g)[:1]:
+                who = (info.get("name") or spk) + (", אישה" if g == "f" else ", גבר")
+                out.append(f"- #{k}: [gen] הדובר {spk} ({who}) — '{hit}' {'בלשון זכר' if g == 'f' else 'בלשון נקבה'}; "
+                           "אם התוכן מראה שמדבר כאן מישהו אחר — להשאיר")
+    return out
+
+
 def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[str]]],
-          max_chars: int = 84) -> tuple[list[str], dict]:
+          max_chars: int = 84, speakers: dict | None = None) -> tuple[list[str], dict]:
     """בדיקת התרגום מול התכנון. מחזיר (שורות דוח, סיכום)."""
     issues: list[str] = []
     stats = {"total": len(cues), "translated": 0, "missing": 0, "over_budget": 0,
-             "numbers": 0, "latin": 0, "glossary": 0, "glossary_soft": 0, "names": 0, "spell": 0, "questions": 0, "short": 0, "style": 0, "errors": 0, "drift": 0, "hedges": 0}
+             "numbers": 0, "latin": 0, "glossary": 0, "glossary_soft": 0, "names": 0, "spell": 0, "questions": 0, "short": 0, "style": 0, "errors": 0, "drift": 0, "hedges": 0, "gender": 0}
     ids = {str(c["id"]) for c in cues}
     # מילים לועזיות שהמילון קובע שנשארות כך ("Claude", "if-else") — לא "לא תורגמו"
     keep_latin = {w.lower() for _t, opts in glossary for o in opts for w in _LAT_WORD.findall(o)}
@@ -684,6 +780,9 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
     sv = spell_variants(cues, he)   # 25/10/2026: כתיב מלא/חסר של אותה מילה
     issues += sv
     stats["spell"] = len(sv)
+    gv = gender_issues(cues, he, speakers)   # 26/10/2026: הדובר מדבר על עצמו במגדר ההפוך
+    issues += gv
+    stats["gender"] = len(gv)
     return issues, stats
 
 
