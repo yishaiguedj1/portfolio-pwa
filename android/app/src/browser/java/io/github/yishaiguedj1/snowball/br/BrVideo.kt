@@ -7,6 +7,8 @@ package io.github.yishaiguedj1.snowball.br
  * ושולח את המלבן שלו ביחס לאזור הנראה (visualViewport — נכון גם בהגדלה בצביטה) — רק כשהוא השתנה.
  * "על המסך" = לפחות 40 פיקסלים בגובה ו־30% מהנגן (או 160×90) גלויים. אין נגן כזה = מחרוזת ריקה → הבועה נעלמת.
  * הסקריפט לא שולח שום דבר מחוץ לאפליקציה — רק ארבעה מספרים לדפדפן עצמו.
+ * 26/10/2026 (דיווח המשתמש: ביוטיוב הבועה לא הופיעה): גם בלי שינוי — שוב כל ~2 שניות, כי טעינת דף מאפסת את המיקום
+ * אצל הדפדפן (onPageStarted), ודיווח שהגיע לפני האיפוס אבד — נגן שלא זז לא דיווח שוב לעולם.
  */
 object BrVideo {
     /** [x, y, רוחב, גובה] כחלקים מהאזור הנראה של הדף; null = אין נגן על המסך */
@@ -21,7 +23,7 @@ object BrVideo {
     const val JS = """(function(){try{
 if(window.top!==window||window.__snbVid)return;var ch=window.snbVid;if(!ch)return;window.__snbVid=1;
 var E=/youtube|youtu\.be|vimeo|dailymotion|wistia|jwplayer|brightcove|twitch|vidyard|kaltura|streamable|plugins\/video|player|embed|video/i;
-var last=null,q=0;
+var last=null,q=0,beat=0;
 function vis(el){var s=getComputedStyle(el);return s.display!=='none'&&s.visibility!=='hidden'&&+s.opacity>0.05;}
 function pick(){q=0;try{
 var vv=window.visualViewport,ox=vv?vv.offsetLeft:0,oy=vv?vv.offsetTop:0,W=vv?vv.width:innerWidth,H=vv?vv.height:innerHeight;
@@ -33,7 +35,7 @@ var x=r.left-ox,y=r.top-oy,ix=Math.max(0,Math.min(x+r.width,W)-Math.max(x,0)),iy
 if(iy<40||a<Math.min(r.width*r.height*0.3,14400)||!vis(el))continue;
 if(a>ba){ba=a;best=[x/W,y/H,r.width/W,r.height/H];}}
 var s=best?best.map(function(v){return v.toFixed(4);}).join(','):'';
-if(s!==last){last=s;ch.postMessage(s);}
+if(s!==last||++beat>=3){last=s;beat=0;ch.postMessage(s);}
 }catch(e){}}
 function sch(){if(!q){q=1;requestAnimationFrame(pick);}}
 addEventListener('scroll',sch,{passive:true,capture:true});addEventListener('resize',sch);

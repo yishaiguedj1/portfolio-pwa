@@ -890,6 +890,11 @@ class Pipeline:
     def pd(self) -> Path:
         return self.ctx.pdir
 
+    def build_args(self, sty):
+        """26/10/2026: הדגלים של vt build — הסגנון והעיצוב שנבחרו (גם בזמן העבודה: job.build_args שואל את השרתון)."""
+        f = getattr(self.J, 'build_args', None)
+        return f(self.ctx) if f else ['--style', sty]
+
     def adopt(self, *keys):
         """מפתחות שפונקציה של job.py כתבה ישר לקובץ המצב → לעותק שבזיכרון, אחרת save_usage דורס אותם.
         21/10/2026: כך אבד ציון השופט בכל עבודה בשרת (jg נמחק לפני judge, jd אחריו) — "השופט לא החזיר תשובה תקינה" על תשובה תקינה"""
@@ -1473,7 +1478,7 @@ class Pipeline:
         ctx.report('rv', 0.0, 'Claude בודק את התרגום בעיניים חדשות', force=True)
         sty = getattr(self.J, 'vt_style', lambda spec: 'bold')(ctx.st.get('spec'))   # הסגנון מהטופס (כמו ב־finish)
         for cmd in ('tr-merge', 'build', 'review-pack'):
-            self.J.vt(ctx, [cmd, ctx.name] + (['--style', sty] if cmd == 'build' else []))
+            self.J.vt(ctx, [cmd, ctx.name] + (self.build_args(sty) if cmd == 'build' else []))
         pkg = (self.pd / 'review' / 'package.md').read_text(encoding='utf-8')
         bp = self.pd / 'tr' / 'brief.md'
         fixed = '\n\n'.join([RULES, RV_TASK, block('style_guide', guide_text()),
@@ -1605,7 +1610,7 @@ class Pipeline:
         ctx = self.ctx
         sty = getattr(self.J, 'vt_style', lambda spec: 'bold')(ctx.st.get('spec'))
         for cmd in ('tr-merge', 'build'):
-            self.J.vt(ctx, [cmd, ctx.name] + (['--style', sty] if cmd == 'build' else []))
+            self.J.vt(ctx, [cmd, ctx.name] + (self.build_args(sty) if cmd == 'build' else []))
         tg = self.qc_targets()
         st = {'qcn': len(tg), 'qcf': 0}
         if not tg:
@@ -1675,7 +1680,7 @@ class Pipeline:
         sty = getattr(self.J, 'vt_style', lambda spec: 'bold')(ctx.st.get('spec'))
         try:
             for cmd in ('tr-merge', 'build'):
-                self.J.vt(ctx, [cmd, ctx.name] + (['--style', sty] if cmd == 'build' else []))
+                self.J.vt(ctx, [cmd, ctx.name] + (self.build_args(sty) if cmd == 'build' else []))
             items = json.loads((td / 'lb_items.json').read_text(encoding='utf-8'))
         except (OSError, ValueError, SystemExit):
             return {}

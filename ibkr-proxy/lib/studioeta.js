@@ -155,6 +155,14 @@ function subsPlan(ep) {
   const s = Object.assign({}, ep.s, SUBS_STG);
   return Object.assign({}, ep, { s, t: STAGES.reduce((a, k) => a + (s[k] || 0), 0) });
 }
+/* 26/10/2026: קריוקי — בלי תרגום וביקורת. tr = הפרדת הקול (הכבד), al = עוגנים + יישור, bn = צריבה; שניות = a + b·דקות.
+   הערכה עד שיימדד על השרת (שלב 0). KA_STG זהה ב־studionet.js (kaPlan) */
+const KA_STG = { tr: [60, 90], al: [40, 30], bn: [30, 40], sv: [20, 2] };
+function kaPlan(ep, durSec) {
+  const m = Math.max(0, Number(durSec) || 0) / 60, s = Object.assign({}, (ep && ep.s) || {});
+  for (const k of STAGES) s[k] = KA_STG[k] ? Math.round(KA_STG[k][0] + KA_STG[k][1] * m) : 0;
+  return Object.assign({}, ep || {}, { s, t: STAGES.reduce((a, k) => a + (s[k] || 0), 0) });
+}
 /* העובד מדווח px אמיתי (אחרי הקליטה): שלב הצריבה בתוכנית מחושב מחדש, השאר כמו שהיה */
 function replanPx(ep, durSec, px) {
   if (!ep || !ep.s || !num(px, 0.02, 16) || !(durSec > 0)) return null;
@@ -186,6 +194,6 @@ function normEp(ep) {
   return { s, t, q, n: num(ep.n, 0, 1000) ? Math.round(ep.n) : 0 };   // רק מה שהטלפון צריך — bn/f נשארים בשרתון
 }
 
-module.exports = { SUBS_STG, subsPlan, STAGES, PRIOR, MODE_MIN, LAMBDA, HALF_LIFE, SIGMA0, NQ, ET_MAX, ET_G_MAX, etSamplesFor,
+module.exports = { KA_STG, kaPlan, SUBS_STG, subsPlan, STAGES, PRIOR, MODE_MIN, LAMBDA, HALF_LIFE, SIGMA0, NQ, ET_MAX, ET_G_MAX, etSamplesFor,
   etaSample, normEtSamples, addEtSample, fitStage, etaModel, etaPlan, etaTarget, etaView, normEp, planOf,
   CPU_ST, REF_CPUS, CPU_EXP, PX_EXP, CC_K, jobFactors, replanPx, pxOf };

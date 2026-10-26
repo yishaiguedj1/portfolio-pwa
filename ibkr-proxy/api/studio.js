@@ -2173,6 +2173,7 @@ async function worker(req, res, body, deps) {
         const ge = job.eng === 'api' ? ((await readDoc(deps, 'studioEta', 'a').catch(() => null)) || {}).et : null;
         ep = ETA.etaPlan(ETA.etaModel(ETA.etSamplesFor(stats.et, ge, job.eng === 'api' ? 'a' : 'r'), job.eng === 'api' ? 'a' : 'r', now), job.spec.mode, job.spec.dur, ETA.jobFactors(job));
         if (job.spec.src === 'subs') ep = ETA.subsPlan(ep);   // 22/10/2026: קובץ כתוביות — בלי תמלול, יישור וצריבה
+        if (job.spec.ka === 1) ep = ETA.kaPlan(ep, job.spec.dur);   // 26/10/2026: קריוקי — הפרדה, יישור וצריבה, בלי תרגום
         patch.ep = ep;
       }
       if (job.kind === 'tr' && !job.tg) {
@@ -2238,7 +2239,7 @@ async function worker(req, res, body, deps) {
       const [code, out] = await r2Files(deps, op, body, job.uid, job.folder, 'worker');
       return res.status(code).json(Object.assign({ now }, out));
     }
-    if (body.op === 'qa') return res.status(200).json({ ok: true, qa: job.qa && job.qa.id ? { id: job.qa.id, g: job.qa.g || '', a: job.qa.a || null } : null, bx: job.bx || 0, cp: S.cpWorker(job.cp), now });   // סבב 10: גם העתק־הדבק (קריאה בלבד)
+    if (body.op === 'qa') return res.status(200).json({ ok: true, qa: job.qa && job.qa.id ? { id: job.qa.id, g: job.qa.g || '', a: job.qa.a || null } : null, bx: job.bx || 0, cp: S.cpWorker(job.cp), sty: S.normSty(job.spec && job.spec.sty), now });   // 26/10/2026: sty = העיצוב שנבחר עכשיו (op sty)   // סבב 10: גם העתק־הדבק (קריאה בלבד)
     // report
     const up = S.applyReport(job, body, now);
     if (body.out != null) {
@@ -2467,7 +2468,7 @@ async function handler(req, res, deps = {}) {
   if (body.op === 'dmPull') return dmPull(req, res, body, deps);   // שלב ג׳: יומני DM לניתוח (טוקן הניתוח, קריאה בלבד)
   if (body.op === 'dmLog' || body.op === 'dmForget') return dmOps(req, res, body, deps);   // 24/10/2026: Studio DM — אפליקציה נייטיב, בלי Origin
   // 25/10/2026: adminYt = קובץ cookies.txt (קובץ אמיתי 5–30KB) — עד 64KB; כל השאר 4KB כמו תמיד
-  if (guard(req, res, body.op === 'adminYt' ? 65536 : 4096)) return;
+  if (guard(req, res, body.op === 'adminYt' ? 65536 : body.op === 'create' && body.spec && body.spec.ka === 1 ? 20000 : 4096)) return;   // 26/10/2026: קריוקי — המילים בטופס
   if (body.op === 'cfg') {   // 15/10/2026: מצב התחזוקה והדגלים — לשלוש האפליקציות, בלי התחברות (רק מה שציבורי)
     if (limited('cfg|' + String(((req.socket || {}).remoteAddress) || ''), 30)) return res.status(429).json({ ok: false, error: 'rate_limited' });
     const now = deps.now || Date.now();
@@ -2936,7 +2937,7 @@ async function handler(req, res, deps = {}) {
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
         norm: S.normsView(st.ns, 'r'), normA: S.normsView(st.ns, 'a') /* 11/10: הרגיל לפי המנוע */, sh: S.thView(st.thr) /* v384: מצב צל לכל מצב */, wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
         rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now, ((await readDoc(deps, 'studioEta', 'a').catch(() => null)) || {}).et),
-        pk: S.pickerCfg(process.env, gdrive.cfg().id), gb: gbrowse.configured() || (gbRemote() ? 'r' : false) /* 26/10: רשימת הקבצים ב־Drive — 'r' = אולי ב־Vercel (gbConfig) */, lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, lra: +st.lra || 0, lrt: +st.lrt || 0, lrm: +st.lrm || 0 /* מ׳4 */, mf: await fullModes() /* 15/10: כל מצבי התרגום (המנהל / הרשימה) */, url: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok /* 22/10: הורדה מקישור */, yc: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok && YT.ytCloud(await ytDoc(deps, now)) /* 25/10: יוטיוב לענן דרך החשבון הייעודי */, lrf: +st.lrf || 0 /* האיסוף המלא — הנוסח נקרא */, lf: +st.lf || 0 /* 15/10 (מ׳1): ההודעה נקראה / מתי נמחקו התרומות */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
+        pk: S.pickerCfg(process.env, gdrive.cfg().id), gb: gbrowse.configured() || (gbRemote() ? 'r' : false) /* 26/10: רשימת הקבצים ב־Drive — 'r' = אולי ב־Vercel (gbConfig) */, lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, lra: +st.lra || 0, lrt: +st.lrt || 0, lrm: +st.lrm || 0 /* מ׳4 */, mf: await fullModes() /* 15/10: כל מצבי התרגום (המנהל / הרשימה) */, url: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok /* 22/10: הורדה מקישור */, yc: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok && YT.ytCloud(await ytDoc(deps, now)) /* 25/10: יוטיוב לענן דרך החשבון הייעודי */, lrf: +st.lrf || 0 /* האיסוף המלא — הנוסח נקרא */, lf: +st.lf || 0 /* 15/10 (מ׳1): ההודעה נקראה / מתי נמחקו התרומות */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, kt: { s: SC.SRC_TTL, j: SC.jobTtl(PROJECT()) } /* 26/10: כמה זמן נשמר — באומדן שלפני ההתחלה */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
     }
     if (op === 'push') {
       // שלב 4: התראות — key (המפתח הציבורי, ל־subscribe בטלפון) / on (מנוי של המכשיר) / off / test
@@ -3167,6 +3168,8 @@ async function handler(req, res, deps = {}) {
       if (!S.langReady(spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported' });   // לפני ההעלאה, לא אחריה
       if (await modeLocked(spec.mode)) return res.status(403).json({ ok: false, error: 'mode_locked' });
       if (spec.ph && !R2.config().ok) return res.status(503).json({ ok: false, error: 'r2_needed' });   // 24/10/2026: תרגום בטלפון — הקבצים הקטנים ב־R2
+      if (spec.ka && !isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_allowed' });   // 26/10/2026: קריוקי — רק המנהל עד שמודל ההפרדה בתמונת העובד
+      if (spec.ka && !R2.config().ok) return res.status(503).json({ ok: false, error: 'r2_needed' });
       if (spec.src === 'url') {   // 22/10/2026: הורדה מקישור — כמו בבדיקה: מנהל / "כל המודלים" / חשבונות הבדיקה, הדגל, ו־R2
         if (!(await urlAllowed())) return res.status(403).json({ ok: false, error: 'not_allowed' });
         if (!(await flagOn(deps, 'st_url', now))) return res.status(409).json({ ok: false, error: 'flag_off', fl: 'st_url' });
@@ -3485,6 +3488,18 @@ async function handler(req, res, deps = {}) {
       job.nn = job.nt ? sent : sent + 1;                 // הערה שעוד לא נקראה מתחלפת — לא נספרת שוב
       job.nt = { t, at: now };
       await patchJob(deps, job.id, { nt: job.nt, nn: job.nn, updated: now });
+      return res.status(200).json({ ok: true, job: view(job) });
+    }
+    if (op === 'sty') {
+      // 26/10/2026 (בעקבות Vid Hub): עיצוב הכתוביות גם בזמן שהעבודה רצה — העובד שואל לפני כל בנייה (op qa → sty).
+      // רק מספרים וקודים (normSty); null = ברירת המחדל. בלי updated — זה לא התקדמות של העבודה
+      if (job.kind !== 'tr' || (st !== 'new' && st !== 'queued' && st !== 'running')) return res.status(409).json({ ok: false, error: 'state', job: view(job) });
+      if (body.sty !== null && (typeof body.sty !== 'object' || Array.isArray(body.sty))) return res.status(400).json({ ok: false, error: 'bad_params', job: view(job) });
+      const sty = S.normSty(body.sty);
+      const spec = Object.assign({}, job.spec);
+      if (sty) spec.sty = sty; else delete spec.sty;
+      await patchJob(deps, job.id, { spec });
+      job.spec = spec;
       return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'resume') {

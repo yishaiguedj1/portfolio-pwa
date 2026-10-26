@@ -75,7 +75,11 @@ private fun canShow(a: BrowserActivity, t: BrTab?) = t != null && a.bubble && t.
 @Composable
 fun VideoBubble(a: BrowserActivity, t: BrTab) {
     val v = t.vid
-    val show = canShow(a, t) && v != null && a.customView == null
+    // גיבוי (26/10/2026, דיווח המשתמש — ביוטיוב לא הופיעה): נמצא מה להוריד והסקריפט לא דיווח על נגן תוך 2.5 שניות
+    // (אתר שהנגן שלו לא <video> רגיל, או דיווח שאבד) — הבועה בפינה העליונה של הדף, כמו Studio Bubble ב־Chrome
+    var late by remember(t.id, t.page) { mutableStateOf(false) }
+    LaunchedEffect(t.id, t.page, t.foundN > 0) { late = false; if (t.foundN > 0) { delay(2500); late = true } }
+    val show = canShow(a, t) && (v != null || late) && a.customView == null
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val d = LocalDensity.current
         val w = constraints.maxWidth.toFloat(); val h = constraints.maxHeight.toFloat()
@@ -83,7 +87,9 @@ fun VideoBubble(a: BrowserActivity, t: BrTab) {
         // המיקום האחרון — כדי שהבועה תיעלם במקום שבו הייתה, לא תקפוץ לפינה
         val last = remember { IntArray(2) }
         var fits = false
-        if (v != null) {
+        if (v == null) {
+            fits = true; last[0] = (w - size - m * 2).roundToInt(); last[1] = (m * 2).roundToInt()
+        } else {
             val left = v[0] * w; val top = v[1] * h; val right = (v[0] + v[2]) * w; val bottom = (v[1] + v[3]) * h
             val x = (right - size - m).coerceIn(m, w - size - m)
             val y = maxOf(top, 0f) + m                     // החלק העליון של הנגן — או של המסך, כשהוא גלול למעלה

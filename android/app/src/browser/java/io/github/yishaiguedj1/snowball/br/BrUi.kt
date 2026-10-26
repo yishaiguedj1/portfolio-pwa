@@ -410,7 +410,12 @@ private fun androidx.compose.foundation.layout.RowScope.Omnibox(a: BrowserActivi
                 Text(stringResource(R.string.brHintLong), color = c.mute, fontSize = 16.sp, maxLines = 1)
             }
         }
-        if (web) IBtn(BrIcons.Share, stringResource(R.string.brShare), size = 32.dp, iconSize = 18.dp) { a.share() } else Spacer(Modifier.width(32.dp))
+        // יש מה להוריד — ⬇ אדום של Studio במקום השיתוף (אותה בחירה של הבועה); אחרת שיתוף, כמו ב־Chrome לאייפון
+        when {
+            web && (t!!.foundN > 0) -> IBtn(BrIcons.Dl, stringResource(R.string.brVideos), size = 32.dp, iconSize = 20.dp, tint = Red) { a.bubbleTap() }
+            web -> IBtn(BrIcons.Share, stringResource(R.string.brShare), size = 32.dp, iconSize = 18.dp) { a.share() }
+            else -> Spacer(Modifier.width(32.dp))
+        }
     }
 }
 
