@@ -141,7 +141,8 @@ const library = makeDrive({ idEnv: 'GDRIVE_CLIENT_ID', secretEnv: 'GDRIVE_CLIENT
 const studio = makeDrive({ idEnv: 'STUDIO_GDRIVE_CLIENT_ID', secretEnv: 'STUDIO_GDRIVE_CLIENT_SECRET', col: 'studioDrive', aad: 'sdrive' });
 /* 26/10/2026 (בקשת המשתמש): לבחור סרטון מ־Drive ברשימה בעיצוב של Studio, בלי Google Picker — צריך לראות את הקבצים (drive.readonly).
    לקוח שלישי, נפרד: ההרשאה הרחבה לא מגיעה לחיבור של הסטודיו (שהעובד ב־Routine מקבל). הגישה לשעה — לטלפון (הרשימה),
-   ולעובד רק בעבודה במצב השרת שהמקור שלה נבחר כך (op:'token' עם src — api/studio.js), רק בשביל הקובץ הזה */
+   ולעובד רק בעבודה במצב השרת שהמקור שלה נבחר כך (op:'token' עם src — api/studio.js), רק בשביל הקובץ הזה.
+   המשתנים (STUDIO_BROWSE_CLIENT_ID/SECRET) ב־Vercel נטענים רק בבנייה עם שינוי ב־ibkr-proxy/ — Redeploy נעצר ב־ignore-build.sh */
 const browse = makeDrive({ idEnv: 'STUDIO_BROWSE_CLIENT_ID', secretEnv: 'STUDIO_BROWSE_CLIENT_SECRET', col: 'studioBrowse', aad: 'sbrowse', op: 'gb', scope: SCOPE_RO });
 
 module.exports = Object.assign({}, library, { studio, browse, makeDrive, REDIRECT_RE, SCOPE_FILE, SCOPE_RO, emailOf });
