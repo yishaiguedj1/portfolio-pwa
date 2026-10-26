@@ -345,7 +345,20 @@ private fun PageScreen(a: BrowserActivity) {
             if (t == null || t.isNtp) Ntp(a) else {
                 WebHost(a, t)
                 // הכפתור שעל הנגן חי בתוך הדף (BrVideo); כאן — המצב שלו, והבדיקה ברקע כדי שהאיכויות יהיו מוכנות (DmPre)
-                LaunchedEffect(t.id, t.foundN, a.bubble, t.web) { a.pushDl(t); if (t.foundN > 0) { delay(1500); a.prefetch(t) } }
+                // ואז, כשהבדיקה מסתיימת — התפריט עם האיכויות עובר לדף (עד שתי דקות וחצי)
+                LaunchedEffect(t.id, t.foundN, a.bubble, t.web) {
+                    a.pushDl(t)
+                    if (t.foundN > 0) {
+                        delay(1500); a.prefetch(t); a.pushDl(t)
+                        var last = a.menuJson(t)
+                        repeat(150) {
+                            delay(1000)
+                            val m = a.menuJson(t)
+                            if (m != last) { last = m; a.pushDl(t) }
+                            if (!m.startsWith("{\"w\"")) return@LaunchedEffect
+                        }
+                    }
+                }
             }
             if (a.editing) Suggest(a, q) { q = it }
         }

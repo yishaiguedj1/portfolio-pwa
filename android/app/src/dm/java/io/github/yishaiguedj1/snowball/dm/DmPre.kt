@@ -4,6 +4,9 @@ import android.content.Context
 import android.webkit.CookieManager
 import io.github.yishaiguedj1.snowball.DlDeep
 import io.github.yishaiguedj1.snowball.DlEngine
+import io.github.yishaiguedj1.snowball.R
+import io.github.yishaiguedj1.snowball.SiteList
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -66,5 +69,84 @@ object DmPre {
         }
     }
 
+    fun busy(url: String): Boolean = synchronized(lock) { url in busy }
+
     fun ready(url: String): Boolean = synchronized(lock) { done[url]?.let { it.info != null && System.currentTimeMillis() - it.at < TTL_MS } == true }
+
+    /** התוצאה המוכנה בלי לחכות (עותק); null = עוד לא / נכשלה / ישנה */
+    fun get(url: String): JSONObject? = synchronized(lock) {
+        done[url]?.takeIf { it.info != null && System.currentTimeMillis() - it.at < TTL_MS }?.let { JSONObject(it.info.toString()) }
+    }
+
+    /**
+     * הוספת הורדה של סרטון (yt-dlp) לתור — אותה פעולה מהגיליון של מנהל ההורדות (DmActivity.addVideo) ומהתפריט שעל
+     * הנגן ב־Studio Browser, בלי לעבור למסך אחר. `ck` = עוגיות הדף נשמרו (DlEngine.saveCookies) — רק ממסירה בתוך התהליך
+     */
+    fun enqueue(ctx: Context, url: String, info: JSONObject, q: JSONObject?, audio: Boolean, ref: String, ck: Boolean,
+                tr: Boolean = false, later: Boolean = false, subs: List<DmSubs.Sub> = emptyList()): DmTask {
+        val t = DmTask(DmStore.newId(), url, ref, DmKind.YTDL).apply {
+            this.tr = tr && !audio; this.later = later
+            if (!audio) { this.subs = DmSubs.langs(subs); subsAuto = DmSubs.anyAuto(subs) }
+            title = info.optString("t"); name = title
+            audioOnly = audio
+            if (q != null && !audio) {
+                // פורמט הווידאו מההגדרות (DmCodec): חסכוני = מה שנבחר (AV1/VP9), תואם = H.264 + AAC באותה רזולוציה
+                val pk = DmCodec.prefer(q, info.optJSONArray("fm"), info.optJSONObject("ao"), DmPrefs(ctx).codec)
+                vf = pk.v; af = pk.a; height = q.optInt("h"); total = pk.sz
+            }
+            if (audio) total = info.optJSONObject("ao")?.optLong("sz", -1) ?: -1
+            created = System.currentTimeMillis(); this.ck = ck
+        }
+        DmStore.add(t); rememberSite(ctx, ref, ck); DmEngine.pump(ctx)
+        return t
+    }
+
+    /** הורדה שהגיעה מדפדפן (עם העוגיות שלו) — האתר נשמר לבועה ב־Chrome (SiteList, DmSitesProvider) */
+    fun rememberSite(ctx: Context, ref: String, ck: Boolean) {
+        if (!ck) return
+        val h = SiteList.hostOf(ref)
+        if (h.isEmpty()) return
+        val pr = DmPrefs(ctx)
+        pr.brSites = SiteList.add(SiteList.parse(pr.brSites), h).joinToString("\n")
+    }
+
+    /**
+     * 26/10/2026 (בקשת המשתמש, לפי התצוגה המקדימה): התפריט שנפתח מהכפתור שעל הנגן — האיכויות שהבדיקה מצאה, עם הגודל
+     * לפי פורמט הווידאו שבהגדרות (מה שבאמת יירד), "קול בלבד", ו"להוריד ולתרגם ב־Studio" כש־Studio מותקן.
+     * `k` = מה שהדף שולח בחזרה: הגובה, "a" לקול, "t<גובה>" לתרגום. רק טקסט ומספרים — הדף מציג אותם כטקסט
+     */
+    fun menu(ctx: Context, info: JSONObject, studio: Boolean): JSONObject {
+        val qs = info.optJSONArray("q") ?: JSONArray()
+        val codec = DmPrefs(ctx).codec
+        val v = JSONArray()
+        var top = 0
+        for (i in 0 until minOf(qs.length(), 8)) {
+            val q = qs.optJSONObject(i) ?: continue
+            val h = q.optInt("h"); if (h <= 0) continue
+            if (top == 0) top = h
+            val sz = DmCodec.prefer(q, info.optJSONArray("fm"), info.optJSONObject("ao"), codec).sz
+            v.put(JSONObject().put("k", "$h").put("t", label(h)).put("s", if (sz > 0) DmFmt.size(ctx, sz) else ""))
+        }
+        val ao = info.optJSONObject("ao")
+        return JSONObject()
+            .put("v", v)
+            .put("a", if (ao != null) JSONObject().put("k", "a").put("t", ctx.getString(R.string.dmAudioOnly)).put("s", ao.optLong("sz", -1).let { if (it > 0) DmFmt.size(ctx, it) else "" }) else JSONObject.NULL)
+            .put("tr", if (studio && top > 0) ctx.getString(R.string.dmDlTr) else "")
+            .put("tk", "t$top")
+            .put("hv", ctx.getString(R.string.dmMenuVideo)).put("ha", ctx.getString(R.string.dmMenuAudio))
+            .put("more", ctx.getString(R.string.dmMenuMore))
+    }
+
+    /** "2160p 4K", "1440p 2K", "1080p HD", "720p", … — כמו ביוטיוב */
+    fun label(h: Int) = "${h}p" + when { h >= 2160 -> " 4K"; h >= 1440 -> " 2K"; h >= 1080 -> " HD"; else -> "" }
+
+    /** הבחירה מהתפריט: [גובה, קול, תרגום] — רק ערך שהתפריט באמת הציע (הדף יכול לשלוח כל מחרוזת) */
+    fun choice(info: JSONObject, k: String): Triple<JSONObject?, Boolean, Boolean>? {
+        if (k == "a") return if (info.optJSONObject("ao") != null) Triple(null, true, false) else null
+        val tr = k.startsWith("t")
+        val h = (if (tr) k.drop(1) else k).toIntOrNull() ?: return null
+        val qs = info.optJSONArray("q") ?: return null
+        for (i in 0 until minOf(qs.length(), 8)) qs.optJSONObject(i)?.let { if (it.optInt("h") == h) return Triple(it, false, tr) }
+        return null
+    }
 }
