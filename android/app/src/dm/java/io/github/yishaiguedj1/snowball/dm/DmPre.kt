@@ -24,6 +24,8 @@ object DmPre {
     private class E(val at: Long, val info: JSONObject?)
     private val done = LinkedHashMap<String, E>()
     private val busy = HashSet<String>()
+    /** 26/10/2026: מידע מהיר מהנגן שבדף (YtPage) — עד שהבדיקה המלאה מסתיימת. ביוטיוב: מיד כשהנגן עלה, במקום חצי דקה */
+    private val seeded = LinkedHashMap<String, E>()
     private val lock = Object()
 
     private fun fresh(e: E?, now: Long) = e != null && now - e.at < (if (e.info != null) TTL_MS else FAIL_MS)
@@ -54,28 +56,52 @@ object DmPre {
         }.apply { isDaemon = true; name = "dm-pre" }.start()
     }
 
-    /** התוצאה המוכנה (עותק — מי שמקבל אותה מוסיף לה שדות). בדיקה שרצה עכשיו — מחכים לה עד maxMs; אין — null */
+    /**
+     * המידע מהנגן שבדף (yt-dlp -J בצורה, YtPage.toInfo) → הסיכום, כמו בבדיקה. לא דורס בדיקה מלאה שכבר הסתיימה.
+     * הבדיקה המלאה ממשיכה ברקע — כשהיא מסתיימת היא גוברת (התמונה, הכתוביות והגדלים המדויקים)
+     */
+    fun seed(url: String, info: JSONObject): Boolean {
+        val s = try { io.github.yishaiguedj1.snowball.DlProbe.summarize(info) } catch (e: Throwable) { return false }
+        s.put("th", "").put("pg", 1)
+        synchronized(lock) {
+            val now = System.currentTimeMillis()
+            if (done[url]?.let { it.info != null && fresh(it, now) } == true) return false
+            seeded.remove(url); seeded[url] = E(now, s)
+            while (seeded.size > MAX) seeded.remove(seeded.keys.first())
+            lock.notifyAll()
+        }
+        return true
+    }
+
+    fun seeded(url: String): Boolean = synchronized(lock) { seededInfo(url, System.currentTimeMillis()) != null }
+
+    private fun seededInfo(url: String, now: Long) = seeded[url]?.takeIf { it.info != null && now - it.at < TTL_MS }?.info
+
+    /** התוצאה המוכנה (עותק — מי שמקבל אותה מוסיף לה שדות). בדיקה שרצה עכשיו — מחכים לה עד maxMs, אלא אם יש כבר
+     *  מידע מהנגן שבדף (אז הוא מיד); אין — null */
     fun await(url: String, maxMs: Long = 120_000L): JSONObject? {
         val end = System.currentTimeMillis() + maxMs
         synchronized(lock) {
             while (url in busy) {
+                seededInfo(url, System.currentTimeMillis())?.let { return JSONObject(it.toString()) }
                 val left = end - System.currentTimeMillis()
                 if (left <= 0) return null
                 try { lock.wait(left) } catch (e: InterruptedException) { return null }
             }
             val e = done[url]
-            if (e?.info == null || System.currentTimeMillis() - e.at >= TTL_MS) return null
+            if (e?.info == null || System.currentTimeMillis() - e.at >= TTL_MS) return seededInfo(url, System.currentTimeMillis())?.let { JSONObject(it.toString()) }
             return JSONObject(e.info.toString())
         }
     }
 
     fun busy(url: String): Boolean = synchronized(lock) { url in busy }
 
-    fun ready(url: String): Boolean = synchronized(lock) { done[url]?.let { it.info != null && System.currentTimeMillis() - it.at < TTL_MS } == true }
+    fun ready(url: String): Boolean = get(url) != null
 
-    /** התוצאה המוכנה בלי לחכות (עותק); null = עוד לא / נכשלה / ישנה */
+    /** התוצאה המוכנה בלי לחכות (עותק) — הבדיקה המלאה, ואם עוד אין — המידע מהנגן שבדף; null = עוד לא / נכשלה / ישנה */
     fun get(url: String): JSONObject? = synchronized(lock) {
-        done[url]?.takeIf { it.info != null && System.currentTimeMillis() - it.at < TTL_MS }?.let { JSONObject(it.info.toString()) }
+        val now = System.currentTimeMillis()
+        (done[url]?.takeIf { it.info != null && now - it.at < TTL_MS }?.info ?: seededInfo(url, now))?.let { JSONObject(it.toString()) }
     }
 
     /**
@@ -112,6 +138,8 @@ object DmPre {
 
     /** 0 = לא נבדק, 1 = רץ, 2 = מוכן, 3 = נכשל (טרי) */
     fun state(url: String): Int = synchronized(lock) {
+        val now = System.currentTimeMillis()
+        if (done[url]?.let { it.info != null && fresh(it, now) } == true || seededInfo(url, now) != null) return 2
         if (url in busy) return 1
         val e = done[url] ?: return 0
         if (!fresh(e, System.currentTimeMillis())) 0 else if (e.info != null) 2 else 3

@@ -184,17 +184,23 @@ object DlEngine {
     fun download(ctx: Context, url: String, ref: String, pick: Pick, id: String, progress: (Float, Long) -> Unit): File =
         download(ctx, url, ref, pick, id, "", progress = progress)
 
+    /** התיקייה שאליה yt-dlp כותב את ההורדה — גם כדי למדוד כמה כבר ירד (Studio DM) */
+    fun dirOf(ctx: Context, id: String) = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "dl/$id")
+
     /** format = בורר yt-dlp משלך (Studio DM: "רק קול" — ‎ba/b‎); ריק = לפי pick, כמו ב־Studio */
     /** subs = שפות כתוביות לצרף לקובץ ("he,en"; Studio DM — DmSubs), auto = כולל כתוביות אוטומטיות */
     fun download(ctx: Context, url: String, ref: String, pick: Pick, id: String, format: String, onLine: (String) -> Unit = {}, subs: String = "", auto: Boolean = false, progress: (Float, Long) -> Unit): File {
         prepare(ctx)
-        val dir = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "dl/$id").apply { mkdirs() }
+        val dir = dirOf(ctx, id).apply { mkdirs() }
         val req = base(YoutubeDLRequest(url), ref, cookiesFor(ctx, url, ref))
             .addOption("-f", format.ifEmpty { DlProbe.selector(pick.v, pick.a, pick.h) })
             .addOption("--merge-output-format", "mp4/mkv")
             .addOption("--no-mtime").addOption("--continue").addOption("--concurrent-fragments", 4)
             .addOption("-o", dir.absolutePath + "/%(title).80B [%(id)s].%(ext)s")
-            .addOption("--print", "after_move:filepath")
+            // 26/10/2026 (דיווח המשתמש: ההתקדמות לא מופיעה לא ב־DM ולא בהתראה): ‎--print‎ מפעיל מצב שקט — ואז yt-dlp לא
+            // כותב אף שורת ‎[download] …%‎ לפלט (רק ל־stderr, שהספרייה לא מעבירה). בלי ‎--print‎, עם שורה לכל עדכון; את
+            // הקובץ שירד מוצאים בתיקייה של ההורדה (DlProbe.outFile)
+            .addOption("--newline")
         if (pick.s1 > pick.s0) req.addOption("--download-sections", "*${pick.s0}-${pick.s1}")
         if (Regex("^[A-Za-z0-9_-]{1,20}(,[A-Za-z0-9_-]{1,20}){0,4}$").matches(subs)) {
             // כתוביות בתוך הקובץ (MP4 = mov_text, MKV = srt) — לא קבצים נפרדים; כשל בכתוביות לא מפיל את ההורדה
@@ -208,9 +214,8 @@ object DlEngine {
         } catch (e: Throwable) {
             throw IllegalArgumentException(DlProbe.errCode(e.message), e)   // הסיבה — ליומן של DM (מנוקה שם)
         }
-        val path = res.out.lines().map { it.trim() }.lastOrNull { it.startsWith("/") } ?: ""
-        val f = File(path)
-        if (path.isEmpty() || !f.isFile || !f.canonicalPath.startsWith(dir.canonicalPath)) throw IllegalArgumentException("fail")
+        val f = DlProbe.outFile(dir) ?: throw IllegalArgumentException("fail")
+        if (!f.canonicalPath.startsWith(dir.canonicalPath)) throw IllegalArgumentException("fail")
         // לא סרטון (דף שגיאה, פרסומת, קובץ ריק) — לא נשמר בגלריה; האתר מציג "הקובץ שירד הוא לא סרטון"
         val head = ByteArray(200)
         val n = try { f.inputStream().use { it.read(head) } } catch (e: Throwable) { 0 }

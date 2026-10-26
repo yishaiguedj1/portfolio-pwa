@@ -9,17 +9,25 @@ package io.github.yishaiguedj1.snowball.dm
 object DmYt {
     enum class Stage { PREP, CONN, DL, RETRY, MERGE, POST }
 
-    data class Line(val stage: Stage?, val pct: Float = -1f, val bps: Long = 0, val eta: Long = -1, val newPart: Boolean = false, val partDone: Boolean = false)
+    data class Line(val stage: Stage?, val pct: Float = -1f, val bps: Long = 0, val eta: Long = -1, val newPart: Boolean = false, val partDone: Boolean = false, val side: Boolean = false)
 
     private val PCT = Regex("^\\[download]\\s+([\\d.]+)%")
     private val SPEED = Regex("\\bat\\s+([\\d.]+)\\s*([KMGT]?)i?B/s")
+    /** 26/10/2026 (דיווח המשתמש: הפס "קופץ"): קובץ עזר שיורד לפני הווידאו — כתוביות, תמונה, מידע. עד היום נספר כחלק
+     *  ההורדה הראשון: כתוביות שירדו ב־100% הקפיצו את הפס ל־83% מיד, והווידאו עצמו זחל ב־15% האחרונים */
+    private val SIDE = Regex("\\.(vtt|srt|ass|ssa|ttml|srv[123]|json3?|lrc|jpe?g|png|webp|description|info\\.json)$", RegexOption.IGNORE_CASE)
+    fun isSide(path: String) = SIDE.containsMatchIn(path.trim())
+
     private val ETA = Regex("\\bETA\\s+(\\d+):(\\d+)(?::(\\d+))?")
 
     fun parse(raw: String?): Line {
         val l = (raw ?: "").trim()
         if (l.isEmpty()) return Line(null)
-        if (l.startsWith("[download] Destination:")) return Line(Stage.DL, newPart = true)
-        if (l.startsWith("[download]") && l.contains("has already been downloaded")) return Line(Stage.DL, pct = 1f, partDone = true)
+        if (l.startsWith("[download] Destination:")) return Line(Stage.DL, newPart = true, side = isSide(l.removePrefix("[download] Destination:")))
+        if (l.startsWith("[download]") && l.contains("has already been downloaded")) {
+            val f = l.removePrefix("[download]").substringBefore(" has already been downloaded")
+            return Line(Stage.DL, pct = 1f, partDone = true, side = isSide(f))
+        }
         PCT.find(l)?.let { m ->
             val p = (m.groupValues[1].toFloatOrNull() ?: 0f) / 100f
             return Line(Stage.DL, pct = p.coerceIn(0f, 1f), bps = speedOf(l), eta = etaOf(l))
@@ -66,6 +74,7 @@ object DmYt {
         var bps = 0L; private set
         var eta = -1L; private set
         private var part = 0
+        private var inSide = false
         private var stageAt = -1L
         private var stageFrom = frac
 
@@ -75,8 +84,11 @@ object DmYt {
             val x = parse(raw)
             val s = x.stage ?: return false
             if (stageAt < 0) stageAt = now
-            if (x.newPart) part++
+            if (x.newPart) { inSide = x.side; if (!x.side) part++ }
+            if (x.partDone && !x.side) inSide = false
             enter(if (s == Stage.CONN && frac > CONN_END) stage else s, now)
+            // האחוז של קובץ עזר (כתוביות) לא שייך להתקדמות של הסרטון
+            if (x.pct >= 0f && (x.side || (inSide && !x.partDone))) return true
             if (x.pct >= 0f) {
                 val k = part.coerceAtLeast(1)
                 val f = if (parts < 2) x.pct
@@ -90,6 +102,23 @@ object DmYt {
             if (s == Stage.POST) frac = maxOf(frac, 0.99f)
             return true
         }
+
+        /**
+         * 26/10/2026 (סרטון של המשתמש: "מתחבר לאתר · 2%" כל ההורדה, ואז קפיצה ל־97%): בטלפון שורות ההתקדמות של yt-dlp לא
+         * תמיד מגיעות בזמן ההורדה — לכן גם הבתים שכבר בתיקייה (got) מתוך הגודל הצפוי (total) מזיזים את הפס. אף פעם לא אחורה.
+         */
+        fun disk(got: Long, total: Long, now: Long = System.currentTimeMillis()): Boolean {
+            if (total <= 0 || got <= 0 || stage == Stage.MERGE || stage == Stage.POST) return false
+            val g = dlToAll((got.toDouble() / total).toFloat().coerceAtMost(1f))
+            if (g <= frac) return false
+            if (stage == Stage.PREP || stage == Stage.CONN) { stage = Stage.DL; stageAt = now; stageFrom = frac }
+            if (diskAt > 0 && now > diskAt && got > diskGot) bps = ((got - diskGot) * 1000 / (now - diskAt))
+            diskAt = now; diskGot = got
+            frac = g
+            return true
+        }
+        private var diskAt = 0L
+        private var diskGot = 0L
 
         /** הזמן עובר בשלב בלי אחוז (הכנה, חיבור, איחוד) — הפס זוחל לכיוון סוף השלב: חצי מהדרך כל ~8 שניות */
         fun creep(now: Long = System.currentTimeMillis()): Boolean {

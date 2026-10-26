@@ -243,6 +243,12 @@ object DlProbe {
             .put("drm", if (info.optBoolean("_has_drm", false)) 1 else 0)
     }
 
+    /** הקובץ שירד: הגדול ביותר בתיקייה של ההורדה, בלי קבצי ביניים של yt-dlp (חלקים, וידאו/קול לפני האיחוד, כתוביות) */
+    fun outFile(dir: java.io.File): java.io.File? = dir.listFiles()?.filter { f ->
+        val n = f.name.lowercase()
+        f.isFile && f.length() > 0 && !Regex("\\.(part|ytdl|temp|tmp|srt|vtt|ass|json|jpg|jpeg|png|webp)$|\\.part-frag\\d+$|\\.f[0-9a-z_-]+\\.[a-z0-9]+$").containsMatchIn(n)
+    }?.maxByOrNull { it.length() }
+
     /** הבחירה מהאתר → בורר פורמט של yt-dlp (= fetchurl.selector) */
     fun selector(v0: String?, a0: String?, h0: Int?): String {
         val v = if (FID.matches(v0 ?: "")) v0!! else ""
