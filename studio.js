@@ -107,6 +107,7 @@ export function normSettings(o) {
   s.pq = normPq(o.pq);
   s.pt = normTrackPref(o.pt);   // 23/10/2026: הקול והכתוביות שנבחרו ידנית בנגן (ריק = אוטומטי)
   if (Number.isFinite(+o.op1) && +o.op1 > 0) s.op1 = Math.floor(+o.op1);
+  if (Number.isFinite(+o.bgSt) && +o.bgSt > 0) s.bgSt = Math.min(9, Math.floor(+o.bgSt));   // 26/10/2026: כמה פעמים העלאה ברקע נתקעה (מהשנייה — לא מנסים חודש)
   if (Number.isFinite(+o.bgNo) && +o.bgNo > 0) s.bgNo = Math.floor(+o.bgNo);   // 23/10/2026: מתי הדפדפן סירב להעלאה ברקע (ננסה שוב אחרי חודש)   // מתי Google סירב לבורר במסך מלא (ננסה שוב אחרי חודש)
   const sty = normSty(o.sty); if (sty) s.sty = sty;   // סבב 5: עיצוב הכתוביות האחרון (ברירת המחדל להפקה הבאה)
   if (o.lg && typeof o.lg === 'object') { const ov = normOv({ lg: o.lg.d, lp: o.lg.p, ls: o.lg.s }); if (ov) s.lg = { d: ov.lg, p: ov.lp, s: ov.ls }; }   // סבב 7: הלוגו שלך
@@ -868,6 +869,7 @@ export function fmtSize(n) {
   const G = 1073741824, M = 1048576;
   if (n >= G) return (n / G).toFixed(n >= 10 * G ? 0 : 1) + 'GB';
   if (n >= M) return Math.round(n / M) + 'MB';
+  if (n <= 0) return '0KB';   // 26/10/2026: עד היום "1KB" גם כשלא עלה כלום ("עלו 1KB מתוך 187MB" — נראה כמו תקיעה באמצע)
   return Math.max(1, Math.round(n / 1024)) + 'KB';
 }
 /* 105 → "1:45" */
@@ -1824,6 +1826,7 @@ const bgEnv = {
   Request: typeof Request !== 'undefined' ? Request : null,
   put: (x) => (bgStore ? bgStore.put(x) : null), del: (k) => (bgStore ? bgStore.del(k).catch(() => {}) : null),
   base: () => proxyBase(), lang: () => uiLang(), now: () => Date.now(),
+  visible: () => typeof document === 'undefined' || document.visibilityState === 'visible',
 };
 async function bgCan(rec, file) {
   const s = store.settings, up = rec.up;
@@ -1837,8 +1840,11 @@ async function bgTry(rec, id, file, sig, onProgress) {
   const r = await bgUpload({ api: net.api, job: id, name: rec.spec.name, blob: file, size: file.size, mime: file.type || 'application/octet-stream',
     st: up.v.r2, onState: (x) => { up.v.r2 = x; save(); }, onProgress, signal: sig, title: T('studioBgTitle'), icon: 'icon-studio-192.png' }, bgEnv)
     .catch(() => ({ fallback: 'bg_err' }));
-  utlOf(rec).bg = r.ok ? 1 : r.unsupported ? 3 : 2;
+  utlOf(rec).bg = r.ok ? 1 : r.unsupported ? 3 : r.stall ? 4 : 2;   // 4 = Chrome קיבל ולא התקדם
   if (r.unsupported) { store.settings.bgNo = Date.now(); save(); }
+  // 26/10/2026: נתקע — הפעם ממשיכים בהעלאה הרגילה; פעם שנייה בטלפון הזה = לא מנסים חודש. הצליח — מתחילים לספור מחדש
+  if (r.stall) { const st = (store.settings.bgSt || 0) + 1; store.settings.bgSt = st; if (st >= 2) store.settings.bgNo = Date.now(); save(); }
+  else if (r.ok && store.settings.bgSt) { delete store.settings.bgSt; save(); }
   if (r.aborted) throw Object.assign(new Error('aborted'), { name: 'AbortError' });
   return r;
 }
@@ -2612,7 +2618,9 @@ const shownPct = (rec, v, x) => monoPct(pctMemo, pctKey(rec, x), v || 0);
 function videoLine(rec, run) {    // "עלו 1.2GB מתוך 3.2GB · 4.3MB לשנייה · נשארו 8 דק׳"
   const sent = run && run.phase === 'video' ? run.sent || 0 : rec.up.v.sent || 0, size = rec.spec.size;
   const parts = [T('studioUpOf', { a: fmtSize(sent), b: fmtSize(size) })];
-  if (run && run.active && run.phase === 'video' && run.rate > 0) {
+  // 26/10/2026: ברקע Chrome מדווח רק כשחלק שלם נגמר — המספר כאן מפגר; ההתקדמות החיה בהתראה שלו
+  if (run && run.active && run.phase === 'video' && run.bg) parts.push(T('studioBgNote'));
+  else if (run && run.active && run.phase === 'video' && run.rate > 0) {
     parts.push(T('studioPerSec', { v: fmtSize(run.rate) }));
     parts.push(T('studioStageLeft', { t: fmtShort(Math.max(0, size - sent) / run.rate) }));
   }
