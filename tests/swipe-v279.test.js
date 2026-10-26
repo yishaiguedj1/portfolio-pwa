@@ -45,7 +45,7 @@ ok(/try \{ wirePageSwipe\(\); \}/.test(app), 'מחובר באתחול');
 // v283: אחרי מעבר בהחלקה — לראש העמוד / לראש טאבי הרשימות
 ok(/if \(s\.cube && s\.cube\.in\) tabCubeCommit\(s\.cube, Math\.max\(0, vp\)\);[^\n]*\n\s*else \{ switchTab\(s\.to\); swipeScrollTop\(\); \}/.test(w) && /navScrollTop\(\)/.test(fn('tabCubeGo')), 'מעבר עמוד → ראש העמוד (גם כשנשמר מיקום גלילה); בקובייה — tabCubeGo גולל בשחרור, והיוצא נשאר במקומו');
 const sst = fn('swipeScrollTop');
-ok(/cancelScrollRestore\(\)/.test(sst) && /position === 'sticky'/.test(sst), 'מתחת להדר ולסרגל הדביקים, בלי שחזור הגלילה');
+ok(/cancelScrollRestore\(\)/.test(sst) && /topCover\(\)/.test(sst) && /position === 'sticky'/.test(fn('topCover')), 'מתחת להדר ולסרגל הדביקים (topCover), בלי שחזור הגלילה');
 ok(!/on\.scrollIntoView\(\{ block: 'nearest'/.test(app) && /tabs\.scrollBy\(\{ left:/.test(app), 'צ׳יפ הרשימה נגלל אופקית בלבד (לא מזיז את העמוד)');
 ok(/document\.addEventListener\('touchmove', \(e\) => \{ if \(g\) move\(e\); \}, \{ passive: false \}\)/.test(w) && /const seen = /.test(w), 'גם על המסמך (אלמנט שהוחלף), כל אירוע פעם אחת');
 ok(!/sy0[\s\S]{0,5}y0: window/.test(w) && /y0: t\.clientY/.test(w), 'y0 = מיקום האצבע (לא נדרס)');

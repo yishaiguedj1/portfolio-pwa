@@ -5924,7 +5924,7 @@ function stripLegacyDemo(db) {
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
 const APP_RELEASE = '2.60.2';
-const APP_VERSION = 'v565';
+const APP_VERSION = 'v566';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -8799,8 +8799,7 @@ function initScrollSaver() {
     if (document.hidden) {
       try {
         const open = [...document.querySelectorAll('.stock.open')];
-        const bar = document.querySelector('.appbar');
-        const off = bar ? bar.getBoundingClientRect().height : 0;
+        const off = topCover();
         const first = open.find((c) => c.getBoundingClientRect().bottom > off);
         closeStockCards();
         if (first && first.getBoundingClientRect().top < off) window.scrollTo(0, Math.max(0, first.getBoundingClientRect().top + window.scrollY - off - 12));
@@ -13110,9 +13109,7 @@ function swipeScrollTop(anchor, fromY) {
   }
   let y = 0;
   if (anchor && anchor.getBoundingClientRect) {
-    const tabs = document.querySelector('.tabs'), bar = document.querySelector('.appbar');
-    let off = bar ? bar.getBoundingClientRect().height : 0;
-    if (tabs) { const cs = getComputedStyle(tabs); if (cs.position === 'sticky') off = Math.max(off, (parseFloat(cs.top) || 0) + tabs.offsetHeight); }
+    const off = topCover();
     y = Math.max(0, anchor.getBoundingClientRect().top + (window.scrollY || 0) - off - 8);
     if ((fromY === undefined ? (window.scrollY || 0) : fromY) <= y && (window.scrollY || 0) <= y) return; // הטאבים היו גלויים — לא זזים
   }
@@ -13228,7 +13225,7 @@ function wireCardDrag(list, cfg) {
   let timer = null, sx = 0, sy = 0, cy = 0, pend = null, drag = null, raf = null, swallow = 0;
   const cancelTimer = () => { clearTimeout(timer); timer = null; pend = null; };
   const cards = () => [...list.querySelectorAll('.stock')].filter((c) => !drag || c !== drag.card);
-  const barBottom = () => { const b = document.querySelector('.appbar'); return b ? b.getBoundingClientRect().bottom : 0; };
+  const barBottom = () => topCover();
   function flipMove(fn) { // השכנים זזים בהחלקה במקום לקפוץ
     const cs = cards(), before = new Map(cs.map((c) => [c, c.getBoundingClientRect().top]));
     fn();
@@ -14050,11 +14047,23 @@ function closeStockCards(except, keepEl, collect) {
 }
 /* v233: פתיחת כרטיס מניה — ראש הכרטיס עולה לראש המסך (מתחת להדר הדביק), כדי שיראו כמה שיותר מהפרטים (בקשת המשתמש).
    פעמיים: מיד (גלילה חלקה), ושוב כשהאנימציה נגמרת — כרטיס בתחתית הדף מגיע לראש רק אחרי שהדף התארך */
+// 26/10/2026 (בקשת המשתמש — הכרטיס הפתוח "כבר לא נכנס בדיוק במסך"): מאז שהלשוניות נדבקות מתחת להדר (2.15.1) החלק המכוסה
+// בראש המסך = ההדר ועוד שורת הלשוניות, לא רק ההדר. כל גלילה/התאמה לראש המסך — דרך כאן.
+function topCover() {
+  if (typeof document === 'undefined' || !document.querySelector) return 0;
+  const bar = document.querySelector('.appbar');
+  let off = bar ? bar.getBoundingClientRect().height : 0;
+  const tabs = document.querySelector('.tabs');
+  if (tabs && tabs.offsetHeight && typeof getComputedStyle === 'function') {
+    const cs = getComputedStyle(tabs);
+    if (cs.position === 'sticky') off = Math.max(off, (parseFloat(cs.top) || 0) + tabs.offsetHeight);
+  }
+  return off;
+}
 function scrollCardToTop(card) {
   if (!card || !card.getBoundingClientRect || typeof window === 'undefined' || !window.scrollTo) return;
   if (state.cardAnim) return; // v272: אנימציית הכרטיס כבר מנווטת את הגלילה — גלילה נוספת הייתה נלחמת בה
-  const bar = document.querySelector('.appbar');
-  const off = (bar ? bar.getBoundingClientRect().height : 0) + 10;
+  const off = topCover() + 10;
   const top = card.getBoundingClientRect().top;
   if (Math.abs(top - off) < 4) return;
   cancelScrollRestore();
@@ -14081,8 +14090,7 @@ function fitCardToScreen(sym, card, smooth) {
     const head = card.querySelector('.stock-head');
     if (head) card._fitRO.observe(head);
   }
-  const bar = document.querySelector('.appbar');
-  const avail = window.innerHeight - (bar ? bar.getBoundingClientRect().height : 0) - 20;
+  const avail = window.innerHeight - topCover() - 20;
   const cardH = card.getBoundingClientRect().height - body.getBoundingClientRect().height + Math.max(inner.offsetHeight, inner.scrollHeight);
   const h = Math.round(Math.max(140, Math.min(560, cv.clientHeight + avail - cardH)));
   if (Math.abs(h - cv.clientHeight) < 2) return false;
@@ -14114,8 +14122,7 @@ const CARD_SPRING_W = 8;
 const cardEase = (p) => { if (p <= 0) return 0; if (p >= 1) return 1; const w = CARD_SPRING_W, f = (x) => 1 - (1 + w * x) * Math.exp(-w * x); return f(p) / f(1); };
 function finishCardAnim() { if (state.cardAnim) state.cardAnim.finish(); }
 function cardAnimOffset() {
-  const bar = typeof document !== 'undefined' && document.querySelector('.appbar');
-  return (bar ? bar.getBoundingClientRect().height : 0) + 10;
+  return topCover() + 10;
 }
 function toggleStock(sym, card) {
   const body = card.querySelector && card.querySelector('.stock-body');

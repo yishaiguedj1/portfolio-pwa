@@ -534,10 +534,11 @@ html[data-app="academy"] .appbar .brand, html[data-app="studio"] .appbar .brand 
 .tabs {
   /* דבוקה מתחת להדר, באותו מרחק ממנו כמו בראש העמוד (barHeightVar). z מעל ההדר (20) — אחרת שכבת הטשטוש שנמשכת 110px
      מתחתיו מעמעמת אותה; כשתפריט של ההדר פתוח — מתחתיו (הכלל אחרי הבלוק) */
-  position: sticky; top: calc(var(--appbar-h, 0px) + 12px); z-index: 21;
+  /* 26/10/2026 (בקשת המשתמש): קרוב ככל האפשר ללוגו — ‎−6px‎ מתחתית ההדר (= ~8px מתחת לקצה הנראה של הלוגו) */
+  position: sticky; top: calc(var(--appbar-h, 0px) - 6px); z-index: 21;
   display: flex; gap: 4px;
   isolation: isolate;
-  margin: 12px 14px 0; padding: 6px;
+  margin: -6px 14px 0; padding: 6px;
   max-width: calc(100% - 28px);
   overflow-x: auto;
   scrollbar-width: none;
