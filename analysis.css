@@ -78,6 +78,8 @@ html.an-open { overflow: hidden; }
 .an-seg button:disabled { opacity: .35; cursor: default; }
 
 .an-page { display: flex; flex-direction: column; gap: 14px; }
+/* כל לשונית ארוכה לפחות כמסך — הלשוניות יכולות להישאר דבוקות למעלה בכל מעבר, גם ללשונית קצרה (בלי קפיצה של הראש) */
+.an-wrap > .an-page { min-height: calc(100vh - 122px - env(safe-area-inset-top, 0px)); min-height: calc(100dvh - 122px - env(safe-area-inset-top, 0px)); }
 @media (prefers-reduced-motion: no-preference) {
   .an-page.in { animation: anPg .28s cubic-bezier(.2, .8, .2, 1); }
   @keyframes anPg { from { opacity: .4; transform: translateX(var(--an-dx, 0)); } }
@@ -175,6 +177,10 @@ button.an-row { cursor: pointer; }
 .an-tbl { border-collapse: separate; border-spacing: 0; font-size: 14px; min-width: 100%; }
 .an-tbl th, .an-tbl td { padding: 8px 10px; text-align: end; white-space: nowrap; border-bottom: .5px solid var(--an-sep); }
 .an-tbl th { color: var(--an-ink2); font-weight: 600; font-size: 12.5px; }
+.an-vtbl { width: 100%; font-variant-numeric: tabular-nums; }
+.an-vtbl thead th { position: static; background: none; }
+.an-vtbl tbody th { text-align: start; font-weight: 600; color: var(--an-ink2); font-size: 14px; }
+.an-vtbl tbody tr:last-child > * { border-bottom: 0; }
 .an-tbl th:first-child, .an-tbl td:first-child { position: sticky; inset-inline-start: 0; background: var(--an-card); text-align: start; z-index: 1; }
 
 /* טווח מכפילים */
@@ -292,6 +298,9 @@ button.an-row { cursor: pointer; }
   .an-bar { transform-box: fill-box; transform-origin: bottom; animation: anGrow .6s cubic-bezier(.2, .9, .25, 1) both; animation-delay: calc(var(--an-bi, 0) * 35ms); }
   @keyframes anGrow { from { transform: scaleY(0); } }
   .an-nw { animation: anFade .5s .2s both; }
+  /* עמוד שכבר הוצג / הגרף בראש אחרי הפעם הראשונה — בלי אנימציות כניסה */
+  .an-still .an-draw, .an-still .an-area, .an-still .an-bar, .an-still .an-nw, .an-still .an-rise, .an-still .an-keys > .an-key { animation: none; }
+  .an-still .an-dot { animation: anPulse 2.4s 1.3s ease-in-out infinite; }
 }
 
 /* ערך פנימי: הפס */
