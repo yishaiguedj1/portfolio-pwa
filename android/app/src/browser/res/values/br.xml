@@ -78,4 +78,18 @@
     <string name="brOpenLabel">פתיחה ב־Studio Browser</string>
     <string name="brBubble">הורדת הסרטון</string>
     <string name="brSetBubble">בועת הורדה</string>
+    <string name="brSetPw">סיסמאות</string>
+    <string name="brPwFill">מילוי סיסמאות</string>
+    <string name="brPwOff">כבוי</string>
+    <string name="brPwNoSupport">הטלפון לא תומך</string>
+    <string name="brPwPick">לבחור Google</string>
+    <string name="brPwGoogle">מנהל הסיסמאות של Google</string>
+    <string name="brSetChrome">מ־Chrome</string>
+    <string name="brImport">ייבוא סימניות והיסטוריה</string>
+    <string name="brImportSub">מקובץ של Google Takeout או מייצוא סימניות</string>
+    <string name="brTakeout">ייצוא מ־Chrome</string>
+    <string name="brTakeoutSub">Google Takeout — הקובץ מגיע במייל תוך כמה דקות</string>
+    <string name="brImporting">מייבא…</string>
+    <string name="brImportNone">לא נמצאו בקובץ סימניות או היסטוריה של Chrome</string>
+    <string name="brImported">נוספו %1$d סימניות ו־%2$d ביקורים</string>
 </resources>

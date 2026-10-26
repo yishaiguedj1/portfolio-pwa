@@ -659,6 +659,21 @@ private fun SettingsScreen(a: BrowserActivity) {
                     Switch(a.homeBtn, { a.pickHomeBtn(it) }, colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF30D158), checkedThumbColor = Color.White))
                 }
             }
+            Caption(R.string.brSetPw)
+            Group {
+                val sub = when (val b = a.fillBy) { null -> stringResource(R.string.brPwNoSupport); "" -> stringResource(R.string.brPwOff); else -> b }
+                SetRow(stringResource(R.string.brPwFill), sub, onClick = { a.fillSettings() }) {
+                    if (a.fillBy != null && !a.fillGoogle) Text(stringResource(R.string.brPwPick), color = Red, fontSize = 15.sp)
+                }
+                HorizontalDivider(Modifier.padding(start = 16.dp), thickness = 0.5.dp, color = c.line)
+                SetRow(stringResource(R.string.brPwGoogle), null, onClick = { a.openPasswords() }) {}
+            }
+            Caption(R.string.brSetChrome)
+            Group {
+                SetRow(stringResource(R.string.brImport), stringResource(R.string.brImportSub), onClick = { a.pickImport() }) {}
+                HorizontalDivider(Modifier.padding(start = 16.dp), thickness = 0.5.dp, color = c.line)
+                SetRow(stringResource(R.string.brTakeout), stringResource(R.string.brTakeoutSub), onClick = { a.openTakeout() }) {}
+            }
             Caption(R.string.brSetPrivacy)
             Group { SetRow(stringResource(R.string.brSetClear), null, onClick = { ask = true }) {} }
             Caption(R.string.brDownloads)

@@ -79,6 +79,23 @@ object BrStore {
     }
     fun removeMark(m: BrMark) { marks.remove(m); later() }
 
+    /** ייבוא מ־Chrome (BrImport): סימנייה שכבר קיימת — לא נוספת שוב; ביקורים — ממוזגים לפי הזמן, בלי כפולים,
+     *  והחדשים נשארים כשעוברים את התקרה. מחזיר כמה נוספו מכל סוג */
+    fun importAll(r: BrImport.Result): Pair<Int, Int> {
+        val have = marks.mapTo(HashSet()) { it.url }
+        val nm = r.marks.filter { have.add(it.url) }.sortedByDescending { it.at }
+            .map { BrMark(it.url, it.title.ifEmpty { hostOf(it.url) }, if (it.at > 0) it.at else System.currentTimeMillis()) }
+        marks.addAll(nm)
+        val seen = history.mapTo(HashSet()) { it.url + "\u0000" + it.at }
+        val nv = r.visits.filter { it.at > 0 && seen.add(it.url + "\u0000" + it.at) }.map { BrVisit(it.url, it.title, it.at) }
+        if (nv.isNotEmpty()) {
+            history.addAll(nv); history.sortBy { it.at }
+            while (history.size > HISTORY_MAX) history.removeAt(0)
+        }
+        if (nm.isNotEmpty() || nv.isNotEmpty()) saveNow()
+        return nm.size to nv.size
+    }
+
     /** הצעות בשורת הכתובת: סימניות קודם, אחר כך היסטוריה לפי כמה פעמים ומתי — כמו Chrome */
     fun suggest(q: String, n: Int = 6): List<BrMark> {
         val t = q.trim().lowercase()

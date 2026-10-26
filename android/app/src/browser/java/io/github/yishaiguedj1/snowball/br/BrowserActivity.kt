@@ -105,6 +105,7 @@ class BrowserActivity : ComponentActivity() {
         permThen?.invoke(m.values.all { it }); permThen = null
     }
     private val roleLaunch = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { checkDefault() }
+    private val importLaunch = registerForActivityResult(ActivityResultContracts.OpenDocument()) { u -> if (u != null) importFrom(u) }
 
     override fun attachBaseContext(base: Context) { super.attachBaseContext(DmLang.wrap(base)) }
 
@@ -129,7 +130,7 @@ class BrowserActivity : ComponentActivity() {
     }
 
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); handle(intent) }
-    override fun onResume() { super.onResume(); checkDefault(); cur?.web?.onResume() }
+    override fun onResume() { super.onResume(); checkDefault(); checkFill(); cur?.web?.onResume() }
     override fun onPause() {
         cur?.web?.onPause()
         saveSession()
@@ -293,6 +294,9 @@ class BrowserActivity : ComponentActivity() {
     fun ensureWeb(t: BrTab): WebView {
         t.web?.let { return it }
         val w = WebView(this)
+        // מנהל הסיסמאות של Google (וכל שירות מילוי אחר) ממלא בדפים דרך המילוי האוטומטי של אנדרואיד — WebView תומך בו;
+        // כאן רק מוודאים שהוא לא כבוי בטעות לאזור הדף
+        if (Build.VERSION.SDK_INT >= 26) w.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_YES
         if (t.private && privOk) runCatching {
             ProfileStore.getInstance().getOrCreateProfile(PRIV)
             WebViewCompat.setProfile(w, PRIV)
@@ -588,6 +592,54 @@ class BrowserActivity : ComponentActivity() {
         Toast.makeText(this, R.string.brClearDone, Toast.LENGTH_SHORT).show()
     }
 
+    /* ---------------- סיסמאות ---------------- */
+
+    /** מי ממלא סיסמאות בטלפון: שם השירות; "" = כבוי; null = הטלפון לא תומך */
+    var fillBy by mutableStateOf<String?>("")
+    val fillGoogle get() = fillPkg == GMS
+    private var fillPkg = ""
+
+    private fun checkFill() {
+        if (Build.VERSION.SDK_INT < 28) { fillBy = null; return }
+        val am = getSystemService(android.view.autofill.AutofillManager::class.java)
+        if (am == null || !am.isAutofillSupported) { fillBy = null; return }
+        val cn = runCatching { am.autofillServiceComponentName }.getOrNull()
+        fillPkg = cn?.packageName ?: ""
+        fillBy = if (cn == null) "" else runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(cn.packageName, 0)).toString() }.getOrDefault(cn.packageName)
+    }
+
+    /** "שירות המילוי האוטומטי" של הטלפון — שם בוחרים ב־Google (אנדרואיד 14+: "סיסמאות, מפתחות גישה וחשבונות") */
+    fun fillSettings() {
+        val tries = buildList {
+            if (Build.VERSION.SDK_INT >= 34) add(Intent(Settings.ACTION_CREDENTIAL_PROVIDER))
+            add(Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE, Uri.parse("package:$GMS")))
+            add(Intent(Settings.ACTION_SETTINGS))
+        }
+        for (i in tries) if (runCatching { startActivity(i) }.isSuccess) return
+    }
+
+    /** מנהל הסיסמאות של Google — באתר שלו, בטאב חדש (מחובר דרך החשבון שלך בדפדפן) */
+    fun openPasswords() { screen = Screen.PAGE; newTab("https://passwords.google.com/") }
+
+    /* ---------------- ייבוא מ־Chrome ---------------- */
+
+    /** Google Takeout עם Chrome בלבד — שם מבקשים את הייצוא (מגיע במייל, ומורד לתיקיית ההורדות) */
+    fun openTakeout() { screen = Screen.PAGE; newTab(TAKEOUT) }
+    fun pickImport() { runCatching { importLaunch.launch(arrayOf("application/zip", "application/x-zip-compressed", "text/html", "application/json", "application/octet-stream")) } }
+
+    private fun importFrom(u: Uri) {
+        Toast.makeText(this, R.string.brImporting, Toast.LENGTH_SHORT).show()
+        Thread {
+            val r = runCatching { contentResolver.openInputStream(u)?.use { BrImport.read(it, u.lastPathSegment ?: "") } }.getOrNull()
+            ui.post {
+                if (r == null || (r.marks.isEmpty() && r.visits.isEmpty())) { Toast.makeText(this, R.string.brImportNone, Toast.LENGTH_LONG).show(); return@post }
+                val (m, v) = BrStore.importAll(r)
+                markRev++
+                Toast.makeText(this, getString(R.string.brImported, m, v), Toast.LENGTH_LONG).show()
+            }
+        }.apply { isDaemon = true }.start()
+    }
+
     fun dlSettings() { runCatching { startActivity(Intent(this, DmActivity::class.java)) } }
 
     fun version(): String = runCatching { packageManager.getPackageInfo(packageName, 0).versionName ?: "" }.getOrDefault("")
@@ -597,6 +649,8 @@ class BrowserActivity : ComponentActivity() {
         const val LIVE_MAX = 6
         /** מהבועה ב־Chrome: כמה זמן מחכים לממצא הראשון כדי לפתוח את הרשימה לבד */
         const val HUNT_MS = 45_000L
+        const val GMS = "com.google.android.gms"
+        const val TAKEOUT = "https://takeout.google.com/settings/takeout/custom/chrome"
 
         /** "אתר למחשב": ה־User-Agent של Chrome במחשב, באותה גרסה של המנוע */
         fun desktopUa(def: String): String {

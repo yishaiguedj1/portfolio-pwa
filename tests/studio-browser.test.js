@@ -39,7 +39,8 @@ ok(/if \(!isUserGesture\) return false/.test(act), 'חלון קופץ בלי נ�
 ok(/component = null; selector = null/.test(act), 'קישור intent: — בלי רכיב מפורש (לא נפתח רכיב פנימי של אפליקציה אחרת)');
 ok(/s\.allowFileAccess = false/.test(act) && /s\.allowContentAccess = false/.test(act), 'בלי גישה לקבצים מהדף');
 const bub = R(B + 'BrBubble.kt');
-const code = [act, ui, store, bub, R(B + 'BrTab.kt'), R(B + 'BrIcons.kt')];
+const imp = R(B + 'BrImport.kt');
+const code = [act, ui, store, bub, imp, R(B + 'BrTab.kt'), R(B + 'BrIcons.kt')];
 for (const s of code) ok(!/thesnowball\.app|vercel\.app|workers\.dev|\/api\//.test(s), 'בלי השרת שלנו בקוד של הדפדפן');
 
 const used = new Set([...code.join('\n').matchAll(/R\.string\.(br\w+)/g)].map((m) => m[1]));
@@ -99,5 +100,17 @@ ok(/if \(cat == DmName\.Cat\.APK && t\.uri\.startsWith\("content:\/\/"\)\) \{ in
 ok(/canRequestPackageInstalls\(\)/.test(da) && /ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri\.parse\("package:\$packageName"\)/.test(da), 'בלי אישור — מסך ההגדרה של DM עצמו, וחזרה ממשיכה');
 ok(/ACTION_VIEW\)\.setDataAndType\(Uri\.parse\(t\.uri\), DmMedia\.APK\)/.test(da) && !/PackageInstaller|INSTALL_PACKAGES"\)|ACTION_INSTALL_PACKAGE/.test(da), 'מתקין החבילות של המערכת (תמיד באישור) — לא התקנה שקטה');
 ok(/if \(DmName\.ext\(name\)\.equals\("apk", true\)\) APK/.test(R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmMedia.kt')), 'קובץ .apk = הסוג של חבילה גם כשהשרת שלח octet-stream');
+
+// 26/10/2026 (בקשת המשתמש: "מנהל הסיסמאות של Google באופן מלא + סנכרון של המידע ב־Chrome"):
+// סיסמאות = המילוי האוטומטי של אנדרואיד (Google ממלא ושומר) — הדפדפן לא שומר סיסמאות בעצמו לעולם
+ok(/importantForAutofill = View\.IMPORTANT_FOR_AUTOFILL_YES/.test(act), 'סיסמאות: המילוי האוטומטי של המערכת פועל בדף');
+ok(/autofillServiceComponentName/.test(act) && /Settings\.ACTION_CREDENTIAL_PROVIDER/.test(act) && /passwords\.google\.com/.test(act), 'סיסמאות: מי ממלא, הגדרת Google, והמנהל של Google');
+ok(!/password|סיסמ/i.test(store) && !/getUsernamePassword|setHttpAuthUsernamePassword|savePassword/.test(act), 'הדפדפן לא שומר סיסמאות בעצמו');
+// Chrome: אין ממשק פתוח לסנכרון — ייבוא מ־Google Takeout / מקובץ סימניות, מזוהה לפי התוכן
+ok(/takeout\.google\.com\/settings\/takeout\/custom\/chrome/.test(act) && /OpenDocument\(\)/.test(act), 'ייבוא: Takeout של Chrome + בחירת הקובץ');
+ok(/NETSCAPE-Bookmark-file/.test(imp) && /"Browser History"/.test(imp) && /ENTRY_MAX/.test(imp) && /TOTAL_MAX/.test(imp), 'ייבוא: לפי התוכן, עם תקרות גודל');
+ok(/startsWith\("http:\/\/"\) && !url\.startsWith\("https:\/\/"\)/.test(imp), 'ייבוא: רק http/https (לא javascript:)');
+ok(/fun importAll\(r: BrImport\.Result\)/.test(store) && /have\.add\(it\.url\)/.test(store), 'ייבוא: בלי כפולים');
+ok(/testBrowserReleaseUnitTest/.test(R('.github/workflows/android.yml')) && fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yishaiguedj1/snowball/br/BrImportTest.kt')), 'בדיקת JVM לייבוא ב־CI');
 
 console.log('studio-browser: ' + n + ' בדיקות עברו');

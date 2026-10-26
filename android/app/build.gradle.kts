@@ -178,6 +178,8 @@ dependencies {
     "labImplementation"("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
     "testLabImplementation"("junit:junit:4.13.2")
     "testDmImplementation"("org.json:json:20240303")
+    "testBrowserImplementation"("junit:junit:4.13.2")
+    "testBrowserImplementation"("org.json:json:20240303")   // ייבוא מ־Chrome (BrImportTest)
 }
 
 /* 25/10/2026 (תרגום בטלפון, שלב 3): הקוד של העובד (translator/ — job.py, pipeline.py, llm.py, vt/…) כנכס של Studio

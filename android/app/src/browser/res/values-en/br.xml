@@ -78,4 +78,18 @@
     <string name="brOpenLabel">Open in Studio Browser</string>
     <string name="brBubble">Download video</string>
     <string name="brSetBubble">Download bubble</string>
+    <string name="brSetPw">Passwords</string>
+    <string name="brPwFill">Password autofill</string>
+    <string name="brPwOff">Off</string>
+    <string name="brPwNoSupport">Not supported on this phone</string>
+    <string name="brPwPick">Choose Google</string>
+    <string name="brPwGoogle">Google Password Manager</string>
+    <string name="brSetChrome">From Chrome</string>
+    <string name="brImport">Import bookmarks and history</string>
+    <string name="brImportSub">From a Google Takeout file or a bookmarks export</string>
+    <string name="brTakeout">Export from Chrome</string>
+    <string name="brTakeoutSub">Google Takeout — the file arrives by email within minutes</string>
+    <string name="brImporting">Importing…</string>
+    <string name="brImportNone">No Chrome bookmarks or history found in this file</string>
+    <string name="brImported">Added %1$d bookmarks and %2$d visits</string>
 </resources>
