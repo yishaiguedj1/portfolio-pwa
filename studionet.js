@@ -705,6 +705,21 @@ export function createNet(env) {
       th: /^https:\/\/[a-z0-9-]+\.googleusercontent\.com\//.test(String(f.thumbnailLink || '')) ? String(f.thumbnailLink).slice(0, 1000) : '' }));
     return { files, next: typeof j.nextPageToken === 'string' ? j.nextPageToken : '' };
   }
+  /* 26/10/2026: סרטון ב־Drive כ"קובץ" לקריאה בחלקים (Range) — בשביל רצועות הכתוביות שבתוכו (studiotracks.js קורא רק size
+     ו־slice(a, b).arrayBuffer()). הרשימה = תחילת הקובץ / ה־moov בלבד; חילוץ מ־MKV עובר על הקובץ (בחלקים של chunk) */
+  function rangeBlob(tok, id, size, name) {
+    if (!DFID.test(String(id || '')) || !(size > 0)) throw Object.assign(new Error('bad_id'), { code: 'bad_id' });
+    const get = async (a, b) => {
+      for (let i = 0; ; i++) {
+        const r = await E.fetch(API + '/' + id + '?alt=media&supportsAllDrives=true', { headers: { Authorization: 'Bearer ' + await tok(i > 0), Range: 'bytes=' + a + '-' + (b - 1) } });
+        if ((r.status === 401 || r.status === 429 || r.status >= 500) && i < 2) continue;
+        if (r.status !== 206 && !(r.status === 200 && a === 0 && b >= size)) throw await driveErr(r);
+        return r.arrayBuffer();
+      }
+    };
+    return { id, size, name: String(name || ''), chunk: 4 * 1024 * 1024, remote: true,
+      slice: (a, b) => { const x = Math.max(0, a | 0), y = Math.min(size, b == null ? size : b); return { arrayBuffer: () => (y > x ? get(x, y) : Promise.resolve(new ArrayBuffer(0))) }; } };
+  }
   /* העברה (בלי עותק — סרטון גדול לא תופס אחסון פעמיים): מתיקיית העבודה לתיקייה שבחרת */
   async function driveMove(id, from, to) {
     if (![id, from, to].every((x) => DFID.test(String(x || '')))) throw Object.assign(new Error('bad_id'), { code: 'bad_id' });
@@ -837,5 +852,5 @@ export function createNet(env) {
   const goldUpload = (folderId, text) => textUpload(folderId, GOLD_REF_NAME, 'application/x-subrip', text, { snbRef: '1' });
 
 
-  return { api, driveApi, driveToken, browseList, jobFolder, upload, r2ToDrive, r2Get, cloudInitTemplate, glossLoad, glossSave, driveText, driveBlob, driveJson, goldUpload, textUpload, mediaUrl, driveMeta, driveMove, driveCopy, _forget: () => { dtok = null; } };
+  return { api, driveApi, driveToken, browseList, rangeBlob, jobFolder, upload, r2ToDrive, r2Get, cloudInitTemplate, glossLoad, glossSave, driveText, driveBlob, driveJson, goldUpload, textUpload, mediaUrl, driveMeta, driveMove, driveCopy, _forget: () => { dtok = null; } };
 }

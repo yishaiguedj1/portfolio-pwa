@@ -3082,9 +3082,10 @@ function subsSection(p, f) {
    הופכת את הטופס למסלול "קובץ כתוביות"; רצועת השוואה עולה לתיקיית העבודה ונכנסת לסט הזהב בסוף (goldAuto) */
 function tracksFor(f, file) {
   f.trk = null;
+  f._rb = file && file.remote ? file : null;
   if (!/\.(mkv|mk3d|webm|mp4|m4v|mov)$/i.test(file.name || '')) return;
   listTracks(file).then((L) => {
-    if (form !== f || f.fileObj !== file || !L || !L.tracks.length) return;
+    if (form !== f || !(f.fileObj === file || (f._rb === file && f.drive && f.drive.id === file.id)) || !L || !L.tracks.length) return;   // _rb — הסרטון ב־Drive (dpPick)
     f.trk = { file, vname: file.name, tracks: L.tracks, x: {}, src: null, ref: null, p: 0, busy: false };
     render('none');
   }, () => {});
@@ -3180,6 +3181,7 @@ function pageTracks(p) {
   const k = f.trk, text = k.tracks.filter((t) => t.kind === 'text');
   p.append(navBar({ back: f.id ? T('studioEditT') : T('studioNew'), title: T('studioTrkRow') }));
   p.append(note(k.vname));
+  if (k.file && k.file.remote && /\.(mkv|mk3d|webm)$/i.test(k.vname)) p.append(note(T('studioTrkDriveN', { s: fmtSize(k.file.size) })));   // 26/10/2026: ב־MKV החילוץ קורא את כל הקובץ מ־Drive
   if (text.length) {
     p.append(secT(T('studioTrkSrcT')), list(
       rowRadio({ on: k.src == null, label: T('studioTrkAudio'), sub: T('studioTrkAudioS'), onClick: () => trkChooseSrc(f, null), k: 'trk-src:a' }),
@@ -3445,6 +3447,8 @@ function dpPick(f, x) {
   f.fileObj = null; f.handle = null; f.edl = null; f.sa = null; f.trk = null; f.link = null; f.linkOk = false;
   f.file = { name: x.name, size: x.size, type: x.type };
   if (x.w > 0 && x.h > 0) f.vm = { w: x.w, h: x.h };
+  // רצועות הכתוביות שבתוך הסרטון — כמו מקובץ בטלפון, בקריאה חלקית מ־Drive (רק תחילת הקובץ / ה־moov)
+  try { f._rb = net.rangeBlob((force) => gb().token(force), x.id, x.size, x.name); tracksFor(f, f._rb); } catch (e) { f._rb = null; }
   back();
 }
 function dpRow(f, x) {

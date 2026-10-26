@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1873 מפתחות מתוך 4581) */
+/* המחרוזות של studio (1874 מפתחות מתוך 4582) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -1695,6 +1695,7 @@ he: {
   "studioTrkAudioS": "כמו תמיד — כותבים כל מילה מהדיבור",
   "studioTrkCmp": "השוואה",
   "studioTrkDef": "ברירת מחדל",
+  "studioTrkDriveN": "הקובץ ב־Drive: כדי לחלץ רצועה מ־MKV הטלפון קורא את כל הסרטון ({s}). כדאי ב־Wi‑Fi.",
   "studioTrkErr": "לא הצלחנו לקרוא את הרצועה",
   "studioTrkForced": "מאולצת",
   "studioTrkFrom": "מתוך הסרטון",
@@ -3570,6 +3571,7 @@ en: {
   "studioTrkAudioS": "As usual — transcribe every word",
   "studioTrkCmp": "Compare",
   "studioTrkDef": "Default",
+  "studioTrkDriveN": "The file is in Drive: extracting a track from an MKV reads the whole video ({s}). Best on Wi‑Fi.",
   "studioTrkErr": "Couldn't read this track",
   "studioTrkForced": "Forced",
   "studioTrkFrom": "From the video",
