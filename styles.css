@@ -1192,6 +1192,49 @@ footer.fine { text-align: center; }
 }
 .google-btn:active { background: #f6fafe; }
 #skipLoginBtn { margin-top: 4px; }
+/* 26/10/2026: כניסה עם מייל ושיטות הכניסה (acclink.js) — גיליון מלמטה, מעל מסך הכניסה (1150) ומעל הספרייה והסטודיו */
+.mail-btn svg { color: #5f6368; }
+.acx-veil {
+  position: fixed; inset: 0; z-index: 1200; background: rgba(0,0,0,.45);
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.acx-sheet {
+  width: 100%; max-width: 480px; max-height: 92vh; overflow-y: auto;
+  background: var(--surface); color: var(--on-surface);
+  border-radius: 20px 20px 0 0; padding: 12px 18px calc(22px + env(safe-area-inset-bottom));
+  box-shadow: 0 -6px 24px rgba(0,0,0,.25);
+}
+[data-theme="dark"] .acx-sheet { background: #1C1C1E; }
+.acx-sheet h3 { margin: 6px 0 14px; font-size: 18px; text-align: center; }
+.acx-body { display: flex; flex-direction: column; gap: 10px; }
+.acx-in {
+  width: 100%; font: inherit; font-size: 17px; padding: 13px 14px;
+  border-radius: var(--radius-xs); border: 1px solid var(--outline);
+  background: var(--surface); color: var(--on-surface); text-align: start;
+}
+.acx-in:focus { outline: 2px solid var(--primary); outline-offset: -1px; }
+.acx-go { width: 100%; justify-content: center; }
+.acx-links, .acx-add { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.acx-add { gap: 0; margin-top: 4px; }
+.acx-add .google-btn { margin-bottom: 8px; font-size: 16.5px; }
+.acx-link { font-size: 15px; padding: 8px; }
+.acx-err { margin: 0; color: var(--loss); font-size: 14.5px; text-align: center; }
+.acx-note { margin: 4px 0 0; color: var(--on-surface-var); font-size: 13.5px; text-align: center; line-height: 1.5; }
+.acx-q { text-align: start; font-size: 15px; color: var(--on-surface); margin-bottom: 4px; }
+.acx-opt {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; text-align: start;
+  padding: 13px 15px; border: 1px solid var(--outline); border-radius: var(--radius-sm);
+  background: var(--surface-2, var(--surface)); color: var(--on-surface); font: inherit; cursor: pointer;
+}
+.acx-opt b { font-size: 16px; overflow-wrap: anywhere; }
+.acx-opt small { color: var(--on-surface-var); font-size: 13.5px; }
+.acx-opt.danger b { color: var(--loss); }
+.acx-opt:active { background: var(--secondary-container); }
+.acx-row { display: flex; align-items: center; gap: 10px; }
+.acx-rtx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.acx-rtx small { color: var(--on-surface-var); font-size: 13.5px; overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: no-preference) { .acx-sheet { animation: acxIn .26s cubic-bezier(.2,.8,.2,1); } }
+@keyframes acxIn { from { transform: translateY(40px); opacity: .4; } }
 .login-overlay.sa { z-index: 1150; }   /* Academy / Studio (shell.js loginGate): מעל הספרייה והסטודיו (900–1101) */
 /* 13/10/2026: רקע הכניסה בצבע המערכת של כל אפליקציה — אותה עומק כמו הירוק של Invest */
 html[data-app="studio"] .login-overlay { background: linear-gradient(160deg, #C41E2E 0%, #5C0711 100%); }

@@ -191,6 +191,7 @@ export function createShell(o) {
    (לא כשאין רשת / Firebase). כניסה → החיבור משתנה והדף נטען מחדש (academy-app.js / studio-app.js); "המשך בלי חשבון" —
    רק לפתיחה הזו, כמו ב־Invest. מעל הספרייה/הסטודיו (z-index ב־.login-overlay.sa). */
 const GOOGLE_G = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.9-.1-1.5-.3-2.2H12v4.1h6.5c-.1 1.1-.8 2.7-2.4 3.8l3.7 2.9c2.3-2.1 3.7-5.2 3.7-8.6z"/><path fill="#34A853" d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.7-2.9c-1 .7-2.4 1.2-4.2 1.2-3.2 0-5.9-2.1-6.8-5l-3.9 3C3.3 21.3 7.3 24 12 24z"/><path fill="#FBBC05" d="M5.2 14.4c-.2-.7-.4-1.5-.4-2.4s.1-1.7.4-2.4l-3.9-3C.5 8.2 0 10 0 12s.5 3.8 1.3 5.4l3.9-3z"/><path fill="#EA4335" d="M12 4.7c1.8 0 3 .8 3.7 1.4l3.3-3.2C17.9 1.1 15.2 0 12 0 7.3 0 3.3 2.7 1.3 6.6l3.9 3c.9-2.8 3.6-4.9 6.8-4.9z"/></svg>';
+const MAIL_IC = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 6.5 8.5 6 8.5-6"/></svg>';
 const LOGIN_SUB = { academy: () => t('loginSubAcademy'), studio: () => t('loginSubStudio') };
 
 export function loginGate(o) {
@@ -212,6 +213,11 @@ export function loginGate(o) {
   go.id = 'googleLoginBtn'; go.type = 'button'; go.className = 'google-btn';
   go.innerHTML = GOOGLE_G;
   const gl = document.createElement('span'); gl.textContent = t('googleSignIn'); go.append(gl);
+  const mail = document.createElement('button');   // 26/10/2026: כניסה גם עם מייל רגיל (acclink.js) — כמו ב־Invest
+  mail.id = 'emailLoginBtn'; mail.type = 'button'; mail.className = 'google-btn mail-btn';
+  mail.innerHTML = MAIL_IC;
+  const ml = document.createElement('span'); ml.textContent = t('emailSignIn'); mail.append(ml);
+  mail.addEventListener('click', () => { import('./acclink.js').then((m) => m.emailSheet()).catch(() => {}); });
   const err = document.createElement('div'); err.className = 'form-err hidden'; err.id = 'loginErr';
   const skip = document.createElement('button');
   skip.id = 'skipLoginBtn'; skip.type = 'button'; skip.className = 'link-btn'; skip.textContent = t('skipLogin');
@@ -224,7 +230,7 @@ export function loginGate(o) {
     });
   });
   skip.addEventListener('click', () => veil.remove());
-  card.append(img, h1, sub, go, err, skip);
+  card.append(img, h1, sub, go, mail, err, skip);
   veil.append(card);
   document.body.append(veil);
   return veil;
@@ -237,6 +243,7 @@ const ACC_IC = {
   out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 17l5-5-5-5"/><path d="M20 12H9"/><path d="M12 20H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6"/></svg>',
   phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M11 18h2"/></svg>',
   cloud: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 0 0 .5-8.97A6 6 0 0 0 6.2 9.1 4 4 0 0 0 6.5 19z"/></svg>',
+  key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3"/><path d="M17 6l3 3"/><path d="M15 8l2 2"/></svg>',
 };
 function accIdRow(av, title, sub) {
   const row = h('div', 'acc-id');
@@ -262,7 +269,9 @@ export function accountCard(A, icon) {   // icon — תמונה כשאין תמ�
   if (u) {
     const img = h('img'); img.alt = ''; img.src = u.photoURL || icon || 'icon-192.png';
     img.addEventListener('error', () => { img.src = icon || 'icon-192.png'; }, { once: true });
-    box.append(accIdRow(img, u.displayName || t('userLabel'), u.email || ''),
+    const unver = !u.emailVerified && (u.providerData || []).some((p) => p && p.providerId === 'password');   // כמו ב־cloud.js
+    box.append(accIdRow(img, u.displayName || t('userLabel'), (u.email || '') + (unver ? ' · ' + t('accUnverified') : '')),
+      accActRow('acc-keys', ACC_IC.key, t('accMethods'), () => { import('./acclink.js').then((m) => m.methodsSheet()).catch(() => {}); }),
       accActRow('acc-out', ACC_IC.out, t('signOut'), () => A.signOut()));   // החיבור משתנה → הדף נטען מחדש (academy-app.js / studio-app.js)
   } else if (A) {
     const av = h('span', 'acc-av'); av.setAttribute('aria-hidden', 'true'); av.innerHTML = ACC_IC.phone;

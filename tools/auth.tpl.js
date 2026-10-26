@@ -46,6 +46,7 @@
     if (!isConfigured) { set('off'); return; }
     loadSdk().then((ok) => {
       if (!ok || !initSdk()) { set('off'); return; }
+      emailLinkLanding();                                  // חזרה מקישור הכניסה במייל (acclink.js)
       auth.onAuthStateChanged(async (u) => {
         user = u;
         if (!u) {
