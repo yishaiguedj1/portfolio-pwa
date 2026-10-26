@@ -25,7 +25,7 @@ ok(/if \(document\.hidden\) \{[\s\S]*?closeStockCards\(\);/.test(src), 'יציא
 ok(/window\.scrollBy\(0, after - before\)/.test(fn('closeStockCards')), 'הכרטיס שנגעת בו לא קופץ (פיצוי גלילה)');
 // v233: פתיחת כרטיס מעלה את ראשו לראש המסך (מתחת להדר), גם אחרי שהאנימציה הגדילה את הדף
 ok(/const S1 = opening\s*\? Math\.min\(maxFinal, Math\.max\(0, cardTop0 \+ S0 \+ aboveDelta - cardAnimOffset\(\)\)\)/.test(fn('toggleStock')) && /window\.scrollTo\(\{ top: S0 \+ \(S1 - S0\) \* e/.test(fn('toggleStock')), 'v233/v272: פתיחת כרטיס גוללת את ראשו לראש המסך — באותה תנועה כמו הגובה');
-ok(/\.appbar'\);[\s\S]*?getBoundingClientRect\(\)\.height : 0\) \+ 10/.test(fn('scrollCardToTop')), 'v233: מתחת להדר הדביק');
+ok(/topCover\(\) \+ 10/.test(fn('scrollCardToTop')) && /topCover\(\) \+ 10/.test(fn('cardAnimOffset')) && /innerHeight - topCover\(\) - 20/.test(fn('fitCardToScreen')), 'v233 / 26/10/2026: מתחת להדר ולשורת הלשוניות הדביקה (topCover) — גם בגובה הכרטיס');
 // v234: נתוני הכרטיס — בלי בועות: קו אופקי דק בין השורות + קווים אנכיים קצרים, אחוז קטן ורגיל
 ok(/\.kv \{ position: relative; background: none;/.test(css) && /\.kv::before \{[^}]*top: 22%; bottom: 22%; width: \.5px/.test(css) && /\.kv:nth-child\(n\+4\) \{ border-top: \.5px solid var\(--outline\)/.test(css), 'v234: נתוני הכרטיס — בלי בועות, קווים דקים (הצעה ה׳)');
 ok(/\.kv \.v2 \{ font-size: 11px; font-weight: 500;/.test(css), 'v234: האחוז קטן ורגיל');
