@@ -939,7 +939,8 @@ function header(co) {
       h('div', { class: 'an-idrow' },
         h('div', { class: 'an-px' }, h('b', {}, fmt(co.price, 'ps', co)), ch != null ? h('span', { class: ch >= 0 ? 'an-up' : 'an-down' }, sgn(ch, 2), h('small', {}, ' ' + T('anToday'))) : null),
         h('div', { class: 'an-idn' }, h('span', { dir: 'auto' }, meta), ch10 != null ? h('span', { class: 'an-ch10' }, T('anInYears', { n: yrs }), ' ', h('b', { class: ch10 >= 0 ? 'an-up' : 'an-down' }, sgn(ch10, 0))) : null)),
-      ch10 != null ? chart : null));
+      ch10 != null ? chart : null),
+    co.gone ? h('p', { class: 'an-gone' }, T('anGone', { d: dmy(co.gone) })) : null);
 }
 /* הלשוניות — ילד ישיר של העמוד (לא של הראש), כדי שיישארו דבוקות מתחת לסרגל העליון לאורך כל הגלילה */
 function tabsBar() {

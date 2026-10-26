@@ -609,10 +609,10 @@ function normalizeSec(facts, splits = [], face = null) {
     if (merged[k].spine != null) tags[k] = names[merged[k].spine];
   }
   // השקעות הוניות שבתזרים רק בתגית של החברה (Kimco: ‏"Improvements to operating real estate" ‏$347.6M; ‏Weyerhaeuser, Zimmer,
-  // ‏United Rentals) והתגית שלנו אינה שורה בתזרים (ביאור, ‏$18.4M) — עדיף ריק (ומושלם מ־Yahoo) מחלק קטן. לא ב־companyfacts.
+  // ‏United Rentals; ‏EQR/VMRK: ‏"Non-real estate capital additions" לצד "Capital expenditures to real estate" — לא "Interest capitalized") והתגית שלנו אינה שורה בתזרים (ביאור, ‏$18.4M) — עדיף ריק (ומושלם מ־Yahoo) מחלק קטן. לא ב־companyfacts.
   if (!isIfrs && tags.capex && face && face.cf && face.cf.rows && face.cf.rows.length) {
     const rows = face.cf.rows, mine = tags.capex.split('+'), c0 = face.cf.cols && face.cf.cols[0];
-    const own = rows.filter((r) => !/^(us-gaap|ifrs-full)$/.test(r.ns) && /capital expenditure|improvements? to|purchases? (of|for) (property|rental|non-rental|equipment)/i.test(r.label || '') && !/accru|incurred|not yet paid|payable|unpaid|non-?cash/i.test(r.label || '')
+    const own = rows.filter((r) => !/^(us-gaap|ifrs-full)$/.test(r.ns) && /capital expenditure|capital additions?|improvements? to|purchases? (of|for) (property|rental|non-rental|equipment)/i.test(r.label || '') && !/accru|incurred|not yet paid|payable|unpaid|non-?cash/i.test(r.label || '')
       // לא תקבולים ולא שורות "קשורות" להשקעה (Dow: ‏"Proceeds from incentives related to…", ‏"Cash flow hedging related to capital expenditures")
       // ולא מקדמות ושורות מימון (Strategy: ‏"Advance deposits on purchases of property and equipment"; PG&E: ‏"…financed through…");
       // שורת תשלום — עם ערך שלילי בדוח (שינוי בהשקעות שלא שולמו — Exelon, ‏"…not paid")
@@ -1283,7 +1283,9 @@ function parseMonthly(j) {
   const t = [], c = [];
   (r.timestamp || []).forEach((s, i) => { if (close[i] > 0) { const d = new Date(s * 1000).toISOString().slice(0, 7); if (t[t.length - 1] === d) c[c.length - 1] = Math.round(close[i] / div * 1e4) / 1e4; else { t.push(d); c.push(Math.round(close[i] / div * 1e4) / 1e4); } } });
   const splits = Object.values((r.events && r.events.splits) || {}).map((x) => [new Date(x.date * 1000).toISOString().slice(0, 10), x.numerator / x.denominator]).filter((x) => x[1] > 0 && x[1] !== 1).sort();
-  return { px: t.length ? { t, c } : null, splits, div };
+  // יום המסחר האחרון — מניה שהתמזגה/נמחקה (EQR → VMRK) נשארת ב־Yahoo עם מחיר ישן
+  const lt = r.meta && r.meta.regularMarketTime, last = lt > 0 ? new Date(lt * 1000).toISOString().slice(0, 10) : null;
+  return { px: t.length ? { t, c } : null, splits, div, last };
 }
 async function yahooMonthly(sym) {
   const base = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym);
@@ -1325,6 +1327,12 @@ function parseNasdaq(j) {
 async function nasdaqForecast(sym) {
   const url = 'https://api.nasdaq.com/api/analyst/' + encodeURIComponent(sym.replace('-', '.')) + '/earnings-forecast';
   return parseNasdaq(await getJson(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36', Accept: 'application/json' } }, 5000));
+}
+
+/* יום מסחר אחרון שעבר יותר מ־3 שבועות = המניה לא נסחרת (מיזוג, מחיקה, החלפת סימול) */
+const GONE_DAYS = 21;
+function goneSince(last, now = Date.now()) {
+  return last && now - Date.parse(last) > GONE_DAYS * 864e5 ? last : null;
 }
 
 /* ---------- SEC: סימבול → CIK, וענף לפי SIC ---------- */
@@ -1535,7 +1543,7 @@ async function fundamentals(sym0) {
   const lastSh = (D) => (D && D.sh ? D.sh.filter((v) => v > 0).pop() : null);
   const sharesOut = useSec ? (lastSh(sec.Q) || lastSh(sec.A)) : ((y && y.sharesOut) || lastSh(y && y.Q) || (s && s.sharesOut));
   const out = {
-    ok: true, v: 1, sym, src: useSec ? 'sec' : 'yahoo', cik, asOf: new Date().toISOString().slice(0, 10),
+    ok: true, v: 1, sym, src: useSec ? 'sec' : 'yahoo', cik, asOf: new Date().toISOString().slice(0, 10), gone: goneSince(m && m.last),
     cur: (useSec ? sec.cur : (s && s.finCur)) || (ta ? 'ILS' : 'USD'),
     fy: base.fy, q: base.q, A: base.A, Q: base.Q, T: useSec ? null : (y && y.T) || null,
     derived: useSec ? sec.derived : null, gpx: useSec ? sec.gpx || null : null, opx: useSec ? sec.opx || null : null, C: useSec ? sec.C : null, ifrs: useSec ? !!sec.ifrs : false,
@@ -1600,7 +1608,7 @@ async function handle(body, res) {
   return res.status(200).json({ ...v, indData: industryData(v.ind) });
 }
 
-module.exports = { handle, fundamentals, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
+module.exports = { handle, fundamentals, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
   industryFor, industryData, _cache: cache,
   // התגיות המועמדות לכל שורה — לכלי ההשוואה (fundxcheck: SEC גולמי גם לתקופות שהושלמו מתגית משנית). נשמט ב־f9db4c74 — tools/fund-xcheck.js מצפה לו
   TAGS: { gaap: { ...FLOW, ...INST }, ifrs: IFRS } };

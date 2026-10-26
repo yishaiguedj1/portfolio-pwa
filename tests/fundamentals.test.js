@@ -944,5 +944,10 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
   };
   const ym = await F.yahooMonthly('JPM');
   ok(seen.length === 2 && /period1=\d+&period2=\d+&interval=1mo/.test(seen[1]) && ym.px.t.length === 30 && ym.px.c[0] === 12 && ym.splits.length === 1, 'מחירים חודשיים גם לחברה ותיקה — והפיצולים נשמרים');
+  // מניה שלא נסחרת (EQR → VMRK, 26/10/2026): יום המסחר האחרון מהמטא, ומעל 3 שבועות — gone
+  const pg = F.parseMonthly({ chart: { result: [{ meta: { currency: 'USD', regularMarketTime: Date.parse('2026-08-17T20:00:00Z') / 1000 }, timestamp: [], indicators: { quote: [{ close: [] }] } }] } });
+  ok(pg.last === '2026-08-17', 'parseMonthly — יום המסחר האחרון');
+  const now = Date.parse('2026-10-26');
+  ok(F.goneSince('2026-08-17', now) === '2026-08-17' && F.goneSince('2026-10-23', now) === null && F.goneSince(null, now) === null, 'goneSince — רק מעל 3 שבועות (סופ״ש וחג — לא)');
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });
