@@ -196,9 +196,61 @@ const root = path.join(__dirname, '..');
     ok(N7.gr.n === 3 && N7.kinds.gr === 1, 'שכבה 7: עובר את הצורה של ה־Release');
     ok((FA.auditAlert(N7, { k: {} }) || []).includes('gr') && !(FA.auditAlert(N7, { k: { gr: 1 } }) || []).includes('gr'), 'שכבה 7: התראה למנהל כשמספר הפערים עולה');
     const tool = fs.readFileSync(path.join(root, 'tools/fund-audit.js'), 'utf8');
-    ok(/growthCheck\(r\)/.test(tool) && /analysis\.js/.test(tool) && /AN\.growthOf/.test(tool), 'שכבה 7: הבדיקה הלילית מריצה את הקוד של המסך עצמו (analysis.js) מול companyfacts');
+    ok(/growthCheck\(r[,)]/.test(tool) && /analysis\.js/.test(tool) && /AN\.growthOf/.test(tool), 'שכבה 7: הבדיקה הלילית מריצה את הקוד של המסך עצמו (analysis.js) מול companyfacts');
     const adm = fs.readFileSync(path.join(root, 'admin-app.js'), 'utf8'), appS = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
     ok(/case 'gr': return t\('admFaK_gr'\)/.test(adm) && (appS.match(/admFaK_gr:/g) || []).length === 2 && (appS.match(/admFaK_rst:/g) || []).length === 2, 'שכבה 7: תווית במרכז הניהול בשתי השפות');
+  }
+
+  /* ---------- 9. שכבה 8 (26/10/2026): כל ערך מול כמה מקורות — S&P 500 ו־Nasdaq-100 בבדיקה הלילית ---------- */
+  {
+    const xr = (m, k, p, c, why, extra) => Object.assign({ m, k, p, v: 100e6, raw: 100e6, y: null, n: null, c }, why ? { why } : {}, extra || {});
+    const res8 = [
+      { sym: 'AAA', r: { ok: true, src: 'sec', checks: [], face: { n: 4, ok: 4 } }, x: [xr('rev', 'A', '2024-12-31', 'ok'), xr('rev', 'Q', '2025-03-31', 'odd', 'a:face', { y: 90e6 }),
+        xr('capex', 'A', '2024-12-31', 'def', 'capex_part', { n: 60e6 }), xr('cash', 'A', '2024-12-31', 'okd', 'n_fx', { n: 106e6 })] },
+      { sym: 'BBB', xo: 1, r: { ok: true, src: 'sec', checks: [{ k: 'face', m: 'rev', p: '2024-12-31', f: 1, v: 2 }], face: { n: 9, ok: 1 } }, x: [xr('ni', 'A', '2024-12-31', 'bug', null, { raw: 120e6 }),
+        xr('eps', 'Q', '2025-03-31', 'spl', 'split_10', { v: 1.5, raw: 1.5, y: 15 }), xr('sh', 'A', '2024-12-31', 'ok')] },
+      { sym: 'CCC', r: { ok: true, src: 'sec', checks: [], face: { n: 2, ok: 2 } } },
+    ];
+    const S8 = FA.summarize(res8, null, Date.UTC(2026, 9, 27, 3, 30), 1);
+    ok(S8.n === 2 && S8.sec === 2 && S8.face.n === 6 && !S8.items.some((x) => x.sym === 'BBB'), 'שכבה 8: חברה שרק ברשימה של שכבה 8 (xo) לא נספרת בשכבות 1–7 — ההיסטוריה נשארת על אותן 500');
+    ok(S8.x && S8.x.n === 7 && S8.x.cos === 2 && S8.x.p === 3 && S8.x.b === 1 && S8.x.c.okd === 1 && S8.x.c.def === 1 && S8.x.why['def:capex_part'] === 1, 'שכבה 8: ספירה לפי הכרעה והסבר, בעיות (bug/spl/odd) ומתוכן bug');
+    ok(S8.x.items.map((r) => r.c).join() === 'bug,spl,odd' && S8.x.items[0].sym === 'BBB' && S8.x.items[0].raw === 120e6 && S8.x.items[2].why === 'a:face', 'שכבה 8: הבעיות לפי חומרה (שונה מ־SEC, פיצול, בלי הסבר) — עם הערך שלנו ו־SEC/Yahoo/Nasdaq');
+    ok(FA.summarize([{ sym: 'AAA', r: { ok: true, src: 'sec', checks: [] } }], null, Date.now(), 1).x === undefined, 'שכבה 8: ריצה בלי --xsyms — בלי x (הסיכום כמו קודם)');
+    const J8 = JSON.parse(JSON.stringify(S8));
+    J8.x.items.push({ sym: '<b>', m: 'rev', k: 'A', p: '2024-12-31', c: 'odd' }, { sym: 'DDD', m: 'zzz', k: 'A', p: '2024-12-31', c: 'odd' }, { sym: 'DDD', m: 'rev', k: 'A', p: 'x', c: 'odd' },
+      { sym: 'DDD', m: 'rev', k: 'A', p: '2024-12-31', c: 'odd', why: '<script>', v: 'x' });
+    J8.x.c['<b>'] = 5; J8.x.why['bad key'] = 1;
+    const N8 = FA.normAudit(J8);
+    ok(N8.x.items.length === 4 && N8.x.items[3].why === null && N8.x.items[3].v === null && !('<b>' in N8.x.c) && !('bad key' in N8.x.why) && N8.x.p === 3, 'normAudit שכבה 8: סימבול / מדד / תאריך / הסבר לא תקינים — נזרקים או מתאפסים');
+    ok(FA.normAudit(S).x === null, 'normAudit: סיכום ישן בלי שכבה 8 — x = null');
+    const he = FA.histEntry(N8), h0 = FA.histEntry(FA.normAudit(S));
+    ok(he.xp === 3 && he.xb === 1 && he.xn === 7 && h0.xp === null, 'היסטוריה: xp/xb/xn — null בריצה בלי שכבה 8');
+    ok(FA.normHist([h0])[0].xp === null && FA.normHist([he])[0].xp === 3, 'normHist: null נשאר null (לא 0 — אחרת הריצה הראשונה עם שכבה 8 נראית כמו קפיצה)');
+    const base8 = Object.assign({}, N8, { gold: { n: 0, bad: 0 }, fail: 0, kinds: {} });
+    const prev = (xp, xb) => ({ fo: 1, fn: 1, k: {}, xp, xb });
+    ok(FA.auditAlert(base8, prev(null, null)) === null, 'auditAlert שכבה 8: ריצה קודמת בלי שכבה 8 — לא מעירים');
+    ok(FA.auditAlert(base8, prev(3, 1)) === null && FA.auditAlert(base8, prev(1, 1)) === null, 'auditAlert שכבה 8: עלייה קטנה (עד 5 / 2%) — רעש של המקורות החיצוניים, בלי התראה');
+    ok((FA.auditAlert(base8, prev(3, 0)) || []).join() === 'x', 'auditAlert שכבה 8: עוד ערך שונה מ־SEC (bug) — מעירים');
+    const big = Object.assign({}, base8, { x: Object.assign({}, base8.x, { p: 330, b: 1 }) });
+    ok((FA.auditAlert(big, prev(300, 1)) || []).join() === 'x' && FA.auditAlert(big, prev(325, 1)) === null, 'auditAlert שכבה 8: עלייה מעל 2% (330 מול 300) — מעירים; 330 מול 325 — לא');
+    const V8 = FA.auditView(N8, [Object.assign(prev(2, 1), { at: '2026-10-26T03:30:00.000Z', n: 2, sec: 2 })], Date.parse(N8.at) + 3600e3);
+    ok(V8.x && V8.x.p === 3 && V8.x.d === 1 && V8.x.pc[0].k === 'bug' && V8.x.items.length === 4 && V8.x.trend.join() === '2,3', 'auditView שכבה 8: מספר, שינוי מהריצה הקודמת, לפי סוג (bug ראשון), רשימה ומגמה');
+    ok(FA.auditView(FA.normAudit(S), [], Date.now()).x === null, 'auditView: בלי שכבה 8 — x = null');
+    const tool = fs.readFileSync(path.join(root, 'tools/fund-audit.js'), 'utf8'), xt = fs.readFileSync(path.join(root, 'tools/fund-xcheck.js'), 'utf8');
+    ok(/require\('\.\/fund-xcheck\.js'\)/.test(tool) && /XC\.checkOne\(/.test(tool) && /XC\.faceOf\(r\)/.test(tool) && /--xsyms/.test(tool) && !/_cache\.clear\(\)/.test(tool) && !/_cache\.clear\(\)/.test(xt),
+      'הכלי הלילי מריץ את אותה השוואה של tools/fund-xcheck.js (בלי עותק), עם הדוח המודפס, ובלי לנקות את המטמון של עובד מקביל');
+    ok(/require\.main === module/.test(xt) && /module\.exports = \{ checkOne/.test(xt), 'tools/fund-xcheck.js — גם כלי וגם ספרייה');
+    ok(/--hist out\/history\.json --xsyms ibkr-proxy\/lib\/xsyms\.txt/.test(wf) && /head -8 report\.md \| tail -5/.test(wf), 'workflow: שכבה 8 על הרשימה הקבועה, והשורה שלה בהערות ה־Release');
+    const xs = fs.readFileSync(path.join(root, 'ibkr-proxy/lib/xsyms.txt'), 'utf8').split('\n').filter(Boolean);
+    ok(xs.length >= 500 && xs.length <= 560 && xs.every((s) => /^[A-Z][A-Z0-9.]{0,6}$/.test(s)) && new Set(xs).size === xs.length && xs.join() === xs.slice().sort().join() && ['AAPL', 'MSFT', 'ASML', 'BRK.B'].every((s) => xs.includes(s)),
+      'xsyms.txt: S&P 500 ו־Nasdaq-100 — סימבול בכל שורה, ממוין, בלי כפילויות');
+    const XS = require(path.join(root, 'tools/xsyms.js'));
+    const sp = XS.parseSp('| {{NyseSymbol|MMM}} || 3M\n| {{NasdaqSymbol|AAPL}} || Apple\n| {{NyseSymbol|BRK.B}}\n'), nd = XS.parseNdx({ data: { data: { rows: [{ symbol: 'AAPL' }, { symbol: 'ASML' }, { symbol: '<x>' }] } } });
+    ok(sp.join() === 'MMM,AAPL,BRK.B' && nd.join() === 'AAPL,ASML' && XS.merge(sp, nd).join() === 'AAPL,ASML,BRK.B,MMM', 'tools/xsyms.js: ויקיפדיה (S&P 500) + Nasdaq (Nasdaq-100) — איחוד ממוין');
+    ok(XS.check(sp, nd) !== null && XS.check(new Array(503).fill('A'), new Array(101).fill('B')) === null, 'tools/xsyms.js: רשימה קטנה מדי (הדף השתנה) — לא דורסים');
+    const admX = fs.readFileSync(path.join(root, 'admin-app.js'), 'utf8'), appX = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+    ok(/if \(v\.x\) faXSection\(p, v\.x\)/.test(admX) && /k === 'x' \? t\('admFaK_x'\)/.test(admX) && ['admFaX', 'admFaXP', 'admFaXS', 'admFaK_x', 'admFaXC_odd', 'admFaXVs'].every((k) => (appX.match(new RegExp('\\b' + k + ':', 'g')) || []).length === 2),
+      'מרכז הניהול: שכבה 8 בעמוד labFund, התראה x, מחרוזות בשתי השפות');
   }
 
   console.log('\n' + n + ' בדיקות עברו');
