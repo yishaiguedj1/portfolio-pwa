@@ -171,6 +171,12 @@ const FORMS = /^(10-K|10-Q|20-F|40-F|10-KT|10-QT)(\/A)?$/;
 function adjFactor(adj, filed) { if (!adj || !adj.splits) return 1; let r = 1; for (const [sd, x] of adj.splits) if (sd > filed && Math.abs(Math.log(x)) > Math.log(1.3)) r *= x; return adj.ps ? 1 / r : r; }
 function rawSeries(facts, tag, adj, cur) {
   if (!facts || !tag) return null;
+  if (/-/.test(tag)) { // הפרש תגיות (רווח כולל פחות זכויות מיעוט — fundamentals: diffFacts) — כל תקופה ששתיהן קיימות בה
+    const [a, b] = tag.split('-').map((t) => rawSeries(facts, t, adj, cur));
+    if (!a || !b) return null;
+    const dif = (k) => { const M = new Map(); for (const [key, h] of a[k]) { const x = b[k].get(key); if (x) M.set(key, { v: h.v - x.v, filed: h.filed > x.filed ? h.filed : x.filed, v0: h.v0 != null && x.v0 != null ? h.v0 - x.v0 : null }); } return M; };
+    return { dur: dif('dur'), inst: new Map(), neg: false };
+  }
   if (/\+/.test(tag)) { // סכום תגיות (השקעות הוניות בחלקים) — כל תקופה שכל החלקים קיימים בה
     const parts = tag.split('+').map((t) => rawSeries(facts, t, adj, cur));
     if (parts.some((p) => !p)) return null;
@@ -193,7 +199,10 @@ function rawSeries(facts, tag, adj, cur) {
       // שנה שלמה: דוח שנתי גובר על 10-Q מאוחר שתייג "שנה" עם ערכי רבעון (Comfort Systems 2025: ‏$403M במקום ‏$2.2B; Axon 2021) —
       // אותו כלל של tagFacts בשרתון, אחרת ההשוואה מסמנת "bug" על הערך הנכון (וגם על הרבעון הרביעי שנגזר ממנו)
       const ann = !/^10-Q/.test(x.form), yr = !!x.start && day(x.end) - day(x.start) >= 350;
-      if (!h || (yr && h.ann !== ann ? ann : x.filed > h.filed)) M.set(key, { v, filed: x.filed, ann, vk: h && h.vk, fk: h && h.fk, nr: h && h.nr });
+      // v0/f0 = הערך שהוגש ראשון (בשנה — מדוח שנתי) — "כפי שדווח לראשונה", להשוואה למקור חיצוני שלא עדכן הצגה מחדש
+      const first = !h || ((!yr || ann) && (h.f0 == null || x.filed < h.f0));
+      if (!h || (yr && h.ann !== ann ? ann : x.filed > h.filed)) M.set(key, { v, filed: x.filed, ann, vk: h && h.vk, fk: h && h.fk, nr: h && h.nr, v0: h && h.v0, f0: h && h.f0 });
+      if (first && (!yr || ann)) { const g = M.get(key); g.v0 = v; g.f0 = x.filed; }
       // הערך מהדוח השנתי האחרון — במאזן 10-K גובר על 10-Q מאוחר (המדיניות של fundamentals; Honeywell: 10-Q של 2026 הציג מחדש את 31/12/2025)
       const g2 = M.get(key);
       if (/^(10-K|20-F|40-F|10-KT)/.test(x.form)) {
@@ -209,19 +218,23 @@ function rawSeries(facts, tag, adj, cur) {
 }
 // ערך לתקופה: שנה (s..e ‏~365), רבעון — ישיר (~91) או מצטבר שנה פחות מצטבר קודם (חישוב משלו, בלי לגעת בקוד של השרתון);
 // ובסוף שנה בלי מצטבר (חברה שמדווחת רבעונים ישירים): השנה פחות שלושת הרבעונים הישירים שבתוכה
-function rawAt(rs, e, kind, fyStart, k10) {
+// orig: true = כפי שדווח לראשונה (v0 — השנה מהדוח השנתי הראשון, החלקים מהדוח הראשון שלהם); 'der' = כנ״ל, ורבעון רק מחיסור
+// (גם כשיש רבעון ישיר שהוצג מחדש בדוח השנתי — Lennox 2025). למקור חיצוני שלא עדכן הצגה מחדש של החברה.
+// 'cum' = הערכים האחרונים, רבעון רק מחיסור (Tractor Supply 2025: "הרבעון הרביעי" ב־10-K תויג עם הרווח של כל השנה)
+function rawAt(rs, e, kind, fyStart, k10, orig) {
   if (!rs) return null;
+  const V = (h) => (orig && orig !== 'cum' && h.v0 != null ? h.v0 : h.v);
   if (rs.inst.size && !rs.dur.size) { for (const [k, h] of rs.inst) if (Math.abs(day(k) - day(e)) <= 3) return k10 ? (h.vk != null ? h.vk : null) : h.v; return null; }
   const pick = (lo, hi, end) => { let best = null; for (const [k, h] of rs.dur) { const [s, en] = k.split('|'); if (Math.abs(day(en) - day(end)) > 3) continue; const L = day(en) - day(s); if (L >= lo && L <= hi && (!best || h.filed > best.filed)) best = h; } return best; };
-  const best = kind === 'A' ? pick(350, 380, e) : pick(80, 100, e);
-  if (best || kind === 'A' || !fyStart) return best ? best.v : null;
+  const best = kind === 'A' ? pick(350, 380, e) : orig === 'der' || orig === 'cum' ? null : pick(80, 100, e);
+  if (best || kind === 'A' || !fyStart) return best ? V(best) : null;
   // רבעון בלי ערך ישיר: המצטבר עד e פחות המצטבר עד הרבעון הקודם — שניהם מתחילים בתחילת אותה שנה
   let cum = null, prev = null;
   for (const [k, h] of rs.dur) {
     const [s, en] = k.split('|'); if (Math.abs(day(s) - day(fyStart)) > 3) continue;
     const off = day(e) - day(en);
-    if (Math.abs(off) <= 3) cum = h.v;
-    else if (off >= 80 && off <= 100 && (!prev || h.filed > prev.filed)) prev = { v: h.v, filed: h.filed };
+    if (Math.abs(off) <= 3) cum = V(h);
+    else if (off >= 80 && off <= 100 && (!prev || h.filed > prev.filed)) prev = { v: V(h), filed: h.filed };
   }
   if (cum != null && day(e) - day(fyStart) < 100) return cum;
   if (cum != null && prev) return cum - prev.v;
@@ -231,14 +244,14 @@ function rawAt(rs, e, kind, fyStart, k10) {
   const qs = [];
   for (const [k, h] of rs.dur) { const [s, en] = k.split('|'), L = day(en) - day(s); if (L >= 80 && L <= 100 && day(s) >= day(fyStart) - 3 && day(e) - day(en) >= 80) qs.push([en, h]); }
   const by = new Map(); for (const [en, h] of qs) { const b = by.get(en); if (!b || h.filed > b.filed) by.set(en, h); }
-  return by.size === 3 ? yr.v - [...by.values()].reduce((t, h) => t + h.v, 0) : null;
+  return by.size === 3 ? V(yr) - [...by.values()].reduce((t, h) => t + V(h), 0) : null;
 }
 // סכום הרבעונים בתוך השנה (ממוצע מניות / רווח למניה — רק ישירים)
-function rawQuarters(rs, e, fyStart) {
+function rawQuarters(rs, e, fyStart, orig) {
   if (!rs || !fyStart) return null;
   const by = new Map();
   for (const [k, h] of rs.dur) { const [s, en] = k.split('|'), L = day(en) - day(s); if (L >= 80 && L <= 100 && day(s) >= day(fyStart) - 3 && day(e) - day(en) >= 80) { const b = by.get(en); if (!b || h.filed > b.filed) by.set(en, h); } }
-  return by.size === 3 ? [...by.values()].map((h) => h.v) : null;
+  return by.size === 3 ? [...by.values()].map((h) => (orig && h.v0 != null ? h.v0 : h.v)) : null;
 }
 
 // כל הערכים שהוגשו לתקופה בתגית אחת (כל ההגשות, במטבע הדיווח): שנה ~365 יום, רבעון ~91, מאזן — נקודה; cum = מצטבר 6/9 חודשים
@@ -345,18 +358,29 @@ function explain(m, s, ours, ext, ctx, sc) {
 
 // אומדן לערך שאין לו מקור — רק למניות ולרווח למניה (לא מצטברים, אז SEC לא מדווח רבעון רביעי):
 // רבעון רביעי = השנה פחות שלושה רבעונים (מניות: 4 × ממוצע השנה פחות שלושה); אחרת רווח למניה = רווח (לבעלי המניות) ÷ מניות, מ־SEC
-function estimate(m, kind, e, rs, d, facts, adj, fyS, fs0, secAt) {
+// ממוצע מניות שהחברה הגישה בקנה מידה שגוי (McDonald's: ‏"721.9"; EchoStar: רבעונים באלפים והשנה ביחידות) — באותו קנה מידה
+// כמו הממוצע השנתי שלנו (שתוקן — fixes) לפני החישוב, אחרת האומדן הוא ‏720 מניות או ערבוב של שני קני מידה
+function shScale(v, ref) {
+  if (!(v > 0) || !(ref > 0)) return v;
+  let b = 1; for (const f of [1e-6, 1e-3, 1, 1e3, 1e6]) if (Math.abs(Math.log(v * f / ref)) < Math.abs(Math.log(v * b / ref))) b = f;
+  return Math.abs(Math.log(v * b / ref)) < Math.log(1.5) ? v * b : v;
+}
+const shRef = (d, e) => { const i = d.fy ? d.fy.indexOf(e) : -1; return i >= 0 && d.A && d.A.sh ? d.A.sh[i] : null; };
+// orig — השנה והרבעונים כפי שדווחו לראשונה (International Flavors 2024: השנה הוצגה מחדש בדוח של 2025 — ‎−0.18 כמו שפורסם, לא ‎−0.08)
+function estimate(m, kind, e, rs, d, facts, adj, fyS, fs0, secAt, orig) {
   if (!NOSUM.has(m) || m === 'dps') return null;
   if (kind === 'Q' && rs && d.fy.includes(e)) {
-    const a = rawAt(rs, e, 'A'), qs = rawQuarters(rs, e, fyS(e));
+    let a = rawAt(rs, e, 'A', null, null, orig), qs = rawQuarters(rs, e, fyS(e), orig);
+    if (m === 'sh' && a != null && qs) { const ref = shRef(d, e); a = shScale(a, ref); qs = qs.map((x) => shScale(x, ref)); }
     if (a != null && qs) return m === 'sh' ? 4 * a - qs.reduce((t, x) => t + x, 0) : a - qs.reduce((t, x) => t + x, 0);
   }
   if (m !== 'eps' || !facts) return null;
   const t = d.tags || {};
   const ni = (t.nic && secAt(t.nic, e, kind, fs0)) ?? (t.ni ? secAt(t.ni, e, kind, fs0) : null);
   const shr = t.sh ? rawSeries(facts, t.sh, { splits: splitsOf(d) }) : null;
-  let sh = shr ? rawAt(shr, e, kind) : null;
-  if (sh == null && kind === 'Q' && shr && d.fy.includes(e)) { const a = rawAt(shr, e, 'A'), qs = rawQuarters(shr, e, fyS(e)); if (a != null && qs) sh = 4 * a - qs.reduce((x, y) => x + y, 0); }
+  const ref = shRef(d, (d.fy || []).find((x) => day(x) >= day(e) - 1 && day(x) - day(e) < 366) || e);
+  let sh = shr ? shScale(rawAt(shr, e, kind), ref) : null;
+  if (sh == null && kind === 'Q' && shr && d.fy.includes(e)) { const a = shScale(rawAt(shr, e, 'A'), ref), qs = rawQuarters(shr, e, fyS(e)); if (a != null && qs) sh = 4 * a - qs.reduce((x, y) => x + shScale(y, ref), 0); }
   return ni != null && sh ? ni / sh : null;
 }
 
@@ -367,8 +391,9 @@ function shBand(e, d, facts, adj, fyS) {
   const rb = rawSeries(facts, 'WeightedAverageNumberOfSharesOutstandingBasic', adj) || rawSeries(facts, 'WeightedAverageShares', adj);
   const rd = d.tags && d.tags.sh ? rawSeries(facts, d.tags.sh, adj) : null;
   if (!rb || !rd) return null;
-  const ab = rawAt(rb, e, 'A'), qb = rawQuarters(rb, e, fyS(e)), ad = rawAt(rd, e, 'A');
-  if (ab == null || !qb || ad == null) return null;
+  const ref = shRef(d, e), ab = shScale(rawAt(rb, e, 'A'), ref), qb0 = rawQuarters(rb, e, fyS(e)), ad = shScale(rawAt(rd, e, 'A'), ref);
+  if (ab == null || !qb0 || ad == null) return null;
+  const qb = qb0.map((x) => shScale(x, ref));
   const b4 = 4 * ab - qb.reduce((t, x) => t + x, 0);
   return b4 > 0 ? [b4, b4 + Math.max(0, 4 * (ad - ab))] : null;
 }
@@ -431,8 +456,20 @@ function xcheck(d, facts, y, nq, opt = {}) {
         let raw = null, rf = null;
         // רווח למניה וממוצע מניות לא מצטברים — רק ערך ישיר (בלי שנה פחות 9 חודשים)
         const fsr = NOSUM.has(m) ? null : fs0;
+        let rsU = rs;
         if (rs) raw = rawAt(rs, e, kind, fsr);
-        if (raw == null) for (const [t, x] of alts) { const v2 = rawAt(x, e, kind, fsr); if (v2 != null) { raw = v2; rf = t; break; } }
+        // תגית משלימה: זו שתואמת אותנו (mergeTags בוחר לפי ההתאמה לראשית — CME: ‏ProfitLoss לפני הרווח לבעלי המניות), אחרת הראשונה שיש לה ערך
+        if (raw == null) {
+          const cs = alts.map(([t, x]) => [t, x, rawAt(x, e, kind, fsr)]).filter((c) => c[2] != null);
+          const c = cs.find((c2) => same(m, vv, c2[2], sc)) || cs[0];
+          if (c) { rf = c[0]; rsU = c[1]; raw = c[2]; }
+        }
+        // ערך שחושב מכמה הגשות (רבעון = שנה פחות תשעה חודשים) כשהחברה הציגה מחדש רק חלק מהן: fundamentals לוקח את שניהם
+        // כפי שדווחו לראשונה (subPick — International Flavors 2024: ‎−46, כמו בהודעה לעיתונות; החישוב הפשוט: ‎−26)
+        if (raw != null && rsU && !NOSUM.has(m) && m !== 'capex' && kind === 'Q' && !same(m, vv, raw, sc)) {
+          const ro = ['cum', true].map((o) => [o, rawAt(rsU, e, kind, fsr, null, o)]).find(([, x]) => x != null && same(m, vv, x, sc));
+          if (ro) { raw = ro[1]; rf = (rf ? rf + '·' : '') + (ro[0] === 'cum' ? 'cum' : 'orig'); }
+        }
         if (raw == null && facts && !dropped) { const f = rawFormula(m, d, (t) => secAt(t, e, kind, BAL.has(m) ? null : fs0)); if (f) { raw = f.v; rf = f.rf; } }
         if (raw != null && m === 'capex' && rs && rs.neg && !rf) raw = -raw;
         else if (raw != null && m === 'capex' && rf) raw = Math.abs(raw);
@@ -494,6 +531,9 @@ function xcheck(d, facts, y, nq, opt = {}) {
           cum: () => (kind === 'Q' && !BAL.has(m) && !NOSUM.has(m) ? rawAll(facts, tag, e, kind, cur, false, true).map((x) => x.v) : []) };
         // מספר מניות שהחברה הגישה בקנה מידה שגוי ותוקן אצלנו (fixes) — SEC הגולמי פי אלף / מיליון קטן
         const fixd = sr === false && m === 'sh' && raw > 0 && [1e3, 1e6, 1e-3, 1e-6].some((f) => Math.abs(vv / raw / f - 1) < 0.02); // Waters: SEC הגולמי פי אלף גדול
+        // חברה זרה (20-F/40-F): Yahoo לפי ADS — מספר מניות רגילות שלם לכל ADS (PDD: 4) — מניות חלקי היחס, רווח למניה כפול היחס
+        const adsR = NOSUM.has(m) && yv && vv && d.face && /^(20-F|40-F)/.test(d.face.form || '') ? (m === 'sh' ? vv / yv : yv / vv) : 0;
+        const ads = adsR >= 1.9 && sn !== true && Math.abs(adsR / Math.round(adsR) - 1) < 0.01 && (sr !== false || fixd);
         // פיצול: היחס מול מקור חיצוני = הפיצולים שאחרי התקופה (או ההפך) — אנחנו לא החלנו / החלנו פעמיים
         const spr = NOSUM.has(m) ? splitRatioAfter(splitsOf(d), e) : 1;
         const splitOff = (x) => { if (spr === 1 || x == null || !vv || !x) return false; const q = m === 'sh' ? x / vv : vv / x; return Math.abs(q / spr - 1) < 0.03 || Math.abs(q * spr - 1) < 0.03; };
@@ -504,17 +544,20 @@ function xcheck(d, facts, y, nq, opt = {}) {
         if (ttm.has(e) && kind === 'A') { r.c = 'bug'; r.why = 'ttm'; }
         // שורה שהושלמה מ־Yahoo (אין ב־SEC): Yahoo הוא המקור שלה — רק Nasdaq יכול לאשר
         else if (yf && sn !== true) { r.c = 'yfill'; if (sn === false) r.nd = 1; }
+        else if (ads) { r.c = 'okd'; r.why = 'y_ads'; }
         else if (fixd) r.c = sy === false || sn === false ? 'one' : 'fix';
         else if (splitOff(raw) || splitOff(yv) || splitOff(nv)) { r.c = 'spl'; r.why = 'split_' + Math.round(spr * 1000) / 1000; }
         else if (sr === false || face === false) r.c = 'bug';
         else if (okS('y', sy) && okS('n', sn)) {
           if (sy == null && sn == null && sr == null) {
             // אין מקור: רבעון רביעי של רווח למניה / ממוצע מניות — אומדן מ־SEC: השנה פחות שלושה רבעונים
-            const est = estimate(m, kind, e, rs, d, facts, adj, fyS, fs0, secAt);
+            let est = estimate(m, kind, e, rs, d, facts, adj, fyS, fs0, secAt);
             if (est != null) {
-              r.est = m === 'sh' ? Math.round(est) : Math.round(est * 1000) / 1000;
               // רווח למניה: סכום רבעונים ≠ שנה כשמספר המניות זז / יש הפסד ברבעון — עד 5 סנט או 5%; מניות — 1%
-              let okE = m === 'sh' ? relDiff(vv, est) <= 0.01 : Math.abs(vv - est) <= Math.max(0.05, 0.05 * Math.abs(vv));
+              const near = (x) => x != null && (m === 'sh' ? relDiff(vv, x) <= 0.01 : Math.abs(vv - x) <= Math.max(0.05, 0.05 * Math.abs(vv)));
+              let okE = near(est);
+              if (!okE) { const eo = estimate(m, kind, e, rs, d, facts, adj, fyS, fs0, secAt, true); if (near(eo)) { okE = true; est = eo; r.why = 'est_orig'; } }
+              r.est = m === 'sh' ? Math.round(est) : Math.round(est * 1000) / 1000;
               const band = !okE && kind === 'Q' && d.fy.includes(e) ? shBand(e, d, facts, { splits: splitsOf(d) }, fyS) : null;
               if (band) {
                 if (m === 'sh') okE = vv >= band[0] * 0.99 && vv <= band[1] * 1.01;
@@ -536,16 +579,23 @@ function xcheck(d, facts, y, nq, opt = {}) {
           // שני המקורות החיצוניים קרובים זה לזה (עד 5%), באותו צד שלנו, ורחוקים מאיתנו פי 2 מהמרחק ביניהם — לא "הגדרה" של אחד מהם
           const close = fy && fn && yv != null && nv != null && (yn === true || (relDiff(yv, nv) <= 0.05 && Math.sign(yv - vc) === Math.sign(nv - vc) &&
             Math.abs(vc - (yv + nv) / 2) > 2 * Math.abs(yv - nv)));
-          if (close) { r.c = sr === true ? 'ext' : 'one'; if (yn !== true) r.xl = 1; }
+          // המקור החיצוני = הרבעון כפי שדווח לראשונה, והחברה הציגה אותו מחדש מאז (בדרך כלל בדוח השנתי — Alnylam, Lennox,
+          // Monolithic Power 2025: תשעה חודשים מתוקנים ב־10-K, וההודעה לעיתונות של Alnylam = אנחנו). אנחנו = ההגשה האחרונה
+          const orig = sr === true && kind === 'Q' && rsU && !NOSUM.has(m) && m !== 'capex' ? [true, 'der'].map((o) => rawAt(rsU, e, kind, fsr, null, o)).filter((x) => x != null && !same(m, vv, x, sc)) : [];
+          if ((fy || fn) && orig.some((x) => (fy && same(m, yv, x, sc)) || (fn && same(m, nv, x, sc)))) { r.c = 'okd'; r.why = 'q_orig'; }
+          else if (close) { r.c = sr === true ? 'ext' : 'one'; if (yn !== true) r.xl = 1; }
           else if (sr === true || sy === true || sn === true || (ex.y && ex.y.ok) || (ex.n && ex.n.ok)) r.c = 'def'; // SEC או מקור חיצוני אחר מאשר אותנו
           else {
             // מקור אחד ושונה, בלי SEC: האומדן מ־SEC (רבעון רביעי של מניות / רווח למניה) מכריע
             const est = sr == null ? estimate(m, kind, e, rs, d, facts, adj, fyS, fs0, secAt) : null;
             if (est != null) r.est = m === 'sh' ? Math.round(est) : Math.round(est * 1000) / 1000;
-            r.c = est != null && (m === 'sh' ? relDiff(vv, est) <= 0.01 : Math.abs(vv - est) <= Math.max(0.05, 0.05 * Math.abs(vv))) ? 'def' : 'one';
+            let okE = est != null && (m === 'sh' ? relDiff(vv, est) <= 0.01 : Math.abs(vv - est) <= Math.max(0.05, 0.05 * Math.abs(vv)));
+            // ממוצע מניות ברבעון רביעי עם הפסד באחד הרבעונים — הטווח מהבסיסי (shBand), כמו בענף בלי מקור חיצוני
+            if (!okE && m === 'sh' && kind === 'Q' && d.fy.includes(e)) { const band = shBand(e, d, facts, { splits: splitsOf(d) }, fyS); if (band && vv >= band[0] * 0.99 && vv <= band[1] * 1.01) { okE = true; r.why = 'q4_basic'; } }
+            r.c = okE ? 'def' : 'one';
             if (r.c === 'def') r.why = r.why || 'est';
           }
-          if (why) r.why = why;
+          if (why && r.c !== 'okd') r.why = why;
           // אנחנו = SEC ומקור חיצוני שונה בלי שום הסבר ידוע — לא "הגדרה" עד שהוכח: לבדוק (odd).
           // בשנה שבדוח המודפס: הערך שלנו הוא השורה שהחברה הדפיסה, והמקור לא = אנחנו ± שורה אחרת בדוח → המקור טועה / מגדיר אחרת (okd face);
           // המקור = אנחנו ± שורה מודפסת (fline — אולי חסרה לנו שורה: Host, Zimmer); התגית שלנו לא מודפסת בדוח (nf)

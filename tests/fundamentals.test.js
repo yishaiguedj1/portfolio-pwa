@@ -622,6 +622,74 @@ ok(dr.C.Q.rev[dr.q.indexOf('2024-12-31')] === 0, 'רבעון רביעי שאין
 const vr = F.validate(dr);
 ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr.some((c) => c.k === 'q4' && c.m === 'rev'), 'שנה שהוצגה מחדש — סימון מידע (rst), לא "הרבעונים לא מסתכמים"');
 
+/* ---------- רווח נקי, רבעון מחושב ומניות ברבעון (סבב 2 של בקרת הדיוק, 26/10/2026) ---------- */
+{
+  const qd = (a, b, v, f, form = '10-Q') => [a, b, v, form, f];
+  const qn = (dd, e) => (dd.q.indexOf(e) >= 0 ? dd.Q.ni[dd.q.indexOf(e)] : undefined);
+  // CME: ‏NetIncomeLoss רק בשנים; ‏ProfitLoss = הרווח הנקי בכל תקופה משותפת, הרווח לבעלי המניות (ניירות משתתפים) נמוך ב־1.3% —
+  // הרבעונים מהתגית שתואמת לראשית, והרבעון הרביעי לא מערבב שנה של רווח נקי עם תשעה חודשים לבעלי המניות
+  const CM = facts([['NetIncomeLoss', 'USD', yrs([3200e6, 3525.8e6], 2023)],
+    ['NetIncomeLossAvailableToCommonStockholdersBasic', 'USD', [...yrs([3160e6, 3481.5e6], 2023), qd('2024-01-01', '2024-09-30', 2617.8e6, '2024-11-08'), qd('2024-07-01', '2024-09-30', 901.3e6, '2024-11-08')]],
+    ['ProfitLoss', 'USD', [...yrs([3200e6, 3525.8e6], 2023), qd('2024-01-01', '2024-09-30', 2651.2e6, '2024-11-08'), qd('2024-07-01', '2024-09-30', 912.8e6, '2024-11-08')]]]);
+  const dcm = F.normalizeSec(CM, []);
+  ok(qn(dcm, '2024-09-30') === 912.8e6 && Math.round(qn(dcm, '2024-12-31') / 1e5) === 8746, 'CME: רבעונים מ־ProfitLoss (= הרווח הנקי), לא מהרווח לבעלי המניות; רבעון רביעי ‎874.6 (לא ‎908)');
+  // Realty Income 2026: אין NetIncomeLoss ברבעון — ProfitLoss פחות זכויות המיעוט (‎311.8), לא ProfitLoss כולל אותן (‎320.9)
+  const OI = facts([['NetIncomeLoss', 'USD', yrs([860.8e6, 1058.6e6], 2024)],
+    ['ProfitLoss', 'USD', [...yrs([867.3e6, 1069.8e6], 2024), qd('2026-01-01', '2026-03-31', 320.935e6, '2026-05-07')]],
+    ['NetIncomeLossAttributableToNoncontrollingInterest', 'USD', [...yrs([6.5e6, 11.2e6], 2024), qd('2026-01-01', '2026-03-31', 9.169e6, '2026-05-07')]]]);
+  const doi = F.normalizeSec(OI, []);
+  ok(Math.round(qn(doi, '2026-03-31')) === 311766000, 'רבעון בלי NetIncomeLoss: ProfitLoss פחות זכויות המיעוט');
+  // Bloom Energy: בדוח "Net loss" ‏(ProfitLoss) ושורת זכויות המיעוט; הרווח לבעלי המניות בתגית פרטית — הרווח = ההפרש
+  const pg = (rows) => SF.parseR(`<table><tr><th class="tl" colspan="1" rowspan="2"><div><strong>Consolidated Statements of Operations - USD ($)<br> $ in Millions</strong></div></th><th class="th" colspan="2">12 Months Ended</th></tr>
+<tr><th class="th"><div>Dec. 31, 2025</div></th><th class="th"><div>Dec. 31, 2024</div></th></tr>${rows.map(([c, t, l, v]) => row(c, t, l, v)).join('')}</table>`);
+  const BL = facts([['Revenues', 'USD', yrs([1.47e9, 2.02e9], 2024)], ['ProfitLoss', 'USD', yrs([-27.2e6, -87.1e6], 2024)],
+    ['NetIncomeLossAttributableToNoncontrollingInterest', 'USD', yrs([2e6, 1.3e6], 2024)], ['NetIncomeLoss', 'USD', [[...Y(2018), -273.5e6, '10-K', '2019-03-01']]]]);
+  const dbl = F.normalizeSec(BL, [], { is: pg([['ro', 'us-gaap_Revenues', 'Revenue', ['2020', '1470']], ['rou', 'us-gaap_ProfitLoss', 'Net loss', ['(87.1)', '(27.2)']],
+    ['ro', 'us-gaap_NetIncomeLossAttributableToNoncontrollingInterest', 'Less: noncontrolling interest', ['1.3', '2']], ['rou', 'be_NetIncomeLossAttributableToParent', 'Net loss attributable to common', ['(88.4)', '(29.2)']]]) });
+  ok(dbl.tags.ni === 'ProfitLoss-NetIncomeLossAttributableToNoncontrollingInterest' && Math.round(dbl.A.ni[dbl.fy.indexOf('2025-12-31')]) === -88400000, 'Bloom: הרווח לבעלי המניות = הרווח הכולל פחות זכויות המיעוט (שתי השורות בדוח)');
+  // Tractor Supply 2025: ההקשר של "הרבעון הרביעי" ב־10-K קיבל את הרווח של כל השנה — לא רבעון; שנה פחות תשעה חודשים
+  const TS = facts([['NetIncomeLoss', 'USD', [...yrs([1101.2e6, 1096.087e6], 2024), qd('2025-01-01', '2025-09-30', 868.68e6, '2025-11-06'),
+    qd('2025-07-01', '2025-09-30', 259.268e6, '2025-11-06'), qd('2025-10-01', '2025-12-31', 1096.087e6, '2026-02-19', '10-K')]]]);
+  ok(Math.round(qn(F.normalizeSec(TS, []), '2025-12-31')) === 227407000, '"רבעון" שערכו השנה כולה — לא נכנס; הרבעון = שנה פחות תשעה חודשים');
+  // CrowdStrike: (1) שנה שהוצגה מחדש בדוח שאחריה ותשעה חודשים שלא — הרבעון כפי שדווח (‎−92.3, כמו בהודעה לעיתונות);
+  // (2) הדוח השנתי שבו הבסיס השתנה (הציג מחדש את השנה הקודמת) ותשעה חודשים מלפניו — אין רבעון (qmix · rst);
+  // (3) Alnylam: תשעה חודשים מתוקנים בתוך הדוח השנתי עצמו — הרבעון מהם (‎111.5, כמו בהודעה)
+  const CR = facts([['NetIncomeLoss', 'USD', [
+    ['2023-02-01', '2024-01-31', 89.327e6, '10-K', '2024-03-07'], ['2023-02-01', '2024-01-31', 72.181e6, '10-K', '2026-03-05'],
+    qd('2024-02-01', '2024-10-31', 73.011e6, '2024-11-27'), qd('2024-02-01', '2024-10-31', 73.011e6, '2025-12-03'),
+    ['2024-02-01', '2025-01-31', -19.271e6, '10-K', '2025-03-10'], ['2024-02-01', '2025-01-31', -15.241e6, '10-K', '2026-03-05'],
+    qd('2025-02-01', '2025-10-31', -221.879e6, '2025-12-03'), ['2025-02-01', '2026-01-31', -162.502e6, '10-K', '2026-03-05']]]]);
+  const dcr = F.normalizeSec(CR, []);
+  ok(Math.round(qn(dcr, '2025-01-31')) === -92282000, 'שנה שהוצגה מחדש בלי תשעת החודשים — הרבעון הרביעי כפי שדווח (‎−92.3, לא ‎−88.3)');
+  ok(qn(dcr, '2026-01-31') == null && dcr.qmix.some((c) => c.m === 'ni' && c.p === '2026-01-31' && c.x === 'rst'), 'הדוח השנתי שינה בסיס ותשעת החודשים מלפניו — אין רבעון רביעי (qmix)');
+  const AL = facts([['NetIncomeLoss', 'USD', [[...Y(2024), -278.157e6, '10-K', '2025-02-13'], [...Y(2024), -270e6, '10-K', '2026-02-12'],
+    qd('2025-01-01', '2025-09-30', 127.328e6, '2025-10-30'), qd('2025-01-01', '2025-09-30', 202.204e6, '2026-02-12', '10-K'), [...Y(2025), 313.747e6, '10-K', '2026-02-12']]]]);
+  ok(Math.round(qn(F.normalizeSec(AL, []), '2025-12-31')) === 111543000, 'תשעה חודשים מתוקנים בתוך הדוח השנתי — הרבעון הרביעי מהם (‎111.5)');
+  // TransDigm: תשלומים לבעלי אופציות במקום דיבידנד מנוכים מהרווח למניה ברבעון שבו שולם הדיבידנד — הרבעון הרביעי מהרווח הגלום
+  // (רווח למניה × מניות של השנה פחות שלושת הרבעונים): ‎7.75 כמו שפורסם, לא ‎9.42 (הרווח × היחס של השנה)
+  const q3 = (y) => [['01-01', '03-31'], ['04-01', '06-30'], ['07-01', '09-30']].map(([a, b]) => [y + '-' + a, y + '-' + b]);
+  const TDq = (vals) => q3(2025).map(([a, b], i) => qd(a, b, vals[i], b));
+  const TD = facts([['NetIncomeLoss', 'USD', [...yrs([1714e6, 2074e6], 2024), ...TDq([493e6, 479e6, 492e6])]],
+    ['EarningsPerShareDiluted', 'USD/shares', [...yrs([25.62, 32.08], 2024), ...TDq([7.62, 8.24, 8.47])]],
+    ['WeightedAverageNumberOfDilutedSharesOutstanding', 'shares', [...yrs([57.8e6, 58.2e6], 2024), ...TDq([58.3e6, 58.1e6, 58.1e6])]]]);
+  const dtd = F.normalizeSec(TD, []);
+  ok(dtd.Q.eps[dtd.q.indexOf('2025-12-31')] === 7.75 && dtd.derived.eps.includes('2025-12-31'), 'רווח למניה ברבעון הרביעי מהרווח הגלום בשנה (‎7.75, לא ‎9.42)');
+  // ממוצע המניות ברבעון הרביעי — מה שפורסם (Yahoo) גובר על ההערכה כשהוא קרוב; ערך ש־Yahoo חישב בעצמו — לא; הרווח למניה מחושב מחדש
+  const BY = facts([['NetIncomeLoss', 'USD', [...yrs([380e6, 400e6], 2024), ...TDq([100e6, 100e6, 100e6])]],
+    ['WeightedAverageNumberOfDilutedSharesOutstanding', 'shares', [...yrs([110e6, 102.5e6], 2024), ...TDq([110e6, 105e6, 100e6])]]]);
+  const dby = () => F.normalizeSec(BY, []), iq = dby().q.indexOf('2025-12-31');
+  const s1 = dby(); ok(s1.shEst.includes('2025-12-31') && Math.round(s1.Q.sh[iq] / 1e5) === 950, 'ההערכה שלנו (95) מסומנת כהערכה');
+  const yq = { q: ['2025-09-30', '2025-12-31'], Q: { sh: [100e6, 96e6], eps: [1, null] }, qc: {} };
+  const c1 = F.qShares(s1, yq);
+  ok(s1.Q.sh[iq] === 96e6 && s1.Q.eps[iq] === 1.04 && c1.length === 1 && c1[0].k === 'qsh', 'מה שפורסם (96) גובר, והרווח למניה מחושב מחדש (100 ÷ 96 = 1.04); נרשם qsh');
+  const s2 = dby(); F.qShares(s2, { ...yq, qc: { sh: ['2025-12-31'] } });
+  ok(Math.round(s2.Q.sh[iq] / 1e5) === 950, 'רבעון ש־Yahoo חישב בעצמו (ממוצע שלושה) — לא גובר');
+  const s3 = dby(); F.qShares(s3, { ...yq, Q: { sh: [100e6, 130e6], eps: [1, null] } });
+  ok(Math.round(s3.Q.sh[iq] / 1e5) === 950, 'רחוק מההערכה ביותר מ־10% — ההערכה נשארת');
+  ok(y.qc && y.qc.rev && y.qc.rev.includes('2025-12-31') && !F.q4Eps({ q: ['2025-12-31'], Q: { eps: [0.94] }, derived: { eps: ['2025-12-31'] } },
+    { q: ['2025-12-31'], Q: { eps: [0.97] }, qc: { eps: ['2025-12-31'] } }).length, 'parseYahooTs מסמן רבעון שחישב (qc), ו־q4Eps לא מאמץ אותו');
+}
+
 (async () => {
   const calls = [];
   global.fetch = async (url, opts = {}) => {

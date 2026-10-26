@@ -235,4 +235,42 @@ const find = (x, m, k, p) => x.find((r) => r.m === m && r.k === k && r.p === p);
   ok(r.c === 'odd' && !r.why, 'בלי הדוח המודפס — odd בלי הסבר');
 }
 ok(X.PROBLEM.has('odd') && !X.PROBLEM.has('def') && !X.PROBLEM.has('okd'), 'odd = בעיה בסיכום; def (עם הסבר) ו־okd — לא');
+// סבב 2 (26/10/2026): רווח נקי, רבעון רביעי ומניות
+{
+  const NI = 'NetIncomeLoss';
+  // (א) רבעון רביעי כפי שדווח לראשונה — השנה הוצגה מחדש אחר כך ותשעת החודשים לא (International Flavors 2024: ‎−46 כמו בהודעה, החישוב הפשוט ‎−26)
+  const fa = facts([[NI, 'USD', [[...Y(2024), 243e6, '10-K', '2025-02-28'], [...Y(2024), 263e6, '10-K', '2026-02-27'], ['2024-01-01', '2024-09-30', 289e6, '10-Q', '2024-11-05']]]]);
+  const da = base({ tags: { ni: NI }, fy: ['2023-12-31', '2024-12-31'], q: ['2024-12-31'], A: { ni: [null, 263e6] }, Q: { ni: [-46e6] }, derived: { ni: ['2024-12-31'] } });
+  const ra = find(X.xcheck(da, fa, null, null), 'ni', 'Q', '2024-12-31');
+  ok(ra.c === 'ok' && ra.raw === -46e6 && /orig/.test(ra.rf), 'רבעון רביעי מהשנה ותשעת החודשים כפי שדווחו לראשונה — מאושר (rf orig), לא bug');
+  // (ב) המקורות החיצוניים = הרבעון לפני שהחברה תיקנה את תשעת החודשים בדוח השנתי (Alnylam, Monolithic Power) — okd q_orig
+  const fb = facts([[NI, 'USD', [['2025-01-01', '2025-09-30', 445.8e6, '10-Q', '2025-11-05'], ['2025-01-01', '2025-09-30', 449.8e6, '10-K', '2026-02-27'], [...Y(2025), 621.5e6, '10-K', '2026-02-27']]]]);
+  const db = base({ tags: { ni: NI }, fy: ['2024-12-31', '2025-12-31'], q: ['2025-12-31'], A: { ni: [null, 621.5e6] }, Q: { ni: [171.7e6] }, derived: { ni: ['2025-12-31'] } });
+  const yb = { fy: [], q: ['2025-12-31'], A: {}, Q: { ni: [175.7e6] } }, nb = { A: null, Q: { ends: ['2025-12-31'], v: { nic: { '2025-12-31': 175.7e6 } } } };
+  const rb = find(X.xcheck(db, fb, yb, nb), 'ni', 'Q', '2025-12-31');
+  ok(rb.c === 'okd' && rb.why === 'q_orig', 'Yahoo ו־Nasdaq = תשעת החודשים לפני התיקון — הגדרה (q_orig), לא ext');
+  // (ג) הרווח לבעלי המניות = רווח כולל פחות זכויות מיעוט (תגית מורכבת של fundamentals)
+  const C = 'ProfitLoss-NetIncomeLossAttributableToNoncontrollingInterest';
+  const fc = facts([['ProfitLoss', 'USD', [[...Y(2025), -87.14e6, '10-K', '2026-02-09']]], ['NetIncomeLossAttributableToNoncontrollingInterest', 'USD', [[...Y(2025), 1.294e6, '10-K', '2026-02-09']]]]);
+  const dc = base({ tags: { ni: C }, fy: ['2024-12-31', '2025-12-31'], A: { ni: [null, -88.434e6] } });
+  const rc = find(X.xcheck(dc, fc, null, null), 'ni', 'A', '2025-12-31');
+  ok(rc.c === 'ok' && Math.round(rc.raw) === -88434000, 'תגית מורכבת (ProfitLoss פחות זכויות מיעוט) — SEC הגולמי כהפרש');
+  // (ד) תגית משלימה: זו שתואמת אותנו (CME — ProfitLoss), לא הראשונה ברשימה (הרווח לבעלי המניות)
+  const fd = facts([[NI, 'USD', [[...Y(2024), 3525.8e6, '10-K', '2025-02-27']]], ['NetIncomeLossAvailableToCommonStockholdersBasic', 'USD', [['2024-07-01', '2024-09-30', 901.3e6, '10-Q', '2024-11-08']]],
+    ['ProfitLoss', 'USD', [['2024-07-01', '2024-09-30', 912.8e6, '10-Q', '2024-11-08']]]]);
+  const dd = base({ tags: { ni: NI }, fy: ['2023-12-31', '2024-12-31'], q: ['2024-09-30'], A: { ni: [null, 3525.8e6] }, Q: { ni: [912.8e6] } });
+  const rd = find(X.xcheck(dd, fd, null, null, { cand: { ni: [NI, 'NetIncomeLossAvailableToCommonStockholdersBasic', 'ProfitLoss'] } }), 'ni', 'Q', '2024-09-30');
+  ok(rd.c === 'ok' && rd.rf === 'ProfitLoss', 'תגית משלימה — זו שתואמת (ProfitLoss), לא הראשונה ברשימה');
+  // (ה) חברה זרה: Yahoo לפי ADS (4 מניות רגילות) — okd y_ads, לא one
+  const fe = facts([['WeightedAverageNumberOfDilutedSharesOutstanding', 'shares', [[...Y(2025), 5929.576e6, '20-F', '2026-04-29']]]]);
+  const de = base({ face: { form: '20-F' }, tags: { sh: 'WeightedAverageNumberOfDilutedSharesOutstanding' }, fy: ['2024-12-31', '2025-12-31'], A: { sh: [null, 5929.576e6] } });
+  const re = find(X.xcheck(de, fe, { fy: ['2025-12-31'], q: [], A: { sh: [1482.394e6] }, Q: {} }, null), 'sh', 'A', '2025-12-31');
+  ok(re.c === 'okd' && re.why === 'y_ads', 'Yahoo לפי ADS (יחס שלם בחברה זרה) — הגדרה, לא one');
+  // (ו) ממוצע מניות ברבעון רביעי כשהחברה הגישה בקנה מידה שגוי (McDonald's ‏"720") — האומדן באותו קנה מידה שלנו
+  const sh = [[...Y(2024), 721.9, '10-K', '2025-02-24'], [...Q(2024, 1), 723.6, '10-Q', '2024-04-30'], [...Q(2024, 2), 722.1, '10-Q', '2024-08-06'], [...Q(2024, 3), 720, '10-Q', '2024-10-29']];
+  const ff = facts([['WeightedAverageNumberOfDilutedSharesOutstanding', 'shares', sh]]);
+  const df = base({ tags: { sh: 'WeightedAverageNumberOfDilutedSharesOutstanding' }, fy: ['2023-12-31', '2024-12-31'], q: ['2024-12-31'], A: { sh: [null, 721.9e6] }, Q: { sh: [721.9e6] } });
+  const rf = find(X.xcheck(df, ff, null, null), 'sh', 'Q', '2024-12-31');
+  ok(rf.c === 'est' && rf.est === 721900000, 'אומדן מניות ברבעון רביעי בקנה המידה שלנו (721.9M, לא 720 מניות)');
+}
 console.log('\nכל ' + n + ' הבדיקות עברו ✓');
