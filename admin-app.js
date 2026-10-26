@@ -65,6 +65,7 @@ const D = { bk: null, fb: null, us: null, ag: null, srv: null, sec: null, log: n
 const PAGES = {};
 const page = (k, o) => { PAGES[k] = o; };
 let cur = 'ov';
+let booted = false;   // 26/10/2026: הסקירה כבר צוירה — מאגר הלמידה שמגיע אחריה מצייר שוב
 function go(k, push = true) {
   if (!PAGES[k]) k = 'ov';
   cur = k;
@@ -632,7 +633,8 @@ function provRow(name, P, skip) {
 page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
   if (!D.monT) needMon();
   const V = D.mon;
-  if (!V) { p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  // 26/10/2026: תקלה (למשל מכסת Firestore) — הודעה במקום "טוען…" לנצח; ממשיך לנסות כל 30 שנ׳
+  if (!V) { p.append(h('p', 'adm-dt', D.monErr ? t('admErr') + ' · ' + D.monErr : t('admLoading'))); return; }
   const M = V.mon;
   p.append(h('p', 'adm-dt', t('admMonDt')));
   p.append(grp(t('admMonSrv')));
@@ -691,11 +693,19 @@ page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
   p.append(list(row({ c: 'blue', ic: '▣', t: t('admMonApk'), s: t('admMonApkS'), on: monOpen('https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball-admin.apk') })));
 } });
 async function needMon() {
-  clearTimeout(D.monT); D.monT = 0;
-  const [r, pv] = await Promise.all([api('adminMon'), api('provUsage')]);
-  if (r.ok) D.mon = r;
-  if (pv.ok) { D.prov = pv.prov; D.provHist = pv.hist || []; D.sto = pv.sto || null; }
-  if (cur === 'mon') { D.monT = setTimeout(needMon, 30000); paint(); }   // מתרענן כל 30 שנ׳ כל עוד המסך פתוח
+  clearTimeout(D.monT); D.monT = -1;   // ‎-1 = בטעינה (לא טוענים שוב מהציור)
+  // 26/10/2026: השרתים מוצגים מיד — לא מחכים לשימוש מול הספקים (בקשות חיצוניות איטיות), והוא מתרענן רק פעם בדקה
+  const pvDue = !D.provAt || Date.now() - D.provAt > 60000;
+  const pvP = pvDue ? api('provUsage') : null;
+  const r = await api('adminMon');
+  if (r.ok) { D.mon = r; D.monErr = ''; } else D.monErr = String(r.error || '');
+  if (cur === 'mon') paint();
+  if (pvP) {
+    const pv = await pvP;
+    if (pv.ok) { D.prov = pv.prov; D.provHist = pv.hist || []; D.sto = pv.sto || null; D.provAt = Date.now(); }
+    if (cur === 'mon') paint();
+  }
+  D.monT = cur === 'mon' ? setTimeout(needMon, 30000) : 0;   // מתרענן כל 30 שנ׳ כל עוד המסך פתוח
 }
 /* ---- שימוש ומשפכים (15/10/2026): כמה נכנסו לכל אפליקציה ועד איפה הגיעו. רק ספירות קיימות + עבודות 30 יום — בלי מעקב חדש ---- */
 async function needUsage() {
@@ -1265,24 +1275,28 @@ page('find', { tab: 'find', title: () => t('admTabFind'), render(p) {
 if (first === 'out') { loginGate({ app: 'admin', auth: A, logo: 'logo-invest.webp', logoLg: 'logo-invest-lg.webp', name: t('admT') }); done(); }
 else boot();
 
-async function load() {
-  const [ov, lab] = await Promise.all([api('adminOv'), api('learn')]);
-  D.ov = ov.ok ? ov.ov : null; D.push = ov.ok ? ov.push : null; D.lab = lab; D.ovAt = Date.now();
-  return { ov, lab };
+/* 26/10/2026 (בקשת המשתמש: "הטעינה איטית וכבדה"): הסקירה מוצגת ברגע ש־adminOv עונה — מאגר הלמידה (learn, הכבד) מגיע
+   אחריה ומשלים את מה שתלוי בו (לא חוסם את הציור הראשון) */
+async function load(wait) {
+  const ovP = api('adminOv'), labP = api('learn').then((lab) => { D.lab = lab; if (!wait && booted) paint(); return lab; });
+  const ov = await ovP;
+  D.ov = ov.ok ? ov.ov : null; D.push = ov.ok ? ov.push : null; D.ovAt = Date.now();
+  return { ov, lab: wait ? await labP : null };
 }
 async function boot() {
   root.append(h('p', 'adm-wait', t('admLoading')));
-  const { ov, lab } = await load();
+  const { ov } = await load();
   done();
-  if ([ov.error, lab.error].some((e) => e === 'not_admin' || e === 'not_allowed')) {
+  if ([ov.error].some((e) => e === 'not_admin' || e === 'not_allowed')) {
     root.replaceChildren(h('p', 'adm-note', t('admNoAdmin')), accountCard(A, 'icon-192.png'));
     return;
   }
   const k = (location.hash || '#ov').slice(1);
   cur = PAGES[k] ? k : 'ov';
   try { history.replaceState({ adm: cur }, '', '#' + cur); } catch (e) {}
+  booted = true;
   paint();
-  document.addEventListener('visibilitychange', async () => { if (!document.hidden && Date.now() - D.ovAt > 60000) { await load(); paint(); } });
+  document.addEventListener('visibilitychange', async () => { if (!document.hidden && Date.now() - D.ovAt > 60000) { await load(true); paint(); } });
 }
 
 /* ---- לנתח עם Claude: חבילה להדבקה, קובץ, וטוקן לסשן של Claude Code ---- */
