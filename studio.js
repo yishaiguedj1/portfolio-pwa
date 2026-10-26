@@ -227,7 +227,8 @@ export function normJob(j) {
     bx: u.bx === true,   // 26/10/2026: נבחר ברשימת הקבצים של Studio (השרתון מאמת בחיבור של הרשימה)
     link: u.link === true,   // 22/10/2026: מקישור — העובד מוריד; בלי העלאה מהטלפון
     ph: PH_PID_RE.test(String(u.ph || '')) ? u.ph : '',   // 24/10/2026: תרגום בטלפון — Studio לאנדרואיד מעלה (הסרטון נשאר בטלפון)
-    dx: u.dx && FID_RE.test(String(u.dx.f || '')) ? { f: u.dx.f, n: String(u.dx.n || '').slice(0, 120), at: num(u.dx.at) } : null,   // התוצר נשמר בתיקייה שבחרת ב־Drive
+    dx: u.dx && FID_RE.test(String(u.dx.f || '')) ? { f: u.dx.f, n: String(u.dx.n || '').slice(0, 120), at: num(u.dx.at),   // התוצר נשמר בתיקייה שבחרת ב־Drive
+      j: JOB_RE.test(String(u.dx.j || '')) ? u.dx.j : '', st: ['run', 'ok', 'err'].includes(u.dx.st) ? u.dx.st : 'ok', p: Math.max(0, Math.min(1, +u.dx.p || 0)), e: String(u.dx.e || '').slice(0, 40), mv: u.dx.mv ? 1 : 0 } : null,   // 26/10/2026: שמירה בשרת (j = עבודת dx)
     tl: normUtl(u.tl) };
   const fp = j.fp && typeof j.fp === 'object' ? { name: String(j.fp.name || '').slice(0, 200), size: num(j.fp.size), lm: num(j.fp.lm) } : null;
   const s = j.srv && typeof j.srv === 'object' ? j.srv : null;
@@ -1231,7 +1232,6 @@ async function refreshStatus(force) {
     ui.api = normApi(j.api) || ui.api;   // מצב API של המערכת: תקציב חודשי ושרתים
     ui.eta = normEta(j.eta) || ui.eta;   // 10/10/2026: מודל הצפי (לעבודות שעוד לא נלקחו)
     ui.sc = normScan(j.sc) || ui.sc;   // v378: בדיקת המוכנות האחרונה
-    ui.picker = normPicker(j.pk);       // בחירה מ־Drive (Google Picker) — רק כשהוגדר מפתח בשרתון
     ui.r2 = j.r2 === true;              // 11/10: האחסון שלנו (R2) מוגדר — המילון שם, בלי צורך ב־Drive
     ui.gb = j.gb === true;              // 26/10/2026: רשימת הקבצים ב־Drive מוגדרת בשרתון
     if (j.gb === 'r' && !gbAsked) { gbAsked = true; gb().config().then((c) => { if (c.configured) { ui.gb = true; gbAsked = 'y'; if (root) render('none'); } }).catch(() => {}); }   // השרת שלנו בלי המשתנים — אולי ב־Vercel
@@ -1268,6 +1268,7 @@ async function refreshJobs(force) {
   for (const sj of j.jobs) {
     if (!sj || !JOB_RE.test(String(sj.id || ''))) continue;
     if (sj.sm === 1) continue;   // פריט 13: עבודת הבדיקה אחרי עדכון של העובד — רק במרכז הניהול ובהתראות, לא ברשימה
+    if (sj.kind === 'dx' || sj.kind === 'ai') continue;   // 26/10/2026: עבודות משנה (שמירה ב־Drive, גיליון ה־AI) — נעקבות לפי המזהה, לא ברשימה
     if (sj.kind === 'rr') { const x = normJob({ id: sj.id, srv: sj }); if (x && x.srv.rp) (sj.spec && sj.spec.prv === 1 ? pv : rr).set(x.srv.rp, x); continue; }   // מ2; סבב 10: צריבה לבדיקה — בנפרד
     ids.add(sj.id);
     const loc = have.get(sj.id);
@@ -1992,7 +1993,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
   if ((v === 'lang' && p !== 'def') || v === 'tracks' || v === 'link' || v === 'linkfmt' || v === 'linksec' || v === 'fmthelp' || v === 'grab' || v === 'cutsrc' || v === 'dpick') { v = 'new'; p = null; }   // הטופס (והקובץ) לא שורדים רענון
-  const parent = (x, y) => (x === 'home' ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : (x === 'lang' || x === 'tower' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'towerx' || x === 'rlb' || x === 'rlm' ? ['tower', null] : x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['towerx', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : ['home', null]);
+  const parent = (x, y) => (x === 'home' ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : (x === 'lang' || x === 'tower' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'towerx' || x === 'rlb' || x === 'rlm' ? ['tower', null] : x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['towerx', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : x === 'vids' ? (vidsParent(y) || ['store', null]) : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -2053,7 +2054,7 @@ function closeRequest() {
   if (!root) return;
   if (window.snbMenuClose && window.snbMenuClose()) { if (root) watch(); return; }   // התפריט של ההדר המשותף פתוח — "חזור" סוגר רק אותו
   // חלון אישור של האפליקציה (askConfirm) פתוח — "חזור" = הביטול שלו (יש לו רשומה משלו, והוא מוריד אותה)
-  if (pickerClose()) { if (root) watch(); return; }
+  if (vlUp()) { if (root) watch(); return; }   // 26/10/2026: ״הסרטונים שלי״ — ״חזור״ בתוך תיקייה = תיקייה אחת למעלה
   if (rsClose()) { if (root) watch(); return; }   // 25/10/2026: הגיליון "מה לא היה טוב?" — "חזור" סוגר רק אותו   // ה־Picker של Google פתוח — "חזור" סוגר רק אותו
   const plm = document.querySelector('.st-pl-menu:not([hidden])');   // תפריט ההגדרות של הנגן — "חזור" סוגר אותו (כמו ב־YouTube)
   const dlg = document.querySelector('.dlg-veil.on');
@@ -2081,7 +2082,7 @@ function onPop(e) {
    עמודים ראשיים = הבית ← מגדל הפיקוח ← הגדרות (כמו הלשוניות וההגדרות ב־Invest); בעמוד משנה — החלקה אחורה = "חזור"
    (כמו האפשרויות המתקדמות ב־Invest). בלי "החלקה קצרה" לטאבים (בקשת המשתמש) — פרטים · ציר · קשורות רק בלחיצה */
 const ST_SIB = ['home', 'tower', 'settings'];
-const ST_NOSWIPE = ['play', 'subs', 'cut', 'cutsrc', 'tracks', 'dpick', 'link', 'linkfmt', 'linksec', 'fmthelp', 'grab', 'sty', 'ov', 'new', 'edit', 'lang', 'connect', 'ai', 'rr'];   // עורכים, נגן וטפסים — בלי
+const ST_NOSWIPE = ['play', 'subs', 'cut', 'cutsrc', 'tracks', 'dpick', 'vids', 'link', 'linkfmt', 'linksec', 'fmthelp', 'grab', 'sty', 'ov', 'new', 'edit', 'lang', 'connect', 'ai', 'rr'];   // עורכים, נגן וטפסים — בלי
 const ST_TAB_KEYS = ['d', 't', 'r'];
 let swipePop = 0;
 function stSibOk() {              // דף ראשי שהבית נמצא ישר מתחתיו
@@ -2152,6 +2153,8 @@ function curtainDown(instant) {   // 14/10/2026: instant — פתיחה רגיל
 /* ---------------- רכיבים ---------------- */
 const h = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
 const ICON = {   // סמלים קבועים בלבד — אף פעם לא תוכן חיצוני
+  more: '<circle cx="5.5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="18.5" cy="12" r="1.3" fill="currentColor"/>',   // 26/10/2026: "הסרטונים שלי"
+  trash: '<path d="M4.5 7h15M9.5 7V4.8h5V7M6.5 7l.9 12.2a1 1 0 0 0 1 .8h7.2a1 1 0 0 0 1-.8L17.5 7M10.2 11v5.5M13.8 11v5.5"/>',
   folder: '<path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4.6l2 2.2h8.4A1.5 1.5 0 0 1 21 9.7v8.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/>',   // 26/10/2026: רשימת הקבצים ב־Drive
   bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   back: '<polyline points="9 6 15 12 9 18"/>',
@@ -2333,11 +2336,10 @@ function rowOut(rec, o) {
     a.href = '#'; a.setAttribute('role', 'button');
     a.addEventListener('click', (e) => { e.preventDefault(); downloadOut(rec, o); });
   } else { a.href = 'https://drive.google.com/file/d/' + o.id + '/view'; a.target = '_blank'; a.rel = 'noopener noreferrer'; }
-  const busy = dxOne === o.id;
-  a.append(tile(isTextOut(o.k) ? 'globe' : 'film', isTextOut(o.k) ? 'blue' : 'green'), rowTxt(outShort(o.k), busy ? T('studioDxBusy') : o.size ? fmtSize(o.size) : ''));
+  a.append(tile(isTextOut(o.k) ? 'globe' : 'film', isTextOut(o.k) ? 'blue' : 'green'), rowTxt(outShort(o.k), o.size ? fmtSize(o.size) : ''));
   const sh = isTextOut(o.k) || o.k === 'small';   // סבב 8: העותק לוואטסאפ — שיתוף, לא הורדה
-  const dx = !sh && canPick();                     // סרטון — שמירה ב־Drive
-  const b = btn('st-outb', null, () => (dx ? saveOutDrive(rec, o) : shareOut(rec, o)), (dx ? 'out-dx:' : 'out-sh:') + o.k);
+  const dx = !sh && driveOk();                     // סרטון — שמירה ב־Drive
+  const b = btn('st-outb', null, () => (dx ? goVids('O:' + rec.id + ':' + o.id) : shareOut(rec, o)), (dx ? 'out-dx:' : 'out-sh:') + o.k);
   b.setAttribute('aria-label', (sh ? T('studioOutShare') : dx ? T('studioOutDx') : T('studioOutDown')) + ' · ' + outShort(o.k));
   b.append(ico(sh ? 'share' : dx ? 'cloud' : 'down'));
   r.append(a, b);
@@ -2359,22 +2361,6 @@ async function downloadOut(rec, o) {
     flashSafe(T('studioOutDlStart'));
     location.href = g.url;
   } catch (e) { flashSafe(T('studioOutErr')); }
-}
-/* שמירה של תוצר אחד בתיקייה שבוחרים ב־Drive (R2 — עותק בזרם; Drive — העתקה) */
-let dxOne = '';
-async function saveOutDrive(rec, o) {
-  if (dxOne) return;
-  let dest;
-  try { dest = await drivePick('folder'); } catch (e) { flashSafe(errText(e && e.code || 'drive')); return; }
-  if (!dest) return;
-  dxOne = o.id; render('none');
-  try {
-    if (isR2Id(o.id)) await net.r2ToDrive(o.id, dest.id, outDlName(rec, o));
-    else await net.driveCopy(o.id, dest.id, outDlName(rec, o));
-    uxAdd(rec, 'o', 'dx');
-    flashSafe(T('studioDxDone', { n: dest.name }));
-  } catch (e) { flashSafe(T('studioDxErr')); }
-  finally { dxOne = ''; render('none'); }
 }
 export function outFileName(rec, k) {   // "שם הסרטון.he.srt" — בלי תווים שמערכות קבצים לא מקבלות
   const base = String(fileTitle(rec && rec.spec && rec.spec.name) || 'video').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'video';
@@ -2957,7 +2943,8 @@ function pageForm(p, editing) {
     const driveRow = ui.gb ? rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'), onClick: () => { if (dp.st !== 'ok') dp.st = ''; go('dpick'); }, k: 'from-drive' }) : null;
     p.append(list(pickRow, phRow, pwRow, linkRow, subsRow, driveRow));
     const tk = f.trk && f.trk.tracks.length ? f.trk.tracks : null;   // שלב 4
-    if (tk) p.append(list(rowNav({ tile: tile('cc', 'orange'), label: T('studioTrkRow'), value: T('studioTrkN', { n: fmtNum(tk.length) }), sub: T('studioTrkRowS'), onClick: () => go('tracks'), k: 'tracks' })));
+    const hl = tk && f.trk.hlp != null && f.trk.src == null && hlpEngine() ? tk.find((t) => t.id === f.trk.hlp) : null;   // 26/10/2026
+    if (tk) p.append(list(rowNav({ tile: tile('cc', 'orange'), label: T('studioTrkRow'), value: T('studioTrkN', { n: fmtNum(tk.length) }), sub: hl ? T('studioTrkHlpRow', { l: trkLabel(hl) }) : T('studioTrkRowS'), onClick: () => go('tracks'), k: 'tracks' })));
     const adv = advRows(f, pick);
     if (adv) p.append(h('div', 'st-gap sm'), adv);
     if (f.fileObj || (f.drive && !f.drive.bx)) p.append(list(rowNav({ tile: tile('film', 'blue'), label: T('studioEdBefore'), value: f.edl ? edlSum(f.edl, f.dur || 0) : T('studioEdOptional'), onClick: () => go('cutsrc'), k: 'cutsrc' })));   // מ4
@@ -3106,8 +3093,10 @@ function tracksFor(f, file) {
   if (!/\.(mkv|mk3d|webm|mp4|m4v|mov)$/i.test(file.name || '')) return;
   listTracks(file).then((L) => {
     if (form !== f || !(f.fileObj === file || (f._rb === file && f.drive && f.drive.id === file.id)) || !L || !L.tracks.length) return;   // _rb — הסרטון ב־Drive (dpPick)
-    f.trk = { file, vname: file.name, tracks: L.tracks, x: {}, src: null, ref: null, p: 0, busy: false };
-    render('none');
+    f.trk = { file, vname: file.name, tracks: L.tracks, x: {}, src: null, ref: null, hlp: null, p: 0, busy: false };
+    // 26/10/2026: רצועה באנגלית = עזר להגהת התמלול, מראש — רק כשהקובץ בטלפון (מ־Drive החילוץ קורא את כל הקובץ ברשת)
+    const h0 = hlpEngine() && !file.remote ? trkHlpAuto(L.tracks) : null;
+    if (h0) { f.trk.hlp = h0.id; trkEnsure(f, [h0.id]); } else render('none');
   }, () => {});
 }
 function trkLabel(t) {
@@ -3176,6 +3165,50 @@ function trkRefSrt(f) {
   const txt = cuesToFile('srt', imp.cues.map((c) => ({ s: c.s, e: c.e, t: c.lines.join('\n') })));
   return txt.length <= GOLD_REF_MAX ? txt : '';
 }
+/* 26/10/2026 (בקשת המשתמש): רצועת הכתוביות שבקובץ, בשפת המקור, כעזר להגהת התמלול — רק כשהשרת שלנו מגיה
+   (pipeline.py: SUBREF_NOTE). התרגום עצמו נשאר מהקול. בפורמט שהעובד קורא: שורה לכל כתובית, `[HH:MM:SS] טקסט` */
+const hlpEngine = () => apiMode() || cpMode() || ryMode();
+export function trkHlpAuto(tracks) {
+  const en = (tracks || []).filter((t) => t.kind === 'text' && t.lang === 'en');
+  return en.find((t) => !t.forced && !t.sdh) || en.find((t) => !t.forced) || null;
+}
+export function hlpText(cues) {
+  const two = (n) => String(n).padStart(2, '0');
+  const out = [];
+  let n = 0;
+  for (const c of cues || []) {
+    const t = Math.max(0, Math.floor(Number(c.s) || 0));
+    const body = (c.lines || []).join(' ').replace(/[\u0000-\u001f\u007f<>]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!body) continue;
+    const line = '[' + two(Math.floor(t / 3600)) + ':' + two(Math.floor(t / 60) % 60) + ':' + two(t % 60) + '] ' + body;
+    n += line.length + 1;
+    if (n > SUBS_MAX) break;
+    out.push(line);
+  }
+  return out.length ? out.join('\n') + '\n' : '';
+}
+function trkHlpTxt(f) {
+  const k = f && f.trk;
+  const x = k && k.src == null && k.hlp != null ? k.x[k.hlp] : null;
+  if (!x || x.st !== 'ok') return '';
+  return hlpText(importSubs(trkBytes(x), { sdh: true }).cues);
+}
+function trkChooseHlp(f, id) {
+  f.trk.hlp = id;
+  if (id != null) trkEnsure(f, [id]); else render('none');
+}
+/* חילוץ שעוד רץ בלחיצה על "התחלה" — מחכים לו (עד דקה), אחרת מתחילים בלי העזר */
+async function trkWait(f) {
+  for (let i = 0; i < 120 && f.trk && f.trk.busy; i++) await new Promise((r) => setTimeout(r, 500));
+}
+async function hlpUpload(rec, text) {
+  try {
+    const folder = rec.up.folder || await net.jobFolder(rec.id, fileTitle(rec.spec.name));
+    if (!rec.up.folder && folder) rec.up.folder = folder;
+    const id = await net.textUpload(folder, 'en.ref.txt', 'text/plain', text, { snbHlp: '1' });
+    await net.api('file', { job: rec.id, which: 'r', id, folder });
+  } catch (e) { /* העזר רשות — העבודה ממשיכה בלעדיו */ }
+}
 async function refUpload(rec, text) {
   try {
     const folder = rec.up.folder || await net.jobFolder(rec.id, fileTitle(rec.spec.name));
@@ -3207,6 +3240,10 @@ function pageTracks(p) {
       rowRadio({ on: k.src == null, label: T('studioTrkAudio'), sub: T('studioTrkAudioS'), onClick: () => trkChooseSrc(f, null), k: 'trk-src:a' }),
       ...text.map((t) => rowRadio({ on: k.src === t.id, label: trkLabel(t), sub: trkSub(f, t), disabled: !subsOk() || k.busy, onClick: () => trkChooseSrc(f, t.id), k: 'trk-src:' + t.id }))));
     if (!subsOk()) p.append(note(T('studioSubsApiOnly')));
+    if (k.src == null && hlpEngine()) p.append(secT(T('studioTrkHlpT')), list(   // 26/10/2026: מהקול — הרצועה כעזר להגהה
+      rowRadio({ on: k.hlp == null, label: T('studioTrkHlpNone'), onClick: () => trkChooseHlp(f, null), k: 'trk-hlp:0' }),
+      ...text.map((t) => rowRadio({ on: k.hlp === t.id, label: trkLabel(t), sub: trkSub(f, t), disabled: k.busy, onClick: () => trkChooseHlp(f, t.id), k: 'trk-hlp:' + t.id }))),
+      note(T('studioTrkHlpNote')));
     const refs = text.filter((t) => t.id !== k.src);   // רק כשיש רצועה נוספת להשוות אליה
     if (refs.length) p.append(secT(T('studioTrkRefT')), list(
       rowRadio({ on: k.ref == null, label: T('studioTrkRefNone'), onClick: () => trkChooseRef(f, null), k: 'trk-ref:0' }),
@@ -4228,6 +4265,11 @@ function startFromForm() {
     if (f.handle) handleOp('put', rec.id, f.handle);   // {inbox} — מההורדה בטלפון: הקובץ ב־snb-inbox (המשך אחרי רענון)
     if (f.dl && f.dl.th) { thumbs.set(rec.id, f.dl.th); idbOp('thumbs', 'put', rec.id, f.dl.th); }
     else if (f.fileObj) thumbFor(rec, null, f.fileObj);   // 21/10/2026: התמונה מהקובץ שבטלפון — בלי לחכות שיעלה
+    if (f.trk && f.trk.hlp != null && spec.eng === 'api') {   // 26/10/2026: עזר להגהה — לפני ההתחלה, כדי שהעובד יראה אותו בלקיחה
+      await trkWait(f);
+      const ht = trkHlpTxt(f);
+      if (ht) await hlpUpload(rec, ht);
+    }
     form = null;
     if (!root) { startRun(rec.id, ext ? null : file); return; }
     replaceView('job', rec.id);
@@ -4235,113 +4277,289 @@ function startFromForm() {
   })();
 }
 
-/* ---------------- Google Drive: סרטון מ־Drive כמקור, ושמירת התוצר בתיקייה שבחרת ----------------
-   הרשאת הסטודיו היא drive.file — האפליקציה רואה רק מה שהיא יצרה או מה שבחרת ב־Picker (הקובץ / התיקייה האלה בלבד).
-   כך גם העובד (שמעבד תוכן לא מהימן) לא מגיע לשאר ה־Drive שלך. ה־Picker נטען רק בלחיצה (apis.google.com, ב־CSP). */
-export function normPicker(o) {
-  return o && /^[A-Za-z0-9_-]{20,80}$/.test(String(o.key || '')) && /^\d{6,20}$/.test(String(o.app || '')) ? { key: o.key, app: o.app } : null;
-}
-const PICK_VIDEO_TYPES = 'video/mp4,video/quicktime,video/x-matroska,video/webm,video/x-msvideo,video/3gpp,video/mp2t,video/x-m4v,video/mpeg';   // לשונית התיקיות: רק סרטונים (ותיקיות)
-let pickerLoad = null, pickerNow = null;
-function loadPicker() {
-  if (window.google && window.google.picker) return Promise.resolve();
-  if (!pickerLoad) {
-    pickerLoad = new Promise((ok, no) => {
-      const go = () => window.gapi.load('picker', { callback: ok, onerror: no, timeout: 15000, ontimeout: no });
-      if (window.gapi && window.gapi.load) { go(); return; }
-      const sc = document.createElement('script'); sc.src = 'https://apis.google.com/js/api.js'; sc.async = true;
-      sc.addEventListener('load', go); sc.addEventListener('error', no);
-      document.head.append(sc);
-    }).catch((e) => { pickerLoad = null; throw e; });
-  }
-  return pickerLoad;
-}
-/* בורר הקבצים של Google במסך מלא (trigger_onepick): אותו מראה כמו בחירת קובץ באנדרואיד, והבחירה = הגישה (drive.file).
-   Google מתעד אותו ללקוחות מחשב/טלפון; אם הוא לא מציג בורר ללקוח האתר שלנו (חוזר בלי מזהים / שגיאה) —
-   זוכרים (store.settings.op1) ועוברים לבורר הנוכחי, בלי לחיצה נוספת. אחרי חודש מנסים שוב. */
-const OP1_RETRY = 30 * 864e5;
-export function onepickOk(s, now) { return !(s && s.op1 > 0 && now - s.op1 < OP1_RETRY); }
-export function canPickDrive(picker, s, drive, now) { return !!picker || (onepickOk(s, now) && !!(drive && drive.configured)); }
-const canPick = () => canPickDrive(ui.picker, store.settings, store.drive, Date.now());
-/* חייב להיקרא בתוך הלחיצה, בלי await לפני — החלון נפתח מיד */
-async function drivePick(kind) {
-  if (onepickOk(store.settings, Date.now())) {
-    let ids, why = 'picker';
-    try { ids = await gd().pick(kind === 'folder' ? { folder: true } : { types: PICK_VIDEO_TYPES.split(',') }, store.drive && store.drive.email || ''); }
-    catch (e) {
-      const c = e && e.code;
-      if (c === 'gd_denied' || c === 'gd_cancel') return null;
-      if (c !== 'gd_pick_bad' && c !== 'gd_popup') throw e;
-      ids = c === 'gd_popup' ? null : [];         // חלון חסום — לא אשמת Google, לא זוכרים
-      if (c === 'gd_popup') why = c;
-    }
-    statusAt = 0;                                 // החלון גם מחבר את Drive — המצב מהשרתון מתעדכן
-    net._forget();                                // גישה חדשה (הבחירה נרשמה ללקוח)
-    if (ids && ids.length) {
-      const m = await net.driveMeta(ids[0]);
-      return m && !m.trashed ? { id: ids[0], name: String(m.name || ''), meta: m } : null;
-    }
-    if (ids) { store.settings.op1 = Date.now(); save(); }
-    if (!ui.picker) { await refreshStatus(true); if (!ui.picker) throw Object.assign(new Error(why), { code: why }); }
-  }
-  return legacyPick(kind);
-}
-/* הבורר הנוכחי (Google Picker בתוך הדף). kind: 'video' (סרטון מקור) / 'folder' (לאן לשמור). מחזיר { id, name } או null (ביטול) */
-async function legacyPick(kind) {
-  const cfg = ui.picker;
-  if (!cfg) throw Object.assign(new Error('picker'), { code: 'picker' });
-  const [tok] = await Promise.all([net.driveToken(), loadPicker()]);
-  const G = window.google.picker;
-  return new Promise((res) => {
-    /* רשימה (לא רשת): שם, תאריך, גודל — בלי ריבועי תמונה ממוזערת שבורים. לשונית לכל דרך חיפוש; label רק כשהגרסה תומכת */
-    const L = (v, label) => { v.setMode(G.DocsViewMode.LIST); if (typeof v.setLabel === 'function') v.setLabel(label); return v; };
-    const views = kind === 'folder'
-      ? [L(new G.DocsView(G.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes('application/vnd.google-apps.folder').setParent('root'), T('studioPkMine')),
-        L(new G.DocsView(G.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes('application/vnd.google-apps.folder').setStarred(true), T('studioPkStar'))]
-      : [L(new G.DocsView(G.ViewId.DOCS_VIDEOS).setIncludeFolders(false), T('studioPkVideos')),   // כל הסרטונים — מהחדש לישן
-        L(new G.DocsView(G.ViewId.DOCS).setMimeTypes(PICK_VIDEO_TYPES).setIncludeFolders(true).setParent('root'), T('studioPkMine')),   // מעבר בין תיקיות כמו ב־Drive
-        L(new G.DocsView(G.ViewId.DOCS_VIDEOS).setStarred(true), T('studioPkStar'))];
-    const done = (x) => { if (pickerNow && pickerNow.res === res) pickerNow = null; res(x); };
-    const pb = new G.PickerBuilder().setOAuthToken(tok).setDeveloperKey(cfg.key).setAppId(cfg.app);
-    for (const v of views) pb.addView(v);
-    const pk = pb
-      .setLocale(uiLang() === 'he' ? 'iw' : 'en').setTitle(kind === 'folder' ? T('studioDxPickT') : T('studioFromDrive'))
-      .setCallback((d) => {
-        const a = d && d[G.Response.ACTION];
-        if (a === G.Action.PICKED) { const doc = (d[G.Response.DOCUMENTS] || [])[0] || {}; done(doc[G.Document.ID] ? { id: doc[G.Document.ID], name: String(doc[G.Document.NAME] || '') } : null); }
-        else if (a === G.Action.CANCEL) done(null);
-      }).build();
-    pickerNow = { pk, res };
-    pk.setVisible(true);
-  });
-}
-/* "חזור" כשה־Picker פתוח — סוגר אותו (ולא את הדף) */
-function pickerClose() { if (!pickerNow) return false; const x = pickerNow; pickerNow = null; try { x.pk.setVisible(false); } catch (e) {} x.res(null); return true; }
-/* בסוף העבודה: התוצר לתיקייה שבחרת. הסרטון המתורגם עובר (בלי עותק — לא תופס אחסון פעמיים), הכתוביות מועתקות
-   (קטנות, והעורך וסט הזהב קוראים מהעותק שבתיקיית העבודה) */
+/* ---------------- "הסרטונים שלי" ב־Google Drive (26/10/2026, בקשת המשתמש — במקום Google Picker) ----------------
+   תיקייה אחת ב־Drive לכל מה שנשמר מ־Studio, עם תיקיות משנה שמנהלים כאן כמו ב־Files של Apple: יצירה, שינוי שם, העברה,
+   מחיקה (לפח של Drive). בגישה של הסטודיו (drive.file) — האפליקציה רואה רק מה שהיא יצרה, לא את שאר ה־Drive.
+   השמירה: תוצרים ב־R2 (מצב השרת) — העובד בשרת מעתיק (עבודת dx), הסרטון לא עובר בטלפון; תוצרים ב־Drive (Routine) —
+   העברה בתוך Drive. ui.param: '' = ניהול · 'S:<עבודה>' = לשמור את העבודה · 'O:<עבודה>:<תוצר>' = תוצר אחד · 'F:<תיקייה>' */
 const DX_MOVE = ['same', 'compact', 'small', 'mkv'];
-let dxBusy = '';
-async function exportToDrive(rec) {
-  if (dxBusy || !rec) return;
-  const folder = jobFolder(rec), outs = (rec.srv && rec.srv.out) || [];
-  const vids = outs.filter((o) => DX_MOVE.includes(o.k)), srt = outs.find((o) => o.k === 'srt');
-  if (!folder || (!vids.length && !srt)) return;
-  let dest;
-  try { dest = await drivePick('folder'); } catch (e) { flashSafe(errText(e && e.code || 'drive')); return; }
-  if (!dest) return;
-  if (rec.up.dx && rec.up.dx.f === dest.id) { flashSafe(T('studioDxDone', { n: dest.name || rec.up.dx.n })); return; }   // כבר שם
-  dxBusy = rec.id; render('none');
+const vl = { st: '', root: '', path: [], items: [], next: '', busy: false, seq: 0, err: '', q: '', mv: null };
+const vlPaint = () => { if (root && ui.view === 'vids') render('none'); };
+const vlTop = () => vl.path[vl.path.length - 1] || null;
+const driveOk = () => !!(store.drive && store.drive.configured !== false);
+export function vlParse(p) {
+  const m = /^([SOF]):([A-Za-z0-9_-]{6,120})(?::([A-Za-z0-9_-]{10,200}))?$/.exec(String(p || ''));
+  return m ? { k: m[1], id: m[2], o: m[3] || '' } : null;
+}
+/* מאיפה נכנסו ל״הסרטונים שלי״ — לרענון (chainFor): מדף העבודה, אחרת מעמוד האחסון */
+export function vidsParent(p) { const x = vlParse(p); return x && x.k !== 'F' ? ['job', x.id] : null; }
+function vlAct() {
+  const x = vlParse(ui.param);
+  if (!x || x.k === 'F') return null;
+  const rec = jobRec(x.id);
+  if (!rec || !rec.srv) return null;
+  if (x.k === 'S') return { k: 'S', rec };
+  const o = (rec.srv.out || []).find((y) => y.id === x.o);
+  return o ? { k: 'O', rec, o } : null;
+}
+/* הדרך לתיקייה: השורש, ובכניסה לתיקייה של עבודה (F) — גם היא */
+function vlStart(param) {
+  const x = vlParse(param);
+  vl.path = vl.root ? [{ id: vl.root, n: T('studioVidsT') }] : [];
+  if (vl.root && x && x.k === 'F' && x.id !== vl.root) {
+    const rec = store.jobs.find((r) => r.up.dx && r.up.dx.f === x.id);
+    vl.path.push({ id: x.id, n: rec ? rec.up.dx.n : '' });
+  }
+}
+function goVids(param) {
+  vl.q = ''; vl.mv = null; vl.st = ''; vl.items = []; vl.next = '';
+  vlStart(param);
+  go('vids', param || '');
+}
+async function vlLoad(more) {
+  const seq = ++vl.seq;
+  vl.busy = true; if (!more) { vl.items = []; vl.next = ''; } vl.err = ''; vlPaint();
   try {
-    for (const o of vids) {
-      if (isR2Id(o.id)) await net.r2ToDrive(o.id, dest.id, fileTitle(rec.spec.name) + ' — ' + o.k + (o.k === 'mkv' ? '.mkv' : '.mp4'));   // ת4: מ־R2 — עותק לתיקייה שבחרת
-      else await net.driveMove(o.id, rec.up.dx ? rec.up.dx.f : folder, dest.id);
+    if (!vl.root) {
+      const r0 = await net.vidsRoot(T('studioVidsRoot'));
+      if (seq !== vl.seq) return;
+      vl.root = r0; vlStart(ui.param);
     }
-    if (srt) await (isR2Id(srt.id) ? net.r2ToDrive(srt.id, dest.id, fileTitle(rec.spec.name) + '.he.srt') : net.driveCopy(srt.id, dest.id, fileTitle(rec.spec.name) + '.he.srt'));
-    rec.up.dx = { f: dest.id, n: dest.name.slice(0, 120), at: Date.now() };
+    const r = await net.vidsList(vlTop().id, { q: vl.q, page: more ? vl.next : '' });
+    if (seq !== vl.seq) return;
+    vl.items = (more ? vl.items : []).concat(r.files); vl.next = r.next; vl.st = 'ok';
+  } catch (e) {
+    if (seq !== vl.seq) return;
+    const c = e && e.code;
+    if (c === 'not_connected' || c === 'revoked' || c === 'not_allowed') vl.st = 'conn';
+    else if (c === 'drive_http_404' && vl.path.length > 1) { vl.path = vl.path.slice(0, 1); vl.busy = false; vlLoad(); return; }   // התיקייה נמחקה בינתיים
+    else { vl.st = vl.st === 'ok' ? 'ok' : 'err'; vl.err = c || 'drive'; }
+  } finally { if (seq === vl.seq) { vl.busy = false; vlPaint(); } }
+}
+const vlOpen = (x) => { vl.path.push({ id: x.id, n: x.name }); vl.q = ''; vlLoad(); };
+/* "חזור" בתוך תיקייה — תיקייה אחת למעלה (כמו ב־Files), לא יציאה מהדף */
+function vlUp() { if (ui.view !== 'vids' || vl.path.length < 2 || vl.q.trim()) return false; vl.path.pop(); vlLoad(); return true; }
+function vlThumb(x) {
+  const th = h('span', 'st-thumb st-dp-th'); th.append(ico('film'));
+  if (x.th) {
+    const im = h('img'); im.alt = ''; im.decoding = 'async'; im.loading = 'lazy'; im.referrerPolicy = 'no-referrer';
+    im.addEventListener('load', () => th.classList.add('ok'));
+    im.addEventListener('error', () => im.remove());
+    im.src = x.th; th.append(im);
+  }
+  if (x.dur) th.append(h('span', 'st-dp-dur', fmtDur(x.dur)));
+  return th;
+}
+function vlRow(x, picking) {
+  const r = h('div', 'st-row st-ric st-vl-row' + (vl.mv && vl.mv.id === x.id ? ' dim' : ''));
+  const main = btn('st-vl-main', null, () => {
+    if (x.folder) { if (!(vl.mv && vl.mv.id === x.id)) vlOpen(x); return; }
+    if (!picking && x.url) window.open(x.url, '_blank', 'noopener');
+  }, 'vl:' + x.id);
+  main.append(x.folder ? tile('folder', 'blue') : /^video\//.test(x.type) ? vlThumb(x) : tile('globe', 'blue'));   // כתוביות — כמו בשורת התוצר
+  const l = h('span', 'st-l'), nm = h('b'), bd = h('bdi', null, x.folder ? x.name : fileTitle(x.name)); bd.dir = 'auto'; nm.append(bd);
+  l.append(nm, h('small', null, [x.folder ? '' : x.size ? fmtSize(x.size) : '', x.at ? fmtDay(x.at) : ''].filter(Boolean).join(' · ')));
+  main.append(l);
+  if (x.folder && picking) main.append(ico('chev', 'st-chev'));   // בניהול — ⋯ בצד, בלי חץ נוסף
+  r.append(main);
+  if (!picking) {
+    const m = btn('st-outb', null, () => vlMenu(x), 'vlm:' + x.id);
+    m.setAttribute('aria-label', T('studioVidsMore') + ' · ' + x.name);
+    m.append(ico('more'));
+    r.append(m);
+  }
+  return r;
+}
+/* גיליון קטן מלמטה (אותו עיצוב של "מה לא היה טוב?") — "חזור" סוגר אותו (rsClose) */
+function vlSheet(title, body) {
+  rsClose();
+  const veil = h('div', 'st-rs'); veil.setAttribute('role', 'dialog'); veil.setAttribute('aria-modal', 'true'); veil.setAttribute('aria-label', title);
+  const box = h('div', 'st-rs-box');
+  const t = h('h2', 'st-rs-t'); const tb = h('bdi', null, title); tb.dir = 'auto'; t.append(tb);
+  box.append(h('div', 'st-rs-grab'), t, ...body.filter(Boolean));
+  veil.append(box);
+  veil.addEventListener('click', (e) => { if (e.target === veil) rsClose(); });
+  document.body.append(veil);
+  return box;
+}
+function vlMenu(x) {
+  const act = (k, icn, label, fn, danger) => { const b = btn('st-row st-ric' + (danger ? ' st-vl-danger' : ''), null, () => { rsClose(); fn(); }, 'vla:' + k); b.append(tile(icn, danger ? 'red' : 'gray'), rowTxt(label, '')); return b; };
+  vlSheet(x.folder ? x.name : fileTitle(x.name), [list(
+    !x.folder && x.url ? act('open', 'out', T('studioVidsOpen'), () => window.open(x.url, '_blank', 'noopener')) : null,
+    act('ren', 'edit', T('studioVidsRename'), () => vlName(x)),
+    act('mv', 'folder', T('studioVidsMove'), () => { vl.mv = { id: x.id, name: x.folder ? x.name : fileTitle(x.name), parent: x.parent || (vlTop() && vlTop().id) || '' }; vl.path = vl.path.slice(0, 1); vl.q = ''; vlLoad(); }),
+    act('del', 'trash', T('studioVidsDel'), () => vlDel(x), true))]);
+}
+export const vlCleanName = (s) => String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f<>"\\/:*?|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+/* שם — לתיקייה חדשה (x = null) או לשינוי שם (הסיומת של קובץ נשארת) */
+function vlName(x) {
+  const inp = h('input', 'st-in st-ask-in'); inp.type = 'text'; inp.maxLength = 120; inp.autocomplete = 'off'; inp.dir = 'auto';
+  inp.value = x ? (x.folder ? x.name : fileTitle(x.name)) : ''; inp.placeholder = T('studioVidsNameP'); inp.dataset.k = 'vl-name';
+  const ext = x && !x.folder ? (/(\.[A-Za-z0-9]{2,5}(?:\.[A-Za-z0-9]{2,5})?)$/.exec(x.name) || [])[1] || '' : '';
+  const ok = btn('st-btn wide', x ? T('studioVidsSave') : T('studioVidsCreate'), async () => {
+    const n = vlCleanName(inp.value);
+    if (!n) { inp.focus(); return; }
+    rsClose();
+    try {
+      if (x) { if (n + ext !== x.name) await net.driveRename(x.id, n + ext); }
+      else await net.vidsFolder(vlTop().id, n);
+      vlLoad();
+    } catch (e) { flashSafe(T('studioVidsErr')); }
+  }, 'vl-name-ok');
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); ok.click(); } });
+  vlSheet(x ? T('studioVidsRename') : T('studioVidsNew'), [inp, ok]);
+  try { inp.focus(); if (x) inp.select(); } catch (e) {}
+}
+function vlDel(x) {
+  const go2 = async () => { try { await net.driveTrash(x.id); vl.items = vl.items.filter((y) => y.id !== x.id); vlPaint(); flashSafe(T('studioVidsDelDone')); } catch (e) { flashSafe(T('studioVidsErr')); } };
+  if (typeof askConfirm === 'function') askConfirm(x.folder ? T('studioVidsDelQF', { n: x.name }) : T('studioVidsDelQ', { n: fileTitle(x.name) }), go2, { danger: true, ok: T('studioVidsDel') });
+  else go2();
+}
+async function vlMoveHere() {
+  const m = vl.mv, top = vlTop();
+  if (!m || !top || vl.busy) return;
+  if (m.parent === top.id) { vl.mv = null; vlLoad(); return; }
+  vl.busy = true; vlPaint();
+  try { await net.driveMoveTo(m.id, m.parent, top.id); vl.mv = null; flashSafe(T('studioVidsMoved', { n: top.n })); }
+  catch (e) { flashSafe(T('studioVidsErr')); }
+  vl.busy = false; vlLoad();
+}
+/* השמירה עצמה: עבודה שלמה — תיקייה לכל סרטון (בשם שלו) בתוך התיקייה שבחרת; תוצר אחד — ישר לתיקייה */
+async function vlSaveHere(a) {
+  const top = vlTop();
+  if (!top || vl.busy || !a) return;
+  const rec = a.rec, outs = (rec.srv && rec.srv.out) || [];
+  const items = a.k === 'O' ? [a.o] : outs.filter((o) => DX_MOVE.includes(o.k)).concat(outs.filter((o) => o.k === 'srt'));
+  if (!items.length) return;
+  let dest = { id: top.id, name: top.n || T('studioVidsT') };
+  vl.busy = true; vlPaint();
+  try {
+    if (a.k === 'S') { const f = await net.vidsSub(top.id, vlCleanName(fileTitle(rec.spec.name)) || 'video'); dest = { id: f.id, name: f.name }; }
+  } catch (e) { vl.busy = false; vlPaint(); flashSafe(T('studioVidsErr')); return; }
+  vl.busy = false;
+  back();
+  dxStart(rec, dest, items);
+}
+/* ההעברה: בשרת (R2 → Drive, עבודת dx — אפשר לסגור את האפליקציה), או בתוך Drive (עבודה של Routine) */
+let dxBusy = '';
+async function dxStart(rec, dest, items) {
+  if (dxBusy === rec.id || (rec.up.dx && rec.up.dx.st === 'run')) return;
+  if (items.every((o) => isR2Id(o.id))) {
+    dxBusy = rec.id; repaint();
+    try {
+      const j = await net.api('dxRun', { job: rec.id, dx: { f: dest.id, n: dest.name, it: items.map((o) => ({ id: o.id, n: outDlName(rec, o) })) } });
+      if (!j.ok || !j.job) { flashSafe(j.error === 'dx_busy' ? T('studioDxBusy') : j.error === 'dx_folder' ? T('studioVidsErr') : errText(j.error)); return; }
+      const k = await startSub(j.job.id);
+      if (!k.ok) { flashSafe(errText(k.error)); return; }
+      rec.up.dx = { f: dest.id, n: dest.name.slice(0, 120), at: 0, j: j.job.id, st: 'run', p: 0, e: '' };
+      save(); uxAdd(rec, 'o', 'dx'); dxKick();
+    } finally { dxBusy = ''; repaint(); }
+    return;
+  }
+  dxBusy = rec.id; repaint();
+  try {   // Routine: הקבצים כבר ב־Drive — הסרטונים עוברים (בלי עותק), הכתוביות מועתקות (העורך וסט הזהב קוראים מהעותק בתיקיית העבודה)
+    const folder = jobFolder(rec), from = rec.up.dx && rec.up.dx.mv ? rec.up.dx.f : folder;
+    let mv = 0;
+    for (const o of items) {
+      if (isR2Id(o.id)) await net.r2ToDrive(o.id, dest.id, outDlName(rec, o));
+      else if (DX_MOVE.includes(o.k) && from) { await net.driveMove(o.id, from, dest.id); mv = 1; }
+      else await net.driveCopy(o.id, dest.id, outDlName(rec, o));
+    }
+    rec.up.dx = { f: dest.id, n: dest.name.slice(0, 120), at: Date.now(), j: '', st: 'ok', p: 1, e: '', mv };
     save(); uxAdd(rec, 'o', 'dx');
     flashSafe(T('studioDxDone', { n: dest.name }));
   } catch (e) { flashSafe(T('studioDxErr')); }
-  finally { dxBusy = ''; render('none'); }
+  finally { dxBusy = ''; repaint(); }
+}
+/* מעקב אחרי שמירה בשרת — גם כשהדף של העבודה לא פתוח (כל 4 שנ׳ כל עוד משהו רץ) */
+let dxT = 0;
+function dxKick() { clearTimeout(dxT); dxT = setTimeout(dxTick, 4000); }
+async function dxTick() {
+  dxT = 0;
+  const run = store.jobs.filter((r) => r.up.dx && r.up.dx.st === 'run' && JOB_RE.test(String(r.up.dx.j || '')));
+  if (!run.length || !root) return;
+  if (document.hidden) { dxKick(); return; }
+  for (const r of run) {
+    const x = await net.api('job', { job: r.up.dx.j });
+    const d = r.up.dx;
+    if (!x.ok || !x.job) { if (x.error === 'not_found') { d.st = 'err'; d.e = 'gone'; } continue; }
+    const s = String(x.job.state || '');
+    if (s === 'done') { d.st = 'ok'; d.at = Date.now(); d.p = 1; flashSafe(T('studioDxDone', { n: d.n })); }
+    else if (s === 'failed' || s === 'cancelled') { d.st = 'err'; d.e = String(x.job.err || 'failed').slice(0, 40); flashSafe(T('studioDxFail')); }
+    else d.p = Math.max(0, Math.min(1, +(x.job.prog && x.job.prog.p) || 0));
+  }
+  save(); repaint();
+  dxKick();
+}
+/* השורה בדף העבודה */
+function dxRow(rec) {
+  const d = rec.up.dx, run = dxBusy === rec.id || (d && d.st === 'run');
+  const sub = run ? (d && d.st === 'run' ? T('studioDxSrv', { p: Math.round((d.p || 0) * 100) }) : T('studioDxBusy'))
+    : d && d.st === 'err' ? T('studioDxFail') : d ? T('studioDxDone', { n: d.n }) : T('studioDxSub');
+  return rowNav({ tile: tile('cloud', 'green'), label: T('studioDxT'), sub, onClick: () => (run ? null : d && d.st === 'ok' ? goVids('F:' + d.f) : goVids('S:' + rec.id)), k: 'dx' });
+}
+function pageVids(p) {
+  const a = vlAct(), x = vlParse(ui.param);
+  if (x && x.k !== 'F' && !a) { back(); return; }
+  const picking = !!a || !!vl.mv, top = vlTop();
+  const inSub = vl.path.length > 1;
+  const title = inSub && !picking ? top.n : '';
+  const cancel = vl.mv ? btn('st-txt', T('studioCancel'), () => { vl.mv = null; vlLoad(); }, 'vl-mv-x') : null;
+  const jr = x ? jobRec(x.k === 'F' ? (store.jobs.find((r) => r.up.dx && r.up.dx.f === x.id) || {}).id : x.id) : null;
+  p.append(navBar({ back: jr ? fileTitle(jr.spec.name) || T('studioUntitled') : T('studioStoreT'), title, end: cancel }));
+  if (picking) p.append(large(vl.mv ? T('studioVidsMoveT') : T('studioDxPickT')));
+  else if (!inSub) p.append(large(T('studioVidsT')));
+  if (!driveOk()) { p.append(h('div', 'st-empty st-empty-sm', T('studioDriveNoCfg'))); return; }
+  if (!store.drive || !store.drive.connected || vl.st === 'conn') {
+    const c = h('div', 'st-dp-conn');
+    const ic = h('span', 'st-dp-ic'); ic.append(ico('cloud'));
+    c.append(ic, h('b', null, T('studioVidsConnT')), h('p', null, T('studioVidsConnS')));
+    const b = btn('st-btn wide', ui.driveBusy ? T('studioDriveBusy') : T('studioDriveConnect'), () => { vl.st = ''; connectDrive(); }, 'vl-conn');
+    b.disabled = !!ui.driveBusy || blocked();
+    p.append(c, b);
+    return;
+  }
+  if (vl.st === '') { vl.st = 'load'; setTimeout(() => vlLoad(), 0); }   // לא בתוך הציור
+  if (!picking) {   // חיפוש בשם בכל "הסרטונים שלי" — בלי לבנות את הדף מחדש בכל הקשה
+    const sq = h('input', 'st-in st-dp-q'); sq.type = 'search'; sq.placeholder = T('studioVidsSearch'); sq.value = vl.q; sq.dataset.k = 'vl-q';
+    sq.setAttribute('aria-label', T('studioVidsSearch')); sq.autocomplete = 'off'; sq.spellcheck = false;
+    let tmr = 0;
+    sq.addEventListener('input', () => { clearTimeout(tmr); tmr = setTimeout(() => { if (vl.q !== sq.value) { vl.q = sq.value; vlLoad(); } }, 350); });
+    p.append(sq);
+  }
+  if (inSub && !vl.q.trim()) {
+    const up = btn('st-dp-up', null, () => vlUp(), 'vl-up');
+    up.append(ico('back'), h('bdi', null, vl.path[vl.path.length - 2].n || T('studioVidsT')));
+    p.append(up);
+  }
+  if (a) p.append(note(a.k === 'S' ? T('studioVidsSaveN') : T('studioVidsSave1N', { n: outShort(a.o.k) })));
+  else if (vl.mv) p.append(note(T('studioVidsMoveN', { n: vl.mv.name })));
+  if (vl.st === 'err' && !vl.items.length) {
+    p.append(h('div', 'st-empty st-empty-sm', errText(vl.err)), btn('st-btn tint wide', T('studioGlRetry'), () => vlLoad(), 'vl-retry'));
+  } else {
+    const shown = picking ? vl.items.filter((y) => y.folder) : vl.items;   // בבחירת מקום — רק תיקיות
+    const rows = [];
+    if (!vl.q.trim() && vl.st === 'ok') { const nb = btn('st-row st-ric', null, () => vlName(null), 'vl-new'); nb.append(tile('plus', 'blue'), rowTxt(T('studioVidsNew'), '')); rows.push(nb); }   // פעולה, לא מעבר — בלי חץ
+    rows.push(...shown.map((y) => vlRow(y, picking)));
+    if (rows.length) p.append(list(...rows));
+    if (!shown.length) {
+      if (vl.busy) { const ld = h('div', 'st-lk-ld'); ld.append(h('span', 'st-spin'), h('span', null, T('studioDpLoading'))); p.append(ld); }
+      else if (!picking) p.append(h('div', 'st-empty st-empty-sm', vl.q.trim() ? T('studioDpNone') : T('studioVidsEmpty')));
+    }
+    if (vl.next) {
+      const more = btn('st-btn tint wide', vl.busy ? T('studioDpLoading') : T('studioDpMore'), () => vlLoad(true), 'vl-more');
+      more.disabled = vl.busy;
+      p.append(h('div', 'st-gap sm'), more);
+    }
+  }
+  if (picking && top) {
+    const foot = h('div', 'st-foot');
+    const go1 = btn('st-btn wide', vl.busy ? T('studioDriveBusy') : vl.mv ? T('studioVidsMoveHere') : T('studioVidsSaveHere'), () => (vl.mv ? vlMoveHere() : vlSaveHere(a)), 'vl-here');
+    go1.disabled = vl.busy || vl.st !== 'ok';
+    const where = h('small', 'st-vl-where'); const wb = h('bdi', null, top.n || T('studioVidsT')); wb.dir = 'auto'; where.append(wb);
+    foot.append(where, go1);
+    p.append(foot);
+  }
 }
 
 function pageLang(p) {
@@ -7498,8 +7716,7 @@ function pageJob(p) {
     canEdit(rec) ? rowNav({ tile: tile('edit', 'blue'), label: T('studioSeTitle'), sub: rec.srv.ev ? T('studioSeEdited', { n: rec.srv.ev }) : '', onClick: () => go('subs', id), k: 'subs' }) : null,   // מ2
     canEdit(rec) ? rrRow(rec, 'rr') : null,
     canEdit(rec) ? rowNav({ tile: tile('spark', 'teal'), label: T('studioIdTitle'), sub: T('studioIdSub'), onClick: () => go('ideas', id), k: 'ideas' }) : null,   // מ8
-    canPick() && outs.some((o) => DX_MOVE.includes(o.k) || o.k === 'srt') ? rowNav({ tile: tile('cloud', 'green'), label: dxBusy === rec.id ? T('studioDxBusy') : T('studioDxT'),
-      sub: rec.up.dx ? T('studioDxDone', { n: rec.up.dx.n }) : T('studioDxSub'), onClick: () => exportToDrive(rec), k: 'dx' }) : null,   // התוצר לתיקייה שבחרת ב־Drive
+    driveOk() && outs.some((o) => DX_MOVE.includes(o.k) || o.k === 'srt') ? dxRow(rec) : null,   // 26/10/2026: ״הסרטונים שלי״ ב־Drive   // התוצר לתיקייה שבחרת ב־Drive
     jobFolder(rec) && !isR2Folder(jobFolder(rec)) ? rowExt({ href: 'https://drive.google.com/drive/folders/' + jobFolder(rec), tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null,
     btn('st-row st-act', T('studioRcpt'), () => shareReceipt(rec), 'receipt')));   // שלב 4: קבלה
     const kn = keepNote(rec);   // 26/10/2026: עד מתי אפשר לצרוב מחדש ועד מתי הקבצים נשמרים
@@ -7858,6 +8075,7 @@ function pageStore(p) {
   drow.append(tile('cloud', 'blue'), dl);
   const drows = [drow];
   if (!dr || !dr.connected) { const b = btn('st-row st-act', ui.driveBusy ? T('studioDriveBusy') : T('studioDriveConnect'), connectDrive, 'drive-connect'); b.disabled = ui.driveBusy || blocked(); drows.push(b); }
+  if (dr && dr.connected) drows.push(rowNav({ tile: tile('folder', 'blue'), label: T('studioVidsT'), sub: T('studioVidsRowS'), onClick: () => goVids(''), k: 'vids' }));   // 26/10/2026
   p.append(setCard(T('studioSecDrive'), list(...drows), note(T('studioDriveNote'))));
   p.append(setCard(T('studioSecUpload'), list(
     rowSwitch({ label: T('studioWifiOnly'), sub: typeKnown() ? T('studioWifiOnlyS') : T('studioWifiUnknown'), on: s.wifi, onClick: () => { s.wifi = !s.wifi; save(); render('none'); }, k: 'wifi' }))));
@@ -8246,7 +8464,7 @@ function shapeKey() {
   const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x + (rec.srv.tw.sh ? 's' : '') : '') + (recovering(rec) ? 'R' : '') + (rec.srv && rec.srv.nt ? 'n' + rec.srv.nt.h.length + (rec.srv.nt.p ? 'p' : '') : '') + (rec.srv && rec.srv.cp ? 'c' + rec.srv.cp.n + (rec.srv.cp.a ? 'a' : '') : '') + (cpBusy ? 'B' : '') + (rec.srv && rec.srv.out.length ? 'o' + rec.srv.out.length : '')
     + (rec.spec.ph && rec.srv ? 'P' + (rec.srv.m ? 1 : 0) + (rec.srv.pbn ? rec.srv.pbn.s + (rec.srv.pbn.at || '') : '') + (phBurnLive(rec) ? 'b' : '') + (phKeys.has(rec.id) ? 'k' : '') + (rec.srv.ppr ? (rec.srv.ppr.s === 'err' ? 'E' : phPrepLive(rec) ? 'L' : '') : '') : ''); };   // 24/10/2026: תרגום בטלפון — המדידות והצריבה   // v382: הערה שנקראה / ממתינה; סבב 10: העתק־הדבק
   const incK = (j) => { const x = ui.inc && ui.inc.list.find((y) => y.j === j); return x ? x.no + x.st + x.s : ''; };
-  if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : '') + '|' + incK(ui.param); }
+  if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : '') + '|' + incK(ui.param) + '|' + (r && r.up.dx ? r.up.dx.st + Math.round(r.up.dx.p * 20) + r.up.dx.n : '') + (dxBusy === ui.param ? 'X' : ''); }   // 26/10/2026: השמירה ב־Drive
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join() + '|' + (majorOn(ui.inc) ? ui.inc.mi.no + ':' + ui.inc.mi.n : '');
   if (ui.view === 'tower' || ui.view === 'towerx' || TW_SUBS.includes(ui.view)) return ui.view + '|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(curNorm()) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0) + JSON.stringify(ui.inc) + (ui.incAll ? 1 : 0) + JSON.stringify(ui.ag) + JSON.stringify(ui.pb) + (ui.pbAll ? 1 : 0) + JSON.stringify(ui.rb) + JSON.stringify(ui.sc) + JSON.stringify(ui.va) + JSON.stringify(ui.slo) + JSON.stringify(ui.sh) + JSON.stringify(ui.an);   // v383 · v384
   if (ui.view === 'alert') return 'alert|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.ops) + (ui.alTab || 'd') + ui.muPick + ackBusy + JSON.stringify(ui.fb) + store.jobs.map((r) => r.id + (r.srv && r.srv.fr ? r.srv.fr.s : '')).join();
@@ -8305,6 +8523,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'tracks') pageTracks(p);      // שלב 4: כתוביות בתוך הסרטון
   else if (ui.view === 'link') pageLink(p);          // 22/10/2026: הורדה מקישור
   else if (ui.view === 'dpick') pageDrivePick(p);    // 26/10/2026: סרטון מ־Drive — הרשימה שלנו
+  else if (ui.view === 'vids') pageVids(p);          // 26/10/2026: ״הסרטונים שלי״ ב־Drive
   else if (ui.view === 'linkfmt') pageLinkFmt(p);
   else if (ui.view === 'linksec') pageLinkSec(p);
   else if (ui.view === 'fmthelp') pageFmtHelp(p);
@@ -8493,6 +8712,7 @@ export function openStudio(opt) {
   curtainDown(!restore);                   // 14/10/2026: הווילון של studio.html — יורד כשהדף הראשון מצויר
   try { root.focus({ preventScroll: true }); } catch (e) {}
   refreshStatus(true);
+  dxKick();   // 26/10/2026: שמירה ב־Drive שרצה בשרת — ממשיכים לעקוב
   const jobs0 = refreshJobs(true);
   inboxOp('clean');   // 22/10/2026: קבצים מההורדה בטלפון שלא נכנסו לעבודה — אחרי שבוע
   // מההתראה: לדף העבודה — מיד אם היא כבר בטלפון, אחרת אחרי שהרשימה מהשרתון מגיעה

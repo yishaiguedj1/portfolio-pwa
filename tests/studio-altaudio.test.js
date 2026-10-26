@@ -105,7 +105,7 @@ function traf(id, off) { return box('traf', box('tfhd', u32(0x020000), u32(id)),
   const st = read('studio.js');
   ok(/if \(isR2Id\(o\.id\)\) \{\s*a\.href = '#'/.test(st) && /net\.r2Get\(o\.id, outDlName\(rec, o\)\)/.test(st), 'תוצר ב־R2: נגיעה = הורדה בקישור חתום עם שם הקובץ (לא Drive)');
   ok(!/r\.srv\.out\.map\(\(o\) => rowExt\(\{ href: 'https:\/\/drive\.google\.com/.test(st) && !/pv\.srv\.out\.map\(\(o\) => rowExt/.test(st), 'ההפקה מחדש והצריבה לבדיקה — דרך rowOut (בלי קישור ל־Drive)');
-  ok(/dx \? saveOutDrive\(rec, o\) : shareOut\(rec, o\)/.test(st) && /net\.r2ToDrive\(o\.id, dest\.id, outDlName\(rec, o\)\)/.test(st), 'סרטון: כפתור שמירה ב־Drive (תיקייה שבוחרים)');
+  ok(/dx \? goVids\('O:' \+ rec\.id \+ ':' \+ o\.id\) : shareOut\(rec, o\)/.test(st) && /it: items\.map\(\(o\) => \(\{ id: o\.id, n: outDlName\(rec, o\) \}\)\)/.test(st), 'סרטון: כפתור שמירה ב״הסרטונים שלי״ ב־Drive (26/10/2026 — בשרת, בשם של ההורדה)');
   const app = read('app.js');
   for (const k of ['studioOutDx', 'studioOutDlStart']) ok((app.match(new RegExp(k + ': "', 'g')) || []).length === 2, 'מחרוזת בשתי השפות: ' + k);
 

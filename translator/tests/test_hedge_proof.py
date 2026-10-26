@@ -181,7 +181,7 @@ class TestProofreadParts(unittest.TestCase):
         edit = long_edit(12, 500)
         orig = P.Pipeline.proof_parts
 
-        def flaky(self, fixed, cur, brief, gl, terms):
+        def flaky(self, fixed, cur, brief, gl, terms, *rest):
             real = self.eng.complete
 
             def complete(k, fixed, prompt, **kw):
@@ -189,7 +189,7 @@ class TestProofreadParts(unittest.TestCase):
                     raise llm.LLMError("api_error")
                 return real(k, fixed, prompt, **kw)
             self.eng.complete = complete
-            return orig(self, fixed, cur, brief, gl, terms)
+            return orig(self, fixed, cur, brief, gl, terms, *rest)
         P.Pipeline.proof_parts = flaky
         try:
             self.run_pl(edit)
