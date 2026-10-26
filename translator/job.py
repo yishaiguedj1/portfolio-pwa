@@ -1300,6 +1300,37 @@ def vt_style(spec):
     return s if s in VT_STYLES else 'bold'
 
 
+def sty_refresh(ctx):
+    """26/10/2026: העיצוב (גודל, צבע, רקע, גובה) אפשר לשנות גם בזמן שהעבודה רצה — לפני כל בנייה בודקים מה נבחר עכשיו.
+    קריאה אחת ל־op qa (קריאה בלבד); תקלה = מה שנשמר בלקיחה."""
+    spec = ctx.st.get('spec')
+    if not isinstance(spec, dict) or getattr(ctx, 'c', None) is None:
+        return
+    try:
+        j = ctx.c.call('qa') or {}
+    except (SystemExit, Exception):
+        return
+    if not isinstance(j, dict) or 'sty' not in j:
+        return                                   # שרתון ישן — לא יודע לענות
+    sty = j.get('sty') if isinstance(j.get('sty'), dict) else None
+    if sty != spec.get('sty'):
+        if sty:
+            spec['sty'] = sty
+        else:
+            spec.pop('sty', None)
+        save_state(ctx.st)
+
+
+def build_args(ctx):
+    """הדגלים של vt build: הסגנון מהטופס + העיצוב (רק מספרים וקודים — vt/sty.py מנרמל שוב)."""
+    sty_refresh(ctx)
+    spec = ctx.st.get('spec') or {}
+    out = ['--style', vt_style(spec)]
+    if isinstance(spec.get('sty'), dict) and spec['sty']:
+        out += ['--sty', json.dumps(spec['sty'], separators=(',', ':'))]
+    return out
+
+
 def terms_line(spec):
     """השדה "שמות ומונחים" מהטופס — שורה אחת, בלי תווי בקרה (נתונים מהמשתמש, לא הוראות)."""
     t = re.sub(r'[\x00-\x1f\x7f]+', ' / ', str((spec or {}).get('terms') or ''))
@@ -3538,7 +3569,7 @@ def judge_prep(args):
     if (ctx.st.get('rl') or {}).get('jx'):
         print('· שופט האיכות כבוי בחוקים שלך — מדלגים ישר ל־finish.')
         return 0
-    for c in (['tr-merge', ctx.name], ['build', ctx.name, '--style', vt_style(ctx.st.get('spec'))], ['review-pack', ctx.name]):
+    for c in (['tr-merge', ctx.name], ['build', ctx.name] + build_args(ctx), ['review-pack', ctx.name]):
         vt(ctx, c)
     try:
         pkg = (ctx.pdir / 'review' / 'package.md').read_text(encoding='utf-8')
@@ -4381,7 +4412,7 @@ def finish(args):
     shots_join(ctx)                              # 21/10/2026: השוטים רצו ברקע בזמן הביקורת — לפני הנקודה (שתכלול אותם) והבנייה
     save_ck(ctx, 'rv')                           # התרגום אחרי הביקורת — אם הצריבה או ההעלאה נקטעות, ממשיכים מכאן
     vt(ctx, ['tr-merge', ctx.name])
-    vt(ctx, ['build', ctx.name, '--style', vt_style(ctx.st.get('spec'))])
+    vt(ctx, ['build', ctx.name] + build_args(ctx))
     if want and (ctx.st.get('rl') or {}).get('ab') and not approve_render(ctx):
         print('· בלי צריבה (המשתמש בחר רק קובץ כתוביות, או לא ענה בזמן) — מעלים את קובץ הכתוביות.')
         want = []

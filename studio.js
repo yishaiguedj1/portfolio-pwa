@@ -309,7 +309,14 @@ export function startEstimate(mode, dur, norm, api, apiOn) {
 function estText(e, apiOn) {
   const t = e.min < 60 ? T('studioMinShort', { m: e.min }) : T('studioHMShort', { t: fmtHM(e.min) });
   if (!apiOn) return T('studioEstSub', { t, usd: fmtUsd(e.usd) });
-  return T('studioEstApi', { t, usd: fmtUsd(e.usd), left: fmtUsd(e.left || 0) }) + (e.over ? ' ' + T('studioEstOver') : '');
+  return T('studioEstApi', { t, usd: fmtUsd(e.usd), left: fmtUsd(e.left || 0) }) + (e.over ? ' ' + T('studioEstOver') : '') + keepLine();
+}
+/* 26/10/2026 (בעקבות Vid Hub): כמה זמן נשמר — כבר לפני ההתחלה (עד היום רק בדף העבודה, אחריה). רק במצב השרת (R2) */
+function keepLine() {
+  const k = ui.kt;
+  if (!k || !ui.r2) return '';
+  const hrs = Math.round(k.s / 3600e3), days = Math.round(k.j / 86400e3);
+  return ' ' + T('studioEstKeep', { s: hrs <= 24 ? T('studioKeepDay') : T('studioKeepHours', { n: hrs }), d: days });
 }
 /* ---------- סבב 2: הצעות לפני ההתחלה — מהבדיקה של הסרטון בטלפון (חינם). לכל הצעה פעולה אחת ----------
    bad = כנראה אין מה לתרגם (אין קול / שקט), warn = כדאי לבדוק (שפה, כבר תורגם), tip = חוסך זמן וכסף (שקט בקצוות) */
@@ -1117,7 +1124,8 @@ function freshForm(d) {
     fileObj: null, handle: null,    // הקובץ עצמו — רק בזיכרון, רק עד ההתחלה
     drive: d && d.drive && d.name ? Object.assign({ id: d.drive.id, name: d.name, size: d.size, type: d.type, dur: d.drive.dur || 0 }, d.drive.bx ? { bx: true } : {}) : null,   // או סרטון שכבר ב־Drive
     from: d ? d.from : 'auto',
-    to: s.to.slice(), mode: s.mode, out: Object.assign({}, s.out), style: s.style,
+    to: s.to.slice(), mode: s.mode, out: Object.assign({}, s.out), style: s.style === 'karaoke' ? 'bold' : s.style,
+    sty: normSty(store.settings.sty),   // 26/10/2026: העיצוב האחרון שבחרת = ברירת המחדל
     terms: d ? d.terms : '',
     subs: null, sdh: 'rm', trk: null,   // שלב 4: רצועות הכתוביות שבתוך הסרטון (רק בזיכרון)   // 22/10/2026: קובץ כתוביות קיים (בזיכרון בלבד — בלי טיוטה) ומה עושים עם SDH
   };
@@ -1232,6 +1240,7 @@ async function refreshStatus(force) {
     ui.api = normApi(j.api) || ui.api;   // מצב API של המערכת: תקציב חודשי ושרתים
     ui.eta = normEta(j.eta) || ui.eta;   // 10/10/2026: מודל הצפי (לעבודות שעוד לא נלקחו)
     ui.sc = normScan(j.sc) || ui.sc;   // v378: בדיקת המוכנות האחרונה
+    ui.kt = j.kt && j.kt.s > 0 && j.kt.j > 0 ? { s: +j.kt.s, j: +j.kt.j } : null;   // 26/10: כמה זמן הקבצים נשמרים (לאומדן)
     ui.r2 = j.r2 === true;              // 11/10: האחסון שלנו (R2) מוגדר — המילון שם, בלי צורך ב־Drive
     ui.gb = j.gb === true;              // 26/10/2026: רשימת הקבצים ב־Drive מוגדרת בשרתון
     if (j.gb === 'r' && !gbAsked) { gbAsked = true; gb().config().then((c) => { if (c.configured) { ui.gb = true; gbAsked = 'y'; if (root) render('none'); } }).catch(() => {}); }   // השרת שלנו בלי המשתנים — אולי ב־Vercel
@@ -2550,12 +2559,11 @@ function outRows(out, size, onToggle) {
 /* מראה הכתוביות — שלושה כרטיסים עם דוגמה על "תמונה" כהה */
 function stylePicker(cur, onPick) {
   const g = h('div', 'st-styles'); g.setAttribute('role', 'radiogroup'); g.setAttribute('aria-label', T('studioSecStyle'));
-  for (const k of STYLES) {
+  for (const k of STYLES.filter((x) => x !== 'karaoke')) {   // 26/10/2026: קריוקי לא קיים בצריבה (תרגום — המילים בעברית לא נאמרות בסרטון)
     const b = btn('st-sty' + (k === cur ? ' on' : ''), null, () => onPick(k), 's:' + k);
     b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', k === cur ? 'true' : 'false');
     const s = h('span', 's s-' + k);
-    if (k === 'karaoke') s.append(T('studioSampleK1') + ' ', h('em', null, T('studioSampleK2')));
-    else s.textContent = T('studioSample');
+    s.textContent = T('studioSample');
     b.append(h('span', 'n', styleName(k)), s);
     g.append(b);
   }
@@ -2970,6 +2978,13 @@ function pageForm(p, editing) {
   } else {
     p.append(secT(T('studioSecOut')), outRows(f.out, f.file ? f.file.size : 0, (k) => { f.out[k] = !f.out[k]; render('none'); }), note(T('studioOutSrtNote')));
     p.append(secT(T('studioSecStyle')), stylePicker(f.style, (k) => { f.style = k; render('none'); }));
+    // 26/10/2026 (בעקבות Vid Hub): גודל, צבע, רקע וגובה כבר בטופס — הצריבה הראשונה משתמשת בהם (עד היום רק בהפקה מחדש)
+    if (OUTS.some((k) => f.out[k])) p.append(styFold('form', f.sty || {}, (patch) => {
+      const next = normSty(Object.assign({}, f.sty || {}, patch));
+      f.sty = next || null;
+      store.settings.sty = next || undefined; if (!next) delete store.settings.sty; save();   // ברירת המחדל לעבודה הבאה
+      render('none');
+    }));
   }
 
   // התחלה: יוצרים עבודה בשרתון ומעלים ל־Drive (הקול קודם). טיוטה — אפשרות משנית
@@ -3851,7 +3866,7 @@ function startLink(f) {
     }
     const n = dlNonce();
     const ch = pick.ch && L.r.ch ? L.r.ch.map((c) => [c[0] - (pick.sec ? pick.sec[0] : 0), c[1]]).filter((c) => c[0] >= 0) : [];
-    const pend = { n, at: Date.now(), dur, f: { from: f.from, to: f.to, mode: f.mode, out: f.out, style: f.style, terms: f.terms, edl: null },
+    const pend = { n, at: Date.now(), dur, f: { from: f.from, to: f.to, mode: f.mode, out: f.out, style: f.style, sty: f.sty || null, terms: f.terms, edl: null },
       t: L.r.t, u: L.r.u || L.u, ch, th: L.r.th || '' };
     try { sessionStorage.setItem(DLP_KEY, JSON.stringify(pend)); } catch (e) {}
     ui.starting = false; ui.dlWait = n; render('none');
@@ -3911,7 +3926,7 @@ function startLinkCloud(f) {   // ישר לענן של Studio (העובד מור
     const dur = pick.sec ? pick.sec[1] - pick.sec[0] : L.r.d || 0;
     const o = L.blind ? {} : L.r.q.find((x) => x.v === pick.v) || {};
     const spec = { name: L.r.t, size: L.blind ? 1 : Math.max(1, linkSize(L)), type: 'video/url', dur, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
-      out: OUTS.filter((k) => f.out[k]), style: f.style, terms: f.terms, src: 'url', url: L.r.u || L.u, pick, eng: 'api', cap: store.settings.cap };
+      out: OUTS.filter((k) => f.out[k]), style: f.style, ...(f.sty ? { sty: f.sty } : {}), terms: f.terms, src: 'url', url: L.r.u || L.u, pick, eng: 'api', cap: store.settings.cap };
     if (L.ref) spec.ref = L.ref;
     if (cpMode()) spec.cp = 1;
     else if (ryMode()) spec.ry = 1;   // 24/10/2026: המנוי שלך — Claude דרך ה־Routine, לא מהמפתח של המערכת
@@ -3958,7 +3973,7 @@ async function gotFile(key) {
   ui.dlWait = '';
   form = freshForm(null);
   const f = form;
-  if (pend && pend.f) for (const k of ['from', 'to', 'mode', 'out', 'style', 'terms']) if (pend.f[k] != null) f[k] = pend.f[k];
+  if (pend && pend.f) for (const k of ['from', 'to', 'mode', 'out', 'style', 'sty', 'terms']) if (pend.f[k] != null) f[k] = k === 'sty' ? normSty(pend.f[k]) : pend.f[k];
   f.fileObj = file; f.handle = { inbox: key }; f.drive = null; f.file = { name: file.name, size: file.size, type: file.type || '' };
   f.dl = pend ? { t: pend.t, ch: pend.ch || [], th: pend.th || '' } : null;
   inspectFor(f, file); tracksFor(f, file);
@@ -4236,7 +4251,7 @@ function startFromForm() {
     const pr = f.fileObj ? (sm && sm.dur ? { dur: sm.dur } : await probeVideo(file)) : { dur: f.drive.dur || 0 };
     const ed = edlPre(normEdl(f.edl, pr.dur || 0));   // מ4: חיתוך לפני התרגום — האורך (ומכאן ההערכות) אחרי החיתוך
     const spec = { name: file.name, size: file.size, type: file.type || '', dur: ed ? edlDur(ed, pr.dur || 0) : pr.dur || 0, from: f.from, to: f.to,
-      mode: modeFor(f.mode, ui.mf), out: OUTS.filter((k) => f.out[k]), style: f.style, terms: f.terms };   // 15/10: מצב שסגור למשתמש → ברירת המחדל
+      mode: modeFor(f.mode, ui.mf), out: OUTS.filter((k) => f.out[k]), style: f.style, ...(f.sty ? { sty: f.sty } : {}), terms: f.terms };   // 15/10: מצב שסגור למשתמש → ברירת המחדל
     if (ed) spec.edl = ed;
     // 21/10/2026: מידות הסרטון (מהבדיקה בבחירה) → px לצפי של הצריבה; הקצב לא ידוע כאן — 30 פריימים (העובד מתקן אחרי הקליטה)
     if (sm && sm.w > 0 && sm.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, sm.w * sm.h / (1920 * 1080))) * 1000) / 1000;
@@ -7155,6 +7170,67 @@ function stySet(patch) {
   if (sy && sy.ctl) sy.ctl.setStyle(next);
   render('none');
 }
+/* 26/10/2026 (בעקבות Vid Hub): הבקרות של העיצוב — משותפות לטופס, לדף העבודה (בזמן שהיא רצה) ולהפקה מחדש */
+function styControls(st, set) {
+  const out = [];
+  const chipRow = (items) => { const r = h('div', 'st-chips st-sty-row'); r.append(...items); return r; };
+  const chip = (lbl, on, fn, k) => { const b = btn('st-chip' + (on ? ' on' : ''), lbl, fn, k); b.setAttribute('aria-pressed', on ? 'true' : 'false'); return b; };
+  const k = st.k || 100, sizes = [80, 90, 100, 120, 140].concat(st.k && ![80, 90, 100, 120, 140].includes(st.k) ? [st.k] : []).sort((a, b) => a - b);   // שורה אחת (מינימליזם)
+  out.push(secT(T('studioStySize')), chipRow(sizes.map((x) => chip('\u2066' + x + '%\u2069', x === k, () => set({ k: x }), 'sty-k:' + x))));
+  out.push(secT(T('studioStyColor')), chipRow(Object.keys(STY_COLORS).map((c) => {
+    const b = chip('', (st.c || 'w') === c, () => set({ c }), 'sty-c:' + c);
+    const dot = h('span', 'st-sty-dot'); dot.style.background = STY_COLORS[c];
+    b.append(dot, document.createTextNode(styColName(c)));
+    return b;
+  })));
+  out.push(list(rowSwitch({ label: T('studioStyBox'), sub: T('studioStyBoxS'), on: !!st.bx, onClick: () => set({ bx: !st.bx }), k: 'sty-bx' })));
+  const ys = [0, 10, 20, 30, STY_Y];
+  out.push(secT(T('studioStyHeight')), chipRow(ys.map((y) => chip(y ? '\u2066+' + y + '%\u2069' : T('studioStyBottom'), (st.y || 0) === y, () => set({ y }), 'sty-y:' + y))));
+  return out;
+}
+/* תצוגה מיידית בלי סרטון — אותו CSS של הכתוביות בנגן (setStyle), על "תמונה" כהה */
+function stySample(st) {
+  const box = h('div', 'st-pl hide st-sty-pv' + (st.bx ? ' boxed' : ''));
+  box.setAttribute('aria-hidden', 'true');
+  box.style.setProperty('--sub-k', String((st.k || 100) / 100));
+  box.style.setProperty('--sub-c', STY_COLORS[st.c || 'w']);
+  box.style.setProperty('--sub-lift', (st.y || 0) + '%');
+  const sub = h('div', 'st-pl-sub'), d = h('div');
+  d.append(h('span', null, T('studioStySample1')), document.createElement('br'), h('span', null, T('studioStySample2')));
+  sub.append(d); box.append(sub);
+  return box;
+}
+/* מקטע מתקפל: "עיצוב הכתוביות · <סיכום>" → תצוגה + הבקרות. key = איזה מקטע פתוח (ui.styOpen) */
+function styFold(key, st, set) {
+  const open = ui.styOpen === key;
+  const wrap = h('div', 'st-sty-fold');
+  wrap.append(list(rowNav({ label: T('studioStyT'), value: stySum(normSty(st)), onClick: () => { ui.styOpen = open ? '' : key; render('none'); }, k: 'styfold:' + key })));
+  if (open) wrap.append(stySample(st || {}), ...styControls(st || {}, set));
+  return wrap;
+}
+/* העיצוב של עבודה שכבר רצה — נשמר מיד בעבודה, ונשלח לשרתון אחרי 600ms בלי נגיעה (רק הבחירה האחרונה) */
+const styT = new Map();
+function jobStySet(rec, patch) {
+  const next = normSty(Object.assign({}, rec.spec.sty || {}, patch));
+  if (next) rec.spec.sty = next; else delete rec.spec.sty;
+  store.settings.sty = next || undefined; if (!next) delete store.settings.sty;   // גם ברירת המחדל לעבודה הבאה
+  save();
+  clearTimeout(styT.get(rec.id));
+  styT.set(rec.id, setTimeout(() => {
+    styT.delete(rec.id);
+    Promise.resolve(net.api('sty', { job: rec.id, sty: rec.spec.sty || null })).then((k) => { if (k && !k.ok && k.error !== 'state') flashSafe(errText(k.error)); }, () => {});
+  }, 600));
+  render('none');
+}
+/* אפשר לשנות עד שהצריבה מתחילה: עבודת תרגום עם תוצר וידאו, שלא בטלפון, ושעוד לא הגיעה לשלב הצריבה */
+function styEditable(rec) {
+  const sp = rec && rec.spec || {};
+  if (sp.ph || sp.src === 'subs' || !(sp.out || []).some((k) => OUTS.includes(k))) return false;
+  const st = rec.srv && rec.srv.state;
+  if (st && st !== 'new' && st !== 'queued' && st !== 'running') return false;
+  const stg = rec.srv && rec.srv.prog && rec.srv.prog.st;
+  return !stg || !['bn', 'sv'].includes(stg);
+}
 function pageSty(p) {
   const rec = jobRec(ui.param);
   if (!rec || !canEdit(rec)) { back(); return; }
@@ -7172,19 +7248,7 @@ function pageSty(p) {
   const st = rrSty() || {};
   if (sy.ctl) { sy.ctl.setStyle(st); const top = h('div', 'st-se-top'); top.append(sy.ctl.el); p.append(top); }
   else p.append(h('div', 'st-pl-ph', T('studioPlNoSw')));
-  const chipRow = (items) => { const r = h('div', 'st-chips st-sty-row'); r.append(...items); return r; };
-  const chip = (lbl, on, fn, k) => { const b = btn('st-chip' + (on ? ' on' : ''), lbl, fn, k); b.setAttribute('aria-pressed', on ? 'true' : 'false'); return b; };
-  const k = st.k || 100, sizes = [80, 90, 100, 120, 140].concat(st.k && ![80, 90, 100, 120, 140].includes(st.k) ? [st.k] : []).sort((a, b) => a - b);   // שורה אחת (מינימליזם)
-  p.append(secT(T('studioStySize')), chipRow(sizes.map((x) => chip('\u2066' + x + '%\u2069', x === k, () => stySet({ k: x }), 'sty-k:' + x))));
-  p.append(secT(T('studioStyColor')), chipRow(Object.keys(STY_COLORS).map((c) => {
-    const b = chip('', (st.c || 'w') === c, () => stySet({ c }), 'sty-c:' + c);
-    const dot = h('span', 'st-sty-dot'); dot.style.background = STY_COLORS[c];
-    b.append(dot, document.createTextNode(styColName(c)));
-    return b;
-  })));
-  p.append(list(rowSwitch({ label: T('studioStyBox'), sub: T('studioStyBoxS'), on: !!st.bx, onClick: () => stySet({ bx: !st.bx }), k: 'sty-bx' })));
-  const ys = [0, 10, 20, 30, STY_Y];
-  p.append(secT(T('studioStyHeight')), chipRow(ys.map((y) => chip(y ? '\u2066+' + y + '%\u2069' : T('studioStyBottom'), (st.y || 0) === y, () => stySet({ y }), 'sty-y:' + y))));
+  p.append(...styControls(st, stySet));
   if (rrSty()) p.append(btn('st-btn ghost wide', T('studioStyReset'), () => { rrOpt.sty = null; delete store.settings.sty; save(); if (sy && sy.ctl) sy.ctl.setStyle(null); render('none'); }, 'sty-reset'));
   p.append(note(T('studioStyNote')));
 }
@@ -7677,6 +7741,8 @@ function pageJob(p) {
   if (tline) p.append(tline);
   const ix = ui.inc && ui.inc.list.find((x) => x.j === rec.id);   // v371: התקלה של העבודה — שורה אחת, הפרטים בדף התקלה
   if (ix) p.append(list(incRow(ix, true)));
+  // 26/10/2026 (בעקבות Vid Hub): העיצוב אפשר לשנות גם בזמן ההמתנה — העובד שואל לפני הבנייה, עד שהצריבה מתחילה
+  if (styEditable(rec)) p.append(styFold('job:' + rec.id, rec.spec.sty || {}, (patch) => jobStySet(rec, patch)));
 
   // מה קורה עכשיו — משפט אחד + דוגמה חיה
   const nowc = h('div', 'st-nowc');

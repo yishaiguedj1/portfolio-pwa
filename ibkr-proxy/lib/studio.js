@@ -231,6 +231,7 @@ function normSpec(s) {
     mode: modeNow(s.mode),
     out: subs || ph ? [] : uniq(s.out, (k) => OUTS.includes(k)),                      // SRT תמיד; ריק = SRT בלבד (+ VTT/ASS כעזר)
     style: STYLES.includes(s.style) ? s.style : STYLES[0],
+    ...(!subs && normSty(s.sty) ? { sty: normSty(s.sty) } : {}),   // 26/10/2026: העיצוב כבר בצריבה הראשונה (עד היום רק בהפקה מחדש)
     terms: String(s.terms || '').replace(/\u0000/g, '').slice(0, 1000),
   }, subs ? Object.assign({ src: 'subs', sdh: s.sdh === 'keep' ? 'keep' : 'rm' }, SUBS_FPS.includes(String(s.fps)) ? { fps: String(s.fps) } : {}) : {},
   link ? Object.assign({ src: 'url', url, pick }, ref ? { ref } : {}) : {},
@@ -836,7 +837,7 @@ function normOv(o) {
   }
   return Object.keys(out).length ? out : null;
 }
-/* סבב 5: עיצוב הכתוביות בהפקה מחדש — **זהה ל־normSty בטלפון (studioplay.js) ול־norm_sty ב־rerender.py** */
+/* סבב 5: עיצוב הכתוביות (מ־26/10/2026 גם בטופס ובזמן העבודה, לא רק בהפקה מחדש) — **זהה ל־normSty בטלפון (studioplay.js) ול־norm_sty ב־translator/vt/sty.py** */
 const STY_COLORS = ['w', 'y', 'c'];
 function normSty(o) {
   if (!o || typeof o !== 'object') return null;
