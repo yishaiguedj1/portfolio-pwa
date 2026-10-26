@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1855 מפתחות מתוך 4563) */
+/* המחרוזות של studio (1859 מפתחות מתוך 4567) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -815,7 +815,9 @@ he: {
   "studioJobId": "מזהה העבודה",
   "studioJobsMore": "עבודות קודמות · {n}",
   "studioJobsTop": "חזרה לעבודות האחרונות",
+  "studioKeepJob": "הקבצים נשמרים עד {t}",
   "studioKeepOpen": "השאירו את האפליקציה פתוחה עד שההעלאה מסתיימת. המסך נשאר דולק בינתיים.",
+  "studioKeepSrc": "אפשר לצרוב מחדש עד {t}",
   "studioLangSoon": "כרגע מתרגמים מאנגלית לעברית — שאר השפות בקרוב",
   "studioLeftBig": "נשארו בערך {t}",
   "studioLeftShort": "נשארו {t}",
@@ -1524,6 +1526,8 @@ he: {
   "studioSloWin": "30 הימים האחרונים",
   "studioSoon": "בקרוב",
   "studioSrcEn": "המקור באנגלית",
+  "studioSrcGone": "סרטון המקור נמחק (נשמר יום מפתיחת הפרויקט). לצריבה מחדש צריך להעלות אותו שוב.",
+  "studioSrcGoneS": "סרטון המקור נמחק",
   "studioSrvAdd": "הוספת שרת",
   "studioSrvAdding": "יוצר טוקן…",
   "studioSrvAuthBad": "לא מצליח להתחבר — הטוקן נדחה מאז {t}. מחליפים טוקן (snb-setup) או מסירים ומוסיפים מחדש",
@@ -2672,7 +2676,9 @@ en: {
   "studioJobId": "Job ID",
   "studioJobsMore": "Earlier jobs · {n}",
   "studioJobsTop": "Back to latest jobs",
+  "studioKeepJob": "Files are kept until {t}",
   "studioKeepOpen": "Keep the app open until the upload finishes. The screen stays on meanwhile.",
+  "studioKeepSrc": "Re-render available until {t}",
   "studioLangSoon": "For now we translate English to Hebrew — more languages soon",
   "studioLeftBig": "About {t} left",
   "studioLeftShort": "{t} left",
@@ -3381,6 +3387,8 @@ en: {
   "studioSloWin": "Last 30 days",
   "studioSoon": "Soon",
   "studioSrcEn": "English source",
+  "studioSrcGone": "The original video was deleted (it is kept for a day after the project opens). Upload it again to re-render.",
+  "studioSrcGoneS": "Original video deleted",
   "studioSrvAdd": "Add a server",
   "studioSrvAdding": "Creating a token…",
   "studioSrvAuthBad": "Cannot connect — token rejected since {t}. Replace the token (snb-setup) or remove and add the server again",

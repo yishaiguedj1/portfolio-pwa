@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const SLA = require('./studiosla');   // v377: יעדי שירות
 const ETA = require('./studioeta');   // 10/10/2026: צפי זמנים נלמד
 const SU = require('./studiourl');   // 22/10/2026: הורדה מקישור
+const SC = require('./studioscan');   // 26/10/2026: כמה זמן הקבצים נשמרים (retention)
 
 const ROUTINE_URL_RE = /^https:\/\/api\.anthropic\.com\/v1\/claude_code\/routines\/(trig_[A-Za-z0-9]{8,64})\/fire$/;
 const ROUTINE_KEY_RE = /^sk-ant-oat01-[A-Za-z0-9_-]{20,400}$/;
@@ -355,6 +356,7 @@ const isStale = (job, now) => !!job && (job.state === 'running' || job.state ===
 /* אפשר להמשיך? עבודת תרגום עם קבצים, שנכשלה / בוטלה / נתקעה, ולא הופעלה יותר מדי פעמים */
 function canResume(job, now) {
   if (!job || job.kind !== 'tr' || !(job.fa || job.fv)) return 'state';
+  if (job.sx > 0) return 'src_gone';   // 26/10/2026: סרטון המקור כבר נמחק (יום מפתיחת הפרויקט)
   const st = effState(job, now).state;
   if (!(st === 'failed' || st === 'cancelled' || isStale(job, now))) return 'state';
   if ((job.fires || 0) >= RESUME_MAX) return 'resume_limit';
@@ -778,6 +780,8 @@ function publicJob(job, now) {
     hla: normHl(job.hl, job.fv && job.fv.id) ? normHla(job.hla) : null,   // 22/10/2026: עותק הקול לנגן (הקול המקורי נשאר במקור)
     pbn: normPbn(job.pbn, job.pbn && job.pbn.at),   // 24/10/2026: הצריבה בטלפון (תרגום בטלפון)
     ppr: normPpr(job.ppr, job.ppr && job.ppr.at),   // 25/10/2026: מה הטלפון עושה לפני ההתחלה (שלב 2)
+    sx: job.sx > 0 ? job.sx : 0,                    // 26/10/2026: מתי סרטון המקור נמחק (0 = עוד שמור)
+    rt: SC.retention(job, process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e'),   // עד מתי המקור (s) ועד מתי העבודה (j)
   };
 }
 /* v387: סט הזהב (Agentic evaluation · golden dataset) — עבודה שהסתיימה + תרגום אנושי לייחוס (קובץ SRT בתיקיית העבודה ב־Drive).
@@ -796,7 +800,7 @@ function normGq(o) {
   return sc == null || tm == null || n == null ? null : { s: sc, tm, n, at: typeof o.at === 'number' ? o.at : 0 };
 }
 /* עבודות שבסט הזהב (שהסתיימו, עם ייחוס וקבצים) */
-const goldSources = (jobs) => (Array.isArray(jobs) ? jobs : []).filter((j) => j && j.kind === 'tr' && j.state === 'done' && normGd(j.gd) && (j.fa || j.fv) && FILE_ID_RE.test(String(j.folder || '')));
+const goldSources = (jobs) => (Array.isArray(jobs) ? jobs : []).filter((j) => j && j.kind === 'tr' && j.state === 'done' && normGd(j.gd) && (j.fa || j.fv) && !(j.sx > 0) && FILE_ID_RE.test(String(j.folder || '')));
 /* הרצה חוזרת של עבודת זהב — עבודה חדשה עם אותו מקור (אותם קבצים ותיקייה), "חדשה" עד שמתחילים אותה */
 /* ---------- מ2 (10/10/2026): עורך הכתוביות והפקה מחדש ----------
    הגרסה הערוכה = קובץ cues חדש (JSON, אותו פורמט של cues.final.json) + SRT בתיקיית העבודה; העבודה מחליפה אליהם את
