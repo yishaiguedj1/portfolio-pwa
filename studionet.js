@@ -13,6 +13,7 @@ import { r2Upload, isR2Folder, isR2Id, r2JobOf } from './studiostore.js';
 
 const UP = 'https://www.googleapis.com/upload/drive/v3/files';
 const API = 'https://www.googleapis.com/drive/v3/files';
+const FOLDER_MIME = 'application/vnd.google-apps.folder';   // 26/10/2026: רשימת הקבצים (browseList)
 export const MEDIA_PATH = './studio-media/';   // מ1: = MEDIA_RE ב־sw.js
 const FOLDER = 'application/vnd.google-apps.folder';
 export const ROOT_NAME = 'THE SNOWBALL — סטודיו';
@@ -680,6 +681,45 @@ export function createNet(env) {
     if (!r.ok) throw await driveErr(r);
     return r.json();
   }
+  /* 26/10/2026: רשימת הקבצים ב־Drive בעיצוב של Studio (במקום Google Picker) — בגישה של לקוח הרשימה (drive.readonly, tok()).
+     o: { tab: 'r' אחרונים | 'f' תיקייה (parent) | 's' מסומנים בכוכב, q: חיפוש בשם, page } → { files, next } */
+  async function browseList(tok, o) {
+    o = o || {};
+    const vid = "mimeType contains 'video/'", fold = "mimeType = '" + FOLDER_MIME + "'";
+    const q = String(o.q || '').trim().slice(0, 80), cond = ['trashed = false'];
+    if (q) cond.push("name contains '" + q.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'", '(' + vid + ' or ' + fold + ')');
+    else if (o.tab === 'f') cond.push("'" + (DFID.test(String(o.parent || '')) ? o.parent : 'root') + "' in parents", '(' + vid + ' or ' + fold + ')');
+    else if (o.tab === 's') cond.push('starred = true', '(' + vid + ' or ' + fold + ')');
+    else cond.push(vid);
+    const qs = new URLSearchParams({ q: cond.join(' and '), pageSize: '60', supportsAllDrives: 'true', includeItemsFromAllDrives: 'true',
+      orderBy: o.tab === 'f' && !q ? 'folder,name_natural' : o.tab === 's' && !q ? 'folder,modifiedTime desc' : 'modifiedTime desc',
+      fields: 'nextPageToken,files(id,name,mimeType,size,modifiedTime,thumbnailLink,videoMediaMetadata(durationMillis,width,height))' });
+    if (o.page) qs.set('pageToken', String(o.page).slice(0, 2000));
+    const r = await E.fetch(API + '?' + qs, { headers: { Authorization: 'Bearer ' + await tok() } });
+    if (!r.ok) throw await driveErr(r);
+    const j = await r.json();
+    const files = (Array.isArray(j.files) ? j.files : []).filter((f) => f && DFID.test(String(f.id || ''))).map((f) => ({
+      id: f.id, name: String(f.name || '').slice(0, 200), folder: f.mimeType === FOLDER_MIME, type: String(f.mimeType || '').slice(0, 60),
+      size: Number(f.size) || 0, at: Date.parse(f.modifiedTime) || 0, dur: Math.round(Number(f.videoMediaMetadata && f.videoMediaMetadata.durationMillis) / 1000) || 0,
+      w: Number(f.videoMediaMetadata && f.videoMediaMetadata.width) || 0, h: Number(f.videoMediaMetadata && f.videoMediaMetadata.height) || 0,
+      th: /^https:\/\/[a-z0-9-]+\.googleusercontent\.com\//.test(String(f.thumbnailLink || '')) ? String(f.thumbnailLink).slice(0, 1000) : '' }));
+    return { files, next: typeof j.nextPageToken === 'string' ? j.nextPageToken : '' };
+  }
+  /* 26/10/2026: סרטון ב־Drive כ"קובץ" לקריאה בחלקים (Range) — בשביל רצועות הכתוביות שבתוכו (studiotracks.js קורא רק size
+     ו־slice(a, b).arrayBuffer()). הרשימה = תחילת הקובץ / ה־moov בלבד; חילוץ מ־MKV עובר על הקובץ (בחלקים של chunk) */
+  function rangeBlob(tok, id, size, name) {
+    if (!DFID.test(String(id || '')) || !(size > 0)) throw Object.assign(new Error('bad_id'), { code: 'bad_id' });
+    const get = async (a, b) => {
+      for (let i = 0; ; i++) {
+        const r = await E.fetch(API + '/' + id + '?alt=media&supportsAllDrives=true', { headers: { Authorization: 'Bearer ' + await tok(i > 0), Range: 'bytes=' + a + '-' + (b - 1) } });
+        if ((r.status === 401 || r.status === 429 || r.status >= 500) && i < 2) continue;
+        if (r.status !== 206 && !(r.status === 200 && a === 0 && b >= size)) throw await driveErr(r);
+        return r.arrayBuffer();
+      }
+    };
+    return { id, size, name: String(name || ''), chunk: 4 * 1024 * 1024, remote: true,
+      slice: (a, b) => { const x = Math.max(0, a | 0), y = Math.min(size, b == null ? size : b); return { arrayBuffer: () => (y > x ? get(x, y) : Promise.resolve(new ArrayBuffer(0))) }; } };
+  }
   /* העברה (בלי עותק — סרטון גדול לא תופס אחסון פעמיים): מתיקיית העבודה לתיקייה שבחרת */
   async function driveMove(id, from, to) {
     if (![id, from, to].every((x) => DFID.test(String(x || '')))) throw Object.assign(new Error('bad_id'), { code: 'bad_id' });
@@ -812,5 +852,5 @@ export function createNet(env) {
   const goldUpload = (folderId, text) => textUpload(folderId, GOLD_REF_NAME, 'application/x-subrip', text, { snbRef: '1' });
 
 
-  return { api, driveApi, driveToken, jobFolder, upload, r2ToDrive, r2Get, cloudInitTemplate, glossLoad, glossSave, driveText, driveBlob, driveJson, goldUpload, textUpload, mediaUrl, driveMeta, driveMove, driveCopy, _forget: () => { dtok = null; } };
+  return { api, driveApi, driveToken, browseList, rangeBlob, jobFolder, upload, r2ToDrive, r2Get, cloudInitTemplate, glossLoad, glossSave, driveText, driveBlob, driveJson, goldUpload, textUpload, mediaUrl, driveMeta, driveMove, driveCopy, _forget: () => { dtok = null; } };
 }

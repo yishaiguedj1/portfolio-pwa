@@ -1348,6 +1348,15 @@ class Ctx:
     def pdir(self):
         return VT_WORK / self.name
 
+    def src_token(self, force=False):
+        """26/10/2026: מקור שנבחר ברשימת הקבצים של Studio (files.v.bx) — הגישה של הרשימה (drive.readonly), רק בשרת שלנו."""
+        if force or not getattr(self, 'stok', None) or time.time() - getattr(self, 'stok_at', 0) > 45 * 60:
+            d = self.c.call('token', src=True).get('src') or {}
+            if not d.get('token'):
+                raise StepError('✗ אין גישה לסרטון ב־Drive (' + str(d.get('error') or 'drive') + ') — לחבר שוב את Drive ברשימת הקבצים.', 'store_fail')
+            self.stok, self.stok_at = d['token'], time.time()
+        return self.stok
+
     def token(self, force=False):
         if force or not self.tok or time.time() - self.tok_at > 45 * 60:
             d = self.c.call('token').get('drive') or {}
@@ -1420,6 +1429,9 @@ class QuietCtx(Ctx):
 def drive_download(ctx, fid, dest, size, on_progress=None):
     """הורדה בזרם, עם המשך מאותו בייט אחרי ניתוק (Range) וגישה חדשה כשפגה."""
     import store                                 # drop_cache — אותו מנגנון של ההורדה מ־R2
+    v = (getattr(ctx, 'st', None) or {}).get('files') or {}
+    v = v.get('v') or {}
+    tok = ctx.src_token if v.get('bx') and v.get('id') == fid else ctx.token   # 26/10/2026: מקור מרשימת הקבצים
     dest.parent.mkdir(parents=True, exist_ok=True)
     tries = 0
     while True:
@@ -1427,7 +1439,7 @@ def drive_download(ctx, fid, dest, size, on_progress=None):
         if size and have >= size:
             return dest
         req = urllib.request.Request(ctx.api + '/files/' + fid + '?alt=media&supportsAllDrives=true',
-                                     headers={'Authorization': 'Bearer ' + ctx.token(tries > 0), 'User-Agent': UA})
+                                     headers={'Authorization': 'Bearer ' + tok(tries > 0), 'User-Agent': UA})
         if have:
             req.add_header('Range', 'bytes=' + str(have) + '-')
         try:

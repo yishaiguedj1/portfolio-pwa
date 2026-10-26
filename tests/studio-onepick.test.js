@@ -94,7 +94,7 @@ const ID = '1AbCdEfGhIjKlMnOpQrStUvWxYz0123';
   ok(/if \(c === 'gd_denied' \|\| c === 'gd_cancel'\) return null;/.test(dp) && /if \(ids\) \{ store\.settings\.op1 = Date\.now\(\); save\(\); \}/.test(dp) && /return legacyPick\(kind\)/.test(dp),
     'ביטול = ביטול; Google לא הציג בורר = זוכרים ועוברים לבורר הנוכחי בלי לחיצה נוספת');
   ok(/net\._forget\(\)/.test(dp) && /net\.driveMeta\(ids\[0\]\)/.test(dp), 'אחרי הבחירה — גישה חדשה ופרטי הקובץ מ־Drive');
-  ok(!/pickSourceFromDrive|'from-drive'/.test(sj) && /dest = await drivePick\('folder'\)/.test(sj), 'בלי שורת "מ־Google Drive" בטופס (26/10/2026); השמירה בתיקייה — דרך הבורר החדש');
+  ok(!/pickSourceFromDrive/.test(sj) && /go\('dpick'\); \}, k: 'from-drive'/.test(sj) && /dest = await drivePick\('folder'\)/.test(sj), 'מקור מ־Drive — הרשימה של Studio (26/10/2026), לא Picker; השמירה בתיקייה — דרך הבורר החדש');
   ok(/canPick\(\) && outs\.some/.test(sj), 'שורת השמירה מוצגת גם בלי מפתח Picker');
   console.log('# ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL - ' + (e && e.stack || e)); process.exit(1); });
