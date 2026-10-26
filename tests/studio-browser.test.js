@@ -121,7 +121,7 @@ const chr = R(B + 'BrChrome.kt');
 ok(/drive\.appdata/.test(chr) && /appDataFolder/.test(chr) && !/thesnowball\.app|vercel/i.test(chr), 'סנכרון עם Chrome: רק appDataFolder ב־Drive של המשתמש, לא השרת שלנו');
 ok(/write\(t, "ops\.json"/.test(chr) && !/write\(t, "state\.json"/.test(chr), 'הטלפון כותב רק ops.json — state.json רק התוסף');
 ok(/BrSync\.applyState\(/.test(chr) && /fun applyState\(/.test(sync), 'הסימניות אחרי סנכרון — דרך applyState (נבדק ב־JVM)');
-ok(/Screen\.CHROME -> ChromeScreen\(a\)/.test(R(B + 'BrUi.kt')) && /Screen\.IMPORT, Screen\.CHROME\)/.test(R(B + 'BrowserActivity.kt')), 'מסך "סנכרון עם Chrome" בהגדרות');
+ok(/Screen\.CHROME -> ChromeScreen\(a\)/.test(R(B + 'BrUi.kt')) && /Screen\.IMPORT, Screen\.CHROME[,)]/.test(R(B + 'BrowserActivity.kt')), 'מסך "סנכרון עם Chrome" בהגדרות');
 ok(/studio-browser-chrome\.zip/.test(chr), 'הקישור לתוסף');
 ok(/testBrowserReleaseUnitTest/.test(R('.github/workflows/android.yml')) && fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yishaiguedj1/snowball/br/BrImportTest.kt')), 'בדיקת JVM לייבוא ב־CI');
 
@@ -141,5 +141,29 @@ ok(/fun exportHtml\(list: List<BrMark>, folder: String\)/.test(sync) && /NETSCAP
 ok(/CreateDocument\("text\/html"\)/.test(act), 'הייצוא נשמר במקום שבוחרים');
 ok(/private fun PasswordsScreen/.test(ui) && /fillSettings\(\)/.test(ui) && /openPasswords\(\)/.test(ui), 'מנהל הסיסמאות: Google ממלא, והרשימה אצל Google');
 ok(/fun clearSite\(t: BrTab\)/.test(act) && /deleteOrigin/.test(act), 'מחיקת הנתונים של אתר אחד (גם בפרופיל הפרטי)');
+
+// 26/10/2026 — שלב 3: פרטיות ווידאו
+const sh = R(B + 'BrShield.kt'), med = R(B + 'BrMedia.kt');
+const adsList = sh.split('val ADS')[1].split('.split(Regex')[0];
+ok(/if \(!req\.isForMainFrame && blockReq\(t, req\.url\.host\)\) return EMPTY\(\)/.test(act), 'חסימה: אף פעם לא הדף הראשי של טאב');
+ok(/site\(h\) == site\(pageHost\)/.test(sh) && !/googletagmanager\.com/.test(adsList) && !/connect\.facebook\.net/.test(adsList), 'חסימה: רק צד שלישי, בלי googletagmanager ו־connect.facebook.net');
+ok(!/youtube|googlevideo|ytimg/.test(adsList), 'חסימה: שום שרת של יוטיוב');
+ok(/fun shieldOn\(host: String\) = shield && rules\[/.test(act) && /fun toggleSiteShield\(t: BrTab\)/.test(act), 'הגנה לכל אתר — אפשר לכבות באתר שנשבר');
+ok(/onetrust-reject-all-handler/.test(sh) && !/accept-all|AcceptAll|accept_all/i.test(sh.split('COOKIE_JS')[1].split('PLAY_JS')[0]), 'הודעות עוגיות: דחייה, אף פעם לא הסכמה');
+ok(/if \(known == -1\) \{ then\(false\); return \}/.test(act) && /val known = if \(private \|\| r == null\) 0/.test(act), 'הרשאות לאתר נזכרות — לא בטאב פרטי');
+ok(/fun encode\(rules: Collection<SiteRule>\)/.test(sh) && !/org\.json/.test(sh), 'הגדרות אתרים בלי JSON (נבדק ב־JVM)');
+ok(/<service\s+android:name="\.br\.BrMediaService"\s+android:exported="false"\s+android:foregroundServiceType="mediaPlayback"/.test(man) && /FOREGROUND_SERVICE_MEDIA_PLAYBACK/.test(man), 'ניגון ברקע: שירות mediaPlayback לא מיוצא');
+ok(/android:supportsPictureInPicture="true"/.test(man) && /setAutoEnterEnabled/.test(act), 'תמונה בתוך תמונה');
+ok(/MediaSession\(/.test(med) && /setDeleteIntent/.test(med) && !/https?:\/\//.test(med), 'ההתראה: MediaSession של המערכת, בלי רשת');
+ok(/isInPictureInPictureMode -> \{\}/.test(act) && /bgPlay && t != null && t\.playing/.test(act) && /BrMedia\.stop\(this\)/.test(act), 'הדף לא מושהה רק כשמשהו מתנגן ובחרת ניגון ברקע; חזרה — השירות נעצר');
+ok(/USE_BIOMETRIC/.test(man) && /BIOMETRIC_WEAK or BiometricManager\.Authenticators\.DEVICE_CREDENTIAL/.test(act) && /isDeviceSecure/.test(act), 'נעילת הטאבים הפרטיים: טביעת אצבע או קוד המסך');
+ok(/FLAG_SECURE/.test(act) && /LaunchedEffect\(a\.screen, a\.cur\?\.private, a\.swPrivate, a\.privLocked\) \{ a\.applySecure\(\) \}/.test(ui), 'טאב פרטי — בלי צילומי מסך');
+ok(/if \(!t\.private\) BrPics\.saveThumb/.test(act) && /if \(!t\.private\) BrPics\.saveIcon/.test(act) && /BrPics\.clear\(\)/.test(act), 'תמונות וסמלים נשמרים רק לטאבים רגילים, ונמחקים עם הנתונים');
+ok(/createWithAdaptiveBitmap\(BrPics\.shortcutIcon/.test(act), 'קיצור דרך במסך הבית: סמל אדפטיבי בגודל אפליקציה');
+for (const sc of ['SITES', 'SITE', 'VIDEO']) ok(new RegExp('Screen\\.' + sc + ' -> ').test(ui), 'מסך: ' + sc);
+const he3 = R('android/app/src/browser/res/values/br.xml'), en3 = R('android/app/src/browser/res/values-en/br.xml');
+for (const k of ['brShield', 'brCookies', 'brLockPriv', 'brSites', 'brSpeed', 'brBgPlay', 'brPip', 'brChMedia', 'brUnlock'])
+  ok(he3.includes(`name="${k}"`) && en3.includes(`name="${k}"`), 'מחרוזת בשתי השפות: ' + k);
+ok(fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yishaiguedj1/snowball/br/BrShieldTest.kt')), 'בדיקת JVM לחסימה ולהגדרות האתרים');
 
 console.log('studio-browser: ' + n + ' בדיקות עברו');
