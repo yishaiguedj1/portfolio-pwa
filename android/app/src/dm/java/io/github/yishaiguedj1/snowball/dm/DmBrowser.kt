@@ -151,7 +151,7 @@ class DmBrowser : Activity() {
                 val sc = req.url.scheme?.lowercase()
                 return sc != "http" && sc != "https"          // intent:/market:/… לא נפתחים מכאן
             }
-            override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? { seen(req.url.toString()); return null }
+            override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? { seen(req.url.toString(), headers = req.requestHeaders); return null }
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                 if (url != page) { page = url; found.clear(); synchronized(headSeen) { headSeen.clear() }; paintPill() }
                 if (!bar.hasFocus()) bar.setText(url)
@@ -177,18 +177,18 @@ class DmBrowser : Activity() {
         web.setDownloadListener { url, _, _, _, _ -> if (url.startsWith("http")) send(url, page, file = true) }
         try {
             ServiceWorkerController.getInstance().setServiceWorkerClient(object : ServiceWorkerClient() {
-                override fun shouldInterceptRequest(req: WebResourceRequest): WebResourceResponse? { seen(req.url.toString()); return null }
+                override fun shouldInterceptRequest(req: WebResourceRequest): WebResourceResponse? { seen(req.url.toString(), headers = req.requestHeaders); return null }
             })
         } catch (e: Exception) {}
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
-            WebViewCompat.addWebMessageListener(web, "snbHunt", setOf("*")) { _, msg, _, _, _ -> msg.data?.let { seen(it) } }
+            WebViewCompat.addWebMessageListener(web, "snbHunt", setOf("*")) { _, msg, _, _, _ -> msg.data?.let { seen(it, hook = true) } }
             if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) WebViewCompat.addDocumentStartJavaScript(web, HOOK, setOf("*"))
         }
     }
 
     /* מכל חוט → הסינון → הרשימה בחוט הראשי. קובץ ישיר נבדק קודם (HEAD): קטן מ־DlDeep.MIN_BYTES, דף או תמונה — לא נספר */
-    private fun seen(url: String) {
-        val h = HuntMedia.classify(url) ?: return
+    private fun seen(url: String, hook: Boolean = false, headers: Map<String, String>? = null) {
+        val h = (if (hook) HuntMedia.fromHook(url) else HuntMedia.fromRequest(url, headers)) ?: return
         val t = android.os.SystemClock.uptimeMillis()
         if (h.kind != HuntMedia.Kind.FILE) { ui.post { if (found.add(h, t)) paintPill() }; return }
         synchronized(headSeen) { if (!headSeen.add(h.url) || headSeen.size > 60) return }
@@ -197,17 +197,37 @@ class DmBrowser : Activity() {
         Thread {
             var ok = true
             try {
-                val c = java.net.URL(h.url).openConnection() as java.net.HttpURLConnection
-                c.requestMethod = "HEAD"; c.connectTimeout = 8000; c.readTimeout = 8000
-                c.setRequestProperty("User-Agent", ua)
-                if (ref.startsWith("http")) c.setRequestProperty("Referer", ref)
-                val type = (c.contentType ?: "").lowercase(); val len = c.contentLengthLong
-                c.disconnect()
-                if ((len in 1 until DlDeep.MIN_BYTES) || type.startsWith("text/") || type.startsWith("image/") || type.contains("json")) ok = false
-            } catch (e: Throwable) {}
+                // הפניות ביד: לכל קפיצה העוגיות של הכתובת שלה בלבד, בלי ירידה מ־https ל־http (כמו DmFetch)
+                var u = java.net.URL(h.url); var hops = 0
+                while (true) {
+                    val c = u.openConnection() as java.net.HttpURLConnection
+                    c.requestMethod = "HEAD"; c.connectTimeout = 8000; c.readTimeout = 8000
+                    c.instanceFollowRedirects = false
+                    c.setRequestProperty("User-Agent", ua)
+                    if (ref.startsWith("http")) c.setRequestProperty("Referer", ref)
+                    // 26/10/2026: באתר שדורש התחברות הבדיקה בלי עוגיות קיבלה דף כניסה (text/html) והסרטון נפסל
+                    ck(u.toString())?.let { c.setRequestProperty("Cookie", it) }
+                    val code = c.responseCode
+                    val loc = c.getHeaderField("Location")
+                    if (code in 300..399 && loc != null && hops < 4) {
+                        c.disconnect()
+                        val next = java.net.URL(u, loc)
+                        if (u.protocol == "https" && next.protocol == "http") { ok = !h.guess; break }
+                        u = next; hops++; continue
+                    }
+                    ok = if (code >= 400) !h.guess && code != 404 && code != 410
+                    else HuntMedia.headOk(c.contentType, c.contentLengthLong, h.guess, DlDeep.MIN_BYTES)
+                    c.disconnect(); break
+                }
+            } catch (e: Throwable) { if (h.guess) ok = false }
             if (ok) ui.post { if (found.add(h, t)) paintPill() }
         }.start()
     }
+
+    /* עוגיות הדף לבדיקה (בתוך האפליקציה בלבד; לא נשמרות). בלי \r\n — לא מזריקים כותרות */
+    private fun ck(u: String): String? = try {
+        CookieManager.getInstance().getCookie(u)?.takeIf { it.isNotEmpty() && '\n' !in it && '\r' !in it }
+    } catch (e: Throwable) { null }
 
     private fun pageIsVideo() = VideoUrl.classify(page) is VideoUrl.Hit.Video
 
@@ -324,8 +344,9 @@ return og||n(document.title);}catch(e){return '';}})()"""
 var ch=window.snbHunt;if(!ch||window.__snbHunt)return;window.__snbHunt=1;
 var R=/\.(m3u8?|mpd|mp4|m4v|webm|mov|mkv)(\?|#|$)|format=m3u8|m3u8-aapl|mpd-time-csf/i,seen={};
 var pg='';function rep(u){try{if(!u)return;var p=location.pathname+location.search;if(p!==pg){pg=p;seen={};}u=new URL(String(u),location.href).href;if(u.indexOf('http')!==0||seen[u]||!R.test(u))return;seen[u]=1;ch.postMessage(u);}catch(e){}}
-var f=window.fetch;if(f)window.fetch=function(i){try{rep(i&&i.url?i.url:i);}catch(e){}return f.apply(this,arguments);};
-var o=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){rep(u);return o.apply(this,arguments);};
+function ct(u,t){try{t=String(t||'').toLowerCase();if(!u||!t||/mp2t|iso\.segment/.test(t))return;var k=/mpegurl/.test(t)?'hls':/dash\+xml/.test(t)?'dash':/^(video|audio)\//.test(t)?'file':'';if(!k)return;u=new URL(String(u),location.href).href;if(u.indexOf('http')!==0||R.test(u)||seen['@'+u])return;seen['@'+u]=1;ch.postMessage('@'+k+' '+u);}catch(e){}}
+var f=window.fetch;if(f)window.fetch=function(i){try{rep(i&&i.url?i.url:i);}catch(e){}var p=f.apply(this,arguments);try{p.then(function(r){try{ct(r.url,r.headers.get('content-type'));}catch(e){}},function(){});}catch(e){}return p;};
+var o=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){rep(u);try{var x=this;x.addEventListener('load',function(){try{ct(x.responseURL||u,x.getResponseHeader('content-type'));}catch(e){}});}catch(e){}return o.apply(this,arguments);};
 function scan(){var v=document.querySelectorAll('video,source');for(var k=0;k<v.length;k++){var s=v[k].currentSrc||v[k].src;if(s&&s.indexOf('blob:')!==0)rep(s);}}
 document.addEventListener('play',scan,true);document.addEventListener('loadedmetadata',scan,true);setInterval(scan,3000);
 }catch(e){}})();"""

@@ -5,6 +5,9 @@
      הנגישות (GrabSetupActivity). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
+    <!-- 26/10/2026: האתרים שבהם הורדת דרך הדפדפן של DM (DmSitesProvider) — הרשאת חתימה, מוגדרת בשתי האפליקציות -->
+    <permission android:name="app.thesnowball.permission.DM_SITES" android:protectionLevel="signature" />
+    <uses-permission android:name="app.thesnowball.permission.DM_SITES" />
     <queries>
         <package android:name="app.thesnowball.studio" />
         <package android:name="app.thesnowball.studiodm" />

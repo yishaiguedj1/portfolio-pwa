@@ -15,6 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import io.github.yishaiguedj1.snowball.AppRoute
 import io.github.yishaiguedj1.snowball.DlEngine
 import io.github.yishaiguedj1.snowball.R
+import io.github.yishaiguedj1.snowball.SiteList
 import io.github.yishaiguedj1.snowball.VideoUrl
 import org.json.JSONObject
 
@@ -62,6 +63,9 @@ class DmActivity : ComponentActivity() {
             Intent.ACTION_VIEW -> i.dataString?.takeIf { it.startsWith("http") } ?: ""
             else -> ""
         }
+        // 26/10/2026: הבועה ב־Chrome באתר שכבר הורדת ממנו דרך הדפדפן — הדף עצמו לדפדפן של DM (שם ההתחברות), לא להורדה.
+        // רק פתיחת כתובת בדפדפן שלנו — בלי עוגיות, User-Agent או רענון מה־extras
+        if (u.isNotEmpty() && i.action == Intent.ACTION_SEND && i.getBooleanExtra(AppRoute.EXTRA_BR, false)) { openBrowser(u); return }
         if (u.isNotEmpty()) {
             sheetRef.value = DmLink.first(i.getStringExtra("snb_ref") ?: i.getStringExtra("extra_referer"))
             // עוגיות, User-Agent ורענון — רק ממסירה בתוך התהליך (DmBrowser.take עם אסימון חד־פעמי). אפליקציה אחרת
@@ -214,7 +218,16 @@ class DmActivity : ComponentActivity() {
             this.name = DmName.clean(name).ifEmpty { f.name }; mime = f.mime; total = f.size; ranges = f.ranges
             created = System.currentTimeMillis(); ua = sheetUa; ck = sheetCk
         }
-        DmStore.add(t); askNotifications(); DmEngine.pump(this)
+        DmStore.add(t); rememberSite(ref); askNotifications(); DmEngine.pump(this)
+    }
+
+    /* הורדה שהגיעה מהדפדפן של DM (עם העוגיות שלו) — האתר נשמר לבועה ב־Chrome (SiteList, DmSitesProvider) */
+    private fun rememberSite(ref: String) {
+        if (!sheetCk) return
+        val h = SiteList.hostOf(ref)
+        if (h.isEmpty()) return
+        val pr = DmPrefs(this)
+        pr.brSites = SiteList.add(SiteList.parse(pr.brSites), h).joinToString("\n")
     }
 
     fun addVideo(v: Found.Video, q: JSONObject?, audio: Boolean, ref: String, tr: Boolean = false, later: Boolean = false, subs: List<DmSubs.Sub> = emptyList()) {
@@ -231,7 +244,7 @@ class DmActivity : ComponentActivity() {
             if (audio) total = v.info.optJSONObject("ao")?.optLong("sz", -1) ?: -1
             created = System.currentTimeMillis(); ck = sheetCk
         }
-        DmStore.add(t); askNotifications(); DmEngine.pump(this)
+        DmStore.add(t); rememberSite(ref); askNotifications(); DmEngine.pump(this)
     }
 
     /**

@@ -541,6 +541,14 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                 } else Button(onClick = { scope.launch { check() } }, Modifier.fillMaxWidth(), enabled = url.isNotBlank()) { Text(stringResource(R.string.dmCheck)) }
                 is DmActivity.Found.Fail -> {
                     Text(if (f.code == "bad") stringResource(R.string.dmErrBad) else DmFmt.err(ctx, f.code), color = MaterialTheme.colorScheme.error)
+                    // 26/10/2026: דף שלא ירד (למשל קורס שדורש התחברות) — לפתוח אותו בדפדפן של DM, שם הצייד רואה את הסרטון
+                    // וההורדה עוברת עם ההתחברות. התחברות אחת לכל אתר נשמרת בדפדפן
+                    val page = DmLink.first(url)
+                    if (f.code != "bad" && page.startsWith("http") && refTask == null) {
+                        Spacer(Modifier.height(10.dp))
+                        Button(onClick = { onClose(); a.openBrowser(page) }, Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(R.string.dmOpenBr), fontSize = 17.sp) }
+                        Text(stringResource(R.string.dmOpenBrHint), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
+                    }
                     TextButton(onClick = { scope.launch { check() } }) { Text(stringResource(R.string.dmRetry)) }
                 }
                 is DmActivity.Found.File -> {

@@ -157,7 +157,7 @@ class HuntActivity : Activity() {
             }
 
             override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? {
-                seen(req.url.toString()); return null
+                seen(req.url.toString(), headers = req.requestHeaders); return null
             }
 
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
@@ -190,11 +190,11 @@ class HuntActivity : Activity() {
         // בקשות של ה־Service Worker של האתר (נגנים שמביאים את הקטעים דרכו)
         try {
             ServiceWorkerController.getInstance().setServiceWorkerClient(object : ServiceWorkerClient() {
-                override fun shouldInterceptRequest(req: WebResourceRequest): WebResourceResponse? { seen(req.url.toString()); return null }
+                override fun shouldInterceptRequest(req: WebResourceRequest): WebResourceResponse? { seen(req.url.toString(), headers = req.requestHeaders); return null }
             })
         } catch (e: Exception) {}
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
-            WebViewCompat.addWebMessageListener(web, "snbHunt", setOf("*")) { _, msg, _, _, _ -> msg.data?.let { seen(it) } }
+            WebViewCompat.addWebMessageListener(web, "snbHunt", setOf("*")) { _, msg, _, _, _ -> msg.data?.let { seen(it, hook = true) } }
             if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
                 WebViewCompat.addDocumentStartJavaScript(web, HOOK, setOf("*"))
             }
@@ -202,8 +202,8 @@ class HuntActivity : Activity() {
     }
 
     /* מכל חוט (בקשות רשת מגיעות מחוט רקע) → הסינון → הרשימה בחוט הראשי */
-    private fun seen(url: String) {
-        val h = HuntMedia.classify(url) ?: return
+    private fun seen(url: String, hook: Boolean = false, headers: Map<String, String>? = null) {
+        val h = (if (hook) HuntMedia.fromHook(url) else HuntMedia.fromRequest(url, headers)) ?: return
         val t = android.os.SystemClock.uptimeMillis()
         if (h.kind != HuntMedia.Kind.FILE) { ui.post { if (found.add(h, t)) paintPill() }; return }
         // 23/10/2026 (buffett.cnbc.com: "נמצא סרטון" על קובץ של 5KB לפני שנוגעים ב־▶): קובץ ישיר נבדק קודם (HEAD) —
@@ -217,10 +217,9 @@ class HuntActivity : Activity() {
                 c.requestMethod = "HEAD"; c.connectTimeout = 8000; c.readTimeout = 8000
                 c.setRequestProperty("User-Agent", web.settings.userAgentString)
                 if (ref.startsWith("http")) c.setRequestProperty("Referer", ref)
-                val type = (c.contentType ?: "").lowercase(); val len = c.contentLengthLong
+                ok = HuntMedia.headOk(c.contentType, c.contentLengthLong, h.guess, DlDeep.MIN_BYTES)
                 c.disconnect()
-                if ((len in 1 until DlDeep.MIN_BYTES) || type.startsWith("text/") || type.startsWith("image/") || type.contains("json")) ok = false
-            } catch (e: Throwable) {}
+            } catch (e: Throwable) { if (h.guess) ok = false }
             if (ok) ui.post { if (found.add(h, t)) paintPill() }
         }.start()
     }
@@ -340,8 +339,9 @@ class HuntActivity : Activity() {
 var ch=window.snbHunt;if(!ch||window.__snbHunt)return;window.__snbHunt=1;
 var R=/\.(m3u8?|mpd|mp4|m4v|webm|mov|mkv)(\?|#|$)|format=m3u8|m3u8-aapl|mpd-time-csf/i,seen={};
 var pg='';function rep(u){try{if(!u)return;var p=location.pathname+location.search;if(p!==pg){pg=p;seen={};}u=new URL(String(u),location.href).href;if(u.indexOf('http')!==0||seen[u]||!R.test(u))return;seen[u]=1;ch.postMessage(u);}catch(e){}}
-var f=window.fetch;if(f)window.fetch=function(i){try{rep(i&&i.url?i.url:i);}catch(e){}return f.apply(this,arguments);};
-var o=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){rep(u);return o.apply(this,arguments);};
+function ct(u,t){try{t=String(t||'').toLowerCase();if(!u||!t||/mp2t|iso\.segment/.test(t))return;var k=/mpegurl/.test(t)?'hls':/dash\+xml/.test(t)?'dash':/^(video|audio)\//.test(t)?'file':'';if(!k)return;u=new URL(String(u),location.href).href;if(u.indexOf('http')!==0||R.test(u)||seen['@'+u])return;seen['@'+u]=1;ch.postMessage('@'+k+' '+u);}catch(e){}}
+var f=window.fetch;if(f)window.fetch=function(i){try{rep(i&&i.url?i.url:i);}catch(e){}var p=f.apply(this,arguments);try{p.then(function(r){try{ct(r.url,r.headers.get('content-type'));}catch(e){}},function(){});}catch(e){}return p;};
+var o=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){rep(u);try{var x=this;x.addEventListener('load',function(){try{ct(x.responseURL||u,x.getResponseHeader('content-type'));}catch(e){}});}catch(e){}return o.apply(this,arguments);};
 function scan(){var v=document.querySelectorAll('video,source');for(var k=0;k<v.length;k++){var s=v[k].currentSrc||v[k].src;if(s&&s.indexOf('blob:')!==0)rep(s);}}
 document.addEventListener('play',scan,true);document.addEventListener('loadedmetadata',scan,true);setInterval(scan,3000);
 }catch(e){}})();"""

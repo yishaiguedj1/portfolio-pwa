@@ -55,6 +55,10 @@ class GrabService : AccessibilityService() {
     private var shownFor: String? = null        // הכתובת (או האתר) שהבועה מוצגת בשבילה
     private var hit: VideoUrl.Hit = VideoUrl.Hit.None
     private var hitPkg: String? = null
+    // 26/10/2026: אתרים שבהם הורדת דרך הדפדפן של DM (שם ההתחברות) — נקראים מ־DM לכל היותר פעם בדקה, ברקע
+    @Volatile private var sites: Set<String> = emptySet()
+    private var sitesAt = 0L
+    private var hitKnown = false               // הבועה הזו = אתר מהרשימה → הדף לדפדפן של DM
     private val dismissed = LinkedHashSet<String>()   // "לא עכשיו" לכתובת הזו (גרירה לתחתית) — עד שהשירות נעצר
     private lateinit var prefs: SharedPreferences
 
@@ -103,6 +107,13 @@ class GrabService : AccessibilityService() {
         if (node == null) return                       // מסך מלא / השורה מוסתרת — הבועה נשארת כמו שהיא
         if (node.isFocused) { hide(); return }         // המשתמש מקליד כתובת
         var c = VideoUrl.classify(node.text)
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - sitesAt > 60_000L) { sitesAt = now; deepH.post { sites = AppRoute.dmSites(this) } }
+        var known = false
+        if (c is VideoUrl.Hit.None) {
+            val pg = VideoUrl.page(node.text)
+            if (pg != null && SiteList.has(sites, SiteList.hostOf(pg))) { c = VideoUrl.Hit.Page(pg, VideoUrl.pageIsBare(pg)); known = true }
+        }
         if (c is VideoUrl.Hit.None && prefs.getBoolean(KEY_DEEP, true)) {
             // הניסוי: דף באתר לא מוכר — מחפשים בו נגן (פעם בכמה שניות לכל דף, עד שנמצא), ואז מציעים את הדף עצמו
             val pg = VideoUrl.page(node.text)
@@ -110,7 +121,7 @@ class GrabService : AccessibilityService() {
         }
         val key = when (c) { is VideoUrl.Hit.Video -> c.url; is VideoUrl.Hit.SiteOnly -> "site:" + c.host; is VideoUrl.Hit.Page -> c.url; else -> null }
         if (key == null || key in dismissed) { hide(); return }
-        hit = c; hitPkg = pkg
+        hit = c; hitPkg = pkg; hitKnown = known
         if (key != shownFor) show(key)
     }
 
@@ -327,6 +338,7 @@ class GrabService : AccessibilityService() {
 
     private fun open(url: String) {
         hide()
+        if (hitKnown && AppRoute.toDmBrowser(this, url)) return
         // 24/10/2026: Studio DM מותקן → ההורדה אליו (ברירת המחדל; משם "לתרגם ב־Studio" / "ישר לענן של Studio")
         if (AppRoute.toDm(this, url)) return
         // לאפליקציית Studio (הבועה ב־APK נפרד). Studio לא מותקנת — האתר שלה מכאן (אותו MainActivity, ‎#share=)

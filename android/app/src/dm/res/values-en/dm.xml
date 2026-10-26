@@ -33,6 +33,8 @@
     <string name="dmRemove">Remove from list</string>
     <string name="dmDeleteFile">Delete with file</string>
     <string name="dmRetry">Try again</string>
+    <string name="dmOpenBr">Open in the DM browser</string>
+    <string name="dmOpenBrHint">If the site needs a sign-in, sign in there once. The video shows up when it plays.</string>
     <string name="dmPause">Pause</string>
     <string name="dmClose">Close</string>
     <string name="dmSegs">%1$d active connections · %2$d segments</string>

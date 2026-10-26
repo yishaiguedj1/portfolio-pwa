@@ -18,6 +18,10 @@ object AppRoute {
     const val STUDIO_PKG = "app.thesnowball.studio"
     const val EXTRA_REF = "snb_ref"
     const val EXTRA_TO = "snb_to"      // "cloud" = ישר לענן של Studio (בלי להוריד לטלפון)
+    /** 26/10/2026: לפתוח את הדף בדפדפן של DM (אתר שכבר הורדת ממנו דרכו — שם ההתחברות) */
+    const val EXTRA_BR = "snb_br"
+    /** האתרים האלה — DmSitesProvider, מוגן בהרשאת חתימה (רק האפליקציות שלנו) */
+    const val SITES_URI = "content://app.thesnowball.studiodm.sites/hosts"
 
     fun installed(ctx: Context, pkg: String): Boolean = try {
         ctx.packageManager.getPackageInfo(pkg, 0); true
@@ -35,6 +39,21 @@ object AppRoute {
         if (!dmInstalled(ctx)) return false
         return try { ctx.startActivity(link(DM_PKG, url, ref)); true } catch (e: Exception) { false }
     }
+
+    /** הדף לדפדפן של DM (לא להורדה ישירה). false = DM לא מותקן */
+    fun toDmBrowser(ctx: Context, url: String): Boolean {
+        if (!dmInstalled(ctx)) return false
+        return try { ctx.startActivity(link(DM_PKG, url, "").putExtra(EXTRA_BR, true)); true } catch (e: Exception) { false }
+    }
+
+    /** האתרים שבהם הורדת דרך הדפדפן של DM. בלי DM / בלי הרשאה — ריק */
+    fun dmSites(ctx: Context): Set<String> = try {
+        ctx.contentResolver.query(Uri.parse(SITES_URI), null, null, null, null)?.use { c ->
+            val out = HashSet<String>()
+            while (c.moveToNext() && out.size < SiteList.MAX) c.getString(0)?.let { out.add(SiteList.norm(it)) }
+            out
+        } ?: emptySet()
+    } catch (e: Exception) { emptySet() }
 
     /** הקישור ל־Studio (לתרגום); cloud = ישר לענן של Studio כשאפשר */
     fun toStudio(ctx: Context, url: String, ref: String = "", cloud: Boolean = false): Boolean = try {

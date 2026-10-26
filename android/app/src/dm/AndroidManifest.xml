@@ -13,6 +13,10 @@
     <uses-permission android:name="android.permission.RUN_USER_INITIATED_JOBS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- 26/10/2026: רשימת האתרים לבועה (DmSitesProvider) — רק לאפליקציות שחתומות במפתח שלנו. מוגדרת גם ב־Studio Bubble,
+         כדי שההרשאה תינתן בלי קשר לסדר ההתקנה -->
+    <permission android:name="app.thesnowball.permission.DM_SITES" android:protectionLevel="signature" />
+
     <!-- AppRoute: האפליקציה השנייה (Studio ↔ Studio DM) — בלי זה אנדרואיד 11+ "מסתיר" אותה -->
     <queries>
         <package android:name="app.thesnowball.studio" />
@@ -35,6 +39,12 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
+
+        <provider
+            android:name=".dm.DmSitesProvider"
+            android:authorities="app.thesnowball.studiodm.sites"
+            android:exported="true"
+            android:permission="app.thesnowball.permission.DM_SITES" />
 
         <!-- הדפדפן של DM — רק מתוך האפליקציה -->
         <activity
