@@ -67,7 +67,8 @@ ok(A.prep({ ...D, sic: 6021 }, null, 3.7).fin && A.prep({ ...D, ind: 'Bank (Mone
 /* ---------- בנקים וביטוח (עודף תשואה), ריט (FFO), חברה מפסידה ---------- */
 const bank = A.indFix(A.prep({ ...D, sic: 6021, ind: 'Bank (Money Center)', indData: { bu: 0.44, bl: 1.1, roe: 0.13, pbv: 1.6, n: 15 } }, null, 3.7), MAC);
 const FI = A.finInputs(bank, MAC);
-ok(Math.abs(FI.val.ke - (0.042 + 1.1 * 0.042)) < 1e-12, 'בנק: הבטא הממונפת של הענף, בלי מינוף מחדש על הפיקדונות');
+ok(Math.abs(FI.val.capm - (0.042 + 1.1 * 0.042)) < 1e-12, 'בנק: הבטא הממונפת של הענף, בלי מינוף מחדש על הפיקדונות');
+ok(FI.val.ke === Math.max(0.10, FI.val.capm), 'שיעור ההיוון: לפחות 10% — הרף של באפט ומנגר; CAPM גבוה יותר גובר');
 ok(Math.abs(FI.val.bv - rev[5] * 0.9 / 1e9) < 1e-9, 'הון למניה = ההון בדוח האחרון ÷ המניות');
 ok(Math.abs(FI.val.roe - 0.195) < 1e-9 && /anSrcRoeCap/.test(FI.src.roe), 'ROE מתמשך עד פי 1.5 מהענף (22% → 19.5%)');
 const rv = A.riValue(FI.val);
@@ -104,7 +105,8 @@ ok(n5 === 5 && Math.abs(g5 - ((161 / 100) ** (1 / 5) - 1)) < 1e-9, 'CAGR של 5 
 /* ---------- הערכת שווי ---------- */
 const I = A.autoInputs(co, MAC);
 ok(Math.abs(I.val.g1 - (175e9 / rev[5] - 1)) < 1e-9, 'צמיחה בשנה 1 = קונצנזוס ההכנסות מול השנה האחרונה');
-ok(Math.abs(I.val.ke - (0.042 + I.bl * 0.042)) < 1e-12 && I.bl >= 0.8 && I.bl <= 2, 'מחיר ההון = CAPM עם בטא ענפית בגבולות');
+ok(Math.abs(I.val.capm - (0.042 + I.bl * 0.042)) < 1e-12 && I.bl >= 0.8 && I.bl <= 2, 'CAPM עם בטא ענפית בגבולות');
+ok(I.val.ke === Math.max(0.10, I.val.capm), 'שיעור ההיוון = לפחות 10% (הרף של באפט), CAPM לעיון');
 ok(I.val.tg === 0.03, 'צמיחה סופית = הנמוך מבין 3% לריבית');
 const base = A.dcf(I.val);
 ok(base.ps > 0 && base.tvShare > 0 && base.tvShare < 1, 'DCF מחזיר שווי חיובי');
@@ -123,7 +125,7 @@ ok(u.band[0] < 1 && u.band[1] > 1 && u.lv >= 0 && u.lv <= 3, 'רצועת אי־�
 
 /* ---------- בדיקות הבריאות ---------- */
 const C = A.checks(co, MAC);
-ok(['value', 'growth', 'profit', 'safe'].every((k) => C[k].chk.length === 6), '4 קבוצות × 6 בדיקות');
+ok(C.value.chk.length === 5 && ['growth', 'profit', 'safe'].every((k) => C[k].chk.length === 6), '4 קבוצות: שווי 5 (בלי "מתחת לשווי ההוגן" — דעה), השאר 6');
 ok(C.growth.chk[0].pass === true && C.profit.chk[5].pass === true, 'צמיחה של 10% בשנה ותזרים חיובי בכל השנים — עוברות');
 const pf = A.piotroski(co);
 ok(pf && pf.list.length === 9 && pf.f >= 0 && pf.f <= 9, 'Piotroski — 9 בדיקות');
@@ -139,7 +141,7 @@ ok(pk.list.map((x) => x.sym).join() === 'D' && pk.loose, 'מה שהמשתמש ה
 ok(A.pickPeers(me, [], []).list.length === 0, 'בלי מועמדים — רשימה ריקה');
 ok(A.pickPeers(me, 'CDEFGH'.split('').map((x) => P(x, 'Internet', 'Comm')), []).list.length === 4, 'עד 4 עמיתים');
 const pr = A.peerRow(co);
-ok(pr.sym === 'SYN' && pr.q >= 0 && pr.q <= 24 && Math.abs(pr.om - 0.25) < 0.01 && pr.pe > 0, 'שורת השוואה: ציון מתוך 24, שוליים ומכפיל');
+ok(pr.sym === 'SYN' && !('q' in pr) && Math.abs(pr.om - 0.25) < 0.01 && pr.pe > 0, 'שורת השוואה: נתונים בלבד (בלי ציון איכות), שוליים ומכפיל');
 
 /* ---------- עיצוב מספרים ---------- */
 ok(A.fmt(-1234e6, 'money', co) === '⁦−$1.23B⁩', 'סכום שלילי — מינוס אמיתי ובידוד כיוון');
