@@ -40,7 +40,7 @@ ok(Object.values(PKGS).every((p) => al.some((x) => x.target.package_name === p))
 
 // ---------- CI: שלושה קבצים בקישורים קבועים
 const aw = R('.github/workflows/android.yml');
-ok(/gh release upload android-latest the-snowball\.apk the-snowball-academy\.apk the-snowball-studio\.apk the-snowball-bubble\.apk the-snowball-admin\.apk the-snowball-studio-dm\.apk the-snowball-lab\.apk --clobber/.test(aw), 'CI: ששת הקבצים ב־android-latest (Invest בקישור הישן, Studio Bubble, הניהול ו־Studio DM — 23/10/2026)');
+ok(/gh release upload android-latest the-snowball\.apk the-snowball-academy\.apk the-snowball-studio\.apk the-snowball-bubble\.apk the-snowball-admin\.apk the-snowball-studio-dm\.apk the-snowball-lab\.apk the-snowball-browser\.apk --clobber/.test(aw), 'CI: ששת הקבצים ב־android-latest (Invest בקישור הישן, Studio Bubble, הניהול, Studio DM ו־Studio Browser — 26/10/2026)');
 
 // ---------- האתר: מעבר בתפריט = האפליקציה המותקנת
 const core = R('core.js');

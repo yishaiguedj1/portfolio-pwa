@@ -48,7 +48,10 @@ class DmActivity : ComponentActivity() {
     override fun onResume() { super.onResume(); visible = true }
     override fun onPause() { visible = false; super.onPause() }
 
-    companion object { @Volatile var visible = false }
+    companion object {
+        @Volatile var visible = false
+        const val FULL_BROWSER = "io.github.yishaiguedj1.snowball.br.BrowserActivity"
+    }
 
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); handle(intent) }
 
@@ -191,6 +194,9 @@ class DmActivity : ComponentActivity() {
     private fun ckFn(): ((String) -> String?)? = if (!sheetCk) null else { u -> runCatching { android.webkit.CookieManager.getInstance().getCookie(u) }.getOrNull() }
 
     fun openBrowser(start: String, refresh: String = "") {
+        // 26/10/2026: ב־Studio Browser (אותו קוד) — הדפדפן המלא. רענון קישור של הורדה נשאר בדפדפן הקטן של DM
+        val full = if (refresh.isEmpty()) runCatching { Class.forName(FULL_BROWSER) }.getOrNull() else null
+        if (full != null && runCatching { startActivity(Intent(this, full).putExtra(DmBrowser.EXTRA_START, start)) }.isSuccess) return
         runCatching { startActivity(Intent(this, DmBrowser::class.java).putExtra(DmBrowser.EXTRA_START, start).putExtra(DmBrowser.EXTRA_REFRESH, refresh)) }
     }
 

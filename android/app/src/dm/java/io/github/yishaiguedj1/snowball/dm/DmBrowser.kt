@@ -194,40 +194,8 @@ class DmBrowser : Activity() {
         synchronized(headSeen) { if (!headSeen.add(h.url) || headSeen.size > 60) return }
         val ref = page
         val ua = web.settings.userAgentString
-        Thread {
-            var ok = true
-            try {
-                // הפניות ביד: לכל קפיצה העוגיות של הכתובת שלה בלבד, בלי ירידה מ־https ל־http (כמו DmFetch)
-                var u = java.net.URL(h.url); var hops = 0
-                while (true) {
-                    val c = u.openConnection() as java.net.HttpURLConnection
-                    c.requestMethod = "HEAD"; c.connectTimeout = 8000; c.readTimeout = 8000
-                    c.instanceFollowRedirects = false
-                    c.setRequestProperty("User-Agent", ua)
-                    if (ref.startsWith("http")) c.setRequestProperty("Referer", ref)
-                    // 26/10/2026: באתר שדורש התחברות הבדיקה בלי עוגיות קיבלה דף כניסה (text/html) והסרטון נפסל
-                    ck(u.toString())?.let { c.setRequestProperty("Cookie", it) }
-                    val code = c.responseCode
-                    val loc = c.getHeaderField("Location")
-                    if (code in 300..399 && loc != null && hops < 4) {
-                        c.disconnect()
-                        val next = java.net.URL(u, loc)
-                        if (u.protocol == "https" && next.protocol == "http") { ok = !h.guess; break }
-                        u = next; hops++; continue
-                    }
-                    ok = if (code >= 400) !h.guess && code != 404 && code != 410
-                    else HuntMedia.headOk(c.contentType, c.contentLengthLong, h.guess, DlDeep.MIN_BYTES)
-                    c.disconnect(); break
-                }
-            } catch (e: Throwable) { if (h.guess) ok = false }
-            if (ok) ui.post { if (found.add(h, t)) paintPill() }
-        }.start()
+        Thread { if (headProbe(h, ref, ua)) ui.post { if (found.add(h, t)) paintPill() } }.start()
     }
-
-    /* עוגיות הדף לבדיקה (בתוך האפליקציה בלבד; לא נשמרות). בלי \r\n — לא מזריקים כותרות */
-    private fun ck(u: String): String? = try {
-        CookieManager.getInstance().getCookie(u)?.takeIf { it.isNotEmpty() && '\n' !in it && '\r' !in it }
-    } catch (e: Throwable) { null }
 
     private fun pageIsVideo() = VideoUrl.classify(page) is VideoUrl.Hit.Video
 
@@ -271,20 +239,9 @@ class DmBrowser : Activity() {
     }
 
     private fun handOver(url: String, ref: String, file: Boolean, title: String) {
-        val ua = web.settings.userAgentString ?: ""
-        val cm = CookieManager.getInstance()
-        try { cm.flush() } catch (e: Throwable) {}
-        // ל־yt-dlp (דף, HLS, DASH): קובץ עוגיות זמני של האתר — אותו מנגנון של Studio
-        if (!file) try {
-            val urls = (listOf(page, url) + found.list.map { it.url }).filter { it.startsWith("http") }.distinct()
-            DlEngine.saveCookies(this, ref.ifEmpty { url }, DlDeep.netscape(urls.map { it to cm.getCookie(it) }, System.currentTimeMillis() / 1000), ua)
-        } catch (e: Throwable) {}
-        val tok = java.util.UUID.randomUUID().toString()
-        synchronized(Companion) { handoff = Handoff(tok, url, ref, ua.take(400), true, refresh, System.currentTimeMillis(), title) }
-        try {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url), this, DmActivity::class.java).putExtra(EXTRA_TOKEN, tok))
-            finish()
-        } catch (e: Exception) { Toast.makeText(this, R.string.dmErrFail, Toast.LENGTH_SHORT).show() }
+        val urls = listOf(page, url) + found.list.map { it.url }
+        if (handOff(this, url, ref, file, title, web.settings.userAgentString ?: "", urls, refresh)) finish()
+        else Toast.makeText(this, R.string.dmErrFail, Toast.LENGTH_SHORT).show()
     }
 
     private fun go(raw: String) {
@@ -317,6 +274,64 @@ class DmBrowser : Activity() {
         const val EXTRA_TOKEN = "dm_tok"
         private const val TTL_MS = 60_000L
         private var handoff: Handoff? = null
+
+        /** הסקריפט בדף — גם ל־Studio Browser (אותו צייד; הבדיקה משווה את HOOK בין הדפדפנים) */
+        val hook: String get() = HOOK
+
+        /**
+         * בדיקת קובץ ישיר (HEAD) לפני שמציעים אותו: קטן מ־DlDeep.MIN_BYTES, דף או תמונה — לא נספר. רץ בחוט רקע.
+         * הפניות ביד: לכל קפיצה העוגיות של הכתובת שלה בלבד, בלי ירידה מ־https ל־http (כמו DmFetch)
+         */
+        fun headProbe(h: HuntMedia.Hit, ref: String, ua: String): Boolean {
+            var ok = true
+            try {
+                var u = java.net.URL(h.url); var hops = 0
+                while (true) {
+                    val c = u.openConnection() as java.net.HttpURLConnection
+                    c.requestMethod = "HEAD"; c.connectTimeout = 8000; c.readTimeout = 8000
+                    c.instanceFollowRedirects = false
+                    c.setRequestProperty("User-Agent", ua)
+                    if (ref.startsWith("http")) c.setRequestProperty("Referer", ref)
+                    // 26/10/2026: באתר שדורש התחברות הבדיקה בלי עוגיות קיבלה דף כניסה (text/html) והסרטון נפסל
+                    ck(u.toString())?.let { c.setRequestProperty("Cookie", it) }
+                    val code = c.responseCode
+                    val loc = c.getHeaderField("Location")
+                    if (code in 300..399 && loc != null && hops < 4) {
+                        c.disconnect()
+                        val next = java.net.URL(u, loc)
+                        if (u.protocol == "https" && next.protocol == "http") { ok = !h.guess; break }
+                        u = next; hops++; continue
+                    }
+                    ok = if (code >= 400) !h.guess && code != 404 && code != 410
+                    else HuntMedia.headOk(c.contentType, c.contentLengthLong, h.guess, DlDeep.MIN_BYTES)
+                    c.disconnect(); break
+                }
+            } catch (e: Throwable) { if (h.guess) ok = false }
+            return ok
+        }
+
+        /* עוגיות הדף לבדיקה (בתוך האפליקציה בלבד; לא נשמרות). בלי \r\n — לא מזריקים כותרות */
+        private fun ck(u: String): String? = try {
+            CookieManager.getInstance().getCookie(u)?.takeIf { it.isNotEmpty() && '\n' !in it && '\r' !in it }
+        } catch (e: Throwable) { null }
+
+        /**
+         * מסירה ל־DmActivity (מ־DmBrowser וגם מ־Studio Browser): הקישור בגלוי (Intent), והשאר — בתוך התהליך עם אסימון.
+         * ל־yt-dlp (דף, HLS, DASH) — קובץ עוגיות זמני של האתר, מכל הכתובות של הדף
+         */
+        fun handOff(a: Activity, url: String, ref: String, file: Boolean, title: String, ua: String, urls: List<String>, refresh: String = ""): Boolean {
+            val cm = CookieManager.getInstance()
+            try { cm.flush() } catch (e: Throwable) {}
+            if (!file) try {
+                val us = urls.filter { it.startsWith("http") }.distinct()
+                DlEngine.saveCookies(a, ref.ifEmpty { url }, DlDeep.netscape(us.map { it to cm.getCookie(it) }, System.currentTimeMillis() / 1000), ua)
+            } catch (e: Throwable) {}
+            val tok = java.util.UUID.randomUUID().toString()
+            synchronized(Companion) { handoff = Handoff(tok, url, ref, ua.take(400), true, refresh, System.currentTimeMillis(), title) }
+            return try {
+                a.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url), a, DmActivity::class.java).putExtra(EXTRA_TOKEN, tok)); true
+            } catch (e: Exception) { false }
+        }
 
         /** המסירה — פעם אחת, רק עם האסימון הנכון, לאותו קישור, ותוך דקה */
         @Synchronized fun take(token: String?, url: String): Handoff? {
