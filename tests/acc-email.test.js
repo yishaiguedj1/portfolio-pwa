@@ -221,7 +221,7 @@ const { fakeR2, ENV } = require('./_r2fake.js');
   ok(mod.methodsOf({ providerData: [{ providerId: 'google.com', email: 'g@googlemail.com' }] }).mail === null, 'רק Google — בלי מייל וסיסמה');
   ok(/function chooseKeep/.test(src) && /keep \}\)/.test(src) && /'both'/.test(src) && /accKeepAQ/.test(src) && /accKeepBQ/.test(src), 'במיזוג: בחירה — למזג את שניהם / רק של החשבון הזה / רק של השני (עם אישור נוסף)');
   ok(/verifyCheck/.test(read('auth.js')) && /accUnverified/.test(read('shell.js')) && /accUnverified/.test(read('cloud.js')), 'מייל שאומת — הטוקן מתרענן מיד; "לא אומת" בכרטיס החשבון');
-  ok(!/\bfetch\(/.test(src.replace(/await fetch\(base \+ '\/api\/session'/, '')), 'acclink.js פונה רק ל־/api/session (המיזוג)');
+  ok(!/\bfetch\(/.test(src.replace(/await fetch\(base \+ '\/api\/session'/g, '')), 'acclink.js פונה רק ל־/api/session (המיזוג, ומ־26/10 גם המיילים)');
   ok(/window\.__snbHold = true/.test(src) && /held\(\)/.test(read('cloud.js')), 'בזמן מיזוג — cloud.js לא דורס את המסמך הממוזג');
   const app = read('app.js');
   const tks = new Set([...src.matchAll(/\bt\('([A-Za-z]\w*)'/g)].map((x) => x[1]));
