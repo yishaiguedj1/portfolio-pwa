@@ -66,12 +66,20 @@ function xSummary(res, max = XITEMS_MAX) {   // max — הסיכום ב־Release
 }
 
 /* res = [{sym, r, x?, xo?}] (r = התשובה של fundamentals; x = שכבה 8; xo = רק לשכבה 8 — לא נספר בשכבות 1–7) → הסיכום שמתפרסם */
+/* = CHECK_INFO ב־fundamentals.js — תיקונים ומידע, לא חריג */
+const UO_INFO = new Set(['fix', 'ffill', 'ffix', 'rst', 'qeps', 'qmix', 'qfy', 'gpfin', 'qsh']);
 const KIND_W = { gold: 0, gr: 1, face: 1, fix: 2, bal: 3, neg: 4, scale: 5, eps: 6, gp: 7, part: 8, q4: 9, xy: 10 };
 function summarize(res, gold, now, ms) {
   const S = { v: 1, at: new Date(now).toISOString(), n: res.length, sec: 0, yahoo: 0, fail: 0,
     face: { n: 0, ok: 0, cos: 0, coOk: 0 }, kinds: {}, gold: { n: 0, bad: 0 }, gr: { n: 0 }, cos: [], items: [], ms: ms || 0, ys: [], fs: [] };
-  for (const { sym, r, xo } of res) {
+  for (const { sym, r, xo, uo } of res) {
     if (xo) continue;
+    /* מניה שמשתמש פתח (מחוץ ל־500): רק החריגים, בנפרד — המספרים של 500 הגדולות לא משתנים */
+    if (uo) {
+      S.u = S.u || { n: 0, items: [] }; S.u.n++;
+      for (const c of (r && r.ok && r.checks) || []) if (!UO_INFO.has(c.k) && S.u.items.length < ITEMS_MAX) S.u.items.push({ sym, k: c.k, m: c.m || null, p: c.p || null, f: c.f != null ? c.f : null, v: c.v != null ? c.v : null });
+      continue;
+    }
     if (!r || !r.ok) { S.fail++; S.fs.push(sym); continue; }
     if (r.src !== 'sec') { S.yahoo++; S.ys.push(sym); continue; }
     S.sec++;
@@ -99,7 +107,7 @@ function summarize(res, gold, now, ms) {
   S.ni = S.items.length;
   S.items = S.items.slice(0, ITEMS_MAX);
   const X8 = xSummary(res); if (X8) S.x = X8;
-  S.n = res.filter((e) => !e.xo).length;
+  S.n = res.filter((e) => !e.xo && !e.uo).length;
   return S;
 }
 
@@ -149,6 +157,8 @@ function normAudit(o) {
     items: (Array.isArray(o.items) ? o.items : []).filter((x) => x && SYM_RE.test(str(x.sym, 12)) && /^[a-z0-9]{1,8}$/.test(str(x.k, 8))).slice(0, ITEMS_MAX)
       .map((x) => ({ sym: str(x.sym, 12), k: str(x.k, 8), m: x.m ? str(x.m, 8) : null, p: x.p ? str(x.p, 12) : null, f: numOrNull(x.f), v: numOrNull(x.v) })),
     x: normX(o.x),
+    u: o.u && typeof o.u === 'object' ? { n: n0(o.u.n), items: (Array.isArray(o.u.items) ? o.u.items : []).filter((x) => x && SYM_RE.test(str(x.sym, 12)) && /^[a-z0-9]{1,8}$/.test(str(x.k, 8))).slice(0, ITEMS_MAX)
+      .map((x) => ({ sym: str(x.sym, 12), k: str(x.k, 8), m: x.m ? str(x.m, 8) : null, p: x.p ? str(x.p, 12) : null, f: numOrNull(x.f), v: numOrNull(x.v) })) } : null,
   };
 }
 function normHist(h) {
@@ -197,6 +207,7 @@ function auditView(cur, hist, now) {
       pc: Object.entries(cur.x.pc).sort((a, b) => (XSEV[a[0]] ?? 9) - (XSEV[b[0]] ?? 9)).map(([k, n]) => ({ k, n })),
       why: Object.entries(cur.x.why).slice(0, 12).map(([k, n]) => ({ k, n })), items: cur.x.items.slice(0, 60),
       trend: h.concat([histEntry(cur)]).slice(-14).map((x) => x.xp).filter((v) => v != null) } : null,
+    u: cur.u ? { n: cur.u.n, ni: cur.u.items.length, items: cur.u.items.slice(0, 60) } : null,
   };
 }
 

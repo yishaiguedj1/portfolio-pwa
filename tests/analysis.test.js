@@ -173,7 +173,8 @@ ok(!/[֐-׿]/.test(src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '
   ok(['rev', 'gp', 'op', 'ni', 'eps', 'sh', 'cashT', 'debt', 'eq', 'ta', 'tl', 'ocf', 'fcf', 'fcfsbc', 'sbcN', 'capexN', 'buy', 'dps', 'gm', 'om', 'nm', 'cr', 'de', 'roic', 'roe', 'r40'].every((k) => ks.includes(k) && mk.includes(k + ':')), 'לכל מדד בדוחות — שדות המקור');
   ok(A.rawName('cogs') === 'anKCogs' && A.rawName('rev') === 'anMRev' && A.rawName('zzz') === 'anKOther', 'שם לשדה גולמי (לא מפתח פנימי במסך)');
   ok(/srcBlock\(co, def\.s\),/.test(src) && /co\.src === 'sec' && f\)/.test(src) && /\/\^https:\\\/\\\/www\\\.sec\\\.gov\\\/\/\.test\(f\.url/.test(src) && /rel: 'noopener noreferrer'/.test(src), 'בגיליון הגרף: המקור, קישור רק ל־sec.gov (בלשונית חדשה)');
-  ok(/an-flagc/.test(src) && /T\('anFlagTip'\)/.test(src), 'ערך שלא עבר בדיקה — מסומן בטבלה ובבועה');
+  // 26/10/2026 (בקשת המשתמש): אי־התאמה לא מוצגת למשתמש — נאספת אצלנו (השרתון → הבקרה הלילית) ומתוקנת בקוד
+  ok(!/an-flagc|anFlagTip|anSrcFlag|flagSheet|an-flagrow/.test(src), 'אי־התאמה בבדיקות — בלי הודעה ובלי סימון במסך');
 }
 /* ---------- שילוב ואבטחה ---------- */
 ok(!/\bfetch\(|localStorage|sessionStorage|indexedDB|innerHTML\s*=\s*[^'"]*\+/.test(src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')), 'המודול לא פונה לרשת ולא שומר בטלפון — הכל דרך env');

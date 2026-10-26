@@ -965,7 +965,6 @@ function daysTo(d, asOf) {
 function pageRep(co, pg) {
   pg.append(h('div', { class: 'an-seg sm', role: 'group', 'aria-label': T('anTabRep') }, ...[['is', T('anRIs')], ['bs', T('anRBs')], ['cf', T('anRCf')], ['rt', T('anRRt')]].map(([k, tt]) =>
     h('button', { type: 'button', 'aria-pressed': String(S.rsub === k), on: { click: () => { S.rsub = k; render(); } } }, tt))));
-  if (co.flags.some((f) => !FL_INFO.has(f.k))) pg.append(h('button', { class: 'an-note an-note-btn', type: 'button', on: { click: flagSheet } }, T('anFlags', { n: new Set(co.flags.filter((f) => !FL_INFO.has(f.k)).map((f) => f.p)).size }), h('span', { class: 'an-chev' })));
   // כרטיס לכל מדד ברוחב המסך: שם והסבר, ערך גדול ושני נתונים, וגרף של 10 שנים עם השנים, הערכים וקו ממוצע
   const list = h('div', { class: 'an-rcards' });
   for (const r of ROWS[S.rsub]) list.append(repCard(co, rowDef(r)));
@@ -1384,9 +1383,6 @@ function chartSheet(def) {
     ].filter(Boolean));
     function draw() {
       const d = seriesFor(co, def, st), one = d.series.length === 1 ? d.series[0].vals : null, avg = one ? mean(one) : null;
-      // שכבה 6: ערך שהבדיקות סימנו — מסומן בבועה ובטבלה
-      const fl = d.per.map((p) => flagsAt(co, def.s, p));
-      d.tipLabels = d.tipLabels.map((l, i) => (fl[i] ? l + ' · ' + T('anFlagTip') : l));
       drawChart(host, { ...d, co, h: 240, avg, tipHost: tip, title: def.n });
       stats.textContent = ''; stats.hidden = !one;
       if (one) {
@@ -1400,7 +1396,7 @@ function chartSheet(def) {
       tbl.textContent = '';
       const t = h('table', { class: 'an-tbl' });
       t.append(h('thead', {}, h('tr', {}, h('th', {}), ...d.labels.map((l) => h('th', {}, l)))),
-        h('tbody', {}, ...d.series.map((s) => h('tr', {}, h('td', {}, s.name), ...s.vals.map((v, i) => h('td', fl[i] ? { class: 'an-flagc', title: T('anFlagTip') } : {}, strip(fmt(v, d.unit, co))))))));
+        h('tbody', {}, ...d.series.map((s) => h('tr', {}, h('td', {}, s.name), ...s.vals.map((v) => h('td', {}, strip(fmt(v, d.unit, co))))))));
       tbl.append(t);
       requestAnimationFrame(() => { tbl.scrollLeft = -tbl.scrollWidth; });
     }
@@ -1440,7 +1436,7 @@ function srcDef(co, k) {
 const OWN_TAG = { rev: 'rev', op: 'op', ni: 'ni', eps: 'eps', sh: 'sh', ocf: 'ocf', buy: 'buy', dps: 'dps', eq: 'eq', ta: 'ta', tl: 'tl', gp: 'gp', capexN: 'capex', sbcN: 'sbc', cashT: 'cash', debt: 'debt' };
 const flagMs = (f) => (f.m ? [f.m] : f.k === 'bal' ? ['ta', 'tl', 'eq'] : []);   // מאזן שלא מתאזן — שייך לשלושתם
 // תיקון אוטומטי והשלמה מהדוח עצמו — מידע, לא "לבדוק": הערך כמו שהודפס
-const FL_INFO = new Set(['fix', 'ffill', 'ffix', 'rst', 'qeps', 'qmix', 'qfy', 'gpfin']);
+const FL_INFO = new Set(['fix', 'ffill', 'ffix', 'rst', 'qeps', 'qmix', 'qfy', 'gpfin', 'qsh']);
 const flagOn = (f, raw) => !FL_INFO.has(f.k) && flagMs(f).some((m) => raw.has(m));
 function flagsAt(co, keys, p) {
   if (!p || p.kind !== 'fy' || !co.flags.length) return null;
@@ -1465,11 +1461,8 @@ function srcBlock(co, keys) {
     rows.push(h('div', { class: 'an-row' }, h('div', { class: 'an-rt' }, h('b', {}, T(M[k].n)), ...sub)));
   }
   const raw = new Set(keys.flatMap((k) => RAWK[k] || [k]));
-  const yrs = [...new Set(co.flags.filter((x) => flagOn(x, raw)).map((x) => x.p.slice(0, 4)))].sort();
   const fixed = co.flags.some((x) => x.k === 'fix' && x.m && raw.has(x.m));
   const fromRep = (kk) => [...new Set(co.flags.filter((x) => x.k === kk && x.m && raw.has(x.m)).map((x) => x.p.slice(0, 4)))].sort();
-  if (yrs.length) rows.push(h('button', { class: 'an-row', type: 'button', on: { click: flagSheet } }, h('span', { class: 'an-ic na' }, '!'),
-    h('div', { class: 'an-rt' }, h('b', {}, T('anSrcFlag', { y: iso(yrs.join(', ')) })), h('span', {}, T('anSrcFlagS'))), h('span', { class: 'an-chev' })));
   if (fixed) rows.push(h('div', { class: 'an-row' }, h('span', { class: 'an-ic y' }, '✓'), h('div', { class: 'an-rt' }, h('b', {}, T('anFlFix')))));
   for (const [kk, lb] of [['ffill', 'anFlFill'], ['ffix', 'anFlFfix'], ['qeps', 'anFlQeps'], ['qmix', 'anFlQmix'], ['qfy', 'anFlQfy'], ['gpfin', 'anFlGpfin']]) {
     const ys = fromRep(kk);
@@ -1510,16 +1503,6 @@ function estSheet() {
     b.append(h('p', { class: 'an-ex' }, T('anEstEx')), h('div', { class: 'an-list' }, ...rows.map(([y, e, g, n]) => h('div', { class: 'an-row' },
       h('div', { class: 'an-rt' }, h('b', {}, String(y)), h('span', {}, n ? T('anNAnalysts', { n }) : T('anAnnualRep'))),
       h('div', { class: 'an-rv' }, fmt(e, 'ps', co), g != null ? h('small', { class: g >= 0 ? 'an-up' : 'an-down' }, sgn(g)) : null)))));
-  });
-}
-const FLAG_KEYS = { bal: 'anFlBal', eps: 'anFlEps', neg: 'anFlNeg', scale: 'anFlScale', q4: 'anFlQ4', xy: 'anFlXy', face: 'anFlFace', fix: 'anFlFix', ffill: 'anFlFill', ffix: 'anFlFfix', rst: 'anFlRst', qeps: 'anFlQeps', qmix: 'anFlQmix', qfy: 'anFlQfy', gpfin: 'anFlGpfin', gp: 'anFlGp', part: 'anFlPart' };
-const flagUnit = (m) => (m === 'eps' ? 'ps' : m === 'sh' ? 'shares' : (M[m] && M[m].u) || 'money');
-function flagSheet() {
-  const co = S.co;
-  openSheet(T('anFlTitle'), (b) => {
-    b.append(h('p', { class: 'an-ex' }, T('anFlEx')), h('div', { class: 'an-list' }, ...co.flags.map((f) => h('div', { class: 'an-row' },
-      FL_INFO.has(f.k) ? h('span', { class: 'an-ic y' }, '✓') : h('span', { class: 'an-ic na' }, '!'), h('div', { class: 'an-rt' }, h('b', {}, T(FLAG_KEYS[f.k] || 'anFlOther')), h('span', {}, T('anYearOf', { y: f.p.slice(0, 4) }) + (f.m && M[f.m] ? ' · ' + T(M[f.m].n) : '')
-        + (f.k === 'face' && f.f != null ? ' · ' + T('anFlFaceV', { f: fmt(f.f, flagUnit(f.m), co), v: fmt(f.v, flagUnit(f.m), co) }) : '')))))));
   });
 }
 

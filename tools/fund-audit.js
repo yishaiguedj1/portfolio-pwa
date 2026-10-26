@@ -74,7 +74,26 @@ function xReport(x) {
     ...(x.p > x.items.length ? ['', `ועוד ${x.p - x.items.length}`] : [])];
 }
 
+/* --seen: מניות שמשתמשים פתחו ויש בהן אי־התאמה (השרתון רושם — lib/fundamentals.js noteFlags; רק סימבולים).
+   נבדקות כאן כדי שנתקן אותן בקוד — בסיכום רק כחריגים (uo), בלי לשנות את המספרים של 500 הגדולות */
+const SEEN_API = ['https://api.thesnowball.app/api/history', 'https://ibkr-proxy-wine.vercel.app/api/history'];
+async function seenSyms() {
+  for (const u of SEEN_API) {
+    try {
+      const r = await fetch(u, { method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://invest.thesnowball.app' }, body: JSON.stringify({ op: 'fundFlags' }) });
+      const j = r.status === 200 ? await r.json() : null;
+      if (j && j.ok && Array.isArray(j.syms)) return j.syms.filter((x) => /^[A-Z0-9][A-Z0-9.\-]{0,15}$/.test(x));
+    } catch (e) { /* הכתובת הבאה */ }
+  }
+  return [];
+}
+const uonly = new Set();
+
 (async () => {
+  if (process.argv.includes('--seen')) {
+    for (const s of await seenSyms()) if (!syms.includes(s)) { uonly.add(s); syms.push(s); }
+    process.stderr.write('מניות שמשתמשים פתחו עם אי־התאמה: ' + uonly.size + '\n');
+  }
   const res = [], t0 = Date.now();
   const pool = 3; let next = 0;
   async function worker() {
@@ -85,10 +104,10 @@ function xReport(x) {
         F._cache.delete('fund:' + sym); r = await F.fundamentals(sym);   // לא clear(): עובד מקביל היה מוחק את הדוח המודפס של חברה אחרת באמצע
         const face = XC.faceOf(r);   // מיד — לפני await (עובד אחר מנקה את המטמון)
         const facts = await getFacts(r);
-        if (!xonly.has(sym)) growthCheck(r, facts);
+        if (!xonly.has(sym) && !uonly.has(sym)) growthCheck(r, facts);
         if (xsyms.has(sym)) x = facts ? await XC.checkOne(sym, r, facts, face) : [];
       } catch (e) { r = { ok: false, error: String(e.message || e).slice(0, 40) }; }
-      res.push(Object.assign({ sym, r }, x ? { x } : {}, xonly.has(sym) ? { xo: 1 } : {}));
+      res.push(Object.assign({ sym, r }, x ? { x } : {}, xonly.has(sym) ? { xo: 1 } : {}, uonly.has(sym) ? { uo: 1 } : {}));
       if (res.length % 25 === 0) process.stderr.write(res.length + '/' + syms.length + '\n');
     }
   }
@@ -101,7 +120,9 @@ function xReport(x) {
     `**צמיחה מול הדוחות (שכבה 7):** ${S.gr.n - (S.kinds.gr || 0)}/${S.gr.n} שנים תואמות (הכנסות ורווח נקי, כפי שהמסך מחשב)`,
     S.x ? `**כל ערך מול כמה מקורות (שכבה 8):** ${S.x.p} ערכים לבדוק מתוך ${S.x.n} (${S.x.cos} חברות, S&P 500 ו־Nasdaq-100; מתוכם ${S.x.b} שונים מ־SEC)` : '',
     '', '| בדיקה | מספר |', '|---|---|',
-    ...Object.entries(S.kinds).sort((a, b) => b[1] - a[1]).map(([k, n]) => `| ${k} | ${n} |`), '', '## חריגים', '',
+    ...Object.entries(S.kinds).sort((a, b) => b[1] - a[1]).map(([k, n]) => `| ${k} | ${n} |`),
+    ...(S.u ? ['', `## מניות שמשתמשים פתחו (מחוץ ל־500) — ${S.u.n} מניות, ${S.u.items.length} חריגים`, '', ...S.u.items.map((x) => `- ${x.sym} · ${x.k}${x.m ? ' · ' + x.m : ''} · ${x.p}${x.f != null ? ` · בדוח ${x.f} מול ${x.v}` : ''}`)] : []),
+    '', '## חריגים', '',
     ...S.items.map((x) => `- ${x.sym} · ${x.k}${x.m ? ' · ' + x.m : ''} · ${x.p}${x.f != null ? ` · בדוח ${x.f} מול ${x.v}` : ''}`),
     ...(S.ni > S.items.length ? ['', `ועוד ${S.ni - S.items.length}`] : []), ...xReport(S.x ? FA.xSummary(res, Infinity) : null)].join('\n');
   if (out) { fs.mkdirSync(out, { recursive: true }); fs.writeFileSync(path.join(out, 'summary.json'), JSON.stringify(S, null, 1)); fs.writeFileSync(path.join(out, 'report.md'), md); }

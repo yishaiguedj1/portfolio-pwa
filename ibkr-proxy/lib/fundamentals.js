@@ -1500,7 +1500,39 @@ function industryData(name) { return DMD.ind[name] || DMD.ind['Total Market (wit
 
 const SYM_RE = /^[A-Z0-9][A-Z0-9.\-]{0,15}$/;
 /* op:'fund' {sym} | op:'macro' — מתוך /api/history (Vercel מלא: 12 מתוך 12 פונקציות) */
+/* 26/10/2026 (בקשת המשתמש): אי־התאמה לא מוצגת למשתמש — נאספת אצלנו ומתוקנת בקוד.
+   מניה שנפתחה ויש בה סימון שאינו תיקון/מידע → קובץ קטן ב־R2 (רק הסימבול וסוגי הבדיקה — מידע ציבורי, בלי שום פרט על מי פתח),
+   והבקרה הלילית (tools/fund-audit.js --seen) בודקת גם אותה. פעם ביום למניה במופע; תקלה ב־R2 לא נוגעת בתשובה.
+   CHECK_INFO = FL_INFO ב־analysis.js (tests/analysis.test.js משווה). */
+const CHECK_INFO = new Set(['fix', 'ffill', 'ffix', 'rst', 'qeps', 'qmix', 'qfy', 'gpfin', 'qsh']);
+const FLAG_PRE = 'fund/flag/';
+const _noted = new Map();
+const warnKinds = (v) => [...new Set((v.checks || []).map((c) => c.k).filter((k) => !CHECK_INFO.has(k)))].sort();
+async function noteFlags(sym, v, deps = {}) {
+  const ks = warnKinds(v); if (!ks.length) return false;
+  const R2 = require('./r2'); const c = deps.r2c || R2.config(); if (!c.ok) return false;
+  const now = typeof deps.now === 'function' ? deps.now() : Date.now();
+  const day = new Date(now).toISOString().slice(0, 10), key = sym + '|' + ks.join(',');
+  if (_noted.get(key) === day) return false;
+  _noted.set(key, day); if (_noted.size > 2000) _noted.delete(_noted.keys().next().value);
+  const body = JSON.stringify({ v: 1, sym, k: ks, at: new Date(now).toISOString() });
+  await Promise.race([R2.putText(c, deps, FLAG_PRE + sym.replace(/[^A-Z0-9.\-]/g, '') + '.json', body, 'application/json').catch(() => {}),
+    new Promise((r) => setTimeout(r, deps.wait || 1500))]);
+  return true;
+}
+/* רשימת המניות שנרשמו ב־30 הימים האחרונים — לבקרה הלילית (ציבורי: רק סימבולים) */
+async function flaggedSyms(deps = {}) {
+  const R2 = require('./r2'); const c = deps.r2c || R2.config(); if (!c.ok) return null;
+  const since = (typeof deps.now === 'function' ? deps.now() : Date.now()) - 30 * 864e5;
+  return (await R2.list(c, deps, FLAG_PRE, 2000)).filter((o) => !o.at || o.at >= since)
+    .map((o) => o.key.slice(FLAG_PRE.length).replace(/\.json$/, '')).filter((x) => SYM_RE.test(x)).sort().slice(0, 500);
+}
+
 async function handle(body, res) {
+  if (body.op === 'fundFlags') {
+    let syms = null; try { syms = await flaggedSyms(); } catch (e) { syms = null; }
+    return res.status(200).json({ ok: syms != null, syms: syms || [] });
+  }
   if (body.op === 'macro') {
     const v = await macro();
     return res.status(200).json({ ok: true, ...v, ind: DMD.ind });
@@ -1509,10 +1541,11 @@ async function handle(body, res) {
   if (!SYM_RE.test(sym)) return res.status(400).json({ ok: false, error: 'bad_params' });
   const v = await fundamentals(sym);
   if (!v.ok) return res.status(404).json(v);
+  try { await noteFlags(sym, v); } catch (e) { /* האיסוף לא מפיל את התשובה */ }
   return res.status(200).json({ ...v, indData: industryData(v.ind) });
 }
 
-module.exports = { handle, fundamentals, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
+module.exports = { handle, fundamentals, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
   industryFor, industryData, _cache: cache,
   // התגיות המועמדות לכל שורה — לכלי ההשוואה (fundxcheck: SEC גולמי גם לתקופות שהושלמו מתגית משנית). נשמט ב־f9db4c74 — tools/fund-xcheck.js מצפה לו
   TAGS: { gaap: { ...FLOW, ...INST }, ifrs: IFRS } };

@@ -2056,6 +2056,8 @@ page('labFund', { tab: 'imp', parent: 'lab', title: () => t('admFaT'), render(p)
   if (v.x) faXSection(p, v.x);
   if ((v.cos || []).length) p.append(grp(t('admFaCo')), list(...v.cos.slice(0, 15).map((c) => row({ c: 'orange', ic: '≠', t: ltr(c.sym), s: fmt(t('admFaCosS'), { ok: c.ok, n: c.n }) + (c.form ? ' · ' + c.form : ''),
     v: faPct(c.ok / c.n * 100), meter: [c.ok / c.n * 100, c.ok / c.n < 0.9 ? 'x' : 'w'], on: c.url ? () => { try { window.open(c.url, '_blank', 'noopener'); } catch (e) {} } : null }))));
+  // מניות שמשתמשים פתחו עם אי־התאמה (מחוץ ל־500) — המשתמש לא רואה הודעה; כאן הרשימה לתיקון בקוד
+  if (v.u && v.u.items.length) p.append(grp(fmt(t('admFaUser'), { n: v.u.n })), list(...v.u.items.slice(0, 30).map((x) => row({ c: 'orange', ic: '!', t: ltr(x.sym + (x.m ? ' · ' + x.m : '') + (x.p ? ' · ' + x.p : '')), s: faKind(x.k) + (x.f != null ? ' · ' + fmt(t('admFaVs'), { f: faNum(x.f), v: faNum(x.v) }) : '') }))));
   if ((v.items || []).length) p.append(grp(t('admFaItems')), list(...v.items.slice(0, 20).map((x) => row({ c: 'gray', ic: '·', t: ltr(x.sym + (x.m ? ' · ' + x.m : '') + (x.p ? ' · ' + x.p : '')), s: faKind(x.k) + (x.f != null ? ' · ' + fmt(t('admFaVs'), { f: faNum(x.f), v: faNum(x.v) }) : '') }))),
     v.ni > 20 ? h('p', 'adm-dt', fmt(t('admFaMore'), { n: numTxt(v.ni - 20) })) : null);
   const ex = [v.yahoo ? fmt(t('admFaYahoo'), { n: v.yahoo }) : '', v.fail ? fmt(t('admFaFail'), { n: v.fail }) : ''].filter(Boolean);
