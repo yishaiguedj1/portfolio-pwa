@@ -11,6 +11,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.HandlerThread
@@ -66,6 +67,7 @@ class GrabService : AccessibilityService() {
     private lateinit var prefs: SharedPreferences
 
     private val check = Runnable { scan() }
+    private val follow = Runnable { anchorKey?.let { k -> vidNode?.let { place(it, k) } } }
     private val watch = object : Runnable {
         override fun run() {
             if (root == null) return
@@ -85,6 +87,8 @@ class GrabService : AccessibilityService() {
     override fun onAccessibilityEvent(e: AccessibilityEvent?) {
         val pkg = e?.packageName?.toString() ?: return
         if (pkg == packageName || pkg !in URL_BAR) return
+        // בועה צמודה לנגן: גלילה / שינוי בדף → מעדכנים רק את המיקום (זול — בלי סריקה), מיד
+        if (vidNode != null && !touching) { h.removeCallbacks(follow); h.postDelayed(follow, 16) }
         h.removeCallbacks(check)
         h.postDelayed(check, if (e.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) 120L else 350L)
     }
@@ -117,15 +121,43 @@ class GrabService : AccessibilityService() {
             val pg = VideoUrl.page(node.text)
             if (pg != null && SiteList.has(sites, SiteList.hostOf(pg))) { c = VideoUrl.Hit.Page(pg, VideoUrl.pageIsBare(pg)); known = true }
         }
-        if (c is VideoUrl.Hit.None && prefs.getBoolean(KEY_DEEP, true)) {
-            // הניסוי: דף באתר לא מוכר — מחפשים בו נגן (פעם בכמה שניות לכל דף, עד שנמצא), ואז מציעים את הדף עצמו
-            val pg = VideoUrl.page(node.text)
-            if (pg != null && deepHas(r, pg)) c = VideoUrl.Hit.Page(pg, VideoUrl.pageIsBare(pg))
-        }
+        // 26/10/2026 (בקשת המשתמש: "כמו IDM — צמודה לחלק העליון הימני של הנגן, ונעלמת כשאין וידאו על המסך"):
+        // מחפשים את הנגן בכל דף (גם ביוטיוב), והבועה נצמדת אליו. דף באתר לא מוכר — הנגן הוא גם מה שמזהה אותו
+        val pg = VideoUrl.page(node.text) ?: node.text?.toString().orEmpty()
+        val deep = prefs.getBoolean(KEY_DEEP, true)
+        val has = pg.isNotEmpty() && (deep || c !is VideoUrl.Hit.None) && deepHas(r, pg)
+        if (c is VideoUrl.Hit.None && deep && has && VideoUrl.page(node.text) != null) c = VideoUrl.Hit.Page(pg, VideoUrl.pageIsBare(pg))
         val key = when (c) { is VideoUrl.Hit.Video -> c.url; is VideoUrl.Hit.SiteOnly -> "site:" + c.host; is VideoUrl.Hit.Page -> c.url; else -> null }
         if (key == null || key in dismissed) { hide(); return }
         hit = c; hitPkg = pkg; hitKnown = known
-        if (key != shownFor) show(key)
+        barBottom = Rect().also { node.getBoundsInScreen(it) }.bottom.takeIf { it < resources.displayMetrics.heightPixels / 3 } ?: 0
+        val vn = if (has) vidNode else null
+        when {
+            vn != null -> place(vn, key)
+            // הנגן לא נמצא בעץ (עדיין) — מחכים; אחרי כמה ניסיונות בדף שהוא בבירור סרטון: בצד, כמו קודם
+            deepBusy || deepTries < FALLBACK_TRIES -> if (anchorKey != null) hide()
+            else -> { anchorKey = null; if (key != shownFor) show(key) }
+        }
+    }
+
+    /* הבועה בפינה העליונה הימנית של הנגן (bounds על המסך). הנגן גלול מתחת לשורת הכתובת — בראש החלק הגלוי שלו;
+       פחות מגובה הבועה גלוי / יצא מהמסך — נעלמת (והסריקה הבאה מחזירה אותה). צומת שהתיישן — מחפשים מחדש */
+    private fun place(vn: AccessibilityNodeInfo, key: String) {
+        if (touching || key in dismissed || !isOn(this)) return
+        val ok = try { vn.refresh() } catch (e: Exception) { false }
+        if (!ok) { vidNode = null; deepFound = false; deepTries = 0; anchorKey = null; hide(); return }
+        val b = Rect(); vn.getBoundsInScreen(b)
+        val dm = resources.displayMetrics
+        val box = root?.width?.takeIf { it > 0 } ?: dp(70f).toInt()
+        val bh = dp(70f).toInt()
+        val top = maxOf(b.top, barBottom)
+        if (!vn.isVisibleToUser || b.width() < bh || minOf(b.bottom, dm.heightPixels) - top < bh) { anchorKey = key; if (root != null) hide(keepAnchor = true); return }
+        val x = (b.right - box).coerceIn(0, maxOf(0, dm.widthPixels - box)); val y = top
+        anchorKey = key
+        if (root == null) { show(key, x, y); return }
+        shownFor = key
+        val p = lp ?: return
+        if (p.x != x || p.y != y) { p.x = x; p.y = y; try { wm?.updateViewLayout(root, p) } catch (e: Exception) {} }
     }
 
     /* הניסוי — מצא נגן בדף: סריקה רחבה של עץ הנגישות עם תקרה (צמתים, עומק, זמן), ותוצאה שמורה לכל כתובת.
@@ -136,39 +168,44 @@ class GrabService : AccessibilityService() {
     private var deepAt = 0L
     private var deepTries = 0
     private var deepBusy = false
+    private var vidNode: AccessibilityNodeInfo? = null   // הנגן בדף (מהחיפוש) — הבועה צמודה אליו
+    private var anchorKey: String? = null                 // הבועה במצב "צמודה לנגן" (בשביל הכתובת הזו)
+    private var barBottom = 0                             // התחתית של שורת הכתובת (כשהיא למעלה)
+    private var touching = false
 
     private fun deepHas(r: AccessibilityNodeInfo, url: String): Boolean {
         val now = android.os.SystemClock.uptimeMillis()
-        if (url != deepUrl) { deepUrl = url; deepFound = false; deepAt = 0L; deepTries = 0 }
+        if (url != deepUrl) { deepUrl = url; deepFound = false; deepAt = 0L; deepTries = 0; vidNode = null; anchorKey = null }
         if (deepFound) return true
         if (deepBusy || deepTries >= DEEP_TRIES || now - deepAt < DEEP_AGAIN) return false
         deepAt = now; deepTries++; deepBusy = true
         val root = AccessibilityNodeInfo.obtain(r)
         deepH.post {
-            val found = try { findVideo(root, android.os.SystemClock.uptimeMillis()) } catch (e: Exception) { false }
+            val node = try { findVideo(root, android.os.SystemClock.uptimeMillis()) } catch (e: Exception) { null }
+            val found = node != null
             h.post {
                 deepBusy = false
-                if (found && url == deepUrl) { deepFound = true; scan() }
+                if (found && url == deepUrl) { deepFound = true; vidNode = node; scan() }
                 else if (!found && deepTries < DEEP_TRIES) { h.removeCallbacks(check); h.postDelayed(check, DEEP_AGAIN) }
             }
         }
         return false
     }
 
-    private fun findVideo(root: AccessibilityNodeInfo, t0: Long): Boolean {
+    private fun findVideo(root: AccessibilityNodeInfo, t0: Long): AccessibilityNodeInfo? {
         val q = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
         q.add(root to 0)
         var n = 0
         while (q.isNotEmpty()) {
             val (v, d) = q.removeFirst()
-            if (++n > DEEP_NODES || android.os.SystemClock.uptimeMillis() - t0 > DEEP_MS) return false
+            if (++n > DEEP_NODES || android.os.SystemClock.uptimeMillis() - t0 > DEEP_MS) return null
             val ex = try { v.extras } catch (e: Exception) { null }
             val role = ex?.getCharSequence("AccessibilityNodeInfo.chromeRole")
             val desc = ex?.getCharSequence("AccessibilityNodeInfo.roleDescription")
-            if (VideoUrl.isVideoNode(v.className, role, desc)) return true
+            if (VideoUrl.isVideoNode(v.className, role, desc)) return v
             if (d < DEEP_DEPTH) for (i in 0 until v.childCount) { val ch = try { v.getChild(i) } catch (e: Exception) { null }; if (ch != null) q.add(ch to d + 1) }
         }
-        return false
+        return null
     }
 
     private fun findBar(r: AccessibilityNodeInfo, pkg: String, ids: List<String>): AccessibilityNodeInfo? {
@@ -183,11 +220,13 @@ class GrabService : AccessibilityService() {
 
     private fun dp(v: Float) = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, resources.displayMetrics)
 
-    private fun show(key: String) {
+    /* ax/ay = צמודה לנגן (פינה עליונה ימנית, בפיקסלים של המסך); בלי — בצד, בגובה שנשמר */
+    private fun show(key: String, ax: Int = -1, ay: Int = -1) {
         shownFor = key
         val w = wm ?: return
         if (root != null) return                       // כבר מוצגת — רק הכתובת התחלפה
-        val right = prefs.getBoolean(KEY_RIGHT, true)
+        val anchor = ax >= 0
+        val right = anchor || prefs.getBoolean(KEY_RIGHT, true)
         val size = dp(54f).toInt()
         val b = BubbleView(this).apply {
             contentDescription = getString(R.string.grabBubble)
@@ -223,12 +262,16 @@ class GrabService : AccessibilityService() {
         val p = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT,
         ).apply {
-            gravity = Gravity.TOP or (if (right) Gravity.RIGHT else Gravity.LEFT)
-            x = 0
-            y = prefs.getInt(KEY_Y, (resources.displayMetrics.heightPixels * 0.42f).toInt())
+            if (anchor) { gravity = Gravity.TOP or Gravity.LEFT; x = ax; y = ay }
+            else {
+                gravity = Gravity.TOP or (if (right) Gravity.RIGHT else Gravity.LEFT)
+                x = 0
+                y = prefs.getInt(KEY_Y, (resources.displayMetrics.heightPixels * 0.42f).toInt())
+            }
         }
         wireTouch(b, box, p)
         try { w.addView(box, p) } catch (e: Exception) { return }
@@ -236,7 +279,8 @@ class GrabService : AccessibilityService() {
         box.alpha = 0f; b.scaleX = 0.6f; b.scaleY = 0.6f
         box.animate().alpha(1f).setDuration(180).start()
         b.animate().scaleX(1f).scaleY(1f).setDuration(260).setInterpolator(DecelerateInterpolator(2f)).start()
-        t?.let { h.postDelayed({ hideHint() }, 2500) }
+        t?.let { h.postDelayed({ hideHint(); h.post(follow) }, 2500) }
+        if (anchor) box.post { follow.run() }          // הרוחב האמיתי (עם התווית) — מיישרים לפינה של הנגן
         h.removeCallbacks(watch)
         h.postDelayed(watch, 1000)
     }
@@ -247,7 +291,10 @@ class GrabService : AccessibilityService() {
         t.animate().alpha(0f).setDuration(200).withEndAction { (t.parent as? LinearLayout)?.removeView(t) }.start()
     }
 
-    private fun hide() {
+    /* keepAnchor = הנגן רק יצא מהמסך (place) — הבועה חוזרת כשהוא חוזר. כל הסתרה אחרת (הקלדה בשורה, "לא עכשיו",
+       יציאה מהדפדפן) — גם מפסיקה לעקוב אחרי הנגן */
+    private fun hide(keepAnchor: Boolean = false) {
+        if (!keepAnchor) anchorKey = null
         shownFor = null
         h.removeCallbacks(watch)
         val box = root ?: return
@@ -257,7 +304,7 @@ class GrabService : AccessibilityService() {
 
     private fun wireTouch(b: View, box: View, p: WindowManager.LayoutParams) {
         val slop = ViewConfiguration.get(this).scaledTouchSlop
-        var sx = 0f; var sy = 0f; var y0 = 0; var dragging = false; var low = false; var held = false
+        var sx = 0f; var sy = 0f; var y0 = 0; var x0 = 0; var dragging = false; var low = false; var held = false
         val dm = resources.displayMetrics
         // 26/10/2026: לחיצה ארוכה = לפתוח את הדף ב־Studio Browser (הצייד שם רואה את הזרמים האמיתיים של הדף)
         val hold = Runnable {
@@ -266,7 +313,7 @@ class GrabService : AccessibilityService() {
         b.setOnTouchListener { v, ev ->
             when (ev.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    sx = ev.rawX; sy = ev.rawY; y0 = p.y; dragging = false; low = false; held = false
+                    sx = ev.rawX; sy = ev.rawY; y0 = p.y; x0 = p.x; dragging = false; low = false; held = false; touching = true
                     v.animate().scaleX(0.92f).scaleY(0.92f).setDuration(90).start()
                     h.postDelayed(hold, ViewConfiguration.getLongPressTimeout().toLong())
                 }
@@ -275,9 +322,9 @@ class GrabService : AccessibilityService() {
                     if (!dragging && (abs(dx) > slop || abs(dy) > slop)) { dragging = true; h.removeCallbacks(hold); hideHint() }
                     if (dragging) {
                         p.y = (y0 + dy).toInt().coerceIn(dp(24f).toInt(), dm.heightPixels - dp(90f).toInt())
-                        // גרירה לצד השני: x נמדד מהקצה שהבועה צמודה אליו
+                        // גרירה לצד השני: x נמדד מהקצה שהבועה צמודה אליו (צמודה לנגן — מהשמאל, מהמקום שלה)
                         val right = p.gravity and Gravity.RIGHT == Gravity.RIGHT
-                        p.x = (if (right) -dx else dx).toInt().coerceAtLeast(0)
+                        p.x = if (anchorKey != null) (x0 + dx).toInt() else (if (right) -dx else dx).toInt().coerceAtLeast(0)
                         try { wm?.updateViewLayout(box, p) } catch (e: Exception) {}
                         val nowLow = ev.rawY > dm.heightPixels * 0.86f
                         if (nowLow != low) {
@@ -288,7 +335,7 @@ class GrabService : AccessibilityService() {
                     }
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    h.removeCallbacks(hold)
+                    h.removeCallbacks(hold); touching = false
                     v.animate().scaleX(1f).scaleY(1f).setDuration(120).start()
                     if (held) Unit
                     else if (!dragging) {
@@ -296,7 +343,8 @@ class GrabService : AccessibilityService() {
                     } else if (low) {
                         shownFor?.let { dismissed.add(it); while (dismissed.size > 50) dismissed.remove(dismissed.first()) }
                         hide()
-                    } else snap(box, p, ev.rawX < dm.widthPixels / 2f)
+                    } else if (anchorKey != null) follow.run()     // צמודה לנגן — חוזרת לפינה שלו
+                    else snap(box, p, ev.rawX < dm.widthPixels / 2f)
                 }
             }
             true
@@ -404,6 +452,8 @@ class GrabService : AccessibilityService() {
         private const val DEEP_MS = 600L
         private const val DEEP_AGAIN = 2500L
         private const val DEEP_TRIES = 6
+        /** בדף שהוא בבירור סרטון (יוטיוב…) והנגן לא נמצא בעץ אחרי כמה ניסיונות — הבועה בצד, כמו קודם */
+        private const val FALLBACK_TRIES = 2
 
         /* דפדפן → המזהים של שורת הכתובת (לפי הסדר). רשימה שמתחזקים: מזהה שהשתנה בגרסה חדשה = הבועה לא מופיעה שם */
         val URL_BAR: Map<String, List<String>> = mapOf(

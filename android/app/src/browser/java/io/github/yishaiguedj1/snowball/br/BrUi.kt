@@ -128,7 +128,7 @@ fun BrApp(a: BrowserActivity) {
                         update = { f -> if (v.parent !== f) { (v.parent as? ViewGroup)?.removeView(v); f.removeAllViews(); f.addView(v, FrameLayout.LayoutParams(-1, -1)) } },
                         onRelease = { it.removeAllViews() })
                 }
-                HuntBubble(a)   // מעל הדף וגם מעל סרטון במסך מלא — כמו Studio Bubble
+                FullBubble(a)   // סרטון במסך מלא — הבועה בפינה של המסך
                 a.permAsk?.let { PermDialog(it) }
             }
         }
@@ -147,7 +147,7 @@ private fun PageScreen(a: BrowserActivity) {
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
         if (!a.barBottom) { Bar(a, q, { q = it }); Progress(t) }
         Box(Modifier.weight(1f).fillMaxWidth().background(c.page)) {
-            if (t == null || t.isNtp) Ntp(a) else WebHost(a, t)
+            if (t == null || t.isNtp) Ntp(a) else { WebHost(a, t); VideoBubble(a, t) }   // הבועה צמודה לנגן שעל המסך
             if (a.editing) Suggest(a, q.text)
             if (a.menu) Menu(a, Modifier.align(if (a.barBottom) Alignment.BottomEnd else Alignment.TopEnd)) { info = true }
         }

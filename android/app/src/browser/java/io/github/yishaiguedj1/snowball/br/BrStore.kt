@@ -157,9 +157,7 @@ class BrPrefs(ctx: Context) {
     var engine: String get() = sp.getString("eng", "google") ?: "google"; set(v) { sp.edit().putString("eng", v).apply() }
     var barBottom: Boolean get() = sp.getBoolean("bottom", false); set(v) { sp.edit().putBoolean("bottom", v).apply() }
     var homeBtn: Boolean get() = sp.getBoolean("home", false); set(v) { sp.edit().putBoolean("home", v).apply() }
-    // בועת ההורדה (כמו Studio Bubble): פועלת, באיזה צד, באיזה גובה (חלק מהמסך), וכמה פעמים הוצגה התווית שלידה
+    // בועת ההורדה על הנגן: פועלת, וכמה פעמים הוצגה התווית שלידה
     var bubble: Boolean get() = sp.getBoolean("bub", true); set(v) { sp.edit().putBoolean("bub", v).apply() }
-    var bubRight: Boolean get() = sp.getBoolean("bubR", true); set(v) { sp.edit().putBoolean("bubR", v).apply() }
-    var bubY: Float get() = sp.getFloat("bubY", 0.42f); set(v) { sp.edit().putFloat("bubY", v).apply() }
     var bubHints: Int get() = sp.getInt("bubH", 0); set(v) { sp.edit().putInt("bubH", v).apply() }
 }

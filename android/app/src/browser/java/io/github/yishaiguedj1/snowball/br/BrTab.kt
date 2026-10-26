@@ -24,6 +24,8 @@ class BrTab(val id: Long, url: String, title: String, val private: Boolean, var 
     var desktop by mutableStateOf(false)
     var icon by mutableStateOf<Bitmap?>(null)
     var thumb by mutableStateOf<Bitmap?>(null)
+    /** הנגן שעל המסך (BrVideo): [x, y, רוחב, גובה] כחלקים מהדף הנראה; null = אין — הבועה נעלמת */
+    var vid by mutableStateOf<FloatArray?>(null)
 
     var web: WebView? = null
     var state: Bundle? = null

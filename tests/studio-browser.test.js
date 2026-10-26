@@ -50,16 +50,26 @@ for (const k of used) ok(H.has(k) && E.has(k), 'מחרוזת בעברית ובא
 ok([...H].every((k) => E.has(k)), 'כל מחרוזת עברית — גם באנגלית');
 ok(fs.existsSync(path.join(ROOT, 'android/app/src/browser/res/mipmap-xxxhdpi/br_launcher.png')), 'אייקון משלו');
 
-// 26/10/2026 (בקשת המשתמש: "שהבועה מחוברת לדפדפן שלנו באופן מלא ועובדת ממש כמו הצייד"):
-// בועה בתוך הדפדפן — מחוברת לצייד של הטאב, לא לשורת הכתובת; נגיעה = ⬇; מעל סרטון במסך מלא
-ok(/fun HuntBubble\(a: BrowserActivity\)/.test(bub) && /t\?\.foundN/.test(bub), 'הבועה מופיעה לפי מה שהצייד של הטאב מצא');
-ok(/a\.customView\?\.let[\s\S]{0,600}HuntBubble\(a\)/.test(ui), 'הבועה מעל הדף וגם מעל סרטון במסך מלא');
+// 26/10/2026 (בקשת המשתמש: "שהבועה מחוברת לדפדפן שלנו באופן מלא ועובדת ממש כמו הצייד", ואחר כך "צמודה לחלק העליון
+// הימני של הנגן ונעלמת כשאין וידאו על המסך — כמו IDM"): בועה בתוך הדפדפן, מחוברת לצייד ולמיקום של הנגן
+ok(/fun VideoBubble\(a: BrowserActivity, t: BrTab\)/.test(bub) && /t\.foundN > 0/.test(bub), 'הבועה מופיעה רק כשהצייד מצא משהו');
+ok(/val show = canShow\(a, t\) && v != null/.test(bub), '...ורק כשיש נגן על המסך (אחרת נעלמת)');
+ok(/val x = \(right - size - m\)/.test(bub) && /val y = maxOf\(top, 0f\) \+ m/.test(bub), 'בפינה העליונה הימנית של הנגן (או בראש החלק הגלוי שלו)');
+ok(/WebHost\(a, t\); VideoBubble\(a, t\)/.test(ui) && /a\.customView\?\.let[\s\S]{0,600}FullBubble\(a\)/.test(ui), 'באותו אזור של הדף; במסך מלא — בפינה של המסך');
 ok(/fun bubbleTap\(\)[\s\S]{0,200}if \(ps\.size == 1\) download\(ps\[0\]\) else if \(ps\.isNotEmpty\(\)\) pick = true/.test(act)
   && /if \(ps\.size == 1\) a\.download\(ps\[0\]\) else a\.pick = true/.test(ui), 'נגיעה בבועה = ⬇ בשורת הכתובת (אותה בחירה)');
 ok(/onLongPress = \{[^}]*a\.pick = true/.test(bub), 'לחיצה ארוכה = כל האפשרויות');
-ok(/a\.bubbleDismiss\(\)/.test(bub) && /bubbleGone/.test(act), 'גרירה לתחתית = לא עכשיו לדף הזה (כמו Studio Bubble)');
 ok(/var bubble: Boolean get\(\) = sp\.getBoolean\("bub", true\)/.test(store) && /pickBubble/.test(ui), 'אפשר לכבות בהגדרות; פועלת כברירת מחדל');
 ok(/absoluteOffset/.test(bub) && !/\.offset \{/.test(bub), 'מיקום מוחלט — לא מתהפך בעברית');
+const vid = R(B + 'BrVideo.kt');
+ok(/if\(window\.top!==window/.test(vid) && /\{ _, msg, _, main, _ -> if \(main\) t\.vid = BrVideo\.parse\(msg\.data\) \}/.test(act), 'המיקום רק מהמסגרת הראשית (גם בסקריפט וגם בדפדפן)');
+ok(/addDocumentStartJavaScript\(w, BrVideo\.JS/.test(act) && /t\.vid = null/.test(act), 'הסקריפט בכל דף; דף חדש — בלי מיקום ישן');
+ok(/visualViewport/.test(vid) && /iy<40/.test(vid), 'יחסית לאזור הנראה (גם בהגדלה); נגן כמעט מחוץ למסך — לא נחשב');
+{ // BrVideo.parse — כמו בקוטלין: ארבעה מספרים סבירים, אחרת "אין נגן"
+  const parse = (s) => { const p = String(s ?? '').split(','); if (p.length !== 4) return null; const v = p.map(Number);
+    if (v.some((x) => !isFinite(x) || x < -10 || x > 10) || v[2] <= 0 || v[3] <= 0) return null; return v; };
+  ok(parse('0.0200,0.3850,0.9000,0.2500') && parse('') === null && parse(null) === null && parse('1,2,0,3') === null && parse('a,b,c,d') === null, 'פענוח המיקום');
+  ok(/p\.size != 4/.test(vid) && /v\[2\] <= 0f \|\| v\[3\] <= 0f/.test(vid), 'אותם כללי פענוח בקוטלין'); }
 // מהבועה ב־Chrome: הדף נפתח כאן, והרשימה נפתחת לבד כשנמצא משהו — בלי הורדה אוטומטית
 ok(/getBooleanExtra\(AppRoute\.EXTRA_HUNT, false\)/.test(act), 'snb_hunt — מהבועה ב־Chrome');
 const ap = (act.match(/private fun autoPick\(t: BrTab\) \{[\s\S]*?\n    \}/) || [''])[0];
@@ -72,6 +82,11 @@ ok(/if \(isPage && AppRoute\.toBrowser\(this, url\)\) return/.test(gs), 'הבו�
 ok(/if \(toBr && AppRoute\.toBrowser\(this, url\)\) return/.test(gs) && /getLongPressTimeout/.test(gs), 'לחיצה ארוכה על הבועה ב־Chrome → Studio Browser');
 ok(/<package android:name="app\.thesnowball\.browser" \/>/.test(R('android/app/src/bubble/AndroidManifest.xml')), 'Studio Bubble רואה את Studio Browser (queries)');
 ok(!/app\.thesnowball\.browser/.test(R('android/app/src/bubble/res/xml/grab_service.xml')) && !/"app\.thesnowball\.browser" to/.test(gs), 'בלי שתי בועות: Studio Bubble לא פועלת בתוך Studio Browser');
+// הבועה ב־Chrome: צמודה לנגן שנמצא בעץ הנגישות, וזזה איתו בגלילה
+ok(/private fun place\(vn: AccessibilityNodeInfo, key: String\)/.test(gs) && /vn\.getBoundsInScreen\(b\)/.test(gs) && /val x = \(b\.right - box\)/.test(gs), 'Chrome: בפינה העליונה הימנית של הנגן');
+ok(/!vn\.isVisibleToUser/.test(gs) && /hide\(keepAnchor = true\)/.test(gs), 'Chrome: הנגן יצא מהמסך — הבועה נעלמת, וחוזרת כשהוא חוזר');
+ok(/typeViewScrolled/.test(R('android/app/src/bubble/res/xml/grab_service.xml')) && /h\.postDelayed\(follow, 16\)/.test(gs), 'Chrome: עוקבת אחרי הגלילה');
+ok(/FALLBACK_TRIES = 2/.test(gs), 'Chrome: נגן שלא נמצא בעץ בדף של סרטון — בצד, כמו קודם');
 
 // 26/10/2026 (בקשת המשתמש: "לא מצליח להתקין APK שהורדתי דרך מנהל ההורדות"): התקנה, תמיד באישור במסך של המערכת
 const da = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmActivity.kt');

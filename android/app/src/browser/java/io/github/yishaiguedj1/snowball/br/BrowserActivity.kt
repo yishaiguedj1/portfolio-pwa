@@ -89,8 +89,6 @@ class BrowserActivity : ComponentActivity() {
     var engine by mutableStateOf("google")
     var isDefault by mutableStateOf(false)
     var bubble by mutableStateOf(true)
-    /** דפים שבהם גררת את הבועה לתחתית ("לא עכשיו") — עד שהאפליקציה נסגרת, כמו ב־Studio Bubble */
-    val bubbleGone = mutableStateListOf<String>()
 
     private val ui = Handler(Looper.getMainLooper())
     private var nextId = 1L
@@ -326,7 +324,7 @@ class BrowserActivity : ComponentActivity() {
             }
             override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? { seen(t, req.url.toString(), headers = req.requestHeaders); return null }
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
-                if (url != t.page) { t.page = url; t.found.clear(); synchronized(t.headSeen) { t.headSeen.clear() }; t.recount(); autoPick(t) }
+                if (url != t.page) { t.page = url; t.vid = null; t.found.clear(); synchronized(t.headSeen) { t.headSeen.clear() }; t.recount(); autoPick(t) }
                 if (BrStore.hostOf(url) != BrStore.hostOf(t.url)) t.icon = null
                 t.url = url; if (favicon != null) t.icon = favicon
                 navState(t, view)
@@ -390,6 +388,9 @@ class BrowserActivity : ComponentActivity() {
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
             WebViewCompat.addWebMessageListener(w, "snbHunt", setOf("*")) { _, msg, _, _, _ -> msg.data?.let { seen(t, it, hook = true) } }
             if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) WebViewCompat.addDocumentStartJavaScript(w, DmBrowser.hook, setOf("*"))
+            // הנגן שעל המסך — רק מהמסגרת הראשית (הבועה נצמדת אליו; BrVideo)
+            WebViewCompat.addWebMessageListener(w, "snbVid", setOf("*")) { _, msg, _, main, _ -> if (main) t.vid = BrVideo.parse(msg.data) }
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) WebViewCompat.addDocumentStartJavaScript(w, BrVideo.JS, setOf("*"))
         }
         w.setFindListener { active, count, done -> if (done) findRes = (if (count == 0) 0 else active + 1) to count }
         t.web = w
@@ -441,15 +442,12 @@ class BrowserActivity : ComponentActivity() {
         ui.postDelayed({ if (cur === t && screen == Screen.PAGE && !editing && !pick && picks(t).isNotEmpty()) pick = true }, 1500)
     }
 
-    /** הבועה (BrUi.HuntBubble): כמו ⬇ בשורת הכתובת — ממצא אחד מוריד מיד, כמה — הרשימה */
+    /** הבועה (BrBubble): כמו ⬇ בשורת הכתובת — ממצא אחד מוריד מיד, כמה — הרשימה */
     fun bubbleTap() {
         val t = cur ?: return
         val ps = picks(t)
         if (ps.size == 1) download(ps[0]) else if (ps.isNotEmpty()) pick = true
     }
-
-    /** גרירה לתחתית — לא עכשיו, לדף הזה */
-    fun bubbleDismiss() { cur?.page?.takeIf { it.isNotEmpty() }?.let { bubbleGone.add(it); while (bubbleGone.size > 50) bubbleGone.removeAt(0) } }
 
     data class Pick(val label: Int, val host: String, val url: String, val file: Boolean, val page: Boolean)
 
