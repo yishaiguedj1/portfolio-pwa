@@ -3,6 +3,7 @@
 !translator/
 !infra/worker/requirements.lock
 !infra/worker/requirements-arm64.lock
+!infra/worker/requirements-karaoke.lock
 # 16/10/2026: הגדרת השרת לעדכון ידני (snb-host-apply) — נתונים בלבד בתמונה
 !infra/host/snb-common.sh
 !infra/host/snb-update
