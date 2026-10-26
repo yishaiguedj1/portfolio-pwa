@@ -184,6 +184,37 @@ class Fallback(unittest.TestCase):
         self.assertTrue(np.isfinite(f).all())
 
 
+class VoiceGender(unittest.TestCase):
+    """26/10/2026: מגדר מגובה הקול במקום שאלה למשתמש. נבדק גם על הקלטות אמיתיות (LibriVox / LibriSpeech, גברים:
+    94–112Hz); בצעקה של נאום הגובה עולה מעל 250Hz — לכן זה רמז בלבד, וההקשר בהנחיה גובר."""
+    @staticmethod
+    def voice(f0, dur, seed=1):
+        rng = np.random.default_rng(seed)
+        t = np.arange(int(dur * D.SR)) / D.SR
+        ph = 2 * np.pi * np.cumsum(f0 * (1 + 0.06 * np.sin(2 * np.pi * 3 * t))) / D.SR
+        x = sum((1 / k) * np.sin(k * ph) for k in range(1, 15)) * (np.sin(2 * np.pi * 2.5 * t) > -0.3)
+        return (0.1 * x + 0.003 * rng.standard_normal(len(t))).astype(np.float32)
+
+    def test_male_and_female(self):
+        a = np.concatenate([self.voice(115, 5), np.zeros(D.SR // 2, np.float32), self.voice(215, 5)])
+        words = [W('a', 0.0, 5.0), W('b', 5.5, 10.5)]
+        words[0]['spk'], words[1]['spk'] = 'S1', 'S2'
+        g = D.voice_gender(words, a)
+        self.assertEqual(g['S1']['g'], 'm')
+        self.assertEqual(g['S2']['g'], 'f')
+        self.assertTrue(105 <= g['S1']['hz'] <= 125 and 200 <= g['S2']['hz'] <= 230, g)
+
+    def test_between_and_too_short_and_noise(self):
+        w = W('a', 0.0, 5.0)
+        w['spk'] = 'S1'
+        self.assertEqual(D.voice_gender([w], self.voice(160, 5))["S1"]["g"], "?", 'בין הספים — לא מכריעים')
+        w2 = W('a', 0.0, 0.8)
+        w2['spk'] = 'S1'
+        self.assertEqual(D.voice_gender([w2], self.voice(120, 0.8)), {}, 'מעט מדי דיבור — בלי רמז')
+        noise = np.random.default_rng(2).standard_normal(5 * D.SR).astype(np.float32) * 0.1
+        self.assertEqual(D.voice_gender([w], noise), {}, 'רעש — לא מחזורי')
+
+
 class Image(unittest.TestCase):
     def test_dockerfile_has_model(self):
         d = (Path(__file__).resolve().parents[2] / "infra/worker/Dockerfile").read_text(encoding="utf-8")

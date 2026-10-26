@@ -217,7 +217,32 @@ class FlowTests(unittest.TestCase):
         self.client = Client(handler)
         return llm.Engine(llm.Spec.of(mode), client=self.client)
 
+    def test_no_questions_by_default(self):
+        # 26/10/2026 (בקשת המשתמש): בלי שאלות למשתמש — ההנחיות לא מבקשות, ומקטע שאלות שבכל זאת הגיע לא נשלח
+        self.assertFalse(P.ASK_USER)
+        self.assertNotIn('=== QUESTIONS ===', P.PROOF_TASK)
+        self.assertNotIn('=== QUESTIONS ===', P.SUBS_TASK)
+        self.assertIn('אין שאלות למשתמש', P.PROOF_TASK)
+        (self.pd / 'asr').mkdir(exist_ok=True)
+        (self.pd / 'asr' / 'parakeet.json').write_text(json.dumps(
+            {'diarize': {'voice': {'S1': {'g': 'm', 'hz': 118}, 'S2': {'g': 'f', 'hz': 206}}}}), encoding='utf-8')
+
+        def h(kw):
+            return msg('=== PATCH ===\n=== BRIEF ===\nתדריך\n=== GLOSSARY ===\n'
+                       '=== QUESTIONS ===\n[{"q":"מה מגדר המראיין (S1)?","opts":["גבר","אישה"],"default":0}]')
+        pl = P.Pipeline(self.ctx, self.J, self.engine(h))
+        qs = pl.proofread()
+        content = self.client.calls[0]['messages'][0]['content']
+        self.assertIn('<voice>\nS1: כנראה גבר (גובה קול חציוני ~118Hz)\nS2: כנראה אישה', content, 'רמז הקול נכנס להגהה')
+        self.assertEqual(pl.ask(qs), [])
+        pl.ask_late()
+        self.assertEqual(self.J.asked, [], 'שום שאלה לא נשלחת לטלפון')
+        self.assertIsNone(self.J.used)
+        self.assertNotIn('החלטות המשתמש', (self.pd / 'tr' / 'brief.md').read_text(encoding='utf-8'))
+
     def test_proofread_and_ask(self):
+        P.ASK_USER = True                    # המנגנון נשמר (כבוי) — בודקים שהוא עדיין תקין
+        self.addCleanup(setattr, P, 'ASK_USER', False)
         def h(kw):
             return msg('=== PATCH ===\nwelcom. => welcome.\n=== BRIEF ===\nתדריך\n=== GLOSSARY ===\nNetflix\tנטפליקס\n'
                        '=== QUESTIONS ===\n[{"q":"כתיב השם?","opts":["ביל אקמן","ביל אקמאן"],"default":0}]')
@@ -246,6 +271,8 @@ class FlowTests(unittest.TestCase):
 
     def test_ask_never_waits(self):
         # 20/10/2026 (בקשת המשתמש): שאלה לא מעכבת את העבודה — לא ask_user (שמחכה), ותשובה שלא הגיעה = ברירת המחדל
+        P.ASK_USER = True
+        self.addCleanup(setattr, P, 'ASK_USER', False)
         self.J.ask_user = lambda *a, **k: self.fail('ask_user מחכה לתשובה — אסור במצב השרת')
         pl = P.Pipeline(self.ctx, self.J, None)
         pl.ask([{'q': 'מגדר הדוברת?', 'opts': ['אישה', 'איש'], 'default': 0}, {'q': 'עוד?', 'opts': [], 'default': 0}])

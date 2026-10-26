@@ -338,6 +338,13 @@ def run(args):
             print('✓ בקשת גיליון AI נלקחה (עריכה של כתוביות קיימות).')
             print('הצעד הבא: python3 translator/job.py ai-prep')
             return 0
+        if job.get('kind') == 'dx':
+            # 26/10/2026: שמירת התוצרים מ־R2 בתיקייה שבחרת ב־Drive — בלי מודל, בלי טוקנים
+            save_state({'job': args.job, 'key': args.key, 'server': args.server, 'drive_api': args.drive_api, 'kind': 'dx',
+                        'folder': job.get('folder') or '', 'spec': job.get('spec') or {}, 'files': {}})
+            print('✓ שמירה ב־Drive נלקחה.')
+            print('הצעד הבא: python3 translator/job.py auto')
+            return 0
         if job.get('kind') != 'tr':
             c.call('report', fail=True, err='worker_unknown_kind')
             print('✗ סוג עבודה לא מוכר — סומן בשרתון.')
@@ -1544,7 +1551,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 _OPEN = urllib.request.build_opener(_NoRedirect).open      # ב־Drive ‏308 = "התקבל חלקית", לא הפניה
 
 
-def drive_upload(ctx, path, name, kind, mime, on_progress=None, prop='snbOut', replace=''):
+def drive_upload(ctx, path, name, kind, mime, on_progress=None, prop='snbOut', replace='', parent=''):
     """העלאה מתחדשת לתיקיית העבודה. מחזיר את מזהה הקובץ ב־Drive.
     replace = מזהה קובץ קיים: תוכן חדש לאותו קובץ (אותו מזהה — איכויות הצפייה מחליפות כך את המקור בגרסה הארוזה).
     ב־Drive ההחלפה אטומית: עד שההעלאה מסתיימת הקובץ הקודם נשאר כמו שהוא."""
@@ -1552,7 +1559,7 @@ def drive_upload(ctx, path, name, kind, mime, on_progress=None, prop='snbOut', r
     if replace:
         meta, method, url = {'name': name}, 'PATCH', ctx.upload + '/files/' + replace + '?uploadType=resumable&fields=id'
     else:
-        meta, method = {'name': name, 'parents': [ctx.st['folder']], 'appProperties': {'snbJob': ctx.st['job'], prop: kind}}, 'POST'
+        meta, method = {'name': name, 'parents': [parent or ctx.st['folder']], 'appProperties': {'snbJob': ctx.st['job'], prop: kind}}, 'POST'
         url = ctx.upload + '/files?uploadType=resumable&fields=id'
     st, j, hd = http(method, url, meta, headers={'Authorization': 'Bearer ' + ctx.token(), 'X-Upload-Content-Type': mime,
                                                  'X-Upload-Content-Length': str(size)})
@@ -2257,6 +2264,13 @@ def prepare(args):
     ctx.report('tr', 1, 'התמליל מוכן — Claude מגיה אותו', force=True)
     print('✓ התמלול הסתיים' + (' (מהקול — הסרטון יצורף ב־align).' if a else '.'))
     print('ההגהה: ' + str(ctx.pdir / 'en.edit.txt') + '  →  תיקונים ב־' + str(ctx.pdir / 'en.patch.txt'))
+    try:                                         # 26/10/2026: רמז המגדר מגובה הקול — בלי שאלה למשתמש (RUNBOOK)
+        import pipeline as _pl
+        vb = _pl.voice_block(ctx.pdir)
+        if vb:
+            print('גובה הקול (רמז למגדר — ההקשר גובר): ' + ' · '.join(vb.splitlines()))
+    except Exception:                            # noqa: BLE001 — רמז בלבד
+        pass
     print('אחר כך (ברקע): python3 translator/job.py align')
     return 0
 
@@ -3691,6 +3705,8 @@ def auto(args):
             return render(args)
         if load_state().get('kind') == 'ai':      # מ7: גיליון ה־AI — קריאה אחת
             return ai_auto(args)
+        if load_state().get('kind') == 'dx':      # 26/10/2026: התוצרים ל־Drive
+            return dx_auto(args)
         import pipeline
         return pipeline.run_auto(sys.modules[__name__], args)
     except Stop as e:
@@ -3903,6 +3919,57 @@ def ai_auto(args):
         raise SystemExit('✗ ' + e.code)
     (d / 'answer.txt').write_text(res.text, encoding='utf-8')
     return ai_done(argparse.Namespace(usage=eng.ledger.list() or None))
+
+
+DX_DIR = VT_WORK / '_dx'
+DX_MIME = {'.mp4': 'video/mp4', '.mkv': 'video/x-matroska', '.srt': 'application/x-subrip', '.vtt': 'text/vtt', '.jpg': 'image/jpeg'}
+
+
+def dx_items(spec):
+    """26/10/2026: מה להעתיק — רק קבצים מהתיקייה של העבודה ב־R2, לתיקייה ב־Drive (לא R2). = normDx בשרתון"""
+    dx = (spec or {}).get('dx') if isinstance(spec, dict) else None
+    if not isinstance(dx, dict) or not FILE_ID_RE.match(str(dx.get('f') or '')) or str(dx.get('f')).startswith('R2_'):
+        return None, []
+    it = [x for x in (dx.get('it') or [])[:6] if isinstance(x, dict) and is_r2_id(str(x.get('id') or ''))
+          and isinstance(x.get('n'), str) and 0 < len(x['n']) <= 160]
+    return str(dx['f']), it
+
+
+def dx_auto(args):
+    """26/10/2026 (בקשת המשתמש): העתקה בשרת מ־R2 לתיקייה ב"הסרטונים שלי" ב־Drive — הטלפון לא מוריד ולא מעלה.
+    קובץ אחרי קובץ: הורדה לדיסק (עם המשך), העלאה מתחדשת, מחיקה מהדיסק"""
+    ctx = Ctx(load_state())
+    dest, it = dx_items(ctx.st.get('spec'))
+    if not dest or not it:
+        ctx.report(fail=True, err='dx_bad', force=True)
+        print('✗ אין מה לשמור.')
+        return 1
+    d = DX_DIR / ctx.name
+    d.mkdir(parents=True, exist_ok=True)
+    total = sum(max(1, int(x.get('s') or 0)) for x in it)
+    base = [0]
+    def prog(sz, half):
+        return lambda f: ctx.report('sv', (base[0] + sz * (half + f) / 2) / total, 'שומרים ב־Drive')
+    try:
+        ctx.report('sv', 0, 'שומרים ב־Drive', force=True)
+        for i, x in enumerate(it):
+            sz = max(1, int(x.get('s') or 0))
+            p = d / ('f%d' % i)
+            fetch_input(ctx, x['id'], p, int(x.get('s') or 0), prog(sz, 0))
+            ext = os.path.splitext(x['n'])[1].lower()
+            try:
+                drive_upload(ctx, p, x['n'], 'dx', DX_MIME.get(ext, 'application/octet-stream'), prog(sz, 1), prop='snbVid', parent=dest)
+            except StepError as e:
+                ctx.report(fail=True, err='dx_drive' if getattr(e, 'err', '') == 'store_fail' else 'dx_net', msg=str(e)[:200], force=True)
+                print(str(e))
+                return 1
+            p.unlink(missing_ok=True)
+            base[0] += sz
+        ctx.report(done=True, msg='נשמר ב־Drive', force=True)
+        print('✓ %d קבצים נשמרו ב־Drive.' % len(it))
+        return 0
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
 
 
 RR_FILES = (                                      # מ2: מה שההפקה מחדש יוצרת (rerender.py) — (סוג, קובץ, סיומת לשם, mime)

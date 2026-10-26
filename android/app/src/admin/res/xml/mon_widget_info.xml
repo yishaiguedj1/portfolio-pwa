@@ -1,14 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- ווידג'ט מדדי השרתים: מינימום 4×2 (110dp גובה), ברירת מחדל 4×3. בלי previewImage — הבורר מציג את האייקון -->
+<!-- ווידג'ט מדדי השרתים. 26/10/2026 (עיצוב 2): ברירת מחדל 4×2 — הגודל הקטן ביותר שבו כל המידע נכנס; אפשר להקטין עד 3×2
+     (בלי שורת התחתית) ולהגדיל. ההגדרות — לחיצה ארוכה (reconfigurable), ולא נפתחות בהוספה (configuration_optional) -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
     android:minHeight="110dp"
     android:minResizeWidth="180dp"
-    android:minResizeHeight="110dp"
+    android:minResizeHeight="90dp"
     android:targetCellWidth="4"
-    android:targetCellHeight="3"
+    android:targetCellHeight="2"
     android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="0"
     android:initialLayout="@layout/glance_default_loading_layout"
+    android:configure="io.github.yishaiguedj1.snowball.MonConfigActivity"
+    android:widgetFeatures="reconfigurable|configuration_optional"
     android:description="@string/mon_widget_desc"
     android:widgetCategory="home_screen" />
