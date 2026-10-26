@@ -95,7 +95,9 @@ class TestProofreadWithRef(unittest.TestCase):
 
     def test_parts_get_their_window(self):
         calls = self.run_pl(long_edit(12, 500), "R2_job_abcdefghijkl")
-        parts = [c[2] for c in calls if "(חלק " in c[2]]
+        # החלקים רצים במקביל — הסדר שבו הקריאות נרשמות משתנה; ממיינים לפי מספר החלק
+        parts = sorted((c[2] for c in calls if "(חלק " in c[2]),
+                       key=lambda t: int(t.split("(חלק ", 1)[1].split()[0]))
         self.assertGreaterEqual(len(parts), 2)
         self.assertIn("The guts of the machine", parts[0], "חלק 1 (דקות 0–4) — כולל את הכתובית של 5:00 במרווח")
         self.assertNotIn("Goodbye", parts[0])
