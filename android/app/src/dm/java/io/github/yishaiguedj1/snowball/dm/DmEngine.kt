@@ -159,11 +159,25 @@ object DmEngine {
         ytStage[t.id] = pr.stage
         t.pctYt = pr.frac
         // 26/10/2026: גם בשלבים בלי אחוז (הכנת המנוע, חיבור, איחוד) הפס זוחל — באפליקציה ובהתראה
+        // 26/10/2026: גם לפי מה שכבר נכתב בתיקייה — בטלפון השורות של yt-dlp לא תמיד מגיעות בזמן ההורדה
+        val dir = DlEngine.dirOf(ctx, "dm-" + t.id)
+        var lastN = 0L
         val stopWatch = Thread {
             try {
                 while (!r.stop && running.containsKey(t.id)) {
                     Thread.sleep(300)
-                    if (synchronized(pr) { pr.creep() }) { t.pctYt = pr.frac; DmNotif.update(ctx) }
+                    val got = if (t.total > 0) dir.listFiles()?.filter { it.isFile && !DmYt.isSide(it.name.removeSuffix(".part")) }?.sumOf { it.length() } ?: 0L else 0L
+                    val moved = synchronized(pr) { pr.disk(got, t.total) || pr.creep() }
+                    if (moved) {
+                        t.pctYt = pr.frac
+                        ytStage[t.id] = pr.stage
+                        if (pr.stage == DmYt.Stage.DL) {
+                            t.bytesYt = minOf(got, t.total)
+                            if (pr.bps > 0) speed[t.id] = pr.bps
+                        }
+                        val now = System.currentTimeMillis()
+                        if (now - lastN > 1000) { lastN = now; DmNotif.update(ctx) }
+                    }
                 }
             } catch (e: InterruptedException) {}
             if (r.stop) DlEngine.cancel("dm-" + t.id)
