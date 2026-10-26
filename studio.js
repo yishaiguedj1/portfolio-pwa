@@ -1835,10 +1835,19 @@ async function bgCan(rec, file) {
     up: await bgUpOk() });
 }
 /* מנסה; בכל מקרה ממשיכים אחר כך בהעלאה הרגילה — היא רק סוגרת כשהכל הגיע, או ממשיכה מהחלקים החסרים */
+/* 26/10/2026: מה כבר ב־R2 (השרתון) — ההתקדמות האמיתית בזמן העלאה ברקע (Chrome באנדרואיד לא תמיד מדווח לדף) */
+function bgPoll(id, up) {
+  return async () => {
+    const st = up.v.r2 || {};
+    if (!st.id || !st.up) return null;
+    const j = await net.api('r2parts', { job: id, id: st.id, up: st.up });
+    return j && j.ok ? j : null;
+  };
+}
 async function bgTry(rec, id, file, sig, onProgress) {
   const up = rec.up;
   const r = await bgUpload({ api: net.api, job: id, name: rec.spec.name, blob: file, size: file.size, mime: file.type || 'application/octet-stream',
-    st: up.v.r2, onState: (x) => { up.v.r2 = x; save(); }, onProgress, signal: sig, title: T('studioBgTitle'), icon: 'icon-studio-192.png' }, bgEnv)
+    st: up.v.r2, onState: (x) => { up.v.r2 = x; save(); }, onProgress, signal: sig, title: T('studioBgTitle'), icon: 'icon-studio-192.png', poll: bgPoll(id, up) }, bgEnv)
     .catch(() => ({ fallback: 'bg_err' }));
   utlOf(rec).bg = r.ok ? 1 : r.unsupported ? 3 : r.stall ? 4 : 2;   // 4 = Chrome קיבל ולא התקדם
   if (r.unsupported) { store.settings.bgNo = Date.now(); save(); }
@@ -1863,7 +1872,7 @@ async function bgResume(id) {
   const run = { active: true, phase: 'video', p: 0, sent: 0, total: size, rate: 0, wait: '', err: '', need: false, file: null, t0: Date.now(), ctl: new AbortController(), bg: true };
   runs.set(id, run); paintSoon();
   try {
-    const r = await bgUpload({ api: net.api, job: id, size, st, signal: run.ctl.signal,
+    const r = await bgUpload({ api: net.api, job: id, size, st, signal: run.ctl.signal, poll: bgPoll(id, up),
       onProgress: (b) => { run.sent = b; run.p = b / size; tickRate(run, b); paintSoon(); } }, bgEnv).catch(() => ({ fallback: 'bg_err' }));
     if (!r.ok) throw new Error('bg');
     const j = await net.api('r2done', { job: id, id: st.id, up: st.up });
@@ -2618,7 +2627,7 @@ const shownPct = (rec, v, x) => monoPct(pctMemo, pctKey(rec, x), v || 0);
 function videoLine(rec, run) {    // "עלו 1.2GB מתוך 3.2GB · 4.3MB לשנייה · נשארו 8 דק׳"
   const sent = run && run.phase === 'video' ? run.sent || 0 : rec.up.v.sent || 0, size = rec.spec.size;
   const parts = [T('studioUpOf', { a: fmtSize(sent), b: fmtSize(size) })];
-  // 26/10/2026: ברקע Chrome מדווח רק כשחלק שלם נגמר — המספר כאן מפגר; ההתקדמות החיה בהתראה שלו
+  // 26/10/2026: ברקע — המספר לפי מה שכבר ב־R2 (השרתון, כל 20 שנ׳); ממשיך גם כשסוגרים את Studio
   if (run && run.active && run.phase === 'video' && run.bg) parts.push(T('studioBgNote'));
   else if (run && run.active && run.phase === 'video' && run.rate > 0) {
     parts.push(T('studioPerSec', { v: fmtSize(run.rate) }));
