@@ -55,8 +55,8 @@ export const SOURCE_LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt
 export const LANG_READY = { from: ['auto', 'en'], to: ['he'] };
 export const langReady = (from, to) => LANG_READY.from.includes(from) && Array.isArray(to) && to.length > 0 && to.every((c) => LANG_READY.to.includes(c));
 /* מ1: כל סוגי התוצרים (= OUT_KINDS בשרתון). MAIN — שורות ב"התוצרים"; השאר קבצי עזר (הנגן, העורך) */
-export const OUT_ALL = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta', 'thumb'];   // סבב 6: meta — לציר בעורך; סבב 7: thumb — תמונה ממוזערת
-export const OUT_MAIN = ['compact', 'same', 'mkv', 'small', 'srt', 'en'];
+export const OUT_ALL = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta', 'thumb', 'inst', 'lrc', 'elrc'];   // סבב 6: meta — לציר בעורך; סבב 7: thumb — תמונה ממוזערת
+export const OUT_MAIN = ['compact', 'same', 'mkv', 'small', 'srt', 'en', 'inst', 'lrc', 'elrc'];   // 26/10/2026: קריוקי — הליווי ו־LRC
 export const TARGET_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
 const QUICK_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr'];
 export const STYLES = ['bold', 'classic', 'karaoke'];
