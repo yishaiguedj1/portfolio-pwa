@@ -315,8 +315,10 @@ const { fakeR2, ENV } = require('./_r2fake');
   {
     const st = read('studio.js');
     ok(/visible: \(\) => typeof document === 'undefined' \|\| document\.visibilityState === 'visible'/.test(st), 'studio.js: השעון יודע אם הדף מוצג');
-    ok(/r\.stall \? 4/.test(st) && /if \(st >= 2\) store\.settings\.bgNo = Date\.now\(\)/.test(st) && /s\.bgSt = Math\.min\(9/.test(st),
+    ok(/r\.stall \? 4/.test(st) && /if \(st >= 2\) store\.settings\.bgNo = Date\.now\(\)/.test(st) && /s\.bgS2 = Math\.min\(9/.test(st),
       'studio.js: נתקע = 4 במדידה; פעם שנייה בטלפון הזה — לא מנסים חודש; המונה נשמר בהגדרות');
+    ok(/const stale = Number\(o\.bgSt\) >= 2;/.test(st) && /if \(!stale && Number\.isFinite\(\+o\.bgNo\)/.test(st) && !/s\.bgSt =/.test(st),
+      'studio.js: חסימה לחודש ש־2.52.2 קבע לפי "תקיעות" שלא היו (bgSt ≥ 2) — נמחקת פעם אחת, והמונה הישן נזרק');
     ok(/run\.bg\) parts\.push\(T\('studioBgNote'\)\)/.test(st) && (read('app.js').match(/\bstudioBgNote: "/g) || []).length === 2,
       'בזמן העלאה ברקע הכרטיס אומר שהיא ממשיכה גם כשסוגרים את Studio (בשתי השפות)');
     ok((st.match(/poll: bgPoll\(id, up\)/g) || []).length === 2 && /net\.api\('r2parts', \{ job: id, id: st\.id, up: st\.up \}\)/.test(st),

@@ -107,8 +107,11 @@ export function normSettings(o) {
   s.pq = normPq(o.pq);
   s.pt = normTrackPref(o.pt);   // 23/10/2026: הקול והכתוביות שנבחרו ידנית בנגן (ריק = אוטומטי)
   if (Number.isFinite(+o.op1) && +o.op1 > 0) s.op1 = Math.floor(+o.op1);
-  if (Number.isFinite(+o.bgSt) && +o.bgSt > 0) s.bgSt = Math.min(9, Math.floor(+o.bgSt));   // 26/10/2026: כמה פעמים העלאה ברקע נתקעה (מהשנייה — לא מנסים חודש)
-  if (Number.isFinite(+o.bgNo) && +o.bgNo > 0) s.bgNo = Math.floor(+o.bgNo);   // 23/10/2026: מתי הדפדפן סירב להעלאה ברקע (ננסה שוב אחרי חודש)   // מתי Google סירב לבורר במסך מלא (ננסה שוב אחרי חודש)
+  // 26/10/2026: כמה פעמים העלאה ברקע נתקעה (מהשנייה — לא מנסים חודש). bgSt של 2.52.2 נספר לפי Chrome בלבד, שבאנדרואיד לא
+  // מדווח — "תקיעות" שלא היו; לכן נזרק, ו־bgNo שהוא קבע (bgSt ≥ 2) נמחק. מעכשיו הספירה לפי השרתון — bgS2
+  if (Number.isFinite(+o.bgS2) && +o.bgS2 > 0) s.bgS2 = Math.min(9, Math.floor(+o.bgS2));
+  const stale = Number(o.bgSt) >= 2;
+  if (!stale && Number.isFinite(+o.bgNo) && +o.bgNo > 0) s.bgNo = Math.floor(+o.bgNo);   // 23/10/2026: מתי הדפדפן סירב להעלאה ברקע (ננסה שוב אחרי חודש)   // מתי Google סירב לבורר במסך מלא (ננסה שוב אחרי חודש)
   const sty = normSty(o.sty); if (sty) s.sty = sty;   // סבב 5: עיצוב הכתוביות האחרון (ברירת המחדל להפקה הבאה)
   if (o.lg && typeof o.lg === 'object') { const ov = normOv({ lg: o.lg.d, lp: o.lg.p, ls: o.lg.s }); if (ov) s.lg = { d: ov.lg, p: ov.lp, s: ov.ls }; }   // סבב 7: הלוגו שלך
   return s;
@@ -1852,8 +1855,8 @@ async function bgTry(rec, id, file, sig, onProgress) {
   utlOf(rec).bg = r.ok ? 1 : r.unsupported ? 3 : r.stall ? 4 : 2;   // 4 = Chrome קיבל ולא התקדם
   if (r.unsupported) { store.settings.bgNo = Date.now(); save(); }
   // 26/10/2026: נתקע — הפעם ממשיכים בהעלאה הרגילה; פעם שנייה בטלפון הזה = לא מנסים חודש. הצליח — מתחילים לספור מחדש
-  if (r.stall) { const st = (store.settings.bgSt || 0) + 1; store.settings.bgSt = st; if (st >= 2) store.settings.bgNo = Date.now(); save(); }
-  else if (r.ok && store.settings.bgSt) { delete store.settings.bgSt; save(); }
+  if (r.stall) { const st = (store.settings.bgS2 || 0) + 1; store.settings.bgS2 = st; if (st >= 2) store.settings.bgNo = Date.now(); save(); }
+  else if (r.ok && store.settings.bgS2) { delete store.settings.bgS2; save(); }
   if (r.aborted) throw Object.assign(new Error('aborted'), { name: 'AbortError' });
   return r;
 }
