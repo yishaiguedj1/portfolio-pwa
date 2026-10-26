@@ -143,7 +143,10 @@ function createServer(opts = {}) {
     decorate(res);
     let url;
     try { url = new URL(req.url, 'http://local'); } catch (e) { return res.status(400).json({ ok: false }); }
-    if (url.pathname === '/healthz') return res.status(200).send('ok');
+    // 26/10/2026 (בעקבות Vid Hub): ?v=1 = איזו גרסה רצה (ה־commit שממנו נבנתה התמונה). בלי — "ok" כמו תמיד (כלי השדרוג בודקים את הטקסט)
+    if (url.pathname === '/healthz') return url.searchParams.get('v') === '1'
+      ? res.status(200).json({ ok: true, sha: /^[0-9a-f]{40}$/.test(process.env.SNB_GIT_SHA || '') ? process.env.SNB_GIT_SHA : '' })
+      : res.status(200).send('ok');
     const m = /^\/api\/([a-z0-9-]+)\/?$/.exec(url.pathname);
     if (!m || !names.has(m[1])) return res.status(404).json({ ok: false, error: 'not_found' });
     // הכתובת של הלקוח: רק מהכותרת של השער (שאר הכותרות ניתנות לזיוף מבחוץ)
