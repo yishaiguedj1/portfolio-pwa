@@ -318,13 +318,20 @@ function normalizeSec(facts, splits = [], face = null) {
   }
   // רבעונים: רק כאלה שיש להם הכנסות או רווח נקי, 48 האחרונים
   const qEnds = [...qset].filter((e) => Q.rev[e] != null || Q.ni[e] != null).sort().slice(-48);
-  // רווח למניה ברבעון רביעי = רווח נקי ÷ ממוצע המניות של הרבעונים באותה שנה (לא חיסור — מסומן כנגזר)
+  // רווח למניה ברבעון רביעי = רווח לבעלי המניות ÷ ממוצע המניות של הרבעון (לא חיסור — רווח למניה לא מצטבר; מסומן כנגזר).
+  // ממוצע המניות ברבעון הרביעי (26/10/2026): ממוצע השנה ≈ ממוצע ארבעת הרבעונים, כך שהרביעי ≈ 4 × השנה פחות שלושת
+  // האחרים — חברה שקונה מניות חוזרות מקבלת ברבעון האחרון פחות מניות מהממוצע השנתי. רחוק מ־12% מהשנה = ממוצע השנה
   for (const e of qEnds) {
     if (Q.sh[e] == null) {
-      const s = [...yearOf].find(([e2, s2]) => e > s2 && e <= e2);
-      if (s && A.sh[s[0]] != null) Q.sh[e] = A.sh[s[0]];
+      const s = [...yearOf].find(([e2, s2]) => e > s2 && e <= e2), as = s && A.sh[s[0]];
+      if (as != null) {
+        const qs = s[0] === e ? qEnds.filter((q) => q > s[1] && q < e && Q.sh[q] > 0) : [];
+        const est = qs.length === 3 ? 4 * as - qs.reduce((t, q) => t + Q.sh[q], 0) : null;
+        Q.sh[e] = est != null && Math.abs(est / as - 1) <= 0.12 ? est : as;
+      }
     }
-    if (Q.eps[e] == null && Q.ni[e] != null && Q.sh[e]) { Q.eps[e] = Math.round(Q.ni[e] / Q.sh[e] * 100) / 100; (derived.eps = derived.eps || []).push(e); }
+    const niq = Q.nic && Q.nic[e] != null ? Q.nic[e] : Q.ni[e];
+    if (Q.eps[e] == null && niq != null && Q.sh[e]) { Q.eps[e] = Math.round(niq / Q.sh[e] * 100) / 100; (derived.eps = derived.eps || []).push(e); }
   }
   // מניות חסרות (דיווח לפי סוגי מניות): רווח נקי ÷ רווח למניה
   for (const [D, ends] of [[A, fyEnds], [Q, qEnds]]) for (const e of ends) {
