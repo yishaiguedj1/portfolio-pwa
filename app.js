@@ -138,6 +138,7 @@ he: {
   kcAlertMax: 'עד 20 התראות למניה',
   kcNoAlerts: 'אין התראות',
   kcAlertNoteOpen: 'אפשר לגרור את קו ההתראה בגרף.',
+  kcExpand: 'גרף נרות במסך מלא',
   kcBgOn: 'ההתראות נשלחות לטלפון גם כשהאפליקציה סגורה',
   kcBgOff: 'כרגע ההתראות פועלות רק כשמסך הגרף פתוח',
   kcBgEnable: 'גם כשסגור',
@@ -1650,6 +1651,7 @@ en: {
   kcAlertMax: 'Up to 20 alerts per symbol',
   kcNoAlerts: 'No alerts',
   kcAlertNoteOpen: 'You can drag the alert line on the chart.',
+  kcExpand: 'Full-screen candlestick chart',
   kcBgOn: 'Alerts reach your phone even when the app is closed',
   kcBgOff: 'For now, alerts only work while the chart screen is open',
   kcBgEnable: 'Also when closed',
@@ -6843,8 +6845,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.69.0';
-const APP_VERSION = 'v588';
+const APP_RELEASE = '2.70.0';
+const APP_VERSION = 'v589';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -14834,6 +14836,15 @@ function buildStockBody(p, m) {
   if (state.chartH && state.chartH[sym]) canvas.style.height = state.chartH[sym] + 'px'; // v238: הגובה שהותאם למסך
   cwrap.appendChild(canvas);
   cwrap.appendChild(loading);
+  // 27/10/2026 (בקשת המשתמש): לחצן הגדלה בפינה העליונה של הגרף → גרף הנרות במסך מלא (כמו "ניתוח"/"גרף נרות" בתחתית)
+  const kx = el('button', 'kc-expand no-swipe');
+  kx.type = 'button';
+  kx.setAttribute('aria-label', t('kcExpand'));
+  kx.title = t('kcExpand');
+  kx.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-6.5 6.5M4 20l6.5-6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  kx.addEventListener('pointerdown', (e) => e.stopPropagation());
+  kx.addEventListener('click', (e) => { e.stopPropagation(); openChartFor(sym); });
+  cwrap.appendChild(kx);
   wrap.appendChild(cwrap);
 
   // v107: טווחים מתחת לגרף + שורת תשואה + legend — כמו בגרף הראשי
