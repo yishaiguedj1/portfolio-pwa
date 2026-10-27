@@ -14957,17 +14957,16 @@ function buildStockBody(p, m) {
   if (p.watch) { // v240: במעקב — "הסר" במקום "ערוך" (באותו מקום ובאותו עיצוב)
     const actions = el('div', 'edit-actions stock-edit');
     if (anOk) actions.appendChild(analysisBtn(sym));
-    actions.appendChild(chartBtn(sym));
     actions.appendChild(alertBtn(sym));
     const rb = el('button', 'chip-btn danger', t('wlRemoveBtn'));
     rb.type = 'button';
     rb.addEventListener('click', () => wlRemove({ sym: sym }));
     actions.appendChild(rb);
+    actions.appendChild(chartBtn(sym));   // 28/10/2026 (בקשת המשתמש): הגדלת הגרף תמיד בקצה השמאלי של הכפתורים
     foot.appendChild(actions);
   } else if (!isIbkrMode() || p.src === 'manual') {
     const actions = el('div', 'edit-actions stock-edit');
     if (anOk) actions.appendChild(analysisBtn(sym));
-    actions.appendChild(chartBtn(sym));
     actions.appendChild(alertBtn(sym));
     // 27/10/2026 (בקשת המשתמש): סמל בלבד, בלי המילה — השורה לא נדחסת גם כשהתשואה ענקית
     const eb = el('button', 'chip-btn stock-ico-btn', ICON_EDIT);
@@ -14980,12 +14979,13 @@ function buildStockBody(p, m) {
       if (p.fromTrades) showPositionTrades(card, p); else showEditPositionForm(card, p);
     });
     actions.appendChild(eb);
+    actions.appendChild(chartBtn(sym));   // 28/10/2026 (בקשת המשתמש): הגדלת הגרף תמיד בקצה השמאלי של הכפתורים
     foot.appendChild(actions);
   } else { // מניית IBKR — בלי "ערוך", אבל עם "ניתוח" ו"גרף נרות"
     const actions = el('div', 'edit-actions stock-edit');
     if (anOk) actions.appendChild(analysisBtn(sym));
-    actions.appendChild(chartBtn(sym));
     actions.appendChild(alertBtn(sym));
+    actions.appendChild(chartBtn(sym));   // 28/10/2026 (בקשת המשתמש): הגדלת הגרף תמיד בקצה השמאלי של הכפתורים
     foot.appendChild(actions);
   }
 

@@ -8,8 +8,8 @@ const CACHE_NAME = 'portfolio-pwa-v598';
 const HASHES = {
   "./": "6e5db34054a027be5655aab614b1278b",
   "./index.html": "6e5db34054a027be5655aab614b1278b",
-  "./styles.css": "0de47eff90fdbf8e7ddfd794cbbd3b7c",
-  "./app.js": "fce7ff024800bb115c4d935bfd213f2d",
+  "./styles.css": "26d63ea363e03bded3c84877e86b7c24",
+  "./app.js": "bf2472f3245eb43affbd8dcfa10b8c03",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "9af566803f9e67e734390306b1e38db2",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
