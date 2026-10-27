@@ -49,6 +49,7 @@ html.an-open { overflow: hidden; }
 .an-idn { flex: 1; min-width: 0; font-size: 13px; color: var(--an-ink2); display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: end; }
 .an-ch10 { font-size: 13px; }
 .an-ch10 b { font-weight: 600; }
+.an-pxw { display: contents; }
 .an-pxc { position: relative; height: 64px; margin-top: 14px; margin-inline: -16px; direction: ltr; }
 .an-pxc svg { width: 100%; height: 100%; display: block; overflow: visible; }
 .an-px { flex: none; text-align: start; display: flex; flex-direction: column; }

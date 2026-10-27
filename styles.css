@@ -618,7 +618,9 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .tabpage.cube-in, .tabpage.cube-out { display: block; }
 .tabpage.no-in { animation: none; }
 /* Academy / Studio: הדף היוצא = העתק "מת" של השכבה — בלי אנימציות כניסה שמתחילות מחדש בהעתק; רקע אטום מתחת לשכבה */
-.cube-ghost, .cube-ghost * { animation: none !important; transition: none !important; }
+/* 27/10/2026 (סרטון המשתמש — הלשוניות במנתח החברות "כפולות" וקופצות בזמן הסיבוב): גם הרצועה הקבועה (cubeHold) היא העתק —
+   בלעדי זה היא הריצה מחדש את אנימציית הכניסה של השכבה (דהייה ותזוזה של 28px) מעל הדף שמתחתיה */
+.cube-ghost, .cube-ghost *, .cube-hold, .cube-hold * { animation: none !important; transition: none !important; }
 .cube-bd { position: fixed; inset: 0; z-index: 899; background: var(--bg); pointer-events: none; }
 /* 14/10/2026: פאה בראש הגלילה — בלי טשטוש בהדר בזמן הסיבוב (מאחוריו רק רקע אחיד, אז אין הבדל נראה; עם הטשטוש — 50ms לפריים) */
 .cube-flat .appbar, .cube-flat .tabs { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
