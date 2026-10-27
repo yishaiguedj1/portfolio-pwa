@@ -183,6 +183,9 @@
     <string name="brSyncWait">מחכה לתוסף במחשב</string>
     <string name="brSyncWaitSub">מתקינים את התוסף ב־Chrome במחשב ומתחברים שם עם אותו חשבון</string>
     <string name="brSyncErr">הסנכרון נעצר</string>
+    <string name="brSyncDropT">Chrome הראה הרבה פחות סימניות</string>
+    <string name="brSyncDropS">בטלפון %2$d סימניות מ־Chrome, ועכשיו Chrome מראה רק %1$d — אולי התנתקת מהחשבון ב־Chrome. הן לא נמחקו כאן.</string>
+    <string name="brSyncDropOk">לעדכן גם כאן (למחוק)</string>
     <string name="brSyncErrAuth">צריך להתחבר שוב עם Google</string>
     <string name="brSyncErrNet">אין חיבור — ננסה שוב לבד</string>
     <string name="brSyncWhat">מה מסתנכרן</string>

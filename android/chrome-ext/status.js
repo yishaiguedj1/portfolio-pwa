@@ -15,6 +15,7 @@ const ERR = {
   no_token: 'צריך להתחבר שוב עם Google',
   drive_403: 'אין הרשאה ל־Drive — להתחבר שוב',
   drive_429: 'Google ביקש להאט — ננסה שוב עוד כמה דקות',
+  other_writer: 'Chrome במחשב אחר מסנכרן עם הטלפון — אפשר להעביר לכאן',
 };
 
 export function describe(st, now) {

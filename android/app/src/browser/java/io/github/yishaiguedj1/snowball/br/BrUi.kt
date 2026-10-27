@@ -1622,6 +1622,16 @@ private fun ChromeScreen(a: BrowserActivity) {
                 }
             }
         }
+        // Chrome הראה פתאום הרבה פחות סימניות — לא נמחקו כאן; מחכה לאישור (BrChrome.drop = "חדש/קודם")
+        BrChrome.drop.split('/').takeIf { it.size == 2 }?.let { (nw, old) -> item {
+            Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 28.dp).fillMaxWidth().glass(c, RoundedCornerShape(24.dp)).padding(horizontal = 18.dp, vertical = 18.dp)) {
+                Text(stringResource(R.string.brSyncDropT), color = c.fg, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.brSyncDropS, nw.toIntOrNull() ?: 0, old.toIntOrNull() ?: 0), color = c.mute, fontSize = 14.sp, lineHeight = 19.sp)
+                Spacer(Modifier.height(12.dp))
+                Text(stringResource(R.string.brSyncDropOk), color = Color(0xFFFF3B30), fontSize = 16.sp, fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clickable { BrChrome.acceptDrop(a); a.chromeRev++ }.padding(vertical = 6.dp))
+            }
+        } }
         item {
             Group(stringResource(R.string.brSyncWhat), stringResource(R.string.brSyncWhatFoot)) {
                 IRow(stringResource(R.string.brSyncMarks), lead = { Tile(BrIcons.StarOn, Color(0xFFFF9500)) }, chevron = false,

@@ -116,4 +116,9 @@ class BrSyncTest {
         val again = BrSync.planChromeHist(have.filter { it.url != "https://del.com/" } + p.add, chrome, p.cur, 5 * h, setOf(BrSync.visitKey("https://hidden.com/", 15 * h)))
         assertTrue(again.add.isEmpty() && again.remove.isEmpty())
     }
+
+    // 27/10/2026 (המחקר): Chrome הראה פתאום פחות מחצי — מחכים לאישור; שינוי רגיל / מעט סימניות — לא
+    @Test fun bigDropGate() {
+        assertTrue(BrSync.bigDrop(170, 40)); assertTrue(!BrSync.bigDrop(170, 160)); assertTrue(!BrSync.bigDrop(10, 0)); assertTrue(!BrSync.bigDrop(40, 20))
+    }
 }

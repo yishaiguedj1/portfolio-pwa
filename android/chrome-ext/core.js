@@ -53,8 +53,12 @@ export function flatten(tree, dirs) {
   const root = Array.isArray(tree) ? tree[0] : tree;
   const out = [];
   const kids = (root && root.children) || [];
+  const typed = kids.some((k) => k.folderType);
   kids.forEach((top, i) => {
-    const ft = top.folderType || ['bookmarks-bar', 'other', 'mobile'][i] || 'other';
+    // Chrome 134+: folderType. מנוהלות (מדיניות) — לקריאה בלבד ולא מסתנכרנות ב־Chrome עצמו — לא נכנסות.
+    // מחשבון Google בלי Sync הישן יש שני סטים (חשבון / מקומי — `syncing`) — שניהם באותו שורש, כמו שהם מוצגים יחד
+    if (top.folderType === 'managed' || top.unmodifiable) return;
+    const ft = typed ? top.folderType : ['bookmarks-bar', 'other', 'mobile'][i] || 'other';
     const r = ft === 'bookmarks-bar' ? 'b' : ft === 'mobile' ? 'm' : 'o';
     const walk = (n, path) => {
       (n.children || []).forEach((c, j) => {
@@ -67,12 +71,37 @@ export function flatten(tree, dirs) {
   return out;
 }
 
-/** מזהה תיקיית "סימניות בנייד" (לשם נכנס מה שנשמר בטלפון); אם אין — "סימניות אחרות" */
-export function mobileFolderId(tree) {
+/**
+ * לאן נכנס מה שנשמר בטלפון — לפי הסדר: "סימניות בנייד" (של החשבון, אחר כך המקומית), ואם אין — "סימניות אחרות".
+ * במחשב "בנייד" מוסתרת כשהיא ריקה, ואז getTree לא מחזיר אותה ו־create אליה נכשל — לכן רשימה, וננסה את הבאה.
+ */
+export function mobileFolderIds(tree) {
   const kids = ((Array.isArray(tree) ? tree[0] : tree) || {}).children || [];
-  const m = kids.find((k) => k.folderType === 'mobile') || kids[2];
-  const o = kids.find((k) => k.folderType === 'other') || kids[1];
-  return (m || o || {}).id || null;
+  const typed = kids.some((k) => k.folderType);
+  const of = (t, i) => (typed ? kids.filter((k) => k.folderType === t) : [kids[i]].filter(Boolean));
+  const order = (l) => l.slice().sort((a, b) => (b.syncing ? 1 : 0) - (a.syncing ? 1 : 0));
+  return [...order(of('mobile', 2)), ...order(of('other', 1))].map((k) => k.id);
+}
+export const mobileFolderId = (tree) => mobileFolderIds(tree)[0] || null;
+
+/** ביקורים ש־Chrome לא מציג בהיסטוריה שלו (חלקי דף, חיפוש שנוצר מהכתובת) — לא נכנסים, כדי שהטלפון יראה בדיוק מה שבהיסטוריה */
+const HIDDEN_TR = new Set(['auto_subframe', 'manual_subframe', 'keyword_generated']);
+export const visibleVisit = (v) => !HIDDEN_TR.has(v.transition);
+
+/** מחיקת ביקור ב־Chrome = deleteRange של אלפית שנייה — רק כשהוא לבד ברגע הזה (אחרת היא הייתה מוחקת גם ביקור אחר) */
+export function deleteAlone(cache, c) {
+  let n = 0;
+  for (const e of Object.values(cache || {})) for (const x of e.v) if (Math.floor(x[1]) === c) n++;
+  return n <= 1;
+}
+
+/** state.json שייך למחשב אחד: Chrome אחר (מחשב / פרופיל) שכתב לאחרונה — לא דורסים אותו (אלא אם עבר זמן, או שהמשתמש ביקש להחליף) */
+export const OWNER_STALE = 3 * 86400000;
+export function canWrite(meta, iid, now, takeover = false) {
+  const w = meta && meta.appProperties && meta.appProperties.w;
+  if (takeover || !w || w === iid) return true;
+  const at = Date.parse(meta.modifiedTime || '') || 0;
+  return now - at > OWNER_STALE;
 }
 
 /**
@@ -82,7 +111,9 @@ export function mobileFolderId(tree) {
  * מחזיר את הפעולות ל־Chrome; לא נוגע בכלום בעצמו.
  */
 export function planOps(flat, opsFile, prev, allowDel = false) {
-  const ack = (prev && prev.ack) || 0;
+  // התקנה מחדש / ניקוי נתונים בטלפון: המספור (s) מתחיל שוב מ־1 — epoch חדש מאפס את ה־ack, אחרת כל פעולה חדשה הייתה נזרקת בשקט
+  const ep = (opsFile && opsFile.e) || '';
+  const ack = ep && prev && prev.ackE !== ep ? 0 : (prev && prev.ack) || 0;
   const alias = Object.assign({}, (prev && prev.alias) || {});     // מזהה זמני של הטלפון (a…) → מזהה ב־Chrome (n…)
   const ops = ((opsFile && opsFile.ops) || []).filter((o) => o && o.s > ack).sort((a, b) => a.s - b.s);
   // מפתח → כל הסימניות עם הכתובת הזו (Chrome מרשה אותה כתובת בכמה תיקיות) — מחיקה של אחת לא "משכיחה" את האחרות
@@ -120,13 +151,13 @@ export function planOps(flat, opsFile, prev, allowDel = false) {
       if (m && o.t && o.t !== m.t) renames.push({ id: m.id, t: String(o.t).slice(0, 300) });
     }
   }
-  return { creates, deletes, renames, hdels, ack: last, alias, hold: hold ? dels : 0, hhold: hhold ? hd : 0 };
+  return { creates, deletes, renames, hdels, ack: last, ackE: ep, alias, hold: hold ? dels : 0, hhold: hhold ? hd : 0 };
 }
 
 /** ביקורים מהטלפון שעוד לא נכנסו ל־Chrome (אחרי `vat`) — chrome.history.addUrl */
 export function planVisits(opsFile, prev) {
   const vat = (prev && prev.vat) || 0;
-  const vis = ((opsFile && opsFile.vis) || []).filter((v) => v && isWeb(v.u) && v.at > vat);
+  const vis = ((opsFile && opsFile.vis) || []).filter((v) => v && isWeb(v.u) && v.at > vat).sort((a, b) => a.at - b.at);   // לפי הזמן — כך אפשר לשמור התקדמות אחרי כל אחד
   const seen = new Set();
   const add = vis.filter((v) => { const k = key(v.u); if (seen.has(k)) return false; seen.add(k); return true; });
   return { add, vat: vis.reduce((m, v) => Math.max(m, v.at), vat) };
@@ -165,7 +196,7 @@ export function histList(cache, echo, since, max = HIST_MAX) {
  * state.json מחדש מהעץ של Chrome. `o` = מאיפה הגיעה: a = נשמרה בטלפון (נוצרה כאן מפעולת add), c = Chrome.
  * `origin` = המזהים שנוצרו מהטלפון (נשמר בתוסף), `alias` נשמר כדי שהטלפון יקשר את המזהים הזמניים שלו.
  */
-export function buildState({ flat, dirs, hist, hfrom, prev, ack, alias, vat, origin, now, hold, hhold }) {
+export function buildState({ flat, dirs, hist, hfrom, prev, ack, ackE, alias, vat, origin, now, hold, hhold }) {
   const fromApp = new Set(origin || []);
   const marks = flat.map((m) => ({ id: 'n' + m.id, u: m.u, t: m.t, r: m.r, p: m.p, i: m.i, at: m.at, o: fromApp.has('n' + m.id) ? 'a' : 'c' }));
   // hist = כבר ביקור־ביקור (histList); תוסף ישן / בדיקה — HistoryItem (lastVisitTime)
@@ -175,12 +206,12 @@ export function buildState({ flat, dirs, hist, hfrom, prev, ack, alias, vat, ori
   // מזהים זמניים שכבר לא מצביעים על סימנייה קיימת — יוצאים מהטבלה
   const live = new Set(marks.map((m) => m.id));
   const al = {}; for (const [a, n] of Object.entries(alias || {})) if (live.has(n)) al[a] = n;
-  return { v: STATE_V, at: now, rev: ((prev && prev.rev) || 0) + 1, ack: ack || 0, vat: vat || 0, alias: al, hold: hold || 0, hhold: hhold || 0, marks, dirs: dirs || [], hist: h, hfrom: hfrom || since };
+  return { v: STATE_V, at: now, rev: ((prev && prev.rev) || 0) + 1, ack: ack || 0, ackE: ackE || '', vat: vat || 0, alias: al, hold: hold || 0, hhold: hhold || 0, marks, dirs: dirs || [], hist: h, hfrom: hfrom || since };
 }
 
 /** האם יש בכלל מה לכתוב (כדי לא לכתוב ל־Drive כל כמה דקות בלי סיבה) */
 export function sameState(a, b) {
   if (!a || !b) return false;
-  const strip = (s) => JSON.stringify({ ack: s.ack, vat: s.vat, alias: s.alias, hold: s.hold, hhold: s.hhold || 0, marks: s.marks, dirs: s.dirs || [], hist: s.hist || [], hfrom: s.hfrom || 0 });   // כל ההיסטוריה — מחיקה של ביקור ישן היא שינוי
+  const strip = (s) => JSON.stringify({ ack: s.ack, ackE: s.ackE || '', vat: s.vat, alias: s.alias, hold: s.hold, hhold: s.hhold || 0, marks: s.marks, dirs: s.dirs || [], hist: s.hist || [], hfrom: s.hfrom || 0 });   // כל ההיסטוריה — מחיקה של ביקור ישן היא שינוי
   return strip(a) === strip(b);
 }

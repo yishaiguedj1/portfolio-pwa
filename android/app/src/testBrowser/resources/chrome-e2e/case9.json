@@ -44,6 +44,7 @@
   "at": 1,
   "rev": 1,
   "ack": 0,
+  "ackE": "",
   "vat": 0,
   "alias": {},
   "hold": 0,

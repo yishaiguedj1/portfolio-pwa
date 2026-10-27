@@ -55,6 +55,11 @@ object BrChrome {
     val err: String get() = sp.getString("err", "") ?: ""
     var marksOn: Boolean get() = sp.getBoolean("pm", true); set(v) { sp.edit().putBoolean("pm", v).apply() }
     var histOn: Boolean get() = sp.getBoolean("ph", true); set(v) { sp.edit().putBoolean("ph", v).apply() }
+    /** התור של הטלפון (ops.json): מזהה אקראי — התקנה מחדש / ניקוי = תור חדש, והתוסף מתחיל את ה־ack מאפס (אחרת המספור מ־1 היה נזרק) */
+    private val epoch: String get() = sp.getString("ep", null) ?: java.util.UUID.randomUUID().toString().take(12).also { sp.edit().putString("ep", it).apply() }
+    /** Chrome הראה פתאום הרבה פחות סימניות (התנתקות מחשבון ב־Chrome, מיזוג של Chrome Sync…) — לא מוחקים כאן עד שמאשרים: "חדש/קודם" */
+    val drop: String get() = sp.getString("drop", "") ?: ""
+    fun acceptDrop(ctx: Context) { sp.edit().putBoolean("dropOk", true).apply(); sync(ctx, force = true) }
 
     fun init(ctx: Context) {
         if (::sp.isInitialized) return
@@ -142,7 +147,7 @@ object BrChrome {
     }
 
     fun disable() {
-        sp.edit().putBoolean("on", false).putBoolean("seeded", false).putLong("sat", 0).remove("dirs").apply(); dirs = emptyList()
+        sp.edit().putBoolean("on", false).putBoolean("seeded", false).putLong("sat", 0).remove("dirs").remove("drop").putBoolean("dropOk", false).apply(); dirs = emptyList()
         synchronized(ops) { ops.clear() }; synchronized(vis) { vis.clear() }; synchronized(hgone) { hgone.clear() }; prevHist = emptyMap(); File(dir, "chrome-hist.json").delete(); saveLocal()
         // הסימניות שכבר כאן נשארות — בלי המזהים של הסנכרון
         BrStore.replaceMarks(BrStore.marks.map { it.copy(sid = "") })
@@ -185,7 +190,7 @@ object BrChrome {
         // 1) מה שקרה כאן → ops.json (התוסף קורא)
         val myOps = synchronized(ops) { ops.toList() }
         val myVis = synchronized(vis) { vis.toList() }
-        val out = JSONObject().put("v", 1).put("dev", "app").put("at", System.currentTimeMillis())
+        val out = JSONObject().put("v", 1).put("e", epoch).put("dev", "app").put("at", System.currentTimeMillis())
             .put("ops", JSONArray().apply { myOps.forEach { put(opJson(it)) } })
             .put("vis", JSONArray().apply { myVis.forEach { put(JSONObject().put("u", it.url).put("t", it.title).put("at", it.at)) } })
         write(t, "ops.json", out.toString())
@@ -200,12 +205,21 @@ object BrChrome {
             st.optJSONArray("dirs")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { dl += BrSync.Dir(BrSync.folderPath(it.optString("r"), it.optString("p")), it.optInt("i", -1)) } }
             val hist = ArrayList<BrImport.Item>()
             st.optJSONArray("hist")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { hist += BrImport.Item(it.optString("u"), it.optString("t"), it.optLong("at")) } }
-            synchronized(ops) { ops.removeAll { it.s <= ack } }
+            // ack שייך לתור הזה רק כשה־epoch שלו זהה (תוסף ישן בלי ackE — כמו קודם)
+            if (!st.has("ackE") || st.optString("ackE") == epoch) synchronized(ops) { ops.removeAll { it.s <= ack } }
             synchronized(vis) { vis.removeAll { it.at <= vat } }
             saveLocal()
             val pending = synchronized(ops) { ops.toList() }
             ui.post {
-                if (marksOn) { dirs = dl; sp.edit().putString("dirs", JSONArray().apply { dl.forEach { put(JSONObject().put("p", it.path).put("i", it.i)) } }.toString()).apply(); BrStore.replaceMarks(BrSync.applyState(sm, pending, alias)) }
+                if (marksOn) {
+                    val had = BrStore.marks.count { it.sid.startsWith("n") }
+                    if (BrSync.bigDrop(had, sm.size) && !sp.getBoolean("dropOk", false)) sp.edit().putString("drop", "${sm.size}/$had").apply()
+                    else {
+                        sp.edit().remove("drop").putBoolean("dropOk", false).apply()
+                        dirs = dl; sp.edit().putString("dirs", JSONArray().apply { dl.forEach { put(JSONObject().put("p", it.path).put("i", it.i)) } }.toString()).apply()
+                        BrStore.replaceMarks(BrSync.applyState(sm, pending, alias))
+                    }
+                }
                 if (histOn) {
                     if (st.has("hfrom")) {
                         // תוסף 1.1+: כל הביקורים — מוסיפים מה שחסר, ומוחקים רק מה ש־Chrome מחק (BrSync.planChromeHist)

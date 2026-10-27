@@ -115,6 +115,26 @@ const ok = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exit(1); }
   const s1 = C.buildState({ flat, dirs, hist: hl.hist, hfrom: hl.hfrom, prev: null, ack: 0, alias: {}, vat: 0, origin: [], now, hold: 0 });
   ok(s1.hist.length === 3 && s1.hfrom === since && !C.sameState(s1, { ...s1, hist: s1.hist.slice(0, 2) }), 'state: ההיסטוריה המלאה; מחיקה של ביקור ישן = שינוי');
 
+  // --- מהמחקר (27/10/2026): אחסון כפול, מנוהלות, "בנייד" מוסתרת, epoch, בעלות, מחיקה בטוחה, ביקורים מוסתרים
+  const dual = [{ id: '0', children: [
+    { id: '1', folderType: 'bookmarks-bar', syncing: false, children: [{ id: '9', title: 'l', url: 'https://l.com/' }] },
+    { id: '2', folderType: 'other', syncing: false, children: [] },
+    { id: '20', folderType: 'bookmarks-bar', syncing: true, children: [{ id: '21', title: 'g', url: 'https://g.com/' }] },
+    { id: '22', folderType: 'other', syncing: true, children: [] },
+    { id: '23', folderType: 'managed', unmodifiable: 'managed', children: [{ id: '24', title: 'm', url: 'https://corp.com/' }] },
+  ] }];
+  const df = C.flatten(dual);
+  ok(df.length === 2 && df.every((m) => m.r === 'b') && !df.some((m) => m.u.includes('corp')), 'אחסון כפול: שני הסרגלים = סרגל; מנוהלות לא נכנסות');
+  ok(C.mobileFolderIds(dual).join() === '22,2', '"בנייד" מוסתרת → "אחרות" של החשבון קודם, אחר כך המקומית');
+  ok(C.mobileFolderIds(tree)[0] === '3', '"בנייד" קיימת → אליה');
+  ok(C.planOps(flat, { e: 'E2', ops: [{ s: 1, k: 'add', id: 'a1', u: 'https://zz.com/' }] }, { ack: 50, ackE: 'E1' }).creates.length === 1, 'epoch חדש (התקנה מחדש) — המספור מההתחלה לא נזרק');
+  ok(C.planOps(flat, { e: 'E1', ops: [{ s: 1, k: 'add', id: 'a1', u: 'https://zz.com/' }] }, { ack: 50, ackE: 'E1' }).creates.length === 0, 'אותו epoch — מה שכבר טופל לא שוב');
+  const nowT = Date.parse('2026-10-27T10:00:00Z');
+  ok(C.canWrite(null, 'me', nowT) && C.canWrite({ appProperties: { w: 'me' } }, 'me', nowT) && !C.canWrite({ appProperties: { w: 'x' }, modifiedTime: '2026-10-27T09:00:00Z' }, 'me', nowT)
+    && C.canWrite({ appProperties: { w: 'x' }, modifiedTime: '2026-10-20T09:00:00Z' }, 'me', nowT) && C.canWrite({ appProperties: { w: 'x' }, modifiedTime: '2026-10-27T09:00:00Z' }, 'me', nowT, true), 'בעלות על state.json');
+  ok(C.deleteAlone({ a: { v: [['1', 100.4]] }, b: { v: [['2', 500]] } }, 100) && !C.deleteAlone({ a: { v: [['1', 100.4]] }, b: { v: [['2', 100.9]] } }, 100), 'מחיקה רק כשהביקור לבד באותה אלפית');
+  ok(!C.visibleVisit({ transition: 'auto_subframe' }) && C.visibleVisit({ transition: 'link' }), 'ביקורים ש־Chrome לא מציג — לא נכנסים');
+
   // --- מקצה לקצה עם הטלפון: העצים ש־BrE2eTest בודק נוצרו מה־core.js הנוכחי (node tools/chrome-ext-e2e.mjs)
   const E = await import(path.join(ROOT, 'tools/chrome-ext-e2e.mjs'));
   for (let i = 1; i <= E.CASES; i++) {

@@ -183,6 +183,9 @@
     <string name="brSyncWait">Waiting for the extension</string>
     <string name="brSyncWaitSub">Install the extension in Chrome on a computer and sign in there with the same account</string>
     <string name="brSyncErr">Sync stopped</string>
+    <string name="brSyncDropT">Chrome shows far fewer bookmarks</string>
+    <string name="brSyncDropS">This phone has %2$d bookmarks from Chrome, and Chrome now shows only %1$d — maybe you signed out of your account in Chrome. Nothing was deleted here.</string>
+    <string name="brSyncDropOk">Update here too (delete)</string>
     <string name="brSyncErrAuth">Sign in with Google again</string>
     <string name="brSyncErrNet">No connection — it will retry on its own</string>
     <string name="brSyncWhat">What syncs</string>

@@ -8,21 +8,29 @@ fs.writeFileSync(path.join(tmp, 'drive.mjs'), [
   'export const files = {};',
   "export async function token() { return 't'; }",
   'export async function forget() {}',
+  'export const props = {};',
+  "export async function find(t, n) { return files[n] ? { id: n, modifiedTime: new Date().toISOString(), appProperties: props[n] || {} } : null; }",
   'export async function readJson(t, n) { return files[n] ? JSON.parse(files[n]) : null; }',
-  'export async function writeJson(t, n, o) { files[n] = JSON.stringify(o); }',
+  'export async function writeJson(t, n, o, p) { files[n] = JSON.stringify(o); props[n] = p || {}; }',
 ].join('\n'));
 (async () => {
   let NOW = Date.UTC(2026, 9, 27, 10);
   Date.now = () => NOW;
   const store = {}; const L = {}; const on = (k) => ({ addListener: (f) => { (L[k] = L[k] || []).push(f); } });
-  let vid = 1; const V = [];   // { visitId, url, title, visitTime }
+  // "סימניות בנייד" ריקה — מוסתרת במחשב (getTree לא מחזיר אותה)
+let bid = 50; const TREE = [{ id: '0', children: [{ id: '1', folderType: 'bookmarks-bar', children: [] }, { id: '2', folderType: 'other', children: [] }] }];
+const findNode = (n, id) => (n.id === id ? n : (n.children || []).map((c) => findNode(c, id)).find(Boolean));
+let vid = 1; const V = [];   // { visitId, url, title, visitTime }
   const visit = (url, title, t) => V.push({ visitId: String(vid++), url, title, visitTime: t });
   globalThis.chrome = {
     storage: { local: { get: async (k) => { const o = {}; for (const x of [].concat(k)) if (x in store) o[x] = structuredClone(store[x]); return o; }, set: async (o) => { Object.assign(store, structuredClone(o)); } } },
     runtime: { onInstalled: on('i'), onStartup: on('s'), onMessage: on('m') },
     alarms: { create() {}, onAlarm: on('a') },
-    bookmarks: { getTree: async () => [{ id: '0', children: [{ id: '1', folderType: 'bookmarks-bar', children: [] }, { id: '2', folderType: 'other', children: [] }, { id: '3', folderType: 'mobile', children: [] }] }],
-      onCreated: on('b'), onRemoved: on('b'), onChanged: on('b'), onMoved: on('b') },
+    bookmarks: { getTree: async () => structuredClone(TREE),
+    create: async ({ parentId, title, url }) => { const p = findNode(TREE[0], parentId); if (!p) throw new Error("Can't find parent bookmark for id."); const n = { id: String(bid++), title, url }; p.children.push(n); return n; },
+    remove: async (id) => { const walk = (n) => { const i = (n.children || []).findIndex((c) => c.id === id); if (i >= 0) n.children.splice(i, 1); else (n.children || []).forEach(walk); }; walk(TREE[0]); },
+    update: async () => {},
+      onCreated: on('b'), onRemoved: on('b'), onChanged: on('b'), onMoved: on('b'), onChildrenReordered: on('b'), onImportBegan: on('b'), onImportEnded: on('b') },
     history: {
       onVisited: on('hv'), onVisitRemoved: on('hr'),
       search: async ({ startTime }) => { const m = new Map(); for (const v of V) if (v.visitTime >= startTime) { const c = m.get(v.url); if (!c || c.lastVisitTime < v.visitTime) m.set(v.url, { url: v.url, title: v.title, lastVisitTime: v.visitTime }); } return [...m.values()]; },
@@ -67,6 +75,34 @@ fs.writeFileSync(path.join(tmp, 'drive.mjs'), [
   ok(hist().includes('d.com/@800'), 'ביקור חדש ב־Chrome מגיע');
   const st = JSON.parse(drive.files['state.json']);
   ok(st.vat === H + 200 * 60000 && st.ack === 2 && st.hfrom > 0, 'ack/vat/hfrom');
+  // 6) "בנייד" מוסתרת: סימנייה מהטלפון נכנסת ל"אחרות" ולא עוצרת את הסנכרון
+  drive.files['ops.json'] = JSON.stringify({ v: 1, e: 'E1', ops: [{ s: 1, k: 'add', id: 'a1', u: 'https://new.com/', t: 'N' }], vis: [] });
+  await sync();
+  ok(TREE[0].children[1].children.some((c) => c.url === 'https://new.com/'), 'בנייד מוסתרת — נכנסת לאחרות');
+  ok(JSON.parse(drive.files['state.json']).ackE === 'E1' && JSON.parse(drive.files['state.json']).ack === 1, 'ack של התור E1');
+  // 7) התקנה מחדש בטלפון: המספור מתחיל שוב מ־1 עם epoch חדש — לא נזרק
+  drive.files['ops.json'] = JSON.stringify({ v: 1, e: 'E2', ops: [{ s: 1, k: 'add', id: 'a1', u: 'https://after.com/', t: 'A' }], vis: [] });
+  await sync();
+  ok(TREE[0].children[1].children.some((c) => c.url === 'https://after.com/'), 'אחרי התקנה מחדש בטלפון — הפעולה מוחלת');
+  // 8) Chrome אחר כתב לאחרונה — לא נוגעים; "להחליף" — כן
+  drive.props['state.json'] = { w: 'other-computer' };
+  const before = drive.files['state.json'];
+  drive.files['ops.json'] = JSON.stringify({ v: 1, e: 'E2', ops: [{ s: 2, k: 'add', id: 'a2', u: 'https://x2.com/', t: 'X' }], vis: [] });
+  await sync();
+  ok(drive.files['state.json'] === before && !TREE[0].children[1].children.some((c) => c.url === 'https://x2.com/') && store.last.err === 'other_writer', 'Chrome אחר — לא כותבים ולא מחילים');
+  await new Promise((r) => L.m[0]({ cmd: 'takeover' }, {}, r));
+  ok(drive.props['state.json'].w !== 'other-computer' && TREE[0].children[1].children.some((c) => c.url === 'https://x2.com/'), 'להחליף — עכשיו ה־Chrome הזה');
+  // 9) שני ביקורים באותה אלפית שנייה — מחיקה מהטלפון לא מוחקת (הייתה מוחקת גם את השני)
+  NOW = H + 900 * 60000; visit('https://p.com/', 'P', H + 850 * 60000); visit('https://q.com/', 'Q', H + 850 * 60000);
+  await sync();
+  drive.files['ops.json'] = JSON.stringify({ v: 1, e: 'E2', ops: [{ s: 3, k: 'hdel', u: 'https://p.com/', at: H + 850 * 60000 }], vis: [] });
+  await sync();
+  ok(V.some((v) => v.url === 'https://q.com/') && V.some((v) => v.url === 'https://p.com/'), 'ביקור אחר באותו רגע — לא נמחק');
+  // 10) התוסף נעצר באמצע: ביקור שכבר נכנס לא נכנס שוב
+  store.hvat = H + 950 * 60000; const n0 = V.length;
+  drive.files['ops.json'] = JSON.stringify({ v: 1, e: 'E2', ops: [], vis: [{ u: 'https://z.com/', t: 'Z', at: H + 950 * 60000 }] });
+  await sync();
+  ok(V.length === n0, 'ביקור שכבר נכנס (hvat) — לא שוב');
   console.log(fails ? 'chrome-ext-sync: ' + fails + ' נכשלו' : 'chrome-ext-sync: הכל עבר'); process.exit(fails ? 1 : 0);
 
 })().catch((e) => { console.log('FAIL', e); process.exit(1); });

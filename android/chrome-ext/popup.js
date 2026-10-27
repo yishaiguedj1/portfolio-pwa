@@ -17,6 +17,7 @@ function paint(st) {
   $('count').textContent = st.marks ? st.marks.toLocaleString('he-IL') : '';
   $('email').textContent = st.email || '—';
   $('pMarks').checked = st.prefs.marks; $('pHist').checked = st.prefs.hist;
+  $('ownCard').hidden = !(st.last && st.last.err === 'other_writer');
   const what = [st.hold ? `${st.hold} סימניות` : '', st.hhold ? `${st.hhold} ביקורים מההיסטוריה` : ''].filter(Boolean).join(' ו־');
   $('holdCard').hidden = !what;
   $('holdMsg').textContent = what ? `Studio Browser ביקש למחוק ${what} בבת אחת. זה הרבה — המחיקה מחכה לאישור שלך.` : '';
@@ -30,6 +31,7 @@ async function busy(btn, m) {
 $('connect').addEventListener('click', () => busy($('connect'), { cmd: 'connect' }));
 $('now').addEventListener('click', () => busy($('now'), { cmd: 'sync' }));
 $('allow').addEventListener('click', () => busy($('allow'), { cmd: 'allowDel' }));
+$('take').addEventListener('click', () => busy($('take'), { cmd: 'takeover' }));
 $('disc').addEventListener('click', () => busy($('disc'), { cmd: 'disconnect' }));
 $('pMarks').addEventListener('change', (e) => send({ cmd: 'pref', k: 'marks', v: e.target.checked }).then(paint));
 $('pHist').addEventListener('change', (e) => send({ cmd: 'pref', k: 'hist', v: e.target.checked }).then(paint));
