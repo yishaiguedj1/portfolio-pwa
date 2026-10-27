@@ -282,18 +282,25 @@ class DmBrowser : Activity() {
          * בדיקת קובץ ישיר (HEAD) לפני שמציעים אותו: קטן מ־DlDeep.MIN_BYTES, דף או תמונה — לא נספר. רץ בחוט רקע.
          * הפניות ביד: לכל קפיצה העוגיות של הכתובת שלה בלבד, בלי ירידה מ־https ל־http (כמו DmFetch)
          */
-        fun headProbe(h: HuntMedia.Hit, ref: String, ua: String): Boolean {
+        /**
+         * אבטחה (27/10/2026, מחקר האבטחה של הדפדפן): הכתובת יכולה להגיע מהדף עצמו (הודעה מהסקריפט) — כלומר מכל אתר. לכן:
+         * עוגיות רק לאותו אתר של הדף (אחרת אתר זדוני היה גורם לנו לשלוח בקשה מחוברת לאתר אחר), אף פעם לא מטאב פרטי
+         * (`priv`), ולא לכתובת ברשת הביתית / בטלפון עצמו (נבדק בכל הפניה)
+         */
+        fun headProbe(h: HuntMedia.Hit, ref: String, ua: String, priv: Boolean = false): Boolean {
             var ok = true
+            val refSite = runCatching { siteOf(java.net.URL(ref).host) }.getOrDefault("")
             try {
                 var u = java.net.URL(h.url); var hops = 0
                 while (true) {
+                    if (u.protocol != "https" && u.protocol != "http" || localHost(u.host)) return false
                     val c = u.openConnection() as java.net.HttpURLConnection
                     c.requestMethod = "HEAD"; c.connectTimeout = 8000; c.readTimeout = 8000
                     c.instanceFollowRedirects = false
                     c.setRequestProperty("User-Agent", ua)
                     if (ref.startsWith("http")) c.setRequestProperty("Referer", ref)
                     // 26/10/2026: באתר שדורש התחברות הבדיקה בלי עוגיות קיבלה דף כניסה (text/html) והסרטון נפסל
-                    ck(u.toString())?.let { c.setRequestProperty("Cookie", it) }
+                    if (!priv && refSite.isNotEmpty() && siteOf(u.host) == refSite) ck(u.toString())?.let { c.setRequestProperty("Cookie", it) }
                     val code = c.responseCode
                     val loc = c.getHeaderField("Location")
                     if (code in 300..399 && loc != null && hops < 4) {
@@ -308,6 +315,25 @@ class DmBrowser : Activity() {
                 }
             } catch (e: Throwable) { if (h.guess) ok = false }
             return ok
+        }
+
+        /** האתר (eTLD+1 בקירוב): שני הרכיבים האחרונים, או שלושה כשהלפני־אחרון קצר (co.il, com.au) */
+        fun siteOf(host: String?): String {
+            val p = (host ?: "").lowercase().trimEnd('.').split('.').filter { it.isNotEmpty() }
+            if (p.size <= 2) return p.joinToString(".")
+            return (if (p[p.size - 2].length <= 3 && p.last().length == 2) p.takeLast(3) else p.takeLast(2)).joinToString(".")
+        }
+
+        /** כתובת בטלפון / ברשת המקומית (נתב, מדפסת…) — לא שולחים לשם בקשה בשם דף */
+        fun localHost(host: String?): Boolean {
+            val h = (host ?: "").lowercase().trim('[', ']')
+            if (h.isEmpty() || h == "localhost" || h.endsWith(".local") || h.endsWith(".localhost")) return true
+            return try {
+                java.net.InetAddress.getAllByName(h).any { a ->
+                    a.isLoopbackAddress || a.isSiteLocalAddress || a.isLinkLocalAddress || a.isAnyLocalAddress || a.isMulticastAddress ||
+                        (a is java.net.Inet6Address && (a.address[0].toInt() and 0xfe) == 0xfc)
+                }
+            } catch (e: Throwable) { true }
         }
 
         /* עוגיות הדף לבדיקה (בתוך האפליקציה בלבד; לא נשמרות). בלי \r\n — לא מזריקים כותרות */

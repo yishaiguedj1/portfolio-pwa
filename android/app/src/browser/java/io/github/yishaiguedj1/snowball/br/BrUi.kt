@@ -105,6 +105,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.positionOnScreen
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -135,6 +137,8 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import io.github.yishaiguedj1.snowball.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.withContext
 
 /*
@@ -144,7 +148,7 @@ import kotlinx.coroutines.withContext
  * כרטיסייה חדשה 52dp · כרטיסיות · ⋮), תפריט ⋮ שנפתח מהפינה עם שורת חמישה כפתורים עגולים ואחריה הפריטים בסדר של Chrome,
  * מסך כרטיסיות עם "+" · מעבר רגיל/פרטי · ⋮ ושתי עמודות, הגדרות בכרטיסים מקובצים. הגימור — Apple (iOS 27, Liquid Glass):
  * האדום של כפתור ההורדה (#FF4656) כצבע הפעולה, הניטרליים של iOS, רקע רך עם גוונים מאחורי הזכוכית, כרטיסי זכוכית עם קו אור
- * בשפה העליונה וקו כהה דק סביב, והתפריט ⋮ חלון שמטשטש את הדף מאחוריו (Window.setBackgroundBlurRadius, אנדרואיד 12+).
+ * בשפה העליונה וקו כהה דק סביב, והתפריט ⋮ חלון שמצייר את הדף שמאחוריו מטושטש (PixelCopy + boxBlur).
  */
 private val Red = Color(0xFFFF4656)
 private val Green = Color(0xFF34C759)
@@ -199,6 +203,8 @@ fun BrApp(a: BrowserActivity) {
                     BrowserActivity.Screen.SITES -> SitesScreen(a)
                     BrowserActivity.Screen.SITE -> SiteScreen(a)
                     BrowserActivity.Screen.VIDEO -> VideoScreen(a)
+                    BrowserActivity.Screen.CLOUD -> CloudScreen(a)
+                    BrowserActivity.Screen.RECENT -> RecentScreen(a)
                 }
                 if (a.privLocked && a.showsPrivate()) LockScreen(a)
                 a.customView?.let { v ->
@@ -400,6 +406,7 @@ private fun PageScreen(a: BrowserActivity) {
                 }
             }
             if (a.editing) Suggest(a, q) { q = it }
+            a.incoming?.let { (from, st) -> if (!a.editing) IncomingBar(a, from, st, Modifier.align(Alignment.TopCenter)) }
         }
         if (bottom) { Line(t); TopBar(a, q, { q = it }, false) }
         Spacer(Modifier.navigationBarsPadding())
@@ -409,6 +416,7 @@ private fun PageScreen(a: BrowserActivity) {
     if (a.info && t != null) InfoSheet(a, t)
     if (a.zoomSheet) ZoomSheet(a)
     if (a.speedSheet) SpeedSheet(a)
+    if (a.sendSheet) SendSheet(a)
 }
 
 /** קו ההתקדמות של Chrome (2dp, בצבע הפעולה) על שפת הסרגל — או הקו הדק שמתחת לסרגל */
@@ -603,6 +611,15 @@ private fun Ntp(a: BrowserActivity) {
             NtpSearch(a)
             return@Column
         }
+        if (a.engineOld()) {
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth().glass(c, RoundedCornerShape(20.dp)).clickable { a.updateEngine() }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(BrIcons.Warn, null, Modifier.size(22.dp), tint = Color(0xFFFF9500))
+                Spacer(Modifier.width(10.dp))
+                Text(stringResource(R.string.brEngineOldNtp), Modifier.weight(1f), color = c.fg, fontSize = 14.sp, lineHeight = 19.sp)
+                Text(stringResource(R.string.brEngineUpdate), color = c.tint, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
         Spacer(Modifier.height(16.dp))
         if (a.engine == "google") Image(BrIcons.GoogleLogo, "Google", Modifier.height(48.dp).width(158.dp))
         else Spacer(Modifier.height(24.dp))
@@ -616,6 +633,7 @@ private fun Ntp(a: BrowserActivity) {
                 items(sites, key = { it.url }) { s -> SiteTile(a, s) { a.go(s.url) } }
             }
         }
+        ResumeCard(a)
         if (recent.isNotEmpty()) {
             Spacer(Modifier.height(16.dp))
             Column(Modifier.fillMaxWidth().glass(c, RoundedCornerShape(24.dp)).padding(16.dp)) {
@@ -740,11 +758,9 @@ private fun SugRow(icon: ImageVector, title: String, sub: String?, append: (() -
 
 /* ======================= התפריט ⋮ — כמו ב־Chrome לאנדרואיד, חלון זכוכית ======================= */
 
-/** החלון של התפריט: בפינה של ⋮ (למעלה, ובעברית — משמאל), שקוף, עם טשטוש של מה שמאחוריו כשהמכשיר תומך (אנדרואיד 12+).
- *  מחזיר אם יש טשטוש — בלעדיו המילוי כמעט אטום */
-private fun glassWindow(w: android.view.Window?, dark: Boolean, rtl: Boolean, bottom: Boolean, topPx: Int, botPx: Int, dp: Float): Boolean {
-    w ?: return false
-    val blur = Build.VERSION.SDK_INT >= 31 && runCatching { w.windowManager.isCrossWindowBlurEnabled }.getOrDefault(false)
+/** החלון של התפריט: בפינה של ⋮ (למעלה, ובעברית — משמאל), שקוף, בלי עמעום. הרקע מצויר בתוכו (backdrop) */
+private fun glassWindow(w: android.view.Window?, rtl: Boolean, bottom: Boolean, topPx: Int, botPx: Int, dp: Float) {
+    w ?: return
     w.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
     w.setDimAmount(0f)
     w.setFormat(PixelFormat.TRANSLUCENT)
@@ -754,15 +770,46 @@ private fun glassWindow(w: android.view.Window?, dark: Boolean, rtl: Boolean, bo
     p.x = (4 * dp).toInt()
     p.y = if (bottom) botPx + (60 * dp).toInt() else topPx + (4 * dp).toInt()
     w.attributes = p
-    val fill = when {
-        blur && dark -> 0x8C1C1C1E.toInt()
-        blur -> 0xA8FFFFFF.toInt()
-        dark -> 0xF52C2C2E.toInt()
-        else -> 0xF7FFFFFF.toInt()
+    w.setBackgroundDrawable(GradientDrawable().apply { cornerRadius = 24 * dp; setColor(AColor.TRANSPARENT) })
+}
+
+/** הדף שמאחורי התפריט, מטושטש — כמו החומר של Apple: מה שמאחור נראה רק כצבע ואור, אף פעם לא כטקסט.
+ *  PixelCopy של חלון הדפדפן בשמינית מהגודל + טשטוש תיבה בשלושה מעברים. עד 27/10/2026 — הטשטוש בין חלונות של המערכת
+ *, שבטלפון לא נדלק והדף נקרא דרך התפריט */
+private const val BACK_SCALE = 8
+private fun backdrop(w: android.view.Window, done: (Bitmap) -> Unit) {
+    val v = w.decorView
+    if (v.width < BACK_SCALE || v.height < BACK_SCALE) return
+    val bmp = Bitmap.createBitmap(v.width / BACK_SCALE, v.height / BACK_SCALE, Bitmap.Config.ARGB_8888)
+    runCatching {
+        android.view.PixelCopy.request(w, bmp, { r -> if (r == android.view.PixelCopy.SUCCESS) { boxBlur(bmp, 4); done(bmp) } },
+            android.os.Handler(android.os.Looper.getMainLooper()))
     }
-    w.setBackgroundDrawable(GradientDrawable().apply { cornerRadius = 24 * dp; setColor(fill) })
-    if (blur && Build.VERSION.SDK_INT >= 31) w.setBackgroundBlurRadius((40 * dp).toInt())
-    return blur
+}
+
+/** טשטוש תיבה נפרד (אופקי ואז אנכי), שלוש פעמים ≈ גאוסיאני */
+private fun boxBlur(b: Bitmap, r: Int) {
+    val w = b.width; val h = b.height
+    val px = IntArray(w * h); b.getPixels(px, 0, w, 0, 0, w, h)
+    val tmp = IntArray(w * h)
+    fun pass(src: IntArray, dst: IntArray, n: Int, lines: Int, step: Int, line: Int) {
+        val d = 2 * r + 1
+        for (l in 0 until lines) {
+            val base = l * line
+            var a = 0; var rr = 0; var g = 0; var bb = 0
+            for (i in -r..r) { val c = src[base + i.coerceIn(0, n - 1) * step]
+                a += c ushr 24; rr += (c shr 16) and 255; g += (c shr 8) and 255; bb += c and 255 }
+            for (i in 0 until n) {
+                dst[base + i * step] = ((a / d) shl 24) or ((rr / d) shl 16) or ((g / d) shl 8) or (bb / d)
+                val o = src[base + (i - r).coerceIn(0, n - 1) * step]
+                val ni = src[base + (i + r + 1).coerceIn(0, n - 1) * step]
+                a += (ni ushr 24) - (o ushr 24); rr += ((ni shr 16) and 255) - ((o shr 16) and 255)
+                g += ((ni shr 8) and 255) - ((o shr 8) and 255); bb += (ni and 255) - (o and 255)
+            }
+        }
+    }
+    repeat(3) { pass(px, tmp, w, h, 1, w); pass(tmp, px, h, w, w, 1) }
+    b.setPixels(px, 0, w, 0, 0, w, h)
 }
 
 @Composable
@@ -781,17 +828,29 @@ private fun MenuSheet(a: BrowserActivity) {
     Dialog(onDismissRequest = { close() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         val view = LocalView.current
         val bottom = a.barBottom && !ntp
-        remember { glassWindow((view.parent as? DialogWindowProvider)?.window, c.dark, rtl, bottom, topPx, botPx, dens.density) }
-        LaunchedEffect(Unit) { glassWindow((view.parent as? DialogWindowProvider)?.window, c.dark, rtl, bottom, topPx, botPx, dens.density) }
+        remember { glassWindow((view.parent as? DialogWindowProvider)?.window, rtl, bottom, topPx, botPx, dens.density) }
+        LaunchedEffect(Unit) { glassWindow((view.parent as? DialogWindowProvider)?.window, rtl, bottom, topPx, botPx, dens.density) }
+        var back by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+        LaunchedEffect(Unit) { backdrop(a.window) { back = it.asImageBitmap() } }
+        var at by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
         // הכניסה של Chrome: גדל ונחשף מהפינה של ⋮ ב־250ms בעקומה "emphasized"
         val k = remember { Animatable(0f) }
         LaunchedEffect(Unit) { k.animateTo(1f, tween(250, easing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f))) }
         val shape = RoundedCornerShape(24.dp)
         Column(Modifier
+            .onGloballyPositioned { at = it.positionOnScreen() }
             .graphicsLayer { scaleX = 0.6f + 0.4f * k.value; scaleY = 0.6f + 0.4f * k.value; alpha = k.value
                 transformOrigin = TransformOrigin(if (rtl) 0.05f else 0.95f, if (bottom) 0.95f else 0.05f) }
             .width(IntrinsicSize.Max).widthIn(min = 220.dp, max = 330.dp).heightIn(max = maxH)
             .clip(shape)
+            .drawBehind {
+                // החומר: הדף מאחור מטושטש במקום המדויק שמתחת לתפריט, ומעליו שכבה כמעט אטומה (בלי תמונה — אטומה לגמרי)
+                val b = back
+                if (b != null) drawImage(b, dstOffset = androidx.compose.ui.unit.IntOffset(-at.x.toInt(), -at.y.toInt()),
+                    dstSize = androidx.compose.ui.unit.IntSize(b.width * BACK_SCALE, b.height * BACK_SCALE))
+                drawRect(if (c.dark) Color(0xFF1C1C1E).copy(alpha = if (b != null) 0.78f else 0.97f)
+                         else Color(0xFFF9F9FB).copy(alpha = if (b != null) 0.74f else 0.97f))
+            }
             .border(0.5.dp, Brush.verticalGradient(if (c.dark) listOf(Color.White.copy(alpha = 0.3f), Color.White.copy(alpha = 0.06f)) else listOf(Color.White, Color.White.copy(alpha = 0.5f))), shape)
             .verticalScroll(rememberScrollState()).padding(bottom = 10.dp)) {
             // שורת הכפתורים: חזרה · קדימה · סימנייה · הורדה · רענון (כמו ב־Chrome 159)
@@ -812,6 +871,7 @@ private fun MenuSheet(a: BrowserActivity) {
             if (a.privOk) MItem(R.string.brNewPrivate, BrIcons.CIncognito) { close(); a.newTab("", private = true) }
             MDiv()
             MItem(R.string.brHistory, BrIcons.CHistory) { close(); a.screen = BrowserActivity.Screen.HISTORY }
+            MItem(R.string.brRecentTabs, BrIcons.CDevices) { close(); a.screen = BrowserActivity.Screen.RECENT }
             if (t?.private != true) MItem(R.string.brClearData, BrIcons.CDelete) { close(); a.clearAsk = true }
             if (web) MItem(R.string.brInfo, BrIcons.CTune) { close(); a.info = true }
             MDiv()
@@ -822,6 +882,7 @@ private fun MenuSheet(a: BrowserActivity) {
                 MDiv()
                 if (a.zoom != 100) { MItem(R.string.brTextSize, BrIcons.TextSize, badge = "${a.zoom}%") { close(); a.zoomSheet = true }; MDiv() }
                 MItem(R.string.brMenuShare, BrIcons.CShare) { close(); a.share() }
+                if (BrCloud.on && BrCloud.tTabs && !t!!.private) MItem(R.string.brSendDevices, BrIcons.Phone) { close(); a.sendSheet = true }
                 MItem(R.string.brFind, BrIcons.CFind) { a.startFind() }
                 MItem(R.string.brTranslate, BrIcons.CTranslate) { a.translate() }
                 if (a.zoom == 100) MItem(R.string.brTextSize, BrIcons.TextSize) { close(); a.zoomSheet = true }
@@ -1275,14 +1336,17 @@ private fun SettingsScreen(a: BrowserActivity) {
     val c = LocalBr.current
     val eng = when (a.engine) { "ddg" -> "DuckDuckGo"; "bing" -> "Bing"; else -> "Google" }
     var q by remember { mutableStateOf("") }
+    val g0 = stringResource(R.string.brCloudTitle)
     val g1 = stringResource(R.string.brSyncTitle); val g2 = stringResource(R.string.brImportTitle)
+    @Suppress("UNUSED_VARIABLE") val crev = a.cloudRev
+    val g0v = if (BrCloud.on) BrCloud.email else stringResource(R.string.brSyncOffShort)
     val s1 = stringResource(R.string.brSetEngine); val s2 = stringResource(R.string.brSetBar); val s3 = stringResource(R.string.brPrivacy)
     val s4 = stringResource(R.string.brSetDefault); val s5 = stringResource(R.string.brPwTitle)
     val barV = stringResource(if (a.barBottom) R.string.brBarBottom else R.string.brBarTop)
     val defV = if (a.isDefault) stringResource(R.string.brYes) else stringResource(R.string.brSetDefaultAsk)
     val pwV = pwValue(a)
     val t1 = stringResource(R.string.brSetHome); val t2 = stringResource(R.string.brSetBubble); val t3 = stringResource(R.string.brVideoTitle)
-    val t4 = stringResource(R.string.brSites); val t5 = stringResource(R.string.brDownloads); val t6 = stringResource(R.string.brAboutApp)
+    val t4 = stringResource(R.string.brSites); val t5 = stringResource(R.string.brDownloads); val t6 = stringResource(R.string.brAboutApp); val t7 = stringResource(R.string.brEngine)
     val bgV = if (a.bgPlay) stringResource(R.string.brBgShort) else null
     SubPage(stringResource(R.string.brSettings), done = true, onDone = { a.screen = BrowserActivity.Screen.PAGE }) {
         item { SearchField(stringResource(R.string.brSearchSettings), q) { q = it } }
@@ -1302,8 +1366,11 @@ private fun SettingsScreen(a: BrowserActivity) {
                     contentAlignment = Alignment.Center) { Text(stringResource(R.string.brImportBtn), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium) }
             }
         }
-        if (show(g1) || show(g2)) item {
+        if (show(g0) || show(g1) || show(g2)) item {
             Group(stringResource(R.string.brYouAndGoogle)) {
+                // הסנכרון בענן — בראש, כמו "סנכרון" ב־Chrome; הגשר ל־Chrome במחשב — מתחתיו
+                if (show(g0)) IRow(g0, lead = { Avatar(BrCloud.name, BrCloud.email, BrCloud.on, 28.dp) }, value = g0v) { a.screen = BrowserActivity.Screen.CLOUD }
+                if (show(g0) && (show(g1) || show(g2))) Sep()
                 if (show(g1)) IRow(g1, lead = { Image(BrIcons.GoogleG, null, Modifier.size(24.dp)) }, value = syncValue(a)) { a.screen = BrowserActivity.Screen.CHROME }
                 if (show(g1) && show(g2)) Sep()
                 if (show(g2)) IRow(g2, lead = { Tile(BrIcons.CStarOn, c.icon) }) { a.screen = BrowserActivity.Screen.IMPORT }
@@ -1324,6 +1391,9 @@ private fun SettingsScreen(a: BrowserActivity) {
             t4 to { IRow(t4) { a.screen = BrowserActivity.Screen.SITES } },
             t5 to { IRow(t5, value = "Studio DM") { a.dlSettings() } },
             t6 to { IRow(t6, value = a.version(), chevron = false) },
+            // מנוע הדפדפן ועדכוני האבטחה של Chromium (מ־Google Play): הגרסה, וכשהוא מאחר — עדכון בנגיעה
+            t7 to { IRow(t7, if (a.engineOld()) stringResource(R.string.brEngineOld) else null, value = a.engineVersion().substringBefore(' '),
+                color = if (a.engineOld()) Color(0xFFFF3B30) else null, chevron = a.engineOld()) { if (a.engineOld()) a.updateEngine() } },
         ).filter { show(it.first) }
         if (adv.isNotEmpty()) item { Group(stringResource(R.string.brAdvanced)) { adv.forEachIndexed { i, (_, row) -> if (i > 0) Sep(); row() } } }
     }
@@ -1613,6 +1683,230 @@ private fun Step(n: Int, title: String, sub: String, btn: String, primary: Boole
 }
 
 /* ======================= שלב 3: פרטיות ווידאו (26/10/2026) ======================= */
+
+/* ======================= סנכרון בענן בין המכשירים (BrCloud) ======================= */
+
+/** העיגול של החשבון: האות הראשונה של השם על אדום — כמו התמונה של החשבון ב־Chrome; בלי חשבון — ה־G של Google */
+@Composable
+private fun Avatar(name: String, email: String, on: Boolean, size: Dp) {
+    if (!on) { Image(BrIcons.GoogleG, null, Modifier.size(size * 0.86f)); return }
+    val ch = (name.ifEmpty { email }).trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+    Box(Modifier.size(size).redGlass(CircleShape), contentAlignment = Alignment.Center) {
+        Text(ch, color = Color.White, fontSize = (size.value * 0.46f).sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+private fun ago(at: Long): String = DateUtils.getRelativeTimeSpanString(at, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString()
+
+/** עמוד "סנכרון" (כמו ב־Chrome): לא מחובר = כניסה עם Google; מחובר = החשבון, מה מסתנכרן, המכשירים, הפסקה/מחיקה */
+@Composable
+private fun CloudScreen(a: BrowserActivity) {
+    val c = LocalBr.current
+    @Suppress("UNUSED_VARIABLE") val rev = a.cloudRev
+    val scope = rememberCoroutineScope()
+    var wipeAsk by remember { mutableStateOf(false) }
+    val back = stringResource(R.string.brSettings)
+    SubPage(stringResource(R.string.brCloudTitle), back = back, onBack = { a.screen = BrowserActivity.Screen.SETTINGS }) {
+        if (!BrCloud.on) {
+            item {
+                Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 20.dp).fillMaxWidth().glass(c, RoundedCornerShape(24.dp)).padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.size(64.dp).redGlass(RoundedCornerShape(18.dp)), contentAlignment = Alignment.Center) {
+                        Icon(BrIcons.CDevices, null, Modifier.size(34.dp), tint = Color.White)
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text(stringResource(R.string.brCloudHero), color = c.fg, fontSize = 20.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(6.dp))
+                    Text(stringResource(R.string.brCloudHeroSub), color = c.mute, fontSize = 15.sp, textAlign = TextAlign.Center, lineHeight = 21.sp)
+                    Spacer(Modifier.height(18.dp))
+                    BigBtn(stringResource(R.string.brCloudSignIn), true) { scope.launch { a.cloudSignIn(BrCloud.signIn(a)) } }
+                }
+            }
+            item { Text(stringResource(R.string.brCloudFootOff), Modifier.padding(horizontal = 32.dp), color = c.mute, fontSize = 13.sp, lineHeight = 18.sp) }
+            return@SubPage
+        }
+        item {
+            val err = BrCloud.err
+            val at = BrCloud.syncAt
+            val sub = when {
+                err.isNotEmpty() -> stringResource(if (err.contains("auth")) R.string.brSyncErrAuth else R.string.brSyncErrNet)
+                at == 0L -> stringResource(R.string.brSyncWaitShort)
+                System.currentTimeMillis() - at < 60_000 -> stringResource(R.string.brCloudJustNow)
+                else -> stringResource(R.string.brCloudAt, ago(at))
+            }
+            Row(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 24.dp).fillMaxWidth().glass(c, RoundedCornerShape(24.dp)).padding(horizontal = 18.dp, vertical = 18.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Avatar(BrCloud.name, BrCloud.email, true, 52.dp)
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(BrCloud.name.ifEmpty { BrCloud.email }, color = c.fg, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (BrCloud.name.isNotEmpty()) Text(BrCloud.email, color = c.mute, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(BrIcons.CLock, null, Modifier.size(14.dp), tint = Green)
+                        Spacer(Modifier.width(4.dp))
+                        Text(stringResource(R.string.brCloudEnc), color = c.mute, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(if (err.isEmpty()) Green else Color(0xFFFF9500)))
+                        Spacer(Modifier.width(6.dp))
+                        Text(if (err.isEmpty()) stringResource(R.string.brCloudOn) + " · " + sub else sub, color = c.mute, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
+        // החיבור לחשבון / מפתח ההצפנה חסר (התחברת בגרסה הראשונה, או שהחשבון התנתק) — כניסה מחדש
+        if (BrCloud.err.contains("auth") || BrCloud.err.contains("key")) item {
+            Box(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
+                BigBtn(stringResource(R.string.brCloudReauth), true) { scope.launch { a.cloudSignIn(BrCloud.signIn(a)) } }
+            }
+        }
+        item {
+            Group(stringResource(R.string.brSyncWhat), stringResource(R.string.brCloudWhatFoot)) {
+                IRow(stringResource(R.string.brSyncMarks), lead = { Tile(BrIcons.CStarOn, c.icon) }, chevron = false,
+                    trailing = { IosSwitch(BrCloud.tMarks) { BrCloud.tMarks = it; a.cloudRev++ } })
+                Sep()
+                IRow(stringResource(R.string.brSyncHist), lead = { Tile(BrIcons.CHistory, c.icon) }, chevron = false,
+                    trailing = { IosSwitch(BrCloud.tHist) { BrCloud.tHist = it; a.cloudRev++ } })
+                Sep()
+                IRow(stringResource(R.string.brCloudTabs), lead = { Tile(BrIcons.CDevices, c.icon) }, chevron = false,
+                    trailing = { IosSwitch(BrCloud.tTabs) { BrCloud.tTabs = it; a.cloudRev++ } })
+                Sep()
+                IRow(stringResource(R.string.brCloudPrefs), lead = { Tile(BrIcons.CSettings, c.icon) }, chevron = false,
+                    trailing = { IosSwitch(BrCloud.tPrefs) { BrCloud.tPrefs = it; a.cloudRev++ } })
+            }
+        }
+        item {
+            val devs = BrCloud.devices()
+            Group(stringResource(R.string.brCloudDevices), if (devs.isEmpty()) stringResource(R.string.brCloudNoDevices) else null) {
+                IRow(BrCloud.deviceName(), stringResource(R.string.brCloudThis), lead = { Tile(BrIcons.Phone, c.icon) }, chevron = false)
+                devs.forEach { d ->
+                    Sep()
+                    IRow(d.name, stringResource(R.string.brCloudSeen, ago(d.at), d.tabs.size), lead = { Tile(if (d.form == "t") BrIcons.CDesktop else BrIcons.Phone, c.icon) }) {
+                        a.screen = BrowserActivity.Screen.RECENT
+                    }
+                }
+            }
+        }
+        item {
+            Group {
+                IRow(stringResource(R.string.brSyncNow), color = c.tint, chevron = false) { BrCloud.nudge(0) }
+            }
+        }
+        item {
+            Group(footer = stringResource(R.string.brCloudStopFoot)) {
+                IRow(stringResource(R.string.brCloudStop), color = Color(0xFFFF3B30), chevron = false) { a.cloudOff(false) }
+                Sep()
+                IRow(stringResource(R.string.brCloudWipe), color = Color(0xFFFF3B30), chevron = false, value = if (a.cloudWiping) "…" else null) { wipeAsk = true }
+            }
+        }
+    }
+    if (wipeAsk) AlertDialog(onDismissRequest = { wipeAsk = false }, containerColor = c.card,
+        text = { Text(stringResource(R.string.brCloudWipeQ), color = c.fg, fontSize = 15.sp, lineHeight = 21.sp) },
+        confirmButton = { TextButton({ wipeAsk = false; a.cloudOff(true) }) { Text(stringResource(R.string.brDelete), color = Color(0xFFFF3B30)) } },
+        dismissButton = { TextButton({ wipeAsk = false }) { Text(stringResource(R.string.brCancel), color = c.tint) } })
+}
+
+/** "כרטיסיות אחרונות" (כמו ב־Chrome): לכל מכשיר אחר — הכרטיסיות הפתוחות בו, מהפעילה לאחרונה. נגיעה = ממשיכים מאותו מקום */
+@Composable
+private fun RecentScreen(a: BrowserActivity) {
+    val c = LocalBr.current
+    @Suppress("UNUSED_VARIABLE") val rev = a.cloudRev
+    LaunchedEffect(Unit) { BrCloud.nudge(0) }
+    val devs = BrCloud.devices().filter { it.tabs.isNotEmpty() }
+    SubPage(stringResource(R.string.brRecentTabs), onBack = { a.screen = BrowserActivity.Screen.PAGE }) {
+        if (!BrCloud.on) {
+            item {
+                Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().glass(c, RoundedCornerShape(24.dp)).padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(BrIcons.CDevices, null, Modifier.size(40.dp), tint = c.tint)
+                    Spacer(Modifier.height(10.dp))
+                    Text(stringResource(R.string.brRecentSignIn), color = c.fg, fontSize = 15.sp, textAlign = TextAlign.Center, lineHeight = 21.sp)
+                    Spacer(Modifier.height(16.dp))
+                    BigBtn(stringResource(R.string.brCloudTitle), true) { a.screen = BrowserActivity.Screen.CLOUD }
+                }
+            }
+            return@SubPage
+        }
+        if (devs.isEmpty()) { item { Empty(R.string.brRecentNone) }; return@SubPage }
+        devs.forEach { d ->
+            item(key = d.dev) {
+                Group(d.name + " · " + ago(d.at)) {
+                    d.tabs.sortedByDescending { it.la }.forEachIndexed { i, st ->
+                        if (i > 0) Sep()
+                        IRow(st.t.ifEmpty { BrStore.hostOf(st.u) }, BrStore.hostOf(st.u),
+                            lead = { Box(Modifier.size(36.dp).glass(c, CircleShape, if (c.dark) Color(0x8C3A3A3C) else Color(0xB3FFFFFF)), contentAlignment = Alignment.Center) { Fav(a, st.u, 18.dp, 9.dp) } },
+                            chevron = false) { a.openRemote(st) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** "המשך מ־<מכשיר>" בכרטיסייה חדשה — כמו ה־tab resumption של Chrome: הכרטיסייה שהייתה פעילה לאחרונה במכשיר אחר */
+@Composable
+private fun ResumeCard(a: BrowserActivity) {
+    val c = LocalBr.current
+    @Suppress("UNUSED_VARIABLE") val rev = a.cloudRev
+    LaunchedEffect(Unit) { BrCloud.nudge(0) }
+    val open = remember(a.tabs.size, a.cloudRev) { a.tabs.mapTo(HashSet()) { BrSync.key(it.url) } }
+    val (s, st) = BrCloud.resume(open) ?: return
+    Spacer(Modifier.height(16.dp))
+    Column(Modifier.fillMaxWidth().glass(c, RoundedCornerShape(24.dp)).padding(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(BrIcons.CDevices, null, Modifier.size(20.dp), tint = c.tint)
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.brResumeFrom, s.name), Modifier.weight(1f), color = c.fg, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            IBtn(BrIcons.CClose, stringResource(R.string.brClose), size = 32.dp, iconSize = 18.dp, tint = c.mute) { BrCloud.dismiss(st); a.cloudRev++ }
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(12.dp)).clickable { a.openRemote(st) }, verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(40.dp).glass(c, CircleShape, if (c.dark) Color(0x8C3A3A3C) else Color(0xB3FFFFFF)), contentAlignment = Alignment.Center) { Fav(a, st.u, 20.dp, 10.dp) }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(st.t.ifEmpty { BrStore.hostOf(st.u) }, color = c.fg, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(BrStore.hostOf(st.u) + " · " + ago(st.la), color = c.mute, fontSize = 14.sp, maxLines = 1)
+            }
+        }
+    }
+}
+
+/** כרטיסייה שנשלחה לכאן ממכשיר אחר בזמן שהדפדפן פתוח — פס זכוכית בראש הדף (כמו ההודעה של Chrome) */
+@Composable
+private fun IncomingBar(a: BrowserActivity, from: String, st: BrCloudCore.STab, m: Modifier) {
+    val c = LocalBr.current
+    LaunchedEffect(st) { delay(12_000); if (a.incoming?.second == st) a.incoming = null }
+    Row(m.padding(12.dp).fillMaxWidth().glass(c, RoundedCornerShape(20.dp)).padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(36.dp).glass(c, CircleShape, if (c.dark) Color(0x8C3A3A3C) else Color(0xB3FFFFFF)), contentAlignment = Alignment.Center) { Fav(a, st.u, 18.dp, 9.dp) }
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.brSentFrom, from), color = c.mute, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(st.t.ifEmpty { BrStore.hostOf(st.u) }, color = c.fg, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Text(stringResource(R.string.brOpenTab), Modifier.clip(RoundedCornerShape(10.dp)).clickable { a.openRemote(st) }.padding(horizontal = 10.dp, vertical = 8.dp),
+            color = c.tint, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        IBtn(BrIcons.CClose, stringResource(R.string.brClose), size = 36.dp, iconSize = 18.dp, tint = c.mute) { a.incoming = null }
+    }
+}
+
+/** "שליחה למכשירים שלך" (כמו ב־Chrome) — בחירת מכשיר; שם הכרטיסייה קופצת, מאותו מקום */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SendSheet(a: BrowserActivity) {
+    val c = LocalBr.current
+    val devs = BrCloud.devices()
+    ModalBottomSheet(onDismissRequest = { a.sendSheet = false }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
+            SheetHead(stringResource(R.string.brSendDevices), a.cur?.title, close = { a.sendSheet = false })
+            if (devs.isEmpty()) Text(stringResource(R.string.brSendNone), Modifier.padding(horizontal = 24.dp, vertical = 12.dp), color = c.mute, fontSize = 15.sp)
+            else Group {
+                devs.forEachIndexed { i, d ->
+                    if (i > 0) Sep()
+                    IRow(d.name, ago(d.at), lead = { Tile(if (d.form == "t") BrIcons.CDesktop else BrIcons.Phone, c.icon) }, chevron = false) { a.sendTo(d.dev) }
+                }
+            }
+        }
+    }
+}
 
 private fun speedLabel(p: Int): String = if (p == 100) "1×" else ((p / 100.0).toString().trimEnd('0').trimEnd('.') + "×")
 
