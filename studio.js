@@ -8,7 +8,7 @@
    כשהדפדפן תומך — כדי להמשיך העלאה אחרי רענון בלי לבחור שוב.
    "חזור" של המכשיר: עם CloseWatcher — רשומה אחת ומחסנית דפים בזיכרון; בלי — רשומה לכל דף (סעיף 18 ב־CLAUDE.md).
    מחרוזות: t() של app.js (STRINGS.he/en, מפתחות studio*) — כל מפתח כתוב כאן מילולית, והבדיקות מאמתות שהוא קיים בשתי השפות. */
-import { createNet, probeVideo, extractAudio, uploadBoth, stageEstimates, progressModel, monoPct, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX, inspectSource, QUIET_DB, subsPlan, kaPlan, lyrGuess } from './studionet.js';
+import { STAGES, createNet, probeVideo, extractAudio, uploadBoth, stageEstimates, progressModel, monoPct, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX, inspectSource, QUIET_DB, subsPlan, kaPlan, lyrGuess } from './studionet.js';
 import { createBackup, waitOAuthCode } from './libbackup.js';
 // ת4: מזהים של R2 (העלאה ותוצרים בעבודה במצב שרת)
 import { isR2Folder, isR2Id } from './studiostore.js';
@@ -8702,8 +8702,40 @@ function shapeKey() {
 }
 let paintT = 0;
 function paintSoon() { if (!paintT) paintT = setTimeout(() => { paintT = 0; livePaint(); }, 250); }
+/* 27/10/2026 (המשתמש: "השלבים לא מתעדכנים בווילון ההתראות"): השרתון שולח התראת שלב רק כשהעובד מדווח — בשלבים של Claude
+   (תרגום, בדיקה) כמעט אין אחוזים, וההתראה נשארה על 0% כל השלב. כש־Studio פתוחה הדף מעדכן את אותה התראה (התג של העבודה)
+   כל SHADE_MS לפי ההערכה שבמסך — אותו נוסח של השרתון (stageText ב־webpush.js); sw.js לא נותן לדיווח ישן להחזיר אחורה.
+   רק כשההתראות דלוקות, ולא בזמן ההעלאה ברקע (ל־Chrome יש התראה משלו) */
+const SHADE_MS = 5000, shadeLast = new Map();
+let shadeAt = 0;
+export function shadeBar(p, lang) {
+  const n = 10, f = Math.max(0, Math.min(n, Math.round((Number(p) || 0) * n)));
+  return (lang === 'en' ? '\u2066' : '\u2067') + '▰'.repeat(f) + '▱'.repeat(n - f) + '\u2069';
+}
+function shadeSync() {
+  const now = Date.now();
+  if (now - shadeAt < SHADE_MS || ui.push !== 'on' || typeof navigator === 'undefined' || !navigator.serviceWorker) return;
+  shadeAt = now;
+  for (const rec of store.jobs) {
+    const run = runs.get(rec.id), ph = jobPhase(rec, run);
+    if (ph !== 'running' && ph !== 'queued' && ph !== 'audio' && ph !== 'video' && ph !== 'extract') { shadeLast.delete(rec.id); continue; }
+    if (run && run.bg) continue;
+    const s = modelFor(rec).stages.find((x) => x.state === 'now');
+    if (!s) continue;
+    const p = Math.max(0, Math.min(1, shownPct(rec, s.pv != null ? s.pv : s.p, 'sh:' + s.id)));
+    const sk = rec.spec.ka ? 'ka' : rec.spec.src === 'subs';
+    const title = stageName(s.id, langsSum(rec.spec.to), sk);
+    const body = shadeBar(p, uiLang()) + '  ' + Math.round(p * 100) + '% · ' + T('studioShadeOf', { n: STAGES.indexOf(s.id) + 1, t: STAGES.length });
+    const key = title + '|' + body;
+    if (shadeLast.get(rec.id) === key) continue;
+    shadeLast.set(rec.id, key);
+    navigator.serviceWorker.ready.then((reg) => reg.showNotification(title, { body, icon: 'icon-192.png', badge: 'favicon-48.png', lang: 'he', dir: 'auto',
+      tag: 'studio-' + rec.id, renotify: false, silent: true, data: { url: './#studio=' + rec.id, at: Date.now(), k: 'stage', st: s.id, p } })).catch(() => {});
+  }
+}
 function livePaint() {
   if (!root) return;
+  shadeSync();
   if (shapeKey() !== lastShape) { render('none'); return; }
   for (const el of root.querySelectorAll('[data-live]')) { try { if (el._live) el._live(el); } catch (e) {} }
 }

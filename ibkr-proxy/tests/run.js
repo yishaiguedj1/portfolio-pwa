@@ -3805,7 +3805,7 @@ function stubFetch(text, status = 200) {
       pushes = [];
       await wrk({ op: 'report', job: jid, key: kk, st: 'tr', p: 0.5 });
       const ms = pushes[0] && decrypt(pushes[0].body);
-      ok(pushes.length === 1 && ms.k === 'stage' && ms.j === jid && ms.t === 'Writing down every word' && /50% · Step 2 of 7/.test(ms.b) && /▰{5}▱{5}/.test(ms.b) && ms.at === now
+      ok(pushes.length === 1 && ms.k === 'stage' && ms.j === jid && ms.t === 'Writing down every word' && /50% · Step 2 of 7/.test(ms.b) && /▰{5}▱{5}/.test(ms.b) && ms.at === now && ms.st === 'tr' && ms.p === 0.5
         && pushes[0].headers.TTL === '1800' && pushes[0].headers.Urgency === 'normal', '27/10: שלב חדש → התראת התקדמות (בשפת המכשיר, שם השלב, פס ואחוז, קישור לעבודה)');
       await wrk({ op: 'report', job: jid, key: kk, st: 'tr', p: 0.55 });
       ok(pushes.length === 1, '27/10: אותו שלב בלי 10% נוספים — בלי התראה');

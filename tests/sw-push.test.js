@@ -59,6 +59,13 @@ if (/actions: m\.k === 'done'/.test(sw)) {
     ok(d.tag === s1.tag && d.renotify && !d.silent, 'סוף העבודה מחליף את התראת השלב — עם צליל');
     const late = await push({ t: 'בודקים', b: '▰', k: 'stage', j: J, u: U, at: 250 });
     ok(late.title === 'מוכן' && late.silent && live.get(s1.tag).title === 'מוכן', 'התראת שלב שהגיעה באיחור — לא דורסת את "מוכן"');
+    // 27/10/2026: הדף מעדכן את ההתראה לפי ההערכה שבמסך — דיווח מהשרתון שמראה פחות לא מחזיר אחורה
+    live.clear();
+    live.set('studio-' + J, { title: 'בודקים', body: '60%', data: { k: 'stage', st: 'rv', p: 0.6, at: 900 } });
+    const back = await push({ t: 'בודקים', b: '10%', k: 'stage', j: J, u: U, at: 1000, st: 'rv', p: 0.1 });
+    ok(back.body === '60%' && live.get('studio-' + J).data.p === 0.6, 'שלב: דיווח עם אחוז נמוך יותר באותו שלב — ההתראה נשארת על מה שהדף הראה');
+    const fwd = await push({ t: 'צורבים', b: '0%', k: 'stage', j: J, u: U, at: 1100, st: 'bn', p: 0 });
+    ok(fwd.title === 'צורבים' && fwd.data.st === 'bn', 'שלב חדש מהשרתון — מחליף');
     const click = async (action, url) => { const e = ev({ action, notification: { close() {}, data: { url } } }); L.notificationclick(e); await ev.p; };
     await click('play', U); await click('subs', U); await click('', U); await click('play', './');
     ok(nav[0] === U + '&v=play' && nav[1] === U + '&v=subs' && nav[2] === U && /portfolio-pwa\/$/.test(nav[3]), 'נגיעה בפעולה → ‎&v=play|subs; בגוף ההתראה — דף העבודה');
