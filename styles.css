@@ -150,7 +150,7 @@ a { color: var(--link); }
 /* ---- App bar — זכוכית צפה ---- */
 .appbar {
   position: sticky; top: 0; z-index: 20;
-  --ib: 48px;   /* 27/10/2026 (בקשת המשתמש): ההדר גדול מעט — כפתורים 48, בועות 48, לוגו 116 (קצת פחות מ־128 שהיה) */
+  --ib: 56px;   /* 27/10/2026 (בקשת המשתמש): הלוגו חזר ל־128 המקורי וכל ההדר גדל איתו — שני הטורים (כפתור + בועה, 56 + 10 + 56) כמעט בגובה הלוגו, והלשוניות מיד מתחתיו */
   padding: 10px 16px 8px;
   /* 20/10/2026 (בקשת המשתמש — כמו הממשק של Muse): בלי פס זכוכית — הלוגו "מרחף" באמצע. הרקע = שכבה אחת (::before)
      שנמשכת 110px מתחת להדר: אטומה למעלה, ומתחת לקפסולה נמוגה ומיטשטשת בהדרגה (כ־200px, עקומה רכה) — הכרטיסים
@@ -219,7 +219,7 @@ html[dir="ltr"] .appbar-row > * { --dir: ltr; }
 html, body { overscroll-behavior-x: none; } /* v279: משיכה אופקית = מעבר עמוד, לא "חזור" של הדפדפן */
 .appbar h1.brand { cursor: pointer; -webkit-tap-highlight-color: transparent; } /* v279: לוגו → סקירה */
 .brand-logo {
-  width: 116px; height: 116px; display: block; /* 27/10/2026 (בקשת המשתמש): הלוגו קצת מתחת ל־128 שהיה, וגובה ההדר = גובהו — הלשוניות מתחילות מיד מתחתיו */
+  width: 128px; height: 128px; display: block; /* v198: 128 — גודל מקורי; 27/10/2026: גובה ההדר = גובהו, והכפתורים והבועות (‎--ib‎) גדלו איתו */
   filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.16)) drop-shadow(0 4px 10px rgba(0,0,0,.10));
   -webkit-user-drag: none; user-select: none;
 }
@@ -425,7 +425,7 @@ html.calm .appbar .brand-snow b { animation-play-state: paused; }
 @media (max-width: 374px) { .st-pill { font-size: 11.5px; padding: 3px 9px; gap: 5px; } }
 /* 20/10/2026: השלג של הלוגו עובר מאחורי הפקדים בהדר — רקע אטום באותו גוון בדיוק (הגוון השקוף מעל צבע הדף),
    אחרת בכהה הפתיתים נראו דרך הכפתורים כאילו הם מעליהם */
-.appbar .icon-btn { width: var(--ib); height: var(--ib); }
+.appbar .icon-btn { width: var(--ib); height: var(--ib); font-size: calc(var(--ib) * .45); }
 .appbar .icon-btn, .appbar .fx-pill, .appbar .st-pill.open { background: linear-gradient(var(--surface-2), var(--surface-2)) var(--bg); }
 /* בועת השער כמו הכפתורים: ממוקמת (אחרת שכבת השלג — הקשר ערימה של הלוגו — מצוירת מעליה) ועם אותו מסגור */
 .appbar .fx-pill { position: relative; z-index: 1; border: 1px solid var(--card-border); }
@@ -517,13 +517,16 @@ html.calm .appbar .brand-snow b { animation-play-state: paused; }
 .menu-title { margin: 0 0 10px; font-size: 16px; font-weight: 800; }
 .main-menu .btn { width: 100%; margin-top: 10px; }
 
-@media (max-width: 399px) {
+@media (max-width: 419px) {   /* טלפון צר: הכול קטן באותו יחס, עד המקור בטלפון הצר ביותר */
+  .brand-logo { width: 120px; height: 120px; }
+  .appbar { --ib: 52px; }
+}
+@media (max-width: 379px) {
   .brand-logo { width: 108px; height: 108px; }
-  .appbar { --ib: 44px; }
+  .appbar { --ib: 46px; }
 }
 @media (max-width: 360px) {
-  .brand-logo { width: 96px; height: 96px; }
-  .icon-btn { width: 40px; height: 40px; font-size: 19px; }
+  .brand-logo { width: 100px; height: 100px; }
   .appbar { --ib: 40px; }
 }
 
