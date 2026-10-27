@@ -107,6 +107,7 @@ export function normSettings(o) {
   s.pq = normPq(o.pq);
   s.pt = normTrackPref(o.pt);   // 23/10/2026: הקול והכתוביות שנבחרו ידנית בנגן (ריק = אוטומטי)
   if (Number.isFinite(+o.op1) && +o.op1 > 0) s.op1 = Math.floor(+o.op1);
+  if (o.pno === 1) s.pno = 1;   // 27/10/2026: כיבית את ההתראות במכשיר הזה — לא מדליקים אותן שוב אוטומטית (pushAuto)
   // 26/10/2026: כמה פעמים העלאה ברקע נתקעה (מהשנייה — לא מנסים חודש). bgSt של 2.52.2 נספר לפי Chrome בלבד, שבאנדרואיד לא
   // מדווח — "תקיעות" שלא היו; לכן נזרק, ו־bgNo שהוא קבע (bgSt ≥ 2) נמחק. מעכשיו הספירה לפי השרתון — bgS2
   if (Number.isFinite(+o.bgS2) && +o.bgS2 > 0) s.bgS2 = Math.min(9, Math.floor(+o.bgS2));
@@ -4349,6 +4350,7 @@ async function engSettle() {
 }
 function startFromForm() {
   const f = form;
+  pushAuto(true);   // 27/10/2026: ההתראות פעילות כברירת מחדל — הבקשה בלחיצה הזו (פעם אחת)
   if (f && !ui.starting && !engKnown(connNow(), ui.api)) {
     ui.starting = true; render('none');
     engSettle().then((ok) => {
@@ -8299,7 +8301,7 @@ function pagePush(p) {
   if (ui.push == null) refreshPush().then(() => { if (root && (ui.view === 'settings' || ui.view === 'push')) render('none'); });
   const pst = ui.push || 'off';
   const prow = rowSwitch({ label: T('studioPushT'), sub: ui.pushBusy ? T('studioPushBusy') : pst === 'on' ? T('studioPushOnS') : pst === 'denied' ? T('studioPushDenied') : pst === 'na' ? T('studioPushNa') : T('studioPushOffS'),
-    on: pst === 'on', onClick: () => (pst === 'on' ? pushOff() : pushOn()), k: 'push' });
+    on: pst === 'on', onClick: () => (pst === 'on' ? pushOff() : pushOn(false)), k: 'push' });
   if (pst === 'na' || pst === 'denied' || ui.pushBusy) prow.disabled = true;
   const prows = [prow];
   if (pst === 'on') prows.push(btn('st-row st-act', T('studioPushTest'), pushTest, 'push-test'));
@@ -8328,12 +8330,22 @@ async function refreshPush() {
   const sub = await pushSub();
   ui.push = Notification.permission === 'denied' ? 'denied' : sub && Notification.permission === 'granted' ? 'on' : 'off';
 }
-async function pushOn() {
+/* 27/10/2026 (בקשת המשתמש: "שההתראות יהיו פעילות בברירת מחדל"): בלי לחיצה בהגדרות. הרשאה שכבר ניתנה → מנוי בשקט
+   בפתיחת Studio; עוד לא נשאלת → הבקשה בלחיצה על "תרגם" (Chrome מבקש הפעלת משתמש). כיבית בעצמך, או סירבת לבקשה → pno, ולא שואלים שוב */
+async function pushAuto(byUser) {
+  if (!PUSH_OK || ui.pushBusy || store.settings.pno || ui.access === 'signin' || ui.access === 'denied') return;
+  const perm = Notification.permission;
+  if (perm === 'denied' || (perm !== 'granted' && !byUser)) return;
+  if (perm === 'granted') { if (ui.push == null) await refreshPush(); if (ui.push === 'on') return; }
+  return pushOn(true);
+}
+async function pushOn(auto) {
   if (ui.pushBusy || !PUSH_OK) return;
   ui.pushBusy = true;
   try {
-    const perm = await Notification.requestPermission();
-    if (perm !== 'granted') { ui.push = perm === 'denied' ? 'denied' : 'off'; return; }
+    const perm = await Notification.requestPermission();   // ראשון — בתוך הנגיעה
+    if (perm !== 'granted') { ui.push = perm === 'denied' ? 'denied' : 'off'; if (auto === true) { store.settings.pno = 1; save(); } return; }
+    if (store.settings.pno) { delete store.settings.pno; save(); }
     render('none');
     const k = await net.api('push', { act: 'key' });
     if (!k.ok || !k.key) throw new Error(k.error || 'key');
@@ -8343,9 +8355,9 @@ async function pushOn() {
     const j = await net.api('push', { act: 'on', sub: sub.toJSON(), lang });
     if (!j.ok) throw new Error(j.error || 'on');
     ui.push = 'on';
-    flashSafe(T('studioPushOnDone'));
+    if (auto !== true) flashSafe(T('studioPushOnDone'));
   } catch (e) {
-    flashSafe(T('studioPushErr'));
+    if (auto !== true) flashSafe(T('studioPushErr'));
   } finally {
     ui.pushBusy = false;
     if (root) render('none');
@@ -8358,6 +8370,7 @@ async function pushOff() {
     const sub = await pushSub();
     if (sub) { await net.api('push', { act: 'off', e: sub.endpoint }); await sub.unsubscribe().catch(() => {}); }
     ui.push = 'off';
+    store.settings.pno = 1; save();
   } finally {
     ui.pushBusy = false;
     if (root) render('none');
@@ -8706,7 +8719,12 @@ function paintSoon() { if (!paintT) paintT = setTimeout(() => { paintT = 0; live
    (תרגום, בדיקה) כמעט אין אחוזים, וההתראה נשארה על 0% כל השלב. כש־Studio פתוחה הדף מעדכן את אותה התראה (התג של העבודה)
    כל SHADE_MS לפי ההערכה שבמסך — אותו נוסח של השרתון (stageText ב־webpush.js); sw.js לא נותן לדיווח ישן להחזיר אחורה.
    רק כשההתראות דלוקות, ולא בזמן ההעלאה ברקע (ל־Chrome יש התראה משלו) */
-const SHADE_MS = 5000, shadeLast = new Map();
+const SHADE_MS = 5000, shadeLast = new Map(), shadeGone = new Set();
+/* 27/10/2026: עבודה שכבר לא רצה (בוטלה, נגמרה בלי שהתראת הסוף הגיעה) — התראת השלב נסגרת (sw.js מחזיר רק כשהמשתמש סגר) */
+function shadeEnd(id) {
+  navigator.serviceWorker.ready.then((reg) => reg.getNotifications({ tag: 'studio-' + id }))
+    .then((ns) => { for (const n of ns) if (n.data && n.data.k === 'stage') n.close(); }).catch(() => {});
+}
 let shadeAt = 0;
 export function shadeBar(p, lang) {
   const n = 10, f = Math.max(0, Math.min(n, Math.round((Number(p) || 0) * n)));
@@ -8718,7 +8736,12 @@ function shadeSync() {
   shadeAt = now;
   for (const rec of store.jobs) {
     const run = runs.get(rec.id), ph = jobPhase(rec, run);
-    if (ph !== 'running' && ph !== 'queued' && ph !== 'audio' && ph !== 'video' && ph !== 'extract') { shadeLast.delete(rec.id); continue; }
+    if (ph !== 'running' && ph !== 'queued' && ph !== 'audio' && ph !== 'video' && ph !== 'extract') {
+      shadeLast.delete(rec.id);
+      if (!shadeGone.has(rec.id)) { shadeGone.add(rec.id); shadeEnd(rec.id); }
+      continue;
+    }
+    shadeGone.delete(rec.id);
     if (run && run.bg) continue;
     const s = modelFor(rec).stages.find((x) => x.state === 'now');
     if (!s) continue;
@@ -8911,7 +8934,7 @@ export function openStudio(opt) {
   if (SA) { SA.settings = () => go('settings'); SA.tower = () => go('tower'); }
   const jobLink = opt && /^j[A-Za-z0-9_-]{20}$/.test(String(opt.job || '')) ? opt.job : '';   // שלב 4: מההתראה
   const linkView = opt && (opt.view === 'play' || opt.view === 'subs') ? opt.view : '';          // פעולה בהתראה: צפייה / עריכה
-  if (root) { if (jobLink && jobRec(jobLink)) goJobLink(jobLink, linkView); return; }
+  if (root) { if (jobLink) { if (jobRec(jobLink)) goJobLink(jobLink, linkView); else Promise.resolve(refreshJobs(true)).then(() => { if (root && jobRec(jobLink)) goJobLink(jobLink, linkView); }); } return; }
   const restore = opt && opt.restore && opt.restore.studio ? opt.restore : null;   // רענון בזמן שהסטודיו היה פתוח
   store = load();
   root = h('div', 'st-root no-swipe');
@@ -8957,7 +8980,7 @@ export function openStudio(opt) {
   render('none');
   curtainDown(!restore);                   // 14/10/2026: הווילון של studio.html — יורד כשהדף הראשון מצויר
   try { root.focus({ preventScroll: true }); } catch (e) {}
-  refreshStatus(true);
+  Promise.resolve(refreshStatus(true)).then(() => pushAuto(false)).catch(() => {});
   dxKick();   // 26/10/2026: שמירה ב־Drive שרצה בשרת — ממשיכים לעקוב
   const jobs0 = refreshJobs(true);
   inboxOp('clean');   // 22/10/2026: קבצים מההורדה בטלפון שלא נכנסו לעבודה — אחרי שבוע

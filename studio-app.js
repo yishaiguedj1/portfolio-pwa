@@ -89,6 +89,11 @@ function jobLinkNow() {
   if (pe) studioPhErr(jl[1], pe);
   return true;
 }
+/* 27/10/2026: נגיעה בהתראה כשהדף פתוח — sw.js שולח את מזהה העבודה בהודעה (בלי ניווט) */
+if (typeof navigator !== 'undefined' && navigator.serviceWorker) navigator.serviceWorker.addEventListener('message', (e) => {
+  const d = e.data || {};
+  if (d.snb === 'studioJob' && /^j[A-Za-z0-9_-]{20}$/.test(String(d.j || ''))) openStudio({ standalone: sa, job: d.j, view: d.v === 'play' || d.v === 'subs' ? d.v : '' });
+});
 /* 22/10/2026: קישור מהבועה / משיתוף כש־Studio כבר פתוחה — אנדרואיד מעביר אותו ללשונית הקיימת כשינוי ב־hash, בלי טעינה */
 if (typeof window !== 'undefined') window.addEventListener('hashchange', () => {
   const s = hashArg('share', 4096), pr = hashArg('probe', 200000), g = hashArg('got', 40), de = hashArg('dle', 60), pk = hashArg('phpick', 6100);
