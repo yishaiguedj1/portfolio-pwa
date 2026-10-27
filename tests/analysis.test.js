@@ -260,7 +260,21 @@ console.log('\nכל בדיקות מנתח החברות עברו: ' + n);
   const D0 = A.calcDefaults(co);
   ok(D0.basis === 'ni' && D0.val.g <= 0.15 && D0.val.g >= -0.05 && D0.val.yrs === 5 && D0.val.req === 0.1, 'ערכים מוצעים: צמיחה עד 15%, 5 שנים, תשואה רצויה 10%');
   ok(D0.val.lo <= D0.val.mid && D0.val.mid <= D0.val.hi && D0.val.hi <= 40, 'מכפילים מוצעים בסדר עולה, עד ×40');
-  ok(A.calcDefaults(co, 'fcf').basis === 'fcf' && A.calcDefaults(co, 'fcf').mkey === 'pfcf', 'לפי תזרים חופשי — מכפיל מחיר לתזרים חופשי');
+  ok(A.calcDefaults(co, 'fcf').basis === 'fcf' && A.calcDefaults(co, 'fcf').mkey === 'pofcf', 'לפי תזרים לבעלים — מכפיל מחיר לתזרים לבעלים');
+  // 27/10/2026: מכפילים מעל התקרה — יורדים באותו יחס (ServiceNow: כל השלושה יצאו 40); בסיס = חציון, לא ממוצע שנה חריגה מושכת
+  const Mc = A.calcMults([87, 90, 100, 115, 120, 140, 153, 160]);
+  ok(Mc.m[0] < Mc.m[1] && Mc.m[1] < Mc.m[2] && Mc.m[2] === 40 && Mc.k < 1, 'היסטוריה מעל ×40 — שלושה מכפילים שונים, הגבוה 40');
+  ok(Math.abs(Mc.m[0] / Mc.m[2] - Mc.raw[0] / Mc.raw[2]) < 0.13, 'היחס בין הנמוך לגבוה נשמר (עד עיגול ל־5)');
+  const Mo = A.calcMults([25, 26, 27, 28, 29, 30, 31, 32, 33, 120]); // ממוצע 38 — מעל הרבע העליון
+  ok(Mo.k === 1 && Mo.m.join() === '25,30,35', 'שנה חריגה לא מעבירה את הבסיס מעל הגבוה (חציון)');
+  ok(A.calcMults([10, 12, 14, 16]).k === 1, 'מתחת לתקרה — ההיסטוריה כמו שהיא');
+  ok([Mc, Mo, A.calcMults([25.5, 27, 28, 29, 31.5]), A.calcMults([3, 3, 3])].every((x) => x.m.every((v) => v % 5 === 0) && x.m[0] < x.m[1] && x.m[1] < x.m[2]), 'מכפילים בכפולות של 5, שלושה שונים');
+  ok(A.calcMults([25.5, 27, 28, 29, 31.5]).m.join() === '25,30,35', 'עיגול שאיחד שניים — נפרדים שוב (25/30/35)');
+  // דיבידנדים בתשואה: מחיר 100, מחיר בסוף 100, דיבידנד 5 בשנה = 5% בשנה
+  const Rd = A.calcRun({ base: 100, g: 0, m: 1, yrs: 5, sh: 0, dv: 1, lo: 20, mid: 20, hi: 20, req: 0.05 }, 20, 100);
+  ok(Math.abs(Rd[1].ret - 0.05) < 1e-6 && Math.abs(Rd[1].divs - 25) < 1e-9 && Math.abs(Rd[1].buy - 100) < 1e-6, 'דיבידנד נכנס לתשואה ולמחיר היום (תשואה פנימית)');
+  ok(A.calcRun({ ...V, dv: 0 }, 1e9, 400)[1].ret === R[1].ret || Math.abs(A.calcRun({ ...V, dv: 0 }, 1e9, 400)[1].ret - R[1].ret) < 1e-9, 'בלי דיבידנד — כמו קודם');
+  ok(A.calcDefaults({ ...co, fin: true, _mh: null }, 'fcf').basis === 'ni', 'בנק — רק לפי רווח נקי');
   const src = fs.readFileSync(path.join(__dirname, '..', 'analysis.js'), 'utf8');
   ok(!/pageValDef|fairCard\(|assumeCard\(/.test(src) && /function pageVal\(co, pg\)[\s\S]{0,200}calcDefaults/.test(src), 'עמוד השווי = המחשבון בלבד, בלי DCF ובלי פרשנות');
   ok(/DEF_NOTE = \{/.test(src) && /defNote\(def\.s\)/.test(src) && /anDnMult/.test(src), 'שורה גלויה איך מדד שמחושב בכמה דרכים מחושב אצלנו');
