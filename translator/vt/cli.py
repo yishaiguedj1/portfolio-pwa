@@ -390,7 +390,7 @@ def build(pr: Project, style_name: str | None = None, sty: dict | None = None) -
     """25/10/2026: שבירת השורות בזמן הבנייה — בחירה של Haiku (tr/linebreak.json) › מודל תחבירי › הכללים (vt/linebreak.py)."""
     from .hebrew import set_break_chooser
     from . import linebreak as LB
-    model = LB.DepModel() if os.environ.get("SNB_LB", "") != "off" else None
+    model = LB.DepModel(cache_file=pr.tr_dir / "lb_parse.json") if os.environ.get("SNB_LB", "") != "off" else None
     chooser = LB.Chooser(LB.load_picks(pr.tr_dir / "linebreak.json"), model if model and model.available() else None)
     set_break_chooser(chooser)
     try:
