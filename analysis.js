@@ -228,9 +228,9 @@ function atMonth(pts, ym) { // מה שכבר פורסם באותו חודש (ה�
 }
 function multHist(co) {
   if (co._mh) return co._mh;
-  const out = { t: [], pe: [], pfcf: [], ps: [], evebit: [], pb: [], pffo: [] };
+  const out = { t: [], pe: [], pfcf: [], pofcf: [], ps: [], evebit: [], pb: [], pffo: [] };
   if (!co.px || !co.px.t || !co.px.t.length) return (co._mh = out);
-  const P = {}; for (const k of ['eps', 'rev', 'ocf', 'capex', 'op', 'sh', 'cash', 'msec', 'debt', 'eq', 'ni', 'dep']) P[k] = ttmPoints(co, k);
+  const P = {}; for (const k of ['eps', 'rev', 'ocf', 'capex', 'sbc', 'op', 'sh', 'cash', 'msec', 'debt', 'eq', 'ni', 'dep']) P[k] = ttmPoints(co, k);
   const last = co.px.t[co.px.t.length - 1], first = addMonths(last, -120);
   co.px.t.forEach((ym, i) => {
     const c = co.px.c[i]; if (ym < first || c == null) return;
@@ -240,6 +240,9 @@ function multHist(co) {
     out.t.push(ym);
     out.pe.push(eps > 0 ? c / eps : null);
     out.pfcf.push(mc && fcf > 0 ? mc / fcf : null);
+    // תזרים לבעלים = תזרים חופשי פחות התשלום במניות (המחשבון); בלי נתון תשלום במניות — אפס
+    const ofcf = fcf != null ? fcf - (atMonth(P.sbc, ym) || 0) : null;
+    out.pofcf.push(mc && ofcf > 0 ? mc / ofcf : null);
     out.ps.push(mc && rev > 0 ? mc / rev : null);
     out.evebit.push(mc && op > 0 ? (mc + debt - cash) / op : null);
     const eq = atMonth(P.eq, ym), ni = atMonth(P.ni, ym), dep = atMonth(P.dep, ym), ffo = ni != null && dep != null ? ni + dep : null;
@@ -249,7 +252,7 @@ function multHist(co) {
   // הנקודה האחרונה = היום: המחיר החי ו־12 החודשים האחרונים (כמו בראש המסך)
   const c = ctx(co, nowP(co)), mc = co.price * co.sharesOut, i = out.t.length - 1;
   if (i >= 0 && co.price > 0) {
-    out.pe[i] = c.eps > 0 ? co.price / c.eps : null; out.pfcf[i] = c.fcf > 0 && mc ? mc / c.fcf : null; out.ps[i] = c.rev > 0 && mc ? mc / c.rev : null;
+    out.pe[i] = c.eps > 0 ? co.price / c.eps : null; out.pfcf[i] = c.fcf > 0 && mc ? mc / c.fcf : null; out.pofcf[i] = c.fcfsbc > 0 && mc ? mc / c.fcfsbc : null; out.ps[i] = c.rev > 0 && mc ? mc / c.rev : null;
     out.evebit[i] = c.op > 0 && mc ? (mc + c.debt - (c.cashT || 0)) / c.op : null;
     out.pb[i] = c.eq > 0 && mc ? mc / c.eq : null; out.pffo[i] = c.ffo > 0 && mc ? mc / c.ffo : null;
   }
@@ -1257,51 +1260,94 @@ const mark = (el, d) => { for (const k in d) if (d[k] != null && d[k] !== '') el
    (צמיחה — הנמוכה מבין ההיסטוריה והאנליסטים ועד 15%; מכפילים — מההיסטוריה של החברה עצמה; תשואה רצויה 10%).
    בלי "זול/יקר" ובלי צבעים — רק החישוב לפי מה שהוזן */
 const CALC_G_MAX = 0.15, CALC_MULT_MAX = 40, CALC_YRS = 5;
-const CALC_KEYS = ['base', 'g', 'm', 'yrs', 'sh', 'lo', 'mid', 'hi', 'req'];
+const CALC_KEYS = ['base', 'g', 'm', 'yrs', 'sh', 'dv', 'lo', 'mid', 'hi', 'req'];
+/* 27/10/2026 (בקשת המשתמש — "אותה חברה, פער פי 3 בין רווח לתזרים"): שלוש טעויות שתוקנו כאן.
+   (1) כל מכפיל נחתך בנפרד ל־×40 — אצל חברה שההיסטוריה שלה כולה מעל 40 (ServiceNow: 87–153) שלושת התרחישים יצאו 40,
+       ושני הבסיסים קיבלו אותו מכפיל למרות שמכפיל הרווח שלה כפול ממכפיל התזרים. עכשיו כל בסיס עם ההיסטוריה שלו,
+       וכשהגבוה מעל התקרה — כל השלושה יורדים באותו יחס (המרווח ביניהם נשמר).
+   (2) "בסיס" = ממוצע — שנה חריגה אחת משכה אותו מעל הרבע העליון (Coca‑Cola: 36.5 מול 31.5). עכשיו החציון.
+   (3) תזרים חופשי לא מוריד את התשלום במניות, ואת הדילול שהוא יוצר מכסות רכישות חוזרות שמשולמות מאותו תזרים —
+       כך הוא נספר פעמיים (אצל ServiceNow ‏15% מההכנסות). הבסיס הוא תזרים לבעלים = תזרים חופשי פחות תשלום במניות,
+       כמו אצל באפט, והמכפיל שלו — מחיר לתזרים לבעלים מההיסטוריה של החברה.
+   ועוד: שולי הרווח — חציון 5 השנים (שנה עם הטבת מס חד־פעמית לא מושכת), תחזית האנליסטים — מהשנה האחרונה שדווחה
+   ועד שנתיים קדימה (שנה אחת רועשת), ודיבידנדים — חלק מהתשואה (בלעדיהם תשואת Coca‑Cola נמוכה בכ־3% בשנה). */
+function calcMults(hist) {
+  const t = [quant(hist, 0.25), median(hist), quant(hist, 0.75)];
+  const k = t[2] > CALC_MULT_MAX ? CALC_MULT_MAX / t[2] : 1;
+  return { m: t.map((x) => Math.round(clamp(x * k, 1, CALC_MULT_MAX) * 2) / 2), raw: t, k };
+}
 function calcDefaults(co, want) {
   const c = ctx(co, nowP(co)), fy = fyList(co).slice(-5), ind = co.ind || {}, H = multHist(co);
-  const noRev = !(c.rev > 0), basis = co.reit ? 'ffo' : want === 'fcf' && !noRev ? 'fcf' : 'ni';
+  // בנק / ביטוח: תזרים חופשי לא מודד את העסק (הפקדות והלוואות הם התזרים) — רק רווח נקי
+  const noRev = !(c.rev > 0), basis = co.reit ? 'ffo' : want === 'fcf' && !noRev && !co.fin ? 'fcf' : 'ni';
   const src = {}, val = { yrs: CALC_YRS, req: HURDLE };
   // בסיס: הכנסות 12 החודשים האחרונים; בלי הכנסות (חלק מהבנקים) — הרווח הנקי עצמו
   val.base = noRev ? c.ni : c.rev;
   src.base = T(noRev ? 'anCsBaseNi' : 'anCsBase');
-  // צמיחה: הנמוכה מבין 5 השנים האחרונות ותחזית האנליסטים לשנה הבאה, בין ‎−5%‎ ל־15%
+  // צמיחה: הנמוכה מבין 5 השנים האחרונות ותחזית האנליסטים (מהשנה האחרונה שדווחה עד השנה הבאה), בין ‎−5%‎ ל־15%
   const [h5, n5] = cagrN(co, noRev ? 'ni' : 'rev', 5);
-  const est = co.est || [], e0 = est.find((e) => e.p === '0y'), e1 = est.find((e) => e.p === '+1y');
-  const eg = !noRev && e0 && e1 && e0.rev > 0 && e1.rev > 0 && (e1.rn || 0) >= 3 ? e1.rev / e0.rev - 1 : null;
+  const eg = noRev ? null : estGrowth(co);
   const cand = [h5, eg].filter((x) => x != null);
   val.g = clamp(cand.length ? Math.min(...cand) : 0.05, -0.05, CALC_G_MAX);
   src.g = cand.length ? T('anCsG', { h: h5 != null ? strip(pct(h5)) : '—', n: n5 || 5, e: eg != null ? strip(pct(eg)) : '—', m: strip(pct(CALC_G_MAX, 0)) }) : T('anCsGNone');
-  // שולי רווח: ממוצע 5 השנים (כמו iCharts); בהפסד — שולי הרווח של הענף
+  // שולי רווח: חציון 5 השנים; בהפסד — שולי הרווח של הענף
+  const prof = (x) => (basis === 'ffo' ? x.ffo : basis === 'fcf' ? x.fcfsbc : x.ni);
   if (noRev) { val.m = 1; src.m = ''; }
   else {
-    const mv = fy.map((p) => { const x = ctx(co, p); return basis === 'ffo' ? (x.ffo != null && x.rev ? x.ffo / x.rev : null) : basis === 'fcf' ? x.fcfm : x.nm; });
-    const m = mean(mv);
-    if (m > 0) { val.m = m; src.m = T(basis === 'fcf' ? 'anCsMF' : basis === 'ffo' ? 'anCsMFfo' : 'anCsM', { n: fin(mv).length }); }
-    else if (ind.nm > 0 && basis !== 'ffo') { val.m = ind.nm; src.m = T('anCsMInd', { i: iso(co.indName || T('anIndustry')) }); }
+    const mv = fin(fy.map((p) => { const x = ctx(co, p), v = prof(x); return v != null && x.rev > 0 ? v / x.rev : null; }));
+    const m = median(mv);
+    if (m > 0) { val.m = m; src.m = T(basis === 'fcf' ? 'anCsMF' : basis === 'ffo' ? 'anCsMFfo' : 'anCsM', { n: mv.length }); }
+    else if (ind.nm > 0 && basis === 'ni') { val.m = ind.nm; src.m = T('anCsMInd', { i: iso(co.indName || T('anIndustry')) }); }
     else { val.m = 0.1; src.m = T('anCsMNone'); }
   }
-  // מכפילים: רבע תחתון / ממוצע / רבע עליון של 10 השנים של החברה; בלי מספיק היסטוריה — הענף, ואז 15/20/25
-  const mkey = basis === 'fcf' ? 'pfcf' : basis === 'ffo' ? 'pffo' : 'pe';
+  // מכפילים: רבע תחתון / חציון / רבע עליון של 10 השנים של החברה, לפי אותו בסיס; בלי מספיק היסטוריה — הענף, ואז 15/20/25
+  const mkey = basis === 'fcf' ? 'pofcf' : basis === 'ffo' ? 'pffo' : 'pe';
   const hist = H[mkey].slice(-120).filter((x) => x > 0 && x < 300);
-  let mult;
-  if (hist.length >= 24) { mult = [quant(hist, 0.25), mean(hist), quant(hist, 0.75)]; src.mult = T('anCsMult', { n: Math.round(hist.length / 12), m: CALC_MULT_MAX }); }
-  else if (mkey === 'pe' && ind.ape > 0) { mult = [ind.ape * 0.8, ind.ape, ind.ape * 1.2]; src.mult = T('anCsMultInd', { i: iso(co.indName || T('anIndustry')) }); }
-  else { mult = [15, 20, 25]; src.mult = T('anCsMultStd'); }
-  [val.lo, val.mid, val.hi] = mult.map((x) => Math.round(clamp(x, 1, CALC_MULT_MAX) * 2) / 2);
+  let M;
+  if (hist.length >= 24) {
+    M = calcMults(hist);
+    const r = M.raw.map((x) => strip(fmt(x, 'x', co, 0))).join(' / ');
+    src.mult = M.k < 1 ? T('anCsMultCut', { n: Math.round(hist.length / 12), r, m: CALC_MULT_MAX }) : T('anCsMult', { n: Math.round(hist.length / 12), r });
+  } else if (mkey === 'pe' && ind.ape > 0) { M = calcMults([ind.ape * 0.8, ind.ape, ind.ape * 1.2]); src.mult = T('anCsMultInd', { i: iso(co.indName || T('anIndustry')) }); }
+  else { M = calcMults([15, 20, 25]); src.mult = T('anCsMultStd'); }
+  [val.lo, val.mid, val.hi] = M.m;
   // מניות: הקצב של 5 השנים האחרונות, בין ‎−5%‎ ל־5% בשנה
   const [shg] = cagrN(co, 'sh', 5);
   val.sh = shg == null ? 0 : clamp(shg, -0.05, 0.05);
   src.sh = shg == null ? T('anCsShNone') : T('anCsSh', { v: strip(sgn(shg)) });
+  // דיבידנד: חציון 5 השנים של החלק מהרווח (לפי הבסיס) שחולק, 0–100%
+  const dv = fin(fy.map((p) => { const x = ctx(co, p), v = prof(x); return x.dps > 0 && x.sh > 0 && v > 0 ? x.dps * x.sh / v : x.dps == null || x.dps === 0 ? 0 : null; }));
+  const pay = dv.length ? clamp(median(dv), 0, 1) : 0;
+  val.dv = pay; src.dv = pay > 0 ? T('anCsDv', { n: dv.length }) : T('anCsDvNone');
   src.yrs = T('anCsYrs'); src.req = T('anCsReq');
   return { basis, noRev, mkey, val, src, shares: co.sharesOut || c.sh };
 }
+/* תחזית האנליסטים כצמיחה שנתית: מהכנסות השנה האחרונה שדווחה עד השנה הבאה (+1y), רק כשיש לפחות 3 אנליסטים */
+function estGrowth(co) {
+  const est = co.est || [], e1 = est.find((e) => e.p === '+1y');
+  if (!e1 || !(e1.rev > 0) || (e1.rn || 0) < 3 || !e1.end) return null;
+  const last = fyList(co).filter((p) => p.end < e1.end).pop(); if (!last) return null;
+  const r0 = ctx(co, last).rev, yrs = Math.round((Date.parse(e1.end) - Date.parse(last.end)) / 31557600000);
+  return r0 > 0 && yrs >= 1 && yrs <= 3 ? (e1.rev / r0) ** (1 / yrs) - 1 : null;
+}
+/* תשואה שנתית פנימית: המחיר היום מול הדיבידנדים בכל שנה והמחיר בסוף (חיפוש בינארי — המונוטוניות מובטחת) */
+function irr(price, flows) {
+  const pv = (r) => flows.reduce((s, f, t) => s + f / (1 + r) ** (t + 1), 0);
+  if (!(price > 0) || !(pv(-0.99) > price)) return null;
+  let lo = -0.99, hi = 10;
+  for (let i = 0; i < 100; i++) { const m = (lo + hi) / 2; if (pv(m) > price) lo = m; else hi = m; }
+  return (lo + hi) / 2;
+}
 /* החישוב עצמו — טהור (נבדק ב־analysis.test) */
 function calcRun(V, shares0, price) {
-  const N = V.yrs, rev = V.base * (1 + V.g) ** N, prof = rev * V.m, sh = shares0 * (1 + V.sh) ** N;
+  const N = V.yrs, dv = V.dv || 0, rev = V.base * (1 + V.g) ** N, prof = rev * V.m, sh = shares0 * (1 + V.sh) ** N;
+  // דיבידנד למניה בכל שנה = הרווח של אותה שנה × החלק שמחולק ÷ מספר המניות אז
+  const dps = []; for (let t = 1; t <= N; t++) { const s = shares0 * (1 + V.sh) ** t; dps.push(s > 0 ? V.base * (1 + V.g) ** t * V.m * dv / s : 0); }
+  const divs = dps.reduce((a, b) => a + b, 0), pvDiv = dps.reduce((a, d, t) => a + d / (1 + V.req) ** (t + 1), 0);
   return ['lo', 'mid', 'hi'].map((k) => {
     const mcap = prof * V[k], ps = sh > 0 ? mcap / sh : null;
-    return { mult: V[k], rev, prof, mcap, ps, ret: ps > 0 && price > 0 ? (ps / price) ** (1 / N) - 1 : null, buy: ps > 0 ? ps / (1 + V.req) ** N : null };
+    const flows = ps > 0 ? dps.map((d, t) => d + (t === N - 1 ? ps : 0)) : null;
+    return { mult: V[k], rev, prof, mcap, ps, divs, ret: flows ? irr(price, flows) : null, buy: ps > 0 ? pvDiv + ps / (1 + V.req) ** N : null };
   });
 }
 /* שדה: איך מוצג ונקרא — כסף במיליארדים/מיליונים, אחוזים, מכפיל, שנים */
@@ -1314,7 +1360,8 @@ function calcFields(co, D) {
     D.noRev ? null : ['m', T(D.basis === 'fcf' ? 'anCiMF' : D.basis === 'ffo' ? 'anCiMFfo' : 'anCiM'), P(1)],
     ['yrs', T('anCiYrs'), { show: (x) => String(x), read: (s) => Math.round(s), unit: T('anYrs'), min: 1, max: 15 }],
     ['sh', T('anCiSh'), P(1)],
-    ['mult', T('anCiMult', { m: T(D.mkey === 'pfcf' ? 'anLPfcf' : D.mkey === 'pffo' ? 'anLPffo' : 'anLPe') }), { show: (x) => String(x), read: (s) => s, unit: '×', min: 0.5, keys: ['lo', 'mid', 'hi'], caps: [T('anCLo'), T('anCMid'), T('anCHi')] }],
+    D.val.dv > 0 ? ['dv', T('anCiDv'), { ...P(0), min: 0, max: 1 }] : null,
+    ['mult', T('anCiMult', { m: T(D.mkey === 'pofcf' ? 'anLPofcf' : D.mkey === 'pffo' ? 'anLPffo' : 'anLPe') }), { show: (x) => String(x), read: (s) => s, unit: '×', min: 0.5, keys: ['lo', 'mid', 'hi'], caps: [T('anCLo'), T('anCMid'), T('anCHi')] }],
     ['req', T('anCiReq'), P(1)],
   ].filter(Boolean);
 }
@@ -1333,6 +1380,7 @@ function pageVal(co, pg) {
         h('tbody', {},
           h('tr', {}, h('th', {}, T('anCrMcap', { n: v.yrs })), ...R.map((r) => cs(strip(fmt(r.mcap, 'money', co))))),
           h('tr', {}, h('th', {}, T('anCrPs', { n: v.yrs })), ...R.map((r) => cs(strip(fmt(r.ps, 'ps', co))))),
+          v.dv > 0 ? h('tr', {}, h('th', {}, T('anCrDv', { n: v.yrs })), ...R.map((r) => cs(strip(fmt(r.divs, 'ps', co))))) : null,
           h('tr', {}, h('th', {}, T('anCrRet')), ...R.map((r) => cs(r.ret == null ? '—' : sgn(r.ret)))),
           h('tr', {}, h('th', {}, T('anCrBuy', { r: strip(pct(v.req, 0)) })), ...R.map((r) => cs(r.buy == null ? '—' : strip(fmt(r.buy, 'ps', co)))))))),
       h('p', { class: 'an-src' }, T('anCFoot', { r: strip(fmt(R[1].rev, 'money', co)), p: strip(fmt(R[1].prof, 'money', co)), n: v.yrs })));
@@ -1363,7 +1411,7 @@ function pageVal(co, pg) {
     rows.append(row); sync();
   }
   paint();
-  const basisSeg = co.reit || D.noRev ? null : segCtl(T('anCBasis'), [['ni', T('anCBNi')], ['fcf', T('anCBFcf')]], D.basis, (b) => { S.calcB = b; render(); });
+  const basisSeg = co.reit || co.fin || D.noRev ? null : [segCtl(T('anCBasis'), [['ni', T('anCBNi')], ['fcf', T('anCBFcf')]], D.basis, (b) => { S.calcB = b; render(); }), h('p', { class: 'an-src' }, T('anCBNote'))];
   pg.append(card(h('div', { class: 'an-h2row' }, h('h2', {}, T('anCalc')), resetBtn), sub(T('anCalcSub')), basisSeg, rows), card(h('h2', {}, T('anCResT')), res));
   multCard(co, pg);
 }
@@ -1671,5 +1719,5 @@ function estSheet() {
 }
 
 /* בדיקות (node) — הפונקציות הטהורות */
-export const _test = { r40Of, multAvg, calcDefaults, calcRun, qRun, qBack, ttmPoints, cmpPrev, restated, cagrBetween, growthOf, finInputs, riValue, impliedRoe, reitInputs, lossView, fairOf, flagsAt, srcDef, rawName, RAWK, OWN_TAG, prep, indFix, pickPeers, peerRow, ctx, periodList, hasTTM, raw, multHist, autoInputs, dcf, scenarios, reverseG, multModel, uncertainty, checks, piotroski, altman, fmt, sgn, cagrN, epsPath,
+export const _test = { r40Of, multAvg, calcDefaults, calcRun, calcMults, irr, estGrowth, qRun, qBack, ttmPoints, cmpPrev, restated, cagrBetween, growthOf, finInputs, riValue, impliedRoe, reitInputs, lossView, fairOf, flagsAt, srcDef, rawName, RAWK, OWN_TAG, prep, indFix, pickPeers, peerRow, ctx, periodList, hasTTM, raw, multHist, autoInputs, dcf, scenarios, reverseG, multModel, uncertainty, checks, piotroski, altman, fmt, sgn, cagrN, epsPath,
   setEnv: (e) => { E = e; } };
