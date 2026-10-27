@@ -91,6 +91,7 @@ const ok = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exit(1); }
   const man = JSON.parse(R('android/chrome-ext/manifest.json'));
   ok(man.manifest_version === 3 && man.background.type === 'module', 'MV3 + service worker כמודול');
   ok(JSON.stringify(man.oauth2.scopes) === '["https://www.googleapis.com/auth/drive.appdata"]', 'רק drive.appdata');
+  ok(/^286578855160-[a-z0-9]+\.apps\.googleusercontent\.com$/.test(man.oauth2.client_id), 'לקוח OAuth אמיתי מפרויקט ה־Firebase — לא מחזיק מקום (27/10/2026: בלעדיו "להתחבר" לא עושה כלום)');
   ok(/^[A-Za-z0-9+/=]{300,}$/.test(man.key), 'key קבוע → מזהה תוסף קבוע (ללקוח ה־OAuth)');
   for (const p of ['bookmarks', 'history', 'identity', 'storage', 'alarms']) ok(man.permissions.includes(p), 'הרשאה: ' + p);
   ok(!man.permissions.includes('tabs') && !man.host_permissions.some((h) => !/googleapis\.com/.test(h)), 'בלי הרשאות מעבר לנדרש');
