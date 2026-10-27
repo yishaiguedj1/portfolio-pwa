@@ -122,6 +122,20 @@ const disk = (rel) => { try { return read(rel); } catch (e) { return null; } };
     assert.strictEqual(s.skipped(), 1);
   });
 
+  await t('עדכון: קובץ שלא השתנה נלקח מהמטמון הקודם (בלי רשת), קובץ ששונה — מהרשת עם אימות', async () => {
+    const s = loadSw(disk);
+    const old = await (async () => { const c = new Map(); s.store.set('portfolio-pwa-v1', c); return c; })();
+    old.set('/app/app.js', new Response(read('app.js'), { headers: { 'Content-Type': 'text/javascript' } }));
+    old.set('/app/styles.css', new Response('/* הגרסה הקודמת */', { headers: { 'Content-Type': 'text/css' } }));
+    await s.install();
+    assert.ok(!s.fetched.some((f) => f.url.startsWith('/app/app.js')), 'app.js לא ירד שוב');
+    assert.ok(s.fetched.some((f) => f.url.startsWith('/app/styles.css')), 'styles.css (השתנה) ירד');
+    const m = s.store.get('portfolio-pwa-' + SG.readHashes(swSrc).version);
+    assert.strictEqual(await m.get('/app/app.js').text(), read('app.js').toString('utf8'));
+    assert.strictEqual(await m.get('/app/styles.css').text(), read('styles.css').toString('utf8'));
+    assert.strictEqual(s.skipped(), 1);
+  });
+
   await t('אימות חי (--live): תואם / קובץ חי שונה', async () => {
     const mk = (bad) => async (url) => {
       const u = new URL(url);

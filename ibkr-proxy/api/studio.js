@@ -1496,6 +1496,13 @@ function srvAuthPut(sid, srv, now) {
   if (srvAuthMem.size > 200) srvAuthMem.clear();
 }
 
+/* 27/10/2026 (מחקר היעילות): שרת פנוי כתב את מסמך השרת בכל poll (כל 20 שנ׳ — כ־4,300 כתיבות ביום מתוך מכסה של 20 אלף).
+   עכשיו: כתיבה רק כשמשהו שמישהו קורא השתנה (עבודות שרצות, גרסה, עלייה מחדש, דגלים, העבודה שבמסמך) — אחרת פעם ב־SEEN_MS.
+   ההשוואה מול המסמך שכבר נקרא ב־poll (בלי זיכרון במופע). "לא מדווח" (SRV_ONLINE_MS 12 דק׳, SRV_DOWN_MS 15) רחוק מזה */
+const SEEN_MS = 3 * 60e3;
+const hbKey = (h) => { h = h && typeof h === 'object' ? h : {}; return [+h.nj || 0, h.busy || '', h.v || '', +h.mx || 0].join('|'); };
+const seenDue = (srv, hb, boot, now) => boot || hbKey(srv.hb) !== hbKey(hb) || !(now - (+srv.seen || 0) < SEEN_MS);
+
 /* ---------- 22/10/2026: הורדה מקישור — בדיקת קישור בתור לעובד ----------
    הטלפון יוצר מסמך ב־studioProbe (op:'urlProbe'), העובד לוקח (op:'pq' עם טוקן השרת) ומחזיר סיכום או קוד שגיאה.
    כדי לא לקרוא ל־Firestore בכל 4 שניות: probeHint = מתי נוצרה בדיקה במופע הזה (בייצור הטלפון והעובד מדברים עם אותו
@@ -1574,7 +1581,7 @@ async function server(req, res, body, deps) {
     if (srv.ba) { seen.ba = 0; await authBack(deps, srv, p.sid, now); }
     if (srv.dn) { seen.dn = 0; await serverBack(deps, srv, p.sid, now); }   // ת7: שרת שסומן "לא מדווח" חזר
     if (body.op === 'beat' || srv.paused) {
-      await patchDoc(deps, 'studioServers', p.sid, seen);
+      if (body.op === 'beat' || seen.ba === 0 || seen.dn === 0 || seenDue(srv, hb, body.boot === true, now)) await patchDoc(deps, 'studioServers', p.sid, seen);
       return res.status(200).json({ ok: true, job: null, paused: srv.paused === true, now });
     }
     if (await updatePending(deps, hb.v, now).catch(() => false)) {
@@ -1613,8 +1620,9 @@ async function server(req, res, body, deps) {
       const dur = job.spec && job.spec.dur > 0 ? Math.round(job.spec.dur) : 0;
       return res.status(200).json({ ok: true, job: Object.assign({ id: job.id, key, kind: job.kind }, dur ? { dur } : {}), now });
     }
-    // שרת שעדיין מריץ עבודה (nj) ושאל אם יש עוד — העבודה שלו נשארת רשומה
-    await patchDoc(deps, 'studioServers', p.sid, Object.assign(seen, hb.nj > 0 ? {} : { job: '' }));
+    // שרת שעדיין מריץ עבודה (nj) ושאל אם יש עוד — העבודה שלו נשארת רשומה. 27/10/2026: בלי שינוי — לא כותבים (seenDue)
+    const clr = !(hb.nj > 0) && !!srv.job;
+    if (clr || seen.ba === 0 || seen.dn === 0 || seenDue(srv, hb, body.boot === true, now)) await patchDoc(deps, 'studioServers', p.sid, Object.assign(seen, hb.nj > 0 ? {} : { job: '' }));
     return res.status(200).json({ ok: true, job: null, now });
   } catch (err) {
     return res.status(502).json({ ok: false, error: /^(fs_http_|sa_http_)/.test(String(err.message)) ? String(err.message).slice(0, 30) : 'failed' });
