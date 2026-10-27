@@ -1258,7 +1258,7 @@ function drawAlerts(c) {
   for (const a of S.store.alerts[c.sym] || []) {
     c.chart.createOverlay({
       name: 'kcAlert', groupId: 'alert', points: [{ timestamp: lastTs(c), value: a.p }], extendData: { id: a.id, note: a.note || '', done: !!a.done },
-      onPressedMoveEnd: (e) => { a.p = e.overlay.points[0].value; a.done = false; save(); setTimeout(() => drawAlerts(c), 0); },
+      onPressedMoveEnd: (e) => { a.p = e.overlay.points[0].value; rearm(c.sym, a); save(); bgSoon(); setTimeout(() => drawAlerts(c), 0); },
       onRightClick: (e) => { if (e.preventDefault) e.preventDefault(); },
     });
   }
@@ -1282,16 +1282,70 @@ function checkAlerts() {
         notify(msg);
       }
     }
-    if (hit) { save(); for (const c of S.cells) if (c.sym === sym) drawAlerts(c); }
+    if (hit) { save(); bgSoon(); for (const c of S.cells) if (c.sym === sym) drawAlerts(c); }
   }
 }
 function notify(msg) {
+  if (BG.st === 'on') return;   // ההתראה למערכת מגיעה מהשרתון (Push) — בלי כפילות; על המסך — flash
   try {
     if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
     if (navigator.serviceWorker && navigator.serviceWorker.ready) navigator.serviceWorker.ready.then((r) => r.showNotification('THE SNOWBALL', { body: msg, tag: 'kc-alert', icon: 'icon-192.png' })).catch(() => {});
     else new Notification('THE SNOWBALL', { body: msg });   // eslint-disable-line no-new
   } catch (e) { /* בלי התראת מערכת — ההודעה על המסך מספיקה */ }
 }
+
+/* ---------- התראות ברקע (27/10/2026, בקשת המשתמש: "גם כשהאפליקציה סגורה לגמרי") ----------
+   ההתראות הפעילות + מנוי ה־Push של המכשיר נשלחים לשרתון (op:'pxa'); השרת שלנו בודק כל 30 שנ׳ ושולח Push (sw.js → #chart=SYM).
+   מזהה חדש בכל חימוש מחדש / הזזה — כך השרתון לא מדלג על התראה שכבר נשלחה פעם. b = המחיר ברגע ההגדרה (נקודת המוצא לחצייה) */
+const BG = { st: '', t: null, busy: false };
+const newId = () => (Date.now().toString(36) + Math.random().toString(36).slice(2)).replace(/[^a-z0-9]/g, '').slice(-10);
+function curPx(sym) {
+  if (lastPx[sym] > 0) return lastPx[sym];
+  const p = quotePrice(S.wq[sym] && parseQuote(S.wq[sym]));
+  if (p > 0) return p;
+  const c = S.cells.find((x) => x.sym === sym && x.disp.length);
+  return c ? c.disp[c.disp.length - 1].close : 0;
+}
+function rearm(sym, a) { a.done = false; a.at = 0; a.id = newId(); a.b = curPx(sym); delete lastPx[sym]; }
+function bgList() {
+  const out = [];
+  for (const s of Object.keys(S.store.alerts)) for (const a of S.store.alerts[s] || []) if (!a.done) out.push({ i: a.id, s, p: a.p, b: +a.b || 0, d: a.dir, n: a.note || '' });
+  return out;
+}
+const b64u = (k) => { const t = atob(String(k).replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((String(k).length + 3) % 4)); return Uint8Array.from(t, (ch) => ch.charCodeAt(0)); };
+async function bgSub() {
+  if (typeof navigator === 'undefined' || !navigator.serviceWorker || typeof PushManager === 'undefined') return null;
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return null;
+    const k = await E.sync({ op: 'pxa', act: 'key' });
+    if (!k || !k.ok || !k.key) return null;
+    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(k.key) });
+  }
+  return sub ? sub.toJSON() : null;
+}
+async function bgSync(ask) {
+  if (!E || !E.sync || !S.store || BG.busy) return;
+  BG.busy = true;
+  try {
+    const canPush = typeof navigator !== 'undefined' && !!navigator.serviceWorker && typeof PushManager !== 'undefined' && typeof Notification !== 'undefined';
+    if (ask && canPush && Notification.permission === 'default') { try { await Notification.requestPermission(); } catch (e) { /* לא נתמך */ } }
+    let sub = null;
+    try { sub = await bgSub(); } catch (e) { sub = null; }
+    const r = await E.sync({ op: 'pxa', act: 'sync', alerts: bgList(), sub, lang: E.lang === 'en' ? 'en' : 'he' });
+    if (!r || !r.ok) BG.st = r && r.error === 'no_auth' ? 'auth' : 'err';
+    else {
+      BG.st = r.n > 0 && sub ? 'on' : !canPush ? 'no' : Notification.permission === 'denied' ? 'deny' : 'off';
+      // מה שהשרתון כבר שלח בזמן שהאפליקציה הייתה סגורה — מסומן כאן כ"הופעלה"
+      let ch = false;
+      for (const s of Object.keys(S.store.alerts)) for (const a of S.store.alerts[s] || []) if (!a.done && r.fired && r.fired[a.id]) { a.done = true; a.at = +r.fired[a.id] || NOW(); ch = true; }
+      if (ch) { save(); for (const c of S.cells) drawAlerts(c); updBars(); }
+    }
+  } catch (e) { BG.st = 'err'; } finally { BG.busy = false; }
+  if (BG.onSt) BG.onSt();
+}
+function bgSoon() { clearTimeout(BG.t); BG.t = setTimeout(() => bgSync(false), 1200); }
 
 /* ---------- טווחי תצוגה (1D 5D 1M…) — כמו בתחתית TradingView: טווח + זום מתאים ---------- */
 const RANGES = [['1D', '1m', 1], ['5D', '5m', 5], ['1M', '30m', 31], ['3M', '1h', 92], ['6M', '1D', 183], ['YTD', '1D', 'ytd'], ['1Y', '1D', 365], ['5Y', '1W', 1826], ['ALL', '1M', 'all']];
@@ -1990,12 +2044,22 @@ function openAlerts() {
       for (const s of syms) for (const a of S.store.alerts[s]) {
         list.appendChild(h('div', { class: 'kc-li static' + (a.done ? ' done' : '') },
           h('span', { class: 'kc-li-n' }, h('b', { text: s, dir: 'ltr' }), h('span', { class: 'kc-li-s', text: T(a.dir === 'up' ? 'kcAlertUp' : a.dir === 'down' ? 'kcAlertDown' : 'kcAlertCross') + ' ' + fmtNum(a.p, L.precisionFor(a.p)) + (a.done ? ' · ' + T('kcAlertDone') : '') + (a.note ? ' · ' + a.note : '') })),
-          a.done ? btn('kc-ib sm', T('kcRearm'), () => { a.done = false; save(); redraw(s); drawList(); }, ICON.bell) : null,
-          btn('kc-ib sm danger', T('kcRemove'), () => { S.store.alerts[s] = S.store.alerts[s].filter((x) => x !== a); if (!S.store.alerts[s].length) delete S.store.alerts[s]; save(); redraw(s); drawList(); updBars(); }, ICON.trash)));
+          a.done ? btn('kc-ib sm', T('kcRearm'), () => { rearm(s, a); save(); bgSoon(); redraw(s); drawList(); }, ICON.bell) : null,
+          btn('kc-ib sm danger', T('kcRemove'), () => { S.store.alerts[s] = S.store.alerts[s].filter((x) => x !== a); if (!S.store.alerts[s].length) delete S.store.alerts[s]; save(); bgSoon(); redraw(s); drawList(); updBars(); }, ICON.trash)));
       }
       if (!list.children.length) list.appendChild(h('div', { class: 'kc-note', text: T('kcNoAlerts') }));
     }
     const redraw = (s) => { for (const x of S.cells) if (x.sym === s) drawAlerts(x); };
+    // מצב ההתראות ברקע: שורה אחת — פעיל / הפעלה / למה לא
+    const bgRow = h('div', { class: 'kc-bg' });
+    function bgShow() {
+      bgRow.textContent = '';
+      const on = BG.st === 'on', key = on ? 'kcBgOn' : { auth: 'kcBgAuth', deny: 'kcBgDeny', no: 'kcBgNo' }[BG.st] || 'kcBgOff';
+      bgRow.classList.toggle('on', on);
+      bgRow.append(h('span', { class: 'kc-bg-t', text: T(key) + (on ? '' : ' · ' + T('kcAlertNoteOpen')) }));
+      if (!on && !['auth', 'deny', 'no'].includes(BG.st)) bgRow.appendChild(btn('kc-btn sm', T('kcBgEnable'), () => bgSync(true), ICON.bell));
+    }
+    BG.onSt = bgShow;
     b.append(
       h('label', { class: 'kc-field' }, h('span', { text: c.sym }), price),
       seg([['cross', T('kcAlertCross')], ['up', T('kcAlertUp')], ['down', T('kcAlertDown')]], dir, (v) => { dir = v; }),
@@ -2005,15 +2069,17 @@ function openAlerts() {
         if (!(v > 0)) return;
         const arr = S.store.alerts[c.sym] = S.store.alerts[c.sym] || [];
         if (arr.length >= 20) { if (E.flash) E.flash(T('kcAlertMax')); return; }
-        arr.push({ id: Math.random().toString(36).slice(2, 9), p: v, dir, note: note.value.trim().slice(0, 80), done: false, at: 0 });
+        arr.push({ id: newId(), p: v, dir, note: note.value.trim().slice(0, 80), done: false, at: 0, b: curPx(c.sym) || p0 });
         delete lastPx[c.sym];
         save(); redraw(c.sym); drawList(); updBars(); note.value = '';
-        if (typeof Notification !== 'undefined' && Notification.permission === 'default') { try { Notification.requestPermission(); } catch (e) { /* לא נתמך */ } }
+        bgSync(true);   // בלחיצה (מחווה של המשתמש) — הדפדפן מרשה לבקש הרשאת התראות
       })),
-      h('div', { class: 'kc-note', text: T('kcAlertNoteOpen') }),
+      bgRow,
       list,
     );
     drawList();
+    bgShow();
+    if (!BG.st) bgSync(false);
   });
 }
 
@@ -2220,8 +2286,9 @@ function failView(msg) {
 }
 export async function openChart(sym, env) {
   E = env || E;
-  if (ROOT) closeChart(true);
   sym = String(sym || '').toUpperCase();
+  if (ROOT && S.store && act()) { if (act().sym !== sym) setSym(act(), sym); return; }   // נגיעה בהתראה כשהגרף פתוח
+  if (ROOT) closeChart(true);
   ROOT = h('div', { class: 'kc-root no-swipe', role: 'dialog', 'aria-modal': 'true', 'aria-label': T('kcTitle') }, h('div', { class: 'kc-st on' }, h('div', { class: 'kc-spin' })));
   const root = ROOT;
   document.body.appendChild(ROOT);
@@ -2239,6 +2306,7 @@ export async function openChart(sym, env) {
   clearInterval(S.timer);
   S.timer = setInterval(() => { poll(); updClock(); }, 1000);
   setTimeout(poll, 300);
+  if (bgList().length || BG.st === 'on') setTimeout(() => bgSync(false), 1500);   // מה שנשלח ברקע → מסומן כאן; מנוי שהתחלף → מתעדכן
   if (typeof matchMedia === 'function') { S.mq = matchMedia('(prefers-color-scheme: dark)'); S.mqf = () => restyleAll(); try { S.mq.addEventListener('change', S.mqf); } catch (e) { /* דפדפן ישן */ } }
 }
 export function closeChart(fromPop) {

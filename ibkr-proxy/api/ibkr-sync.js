@@ -5,6 +5,8 @@
    POST (מהאפליקציה, Origin מאושר + התחברות Google מאומתת בשרתון + משתמש מורשה):
         { op:'status' } · { op:'enable', token, queryId, have } · { op:'disable' }
         { op:'pull', have } → החלקים שמוכנים מאז have · { op:'ack', have } → מוחק מהענן את מה שכבר יובא
+        { op:'pxa', act } → התראות המחיר של גרף הנרות ברקע (27/10/2026 — לכל משתמש מחובר; ראו lib/pxalert.js)
+   GET ?job=px — הבודק של התראות המחיר (כל 30 שנ׳ מהשרת שלנו, server.js — startPx)
    אבטחה: ה־token וה־Query ID נשמרים רק מוצפנים (lib/vault.js, AES-256-GCM, מפתח שחי רק ב־Vercel),
    ולעולם לא חוזרים לטלפון; גם הדוחות מוצפנים ונמחקים אחרי הייבוא. מורשים: מנהל הספרייה או IBKR_SYNC_USERS.
    מסמך ב־Firestore: ibkrVault/{uid} — c (פרטי חיבור), a (מאיפה להמשיך), s (חלקים מוכנים): מוצפנים;
@@ -130,11 +132,128 @@ async function cron(req, res, deps) {
   return res.status(200).json({ ok: true, runs: out });       // בלי נתונים — רק מצב
 }
 
+/* ---------- התראות מחיר ברקע (27/10/2026, lib/pxalert.js) ---------- */
+const PXA = require('../lib/pxalert');
+const W = require('../lib/webpush');
+const DOCS = () => 'https://firestore.googleapis.com/v1/projects/' + PROJECT() + '/databases/(default)/documents/';
+const PX_COL = () => DOCS() + 'pxAlerts';
+const PX_LIST_MS = 10 * 60e3;       // מכסת Firestore: הרשימה כולה נקראת לכל היותר פעם ב־10 דק׳; שינוי מהטלפון מעדכן את הזיכרון מיד
+const PX = { at: 0, users: new Map(), last: new Map(), busy: false, vapid: null, hits: new Map() };
+const jp = (t, d) => { try { const v = JSON.parse(t || ''); return v == null ? d : v; } catch (e) { return d; } };
+function pxUser(uid, f) {
+  const a = PXA.norm(jp(sv(f, 'a'), []));
+  return { uid, a, f: PXA.pruneFired(jp(sv(f, 'f'), {}), a), w: W.normSubs(jp(sv(f, 'w'), [])), l: sv(f, 'l') === 'en' ? 'en' : 'he' };
+}
+async function pxSave(deps, u) {
+  const r = await fs(deps, 'PATCH', PX_COL() + '/' + u.uid + '?updateMask.fieldPaths=a&updateMask.fieldPaths=f&updateMask.fieldPaths=w&updateMask.fieldPaths=l&updateMask.fieldPaths=up',
+    { fields: fields({ a: JSON.stringify(u.a), f: JSON.stringify(u.f), w: JSON.stringify(u.w), l: u.l, up: Date.now() }) });
+  if (r.status !== 200) throw new Error('fs_http_' + r.status);
+}
+async function pxGet(deps, uid) {
+  if (PX.users.has(uid)) return PX.users.get(uid);
+  const r = await fs(deps, 'GET', PX_COL() + '/' + uid);
+  if (r.status !== 200 && r.status !== 404) throw new Error('fs_http_' + r.status);
+  const u = pxUser(uid, r.status === 200 && r.j ? r.j.fields : {});
+  if (PX.at) PX.users.set(uid, u);      // הרשימה בזיכרון — מעדכנים גם אותה
+  return u;
+}
+/* מפתחות ה־VAPID — אותם של הסטודיו (studioVault/_vapid, מוצפנים; studio.js — vapidKeys). אין עדיין — נוצרים, רק אם אין */
+const VAPID_AAD = 'webpush|vapid';
+async function pxVapid(deps) {
+  if (PX.vapid) return PX.vapid;
+  const url = DOCS() + 'studioVault/_vapid';
+  const r = await fs(deps, 'GET', url);
+  let v = r.status === 200 ? vault.open(sv(r.j && r.j.fields, 'vk'), VAPID_AAD) : null;
+  if (!(v && v.pub && v.d)) {
+    const g = W.genVapid();
+    const w = await fs(deps, 'PATCH', url + '?updateMask.fieldPaths=vk&updateMask.fieldPaths=pub&currentDocument.exists=false', { fields: fields({ vk: vault.seal(g, VAPID_AAD), pub: g.pub }) });
+    if (w.status === 200) v = g;
+    else { const r2 = await fs(deps, 'GET', url); v = r2.status === 200 ? vault.open(sv(r2.j && r2.j.fields, 'vk'), VAPID_AAD) : null; }
+  }
+  if (!(v && v.pub && v.d)) throw new Error('vapid');
+  PX.vapid = v;
+  return v;
+}
+function pxLimited(uid) {
+  const now = Date.now(), arr = (PX.hits.get(uid) || []).filter((t) => now - t < 60e3);
+  arr.push(now); PX.hits.set(uid, arr);
+  if (PX.hits.size > 2000) PX.hits.clear();
+  return arr.length > 30;
+}
+/* מהטלפון: { op:'pxa', act:'key' } → המפתח הציבורי · { act:'sync', alerts, sub?, lang } → נשמר; מחזיר מה כבר נשלח (fired)
+   · { act:'off', e } → המכשיר הפסיק לקבל. לכל משתמש מחובר (לא רק למורשי הסנכרון של IBKR) */
+async function pxApi(body, uid, res, deps) {
+  const act = String(body.act || '');
+  if (pxLimited(uid)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+  if (act === 'key') return res.status(200).json({ ok: true, key: (await pxVapid(deps)).pub });
+  if (act !== 'sync' && act !== 'off') return res.status(400).json({ ok: false, error: 'bad_params' });
+  const u = await pxGet(deps, uid), fired = u.f;
+  if (act === 'off') u.w = W.dropSub(u.w, body.e);
+  else {
+    if (Array.isArray(body.alerts)) u.a = PXA.norm(body.alerts);
+    u.f = PXA.pruneFired(fired, u.a);
+    if (body.sub) { const sub = W.normSub(Object.assign({}, body.sub, { l: body.lang })); if (sub) u.w = W.addSub(u.w, sub, Date.now()); }
+    if (body.lang === 'en' || body.lang === 'he') u.l = body.lang;
+    for (const k of PX.last.keys()) if (k.startsWith(uid + '|') && !u.a.some((a) => k === uid + '|' + a.i)) PX.last.delete(k);
+  }
+  await pxSave(deps, u);
+  return res.status(200).json(act === 'sync' ? { ok: true, n: u.w.length, fired } : { ok: true, n: u.w.length });
+}
+/* הבודק: כל 30 שנ׳ מהשרת שלנו (server.js — startPx). מחיר אחד לכל הסימבולים, Push לכל חצייה, ומסמן שנשלח */
+async function pxCron(deps) {
+  if (PX.busy) return { busy: true };
+  PX.busy = true;
+  try {
+    const now = deps.now || Date.now();
+    if (!PX.at || now - PX.at > PX_LIST_MS) {
+      const r = await fs(deps, 'GET', PX_COL() + '?pageSize=300');
+      if (r.status !== 200) return { err: 'fs_http_' + r.status };
+      const m = new Map();
+      for (const d of (r.j && r.j.documents) || []) {
+        const uid = String(d.name || '').split('/').pop();
+        if (UID_RE.test(uid)) m.set(uid, pxUser(uid, d.fields || {}));
+      }
+      PX.users = m; PX.at = now;
+    }
+    const users = [...PX.users.values()].filter((u) => u.w.length && u.a.some((a) => !u.f[a.i]));
+    const syms = [...new Set(users.flatMap((u) => u.a.filter((a) => !u.f[a.i]).map((a) => a.s)))];
+    if (!syms.length) return { users: PX.users.size, syms: 0 };
+    const Q = deps.quotes || require('./quotes');
+    const px = {}, deadline = Date.now() + 12000;
+    for (let i = 0; i < syms.length; i += 40) {
+      const ext = await Q._fetchExt(syms.slice(i, i + 40), deadline);
+      for (const [s, x] of Object.entries(ext || {})) { const p = PXA.priceOf(x); if (p > 0) px[s] = p; }
+    }
+    const fires = PXA.check(users, px, PX.last);
+    let sent = 0;
+    if (fires.length) {
+      const v = await pxVapid(deps);
+      for (const { uid, hits } of fires) {
+        const u = PX.users.get(uid);
+        for (const h of hits.slice(0, 5)) {   // לכל היותר 5 התראות למשתמש בבדיקה (קפיצה חדה מעל כמה רמות)
+          const r = await W.sendAll(deps, v, u.w, 'px', '', now, h);
+          u.w = r.subs; sent += r.sent;
+          u.f[h.a.i] = now;
+        }
+        for (const h of hits.slice(5)) u.f[h.a.i] = now;
+        await pxSave(deps, u).catch(() => {});
+      }
+    }
+    return { users: PX.users.size, syms: syms.length, fired: fires.reduce((n, x) => n + x.hits.length, 0), sent };
+  } finally { PX.busy = false; }
+}
+
 function allowed(user) {
   return !!(user && (isAdmin(user) || hasEmail(user, emails(process.env.IBKR_SYNC_USERS))));
 }
 
 async function handler(req, res, deps = {}) {
+  if (req.method === 'GET' && String((req.query && req.query.job) || '') === 'px') {
+    const secret = process.env.CRON_SECRET;
+    if (secret && String(req.headers.authorization || '') !== 'Bearer ' + secret) return res.status(401).json({ ok: false });
+    try { return res.status(200).json(Object.assign({ ok: true }, await pxCron(deps))); }
+    catch (e) { return res.status(502).json({ ok: false, error: String(e && e.message || 'failed').slice(0, 30) }); }
+  }
   if (req.method === 'GET') return cron(req, res, deps);
   if (guard(req, res)) return;
   let body = req.body;
@@ -147,6 +266,7 @@ async function handler(req, res, deps = {}) {
   const ok = allowed(user);
   const uid = user.uid;
   try {
+    if (body.op === 'pxa') return await pxApi(body, uid, res, deps);
     if (body.op === 'status') {
       const doc = ok ? await readDoc(deps, uid) : null;
       return res.status(200).json({ ok: true, allowed: ok, enabled: !!doc, run: doc ? iv(doc.f, 'run') : 0, okAt: doc ? iv(doc.f, 'ok') : 0, err: doc ? sv(doc.f, 'err') : '' });
@@ -188,3 +308,4 @@ async function handler(req, res, deps = {}) {
 module.exports = (req, res) => handler(req, res);
 module.exports._handler = handler;
 module.exports._flexChunk = flexChunk;
+module.exports._px = PX;

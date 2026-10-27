@@ -209,7 +209,24 @@ function startCron(server, cfg, opts = {}) {
   return { jobs, tick, stop: () => clearInterval(iv) };
 }
 
-module.exports = { createServer, startCron, SERVER_ONLY, parseBody, parseCron, cronDue, maxDuration, decorate, unpackEnv };
+/* 27/10/2026: הבודק של התראות המחיר ברקע (GET /api/ibkr-sync?job=px) — כל 30 שנ׳, רק כאן (ב־Vercel אין קרון לדקות).
+   לא תלוי ב־SNB_CRON: אין לו כפיל ב־Vercel, ולכן גם בחדר הייצור (SNB_CRON=off) הוא רץ. SNB_PXA=off — כבוי */
+function startPx(server, opts = {}) {
+  if (!server.names.has('ibkr-sync')) return null;
+  const tick = () => {
+    const headers = { 'user-agent': 'snb-px/1.0' };
+    if (process.env.CRON_SECRET) headers.authorization = 'Bearer ' + process.env.CRON_SECRET;
+    const req = { method: 'GET', url: '/api/ibkr-sync?job=px', headers, query: { job: 'px' }, body: undefined, socket: { remoteAddress: '127.0.0.1' } };
+    const res = decorate(new http.ServerResponse(req));
+    res.assignSocket(new (require('stream').PassThrough)());
+    return server.invoke('ibkr-sync', req, res).catch((e) => console.error('[px]', e && e.message));
+  };
+  const iv = setInterval(tick, opts.every || 30e3);
+  iv.unref();
+  return { tick, stop: () => clearInterval(iv) };
+}
+
+module.exports = { createServer, startCron, startPx, SERVER_ONLY, parseBody, parseCron, cronDue, maxDuration, decorate, unpackEnv };
 
 if (require.main === module) {
   const unpacked = unpackEnv(process.env);
@@ -220,6 +237,7 @@ if (require.main === module) {
   const port = +process.env.PORT || 3000;
   server.listen(port, '0.0.0.0', () => console.log('[snb-app] מאזין על', port, '·', server.names.size, 'פונקציות'));
   if (process.env.SNB_CRON === 'on') startCron(server, loadConfig(__dirname));
+  if (process.env.SNB_PXA !== 'off') startPx(server);
   const stop = () => server.close(() => process.exit(0));
   process.on('SIGTERM', stop);
   process.on('SIGINT', stop);

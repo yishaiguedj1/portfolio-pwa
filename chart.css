@@ -156,6 +156,12 @@ html.kc-open { overflow: hidden; }
 .kc-sh-body { overflow-y: auto; padding: 4px 16px 16px; display: flex; flex-direction: column; gap: 10px; -webkit-overflow-scrolling: touch; user-select: text; -webkit-user-select: text; }
 .kc-gt { font-size: 12.5px; font-weight: 600; color: var(--kc-ink2); margin-top: 6px; }
 .kc-note { font-size: 12.5px; color: var(--kc-ink2); line-height: 1.5; }
+/* התראות ברקע — שורת מצב אחת בחלון ההתראות (27/10/2026) */
+.kc-bg { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius-xs, 12px); background: var(--kc-fill); font-size: 13px; color: var(--kc-ink2); line-height: 1.45; }
+.kc-bg.on { color: var(--kc-ink); }
+.kc-bg.on::before { content: ''; flex: none; inline-size: 8px; block-size: 8px; border-radius: var(--pill, 999px); background: var(--kc-acc); }
+.kc-bg-t { flex: 1; min-inline-size: 0; }
+.kc-bg .kc-btn { flex: none; height: 34px; padding: 0 14px !important; font-size: 13px; background: var(--kc-panel) !important; color: var(--kc-acc-ink, var(--kc-ink)); }
 .kc-in { width: 100%; box-sizing: border-box; height: 42px; padding: 0 14px; border-radius: var(--radius-xs); border: 0; background: var(--search-fill, var(--kc-fill)); color: var(--kc-ink); font: inherit; font-size: 16px; }
 .kc-in:focus { outline: 2px solid var(--kc-acc); outline-offset: -1px; }
 .kc-in.num { direction: ltr; text-align: end; font-variant-numeric: tabular-nums; }

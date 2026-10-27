@@ -137,7 +137,13 @@ he: {
   kcAlertHit: '{s} הגיעה ל־{p}',
   kcAlertMax: 'עד 20 התראות למניה',
   kcNoAlerts: 'אין התראות',
-  kcAlertNoteOpen: 'ההתראות נבדקות כל שנייה כל עוד מסך הגרף פתוח. אפשר לגרור את קו ההתראה בגרף.',
+  kcAlertNoteOpen: 'אפשר לגרור את קו ההתראה בגרף.',
+  kcBgOn: 'ההתראות נשלחות לטלפון גם כשהאפליקציה סגורה',
+  kcBgOff: 'כרגע ההתראות פועלות רק כשמסך הגרף פתוח',
+  kcBgEnable: 'גם כשסגור',
+  kcBgAuth: 'כדי לקבל התראות כשהאפליקציה סגורה — התחברו לחשבון',
+  kcBgDeny: 'ההתראות חסומות בהגדרות הדפדפן — הן פועלות רק כשמסך הגרף פתוח',
+  kcBgNo: 'הדפדפן הזה לא תומך בהתראות כשהאפליקציה סגורה',
   kcSeason: 'עונתיות',
   kcSeasonNone: 'אין מספיק היסטוריה חודשית',
   kcSeasonNote: 'תשואה חודשית באחוזים. השורה העליונה — ממוצע כל השנים; "מנצח" — כמה מהשנים החודש עלה.',
@@ -1643,7 +1649,13 @@ en: {
   kcAlertHit: '{s} reached {p}',
   kcAlertMax: 'Up to 20 alerts per symbol',
   kcNoAlerts: 'No alerts',
-  kcAlertNoteOpen: 'Alerts are checked every second while the chart screen is open. You can drag the alert line on the chart.',
+  kcAlertNoteOpen: 'You can drag the alert line on the chart.',
+  kcBgOn: 'Alerts reach your phone even when the app is closed',
+  kcBgOff: 'For now, alerts only work while the chart screen is open',
+  kcBgEnable: 'Also when closed',
+  kcBgAuth: 'Sign in to get alerts when the app is closed',
+  kcBgDeny: 'Notifications are blocked in browser settings — alerts only work while the chart is open',
+  kcBgNo: 'This browser can’t show alerts when the app is closed',
   kcSeason: 'Seasonals',
   kcSeasonNone: 'Not enough monthly history',
   kcSeasonNote: 'Monthly return in %. Top row — average of all years; "Up" — share of years the month was positive.',
@@ -14962,6 +14974,7 @@ function chartEnv() {
   return {
     t, api: env.api, modalPush, modalDone, back: env.back, name: env.name, logoHTML: env.logoHTML, flash, askConfirm: (m) => askConfirmP(m),
     lang: state.lang || getLang(),
+    sync: (b) => ibkrBgApi(b),   // 27/10/2026: התראות מחיר ברקע (op:'pxa' ב־/api/ibkr-sync)
     quotes: async (syms) => {
       const r = await fetch(ibkrProxyBase() + '/api/quotes', { method: 'POST', headers: ibkrProxyHeaders(), body: JSON.stringify({ syms: syms.slice(0, 40) }) });
       return r.json();
@@ -16307,6 +16320,13 @@ function openStockFromHash() {
   const h = String(location.hash || '');
   const get = (k) => { const m = new RegExp('(?:^#|&)' + k + '=([^&#]+)').exec(h); return m ? decodeURIComponent(m[1]) : ''; };
   // שלב 4 בסטודיו: נגיעה בהתראה (‎#studio=<עבודה>) → הסטודיו נפתח על העבודה
+  // 27/10/2026: נגיעה בהתראת מחיר (‎#chart=SYM, sw.js) → גרף הנרות של המניה
+  const ch = normalizeSym(get('chart'));
+  if (/^\^?[A-Z0-9][A-Z0-9.\-=^]{0,15}$/.test(ch)) {
+    try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
+    openChartFor(ch);
+    return true;
+  }
   const sj = get('studio');
   if (/^j[A-Za-z0-9_-]{20}$/.test(sj)) {
     try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
@@ -16625,7 +16645,7 @@ function init() {
     });
     setTimeout(() => { try { openStockFromHash(); } catch (e) {} }, 0);
     // v353: רשת ביטחון — קישור שהגיע כשהדף היה מוקפא ברקע (ה־hashchange לא תמיד מגיע) מטופל כשהדף חוזר למסך
-    const linkPending = () => /(?:^#|&)(?:tab|stock|studio)=/.test(location.hash || '');
+    const linkPending = () => /(?:^#|&)(?:tab|stock|studio|chart)=/.test(location.hash || '');
     const onShow = () => { if (!document.hidden && linkPending()) { try { openStockFromHash(); } catch (e) {} } };
     document.addEventListener('visibilitychange', onShow);
     window.addEventListener('pageshow', onShow);
