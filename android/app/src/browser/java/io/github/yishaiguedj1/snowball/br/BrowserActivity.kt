@@ -174,7 +174,8 @@ class BrowserActivity : ComponentActivity() {
         prefs = BrPrefs(this)
         // 26/10/2026: מנוע ההורדות (פייתון + yt-dlp, והעדכון היומי שלו) מתחמם ברקע מההתחלה — הבדיקה הראשונה של סרטון לא
         // מחכה לו (עד עכשיו: חלק מה"חצי דקה, דקה" ביוטיוב)
-        Thread { runCatching { DlEngine.prepare(applicationContext) } }.apply { isDaemon = true; name = "dm-warm" }.start()
+        // 27/10/2026: אחרי שהמסך והדף הראשון עלו — לא מתחרה בהם על מעבד, דיסק ורשת (בדיקה ראשונה של סרטון עדיין מוכנה)
+        ui.postDelayed({ Thread { runCatching { DlEngine.prepare(applicationContext) } }.apply { isDaemon = true; name = "dm-warm"; priority = Thread.MIN_PRIORITY }.start() }, 8000)
         barBottom = prefs.barBottom; homeBtn = prefs.homeBtn; engine = prefs.engine; bubble = prefs.bubble
         suggestOn = prefs.suggest; zoom = prefs.zoom; lastImport = prefs.lastImport
         shield = prefs.shield; cookies = prefs.cookies; lockPriv = prefs.lockPriv; bgPlay = prefs.bgPlay; pip = prefs.pip
@@ -191,7 +192,9 @@ class BrowserActivity : ComponentActivity() {
         // טאבים פרטיים לא שורדים סגירה של האפליקציה — מה שנשאר מהפעם הקודמת נמחק
         if (privOk) runCatching { ProfileStore.getInstance().deleteProfile(PRIV) }
         val (saved, at) = BrStore.loadTabs()
-        saved.forEach { tabs.add(BrTab(nextId++, it.url, it.title, false).apply { thumb = BrPics.thumb(it.url) }) }
+        saved.forEach { tabs.add(BrTab(nextId++, it.url, it.title, false)) }
+        // התמונות של הטאבים — ברקע, לא לפני המסך הראשון (50 טאבים = עשרות MB ופענוח בתהליכון הראשי)
+        Thread { tabs.toList().forEach { t -> val b = BrPics.thumb(t.url); if (b != null) ui.post { if (t.thumb == null) t.thumb = b } } }.apply { isDaemon = true; priority = Thread.MIN_PRIORITY }.start()
         if (!handle(intent)) {
             if (tabs.isEmpty()) newTab("") else select(tabs[at.coerceIn(0, tabs.size - 1)])
         }
@@ -233,8 +236,11 @@ class BrowserActivity : ComponentActivity() {
         super.onPause()
     }
 
+    override fun onStart() { super.onStart(); cur?.web?.resumeTimers() ?: tabs.firstNotNullOfOrNull { it.web }?.resumeTimers() }
     override fun onStop() {
         super.onStop()
+        // JavaScript של כל הטאבים נעצר ברקע (onPause לבדו לא עוצר אותו) — חוץ מניגון ברקע / חלון קטן
+        if (!bgOn && !isInPictureInPictureMode) tabs.firstNotNullOfOrNull { it.web }?.pauseTimers()
         if (lockPriv && tabs.any { it.private } && canLock()) privLocked = true
     }
 
@@ -304,7 +310,7 @@ class BrowserActivity : ComponentActivity() {
         BrCloud.onChange = null; BrCloud.onApplied = null; BrCloud.onIncoming = null; BrCloud.tabsProvider = null
         BrMedia.onCmd = null
         if (isFinishing) BrMedia.stop(this)
-        tabs.forEach { t -> runCatching { t.web?.destroy() } }
+        tabs.forEach { t -> kill(t.web) }
         if (privOk) runCatching { ProfileStore.getInstance().deleteProfile(PRIV) }
         super.onDestroy()
     }
@@ -441,7 +447,7 @@ class BrowserActivity : ComponentActivity() {
     fun close(t: BrTab) {
         val i = tabs.indexOf(t)
         if (i < 0) return
-        runCatching { t.web?.destroy() }
+        kill(t.web)
         t.web = null
         tabs.removeAt(i)
         if (t.private && tabs.none { it.private } && privOk) ui.postDelayed({ runCatching { ProfileStore.getInstance().deleteProfile(PRIV) } }, 300)
@@ -456,26 +462,78 @@ class BrowserActivity : ComponentActivity() {
     }
 
     fun closeAll(private: Boolean) {
-        tabs.filter { it.private == private }.forEach { runCatching { it.web?.destroy() }; it.web = null }
+        tabs.filter { it.private == private }.forEach { kill(it.web); it.web = null }
         tabs.removeAll { it.private == private }
         if (private && privOk) ui.postDelayed({ runCatching { ProfileStore.getInstance().deleteProfile(PRIV) } }, 300)
         if (tabs.isEmpty()) { newTab(""); return }
         if (cur?.let { it in tabs } != true) select(tabs.last())
     }
 
-    /** טאבים חיים מעבר ל־LIVE_MAX — שומרים את המצב ומשחררים את ה־WebView (כמו Chrome בטלפון) */
-    private fun trim() {
+    /** טאבים חיים מעבר ל־liveMax — שומרים את המצב ומשחררים את ה־WebView (כמו Chrome בטלפון). `keep` = כמה חיים מלבד הנוכחי */
+    private fun trim(keep: Int = liveMax - 1) {
         val live = tabs.filter { it.web != null && it !== cur }.sortedByDescending { it.used }
-        for (t in live.drop(LIVE_MAX - 1)) {
+        for (t in live.drop(keep)) {
             val b = Bundle(); runCatching { t.web?.saveState(b) }; t.state = b
-            runCatching { t.web?.destroy() }; t.web = null
+            kill(t.web); t.web = null
         }
+    }
+
+    /**
+     * יעילות (27/10/2026, מחקר "דפדפן מהיר וחסכוני"): כל ה־WebView של האפליקציה חולקים renderer אחד — כל טאב חי מוסיף לו
+     * את הזיכרון של הדף. Chrome בטלפון משאיר רק מה שהזיכרון מרשה; כאן — לפי הזיכרון של המכשיר: עד 4GB (או "זיכרון נמוך") 2,
+     * עד 8GB — 3, מעל — 5.
+     */
+    private val liveMax: Int by lazy {
+        val am = getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager
+        val mi = android.app.ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
+        val gb = mi.totalMem / (1L shl 30).toDouble()
+        when { am.isLowRamDevice || gb <= 4.5 -> 2; gb <= 8.5 -> 3; else -> 5 }
+    }
+
+    /** הסדר של התיעוד: מהעץ, עצירה, ורק אז destroy (אחרת דליפה) */
+    private fun kill(w: WebView?) {
+        w ?: return
+        runCatching { (w.parent as? android.view.ViewGroup)?.removeView(w); w.stopLoading(); w.destroy() }
+    }
+
+    /** המערכת מבקשת זיכרון כשהדפדפן ברקע — משחררים את כל הטאבים החיים חוץ מזה שעל המסך (המצב נשמר, חוזרים לאותו מקום) */
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        @Suppress("DEPRECATION")
+        if (level >= TRIM_MEMORY_BACKGROUND || level == TRIM_MEMORY_RUNNING_CRITICAL) trim(0)
+    }
+
+    /**
+     * ה־renderer מת (קריסה, או המערכת הרגה אותו בגלל זיכרון) — כל ה־WebView שלנו מתו איתו. בלי הטיפול הזה WebView מפיל את
+     * כל האפליקציה. כאן: משחררים את כולם, כל טאב חוזר מהמצב האחרון שנשמר (או מהכתובת), והטאב שעל המסך נטען מחדש
+     */
+    private fun renderGone() {
+        for (t in tabs) {
+            if (t.web == null) continue
+            t.state = t.lastState; kill(t.web); t.web = null
+        }
+        cur?.let { ui.post { select(it) } }
     }
 
     /** תמונה קטנה של הדף למסך הטאבים */
     fun snap(t: BrTab) {
         val w = t.web ?: return
         if (w.width <= 0 || w.height <= 0) return
+        val now = SystemClock.uptimeMillis()
+        if (now - t.snapAt < 2500) return
+        t.snapAt = now
+        // כמו Chrome: העתקה אסינכרונית מהמסך (GPU), בלי לצייר את הדף מחדש בתוכנה בתהליכון הראשי — רק לטאב שעל המסך
+        if (Build.VERSION.SDK_INT >= 26 && w.isAttachedToWindow && w === cur?.web) {
+            val loc = IntArray(2); w.getLocationInWindow(loc)
+            val s = 0.35f
+            val b = Bitmap.createBitmap((w.width * s).toInt().coerceAtLeast(1), (w.height * s).toInt().coerceAtLeast(1), Bitmap.Config.ARGB_8888)
+            val ok = runCatching {
+                android.view.PixelCopy.request(window, android.graphics.Rect(loc[0], loc[1], loc[0] + w.width, loc[1] + w.height), b, { r ->
+                    if (r == android.view.PixelCopy.SUCCESS) { t.thumb = b; if (!t.private) BrPics.saveThumb(t.url, b) }
+                }, ui)
+            }.isSuccess
+            if (ok) return
+        }
         runCatching {
             val s = 0.35f
             val b = Bitmap.createBitmap((w.width * s).toInt().coerceAtLeast(1), (w.height * s).toInt().coerceAtLeast(1), Bitmap.Config.RGB_565)
@@ -512,7 +570,7 @@ class BrowserActivity : ComponentActivity() {
         w.loadUrl(url)
     }
 
-    fun goHome() { cur?.let { t -> runCatching { t.web?.destroy() }; t.web = null; t.state = null; t.url = ""; t.title = ""; t.foundN = 0; t.found.clear() } ; editing = false }
+    fun goHome() { cur?.let { t -> kill(t.web); t.web = null; t.state = null; t.url = ""; t.title = ""; t.foundN = 0; t.found.clear() } ; editing = false }
 
     private fun back() {
         val t = cur
@@ -573,7 +631,8 @@ class BrowserActivity : ComponentActivity() {
         val w = WebView(this)
         // מנהל הסיסמאות של Google (וכל שירות מילוי אחר) ממלא בדפים דרך המילוי האוטומטי של אנדרואיד — WebView תומך בו;
         // כאן רק מוודאים שהוא לא כבוי בטעות לאזור הדף
-        if (Build.VERSION.SDK_INT >= 26) w.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_YES
+        // בטאב פרטי — בלי מילוי/שמירה של טפסים (כמו בגלישה בסתר של Chrome)
+        if (Build.VERSION.SDK_INT >= 26) w.importantForAutofill = if (t.private) View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS else View.IMPORTANT_FOR_AUTOFILL_YES
         if (t.private && privOk) runCatching {
             ProfileStore.getInstance().getOrCreateProfile(PRIV)
             WebViewCompat.setProfile(w, PRIV)
@@ -593,9 +652,12 @@ class BrowserActivity : ComponentActivity() {
         s.setGeolocationEnabled(true)
         s.textZoom = zoom
         if (t.desktop) s.userAgentString = desktopUa(s.userAgentString)
-        runCatching { (if (t.private && privOk) ProfileStore.getInstance().getProfile(PRIV)?.cookieManager else CookieManager.getInstance())?.setAcceptThirdPartyCookies(w, true) }
+        runCatching { (if (t.private && privOk) ProfileStore.getInstance().getProfile(PRIV)?.cookieManager else CookieManager.getInstance())?.setAcceptThirdPartyCookies(w, !t.private) }   // טאב פרטי: בלי עוגיות של צד שלישי (כמו Chrome)
 
+        // המערכת יכולה להוריד את ה־renderer לעדיפות נמוכה כשהדפדפן לא מוצג (במקום להרוג את כל האפליקציה) — רק יחד עם onRenderProcessGone
+        if (Build.VERSION.SDK_INT >= 26) runCatching { w.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_BOUND, true) }
         w.webViewClient = object : WebViewClient() {
+            override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean { renderGone(); return true }
             override fun shouldOverrideUrlLoading(view: WebView, req: WebResourceRequest): Boolean {
                 val u = req.url.toString()
                 val sc = req.url.scheme?.lowercase()
@@ -634,6 +696,8 @@ class BrowserActivity : ComponentActivity() {
                 t.recount(); navState(t, view)
                 markRev++
                 pageScripts(t, view, url)
+                // המצב האחרון (מחסנית "חזור") — אם ה־renderer ימות, הטאב חוזר ממנו ולא רק מהכתובת
+                if (!t.private) runCatching { val b = Bundle(); view.saveState(b); t.lastState = b }
             }
         }
         w.webChromeClient = object : WebChromeClient() {
@@ -719,7 +783,8 @@ class BrowserActivity : ComponentActivity() {
     private fun blockReq(t: BrTab, reqHost: String?): Boolean {
         val pageHost = BrStore.hostOf(t.page)
         if (reqHost == null || !shieldOn(pageHost) || !BrShield.blocks(reqHost, pageHost)) return false
-        ui.post { t.blocked++; blkNew++ }
+        // מונה בלי ציור על כל בקשה שנחסמה: מצטבר, ומתעדכן במסך פעם בחצי שנייה
+        if (t.blkQ.getAndIncrement() == 0) ui.postDelayed({ val n = t.blkQ.getAndSet(0); t.blocked += n; blkNew += n }, 500)
         return true
     }
 
@@ -782,6 +847,13 @@ class BrowserActivity : ComponentActivity() {
             if (u.startsWith("intent:")) Intent.parseUri(u, Intent.URI_INTENT_SCHEME).apply { component = null; selector = null }
             else Intent(Intent.ACTION_VIEW, Uri.parse(u))
         } catch (e: Exception) { return }
+        // אבטחה (27/10/2026): קישור מדף לא בוחר דגלים (הרשאות לקבצים, משימה חדשה…), לא מכוון לאפליקציה שלנו, ולא פותח
+        // קבצים מקומיים / content: — כמו ש־Chrome מנקה intent: מהרשת
+        i.flags = 0
+        i.clipData = null
+        if (i.`package` == packageName) return
+        val sch = i.data?.scheme?.lowercase()
+        if (sch == "file" || sch == "content" || sch == "javascript" || sch == "android-app" || sch == "data") return
         i.addCategory(Intent.CATEGORY_BROWSABLE)
         try { startActivity(i) } catch (e: ActivityNotFoundException) {
             val fb = i.getStringExtra("browser_fallback_url")
@@ -798,7 +870,8 @@ class BrowserActivity : ComponentActivity() {
         synchronized(t.headSeen) { if (!t.headSeen.add(h.url) || t.headSeen.size > 60) return }
         val ref = t.page
         val ua = runCatching { t.web?.settings?.userAgentString }.getOrNull() ?: ""
-        Thread { if (DmBrowser.headProbe(h, ref, ua)) ui.post { if (t.found.add(h, now)) { t.recount(); autoPick(t) } } }.start()
+        val priv = t.private
+        Thread { if (DmBrowser.headProbe(h, ref, ua, priv)) ui.post { if (t.found.add(h, now)) { t.recount(); autoPick(t) } } }.start()
     }
 
     /* נפתח מהבועה ב־Chrome: הממצא הראשון → הרשימה נפתחת אחרי רגע (שיספיקו להגיע עוד איכויות). דף שהוא עצמו סרטון
@@ -1234,9 +1307,25 @@ class BrowserActivity : ComponentActivity() {
 
     fun version(): String = runCatching { packageManager.getPackageInfo(packageName, 0).versionName ?: "" }.getOrDefault("")
 
+    /** מנוע הדפדפן (Android System WebView — מתעדכן מ־Google Play עם עדכוני האבטחה של Chromium): הגרסה הראשית שלו */
+    fun engineMajor(): Int = runCatching { WebViewCompat.getCurrentWebViewPackage(this)?.versionName?.substringBefore('.')?.toInt() }.getOrNull() ?: 0
+    fun engineVersion(): String = runCatching { WebViewCompat.getCurrentWebViewPackage(this)?.versionName }.getOrNull() ?: ""
+    /** הגרסה הצפויה היום: Chromium 159 ב־27/10/2026 ואחת חדשה כל 4 שבועות. מאחר ב־3 ומעלה (כשלושה חודשי עדכוני אבטחה) — מתריעים */
+    fun engineOld(): Boolean {
+        val m = engineMajor(); if (m == 0) return false
+        val exp = 159 + ((System.currentTimeMillis() - 1793059200000L) / (28L * 86_400_000)).toInt().coerceAtLeast(0)
+        return m <= exp - 3
+    }
+    fun updateEngine() {
+        val pkg = runCatching { WebViewCompat.getCurrentWebViewPackage(this)?.packageName }.getOrNull() ?: "com.google.android.webview"
+        runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg"))) }.onFailure {
+            runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$pkg"))) }
+        }
+    }
+
     companion object {
         const val PRIV = "private"
-        const val LIVE_MAX = 6
+        const val LIVE_MAX = 6   // (עד 27/10/2026 קבוע; היום liveMax לפי הזיכרון — נשאר לבדיקות ישנות)
         /** מהבועה ב־Chrome: כמה זמן מחכים לממצא הראשון כדי לפתוח את הרשימה לבד */
         const val HUNT_MS = 45_000L
         const val CHROME_EVERY = 5 * 60_000L

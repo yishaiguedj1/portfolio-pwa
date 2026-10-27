@@ -43,6 +43,11 @@ class BrTab(val id: Long, url: String, title: String, val private: Boolean, var 
     var mt = 0f
     var restore: BrCloudCore.STab? = null
 
+    /** יעילות (27/10): המצב האחרון אחרי טעינה — אם ה־renderer מת; מונה חסימות שמצטבר בין ציורים; מתי צולמה התמונה */
+    var lastState: Bundle? = null
+    val blkQ = java.util.concurrent.atomic.AtomicInteger()
+    var snapAt = 0L
+
     var web: WebView? = null
     var state: Bundle? = null
     var used = 0L

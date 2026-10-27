@@ -611,6 +611,15 @@ private fun Ntp(a: BrowserActivity) {
             NtpSearch(a)
             return@Column
         }
+        if (a.engineOld()) {
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth().glass(c, RoundedCornerShape(20.dp)).clickable { a.updateEngine() }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(BrIcons.Warn, null, Modifier.size(22.dp), tint = Color(0xFFFF9500))
+                Spacer(Modifier.width(10.dp))
+                Text(stringResource(R.string.brEngineOldNtp), Modifier.weight(1f), color = c.fg, fontSize = 14.sp, lineHeight = 19.sp)
+                Text(stringResource(R.string.brEngineUpdate), color = c.tint, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
         Spacer(Modifier.height(16.dp))
         if (a.engine == "google") Image(BrIcons.GoogleLogo, "Google", Modifier.height(48.dp).width(158.dp))
         else Spacer(Modifier.height(24.dp))
@@ -1337,7 +1346,7 @@ private fun SettingsScreen(a: BrowserActivity) {
     val defV = if (a.isDefault) stringResource(R.string.brYes) else stringResource(R.string.brSetDefaultAsk)
     val pwV = pwValue(a)
     val t1 = stringResource(R.string.brSetHome); val t2 = stringResource(R.string.brSetBubble); val t3 = stringResource(R.string.brVideoTitle)
-    val t4 = stringResource(R.string.brSites); val t5 = stringResource(R.string.brDownloads); val t6 = stringResource(R.string.brAboutApp)
+    val t4 = stringResource(R.string.brSites); val t5 = stringResource(R.string.brDownloads); val t6 = stringResource(R.string.brAboutApp); val t7 = stringResource(R.string.brEngine)
     val bgV = if (a.bgPlay) stringResource(R.string.brBgShort) else null
     SubPage(stringResource(R.string.brSettings), done = true, onDone = { a.screen = BrowserActivity.Screen.PAGE }) {
         item { SearchField(stringResource(R.string.brSearchSettings), q) { q = it } }
@@ -1382,6 +1391,9 @@ private fun SettingsScreen(a: BrowserActivity) {
             t4 to { IRow(t4) { a.screen = BrowserActivity.Screen.SITES } },
             t5 to { IRow(t5, value = "Studio DM") { a.dlSettings() } },
             t6 to { IRow(t6, value = a.version(), chevron = false) },
+            // מנוע הדפדפן ועדכוני האבטחה של Chromium (מ־Google Play): הגרסה, וכשהוא מאחר — עדכון בנגיעה
+            t7 to { IRow(t7, if (a.engineOld()) stringResource(R.string.brEngineOld) else null, value = a.engineVersion().substringBefore(' '),
+                color = if (a.engineOld()) Color(0xFFFF3B30) else null, chevron = a.engineOld()) { if (a.engineOld()) a.updateEngine() } },
         ).filter { show(it.first) }
         if (adv.isNotEmpty()) item { Group(stringResource(R.string.brAdvanced)) { adv.forEachIndexed { i, (_, row) -> if (i > 0) Sep(); row() } } }
     }

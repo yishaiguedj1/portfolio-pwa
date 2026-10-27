@@ -306,4 +306,8 @@
     <string name="brOpenTab">פתיחה</string>
     <string name="brCloudEnc">מוצפן — רק החשבון שלך ב־THE SNOWBALL יכול לקרוא</string>
     <string name="brCloudReauth">להתחבר שוב</string>
+    <string name="brEngine">מנוע הדפדפן (Chromium)</string>
+    <string name="brEngineOld">לא מעודכן — חסרים עדכוני אבטחה</string>
+    <string name="brEngineOldNtp">מנוע הדפדפן לא מעודכן וחסרים בו עדכוני אבטחה של Chromium.</string>
+    <string name="brEngineUpdate">לעדכן</string>
 </resources>

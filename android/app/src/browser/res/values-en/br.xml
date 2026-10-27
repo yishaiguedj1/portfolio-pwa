@@ -305,4 +305,8 @@
     <string name="brOpenTab">Open</string>
     <string name="brCloudEnc">Encrypted — only your THE SNOWBALL account can read it</string>
     <string name="brCloudReauth">Sign in again</string>
+    <string name="brEngine">Browser engine (Chromium)</string>
+    <string name="brEngineOld">Out of date — missing security updates</string>
+    <string name="brEngineOldNtp">The browser engine is out of date and missing Chromium security updates.</string>
+    <string name="brEngineUpdate">Update</string>
 </resources>

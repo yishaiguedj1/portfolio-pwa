@@ -240,16 +240,17 @@ object BrCloud {
             .put("postBody", "id_token=" + URLEncoder.encode(googleIdToken, "UTF-8") + "&providerId=google.com")
             .put("requestUri", "http://localhost").put("returnSecureToken", true).toString(), "application/json")
         if (st != 200 || !j.has("refreshToken")) return null
-        sp.edit().putString("rt", j.getString("refreshToken")).apply()
+        sp.edit().putString("rt", wrap(j.getString("refreshToken").toByteArray())).apply()
         j.getString("idToken")
     }.getOrNull()
 
     private fun fbToken(): String? = runCatching {
-        val rt = sp.getString("rt", "").orEmpty().ifEmpty { return null }
+        // אסימון הרענון של החשבון שמור עטוף ב־Android Keystore (כמו המפתח), לא גלוי בקובץ ההגדרות
+        val rt = sp.getString("rt", "").orEmpty().ifEmpty { return null }.let { w -> unwrap(w)?.toString(Charsets.UTF_8) } ?: return null
         val (st, j) = post("https://securetoken.googleapis.com/v1/token?key=${DmSync.FB_KEY}",
             "grant_type=refresh_token&refresh_token=" + URLEncoder.encode(rt, "UTF-8"), "application/x-www-form-urlencoded")
         if (st == 400) { sp.edit().remove("rt").apply(); return null }
-        j.optString("refresh_token").takeIf { it.isNotEmpty() }?.let { sp.edit().putString("rt", it).apply() }
+        j.optString("refresh_token").takeIf { it.isNotEmpty() && it != rt }?.let { sp.edit().putString("rt", wrap(it.toByteArray())).apply() }
         j.optString("id_token").takeIf { it.isNotEmpty() }
     }.getOrNull()
 
@@ -305,10 +306,15 @@ object BrCloud {
         return BrCloudCore.seal(k, kid, name, b)
     }
 
-    private fun token(): String? = runCatching {
-        val r = Tasks.await(Identity.getAuthorizationClient(app).authorize(request()), 20, TimeUnit.SECONDS)
-        if (r.hasResolution()) null else r.accessToken
-    }.getOrNull()
+    /** הגישה ל־Drive נשמרת בזיכרון 45 דק׳ (שעה בתוקף) — לא פנייה ל־Google Play Services בכל סבב; 401 מנקה */
+    @Volatile private var tok: Pair<String, Long>? = null
+    private fun token(): String? {
+        tok?.let { (t, at) -> if (System.currentTimeMillis() - at < 45 * 60_000L) return t }
+        return runCatching {
+            val r = Tasks.await(Identity.getAuthorizationClient(app).authorize(request()), 20, TimeUnit.SECONDS)
+            if (r.hasResolution()) null else r.accessToken
+        }.getOrNull()?.also { tok = it to System.currentTimeMillis() }
+    }
 
     fun deviceName(): String = runCatching { Settings.Global.getString(app.contentResolver, "device_name") }.getOrNull()?.takeIf { it.isNotBlank() }
         ?: (Build.MODEL ?: "Android")
@@ -317,16 +323,25 @@ object BrCloud {
     /* ---------------- הקצב ---------------- */
 
     private var fg = false
-    private val loop: Runnable = object : Runnable { override fun run() { if (fg) { cycle(); ui.postDelayed(this, FG_EVERY) } } }
+    /** קצב מסתגל (27/10/2026, מחקר היעילות — 900 בקשות בשעה החזיקו את הרדיו של הסלולר דלוק): FG_EVERY (4 שנ׳) דקה וחצי
+     *  אחרי שינוי כאן / שהגיע מהענן / חזרה לאפליקציה; אחר כך 15 שנ׳, ובחבילת גלישה 30 */
+    @Volatile private var lastAct = 0L
+    private fun gap(): Long {
+        if (System.currentTimeMillis() - lastAct < 90_000) return FG_EVERY
+        val cm = app.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+        return if (cm?.isActiveNetworkMetered == true) 30_000L else 15_000L
+    }
+    private val loop: Runnable = object : Runnable { override fun run() { if (fg) { cycle(); ui.postDelayed(this, gap()) } } }
     /** הדפדפן על המסך: סבב מיד ואז כל FG_EVERY */
     fun foreground(v: Boolean) {
         if (!on) { fg = v; return }
         fg = v; ui.removeCallbacks(loop)
+        if (v) lastAct = System.currentTimeMillis()
         if (v) ui.post(loop) else cycle(flush = true)
     }
     private val soon = Runnable { cycle() }
     /** משהו השתנה כאן — סבב בעוד רגע (כמה שינויים ברצף = סבב אחד) */
-    fun nudge(delay: Long = 1500) { if (!on) return; ui.removeCallbacks(soon); ui.postDelayed(soon, delay) }
+    fun nudge(delay: Long = 1500) { if (!on) return; lastAct = System.currentTimeMillis(); ui.removeCallbacks(soon); ui.postDelayed(soon, delay) }
 
     fun schedule(ctx: Context) {
         val js = ctx.getSystemService(Context.JOB_SCHEDULER_SERVICE) as? JobScheduler ?: return
@@ -349,7 +364,7 @@ object BrCloud {
             val r = runCatching { run(flush) }
             ui.post {
                 busy = false
-                r.exceptionOrNull()?.let { sp.edit().putString("err", (it.message ?: "error").take(40)).apply() }
+                r.exceptionOrNull()?.let { if (it.message == "auth") tok = null; sp.edit().putString("err", (it.message ?: "error").take(40)).apply() }
                 onChange?.invoke()
                 done?.invoke()
                 if (again) { again = false; nudge(300) }
@@ -433,6 +448,7 @@ object BrCloud {
             }
             if (d.name.endsWith("-s")) BrCloudCore.decodeSession(d.bytes)?.let { sessions[it.dev] = it; atomic(f, d.bytes) }
             else BrCloudCore.decode(d.bytes)?.let { remote[d.name] = it.second; atomic(f, d.bytes); remoteChanged = true }
+            lastAct = now
         }
         // מה שבמכשיר עכשיו (רק הסוגים שמסונכרנים)
         val local = snapshot()

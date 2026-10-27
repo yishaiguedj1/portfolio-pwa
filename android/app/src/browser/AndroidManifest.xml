@@ -37,7 +37,7 @@
         </intent>
     </queries>
 
-    <application android:extractNativeLibs="true" tools:replace="android:theme,android:icon,android:roundIcon"
+    <application android:extractNativeLibs="true" android:dataExtractionRules="@xml/br_extract" tools:replace="android:theme,android:icon,android:roundIcon"
         android:icon="@mipmap/br_launcher"
         android:roundIcon="@mipmap/br_launcher"
         android:theme="@style/DmTheme">
@@ -78,6 +78,9 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+
+        <!-- Safe Browsing של Google — במפורש (ברירת המחדל דולקת, כך שגרסה עתידית לא תכבה בשקט) -->
+        <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="true" />
 
         <!-- ניגון ברקע: סרטון/שיר שמתנגנים ממשיכים כשיוצאים מהדפדפן, עם שליטה מההתראה, ממסך הנעילה ומהאוזניות -->
         <service

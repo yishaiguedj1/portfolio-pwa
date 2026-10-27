@@ -128,7 +128,7 @@ ok(/if \(DmName\.ext\(name\)\.equals\("apk", true\)\) APK/.test(R('android/app/s
 
 // 26/10/2026 (בקשת המשתמש: "מנהל הסיסמאות של Google באופן מלא + סנכרון של המידע ב־Chrome"):
 // סיסמאות = המילוי האוטומטי של אנדרואיד (Google ממלא ושומר) — הדפדפן לא שומר סיסמאות בעצמו לעולם
-ok(/importantForAutofill = View\.IMPORTANT_FOR_AUTOFILL_YES/.test(act), 'סיסמאות: המילוי האוטומטי של המערכת פועל בדף');
+ok(/importantForAutofill = if \(t\.private\) View\.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS else View\.IMPORTANT_FOR_AUTOFILL_YES/.test(act), 'סיסמאות: המילוי האוטומטי של המערכת פועל בדף (בטאב פרטי — לא)');
 ok(/autofillServiceComponentName/.test(act) && /Settings\.ACTION_CREDENTIAL_PROVIDER/.test(act) && /passwords\.google\.com/.test(act), 'סיסמאות: מי ממלא, הגדרת Google, והמנהל של Google');
 ok(!/password|סיסמ/i.test(store) && !/getUsernamePassword|setHttpAuthUsernamePassword|savePassword/.test(act), 'הדפדפן לא שומר סיסמאות בעצמו');
 // Chrome: אין ממשק פתוח לסנכרון — ייבוא מ־Google Takeout / מקובץ סימניות, מזוהה לפי התוכן
@@ -239,6 +239,26 @@ ok(fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yis
   ok(/String\.format\(java\.util\.Locale\.ROOT/.test(core) && !/^import (android|org\.json)/m.test(core), 'הליבה טהורה (נבדקת ב־JVM), והשעון לא תלוי בשפת המכשיר');
   ok(/textContent\|\|''\)\.length<4000/.test(cjs) && /fun withTime\(/.test(cjs) && /createTreeWalker/.test(cjs), 'המקום בדף: המשפט שבראש המסך + החלק היחסי + הזמן בסרטון, בלי לקרוא דף ענק');
   ok(/Screen\.CLOUD -> CloudScreen\(a\)/.test(ui) && /Screen\.RECENT -> RecentScreen\(a\)/.test(ui) && /MItem\(R\.string\.brRecentTabs, BrIcons\.CDevices\)/.test(ui) && /ResumeCard\(a\)/.test(ui) && /SendSheet\(a\)/.test(ui), 'המסכים: סנכרון, כרטיסיות אחרונות, "המשך מ־", שליחה למכשירים');
+}
+
+// 27/10/2026: יעילות ואבטחה של הדפדפן (מחקר: מהירות, זיכרון, אבטחה)
+{
+  const dmb = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmBrowser.kt');
+  const tab = R(B + 'BrTab.kt');
+  ok(/override fun onRenderProcessGone\(view: WebView, detail: android\.webkit\.RenderProcessGoneDetail\): Boolean \{ renderGone\(\); return true \}/.test(act), 'ה־renderer מת — הדפדפן לא נופל (בלי זה WebView מפיל את כל האפליקציה)');
+  ok(/RENDERER_PRIORITY_BOUND, true/.test(act), 'עדיפות ה־renderer יורדת כשלא מוצג');
+  ok(/private val liveMax: Int by lazy/.test(act) && /isLowRamDevice \|\| gb <= 4\.5 -> 2/.test(act) && /override fun onTrimMemory/.test(act), 'מספר הטאבים החיים לפי הזיכרון, ושחרור כשהמערכת מבקשת');
+  ok(/pauseTimers\(\)/.test(act) && /resumeTimers\(\)/.test(act), 'JavaScript נעצר כשהדפדפן ברקע');
+  ok(/private fun kill\(w: WebView\?\)/.test(act) && !/\.web\?\.destroy\(\)/.test(act), 'WebView נהרס בסדר הנכון (מהעץ, עצירה, destroy)');
+  ok(/PixelCopy\.request\(window/.test(act), 'תמונת הטאב — העתקה מהמסך, לא ציור מחדש בתהליכון הראשי');
+  ok(/t\.blkQ\.getAndIncrement\(\) == 0/.test(act) && /val blkQ = /.test(tab), 'מונה החסימות לא מצייר על כל בקשה');
+  ok(/postDelayed\(\{ Thread \{ runCatching \{ DlEngine\.prepare/.test(act), 'מנוע ההורדות מתחמם אחרי שהמסך עלה');
+  ok(/i\.flags = 0/.test(act) && /i\.clipData = null/.test(act) && /if \(i\.`package` == packageName\) return/.test(act) && /sch == "content"/.test(act), 'intent: מדף — בלי דגלים/הרשאות, לא אלינו, לא file/content');
+  ok(/siteOf\(u\.host\) == refSite/.test(dmb) && /!priv && /.test(dmb) && /localHost\(u\.host\)\) return false/.test(dmb), 'בדיקת הקובץ: עוגיות רק לאותו אתר, לא מטאב פרטי, לא לרשת המקומית');
+  ok(/android:dataExtractionRules="@xml\/br_extract"/.test(man) && /EnableSafeBrowsing" android:value="true"/.test(man), 'בלי העברה של הנתונים לטלפון אחר, Safe Browsing במפורש');
+  ok(/setAcceptThirdPartyCookies\(w, !t\.private\)/.test(act), 'טאב פרטי: בלי עוגיות צד שלישי');
+  ok(/putString\("rt", wrap\(/.test(R(B + 'BrCloud.kt')), 'אסימון החשבון עטוף ב־Keystore');
+  ok(/fun engineOld\(\)/.test(act) && /market:\/\/details\?id=\$pkg/.test(act), 'מנוע הדפדפן לא מעודכן — התראה ועדכון מ־Play');
 }
 
 console.log('studio-browser: ' + n + ' בדיקות עברו');
