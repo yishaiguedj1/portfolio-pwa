@@ -210,6 +210,11 @@
     if (typeof clean.wlMainName === 'string') DB.wlMainName = clean.wlMainName;
     if (Array.isArray(clean.wlOrder)) DB.wlOrder = clean.wlOrder; // v278: סדר טאבי הרשימות
     if (Array.isArray(clean.stockOrder)) DB.stockOrder = clean.stockOrder; // v246: סדר אישי בטאב המניות
+    // 27/10/2026: המקור (IBKR/ידני) והצילום הידני שלפני IBKR — של החשבון, לא של המכשיר שבו רץ הסנכרון.
+    // בלי זה מכשיר אחר הציג את מניות IBKR כ"ידני" (ובמצב ידני — עם עריכה ואיפוס שלא מתאימים להן)
+    if (clean.source === 'ibkr' || clean.source === 'manual') DB.source = clean.source;
+    if (clean.ibkrSnapshot && typeof clean.ibkrSnapshot === 'object') DB.ibkrSnapshot = clean.ibkrSnapshot;
+    else delete DB.ibkrSnapshot;
     // v146: רשומות הדוגמה הישנות (עד v145) שנשמרו כנתונים — מנקים ומעדכנים את הענן
     const stripped = (typeof stripLegacyDemo === 'function') && stripLegacyDemo(DB);
     saveDBto(DB); // עדכון המטמון המקומי
@@ -235,9 +240,12 @@
     if (held() || !user || !fs || localMode || demoOn() || !ready || !ownsLocal()) return;
     clearTimeout(saveTimer);
     try {
+      const d = JSON.parse(JSON.stringify(DB));
+      // 27/10/2026: שדה שנמחק בטלפון נמחק גם בענן (merge משאיר שדות ישנים בתוך db — צילום ידני ישן היה חוזר)
+      for (const k of ['ibkrSnapshot', 'source']) if (!(k in d)) d[k] = firebase.firestore.FieldValue.delete();
       await userDoc().set({
         v: 1,
-        db: JSON.parse(JSON.stringify(DB)),
+        db: d,
         // אבטחה (25/09/2026): מפתח Twelve Data נשאר בטלפון בלבד — ומוחקים עותק ישן מהענן
         tdkey: firebase.firestore.FieldValue.delete(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -245,6 +253,15 @@
     } catch (e) {
       /* נכשל (למשל אין אינטרנט) — נשמר מקומית, ינסה שוב בשמירה הבאה */
     }
+  }
+
+  /* 27/10/2026: הדוח של IBKR (דחוס) ברמת החשבון — p = { at, z }, או null למחיקה. ראו ibkrCloudPush ב־app.js */
+  async function saveIbkr(p) {
+    if (held() || !user || !fs || localMode || demoOn() || !ready || !ownsLocal()) return false;
+    try {
+      await userDoc().set({ ibkr: p && p.z ? { at: +p.at || 0, z: String(p.z) } : firebase.firestore.FieldValue.delete() }, { merge: true });
+      return true;
+    } catch (e) { return false; }
   }
 
   async function resetCloud() {
@@ -430,6 +447,11 @@
         } else if (snap.exists && validCloudDb(snap.data().db)) {
           const data = snap.data();
           if (applyCloudDb(data.db)) await flushSave();
+          // 27/10/2026: הדוח של IBKR מהחשבון — הורדה / העלאה / מחיקה לפי מה שחדש יותר
+          if (typeof window.ibkrCloudLoaded === 'function') {
+            const at = data.updatedAt && typeof data.updatedAt.toMillis === 'function' ? data.updatedAt.toMillis() : 0;
+            window.ibkrCloudLoaded(data.ibkr || null, data.db.source, at);
+          }
           /* מפתח Twelve Data לא נטען מהענן (אבטחה) — נשמר רק בטלפון שבו הוזן */
         } else {
           /* אין מסמך בענן עדיין (משתמש חדש / אחרי איפוס) — מתחילים מתיק ריק (v146).
@@ -454,6 +476,7 @@
     resetCloud: resetCloud,
     scheduleSave: scheduleSave,
     flushSave: flushSave,
+    saveIbkr: saveIbkr,
     isConfigured: function () { return isConfigured; }
   };
   /* ווים ש-app.js קורא להם — נשארים שקטים אם אין ענן */
