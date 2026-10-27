@@ -862,7 +862,12 @@ html.drag-active .tabpage { transform: none !important; }   /* v324: בלי anim
 .stock-foot .stock-edit { display: flex; gap: 6px; }
 .stock-foot .an-open-btn svg { width: 15px; height: 15px; flex: none; } /* 25/10/2026: כפתור מנתח החברות */
 .stock-foot .kc-open-btn svg { width: 15px; height: 15px; flex: none; }
-.stock-foot .kc-expand-btn { inline-size: 34px; block-size: 30px; padding: 0; justify-content: center; }   /* 27/10/2026: סמל בלבד */ /* 27/10/2026: כפתור גרף הנרות */
+.stock-foot .kc-expand-btn, .stock-foot .stock-edit-ico { inline-size: 34px; block-size: 30px; padding: 0; justify-content: center; flex: none; }
+.stock-foot .stock-edit-ico svg { width: 15px; height: 15px; flex: none; }
+/* תשואה ענקית (למשל 100,000%) לא דורסת את הכפתורים: התווית והטווח מצטמצמים קודם, ואם גם זה לא מספיק הכפתורים יורדים לשורה משלהם */
+.stock-foot { flex-wrap: wrap; row-gap: 6px; }
+.stock-foot .pf-range-summary { flex: 1 1 0; min-width: min-content; }
+.stock-foot .stock-edit { margin-inline-start: auto; }
 
 .chart-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .ranges { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; flex: 1; }

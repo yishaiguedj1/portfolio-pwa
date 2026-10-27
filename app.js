@@ -14958,8 +14958,11 @@ function buildStockBody(p, m) {
     const actions = el('div', 'edit-actions stock-edit');
     if (anOk) actions.appendChild(analysisBtn(sym));
     actions.appendChild(chartBtn(sym));
-    const eb = el('button', 'chip-btn', p.fromTrades ? t('btnManageTrades') : t('btnEdit'));
+    // 27/10/2026 (בקשת המשתמש): סמל בלבד, בלי המילה — השורה לא נדחסת גם כשהתשואה ענקית
+    const eb = el('button', 'chip-btn stock-edit-ico', ICON_EDIT);
     eb.type = 'button';
+    eb.setAttribute('aria-label', (p.fromTrades ? t('btnManageTrades') : t('btnEdit')).replace(/<[^>]*>/g, '').trim());
+    eb.title = eb.getAttribute('aria-label');
     eb.addEventListener('click', () => {
       const card = stockCardEl(sym);
       if (!card) return;
