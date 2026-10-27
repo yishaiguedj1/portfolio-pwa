@@ -47,4 +47,13 @@ function open(str, aad) {
   } catch (e) { return null; }
 }
 
-module.exports = { seal, open, configured };
+/* מפתח נגזר לשימוש אחר (27/10/2026: הסנכרון של Studio Browser — `brKey` ב־api/studio.js): HKDF מהמפתח של הכספת עם
+   label ייעודי — לעולם לא המפתח של הכספת עצמו. מעדיפים את הנגזר מחשבון השירות ('s' — זהה ב־Vercel ובשרת שלנו, כך שאותו
+   משתמש מקבל אותו מפתח משניהם), ואם אין — המפתח הייעודי ('e'). null = לא מוגדר */
+function derive(label) {
+  const k = keys(); const kid = k.s ? 's' : k.e ? 'e' : '';
+  if (!kid) return null;
+  return { kid, key: Buffer.from(crypto.hkdfSync('sha256', k[kid], Buffer.from('snb-derive/salt/v1'), Buffer.from(String(label)), 32)) };
+}
+
+module.exports = { seal, open, configured, derive };

@@ -629,6 +629,21 @@ async function dmOps(req, res, body, deps) {
     return res.status(200).json({ ok: true, saved: b.ev.length });
   } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
 }
+/* Studio Browser (27/10/2026, בקשת המשתמש: "שהמידע בדרייב מוצפן — שרק המשתמש עם החשבון במערכת שלנו יוכל לקרוא"):
+   מפתח ההצפנה של הסנכרון בין המכשירים. הנתונים ב־Google Drive של המשתמש, המפתח אצלנו — Google לא יכול לקרוא אותם, ומשתמש
+   אחר לא מקבל את המפתח (נגזר מהכספת + ה־uid, AAD לא נחוץ). בלי Firestore ובלי אחסון: אותו uid = אותו מפתח, בכל מכשיר.
+   אפליקציה נייטיב — בלי Origin; התחברות Firebase (Google) */
+async function brKey(req, res, body, deps) {
+  const ta = require('../lib/appscope').tokenApp(body.idToken);
+  if (ta && ta !== 'studio' && ta !== 'all') return res.status(403).json({ ok: false, error: 'wrong_app' });
+  let user;
+  try { user = await verifyIdToken(body.idToken, deps.verify || {}); } catch (e) { return res.status(401).json({ ok: false, error: 'no_auth' }); }
+  if (!UID_RE.test(String(user.uid || ''))) return res.status(401).json({ ok: false, error: 'no_auth' });
+  if (limited('bk|' + user.uid, 20)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+  const d = vault.derive('snb-br-sync aes-256-gcm v1|' + user.uid);
+  if (!d) return res.status(503).json({ ok: false, error: 'vault_not_configured' });
+  return res.status(200).json({ ok: true, kid: d.kid, k: d.key.toString('base64') });
+}
 /* ניקוי: יומני DM מעל 24 חודשים (האצווה היומית) */
 async function dmGc(deps, now) {
   const c = learnCfg();
@@ -2468,6 +2483,7 @@ async function handler(req, res, deps = {}) {
   if (body.op === 'devPull') return devPull(req, res, body, deps);   // 15/10/2026: האיסוף המלא — לוגים, קריאות, מדדים, שגיאות (קריאה בלבד)
   if (body.op === 'dmPull') return dmPull(req, res, body, deps);   // שלב ג׳: יומני DM לניתוח (טוקן הניתוח, קריאה בלבד)
   if (body.op === 'dmLog' || body.op === 'dmForget') return dmOps(req, res, body, deps);   // 24/10/2026: Studio DM — אפליקציה נייטיב, בלי Origin
+  if (body.op === 'brKey') return brKey(req, res, body, deps);   // 27/10/2026: Studio Browser — מפתח ההצפנה של הסנכרון בין המכשירים
   // 25/10/2026: adminYt = קובץ cookies.txt (קובץ אמיתי 5–30KB) — עד 64KB; כל השאר 4KB כמו תמיד
   if (guard(req, res, body.op === 'adminYt' ? 65536 : body.op === 'create' && body.spec && body.spec.ka === 1 ? 20000 : 4096)) return;   // 26/10/2026: קריוקי — המילים בטופס
   if (body.op === 'cfg') {   // 15/10/2026: מצב התחזוקה והדגלים — לשלוש האפליקציות, בלי התחברות (רק מה שציבורי)

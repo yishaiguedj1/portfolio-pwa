@@ -35,6 +35,19 @@ class BrTab(val id: Long, url: String, title: String, val private: Boolean, var 
     var ntpBack by mutableStateOf(false)
     var ntpFwd by mutableStateOf<String?>(null)
 
+    /** הסנכרון בענן (BrCloud): מתי הייתה פעילה (זמן אמיתי), והמקום המדויק שנמדד בדף — כמה נגלל (0–1), המשפט שבראש
+     *  המסך והזמן בסרטון; `restore` = לחזור למקום כזה כשהדף נטען (כרטיסייה שנפתחה ממכשיר אחר) */
+    var la = System.currentTimeMillis()
+    var sc = 0f
+    var tx = ""
+    var mt = 0f
+    var restore: BrCloudCore.STab? = null
+
+    /** יעילות (27/10): המצב האחרון אחרי טעינה — אם ה־renderer מת; מונה חסימות שמצטבר בין ציורים; מתי צולמה התמונה */
+    var lastState: Bundle? = null
+    val blkQ = java.util.concurrent.atomic.AtomicInteger()
+    var snapAt = 0L
+
     var web: WebView? = null
     var state: Bundle? = null
     var used = 0L

@@ -29,8 +29,8 @@ object DmSync {
     const val DEFAULT_ON = true
     // מזהים ציבוריים של פרויקט ה־Firebase (כמו ב־firebase-config.js) — לא סודות
     private const val WEB_CLIENT = "286578855160-a5kii0glss9b883glkr698frmvekpa67.apps.googleusercontent.com"
-    private const val FB_KEY = "AIzaSyDpz4owHSvJCYVzUFtZQL8V_e71HpVeffk"
-    private val API = listOf("https://api.thesnowball.app/api/studio", "https://ibkr-proxy-wine.vercel.app/api/studio")
+    internal const val FB_KEY = "AIzaSyDpz4owHSvJCYVzUFtZQL8V_e71HpVeffk"
+    internal val API = listOf("https://api.thesnowball.app/api/studio", "https://ibkr-proxy-wine.vercel.app/api/studio")
     private const val BATCH = 200
     private const val GAP_MS = 60_000L
     /** תשובות של dmLog/dmForget עצמם — אחרות (גם 403 של שרתון שעוד לא מכיר את הפעולה) עוברות לכתובת הגיבוי */
