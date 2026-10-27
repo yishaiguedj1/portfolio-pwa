@@ -128,7 +128,7 @@ ok(/if \(DmName\.ext\(name\)\.equals\("apk", true\)\) APK/.test(R('android/app/s
 
 // 26/10/2026 (בקשת המשתמש: "מנהל הסיסמאות של Google באופן מלא + סנכרון של המידע ב־Chrome"):
 // סיסמאות = המילוי האוטומטי של אנדרואיד (Google ממלא ושומר) — הדפדפן לא שומר סיסמאות בעצמו לעולם
-ok(/importantForAutofill = View\.IMPORTANT_FOR_AUTOFILL_YES/.test(act), 'סיסמאות: המילוי האוטומטי של המערכת פועל בדף');
+ok(/importantForAutofill = if \(t\.private\) View\.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS else View\.IMPORTANT_FOR_AUTOFILL_YES/.test(act), 'סיסמאות: המילוי האוטומטי של המערכת פועל בדף (בטאב פרטי — לא)');
 ok(/autofillServiceComponentName/.test(act) && /Settings\.ACTION_CREDENTIAL_PROVIDER/.test(act) && /passwords\.google\.com/.test(act), 'סיסמאות: מי ממלא, הגדרת Google, והמנהל של Google');
 ok(!/password|סיסמ/i.test(store) && !/getUsernamePassword|setHttpAuthUsernamePassword|savePassword/.test(act), 'הדפדפן לא שומר סיסמאות בעצמו');
 // Chrome: אין ממשק פתוח לסנכרון — ייבוא מ־Google Takeout / מקובץ סימניות, מזוהה לפי התוכן
@@ -153,7 +153,7 @@ ok(/testBrowserReleaseUnitTest/.test(R('.github/workflows/android.yml')) && fs.e
 // 27/10/2026 (בקשת המשתמש: "אחד לאחד כמו Chrome באנדרואיד" — המבנה; הצבעים והזכוכית של Apple, האדום של כפתור ההורדה)
 ok(/private fun TopBar\(/.test(ui) && !/private fun Toolbar\(a: BrowserActivity\)/.test(ui) && /BrIcons\.CNewTab/.test(ui) && /private fun TabsBtn\(/.test(ui),
   'הסרגל של Chrome לאנדרואיד למעלה: דף הבית · הכתובת · כרטיסייה חדשה · כרטיסיות · ⋮ — בלי סרגל תחתון של אייפון');
-ok(/private fun MenuSheet\(a: BrowserActivity\)/.test(ui) && /Dialog\(/.test(ui) && /setBackgroundBlurRadius/.test(ui) && /private fun RowScope\.MBtn\(/.test(ui) && !/private fun Dest\(/.test(ui),
+ok(/private fun MenuSheet\(a: BrowserActivity\)/.test(ui) && /Dialog\(/.test(ui) && /PixelCopy\.request/.test(ui) && /boxBlur\(bmp/.test(ui) && !/setBackgroundBlurRadius/.test(ui) && /private fun RowScope\.MBtn\(/.test(ui) && !/private fun Dest\(/.test(ui),
   'התפריט ⋮ = החלון של Chrome מהפינה (שורת כפתורים ופריטים), זכוכית עם טשטוש');
 ok(/private val Red = Color\(0xFFFF4656\)/.test(ui) && /Color\(0x4A3C3C43\), Red,/.test(ui) && !/0xFF1A73E8\)\)/.test(ui.replace(/FavPal[^\n]*/, '')),
   'צבע הפעולה = האדום של כפתור ההורדה, לא הכחול של Google');
@@ -212,6 +212,53 @@ ok(fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yis
   ok(/fun seed\(/.test(pre) && /seededInfo\(url, System\.currentTimeMillis\(\)\)\?\.let \{ return/.test(pre), 'מידע מהנגן לא מחכה לבדיקה המלאה');
   ok(/DlEngine\.prepare\(applicationContext\)/.test(act), 'המנוע מתחמם כשהדפדפן נפתח');
   ok(!/"--print"/.test(eng) && /"--newline"/.test(eng) && /DlProbe\.outFile\(dir\)/.test(eng), 'בלי ‎--print‎ (משתיק את ההתקדמות) — שורה לכל עדכון');
+}
+
+// 27/10/2026: סנכרון וגיבוי בחשבון Google בין כל המכשירים (BrCloud) — בלי השרת שלנו, קובץ לכל מכשיר, המשך מאותה נקודה
+{
+  const cl = R(B + 'BrCloud.kt');
+  const core = R(B + 'BrCloudCore.kt');
+  const cjs = R(B + 'BrCloudJs.kt');
+  const chr = R(B + 'BrChrome.kt');
+  const urls = (cl.match(/https:\/\/[a-z0-9.\-]+/g) || []);
+  ok(urls.every(u => /^https:\/\/(www|identitytoolkit|securetoken)\.googleapis\.com$/.test(u)), 'הנתונים רק ב־Google Drive (והחשבון ב־Firebase) — לא בשרת שלנו: ' + urls.join(' '));
+  ok(/"op", "brKey"/.test(cl) && /for \(u in DmSync\.API\)/.test(cl) && !/"op", "(?!brKey)/.test(cl), 'השרת שלנו נותן רק את המפתח (brKey) — לא רואה את הנתונים');
+  ok(/put\(t, "\$\{PREFIX\}\$dev-d", sealFile\(/.test(cl) && /put\(t, "\$\{PREFIX\}\$dev-h", sealFile\(/.test(cl) && /put\(t, "\$\{PREFIX\}\$dev-s", sealFile\(/.test(cl), 'כל קובץ עולה מוצפן (AES-256-GCM, AAD = שם הקובץ)');
+  ok(/AndroidKeyStore/.test(cl) && /putString\("kw", wrap\(k\)\)/.test(cl), 'המפתח בטלפון עטוף ב־Android Keystore');
+  ok(/openFile\(n, raw\)\?\.let/.test(cl), 'קובץ שלא נפתח — מתעלמים, לא "נמחק"');
+  ok(/const val SCOPE = "https:\/\/www\.googleapis\.com\/auth\/drive\.appdata"/.test(cl) && !/auth\/drive"/.test(cl) && !/drive\.file/.test(cl), 'הרשאה drive.appdata בלבד — התיקייה הפרטית של האפליקציה');
+  ok(/spaces=appDataFolder/.test(cl) && /parents", JSONArray\(\)\.put\("appDataFolder"\)/.test(cl), 'הקבצים רק ב־appDataFolder');
+  ok(/private fun mine\(n: String\) = n\.startsWith\("\$PREFIX\$dev-"\)/.test(cl) && /if \(!mine\(n\)\) downs \+= /.test(cl), 'כל מכשיר כותב רק את הקבצים שלו (ל־Drive v3 אין כתיבה מותנית)');
+  ok(/WEB_CLIENT = "286578855160-a5kii0glss9b883glkr698frmvekpa67\.apps\.googleusercontent\.com"/.test(cl) && cl.includes(R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmSync.kt').match(/WEB_CLIENT = "[^"]+"/)[0]), 'אותו לקוח Web של DM (לקוח Android = Developer console is not set up)');
+  ok(/getStringExtra\("snb_cloud"\)\?\.let \{ k -> BrCloud\.pendingOpen\.remove\(k\)/.test(act) && /val pendingOpen = HashMap<String, STab>\(\)/.test(cl), 'כרטיסייה מהתראה — רק מה שנשמר בתוך התהליך, לא extras מבחוץ');
+  ok(/android:name="\.br\.BrCloudJob"[\s\S]{0,120}BIND_JOB_SERVICE/.test(man) && /class BrCloudJob : JobService/.test(cl), 'סבב ברקע כל 15 דק׳ (JobScheduler)');
+  ok(/if \(prov == null && tTabs && ids\["\$\{PREFIX\}\$dev-s"\] != null\) null/.test(cl), 'ברקע לא מעלים "אין כרטיסיות" במקום הרשימה של המכשיר');
+  ok(/BrCloud\.chromeOwner\(\)/.test(chr) && /BrCloud\.claimChrome\(\)/.test(chr), 'הגשר ל־Chrome (ops.json אחד) — רק מכשיר אחד בחשבון');
+  ok(/fun takeHistDeleted\(\)/.test(store) && /histDel \+= BrSync\.visitKey/.test(store) && /k !in del/.test(cl), 'ביקור שיצא בגלל התקרה ≠ מחיקה — רק מה שמחקת נמחק בכל המכשירים');
+  ok(/if \(BrStore\.rev != snapRev\)/.test(cl), 'הסימניות/ההיסטוריה מחושבות מחדש רק כשהשתנו');
+  ok(/String\.format\(java\.util\.Locale\.ROOT/.test(core) && !/^import (android|org\.json)/m.test(core), 'הליבה טהורה (נבדקת ב־JVM), והשעון לא תלוי בשפת המכשיר');
+  ok(/textContent\|\|''\)\.length<4000/.test(cjs) && /fun withTime\(/.test(cjs) && /createTreeWalker/.test(cjs), 'המקום בדף: המשפט שבראש המסך + החלק היחסי + הזמן בסרטון, בלי לקרוא דף ענק');
+  ok(/Screen\.CLOUD -> CloudScreen\(a\)/.test(ui) && /Screen\.RECENT -> RecentScreen\(a\)/.test(ui) && /MItem\(R\.string\.brRecentTabs, BrIcons\.CDevices\)/.test(ui) && /ResumeCard\(a\)/.test(ui) && /SendSheet\(a\)/.test(ui), 'המסכים: סנכרון, כרטיסיות אחרונות, "המשך מ־", שליחה למכשירים');
+}
+
+// 27/10/2026: יעילות ואבטחה של הדפדפן (מחקר: מהירות, זיכרון, אבטחה)
+{
+  const dmb = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmBrowser.kt');
+  const tab = R(B + 'BrTab.kt');
+  ok(/override fun onRenderProcessGone\(view: WebView, detail: android\.webkit\.RenderProcessGoneDetail\): Boolean \{ renderGone\(\); return true \}/.test(act), 'ה־renderer מת — הדפדפן לא נופל (בלי זה WebView מפיל את כל האפליקציה)');
+  ok(/RENDERER_PRIORITY_BOUND, true/.test(act), 'עדיפות ה־renderer יורדת כשלא מוצג');
+  ok(/private val liveMax: Int by lazy/.test(act) && /isLowRamDevice \|\| gb <= 4\.5 -> 2/.test(act) && /override fun onTrimMemory/.test(act), 'מספר הטאבים החיים לפי הזיכרון, ושחרור כשהמערכת מבקשת');
+  ok(/pauseTimers\(\)/.test(act) && /resumeTimers\(\)/.test(act), 'JavaScript נעצר כשהדפדפן ברקע');
+  ok(/private fun kill\(w: WebView\?\)/.test(act) && !/\.web\?\.destroy\(\)/.test(act), 'WebView נהרס בסדר הנכון (מהעץ, עצירה, destroy)');
+  ok(/PixelCopy\.request\(window/.test(act), 'תמונת הטאב — העתקה מהמסך, לא ציור מחדש בתהליכון הראשי');
+  ok(/t\.blkQ\.getAndIncrement\(\) == 0/.test(act) && /val blkQ = /.test(tab), 'מונה החסימות לא מצייר על כל בקשה');
+  ok(/postDelayed\(\{ Thread \{ runCatching \{ DlEngine\.prepare/.test(act), 'מנוע ההורדות מתחמם אחרי שהמסך עלה');
+  ok(/i\.flags = 0/.test(act) && /i\.clipData = null/.test(act) && /if \(i\.`package` == packageName\) return/.test(act) && /sch == "content"/.test(act), 'intent: מדף — בלי דגלים/הרשאות, לא אלינו, לא file/content');
+  ok(/siteOf\(u\.host\) == refSite/.test(dmb) && /!priv && /.test(dmb) && /localHost\(u\.host\)\) return false/.test(dmb), 'בדיקת הקובץ: עוגיות רק לאותו אתר, לא מטאב פרטי, לא לרשת המקומית');
+  ok(/android:dataExtractionRules="@xml\/br_extract"/.test(man) && /EnableSafeBrowsing" android:value="true"/.test(man), 'בלי העברה של הנתונים לטלפון אחר, Safe Browsing במפורש');
+  ok(/setAcceptThirdPartyCookies\(w, !t\.private\)/.test(act), 'טאב פרטי: בלי עוגיות צד שלישי');
+  ok(/putString\("rt", wrap\(/.test(R(B + 'BrCloud.kt')), 'אסימון החשבון עטוף ב־Keystore');
+  ok(/fun engineOld\(\)/.test(act) && /market:\/\/details\?id=\$pkg/.test(act), 'מנוע הדפדפן לא מעודכן — התראה ועדכון מ־Play');
 }
 
 console.log('studio-browser: ' + n + ' בדיקות עברו');

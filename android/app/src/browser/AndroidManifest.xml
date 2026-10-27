@@ -37,7 +37,7 @@
         </intent>
     </queries>
 
-    <application android:extractNativeLibs="true" tools:replace="android:theme,android:icon,android:roundIcon"
+    <application android:extractNativeLibs="true" android:dataExtractionRules="@xml/br_extract" tools:replace="android:theme,android:icon,android:roundIcon"
         android:icon="@mipmap/br_launcher"
         android:roundIcon="@mipmap/br_launcher"
         android:theme="@style/DmTheme">
@@ -79,11 +79,20 @@
             </intent-filter>
         </activity>
 
+        <!-- Safe Browsing של Google — במפורש (ברירת המחדל דולקת, כך שגרסה עתידית לא תכבה בשקט) -->
+        <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="true" />
+
         <!-- ניגון ברקע: סרטון/שיר שמתנגנים ממשיכים כשיוצאים מהדפדפן, עם שליטה מההתראה, ממסך הנעילה ומהאוזניות -->
         <service
             android:name=".br.BrMediaService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+
+        <!-- הסנכרון בענן בין המכשירים — סבב ברקע כל 15 דק׳ כשהדפדפן לא פתוח (BrCloud) -->
+        <service
+            android:name=".br.BrCloudJob"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="false" />
 
         <!-- הדפדפן הקטן של DM — רק לרענון קישור של הורדה -->
         <activity

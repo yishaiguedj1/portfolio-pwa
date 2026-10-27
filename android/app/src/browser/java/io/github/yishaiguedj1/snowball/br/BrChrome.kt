@@ -60,8 +60,8 @@ object BrChrome {
             o.optJSONArray("ops")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { ops += opOf(it) } }
             o.optJSONArray("vis")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { vis += BrVisit(it.optString("u"), it.optString("t"), it.optLong("at")) } }
         }
-        BrStore.onMark = { add, m -> if (on && marksOn) record(if (add) "add" else "del", m) }
-        BrStore.onVisit = { v -> if (on && histOn) synchronized(vis) { vis += v; while (vis.size > VIS_MAX) vis.removeAt(0); saveLocal() } }
+        BrStore.onMark = { add, m -> if (on && marksOn && BrCloud.chromeOwner()) record(if (add) "add" else "del", m) }
+        BrStore.onVisit = { v -> if (on && histOn && BrCloud.chromeOwner()) synchronized(vis) { vis += v; while (vis.size > VIS_MAX) vis.removeAt(0); saveLocal() } }
     }
 
     private fun opOf(o: JSONObject) = BrSync.Op(o.optLong("s"), o.optString("k"), o.optString("id"), o.optString("u"), o.optString("t"), o.optLong("at"))
@@ -107,6 +107,8 @@ object BrChrome {
 
     private fun enable() {
         sp.edit().putBoolean("on", true).putString("err", "").apply()
+        // בחשבון עם כמה מכשירים — רק מכשיר אחד מדבר עם התוסף (ops.json אחד); השאר מקבלים את Chrome דרך הסנכרון בענן
+        BrCloud.claimChrome()
         // פעם ראשונה: כל הסימניות שכאן נשלחות לתוסף (הוא לא מוסיף מה שכבר יש ב־Chrome)
         if (!sp.getBoolean("seeded", false)) {
             val seeded = BrStore.marks.map { it.copy(sid = it.sid.ifEmpty { "a" + nextSeq() }) }
@@ -133,8 +135,11 @@ object BrChrome {
 
     /* ---------------- הסנכרון ---------------- */
 
+    /** מכשיר אחר בחשבון מחזיק עכשיו את הגשר ל־Chrome (BrCloud.chromeOwner) */
+    val otherDevice get() = on && !BrCloud.chromeOwner()
+
     fun sync(ctx: Context?, force: Boolean = false) {
-        if (!on || busy) return
+        if (!on || busy || !BrCloud.chromeOwner()) return
         val now = System.currentTimeMillis()
         if (!force && now - lastRun < MIN_GAP) return
         val c = ctx?.applicationContext ?: appCtx ?: return
