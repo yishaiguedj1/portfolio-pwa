@@ -84,6 +84,8 @@ const ok = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exit(1); }
   ok(St.describe({ last: { at: now - 120000, ok: true, added: 3 } }, now).sub === 'לפני 2 דקות · 3 סימניות חדשות הגיעו מהטלפון', 'תיאור: אחרי סנכרון');
   ok(St.describe({ last: { at: now, err: 'auth' } }, now).warn, 'תיאור: שגיאה');
   ok(St.describe({ last: { at: now }, hold: 12 }, now).title === 'מחכה לאישור שלך', 'תיאור: מחכה לאישור');
+  ok(/לא רשום ב־Google/.test(St.connectErr({ last: { err: 'OAuth2 request failed: Service responded with error: \'bad client id: x\'' } })), 'חיבור: לקוח OAuth חסר — הודעה ברורה');
+  ok(/נסגר בלי אישור/.test(St.connectErr({ last: { err: 'The user did not approve access.' } })) && /לנסות שוב/.test(St.connectErr({})), 'חיבור: ביטול / בלי קוד');
 
   // --- המבנה של התוסף
   const man = JSON.parse(R('android/chrome-ext/manifest.json'));
