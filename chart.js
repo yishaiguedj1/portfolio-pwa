@@ -154,6 +154,7 @@ const ICON = {
   zoomin: sv('M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4M8 11h6M11 8v6'),
   zoomout: sv('M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4M8 11h6'),
   fit: sv('M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5'),
+  now: sv('M6 7l5 5-5 5M13 7l5 5-5 5'),
   watch: sv('M4 6h16M4 12h10M4 18h7M18 14l2 2 3-4'),
 };
 
@@ -796,6 +797,22 @@ function registerOverlays() {
     },
   });
 
+  /* מחיר טרום/אחרי המסחר כשהגרף מציג רק מסחר רגיל — קו מקווקו כחול, גלולה "טרום/אחרי" ותווית בציר (כמו TradingView) */
+  R({
+    name: 'kcExtPx', totalStep: 2, needDefaultXAxisFigure: false, needDefaultYAxisFigure: false,
+    createPointFigures: ({ overlay, coordinates, bounding }) => {
+      if (!coordinates.length) return [];
+      const y = coordinates[0].y;
+      return [{ type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: 0, y }, { x: bounding.width, y }] }, styles: { color: EXTC, size: 1, style: 'dashed', dashedValue: [2, 2] } },
+        textFig(bounding.width - 4, y, (overlay.extendData && overlay.extendData.t) || '', EXTC, { attrs: { align: 'right' }, styles: { size: 10, borderRadius: 3 } })];
+    },
+    createYAxisFigures: ({ chart, overlay, coordinates, bounding, yAxis }) => {
+      if (!coordinates.length) return [];
+      const left = yAxis && yAxis.isFromZero && yAxis.isFromZero();
+      return [textFig(left ? 0 : bounding.width, coordinates[0].y, fmtP(chart, valAt(overlay, 0)), EXTC, { attrs: { align: left ? 'left' : 'right' }, styles: { paddingTop: 3, borderRadius: 3 } })];
+    },
+  });
+
   /* תבניות: XABCD (הרמוניות), ABCD, גלי אליוט (5 ו־ABC), ראש וכתפיים, משולש, שלושה דחפים */
   R(wavePattern('kcXABCD', ['X', 'A', 'B', 'C', 'D'], [[0, 1, 2], [1, 2, 3], [2, 3, 4], [0, 1, 4]]));
   R(wavePattern('kcABCD', ['A', 'B', 'C', 'D'], [[0, 1, 2], [1, 2, 3]]));
@@ -898,7 +915,7 @@ function chartStyles(c) {
       type: candleType(c.type),
       bar: { upColor: p.up, downColor: p.dn, noChangeColor: p.text, upBorderColor: p.up, downBorderColor: p.dn, noChangeBorderColor: p.text, upWickColor: p.up, downWickColor: p.dn, noChangeWickColor: p.text },
       area: { lineSize: 2, lineColor: p.up, value: 'close', smooth: false, backgroundColor: line ? [{ offset: 0, color: rgba(p.up, 0) }, { offset: 1, color: rgba(p.up, 0) }] : [{ offset: 0, color: rgba(p.up, 0.02) }, { offset: 1, color: rgba(p.up, 0.26) }], point: { show: false } },   // כמו Apple Stocks
-      priceMark: { show: true, high: { show: g.hl !== 0, color: p.text }, low: { show: g.hl !== 0, color: p.text }, last: { show: true, upColor: p.up, downColor: p.dn, noChangeColor: p.text, line: { show: true, style: 'dashed', dashedValue: [3, 3], size: 1 } } },
+      priceMark: { show: true, high: { show: g.hl !== 0, color: p.text }, low: { show: g.hl !== 0, color: p.text }, last: { show: true, upColor: p.up, downColor: p.dn, noChangeColor: p.text, line: { show: true, style: 'dashed', dashedValue: [2, 2], size: 1 }, text: { show: true, style: 'fill', size: 11, weight: '600', family: p.font, color: '#FFFFFF', borderStyle: 'solid', borderColor: 'transparent', borderSize: 0, borderDashedValue: [2, 2], paddingLeft: 4, paddingRight: 4, paddingTop: 3, paddingBottom: 2, borderRadius: 3 }, extendTexts: [{ show: true, position: 'below_price', style: 'fill', size: 10, weight: '500', family: p.font, color: '#FFFFFF', backgroundColor: null, borderStyle: 'solid', borderColor: 'transparent', borderSize: 0, borderDashedValue: [2, 2], paddingLeft: 4, paddingRight: 4, paddingTop: 1, paddingBottom: 3, borderRadius: 3, updateInterval: 1000 }] } },
       tooltip: {
         showRule: 'always', showType: 'standard',
         rect: { color: p.tipBg, borderColor: p.axis },
@@ -927,14 +944,27 @@ function mountCell(c) {
   if (!chart) throw new Error('init');
   c.chart = chart;
   chart.setOffsetRightDistance(64);
+  chart.setFormatter({ formatExtendText: (x) => (x && x.type === 'last_price' ? countdown(c, x.data, Date.now()) : '') });
   try { chart.overrideYAxis({ paneId: MAIN, name: S.store.g.scale }); } catch (e) { /* ברירת מחדל */ }
   chart.subscribeAction('onCrosshairChange', (x) => onCross(c, x));
+  chart.subscribeAction('onVisibleRangeChange', (r) => { const n = chart.getDataList().length; if (c.nowB) c.nowB.classList.toggle('on', !!(r && n > 0 && r.to < n - 1)); });
   wireCellPointer(c);
   setSymbolPeriod(c);
   restoreIndicators(c, c.indSaved);
 }
+/* כמו TradingView: מתחת לתווית המחיר האחרון — כמה זמן נשאר עד סגירת הנר (mm:ss / h:mm:ss / 3d 4h).
+   רק כשהנר באמת חי: תוך־יומי בזמן מסחר (או טרום/אחרי כשהמורחב מוצג), שבועי/חודשי בזמן מסחר. יומי — לא (הסגירה תלויה בבורסה). */
+function countdown(c, bar, now) {
+  if (!bar || c.replay || !c.q) return '';
+  const intra = L.isIntraday(c.tf), st = c.q.st, live = st === 'REGULAR' || (intra && S.store.g.ext && c.q.ext);
+  if (!live || (!intra && c.secReal < 7 * 86400)) return '';
+  const ms = bar.timestamp + c.secReal * 1000 - now;
+  if (!(ms > 0) || ms > c.secReal * 1000) return '';
+  const t = Math.floor(ms / 1000), d = Math.floor(t / 86400), h = Math.floor(t / 3600) % 24, m = Math.floor(t / 60) % 60, sec = t % 60, z = (x) => String(x).padStart(2, '0');
+  return d ? d + 'd ' + h + 'h' : h ? h + ':' + z(m) + ':' + z(sec) : z(m) + ':' + z(sec);
+}
 function setSymbolPeriod(c) {
-  c.seq++; c.raw = []; c.disp = []; c.more = false; c.lastVol = null; c.err = null; c.sub = null; c.cmpCache = new Map(); c.bench = null;
+  c.seq++; c.extKey = null; c.raw = []; c.disp = []; c.more = false; c.lastVol = null; c.err = null; c.sub = null; c.cmpCache = new Map(); c.bench = null;
   c.secReal = TF[c.tf].sec;
   c.chart.setSymbol({ ticker: c.sym, pricePrecision: 2, volumePrecision: 0 });
   c.chart.setPeriod(TF[c.tf].p);
@@ -1040,6 +1070,7 @@ function parseQuote(d) {
 }
 function onQuote(c, q) {
   c.q = q;
+  if (c.raw.length) drawExt(c);
   if (c.replay || !c.raw.length || !c.sub) return;
   const d = TF[c.tf], intra = /m$/.test(d.base), regular = q.st === 'REGULAR';
   let price = 0, time = 0;
@@ -1230,6 +1261,8 @@ function addInd(c, name, o) {
   const main = o.main != null ? !!o.main && isMain(name) : isMain(name);
   const conf = { name, extendData: { c: c.i, sym: o.sym }, visible: !o.h };
   if (o.p && o.p.length) conf.calcParams = o.p;
+  // נפח נקי כמו TradingView — בלי שלושת הממוצעים של ברירת המחדל (5/10/20, שנשמרו גם אצל מי שלא בחר בהם)
+  if (name === 'VOL' && (!conf.calcParams || conf.calcParams.join() === '5,10,20')) conf.calcParams = [];
   if (name === 'KCCMP') { const k = c.chart.getIndicators({ name: 'KCCMP' }).length; conf.shortName = o.sym; conf.styles = { lines: [{ color: CMPC[k % CMPC.length], size: 1.6, style: 'solid', smooth: false, dashedValue: [2, 2] }] }; }
   if (o.res) conf.extendData.res = o.res;
   if (main) conf.paneId = MAIN;
@@ -1267,6 +1300,18 @@ function drawAlerts(c) {
       onRightClick: (e) => { if (e.preventDefault) e.preventDefault(); },
     });
   }
+}
+const EXTC = '#2962FF';
+function drawExt(c) {
+  if (!c.chart) return;
+  const q = c.q, st = q && q.st, show = !!(q && q.ext && q.ext.p > 0 && st !== 'REGULAR' && !c.replay && !(L.isIntraday(c.tf) && S.store.g.ext));
+  const t = show ? T(/PRE/.test(st) ? 'kcPre' : 'kcPost') : '', key = show ? q.ext.p + '|' + t + '|' + c.raw.length : '';
+  if (c.extKey === key) return;
+  c.extKey = key;
+  const o = { points: [{ timestamp: lastTs(c), value: show ? q.ext.p : 0 }], extendData: { t } };
+  if (show && c.extId && c.chart.getOverlays({ id: c.extId }).length) return c.chart.overrideOverlay(Object.assign({ id: c.extId }, o));
+  c.chart.removeOverlay({ groupId: 'ext' });
+  c.extId = show ? c.chart.createOverlay(Object.assign({ name: 'kcExtPx', groupId: 'ext', lock: true }, o)) : null;
 }
 const lastPx = {};
 function quotePrice(q) { if (!q) return 0; if (q.st === 'REGULAR' && q.reg) return q.reg.p; if (q.ext) return q.ext.p; return q.reg ? q.reg.p : 0; }
@@ -1550,7 +1595,9 @@ function build(sym) {
     c.host = h('div', { class: 'kc-host', dir: 'ltr' });
     c.stEl = h('div', { class: 'kc-st' });
     c.tagEl = btn('kc-ctag', '', () => { setActive(c.i); openSearch(); });
-    c.el = h('div', { class: 'kc-cell' + (c.i === S.active ? ' act' : '') }, c.host, c.stEl, c.tagEl);
+    // ">>" כמו TradingView — מופיע רק כשגללו אחורה והנר האחרון לא במסך
+    c.nowB = btn('kc-now', T('kcToNow'), () => { if (c.chart) c.chart.scrollToRealTime(200); }, ICON.now);
+    c.el = h('div', { class: 'kc-cell' + (c.i === S.active ? ' act' : '') }, c.host, c.stEl, c.tagEl, c.nowB);
     UI.grid.appendChild(c.el);
   }
   renderTop(); updBars(); renderSide(); renderFoot(); renderSel(); renderReplay(); updTags();

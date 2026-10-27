@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v589';
+const CACHE_NAME = 'portfolio-pwa-v590';
 const HASHES = {
   "./": "23049cdc117b2a1b516816fe94fff24a",
   "./index.html": "23049cdc117b2a1b516816fe94fff24a",
   "./styles.css": "b677d199a83fbad3bab7b7d9ffa8494c",
-  "./app.js": "a6ebd15084f94d0f0e782f29bc884823",
+  "./app.js": "2669e0e94825b16a1e7db48f1382312c",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "9af566803f9e67e734390306b1e38db2",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -33,9 +33,9 @@ const HASHES = {
   "./acclink.js": "ff59b5aefee7c6e74278b350f3d6f236",
   "./analysis.js": "51b24b9a04df43a0d24c806fbe1bdba0",
   "./analysis.css": "ca1b140598ab7565a249a0e100ea7bf4",
-  "./chart.js": "517b61f96a28b84db406dc2f446f2168",
+  "./chart.js": "1070665356a5b5cfd609fba8b7038b66",
   "./chartlib.js": "e44fe49f25dbe2a51f87f0cd0027540a",
-  "./chart.css": "6797f48456bd3e42ca7e8e70ced881ae",
+  "./chart.css": "21d74fba70f2172468020d073d50b9c9",
   "./vendor/klinecharts/klinecharts.min.js": "428b7c3bff6a74e121b4da8093bd0187",
   "./library.js": "ebf4c7295ff22d17fb09b56be12d2cec",
   "./library.css": "76ff87750ae8fd22063cbd07b7f3d8ce",
@@ -64,8 +64,8 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "cbbbe8c0aa8f9f0d9bfddd1575ea6757",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
-  "./strings-academy.js": "2ec7e03588c887ca99c41ea7c6967f84",
-  "./core.js": "6787f0267b7366c79defc80b43087cbe",
+  "./strings-academy.js": "141cd0bf5e36747ab0f7fb7091ef6e2a",
+  "./core.js": "1e34f4160a47bada28a7a2c257492c6d",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "d6703c288cfb84be0bc06cbc61912c68",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -86,7 +86,7 @@ const HASHES = {
   "./studiobg.js": "386d76121dbaed74cdde91386ddf79c6",
   "./studio.html": "4344113c500fc12d34364c7de2f4e835",
   "./studio-app.js": "29aafde3d0cb75d4d8210d2b2287409d",
-  "./strings-studio.js": "dae1c413716e6dd499af3387d534e36f",
+  "./strings-studio.js": "567ae83b800150a2b56d6e9a34ee927e",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
