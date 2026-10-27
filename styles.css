@@ -855,6 +855,7 @@ html.drag-active .tabpage { transform: none !important; }   /* v324: בלי anim
 .stock-body .edit-actions .chip-btn { padding-block: 6px; font-size: 13.5px; white-space: nowrap; }
 .stock-foot .stock-edit .chip-btn { padding: 5px 12px; font-size: 13px; gap: 5px; }
 .stock-foot .stock-edit { display: flex; gap: 5px; }
+.stock-foot .stock-edit .chip-btn:not(.danger) { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 38%, var(--card-border)); }   /* 28/10/2026: כל הכפתורים בירוק המערכת */
 .stock-foot .stock-ico-btn { inline-size: 38px; block-size: 38px; padding: 0; justify-content: center; flex: none; }   /* סמל בלבד — יעד לחיצה נוח */
 html[dir="ltr"] .stock-foot .kc-open-btn { order: -1; }   /* באנגלית (כיוון הפוך) — עדיין בקצה השמאלי */
 .stock-foot .stock-ico-btn svg, .stock-foot .an-open-btn svg { width: 18px; height: 18px; flex: none; }

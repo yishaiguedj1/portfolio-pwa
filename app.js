@@ -14968,17 +14968,7 @@ function buildStockBody(p, m) {
     const actions = el('div', 'edit-actions stock-edit');
     if (anOk) actions.appendChild(analysisBtn(sym));
     actions.appendChild(alertBtn(sym));
-    // 27/10/2026 (בקשת המשתמש): סמל בלבד, בלי המילה — השורה לא נדחסת גם כשהתשואה ענקית
-    const eb = el('button', 'chip-btn stock-ico-btn', ICON_EDIT);
-    eb.type = 'button';
-    eb.setAttribute('aria-label', (p.fromTrades ? t('btnManageTrades') : t('btnEdit')).replace(/<[^>]*>/g, '').trim());
-    eb.title = eb.getAttribute('aria-label');
-    eb.addEventListener('click', () => {
-      const card = stockCardEl(sym);
-      if (!card) return;
-      if (p.fromTrades) showPositionTrades(card, p); else showEditPositionForm(card, p);
-    });
-    actions.appendChild(eb);
+    // 28/10/2026 (בקשת המשתמש): כפתור "ערוך" הוסר מהכרטיס (העריכה — ממצב "עריכה" שבראש הרשימה)
     actions.appendChild(chartBtn(sym));   // 28/10/2026 (בקשת המשתמש): הגדלת הגרף תמיד בקצה השמאלי של הכפתורים
     foot.appendChild(actions);
   } else { // מניית IBKR — בלי "ערוך", אבל עם "ניתוח" ו"גרף נרות"
