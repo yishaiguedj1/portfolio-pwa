@@ -853,6 +853,23 @@ function render(dir) {
 function flushAfter() {
   const a = S.after; S.after = [];
   a.forEach((f) => f());
+  settle();
+}
+/* 27/10/2026 (סרטון המשתמש — "רענונים" בגלילה): אנימציות הכניסה רק למה שעל המסך ברגע הציור. כרטיס מתחת למסך —
+   בלי (Chrome באנדרואיד מריץ את האנימציות שלו רק כשהוא נגלל פנימה, והגרף "נבנה" מחדש מול העיניים בכל גלילה),
+   ואחרי ~2 שניות העמוד כולו נעצר במצב הסופי (an-still) — גם אנימציה שנתקעה באמצע בזמן גלילה */
+let settleT = 0;
+function settle() {
+  clearTimeout(settleT);
+  const r = ROOT;
+  if (!r || r.classList.contains('an-still')) return;
+  const go = () => {
+    if (ROOT !== r) return;
+    const vb = r.getBoundingClientRect().bottom;
+    r.querySelectorAll('.an-card, .an-rcard').forEach((c) => { if (c.getBoundingClientRect().top >= vb) c.classList.add('an-still'); });
+  };
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(go); else go();
+  settleT = setTimeout(() => { if (ROOT === r) r.classList.add('an-still'); }, 2200);
 }
 /* תת־עמוד: כותרת גדולה וכרטיס אחד. נבנה מחדש בכל ציור (כמו לשונית) — build(body, rec), rec.draw אחרי הציור */
 function renderSub(co) {
