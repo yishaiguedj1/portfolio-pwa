@@ -180,6 +180,11 @@ function ctx(co, p, back = 0, cmp = false) {
   o.conv = o.fcf != null && o.ni > 0 ? o.fcf / o.ni : null;
   return o;
 }
+/* 27/10/2026 (בקשת המשתמש — כמו iCharts): Rule of 40 = צמיחת ההכנסות + שולי הרווח התפעולי. פונקציה אחת לכל מקום שמציג
+   אותו (הגיליון, כרטיס ההפסד) — עד היום שתי נוסחאות שונות: תזרים חופשי, ותזרים חופשי פחות תשלום במניות */
+function r40Of(co, p) { const g = growthOf(co, p, 'rev'), m = ctx(co, p).om; return g != null && m != null ? g + m : null; }
+/* מכפיל היסטורי — ממוצע (כמו iCharts) של הנקודות עם ערך בלבד: בלי רווח / שלילי / מעל 300 לא נספר כאפס */
+const multAvg = (a) => mean(a.filter((x) => x > 0 && x < 300));
 const growthOf = (co, p, k) => { const a = ctx(co, p)[k], b = ctx(co, p, 1, true)[k]; return a != null && b != null && b > 0 ? a / b - 1 : null; };
 const fyVals = (co, k, n) => fyList(co).slice(-n).map((p) => ctx(co, p)[k]);
 // צמיחה שנתית ממוצעת בין שתי שנים: כשבדרך יש שנה שהוצגה מחדש — מכפלת הצמיחות שנה אחר שנה (כל אחת באותו דוח),
@@ -416,7 +421,7 @@ function fairOf(co, mac) {
 function lossView(co) {
   const c = ctx(co, nowP(co)), H = multHist(co), ps = H.ps.filter((x) => x > 0 && x < 300);
   const g = growthOf(co, nowP(co), 'rev');
-  const f = c.fcf ?? c.ocf, m = f != null && c.rev > 0 ? (f - (c.sbc || 0)) / c.rev : null, r40 = g != null && m != null ? g + m : null;
+  const f = c.fcf ?? c.ocf, m = c.om, r40 = r40Of(co, nowP(co));
   const burn = f != null && f < 0 ? -f : null, runway = burn && c.cashT != null ? c.cashT / burn : null;
   return { psNow: fin(H.ps).pop() ?? null, psMed: ps.length >= 12 ? median(ps) : null, years: Math.round(ps.length / 12), g, m, r40, burn, cash: c.cashT, runway };
 }
@@ -659,7 +664,7 @@ const M = {
   eps: { n: 'anMEps', u: 'ps', c: 'c2', q: 'anQEps', g: 1, noPct: 1 },
   sh: { n: 'anMSh', u: 'shares', c: 'c3', q: 'anQSh', g: 1, noPct: 1 },
   gm: { n: 'anMGm', u: 'pct', c: 'c1', ratio: 1 }, om: { n: 'anMOm', u: 'pct', c: 'c2', ratio: 1 }, nm: { n: 'anMNm', u: 'pct', c: 'c3', ratio: 1 },
-  r40: { n: 'anMR40', u: 'pct', c: 'c3', ratio: 1, q: 'anQR40', f: (co, p) => { const g = growthOf(co, p, 'rev'), m = ctx(co, p).fcfm; return g != null && m != null ? g + m : null; } },
+  r40: { n: 'anMR40', u: 'pct', c: 'c3', ratio: 1, q: 'anQR40', f: r40Of },
   cashT: { n: 'anMCash', u: 'money', c: 'c1', noPct: 1 }, debt: { n: 'anMDebt', u: 'money', c: 'c4', noPct: 1 },
   eq: { n: 'anMEq', u: 'money', c: 'c1', noPct: 1, q: 'anQEq' },
   ta: { n: 'anMTa', u: 'money', c: 'c1', noPct: 1 }, tl: { n: 'anMTl', u: 'money', c: 'c4', noPct: 1 },
@@ -701,7 +706,7 @@ function seriesFor(co, def, st) {
 const rowHint = (def) => (def.line ? T(def.line[3]) : def.s.length === 1 && M[def.s[0]].q ? T(M[def.s[0]].q) : '');
 function rowSummary(co, def) {
   if (def.line) {
-    const a = multHist(co)[def.line[1]], now = fin(a).pop(), md = median(a.filter((x) => x > 0 && x < 300));
+    const a = multHist(co)[def.line[1]], now = fin(a).pop(), md = multAvg(a);
     return { v: fmt(now, 'x', co, 1), s: md ? T(now > md ? 'anMedAbove' : 'anMedBelow', { v: strip(fmt(md, 'x', co, 1)) }) : '' };
   }
   const k = def.s[0], m = M[k], per = periodList(co, 'fy'), last = mval(co, k, per[per.length - 1]);
@@ -746,7 +751,7 @@ export async function openAnalysis(sym, env) {
   await ensureCss();
   if (ROOT) closeAnalysis(true);
   S.first = true; S.heroDone = false; S.hero = null; S.segX = null; S.sub = []; S.tabRec = null; S.seen = new Set();
-  S.sym = sym; S.tab = 'snap'; S.rsub = 'is'; S.ed = {}; S.open = null; S.err = null; S.co = null; S.peers = null; S.peerBusy = false; S.peerAdd = []; S.peerDrop = new Set(); const seq = ++S.seq;
+  S.sym = sym; S.tab = 'snap'; S.rsub = 'is'; S.ed = {}; S.cv = {}; S.calcB = null; S.open = null; S.err = null; S.co = null; S.peers = null; S.peerBusy = false; S.peerAdd = []; S.peerDrop = new Set(); const seq = ++S.seq;
   ROOT = h('div', { class: 'an-root no-swipe', role: 'dialog', 'aria-modal': 'true', 'aria-label': T('anTitle') });
   document.addEventListener('keydown', onEsc, true);
   document.body.appendChild(ROOT);
@@ -1065,7 +1070,7 @@ const ICONS = {
 const multClean = (a, k) => a.map((x) => (x > 0 && x < (k === 'pe' ? 150 : 300) ? x : null));
 const icon = (k) => { const s0 = sv('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' }); sv('path', { d: ICONS[k], fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, s0); return s0; };
 function keyTiles(co) {
-  const c = ctx(co, nowP(co)), H = multHist(co), pe = c.eps > 0 ? co.price / c.eps : null, peMed = median(H.pe.filter((x) => x > 0 && x < 150));
+  const c = ctx(co, nowP(co)), H = multHist(co), pe = c.eps > 0 ? co.price / c.eps : null, peMed = multAvg(H.pe.filter((x) => x < 150));
   const fyl = fyList(co).slice(-10), yr = fyl.length ? [fyl[0].label, fyl[fyl.length - 1].label] : null, ht = H.t.slice(-120), pyr = ht.length ? [ht[0].slice(0, 4), T('anToday')] : null;
   const [g5, n5] = cagrN(co, 'rev', 5), lev = c.ebitda > 0 && c.netcash != null ? -c.netcash / c.ebitda : null, cs = curSym(co.cur);
   return [
@@ -1172,11 +1177,11 @@ function repCard(co, def) {
   const host = h('div', { class: 'an-mc' }), hint = rowHint(def), stats = h('div', { class: 'an-rstats' }), legend = h('div', { class: 'an-legend2' });
   let big = '', bigSub = '';
   if (def.line) {   // מכפיל — 10 שנים חודשי, חציון, טווח
-    const Hh = multHist(co), k = def.line[1], a = multClean(Hh[k].slice(-120), k), ok = fin(a), md = median(ok), now = fin(Hh[k]).pop();
+    const Hh = multHist(co), k = def.line[1], a = multClean(Hh[k].slice(-120), k), ok = fin(a), md = multAvg(ok), now = fin(Hh[k]).pop();
     big = fmt(now, 'x', co, 1); bigSub = T('anToday');
-    if (md != null) stats.append(stat(T('anMed10'), fmt(md, 'x', co, 1)), stat(T('anRange'), iso(Math.min(...ok).toFixed(0) + '–' + Math.max(...ok).toFixed(0) + '×')));
+    if (md != null) stats.append(stat(T('anAvg10'), fmt(md, 'x', co, 1)), stat(T('anRange'), iso(Math.min(...ok).toFixed(0) + '–' + Math.max(...ok).toFixed(0) + '×')));
     const t = Hh.t.slice(-120), labels = t.map((x, i) => (x.slice(5, 7) === '01' && (+x.slice(0, 4)) % 2 === 0 ? x.slice(0, 4) : ''));
-    S.after.push(() => miniChart(host, { labels, series: [{ vals: a, color: cssv(def.line[2]) }], unit: 'x', co, line: true, avg: md, avgName: T('anMedian') }));
+    S.after.push(() => miniChart(host, { labels, series: [{ vals: a, color: cssv(def.line[2]) }], unit: 'x', co, line: true, avg: md, avgName: T('anAvg') }));
   } else {
     const d = seriesFor(co, def, { mode: 'fy', range: '10', view: 'v' }), one = d.series.length === 1, k0 = def.s[0], m = M[k0];
     const lastP = d.per[d.per.length - 1], empty = emptyOf(def, d.series);
@@ -1244,180 +1249,123 @@ function miniChart(host, o) {
 }
 
 /* --- שווי --- */
-/* חלקים משותפים לשלושת המודלים: תרחישים, כוכבים, הנחות עם מחוון, ושורות בדיקה */
-const scenEl = (co, list) => h('div', { class: 'an-scen' }, ...list.map(([tt, v, small, cls, i]) => h('div', { class: i === 1 ? 'base' : '' }, h('span', {}, tt), h('b', {}, fmt(v, 'ps', co, 0)), h('small', { class: cls }, small))));
-const vsPrice = (co, v) => [sgn(v / co.price - 1, 0), ''];
-/* פס: איפה המחיר של היום עומד מול שלושת הערכים — מיקום בלבד, בלי צבע של טוב/רע */
 const mark = (el, d) => { for (const k in d) if (d[k] != null && d[k] !== '') el.dataset[k] = d[k]; return el; };
-function valBar(co, v3) {
-  const all = [...v3, co.price].filter((x) => x > 0); if (all.length < 2) return null;
-  const lo = Math.min(...all) * 0.9, hi = Math.max(...all) * 1.06, X = (v) => ((v - lo) / (hi - lo) * 100).toFixed(1) + '%';
-  // לפי כיוון השפה (inset-inline-start) — הנמוך בצד של "פסימי", כמו הכרטיסים מעליו
-  return h('div', { class: 'an-vbar' }, h('div', { class: 'an-track' }), h('div', { class: 'an-rng', style: `inset-inline-start:${X(v3[0])};width:calc(${X(v3[2])} - ${X(v3[0])})` }),
-    ...v3.map((v, i) => h('i', { class: 'an-vt' + (i === 1 ? ' base' : ''), style: `inset-inline-start:${X(v)}` })),
-    h('div', { class: 'an-me', style: `inset-inline-start:${X(co.price)}` }), h('div', { class: 'an-mel', style: `inset-inline-start:${X(co.price)}` }, T('anToday') + ' ' + strip(fmt(co.price, 'ps', co, 0))));
-}
-function fairCard(co, F, tag, subTxt, extra, labels) {
-  const { bear, base, bull } = F;
-  const L = labels || [T('anBear'), T('anBase'), T('anBull')];
-  return mark(card(
-    h('div', { class: 'an-h2row' }, h('h2', {}, T('anFair')), h('span', { class: 'an-pill neu' }, tag)),
-    co.fin || co.reit ? sub(subTxt) : null,   // מודל אחר מהרגיל — ההסבר נשאר
-    scenEl(co, [[L[0], bear.ps, ...vsPrice(co, bear.ps), 0], [L[1], base.ps, ...vsPrice(co, base.ps), 1], [L[2], bull.ps, ...vsPrice(co, bull.ps), 2]]),
-    valBar(co, [bear.ps, base.ps, bull.ps]),
-    ...(extra || [])), { main: 1 });
-}
-function assumeCard(fields, V, ed, extra) {
-  const inp = h('div', { class: 'an-inp' });
-  for (const [k, tt, f, s, [mn, mx, st]] of fields) {
-    const edited = ed[k] != null, lab = h('b', {}, f(V[k]));
-    const slider = h('input', { type: 'range', min: mn, max: mx, step: st, value: V[k], hidden: S.open === k ? null : true, 'aria-label': tt, on: {
-      input: (e) => { lab.textContent = f(+e.target.value); },
-      change: (e) => { ed[k] = +e.target.value; S.open = k; render(); } } });
-    const btn = h('button', { class: 'an-l', type: 'button', 'aria-expanded': String(S.open === k), on: { click: (e) => { slider.hidden = !slider.hidden; S.open = slider.hidden ? null : k; e.currentTarget.setAttribute('aria-expanded', String(!slider.hidden)); } } }, h('span', {}, tt), lab);
-    inp.append(h('div', { class: 'an-inr' + (edited ? ' ed' : '') }, btn, h('span', { class: 'an-srcline' }, edited ? T('anEdited') : s), slider));
-  }
-  for (const [tt, v, s] of extra || []) inp.append(h('div', { class: 'an-inr' }, h('div', { class: 'an-l an-l-static' }, h('span', {}, tt), h('b', {}, v)), h('span', { class: 'an-srcline' }, s)));
-  return mark(card(h('div', { class: 'an-h2row' }, h('h2', {}, T('anAssume')), Object.keys(ed).length ? h('button', { class: 'an-link', type: 'button', on: { click: () => { S.ed = {}; S.open = null; render(); } } }, T('anReset')) : null),
-    sub(T('anAssumeSub')), inp), { live: 1, hint: T('anHAssume') });
-}
-const chkRows = (list) => h('div', { class: 'an-list' }, ...list.map(([tt, v, k, s]) =>
-  h('div', { class: 'an-row' }, h('div', { class: 'an-rt' }, h('b', {}, tt), h('span', {}, s)), h('div', { class: 'an-rv' }, v))));
-/* למה אין שווי — לפי סוג החברה */
-function noFair(co, I) {
-  if (co.reit) return T(reitInputs(co).ffops > 0 ? 'anFfoNone' : 'anFfoNo');
-  if (co.fin) return T(finInputs(co, MAC).val.bv > 0 ? 'anRiNone' : 'anRiNoBv');
-  return (I || autoInputs(co, MAC)).src.base;
-}
-
-/* העמוד: רק הערך הפנימי, וכל השאר (מכפילים, הנחות, רגישות, יעד) — שורה שנפתחת לתת־עמוד באותו מבנה */
-const valCards = (co) => { const t = h('div'); (co.fin ? pageValFin : co.reit ? pageValReit : pageValDef)(co, t); return [...t.children]; };
-function pageVal(co, pg) {
-  const cards = valCards(co), main = cards.find((c) => c.dataset.main) || cards[0], rest = cards.filter((c) => c !== main && c.classList.contains('an-card'));
-  if (main) pg.append(main);
-  cards.filter((c) => c !== main && !c.classList.contains('an-card')).forEach((c) => pg.append(c));
-  if (!rest.length) return;
-  pg.append(h('section', { class: 'an-card an-card-list' }, h('div', { class: 'an-list' }, ...rest.map((c, i) => {
-    const t = c.querySelector('h2'), title = t ? t.textContent : '';
-    return navRow(title, c.dataset.hint || '', c.dataset.v || '', () => pushSub(title, (b) => {
-      const fresh = valCards(S.co), m = fresh.find((x) => x.dataset.main) || fresh[0], card0 = fresh.filter((x) => x !== m && x.classList.contains('an-card'))[i];
-      const sc = m && c.dataset.live ? m.querySelector('.an-scen') : null;
-      if (sc) b.append(h('div', { class: 'an-live' }, sc));
-      if (card0) b.append(card0);
-    }, { bare: true }));
-  }))));
-}
-function pageValDef(co, pg) {
-  const I = autoInputs(co, MAC), ed = S.ed, V = { ...I.val, ...ed };
-  multCard(co, pg);
-  if (!(V.base > 0)) { lossCard(co, pg, I); return; }
-  const { base, bear, bull } = scenarios(V);
-  const rev = reverseG(V, co.price), scen = (list) => scenEl(co, list);
-  pg.append(fairCard(co, { bear, base, bull }, T('anDcfTag'), T('anFairSub'),
-    [rev == null ? null : h('p', { class: 'an-big an-big-sm' }, T('anImplied1'), h('strong', {}, pct(rev)), T('anImplied2'))]));
-  // ההנחות
-  const fields = [
-    ['base', T('anInBase'), (x) => fmt(x, 'money', co), I.src.base, [I.val.base * 0.3, I.val.base * 2, I.val.base / 100]],
-    ['g1', T('anInG1'), (x) => pct(x), I.src.g1, [-0.2, 0.6, 0.005]],
-    ['g2', T('anInG2'), (x) => pct(x), I.src.g2, [-0.2, 0.6, 0.005]],
-    ['ke', T('anInKe'), (x) => pct(x, 2), I.src.ke, [0.05, 0.16, 0.0025]],
-    ['tg', T('anInTg'), (x) => pct(x, 1), I.src.tg, [0, 0.04, 0.0025]],
-  ];
-  pg.append(assumeCard(fields, V, ed, [[T('anIn310'), iso(strip(pct(base.g[2])) + ' → ' + strip(pct(base.g[9]))), T('anIn310s')]]));
-  // בדיקות שפיות
-  const cNow = ctx(co, nowP(co)), nopat = cNow.op != null ? cNow.op * (1 - cNow.t) : null;
-  const reinv = cNow.capex != null && cNow.dep != null && nopat > 0 ? (cNow.capex - cNow.dep) / nopat : null;
-  const gAvg = mean(base.g.slice(0, 5)), impROIC = reinv > 0 ? gAvg / reinv : null;
-  const [hc] = cagrN(co, 'rev', 5), rev10 = base.rows[9] / V.base;
-  const san = [
-    [T('anS1'), pct(base.tvShare, 0), base.tvShare > 0.75 ? 'bad' : 'good', T(base.tvShare > 0.75 ? 'anS1b' : 'anS1g')],
-    reinv != null && reinv < 0.05 // השקעה נטו כמעט אפסית — היחס מתפוצץ ולא אומר כלום
-      ? [T('anS2'), '—', 'neu', T('anS2low')]
-      : [T('anS2'), impROIC ? pct(impROIC, 0) : '—', impROIC == null ? 'neu' : impROIC > Math.max(cNow.roic || 0, 0.3) ? 'bad' : 'good', reinv != null ? T('anS2s', { g: strip(pct(gAvg, 0)), r: strip(pct(reinv, 0)), n: strip(pct(cNow.roic, 0)) }) : T('anS2n')],
-    [T('anS3'), rev == null ? '—' : pct(rev), rev != null && hc != null && rev > hc * 1.3 ? 'bad' : 'good', T('anS3s', { v: strip(sgn(hc)) })],
-    [T('anS4'), iso('×' + rev10.toFixed(1)), rev10 > 8 ? 'mid' : 'good', T('anS4s')],
-  ];
-  pg.append(mark(card(h('h2', {}, T('anSanity')), chkRows(san)), { hint: T('anHSanity') }));
-  // רגישות
-  const kes = [-0.02, -0.01, 0, 0.01, 0.02].map((d) => V.ke + d), gss = [0.6, 0.8, 1, 1.2, 1.4];
-  const tb = h('table', { class: 'an-sens' });
-  const thr = h('tr', {}, h('th', {}, T('anSensCorner')), ...kes.map((k) => h('th', {}, strip(pct(k, 1)))));
-  tb.append(h('thead', {}, thr), h('tbody', {}, ...gss.map((g) => h('tr', {}, h('th', {}, '×' + g), ...kes.map((k) => {
-    const p = dcf(V, { ke: k, gs: g }).ps;
-    return h('td', { class: g === 1 && k === V.ke ? 'cur' : null }, strip(fmt(p, 'ps', co, 0)));
-  })))));
-  pg.append(mark(card(h('h2', {}, T('anSens')), sub(T('anSensSub')), h('div', { class: 'an-tblw' }, tb)), { live: 1, hint: T('anHSens') }));
-  // יעד לפי מכפיל (כמו iCharts, עם מכפיל היסטורי של החברה עצמה)
-  const mm = ['lo', 'mid', 'hi'].map((s) => multModel(co, V, s));
-  if (mm[1] && mm[0] && mm[2]) {
-    pg.append(mark(card(h('div', { class: 'an-h2row' }, h('h2', {}, T('anTgt', { y: mm[1].year })), h('span', { class: 'an-pill neu' }, T('anTgtTag'))),
-      sub(T('anTgtSub', { s: I.src.pe })),
-      scen([[T('anBear') + ' · ' + fmt(mm[0].pe, 'x', co, 0), mm[0].tgt, mm[0].ret == null ? '—' : T('anPerYear', { v: strip(sgn(mm[0].ret)) }), '', 0],
-        [T('anBase') + ' · ' + fmt(mm[1].pe, 'x', co, 0), mm[1].tgt, mm[1].ret == null ? '—' : T('anPerYear', { v: strip(sgn(mm[1].ret)) }), '', 1],
-        [T('anBull') + ' · ' + fmt(mm[2].pe, 'x', co, 0), mm[2].tgt, mm[2].ret == null ? '—' : T('anPerYear', { v: strip(sgn(mm[2].ret)) }), '', 2]]),
-      sub(T('anTgtFoot', { y: mm[1].year, e: strip(fmt(mm[1].eps5, 'ps', co)), how: V.epsPath.pts.length ? T('anTgtCons', { y: V.epsPath.pts[V.epsPath.pts.length - 1][0] }) : T('anTgtHist'), k: strip(pct(V.ke, 1)) }))), { v: fmt(mm[1].tgt, 'ps', co, 0), hint: T('anHTgt') }));
-  }
-}
-/* --- בנקים, ביטוח והשקעות --- */
-function pageValFin(co, pg) {
-  const I = finInputs(co, MAC), ed = S.ed, V = { ...I.val, ...ed };
-  multCard(co, pg);
-  const base = riValue(V);
-  if (!base) { pg.append(mark(card(h('h2', {}, T('anFair')), sub(T(V.bv > 0 ? 'anRiNone' : 'anRiNoBv'))), { main: 1 })); return; }
-  // דוב ושור זזים יחד עם ה־ROE שנבחר (אותו מרחק כמו בהיסטוריה)
-  const dLo = I.val.roe - I.val.roeLo, dHi = I.val.roeHi - I.val.roe;
-  const bear = riValue(V, { roe: V.roe - dLo }) || { ps: 0 }, bull = riValue(V, { roe: V.roe + dHi }) || base;
-  const imp = impliedRoe(V, co.price);
-  pg.append(fairCard(co, { bear, base, bull }, T('anRiTag'), T('anRiSub'),
-    [imp == null ? null : h('p', { class: 'an-big an-big-sm' }, T('anRiImp1'), h('strong', {}, pct(imp)), T('anRiImp2', { v: strip(pct(I.val.roe5)) }))]));
-  pg.append(assumeCard([
-    ['roe', T('anInRoe'), (x) => pct(x), I.src.roe, [-0.05, 0.4, 0.0025]],
-    ['ke', T('anInKe'), (x) => pct(x, 2), I.src.ke, [0.05, 0.16, 0.0025]],
-    ['tg', T('anInTg'), (x) => pct(x, 1), I.src.tg, [0, 0.04, 0.0025]],
-  ], V, ed, [[T('anInBv'), fmt(V.bv, 'ps', co), I.src.bv], [T('anInPb'), iso(base.pb.toFixed(2) + '×'), T('anInPbs')]]));
-  const c = ctx(co, nowP(co)), ind = co.ind || {}, iname = co.indName || T('anIndustry'), pbNow = co.price / V.bv;
-  pg.append(card(h('h2', {}, T('anSanity')), chkRows([
-    [T('anRiS1'), pct(V.roe), ind.roe > 0 ? (V.roe <= ind.roe * 1.5 ? 'good' : 'bad') : 'neu', ind.roe > 0 ? T('anRiS1s', { i: iso(iname), v: strip(pct(ind.roe)) }) : T('anRiS1n')],
-    [T('anRiS2'), iso(pbNow.toFixed(2) + '×'), 'neu', ind.pbv > 0 ? T('anRiS2s', { i: iso(iname), v: iso(ind.pbv.toFixed(2) + '×') }) : T('anRiS2n')],
-    [T('anRiS3'), pct(c.roe), c.roe == null ? 'neu' : Math.abs(c.roe - V.roe) <= Math.max(0.03, V.roe * 0.3) ? 'good' : 'mid', T('anRiS3s', { v: strip(pct(V.roe)) })],
-  ])));
-  // רגישות: ROE מתמשך × מחיר ההון
-  const kes = [-0.02, -0.01, 0, 0.01, 0.02].map((d) => V.ke + d), roes = [-0.04, -0.02, 0, 0.02, 0.04].map((d) => V.roe + d);
-  const tb = h('table', { class: 'an-sens' });
-  tb.append(h('thead', {}, h('tr', {}, h('th', {}, T('anSensRoe')), ...kes.map((k) => h('th', {}, strip(pct(k, 1)))))), h('tbody', {}, ...roes.map((r, ri) => h('tr', {}, h('th', {}, strip(pct(r, 0))), ...kes.map((k, ki) => {
-    const v = riValue(V, { roe: r, ke: k }), p = v ? v.ps : null;
-    return h('td', { class: ri === 2 && ki === 2 ? 'cur' : null }, p == null ? '—' : strip(fmt(p, 'ps', co, 0)));
-  })))));
-  pg.append(mark(card(h('h2', {}, T('anSens')), sub(T('anSensRiSub')), h('div', { class: 'an-tblw' }, tb)), { live: 1, hint: T('anHSens') }));
-}
-
-/* --- ריט --- */
-function pageValReit(co, pg) {
-  const R = reitInputs(co);
-  multCard(co, pg);
-  if (!(R.ffops > 0) || !R.m) { pg.append(mark(card(h('h2', {}, T('anFair')), sub(T(R.ffops > 0 ? 'anFfoNone' : 'anFfoNo'))), { main: 1 })); if (!(R.ffops > 0)) return; }
+/* ---------- עמוד השווי = מחשבון שהמשתמש ממלא (27/10/2026, בקשת המשתמש — כמו iCharts) ----------
+   החישוב של iCharts: הכנסות בעוד N שנים = בסיס × (1+צמיחה)^N, רווח = הכנסות × שולי רווח, שווי = רווח × מכפיל
+   (נמוך / בסיס / גבוה), תשואה שנתית ומחיר יעד. נוסף: שינוי במספר המניות בשנה (רכישות חוזרות / הנפקות) ומחיר היום
+   שנותן את התשואה שהמשתמש רוצה. כל שדה מגיע עם ערך מוצע מהדוחות לפי סוג החברה ובגישה שמרנית של השקעות ערך
+   (צמיחה — הנמוכה מבין ההיסטוריה והאנליסטים ועד 15%; מכפילים — מההיסטוריה של החברה עצמה; תשואה רצויה 10%).
+   בלי "זול/יקר" ובלי צבעים — רק החישוב לפי מה שהוזן */
+const CALC_G_MAX = 0.15, CALC_MULT_MAX = 40, CALC_YRS = 5;
+const CALC_KEYS = ['base', 'g', 'm', 'yrs', 'sh', 'lo', 'mid', 'hi', 'req'];
+function calcDefaults(co, want) {
+  const c = ctx(co, nowP(co)), fy = fyList(co).slice(-5), ind = co.ind || {}, H = multHist(co);
+  const noRev = !(c.rev > 0), basis = co.reit ? 'ffo' : want === 'fcf' && !noRev ? 'fcf' : 'ni';
+  const src = {}, val = { yrs: CALC_YRS, req: HURDLE };
+  // בסיס: הכנסות 12 החודשים האחרונים; בלי הכנסות (חלק מהבנקים) — הרווח הנקי עצמו
+  val.base = noRev ? c.ni : c.rev;
+  src.base = T(noRev ? 'anCsBaseNi' : 'anCsBase');
+  // צמיחה: הנמוכה מבין 5 השנים האחרונות ותחזית האנליסטים לשנה הבאה, בין ‎−5%‎ ל־15%
+  const [h5, n5] = cagrN(co, noRev ? 'ni' : 'rev', 5);
+  const est = co.est || [], e0 = est.find((e) => e.p === '0y'), e1 = est.find((e) => e.p === '+1y');
+  const eg = !noRev && e0 && e1 && e0.rev > 0 && e1.rev > 0 && (e1.rn || 0) >= 3 ? e1.rev / e0.rev - 1 : null;
+  const cand = [h5, eg].filter((x) => x != null);
+  val.g = clamp(cand.length ? Math.min(...cand) : 0.05, -0.05, CALC_G_MAX);
+  src.g = cand.length ? T('anCsG', { h: h5 != null ? strip(pct(h5)) : '—', n: n5 || 5, e: eg != null ? strip(pct(eg)) : '—', m: strip(pct(CALC_G_MAX, 0)) }) : T('anCsGNone');
+  // שולי רווח: ממוצע 5 השנים (כמו iCharts); בהפסד — שולי הרווח של הענף
+  if (noRev) { val.m = 1; src.m = ''; }
   else {
-    const F = { bear: { ps: R.ffops * R.m[0] }, base: { ps: R.ffops * R.m[1] }, bull: { ps: R.ffops * R.m[2] } };
-    const lbl = (t, i) => t + ' · ' + iso(R.m[i].toFixed(0) + '×');
-    pg.append(fairCard(co, F, T('anFfoTag'), T('anFfoSub', { n: R.years }), null, [lbl(T('anBear'), 0), lbl(T('anBase'), 1), lbl(T('anBull'), 2)]));
+    const mv = fy.map((p) => { const x = ctx(co, p); return basis === 'ffo' ? (x.ffo != null && x.rev ? x.ffo / x.rev : null) : basis === 'fcf' ? x.fcfm : x.nm; });
+    const m = mean(mv);
+    if (m > 0) { val.m = m; src.m = T(basis === 'fcf' ? 'anCsMF' : basis === 'ffo' ? 'anCsMFfo' : 'anCsM', { n: fin(mv).length }); }
+    else if (ind.nm > 0 && basis !== 'ffo') { val.m = ind.nm; src.m = T('anCsMInd', { i: iso(co.indName || T('anIndustry')) }); }
+    else { val.m = 0.1; src.m = T('anCsMNone'); }
   }
-  pg.append(card(h('h2', {}, T('anFfoData')), chkRows([
-    [T('anFfoPs'), fmt(R.ffops, 'ps', co), 'neu', T('anFfoPsS')],
-    [T('anLPffo'), R.now ? iso(R.now.toFixed(1) + '×') : '—', R.now && R.m ? (R.now < R.m[0] ? 'good' : R.now > R.m[2] ? 'bad' : 'neu') : 'neu', R.m ? T('anFfoNowS', { v: iso(R.m[1].toFixed(1) + '×'), n: R.years }) : T('anFfoNone')],
-    [T('anFfoPay'), R.pay != null ? pct(R.pay, 0) : '—', R.pay == null ? 'neu' : R.pay <= 0.9 ? 'good' : 'bad', T(R.pay == null ? 'anFfoPayN' : R.pay <= 0.9 ? 'anFfoPayG' : 'anFfoPayB')],
-    [T('anFfoG'), sgn(R.g), R.g == null ? 'neu' : R.g > 0.03 ? 'good' : R.g >= 0 ? 'mid' : 'bad', T('anCagrN', { n: R.nf })],
-  ])));
+  // מכפילים: רבע תחתון / ממוצע / רבע עליון של 10 השנים של החברה; בלי מספיק היסטוריה — הענף, ואז 15/20/25
+  const mkey = basis === 'fcf' ? 'pfcf' : basis === 'ffo' ? 'pffo' : 'pe';
+  const hist = H[mkey].slice(-120).filter((x) => x > 0 && x < 300);
+  let mult;
+  if (hist.length >= 24) { mult = [quant(hist, 0.25), mean(hist), quant(hist, 0.75)]; src.mult = T('anCsMult', { n: Math.round(hist.length / 12), m: CALC_MULT_MAX }); }
+  else if (mkey === 'pe' && ind.ape > 0) { mult = [ind.ape * 0.8, ind.ape, ind.ape * 1.2]; src.mult = T('anCsMultInd', { i: iso(co.indName || T('anIndustry')) }); }
+  else { mult = [15, 20, 25]; src.mult = T('anCsMultStd'); }
+  [val.lo, val.mid, val.hi] = mult.map((x) => Math.round(clamp(x, 1, CALC_MULT_MAX) * 2) / 2);
+  // מניות: הקצב של 5 השנים האחרונות, בין ‎−5%‎ ל־5% בשנה
+  const [shg] = cagrN(co, 'sh', 5);
+  val.sh = shg == null ? 0 : clamp(shg, -0.05, 0.05);
+  src.sh = shg == null ? T('anCsShNone') : T('anCsSh', { v: strip(sgn(shg)) });
+  src.yrs = T('anCsYrs'); src.req = T('anCsReq');
+  return { basis, noRev, mkey, val, src, shares: co.sharesOut || c.sh };
 }
-
-/* --- חברה שעוד לא מרוויחה --- */
-function lossCard(co, pg, I) {
-  const L = lossView(co), yrs = (x) => iso(x.toFixed(1)) + ' ' + T('anYrs');
-  pg.append(mark(card(h('h2', {}, T('anLossT')), sub(I.src.base), chkRows([
-    [T('anLPs'), L.psNow ? iso(L.psNow.toFixed(1) + '×') : '—', L.psNow && L.psMed ? (L.psNow < L.psMed ? 'good' : 'bad') : 'neu', L.psMed ? T('anLs1s', { n: L.years, v: iso(L.psMed.toFixed(1) + '×') }) : T('anLs1n')],
-    [T('anLs2'), L.r40 != null ? pct(L.r40, 0) : '—', L.r40 == null ? 'neu' : L.r40 >= 0.4 ? 'good' : L.r40 >= 0 ? 'mid' : 'bad', L.r40 != null ? T('anLs2s', { g: iso(strip(sgn(L.g, 0))), m: iso(strip(sgn(L.m, 0))) }) : T('anLs2n')],
-    [T('anLs3'), L.runway != null ? yrs(L.runway) : '—', L.runway == null ? (L.burn ? 'neu' : 'good') : L.runway >= 3 ? 'good' : L.runway >= 1.5 ? 'mid' : 'bad',
-      L.burn ? T('anLs3s', { c: iso(strip(fmt(L.cash, 'money', co))), b: iso(strip(fmt(L.burn, 'money', co))) }) : T('anLs3pos')],
-  ])), { main: 1 }));
+/* החישוב עצמו — טהור (נבדק ב־analysis.test) */
+function calcRun(V, shares0, price) {
+  const N = V.yrs, rev = V.base * (1 + V.g) ** N, prof = rev * V.m, sh = shares0 * (1 + V.sh) ** N;
+  return ['lo', 'mid', 'hi'].map((k) => {
+    const mcap = prof * V[k], ps = sh > 0 ? mcap / sh : null;
+    return { mult: V[k], rev, prof, mcap, ps, ret: ps > 0 && price > 0 ? (ps / price) ** (1 / N) - 1 : null, buy: ps > 0 ? ps / (1 + V.req) ** N : null };
+  });
+}
+/* שדה: איך מוצג ונקרא — כסף במיליארדים/מיליונים, אחוזים, מכפיל, שנים */
+function calcFields(co, D) {
+  const big = Math.abs(D.val.base) >= 1e9, sc = big ? 1e9 : 1e6, cs = curSym(co.cur);
+  const P = (d) => ({ show: (x) => (x * 100).toFixed(d), read: (s) => s / 100, unit: '%' });
+  return [
+    ['base', T(D.noRev ? 'anCiBaseNi' : 'anCiBase'), { show: (x) => (x / sc).toFixed(2), read: (s) => s * sc, unit: cs + ' ' + T(big ? 'anCuB' : 'anCuM') }],
+    ['g', T(D.noRev ? 'anCiGNi' : 'anCiG'), P(1)],
+    D.noRev ? null : ['m', T(D.basis === 'fcf' ? 'anCiMF' : D.basis === 'ffo' ? 'anCiMFfo' : 'anCiM'), P(1)],
+    ['yrs', T('anCiYrs'), { show: (x) => String(x), read: (s) => Math.round(s), unit: T('anYrs'), min: 1, max: 15 }],
+    ['sh', T('anCiSh'), P(1)],
+    ['mult', T('anCiMult', { m: T(D.mkey === 'pfcf' ? 'anLPfcf' : D.mkey === 'pffo' ? 'anLPffo' : 'anLPe') }), { show: (x) => String(x), read: (s) => s, unit: '×', min: 0.5, keys: ['lo', 'mid', 'hi'], caps: [T('anCLo'), T('anCMid'), T('anCHi')] }],
+    ['req', T('anCiReq'), P(1)],
+  ].filter(Boolean);
+}
+function pageVal(co, pg) {
+  if (!S.cv) S.cv = {};
+  const D = calcDefaults(co, S.calcB), ed = S.cv[D.basis] || (S.cv[D.basis] = {}), V = () => ({ ...D.val, ...ed });
+  const res = h('div', { class: 'an-cres' }), rows = h('div', { class: 'an-cin-list' });
+  const resetBtn = h('button', { class: 'an-link', type: 'button', hidden: Object.keys(ed).length ? null : true, on: { click: () => { for (const k in ed) delete ed[k]; render(); } } }, T('anCReset'));
+  const paint = () => {
+    const v = V(), R = calcRun(v, D.shares, co.price), cs = (x) => h('td', {}, x);
+    const mcNow = co.price * D.shares;
+    res.textContent = '';
+    res.append(h('p', { class: 'an-cnow' }, T('anCNow', { p: strip(fmt(co.price, 'ps', co)), m: strip(fmt(mcNow, 'money', co)) })),
+      h('div', { class: 'an-tblw' }, h('table', { class: 'an-ctab' },
+        h('thead', {}, h('tr', {}, h('th', {}), ...[T('anCLo'), T('anCMid'), T('anCHi')].map((t, i) => h('th', { class: i === 1 ? 'cur' : null }, t, h('small', {}, iso(String(R[i].mult) + '×')))))),
+        h('tbody', {},
+          h('tr', {}, h('th', {}, T('anCrMcap', { n: v.yrs })), ...R.map((r) => cs(strip(fmt(r.mcap, 'money', co))))),
+          h('tr', {}, h('th', {}, T('anCrPs', { n: v.yrs })), ...R.map((r) => cs(strip(fmt(r.ps, 'ps', co))))),
+          h('tr', {}, h('th', {}, T('anCrRet')), ...R.map((r) => cs(r.ret == null ? '—' : sgn(r.ret)))),
+          h('tr', {}, h('th', {}, T('anCrBuy', { r: strip(pct(v.req, 0)) })), ...R.map((r) => cs(r.buy == null ? '—' : strip(fmt(r.buy, 'ps', co)))))))),
+      h('p', { class: 'an-src' }, T('anCFoot', { r: strip(fmt(R[1].rev, 'money', co)), p: strip(fmt(R[1].prof, 'money', co)), n: v.yrs })));
+  };
+  for (const [k, label, f] of calcFields(co, D)) {
+    const keys = f.keys || [k], row = h('div', { class: 'an-cf' + (f.keys ? ' an-cf3' : '') }), inps = [];
+    const sugTxt = () => keys.map((kk) => f.show(D.val[kk])).join(' / ') + (f.unit === '%' ? '%' : ' ' + f.unit);
+    const hint = h('span', {}), sync = () => {
+      const on = keys.some((kk) => ed[kk] != null);
+      row.classList.toggle('ed', on); back.hidden = !on; hint.textContent = on ? T('anCSug', { v: sugTxt() }) : D.src[f.keys ? 'mult' : k] || '';
+      resetBtn.hidden = !Object.keys(ed).length;
+    };
+    const back = h('button', { class: 'an-cback', type: 'button', 'aria-label': T('anCBack'), on: { click: () => {
+      keys.forEach((kk, i) => { delete ed[kk]; inps[i].value = f.show(D.val[kk]); }); sync(); paint(); } } }, '↺');
+    keys.forEach((kk, i) => {
+      const inp = h('input', { class: 'an-cin', type: 'text', inputmode: 'decimal', dir: 'ltr', value: f.show(ed[kk] ?? D.val[kk]), 'aria-label': f.caps ? label + ' — ' + f.caps[i] : label });
+      inp.addEventListener('input', () => {
+        const n = parseFloat(inp.value.replace(/[^\d.\-]/g, ''));
+        if (!isFinite(n)) return;
+        let x = f.read(n);
+        if (f.min != null) x = Math.max(f.min, x); if (f.max != null) x = Math.min(f.max, x);
+        ed[kk] = x; sync(); paint();
+      });
+      inps.push(inp);
+    });
+    const field = f.caps ? h('div', { class: 'an-c3' }, ...inps.map((x, i) => h('label', {}, x, h('small', {}, f.caps[i])))) : inps[0];
+    row.append(h('div', { class: 'an-cl' }, h('b', {}, label), hint), h('div', { class: 'an-cv' }, back, field, h('span', { class: 'an-cu' }, f.unit)));
+    rows.append(row); sync();
+  }
+  paint();
+  const basisSeg = co.reit || D.noRev ? null : segCtl(T('anCBasis'), [['ni', T('anCBNi')], ['fcf', T('anCBFcf')]], D.basis, (b) => { S.calcB = b; render(); });
+  pg.append(card(h('div', { class: 'an-h2row' }, h('h2', {}, T('anCalc')), resetBtn), sub(T('anCalcSub')), basisSeg, rows), card(h('h2', {}, T('anCResT')), res));
+  multCard(co, pg);
 }
 
 const MULT_SET = { def: [['pe', 'anLPe'], ['pfcf', 'anLPfcf'], ['ps', 'anLPs'], ['evebit', 'anLEv']], fin: [['pb', 'anLPb'], ['pe', 'anLPe']], reit: [['pffo', 'anLPffo'], ['pb', 'anLPb'], ['ps', 'anLPs']] };
@@ -1426,11 +1374,11 @@ function multCard(co, pg) {
   const Hh = multHist(co), mc = h('div', { class: 'an-list' });
   for (const [k, n] of MULT_SET[co.fin ? 'fin' : co.reit ? 'reit' : 'def']) {
     const a = Hh[k].filter((x) => x > 0 && x < 300); if (a.length < 6) continue;
-    const now = fin(Hh[k]).pop(), mn = Math.min(...a), mx = Math.max(...a), q1 = quant(a, 0.25), q3 = quant(a, 0.75), md = quant(a, 0.5);
+    const now = fin(Hh[k]).pop(), mn = Math.min(...a), mx = Math.max(...a), q1 = quant(a, 0.25), q3 = quant(a, 0.75), md = mean(a);
     const P = (v) => ((clamp(v, mn, mx) - mn) / (mx - mn || 1) * 100).toFixed(1) + '%';
     mc.append(h('div', { class: 'an-mult' }, h('div', { class: 'an-mult-t' }, h('span', { class: 'an-rt' }, h('b', {}, T(n)), h('span', { class: 'an-hint' }, T(MULT_HINT[k]))), h('span', { class: 'an-mv' }, fmt(now, 'x', co, 1))),
       h('div', { class: 'an-rbar' }, h('div', { class: 'an-tr' }), h('div', { class: 'an-iq', style: `left:${P(q1)};width:calc(${P(q3)} - ${P(q1)})` }), h('div', { class: 'an-md', style: `left:${P(md)}` }), h('div', { class: 'an-nw', style: `left:${P(now)}` })),
-      h('div', { class: 'an-lb' }, h('span', {}, strip(fmt(mn, 'x', co, 1))), h('span', {}, T('anMedian') + ' ' + strip(fmt(md, 'x', co, 1))), h('span', {}, strip(fmt(mx, 'x', co, 1))))));
+      h('div', { class: 'an-lb' }, h('span', {}, strip(fmt(mn, 'x', co, 1))), h('span', {}, T('anAvg') + ' ' + strip(fmt(md, 'x', co, 1))), h('span', {}, strip(fmt(mx, 'x', co, 1))))));
   }
   if (!mc.children.length) return;
   pg.append(mark(card(h('h2', {}, T('anMultHist')), sub(T('anMultHistSub', { n: Math.round(Hh.t.length / 12) })), mc), { hint: T('anHMult') }));
@@ -1561,14 +1509,14 @@ function chartSheet(def) {
   const co = S.co;
   if (def.line) {
     openSheet(def.n, (b, rec) => {
-      const Hh = multHist(co), a = Hh[def.line[1]], ok = a.filter((x) => x > 0 && x < 300), md = median(ok);
+      const Hh = multHist(co), a = Hh[def.line[1]], ok = a.filter((x) => x > 0 && x < 300), md = multAvg(ok);
       const host = h('div', { class: 'an-chart no-swipe' }), slot = tipBox(1), tip = slot.tip;
       const stat = (tt, v) => h('div', {}, h('span', {}, tt), h('b', {}, v));
       b.append(h('div', { class: 'an-chead' }, h('p', { class: 'an-ex' }, T(def.line[3])), slot), h('div', { class: 'an-chartw' }, host),
-        h('div', { class: 'an-stats' }, stat(T('anToday'), fmt(fin(a).pop(), 'x', co, 1)), stat(T('anMed10'), fmt(md, 'x', co, 1)),
+        h('div', { class: 'an-stats' }, stat(T('anToday'), fmt(fin(a).pop(), 'x', co, 1)), stat(T('anAvg10'), fmt(md, 'x', co, 1)),
           stat(T('anRange'), ok.length ? iso(Math.min(...ok).toFixed(0) + '–' + Math.max(...ok).toFixed(0) + '×') : '—')));
       rec.draw = () => drawChart(host, { labels: Hh.t.map((x) => (x.slice(5) === '01' ? x.slice(0, 4) : '')), tipLabels: Hh.t.map((x) => x.slice(5) + '/' + x.slice(0, 4)),
-        series: [{ name: def.n, color: cssv(def.line[2]), vals: a.map((x) => (x > 0 && x < 300 ? x : null)) }], unit: 'x', co, h: 260, line: true, avg: md, avgName: T('anMedian'), tipHost: tip, title: def.n });
+        series: [{ name: def.n, color: cssv(def.line[2]), vals: a.map((x) => (x > 0 && x < 300 ? x : null)) }], unit: 'x', co, h: 260, line: true, avg: md, avgName: T('anAvg'), tipHost: tip, title: def.n });
     });
     return;
   }
@@ -1720,5 +1668,5 @@ function estSheet() {
 }
 
 /* בדיקות (node) — הפונקציות הטהורות */
-export const _test = { qRun, qBack, ttmPoints, cmpPrev, restated, cagrBetween, growthOf, finInputs, riValue, impliedRoe, reitInputs, lossView, fairOf, flagsAt, srcDef, rawName, RAWK, OWN_TAG, prep, indFix, pickPeers, peerRow, ctx, periodList, hasTTM, raw, multHist, autoInputs, dcf, scenarios, reverseG, multModel, uncertainty, checks, piotroski, altman, fmt, sgn, cagrN, epsPath,
+export const _test = { r40Of, multAvg, calcDefaults, calcRun, qRun, qBack, ttmPoints, cmpPrev, restated, cagrBetween, growthOf, finInputs, riValue, impliedRoe, reitInputs, lossView, fairOf, flagsAt, srcDef, rawName, RAWK, OWN_TAG, prep, indFix, pickPeers, peerRow, ctx, periodList, hasTTM, raw, multHist, autoInputs, dcf, scenarios, reverseG, multModel, uncertainty, checks, piotroski, altman, fmt, sgn, cagrN, epsPath,
   setEnv: (e) => { E = e; } };

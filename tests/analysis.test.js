@@ -87,7 +87,8 @@ ok(A.multHist(reit).pffo.filter((x) => x > 0).length >= 36 && A.multHist(bank).p
 const neg = (a) => a.map((x) => -Math.abs(x));
 const lco = A.prep({ ...D, A: { ...A0, ocf: neg(A0.ocf) }, Q: { ...Q, ocf: neg(Q.ocf) } }, null, 3.7);
 const L = A.lossView(lco), clo = A.ctx(lco, A.periodList(lco, 'fy').pop());
-ok(Math.abs(L.m - (clo.fcf - clo.sbc) / clo.rev) < 1e-9 && Math.abs(L.r40 - (L.g + L.m)) < 1e-12, 'Rule of 40 = צמיחת הכנסות + שולי תזרים לבעלים (אחרי תגמול במניות)');
+ok(Math.abs(L.m - clo.op / clo.rev) < 1e-9 && Math.abs(L.r40 - (L.g + L.m)) < 1e-12, 'Rule of 40 = צמיחת הכנסות + שולי רווח תפעולי (כמו iCharts)');
+ok(L.r40 === A.r40Of(lco, A.periodList(lco, 'fy').pop()), 'Rule of 40 — פונקציה אחת לכל מקום שמציג אותו');
 ok(Math.abs(L.runway - clo.cashT / -clo.fcf) < 1e-9, 'כמה זמן המזומן מספיק = מזומן ÷ שריפה בשנה');
 ok(A.fairOf(lco, MAC) === null && A.fairOf(co, MAC).kind === 'dcf', 'בלי תזרים חיובי — אין DCF; חברה רגילה — DCF');
 const small = A.indFix(A.prep({ ...D, indData: { bu: 2, fpe: 90, n: 5 } }, null, 3.7), MAC);
