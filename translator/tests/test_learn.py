@@ -111,6 +111,8 @@ class LearnCorpus(unittest.TestCase):
         (pd / 'en.aligned.json').write_text(json.dumps({'words': [{'w': 'line', 's': 2.0, 'e': 2.3, 'spk': 'S1', 's_asr': 1.9, 's_qwen': 2.0, 's_ctc': 2.02, 'align': 'qwen3'}]}))
         (pd / 'project.json').write_text(json.dumps({'title': SECRET, 'speakers': {'S1': {'name': 'Warren Buffett', 'role': 'CEO', 'gender': 'm'}, 'bad key': {'name': 'x'}}}), encoding='utf-8')
         (pd / 'en.patch.applied.0.txt').write_text('# x\nbufet => Buffett\n', encoding='utf-8')
+        (pd / 'asr').mkdir(exist_ok=True)
+        (pd / 'asr' / 'parakeet.json').write_text(json.dumps({'diarize': {'voice': {'S1': {'g': 'f', 'hz': 181.44}, 'S2': {'g': 'x'}, 'Dana': {'g': 'm'}}}}), encoding='utf-8')
         self.ctx = SimpleNamespace(pdir=pd, st={'spec': {'dur': 300, 'name': SECRET + '.mp4', 'mode': 'sonnet-medium', 'from': 'en', 'to': ['he']}})
 
     def tearDown(self):
@@ -129,7 +131,8 @@ class LearnCorpus(unittest.TestCase):
         self.assertEqual(c['wd'], [['line', 2.0, 2.3, 'S1', 1.9, 2.0, 2.02, 'qwen3', None]])
         self.assertEqual(c['pt'], ['bufet => Buffett'])
         self.assertEqual(c['gl'], ['Berkshire\tברקשייר'])
-        self.assertEqual(c['sp'], {'S1': {'n': 'Warren Buffett', 'r': 'CEO', 'g': 'm'}})   # בקשת המשתמש: שמות הדוברים נשמרים
+        self.assertEqual(c['sp'], {'S1': {'n': 'Warren Buffett', 'r': 'CEO', 'g': 'm'}})
+        self.assertEqual(c['vg'], {'S1': {'g': 'f', 'hz': 181.4}, 'S2': {'g': '?'}})   # 27/10: רמז המגדר מהקול   # בקשת המשתמש: שמות הדוברים נשמרים
         self.assertEqual((c['mode'], c['src'], c['dst'], c['dur']), ('sonnet-medium', 'en', 'he', 300))
 
     def test_second_draft(self):

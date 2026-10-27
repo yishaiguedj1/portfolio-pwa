@@ -1161,6 +1161,16 @@ def learn_corpus(ctx):
             sp[k] = {x: _lc_txt(v.get(y))[:80] for x, y in (('n', 'name'), ('r', 'role'), ('g', 'gender')) if v.get(y)}
     if sp:
         out['sp'] = sp
+    # 27/10/2026 (ניתוח 15 פרקי סדרה): רמז המגדר מגובה הקול לכל תווית — כדי למדוד מול התרגום אם הוא צדק (170–190Hz סומנו "אישה")
+    vg = {}
+    for name in ('parakeet', 'elevenlabs', 'assemblyai'):
+        v = ((_read_json(pd / 'asr' / f'{name}.json') or {}).get('diarize') or {}).get('voice')
+        if isinstance(v, dict) and v:
+            vg = {k: dict({'g': x.get('g') if x.get('g') in ('m', 'f', '?') else '?'}, **({'hz': round(float(x['hz']), 1)} if _num_ok(x.get('hz')) else {}))
+                  for k, x in list(v.items())[:20] if _LC_SPK.match(str(k)) and isinstance(x, dict)}
+            break
+    if vg:
+        out['vg'] = vg
     fin = _read_json(pd / 'out' / 'cues.final.json')
     if isinstance(fin, list):
         out['fin'] = [{'s': _lc_num(c.get('start')), 'e': _lc_num(c.get('end')),

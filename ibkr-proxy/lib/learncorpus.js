@@ -112,6 +112,15 @@ function normCorpus0(o, month, full) {
     }
     if (Object.keys(sp).length) out.sp = sp;
   }
+  if (o.vg && typeof o.vg === 'object' && !Array.isArray(o.vg)) {    // 27/10/2026: רמז המגדר מגובה הקול לכל תווית (מספרים בלבד)
+    const vg = {};
+    for (const [k, v] of Object.entries(o.vg).slice(0, 20)) {
+      if (!SPK_RE.test(k) || !v || typeof v !== 'object') continue;
+      vg[k] = { g: ['m', 'f', '?'].includes(v.g) ? v.g : '?' };
+      if (isNum(v.hz) && v.hz > 0 && v.hz < 1000) vg[k].hz = Math.round(v.hz);
+    }
+    if (Object.keys(vg).length) out.vg = vg;
+  }
   if (Array.isArray(o.gl)) out.gl = o.gl.slice(0, MAX_GL).filter((x) => typeof x === 'string').map((x) => T(x, 200));
   if (o.ref && typeof o.ref === 'object' && !Array.isArray(o.ref)) {    // 26/10/2026: כתוביות אנושיות מהמקור (ציבוריות) — ייחוס
     const ref = {};
