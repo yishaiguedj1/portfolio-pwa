@@ -78,9 +78,21 @@ else if (first === 'boot') ready.then((st) => { if (st === 'out') loginGate({ ap
 Promise.race([thumbsReady, new Promise((r) => setTimeout(r, 400))]).then(() =>
   openStudio({ standalone: sa, restore: hs && hs.studio && !share && !got ? hs : null, job: link ? link[1] : '', view: link && link[2] ? link[2] : '', share, ref: shareRef, probe: shareProbe, to: shareTo, got, dle }))
   .then(() => { if (phpick) studioPhPick(phpick); if (phe) studioPhErr(link[1], phe); });   // 24/10/2026: תרגום בטלפון
+/* 27/10/2026: נגיעה בהתראה כש־Studio כבר פתוחה — sw.js מנווט לאותו דף עם ‎#studio=<עבודה>, וזה מגיע כשינוי ב־hash בלבד.
+   עד היום רק הטעינה הראשונה קראה אותו, והנגיעה לא פתחה את העבודה */
+function jobLinkNow() {
+  const jl = /[#&]studio=(j[A-Za-z0-9_-]{20})(?:&v=(play|subs))?/.exec(location.hash || '');
+  if (!jl) return false;
+  const pe = hashArg('phe', 24);
+  try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
+  openStudio({ standalone: sa, job: jl[1], view: jl[2] || '' });
+  if (pe) studioPhErr(jl[1], pe);
+  return true;
+}
 /* 22/10/2026: קישור מהבועה / משיתוף כש־Studio כבר פתוחה — אנדרואיד מעביר אותו ללשונית הקיימת כשינוי ב־hash, בלי טעינה */
 if (typeof window !== 'undefined') window.addEventListener('hashchange', () => {
   const s = hashArg('share', 4096), pr = hashArg('probe', 200000), g = hashArg('got', 40), de = hashArg('dle', 60), pk = hashArg('phpick', 6100);
+  if (!s && !g && !pk && jobLinkNow()) return;
   if (!s && !pr && !g && !de && !pk) return;
   const r = hashArg('ref', 2048), to = hashArg('to', 10) === 'cloud' ? 'cloud' : '';
   try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
