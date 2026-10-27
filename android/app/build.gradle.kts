@@ -62,24 +62,16 @@ android {
             minSdk = 29
             ndk { abiFilters += "arm64-v8a" }
         }
-        // 24/10/2026 ("תרגום סרטונים בטלפון", שלב 0): Studio Lab — כלי מדידה בלבד. אותם מודלים של השרת (Parakeet, Qwen)
-        // דרך ONNX Runtime לאנדרואיד ואותו ffmpeg של youtubedl-android; מודד זמן, זיכרון וחום ומפיק דוח לשיתוף
-        app("lab", "app.thesnowball.lab", "Studio Lab", "studio.thesnowball.app", "#FF4656").apply {
-            minSdk = 29
-            ndk { abiFilters += "arm64-v8a" }
-        }
     }
     sourceSets {
         getByName("academy").java.srcDir("src/lite/java")
-        getByName("studio").java.srcDirs("src/lite/java", "src/grab/java", "src/ytdl/java", "src/phcore/java", "src/labcore/java")   // 25/10/2026: phcore = התמלול, הדוברים והיישור בטלפון (שלב 2); labcore = ONNX Runtime ו־Parakeet של Studio Lab
+        getByName("studio").java.srcDirs("src/lite/java", "src/grab/java", "src/ytdl/java", "src/phcore/java", "src/labcore/java")   // 25/10/2026: phcore = התמלול, הדוברים והיישור בטלפון (שלב 2); labcore = ONNX Runtime ו־Parakeet (נבדקים ב־testStudio; האפליקציה Studio Lab נמחקה 27/10/2026)
         getByName("studio").assets.srcDir("../../translator/fonts")   // 24/10/2026: הגופנים של הכתוביות (vt) — לצריבה בטלפון (PhWork)   // grab = VideoUrl (גם דפדפן הציד וגם הבועה); ytdl = מנוע yt-dlp (משותף עם Studio DM)
         getByName("bubble").java.srcDirs("src/lite/java", "src/grab/java")
         getByName("dm").java.srcDirs("src/lite/java", "src/dmcore/java", "src/ytdl/java", "src/grab/java")   // lite = Flavor (MainActivity של main נבנה גם כאן, ויוצא מהמניפסט)
         getByName("testDm").java.srcDir("src/dmcore/java")
         getByName("browser").java.srcDirs("src/lite/java", "src/dmcore/java", "src/ytdl/java", "src/grab/java", "src/dm/java")
         getByName("browser").res.srcDir("src/dm/res")   // המחרוזות, הערכה והאייקונים של ההורדות (האייקון של הדפדפן — br_launcher)
-        getByName("lab").java.srcDirs("src/lite/java", "src/labcore/java")   // labcore = הליבה (נבדקת ב־JVM — testLab)
-        getByName("testLab").java.srcDir("src/labcore/java")
     }
 
     signingConfigs {
@@ -169,15 +161,6 @@ dependencies {
     "browserImplementation"("com.google.android.gms:play-services-auth:21.1.1")   // סנכרון עם Chrome: הרשאת drive.appdata (AuthorizationClient)
     "browserImplementation"("androidx.media3:media3-exoplayer:1.5.1")
     "browserImplementation"("androidx.media3:media3-ui:1.5.1")
-    // 24/10/2026: Studio Lab — Compose כמו DM, ‏ONNX Runtime באותה גרסה של השרת (onnxruntime==1.30.0), ffmpeg של youtubedl-android
-    "labImplementation"(platform("androidx.compose:compose-bom:2025.02.00"))
-    "labImplementation"("androidx.compose.material3:material3")
-    "labImplementation"("androidx.compose.ui:ui")
-    "labImplementation"("androidx.activity:activity-compose:1.10.0")
-    "labImplementation"("com.microsoft.onnxruntime:onnxruntime-android:1.30.0")
-    "labImplementation"("io.github.junkfood02.youtubedl-android:library:0.18.1")
-    "labImplementation"("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
-    "testLabImplementation"("junit:junit:4.13.2")
     "testDmImplementation"("org.json:json:20240303")
     "testBrowserImplementation"("junit:junit:4.13.2")
     "testBrowserImplementation"("org.json:json:20240303")   // ייבוא מ־Chrome (BrImportTest)

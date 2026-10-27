@@ -1,6 +1,6 @@
 # Studio Lab (24/10/2026, "תרגום סרטונים בטלפון" — שלב 0): גרפי היישור של Qwen לטלפון.
 # אותם קבצים בדיוק שהעובד מריץ (‏/opt/aligner בתמונת העובד — translator/aligner_export.py, מהמודל הרשמי, Apache-2.0)
-# מועלים ל־Release ‏lab-models, ו־Studio Lab מוריד אותם ובודק כל קובץ מול ה־manifest (sha256).
+# מועלים ל־Release ‏lab-models, ו־Studio (התרגום בטלפון, PhModels.kt) מוריד אותם ובודק כל קובץ מול ה־manifest (sha256). האפליקציה Studio Lab נמחקה 27/10/2026.
 # בלי ctc.onnx (‏MMS_FA — רישיון CC-BY-NC, לא להפיץ). רץ כשהקובץ הזה משתנה, או ידנית אחרי תמונת עובד חדשה.
 name: lab-models
 
