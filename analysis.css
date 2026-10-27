@@ -162,7 +162,7 @@ button.an-row { cursor: pointer; }
 .an-chart text { fill: var(--an-ink3); font-size: 11px; font-family: var(--font); }
 .an-chart text.an-avg { fill: var(--an-ink); font-weight: 700; paint-order: stroke; stroke: var(--an-card); stroke-width: 4px; stroke-linejoin: round; }
 /* שורת ההסבר + הבועה (27/10/2026): הבועה בעמודה ברוחב קבוע בקצה השורה — לא מעל הגרף */
-.an-chead { display: grid; grid-template-columns: minmax(0, 1fr) 46%; gap: 12px; align-items: start; margin-bottom: 8px; }
+.an-chead { display: grid; grid-template-columns: minmax(0, 1fr) 42%; gap: 12px; align-items: start; margin-bottom: 8px; }
 .an-chead .an-ex { margin: 0; }
 .an-tipslot { position: relative; min-width: 0; }
 .an-tip { position: absolute; top: 0; inset-inline: 0; z-index: 3; box-sizing: border-box; background: var(--an-tip); border: 1px solid var(--an-sep); border-radius: var(--radius-xs);
@@ -171,6 +171,11 @@ button.an-row { cursor: pointer; }
 .an-tip-r { display: flex; justify-content: space-between; gap: 8px; align-items: center; min-width: 0; }
 .an-tip-r span { color: var(--an-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .an-tip-r b { flex: none; font-variant-numeric: tabular-nums; }
+.an-tip-g { display: flex; flex-direction: column; gap: 1px; }
+.an-tip-c { display: flex; align-items: center; min-width: 0; white-space: nowrap; }
+.an-tip-c b { font-variant-numeric: tabular-nums; }
+.an-tip-c i { flex: none; }
+.an-tip-v { font-size: 17px; font-weight: 800; letter-spacing: -.2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .an-tip i, .an-chip i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-inline-end: 5px; }
 .an-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .an-chip { border: 1px solid var(--card-border); background: var(--surface-2); border-radius: var(--pill); padding: 5px 11px; font-size: 13px; font-weight: 600; cursor: pointer;

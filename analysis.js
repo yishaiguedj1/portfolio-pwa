@@ -568,10 +568,9 @@ function drawChart(host, opt) {
     hl.setAttribute('x', x0 + i * band); hl.setAttribute('opacity', 1);
     tip.textContent = '';
     tip.append(h('div', { class: 'an-tip-h' }, (opt.tipLabels || opt.labels)[i]));
-    for (const s of opt.series) {
-      const nm = h('span', {}, k > 1 ? h('i', { style: `background:${s.color}` }) : null, s.name);
-      tip.append(h('div', { class: 'an-tip-r' }, nm, h('b', {}, fmt(s.vals[i], opt.unit, opt.co))));
-    }
+    // כמה סדרות: נקודה בצבע + הערך בשורה לכל סדרה — השמות כבר בשבבים שלצד הבועה (שמות מלאים לא נכנסים ברוחב שלה)
+    if (k > 1) tip.append(h('div', { class: 'an-tip-g' }, ...opt.series.map((s) => h('div', { class: 'an-tip-c' }, h('i', { style: `background:${s.color}` }), h('b', {}, fmt(s.vals[i], opt.unit, opt.co))))));
+    else tip.append(h('div', { class: 'an-tip-v' }, fmt(opt.series[0].vals[i], opt.unit, opt.co)));   // סדרה אחת — השם בכותרת העמוד, ושם מקוצר בבועה רק הפריע
     if (tip.hidden && typeof tip.animate === 'function' && !(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches))
       tip.animate([{ opacity: 0, transform: 'translateY(4px) scale(.97)' }, { opacity: 1, transform: 'none' }], { duration: 180, easing: 'cubic-bezier(.2, .9, .25, 1)' });
     tip.hidden = false;
@@ -1545,10 +1544,11 @@ function chartSheet(def) {
     const host = h('div', { class: 'an-chart no-swipe' }), slot = tipBox(def.s.length), tip = slot.tip, stats = h('div', { class: 'an-stats' }), tbl = h('div', { class: 'an-tblw', hidden: true });
     const chartW = h('div', { class: 'an-chartw' }, host);
     const q = def.s.length === 1 && M[def.s[0]].q;
-    b.append(...[h('div', { class: 'an-chead' }, q ? h('p', { class: 'an-ex' }, T(q)) : h('span'), slot),
-      def.s.length > 1 ? h('div', { class: 'an-chips' }, ...def.s.map((k) => h('button', { class: 'an-chip', type: 'button', 'aria-pressed': 'true', on: { click: (e) => {
+    const chips = def.s.length > 1 ? h('div', { class: 'an-chips' }, ...def.s.map((k) => h('button', { class: 'an-chip', type: 'button', 'aria-pressed': 'true', on: { click: (e) => {
         if (st.hide.has(k)) st.hide.delete(k); else if (st.hide.size < def.s.length - 1) st.hide.add(k); else return;
-        e.currentTarget.setAttribute('aria-pressed', String(!st.hide.has(k))); draw(); } } }, h('i', { style: `background:${cssv(M[k].c)}` }), T(M[k].n)))) : null,
+        e.currentTarget.setAttribute('aria-pressed', String(!st.hide.has(k))); draw(); } } }, h('i', { style: `background:${cssv(M[k].c)}` }), T(M[k].n)))) : null;
+    // השורה שמעל הגרף: ההסבר (או שבבי הסדרות) ולצידם המקום של הבועה
+    b.append(...[h('div', { class: 'an-chead' }, chips || (q ? h('p', { class: 'an-ex' }, T(q)) : h('span')), slot),
       chartW, tbl, stats, restNote(co, def.s),
       long ? segCtl(T('anCRange'), [['5', T('anC5')], ['10', T('anC10')], ['all', T('anCAll')]], st.range, (v) => { st.range = v; draw(); }) : null,
       ratio ? null : segCtl(T('anCView'), [['v', T('anCVal')], ['g', T('anCGrowth'), noG], ['r', T('anCPctRev'), noPct]], 'v', (v) => { st.view = v; draw(); }),
