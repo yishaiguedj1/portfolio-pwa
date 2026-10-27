@@ -95,9 +95,19 @@ export async function r2Upload(o, env = {}) {
       const ready = todo.filter((n) => urls.has(n));
       if (!ready.length) throw Object.assign(new Error('r2_nourls'), { code: 'net' });   // אין קישורים לחלקים החסרים — מבקשים שוב (עם המתנה)
       /* כמה חלקים במקביל: מי שסיים לוקח את הבא */
-      let i = 0, sent = 0;
-      const worker = async () => { while (i < ready.length) { if (stopped()) throw abortErr(); const n = ready[i++]; if (await sendPart(n)) { sent++; fails = 0; } } };
+      /* 27/10/2026 (בטלפון: ההעלאה איטית לפעמים, וההתקדמות קופצת אחורה): חלק שנכשל הפיל את Promise.all מיד, והחלק
+         השני המשיך לעלות "יתום" — הסבב הבא שלח אותו שוב במקביל לעצמו (רוחב פס כפול לאותם בתים). עכשיו חלק שנכשל רק עוצר
+         את החלוקה של חלקים חדשים, מחכים שהחלקים שבדרך יסתיימו, ואז מטפלים בתקלה */
+      let i = 0, sent = 0, err = null;
+      const worker = async () => {
+        while (i < ready.length && !err) {
+          if (stopped()) throw abortErr();
+          const n = ready[i++];
+          try { if (await sendPart(n)) { sent++; fails = 0; } } catch (e) { if (!err) err = e; }
+        }
+      };
       await Promise.all(Array.from({ length: Math.min(E.conc, ready.length) }, worker));
+      if (err) throw err;
       if (!sent) throw Object.assign(new Error('r2_none'), { code: 'net' });
     } catch (e) {
       if (isAbort(e) || stopped()) throw abortErr();

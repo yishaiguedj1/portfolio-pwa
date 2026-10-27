@@ -1596,6 +1596,13 @@ async function gate(run) {
     await waitChange(5000);
   }
 }
+/* 27/10/2026 (בטלפון: "עלו 140MB" ואז 120MB): התצוגה של ההעלאה לא יורדת — במעבר מההעלאה ברקע לרגילה (היא סופרת
+   רק חלקים שהשרתון אישר) ובחלק שנכשל באמצע (הבתים שלו נשלחים שוב) הבתים שהוצגו כבר נספרו. עד שההעלאה משיגה — עומד */
+function upHi(run, key, b) {
+  if (run.hiK !== key) { run.hiK = key; run.hi = 0; }
+  if (b > run.hi) run.hi = b;
+  return run.hi;
+}
 function tickRate(run, bytes) {
   const now = Date.now();
   if (!run.rs || bytes < run.rs.b) { run.rs = { t: now, b: bytes }; return; }
@@ -1796,7 +1803,7 @@ async function runJob(id, run) {
         utlOf(rec).vb = file.size;
         const vProg = (b) => {
           up.v.sent = b;
-          if (run.phase === 'video') { run.sent = b; run.p = b / file.size; tickRate(run, b); }
+          if (run.phase === 'video') { const s = upHi(run, 'v', b); run.sent = s; run.p = s / file.size; tickRate(run, s); }
           paintSoon(); saveSoon();
         };
         if (await bgCan(rec, file)) {
@@ -1902,7 +1909,7 @@ async function bgResume(id) {
   runs.set(id, run); paintSoon();
   try {
     const r = await bgUpload({ api: net.api, job: id, size, st, signal: run.ctl.signal, poll: bgPoll(id, up),
-      onProgress: (b) => { run.sent = b; run.p = b / size; tickRate(run, b); paintSoon(); } }, bgEnv).catch(() => ({ fallback: 'bg_err' }));
+      onProgress: (b) => { const s = upHi(run, 'v', b); run.sent = s; run.p = s / size; tickRate(run, s); paintSoon(); } }, bgEnv).catch(() => ({ fallback: 'bg_err' }));
     if (!r.ok) throw new Error('bg');
     const j = await net.api('r2done', { job: id, id: st.id, up: st.up });
     if (!j.ok) throw new Error('bg');

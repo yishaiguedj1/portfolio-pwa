@@ -156,6 +156,25 @@ const { fakeR2, ENV, ACC } = require('./_r2fake');
   try { await store.r2Upload({ api: P4.api, job: 'j' + 'E'.repeat(20), blob: new Blob([Buffer.alloc(100)]), size: 100 }, { put: P4.put, sleep: async () => {} }); } catch (e) { fatalCode = e.code; }
   ok(fatalCode === 'r2_http_400', 'שגיאה סופית מ־R2 — עוצרים מיד');
 
+  /* 27/10/2026: חלק שנכשל לא משאיר את החלק שבדרך "יתום" — אף חלק לא עולה פעמיים במקביל לעצמו */
+  {
+    const fly = new Map(); let dup = false, firstFail = true;
+    const urls = { 1: 'u1', 2: 'u2', 3: 'u3', 4: 'u4' };
+    const done = new Set();
+    const api = async (op) => op === 'r2done' ? { ok: true, id: 'X' } : { ok: true, id: 'X', up: 'U', ps: 10, done: [...done], urls };
+    const put = async (u) => {
+      if (fly.get(u)) dup = true;
+      fly.set(u, true);
+      await new Promise((r) => setTimeout(r, u === 'u1' ? 1 : 25));
+      fly.set(u, false);
+      if (u === 'u1' && firstFail) { firstFail = false; return { status: 500 }; }
+      done.add(Number(u.slice(1))); return { status: 200 };
+    };
+    const prog = [];
+    const r = await store.r2Upload({ api, job: 'j' + 'F'.repeat(20), blob: new Blob([Buffer.alloc(40)]), size: 40, onProgress: (b) => prog.push(b) }, { put, sleep: async () => {} });
+    ok(r.id === 'X' && !dup, 'חלק שנכשל — החלק השני מסיים לפני הסבב הבא, ואף חלק לא נשלח פעמיים במקביל');
+  }
+
   /* ---------- 6. החלפת תוכן (איכויות הצפייה), הורדה, בדיקת קובץ ומחיקה ---------- */
   R2._reset();
   const small = Buffer.from('packed video');
