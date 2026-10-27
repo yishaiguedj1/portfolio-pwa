@@ -115,7 +115,7 @@ ok(/\[#&\]studio=\(j\[A-Za-z0-9_-\]\{20\}\)/.test(read('studio-app.js')), 'studi
   { const sec = (f) => { const a = st.indexOf('function ' + f + '(p) {'); return st.slice(a, st.indexOf('\n}\n', a)); };
     ok(/T\('studioConnSub'\)/.test(sec('pageEng')) && /go\('connect'\)/.test(sec('pageEng')) && /go\('server'\)/.test(sec('pageEng')), 'Claude: מי מתרגם, האשף והשרת — במקום אחד');
     ok(/connectDrive/.test(sec('pageStore')) && /s\.wifi = !s\.wifi/.test(sec('pageStore')), 'אחסון והעלאה: Drive ו"רק ב־Wi‑Fi"');
-    ok(/pushOn\(\)/.test(sec('pagePush')) && /pushTest/.test(sec('pagePush')), 'התראות: המתג והבדיקה');
+    ok(/pushOn\(false\)/.test(sec('pagePush')) && /pushTest/.test(sec('pagePush')), 'התראות: המתג והבדיקה');
     ok(/go\('def', 'mode'\)/.test(sec('pageDefs')) && /go\('lang', 'def'\)/.test(sec('pageDefs')) && /go\('def', 'out'\)/.test(sec('pageDefs')) && /go\('def', 'style'\)/.test(sec('pageDefs')), 'ברירות מחדל: ארבע השורות'); }
   ok(/x === 'connect' \|\| \(x === 'def' && y === 'cap'\) \? \['eng', null\]/.test(st) && /x === 'def' \|\| \(x === 'lang' && y === 'def'\) \? \['defs', null\]/.test(st), 'Studio: "חזור" מהפרטים — לעמוד המשנה שממנו באו');
   ok(/x\.k === 'drive_revoked' \? \(\) => go\('store'\)/.test(st) && /T\('studioConnectNow'\), \(\) => go\('eng'\)/.test(st), 'Studio: קישורים מהתראות ומעבודה — ישר לעמוד הנכון');
