@@ -27,5 +27,9 @@ const ds = read('android/app/src/dmcore/java/io/github/yishaiguedj1/snowball/dm/
 ok(/filter \{ !it\.auto \}/.test(ds) && !/anyAuto/.test(ds), 'DmSubs.pick — רק של היוצר');
 const pl = read('translator/pipeline.py');
 ok(/def subref_grade\(/.test(pl) && /self\.sub_ref\(edit\)/.test(pl) && /if q\['g'\] == 'lo':\s+return \[\]/.test(pl), 'שער האיכות: נמוכה — לא נכנסת להגהה');
+const en = read('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmEngine.kt');
+ok(/DmStore\.ping\(\); DmNotif\.update\(ctx\)/.test(en), 'פס ההתקדמות באפליקציה מתעדכן יחד עם ההתראה (DmStore.ping)');
+const ui = read('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmUi.kt');
+ok(/mutableStateOf\(true\)/.test(ui) && /if \(!audio\) ListItem\(headlineContent = \{ Text\(stringResource\(R\.string\.dmSubs\)\)/.test(ui), '"עם כתוביות" תמיד מוצג ומסומן כברירת מחדל');
 console.log(fails ? `FAIL ${fails}` : 'all ok');
 process.exit(fails ? 1 : 0);

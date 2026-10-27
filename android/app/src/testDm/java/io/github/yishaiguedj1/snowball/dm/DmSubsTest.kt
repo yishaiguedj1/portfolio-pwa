@@ -22,4 +22,10 @@ class DmSubsTest {
         assertEquals("", DmSubs.langs(DmSubs.pick(JSONArray(listOf(s("ja"), s("fr"))))))
         assertEquals("", DmSubs.langs(DmSubs.pick(JSONArray())))
     }
+
+    @Test fun forTaskDefaultsOn() {
+        assertEquals("iw,en", DmSubs.langs(DmSubs.forTask(JSONArray(listOf(s("en"), s("iw"))), true)))
+        assertEquals("he,en", DmSubs.langs(DmSubs.forTask(JSONArray(), true)))   // לא נמצאו — מנסים בהורדה
+        assertEquals("", DmSubs.langs(DmSubs.forTask(JSONArray(listOf(s("en"))), false)))
+    }
 }

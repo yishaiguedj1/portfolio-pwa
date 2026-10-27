@@ -185,6 +185,7 @@
     <plurals name="dmPlCount"><item quantity="one">סרטון אחד</item><item quantity="two">שני סרטונים</item><item quantity="other">%1$d סרטונים</item></plurals>
     <plurals name="dmPlGo"><item quantity="one">להוריד סרטון אחד</item><item quantity="two">להוריד שני סרטונים</item><item quantity="other">להוריד %1$d סרטונים</item></plurals>
     <string name="dmSubs">עם כתוביות</string>
+    <string name="dmSubsIfAny">עברית ואנגלית, אם היוצר העלה</string>
     <string name="dmDup">הקישור הזה כבר ברשימת ההורדות שלך.</string>
     <string name="dmSearch">חיפוש בהורדות</string>
     <string name="dmNoMatch">לא נמצאו הורדות</string>

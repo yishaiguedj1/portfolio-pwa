@@ -23,6 +23,11 @@ object DmSubs {
         return out.take(MAX)
     }
 
+    /** 27/10/2026 (בקשת המשתמש): "עם כתוביות" מסומן כברירת מחדל בכל הורדה — גם כשהבדיקה לא מצאה כתוביות של היוצר
+     *  (yt-dlp מנסה עברית ואנגלית בזמן ההורדה; אין — הסרטון יורד בלי). בלי סימון — בלי כתוביות. */
+    val ANY = listOf(Sub("he", "", false), Sub("en", "", false))
+    fun forTask(a: JSONArray?, want: Boolean): List<Sub> = if (!want) emptyList() else pick(a).ifEmpty { ANY }
+
     /** לשמירה במשימה: "he,en" */
     fun langs(s: List<Sub>) = s.joinToString(",") { it.l }
 }
