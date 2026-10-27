@@ -34,7 +34,7 @@ object BrStore {
 
     fun init(ctx: Context) {
         if (::dir.isInitialized) return
-        dir = File(ctx.filesDir, "br").apply { mkdirs() }
+        dir = BrUsers.dir(ctx)   // לכל משתמש בדפדפן — תיקייה משלו (הראשי: filesDir/br)
         read("history.json")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { history.add(BrVisit(it.optString("u"), it.optString("t"), it.optLong("a"))) } }
         read("marks.json")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { marks.add(BrMark(it.optString("u"), it.optString("t"), it.optLong("a"), it.optBoolean("i"), it.optLong("x"), it.optString("s"))) } }
         read("gone.json")?.let { a -> for (i in 0 until a.length()) a.optString(i).takeIf { it.isNotEmpty() }?.let { gone.add(it) } }
@@ -246,7 +246,7 @@ object BrStore {
 
 /** ההגדרות של הדפדפן */
 class BrPrefs(ctx: Context) {
-    private val sp = ctx.getSharedPreferences("br", Context.MODE_PRIVATE)
+    private val sp = BrUsers.prefs(ctx, "br")
     var engine: String get() = sp.getString("eng", "google") ?: "google"; set(v) { sp.edit().putString("eng", v).apply() }
     var barBottom: Boolean get() = sp.getBoolean("bottom", false); set(v) { sp.edit().putBoolean("bottom", v).apply() }
     var homeBtn: Boolean get() = sp.getBoolean("home", false); set(v) { sp.edit().putBoolean("home", v).apply() }

@@ -42,7 +42,7 @@ object DmPre {
         Thread {
             var info: JSONObject? = null
             try {
-                val cm = CookieManager.getInstance()
+                val cm = DmCookies.get()
                 val us = urls.filter { it.startsWith("http") }.distinct()
                 DlEngine.saveCookies(app, ref.ifEmpty { url }, DlDeep.netscape(us.map { it to cm.getCookie(it) }, System.currentTimeMillis() / 1000), ua)
             } catch (e: Throwable) {}

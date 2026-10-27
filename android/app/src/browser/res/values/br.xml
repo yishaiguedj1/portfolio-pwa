@@ -311,4 +311,20 @@
     <string name="brEngineOld">לא מעודכן — חסרים עדכוני אבטחה</string>
     <string name="brEngineOldNtp">מנוע הדפדפן לא מעודכן וחסרים בו עדכוני אבטחה של Chromium.</string>
     <string name="brEngineUpdate">לעדכן</string>
+    <string name="brUsers">משתמשים</string>
+    <string name="brUsersOne">רק את/ה</string>
+    <plurals name="brUsersN"><item quantity="one">משתמש אחד</item><item quantity="two">2 משתמשים</item><item quantity="other">%1$d משתמשים</item></plurals>
+    <string name="brUserMain">המשתמש הראשי</string>
+    <string name="brUserN">משתמש %1$d</string>
+    <string name="brUserAdd">הוספת משתמש</string>
+    <string name="brUserRemove">הסרת משתמש</string>
+    <string name="brUserRemoveQ">להסיר את %1$s מהדפדפן? הסימניות, ההיסטוריה, הכרטיסיות והעוגיות שלו יימחקו מהטלפון. מה שמגובה בחשבון Google שלו נשאר שם.</string>
+    <string name="brUsersFoot">לכל משתמש סימניות, היסטוריה, כרטיסיות, עוגיות וחיבור לאתרים משלו, והסנכרון שלו לחשבון Google שלו. ההורדות משותפות. מעבר בין משתמשים פותח את הדפדפן מחדש.</string>
+    <string name="brUsersNoSupport">כמה משתמשים דורשים גרסה חדשה של Android System WebView — אפשר לעדכן מ־Google Play.</string>
+    <string name="brUsersMax">אפשר עד 8 משתמשים בדפדפן</string>
+    <string name="brUsersSwitching">עוברים למשתמש…</string>
+    <string name="brGWeb">חשבון Google באתרים</string>
+    <string name="brGWebOn">מחובר ב־Gmail, YouTube וכל Google</string>
+    <string name="brGWebOff">לא מחובר — להתחבר</string>
+    <string name="brGWebFoot">כמו ב־Chrome: אותו חשבון גם בדפים של Google. נכנסים פעם אחת, והכניסה נשמרת למשתמש הזה בלבד.</string>
 </resources>

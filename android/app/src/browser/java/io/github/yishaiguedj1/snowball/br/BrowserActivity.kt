@@ -72,6 +72,7 @@ import io.github.yishaiguedj1.snowball.HuntMedia
 import io.github.yishaiguedj1.snowball.R
 import io.github.yishaiguedj1.snowball.dm.DmActivity
 import io.github.yishaiguedj1.snowball.dm.DmBrowser
+import io.github.yishaiguedj1.snowball.dm.DmCookies
 import io.github.yishaiguedj1.snowball.dm.DmEngine
 import io.github.yishaiguedj1.snowball.dm.DmLang
 import io.github.yishaiguedj1.snowball.dm.DmPre
@@ -86,9 +87,9 @@ import io.github.yishaiguedj1.snowball.dm.DmStore
  * כך שהעוגיות של האתרים לא יוצאות מהאפליקציה. הממשק — BrUi.kt.
  */
 class BrowserActivity : ComponentActivity() {
-    enum class Screen { PAGE, SWITCHER, HISTORY, BOOKMARKS, SETTINGS, ENGINE, PASSWORDS, PRIVACY, BARPOS, IMPORT, CHROME, SITES, SITE, VIDEO, CLOUD, RECENT }
+    enum class Screen { PAGE, SWITCHER, HISTORY, BOOKMARKS, SETTINGS, ENGINE, PASSWORDS, PRIVACY, BARPOS, IMPORT, CHROME, SITES, SITE, VIDEO, CLOUD, RECENT, USERS }
     /** עמודי המשנה של ההגדרות — "חזור" מהם חוזר להגדרות, לא לדף (אתר אחד — חוזר לרשימת האתרים) */
-    private val settingsSubs = setOf(Screen.ENGINE, Screen.PASSWORDS, Screen.PRIVACY, Screen.BARPOS, Screen.IMPORT, Screen.CHROME, Screen.SITES, Screen.VIDEO, Screen.CLOUD)
+    private val settingsSubs = setOf(Screen.ENGINE, Screen.PASSWORDS, Screen.PRIVACY, Screen.BARPOS, Screen.IMPORT, Screen.CHROME, Screen.SITES, Screen.VIDEO, Screen.CLOUD, Screen.USERS)
     data class PermAsk(val host: String, val kind: Int, val go: (Boolean) -> Unit)   // kind: 1 מצלמה, 2 מיקרופון, 3 שניהם, 4 מיקום
 
     val tabs = mutableStateListOf<BrTab>()
@@ -157,7 +158,7 @@ class BrowserActivity : ComponentActivity() {
         chromeRev++
     }
     private val cloudLaunch = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { r ->
-        if (!BrCloud.authorized(this, r.data)) Toast.makeText(this, R.string.brSyncNoAuth, Toast.LENGTH_LONG).show()
+        if (!BrCloud.authorized(this, r.data)) Toast.makeText(this, R.string.brSyncNoAuth, Toast.LENGTH_LONG).show() else googleWeb(true)
         cloudRev++
     }
     private val exportLaunch = registerForActivityResult(ActivityResultContracts.CreateDocument("text/html")) { u -> if (u != null) exportTo(u) }
@@ -172,6 +173,8 @@ class BrowserActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         prefs = BrPrefs(this)
+        // לכל משתמש בדפדפן — פרופיל WebView משלו (עוגיות, אחסון של אתרים); מה שעובר להורדה לוקח את העוגיות שלו
+        userProfile()?.let { DmCookies.cm = it.cookieManager }
         // 26/10/2026: מנוע ההורדות (פייתון + yt-dlp, והעדכון היומי שלו) מתחמם ברקע מההתחלה — הבדיקה הראשונה של סרטון לא
         // מחכה לו (עד עכשיו: חלק מה"חצי דקה, דקה" ביוטיוב)
         // 27/10/2026: אחרי שהמסך והדף הראשון עלו — לא מתחרה בהם על מעבד, דיסק ורשת (בדיקה ראשונה של סרטון עדיין מוכנה)
@@ -198,6 +201,8 @@ class BrowserActivity : ComponentActivity() {
         if (!handle(intent)) {
             if (tabs.isEmpty()) newTab("") else select(tabs[at.coerceIn(0, tabs.size - 1)])
         }
+        // משתמש חדש — מתחילים בכניסה לחשבון (כמו בהוספת פרופיל ב־Chrome)
+        if (intent?.getBooleanExtra(USER_NEW, false) == true && !BrCloud.on) screen = Screen.CLOUD
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) { override fun handleOnBackPressed() { back() } })
         setContent { BrApp(this) }
     }
@@ -361,11 +366,64 @@ class BrowserActivity : ComponentActivity() {
     fun cloudSignIn(r: BrCloud.SignIn) {
         when (r) {
             is BrCloud.SignIn.Need -> runCatching { cloudLaunch.launch(IntentSenderRequest.Builder(r.s).build()) }
+            is BrCloud.SignIn.Ok -> googleWeb(true)
             is BrCloud.SignIn.Fail -> Toast.makeText(this, if (r.why == "setup") getString(R.string.brCloudSetup) else getString(R.string.brCloudFail, r.why), Toast.LENGTH_LONG).show()
             else -> {}
         }
         cloudRev++
     }
+
+    /* ---------------- כמה משתמשים (BrUsers) ---------------- */
+
+    /** הפרופיל של WebView של המשתמש הפעיל (null = הראשי, פרופיל ברירת המחדל / אין תמיכה בכמה פרופילים) */
+    fun userProfile(): androidx.webkit.Profile? {
+        val n = BrUsers.profile(this) ?: return null
+        if (!privOk) return null
+        return runCatching { ProfileStore.getInstance().getOrCreateProfile(n) }.getOrNull()
+    }
+    private fun profOf(t: BrTab): androidx.webkit.Profile? =
+        if (t.private && privOk) runCatching { ProfileStore.getInstance().getProfile(PRIV) }.getOrNull() else userProfile()
+    fun cmOf(t: BrTab): CookieManager = profOf(t)?.cookieManager ?: CookieManager.getInstance()
+    fun wsOf(t: BrTab): WebStorage = profOf(t)?.webStorage ?: WebStorage.getInstance()
+
+    /** האם המשתמש מחובר לחשבון Google באתרים (עוגיית ההתחברות של Google בפרופיל שלו) */
+    fun googleWebOn(): Boolean = runCatching {
+        val ck = (userProfile()?.cookieManager ?: CookieManager.getInstance()).getCookie("https://accounts.google.com") ?: ""
+        Regex("(^|;\\s*)(SID|__Secure-1PSID)=").containsMatchIn(ck)
+    }.getOrDefault(false)
+
+    /**
+     * אחרי כניסה לסנכרון — גם לאתרים של Google, באותו חשבון. Chrome עושה את זה לבד (רק לו Google נותן את החיבור הזה);
+     * כאן: דף הכניסה של Google עם המייל כבר בפנים, בפעם אחת, ומאז העוגיות נשמרות בפרופיל של המשתמש
+     */
+    fun googleWeb(auto: Boolean) {
+        val em = BrCloud.email
+        if (em.isEmpty() || (auto && googleWebOn())) return
+        screen = Screen.PAGE; editing = false
+        newTab("https://accounts.google.com/AccountChooser?Email=" + Uri.encode(em) + "&continue=" + Uri.encode("https://www.google.com/"), after = cur)
+    }
+
+    /** מעבר למשתמש אחר: שומרים הכל, ומתחילים מחדש בתהליך חדש — כל מה שבזיכרון שייך למי שהיה */
+    fun switchUser(id: String, fresh: Boolean = false) {
+        if (id == BrUsers.cur(this)) { screen = Screen.PAGE; return }
+        cur?.let { measure(it) }
+        saveSession()
+        BrMedia.stop(this)
+        BrUsers.select(this, id)
+        var gone = false
+        val go = Runnable { if (!gone) { gone = true; BrRestart.go(this, fresh) } }
+        // הסנכרון בענן מעלה את מה שהשתנה לפני שיוצאים (עד 3 שנ׳)
+        if (BrCloud.on) { BrCloud.cycle(true) { ui.post(go) }; ui.postDelayed(go, 3000) } else go.run()
+    }
+
+    fun addUser() {
+        if (!privOk) { Toast.makeText(this, R.string.brUsersNoSupport, Toast.LENGTH_LONG).show(); return }
+        val id = BrUsers.add(this) ?: run { Toast.makeText(this, R.string.brUsersMax, Toast.LENGTH_LONG).show(); return }
+        switchUser(id, true)
+    }
+
+    fun removeUser(id: String) { if (BrUsers.remove(this, id)) usersRev++ }
+    var usersRev by mutableIntStateOf(0)
 
     fun cloudOff(wipe: Boolean) {
         cloudWiping = wipe
@@ -636,7 +694,7 @@ class BrowserActivity : ComponentActivity() {
         if (t.private && privOk) runCatching {
             ProfileStore.getInstance().getOrCreateProfile(PRIV)
             WebViewCompat.setProfile(w, PRIV)
-        }
+        } else userProfile()?.let { p -> runCatching { WebViewCompat.setProfile(w, p.name) } }
         val s = w.settings
         s.javaScriptEnabled = true
         s.domStorageEnabled = true
@@ -652,7 +710,7 @@ class BrowserActivity : ComponentActivity() {
         s.setGeolocationEnabled(true)
         s.textZoom = zoom
         if (t.desktop) s.userAgentString = desktopUa(s.userAgentString)
-        runCatching { (if (t.private && privOk) ProfileStore.getInstance().getProfile(PRIV)?.cookieManager else CookieManager.getInstance())?.setAcceptThirdPartyCookies(w, !t.private) }   // טאב פרטי: בלי עוגיות של צד שלישי (כמו Chrome)
+        runCatching { cmOf(t).setAcceptThirdPartyCookies(w, !t.private) }   // טאב פרטי: בלי עוגיות של צד שלישי (כמו Chrome)
 
         // המערכת יכולה להוריד את ה־renderer לעדיפות נמוכה כשהדפדפן לא מוצג (במקום להרוג את כל האפליקציה) — רק יחד עם onRenderProcessGone
         if (Build.VERSION.SDK_INT >= 26) runCatching { w.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_BOUND, true) }
@@ -1177,9 +1235,8 @@ class BrowserActivity : ComponentActivity() {
         val u = runCatching { Uri.parse(t.url) }.getOrNull() ?: return
         val host = u.host ?: return
         if (u.scheme != "http" && u.scheme != "https") return
-        val prof = if (t.private && privOk) runCatching { ProfileStore.getInstance().getProfile(PRIV) }.getOrNull() else null
-        val cm = prof?.cookieManager ?: CookieManager.getInstance()
-        val ws = prof?.webStorage ?: WebStorage.getInstance()
+        val cm = cmOf(t)
+        val ws = wsOf(t)
         runCatching {
             cm.getCookie(t.url)?.split(";")?.map { it.substringBefore("=").trim() }?.filter { it.isNotEmpty() }?.forEach { n ->
                 cm.setCookie(t.url, "$n=; Max-Age=0; Path=/")
@@ -1209,8 +1266,9 @@ class BrowserActivity : ComponentActivity() {
 
     fun clearData() {
         BrStore.clearHistory()
-        runCatching { CookieManager.getInstance().removeAllCookies(null); CookieManager.getInstance().flush() }
-        runCatching { WebStorage.getInstance().deleteAllData() }
+        val p = userProfile()
+        runCatching { val cm = p?.cookieManager ?: CookieManager.getInstance(); cm.removeAllCookies(null); cm.flush() }
+        runCatching { (p?.webStorage ?: WebStorage.getInstance()).deleteAllData() }
         tabs.forEach { t -> runCatching { t.web?.clearCache(true) } }
         BrPics.clear()
         markRev++
@@ -1325,6 +1383,7 @@ class BrowserActivity : ComponentActivity() {
 
     companion object {
         const val PRIV = "private"
+        const val USER_NEW = "snb_user_new"
         const val LIVE_MAX = 6   // (עד 27/10/2026 קבוע; היום liveMax לפי הזיכרון — נשאר לבדיקות ישנות)
         /** מהבועה ב־Chrome: כמה זמן מחכים לממצא הראשון כדי לפתוח את הרשימה לבד */
         const val HUNT_MS = 45_000L

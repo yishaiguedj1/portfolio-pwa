@@ -53,8 +53,8 @@ object BrChrome {
 
     fun init(ctx: Context) {
         if (::sp.isInitialized) return
-        sp = ctx.getSharedPreferences("br_chrome", Context.MODE_PRIVATE)
-        dir = File(ctx.filesDir, "br").apply { mkdirs() }
+        sp = BrUsers.prefs(ctx, "br_chrome")
+        dir = BrUsers.dir(ctx)
         runCatching {
             val o = JSONObject(File(dir, "chrome-ops.json").readText())
             o.optJSONArray("ops")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { ops += opOf(it) } }
