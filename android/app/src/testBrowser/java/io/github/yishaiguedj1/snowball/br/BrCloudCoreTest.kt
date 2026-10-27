@@ -2,6 +2,7 @@ package io.github.yishaiguedj1.snowball.br
 
 import io.github.yishaiguedj1.snowball.br.BrCloudCore.Rec
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -121,6 +122,10 @@ class BrCloudCoreTest {
         assertNull(BrCloudCore.decode("not gzip".toByteArray()))
         assertNull(BrCloudCore.decode(BrCloudCore.gz("other\tA\n")))
         assertEquals(listOf("https://a.com", "t t", "5", "1"), BrCloudCore.parts(BrCloudCore.markVal("https://a.com", "t\u001ft", 5, true)))
+        // 27/10/2026: תיקייה ומקום ב־Chrome — אותה כתובת בשתי תיקיות = שתי רשומות, והמפתח רק ממה שברשומה
+        assertEquals(listOf("https://a.com", "t", "5", "1", "b/Learning", "3"), BrCloudCore.parts(BrCloudCore.markVal("https://a.com", "t", 5, true, "b/Learning", 3)))
+        assertNotEquals(BrCloudCore.markKey("a.com", "b/X", 0), BrCloudCore.markKey("a.com", "o", 0))
+        assertEquals("m:a.com", BrCloudCore.markKey("a.com", "", -1))
     }
 
     @Test fun encryptedFiles() {

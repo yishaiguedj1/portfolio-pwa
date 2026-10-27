@@ -169,9 +169,11 @@ object BrCloudCore {
 
     private const val US = '\u001f'
     private fun clean(s: String) = s.replace(US, ' ')
-    fun markVal(u: String, t: String, at: Long, imp: Boolean) = "${clean(u)}$US${clean(t)}$US$at$US${if (imp) 1 else 0}"
+    fun markVal(u: String, t: String, at: Long, imp: Boolean, f: String = "", i: Int = -1) = "${clean(u)}$US${clean(t)}$US$at$US${if (imp) 1 else 0}" + if (f.isEmpty()) "" else "$US${clean(f)}$US$i"
+    /** המפתח של סימנייה בסנכרון: הכתובת, ואם היא בתיקייה של Chrome — גם התיקייה והמקום (אותה כתובת בשתי תיקיות = שתי רשומות). רק ממה שברשומה עצמה — כל מכשיר מחשב אותו מפתח */
+    fun markKey(k: String, f: String, i: Int) = "m:" + k + if (f.isEmpty()) "" else "$US${clean(f)}$US$i"
     fun visitVal(u: String, t: String, at: Long) = "${clean(u)}$US${clean(t)}$US$at"
-    /** [כתובת, כותרת, זמן, יובאה מ־Chrome] */
+    /** [כתובת, כותרת, זמן, יובאה מ־Chrome, התיקייה, המקום בה (אם יש)] */
     fun parts(v: String): List<String> = v.split(US)
 
     /* ---------------- המכשירים: הכרטיסיות הפתוחות, ושליחת כרטיסייה ---------------- */

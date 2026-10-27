@@ -900,7 +900,7 @@ private fun MenuSheet(a: BrowserActivity) {
             if (web) MItem(R.string.brInfo, BrIcons.CTune) { close(); a.info = true }
             MDiv()
             MItem(R.string.brDownloads, BrIcons.CDownloads) { a.openDownloads() }
-            MItem(R.string.brBookmarks, BrIcons.CStarOn) { close(); a.markFolder = 0; a.screen = BrowserActivity.Screen.BOOKMARKS }
+            MItem(R.string.brBookmarks, BrIcons.CStarOn) { close(); a.markPath = ""; a.screen = BrowserActivity.Screen.BOOKMARKS }
             MItem(R.string.brSetPw, BrIcons.Key) { close(); a.screen = BrowserActivity.Screen.PASSWORDS }
             if (web) {
                 MDiv()
@@ -1300,53 +1300,56 @@ private fun Empty(text: Int) {
 /* ======================= סימניות — כמו ב־Chrome ======================= */
 
 @Composable
+private fun folderTitle(path: String): String = when (path) {
+    "" -> stringResource(R.string.brBookmarks)
+    "m" -> stringResource(R.string.brMarksMobile)
+    "b" -> stringResource(R.string.brMarksBar)
+    "o" -> stringResource(R.string.brMarksOther)
+    "i" -> stringResource(R.string.brImportedMarks)
+    else -> BrSync.folderName(path).ifEmpty { "—" }
+}
+
+// העץ של Chrome: בשורש — נייד / סרגל / אחרות, ובכל תיקייה — התיקיות והסימניות בסדר של Chrome (BrSync.entries). חיפוש — בכל הסימניות
+@Composable
 private fun MarksScreen(a: BrowserActivity) {
     val c = LocalBr.current
     var q by remember { mutableStateOf("") }
     var rev by remember { mutableIntStateOf(0) }
     val all = remember(rev, a.markRev) { BrStore.marks.toList() }
-    val imported = all.count { it.imp }
-    val folders = imported > 0
-    val title = when (a.markFolder) { 1 -> stringResource(R.string.brMarksMobile); 2 -> stringResource(R.string.brImportedMarks); else -> stringResource(R.string.brBookmarks) }
-    val list = run {
-        val t = q.trim().lowercase()
-        when {
-            t.isNotEmpty() -> all.filter { it.title.lowercase().contains(t) || it.url.lowercase().contains(t) }
-            a.markFolder == 1 -> all.filter { !it.imp }
-            a.markFolder == 2 -> all.filter { it.imp }
-            folders -> emptyList()
-            else -> all
-        }
+    val path = a.markPath
+    val t = q.trim().lowercase()
+    val dirs = remember(rev, a.markRev) { if (BrChrome.on && BrChrome.marksOn) BrChrome.dirs else emptyList() }
+    val items: List<Any> = when {
+        t.isNotEmpty() -> all.filter { it.title.lowercase().contains(t) || it.url.lowercase().contains(t) }
+        path.isEmpty() -> BrSync.roots(all, dirs)
+        else -> BrSync.entries(all, path, dirs)
     }
-    SubPage(title, back = if (a.markFolder != 0) stringResource(R.string.brBookmarks) else null, onBack = { a.markFolder = 0 },
-        done = true, onDone = { a.markFolder = 0; a.screen = BrowserActivity.Screen.PAGE }) {
+    SubPage(folderTitle(path), back = if (path.isNotEmpty()) folderTitle(BrSync.parent(path)) else null, onBack = { a.markPath = BrSync.parent(path) },
+        done = true, onDone = { a.markPath = ""; a.screen = BrowserActivity.Screen.PAGE }) {
         item { SearchField(stringResource(R.string.brSearchMarks), q) { q = it } }
-        if (a.markFolder == 0 && folders && q.isBlank()) item {
+        if (items.isEmpty()) item { Empty(R.string.brMarksEmpty) }
+        else item {
             Group {
-                IRow(stringResource(R.string.brMarksMobile), lead = { Icon(BrIcons.Folder, null, Modifier.size(24.dp), tint = c.icon) }, value = "${all.size - imported}") { a.markFolder = 1 }
-                Sep()
-                IRow(stringResource(R.string.brImportedMarks), lead = { Icon(BrIcons.Folder, null, Modifier.size(24.dp), tint = c.icon) }, value = "$imported") { a.markFolder = 2 }
-            }
-        }
-        if (list.isEmpty() && !(a.markFolder == 0 && folders && q.isBlank())) item { Empty(R.string.brMarksEmpty) }
-        if (list.isNotEmpty()) item {
-            Group {
-                list.forEachIndexed { i, m ->
+                items.forEachIndexed { i, e ->
                     if (i > 0) Sep()
-                    var open by remember { mutableStateOf(false) }
-                    IRow(m.title.ifEmpty { m.url }, BrStore.hostOf(m.url), lead = {
-                        Box(Modifier.size(48.dp).glass(c, RoundedCornerShape(12.dp), if (c.dark) Color(0x8C3A3A3C) else Color(0xB3FFFFFF)), contentAlignment = Alignment.Center) { Fav(a, m.url, 24.dp, 6.dp) }
-                    }, chevron = false, ltrSub = true, trailing = {
-                        Box {
-                            IBtn(BrIcons.More, stringResource(R.string.brMenu), size = 40.dp, tint = c.mute) { open = true }
-                            DropdownMenu(open, { open = false }, shape = RoundedCornerShape(16.dp)) {
-                                DropdownMenuItem({ Text(stringResource(R.string.brNewTab)) }, { open = false; a.markFolder = 0; a.screen = BrowserActivity.Screen.PAGE; a.newTab(m.url) },
-                                    leadingIcon = { Icon(BrIcons.CNewTab, null) })
-                                DropdownMenuItem({ Text(stringResource(R.string.brDelete), color = Color(0xFFFF3B30)) }, { open = false; BrStore.removeMark(m); rev++; a.markRev++ },
-                                    leadingIcon = { Icon(BrIcons.CDelete, null, tint = Color(0xFFFF3B30)) })
+                    if (e is String) IRow(folderTitle(e), lead = { Icon(BrIcons.Folder, null, Modifier.size(24.dp), tint = c.icon) }, value = "${BrSync.count(all, e)}") { a.markPath = e }
+                    else if (e is BrMark) {
+                        val m = e
+                        var open by remember { mutableStateOf(false) }
+                        IRow(m.title.ifEmpty { m.url }, BrStore.hostOf(m.url), lead = {
+                            Box(Modifier.size(48.dp).glass(c, RoundedCornerShape(12.dp), if (c.dark) Color(0x8C3A3A3C) else Color(0xB3FFFFFF)), contentAlignment = Alignment.Center) { Fav(a, m.url, 24.dp, 6.dp) }
+                        }, chevron = false, ltrSub = true, trailing = {
+                            Box {
+                                IBtn(BrIcons.More, stringResource(R.string.brMenu), size = 40.dp, tint = c.mute) { open = true }
+                                DropdownMenu(open, { open = false }, shape = RoundedCornerShape(16.dp)) {
+                                    DropdownMenuItem({ Text(stringResource(R.string.brNewTab)) }, { open = false; a.markPath = ""; a.screen = BrowserActivity.Screen.PAGE; a.newTab(m.url) },
+                                        leadingIcon = { Icon(BrIcons.CNewTab, null) })
+                                    DropdownMenuItem({ Text(stringResource(R.string.brDelete), color = Color(0xFFFF3B30)) }, { open = false; BrStore.removeMark(m); rev++; a.markRev++ },
+                                        leadingIcon = { Icon(BrIcons.CDelete, null, tint = Color(0xFFFF3B30)) })
+                                }
                             }
-                        }
-                    }) { a.markFolder = 0; a.screen = BrowserActivity.Screen.PAGE; a.go(m.url) }
+                        }) { a.markPath = ""; a.screen = BrowserActivity.Screen.PAGE; a.go(m.url) }
+                    }
                 }
             }
         }
@@ -1619,6 +1622,16 @@ private fun ChromeScreen(a: BrowserActivity) {
                 }
             }
         }
+        // Chrome הראה פתאום הרבה פחות סימניות — לא נמחקו כאן; מחכה לאישור (BrChrome.drop = "חדש/קודם")
+        BrChrome.drop.split('/').takeIf { it.size == 2 }?.let { (nw, old) -> item {
+            Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 28.dp).fillMaxWidth().glass(c, RoundedCornerShape(24.dp)).padding(horizontal = 18.dp, vertical = 18.dp)) {
+                Text(stringResource(R.string.brSyncDropT), color = c.fg, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.brSyncDropS, nw.toIntOrNull() ?: 0, old.toIntOrNull() ?: 0), color = c.mute, fontSize = 14.sp, lineHeight = 19.sp)
+                Spacer(Modifier.height(12.dp))
+                Text(stringResource(R.string.brSyncDropOk), color = Color(0xFFFF3B30), fontSize = 16.sp, fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clickable { BrChrome.acceptDrop(a); a.chromeRev++ }.padding(vertical = 6.dp))
+            }
+        } }
         item {
             Group(stringResource(R.string.brSyncWhat), stringResource(R.string.brSyncWhatFoot)) {
                 IRow(stringResource(R.string.brSyncMarks), lead = { Tile(BrIcons.StarOn, Color(0xFFFF9500)) }, chevron = false,

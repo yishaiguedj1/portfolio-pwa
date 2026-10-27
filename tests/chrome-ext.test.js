@@ -28,12 +28,15 @@ const ok = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exit(1); }
 
   // --- העץ של Chrome
   const tree = [{ id: '0', children: [
-    { id: '1', folderType: 'bookmarks-bar', title: 'סרגל', children: [{ id: '10', title: 'ynet', url: 'https://www.ynet.co.il/', dateAdded: 5 }, { id: '11', title: 'js', url: 'javascript:void(0)' }, { id: '12', title: 'חדשות', children: [{ id: '13', title: 'cnn', url: 'https://cnn.com/' }] }] },
+    { id: '1', folderType: 'bookmarks-bar', title: 'סרגל', children: [{ id: '10', title: 'ynet', url: 'https://www.ynet.co.il/', dateAdded: 5 }, { id: '11', title: 'js', url: 'javascript:void(0)' }, { id: '12', title: 'חדשות', children: [{ id: '13', title: 'cnn', url: 'https://cnn.com/' }] }, { id: '14', title: 'ריקה/א', children: [] }] },
     { id: '2', folderType: 'other', title: 'אחרות', children: [] },
     { id: '3', folderType: 'mobile', title: 'בנייד', children: [{ id: '30', title: 'a', url: 'https://a.com/' }] },
   ] }];
-  const flat = C.flatten(tree);
-  ok(flat.length === 3 && !flat.some((m) => m.u.startsWith('javascript')), 'flatten: רק http/https');
+  const dirs = [];
+  const flat = C.flatten(tree, dirs);
+  ok(flat.length === 4 && flat.some((m) => m.u.startsWith('javascript')), 'flatten: כל סימנייה עם כתובת — בדיוק מה שב־Chrome (27/10/2026)');
+  ok(flat.map((m) => m.id).join() === '10,11,13,30' && flat.find((m) => m.id === '11').i === 1 && flat.find((m) => m.id === '13').i === 0, 'flatten: הסדר של Chrome + המקום בתיקייה');
+  ok(JSON.stringify(dirs) === JSON.stringify([{ r: 'b', p: 'חדשות', i: 2 }, { r: 'b', p: 'ריקה\u2215א', i: 3 }]), 'flatten: כל התיקיות, גם ריקה, עם המקום; "/" בשם לא שובר את הנתיב');
   ok(flat.find((m) => m.id === '13').p === 'חדשות' && flat.find((m) => m.id === '13').r === 'b', 'flatten: נתיב ושורש');
   ok(C.mobileFolderId(tree) === '3', 'תיקיית "בנייד"');
   ok(C.mobileFolderId([{ children: [{ id: '1' }, { id: '2' }] }]) === '2', 'בלי "בנייד" — "אחרות"');
@@ -59,6 +62,10 @@ const ok = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exit(1); }
   ok(C.planOps(flat, { ops: [{ s: 9, k: 'del', id: 'a1' }] }, { ack: 8, alias: { a1: 'n10' } }).deletes.join() === '10', 'del לפי מזהה זמני שקושר');
   ok(C.planOps(flat, { ops: [{ s: 1, k: 'add', id: 'x', u: 'ftp://x' }] }, null).creates.length === 0, 'add: רק http/https');
 
+  // 27/10/2026: אותה כתובת בשתי תיקיות — מחיקה בטלפון מוחקת ב־Chrome רק את העותק שנמחק; הוספה של כתובת שכבר יש — לא יוצרת כפולה
+  const two = [{ id: '50', u: 'https://x.com/', t: 'x', r: 'b', p: 'A' }, { id: '51', u: 'https://www.x.com', t: 'x', r: 'o', p: '' }];
+  const d2 = C.planOps(two, { ops: [{ s: 1, k: 'del', id: 'n51', u: 'https://www.x.com' }, { s: 2, k: 'add', id: 'a9', u: 'http://x.com' }] }, null);
+  ok(d2.deletes.join() === '51' && !d2.creates.length && d2.alias.a9 === 'n50', 'כפולה: נמחק רק העותק שנמחק, והוספה מקשרת לקיים');
   // --- מחיקה גדולה מחכה לאישור
   const many = Array.from({ length: 40 }, (_, i) => ({ id: String(100 + i), u: `https://s${i}.com/`, t: '', r: 'o', p: '' }));
   const dOps = { ops: [{ s: 1, k: 'add', id: 'a1', u: 'https://z.com/' }].concat(many.slice(0, 15).map((m, i) => ({ s: 2 + i, k: 'del', id: 'n' + m.id }))) };
@@ -74,8 +81,9 @@ const ok = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exit(1); }
 
   // --- המצב
   const now = Date.UTC(2026, 9, 26);
-  const st = C.buildState({ flat, hist: [{ url: 'https://h.com/', title: 'H', lastVisitTime: now - 1000 }, { url: 'https://old.com/', lastVisitTime: now - 40 * 86400000 }], prev: { rev: 4 }, ack: 7, alias: { a1: 'n10', zz: 'n999' }, vat: 20, origin: ['n30'], now, hold: 0 });
-  ok(st.rev === 5 && st.marks.length === 3 && st.hist.length === 1, 'state: סימניות והיסטוריה של 30 יום');
+  const st = C.buildState({ flat, dirs, hist: [{ url: 'https://h.com/', title: 'H', lastVisitTime: now - 1000 }, { url: 'https://old.com/', lastVisitTime: now - 100 * 86400000 }], prev: { rev: 4 }, ack: 7, alias: { a1: 'n10', zz: 'n999' }, vat: 20, origin: ['n30'], now, hold: 0 });
+  ok(st.rev === 5 && st.marks.length === 4 && st.hist.length === 1, 'state: סימניות והיסטוריה של 90 יום');
+  ok(st.dirs.length === 2 && st.marks.find((m) => m.id === 'n11').i === 1 && !C.sameState(st, { ...st, dirs: [] }), 'state: התיקיות והמקום עוברים לטלפון');
   ok(st.marks.find((m) => m.id === 'n30').o === 'a' && st.marks.find((m) => m.id === 'n10').o === 'c', 'state: מאיפה הגיעה');
   ok(st.alias.a1 === 'n10' && !st.alias.zz, 'state: מזהה זמני שמצביע על כלום יוצא');
   ok(C.sameState(st, JSON.parse(JSON.stringify({ ...st, at: 1, rev: 9 }))) && !C.sameState(st, { ...st, ack: 8 }), 'sameState');
@@ -86,6 +94,54 @@ const ok = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exit(1); }
   ok(St.describe({ last: { at: now }, hold: 12 }, now).title === 'מחכה לאישור שלך', 'תיאור: מחכה לאישור');
   ok(/לא רשום ב־Google/.test(St.connectErr({ last: { err: 'OAuth2 request failed: Service responded with error: \'bad client id: x\'' } })), 'חיבור: לקוח OAuth חסר — הודעה ברורה');
   ok(/נסגר בלי אישור/.test(St.connectErr({ last: { err: 'The user did not approve access.' } })) && /לנסות שוב/.test(St.connectErr({})), 'חיבור: ביטול / בלי קוד');
+
+  // --- היסטוריה ביקור־ביקור (27/10/2026, בקשת המשתמש: "במיוחד ההיסטוריה")
+  const since = now - 90 * 86400000;
+  const hv = {};
+  C.visitsMerge(hv, 'https://a.com/', 'A', [['1', now - 5000], ['2', now - 3000], ['3', now - 100 * 86400000]], since);
+  C.visitsMerge(hv, 'https://b.com/', 'B', [['7', now - 4000]], since);
+  ok(hv['https://a.com/'].v.length === 2, 'מטמון: כל הביקורים בכתובת, רק בחלון');
+  C.visitsMerge(hv, 'https://gone.com/', 'G', [], since); ok(!('https://gone.com/' in hv), 'מטמון: כתובת בלי ביקורים — יוצאת');
+  const echo = [{ id: '7', u: 'https://b.com/', p: now - 60000, c: now - 4000 }];
+  const hl = C.histList(hv, echo, since);
+  ok(hl.hist.length === 3 && hl.hist.filter((v) => v.u === 'https://a.com/').length === 2, 'כל ביקור הוא שורה — לא רק האחרון בכתובת');
+  ok(hl.hist.find((v) => v.u === 'https://b.com/').at === now - 60000, 'הד: ביקור מהטלפון חוזר בזמן של הטלפון — בלי כפולה');
+  ok(hl.hfrom === since && C.histList(hv, echo, since, 2).hfrom === now - 4999, 'קיטום: מאיזה זמן הרשימה שלמה (+1)');
+  ok(C.echoChromeAt(echo, 'https://b.com/', now - 60000 + 300) === now - 4000 && C.echoChromeAt(echo, 'https://a.com/', 5) === 5, 'מחיקה מהטלפון מוצאת את הזמן ב־Chrome');
+  const hp = C.planOps(flat, { ops: [{ s: 1, k: 'hdel', u: 'https://a.com/', at: 9 }, { s: 2, k: 'hdel', u: '', at: 1 }] }, null);
+  ok(hp.hdels.length === 1 && hp.hdels[0].at === 9 && hp.ack === 2, 'hdel: ביקור שנמחק בטלפון');
+  const hbig = C.planOps(flat, { ops: Array.from({ length: 301 }, (_, i) => ({ s: i + 1, k: 'hdel', u: 'https://a.com/', at: i + 1 })) }, null);
+  ok(hbig.hhold === 301 && !hbig.hdels.length && hbig.ack === 0 && C.planOps(flat, { ops: [{ s: 1, k: 'hdel', u: 'https://a.com/', at: 1 }] }, null, true).hdels.length === 1, 'ניקוי היסטוריה גדול — מחכה לאישור');
+  const s1 = C.buildState({ flat, dirs, hist: hl.hist, hfrom: hl.hfrom, prev: null, ack: 0, alias: {}, vat: 0, origin: [], now, hold: 0 });
+  ok(s1.hist.length === 3 && s1.hfrom === since && !C.sameState(s1, { ...s1, hist: s1.hist.slice(0, 2) }), 'state: ההיסטוריה המלאה; מחיקה של ביקור ישן = שינוי');
+
+  // --- מהמחקר (27/10/2026): אחסון כפול, מנוהלות, "בנייד" מוסתרת, epoch, בעלות, מחיקה בטוחה, ביקורים מוסתרים
+  const dual = [{ id: '0', children: [
+    { id: '1', folderType: 'bookmarks-bar', syncing: false, children: [{ id: '9', title: 'l', url: 'https://l.com/' }] },
+    { id: '2', folderType: 'other', syncing: false, children: [] },
+    { id: '20', folderType: 'bookmarks-bar', syncing: true, children: [{ id: '21', title: 'g', url: 'https://g.com/' }] },
+    { id: '22', folderType: 'other', syncing: true, children: [] },
+    { id: '23', folderType: 'managed', unmodifiable: 'managed', children: [{ id: '24', title: 'm', url: 'https://corp.com/' }] },
+  ] }];
+  const df = C.flatten(dual);
+  ok(df.length === 2 && df.every((m) => m.r === 'b') && !df.some((m) => m.u.includes('corp')), 'אחסון כפול: שני הסרגלים = סרגל; מנוהלות לא נכנסות');
+  ok(C.mobileFolderIds(dual).join() === '22,2', '"בנייד" מוסתרת → "אחרות" של החשבון קודם, אחר כך המקומית');
+  ok(C.mobileFolderIds(tree)[0] === '3', '"בנייד" קיימת → אליה');
+  ok(C.planOps(flat, { e: 'E2', ops: [{ s: 1, k: 'add', id: 'a1', u: 'https://zz.com/' }] }, { ack: 50, ackE: 'E1' }).creates.length === 1, 'epoch חדש (התקנה מחדש) — המספור מההתחלה לא נזרק');
+  ok(C.planOps(flat, { e: 'E1', ops: [{ s: 1, k: 'add', id: 'a1', u: 'https://zz.com/' }] }, { ack: 50, ackE: 'E1' }).creates.length === 0, 'אותו epoch — מה שכבר טופל לא שוב');
+  const nowT = Date.parse('2026-10-27T10:00:00Z');
+  ok(C.canWrite(null, 'me', nowT) && C.canWrite({ appProperties: { w: 'me' } }, 'me', nowT) && !C.canWrite({ appProperties: { w: 'x' }, modifiedTime: '2026-10-27T09:00:00Z' }, 'me', nowT)
+    && C.canWrite({ appProperties: { w: 'x' }, modifiedTime: '2026-10-20T09:00:00Z' }, 'me', nowT) && C.canWrite({ appProperties: { w: 'x' }, modifiedTime: '2026-10-27T09:00:00Z' }, 'me', nowT, true), 'בעלות על state.json');
+  ok(C.deleteAlone({ a: { v: [['1', 100.4]] }, b: { v: [['2', 500]] } }, 100) && !C.deleteAlone({ a: { v: [['1', 100.4]] }, b: { v: [['2', 100.9]] } }, 100), 'מחיקה רק כשהביקור לבד באותה אלפית');
+  ok(!C.visibleVisit({ transition: 'auto_subframe' }) && C.visibleVisit({ transition: 'link' }), 'ביקורים ש־Chrome לא מציג — לא נכנסים');
+
+  // --- מקצה לקצה עם הטלפון: העצים ש־BrE2eTest בודק נוצרו מה־core.js הנוכחי (node tools/chrome-ext-e2e.mjs)
+  const E = await import(path.join(ROOT, 'tools/chrome-ext-e2e.mjs'));
+  for (let i = 1; i <= E.CASES; i++) {
+    const f = path.join(E.OUT, 'case' + i + '.json');
+    ok(fs.existsSync(f) && fs.readFileSync(f, 'utf8') === E.build(C, i), 'chrome-e2e/case' + i + '.json מעודכן ל־core.js (אחרת: node tools/chrome-ext-e2e.mjs)');
+  }
+  ok(/chrome-e2e/.test(R('android/app/src/testBrowser/java/io/github/yishaiguedj1/snowball/br/BrE2eTest.kt')), 'BrE2eTest קורא את העצים');
 
   // --- המבנה של התוסף
   const man = JSON.parse(R('android/chrome-ext/manifest.json'));
