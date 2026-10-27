@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2018 מפתחות מתוך 5245) */
+/* המחרוזות של studio (2020 מפתחות מתוך 5247) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1599,6 +1599,8 @@ he: {
   "studioShRow1": "ספים חדשים במצב צל — עוד עבודה אחת",
   "studioShWarn": "בספים החדשים היה נעצר — מצב צל, רק אזהרה",
   "studioShadeOf": "שלב {n} מתוך {t}",
+  "studioShadeUp": "מעלים את הסרטון",
+  "studioShadeUpOf": "{a} מתוך {b}",
   "studioShort": "סטודיו",
   "studioSlaCost": "תקציב",
   "studioSlaHalf": "עבר חצי",
@@ -3619,6 +3621,8 @@ en: {
   "studioShRow1": "New thresholds in shadow mode — one more job",
   "studioShWarn": "Would have stopped under the new thresholds — shadow mode, warning only",
   "studioShadeOf": "Step {n} of {t}",
+  "studioShadeUp": "Uploading the video",
+  "studioShadeUpOf": "{a} of {b}",
   "studioShort": "Studio",
   "studioSlaCost": "Budget",
   "studioSlaHalf": "Past 50%",
