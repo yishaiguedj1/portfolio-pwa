@@ -105,8 +105,8 @@ export function emailSheet(prefill) {
     pw.autocomplete = mode === 'in' ? 'current-password' : 'new-password';
     err.hidden = true;
   });
-  const linkB = btn('link-btn acx-link', t('accSendLink'), () => busy(linkB, () => sendLink(em, err, 's')));
-  const forgot = btn('link-btn acx-link', t('accForgot'), () => busy(forgot, async () => {
+  const linkB = btn('link-btn acx-link acx-sub', t('accSendLink'), () => busy(linkB, () => sendLink(em, err, 's')));
+  const forgot = btn('link-btn acx-link acx-sub', t('accForgot'), () => busy(forgot, async () => {
     const e = em.value.trim().toLowerCase();
     if (!EMAIL_RE.test(e)) { err.textContent = t('accErrEmail'); err.hidden = false; em.focus(); return; }
     try { await sendReset(e); err.hidden = true; say(t('accResetSent')); } catch (x) { showErr(err, x); }
@@ -133,8 +133,9 @@ export function emailSheet(prefill) {
   }
   pw.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') go.click(); });
   em.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') pw.focus(); });
-  const links = h('div', 'acx-links'); links.append(swap, linkB, forgot);
-  s.body.append(em, pw, err, go, links);
+  const links = h('div', 'acx-links'); links.append(swap, forgot, linkB);
+  const grp = h('div', 'acx-group'); grp.append(em, pw);
+  s.body.append(grp, err, go, links);
   setTimeout(() => (prefill ? pw : em).focus(), 60);
 }
 
@@ -364,7 +365,8 @@ function addMailSheet(u) {
     }
   }));
   const lb = btn('link-btn acx-link', t('accSendLinkAdd'), () => busy(lb, async () => { if (await sendLink(em, err, 'l')) s.close(); }));
-  s.body.append(em, pw, err, go, lb, h('p', 'acx-note', t('accAddMailFoot')));
+  const grp = h('div', 'acx-group'); grp.append(em, pw);
+  s.body.append(grp, err, go, lb, h('p', 'acx-note', t('accAddMailFoot')));
   setTimeout(() => em.focus(), 60);
 }
 
