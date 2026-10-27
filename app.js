@@ -7169,11 +7169,14 @@ function quoteSymbols() {
 /* v165: Yahoo עצמו מזיז את המחיר כל 1–2 שניות בזמן מסחר (נמדד: 23 שינויים ב־24 דגימות בדקה).
    טיק כל 2 שניות: כרטיסים פתוחים בכל טיק, כל התיק כל 2 טיקים (4 שניות). הכל בבקשה אחת לשרתון
    (מטמון 1.5 שניות שם) — 30 בקשות בדקה מהטלפון, במקום ~100 ישירות ל־Yahoo לפני v164. */
-const LIVE_FAST_MS = 2000;
-const LIVE_ALL_EVERY = 2;
+/* 27/10/2026 (בקשת המשתמש: "כל שנייה אם הספק מאפשר"): טיק כל שנייה, כל התיק בכל טיק — ממילא בקשה אחת לשרתון.
+   השרתון: v7 (בקשה אחת לכל הסימבולים, מטמון 0.8 שנ׳) מעל נרות שבמטמון 5 שנ׳ — overlay ב־api/quotes.js.
+   המרווח נמדד מתחילת הטיק (לא מסופו) — כך שנייה ולא שנייה + זמן התשובה. */
+const LIVE_FAST_MS = 1000;
+const LIVE_ALL_EVERY = 1;
 const LIVE_STALE_MS = 30000; // v325: כשל רצוף בלולאה החיה מעבר לזה → המחירים הקיימים מסומנים "דיליי" (stale)
-const LIVE_IDLE_MS = 60000;
-const LIVE_IDLE_AFTER = 15; // ~1 דקה בלי תזוזה (שוק סגור) → טיק לדקה
+const LIVE_IDLE_MS = 30000;
+const LIVE_IDLE_AFTER = 60; // ~1 דקה בלי תזוזה (שוק סגור) → טיק כל חצי דקה
 const live = { timer: null, busy: false, n: 0, still: 0, on: false };
 
 function liveCanTick() {
@@ -7354,6 +7357,7 @@ async function yahooRecovered() {
 async function liveTick() {
   live.timer = null;
   if (!live.on) return;
+  live.t0 = Date.now();
   if (liveCanTick()) {
     const full = live.n % LIVE_ALL_EVERY === 0;
     live.n++;
@@ -7405,7 +7409,8 @@ async function liveTick() {
 function liveSchedule() {
   if (!live.on) return;
   if (live.timer) clearTimeout(live.timer);
-  live.timer = setTimeout(liveTick, live.still >= LIVE_IDLE_AFTER ? LIVE_IDLE_MS : LIVE_FAST_MS);
+  const gap = live.still >= LIVE_IDLE_AFTER ? LIVE_IDLE_MS : LIVE_FAST_MS;
+  live.timer = setTimeout(liveTick, Math.max(250, gap - (Date.now() - (live.t0 || 0))));
 }
 
 function liveStart() {
