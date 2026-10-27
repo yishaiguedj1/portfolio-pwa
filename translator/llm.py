@@ -239,6 +239,7 @@ class Engine:
         self._inflight = 0             # קריאות שנשלחו ועוד לא חזרו (לתקרה בזמן מקבול)
         self.trunc = 0                 # 14/10/2026 (מאגר הלמידה): תשובות שנקטעו בתקרת הטוקנים
         self.mid_retries = 0           # ניסיונות חוזרים על שגיאה חולפת באמצע הזרם
+        self.no_think = False          # 27/10/2026: בחירה מתוך רשימה (שבירת שורות) — בלי חשיבה (Haiku 5.5: disabled מותר עד high)
 
     def facts(self) -> dict:
         """14/10/2026: מאגר הלמידה — מספרים בלבד: אזהרות מטמון, סירובים שעברו, קטיעות, ניסיונות חוזרים, חשיבה לכל שלב,
@@ -399,7 +400,7 @@ class Engine:
         with self._lock:
             prev_id = self._prev_id
         kw = dict(model=self.spec.model, max_tokens=max_tokens, system=system,
-                  messages=[{'role': 'user', 'content': prompt}], thinking={'type': 'adaptive'},
+                  messages=[{'role': 'user', 'content': prompt}], thinking={'type': 'disabled' if self.no_think else 'adaptive'},
                   # effort מקובע מפורשות תמיד — ברירות המחדל של המודלים שונות (Opus 5.5 = medium) ואסור לסמוך עליהן.
                   output_config={'effort': self.effort()},
                   # cache diagnostics (GA, חינם): התשובה אומרת למה המטמון פוספס. חייב להישלח בכל בקשה —

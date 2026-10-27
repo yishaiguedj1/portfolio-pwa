@@ -1897,6 +1897,8 @@ class Pipeline:
             return st
         spec = llm.Spec(*LB_SPEC)
         leng = llm.Engine(spec, client=self.eng._client)
+        # 27/10/2026 (ניתוח 15 פרקי סדרה): עם חשיבה — 15 מתוך 15 קריאות נקטעו בתקרה, 100% מהפלט חשיבה, "Haiku בחר ל־0"
+        leng.no_think = True
         try:
             res = leng.complete('lb', RULES, prompt, max_tokens=min(LB_MAX_OUT, 2000 + 12 * st['lbn']), partial_ok=True)
         except llm.LLMError as e:
