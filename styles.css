@@ -854,6 +854,31 @@ html.drag-active .tabpage { transform: none !important; }   /* v324: בלי anim
 .stock-foot .stock-edit { display: flex; gap: 6px; }
 .stock-foot .an-open-btn svg { width: 15px; height: 15px; flex: none; } /* 25/10/2026: כפתור מנתח החברות */
 .stock-foot .kc-open-btn svg { width: 15px; height: 15px; flex: none; } /* 27/10/2026: כפתור גרף הנרות */
+.stock-foot .st-al-btn { padding-inline: 9px; }
+.stock-foot .st-al-btn svg { width: 16px; height: 16px; flex: none; }
+/* 28/10/2026: התראות המחיר של המניה בכרטיס — רשימה מקובצת בסגנון iOS (כותרת קטנה, שורות עם קו מפריד, חץ) */
+.st-al { margin: 4px 14px 12px; }
+.st-al[hidden] { display: none; }
+.st-al-h { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 6px; }
+.st-al-t { font-size: 13px; font-weight: 600; color: var(--on-surface-var); }
+.st-al-add { inline-size: 28px; block-size: 28px; display: grid; place-items: center; border: 0; border-radius: var(--radius-xl); background: var(--primary-container); color: var(--on-primary-container, var(--primary)); cursor: pointer; padding: 0; }
+.st-al-add svg { inline-size: 16px; block-size: 16px; }
+.st-al-add:active { transform: scale(.92); }
+.st-al-list { border-radius: var(--radius-sm); background: var(--surface-2); overflow: hidden; }
+.st-al-row { inline-size: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 0; background: none; color: var(--on-surface); font: inherit; text-align: start; cursor: pointer; }
+.st-al-row + .st-al-row { border-block-start: .5px solid var(--separator); }
+.st-al-row:active { background: color-mix(in srgb, var(--on-surface) 6%, transparent); }
+.st-al-ic { inline-size: 30px; block-size: 30px; flex: none; display: grid; place-items: center; border-radius: var(--radius-xl); background: rgba(255, 149, 0, .16); color: #FF9500; }
+.st-al-ic svg { inline-size: 16px; block-size: 16px; }
+.st-al-tx { flex: 1; min-inline-size: 0; display: flex; flex-direction: column; gap: 1px; }
+.st-al-tx b { font-size: 16px; font-weight: 600; unicode-bidi: isolate; text-align: start; font-variant-numeric: tabular-nums; }
+.st-al-tx small { font-size: 12.5px; color: var(--on-surface-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-al-st { font-size: 12px; color: var(--on-surface-var); flex: none; }
+.st-al-chev { flex: none; color: var(--on-surface-var); opacity: .6; }
+.st-al-chev svg { inline-size: 14px; block-size: 14px; display: block; }
+[dir="ltr"] .st-al-chev svg { transform: scaleX(-1); }
+.st-al-row.done .st-al-ic { background: var(--surface-2); color: var(--on-surface-var); filter: saturate(0); }
+.st-al-row.done .st-al-tx b { color: var(--on-surface-var); }
 
 .chart-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .ranges { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; flex: 1; }

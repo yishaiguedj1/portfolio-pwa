@@ -137,6 +137,8 @@ he: {
   kcAlertHit: '{s} הגיעה ל־{p}',
   kcAlertMax: 'עד 20 התראות למניה',
   kcNoAlerts: 'אין התראות',
+  kcPriceAlerts: 'התראות מחיר',
+  kcAlertNew: 'התראת מחיר חדשה',
   kcAlertNoteOpen: 'אפשר לגרור את קו ההתראה בגרף.',
   kcPre: 'טרום',
   kcPost: 'אחרי',
@@ -1660,6 +1662,8 @@ en: {
   kcAlertHit: '{s} reached {p}',
   kcAlertMax: 'Up to 20 alerts per symbol',
   kcNoAlerts: 'No alerts',
+  kcPriceAlerts: 'Price alerts',
+  kcAlertNew: 'New price alert',
   kcAlertNoteOpen: 'You can drag the alert line on the chart.',
   kcPre: 'Pre',
   kcPost: 'Post',
@@ -6865,8 +6869,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.73.2';
-const APP_VERSION = 'v594';
+const APP_RELEASE = '2.74.0';
+const APP_VERSION = 'v595';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -14924,6 +14928,8 @@ function buildStockBody(p, m) {
   sret.id = 'sret-' + sym;
   foot.appendChild(sret);
   wrap.appendChild(foot);
+  stAlPx[sym] = m && m.price;
+  wrap.appendChild(stockAlertsEl(sym));
   // v236: שורת ה־legend ("NOW ● +x%") הוסרה — חזרה בדיוק על שורת התשואה שמעליה
 
   const picking = !!state.stockPick[sym];
@@ -14958,6 +14964,7 @@ function buildStockBody(p, m) {
     const actions = el('div', 'edit-actions stock-edit');
     if (anOk) actions.appendChild(analysisBtn(sym));
     actions.appendChild(chartBtn(sym));
+    actions.appendChild(alertBtn(sym));
     const rb = el('button', 'chip-btn danger', t('wlRemoveBtn'));
     rb.type = 'button';
     rb.addEventListener('click', () => wlRemove({ sym: sym }));
@@ -14967,6 +14974,7 @@ function buildStockBody(p, m) {
     const actions = el('div', 'edit-actions stock-edit');
     if (anOk) actions.appendChild(analysisBtn(sym));
     actions.appendChild(chartBtn(sym));
+    actions.appendChild(alertBtn(sym));
     const eb = el('button', 'chip-btn', p.fromTrades ? t('btnManageTrades') : t('btnEdit'));
     eb.type = 'button';
     eb.addEventListener('click', () => {
@@ -14980,6 +14988,7 @@ function buildStockBody(p, m) {
     const actions = el('div', 'edit-actions stock-edit');
     if (anOk) actions.appendChild(analysisBtn(sym));
     actions.appendChild(chartBtn(sym));
+    actions.appendChild(alertBtn(sym));
     foot.appendChild(actions);
   }
 
@@ -15014,6 +15023,7 @@ function chartEnv() {
     },
     search: (q, onUpdate) => searchStocksYahoo(q, onUpdate),
     symbols: () => quoteSymbols().filter((s) => s !== FX_SYM),
+    onClose: () => refreshStockAlerts(),   // התראות שנוספו/נמחקו בגרף — מתעדכנות בכרטיס המניה
     store: {
       get: () => { try { return JSON.parse(localStorage.getItem(CHART_LS) || 'null'); } catch (e) { return null; } },
       set: (v) => { try { localStorage.setItem(CHART_LS, JSON.stringify(v)); } catch (e) { /* מכסה מלאה */ } },
@@ -15022,6 +15032,67 @@ function chartEnv() {
 }
 function openChartFor(sym) {
   import('./chart.js').then((m) => m.openChart(sym, chartEnv())).catch(() => flash(t('kcErrLib')));
+}
+
+/* 28/10/2026 (בקשת המשתמש): התראות המחיר של המניה גם בכרטיס שלה — רשימה נקייה, נגיעה = עריכה, "+" = התראה חדשה.
+   הרשימה נקראת ישר מ־pwa_charts_v1 (בלי לטעון את הגרף); העורך והסנכרון לרקע — ב־chart.js (openStockAlert) */
+const stAlPx = {};   // המחיר החי האחרון שהכרטיס הציג — נקודת ההתחלה של התראה חדשה
+const BELL_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+function stockAlertList(sym) {
+  try { const o = JSON.parse(localStorage.getItem(CHART_LS) || 'null'); const l = o && o.alerts && o.alerts[sym]; return Array.isArray(l) ? l : []; } catch (e) { return []; }
+}
+function openStockAlertFor(sym, id) {
+  const px = stAlPx[sym];
+  const env = Object.assign(chartEnv(), { onAlerts: () => refreshStockAlerts(sym) });
+  import('./chart.js').then((m) => m.openStockAlert(sym, env, id, px)).catch(() => flash(t('kcErrLib')));
+}
+function alertBtn(sym) {
+  const b = el('button', 'chip-btn st-al-btn');
+  b.type = 'button';
+  b.innerHTML = BELL_SVG;
+  b.setAttribute('aria-label', t('kcAlertNew'));
+  b.title = t('kcAlertNew');
+  b.addEventListener('click', (e) => { e.stopPropagation(); openStockAlertFor(sym); });
+  return b;
+}
+function stockAlertsEl(sym) {
+  const box = el('div', 'st-al');
+  box.dataset.sym = sym;
+  const list = stockAlertList(sym);
+  box.hidden = !list.length;
+  if (!list.length) return box;
+  const head = el('div', 'st-al-h');
+  head.appendChild(el('span', 'st-al-t')).textContent = t('kcPriceAlerts');
+  const add = el('button', 'st-al-add');
+  add.type = 'button';
+  add.setAttribute('aria-label', t('kcAlertNew'));
+  add.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+  add.addEventListener('click', (e) => { e.stopPropagation(); openStockAlertFor(sym); });
+  head.appendChild(add);
+  box.appendChild(head);
+  const ul = el('div', 'st-al-list');
+  for (const a of list.slice().sort((x, y) => (x.done ? 1 : 0) - (y.done ? 1 : 0) || y.p - x.p)) {
+    const row = el('button', 'st-al-row' + (a.done ? ' done' : ''));
+    row.type = 'button';
+    row.appendChild(el('span', 'st-al-ic', BELL_SVG));
+    const tx = el('span', 'st-al-tx');
+    const pb = el('b', 'num');
+    pb.textContent = fmtPx(+a.p, sym);
+    const sub = el('small');
+    sub.textContent = (a.dir === 'up' ? t('kcAlertUp') : a.dir === 'down' ? t('kcAlertDown') : t('kcAlertCross')) + (a.note ? ' · ' + String(a.note).slice(0, 80) : '');
+    tx.append(pb, sub);
+    row.appendChild(tx);
+    if (a.done) row.appendChild(el('span', 'st-al-st')).textContent = t('kcAlertDone');
+    row.appendChild(el('span', 'st-al-chev', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'));
+    row.addEventListener('click', (e) => { e.stopPropagation(); openStockAlertFor(sym, a.id); });
+    ul.appendChild(row);
+  }
+  box.appendChild(ul);
+  return box;
+}
+function refreshStockAlerts(sym) {
+  if (typeof document === 'undefined') return;
+  for (const n of document.querySelectorAll('.st-al')) if (!sym || n.dataset.sym === sym) n.replaceWith(stockAlertsEl(n.dataset.sym));
 }
 
 /* 25/10/2026 (בקשת המשתמש): מנתח החברות — שכבה במסך מלא (analysis.js + analysis.css), נטענת רק כאן.

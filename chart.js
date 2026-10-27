@@ -684,23 +684,35 @@ function registerOverlays() {
   position('kcLong', true);
   position('kcShort', false);
 
-  /* מדידות (Price Range / Date Range / Date & Price Range) — עם נפח ומספר נרות */
+  /* מדידות (Price Range / Date Range / Date & Price Range) — כמו TradingView: מלבן שקוף, חץ אנכי (מחיר) וחץ אופקי (זמן)
+     עם ראשי חצים לכיוון נקודת הסיום, וכרטיס של שלוש שורות: שינוי (אחוז) טיקים · נרות, זמן · נפח. כחול לעלייה, אדום לירידה */
+  const arrowFig = (x1, y1, x2, y2, col) => {
+    const ang = Math.atan2(y2 - y1, x2 - x1), k = 7, s1 = ang + Math.PI * 0.82, s2 = ang - Math.PI * 0.82;
+    return [{ type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: x1, y: y1 }, { x: x2, y: y2 }] }, styles: { color: col, size: 1.5 } },
+      { type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: x2 + Math.cos(s1) * k, y: y2 + Math.sin(s1) * k }, { x: x2, y: y2 }, { x: x2 + Math.cos(s2) * k, y: y2 + Math.sin(s2) * k }] }, styles: { color: col, size: 1.5 } }];
+  };
+  const LRM = '\u200E';
   const measure = (name, mode) => R({
     name, totalStep: 3,
     createPointFigures: ({ chart, overlay, coordinates }) => {
       if (coordinates.length < 2) return [];
       const [a, b] = coordinates, list = chart.getDataList();
       const ia = dataIdx(list, overlay.points[0].timestamp), ib = dataIdx(list, overlay.points[1].timestamp);
-      const st = L.rangeStats(list, ia, ib), dv = valAt(overlay, 1) - valAt(overlay, 0), pct = valAt(overlay, 0) ? dv / valAt(overlay, 0) * 100 : 0;
-      const col = dv >= 0 ? '#0A84FF' : '#FF453A';
-      const parts = [];
-      if (mode !== 'd') parts.push((dv >= 0 ? '+' : '') + fmtP(chart, dv) + ' (' + fmtPct(pct) + ')');
-      if (mode !== 'p' && st) parts.push(Math.abs(ib - ia) + ' ' + T('kcBarsW') + ', ' + fmtDur(Math.abs(overlay.points[1].timestamp - overlay.points[0].timestamp)));
-      if (mode === 'pd' && st) parts.push(T('kcVolW') + ' ' + fmtBig(st.vol));
-      const figs = [polyFig([a, { x: b.x, y: a.y }, b, { x: a.x, y: b.y }], col, 0.12)];
-      if (mode !== 'd') figs.push({ type: 'line', attrs: { coordinates: [{ x: (a.x + b.x) / 2, y: a.y }, { x: (a.x + b.x) / 2, y: b.y }] }, styles: { color: col, size: 1 } });
-      if (mode !== 'p') figs.push({ type: 'line', attrs: { coordinates: [{ x: a.x, y: (a.y + b.y) / 2 }, { x: b.x, y: (a.y + b.y) / 2 }] }, styles: { color: col, size: 1 } });
-      figs.push(textFig((a.x + b.x) / 2, Math.max(a.y, b.y) + 14, parts.join(' · '), col, { attrs: { align: 'center' } }));
+      const st = L.rangeStats(list, ia, ib), v0 = valAt(overlay, 0), dv = valAt(overlay, 1) - v0, pct = v0 ? dv / v0 * 100 : 0;
+      const up = mode === 'd' ? b.x >= a.x : dv >= 0, col = up ? '#2962FF' : '#F23645', p = palette();
+      const lines = [];
+      if (mode !== 'd') lines.push(LRM + (dv >= 0 ? '' : '−') + fmtP(chart, Math.abs(dv)) + ' (' + (dv >= 0 ? '' : '−') + Math.abs(pct).toFixed(2) + '%) ' + (dv >= 0 ? '' : '−') + Math.round(Math.abs(dv) * Math.pow(10, precOf(chart))).toLocaleString('en-US'));
+      if (mode !== 'p' && st) lines.push(LRM + (ib - ia) + ' ' + T('kcBarsW') + ', ' + LRM + fmtDur(Math.abs(overlay.points[1].timestamp - overlay.points[0].timestamp)));
+      if (mode !== 'p' && st) lines.push(T('kcVolW') + ' ' + LRM + fmtBig(st.vol));
+      const x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x), y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y), mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+      const figs = [{ type: 'polygon', ignoreEvent: true, attrs: { coordinates: [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }] }, styles: { style: 'fill', color: rgba(col, 0.2) } }];
+      if (mode !== 'd') figs.push(...arrowFig(mx, a.y, mx, b.y, col));
+      if (mode !== 'p') figs.push(...arrowFig(a.x, my, b.x, my, col));
+      // הכרטיס: מעל המלבן בעלייה, מתחת בירידה (כמו TradingView)
+      const fs = 12, lh = 16, w = Math.max(...lines.map((l) => l.length)) * 6.6 + 16, hh = lines.length * lh + 8;
+      const ty = (mode === 'd' ? true : up) ? y0 - 8 - hh : y1 + 8;
+      figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: mx - w / 2, y: ty, width: w, height: hh }, styles: { style: 'stroke_fill', color: p.tipBg, borderColor: rgba(col, 0.35), borderSize: 1, borderRadius: 6 } });
+      lines.forEach((l, i) => figs.push({ type: 'text', ignoreEvent: true, attrs: { x: mx, y: ty + 4 + lh * i + lh / 2, text: l, align: 'center', baseline: 'middle' }, styles: { color: isDark() ? '#F2F2F7' : '#1C1C1E', size: fs, family: p.font, backgroundColor: 'transparent', borderSize: 0, paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 } }));
       return figs;
     },
   });
@@ -871,7 +883,8 @@ function save() {
 function saveNow() {
   clearTimeout(saveT); saveT = null;
   if (!S.store || !E || !E.store) return;
-  S.store.g.cells = S.cells.map((c) => ({ sym: c.sym, tf: c.tf, type: c.type, ind: c.chart ? indSnap(c) : c.indSaved || [] }));
+  // בלי הגרף פתוח (התראה מכרטיס המניה) — S.cells ריק, והפריסה השמורה נשארת כמו שהיא
+  if (S.cells.length) S.store.g.cells = S.cells.map((c) => ({ sym: c.sym, tf: c.tf, type: c.type, ind: c.chart ? indSnap(c) : c.indSaved || [] }));
   for (const c of S.cells) if (c.chart && c.drawnFor === c.sym) {
     const dr = drawSnap(c);
     if (dr.length) S.store.s[c.sym] = { dr }; else delete S.store.s[c.sym];
@@ -1224,7 +1237,21 @@ function applySnap(c, s) {
 function undo() { const c = S.cells[S.active]; if (!c || !c.undo.length) return; c.redo.push(c.snap); c.snap = c.undo.pop(); applySnap(c, c.snap); }
 function redo() { const c = S.cells[S.active]; if (!c || !c.redo.length) return; c.undo.push(c.snap); c.snap = c.redo.pop(); applySnap(c, c.snap); }
 function getOv(c, id) { return c && c.chart ? c.chart.getOverlays({ id })[0] : null; }
-function select(c, o) { if (!o || o.groupId !== 'user') return; S.sel = { c, id: o.id }; renderSel(); }
+function select(c, o) { if (!o || o.groupId !== 'user') return; S.sel = { c, id: o.id, at: Date.now() }; renderSel(); }
+/* קו התראה נבחר (הקשה עליו) — אותו סרגל צף: חימוש מחדש, עריכה, מחיקה; לחיצה ארוכה — גיליון עם "מחק" */
+function selectAlert(c, o) {
+  const a = o && (S.store.alerts[c.sym] || []).find((x) => x.id === (o.extendData && o.extendData.id));
+  if (!a) return;
+  S.sel = { c, id: o.id, at: Date.now(), alert: a };
+  renderSel();
+}
+function delAlert(sym, a) {
+  const arr = (S.store.alerts[sym] || []).filter((x) => x !== a);
+  if (arr.length) S.store.alerts[sym] = arr; else delete S.store.alerts[sym];
+  save(); bgSoon();
+  for (const x of S.cells) if (x.sym === sym) drawAlerts(x);
+  updBars();
+}
 function deselect() { S.sel = null; renderSel(); }
 function selStyle(patch) {
   const s = S.sel, o = s && getOv(s.c, s.id);
@@ -1235,7 +1262,25 @@ function selStyle(patch) {
   s.c.chart.overrideOverlay({ id: s.id, styles: styleSet(color, size, dash) });
   changed(s.c); renderSel();
 }
-function selDelete() { const s = S.sel; if (!s) return; s.c.chart.removeOverlay({ id: s.id }); deselect(); changed(s.c); }
+function selDelete() { const s = S.sel; if (!s) return; if (s.alert) { deselect(); delAlert(s.c.sym, s.alert); return; } s.c.chart.removeOverlay({ id: s.id }); deselect(); changed(s.c); }
+/* לחיצה ארוכה על אובייקט (כמו TradingView): גיליון קצר — מחק תמיד ראשון, ואחריו מה שמתאים */
+function openObjMenu() {
+  const s = S.sel, o = s && getOv(s.c, s.id);
+  if (!o) return;
+  const name = s.alert ? '🔔 ' + fmtNum(s.alert.p, L.precisionFor(s.alert.p)) : T(TOOL_INFO[o.name] ? TOOL_INFO[o.name].key : 'kcDrawing');
+  openSheet(name, (b, sh) => {
+    const it = (icon, text, fn, cls) => h('button', { type: 'button', class: 'kc-li' + (cls ? ' ' + cls : ''), onclick: () => { closeSheet(sh); fn(); } }, h('span', { class: 'kc-ico', html: ICON[icon] }), h('span', { class: 'kc-li-n', text }));
+    const rows = [it('trash', T('kcDelete'), selDelete, 'danger')];
+    if (s.alert) {
+      if (s.alert.done) rows.push(it('bell', T('kcRearm'), () => { rearm(s.c.sym, s.alert); save(); bgSoon(); drawAlerts(s.c); deselect(); }));
+      rows.push(it('bell', T('kcAlerts'), () => { deselect(); openAlerts(); }));
+    } else {
+      rows.push(it('copy', T('kcClone'), selClone), it(o.lock ? 'unlock' : 'lock', o.lock ? T('kcUnlock') : T('kcLock'), selLock));
+      if (TEXT_TOOLS.has(o.name)) rows.push(it('text', T('kcEditText'), () => askText(s.c, s.id)));
+    }
+    b.append(h('div', { class: 'kc-act' }, ...rows));
+  });
+}
 function selLock() { const s = S.sel, o = s && getOv(s.c, s.id); if (!o) return; s.c.chart.overrideOverlay({ id: s.id, lock: !o.lock }); changed(s.c); renderSel(); }
 function selClone() {
   const s = S.sel, o = s && getOv(s.c, s.id);
@@ -1309,6 +1354,8 @@ function drawAlerts(c) {
     c.chart.createOverlay({
       name: 'kcAlert', groupId: 'alert', points: [{ timestamp: lastTs(c), value: a.p }], extendData: { id: a.id, note: a.note || '', done: !!a.done },
       onPressedMoveEnd: (e) => { a.p = e.overlay.points[0].value; rearm(c.sym, a); save(); bgSoon(); setTimeout(() => drawAlerts(c), 0); },
+      onSelected: (e) => selectAlert(c, e.overlay),
+      onDeselected: () => { if (S.sel && S.sel.alert) deselect(); },
       onRightClick: (e) => { if (e.preventDefault) e.preventDefault(); },
     });
   }
@@ -1517,6 +1564,46 @@ function onCross(c, x) {
 }
 /* מגע כמו TradingView (ו־Apple Stocks): הצלב מופיע רק בלחיצה ארוכה, עם רטט קצר, ונשאר אחרי ההרמה.
    הקשה רגילה רק מסתירה אותו (התיקון בספרייה — vendor/klinecharts/README.md). */
+/* פגיעה באצבע: הספרייה בודקת קווים בסטייה של 2px בלבד (מתאים לעכבר) — במגע מחפשים את האובייקט הקרוב עד 14px,
+   כמו TradingView. מחזיר { o, alert } או null. x/y — יחסית לגרף */
+const HIT_PX = 14;
+function segDist(p, a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y, l = dx * dx + dy * dy;
+  const t = l ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l)) : 0;
+  return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy);
+}
+function hitAt(c, x, y) {
+  if (!c || !c.chart) return null;
+  let best = null, bd = HIT_PX;
+  const take = (o, d, alert) => { if (d <= bd) { bd = d; best = { o, alert }; } };
+  const P = { x, y };
+  for (const o of c.chart.getOverlays({ groupId: 'alert' }) || []) {
+    const q = o.points[0] && px(c.chart, lastTs(c), o.points[0].value);
+    if (q && isFinite(q.y)) take(o, Math.abs(q.y - y), true);
+  }
+  for (const o of c.chart.getOverlays({ groupId: 'user' }) || []) {
+    if (o.visible === false) continue;
+    const pts = (o.points || []).map((q) => px(c.chart, q.timestamp, q.value)).filter((q) => q && isFinite(q.x) && isFinite(q.y));
+    if (!pts.length) continue;
+    const n = o.name;
+    let d = Infinity;
+    if (/^horizontal/.test(n) || n === 'priceLine') d = Math.abs(pts[0].y - y);
+    else if (/^vertical/.test(n)) d = Math.abs(pts[0].x - x);
+    else if (n === 'kcCrossLine') d = Math.min(Math.abs(pts[0].y - y), Math.abs(pts[0].x - x));
+    else if (pts.length === 1) d = Math.hypot(pts[0].x - x, pts[0].y - y);
+    else {
+      for (let i = 1; i < pts.length; i++) d = Math.min(d, segDist(P, pts[i - 1], pts[i]));
+      // צורות שטח (מלבן, פיבונאצ׳י, טווחים, מדידה) — נגיעה בתוך המסגרת
+      if (/rect|fib|range|box|measure|channel/i.test(n)) {
+        const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
+        if (x >= Math.min(...xs) && x <= Math.max(...xs) && y >= Math.min(...ys) && y <= Math.max(...ys)) d = Math.min(d, HIT_PX - 1);
+      }
+    }
+    take(o, d, false);
+  }
+  return best;
+}
+function selectHit(c, r) { if (r.alert) selectAlert(c, r.o); else select(c, r.o); }
 function wireCellPointer(c) {
   let down = null, lp = 0;
   const far = (e) => down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8;
@@ -1524,7 +1611,15 @@ function wireCellPointer(c) {
     down = { x: e.clientX, y: e.clientY, t: Date.now(), touch: e.pointerType === 'touch' };
     if (S.active !== c.i) setActive(c.i);
     clearTimeout(lp);
-    if (down.touch && e.isPrimary) lp = setTimeout(() => { if (down && navigator.vibrate) try { navigator.vibrate(8); } catch (x) { /* בלי רטט */ } }, 520);
+    if (down.touch && e.isPrimary) lp = setTimeout(() => {
+      if (!down) return;
+      try { if (navigator.vibrate) navigator.vibrate(8); } catch (x) { /* בלי רטט */ }
+      // הנגיעה בחרה אובייקט (שרטוט / קו התראה) — לחיצה ארוכה עליו = תפריט עם "מחק", כמו TradingView
+      if (S.tool) return;
+      const r = c.host.getBoundingClientRect(), hit = hitAt(c, down.x - r.left, down.y - r.top);
+      if (hit) selectHit(c, hit);
+      if (hit || (S.sel && S.sel.c === c && S.sel.at >= down.t - 30)) { down = null; c.chart.executeAction('onCrosshairChange', null); openObjMenu(); }
+    }, 520);
   }, true);
   c.el.addEventListener('pointermove', (e) => { if (far(e)) clearTimeout(lp); }, true);
   c.el.addEventListener('pointercancel', () => { clearTimeout(lp); down = null; }, true);
@@ -1532,7 +1627,13 @@ function wireCellPointer(c) {
     clearTimeout(lp);
     if (!down) return;
     const moved = far(e), tap = down.touch && !moved && Date.now() - down.t < 350;
+    const d0 = down;
     down = null;
+    // הקשה באצבע על אובייקט = בחירה (בחלון רחב יותר משל הספרייה); הקשה על רקע ריק = ביטול הבחירה
+    if (tap && !S.tool && S.pick !== c && c.chart) {
+      const r = c.host.getBoundingClientRect(), hit = hitAt(c, d0.x - r.left, d0.y - r.top);
+      setTimeout(() => { if (hit) selectHit(c, hit); else if (S.sel && S.sel.c === c && S.sel.at < d0.t - 30) deselect(); }, 0);
+    }
     if (!moved && S.pick === c) {
       // במגע הקשה לא פותחת צלב (vendor/klinecharts/README.md) — הנר נקבע מנקודת ההקשה
       if (tap && c.chart) { try { const r = c.host.getBoundingClientRect(), p = c.chart.convertFromPixel([{ x: e.clientX - r.left, y: e.clientY - r.top }], { paneId: MAIN })[0]; if (p && typeof p.dataIndex === 'number') c.crossIdx = p.dataIndex; } catch (x) { /* נשאר האחרון */ } }
@@ -1543,13 +1644,15 @@ function wireCellPointer(c) {
 
 /* ---------- גיליונות (חלונות מלמטה בטלפון / במרכז במחשב). כל גיליון = רשומת "חזור" ---------- */
 function openSheet(title, fill, opt) {
-  if (!ROOT) return null;
+  const root = (opt && opt.root) || ROOT;
+  if (!root) return null;
   const sh = { el: null, modal: null };
   const body = h('div', { class: 'kc-sh-body' });
   const panel = h('div', { class: 'kc-sheet' + (opt && opt.wide ? ' wide' : ''), role: 'dialog', 'aria-label': title },
     h('div', { class: 'kc-sh-head' }, h('div', { class: 'kc-sh-title', text: title }), btn('kc-ib', T('kcClose'), () => closeSheet(sh), ICON.close)), body);
   sh.el = h('div', { class: 'kc-sh-back', onclick: (e) => { if (e.target === sh.el) closeSheet(sh); } }, panel);
-  ROOT.appendChild(sh.el);
+  root.appendChild(sh.el);
+  if (opt && opt.onClose) sh.onClose = opt.onClose;
   S.sheets.push(sh);
   sh.modal = E.modalPush ? E.modalPush(() => closeSheet(sh, true)) : null;
   fill(body, sh);
@@ -1567,6 +1670,7 @@ function closeSheet(sh, fromPop) {
   } else el.remove();
   if (!fromPop && sh.modal) unwind([sh.modal]);
   sh.modal = null;
+  if (sh.onClose) sh.onClose();
 }
 function unwind(recs) {
   let n = 0;
@@ -1815,7 +1919,7 @@ function renderMbar() {
   const ctf = c.swTf || c.tf, fav = S.store.g.fav.includes(ctf) ? S.store.g.fav : [...S.store.g.fav, ctf];
   const tfB = btn('kc-mb txt', T('kcMoreTf'), openTfSheet);
   tfB.textContent = tfLabel(ctf);
-  wheel(tfB, () => fav.map((tf) => ({ v: tf, t: tfLabel(tf), cur: tf === ctf })), (it) => setTf(c, it.v));
+  wheel(tfB, () => fav.map((tf) => ({ v: tf, t: tfLabel(tf), l: tfLong(tf), cur: tf === ctf })), (it) => setTf(c, it.v));
   UI.mbar.append(symB, tfB, h('span', { class: 'kc-sep' }),
     ib('pencil', T('kcTools'), openToolsSheet),
     ib('fx', T('kcIndicators'), openIndSheet),
@@ -1824,15 +1928,36 @@ function renderMbar() {
   const u = UI.mbar.lastChild;
   u.disabled = !c.undo.length;
 }
-/* גלגלת בחירה (iOS) על כפתור: גרירה למעלה/למטה מחליפה פריט כל 30px, עם רטט קטן; שחרור = בחירה */
+/* שם מלא לטווח בגלגלת ("15 דקות", "1 hour") — Intl, בלי מחרוזות חדשות */
+function tfLong(tf) {
+  const m = /^(\d+)(m|h|D|W|M)$/.exec(tf);
+  if (!m) return tf;
+  try { return new Intl.NumberFormat(E.lang === 'en' ? 'en-US' : 'he-IL', { style: 'unit', unit: { m: 'minute', h: 'hour', D: 'day', W: 'week', M: 'month' }[m[2]], unitDisplay: 'long' }).format(+m[1]); } catch (e) { return tf; }
+}
+/* גלגלת בחירה כמו TradingView: גרירה על הכפתור גוללת ברצף (מעגלית), חלון כהה באמצע הגרף עם השמות המלאים,
+   והתווית בכפתור מתגלגלת עם האצבע. רטט קטן בכל מעבר פריט; שחרור = בחירת הפריט הקרוב */
+const WH_ROW = 26, WH_BTN = 20;
+/* מיקום דרך CSSOM (לא מאפיין style — מדיניות CSP) */
+const whPos = (e, y, o) => { e.style.transform = 'translateY(' + y.toFixed(1) + 'px)'; e.style.opacity = Math.max(0, o).toFixed(2); return e; };
 function wheel(b, items, pick) {
   let st = null;
   b.style.touchAction = 'none';
+  const at = (i) => st.items[((i % st.n) + st.n) % st.n];
+  const ok = (i) => st.loop || (i >= 0 && i < st.n);
   const draw = () => {
-    st.el.textContent = '';
-    for (let k = -2; k <= 2; k++) {
-      const it = st.items[st.i + k];
-      st.el.appendChild(h('div', { class: 'kc-wh-i d' + Math.abs(k), text: it ? it.t : '' }));
+    const base = Math.floor(st.pos), fr = st.pos - base;
+    st.list.textContent = '';
+    for (let k = -4; k <= 5; k++) {
+      const i = base + k, d = Math.abs(k - fr);
+      if (!ok(i) || d > 3.6) continue;
+      const it = at(i);
+      st.list.appendChild(whPos(h('div', { class: 'kc-wh-i' + (d < 0.5 ? ' cur' : ''), text: it.l || it.t }), (k - fr) * WH_ROW, 1 - d * 0.3));
+    }
+    st.roll.textContent = '';
+    for (let k = 0; k <= 1; k++) {
+      const i = base + k;
+      if (!ok(i)) continue;
+      st.roll.appendChild(whPos(h('span', { class: 'kc-roll-i', text: at(i).t }), (k - fr) * WH_BTN, 1 - Math.abs(k - fr) * 1.4));
     }
   };
   b.addEventListener('pointerdown', (e) => { st = { y: e.clientY, on: false }; });
@@ -1840,28 +1965,44 @@ function wheel(b, items, pick) {
     if (!st) return;
     const dy = e.clientY - st.y;
     if (!st.on) {
-      if (Math.abs(dy) < 8) return;
+      if (Math.abs(dy) < 6) return;
       st.items = items();
-      if (st.items.length < 2) { st = null; return; }
-      st.on = true; st.i0 = st.i = Math.max(0, st.items.findIndex((x) => x.cur));
+      st.n = st.items.length;
+      if (st.n < 2) { st = null; return; }
+      st.on = true; st.loop = st.n > 2; st.y = e.clientY;
+      st.i0 = st.idx = Math.max(0, st.items.findIndex((x) => x.cur)); st.pos = st.i0;
       try { b.setPointerCapture(e.pointerId); } catch (x) { /* בלי לכידה */ }
-      st.el = h('div', { class: 'kc-wheel', 'aria-hidden': 'true' });
+      st.el = h('div', { class: 'kc-wheel', 'aria-hidden': 'true' }, st.list = h('div', { class: 'kc-wh-l' }));
       ROOT.appendChild(st.el);
+      st.txt = b.textContent;
+      b.textContent = '';
+      b.appendChild(st.roll = h('span', { class: 'kc-roll' }));
+      requestAnimationFrame(() => { if (st && st.el) st.el.classList.add('on'); });
       draw();
+      return;
     }
     e.preventDefault();
-    const i = Math.max(0, Math.min(st.items.length - 1, st.i0 + Math.round(-dy / 30)));
-    if (i !== st.i) { st.i = i; draw(); try { if (navigator.vibrate) navigator.vibrate(3); } catch (x) { /* בלי רטט */ } }
+    let p = st.i0 - (e.clientY - st.y) / WH_ROW;
+    if (!st.loop) p = Math.max(0, Math.min(st.n - 1, p));
+    st.pos = p;
+    const idx = Math.round(p);
+    if (idx !== st.idx) { st.idx = idx; try { if (navigator.vibrate) navigator.vibrate(3); } catch (x) { /* בלי רטט */ } }
+    if (!st.raf) st.raf = requestAnimationFrame(() => { if (st) { st.raf = 0; draw(); } });
   });
   const end = () => {
     if (!st) return;
     const s0 = st;
     st = null;
     if (!s0.on) return;
-    s0.el.remove();
+    cancelAnimationFrame(s0.raf);
+    const el = s0.el;
+    el.classList.remove('on');
+    setTimeout(() => el.remove(), 180);
+    b.textContent = s0.txt;
     b.dataset.drag = '1';
     setTimeout(() => { delete b.dataset.drag; }, 60);
-    if (s0.i !== s0.i0) pick(s0.items[s0.i]);
+    const it = s0.items[((s0.idx % s0.n) + s0.n) % s0.n];
+    if (!it.cur) { b.textContent = it.t; pick(it); }
   };
   b.addEventListener('pointerup', end);
   b.addEventListener('pointercancel', end);
@@ -2045,6 +2186,15 @@ function renderSel() {
   UI.sel.classList.toggle('on', !!o);
   if (!o) UI.sel.classList.remove('pal');
   if (!o) return;
+  if (s.alert) {
+    const a = s.alert;
+    UI.sel.append(h('span', { class: 'kc-sel-n al', text: '🔔 ' + fmtNum(a.p, L.precisionFor(a.p)) + (a.note ? ' · ' + a.note : '') }),
+      ...(a.done ? [btn('kc-ib sm', T('kcRearm'), () => { rearm(s.c.sym, a); save(); bgSoon(); drawAlerts(s.c); deselect(); }, ICON.bell)] : []),
+      btn('kc-ib sm', T('kcAlerts'), () => { deselect(); openAlerts(); }, ICON.gear),
+      btn('kc-ib sm danger', T('kcDelete'), selDelete, ICON.trash),
+      btn('kc-ib sm', T('kcClose'), deselect, ICON.close));
+    return;
+  }
   const ln = (o.styles && o.styles.line) || {}, color = ln.color || DS.color, size = ln.size || 1, dash = ln.style === 'dashed';
   const cols = h('div', { class: 'kc-cols' }, ...DRAW_COLORS.map((cl) => {
     const b = h('button', { type: 'button', class: 'kc-col' + (cl.toLowerCase() === String(color).toLowerCase() ? ' on' : ''), 'aria-label': cl, onclick: () => selStyle({ color: cl }) });
@@ -2059,7 +2209,7 @@ function renderSel() {
     h('span', { class: 'kc-sel-n', text: T(TOOL_INFO[o.name] ? TOOL_INFO[o.name].key : 'kcDrawing') }), sw, cols, wid,
     btn('kc-wid kc-wcyc on', size + 'px', () => selStyle({ width: size % 4 + 1 })),
     btn('kc-ib sm' + (dash ? ' on' : ''), T('kcDashed'), () => selStyle({ dash: !dash }), '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4M10 12h4M17 12h4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>'),
-    TEXT_TOOLS.has(o.name) ? btn('kc-ib sm', T('kcEditText'), () => askText(s.c, s.id), ICON.text) : null,
+    ...(TEXT_TOOLS.has(o.name) ? [btn('kc-ib sm', T('kcEditText'), () => askText(s.c, s.id), ICON.text)] : []),   // append(null) כותב "null" (נראה בטלפון)
     btn('kc-ib sm' + (o.lock ? ' on' : ''), o.lock ? T('kcUnlock') : T('kcLock'), selLock, o.lock ? ICON.lock : ICON.unlock),
     btn('kc-ib sm', T('kcClone'), selClone, ICON.copy),
     btn('kc-ib sm danger', T('kcDelete'), selDelete, ICON.trash),
@@ -2318,6 +2468,58 @@ function openAlerts() {
     bgShow();
     bgSync(true);   // ברירת מחדל: פתיחת החלון (נגיעה) = בקשת הרשאה אם עוד לא נשאלה, ורישום לרקע
   });
+}
+
+/* ---------- התראות מכרטיס המניה (app.js) — בלי לפתוח את הגרף. אותו מאגר (pwa_charts_v1) ואותו סנכרון לרקע ---------- */
+function alStore(env) { if (!ROOT) { if (env) E = env; S.store = loadStore(); } return S.store; }
+export function stockAlerts(sym, env) { const st = alStore(env); return (st.alerts[String(sym).toUpperCase()] || []).map((a) => Object.assign({}, a)); }
+/* עריכה (id) או התראה חדשה (בלי id). px = המחיר החי מהכרטיס — נקודת ההתחלה של "חוצה" */
+export async function openStockAlert(sym, env, id, px) {
+  sym = String(sym || '').toUpperCase();
+  const st = alStore(env);
+  await ensureCss();
+  let root = ROOT, fl = null;
+  if (!root) { fl = h('div', { class: 'kc-root kc-float' }); document.body.appendChild(fl); root = fl; }
+  const list = () => st.alerts[sym] || [];
+  const a0 = id ? list().find((x) => x.id === id) : null;
+  const cur = px > 0 ? px : curPx(sym), p0 = a0 ? a0.p : cur, pr = L.precisionFor(p0 || 1);
+  const done = () => {
+    for (const c of S.cells) if (c.sym === sym) drawAlerts(c);
+    if (ROOT && ROOT !== fl) { save(); updBars(); } else saveNow();
+    if (E.onAlerts) E.onAlerts(sym);
+  };
+  openSheet(T('kcAlerts') + ' · ' + sym, (b, sh) => {
+    const price = h('input', { class: 'kc-in num', type: 'number', step: 'any', inputmode: 'decimal', value: p0 > 0 ? p0.toFixed(pr) : '' });
+    const note = h('input', { class: 'kc-in', type: 'text', maxlength: '80', placeholder: T('kcAlertNote'), value: a0 ? a0.note || '' : '' });
+    let dir = a0 ? a0.dir : 'cross';
+    const close = () => closeSheet(sh);
+    b.append(
+      h('label', { class: 'kc-field' }, h('span', { text: sym }), price),
+      seg([['cross', T('kcAlertCross')], ['up', T('kcAlertUp')], ['down', T('kcAlertDown')]], dir, (v) => { dir = v; }),
+      note,
+      h('div', { class: 'kc-row-end' },
+        a0 ? btn('kc-btn danger', T('kcRemove'), () => { const arr = list().filter((x) => x.id !== a0.id); if (arr.length) st.alerts[sym] = arr; else delete st.alerts[sym]; done(); bgSoon(); close(); }) : null,
+        a0 && a0.done ? btn('kc-btn', T('kcRearm'), () => { a0.done = false; a0.at = 0; a0.id = newId(); a0.b = cur || a0.p; done(); bgSync(true); close(); }) : null,
+        btn('kc-btn pri', a0 ? T('kcSave') : T('kcAlertAdd'), () => {
+          const v = parseFloat(price.value);
+          if (!(v > 0)) { price.focus(); return; }
+          const n = note.value.trim().slice(0, 80);
+          if (a0) {
+            // מחיר או כיוון חדשים = התראה חדשה מבחינת השרתון (מזהה חדש, נקודת התחלה עכשווית)
+            if (v !== a0.p || dir !== a0.dir || a0.done) { a0.id = newId(); a0.done = false; a0.at = 0; a0.b = cur || v; }
+            a0.p = v; a0.dir = dir; a0.note = n;
+          } else {
+            const arr = st.alerts[sym] = list();
+            if (arr.length >= 20) { if (E.flash) E.flash(T('kcAlertMax')); return; }
+            arr.push({ id: newId(), p: v, dir, note: n, done: false, at: 0, b: cur || v });
+          }
+          delete lastPx[sym];
+          done();
+          bgSync(true);   // בלחיצה (מחווה) — בקשת הרשאת התראות אם עוד לא נשאלה, ורישום לרקע: ההתראות פעילות כברירת מחדל
+          close();
+        })));
+    if (!a0) setTimeout(() => { try { price.focus(); price.select(); } catch (e) { /* בלי מקלדת */ } }, 60);
+  }, { root, onClose: () => { if (fl) setTimeout(() => fl.remove(), 160); } });
 }
 
 /* עונתיות: ממוצע תשואה לכל חודש + מפת חום לפי שנים (כמו Seasonals של TradingView Premium) */
