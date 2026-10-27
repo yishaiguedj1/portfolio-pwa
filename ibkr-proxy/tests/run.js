@@ -3812,6 +3812,30 @@ function stubFetch(text, status = 200) {
       await wrk({ op: 'report', job: jid, key: kk, st: 'tr', p: 0.62 });
       await wrk({ op: 'report', job: jid, key: kk, st: 'al', p: 0 });
       ok(pushes.length === 3 && /62%/.test(decrypt(pushes[1].body).b) && decrypt(pushes[2].body).t === 'Timing every sentence', '27/10: כל 10% ובכל שלב חדש — התראה (מתחלפת בטלפון לפי העבודה)');
+      {
+        // 27/10: האפליקציה סגורה — העובד בשרת שלנו שולח pulse כל דקה, והשרתון מעריך את האחוז לפי הזמן (כמו הפס בטלפון)
+        const sc = await run({ op: 'srvCreate', idToken: OWNER, name: 'pulse' });
+        const PT = sc.payload.token, PS = sc.payload.server.id;
+        const fj = db.get('studioJobs/' + jid).fields;
+        const sid0 = fj.sid, ep0 = fj.ep;
+        fj.sid = { stringValue: PS };
+        if (!fj.ep) fj.ep = { mapValue: { fields: { s: { mapValue: { fields: { al: { integerValue: '120' } } } } } } };
+        let pr = await srvRun({ op: 'pulse', jobs: [jid] }, PT);
+        ok(pr.payload.ok && pr.payload.n === 0 && pushes.length === 3, 'pulse: מיד אחרי הדיווח — אין מה לעדכן');
+        now += 16 * 60e3;   // אחרי חלון המטמון בזיכרון — העבודה נקראת מחדש (עם השיוך לשרת)
+        pr = await srvRun({ op: 'pulse', jobs: [jid, 'bad id'] }, PT);
+        const mp = pushes[3] && decrypt(pushes[3].body);
+        ok(pr.payload.n === 1 && mp && mp.k === 'stage' && mp.st === 'al' && mp.p > 0.5 && mp.j === jid, 'pulse: אחרי זמן — התראה עם האחוז המשוער של השלב (' + (mp && mp.p) + ')');
+        pr = await srvRun({ op: 'pulse', jobs: [jid] }, PT);
+        ok(pr.payload.n === 0 && pushes.length === 4, 'pulse: באותה עשירייה — לא שולח שוב');
+        fj.sid = { stringValue: 'other-server-1' };
+        now += 30 * 60e3;
+        pr = await srvRun({ op: 'pulse', jobs: [jid] }, PT);
+        ok(pr.payload.n === 0 && pushes.length === 4, 'pulse: עבודה של שרת אחר — לא נוגע');
+        if (sid0) fj.sid = sid0; else delete fj.sid;
+        if (!ep0) delete fj.ep;
+        await run({ op: 'srvRemove', idToken: OWNER, sid: PS });
+      }
       pushes = [];
       await wrk({ op: 'report', job: jid, key: kk, ask: { id: 'q1', q: 'Ackman או אקמן?', o: ['אקמן', 'Ackman'], d: 0, w: 600 } });
       const m1 = decrypt(pushes[0].body);

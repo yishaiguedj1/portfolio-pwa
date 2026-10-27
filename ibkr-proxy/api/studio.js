@@ -33,7 +33,8 @@ const O = require('../lib/studioops');
 const I = require('../lib/studioinc');
 const P = require('../lib/studioprob');   // v376: בעיות וספרי הפעלה
 const L = require('../lib/studiosla');   // v377: יעדי שירות, ערך ותחזית
-const ETA = require('../lib/studioeta');   // 10/10/2026: צפי זמנים נלמד לכל שלב
+const ETA = require('../lib/studioeta');
+const PG = require('../lib/studioprog');   // 27/10/2026: ההתקדמות המשוערת של השלב (= הפס בטלפון) — להתראות בווילון   // 10/10/2026: צפי זמנים נלמד לכל שלב
 const SC = require('../lib/studioscan');
 const PIR = require('../lib/studiopir');   // v379: דוח אחרי תקלה   // v378: בדיקת מוכנות ותחזוקה
 const R2 = require('../lib/r2');   // ת4: האחסון ב־Cloudflare R2
@@ -74,7 +75,7 @@ const RELAY_OPS = new Set(['rlPut', 'rlFix', 'rlWait', 'rlEnd', 'rlNext', 'rlMar
 // 24/10/2026: תרגום בטלפון — Studio לאנדרואיד (נייטיב, בלי Origin ובלי התחברות) עם מפתח לעבודה אחת (pkh — רק ה־hash)
 const PHONE_OPS = new Set(['phUp', 'phParts', 'phDone', 'phFile', 'phStart', 'phJob', 'phGet', 'phBurn', 'phProg', 'phAlive', 'phClaim']);   // phClaim — 25/10/2026, שלב 3: הטלפון לוקח את העבודה ומריץ אותה
 const PH_KEY_TTL = 7 * 24 * 3600e3;   // הצריבה יכולה לקרות ימים אחרי שהתרגום מוכן
-const SERVER_OPS = new Set(['poll', 'beat', 'devLog', 'devMet', 'pq', 'ytCk', 'ptNext', 'ptMark']);   // ptNext/ptMark — העונה לעבודות שהטלפון מריץ (25/10/2026)   // ytCk — עוגיות החשבון הייעודי (25/10/2026)   // pq — בדיקות קישור (22/10/2026)   // devLog/devMet — האיסוף המלא (lib/devlog.js)
+const SERVER_OPS = new Set(['poll', 'beat', 'devLog', 'devMet', 'pq', 'ytCk', 'ptNext', 'ptMark', 'pulse']);   // pulse — התראת השלב בווילון כל דקה (27/10/2026)   // ptNext/ptMark — העונה לעבודות שהטלפון מריץ (25/10/2026)   // ytCk — עוגיות החשבון הייעודי (25/10/2026)   // pq — בדיקות קישור (22/10/2026)   // devLog/devMet — האיסוף המלא (lib/devlog.js)
 /* מצב API: תקציב חודשי לכל משתמש (מפתח ה־API של המערכת). מעבר לזה — התקרה ב־Console של Anthropic */
 const LEARN_MAX = 5000, LEARN_SYNC_MAX = 400;   // מאגר הלמידה: כמה רשומות קוראים, וכמה משלימים בכל פתיחה של לוח הבקרה
 const USER_MONTH = () => Math.max(1, Math.min(10000, Number(process.env.STUDIO_API_USER_MONTH_USD) || 30));
@@ -858,6 +859,34 @@ async function notify(deps, uid, kind, jobId, now, x) {
   } catch (e) { return 0; }
 }
 const PUSH_MEM = new Map(), PUSH_MEM_MS = 5 * 60 * 1000;
+/* 27/10/2026 (בקשת המשתמש: "להתעדכן בכל שלבי התרגום בווילון גם כשהאפליקציה סגורה לגמרי"): השרת שלנו שולח כל דקה
+   op:'pulse' עם העבודות שהוא מריץ, והשרתון שולח התראת שלב בכל עשירייה של ההערכה (PG.stageNow = הפס בטלפון).
+   בלי קריאות ל־Firestore: העבודה מהדיווח האחרון של העובד (SHADE_JOB — אותו תהליך), ומה שנשלח אחרון (SHADE_PN) — בזיכרון.
+   תהליך אחר (Vercel) / אחרי הפעלה מחדש — קריאה אחת לעבודה, ואולי התראה חוזרת על אותה עשירייה (שקטה, sw.js לא מחזיר אחורה) */
+const SHADE_JOB = new Map(), SHADE_PN = new Map(), SHADE_MS = 15 * 60 * 1000, SHADE_MAX = 200;
+function shadeJob(job, now) {
+  if (SHADE_JOB.size > SHADE_MAX) { SHADE_JOB.clear(); SHADE_PN.clear(); }
+  SHADE_JOB.set(job.id, { job, at: now });
+}
+async function shadePush(deps, job, x, now) {
+  if (!x || !PG.shadeDue(SHADE_PN.get(job.id), x)) return 0;
+  SHADE_PN.set(job.id, PG.shadeMark(x));
+  const sp = job.spec || {};
+  return notify(deps, job.uid, 'stage', job.id, now, { st: x.st, p: x.p, to: Array.isArray(sp.to) ? sp.to.join(',') : String(sp.to || ''), v: sp.ka ? 'ka' : sp.src === 'subs' ? 'sb' : '' });
+}
+async function pulseOp(deps, body, sid, now) {
+  const ids = (Array.isArray(body.jobs) ? body.jobs : []).map(String).filter((j) => S.JOB_RE.test(j)).slice(0, 8);
+  let n = 0;
+  for (const id of ids) {
+    const hit = SHADE_JOB.get(id);
+    const job = hit && now - hit.at < SHADE_MS ? hit.job : await readDoc(deps, 'studioJobs', id).catch(() => null);
+    if (!job || job.sid !== sid || job.kind !== 'tr' || job.state !== 'running') continue;
+    if (job.qa && job.qa.at && !job.qa.a) continue;   // מחכה לתשובה שלך — יש לזה התראה משלה
+    if (!hit || now - hit.at >= SHADE_MS) shadeJob(Object.assign({ id }, job), now);
+    n += await shadePush(deps, Object.assign({ id }, job), PG.stageNow(job, now), now);
+  }
+  return { ok: true, n };
+}
 
 async function fire(deps, v, uid, text) {
   const conn = vault.open(v && v.r, AAD(uid));
@@ -1489,7 +1518,7 @@ async function ytCkOp(deps, body, now) {
 }
 /* 26/10/2026: אימות שרת בזיכרון לפעולות הקלות (ראו server). שרת שהוסר / טוקן שהוחלף — עד SRV_AUTH_MS בפעולות האלה בלבד;
    poll (לקיחת עבודה) תמיד מול Firestore */
-const SRV_LIGHT = new Set(['pq', 'ptNext', 'ptMark', 'ytCk', 'devLog', 'devMet']);
+const SRV_LIGHT = new Set(['pq', 'ptNext', 'ptMark', 'ytCk', 'devLog', 'devMet', 'pulse']);   // pulse — התראות השלב (27/10/2026)
 const SRV_AUTH_MS = 5 * 60e3;
 const srvAuthMem = new Map();
 function srvAuthHit(sid, tok, now) {
@@ -1576,6 +1605,7 @@ async function server(req, res, body, deps) {
     if (body.op === 'devLog' || body.op === 'devMet') return res.status(200).json({ ok: true, saved: await devSrv(deps, body, p.sid, now), now });   // האיסוף המלא
     if (pt) return res.status(200).json(Object.assign(await ptOp(deps, body, now), { now }));   // 25/10/2026: העונה לעבודות שהטלפון מריץ
     if (body.op === 'pq') return res.status(200).json(Object.assign(await pqOp(deps, body, p.sid, now), { now }));   // 22/10/2026: בדיקת קישור
+    if (body.op === 'pulse') return res.status(200).json(Object.assign(await pulseOp(deps, body, p.sid, now), { now }));   // 27/10/2026: התראות השלב
     if (body.op === 'ytCk') return res.status(200).json(Object.assign(await ytCkOp(deps, body, now), { now }));   // 25/10/2026: חשבון יוטיוב ייעודי
     const hb = S.normHb(body.hb);
     const seen = { seen: now, hb, updated: now, mon: MON.monPush(srv.mon, hb, now) };   // 22/10/2026: נקודת היסטוריה לכל 5 דק׳ (לא מוסיף קריאה — נכתב עם הדופק)
@@ -2458,10 +2488,14 @@ async function worker(req, res, body, deps) {
       const kind = up.state === 'done' ? 'done' : up.state === 'failed' && !up.rw ? 'fail' : gateId ? 'gate' : body.ask != null && up.qa ? 'ask' : up.cp ? 'cp' : '';
       if (kind) await notify(deps, job.uid, kind, id, now);
       // 27/10/2026 (בקשת המשתמש): כל שלב בווילון ההתראות — אותה התראה מתחלפת (שלב חדש / כל 10%), שקטה. נגיעה = העבודה
-      else if ((!up.state || up.state === 'running') && up.prog && !parked && W.stageDue(job.prog, up.prog)) {
-        const sp = job.spec || {};
-        await notify(deps, job.uid, 'stage', id, now, { st: up.prog.st, p: up.prog.p, to: Array.isArray(sp.to) ? sp.to.join(',') : String(sp.to || ''), v: sp.ka ? 'ka' : sp.src === 'subs' ? 'sb' : '' });
+      // 27/10/2026: האחוז = ההערכה של הטלפון (PG.stageNow), לא רק מה שהעובד דיווח; בין הדיווחים — op:'pulse' מהעובד (shadePush)
+      else if ((!up.state || up.state === 'running') && up.prog && !parked) {
+        const nx = Object.assign({ id }, job, up);
+        shadeJob(nx, now);
+        const x = PG.stageNow(nx, now) || (up.prog.st ? { st: up.prog.st, p: up.prog.p || 0 } : null);
+        await shadePush(deps, nx, x, now);
       }
+      if (up.state && up.state !== 'running') { SHADE_JOB.delete(id); SHADE_PN.delete(id); }
     }
     if (job.kind === 'tr' && up.state === 'done' && !(job.spec && job.spec.src === 'subs')) {
       // v363: עבודה שהסתיימה מלמדת את המגדל מה "רגיל" אצלך. תקלה כאן לא מפילה את סוף העבודה
