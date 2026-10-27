@@ -116,9 +116,9 @@ object BrCloud {
     fun init(ctx: Context) {
         if (ready) return
         app = ctx.applicationContext
-        sp = app.getSharedPreferences("br_cloud", Context.MODE_PRIVATE)
+        sp = BrUsers.prefs(app, "br_cloud")
         if (dev.isEmpty()) sp.edit().putString("dev", java.lang.Long.toString(java.util.Random().nextLong() and Long.MAX_VALUE, 36).take(10)).apply()
-        dir = File(app.filesDir, "br/cloud").apply { mkdirs() }
+        dir = File(BrUsers.dir(app), "cloud").apply { mkdirs() }
         prefs = BrPrefs(app)
         BrStore.init(app)
         hlc = BrCloudCore.Hlc(dev)
@@ -169,10 +169,13 @@ object BrCloud {
     suspend fun signIn(a: Activity): SignIn {
         val cred = try {
             CredentialManager.create(a).getCredential(a, GetCredentialRequest(listOf(GetSignInWithGoogleOption.Builder(WEB_CLIENT).build()))).credential
-        } catch (e: androidx.credentials.exceptions.GetCredentialCancellationException) { return SignIn.Cancel
+        } catch (e: androidx.credentials.exceptions.GetCredentialCancellationException) {
+            // "[16] Account reauth failed" = החבילה לא רשומה ב־Google Cloud — לא "ביטול" (DmSync.notSetUp)
+            return if (DmSync.notSetUp(e.message)) SignIn.Fail("setup") else SignIn.Cancel
         } catch (e: Throwable) { return SignIn.Fail(e.javaClass.simpleName) }
         val g = try { GoogleIdTokenCredential.createFrom(cred.data) } catch (e: Throwable) { return SignIn.Fail(e.javaClass.simpleName) }
         sp.edit().putString("em", g.id).putString("nm", g.displayName ?: "").apply()
+        BrUsers.label(a, g.id, g.displayName ?: "")
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             try {
                 // החשבון במערכת שלנו (Firebase — אותו uid בכל מכשיר עם אותו חשבון Google) ומפתח ההצפנה שלו
@@ -279,9 +282,9 @@ object BrCloud {
     }
     private fun ks(): javax.crypto.SecretKey {
         val st = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        (st.getEntry("snb_br_sync", null) as? java.security.KeyStore.SecretKeyEntry)?.let { return it.secretKey }
+        (st.getEntry(BrUsers.keyAlias(BrUsers.cur(app)), null) as? java.security.KeyStore.SecretKeyEntry)?.let { return it.secretKey }
         val g = javax.crypto.KeyGenerator.getInstance(android.security.keystore.KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
-        g.init(android.security.keystore.KeyGenParameterSpec.Builder("snb_br_sync", android.security.keystore.KeyProperties.PURPOSE_ENCRYPT or android.security.keystore.KeyProperties.PURPOSE_DECRYPT)
+        g.init(android.security.keystore.KeyGenParameterSpec.Builder(BrUsers.keyAlias(BrUsers.cur(app)), android.security.keystore.KeyProperties.PURPOSE_ENCRYPT or android.security.keystore.KeyProperties.PURPOSE_DECRYPT)
             .setBlockModes(android.security.keystore.KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(android.security.keystore.KeyProperties.ENCRYPTION_PADDING_NONE).setKeySize(256).build())
         return g.generateKey()
     }

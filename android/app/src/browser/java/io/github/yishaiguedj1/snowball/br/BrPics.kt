@@ -26,8 +26,8 @@ object BrPics {
 
     fun init(ctx: Context) {
         if (::favDir.isInitialized) return
-        favDir = File(ctx.cacheDir, "br/fav").apply { mkdirs() }
-        thumbDir = File(ctx.cacheDir, "br/thumb").apply { mkdirs() }
+        favDir = File(BrUsers.cacheDir(ctx), "fav").apply { mkdirs() }
+        thumbDir = File(BrUsers.cacheDir(ctx), "thumb").apply { mkdirs() }
     }
 
     private fun name(s: String) = MessageDigest.getInstance("SHA-1").digest(s.toByteArray()).joinToString("") { "%02x".format(it) }.take(20)
