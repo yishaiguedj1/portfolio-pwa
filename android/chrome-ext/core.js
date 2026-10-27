@@ -40,8 +40,15 @@ export function key(url) {
 
 export const isWeb = (u) => /^https?:\/\//i.test(String(u || ''));
 
-/** העץ של Chrome (chrome.bookmarks.getTree) → רשימה שטוחה: id, כתובת, שם, איזה שורש (b/o/m) ונתיב התיקיות */
-export function flatten(tree) {
+/** שם תיקייה בנתיב: "/" מפריד בין תיקיות, אז "/" בתוך שם מוחלף ב־"∕" (נראה אותו דבר) */
+export const seg = (t) => String(t || '').replace(/\//g, '\u2215');
+
+/**
+ * העץ של Chrome (chrome.bookmarks.getTree) → רשימה שטוחה בסדר של Chrome: id, כתובת, שם, איזה שורש (b/o/m), נתיב התיקיות
+ * ו־i = המקום בתוך התיקייה. כל סימנייה עם כתובת — גם שאינה אתר (javascript:, chrome://) — כדי שהטלפון יראה בדיוק מה שב־Chrome.
+ * `dirs` (אם הועבר מערך) מתמלא בכל התיקיות — גם ריקות — עם המקום שלהן.
+ */
+export function flatten(tree, dirs) {
   const root = Array.isArray(tree) ? tree[0] : tree;
   const out = [];
   const kids = (root && root.children) || [];
@@ -49,10 +56,10 @@ export function flatten(tree) {
     const ft = top.folderType || ['bookmarks-bar', 'other', 'mobile'][i] || 'other';
     const r = ft === 'bookmarks-bar' ? 'b' : ft === 'mobile' ? 'm' : 'o';
     const walk = (n, path) => {
-      for (const c of n.children || []) {
-        if (c.url) { if (isWeb(c.url)) out.push({ id: c.id, u: c.url, t: c.title || '', r, p: path.join('/'), at: c.dateAdded || 0 }); }
-        else walk(c, path.concat(c.title || ''));
-      }
+      (n.children || []).forEach((c, j) => {
+        if (c.url) out.push({ id: c.id, u: c.url, t: c.title || '', r, p: path.join('/'), i: j, at: c.dateAdded || 0 });
+        else { const sub = path.concat(seg(c.title)); if (dirs) dirs.push({ r, p: sub.join('/'), i: j }); walk(c, sub); }
+      });
     };
     walk(top, []);
   });
@@ -77,7 +84,8 @@ export function planOps(flat, opsFile, prev, allowDel = false) {
   const ack = (prev && prev.ack) || 0;
   const alias = Object.assign({}, (prev && prev.alias) || {});     // מזהה זמני של הטלפון (a…) → מזהה ב־Chrome (n…)
   const ops = ((opsFile && opsFile.ops) || []).filter((o) => o && o.s > ack).sort((a, b) => a.s - b.s);
-  const byKey = new Map(); for (const m of flat) if (!byKey.has(key(m.u))) byKey.set(key(m.u), m);
+  // מפתח → כל הסימניות עם הכתובת הזו (Chrome מרשה אותה כתובת בכמה תיקיות) — מחיקה של אחת לא "משכיחה" את האחרות
+  const byKey = new Map(); for (const m of flat) { const k = key(m.u); if (!byKey.has(k)) byKey.set(k, []); byKey.get(k).push(m); }
   const byId = new Map(flat.map((m) => ['n' + m.id, m]));
   const creates = [], deletes = [], renames = [];
   const created = new Map();                      // מפתח → מזהה זמני (נוצר באותה אצווה)
@@ -90,15 +98,15 @@ export function planOps(flat, opsFile, prev, allowDel = false) {
     if (o.k === 'add') {
       if (!isWeb(o.u)) continue;
       const k = key(o.u);
-      const have = byKey.get(k);
+      const have = (byKey.get(k) || [])[0];
       if (have) { if (o.id) alias[o.id] = 'n' + have.id; continue; }
       if (created.has(k)) { if (o.id) alias[o.id] = created.get(k); continue; }
       creates.push({ aid: o.id || '', u: o.u, t: o.t || '' });
       created.set(k, o.id || '');
     } else if (o.k === 'del') {
       const sid = String(o.id || '').startsWith('a') ? alias[o.id] : o.id;
-      const m = sid ? byId.get(sid) : (o.u ? byKey.get(key(o.u)) : null);
-      if (m) { deletes.push(m.id); byKey.delete(key(m.u)); byId.delete('n' + m.id); }
+      const m = sid ? byId.get(sid) : (o.u ? (byKey.get(key(o.u)) || [])[0] : null);
+      if (m) { deletes.push(m.id); const l = byKey.get(key(m.u)) || []; l.splice(l.indexOf(m), 1); if (!l.length) byKey.delete(key(m.u)); byId.delete('n' + m.id); }
       else { const ci = creates.findIndex((c) => c.aid && c.aid === o.id); if (ci >= 0) { created.delete(key(creates[ci].u)); creates.splice(ci, 1); } }
     } else if (o.k === 'ren') {
       const sid = String(o.id || '').startsWith('a') ? alias[o.id] : o.id;
@@ -122,9 +130,9 @@ export function planVisits(opsFile, prev) {
  * state.json מחדש מהעץ של Chrome. `o` = מאיפה הגיעה: a = נשמרה בטלפון (נוצרה כאן מפעולת add), c = Chrome.
  * `origin` = המזהים שנוצרו מהטלפון (נשמר בתוסף), `alias` נשמר כדי שהטלפון יקשר את המזהים הזמניים שלו.
  */
-export function buildState({ flat, hist, prev, ack, alias, vat, origin, now, hold }) {
+export function buildState({ flat, dirs, hist, prev, ack, alias, vat, origin, now, hold }) {
   const fromApp = new Set(origin || []);
-  const marks = flat.map((m) => ({ id: 'n' + m.id, u: m.u, t: m.t, r: m.r, p: m.p, at: m.at, o: fromApp.has('n' + m.id) ? 'a' : 'c' }));
+  const marks = flat.map((m) => ({ id: 'n' + m.id, u: m.u, t: m.t, r: m.r, p: m.p, i: m.i, at: m.at, o: fromApp.has('n' + m.id) ? 'a' : 'c' }));
   const since = now - HIST_DAYS * 86400000;
   const h = (hist || []).filter((v) => isWeb(v.url) && v.lastVisitTime >= since)
     .sort((a, b) => b.lastVisitTime - a.lastVisitTime).slice(0, HIST_MAX)
@@ -132,12 +140,12 @@ export function buildState({ flat, hist, prev, ack, alias, vat, origin, now, hol
   // מזהים זמניים שכבר לא מצביעים על סימנייה קיימת — יוצאים מהטבלה
   const live = new Set(marks.map((m) => m.id));
   const al = {}; for (const [a, n] of Object.entries(alias || {})) if (live.has(n)) al[a] = n;
-  return { v: STATE_V, at: now, rev: ((prev && prev.rev) || 0) + 1, ack: ack || 0, vat: vat || 0, alias: al, hold: hold || 0, marks, hist: h };
+  return { v: STATE_V, at: now, rev: ((prev && prev.rev) || 0) + 1, ack: ack || 0, vat: vat || 0, alias: al, hold: hold || 0, marks, dirs: dirs || [], hist: h };
 }
 
 /** האם יש בכלל מה לכתוב (כדי לא לכתוב ל־Drive כל כמה דקות בלי סיבה) */
 export function sameState(a, b) {
   if (!a || !b) return false;
-  const strip = (s) => JSON.stringify({ ack: s.ack, vat: s.vat, alias: s.alias, hold: s.hold, marks: s.marks, hist: (s.hist || []).slice(0, 50) });
+  const strip = (s) => JSON.stringify({ ack: s.ack, vat: s.vat, alias: s.alias, hold: s.hold, marks: s.marks, dirs: s.dirs || [], hist: (s.hist || []).slice(0, 50) });
   return strip(a) === strip(b);
 }

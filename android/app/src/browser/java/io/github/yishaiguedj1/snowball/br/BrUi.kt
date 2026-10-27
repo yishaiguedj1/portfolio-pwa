@@ -1309,7 +1309,7 @@ private fun folderTitle(path: String): String = when (path) {
     else -> BrSync.folderName(path).ifEmpty { "—" }
 }
 
-// העץ של Chrome: בשורש — נייד / סרגל / אחרות, ובכל תיקייה — קודם התיקיות שבה ואז הסימניות (BrSync.children). חיפוש — בכל הסימניות
+// העץ של Chrome: בשורש — נייד / סרגל / אחרות, ובכל תיקייה — התיקיות והסימניות בסדר של Chrome (BrSync.entries). חיפוש — בכל הסימניות
 @Composable
 private fun MarksScreen(a: BrowserActivity) {
     val c = LocalBr.current
@@ -1318,41 +1318,38 @@ private fun MarksScreen(a: BrowserActivity) {
     val all = remember(rev, a.markRev) { BrStore.marks.toList() }
     val path = a.markPath
     val t = q.trim().lowercase()
-    val (subs, list) = when {
-        t.isNotEmpty() -> emptyList<String>() to all.filter { it.title.lowercase().contains(t) || it.url.lowercase().contains(t) }
-        path.isEmpty() -> BrSync.roots(all) to emptyList<BrMark>()
-        else -> BrSync.children(all, path)
+    val dirs = remember(rev, a.markRev) { if (BrChrome.on && BrChrome.marksOn) BrChrome.dirs else emptyList() }
+    val items: List<Any> = when {
+        t.isNotEmpty() -> all.filter { it.title.lowercase().contains(t) || it.url.lowercase().contains(t) }
+        path.isEmpty() -> BrSync.roots(all, dirs)
+        else -> BrSync.entries(all, path, dirs)
     }
     SubPage(folderTitle(path), back = if (path.isNotEmpty()) folderTitle(BrSync.parent(path)) else null, onBack = { a.markPath = BrSync.parent(path) },
         done = true, onDone = { a.markPath = ""; a.screen = BrowserActivity.Screen.PAGE }) {
         item { SearchField(stringResource(R.string.brSearchMarks), q) { q = it } }
-        if (subs.isNotEmpty()) item {
+        if (items.isEmpty()) item { Empty(R.string.brMarksEmpty) }
+        else item {
             Group {
-                subs.forEachIndexed { i, f ->
+                items.forEachIndexed { i, e ->
                     if (i > 0) Sep()
-                    IRow(folderTitle(f), lead = { Icon(BrIcons.Folder, null, Modifier.size(24.dp), tint = c.icon) }, value = "${BrSync.count(all, f)}") { a.markPath = f }
-                }
-            }
-        }
-        if (list.isEmpty() && subs.isEmpty()) item { Empty(R.string.brMarksEmpty) }
-        if (list.isNotEmpty()) item {
-            Group {
-                list.forEachIndexed { i, m ->
-                    if (i > 0) Sep()
-                    var open by remember { mutableStateOf(false) }
-                    IRow(m.title.ifEmpty { m.url }, BrStore.hostOf(m.url), lead = {
-                        Box(Modifier.size(48.dp).glass(c, RoundedCornerShape(12.dp), if (c.dark) Color(0x8C3A3A3C) else Color(0xB3FFFFFF)), contentAlignment = Alignment.Center) { Fav(a, m.url, 24.dp, 6.dp) }
-                    }, chevron = false, ltrSub = true, trailing = {
-                        Box {
-                            IBtn(BrIcons.More, stringResource(R.string.brMenu), size = 40.dp, tint = c.mute) { open = true }
-                            DropdownMenu(open, { open = false }, shape = RoundedCornerShape(16.dp)) {
-                                DropdownMenuItem({ Text(stringResource(R.string.brNewTab)) }, { open = false; a.markPath = ""; a.screen = BrowserActivity.Screen.PAGE; a.newTab(m.url) },
-                                    leadingIcon = { Icon(BrIcons.CNewTab, null) })
-                                DropdownMenuItem({ Text(stringResource(R.string.brDelete), color = Color(0xFFFF3B30)) }, { open = false; BrStore.removeMark(m); rev++; a.markRev++ },
-                                    leadingIcon = { Icon(BrIcons.CDelete, null, tint = Color(0xFFFF3B30)) })
+                    if (e is String) IRow(folderTitle(e), lead = { Icon(BrIcons.Folder, null, Modifier.size(24.dp), tint = c.icon) }, value = "${BrSync.count(all, e)}") { a.markPath = e }
+                    else if (e is BrMark) {
+                        val m = e
+                        var open by remember { mutableStateOf(false) }
+                        IRow(m.title.ifEmpty { m.url }, BrStore.hostOf(m.url), lead = {
+                            Box(Modifier.size(48.dp).glass(c, RoundedCornerShape(12.dp), if (c.dark) Color(0x8C3A3A3C) else Color(0xB3FFFFFF)), contentAlignment = Alignment.Center) { Fav(a, m.url, 24.dp, 6.dp) }
+                        }, chevron = false, ltrSub = true, trailing = {
+                            Box {
+                                IBtn(BrIcons.More, stringResource(R.string.brMenu), size = 40.dp, tint = c.mute) { open = true }
+                                DropdownMenu(open, { open = false }, shape = RoundedCornerShape(16.dp)) {
+                                    DropdownMenuItem({ Text(stringResource(R.string.brNewTab)) }, { open = false; a.markPath = ""; a.screen = BrowserActivity.Screen.PAGE; a.newTab(m.url) },
+                                        leadingIcon = { Icon(BrIcons.CNewTab, null) })
+                                    DropdownMenuItem({ Text(stringResource(R.string.brDelete), color = Color(0xFFFF3B30)) }, { open = false; BrStore.removeMark(m); rev++; a.markRev++ },
+                                        leadingIcon = { Icon(BrIcons.CDelete, null, tint = Color(0xFFFF3B30)) })
+                                }
                             }
-                        }
-                    }) { a.markPath = ""; a.screen = BrowserActivity.Screen.PAGE; a.go(m.url) }
+                        }) { a.markPath = ""; a.screen = BrowserActivity.Screen.PAGE; a.go(m.url) }
+                    }
                 }
             }
         }

@@ -64,28 +64,34 @@ class BrSyncTest {
             BrSync.Op(10, "add", "a10", "https://mine.com", "dup", 1), BrSync.Op(11, "ren", "a7", "", "שם חדש", 0),
             BrSync.Op(12, "add", "a12", "https://tmp.com/", "t", 2), BrSync.Op(13, "del", "a12", "https://tmp.com/", "", 0))
         val r = BrSync.applyState(st, pending, mapOf("a7" to "n2"))
-        assertEquals(listOf("https://new.com/", "https://ynet.co.il/", "https://mine.com/"), r.map { it.url })   // בלי כפולה, בלי שנמחקה, בלי זו שנוספה ונמחקה
-        assertTrue(r[1].imp && !r[2].imp && !r[0].imp)                    // מ־Chrome / נשמרה כאן
-        assertEquals("שם חדש", r[2].title)                                // שינוי שם שעוד לא הגיע — דרך המזהה הזמני
-        assertEquals(listOf("a8", "n1", "n2"), r.map { it.sid })
-        // כשכל הפעולות אושרו — הרשימה = המצב של Chrome בלבד
-        assertEquals(3, BrSync.applyState(st, emptyList(), emptyMap()).size)
+        // 27/10/2026: כל סימנייה של Chrome מופיעה (גם n3 — אותה כתובת, Chrome מרשה), בסדר של Chrome; מה שנשמר כאן ועוד לא הגיע — בסוף,
+        // ורק אם הכתובת לא כבר ב־Chrome (a10 = mine.com כבר שם); בלי שנמחקה (n4), בלי זו שנוספה ונמחקה (a12)
+        assertEquals(listOf("https://ynet.co.il/", "https://mine.com/", "https://www.ynet.co.il", "https://new.com/"), r.map { it.url })
+        assertTrue(r[0].imp && !r[1].imp && r[2].imp && !r[3].imp)        // מ־Chrome / נשמרה כאן
+        assertEquals("שם חדש", r[1].title)                                // שינוי שם שעוד לא הגיע — דרך המזהה הזמני
+        assertEquals(listOf("n1", "n2", "n3", "a8"), r.map { it.sid })
+        // כשכל הפעולות אושרו — הרשימה = המצב של Chrome בלבד, אחד לאחד
+        assertEquals(4, BrSync.applyState(st, emptyList(), emptyMap()).size)
     }
 
-    // 27/10/2026: התיקיות של Chrome — כל סימנייה בתיקייה שלה, אותה כתובת בשתי תיקיות נשארת בשתיהן, והסדר של Chrome נשמר
+    // 27/10/2026: התיקיות של Chrome — כל סימנייה בתיקייה שלה ובמקום שלה, תיקיות וסימניות מעורבות בסדר של Chrome, גם תיקייה ריקה
     @Test fun chromeFolders() {
-        val st = listOf(BrSync.SMark("n1", "https://a.com/", "a", 1, "c", "b", "Learning"), BrSync.SMark("n2", "https://b.com/", "b", 9, "c", "b", "Learning/Sub"),
-            BrSync.SMark("n3", "https://a.com/", "a2", 2, "c", "o", ""), BrSync.SMark("n4", "https://c.com/", "c", 3, "c", "b", ""),
-            BrSync.SMark("n5", "https://m.com/", "m", 4, "a", "m", ""), BrSync.SMark("n6", "https://www.a.com", "dup", 5, "c", "b", "Learning"))
+        val st = listOf(BrSync.SMark("n1", "https://a.com/", "a", 1, "c", "b", "Learning", 1), BrSync.SMark("n2", "https://b.com/", "b", 9, "c", "b", "Learning/Sub", 0),
+            BrSync.SMark("n3", "https://a.com/", "a2", 2, "c", "o", "", 0), BrSync.SMark("n4", "https://c.com/", "c", 3, "c", "b", "", 2),
+            BrSync.SMark("n5", "https://m.com/", "m", 4, "a", "m", "", 0), BrSync.SMark("n6", "https://www.a.com", "dup", 5, "c", "b", "Learning", 2),
+            BrSync.SMark("n7", "https://first.com/", "f", 6, "c", "b", "", 0))
+        val dirs = listOf(BrSync.Dir("b/Learning", 1), BrSync.Dir("b/Learning/Sub", 0), BrSync.Dir("b/Empty", 3), BrSync.Dir("o/Old", 1))
         val r = BrSync.applyState(st, listOf(BrSync.Op(1, "add", "a1", "https://new.com/", "new", 9), BrSync.Op(2, "del", "n3", "https://a.com/", "", 0)), emptyMap())
-        assertEquals(listOf("m", "b/Learning", "b/Learning/Sub", "b", "m"), r.map { it.f })          // החדשה מהטלפון בנייד, בראש; n3 נמחקה, n1 נשארה
-        assertEquals(listOf("m", "b"), BrSync.roots(r))
-        val (subs, here) = BrSync.children(r, "b")
-        assertEquals(listOf("b/Learning"), subs); assertEquals(listOf("https://c.com/"), here.map { it.url })
-        assertEquals(listOf("b/Learning/Sub"), BrSync.children(r, "b/Learning").first)
-        assertEquals(3, BrSync.count(r, "b")); assertEquals("Sub", BrSync.folderName("b/Learning/Sub")); assertEquals("b/Learning", BrSync.parent("b/Learning/Sub"))
-        // אותה כתובת בשתי תיקיות — נשארת בשתיהן
-        assertEquals(2, BrSync.applyState(st.take(3), emptyList(), emptyMap()).count { it.url == "https://a.com/" })
+        assertEquals(listOf("b/Learning", "b/Learning/Sub", "b", "m", "b/Learning", "b", "m"), r.map { it.f })   // n3 נמחקה רק היא; n1 ו־n6 נשארות
+        assertEquals(listOf("m", "b", "o"), BrSync.roots(r, dirs))                                                 // "אחרות" — בגלל תיקייה ריקה
+        // הסרגל: first (0), Learning (1), c (2), Empty (3) — בדיוק הסדר של Chrome
+        assertEquals(listOf("https://first.com/", "b/Learning", "https://c.com/", "b/Empty"), BrSync.entries(r, "b", dirs).map { if (it is BrMark) it.url else it })
+        assertEquals(listOf("b/Learning/Sub", "https://a.com/", "https://www.a.com"), BrSync.entries(r, "b/Learning", dirs).map { if (it is BrMark) it.url else it })
+        // הנייד: m.com (0) ואז מה שנשמר כאן ועוד לא הגיע ל־Chrome — בסוף, כמו שהתוסף יוסיף אותה
+        assertEquals(listOf("https://m.com/", "https://new.com/"), BrSync.entries(r, "m", dirs).map { (it as BrMark).url })
+        // בלי רשימת תיקיות (תוסף ישן) — עדיין לפי המקום של הסימניות, והתיקייה לפי מתי הופיעה
+        assertEquals(listOf("https://first.com/", "https://c.com/", "b/Learning"), BrSync.entries(r, "b").map { if (it is BrMark) it.url else it })
+        assertEquals(5, BrSync.count(r, "b")); assertEquals("Sub", BrSync.folderName("b/Learning/Sub")); assertEquals("b/Learning", BrSync.parent("b/Learning/Sub"))
         // ייבוא ישן בלי תיקייה → "מיובאות", שמורה כאן בלי תיקייה → נייד
         assertEquals("i", BrSync.folderOf(BrMark("https://x.com/", "x", 1, imp = true))); assertEquals("m", BrSync.folderOf(BrMark("https://y.com/", "y", 1)))
         assertEquals(listOf("m", "i"), BrSync.roots(listOf(BrMark("https://x.com/", "x", 1, imp = true))))

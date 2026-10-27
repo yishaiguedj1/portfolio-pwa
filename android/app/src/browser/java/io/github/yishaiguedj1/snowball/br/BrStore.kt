@@ -15,8 +15,8 @@ import java.io.File
 data class BrVisit(val url: String, val title: String, val at: Long)
 // imp = יובאה מ־Chrome (התיקייה "מיובאות מ־Chrome"); x = מתי יצאה ל־Chrome בקובץ (0 = עוד לא) — BrSync.toExport
 // sid = המזהה בסנכרון עם Chrome (n… = הסימנייה ב־Chrome, a… = נשמרה כאן ועוד לא הגיעה) — BrChrome
-// f = התיקייה כמו ב־Chrome: "b/Learning/x" (b סרגל, o אחרות, m נייד); ריק = נשמרה כאן (בנייד) — BrSync.folderOf
-data class BrMark(val url: String, val title: String, val at: Long, val imp: Boolean = false, val x: Long = 0L, val sid: String = "", val f: String = "")
+// f = התיקייה כמו ב־Chrome: "b/Learning/x" (b סרגל, o אחרות, m נייד); ריק = נשמרה כאן (בנייד) — BrSync.folderOf; i = המקום בתיקייה ב־Chrome (‎-1 = עוד לא שם — בסוף)
+data class BrMark(val url: String, val title: String, val at: Long, val imp: Boolean = false, val x: Long = 0L, val sid: String = "", val f: String = "", val i: Int = -1)
 data class BrTabRec(val url: String, val title: String)
 
 object BrStore {
@@ -37,7 +37,7 @@ object BrStore {
         if (::dir.isInitialized) return
         dir = BrUsers.dir(ctx)   // לכל משתמש בדפדפן — תיקייה משלו (הראשי: filesDir/br)
         read("history.json")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { history.add(BrVisit(it.optString("u"), it.optString("t"), it.optLong("a"))) } }
-        read("marks.json")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { marks.add(BrMark(it.optString("u"), it.optString("t"), it.optLong("a"), it.optBoolean("i"), it.optLong("x"), it.optString("s"), it.optString("f"))) } }
+        read("marks.json")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { marks.add(BrMark(it.optString("u"), it.optString("t"), it.optLong("a"), it.optBoolean("i"), it.optLong("x"), it.optString("s"), it.optString("f"), it.optInt("n", -1))) } }
         read("gone.json")?.let { a -> for (i in 0 until a.length()) a.optString(i).takeIf { it.isNotEmpty() }?.let { gone.add(it) } }
     }
 
@@ -65,7 +65,7 @@ object BrStore {
         rev++
         if (!::dir.isInitialized) return
         write("history.json", JSONArray().apply { history.forEach { put(JSONObject().put("u", it.url).put("t", it.title).put("a", it.at)) } })
-        write("marks.json", JSONArray().apply { marks.forEach { put(JSONObject().put("u", it.url).put("t", it.title).put("a", it.at).apply { if (it.imp) put("i", true); if (it.x > 0) put("x", it.x); if (it.sid.isNotEmpty()) put("s", it.sid); if (it.f.isNotEmpty()) put("f", it.f) }) } })
+        write("marks.json", JSONArray().apply { marks.forEach { put(JSONObject().put("u", it.url).put("t", it.title).put("a", it.at).apply { if (it.imp) put("i", true); if (it.x > 0) put("x", it.x); if (it.sid.isNotEmpty()) put("s", it.sid); if (it.f.isNotEmpty()) put("f", it.f); if (it.i >= 0) put("n", it.i) }) } })
         write("gone.json", JSONArray().apply { gone.forEach { put(it) } })
     }
 

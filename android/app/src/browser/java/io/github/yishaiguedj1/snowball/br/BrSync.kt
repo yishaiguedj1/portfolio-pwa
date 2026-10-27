@@ -87,7 +87,9 @@ object BrSync {
     /* ---------- הסנכרון האוטומטי עם Chrome (דרך התוסף במחשב — android/chrome-ext) ---------- */
 
     /** סימנייה כפי שהתוסף כתב אותה ב־state.json; o = a (נשמרה בטלפון) / c (Chrome) */
-    data class SMark(val id: String, val u: String, val t: String, val at: Long, val o: String, val r: String = "", val p: String = "")
+    data class SMark(val id: String, val u: String, val t: String, val at: Long, val o: String, val r: String = "", val p: String = "", val i: Int = -1)
+    /** תיקייה ב־Chrome (גם ריקה): הנתיב והמקום בתיקייה שמעליה */
+    data class Dir(val path: String, val i: Int)
     /** פעולה מהטלפון שעוד לא אושרה (s > ack): add / del / ren */
     data class Op(val s: Long, val k: String, val id: String, val u: String, val t: String, val at: Long)
 
@@ -105,17 +107,17 @@ object BrSync {
             "del" -> { if (adds.remove(o.id) == null) { val i = sid(o.id); delIds += i; if (i.startsWith("a") && o.u.isNotEmpty()) delKeys += key(o.u) } }   // לפי כתובת רק כשאין עדיין מזהה של Chrome — אחרת היא נשארת בתיקיות האחרות
             "ren" -> ren[sid(o.id)] = o.t
         }
-        // כפולה = אותה כתובת באותה תיקייה (Chrome מרשה אותה כתובת בשתי תיקיות). הסדר = הסדר של Chrome; מה שנשמר כאן — בראש
-        val seen = HashSet<String>()
+        // כל סימנייה של Chrome מופיעה — גם כתובת שמופיעה פעמיים (Chrome מרשה) — בדיוק כמו שם. מה ששמרת כאן ועוד לא הגיע ל־Chrome:
+        // בסוף "סימניות בנייד" (שם התוסף יוסיף אותה), ורק אם הכתובת לא כבר ב־Chrome (גם התוסף לא יוסיף כפולה — planOps)
+        val inChrome = HashSet<String>()
         val out = ArrayList<BrMark>()
         for (m in state) {
-            val k = key(m.u)
-            val f = folderPath(m.r, m.p)
-            if (m.id in delIds || k in delKeys || !seen.add(k + "\u0000" + f)) continue
-            out += BrMark(m.u, ren[m.id] ?: m.t.ifEmpty { hostOf(m.u) }, m.at, imp = m.o != "a", sid = m.id, f = f)
+            if (m.id in delIds || key(m.u) in delKeys) continue
+            inChrome += key(m.u)
+            out += BrMark(m.u, ren[m.id] ?: m.t.ifEmpty { hostOf(m.u) }, m.at, imp = m.o != "a", sid = m.id, f = folderPath(m.r, m.p), i = m.i)
         }
-        val mine = adds.values.reversed().filter { seen.add(key(it.u) + "\u0000m") }.map { BrMark(it.u, it.t.ifEmpty { hostOf(it.u) }, it.at, sid = it.id, f = "m") }
-        return mine + out
+        for (o in adds.values) if (inChrome.add(key(o.u))) out += BrMark(o.u, o.t.ifEmpty { hostOf(o.u) }, o.at, sid = o.id, f = "m")
+        return out
     }
 
     /* ---------------- התיקיות — העץ של Chrome ---------------- */
@@ -124,19 +126,26 @@ object BrSync {
     fun folderPath(r: String, p: String): String = r.ifEmpty { "m" } + if (p.isEmpty()) "" else "/$p"
     /** התיקייה של סימנייה; ייבוא ישן בלי תיקייה = "i" (מיובאות מ־Chrome), שמורה כאן = "m" */
     fun folderOf(m: BrMark): String = m.f.ifEmpty { if (m.imp) "i" else "m" }
-    /** השורשים בסדר של Chrome לאנדרואיד: נייד, סרגל, אחרות (+ ייבוא ישן) — רק מה שיש בו משהו, והנייד תמיד */
-    fun roots(marks: List<BrMark>): List<String> = listOf("m", "b", "o", "i").filter { r -> r == "m" || marks.any { folderOf(it).let { f -> f == r || f.startsWith("$r/") } } }
+    /** השורשים בסדר של Chrome לאנדרואיד: נייד, סרגל, אחרות (+ ייבוא ישן) — רק מה שיש בו משהו (גם תיקייה ריקה), והנייד תמיד */
+    fun roots(marks: List<BrMark>, dirs: List<Dir> = emptyList()): List<String> = listOf("m", "b", "o", "i").filter { r ->
+        r == "m" || marks.any { inFolder(it, r) } || dirs.any { it.path.startsWith("$r/") }
+    }
     fun inFolder(m: BrMark, path: String): Boolean = folderOf(m).let { it == path || it.startsWith("$path/") }
     fun count(marks: List<BrMark>, path: String): Int = marks.count { inFolder(it, path) }
-    /** התיקיות שמתחת ל־path (נתיבים מלאים, לפי הסדר שבו הופיעו) והסימניות שבו עצמו */
-    fun children(marks: List<BrMark>, path: String): Pair<List<String>, List<BrMark>> {
-        val subs = LinkedHashSet<String>(); val here = ArrayList<BrMark>()
+    /**
+     * מה שבתוך path בסדר של Chrome — תיקיות (String, נתיב מלא) וסימניות (BrMark) מעורבות, לפי המקום בתיקייה (`i`).
+     * בלי מקום (נשמרה כאן / תוסף ישן) — בסוף, לפי הסדר שבו הופיעו.
+     */
+    fun entries(marks: List<BrMark>, path: String, dirs: List<Dir> = emptyList()): List<Any> {
+        val at = LinkedHashMap<Any, Int>()        // פריט → המקום (‎-1 = לא ידוע)
+        for (d in dirs) if (parent(d.path) == path) at[d.path] = d.i
         for (m in marks) {
             val f = folderOf(m)
-            if (f == path) here += m
-            else if (f.startsWith("$path/")) subs += path + "/" + f.substring(path.length + 1).substringBefore('/')
+            if (f == path) at[m] = m.i
+            else if (f.startsWith("$path/")) at.putIfAbsent(path + "/" + f.substring(path.length + 1).substringBefore('/'), -1)
         }
-        return subs.toList() to here
+        val seq = at.keys.withIndex().associate { it.value to it.index }
+        return at.keys.sortedWith(compareBy<Any>({ if (at[it]!! < 0) 1 else 0 }, { at[it]!! }, { seq[it]!! }))
     }
     fun parent(path: String): String = if ('/' in path) path.substringBeforeLast('/') else ""
     fun folderName(path: String): String = path.substringAfterLast('/')

@@ -42,6 +42,8 @@ object BrChrome {
     @Volatile private var busy = false
     private var lastRun = 0L
     var onChange: (() -> Unit)? = null
+    /** התיקיות של Chrome (גם ריקות) — למסך הסימניות (BrSync.entries); מתעדכן עם state.json */
+    @Volatile var dirs: List<BrSync.Dir> = emptyList()
 
     val on get() = ::sp.isInitialized && sp.getBoolean("on", false)
     /** מתי התוסף כתב לאחרונה (0 = עוד לא הגיע ממנו כלום), מתי סנכרנו כאן, והשגיאה האחרונה (קוד) */
@@ -55,6 +57,7 @@ object BrChrome {
         if (::sp.isInitialized) return
         sp = BrUsers.prefs(ctx, "br_chrome")
         dir = BrUsers.dir(ctx)
+        runCatching { val a = JSONArray(sp.getString("dirs", "[]")); dirs = (0 until a.length()).mapNotNull { a.optJSONObject(it)?.let { o -> BrSync.Dir(o.optString("p"), o.optInt("i", -1)) } } }
         runCatching {
             val o = JSONObject(File(dir, "chrome-ops.json").readText())
             o.optJSONArray("ops")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { ops += opOf(it) } }
@@ -111,8 +114,9 @@ object BrChrome {
         BrCloud.claimChrome()
         // פעם ראשונה: כל הסימניות שכאן נשלחות לתוסף (הוא לא מוסיף מה שכבר יש ב־Chrome)
         if (!sp.getBoolean("seeded", false)) {
-            val seeded = BrStore.marks.map { it.copy(sid = it.sid.ifEmpty { "a" + nextSeq() }) }
-            synchronized(ops) { for (m in seeded) ops += BrSync.Op(nextSeq(), "add", m.sid, m.url, m.title, m.at) }
+            // רק מה שנשמר כאן — לא מה שיובא מ־Chrome (ייבוא ישן): סימנייה שמחקת מאז ב־Chrome לא חוזרת אליו
+            val seeded = BrStore.marks.map { if (it.imp) it else it.copy(sid = it.sid.ifEmpty { "a" + nextSeq() }) }
+            synchronized(ops) { for (m in seeded) if (!m.imp) ops += BrSync.Op(nextSeq(), "add", m.sid, m.url, m.title, m.at) }
             BrStore.replaceMarks(seeded)
             sp.edit().putBoolean("seeded", true).apply(); saveLocal()
         }
@@ -121,7 +125,7 @@ object BrChrome {
     }
 
     fun disable() {
-        sp.edit().putBoolean("on", false).putBoolean("seeded", false).putLong("sat", 0).apply()
+        sp.edit().putBoolean("on", false).putBoolean("seeded", false).putLong("sat", 0).remove("dirs").apply(); dirs = emptyList()
         synchronized(ops) { ops.clear() }; synchronized(vis) { vis.clear() }; saveLocal()
         // הסימניות שכבר כאן נשארות — בלי המזהים של הסנכרון
         BrStore.replaceMarks(BrStore.marks.map { it.copy(sid = "") })
@@ -174,7 +178,9 @@ object BrChrome {
             val ack = st.optLong("ack"); val vat = st.optLong("vat")
             val alias = HashMap<String, String>(); st.optJSONObject("alias")?.let { a -> a.keys().forEach { k -> alias[k] = a.optString(k) } }
             val sm = ArrayList<BrSync.SMark>()
-            st.optJSONArray("marks")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { sm += BrSync.SMark(it.optString("id"), it.optString("u"), it.optString("t"), it.optLong("at"), it.optString("o"), it.optString("r"), it.optString("p")) } }
+            st.optJSONArray("marks")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { sm += BrSync.SMark(it.optString("id"), it.optString("u"), it.optString("t"), it.optLong("at"), it.optString("o"), it.optString("r"), it.optString("p"), it.optInt("i", -1)) } }
+            val dl = ArrayList<BrSync.Dir>()
+            st.optJSONArray("dirs")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { dl += BrSync.Dir(BrSync.folderPath(it.optString("r"), it.optString("p")), it.optInt("i", -1)) } }
             val hist = ArrayList<BrImport.Item>()
             st.optJSONArray("hist")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { hist += BrImport.Item(it.optString("u"), it.optString("t"), it.optLong("at")) } }
             synchronized(ops) { ops.removeAll { it.s <= ack } }
@@ -182,7 +188,7 @@ object BrChrome {
             saveLocal()
             val pending = synchronized(ops) { ops.toList() }
             ui.post {
-                if (marksOn) BrStore.replaceMarks(BrSync.applyState(sm, pending, alias))
+                if (marksOn) { dirs = dl; sp.edit().putString("dirs", JSONArray().apply { dl.forEach { put(JSONObject().put("p", it.path).put("i", it.i)) } }.toString()).apply(); BrStore.replaceMarks(BrSync.applyState(sm, pending, alias)) }
                 if (histOn) BrStore.addVisits(hist)
             }
             sp.edit().putLong("sat", st.optLong("at")).apply()

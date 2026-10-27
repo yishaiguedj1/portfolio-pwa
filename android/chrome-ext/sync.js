@@ -82,10 +82,11 @@ async function run() {
       vat = pv.vat;
       hist = await chrome.history.search({ text: '', startTime: now - HIST_DAYS * 86400000, maxResults: HIST_MAX });
     }
-    const flat = prefs.marks !== false ? flatten(tree) : [];
+    const dirs = [];
+    const flat = prefs.marks !== false ? flatten(tree, dirs) : [];
     const live = new Set(flat.map((m) => 'n' + m.id));
     const orig = [...origin].filter((i) => live.has(i));
-    const next = buildState({ flat, hist, prev, ack: p.ack, alias: p.alias, vat, origin: orig, now, hold: p.hold });
+    const next = buildState({ flat, dirs, hist, prev, ack: p.ack, alias: p.alias, vat, origin: orig, now, hold: p.hold });
     if (!sameState(prev, next)) await writeJson(t, 'state.json', next);
     await S.set({ prev: next, origin: orig, allowDel: false, last: { at: now, ok: true, added, removed } });
   } catch (e) {
