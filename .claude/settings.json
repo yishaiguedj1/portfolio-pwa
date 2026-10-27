@@ -1,16 +1,44 @@
 {
-    "permissions": {
-    "allow": ["Bash(git push origin HEAD:main)"]
+  "permissions": {
+    "allow": [
+      "Bash(git push origin HEAD:main)"
+    ]
   },
   "hooks": {
     "SessionStart": [
-      { "hooks": [ { "type": "command", "command": "sh \"$CLAUDE_PROJECT_DIR/.claude/hebrew-rule.sh\"" } ] }
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"$CLAUDE_PROJECT_DIR/.claude/hebrew-rule.sh\""
+          }
+        ]
+      }
     ],
     "UserPromptSubmit": [
-      { "hooks": [ { "type": "command", "command": "sh \"$CLAUDE_PROJECT_DIR/.claude/hebrew-rule.sh\"" } ] }
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"$CLAUDE_PROJECT_DIR/.claude/hebrew-rule.sh\""
+          }
+        ]
+      }
     ],
     "Stop": [
-      { "hooks": [ { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hebrew-guard.js\"", "timeout": 15 } ] }
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hebrew-guard.js\"",
+            "timeout": 15
+          }
+        ]
+      }
     ]
+  },
+  "autoCompactWindow": 400000,
+  "env": {
+    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"
   }
 }
