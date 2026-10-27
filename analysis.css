@@ -399,6 +399,11 @@ button.an-row { cursor: pointer; }
 .an-rc-h b { font-size: 17px; font-weight: 700; }
 .an-rc-h .an-chev { margin-inline-start: auto; }
 .an-rc-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-top: 8px; }
+.an-empty { display: flex; align-items: center; gap: 12px; margin: 14px 0 8px; padding: 14px; border-radius: var(--radius-sm); background: var(--an-fill); text-align: start; }
+.an-empty b { display: block; font-size: 16px; font-weight: 700; color: var(--an-ink); }
+.an-empty small { display: block; margin-top: 2px; font-size: 13px; color: var(--an-ink2); }
+.an-empty-i { flex: none; position: relative; width: 30px; height: 30px; border-radius: 50%; background: color-mix(in srgb, var(--an-ink2) 16%, transparent); }
+.an-empty-i::after { content: ''; position: absolute; inset: 0; margin: auto; width: 12px; height: 2.5px; border-radius: 2px; background: var(--an-ink2); }
 .an-rc-big { display: flex; flex-direction: column; min-width: 0; }
 .an-rc-big b { font-size: 28px; font-weight: 800; letter-spacing: -.5px; line-height: 1.1; white-space: nowrap; }
 .an-rc-big small { font-size: 12px; color: var(--an-ink2); }

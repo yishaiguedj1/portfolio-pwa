@@ -835,7 +835,9 @@ function render(dir) {
   }
   // עמוד שכבר הוצג — בלי אנימציות הכניסה (גרפים שמצטיירים, עמודות שגדלות): חוזרים אליו והוא פשוט שם
   const key = S.sub.length ? 'sub:' + S.sub[S.sub.length - 1].title : S.tab + ':' + S.rsub;
-  ROOT.classList.toggle('an-still', S.seen.has(key));
+  // 27/10/2026 (בקשת המשתמש — "רענונים" במעבר בין העמודים): תנועת כניסה רק בעמוד הראשון שנפתח. כל עמוד אחר
+  // (לשונית, תת־לשונית, תת־עמוד של מדד) מופיע כבר גמור — עמודה שגדלה וקו שמצטייר נראים כמו טעינה
+  ROOT.classList.toggle('an-still', S.seen.size > 0);
   S.seen.add(key);
   if (S.sub.length) { renderSub(co); return; }
   const wrap = h('div', { class: 'an-wrap' });
@@ -1131,7 +1133,7 @@ function repSub(k) {
   /* 27/10/2026 (סרטון המשתמש — קפיצות במעבר בין תת־הלשוניות): רק הרשימה מתחלפת, במקום. עד היום כל העמוד נבנה
      מחדש (הראש, הלשוניות, הבורר), הגרפים הופיעו פריים אחד ריקים, והרשימה נעלמה לגמרי (שקיפות 0) לפני שנכנסה */
   const key = S.tab + ':' + k;
-  ROOT.classList.toggle('an-still', S.seen.has(key));
+  ROOT.classList.add('an-still');
   S.seen.add(key);
   S.after = [];
   const list = h('div', { class: 'an-rcards' });
@@ -1152,6 +1154,20 @@ function repSub(k) {
 }
 const stat = (label, v, cls) => h('div', { class: 'an-rstat' }, h('span', {}, label), h('b', { class: cls || null }, v));
 const tone = (g) => (g == null ? null : g >= 0 ? 'an-up' : 'an-down');
+/* 27/10/2026 (בקשת המשתמש — ServiceNow בלי דיבידנד): מדד שאין לו אף ערך / שכולו אפס = מצב שקט ומוסבר, לא גרף ריק עם "—".
+   דיבידנד ורכישות חוזרות — "לא מחלקת" (אין תשלום בדוחות = אין חלוקה; תגית התשלום מדווחת תמיד כשיש), אחרים — "לא מופיע בדוחות" */
+function emptyOf(def, series) {
+  const f = fin(series.flatMap((s) => s.vals));
+  if (f.length && f.some((v) => v !== 0)) return null;
+  const k = def.s[0];
+  if (k === 'dps') return [T('anNoDiv'), T('anNoDivS')];
+  if (k === 'buy') return [T('anNoBuy'), T('anNoBuyS')];
+  return f.length ? [T('anAllZero'), T('anAllZeroS')] : [T('anNoData'), T('anNoDataS')];
+}
+function emptyBlock(e) {
+  return h('div', { class: 'an-empty' }, h('span', { class: 'an-empty-i', 'aria-hidden': 'true' }),
+    h('div', {}, h('b', {}, e[0]), h('small', {}, e[1])));
+}
 function repCard(co, def) {
   const host = h('div', { class: 'an-mc' }), hint = rowHint(def), stats = h('div', { class: 'an-rstats' }), legend = h('div', { class: 'an-legend2' });
   let big = '', bigSub = '';
@@ -1163,7 +1179,9 @@ function repCard(co, def) {
     S.after.push(() => miniChart(host, { labels, series: [{ vals: a, color: cssv(def.line[2]) }], unit: 'x', co, line: true, avg: md, avgName: T('anMedian') }));
   } else {
     const d = seriesFor(co, def, { mode: 'fy', range: '10', view: 'v' }), one = d.series.length === 1, k0 = def.s[0], m = M[k0];
-    const lastP = d.per[d.per.length - 1];
+    const lastP = d.per[d.per.length - 1], empty = emptyOf(def, d.series);
+    if (empty) return h('button', { class: 'an-rcard', type: 'button', on: { click: () => chartSheet(def) } },
+      h('div', { class: 'an-rc-h' }, h('b', {}, def.n), h('span', { class: 'an-chev' })), hint ? h('span', { class: 'an-hint' }, hint) : null, emptyBlock(empty));
     if (one) {
       const vals = d.series[0].vals, last = vals[vals.length - 1];
       big = fmt(last, d.unit, co); bigSub = lastP && lastP.kind === 'ttm' ? T('anTtm12') : lastP ? lastP.label : '';
@@ -1573,6 +1591,8 @@ function chartSheet(def) {
       segCtl(T('anCShow'), [['c', T('anCChart')], ['t', T('anCTable')]], 'c', (v) => { chartW.hidden = v === 't'; tbl.hidden = v !== 't'; }),
       srcBlock(co, def.s),
     ].filter(Boolean));
+    const e0 = emptyOf(def, seriesFor(co, def, { mode: 'fy', range: 'all', view: 'v', hide: new Set() }).series);
+    if (e0) { b.textContent = ''; b.append(...[emptyBlock(e0), srcBlock(co, def.s)].filter(Boolean)); return; }
     function draw() {
       const d = seriesFor(co, def, st), one = d.series.length === 1 ? d.series[0].vals : null, avg = one ? mean(one) : null;
       drawChart(host, { ...d, co, h: 240, avg, tipHost: tip, title: def.n });
