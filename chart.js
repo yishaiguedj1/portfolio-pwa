@@ -154,6 +154,7 @@ const ICON = {
   zoomin: sv('M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4M8 11h6M11 8v6'),
   zoomout: sv('M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4M8 11h6'),
   fit: sv('M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5'),
+  now: sv('M6 7l5 5-5 5M13 7l5 5-5 5'),
   watch: sv('M4 6h16M4 12h10M4 18h7M18 14l2 2 3-4'),
 };
 
@@ -796,6 +797,22 @@ function registerOverlays() {
     },
   });
 
+  /* מחיר טרום/אחרי המסחר כשהגרף מציג רק מסחר רגיל — קו מקווקו כחול, גלולה "טרום/אחרי" ותווית בציר (כמו TradingView) */
+  R({
+    name: 'kcExtPx', totalStep: 2, needDefaultXAxisFigure: false, needDefaultYAxisFigure: false,
+    createPointFigures: ({ overlay, coordinates, bounding }) => {
+      if (!coordinates.length) return [];
+      const y = coordinates[0].y;
+      return [{ type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: 0, y }, { x: bounding.width, y }] }, styles: { color: EXTC, size: 1, style: 'dashed', dashedValue: [2, 2] } },
+        textFig(bounding.width - 4, y, (overlay.extendData && overlay.extendData.t) || '', EXTC, { attrs: { align: 'right' }, styles: { size: 10, borderRadius: 3 } })];
+    },
+    createYAxisFigures: ({ chart, overlay, coordinates, bounding, yAxis }) => {
+      if (!coordinates.length) return [];
+      const left = yAxis && yAxis.isFromZero && yAxis.isFromZero();
+      return [textFig(left ? 0 : bounding.width, coordinates[0].y, fmtP(chart, valAt(overlay, 0)), EXTC, { attrs: { align: left ? 'left' : 'right' }, styles: { paddingTop: 3, borderRadius: 3 } })];
+    },
+  });
+
   /* תבניות: XABCD (הרמוניות), ABCD, גלי אליוט (5 ו־ABC), ראש וכתפיים, משולש, שלושה דחפים */
   R(wavePattern('kcXABCD', ['X', 'A', 'B', 'C', 'D'], [[0, 1, 2], [1, 2, 3], [2, 3, 4], [0, 1, 4]]));
   R(wavePattern('kcABCD', ['A', 'B', 'C', 'D'], [[0, 1, 2], [1, 2, 3]]));
@@ -898,7 +915,7 @@ function chartStyles(c) {
       type: candleType(c.type),
       bar: { upColor: p.up, downColor: p.dn, noChangeColor: p.text, upBorderColor: p.up, downBorderColor: p.dn, noChangeBorderColor: p.text, upWickColor: p.up, downWickColor: p.dn, noChangeWickColor: p.text },
       area: { lineSize: 2, lineColor: p.up, value: 'close', smooth: false, backgroundColor: line ? [{ offset: 0, color: rgba(p.up, 0) }, { offset: 1, color: rgba(p.up, 0) }] : [{ offset: 0, color: rgba(p.up, 0.02) }, { offset: 1, color: rgba(p.up, 0.26) }], point: { show: false } },   // כמו Apple Stocks
-      priceMark: { show: true, high: { show: g.hl !== 0, color: p.text }, low: { show: g.hl !== 0, color: p.text }, last: { show: true, upColor: p.up, downColor: p.dn, noChangeColor: p.text, line: { show: true, style: 'dashed', dashedValue: [3, 3], size: 1 } } },
+      priceMark: { show: true, high: { show: g.hl !== 0, color: p.text }, low: { show: g.hl !== 0, color: p.text }, last: { show: true, upColor: p.up, downColor: p.dn, noChangeColor: p.text, line: { show: true, style: 'dashed', dashedValue: [2, 2], size: 1 }, text: { show: true, style: 'fill', size: 11, weight: '600', family: p.font, color: '#FFFFFF', borderStyle: 'solid', borderColor: 'transparent', borderSize: 0, borderDashedValue: [2, 2], paddingLeft: 4, paddingRight: 4, paddingTop: 3, paddingBottom: 2, borderRadius: 3 }, extendTexts: [{ show: true, position: 'below_price', style: 'fill', size: 10, weight: '500', family: p.font, color: '#FFFFFF', backgroundColor: null, borderStyle: 'solid', borderColor: 'transparent', borderSize: 0, borderDashedValue: [2, 2], paddingLeft: 4, paddingRight: 4, paddingTop: 1, paddingBottom: 3, borderRadius: 3, updateInterval: 1000 }] } },
       tooltip: {
         showRule: 'always', showType: 'standard',
         rect: { color: p.tipBg, borderColor: p.axis },
@@ -927,14 +944,29 @@ function mountCell(c) {
   if (!chart) throw new Error('init');
   c.chart = chart;
   chart.setOffsetRightDistance(64);
+  chart.setFormatter({ formatExtendText: (x) => (x && x.type === 'last_price' ? countdown(c, x.data, Date.now()) : '') });
   try { chart.overrideYAxis({ paneId: MAIN, name: S.store.g.scale }); } catch (e) { /* ברירת מחדל */ }
   chart.subscribeAction('onCrosshairChange', (x) => onCross(c, x));
+  chart.subscribeAction('onVisibleRangeChange', (r) => { const n = chart.getDataList().length; const back = !!(r && n > 0 && r.to < n - 1); if (c.nowB) c.nowB.classList.toggle('on', back);
+    // זום כמו TradingView: כשרואים את הנר האחרון — הוא נשאר צמוד לימין; בגלילה בהיסטוריה — סביב האצבעות/הסמן
+    if (c.anchor !== back) { c.anchor = back; try { chart.setZoomAnchor(back ? 'cursor' : 'last_bar'); } catch (e) { /* גרסה אחרת */ } } });
   wireCellPointer(c);
   setSymbolPeriod(c);
   restoreIndicators(c, c.indSaved);
 }
+/* כמו TradingView: מתחת לתווית המחיר האחרון — כמה זמן נשאר עד סגירת הנר (mm:ss / h:mm:ss / 3d 4h).
+   רק כשהנר באמת חי: תוך־יומי בזמן מסחר (או טרום/אחרי כשהמורחב מוצג), שבועי/חודשי בזמן מסחר. יומי — לא (הסגירה תלויה בבורסה). */
+function countdown(c, bar, now) {
+  if (!bar || c.replay || !c.q) return '';
+  const intra = L.isIntraday(c.tf), st = c.q.st, live = st === 'REGULAR' || (intra && S.store.g.ext && c.q.ext);
+  if (!live || (!intra && c.secReal < 7 * 86400)) return '';
+  const ms = bar.timestamp + c.secReal * 1000 - now;
+  if (!(ms > 0) || ms > c.secReal * 1000) return '';
+  const t = Math.floor(ms / 1000), d = Math.floor(t / 86400), h = Math.floor(t / 3600) % 24, m = Math.floor(t / 60) % 60, sec = t % 60, z = (x) => String(x).padStart(2, '0');
+  return d ? d + 'd ' + h + 'h' : h ? h + ':' + z(m) + ':' + z(sec) : z(m) + ':' + z(sec);
+}
 function setSymbolPeriod(c) {
-  c.seq++; c.raw = []; c.disp = []; c.more = false; c.lastVol = null; c.err = null; c.sub = null; c.cmpCache = new Map(); c.bench = null;
+  c.seq++; c.extKey = null; c.raw = []; c.disp = []; c.more = false; c.lastVol = null; c.err = null; c.sub = null; c.cmpCache = new Map(); c.bench = null;
   c.secReal = TF[c.tf].sec;
   c.chart.setSymbol({ ticker: c.sym, pricePrecision: 2, volumePrecision: 0 });
   c.chart.setPeriod(TF[c.tf].p);
@@ -1040,10 +1072,21 @@ function parseQuote(d) {
 }
 function onQuote(c, q) {
   c.q = q;
+  if (c.raw.length) drawExt(c);
   if (c.replay || !c.raw.length || !c.sub) return;
   const d = TF[c.tf], intra = /m$/.test(d.base), regular = q.st === 'REGULAR';
   let price = 0, time = 0;
   if (regular && q.reg) { price = q.reg.p; time = q.reg.t * 1000; } else if (intra && S.store.g.ext && q.ext) { price = q.ext.p; time = q.ext.t * 1000; }
+  else if (q.reg && q.reg.p > 0 && q.reg.t > 0) {
+    /* אחרי הסגירה: הנרות של Yahoo לא כוללים את מכירת הסגירה (נר אחרון 154.81 מול סגירה רשמית 154.78) —
+       הנר שמכיל את זמן הסגירה נסגר על המחיר הרשמי, כמו ב־TradingView ובכרטיס המניה */
+    const b = c.raw[c.raw.length - 1], t = q.reg.t * 1000, p = q.reg.p;
+    if (b && b.timestamp <= t && t <= b.timestamp + BASESEC[d.base] * 1000 && b.close !== p) {
+      b.close = p; b.high = Math.max(b.high, p); b.low = Math.min(b.low, p);
+      pushLive(c, false);
+    }
+    return;
+  }
   if (!(price > 0) || !(time > 0)) return;
   let dv = 0;
   if (regular && intra) { if (c.lastVol != null && q.dayVol >= c.lastVol) dv = q.dayVol - c.lastVol; c.lastVol = q.dayVol; }
@@ -1230,6 +1273,8 @@ function addInd(c, name, o) {
   const main = o.main != null ? !!o.main && isMain(name) : isMain(name);
   const conf = { name, extendData: { c: c.i, sym: o.sym }, visible: !o.h };
   if (o.p && o.p.length) conf.calcParams = o.p;
+  // נפח נקי כמו TradingView — בלי שלושת הממוצעים של ברירת המחדל (5/10/20, שנשמרו גם אצל מי שלא בחר בהם)
+  if (name === 'VOL' && (!conf.calcParams || conf.calcParams.join() === '5,10,20')) conf.calcParams = [];
   if (name === 'KCCMP') { const k = c.chart.getIndicators({ name: 'KCCMP' }).length; conf.shortName = o.sym; conf.styles = { lines: [{ color: CMPC[k % CMPC.length], size: 1.6, style: 'solid', smooth: false, dashedValue: [2, 2] }] }; }
   if (o.res) conf.extendData.res = o.res;
   if (main) conf.paneId = MAIN;
@@ -1267,6 +1312,18 @@ function drawAlerts(c) {
       onRightClick: (e) => { if (e.preventDefault) e.preventDefault(); },
     });
   }
+}
+const EXTC = '#2962FF';
+function drawExt(c) {
+  if (!c.chart) return;
+  const q = c.q, st = q && q.st, show = !!(q && q.ext && q.ext.p > 0 && st !== 'REGULAR' && !c.replay && !(L.isIntraday(c.tf) && S.store.g.ext));
+  const t = show ? T(/PRE/.test(st) ? 'kcPre' : 'kcPost') : '', key = show ? q.ext.p + '|' + t + '|' + c.raw.length : '';
+  if (c.extKey === key) return;
+  c.extKey = key;
+  const o = { points: [{ timestamp: lastTs(c), value: show ? q.ext.p : 0 }], extendData: { t } };
+  if (show && c.extId && c.chart.getOverlays({ id: c.extId }).length) return c.chart.overrideOverlay(Object.assign({ id: c.extId }, o));
+  c.chart.removeOverlay({ groupId: 'ext' });
+  c.extId = show ? c.chart.createOverlay(Object.assign({ name: 'kcExtPx', groupId: 'ext', lock: true }, o)) : null;
 }
 const lastPx = {};
 function quotePrice(q) { if (!q) return 0; if (q.st === 'REGULAR' && q.reg) return q.reg.p; if (q.ext) return q.ext.p; return q.reg ? q.reg.p : 0; }
@@ -1455,16 +1512,32 @@ function exitReplay(c, silent) {
 }
 function onCross(c, x) {
   c.crossIdx = x && typeof x.dataIndex === 'number' ? x.dataIndex : c.crossIdx;
+  plusAt(c, x);
   if (c === S.cells[S.active]) updLegendTime(x);
 }
+/* מגע כמו TradingView (ו־Apple Stocks): הצלב מופיע רק בלחיצה ארוכה, עם רטט קצר, ונשאר אחרי ההרמה.
+   הקשה רגילה רק מסתירה אותו (התיקון בספרייה — vendor/klinecharts/README.md). */
 function wireCellPointer(c) {
-  let down = null;
-  c.el.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; if (S.active !== c.i) setActive(c.i); }, true);
+  let down = null, lp = 0;
+  const far = (e) => down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8;
+  c.el.addEventListener('pointerdown', (e) => {
+    down = { x: e.clientX, y: e.clientY, t: Date.now(), touch: e.pointerType === 'touch' };
+    if (S.active !== c.i) setActive(c.i);
+    clearTimeout(lp);
+    if (down.touch && e.isPrimary) lp = setTimeout(() => { if (down && navigator.vibrate) try { navigator.vibrate(8); } catch (x) { /* בלי רטט */ } }, 520);
+  }, true);
+  c.el.addEventListener('pointermove', (e) => { if (far(e)) clearTimeout(lp); }, true);
+  c.el.addEventListener('pointercancel', () => { clearTimeout(lp); down = null; }, true);
   c.el.addEventListener('pointerup', (e) => {
+    clearTimeout(lp);
     if (!down) return;
-    const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8;
+    const moved = far(e), tap = down.touch && !moved && Date.now() - down.t < 350;
     down = null;
-    if (!moved && S.pick === c) setTimeout(() => beginReplay(c, c.crossIdx), 30);
+    if (!moved && S.pick === c) {
+      // במגע הקשה לא פותחת צלב (vendor/klinecharts/README.md) — הנר נקבע מנקודת ההקשה
+      if (tap && c.chart) { try { const r = c.host.getBoundingClientRect(), p = c.chart.convertFromPixel([{ x: e.clientX - r.left, y: e.clientY - r.top }], { paneId: MAIN })[0]; if (p && typeof p.dataIndex === 'number') c.crossIdx = p.dataIndex; } catch (x) { /* נשאר האחרון */ } }
+      setTimeout(() => beginReplay(c, c.crossIdx), 30);
+    }
   }, true);
 }
 
@@ -1545,12 +1618,21 @@ function build(sym) {
   UI.sel = h('div', { class: 'kc-selbar' });
   UI.rep = h('div', { class: 'kc-repbar' });
   UI.fab = btn('kc-fab', T('kcTools'), openToolsSheet, ICON.pencil);
-  ROOT.append(UI.top, UI.bar, h('div', { class: 'kc-main' }, UI.side, UI.grid, UI.watch), UI.foot, UI.sel, UI.rep, UI.fab);
+  UI.mbar = h('div', { class: 'kc-mbar' });
+  ROOT.append(UI.top, UI.bar, h('div', { class: 'kc-main' }, UI.side, UI.grid, UI.watch), UI.foot, UI.mbar, UI.sel, UI.rep, UI.fab);
   for (const c of S.cells) {
     c.host = h('div', { class: 'kc-host', dir: 'ltr' });
     c.stEl = h('div', { class: 'kc-st' });
     c.tagEl = btn('kc-ctag', '', () => { setActive(c.i); openSearch(); });
-    c.el = h('div', { class: 'kc-cell' + (c.i === S.active ? ' act' : '') }, c.host, c.stEl, c.tagEl);
+    // ">>" כמו TradingView — מופיע רק כשגללו אחורה והנר האחרון לא במסך
+    c.nowB = btn('kc-now', T('kcToNow'), () => { if (c.chart) c.chart.scrollToRealTime(200); }, ICON.now);
+    // "+" בציר המחיר ליד הצלב (TradingView): התראה / קו אופקי במחיר הזה
+    c.plusB = btn('kc-plus', T('kcPlusAt'), () => openPlus(c), ICON.plus);
+    // מדידה מהירה בפינה העליונה (בטלפון, כמו TradingView): מחיר+תאריך, מחיר
+    c.qm = h('div', { class: 'kc-qm' },
+      btn('kc-ib sm', T('kcToMeasure'), () => { setActive(c.i); startTool('kcMeasure'); }, ICON.ruler),
+      btn('kc-ib sm', T('kcToPRange'), () => { setActive(c.i); startTool('kcPriceRange'); }, ICON.prange));
+    c.el = h('div', { class: 'kc-cell' + (c.i === S.active ? ' act' : '') }, c.host, c.stEl, c.tagEl, c.nowB, c.plusB, c.qm);
     UI.grid.appendChild(c.el);
   }
   renderTop(); updBars(); renderSide(); renderFoot(); renderSel(); renderReplay(); updTags();
@@ -1597,9 +1679,9 @@ function renderTop() {
   UI.top.append(
     btn('kc-ib kc-back', T('kcBack'), () => closeChart(), ICON.back),
     symBtn,
-    h('div', { class: 'kc-quote' }, h('div', { class: 'kc-pxrow' }, UI.hd.px, UI.hd.ch), h('div', { class: 'kc-pxrow sm' }, UI.hd.st, UI.hd.ext)),
+    h('div', { class: 'kc-quote' }, h('div', { class: 'kc-pxrow' }, UI.hd.px, UI.hd.ext), h('div', { class: 'kc-pxrow sm' }, UI.hd.ch, UI.hd.st)),
     h('div', { class: 'kc-top-end' },
-      UI.undoB = btn('kc-ib', T('kcUndo'), undo, ICON.undo), UI.redoB = btn('kc-ib', T('kcRedo'), redo, ICON.redo),
+      UI.undoB = btn('kc-ib kc-undo', T('kcUndo'), undo, ICON.undo), UI.redoB = btn('kc-ib kc-redo', T('kcRedo'), redo, ICON.redo),
       btn('kc-ib', T('kcShot'), shot, ICON.cam), btn('kc-ib' + (S.watch ? ' on' : ''), T('kcWatch'), toggleWatch, ICON.watch), btn('kc-ib', T('kcSettings'), openSettings, ICON.gear)),
   );
   if (c) updHeader();
@@ -1609,7 +1691,10 @@ function updHeader() {
   const c = act();
   if (!c || !UI.hd) return;
   const q = c.q, last = c.disp.length ? c.disp[c.disp.length - 1] : null;
-  const p = (q && q.reg && q.reg.p) || (last && last.close) || 0;
+  const reg = (q && q.reg && q.reg.p) || (last && last.close) || 0, st = q ? q.st : '';
+  /* כמו בכרטיס המניה: מחוץ למסחר הרגיל המחיר הראשי = המחיר המורחב, לידו גלולת "מסחר־מאוחר −0.28%",
+     ומתחת השינוי של היום (סגירה רגילה מול הסגירה הקודמת) */
+  const extOn = !!(q && q.ext && q.ext.p > 0 && st !== 'REGULAR' && q.reg && q.reg.p), p = extOn ? q.ext.p : reg;
   const prev = q && q.prev ? q.prev : 0;
   if (UI.hd.sym.textContent !== c.sym) {
     UI.hd.sym.textContent = c.sym;
@@ -1618,18 +1703,19 @@ function updHeader() {
   const nm = (E.name && E.name(c.sym)) || c.name || (q && q.name) || '';
   UI.hd.name.textContent = nm && nm !== c.sym ? nm : (c.ex || '');
   const pr = L.precisionFor(p);
-  UI.hd.px.textContent = p ? fmtNum(p, pr) + (c.cur ? ' ' + c.cur : '') : '—';
-  const ch = prev && p ? p - prev : null;
-  UI.hd.ch.textContent = ch == null ? '' : (ch > 0 ? '+' : '') + fmtNum(ch, pr) + ' (' + fmtPct((p / prev - 1) * 100) + ')';
+  UI.hd.px.replaceChildren(p ? fmtNum(p, pr) : '—', ...(p && c.cur ? [h('span', { class: 'kc-cur', text: ' ' + c.cur })] : []));
+  const ch = prev && reg ? reg - prev : null;
+  UI.hd.ch.textContent = ch == null ? '' : (ch > 0 ? '+' : '') + fmtNum(ch, pr) + ' (' + fmtPct((reg / prev - 1) * 100) + ')';
   UI.hd.ch.className = 'kc-ch ' + (ch > 0 ? 'up' : ch < 0 ? 'dn' : '');
-  const st = q ? q.st : '';
-  UI.hd.st.textContent = !q ? '' : st === 'REGULAR' ? '● ' + T('kcStLive') : st === 'PRE' || st === 'PREPRE' ? T('kcStPre') : st === 'POST' || st === 'POSTPOST' ? T('kcStPost') : T('kcStClosed');
+  UI.hd.st.textContent = !q || extOn ? '' : st === 'REGULAR' ? '● ' + T('kcStLive') : st === 'PRE' || st === 'PREPRE' ? T('kcStPre') : st === 'POST' || st === 'POSTPOST' ? T('kcStPost') : T('kcStClosed');
   UI.hd.st.className = 'kc-mst' + (st === 'REGULAR' ? ' live' : '');
-  if (q && q.ext && q.ext.p > 0 && st !== 'REGULAR' && q.reg && q.reg.p) {
-    const e = q.ext.p, ep = (e / q.reg.p - 1) * 100;
-    UI.hd.ext.textContent = fmtNum(e, pr) + ' ' + fmtPct(ep);
-    UI.hd.ext.className = 'kc-ext ' + (ep > 0 ? 'up' : ep < 0 ? 'dn' : '');
-  } else UI.hd.ext.textContent = '';
+  if (extOn) {
+    const ep = (q.ext.p / q.reg.p - 1) * 100, k = /PRE/.test(st) ? 'sessPreShort' : /POST/.test(st) ? 'sessPostShort' : 'sessNightShort';
+    // בטלפון התווית הקצרה ("אחרי" / "טרום") — אין רוחב ל־"מסחר־מאוחר" ליד המחיר והסימבול
+    const sh = /PRE/.test(st) ? 'kcPre' : 'kcPost';
+    UI.hd.ext.replaceChildren(h('span', { class: 'ext-dot' }), h('span', { class: 'ext-lbl lg', text: T(k) }), h('span', { class: 'ext-lbl sm', text: T(sh) }), h('span', { class: 'ext-pct', text: fmtPct(ep) }));
+    UI.hd.ext.className = 'kc-ext ext-sess ' + (Math.abs(ep) < 0.005 ? '' : ep > 0 ? 'pos' : 'neg');
+  } else { UI.hd.ext.textContent = ''; UI.hd.ext.className = 'kc-ext'; }
   updClock();
 }
 /* ספירה לאחור לסגירת הנר (כמו בציר המחיר של TradingView) + השעה בבורסה */
@@ -1656,6 +1742,8 @@ function updUndo() {
   const c = act();
   if (UI.undoB) UI.undoB.disabled = !c || !c.undo.length;
   if (UI.redoB) UI.redoB.disabled = !c || !c.redo.length;
+  const mu = UI.mbar && !S.tool && UI.mbar.lastChild;
+  if (mu) mu.disabled = !c || !c.undo.length;
 }
 function updTags() {
   const multi = S.cells.length > 1;
@@ -1695,6 +1783,144 @@ function updBars() {
   );
   UI.bar.scrollLeft = sx;   // בנייה מחדש בלי קפיצה של הסרגל להתחלה
   renderFoot();
+  renderMbar();
+}
+
+/* ---------- טלפון: סרגל תחתון כמו TradingView ----------
+   סימבול · טווח זמן (גרירה אנכית = גלגלת כמו iOS, הקשה = רשימה) · ציור · אינדיקטורים · עוד · בטל.
+   בזמן ציור הסרגל מתחלף לכלי הציור: הכלי, מגנט, ציור רציף, נעילה, הסתרה, אובייקטים, סיום. */
+function renderMbar() {
+  if (!UI.mbar) return;
+  UI.mbar.textContent = '';
+  const c = act();
+  if (!c) return;
+  const ib = (icon, label, on, active) => btn('kc-mb' + (active ? ' on' : ''), label, on, ICON[icon]);
+  if (S.tool) {
+    const ti = TOOL_INFO[S.tool];
+    UI.mbar.classList.add('draw');
+    UI.mbar.append(
+      ib(ti ? ti.icon : 'pencil', T('kcTools'), openToolsSheet, true),
+      ib('magnet', T('kcMagnet'), () => { S.magnet = (S.magnet + 1) % 3; if (E.flash) E.flash(T('kcMagnet' + S.magnet)); renderSide(); renderMbar(); }, !!S.magnet),
+      ib('pencil', T('kcStay'), () => { S.store.g.stay = !S.store.g.stay; save(); renderMbar(); }, !!S.store.g.stay),
+      ib(S.allLocked ? 'lock' : 'unlock', T('kcLockAll'), () => { lockAll(); renderMbar(); }, S.allLocked),
+      ib(S.allHidden ? 'eyeoff' : 'eye', T('kcHideAll'), () => { hideAll(); renderMbar(); }, S.allHidden),
+      ib('list', T('kcObjects'), openObjects),
+      ib('close', T('kcCancel'), stopTool));
+    return;
+  }
+  UI.mbar.classList.remove('draw');
+  const symB = btn('kc-mb txt sym', T('kcSearch'), () => openSearch());
+  symB.textContent = c.sym;
+  wheel(symB, () => { const l = [...new Set([c.sym, ...(E.symbols ? E.symbols() : [])])].slice(0, 40); return l.map((x) => ({ v: x, t: x, cur: x === c.sym })); }, (it) => setSym(c, it.v));
+  const ctf = c.swTf || c.tf, fav = S.store.g.fav.includes(ctf) ? S.store.g.fav : [...S.store.g.fav, ctf];
+  const tfB = btn('kc-mb txt', T('kcMoreTf'), openTfSheet);
+  tfB.textContent = tfLabel(ctf);
+  wheel(tfB, () => fav.map((tf) => ({ v: tf, t: tfLabel(tf), cur: tf === ctf })), (it) => setTf(c, it.v));
+  UI.mbar.append(symB, tfB, h('span', { class: 'kc-sep' }),
+    ib('pencil', T('kcTools'), openToolsSheet),
+    ib('fx', T('kcIndicators'), openIndSheet),
+    ib('more', T('kcMore'), openMore),
+    ib('undo', T('kcUndo'), undo));
+  const u = UI.mbar.lastChild;
+  u.disabled = !c.undo.length;
+}
+/* גלגלת בחירה (iOS) על כפתור: גרירה למעלה/למטה מחליפה פריט כל 30px, עם רטט קטן; שחרור = בחירה */
+function wheel(b, items, pick) {
+  let st = null;
+  b.style.touchAction = 'none';
+  const draw = () => {
+    st.el.textContent = '';
+    for (let k = -2; k <= 2; k++) {
+      const it = st.items[st.i + k];
+      st.el.appendChild(h('div', { class: 'kc-wh-i d' + Math.abs(k), text: it ? it.t : '' }));
+    }
+  };
+  b.addEventListener('pointerdown', (e) => { st = { y: e.clientY, on: false }; });
+  b.addEventListener('pointermove', (e) => {
+    if (!st) return;
+    const dy = e.clientY - st.y;
+    if (!st.on) {
+      if (Math.abs(dy) < 8) return;
+      st.items = items();
+      if (st.items.length < 2) { st = null; return; }
+      st.on = true; st.i0 = st.i = Math.max(0, st.items.findIndex((x) => x.cur));
+      try { b.setPointerCapture(e.pointerId); } catch (x) { /* בלי לכידה */ }
+      st.el = h('div', { class: 'kc-wheel', 'aria-hidden': 'true' });
+      ROOT.appendChild(st.el);
+      draw();
+    }
+    e.preventDefault();
+    const i = Math.max(0, Math.min(st.items.length - 1, st.i0 + Math.round(-dy / 30)));
+    if (i !== st.i) { st.i = i; draw(); try { if (navigator.vibrate) navigator.vibrate(3); } catch (x) { /* בלי רטט */ } }
+  });
+  const end = () => {
+    if (!st) return;
+    const s0 = st;
+    st = null;
+    if (!s0.on) return;
+    s0.el.remove();
+    b.dataset.drag = '1';
+    setTimeout(() => { delete b.dataset.drag; }, 60);
+    if (s0.i !== s0.i0) pick(s0.items[s0.i]);
+  };
+  b.addEventListener('pointerup', end);
+  b.addEventListener('pointercancel', end);
+  b.addEventListener('click', (e) => { if (b.dataset.drag) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+}
+/* "עוד" בטלפון: כל מה שבסרגל העליון ובתחתון של המחשב */
+function openMore() {
+  const c = act();
+  if (!c) return;
+  openSheet(T('kcMore'), (b, sh) => {
+    const ty = TYPES.find((x) => x[0] === c.type) || TYPES[0];
+    const cell = (icon, key, fn, on) => h('button', { type: 'button', class: 'kc-tcell' + (on ? ' on' : ''), onclick: () => { closeSheet(sh); fn(); } }, h('span', { class: 'kc-ico', html: ICON[icon] }), h('span', { text: T(key) }));
+    b.append(h('div', { class: 'kc-tgrid' },
+      cell(ty[2], 'kcType', openTypeSheet), cell('plus', 'kcCompare', openCompare, hasInd(c, 'KCCMP')),
+      cell('auto', 'kcAuto', openAutoSheet, Object.keys(AUTO).some((k) => hasInd(c, k))), cell('bell', 'kcAlerts', openAlerts, (S.store.alerts[c.sym] || []).some((a) => !a.done)),
+      cell('replay', 'kcReplay', startPick, !!c.replay), cell('layout', 'kcLayout', openLayoutSheet, S.cells.length > 1),
+      cell('season', 'kcSeason', openSeason), cell('test', 'kcBacktest', openBacktest, hasInd(c, 'KCBT')),
+      cell('list', 'kcObjects', openObjects), cell('cam', 'kcShot', shot), cell('redo', 'kcRedo', redo)));
+    b.appendChild(h('div', { class: 'kc-gt', text: T('kcRangesT') }));
+    b.appendChild(h('div', { class: 'kc-ranges wrap' }, ...RANGES.map((r) => btn('kc-rg' + (S.range === r[0] && c.tf === r[1] ? ' on' : ''), r[0], () => { closeSheet(sh); goRange(r); }))));
+    const sc = S.store.g.scale;
+    b.appendChild(row(seg([['normal', T('kcScaleN')], ['percentage', '%'], ['logarithm', 'log']], sc, (v) => { S.store.g.scale = v; for (const x of S.cells) if (x.chart) setScale(x, v); save(); renderFoot(); })));
+  });
+}
+/* "+" ליד הצלב בציר המחיר */
+function plusAt(c, x) {
+  if (!c.plusB || !c.chart) return;
+  clearTimeout(c.plusT);
+  const show = x && x.paneId === MAIN && typeof x.y === 'number' && !S.tool && !c.replay;
+  if (!show) { c.plusT = setTimeout(() => { if (!c.plusB.matches(':hover')) c.plusB.classList.remove('on'); }, 250); return; }
+  let v = null;
+  try { const p = c.chart.convertFromPixel([{ y: x.y }], { paneId: MAIN })[0]; v = p && p.value; } catch (e) { v = null; }
+  if (!(v > 0)) return;
+  const ax = (c.chart.getSize(MAIN, 'yAxis') || {}).width || 56;
+  c.plusV = v;
+  c.plusB.style.top = x.y + 'px';
+  c.plusB.style.right = ax + 4 + 'px';
+  c.plusB.classList.add('on');
+}
+function openPlus(c) {
+  const p = c.plusV;
+  if (!(p > 0)) return;
+  const ps = fmtNum(p, L.precisionFor(p));
+  openSheet(c.sym + ' · ' + ps, (b, sh) => {
+    const it = (icon, text, fn) => h('button', { type: 'button', class: 'kc-li', onclick: () => { closeSheet(sh); fn(); } }, h('span', { class: 'kc-ico', html: ICON[icon] }), h('span', { class: 'kc-li-n', text }));
+    b.append(h('div', { class: 'kc-act' },
+      it('bell', T('kcAlertAt', { p: ps }), () => {
+        const arr = S.store.alerts[c.sym] = S.store.alerts[c.sym] || [];
+        if (arr.length >= 20) { if (E.flash) E.flash(T('kcAlertMax')); return; }
+        arr.push({ id: newId(), p, dir: 'cross', note: '', done: false, at: 0, b: curPx(c.sym) || p });
+        delete lastPx[c.sym];
+        save(); drawAlerts(c); updBars(); bgSync(true);
+        if (E.flash) E.flash(T('kcAlertAt', { p: ps }));
+      }),
+      it('hline', T('kcHLineAt', { p: ps }), () => {
+        createDrawing(c, { name: 'horizontalStraightLine', points: [{ timestamp: lastTs(c), value: p }], styles: styleSet(DS.color, DS.width, DS.dash) });
+        changed(c);
+      })));
+  });
 }
 
 /* סרגל כלים אנכי (במחשב). בטלפון — כפתור צף שפותח את כל הכלים */
@@ -1721,6 +1947,7 @@ function renderSide() {
 function updToolUI() {
   if (!ROOT || !UI.side) return;
   renderSide();
+  renderMbar();
   UI.fab.classList.toggle('on', !!S.tool);
   ROOT.classList.toggle('kc-drawing', !!S.tool);
   if (UI.hint) UI.hint.remove();
@@ -1816,6 +2043,7 @@ function renderSel() {
   UI.sel.textContent = '';
   const s = S.sel, o = s && getOv(s.c, s.id);
   UI.sel.classList.toggle('on', !!o);
+  if (!o) UI.sel.classList.remove('pal');
   if (!o) return;
   const ln = (o.styles && o.styles.line) || {}, color = ln.color || DS.color, size = ln.size || 1, dash = ln.style === 'dashed';
   const cols = h('div', { class: 'kc-cols' }, ...DRAW_COLORS.map((cl) => {
@@ -1824,8 +2052,12 @@ function renderSel() {
     return b;
   }));
   const wid = h('div', { class: 'kc-wids' }, ...[1, 2, 3, 4].map((w) => btn('kc-wid' + (w === size ? ' on' : ''), w + 'px', () => selStyle({ width: w }))));
+  // בטלפון (כמו הסרגל הצף של TradingView): עיגול צבע שפותח את הפלטה, ו־"2px" שמחליף עובי בכל הקשה
+  const sw = h('button', { type: 'button', class: 'kc-swatch', 'aria-label': T('kcColor'), onclick: () => UI.sel.classList.toggle('pal') });
+  sw.style.background = color;
   UI.sel.append(
-    h('span', { class: 'kc-sel-n', text: T(TOOL_INFO[o.name] ? TOOL_INFO[o.name].key : 'kcDrawing') }), cols, wid,
+    h('span', { class: 'kc-sel-n', text: T(TOOL_INFO[o.name] ? TOOL_INFO[o.name].key : 'kcDrawing') }), sw, cols, wid,
+    btn('kc-wid kc-wcyc on', size + 'px', () => selStyle({ width: size % 4 + 1 })),
     btn('kc-ib sm' + (dash ? ' on' : ''), T('kcDashed'), () => selStyle({ dash: !dash }), '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4M10 12h4M17 12h4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>'),
     TEXT_TOOLS.has(o.name) ? btn('kc-ib sm', T('kcEditText'), () => askText(s.c, s.id), ICON.text) : null,
     btn('kc-ib sm' + (o.lock ? ' on' : ''), o.lock ? T('kcUnlock') : T('kcLock'), selLock, o.lock ? ICON.lock : ICON.unlock),

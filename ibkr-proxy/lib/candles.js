@@ -47,6 +47,10 @@ function parse(j, iv) {
   const rd = (x) => Math.round(x / k * 1e6) / 1e6;
   const out = { t: [], o: [], h: [], l: [], c: [], v: [] };
   let last = -1;
+  /* נר רפאים: בתוך־יומי Yahoo מוסיף בשעת סגירת המסחר הרגיל נר שטוח (פ=ג=נ=ס) בלי נפח — הוא לא נר אמיתי,
+     והוא צובע את תווית המחיר האחרון באפור ומציג נפח 0. מדולג (27/10/2026, מול TradingView). */
+  const ctp = meta.currentTradingPeriod && meta.currentTradingPeriod.regular;
+  const ghost = /m$/.test(iv) && ctp && +ctp.end > 0 ? +ctp.end : 0;
   for (let i = 0; i < r.timestamp.length; i++) {
     const c = q.close && q.close[i];
     if (!(c > 0)) continue;
@@ -55,9 +59,18 @@ function parse(j, iv) {
     const o = q.open && q.open[i] > 0 ? q.open[i] : c;
     const h = Math.max(q.high && q.high[i] > 0 ? q.high[i] : c, o, c);
     const l = Math.min(q.low && q.low[i] > 0 ? q.low[i] : c, o, c);
+    if (ghost && t === ghost && h === l && !((q.volume && q.volume[i]) > 0)) continue;
     out.t.push(t); out.o.push(rd(o)); out.h.push(rd(h)); out.l.push(rd(l)); out.c.push(rd(c));
     out.v.push(Math.max(0, Math.round((q.volume && q.volume[i]) || 0)));
     last = t;
+  }
+  /* עם טרום/אחרי Yahoo מוסיף בסוף "נר" חי בזמן המחיר האחרון (למשל 20:50 ב־15m) — שטוח ולא מיושר לטווח.
+     בטלפון הוא הופיע כנר אפור בלי תנועה. נקודה שקרובה לנר הקודם פחות מאורך הטווח — מתמזגת לתוכו. */
+  const sec = /^(\d+)m$/.test(iv) ? +RegExp.$1 * 60 : 0, n = out.t.length;
+  if (sec && n > 1 && out.t[n - 1] - out.t[n - 2] < sec) {
+    out.h[n - 2] = Math.max(out.h[n - 2], out.h[n - 1]); out.l[n - 2] = Math.min(out.l[n - 2], out.l[n - 1]);
+    out.c[n - 2] = out.c[n - 1]; out.v[n - 2] += out.v[n - 1];
+    for (const k of ['t', 'o', 'h', 'l', 'c', 'v']) out[k].pop();
   }
   out.tz = String(meta.exchangeTimezoneName || 'America/New_York');
   out.cur = String(meta.currency || '').toUpperCase() === 'ILA' ? 'ILS' : String(meta.currency || '');

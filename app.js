@@ -138,6 +138,16 @@ he: {
   kcAlertMax: 'עד 20 התראות למניה',
   kcNoAlerts: 'אין התראות',
   kcAlertNoteOpen: 'אפשר לגרור את קו ההתראה בגרף.',
+  kcPre: 'טרום',
+  kcPost: 'אחרי',
+  kcToNow: 'חזרה לזמן אמת',
+  kcMore: 'עוד',
+  kcColor: 'צבע',
+  kcRangesT: 'טווח תצוגה',
+  kcScaleN: 'רגיל',
+  kcPlusAt: 'פעולות במחיר הזה',
+  kcAlertAt: 'התראה ב־{p}',
+  kcHLineAt: 'קו אופקי ב־{p}',
   kcExpand: 'גרף נרות במסך מלא',
   kcBgOn: 'ההתראות נשלחות לטלפון גם כשהאפליקציה סגורה',
   kcBgOff: 'כרגע ההתראות פועלות רק כשמסך הגרף פתוח',
@@ -1651,6 +1661,16 @@ en: {
   kcAlertMax: 'Up to 20 alerts per symbol',
   kcNoAlerts: 'No alerts',
   kcAlertNoteOpen: 'You can drag the alert line on the chart.',
+  kcPre: 'Pre',
+  kcPost: 'Post',
+  kcToNow: 'Scroll to real time',
+  kcMore: 'More',
+  kcColor: 'Color',
+  kcRangesT: 'Range',
+  kcScaleN: 'Regular',
+  kcPlusAt: 'Actions at this price',
+  kcAlertAt: 'Add alert at {p}',
+  kcHLineAt: 'Draw horizontal line at {p}',
   kcExpand: 'Full-screen candlestick chart',
   kcBgOn: 'Alerts reach your phone even when the app is closed',
   kcBgOff: 'For now, alerts only work while the chart screen is open',
@@ -6845,8 +6865,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.70.1';
-const APP_VERSION = 'v590';
+const APP_RELEASE = '2.73.1';
+const APP_VERSION = 'v593';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');

@@ -44,7 +44,11 @@ html.kc-open { overflow: hidden; }
 .kc-pxrow { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
 .kc-pxrow.sm { font-size: 12px; color: var(--kc-ink2); }
 .kc-px { font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
-.kc-ch, .kc-ext { font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; font-size: 13px; }
+.kc-ch { font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; font-size: 13px; }
+.kc-ext:empty { display: none; }
+.kc-ext.ext-sess { font-size: 11.5px; padding: 1px 8px; align-self: center; }
+.kc-ext .ext-pct { direction: ltr; unicode-bidi: isolate; }
+.kc-ext .ext-lbl.sm { display: none; }
 .kc-mst.live { color: var(--kc-up); }
 .kc-top-end { display: flex; align-items: center; gap: 2px; margin-inline-start: auto; }
 
@@ -77,6 +81,11 @@ html.kc-open { overflow: hidden; }
 .kc-grid[data-l="4"] > .kc-cell:first-child { grid-column: 1 / 3; }
 .kc-grid[data-l="5"] { grid-template: 1fr 1fr / 1fr 1fr; }
 .kc-cell { position: relative; background: var(--kc-bg); min-width: 0; min-height: 0; }
+/* ">>" חזרה לזמן אמת — ליד ציר המחיר, שתמיד מימין בקנבס (לכן right פיזי, כמו .kc-expand) */
+.kc-now { position: absolute; right: 66px; bottom: 34px; z-index: 5; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--pill); color: var(--kc-ink); background: var(--kc-glass); -webkit-backdrop-filter: saturate(180%) blur(14px); backdrop-filter: saturate(180%) blur(14px); box-shadow: 0 0 0 .5px rgba(0,0,0,.12), 0 1px 3px rgba(0,0,0,.1); opacity: 0; transform: scale(.85); pointer-events: none; transition: opacity .18s, transform .18s; }
+.kc-now.on { opacity: 1; transform: none; pointer-events: auto; }
+.kc-now:active { transform: scale(.9); }
+.kc-now svg { width: 16px; height: 16px; stroke-width: 2.2; }
 .kc-grid:not([data-l="1"]) .kc-cell.act { box-shadow: inset 0 0 0 2px var(--kc-acc-c); }
 .kc-host { position: absolute; inset: 0; touch-action: none; }
 .kc-cell::before { content: ''; position: absolute; top: 0; inset-inline: 0; height: 2px; z-index: 4; background: linear-gradient(90deg, transparent, var(--kc-acc), transparent); background-size: 40% 100%; background-repeat: no-repeat; opacity: 0; transition: opacity .2s; pointer-events: none; }
@@ -215,20 +224,64 @@ html.kc-open { overflow: hidden; }
 .kc-stat > span { font-size: 12px; color: var(--kc-ink2); }
 .kc-stat > b { font-size: 17px; font-variant-numeric: tabular-nums; direction: ltr; text-align: start; }
 
+/* טלפון — סרגל תחתון כמו TradingView (במחשב מוסתר) */
+.kc-mbar { display: none; align-items: center; gap: 2px; padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px)); border-top: .5px solid var(--kc-sep); background: var(--kc-glass); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); flex: none; direction: ltr; }
+.kc-mb { height: 40px; min-width: 40px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--pill); color: var(--kc-ink); flex: none; }
+.kc-mb svg { width: 22px; height: 22px; }
+.kc-mb:active { background: var(--kc-hov); }
+.kc-mb.on { color: var(--kc-acc-ink); background: var(--kc-acc-c); }
+.kc-mb:disabled { opacity: .35; }
+.kc-mb.txt { font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; min-width: 44px; }
+.kc-mb.sym { max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; line-height: 40px; }
+.kc-mbar .kc-sep { margin-inline-end: auto; }
+.kc-mbar.draw { justify-content: space-between; }
+.kc-mbar.draw .kc-mb:first-child { color: var(--kc-acc-ink); }
+/* גלגלת iOS שנפתחת בגרירה על הסימבול / הטווח */
+.kc-wheel { position: absolute; z-index: 30; left: 50%; top: 42%; transform: translate(-50%, -50%); min-width: 150px; padding: 6px 0; border-radius: var(--radius-sm); background: var(--kc-glass); -webkit-backdrop-filter: saturate(180%) blur(24px); backdrop-filter: saturate(180%) blur(24px); box-shadow: var(--kc-shadow); text-align: center; pointer-events: none; }
+.kc-wh-i { height: 30px; line-height: 30px; font-size: 15px; font-variant-numeric: tabular-nums; color: var(--kc-ink2); }
+.kc-wh-i.d0 { font-size: 18px; font-weight: 700; color: var(--kc-ink); background: var(--kc-hov); }
+.kc-wh-i.d1 { opacity: .7; }
+.kc-wh-i.d2 { opacity: .35; font-size: 13px; }
+/* "+" ליד הצלב בציר המחיר — הציר תמיד מימין בקנבס (right פיזי, כמו .kc-now) */
+.kc-plus { position: absolute; z-index: 6; width: 24px; height: 24px; margin-top: -12px; display: none; align-items: center; justify-content: center; border-radius: 50%; color: var(--kc-ink); background: var(--kc-panel); box-shadow: 0 0 0 .5px rgba(0,0,0,.18), 0 1px 3px rgba(0,0,0,.12); }
+.kc-plus.on { display: inline-flex; }
+.kc-plus svg { width: 14px; height: 14px; stroke-width: 2.4; }
+/* מדידה מהירה — בפינה העליונה ליד הציר (בטלפון) */
+.kc-qm { position: absolute; z-index: 5; top: 46px; right: 64px; display: none; gap: 0; padding: 2px; border-radius: var(--pill); background: var(--kc-glass); -webkit-backdrop-filter: saturate(180%) blur(14px); backdrop-filter: saturate(180%) blur(14px); box-shadow: 0 0 0 .5px rgba(0,0,0,.12); }
+.kc-qm .kc-ib { width: 32px; height: 30px; }
+.kc-ranges.wrap { flex-wrap: wrap; gap: 4px; direction: ltr; }
+.kc-swatch, .kc-wcyc { display: none; }
+.kc-swatch { width: 22px !important; height: 22px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .15); margin: 0 4px; }
+
 /* טלפון: בלי הסרגל האנכי ורשימת המעקב בצד — כפתור כלים צף; גיליונות מלמטה */
 @media (max-width: 720px) {
   .kc-side { display: none; }
-  .kc-fab { display: inline-flex; }
+  /* כמו TradingView בטלפון: בלי שורת הטווחים והכלים למעלה, בלי הסרגל התחתון של המחשב ובלי הכפתור הצף —
+     הכל בסרגל התחתון (סימבול · טווח · ציור · אינדיקטורים · עוד · בטל) */
+  .kc-bar, .kc-foot, .kc-fab, .kc-fab.on, .kc-top-end .kc-undo, .kc-top-end .kc-redo { display: none !important; }
+  .kc-mbar { display: flex; }
+  .kc-qm { display: flex; }
+  .kc-drawing .kc-qm { display: none; }
+  .kc-cols, .kc-wids, .kc-sel-n { display: none; }
+  .kc-selbar.pal .kc-cols { display: flex; }
+  .kc-swatch, .kc-wcyc { display: inline-flex; }
   .kc-tb > span { display: none; }
   .kc-tb { padding: 0 7px; }
   .kc-name { max-width: 28vw; }
-  .kc-quote .kc-pxrow.sm { display: none; }
-  .kc-quote { overflow: hidden; }
-  .kc-quote .kc-pxrow:first-child { flex-direction: column; align-items: flex-start; gap: 0; }
+  .kc-quote .kc-mst, .kc-cur { display: none; }   /* בטלפון כמו בכרטיס: מחיר + גלולה, ומתחת השינוי של היום */
+  .kc-quote { flex: none; }   /* המחיר לעולם לא נחתך ("20.19" במקום 620.19) — השם מתכווץ במקומו */
+  .kc-symbtn { flex: 0 1 auto; overflow: hidden; }
+  .kc-sym { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kc-quote .kc-pxrow { gap: 6px; }
+  .kc-quote .kc-ext.ext-sess { font-size: 10.5px; padding: 1px 6px; column-gap: 4px; }
+  .kc-quote .kc-ext .ext-dot { width: 6px; height: 6px; }
+  .kc-ext .ext-lbl.lg { display: none; }
+  .kc-ext .ext-lbl.sm { display: inline; }
   .kc-px { font-size: 15px; }
   .kc-ch { font-size: 11.5px; }
   .kc-logo { display: none; }
   .kc-symbtn { padding: 4px; }
+  .kc-top-end { flex: none; }
   .kc-top-end .kc-ib { width: 34px; }
   .kc-watch.on { position: absolute; inset-block: 0; inset-inline-end: 0; z-index: 12; background: var(--kc-panel); box-shadow: var(--kc-shadow); width: 200px; }
   .kc-clock { display: none; }
@@ -238,7 +291,8 @@ html.kc-open { overflow: hidden; }
   .kc-sheet, .kc-sheet.wide { width: 100%; max-height: 82vh; border-radius: var(--radius) var(--radius) 0 0; padding-bottom: env(safe-area-inset-bottom, 0px); animation: kc-up .2s cubic-bezier(.2, .8, .2, 1); }
   .kc-sheet::before { content: ''; display: block; width: 36px; height: 5px; border-radius: var(--pill); background: var(--kc-sep); margin: 6px auto 0; flex: none; }
   @keyframes kc-up { from { transform: translateY(40px); opacity: .4; } }
-  .kc-selbar, .kc-hint { top: calc(104px + env(safe-area-inset-top, 0px)); }
+  .kc-selbar, .kc-hint { top: calc(62px + env(safe-area-inset-top, 0px)); }
+  .kc-repbar { bottom: calc(60px + env(safe-area-inset-bottom, 0px)); }
 }
 @media (max-width: 440px) {
   .kc-top-end .kc-ib:nth-child(3) { display: none; }   /* צילום מסך — גם בגיליון ההגדרות */
