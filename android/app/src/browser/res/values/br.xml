@@ -183,6 +183,9 @@
     <string name="brSyncWait">מחכה לתוסף במחשב</string>
     <string name="brSyncWaitSub">מתקינים את התוסף ב־Chrome במחשב ומתחברים שם עם אותו חשבון</string>
     <string name="brSyncErr">הסנכרון נעצר</string>
+    <string name="brSyncDropT">Chrome הראה הרבה פחות סימניות</string>
+    <string name="brSyncDropS">בטלפון %2$d סימניות מ־Chrome, ועכשיו Chrome מראה רק %1$d — אולי התנתקת מהחשבון ב־Chrome. הן לא נמחקו כאן.</string>
+    <string name="brSyncDropOk">לעדכן גם כאן (למחוק)</string>
     <string name="brSyncErrAuth">צריך להתחבר שוב עם Google</string>
     <string name="brSyncErrNet">אין חיבור — ננסה שוב לבד</string>
     <string name="brSyncWhat">מה מסתנכרן</string>
@@ -272,6 +275,8 @@
     <string name="brBack">חזרה</string>
     <string name="brYouAndGoogle">‏החשבון ו־Chrome</string>
     <string name="brMarksMobile">סימניות בנייד</string>
+    <string name="brMarksBar">סרגל הסימניות</string>
+    <string name="brMarksOther">סימניות אחרות</string>
     <string name="brCloudTitle">סנכרון</string>
     <string name="brCloudHero">כל מה שלך — בכל מכשיר</string>
     <string name="brCloudHeroSub">סימניות, היסטוריה, כרטיסיות פתוחות והגדרות מסתנכרנים בין כל המכשירים שמחוברים לאותו חשבון Google, ונשמרים בגיבוי ב־Google Drive שלך.</string>

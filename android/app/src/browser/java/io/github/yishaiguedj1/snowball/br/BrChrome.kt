@@ -30,7 +30,7 @@ object BrChrome {
     private const val API = "https://www.googleapis.com/drive/v3/files"
     private const val UP = "https://www.googleapis.com/upload/drive/v3/files"
     const val EXT_ZIP = "https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/studio-browser-chrome.zip"
-    private const val VIS_MAX = 500
+    private const val VIS_MAX = 5000   // ביקורים שמחכים ל־Chrome (בלי רשת הרבה זמן)
     private const val MIN_GAP = 60_000L
 
     private lateinit var dir: File
@@ -39,9 +39,14 @@ object BrChrome {
     private val io = Executors.newSingleThreadExecutor()
     private val ops = ArrayList<BrSync.Op>()
     private val vis = ArrayList<BrVisit>()
+    /** ההיסטוריה: מה ש־Chrome הראה בפעם הקודמת (מפתח ביקור → זמן) — מחיקה ב־Chrome = היה ועכשיו לא; ומה שמחקת כאן ועוד לא נמחק שם */
+    private var prevHist: Map<String, Long> = emptyMap()
+    private val hgone = HashMap<String, Long>()
     @Volatile private var busy = false
     private var lastRun = 0L
     var onChange: (() -> Unit)? = null
+    /** התיקיות של Chrome (גם ריקות) — למסך הסימניות (BrSync.entries); מתעדכן עם state.json */
+    @Volatile var dirs: List<BrSync.Dir> = emptyList()
 
     val on get() = ::sp.isInitialized && sp.getBoolean("on", false)
     /** מתי התוסף כתב לאחרונה (0 = עוד לא הגיע ממנו כלום), מתי סנכרנו כאן, והשגיאה האחרונה (קוד) */
@@ -50,18 +55,33 @@ object BrChrome {
     val err: String get() = sp.getString("err", "") ?: ""
     var marksOn: Boolean get() = sp.getBoolean("pm", true); set(v) { sp.edit().putBoolean("pm", v).apply() }
     var histOn: Boolean get() = sp.getBoolean("ph", true); set(v) { sp.edit().putBoolean("ph", v).apply() }
+    /** התור של הטלפון (ops.json): מזהה אקראי — התקנה מחדש / ניקוי = תור חדש, והתוסף מתחיל את ה־ack מאפס (אחרת המספור מ־1 היה נזרק) */
+    private val epoch: String get() = sp.getString("ep", null) ?: java.util.UUID.randomUUID().toString().take(12).also { sp.edit().putString("ep", it).apply() }
+    /** Chrome הראה פתאום הרבה פחות סימניות (התנתקות מחשבון ב־Chrome, מיזוג של Chrome Sync…) — לא מוחקים כאן עד שמאשרים: "חדש/קודם" */
+    val drop: String get() = sp.getString("drop", "") ?: ""
+    fun acceptDrop(ctx: Context) { sp.edit().putBoolean("dropOk", true).apply(); sync(ctx, force = true) }
 
     fun init(ctx: Context) {
         if (::sp.isInitialized) return
         sp = BrUsers.prefs(ctx, "br_chrome")
         dir = BrUsers.dir(ctx)
+        runCatching { val a = JSONArray(sp.getString("dirs", "[]")); dirs = (0 until a.length()).mapNotNull { a.optJSONObject(it)?.let { o -> BrSync.Dir(o.optString("p"), o.optInt("i", -1)) } } }
         runCatching {
             val o = JSONObject(File(dir, "chrome-ops.json").readText())
             o.optJSONArray("ops")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { ops += opOf(it) } }
             o.optJSONArray("vis")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { vis += BrVisit(it.optString("u"), it.optString("t"), it.optLong("at")) } }
+            o.optJSONObject("hg")?.let { g -> g.keys().forEach { k -> hgone[k] = g.optLong(k) } }
         }
+        runCatching { val o = JSONObject(File(dir, "chrome-hist.json").readText()); prevHist = o.keys().asSequence().associateWith { o.optLong(it) } }
         BrStore.onMark = { add, m -> if (on && marksOn && BrCloud.chromeOwner()) record(if (add) "add" else "del", m) }
-        BrStore.onVisit = { v -> if (on && histOn && BrCloud.chromeOwner()) synchronized(vis) { vis += v; while (vis.size > VIS_MAX) vis.removeAt(0); saveLocal() } }
+        BrStore.onVisit = { v -> if (on && histOn && BrCloud.chromeOwner()) { synchronized(vis) { vis += v; while (vis.size > VIS_MAX) vis.removeAt(0) }; saveSoon() } }
+        // ביקור שמחקת כאן: עוד לא יצא ל־Chrome — פשוט לא יוצא; כבר שם — נמחק שם (hdel), ועד אז לא חוזר מ־Chrome (hgone)
+        BrStore.onVisitDel = { v -> if (on && histOn && BrCloud.chromeOwner()) {
+            val k = BrSync.visitKey(v.url, v.at)
+            val queued = synchronized(vis) { vis.removeAll { BrSync.visitKey(it.url, it.at) == k } }
+            if (!queued) { synchronized(ops) { ops += BrSync.Op(nextSeq(), "hdel", "", v.url, "", v.at) }; synchronized(hgone) { hgone[k] = v.at } }
+            saveSoon(); soon()
+        } }
     }
 
     private fun opOf(o: JSONObject) = BrSync.Op(o.optLong("s"), o.optString("k"), o.optString("id"), o.optString("u"), o.optString("t"), o.optLong("at"))
@@ -70,8 +90,13 @@ object BrChrome {
     private fun saveLocal() {
         val o = JSONObject().put("ops", JSONArray().apply { synchronized(ops) { ops.forEach { put(opJson(it)) } } })
             .put("vis", JSONArray().apply { synchronized(vis) { vis.forEach { put(JSONObject().put("u", it.url).put("t", it.title).put("at", it.at)) } } })
+            .put("hg", JSONObject().apply { synchronized(hgone) { hgone.forEach { (k, at) -> put(k, at) } } })
         runCatching { val t = File(dir, "chrome-ops.json.tmp"); t.writeText(o.toString()); t.renameTo(File(dir, "chrome-ops.json")) }
     }
+
+    /** ניקוי היסטוריה = אלפי מחיקות ברצף — שמירה אחת בסוף */
+    private val saveTask = Runnable { saveLocal() }
+    private fun saveSoon() { ui.removeCallbacks(saveTask); ui.post(saveTask) }
 
     private fun nextSeq(): Long { val s = sp.getLong("seq", 0L) + 1; sp.edit().putLong("seq", s).apply(); return s }
 
@@ -111,8 +136,9 @@ object BrChrome {
         BrCloud.claimChrome()
         // פעם ראשונה: כל הסימניות שכאן נשלחות לתוסף (הוא לא מוסיף מה שכבר יש ב־Chrome)
         if (!sp.getBoolean("seeded", false)) {
-            val seeded = BrStore.marks.map { it.copy(sid = it.sid.ifEmpty { "a" + nextSeq() }) }
-            synchronized(ops) { for (m in seeded) ops += BrSync.Op(nextSeq(), "add", m.sid, m.url, m.title, m.at) }
+            // רק מה שנשמר כאן — לא מה שיובא מ־Chrome (ייבוא ישן): סימנייה שמחקת מאז ב־Chrome לא חוזרת אליו
+            val seeded = BrStore.marks.map { if (it.imp) it else it.copy(sid = it.sid.ifEmpty { "a" + nextSeq() }) }
+            synchronized(ops) { for (m in seeded) if (!m.imp) ops += BrSync.Op(nextSeq(), "add", m.sid, m.url, m.title, m.at) }
             BrStore.replaceMarks(seeded)
             sp.edit().putBoolean("seeded", true).apply(); saveLocal()
         }
@@ -121,8 +147,8 @@ object BrChrome {
     }
 
     fun disable() {
-        sp.edit().putBoolean("on", false).putBoolean("seeded", false).putLong("sat", 0).apply()
-        synchronized(ops) { ops.clear() }; synchronized(vis) { vis.clear() }; saveLocal()
+        sp.edit().putBoolean("on", false).putBoolean("seeded", false).putLong("sat", 0).remove("dirs").remove("drop").putBoolean("dropOk", false).apply(); dirs = emptyList()
+        synchronized(ops) { ops.clear() }; synchronized(vis) { vis.clear() }; synchronized(hgone) { hgone.clear() }; prevHist = emptyMap(); File(dir, "chrome-hist.json").delete(); saveLocal()
         // הסימניות שכבר כאן נשארות — בלי המזהים של הסנכרון
         BrStore.replaceMarks(BrStore.marks.map { it.copy(sid = "") })
         onChange?.invoke()
@@ -164,7 +190,7 @@ object BrChrome {
         // 1) מה שקרה כאן → ops.json (התוסף קורא)
         val myOps = synchronized(ops) { ops.toList() }
         val myVis = synchronized(vis) { vis.toList() }
-        val out = JSONObject().put("v", 1).put("dev", "app").put("at", System.currentTimeMillis())
+        val out = JSONObject().put("v", 1).put("e", epoch).put("dev", "app").put("at", System.currentTimeMillis())
             .put("ops", JSONArray().apply { myOps.forEach { put(opJson(it)) } })
             .put("vis", JSONArray().apply { myVis.forEach { put(JSONObject().put("u", it.url).put("t", it.title).put("at", it.at)) } })
         write(t, "ops.json", out.toString())
@@ -174,16 +200,39 @@ object BrChrome {
             val ack = st.optLong("ack"); val vat = st.optLong("vat")
             val alias = HashMap<String, String>(); st.optJSONObject("alias")?.let { a -> a.keys().forEach { k -> alias[k] = a.optString(k) } }
             val sm = ArrayList<BrSync.SMark>()
-            st.optJSONArray("marks")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { sm += BrSync.SMark(it.optString("id"), it.optString("u"), it.optString("t"), it.optLong("at"), it.optString("o")) } }
+            st.optJSONArray("marks")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { sm += BrSync.SMark(it.optString("id"), it.optString("u"), it.optString("t"), it.optLong("at"), it.optString("o"), it.optString("r"), it.optString("p"), it.optInt("i", -1)) } }
+            val dl = ArrayList<BrSync.Dir>()
+            st.optJSONArray("dirs")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { dl += BrSync.Dir(BrSync.folderPath(it.optString("r"), it.optString("p")), it.optInt("i", -1)) } }
             val hist = ArrayList<BrImport.Item>()
             st.optJSONArray("hist")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { hist += BrImport.Item(it.optString("u"), it.optString("t"), it.optLong("at")) } }
-            synchronized(ops) { ops.removeAll { it.s <= ack } }
+            // ack שייך לתור הזה רק כשה־epoch שלו זהה (תוסף ישן בלי ackE — כמו קודם)
+            if (!st.has("ackE") || st.optString("ackE") == epoch) synchronized(ops) { ops.removeAll { it.s <= ack } }
             synchronized(vis) { vis.removeAll { it.at <= vat } }
             saveLocal()
             val pending = synchronized(ops) { ops.toList() }
             ui.post {
-                if (marksOn) BrStore.replaceMarks(BrSync.applyState(sm, pending, alias))
-                if (histOn) BrStore.addVisits(hist)
+                if (marksOn) {
+                    val had = BrStore.marks.count { it.sid.startsWith("n") }
+                    if (BrSync.bigDrop(had, sm.size) && !sp.getBoolean("dropOk", false)) sp.edit().putString("drop", "${sm.size}/$had").apply()
+                    else {
+                        sp.edit().remove("drop").putBoolean("dropOk", false).apply()
+                        dirs = dl; sp.edit().putString("dirs", JSONArray().apply { dl.forEach { put(JSONObject().put("p", it.path).put("i", it.i)) } }.toString()).apply()
+                        BrStore.replaceMarks(BrSync.applyState(sm, pending, alias))
+                    }
+                }
+                if (histOn) {
+                    if (st.has("hfrom")) {
+                        // תוסף 1.1+: כל הביקורים — מוסיפים מה שחסר, ומוחקים רק מה ש־Chrome מחק (BrSync.planChromeHist)
+                        val pendDel = synchronized(ops) { ops.filter { it.k == "hdel" }.mapTo(HashSet()) { BrSync.visitKey(it.u, it.at) } }
+                        val gone = synchronized(hgone) { HashSet(hgone.keys) }
+                        val plan = BrSync.planChromeHist(BrStore.history, hist, prevHist, st.optLong("hfrom"), gone)
+                        BrStore.applyChromeHistory(plan.add, plan.remove)
+                        prevHist = plan.cur
+                        synchronized(hgone) { hgone.keys.retainAll { it in plan.cur || it in pendDel } }
+                        runCatching { val f = File(dir, "chrome-hist.json.tmp"); f.writeText(JSONObject(plan.cur as Map<*, *>).toString()); f.renameTo(File(dir, "chrome-hist.json")) }
+                        saveLocal()
+                    } else BrStore.addVisits(hist)   // תוסף ישן: רק הביקור האחרון בכל כתובת — מוסיפים בלבד
+                }
             }
             sp.edit().putLong("sat", st.optLong("at")).apply()
         }

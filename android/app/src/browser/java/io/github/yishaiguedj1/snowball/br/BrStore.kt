@@ -15,11 +15,12 @@ import java.io.File
 data class BrVisit(val url: String, val title: String, val at: Long)
 // imp = יובאה מ־Chrome (התיקייה "מיובאות מ־Chrome"); x = מתי יצאה ל־Chrome בקובץ (0 = עוד לא) — BrSync.toExport
 // sid = המזהה בסנכרון עם Chrome (n… = הסימנייה ב־Chrome, a… = נשמרה כאן ועוד לא הגיעה) — BrChrome
-data class BrMark(val url: String, val title: String, val at: Long, val imp: Boolean = false, val x: Long = 0L, val sid: String = "")
+// f = התיקייה כמו ב־Chrome: "b/Learning/x" (b סרגל, o אחרות, m נייד); ריק = נשמרה כאן (בנייד) — BrSync.folderOf; i = המקום בתיקייה ב־Chrome (‎-1 = עוד לא שם — בסוף)
+data class BrMark(val url: String, val title: String, val at: Long, val imp: Boolean = false, val x: Long = 0L, val sid: String = "", val f: String = "", val i: Int = -1)
 data class BrTabRec(val url: String, val title: String)
 
 object BrStore {
-    private const val HISTORY_MAX = 5000
+    private const val HISTORY_MAX = 20000   // כמו 90 יום של Chrome (התוסף שולח עד 20,000 ביקורים)
     private lateinit var dir: File
     private val ui = Handler(Looper.getMainLooper())
     val history = ArrayList<BrVisit>()   // מהישן לחדש
@@ -31,12 +32,14 @@ object BrStore {
     /** הסנכרון עם Chrome (BrChrome) מקשיב: סימנייה נוספה / נמחקה, וביקור — רק מה שקרה כאן, לא מה שהגיע מ־Chrome */
     var onMark: ((add: Boolean, m: BrMark) -> Unit)? = null
     var onVisit: ((BrVisit) -> Unit)? = null
+    /** ביקור שמחקת כאן (לא בגלל התקרה) — BrChrome מעביר ל־Chrome */
+    var onVisitDel: ((BrVisit) -> Unit)? = null
 
     fun init(ctx: Context) {
         if (::dir.isInitialized) return
         dir = BrUsers.dir(ctx)   // לכל משתמש בדפדפן — תיקייה משלו (הראשי: filesDir/br)
         read("history.json")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { history.add(BrVisit(it.optString("u"), it.optString("t"), it.optLong("a"))) } }
-        read("marks.json")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { marks.add(BrMark(it.optString("u"), it.optString("t"), it.optLong("a"), it.optBoolean("i"), it.optLong("x"), it.optString("s"))) } }
+        read("marks.json")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { marks.add(BrMark(it.optString("u"), it.optString("t"), it.optLong("a"), it.optBoolean("i"), it.optLong("x"), it.optString("s"), it.optString("f"), it.optInt("n", -1))) } }
         read("gone.json")?.let { a -> for (i in 0 until a.length()) a.optString(i).takeIf { it.isNotEmpty() }?.let { gone.add(it) } }
     }
 
@@ -64,7 +67,7 @@ object BrStore {
         rev++
         if (!::dir.isInitialized) return
         write("history.json", JSONArray().apply { history.forEach { put(JSONObject().put("u", it.url).put("t", it.title).put("a", it.at)) } })
-        write("marks.json", JSONArray().apply { marks.forEach { put(JSONObject().put("u", it.url).put("t", it.title).put("a", it.at).apply { if (it.imp) put("i", true); if (it.x > 0) put("x", it.x); if (it.sid.isNotEmpty()) put("s", it.sid) }) } })
+        write("marks.json", JSONArray().apply { marks.forEach { put(JSONObject().put("u", it.url).put("t", it.title).put("a", it.at).apply { if (it.imp) put("i", true); if (it.x > 0) put("x", it.x); if (it.sid.isNotEmpty()) put("s", it.sid); if (it.f.isNotEmpty()) put("f", it.f); if (it.i >= 0) put("n", it.i) }) } })
         write("gone.json", JSONArray().apply { gone.forEach { put(it) } })
     }
 
@@ -82,8 +85,17 @@ object BrStore {
         for (i in history.indices.reversed().take(20)) if (history[i].url == url) { history[i] = history[i].copy(title = title); later(); break }
     }
 
-    fun removeVisit(v: BrVisit) { history.remove(v); histDel += BrSync.visitKey(v.url, v.at); later() }
-    fun clearHistory() { history.forEach { histDel += BrSync.visitKey(it.url, it.at) }; history.clear(); later() }
+    fun removeVisit(v: BrVisit) { history.remove(v); histDel += BrSync.visitKey(v.url, v.at); onVisitDel?.invoke(v); later() }
+    fun clearHistory() { history.forEach { histDel += BrSync.visitKey(it.url, it.at); onVisitDel?.invoke(it) }; history.clear(); later() }
+
+    /** ההיסטוריה אחרי state.json של Chrome (BrSync.planChromeHist): מה שנמחק ב־Chrome יוצא גם כאן (וגם במכשירים האחרים — histDel), בלי לחזור ל־Chrome */
+    fun applyChromeHistory(add: List<BrVisit>, remove: Set<String>) {
+        if (add.isEmpty() && remove.isEmpty()) return
+        if (remove.isNotEmpty()) history.removeAll { BrSync.visitKey(it.url, it.at).let { k -> if (k in remove) { histDel += k; true } else false } }
+        history.addAll(add); history.sortBy { it.at }
+        while (history.size > HISTORY_MAX) history.removeAt(0)
+        later()
+    }
 
     /* ---------- הסנכרון בענן (BrCloud) ---------- */
 
@@ -104,6 +116,12 @@ object BrStore {
 
     /** ההיסטוריה אחרי מיזוג מהענן — לפי הזמן, והחדשים נשארים כשעוברים את התקרה */
     fun applyCloudHistory(list: List<BrVisit>) {
+        // ביקור ממכשיר אחר → גם ל־Chrome (רק אחרון — יומיים; Chrome נותן לו את זמן הסנכרון); ביקור שנמחק במכשיר אחר → נמחק גם ב־Chrome
+        val before = history.associateBy { BrSync.visitKey(it.url, it.at) }
+        val after = list.associateBy { BrSync.visitKey(it.url, it.at) }
+        val recent = System.currentTimeMillis() - 2 * 86400000L
+        for ((k, v) in after) if (k !in before && v.at > recent) onVisit?.invoke(v)
+        if (list.size < HISTORY_MAX) for ((k, v) in before) if (k !in after) onVisitDel?.invoke(v)
         history.clear(); history.addAll(list.sortedBy { it.at })
         while (history.size > HISTORY_MAX) history.removeAt(0)
         saveNow()

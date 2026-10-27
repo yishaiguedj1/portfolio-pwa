@@ -536,7 +536,7 @@ object BrCloud {
     private fun snapshot(): HashMap<String, String> {
         if (BrStore.rev != snapRev) {
             val mh = HashMap<String, String>()
-            for (m in BrStore.marks) mh.putIfAbsent("m:" + BrSync.key(m.url), BrCloudCore.markVal(m.url, m.title, m.at, m.imp))
+            for (m in BrStore.marks) mh.putIfAbsent(BrCloudCore.markKey(BrSync.key(m.url), m.f, m.i), BrCloudCore.markVal(m.url, m.title, m.at, m.imp, m.f, m.i))
             for (v in BrStore.history) mh["h:" + BrSync.visitKey(v.url, v.at)] = BrCloudCore.visitVal(v.url, v.title, v.at)
             snapMH = mh; snapRev = BrStore.rev
         }
@@ -553,11 +553,11 @@ object BrCloud {
         fun part(p: String) = view.filterKeys { it.startsWith(p) }
         fun same(p: String) = part(p) == local.filterKeys { it.startsWith(p) }
         if (tMarks && !same("m:")) {
-            val old = BrStore.marks.associateBy { BrSync.key(it.url) }
+            val old = BrStore.marks.associateBy { BrCloudCore.markKey(BrSync.key(it.url), it.f, it.i) }
             val list = part("m:").map { (k, v) ->
                 val p = BrCloudCore.parts(v)
-                val o = old[k.removePrefix("m:")]
-                BrMark(p[0], p.getOrElse(1) { "" }, p.getOrNull(2)?.toLongOrNull() ?: 0L, p.getOrNull(3) == "1", o?.x ?: 0L, o?.sid ?: "")
+                val o = old[k]
+                BrMark(p[0], p.getOrElse(1) { "" }, p.getOrNull(2)?.toLongOrNull() ?: 0L, p.getOrNull(3) == "1", o?.x ?: 0L, o?.sid ?: "", p.getOrNull(4) ?: "", p.getOrNull(5)?.toIntOrNull() ?: -1)
             }.sortedByDescending { it.at }
             BrStore.applyCloudMarks(list)
         }

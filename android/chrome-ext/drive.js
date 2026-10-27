@@ -24,9 +24,10 @@ async function call(t, url, init = {}) {
   return r;
 }
 
+// כמה קבצים באותו שם (מרוץ, ניסיון חוזר) — תמיד הראשון שנוצר, כדי ששני הצדדים יקראו ויכתבו את אותו קובץ
 export async function find(t, name) {
   const q = encodeURIComponent(`name='${name}' and trashed=false`);
-  const r = await call(t, `${API}?spaces=appDataFolder&q=${q}&fields=files(id,modifiedTime)&pageSize=5`);
+  const r = await call(t, `${API}?spaces=appDataFolder&q=${q}&orderBy=createdTime&fields=files(id,modifiedTime,appProperties)&pageSize=10`);
   const j = await r.json();
   return (j.files || [])[0] || null;
 }
@@ -38,12 +39,20 @@ export async function readJson(t, name) {
   try { return await r.json(); } catch (e) { return null; }
 }
 
-export async function writeJson(t, name, obj) {
+/** `props` = appProperties (w = איזה Chrome כתב). מעל 4MB — העלאה מתחדשת (העלאה רגילה מוגבלת ל־5MB) */
+export async function writeJson(t, name, obj, props, found) {
   const body = JSON.stringify(obj);
-  const f = await find(t, name);
-  if (f) { await call(t, `${UP}/${f.id}?uploadType=media`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body }); return; }
+  const f = found === undefined ? await find(t, name) : found;
+  const meta = f ? { appProperties: props || {} } : { name, parents: ['appDataFolder'], appProperties: props || {} };
+  if (new Blob([body]).size > 4 * 1024 * 1024) {
+    const r = await call(t, f ? `${UP}/${f.id}?uploadType=resumable` : `${UP}?uploadType=resumable`, {
+      method: f ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': 'application/json' }, body: JSON.stringify(meta) });
+    const loc = r.headers.get('Location');
+    if (!loc) throw new Error('drive_upload');
+    await call(t, loc, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body });
+    return;
+  }
   const b = 'snb' + Date.now();
-  const meta = JSON.stringify({ name, parents: ['appDataFolder'] });
-  const multi = `--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${b}--`;
-  await call(t, `${UP}?uploadType=multipart`, { method: 'POST', headers: { 'Content-Type': 'multipart/related; boundary=' + b }, body: multi });
+  const multi = `--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${b}--`;
+  await call(t, f ? `${UP}/${f.id}?uploadType=multipart` : `${UP}?uploadType=multipart`, { method: f ? 'PATCH' : 'POST', headers: { 'Content-Type': 'multipart/related; boundary=' + b }, body: multi });
 }
