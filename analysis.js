@@ -1274,7 +1274,10 @@ const CALC_KEYS = ['base', 'g', 'm', 'yrs', 'sh', 'dv', 'lo', 'mid', 'hi', 'req'
 function calcMults(hist) {
   const t = [quant(hist, 0.25), median(hist), quant(hist, 0.75)];
   const k = t[2] > CALC_MULT_MAX ? CALC_MULT_MAX / t[2] : 1;
-  return { m: t.map((x) => Math.round(clamp(x * k, 1, CALC_MULT_MAX) * 2) / 2), raw: t, k };
+  // בכפולות של 5 (בקשת המשתמש) — ושלושה ערכים שונים: עיגול יכול לאחד שניים (25.5 / 28 / 31.5 → 25 / 30 / 30)
+  const r5 = (x) => Math.round(x * k / 5) * 5, mid = clamp(r5(t[1]), 10, CALC_MULT_MAX - 5);
+  const m = [clamp(Math.min(r5(t[0]), mid - 5), 5, mid - 5), mid, clamp(Math.max(r5(t[2]), mid + 5), mid + 5, CALC_MULT_MAX)];
+  return { m, raw: t, k };
 }
 function calcDefaults(co, want) {
   const c = ctx(co, nowP(co)), fy = fyList(co).slice(-5), ind = co.ind || {}, H = multHist(co);
