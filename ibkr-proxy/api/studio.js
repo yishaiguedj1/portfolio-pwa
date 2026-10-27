@@ -70,7 +70,7 @@ const BASE = () => 'https://firestore.googleapis.com/v1/projects/' + PROJECT() +
 const DRIVE = 'https://www.googleapis.com/drive/v3/files/';
 const UID_RE = /^[A-Za-z0-9]{6,128}$/;
 const AAD = (uid) => 'studio|' + uid + '|r';
-const WORKER_OPS = new Set(['claim', 'token', 'report', 'qa', 'r2get', 'r2wup', 'r2wparts', 'r2wdone', 'r2del', 'learnPut', 'learnMedia', 'learnMediaDone', 'srcFile']);   // 22/10/2026: srcFile — הורדה מקישור
+const WORKER_OPS = new Set(['claim', 'token', 'report', 'qa', 'r2get', 'r2wup', 'r2wparts', 'r2wdone', 'r2del', 'learnPut', 'learnMedia', 'learnMediaDone', 'srcFile', 'smPut']);   // 22/10/2026: srcFile — הורדה מקישור
 const RELAY_OPS = new Set(['rlPut', 'rlFix', 'rlWait', 'rlEnd', 'rlNext', 'rlMark']);   // 24/10/2026: rlPut…rlEnd = העובד (kh), rlNext/rlMark = ה־Routine (rkh)
 // 24/10/2026: תרגום בטלפון — Studio לאנדרואיד (נייטיב, בלי Origin ובלי התחברות) עם מפתח לעבודה אחת (pkh — רק ה־hash)
 const PHONE_OPS = new Set(['phUp', 'phParts', 'phDone', 'phFile', 'phStart', 'phJob', 'phGet', 'phBurn', 'phProg', 'phAlive', 'phClaim']);   // phClaim — 25/10/2026, שלב 3: הטלפון לוקח את העבודה ומריץ אותה
@@ -385,6 +385,23 @@ const learnCfg = (env = process.env) => R2.config({ R2_ACCOUNT_ID: env.R2L_ACCOU
    אותה בקשה ל־Vercel (installFailover ב־firebase-config.js). בלי הדלי בשום מקום (בלי הדגל) — כמו קודם */
 const learnRemote = (env = process.env) => env.SNB_LEARN_REMOTE === '1' && !learnCfg(env).ok;
 const LEARN_REMOTE_OPS = new Set(['learnForget', 'learn', 'adminDm']);   // adminDm — יומני Studio DM (24/10)
+/* 28/10/2026: זיכרון סדרה — sm/<uid>.json ב־R2 (lib/studio.js: seriesOf, smMerge). המפתח של הסדרה — משם הקובץ שבעבודה,
+   לא ממה שהעובד שולח. בלי R2 / בלי סדרה בשם / תקלה — בלי זיכרון (העבודה לא נעצרת בגלל זה) */
+async function smRead(deps, job) {
+  const ser = S.jobSeries(job), c = R2.config(), key = S.smKey(job.uid);
+  if (!ser || !c.ok || !key) return null;
+  try { return S.smForWorker(S.smParse(await R2.getText(c, r2deps(deps), key, S.SM_BYTES)), ser); } catch (e) { return null; }
+}
+async function smPut(deps, job, sm, now) {
+  const ser = S.jobSeries(job), c = R2.config(), key = S.smKey(job.uid);
+  if (job.kind !== 'tr' || !ser || !c.ok || !key) return false;
+  const add = S.normSm(sm);
+  if (!add.gl.length && !add.ch.length) return false;
+  const rd = r2deps(deps);
+  const doc = S.smParse(await R2.getText(c, rd, key, S.SM_BYTES).catch(() => null));
+  await R2.putText(c, rd, key, JSON.stringify(S.smMerge(doc, ser, add, now)), 'application/json');
+  return true;
+}
 async function learnPut(deps, job, b64, now) {
   try {
     const c = learnCfg();
@@ -2263,6 +2280,7 @@ async function worker(req, res, body, deps) {
       }
       const full = (await learnFull(deps, job, stats)) ? 1 : 0;   // האיסוף המלא: העובד שולח גם את קבצי הטקסט ואת יומן הקריאות
       const wj = S.workerJob(job, nm, S.fbForWorker(stats.fb), stats.fm, stats.rl, gl);
+      if (job.kind === 'tr') { const sm = await smRead(deps, job); if (sm) wj.sm = sm; }   // 28/10/2026: זיכרון הסדרה (או בלי)
       if (hubJob(job)) wj.rh = RELAY_HUB();   // 24/10/2026: Claude דרך התור — לאן לשלוח (25/10: גם בתרגום בטלפון — השרת עונה)
       return res.status(200).json({ ok: true, job: wj, drive: await driveFor(), pir, full, now });
     }
@@ -2275,6 +2293,7 @@ async function worker(req, res, body, deps) {
       }
       return res.status(200).json({ ok: true, drive: await driveFor(), now });
     }
+    if (body.op === 'smPut') return res.status(200).json({ ok: true, saved: await smPut(deps, job, body.sm, now), now });   // 28/10/2026: זיכרון הסדרה
     if (body.op === 'learnPut') return res.status(200).json({ ok: true, saved: await learnPut(deps, job, body.lc, now), now });   // מ׳2
     if (body.op === 'learnMedia') return res.status(200).json(Object.assign({ ok: true, now }, (await learnMedia(deps, job, String(body.k || ''), now)) || { skip: true }));   // מ׳4
     if (body.op === 'learnMediaDone') return res.status(200).json({ ok: true, saved: await learnMediaDone(deps, job, String(body.k || '')), now });
