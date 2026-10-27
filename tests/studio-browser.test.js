@@ -214,4 +214,27 @@ ok(fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yis
   ok(!/"--print"/.test(eng) && /"--newline"/.test(eng) && /DlProbe\.outFile\(dir\)/.test(eng), 'בלי ‎--print‎ (משתיק את ההתקדמות) — שורה לכל עדכון');
 }
 
+// 27/10/2026: סנכרון וגיבוי בחשבון Google בין כל המכשירים (BrCloud) — בלי השרת שלנו, קובץ לכל מכשיר, המשך מאותה נקודה
+{
+  const cl = R(B + 'BrCloud.kt');
+  const core = R(B + 'BrCloudCore.kt');
+  const cjs = R(B + 'BrCloudJs.kt');
+  const chr = R(B + 'BrChrome.kt');
+  const urls = (cl.match(/https:\/\/[a-z0-9.\-]+/g) || []);
+  ok(urls.every(u => /^https:\/\/www\.googleapis\.com$/.test(u)), 'הסנכרון מדבר רק עם Google Drive — לא עם השרת שלנו: ' + urls.join(' '));
+  ok(/const val SCOPE = "https:\/\/www\.googleapis\.com\/auth\/drive\.appdata"/.test(cl) && !/auth\/drive"/.test(cl) && !/drive\.file/.test(cl), 'הרשאה drive.appdata בלבד — התיקייה הפרטית של האפליקציה');
+  ok(/spaces=appDataFolder/.test(cl) && /parents", JSONArray\(\)\.put\("appDataFolder"\)/.test(cl), 'הקבצים רק ב־appDataFolder');
+  ok(/private fun mine\(n: String\) = n\.startsWith\("\$PREFIX\$dev-"\)/.test(cl) && /if \(!mine\(n\)\) downs \+= /.test(cl), 'כל מכשיר כותב רק את הקבצים שלו (ל־Drive v3 אין כתיבה מותנית)');
+  ok(/WEB_CLIENT = "286578855160-a5kii0glss9b883glkr698frmvekpa67\.apps\.googleusercontent\.com"/.test(cl) && cl.includes(R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmSync.kt').match(/WEB_CLIENT = "[^"]+"/)[0]), 'אותו לקוח Web של DM (לקוח Android = Developer console is not set up)');
+  ok(/getStringExtra\("snb_cloud"\)\?\.let \{ k -> BrCloud\.pendingOpen\.remove\(k\)/.test(act) && /val pendingOpen = HashMap<String, STab>\(\)/.test(cl), 'כרטיסייה מהתראה — רק מה שנשמר בתוך התהליך, לא extras מבחוץ');
+  ok(/android:name="\.br\.BrCloudJob"[\s\S]{0,120}BIND_JOB_SERVICE/.test(man) && /class BrCloudJob : JobService/.test(cl), 'סבב ברקע כל 15 דק׳ (JobScheduler)');
+  ok(/if \(prov == null && tTabs && ids\["\$\{PREFIX\}\$dev-s"\] != null\) null/.test(cl), 'ברקע לא מעלים "אין כרטיסיות" במקום הרשימה של המכשיר');
+  ok(/BrCloud\.chromeOwner\(\)/.test(chr) && /BrCloud\.claimChrome\(\)/.test(chr), 'הגשר ל־Chrome (ops.json אחד) — רק מכשיר אחד בחשבון');
+  ok(/fun takeHistDeleted\(\)/.test(store) && /histDel \+= BrSync\.visitKey/.test(store) && /k !in del/.test(cl), 'ביקור שיצא בגלל התקרה ≠ מחיקה — רק מה שמחקת נמחק בכל המכשירים');
+  ok(/if \(BrStore\.rev != snapRev\)/.test(cl), 'הסימניות/ההיסטוריה מחושבות מחדש רק כשהשתנו');
+  ok(/String\.format\(java\.util\.Locale\.ROOT/.test(core) && !/^import (android|org\.json)/m.test(core), 'הליבה טהורה (נבדקת ב־JVM), והשעון לא תלוי בשפת המכשיר');
+  ok(/textContent\|\|''\)\.length<4000/.test(cjs) && /fun withTime\(/.test(cjs) && /createTreeWalker/.test(cjs), 'המקום בדף: המשפט שבראש המסך + החלק היחסי + הזמן בסרטון, בלי לקרוא דף ענק');
+  ok(/Screen\.CLOUD -> CloudScreen\(a\)/.test(ui) && /Screen\.RECENT -> RecentScreen\(a\)/.test(ui) && /MItem\(R\.string\.brRecentTabs, BrIcons\.CDevices\)/.test(ui) && /ResumeCard\(a\)/.test(ui) && /SendSheet\(a\)/.test(ui), 'המסכים: סנכרון, כרטיסיות אחרונות, "המשך מ־", שליחה למכשירים');
+}
+
 console.log('studio-browser: ' + n + ' בדיקות עברו');

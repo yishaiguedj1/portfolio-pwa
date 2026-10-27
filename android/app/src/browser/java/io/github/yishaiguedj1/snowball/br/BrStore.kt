@@ -50,13 +50,18 @@ object BrStore {
     }
 
     /** שמירה מרוכזת — לא בכל טעינת דף */
+    /** עולה בכל שינוי — הסנכרון בענן מחשב את התמונה של הסימניות/ההיסטוריה מחדש רק כשהיא השתנתה */
+    var rev = 0L; private set
+
     private fun later() {
+        rev++
         if (dirty) return
         dirty = true
         ui.postDelayed({ dirty = false; saveNow() }, 1500)
     }
 
     fun saveNow() {
+        rev++
         if (!::dir.isInitialized) return
         write("history.json", JSONArray().apply { history.forEach { put(JSONObject().put("u", it.url).put("t", it.title).put("a", it.at)) } })
         write("marks.json", JSONArray().apply { marks.forEach { put(JSONObject().put("u", it.url).put("t", it.title).put("a", it.at).apply { if (it.imp) put("i", true); if (it.x > 0) put("x", it.x); if (it.sid.isNotEmpty()) put("s", it.sid) }) } })
@@ -77,8 +82,32 @@ object BrStore {
         for (i in history.indices.reversed().take(20)) if (history[i].url == url) { history[i] = history[i].copy(title = title); later(); break }
     }
 
-    fun removeVisit(v: BrVisit) { history.remove(v); later() }
-    fun clearHistory() { history.clear(); later() }
+    fun removeVisit(v: BrVisit) { history.remove(v); histDel += BrSync.visitKey(v.url, v.at); later() }
+    fun clearHistory() { history.forEach { histDel += BrSync.visitKey(it.url, it.at) }; history.clear(); later() }
+
+    /* ---------- הסנכרון בענן (BrCloud) ---------- */
+
+    /** ביקורים שמחקת (לא ביקורים שיצאו בגלל התקרה) — הסנכרון בענן הופך אותם למחיקה בכל המכשירים */
+    private val histDel = HashSet<String>()
+    fun takeHistDeleted(): Set<String> { val s = HashSet(histDel); histDel.clear(); return s }
+
+    /** הסימניות אחרי מיזוג מהענן. הגשר ל־Chrome (onMark) שומע רק את מה שבאמת השתנה */
+    fun applyCloudMarks(list: List<BrMark>) {
+        val before = marks.associateBy { BrSync.key(it.url) }
+        val after = list.associateBy { BrSync.key(it.url) }
+        marks.clear(); marks.addAll(list)
+        for ((k, m) in after) if (k !in before) { gone.remove(k); onMark?.invoke(true, m) }
+        for ((k, m) in before) if (k !in after) { onMark?.invoke(false, m); gone.add(k) }
+        while (gone.size > GONE_MAX) gone.remove(gone.first())
+        saveNow()
+    }
+
+    /** ההיסטוריה אחרי מיזוג מהענן — לפי הזמן, והחדשים נשארים כשעוברים את התקרה */
+    fun applyCloudHistory(list: List<BrVisit>) {
+        history.clear(); history.addAll(list.sortedBy { it.at })
+        while (history.size > HISTORY_MAX) history.removeAt(0)
+        saveNow()
+    }
 
     /** אותה סימנייה גם בכתובת שנכתבה אחרת (www, "/" בסוף, utm…) — BrSync.key */
     private fun markOf(url: String): BrMark? { val k = BrSync.key(url); return marks.firstOrNull { it.url == url || BrSync.key(it.url) == k } }

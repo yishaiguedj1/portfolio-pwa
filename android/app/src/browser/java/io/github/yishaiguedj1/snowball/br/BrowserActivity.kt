@@ -86,9 +86,9 @@ import io.github.yishaiguedj1.snowball.dm.DmStore
  * כך שהעוגיות של האתרים לא יוצאות מהאפליקציה. הממשק — BrUi.kt.
  */
 class BrowserActivity : ComponentActivity() {
-    enum class Screen { PAGE, SWITCHER, HISTORY, BOOKMARKS, SETTINGS, ENGINE, PASSWORDS, PRIVACY, BARPOS, IMPORT, CHROME, SITES, SITE, VIDEO }
+    enum class Screen { PAGE, SWITCHER, HISTORY, BOOKMARKS, SETTINGS, ENGINE, PASSWORDS, PRIVACY, BARPOS, IMPORT, CHROME, SITES, SITE, VIDEO, CLOUD, RECENT }
     /** עמודי המשנה של ההגדרות — "חזור" מהם חוזר להגדרות, לא לדף (אתר אחד — חוזר לרשימת האתרים) */
-    private val settingsSubs = setOf(Screen.ENGINE, Screen.PASSWORDS, Screen.PRIVACY, Screen.BARPOS, Screen.IMPORT, Screen.CHROME, Screen.SITES, Screen.VIDEO)
+    private val settingsSubs = setOf(Screen.ENGINE, Screen.PASSWORDS, Screen.PRIVACY, Screen.BARPOS, Screen.IMPORT, Screen.CHROME, Screen.SITES, Screen.VIDEO, Screen.CLOUD)
     data class PermAsk(val host: String, val kind: Int, val go: (Boolean) -> Unit)   // kind: 1 מצלמה, 2 מיקרופון, 3 שניהם, 4 מיקום
 
     val tabs = mutableStateListOf<BrTab>()
@@ -156,6 +156,10 @@ class BrowserActivity : ComponentActivity() {
         if (!BrChrome.connected(this, r.data)) Toast.makeText(this, R.string.brSyncNoAuth, Toast.LENGTH_LONG).show()
         chromeRev++
     }
+    private val cloudLaunch = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { r ->
+        if (!BrCloud.authorized(this, r.data)) Toast.makeText(this, R.string.brSyncNoAuth, Toast.LENGTH_LONG).show()
+        cloudRev++
+    }
     private val exportLaunch = registerForActivityResult(ActivityResultContracts.CreateDocument("text/html")) { u -> if (u != null) exportTo(u) }
     private val voiceLaunch = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         val q = r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
@@ -178,6 +182,7 @@ class BrowserActivity : ComponentActivity() {
         BrStore.init(this)
         BrPics.init(this)
         BrMedia.onCmd = { play -> ui.post { mediaCmd(play) } }
+        initCloud()
         BrChrome.init(this); BrChrome.attach(this)
         BrChrome.onChange = { chromeRev++; markRev++ }
         DmStore.init(this)
@@ -197,6 +202,7 @@ class BrowserActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); handle(intent) }
     override fun onResume() {
         super.onResume(); checkDefault(); checkFill(); cur?.web?.onResume(); BrChrome.sync(this); ui.postDelayed(chromeTick, CHROME_EVERY)
+        BrCloud.foreground(true); ui.postDelayed(measureTick, MEASURE_EVERY)
         // חזרה מניגון ברקע — הדף שוב יודע שהוא מוצג, והשירות נעצר
         if (bgOn) { bgOn = false; runCatching { bgTab?.web?.evaluateJavascript(BrShield.bgJs(false), null) }; bgTab = null; BrMedia.stop(this) }
         if (privLocked && showsPrivate()) unlockPriv()
@@ -207,7 +213,10 @@ class BrowserActivity : ComponentActivity() {
     /** כל עוד האפליקציה פתוחה — סנכרון עם Chrome כל כמה דקות (התוסף במחשב מסנכרן בקצב דומה) */
     private val chromeTick: Runnable = Runnable { BrChrome.sync(this); ui.postDelayed(chromeTick, CHROME_EVERY) }
     override fun onPause() {
-        ui.removeCallbacks(chromeTick)
+        ui.removeCallbacks(chromeTick); ui.removeCallbacks(measureTick)
+        // הסנכרון בענן: המקום המדויק בכרטיסייה, ואז הכל עולה מיד (המכשיר השני יכול להמשיך מכאן)
+        cur?.let { measure(it) }
+        ui.postDelayed({ BrCloud.foreground(false) }, 300)
         val t = cur
         when {
             isInPictureInPictureMode -> {}   // תמונה בתוך תמונה — הסרטון ממשיך
@@ -291,11 +300,84 @@ class BrowserActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        // הסבב ברקע ממשיך בלי המסך — לא מחזיקים אותו
+        BrCloud.onChange = null; BrCloud.onApplied = null; BrCloud.onIncoming = null; BrCloud.tabsProvider = null
         BrMedia.onCmd = null
         if (isFinishing) BrMedia.stop(this)
         tabs.forEach { t -> runCatching { t.web?.destroy() } }
         if (privOk) runCatching { ProfileStore.getInstance().deleteProfile(PRIV) }
         super.onDestroy()
+    }
+
+    /* ---------------- הסנכרון בענן בין המכשירים (BrCloud) ---------------- */
+
+    var cloudRev by mutableIntStateOf(0)
+    /** כרטיסייה שנשלחה לכאן ממכשיר אחר בזמן שהדפדפן פתוח: (שם המכשיר, הכרטיסייה) */
+    var incoming by mutableStateOf<Pair<String, BrCloudCore.STab>?>(null)
+    var sendSheet by mutableStateOf(false)
+    var cloudWiping by mutableStateOf(false)
+
+    private fun initCloud() {
+        BrCloud.init(this)
+        BrCloud.onChange = { cloudRev++ }
+        BrCloud.onApplied = { p -> if (p) reloadPrefs(); markRev++; cloudRev++ }
+        BrCloud.onIncoming = { s, x -> if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) { incoming = s.name to x.tab; true } else false }
+        BrCloud.tabsProvider = {
+            tabs.filter { !it.private && it.url.startsWith("http") }.sortedByDescending { it.la }.take(60)
+                .map { BrCloudCore.STab(it.url, it.title, it.la, it.sc, it.tx, it.mt) }
+        }
+        if (BrCloud.on) BrCloud.schedule(this)
+    }
+
+    /** ההגדרות השתנו מהענן (מכשיר אחר) — המסך מתעדכן */
+    private fun reloadPrefs() {
+        barBottom = prefs.barBottom; homeBtn = prefs.homeBtn; engine = prefs.engine; bubble = prefs.bubble
+        suggestOn = prefs.suggest; shield = prefs.shield; cookies = prefs.cookies; bgPlay = prefs.bgPlay; pip = prefs.pip
+        rules = BrShield.decode(prefs.sites); sitesRev++
+        if (zoom != prefs.zoom) { zoom = prefs.zoom; tabs.forEach { t -> runCatching { t.web?.settings?.textZoom = zoom } } }
+    }
+
+    /** המקום המדויק בדף — כמה נגלל, המשפט שבראש המסך והזמן בסרטון (כל MEASURE_EVERY, ובמעבר כרטיסייה/יציאה) */
+    private fun measure(t: BrTab) {
+        if (t.private || !BrCloud.on) return
+        val w = t.web ?: return
+        runCatching { w.evaluateJavascript(BrCloudJs.MEASURE) { r -> BrCloudJs.parse(r)?.let { (sc, tx, mt) -> t.sc = sc; t.tx = tx; t.mt = mt } } }
+    }
+    private val measureTick: Runnable = Runnable { cur?.let { measure(it) }; ui.postDelayed(measureTick, MEASURE_EVERY) }
+
+    /** כרטיסייה ממכשיר אחר — כרטיסייה חדשה, וכשהדף נטען חוזרים בדיוק לאותו מקום (ובסרטון — לאותו רגע) */
+    fun openRemote(st: BrCloudCore.STab) {
+        screen = Screen.PAGE; editing = false; incoming = null
+        val t = newTab(BrCloudJs.withTime(st.u, st.mt), after = cur)
+        t.restore = st
+    }
+
+    fun cloudSignIn(r: BrCloud.SignIn) {
+        when (r) {
+            is BrCloud.SignIn.Need -> runCatching { cloudLaunch.launch(IntentSenderRequest.Builder(r.s).build()) }
+            is BrCloud.SignIn.Fail -> Toast.makeText(this, getString(R.string.brCloudFail, r.why), Toast.LENGTH_LONG).show()
+            else -> {}
+        }
+        cloudRev++
+    }
+
+    fun cloudOff(wipe: Boolean) {
+        cloudWiping = wipe
+        BrCloud.signOut(wipe) { ok ->
+            cloudWiping = false
+            if (!ok) Toast.makeText(this, R.string.brCloudWipeFail, Toast.LENGTH_LONG).show()
+            cloudRev++
+        }
+    }
+
+    fun sendTo(dev: String) {
+        val t = cur ?: return
+        sendSheet = false; menu = false
+        measure(t)
+        ui.postDelayed({
+            BrCloud.send(dev, BrCloudCore.STab(t.url, t.title, System.currentTimeMillis(), t.sc, t.tx, t.mt))
+            Toast.makeText(this, R.string.brSent, Toast.LENGTH_SHORT).show()
+        }, 250)
     }
 
     private fun saveSession() {
@@ -319,6 +401,8 @@ class BrowserActivity : ComponentActivity() {
         }
         if (url.isEmpty()) return false
         screen = Screen.PAGE; editing = false
+        // כרטיסייה שנשלחה ממכשיר אחר (מההתראה) — מאותו מקום. רק מה שנשמר בתוך התהליך, לא extras מבחוץ
+        i.getStringExtra("snb_cloud")?.let { k -> BrCloud.pendingOpen.remove(k)?.let { openRemote(it); return true } }
         val t = newTab(url, fromApp = i.action == Intent.ACTION_VIEW)
         // מהבועה ב־Chrome: הצייד כאן רואה את הזרמים האמיתיים של הדף — כשנמצא משהו, רשימת ההורדה נפתחת לבד.
         // רק פותח את הרשימה — שום הורדה לא מתחילה בלי נגיעה שלך
@@ -339,7 +423,8 @@ class BrowserActivity : ComponentActivity() {
 
     fun select(t: BrTab) {
         val old = cur
-        if (old != null && old !== t) { snap(old); old.web?.onPause() }
+        if (old != null && old !== t) { snap(old); measure(old); old.web?.onPause() }
+        if (old !== t) { t.la = System.currentTimeMillis(); BrCloud.nudge(4000) }
         cur = t
         t.used = SystemClock.uptimeMillis()
         // טאב ששוחזר / שהשתחרר: עם מצב שמור — חוזר לאותו מקום; בלי — טוען את הכתובת מחדש
@@ -435,6 +520,7 @@ class BrowserActivity : ComponentActivity() {
             customView != null -> hideCustom()
             permAsk != null -> { permAsk?.go?.invoke(false); permAsk = null }
             pick -> pick = false
+            sendSheet -> sendSheet = false
             clearAsk -> clearAsk = false
             zoomSheet -> zoomSheet = false
             speedSheet -> speedSheet = false
@@ -523,6 +609,7 @@ class BrowserActivity : ComponentActivity() {
                 seen(t, req.url.toString(), headers = req.requestHeaders); return null
             }
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
+                if (url != t.page && !t.private) { t.la = System.currentTimeMillis(); t.sc = 0f; t.tx = ""; t.mt = 0f; BrCloud.nudge(4000) }
                 if (url != t.page) { t.page = url; t.vid = null; t.blocked = 0; t.playing = false; t.found.clear(); synchronized(t.headSeen) { t.headSeen.clear() }; t.recount(); autoPick(t) }
                 // 26/10/2026 (דיווח המשתמש: אחרי רענון של אותו דף הרשימה גדלה בכפילויות): מסמך חדש באותה כתובת (רענון) —
                 // הנגן מבקש את הכל מחדש, עם חתימות חדשות. מה שנמצא במסמך הקודם כבר לא רלוונטי
@@ -541,6 +628,7 @@ class BrowserActivity : ComponentActivity() {
                 navState(t, view)
             }
             override fun onPageFinished(view: WebView, url: String) {
+                t.restore?.let { r -> t.restore = null; runCatching { view.evaluateJavascript(BrCloudJs.restore(r), null) } }
                 t.url = url; t.page = url
                 view.title?.let { if (it.isNotEmpty()) { t.title = it; if (!t.private) BrStore.setTitle(url, it) } }
                 t.recount(); navState(t, view)
@@ -1152,6 +1240,7 @@ class BrowserActivity : ComponentActivity() {
         /** מהבועה ב־Chrome: כמה זמן מחכים לממצא הראשון כדי לפתוח את הרשימה לבד */
         const val HUNT_MS = 45_000L
         const val CHROME_EVERY = 5 * 60_000L
+        const val MEASURE_EVERY = 8_000L
         const val GMS = "com.google.android.gms"
         /** הצבעים של האות במקום סמל — אותם צבעים של Fav במסך */
         val FAV_COLORS = intArrayOf(0xFF1A73E8.toInt(), 0xFFEA4335.toInt(), 0xFF34A853.toInt(), 0xFFF29900.toInt(), 0xFF9334E6.toInt(), 0xFFE8710A.toInt(), 0xFF129EAF.toInt(), 0xFFD01884.toInt())
