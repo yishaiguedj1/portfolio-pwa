@@ -84,11 +84,14 @@ const ok = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exit(1); }
   ok(St.describe({ last: { at: now - 120000, ok: true, added: 3 } }, now).sub === 'לפני 2 דקות · 3 סימניות חדשות הגיעו מהטלפון', 'תיאור: אחרי סנכרון');
   ok(St.describe({ last: { at: now, err: 'auth' } }, now).warn, 'תיאור: שגיאה');
   ok(St.describe({ last: { at: now }, hold: 12 }, now).title === 'מחכה לאישור שלך', 'תיאור: מחכה לאישור');
+  ok(/לא רשום ב־Google/.test(St.connectErr({ last: { err: 'OAuth2 request failed: Service responded with error: \'bad client id: x\'' } })), 'חיבור: לקוח OAuth חסר — הודעה ברורה');
+  ok(/נסגר בלי אישור/.test(St.connectErr({ last: { err: 'The user did not approve access.' } })) && /לנסות שוב/.test(St.connectErr({})), 'חיבור: ביטול / בלי קוד');
 
   // --- המבנה של התוסף
   const man = JSON.parse(R('android/chrome-ext/manifest.json'));
   ok(man.manifest_version === 3 && man.background.type === 'module', 'MV3 + service worker כמודול');
   ok(JSON.stringify(man.oauth2.scopes) === '["https://www.googleapis.com/auth/drive.appdata"]', 'רק drive.appdata');
+  ok(/^286578855160-[a-z0-9]+\.apps\.googleusercontent\.com$/.test(man.oauth2.client_id), 'לקוח OAuth אמיתי מפרויקט ה־Firebase — לא מחזיק מקום (27/10/2026: בלעדיו "להתחבר" לא עושה כלום)');
   ok(/^[A-Za-z0-9+/=]{300,}$/.test(man.key), 'key קבוע → מזהה תוסף קבוע (ללקוח ה־OAuth)');
   for (const p of ['bookmarks', 'history', 'identity', 'storage', 'alarms']) ok(man.permissions.includes(p), 'הרשאה: ' + p);
   ok(!man.permissions.includes('tabs') && !man.host_permissions.some((h) => !/googleapis\.com/.test(h)), 'בלי הרשאות מעבר לנדרש');

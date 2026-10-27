@@ -1,5 +1,5 @@
 // החלון של התוסף: מציג את המצב שהסנכרון שמר, ושולח פקודות ל־sync.js. טקסט בלבד (textContent), בלי HTML.
-import { describe } from './status.js';
+import { describe, connectErr } from './status.js';
 
 const $ = (id) => document.getElementById(id);
 const send = (m) => chrome.runtime.sendMessage(m);
@@ -7,6 +7,8 @@ const send = (m) => chrome.runtime.sendMessage(m);
 function paint(st) {
   if (!st) return;
   $('off').hidden = st.on; $('on').hidden = !st.on;
+  $('offErr').hidden = st.on || !(st.last && st.last.err);
+  $('offErr').textContent = $('offErr').hidden ? '' : connectErr(st);
   if (!st.on) return;
   const d = describe(st, Date.now());
   $('title').textContent = d.title; $('sub').textContent = d.sub;
