@@ -114,6 +114,42 @@ class TestHaikuFiles(unittest.TestCase):
         self.assertFalse(m.available())
         self.assertIsNone(m.toks("משפט כלשהו"))
 
+    def test_disk_cache_skips_reload(self):
+        # 27/10/2026: בנייה חוזרת (תהליך חדש) עם אותו טקסט — מהמטמון, בלי לטעון את המודל
+        with tempfile.TemporaryDirectory() as td:
+            md, cf = Path(td) / "m", Path(td) / "tr" / "lb_parse.json"
+            md.mkdir()
+            (md / "model.safetensors").write_bytes(b"x" * 10)
+            loads = []
+
+            class Fake(LB.DepModel):
+                def _load(self):
+                    loads.append(1)
+                    self._m = self
+                    return True
+
+                def predict(self, chunk, tok, output_style="json"):
+                    return [{"tokens": [{"token": w, "syntax": {"dep_head_idx": -1, "dep_func": "root"}}
+                                        for w in t.split()]} for t in chunk]
+
+            import contextlib
+            import sys
+            import types
+            from unittest import mock
+            torch = types.SimpleNamespace(inference_mode=contextlib.nullcontext)
+            self.enterContext(mock.patch.dict(sys.modules, {"torch": torch}))
+            a = Fake(md, cf)
+            a.parse(["אחת שתיים"])
+            self.assertEqual(len(loads), 1)
+            b = Fake(md, cf)
+            b.parse(["אחת שתיים"])
+            self.assertEqual(len(loads), 1)
+            self.assertEqual(b.toks("אחת שתיים"), [["אחת", -1, "root"], ["שתיים", -1, "root"]])
+            b.parse(["טקסט חדש"])
+            self.assertEqual(len(loads), 2)
+            (md / "model.safetensors").write_bytes(b"y" * 11)     # מודל אחר — המטמון לא תקף
+            self.assertEqual(Fake(md, cf).cache, {})
+
 
 if __name__ == "__main__":
     unittest.main()

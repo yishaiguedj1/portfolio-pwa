@@ -47,12 +47,41 @@ _INTENS = H.INTENSIFIERS | {"ביותר", "מדי", "קצת"}
 class DepModel:
     """עטיפה עצלה למודל: נטען רק כשיש כתובית שצריכה שבירה. כל תקלה = אין מודל (הכללים)."""
 
-    def __init__(self, path: Path = MODEL_DIR):
+    def __init__(self, path: Path = MODEL_DIR, cache_file: Path | None = None):
         self.path = Path(path)
         self._m = None
         self._tok = None
         self._failed = False
         self.cache: dict[str, list] = {}
+        # 27/10/2026 (ניתוח 15 פרקים): כל vt build הוא תהליך חדש — טעינת המודל וניתוח מחדש לקחו 12–24 שנ׳ (לפני המודל: 0–1),
+        # חמש פעמים בעבודה, על הנתיב הקריטי. מטמון על הדיסק: בנייה חוזרת עם אותו טקסט לא טוענת את המודל בכלל
+        self.cache_file = Path(cache_file) if cache_file else None
+        self._sig = self._model_sig()
+        if self.cache_file and self._sig:
+            try:
+                d = json.loads(self.cache_file.read_text(encoding="utf-8"))
+                if d.get("v") == 1 and d.get("m") == self._sig and isinstance(d.get("c"), dict):
+                    self.cache.update(d["c"])
+            except (OSError, ValueError):
+                pass
+
+    def _model_sig(self) -> str:
+        try:
+            st = (self.path / "model.safetensors").stat()
+            return f"{st.st_size}"
+        except OSError:
+            return ""
+
+    def _save(self) -> None:
+        if not (self.cache_file and self._sig):
+            return
+        try:
+            self.cache_file.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.cache_file.with_suffix(".tmp")
+            tmp.write_text(json.dumps({"v": 1, "m": self._sig, "c": self.cache}, ensure_ascii=False), encoding="utf-8")
+            os.replace(tmp, self.cache_file)
+        except OSError:
+            pass
 
     def available(self) -> bool:
         return not self._failed and (self.path / "model.safetensors").is_file()
@@ -96,6 +125,7 @@ class DepModel:
                     for txt, s in zip(chunk, out):
                         self.cache[txt] = [[t["token"], t["syntax"]["dep_head_idx"], t["syntax"]["dep_func"]]
                                            for t in s["tokens"]]
+            self._save()
         except Exception as e:                                    # noqa: BLE001
             from .util import log
             log(f"שבירת שורות: ניתוח נכשל ({type(e).__name__}) — הכללים")

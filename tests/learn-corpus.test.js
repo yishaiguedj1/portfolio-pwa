@@ -30,6 +30,8 @@ const { fakeR2, ACC } = require('./_r2fake');
   ok(ab.cu[0].b === 'ב' && ab.cu[0].p === 1 && !('p' in ab.cu[1]) && ab.cu[2].b === 'ג' && !('p' in ab.cu[2]), '26/10: הטיוטה השנייה (b) ומה נבחר (p) — p רק 1 ורק עם b');
   ok(it.wd.length === 1 && it.wd[0].length === 9 && it.fin[0].h === 'התקשרו\nעכשיו' && !('id' in it.fin[0]), 'זמני המילים והסופי — בצורה קבועה');
   ok(JSON.stringify(it.sp) === JSON.stringify({ S1: { n: 'Warren Buffett', r: 'CEO', g: 'm' }, S2: { n: 'call ⟨מספר⟩' } }), 'שמות הדוברים נשמרים (בקשת המשתמש) — רק S1/S2, שם/תפקיד/מגדר, מנוקים');
+  const vg = LC.normCorpus({ v: 1, cu: [{ i: 1, s: 0, e: 1, k: 'S1', en: 'x', d: 'א' }], vg: { S1: { g: 'f', hz: 181.4, x: 1 }, S2: { g: 'woman', hz: 'x' }, Dana: { g: 'm' } } }, '2026-10');
+  ok(JSON.stringify(vg.vg) === JSON.stringify({ S1: { g: 'f', hz: 181 }, S2: { g: '?' } }), '27/10: רמז המגדר מהקול — רק S1/S2, g מתוך m/f/?, ‏hz מספר');
   ok(LC.normCorpus(Object.assign({}, raw, { v: 2 }), '2026-10') === null && LC.normCorpus({ v: 1, cu: [] }, 'x') === null, 'גרסה אחרת / בלי כתוביות — לא נשמר');
   ok(LC.oldestMonth(Date.UTC(2026, 9, 15)) === '2024-10' && LC.expired('2024-09', Date.UTC(2026, 9, 15)) && !LC.expired('2024-10', Date.UTC(2026, 9, 15)), '24 חודשים בדיוק');
   ok(LC.parseKey('c/2026-10/' + 'a'.repeat(20) + '.bin').month === '2026-10' && LC.parseKey('c/x/../y.bin') === null, 'מפתחות בדלי — רק בצורה שלנו');

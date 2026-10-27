@@ -120,6 +120,14 @@ class ClientTimeoutTests(unittest.TestCase):
 
 
 class AnthropicTests(unittest.TestCase):
+    def test_no_think_for_line_breaks(self):
+        # 27/10/2026: שבירת השורות (בחירה מתוך רשימה) — בלי חשיבה; עם חשיבה כל הקריאות נקטעו בתקרה בלי תשובה
+        c = FakeClient([fake_msg('#1 2')])
+        e = llm.Engine(llm.Spec(*__import__('pipeline').LB_SPEC), client=c)
+        e.no_think = True
+        e.complete('lb', 'כללים', 'רשימה', max_tokens=3000)
+        self.assertEqual((c.calls[0]['thinking'], c.calls[0]['output_config']), ({'type': 'disabled'}, {'effort': 'low'}))
+
     def test_request_shape_cache_effort(self):
         c = FakeClient([fake_msg('תרגום', i=200, o=80, cr=9000, c5=0)])
         e = llm.Engine(llm.Spec.of('opus-medium'), client=c)

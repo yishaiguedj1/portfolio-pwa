@@ -740,6 +740,8 @@ def neighbors(order: list[str], cur: dict[str, str], k: str, nb: int) -> str:
 # לכתובית הבאה, ובחירה לסירוגין הייתה מוחקת/מכפילה אותה). גבול של קטע = כתובית שבה הטיוטות כמעט זהות.
 # רק ב־Haiku (התרגום שם ~חצי מהעבודה, התוספת כ־12 סנט לשעת סרטון); `SNB_TL_DUAL=off` מכבה, `on` מדליק לכל מודל.
 DUAL_TH = 0.7
+# 27/10/2026 (15 פרקי סדרה): בתקרה 8000 נקטעו 8 מתוך 15 הכרעות (97–100% חשיבה ב־high) וכל אחת שולמה פעמיים
+ARB_MAX_OUT = 24000
 ARB_MAX_CUES = 120                    # כתוביות לבקשת הכרעה אחת (קטע ארוך — לבד בבקשה)
 ARB_FILE = 'fixes-ab.txt'             # נקרא לפני fixes.txt (סדר אלפביתי: '-' < '.'), כלומר "הטיוטה" אחרי ההכרעה
 _NORM_CMP = re.compile(r'[^\w\s]')
@@ -1505,7 +1507,7 @@ class Pipeline:
             fixed_g = fx(ids)[0][0] if callable(fx) else fx
             req = arb_request(bt, en, a, b, first)
             try:
-                res = self.eng.complete('tl', fixed_g, ARB_TASK + '\n\n' + block('compare', req), max_tokens=8000)
+                res = self.eng.complete('tl', fixed_g, ARB_TASK + '\n\n' + block('compare', req), max_tokens=ARB_MAX_OUT)
                 pk = parse_picks(getattr(res, 'text', '') or '', first, first + len(bt) - 1)
             except llm.LLMError as e:
                 print(f'· ההכרעה בין הטיוטות נכשלה ({e.code}) — נשארים עם הטיוטה הראשונה בקטעים האלה')
@@ -1897,6 +1899,8 @@ class Pipeline:
             return st
         spec = llm.Spec(*LB_SPEC)
         leng = llm.Engine(spec, client=self.eng._client)
+        # 27/10/2026 (ניתוח 15 פרקי סדרה): עם חשיבה — 15 מתוך 15 קריאות נקטעו בתקרה, 100% מהפלט חשיבה, "Haiku בחר ל־0"
+        leng.no_think = True
         try:
             res = leng.complete('lb', RULES, prompt, max_tokens=min(LB_MAX_OUT, 2000 + 12 * st['lbn']), partial_ok=True)
         except llm.LLMError as e:

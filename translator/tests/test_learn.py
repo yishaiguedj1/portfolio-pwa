@@ -111,6 +111,8 @@ class LearnCorpus(unittest.TestCase):
         (pd / 'en.aligned.json').write_text(json.dumps({'words': [{'w': 'line', 's': 2.0, 'e': 2.3, 'spk': 'S1', 's_asr': 1.9, 's_qwen': 2.0, 's_ctc': 2.02, 'align': 'qwen3'}]}))
         (pd / 'project.json').write_text(json.dumps({'title': SECRET, 'speakers': {'S1': {'name': 'Warren Buffett', 'role': 'CEO', 'gender': 'm'}, 'bad key': {'name': 'x'}}}), encoding='utf-8')
         (pd / 'en.patch.applied.0.txt').write_text('# x\nbufet => Buffett\n', encoding='utf-8')
+        (pd / 'asr').mkdir(exist_ok=True)
+        (pd / 'asr' / 'parakeet.json').write_text(json.dumps({'diarize': {'voice': {'S1': {'g': 'f', 'hz': 181.44}, 'S2': {'g': 'x'}, 'Dana': {'g': 'm'}}}}), encoding='utf-8')
         self.ctx = SimpleNamespace(pdir=pd, st={'spec': {'dur': 300, 'name': SECRET + '.mp4', 'mode': 'sonnet-medium', 'from': 'en', 'to': ['he']}})
 
     def tearDown(self):
@@ -129,7 +131,8 @@ class LearnCorpus(unittest.TestCase):
         self.assertEqual(c['wd'], [['line', 2.0, 2.3, 'S1', 1.9, 2.0, 2.02, 'qwen3', None]])
         self.assertEqual(c['pt'], ['bufet => Buffett'])
         self.assertEqual(c['gl'], ['Berkshire\tברקשייר'])
-        self.assertEqual(c['sp'], {'S1': {'n': 'Warren Buffett', 'r': 'CEO', 'g': 'm'}})   # בקשת המשתמש: שמות הדוברים נשמרים
+        self.assertEqual(c['sp'], {'S1': {'n': 'Warren Buffett', 'r': 'CEO', 'g': 'm'}})
+        self.assertEqual(c['vg'], {'S1': {'g': 'f', 'hz': 181.4}, 'S2': {'g': '?'}})   # 27/10: רמז המגדר מהקול   # בקשת המשתמש: שמות הדוברים נשמרים
         self.assertEqual((c['mode'], c['src'], c['dst'], c['dur']), ('sonnet-medium', 'en', 'he', 300))
 
     def test_second_draft(self):
@@ -143,6 +146,16 @@ class LearnCorpus(unittest.TestCase):
         self.assertEqual((cu[3]['b'], cu[3].get('p')), ('שלושה', None))
         self.assertEqual((cu[4]['b'], cu[4]['p'], cu[4]['d']), ('ארבעה', 1, 'ארבע'))
         self.assertNotIn('f', cu[4], 'הבחירה בטיוטה השנייה היא לא תיקון של המתרגם')
+
+    def test_second_draft_then_fixed(self):
+        # 27/10/2026: כתובית שנבחרה מהטיוטה השנייה ותוקנה אחר כך — dict(d, **ab, **fixes) זרק TypeError והקורפוס כולו אבד
+        pd = self.ctx.pdir
+        (pd / 'tr' / 'alt').mkdir()
+        (pd / 'tr' / 'alt' / 'batch_001.he.txt').write_text('#1 אחת\n#2 שניים\n#3 שלוש\n#4 ארבע\n', encoding='utf-8')
+        (pd / 'tr' / 'fixes-ab.txt').write_text('#2 שניים\n', encoding='utf-8')
+        c = job.learn_corpus(self.ctx)
+        cu = {x['i']: x for x in c['cu']}
+        self.assertEqual((cu[2]['b'], cu[2]['p'], cu[2]['f']), ('שניים', 1, 'שתיים!'))
 
     def test_privacy(self):
         txt = json.dumps(job.learn_corpus(self.ctx), ensure_ascii=False)
