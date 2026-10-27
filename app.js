@@ -826,7 +826,7 @@ he: {
   btnSave: 'שמור',
   btnCancel: 'ביטול',
   btnOk: 'אישור', ibkrImportOk: 'ייבוא', ibkrBgOn: 'הסנכרון האוטומטי הופעל', ibkrBgOff: 'הסנכרון האוטומטי כובה',
-  ibkrAutoLbl: 'סנכרון אוטומטי', ibkrAutoSynced: 'עודכן אוטומטית מ־IBKR',
+  ibkrAutoLbl: 'סנכרון אוטומטי', ibkrConnLbl: 'חיבור', ibkrViaAccount: 'דרך החשבון', ibkrAutoSynced: 'עודכן אוטומטית מ־IBKR',
   saved: 'נשמר ✓',
   newDeposit: 'הפקדה חדשה',
   depositAdded: 'ההפקדה נוספה ✓',
@@ -987,7 +987,7 @@ he: {
   pfbkRsDep: 'הפקדות',
   pfbkRsPen: 'פנסיה',
   pfbkRsWatch: 'מניות במעקב',
-  pfbkRsCash: 'מזומן',
+  pfbkRsCash: 'מזומן', pfbkRsIbkr: 'נתוני IBKR',
   pfbkRsData: 'הנתונים',
   pfbkRsHere: 'כבר בטלפון',
   pfbkRsUiSame: 'כבר כמו בגיבוי',
@@ -2005,7 +2005,7 @@ en: {
   btnSave: 'Save',
   btnCancel: 'Cancel',
   btnOk: 'OK', ibkrImportOk: 'Import', ibkrBgOn: 'Auto sync is on', ibkrBgOff: 'Auto sync is off',
-  ibkrAutoLbl: 'Auto sync', ibkrAutoSynced: 'Updated automatically from IBKR',
+  ibkrAutoLbl: 'Auto sync', ibkrConnLbl: 'Connection', ibkrViaAccount: 'Via your account', ibkrAutoSynced: 'Updated automatically from IBKR',
   saved: 'Saved ✓',
   newDeposit: 'New deposit',
   depositAdded: 'Deposit added ✓',
@@ -2166,7 +2166,7 @@ en: {
   pfbkRsDep: 'Deposits',
   pfbkRsPen: 'Pension',
   pfbkRsWatch: 'Watched stocks',
-  pfbkRsCash: 'Cash',
+  pfbkRsCash: 'Cash', pfbkRsIbkr: 'IBKR data',
   pfbkRsData: 'Data',
   pfbkRsHere: 'Already here',
   pfbkRsUiSame: 'Already as in the backup',
@@ -3860,8 +3860,9 @@ function renderIbkrCard() {
   if (cfg.appKey) ibkrSaveCfg({ appKey: '' });
   // v128: הגדרות החיבור מקופלות — נפתחות לבד רק כשעוד אין token/Query ID
   const cdet = document.getElementById('ibkrConnDetails');
-  if (cdet && !(cfg.token && cfg.queryId)) cdet.open = true;
   const data = cfg.data;
+  const viaAcct = !cfg.token && ibkrHasImportedData(data);   // 27/10/2026: IBKR הגיע מהחשבון (הסנכרון רץ במכשיר המחובר / ברקע)
+  if (cdet && !(cfg.token && cfg.queryId) && !viaAcct) cdet.open = true;
   // v298: בחירת הטווח הוסרה — אין שדות עומק/תאריך לאכלס
   const has = !!(data && (data.positions || []).length + (data.trades || []).length + (data.navPeriods || []).length);
   const s = document.getElementById('ibkrStatus');
@@ -3876,7 +3877,8 @@ function renderIbkrCard() {
         row(t('ibkrPeriodLbl'), (meta.fromDate ? fmtDateIL(meta.fromDate) : '—') + ' – ' + (meta.toDate ? fmtDateIL(meta.toDate) : '—'), true) +
         row(t('ibkrLastSyncLbl'), cfg.lastSync ? fmtTimeIL(cfg.lastSync) : '—') +
         // v312: מתג אחד "סנכרון אוטומטי" (פעיל כברירת מחדל) — העדכון היומי + הסנכרון ברקע בשרתון
-        '<div class="ib-row"><span>' + esc(t('ibkrAutoLbl')) + '</span><button type="button" class="ib-sw" id="ibkrAutoSw" role="switch" aria-checked="' + (ibkrAutoOn(cfg) ? 'true' : 'false') + '" aria-label="' + esc(t('ibkrAutoLbl')) + '"><i></i></button></div></div>';
+        (viaAcct ? row(t('ibkrConnLbl'), t('ibkrViaAccount')) + '</div>' :
+        '<div class="ib-row"><span>' + esc(t('ibkrAutoLbl')) + '</span><button type="button" class="ib-sw" id="ibkrAutoSw" role="switch" aria-checked="' + (ibkrAutoOn(cfg) ? 'true' : 'false') + '" aria-label="' + esc(t('ibkrAutoLbl')) + '"><i></i></button></div></div>');
       const sw = document.getElementById('ibkrAutoSw');
       if (sw) sw.addEventListener('click', () => ibkrAutoToggle(!ibkrAutoOn(ibkrCfg())));
     }
@@ -4561,8 +4563,9 @@ function resetIbkrData(db, ibkrMode) {
 }
 
 /* ---------------- 14/10/2026: גיבוי ושחזור של Invest ל־Google Drive (בקשת המשתמש) ----------------
-   רק מה שהוזן ביד — מניות לפי מחיר ממוצע, עסקאות, הפקדות, פנסיה, מזומן (במצב ידני), רשימות המעקב, הסידור וההעדפות.
-   IBKR לא נכנס לגיבוי (חוזר מהסנכרון). השחזור = מיזוג: מה שכבר בטלפון גובר, נוסף רק מה שחסר —
+   מה שהוזן ביד — מניות לפי מחיר ממוצע, עסקאות, הפקדות, פנסיה, מזומן (במצב ידני), רשימות המעקב, הסידור וההעדפות.
+   27/10/2026 (בקשת המשתמש: "הגיבוי זהה למה שגובה"): גם IBKR — הדוח הדחוס (אותה חבילה של הענן), המניות, ההפקדות והמזומן
+   שלו, בחלק נפרד (ibkr). ה־token לא נכנס לעולם. עד אז IBKR לא נכנס לגיבוי ("חוזר מהסנכרון" — רק במכשיר המחובר). השחזור = מיזוג: מה שכבר בטלפון גובר, נוסף רק מה שחסר —
    שחזור אחרי שחזור לא מוסיף כלום, ומניה שכבר קיימת (ידנית או מ־IBKR) לא נכנסת שוב. */
 const PF_BK_PREFS = ['pwa_lang_v1', 'pwa_theme_v1', 'pwa_currency_v1', 'pwa_stocksort_v1', 'pwa_wlsort_v1', 'pwa_srcfilter_v1'];
 const pfSymKey = (s) => String(s || '').trim().toUpperCase();
@@ -4571,8 +4574,14 @@ const pfPenDepKey = (d) => [String(d.place || '').trim(), String(d.period || '')
 const pfTradeKey = (x) => { const n = mtNorm(x); return [n.date, n.sym, n.side, n.qty, n.price, n.fee].join('|'); };
 const pfClone = (o) => JSON.parse(JSON.stringify(o));
 /* תמונת הגיבוי (טהורה). prefs = { מפתח: ערך } מהטלפון; withUi = false — בלי "הגדרות ותצוגה" (העדפות, מיון וסידור) */
-function pfBackupSnapshot(db, ibkrMode, prefs, now, withUi) {
+function pfBackupSnapshot(db, ibkrMode, prefs, now, withUi, ibPack) {
   const ui = withUi !== false;
+  const ib = ibkrMode && ibPack && ibPack.z ? {
+    at: +ibPack.at || 0, z: String(ibPack.z),
+    positions: (db.positions || []).filter((p) => p && p.sym && !p.fromTrades && isIbkrPosition(p, true)).map((p) => { const o = pfClone(p); delete o.src; return o; }),
+    deposits: (db.deposits || []).filter(isIbkrDeposit).map(pfClone),
+    cash: { usd: Number(db.cash && db.cash.usd) || 0, ils: Number(db.cash && db.cash.ils) || 0 },
+  } : null;
   const pos = (db.positions || []).filter((p) => p && p.sym && !p.fromTrades && !isIbkrPosition(p, ibkrMode))
     .map((p) => { const o = pfClone(p); o.src = 'manual'; delete o.fromTrades; return o; });
   const pr = {};
@@ -4588,13 +4597,15 @@ function pfBackupSnapshot(db, ibkrMode, prefs, now, withUi) {
     wishlist: pfClone(db.wishlist || []), wlMainName: db.wlMainName || '', wlExtra: pfClone(db.wlExtra || []),
     wlOrder: ui ? pfClone(db.wlOrder || []) : [], stockOrder: ui ? pfClone(db.stockOrder || []) : [],
     prefs: pr,
+    ibkr: ib,
   };
 }
 /* כמה פריטים יש בגיבוי (לשורת המצב) */
 function pfBackupCount(s) {
   if (!s) return 0;
   const w = (s.wishlist || []).length + (s.wlExtra || []).reduce((n, l) => n + ((l && l.items) || []).length, 0);
-  return (s.positions || []).length + (s.trades || []).length + (s.deposits || []).length + (s.pensionFunds || []).length + (s.pensionDeposits || []).length + w;
+  const ib = s.ibkr || {};
+  return (ib.positions || []).length + (ib.deposits || []).length + (s.positions || []).length + (s.trades || []).length + (s.deposits || []).length + (s.pensionFunds || []).length + (s.pensionDeposits || []).length + w;
 }
 /* הוספה לפי מפתח עם ספירה: מכל מפתח נוסף רק מה שחסר (2 הפקדות זהות בגיבוי, 1 בטלפון → נוספת אחת) */
 function pfAddMulti(local, incoming, key) {
@@ -4622,7 +4633,7 @@ function pfWlUnion(items, add) {
    אז הסידור מהגיבוי, ו־prefs = ההעדפות מהגיבוי ששונות ממה שבטלפון (האפליקציה כותבת אותן). ui = משהו מזה משתנה. */
 function pfBackupMerge(db, snap, ibkrMode, localPrefs, withUi) {
   const s = snap || {};
-  const out = { positions: 0, trades: 0, deposits: 0, pensionFunds: 0, pensionDeposits: 0, watch: 0, cash: false, prefs: {}, ui: false };
+  const out = { positions: 0, trades: 0, deposits: 0, pensionFunds: 0, pensionDeposits: 0, watch: 0, cash: false, ibkr: null, prefs: {}, ui: false };
   if (!Array.isArray(db.positions)) db.positions = [];
   if (!Array.isArray(db.deposits)) db.deposits = [];
   if (!Array.isArray(db.manualTrades)) db.manualTrades = [];
@@ -4649,6 +4660,22 @@ function pfBackupMerge(db, snap, ibkrMode, localPrefs, withUi) {
     db.positions.push(o); held.add(k); out.positions++;
   }
   out.deposits = pfAddMulti(db.deposits, (s.deposits || []).filter((d) => d && !isIbkrDeposit(d)), pfDepKey);
+  // 27/10/2026: נתוני IBKR — רק כשבטלפון אין IBKR (מה שכבר בטלפון גובר). התיק עובר למצב IBKR, והידני נשמר בצד לניתוק
+  const ib = s.ibkr;
+  if (!ibkrMode && ib && ib.z) {
+    if (!db.ibkrSnapshot) db.ibkrSnapshot = { positions: pfClone(db.positions), deposits: pfClone(db.deposits), cash: pfClone(db.cash || { usd: 0, ils: 0 }) };
+    for (const p of db.positions) if (p && !p.src) p.src = 'manual';   // במצב IBKR — מה שלא מסומן ידני נחשב IBKR
+    for (const p of ib.positions || []) {
+      const k = pfSymKey(p && p.sym);
+      if (!k || held.has(k)) continue;
+      const o = pfClone(p); o.sym = k; delete o.src; delete o.fromTrades;
+      db.positions.push(o); held.add(k); out.positions++;
+    }
+    out.deposits += pfAddMulti(db.deposits, (ib.deposits || []).filter(isIbkrDeposit), pfDepKey);
+    if (ib.cash) db.cash = { usd: Number(ib.cash.usd) || 0, ils: Number(ib.cash.ils) || 0 };
+    db.source = 'ibkr';
+    out.ibkr = { at: +ib.at || 0, z: String(ib.z) };
+  }
   // קרנות פנסיה: לפי שם
   const funds = new Set(db.pensionFunds.map((f) => String(f && f.name || '').trim().toLowerCase()));
   for (const f of s.pensionFunds || []) {
@@ -4684,7 +4711,7 @@ function pfBackupMerge(db, snap, ibkrMode, localPrefs, withUi) {
   return out;
 }
 const pfBackupHasUi = (s) => !!s && s.ui !== false && (Object.keys(s.prefs || {}).length > 0 || (s.stockOrder || []).length > 0 || (s.wlOrder || []).length > 0);
-const pfMergeTotal = (o) => o.positions + o.trades + o.deposits + o.pensionFunds + o.pensionDeposits + o.watch + (o.cash ? 1 : 0);
+const pfMergeTotal = (o) => o.positions + o.trades + o.deposits + o.pensionFunds + o.pensionDeposits + o.watch + (o.cash ? 1 : 0) + (o.ibkr ? 1 : 0);
 
 /* v297 (בקשת המשתמש): חלון אישור/הודעה שלנו במקום confirm/alert של הדפדפן —
    בלי הכותרת הגנרית "…github.io says", בסגנון הבועה של ההודעות באפליקציה, בגודל התוכן.
@@ -4769,6 +4796,7 @@ function doResetIbkr() {
   askConfirm(t('resetIbkrConfirm'), () => {
     resetIbkrData(DB, isIbkrMode());
     ibkrSaveCfg({ lastSync: 0, data: null }); // החיבור (token/Query ID) נשאר — אפשר לסנכרן מחדש
+    ibkrCloudDrop();
     ibkrSaveCfg({ bgOn: false, bgTry: 0, bgPurge: true }); ibkrBgPurge().catch(() => {});   // v313: גם הרשומה בשרתון נמחקת (נרשמת מחדש אחרי הסנכרון הבא)
     saveDB(); renderAll();
     try { renderIbkrCard(); } catch (e) {}
@@ -5246,9 +5274,11 @@ function ibkrDisconnect() {
   ibkrClearErr();
   askConfirm(t('disconnectConfirm'), () => {
     // אבטחה: ניתוק מוחק מהטלפון גם את פרטי הגישה (token, Query ID, מפתח שרתון) — כפי שההודעה מבטיחה
-    const hadBg = ibkrCfg().bgOn;                  // v311: ה־token המוצפן נמחק גם מהשרתון (v312: עם ניסיון חוזר)
+    const c0 = ibkrCfg();                          // v311: ה־token המוצפן נמחק גם מהשרתון (v312: עם ניסיון חוזר)
+    const hadBg = c0.bgOn || !c0.token;            // 27/10/2026: ניתוק ממכשיר שקיבל את IBKR מהחשבון — מנתק גם את הסנכרון ברקע של החשבון
     ibkrSaveCfg({ lastSync: 0, data: null, token: '', queryId: '', appKey: '', statementUrl: '' });
     ibkrSaveCfg({ bgOn: false, bgTry: 0, bgPurge: !!hadBg });
+    ibkrCloudDrop();
     if (hadBg) ibkrBgPurge().catch(() => {});
     for (const id of ['ibkrToken', 'ibkrQuery']) { const e = document.getElementById(id); if (e) e.value = ''; }
     // שחזור הנתונים הידניים שהיו לפני הייבוא (אם נשמר צילום) — לא משאירים נתוני IBKR כ"ידניים"
@@ -5727,7 +5757,7 @@ let _bgBusy = false;
 async function ibkrBgPurge() {
   if (_bgBusy) return;
   _bgBusy = true;
-  try { const j = await ibkrBgApi({ op: 'disable' }); if (j && j.ok) ibkrSaveCfg({ bgPurge: false }); } finally { _bgBusy = false; }
+  try { const j = await ibkrBgApi({ op: 'disable' }); if (j && (j.ok || j.error === 'not_allowed')) ibkrSaveCfg({ bgPurge: false }); } finally { _bgBusy = false; }   // לא מורשה = אין רשומה למחוק
 }
 async function ibkrBgEnsure() {
   const cfg = ibkrCfg();
@@ -5748,6 +5778,87 @@ function ibkrBgMaintain() {
   if (cfg.bgPurge) ibkrBgPurge().catch(() => {});
   else ibkrBgEnsure().catch(() => {});
 }
+
+/* ---------------- 27/10/2026: IBKR ברמת החשבון (בקשת המשתמש) ----------------
+   עד כאן הדוח של IBKR (cfg.data) והמקור (DB.source) היו של המכשיר שבו רץ הסנכרון — מכשיר אחר באותו חשבון ראה
+   את המניות מהענן כ"ידני", בלי עסקאות IBKR ובלי תשואות. עכשיו הדוח נשמר גם במסמך התיק בענן (users/{uid}.ibkr)
+   — דחוס (gzip+base64) עם זמן הסנכרון — וכל מכשיר בחשבון מציג אותו דבר. ה־token נשאר רק במכשיר שהוזן בו
+   ובכספת בשרתון; מכשיר בלי token מקבל את הדוח מהענן. החדש גובר לפי at (זמן הסנכרון). אותה חבילה נכנסת לגיבוי. */
+const IBKR_PACK_MAX = 700 * 1024;   // התקרה של מסמך ב־Firestore היא 1MB, והתיק באותו מסמך
+async function ibkrPack(data) {
+  if (!data || typeof CompressionStream === 'undefined' || typeof Response === 'undefined' || typeof btoa === 'undefined') return '';
+  try {
+    const st = new Blob([JSON.stringify(data)]).stream().pipeThrough(new CompressionStream('gzip'));
+    const u8 = new Uint8Array(await new Response(st).arrayBuffer());
+    let bin = '';
+    for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    const z = btoa(bin);
+    return z.length <= IBKR_PACK_MAX ? z : '';
+  } catch (e) { return ''; }
+}
+async function ibkrUnpack(z) {
+  if (!z || typeof z !== 'string' || typeof DecompressionStream === 'undefined' || typeof Response === 'undefined' || typeof atob === 'undefined') return null;
+  try {
+    const bin = atob(z), u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    const d = JSON.parse(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('gzip'))).text());
+    return d && typeof d === 'object' && !Array.isArray(d) ? d : null;
+  } catch (e) { return null; }
+}
+/* מה לעשות מול הענן אחרי טעינת החשבון (טהורה, נבדקת).
+   local = { at: זמן הסנכרון במכשיר, has: יש דוח במכשיר }; cloud = { at, z } | null; src = המקור בענן; cloudAt = מתי המסמך נשמר.
+   'down' — בענן דוח חדש יותר; 'up' — במכשיר דוח חדש יותר (או שעוד לא עלה); 'drop' — בחשבון נותק/אופס אחרי הסנכרון במכשיר. */
+function ibkrCloudPlan(local, cloud, src, cloudAt) {
+  const la = +(local && local.at) || 0, has = !!(local && local.has);
+  const ca = cloud && cloud.z ? (+cloud.at || 0) : 0;
+  if (ca && ca > la && src !== 'manual') return 'down';
+  if (has && la > ca && (src === 'ibkr' || la > (+cloudAt || 0))) return 'up';
+  if (has && !ca && src === 'manual' && (+cloudAt || 0) > la) return 'drop';
+  return '';
+}
+function ibkrCloudApi() { return (typeof window !== 'undefined' && window.Cloud && window.Cloud.saveIbkr) ? window.Cloud : null; }
+/* מעלה את הדוח של המכשיר לענן (אחרי סנכרון / כשעוד לא עלה) */
+async function ibkrCloudPush() {
+  const cfg = ibkrCfg();
+  if (!ibkrHasImportedData(cfg.data) || !isIbkrMode() || isDemoMode()) return false;
+  let p = cfg.pack;
+  if (!p || p.at !== (cfg.lastSync || 0) || !p.z) {
+    const z = await ibkrPack(cfg.data);
+    if (!z) return false;
+    p = { at: cfg.lastSync || 0, z };
+    ibkrSaveCfg({ pack: p });
+  }
+  const c = ibkrCloudApi();
+  return !!(c && await c.saveIbkr(p));
+}
+/* ניתוק / איפוס IBKR — הדוח נמחק גם מהענן */
+function ibkrCloudDrop() {
+  ibkrSaveCfg({ pack: null });
+  const c = ibkrCloudApi();
+  if (c) c.saveIbkr(null).catch(() => {});
+}
+/* נקרא מ־cloud.js אחרי שהתיק נטען מהענן (cloud = השדה ibkr במסמך, src = המקור בענן, cloudAt = מתי נשמר) */
+async function ibkrCloudLoaded(cloud, src, cloudAt) {
+  try {
+    if (isDemoMode()) return;
+    const cfg = ibkrCfg();
+    const plan = ibkrCloudPlan({ at: cfg.lastSync, has: ibkrHasImportedData(cfg.data) }, cloud, src, cloudAt);
+    if (plan === 'down') {
+      const data = await ibkrUnpack(cloud.z);
+      if (!data) return;
+      ibkrSaveCfg({ data, lastSync: +cloud.at || 0, pack: { at: +cloud.at || 0, z: String(cloud.z) } });
+      if (DB.source !== 'ibkr') { DB.source = 'ibkr'; saveDB(); }
+    } else if (plan === 'up') {
+      if (DB.source !== 'ibkr') { DB.source = 'ibkr'; saveDB(); }
+      await ibkrCloudPush();
+    } else if (plan === 'drop') {
+      ibkrSaveCfg({ lastSync: 0, data: null, pack: null });   // החיבור (token) נשאר — כמו "איפוס IBKR"
+    } else return;
+    renderAll();
+    renderIbkrCard();
+  } catch (e) {}
+}
+if (typeof window !== 'undefined') window.ibkrCloudLoaded = ibkrCloudLoaded;
 function ibkrAutoToggle(on) {
   if (!on) {
     const was = ibkrCfg().bgOn;
@@ -5816,6 +5927,7 @@ function ibkrFinishImport(data, auto) {
     saveDB();
   }
   ibkrSaveCfg({ lastSync: Date.now(), data: data });
+  ibkrCloudPush().catch(() => {});         // 27/10/2026: הדוח עולה לענן — כל מכשיר בחשבון מציג אותו דבר
   ibkrBgAck();                             // v311: מה שיובא נמחק מהכספת בענן, ונקודת ההמשך שם מתקדמת
   ibkrBgMaintain();                        // v312: סנכרון ראשון → הרשמה שקטה לסנכרון ברקע
   renderAll();
@@ -6065,8 +6177,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.67.1';
-const APP_VERSION = 'v583';
+const APP_RELEASE = '2.68.0';
+const APP_VERSION = 'v584';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -12629,7 +12741,11 @@ let _pfbk = null, _pfbkP = null, _pfbkBusy = '';
 function pfbkSignedIn() { try { return !!(typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length && firebase.auth().currentUser); } catch (e) { return false; } }
 function pfbkOwner() { return accountOwner() || 'local'; }
 function pfbkPrefs() { const o = {}; for (const k of PF_BK_PREFS) { try { const v = localStorage.getItem(k); if (v != null) o[k] = v; } catch (e) {} } return o; }
-function pfbkSnap() { return !DB || DB.demo ? null : pfBackupSnapshot(DB, isIbkrMode(), pfbkPrefs(), Date.now(), !_pfbk || _pfbk.settings().ui !== false); }
+function pfbkSnap() {
+  if (!DB || DB.demo) return null;
+  const c = ibkrCfg(), pk = c.pack && c.pack.at === (c.lastSync || 0) ? c.pack : null;   // רק חבילה של הדוח הנוכחי
+  return pfBackupSnapshot(DB, isIbkrMode(), pfbkPrefs(), Date.now(), !_pfbk || _pfbk.settings().ui !== false, pk);
+}
 function pfbkConnectedHint() {
   try { const a = JSON.parse(localStorage.getItem('pwa_libbk_v1') || '{}') || {}; return !!(a[pfbkOwner()] && a[pfbkOwner()].email); } catch (e) { return false; }
 }
@@ -12686,6 +12802,7 @@ function pfbkPaint() {
     if (prev.pensionFunds + prev.pensionDeposits) add.push([t('pfbkRsPen'), prev.pensionFunds + prev.pensionDeposits]);
     if (prev.watch) add.push([t('pfbkRsWatch'), prev.watch]);
     if (prev.cash) add.push([t('pfbkRsCash'), '✓']);
+    if (prev.ibkr) add.push([t('pfbkRsIbkr'), '✓']);
     const any = add.length > 0 || prev.ui;
     h = pfbkSec(t('pfbkRsTitle'), add.length ? add.map((a) => row(a[0], typeof a[1] === 'number' ? '+' + a[1] : a[1])).join('') : row(t('pfbkRsData'), t('pfbkRsHere'))) +
       '<p class="pfbk-foot">' + esc(t('pfbkRsFrom', { d: fmtTimeIL(rs.snap.at) })) + '</p>' +
@@ -12760,10 +12877,24 @@ function pfbkRestore() {
 function pfbkRestoreGo() {
   const rs = _pfbkRs;
   if (!rs || !DB || DB.demo) return;
-  const r = pfBackupMerge(DB, rs.snap, isIbkrMode(), pfbkPrefs(), rs.ui);
+  // 27/10/2026: נתוני IBKR בגיבוי — קודם פותחים את הדוח; לא נפתח → משחזרים בלעדיו
+  const ib = rs.snap && rs.snap.ibkr;
+  if (ib && ib.z && !isIbkrMode() && rs.ibData === undefined) {
+    rs.ibData = null;
+    ibkrUnpack(ib.z).then((d) => { rs.ibData = d || false; if (_pfbkRs === rs) pfbkRestoreGo(); });
+    return;
+  }
+  if (rs.ibData === null) return;   // הפתיחה עוד רצה
+  const snap = rs.ibData === false ? Object.assign({}, rs.snap, { ibkr: null }) : rs.snap;
+  const r = pfBackupMerge(DB, snap, isIbkrMode(), pfbkPrefs(), rs.ui);
   pfbkRsClose();
   mtSyncPositions();
   saveDB();
+  if (r.ibkr && rs.ibData) {
+    ibkrSaveCfg({ data: rs.ibData, lastSync: r.ibkr.at, pack: r.ibkr });
+    ibkrCloudPush().catch(() => {});
+    try { renderIbkrCard(); } catch (e) {}
+  }
   const keys = Object.keys(r.prefs);
   for (const k of keys) { try { localStorage.setItem(k, r.prefs[k]); } catch (e) {} }
   flash(t('pfbkRestored'));
