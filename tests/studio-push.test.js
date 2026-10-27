@@ -50,5 +50,7 @@ const ok = (c, m) => { assert.ok(c, m); n++; console.log('ok - ' + m); };
   }
   ok(/function shadeUpBlock\(rec, run, now, curSt\)/.test(src) && /shadeBar\(up, uiLang\(\)\) \+ '  ' \+ Math\.round\(up \* 100\) \+ '%/.test(src) && /shadeUpBlock\(rec, run, now, s\.id\)/.test(src), 'פס ההעלאה — אותו עיצוב כמו פס השלבים');
   ok(/shadeDir\(\) \+ T\('studioShadeUp'\)/.test(src) && /\\u200F/.test(src) && (app.match(/studioShadeUp: "/g) || []).length === 2 && (app.match(/studioShadeUpOf: "/g) || []).length === 2, 'חלק ההעלאה: שם משלו, כל שורה מימין לשמאל (RLM), בשתי השפות');
+  ok(/a: shadeIso\(fmtSize\(sent\)\), b: shadeIso\(fmtSize\(size\)\)/.test(src) && /v: shadeIso\(fmtSize\(r\.v\)\)/.test(src) && /'\\u2066' \+ x \+ '\\u2069'/.test(src), 'כל גודל ומהירות מבודדים — הסדר מימין לשמאל נשמר');
+  ok(/const body = shadeDir\(\) \+ shadeBar\(p, uiLang\(\)\) \+ '  ' \+ Math\.round\(p \* 100\) \+ '%\\n' \+ shadeDir\(\) \+ T\('studioShadeOf'/.test(src) && /'%\\n' \+ d \+ L\.of/.test(wp), 'כל ההתראה באותו מבנה: פס ואחוז, ואז "שלב 2 מתוך 7" — בדף ובשרתון, מימין לשמאל');
   console.log('# ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL - ' + e.message); process.exit(1); });
