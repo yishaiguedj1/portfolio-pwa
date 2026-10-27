@@ -45,9 +45,10 @@ const ok = (c, m) => { assert.ok(c, m); n++; console.log('ok - ' + m); };
     // 27/10/2026: הווילון כל שנייה (טיימר משלו), עם שורת ההעלאה — מגה־בייטים ומהירות; גם בהעלאה ברקע
     ok(/const SHADE_MS = 1000/.test(src) && /shadeT = setInterval\(\(\) => \{ if \(root\) shadeSync\(\); \}, SHADE_MS\)/.test(src), 'הווילון מתעדכן כל שנייה');
     const ul = src.slice(src.indexOf('function shadeUpLine('), src.indexOf('function shadeSync('));
-    ok(/T\('studioUpOf'/.test(ul) && /T\('studioPerSec'/.test(ul) && /run\.phase !== 'video'/.test(ul), 'שורת ההעלאה: עלו X מתוך Y · מהירות');
+    ok(/T\('studioShadeUpOf'/.test(ul) && /T\('studioPerSec'/.test(ul) && /run\.phase !== 'video'/.test(ul), 'שורת ההעלאה: עלו X מתוך Y · מהירות');
     ok(!/if \(run && run\.bg\) continue;/.test(src) && /\(ul \? '\\n' \+ ul : ''\)/.test(src), 'גם בהעלאה ברקע — השורה בהתראה שלנו');
   }
   ok(/function shadeUpBlock\(rec, run, now, curSt\)/.test(src) && /shadeBar\(up, uiLang\(\)\) \+ '  ' \+ Math\.round\(up \* 100\) \+ '%/.test(src) && /shadeUpBlock\(rec, run, now, s\.id\)/.test(src), 'פס ההעלאה — אותו עיצוב כמו פס השלבים');
+  ok(/shadeDir\(\) \+ T\('studioShadeUp'\)/.test(src) && /\\u200F/.test(src) && (app.match(/studioShadeUp: "/g) || []).length === 2 && (app.match(/studioShadeUpOf: "/g) || []).length === 2, 'חלק ההעלאה: שם משלו, כל שורה מימין לשמאל (RLM), בשתי השפות');
   console.log('# ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL - ' + e.message); process.exit(1); });
