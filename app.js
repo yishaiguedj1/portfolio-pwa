@@ -15037,7 +15037,9 @@ function openChartFor(sym) {
 /* 28/10/2026 (בקשת המשתמש): התראות המחיר של המניה גם בכרטיס שלה — רשימה נקייה, נגיעה = עריכה, "+" = התראה חדשה.
    הרשימה נקראת ישר מ־pwa_charts_v1 (בלי לטעון את הגרף); העורך והסנכרון לרקע — ב־chart.js (openStockAlert) */
 const stAlPx = {};   // המחיר החי האחרון שהכרטיס הציג — נקודת ההתחלה של התראה חדשה
-const BELL_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const BELL_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
+// סמל השורה — ממולא (כמו סמלי התפריט: לבן על ריבוע ירוק)
+const BELL_FILL_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M12 2.5a6.5 6.5 0 0 0-6.5 6.5c0 3.6-.9 5.7-1.8 6.9-.5.7 0 1.6.8 1.6h15c.8 0 1.3-.9.8-1.6-.9-1.2-1.8-3.3-1.8-6.9A6.5 6.5 0 0 0 12 2.5z"/><path d="M9.5 19.5a2.5 2.5 0 0 0 5 0z"/></svg>';
 function stockAlertList(sym) {
   try { const o = JSON.parse(localStorage.getItem(CHART_LS) || 'null'); const l = o && o.alerts && o.alerts[sym]; return Array.isArray(l) ? l : []; } catch (e) { return []; }
 }
@@ -15074,7 +15076,7 @@ function stockAlertsEl(sym) {
   for (const a of list.slice().sort((x, y) => (x.done ? 1 : 0) - (y.done ? 1 : 0) || y.p - x.p)) {
     const row = el('button', 'st-al-row' + (a.done ? ' done' : ''));
     row.type = 'button';
-    row.appendChild(el('span', 'st-al-ic', BELL_SVG));
+    row.appendChild(el('span', 'st-al-ic', BELL_FILL_SVG));
     const tx = el('span', 'st-al-tx');
     const pb = el('b', 'num');
     pb.textContent = fmtPx(+a.p, sym);

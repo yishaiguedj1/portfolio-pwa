@@ -868,8 +868,8 @@ html.drag-active .tabpage { transform: none !important; }   /* v324: בלי anim
 .st-al-row { inline-size: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 0; background: none; color: var(--on-surface); font: inherit; text-align: start; cursor: pointer; }
 .st-al-row + .st-al-row { border-block-start: .5px solid var(--separator); }
 .st-al-row:active { background: color-mix(in srgb, var(--on-surface) 6%, transparent); }
-.st-al-ic { inline-size: 30px; block-size: 30px; flex: none; display: grid; place-items: center; border-radius: var(--radius-xl); background: rgba(255, 149, 0, .16); color: #FF9500; }
-.st-al-ic svg { inline-size: 16px; block-size: 16px; }
+.st-al-ic { inline-size: 32px; block-size: 32px; flex: none; display: grid; place-items: center; border-radius: var(--radius-xs); background: var(--primary); color: #fff; } /* כמו סמלי התפריט (.row-link-ic): לבן על ירוק המערכת */
+.st-al-ic svg { inline-size: 18px; block-size: 18px; }
 .st-al-tx { flex: 1; min-inline-size: 0; display: flex; flex-direction: column; gap: 1px; }
 .st-al-tx b { font-size: 16px; font-weight: 600; unicode-bidi: isolate; text-align: start; font-variant-numeric: tabular-nums; }
 .st-al-tx small { font-size: 12.5px; color: var(--on-surface-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -877,7 +877,7 @@ html.drag-active .tabpage { transform: none !important; }   /* v324: בלי anim
 .st-al-chev { flex: none; color: var(--on-surface-var); opacity: .6; }
 .st-al-chev svg { inline-size: 14px; block-size: 14px; display: block; }
 [dir="ltr"] .st-al-chev svg { transform: scaleX(-1); }
-.st-al-row.done .st-al-ic { background: var(--surface-2); color: var(--on-surface-var); filter: saturate(0); }
+.st-al-row.done .st-al-ic { background: var(--on-surface-var); opacity: .55; }
 .st-al-row.done .st-al-tx b { color: var(--on-surface-var); }
 
 .chart-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
