@@ -8719,7 +8719,30 @@ function paintSoon() { if (!paintT) paintT = setTimeout(() => { paintT = 0; live
    (תרגום, בדיקה) כמעט אין אחוזים, וההתראה נשארה על 0% כל השלב. כש־Studio פתוחה הדף מעדכן את אותה התראה (התג של העבודה)
    כל SHADE_MS לפי ההערכה שבמסך — אותו נוסח של השרתון (stageText ב־webpush.js); sw.js לא נותן לדיווח ישן להחזיר אחורה.
    רק כשההתראות דלוקות, ולא בזמן ההעלאה ברקע (ל־Chrome יש התראה משלו) */
-const SHADE_MS = 5000, shadeLast = new Map(), shadeGone = new Set();
+/* 27/10/2026 (בקשת המשתמש: "נתונים יותר מעודכנים — יש דיליי קל ביחס לעמוד העבודה"): כל שנייה (shadeT), לא רק כשהדף מצויר מחדש */
+const SHADE_MS = 1000, shadeLast = new Map(), shadeGone = new Set(), shadeRate = new Map();
+let shadeT = 0;
+/* שורת ההעלאה בהתראה: "עלו 140MB מתוך 520MB · 4.2MB לשנייה". המהירות — מדגימה משלה כל שנייה (ממוצע נע קצר),
+   כדי שתגיב מהר יותר מ־run.rate (דגימה כל 2 שנ׳) */
+function shadeUpLine(rec, run, now) {
+  if (!run || !run.active || run.phase !== 'video') { shadeRate.delete(rec.id); return ''; }
+  const sent = run.sent || 0, size = rec.spec.size || run.total || 0;
+  let r = shadeRate.get(rec.id);
+  if (!r || sent < r.b) { r = { t: now, b: sent, v: run.rate || 0 }; shadeRate.set(rec.id, r); }
+  else if (now - r.t >= 900) { const v = (sent - r.b) / ((now - r.t) / 1000); r.v = r.v ? r.v * 0.5 + v * 0.5 : v; r.t = now; r.b = sent; }
+  const parts = [T('studioUpOf', { a: fmtSize(sent), b: fmtSize(size) })];
+  if (r.v > 0) parts.push(T('studioPerSec', { v: fmtSize(r.v) }));
+  return parts.join(' · ');
+}
+/* בקשת המשתמש: "בר התקדמות להעלאה שנראה בדיוק כמו של השלבים" — אותו shadeBar, אחוז ושם השלב. כשההעלאה עצמה השלב
+   הנוכחי — השורה הראשונה כבר הפס שלה, ומוסיפים רק את המגה־בייטים והמהירות */
+function shadeUpBlock(rec, run, now, curSt) {
+  const ln = shadeUpLine(rec, run, now);
+  if (!ln) return '';
+  if (curSt === 'up') return ln;
+  const size = rec.spec.size || run.total || 0, up = size > 0 ? Math.max(0, Math.min(1, (run.sent || 0) / size)) : 0;
+  return stageName('up', langsSum(rec.spec.to), rec.spec.ka ? 'ka' : rec.spec.src === 'subs') + '\n' + shadeBar(up, uiLang()) + '  ' + Math.round(up * 100) + '%\n' + ln;
+}
 /* 27/10/2026: עבודה שכבר לא רצה (בוטלה, נגמרה בלי שהתראת הסוף הגיעה) — התראת השלב נסגרת (sw.js מחזיר רק כשהמשתמש סגר) */
 function shadeEnd(id) {
   navigator.serviceWorker.ready.then((reg) => reg.getNotifications({ tag: 'studio-' + id }))
@@ -8732,7 +8755,7 @@ export function shadeBar(p, lang) {
 }
 function shadeSync() {
   const now = Date.now();
-  if (now - shadeAt < SHADE_MS || ui.push !== 'on' || typeof navigator === 'undefined' || !navigator.serviceWorker) return;
+  if (now - shadeAt < SHADE_MS - 150 || ui.push !== 'on' || typeof navigator === 'undefined' || !navigator.serviceWorker) return;
   shadeAt = now;
   for (const rec of store.jobs) {
     const run = runs.get(rec.id), ph = jobPhase(rec, run);
@@ -8742,13 +8765,13 @@ function shadeSync() {
       continue;
     }
     shadeGone.delete(rec.id);
-    if (run && run.bg) continue;
     const s = modelFor(rec).stages.find((x) => x.state === 'now');
     if (!s) continue;
     const p = Math.max(0, Math.min(1, shownPct(rec, s.pv != null ? s.pv : s.p, 'sh:' + s.id)));
     const sk = rec.spec.ka ? 'ka' : rec.spec.src === 'subs';
     const title = stageName(s.id, langsSum(rec.spec.to), sk);
-    const body = shadeBar(p, uiLang()) + '  ' + Math.round(p * 100) + '% · ' + T('studioShadeOf', { n: STAGES.indexOf(s.id) + 1, t: STAGES.length });
+    const ul = shadeUpBlock(rec, run, now, s.id);
+    const body = shadeBar(p, uiLang()) + '  ' + Math.round(p * 100) + '% · ' + T('studioShadeOf', { n: STAGES.indexOf(s.id) + 1, t: STAGES.length }) + (ul ? '\n' + ul : '');
     const key = title + '|' + body;
     if (shadeLast.get(rec.id) === key) continue;
     shadeLast.set(rec.id, key);
@@ -8981,6 +9004,7 @@ export function openStudio(opt) {
   curtainDown(!restore);                   // 14/10/2026: הווילון של studio.html — יורד כשהדף הראשון מצויר
   try { root.focus({ preventScroll: true }); } catch (e) {}
   Promise.resolve(refreshStatus(true)).then(() => pushAuto(false)).catch(() => {});
+  if (!shadeT) shadeT = setInterval(() => { if (root) shadeSync(); }, SHADE_MS);   // הווילון — כל שנייה
   dxKick();   // 26/10/2026: שמירה ב־Drive שרצה בשרת — ממשיכים לעקוב
   const jobs0 = refreshJobs(true);
   inboxOp('clean');   // 22/10/2026: קבצים מההורדה בטלפון שלא נכנסו לעבודה — אחרי שבוע
