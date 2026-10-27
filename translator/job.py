@@ -857,12 +857,15 @@ def learn_facts(ctx):
     agg = {}
     for x in tm.get('vt') or []:
         if isinstance(x, list) and len(x) >= 3 and re.match(r'^[a-z][a-z_-]{1,19}$', str(x[0])) and _num_ok(x[2]):
-            a = agg.setdefault(x[0], [0, 0.0, 0.0])
+            a = agg.setdefault(x[0], [0, 0.0, 0.0, None])
             a[0] += 1
             a[1] += float(x[2])
             a[2] = max(a[2], float(x[2]))
+            if len(x) >= 7 and _num_ok(x[6]):       # 27/10/2026: שניות מעבד (רק לפקודות שנמדדו)
+                a[3] = (a[3] or 0.0) + float(x[6])
     if agg:
-        out['vt'] = [[k, v[0], round(v[1], 2), round(v[2], 2)] for k, v in sorted(agg.items(), key=lambda kv: -kv[1][1])][:30]
+        out['vt'] = [[k, v[0], round(v[1], 2), round(v[2], 2)] + ([round(v[3], 1)] if v[3] is not None else [])
+                     for k, v in sorted(agg.items(), key=lambda kv: -kv[1][1])][:30]
     cues = _read_json(pd / 'out' / 'cues.final.json')
     if isinstance(cues, list) and cues:
         cps = [c.get('cps') for c in cues if isinstance(c, dict)]
@@ -888,6 +891,10 @@ def learn_facts(ctx):
         out['wd'] = {'n': len(words), 'spk': len([x for x in spk if x not in (None, 'S?')]),
                      'unk': sum(1 for w in words if isinstance(w, dict) and w.get('spk') in (None, 'S?')),
                      'wpm': round(len(words) / (dur / 60), 1) if _num_ok(dur) and dur > 0 else 0}
+    ct = content_type(pd, words if isinstance(words, list) else [],
+                      (_read_json(pd / 'asr' / 'parakeet.json') or {}).get('audio'), ps.get('ingest.duration') or (ctx.st.get('spec') or {}).get('dur'))
+    if ct:
+        out['ct'] = ct
     td = pd / 'tr'
     if td.is_dir():
         out['tl'] = {'pt': len(list(td.glob('batch_*.he.txt'))), 'fx': _count_fix_lines(td / 'fixes.txt'),
@@ -908,6 +915,11 @@ def learn_facts(ctx):
         x = {k: v for k, v in au.items() if _LX_KEY.match(str(k)) and _num_ok(v)}
         if x:
             out['au'] = x
+    tel = (_read_json(pd / 'asr' / 'parakeet.json') or {}).get('tel')   # 27/10/2026: "הכל בטלפון" — זמן, סוללה וחום לכל שלב
+    if isinstance(tel, dict):
+        x = {k: v for k, v in tel.items() if re.match(r'^[a-z]{2,6}\.[a-z0-9]{1,6}$', str(k)) and _num_ok(v)}
+        if x:
+            out['ph'] = dict(list(x.items())[:40])
     en = ctx.st.get('eng_facts')
     if isinstance(en, dict):
         x = {k: v for k, v in en.items() if _LX_KEY.match(str(k)) and _num_ok(v)}
@@ -926,6 +938,64 @@ def learn_facts(ctx):
     if mx:
         out['mx'] = mx
     return out
+
+
+# 27/10/2026 (מאגר הלמידה, סבב 2): סוג התוכן — מחושב בקוד ממה שכבר נמדד, בלי טוקנים ובלי לשאול את המשתמש.
+# המטרה: לפצל כל מדד איכות/זמן לפי סוג ("הריאליטי קשה יותר מהרצאות?"). הכללים מכוונים לגס ובטוח — הערכים עצמם
+# (דוברים, החלפות, שוטים, טקסט על המסך) נשמרים לצד התווית, כך שאפשר לסווג מחדש בלי עבודה חדשה.
+# **הסדר = הקוד: זהה ל־CT_KINDS ב־ibkr-proxy/lib/studiolearn.js** (tests/learn-extra2.test.js).
+CT_KINDS = ('talk', 'interview', 'panel', 'show', 'quiet')
+CT_QUIET_SP = 0.35      # פחות דיבור מזה — מוזיקה / תמונה בלי דיבור
+CT_DOM = 0.85           # דובר אחד מעל זה מזמן הדיבור — מונולוג (הרצאה, נאום), גם אם יש שאלה מהקהל
+CT_SHOW_SHM = 8.0       # חילופי שוטים לדקה מעל זה, עם 3+ דוברים — עריכה של סדרה / ריאליטי, לא פאנל
+
+
+def content_type(pd, words, au, dur):
+    """→ {k: מספר מ־CT_KINDS, spk, dom, swm (החלפות דובר לדקה), shm (שוטים לדקה), ot (חלק מהפריימים עם טקסט על המסך), sp}.
+    רק מספרים. חסר נתון — לא ממציאים (המפתח לא נכנס); בלי מילים — None."""
+    try:
+        ws = [w for w in words or [] if isinstance(w, dict) and _num_ok(w.get('s')) and _num_ok(w.get('e'))]
+        if not ws:
+            return None
+        d = float(dur) if _num_ok(dur) and dur > 0 else max(w['e'] for w in ws)
+        mins = max(d / 60.0, 1 / 60.0)
+        talk = {}
+        sw, prev = 0, None
+        for w in ws:
+            k = w.get('spk') if w.get('spk') not in (None, 'S?') else None
+            if k is None:
+                continue
+            talk[k] = talk.get(k, 0.0) + max(0.0, w['e'] - w['s'])
+            if prev is not None and k != prev:
+                sw += 1
+            prev = k
+        out = {'spk': len(talk), 'swm': round(sw / mins, 2)}
+        tot = sum(talk.values())
+        dom = max(talk.values()) / tot if tot > 0 else 1.0
+        out['dom'] = round(dom, 3)
+        sh = _read_json(pd / 'shots.json') or {}
+        if isinstance(sh.get('shots'), list) and sh.get('threshold') is not None:
+            out['shm'] = round(len(sh['shots']) / mins, 2)
+        bu = _read_json(pd / 'burned.json') or {}
+        if _num_ok(bu.get('n')) and bu['n'] > 0 and isinstance(bu.get('frames'), list):
+            out['ot'] = round(min(1.0, len(bu['frames']) / bu['n']), 3)
+        sp = (au or {}).get('sp') if isinstance(au, dict) else None
+        if _num_ok(sp):
+            out['sp'] = sp
+        if _num_ok(sp) and sp < CT_QUIET_SP:
+            kind = 'quiet'
+        elif len(talk) <= 1 or dom >= CT_DOM:
+            kind = 'talk'
+        elif len(talk) == 2:
+            kind = 'interview'
+        elif (out.get('shm') or 0) >= CT_SHOW_SHM:
+            kind = 'show'
+        else:
+            kind = 'panel'
+        out['k'] = CT_KINDS.index(kind)
+        return out
+    except Exception:            # noqa: BLE001 — מדידה בלבד
+        return None
 
 
 def learn_media_facts(media):
@@ -1906,9 +1976,10 @@ def busy_slots():
         return 1
 
 
-def note_timing(ctx, cmd, t0, t1, rss=0):
+def note_timing(ctx, cmd, t0, t1, rss=0, cpu=None):
     """מדידה (10/10/2026, קיצור היישור): כמה זמן לקחה כל פקודת vt → snb-timing.json בפרויקט, שנכנס לנקודת השמירה.
-    רק שם הפקודה ומספרים. כשל בכתיבה לא נוגע בעבודה."""
+    רק שם הפקודה ומספרים. כשל בכתיבה לא נוגע בעבודה. cpu (27/10/2026) = שניות מעבד של הפקודה וצאצאיה (משתמש + מערכת):
+    cpu קרוב לזמן = שלב שמוגבל במעבד יחיד; cpu גדול מהזמן = מנצל כמה ליבות; קטן בהרבה = מחכה (דיסק, רשת, זיכרון)."""
     try:
         p = ctx.pdir / 'snb-timing.json'
         if not ctx.pdir.is_dir():
@@ -1918,7 +1989,8 @@ def note_timing(ctx, cmd, t0, t1, rss=0):
                 d = json.loads(p.read_text(encoding='utf-8'))
             except (OSError, ValueError):
                 d = {'env': env_facts(), 'vt': []}
-            d['vt'] = (d.get('vt') or [])[-200:] + [[cmd, round(t0, 1), round(t1 - t0, 2), threading.current_thread().name[:12], int(rss or 0), busy_slots()]]
+            d['vt'] = (d.get('vt') or [])[-200:] + [[cmd, round(t0, 1), round(t1 - t0, 2), threading.current_thread().name[:12], int(rss or 0), busy_slots(),
+                                                 round(cpu, 1) if _num_ok(cpu) and cpu >= 0 else None]]
             p.write_text(json.dumps(d), encoding='utf-8')
     except Exception:          # noqa: BLE001 — מדידה בלבד
         pass
@@ -2106,12 +2178,13 @@ def _vt(ctx, args, stage, lo, hi, t0):
             except Stop:
                 proc.kill()
                 raise
-    rss = 0
+    rss, cpu = 0, None
     try:                                         # 21/10/2026: שיא הזיכרון של הפקודה עצמה (כולל הצאצאים שחיכתה להם) — לא דגימה לדקה
         _, stt, ru = os.wait4(proc.pid, 0)
         rc = os.waitstatus_to_exitcode(stt)
         proc.returncode = rc
         rss = int(ru.ru_maxrss / 1024)          # KB → MB
+        cpu = ru.ru_utime + ru.ru_stime          # 27/10/2026: זמן מעבד — מה באמת עולה ליבות ומה רק מחכה
     except (ChildProcessError, OSError, AttributeError, ValueError):
         rc = proc.wait()
     if rc != 0:
@@ -2123,7 +2196,7 @@ def _vt(ctx, args, stage, lo, hi, t0):
             # 21/10/2026: קוד משלו — עד היום worker_step, ועם התראת אחסון ישנה פתוחה זה הוצג כ"ניתוק מהרשת" (חולף)
             raise StepError('✗ vt ' + args[0] + ' נכשל (קוד ' + str(rc) + why + ').', 'worker_oom')
         raise SystemExit('✗ vt ' + args[0] + ' נכשל (קוד ' + str(rc) + ').')
-    note_timing(ctx, args[0], t0, time.time(), rss)
+    note_timing(ctx, args[0], t0, time.time(), rss, cpu)
     if args[0] == 'ingest':
         report_px(ctx)
     print('✓ vt ' + args[0] + (': ' + tail[-1] if tail else ''))
@@ -2860,6 +2933,29 @@ PW_V = 1
 PW_WORDS_MAX = 200000
 PW_SPK_RE = re.compile(r'^(S\d{1,2}|S\?)$')
 PW_ALIGN = ('qwen3', 'suspicious', 'approx')   # כמו vt/align.py
+# 27/10/2026 (מאגר הלמידה, סבב 2): מדידות "הכל בטלפון" — PhTel.kt. לכל שלב: t שניות, n הפעלות, b0/b1 סוללה באחוזים,
+# c0/c1 חום הסוללה ב־°C, ch בטעינה בסוף, th מצב החום של המערכת (0–6); dev = ליבות, זיכרון ב־GB, גרסת אנדרואיד.
+# **זהה למפתחות של PhTel.kt** (tests/learn-extra2.test.js).
+PW_TEL_STAGES = ('wav', 'asr', 'diar', 'align')
+PW_TEL_KEYS = {'t': (0, 864000), 'n': (0, 1000), 'b0': (0, 100), 'b1': (0, 100), 'c0': (-40, 120), 'c1': (-40, 120), 'ch': (0, 1), 'th': (0, 6)}
+PW_TEL_DEV = {'cores': (1, 256), 'mem': (0, 1024), 'sdk': (21, 99)}
+
+
+def pw_tel(t):
+    """tel מהטלפון → {'asr.t': 312.4, …, 'dev.cores': 8} (רק מספרים מהרשימה). לא תקין — מה שלא בצורה לא נכנס; לא מפיל."""
+    out = {}
+    if not isinstance(t, dict) or t.get('v') != 1:
+        return out
+    for stg, o in (t.get('st') or {}).items() if isinstance(t.get('st'), dict) else []:
+        if stg in PW_TEL_STAGES and isinstance(o, dict):
+            for k, (lo, hi) in PW_TEL_KEYS.items():
+                if _fin(o.get(k), lo, hi) and not isinstance(o.get(k), bool):
+                    out[stg + '.' + k] = round(float(o[k]), 1)
+    dv = t.get('dev') if isinstance(t.get('dev'), dict) else {}
+    for k, (lo, hi) in PW_TEL_DEV.items():
+        if _fin(dv.get(k), lo, hi) and not isinstance(dv.get(k), bool):
+            out['dev.' + k] = int(dv[k])
+    return out
 
 
 def pw_mode(st) -> bool:
@@ -2900,6 +2996,9 @@ def pw_check(d, dur=None):
     dz = d.get('diarize')
     if isinstance(dz, dict):
         res['diarize'] = {k: dz[k] for k in ('speakers', 'units', 'seconds') if _fin(dz.get(k), 0, 1e6)}   # כמו vt/diarize.py (בלי talk_s — שמות)
+    tel = pw_tel(d.get('tel'))
+    if tel:
+        res['tel'] = tel
     return res
 
 

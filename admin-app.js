@@ -1849,7 +1849,7 @@ page('labTime', { tab: 'imp', parent: 'lab', title: () => t('admLabTime'), rende
   p.append(grp(t('admByStage')), st.length ? list(...st.map((s) => row({ c: 'orange', ic: '◷', t: stgTxt(s.k), s: fmt(t('admStgS'), { t: durTxt(s.sec) }),
     v: numTxt(s.spm), tr: t('admSpmU'), meter: [s.sh * 100, s.sh >= 0.35 ? 'w' : ''] }))) : list(row({ c: 'gray', ic: '—', t: t('admNoData') })));
   const vt = v.vt || [];
-  if (vt.length) p.append(grp(t('admVt')), list(...vt.map((x) => row({ c: 'gray', ic: '›', t: ltr('vt ' + x.c), s: fmt(t('admVtS'), { n: x.n, m: durTxt(x.mx) }), v: durTxt(x.sec), tr: pcTxt(x.sh), meter: [x.sh * 100, ''] }))));
+  if (vt.length) p.append(grp(t('admVt')), list(...vt.map((x) => row({ c: 'gray', ic: '›', t: ltr('vt ' + x.c), s: fmt(t('admVtS'), { n: x.n, m: durTxt(x.mx) }) + (nz(x.cr) ? ' · ' + fmt(t('admVtCpu'), { r: numTxt(x.cr) }) : ''), v: durTxt(x.sec), tr: pcTxt(x.sh), meter: [x.sh * 100, ''] }))));
 } });
 page('labQual', { tab: 'imp', parent: 'lab', title: () => t('admLabQual'), render(p) {
   const v = needLab(p); if (!v) return;
@@ -1860,8 +1860,23 @@ page('labQual', { tab: 'imp', parent: 'lab', title: () => t('admLabQual'), rende
     : list(row({ c: 'gray', ic: '—', t: t('admNoData') })));
   p.append(grp(fmt(t('admQfG'), { n: qf.n || 0 })), (qf.m || []).some((x) => x.b) ? list(...qf.m.filter((x) => x.b).map((x) => row({ c: 'green', ic: '✓', t: qTxt(x.k), v: numTxt(x.b), tr: pcTxt(x.sh), meter: [x.sh * 100 * 5, x.sh >= 0.15 ? 'x' : x.sh >= 0.05 ? 'w' : ''] })))
     : list(row({ c: 'gray', ic: '—', t: t('admNoData') })));
+  const ct = v.ct || [];                // 27/10/2026: לפי סוג התוכן (job.content_type) — האם סוג מסוים קשה יותר
+  if (ct.length) p.append(grp(t('admCtG')), list(...ct.map((x) => row({ c: 'blue', ic: '▦', t: ctTxt(x.k),
+    s: [fmt(t('admCtN'), { n: x.n }), nz(x.jd) ? fmt(t('admCtJd'), { v: numTxt(x.jd) }) : '', nz(x.ok) ? fmt(t('admCtOk'), { p: pcTxt(x.ok) }) : '',
+      nz(x.spm) ? fmt(t('admCtSpm'), { v: numTxt(x.spm) }) : ''].filter(Boolean).join(' · '),
+    v: nz(x.q) ? numTxt(x.q) : '—', tr: t('admKq') }))));
   p.append(h('p', 'adm-foot', t('admQualFoot')));
 } });
+function ctTxt(k) {
+  switch (k) {
+    case 'talk': return t('admCt_talk');
+    case 'interview': return t('admCt_interview');
+    case 'panel': return t('admCt_panel');
+    case 'show': return t('admCt_show');
+    case 'quiet': return t('admCt_quiet');
+    default: return k;
+  }
+}
 /* מ׳5: המדדים בקוד — מה כל שלב שינה, תזמון, עקביות, השמטות. הכל מחושב בשרתון (learnView.mx), כאן רק תצוגה */
 function mxRow(v) {
   const m = v.mx;
