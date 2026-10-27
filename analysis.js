@@ -1505,6 +1505,9 @@ function tipBox(k) {
   slot.tip = tip;
   return slot;
 }
+/* 27/10/2026 (בקשת המשתמש): מדד שאתרים מחשבים בכמה דרכים — שורה גלויה איך הוא מחושב אצלנו ולמה במקום אחר המספר שונה */
+const DEF_NOTE = { r40: 'anDnR40', eps: 'anDnEps', fcf: 'anDnFcf', debt: 'anDnDebt', de: 'anDnDebt', cr: 'anDnCr', roic: 'anDnRoic', roe: 'anDnRoe' };
+const defNote = (keys) => { const k = keys.find((x) => DEF_NOTE[x]); return k ? h('p', { class: 'an-ex an-defn' }, T(DEF_NOTE[k])) : null; };
 function chartSheet(def) {
   const co = S.co;
   if (def.line) {
@@ -1512,7 +1515,7 @@ function chartSheet(def) {
       const Hh = multHist(co), a = Hh[def.line[1]], ok = a.filter((x) => x > 0 && x < 300), md = multAvg(ok);
       const host = h('div', { class: 'an-chart no-swipe' }), slot = tipBox(1), tip = slot.tip;
       const stat = (tt, v) => h('div', {}, h('span', {}, tt), h('b', {}, v));
-      b.append(h('div', { class: 'an-chead' }, h('p', { class: 'an-ex' }, T(def.line[3])), slot), h('div', { class: 'an-chartw' }, host),
+      b.append(h('div', { class: 'an-chead' }, h('p', { class: 'an-ex' }, T(def.line[3])), slot), h('div', { class: 'an-chartw' }, host), h('p', { class: 'an-ex an-defn' }, T('anDnMult')),
         h('div', { class: 'an-stats' }, stat(T('anToday'), fmt(fin(a).pop(), 'x', co, 1)), stat(T('anAvg10'), fmt(md, 'x', co, 1)),
           stat(T('anRange'), ok.length ? iso(Math.min(...ok).toFixed(0) + '–' + Math.max(...ok).toFixed(0) + '×') : '—')));
       rec.draw = () => drawChart(host, { labels: Hh.t.map((x) => (x.slice(5) === '01' ? x.slice(0, 4) : '')), tipLabels: Hh.t.map((x) => x.slice(5) + '/' + x.slice(0, 4)),
@@ -1532,7 +1535,7 @@ function chartSheet(def) {
         e.currentTarget.setAttribute('aria-pressed', String(!st.hide.has(k))); draw(); } } }, h('i', { style: `background:${cssv(M[k].c)}` }), T(M[k].n)))) : null;
     // השורה שמעל הגרף: ההסבר (או שבבי הסדרות) ולצידם המקום של הבועה
     b.append(...[h('div', { class: 'an-chead' }, chips || (q ? h('p', { class: 'an-ex' }, T(q)) : h('span')), slot),
-      chartW, tbl, stats, restNote(co, def.s),
+      chartW, tbl, stats, defNote(def.s), restNote(co, def.s),
       long ? segCtl(T('anCRange'), [['5', T('anC5')], ['10', T('anC10')], ['all', T('anCAll')]], st.range, (v) => { st.range = v; draw(); }) : null,
       ratio ? null : segCtl(T('anCView'), [['v', T('anCVal')], ['g', T('anCGrowth'), noG], ['r', T('anCPctRev'), noPct]], 'v', (v) => { st.view = v; draw(); }),
       segCtl(T('anCPeriod'), [['fy', T('anCAnnual')], ['q', T('anCQuarter')]], 'fy', (v) => { st.mode = v; draw(); }),
@@ -1574,7 +1577,7 @@ function restNote(co, keys) {
    ושנים שהבדיקות סימנו (co.flags). רק מה שכבר בתשובה — בלי פנייה לרשת */
 const RAWK = { rev: ['rev'], gp: ['gp', 'cogs'], op: ['op'], ni: ['ni'], eps: ['eps'], sh: ['sh'], ocf: ['ocf'], buy: ['buy'], dps: ['dps', 'divp'], eq: ['eq'], ta: ['ta'], tl: ['tl'],
   cashT: ['cash', 'msec'], debt: ['debt', 'debtNc', 'debtC', 'stb'], capexN: ['capex'], sbcN: ['sbc'], fcf: ['ocf', 'capex'], fcfsbc: ['ocf', 'capex', 'sbc'],
-  gm: ['gp', 'rev'], om: ['op', 'rev'], nm: ['ni', 'rev'], cr: ['ca', 'cl'], de: ['debt', 'eq'], roe: ['ni', 'eq'], roic: ['op', 'eq', 'debt', 'cash'], r40: ['rev', 'ocf', 'capex'] };
+  gm: ['gp', 'rev'], om: ['op', 'rev'], nm: ['ni', 'rev'], cr: ['ca', 'cl'], de: ['debt', 'eq'], roe: ['ni', 'eq'], roic: ['op', 'eq', 'debt', 'cash'], r40: ['rev', 'op'] };
 function srcDef(co, k) {
   switch (k) {
     case 'gp': return co.tags && co.tags.gp ? null : T('anDefGp');
