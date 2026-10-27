@@ -602,17 +602,18 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                         }
                     }
                     Spacer(Modifier.height(8.dp))
+                    // 27/10/2026 (בקשת המשתמש): תמיד מוצג ומסומן כברירת מחדל — הבחירה להורדה הזו בלבד
                     val subs = remember(info) { DmSubs.pick(info.optJSONArray("sub")) }
-                    var withSubs by remember { mutableStateOf(pr.subs) }
-                    if (subs.isNotEmpty() && !audio) ListItem(headlineContent = { Text(stringResource(R.string.dmSubs)) },
-                        supportingContent = { Text(subs.joinToString(" · ") { it.n.ifEmpty { it.l } }) },
-                        trailingContent = { Switch(withSubs, { withSubs = it; pr.subs = it }) },
+                    var withSubs by remember(info) { mutableStateOf(true) }
+                    if (!audio) ListItem(headlineContent = { Text(stringResource(R.string.dmSubs)) },
+                        supportingContent = { Text(if (subs.isNotEmpty()) subs.joinToString(" · ") { it.n.ifEmpty { it.l } } else stringResource(R.string.dmSubsIfAny)) },
+                        trailingContent = { Switch(withSubs, { withSubs = it }) },
                         colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent))
                     LaterRow(later) { later = it }
-                    Button(onClick = { a.addVideo(f, list.getOrNull(qi), audio, ref, later = later, subs = if (withSubs) subs else emptyList()); onClose() }, Modifier.fillMaxWidth().height(52.dp)) {
+                    Button(onClick = { a.addVideo(f, list.getOrNull(qi), audio, ref, later = later, subs = DmSubs.forTask(info.optJSONArray("sub"), withSubs)); onClose() }, Modifier.fillMaxWidth().height(52.dp)) {
                         Text(stringResource(if (later) R.string.dmGoLater else R.string.dmGo), fontSize = 17.sp)
                     }
-                    if (!audio) StudioRow(a, f.url, ref, cloudOk(info)) { a.addVideo(f, list.getOrNull(qi), false, ref, tr = true); onClose() }
+                    if (!audio) StudioRow(a, f.url, ref, cloudOk(info)) { a.addVideo(f, list.getOrNull(qi), false, ref, tr = true, subs = DmSubs.forTask(info.optJSONArray("sub"), withSubs)); onClose() }
                     val lu = remember(f.url) { DmPlaylist.listUrl(f.url) }
                     if (lu.isNotEmpty()) TextButton(onClick = {
                         scope.launch { busy = true; found = null; val r = withContext(Dispatchers.IO) { a.probeList(lu, ref) }; busy = false; found = r; if (r is DmActivity.Found.Playlist) { plSel = r.pl.entries.indices.toSet(); plQ = pr.quality } }
