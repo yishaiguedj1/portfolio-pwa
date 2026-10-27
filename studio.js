@@ -8730,18 +8730,21 @@ function shadeUpLine(rec, run, now) {
   let r = shadeRate.get(rec.id);
   if (!r || sent < r.b) { r = { t: now, b: sent, v: run.rate || 0 }; shadeRate.set(rec.id, r); }
   else if (now - r.t >= 900) { const v = (sent - r.b) / ((now - r.t) / 1000); r.v = r.v ? r.v * 0.5 + v * 0.5 : v; r.t = now; r.b = sent; }
-  const parts = [T('studioUpOf', { a: fmtSize(sent), b: fmtSize(size) })];
+  const parts = [T('studioShadeUpOf', { a: fmtSize(sent), b: fmtSize(size) })];
   if (r.v > 0) parts.push(T('studioPerSec', { v: fmtSize(r.v) }));
-  return parts.join(' · ');
+  return shadeDir() + parts.join(' · ');
 }
-/* בקשת המשתמש: "בר התקדמות להעלאה שנראה בדיוק כמו של השלבים" — אותו shadeBar, אחוז ושם השלב. כשההעלאה עצמה השלב
-   הנוכחי — השורה הראשונה כבר הפס שלה, ומוסיפים רק את המגה־בייטים והמהירות */
+/* כיוון השורה: "81MB" בתחילתה (אות לטינית ראשונה) הופכת שורה בעברית לשמאל־לימין — הפס מתהפך והמספרים מתערבבים
+   (צילום מהטלפון, 27/10/2026). RLM בתחילת כל שורה בעברית */
+const shadeDir = () => (uiLang() === 'en' ? '' : '\u200F');
+/* בקשת המשתמש: "בר התקדמות להעלאה שנראה בדיוק כמו של השלבים", "מסודר כמו החלק העליון" — אותו מבנה: שם, ואז פס ואחוז,
+   ואז כמה עלה ומהירות. כשההעלאה עצמה השלב הנוכחי — השורה הראשונה כבר הפס שלה, ומוסיפים רק את השורה האחרונה */
 function shadeUpBlock(rec, run, now, curSt) {
   const ln = shadeUpLine(rec, run, now);
   if (!ln) return '';
   if (curSt === 'up') return ln;
   const size = rec.spec.size || run.total || 0, up = size > 0 ? Math.max(0, Math.min(1, (run.sent || 0) / size)) : 0;
-  return stageName('up', langsSum(rec.spec.to), rec.spec.ka ? 'ka' : rec.spec.src === 'subs') + '\n' + shadeBar(up, uiLang()) + '  ' + Math.round(up * 100) + '%\n' + ln;
+  return shadeDir() + T('studioShadeUp') + '\n' + shadeDir() + shadeBar(up, uiLang()) + '  ' + Math.round(up * 100) + '%\n' + ln;
 }
 /* 27/10/2026: עבודה שכבר לא רצה (בוטלה, נגמרה בלי שהתראת הסוף הגיעה) — התראת השלב נסגרת (sw.js מחזיר רק כשהמשתמש סגר) */
 function shadeEnd(id) {
