@@ -41,5 +41,12 @@ const ok = (c, m) => { assert.ok(c, m); n++; console.log('ok - ' + m); };
     ok(/serviceWorker\.addEventListener\('message'/.test(sa) && /d\.snb === 'studioJob'/.test(sa) && /openStudio\(\{ standalone: sa, job: d\.j/.test(sa), 'studio-app: הודעת studioJob → העבודה');
     ok(/if \(!shadeGone\.has\(rec\.id\)\) \{ shadeGone\.add\(rec\.id\); shadeEnd\(rec\.id\); \}/.test(src) && /n\.data && n\.data\.k === 'stage'\) n\.close\(\)/.test(src), 'עבודה שהסתיימה/בוטלה — התראת השלב נסגרת (רק היא)');
   }
+  {
+    // 27/10/2026: הווילון כל שנייה (טיימר משלו), עם שורת ההעלאה — מגה־בייטים ומהירות; גם בהעלאה ברקע
+    ok(/const SHADE_MS = 1000/.test(src) && /shadeT = setInterval\(\(\) => \{ if \(root\) shadeSync\(\); \}, SHADE_MS\)/.test(src), 'הווילון מתעדכן כל שנייה');
+    const ul = src.slice(src.indexOf('function shadeUpLine('), src.indexOf('function shadeSync('));
+    ok(/T\('studioUpOf'/.test(ul) && /T\('studioPerSec'/.test(ul) && /run\.phase !== 'video'/.test(ul), 'שורת ההעלאה: עלו X מתוך Y · מהירות');
+    ok(!/if \(run && run\.bg\) continue;/.test(src) && /\(ul \? '\\n' \+ ul : ''\)/.test(src), 'גם בהעלאה ברקע — השורה בהתראה שלנו');
+  }
   console.log('# ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL - ' + e.message); process.exit(1); });
