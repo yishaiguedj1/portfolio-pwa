@@ -153,7 +153,7 @@ ok(/testBrowserReleaseUnitTest/.test(R('.github/workflows/android.yml')) && fs.e
 // 27/10/2026 (בקשת המשתמש: "אחד לאחד כמו Chrome באנדרואיד" — המבנה; הצבעים והזכוכית של Apple, האדום של כפתור ההורדה)
 ok(/private fun TopBar\(/.test(ui) && !/private fun Toolbar\(a: BrowserActivity\)/.test(ui) && /BrIcons\.CNewTab/.test(ui) && /private fun TabsBtn\(/.test(ui),
   'הסרגל של Chrome לאנדרואיד למעלה: דף הבית · הכתובת · כרטיסייה חדשה · כרטיסיות · ⋮ — בלי סרגל תחתון של אייפון');
-ok(/private fun MenuSheet\(a: BrowserActivity\)/.test(ui) && /Dialog\(/.test(ui) && /setBackgroundBlurRadius/.test(ui) && /private fun RowScope\.MBtn\(/.test(ui) && !/private fun Dest\(/.test(ui),
+ok(/private fun MenuSheet\(a: BrowserActivity\)/.test(ui) && /Dialog\(/.test(ui) && /PixelCopy\.request/.test(ui) && /boxBlur\(bmp/.test(ui) && !/setBackgroundBlurRadius/.test(ui) && /private fun RowScope\.MBtn\(/.test(ui) && !/private fun Dest\(/.test(ui),
   'התפריט ⋮ = החלון של Chrome מהפינה (שורת כפתורים ופריטים), זכוכית עם טשטוש');
 ok(/private val Red = Color\(0xFFFF4656\)/.test(ui) && /Color\(0x4A3C3C43\), Red,/.test(ui) && !/0xFF1A73E8\)\)/.test(ui.replace(/FavPal[^\n]*/, '')),
   'צבע הפעולה = האדום של כפתור ההורדה, לא הכחול של Google');

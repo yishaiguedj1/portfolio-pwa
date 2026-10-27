@@ -105,6 +105,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.positionOnScreen
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -144,7 +146,7 @@ import kotlinx.coroutines.withContext
  * כרטיסייה חדשה 52dp · כרטיסיות · ⋮), תפריט ⋮ שנפתח מהפינה עם שורת חמישה כפתורים עגולים ואחריה הפריטים בסדר של Chrome,
  * מסך כרטיסיות עם "+" · מעבר רגיל/פרטי · ⋮ ושתי עמודות, הגדרות בכרטיסים מקובצים. הגימור — Apple (iOS 27, Liquid Glass):
  * האדום של כפתור ההורדה (#FF4656) כצבע הפעולה, הניטרליים של iOS, רקע רך עם גוונים מאחורי הזכוכית, כרטיסי זכוכית עם קו אור
- * בשפה העליונה וקו כהה דק סביב, והתפריט ⋮ חלון שמטשטש את הדף מאחוריו (Window.setBackgroundBlurRadius, אנדרואיד 12+).
+ * בשפה העליונה וקו כהה דק סביב, והתפריט ⋮ חלון שמצייר את הדף שמאחוריו מטושטש (PixelCopy + boxBlur).
  */
 private val Red = Color(0xFFFF4656)
 private val Green = Color(0xFF34C759)
@@ -740,11 +742,9 @@ private fun SugRow(icon: ImageVector, title: String, sub: String?, append: (() -
 
 /* ======================= התפריט ⋮ — כמו ב־Chrome לאנדרואיד, חלון זכוכית ======================= */
 
-/** החלון של התפריט: בפינה של ⋮ (למעלה, ובעברית — משמאל), שקוף, עם טשטוש של מה שמאחוריו כשהמכשיר תומך (אנדרואיד 12+).
- *  מחזיר אם יש טשטוש — בלעדיו המילוי כמעט אטום */
-private fun glassWindow(w: android.view.Window?, dark: Boolean, rtl: Boolean, bottom: Boolean, topPx: Int, botPx: Int, dp: Float): Boolean {
-    w ?: return false
-    val blur = Build.VERSION.SDK_INT >= 31 && runCatching { w.windowManager.isCrossWindowBlurEnabled }.getOrDefault(false)
+/** החלון של התפריט: בפינה של ⋮ (למעלה, ובעברית — משמאל), שקוף, בלי עמעום. הרקע מצויר בתוכו (backdrop) */
+private fun glassWindow(w: android.view.Window?, rtl: Boolean, bottom: Boolean, topPx: Int, botPx: Int, dp: Float) {
+    w ?: return
     w.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
     w.setDimAmount(0f)
     w.setFormat(PixelFormat.TRANSLUCENT)
@@ -754,15 +754,46 @@ private fun glassWindow(w: android.view.Window?, dark: Boolean, rtl: Boolean, bo
     p.x = (4 * dp).toInt()
     p.y = if (bottom) botPx + (60 * dp).toInt() else topPx + (4 * dp).toInt()
     w.attributes = p
-    val fill = when {
-        blur && dark -> 0x8C1C1C1E.toInt()
-        blur -> 0xA8FFFFFF.toInt()
-        dark -> 0xF52C2C2E.toInt()
-        else -> 0xF7FFFFFF.toInt()
+    w.setBackgroundDrawable(GradientDrawable().apply { cornerRadius = 24 * dp; setColor(AColor.TRANSPARENT) })
+}
+
+/** הדף שמאחורי התפריט, מטושטש — כמו החומר של Apple: מה שמאחור נראה רק כצבע ואור, אף פעם לא כטקסט.
+ *  PixelCopy של חלון הדפדפן בשמינית מהגודל + טשטוש תיבה בשלושה מעברים. עד 27/10/2026 — הטשטוש בין חלונות של המערכת
+ *, שבטלפון לא נדלק והדף נקרא דרך התפריט */
+private const val BACK_SCALE = 8
+private fun backdrop(w: android.view.Window, done: (Bitmap) -> Unit) {
+    val v = w.decorView
+    if (v.width < BACK_SCALE || v.height < BACK_SCALE) return
+    val bmp = Bitmap.createBitmap(v.width / BACK_SCALE, v.height / BACK_SCALE, Bitmap.Config.ARGB_8888)
+    runCatching {
+        android.view.PixelCopy.request(w, bmp, { r -> if (r == android.view.PixelCopy.SUCCESS) { boxBlur(bmp, 4); done(bmp) } },
+            android.os.Handler(android.os.Looper.getMainLooper()))
     }
-    w.setBackgroundDrawable(GradientDrawable().apply { cornerRadius = 24 * dp; setColor(fill) })
-    if (blur && Build.VERSION.SDK_INT >= 31) w.setBackgroundBlurRadius((40 * dp).toInt())
-    return blur
+}
+
+/** טשטוש תיבה נפרד (אופקי ואז אנכי), שלוש פעמים ≈ גאוסיאני */
+private fun boxBlur(b: Bitmap, r: Int) {
+    val w = b.width; val h = b.height
+    val px = IntArray(w * h); b.getPixels(px, 0, w, 0, 0, w, h)
+    val tmp = IntArray(w * h)
+    fun pass(src: IntArray, dst: IntArray, n: Int, lines: Int, step: Int, line: Int) {
+        val d = 2 * r + 1
+        for (l in 0 until lines) {
+            val base = l * line
+            var a = 0; var rr = 0; var g = 0; var bb = 0
+            for (i in -r..r) { val c = src[base + i.coerceIn(0, n - 1) * step]
+                a += c ushr 24; rr += (c shr 16) and 255; g += (c shr 8) and 255; bb += c and 255 }
+            for (i in 0 until n) {
+                dst[base + i * step] = ((a / d) shl 24) or ((rr / d) shl 16) or ((g / d) shl 8) or (bb / d)
+                val o = src[base + (i - r).coerceIn(0, n - 1) * step]
+                val ni = src[base + (i + r + 1).coerceIn(0, n - 1) * step]
+                a += (ni ushr 24) - (o ushr 24); rr += ((ni shr 16) and 255) - ((o shr 16) and 255)
+                g += ((ni shr 8) and 255) - ((o shr 8) and 255); bb += (ni and 255) - (o and 255)
+            }
+        }
+    }
+    repeat(3) { pass(px, tmp, w, h, 1, w); pass(tmp, px, h, w, w, 1) }
+    b.setPixels(px, 0, w, 0, 0, w, h)
 }
 
 @Composable
@@ -781,17 +812,29 @@ private fun MenuSheet(a: BrowserActivity) {
     Dialog(onDismissRequest = { close() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         val view = LocalView.current
         val bottom = a.barBottom && !ntp
-        remember { glassWindow((view.parent as? DialogWindowProvider)?.window, c.dark, rtl, bottom, topPx, botPx, dens.density) }
-        LaunchedEffect(Unit) { glassWindow((view.parent as? DialogWindowProvider)?.window, c.dark, rtl, bottom, topPx, botPx, dens.density) }
+        remember { glassWindow((view.parent as? DialogWindowProvider)?.window, rtl, bottom, topPx, botPx, dens.density) }
+        LaunchedEffect(Unit) { glassWindow((view.parent as? DialogWindowProvider)?.window, rtl, bottom, topPx, botPx, dens.density) }
+        var back by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+        LaunchedEffect(Unit) { backdrop(a.window) { back = it.asImageBitmap() } }
+        var at by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
         // הכניסה של Chrome: גדל ונחשף מהפינה של ⋮ ב־250ms בעקומה "emphasized"
         val k = remember { Animatable(0f) }
         LaunchedEffect(Unit) { k.animateTo(1f, tween(250, easing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f))) }
         val shape = RoundedCornerShape(24.dp)
         Column(Modifier
+            .onGloballyPositioned { at = it.positionOnScreen() }
             .graphicsLayer { scaleX = 0.6f + 0.4f * k.value; scaleY = 0.6f + 0.4f * k.value; alpha = k.value
                 transformOrigin = TransformOrigin(if (rtl) 0.05f else 0.95f, if (bottom) 0.95f else 0.05f) }
             .width(IntrinsicSize.Max).widthIn(min = 220.dp, max = 330.dp).heightIn(max = maxH)
             .clip(shape)
+            .drawBehind {
+                // החומר: הדף מאחור מטושטש במקום המדויק שמתחת לתפריט, ומעליו שכבה כמעט אטומה (בלי תמונה — אטומה לגמרי)
+                val b = back
+                if (b != null) drawImage(b, dstOffset = androidx.compose.ui.unit.IntOffset(-at.x.toInt(), -at.y.toInt()),
+                    dstSize = androidx.compose.ui.unit.IntSize(b.width * BACK_SCALE, b.height * BACK_SCALE))
+                drawRect(if (c.dark) Color(0xFF1C1C1E).copy(alpha = if (b != null) 0.78f else 0.97f)
+                         else Color(0xFFF9F9FB).copy(alpha = if (b != null) 0.74f else 0.97f))
+            }
             .border(0.5.dp, Brush.verticalGradient(if (c.dark) listOf(Color.White.copy(alpha = 0.3f), Color.White.copy(alpha = 0.06f)) else listOf(Color.White, Color.White.copy(alpha = 0.5f))), shape)
             .verticalScroll(rememberScrollState()).padding(bottom = 10.dp)) {
             // שורת הכפתורים: חזרה · קדימה · סימנייה · הורדה · רענון (כמו ב־Chrome 159)
