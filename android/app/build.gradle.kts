@@ -106,7 +106,7 @@ android {
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
 dependencies {
-    implementation("com.google.androidbrowserhelper:androidbrowserhelper:2.7.3")
+    implementation("com.google.androidbrowserhelper:androidbrowserhelper:2.7.4")
     // הווידג'ט — רק ב־Invest
     "investImplementation"("androidx.glance:glance-appwidget:1.2.0")
     "investImplementation"("androidx.work:work-runtime-ktx:2.12.0")
