@@ -360,6 +360,8 @@ def beat_loop(server: str = '', tok: str = ''):
             heartbeat()
             if server and _busy:
                 poll(server, tok, 'beat', _busy)      # באמצע עבודה: מסך השרת יודע שהוא חי, על מה הוא עובד ובאיזה שלב
+        if server and tok and _busy:
+            pulse(server, tok)                        # כל דקה: התראת השלב בווילון (גם כשהאפליקציה סגורה)
         n += 1
         if server and tok and time.time() >= quiet_until:
             try:
@@ -532,6 +534,24 @@ def _prog(state_dir=None) -> dict:
         return json.loads(((state_dir or J.STATE.parent) / 'prog.json').read_text(encoding='utf-8'))
     except (OSError, ValueError):
         return {}
+
+
+def pulse_ids() -> list:
+    """העבודות שרצות עכשיו (תרגום בלבד) — למשבצות, ובלעדיהן העבודה היחידה (_busy)."""
+    ids = [x.id for x in list(_slots.values()) if getattr(x, 'kind', 'tr') == 'tr']
+    return (ids or ([_busy] if _busy else []))[:8]
+
+
+def pulse(server: str, tok: str) -> None:
+    """27/10/2026 (בקשת המשתמש: "להתעדכן בכל שלבי התרגום בווילון גם כשהאפליקציה סגורה"): כל דקה — השרתון מחשב את
+    ההתקדמות המשוערת של השלב (כמו הפס בטלפון) ושולח התראה בכל עשירייה. בלי קריאה ל־Firestore בשרתון; תקלה — בשקט."""
+    ids = pulse_ids()
+    if not ids:
+        return
+    try:
+        J.http('POST', server + '/api/studio', {'op': 'pulse', 'jobs': ids}, headers={'Authorization': 'Bearer ' + tok}, timeout=20)
+    except (OSError, ValueError):
+        pass
 
 
 def dev_send(server: str, tok: str, op: str, d: dict) -> dict:

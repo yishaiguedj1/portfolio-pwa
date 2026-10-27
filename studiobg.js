@@ -126,11 +126,14 @@ export async function bgUpload(o, env) {
     let fin = false;
     const now = () => (env.now ? env.now() : Date.now());
     const vis = () => !env.visible || env.visible();
-    let srv = 0, polled = now(), polling = false;   // srv = בתים שהשרתון ראה ב־R2 (o.poll)
+    let srv = 0, hi = 0, polled = now(), polling = false;   // srv = בתים שהשרתון ראה ב־R2 (o.poll); hi = הכי הרבה שהוצג
     const shown = () => {
       // מה שהגיע לפני ה־Background Fetch הזה (חלקים שהשרתון כבר ראה) = הגודל פחות מה שהוא צריך להעלות
       const base = Math.max(0, o.size - (bg.uploadTotal || o.size));
-      return Math.min(o.size, Math.max(srv, base + (bg.uploaded || 0)));
+      // 27/10/2026 (בטלפון: "עלו 140MB" ואז 120MB, וקפיצות קטנות אחורה לאורך כל ההעלאה): uploaded של Chrome סופר חלק
+      // פעמיים מהרגע שהשרת עונה ועד שהבקשה נסגרת (ראו למעלה) — עולה בחלק שלם ויורד חזרה. מה שכבר הוצג לא יורד
+      hi = Math.max(hi, Math.min(o.size, Math.max(srv, base + (bg.uploaded || 0))));
+      return hi;
     };
     let seen = shown(), started = (bg.uploaded || 0) > 0, quiet = 0, last = now();
     const poll = () => {

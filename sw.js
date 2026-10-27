@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v584';
+const CACHE_NAME = 'portfolio-pwa-v585';
 const HASHES = {
   "./": "23049cdc117b2a1b516816fe94fff24a",
   "./index.html": "23049cdc117b2a1b516816fe94fff24a",
   "./styles.css": "f926d3fb8ca3b605093c1d164aa48733",
-  "./app.js": "d7a010c0cb4b6e16b544f8705ad493d9",
+  "./app.js": "957e1eecf6bd601b5e95b603b5cd0193",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "9af566803f9e67e734390306b1e38db2",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -60,8 +60,8 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "cbbbe8c0aa8f9f0d9bfddd1575ea6757",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
-  "./strings-academy.js": "a822be40a0f68a6d91bed90bb48fb14a",
-  "./core.js": "8eba4521208220505baf491e11328f7a",
+  "./strings-academy.js": "ebf47ede85df3e214608c111a41c81ce",
+  "./core.js": "eef6e729759cfb42a28b7373a0658ef7",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "d6703c288cfb84be0bc06cbc61912c68",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -70,7 +70,7 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "0e5880cd41e6129d36c3194a963ef21a",
+  "./studio.js": "e6c9ec4913d5dd09ffec848b750a4fcf",
   "./studio.css": "5202cc90e678a204e1eeaecc6c19ea0f",
   "./studionet.js": "c8233fc213a8510b793a81d66b140d9d",
   "./studioplay.js": "11ff6a7c2d7332c6aee09dea28ce0d0e",
@@ -78,11 +78,11 @@ const HASHES = {
   "./studiotracks.js": "45a59e4cedc85da6950554bd2c56289e",
   "./studioedl.js": "344c0e6f0e7ff9bd59e36eb25db1e335",
   "./studioai.js": "e0a43e7a48c70e3bf5028813acebbf3e",
-  "./studiostore.js": "633c4083aebf82cdc389813e65ecee16",
-  "./studiobg.js": "43c7cd1bcbffc6baef7f38ddb18815c3",
+  "./studiostore.js": "c4c42aea9654fbb633657bd88562333b",
+  "./studiobg.js": "386d76121dbaed74cdde91386ddf79c6",
   "./studio.html": "4344113c500fc12d34364c7de2f4e835",
   "./studio-app.js": "23ed8def0efea7784fa85b0d3efbef3d",
-  "./strings-studio.js": "b490875d7fc3ee4847f16ea1be188750",
+  "./strings-studio.js": "fb47256b4a921368374ede0330aebc42",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
@@ -363,6 +363,10 @@ self.addEventListener('fetch', (event) => {
 
 // שלב 4 בסטודיו (10/10/2026): התראות לטלפון. התוכן מוצפן מקצה לקצה (RFC 8291) ומכיל רק כותרת, שורה,
 // סוג האירוע ומזהה העבודה — בלי שם קובץ. נגיעה = פתיחת האפליקציה על העבודה (‎#studio=<id>, openStockFromHash).
+/* 27/10/2026 (המשתמש: "השלבים לא מתעדכנים בווילון"): Studio הפתוחה מעדכנת את התראת השלב בעצמה (shadeSync) לפי ההערכה
+   שבמסך. דיווח מהשרתון שמראה פחות (שלב קודם / אחוז נמוך יותר באותו שלב) לא מחזיר אותה אחורה */
+const SHADE_STG = ['up', 'tr', 'al', 'tl', 'rv', 'bn', 'sv'];   // = STAGES ב־studionet.js
+const shadeOrd = (d) => { const i = SHADE_STG.indexOf(d && d.st); return i < 0 ? -1 : i + Math.max(0, Math.min(1, Number(d.p) || 0)) * 0.999; };
 self.addEventListener('push', (event) => {
   let m = {};
   try { m = event.data ? event.data.json() : {}; } catch (e) { m = {}; }
@@ -378,11 +382,12 @@ self.addEventListener('push', (event) => {
     let cur = null;
     try { cur = (await self.registration.getNotifications({ tag }))[0] || null; } catch (e) {}
     const cd = cur && cur.data || {};
-    if (cur && at && cd.at > at) return self.registration.showNotification(cur.title, { body: cur.body, icon: 'icon-192.png', badge: 'favicon-48.png',
+    const behind = stage && cur && cd.k === 'stage' && shadeOrd(m) >= 0 && shadeOrd(cd) > shadeOrd(m);   // ראו SHADE_STG
+    if (cur && (behind || at && cd.at > at)) return self.registration.showNotification(cur.title, { body: cur.body, icon: 'icon-192.png', badge: 'favicon-48.png',
       lang: 'he', dir: 'auto', tag, renotify: false, silent: true, data: cd, actions: cur.actions || [] });
     return self.registration.showNotification(title, {
       body: String(m.b || '').slice(0, 160), icon: 'icon-192.png', badge: 'favicon-48.png', lang: 'he', dir: 'auto',
-      tag, renotify: !stage, silent: stage, requireInteraction: false, data: { url, at, k: String(m.k || '') },
+      tag, renotify: !stage, silent: stage, requireInteraction: false, data: { url, at, k: String(m.k || ''), st: stage ? String(m.st || '') : '', p: stage ? Number(m.p) || 0 : 0 },
       // מ9: עבודה שהסתיימה — ישר לנגן או לעורך (האפליקציה בודקת שאפשר; אחרת נשארת בדף העבודה)
       actions: m.k === 'done' && url !== './' ? [{ action: 'play', title: 'צפייה' }, { action: 'subs', title: 'עריכה' }] : [],
     });

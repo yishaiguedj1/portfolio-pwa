@@ -157,7 +157,9 @@ function message(kind, jobId, lang, x, now) {
   if (kind === 'stage' && !j) return null;
   const adm = { bk_fail: 'ready', ready_fail: 'ready', lab_week: 'labWk', fund_audit: 'labFund', svc_quota: 'svc' }[kind];   // התראות המנהל — נפתחות במרכז הניהול
   const m = { t: t[0], b: t[1], k: kind, j, u: SUBJECT + (j ? '#studio=' + j : '') };
-  if (j && Number.isFinite(now)) m.at = now;   // 27/10/2026: הסדר בין התראות של אותה עבודה (sw.js — ישנה לא דורסת חדשה)
+  if (j && Number.isFinite(now)) m.at = now;
+  // 27/10/2026: השלב והאחוז — sw.js לא מחליף התראה שכבר מראה יותר (הדף מעדכן אותה לפי ההערכה שלו כל כמה שניות)
+  if (kind === 'stage') { m.st = x.st; m.p = Math.round(Math.max(0, Math.min(1, Number(x.p) || 0)) * 1000) / 1000; }   // 27/10/2026: הסדר בין התראות של אותה עבודה (sw.js — ישנה לא דורסת חדשה)
   if (adm) m.u = ADMIN_URL + '#' + adm;
   return m;
 }
