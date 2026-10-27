@@ -16,7 +16,7 @@ let ROOT = null;
 const T = (k, v) => (E && E.t ? E.t(k, v) : k);
 const S = { cells: [], active: 0, layout: 1, modal: null, sheets: [], tool: null, magnet: 0, sel: null, timer: null, poll: 0, busy: false, store: null, keyOn: false, ro: null, watch: false, wq: {} };
 const MAIN = 'candle_pane';
-const DRAW_COLORS = ['#2962FF', '#F23645', '#089981', '#FF9800', '#9C27B0', '#787B86', '#00BCD4', '#E91E63'];
+const DRAW_COLORS = ['#0A84FF', '#FF453A', '#30D158', '#FF9F0A', '#BF5AF2', '#8E8E93', '#64D2FF', '#FF375F'];   // פלטת iOS — כמו שאר האפליקציה
 const NOW = () => Date.now();
 const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -203,9 +203,9 @@ function figOf(key, title, type) {
   const f = { key, title: title + ': ', type: type || 'line' };
   if (type === 'bar') {
     f.baseValue = 0;
-    f.styles = ({ data }) => { const v = data.current && data.current[key]; const up = css('--gain') || '#089981', dn = css('--loss') || '#F23645'; return { color: rgba(v >= 0 ? up : dn, 0.7), borderColor: rgba(v >= 0 ? up : dn, 0.7) }; };
+    f.styles = ({ data }) => { const v = data.current && data.current[key]; const up = css('--gain') || '#30D158', dn = css('--loss') || '#FF453A'; return { color: rgba(v >= 0 ? up : dn, 0.7), borderColor: rgba(v >= 0 ? up : dn, 0.7) }; };
   }
-  if (type === 'circle') f.styles = () => ({ color: key === 'sq' ? '#F23645' : '#089981' });
+  if (type === 'circle') f.styles = () => ({ color: key === 'sq' ? '#FF453A' : '#30D158' });
   return f;
 }
 /* קווי רמה מקווקווים (70/30 וכו') לחלוניות מתנדים */
@@ -226,7 +226,7 @@ function drawCloud({ ctx, chart, indicator, xAxis, yAxis }) {
     const a = r[i - 1], b = r[i];
     if (!a || !b || a.spanA == null || a.spanB == null || b.spanA == null || b.spanB == null) continue;
     const x0 = xAxis.convertToPixel(i - 1), x1 = xAxis.convertToPixel(i);
-    ctx.fillStyle = b.spanA >= b.spanB ? 'rgba(8,153,129,.16)' : 'rgba(242,54,69,.16)';
+    ctx.fillStyle = b.spanA >= b.spanB ? 'rgba(48,209,88,.16)' : 'rgba(255,69,58,.16)';
     ctx.beginPath();
     ctx.moveTo(x0, yAxis.convertToPixel(a.spanA)); ctx.lineTo(x1, yAxis.convertToPixel(b.spanA));
     ctx.lineTo(x1, yAxis.convertToPixel(b.spanB)); ctx.lineTo(x0, yAxis.convertToPixel(a.spanB));
@@ -256,7 +256,7 @@ const AUTO_DEF = {
     draw: (res, { ctx, chart }) => {
       for (const l of res) {
         const a = px(chart, l.a.t, l.a.price), b = px(chart, l.b.t, l.b.price);
-        ctx.strokeStyle = l.kind === 'sup' ? '#089981' : '#F23645'; ctx.lineWidth = 1.6; ctx.setLineDash([]);
+        ctx.strokeStyle = l.kind === 'sup' ? '#30D158' : '#FF453A'; ctx.lineWidth = 1.6; ctx.setLineDash([]);
         ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
         label(ctx, b.x, b.y, T(l.kind === 'sup' ? 'kcAutoSup' : 'kcAutoRes') + ' ×' + l.touches, ctx.strokeStyle, '#fff', 'right');
       }
@@ -268,7 +268,7 @@ const AUTO_DEF = {
       const prec = (chart.getSymbol() || {}).pricePrecision || 2;
       for (const l of res) {
         const y = Math.round(px(chart, NOW(), l.price).y) + 0.5;
-        const c = l.kind === 'sup' ? 'rgba(8,153,129,' : 'rgba(242,54,69,';
+        const c = l.kind === 'sup' ? 'rgba(48,209,88,' : 'rgba(255,69,58,';
         ctx.fillStyle = c + '.07)'; ctx.fillRect(0, y - 3, bounding.width, 6);
         ctx.strokeStyle = c + '.75)'; ctx.setLineDash([6, 4]); ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(bounding.width, y); ctx.stroke(); ctx.setLineDash([]);
@@ -282,7 +282,7 @@ const AUTO_DEF = {
       if (!res) return;
       const lv = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
       const a = px(chart, res.a.t, res.a.price), prec = (chart.getSymbol() || {}).pricePrecision || 2;
-      const cols = ['#787B86', '#F23645', '#FF9800', '#4CAF50', '#089981', '#00BCD4', '#787B86'];
+      const cols = ['#787B86', '#FF453A', '#FF9800', '#4CAF50', '#30D158', '#00BCD4', '#787B86'];
       lv.forEach((r, i) => {
         const v = res.b.price - (res.b.price - res.a.price) * r, y = px(chart, res.b.t, v).y;
         ctx.strokeStyle = cols[i]; ctx.lineWidth = 1; ctx.setLineDash(r === 0.5 || r === 0.618 ? [] : [3, 3]);
@@ -303,7 +303,7 @@ const AUTO_DEF = {
         const p = res[j];
         if (p.i < vr.from || p.i >= vr.to) continue;
         const b = list[p.i], x = xAxis.convertToPixel(p.i), side = p.dir >= 0 ? 'up' : 'dn';
-        const col = p.dir > 0 ? 'rgba(8,153,129,.92)' : p.dir < 0 ? 'rgba(242,54,69,.92)' : 'rgba(120,123,134,.92)';
+        const col = p.dir > 0 ? 'rgba(48,209,88,.92)' : p.dir < 0 ? 'rgba(255,69,58,.92)' : 'rgba(120,123,134,.92)';
         const y = side === 'up' ? yAxis.convertToPixel(b.low) + 16 : yAxis.convertToPixel(b.high) - 16;
         const txt = T('kcCp_' + p.key), w = txt.length * 6.2 + 12;
         if (x + w / 2 + 4 <= free[side]) { label(ctx, x, y, txt, col, '#fff', 'center'); free[side] = x - w / 2; }
@@ -315,7 +315,7 @@ const AUTO_DEF = {
     calc: (list) => { const { k, bars } = tail(list); return L.chartPatterns(bars).map((p) => Object.assign(p, { pts: p.pts.map((s) => Object.assign({}, s, { i: s.i + k })) })); },
     draw: (res, { ctx, chart }) => {
       for (const p of res) {
-        const c = p.dir > 0 ? '#089981' : p.dir < 0 ? '#F23645' : '#2962FF';
+        const c = p.dir > 0 ? '#30D158' : p.dir < 0 ? '#FF453A' : '#0A84FF';
         ctx.strokeStyle = c; ctx.lineWidth = 1.5; ctx.fillStyle = rgba(c, 0.08); ctx.setLineDash([]);
         ctx.beginPath();
         p.pts.forEach((s, j) => { const q = px(chart, s.t, s.price); if (j) ctx.lineTo(q.x, q.y); else ctx.moveTo(q.x, q.y); });
@@ -338,8 +338,8 @@ const AUTO_DEF = {
         const y0 = yAxis.convertToPixel(vp.lo + vp.step * (r + 1)), y1 = yAxis.convertToPixel(vp.lo + vp.step * r);
         const hgt = Math.max(1, y1 - y0 - 1), wu = W * vp.up[r] / vp.max, wd = W * vp.dn[r] / vp.max;
         const inVA = vp.lo + vp.step * r >= vp.val - 1e-9 && vp.lo + vp.step * (r + 1) <= vp.vah + 1e-9;
-        ctx.fillStyle = inVA ? 'rgba(8,153,129,.38)' : 'rgba(8,153,129,.16)'; ctx.fillRect(bounding.width - wu - wd, y0, wu, hgt);
-        ctx.fillStyle = inVA ? 'rgba(242,54,69,.38)' : 'rgba(242,54,69,.16)'; ctx.fillRect(bounding.width - wd, y0, wd, hgt);
+        ctx.fillStyle = inVA ? 'rgba(48,209,88,.38)' : 'rgba(48,209,88,.16)'; ctx.fillRect(bounding.width - wu - wd, y0, wu, hgt);
+        ctx.fillStyle = inVA ? 'rgba(255,69,58,.38)' : 'rgba(255,69,58,.16)'; ctx.fillRect(bounding.width - wd, y0, wd, hgt);
       }
       const yp = Math.round(yAxis.convertToPixel(vp.pocPrice)) + 0.5;
       ctx.strokeStyle = '#FF9800'; ctx.lineWidth = 1.5; ctx.setLineDash([]);
@@ -354,14 +354,14 @@ const AUTO_DEF = {
       if (!res) return;
       const n = chart.getDataList().length - 1, x0 = xAxis.convertToPixel(n), y0 = yAxis.convertToPixel(res.p0);
       for (const [ku, kd, a] of [['up2', 'dn2', 0.08], ['up1', 'dn1', 0.14]]) {
-        ctx.fillStyle = 'rgba(41,98,255,' + a + ')'; ctx.beginPath(); ctx.moveTo(x0, y0);
+        ctx.fillStyle = 'rgba(10,132,255,' + a + ')'; ctx.beginPath(); ctx.moveTo(x0, y0);
         res.pts.forEach((p) => ctx.lineTo(xAxis.convertToPixel(n + p.k), yAxis.convertToPixel(p[ku])));
         for (let j = res.pts.length - 1; j >= 0; j--) ctx.lineTo(xAxis.convertToPixel(n + res.pts[j].k), yAxis.convertToPixel(res.pts[j][kd]));
         ctx.closePath(); ctx.fill();
       }
       const e = res.pts[res.pts.length - 1], xe = xAxis.convertToPixel(n + e.k);
-      label(ctx, xe, yAxis.convertToPixel(e.up1), '+1σ ' + e.up1.toFixed(2), 'rgba(41,98,255,.85)', '#fff', 'right');
-      label(ctx, xe, yAxis.convertToPixel(e.dn1), '−1σ ' + e.dn1.toFixed(2), 'rgba(41,98,255,.85)', '#fff', 'right');
+      label(ctx, xe, yAxis.convertToPixel(e.up1), '+1σ ' + e.up1.toFixed(2), 'rgba(10,132,255,.85)', '#fff', 'right');
+      label(ctx, xe, yAxis.convertToPixel(e.dn1), '−1σ ' + e.dn1.toFixed(2), 'rgba(10,132,255,.85)', '#fff', 'right');
     },
   },
 };
@@ -441,10 +441,10 @@ function registerAll() {
         const a = list[t.a], b = list[t.b];
         if (!a || !b) continue;
         const xa = xAxis.convertToPixel(t.a), xb = xAxis.convertToPixel(t.b), ya = yAxis.convertToPixel(a.open), yb = yAxis.convertToPixel(b.open);
-        ctx.strokeStyle = t.r > 0 ? '#089981' : '#F23645'; ctx.setLineDash([4, 3]); ctx.lineWidth = 1.2;
+        ctx.strokeStyle = t.r > 0 ? '#30D158' : '#FF453A'; ctx.setLineDash([4, 3]); ctx.lineWidth = 1.2;
         ctx.beginPath(); ctx.moveTo(xa, ya); ctx.lineTo(xb, yb); ctx.stroke(); ctx.setLineDash([]);
-        label(ctx, xa, yAxis.convertToPixel(a.low) + 14, '▲ ' + T('kcBtBuy'), 'rgba(8,153,129,.9)', '#fff', 'center');
-        label(ctx, xb, yAxis.convertToPixel(b.high) - 14, '▼ ' + (t.r * 100).toFixed(1) + '%', t.r > 0 ? 'rgba(8,153,129,.9)' : 'rgba(242,54,69,.9)', '#fff', 'center');
+        label(ctx, xa, yAxis.convertToPixel(a.low) + 14, '▲ ' + T('kcBtBuy'), 'rgba(48,209,88,.9)', '#fff', 'center');
+        label(ctx, xb, yAxis.convertToPixel(b.high) - 14, '▼ ' + (t.r * 100).toFixed(1) + '%', t.r > 0 ? 'rgba(48,209,88,.9)' : 'rgba(255,69,58,.9)', '#fff', 'center');
       }
       ctx.restore();
       return false;
@@ -465,7 +465,7 @@ async function ensureBench(c) {
 /* ---------- כלי ציור (Overlays). מובנים ב־KLineChart: segment, rayLine, straightLine, horizontal*, vertical*, priceLine,
    parallelStraightLine, priceChannelLine, fibonacciLine, simpleAnnotation, simpleTag, brush. כל השאר — כאן (kc*).
    הצבע מהסגנון של השרטוט (styles.line.color) — כך סרגל העריכה (צבע/עובי/קו מקווקו) משנה גם את הכלים שלנו. ---------- */
-const DEF_COLOR = '#2962FF';
+const DEF_COLOR = '#0A84FF';
 const oc = (o) => (o.styles && o.styles.line && o.styles.line.color) || DEF_COLOR;
 const ow = (o) => (o.styles && o.styles.line && o.styles.line.size) || 1;
 const odash = (o) => (o.styles && o.styles.line && o.styles.line.style === 'dashed' ? 'dashed' : 'solid');
@@ -478,8 +478,8 @@ const fmtP = (chart, v) => (v == null ? '' : Number(v).toFixed(precOf(chart)));
 const extendRay = (a, b, w) => { const dx = b.x - a.x, dy = b.y - a.y; if (!dx) return { x: b.x, y: dy > 0 ? 1e5 : -1e5 }; const k = ((dx > 0 ? w : 0) - a.x) / dx; return { x: a.x + dx * k, y: a.y + dy * k }; };
 
 /* רמות פיבונאצ'י (TradingView: 0–1 + הרחבות). צבע לכל רמה כמו בברירת המחדל של TV */
-const FIB = [[0, '#787B86'], [0.236, '#F23645'], [0.382, '#FF9800'], [0.5, '#4CAF50'], [0.618, '#089981'], [0.786, '#00BCD4'], [1, '#787B86'], [1.272, '#2962FF'], [1.618, '#9C27B0'], [2.618, '#E91E63']];
-const FIB_EXT = [[0, '#787B86'], [0.382, '#F23645'], [0.618, '#FF9800'], [1, '#4CAF50'], [1.272, '#089981'], [1.618, '#00BCD4'], [2, '#2962FF'], [2.618, '#9C27B0'], [3.618, '#E91E63']];
+const FIB = [[0, '#787B86'], [0.236, '#FF453A'], [0.382, '#FF9800'], [0.5, '#4CAF50'], [0.618, '#30D158'], [0.786, '#00BCD4'], [1, '#787B86'], [1.272, '#0A84FF'], [1.618, '#9C27B0'], [2.618, '#E91E63']];
+const FIB_EXT = [[0, '#787B86'], [0.382, '#FF453A'], [0.618, '#FF9800'], [1, '#4CAF50'], [1.272, '#30D158'], [1.618, '#00BCD4'], [2, '#0A84FF'], [2.618, '#9C27B0'], [3.618, '#E91E63']];
 
 /* תבניות מסומנות בנקודות (XABCD, ABCD, גלי אליוט, ראש וכתפיים, משולש): קו שבור + תוויות + יחסי פיבונאצ'י */
 function wavePattern(name, labels, ratios) {
@@ -620,7 +620,7 @@ function registerOverlays() {
     createPointFigures: ({ overlay, coordinates, bounding }) => {
       if (coordinates.length < 2) return [];
       const [a, b] = coordinates, figs = [];
-      [[0, '#787B86'], [0.25, '#F23645'], [0.382, '#FF9800'], [0.5, '#4CAF50'], [0.618, '#089981'], [0.75, '#00BCD4'], [1, '#787B86']].forEach(([r, col]) => {
+      [[0, '#787B86'], [0.25, '#FF453A'], [0.382, '#FF9800'], [0.5, '#4CAF50'], [0.618, '#30D158'], [0.75, '#00BCD4'], [1, '#787B86']].forEach(([r, col]) => {
         const p = { x: b.x, y: b.y + (a.y - b.y) * r }, e = extendRay(a, p, bounding.width);
         figs.push({ type: 'line', attrs: { coordinates: [a, e] }, styles: { color: col, size: 1 } });
         figs.push({ type: 'text', ignoreEvent: true, attrs: { x: b.x + 3, y: p.y, text: String(r), align: 'left', baseline: 'middle' }, styles: { color: col, backgroundColor: 'transparent', size: 10 } });
@@ -635,7 +635,7 @@ function registerOverlays() {
     createPointFigures: ({ overlay, coordinates }) => {
       if (coordinates.length < 2) return [];
       const [a, b] = coordinates, d = Math.hypot(b.x - a.x, b.y - a.y), figs = [lineFig(overlay, [a, b], { style: 'dashed' })];
-      [[0.236, '#F23645'], [0.382, '#FF9800'], [0.5, '#4CAF50'], [0.618, '#089981'], [0.786, '#00BCD4'], [1, '#787B86'], [1.618, '#9C27B0']].forEach(([r, col]) => figs.push({ type: 'circle', attrs: { x: a.x, y: a.y, r: d * r }, styles: { style: 'stroke', borderColor: col, borderSize: 1, color: 'transparent' } }));
+      [[0.236, '#FF453A'], [0.382, '#FF9800'], [0.5, '#4CAF50'], [0.618, '#30D158'], [0.786, '#00BCD4'], [1, '#787B86'], [1.618, '#9C27B0']].forEach(([r, col]) => figs.push({ type: 'circle', attrs: { x: a.x, y: a.y, r: d * r }, styles: { style: 'stroke', borderColor: col, borderSize: 1, color: 'transparent' } }));
       return figs;
     },
   });
@@ -666,17 +666,17 @@ function registerOverlays() {
       const tv = coordinates[1] ? valAt(overlay, 1) : null, sv0 = coordinates[2] ? valAt(overlay, 2) : null;
       const yt = coordinates[1] ? coordinates[1].y : null, ys = coordinates[2] ? coordinates[2].y : null;
       const figs = [];
-      if (yt != null) figs.push({ type: 'polygon', attrs: { coordinates: [{ x: e.x, y: e.y }, { x: x1, y: e.y }, { x: x1, y: yt }, { x: e.x, y: yt }] }, styles: { style: 'fill', color: 'rgba(8,153,129,.2)' } });
-      if (ys != null) figs.push({ type: 'polygon', attrs: { coordinates: [{ x: e.x, y: e.y }, { x: x1, y: e.y }, { x: x1, y: ys }, { x: e.x, y: ys }] }, styles: { style: 'fill', color: 'rgba(242,54,69,.2)' } });
+      if (yt != null) figs.push({ type: 'polygon', attrs: { coordinates: [{ x: e.x, y: e.y }, { x: x1, y: e.y }, { x: x1, y: yt }, { x: e.x, y: yt }] }, styles: { style: 'fill', color: 'rgba(48,209,88,.2)' } });
+      if (ys != null) figs.push({ type: 'polygon', attrs: { coordinates: [{ x: e.x, y: e.y }, { x: x1, y: e.y }, { x: x1, y: ys }, { x: e.x, y: ys }] }, styles: { style: 'fill', color: 'rgba(255,69,58,.2)' } });
       figs.push({ type: 'line', attrs: { coordinates: [{ x: e.x, y: e.y }, { x: x1, y: e.y }] }, styles: { color: '#787B86', size: 1 } });
       const risk = (S.store && S.store.g.risk) || 100;
       if (tv != null && sv0 != null) {
         const pc = L.positionCalc(ev, sv0, tv, risk);
         const okDir = long ? tv > ev && sv0 < ev : tv < ev && sv0 > ev;
-        figs.push(textFig(e.x + 4, yt + (long ? 10 : -10), T('kcPosTarget') + ' ' + fmtP(chart, tv) + ' (' + fmtPct(pc.targetPct) + ')', '#089981'));
-        figs.push(textFig(e.x + 4, ys + (long ? -10 : 10), T('kcPosStop') + ' ' + fmtP(chart, sv0) + ' (' + fmtPct(pc.stopPct) + ')', '#F23645'));
-        figs.push(textFig(e.x + 4, e.y, (okDir ? T('kcPosRR', { v: pc.rr.toFixed(2) }) : T('kcPosBad')) + ' · ' + T('kcPosQty', { q: pc.qty, r: risk }), okDir ? '#2962FF' : '#787B86'));
-      } else if (tv != null) figs.push(textFig(e.x + 4, yt, T('kcPosTarget') + ' ' + fmtP(chart, tv), '#089981'));
+        figs.push(textFig(e.x + 4, yt + (long ? 10 : -10), T('kcPosTarget') + ' ' + fmtP(chart, tv) + ' (' + fmtPct(pc.targetPct) + ')', '#30D158'));
+        figs.push(textFig(e.x + 4, ys + (long ? -10 : 10), T('kcPosStop') + ' ' + fmtP(chart, sv0) + ' (' + fmtPct(pc.stopPct) + ')', '#FF453A'));
+        figs.push(textFig(e.x + 4, e.y, (okDir ? T('kcPosRR', { v: pc.rr.toFixed(2) }) : T('kcPosBad')) + ' · ' + T('kcPosQty', { q: pc.qty, r: risk }), okDir ? '#0A84FF' : '#787B86'));
+      } else if (tv != null) figs.push(textFig(e.x + 4, yt, T('kcPosTarget') + ' ' + fmtP(chart, tv), '#30D158'));
       return figs;
     },
   });
@@ -691,7 +691,7 @@ function registerOverlays() {
       const [a, b] = coordinates, list = chart.getDataList();
       const ia = dataIdx(list, overlay.points[0].timestamp), ib = dataIdx(list, overlay.points[1].timestamp);
       const st = L.rangeStats(list, ia, ib), dv = valAt(overlay, 1) - valAt(overlay, 0), pct = valAt(overlay, 0) ? dv / valAt(overlay, 0) * 100 : 0;
-      const col = dv >= 0 ? '#2962FF' : '#F23645';
+      const col = dv >= 0 ? '#0A84FF' : '#FF453A';
       const parts = [];
       if (mode !== 'd') parts.push((dv >= 0 ? '+' : '') + fmtP(chart, dv) + ' (' + fmtPct(pct) + ')');
       if (mode !== 'p' && st) parts.push(Math.abs(ib - ia) + ' ' + T('kcBarsW') + ', ' + fmtDur(Math.abs(overlay.points[1].timestamp - overlay.points[0].timestamp)));
@@ -741,8 +741,8 @@ function registerOverlays() {
       for (let r = 0; r < vp.tot.length; r++) {
         const yTop = yOf(vp.lo + vp.step * (r + 1)), yBot = yOf(vp.lo + vp.step * r), hgt = Math.max(1, yBot - yTop - 1);
         const wu = W * vp.up[r] / vp.max, wd = W * vp.dn[r] / vp.max, inVA = vp.lo + vp.step * r >= vp.val - 1e-9 && vp.lo + vp.step * (r + 1) <= vp.vah + 1e-9;
-        figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: x0, y: yTop, width: wu, height: hgt }, styles: { style: 'fill', color: inVA ? 'rgba(8,153,129,.42)' : 'rgba(8,153,129,.18)' } });
-        figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: x0 + wu, y: yTop, width: wd, height: hgt }, styles: { style: 'fill', color: inVA ? 'rgba(242,54,69,.42)' : 'rgba(242,54,69,.18)' } });
+        figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: x0, y: yTop, width: wu, height: hgt }, styles: { style: 'fill', color: inVA ? 'rgba(48,209,88,.42)' : 'rgba(48,209,88,.18)' } });
+        figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: x0 + wu, y: yTop, width: wd, height: hgt }, styles: { style: 'fill', color: inVA ? 'rgba(255,69,58,.42)' : 'rgba(255,69,58,.18)' } });
       }
       const yp = yOf(vp.pocPrice);
       figs.push({ type: 'line', attrs: { coordinates: [{ x: x0, y: yp }, { x: x1, y: yp }] }, styles: { color: '#FF9800', size: 1.5 } });
@@ -774,7 +774,7 @@ function registerOverlays() {
   R({ name: 'kcPriceLabel', totalStep: 2, needDefaultXAxisFigure: false, createPointFigures: ({ chart, overlay, coordinates }) => (coordinates.length ? [textFig(coordinates[0].x + 8, coordinates[0].y - 12, fmtP(chart, valAt(overlay, 0)), oc(overlay)), lineFig(overlay, [coordinates[0], { x: coordinates[0].x + 8, y: coordinates[0].y - 12 }])] : []) });
   const mark = (name, up) => R({ name, totalStep: 2, needDefaultXAxisFigure: false, needDefaultYAxisFigure: false, createPointFigures: ({ coordinates }) => {
     if (!coordinates.length) return [];
-    const { x, y } = coordinates[0], c = up ? '#089981' : '#F23645', s = up ? 1 : -1;
+    const { x, y } = coordinates[0], c = up ? '#30D158' : '#FF453A', s = up ? 1 : -1;
     return [{ type: 'polygon', attrs: { coordinates: [{ x, y }, { x: x - 9, y: y + 12 * s }, { x: x - 3.5, y: y + 12 * s }, { x: x - 3.5, y: y + 22 * s }, { x: x + 3.5, y: y + 22 * s }, { x: x + 3.5, y: y + 12 * s }, { x: x + 9, y: y + 12 * s }] }, styles: { style: 'fill', color: c } }];
   } });
   mark('kcArrowUp', true);
@@ -837,7 +837,7 @@ function loadStore() {
   return {
     g: {
       layout: [1, 2, 3, 4, 5].includes(g.layout) ? g.layout : 1, fav: Array.isArray(g.fav) ? g.fav.filter((x) => TF[x]).slice(0, 12) : DEF_FAV.slice(),
-      ext: !!g.ext, tz: g.tz === 'local' ? 'local' : 'ex', colors: ['tv', 'app', 'mono'].includes(g.colors) ? g.colors : 'tv', grid: g.grid === 0 ? 0 : 1,
+      ext: !!g.ext, tz: g.tz === 'local' ? 'local' : 'ex', colors: ['tv', 'app', 'mono'].includes(g.colors) ? g.colors : 'app', grid: g.grid === 0 ? 0 : 1,
       risk: +g.risk > 0 ? +g.risk : 100, scale: ['normal', 'logarithm', 'percentage'].includes(g.scale) ? g.scale : 'normal', hl: g.hl === 0 ? 0 : 1,
       syncSym: !!g.syncSym, syncTf: !!g.syncTf, stay: !!g.stay, cells, indFav: Array.isArray(g.indFav) ? g.indFav.filter((x) => typeof x === 'string').slice(0, 30) : [],
     },
@@ -879,35 +879,42 @@ function newCell(i, conf) {
 }
 const candleType = (t) => (t === 'line' || t === 'area' ? 'area' : t === 'candle_up_stroke' || t === 'ohlc' ? t : 'candle_solid');
 function palette() {
+  // ברירת המחדל: הצבעים של האפליקציה (iOS — ‎--gain/--loss, רקע מערכת). "קלאסי" = הפלטה של TradingView
   const dk = isDark(), g = S.store.g;
-  let up = '#089981', dn = '#F23645';
-  if (g.colors === 'app') { up = css('--gain') || up; dn = css('--loss') || dn; }
-  if (g.colors === 'mono') { up = dk ? '#D1D4DC' : '#131722'; dn = dk ? '#5D606B' : '#9598A1'; }
-  return { up, dn, text: dk ? '#B2B5BE' : '#5C5F66', grid: dk ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.06)', axis: dk ? 'rgba(255,255,255,.14)' : 'rgba(0,0,0,.12)', bg: dk ? '#131417' : '#FFFFFF', cross: dk ? '#787B86' : '#9598A1', tipBg: dk ? '#1E222D' : '#FFFFFF' };
+  let up = css('--gain') || '#30D158', dn = css('--loss') || '#FF453A';
+  if (g.colors === 'tv') { up = '#089981'; dn = '#F23645'; }
+  if (g.colors === 'mono') { up = dk ? '#E5E5EA' : '#1C1C1E'; dn = dk ? '#636366' : '#AEAEB2'; }
+  return {
+    up, dn, text: dk ? '#98989D' : '#636366', grid: dk ? 'rgba(255,255,255,.07)' : 'rgba(60,60,67,.08)', axis: dk ? 'rgba(255,255,255,.14)' : 'rgba(60,60,67,.14)',
+    bg: dk ? '#000000' : '#FFFFFF', cross: dk ? '#8E8E93' : '#8E8E93', tipBg: dk ? '#1C1C1E' : '#FFFFFF', label: dk ? '#3A3A3C' : '#1C1C1E', font: css('--font') || '-apple-system, system-ui, sans-serif',
+  };
 }
 function chartStyles(c) {
   const p = palette(), g = S.store.g, line = c.type === 'line';
-  const axis = { axisLine: { color: p.axis }, tickLine: { color: p.axis }, tickText: { color: p.text, size: 11 } };
+  const axis = { axisLine: { color: p.axis }, tickLine: { color: p.axis }, tickText: { color: p.text, size: 11, family: p.font } };
   return {
     grid: { show: g.grid !== 0, horizontal: { color: p.grid, style: 'solid' }, vertical: { color: p.grid, style: 'solid' } },
     candle: {
       type: candleType(c.type),
       bar: { upColor: p.up, downColor: p.dn, noChangeColor: p.text, upBorderColor: p.up, downBorderColor: p.dn, noChangeBorderColor: p.text, upWickColor: p.up, downWickColor: p.dn, noChangeWickColor: p.text },
-      area: { lineSize: 2, lineColor: '#2962FF', value: 'close', smooth: false, backgroundColor: line ? [{ offset: 0, color: 'rgba(41,98,255,0)' }, { offset: 1, color: 'rgba(41,98,255,0)' }] : [{ offset: 0, color: 'rgba(41,98,255,.02)' }, { offset: 1, color: 'rgba(41,98,255,.28)' }], point: { show: false } },
+      area: { lineSize: 2, lineColor: p.up, value: 'close', smooth: false, backgroundColor: line ? [{ offset: 0, color: rgba(p.up, 0) }, { offset: 1, color: rgba(p.up, 0) }] : [{ offset: 0, color: rgba(p.up, 0.02) }, { offset: 1, color: rgba(p.up, 0.26) }], point: { show: false } },   // כמו Apple Stocks
       priceMark: { show: true, high: { show: g.hl !== 0, color: p.text }, low: { show: g.hl !== 0, color: p.text }, last: { show: true, upColor: p.up, downColor: p.dn, noChangeColor: p.text, line: { show: true, style: 'dashed', dashedValue: [3, 3], size: 1 } } },
       tooltip: {
         showRule: 'always', showType: 'standard',
         rect: { color: p.tipBg, borderColor: p.axis },
         title: { show: false },
-        legend: { color: p.text, size: 11, marginLeft: 6, marginTop: 4, marginRight: 4, template: [{ title: 'open', value: '{open}' }, { title: 'high', value: '{high}' }, { title: 'low', value: '{low}' }, { title: 'close', value: '{close}' }, { title: 'change', value: '{change}' }, { title: 'volume', value: '{volume}' }] },
+        legend: { color: p.text, size: 11, family: p.font, marginLeft: 6, marginTop: 4, marginRight: 4, template: [{ title: 'open', value: '{open}' }, { title: 'high', value: '{high}' }, { title: 'low', value: '{low}' }, { title: 'close', value: '{close}' }, { title: 'change', value: '{change}' }, { title: 'volume', value: '{volume}' }] },
       },
     },
-    indicator: { tooltip: { showRule: 'always', title: { color: p.text, size: 11 }, legend: { color: p.text, size: 11 } }, lastValueMark: { show: true, text: { show: true, size: 10 } } },
+    indicator: {
+      bars: [{ style: 'fill', borderStyle: 'solid', borderSize: 1, borderDashedValue: [2, 2], upColor: rgba(p.up, 0.55), downColor: rgba(p.dn, 0.55), noChangeColor: rgba('#8E8E93', 0.55) }],
+      lines: ['#FF9F0A', '#BF5AF2', '#0A84FF', '#FF375F', '#64D2FF', '#30D158', '#FFD60A'].map((color) => ({ style: 'solid', smooth: false, size: 1.2, dashedValue: [2, 2], color })),
+      tooltip: { showRule: 'always', title: { color: p.text, size: 11, family: p.font }, legend: { color: p.text, size: 11, family: p.font } }, lastValueMark: { show: true, text: { show: true, size: 10, family: p.font } } },
     xAxis: axis, yAxis: axis,
-    separator: { color: p.axis, activeBackgroundColor: 'rgba(41,98,255,.08)' },
+    separator: { color: p.axis, activeBackgroundColor: 'rgba(10,132,255,.08)' },
     crosshair: {
-      horizontal: { line: { color: p.cross, style: 'dashed', dashedValue: [4, 3] }, text: { backgroundColor: isDark() ? '#363A45' : '#131722', borderColor: 'transparent' } },
-      vertical: { line: { color: p.cross, style: 'dashed', dashedValue: [4, 3] }, text: { backgroundColor: isDark() ? '#363A45' : '#131722', borderColor: 'transparent' } },
+      horizontal: { line: { color: p.cross, style: 'dashed', dashedValue: [4, 3] }, text: { backgroundColor: p.label, borderColor: 'transparent', family: p.font, borderRadius: 4 } },
+      vertical: { line: { color: p.cross, style: 'dashed', dashedValue: [4, 3] }, text: { backgroundColor: p.label, borderColor: 'transparent', family: p.font, borderRadius: 4 } },
     },
     overlay: { line: { color: DEF_COLOR }, point: { color: DEF_COLOR, borderColor: rgba(DEF_COLOR, 0.35), activeColor: DEF_COLOR, activeBorderColor: rgba(DEF_COLOR, 0.35) }, text: { backgroundColor: DEF_COLOR, borderColor: DEF_COLOR } },
   };
@@ -2021,7 +2028,7 @@ function openSeason() {
     b.textContent = '';
     if (bars.length < 13) { b.appendChild(h('div', { class: 'kc-note', text: T('kcSeasonNone') })); return; }
     const s = L.seasonality(bars), mon = (i) => new Date(Date.UTC(2020, i, 1)).toLocaleString(E.lang === 'en' ? 'en-US' : 'he-IL', { month: 'short', timeZone: 'UTC' });
-    const cell = (v, extra) => { const td = h('td', { class: 'kc-hm' + (extra || ''), text: v == null ? '' : (v * 100).toFixed(1) }); if (v != null) td.style.background = v >= 0 ? 'rgba(8,153,129,' + Math.min(0.85, 0.12 + Math.abs(v) * 6) + ')' : 'rgba(242,54,69,' + Math.min(0.85, 0.12 + Math.abs(v) * 6) + ')'; return td; };
+    const cell = (v, extra) => { const td = h('td', { class: 'kc-hm' + (extra || ''), text: v == null ? '' : (v * 100).toFixed(1) }); if (v != null) td.style.background = v >= 0 ? 'rgba(48,209,88,' + Math.min(0.85, 0.12 + Math.abs(v) * 6) + ')' : 'rgba(255,69,58,' + Math.min(0.85, 0.12 + Math.abs(v) * 6) + ')'; return td; };
     const years = Object.keys(s.years).sort().reverse().slice(0, 15);
     const tbl = h('table', { class: 'kc-tbl', dir: 'ltr' },
       h('thead', null, h('tr', null, h('th', { text: '' }), ...Array.from({ length: 12 }, (_, i) => h('th', { text: mon(i) })))),
@@ -2107,7 +2114,7 @@ function openSettings() {
     risk.addEventListener('change', () => { const v = parseFloat(risk.value); if (v > 0) { g.risk = v; save(); } });   // כלי הפוזיציה קוראים את הסיכון בכל ציור
     b.append(
       h('div', { class: 'kc-gt', text: T('kcColors') }),
-      seg([['tv', T('kcColTv')], ['app', T('kcColApp')], ['mono', T('kcColMono')]], g.colors, (v) => { g.colors = v; save(); restyleAll(); }),
+      seg([['app', T('kcColApp')], ['tv', T('kcColTv')], ['mono', T('kcColMono')]], g.colors, (v) => { g.colors = v; save(); restyleAll(); }),
       toggle(T('kcGrid'), g.grid !== 0, (v) => { g.grid = v ? 1 : 0; save(); restyleAll(); }),
       toggle(T('kcHL'), g.hl !== 0, (v) => { g.hl = v ? 1 : 0; save(); restyleAll(); }),
       h('div', { class: 'kc-gt', text: T('kcData') }),
