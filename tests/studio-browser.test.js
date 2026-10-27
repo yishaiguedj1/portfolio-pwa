@@ -261,4 +261,21 @@ ok(fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yis
   ok(/fun engineOld\(\)/.test(act) && /market:\/\/details\?id=\$pkg/.test(act), 'מנוע הדפדפן לא מעודכן — התראה ועדכון מ־Play');
 }
 
+// 27/10/2026: כמה משתמשים בדפדפן (כמו פרופילים ב־Chrome) — לכל אחד אחסון, עוגיות וסנכרון משלו
+{
+  const us = R(B + 'BrUsers.kt'), rs = R(B + 'BrRestart.kt'), cl = R(B + 'BrCloud.kt'), ch = R(B + 'BrChrome.kt'), pics = R(B + 'BrPics.kt');
+  const dmb = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmBrowser.kt');
+  ok(/dir = BrUsers\.dir\(ctx\)/.test(store) && /BrUsers\.prefs\(ctx, "br"\)/.test(store), 'הסימניות, ההיסטוריה, הכרטיסיות וההגדרות — לכל משתמש');
+  ok(/BrUsers\.prefs\(app, "br_cloud"\)/.test(cl) && /File\(BrUsers\.dir\(app\), "cloud"\)/.test(cl) && (cl.match(/BrUsers\.keyAlias\(BrUsers\.cur\(app\)\)/g) || []).length === 2, 'הסנכרון בענן ומפתח העטיפה — לכל משתמש');
+  ok(/BrUsers\.prefs\(ctx, "br_chrome"\)/.test(ch) && /BrUsers\.cacheDir\(ctx\)/.test(pics), 'הגשר ל־Chrome והתמונות — לכל משתמש');
+  ok(/fun relDir\(id: String\) = if \(id == MAIN\) "br" else "br\/u\/\$id"/.test(us) && /fun keyAlias\(id: String\) = if \(id == MAIN\) "snb_br_sync"/.test(us), 'המשתמש הראשי נשאר במקום הישן — בלי העברה');
+  ok(/fun validId\(id: String\)/.test(us) && /it in 'a'\.\.'z' \|\| it in '0'\.\.'9'/.test(us), 'מזהה משתמש = אותיות וספרות (נכנס לנתיב ולשם פרופיל)');
+  ok(/else userProfile\(\)\?\.let \{ p -> runCatching \{ WebViewCompat\.setProfile\(w, p\.name\) \} \}/.test(act), 'כל WebView רגיל — בפרופיל של המשתמש (עוגיות נפרדות)');
+  ok(/DmCookies\.cm = it\.cookieManager/.test(act) && (dmb.match(/DmCookies\.get\(\)/g) || []).length === 2 && !/CookieManager\.getInstance\(\)\.getCookie/.test(dmb), 'מה שעובר להורדה — העוגיות של המשתמש הפעיל');
+  ok(/android:name="\.br\.BrRestart"[\s\S]{0,80}android:process=":br_restart"[\s\S]{0,40}android:exported="false"/.test(man) && /Process\.killProcess\(pid\)/.test(rs), 'מעבר משתמש = התחלה מחדש מתהליך נפרד, לא מיוצא');
+  ok(/fun googleWeb\(auto: Boolean\)/.test(act) && /accounts\.google\.com\/AccountChooser\?Email=/.test(act) && /is BrCloud\.SignIn\.Ok -> googleWeb\(true\)/.test(act), 'כניסה לסנכרון = גם לאתרים של Google, אם עוד לא מחובר');
+  ok(/BrowserActivity\.Screen\.USERS -> UsersScreen\(a\)/.test(ui) && /a\.switchUser\(u\.id\)/.test(ui) && /a\.addUser\(\)/.test(ui), 'מסך המשתמשים: מעבר, הוספה, הסרה');
+  ok(/backdrop\(a\.window\) \{ back = it\.asImageBitmap\(\); ready = true \}/.test(ui) && /Color\(0xF7FFFFFF\)/.test(ui), 'ההצעות בשורת הכתובת — על חומר מטושטש ואטום, לא על הדף');
+}
+
 console.log('studio-browser: ' + n + ' בדיקות עברו');

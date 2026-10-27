@@ -106,12 +106,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.positionOnScreen
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
@@ -205,6 +207,7 @@ fun BrApp(a: BrowserActivity) {
                     BrowserActivity.Screen.VIDEO -> VideoScreen(a)
                     BrowserActivity.Screen.CLOUD -> CloudScreen(a)
                     BrowserActivity.Screen.RECENT -> RecentScreen(a)
+                    BrowserActivity.Screen.USERS -> UsersScreen(a)
                 }
                 if (a.privLocked && a.showsPrivate()) LockScreen(a)
                 a.customView?.let { v ->
@@ -701,6 +704,26 @@ private fun Suggest(a: BrowserActivity, q: TextFieldValue, setQ: (TextFieldValue
     val clip = remember(a.editing) { a.clipHasUrl() }
     val isUrl = qq.isNotEmpty() && BrStore.toUrl(qq, a.engine).let { it.isNotEmpty() && it != BrStore.searchUrl(a.engine, qq) }
     val eng = when (a.engine) { "ddg" -> "DuckDuckGo"; "bing" -> "Bing"; else -> "Google" }
+    // החומר של Apple (27/10/2026, בקשת המשתמש — הטקסט של הדף התערבב בהצעות): כל השטח שמתחת לשורת הכתובת = הדף מטושטש
+    // ומעליו שכבה כמעט אטומה, כמו ב־Safari. הצילום נלקח לפני שההצעות מצוירות (עד אז השכבה לא מוצגת), ואז דהייה של 150ms
+    var back by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    var ready by remember { mutableStateOf(false) }
+    var at by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    LaunchedEffect(Unit) {
+        backdrop(a.window) { back = it.asImageBitmap(); ready = true }
+        delay(120); ready = true
+    }
+    val k by animateFloatAsState(if (ready) 1f else 0f, tween(150), label = "sug")
+    Box(Modifier.fillMaxSize()
+        .onGloballyPositioned { at = it.positionInWindow() }
+        .graphicsLayer { alpha = k }
+        .drawBehind {
+            val b = back
+            if (b != null) drawImage(b, dstOffset = androidx.compose.ui.unit.IntOffset(-at.x.toInt(), -at.y.toInt()),
+                dstSize = androidx.compose.ui.unit.IntSize(b.width * BACK_SCALE, b.height * BACK_SCALE))
+            drawRect(if (c.dark) Color(0xFF000000).copy(alpha = if (b != null) 0.80f else 0.96f)
+                     else Color(0xFFF2F2F7).copy(alpha = if (b != null) 0.84f else 0.97f))
+        }) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 0.dp, bottom = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (clip) item {
@@ -726,12 +749,13 @@ private fun Suggest(a: BrowserActivity, q: TextFieldValue, setQ: (TextFieldValue
             }
         }
     }
+    }
 }
 
 @Composable
 private fun SugCard(content: @Composable ColumnScope.() -> Unit) {
     val c = LocalBr.current
-    Column(Modifier.fillMaxWidth().glass(c, RoundedCornerShape(16.dp), if (c.dark) Color(0x991C1C1E) else Color(0xB8FFFFFF)), content = content)
+    Column(Modifier.fillMaxWidth().glass(c, RoundedCornerShape(16.dp), if (c.dark) Color(0xF21C1C1E) else Color(0xF7FFFFFF)), content = content)
 }
 
 @Composable
@@ -1340,6 +1364,9 @@ private fun SettingsScreen(a: BrowserActivity) {
     val g1 = stringResource(R.string.brSyncTitle); val g2 = stringResource(R.string.brImportTitle)
     @Suppress("UNUSED_VARIABLE") val crev = a.cloudRev
     val g0v = if (BrCloud.on) BrCloud.email else stringResource(R.string.brSyncOffShort)
+    val gu = stringResource(R.string.brUsers)
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val guV = BrUsers.list(ctx).size.let { n -> if (n > 1) pluralStringResource(R.plurals.brUsersN, n, n) else stringResource(R.string.brUsersOne) }
     val s1 = stringResource(R.string.brSetEngine); val s2 = stringResource(R.string.brSetBar); val s3 = stringResource(R.string.brPrivacy)
     val s4 = stringResource(R.string.brSetDefault); val s5 = stringResource(R.string.brPwTitle)
     val barV = stringResource(if (a.barBottom) R.string.brBarBottom else R.string.brBarTop)
@@ -1366,11 +1393,12 @@ private fun SettingsScreen(a: BrowserActivity) {
                     contentAlignment = Alignment.Center) { Text(stringResource(R.string.brImportBtn), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium) }
             }
         }
-        if (show(g0) || show(g1) || show(g2)) item {
+        if (show(g0) || show(gu) || show(g1) || show(g2)) item {
             Group(stringResource(R.string.brYouAndGoogle)) {
                 // הסנכרון בענן — בראש, כמו "סנכרון" ב־Chrome; הגשר ל־Chrome במחשב — מתחתיו
                 if (show(g0)) IRow(g0, lead = { Avatar(BrCloud.name, BrCloud.email, BrCloud.on, 28.dp) }, value = g0v) { a.screen = BrowserActivity.Screen.CLOUD }
-                if (show(g0) && (show(g1) || show(g2))) Sep()
+                if (show(gu)) { Sep(); IRow(gu, lead = { Tile(BrIcons.CPeople, c.icon) }, value = guV) { a.screen = BrowserActivity.Screen.USERS } }
+                if ((show(g0) || show(gu)) && (show(g1) || show(g2))) Sep()
                 if (show(g1)) IRow(g1, lead = { Image(BrIcons.GoogleG, null, Modifier.size(24.dp)) }, value = syncValue(a)) { a.screen = BrowserActivity.Screen.CHROME }
                 if (show(g1) && show(g2)) Sep()
                 if (show(g2)) IRow(g2, lead = { Tile(BrIcons.CStarOn, c.icon) }) { a.screen = BrowserActivity.Screen.IMPORT }
@@ -1761,6 +1789,16 @@ private fun CloudScreen(a: BrowserActivity) {
             }
         }
         item {
+            // החשבון גם באתרים של Google (Gmail, YouTube, החיפוש) — כמו ב־Chrome; כאן בכניסה אחת בדף של Google
+            val web = a.googleWebOn()
+            Group(footer = stringResource(R.string.brGWebFoot)) {
+                IRow(stringResource(R.string.brGWeb), lead = { Image(BrIcons.GoogleG, null, Modifier.size(24.dp)) },
+                    value = stringResource(if (web) R.string.brGWebOn else R.string.brGWebOff)) {
+                    if (web) { a.screen = BrowserActivity.Screen.PAGE; a.newTab("https://myaccount.google.com/", after = a.cur) } else a.googleWeb(false)
+                }
+            }
+        }
+        item {
             Group(stringResource(R.string.brSyncWhat), stringResource(R.string.brCloudWhatFoot)) {
                 IRow(stringResource(R.string.brSyncMarks), lead = { Tile(BrIcons.CStarOn, c.icon) }, chevron = false,
                     trailing = { IosSwitch(BrCloud.tMarks) { BrCloud.tMarks = it; a.cloudRev++ } })
@@ -1804,6 +1842,48 @@ private fun CloudScreen(a: BrowserActivity) {
         text = { Text(stringResource(R.string.brCloudWipeQ), color = c.fg, fontSize = 15.sp, lineHeight = 21.sp) },
         confirmButton = { TextButton({ wipeAsk = false; a.cloudOff(true) }) { Text(stringResource(R.string.brDelete), color = Color(0xFFFF3B30)) } },
         dismissButton = { TextButton({ wipeAsk = false }) { Text(stringResource(R.string.brCancel), color = c.tint) } })
+}
+
+/** "משתמשים" (כמו פרופילים ב־Chrome): לכל אחד סימניות, היסטוריה, כרטיסיות, עוגיות וסנכרון משלו. נגיעה = מעבר */
+@Composable
+private fun UsersScreen(a: BrowserActivity) {
+    val c = LocalBr.current
+    @Suppress("UNUSED_VARIABLE") val rev = a.usersRev
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val me = BrUsers.cur(ctx)
+    val list = BrUsers.list(ctx)
+    var del by remember { mutableStateOf<BrUsers.U?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    @Composable fun label(u: BrUsers.U, i: Int) = u.nm.ifEmpty { u.em }.ifEmpty { if (u.id == BrUsers.MAIN) stringResource(R.string.brUserMain) else stringResource(R.string.brUserN, i + 1) }
+    SubPage(stringResource(R.string.brUsers), back = stringResource(R.string.brSettings), onBack = { a.screen = BrowserActivity.Screen.SETTINGS }) {
+        item {
+            Group(footer = stringResource(if (a.privOk) R.string.brUsersFoot else R.string.brUsersNoSupport)) {
+                list.forEachIndexed { i, u ->
+                    if (i > 0) Sep()
+                    val mine = u.id == me
+                    IRow(label(u, i), sub = if (u.nm.isNotEmpty() && u.em.isNotEmpty()) u.em else if (u.em.isEmpty()) stringResource(R.string.brSyncOffShort) else null,
+                        lead = { Avatar(u.nm, u.em, u.em.isNotEmpty(), 32.dp) }, chevron = false,
+                        trailing = {
+                            when {
+                                mine -> Icon(BrIcons.Check, null, Modifier.size(22.dp), tint = c.tint)
+                                u.id != BrUsers.MAIN -> IBtn(BrIcons.Trash, stringResource(R.string.brUserRemove), size = 40.dp, iconSize = 20.dp, tint = c.mute) { del = u }
+                            }
+                        }) { if (!mine && !busy) { busy = true; a.switchUser(u.id) } }
+                }
+                if (list.size < BrUsers.MAX && a.privOk) {
+                    Sep()
+                    IRow(stringResource(R.string.brUserAdd), lead = { Tile(BrIcons.CPlus, c.icon) }, color = c.tint, chevron = false) { if (!busy) { busy = true; a.addUser() } }
+                }
+            }
+        }
+        if (busy) item { Text(stringResource(R.string.brUsersSwitching), Modifier.padding(horizontal = 32.dp), color = c.mute, fontSize = 14.sp) }
+    }
+    del?.let { u ->
+        AlertDialog(onDismissRequest = { del = null }, containerColor = c.card,
+            text = { Text(stringResource(R.string.brUserRemoveQ, u.nm.ifEmpty { u.em }.ifEmpty { stringResource(R.string.brUserN, list.indexOf(u) + 1) }), color = c.fg, fontSize = 15.sp, lineHeight = 21.sp) },
+            confirmButton = { TextButton({ del = null; a.removeUser(u.id) }) { Text(stringResource(R.string.brDelete), color = Color(0xFFFF3B30)) } },
+            dismissButton = { TextButton({ del = null }) { Text(stringResource(R.string.brCancel), color = c.tint) } })
+    }
 }
 
 /** "כרטיסיות אחרונות" (כמו ב־Chrome): לכל מכשיר אחר — הכרטיסיות הפתוחות בו, מהפעילה לאחרונה. נגיעה = ממשיכים מאותו מקום */

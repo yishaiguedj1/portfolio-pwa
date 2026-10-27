@@ -61,11 +61,16 @@ object DmSync {
         return R.Fail(stage, listOf(ex, m).filter { it.isNotEmpty() }.joinToString(": ").take(160))
     }
 
+    /** ביטול שלא המשתמש ביטל: Google דחה את האפליקציה (לקוח OAuth מסוג Android חסר לחבילה הזו) */
+    fun notSetUp(m: String?): Boolean = m != null && (m.contains("[16]") || m.contains("reauth", true) || m.contains("28444") || m.contains("not set up", true))
+
     /** כניסה עם Google — מתוך פעולה של המשתמש (חלון המערכת של Google). רץ ב־coroutine */
     suspend fun signIn(a: Activity): R {
         val cred = try {
             CredentialManager.create(a).getCredential(a, GetCredentialRequest(listOf(GetSignInWithGoogleOption.Builder(WEB_CLIENT).build()))).credential
-        } catch (e: androidx.credentials.exceptions.GetCredentialCancellationException) { return R.Cancel
+        } catch (e: androidx.credentials.exceptions.GetCredentialCancellationException) {
+            // "[16] Account reauth failed" מגיע כ"ביטול" — כשהאפליקציה לא רשומה ב־Google Cloud (חבילה + SHA-1). לא לבלוע
+            return if (notSetUp(e.message)) fail("setup", "16", e.message) else R.Cancel
         } catch (e: Throwable) { return fail("signin", e.javaClass.simpleName, e.message) }
         val gid = try { GoogleIdTokenCredential.createFrom(cred.data).idToken } catch (e: Throwable) { return fail("signin", e.javaClass.simpleName + "/" + cred.type, e.message) }
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
