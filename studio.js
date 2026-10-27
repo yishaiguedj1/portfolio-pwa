@@ -8777,7 +8777,8 @@ function shadeSync() {
     const sk = rec.spec.ka ? 'ka' : rec.spec.src === 'subs';
     const title = stageName(s.id, langsSum(rec.spec.to), sk);
     const ul = shadeUpBlock(rec, run, now, s.id);
-    const body = shadeBar(p, uiLang()) + '  ' + Math.round(p * 100) + '% · ' + T('studioShadeOf', { n: STAGES.indexOf(s.id) + 1, t: STAGES.length }) + (ul ? '\n' + ul : '');
+    // 27/10/2026 ("מסודר בכל ההתראה"): כמו חלק ההעלאה — פס ואחוז בשורה אחת, "שלב 2 מתוך 7" מתחת (בלי שבירה באמצע), כל שורה מימין לשמאל
+    const body = shadeDir() + shadeBar(p, uiLang()) + '  ' + Math.round(p * 100) + '%\n' + shadeDir() + T('studioShadeOf', { n: STAGES.indexOf(s.id) + 1, t: STAGES.length }) + (ul ? '\n' + ul : '');
     const key = title + '|' + body;
     if (shadeLast.get(rec.id) === key) continue;
     shadeLast.set(rec.id, key);
