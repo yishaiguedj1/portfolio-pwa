@@ -292,6 +292,7 @@
     <string name="brCloudWipe">מחיקת הנתונים מ־Google Drive</string>
     <string name="brCloudWipeQ">למחוק מ־Google Drive את כל הנתונים המסונכרנים של כל המכשירים? מה ששמור בכל מכשיר נשאר בו, והסנכרון נעצר כאן.</string>
     <string name="brCloudWipeFail">המחיקה מ־Drive לא הצליחה — נסו שוב</string>
+    <string name="brCloudSetup">Google עוד לא מאשר כניסה לאפליקציה הזו (16) — צריך לרשום אותה ב־Google Cloud</string>
     <string name="brCloudFail">הכניסה לא הצליחה (%1$s)</string>
     <string name="brCloudChromeOther">Chrome במחשב מחובר דרך מכשיר אחר בחשבון — הסימניות שלו מגיעות לכאן בסנכרון.</string>
     <string name="brRecentTabs">כרטיסיות אחרונות</string>

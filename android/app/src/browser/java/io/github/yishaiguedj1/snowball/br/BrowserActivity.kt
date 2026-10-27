@@ -361,7 +361,7 @@ class BrowserActivity : ComponentActivity() {
     fun cloudSignIn(r: BrCloud.SignIn) {
         when (r) {
             is BrCloud.SignIn.Need -> runCatching { cloudLaunch.launch(IntentSenderRequest.Builder(r.s).build()) }
-            is BrCloud.SignIn.Fail -> Toast.makeText(this, getString(R.string.brCloudFail, r.why), Toast.LENGTH_LONG).show()
+            is BrCloud.SignIn.Fail -> Toast.makeText(this, if (r.why == "setup") getString(R.string.brCloudSetup) else getString(R.string.brCloudFail, r.why), Toast.LENGTH_LONG).show()
             else -> {}
         }
         cloudRev++

@@ -291,6 +291,7 @@
     <string name="brCloudWipe">Delete data from Google Drive</string>
     <string name="brCloudWipeQ">Delete all synced data of all devices from Google Drive? What\'s saved on each device stays there, and sync turns off here.</string>
     <string name="brCloudWipeFail">Couldn\'t delete from Drive — try again</string>
+    <string name="brCloudSetup">Google doesn\'t allow sign-in for this app yet (16) — it must be registered in Google Cloud</string>
     <string name="brCloudFail">Sign-in didn\'t complete (%1$s)</string>
     <string name="brCloudChromeOther">Chrome on your computer is connected through another device on this account — its bookmarks arrive here via sync.</string>
     <string name="brRecentTabs">Recent tabs</string>

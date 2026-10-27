@@ -169,7 +169,9 @@ object BrCloud {
     suspend fun signIn(a: Activity): SignIn {
         val cred = try {
             CredentialManager.create(a).getCredential(a, GetCredentialRequest(listOf(GetSignInWithGoogleOption.Builder(WEB_CLIENT).build()))).credential
-        } catch (e: androidx.credentials.exceptions.GetCredentialCancellationException) { return SignIn.Cancel
+        } catch (e: androidx.credentials.exceptions.GetCredentialCancellationException) {
+            // "[16] Account reauth failed" = החבילה לא רשומה ב־Google Cloud — לא "ביטול" (DmSync.notSetUp)
+            return if (DmSync.notSetUp(e.message)) SignIn.Fail("setup") else SignIn.Cancel
         } catch (e: Throwable) { return SignIn.Fail(e.javaClass.simpleName) }
         val g = try { GoogleIdTokenCredential.createFrom(cred.data) } catch (e: Throwable) { return SignIn.Fail(e.javaClass.simpleName) }
         sp.edit().putString("em", g.id).putString("nm", g.displayName ?: "").apply()
