@@ -841,17 +841,23 @@ async function sysBlock(deps, job, now, auto, adm) {
   if (auto && !SF.flagOn(d, 'st_auto')) return { error: 'flag_off', fl: 'st_auto' };
   return null;
 }
-async function notify(deps, uid, kind, jobId, now) {
+async function notify(deps, uid, kind, jobId, now, x) {
   try {
     if (!(await flagOn(deps, 'push', now))) return 0;   // הדגל "התראות לטלפון" כבוי
-    const st = await readStats(deps, uid);
-    const subs = W.normSubs(st.wp);
-    if (!subs.length) return 0;
-    const r = await W.sendAll(deps, await vapidKeys(deps), subs, kind, jobId, now);
-    if (r.subs.length !== subs.length) await patchDoc(deps, 'studioStats', uid, { wp: r.subs, updated: now }).catch(() => {});
+    // 27/10/2026: התקדמות (stage) נשלחת עד ~70 פעם בעבודה — המנויים ומפתח ה־VAPID מהזיכרון (מכסת הקריאות של Firestore)
+    const hit = kind === 'stage' ? PUSH_MEM.get(uid) : null;
+    const fresh = hit && now - hit.at < PUSH_MEM_MS;
+    const subs = fresh ? hit.subs : W.normSubs((await readStats(deps, uid)).wp);
+    const v = fresh ? hit.v : null;
+    if (!subs.length) { PUSH_MEM.set(uid, { subs, v: null, at: now }); return 0; }
+    const vk = v || await vapidKeys(deps);
+    if (!fresh) PUSH_MEM.set(uid, { subs, v: vk, at: now });
+    const r = await W.sendAll(deps, vk, subs, kind, jobId, now, x);
+    if (r.subs.length !== subs.length) { PUSH_MEM.delete(uid); await patchDoc(deps, 'studioStats', uid, { wp: r.subs, updated: now }).catch(() => {}); }
     return r.sent;
   } catch (e) { return 0; }
 }
+const PUSH_MEM = new Map(), PUSH_MEM_MS = 5 * 60 * 1000;
 
 async function fire(deps, v, uid, text) {
   const conn = vault.open(v && v.r, AAD(uid));
@@ -2451,6 +2457,11 @@ async function worker(req, res, body, deps) {
       // שלב 4: התראה לטלפון — מוכן / נעצרה (לא כשממתינים להמשך אוטומטי) / שאלה / אישור
       const kind = up.state === 'done' ? 'done' : up.state === 'failed' && !up.rw ? 'fail' : gateId ? 'gate' : body.ask != null && up.qa ? 'ask' : up.cp ? 'cp' : '';
       if (kind) await notify(deps, job.uid, kind, id, now);
+      // 27/10/2026 (בקשת המשתמש): כל שלב בווילון ההתראות — אותה התראה מתחלפת (שלב חדש / כל 10%), שקטה. נגיעה = העבודה
+      else if ((!up.state || up.state === 'running') && up.prog && !parked && W.stageDue(job.prog, up.prog)) {
+        const sp = job.spec || {};
+        await notify(deps, job.uid, 'stage', id, now, { st: up.prog.st, p: up.prog.p, to: Array.isArray(sp.to) ? sp.to.join(',') : String(sp.to || ''), v: sp.ka ? 'ka' : sp.src === 'subs' ? 'sb' : '' });
+      }
     }
     if (job.kind === 'tr' && up.state === 'done' && !(job.spec && job.spec.src === 'subs')) {
       // v363: עבודה שהסתיימה מלמדת את המגדל מה "רגיל" אצלך. תקלה כאן לא מפילה את סוף העבודה
@@ -2982,11 +2993,13 @@ async function handler(req, res, deps = {}) {
         const sub = W.normSub(Object.assign({}, body.sub, { l: body.lang }));
         if (!sub) return res.status(400).json({ ok: false, error: 'bad_sub' });
         const wp = W.addSub(st.wp, sub, now);
+        PUSH_MEM.delete(uid);
         await patchDoc(deps, 'studioStats', uid, { wp, updated: now });
         return res.status(200).json({ ok: true, n: wp.length });
       }
       if (act === 'off') {
         const wp = W.dropSub(st.wp, body.e);
+        PUSH_MEM.delete(uid);
         await patchDoc(deps, 'studioStats', uid, { wp, updated: now });
         return res.status(200).json({ ok: true, n: wp.length });
       }

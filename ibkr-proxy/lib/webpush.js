@@ -47,6 +47,45 @@ const TEXT = {
     test: ['Notifications work ✓', 'You will know when a translation is ready or Claude asks something'] },
 };
 
+/* 27/10/2026 (בקשת המשתמש): התקדמות העבודה בווילון — התראה אחת לעבודה שמתחלפת בכל שלב, עם פס של השלב.
+   רק קוד השלב והאחוז — לא שם קובץ. הסדר והשמות = stageName בטלפון (studio.js). ka = קריוקי, sb = קובץ כתוביות */
+const STAGE = {
+  he: { up: 'מעלים את הסרטון', tr: 'כותבים כל מילה שנאמרה', al: 'מתאימים כל משפט לרגע הנכון', tl: 'מתרגמים', tlhe: 'מתרגמים לעברית',
+    rv: 'בודקים ומתקנים', bn: 'מוסיפים את הכתוביות לסרטון', sv: 'שומרים ושולחים אליך',
+    sb: { up: 'מעלים את הקובץ', tr: 'קוראים את הכתוביות', al: 'מכינים לתרגום', bn: 'בונים את קובצי הכתוביות' },
+    ka: { up: 'מעלים את השיר', tr: 'מפרידים את הקול מהליווי', al: 'מתאימים כל מילה לרגע שלה', bn: 'צורבים את המילים' },
+    of: 'שלב {n} מתוך {t}' },
+  en: { up: 'Uploading the video', tr: 'Writing down every word', al: 'Timing every sentence', tl: 'Translating', tlhe: 'Translating to Hebrew',
+    rv: 'Checking and fixing', bn: 'Adding subtitles to the video', sv: 'Saving and sending it to you',
+    sb: { up: 'Uploading the file', tr: 'Reading the subtitles', al: 'Preparing to translate', bn: 'Building the subtitle files' },
+    ka: { up: 'Uploading the song', tr: 'Separating the voice from the music', al: 'Matching each word to its moment', bn: 'Burning in the lyrics' },
+    of: 'Step {n} of {t}' },
+};
+const STAGE_IDS = ['up', 'tr', 'al', 'tl', 'rv', 'bn', 'sv'];
+const BAR_N = 10;
+/* פס טקסט — התראת אתר לא יכולה להציג פס התקדמות אמיתי. מבודד בכיוון של השפה: בעברית מתמלא מימין, כמו הפס בדף העבודה */
+function stageBar(p, lang) {
+  const f = Math.max(0, Math.min(BAR_N, Math.round((Number(p) || 0) * BAR_N)));
+  return (lang === 'en' ? '\u2066' : '\u2067') + '▰'.repeat(f) + '▱'.repeat(BAR_N - f) + '\u2069';
+}
+function stageText(x, lang) {
+  const L = STAGE[lang] || STAGE.he;
+  const id = STAGE_IDS.includes(x && x.st) ? x.st : '';
+  if (!id) return null;
+  const v = x.v === 'ka' || x.v === 'sb' ? L[x.v][id] : '';
+  const name = v || (id === 'tl' && x.to === 'he' ? L.tlhe : L[id]);
+  const pct = Math.max(0, Math.min(100, Math.round((Number(x.p) || 0) * 100)));
+  const n = STAGE_IDS.indexOf(id) + 1;
+  return [name, stageBar(x.p, lang === 'en' ? 'en' : 'he') + '  ' + pct + '% · ' + L.of.replace('{n}', n).replace('{t}', STAGE_IDS.length)];
+}
+/* מתי שולחים: שלב חדש, או כל 10% בתוך השלב. prev/next = job.prog לפני ואחרי הדיווח */
+function stageDue(prev, next) {
+  if (!next || !STAGE_IDS.includes(next.st)) return false;
+  if (!prev || prev.st !== next.st) return true;
+  const b = (p) => Math.floor((Number(p) || 0) * BAR_N + 1e-9);
+  return b(next.p) > b(prev.p);
+}
+
 function endpointOk(e) {
   let u;
   try { u = new URL(String(e || '')); } catch (x) { return false; }
@@ -111,25 +150,28 @@ function encrypt(sub, payload, opt = {}) {
 }
 
 /* התוכן של התראה: כותרת + שורה בשפת המכשיר, ולאן לפתוח. בלי שם קובץ ובלי תוכן העבודה */
-function message(kind, jobId, lang) {
-  const t = (TEXT[lang] || TEXT.he)[kind];
+function message(kind, jobId, lang, x, now) {
+  const t = kind === 'stage' ? stageText(x, lang) : (TEXT[lang] || TEXT.he)[kind];
   if (!t) return null;
   const j = /^j[A-Za-z0-9_-]{20}$/.test(String(jobId || '')) ? jobId : '';
+  if (kind === 'stage' && !j) return null;
   const adm = { bk_fail: 'ready', ready_fail: 'ready', lab_week: 'labWk', fund_audit: 'labFund', svc_quota: 'svc' }[kind];   // התראות המנהל — נפתחות במרכז הניהול
   const m = { t: t[0], b: t[1], k: kind, j, u: SUBJECT + (j ? '#studio=' + j : '') };
+  if (j && Number.isFinite(now)) m.at = now;   // 27/10/2026: הסדר בין התראות של אותה עבודה (sw.js — ישנה לא דורסת חדשה)
   if (adm) m.u = ADMIN_URL + '#' + adm;
   return m;
 }
 
 /* שליחה לכל המכשירים של אדם. מחזיר את הרשימה המעודכנת (מנוי שפג — 404/410 — יוצא ממנה) ומספר ההצלחות */
-async function sendAll(deps, v, subs, kind, jobId, now) {
+async function sendAll(deps, v, subs, kind, jobId, now, x) {
   const f = deps.fetch || fetch;
   // במקביל (עד SUB_MAX): בטור, מנוי תקוע אחד (5 שנ׳) כפול חמישה עיכב את הדיווח של העובד עד 25 שנ׳
   const res = await Promise.all(normSubs(subs).map(async (s) => {
-    const msg = message(kind, jobId, s.l);
+    const msg = message(kind, jobId, s.l, x, now);
     if (!msg) return { s, keep: true, ok: false };
     try {
-      const r = await f(s.e, { method: 'POST', headers: { TTL: String(TTL), Urgency: kind === 'done' ? 'normal' : 'high',
+      // התקדמות: חצי שעה מספיקה (מצב ישן לא שימושי), ובלי להעיר את הטלפון בדחיפות
+      const r = await f(s.e, { method: 'POST', headers: { TTL: String(kind === 'stage' ? 1800 : TTL), Urgency: kind === 'done' || kind === 'stage' ? 'normal' : 'high',
         'Content-Encoding': 'aes128gcm', 'Content-Type': 'application/octet-stream', Authorization: vapidAuth(v, s.e, now) },
       body: encrypt(s, JSON.stringify(msg)), redirect: 'manual', signal: AbortSignal.timeout(5000) });
       if (r.status === 404 || r.status === 410) return { s, keep: false, ok: false };      // המנוי בוטל בטלפון
@@ -139,5 +181,5 @@ async function sendAll(deps, v, subs, kind, jobId, now) {
   return { subs: res.filter((x) => x.keep).map((x) => x.s), sent: res.filter((x) => x.ok).length };
 }
 
-module.exports = { PUSH_HOSTS, SUB_MAX, KINDS, TEXT, endpointOk, normSub, normSubs, addSub, dropSub, genVapid, vapidAuth,
+module.exports = { PUSH_HOSTS, SUB_MAX, KINDS, TEXT, STAGE, STAGE_IDS, stageText, stageDue, stageBar, endpointOk, normSub, normSubs, addSub, dropSub, genVapid, vapidAuth,
   encrypt, message, sendAll, b64u, unb64u };

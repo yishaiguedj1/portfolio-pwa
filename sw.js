@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v581';
+const CACHE_NAME = 'portfolio-pwa-v582';
 const HASHES = {
   "./": "23049cdc117b2a1b516816fe94fff24a",
   "./index.html": "23049cdc117b2a1b516816fe94fff24a",
   "./styles.css": "f926d3fb8ca3b605093c1d164aa48733",
-  "./app.js": "d34b1e5e08f79fb0d75fda6382bcc784",
+  "./app.js": "05ced0e881bee512aba327067852062e",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "5d9505a0e3f827ee0e32eb00e948e2b2",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -61,7 +61,7 @@ const HASHES = {
   "./academy.html": "cbbbe8c0aa8f9f0d9bfddd1575ea6757",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
   "./strings-academy.js": "5df7f4a2aaab9ad4ebb175db47d6065a",
-  "./core.js": "2108e4a624329b161b06bebe49929a5b",
+  "./core.js": "914a0b594da801b1f0c1e8b908a8386f",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "d6703c288cfb84be0bc06cbc61912c68",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -81,7 +81,7 @@ const HASHES = {
   "./studiostore.js": "633c4083aebf82cdc389813e65ecee16",
   "./studiobg.js": "43c7cd1bcbffc6baef7f38ddb18815c3",
   "./studio.html": "4344113c500fc12d34364c7de2f4e835",
-  "./studio-app.js": "3b8a0eb80a995f2b5824014c09e65f24",
+  "./studio-app.js": "23ed8def0efea7784fa85b0d3efbef3d",
   "./strings-studio.js": "3880581962f370bde9ce56faf0c7aea5",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
@@ -370,12 +370,23 @@ self.addEventListener('push', (event) => {
   // הקישור תמיד בכתובת שבה נרשמה ההתראה (שלב 4: גם ב־studio[-staging].thesnowball.app) — מההודעה רק מזהה העבודה
   const hm = /^https:\/\/[^#\s]*(#studio=j[A-Za-z0-9_-]{20})$/.exec(String(m.u || ''));
   const url = './' + (hm ? hm[1] : '');
-  event.waitUntil(self.registration.showNotification(title, {
-    body: String(m.b || '').slice(0, 160), icon: 'icon-192.png', badge: 'favicon-48.png', lang: 'he', dir: 'auto',
-    tag: m.j ? 'studio-' + m.j : 'studio', renotify: m.k === 'ask' || m.k === 'gate', data: { url },
-    // מ9: עבודה שהסתיימה — ישר לנגן או לעורך (האפליקציה בודקת שאפשר; אחרת נשארת בדף העבודה)
-    actions: m.k === 'done' && url !== './' ? [{ action: 'play', title: 'צפייה' }, { action: 'subs', title: 'עריכה' }] : [],
-  }));
+  const tag = m.j ? 'studio-' + m.j : 'studio', at = Number(m.at) || 0;
+  // 27/10/2026 (בקשת המשתמש): כל שלב בעבודה = אותה התראה (תג לעבודה) שמתחלפת — שקטה, עם פס של השלב.
+  // סוף / שאלה / אישור / עצירה — מחליפים אותה עם צליל. הודעה ישנה שהגיעה באיחור (שירות ה־push לא שומר על סדר) לא דורסת חדשה
+  const stage = m.k === 'stage';
+  event.waitUntil((async () => {
+    let cur = null;
+    try { cur = (await self.registration.getNotifications({ tag }))[0] || null; } catch (e) {}
+    const cd = cur && cur.data || {};
+    if (cur && at && cd.at > at) return self.registration.showNotification(cur.title, { body: cur.body, icon: 'icon-192.png', badge: 'favicon-48.png',
+      lang: 'he', dir: 'auto', tag, renotify: false, silent: true, data: cd, actions: cur.actions || [] });
+    return self.registration.showNotification(title, {
+      body: String(m.b || '').slice(0, 160), icon: 'icon-192.png', badge: 'favicon-48.png', lang: 'he', dir: 'auto',
+      tag, renotify: !stage, silent: stage, requireInteraction: false, data: { url, at, k: String(m.k || '') },
+      // מ9: עבודה שהסתיימה — ישר לנגן או לעורך (האפליקציה בודקת שאפשר; אחרת נשארת בדף העבודה)
+      actions: m.k === 'done' && url !== './' ? [{ action: 'play', title: 'צפייה' }, { action: 'subs', title: 'עריכה' }] : [],
+    });
+  })());
 });
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
@@ -458,7 +469,8 @@ self.addEventListener('backgroundfetchclick', (event) => {
   const url = new URL('./#studio=' + m[1], self.registration.scope).href;
   event.waitUntil((async () => {
     const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    for (const w of wins) if (w.url.startsWith(self.registration.scope) && 'focus' in w) return w.focus();
+    // 27/10/2026: גם כש־Studio כבר פתוחה — ישר לעבודה (עד היום רק הביא את החלון קדימה, בדף שבו הוא היה)
+    for (const w of wins) if (w.url.startsWith(self.registration.scope) && 'focus' in w) { try { await w.navigate(url); } catch (e) {} return w.focus(); }
     return self.clients.openWindow(url);
   })());
 });
