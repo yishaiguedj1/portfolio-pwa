@@ -99,8 +99,10 @@ class HeavyRetry(unittest.TestCase):
         def fake(ctx, args, stage, lo, hi, t0):
             import os
             self.seen.append(os.environ.get('SNB_ALIGN_ARENA'))
+            if self.boom == 'err':
+                raise SystemExit('✗ vt align נכשל (קוד 1).')
             if self.boom:
-                raise SystemExit('נהרג באמצע')
+                raise job.StepError('נהרג באמצע', 'worker_oom')
             return []
         job._vt = fake
         self.ctx = SimpleNamespace(st={'job': 'jAbc_' + 'x' * 16}, pdir=Path(self.tmp.name))
@@ -122,6 +124,18 @@ class HeavyRetry(unittest.TestCase):
         self.assertFalse(list(job.HEAVY_DIR.glob('*.json')), 'הצליח — הסימן נמחק')
         job.vt(self.ctx, ['align', 'x'])
         self.assertEqual(self.seen[-1], None, 'עבודה שהצליחה — שוב רגיל')
+
+    def test_plain_error_is_not_a_crash(self):
+        """27/10/2026: vt align נכשל בשגיאה רגילה (קוד 1) — לא "נקטע באמצע": ה"המשך" בלי מצב חיסכון ובלי ההודעה על הזיכרון."""
+        import os
+        os.environ.pop('SNB_ALIGN_ARENA', None)
+        self.boom = 'err'
+        with self.assertRaises(SystemExit):
+            job.vt(self.ctx, ['align', 'x'])
+        self.assertFalse(list(job.HEAVY_DIR.glob('*.json')), 'שגיאה רגילה — הסימן נמחק')
+        self.boom = False
+        job.vt(self.ctx, ['align', 'x'])
+        self.assertEqual(self.seen, [None, None])
 
     def test_other_commands_untouched(self):
         job.vt(self.ctx, ['plan', 'x'])
