@@ -59,6 +59,25 @@ export function bgUpOk(f) {
 const PROD_API = 'https://api.thesnowball.app', VERCEL = 'https://ibkr-proxy-wine.vercel.app';
 export const bgApis = (base) => (base === PROD_API ? [PROD_API, VERCEL] : base ? [base] : []);
 
+/* 27/10/2026 (בטלפון: "עלו 0KB מתוך 162MB" — ההעלאה ברקע לא מתחילה): Chrome מריץ Background Fetch אחד בכל פעם
+   לאתר, והבא מחכה בתור עד שהקודם נגמר. העלאה של עבודה ישנה שלא נסגרה (נמחקה ממכשיר אחר, דף שנסגר באמצע, הסרטון
+   כבר נרשם) חוסמת כל העלאה חדשה. לפני כל העלאה חדשה מבטלים את שלנו שכבר לא צריך (keep(job) = שקר). מחזיר כמה בוטלו */
+export async function bgSweep(reg, self, keep) {
+  let n = 0;
+  try {
+    const ids = reg && reg.backgroundFetch && typeof reg.backgroundFetch.getIds === 'function' ? await reg.backgroundFetch.getIds() : [];
+    for (const id of ids || []) {
+      const job = jobOfBgId(id);
+      if (!job || job === self || (keep && keep(job))) continue;
+      try {
+        const bg = await reg.backgroundFetch.get(id);
+        if (bg && !bg.result && await bg.abort()) n++;
+      } catch (e) {}
+    }
+  } catch (e) {}
+  return n;
+}
+
 /* הבקשות: חלק לכל קישור שהשרתון נתן, לפי הסדר. ps = גודל החלק (כולם חוץ מהאחרון) */
 export function bgPlan(size, ps, urls) {
   const out = [];
@@ -84,6 +103,7 @@ export async function bgUpload(o, env) {
   try { bg = await reg.backgroundFetch.get(id); } catch (e) { bg = null; }
   if (!bg || bg.result) {
     if (bg && bg.result === 'success') return { ok: true };   // הסתיים כשהדף היה סגור — ההעלאה הרגילה רק תסגור / תאשר
+    await bgSweep(reg, o.job, env.keep);
     const j = await o.api('r2bg', { job: o.job, id: (o.st && o.st.id) || '', size: o.size, type: o.mime || 'application/octet-stream', name: o.name || '' });
     if (!j || !j.ok) return { fallback: (j && j.error) || 'net' };
     if (j.file) return { ok: true };

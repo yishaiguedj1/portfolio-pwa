@@ -1854,6 +1854,8 @@ const bgEnv = {
   put: (x) => (bgStore ? bgStore.put(x) : null), del: (k) => (bgStore ? bgStore.del(k).catch(() => {}) : null),
   base: () => proxyBase(), lang: () => uiLang(), now: () => Date.now(),
   visible: () => typeof document === 'undefined' || document.visibilityState === 'visible',
+  // 27/10/2026: העלאה ברקע של עבודה אחרת נשארת רק כשהסרטון שלה עוד לא נרשם והעבודה לא הסתיימה (bgSweep)
+  keep: (job) => { const r = jobRec(job); return !!(r && r.up && !(r.up.v && r.up.v.done) && !(r.srv && ['done', 'failed', 'cancelled'].includes(r.srv.state))); },
 };
 async function bgCan(rec, file) {
   const s = store.settings, up = rec.up;
