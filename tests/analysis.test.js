@@ -87,7 +87,8 @@ ok(A.multHist(reit).pffo.filter((x) => x > 0).length >= 36 && A.multHist(bank).p
 const neg = (a) => a.map((x) => -Math.abs(x));
 const lco = A.prep({ ...D, A: { ...A0, ocf: neg(A0.ocf) }, Q: { ...Q, ocf: neg(Q.ocf) } }, null, 3.7);
 const L = A.lossView(lco), clo = A.ctx(lco, A.periodList(lco, 'fy').pop());
-ok(Math.abs(L.m - (clo.fcf - clo.sbc) / clo.rev) < 1e-9 && Math.abs(L.r40 - (L.g + L.m)) < 1e-12, 'Rule of 40 = צמיחת הכנסות + שולי תזרים לבעלים (אחרי תגמול במניות)');
+ok(Math.abs(L.m - clo.op / clo.rev) < 1e-9 && Math.abs(L.r40 - (L.g + L.m)) < 1e-12, 'Rule of 40 = צמיחת הכנסות + שולי רווח תפעולי (כמו iCharts)');
+ok(L.r40 === A.r40Of(lco, A.periodList(lco, 'fy').pop()), 'Rule of 40 — פונקציה אחת לכל מקום שמציג אותו');
 ok(Math.abs(L.runway - clo.cashT / -clo.fcf) < 1e-9, 'כמה זמן המזומן מספיק = מזומן ÷ שריפה בשנה');
 ok(A.fairOf(lco, MAC) === null && A.fairOf(co, MAC).kind === 'dcf', 'בלי תזרים חיובי — אין DCF; חברה רגילה — DCF');
 const small = A.indFix(A.prep({ ...D, indData: { bu: 2, fpe: 90, n: 5 } }, null, 3.7), MAC);
@@ -244,3 +245,23 @@ ok(/z-index: 900/.test(css) && /\.an-sheet \{[^}]*z-index: 941/.test(css), 'שכ
 // מניה שלא נסחרת — שורה מתחת לראש, לא נתונים ישנים בשקט
 ok(/co\.gone \? h\('p', \{ class: 'an-gone' \}, T\('anGone'/.test(src), 'מניה שלא נסחרת — שורה בראש המסך');
 console.log('\nכל בדיקות מנתח החברות עברו: ' + n);
+
+/* ---------- מחשבון השווי (27/10/2026, כמו iCharts) ---------- */
+{
+  const V = { base: 100e9, g: 0.1, m: 0.2, yrs: 5, sh: 0, lo: 15, mid: 20, hi: 25, req: 0.1 };
+  const R = A.calcRun(V, 1e9, 400);
+  const rev = 100e9 * 1.1 ** 5;
+  ok(Math.abs(R[1].rev - rev) < 1 && Math.abs(R[1].prof - rev * 0.2) < 1 && Math.abs(R[1].mcap - rev * 0.2 * 20) < 10, 'הכנסות × (1+צמיחה)^שנים × שולי רווח × מכפיל = שווי (כמו iCharts)');
+  ok(Math.abs(R[1].ps - R[1].mcap / 1e9) < 1e-6 && Math.abs(R[1].ret - ((R[1].ps / 400) ** 0.2 - 1)) < 1e-12, 'מחיר = שווי ÷ מניות; תשואה שנתית מהמחיר של היום');
+  ok(Math.abs(R[1].buy - R[1].ps / 1.1 ** 5) < 1e-9, 'מחיר היום לתשואה רצויה = מחיר עתידי ÷ (1+תשואה)^שנים');
+  const Rb = A.calcRun({ ...V, sh: -0.03 }, 1e9, 400);
+  ok(Rb[1].ps > R[1].ps && Math.abs(Rb[1].ps - R[1].mcap / (1e9 * 0.97 ** 5)) < 1e-6, 'רכישות חוזרות — פחות מניות, מחיר גבוה יותר');
+  ok(R[0].ps < R[1].ps && R[1].ps < R[2].ps, 'נמוך < בסיס < גבוה');
+  const D0 = A.calcDefaults(co);
+  ok(D0.basis === 'ni' && D0.val.g <= 0.15 && D0.val.g >= -0.05 && D0.val.yrs === 5 && D0.val.req === 0.1, 'ערכים מוצעים: צמיחה עד 15%, 5 שנים, תשואה רצויה 10%');
+  ok(D0.val.lo <= D0.val.mid && D0.val.mid <= D0.val.hi && D0.val.hi <= 40, 'מכפילים מוצעים בסדר עולה, עד ×40');
+  ok(A.calcDefaults(co, 'fcf').basis === 'fcf' && A.calcDefaults(co, 'fcf').mkey === 'pfcf', 'לפי תזרים חופשי — מכפיל מחיר לתזרים חופשי');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'analysis.js'), 'utf8');
+  ok(!/pageValDef|fairCard\(|assumeCard\(/.test(src) && /function pageVal\(co, pg\)[\s\S]{0,200}calcDefaults/.test(src), 'עמוד השווי = המחשבון בלבד, בלי DCF ובלי פרשנות');
+  ok(/DEF_NOTE = \{/.test(src) && /defNote\(def\.s\)/.test(src) && /anDnMult/.test(src), 'שורה גלויה איך מדד שמחושב בכמה דרכים מחושב אצלנו');
+}
