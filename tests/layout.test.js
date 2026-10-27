@@ -41,9 +41,9 @@ ok(/\.appbar-row\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*var\(--ib
 ok(/\.appbar-actions > \.menu-wrap\s*\{[^}]*grid-column:\s*9;\s*grid-row:\s*1/.test(css) && /\.appbar-row\s*\{[^}]*direction:\s*rtl/.test(css), '☰ תמיד בפינה השמאלית העליונה (גם באנגלית — הרשת בכיוון קבוע)');
 ok(/\.menu-drop\s*\{[^}]*left:\s*0;\s*right:\s*auto/.test(css) && /\.lang-menu\s*\{[^}]*right:\s*0;\s*left:\s*auto/.test(css), 'התפריטים נפתחים לתוך המסך מהפינה שלהם');
 ok(/\.appbar-left > \.appbar-sub\s*\{[^}]*grid-column:\s*1 \/ 5;\s*grid-row:\s*2;\s*justify-self:\s*start/.test(css) && /\.appbar-left > \.fx-pill\s*\{[^}]*grid-column:\s*6 \/ 10;\s*grid-row:\s*2;\s*justify-self:\s*end/.test(css), 'קפסולת המצב מתחת לגלובוס (ימין), בועת השער מתחת ל־☰ (שמאל) — 2.16.0');
-ok(/\.appbar \.fx-pill, \.appbar \.appbar-sub > \* \{[^}]*width: calc\(var\(--ib\) \* 2 \+ 8px\);[^}]*height: 44px;/.test(css), 'הקפסולה ובועת השער באותו גודל בדיוק');
+ok(/\.appbar \.fx-pill, \.appbar \.appbar-sub > \* \{[^}]*width: calc\(var\(--ib\) \* 2 \+ 8px\);[^}]*height: var\(--ib\);/.test(css), 'הקפסולה ובועת השער באותו גודל בדיוק');
 ok(/\.appbar-sub\s*\{[^}]*text-overflow:\s*ellipsis/.test(css), 'שורת המשנה נחתכת ב־… ולא דוחפת את הכפתורים');
-ok(/\.brand-logo\s*\{[^}]*width:\s*128px/.test(css), 'הלוגו בגודל קבוע (128px, v198) — לא תלוי במקום שנשאר');
+ok(/\.brand-logo\s*\{[^}]*width:\s*116px/.test(css), 'הלוגו בגודל קבוע (116px, 27/10/2026) — לא תלוי במקום שנשאר');
 ok(/@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.appbar \.brand-logo, \.appbar \.brand-art[^}]*\.appbar \.brand-snow b \{ animation:\s*none/.test(css), 'הלוגו החי עומד כשמבקשים להפחית תנועה');
 
 /* ---------- 3. פלטת iOS 26 בשתי הערכות ---------- */

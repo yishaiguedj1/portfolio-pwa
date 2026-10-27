@@ -6865,8 +6865,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.73.2';
-const APP_VERSION = 'v594';
+const APP_RELEASE = '2.73.3';
+const APP_VERSION = 'v595';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -14856,15 +14856,6 @@ function buildStockBody(p, m) {
   if (state.chartH && state.chartH[sym]) canvas.style.height = state.chartH[sym] + 'px'; // v238: הגובה שהותאם למסך
   cwrap.appendChild(canvas);
   cwrap.appendChild(loading);
-  // 27/10/2026 (בקשת המשתמש): לחצן הגדלה בפינה העליונה של הגרף → גרף הנרות במסך מלא (כמו "ניתוח"/"גרף נרות" בתחתית)
-  const kx = el('button', 'kc-expand no-swipe');
-  kx.type = 'button';
-  kx.setAttribute('aria-label', t('kcExpand'));
-  kx.title = t('kcExpand');
-  kx.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-6.5 6.5M4 20l6.5-6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  kx.addEventListener('pointerdown', (e) => e.stopPropagation());
-  kx.addEventListener('click', (e) => { e.stopPropagation(); openChartFor(sym); });
-  cwrap.appendChild(kx);
   wrap.appendChild(cwrap);
 
   // v107: טווחים מתחת לגרף + שורת תשואה + legend — כמו בגרף הראשי
@@ -14923,7 +14914,7 @@ function buildStockBody(p, m) {
   const sret = el('div', 'pf-range-summary');
   sret.id = 'sret-' + sym;
   foot.appendChild(sret);
-  wrap.appendChild(foot);
+  cwrap.before(foot);   // 27/10/2026 (בקשת המשתמש): השורה התחתונה (תשואה + ניתוח + הגדלה) מעל הגרף, מתחת לאריחים
   // v236: שורת ה־legend ("NOW ● +x%") הוסרה — חזרה בדיוק על שורת התשואה שמעליה
 
   const picking = !!state.stockPick[sym];
@@ -14991,10 +14982,12 @@ function buildStockBody(p, m) {
    המחיר החי כל שנייה מ־/api/quotes. המצב (שרטוטים, אינדיקטורים, התראות) — pwa_charts_v1, מפתח אישי לכל חשבון. */
 const CHART_LS = 'pwa_charts_v1';
 function chartBtn(sym) {
-  const b = el('button', 'chip-btn kc-open-btn');
+  // 27/10/2026 (בקשת המשתמש): במקום "גרף נרות" + סמל ההגדלה על הגרף — רק סמל ההגדלה, משמאל ל"ניתוח" (אותה פתיחה)
+  const b = el('button', 'chip-btn kc-open-btn kc-expand-btn no-swipe');
   b.type = 'button';
-  b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v3M7 17v3M17 3v4M17 15v6M5 7h4v10H5zM15 7h4v8h-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  b.appendChild(document.createTextNode(t('kcOpenBtn')));
+  b.setAttribute('aria-label', t('kcExpand'));
+  b.title = t('kcExpand');
+  b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-6.5 6.5M4 20l6.5-6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   b.addEventListener('click', (e) => { e.stopPropagation(); openChartFor(sym); });
   // הספרייה (~200KB) והעיצוב נטענים ברגע הנגיעה — עד שהאצבע עוזבת הם כבר בדרך
   b.addEventListener('pointerdown', () => { if (b._pre) return; b._pre = 1; import('./chart.js').then((m) => m.prefetchChart && m.prefetchChart(chartEnv())).catch(() => {}); }, { passive: true });
@@ -15114,6 +15107,13 @@ function closeStockCards(except, keepEl, collect) {
    פעמיים: מיד (גלילה חלקה), ושוב כשהאנימציה נגמרת — כרטיס בתחתית הדף מגיע לראש רק אחרי שהדף התארך */
 // 26/10/2026 (בקשת המשתמש — הכרטיס הפתוח "כבר לא נכנס בדיוק במסך"): מאז שהלשוניות נדבקות מתחת להדר (2.15.1) החלק המכוסה
 // בראש המסך = ההדר ועוד שורת הלשוניות, לא רק ההדר. כל גלילה/התאמה לראש המסך — דרך כאן.
+// 27/10/2026 (בקשת המשתמש — בדפדפן, לא ב־PWA, תחתית הכרטיס הפתוח נחתכה): ב־Chrome באנדרואיד window.innerHeight גדל כשסרגל הכתובת
+// מתכווץ בגלילה (והכרטיס נמדד לפי הגובה הגדול), ו־clientHeight של המסמך נשאר הגובה הקטן (סרגל מוצג). מתאימים לקטן —
+// כשהסרגל מוסתר נשאר רק רווח קטן בתחתית, וכשהוא חוזר שום דבר לא נחתך.
+function viewH() {
+  const ih = window.innerHeight || 0, ch = (document.documentElement && document.documentElement.clientHeight) || 0;
+  return ch > 200 && ch < ih ? ch : ih;
+}
 function topCover() {
   if (typeof document === 'undefined' || !document.querySelector) return 0;
   const bar = document.querySelector('.appbar');
@@ -15155,7 +15155,7 @@ function fitCardToScreen(sym, card, smooth) {
     const head = card.querySelector('.stock-head');
     if (head) card._fitRO.observe(head);
   }
-  const avail = window.innerHeight - topCover() - 20;
+  const avail = viewH() - topCover() - 20;
   const cardH = card.getBoundingClientRect().height - body.getBoundingClientRect().height + Math.max(inner.offsetHeight, inner.scrollHeight);
   const h = Math.round(Math.max(140, Math.min(560, cv.clientHeight + avail - cardH)));
   if (Math.abs(h - cv.clientHeight) < 2) return false;
@@ -15203,7 +15203,7 @@ function toggleStock(sym, card) {
   cancelScrollRestore();
   const opening = !state.open[sym];
   const de = document.documentElement;
-  const S0 = window.scrollY || 0, vh = window.innerHeight, docH0 = de.scrollHeight;
+  const S0 = window.scrollY || 0, vh = viewH(), docH0 = de.scrollHeight;
   const cardTop0 = card.getBoundingClientRect().top;
   const items = []; // {card, body, from, to}
   let docDelta = 0, aboveDelta = 0;
