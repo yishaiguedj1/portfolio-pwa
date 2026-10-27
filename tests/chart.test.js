@@ -163,7 +163,15 @@ ok(Object.keys(L.IND).length >= 40, 'לפחות 40 אינדיקטורים נוס
     indicators: { quote: [{ open: [10, 11], high: [12, 11], low: [9, 11], close: [11, 11], volume: [5, v] }] } }] } });
   ok(C._parse(g(0), '15m').t.length === 1 && C._parse(g(0), '15m').c[0] === 11, 'נר רפאים בסגירה מדולג (תווית המחיר נצבעת לפי הנר האמיתי)');
   ok(C._parse(g(3), '15m').t.length === 2 && C._parse(g(0), '1d').t.length === 2, 'נר שטוח עם נפח / יומי — נשאר');
+  // עם טרום/אחרי: נקודה חיה בסוף שלא מיושרת לטווח (20:50 ב־15m) — מתמזגת לנר הקודם, לא נר אפור חדש
+  const lv = C._parse({ chart: { result: [{ meta: { currency: 'USD' }, timestamp: [900, 1800, 2400],
+    indicators: { quote: [{ open: [10, 11, 12], high: [11, 12, 12], low: [9, 10, 12], close: [11, 11.5, 12], volume: [1, 2, 0] }] } }] } }, '15m');
+  ok(lv.t.length === 2 && lv.c[1] === 12 && lv.h[1] === 12 && lv.o[1] === 11 && lv.v[1] === 2, 'נקודה חיה לא מיושרת מתמזגת לנר הקודם');
+  const kl = fs.readFileSync(path.join(root, 'vendor/klinecharts/klinecharts.min.js'), 'utf8');
+  ok(kl.includes('(this._touchCoordinate=null,l.setCrosshair(void 0,{notInvalidate:!0}),n=!0,this._touchCancelCrosshair=!1)') && kl.includes('a=10*(e/this._pinchScale-1)') && /Modified by THE SNOWBALL/.test(kl),
+    'KLineChart: הקשה לא פותחת צלב (רק לחיצה ארוכה) וצביטה 1:1 — מסומן בראש הקובץ (Apache-2.0)');
   const cj = fs.readFileSync(path.join(root, 'chart.js'), 'utf8');
+  ok(/setZoomAnchor\(back \? 'cursor' : 'last_bar'\)/.test(cj) && /navigator\.vibrate\(8\)/.test(cj) && /convertFromPixel\(\[\{ x: e\.clientX - r\.left/.test(cj), 'זום צמוד לנר האחרון, רטט בלחיצה ארוכה, בחירת נר בהקשה');
   ok(/extendTexts: \[\{ show: true, position: 'below_price'[\s\S]{0,400}?updateInterval: 1000/.test(cj) && /formatExtendText: \(x\) => \(x && x.type === 'last_price' \? countdown\(c, x.data, Date.now\(\)\)/.test(cj), 'ספירה לאחור לסגירת הנר מתחת לתווית המחיר');
   ok(/name: 'kcExtPx'/.test(cj) && /function drawExt\(c\)/.test(cj) && /if \(c.raw.length\) drawExt\(c\);/.test(cj), 'תווית טרום/אחרי המסחר בציר');
   ok(/name === 'VOL' && \(!conf.calcParams \|\| conf.calcParams.join\(\) === '5,10,20'\)\) conf.calcParams = \[\]/.test(cj), 'נפח נקי בלי ממוצעים');
