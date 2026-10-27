@@ -88,12 +88,12 @@ const run = (c) => vm.runInContext(c, sb);
   ok(run('state.source') === 'Yahoo' && run('state.live') === true, 'מקור: Yahoo חי');
   calls.length = 0;
   await A('liveTick')();
-  ok(calls.length === 1 && /BBB/.test(calls[0]), 'טיק מהיר: רק הכרטיס הפתוח');
+  ok(calls.filter((u) => /interval=1m/.test(u)).length === 3, '27/10/2026: כל טיק מלא (LIVE_ALL_EVERY = 1 — ממילא בקשה אחת לשרתון)');
 
   // מחירים לא זזים → האטה לדקה (שוק סגור)
   run('live.n = 0; live.still = 0;');
   for (let i = 0; i < 2 * A('LIVE_IDLE_AFTER') + 2; i++) await A('liveTick')();
-  ok(run('live.still') >= run('LIVE_IDLE_AFTER'), 'בלי תזוזה LIVE_IDLE_AFTER טיקים מלאים → מצב איטי (v165: 15 = ~דקה)');
+  ok(run('live.still') >= run('LIVE_IDLE_AFTER'), 'בלי תזוזה LIVE_IDLE_AFTER טיקים מלאים → מצב איטי (27/10/2026: 60 טיקים של שנייה = ~דקה)');
 
   // Yahoo נכשל → CNBC בבקשה אחת
   run(`fetchJSONTimeout = async (u) => { __calls.push(u); if (/yahoo/.test(u)) throw new Error('blocked');

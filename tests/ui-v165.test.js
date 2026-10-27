@@ -33,7 +33,8 @@ q = ext.applyExtQuote({ close: 135.6 }, { state: 'OVERNIGHT', reg: { p: 135.62, 
 ok(q.session === 'night' && q.close === 136.74 && q.ext.kind === 'night' && q.regCh === -2.16, 'v226: לילה — המחיר הראשי = הלילי, השינוי היומי נשאר של המסחר הרגיל');
 ok(/&overnightPrice=true&/.test(require('fs').readFileSync(require('path').join(__dirname, '..', 'ibkr-proxy', 'api', 'quotes.js'), 'utf8')), 'v226: השרתון מבקש overnightPrice=true (בלעדיו אין overnight ב־v7)');
 ok(/ext-sess neg/.test(ext.extSessionHTML({ ext: { kind: 'post', price: 341, pct: -0.02 } })) && /sessPostShort/.test(ext.extSessionHTML({ ext: { kind: 'post', price: 341, pct: -0.02 } })), 'תג: "אחרי־מסחר" באדום כשיורד');
-ok(/const LIVE_FAST_MS = 2000;/.test(src) && /const LIVE_ALL_EVERY = 2;/.test(src) && /const LIVE_IDLE_AFTER = 15;/.test(src), 'לולאה: טיק כל 2 שניות, כל התיק כל 4, האטה אחרי ~דקה בלי תזוזה');
+ok(/const LIVE_FAST_MS = 1000;/.test(src) && /const LIVE_ALL_EVERY = 1;/.test(src) && /const LIVE_IDLE_AFTER = 60;/.test(src), '27/10/2026: לולאה — טיק כל שנייה, כל התיק בכל טיק, האטה אחרי ~דקה בלי תזוזה');
+ok(/gap - \(Date\.now\(\) - \(live\.t0 \|\| 0\)\)/.test(src), '27/10/2026: המרווח מתחילת הטיק — שנייה ולא שנייה + זמן התשובה');
 ok(/applyExtQuote\(q, j\.data\[sym\]\.x\)/.test(src), 'השדות המורחבים נקלטים מהשרתון');
 ok(/function livePriceSwap\(a, b\)/.test(src) && /px-roll ' \+ dir/.test(src) && /prefers-reduced-motion: reduce/.test(grab('livePriceSwap')), 'החלפת מחיר מגולגלת, מכבדת "הפחת תנועה"');
 ok(/if \(pa && pb\) livePriceSwap\(pa, pb\);/.test(src), 'renderLive משתמש בה (לא innerHTML גס)');
