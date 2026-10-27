@@ -798,8 +798,8 @@ private fun MenuSheet(a: BrowserActivity) {
             Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 val loading = (t?.progress ?: 0) in 1..99 && web
                 val marked = web && BrStore.isMarked(t!!.url)
-                MBtn(BrIcons.CArrowBack, stringResource(R.string.brBack), t?.canBack == true) { close(); t?.web?.goBack() }
-                MBtn(BrIcons.CArrowFwd, stringResource(R.string.brForward), t?.canFwd == true) { a.forward() }
+                MBtn(BrIcons.CArrowBack, stringResource(R.string.brBack), a.canGoBackHere(t)) { a.goBack() }
+                MBtn(BrIcons.CArrowFwd, stringResource(R.string.brForward), t?.canFwd == true || (t?.isNtp == true && t.ntpFwd != null)) { a.forward() }
                 MBtn(if (marked) BrIcons.CStarOn else BrIcons.CStar, stringResource(if (marked) R.string.brStarOff else R.string.brStar), web, selected = marked) { a.toggleMark(); close() }
                 // הורדה: בדף עם סרטונים — ההורדה של Studio (אותה בחירה של ⬇); אחרת אין מה להוריד
                 val vids = (t?.foundN ?: 0) > 0

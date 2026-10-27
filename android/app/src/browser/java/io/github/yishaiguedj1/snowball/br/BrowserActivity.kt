@@ -417,6 +417,7 @@ class BrowserActivity : ComponentActivity() {
         if (u.isEmpty()) return
         editing = false
         val t = cur ?: newTab("")
+        if (t.isNtp) { t.ntpBack = true; t.ntpFwd = null }   // הכרטיסייה החדשה = רשומה בהיסטוריה, כמו ב־Chrome
         load(t, u)
     }
 
@@ -445,13 +446,37 @@ class BrowserActivity : ComponentActivity() {
             screen in settingsSubs -> screen = Screen.SETTINGS
             screen == Screen.BOOKMARKS && markFolder != 0 -> markFolder = 0
             screen != Screen.PAGE -> screen = Screen.PAGE
-            t?.web?.canGoBack() == true -> t.web?.goBack()
-            t != null && t.fromApp -> { close(t); moveTaskToBack(true) }   // כמו Chrome: קישור מאפליקציה — "חזור" חוזר אליה
+            else -> goBack()
+        }
+    }
+
+    /**
+     * "חזור" בדף — הסדר של Chrome לאנדרואיד (ChromeTabbedActivity.minimizeAppAndCloseTabOnBackPress, TabLaunchTypeUtils):
+     * הדף הקודם בכרטיסייה → הכרטיסייה החדשה שממנה נפתח הדף הראשון → כרטיסייה שנפתחה מקישור: נסגרת וחוזרים לזו שפתחה אותה →
+     * מאפליקציה אחרת: נסגרת וחוזרים לאפליקציה → אחרת הדפדפן יורד לרקע (הכרטיסייה נשארת). עד 27/10/2026 כל "חזור" מהדף הראשון יצא.
+     */
+    fun goBack() {
+        menu = false
+        val t = cur
+        when {
+            t == null -> moveTaskToBack(true)
+            t.web?.canGoBack() == true -> t.web?.goBack()
+            t.ntpBack && !t.isNtp -> { val u = t.url; goHome(); t.ntpBack = false; t.ntpFwd = u }
+            t.fromApp -> { close(t); moveTaskToBack(true) }   // כמו Chrome: קישור מאפליקציה — "חזור" חוזר אליה
+            t.parent >= 0 && tabs.any { it.id == t.parent } -> { val p = tabs.first { it.id == t.parent }; close(t); select(p) }
             else -> moveTaskToBack(true)
         }
     }
 
-    fun forward() { cur?.web?.takeIf { it.canGoForward() }?.goForward(); menu = false }
+    /** יש לאן לחזור בתוך הדפדפן (חץ החזרה בתפריט) */
+    fun canGoBackHere(t: BrTab?): Boolean = t != null && (t.canBack || (t.ntpBack && !t.isNtp) || (t.parent >= 0 && tabs.any { it.id == t.parent }))
+
+    fun forward() {
+        menu = false
+        val t = cur ?: return
+        val f = t.ntpFwd
+        if (t.isNtp && f != null) { t.ntpFwd = null; t.ntpBack = true; load(t, f) } else t.web?.takeIf { it.canGoForward() }?.goForward()
+    }
     fun reload() { val w = cur?.web ?: return; if ((cur?.progress ?: 0) in 1..99) w.stopLoading() else w.reload(); menu = false }
 
     /* ---------------- WebView ---------------- */
@@ -530,6 +555,7 @@ class BrowserActivity : ComponentActivity() {
             override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
                 if (!isUserGesture) return false   // חלון קופץ בלי נגיעה — חסום, כמו ב־Chrome
                 val nt = newTab("", private = t.private, after = t)
+                nt.parent = t.id   // נפתחה מקישור: "חזור" בדף הראשון סוגר אותה וחוזר לכאן (FROM_LINK ב־Chrome)
                 editing = false
                 val nw = ensureWeb(nt)
                 (resultMsg.obj as WebView.WebViewTransport).webView = nw

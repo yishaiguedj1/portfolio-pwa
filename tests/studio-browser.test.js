@@ -160,6 +160,9 @@ ok(/private val Red = Color\(0xFFFF4656\)/.test(ui) && /Color\(0x4A3C3C43\), Red
 ok(/private fun Modifier\.glass\(/.test(ui) && /private fun Modifier\.ambient\(/.test(ui), 'זכוכית ורקע רך (iOS 27)');
 ok(/val GoogleLogo/.test(R(B + 'BrIcons.kt')) && /val CNewTab = cr\("ic_add_box_rounded_corner"/.test(R(B + 'BrIcons.kt')) && fs.existsSync(path.join(ROOT, 'android/app/src/browser/CHROMIUM_LICENSE.txt')),
   'האייקונים של Chrome עצמו, עם הרישיון של Chromium');
+ok(/fun goBack\(\) \{[\s\S]*?t\.web\?\.canGoBack\(\) == true -> t\.web\?\.goBack\(\)\s*t\.ntpBack && !t\.isNtp -> [\s\S]*?t\.fromApp -> \{ close\(t\); moveTaskToBack\(true\) \}[\s\S]*?t\.parent >= 0[\s\S]*?else -> moveTaskToBack\(true\)/.test(act)
+  && /nt\.parent = t\.id/.test(act) && /if \(t\.isNtp\) \{ t\.ntpBack = true/.test(act),
+  '"חזור" כמו ב־Chrome: הדף הקודם → הכרטיסייה החדשה → הכרטיסייה שפתחה את הקישור → האפליקציה שפתחה → רקע');
 for (const s of ['ENGINE', 'PASSWORDS', 'PRIVACY', 'BARPOS', 'IMPORT'])
   ok(new RegExp('Screen\\.' + s + ' -> ').test(ui) && new RegExp('Screen\\.' + s).test(act), 'עמוד הגדרות: ' + s);
 ok(/screen in settingsSubs -> screen = Screen\.SETTINGS/.test(act), '"חזור" מעמוד משנה של ההגדרות חוזר להגדרות');
