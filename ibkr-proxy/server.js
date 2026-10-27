@@ -209,8 +209,9 @@ function startCron(server, cfg, opts = {}) {
   return { jobs, tick, stop: () => clearInterval(iv) };
 }
 
-/* 27/10/2026: הבודק של התראות המחיר ברקע (GET /api/ibkr-sync?job=px) — כל 30 שנ׳, רק כאן (ב־Vercel אין קרון לדקות).
+/* 27/10/2026: הבודק של התראות המחיר ברקע (GET /api/ibkr-sync?job=px) — כל 5 שנ׳ (28/10: מ־30 — ההתראה מגיעה בזמן; בלי התראות פעילות אין בקשה החוצה), רק כאן (ב־Vercel אין קרון לדקות).
    לא תלוי ב־SNB_CRON: אין לו כפיל ב־Vercel, ולכן גם בחדר הייצור (SNB_CRON=off) הוא רץ. SNB_PXA=off — כבוי */
+const PX_EVERY = 5e3;
 function startPx(server, opts = {}) {
   if (!server.names.has('ibkr-sync')) return null;
   const tick = () => {
@@ -221,7 +222,7 @@ function startPx(server, opts = {}) {
     res.assignSocket(new (require('stream').PassThrough)());
     return server.invoke('ibkr-sync', req, res).catch((e) => console.error('[px]', e && e.message));
   };
-  const iv = setInterval(tick, opts.every || 30e3);
+  const iv = setInterval(tick, opts.every || PX_EVERY);
   iv.unref();
   return { tick, stop: () => clearInterval(iv) };
 }

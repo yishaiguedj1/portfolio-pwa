@@ -76,7 +76,9 @@ function stageText(x, lang) {
   const name = v || (id === 'tl' && x.to === 'he' ? L.tlhe : L[id]);
   const pct = Math.max(0, Math.min(100, Math.round((Number(x.p) || 0) * 100)));
   const n = STAGE_IDS.indexOf(id) + 1;
-  return [name, stageBar(x.p, lang === 'en' ? 'en' : 'he') + '  ' + pct + '% · ' + L.of.replace('{n}', n).replace('{t}', STAGE_IDS.length)];
+  // 27/10/2026: זהה להתראה מהדף (studio.js shadeSync) — פס ואחוז, ואז "שלב 2 מתוך 7"; RLM בתחילת כל שורה בעברית
+  const d = lang === 'en' ? '' : '\u200F';
+  return [name, d + stageBar(x.p, lang === 'en' ? 'en' : 'he') + '  ' + pct + '%\n' + d + L.of.replace('{n}', n).replace('{t}', STAGE_IDS.length)];
 }
 /* מתי שולחים: שלב חדש, או כל 10% בתוך השלב. prev/next = job.prog לפני ואחרי הדיווח */
 function stageDue(prev, next) {
