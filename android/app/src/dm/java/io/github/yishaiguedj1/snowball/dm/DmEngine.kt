@@ -184,7 +184,8 @@ object DmEngine {
         }.apply { isDaemon = true; start() }
         return try {
             // כל שורה של yt-dlp → שלב ואחוז של כל ההורדה (וידאו ואחריו קול); האחוז שלו לבדו מתאפס בכל חלק
-            val f = DlEngine.download(ctx, t.url, t.ref, pick, "dm-" + t.id, fmt, subs = if (t.audioOnly) "" else t.subs, auto = t.subsAuto, onLine = ln@{ line ->
+            val f = DlEngine.download(ctx, t.url, t.ref, pick, "dm-" + t.id, fmt, subs = if (t.audioOnly || t.subs.isEmpty()) "" else DlEngine.SUBS,   // 27/10: כמו Studio — רק של היוצר
+                onLine = ln@{ line ->
                 r.tail.add(line)
                 if (!synchronized(pr) { pr.feed(line) }) return@ln
                 val now = System.currentTimeMillis()

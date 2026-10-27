@@ -187,9 +187,13 @@ object DlEngine {
     /** התיקייה שאליה yt-dlp כותב את ההורדה — גם כדי למדוד כמה כבר ירד (Studio DM) */
     fun dirOf(ctx: Context, id: String) = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "dl/$id")
 
+    /** כתוביות היוצר לצרף לסרטון — אותה רשימה ב־Studio וב־Studio DM (= fetchurl.get_subs בשרת: עברית ואנגלית) */
+    const val SUBS = "en,en-US,en-GB,he,iw"
+
     /** format = בורר yt-dlp משלך (Studio DM: "רק קול" — ‎ba/b‎); ריק = לפי pick, כמו ב־Studio */
-    /** subs = שפות כתוביות לצרף לקובץ ("he,en"; Studio DM — DmSubs), auto = כולל כתוביות אוטומטיות */
-    fun download(ctx: Context, url: String, ref: String, pick: Pick, id: String, format: String, onLine: (String) -> Unit = {}, subs: String = "", auto: Boolean = false, progress: (Float, Long) -> Unit): File {
+    /** subs = שפות כתוביות לצרף לקובץ — SUBS (Studio ו־Studio DM), ריק = בלי.
+     *  27/10/2026 (החלטת המשתמש): רק כתוביות שהיוצר העלה — אף פעם לא אוטומטיות של יוטיוב או של אתר אחר, בשום אפליקציה */
+    fun download(ctx: Context, url: String, ref: String, pick: Pick, id: String, format: String, onLine: (String) -> Unit = {}, subs: String = "", progress: (Float, Long) -> Unit): File {
         prepare(ctx)
         val dir = dirOf(ctx, id).apply { mkdirs() }
         val req = base(YoutubeDLRequest(url), ref, cookiesFor(ctx, url, ref))
@@ -204,8 +208,7 @@ object DlEngine {
         if (pick.s1 > pick.s0) req.addOption("--download-sections", "*${pick.s0}-${pick.s1}")
         if (Regex("^[A-Za-z0-9_-]{1,20}(,[A-Za-z0-9_-]{1,20}){0,4}$").matches(subs)) {
             // כתוביות בתוך הקובץ (MP4 = mov_text, MKV = srt) — לא קבצים נפרדים; כשל בכתוביות לא מפיל את ההורדה
-            req.addOption("--write-subs").addOption("--sub-langs", subs).addOption("--embed-subs").addOption("--convert-subs", "srt").addOption("--ignore-errors")
-            if (auto) req.addOption("--write-auto-subs")
+            req.addOption("--write-subs").addOption("--no-write-auto-subs").addOption("--sub-langs", subs).addOption("--embed-subs").addOption("--convert-subs", "srt").addOption("--ignore-errors")
         }
         val res = try {
             YoutubeDL.getInstance().execute(req, id) { p, eta, line -> progress(p, eta); onLine(line) }

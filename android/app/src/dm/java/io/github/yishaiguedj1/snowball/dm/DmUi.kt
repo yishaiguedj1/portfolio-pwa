@@ -602,10 +602,10 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                         }
                     }
                     Spacer(Modifier.height(8.dp))
-                    val subs = remember(info) { DmSubs.pick(info.optJSONArray("sub"), java.util.Locale.getDefault().language) }
+                    val subs = remember(info) { DmSubs.pick(info.optJSONArray("sub")) }
                     var withSubs by remember { mutableStateOf(pr.subs) }
                     if (subs.isNotEmpty() && !audio) ListItem(headlineContent = { Text(stringResource(R.string.dmSubs)) },
-                        supportingContent = { Text(subs.joinToString(" · ") { it.n.ifEmpty { it.l } } + if (DmSubs.anyAuto(subs)) " · " + ctx.getString(R.string.dmSubsAuto) else "") },
+                        supportingContent = { Text(subs.joinToString(" · ") { it.n.ifEmpty { it.l } }) },
                         trailingContent = { Switch(withSubs, { withSubs = it; pr.subs = it }) },
                         colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent))
                     LaterRow(later) { later = it }

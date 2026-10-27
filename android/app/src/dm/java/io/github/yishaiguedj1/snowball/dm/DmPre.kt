@@ -112,7 +112,7 @@ object DmPre {
                 tr: Boolean = false, later: Boolean = false, subs: List<DmSubs.Sub> = emptyList()): DmTask {
         val t = DmTask(DmStore.newId(), url, ref, DmKind.YTDL).apply {
             this.tr = tr && !audio; this.later = later
-            if (!audio) { this.subs = DmSubs.langs(subs); subsAuto = DmSubs.anyAuto(subs) }
+            if (!audio) { this.subs = DmSubs.langs(subs); subsAuto = false }
             title = info.optString("t"); name = title
             audioOnly = audio
             if (q != null && !audio) {

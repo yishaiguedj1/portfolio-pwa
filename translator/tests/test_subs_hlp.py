@@ -147,5 +147,95 @@ class SubRef(unittest.TestCase):
             self.assertEqual(called, [], 'הרצועה שהטלפון שלף — קודם')
 
 
+TALK = ('so today I want to talk about how compound interest really works and why Warren Buffett keeps saying that '
+        'patience is the most underrated skill in investing the idea is simple you put money in a good business and '
+        'you let it grow for decades without touching it most people sell too early because they get nervous ').split()
+
+
+def edit_of(words, per=12):
+    out = []
+    for i in range(0, len(words), per):
+        t = i // per * 4
+        out.append(f'[S1 00:{t // 60:02d}:{t % 60:02d}.0] ' + ' '.join(words[i:i + per]))
+    return '\n'.join(out) + '\n'
+
+
+def ref_of(chunks):
+    return [(float(t), f'[00:{int(t) // 60:02d}:{int(t) % 60:02d}] {x}') for t, x in chunks]
+
+
+class Gate(unittest.TestCase):
+    """27/10/2026: שער האיכות — כתוביות המקור נמדדות מול התמליל לפני ההגהה"""
+    def setUp(self):
+        self.words = TALK * 3
+        self.edit = edit_of(self.words)
+
+    def human(self, drop=0):
+        out = []
+        for i in range(0, len(self.words), 12):
+            w = self.words[i:i + 12][: 12 - drop]
+            out.append((i // 12 * 4, (' '.join(w)).capitalize() + '.'))
+        return ref_of(out)
+
+    def test_human_condensed_hi(self):
+        q = P.subref_grade(self.human(drop=3), self.edit)
+        self.assertEqual(q['g'], 'hi', q)
+        self.assertGreaterEqual(q['p'], 0.95)
+
+    def test_auto_lowercase_lo(self):
+        ref = ref_of([(i // 12 * 4, ' '.join(self.words[i:i + 12])) for i in range(0, len(self.words), 12)])
+        self.assertEqual(P.subref_grade(ref, self.edit)['g'], 'lo', 'בלי אותיות גדולות ובלי פיסוק = מכונה')
+
+    def test_rolling_lo(self):
+        out = []
+        for i in range(0, len(self.words), 8):
+            out.append((i // 12 * 4, (' '.join(self.words[max(0, i - 6):i + 8])).capitalize() + '.'))
+        q = P.subref_grade(ref_of(out), self.edit)
+        self.assertEqual(q['g'], 'lo', q)
+        self.assertGreater(q['r'], P.SQ_ROLL)
+
+    def test_wrong_words_lo(self):
+        bad = [(t, l.split('] ', 1)[0] + '] ' + ' '.join('Banana' if j % 2 else x for j, x in enumerate(l.split('] ', 1)[1].split())))
+               for t, l in self.human()]
+        self.assertEqual(P.subref_grade(bad, self.edit)['g'], 'lo')
+
+    def test_some_errors_mid(self):
+        bad = [(t, l.split('] ', 1)[0] + '] ' + ' '.join('Banana' if j % 4 == 3 else x for j, x in enumerate(l.split('] ', 1)[1].split())))
+               for t, l in self.human()]
+        self.assertEqual(P.subref_grade(bad, self.edit)['g'], 'mid')
+
+    def test_sparse_lo(self):
+        h = self.human()
+        self.assertEqual(P.subref_grade(h[::5], self.edit)['g'], 'lo', 'כיסוי חלקי (שלטים בלבד)')
+
+    def test_too_few_mid(self):
+        self.assertEqual(P.subref_grade(self.human()[:2], edit_of(self.words[:30]))['g'], 'mid', 'סרטון קצר — אי אפשר למדוד')
+
+    def pl(self, d, ref):
+        st = {'files': {}}
+        J = SimpleNamespace(subs_hlp=lambda ctx: '\n'.join(l for _, l in ref) + '\n', save_state=lambda s: None)
+        return SimpleNamespace(pd=d, ctx=SimpleNamespace(st=st), J=J), st
+
+    def test_sub_ref_drops_low(self):
+        with tempfile.TemporaryDirectory() as d:
+            ref = ref_of([(i // 12 * 4, ' '.join(self.words[i:i + 12])) for i in range(0, len(self.words), 12)])
+            pl, st = self.pl(Path(d), ref)
+            self.assertEqual(P.Pipeline.sub_ref(pl, self.edit), [], 'נמוכה — לא נכנסות להגהה')
+            self.assertEqual(st['srq']['g'], 'lo')
+            self.assertTrue((Path(d) / 'en.ref.txt').exists(), 'הקובץ נשמר בכל זאת')
+
+    def test_sub_ref_keeps_high(self):
+        with tempfile.TemporaryDirectory() as d:
+            pl, st = self.pl(Path(d), self.human(drop=2))
+            self.assertTrue(P.Pipeline.sub_ref(pl, self.edit))
+            self.assertEqual(st['srq']['g'], 'hi')
+
+    def test_mid_note_in_proofread(self):
+        src = Path(P.__file__).read_text(encoding='utf-8')
+        body = src[src.index('    def proofread('):src.index('    def sub_ref(')]
+        self.assertIn('self.sub_ref(edit)', body)
+        self.assertIn('SUBREF_NOTE_MID', body)
+
+
 if __name__ == '__main__':
     unittest.main()
