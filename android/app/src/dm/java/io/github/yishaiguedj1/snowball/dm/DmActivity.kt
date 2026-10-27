@@ -206,6 +206,7 @@ class DmActivity : ComponentActivity() {
         entries.forEachIndexed { i, e ->
             DmStore.add(DmTask(DmStore.newId(), e.url, "", DmKind.YTDL).apply {
                 title = e.title; name = e.title; audioOnly = audio; height = if (audio) 0 else h
+                if (!audio) subs = DmSubs.langs(DmSubs.ANY)   // 27/10: כתוביות היוצר כברירת מחדל, כמו בגיליון
                 this.later = later; created = now + i
             })
         }
@@ -301,7 +302,7 @@ class DmActivity : ComponentActivity() {
                     is Found.File -> { runOnUiThread { addFile(f, f.name, ref) }; ok++ }
                     is Found.Video -> {
                         val audio = pr.quality == "audio"
-                        runOnUiThread { addVideo(f, pickQuality(f.info, pr.quality), audio, ref) }; ok++
+                        runOnUiThread { addVideo(f, pickQuality(f.info, pr.quality), audio, ref, subs = DmSubs.forTask(f.info.optJSONArray("sub"), !audio)) }; ok++
                     }
                     is Found.Playlist -> { runOnUiThread { addPlaylist(f.pl.entries, pr.quality.toIntOrNull() ?: 0, pr.quality == "audio", false) }; ok++ }
                     is Found.Fail -> bad.add(u)

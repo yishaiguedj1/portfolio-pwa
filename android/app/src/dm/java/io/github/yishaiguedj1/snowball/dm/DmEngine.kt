@@ -176,7 +176,9 @@ object DmEngine {
                             if (pr.bps > 0) speed[t.id] = pr.bps
                         }
                         val now = System.currentTimeMillis()
-                        if (now - lastN > 1000) { lastN = now; DmNotif.update(ctx) }
+                        // 27/10/2026 (סרטון המשתמש: ההתראה התקדמה והפס באפליקציה נשאר על 0 עד הסוף): ההתקדמות מהתיקייה
+                        // עדכנה רק את ההתראה — הרשימה מתרעננת רק כש־rev עולה. עכשיו גם הממשק, באותו קצב.
+                        if (now - lastN > 500) { lastN = now; DmStore.ping(); DmNotif.update(ctx) }
                     }
                 }
             } catch (e: InterruptedException) {}
@@ -197,6 +199,7 @@ object DmEngine {
                 if (pr.bps > 0) speed[t.id] = pr.bps else if (pr.stage != DmYt.Stage.DL) speed.remove(t.id)
                 if (pr.eta >= 0) ytEta[t.id] = pr.eta else ytEta.remove(t.id)
                 if (moved || now - lastP > 2000) { lastP = now; DmStore.save(); DmNotif.update(ctx) }
+                else if (now - lastN > 500) { lastN = now; DmStore.ping() }
             }) { _, _ -> }
             DmMedia.importFile(ctx, t, f)
             null
