@@ -838,7 +838,7 @@ html.drag-active .tabpage { transform: none !important; }   /* v324: בלי anim
 .pf-range-summary .rs-sym .dot { width: 12px; height: 12px; border-radius: var(--pill); flex: none; align-self: center; }
 .stock-body .chart-hint { margin-top: 4px; font-size: 12.5px; }
 /* v237: שורה תחתונה — תשואה (מתכווצת ונשברת לשורה שנייה אם צריך) + "ערוך" צמוד לקצה השמאלי, בלי חפיפה */
-.stock-foot { display: flex; align-items: center; gap: 10px; margin: 2px 0 8px; min-height: 38px; } /* v275: גובה שמור — במניית IBKR (בלי "ערוך") שורת התשואה מופיעה רק אחרי הציור, והכרטיס קפץ בסוף הפתיחה */
+.stock-foot { display: flex; align-items: center; gap: 8px; margin: 2px 0 8px; min-height: 38px; } /* v275: גובה שמור — במניית IBKR (בלי "ערוך") שורת התשואה מופיעה רק אחרי הציור, והכרטיס קפץ בסוף הפתיחה */
 .stock-foot .pf-range-summary { flex: 1 1 auto; min-width: 0; margin: 0; flex-wrap: nowrap; align-items: center; gap: 6px; white-space: nowrap; }
 .stock-foot .pf-range-summary > span { flex: none; }
 /* רק התווית "תשואת המניה" מתקצרת כשאין מקום — הסמן, האחוז והטווח תמיד שלמים */
@@ -849,13 +849,15 @@ html.drag-active .tabpage { transform: none !important; }   /* v324: בלי anim
 .stock-foot .rs-lbl { font-size: 13.5px; color: var(--on-surface-var); }
 .stock-body .stock-foot .pf-range-summary .rs-val { font-size: 17px; }
 .stock-body .stock-foot .pf-range-summary .rs-range { font-size: 12px; }
+.stock-foot .pf-range-summary.no-sym .rs-sym { font-size: 0; gap: 0; }
 .stock-foot .pf-range-summary.no-lbl > .rs-lbl, .stock-foot .pf-range-summary.no-rng > .rs-range { display: none; }
 .stock-body .edit-actions.stock-edit { flex: none; margin: 0; margin-inline-start: auto; padding: 0; }
 .stock-body .edit-actions .chip-btn { padding-block: 6px; font-size: 13.5px; white-space: nowrap; }
 .stock-foot .stock-edit .chip-btn { padding: 5px 12px; font-size: 13px; gap: 5px; }
 .stock-foot .stock-edit { display: flex; gap: 6px; }
-.stock-foot .stock-ico-btn { inline-size: 42px; block-size: 38px; padding: 0; justify-content: center; flex: none; }   /* סמל בלבד — יעד לחיצה נוח */
-.stock-foot .stock-ico-btn svg { width: 18px; height: 18px; flex: none; }
+.stock-foot .stock-ico-btn { inline-size: 40px; block-size: 38px; padding: 0; justify-content: center; flex: none; }   /* סמל בלבד — יעד לחיצה נוח */
+.stock-foot .stock-ico-btn svg, .stock-foot .an-open-btn svg { width: 18px; height: 18px; flex: none; }
+.stock-foot .an-open-btn { block-size: 38px; padding: 0 12px; gap: 6px; flex: none; white-space: nowrap; font-size: 14px; }   /* סמל + מילה, באותו גובה כמו כפתורי הסמל */
 /* תשואה ענקית (מעל 10,000%) מוצגת מקוצרת (‎fmtPct‎ — 12.3K%) — הכפתורים נשארים בגודל נוח ולא נדרסים */
 
 .chart-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }

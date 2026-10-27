@@ -15026,11 +15026,10 @@ function openChartFor(sym) {
 /* 25/10/2026 (בקשת המשתמש): מנתח החברות — שכבה במסך מלא (analysis.js + analysis.css), נטענת רק כאן.
    הנתונים מהשרתון (op:'fund' / op:'macro' ב־/api/history); המחיר החי ושער הדולר — מהאפליקציה. */
 function analysisBtn(sym) {
-  const b = el('button', 'chip-btn an-open-btn stock-ico-btn');
+  const b = el('button', 'chip-btn an-open-btn');
   b.type = 'button';
   b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16M8 16v-5M12 16V8M16 16v-3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
-  b.setAttribute('aria-label', t('anOpenBtn'));
-  b.title = t('anOpenBtn');   // 27/10/2026 (בקשת המשתמש): סמל בלבד
+  b.appendChild(document.createTextNode(t('anOpenBtn')));
   b.addEventListener('click', (e) => { e.stopPropagation(); openAnalysisFor(sym); });
   // 27/10/2026 (בקשת המשתמש — "שכל המידע ייטען מראש"): הכפתור נראה = כרטיס המניה נפתח (גוף סגור = display:none),
   // ואז הנתונים של הניתוח נטענים ברקע. בלחיצה המסך המלא כבר מוכן — בלי שלד ובלי טעינה
@@ -15510,9 +15509,11 @@ function renderStockRangeSummary(sym, pts, lineCol) {
 function fitStockFoot(box) {
   if (!box.closest('.stock-foot') || !box.clientWidth) return;
   const cut = (x) => x && x.scrollWidth > x.clientWidth + 1;
-  box.classList.remove('no-lbl', 'no-rng');
+  box.classList.remove('no-lbl', 'no-rng', 'no-sym');
   if (cut(box.querySelector('.rs-lbl')) || cut(box.querySelector('.rs-range'))) box.classList.add('no-lbl');
   if (cut(box.querySelector('.rs-range'))) box.classList.add('no-rng');
+  // 27/10/2026: גם כך לא נכנס (אחוז ארוך + שלושה כפתורים בטלפון צר) — שם הסימבול נעלם, הנקודה בצבע הקו נשארת; הכפתורים לא מוקטנים
+  if (box.scrollWidth > box.clientWidth + 1) box.classList.add('no-sym');
 }
 
 function updateMeasureChip(sym) {
