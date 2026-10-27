@@ -34,6 +34,12 @@ export function partsBytes(size, ps, done) {
   for (const k of new Set(done.map(Number))) if (Number.isInteger(k) && k >= 1 && k <= n) b += k < n ? ps : size - ps * (n - 1);
   return Math.min(size, b);
 }
+/* 28/10/2026 (בטלפון: העלאה של 163MB ב־280KB/שנ׳ כשההעלאה הרגילה מגיעה ל־2MB/שנ׳, והחיבור מהיר): Background Fetch של Chrome שולח חלק
+   אחד בכל פעם, בעדיפות נמוכה ודרך /up — ובחיבור סלולרי עם השהיה גבוהה זה פי 5–10 לאט מההעלאה הרגילה (שני חלקים במקביל ישר ל־R2).
+   כשהדף מוצג ואחרי BG_SLOW_MS מוצג מהר מדי לא עולים — מבטלים וממשיכים בהעלאה הרגילה (מהחלקים שכבר הגיעו). הרקע נשאר
+   רק כשהמשתמש יוצא מהאפליקציה: הספירה רק בזמן שהדף מוצג */
+export const BG_SLOW_MS = 60 * 1000;
+export const BG_FAST_BPS = 1024 * 1024;
 export const BG_STALL_MS = 3 * 60 * 1000;
 export const BG_SLOW_BPS = 128 * 1024;
 export const bgStallLimit = (started, ps) => (started ? Math.max(BG_STALL_MS, Math.ceil((Number(ps) || 0) / BG_SLOW_BPS) * 1000) : BG_FIRST_MS);
@@ -135,7 +141,7 @@ export async function bgUpload(o, env) {
       hi = Math.max(hi, Math.min(o.size, Math.max(srv, base + (bg.uploaded || 0))));
       return hi;
     };
-    let seen = shown(), started = (bg.uploaded || 0) > 0, quiet = 0, last = now();
+    let seen = shown(), started = (bg.uploaded || 0) > 0, quiet = 0, last = now(), vt = 0, vb = seen;   // vt = זמן שהדף הוצג, vb = כמה כבר היה בהתחלה
     const poll = () => {
       if (!o.poll || polling || fin || !vis() || now() - polled < BG_POLL_MS) return;
       polling = true; polled = now();
@@ -157,7 +163,15 @@ export async function bgUpload(o, env) {
       // כל החלקים כבר ב־R2 — רק הסגירה נשארה (ה־service worker עושה אותה); לא מבטלים ולא סוגרים במקביל אליו
       if (cur !== seen || srv >= o.size) { started = started || cur > seen; seen = cur; quiet = 0; }
       else if (vis()) quiet += Math.min(10000, Math.max(0, t - last));   // טיק אחרי רקע ארוך — לא נספר כולו
+      if (vis()) vt += Math.min(10000, Math.max(0, t - last));
       last = t;
+      // איטי: אחרי BG_SLOW_MS של דף מוצג הקצב מתחת ל־BG_FAST_BPS וגם לא נשאר מעט — ההעלאה הרגילה מהירה יותר
+      if (vt >= BG_SLOW_MS && cur < o.size && (cur - vb) / (vt / 1000) < BG_FAST_BPS && o.size - cur > 2 * (ps || 8 * 1024 * 1024)) {
+        fin = true; cleanup();
+        Promise.resolve().then(() => bg.abort()).catch(() => {}).then(() => env.del && env.del(id)).catch(() => {})
+          .then(() => resolve({ fallback: 'bg_slow', slow: true, started: true }));
+        return;
+      }
       if (quiet >= bgStallLimit(started, ps)) {
         fin = true; cleanup();
         Promise.resolve().then(() => bg.abort()).catch(() => {}).then(() => env.del && env.del(id)).catch(() => {})
