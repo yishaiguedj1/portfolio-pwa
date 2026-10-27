@@ -16,6 +16,8 @@ const STAGES = ['up', 'tr', 'al', 'tl', 'rv', 'bn', 'sv'];
 const ROLES = ['main', 'tl', 'rv', 'jg', 'sub'];
 const Q_KEYS = ['cps', 'len', 'lines', 'dur', 'en', 'chk'];
 const JG_CODES = ['mean', 'omit', 'add', 'gram', 'flu', 'term'];
+// 27/10/2026: סוג התוכן — **הסדר = הקוד, זהה ל־CT_KINDS ב־translator/job.py** (tests/learn-extra2.test.js)
+const CT_KINDS = ['talk', 'interview', 'panel', 'show', 'quiet'];
 const MX_GROUPS = ['st', 'tm', 'cs', 'om', 'ck', 'rj', 'rf'];   // rf מול כתוביות אנושיות מהמקור · st שלבים · tm תזמון · cs עקביות · om השמטות · ck קודי הבודק לאורך השלבים · rj תשובות שנזרקו (26/10/2026)
 const MODES = ['haiku-medium', 'haiku-high', 'sonnet-low', 'sonnet-medium', 'sonnet-high', 'opus-medium'];   // מהזול ליקר
 const DAY = 86400e3, WIN = 30 * DAY;
@@ -65,12 +67,15 @@ function normLx(o) {
     if (Object.keys(v).length) out.vid = v;
   }
   const ps = flatNums(o.ps, 90); if (Object.keys(ps).length) out.ps = ps;            // מה ש־vt רשם לכל שלב (project.json)
-  if (Array.isArray(o.vt)) {                                                            // זמן לכל פקודת vt: [פקודה, פעמים, שניות, הארוכה]
+  if (Array.isArray(o.vt)) {                                                            // זמן לכל פקודת vt: [פקודה, פעמים, שניות, הארוכה, שניות מעבד?]
     const vt = [];
     for (const x of o.vt.slice(0, 30)) {
       if (!Array.isArray(x) || !CMD_RE.test(String(x[0] || ''))) continue;
       const nums = x.slice(1, 4);
-      if (nums.length === 3 && nums.every((v) => isNum(v) && v >= 0 && v < 1e7)) vt.push([x[0], Math.round(nums[0]), r4(nums[1]), r4(nums[2])]);
+      if (!(nums.length === 3 && nums.every((v) => isNum(v) && v >= 0 && v < 1e7))) continue;
+      const row = [x[0], Math.round(nums[0]), r4(nums[1]), r4(nums[2])];
+      if (isNum(x[4]) && x[4] >= 0 && x[4] < 1e8) row.push(r4(x[4]));   // 27/10/2026: זמן מעבד (משתמש + מערכת) — מה עולה ליבות ומה מחכה
+      vt.push(row);
     }
     if (vt.length) out.vt = vt;
   }
@@ -84,6 +89,17 @@ function normLx(o) {
     const mx = {};
     for (const g of MX_GROUPS) { const x = flatNums(o.mx[g], 30, 1e7); if (Object.keys(x).length) mx[g] = x; }
     if (Object.keys(mx).length) out.mx = mx;
+  }
+  if (o.ct && typeof o.ct === 'object' && !Array.isArray(o.ct)) {                   // 27/10/2026: סוג התוכן (job.content_type) — מספרים בלבד
+    const ct = {};
+    if (Number.isInteger(o.ct.k) && o.ct.k >= 0 && o.ct.k < CT_KINDS.length) ct.k = o.ct.k;
+    for (const [k, lo, hi] of [['spk', 0, 999], ['dom', 0, 1], ['swm', 0, 1000], ['shm', 0, 1000], ['ot', 0, 1], ['sp', 0, 1]]) if (isNum(o.ct[k]) && o.ct[k] >= lo && o.ct[k] <= hi) ct[k] = r4(o.ct[k]);
+    if (Object.keys(ct).length) out.ct = ct;
+  }
+  if (o.ph && typeof o.ph === 'object' && !Array.isArray(o.ph)) {                   // 27/10/2026: "הכל בטלפון" — <שלב>.<t|n|b0|b1|c0|c1|ch|th>, dev.<cores|mem|sdk>
+    const ph = {};
+    for (const [k, v] of Object.entries(o.ph).slice(0, 40)) if (/^(wav|asr|diar|align)\.(t|n|b0|b1|c0|c1|ch|th)$|^dev\.(cores|mem|sdk)$/.test(k) && isNum(v) && v >= -40 && v <= 864000) ph[k] = r4(v);
+    if (Object.keys(ph).length) out.ph = ph;
   }
   for (const k of ['wd', 'tl', 'en', 'sy', 'gl', 'md', 'au']) {   // au (26/10/2026): מצב הקול וביטחון התמלול — sp snr wpm cm lc flat holes rescued
     if (!o[k] || typeof o[k] !== 'object') continue;
@@ -371,9 +387,30 @@ function stageTime(rs) {
 }
 function vtTime(rs) {
   const by = {};
-  for (const r of rs) for (const x of (r.lx && r.lx.vt) || []) { const o = by[x[0]] = by[x[0]] || { c: x[0], n: 0, sec: 0, mx: 0 }; o.n += x[1]; o.sec += x[2]; o.mx = Math.max(o.mx, x[3]); }
+  for (const r of rs) for (const x of (r.lx && r.lx.vt) || []) {
+    const o = by[x[0]] = by[x[0]] || { c: x[0], n: 0, sec: 0, mx: 0, cpu: 0, cs: 0 };
+    o.n += x[1]; o.sec += x[2]; o.mx = Math.max(o.mx, x[3]);
+    if (isNum(x[4])) { o.cpu += x[4]; o.cs += x[2]; }        // 27/10/2026: רק פקודות שנמדד להן מעבד — המכנה בנפרד
+  }
   const tot = sum(Object.values(by).map((x) => x.sec));
-  return Object.values(by).sort((a, b) => b.sec - a.sec).slice(0, 8).map((x) => ({ c: x.c, n: x.n, sec: Math.round(x.sec), mx: rnd(x.mx, 1), sh: tot ? rnd(x.sec / tot, 3) : 0 }));
+  // cr = שניות מעבד לשנייה של זמן (≈1 = ליבה אחת עמוסה, מעל = כמה ליבות, הרבה מתחת = מחכה) — null כשלא נמדד
+  return Object.values(by).sort((a, b) => b.sec - a.sec).slice(0, 8).map((x) => ({ c: x.c, n: x.n, sec: Math.round(x.sec), mx: rnd(x.mx, 1), sh: tot ? rnd(x.sec / tot, 3) : 0,
+    cr: x.cs > 0 ? rnd(x.cpu / x.cs, 2) : null }));
+}
+// 27/10/2026: לפי סוג התוכן — כמה עבודות, ומה האיכות, השופט, הזמן והמחיר לדקה בכל סוג (חציון; עבודות שהסתיימו)
+function ctView(rs) {
+  const by = {};
+  for (const r of rs) {
+    if (r.k !== 'tr' || !(r.lx && r.lx.ct && Number.isInteger(r.lx.ct.k))) continue;
+    (by[r.lx.ct.k] = by[r.lx.ct.k] || []).push(r);
+  }
+  return Object.keys(by).map(Number).sort((a, b) => by[b].length - by[a].length).map((k) => {
+    const v = by[k].map(verVals);
+    const vals = (f) => v.map((x) => x[f]).filter(isNum);
+    const med = (f) => { const a = vals(f); return a.length ? rnd(median(a), 3) : null; };
+    const ok = vals('ok');                                    // הצליחה בהפעלה הראשונה — שיעור, לא חציון
+    return { k: CT_KINDS[k], n: by[k].length, q: med('q'), jd: med('jd'), ok: ok.length ? rnd(sum(ok) / ok.length, 3) : null, spm: med('spm'), cpm: med('cpm') };
+  });
 }
 function failures(rs) {
   const by = {};
@@ -635,7 +672,7 @@ function learnView(records, now) {
     v: LR_V, n: all.length, n90: rs.length, first: all.length ? Math.min(...all.map((r) => r.at || now)) : 0,
     k: k30, kp, wk: weekly(all, now, 8),
     roles, tok: { i: sum(tk.map((t) => t.i)), o: sum(tk.map((t) => t.o)), cr: sum(tk.map((t) => t.cr)), cw: sum(tk.map((t) => t.cw)) },
-    stages, vt: vtTime(rs), fails, jc, qf, modes, mx, ver, ws: weekSum(all, now, ver),
+    stages, vt: vtTime(rs), ct: ctView(rs), fails, jc, qf, modes, mx, ver, ws: weekSum(all, now, ver),
     eng: ['api', 'sub'].map((e) => ({ e, ...kpis(rs.filter((r) => r.eng === e)) })).filter((x) => x.n),
     follow: { rr: rs.filter((r) => r.k === 'rr').length, ai: rs.filter((r) => r.k === 'ai').length, ed: rs.filter((r) => r.k === 'tr' && (r.ed > 0)).length, gold: rs.filter((r) => r.gold).length, ux: uxSum(rs.filter((r) => r.k === 'tr')),
       ur: { up: rs.filter((r) => r.urt && r.urt.r === 1).length, dn: rs.filter((r) => r.urt && r.urt.r === -1).length, fl: rs.reduce((a, r) => a + ((r.urt && r.urt.c) || []).length, 0) } },   // 25/10/2026: המשוב שלך
@@ -730,4 +767,4 @@ function learnBrief(view, now) {
   return L.join('\n');
 }
 
-module.exports = { versionsView, weekSum, VER_DIMS, VER_MET, normUx, mergeUx, UX_SHAPE, ED_KINDS, learnBrief, INS_HE, LR_V, lid, normLx, learnRec, recHash, learnView, kpis, insights, cacheSavable, MODES, STAGES };
+module.exports = { CT_KINDS, ctView, versionsView, weekSum, VER_DIMS, VER_MET, normUx, mergeUx, UX_SHAPE, ED_KINDS, learnBrief, INS_HE, LR_V, lid, normLx, learnRec, recHash, learnView, kpis, insights, cacheSavable, MODES, STAGES };

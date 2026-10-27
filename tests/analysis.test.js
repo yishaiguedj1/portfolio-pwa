@@ -181,7 +181,8 @@ ok(!/[֐-׿]/.test(src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '
   ok(/back: \(n\) => navBack\(-n\)/.test(fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8')), 'Invest מעביר למודול back — navBack (נבלע ב־_navSkipPop)');
   ok(/wrap\.append\(header\(co\), tabsBar\(\)\)/.test(src) && /min\(ROOT\.scrollTop, stickY\(\)\)/.test(src) && /hold: holdY, holdOn: holdOn\(prev, to\)/.test(src), 'הלשוניות דבוקות לאורך כל העמוד; במעבר — הגלילה נשמרת עד הנקודה שבה הן נדבקות, והראש לא מסתובב');
   ok(/an-vtbl/.test(src) && !/tbl\.scrollLeft/.test(src), 'טבלה לאורך — שורה לכל תקופה, בלי גלילה הצידה');
-  ok(/S\.seen\.has\(key\)/.test(src) && /\.an-still \.an-draw/.test(fs.readFileSync(path.join(__dirname, '..', 'analysis.css'), 'utf8')), 'עמוד שכבר הוצג — בלי אנימציות כניסה');
+  ok(/an-still', S\.seen\.size > 0\)/.test(src) && /function settle\(\)/.test(src) && /\.an-still \.an-draw/.test(fs.readFileSync(path.join(__dirname, '..', 'analysis.css'), 'utf8')), 'תנועת כניסה רק בעמוד הראשון; כרטיס מתחת למסך ואחרי 2 שניות — במצב הסופי');
+  ok(/function emptyOf\(def, series\)/.test(src) && /anNoDiv/.test(src) && /emptyBlock\(e0\)/.test(src), 'מדד בלי ערכים — מצב שקט ומוסבר ("לא מחלקת דיבידנד"), לא גרף ריק');
 }
 /* ---------- שילוב ואבטחה ---------- */
 ok(!/\bfetch\(|localStorage|sessionStorage|indexedDB|innerHTML\s*=\s*[^'"]*\+/.test(src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')), 'המודול לא פונה לרשת ולא שומר בטלפון — הכל דרך env');
