@@ -31,5 +31,6 @@ const en = read('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmEn
 ok(/DmStore\.ping\(\); DmNotif\.update\(ctx\)/.test(en), 'פס ההתקדמות באפליקציה מתעדכן יחד עם ההתראה (DmStore.ping)');
 const ui = read('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmUi.kt');
 ok(/mutableStateOf\(true\)/.test(ui) && /if \(!audio\) ListItem\(headlineContent = \{ Text\(stringResource\(R\.string\.dmSubs\)\)/.test(ui), '"עם כתוביות" תמיד מוצג ומסומן כברירת מחדל');
+ok((ui.match(/key\(rev\) \{/g) || []).length >= 2 && /key\(rev\) \{\n\s*Text\(DmFmt\.line\(ctx, t\)/.test(ui), 'השורה והפרטים נצבעים מחדש בכל עדכון (key(rev) בתוך ה־lambda)');
 console.log(fails ? `FAIL ${fails}` : 'all ok');
 process.exit(fails ? 1 : 0);

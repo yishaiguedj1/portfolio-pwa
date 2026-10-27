@@ -74,6 +74,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -320,8 +321,8 @@ private fun catIcon(t: DmTask): ImageVector = when (if (t.kind == DmKind.YTDL) (
 /** שורה: נגיעה = עצירה/המשך (או פתיחה בסיום), לחיצה ארוכה = תפריט */
 @Composable
 // 26/10/2026 (סרטון של המשתמש: ההתראה מתעדכנת בזמן אמת והרשימה לא): המשימה היא אותו אובייקט בכל רענון, ו־Compose
-// מדלג על שורה שהפרמטרים שלה לא השתנו — rev (עולה כל שנייה כשמשהו רץ) הוא מה שמכריח אותה להתעדכן
-@Suppress("UNUSED_PARAMETER")
+// מדלג על שורה שהפרמטרים שלה לא השתנו — rev (עולה כל שנייה כשמשהו רץ) הוא מה שמכריח אותה להתעדכן, ו־key(rev)
+// בתוך התוכן (27/10) — אחרת ה־lambda של Surface נשמר כמו שהוא
 private fun TaskRow(a: DmActivity, t: DmTask, rev: Int, onDetails: (String) -> Unit) {
     val ctx = LocalContext.current
     var menu by remember { mutableStateOf(false) }
@@ -341,6 +342,10 @@ private fun TaskRow(a: DmActivity, t: DmTask, rev: Int, onDetails: (String) -> U
             }
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text(t.name.ifEmpty { t.title }.ifEmpty { t.url }, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+                // 27/10/2026 (סרטון המשתמש: ההתראה ב־37%, השורה "0 B · 0%"): התוכן של Surface הוא lambda ש־Compose שומר
+                // לפי מה שהוא תופס — רק t (אותו אובייקט תמיד), אז הוא לא צויר מחדש גם כש־TaskRow כן. key(rev) נקרא בתוכו —
+                // ה־lambda תופס את rev ומתחלף בכל עדכון. בלי key סביב התפריט (שלא ייסגר באמצע).
+                key(rev) {
                 Text(DmFmt.line(ctx, t), style = MaterialTheme.typography.bodySmall,
                     color = if (t.state == DmState.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -350,6 +355,7 @@ private fun TaskRow(a: DmActivity, t: DmTask, rev: Int, onDetails: (String) -> U
                     if (f >= 0) LinearProgressIndicator(progress = { f }, Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
                         color = if (t.state == DmState.RUNNING) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
                     else if (t.state == DmState.RUNNING) LinearProgressIndicator(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)))
+                }
                 }
             }
             val ic = when (t.state) { DmState.RUNNING, DmState.QUEUED, DmState.WAITING -> DmIcons.Pause; DmState.PAUSED -> Icons.Rounded.PlayArrow; DmState.FAILED -> Icons.Rounded.Refresh; DmState.DONE -> null }
@@ -384,6 +390,7 @@ private fun Details(a: DmActivity, t: DmTask, rev: Int, onClose: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.padding(20.dp, 0.dp, 20.dp, 28.dp).verticalScroll(rememberScrollState())) {
             Text(t.name.ifEmpty { t.title }, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            key(rev) {   // 27/10: כמו TaskRow — בלי זה הפרטים קפואים מהרגע שנפתחו
             Text(DmFmt.line(ctx, t), color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(16.dp))
             if (t.kind == DmKind.HTTP && t.total > 0) {
@@ -400,6 +407,7 @@ private fun Details(a: DmActivity, t: DmTask, rev: Int, onClose: () -> Unit) {
                 }
                 Text(stringResource(R.string.dmSegs, segs.count { !it.finished }, segs.size), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
+            }
             }
             Spacer(Modifier.height(12.dp))
             Info(stringResource(R.string.dmSource), runCatching { java.net.URI(t.url).host }.getOrNull() ?: t.url)
