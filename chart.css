@@ -77,6 +77,11 @@ html.kc-open { overflow: hidden; }
 .kc-grid[data-l="4"] > .kc-cell:first-child { grid-column: 1 / 3; }
 .kc-grid[data-l="5"] { grid-template: 1fr 1fr / 1fr 1fr; }
 .kc-cell { position: relative; background: var(--kc-bg); min-width: 0; min-height: 0; }
+/* ">>" חזרה לזמן אמת — ליד ציר המחיר, שתמיד מימין בקנבס (לכן right פיזי, כמו .kc-expand) */
+.kc-now { position: absolute; right: 66px; bottom: 34px; z-index: 5; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--pill); color: var(--kc-ink); background: var(--kc-glass); -webkit-backdrop-filter: saturate(180%) blur(14px); backdrop-filter: saturate(180%) blur(14px); box-shadow: 0 0 0 .5px rgba(0,0,0,.12), 0 1px 3px rgba(0,0,0,.1); opacity: 0; transform: scale(.85); pointer-events: none; transition: opacity .18s, transform .18s; }
+.kc-now.on { opacity: 1; transform: none; pointer-events: auto; }
+.kc-now:active { transform: scale(.9); }
+.kc-now svg { width: 16px; height: 16px; stroke-width: 2.2; }
 .kc-grid:not([data-l="1"]) .kc-cell.act { box-shadow: inset 0 0 0 2px var(--kc-acc-c); }
 .kc-host { position: absolute; inset: 0; touch-action: none; }
 .kc-cell::before { content: ''; position: absolute; top: 0; inset-inline: 0; height: 2px; z-index: 4; background: linear-gradient(90deg, transparent, var(--kc-acc), transparent); background-size: 40% 100%; background-repeat: no-repeat; opacity: 0; transition: opacity .2s; pointer-events: none; }
@@ -223,12 +228,15 @@ html.kc-open { overflow: hidden; }
   .kc-tb { padding: 0 7px; }
   .kc-name { max-width: 28vw; }
   .kc-quote .kc-pxrow.sm { display: none; }
-  .kc-quote { overflow: hidden; }
+  .kc-quote { flex: none; }   /* המחיר לעולם לא נחתך ("20.19" במקום 620.19) — השם מתכווץ במקומו */
+  .kc-symbtn { flex: 0 1 auto; overflow: hidden; }
+  .kc-sym { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .kc-quote .kc-pxrow:first-child { flex-direction: column; align-items: flex-start; gap: 0; }
   .kc-px { font-size: 15px; }
   .kc-ch { font-size: 11.5px; }
   .kc-logo { display: none; }
   .kc-symbtn { padding: 4px; }
+  .kc-top-end { flex: none; }
   .kc-top-end .kc-ib { width: 34px; }
   .kc-watch.on { position: absolute; inset-block: 0; inset-inline-end: 0; z-index: 12; background: var(--kc-panel); box-shadow: var(--kc-shadow); width: 200px; }
   .kc-clock { display: none; }
