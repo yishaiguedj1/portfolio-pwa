@@ -150,10 +150,16 @@ ok(/Screen\.CHROME -> ChromeScreen\(a\)/.test(R(B + 'BrUi.kt')) && /Screen\.IMPO
 ok(/studio-browser-chrome\.zip/.test(chr), 'הקישור לתוסף');
 ok(/testBrowserReleaseUnitTest/.test(R('.github/workflows/android.yml')) && fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yishaiguedj1/snowball/br/BrImportTest.kt')), 'בדיקת JVM לייבוא ב־CI');
 
-// 26/10/2026 (בקשת המשתמש: "יותר זהה ל־Chrome במראה, יותר Apple בעיצוב", לפי התצוגה המקדימה שאושרה)
-ok(/tint = Color\(0xFF1A73E8\)|Color\(0xFF1A73E8\), Color\(0xFFC7C7CC\)/.test(ui) && /private fun Toolbar\(a: BrowserActivity\)/.test(ui), 'הכחול של Chrome לפעולות, וסרגל כלים למטה כמו ב־Chrome לאייפון');
-ok(/private fun MenuSheet\(a: BrowserActivity\)/.test(ui) && /ModalBottomSheet/.test(ui) && /private fun Dest\(/.test(ui), 'התפריט ⋯ = גיליון עם שורת יעדים');
-ok(/val Grid = BrC\(/.test(ui) && /BrowserActivity\.Screen\.SWITCHER -> Grid/.test(ui), 'מסך הטאבים תמיד כהה');
+// 27/10/2026 (בקשת המשתמש: "אחד לאחד כמו Chrome באנדרואיד" — המבנה; הצבעים והזכוכית של Apple, האדום של כפתור ההורדה)
+ok(/private fun TopBar\(/.test(ui) && !/private fun Toolbar\(a: BrowserActivity\)/.test(ui) && /BrIcons\.CNewTab/.test(ui) && /private fun TabsBtn\(/.test(ui),
+  'הסרגל של Chrome לאנדרואיד למעלה: דף הבית · הכתובת · כרטיסייה חדשה · כרטיסיות · ⋮ — בלי סרגל תחתון של אייפון');
+ok(/private fun MenuSheet\(a: BrowserActivity\)/.test(ui) && /Dialog\(/.test(ui) && /setBackgroundBlurRadius/.test(ui) && /private fun RowScope\.MBtn\(/.test(ui) && !/private fun Dest\(/.test(ui),
+  'התפריט ⋮ = החלון של Chrome מהפינה (שורת כפתורים ופריטים), זכוכית עם טשטוש');
+ok(/private val Red = Color\(0xFFFF4656\)/.test(ui) && /Color\(0x4A3C3C43\), Red,/.test(ui) && !/0xFF1A73E8\)\)/.test(ui.replace(/FavPal[^\n]*/, '')),
+  'צבע הפעולה = האדום של כפתור ההורדה, לא הכחול של Google');
+ok(/private fun Modifier\.glass\(/.test(ui) && /private fun Modifier\.ambient\(/.test(ui), 'זכוכית ורקע רך (iOS 27)');
+ok(/val GoogleLogo/.test(R(B + 'BrIcons.kt')) && /val CNewTab = cr\("ic_add_box_rounded_corner"/.test(R(B + 'BrIcons.kt')) && fs.existsSync(path.join(ROOT, 'android/app/src/browser/CHROMIUM_LICENSE.txt')),
+  'האייקונים של Chrome עצמו, עם הרישיון של Chromium');
 for (const s of ['ENGINE', 'PASSWORDS', 'PRIVACY', 'BARPOS', 'IMPORT'])
   ok(new RegExp('Screen\\.' + s + ' -> ').test(ui) && new RegExp('Screen\\.' + s).test(act), 'עמוד הגדרות: ' + s);
 ok(/screen in settingsSubs -> screen = Screen\.SETTINGS/.test(act), '"חזור" מעמוד משנה של ההגדרות חוזר להגדרות');
