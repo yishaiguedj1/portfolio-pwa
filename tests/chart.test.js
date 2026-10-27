@@ -178,7 +178,7 @@ ok(Object.keys(L.IND).length >= 40, 'לפחות 40 אינדיקטורים נוס
   ok(/b\.timestamp <= t && t <= b\.timestamp \+ BASESEC\[d\.base\] \* 1000 && b\.close !== p/.test(cj), 'הנר האחרון נסגר על מחיר הסגירה הרשמי');
   ok(/setZoomAnchor\(back \? 'cursor' : 'last_bar'\)/.test(cj) && /navigator\.vibrate\(8\)/.test(cj) && /convertFromPixel\(\[\{ x: e\.clientX - r\.left/.test(cj), 'זום צמוד לנר האחרון, רטט בלחיצה ארוכה, בחירת נר בהקשה');
   ok(/extendTexts: \[\{ show: true, position: 'below_price'[\s\S]{0,400}?updateInterval: 1000/.test(cj) && /formatExtendText: \(x\) => \(x && x.type === 'last_price' \? countdown\(c, x.data, Date.now\(\)\)/.test(cj), 'ספירה לאחור לסגירת הנר מתחת לתווית המחיר');
-  ok(/name: 'kcExtPx'/.test(cj) && /function drawExt\(c\)/.test(cj) && /if \(c.raw.length\) drawExt\(c\);/.test(cj), 'תווית טרום/אחרי המסחר בציר');
+  ok(/name: 'kcExtPx'/.test(cj) && /function drawExt\(c\)/.test(cj) && /if \(c.raw.length\) \{ drawExt\(c\);/.test(cj), 'תווית טרום/אחרי המסחר בציר');
   ok(/name === 'VOL' && \(!conf.calcParams \|\| conf.calcParams.join\(\) === '5,10,20'\)\) conf.calcParams = \[\]/.test(cj), 'נפח נקי בלי ממוצעים');
   const now = 1_800_000_000;
   const w = C._window('1m', 0, now);
@@ -252,6 +252,43 @@ ok(Object.keys(L.IND).length >= 40, 'לפחות 40 אינדיקטורים נוס
   ok(!/innerHTML = [^'<]/.test(se) && /sub\.textContent = /.test(se), 'הערת ההתראה נכתבת כטקסט (לא HTML)');
   ok(/kcPriceAlerts: 'התראות מחיר'/.test(app) && /kcPriceAlerts: 'Price alerts'/.test(app) && /kcAlertNew: 'New price alert'/.test(app), 'מחרוזות המקטע בשתי השפות');
   ok(/\.st-al-row \{/.test(st) && /\.st-al-list \{[^}]*var\(--radius-sm\)/.test(st), 'עיצוב הרשימה — רדיוס ממשתנה');
+}
+
+/* ---------- שלב 0 במחקר המסחר: חיצי עסקאות וקו הממוצע (28/10/2026) — נתונים סינתטיים בלבד, לא עסקאות אמיתיות ---------- */
+{
+  const D = 86400000, bars = [0, 1, 2, 3, 4].map((i) => ({ timestamp: Date.UTC(2026, 0, 5 + i, 14, 30), open: 10, high: 12 + i, low: 8 - i * 0.1, close: 11, volume: 1 }));
+  const day = (b) => Math.floor(b.timestamp / D), dk = (d) => Date.UTC(2026, 0, d) / D;
+  const m = L.fillMarks(bars, [
+    { k: dk(5), side: 'BUY', qty: 10, price: 10 }, { k: dk(5), side: 'BUY', qty: 5, price: 13 },   // שני ביצועים באותו נר → חץ אחד
+    { k: dk(5), side: 'SELL', qty: 3, price: 12 },                                                 // מכירה באותו נר → חץ נפרד מעל
+    { k: dk(7), side: 'SELL', qty: 2, price: 11 },
+    { k: dk(1), side: 'BUY', qty: 1, price: 1 }, { k: dk(20), side: 'BUY', qty: 1, price: 1 },     // מחוץ לטווח — לא מוצגים
+    { k: dk(6), side: 'BUY', qty: 0, price: 1 },                                                  // כמות 0 — לא מוצג
+  ], day, 2);
+  ok(m.length === 3, 'חיצים: שלושה (סכום באותו נר, מכירה בנפרד, מחוץ לטווח ו־0 בחוץ)');
+  ok(m[0].buy && m[0].i === 0 && m[0].qty === 15 && m[0].n === 2 && near(m[0].price, 11) && m[0].value === bars[0].low, 'קנייה: סכום כמות, ממוצע משוקלל, מתחת לנר (הנמוך)');
+  ok(!m[1].buy && m[1].i === 0 && m[1].qty === 3 && m[1].value === bars[0].high, 'מכירה: מעל הנר (הגבוה)');
+  ok(m[2].i === 2 && m[2].timestamp === bars[2].timestamp, 'הביצוע נקשר לנר שלו');
+  // טווח גדול (שבועי): ביצוע באמצע השבוע → לנר שמתחיל לפניו
+  const wk = [0, 1, 2].map((i) => ({ timestamp: Date.UTC(2026, 0, 5 + 7 * i), open: 1, high: 2, low: 0.5, close: 1, volume: 1 }));
+  const w = L.fillMarks(wk, [{ k: dk(14), side: 'BUY', qty: 4, price: 1 }, { k: dk(24), side: 'SELL', qty: 1, price: 1 }, { k: dk(30), side: 'BUY', qty: 1, price: 1 }], day, 8);
+  ok(w.length === 2 && w[0].i === 1 && w[1].i === 2 && !w[1].buy, 'שבועי: הביצוע מתיישר לנר שמכיל אותו, אחרי הנר האחרון — לא מוצג');
+  // תוך־יומי לפי זמן במ"ש
+  const mb = [0, 1, 2].map((i) => ({ timestamp: Date.UTC(2026, 0, 5, 14, 30 + 5 * i), open: 1, high: 2, low: 0.5, close: 1, volume: 1 }));
+  const mi = L.fillMarks(mb, [{ k: Date.UTC(2026, 0, 5, 14, 37), side: 'BUY', qty: 2, price: 1 }, { k: Date.UTC(2026, 0, 5, 14, 46), side: 'BUY', qty: 2, price: 1 }], (b) => b.timestamp, 300000);
+  ok(mi.length === 1 && mi[0].i === 1, 'תוך־יומי: 14:37 בנר של 14:35; אחרי סוף הנר האחרון — לא מוצג');
+  ok(L.fillMarks([], [{ k: 1, side: 'BUY', qty: 1 }], day, 1).length === 0 && L.fillMarks(bars, null, day, 1).length === 0, 'בלי נרות / בלי עסקאות — ריק');
+
+  const ch = fs.readFileSync(path.join(root, 'chart.js'), 'utf8'), app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+  ok(/name: 'kcFill'/.test(ch) && /groupId: 'fills', lock: true/.test(ch), 'אוברליי kcFill נעול בקבוצה fills');
+  ok(/name: 'kcPos'/.test(ch) && /createYAxisFigures/.test(ch.split("name: 'kcPos'")[1].split('R({')[0]) && /groupId: 'pos', lock: true/.test(ch), 'קו הממוצע kcPos עם תווית בציר');
+  ok(/\(live - p\.avg\) \* p\.n/.test(ch) && /POSC\.up : POSC\.dn/.test(ch), 'רווח/הפסד חי = (מחיר − ממוצע) × כמות, ירוק/אדום');
+  ok(/drawFills\(c\); drawPos\(c\);\n  if \(c\.fit\)/.test(ch) && /drawExt\(c\); drawFills\(c\); drawPos\(c\);/.test(ch), 'מצוירים אחרי טעינה ובכל מחיר חי');
+  ok(/fills: g\.fills === 0 \? 0 : 1/.test(ch) && /toggle\(T\('kcFills'\), g\.fills !== 0/.test(ch), 'מתג בהגדרות, ברירת מחדל דלוק');
+  ok(/c\.extKey = null; c\.fillKey = null; c\.posKey = null; c\.fx = null;/.test(ch), 'החלפת מניה/טווח — מחשב מחדש');
+  ok(/fills: \(sym\) => chartFills\(sym\)/.test(app) && /function chartFills\(sym\)/.test(app) && /mtActiveTrades\(\)/.test(app.split('function chartFills')[1].slice(0, 1500)), 'app.js מעביר עסקאות (IBKR + ידניות) ואחזקה');
+  ok(/kcFills: 'העסקאות שלי וקו הממוצע'/.test(app) && /kcFills: 'My trades and average line'/.test(app) && /kcPosTag: '\{n\} מניות · ממוצע \{p\}'/.test(app) && /kcPosTag: '\{n\} sh · avg \{p\}'/.test(app), 'מחרוזות בשתי השפות');
+  ok(!/fetch\(|E\.api\(/.test(ch.split('function fillsOf')[1].split('function redrawMine')[0]), 'בלי שום בקשת רשת — רק נתונים שכבר באפליקציה');
 }
 
 console.log('\n' + n + ' בדיקות עברו');
