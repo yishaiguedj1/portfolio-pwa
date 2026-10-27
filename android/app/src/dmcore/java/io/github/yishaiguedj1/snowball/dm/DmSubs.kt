@@ -3,11 +3,12 @@ package io.github.yishaiguedj1.snowball.dm
 import org.json.JSONArray
 
 /**
- * כתוביות היוצר (24/10/2026): מתוך רשימת הכתוביות של הבדיקה (DlProbe.subsList — l, n, a=אוטומטיות) — עד 3 שפות לצרף לסרטון:
- * עברית, אנגלית ושפת הממשק, כתוביות שהיוצר העלה קודם (אוטומטיות רק בשפת הסרטון המקורית — "‎-orig"). טהור.
+ * כתוביות היוצר (24/10/2026): מתוך רשימת הכתוביות של הבדיקה (DlProbe.subsList — l, n, a=אוטומטיות) — מה שיצורף לסרטון.
+ * 27/10/2026 (החלטת המשתמש — DM זהה ל־Studio): רק כתוביות שהיוצר העלה, רק עברית ואנגלית (DlEngine.SUBS) — אף פעם לא
+ * אוטומטיות, ולא שפה אחרת. טהור.
  */
 object DmSubs {
-    const val MAX = 3
+    const val MAX = 2
     data class Sub(val l: String, val n: String, val auto: Boolean)
 
     fun list(a: JSONArray?) = (0 until (a?.length() ?: 0)).mapNotNull { a!!.optJSONObject(it) }
@@ -15,20 +16,13 @@ object DmSubs {
 
     private fun base(l: String) = l.lowercase().substringBefore('-').let { if (it == "iw") "he" else it }
 
-    fun pick(a: JSONArray?, ui: String): List<Sub> {
-        val all = list(a)
-        val want = listOf("he", "en", base(ui)).distinct()
+    fun pick(a: JSONArray?): List<Sub> {
+        val all = list(a).filter { !it.auto }
         val out = ArrayList<Sub>()
-        for (w in want) {
-            val s = all.firstOrNull { !it.auto && base(it.l) == w } ?: all.firstOrNull { it.auto && base(it.l) == w }
-            if (s != null && out.none { base(it.l) == base(s.l) }) out += s
-        }
-        // אין אף אחת מהשפות — כתוביות היוצר בשפה המקורית (אם יש)
-        if (out.isEmpty()) all.firstOrNull { !it.auto }?.let { out += it }
+        for (w in listOf("he", "en")) all.firstOrNull { base(it.l) == w }?.let { out += it }
         return out.take(MAX)
     }
 
-    /** לשמירה במשימה: "he,en" + האם יש אוטומטיות */
+    /** לשמירה במשימה: "he,en" */
     fun langs(s: List<Sub>) = s.joinToString(",") { it.l }
-    fun anyAuto(s: List<Sub>) = s.any { it.auto }
 }

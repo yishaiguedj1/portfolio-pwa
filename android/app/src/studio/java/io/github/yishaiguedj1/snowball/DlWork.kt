@@ -24,8 +24,8 @@ object DlWork {
     private const val CH = "dl"
     private val main = Handler(Looper.getMainLooper())
 
-    /** שפות הכתוביות שנכנסות לקובץ (yt-dlp ‎--sub-langs‎; ‏iw = הקוד הישן של עברית ביוטיוב) */
-    const val SUBS = "en,en-US,en-GB,he,iw"
+    /** שפות הכתוביות שנכנסות לקובץ (yt-dlp ‎--sub-langs‎; ‏iw = הקוד הישן של עברית ביוטיוב) — אחת ל־Studio ול־DM */
+    const val SUBS = DlEngine.SUBS
 
     // only = "רק להוריד לטלפון" (23/10/2026, בקשת המשתמש): הקובץ נשאר ב־Movies/Studio ולא עובר לטופס התרגום
     data class Req(val id: String, val url: String, val ref: String, val title: String, val pick: DlEngine.Pick, val only: Boolean = false)

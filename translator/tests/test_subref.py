@@ -58,6 +58,7 @@ class TestProofreadWithRef(unittest.TestCase):
     def run_pl(self, edit, rid):
         if rid:
             self.ctx.st["files"] = {"r": {"id": rid, "size": len(REF)}}
+            self.ctx.st["srq"] = {"g": "hi"}   # 27/10: הצנרת, לא שער האיכות (נבדק ב־test_subs_hlp) — העזר כאן דליל בכוונה
         (self.pd / "en.edit.txt").write_text(edit, encoding="utf-8")
         calls = []
 
