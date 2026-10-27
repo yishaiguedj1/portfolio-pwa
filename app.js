@@ -59,6 +59,14 @@ he: {
   anMGrowth: 'צמיחת הכנסות',
   anCagr5: 'CAGR 5 שנים',
   anTtm12: '12 חודשים',
+  anNoDiv: 'החברה לא מחלקת דיבידנד',
+  anNoDivS: 'אין תשלום דיבידנד בדוחות שלה',
+  anNoBuy: 'החברה לא קונה מניות חוזרות',
+  anNoBuyS: 'אין רכישות חוזרות בדוחות שלה',
+  anAllZero: 'אפס בכל התקופות',
+  anAllZeroS: 'כך מופיע בדוחות של החברה',
+  anNoData: 'לא מופיע בדוחות של החברה',
+  anNoDataS: 'החברה לא מדווחת על הנתון הזה',
   anMFy: 'תשואת תזרים חופשי',
   anHiCheap: 'תזרים ÷ שווי שוק',
   anLoCheap: '12 חודשים',
@@ -1167,6 +1175,14 @@ en: {
   anMGrowth: 'Revenue growth',
   anCagr5: '5-year CAGR',
   anTtm12: '12 months',
+  anNoDiv: "The company doesn't pay a dividend",
+  anNoDivS: 'No dividend payments in its reports',
+  anNoBuy: "The company doesn't buy back shares",
+  anNoBuyS: 'No buybacks in its reports',
+  anAllZero: 'Zero in every period',
+  anAllZeroS: "That's what its reports show",
+  anNoData: "Not in the company's reports",
+  anNoDataS: "The company doesn't report this figure",
   anMFy: 'FCF yield',
   anHiCheap: 'FCF ÷ market cap',
   anLoCheap: '12 months',
@@ -5923,8 +5939,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.63.5';
-const APP_VERSION = 'v575';
+const APP_RELEASE = '2.63.6';
+const APP_VERSION = 'v576';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
