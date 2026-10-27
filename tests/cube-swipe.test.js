@@ -118,9 +118,16 @@ ok(/'play', 'subs', 'cut'/.test(st), 'Studio: בלי החלקה בנגן, בעו
 ok(/if \(swipePop > 0\)/.test(fn(st, 'onPop')), 'Studio: חזרה לבית בהחלקה לא מציירת שוב ב־popstate');
 
 // ---- ההעתק והרקע
-ok(/\.cube-ghost, \.cube-ghost \* \{ animation: none !important; transition: none !important; \}/.test(css), 'ההעתק בלי אנימציות כניסה שמתחילות מחדש');
+ok(/\.cube-ghost, \.cube-ghost \*, \.cube-hold, \.cube-hold \* \{ animation: none !important; transition: none !important; \}/.test(css), 'ההעתק והרצועה הקבועה בלי אנימציות כניסה שמתחילות מחדש');
+// 27/10/2026 (סרטון המשתמש — מנתח החברות): הרצועה הקבועה הריצה מחדש את אנימציית הכניסה של השכבה, והגרף בראש נעלם בהעתקים
+ok((app.match(/querySelectorAll\('\[id\]:not\(svg \*\)'\)/g) || []).length === 2, 'ההעתקים (cubeClone, cubeHold) שומרים מזהים בתוך SVG — מעבר צבע בגרף לא נעלם');
+{
+  const an = fs.readFileSync(path.join(__dirname, '..', 'analysis.js'), 'utf8');
+  ok(/S\.hero && S\.hero\.co === co && S\.hero\.k === hk \? S\.hero\.el/.test(an), 'מנתח החברות: הגרף בראש עובר מציור לציור — לא נבנה מחדש בכל מעבר לשונית');
+  ok(/width: cw \|\| w \+ 'px'/.test(an) && /width: \(fw \|\| w\) \+ 'px'/.test(an), 'מנתח החברות: הגלולה בבורר זזה גם ברוחב — לא נמתחת על שתי לשוניות');
+}
 ok(/\.cube-bd \{ position: fixed; inset: 0; z-index: 899; background: var\(--bg\);/.test(css), 'רקע אטום מתחת לשכבה — התיק לא מבצבץ בין הפאות (לקח v330)');
 ok(/dead: true/.test(fn(app, 'cubeGhostRun')) && !/pointerEvents = 'none'; *\n *return f/.test(fn(app, 'cubeFace')), 'רק הפאה היוצאת חסומה — הנכנסת לחיצה כבר בזמן הסיבוב');
 ok(/^\s*if \(cubeNow && cubeNow\.finish\) cubeNow\.finish\(\);\s*const c = el\.cloneNode\(true\);/m.test(fn(app, 'cubeClone').split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n')), 'מעבר שני ברצף: הקודם מסתיים לפני ההעתק — השכבה לא נשארת מסובבת');
-ok(/\[id\]'\)\.forEach\(\(x\) => x\.removeAttribute\('id'\)\)/.test(fn(app, 'cubeClone')) && /inert = true/.test(fn(app, 'cubeClone')), 'ההעתק: בלי מזהים כפולים, לא לחיץ');
+ok(/\[id\]:not\(svg \*\)'\)\.forEach\(\(x\) => x\.removeAttribute\('id'\)\)/.test(fn(app, 'cubeClone')) && /inert = true/.test(fn(app, 'cubeClone')), 'ההעתק: בלי מזהים כפולים, לא לחיץ');
 console.log('# ' + n + ' בדיקות עברו');

@@ -735,7 +735,7 @@ export async function openAnalysis(sym, env) {
   E = env || E;
   await ensureCss();
   if (ROOT) closeAnalysis(true);
-  S.first = true; S.heroDone = false; S.segX = null; S.sub = []; S.tabRec = null; S.seen = new Set();
+  S.first = true; S.heroDone = false; S.hero = null; S.segX = null; S.sub = []; S.tabRec = null; S.seen = new Set();
   S.sym = sym; S.tab = 'snap'; S.rsub = 'is'; S.ed = {}; S.open = null; S.err = null; S.co = null; S.peers = null; S.peerBusy = false; S.peerAdd = []; S.peerDrop = new Set(); const seq = ++S.seq;
   ROOT = h('div', { class: 'an-root no-swipe', role: 'dialog', 'aria-modal': 'true', 'aria-label': T('anTitle') });
   document.addEventListener('keydown', onEsc, true);
@@ -870,10 +870,20 @@ function holdOn(from, to) {
     const at = (q) => [a.offsetLeft + (b.offsetLeft - a.offsetLeft) * q, a.offsetWidth + (b.offsetWidth - a.offsetWidth) * q];
     const mark = (k) => bs.forEach((x, i) => { const on = TABS[i] === k; x.setAttribute('aria-pressed', String(on)); x.setAttribute('aria-selected', String(on)); });
     if (p === 'commit' || p === 'cancel') {
-      const q = p === 'commit' ? 1 : 0, cur = th.style.transform, [x, w] = at(q);
-      mark(p === 'commit' ? to : from);
+      const q = p === 'commit' ? 1 : 0, cur = th.style.transform, cw = th.style.width, [x, w] = at(q);
       th.style.transform = `translateX(${x}px)`; th.style.width = w + 'px';
-      if (cur && typeof th.animate === 'function') th.animate([{ transform: cur }, { transform: `translateX(${x}px)` }], { duration: 380, easing: 'cubic-bezier(.3, 1.3, .5, 1)' });
+      // גם הרוחב בתנועה — רוחב שקפץ ליעד בזמן שהמיקום עוד זז נראה כגלולה שנמתחת על שתי לשוניות
+      const an = cur && typeof th.animate === 'function' ? th.animate([{ transform: cur, width: cw || w + 'px' }, { transform: `translateX(${x}px)`, width: w + 'px' }], { duration: 380, easing: 'cubic-bezier(.3, 1.3, .5, 1)' }) : null;
+      const k = p === 'commit' ? to : from;
+      if (!an) { mark(k); return; }
+      // הצבע של התווית מתחלף כשהגלולה כבר מתחתיה — בצבע של הנבחרת על רקע הבורר (בעיקר בכהה) היא נעלמת עד שהגלולה מגיעה
+      // לפי המקום של הגלולה עצמה (לא שעון): כשהיא עברה את חצי הדרך — היא כבר מתחת לתווית, גם כשהפריימים מתעכבים
+      const x0 = new DOMMatrix(cur).m41, half = (x0 + x) / 2;
+      const tick = () => {
+        let xn = x; try { xn = new DOMMatrix(getComputedStyle(th).transform).m41; } catch (e) {}
+        if ((x > x0 ? xn >= half : xn <= half) || an.playState === 'finished' || !el.isConnected) mark(k); else requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
       return;
     }
     const [x, w] = at(p);
@@ -929,11 +939,21 @@ function header(co) {
   const meta = [co.sym.replace(/\.TA$/, ''), co.exch, co.sector].filter(Boolean).join(' · ');
   // 10 שנים של מחיר (חודשי) — רקע גרפי לראש המסך
   const px = co.px && co.px.c ? co.px.c.slice(-121).filter((x) => x != null) : [], p0 = px[0], ch10 = p0 > 0 && px.length > 24 ? co.price / p0 - 1 : null;
-  const yrs = Math.round(px.length / 12), chart = h('div', { class: 'an-pxc' + (S.heroDone ? ' an-still' : '') });
-  S.heroDone = true;   // הגרף בראש מצטייר פעם אחת — לא בכל מעבר לשונית
-  const pt = co.px && co.px.t ? co.px.t.slice(-121) : [], hiPx = px.length ? Math.max(...px, co.price) : null;
-  if (ch10 != null) S.after.push(() => spark(chart, px.concat(co.price), ch10 >= 0 ? cssv('good') : cssv('bad'), true,
-    { w: 340, h: 64, sw: 2, px: 10, labels: pt.length ? [pt[0].slice(0, 4), T('anToday')] : null, peak: hiPx ? T('anPeak', { v: strip(fmt(hiPx, 'ps', co, 0)) }) : null }));
+  const yrs = Math.round(px.length / 12);
+  /* 27/10/2026 (סרטון המשתמש — הגרף "מתרענן" בכל מעבר לשונית): אותו גרף בכל הלשוניות — האלמנט עצמו עובר מציור לציור,
+     בלי לבנות ולצייר מחדש (עד היום: פריים ריק בכל מעבר, וברצועה הקבועה של הקובייה — בלי גרף בכלל) */
+  const hk = co.sym + '|' + co.price + '|' + (document.documentElement.dataset.theme || '');
+  let chart = S.hero && S.hero.co === co && S.hero.k === hk ? S.hero.el : null;
+  if (chart) chart.firstChild.classList.add('an-still');   // אלמנט שנכנס שוב לדף מריץ את אנימציות ה־CSS שלו מההתחלה
+  if (!chart) {
+    const host = h('div', { class: 'an-pxc' + (S.heroDone ? ' an-still' : '') });
+    chart = h('div', { class: 'an-pxw' }, host);   // display: contents — הציר נכנס אחרי הגרף בתוך העטיפה, ועובר איתו
+    S.heroDone = true;   // הגרף בראש מצטייר פעם אחת — לא בכל מעבר לשונית
+    const pt = co.px && co.px.t ? co.px.t.slice(-121) : [], hiPx = px.length ? Math.max(...px, co.price) : null;
+    if (ch10 != null) S.after.push(() => spark(host, px.concat(co.price), ch10 >= 0 ? cssv('good') : cssv('bad'), true,
+      { w: 340, h: 64, sw: 2, px: 10, labels: pt.length ? [pt[0].slice(0, 4), T('anToday')] : null, peak: hiPx ? T('anPeak', { v: strip(fmt(hiPx, 'ps', co, 0)) }) : null }));
+    S.hero = { co, k: hk, el: chart };
+  }
   return h('div', { class: 'an-head' },
     h('div', { class: 'an-hero' },
       h('div', { class: 'an-idrow' },
@@ -955,10 +975,10 @@ function segThumb(seg) {
   if (!th || !b) return;
   const x = b.offsetLeft, w = b.offsetWidth;
   th.style.transform = `translateX(${x}px)`; th.style.width = w + 'px';
-  const from = S.segX;
-  S.segX = x;
+  const from = S.segX, fw = S.segW;
+  S.segX = x; S.segW = w;
   if (from == null || from === x || typeof th.animate !== 'function' || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
-  th.animate([{ transform: `translateX(${from}px)` }, { transform: `translateX(${x}px)` }], { duration: 380, easing: 'cubic-bezier(.3, 1.3, .5, 1)' });
+  th.animate([{ transform: `translateX(${from}px)`, width: (fw || w) + 'px' }, { transform: `translateX(${x}px)`, width: w + 'px' }], { duration: 380, easing: 'cubic-bezier(.3, 1.3, .5, 1)' });
 }
 function go(k) {
   if (k === S.tab) return;

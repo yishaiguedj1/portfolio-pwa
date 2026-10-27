@@ -5923,8 +5923,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.62.0';
-const APP_VERSION = 'v569';
+const APP_RELEASE = '2.62.1';
+const APP_VERSION = 'v570';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -12880,7 +12880,8 @@ function cubeClone(el) {
     } catch (e) {}
   }
   c.querySelectorAll('video, audio, iframe').forEach((x) => x.remove());
-  c.querySelectorAll('[id]').forEach((x) => x.removeAttribute('id'));   // getElementById לא מוצא את ההעתק
+  // getElementById לא מוצא את ההעתק. בתוך SVG המזהה נשאר: מעבר צבע (url(#…)) בלי המזהה שלו לא מצויר — הגרף בהעתק נעלם (27/10/2026)
+  c.querySelectorAll('[id]:not(svg *)').forEach((x) => x.removeAttribute('id'));
   c.removeAttribute('id'); c.classList.add('cube-ghost'); c.setAttribute('aria-hidden', 'true');
   try { c.inert = true; } catch (e) {}
   el.after(c);
@@ -12910,7 +12911,7 @@ function cubeHold(root, y) {
     return c;
   };
   const c = copy(root);
-  c.querySelectorAll('[id]').forEach((x) => x.removeAttribute('id'));
+  c.querySelectorAll('[id]:not(svg *)').forEach((x) => x.removeAttribute('id'));
   c.removeAttribute('id'); c.classList.add('cube-hold', 'cube-flat'); c.setAttribute('aria-hidden', 'true');
   try { c.inert = true; } catch (e) {}
   const r = root.getBoundingClientRect(), st = c.style;
