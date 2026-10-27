@@ -291,6 +291,7 @@
     <string name="brCloudWipe">Delete data from Google Drive</string>
     <string name="brCloudWipeQ">Delete all synced data of all devices from Google Drive? What\'s saved on each device stays there, and sync turns off here.</string>
     <string name="brCloudWipeFail">Couldn\'t delete from Drive — try again</string>
+    <string name="brCloudSetup">Google doesn\'t allow sign-in for this app yet (16) — it must be registered in Google Cloud</string>
     <string name="brCloudFail">Sign-in didn\'t complete (%1$s)</string>
     <string name="brCloudChromeOther">Chrome on your computer is connected through another device on this account — its bookmarks arrive here via sync.</string>
     <string name="brRecentTabs">Recent tabs</string>
@@ -309,4 +310,20 @@
     <string name="brEngineOld">Out of date — missing security updates</string>
     <string name="brEngineOldNtp">The browser engine is out of date and missing Chromium security updates.</string>
     <string name="brEngineUpdate">Update</string>
+    <string name="brUsers">People</string>
+    <string name="brUsersOne">Just you</string>
+    <plurals name="brUsersN"><item quantity="one">1 person</item><item quantity="other">%1$d people</item></plurals>
+    <string name="brUserMain">Main user</string>
+    <string name="brUserN">Person %1$d</string>
+    <string name="brUserAdd">Add person</string>
+    <string name="brUserRemove">Remove person</string>
+    <string name="brUserRemoveQ">Remove %1$s from the browser? Their bookmarks, history, tabs and cookies will be deleted from this phone. What\'s backed up in their Google account stays there.</string>
+    <string name="brUsersFoot">Each person has their own bookmarks, history, tabs, cookies and site sign-ins, synced to their own Google account. Downloads are shared. Switching people restarts the browser.</string>
+    <string name="brUsersNoSupport">Multiple people need a newer Android System WebView — update it from Google Play.</string>
+    <string name="brUsersMax">Up to 8 people per browser</string>
+    <string name="brUsersSwitching">Switching…</string>
+    <string name="brGWeb">Google account on websites</string>
+    <string name="brGWebOn">Signed in to Gmail, YouTube and all of Google</string>
+    <string name="brGWebOff">Not signed in — sign in</string>
+    <string name="brGWebFoot">Like Chrome: the same account on Google pages too. Sign in once; it stays for this person only.</string>
 </resources>

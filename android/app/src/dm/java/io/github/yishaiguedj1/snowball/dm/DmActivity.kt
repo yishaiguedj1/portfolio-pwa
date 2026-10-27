@@ -217,7 +217,7 @@ class DmActivity : ComponentActivity() {
     /** הגיליון נסגר — מה שהגיע מהדפדפן לא עובר להוספה הבאה */
     fun sheetDone() { sheetUrl.value = null; sheetCk = false; sheetUa = ""; sheetTitle = ""; refreshId.value = "" }
 
-    private fun ckFn(): ((String) -> String?)? = if (!sheetCk) null else { u -> runCatching { android.webkit.CookieManager.getInstance().getCookie(u) }.getOrNull() }
+    private fun ckFn(): ((String) -> String?)? = if (!sheetCk) null else { u -> runCatching { DmCookies.get().getCookie(u) }.getOrNull() }
 
     fun openBrowser(start: String, refresh: String = "") {
         // 26/10/2026: ב־Studio Browser (אותו קוד) — הדפדפן המלא. רענון קישור של הורדה נשאר בדפדפן הקטן של DM

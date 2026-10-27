@@ -213,7 +213,7 @@ object DmEngine {
     fun uaOf(t: DmTask) = t.ua.ifEmpty { DmFetch.UA }
 
     /** עוגיות רק להורדה שהתחילה בדפדפן של DM — מה־CookieManager באותו רגע, לכל כתובת בנפרד (גם אחרי הפניה) */
-    fun cookiesOf(t: DmTask): ((String) -> String?)? = if (!t.ck) null else { u -> runCatching { android.webkit.CookieManager.getInstance().getCookie(u) }.getOrNull() }
+    fun cookiesOf(t: DmTask): ((String) -> String?)? = if (!t.ck) null else { u -> runCatching { DmCookies.get().getCookie(u) }.getOrNull() }
 
     fun pause(ctx: Context, id: String) {
         val r = running[id]

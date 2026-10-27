@@ -569,7 +569,8 @@ class TestWorker(unittest.TestCase):
         for c in ('ingest', 'asr', 'edit-import', 'align', 'plan'):
             self.assertIn(c, cmds)
         self.assertTrue(all(isinstance(r[2], (int, float)) and r[2] >= 0 for r in tm['vt']))
-        self.assertTrue(all(len(r) == 6 and isinstance(r[4], int) and r[5] >= 1 for r in tm['vt']), '21/10/2026: שיא הזיכרון של כל פקודה (MB, מ־wait4) ומספר העבודות במקביל')
+        self.assertTrue(all(len(r) == 7 and isinstance(r[4], int) and r[5] >= 1 and isinstance(r[6], float) and r[6] >= 0 for r in tm['vt']),
+                        '21/10/2026: שיא הזיכרון של כל פקודה (MB, מ־wait4) ומספר העבודות במקביל · 27/10/2026: שניות מעבד')
         self.assertTrue(any(r[4] > 0 for r in tm['vt']), 'נמדד בפועל')
         self.assertEqual(set(tm['env']), {'cpus', 'cpu_max', 'arch', 'gvisor', 'img', 'lib'})
         rv = up[ck[-1]['id']]

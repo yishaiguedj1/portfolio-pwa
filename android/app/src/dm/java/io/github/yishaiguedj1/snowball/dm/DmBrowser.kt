@@ -338,7 +338,7 @@ class DmBrowser : Activity() {
 
         /* עוגיות הדף לבדיקה (בתוך האפליקציה בלבד; לא נשמרות). בלי \r\n — לא מזריקים כותרות */
         private fun ck(u: String): String? = try {
-            CookieManager.getInstance().getCookie(u)?.takeIf { it.isNotEmpty() && '\n' !in it && '\r' !in it }
+            DmCookies.get().getCookie(u)?.takeIf { it.isNotEmpty() && '\n' !in it && '\r' !in it }
         } catch (e: Throwable) { null }
 
         /**
@@ -346,7 +346,7 @@ class DmBrowser : Activity() {
          * ל־yt-dlp (דף, HLS, DASH) — קובץ עוגיות זמני של האתר, מכל הכתובות של הדף
          */
         fun handOff(a: Activity, url: String, ref: String, file: Boolean, title: String, ua: String, urls: List<String>, refresh: String = ""): Boolean {
-            val cm = CookieManager.getInstance()
+            val cm = DmCookies.get()
             try { cm.flush() } catch (e: Throwable) {}
             if (!file) try {
                 val us = urls.filter { it.startsWith("http") }.distinct()

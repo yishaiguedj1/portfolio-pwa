@@ -88,6 +88,15 @@
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
 
+        <!-- מעבר בין משתמשים בדפדפן: מתחיל את התהליך מחדש מתוך תהליך נפרד (BrUsers / BrRestart). לא מיוצא -->
+        <activity
+            android:name=".br.BrRestart"
+            android:process=":br_restart"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <!-- הסנכרון בענן בין המכשירים — סבב ברקע כל 15 דק׳ כשהדפדפן לא פתוח (BrCloud) -->
         <service
             android:name=".br.BrCloudJob"

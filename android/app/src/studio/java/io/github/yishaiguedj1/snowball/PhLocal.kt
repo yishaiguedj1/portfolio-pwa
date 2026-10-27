@@ -32,71 +32,78 @@ object PhLocal {
         val md = PhModels.dir(ctx)
         val cores = Runtime.getRuntime().availableProcessors().coerceIn(1, 8)
         fun chk() { if (stopped()) throw PhWork.Stop("stopped") }
-
-        // 1. הקול 16kHz מונו (כמו vt ingest)
-        val wav = File(work, "a16.wav"); val wok = File(work, "a16.wav.ok")
-        if (!wok.isFile) {
-            step("wav", -1f)
-            val o = PhFf.run(ctx, PhCore.wav16Args(src.absolutePath, wav.absolutePath), stop = stopped)
-            chk()
-            if (o.code != 0 || wav.length() < 1000) { wav.delete(); throw PhWork.Stop("no_audio") }
-            wok.writeText("1")
-        }
-        WavAudio(wav).use { au ->
-            // 2. תמלול (Silero + Parakeet + חורים)
-            val asrF = File(work, "asr.json")
-            val words: List<Word> = if (asrF.isFile) readWords(asrF) else {
-                step("asr", 0f)
-                val r = SileroVad(File(md, "vad/silero_vad.onnx")).use { vad ->
-                    Parakeet(File(md, "parakeet"), cores).use { pk ->
-                        PhoneAsr(vad, pk, NemoMel(NemoMel.filters(PhModels.asset(ctx, "ph2/nemo_mel_128.bin")))).run(au) { st, i, t ->
-                            chk()
-                            step("asr", when (st) { "vad" -> 0.1f * i / t; "asr" -> 0.1f + 0.85f * i / t; else -> 0.95f + 0.05f * i / t })
+        // 27/10/2026: זמן, סוללה וחום לכל שלב (PhTel) — נכנס ל־words.json; כשל במדידה לא נוגע בעבודה
+        val tel = PhTel(File(work, "tel.json")) { PhTel.snapOf(ctx) }
+        val stepT: (String, Float) -> Unit = { s, f -> tel.stage(s); step(s, f) }
+        try {
+            // 1. הקול 16kHz מונו (כמו vt ingest)
+            val wav = File(work, "a16.wav"); val wok = File(work, "a16.wav.ok")
+            if (!wok.isFile) {
+                stepT("wav", -1f)
+                val o = PhFf.run(ctx, PhCore.wav16Args(src.absolutePath, wav.absolutePath), stop = stopped)
+                chk()
+                if (o.code != 0 || wav.length() < 1000) { wav.delete(); throw PhWork.Stop("no_audio") }
+                wok.writeText("1")
+            }
+            WavAudio(wav).use { au ->
+                // 2. תמלול (Silero + Parakeet + חורים)
+                val asrF = File(work, "asr.json")
+                val words: List<Word> = if (asrF.isFile) readWords(asrF) else {
+                    stepT("asr", 0f)
+                    val r = SileroVad(File(md, "vad/silero_vad.onnx")).use { vad ->
+                        Parakeet(File(md, "parakeet"), cores).use { pk ->
+                            PhoneAsr(vad, pk, NemoMel(NemoMel.filters(PhModels.asset(ctx, "ph2/nemo_mel_128.bin")))).run(au) { st, i, t ->
+                                chk()
+                                stepT("asr", when (st) { "vad" -> 0.1f * i / t; "asr" -> 0.1f + 0.85f * i / t; else -> 0.95f + 0.05f * i / t })
+                            }
                         }
                     }
+                    if (r.words.isEmpty()) throw PhWork.Stop("no_speech")
+                    val ws = PwJson.words(r.words)
+                    writeWords(asrF, ws, JSONObject().put("holes", r.holes).put("rescued", r.rescued)); ws
                 }
-                if (r.words.isEmpty()) throw PhWork.Stop("no_speech")
-                val ws = PwJson.words(r.words)
-                writeWords(asrF, ws, JSONObject().put("holes", r.holes).put("rescued", r.rescued)); ws
-            }
-            chk()
-            // 3. דוברים
-            val dF = File(work, "diar.json")
-            var dst: Diarize.Stats? = null; var dsec: Double? = null
-            if (dF.isFile) {
-                val o = JSONObject(dF.readText()); val sp = o.getJSONArray("spk")
-                for (i in words.indices) words[i].spk = if (sp.isNull(i)) null else sp.getString(i)
-                if (o.has("speakers")) { dst = Diarize.Stats(o.getInt("speakers"), o.getInt("units"), emptyMap()); dsec = o.optDouble("seconds") }
-            } else {
-                step("diar", -1f)
-                val t0 = System.currentTimeMillis()
-                try {
-                    dst = WeSpeaker(File(md, "speaker/voxceleb_resnet34_LM.onnx"), minOf(cores, 4)).use { Diarize.assign(words, au, it) }
-                    dsec = Math.round((System.currentTimeMillis() - t0) / 100.0) / 10.0
-                } catch (e: PhWork.Stop) { throw e } catch (e: Throwable) {
-                    for (w in words) w.spk = null; dst = null                 // כמו בשרת: זיהוי דוברים לעולם לא מפיל
+                chk()
+                // 3. דוברים
+                val dF = File(work, "diar.json")
+                var dst: Diarize.Stats? = null; var dsec: Double? = null
+                if (dF.isFile) {
+                    val o = JSONObject(dF.readText()); val sp = o.getJSONArray("spk")
+                    for (i in words.indices) words[i].spk = if (sp.isNull(i)) null else sp.getString(i)
+                    if (o.has("speakers")) { dst = Diarize.Stats(o.getInt("speakers"), o.getInt("units"), emptyMap()); dsec = o.optDouble("seconds") }
+                } else {
+                    stepT("diar", -1f)
+                    val t0 = System.currentTimeMillis()
+                    try {
+                        dst = WeSpeaker(File(md, "speaker/voxceleb_resnet34_LM.onnx"), minOf(cores, 4)).use { Diarize.assign(words, au, it) }
+                        dsec = Math.round((System.currentTimeMillis() - t0) / 100.0) / 10.0
+                    } catch (e: PhWork.Stop) { throw e } catch (e: Throwable) {
+                        for (w in words) w.spk = null; dst = null                 // כמו בשרת: זיהוי דוברים לעולם לא מפיל
+                    }
+                    val o = JSONObject().put("spk", JSONArray(words.map { it.spk ?: JSONObject.NULL }))
+                    dst?.let { o.put("speakers", it.speakers).put("units", it.units).put("seconds", dsec) }
+                    dF.writeText(o.toString())
                 }
-                val o = JSONObject().put("spk", JSONArray(words.map { it.spk ?: JSONObject.NULL }))
-                dst?.let { o.put("speakers", it.speakers).put("units", it.units).put("seconds", dsec) }
-                dF.writeText(o.toString())
+                chk()
+                // 4. יישור (Qwen, קטעים של עד 90 שנ׳ — כמו בשרת)
+                stepT("align", 0f)
+                val am = File(md, "aligner/model")
+                val cfg = JSONObject(File(am, "config.json").readText())
+                val tok = QTok(File(am, "vocab.json").readText(), File(am, "merges.txt").readText(), QTok.addedFrom(File(am, "tokenizer_config.json").readText()))
+                val mel = WhisperMel(WhisperMel.filters(PhModels.asset(ctx, "ph2/whisper_mel_128.bin")))
+                QwenAligner(File(md, "aligner"), cores, false, tok, mel, cfg.getJSONObject("thinker_config").getInt("audio_token_id"),
+                    cfg.getInt("timestamp_token_id"), cfg.getDouble("timestamp_segment_time")).use { al ->
+                    PhoneAlign(al).run(words, au, File(work, "align.part.json")) { i, t -> chk(); stepT("align", i.toFloat() / t) }
+                }
+                tel.end()
+                val mem = try { (ctx.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager).let { am ->
+                    android.app.ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }.totalMem / (1L shl 30) }.toInt() + 1 } catch (e: Throwable) { 0 }
+                val tmp = File(work, "words.json.tmp")
+                tmp.writeText(PwJson.build(words, dst, dsec).put("tel", tel.json(Runtime.getRuntime().availableProcessors(), mem, android.os.Build.VERSION.SDK_INT)).toString())
+                if (!tmp.renameTo(out)) throw PhWork.Stop("io")
             }
-            chk()
-            // 4. יישור (Qwen, קטעים של עד 90 שנ׳ — כמו בשרת)
-            step("align", 0f)
-            val am = File(md, "aligner/model")
-            val cfg = JSONObject(File(am, "config.json").readText())
-            val tok = QTok(File(am, "vocab.json").readText(), File(am, "merges.txt").readText(), QTok.addedFrom(File(am, "tokenizer_config.json").readText()))
-            val mel = WhisperMel(WhisperMel.filters(PhModels.asset(ctx, "ph2/whisper_mel_128.bin")))
-            QwenAligner(File(md, "aligner"), cores, false, tok, mel, cfg.getJSONObject("thinker_config").getInt("audio_token_id"),
-                cfg.getInt("timestamp_token_id"), cfg.getDouble("timestamp_segment_time")).use { al ->
-                PhoneAlign(al).run(words, au, File(work, "align.part.json")) { i, t -> chk(); step("align", i.toFloat() / t) }
-            }
-            val tmp = File(work, "words.json.tmp")
-            tmp.writeText(PwJson.build(words, dst, dsec).toString())
-            if (!tmp.renameTo(out)) throw PhWork.Stop("io")
-        }
-        wav.delete(); wok.delete()          // המקור עדיין בטלפון; הקול לא נחוץ יותר
-        return out
+            wav.delete(); wok.delete()          // המקור עדיין בטלפון; הקול לא נחוץ יותר
+            return out
+        } finally { tel.end() }
     }
 
     private fun writeWords(f: File, ws: List<Word>, extra: JSONObject) {

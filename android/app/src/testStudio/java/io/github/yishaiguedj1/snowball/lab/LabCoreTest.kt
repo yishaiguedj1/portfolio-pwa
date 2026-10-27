@@ -8,7 +8,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 /**
- * הליבה של Studio Lab מול השרת: הערכים כאן הם הפלט של onnx_asr 0.12.0 ושל translator/vt/align_onnx.py על אותם קלטים.
+ * הליבה (labcore — ONNX Runtime ו־Parakeet של התרגום בטלפון; עד 27/10/2026 גם האפליקציה Studio Lab) מול השרת: הערכים כאן הם הפלט של onnx_asr 0.12.0 ושל translator/vt/align_onnx.py על אותם קלטים.
  * (המודלים עצמם נבדקו מקומית ב־JVM עם ONNX Runtime 1.30.0: התמלול של Parakeet זהה מילה במילה ל־onnx_asr.)
  */
 class LabCoreTest {
