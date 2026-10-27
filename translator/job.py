@@ -2049,6 +2049,11 @@ def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
         r = _vt(ctx, args, stage, lo, hi, t0)
         ok = True
         return r
+    except StepError:
+        raise                    # vt נהרג (זיכרון) — הסימן נשאר, והניסיון הבא במצב חיסכון
+    except SystemExit:
+        ok = True                # 27/10/2026: vt הסתיים עם שגיאה רגילה — לא "נקטע באמצע", אין סיבה למצב חיסכון
+        raise
     finally:
         stop.set()
         if heavy and ok:
