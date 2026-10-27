@@ -212,6 +212,8 @@ he: {
   kcColMono: 'שחור־לבן',
   kcGrid: 'קווי רשת',
   kcHL: 'סימון הגבוה והנמוך',
+  kcFills: 'העסקאות שלי וקו הממוצע',
+  kcPosTag: '{n} מניות · ממוצע {p}',
   kcData: 'נתונים',
   kcExt: 'מסחר מורחב (טרום/אחרי) בטווחים תוך־יומיים',
   kcTz: 'שעון',
@@ -1737,6 +1739,8 @@ en: {
   kcColMono: 'Monochrome',
   kcGrid: 'Grid lines',
   kcHL: 'High/low marks',
+  kcFills: 'My trades and average line',
+  kcPosTag: '{n} sh · avg {p}',
   kcData: 'Data',
   kcExt: 'Extended hours on intraday timeframes',
   kcTz: 'Time zone',
@@ -6869,8 +6873,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.75.1';
-const APP_VERSION = 'v597';
+const APP_RELEASE = '2.76.0';
+const APP_VERSION = 'v598';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -15023,12 +15027,29 @@ function chartEnv() {
     },
     search: (q, onUpdate) => searchStocksYahoo(q, onUpdate),
     symbols: () => quoteSymbols().filter((s) => s !== FX_SYM),
-    onClose: () => refreshStockAlerts(),   // התראות שנוספו/נמחקו בגרף — מתעדכנות בכרטיס המניה
+    onClose: () => refreshStockAlerts(),
+    fills: (sym) => chartFills(sym),   // חיצי הקנייה/מכירה וקו הממוצע בגרף   // התראות שנוספו/נמחקו בגרף — מתעדכנות בכרטיס המניה
     store: {
       get: () => { try { return JSON.parse(localStorage.getItem(CHART_LS) || 'null'); } catch (e) { return null; } },
       set: (v) => { try { localStorage.setItem(CHART_LS, JSON.stringify(v)); } catch (e) { /* מכסה מלאה */ } },
     },
   };
+}
+/* 28/10/2026 (שלב 0 במחקר המסחר): העסקאות של המניה ומצב האחזקה — לחיצים ולקו הממוצע בגרף הנרות.
+   רק מה שכבר באפליקציה (עסקאות IBKR מה־Flex + עסקאות ידניות שלא מוצללות), בזיכרון בלבד — לא נשלח לשום מקום. */
+function chartFills(sym) {
+  const trades = [];
+  if (isIbkrMode()) {
+    try {
+      for (const x of ibkrTrades()) {
+        const q = Math.abs(Number(x.qty) || 0);
+        if (q > 0 && normalizeSym(x.symbol) === sym) trades.push({ d: String(x.date || '').slice(0, 10), t: x.time || '', side: /SELL/i.test(x.side) || Number(x.qty) < 0 ? 'SELL' : 'BUY', qty: q, price: Number(x.price) || 0 });
+      }
+    } catch (e) { /* בלי נתוני IBKR */ }
+  }
+  for (const x of mtActiveTrades()) { const m = mtNorm(x); if (m.sym === sym && m.qty > 0) trades.push({ d: m.date, t: '', side: m.side, qty: m.qty, price: m.price }); }
+  const p = POSITIONS.find((x) => x.sym === sym), n = p ? Number(p.shares) || 0 : 0, avg = p ? Number(p.avg) || 0 : 0;
+  return { trades, pos: n > 0 && avg > 0 ? { n, avg } : null };
 }
 function openChartFor(sym) {
   import('./chart.js').then((m) => m.openChart(sym, chartEnv())).catch(() => flash(t('kcErrLib')));

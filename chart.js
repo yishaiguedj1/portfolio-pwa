@@ -825,6 +825,32 @@ function registerOverlays() {
     },
   });
 
+  /* חץ עסקה (מ־Flex/ידני): משולש ירוק מתחת לנר בקנייה, אדום מעל במכירה, והכמות לידו. נעול, לא נבחר */
+  R({
+    name: 'kcFill', totalStep: 2, needDefaultXAxisFigure: false, needDefaultYAxisFigure: false,
+    createPointFigures: ({ overlay, coordinates }) => {
+      if (!coordinates.length) return [];
+      const d = overlay.extendData || {}, x = coordinates[0].x, s = d.buy ? 1 : -1, y = coordinates[0].y + 5 * s, c = d.buy ? '#30D158' : '#FF453A';
+      return [{ type: 'polygon', ignoreEvent: true, attrs: { coordinates: [{ x, y }, { x: x - 6, y: y + 9 * s }, { x: x + 6, y: y + 9 * s }] }, styles: { style: 'fill', color: c } },
+        { type: 'text', ignoreEvent: true, attrs: { x, y: y + 11 * s, text: d.t || '', align: 'center', baseline: d.buy ? 'top' : 'bottom' }, styles: { color: c, backgroundColor: 'transparent', size: 10, weight: 600 } }];
+    },
+  });
+  /* קו המחיר הממוצע של הפוזיציה — קו מלא דק, תגית "N מניות · ממוצע X · רווח/הפסד חי" ותווית בציר (כמו kcExtPx) */
+  R({
+    name: 'kcPos', totalStep: 2, needDefaultXAxisFigure: false, needDefaultYAxisFigure: false,
+    createPointFigures: ({ overlay, coordinates, bounding }) => {
+      if (!coordinates.length) return [];
+      const y = coordinates[0].y, d = overlay.extendData || {}, c = d.c || '#787B86';
+      return [{ type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: 0, y }, { x: bounding.width, y }] }, styles: { color: c, size: 1, style: 'solid' } },
+        textFig(6, y, d.t || '', c, { styles: { size: 10, borderRadius: 3 } })];
+    },
+    createYAxisFigures: ({ chart, overlay, coordinates, bounding, yAxis }) => {
+      if (!coordinates.length) return [];
+      const left = yAxis && yAxis.isFromZero && yAxis.isFromZero(), c = (overlay.extendData && overlay.extendData.c) || '#787B86';
+      return [textFig(left ? 0 : bounding.width, coordinates[0].y, fmtP(chart, valAt(overlay, 0)), c, { attrs: { align: left ? 'left' : 'right' }, styles: { paddingTop: 3, borderRadius: 3 } })];
+    },
+  });
+
   /* תבניות: XABCD (הרמוניות), ABCD, גלי אליוט (5 ו־ABC), ראש וכתפיים, משולש, שלושה דחפים */
   R(wavePattern('kcXABCD', ['X', 'A', 'B', 'C', 'D'], [[0, 1, 2], [1, 2, 3], [2, 3, 4], [0, 1, 4]]));
   R(wavePattern('kcABCD', ['A', 'B', 'C', 'D'], [[0, 1, 2], [1, 2, 3]]));
@@ -868,7 +894,7 @@ function loadStore() {
       layout: [1, 2, 3, 4, 5].includes(g.layout) ? g.layout : 1, fav: Array.isArray(g.fav) ? g.fav.filter((x) => TF[x]).slice(0, 12) : DEF_FAV.slice(),
       ext: !!g.ext, tz: g.tz === 'local' ? 'local' : 'ex', colors: ['tv', 'app', 'mono'].includes(g.colors) ? g.colors : 'app', grid: g.grid === 0 ? 0 : 1,
       risk: +g.risk > 0 ? +g.risk : 100, scale: ['normal', 'logarithm', 'percentage'].includes(g.scale) ? g.scale : 'normal', hl: g.hl === 0 ? 0 : 1,
-      syncSym: !!g.syncSym, syncTf: !!g.syncTf, stay: !!g.stay, cells, indFav: Array.isArray(g.indFav) ? g.indFav.filter((x) => typeof x === 'string').slice(0, 30) : [],
+      syncSym: !!g.syncSym, syncTf: !!g.syncTf, stay: !!g.stay, fills: g.fills === 0 ? 0 : 1, cells, indFav: Array.isArray(g.indFav) ? g.indFav.filter((x) => typeof x === 'string').slice(0, 30) : [],
     },
     s: o.s && typeof o.s === 'object' ? o.s : {},
     alerts: o.alerts && typeof o.alerts === 'object' ? o.alerts : {},
@@ -979,7 +1005,7 @@ function countdown(c, bar, now) {
   return d ? d + 'd ' + h + 'h' : h ? h + ':' + z(m) + ':' + z(sec) : z(m) + ':' + z(sec);
 }
 function setSymbolPeriod(c) {
-  c.seq++; c.extKey = null; c.raw = []; c.disp = []; c.more = false; c.lastVol = null; c.err = null; c.sub = null; c.cmpCache = new Map(); c.bench = null;
+  c.seq++; c.extKey = null; c.fillKey = null; c.posKey = null; c.fx = null; c.raw = []; c.disp = []; c.more = false; c.lastVol = null; c.err = null; c.sub = null; c.cmpCache = new Map(); c.bench = null;
   c.secReal = TF[c.tf].sec;
   c.chart.setSymbol({ ticker: c.sym, pricePrecision: 2, volumePrecision: 0 });
   c.chart.setPeriod(TF[c.tf].p);
@@ -1069,6 +1095,7 @@ function afterInit(c) {
     c.snap = JSON.stringify(drawSnap(c)); c.undo = []; c.redo = [];
   }
   drawAlerts(c);
+  drawFills(c); drawPos(c);
   if (c.fit) { const f = c.fit; c.fit = null; fitRange(c, f); }
   if (c === S.cells[S.active]) updHeader();
 }
@@ -1085,7 +1112,7 @@ function parseQuote(d) {
 }
 function onQuote(c, q) {
   c.q = q;
-  if (c.raw.length) drawExt(c);
+  if (c.raw.length) { drawExt(c); drawFills(c); drawPos(c); }
   if (c.replay || !c.raw.length || !c.sub) return;
   const d = TF[c.tf], intra = /m$/.test(d.base), regular = q.st === 'REGULAR';
   let price = 0, time = 0;
@@ -1372,6 +1399,56 @@ function drawExt(c) {
   c.chart.removeOverlay({ groupId: 'ext' });
   c.extId = show ? c.chart.createOverlay(Object.assign({ name: 'kcExtPx', groupId: 'ext', lock: true }, o)) : null;
 }
+/* ---------- העסקאות שלי על הגרף: חיצי קנייה/מכירה + קו הממוצע (רק מהנתונים שכבר באפליקציה — E.fills) ---------- */
+const POSC = { up: '#30D158', dn: '#FF453A', flat: '#787B86' };
+function fillsOf(c) {
+  if (!c.fx || c.fx.sym !== c.sym) { let v = null; try { v = E.fills ? E.fills(c.sym) : null; } catch (e) { v = null; } c.fx = { sym: c.sym, v: v || { trades: [], pos: null } }; }
+  return c.fx.v;
+}
+// זמן הביצוע: תאריך + שעה (IBKR מדווח בשעון ניו יורק). בלי שעה (עסקה ידנית) — סוף היום בשעון הבורסה, ולא אחרי עכשיו
+function fillTs(f, tz) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(f.d || ''), t = /^(\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(f.t || '');
+  if (!m) return NaN;
+  const wall = Date.UTC(+m[1], +m[2] - 1, +m[3], t ? +t[1] : 23, t ? +t[2] : 59, t ? +(t[3] || 0) : 0), zone = t ? 'America/New_York' : tz;
+  const ms = wall - tzOffset(zone, wall);
+  return t ? ms : Math.min(ms, NOW());
+}
+function drawFills(c) {
+  if (!c.chart) return;
+  const on = S.store.g.fills !== 0, fx = on ? fillsOf(c) : null, list = on ? c.chart.getDataList() : [];
+  const key = on && fx.trades.length && list.length ? c.sym + '|' + c.tf + '|' + c.type + '|' + list.length + '|' + list[0].timestamp + '|' + list[list.length - 1].timestamp : '';
+  if (c.fillKey === key) return;
+  c.fillKey = key;
+  c.chart.removeOverlay({ groupId: 'fills' });
+  if (!key) return;
+  const daily = !L.isIntraday(c.tf), dk = dayKeyFor(c.tz);
+  const fills = fx.trades.map((f) => {
+    const ms = fillTs(f, c.tz), m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(f.d || '');
+    return { k: daily ? (m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000 : NaN) : ms, side: f.side, qty: f.qty, price: f.price };
+  });
+  const span = daily ? Math.ceil((c.secReal || 86400) / 86400) + 1 : (c.secReal || 60) * 1000;
+  for (const x of L.fillMarks(list, fills, daily ? (b) => dk(b.timestamp) : (b) => b.timestamp, span)) {
+    c.chart.createOverlay({ name: 'kcFill', groupId: 'fills', lock: true, points: [{ timestamp: x.timestamp, value: x.value }], extendData: { buy: x.buy, t: (x.buy ? '+' : '−') + fmtQty(x.qty) } });
+  }
+}
+const fmtQty = (q) => (Math.abs(q) >= 1e4 ? fmtBig(q) : fmtNum(q, Number.isInteger(q) ? 0 : Math.min(4, (String(q).split('.')[1] || '').length)));
+function drawPos(c) {
+  if (!c.chart) return;
+  const fx = S.store.g.fills !== 0 ? fillsOf(c) : null, p = fx && fx.pos;
+  const live = p ? (quotePrice(c.q) || (c.raw.length ? c.raw[c.raw.length - 1].close : 0)) : 0;
+  const pl = p && live > 0 ? (live - p.avg) * p.n : null;
+  const col = pl == null || Math.abs(pl) < 0.005 ? POSC.flat : pl > 0 ? POSC.up : POSC.dn;
+  const iso = (x) => '\u2066' + x + '\u2069';   // הקנבס מצייר בכיוון LTR — בעברית התגית כולה בבידוד RTL והמספרים בבידוד LTR, אחרת הסדר מתהפך
+  const t = p ? (E && E.lang === 'en' ? '' : '\u2067') + T('kcPosTag', { n: iso(fmtQty(p.n)), p: iso(fmtNum(p.avg, L.precisionFor(p.avg))) }) + (pl == null ? '' : ' · ' + iso((pl > 0 ? '+' : pl < 0 ? '−' : '') + fmtNum(Math.abs(pl), 2))) + (E && E.lang === 'en' ? '' : '\u2069') : '';
+  const key = p ? p.avg + '|' + t + '|' + col : '';
+  if (c.posKey === key) return;
+  c.posKey = key;
+  const o = { points: [{ timestamp: lastTs(c), value: p ? p.avg : 0 }], extendData: { t, c: col } };
+  if (p && c.posId && c.chart.getOverlays({ id: c.posId }).length) return c.chart.overrideOverlay(Object.assign({ id: c.posId }, o));
+  c.chart.removeOverlay({ groupId: 'pos' });
+  c.posId = p ? c.chart.createOverlay(Object.assign({ name: 'kcPos', groupId: 'pos', lock: true }, o)) : null;
+}
+function redrawMine() { for (const c of S.cells) { c.fillKey = null; c.posKey = null; drawFills(c); drawPos(c); } }
 const lastPx = {};
 function quotePrice(q) { if (!q) return 0; if (q.st === 'REGULAR' && q.reg) return q.reg.p; if (q.ext) return q.ext.p; return q.reg ? q.reg.p : 0; }
 function checkAlerts() {
@@ -2622,6 +2699,7 @@ function openSettings() {
       seg([['app', T('kcColApp')], ['tv', T('kcColTv')], ['mono', T('kcColMono')]], g.colors, (v) => { g.colors = v; save(); restyleAll(); }),
       toggle(T('kcGrid'), g.grid !== 0, (v) => { g.grid = v ? 1 : 0; save(); restyleAll(); }),
       toggle(T('kcHL'), g.hl !== 0, (v) => { g.hl = v ? 1 : 0; save(); restyleAll(); }),
+      toggle(T('kcFills'), g.fills !== 0, (v) => { g.fills = v ? 1 : 0; save(); redrawMine(); }),
       h('div', { class: 'kc-gt', text: T('kcData') }),
       toggle(T('kcExt'), g.ext, (v) => { g.ext = v; save(); for (const c of S.cells) if (c.chart && L.isIntraday(c.tf)) setSymbolPeriod(c); }),
       h('div', { class: 'kc-field' }, h('span', { text: T('kcTz') }), seg([['ex', T('kcTzEx')], ['local', T('kcTzLocal')]], g.tz, (v) => {

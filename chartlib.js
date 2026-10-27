@@ -924,6 +924,25 @@ export function positionCalc(entry, stop, target, risk) {
 }
 
 /* מספר ספרות אחרי הנקודה לפי המחיר (פני מניה / שקלים / קריפטו זול) */
+/* חיצי עסקאות (כמו TradingView): כל ביצוע לנר שמכיל אותו — הנר האחרון שמתחיל לפניו; כמה ביצועים באותו נר ובאותו
+   כיוון = חץ אחד עם סכום הכמות (ומחיר ממוצע משוקלל). key(bar)/f.k — אותה יחידה: זמן במ"ש, או מספר יום (בטווח של יום ומעלה,
+   כדי שביצוע לפני הפתיחה לא ייפול לנר של אתמול). span = אורך הנר האחרון באותה יחידה; ביצוע לפני הנר הראשון או אחריו — לא מוצג.
+   fills: [{ k, side: 'BUY'|'SELL', qty, price }] → [{ i, timestamp, buy, qty, price, n, value }] (value: נמוך בקנייה, גבוה במכירה). טהורה. */
+export function fillMarks(bars, fills, key, span) {
+  if (!bars || !bars.length) return [];
+  const kb = bars.map((b) => key(b)), end = kb[kb.length - 1] + (span > 0 ? span : 1), out = new Map();
+  for (const f of fills || []) {
+    if (!f || !(f.qty > 0) || !isFinite(f.k) || f.k < kb[0] || f.k >= end) continue;
+    let lo = 0, hi = kb.length - 1;
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (kb[m] <= f.k) lo = m; else hi = m - 1; }
+    const buy = f.side !== 'SELL', id = lo * 2 + (buy ? 0 : 1);
+    let o = out.get(id);
+    if (!o) out.set(id, (o = { i: lo, timestamp: bars[lo].timestamp, buy, qty: 0, amt: 0, n: 0, value: buy ? bars[lo].low : bars[lo].high }));
+    o.qty += f.qty; o.amt += f.qty * (+f.price || 0); o.n++;
+  }
+  return [...out.values()].sort((a, b) => a.i - b.i || (a.buy ? -1 : 1)).map((o) => ({ i: o.i, timestamp: o.timestamp, buy: o.buy, qty: Math.round(o.qty * 1e6) / 1e6, price: o.qty ? o.amt / o.qty : 0, n: o.n, value: o.value }));
+}
+
 export function precisionFor(p) {
   if (!(p > 0)) return 2;
   if (p >= 1000) return 2;
@@ -943,4 +962,4 @@ export function sanitizeLayout(o) {
   return { tf: TF[ok.tf] ? ok.tf : '1D', type: typeof ok.type === 'string' ? ok.type.slice(0, 20) : 'candle_solid', ind, dr };
 }
 
-export const _test = { TF, aggregate, fromColumns, mergeBars, applyTick, heikinAshi, renko, lineBreak, kagi, sma, ema, rma, wma, hma, dema, tema, stdev, atr, rsi, linreg, CALC, IND, swings, zigzag, autoTrendlines, autoLevels, autoFib, candlePatterns, chartPatterns, volumeProfile, seasonality, expectedMove, rangeStats, backtest, positionCalc, precisionFor, sanitizeLayout };
+export const _test = { TF, aggregate, fromColumns, mergeBars, applyTick, heikinAshi, renko, lineBreak, kagi, sma, ema, rma, wma, hma, dema, tema, stdev, atr, rsi, linreg, CALC, IND, swings, zigzag, autoTrendlines, autoLevels, autoFib, candlePatterns, chartPatterns, volumeProfile, seasonality, expectedMove, rangeStats, backtest, positionCalc, precisionFor, sanitizeLayout, fillMarks };
