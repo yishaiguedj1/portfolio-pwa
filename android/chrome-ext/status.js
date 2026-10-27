@@ -30,3 +30,12 @@ export function describe(st, now) {
   if (l.removed) moved.push(l.removed === 1 ? 'אחת נמחקה' : `${l.removed} נמחקו`);
   return { warn: false, title: 'הכל מסונכרן', sub: [ago(l.at, now)].concat(moved).join(' · ') };
 }
+
+// למה החיבור נכשל — משפט אחד + הקוד מ־Chrome (בלי טוקן; code() חותך ל־60 תווים)
+export function connectErr(st) {
+  const e = String((st && st.last && st.last.err) || '');
+  if (/bad client id|OAuth2 request failed|invalid_client|OAUTH_CLIENT_ID/i.test(e)) return 'התוסף עוד לא רשום ב־Google — צריך לקוח OAuth מסוג Chrome Extension (' + e + ')';
+  if (/did not approve|canceled|cancelled|user denied/i.test(e)) return 'החלון של Google נסגר בלי אישור — לנסות שוב';
+  if (/not signed in|sign in/i.test(e)) return 'צריך להיות מחובר ל־Chrome עם חשבון Google';
+  return e ? 'החיבור לא הושלם — ' + e : 'החיבור לא הושלם — לנסות שוב';
+}

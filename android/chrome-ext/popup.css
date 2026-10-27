@@ -33,3 +33,4 @@ body { margin: 0; width: 380px; min-height: 420px; background: var(--bg); color:
 .foot { padding: 0 18px; font-size: 12px; color: var(--mute); text-align: center; line-height: 1.5; }
 .msg { padding: 14px 16px; font-size: 14px; line-height: 1.5; }
 [hidden] { display: none !important; }
+.err { padding: 0 18px; font-size: 13px; color: var(--warn); text-align: center; line-height: 1.5; overflow-wrap: anywhere; }

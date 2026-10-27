@@ -1,5 +1,5 @@
 // דף הפתיחה של התוסף: חיבור אחד עם Google (drive.appdata) — ואז הסנכרון רץ לבד
-import { describe } from './status.js';
+import { describe, connectErr } from './status.js';
 const go = document.getElementById('go');
 go.addEventListener('click', async () => {
   go.disabled = true;
@@ -8,6 +8,6 @@ go.addEventListener('click', async () => {
   const bad = !st || !st.on || (st.last && st.last.err);
   document.getElementById('done').hidden = !!bad;
   const e = document.getElementById('err');
-  e.hidden = !bad; e.textContent = bad ? (st && st.on ? describe(st, Date.now()).sub : 'החיבור לא הושלם — לנסות שוב') : '';
+  e.hidden = !bad; e.textContent = bad ? (st && st.on ? describe(st, Date.now()).sub : connectErr(st)) : '';
   if (!bad) go.hidden = true;
 });
