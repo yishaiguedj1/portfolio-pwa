@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v587';
+const CACHE_NAME = 'portfolio-pwa-v588';
 const HASHES = {
   "./": "23049cdc117b2a1b516816fe94fff24a",
   "./index.html": "23049cdc117b2a1b516816fe94fff24a",
-  "./styles.css": "f926d3fb8ca3b605093c1d164aa48733",
-  "./app.js": "c3d9fd90eb06d73f69e822823b09f4fb",
+  "./styles.css": "b71c0f12034af5821f436d65c571f410",
+  "./app.js": "5fe7e4ccc5c90744a83d994fd9e1be84",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "9af566803f9e67e734390306b1e38db2",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -33,6 +33,10 @@ const HASHES = {
   "./acclink.js": "ff59b5aefee7c6e74278b350f3d6f236",
   "./analysis.js": "51b24b9a04df43a0d24c806fbe1bdba0",
   "./analysis.css": "ca1b140598ab7565a249a0e100ea7bf4",
+  "./chart.js": "517b61f96a28b84db406dc2f446f2168",
+  "./chartlib.js": "e44fe49f25dbe2a51f87f0cd0027540a",
+  "./chart.css": "6797f48456bd3e42ca7e8e70ced881ae",
+  "./vendor/klinecharts/klinecharts.min.js": "428b7c3bff6a74e121b4da8093bd0187",
   "./library.js": "ebf4c7295ff22d17fb09b56be12d2cec",
   "./library.css": "76ff87750ae8fd22063cbd07b7f3d8ce",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
@@ -60,8 +64,8 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "cbbbe8c0aa8f9f0d9bfddd1575ea6757",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
-  "./strings-academy.js": "ebf47ede85df3e214608c111a41c81ce",
-  "./core.js": "a6cf7d35882a981afb081c6ecbaeee15",
+  "./strings-academy.js": "43189017fb75e822f0f1cd58d6b4b163",
+  "./core.js": "d7869ac79fe50ead51182cae7d68699b",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "d6703c288cfb84be0bc06cbc61912c68",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -82,7 +86,7 @@ const HASHES = {
   "./studiobg.js": "386d76121dbaed74cdde91386ddf79c6",
   "./studio.html": "4344113c500fc12d34364c7de2f4e835",
   "./studio-app.js": "29aafde3d0cb75d4d8210d2b2287409d",
-  "./strings-studio.js": "fb47256b4a921368374ede0330aebc42",
+  "./strings-studio.js": "8d840f8c68ca301ba8b0fe85febb8d93",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
@@ -109,7 +113,8 @@ const APP_SHELL = [
   './favicon-48.png',
   './ibkr-logo.png',
   './acclink.js',   // 26/10/2026: כניסה עם מייל ושיטות הכניסה (נטען בלחיצה)
-  './analysis.js', './analysis.css'   // 25/10/2026: מנתח החברות — נטען בלחיצה, אבל באותה גרסה של app.js
+  './analysis.js', './analysis.css',   // 25/10/2026: מנתח החברות — נטען בלחיצה, אבל באותה גרסה של app.js
+  './chart.js', './chartlib.js', './chart.css', './vendor/klinecharts/klinecharts.min.js'   // 27/10/2026: גרף הנרות — נטען בלחיצה
 ];
 
 /* האקדמיה (שלב 8): קבצי הספרייה והקורא — נטענים מראש בכל עדכון רק אצל מי שכבר נכנס לספרייה
@@ -373,8 +378,10 @@ self.addEventListener('push', (event) => {
   const title = String(m.t || 'THE SNOWBALL').slice(0, 80);
   // הקישור תמיד בכתובת שבה נרשמה ההתראה (שלב 4: גם ב־studio[-staging].thesnowball.app) — מההודעה רק מזהה העבודה
   const hm = /^https:\/\/[^#\s]*(#studio=j[A-Za-z0-9_-]{20})$/.exec(String(m.u || ''));
-  const url = './' + (hm ? hm[1] : '');
-  const tag = m.j ? 'studio-' + m.j : 'studio', at = Number(m.at) || 0;
+  // 27/10/2026: התראת מחיר מגרף הנרות (k:'px') — נפתחת בגרף של המניה (#chart=SYM), תג לכל התראה
+  const cm = m.k === 'px' ? /^#chart=([A-Za-z0-9.^=%-]{1,40})$/.exec(String(m.u || '')) : null;
+  const url = './' + (hm ? hm[1] : cm ? cm[0] : '');
+  const tag = cm ? 'px-' + String(m.i || cm[1]).slice(0, 40) : m.j ? 'studio-' + m.j : 'studio', at = Number(m.at) || 0;
   // 27/10/2026 (בקשת המשתמש): כל שלב בעבודה = אותה התראה (תג לעבודה) שמתחלפת — שקטה, עם פס של השלב.
   // סוף / שאלה / אישור / עצירה — מחליפים אותה עם צליל. הודעה ישנה שהגיעה באיחור (שירות ה־push לא שומר על סדר) לא דורסת חדשה
   const stage = m.k === 'stage';

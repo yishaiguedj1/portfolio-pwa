@@ -151,6 +151,8 @@ function encrypt(sub, payload, opt = {}) {
 
 /* התוכן של התראה: כותרת + שורה בשפת המכשיר, ולאן לפתוח. בלי שם קובץ ובלי תוכן העבודה */
 function message(kind, jobId, lang, x, now) {
+  // 27/10/2026: התראת מחיר מגרף הנרות (lib/pxalert.js) — הטקסט נבנה מההתראה עצמה; נפתח בגרף של המניה (#chart=)
+  if (kind === 'px') { const m = x && x.a ? require('./pxalert').text(x.a, x.p, lang) : null; return m ? { t: m.t, b: m.b, k: 'px', j: '', i: m.i, u: m.u } : null; }
   const t = kind === 'stage' ? stageText(x, lang) : (TEXT[lang] || TEXT.he)[kind];
   if (!t) return null;
   const j = /^j[A-Za-z0-9_-]{20}$/.test(String(jobId || '')) ? jobId : '';
@@ -173,7 +175,7 @@ async function sendAll(deps, v, subs, kind, jobId, now, x) {
     if (!msg) return { s, keep: true, ok: false };
     try {
       // התקדמות: חצי שעה מספיקה (מצב ישן לא שימושי), ובלי להעיר את הטלפון בדחיפות
-      const r = await f(s.e, { method: 'POST', headers: { TTL: String(kind === 'stage' ? 1800 : TTL), Urgency: kind === 'done' || kind === 'stage' ? 'normal' : 'high',
+      const r = await f(s.e, { method: 'POST', headers: { TTL: String(kind === 'stage' ? 1800 : kind === 'px' ? 3600 : TTL), Urgency: kind === 'done' || kind === 'stage' ? 'normal' : 'high',
         'Content-Encoding': 'aes128gcm', 'Content-Type': 'application/octet-stream', Authorization: vapidAuth(v, s.e, now) },
       body: encrypt(s, JSON.stringify(msg)), redirect: 'manual', signal: AbortSignal.timeout(5000) });
       if (r.status === 404 || r.status === 410) return { s, keep: false, ok: false };      // המנוי בוטל בטלפון
