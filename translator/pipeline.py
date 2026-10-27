@@ -559,6 +559,67 @@ def fmt_lines(d: dict[str, str]) -> str:
     return '\n'.join(f'#{k} {v}' for k, v in sorted(d.items(), key=lambda kv: int(kv[0])))
 
 
+# 26/10/2026 (מאגר הלמידה — "מה כל שלב תיקן ומה קלקל"): עד היום רק מונים (fx/fr/fz, fxr, qcn), והשאלה "כמה מהתיקונים
+# הזיקו" נענתה בשיפוט ידני. עכשיו: הקודים של הבודק לכל כתובית בכל נקודה (CK_FILE — רק קודים, בלי טקסט) ותשובות שנזרקו
+# (REJ_FILE — הטקסט והסיבה). שניהם ב־tr/ (נכנסים לנקודת השמירה), job.learn_corpus קורא אותם. כתיבה שנכשלה — לא מפילה.
+CK_FILE = 'learn_checks.json'
+REJ_FILE = 'learn_rej.jsonl'
+REJ_MAX = 2000
+CK_STAGE = {'fixes.txt': 'f', 'fixes_zfinal.txt': 'z'}   # f0 טיוטה · f1 אחרי תיקוני המתרגם · z0 אחרי הביקורת · z1 אחרי התיקון האחרון · q1 אחרי הבקרה
+
+
+def check_codes(check_md: str) -> dict[str, list[str]]:
+    """tr/check.md → {מספר כתובית: [קודים]} (ממוינים, בלי כפולים). הודעה בלי קוד = '?'"""
+    out: dict[str, set] = {}
+    for line in check_md.splitlines():
+        m = ISSUE_RE.match(line.strip())
+        if m:
+            out.setdefault(m.group(1), set()).add(issue_code(m.group(2)) or '?')
+    return {k: sorted(v) for k, v in out.items()}
+
+
+def ck_record(td: Path, stage: str, codes: dict[str, list[str]]):
+    try:
+        fp = Path(td) / CK_FILE
+        d = json.loads(fp.read_text(encoding='utf-8')) if fp.exists() else {}
+        d[stage] = codes
+        tmp = fp.with_suffix('.tmp')
+        tmp.write_text(json.dumps(d, ensure_ascii=False), encoding='utf-8')
+        tmp.replace(fp)
+    except (OSError, ValueError):
+        pass
+
+
+def rej_dropped(td: Path, dropped: list[str]):
+    """תיקוני הגהה שנזרקו ('nf: <הישן>') → REJ_FILE עם מספר רץ במקום מספר כתובית (התמליל עוד לא חולק לכתוביות)"""
+    by: dict[str, dict[str, str]] = {}
+    for n, d in enumerate(dropped or []):
+        code, _, txt = str(d).partition(': ')
+        by.setdefault('p_' + (code if code in ('nf', 'amb', 'nl', 'bad') else 'x'), {})[str(n)] = txt
+    for why, items in by.items():
+        rej_record(td, 'p', items, why)
+
+
+def rej_record(td: Path, stage: str, items: dict[str, str], why: str):
+    """תשובות שנזרקו: {מספר כתובית: הטקסט שהוצע}. why = ok (החמיר — fix_ok) · back (שבר כתובית ונוסח קודם חזר) ·
+    keep (ביטל את הביקורת) · qs (לא קיצר) · qb (שבר את tr-check) · p_nf/p_amb/p_nl/p_bad (תיקון הגהה שלא הוחל)"""
+    if not items:
+        return
+    try:
+        fp = Path(td) / REJ_FILE
+        n = 0
+        if fp.exists():
+            with fp.open(encoding='utf-8') as f:
+                n = sum(1 for _ in f)
+        if n >= REJ_MAX:
+            return
+        with fp.open('a', encoding='utf-8') as f:
+            for k, v in list(items.items())[:REJ_MAX - n]:
+                f.write(json.dumps({'s': stage, 'i': str(k), 't': str(v or '')[:400], 'w': why}, ensure_ascii=False) + '\n')
+    except OSError:
+        pass
+
+
 def neighbors(order: list[str], cur: dict[str, str], k: str, nb: int) -> str:
     """ההקשר של כתובית בבקשת תיקון: nb כתוביות לפניה ואחריה, בנוסח הנוכחי (בלי `=`/`∅`, שאין בהן טקסט)."""
     if nb <= 0 or k not in cur:
@@ -948,6 +1009,7 @@ class Pipeline:
             ok += self.proof_parts(fixed, cur, sec.get('BRIEF', ''), gl, terms, ref)
         if ok:
             (self.pd / 'en.patch.txt').write_text('\n'.join(ok) + '\n', encoding='utf-8')
+        rej_dropped(td, dropped)
         why = {}
         for d in dropped:
             why[d.split(':', 1)[0]] = why.get(d.split(':', 1)[0], 0) + 1
@@ -1021,6 +1083,7 @@ class Pipeline:
             cur, ok_i, dr_i = valid_patch_part(cur, txt, a, b)
             ok += ok_i
             dropped += dr_i
+            rej_dropped(self.pd / 'tr', dr_i)
         why = {}
         for d in dropped:
             why[d.split(':', 1)[0]] = why.get(d.split(':', 1)[0], 0) + 1
@@ -1340,11 +1403,14 @@ class Pipeline:
         print(f'· שתי טיוטות: {len(segs)} קטעים שונים ({sum(len(g) for g in segs)} כתוביות מתוך {len(order)}), '
               f'בטיוטה השנייה נבחרו {nb} ({len(picks)} כתוביות)')
 
-    def check(self) -> tuple[dict, dict, int]:
+    def check(self, stage: str = '') -> tuple[dict, dict, int]:
         lines = self.J.vt(self.ctx, ['tr-check', self.ctx.name])
         errs = re.findall(r'שגיאות (\d+)', '\n'.join(lines or []))
         md = (self.pd / 'tr' / 'check.md')
-        hard, soft = parse_issues(md.read_text(encoding='utf-8') if md.exists() else '')
+        txt = md.read_text(encoding='utf-8') if md.exists() else ''
+        hard, soft = parse_issues(txt)
+        if stage:
+            ck_record(self.pd / 'tr', stage, check_codes(txt))
         return hard, soft, int(errs[-1]) if errs else len(hard)
 
     def current(self) -> dict[str, str]:
@@ -1374,7 +1440,8 @@ class Pipeline:
         25/10/2026 (ניתוח האיכות): nb = כמה כתוביות שכנות מכל צד נשלחות להקשר (המתקן ראה כתובית אחת וקיצר בלי צורך);
         soft_only = הערות "לשקול" רק לכתוביות האלה (בתיקון האחרון — רק מה שהביקורת שינתה);
         keep = {מספר: הנוסח שלפני הביקורת} — תשובה שמחזירה אותו נזרקת (התיקון האחרון ביטל שינויים של הביקורת)."""
-        hard, soft, n_err = self.check()
+        cs = CK_STAGE.get(fname, '')
+        hard, soft, n_err = self.check(cs + '0' if cs else '')
         r, best = 0, n_err
         try:
             en = {str(c['id']): str(c.get('en') or '') for c in json.loads((self.pd / 'cues.en.json').read_text(encoding='utf-8'))}
@@ -1407,23 +1474,27 @@ class Pipeline:
                     ans = answer_lines(kept_text(res), ids_g)          # נקטעה — מה שלא הגיע נשאר לסבב הבא
                     # 26/10/2026: תיקון שמחמיר (מספר שנעלם, חיתוך עמוק, "קיצור" שלא קיצר) — נזרק
                     rej = [kk for kk, v in ans.items() if not fix_ok(cur.get(kk, ''), v, todo.get(kk, []), en.get(kk, ''), kk in hard)]
+                    rej_record(self.pd / 'tr', cs or fname, {kk: ans[kk] for kk in rej}, 'ok')
                     for kk in rej:
                         ans.pop(kk, None)
                     self.fix_rej += len(rej)
                     if keep:
-                        ans = {kk: v for kk, v in ans.items() if not (kk in keep and kk not in hard and clean_answer(v) == keep[kk])}
+                        kp = {kk: v for kk, v in ans.items() if kk in keep and kk not in hard and clean_answer(v) == keep[kk]}
+                        rej_record(self.pd / 'tr', cs or fname, kp, 'keep')
+                        ans = {kk: v for kk, v in ans.items() if kk not in kp}
                     got.update(ans)
             fp = self.pd / 'tr' / fname
             old = fp.read_text(encoding='utf-8') if fp.exists() else ''
             fp.write_text(old + fmt_lines(got) + '\n', encoding='utf-8')
             was = set(hard)
-            hard, soft, n_err = self.check()
+            hard, soft, n_err = self.check(cs + '1' if cs else '')
             # 26/10/2026: תיקון שיצר בעיה חמורה בכתובית שלא הייתה בה — חוזרים לנוסח הקודם
             back = {kk: cur[kk] for kk in got if kk in hard and kk not in was and cur.get(kk)}
             if back:
+                rej_record(self.pd / 'tr', cs or fname, {kk: got[kk] for kk in back}, 'back')
                 fp.write_text(fp.read_text(encoding='utf-8') + fmt_lines(back) + '\n', encoding='utf-8')
                 self.fix_rej += len(back)
-                hard, soft, n_err = self.check()
+                hard, soft, n_err = self.check(cs + '1' if cs else '')
             if not hard:
                 break
             if r == rounds and n_err < best and rounds < FIX_ROUNDS_MAX:
@@ -1639,6 +1710,8 @@ class Pipeline:
                     v = clean_answer(v)
                     if v and v not in ('=', '∅') and len(v) < len(tg[kk]['text']):
                         got[kk] = v
+                    elif v and v not in ('=', '∅'):
+                        rej_record(self.pd / 'tr', 'q', {kk: v}, 'qs')
         if not got:
             ctx.st['qcx'] = st
             return st
@@ -1652,16 +1725,18 @@ class Pipeline:
                     lines[x] = '='
             fp.write_text(fmt_lines(lines) + '\n', encoding='utf-8')
         write(got)
-        hard, _, n_err = self.check()
+        hard, _, n_err = self.check('q1')
         broke = {kk for kk in got if kk in hard or any(x in hard for x in tg[kk]['rest'])}
         if broke:
+            rej_record(self.pd / 'tr', 'q', {kk: got[kk] for kk in broke}, 'qb')
             got = {kk: v for kk, v in got.items() if kk not in broke}
             write(got) if got else fp.unlink()
-            hard, _, n_err = self.check()
+            hard, _, n_err = self.check('q1')
             if n_err and fp.exists():                # עדיין שבור — בלי הסבב (הבדיקה לפני הסבב הייתה נקייה)
+                rej_record(self.pd / 'tr', 'q', got, 'qb')
                 fp.unlink()
                 got = {}
-                self.check()
+                self.check('q1')
         st['qcf'] = len(got)
         ctx.st['qcx'] = st
         print(f'✓ הבקרה על המסך: {len(tg)} כתוביות מהירות מדי · {len(got)} קוצרו')

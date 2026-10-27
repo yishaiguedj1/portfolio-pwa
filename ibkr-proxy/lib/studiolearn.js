@@ -16,7 +16,7 @@ const STAGES = ['up', 'tr', 'al', 'tl', 'rv', 'bn', 'sv'];
 const ROLES = ['main', 'tl', 'rv', 'jg', 'sub'];
 const Q_KEYS = ['cps', 'len', 'lines', 'dur', 'en', 'chk'];
 const JG_CODES = ['mean', 'omit', 'add', 'gram', 'flu', 'term'];
-const MX_GROUPS = ['st', 'tm', 'cs', 'om'];                // st שלבים · tm תזמון · cs עקביות · om השמטות
+const MX_GROUPS = ['st', 'tm', 'cs', 'om', 'ck', 'rj', 'rf'];   // rf מול כתוביות אנושיות מהמקור · st שלבים · tm תזמון · cs עקביות · om השמטות · ck קודי הבודק לאורך השלבים · rj תשובות שנזרקו (26/10/2026)
 const MODES = ['haiku-medium', 'haiku-high', 'sonnet-low', 'sonnet-medium', 'sonnet-high', 'opus-medium'];   // מהזול ליקר
 const DAY = 86400e3, WIN = 30 * DAY;
 const KEY_RE = /^[a-z][a-z0-9_.]{0,47}$/;
@@ -85,7 +85,7 @@ function normLx(o) {
     for (const g of MX_GROUPS) { const x = flatNums(o.mx[g], 30, 1e7); if (Object.keys(x).length) mx[g] = x; }
     if (Object.keys(mx).length) out.mx = mx;
   }
-  for (const k of ['wd', 'tl', 'en', 'sy', 'gl', 'md']) {
+  for (const k of ['wd', 'tl', 'en', 'sy', 'gl', 'md', 'au']) {   // au (26/10/2026): מצב הקול וביטחון התמלול — sp snr wpm cm lc flat holes rescued
     if (!o[k] || typeof o[k] !== 'object') continue;
     const x = flatNums(o[k], 30, 1e12);
     if (k === 'en' && o.en.th && typeof o.en.th === 'object') { const th = flatNums(o.en.th, 8, 1e12); if (Object.keys(th).length) x.th = th; }
@@ -671,7 +671,7 @@ const FIELDS = [
   ['ed', 'כמה פעמים נשמרה עריכה ידנית אחרי העבודה'], ['gq', 'ציון מול תרגום אנושי (סט הזהב)'], ['pv/env', 'גרסאות ההנחיות והסביבה'],
   ['ux', 'מה קרה אחרי העבודה (מהטלפון): e עריכות (s שמירות, ws שניות עבודה, n שינויים, wd/cd מרחק עריכה במילים/בתווים, wa/ca מילים/תווים בגרסה האחרונה, ולכל סוג: txt טקסט, tm זמן, sp פיצול, mg מיזוג, add, del, mx מורכב), pl נגן (n הפעלות, sec שניות, cov חלק שנצפה), o תוצרים (dl הורדות, sh שיתופים, dx ל־Drive), sg הצעות (a/r), ai גיליון AI (q בקשות, a הוחלו, r נדחו), gl מונחים שנוספו'],
   ['lx', 'עובדות מפורטות מהעובד: שלבי vt, תמלול, יישור, סנכרון, מנוע (קטיעות, ניסיונות חוזרים, חשיבה), זיכרון'],
-  ['lx.mx', 'מ׳5 — מדדים בקוד: st מה כל שלב שינה (df טיוטה←תיקוני המתרגם, fr ←ביקורת, rz ←תיקון אחרון, dz טיוטה←סופי; ch כתוביות ששונו, t TER, c chrF++), tm תזמון מול הדיבור (in/out שניות מהמילה הראשונה/האחרונה, late/cut, nw בלי דיבור, sh.near/sh.bad גבולות 0–11 / 1–11 פריימים מחילוף שוט), cs עקביות (nm שמות שנבדקו, nm.var עם יותר מאיות אחד, gl מונחים מהמילון: n/miss/mix), om השמטות (om.e ריקות, om.s קצרות מאוד, om.r50 יחס אורך, num מספרים n/miss)'],
+  ['lx.mx', 'מ׳5 — מדדים בקוד: st מה כל שלב שינה (df טיוטה←תיקוני המתרגם, fr ←ביקורת, rz ←תיקון אחרון, dz טיוטה←סופי; ch כתוביות ששונו, t TER, c chrF++), tm תזמון מול הדיבור (in/out שניות מהמילה הראשונה/האחרונה, late/cut, nw בלי דיבור, sh.near/sh.bad גבולות 0–11 / 1–11 פריימים מחילוף שוט), cs עקביות (nm שמות שנבדקו, nm.var עם יותר מאיות אחד, gl מונחים מהמילון: n/miss/mix), om השמטות (om.e ריקות, om.s קצרות מאוד, om.r50 יחס אורך, num מספרים n/miss), ck קודי הבודק בין הנקודות f0 טיוטה · f1 אחרי תיקוני המתרגם · z0 אחרי הביקורת · z1 אחרי התיקון האחרון · q1 אחרי הבקרה (<א><ב>.fx תוקנו, .kp נשארו, .nw נוצרו; n0/n1 בהתחלה ובסוף; nw.<קוד> מה נוצר הכי הרבה), rj תשובות שנזרקו <שלב>.<סיבה> (ok החמיר, back שבר כתובית, keep ביטל את הביקורת, qs לא קיצר, qb שבר את הבודק, p_* תיקון הגהה שלא הוחל), rf מול כתוביות אנושיות שכבר קיימות למקור (he.c chrF++ של הסופי מול המתרגם האנושי, he.cs בחלונות, he.lr יחס מילים, he.cov כיסוי, he.d/f/r/z כל שלב מול האדם; en.w WER של התמליל שלנו מול הכתוביות האנגליות, en.s/d/i פירוק)'],
   ['ux.e.sb/sr', 'מ׳5 — SubER אחרי עריכה בעורך: עריכות / אסימוני הייחוס (מילים + שבירות)'],
 ];
 const fmtv = (v) => (v == null ? '—' : typeof v === 'number' ? String(v) : JSON.stringify(v));

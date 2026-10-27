@@ -41,12 +41,35 @@ function normCue(c) {
   const o = { i: c.i, s: n3(c.s), e: n3(c.e), k: SPK_RE.test(String(c.k || '')) ? c.k : 'S?', en: T(c.en), d: T(c.d) };
   for (const k of ['b', 'f', 'r', 'z']) if (typeof c[k] === 'string') o[k] = T(c[k]);
   if (c.p === 1 && typeof c.b === 'string') o.p = 1;      // 26/10/2026: b = הטיוטה השנייה, p = היא נבחרה בהכרעה
+  const cc = normCc(c.cc);
+  if (cc) o.cc = cc;
   return o;
+}
+/* 26/10/2026: קודי הבודק של הכתובית בכל נקודה (CK_STAGES = CK_STAGE + q1 ב־translator/pipeline.py) — רק קודים */
+const CK_STAGES = ['f0', 'f1', 'z0', 'z1', 'q1'];
+const CODE_RE = /^[a-z?]{1,8}$/;
+function normCc(x) {
+  if (!x || typeof x !== 'object' || Array.isArray(x)) return null;
+  const o = {};
+  for (const st of CK_STAGES) if (Array.isArray(x[st])) { const a = x[st].filter((v) => CODE_RE.test(String(v))).slice(0, 8); if (a.length) o[st] = a; }
+  return Object.keys(o).length ? o : null;
+}
+/* תשובות שנזרקו (pipeline.rej_record): s שלב, i מספר כתובית (או מספר רץ בהגהה), t הטקסט שהוצע, w למה */
+const REJ_W = ['ok', 'back', 'keep', 'qs', 'qb', 'p_nf', 'p_amb', 'p_nl', 'p_bad', 'p_x'];
+const REJ_S_RE = /^[a-z0-9_.]{1,24}$/, MAX_RJ = 2000;
+function normRj(a) {
+  if (!Array.isArray(a)) return null;
+  const out = [];
+  for (const r of a.slice(0, MAX_RJ)) {
+    if (!r || typeof r !== 'object' || !REJ_S_RE.test(String(r.s || '')) || !REJ_W.includes(r.w) || !/^\d{1,6}$/.test(String(r.i || ''))) continue;
+    out.push({ s: r.s, i: String(r.i), t: T(r.t), w: r.w });
+  }
+  return out.length ? out : null;
 }
 function normWord(w) {
   if (!Array.isArray(w) || w.length < 3) return null;
   return [T(w[0], 60), n3(w[1]), n3(w[2]), SPK_RE.test(String(w[3] || '')) ? w[3] : 'S?', n3(w[4]), n3(w[5]), n3(w[6]),
-    ALIGN_RE.test(String(w[7] || '')) ? String(w[7] || '') : ''];
+    ALIGN_RE.test(String(w[7] || '')) ? String(w[7] || '') : '', isNum(w[8]) && w[8] >= 0 && w[8] <= 1 ? n3(w[8]) : null];   // [8] ביטחון התמלול (26/10/2026)
 }
 
 /* הגוף מהעובד → הפריט שנשמר (או null). month = 'YYYY-MM' מהשרתון */
@@ -90,6 +113,14 @@ function normCorpus0(o, month, full) {
     if (Object.keys(sp).length) out.sp = sp;
   }
   if (Array.isArray(o.gl)) out.gl = o.gl.slice(0, MAX_GL).filter((x) => typeof x === 'string').map((x) => T(x, 200));
+  if (o.ref && typeof o.ref === 'object' && !Array.isArray(o.ref)) {    // 26/10/2026: כתוביות אנושיות מהמקור (ציבוריות) — ייחוס
+    const ref = {};
+    for (const l of ['he', 'en']) if (Array.isArray(o.ref[l])) { const a = o.ref[l].slice(0, MAX_CUES).filter((c) => c && typeof c === 'object').map((c) => ({ s: n3(c.s), e: n3(c.e), h: T(c.h) })).filter((c) => c.h); if (a.length) ref[l] = a; }
+    if (Object.keys(ref).length) out.ref = ref;
+  }
+  if (Array.isArray(o.ccs)) { const x = o.ccs.filter((v) => CK_STAGES.includes(v)); if (x.length) out.ccs = x; }
+  const rj = normRj(o.rj);
+  if (rj) out.rj = rj;
   if (full) {
     out.full = 1;
     const tx = normTx(o.tx);
@@ -174,4 +205,4 @@ function corpusStats(items) {
   return out;
 }
 
-module.exports = { LC_V, KEEP_MONTHS, LID_RE, scrub, normCorpus, normTx, normEditSession, addEdits, ED_SS, ED_CH, monthOf, qKey, cKey, qeKey, eKey, mKey, MEDIA_KINDS, MEDIA_MAX, parseKey, oldestMonth, expired, corpusStats };
+module.exports = { CK_STAGES, REJ_W, LC_V, KEEP_MONTHS, LID_RE, scrub, normCorpus, normTx, normEditSession, addEdits, ED_SS, ED_CH, monthOf, qKey, cKey, qeKey, eKey, mKey, MEDIA_KINDS, MEDIA_MAX, parseKey, oldestMonth, expired, corpusStats };

@@ -519,6 +519,53 @@ def probe(url, run=subprocess.run, timeout=PROBE_TIMEOUT, ref=''):
     return summarize(info)
 
 
+# 26/10/2026 (מאגר הלמידה — "כתוביות אנושיות שכבר קיימות למקור"): כתוביות של היוצר (לא האוטומטיות) בעברית ובאנגלית,
+# כייחוס — chrF מול מתרגם אנושי ו־WER של התמלול, בכל עבודה מקישור שיש לה כאלה. רק טקסט, בלי הורדת הסרטון.
+REF_LANGS = {'he': ('he', 'iw', 'he-il', 'iw-il'), 'en': ('en', 'en-us', 'en-gb', 'en-ca', 'en-au')}
+REF_TIMEOUT = int(os.environ.get('SNB_REF_TIMEOUT', '90'))
+REF_MAX_BYTES = 2 * 1024 * 1024
+
+
+def ref_pick(names):
+    """שמות הקבצים ש־yt-dlp כתב (ref.<שפה>.srt) → {he: שם, en: שם}; הקוד המדויק קודם לגרסה האזורית"""
+    out = {}
+    for want, codes in REF_LANGS.items():
+        for code in codes:
+            hit = [n for n in names if n.lower() == 'ref.' + code + '.srt']
+            if hit:
+                out[want] = hit[0]
+                break
+    return out
+
+
+def get_subs(url, out_dir, run=subprocess.run, timeout=REF_TIMEOUT, ref=''):
+    """הכתוביות האנושיות (של היוצר) בעברית ובאנגלית → {he: נתיב, en: נתיב} (מה שיש). כל כשל → {} — זה מידע משני."""
+    os.makedirs(out_dir, exist_ok=True)
+    yc = YtCookies(url)
+    cmd = (ytdlp_base() + yc.args[:2] + pot_args(url) + ref_args(ref)
+           + ['--skip-download', '--write-subs', '--no-write-auto-subs', '--sub-langs', 'he.*,iw.*,en.*,-live_chat',
+              '--sub-format', 'srt/vtt/best', '--convert-subs', 'srt', '-o', os.path.join(out_dir, 'ref.%(ext)s'), '--', url])
+    try:
+        r = run(cmd, capture_output=True, text=True, timeout=timeout)
+    except (subprocess.TimeoutExpired, OSError):
+        yc.done(False)
+        return {}
+    yc.done(r.returncode == 0, r.stderr or '')
+    try:
+        names = os.listdir(out_dir)
+    except OSError:
+        return {}
+    got = {}
+    for lang, name in ref_pick(names).items():
+        p = os.path.join(out_dir, name)
+        try:
+            if 0 < os.path.getsize(p) <= REF_MAX_BYTES:
+                got[lang] = p
+        except OSError:
+            pass
+    return got
+
+
 PROG_RE = re.compile(r'^SNBP (\d+|NA) (\d+|NA) (\d+|NA)')
 
 

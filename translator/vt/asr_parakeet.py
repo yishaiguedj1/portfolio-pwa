@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 import time
 
@@ -45,27 +46,64 @@ def _chunks(segments: list[tuple[int, int]], n: int, sr: int, max_s: float = 40.
     return res
 
 
-def tokens_to_words(tokens: list[str], ts: list[float], offset: float, chunk_end: float) -> list[dict]:
+def tokens_to_words(tokens: list[str], ts: list[float], offset: float, chunk_end: float,
+                    lps: list[float] | None = None) -> list[dict]:
+    """lps (26/10/2026, מאגר הלמידה) = log-prob לכל טוקן — onnx_asr מחשב אותו ממילא (with_timestamps מבקש need_logprobs).
+    ביטחון המילה = exp של הממוצע (ממוצע גאומטרי של ההסתברויות), 0–1. בלי lps — None כמו קודם (גם בטלפון, ph2)."""
     words: list[dict] = []
-    cur, cur_s = "", None
-    starts = []
-    for tok, t in zip(tokens, ts):
+    cur, cur_s, cur_l = "", None, []
+    lp = list(lps) if lps is not None and len(lps) == len(tokens) else None
+    for j, (tok, t) in enumerate(zip(tokens, ts)):
         if tok.startswith(" ") or tok.startswith("▁") or cur_s is None:
             if cur.strip():
-                words.append({"w": cur.strip(), "s": cur_s})
-                starts.append(cur_s)
-            cur, cur_s = tok.replace("▁", " "), offset + t
+                words.append({"w": cur.strip(), "s": cur_s, "_l": cur_l})
+            cur, cur_s, cur_l = tok.replace("▁", " "), offset + t, []
         else:
             cur += tok
+        if lp is not None:
+            cur_l.append(float(lp[j]))
     if cur.strip():
-        words.append({"w": cur.strip(), "s": cur_s})
+        words.append({"w": cur.strip(), "s": cur_s, "_l": cur_l})
     for i, w in enumerate(words):
         nxt = words[i + 1]["s"] if i + 1 < len(words) else min(chunk_end, w["s"] + 0.6)
         w["e"] = max(w["s"] + 0.04, min(nxt, w["s"] + 1.5))
         w["s"], w["e"] = round(w["s"], 3), round(w["e"], 3)
         w["spk"] = None
-        w["conf"] = None
+        ls = w.pop("_l")
+        w["conf"] = round(math.exp(min(0.0, sum(ls) / len(ls))), 3) if lp is not None and ls else None
     return [w for w in words if w["w"] and w["w"] not in {",", "."}]
+
+
+def _lps(r):
+    return getattr(r, "logprobs", None)
+
+
+def audio_stats(audio, sr: int, segs: list[tuple[int, int]], words: list[dict]) -> dict:
+    """26/10/2026 (מאגר הלמידה): מצב הקול — רק מספרים, בלי עיבוד כבד. sp = חלק הזמן שבו Silero שמע דיבור,
+    snr = dB בין עוצמת הדיבור לעוצמת מה שבין קטעי הדיבור (רעש/מוזיקה ברקע), wpm = מילים לדקת דיבור,
+    lc = חלק המילים בביטחון נמוך (<0.5), cm = ביטחון חציוני. מה שלא אפשר לחשב — לא נכנס."""
+    out: dict = {}
+    n = len(audio)
+    if not n:
+        return out
+    mask = np.zeros(n, dtype=bool)
+    for a, b in segs:
+        mask[max(0, a):min(n, b)] = True
+    sp = float(mask.mean())
+    out["sp"] = round(sp, 3)
+    x = np.asarray(audio, dtype=np.float32)
+    if mask.any() and (~mask).any():
+        ps = float(np.mean(x[mask] ** 2))
+        pn = float(np.mean(x[~mask] ** 2))
+        if ps > 0 and pn > 0:
+            out["snr"] = round(10 * math.log10(ps / pn), 1)
+    if sp > 0:
+        out["wpm"] = round(len(words) / (sp * n / sr / 60), 1)
+    cs = sorted(w["conf"] for w in words if isinstance(w.get("conf"), (int, float)))
+    if cs:
+        out["cm"] = cs[len(cs) // 2]
+        out["lc"] = round(sum(1 for c in cs if c < 0.5) / len(cs), 4)
+    return out
 
 
 HOLE_S = 0.9      # דיבור (לפי Silero) בלי אף מילה — חור (25/10/2026: 1.2→0.9 — עוד משפט לפרק בניסוי, בלי מילים מומצאות)
@@ -214,7 +252,7 @@ def transcribe(wav_path: str, quantization: str | None = "int8", batch: int = 4)
         part = chunks[i:i + batch]
         res = model.recognize([audio[s:e] for s, e in part], sample_rate=16000)
         for (s, e), r in zip(part, res):
-            parts.append(tokens_to_words(r.tokens, r.timestamps, s / sr, e / sr) if r.tokens else [])
+            parts.append(tokens_to_words(r.tokens, r.timestamps, s / sr, e / sr, _lps(r)) if r.tokens else [])
         if (i // batch) % 10 == 0:
             done = part[-1][1] / sr
             log(f"  {done / 60:.1f}/{len(audio) / sr / 60:.1f} דק׳ ({time.time() - t0:.0f} שנ׳)")
@@ -222,7 +260,7 @@ def transcribe(wav_path: str, quantization: str | None = "int8", batch: int = 4)
     if nf:
         def recog_s(a: int, b: int) -> list[dict]:
             r = model.recognize(audio[a:b], sample_rate=16000)
-            return tokens_to_words(r.tokens, r.timestamps, a / sr, b / sr) if r.tokens else []
+            return tokens_to_words(r.tokens, r.timestamps, a / sr, b / sr, _lps(r)) if r.tokens else []
         log(f"Parakeet: {nf} חלונות בלי פיסוק — תמלול חוזר בחלונות קצרים החליף {unflatten(parts, chunks, segs, len(audio), sr, recog_s)}")
     words: list[dict] = [w for x in parts for w in x]
     total = len(audio) / sr
@@ -230,8 +268,13 @@ def transcribe(wav_path: str, quantization: str | None = "int8", batch: int = 4)
     if found:
         def recog(a: float, b: float) -> list[dict]:
             r = model.recognize(audio[int(a * sr):int(b * sr)], sample_rate=16000)
-            return tokens_to_words(r.tokens, r.timestamps, a, b) if r.tokens else []
+            return tokens_to_words(r.tokens, r.timestamps, a, b, _lps(r)) if r.tokens else []
         n = rescue(words, found, recog, total)
         log(f"Parakeet: {len(found)} חורים בדיבור — תמלול חוזר החזיר {n} מילים")
     log(f"Parakeet הסתיים: {len(words)} מילים ב־{time.time() - t0:.0f} שניות")
-    return {"engine": "parakeet", "model": MODEL, "language": "en", "words": words, "events": []}
+    try:
+        au = audio_stats(audio, sr, segs, words)
+    except Exception:                    # noqa: BLE001 — מידע משני, לא מפיל את התמלול
+        au = {}
+    au.update({"flat": nf, "holes": len(found), "rescued": n if found else 0})
+    return {"engine": "parakeet", "model": MODEL, "language": "en", "words": words, "events": [], "audio": au}

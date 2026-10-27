@@ -126,7 +126,7 @@ class LearnCorpus(unittest.TestCase):
         self.assertNotIn('r', cu[2])
         self.assertEqual(cu[3]['r'], 'שָלוש')
         self.assertEqual(c['fin'], [{'s': 2.0, 'e': 3.5, 'h': 'אחת'}])
-        self.assertEqual(c['wd'], [['line', 2.0, 2.3, 'S1', 1.9, 2.0, 2.02, 'qwen3']])
+        self.assertEqual(c['wd'], [['line', 2.0, 2.3, 'S1', 1.9, 2.0, 2.02, 'qwen3', None]])
         self.assertEqual(c['pt'], ['bufet => Buffett'])
         self.assertEqual(c['gl'], ['Berkshire\tברקשייר'])
         self.assertEqual(c['sp'], {'S1': {'n': 'Warren Buffett', 'r': 'CEO', 'g': 'm'}})   # בקשת המשתמש: שמות הדוברים נשמרים
