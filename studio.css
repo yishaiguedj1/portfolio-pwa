@@ -1079,3 +1079,10 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-ed-tin { width: 84px; min-height: 36px; padding: 0 8px; border: 0; border-radius: var(--radius-xs); background: rgba(255, 255, 255, .08); color: inherit; font: inherit; font-size: 15px; text-align: center; font-variant-numeric: tabular-nums; }
 .st-ed-tin:focus { outline: 2px solid var(--primary); outline-offset: 0; }
 .st-root .st-ed-nb { min-width: 44px; font-variant-numeric: tabular-nums; }
+/* 28/10/2026: כתוביות מהרשת — שורה עם בחירה (כל השורה) וכפתור שמירה בצד; "עוד N" / "כל השפות" כקישור */
+.st-nsb { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+.st-nsb:disabled { cursor: default; }
+.st-nsb .st-l { flex: 1; min-width: 0; }
+.st-nsb .st-l b { overflow-wrap: anywhere; }
+.st-nsck { width: 20px; height: 20px; flex: none; color: var(--primary); stroke-width: 2.8; }
+.st-row.st-linkrow { color: var(--primary); font-size: 16px; }
