@@ -312,8 +312,8 @@ button.an-row { cursor: pointer; }
   @keyframes anGrow { from { transform: scaleY(0); } }
   .an-nw { animation: anFade .5s .2s both; }
   /* עמוד שכבר הוצג / הגרף בראש אחרי הפעם הראשונה — בלי אנימציות כניסה */
-  .an-still .an-draw, .an-still .an-area, .an-still .an-bar, .an-still .an-nw, .an-still .an-rise, .an-still .an-keys > .an-key { animation: none; }
-  .an-still .an-dot { animation: anPulse 2.4s 1.3s ease-in-out infinite; }
+  .an-still .an-draw, .an-still .an-area, .an-still .an-bar, .an-still .an-nw, .an-still .an-rise, .an-rise.an-still, .an-still .an-keys > .an-key, .an-still .an-rng { animation: none; }
+  .an-still .an-dot, .an-dot.an-still { animation: anPulse 2.4s 1.3s ease-in-out infinite; }
 }
 
 /* ערך פנימי: הפס */
