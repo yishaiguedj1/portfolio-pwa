@@ -1020,24 +1020,33 @@ class Pipeline:
         return parse_questions(sec.get('QUESTIONS', ''))
 
     def sub_ref(self) -> list[tuple[float, str]]:
-        """כתוביות העזר מהקובץ (files.r) — מורדות פעם אחת ל־en.ref.txt. אין / ההורדה נכשלה — ממשיכים בלעדיהן."""
+        """כתוביות העזר מהקובץ (files.r) — מורדות פעם אחת ל־en.ref.txt. אין / ההורדה נכשלה — ממשיכים בלעדיהן.
+        27/10/2026: בלי files.r (מקישור / מ־Drive / סרטון שהשרת הוריד) — הכתוביות באנגלית שהשרת מצא בעצמו (J.subs_hlp)."""
         p = self.pd / 'en.ref.txt'
         if not p.exists():
             r = (self.ctx.st.get('files') or {}).get('r') or {}
-            if not r.get('id'):
-                return []
-            stop = getattr(self.J, 'Stop', None)
-            try:
-                self.J.fetch_input(self.ctx, r['id'], p, int(r.get('size') or 0))
-            except (SystemExit, Exception) as e:
-                if isinstance(stop, type) and isinstance(e, stop):
-                    raise
-                print('· כתוביות העזר מהקובץ לא נטענו — ההגהה ממשיכה בלעדיהן')
+            if r.get('id'):
+                stop = getattr(self.J, 'Stop', None)
                 try:
-                    p.unlink()
+                    self.J.fetch_input(self.ctx, r['id'], p, int(r.get('size') or 0))
+                except (SystemExit, Exception) as e:
+                    if isinstance(stop, type) and isinstance(e, stop):
+                        raise
+                    print('· כתוביות העזר מהקובץ לא נטענו — ההגהה ממשיכה בלעדיהן')
+                    try:
+                        p.unlink()
+                    except OSError:
+                        pass
+                    return []
+            else:
+                fn = getattr(self.J, 'subs_hlp', None)
+                txt = fn(self.ctx) if callable(fn) else ''
+                if not txt:
+                    return []
+                try:
+                    p.write_text(txt, encoding='utf-8')
                 except OSError:
-                    pass
-                return []
+                    return []
         try:
             lines = ref_lines(p.read_text(encoding='utf-8', errors='replace'))
         except OSError:

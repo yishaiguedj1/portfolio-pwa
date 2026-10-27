@@ -13,6 +13,7 @@ TMP = tempfile.mkdtemp()
 os.environ['VT_WORK'] = TMP
 os.environ['SNB_STATE'] = os.path.join(TMP, 'state', 'job.json')
 os.environ['SNB_POLL'] = '0.01'
+os.environ['SNB_LEARNREF'] = 'off'                      # 27/10/2026: url_fetch מתחיל את כתוביות היוצר — בלי yt-dlp אמיתי ברקע
 
 import job as J  # noqa: E402
 import fetchurl as F  # noqa: E402

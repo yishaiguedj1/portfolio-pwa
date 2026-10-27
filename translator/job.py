@@ -1166,7 +1166,14 @@ REF_JOIN_S = 60
 REF_DIR = 'ref'
 
 
+_REF = {'t': None}
+
+
 def learn_refs_start(ctx):
+    """27/10/2026: מתחיל כבר ב־url_fetch (תחילת העבודה) — הכתוביות באנגלית הן גם עזר להגהה (subs_hlp). קריאה שנייה
+    (finish) מחזירה את אותו תהליכון כשהוא עוד רץ — לא מורידים פעמיים"""
+    if _REF['t'] is not None and _REF['t'].is_alive():
+        return _REF['t']
     sp = url_spec(ctx)
     if not sp or os.environ.get('SNB_LEARNREF', 'on') == 'off' or (sp.get('pick') or {}).get('sec'):
         return None
@@ -1190,7 +1197,95 @@ def learn_refs_start(ctx):
             pass
     th = threading.Thread(target=go, name='learn-ref', daemon=True)
     th.start()
+    _REF['t'] = th
     return th
+
+
+# 27/10/2026 (בקשת המשתמש: "גם מקישור יוטיוב וגם מהדרייב — תמיד למשוך את קובצי הכתוביות שמוצמדים"): הכתוביות באנגלית
+# שכבר קיימות למקור = עזר להגהת התמלול (pipeline.sub_ref), כמו הרצועה שהטלפון שולף מקובץ מקומי (files.r).
+# מקישור — של היוצר (learn_refs_start, ברקע מתחילת העבודה); סרטון שהשרת מוריד בעצמו (Drive) — רצועת טקסט בתוך הקובץ,
+# בשליפה של ffmpeg (שניות — בלי קידוד). שתי השפות נשמרות ב־ref/ (גם הייחוס של מאגר הלמידה). כל כשל — בלי עזר.
+SUB_TEXT_CODECS = ('subrip', 'srt', 'ass', 'ssa', 'mov_text', 'webvtt', 'text')
+SUB_LANGS = {'en': ('en', 'eng'), 'he': ('he', 'heb', 'iw')}
+SUB_TIMEOUT = 120
+
+
+def sub_tracks(media):
+    """media.json → {en: אינדקס, he: אינדקס}: רצועת טקסט אחת לכל שפה — לא מאולצת ולא SDH קודם (כמו trkHlpAuto בטלפון)"""
+    out = {}
+    for want, codes in SUB_LANGS.items():
+        cands = [s for s in (media.get('streams') or []) if s.get('type') == 'subtitle'
+                 and str(s.get('codec') or '') in SUB_TEXT_CODECS and str(s.get('lang') or '').lower() in codes
+                 and isinstance(s.get('index'), int)]
+        pick = next((s for s in cands if not s.get('forced') and not s.get('sdh')), None) \
+            or next((s for s in cands if not s.get('forced')), None)
+        if pick:
+            out[want] = pick['index']
+    return out
+
+
+def embedded_subs(ctx):
+    """רצועות הטקסט בתוך הסרטון שבפרויקט → ref/<שפה>.srt (רק מה שעוד אין). מחזיר את השפות שיש עכשיו ב־ref/."""
+    pd = ctx.pdir
+    d = pd / REF_DIR
+    edl = (ctx.st.get('spec') or {}).get('edl') or {}
+    if isinstance(edl, dict) and edl.get('k'):
+        return []                                 # חיתוך לפני התרגום — הזמנים של הרצועה לא על הציר שלנו (כמו pick.sec בקישור)
+    src = _lm_source(pd)
+    tracks = sub_tracks(_read_json(pd / 'media.json') or {}) if src else {}
+    for lang, idx in tracks.items():
+        out = d / (lang + '.srt')
+        if out.exists():
+            continue
+        d.mkdir(parents=True, exist_ok=True)
+        tmp = d / ('.' + lang + '.srt')
+        try:
+            r = subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', str(src), '-map', '0:%d' % idx,
+                                '-c:s', 'srt', '-f', 'srt', str(tmp)], env=vt_env(), capture_output=True, timeout=SUB_TIMEOUT)
+            if r.returncode == 0 and 0 < tmp.stat().st_size <= 2 * 1024 * 1024:
+                tmp.replace(out)
+                print('· כתוביות מתוך הקובץ: ' + lang)
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+    return sorted(p.stem for p in d.glob('*.srt')) if d.is_dir() else []
+
+
+def hlp_lines(srt_text, limit=200_000):
+    """SRT → שורה לכל כתובית `[HH:MM:SS] טקסט` (הפורמט של hlpText בטלפון / pipeline.ref_lines); כתוביות צלילים — בחוץ"""
+    import tedeval as TE
+    out, n = [], 0
+    for c in TE.drop_sound_cues(TE.parse_srt(srt_text)):
+        t = max(0, int(float(c.get('s') or 0)))
+        body = re.sub(r'<[^<>]{0,60}>|\{\\[^{}]{0,80}\}', '', str(c.get('text') or ''))     # <i>, {\an8} — תגיות עיצוב
+        body = re.sub(r'\s+', ' ', re.sub(r'[\x00-\x1f\x7f<>]+', ' ', body)).strip()
+        if not body:
+            continue
+        line = '[%02d:%02d:%02d] %s' % (t // 3600, t // 60 % 60, t % 60, body)
+        n += len(line) + 1
+        if n > limit:
+            break
+        out.append(line)
+    return '\n'.join(out) + '\n' if out else ''
+
+
+def subs_hlp(ctx, wait=REF_JOIN_S):
+    """העזר להגהה כשהטלפון לא שלח (files.r): הכתוביות באנגלית מהיוצר / מתוך הקובץ. '' = אין."""
+    try:
+        th = _REF['t']
+        if th is not None and th.is_alive():
+            th.join(wait)                         # כתוביות היוצר — בקשה אחת קצרה; לא מחכים יותר מזה
+        if url_spec(ctx) is None:
+            embedded_subs(ctx)
+        p = ctx.pdir / REF_DIR / 'en.srt'
+        return hlp_lines(p.read_text(encoding='utf-8', errors='replace')) if p.is_file() else ''
+    except Stop:
+        raise
+    except (SystemExit, Exception):              # noqa: BLE001 — עזר בלבד
+        return ''
 
 
 def learn_refs(pd):
@@ -2343,6 +2438,7 @@ def url_fetch(ctx):
     if not url_spec(ctx):
         return
     files = ctx.st.get('files') or {}
+    learn_refs_start(ctx)                        # 27/10/2026: כתוביות היוצר — ברקע מעכשיו, עזר להגהה (subs_hlp)
     if not (files.get('a') or {}).get('id'):
         ctx.report('tr', 0, 'מוריד את הקול מהקישור', force=True)
         url_get(ctx, 'a', lambda f, got, tot: ctx.report('tr', 0.04 * f, 'מוריד את הקול מהקישור'))
