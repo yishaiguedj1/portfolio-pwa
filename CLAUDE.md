@@ -46,6 +46,7 @@
 | Studio — העובד: job.py, pipeline, llm.py, vt, Routine/ההעברה, איכות התרגום | `docs/studio-worker.md` |
 | Studio — מאגר הלמידה, האיסוף המלא, מעבדת השיפור | `docs/studio-learning.md` |
 | אנדרואיד נייטיב: Studio DM, Studio Browser + תוסף Chrome, Lab, תרגום בטלפון | `docs/android-apps.md` |
+| צריכת טוקנים: המדידה, המחקר, ההגדרות ומה עוד אפשר | `docs/token-economy.md` |
 | עקרונות ServiceNow (המגדל וההחלטות בסטודיו) | `docs/servicenow.md` |
 | היסטורי: תיאום הסשנים הישן, פריטים פתוחים ישנים | `docs/sessions-history.md`, `docs/open-items-history.md` |
 | משימות פתוחות (הרשימה הפעילה) | `משימות-פתוחות.md` |
