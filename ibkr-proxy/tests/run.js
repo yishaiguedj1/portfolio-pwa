@@ -3804,7 +3804,15 @@ function stubFetch(text, status = 200) {
       ok(st0.payload.ok && cl.payload.ok, 'push: עבודת תרגום הופעלה ונלקחה (' + (st0.payload.error || '') + ')');
       pushes = [];
       await wrk({ op: 'report', job: jid, key: kk, st: 'tr', p: 0.5 });
-      ok(pushes.length === 0, 'push: דיווח התקדמות רגיל — בלי התראה');
+      const ms = pushes[0] && decrypt(pushes[0].body);
+      ok(pushes.length === 1 && ms.k === 'stage' && ms.j === jid && ms.t === 'Writing down every word' && /50% · Step 2 of 7/.test(ms.b) && /▰{5}▱{5}/.test(ms.b) && ms.at === now
+        && pushes[0].headers.TTL === '1800' && pushes[0].headers.Urgency === 'normal', '27/10: שלב חדש → התראת התקדמות (בשפת המכשיר, שם השלב, פס ואחוז, קישור לעבודה)');
+      await wrk({ op: 'report', job: jid, key: kk, st: 'tr', p: 0.55 });
+      ok(pushes.length === 1, '27/10: אותו שלב בלי 10% נוספים — בלי התראה');
+      await wrk({ op: 'report', job: jid, key: kk, st: 'tr', p: 0.62 });
+      await wrk({ op: 'report', job: jid, key: kk, st: 'al', p: 0 });
+      ok(pushes.length === 3 && /62%/.test(decrypt(pushes[1].body).b) && decrypt(pushes[2].body).t === 'Timing every sentence', '27/10: כל 10% ובכל שלב חדש — התראה (מתחלפת בטלפון לפי העבודה)');
+      pushes = [];
       await wrk({ op: 'report', job: jid, key: kk, ask: { id: 'q1', q: 'Ackman או אקמן?', o: ['אקמן', 'Ackman'], d: 0, w: 600 } });
       const m1 = decrypt(pushes[0].body);
       ok(pushes.length === 1 && m1.k === 'ask' && m1.j === jid && m1.u.endsWith('#studio=' + jid), 'push: שאלה מ־Claude → התראה עם קישור לעבודה');
