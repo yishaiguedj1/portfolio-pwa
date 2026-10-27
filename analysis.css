@@ -164,8 +164,9 @@ button.an-row { cursor: pointer; }
 /* שורת ההסבר + הבועה (27/10/2026): הבועה בעמודה ברוחב קבוע בקצה השורה — לא מעל הגרף */
 .an-chead { display: grid; grid-template-columns: minmax(0, 1fr) 46%; gap: 12px; align-items: start; margin-bottom: 8px; }
 .an-chead .an-ex { margin: 0; }
-.an-tip { box-sizing: border-box; background: var(--an-fill); border-radius: var(--radius-xs); padding: 7px 12px; font-size: 13px; pointer-events: none; min-width: 0; }
-.an-tip-h { font-weight: 600; font-size: 12.5px; color: var(--an-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.an-tip { box-sizing: border-box; background: var(--an-tip); border: 1px solid var(--an-sep); border-radius: var(--radius-xs); box-shadow: 0 6px 20px rgba(0, 0, 0, .18);
+  padding: 7px 11px; font-size: 13px; pointer-events: none; min-width: 0; }
+.an-tip-h { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .an-tip-v { font-size: 18px; font-weight: 800; letter-spacing: -.3px; line-height: 1.25; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .an-tip-r { display: flex; justify-content: space-between; gap: 8px; align-items: center; min-width: 0; }
 .an-tip-r span { color: var(--an-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
