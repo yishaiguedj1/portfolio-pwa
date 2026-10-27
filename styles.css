@@ -879,6 +879,18 @@ html.drag-active .tabpage { transform: none !important; }   /* v324: בלי anim
 .measure-chip button { border: 0; background: none; cursor: pointer; font-size: 17px; color: var(--on-surface-var); }
 
 .chart-wrap { position: relative; }
+/* 27/10/2026: לחצן ההגדלה בפינה העליונה של הגרף בכרטיס המניה → גרף הנרות. עיגול זכוכית קטן, כמו בפקדי המדיה של iOS.
+   שמאל פיזי בכוונה: הקנבס מצייר את ציר המחיר תמיד מימין (drawStockChart — padR), בכל שפה */
+.kc-expand { position: absolute; top: 6px; left: 6px; z-index: 6; inline-size: 34px; block-size: 34px; padding: 0; display: grid; place-items: center;
+  border: 0; border-radius: var(--pill, 999px); color: var(--on-surface); background: color-mix(in srgb, var(--surface) 72%, transparent);
+  -webkit-backdrop-filter: saturate(1.8) blur(14px); backdrop-filter: saturate(1.8) blur(14px);
+  box-shadow: 0 0 0 .5px var(--separator), 0 1px 3px rgba(0, 0, 0, .08); cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: transform .18s cubic-bezier(.2, .8, .2, 1), background-color .18s ease; }
+.kc-expand svg { inline-size: 16px; block-size: 16px; opacity: .85; }
+.kc-expand:active { transform: scale(.9); background: color-mix(in srgb, var(--surface-2) 85%, transparent); }
+.kc-expand:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.chart-wrap.picking .kc-expand { opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .kc-expand { transition: none; } }
 .chart-wrap canvas { width: 100%; height: 210px; display: block; touch-action: manipulation; }
 .chart-wrap canvas.measuring { touch-action: none; cursor: crosshair; }
 /* v264: נגיעה בגרף המניה — קו אנכי + נקודה + בועה (מחיר ותאריך); שתי אצבעות — רצועה + תשואה. גלילה אנכית נשארת */
