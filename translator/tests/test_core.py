@@ -427,6 +427,23 @@ class TestConsensusNeighbors(unittest.TestCase):
         self.assertAlmostEqual(ws[0]["s"], 10.0, places=2)
 
 
+class TestCtcPlan(unittest.TestCase):
+    def test_long_gap_does_not_crash(self):
+        """27/10/2026 (סדרה עם מוזיקה): המילה הבאה רחוקה יותר מחלון שלם — הטווח לחיתוך היה ריק ו־vt align נפל בכל ניסיון."""
+        from vt.align_ctc import _plan
+        ws = [{"s": 0.0, "e": 0.5}, {"s": 40.0, "e": 40.5}, {"s": 41.0, "e": 41.5}, {"s": 75.0, "e": 75.4}]
+        plan = _plan(ws, "s", "e", 30.0)
+        self.assertEqual(plan, [(0, 1), (1, 3), (3, 4)])
+        self.assertEqual([i for a, b in plan for i in range(a, b)], list(range(len(ws))), 'כל מילה בחלון אחד בדיוק')
+
+    def test_normal_plan_unchanged(self):
+        from vt.align_ctc import _plan
+        ws = [{"s": i * 2.0, "e": i * 2.0 + 1.5} for i in range(40)]
+        plan = _plan(ws, "s", "e", 30.0)
+        self.assertEqual([i for a, b in plan for i in range(a, b)], list(range(40)))
+        self.assertTrue(all(ws[b - 1]["e"] - ws[a]["s"] <= 30.0 for a, b in plan))
+
+
 class TestRetime(unittest.TestCase):
     def test_retime_updates_speech_and_parts(self):
         from vt.segment import retime

@@ -768,7 +768,7 @@ class BrowserActivity : ComponentActivity() {
         val info = m.info ?: return
         val (q, audio, tr) = DmPre.choice(info, k) ?: return
         if (tr && !AppRoute.studioInstalled(this)) return
-        val subs = if (!audio && DmPrefs(this).subs) DmSubs.pick(info.optJSONArray("sub"), java.util.Locale.getDefault().language) else emptyList()
+        val subs = if (!audio && DmPrefs(this).subs) DmSubs.pick(info.optJSONArray("sub")) else emptyList()
         DmPre.enqueue(this, p.url, info, q, audio, if (p.page) "" else t.page, ck = true, tr = tr, subs = subs)
         pick = false
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)

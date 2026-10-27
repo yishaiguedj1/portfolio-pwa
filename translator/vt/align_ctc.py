@@ -164,7 +164,8 @@ def _plan(words: list[dict], key_s: str, key_e: str, max_s: float) -> list[tuple
             out.append((i0, n))
             break
         lo = i0 + max(1, int((j - i0) * 0.6))
-        k = max(range(lo, j + 1), key=lambda q: words[q + 1][key_s] - words[q][key_e])
+        # 27/10/2026: המילה הבאה רחוקה מ־max_s (שתיקה/מוזיקה ארוכה) → j == i0 והטווח ריק; חותכים אחרי j, כמו ב־align.py
+        k = max(range(lo, j + 1), key=lambda q: words[q + 1][key_s] - words[q][key_e]) if lo <= j else j
         out.append((i0, k + 1))
         i0 = k + 1
     return out
