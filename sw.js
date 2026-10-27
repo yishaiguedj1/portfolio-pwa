@@ -4,14 +4,14 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v584';
+const CACHE_NAME = 'portfolio-pwa-v585';
 const HASHES = {
   "./": "23049cdc117b2a1b516816fe94fff24a",
   "./index.html": "23049cdc117b2a1b516816fe94fff24a",
   "./styles.css": "f926d3fb8ca3b605093c1d164aa48733",
-  "./app.js": "cbe9439e8db59bfcc87f75f0ec344eb5",
+  "./app.js": "957e1eecf6bd601b5e95b603b5cd0193",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
-  "./cloud.js": "5d9505a0e3f827ee0e32eb00e948e2b2",
+  "./cloud.js": "9af566803f9e67e734390306b1e38db2",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
   "./move.js": "5f2580e686bc4768e65086b897398db6",
   "./manifest.webmanifest": "933cd57a01bc2c47f5e1904be166220b",
@@ -60,8 +60,8 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "cbbbe8c0aa8f9f0d9bfddd1575ea6757",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
-  "./strings-academy.js": "3345e898dfc6e44405607568a7d26500",
-  "./core.js": "ec22f4d19e34bd6ed8d30693f246f8df",
+  "./strings-academy.js": "ebf47ede85df3e214608c111a41c81ce",
+  "./core.js": "eef6e729759cfb42a28b7373a0658ef7",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "d6703c288cfb84be0bc06cbc61912c68",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -82,7 +82,7 @@ const HASHES = {
   "./studiobg.js": "386d76121dbaed74cdde91386ddf79c6",
   "./studio.html": "4344113c500fc12d34364c7de2f4e835",
   "./studio-app.js": "23ed8def0efea7784fa85b0d3efbef3d",
-  "./strings-studio.js": "28ac6e7d0dd7c2fe0b88e7dcf4d11d06",
+  "./strings-studio.js": "fb47256b4a921368374ede0330aebc42",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
