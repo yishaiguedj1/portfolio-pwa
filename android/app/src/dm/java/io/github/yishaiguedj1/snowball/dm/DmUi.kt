@@ -321,9 +321,12 @@ private fun catIcon(t: DmTask): ImageVector = when (if (t.kind == DmKind.YTDL) (
 @Composable
 // 26/10/2026 (סרטון של המשתמש: ההתראה מתעדכנת בזמן אמת והרשימה לא): המשימה היא אותו אובייקט בכל רענון, ו־Compose
 // מדלג על שורה שהפרמטרים שלה לא השתנו — rev (עולה כל שנייה כשמשהו רץ) הוא מה שמכריח אותה להתעדכן
-@Suppress("UNUSED_PARAMETER")
+// 27/10/2026 (המשתמש: "עדיין מתעדכן בדילאיי ביחס לווילון ההתראות"): פרמטר שלא קוראים לו בגוף הפונקציה — הקומפיילר של
+// Compose לא משווה אותו בהחלטה לדלג, כך ש־rev לא הכריח כלום והשורה התעדכנה רק כשמשהו אחר רענן אותה. עכשיו הוא בשימוש.
 private fun TaskRow(a: DmActivity, t: DmTask, rev: Int, onDetails: (String) -> Unit) {
     val ctx = LocalContext.current
+    val line = remember(rev) { DmFmt.line(ctx, t) }
+    val f = remember(rev) { t.frac }
     var menu by remember { mutableStateOf(false) }
     Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceContainer,
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).combinedClickable(
@@ -341,12 +344,11 @@ private fun TaskRow(a: DmActivity, t: DmTask, rev: Int, onDetails: (String) -> U
             }
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text(t.name.ifEmpty { t.title }.ifEmpty { t.url }, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
-                Text(DmFmt.line(ctx, t), style = MaterialTheme.typography.bodySmall,
+                Text(line, style = MaterialTheme.typography.bodySmall,
                     color = if (t.state == DmState.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (t.state != DmState.DONE) {
                     Spacer(Modifier.height(6.dp))
-                    val f = t.frac
                     if (f >= 0) LinearProgressIndicator(progress = { f }, Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
                         color = if (t.state == DmState.RUNNING) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
                     else if (t.state == DmState.RUNNING) LinearProgressIndicator(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)))
@@ -383,11 +385,13 @@ private fun Details(a: DmActivity, t: DmTask, rev: Int, onClose: () -> Unit) {
     val ctx = LocalContext.current
     ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.padding(20.dp, 0.dp, 20.dp, 28.dp).verticalScroll(rememberScrollState())) {
+            // rev בתוך התוכן של הגיליון — אחרת אותה למבדה (אותה משימה) והגיליון לא מתעדכן בזמן ההורדה
+            val line = remember(rev) { DmFmt.line(ctx, t) }
             Text(t.name.ifEmpty { t.title }, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-            Text(DmFmt.line(ctx, t), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(line, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(16.dp))
             if (t.kind == DmKind.HTTP && t.total > 0) {
-                val segs = t.segs.toList()
+                val segs = remember(rev) { t.segs.toList() }
                 val tot = t.total.toFloat()
                 val track = MaterialTheme.colorScheme.surfaceContainerHigh; val fill = MaterialTheme.colorScheme.primary
                 Canvas(Modifier.fillMaxWidth().height(14.dp)) {
