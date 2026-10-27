@@ -1092,7 +1092,7 @@ function seriesOf(name) {
   if (!m) return null;
   const n = m[1].replace(/[\s\-–]*(?:season|עונה)\s*\d{1,2}[\s\-–]*$/iu, ' ').replace(/\(\s*(19|20)\d\d\s*\)|\b(19|20)\d\d\s*$/g, ' ').replace(/[\s\-–[(]+$/, '').replace(/\s+/g, ' ').trim();
   const k = n.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-  return k.length >= 2 ? { k: k.slice(0, 60), n: glClean(n, 60) } : null;
+  return k.length >= 2 ? { k: k.slice(0, 60), n: glClean(n, 60), e: +(m[3] || m[5]) || 0 } : null;
 }
 function smRows(v, max, cell) {
   const out = [], seen = new Set();
@@ -1143,6 +1143,15 @@ function smForWorker(doc, ser) {
   return x && (x.gl.length || x.ch.length) ? { n: x.n, ep: x.ep, gl: x.gl, ch: x.ch } : null;
 }
 const jobSeries = (job) => seriesOf((job.fv && job.fv.name) || (job.fa && job.fa.name) || (job.fsu && job.fsu.name) || '');
+/* 28/10/2026: ניסוי "טיוטה אחת" (ניתוח 7 פרקים: ההכרעה בין שתי הטיוטות של Haiku לא עדיפה על מקרה מול התרגום האנושי,
+   והן ~30–35% מעלות הפרק). פרק של סדרה שמספרו 3 או 0 מודולו 4 — בלי הטיוטה השנייה (xd = 1). מוצלב עם החלוקה של המשתמש
+   (אי־זוגי medium, זוגי high): בכל מצב חצי עם וחצי בלי. נקבע פעם אחת בלקיחה הראשונה (נשמר בעבודה — גם להמשך ולמאגר) */
+const DUAL_AB_UNTIL = Date.UTC(2026, 10, 30);
+function dualAb(job, now) {
+  if (!(now < DUAL_AB_UNTIL)) return 0;
+  const s = jobSeries(job);
+  return s && s.e > 0 && (s.e % 4 === 3 || s.e % 4 === 0) ? 1 : 0;
+}
 /* v382: הערה לעובד (Pause + corrective input) — טקסט שלך מהטלפון לעבודה שרצה. נמסרת לעובד בתשובה לדיווח הבא על
    נקודת שמירה (nt → nh עם d = מתי נקראה). עד NOTE_MAX לעבודה, NOTE_LEN תווים; בלי תווי בקרה, תגיות וגרשיים הפוכים */
 const NOTE_MAX = 5, NOTE_LEN = 300;
@@ -1381,7 +1390,7 @@ function fromFields(f) {
   return o;
 }
 
-module.exports = { bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, jobSeries, SM_BYTES, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
+module.exports = { bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, jobSeries, SM_BYTES, dualAb, DUAL_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, cuesSwap, rrSpec, rrJob,

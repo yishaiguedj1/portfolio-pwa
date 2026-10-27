@@ -246,6 +246,7 @@ function learnRec(job, now, effState) {
     tw: job.tw && job.tw.lv ? { lv: job.tw.lv, why: CODE_RE.test(String(job.tw.why || '')) ? job.tw.why : '', x: isNum(job.tw.x) ? r4(job.tw.x) : null, sh: job.tw.sh ? 1 : 0 } : null,
     ij: job.ij && isNum(job.ij.n) ? job.ij.n : 0,
     gl: job.gl ? { u: job.gl.u || 0, s: Array.isArray(job.gl.s) ? job.gl.s.length : 0 } : null,
+    xd: job.xd === 1 ? 1 : 0,   // 28/10/2026: ניסוי "טיוטה אחת" (בלי הטיוטה השנייה)
     rvf: Array.isArray(job.rvf) ? job.rvf.length : 0, fil: Array.isArray(job.fil) ? job.fil.length : 0,   // סימונים מהביקורת, מילות מילוי — רק כמה
     qn: job.qn || 0, gn: job.gn || 0, nn: Array.isArray(job.nh) ? job.nh.length : 0,
     ed: Array.isArray(job.vh) ? job.vh.length : 0,                                       // כמה פעמים נשמרה עריכה של הכתוביות אחרי העבודה
