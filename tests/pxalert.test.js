@@ -47,6 +47,7 @@ ok(P.crossed(A('up', 100), 99, 100) && !P.crossed(A('up', 100), 101, 99) && P.cr
 const sw = R('sw.js'), app = R('app.js'), ch = R('chart.js');
 ok(/m\.k === 'px' \? \/\^#chart=/.test(sw) && /'px-' \+/.test(sw), 'sw.js: התראת מחיר נפתחת ב־#chart= עם תג לכל התראה');
 ok(/get\('chart'\)/.test(app) && /openChartFor\(ch\)/.test(app) && /tab\|stock\|studio\|chart\)=/.test(app), 'app.js: הקישור #chart= פותח את הגרף (גם מהרקע)');
+ok(/lite: \(\) => \{ if \(\/vercel/.test(app) && /if \(slow && S\.poll % 10\) return;/.test(ch), 'גרף: מצב חסכוני כשהבקשות הולכות ל־Vercel (מחיר כל 10 שנ׳)');
 ok(/sync: \(b\) => ibkrBgApi\(b\)/.test(app), 'app.js: הגרף מסנכרן דרך /api/ibkr-sync עם טוקן ההתחברות');
 ok(/op: 'pxa', act: 'sync'/.test(ch) && /pushManager\.subscribe/.test(ch) && /BG\.st === 'on'\) return/.test(ch), 'chart.js: סנכרון + מנוי Push; בלי התראת מערכת כפולה כשהרקע פעיל');
 for (const k of ['kcBgOn', 'kcBgOff', 'kcBgEnable', 'kcBgAuth', 'kcBgDeny', 'kcBgNo']) ok((app.match(new RegExp('\\b' + k + ": '", 'g')) || []).length === 2, k + ' בשתי השפות');
@@ -118,6 +119,13 @@ for (const k of ['kcBgOn', 'kcBgOff', 'kcBgEnable', 'kcBgAuth', 'kcBgDeny', 'kcB
   process.env.CRON_SECRET = 'sec';
   ok((await cron()).statusCode === 401 && (await cron({ authorization: 'Bearer sec' })).statusCode === 200, 'בודק: עם CRON_SECRET — רק עם הסוד');
   delete process.env.CRON_SECRET;
+  process.env.VERCEL = '1';
+  ok((await cron()).statusCode === 404, 'בודק: ב־Vercel לא רץ בכלל (מכסות Vercel ו־Firestore)');
+  delete process.env.VERCEL;
+  let writes = 0; const ff = deps.fetch; deps.fetch = async (u, o = {}) => { if (o.method === 'PATCH') writes++; return ff(u, o); };
+  await post({ op: 'pxa', act: 'sync', idToken: USER, alerts: [] });
+  ok(writes === 0, 'pxa sync בלי שינוי (פתיחת גרף רגילה) — בלי כתיבה ל־Firestore');
+  deps.fetch = ff;
   const off = await post({ op: 'pxa', act: 'off', idToken: USER, e: sub.endpoint });
   ok(off.payload.ok && off.payload.n === 0, 'pxa off: המכשיר יצא');
   ok((await post({ op: 'pxa', act: 'nope', idToken: USER })).statusCode === 400, 'pxa: פעולה לא מוכרת — 400');

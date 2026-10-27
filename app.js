@@ -14974,7 +14974,9 @@ function chartEnv() {
   return {
     t, api: env.api, modalPush, modalDone, back: env.back, name: env.name, logoHTML: env.logoHTML, flash, askConfirm: (m) => askConfirmP(m),
     lang: state.lang || getLang(),
-    sync: (b) => ibkrBgApi(b),   // 27/10/2026: התראות מחיר ברקע (op:'pxa' ב־/api/ibkr-sync)
+    sync: (b) => ibkrBgApi(b),
+    // הבקשות הולכות ל־Vercel (כתובת ישנה, או השרת שלנו נפל — firebase-config.js, snb_api_down) → הגרף מאט
+    lite: () => { if (/vercel\.app/.test(ibkrProxyBase())) return true; try { return +(sessionStorage.getItem('snb_api_down') || 0) > Date.now(); } catch (e) { return false; } },   // 27/10/2026: התראות מחיר ברקע (op:'pxa' ב־/api/ibkr-sync)
     quotes: async (syms) => {
       const r = await fetch(ibkrProxyBase() + '/api/quotes', { method: 'POST', headers: ibkrProxyHeaders(), body: JSON.stringify({ syms: syms.slice(0, 40) }) });
       return r.json();

@@ -1086,9 +1086,14 @@ function quoteSyms() {
   return [...s];
 }
 let quiet = 0;
+/* 27/10/2026 (בקשת המשתמש: "שלא יגיעו בשום צורה למגבלות של Vercel ו־Firebase"): כשהבקשות הולכות ל־Vercel (השרת שלנו
+   נפל והטלפון עבר לגיבוי, או כתובת ישנה) — מחיר כל 10 שנ׳ ונרות פי 6 לאט יותר. בשרת שלנו (הרגיל) — כל שנייה */
+const lite = () => { try { return !!(E && E.lite && E.lite()); } catch (e) { return false; } };
 async function poll() {
   if (!ROOT || S.busy || (typeof document !== 'undefined' && document.hidden)) return;
   S.poll++;
+  const slow = lite();
+  if (slow && S.poll % 10) return;
   // שוק סגור בכל המניות שבמסך (אין מחיר טרום/אחרי) — כל 15 שניות במקום כל שנייה
   if (quiet > 30 && S.poll % 15) return;
   S.busy = true;
@@ -1110,7 +1115,7 @@ async function poll() {
   } catch (e) { /* הטיק הבא */ } finally { S.busy = false; }
   // רענון נרות מהשרתון: תוך־יומי כל 20 שנ׳, יומי ומעלה כל דקה
   for (const c of S.cells) {
-    const every = L.isIntraday(c.tf) ? 20 : 60;
+    const every = (L.isIntraday(c.tf) ? 20 : 60) * (slow ? 6 : 1);
     if (!c.recAt || NOW() - c.recAt > every * 1000) { c.recAt = NOW(); if (c.q && (c.q.st === 'REGULAR' || (S.store.g.ext && L.isIntraday(c.tf)))) reconcile(c); }
   }
 }
@@ -2079,7 +2084,7 @@ function openAlerts() {
     );
     drawList();
     bgShow();
-    if (!BG.st) bgSync(false);
+    bgSync(true);   // ברירת מחדל: פתיחת החלון (נגיעה) = בקשת הרשאה אם עוד לא נשאלה, ורישום לרקע
   });
 }
 

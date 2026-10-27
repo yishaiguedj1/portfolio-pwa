@@ -187,7 +187,8 @@ async function pxApi(body, uid, res, deps) {
   if (pxLimited(uid)) return res.status(429).json({ ok: false, error: 'rate_limited' });
   if (act === 'key') return res.status(200).json({ ok: true, key: (await pxVapid(deps)).pub });
   if (act !== 'sync' && act !== 'off') return res.status(400).json({ ok: false, error: 'bad_params' });
-  const u = await pxGet(deps, uid), fired = u.f;
+  const sig = (x) => JSON.stringify([x.a, x.f, x.w.map((w) => w.e), x.l]);
+  const u = await pxGet(deps, uid), fired = u.f, before = sig(u);
   if (act === 'off') u.w = W.dropSub(u.w, body.e);
   else {
     if (Array.isArray(body.alerts)) u.a = PXA.norm(body.alerts);
@@ -196,7 +197,7 @@ async function pxApi(body, uid, res, deps) {
     if (body.lang === 'en' || body.lang === 'he') u.l = body.lang;
     for (const k of PX.last.keys()) if (k.startsWith(uid + '|') && !u.a.some((a) => k === uid + '|' + a.i)) PX.last.delete(k);
   }
-  await pxSave(deps, u);
+  if (sig(u) !== before) await pxSave(deps, u);   // מכסת Firestore: בלי שינוי (פתיחת גרף רגילה) — בלי כתיבה
   return res.status(200).json(act === 'sync' ? { ok: true, n: u.w.length, fired } : { ok: true, n: u.w.length });
 }
 /* הבודק: כל 30 שנ׳ מהשרת שלנו (server.js — startPx). מחיר אחד לכל הסימבולים, Push לכל חצייה, ומסמן שנשלח */
@@ -249,6 +250,8 @@ function allowed(user) {
 
 async function handler(req, res, deps = {}) {
   if (req.method === 'GET' && String((req.query && req.query.job) || '') === 'px') {
+    // רק בשרת שלנו: ב־Vercel הבודק לא רץ בכלל — אף אחד מבחוץ לא יכול לגרום לקריאות Firestore / הפעלות שם
+    if (process.env.VERCEL) return res.status(404).json({ ok: false, error: 'not_here' });
     const secret = process.env.CRON_SECRET;
     if (secret && String(req.headers.authorization || '') !== 'Bearer ' + secret) return res.status(401).json({ ok: false });
     try { return res.status(200).json(Object.assign({ ok: true }, await pxCron(deps))); }
