@@ -144,6 +144,16 @@ class LearnCorpus(unittest.TestCase):
         self.assertEqual((cu[4]['b'], cu[4]['p'], cu[4]['d']), ('ארבעה', 1, 'ארבע'))
         self.assertNotIn('f', cu[4], 'הבחירה בטיוטה השנייה היא לא תיקון של המתרגם')
 
+    def test_second_draft_then_fixed(self):
+        # 27/10/2026: כתובית שנבחרה מהטיוטה השנייה ותוקנה אחר כך — dict(d, **ab, **fixes) זרק TypeError והקורפוס כולו אבד
+        pd = self.ctx.pdir
+        (pd / 'tr' / 'alt').mkdir()
+        (pd / 'tr' / 'alt' / 'batch_001.he.txt').write_text('#1 אחת\n#2 שניים\n#3 שלוש\n#4 ארבע\n', encoding='utf-8')
+        (pd / 'tr' / 'fixes-ab.txt').write_text('#2 שניים\n', encoding='utf-8')
+        c = job.learn_corpus(self.ctx)
+        cu = {x['i']: x for x in c['cu']}
+        self.assertEqual((cu[2]['b'], cu[2]['p'], cu[2]['f']), ('שניים', 1, 'שתיים!'))
+
     def test_privacy(self):
         txt = json.dumps(job.learn_corpus(self.ctx), ensure_ascii=False)
         for bad in (SECRET, 'my-private-video-name', '/tmp', 'Dana'):   # Dana = דובר בלי מזהה S1/S2 — לא בטבלת השמות

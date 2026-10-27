@@ -1120,7 +1120,9 @@ def learn_corpus(ctx):
     d = _lc_answers(sorted(td.glob('batch_*.he.txt')))
     alt = _lc_answers(sorted((td / 'alt').glob('batch_*.he.txt')))     # 26/10/2026: הטיוטה השנייה (Haiku)
     ab = _lc_answers([td / 'fixes-ab.txt'])                            # מה שנבחר ממנה
-    f = dict(d, **ab, **_lc_answers([td / 'fixes.txt']))
+    # 27/10/2026: {**} ולא dict(d, **ab, **fixes) — כתובית שנבחרה מהטיוטה השנייה ותוקנה אחר כך הפילה את כל הקורפוס
+    # (TypeError: multiple values for keyword argument), והטקסט של כל העבודות מ־26/10 לא נשמר — בשקט
+    f = {**d, **ab, **_lc_answers([td / 'fixes.txt'])}
     r = dict(f, **_lc_answers([td / 'fixes_review.txt']))
     z = dict(r, **_lc_answers([td / 'fixes_zfinal.txt', td / 'fixes_zqc.txt']))   # 25/10: גם סבב הבקרה על המסך
     cu = []
@@ -1393,11 +1395,15 @@ def learn_put(ctx):
             b = base64.b64encode(gzip.compress(json.dumps(x, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))).decode('ascii')
             if len(b) <= (LC_MAX_B64_FULL if full else LC_MAX_B64):
                 j = ctx.c.raw('learnPut', lc=b)
+                if not j.get('saved'):
+                    print('· מאגר הלמידה: הטקסט לא נשמר (' + str(j.get('error') or 'השרתון לא שמר')[:40] + ')')
                 return bool(j.get('saved'))
+        print('· מאגר הלמידה: הטקסט לא נשמר (גדול מדי)')
         return False
     except Stop:
         raise
-    except (SystemExit, Exception):      # noqa: BLE001 — מידע משני
+    except (SystemExit, Exception) as e:      # noqa: BLE001 — מידע משני; אבל לא בשקט (27/10/2026: באג נעלם יומיים)
+        print('· מאגר הלמידה: הטקסט לא נשמר (' + type(e).__name__ + ')')
         return False
 
 
