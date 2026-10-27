@@ -64,6 +64,14 @@ function parse(j, iv) {
     out.v.push(Math.max(0, Math.round((q.volume && q.volume[i]) || 0)));
     last = t;
   }
+  /* עם טרום/אחרי Yahoo מוסיף בסוף "נר" חי בזמן המחיר האחרון (למשל 20:50 ב־15m) — שטוח ולא מיושר לטווח.
+     בטלפון הוא הופיע כנר אפור בלי תנועה. נקודה שקרובה לנר הקודם פחות מאורך הטווח — מתמזגת לתוכו. */
+  const sec = /^(\d+)m$/.test(iv) ? +RegExp.$1 * 60 : 0, n = out.t.length;
+  if (sec && n > 1 && out.t[n - 1] - out.t[n - 2] < sec) {
+    out.h[n - 2] = Math.max(out.h[n - 2], out.h[n - 1]); out.l[n - 2] = Math.min(out.l[n - 2], out.l[n - 1]);
+    out.c[n - 2] = out.c[n - 1]; out.v[n - 2] += out.v[n - 1];
+    for (const k of ['t', 'o', 'h', 'l', 'c', 'v']) out[k].pop();
+  }
   out.tz = String(meta.exchangeTimezoneName || 'America/New_York');
   out.cur = String(meta.currency || '').toUpperCase() === 'ILA' ? 'ILS' : String(meta.currency || '');
   out.ex = String(meta.exchangeName || '');

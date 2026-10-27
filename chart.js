@@ -947,7 +947,9 @@ function mountCell(c) {
   chart.setFormatter({ formatExtendText: (x) => (x && x.type === 'last_price' ? countdown(c, x.data, Date.now()) : '') });
   try { chart.overrideYAxis({ paneId: MAIN, name: S.store.g.scale }); } catch (e) { /* ברירת מחדל */ }
   chart.subscribeAction('onCrosshairChange', (x) => onCross(c, x));
-  chart.subscribeAction('onVisibleRangeChange', (r) => { const n = chart.getDataList().length; if (c.nowB) c.nowB.classList.toggle('on', !!(r && n > 0 && r.to < n - 1)); });
+  chart.subscribeAction('onVisibleRangeChange', (r) => { const n = chart.getDataList().length; const back = !!(r && n > 0 && r.to < n - 1); if (c.nowB) c.nowB.classList.toggle('on', back);
+    // זום כמו TradingView: כשרואים את הנר האחרון — הוא נשאר צמוד לימין; בגלילה בהיסטוריה — סביב האצבעות/הסמן
+    if (c.anchor !== back) { c.anchor = back; try { chart.setZoomAnchor(back ? 'cursor' : 'last_bar'); } catch (e) { /* גרסה אחרת */ } } });
   wireCellPointer(c);
   setSymbolPeriod(c);
   restoreIndicators(c, c.indSaved);
@@ -1502,14 +1504,29 @@ function onCross(c, x) {
   c.crossIdx = x && typeof x.dataIndex === 'number' ? x.dataIndex : c.crossIdx;
   if (c === S.cells[S.active]) updLegendTime(x);
 }
+/* מגע כמו TradingView (ו־Apple Stocks): הצלב מופיע רק בלחיצה ארוכה, עם רטט קצר, ונשאר אחרי ההרמה.
+   הקשה רגילה רק מסתירה אותו (התיקון בספרייה — vendor/klinecharts/README.md). */
 function wireCellPointer(c) {
-  let down = null;
-  c.el.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; if (S.active !== c.i) setActive(c.i); }, true);
+  let down = null, lp = 0;
+  const far = (e) => down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8;
+  c.el.addEventListener('pointerdown', (e) => {
+    down = { x: e.clientX, y: e.clientY, t: Date.now(), touch: e.pointerType === 'touch' };
+    if (S.active !== c.i) setActive(c.i);
+    clearTimeout(lp);
+    if (down.touch && e.isPrimary) lp = setTimeout(() => { if (down && navigator.vibrate) try { navigator.vibrate(8); } catch (x) { /* בלי רטט */ } }, 520);
+  }, true);
+  c.el.addEventListener('pointermove', (e) => { if (far(e)) clearTimeout(lp); }, true);
+  c.el.addEventListener('pointercancel', () => { clearTimeout(lp); down = null; }, true);
   c.el.addEventListener('pointerup', (e) => {
+    clearTimeout(lp);
     if (!down) return;
-    const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8;
+    const moved = far(e), tap = down.touch && !moved && Date.now() - down.t < 350;
     down = null;
-    if (!moved && S.pick === c) setTimeout(() => beginReplay(c, c.crossIdx), 30);
+    if (!moved && S.pick === c) {
+      // במגע הקשה לא פותחת צלב (vendor/klinecharts/README.md) — הנר נקבע מנקודת ההקשה
+      if (tap && c.chart) { try { const r = c.host.getBoundingClientRect(), p = c.chart.convertFromPixel([{ x: e.clientX - r.left, y: e.clientY - r.top }], { paneId: MAIN })[0]; if (p && typeof p.dataIndex === 'number') c.crossIdx = p.dataIndex; } catch (x) { /* נשאר האחרון */ } }
+      setTimeout(() => beginReplay(c, c.crossIdx), 30);
+    }
   }, true);
 }
 
