@@ -67,7 +67,7 @@ class DmTask(
     var tr = false             // 24/10: "להוריד ולתרגם ב־Studio" — בסוף ההורדה הקובץ מוצע ל־Studio
     var later = false          // 24/10: "אחר כך" — מתחילה רק ב־Wi‑Fi ובטעינה (DmRun.scheduleLater)
     var subs = ""              // 24/10: כתוביות היוצר לצרף ("he,en") — DmSubs; subsAuto = כולל אוטומטיות
-    var subsAuto = false
+    var subsAuto = false        // 27/10/2026: לא בשימוש — אוטומטיות לא יורדות (נשאר לקריאת משימות ישנות)
 
     val got: Long get() = if (kind == DmKind.YTDL) bytesYt else segs.sumOf { it.done.coerceAtMost(it.end - it.start) }
     // yt-dlp לפני האחוז הראשון (מתחבר, פותר את בדיקת יוטיוב) = ‎-1‎ — פס בתנועה, לא "0" קפוא
