@@ -113,6 +113,7 @@ export function normSettings(o) {
   if (Number.isFinite(+o.bgS2) && +o.bgS2 > 0) s.bgS2 = Math.min(9, Math.floor(+o.bgS2));
   const stale = Number(o.bgSt) >= 2;
   if (!stale && Number.isFinite(+o.bgNo) && +o.bgNo > 0) s.bgNo = Math.floor(+o.bgNo);   // 23/10/2026: מתי הדפדפן סירב להעלאה ברקע (ננסה שוב אחרי חודש)   // מתי Google סירב לבורר במסך מלא (ננסה שוב אחרי חודש)
+  if (Number.isFinite(+o.bgSl) && +o.bgSl > 0) s.bgSl = Math.floor(+o.bgSl);   // 28/10/2026: מתי העלאה ברקע הייתה איטית (ACCOUNT_KEYS — pwa_studio_v1 כולו)
   const sty = normSty(o.sty); if (sty) s.sty = sty;   // סבב 5: עיצוב הכתוביות האחרון (ברירת המחדל להפקה הבאה)
   if (o.lg && typeof o.lg === 'object') { const ov = normOv({ lg: o.lg.d, lp: o.lg.p, ls: o.lg.s }); if (ov) s.lg = { d: ov.lg, p: ov.lp, s: ov.ls }; }   // סבב 7: הלוגו שלך
   return s;
@@ -1905,6 +1906,7 @@ if (typeof window !== 'undefined') window.snbStudioBusy = () => Array.from(runs.
 function stopRun(id) { const r = runs.get(id); if (r && r.active) r.ctl.abort(); }
 
 /* ---------------- 23/10/2026: הסרטון ב־Background Fetch (studiobg.js) — ממשיך גם כשהאפליקציה סגורה ---------------- */
+const BG_SLOW_RETRY_MS = 3 * 86400e3;   // 28/10/2026: העלאה ברקע הייתה איטית מההעלאה הרגילה — לא מנסים שוב שלושה ימים (החיבור משתנה)
 const BG_RETRY_MS = 30 * 86400e3;   // דפדפן שסירב — מנסים שוב אחרי חודש (עדכון של Chrome)
 const bgStore = typeof indexedDB !== 'undefined' ? bgDb(indexedDB) : null;
 const bgEnv = {
@@ -1918,7 +1920,7 @@ const bgEnv = {
 };
 async function bgCan(rec, file) {
   const s = store.settings, up = rec.up;
-  return bgEligible({ size: file.size, r2: isR2Folder(up.folder), ext: !!up.ext, wifi: s.wifi, off: !!(s.bgNo && Date.now() - s.bgNo < BG_RETRY_MS),
+  return bgEligible({ size: file.size, r2: isR2Folder(up.folder), ext: !!up.ext, wifi: s.wifi, off: !!(s.bgNo && Date.now() - s.bgNo < BG_RETRY_MS) || !!(s.bgSl && Date.now() - s.bgSl < BG_SLOW_RETRY_MS),
     api: typeof navigator !== 'undefined' && !!navigator.serviceWorker && typeof BackgroundFetchManager !== 'undefined' && !!bgStore,
     up: await bgUpOk() });
 }
@@ -1937,8 +1939,9 @@ async function bgTry(rec, id, file, sig, onProgress) {
   const r = await bgUpload({ api: net.api, job: id, name: rec.spec.name, blob: file, size: file.size, mime: file.type || 'application/octet-stream',
     st: up.v.r2, onState: (x) => { up.v.r2 = x; save(); }, onProgress, signal: sig, title: T('studioBgTitle'), icon: 'icon-studio-192.png', poll: bgPoll(id, up) }, bgEnv)
     .catch(() => ({ fallback: 'bg_err' }));
-  utlOf(rec).bg = r.ok ? 1 : r.unsupported ? 3 : r.stall ? 4 : 2;   // 4 = Chrome קיבל ולא התקדם
+  utlOf(rec).bg = r.ok ? 1 : r.unsupported ? 3 : r.stall ? 4 : r.slow ? 5 : 2;   // 4 = Chrome קיבל ולא התקדם
   if (r.unsupported) { store.settings.bgNo = Date.now(); save(); }
+  if (r.slow) { store.settings.bgSl = Date.now(); save(); }   // 5 = Chrome התקדם אבל לאט מההעלאה הרגילה
   // 26/10/2026: נתקע — הפעם ממשיכים בהעלאה הרגילה; פעם שנייה בטלפון הזה = לא מנסים חודש. הצליח — מתחילים לספור מחדש
   if (r.stall) { const st = (store.settings.bgS2 || 0) + 1; store.settings.bgS2 = st; if (st >= 2) store.settings.bgNo = Date.now(); save(); }
   else if (r.ok && store.settings.bgS2) { delete store.settings.bgS2; save(); }
