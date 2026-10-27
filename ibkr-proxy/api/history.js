@@ -1,4 +1,5 @@
 /* POST /api/history  { syms: ['SPY','LUMI.TA',…] (עד 40), range: '1y'|'5y'|'7y'|'10y' | '1d'|'5d' (תוך־יומי, v228) }
+   או { op:'candles', sym, iv, to?, pre? } — נרות OHLCV לגרף הנרות (lib/candles.js)
    או { op:'fund', sym } / { op:'macro' } — דוחות כספיים ונתוני מקרו לניתוח חברה (lib/fundamentals.js)
    -> { ok, data: { SYM: { t: [ימים מאז 1970], c: [סגירות] } }, failed: [...] }
    מחירי סגירה יומיים מ־Yahoo (מידע ציבורי) — מהשרת, בבקשה אחת לכל הסימבולים.
@@ -97,9 +98,11 @@ async function fetchOne(sym, range, deadline) {
 module.exports = async (req, res) => {
   if (guard(req, res)) return;
   const ip = (req.headers['x-forwarded-for'] || '').split(',')[0] || (req.socket && req.socket.remoteAddress) || 'unknown';
-  if (rateLimited(ip)) return res.status(429).json({ ok: false, error: 'rate_limited' });
   let body = req.body;
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } }
+  /* 27/10/2026: נרות OHLCV לגרף הנרות (lib/candles.js) — הגבלת קצב משלו (גלילה ומעבר טווחים לא על חשבון ה־20 לדקה) */
+  if (body && body.op === 'candles') return require('../lib/candles').handle(body, res, ip);
+  if (rateLimited(ip)) return res.status(429).json({ ok: false, error: 'rate_limited' });
   /* 25/10/2026: דוחות כספיים לניתוח חברה (op:'fund' {sym}) ונתוני מקרו למחשבון (op:'macro') — lib/fundamentals.js.
      כאן ולא בפונקציה חדשה: ב־Vercel Hobby כבר 12 מתוך 12. מידע ציבורי בלבד, כמו המחירים. */
   if (body && (body.op === 'fund' || body.op === 'macro' || body.op === 'fundFlags')) return require('../lib/fundamentals').handle(body, res);

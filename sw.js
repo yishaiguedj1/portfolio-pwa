@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v585';
+const CACHE_NAME = 'portfolio-pwa-v587';
 const HASHES = {
   "./": "23049cdc117b2a1b516816fe94fff24a",
   "./index.html": "23049cdc117b2a1b516816fe94fff24a",
-  "./styles.css": "f926d3fb8ca3b605093c1d164aa48733",
-  "./app.js": "957e1eecf6bd601b5e95b603b5cd0193",
+  "./styles.css": "b71c0f12034af5821f436d65c571f410",
+  "./app.js": "a8473c85a7eddf2e265f47396f97d2dd",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "9af566803f9e67e734390306b1e38db2",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -33,6 +33,10 @@ const HASHES = {
   "./acclink.js": "ff59b5aefee7c6e74278b350f3d6f236",
   "./analysis.js": "51b24b9a04df43a0d24c806fbe1bdba0",
   "./analysis.css": "ca1b140598ab7565a249a0e100ea7bf4",
+  "./chart.js": "a2615719b7171b54a7021a8c7743b5d0",
+  "./chartlib.js": "9a06cb04006669c63113baa622551c23",
+  "./chart.css": "2790bc69e4cf69cedba909fbc1e15071",
+  "./vendor/klinecharts/klinecharts.min.js": "428b7c3bff6a74e121b4da8093bd0187",
   "./library.js": "ebf4c7295ff22d17fb09b56be12d2cec",
   "./library.css": "76ff87750ae8fd22063cbd07b7f3d8ce",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
@@ -60,8 +64,8 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "cbbbe8c0aa8f9f0d9bfddd1575ea6757",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
-  "./strings-academy.js": "ebf47ede85df3e214608c111a41c81ce",
-  "./core.js": "eef6e729759cfb42a28b7373a0658ef7",
+  "./strings-academy.js": "80104b53a9c112f04de1557f0e31a559",
+  "./core.js": "d79b15e041d0c6282eda256b5dc5f0f9",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "d6703c288cfb84be0bc06cbc61912c68",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -82,7 +86,7 @@ const HASHES = {
   "./studiobg.js": "386d76121dbaed74cdde91386ddf79c6",
   "./studio.html": "4344113c500fc12d34364c7de2f4e835",
   "./studio-app.js": "23ed8def0efea7784fa85b0d3efbef3d",
-  "./strings-studio.js": "fb47256b4a921368374ede0330aebc42",
+  "./strings-studio.js": "44d345f63a80cc113f6392ef437d8761",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
@@ -109,7 +113,8 @@ const APP_SHELL = [
   './favicon-48.png',
   './ibkr-logo.png',
   './acclink.js',   // 26/10/2026: כניסה עם מייל ושיטות הכניסה (נטען בלחיצה)
-  './analysis.js', './analysis.css'   // 25/10/2026: מנתח החברות — נטען בלחיצה, אבל באותה גרסה של app.js
+  './analysis.js', './analysis.css',   // 25/10/2026: מנתח החברות — נטען בלחיצה, אבל באותה גרסה של app.js
+  './chart.js', './chartlib.js', './chart.css', './vendor/klinecharts/klinecharts.min.js'   // 27/10/2026: גרף הנרות — נטען בלחיצה
 ];
 
 /* האקדמיה (שלב 8): קבצי הספרייה והקורא — נטענים מראש בכל עדכון רק אצל מי שכבר נכנס לספרייה
