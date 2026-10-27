@@ -391,7 +391,7 @@ function stubFetch(text, status = 200) {
     ok(quotes._trimChart({ chart: { result: null, error: { code: 'x' } } }) === null, 'quotes: שגיאת Yahoo → null');
     let calls = 0;
     global.fetch = async (url) => { calls++; if (/BAD/.test(url)) return { status: 429, json: async () => ({}) }; return { status: 200, json: async () => full }; };
-    quotes._cache.clear();
+    quotes._cache.clear(); quotes._chartCache.clear();
     let r = mockRes();
     await quotes(mockReq({ body: { syms: ['aapl', 'BAD'] } }), r);
     ok(r.statusCode === 200 && r.payload.data.AAPL && r.payload.failed.join() === 'BAD', 'quotes: מחזיר מה שיש, מסמן כשל');
@@ -407,8 +407,37 @@ function stubFetch(text, status = 200) {
     ok(r.statusCode === 403, 'quotes: Origin זר → 403');
     mockReq.ip = '8.8.8.5';
     let last = 0;
-    for (let k = 0; k < 121; k++) { r = mockRes(); await quotes(mockReq({ body: { syms: ['AAPL'] } }), r); last = r.statusCode; }
-    ok(last === 429, 'quotes: הגבלת קצב (120 בדקה ל־IP — v165: טיק כל 2 שניות = 30)');
+    for (let k = 0; k < 241; k++) { r = mockRes(); await quotes(mockReq({ body: { syms: ['AAPL'] } }), r); last = r.statusCode; }
+    ok(last === 429, 'quotes: הגבלת קצב (240 בדקה ל־IP — 27/10/2026: טיק כל שנייה = 60)');
+    { // 27/10/2026: המחיר הטרי מ־v7 על הנרות שבמטמון
+      const ch = (cur) => ({ chart: { result: [{ meta: { currency: cur, regularMarketPrice: 100, regularMarketTime: 120 }, timestamp: [60, 120], indicators: { quote: [{ close: [99, 100] }] } }] } });
+      const a = quotes._overlay(ch('USD'), { state: 'REGULAR', reg: { p: 101.5, t: 150 } }).chart.result[0];
+      ok(a.indicators.quote[0].close.join() === '99,101.5' && a.timestamp.join() === '60,120' && a.meta.regularMarketPrice === 101.5 && a.meta.regularMarketTime === 150, 'overlay: אותה דקה — הסגירה של הנר האחרון מוחלפת');
+      const b = quotes._overlay(ch('USD'), { state: 'REGULAR', reg: { p: 102, t: 245 } }).chart.result[0];
+      ok(b.timestamp.join() === '60,120,240' && b.indicators.quote[0].close.join() === '99,100,102', 'overlay: דקה חדשה — נר חדש');
+      const c = quotes._overlay(ch('USD'), { state: 'PRE', reg: { p: 100, t: 100 }, pre: { p: 98, t: 170 } }).chart.result[0];
+      ok(c.indicators.quote[0].close.join() === '99,98' && c.meta.regularMarketPrice === 100, 'overlay: טרום־מסחר — המחיר של טרום־המסחר, המחיר הרגיל לא משתנה');
+      const d = quotes._overlay(ch('ILA'), { state: 'REGULAR', reg: { p: 1.02, t: 130 } }).chart.result[0];
+      ok(d.indicators.quote[0].close[1] === 102, 'overlay: ת"א — חזרה לאגורות');
+      const src = ch('USD');
+      ok(quotes._overlay(src, { state: 'REGULAR', reg: { p: 50, t: 90 } }) === src && quotes._overlay(src, { state: 'CLOSED', reg: { p: 50, t: 500 } }) === src, 'overlay: מחיר ישן מהנר / שוק סגור — בלי שינוי');
+      quotes._overlay(src, { state: 'REGULAR', reg: { p: 7, t: 130 } });
+      ok(src.chart.result[0].indicators.quote[0].close[1] === 100, 'overlay: לא משנה את האובייקט שבמטמון');
+      // הנרות במטמון 5 שנ׳, ה־v7 בכל בקשה
+      let chartCalls = 0, v7 = 0;
+      global.fetch = async (url) => { const u = String(url);
+        if (/fc\.yahoo\.com/.test(u)) return { status: 302, headers: { get: () => 'A3=d=x; Path=/' } };
+        if (/getcrumb/.test(u)) return { status: 200, text: async () => 'cr' };
+        if (/v7\/finance\/quote/.test(u)) { v7++; return { status: 200, json: async () => ({ quoteResponse: { result: [{ symbol: 'ZZZ', marketState: 'REGULAR', regularMarketPrice: 100 + v7, regularMarketTime: 130 + v7 }] } }) }; }
+        chartCalls++; return { status: 200, json: async () => ch('USD') }; };
+      quotes._cache.clear(); quotes._chartCache.clear(); mockReq.ip = '8.8.8.9';
+      r = mockRes(); await quotes(mockReq({ body: { syms: ['ZZZ'] } }), r);
+      const p1 = r.payload.data.ZZZ.chart.result[0].indicators.quote[0].close[1];
+      quotes._cache.clear();
+      r = mockRes(); await quotes(mockReq({ body: { syms: ['ZZZ'] } }), r);
+      const p2 = r.payload.data.ZZZ.chart.result[0].indicators.quote[0].close[1];
+      ok(chartCalls === 1 && v7 === 2 && p1 === 101 && p2 === 102 && r.payload.data.ZZZ.x.reg.p === 102, 'quotes: הנרות מהמטמון, המחיר מ־v7 טרי בכל בקשה');
+    }
   }
 
   /* ---------- v165: שדות מורחבים (טרום/אחרי/overnight) ---------- */
@@ -448,13 +477,13 @@ function stubFetch(text, status = 200) {
       if (/v7\/finance\/quote/.test(u)) { v7calls++; if (v7calls === 1) return { status: 401, json: async () => ({}) }; return { status: 200, json: async () => ({ quoteResponse: { result: [{ symbol: 'AAPL', marketState: 'PRE', regularMarketPrice: 340, preMarketPrice: 342, preMarketChange: 2, preMarketChangePercent: 0.59, preMarketTime: 5 }] } }) }; }
       return { status: 200, json: async () => ({ chart: { result: [{ meta: { currency: 'USD', regularMarketPrice: 340, gmtoffset: 0 }, timestamp: [1, 2], indicators: { quote: [{ close: [339, 340] }] } }] } }) };
     };
-    quotes._cache.clear(); quotes._setCrumb({ cookie: '', crumb: '', at: 0 });
+    quotes._cache.clear(); quotes._chartCache.clear(); quotes._setCrumb({ cookie: '', crumb: '', at: 0 });
     mockReq.ip = '8.8.8.6';
     let r = mockRes();
     await quotes(mockReq({ body: { syms: ['AAPL'] } }), r);
     ok(r.payload.ext === true && r.payload.data.AAPL.x && r.payload.data.AAPL.x.pre.p === 342 && crumbs === 2, 'quotes: 401 → crumb מתחדש, השדות המורחבים מצורפים');
     global.fetch = async (url) => { const u = String(url); if (/v7\/finance\/quote|getcrumb|fc\.yahoo/.test(u)) throw new Error('down'); return { status: 200, json: async () => ({ chart: { result: [{ meta: { currency: 'USD', regularMarketPrice: 340, gmtoffset: 0 }, timestamp: [1], indicators: { quote: [{ close: [340] }] } }] } }) }; };
-    quotes._cache.clear();
+    quotes._cache.clear(); quotes._chartCache.clear();
     r = mockRes();
     await quotes(mockReq({ body: { syms: ['MSFT'] } }), r);
     ok(r.statusCode === 200 && r.payload.data.MSFT && !r.payload.data.MSFT.x && r.payload.ext === false, 'quotes: v7 למטה → המחיר הבסיסי עדיין מגיע (בלי x)');
