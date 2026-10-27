@@ -8734,6 +8734,15 @@ function shadeUpLine(rec, run, now) {
   if (r.v > 0) parts.push(T('studioPerSec', { v: fmtSize(r.v) }));
   return parts.join(' · ');
 }
+/* בקשת המשתמש: "בר התקדמות להעלאה שנראה בדיוק כמו של השלבים" — אותו shadeBar, אחוז ושם השלב. כשההעלאה עצמה השלב
+   הנוכחי — השורה הראשונה כבר הפס שלה, ומוסיפים רק את המגה־בייטים והמהירות */
+function shadeUpBlock(rec, run, now, curSt) {
+  const ln = shadeUpLine(rec, run, now);
+  if (!ln) return '';
+  if (curSt === 'up') return ln;
+  const size = rec.spec.size || run.total || 0, up = size > 0 ? Math.max(0, Math.min(1, (run.sent || 0) / size)) : 0;
+  return stageName('up', langsSum(rec.spec.to), rec.spec.ka ? 'ka' : rec.spec.src === 'subs') + '\n' + shadeBar(up, uiLang()) + '  ' + Math.round(up * 100) + '%\n' + ln;
+}
 /* 27/10/2026: עבודה שכבר לא רצה (בוטלה, נגמרה בלי שהתראת הסוף הגיעה) — התראת השלב נסגרת (sw.js מחזיר רק כשהמשתמש סגר) */
 function shadeEnd(id) {
   navigator.serviceWorker.ready.then((reg) => reg.getNotifications({ tag: 'studio-' + id }))
@@ -8761,7 +8770,7 @@ function shadeSync() {
     const p = Math.max(0, Math.min(1, shownPct(rec, s.pv != null ? s.pv : s.p, 'sh:' + s.id)));
     const sk = rec.spec.ka ? 'ka' : rec.spec.src === 'subs';
     const title = stageName(s.id, langsSum(rec.spec.to), sk);
-    const ul = shadeUpLine(rec, run, now);
+    const ul = shadeUpBlock(rec, run, now, s.id);
     const body = shadeBar(p, uiLang()) + '  ' + Math.round(p * 100) + '% · ' + T('studioShadeOf', { n: STAGES.indexOf(s.id) + 1, t: STAGES.length }) + (ul ? '\n' + ul : '');
     const key = title + '|' + body;
     if (shadeLast.get(rec.id) === key) continue;

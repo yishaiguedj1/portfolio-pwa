@@ -48,5 +48,6 @@ const ok = (c, m) => { assert.ok(c, m); n++; console.log('ok - ' + m); };
     ok(/T\('studioUpOf'/.test(ul) && /T\('studioPerSec'/.test(ul) && /run\.phase !== 'video'/.test(ul), 'שורת ההעלאה: עלו X מתוך Y · מהירות');
     ok(!/if \(run && run\.bg\) continue;/.test(src) && /\(ul \? '\\n' \+ ul : ''\)/.test(src), 'גם בהעלאה ברקע — השורה בהתראה שלנו');
   }
+  ok(/function shadeUpBlock\(rec, run, now, curSt\)/.test(src) && /shadeBar\(up, uiLang\(\)\) \+ '  ' \+ Math\.round\(up \* 100\) \+ '%/.test(src) && /shadeUpBlock\(rec, run, now, s\.id\)/.test(src), 'פס ההעלאה — אותו עיצוב כמו פס השלבים');
   console.log('# ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL - ' + e.message); process.exit(1); });
