@@ -1512,6 +1512,7 @@ function exitReplay(c, silent) {
 }
 function onCross(c, x) {
   c.crossIdx = x && typeof x.dataIndex === 'number' ? x.dataIndex : c.crossIdx;
+  plusAt(c, x);
   if (c === S.cells[S.active]) updLegendTime(x);
 }
 /* מגע כמו TradingView (ו־Apple Stocks): הצלב מופיע רק בלחיצה ארוכה, עם רטט קצר, ונשאר אחרי ההרמה.
@@ -1617,14 +1618,21 @@ function build(sym) {
   UI.sel = h('div', { class: 'kc-selbar' });
   UI.rep = h('div', { class: 'kc-repbar' });
   UI.fab = btn('kc-fab', T('kcTools'), openToolsSheet, ICON.pencil);
-  ROOT.append(UI.top, UI.bar, h('div', { class: 'kc-main' }, UI.side, UI.grid, UI.watch), UI.foot, UI.sel, UI.rep, UI.fab);
+  UI.mbar = h('div', { class: 'kc-mbar' });
+  ROOT.append(UI.top, UI.bar, h('div', { class: 'kc-main' }, UI.side, UI.grid, UI.watch), UI.foot, UI.mbar, UI.sel, UI.rep, UI.fab);
   for (const c of S.cells) {
     c.host = h('div', { class: 'kc-host', dir: 'ltr' });
     c.stEl = h('div', { class: 'kc-st' });
     c.tagEl = btn('kc-ctag', '', () => { setActive(c.i); openSearch(); });
     // ">>" כמו TradingView — מופיע רק כשגללו אחורה והנר האחרון לא במסך
     c.nowB = btn('kc-now', T('kcToNow'), () => { if (c.chart) c.chart.scrollToRealTime(200); }, ICON.now);
-    c.el = h('div', { class: 'kc-cell' + (c.i === S.active ? ' act' : '') }, c.host, c.stEl, c.tagEl, c.nowB);
+    // "+" בציר המחיר ליד הצלב (TradingView): התראה / קו אופקי במחיר הזה
+    c.plusB = btn('kc-plus', T('kcPlusAt'), () => openPlus(c), ICON.plus);
+    // מדידה מהירה בפינה העליונה (בטלפון, כמו TradingView): מחיר+תאריך, מחיר
+    c.qm = h('div', { class: 'kc-qm' },
+      btn('kc-ib sm', T('kcToMeasure'), () => { setActive(c.i); startTool('kcMeasure'); }, ICON.ruler),
+      btn('kc-ib sm', T('kcToPRange'), () => { setActive(c.i); startTool('kcPriceRange'); }, ICON.prange));
+    c.el = h('div', { class: 'kc-cell' + (c.i === S.active ? ' act' : '') }, c.host, c.stEl, c.tagEl, c.nowB, c.plusB, c.qm);
     UI.grid.appendChild(c.el);
   }
   renderTop(); updBars(); renderSide(); renderFoot(); renderSel(); renderReplay(); updTags();
@@ -1673,7 +1681,7 @@ function renderTop() {
     symBtn,
     h('div', { class: 'kc-quote' }, h('div', { class: 'kc-pxrow' }, UI.hd.px, UI.hd.ext), h('div', { class: 'kc-pxrow sm' }, UI.hd.ch, UI.hd.st)),
     h('div', { class: 'kc-top-end' },
-      UI.undoB = btn('kc-ib', T('kcUndo'), undo, ICON.undo), UI.redoB = btn('kc-ib kc-redo', T('kcRedo'), redo, ICON.redo),
+      UI.undoB = btn('kc-ib kc-undo', T('kcUndo'), undo, ICON.undo), UI.redoB = btn('kc-ib kc-redo', T('kcRedo'), redo, ICON.redo),
       btn('kc-ib', T('kcShot'), shot, ICON.cam), btn('kc-ib' + (S.watch ? ' on' : ''), T('kcWatch'), toggleWatch, ICON.watch), btn('kc-ib', T('kcSettings'), openSettings, ICON.gear)),
   );
   if (c) updHeader();
@@ -1734,6 +1742,8 @@ function updUndo() {
   const c = act();
   if (UI.undoB) UI.undoB.disabled = !c || !c.undo.length;
   if (UI.redoB) UI.redoB.disabled = !c || !c.redo.length;
+  const mu = UI.mbar && !S.tool && UI.mbar.lastChild;
+  if (mu) mu.disabled = !c || !c.undo.length;
 }
 function updTags() {
   const multi = S.cells.length > 1;
@@ -1773,6 +1783,144 @@ function updBars() {
   );
   UI.bar.scrollLeft = sx;   // בנייה מחדש בלי קפיצה של הסרגל להתחלה
   renderFoot();
+  renderMbar();
+}
+
+/* ---------- טלפון: סרגל תחתון כמו TradingView ----------
+   סימבול · טווח זמן (גרירה אנכית = גלגלת כמו iOS, הקשה = רשימה) · ציור · אינדיקטורים · עוד · בטל.
+   בזמן ציור הסרגל מתחלף לכלי הציור: הכלי, מגנט, ציור רציף, נעילה, הסתרה, אובייקטים, סיום. */
+function renderMbar() {
+  if (!UI.mbar) return;
+  UI.mbar.textContent = '';
+  const c = act();
+  if (!c) return;
+  const ib = (icon, label, on, active) => btn('kc-mb' + (active ? ' on' : ''), label, on, ICON[icon]);
+  if (S.tool) {
+    const ti = TOOL_INFO[S.tool];
+    UI.mbar.classList.add('draw');
+    UI.mbar.append(
+      ib(ti ? ti.icon : 'pencil', T('kcTools'), openToolsSheet, true),
+      ib('magnet', T('kcMagnet'), () => { S.magnet = (S.magnet + 1) % 3; if (E.flash) E.flash(T('kcMagnet' + S.magnet)); renderSide(); renderMbar(); }, !!S.magnet),
+      ib('pencil', T('kcStay'), () => { S.store.g.stay = !S.store.g.stay; save(); renderMbar(); }, !!S.store.g.stay),
+      ib(S.allLocked ? 'lock' : 'unlock', T('kcLockAll'), () => { lockAll(); renderMbar(); }, S.allLocked),
+      ib(S.allHidden ? 'eyeoff' : 'eye', T('kcHideAll'), () => { hideAll(); renderMbar(); }, S.allHidden),
+      ib('list', T('kcObjects'), openObjects),
+      ib('close', T('kcCancel'), stopTool));
+    return;
+  }
+  UI.mbar.classList.remove('draw');
+  const symB = btn('kc-mb txt sym', T('kcSearch'), () => openSearch());
+  symB.textContent = c.sym;
+  wheel(symB, () => { const l = [...new Set([c.sym, ...(E.symbols ? E.symbols() : [])])].slice(0, 40); return l.map((x) => ({ v: x, t: x, cur: x === c.sym })); }, (it) => setSym(c, it.v));
+  const ctf = c.swTf || c.tf, fav = S.store.g.fav.includes(ctf) ? S.store.g.fav : [...S.store.g.fav, ctf];
+  const tfB = btn('kc-mb txt', T('kcMoreTf'), openTfSheet);
+  tfB.textContent = tfLabel(ctf);
+  wheel(tfB, () => fav.map((tf) => ({ v: tf, t: tfLabel(tf), cur: tf === ctf })), (it) => setTf(c, it.v));
+  UI.mbar.append(symB, tfB, h('span', { class: 'kc-sep' }),
+    ib('pencil', T('kcTools'), openToolsSheet),
+    ib('fx', T('kcIndicators'), openIndSheet),
+    ib('more', T('kcMore'), openMore),
+    ib('undo', T('kcUndo'), undo));
+  const u = UI.mbar.lastChild;
+  u.disabled = !c.undo.length;
+}
+/* גלגלת בחירה (iOS) על כפתור: גרירה למעלה/למטה מחליפה פריט כל 30px, עם רטט קטן; שחרור = בחירה */
+function wheel(b, items, pick) {
+  let st = null;
+  b.style.touchAction = 'none';
+  const draw = () => {
+    st.el.textContent = '';
+    for (let k = -2; k <= 2; k++) {
+      const it = st.items[st.i + k];
+      st.el.appendChild(h('div', { class: 'kc-wh-i d' + Math.abs(k), text: it ? it.t : '' }));
+    }
+  };
+  b.addEventListener('pointerdown', (e) => { st = { y: e.clientY, on: false }; });
+  b.addEventListener('pointermove', (e) => {
+    if (!st) return;
+    const dy = e.clientY - st.y;
+    if (!st.on) {
+      if (Math.abs(dy) < 8) return;
+      st.items = items();
+      if (st.items.length < 2) { st = null; return; }
+      st.on = true; st.i0 = st.i = Math.max(0, st.items.findIndex((x) => x.cur));
+      try { b.setPointerCapture(e.pointerId); } catch (x) { /* בלי לכידה */ }
+      st.el = h('div', { class: 'kc-wheel', 'aria-hidden': 'true' });
+      ROOT.appendChild(st.el);
+      draw();
+    }
+    e.preventDefault();
+    const i = Math.max(0, Math.min(st.items.length - 1, st.i0 + Math.round(-dy / 30)));
+    if (i !== st.i) { st.i = i; draw(); try { if (navigator.vibrate) navigator.vibrate(3); } catch (x) { /* בלי רטט */ } }
+  });
+  const end = () => {
+    if (!st) return;
+    const s0 = st;
+    st = null;
+    if (!s0.on) return;
+    s0.el.remove();
+    b.dataset.drag = '1';
+    setTimeout(() => { delete b.dataset.drag; }, 60);
+    if (s0.i !== s0.i0) pick(s0.items[s0.i]);
+  };
+  b.addEventListener('pointerup', end);
+  b.addEventListener('pointercancel', end);
+  b.addEventListener('click', (e) => { if (b.dataset.drag) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+}
+/* "עוד" בטלפון: כל מה שבסרגל העליון ובתחתון של המחשב */
+function openMore() {
+  const c = act();
+  if (!c) return;
+  openSheet(T('kcMore'), (b, sh) => {
+    const ty = TYPES.find((x) => x[0] === c.type) || TYPES[0];
+    const cell = (icon, key, fn, on) => h('button', { type: 'button', class: 'kc-tcell' + (on ? ' on' : ''), onclick: () => { closeSheet(sh); fn(); } }, h('span', { class: 'kc-ico', html: ICON[icon] }), h('span', { text: T(key) }));
+    b.append(h('div', { class: 'kc-tgrid' },
+      cell(ty[2], 'kcType', openTypeSheet), cell('plus', 'kcCompare', openCompare, hasInd(c, 'KCCMP')),
+      cell('auto', 'kcAuto', openAutoSheet, Object.keys(AUTO).some((k) => hasInd(c, k))), cell('bell', 'kcAlerts', openAlerts, (S.store.alerts[c.sym] || []).some((a) => !a.done)),
+      cell('replay', 'kcReplay', startPick, !!c.replay), cell('layout', 'kcLayout', openLayoutSheet, S.cells.length > 1),
+      cell('season', 'kcSeason', openSeason), cell('test', 'kcBacktest', openBacktest, hasInd(c, 'KCBT')),
+      cell('list', 'kcObjects', openObjects), cell('cam', 'kcShot', shot), cell('redo', 'kcRedo', redo)));
+    b.appendChild(h('div', { class: 'kc-gt', text: T('kcRangesT') }));
+    b.appendChild(h('div', { class: 'kc-ranges wrap' }, ...RANGES.map((r) => btn('kc-rg' + (S.range === r[0] && c.tf === r[1] ? ' on' : ''), r[0], () => { closeSheet(sh); goRange(r); }))));
+    const sc = S.store.g.scale;
+    b.appendChild(row(seg([['normal', T('kcScaleN')], ['percentage', '%'], ['logarithm', 'log']], sc, (v) => { S.store.g.scale = v; for (const x of S.cells) if (x.chart) setScale(x, v); save(); renderFoot(); })));
+  });
+}
+/* "+" ליד הצלב בציר המחיר */
+function plusAt(c, x) {
+  if (!c.plusB || !c.chart) return;
+  clearTimeout(c.plusT);
+  const show = x && x.paneId === MAIN && typeof x.y === 'number' && !S.tool && !c.replay;
+  if (!show) { c.plusT = setTimeout(() => { if (!c.plusB.matches(':hover')) c.plusB.classList.remove('on'); }, 250); return; }
+  let v = null;
+  try { const p = c.chart.convertFromPixel([{ y: x.y }], { paneId: MAIN })[0]; v = p && p.value; } catch (e) { v = null; }
+  if (!(v > 0)) return;
+  const ax = (c.chart.getSize(MAIN, 'yAxis') || {}).width || 56;
+  c.plusV = v;
+  c.plusB.style.top = x.y + 'px';
+  c.plusB.style.right = ax + 4 + 'px';
+  c.plusB.classList.add('on');
+}
+function openPlus(c) {
+  const p = c.plusV;
+  if (!(p > 0)) return;
+  const ps = fmtNum(p, L.precisionFor(p));
+  openSheet(c.sym + ' · ' + ps, (b, sh) => {
+    const it = (icon, text, fn) => h('button', { type: 'button', class: 'kc-li', onclick: () => { closeSheet(sh); fn(); } }, h('span', { class: 'kc-ico', html: ICON[icon] }), h('span', { class: 'kc-li-n', text }));
+    b.append(h('div', { class: 'kc-act' },
+      it('bell', T('kcAlertAt', { p: ps }), () => {
+        const arr = S.store.alerts[c.sym] = S.store.alerts[c.sym] || [];
+        if (arr.length >= 20) { if (E.flash) E.flash(T('kcAlertMax')); return; }
+        arr.push({ id: newId(), p, dir: 'cross', note: '', done: false, at: 0, b: curPx(c.sym) || p });
+        delete lastPx[c.sym];
+        save(); drawAlerts(c); updBars(); bgSync(true);
+        if (E.flash) E.flash(T('kcAlertAt', { p: ps }));
+      }),
+      it('hline', T('kcHLineAt', { p: ps }), () => {
+        createDrawing(c, { name: 'horizontalStraightLine', points: [{ timestamp: lastTs(c), value: p }], styles: styleSet(DS.color, DS.width, DS.dash) });
+        changed(c);
+      })));
+  });
 }
 
 /* סרגל כלים אנכי (במחשב). בטלפון — כפתור צף שפותח את כל הכלים */
@@ -1799,6 +1947,7 @@ function renderSide() {
 function updToolUI() {
   if (!ROOT || !UI.side) return;
   renderSide();
+  renderMbar();
   UI.fab.classList.toggle('on', !!S.tool);
   ROOT.classList.toggle('kc-drawing', !!S.tool);
   if (UI.hint) UI.hint.remove();
@@ -1894,6 +2043,7 @@ function renderSel() {
   UI.sel.textContent = '';
   const s = S.sel, o = s && getOv(s.c, s.id);
   UI.sel.classList.toggle('on', !!o);
+  if (!o) UI.sel.classList.remove('pal');
   if (!o) return;
   const ln = (o.styles && o.styles.line) || {}, color = ln.color || DS.color, size = ln.size || 1, dash = ln.style === 'dashed';
   const cols = h('div', { class: 'kc-cols' }, ...DRAW_COLORS.map((cl) => {
@@ -1902,8 +2052,12 @@ function renderSel() {
     return b;
   }));
   const wid = h('div', { class: 'kc-wids' }, ...[1, 2, 3, 4].map((w) => btn('kc-wid' + (w === size ? ' on' : ''), w + 'px', () => selStyle({ width: w }))));
+  // בטלפון (כמו הסרגל הצף של TradingView): עיגול צבע שפותח את הפלטה, ו־"2px" שמחליף עובי בכל הקשה
+  const sw = h('button', { type: 'button', class: 'kc-swatch', 'aria-label': T('kcColor'), onclick: () => UI.sel.classList.toggle('pal') });
+  sw.style.background = color;
   UI.sel.append(
-    h('span', { class: 'kc-sel-n', text: T(TOOL_INFO[o.name] ? TOOL_INFO[o.name].key : 'kcDrawing') }), cols, wid,
+    h('span', { class: 'kc-sel-n', text: T(TOOL_INFO[o.name] ? TOOL_INFO[o.name].key : 'kcDrawing') }), sw, cols, wid,
+    btn('kc-wid kc-wcyc on', size + 'px', () => selStyle({ width: size % 4 + 1 })),
     btn('kc-ib sm' + (dash ? ' on' : ''), T('kcDashed'), () => selStyle({ dash: !dash }), '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4M10 12h4M17 12h4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>'),
     TEXT_TOOLS.has(o.name) ? btn('kc-ib sm', T('kcEditText'), () => askText(s.c, s.id), ICON.text) : null,
     btn('kc-ib sm' + (o.lock ? ' on' : ''), o.lock ? T('kcUnlock') : T('kcLock'), selLock, o.lock ? ICON.lock : ICON.unlock),
