@@ -391,6 +391,10 @@ html[data-app="academy"] .appbar .brand, html[data-app="studio"] .appbar .brand 
 .appbar .brand-snow b:nth-of-type(2) { left: calc(50% + 44px); top: 52px; animation-delay: -2.2s; animation-duration: 7s; }
 .appbar .brand-snow b:nth-of-type(3) { left: calc(50% - 28px); top: 112px; animation-delay: -4.1s; animation-duration: 8s; }
 @keyframes iceGlint { 0%, 70%, 100% { opacity: 0; transform: scale(.3) rotate(0); } 80% { opacity: 1; transform: scale(1) rotate(45deg); } 90% { opacity: 0; transform: scale(.5) rotate(90deg); } }
+/* 27/10/2026: מנוחה — אחרי BRAND_CALM_MS בלי נגיעה (brandCalmWire ב־core) הכל עוצר באותו מקום, ונגיעה ממשיכה */
+html.calm .appbar .brand-logo, html.calm .appbar .brand-art, html.calm .appbar .brand-face, html.calm .appbar .brand-sheen::before,
+html.calm .appbar .brand-art::before, html.calm .appbar .brand-art::after, html.calm .appbar .brand-snow i, html.calm .appbar .brand-snow i::before,
+html.calm .appbar .brand-snow b { animation-play-state: paused; }
 @media (prefers-reduced-motion: reduce) {
   .appbar .brand-logo, .appbar .brand-art, .appbar .brand-face, .appbar .brand-sheen::before, .appbar .brand-art::before, .appbar .brand-art::after, .appbar .brand-snow i, .appbar .brand-snow i::before, .appbar .brand-snow b { animation: none; }
 }

@@ -21,7 +21,7 @@ const root = path.join(__dirname, '..');
 
   /* Firestore מדומה — סופר קריאות כמו החיוב: מסמך = 1, שאילתה = מספר המסמכים שחזרו (לפחות 1) */
   const db = new Map();
-  let reads = 0, jobReads = 0, utSeq = 0;
+  let reads = 0, jobReads = 0, utSeq = 0, srvWrites = 0;
   const J = (o, st = 200) => ({ status: st, ok: st < 300, json: async () => o, text: async () => JSON.stringify(o), headers: { get: () => null } });
   const fetchAll = async (url, opt = {}) => {
     if (url.includes('oauth2.googleapis.com/token')) return J({ access_token: 'SA', expires_in: 3600 });
@@ -50,6 +50,7 @@ const root = path.join(__dirname, '..');
       const qp = new URLSearchParams(m[3] || '');
       const mask = qp.getAll('updateMask.fieldPaths'), pre = qp.get('currentDocument.updateTime');
       if (pre && (!cur || cur.ut !== pre)) return J({}, 400);
+      if (k.startsWith('studioServers/')) srvWrites++;
       const body = JSON.parse(opt.body).fields;
       db.set(k, { fields: mask.length ? Object.assign({}, cur ? cur.fields : {}, ...mask.map((f) => ({ [f]: body[f] }))) : body, ut: 't' + (++utSeq) });
       return J({});
@@ -83,6 +84,20 @@ const root = path.join(__dirname, '..');
   const perDay = Math.round(reads * 24);
   console.log('  קריאות בשעה: ' + reads + ' → ביום: ' + perDay);
   ok(perDay < 20000, 'שרת פנוי — פחות מ־20 אלף קריאות ביום (מכסה: 50 אלף; לפני התיקון ~45 אלף)');
+  // 27/10/2026: כתיבות — מכסה של 20 אלף ביום. עד היום כל poll כתב את מסמך השרת (180 בשעה ≈ 4,300 ביום)
+  console.log('  כתיבות למסמך השרת בשעה: ' + srvWrites);
+  ok(srvWrites <= 22, 'שרת פנוי — מסמך השרת נכתב לכל היותר פעם ב־3 דקות (' + srvWrites + ' בשעה; לפני: ' + nPoll + ')');
+  {
+    const w0 = srvWrites; clock += 1000;
+    await srv({ op: 'poll', hb: Object.assign({}, HB, { nj: 1, busy: 'jAbc0000000000000001' }) });
+    ok(srvWrites === w0 + 1, 'עבודה התחילה לרוץ (nj) — נכתב מיד');
+    clock += 1000;
+    await srv({ op: 'poll', hb: HB });
+    ok(srvWrites === w0 + 2, 'וכשהסתיימה — נכתב מיד');
+    clock += 1000;
+    await srv({ op: 'poll', hb: HB, boot: true });
+    ok(srvWrites === w0 + 3, 'עלייה מחדש (boot) — נכתב מיד');
+  }
 
   /* ---------- 2. האימות בזיכרון לא פותח דלת ---------- */
   ok((await srv({ op: 'pq' }, SID + '-' + 'x'.repeat(43))).code === 401, 'טוקן שגוי לשרת שבזיכרון — 401');

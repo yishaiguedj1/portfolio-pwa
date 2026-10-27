@@ -858,6 +858,28 @@ function snbSwipe(o) {
    בגלילה — לא ב־8px מלמעלה (שם הוא נעלם מאחורי ההדר, שגובהו ~180px). ‎--appbar-h על <html> = גובה ההדר הנוכחי,
    מתעדכן כשהגובה משתנה (שפה, קפסולת המצב) וכשההדר מוחלף (ציור מחדש בספרייה) — לקרוא אחרי כל ציור של ההדר */
 let _barHEl = null, _barHRO = null;
+/* 27/10/2026 (מחקר היעילות — "מחכה למשתמש"): האנימציות של הלוגו בהדר (שלג, פנים, ברק, הילה) מציירות את ההדר מחדש בכל
+   פריים, גם כשאף אחד לא נוגע בטלפון (נמדד: ~10% ממעבד ראשי בכרום בלי מעבד גרפי). BRAND_CALM_MS אחרי הנגיעה / הגלילה האחרונה
+   הן נעצרות (html.calm — animation-play-state בלבד, באותו מקום), וכל נגיעה מחזירה אותן */
+const BRAND_CALM_MS = 25e3;
+let _calmT = 0, _calmAt = 0;
+function brandCalmWire() {
+  if (typeof document === 'undefined' || !document.addEventListener || !document.documentElement || !document.documentElement.classList || brandCalmWire.on) return;
+  brandCalmWire.on = true;
+  const root = document.documentElement;
+  const wake = () => {
+    const t = Date.now();
+    if (root.classList.contains('calm')) root.classList.remove('calm');
+    else if (t - _calmAt < 1000) return;                     // גלילה = עשרות אירועים בשנייה — טיימר אחד לשנייה
+    _calmAt = t;
+    clearTimeout(_calmT);
+    _calmT = setTimeout(() => root.classList.add('calm'), BRAND_CALM_MS);
+  };
+  ['pointerdown', 'keydown', 'wheel', 'scroll', 'focus'].forEach((e) => document.addEventListener(e, wake, { passive: true, capture: true }));
+  wake();
+}
+brandCalmWire();
+
 function barHeightVar() {
   if (typeof document === 'undefined' || !document.querySelector) return;
   /* 21/10/2026 (סרטון המשתמש — הבורר של Academy קפץ אל שורת החיפוש): הגובה בפריסה (offsetHeight), לא getBoundingClientRect —

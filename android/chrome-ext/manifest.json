@@ -9,7 +9,7 @@
   "permissions": ["bookmarks", "history", "identity", "identity.email", "storage", "alarms"],
   "host_permissions": ["https://www.googleapis.com/*", "https://oauth2.googleapis.com/*"],
   "oauth2": {
-    "client_id": "OAUTH_CLIENT_ID.apps.googleusercontent.com",
+    "client_id": "286578855160-jc62oilme0m4odckdl990ek6lr8stv38.apps.googleusercontent.com",
     "scopes": ["https://www.googleapis.com/auth/drive.appdata"]
   },
   "background": { "service_worker": "sync.js", "type": "module" },
