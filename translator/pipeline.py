@@ -1481,6 +1481,8 @@ class Pipeline:
         v = os.environ.get('SNB_TL_DUAL', '')
         if v == 'off' or getattr(self.eng, 'manual', False):
             return False
+        if v != 'on' and (getattr(self.ctx, 'st', None) or {}).get('xd') == 1:   # 28/10/2026: ניסוי "טיוטה אחת" (השרתון קבע לפרק הזה)
+            return False
         return v == 'on' or 'haiku' in str(getattr(getattr(self.eng, 'spec', None), 'model', ''))
 
     def _raw(self, files) -> dict[str, str]:

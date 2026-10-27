@@ -2244,6 +2244,7 @@ async function worker(req, res, body, deps) {
       }
       // v377: יעדי השירות — נקבעים פעם אחת, בלקיחה הראשונה (ההערכה שראית בהתחלה + "הרגיל" שלך עכשיו). השעון מתחיל כאן
       if (!job.c0) patch.c0 = now;
+      if (job.kind === 'tr' && !job.c0 && S.dualAb(job, now)) patch.xd = 1;   // 28/10/2026: ניסוי "טיוטה אחת"
       // 10/10/2026: התוכנית (p50 לכל שלב + אי־ודאות) מהמודל הנלמד; יעד הזמן = p90 + דקה ("חרגה" רק כשבאמת חריג)
       let ep = job.ep;
       if (job.kind === 'tr' && !ep && job.spec && job.spec.dur > 0) {
@@ -2281,6 +2282,7 @@ async function worker(req, res, body, deps) {
       const full = (await learnFull(deps, job, stats)) ? 1 : 0;   // האיסוף המלא: העובד שולח גם את קבצי הטקסט ואת יומן הקריאות
       const wj = S.workerJob(job, nm, S.fbForWorker(stats.fb), stats.fm, stats.rl, gl);
       if (job.kind === 'tr') { const sm = await smRead(deps, job); if (sm) wj.sm = sm; }   // 28/10/2026: זיכרון הסדרה (או בלי)
+      if (job.xd === 1 || patch.xd === 1) wj.xd = 1;   // 28/10/2026: ניסוי "טיוטה אחת" — העובד בלי הטיוטה השנייה
       if (hubJob(job)) wj.rh = RELAY_HUB();   // 24/10/2026: Claude דרך התור — לאן לשלוח (25/10: גם בתרגום בטלפון — השרת עונה)
       return res.status(200).json({ ok: true, job: wj, drive: await driveFor(), pir, full, now });
     }
