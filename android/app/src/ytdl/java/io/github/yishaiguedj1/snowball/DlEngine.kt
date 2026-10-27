@@ -199,7 +199,7 @@ object DlEngine {
         val req = base(YoutubeDLRequest(url), ref, cookiesFor(ctx, url, ref))
             .addOption("-f", format.ifEmpty { DlProbe.selector(pick.v, pick.a, pick.h) })
             .addOption("--merge-output-format", "mp4/mkv")
-            .addOption("--no-mtime").addOption("--continue").addOption("--concurrent-fragments", 4)
+            .addOption("--no-mtime").addOption("--continue").addOption("--concurrent-fragments", 8)
             .addOption("-o", dir.absolutePath + "/%(title).80B [%(id)s].%(ext)s")
             // 26/10/2026 (דיווח המשתמש: ההתקדמות לא מופיעה לא ב־DM ולא בהתראה): ‎--print‎ מפעיל מצב שקט — ואז yt-dlp לא
             // כותב אף שורת ‎[download] …%‎ לפלט (רק ל־stderr, שהספרייה לא מעבירה). בלי ‎--print‎, עם שורה לכל עדכון; את

@@ -184,7 +184,7 @@ class DmFetch(
 
     companion object {
         const val UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36"
-        const val BUF = 64 * 1024
+        const val BUF = 256 * 1024
         const val TICK_MS = 2000L
 
         const val MAX_REDIRECTS = 8

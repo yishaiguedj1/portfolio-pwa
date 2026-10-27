@@ -575,7 +575,7 @@ def download(url, pick, out_tmpl, kind='v', section=None, on_progress=None, pope
     yc = YtCookies(url)
     cmd = ytdlp_base() + yc.args + pot_args(url) + ref_args(ref) + ['--newline', '--progress', '--progress-template',
                           'download:SNBP %(progress.downloaded_bytes)s %(progress.total_bytes)s %(progress.total_bytes_estimate)s',
-                          '--no-mtime', '--continue','--concurrent-fragments', '4',
+                          '--no-mtime', '--continue','--concurrent-fragments', '8',
                           '--max-filesize', '40G', '-o', out_tmpl, '--print', 'after_move:filepath']
     if kind == 'a':
         # -x: כשאין זרם קול נפרד (קובץ משולב) — מחלצים את הקול בלי לקודד (העתקה; קודק אחר → הקרוב בלי איבוד)

@@ -980,7 +980,7 @@ export function createNet(env) {
     const g = await r2Get(id);
     const r = await E.fetch(g.url);
     if (!r.ok || !r.body) throw Object.assign(new Error('r2_http_' + r.status), { code: 'r2_http_' + r.status });
-    const size = g.size, mime = g.type || 'application/octet-stream', CH = 32 * K256;
+    const size = g.size, mime = g.type || 'application/octet-stream', CH = 64 * K256;
     const uri = await initUpload({ name: String(name || '').slice(0, 200), parents: [to], appProperties: { snbVid: 'dx' } }, size, mime);
     const rd = r.body.getReader();
     let parts = [], have = 0, sent = 0, last = null;

@@ -38,7 +38,7 @@ export const r2JobOf = (x) => (isR2Folder(x) || isR2Id(x) ? String(x).slice(3, 2
      st — מצב שמור מהפעם הקודמת ({ id, up, ps }) כדי להמשיך את אותה העלאה
    מחזיר { id, size, name, mimeType } — כמו קובץ של Drive */
 export async function r2Upload(o, env = {}) {
-  const E = Object.assign({ sleep: (ms) => new Promise((r) => setTimeout(r, ms)), now: () => Date.now(), online: () => true, conc: 2 }, env);
+  const E = Object.assign({ sleep: (ms) => new Promise((r) => setTimeout(r, ms)), now: () => Date.now(), online: () => true, conc: 4 }, env);
   const size = o.size;
   let st = Object.assign({}, o.st || {});
   let done = new Set(), urls = new Map(), urlAt = 0, fails = 0;
