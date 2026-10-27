@@ -13,6 +13,9 @@
   --kc-veil: rgba(0, 0, 0, .55); --kc-shadow: 0 10px 34px rgba(0, 0, 0, .55);
 }
 html.kc-open { overflow: hidden; }
+/* גיליון התראה שנפתח מכרטיס המניה — בלי מסך הגרף: שורש שקוף, רק הגיליון לוכד נגיעות */
+.kc-root.kc-float { background: transparent; pointer-events: none; padding: 0; }
+.kc-root.kc-float > * { pointer-events: auto; }
 :where(.kc-root) button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
 :where(.kc-root) button:disabled { opacity: .35; cursor: default; }
 .kc-root svg { width: 20px; height: 20px; display: block; }
@@ -237,11 +240,14 @@ html.kc-open { overflow: hidden; }
 .kc-mbar.draw { justify-content: space-between; }
 .kc-mbar.draw .kc-mb:first-child { color: var(--kc-acc-ink); }
 /* גלגלת iOS שנפתחת בגרירה על הסימבול / הטווח */
-.kc-wheel { position: absolute; z-index: 30; left: 50%; top: 42%; transform: translate(-50%, -50%); min-width: 150px; padding: 6px 0; border-radius: var(--radius-sm); background: var(--kc-glass); -webkit-backdrop-filter: saturate(180%) blur(24px); backdrop-filter: saturate(180%) blur(24px); box-shadow: var(--kc-shadow); text-align: center; pointer-events: none; }
-.kc-wh-i { height: 30px; line-height: 30px; font-size: 15px; font-variant-numeric: tabular-nums; color: var(--kc-ink2); }
-.kc-wh-i.d0 { font-size: 18px; font-weight: 700; color: var(--kc-ink); background: var(--kc-hov); }
-.kc-wh-i.d1 { opacity: .7; }
-.kc-wh-i.d2 { opacity: .35; font-size: 13px; }
+/* גלגלת הטווחים כמו TradingView: חלון כהה באמצע, 7 שורות, השורה הנבחרת לבנה ומודגשת */
+.kc-wheel { position: absolute; z-index: 30; left: 50%; top: 45%; width: 150px; height: 182px; overflow: hidden; border-radius: var(--radius-sm); background: rgba(28, 28, 30, .92); -webkit-backdrop-filter: saturate(180%) blur(24px); backdrop-filter: saturate(180%) blur(24px); box-shadow: var(--kc-shadow); pointer-events: none; opacity: 0; transform: translate(-50%, -50%) scale(.94); transition: opacity .16s ease, transform .16s ease; }
+.kc-wheel.on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.kc-wh-l { position: absolute; inset: 0; }
+.kc-wh-i { position: absolute; left: 0; right: 0; top: 78px; height: 26px; line-height: 26px; text-align: center; font-size: 15px; color: rgba(235, 235, 245, .6); white-space: nowrap; }
+.kc-wh-i.cur { color: #fff; font-weight: 700; font-size: 16px; }
+.kc-roll { position: relative; display: block; width: 100%; height: 40px; overflow: hidden; }
+.kc-roll-i { position: absolute; left: 0; right: 0; top: 10px; height: 20px; line-height: 20px; text-align: center; white-space: nowrap; }
 /* "+" ליד הצלב בציר המחיר — הציר תמיד מימין בקנבס (right פיזי, כמו .kc-now) */
 .kc-plus { position: absolute; z-index: 6; width: 24px; height: 24px; margin-top: -12px; display: none; align-items: center; justify-content: center; border-radius: 50%; color: var(--kc-ink); background: var(--kc-panel); box-shadow: 0 0 0 .5px rgba(0,0,0,.18), 0 1px 3px rgba(0,0,0,.12); }
 .kc-plus.on { display: inline-flex; }
