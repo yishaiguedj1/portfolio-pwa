@@ -561,15 +561,18 @@ function drawChart(host, opt) {
     opt.labels.forEach((l, i) => { if ((n - 1 - i) % every) return; sv('text', { x: x0 + i * band + band / 2, y: H - 5, 'text-anchor': 'middle' }, svg).textContent = l; });
   }
   const tip = opt.tipHost;
+  /* 27/10/2026 (בקשת המשתמש — צילום מסך): הבועה צפה בשורה של ההסבר, מעל הגרף — אף פעם לא על העמודות.
+     כמו קודם היא מופיעה רק בנגיעה בעמודה; המקום שלה שמור בשורה (tipBox), כך שהופעתה לא מזיזה כלום */
   const show = (i) => {
     if (i < 0 || i >= n || !tip) return;
     hl.setAttribute('x', x0 + i * band); hl.setAttribute('opacity', 1);
     tip.textContent = '';
     tip.append(h('div', { class: 'an-tip-h' }, (opt.tipLabels || opt.labels)[i]));
-    for (const s of opt.series) {
-      const nm = h('span', {}, k > 1 ? h('i', { style: `background:${s.color}` }) : null, s.name);
-      tip.append(h('div', { class: 'an-tip-r' }, nm, h('b', {}, fmt(s.vals[i], opt.unit, opt.co))));
-    }
+    // כמה סדרות: נקודה בצבע + הערך בשורה לכל סדרה — השמות כבר בשבבים שלצד הבועה (שמות מלאים לא נכנסים ברוחב שלה)
+    if (k > 1) tip.append(h('div', { class: 'an-tip-g' }, ...opt.series.map((s) => h('div', { class: 'an-tip-c' }, h('i', { style: `background:${s.color}` }), h('b', {}, fmt(s.vals[i], opt.unit, opt.co))))));
+    else tip.append(h('div', { class: 'an-tip-v' }, fmt(opt.series[0].vals[i], opt.unit, opt.co)));   // סדרה אחת — השם בכותרת העמוד, ושם מקוצר בבועה רק הפריע
+    if (tip.hidden && typeof tip.animate === 'function' && !(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches))
+      tip.animate([{ opacity: 0, transform: 'translateY(4px) scale(.97)' }, { opacity: 1, transform: 'none' }], { duration: 180, easing: 'cubic-bezier(.2, .9, .25, 1)' });
     tip.hidden = false;
   };
   const idx = (e) => { const r = svg.getBoundingClientRect(); return Math.floor(((e.clientX - r.left) * W / r.width - x0) / band); };
@@ -587,7 +590,7 @@ function drawChart(host, opt) {
   const hide = () => { hl.setAttribute('opacity', 0); cur = -1; if (tip) tip.hidden = true; };
   svg.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') hide(); });
   if (!tip) return;
-  // נגיעה בכל מקום מחוץ לגרף סוגרת את הבועה — שלא תסתיר את שאר העמודות
+  // נגיעה בכל מקום מחוץ לגרף סוגרת את הבועה
   tip._svg = svg; tip._hide = hide;
   if (!tip._wired) {
     tip._wired = true;
@@ -715,8 +718,15 @@ let MAC = null;
 const TABS = ['snap', 'rep', 'val', 'cmp'];
 const TAB_T = { snap: 'anTabSnap', rep: 'anTabRep', val: 'anTabVal', cmp: 'anTabCmp' };
 
-async function load(sym, force) {
-  if (!force && CACHE.has(sym)) return CACHE.get(sym);
+const PEND = new Map();   // בקשה שכבר בדרך (טעינה מראש מכרטיס המניה) — לא שולחים שוב
+function load(sym, force) {
+  if (!force && CACHE.has(sym)) return Promise.resolve(CACHE.get(sym));
+  if (!force && PEND.has(sym)) return PEND.get(sym);
+  const p = load0(sym, force).finally(() => PEND.delete(sym));
+  PEND.set(sym, p);
+  return p;
+}
+async function load0(sym, force) {
   const [d, m] = await Promise.all([E.api({ op: 'fund', sym }), MAC && !force ? MAC : E.api({ op: 'macro' }).catch(() => null)]);
   if (m && m.ok) MAC = m;
   if (!d || !d.ok) { const e = new Error((d && d.error) || 'fail'); e.code = (d && d.error) || 'fail'; throw e; }
@@ -743,9 +753,23 @@ export async function openAnalysis(sym, env) {
   wireSwipe();
   document.documentElement.classList.add('an-open');
   S.modal = E.modalPush ? E.modalPush(() => closeAnalysis(true)) : null;
+  // נטען מראש (כרטיס המניה נפתח) — המסך המלא כבר בציור הראשון, בלי שלד
+  const ready = (d) => { S.co = indFix(prep(d, E.quote && E.quote(sym), E.fx && E.fx()), MAC); peersSoon(seq); };
+  if (CACHE.has(sym)) { ready(CACHE.get(sym)); render(); return; }
   render();
-  load(sym).then((d) => { if (seq !== S.seq) return; S.co = indFix(prep(d, E.quote && E.quote(sym), E.fx && E.fx()), MAC); render(); })
+  load(sym).then((d) => { if (seq !== S.seq) return; ready(d); render(); })
     .catch((e) => { if (seq !== S.seq) return; S.err = e.code || 'fail'; render(); });
+}
+/* העמיתים (לשונית "השוואה") נטענים ברקע מיד כשהמסך מוכן — כשעוברים ללשונית הנתונים כבר שם, בלי שלד */
+function peersSoon(seq) {
+  const go = () => { if (seq === S.seq && !S.peers) loadPeers(); };
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 1500 }); else setTimeout(go, 400);
+}
+/* טעינה מראש מכרטיס המניה (app.js): הנתונים מגיעים לפני הלחיצה על "ניתוח" — אותה בקשה, בלי כפילות */
+export function prefetchAnalysis(sym, env) {
+  E = env || E;
+  ensureCss();
+  load(sym).catch(() => {});
 }
 function onEsc(e) {
   if (e.key !== 'Escape' || !ROOT) return;
@@ -822,7 +846,13 @@ function render(dir) {
   ROOT.append(wrap);
   if (dir || S.first) { [...pg.children].forEach((el, i) => { el.classList.add('an-rise'); el.style.setProperty('--an-i', i); }); S.first = false; }
   if (!dir) ROOT.scrollTop = y;
-  requestAnimationFrame(() => S.after.forEach((f) => f()));
+  flushAfter();
+}
+/* 27/10/2026 (סרטון המשתמש): הגרפים מצוירים מיד אחרי הבנייה, באותו פריים — עד היום בפריים הבא, וכל מעבר
+   (לשונית, תת־לשונית, חזרה) הראה לרגע כרטיסים בלי גרפים. המידות כבר ידועות: השכבה בדף */
+function flushAfter() {
+  const a = S.after; S.after = [];
+  a.forEach((f) => f());
 }
 /* תת־עמוד: כותרת גדולה וכרטיס אחד. נבנה מחדש בכל ציור (כמו לשונית) — build(body, rec), rec.draw אחרי הציור */
 function renderSub(co) {
@@ -831,7 +861,7 @@ function renderSub(co) {
   s.build(body, rec);
   ROOT.append(h('div', { class: 'an-wrap an-subw' }, h('h1', { class: 'an-h1', dir: 'auto' }, s.title), body.childElementCount && !s.bare ? h('section', { class: 'an-card' }, body) : body, footer(co)));
   if (rec.draw) S.after.push(() => rec.draw());
-  requestAnimationFrame(() => S.after.forEach((f) => f()));
+  flushAfter();
 }
 /* מעבר בין עמודים בקובייה (המנוע של האפליקציה — env.cube). mutate משנה את המצב; y = הגלילה בעמוד החדש */
 function navTo(fwd, mutate, y, hold) {
@@ -842,23 +872,24 @@ function navTo(fwd, mutate, y, hold) {
   render(cube ? 0 : (fwd ? -1 : 1));
   if (ROOT) ROOT.scrollTop = typeof y === 'function' ? y() : y || 0;
   // הרצועה הקבועה היא העתק של העמוד החדש ברגע הזה — הגרף בראש (שמצויר בפריים הבא) חייב להיות בה כבר עכשיו
-  if (ghost && hold) { const a = S.after; S.after = []; a.forEach((f) => f()); }
+  if (ghost && hold) flushAfter();
   if (ghost) C.run(ROOT, ghost, C.side(fwd), hold ? { y: hold.y(), on: hold.on } : undefined);
 }
 /* מעבר בין הלשוניות: הראש והלשוניות זהים בכל הלשוניות — הם נשארים במקום (רצועה קבועה של המנוע, cubeHold),
    ורק מה שמתחתם מסתובב. הגלילה נשמרת עד הנקודה שבה הלשוניות נדבקות למעלה — בלי קפיצה של הראש */
 function stickY() {
-  const seg = ROOT && ROOT.querySelector('.an-seg-main');
+  const s0 = ROOT && ROOT.querySelector('.an-seg-main'), seg = s0 && (s0.closest('.an-tabbar') || s0);   // הדביק = הרצועה
   if (!seg) return 0;
   const prev = seg.previousElementSibling;   // הראש (לא דביק) — המקום הטבעי של הלשוניות בלי השפעת ההדבקה
-  const nat = prev ? prev.offsetTop + prev.offsetHeight + (parseFloat(getComputedStyle(seg.parentElement).rowGap) || 0) : seg.offsetTop;
+  // לפי המיקום על המסך ולא offsetTop (שתלוי באיזה אב "ממוקם" — לא בהכרח השכבה)
+  const nat = prev ? ROOT.scrollTop + prev.getBoundingClientRect().bottom - ROOT.getBoundingClientRect().top + (parseFloat(getComputedStyle(seg.parentElement).rowGap) || 0) : seg.offsetTop;
   return Math.max(0, nat - (parseFloat(getComputedStyle(seg).top) || 0));
 }
 function holdY() {
-  const seg = ROOT && ROOT.querySelector('.an-seg-main');
+  const s0 = ROOT && ROOT.querySelector('.an-seg-main'), seg = s0 && (s0.closest('.an-tabbar') || s0);
   if (!seg) return 0;
   const b = seg.getBoundingClientRect();
-  return b.bottom > 0 && b.bottom < innerHeight * 0.7 ? b.bottom + 7 : 0;
+  return b.bottom > 0 && b.bottom < innerHeight * 0.7 ? b.bottom : 0;
 }
 /* הסימון בלשוניות שברצועה הקבועה — זז עם האצבע, ובסוף משלים את התנועה (או חוזר בביטול) */
 function holdOn(from, to) {
@@ -967,7 +998,9 @@ function tabsBar() {
   const seg = h('div', { class: 'an-seg an-seg-main', role: 'tablist' }, h('span', { class: 'an-seg-th', 'aria-hidden': 'true' }), ...TABS.map((k) =>
     h('button', { type: 'button', role: 'tab', 'data-k': k, 'aria-selected': String(S.tab === k), 'aria-pressed': String(S.tab === k), on: { click: () => go(k) } }, T(TAB_T[k]))));
   S.after.push(() => segThumb(seg));
-  return seg;
+  /* 27/10/2026 (צילום המשתמש — הסרגל "חתוך"): רצועה ברוחב מלא מאחורי הלשוניות, באותה זכוכית של הסרגל העליון —
+     עד היום הכרטיסים נראו ברווח שמעל הלשוניות ומתחתיהן, והסרגל נראה כאילו הוא חלק מכרטיס */
+  return h('div', { class: 'an-tabbar' }, seg);
 }
 /* לשונית הבורר מחליקה מהמקום הקודם (הבורר נבנה מחדש בכל ציור — FLIP לפי המיקום השמור) */
 function segThumb(seg) {
@@ -1074,12 +1107,31 @@ function pageRep(co, pg) {
    להישאר באמצע רשימה אחרת), והרשימה החדשה נכנסת מהצד */
 function repSub(k) {
   if (!ROOT || k === S.rsub) return;
-  const dir = ['is', 'bs', 'cf', 'rt'].indexOf(k) > ['is', 'bs', 'cf', 'rt'].indexOf(S.rsub) ? 1 : -1, y = Math.min(ROOT.scrollTop, stickY());
-  S.rsub = k; render();
-  ROOT.scrollTop = y;
-  const list = ROOT.querySelector('.an-rcards'), rtl = document.documentElement.dir === 'rtl';
-  if (list && typeof list.animate === 'function' && !(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches))
-    list.animate([{ opacity: 0, transform: `translateX(${(rtl ? -28 : 28) * dir}px)` }, { opacity: 1, transform: 'none' }], { duration: 320, easing: 'cubic-bezier(.2, .9, .25, 1)' });
+  const order = ['is', 'bs', 'cf', 'rt'], dir = order.indexOf(k) > order.indexOf(S.rsub) ? 1 : -1;
+  const old = ROOT.querySelector('.an-rcards'), seg = ROOT.querySelector('.an-seg.sm');
+  S.rsub = k;
+  if (!old || !seg || !S.co) { render(); return; }
+  /* 27/10/2026 (סרטון המשתמש — קפיצות במעבר בין תת־הלשוניות): רק הרשימה מתחלפת, במקום. עד היום כל העמוד נבנה
+     מחדש (הראש, הלשוניות, הבורר), הגרפים הופיעו פריים אחד ריקים, והרשימה נעלמה לגמרי (שקיפות 0) לפני שנכנסה */
+  const key = S.tab + ':' + k;
+  ROOT.classList.toggle('an-still', S.seen.has(key));
+  S.seen.add(key);
+  S.after = [];
+  const list = h('div', { class: 'an-rcards' });
+  for (const r of ROWS[k]) list.append(repCard(S.co, rowDef(r)));
+  old.replaceWith(list);
+  seg.querySelectorAll('button').forEach((b, i) => b.setAttribute('aria-pressed', String(order[i] === k)));
+  flushAfter();
+  // גלול מתחת לתחילת הרשימה — חוזרים לתחילת הרשימה החדשה (הלשוניות דבוקות); גלילה בתנופה נעצרת קודם, אחרת היא ממשיכה מהמקום הישן
+  const y = stickY();
+  if (ROOT.scrollTop > y) {
+    ROOT.style.overflowY = 'hidden';
+    ROOT.scrollTop = y;
+    requestAnimationFrame(() => { if (ROOT) ROOT.style.overflowY = ''; });
+  }
+  const rtl = document.documentElement.dir === 'rtl';
+  if (typeof list.animate === 'function' && !(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches))
+    list.animate([{ opacity: 0.4, transform: `translateX(${(rtl ? -24 : 24) * dir}px)` }, { opacity: 1, transform: 'none' }], { duration: 300, easing: 'cubic-bezier(.2, .9, .25, 1)' });
 }
 const stat = (label, v, cls) => h('div', { class: 'an-rstat' }, h('span', {}, label), h('b', { class: cls || null }, v));
 const tone = (g) => (g == null ? null : g >= 0 ? 'an-up' : 'an-down');
@@ -1462,14 +1514,22 @@ function segCtl(label, opts, cur, on) {
     } } }, tt)));
   return h('div', { class: 'an-ctl' }, h('span', {}, label), s);
 }
+/* הבועה של הגרף בשורת ההסבר: מקום שמור בקצה השורה (גובה לפי מספר הסדרות — שורה לכל אחת + התקופה), והבועה
+   צפה בתוכו רק בזמן נגיעה. השורה לא משנה גובה כשהיא מופיעה, וההסבר נשבר לצידה */
+function tipBox(k) {
+  const tip = h('div', { class: 'an-tip', 'aria-live': 'polite', hidden: true });
+  const slot = h('div', { class: 'an-tipslot', style: `min-height:${26 + 19 * k}px` }, tip);
+  slot.tip = tip;
+  return slot;
+}
 function chartSheet(def) {
   const co = S.co;
   if (def.line) {
     openSheet(def.n, (b, rec) => {
       const Hh = multHist(co), a = Hh[def.line[1]], ok = a.filter((x) => x > 0 && x < 300), md = median(ok);
-      const host = h('div', { class: 'an-chart no-swipe' }), tip = h('div', { class: 'an-tip', hidden: true });
+      const host = h('div', { class: 'an-chart no-swipe' }), slot = tipBox(1), tip = slot.tip;
       const stat = (tt, v) => h('div', {}, h('span', {}, tt), h('b', {}, v));
-      b.append(h('p', { class: 'an-ex' }, T(def.line[3])), h('div', { class: 'an-chartw' }, tip, host),
+      b.append(h('div', { class: 'an-chead' }, h('p', { class: 'an-ex' }, T(def.line[3])), slot), h('div', { class: 'an-chartw' }, host),
         h('div', { class: 'an-stats' }, stat(T('anToday'), fmt(fin(a).pop(), 'x', co, 1)), stat(T('anMed10'), fmt(md, 'x', co, 1)),
           stat(T('anRange'), ok.length ? iso(Math.min(...ok).toFixed(0) + '–' + Math.max(...ok).toFixed(0) + '×') : '—')));
       rec.draw = () => drawChart(host, { labels: Hh.t.map((x) => (x.slice(5) === '01' ? x.slice(0, 4) : '')), tipLabels: Hh.t.map((x) => x.slice(5) + '/' + x.slice(0, 4)),
@@ -1481,13 +1541,14 @@ function chartSheet(def) {
   const st = { mode: 'fy', range: long ? '10' : 'all', view: 'v', hide: new Set() };
   const ratio = def.s.every((k) => M[k].ratio), noPct = def.s.some((k) => M[k].noPct || M[k].ratio), noG = def.s.length > 1 && def.s.some((k) => M[k].f);
   openSheet(def.n, (b, rec) => {
-    const host = h('div', { class: 'an-chart no-swipe' }), tip = h('div', { class: 'an-tip', hidden: true }), stats = h('div', { class: 'an-stats' }), tbl = h('div', { class: 'an-tblw', hidden: true });
-    const chartW = h('div', { class: 'an-chartw' }, tip, host);
+    const host = h('div', { class: 'an-chart no-swipe' }), slot = tipBox(def.s.length), tip = slot.tip, stats = h('div', { class: 'an-stats' }), tbl = h('div', { class: 'an-tblw', hidden: true });
+    const chartW = h('div', { class: 'an-chartw' }, host);
     const q = def.s.length === 1 && M[def.s[0]].q;
-    b.append(...[q ? h('p', { class: 'an-ex' }, T(q)) : null,
-      def.s.length > 1 ? h('div', { class: 'an-chips' }, ...def.s.map((k) => h('button', { class: 'an-chip', type: 'button', 'aria-pressed': 'true', on: { click: (e) => {
+    const chips = def.s.length > 1 ? h('div', { class: 'an-chips' }, ...def.s.map((k) => h('button', { class: 'an-chip', type: 'button', 'aria-pressed': 'true', on: { click: (e) => {
         if (st.hide.has(k)) st.hide.delete(k); else if (st.hide.size < def.s.length - 1) st.hide.add(k); else return;
-        e.currentTarget.setAttribute('aria-pressed', String(!st.hide.has(k))); draw(); } } }, h('i', { style: `background:${cssv(M[k].c)}` }), T(M[k].n)))) : null,
+        e.currentTarget.setAttribute('aria-pressed', String(!st.hide.has(k))); draw(); } } }, h('i', { style: `background:${cssv(M[k].c)}` }), T(M[k].n)))) : null;
+    // השורה שמעל הגרף: ההסבר (או שבבי הסדרות) ולצידם המקום של הבועה
+    b.append(...[h('div', { class: 'an-chead' }, chips || (q ? h('p', { class: 'an-ex' }, T(q)) : h('span')), slot),
       chartW, tbl, stats, restNote(co, def.s),
       long ? segCtl(T('anCRange'), [['5', T('anC5')], ['10', T('anC10')], ['all', T('anCAll')]], st.range, (v) => { st.range = v; draw(); }) : null,
       ratio ? null : segCtl(T('anCView'), [['v', T('anCVal')], ['g', T('anCGrowth'), noG], ['r', T('anCPctRev'), noPct]], 'v', (v) => { st.view = v; draw(); }),
