@@ -65,7 +65,9 @@ html.an-open { overflow: hidden; }
 .an-fact b { font-size: 18px; font-weight: 800; letter-spacing: -.3px; }
 .an-fact small { font-size: 11px; color: var(--an-ink3); white-space: nowrap; }
 .an-seg { display: flex; background: var(--surface-2); border: 0; border-radius: var(--pill); padding: 3px; gap: 0; position: relative; }
-.an-seg.an-seg-main { position: sticky; top: calc(56px + env(safe-area-inset-top, 0px)); z-index: 5; padding: 6px; gap: 4px;
+.an-tabbar { position: sticky; top: calc(52px + env(safe-area-inset-top, 0px)); z-index: 5; margin: -4px -16px -6px; padding: 4px 16px 10px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); }
+.an-seg.an-seg-main { padding: 6px; gap: 4px;
   background: var(--glass); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border); box-shadow: var(--shadow), var(--glass-hi); }
 .an-seg.an-seg-main button { position: relative; z-index: 1; padding: 9px 6px; font-size: 15px; font-weight: 600; color: var(--on-surface-var); transition: color .3s; }
@@ -159,11 +161,15 @@ button.an-row { cursor: pointer; }
 .an-chart svg { display: block; width: 100%; direction: ltr; overflow: visible; }
 .an-chart text { fill: var(--an-ink3); font-size: 11px; font-family: var(--font); }
 .an-chart text.an-avg { fill: var(--an-ink); font-weight: 700; paint-order: stroke; stroke: var(--an-card); stroke-width: 4px; stroke-linejoin: round; }
-.an-tip { position: absolute; top: 0; inset-inline-start: 0; z-index: 3; background: var(--an-tip); border: 1px solid var(--an-sep); border-radius: var(--radius-xs);
-  padding: 7px 11px; font-size: 13px; pointer-events: none; box-shadow: 0 6px 20px rgba(0, 0, 0, .18); min-width: 120px; max-width: 92%; }
-.an-tip-h { font-weight: 700; font-size: 14px; }
-.an-tip-r { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
-.an-tip-r span { color: var(--an-ink2); }
+/* שורת ההסבר + הבועה (27/10/2026): הבועה בעמודה ברוחב קבוע בקצה השורה — לא מעל הגרף */
+.an-chead { display: grid; grid-template-columns: minmax(0, 1fr) 46%; gap: 12px; align-items: start; margin-bottom: 8px; }
+.an-chead .an-ex { margin: 0; }
+.an-tip { box-sizing: border-box; background: var(--an-fill); border-radius: var(--radius-xs); padding: 7px 12px; font-size: 13px; pointer-events: none; min-width: 0; }
+.an-tip-h { font-weight: 600; font-size: 12.5px; color: var(--an-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.an-tip-v { font-size: 18px; font-weight: 800; letter-spacing: -.3px; line-height: 1.25; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.an-tip-r { display: flex; justify-content: space-between; gap: 8px; align-items: center; min-width: 0; }
+.an-tip-r span { color: var(--an-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.an-tip-r b { flex: none; font-variant-numeric: tabular-nums; }
 .an-tip i, .an-chip i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-inline-end: 5px; }
 .an-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .an-chip { border: 1px solid var(--card-border); background: var(--surface-2); border-radius: var(--pill); padding: 5px 11px; font-size: 13px; font-weight: 600; cursor: pointer;
@@ -346,7 +352,7 @@ button.an-row { cursor: pointer; }
 .an-ctbl .me { color: var(--an-ink); font-weight: 800; background: var(--primary-container); }
 .an-ctbl thead .me { color: var(--on-primary-container); border-radius: var(--radius-xs) var(--radius-xs) 0 0; }
 .an-ctbl td.me i { background: var(--primary); opacity: 1; }
-.cube-flat .an-nav, .cube-flat .an-seg-main { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+.cube-flat .an-nav, .cube-flat .an-tabbar, .cube-flat .an-seg-main { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 .an-mrow .an-hint { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .an-mrow .an-mt b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .an-key-s { min-height: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
