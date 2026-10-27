@@ -24,6 +24,9 @@ object DlWork {
     private const val CH = "dl"
     private val main = Handler(Looper.getMainLooper())
 
+    /** שפות הכתוביות שנכנסות לקובץ (yt-dlp ‎--sub-langs‎; ‏iw = הקוד הישן של עברית ביוטיוב) */
+    const val SUBS = "en,en-US,en-GB,he,iw"
+
     // only = "רק להוריד לטלפון" (23/10/2026, בקשת המשתמש): הקובץ נשאר ב־Movies/Studio ולא עובר לטופס התרגום
     data class Req(val id: String, val url: String, val ref: String, val title: String, val pick: DlEngine.Pick, val only: Boolean = false)
 
@@ -32,7 +35,9 @@ object DlWork {
         DlState.start(r.id, r.title, r.only)
         var last = 0L
         try {
-            val f = DlEngine.download(ctx, r.url, r.ref, r.pick, r.id) { p, _ ->
+            // 27/10/2026 (בקשת המשתמש): כתוביות היוצר (באנגלית ובעברית, לא האוטומטיות) בתוך הקובץ — הדף שולף את
+            // האנגלית לעזר בהגהה (studio.js tracksFor), כמו בכל קובץ שיש בו כתוביות. כשל בכתוביות לא מפיל את ההורדה
+            val f = DlEngine.download(ctx, r.url, r.ref, r.pick, r.id, "", subs = SUBS) { p, _ ->
                 DlState.progress(p)
                 val now = System.currentTimeMillis()
                 if (now - last > 1000) { last = now; nm(ctx).notify(N_ID, progress(ctx, r.title, DlLang.of(ctx).getString(R.string.dlPct, p.toInt().coerceIn(0, 100)), p.toInt())) }
