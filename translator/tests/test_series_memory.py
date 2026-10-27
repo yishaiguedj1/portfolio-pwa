@@ -78,3 +78,25 @@ class TestSeriesMemory(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestDualAb(unittest.TestCase):
+    """ניסוי "טיוטה אחת" (28/10/2026): xd מהשרתון מכבה את הטיוטה השנייה; SNB_TL_DUAL=on גובר."""
+    def _pl(self, st, env=''):
+        import os
+        from unittest import mock
+        pl = P.Pipeline.__new__(P.Pipeline)
+
+        class E:
+            manual = False
+
+            class spec:
+                model = 'claude-haiku-5-5'
+        pl.eng, pl.ctx = E(), type('C', (), {'st': st})()
+        with mock.patch.dict(os.environ, {'SNB_TL_DUAL': env}):
+            return pl.dual_on()
+
+    def test_xd(self):
+        self.assertTrue(self._pl({}))
+        self.assertFalse(self._pl({'xd': 1}))
+        self.assertTrue(self._pl({'xd': 1}, 'on'))

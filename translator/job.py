@@ -372,6 +372,7 @@ def run(args):
                     'gref': job.get('gref') if FILE_ID_RE.match(str(job.get('gref') or '')) else None,   # פריט 15: הייחוס של סט הזהב
                     'notes': notes_valid(job.get('notes')),                              # v382: הערות שלך שכבר נקראו (להמשך)
                     'gl': [list(r) for r in gl_rows(job.get('gl'))] if gl_rows(job.get('gl')) is not None else None,   # 11/10: המילון מ־R2 (None = מ־Drive)
+                    'xd': 1 if job.get('xd') == 1 else 0,                                 # 28/10/2026: ניסוי "טיוטה אחת"
                     'sm': sm_valid(job.get('sm')),                                        # 28/10/2026: זיכרון הסדרה (או None)
                     'rh': job.get('rh') if hub_ok(job.get('rh')) else None,               # 24/10/2026: Claude דרך התור (המנוי של המשתמש)
                     'cap': job.get('cap') if isinstance(job.get('cap'), (int, float)) and 0 < job.get('cap') <= 100 else None})   # מצב API: תקרת העבודה ($)

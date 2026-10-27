@@ -838,7 +838,7 @@ html.drag-active .tabpage { transform: none !important; }   /* v324: בלי anim
 .pf-range-summary .rs-sym .dot { width: 12px; height: 12px; border-radius: var(--pill); flex: none; align-self: center; }
 .stock-body .chart-hint { margin-top: 4px; font-size: 12.5px; }
 /* v237: שורה תחתונה — תשואה (מתכווצת ונשברת לשורה שנייה אם צריך) + "ערוך" צמוד לקצה השמאלי, בלי חפיפה */
-.stock-foot { display: flex; align-items: center; gap: 8px; margin: 2px 0 8px; min-height: 38px; } /* v275: גובה שמור — במניית IBKR (בלי "ערוך") שורת התשואה מופיעה רק אחרי הציור, והכרטיס קפץ בסוף הפתיחה */
+.stock-foot { display: flex; align-items: center; gap: 6px; margin: 2px 0 8px; min-height: 38px; } /* v275: גובה שמור — במניית IBKR (בלי "ערוך") שורת התשואה מופיעה רק אחרי הציור, והכרטיס קפץ בסוף הפתיחה */
 .stock-foot .pf-range-summary { flex: 1 1 auto; min-width: 0; margin: 0; flex-wrap: nowrap; align-items: center; gap: 6px; white-space: nowrap; }
 .stock-foot .pf-range-summary > span { flex: none; }
 /* רק התווית "תשואת המניה" מתקצרת כשאין מקום — הסמן, האחוז והטווח תמיד שלמים */
@@ -854,11 +854,34 @@ html.drag-active .tabpage { transform: none !important; }   /* v324: בלי anim
 .stock-body .edit-actions.stock-edit { flex: none; margin: 0; margin-inline-start: auto; padding: 0; }
 .stock-body .edit-actions .chip-btn { padding-block: 6px; font-size: 13.5px; white-space: nowrap; }
 .stock-foot .stock-edit .chip-btn { padding: 5px 12px; font-size: 13px; gap: 5px; }
-.stock-foot .stock-edit { display: flex; gap: 6px; }
-.stock-foot .stock-ico-btn { inline-size: 40px; block-size: 38px; padding: 0; justify-content: center; flex: none; }   /* סמל בלבד — יעד לחיצה נוח */
+.stock-foot .stock-edit { display: flex; gap: 5px; }
+.stock-foot .stock-ico-btn { inline-size: 38px; block-size: 38px; padding: 0; justify-content: center; flex: none; }   /* סמל בלבד — יעד לחיצה נוח */
 .stock-foot .stock-ico-btn svg, .stock-foot .an-open-btn svg { width: 18px; height: 18px; flex: none; }
-.stock-foot .an-open-btn { block-size: 38px; padding: 0 12px; gap: 6px; flex: none; white-space: nowrap; font-size: 14px; }   /* סמל + מילה, באותו גובה כמו כפתורי הסמל */
+.stock-foot .an-open-btn { block-size: 38px; padding: 0 10px; gap: 5px; flex: none; white-space: nowrap; font-size: 13.5px; }   /* סמל + מילה, באותו גובה כמו כפתורי הסמל */
 /* תשואה ענקית (מעל 10,000%) מוצגת מקוצרת (‎fmtPct‎ — 12.3K%) — הכפתורים נשארים בגודל נוח ולא נדרסים */
+/* 28/10/2026: התראות המחיר של המניה בכרטיס — רשימה מקובצת בסגנון iOS (כותרת קטנה, שורות עם קו מפריד, חץ) */
+.st-al { margin: 4px 14px 12px; }
+.st-al[hidden] { display: none; }
+.st-al-h { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 6px; }
+.st-al-t { font-size: 13px; font-weight: 600; color: var(--on-surface-var); }
+.st-al-add { inline-size: 28px; block-size: 28px; display: grid; place-items: center; border: 0; border-radius: var(--radius-xl); background: var(--primary-container); color: var(--on-primary-container, var(--primary)); cursor: pointer; padding: 0; }
+.st-al-add svg { inline-size: 16px; block-size: 16px; }
+.st-al-add:active { transform: scale(.92); }
+.st-al-list { border-radius: var(--radius-sm); background: var(--surface-2); overflow: hidden; }
+.st-al-row { inline-size: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 0; background: none; color: var(--on-surface); font: inherit; text-align: start; cursor: pointer; }
+.st-al-row + .st-al-row { border-block-start: .5px solid var(--separator); }
+.st-al-row:active { background: color-mix(in srgb, var(--on-surface) 6%, transparent); }
+.st-al-ic { inline-size: 32px; block-size: 32px; flex: none; display: grid; place-items: center; border-radius: var(--radius-xs); background: var(--primary); color: #fff; } /* כמו סמלי התפריט (.row-link-ic): לבן על ירוק המערכת */
+.st-al-ic svg { inline-size: 18px; block-size: 18px; }
+.st-al-tx { flex: 1; min-inline-size: 0; display: flex; flex-direction: column; gap: 1px; }
+.st-al-tx b { font-size: 16px; font-weight: 600; unicode-bidi: isolate; text-align: start; font-variant-numeric: tabular-nums; }
+.st-al-tx small { font-size: 12.5px; color: var(--on-surface-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-al-st { font-size: 12px; color: var(--on-surface-var); flex: none; }
+.st-al-chev { flex: none; color: var(--on-surface-var); opacity: .6; }
+.st-al-chev svg { inline-size: 14px; block-size: 14px; display: block; }
+[dir="ltr"] .st-al-chev svg { transform: scaleX(-1); }
+.st-al-row.done .st-al-ic { background: var(--on-surface-var); opacity: .55; }
+.st-al-row.done .st-al-tx b { color: var(--on-surface-var); }
 
 .chart-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .ranges { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; flex: 1; }

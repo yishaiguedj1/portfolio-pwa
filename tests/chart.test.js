@@ -222,4 +222,36 @@ ok(Object.keys(L.IND).length >= 40, 'לפחות 40 אינדיקטורים נוס
   ok(lic, 'KLineChart: רישיון Apache-2.0 ו־NOTICE לצד הקובץ');
 }
 
+/* 28/10/2026: גלגלת הטווחים כמו TradingView · בחירה ומחיקה באצבע · התראות בכרטיס המניה */
+{
+  const ch = fs.readFileSync(path.join(root, 'chart.js'), 'utf8');
+  const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+  const css = fs.readFileSync(path.join(root, 'chart.css'), 'utf8');
+  const st = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
+  const wh = ch.slice(ch.indexOf('function wheel('), ch.indexOf('/* "עוד" בטלפון'));
+  ok(/st\.loop = st\.n > 2/.test(wh) && /% st\.n\) \+ st\.n\) % st\.n/.test(wh), 'גלגלת: מעגלית (אחרי האחרון — הראשון)');
+  ok(/st\.i0 - \(e\.clientY - st\.y\) \/ WH_ROW/.test(wh) && /requestAnimationFrame/.test(wh), 'גלגלת: גלילה רציפה עם האצבע (לא קפיצות), ציור בפריים');
+  ok(/kc-roll/.test(wh) && /\.kc-roll-i \{/.test(css), 'גלגלת: התווית בכפתור מתגלגלת');
+  ok(/it\.l \|\| it\.t/.test(wh) && /l: tfLong\(tf\)/.test(ch) && /unitDisplay: 'long'/.test(ch), 'גלגלת: שמות מלאים ("15 דקות") דרך Intl');
+  ok(/\.kc-wheel\.on \{/.test(css) && /rgba\(28, 28, 30, \.92\)/.test(css), 'גלגלת: חלון כהה עם כניסה רכה');
+  ok(!/style: '/.test(wh) && /e\.style\.transform = /.test(ch), 'גלגלת: מיקום דרך CSSOM (CSP)');
+  const hit = ch.slice(ch.indexOf('function hitAt('), ch.indexOf('function wireCellPointer'));
+  ok(/const HIT_PX = 14;/.test(ch) && /groupId: 'alert'/.test(hit) && /groupId: 'user'/.test(hit) && /segDist/.test(hit), 'מגע: פגיעה באובייקט עד 14px — קווי התראה ושרטוטים');
+  const wp = ch.slice(ch.indexOf('function wireCellPointer'), ch.indexOf('/* ---------- גיליונות'));
+  ok(/hitAt\(c, down\.x - r\.left, down\.y - r\.top\)/.test(wp) && /openObjMenu\(\)/.test(wp), 'לחיצה ארוכה על אובייקט — בחירה ותפריט עם מחיקה, בלי הקשה קודמת');
+  ok(/hitAt\(c, d0\.x - r\.left, d0\.y - r\.top\)/.test(wp) && /deselect\(\)/.test(wp), 'הקשה על אובייקט בוחרת, על רקע ריק — מבטלת');
+  ok(/export function stockAlerts\(/.test(ch) && /export async function openStockAlert\(/.test(ch), 'chart.js מייצא התראות לכרטיס המניה');
+  const oa = ch.slice(ch.indexOf('export async function openStockAlert'), ch.indexOf('/* עונתיות'));
+  ok(/bgSync\(true\)/.test(oa) && /kc-float/.test(oa) && /onAlerts/.test(oa), 'עורך מהכרטיס: רישום לרקע (ברירת מחדל), שורש שקוף, עדכון הכרטיס');
+  ok(/if \(S\.cells\.length\) S\.store\.g\.cells = /.test(ch), 'שמירה בלי הגרף פתוח לא דורסת את הפריסה');
+  ok(/\.kc-root\.kc-float \{/.test(css), 'שורש שקוף לגיליון מחוץ לגרף');
+  ok(/function stockAlertsEl\(sym\)/.test(app) && /wrap\.appendChild\(stockAlertsEl\(sym\)\)/.test(app), 'כרטיס המניה: מקטע התראות המחיר');
+  ok((app.match(/actions\.appendChild\(alertBtn\(sym\)\)/g) || []).length === 3, 'כפתור פעמון בכל שלושת סוגי הכרטיס');
+  ok(/onClose: \(\) => refreshStockAlerts\(\)/.test(app), 'סגירת הגרף מרעננת את ההתראות בכרטיס');
+  const se = app.slice(app.indexOf('function stockAlertsEl'), app.indexOf('function refreshStockAlerts'));
+  ok(!/innerHTML = [^'<]/.test(se) && /sub\.textContent = /.test(se), 'הערת ההתראה נכתבת כטקסט (לא HTML)');
+  ok(/kcPriceAlerts: 'התראות מחיר'/.test(app) && /kcPriceAlerts: 'Price alerts'/.test(app) && /kcAlertNew: 'New price alert'/.test(app), 'מחרוזות המקטע בשתי השפות');
+  ok(/\.st-al-row \{/.test(st) && /\.st-al-list \{[^}]*var\(--radius-sm\)/.test(st), 'עיצוב הרשימה — רדיוס ממשתנה');
+}
+
 console.log('\n' + n + ' בדיקות עברו');

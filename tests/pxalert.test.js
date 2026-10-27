@@ -52,10 +52,10 @@ ok(/sync: \(b\) => ibkrBgApi\(b\)/.test(app), 'app.js: הגרף מסנכרן ד�
 ok(/op: 'pxa', act: 'sync'/.test(ch) && /pushManager\.subscribe/.test(ch) && /BG\.st === 'on'\) return/.test(ch), 'chart.js: סנכרון + מנוי Push; בלי התראת מערכת כפולה כשהרקע פעיל');
 for (const k of ['kcBgOn', 'kcBgOff', 'kcBgEnable', 'kcBgAuth', 'kcBgDeny', 'kcBgNo']) ok((app.match(new RegExp('\\b' + k + ": '", 'g')) || []).length === 2, k + ' בשתי השפות');
 
-/* ---------- השרת: הבודק רץ כל 30 שנ׳, גם כש־SNB_CRON כבוי ---------- */
+/* ---------- השרת: הבודק רץ כל 5 שנ׳, גם כש־SNB_CRON כבוי ---------- */
 {
   const srv = R('ibkr-proxy/server.js');
-  ok(/if \(process\.env\.SNB_PXA !== 'off'\) startPx\(server\)/.test(srv) && /job=px/.test(srv) && /30e3/.test(srv), 'server.js: startPx כל 30 שנ׳');
+  ok(/if \(process\.env\.SNB_PXA !== 'off'\) startPx\(server\)/.test(srv) && /job=px/.test(srv) && /const PX_EVERY = 5e3;/.test(srv), 'server.js: startPx כל 5 שנ׳ — ההתראה בזמן');
   ok(!/job=px/.test(R('ibkr-proxy/vercel.json')), 'vercel.json: בלי קרון לדקות (Hobby דוחה)');
 }
 

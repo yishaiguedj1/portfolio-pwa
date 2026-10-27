@@ -986,8 +986,13 @@ FIX_TASK = """תיקון כתוביות שבדיקה אוטומטית סימנה
 כשמקצרים — לא משמיטים הסתייגות (אולי, כנראה, לדעתי, בערך): היא חלק מהמשמעות. הערה "הסתייגות" — מחזירים אותה במילה אחת."""
 
 # 25/10/2026 (ניתוח האיכות של session_01UZAW): התיקון האחרון ביטל שינויים של הביקורת ("הייתה אמורה לאסוף" → "אספה")
-ZF_NOTE = """הכתוביות שמסומנות "הביקורת שינתה" — העורך כבר בדק אותן בהקשר. לא מחזירים לנוסח שלפני הביקורת;
-פותרים רק את הבעיה שסומנה, בשינוי הקטן ביותר."""
+ZF_NOTE = """הכתוביות שמסומנות "הביקורת שינתה" — העורך כבר בדק אותן בהקשר. לא מחזירים לנוסח שלפני הביקורת,
+חוץ מבעיה [gen] או [name] שהביקורת יצרה — שם הנוסח שלפני הביקורת הוא התיקון; אחרת פותרים רק את הבעיה שסומנה,
+בשינוי הקטן ביותר."""
+# 28/10/2026 (פרק 8 של הסדרה): הביקורת הפכה "אני מאמינה" ל"מאמין" לדוברת שהטבלה אומרת שהיא אישה, הבדיקה סימנה [gen],
+# המתקן החזיר את "מאמינה" — והתשובה נזרקה כי היא הנוסח שלפני הביקורת. בבעיה שנבדקת מול נתון (טבלת הדוברים, כתיב שם
+# בשאר הכתוביות) החזרה היא התיקון הנכון ולא נזרקת
+KEEP_BACK = frozenset(('gen', 'name'))
 
 # 25/10/2026: סבב בקרה אחרי הבנייה — מה שהבקרה (qc.md) מצאה על המסך האמיתי, אחרי התזמון והמיזוגים.
 # עד היום אף שלב לא פעל לפיה: 135 שגיאות "חובה" (בעיקר קצב קריאה מעל 20) הגיעו לצופה ב־20 עבודות.
@@ -1481,6 +1486,8 @@ class Pipeline:
         v = os.environ.get('SNB_TL_DUAL', '')
         if v == 'off' or getattr(self.eng, 'manual', False):
             return False
+        if v != 'on' and (getattr(self.ctx, 'st', None) or {}).get('xd') == 1:   # 28/10/2026: ניסוי "טיוטה אחת" (השרתון קבע לפרק הזה)
+            return False
         return v == 'on' or 'haiku' in str(getattr(getattr(self.eng, 'spec', None), 'model', ''))
 
     def _raw(self, files) -> dict[str, str]:
@@ -1616,7 +1623,8 @@ class Pipeline:
                         ans.pop(kk, None)
                     self.fix_rej += len(rej)
                     if keep:
-                        kp = {kk: v for kk, v in ans.items() if kk in keep and kk not in hard and clean_answer(v) == keep[kk]}
+                        kp = {kk: v for kk, v in ans.items() if kk in keep and kk not in hard and clean_answer(v) == keep[kk]
+                              and not any(issue_code(m) in KEEP_BACK for m in todo.get(kk, []))}
                         rej_record(self.pd / 'tr', cs or fname, kp, 'keep')
                         ans = {kk: v for kk, v in ans.items() if kk not in kp}
                     got.update(ans)

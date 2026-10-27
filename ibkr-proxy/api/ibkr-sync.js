@@ -6,7 +6,7 @@
         { op:'status' } · { op:'enable', token, queryId, have } · { op:'disable' }
         { op:'pull', have } → החלקים שמוכנים מאז have · { op:'ack', have } → מוחק מהענן את מה שכבר יובא
         { op:'pxa', act } → התראות המחיר של גרף הנרות ברקע (27/10/2026 — לכל משתמש מחובר; ראו lib/pxalert.js)
-   GET ?job=px — הבודק של התראות המחיר (כל 30 שנ׳ מהשרת שלנו, server.js — startPx)
+   GET ?job=px — הבודק של התראות המחיר (כל 5 שנ׳ מהשרת שלנו, server.js — startPx)
    אבטחה: ה־token וה־Query ID נשמרים רק מוצפנים (lib/vault.js, AES-256-GCM, מפתח שחי רק ב־Vercel),
    ולעולם לא חוזרים לטלפון; גם הדוחות מוצפנים ונמחקים אחרי הייבוא. מורשים: מנהל הספרייה או IBKR_SYNC_USERS.
    מסמך ב־Firestore: ibkrVault/{uid} — c (פרטי חיבור), a (מאיפה להמשיך), s (חלקים מוכנים): מוצפנים;
@@ -200,7 +200,7 @@ async function pxApi(body, uid, res, deps) {
   if (sig(u) !== before) await pxSave(deps, u);   // מכסת Firestore: בלי שינוי (פתיחת גרף רגילה) — בלי כתיבה
   return res.status(200).json(act === 'sync' ? { ok: true, n: u.w.length, fired } : { ok: true, n: u.w.length });
 }
-/* הבודק: כל 30 שנ׳ מהשרת שלנו (server.js — startPx). מחיר אחד לכל הסימבולים, Push לכל חצייה, ומסמן שנשלח */
+/* הבודק: כל 5 שנ׳ מהשרת שלנו (server.js — startPx). מחיר אחד לכל הסימבולים, Push לכל חצייה, ומסמן שנשלח */
 async function pxCron(deps) {
   if (PX.busy) return { busy: true };
   PX.busy = true;
