@@ -313,10 +313,35 @@ const { fakeR2, ENV } = require('./_r2fake');
     ok(!r.res, 'אחרי שהתחיל: עד 3 דק׳ בין עדכונים — תקין (Chrome מעדכן רק כשחלק נגמר)');
     r = await run({ start: 10, steps: tens(19) });
     ok(r.res && r.res.stall && r.res.started, 'התחיל ונעצר יותר מ־3 דק׳ → נתקע');
+    // 28/10/2026: Chrome מתקדם אבל לאט (280KB/שנ׳ מול 2MB/שנ׳ בהעלאה הרגילה) → ההעלאה הרגילה
+    {
+      const MB = 1024 * 1024, SZ = 163 * MB, PS8 = 8 * MB;
+      const runSz = async ({ vis = () => true, bytesPer10s }) => {
+        const bg = fakeBg(); bg.uploadTotal = SZ; bg.uploaded = 0;
+        let t = 1000; const m = mkEnv({ get: async () => bg }); m.env.now = () => t; m.env.visible = vis;
+        const ctl = new AbortController();
+        const p = B.bgUpload({ api: async () => ({}), job: JOB, blob: new Blob([]), size: SZ, st: { id: 'FID', up: 'UP', ps: PS8 }, signal: ctl.signal, onProgress() {} }, m.env);
+        await new Promise((r) => setTimeout(r, 5));
+        let res = null; p.then((x) => { res = x; });
+        for (let i = 1; i <= 8 && !res; i++) { t += 10000; bg.uploaded = Math.floor(i * bytesPer10s / PS8) * PS8; bg.fire(); await new Promise((r) => setTimeout(r, 2)); }
+        await new Promise((r) => setTimeout(r, 5));
+        const out = { res, bg, saved: m.saved };
+        if (!res) { ctl.abort(); await p; }   // בלי טיימר שנשאר
+        return out;
+      };
+      let q = await runSz({ bytesPer10s: 2.8 * MB });
+      ok(q.res && q.res.slow && q.res.fallback === 'bg_slow' && q.bg.aborted && q.saved.some((x) => x.del === 'snbup-' + JOB),
+        'דף מוצג דקה והקצב ~280KB/שנ׳ → מבטלים את ה־Background Fetch וממשיכים בהעלאה הרגילה (מהחלקים שהגיעו)');
+      q = await runSz({ bytesPer10s: 24 * MB });
+      ok(!q.res, 'קצב 2.4MB/שנ׳ — נשאר ברקע');
+      q = await runSz({ bytesPer10s: 2.8 * MB, vis: () => false });
+      ok(!q.res, 'הדף ברקע — הקצב לא נבדק (שם Background Fetch הוא כל הטעם)');
+    }
   }
   {
     const st = read('studio.js');
     ok(/visible: \(\) => typeof document === 'undefined' \|\| document\.visibilityState === 'visible'/.test(st), 'studio.js: השעון יודע אם הדף מוצג');
+    ok(/r\.slow \? 5/.test(st) && /BG_SLOW_RETRY_MS/.test(st) && /s\.bgSl = Math\.floor/.test(st), 'studio.js: איטי = 5 במדידה; לא מנסים שוב שלושה ימים; נשמר בהגדרות');
     ok(/r\.stall \? 4/.test(st) && /if \(st >= 2\) store\.settings\.bgNo = Date\.now\(\)/.test(st) && /s\.bgS2 = Math\.min\(9/.test(st),
       'studio.js: נתקע = 4 במדידה; פעם שנייה בטלפון הזה — לא מנסים חודש; המונה נשמר בהגדרות');
     ok(/const stale = Number\(o\.bgSt\) >= 2;/.test(st) && /if \(!stale && Number\.isFinite\(\+o\.bgNo\)/.test(st) && !/s\.bgSt =/.test(st),

@@ -691,6 +691,32 @@ class FixStages2510(unittest.TestCase):
         self.assertIn('#1 שלום לכולם', z, 'תיקון אמיתי נשמר')
         self.assertEqual(pl.current()['3'], 'נדבר על נטפליקס במילולי', 'השינוי של הביקורת נשאר')
 
+    def test_zfinal_may_undo_review_gender_slip(self):
+        # 28/10/2026: הביקורת הפכה מגדר דוברת ([gen]) — החזרה לנוסח שלפני הביקורת היא התיקון, לא נזרקת;
+        # החזרה בלי [gen]/[name] (כאן #3) — עדיין נזרקת
+        self.write('#1 אני מאמינה שכן\n#2 תודה\n', '#3 נטפליקס\n')
+
+        def h(kw):
+            p = kw['messages'][0]['content']
+            if '<review_package>' in p:
+                return msg('#1 אני מאמין שכן\n#3 נדבר על נטפליקס')
+            if '<to_fix>' in p:
+                return msg('#1 אני מאמינה שכן\n#3 נטפליקס')
+            raise AssertionError(p[:80])
+        pl = P.Pipeline(self.ctx, self.J, self.engine(h))
+        rv = {'n': 0}
+
+        def check(stage=''):
+            rv['n'] += 1
+            if 'מאמין שכן' in pl.current().get('1', '') and 'מאמינה' not in pl.current().get('1', ''):
+                return {}, {'1': ["[gen] הדובר S2 (אישה) — 'אני מאמין' בלשון זכר"], '3': ['[cps] מהיר']}, 0
+            return {}, {}, 0
+        pl.check = check
+        pl.review()
+        self.assertIn('[gen] או [name]', P.ZF_NOTE)
+        self.assertEqual(pl.current()['1'], 'אני מאמינה שכן', 'החזרה מתקנת את המגדר')
+        self.assertEqual(pl.current()['3'], 'נדבר על נטפליקס', 'החזרה בלי [gen] — נזרקת')
+
     def test_zfinal_soft_only_on_review_changes(self):
         # #1 עם הערת "לשקול" שהביקורת לא נגעה בו — לא נשלח לתיקון האחרון
         self.write('#1 שלום במילולי\n#2 תודה\n', '#3 נטפליקס\n')

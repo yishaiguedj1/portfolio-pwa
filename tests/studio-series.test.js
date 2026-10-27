@@ -50,4 +50,15 @@ try {
 } catch (e) { py = null; }
 if (py) ok(JSON.stringify(py) === JSON.stringify(a), 'sm_valid בעובד = normSm בשרתון');
 else console.log('# python3 / job.py לא זמינים — דילוג על ההשוואה');
-console.log('# ' + n + ' בדיקות עברו');
+
+// 5. ניסוי "טיוטה אחת" (28/10/2026) — פרק שמספרו 1/2 מודולו 4, עד DUAL_AB_UNTIL; מוצלב עם medium (אי־זוגי) / high (זוגי)
+{
+  const t = Date.UTC(2026, 9, 28), ab = (n) => S.dualAb({ fv: { name: 'Show.S01E' + String(n).padStart(2, '0') + '.mkv' } }, t);
+  const off = [8, 9, 10, 11, 12, 13, 14, 15].filter((e) => ab(e) === 1);
+  ok(JSON.stringify(off) === '[9,10,13,14]', 'פרקים 8–15: בלי טיוטה שנייה — 9, 10, 13, 14');
+  ok(off.filter((e) => e % 2).length === 2 && off.filter((e) => !(e % 2)).length === 2, 'מוצלב: שניים מכל מצב');
+  ok(S.dualAb({ fv: { name: 'interview.mp4' } }, t) === 0 && S.dualAb({ fv: { name: 'X 1x05.mkv' } }, S.DUAL_AB_UNTIL) === 0, 'לא סדרה / אחרי סוף הניסוי — רגיל');
+  ok(/if \(job\.kind === 'tr' && !job\.c0 && S\.dualAb\(job, now\)\) patch\.xd = 1;/.test(api) && /if \(job\.xd === 1 \|\| patch\.xd === 1\) wj\.xd = 1;/.test(api), 'נקבע בלקיחה הראשונה ונשלח לעובד');
+  ok(/xd: job\.xd === 1 \? 1 : 0/.test(fs.readFileSync(path.join(root, 'ibkr-proxy/lib/studiolearn.js'), 'utf8')), 'נרשם במאגר הלמידה');
+}
+console.log('# ' + n + ' בדיקות עברו (כולל הניסוי)');
