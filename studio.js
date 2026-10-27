@@ -8730,13 +8730,16 @@ function shadeUpLine(rec, run, now) {
   let r = shadeRate.get(rec.id);
   if (!r || sent < r.b) { r = { t: now, b: sent, v: run.rate || 0 }; shadeRate.set(rec.id, r); }
   else if (now - r.t >= 900) { const v = (sent - r.b) / ((now - r.t) / 1000); r.v = r.v ? r.v * 0.5 + v * 0.5 : v; r.t = now; r.b = sent; }
-  const parts = [T('studioShadeUpOf', { a: fmtSize(sent), b: fmtSize(size) })];
-  if (r.v > 0) parts.push(T('studioPerSec', { v: fmtSize(r.v) }));
+  const parts = [T('studioShadeUpOf', { a: shadeIso(fmtSize(sent)), b: shadeIso(fmtSize(size)) })];
+  if (r.v > 0) parts.push(T('studioPerSec', { v: shadeIso(fmtSize(r.v)) }));
   return shadeDir() + parts.join(' · ');
 }
 /* כיוון השורה: "81MB" בתחילתה (אות לטינית ראשונה) הופכת שורה בעברית לשמאל־לימין — הפס מתהפך והמספרים מתערבבים
    (צילום מהטלפון, 27/10/2026). RLM בתחילת כל שורה בעברית */
 const shadeDir = () => (uiLang() === 'en' ? '' : '\u200F');
+/* כל "81MB" מבודד (LRI…PDI): בלי זה "162MB · 436KB" נדבקים לרצף אחד משמאל לימין, והמהירות נקראת לפני הגודל ("מסודר
+   בסדר הגיוני", 27/10/2026). בתוך הבידוד המספר והיחידה נשארים "81MB" */
+const shadeIso = (x) => (uiLang() === 'en' ? x : '\u2066' + x + '\u2069');
 /* בקשת המשתמש: "בר התקדמות להעלאה שנראה בדיוק כמו של השלבים", "מסודר כמו החלק העליון" — אותו מבנה: שם, ואז פס ואחוז,
    ואז כמה עלה ומהירות. כשההעלאה עצמה השלב הנוכחי — השורה הראשונה כבר הפס שלה, ומוסיפים רק את השורה האחרונה */
 function shadeUpBlock(rec, run, now, curSt) {
