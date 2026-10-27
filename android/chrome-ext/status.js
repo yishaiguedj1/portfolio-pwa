@@ -23,7 +23,7 @@ export function describe(st, now) {
     const k = Object.keys(ERR).find((x) => String(l.err).includes(x));
     return { warn: true, title: 'הסנכרון נעצר', sub: k ? ERR[k] : 'אין חיבור — ננסה שוב לבד' };
   }
-  if (st.hold) return { warn: true, title: 'מחכה לאישור שלך', sub: `${st.hold} סימניות למחיקה` };
+  if (st.hold || st.hhold) return { warn: true, title: 'מחכה לאישור שלך', sub: [st.hold ? `${st.hold} סימניות` : '', st.hhold ? `${st.hhold} ביקורים בהיסטוריה` : ''].filter(Boolean).join(' · ') + ' למחיקה' };
   if (!l.at) return { warn: false, title: 'מתחבר…', sub: 'הסנכרון הראשון רץ עכשיו' };
   const moved = [];
   if (l.added) moved.push(l.added === 1 ? 'סימנייה חדשה הגיעה מהטלפון' : `${l.added} סימניות חדשות הגיעו מהטלפון`);

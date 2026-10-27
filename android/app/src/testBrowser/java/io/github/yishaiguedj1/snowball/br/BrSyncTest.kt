@@ -96,4 +96,24 @@ class BrSyncTest {
         assertEquals("i", BrSync.folderOf(BrMark("https://x.com/", "x", 1, imp = true))); assertEquals("m", BrSync.folderOf(BrMark("https://y.com/", "y", 1)))
         assertEquals(listOf("m", "i"), BrSync.roots(listOf(BrMark("https://x.com/", "x", 1, imp = true))))
     }
+
+    // 27/10/2026 (בקשת המשתמש: "במיוחד ההיסטוריה"): ביקור־ביקור, ומחיקה רק כש־Chrome מחק
+    @Test fun chromeHistory() {
+        val h = 3_600_000L
+        val have = listOf(BrVisit("https://a.com/", "A", 10 * h), BrVisit("https://mine.com/", "M", 11 * h), BrVisit("https://old.com/", "O", 1 * h),
+            BrVisit("https://del.com/", "D", 12 * h), BrVisit("https://new-here.com/", "N", 13 * h))
+        val prev = mapOf(BrSync.visitKey("https://a.com/", 10 * h) to 10 * h, BrSync.visitKey("https://del.com/", 12 * h) to 12 * h,
+            BrSync.visitKey("https://old.com/", 1 * h) to 1 * h)
+        val chrome = listOf(BrImport.Item("https://www.a.com", "A", 10 * h + 300), BrImport.Item("https://a.com/", "A", 9 * h),   // אותו ביקור בכתיב אחר + ביקור נוסף באותה כתובת
+            BrImport.Item("https://c.com/", "C", 14 * h), BrImport.Item("https://hidden.com/", "H", 15 * h))
+        val p = BrSync.planChromeHist(have, chrome, prev, 5 * h, setOf(BrSync.visitKey("https://hidden.com/", 15 * h)))
+        // del.com: Chrome הראה ועכשיו לא → נמחק. old.com: מתחת ל־hfrom (קיטום) → נשאר. new-here / mine: Chrome לא הראה אף פעם → נשארים
+        assertEquals(setOf(BrSync.visitKey("https://del.com/", 12 * h)), p.remove)
+        // כל ביקור של Chrome שחסר כאן — גם השני באותה כתובת; לא מה שמחקת כאן ועוד לא נמחק שם; בלי כפולה של ביקור שכבר כאן
+        assertEquals(listOf("https://a.com/" to 9 * h, "https://c.com/" to 14 * h), p.add.map { it.url to it.at })
+        assertEquals(4, p.cur.size)
+        // אותו מצב פעמיים — כלום
+        val again = BrSync.planChromeHist(have.filter { it.url != "https://del.com/" } + p.add, chrome, p.cur, 5 * h, setOf(BrSync.visitKey("https://hidden.com/", 15 * h)))
+        assertTrue(again.add.isEmpty() && again.remove.isEmpty())
+    }
 }

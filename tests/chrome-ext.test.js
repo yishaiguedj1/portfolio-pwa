@@ -81,8 +81,8 @@ const ok = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exit(1); }
 
   // --- המצב
   const now = Date.UTC(2026, 9, 26);
-  const st = C.buildState({ flat, dirs, hist: [{ url: 'https://h.com/', title: 'H', lastVisitTime: now - 1000 }, { url: 'https://old.com/', lastVisitTime: now - 40 * 86400000 }], prev: { rev: 4 }, ack: 7, alias: { a1: 'n10', zz: 'n999' }, vat: 20, origin: ['n30'], now, hold: 0 });
-  ok(st.rev === 5 && st.marks.length === 4 && st.hist.length === 1, 'state: סימניות והיסטוריה של 30 יום');
+  const st = C.buildState({ flat, dirs, hist: [{ url: 'https://h.com/', title: 'H', lastVisitTime: now - 1000 }, { url: 'https://old.com/', lastVisitTime: now - 100 * 86400000 }], prev: { rev: 4 }, ack: 7, alias: { a1: 'n10', zz: 'n999' }, vat: 20, origin: ['n30'], now, hold: 0 });
+  ok(st.rev === 5 && st.marks.length === 4 && st.hist.length === 1, 'state: סימניות והיסטוריה של 90 יום');
   ok(st.dirs.length === 2 && st.marks.find((m) => m.id === 'n11').i === 1 && !C.sameState(st, { ...st, dirs: [] }), 'state: התיקיות והמקום עוברים לטלפון');
   ok(st.marks.find((m) => m.id === 'n30').o === 'a' && st.marks.find((m) => m.id === 'n10').o === 'c', 'state: מאיפה הגיעה');
   ok(st.alias.a1 === 'n10' && !st.alias.zz, 'state: מזהה זמני שמצביע על כלום יוצא');
@@ -94,6 +94,26 @@ const ok = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exit(1); }
   ok(St.describe({ last: { at: now }, hold: 12 }, now).title === 'מחכה לאישור שלך', 'תיאור: מחכה לאישור');
   ok(/לא רשום ב־Google/.test(St.connectErr({ last: { err: 'OAuth2 request failed: Service responded with error: \'bad client id: x\'' } })), 'חיבור: לקוח OAuth חסר — הודעה ברורה');
   ok(/נסגר בלי אישור/.test(St.connectErr({ last: { err: 'The user did not approve access.' } })) && /לנסות שוב/.test(St.connectErr({})), 'חיבור: ביטול / בלי קוד');
+
+  // --- היסטוריה ביקור־ביקור (27/10/2026, בקשת המשתמש: "במיוחד ההיסטוריה")
+  const since = now - 90 * 86400000;
+  const hv = {};
+  C.visitsMerge(hv, 'https://a.com/', 'A', [['1', now - 5000], ['2', now - 3000], ['3', now - 100 * 86400000]], since);
+  C.visitsMerge(hv, 'https://b.com/', 'B', [['7', now - 4000]], since);
+  ok(hv['https://a.com/'].v.length === 2, 'מטמון: כל הביקורים בכתובת, רק בחלון');
+  C.visitsMerge(hv, 'https://gone.com/', 'G', [], since); ok(!('https://gone.com/' in hv), 'מטמון: כתובת בלי ביקורים — יוצאת');
+  const echo = [{ id: '7', u: 'https://b.com/', p: now - 60000, c: now - 4000 }];
+  const hl = C.histList(hv, echo, since);
+  ok(hl.hist.length === 3 && hl.hist.filter((v) => v.u === 'https://a.com/').length === 2, 'כל ביקור הוא שורה — לא רק האחרון בכתובת');
+  ok(hl.hist.find((v) => v.u === 'https://b.com/').at === now - 60000, 'הד: ביקור מהטלפון חוזר בזמן של הטלפון — בלי כפולה');
+  ok(hl.hfrom === since && C.histList(hv, echo, since, 2).hfrom === now - 4999, 'קיטום: מאיזה זמן הרשימה שלמה (+1)');
+  ok(C.echoChromeAt(echo, 'https://b.com/', now - 60000 + 300) === now - 4000 && C.echoChromeAt(echo, 'https://a.com/', 5) === 5, 'מחיקה מהטלפון מוצאת את הזמן ב־Chrome');
+  const hp = C.planOps(flat, { ops: [{ s: 1, k: 'hdel', u: 'https://a.com/', at: 9 }, { s: 2, k: 'hdel', u: '', at: 1 }] }, null);
+  ok(hp.hdels.length === 1 && hp.hdels[0].at === 9 && hp.ack === 2, 'hdel: ביקור שנמחק בטלפון');
+  const hbig = C.planOps(flat, { ops: Array.from({ length: 301 }, (_, i) => ({ s: i + 1, k: 'hdel', u: 'https://a.com/', at: i + 1 })) }, null);
+  ok(hbig.hhold === 301 && !hbig.hdels.length && hbig.ack === 0 && C.planOps(flat, { ops: [{ s: 1, k: 'hdel', u: 'https://a.com/', at: 1 }] }, null, true).hdels.length === 1, 'ניקוי היסטוריה גדול — מחכה לאישור');
+  const s1 = C.buildState({ flat, dirs, hist: hl.hist, hfrom: hl.hfrom, prev: null, ack: 0, alias: {}, vat: 0, origin: [], now, hold: 0 });
+  ok(s1.hist.length === 3 && s1.hfrom === since && !C.sameState(s1, { ...s1, hist: s1.hist.slice(0, 2) }), 'state: ההיסטוריה המלאה; מחיקה של ביקור ישן = שינוי');
 
   // --- מקצה לקצה עם הטלפון: העצים ש־BrE2eTest בודק נוצרו מה־core.js הנוכחי (node tools/chrome-ext-e2e.mjs)
   const E = await import(path.join(ROOT, 'tools/chrome-ext-e2e.mjs'));

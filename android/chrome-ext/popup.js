@@ -17,8 +17,9 @@ function paint(st) {
   $('count').textContent = st.marks ? st.marks.toLocaleString('he-IL') : '';
   $('email').textContent = st.email || '—';
   $('pMarks').checked = st.prefs.marks; $('pHist').checked = st.prefs.hist;
-  $('holdCard').hidden = !st.hold;
-  $('holdMsg').textContent = st.hold ? `Studio Browser ביקש למחוק ${st.hold} סימניות בבת אחת. זה הרבה — המחיקה מחכה לאישור שלך.` : '';
+  const what = [st.hold ? `${st.hold} סימניות` : '', st.hhold ? `${st.hhold} ביקורים מההיסטוריה` : ''].filter(Boolean).join(' ו־');
+  $('holdCard').hidden = !what;
+  $('holdMsg').textContent = what ? `Studio Browser ביקש למחוק ${what} בבת אחת. זה הרבה — המחיקה מחכה לאישור שלך.` : '';
 }
 
 async function busy(btn, m) {

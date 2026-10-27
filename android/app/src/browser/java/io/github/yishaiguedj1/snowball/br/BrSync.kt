@@ -67,6 +67,22 @@ object BrSync {
     }
 
     /**
+     * ההיסטוריה אחרי state.json (27/10/2026): `chrome` = כל הביקורים ב־Chrome (ביקור־ביקור, 90 יום, ביקור מהטלפון בזמן של הטלפון),
+     * `prev` = מה ש־Chrome הראה בפעם הקודמת (מפתח → זמן). נמחק כאן רק ביקור ש־Chrome הראה ועכשיו כבר לא (נמחק ב־Chrome) — ורק מעל
+     * `hfrom` (מתחתיו הרשימה קוטעה, לא נמחקה). ביקור שעוד לא הגיע ל־Chrome לא נוגעים בו. `gone` = נמחקו כאן ועוד לא ב־Chrome.
+     */
+    class HistPlan(val add: List<BrVisit>, val remove: Set<String>, val cur: Map<String, Long>)
+    fun planChromeHist(have: List<BrVisit>, chrome: List<BrImport.Item>, prev: Map<String, Long>, hfrom: Long, gone: Set<String>): HistPlan {
+        val cur = LinkedHashMap<String, Long>()
+        val byKey = LinkedHashMap<String, BrImport.Item>()
+        for (it in chrome) if (it.at > 0) { val k = visitKey(it.url, it.at); cur[k] = it.at; byKey.putIfAbsent(k, it) }
+        val remove = prev.filter { (k, at) -> at >= hfrom && k !in cur }.keys
+        val haveKeys = have.mapTo(HashSet()) { visitKey(it.url, it.at) }
+        val add = byKey.filter { (k, _) -> k !in haveKeys && k !in gone }.values.map { BrVisit(it.url, it.title, it.at) }
+        return HistPlan(add, remove, cur)
+    }
+
+    /**
      * מה יוצא ל־Chrome: רק סימניות שנשמרו כאן (לא מה שהגיע מ־Chrome — הוא כבר שם) ושעוד לא יצאו (`x` = מתי יצאו).
      * ייבוא קובץ ב־Chrome לא בודק כפילויות — לכן כל קובץ מכיל רק את החדשות מאז הקודם. `all` = שוב את כולן.
      */

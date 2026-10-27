@@ -7,8 +7,9 @@
 
 export const STATE_V = 1;
 export const OPS_V = 1;
-export const HIST_DAYS = 30;
-export const HIST_MAX = 3000;
+export const HIST_DAYS = 90;     // כמו Chrome במחשב — 90 יום של היסטוריה
+export const HIST_MAX = 20000;   // ביקורים (לא כתובות) — כל כניסה לדף היא שורה, כמו בהיסטוריה של Chrome
+export const HDEL_HOLD = 300;    // מחיקה גדולה של היסטוריה מהטלפון (ניקוי) — מחכה לאישור בחלון של התוסף
 export const DEL_HOLD_MIN = 10;      // מחיקה גדולה (יותר מ־DEL_HOLD_MIN וגם מרבע) — מחכה לאישור בחלון של התוסף
 
 const TRACK = /^(utm_[a-z0-9_]+|fbclid|gclid|gbraid|wbraid|dclid|msclkid|mc_cid|mc_eid|igshid|_ga|_gl|yclid|ref_src)$/i;
@@ -91,9 +92,12 @@ export function planOps(flat, opsFile, prev, allowDel = false) {
   const created = new Map();                      // מפתח → מזהה זמני (נוצר באותה אצווה)
   const dels = ops.filter((o) => o.k === 'del').length;
   const hold = !allowDel && dels > DEL_HOLD_MIN && dels > flat.length / 4;
+  const hd = ops.filter((o) => o.k === 'hdel').length;
+  const hhold = !allowDel && hd > HDEL_HOLD;
+  const hdels = [];                               // ביקורים שנמחקו בטלפון: { u, at } — at = הזמן בטלפון
   let last = ack;
   for (const o of ops) {
-    if (hold && o.k === 'del') break;             // עוצרים לפני המחיקה הראשונה — כל מה שאחריה מחכה לאישור
+    if ((hold && o.k === 'del') || (hhold && o.k === 'hdel')) break;   // עוצרים לפני המחיקה הראשונה — כל מה שאחריה מחכה לאישור
     last = o.s;
     if (o.k === 'add') {
       if (!isWeb(o.u)) continue;
@@ -108,13 +112,15 @@ export function planOps(flat, opsFile, prev, allowDel = false) {
       const m = sid ? byId.get(sid) : (o.u ? (byKey.get(key(o.u)) || [])[0] : null);
       if (m) { deletes.push(m.id); const l = byKey.get(key(m.u)) || []; l.splice(l.indexOf(m), 1); if (!l.length) byKey.delete(key(m.u)); byId.delete('n' + m.id); }
       else { const ci = creates.findIndex((c) => c.aid && c.aid === o.id); if (ci >= 0) { created.delete(key(creates[ci].u)); creates.splice(ci, 1); } }
+    } else if (o.k === 'hdel') {
+      if (o.u && o.at > 0) hdels.push({ u: o.u, at: o.at });
     } else if (o.k === 'ren') {
       const sid = String(o.id || '').startsWith('a') ? alias[o.id] : o.id;
       const m = sid ? byId.get(sid) : null;
       if (m && o.t && o.t !== m.t) renames.push({ id: m.id, t: String(o.t).slice(0, 300) });
     }
   }
-  return { creates, deletes, renames, ack: last, alias, hold: hold ? dels : 0 };
+  return { creates, deletes, renames, hdels, ack: last, alias, hold: hold ? dels : 0, hhold: hhold ? hd : 0 };
 }
 
 /** ביקורים מהטלפון שעוד לא נכנסו ל־Chrome (אחרי `vat`) — chrome.history.addUrl */
@@ -127,25 +133,54 @@ export function planVisits(opsFile, prev) {
 }
 
 /**
+ * ההיסטוריה של Chrome, ביקור־ביקור (chrome.history.getVisits) — מטמון אצל התוסף: { כתובת: { t: כותרת, v: [[visitId, זמן]] } }.
+ * `visits` = כל הביקורים בכתובת; נשמר רק מה שבחלון (since).
+ */
+export function visitsMerge(cache, u, t, visits, since) {
+  const v = (visits || []).filter((x) => x && x[1] >= since).map((x) => [String(x[0]), x[1]]);
+  if (v.length) cache[u] = { t: t || (cache[u] && cache[u].t) || '', v }; else delete cache[u];
+  return cache;
+}
+
+/**
+ * ההד: ביקור מהטלפון נכנס ל־Chrome (addUrl) בזמן הסנכרון — Chrome לא מקבל זמן. `echo` = [{ id: visitId, u, p: הזמן בטלפון, c: הזמן ב־Chrome }]
+ * כך הטלפון מקבל אותו בחזרה בזמן שלו (בלי כפולה), ומחיקה מהטלפון מוצאת את הביקור הנכון ב־Chrome.
+ */
+export function echoChromeAt(echo, u, at) {
+  const e = (echo || []).find((x) => x.u === u && Math.abs(x.p - at) < 1000);
+  return e ? e.c : at;
+}
+
+/** הרשימה לטלפון: כל הביקורים, מהחדש לישן, עד HIST_MAX; `hfrom` = מאיזה זמן הרשימה שלמה (מתחת — לא בגלל מחיקה) */
+export function histList(cache, echo, since, max = HIST_MAX) {
+  const em = new Map((echo || []).map((e) => [String(e.id), e.p]));
+  const out = [];
+  for (const [u, e] of Object.entries(cache || {})) for (const [id, at] of e.v) out.push({ u, t: e.t || '', at: em.has(id) ? em.get(id) : Math.round(at) });
+  out.sort((a, b) => b.at - a.at || (a.u < b.u ? -1 : a.u > b.u ? 1 : 0));
+  const hist = out.slice(0, max);
+  return { hist, hfrom: out.length > max ? hist[hist.length - 1].at + 1 : since };   // +1: ביקור באותו רגע שנחתך — לא נחשב "נמחק"
+}
+
+/**
  * state.json מחדש מהעץ של Chrome. `o` = מאיפה הגיעה: a = נשמרה בטלפון (נוצרה כאן מפעולת add), c = Chrome.
  * `origin` = המזהים שנוצרו מהטלפון (נשמר בתוסף), `alias` נשמר כדי שהטלפון יקשר את המזהים הזמניים שלו.
  */
-export function buildState({ flat, dirs, hist, prev, ack, alias, vat, origin, now, hold }) {
+export function buildState({ flat, dirs, hist, hfrom, prev, ack, alias, vat, origin, now, hold, hhold }) {
   const fromApp = new Set(origin || []);
   const marks = flat.map((m) => ({ id: 'n' + m.id, u: m.u, t: m.t, r: m.r, p: m.p, i: m.i, at: m.at, o: fromApp.has('n' + m.id) ? 'a' : 'c' }));
+  // hist = כבר ביקור־ביקור (histList); תוסף ישן / בדיקה — HistoryItem (lastVisitTime)
   const since = now - HIST_DAYS * 86400000;
-  const h = (hist || []).filter((v) => isWeb(v.url) && v.lastVisitTime >= since)
-    .sort((a, b) => b.lastVisitTime - a.lastVisitTime).slice(0, HIST_MAX)
-    .map((v) => ({ u: v.url, t: v.title || '', at: Math.round(v.lastVisitTime) }));
+  const h = (hist || []).map((v) => (v.at != null ? v : { u: v.url, t: v.title || '', at: Math.round(v.lastVisitTime) }))
+    .filter((v) => v.at >= since).sort((a, b) => b.at - a.at).slice(0, HIST_MAX);
   // מזהים זמניים שכבר לא מצביעים על סימנייה קיימת — יוצאים מהטבלה
   const live = new Set(marks.map((m) => m.id));
   const al = {}; for (const [a, n] of Object.entries(alias || {})) if (live.has(n)) al[a] = n;
-  return { v: STATE_V, at: now, rev: ((prev && prev.rev) || 0) + 1, ack: ack || 0, vat: vat || 0, alias: al, hold: hold || 0, marks, dirs: dirs || [], hist: h };
+  return { v: STATE_V, at: now, rev: ((prev && prev.rev) || 0) + 1, ack: ack || 0, vat: vat || 0, alias: al, hold: hold || 0, hhold: hhold || 0, marks, dirs: dirs || [], hist: h, hfrom: hfrom || since };
 }
 
 /** האם יש בכלל מה לכתוב (כדי לא לכתוב ל־Drive כל כמה דקות בלי סיבה) */
 export function sameState(a, b) {
   if (!a || !b) return false;
-  const strip = (s) => JSON.stringify({ ack: s.ack, vat: s.vat, alias: s.alias, hold: s.hold, marks: s.marks, dirs: s.dirs || [], hist: (s.hist || []).slice(0, 50) });
+  const strip = (s) => JSON.stringify({ ack: s.ack, vat: s.vat, alias: s.alias, hold: s.hold, hhold: s.hhold || 0, marks: s.marks, dirs: s.dirs || [], hist: s.hist || [], hfrom: s.hfrom || 0 });   // כל ההיסטוריה — מחיקה של ביקור ישן היא שינוי
   return strip(a) === strip(b);
 }
