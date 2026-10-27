@@ -207,7 +207,8 @@ class VoiceGender(unittest.TestCase):
     def test_between_and_too_short_and_noise(self):
         w = W('a', 0.0, 5.0)
         w['spk'] = 'S1'
-        self.assertEqual(D.voice_gender([w], self.voice(160, 5))["S1"]["g"], "?", 'בין הספים — לא מכריעים')
+        self.assertEqual(D.voice_gender([w], self.voice(175, 5))["S1"]["g"], "?", 'בין הספים — לא מכריעים')
+        self.assertEqual(D.voice_gender([w], self.voice(183, 5))["S1"]["g"], "?", '28/10: גבר בדיבור מוגבר (בארני) — לא "אישה"')
         w2 = W('a', 0.0, 0.8)
         w2['spk'] = 'S1'
         self.assertEqual(D.voice_gender([w2], self.voice(120, 0.8)), {}, 'מעט מדי דיבור — בלי רמז')
