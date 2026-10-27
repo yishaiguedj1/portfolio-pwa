@@ -372,6 +372,7 @@ def run(args):
                     'gref': job.get('gref') if FILE_ID_RE.match(str(job.get('gref') or '')) else None,   # פריט 15: הייחוס של סט הזהב
                     'notes': notes_valid(job.get('notes')),                              # v382: הערות שלך שכבר נקראו (להמשך)
                     'gl': [list(r) for r in gl_rows(job.get('gl'))] if gl_rows(job.get('gl')) is not None else None,   # 11/10: המילון מ־R2 (None = מ־Drive)
+                    'sm': sm_valid(job.get('sm')),                                        # 28/10/2026: זיכרון הסדרה (או None)
                     'rh': job.get('rh') if hub_ok(job.get('rh')) else None,               # 24/10/2026: Claude דרך התור (המנוי של המשתמש)
                     'cap': job.get('cap') if isinstance(job.get('cap'), (int, float)) and 0 < job.get('cap') <= 100 else None})   # מצב API: תקרת העבודה ($)
         for old in ('prog.json', 'tower.json'):        # v362: מגדל הפיקוח מתחיל נקי לכל הפעלה
@@ -3367,24 +3368,28 @@ def gl_merge(ctx):
         return 0
     hit = [r for r in rows if _gl_word(r[0], low)]
     gp = ctx.pdir / 'tr' / 'glossary.tsv'
-    old = (gp.read_text(encoding='utf-8') if gp.exists() else '').split(GL_MARK)[0]
+    old = (gp.read_text(encoding='utf-8') if gp.exists() else '').split(GL_MARK)[0].split(SM_MARK)[0]   # הרצה חוזרת — הזיכרון נכתב מחדש
     if BIZ_MARK in old:                            # הרצה חוזרת — המונחים העסקיים יוצאים; שורות שנכתבו אחריהם נשארות
         head, rest = old.split(BIZ_MARK, 1)
         bk = biz_keys()
         old = head + '\n'.join(ln for ln in rest.splitlines()
                                if ln.strip() and not ln.lstrip().startswith('#') and ln.split('\t')[0].strip().lower() not in bk)
     keys = {r[0].lower() for r in hit}
+    smr = [r for r in ((ctx.st.get('sm') or {}).get('gl') or []) if _gl_word(r[0], low) and r[0].lower() not in keys]   # זיכרון הסדרה
+    keys |= {r[0].lower() for r in smr}
     keep = [ln for ln in old.splitlines() if ln.lstrip().startswith('#') or ln.split('\t')[0].strip().lower() not in keys]
     raw = gp.read_text(encoding='utf-8') if gp.exists() else ''
     have = keys | {ln.split('\t')[0].strip().lower() for ln in keep if ln.strip() and not ln.lstrip().startswith('#')}
     if not rows and GL_MARK in raw:
         have |= {r[0].lower() for r in gl_parse(raw.split(GL_MARK, 1)[1])}
     biz = [r for r in biz_rows(low) if r[0].lower() not in have]
-    if not hit and not biz and GL_MARK not in raw and BIZ_MARK not in raw:
+    if not hit and not biz and not smr and GL_MARK not in raw and BIZ_MARK not in raw and SM_MARK not in raw:
         return 0
     body = '\n'.join(keep).rstrip('\n') + '\n'
     if biz:
         body += BIZ_MARK + '\n' + '\n'.join(gl_line(r) for r in biz) + '\n'
+    if smr:
+        body += SM_MARK + '\n' + '\n'.join(gl_line(r) for r in smr) + '\n'
     if hit:
         body += GL_MARK + '\n' + '\n'.join(gl_line(r) for r in hit) + '\n'
     elif not rows and GL_MARK in raw:              # המילון שלך לא נטען / ריק — הבלוק הקודם נשאר כמו שהוא (כמו עד היום)
@@ -3393,9 +3398,93 @@ def gl_merge(ctx):
     gp.write_text(body, encoding='utf-8')
     if biz:
         print('✓ מונחים עסקיים מהמילון המשותף: ' + str(len(biz)))
+    if smr:
+        print('✓ מזיכרון הסדרה: ' + str(len(smr)) + ' שמות ומונחים שמופיעים בפרק')
     if rows:
         print('✓ מהמילון שלך: ' + str(len(hit)) + ' מונחים שמופיעים בסרטון (מתוך ' + str(len(rows)) + ')')
     return len(hit)
+
+
+# 28/10/2026: זיכרון סדרה — השמות, המונחים והדמויות (עם המגדר) שנקבעו בפרקים הקודמים של אותה סדרה. השרתון שומר
+# (sm/<uid>.json ב־R2, lib/studio.js smMerge) ושולח בלקיחה רק את הסדרה של העבודה; בסוף העבודה — מה שנקבע בה (smPut).
+# בהגהה — בלוק series_memory (התדריך והמילון נכתבים לפיו); במילון — מתחת ל־SM_MARK: גובר על שורה של העבודה, המילון שלך גובר עליו
+SM_MARK = '# — מזיכרון הסדרה (נקבע בפרקים קודמים — גובר על שורה של העבודה) —'
+SM_GL, SM_CH = 150, 40
+
+
+def sm_valid(v):
+    """מה שהגיע בלקיחה → {n, ep, gl: [[en, he]], ch: [[שם, m/f, תפקיד]]} או None — אותו ניקוי של normSm בשרתון."""
+    if not isinstance(v, dict):
+        return None
+    gl, ch, seen, cseen = [], [], set(), set()
+    for r in (v.get('gl') if isinstance(v.get('gl'), list) else [])[:SM_GL * 2]:
+        if isinstance(r, list) and len(r) >= 2:
+            en, he = gl_clean(r[0], 60), gl_clean(r[1], 80)
+            if en and he and en.lower() not in seen and len(gl) < SM_GL:
+                seen.add(en.lower())
+                gl.append([en, he])
+    for r in (v.get('ch') if isinstance(v.get('ch'), list) else [])[:SM_CH * 2]:
+        if isinstance(r, list) and len(r) >= 2 and r[1] in ('m', 'f'):
+            nm = gl_clean(r[0], 40)
+            if nm and nm.lower() not in cseen and len(ch) < SM_CH:
+                cseen.add(nm.lower())
+                ch.append([nm, r[1], gl_clean(r[2] if len(r) > 2 else '', 60)])
+    if not gl and not ch:
+        return None
+    return {'n': gl_clean(v.get('n'), 60), 'ep': _int(v.get('ep')), 'gl': gl, 'ch': ch}
+
+
+def sm_block(st):
+    """בלוק הטקסט להגהה (התדריך והמילון נכתבים ממנו) — '' כשאין זיכרון."""
+    sm = (st or {}).get('sm')
+    if not sm:
+        return ''
+    out = []
+    if sm.get('ch'):
+        out.append('דמויות (שם · מגדר · תפקיד):')
+        out += [f"- {c[0]} · {'אישה' if c[1] == 'f' else 'גבר'}" + (f' · {c[2]}' if c[2] else '') for c in sm['ch']]
+    if sm.get('gl'):
+        out.append('שמות ומונחים (אנגלית → עברית):')
+        out += [f'- {r[0]} → {r[1]}' for r in sm['gl']]
+    return '\n'.join(out)
+
+
+def sm_collect(ctx):
+    """בסוף העבודה: מה שנקבע בה לזיכרון הסדרה — שורות המילון של העבודה (לא העסקיות, לא שלך, לא מהזיכרון)
+    והדמויות מטבלת הדוברים בתדריך (רק עם מגדר). None = אין מה לשלוח."""
+    td = ctx.pdir / 'tr'
+    try:
+        gtxt = (td / 'glossary.tsv').read_text(encoding='utf-8') if (td / 'glossary.tsv').exists() else ''
+        brief = (td / 'brief.md').read_text(encoding='utf-8') if (td / 'brief.md').exists() else ''
+    except OSError:
+        return None
+    own = gtxt
+    for mk in (BIZ_MARK, SM_MARK, GL_MARK):
+        own = own.split(mk)[0]
+    gl = [[r[0], r[1]] for r in gl_parse(own)][:SM_GL]
+    ch = []
+    if brief:
+        from vt.translate import speakers_from_brief, gender_of
+        for v in speakers_from_brief(brief).values():
+            g = gender_of(v)
+            if g and not any(c[0] == v['name'] for c in ch):
+                ch.append([v['name'], g, v.get('role') or ''])
+    v = sm_valid({'gl': gl, 'ch': ch[:SM_CH]})
+    return {'gl': v['gl'], 'ch': v['ch']} if v else None
+
+
+def sm_send(ctx):
+    """בסוף העבודה — לזיכרון הסדרה בשרתון (השרתון מחליט אם יש סדרה בשם הקובץ). לא מפיל כלום."""
+    try:
+        sm = sm_collect(ctx)
+        if sm and getattr(ctx, 'c', None):
+            j = ctx.c.raw('smPut', sm=sm)
+            if j.get('saved'):
+                print(f"✓ זיכרון הסדרה: {len(sm['gl'])} שמות ומונחים, {len(sm['ch'])} דמויות")
+    except Stop:
+        raise
+    except (SystemExit, Exception):   # noqa: BLE001 — מידע משני
+        pass
 
 
 def gl_suggest(ctx):
@@ -4914,6 +5003,7 @@ def finish(args):
         gl = gl_suggest(ctx)                     # v380: מונחים חדשים מהעבודה — הצעה למילון שלך
     except Exception:            # noqa: BLE001 — מידע משני
         gl = None
+    sm_send(ctx)                                 # 28/10/2026: מה שנקבע בפרק — לזיכרון הסדרה (לא מפיל)
     try:
         rvf, fil = review_flags_file(ctx.pdir), fillers(ctx.pdir)   # סבב 4: סימונים מהביקורת ומילות מילוי — מידע משני
     except Exception:            # noqa: BLE001

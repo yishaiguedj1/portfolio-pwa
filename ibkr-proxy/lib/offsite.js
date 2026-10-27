@@ -59,11 +59,11 @@ async function runOffsite(io, now, st, deadline) {
   if (st.day !== today) {
     const bk = await io.r2.list('bk/' + today + '/');
     if (bk.some((x) => baseName(x.key) === 'fs.json.gz')) {
-      const extra = await io.r2.list('gl/').catch(() => []);
+      const extra = (await io.r2.list('gl/').catch(() => [])).concat(await io.r2.list('sm/').catch(() => []));   // 28/10/2026: + זיכרון הסדרה
       for (const x of bk.concat(extra)) {
         const buf = await io.r2.get(x.key, FILE_MAX);
         if (!buf) continue;
-        const name = today + ' · ' + (x.key.startsWith('gl/') ? 'gl-' : '') + baseName(x.key);
+        const name = today + ' · ' + (x.key.startsWith('gl/') ? 'gl-' : x.key.startsWith('sm/') ? 'sm-' : '') + baseName(x.key);
         await io.drive.upload(days, name, buf, /\.gz$/.test(x.key) ? 'application/gzip' : 'text/plain', { snbK: x.key, snbD: today });
         out.daily++;
       }

@@ -1079,6 +1079,70 @@ function glParse(text) {
   return rows;
 }
 const glFormat = (rows) => GL_HEAD + rows.map((r) => r[0] + '\t' + r[1] + (r[2] ? '\t' + r[2] : '')).join('\n') + (rows.length ? '\n' : '');
+/* 28/10/2026: זיכרון סדרה (ניתוח 5 פרקים מול כתוביות אנושיות: אותו שם בשלושה כתיבים בין פרקים, מגדר דמות שנקבע מחדש
+   בכל פרק). קובץ אחד לכל משתמש ב־R2 (sm/<uid>.json) — לכל סדרה (מפתח משם הקובץ: מה שלפני S01E02 / 1x02) השמות והמונחים
+   שנקבעו בפרקים הקודמים, והדמויות עם המגדר. בלקיחה העובד מקבל רק את הסדרה של העבודה; בסוף העבודה (smPut) — מה שנקבע בה.
+   הראשון שנקבע גובר (עקביות); המילון שלך גובר על הכל (בעובד). normSm זהה ל־sm_valid בעובד — tests/studio-series משווה */
+const SM_SER = 60, SM_GL = 150, SM_CH = 40, SM_BYTES = 512 * 1024;
+const smKey = (uid) => (/^[A-Za-z0-9]{6,128}$/.test(String(uid || '')) ? 'sm/' + uid + '.json' : '');
+const SER_RE = /^(.*?)[\s\-–_.([]*(?:s(\d{1,2})[\s._-]*e(\d{1,3})|(\d{1,2})x(\d{2,3}))(?![\p{L}\p{N}])/iu;
+function seriesOf(name) {
+  const base = String(name || '').replace(/\.[A-Za-z0-9]{2,4}$/, '').replace(/[._]+/g, ' ');
+  const m = base.match(SER_RE);
+  if (!m) return null;
+  const n = m[1].replace(/[\s\-–]*(?:season|עונה)\s*\d{1,2}[\s\-–]*$/iu, ' ').replace(/\(\s*(19|20)\d\d\s*\)|\b(19|20)\d\d\s*$/g, ' ').replace(/[\s\-–[(]+$/, '').replace(/\s+/g, ' ').trim();
+  const k = n.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  return k.length >= 2 ? { k: k.slice(0, 60), n: glClean(n, 60) } : null;
+}
+function smRows(v, max, cell) {
+  const out = [], seen = new Set();
+  for (const r of Array.isArray(v) ? v.slice(0, max * 2) : []) {
+    const x = Array.isArray(r) ? cell(r) : null;
+    if (!x || seen.has(x[0].toLowerCase())) continue;
+    seen.add(x[0].toLowerCase());
+    out.push(x);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+const smGl = (v) => smRows(v, SM_GL, (r) => { const en = glClean(r[0], 60), he = glClean(r[1], 80); return en && he ? [en, he] : null; });
+const smCh = (v) => smRows(v, SM_CH, (r) => { const nm = glClean(r[0], 40), g = r[1] === 'm' || r[1] === 'f' ? r[1] : ''; return nm && g ? [nm, g, glClean(r[2], 60)] : null; });
+/* מה שהעובד שלח (smPut) / הסדרה מהקובץ → {gl, ch} נקי */
+function normSm(v) {
+  const o = v && typeof v === 'object' ? v : {};
+  return { gl: smGl(o.gl), ch: smCh(o.ch) };
+}
+/* הקובץ → {v, s: {k: {n, at, ep, gl, ch}}} — מה שלא תקין נזרק */
+function smParse(text) {
+  let j = null;
+  try { j = JSON.parse(String(text || '')); } catch (e) { j = null; }
+  const s = {};
+  for (const [k, x] of Object.entries(j && j.s && typeof j.s === 'object' ? j.s : {}).slice(0, SM_SER)) {
+    if (!/^[\p{L}\p{N} ]{2,60}$/u.test(k) || !x || typeof x !== 'object') continue;
+    s[k] = Object.assign({ n: glClean(x.n, 60), at: Math.max(0, +x.at || 0), ep: Math.max(0, Math.floor(+x.ep || 0)) }, normSm(x));
+  }
+  return { v: 1, s };
+}
+/* מיזוג: שורה קיימת נשארת (הראשון גובר), חדשה נוספת; דמות בלי מגדר קודם — מקבלת. הסדרות הישנות ביותר יוצאות מעל SM_SER */
+function smMerge(doc, ser, add, now) {
+  const d = smParse(JSON.stringify(doc || {}));
+  const cur = d.s[ser.k] || { n: ser.n, at: 0, ep: 0, gl: [], ch: [] };
+  const a = normSm(add);
+  const have = new Set(cur.gl.map((r) => r[0].toLowerCase())), chave = new Set(cur.ch.map((r) => r[0].toLowerCase()));
+  const next = { n: cur.n || ser.n, at: now, ep: cur.ep + 1,
+    gl: cur.gl.concat(a.gl.filter((r) => !have.has(r[0].toLowerCase()))).slice(0, SM_GL),
+    ch: cur.ch.concat(a.ch.filter((r) => !chave.has(r[0].toLowerCase()))).slice(0, SM_CH) };
+  d.s[ser.k] = next;
+  const keys = Object.keys(d.s).sort((x, y) => d.s[y].at - d.s[x].at);
+  for (const k of keys.slice(SM_SER)) delete d.s[k];
+  return d;
+}
+/* לעובד: הסדרה של העבודה (או null) */
+function smForWorker(doc, ser) {
+  const x = ser && doc && doc.s && doc.s[ser.k];
+  return x && (x.gl.length || x.ch.length) ? { n: x.n, ep: x.ep, gl: x.gl, ch: x.ch } : null;
+}
+const jobSeries = (job) => seriesOf((job.fv && job.fv.name) || (job.fa && job.fa.name) || (job.fsu && job.fsu.name) || '');
 /* v382: הערה לעובד (Pause + corrective input) — טקסט שלך מהטלפון לעבודה שרצה. נמסרת לעובד בתשובה לדיווח הבא על
    נקודת שמירה (nt → nh עם d = מתי נקראה). עד NOTE_MAX לעבודה, NOTE_LEN תווים; בלי תווי בקרה, תגיות וגרשיים הפוכים */
 const NOTE_MAX = 5, NOTE_LEN = 300;
@@ -1317,7 +1381,7 @@ function fromFields(f) {
   return o;
 }
 
-module.exports = { bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
+module.exports = { bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, jobSeries, SM_BYTES, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, cuesSwap, rrSpec, rrJob,

@@ -8898,18 +8898,24 @@ function shadeUpLine(rec, run, now) {
   let r = shadeRate.get(rec.id);
   if (!r || sent < r.b) { r = { t: now, b: sent, v: run.rate || 0 }; shadeRate.set(rec.id, r); }
   else if (now - r.t >= 900) { const v = (sent - r.b) / ((now - r.t) / 1000); r.v = r.v ? r.v * 0.5 + v * 0.5 : v; r.t = now; r.b = sent; }
-  const parts = [T('studioUpOf', { a: fmtSize(sent), b: fmtSize(size) })];
-  if (r.v > 0) parts.push(T('studioPerSec', { v: fmtSize(r.v) }));
-  return parts.join(' · ');
+  const parts = [T('studioShadeUpOf', { a: shadeIso(fmtSize(sent)), b: shadeIso(fmtSize(size)) })];
+  if (r.v > 0) parts.push(T('studioPerSec', { v: shadeIso(fmtSize(r.v)) }));
+  return shadeDir() + parts.join(' · ');
 }
-/* בקשת המשתמש: "בר התקדמות להעלאה שנראה בדיוק כמו של השלבים" — אותו shadeBar, אחוז ושם השלב. כשההעלאה עצמה השלב
-   הנוכחי — השורה הראשונה כבר הפס שלה, ומוסיפים רק את המגה־בייטים והמהירות */
+/* כיוון השורה: "81MB" בתחילתה (אות לטינית ראשונה) הופכת שורה בעברית לשמאל־לימין — הפס מתהפך והמספרים מתערבבים
+   (צילום מהטלפון, 27/10/2026). RLM בתחילת כל שורה בעברית */
+const shadeDir = () => (uiLang() === 'en' ? '' : '\u200F');
+/* כל "81MB" מבודד (LRI…PDI): בלי זה "162MB · 436KB" נדבקים לרצף אחד משמאל לימין, והמהירות נקראת לפני הגודל ("מסודר
+   בסדר הגיוני", 27/10/2026). בתוך הבידוד המספר והיחידה נשארים "81MB" */
+const shadeIso = (x) => (uiLang() === 'en' ? x : '\u2066' + x + '\u2069');
+/* בקשת המשתמש: "בר התקדמות להעלאה שנראה בדיוק כמו של השלבים", "מסודר כמו החלק העליון" — אותו מבנה: שם, ואז פס ואחוז,
+   ואז כמה עלה ומהירות. כשההעלאה עצמה השלב הנוכחי — השורה הראשונה כבר הפס שלה, ומוסיפים רק את השורה האחרונה */
 function shadeUpBlock(rec, run, now, curSt) {
   const ln = shadeUpLine(rec, run, now);
   if (!ln) return '';
   if (curSt === 'up') return ln;
   const size = rec.spec.size || run.total || 0, up = size > 0 ? Math.max(0, Math.min(1, (run.sent || 0) / size)) : 0;
-  return stageName('up', langsSum(rec.spec.to), rec.spec.ka ? 'ka' : rec.spec.src === 'subs') + '\n' + shadeBar(up, uiLang()) + '  ' + Math.round(up * 100) + '%\n' + ln;
+  return shadeDir() + T('studioShadeUp') + '\n' + shadeDir() + shadeBar(up, uiLang()) + '  ' + Math.round(up * 100) + '%\n' + ln;
 }
 /* 27/10/2026: עבודה שכבר לא רצה (בוטלה, נגמרה בלי שהתראת הסוף הגיעה) — התראת השלב נסגרת (sw.js מחזיר רק כשהמשתמש סגר) */
 function shadeEnd(id) {
@@ -8939,7 +8945,8 @@ function shadeSync() {
     const sk = rec.spec.ka ? 'ka' : rec.spec.src === 'subs';
     const title = stageName(s.id, langsSum(rec.spec.to), sk);
     const ul = shadeUpBlock(rec, run, now, s.id);
-    const body = shadeBar(p, uiLang()) + '  ' + Math.round(p * 100) + '% · ' + T('studioShadeOf', { n: STAGES.indexOf(s.id) + 1, t: STAGES.length }) + (ul ? '\n' + ul : '');
+    // 27/10/2026 ("מסודר בכל ההתראה"): כמו חלק ההעלאה — פס ואחוז בשורה אחת, "שלב 2 מתוך 7" מתחת (בלי שבירה באמצע), כל שורה מימין לשמאל
+    const body = shadeDir() + shadeBar(p, uiLang()) + '  ' + Math.round(p * 100) + '%\n' + shadeDir() + T('studioShadeOf', { n: STAGES.indexOf(s.id) + 1, t: STAGES.length }) + (ul ? '\n' + ul : '');
     const key = title + '|' + body;
     if (shadeLast.get(rec.id) === key) continue;
     shadeLast.set(rec.id, key);
