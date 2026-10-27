@@ -52,7 +52,7 @@ ok(/function setKvGrid\(/.test(app) && !/g\.innerHTML = kvGridHTML/.test(app) &&
 ok(/\.kv-in \{ animation: kvIn/.test(css), 'ערך חדש באריח ריק — בדהייה');
 
 // v275: הקפיצה בסוף הפתיחה במניות IBKR (בלי "ערוך" — שורת התשואה נוספה רק אחרי הציור) + תיקון מאוחר ברך
-ok(/\.stock-foot \{[^}]*min-height: 28px;/.test(css), 'שורת התחתית שומרת גובה');
+ok(/\.stock-foot \{[^}]*min-height: 38px;/.test(css), 'שורת התחתית שומרת גובה');
 ok(/function fitCardToScreen\(sym, card, smooth\)/.test(app) && /cv\.style\.transition = 'height \.45s var\(--ease-spring, ease\)'/.test(app), 'תיקון גובה אחרי הפתיחה — בתנועה רכה');
 ok(/fitCardToScreen\(sym, card, true\)\) ensureChartData\(sym, true\); \}\);/.test(app) && /state\.open\[sym\] && fitCardToScreen\(sym, card, true\)/.test(app), 'ה־ResizeObserver וסוף האנימציה — רך');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');

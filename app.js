@@ -6782,7 +6782,10 @@ function ltrNum(s) { return '\u2066' + s + '\u2069'; }
 function fmtPct(v, signed) {
   if (v === null || v === undefined || !isFinite(v)) return '—';
   const s = v < 0 ? '−' : signed && v > 0 ? '+' : '';
-  return ltrNum(s + Math.abs(v).toFixed(2) + '%');
+  const a = Math.abs(v);
+  // 27/10/2026 (בקשת המשתמש): מעל 10,000% — תצוגה מקוצרת (12.3K%, 1.2M%) כדי שהשורה לא תידחס ולא תדרוס כפתורים
+  if (a >= 1e4) return ltrNum(s + (a >= 1e9 ? (a / 1e9).toFixed(1) + 'B' : a >= 1e6 ? (a / 1e6).toFixed(a >= 1e7 ? 0 : 1) + 'M' : (a / 1e3).toFixed(a >= 1e5 ? 0 : 1) + 'K') + '%');
+  return ltrNum(s + a.toFixed(2) + '%');
 }
 /* סכום עם סימן: "+$2,215" / "−₪1,300" (מטבע לפי cur). null → מקף. */
 function fmtSignedMoney(v, cur) {
@@ -14959,7 +14962,7 @@ function buildStockBody(p, m) {
     if (anOk) actions.appendChild(analysisBtn(sym));
     actions.appendChild(chartBtn(sym));
     // 27/10/2026 (בקשת המשתמש): סמל בלבד, בלי המילה — השורה לא נדחסת גם כשהתשואה ענקית
-    const eb = el('button', 'chip-btn stock-edit-ico', ICON_EDIT);
+    const eb = el('button', 'chip-btn stock-ico-btn', ICON_EDIT);
     eb.type = 'button';
     eb.setAttribute('aria-label', (p.fromTrades ? t('btnManageTrades') : t('btnEdit')).replace(/<[^>]*>/g, '').trim());
     eb.title = eb.getAttribute('aria-label');
@@ -14986,7 +14989,7 @@ function buildStockBody(p, m) {
 const CHART_LS = 'pwa_charts_v1';
 function chartBtn(sym) {
   // 27/10/2026 (בקשת המשתמש): במקום "גרף נרות" + סמל ההגדלה על הגרף — רק סמל ההגדלה, משמאל ל"ניתוח" (אותה פתיחה)
-  const b = el('button', 'chip-btn kc-open-btn kc-expand-btn no-swipe');
+  const b = el('button', 'chip-btn kc-open-btn stock-ico-btn no-swipe');
   b.type = 'button';
   b.setAttribute('aria-label', t('kcExpand'));
   b.title = t('kcExpand');
@@ -15023,10 +15026,11 @@ function openChartFor(sym) {
 /* 25/10/2026 (בקשת המשתמש): מנתח החברות — שכבה במסך מלא (analysis.js + analysis.css), נטענת רק כאן.
    הנתונים מהשרתון (op:'fund' / op:'macro' ב־/api/history); המחיר החי ושער הדולר — מהאפליקציה. */
 function analysisBtn(sym) {
-  const b = el('button', 'chip-btn an-open-btn');
+  const b = el('button', 'chip-btn an-open-btn stock-ico-btn');
   b.type = 'button';
   b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16M8 16v-5M12 16V8M16 16v-3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
-  b.appendChild(document.createTextNode(t('anOpenBtn')));
+  b.setAttribute('aria-label', t('anOpenBtn'));
+  b.title = t('anOpenBtn');   // 27/10/2026 (בקשת המשתמש): סמל בלבד
   b.addEventListener('click', (e) => { e.stopPropagation(); openAnalysisFor(sym); });
   // 27/10/2026 (בקשת המשתמש — "שכל המידע ייטען מראש"): הכפתור נראה = כרטיס המניה נפתח (גוף סגור = display:none),
   // ואז הנתונים של הניתוח נטענים ברקע. בלחיצה המסך המלא כבר מוכן — בלי שלד ובלי טעינה
