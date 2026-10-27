@@ -35,5 +35,11 @@ const ok = (c, m) => { assert.ok(c, m); n++; console.log('ok - ' + m); };
     const off = src.slice(src.indexOf('async function pushOff('), src.indexOf('async function pushTest('));
     ok(/store\.settings\.pno = 1/.test(off) && /auto === true\) \{ store\.settings\.pno = 1/.test(on) && /delete store\.settings\.pno/.test(on), 'pno: כיבוי/סירוב מסמנים, הדלקה ידנית מוחקת');
   }
+  {
+    // 27/10/2026: נגיעה בהתראה כשהדף פתוח — הודעה מ־sw.js פותחת את העבודה; עבודה שלא רצה — התראת השלב נסגרת
+    const sa = fs.readFileSync(path.join(__dirname, '..', 'studio-app.js'), 'utf8');
+    ok(/serviceWorker\.addEventListener\('message'/.test(sa) && /d\.snb === 'studioJob'/.test(sa) && /openStudio\(\{ standalone: sa, job: d\.j/.test(sa), 'studio-app: הודעת studioJob → העבודה');
+    ok(/if \(!shadeGone\.has\(rec\.id\)\) \{ shadeGone\.add\(rec\.id\); shadeEnd\(rec\.id\); \}/.test(src) && /n\.data && n\.data\.k === 'stage'\) n\.close\(\)/.test(src), 'עבודה שהסתיימה/בוטלה — התראת השלב נסגרת (רק היא)');
+  }
   console.log('# ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL - ' + e.message); process.exit(1); });

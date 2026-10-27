@@ -67,13 +67,29 @@ if (/actions: m\.k === 'done'/.test(sw)) {
     const fwd = await push({ t: 'צורבים', b: '0%', k: 'stage', j: J, u: U, at: 1100, st: 'bn', p: 0 });
     ok(fwd.title === 'צורבים' && fwd.data.st === 'bn', 'שלב חדש מהשרתון — מחליף');
     const click = async (action, url) => { const e = ev({ action, notification: { close() {}, data: { url } } }); L.notificationclick(e); await ev.p; };
+    click.raw = async (notification) => { L.notificationclick(ev({ action: '', notification })); await ev.p; };
     await click('play', U); await click('subs', U); await click('', U); await click('play', './');
     ok(nav[0] === U + '&v=play' && nav[1] === U + '&v=subs' && nav[2] === U && /portfolio-pwa\/$/.test(nav[3]), 'נגיעה בפעולה → ‎&v=play|subs; בגוף ההתראה — דף העבודה');
     // Studio כבר פתוחה — נגיעה מנווטת אותה לעבודה (גם בהתראת ההעלאה ברקע)
-    wins = [{ url: 'https://yishaiguedj1.github.io/portfolio-pwa/', navigate: async (u) => { navd.push(u); }, focus: async () => {} }];
-    await click('', U);
+    const msgs = [];
+    wins = [{ url: 'https://yishaiguedj1.github.io/portfolio-pwa/', navigate: async (u) => { navd.push(u); }, postMessage: (m) => msgs.push(m), focus: async () => {} }];
+    await click('', U); await click('play', U);
     L.backgroundfetchclick(ev({ registration: { id: 'snbup-' + J } })); await ev.p;
-    ok(navd[0] === U && navd[1] === U, 'נגיעה בהתראה (גם של ההעלאה ברקע) כש־Studio פתוחה → ישר לעבודה');
+    ok(msgs.length === 3 && msgs.every((m) => m.snb === 'studioJob' && m.j === J) && msgs[1].v === 'play' && !navd.length,
+      'נגיעה בהתראה (גם של ההעלאה ברקע) כש־Studio פתוחה → הודעה לדף עם העבודה (בלי navigate שנכשל בשקט)');
+    // 27/10/2026: התראת שלב נשארת עד סוף העבודה — לא נסגרת בלחיצה, וחוזרת מיד כשנסגרה
+    live.clear();
+    let closed = 0;
+    const sn = { title: 'כותבים', body: '15%', tag: 'studio-' + J, data: { k: 'stage', st: 'tr', p: 0.15, at: Date.now(), url: U }, close() { closed++; } };
+    await click.raw(sn);
+    ok(!closed && live.get('studio-' + J) && live.get('studio-' + J).title === 'כותבים', 'שלב: לחיצה לא סוגרת (ומציגה שוב אם אנדרואיד סגר)');
+    live.clear();
+    L.notificationclose(ev({ notification: sn })); await ev.p;
+    ok(live.get('studio-' + J) && shown[shown.length - 1].silent && !shown[shown.length - 1].renotify && live.get('studio-' + J).data.k === 'stage', 'שלב: נסגרה (החלקה) — חוזרת מיד, בשקט');
+    live.clear();
+    L.notificationclose(ev({ notification: Object.assign({}, sn, { data: { k: 'done', at: Date.now() } }) })); await ev.p;
+    L.notificationclose(ev({ notification: Object.assign({}, sn, { data: { k: 'stage', at: Date.now() - 4 * 3600e3 } }) })); await ev.p;
+    ok(!live.size, 'התראת סוף, או שלב שלא התעדכן 3 שעות — נסגרת כרגיל');
     console.log('# ' + n + ' בדיקות עברו');
   })().catch((e) => { console.error(e); process.exit(1); });
 } else console.log('# ' + n + ' בדיקות עברו');

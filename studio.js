@@ -8719,7 +8719,12 @@ function paintSoon() { if (!paintT) paintT = setTimeout(() => { paintT = 0; live
    (תרגום, בדיקה) כמעט אין אחוזים, וההתראה נשארה על 0% כל השלב. כש־Studio פתוחה הדף מעדכן את אותה התראה (התג של העבודה)
    כל SHADE_MS לפי ההערכה שבמסך — אותו נוסח של השרתון (stageText ב־webpush.js); sw.js לא נותן לדיווח ישן להחזיר אחורה.
    רק כשההתראות דלוקות, ולא בזמן ההעלאה ברקע (ל־Chrome יש התראה משלו) */
-const SHADE_MS = 5000, shadeLast = new Map();
+const SHADE_MS = 5000, shadeLast = new Map(), shadeGone = new Set();
+/* 27/10/2026: עבודה שכבר לא רצה (בוטלה, נגמרה בלי שהתראת הסוף הגיעה) — התראת השלב נסגרת (sw.js מחזיר רק כשהמשתמש סגר) */
+function shadeEnd(id) {
+  navigator.serviceWorker.ready.then((reg) => reg.getNotifications({ tag: 'studio-' + id }))
+    .then((ns) => { for (const n of ns) if (n.data && n.data.k === 'stage') n.close(); }).catch(() => {});
+}
 let shadeAt = 0;
 export function shadeBar(p, lang) {
   const n = 10, f = Math.max(0, Math.min(n, Math.round((Number(p) || 0) * n)));
@@ -8731,7 +8736,12 @@ function shadeSync() {
   shadeAt = now;
   for (const rec of store.jobs) {
     const run = runs.get(rec.id), ph = jobPhase(rec, run);
-    if (ph !== 'running' && ph !== 'queued' && ph !== 'audio' && ph !== 'video' && ph !== 'extract') { shadeLast.delete(rec.id); continue; }
+    if (ph !== 'running' && ph !== 'queued' && ph !== 'audio' && ph !== 'video' && ph !== 'extract') {
+      shadeLast.delete(rec.id);
+      if (!shadeGone.has(rec.id)) { shadeGone.add(rec.id); shadeEnd(rec.id); }
+      continue;
+    }
+    shadeGone.delete(rec.id);
     if (run && run.bg) continue;
     const s = modelFor(rec).stages.find((x) => x.state === 'now');
     if (!s) continue;
@@ -8924,7 +8934,7 @@ export function openStudio(opt) {
   if (SA) { SA.settings = () => go('settings'); SA.tower = () => go('tower'); }
   const jobLink = opt && /^j[A-Za-z0-9_-]{20}$/.test(String(opt.job || '')) ? opt.job : '';   // שלב 4: מההתראה
   const linkView = opt && (opt.view === 'play' || opt.view === 'subs') ? opt.view : '';          // פעולה בהתראה: צפייה / עריכה
-  if (root) { if (jobLink && jobRec(jobLink)) goJobLink(jobLink, linkView); return; }
+  if (root) { if (jobLink) { if (jobRec(jobLink)) goJobLink(jobLink, linkView); else Promise.resolve(refreshJobs(true)).then(() => { if (root && jobRec(jobLink)) goJobLink(jobLink, linkView); }); } return; }
   const restore = opt && opt.restore && opt.restore.studio ? opt.restore : null;   // רענון בזמן שהסטודיו היה פתוח
   store = load();
   root = h('div', 'st-root no-swipe');

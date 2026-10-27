@@ -70,7 +70,7 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "30bc5be5f241360c196aff176181f8b9",
+  "./studio.js": "fa7a131c920495776e59603f70451de9",
   "./studio.css": "5202cc90e678a204e1eeaecc6c19ea0f",
   "./studionet.js": "c8233fc213a8510b793a81d66b140d9d",
   "./studioplay.js": "11ff6a7c2d7332c6aee09dea28ce0d0e",
@@ -81,7 +81,7 @@ const HASHES = {
   "./studiostore.js": "c4c42aea9654fbb633657bd88562333b",
   "./studiobg.js": "386d76121dbaed74cdde91386ddf79c6",
   "./studio.html": "4344113c500fc12d34364c7de2f4e835",
-  "./studio-app.js": "23ed8def0efea7784fa85b0d3efbef3d",
+  "./studio-app.js": "29aafde3d0cb75d4d8210d2b2287409d",
   "./strings-studio.js": "fb47256b4a921368374ede0330aebc42",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
@@ -393,19 +393,42 @@ self.addEventListener('push', (event) => {
     });
   })());
 });
+/* 27/10/2026 (בקשת המשתמש: "ההתראה נשארת תמיד לאורך כל העבודה, גם אם סגר אותה בטעות או לחץ עליה"): התראת שלב (k:'stage')
+   לא נסגרת בלחיצה, ואם נסגרה (החלקה, או אנדרואיד סגר אותה בלחיצה) — מוצגת מחדש מיד, בשקט. רק התראת הסוף/שאלה/עצירה
+   מחליפה אותה (אותו תג). SHADE_KEEP: התראה שלא התעדכנה 3 שעות — העבודה כבר לא רצה (סוף שלא הגיע), אפשר לסגור */
+const SHADE_KEEP = 3 * 3600e3;
+const shadeKeep = (d) => !!d && d.k === 'stage' && Date.now() - (Number(d.at) || 0) < SHADE_KEEP;
+function shadeAgain(n) {
+  return self.registration.showNotification(n.title, { body: n.body, icon: n.icon, badge: n.badge, lang: n.lang, dir: n.dir,
+    tag: n.tag, renotify: false, silent: true, data: n.data }).catch(() => {});
+}
+self.addEventListener('notificationclose', (event) => {
+  if (shadeKeep(event.notification.data)) event.waitUntil(shadeAgain(event.notification));
+});
 self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  let u = (event.notification.data && event.notification.data.url) || './';
+  const n = event.notification, keep = shadeKeep(n.data);
+  if (!keep) n.close();
+  let u = (n.data && n.data.url) || './';
   if ((event.action === 'play' || event.action === 'subs') && u.includes('#studio=')) u += '&v=' + event.action;
-  const url = new URL(u, self.registration.scope).href;
   event.waitUntil((async () => {
-    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    for (const w of wins) {
-      if (w.url.startsWith(self.registration.scope) && 'focus' in w) { try { await w.navigate(url); } catch (e) {} return w.focus(); }
-    }
-    return self.clients.openWindow(url);
+    if (keep) await shadeAgain(n);   // אנדרואיד עלול לסגור בלחיצה — נשארת
+    return openAt(u, event.action === 'play' || event.action === 'subs' ? event.action : '');
   })());
 });
+/* פתיחת הקישור. דף פתוח + עבודה — הודעה (studio-app.js פותח את העבודה): navigate נכשל בשקט בחלון שלא בשליטת ה־SW,
+   והמשתמש נשאר בדף הקודם ("לחצתי על ההתראה ונפתח פרויקט חדש", 27/10/2026) */
+async function openAt(u, v) {
+  const url = new URL(u, self.registration.scope).href;
+  const jm = /#studio=(j[A-Za-z0-9_-]{20})/.exec(u);
+  const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  for (const w of wins) {
+    if (!w.url.startsWith(self.registration.scope) || !('focus' in w)) continue;
+    if (jm) { try { w.postMessage({ snb: 'studioJob', j: jm[1], v }); } catch (e) {} return w.focus(); }
+    try { await w.navigate(url); } catch (e) {}
+    return w.focus();
+  }
+  return self.clients.openWindow(url);
+}
 
 /* 23/10/2026 (בקשת המשתמש: העלאה שממשיכה גם כשהאפליקציה סגורה): הסרטון עלה ב־Background Fetch (studiobg.js).
    ה־service worker מסיים את ההעלאה ורושם את הסרטון בשרתון (op:'r2bgDone') — גם כשאף דף לא פתוח. ההרשאה = מפתח הסיום
@@ -471,11 +494,5 @@ self.addEventListener('backgroundfetchabort', (event) => {
 self.addEventListener('backgroundfetchclick', (event) => {
   const m = BG_ID_RE.exec(event.registration.id);
   if (!m) return;
-  const url = new URL('./#studio=' + m[1], self.registration.scope).href;
-  event.waitUntil((async () => {
-    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    // 27/10/2026: גם כש־Studio כבר פתוחה — ישר לעבודה (עד היום רק הביא את החלון קדימה, בדף שבו הוא היה)
-    for (const w of wins) if (w.url.startsWith(self.registration.scope) && 'focus' in w) { try { await w.navigate(url); } catch (e) {} return w.focus(); }
-    return self.clients.openWindow(url);
-  })());
+  event.waitUntil(openAt('./#studio=' + m[1], ''));   // 27/10/2026: גם כש־Studio כבר פתוחה — ישר לעבודה
 });
