@@ -1730,11 +1730,22 @@ private fun CloudScreen(a: BrowserActivity) {
                     Text(BrCloud.name.ifEmpty { BrCloud.email }, color = c.fg, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     if (BrCloud.name.isNotEmpty()) Text(BrCloud.email, color = c.mute, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(BrIcons.CLock, null, Modifier.size(14.dp), tint = Green)
+                        Spacer(Modifier.width(4.dp))
+                        Text(stringResource(R.string.brCloudEnc), color = c.mute, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(8.dp).clip(CircleShape).background(if (err.isEmpty()) Green else Color(0xFFFF9500)))
                         Spacer(Modifier.width(6.dp))
                         Text(if (err.isEmpty()) stringResource(R.string.brCloudOn) + " · " + sub else sub, color = c.mute, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
+            }
+        }
+        // החיבור לחשבון / מפתח ההצפנה חסר (התחברת בגרסה הראשונה, או שהחשבון התנתק) — כניסה מחדש
+        if (BrCloud.err.contains("auth") || BrCloud.err.contains("key")) item {
+            Box(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
+                BigBtn(stringResource(R.string.brCloudReauth), true) { scope.launch { a.cloudSignIn(BrCloud.signIn(a)) } }
             }
         }
         item {

@@ -123,6 +123,22 @@ class BrCloudCoreTest {
         assertEquals(listOf("https://a.com", "t t", "5", "1"), BrCloudCore.parts(BrCloudCore.markVal("https://a.com", "t\u001ft", 5, true)))
     }
 
+    @Test fun encryptedFiles() {
+        val k = ByteArray(32) { it.toByte() }; val other = ByteArray(32) { (it + 1).toByte() }
+        val plain = BrCloudCore.encode("A", hashMapOf("m:x" to Rec("סוד", BrCloudCore.clock(5, 0, "A"))))
+        val e = BrCloudCore.seal(k, 's', "snbc-A-d", plain)
+        assertTrue(BrCloudCore.isSealed(e) && !BrCloudCore.isSealed(plain))
+        assertFalse("בלי המפתח אין טקסט גלוי", String(e, Charsets.ISO_8859_1).contains("m:x"))
+        assertEquals('s', BrCloudCore.kidOf(e))
+        assertTrue(BrCloudCore.open(k, "snbc-A-d", e)!!.contentEquals(plain))
+        assertNull("מפתח של משתמש אחר", BrCloudCore.open(other, "snbc-A-d", e))
+        assertNull("קובץ של מכשיר אחד בשם של אחר", BrCloudCore.open(k, "snbc-B-d", e))
+        val bad = e.copyOf(); bad[bad.size - 1] = (bad[bad.size - 1] + 1).toByte()
+        assertNull("שובש", BrCloudCore.open(k, "snbc-A-d", bad))
+        assertNull("לא מוצפן", BrCloudCore.open(k, "snbc-A-d", plain))
+        assertFalse("IV אקראי — אותו תוכן, הצפנה אחרת", BrCloudCore.seal(k, 's', "snbc-A-d", plain).contentEquals(e))
+    }
+
     @Test fun clockOrderIsStringOrder() {
         val h = BrCloudCore.Hlc("A")
         val c1 = h.next(1000); val c2 = h.next(1000); val c3 = h.next(999)   // השעון חזר אחורה — עדיין עולה

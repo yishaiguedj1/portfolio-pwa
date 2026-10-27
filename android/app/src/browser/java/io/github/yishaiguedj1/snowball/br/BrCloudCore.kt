@@ -138,6 +138,33 @@ object BrCloudCore {
     fun gz(s: String): ByteArray = ByteArrayOutputStream().also { o -> GZIPOutputStream(o).use { it.write(s.toByteArray(Charsets.UTF_8)) } }.toByteArray()
     fun ungz(b: ByteArray): String? = runCatching { GZIPInputStream(ByteArrayInputStream(b)).use { it.readBytes().toString(Charsets.UTF_8) } }.getOrNull()
 
+    /* ---------------- הצפנה (27/10/2026, בקשת המשתמש: "שרק המשתמש עם החשבון במערכת שלנו יוכל לקרוא") ---------------- */
+
+    /** כל קובץ ב־Drive: "snbE1" + מזהה המפתח (בית) + IV של 12 + AES-256-GCM. AAD = שם הקובץ — קובץ של מכשיר אחד שהועתק
+     *  לשם של אחר לא נפתח. המפתח מהשרת שלנו (brKey), Google רואה רק בתים מוצפנים */
+    private val EMAGIC = "snbE1".toByteArray()
+
+    fun isSealed(b: ByteArray) = b.size > EMAGIC.size + 1 + 12 + 16 && EMAGIC.indices.all { b[it] == EMAGIC[it] }
+
+    fun seal(key: ByteArray, kid: Char, aad: String, plain: ByteArray, iv: ByteArray = java.security.SecureRandom().let { r -> ByteArray(12).also { r.nextBytes(it) } }): ByteArray {
+        val c = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        c.init(javax.crypto.Cipher.ENCRYPT_MODE, javax.crypto.spec.SecretKeySpec(key, "AES"), javax.crypto.spec.GCMParameterSpec(128, iv))
+        c.updateAAD(aad.toByteArray(Charsets.UTF_8))
+        return EMAGIC + byteArrayOf(kid.code.toByte()) + iv + c.doFinal(plain)
+    }
+
+    /** null = לא מוצפן / מפתח אחר / שובש — לעולם לא זורק */
+    fun open(key: ByteArray, aad: String, b: ByteArray): ByteArray? = runCatching {
+        if (!isSealed(b)) return null
+        val o = EMAGIC.size + 1
+        val c = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        c.init(javax.crypto.Cipher.DECRYPT_MODE, javax.crypto.spec.SecretKeySpec(key, "AES"), javax.crypto.spec.GCMParameterSpec(128, b, o, 12))
+        c.updateAAD(aad.toByteArray(Charsets.UTF_8))
+        c.doFinal(b, o + 12, b.size - o - 12)
+    }.getOrNull()
+
+    fun kidOf(b: ByteArray): Char? = if (isSealed(b)) b[EMAGIC.size].toInt().toChar() else null
+
     /* ---------------- ערכים: סימנייה וביקור ---------------- */
 
     private const val US = '\u001f'

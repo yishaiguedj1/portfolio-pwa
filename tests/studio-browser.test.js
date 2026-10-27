@@ -221,7 +221,11 @@ ok(fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yis
   const cjs = R(B + 'BrCloudJs.kt');
   const chr = R(B + 'BrChrome.kt');
   const urls = (cl.match(/https:\/\/[a-z0-9.\-]+/g) || []);
-  ok(urls.every(u => /^https:\/\/www\.googleapis\.com$/.test(u)), 'הסנכרון מדבר רק עם Google Drive — לא עם השרת שלנו: ' + urls.join(' '));
+  ok(urls.every(u => /^https:\/\/(www|identitytoolkit|securetoken)\.googleapis\.com$/.test(u)), 'הנתונים רק ב־Google Drive (והחשבון ב־Firebase) — לא בשרת שלנו: ' + urls.join(' '));
+  ok(/"op", "brKey"/.test(cl) && /for \(u in DmSync\.API\)/.test(cl) && !/"op", "(?!brKey)/.test(cl), 'השרת שלנו נותן רק את המפתח (brKey) — לא רואה את הנתונים');
+  ok(/put\(t, "\$\{PREFIX\}\$dev-d", sealFile\(/.test(cl) && /put\(t, "\$\{PREFIX\}\$dev-h", sealFile\(/.test(cl) && /put\(t, "\$\{PREFIX\}\$dev-s", sealFile\(/.test(cl), 'כל קובץ עולה מוצפן (AES-256-GCM, AAD = שם הקובץ)');
+  ok(/AndroidKeyStore/.test(cl) && /putString\("kw", wrap\(k\)\)/.test(cl), 'המפתח בטלפון עטוף ב־Android Keystore');
+  ok(/openFile\(n, raw\)\?\.let/.test(cl), 'קובץ שלא נפתח — מתעלמים, לא "נמחק"');
   ok(/const val SCOPE = "https:\/\/www\.googleapis\.com\/auth\/drive\.appdata"/.test(cl) && !/auth\/drive"/.test(cl) && !/drive\.file/.test(cl), 'הרשאה drive.appdata בלבד — התיקייה הפרטית של האפליקציה');
   ok(/spaces=appDataFolder/.test(cl) && /parents", JSONArray\(\)\.put\("appDataFolder"\)/.test(cl), 'הקבצים רק ב־appDataFolder');
   ok(/private fun mine\(n: String\) = n\.startsWith\("\$PREFIX\$dev-"\)/.test(cl) && /if \(!mine\(n\)\) downs \+= /.test(cl), 'כל מכשיר כותב רק את הקבצים שלו (ל־Drive v3 אין כתיבה מותנית)');

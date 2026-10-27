@@ -26,6 +26,7 @@ import com.google.android.gms.tasks.Tasks
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import io.github.yishaiguedj1.snowball.R
+import io.github.yishaiguedj1.snowball.dm.DmSync
 import io.github.yishaiguedj1.snowball.br.BrCloudCore.Rec
 import io.github.yishaiguedj1.snowball.br.BrCloudCore.STab
 import io.github.yishaiguedj1.snowball.br.BrCloudCore.Send
@@ -174,6 +175,9 @@ object BrCloud {
         sp.edit().putString("em", g.id).putString("nm", g.displayName ?: "").apply()
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             try {
+                // החשבון במערכת שלנו (Firebase — אותו uid בכל מכשיר עם אותו חשבון Google) ומפתח ההצפנה שלו
+                firebase(g.idToken) ?: return@withContext SignIn.Fail("firebase")
+                fetchKey() ?: return@withContext SignIn.Fail("key")
                 val r = Tasks.await(Identity.getAuthorizationClient(a).authorize(request()), 30, TimeUnit.SECONDS)
                 if (r.hasResolution()) r.pendingIntent?.intentSender?.let { SignIn.Need(it) } ?: SignIn.Fail("resolution")
                 else { ui.post { enable() }; SignIn.Ok }
@@ -207,12 +211,98 @@ object BrCloud {
     }
 
     private fun reset() {
-        sp.edit().putBoolean("on", false).remove("pt").remove("em").remove("nm").remove("ids").remove("seen").remove("sent").remove("err").apply()
+        sp.edit().putBoolean("on", false).remove("pt").remove("em").remove("nm").remove("ids").remove("seen").remove("sent").remove("err")
+            .remove("rt").remove("kw").remove("kid").remove("enc").apply()
+        cachedKey = null
         own.clear(); base.clear(); remote.clear(); sessions.clear(); ids.clear(); seen.clear(); sent.clear()
         dir.deleteRecursively(); dir.mkdirs()
         lastD = 0; lastH = 0; lastS = 0
         (app.getSystemService(Context.JOB_SCHEDULER_SERVICE) as? JobScheduler)?.cancel(JOB_ID)
         onChange?.invoke()
+    }
+
+    /* ---------------- ההצפנה: המפתח מהשרת שלנו, שמור בטלפון עטוף ב־Android Keystore ---------------- */
+
+    private fun post(url: String, body: String, type: String): Pair<Int, JSONObject> {
+        val c = URL(url).openConnection() as HttpURLConnection
+        c.requestMethod = "POST"; c.connectTimeout = 15_000; c.readTimeout = 20_000; c.doOutput = true
+        c.setRequestProperty("Content-Type", type)
+        c.outputStream.use { it.write(body.toByteArray()) }
+        val code = c.responseCode
+        val txt = runCatching { (if (code < 400) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() } ?: "" }.getOrDefault("")
+        c.disconnect()
+        return code to (runCatching { JSONObject(txt) }.getOrNull() ?: JSONObject())
+    }
+
+    /** Google → החשבון במערכת שלנו (Firebase). שומר רק את אסימון הרענון */
+    private fun firebase(googleIdToken: String): String? = runCatching {
+        val (st, j) = post("https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${DmSync.FB_KEY}", JSONObject()
+            .put("postBody", "id_token=" + URLEncoder.encode(googleIdToken, "UTF-8") + "&providerId=google.com")
+            .put("requestUri", "http://localhost").put("returnSecureToken", true).toString(), "application/json")
+        if (st != 200 || !j.has("refreshToken")) return null
+        sp.edit().putString("rt", j.getString("refreshToken")).apply()
+        j.getString("idToken")
+    }.getOrNull()
+
+    private fun fbToken(): String? = runCatching {
+        val rt = sp.getString("rt", "").orEmpty().ifEmpty { return null }
+        val (st, j) = post("https://securetoken.googleapis.com/v1/token?key=${DmSync.FB_KEY}",
+            "grant_type=refresh_token&refresh_token=" + URLEncoder.encode(rt, "UTF-8"), "application/x-www-form-urlencoded")
+        if (st == 400) { sp.edit().remove("rt").apply(); return null }
+        j.optString("refresh_token").takeIf { it.isNotEmpty() }?.let { sp.edit().putString("rt", it).apply() }
+        j.optString("id_token").takeIf { it.isNotEmpty() }
+    }.getOrNull()
+
+    /** brKey בשרת שלנו (ובגיבוי — Vercel); נשמר עטוף במפתח של Android Keystore (לא יוצא מהמכשיר) */
+    private fun fetchKey(): Pair<Char, ByteArray>? {
+        val it = fbToken() ?: return null
+        for (u in DmSync.API) {
+            val (st, j) = runCatching { post(u, JSONObject().put("op", "brKey").put("idToken", it).toString(), "application/json") }.getOrNull() ?: continue
+            // 401 / wrong_app = באמת אין גישה; כל השאר (גם 403 של שרת שעוד לא מכיר את brKey) — הכתובת הבאה
+            if (st != 200) { if (st == 401 || j.optString("error") == "wrong_app") return null else continue }
+            val k = runCatching { android.util.Base64.decode(j.optString("k"), android.util.Base64.DEFAULT) }.getOrNull() ?: continue
+            val kid = j.optString("kid").firstOrNull() ?: continue
+            if (k.size != 32) continue
+            sp.edit().putString("kw", wrap(k)).putString("kid", kid.toString()).apply()
+            cachedKey = kid to k
+            return cachedKey
+        }
+        return null
+    }
+    @Volatile private var cachedKey: Pair<Char, ByteArray>? = null
+    private fun key(): Pair<Char, ByteArray>? {
+        cachedKey?.let { return it }
+        val w = sp.getString("kw", null); val kid = sp.getString("kid", null)?.firstOrNull()
+        if (w != null && kid != null) unwrap(w)?.let { cachedKey = kid to it; return cachedKey }
+        return fetchKey()
+    }
+    private fun ks(): javax.crypto.SecretKey {
+        val st = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        (st.getEntry("snb_br_sync", null) as? java.security.KeyStore.SecretKeyEntry)?.let { return it.secretKey }
+        val g = javax.crypto.KeyGenerator.getInstance(android.security.keystore.KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+        g.init(android.security.keystore.KeyGenParameterSpec.Builder("snb_br_sync", android.security.keystore.KeyProperties.PURPOSE_ENCRYPT or android.security.keystore.KeyProperties.PURPOSE_DECRYPT)
+            .setBlockModes(android.security.keystore.KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(android.security.keystore.KeyProperties.ENCRYPTION_PADDING_NONE).setKeySize(256).build())
+        return g.generateKey()
+    }
+    private fun wrap(k: ByteArray): String {
+        val c = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding"); c.init(javax.crypto.Cipher.ENCRYPT_MODE, ks())
+        return android.util.Base64.encodeToString(c.iv + c.doFinal(k), android.util.Base64.NO_WRAP)
+    }
+    private fun unwrap(s: String): ByteArray? = runCatching {
+        val b = android.util.Base64.decode(s, android.util.Base64.NO_WRAP)
+        val c = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding"); c.init(javax.crypto.Cipher.DECRYPT_MODE, ks(), javax.crypto.spec.GCMParameterSpec(128, b, 0, 12))
+        c.doFinal(b, 12, b.size - 12)
+    }.getOrNull()
+
+    /** קובץ מ־Drive → הבתים הפתוחים. קובץ שלא הוצפן (מהגרסה הראשונה, לפני 27/10) — נקרא כמו שהוא; מפתח אחר — מתעלמים */
+    private fun openFile(name: String, b: ByteArray): ByteArray? {
+        if (!BrCloudCore.isSealed(b)) return b
+        val (_, k) = key() ?: return null
+        return BrCloudCore.open(k, name, b)
+    }
+    private fun sealFile(name: String, b: ByteArray): ByteArray {
+        val (kid, k) = key() ?: throw IllegalStateException("key")
+        return BrCloudCore.seal(k, kid, name, b)
     }
 
     private fun token(): String? = runCatching {
@@ -267,8 +357,12 @@ object BrCloud {
         }
     }
 
-    private fun run(flush: Boolean) {
+    private fun run(flush0: Boolean) {
         val t = token() ?: throw IllegalStateException("auth")
+        key() ?: throw IllegalStateException("key")
+        // הפעם הראשונה עם הצפנה: הקבצים שלי עולים מחדש מוצפנים (גם אם לא השתנו)
+        val flush = flush0 || !sp.getBoolean("enc", false)
+        if (!sp.getBoolean("enc", false)) { lastD = 0; lastH = 0; lastS = 0; hAt = 0L; upVer = -1 }
         // 1) מה השתנה בענן — רק הקבצים של מכשירים אחרים שהשתנו
         val downs = ArrayList<Down>()
         var pt = sp.getString("pt", null)
@@ -276,7 +370,7 @@ object BrCloud {
             pt = JSONObject(http(t, "$API/changes/startPageToken").second).optString("startPageToken")
             val all = listAll(t)
             ids.clear(); ids.putAll(all)
-            for ((n, id) in all) if (!mine(n)) downs += Down(n, httpBytes(t, "$API/files/$id?alt=media"))
+            for ((n, id) in all) if (!mine(n)) fetchInto(t, n, id, downs)
             // קבצים שכבר אין (מכשיר שנמחק) — יוצאים מהמטמון
             (remote.keys + sessions.keys.map { "$PREFIX$it-s" }).filter { it !in all }.forEach { downs += Down(it, null) }
         } else {
@@ -293,7 +387,7 @@ object BrCloud {
                     if (!n.startsWith(PREFIX)) continue
                     if (c.optBoolean("removed") || f?.optBoolean("trashed") == true) { ids.remove(n); if (!mine(n)) downs += Down(n, null); continue }
                     ids[n] = id
-                    if (!mine(n)) downs += Down(n, httpBytes(t, "$API/files/$id?alt=media"))
+                    if (!mine(n)) fetchInto(t, n, id, downs)
                 }
                 page = o.optString("nextPageToken").takeIf { it.isNotEmpty() }
                 o.optString("newStartPageToken").takeIf { it.isNotEmpty() }?.let { pt = it }
@@ -306,11 +400,19 @@ object BrCloud {
         if (!latch.await(20, TimeUnit.SECONDS)) throw IllegalStateException("ui")
         val u = up ?: throw IllegalStateException("ui")
         // 3) הקבצים שלי שהשתנו
-        u.d?.let { put(t, "${PREFIX}$dev-d", it) }
-        u.h?.let { put(t, "${PREFIX}$dev-h", it) }
-        u.s?.let { put(t, "${PREFIX}$dev-s", it) }
+        u.d?.let { put(t, "${PREFIX}$dev-d", sealFile("${PREFIX}$dev-d", it)) }
+        u.h?.let { put(t, "${PREFIX}$dev-h", sealFile("${PREFIX}$dev-h", it)) }
+        u.s?.let { put(t, "${PREFIX}$dev-s", sealFile("${PREFIX}$dev-s", it)) }
+        if (u.d != null && u.h != null && u.s != null) sp.edit().putBoolean("enc", true).apply()
         sp.edit().putString("pt", pt).putLong("at", System.currentTimeMillis()).putString("err", "").apply()
         ui.post { saveMeta() }
+    }
+
+    /** הורדה ופתיחה: 404 = הקובץ נמחק; קובץ שלא נפתח (מפתח אחר / שובש) — מתעלמים ממנו, לא "נמחק" */
+    private fun fetchInto(t: String, n: String, id: String, downs: MutableList<Down>) {
+        val raw = httpBytes(t, "$API/files/$id?alt=media")
+        if (raw == null) { downs += Down(n, null); return }
+        openFile(n, raw)?.let { downs += Down(n, it) }
     }
 
     private fun mine(n: String) = n.startsWith("$PREFIX$dev-")

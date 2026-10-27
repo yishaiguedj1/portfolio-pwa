@@ -276,7 +276,7 @@
     <string name="brCloudHero">כל מה שלך — בכל מכשיר</string>
     <string name="brCloudHeroSub">סימניות, היסטוריה, כרטיסיות פתוחות והגדרות מסתנכרנים בין כל המכשירים שמחוברים לאותו חשבון Google, ונשמרים בגיבוי ב־Google Drive שלך.</string>
     <string name="brCloudSignIn">כניסה עם Google</string>
-    <string name="brCloudFootOff">הנתונים נשמרים רק ב־Google Drive שלך, בתיקייה מוסתרת שרק Studio Browser רואה — לא בשרת שלנו.</string>
+    <string name="brCloudFootOff">הכל מוצפן בטלפון לפני שהוא יוצא, ונשמר בתיקייה מוסתרת ב־Google Drive שלך. Google לא יכול לקרוא את זה — רק מי שמחובר לחשבון שלך ב־THE SNOWBALL.</string>
     <string name="brCloudOn">הסנכרון מופעל</string>
     <string name="brCloudAt">סונכרן %1$s</string>
     <string name="brCloudJustNow">סונכרן עכשיו</string>
@@ -304,4 +304,6 @@
     <string name="brChSend">כרטיסיות ממכשירים אחרים</string>
     <string name="brResumeFrom">המשך מ־%1$s</string>
     <string name="brOpenTab">פתיחה</string>
+    <string name="brCloudEnc">מוצפן — רק החשבון שלך ב־THE SNOWBALL יכול לקרוא</string>
+    <string name="brCloudReauth">להתחבר שוב</string>
 </resources>

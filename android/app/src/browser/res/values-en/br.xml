@@ -275,7 +275,7 @@
     <string name="brCloudHero">Everything of yours — on every device</string>
     <string name="brCloudHeroSub">Bookmarks, history, open tabs and settings sync across every device signed in to the same Google account, and are backed up in your Google Drive.</string>
     <string name="brCloudSignIn">Sign in with Google</string>
-    <string name="brCloudFootOff">Your data is stored only in your Google Drive, in a hidden folder only Studio Browser can see — not on our server.</string>
+    <string name="brCloudFootOff">Everything is encrypted on your phone before it leaves, and stored in a hidden folder in your Google Drive. Google can\'t read it — only you, signed in to your THE SNOWBALL account.</string>
     <string name="brCloudOn">Sync is on</string>
     <string name="brCloudAt">Synced %1$s</string>
     <string name="brCloudJustNow">Synced just now</string>
@@ -303,4 +303,6 @@
     <string name="brChSend">Tabs from other devices</string>
     <string name="brResumeFrom">Continue from %1$s</string>
     <string name="brOpenTab">Open</string>
+    <string name="brCloudEnc">Encrypted — only your THE SNOWBALL account can read it</string>
+    <string name="brCloudReauth">Sign in again</string>
 </resources>
