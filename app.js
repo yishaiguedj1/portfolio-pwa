@@ -5939,8 +5939,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.64.0';
-const APP_VERSION = 'v577';
+const APP_RELEASE = '2.64.1';
+const APP_VERSION = 'v578';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -7385,7 +7385,7 @@ async function liveTick() {
             state.session = sess === 'regular' ? '' : sess; // v301: 'closed' נשמר — קפסולת "השוק סגור"
             state.source = src;
             state.live = src === 'Yahoo';
-            lsSet(LS_QUOTES, { at: state.quotesAt, fx: state.fx, quotes: state.quotes, source: state.source, session: state.session });
+            quotesSaveSoon();   // 27/10/2026: לא בכל טיק — ראו QUOTES_SAVE_MS
             updateSourceLabel();
           }
           if (moved.length) { if (state.cardAnim) { (state.liveDeferred || (state.liveDeferred = new Set())); moved.forEach((x) => state.liveDeferred.add(x)); } else renderLive(moved); } // v272: אחרי האנימציה
@@ -7488,6 +7488,23 @@ function intradayLiveRows(rows, q) {
   else out.push({ date: q.mdate, time: q.mtime, close: q.close });
   return out;
 }
+
+/* 27/10/2026 (מחקר היעילות): הלולאה החיה כתבה את כל המחירים ל־localStorage בכל טיק מלא (כל כמה שניות) — JSON של כל התיק,
+   כתיבה סינכרונית בתהליכון הראשי. המטמון משמש רק לפתיחה הבאה, אז: פעם ב־QUOTES_SAVE_MS, ומיד כשהאפליקציה יורדת לרקע */
+const QUOTES_SAVE_MS = 30e3;
+let _qSaveAt = 0, _qSaveT = 0;
+function quotesSaveNow() {
+  clearTimeout(_qSaveT); _qSaveT = 0; _qSaveAt = Date.now();
+  if (state.quotesAt) lsSet(LS_QUOTES, { at: state.quotesAt, fx: state.fx, quotes: state.quotes, source: state.source, session: state.session });
+}
+function quotesSaveSoon() {
+  if (_qSaveT) return;
+  const wait = Math.max(0, QUOTES_SAVE_MS - (Date.now() - _qSaveAt));
+  if (!wait) return quotesSaveNow();
+  _qSaveT = setTimeout(quotesSaveNow, wait);
+}
+if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('visibilitychange', () => { if (document.hidden && _qSaveT) quotesSaveNow(); });
+if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('pagehide', () => { if (_qSaveT) quotesSaveNow(); });
 
 function applyQuotes(res) {
   taseFixQuotes(res.quotes, taseRef);
@@ -13072,6 +13089,28 @@ function snbSwipe(o) {
    בגלילה — לא ב־8px מלמעלה (שם הוא נעלם מאחורי ההדר, שגובהו ~180px). ‎--appbar-h על <html> = גובה ההדר הנוכחי,
    מתעדכן כשהגובה משתנה (שפה, קפסולת המצב) וכשההדר מוחלף (ציור מחדש בספרייה) — לקרוא אחרי כל ציור של ההדר */
 let _barHEl = null, _barHRO = null;
+/* 27/10/2026 (מחקר היעילות — "מחכה למשתמש"): האנימציות של הלוגו בהדר (שלג, פנים, ברק, הילה) מציירות את ההדר מחדש בכל
+   פריים, גם כשאף אחד לא נוגע בטלפון (נמדד: ~10% ממעבד ראשי בכרום בלי מעבד גרפי). BRAND_CALM_MS אחרי הנגיעה / הגלילה האחרונה
+   הן נעצרות (html.calm — animation-play-state בלבד, באותו מקום), וכל נגיעה מחזירה אותן */
+const BRAND_CALM_MS = 25e3;
+let _calmT = 0, _calmAt = 0;
+function brandCalmWire() {
+  if (typeof document === 'undefined' || !document.addEventListener || !document.documentElement || !document.documentElement.classList || brandCalmWire.on) return;
+  brandCalmWire.on = true;
+  const root = document.documentElement;
+  const wake = () => {
+    const t = Date.now();
+    if (root.classList.contains('calm')) root.classList.remove('calm');
+    else if (t - _calmAt < 1000) return;                     // גלילה = עשרות אירועים בשנייה — טיימר אחד לשנייה
+    _calmAt = t;
+    clearTimeout(_calmT);
+    _calmT = setTimeout(() => root.classList.add('calm'), BRAND_CALM_MS);
+  };
+  ['pointerdown', 'keydown', 'wheel', 'scroll', 'focus'].forEach((e) => document.addEventListener(e, wake, { passive: true, capture: true }));
+  wake();
+}
+brandCalmWire();
+
 function barHeightVar() {
   if (typeof document === 'undefined' || !document.querySelector) return;
   /* 21/10/2026 (סרטון המשתמש — הבורר של Academy קפץ אל שורת החיפוש): הגובה בפריסה (offsetHeight), לא getBoundingClientRect —

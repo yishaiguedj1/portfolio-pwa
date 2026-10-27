@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v577';
+const CACHE_NAME = 'portfolio-pwa-v578';
 const HASHES = {
-  "./": "4891aa6a244a29cd4eb695c79490dd1f",
-  "./index.html": "4891aa6a244a29cd4eb695c79490dd1f",
-  "./styles.css": "6631a350a096e97e927ef28915727909",
-  "./app.js": "37f52fadd761ec593d7181a916334048",
+  "./": "23049cdc117b2a1b516816fe94fff24a",
+  "./index.html": "23049cdc117b2a1b516816fe94fff24a",
+  "./styles.css": "f926d3fb8ca3b605093c1d164aa48733",
+  "./app.js": "f0099fb8dcb2e150e093806603991352",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "5d9505a0e3f827ee0e32eb00e948e2b2",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -61,7 +61,7 @@ const HASHES = {
   "./academy.html": "cbbbe8c0aa8f9f0d9bfddd1575ea6757",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
   "./strings-academy.js": "fddd4b6d8f008f6edee03ac07610b2e0",
-  "./core.js": "80e88aaf94f83e1b7472e576635291a7",
+  "./core.js": "5b7c59406abacacd650e2d7467b3e7bb",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "d6703c288cfb84be0bc06cbc61912c68",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -151,8 +151,18 @@ async function selfDestruct() {
   for (const c of await self.clients.matchAll({ type: 'window' })) { try { await c.navigate(c.url); } catch (e) {} }
 }
 const hex = (buf) => Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
-async function fetchVerified(p) {
+async function fetchVerified(p, reuse) {
   const want = HASHES[p === './' ? ROOT_PAGE : p];
+  // 27/10/2026 (מחקר היעילות): בהתקנה של גרסה חדשה — קובץ שלא השתנה (אותה טביעה) נלקח מהמטמון של הגרסה הקודמת, לא מהרשת.
+  // עד היום כל עדכון הוריד מחדש את כל המעטפת (כמה MB) גם כשהשתנה קובץ אחד. האימות זהה — אותה טביעה בדיוק
+  if (reuse && want) {
+    const old = await caches.match(p).catch(() => null);
+    if (old && old.ok) {
+      const ob = await old.arrayBuffer().catch(() => null);
+      if (ob && hex(await crypto.subtle.digest('SHA-256', ob)).slice(0, want.length) === want)
+        return new Response(ob, { headers: { 'Content-Type': old.headers.get('Content-Type') || 'application/octet-stream' } });
+    }
+  }
   const res = await fetch(new Request(want ? p + '?v=' + want.slice(0, 12) : p, { cache: 'reload' }));
   if (!res.ok) throw new Error('http ' + res.status + ' ' + p);
   const buf = await res.arrayBuffer();
@@ -178,14 +188,14 @@ self.addEventListener('install', (event) => {
   if (NO_SW) { self.skipWaiting(); return; }
   event.waitUntil((async () => {
     // המעטפת — הכל או כלום: קובץ אחד ישן/חסר = ההתקנה נכשלת והגרסה הקודמת ממשיכה לעבוד
-    const got = await Promise.all(SHELL.map(async (p) => [p, await fetchVerified(p)]));
+    const got = await Promise.all(SHELL.map(async (p) => [p, await fetchVerified(p, true)]));
     const cache = await caches.open(CACHE_NAME);
     for (const [p, r] of got) await cache.put(p, r);
     // הספרייה והסטודיו — רק אצל מי שכבר נכנס אליהם; קובץ שלא אומת לא נשמר (יורד מהרשת בשימוש)
     for (const [set, mark] of [[LIB_SHELL, './library.js'], [STUDIO_SHELL, './studio.js']]) {
       // 13/10/2026: בכתובת של האפליקציה עצמה (academy / studio) — תמיד, גם אחרי ניקוי מטמון (עד היום רק אצל מי שכבר נכנס)
       if (!(await caches.match(mark)) && ROOT_PAGE !== (set === LIB_SHELL ? './academy.html' : './studio.html')) continue;
-      await Promise.all(set.map((p) => fetchVerified(p).then((r) => cache.put(p, r), () => {})));
+      await Promise.all(set.map((p) => fetchVerified(p, true).then((r) => cache.put(p, r), () => {})));
     }
     await self.skipWaiting();
   })());
