@@ -70,7 +70,7 @@ html.an-open { overflow: hidden; }
 .an-seg.an-seg-main { padding: 6px; gap: 4px;
   background: var(--glass); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border); box-shadow: var(--shadow), var(--glass-hi); }
-.an-seg.an-seg-main button { position: relative; z-index: 1; padding: 9px 6px; font-size: 15px; font-weight: 600; color: var(--on-surface-var); transition: color .3s; }
+.an-seg.an-seg-main button { flex: 1 1 auto; white-space: nowrap; position: relative; z-index: 1; padding: 9px 6px; font-size: 15px; font-weight: 600; color: var(--on-surface-var); transition: color .3s; }
 .an-seg.an-seg-main button[aria-pressed="true"] { background: none; box-shadow: none; color: var(--on-primary); font-weight: 700; }
 .an-seg-th { position: absolute; top: 6px; bottom: 6px; left: 0; width: 0; border-radius: var(--pill); background: var(--primary);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), 0 2px 8px rgba(0, 0, 0, .18); }
@@ -427,3 +427,34 @@ button.an-row { cursor: pointer; }
 
 /* מניה שלא נסחרת (מיזוג/מחיקה) — שורה אחת מתחת לראש */
 .an-gone { margin: 6px 0 0; font-size: 13px; color: var(--on-surface-var); }
+
+/* מחשבון השווי (27/10/2026) — שורה לכל נתון: התווית ומקור הערך המוצע, ולצידה השדה */
+.an-cin-list { display: flex; flex-direction: column; margin-top: 6px; }
+.an-cf { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: .5px solid var(--an-sep); }
+.an-cf:first-child { border-top: 0; }
+.an-cl { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; text-align: start; }
+.an-cl b { font-size: 15px; font-weight: 600; color: var(--an-ink); }
+.an-cl span { font-size: 12px; line-height: 1.35; color: var(--an-ink2); }
+.an-cf.ed .an-cl span { color: var(--primary); }
+.an-cv { flex: none; display: flex; align-items: center; gap: 6px; }
+.an-cin { width: 82px; padding: 8px 10px; border: 0; border-radius: var(--radius-xs); background: var(--an-fill); color: var(--an-ink);
+  font: inherit; font-size: 17px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+.an-cin:focus { outline: 2px solid var(--primary); outline-offset: 0; }
+.an-cf.ed .an-cin { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--primary) 55%, transparent); }
+.an-cu { min-width: 30px; font-size: 13px; color: var(--an-ink2); }
+.an-cback { width: 28px; height: 28px; border: 0; border-radius: 50%; background: transparent; color: var(--primary); font-size: 17px; cursor: pointer; }
+.an-cnow { margin: 0 0 10px; font-size: 13px; color: var(--an-ink2); }
+.an-ctab { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.an-ctab th, .an-ctab td { padding: 9px 4px; text-align: center; border-top: .5px solid var(--an-sep); font-size: 15px; }
+.an-ctab thead th { border-top: 0; font-size: 13px; font-weight: 600; color: var(--an-ink2); }
+.an-ctab thead th small { display: block; font-size: 15px; font-weight: 700; color: var(--an-ink); }
+.an-ctab tbody th { text-align: start; font-size: 13px; font-weight: 500; color: var(--an-ink2); padding-inline-end: 8px; }
+.an-ctab td { font-weight: 700; color: var(--an-ink); }
+.an-ctab .cur, .an-ctab tbody td:nth-child(3) { background: color-mix(in srgb, var(--an-fill) 70%, transparent); }
+.an-cf3 { flex-wrap: wrap; }
+.an-cf3 .an-cl { flex-basis: 100%; }
+.an-cf3 .an-cv { flex: 1; justify-content: flex-end; }
+.an-c3 { display: flex; gap: 8px; }
+.an-c3 label { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.an-c3 small { font-size: 11px; color: var(--an-ink2); }
+.an-c3 .an-cin { width: 70px; }
