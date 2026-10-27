@@ -224,6 +224,8 @@ const { fakeR2, ENV } = require('./_r2fake');
       'מה שה־service worker צריך — נשמר (העבודה, הקובץ, המפתח, השרתונים, השפה)');
     bg.uploaded = 40; bg.fire();
     ok(prog[prog.length - 1] === 64 + 40, 'התקדמות: מה שכבר הגיע קודם + מה שעלה עכשיו');
+    bg.uploaded = 80; bg.fire(); bg.uploaded = 50; bg.fire();
+    ok(prog[prog.length - 1] === 64 + 80, 'Chrome סופר חלק פעמיים ואז יורד — מה שהוצג לא יורד (27/10/2026)');
     bg.uploaded = 86; bg.result = 'success'; bg.fire();
     ok((await p).ok, 'הסתיים בהצלחה → ok (וההעלאה הרגילה רק תסגור)');
   }
