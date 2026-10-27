@@ -77,6 +77,15 @@ class Embedded(unittest.TestCase):
             self.assertNotIn('applause', got)
             self.assertEqual(job.embedded_subs(c), ['en', 'he'], 'פעם שנייה — לא שולפים שוב')
 
+    def test_cut_before_translation_skips(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            (d / 'source.mkv').write_bytes(b'x')
+            (d / 'media.json').write_text(json.dumps({'streams': [{'index': 2, 'type': 'subtitle', 'codec': 'subrip', 'lang': 'eng'}]}))
+            c = ctx_for(d, spec={'edl': {'k': [[0, 60]], 'ar': 'src'}})
+            self.assertEqual(job.embedded_subs(c), [], 'חיתוך לפני התרגום — הרצועה לא על הציר שלנו')
+            self.assertFalse((d / 'ref').exists())
+
     def test_no_video_no_subs(self):
         with tempfile.TemporaryDirectory() as d:
             c = ctx_for(d)

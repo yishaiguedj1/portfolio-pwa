@@ -1228,6 +1228,9 @@ def embedded_subs(ctx):
     """רצועות הטקסט בתוך הסרטון שבפרויקט → ref/<שפה>.srt (רק מה שעוד אין). מחזיר את השפות שיש עכשיו ב־ref/."""
     pd = ctx.pdir
     d = pd / REF_DIR
+    edl = (ctx.st.get('spec') or {}).get('edl') or {}
+    if isinstance(edl, dict) and edl.get('k'):
+        return []                                 # חיתוך לפני התרגום — הזמנים של הרצועה לא על הציר שלנו (כמו pick.sec בקישור)
     src = _lm_source(pd)
     tracks = sub_tracks(_read_json(pd / 'media.json') or {}) if src else {}
     for lang, idx in tracks.items():
