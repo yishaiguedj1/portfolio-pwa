@@ -5923,8 +5923,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.63.2';
-const APP_VERSION = 'v572';
+const APP_RELEASE = '2.63.3';
+const APP_VERSION = 'v573';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -13976,6 +13976,14 @@ function analysisBtn(sym) {
   b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16M8 16v-5M12 16V8M16 16v-3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
   b.appendChild(document.createTextNode(t('anOpenBtn')));
   b.addEventListener('click', (e) => { e.stopPropagation(); openAnalysisFor(sym); });
+  // 27/10/2026 (בקשת המשתמש — "שכל המידע ייטען מראש"): הכפתור נראה = כרטיס המניה נפתח (גוף סגור = display:none),
+  // ואז הנתונים של הניתוח נטענים ברקע. בלחיצה המסך המלא כבר מוכן — בלי שלד ובלי טעינה
+  const pre = () => { if (b._pre) return; b._pre = 1; import('./analysis.js').then((m) => m.prefetchAnalysis && m.prefetchAnalysis(sym, analysisEnv())).catch(() => {}); };
+  b.addEventListener('pointerdown', pre, { passive: true });
+  if (typeof IntersectionObserver === 'function') {
+    const io = new IntersectionObserver((es) => { if (es.some((x) => x.isIntersecting)) { io.disconnect(); pre(); } });
+    io.observe(b);
+  }
   return b;
 }
 function analysisEnv() {
