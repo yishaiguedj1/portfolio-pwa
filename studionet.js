@@ -9,6 +9,7 @@
    5. ת4: עבודה במצב שרת שומרת ב־Cloudflare R2 (studiostore.js): התיקייה R2_<עבודה>, מזהה קובץ <תיקייה>_<אקראי> —
       כל פונקציה כאן בוחרת R2 או Drive לפי המזהה, כך שהנגן, העורכים וסט הזהב לא השתנו.
    בלי DOM: התלויות מוזרקות (createNet(env)), ו־tests/studio-v355 בודק את המנוע ב־node עם Drive מדומה. */
+import { lang2 } from './studiotracks.js';
 import { r2Upload, isR2Folder, isR2Id, r2JobOf } from './studiostore.js';
 
 const UP = 'https://www.googleapis.com/upload/drive/v3/files';
@@ -533,6 +534,146 @@ export function lrcResults(json, dur) {
     .slice(0, 8).map((r) => Object.assign(r, { m: dur > 0 && r.d > 0 && Math.abs(r.d - dur) <= 3 }));
 }
 
+/* ---------------- 28/10/2026: כתוביות רשמיות מהרשת (בקשת המשתמש — "כמו VLC / BS Player / Stremio") ----------------
+   ישירות מהטלפון: CORS פתוח, בלי מפתח, והמכסה של המשתמש ולא של השרת (החלטת המשתמש). יוצא רק: טביעת האצבע והגודל,
+   מזהה IMDb ושם הסדרה/הסרט — הקובץ עצמו לא. זיהוי: טביעת האצבע של OpenSubtitles (64KB מההתחלה + 64KB מהסוף + הגודל)
+   מול rest.opensubtitles.org, אחרת שם הקובץ מול Cinemeta. חיפוש: OpenSubtitles דרך Stremio (עם הטביעה — m:'h' = תואם
+   בדיוק) ו־Wizdom (עברית). מקור שלא עונה תוך NS_MS — מדלגים עליו. התשובות = טקסט מאתר חיצוני: רק שדות מוכרים, אורך מוגבל */
+export const NS_OSH = 'https://rest.opensubtitles.org/search/';
+export const NS_OS3 = 'https://opensubtitles-v3.strem.io/subtitles/';
+export const NS_META = 'https://v3-cinemeta.strem.io/catalog/';
+export const NS_WIZ = 'https://wizdom.xyz/api/';
+export const NS_SRC = { os: 'OpenSubtitles', wz: 'Wizdom' };   // שם המקור שמוצג למשתמש
+const NS_MS = 9000, NS_MAX = 3 * 1024 * 1024, NS_CH = 65536;
+const nsStr = (v, n) => String(v == null ? '' : v).replace(LRC_CTL, '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, n);
+/* טביעת האצבע של OpenSubtitles: הגודל + סכום של מילים של 64 ביט (little-endian) ב־64KB הראשונים והאחרונים. blob = {size, slice} */
+export async function osHash(blob) {
+  const size = blob && Number(blob.size);
+  if (!(size >= NS_CH) || typeof BigInt !== 'function') return '';
+  const M = (BigInt(1) << BigInt(64)) - BigInt(1);
+  let h = BigInt(size);
+  for (const [a, b] of [[0, NS_CH], [size - NS_CH, size]]) {
+    const u = new Uint8Array(await blob.slice(a, b).arrayBuffer());
+    const dv = new DataView(u.buffer, u.byteOffset, u.byteLength);
+    for (let i = 0; i + 8 <= u.length; i += 8) h = (h + dv.getBigUint64(i, true)) & M;
+  }
+  return h.toString(16).padStart(16, '0');
+}
+/* שם הקובץ → { q: שם הסדרה/הסרט, s, e, y }. SxxEyy / 1x02 / שנה; מה שאחרי (איכות, קבוצה) יורד */
+export function nsGuess(name) {
+  const t = ' ' + String(name || '').replace(/\.[A-Za-z0-9]{2,4}$/, '').replace(/[._]+/g, ' ') + ' ';
+  let s = 0, e = 0, y = 0, cut = t.length;
+  const m = /[\s\-[(]s(\d{1,2})\s?-?\s?e(\d{1,3})(?!\d)/i.exec(t) || /[\s\-[(](\d{1,2})x(\d{2,3})(?!\d)/i.exec(t);
+  if (m) { s = +m[1]; e = +m[2]; cut = m.index; }
+  const ym = /[\s([]((?:19|20)\d{2})(?=[\s)\]])/.exec(t.slice(0, Math.max(cut, 5)) + ' ') || (!m && /[\s([]((?:19|20)\d{2})(?=[\s)\]])/.exec(t));
+  if (ym && ym.index > 0) { y = +ym[1]; cut = Math.min(cut, ym.index); }
+  const q0 = /\b(2160p|1080[pi]|720p|480p|web-?dl|webrip|bluray|brrip|bdrip|dvdrip|hdtv|x26[45]|h ?26[45]|hevc|proper|repack)\b/i.exec(t);
+  if (q0 && q0.index < cut) cut = q0.index;
+  const q = t.slice(0, cut).replace(/[[({][^\])}]*[\])}]/g, ' ').replace(/\s+-\s*$/, '').replace(/\s+/g, ' ').trim().slice(0, 100);
+  return { q, s, e, y };
+}
+/* שם הוצאה תואם לשם הקובץ? (אותה קבוצה / אותה איכות+מקור) — רמת ההתאמה 'r' */
+const nsToks = (x) => new Set(String(x || '').toLowerCase().replace(/\.[a-z0-9]{2,4}$/, '').split(/[\s._\-[\]()]+/).filter((w) => w.length > 1));
+const NS_INFO = /^(2160p|1080[pi]|720p|480p|web|webdl|webrip|dl|bluray|brrip|bdrip|dvdrip|hdtv|x264|x265|h264|h265|hevc|amzn|nf|dsnp|hmax|atvp|hulu)$/;
+export function nsRelMatch(fileName, rel) {
+  const a = nsToks(fileName), b = nsToks(rel);
+  const ga = String(fileName || '').replace(/\.[A-Za-z0-9]{2,4}$/, '').split('-').pop().toLowerCase().trim();
+  const gb = String(rel || '').replace(/\.[A-Za-z0-9]{2,4}$/, '').split('-').pop().toLowerCase().trim();
+  if (ga && ga.length > 2 && ga === gb && !/\s/.test(ga)) return true;
+  let n = 0;
+  for (const w of a) if (NS_INFO.test(w) && b.has(w)) n++;
+  return n >= 2;
+}
+const ttId = (n) => { const d = String(n || '').replace(/^tt/, ''); return /^\d{1,9}$/.test(d) && +d > 0 ? 'tt' + d.padStart(7, '0') : ''; };
+/* תשובת החיפוש לפי טביעה → הזיהוי. הטביעה משותפת לפעמים לכמה כותרים — רוב, ועדיפות למה שתואם לשם הקובץ */
+export function nsPickHash(json, g) {
+  if (!Array.isArray(json)) return null;
+  const votes = new Map();
+  for (const x of json.slice(0, 80)) {
+    if (!x || typeof x !== 'object') continue;
+    const ep = x.MovieKind === 'episode' && ttId(x.SeriesIMDBParent) && +x.SeriesSeason > 0 && +x.SeriesEpisode > 0;
+    const id = ep ? ttId(x.SeriesIMDBParent) : ttId(x.IDMovieImdb);
+    if (!id) continue;
+    const r = ep ? { type: 'series', id, s: +x.SeriesSeason, e: +x.SeriesEpisode } : { type: 'movie', id, s: 0, e: 0 };
+    const k = r.id + ':' + r.s + ':' + r.e;
+    const v = votes.get(k) || Object.assign(r, { t: nsStr(String(x.MovieName || '').replace(/^"([^"]+)".*$/, '$1'), 100), n: 0 });
+    v.n++; votes.set(k, v);
+  }
+  const all = [...votes.values()].sort((a, b) => b.n - a.n);
+  if (!all.length) return null;
+  const fit = g && g.s ? all.find((v) => v.s === g.s && v.e === g.e) : null;
+  return Object.assign({}, fit || all[0], { by: 'h' });
+}
+/* תשובת Cinemeta → הזיהוי לפי השם (עדיפות לשנה התואמת) */
+export function nsPickMeta(json, g) {
+  const ms = json && Array.isArray(json.metas) ? json.metas.slice(0, 10) : [];
+  const ok = ms.filter((m) => m && ttId(m.imdb_id || m.id));
+  if (!ok.length) return null;
+  const m = (g && g.y && ok.find((x) => String(x.releaseInfo || x.year || '').startsWith(String(g.y)))) || ok[0];
+  const ser = !!(g && g.s);
+  return { type: ser ? 'series' : 'movie', id: ttId(m.imdb_id || m.id), s: ser ? g.s : 0, e: ser ? g.e : 0, t: nsStr(m.name, 100), by: 'n' };
+}
+/* תשובת Stremio (OpenSubtitles) → פריטים אחידים. url רק מ־https://*.strem.io */
+export function nsParseOs(json, fileName) {
+  const L = json && Array.isArray(json.subtitles) ? json.subtitles.slice(0, 400) : [];
+  const out = [];
+  for (const x of L) {
+    if (!x || typeof x !== 'object') continue;
+    const url = String(x.url || '');
+    if (!/^https:\/\/[a-z0-9-]+\.strem\.io\/[^\s"'<>]{1,400}$/i.test(url)) continue;
+    const lang = lang2(x.lang === 'pob' ? 'pt' : x.lang);
+    if (!/^[a-z]{2,3}$/.test(lang)) continue;
+    const rel = nsStr(x.movieReleaseName || x.subtitleFileName, 160);
+    const fps = Number(x.fpsMilli) > 0 && Number(x.fpsMilli) < 200000 ? Math.round(Number(x.fpsMilli)) / 1000 : 0;
+    out.push({ id: 'os:' + nsStr(x.id, 40).replace(/[^\w-]/g, ''), src: 'os', url, lang, rel, fps, m: x.m === 'h' ? 'h' : nsRelMatch(fileName, rel) ? 'r' : 'n' });
+  }
+  return out;
+}
+/* תשובת Wizdom → פריטים (עברית, קובץ zip) */
+export function nsParseWiz(json, fileName) {
+  if (!Array.isArray(json)) return [];
+  return json.slice(0, 200).filter((x) => x && /^\d{1,9}$/.test(String(x.id))).map((x) => {
+    const rel = nsStr(x.versioname, 160);
+    return { id: 'wz:' + x.id, src: 'wz', url: NS_WIZ + 'files/sub/' + x.id, lang: 'he', rel, fps: 0, zip: 1, m: nsRelMatch(fileName, rel) ? 'r' : 'n' };
+  });
+}
+/* סדר: תואם בדיוק → אותה הוצאה → השאר; בלי כפולים (אותה שפה + אותו שם הוצאה ממקור אחר נשאר — המקור שונה) */
+export function nsSort(list) {
+  const rank = { h: 0, r: 1, n: 2 };
+  const seen = new Set();
+  return list.map((x, i) => ({ x, i })).sort((a, b) => rank[a.x.m] - rank[b.x.m] || a.i - b.i).map((o) => o.x)
+    .filter((x) => { if (seen.has(x.id)) return false; seen.add(x.id); return true; });
+}
+/* zip (Wizdom): הקובץ שתואם לפרק (SxxEyy) או הראשון; stored או deflate. לא zip → כמו שהוא */
+export async function nsUnzip(u, g) {
+  if (!(u && u.length > 22 && u[0] === 0x50 && u[1] === 0x4b)) return u;
+  const dv = new DataView(u.buffer, u.byteOffset, u.byteLength);
+  let eo = -1;
+  for (let i = u.length - 22; i >= Math.max(0, u.length - 66000); i--) if (dv.getUint32(i, true) === 0x06054b50) { eo = i; break; }
+  if (eo < 0) throw new Error('zip');
+  const cnt = dv.getUint16(eo + 10, true);
+  let p = dv.getUint32(eo + 16, true);
+  const ents = [];
+  for (let k = 0; k < cnt && p + 46 <= u.length && dv.getUint32(p, true) === 0x02014b50; k++) {
+    const meth = dv.getUint16(p + 10, true), csz = dv.getUint32(p + 20, true), nl = dv.getUint16(p + 28, true);
+    const el = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true), lo = dv.getUint32(p + 42, true);
+    const name = new TextDecoder('latin1').decode(u.subarray(p + 46, p + 46 + nl));
+    if (/\.(srt|ass|ssa|vtt)$/i.test(name)) ents.push({ name, meth, csz, lo });
+    p += 46 + nl + el + cl;
+  }
+  if (!ents.length) throw new Error('zip');
+  const se = g && g.s ? new RegExp('s0?' + g.s + '\\s?[._-]?\\s?e0?' + g.e + '(?!\\d)|(?:^|\\D)' + g.s + 'x0?' + g.e + '(?!\\d)', 'i') : null;
+  const ent = (se && ents.find((x) => se.test(x.name))) || ents[0];
+  const lo = ent.lo;
+  if (dv.getUint32(lo, true) !== 0x04034b50) throw new Error('zip');
+  const st = lo + 30 + dv.getUint16(lo + 26, true) + dv.getUint16(lo + 28, true);
+  const data = u.subarray(st, st + ent.csz);
+  if (ent.meth === 0) return data.slice();
+  if (ent.meth !== 8 || typeof DecompressionStream !== 'function') throw new Error('zip');
+  const out = new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw')));
+  return new Uint8Array(await out.arrayBuffer());
+}
+
 export function createNet(env) {
   const E = Object.assign({ fetch: (...a) => fetch(...a), now: () => Date.now(), sleep: (ms) => new Promise((r) => setTimeout(r, ms)), put: xhrPut }, env);
   let dtok = null;      // { at, exp } — גישה זמנית ל־Drive (שעה), רק בזיכרון
@@ -957,8 +1098,41 @@ export function createNet(env) {
       return { ok: true, list: lrcResults(await r.json(), dur || 0) };
     } catch (e) { return { ok: false, error: 'net', list: [] }; } finally { if (tm) clearTimeout(tm); }
   }
+  /* כתוביות מהרשת: זיהוי + חיפוש בכל המקורות (כל אחד עד NS_MS; מקור שנפל לא עוצר). blob = {size, slice} */
+  async function nsGet(url, kind) {
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    const tm = ctl ? setTimeout(() => ctl.abort(), NS_MS) : 0;
+    try {
+      const r = await E.fetch(url, ctl ? { signal: ctl.signal } : {});
+      if (!r.ok) return null;
+      if (kind === 'json') return await r.json();
+      const b = new Uint8Array(await r.arrayBuffer());
+      return b.length <= NS_MAX ? b : null;
+    } catch (e) { return null; } finally { if (tm) clearTimeout(tm); }
+  }
+  async function subsFind(blob, name) {
+    const g = nsGuess(name), size = blob ? Number(blob.size) || 0 : 0;
+    let hash = '';
+    try { hash = await osHash(blob); } catch (e) { hash = ''; }
+    let id = hash ? nsPickHash(await nsGet(NS_OSH + 'moviebytesize-' + size + '/moviehash-' + hash, 'json'), g) : null;
+    if (!id && g.q.length >= 2) id = nsPickMeta(await nsGet(NS_META + (g.s ? 'series' : 'movie') + '/top/search=' + encodeURIComponent(g.q) + '.json', 'json'), g);
+    if (!id) return { ok: false, error: 'none', list: [] };
+    const vid = id.id + (id.type === 'series' ? ':' + id.s + ':' + id.e : '');
+    const [a, b] = await Promise.all([
+      nsGet(NS_OS3 + id.type + '/' + vid + (hash ? '/videoHash=' + hash + '&videoSize=' + size : '') + '.json', 'json'),
+      nsGet(NS_WIZ + 'search?action=by_id&imdb=' + id.id + (id.type === 'series' ? '&season=' + id.s + '&episode=' + id.e + '&version=1' : ''), 'json')]);
+    return { ok: true, id, hash: !!hash, list: nsSort([...nsParseOs(a, name), ...nsParseWiz(b, name)]) };
+  }
+  /* קובץ אחד → בתים (zip נפתח). רק מהכתובות שהפענוח אישר */
+  async function subsGet(item, g) {
+    const u = String(item && item.url || '');
+    if (!(/^https:\/\/[a-z0-9-]+\.strem\.io\//i.test(u) || u.startsWith(NS_WIZ + 'files/sub/'))) return null;
+    const b = await nsGet(u, 'bin');
+    if (!b) return null;
+    try { return await nsUnzip(b, g); } catch (e) { return null; }
+  }
   const goldUpload = (folderId, text) => textUpload(folderId, GOLD_REF_NAME, 'application/x-subrip', text, { snbRef: '1' });
 
 
-  return { api, driveApi, driveToken, browseList, rangeBlob, vidsRoot, vidsList, vidsFolder, vidsSub, driveRename, driveTrash, driveMoveTo, jobFolder, upload, r2ToDrive, r2Get, cloudInitTemplate, glossLoad, glossSave, driveText, driveBlob, driveJson, goldUpload, textUpload, mediaUrl, driveMeta, driveMove, driveCopy, lyricsSearch, _forget: () => { dtok = null; } };
+  return { api, driveApi, driveToken, browseList, rangeBlob, vidsRoot, vidsList, vidsFolder, vidsSub, driveRename, driveTrash, driveMoveTo, jobFolder, upload, r2ToDrive, r2Get, cloudInitTemplate, glossLoad, glossSave, driveText, driveBlob, driveJson, goldUpload, textUpload, mediaUrl, driveMeta, driveMove, driveCopy, lyricsSearch, subsFind, subsGet, _forget: () => { dtok = null; } };
 }

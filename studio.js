@@ -281,7 +281,58 @@ export function normJob(j) {
   const chap = normChapters(j.chap);   // פרקים בנגן (מ"רעיונות"); נשמרים בטלפון עם העבודה
   const vm = j.vm && num(j.vm.w) > 0 && num(j.vm.h) > 0 ? { w: Math.min(num(j.vm.w), 16384), h: Math.min(num(j.vm.h), 16384) } : null;   // סבב 2: מידות הסרטון (מהבדיקה בטלפון)
   const gref = FID_RE.test(String(j.gref || '')) ? j.gref : '';   // שלב 4: רצועת ההשוואה מהסרטון (בתיקיית העבודה) — לסט הזהב כשהעבודה מסתיימת
-  return { id: j.id, created: num(j.created), spec, up, fp, srv, ...(chap.length ? { chap } : {}), ...(vm ? { vm } : {}), ...(gref ? { gref } : {}) };
+  const org = normOrg(j.org);   // 28/10/2026: מאיפה הגיע כל קובץ (מוצג במסך העבודה)
+  return { id: j.id, created: num(j.created), spec, up, fp, srv, ...(chap.length ? { chap } : {}), ...(vm ? { vm } : {}), ...(gref ? { gref } : {}), ...(org ? { org } : {}) };
+}
+/* 28/10/2026 (בקשת המשתמש: "שלכל כתוביות או קובץ אודיו יהיה המקור של מאיפה הוא הגיע בדיוק"): v = הסרטון
+   (ph טלפון · dr Drive · bx רשימת הקבצים של Studio ב־Drive · ln קישור · dl הורד בטלפון מקישור · pa Studio לאנדרואיד),
+   h = האתר; s = קובץ הכתוביות, r = העזר להגהה, g = ההשוואה — {k: file שצירפת · trk רצועה בקובץ · net מהרשת, l: שפה, p: המקור ברשת} */
+const ORG_V = ['ph', 'dr', 'bx', 'ln', 'dl', 'pa'], ORG_T = ['file', 'trk', 'net'];
+export const NS_NAME = { os: 'OpenSubtitles', wz: 'Wizdom' };
+export function normOrg(o) {
+  if (!o || typeof o !== 'object') return null;
+  const host = (x) => (/^[a-z0-9][a-z0-9.-]{0,79}$/i.test(String(x || '')) ? String(x).toLowerCase() : '');
+  const lng = (x) => (/^[a-z]{2,3}$/.test(String(x || '')) ? x : '');
+  const t = (x) => (x && typeof x === 'object' && ORG_T.includes(x.k)
+    ? Object.assign({ k: x.k }, lng(x.l) ? { l: x.l } : {}, x.k === 'net' && Object.hasOwn(NS_NAME, String(x.p)) ? { p: x.p } : {}) : null);
+  const out = {};
+  if (o.v && typeof o.v === 'object' && ORG_V.includes(o.v.k)) out.v = Object.assign({ k: o.v.k }, host(o.v.h) ? { h: host(o.v.h) } : {});
+  for (const k of ['s', 'r', 'g']) { const x = t(o[k]); if (x) out[k] = x; }
+  return Object.keys(out).length ? out : null;
+}
+const hostOf = (u) => { try { return new URL(String(u || '')).hostname.replace(/^www\./, ''); } catch (e) { return ''; } };
+/* רצועה בטופס → המקור שלה */
+function orgTrk(f, id) {
+  const t = id != null && f.trk ? f.trk.tracks.find((x) => x.id === id) : null;
+  return t ? (t.net ? { k: 'net', p: t.net.src, l: t.lang } : { k: 'trk', l: t.lang }) : null;
+}
+/* הטופס → org של העבודה. v — כשנקבע מבחוץ (קישור / תרגום בטלפון); r רק כשהעזר באמת נשלח (eng api) */
+function orgOf(f, v, eng) {
+  const k = f.trk;
+  return normOrg({
+    v: v || (f.drive ? { k: f.drive.bx ? 'bx' : 'dr' } : f.dl ? { k: 'dl', h: hostOf(f.dl.u) } : f.fileObj ? { k: 'ph' } : null),
+    s: f.subs ? (f.subs.trk != null ? orgTrk(f, f.subs.trk) : { k: 'file' }) : null,
+    r: k && k.src == null && k.hlp != null && eng === 'api' ? orgTrk(f, k.hlp) : null,
+    g: k && k.ref != null ? orgTrk(f, k.ref) : null });
+}
+function orgVText(v) {
+  const h0 = v.h || '—';
+  return v.k === 'ln' ? T('studioOrgLn', { h: h0 }) : v.k === 'dl' ? T('studioOrgDl', { h: h0 }) : v.k === 'dr' ? T('studioOrgDr') : v.k === 'bx' ? T('studioOrgBx') : v.k === 'pa' ? T('studioOrgPa') : T('studioOrgPh');
+}
+function orgTText(x) {
+  const l = x.l ? langName(x.l, uiLang()) : '';
+  if (x.k === 'net') return T('studioNsBy') + ' · ' + nsSrcName(x.p) + (l ? ' · ' + l : '');
+  return x.k === 'trk' ? T('studioOrgTrk', { l: l || T('studioTrkUnd') }) : T('studioOrgFile');
+}
+function orgRows(rec) {
+  const o = rec.org;
+  if (!o) return [];
+  const rows = [];
+  if (o.v) rows.push(rowTxtRow('film', 'blue', T('studioOrgV'), orgVText(o.v)), rowTxtRow('mic', 'purple', T('studioOrgA'), T('studioOrgFromV')));
+  if (o.s) rows.push(rowTxtRow('cc', 'orange', T('studioOrgS'), orgTText(o.s)));
+  if (o.r) rows.push(rowTxtRow('cc', 'orange', T('studioOrgR'), orgTText(o.r)));
+  if (o.g) rows.push(rowTxtRow('check', 'green', T('studioOrgG'), orgTText(o.g)));
+  return rows.length ? [secT(T('studioOrgT')), list(...rows)] : [];
 }
 /* v387: סט הזהב — אותה בדיקה כמו בשרתון (lib/studio.js normGd / normGq) */
 const FID_GD = /^[A-Za-z0-9_-]{10,100}$/;
@@ -3021,7 +3072,10 @@ function pageForm(p, editing) {
     p.append(list(pickRow, f.ka ? null : phRow, f.ka ? null : pwRow, linkRow, f.ka ? null : subsRow, driveRow), kaRow ? list(kaRow) : '');
     const tk = f.trk && f.trk.tracks.length ? f.trk.tracks : null;   // שלב 4
     const hl = tk && f.trk.hlp != null && f.trk.src == null && hlpEngine() ? tk.find((t) => t.id === f.trk.hlp) : null;   // 26/10/2026
-    if (tk) p.append(list(rowNav({ tile: tile('cc', 'orange'), label: T('studioTrkRow'), value: T('studioTrkN', { n: fmtNum(tk.length) }), sub: hl ? T('studioTrkHlpRow', { l: trkLabel(hl) }) : T('studioTrkRowS'), onClick: () => go('tracks'), k: 'tracks' })));
+    const nsN = tk ? tk.filter((t) => t.net).length : 0, hv = nsN ? nsHave(f) : null, nid = f.ns && f.ns.id;   // 28/10/2026: גם מהרשת
+    if (tk) p.append(list(rowNav({ tile: tile('cc', 'orange'), label: nsN ? nid ? nsIdText(nid) : T('studioNsRow') : T('studioTrkRow'), value: nsN ? fmtNum(tk.length) : T('studioTrkN', { n: fmtNum(tk.length) }),
+      sub: hl ? T('studioTrkHlpRow', { l: trkLabel(hl) }) : nsN ? (nid && nid.by === 'h' ? T('studioNsIdH') : T('studioNsIdN')) : T('studioTrkRowS'), onClick: () => go('tracks'), k: 'tracks' }),
+      hv && rowNav({ tile: tile('check', 'green'), label: T('studioNsHave', { l: langName(hv.l, uiLang()) }), sub: hv.ex ? T('studioNsHaveS', { n: fmtNum(hv.n), k: fmtNum(hv.ex) }) : T('studioNsHaveS0', { n: fmtNum(hv.n) }), onClick: () => go('tracks'), k: 'ns-have' })));
     const adv = advRows(f, pick);
     if (adv) p.append(h('div', 'st-gap sm'), adv);
     if (f.fileObj || (f.drive && !f.drive.bx)) p.append(list(rowNav({ tile: tile('film', 'blue'), label: T('studioEdBefore'), value: f.edl ? edlSum(f.edl, f.dur || 0) : T('studioEdOptional'), onClick: () => { fnlAdd('cut'); go('cutsrc'); }, k: 'cutsrc' })));   // מ4
@@ -3103,7 +3157,7 @@ function startSubs(f) {
     if (!j.ok || !j.job) { flashSafe(errText(j.error)); render('none'); return; }
     fnlAdd('start');
     const rec = normJob({ id: j.job.id, created: j.job.created || Date.now(), spec: j.job.spec || spec, srv: j.job,
-      fp: { name: s.name, size: s.size, lm: 0 }, up: Object.assign({ noAudio: 'subs' }, isR2Folder(j.job.folder) ? { folder: j.job.folder } : {}) });
+      fp: { name: s.name, size: s.size, lm: 0 }, org: orgOf(f, null, spec.eng), up: Object.assign({ noAudio: 'subs' }, isR2Folder(j.job.folder) ? { folder: j.job.folder } : {}) });
     store.jobs.unshift(rec);
     save();
     const blob = new Blob([s.bytes], { type: s.type || 'text/plain' });
@@ -3244,12 +3298,16 @@ function subsSection(p, f) {
 function tracksFor(f, file) {
   f.trk = null;
   f._rb = file && file.remote ? file : null;
+  nsFor(f, file);   // 28/10/2026: כתוביות רשמיות מהרשת — לכל סרטון, גם בלי רצועות בקובץ
   if (!/\.(mkv|mk3d|webm|mp4|m4v|mov)$/i.test(file.name || '')) return;
   listTracks(file).then((L) => {
     if (form !== f || !(f.fileObj === file || (f._rb === file && f.drive && f.drive.id === file.id)) || !L || !L.tracks.length) return;   // _rb — הסרטון ב־Drive (dpPick)
+    const old = f.trk;   // כתוביות מהרשת שכבר הגיעו — נשארות (עם מה שכבר ירד והבחירות שלהן)
     f.trk = { file, vname: file.name, tracks: L.tracks, x: {}, src: null, ref: null, hlp: null, p: 0, busy: false };
+    if (old) { for (const id of Object.keys(old.x)) if (id.startsWith('n:')) f.trk.x[id] = old.x[id]; for (const c of ['src', 'ref', 'hlp']) if (String(old[c]).startsWith('n:')) f.trk[c] = old[c]; }
     // 26/10/2026: רצועה באנגלית = עזר להגהת התמלול, מראש — רק כשהקובץ בטלפון (מ־Drive החילוץ קורא את כל הקובץ ברשת)
     const h0 = hlpEngine() && !file.remote ? trkHlpAuto(L.tracks) : null;
+    nsMerge(f, file);
     if (h0) { f.trk.hlp = h0.id; trkEnsure(f, [h0.id]); } else render('none');
   }, () => {});
 }
@@ -3260,6 +3318,7 @@ function trkLabel(t) {
 }
 function trkSub(f, t) {
   const x = f.trk.x[t.id];
+  if (t.net) return x && x.st === 'run' ? T('studioNsLoading') : x && x.st === 'err' ? T('studioTrkErr') : nsSub(t);
   const flags = [t.kind === 'text' ? t.fmt.toUpperCase() : t.codec, t.def ? T('studioTrkDef') : '', t.forced ? T('studioTrkForced') : '', t.sdh ? 'SDH' : ''].filter(Boolean).join(' · ');
   if (t.kind === 'image') return flags + ' · ' + T('studioTrkImage');
   if (t.kind !== 'text') return flags + ' · ' + T('studioTrkOther');
@@ -3277,10 +3336,15 @@ async function trkEnsure(f, ids) {
   for (const id of need) k.x[id] = { st: 'run' };
   render('none');
   let lastR = 0;
+  const loc = need.filter((id) => !String(id).startsWith('n:'));   // n: — מהרשת (28/10/2026), במקביל לחילוץ
+  const dl = Promise.all(need.filter((id) => String(id).startsWith('n:')).map((id) => nsLoad(f, k, id)));
   try {
-    const X = await extractTracks(k.file, need, (p) => { k.p = p; if (p - lastR > 0.04) { lastR = p; if (form === f) render('none'); } });
-    for (const t of X.tracks) if (need.includes(t.id)) k.x[t.id] = t.text ? { st: 'ok', text: t.text, n: t.n } : { st: 'err' };
-  } catch (e) { for (const id of need) k.x[id] = { st: 'err' }; }
+    if (loc.length) {
+      const X = await extractTracks(k.file, loc, (p) => { k.p = p; if (p - lastR > 0.04) { lastR = p; if (form === f) render('none'); } });
+      for (const t of X.tracks) if (loc.includes(t.id)) k.x[t.id] = t.text ? { st: 'ok', text: t.text, n: t.n } : { st: 'err' };
+    }
+  } catch (e) { for (const id of loc) k.x[id] = { st: 'err' }; }
+  await dl;
   k.busy = false;
   if (k.src != null && k.x[k.src] && k.x[k.src].st === 'ok' && !f.subs) trkApply(f);
   if (form === f) render('none');
@@ -3382,17 +3446,119 @@ async function trkSave(f, t) {
   a.href = u; a.download = name; document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(u), 5000);
 }
+/* ---------------- 28/10/2026: כתוביות רשמיות מהרשת (בקשת המשתמש — "כמו VLC / BS Player / Stremio") ----------------
+   הטלפון פונה ישירות (studionet: subsFind/subsGet) — בלי מפתחות ובלי השרת שלנו. מה שנמצא נכנס לרשימת הרצועות כרצועה
+   וירטואלית ('n:' + id), כך שתרגום מכתוביות, עזר להגהה, השוואה ושמירה עובדים כמו ברצועה מהקובץ. רמת ההתאמה: h = לפי
+   טביעת האצבע (מדויק), r = אותה הוצאה, n = לפי השם בלבד. לתרגום מכתוביות (בלי תמלול) — רק h (אין מול מה לאמת);
+   לעזר ולהשוואה — גם השאר: העובד מאמת לפי טקסט מול התמליל (subref_grade), כי שם קובץ יכול להטעות (פרק 7 שהוא פרק 8) */
+const nsCache = new Map();   // שם|גודל → התוצאה (בזיכרון, לאותו קובץ — בלי לחפש שוב)
+const nsSrcName = (p) => (p === 'os' ? T('studioNsViaOs') : NS_NAME[p] || '');
+function nsFor(f, file) {
+  f.ns = null;
+  if (!file || !(file.size > 0) || !net.subsFind) return;
+  const key = String(file.name || '') + '|' + file.size;
+  f._nsKey = key;
+  const done = (v) => { if (form !== f || f._nsKey !== key) return; f.ns = v; nsMerge(f, file); render('none'); };
+  if (nsCache.has(key)) { done(nsCache.get(key)); return; }
+  f.ns = { st: 'run' };
+  net.subsFind(file, file.name).then((r) => {
+    const v = r && r.ok && r.list.length ? { st: 'ok', id: r.id, list: r.list } : { st: 'none' };
+    nsCache.set(key, v); done(v);
+  }, () => done({ st: 'none' }));
+}
+/* התוצאה → רצועות וירטואליות. אנגלית מהרשת כעזר להגהה אוטומטי — רק כשאין אנגלית בקובץ, ורק h/r */
+function nsMerge(f, file) {
+  const ns = f.ns;
+  if (!ns || ns.st !== 'ok') return;
+  if (!f.trk) f.trk = { file, vname: file.name, tracks: [], x: {}, src: null, ref: null, hlp: null, p: 0, busy: false };
+  const k = f.trk, have = new Set(k.tracks.map((t) => t.id));
+  for (const it of ns.list) if (!have.has('n:' + it.id)) k.tracks.push({ id: 'n:' + it.id, kind: 'text', lang: it.lang, name: it.rel, fmt: 'srt', net: it });
+  if (k.hlp == null && k.src == null && hlpEngine() && !k.tracks.some((t) => !t.net && t.kind === 'text' && t.lang === 'en')) {
+    const en = k.tracks.find((t) => t.net && t.lang === 'en' && t.net.m !== 'n');
+    if (en) { k.hlp = en.id; trkEnsure(f, [en.id]); }
+  }
+}
+async function nsLoad(f, k, id) {
+  try {
+    const t = k.tracks.find((x) => x.id === id);
+    const b = t && t.net ? await net.subsGet(t.net, f.ns && f.ns.id) : null;
+    const imp = b ? importSubs(b, { sdh: false }) : null;
+    k.x[id] = imp && imp.stats.n
+      ? { st: 'ok', text: cuesToFile('srt', imp.cues.map((c) => ({ s: c.s, e: c.e, t: c.lines.join('\n') }))), n: imp.stats.n } : { st: 'err' };
+  } catch (e) { k.x[id] = { st: 'err' }; }
+}
+const nsBadge = (m) => (m === 'h' ? [T('studioNsMh'), 'green'] : m === 'r' ? [T('studioNsMr'), 'gray'] : [T('studioNsMn'), 'amber']);
+function nsSub(t) {
+  return T('studioNsBy') + ' · ' + nsSrcName(t.net.src) + (t.net.m === 'h' ? ' · ' + T('studioNsMh') : t.net.m === 'r' ? ' · ' + T('studioNsMr') : ' · ' + T('studioNsMn'));
+}
+/* מה זוהה: "איך פגשתי את אמא · עונה 1 · פרק 1" */
+function nsIdText(id) {
+  if (!id) return '';
+  return (id.t || '') + (id.type === 'series' ? ' · ' + T('studioNsEp', { s: id.s, e: id.e }) : '');
+}
+/* כתוביות רשמיות בשפת התרגום (לשורה הירוקה בטופס) */
+function nsHave(f) {
+  const k = f.trk;
+  if (!k) return null;
+  const to = normTo(f.to);
+  const L = k.tracks.filter((t) => t.net && to.includes(t.lang));
+  return L.length ? { l: L[0].lang, n: L.length, ex: L.filter((t) => t.net.m === 'h').length } : null;
+}
+/* שורה ברשימת "מהרשת": הלחיצה בוחרת (שפת התרגום → השוואה; אחרת → עזר להגהה), ⤴ שומר/משתף */
+function nsRow(f, t, role) {
+  const k = f.trk, on = role && k[role] === t.id;
+  const r = h('div', 'st-row st-ric'); r.dataset.k = 'ns:' + t.id;
+  const main = btn('st-nsb', null, role && !k.busy ? () => (role === 'ref' ? trkChooseRef(f, on ? null : t.id) : trkChooseHlp(f, on ? null : t.id)) : null, 'ns-pick:' + t.id);
+  if (role) { main.setAttribute('role', 'checkbox'); main.setAttribute('aria-checked', on ? 'true' : 'false'); }
+  const bd = nsBadge(t.net.m);
+  main.append(tile('cc', t.lang === 'en' ? 'blue' : 'green'), rowTxt(t.name || nsSrcName(t.net.src), trkSub(f, t)), h('span', 'st-badge ' + bd[1], bd[0]));
+  if (on) main.append(ico('check', 'st-nsck'));
+  const b = btn('st-outb', null, () => trkSave(f, t), 'ns-save:' + t.id);
+  b.setAttribute('aria-label', T('studioTrkSave') + ' · ' + trkLabel(t));
+  b.disabled = k.busy;
+  b.append(ico('share'));
+  r.append(main, b);
+  return r;
+}
+function nsSection(p, f) {
+  const k = f.trk, ns = f.ns;
+  const net0 = k.tracks.filter((t) => t.net);
+  if (!net0.length) return;
+  const to = normTo(f.to);
+  const langs = [...new Set(net0.map((t) => t.lang))];
+  const first = [...to, 'en'].filter((l, i, a) => langs.includes(l) && a.indexOf(l) === i);
+  const shown = ui.nsAll ? first.concat(langs.filter((l) => !first.includes(l)).sort()) : first;
+  if (ns && ns.id) p.append(note(nsIdText(ns.id) + ' · ' + (ns.id.by === 'h' ? T('studioNsIdH') : T('studioNsIdN'))));
+  if (net0.some((t) => to.includes(t.lang) && t.net.m === 'h')) p.append(note(T('studioNsHeNote')));
+  k.nsx = k.nsx || {};
+  for (const l of shown) {
+    const L = net0.filter((t) => t.lang === l);
+    const role = to.includes(l) ? 'ref' : k.src == null && hlpEngine() ? 'hlp' : null;
+    const sel = L.find((t) => role && k[role] === t.id);
+    let vis = k.nsx[l] ? L : L.slice(0, 3);
+    if (sel && !vis.includes(sel)) vis = vis.concat(sel);
+    const rows = vis.map((t) => nsRow(f, t, role));
+    if (vis.length < L.length) rows.push(btn('st-row st-linkrow', T('studioNsMore', { n: fmtNum(L.length - vis.length) }), () => { k.nsx[l] = 1; render('none'); }, 'ns-more:' + l));
+    p.append(secT(T('studioNsT', { l: langName(l, uiLang()), n: fmtNum(L.length) })), list(...rows));
+  }
+  if (langs.length > first.length) p.append(h('div', 'st-gap sm'), list(btn('st-row st-linkrow', ui.nsAll ? T('studioNsFewer') : T('studioNsAll', { n: fmtNum(langs.length) }), () => { ui.nsAll = !ui.nsAll; render('none'); }, 'ns-all')));
+  p.append(note(T('studioNsNote')));
+}
 function pageTracks(p) {
   const f = form;
   if (!f || !f.trk) { back(); return; }
-  const k = f.trk, text = k.tracks.filter((t) => t.kind === 'text');
-  p.append(navBar({ back: f.id ? T('studioEditT') : T('studioNew'), title: T('studioTrkRow') }));
+  const k = f.trk, to = normTo(f.to);
+  // 28/10/2026: מהרשת — לתרגום רק "מדויק" שלא בשפת התרגום; לעזר/להשוואה — מה שנבחר בסעיף "מהרשת"
+  const text = k.tracks.filter((t) => t.kind === 'text' && (!t.net || t.id === k.src || t.id === k.hlp || t.id === k.ref));
+  const srcL = text.concat(k.tracks.filter((t) => t.net && t.net.m === 'h' && !to.includes(t.lang) && !text.includes(t)).slice(0, 3));
+  const hasLoc = k.tracks.some((t) => !t.net);
+  p.append(navBar({ back: f.id ? T('studioEditT') : T('studioNew'), title: hasLoc ? T('studioTrkRow') : T('studioNsRow') }));
   p.append(note(k.vname));
   if (k.file && k.file.remote && /\.(mkv|mk3d|webm)$/i.test(k.vname)) p.append(note(T('studioTrkDriveN', { s: fmtSize(k.file.size) })));   // 26/10/2026: ב־MKV החילוץ קורא את כל הקובץ מ־Drive
-  if (text.length) {
+  if (srcL.length) {
     p.append(secT(T('studioTrkSrcT')), list(
       rowRadio({ on: k.src == null, label: T('studioTrkAudio'), sub: T('studioTrkAudioS'), onClick: () => trkChooseSrc(f, null), k: 'trk-src:a' }),
-      ...text.map((t) => rowRadio({ on: k.src === t.id, label: trkLabel(t), sub: trkSub(f, t), disabled: !subsOk() || k.busy, onClick: () => trkChooseSrc(f, t.id), k: 'trk-src:' + t.id }))));
+      ...srcL.map((t) => rowRadio({ on: k.src === t.id, label: trkLabel(t), sub: trkSub(f, t), disabled: !subsOk() || k.busy, onClick: () => trkChooseSrc(f, t.id), k: 'trk-src:' + t.id }))));
     if (!subsOk()) p.append(note(T('studioSubsApiOnly')));
     if (k.src == null && hlpEngine()) p.append(secT(T('studioTrkHlpT')), list(   // 26/10/2026: מהקול — הרצועה כעזר להגהה
       rowRadio({ on: k.hlp == null, label: T('studioTrkHlpNone'), onClick: () => trkChooseHlp(f, null), k: 'trk-hlp:0' }),
@@ -3404,7 +3570,8 @@ function pageTracks(p) {
       ...refs.map((t) => rowRadio({ on: k.ref === t.id, label: trkLabel(t), sub: trkSub(f, t), disabled: k.busy, onClick: () => trkChooseRef(f, t.id), k: 'trk-ref:' + t.id }))),
       note(T('studioTrkRefNote')));
   }
-  p.append(secT(T('studioTrkAllT')), list(...k.tracks.map((t) => {
+  nsSection(p, f);
+  if (hasLoc) p.append(secT(T('studioTrkAllT')), list(...k.tracks.filter((t) => !t.net).map((t) => {
     const r = h('div', 'st-row st-ric'); r.dataset.k = 'trk:' + t.id;
     r.append(tile('cc', t.kind === 'text' ? 'orange' : 'blue'), rowTxt(trkLabel(t) || T('studioTrkUnd'), trkSub(f, t)));
     if (t.kind === 'text') {
@@ -4083,7 +4250,7 @@ function startLinkCloud(f) {   // ישר לענן של Studio (העובד מור
     if (!j.ok || !j.job) { flashSafe(errText(j.error)); blindUndo(L); render('none'); return; }
     fnlAdd('start');
     const rec = normJob({ id: j.job.id, created: j.job.created || Date.now(), spec: j.job.spec || spec, srv: j.job,
-      fp: { name: L.r.t, size: spec.size, lm: 0 }, up: { link: true, noAudio: 'link', a: { done: true }, v: { done: true }, folder: j.job.folder || '' } });   // אין מה להעלות מהטלפון
+      fp: { name: L.r.t, size: spec.size, lm: 0 }, org: normOrg({ v: { k: 'ln', h: hostOf(L.ref || spec.url) } }), up: { link: true, noAudio: 'link', a: { done: true }, v: { done: true }, folder: j.job.folder || '' } });   // אין מה להעלות מהטלפון
     if (j.start) startDone(rec, j.start);   // שרתון ישן בלי start — runJob מתחיל כמו קודם
     utlOf(rec);
     if (pick.ch && L.r.ch) rec.chap = normChapters(L.r.ch.map((c) => ({ t: c[0] - (pick.sec ? pick.sec[0] : 0), title: c[1] })).filter((c) => c.t >= 0), dur);
@@ -4116,7 +4283,7 @@ async function gotFile(key) {
   const f = form;
   if (pend && pend.f) for (const k of ['from', 'to', 'mode', 'out', 'style', 'sty', 'terms']) if (pend.f[k] != null) f[k] = k === 'sty' ? normSty(pend.f[k]) : pend.f[k];
   f.fileObj = file; f.handle = { inbox: key }; f.drive = null; f.file = { name: file.name, size: file.size, type: file.type || '' };
-  f.dl = pend ? { t: pend.t, ch: pend.ch || [], th: pend.th || '' } : null;
+  f.dl = pend ? { t: pend.t, ch: pend.ch || [], th: pend.th || '', u: pend.u || '' } : null;   // u — לשם האתר במקור (org)
   inspectFor(f, file); tracksFor(f, file);
   if (root) { if (ui.view !== 'new') go('new', null, 'none'); else render('none'); }
   if (mine) { flashSafe(T('studioLinkGot')); f.estOk = true; startFromForm(); }
@@ -4232,7 +4399,7 @@ function startPhone(f) {
     }
     ui.starting = false;
     const rec = normJob({ id: j.job.id, created: j.job.created || Date.now(), spec: j.job.spec || spec, srv: j.job,
-      fp: { name: f.file.name, size: f.file.size, lm: 0 }, vm: P.w && P.h ? { w: P.w, h: P.h } : null,
+      fp: { name: f.file.name, size: f.file.size, lm: 0 }, vm: P.w && P.h ? { w: P.w, h: P.h } : null, org: normOrg({ v: { k: 'pa' } }),
       up: { ph: P.pid, noAudio: 'ph', a: { done: true }, v: { done: true }, folder: j.job.folder || '' } });   // האפליקציה מעלה, לא הדף
     store.jobs.unshift(rec);
     if (f.id) store.drafts = store.drafts.filter((d) => d.id !== f.id);
@@ -4416,7 +4583,7 @@ function startFromForm() {
     fnlAdd('start');
     const ext = !f.fileObj;
     const rec = normJob({ id: j.job.id, created: j.job.created || Date.now(), spec: j.job.spec || spec, srv: j.job,
-      fp: { name: file.name, size: file.size, lm: file.lastModified || 0 }, vm: sm && sm.w && sm.h ? { w: sm.w, h: sm.h } : null,
+      fp: { name: file.name, size: file.size, lm: file.lastModified || 0 }, vm: sm && sm.w && sm.h ? { w: sm.w, h: sm.h } : null, org: orgOf(f, null, spec.eng),
       up: Object.assign(ext ? { ext: true, bx: !!f.drive.bx, noAudio: 'drive', a: {}, v: { done: true, id: f.drive.id, size: f.drive.size } } : {},
         isR2Folder(j.job.folder) ? { folder: j.job.folder } : {}) });   // ת4: עבודה במצב שרת — התיקייה ב־R2 (בלי תיקייה ב־Drive)
     store.jobs.unshift(rec);
@@ -8016,6 +8183,7 @@ function pageJob(p) {
   }
   if (rec.srv && rec.srv.gl) p.append(...glossJobCard(rec.srv.gl, rec));   // v380: מונחים חדשים מהעבודה — למילון שלך, באישור
   p.append(...goldCard(rec));   // v387: סט הזהב — תרגום אנושי לייחוס, והציון מולו
+  p.append(...orgRows(rec));   // 28/10/2026: מאיפה הגיע כל קובץ
   // v359: עלות — שורה לכל שלב, עלות הפתיחה של כל סוכן־משנה, סכום כולל
   const cv = rec.srv && rec.srv.use ? costView(rec.srv.use, rec.spec.mode) : null;
   if (cv) p.append(...costCard(cv, rec.srv.tr));
