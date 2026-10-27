@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v574';
+const CACHE_NAME = 'portfolio-pwa-v575';
 const HASHES = {
   "./": "4891aa6a244a29cd4eb695c79490dd1f",
   "./index.html": "4891aa6a244a29cd4eb695c79490dd1f",
   "./styles.css": "6631a350a096e97e927ef28915727909",
-  "./app.js": "e0bd658a1198456e25eaeae8efa7f003",
+  "./app.js": "98d6bafa60d7f357d0eca5341d614e3d",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "5d9505a0e3f827ee0e32eb00e948e2b2",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -61,7 +61,7 @@ const HASHES = {
   "./academy.html": "cbbbe8c0aa8f9f0d9bfddd1575ea6757",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
   "./strings-academy.js": "0f4fe7a65727710085918f2fdaa9601f",
-  "./core.js": "17e4be1bb7c8856b3bba049e5faa3b64",
+  "./core.js": "4c4a28c9e5a52bf00f9199b1cdc135b4",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "d6703c288cfb84be0bc06cbc61912c68",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -70,7 +70,7 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "7da87f0207af9cc9c617bc3651638908",
+  "./studio.js": "0e5880cd41e6129d36c3194a963ef21a",
   "./studio.css": "5202cc90e678a204e1eeaecc6c19ea0f",
   "./studionet.js": "c8233fc213a8510b793a81d66b140d9d",
   "./studioplay.js": "11ff6a7c2d7332c6aee09dea28ce0d0e",
@@ -79,7 +79,7 @@ const HASHES = {
   "./studioedl.js": "344c0e6f0e7ff9bd59e36eb25db1e335",
   "./studioai.js": "e0a43e7a48c70e3bf5028813acebbf3e",
   "./studiostore.js": "633c4083aebf82cdc389813e65ecee16",
-  "./studiobg.js": "905919c4704022748ff40869755d2292",
+  "./studiobg.js": "43c7cd1bcbffc6baef7f38ddb18815c3",
   "./studio.html": "4344113c500fc12d34364c7de2f4e835",
   "./studio-app.js": "3b8a0eb80a995f2b5824014c09e65f24",
   "./strings-studio.js": "c74eeb6cce9b8f44f57e96d9efd1c90f",

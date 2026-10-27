@@ -366,6 +366,23 @@ const { fakeR2, ENV } = require('./_r2fake');
     ok(!e.p && !fetched.length, 'Background Fetch של מישהו אחר — לא נוגעים');
   }
 
+  /* ---------- 4ב. 27/10/2026: העלאה ישנה שתקועה בתור של Chrome מבוטלת לפני העלאה חדשה ---------- */
+  {
+    const J = (c) => 'j' + c.repeat(20);
+    const aborted = [];
+    const mk = (id, result) => ({ id, result, abort: async () => { aborted.push(id); return true; } });
+    const regs = { ['snbup-' + J('a')]: mk('snbup-' + J('a'), ''), ['snbup-' + J('b')]: mk('snbup-' + J('b'), ''), ['snbup-' + J('c')]: mk('snbup-' + J('c'), 'success'),
+      ['snbup-' + J('d')]: mk('snbup-' + J('d'), ''), 'other-dl': mk('other-dl', '') };
+    const reg = { backgroundFetch: { getIds: async () => Object.keys(regs), get: async (id) => regs[id] || null } };
+    const n = await B.bgSweep(reg, J('d'), (job) => job === J('b'));
+    ok(n === 1 && aborted.length === 1 && aborted[0] === 'snbup-' + J('a'),
+      'מבוטלת רק העלאה שלנו שאין לה עבודה פעילה — לא זו שעוד צריך, לא שהסתיימה, לא של העבודה הזו, ולא של מישהו אחר');
+    ok(await B.bgSweep({ backgroundFetch: {} }, J('d')) === 0 && await B.bgSweep(null, J('d')) === 0, 'בלי getIds / בלי רישום — לא נכשל');
+    const st0 = read('studio.js');
+    ok(/keep: \(job\) => \{ const r = jobRec\(job\);/.test(st0) && /await bgSweep\(reg, o\.job, env\.keep\);/.test(read('studiobg.js')),
+      'לפני כל העלאה חדשה — מנקים, לפי העבודות בטלפון');
+  }
+
   /* ---------- 5. studio.js ---------- */
   const st = read('studio.js');
   const uv = st.slice(st.indexOf('upVideo: async (vGate) => {'), st.indexOf('videoDone: async'));
