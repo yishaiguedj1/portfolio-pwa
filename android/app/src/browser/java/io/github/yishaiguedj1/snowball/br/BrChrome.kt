@@ -174,7 +174,7 @@ object BrChrome {
             val ack = st.optLong("ack"); val vat = st.optLong("vat")
             val alias = HashMap<String, String>(); st.optJSONObject("alias")?.let { a -> a.keys().forEach { k -> alias[k] = a.optString(k) } }
             val sm = ArrayList<BrSync.SMark>()
-            st.optJSONArray("marks")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { sm += BrSync.SMark(it.optString("id"), it.optString("u"), it.optString("t"), it.optLong("at"), it.optString("o")) } }
+            st.optJSONArray("marks")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { sm += BrSync.SMark(it.optString("id"), it.optString("u"), it.optString("t"), it.optLong("at"), it.optString("o"), it.optString("r"), it.optString("p")) } }
             val hist = ArrayList<BrImport.Item>()
             st.optJSONArray("hist")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { hist += BrImport.Item(it.optString("u"), it.optString("t"), it.optLong("at")) } }
             synchronized(ops) { ops.removeAll { it.s <= ack } }

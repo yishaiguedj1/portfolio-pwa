@@ -119,7 +119,7 @@ class BrowserActivity : ComponentActivity() {
     var zoomSheet by mutableStateOf(false)
     var clearAsk by mutableStateOf(false)
     /** בסימניות: 0 = הכל, 1 = סימניות בנייד, 2 = מיובאות מ־Chrome */
-    var markFolder by mutableIntStateOf(0)
+    var markPath by mutableStateOf("")   // התיקייה הפתוחה במסך הסימניות ("" = השורש) — BrSync.folderOf
 
     /* שלב 3 (26/10): פרטיות ווידאו */
     var shield by mutableStateOf(true)
@@ -646,7 +646,7 @@ class BrowserActivity : ComponentActivity() {
             editing -> editing = false
             screen == Screen.SITE -> screen = Screen.SITES
             screen in settingsSubs -> screen = Screen.SETTINGS
-            screen == Screen.BOOKMARKS && markFolder != 0 -> markFolder = 0
+            screen == Screen.BOOKMARKS && markPath.isNotEmpty() -> markPath = BrSync.parent(markPath)
             screen != Screen.PAGE -> screen = Screen.PAGE
             else -> goBack()
         }

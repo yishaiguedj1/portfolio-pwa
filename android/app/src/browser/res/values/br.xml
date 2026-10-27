@@ -272,6 +272,8 @@
     <string name="brBack">חזרה</string>
     <string name="brYouAndGoogle">‏החשבון ו־Chrome</string>
     <string name="brMarksMobile">סימניות בנייד</string>
+    <string name="brMarksBar">סרגל הסימניות</string>
+    <string name="brMarksOther">סימניות אחרות</string>
     <string name="brCloudTitle">סנכרון</string>
     <string name="brCloudHero">כל מה שלך — בכל מכשיר</string>
     <string name="brCloudHeroSub">סימניות, היסטוריה, כרטיסיות פתוחות והגדרות מסתנכרנים בין כל המכשירים שמחוברים לאותו חשבון Google, ונשמרים בגיבוי ב־Google Drive שלך.</string>

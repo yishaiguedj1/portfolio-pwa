@@ -71,4 +71,23 @@ class BrSyncTest {
         // כשכל הפעולות אושרו — הרשימה = המצב של Chrome בלבד
         assertEquals(3, BrSync.applyState(st, emptyList(), emptyMap()).size)
     }
+
+    // 27/10/2026: התיקיות של Chrome — כל סימנייה בתיקייה שלה, אותה כתובת בשתי תיקיות נשארת בשתיהן, והסדר של Chrome נשמר
+    @Test fun chromeFolders() {
+        val st = listOf(BrSync.SMark("n1", "https://a.com/", "a", 1, "c", "b", "Learning"), BrSync.SMark("n2", "https://b.com/", "b", 9, "c", "b", "Learning/Sub"),
+            BrSync.SMark("n3", "https://a.com/", "a2", 2, "c", "o", ""), BrSync.SMark("n4", "https://c.com/", "c", 3, "c", "b", ""),
+            BrSync.SMark("n5", "https://m.com/", "m", 4, "a", "m", ""), BrSync.SMark("n6", "https://www.a.com", "dup", 5, "c", "b", "Learning"))
+        val r = BrSync.applyState(st, listOf(BrSync.Op(1, "add", "a1", "https://new.com/", "new", 9), BrSync.Op(2, "del", "n3", "https://a.com/", "", 0)), emptyMap())
+        assertEquals(listOf("m", "b/Learning", "b/Learning/Sub", "b", "m"), r.map { it.f })          // החדשה מהטלפון בנייד, בראש; n3 נמחקה, n1 נשארה
+        assertEquals(listOf("m", "b"), BrSync.roots(r))
+        val (subs, here) = BrSync.children(r, "b")
+        assertEquals(listOf("b/Learning"), subs); assertEquals(listOf("https://c.com/"), here.map { it.url })
+        assertEquals(listOf("b/Learning/Sub"), BrSync.children(r, "b/Learning").first)
+        assertEquals(3, BrSync.count(r, "b")); assertEquals("Sub", BrSync.folderName("b/Learning/Sub")); assertEquals("b/Learning", BrSync.parent("b/Learning/Sub"))
+        // אותה כתובת בשתי תיקיות — נשארת בשתיהן
+        assertEquals(2, BrSync.applyState(st.take(3), emptyList(), emptyMap()).count { it.url == "https://a.com/" })
+        // ייבוא ישן בלי תיקייה → "מיובאות", שמורה כאן בלי תיקייה → נייד
+        assertEquals("i", BrSync.folderOf(BrMark("https://x.com/", "x", 1, imp = true))); assertEquals("m", BrSync.folderOf(BrMark("https://y.com/", "y", 1)))
+        assertEquals(listOf("m", "i"), BrSync.roots(listOf(BrMark("https://x.com/", "x", 1, imp = true))))
+    }
 }

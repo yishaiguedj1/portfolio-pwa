@@ -271,6 +271,8 @@
     <string name="brBack">Go back</string>
     <string name="brYouAndGoogle">You and Chrome</string>
     <string name="brMarksMobile">Mobile bookmarks</string>
+    <string name="brMarksBar">Bookmarks bar</string>
+    <string name="brMarksOther">Other bookmarks</string>
     <string name="brCloudTitle">Sync</string>
     <string name="brCloudHero">Everything of yours — on every device</string>
     <string name="brCloudHeroSub">Bookmarks, history, open tabs and settings sync across every device signed in to the same Google account, and are backed up in your Google Drive.</string>
