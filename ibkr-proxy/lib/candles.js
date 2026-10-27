@@ -47,6 +47,10 @@ function parse(j, iv) {
   const rd = (x) => Math.round(x / k * 1e6) / 1e6;
   const out = { t: [], o: [], h: [], l: [], c: [], v: [] };
   let last = -1;
+  /* נר רפאים: בתוך־יומי Yahoo מוסיף בשעת סגירת המסחר הרגיל נר שטוח (פ=ג=נ=ס) בלי נפח — הוא לא נר אמיתי,
+     והוא צובע את תווית המחיר האחרון באפור ומציג נפח 0. מדולג (27/10/2026, מול TradingView). */
+  const ctp = meta.currentTradingPeriod && meta.currentTradingPeriod.regular;
+  const ghost = /m$/.test(iv) && ctp && +ctp.end > 0 ? +ctp.end : 0;
   for (let i = 0; i < r.timestamp.length; i++) {
     const c = q.close && q.close[i];
     if (!(c > 0)) continue;
@@ -55,6 +59,7 @@ function parse(j, iv) {
     const o = q.open && q.open[i] > 0 ? q.open[i] : c;
     const h = Math.max(q.high && q.high[i] > 0 ? q.high[i] : c, o, c);
     const l = Math.min(q.low && q.low[i] > 0 ? q.low[i] : c, o, c);
+    if (ghost && t === ghost && h === l && !((q.volume && q.volume[i]) > 0)) continue;
     out.t.push(t); out.o.push(rd(o)); out.h.push(rd(h)); out.l.push(rd(l)); out.c.push(rd(c));
     out.v.push(Math.max(0, Math.round((q.volume && q.volume[i]) || 0)));
     last = t;
