@@ -39,6 +39,9 @@
   },
   "autoCompactWindow": 400000,
   "env": {
-    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"
-  }
+    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet",
+    "CLAUDE_CODE_GOAL_CHECKIN_MINUTES": "0"
+  },
+  "promptSuggestionEnabled": false,
+  "crossSessionInbound": "hold"
 }
