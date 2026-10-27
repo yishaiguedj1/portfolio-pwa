@@ -561,20 +561,19 @@ function drawChart(host, opt) {
     opt.labels.forEach((l, i) => { if ((n - 1 - i) % every) return; sv('text', { x: x0 + i * band + band / 2, y: H - 5, 'text-anchor': 'middle' }, svg).textContent = l; });
   }
   const tip = opt.tipHost;
-  /* 27/10/2026 (בקשת המשתמש — צילום מסך): הבועה בשורה של ההסבר, מעל הגרף — אף פעם לא על העמודות. בלי נגיעה היא מציגה
-     את התקופה האחרונה; נגיעה מחליפה אותה ומסמנת את העמודה, ושחרור מחוץ לגרף מחזיר לאחרונה. רוחב וגובה קבועים — בלי קפיצות */
-  const last = (() => { for (let i = n - 1; i >= 0; i--) if (opt.series.some((s) => s.vals[i] != null)) return i; return n - 1; })();
-  const show = (i, mark = true) => {
+  /* 27/10/2026 (בקשת המשתמש — צילום מסך): הבועה צפה בשורה של ההסבר, מעל הגרף — אף פעם לא על העמודות.
+     כמו קודם היא מופיעה רק בנגיעה בעמודה; המקום שלה שמור בשורה (tipBox), כך שהופעתה לא מזיזה כלום */
+  const show = (i) => {
     if (i < 0 || i >= n || !tip) return;
-    hl.setAttribute('x', x0 + i * band); hl.setAttribute('opacity', mark ? 1 : 0);
+    hl.setAttribute('x', x0 + i * band); hl.setAttribute('opacity', 1);
     tip.textContent = '';
     tip.append(h('div', { class: 'an-tip-h' }, (opt.tipLabels || opt.labels)[i]));
-    // סדרה אחת — השם כבר בכותרת: רק התקופה והערך הגדול. כמה סדרות — שורה לכל אחת עם הצבע שלה
-    if (k === 1) tip.append(h('div', { class: 'an-tip-v' }, fmt(opt.series[0].vals[i], opt.unit, opt.co)));
-    else for (const s of opt.series) {
-      const nm = h('span', {}, h('i', { style: `background:${s.color}` }), s.name);
+    for (const s of opt.series) {
+      const nm = h('span', {}, k > 1 ? h('i', { style: `background:${s.color}` }) : null, s.name);
       tip.append(h('div', { class: 'an-tip-r' }, nm, h('b', {}, fmt(s.vals[i], opt.unit, opt.co))));
     }
+    if (tip.hidden && typeof tip.animate === 'function' && !(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches))
+      tip.animate([{ opacity: 0, transform: 'translateY(4px) scale(.97)' }, { opacity: 1, transform: 'none' }], { duration: 180, easing: 'cubic-bezier(.2, .9, .25, 1)' });
     tip.hidden = false;
   };
   const idx = (e) => { const r = svg.getBoundingClientRect(); return Math.floor(((e.clientX - r.left) * W / r.width - x0) / band); };
@@ -582,24 +581,23 @@ function drawChart(host, opt) {
   svg.addEventListener('pointerdown', (e) => {
     const i = idx(e);
     // נגיעה חוזרת באותה עמודה סוגרת
-    shut = !!tip && i === cur;
+    shut = !!tip && !tip.hidden && i === cur;
     if (shut) { tip._hide(); cur = -1; } else { show(i); cur = i; }
   });
   svg.addEventListener('pointermove', (e) => {
     if (shut || !(e.pointerType === 'mouse' || e.buttons)) return;
     const i = idx(e); if (i !== cur) { show(i); cur = i; }
   });
-  const hide = () => { hl.setAttribute('opacity', 0); cur = -1; if (tip) show(last, false); };
+  const hide = () => { hl.setAttribute('opacity', 0); cur = -1; if (tip) tip.hidden = true; };
   svg.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') hide(); });
   if (!tip) return;
-  show(last, false);
-  // נגיעה בכל מקום מחוץ לגרף מחזירה את הבועה לתקופה האחרונה
+  // נגיעה בכל מקום מחוץ לגרף סוגרת את הבועה
   tip._svg = svg; tip._hide = hide;
   if (!tip._wired) {
     tip._wired = true;
     const off = (e) => {
       if (!tip.isConnected) { document.removeEventListener('pointerdown', off, true); return; }
-      if (!tip._svg.contains(e.target)) tip._hide();
+      if (!tip.hidden && !tip._svg.contains(e.target)) tip._hide();
     };
     document.addEventListener('pointerdown', off, true);
   }
@@ -1517,18 +1515,22 @@ function segCtl(label, opts, cur, on) {
     } } }, tt)));
   return h('div', { class: 'an-ctl' }, h('span', {}, label), s);
 }
-/* הבועה של הגרף בשורת ההסבר — גובה שמור לפי מספר הסדרות (שורה לכל אחת + התקופה), כך שהופעתה לא מזיזה כלום */
+/* הבועה של הגרף בשורת ההסבר: מקום שמור בקצה השורה (גובה לפי מספר הסדרות — שורה לכל אחת + התקופה), והבועה
+   צפה בתוכו רק בזמן נגיעה. השורה לא משנה גובה כשהיא מופיעה, וההסבר נשבר לצידה */
 function tipBox(k) {
-  return h('div', { class: 'an-tip', 'aria-live': 'polite', style: `min-height:${k === 1 ? 52 : 24 + 19 * k}px` });
+  const tip = h('div', { class: 'an-tip', 'aria-live': 'polite', hidden: true });
+  const slot = h('div', { class: 'an-tipslot', style: `min-height:${26 + 19 * k}px` }, tip);
+  slot.tip = tip;
+  return slot;
 }
 function chartSheet(def) {
   const co = S.co;
   if (def.line) {
     openSheet(def.n, (b, rec) => {
       const Hh = multHist(co), a = Hh[def.line[1]], ok = a.filter((x) => x > 0 && x < 300), md = median(ok);
-      const host = h('div', { class: 'an-chart no-swipe' }), tip = tipBox(1);
+      const host = h('div', { class: 'an-chart no-swipe' }), slot = tipBox(1), tip = slot.tip;
       const stat = (tt, v) => h('div', {}, h('span', {}, tt), h('b', {}, v));
-      b.append(h('div', { class: 'an-chead' }, h('p', { class: 'an-ex' }, T(def.line[3])), tip), h('div', { class: 'an-chartw' }, host),
+      b.append(h('div', { class: 'an-chead' }, h('p', { class: 'an-ex' }, T(def.line[3])), slot), h('div', { class: 'an-chartw' }, host),
         h('div', { class: 'an-stats' }, stat(T('anToday'), fmt(fin(a).pop(), 'x', co, 1)), stat(T('anMed10'), fmt(md, 'x', co, 1)),
           stat(T('anRange'), ok.length ? iso(Math.min(...ok).toFixed(0) + '–' + Math.max(...ok).toFixed(0) + '×') : '—')));
       rec.draw = () => drawChart(host, { labels: Hh.t.map((x) => (x.slice(5) === '01' ? x.slice(0, 4) : '')), tipLabels: Hh.t.map((x) => x.slice(5) + '/' + x.slice(0, 4)),
@@ -1540,10 +1542,10 @@ function chartSheet(def) {
   const st = { mode: 'fy', range: long ? '10' : 'all', view: 'v', hide: new Set() };
   const ratio = def.s.every((k) => M[k].ratio), noPct = def.s.some((k) => M[k].noPct || M[k].ratio), noG = def.s.length > 1 && def.s.some((k) => M[k].f);
   openSheet(def.n, (b, rec) => {
-    const host = h('div', { class: 'an-chart no-swipe' }), tip = tipBox(def.s.length), stats = h('div', { class: 'an-stats' }), tbl = h('div', { class: 'an-tblw', hidden: true });
+    const host = h('div', { class: 'an-chart no-swipe' }), slot = tipBox(def.s.length), tip = slot.tip, stats = h('div', { class: 'an-stats' }), tbl = h('div', { class: 'an-tblw', hidden: true });
     const chartW = h('div', { class: 'an-chartw' }, host);
     const q = def.s.length === 1 && M[def.s[0]].q;
-    b.append(...[h('div', { class: 'an-chead' }, q ? h('p', { class: 'an-ex' }, T(q)) : h('span'), tip),
+    b.append(...[h('div', { class: 'an-chead' }, q ? h('p', { class: 'an-ex' }, T(q)) : h('span'), slot),
       def.s.length > 1 ? h('div', { class: 'an-chips' }, ...def.s.map((k) => h('button', { class: 'an-chip', type: 'button', 'aria-pressed': 'true', on: { click: (e) => {
         if (st.hide.has(k)) st.hide.delete(k); else if (st.hide.size < def.s.length - 1) st.hide.add(k); else return;
         e.currentTarget.setAttribute('aria-pressed', String(!st.hide.has(k))); draw(); } } }, h('i', { style: `background:${cssv(M[k].c)}` }), T(M[k].n)))) : null,
