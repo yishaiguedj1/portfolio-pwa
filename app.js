@@ -130,7 +130,7 @@ he: {
   anNoData: 'אין נתונים',
   anTabSnap: 'תמונה',
   anTabRep: 'דוחות',
-  anTabVal: 'שווי',
+  anTabVal: 'הערכת שווי',
   anFMcap: 'שווי שוק',
   anFPe: 'מכפיל רווח',
   anFFpe: 'מכפיל צפוי',
