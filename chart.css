@@ -44,7 +44,11 @@ html.kc-open { overflow: hidden; }
 .kc-pxrow { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
 .kc-pxrow.sm { font-size: 12px; color: var(--kc-ink2); }
 .kc-px { font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
-.kc-ch, .kc-ext { font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; font-size: 13px; }
+.kc-ch { font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; font-size: 13px; }
+.kc-ext:empty { display: none; }
+.kc-ext.ext-sess { font-size: 11.5px; padding: 1px 8px; align-self: center; }
+.kc-ext .ext-pct { direction: ltr; unicode-bidi: isolate; }
+.kc-ext .ext-lbl.sm { display: none; }
 .kc-mst.live { color: var(--kc-up); }
 .kc-top-end { display: flex; align-items: center; gap: 2px; margin-inline-start: auto; }
 
@@ -227,11 +231,16 @@ html.kc-open { overflow: hidden; }
   .kc-tb > span { display: none; }
   .kc-tb { padding: 0 7px; }
   .kc-name { max-width: 28vw; }
-  .kc-quote .kc-pxrow.sm { display: none; }
+  .kc-quote .kc-mst, .kc-cur { display: none; }   /* בטלפון כמו בכרטיס: מחיר + גלולה, ומתחת השינוי של היום */
   .kc-quote { flex: none; }   /* המחיר לעולם לא נחתך ("20.19" במקום 620.19) — השם מתכווץ במקומו */
   .kc-symbtn { flex: 0 1 auto; overflow: hidden; }
   .kc-sym { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .kc-quote .kc-pxrow:first-child { flex-direction: column; align-items: flex-start; gap: 0; }
+  .kc-quote .kc-pxrow { gap: 6px; }
+  .kc-quote .kc-ext.ext-sess { font-size: 10.5px; padding: 1px 6px; column-gap: 4px; }
+  .kc-quote .kc-ext .ext-dot { width: 6px; height: 6px; }
+  .kc-ext .ext-lbl.lg { display: none; }
+  .kc-ext .ext-lbl.sm { display: inline; }
+  .kc-redo:disabled { display: none; }   /* "בצע שוב" כשאין מה — כמו TradingView בטלפון */
   .kc-px { font-size: 15px; }
   .kc-ch { font-size: 11.5px; }
   .kc-logo { display: none; }

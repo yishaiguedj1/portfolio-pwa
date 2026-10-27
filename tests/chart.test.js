@@ -171,6 +171,8 @@ ok(Object.keys(L.IND).length >= 40, 'לפחות 40 אינדיקטורים נוס
   ok(kl.includes('(this._touchCoordinate=null,l.setCrosshair(void 0,{notInvalidate:!0}),n=!0,this._touchCancelCrosshair=!1)') && kl.includes('a=10*(e/this._pinchScale-1)') && /Modified by THE SNOWBALL/.test(kl),
     'KLineChart: הקשה לא פותחת צלב (רק לחיצה ארוכה) וצביטה 1:1 — מסומן בראש הקובץ (Apache-2.0)');
   const cj = fs.readFileSync(path.join(root, 'chart.js'), 'utf8');
+  ok(/const extOn = !!\(q && q\.ext && q\.ext\.p > 0 && st !== 'REGULAR'/.test(cj) && /p = extOn \? q\.ext\.p : reg/.test(cj) && /reg - prev/.test(cj), 'כותרת כמו כרטיס המניה: מחיר מורחב ראשי, גלולה, ושינוי היום מהסגירה הרגילה');
+  ok(/b\.timestamp <= t && t <= b\.timestamp \+ BASESEC\[d\.base\] \* 1000 && b\.close !== p/.test(cj), 'הנר האחרון נסגר על מחיר הסגירה הרשמי');
   ok(/setZoomAnchor\(back \? 'cursor' : 'last_bar'\)/.test(cj) && /navigator\.vibrate\(8\)/.test(cj) && /convertFromPixel\(\[\{ x: e\.clientX - r\.left/.test(cj), 'זום צמוד לנר האחרון, רטט בלחיצה ארוכה, בחירת נר בהקשה');
   ok(/extendTexts: \[\{ show: true, position: 'below_price'[\s\S]{0,400}?updateInterval: 1000/.test(cj) && /formatExtendText: \(x\) => \(x && x.type === 'last_price' \? countdown\(c, x.data, Date.now\(\)\)/.test(cj), 'ספירה לאחור לסגירת הנר מתחת לתווית המחיר');
   ok(/name: 'kcExtPx'/.test(cj) && /function drawExt\(c\)/.test(cj) && /if \(c.raw.length\) drawExt\(c\);/.test(cj), 'תווית טרום/אחרי המסחר בציר');

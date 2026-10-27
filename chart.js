@@ -1077,6 +1077,16 @@ function onQuote(c, q) {
   const d = TF[c.tf], intra = /m$/.test(d.base), regular = q.st === 'REGULAR';
   let price = 0, time = 0;
   if (regular && q.reg) { price = q.reg.p; time = q.reg.t * 1000; } else if (intra && S.store.g.ext && q.ext) { price = q.ext.p; time = q.ext.t * 1000; }
+  else if (q.reg && q.reg.p > 0 && q.reg.t > 0) {
+    /* אחרי הסגירה: הנרות של Yahoo לא כוללים את מכירת הסגירה (נר אחרון 154.81 מול סגירה רשמית 154.78) —
+       הנר שמכיל את זמן הסגירה נסגר על המחיר הרשמי, כמו ב־TradingView ובכרטיס המניה */
+    const b = c.raw[c.raw.length - 1], t = q.reg.t * 1000, p = q.reg.p;
+    if (b && b.timestamp <= t && t <= b.timestamp + BASESEC[d.base] * 1000 && b.close !== p) {
+      b.close = p; b.high = Math.max(b.high, p); b.low = Math.min(b.low, p);
+      pushLive(c, false);
+    }
+    return;
+  }
   if (!(price > 0) || !(time > 0)) return;
   let dv = 0;
   if (regular && intra) { if (c.lastVol != null && q.dayVol >= c.lastVol) dv = q.dayVol - c.lastVol; c.lastVol = q.dayVol; }
@@ -1661,9 +1671,9 @@ function renderTop() {
   UI.top.append(
     btn('kc-ib kc-back', T('kcBack'), () => closeChart(), ICON.back),
     symBtn,
-    h('div', { class: 'kc-quote' }, h('div', { class: 'kc-pxrow' }, UI.hd.px, UI.hd.ch), h('div', { class: 'kc-pxrow sm' }, UI.hd.st, UI.hd.ext)),
+    h('div', { class: 'kc-quote' }, h('div', { class: 'kc-pxrow' }, UI.hd.px, UI.hd.ext), h('div', { class: 'kc-pxrow sm' }, UI.hd.ch, UI.hd.st)),
     h('div', { class: 'kc-top-end' },
-      UI.undoB = btn('kc-ib', T('kcUndo'), undo, ICON.undo), UI.redoB = btn('kc-ib', T('kcRedo'), redo, ICON.redo),
+      UI.undoB = btn('kc-ib', T('kcUndo'), undo, ICON.undo), UI.redoB = btn('kc-ib kc-redo', T('kcRedo'), redo, ICON.redo),
       btn('kc-ib', T('kcShot'), shot, ICON.cam), btn('kc-ib' + (S.watch ? ' on' : ''), T('kcWatch'), toggleWatch, ICON.watch), btn('kc-ib', T('kcSettings'), openSettings, ICON.gear)),
   );
   if (c) updHeader();
@@ -1673,7 +1683,10 @@ function updHeader() {
   const c = act();
   if (!c || !UI.hd) return;
   const q = c.q, last = c.disp.length ? c.disp[c.disp.length - 1] : null;
-  const p = (q && q.reg && q.reg.p) || (last && last.close) || 0;
+  const reg = (q && q.reg && q.reg.p) || (last && last.close) || 0, st = q ? q.st : '';
+  /* כמו בכרטיס המניה: מחוץ למסחר הרגיל המחיר הראשי = המחיר המורחב, לידו גלולת "מסחר־מאוחר −0.28%",
+     ומתחת השינוי של היום (סגירה רגילה מול הסגירה הקודמת) */
+  const extOn = !!(q && q.ext && q.ext.p > 0 && st !== 'REGULAR' && q.reg && q.reg.p), p = extOn ? q.ext.p : reg;
   const prev = q && q.prev ? q.prev : 0;
   if (UI.hd.sym.textContent !== c.sym) {
     UI.hd.sym.textContent = c.sym;
@@ -1682,18 +1695,19 @@ function updHeader() {
   const nm = (E.name && E.name(c.sym)) || c.name || (q && q.name) || '';
   UI.hd.name.textContent = nm && nm !== c.sym ? nm : (c.ex || '');
   const pr = L.precisionFor(p);
-  UI.hd.px.textContent = p ? fmtNum(p, pr) + (c.cur ? ' ' + c.cur : '') : '—';
-  const ch = prev && p ? p - prev : null;
-  UI.hd.ch.textContent = ch == null ? '' : (ch > 0 ? '+' : '') + fmtNum(ch, pr) + ' (' + fmtPct((p / prev - 1) * 100) + ')';
+  UI.hd.px.replaceChildren(p ? fmtNum(p, pr) : '—', ...(p && c.cur ? [h('span', { class: 'kc-cur', text: ' ' + c.cur })] : []));
+  const ch = prev && reg ? reg - prev : null;
+  UI.hd.ch.textContent = ch == null ? '' : (ch > 0 ? '+' : '') + fmtNum(ch, pr) + ' (' + fmtPct((reg / prev - 1) * 100) + ')';
   UI.hd.ch.className = 'kc-ch ' + (ch > 0 ? 'up' : ch < 0 ? 'dn' : '');
-  const st = q ? q.st : '';
-  UI.hd.st.textContent = !q ? '' : st === 'REGULAR' ? '● ' + T('kcStLive') : st === 'PRE' || st === 'PREPRE' ? T('kcStPre') : st === 'POST' || st === 'POSTPOST' ? T('kcStPost') : T('kcStClosed');
+  UI.hd.st.textContent = !q || extOn ? '' : st === 'REGULAR' ? '● ' + T('kcStLive') : st === 'PRE' || st === 'PREPRE' ? T('kcStPre') : st === 'POST' || st === 'POSTPOST' ? T('kcStPost') : T('kcStClosed');
   UI.hd.st.className = 'kc-mst' + (st === 'REGULAR' ? ' live' : '');
-  if (q && q.ext && q.ext.p > 0 && st !== 'REGULAR' && q.reg && q.reg.p) {
-    const e = q.ext.p, ep = (e / q.reg.p - 1) * 100;
-    UI.hd.ext.textContent = fmtNum(e, pr) + ' ' + fmtPct(ep);
-    UI.hd.ext.className = 'kc-ext ' + (ep > 0 ? 'up' : ep < 0 ? 'dn' : '');
-  } else UI.hd.ext.textContent = '';
+  if (extOn) {
+    const ep = (q.ext.p / q.reg.p - 1) * 100, k = /PRE/.test(st) ? 'sessPreShort' : /POST/.test(st) ? 'sessPostShort' : 'sessNightShort';
+    // בטלפון התווית הקצרה ("אחרי" / "טרום") — אין רוחב ל־"מסחר־מאוחר" ליד המחיר והסימבול
+    const sh = /PRE/.test(st) ? 'kcPre' : 'kcPost';
+    UI.hd.ext.replaceChildren(h('span', { class: 'ext-dot' }), h('span', { class: 'ext-lbl lg', text: T(k) }), h('span', { class: 'ext-lbl sm', text: T(sh) }), h('span', { class: 'ext-pct', text: fmtPct(ep) }));
+    UI.hd.ext.className = 'kc-ext ext-sess ' + (Math.abs(ep) < 0.005 ? '' : ep > 0 ? 'pos' : 'neg');
+  } else { UI.hd.ext.textContent = ''; UI.hd.ext.className = 'kc-ext'; }
   updClock();
 }
 /* ספירה לאחור לסגירת הנר (כמו בציר המחיר של TradingView) + השעה בבורסה */
