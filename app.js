@@ -6790,7 +6790,10 @@ function ltrNum(s) { return '\u2066' + s + '\u2069'; }
 function fmtPct(v, signed) {
   if (v === null || v === undefined || !isFinite(v)) return '—';
   const s = v < 0 ? '−' : signed && v > 0 ? '+' : '';
-  return ltrNum(s + Math.abs(v).toFixed(2) + '%');
+  const a = Math.abs(v);
+  // 27/10/2026 (בקשת המשתמש): מעל 10,000% — תצוגה מקוצרת (12.3K%, 1.2M%) כדי שהשורה לא תידחס ולא תדרוס כפתורים
+  if (a >= 1e4) return ltrNum(s + (a >= 1e9 ? (a / 1e9).toFixed(1) + 'B' : a >= 1e6 ? (a / 1e6).toFixed(a >= 1e7 ? 0 : 1) + 'M' : (a / 1e3).toFixed(a >= 1e5 ? 0 : 1) + 'K') + '%');
+  return ltrNum(s + a.toFixed(2) + '%');
 }
 /* סכום עם סימן: "+$2,215" / "−₪1,300" (מטבע לפי cur). null → מקף. */
 function fmtSignedMoney(v, cur) {
@@ -6873,8 +6876,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.76.0';
-const APP_VERSION = 'v598';
+const APP_RELEASE = '2.76.1';
+const APP_VERSION = 'v599';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -14864,15 +14867,6 @@ function buildStockBody(p, m) {
   if (state.chartH && state.chartH[sym]) canvas.style.height = state.chartH[sym] + 'px'; // v238: הגובה שהותאם למסך
   cwrap.appendChild(canvas);
   cwrap.appendChild(loading);
-  // 27/10/2026 (בקשת המשתמש): לחצן הגדלה בפינה העליונה של הגרף → גרף הנרות במסך מלא (כמו "ניתוח"/"גרף נרות" בתחתית)
-  const kx = el('button', 'kc-expand no-swipe');
-  kx.type = 'button';
-  kx.setAttribute('aria-label', t('kcExpand'));
-  kx.title = t('kcExpand');
-  kx.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-6.5 6.5M4 20l6.5-6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  kx.addEventListener('pointerdown', (e) => e.stopPropagation());
-  kx.addEventListener('click', (e) => { e.stopPropagation(); openChartFor(sym); });
-  cwrap.appendChild(kx);
   wrap.appendChild(cwrap);
 
   // v107: טווחים מתחת לגרף + שורת תשואה + legend — כמו בגרף הראשי
@@ -14931,7 +14925,7 @@ function buildStockBody(p, m) {
   const sret = el('div', 'pf-range-summary');
   sret.id = 'sret-' + sym;
   foot.appendChild(sret);
-  wrap.appendChild(foot);
+  cwrap.before(foot);   // 27/10/2026 (בקשת המשתמש): השורה התחתונה (תשואה + ניתוח + הגדלה) מעל הגרף, מתחת לאריחים
   stAlPx[sym] = m && m.price;
   wrap.appendChild(stockAlertsEl(sym));
   // v236: שורת ה־legend ("NOW ● +x%") הוסרה — חזרה בדיוק על שורת התשואה שמעליה
@@ -14967,32 +14961,25 @@ function buildStockBody(p, m) {
   if (p.watch) { // v240: במעקב — "הסר" במקום "ערוך" (באותו מקום ובאותו עיצוב)
     const actions = el('div', 'edit-actions stock-edit');
     if (anOk) actions.appendChild(analysisBtn(sym));
-    actions.appendChild(chartBtn(sym));
     actions.appendChild(alertBtn(sym));
     const rb = el('button', 'chip-btn danger', t('wlRemoveBtn'));
     rb.type = 'button';
     rb.addEventListener('click', () => wlRemove({ sym: sym }));
     actions.appendChild(rb);
+    actions.appendChild(chartBtn(sym));   // 28/10/2026 (בקשת המשתמש): הגדלת הגרף תמיד בקצה השמאלי של הכפתורים
     foot.appendChild(actions);
   } else if (!isIbkrMode() || p.src === 'manual') {
     const actions = el('div', 'edit-actions stock-edit');
     if (anOk) actions.appendChild(analysisBtn(sym));
-    actions.appendChild(chartBtn(sym));
     actions.appendChild(alertBtn(sym));
-    const eb = el('button', 'chip-btn', p.fromTrades ? t('btnManageTrades') : t('btnEdit'));
-    eb.type = 'button';
-    eb.addEventListener('click', () => {
-      const card = stockCardEl(sym);
-      if (!card) return;
-      if (p.fromTrades) showPositionTrades(card, p); else showEditPositionForm(card, p);
-    });
-    actions.appendChild(eb);
+    // 28/10/2026 (בקשת המשתמש): כפתור "ערוך" הוסר מהכרטיס (העריכה — ממצב "עריכה" שבראש הרשימה)
+    actions.appendChild(chartBtn(sym));   // 28/10/2026 (בקשת המשתמש): הגדלת הגרף תמיד בקצה השמאלי של הכפתורים
     foot.appendChild(actions);
   } else { // מניית IBKR — בלי "ערוך", אבל עם "ניתוח" ו"גרף נרות"
     const actions = el('div', 'edit-actions stock-edit');
     if (anOk) actions.appendChild(analysisBtn(sym));
-    actions.appendChild(chartBtn(sym));
     actions.appendChild(alertBtn(sym));
+    actions.appendChild(chartBtn(sym));   // 28/10/2026 (בקשת המשתמש): הגדלת הגרף תמיד בקצה השמאלי של הכפתורים
     foot.appendChild(actions);
   }
 
@@ -15004,10 +14991,12 @@ function buildStockBody(p, m) {
    המחיר החי כל שנייה מ־/api/quotes. המצב (שרטוטים, אינדיקטורים, התראות) — pwa_charts_v1, מפתח אישי לכל חשבון. */
 const CHART_LS = 'pwa_charts_v1';
 function chartBtn(sym) {
-  const b = el('button', 'chip-btn kc-open-btn');
+  // 27/10/2026 (בקשת המשתמש): במקום "גרף נרות" + סמל ההגדלה על הגרף — רק סמל ההגדלה, משמאל ל"ניתוח" (אותה פתיחה)
+  const b = el('button', 'chip-btn kc-open-btn stock-ico-btn no-swipe');
   b.type = 'button';
-  b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v3M7 17v3M17 3v4M17 15v6M5 7h4v10H5zM15 7h4v8h-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  b.appendChild(document.createTextNode(t('kcOpenBtn')));
+  b.setAttribute('aria-label', t('kcExpand'));
+  b.title = t('kcExpand');
+  b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-6.5 6.5M4 20l6.5-6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   b.addEventListener('click', (e) => { e.stopPropagation(); openChartFor(sym); });
   // הספרייה (~200KB) והעיצוב נטענים ברגע הנגיעה — עד שהאצבע עוזבת הם כבר בדרך
   b.addEventListener('pointerdown', () => { if (b._pre) return; b._pre = 1; import('./chart.js').then((m) => m.prefetchChart && m.prefetchChart(chartEnv())).catch(() => {}); }, { passive: true });
@@ -15070,7 +15059,7 @@ function openStockAlertFor(sym, id) {
   import('./chart.js').then((m) => m.openStockAlert(sym, env, id, px)).catch(() => flash(t('kcErrLib')));
 }
 function alertBtn(sym) {
-  const b = el('button', 'chip-btn st-al-btn');
+  const b = el('button', 'chip-btn st-al-btn stock-ico-btn');
   b.type = 'button';
   b.innerHTML = BELL_SVG;
   b.setAttribute('aria-label', t('kcAlertNew'));
@@ -15208,6 +15197,13 @@ function closeStockCards(except, keepEl, collect) {
    פעמיים: מיד (גלילה חלקה), ושוב כשהאנימציה נגמרת — כרטיס בתחתית הדף מגיע לראש רק אחרי שהדף התארך */
 // 26/10/2026 (בקשת המשתמש — הכרטיס הפתוח "כבר לא נכנס בדיוק במסך"): מאז שהלשוניות נדבקות מתחת להדר (2.15.1) החלק המכוסה
 // בראש המסך = ההדר ועוד שורת הלשוניות, לא רק ההדר. כל גלילה/התאמה לראש המסך — דרך כאן.
+// 27/10/2026 (בקשת המשתמש — בדפדפן, לא ב־PWA, תחתית הכרטיס הפתוח נחתכה): ב־Chrome באנדרואיד window.innerHeight גדל כשסרגל הכתובת
+// מתכווץ בגלילה (והכרטיס נמדד לפי הגובה הגדול), ו־clientHeight של המסמך נשאר הגובה הקטן (סרגל מוצג). מתאימים לקטן —
+// כשהסרגל מוסתר נשאר רק רווח קטן בתחתית, וכשהוא חוזר שום דבר לא נחתך.
+function viewH() {
+  const ih = window.innerHeight || 0, ch = (document.documentElement && document.documentElement.clientHeight) || 0;
+  return ch > 200 && ch < ih ? ch : ih;
+}
 function topCover() {
   if (typeof document === 'undefined' || !document.querySelector) return 0;
   const bar = document.querySelector('.appbar');
@@ -15249,7 +15245,7 @@ function fitCardToScreen(sym, card, smooth) {
     const head = card.querySelector('.stock-head');
     if (head) card._fitRO.observe(head);
   }
-  const avail = window.innerHeight - topCover() - 20;
+  const avail = viewH() - topCover() - 20;
   const cardH = card.getBoundingClientRect().height - body.getBoundingClientRect().height + Math.max(inner.offsetHeight, inner.scrollHeight);
   const h = Math.round(Math.max(140, Math.min(560, cv.clientHeight + avail - cardH)));
   if (Math.abs(h - cv.clientHeight) < 2) return false;
@@ -15297,7 +15293,7 @@ function toggleStock(sym, card) {
   cancelScrollRestore();
   const opening = !state.open[sym];
   const de = document.documentElement;
-  const S0 = window.scrollY || 0, vh = window.innerHeight, docH0 = de.scrollHeight;
+  const S0 = window.scrollY || 0, vh = viewH(), docH0 = de.scrollHeight;
   const cardTop0 = card.getBoundingClientRect().top;
   const items = []; // {card, body, from, to}
   let docDelta = 0, aboveDelta = 0;
@@ -15597,9 +15593,11 @@ function renderStockRangeSummary(sym, pts, lineCol) {
 function fitStockFoot(box) {
   if (!box.closest('.stock-foot') || !box.clientWidth) return;
   const cut = (x) => x && x.scrollWidth > x.clientWidth + 1;
-  box.classList.remove('no-lbl', 'no-rng');
+  box.classList.remove('no-lbl', 'no-rng', 'no-sym');
   if (cut(box.querySelector('.rs-lbl')) || cut(box.querySelector('.rs-range'))) box.classList.add('no-lbl');
   if (cut(box.querySelector('.rs-range'))) box.classList.add('no-rng');
+  // 27/10/2026: גם כך לא נכנס (אחוז ארוך + שלושה כפתורים בטלפון צר) — שם הסימבול נעלם, הנקודה בצבע הקו נשארת; הכפתורים לא מוקטנים
+  if (box.scrollWidth > box.clientWidth + 1) box.classList.add('no-sym');
 }
 
 function updateMeasureChip(sym) {
