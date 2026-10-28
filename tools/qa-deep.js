@@ -17,8 +17,8 @@ const arg = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? (args[
 const OUT = path.resolve(String(arg('out', 'qa-deep-out')));
 const THEME = arg('theme', 'light'), CPU = +arg('cpu', 1), LAT = +arg('lat', 350), ONLY = String(arg('only', '')), ROUNDS = +arg('rounds', 1), WIDTH = +arg('width', 390);
 const DISCOVER = !!arg('discover', false), FRAMES = !!arg('frames', false);
-// --prof <ביטוי>: פרופיל CPU לצעדים ששמם מתאים — הפונקציות הכבדות (זמן עצמי) והמשימות הארוכות (28/10/2026)
-const PROF = arg('prof', '') ? new RegExp(String(arg('prof', ''))) : null;
+// --prof <טקסט>[,<טקסט>…]: פרופיל CPU לצעדים ששמם מכיל אחד מהם — הפונקציות הכבדות (זמן עצמי) והמשימות הארוכות (28/10/2026)
+const PROF = arg('prof', '') ? String(arg('prof', '')).split(',').filter(Boolean) : null;   // טקסט, לא RegExp מארגומנט (CodeQL)
 const BASE = 'http://localhost:8792';
 fs.mkdirSync(OUT, { recursive: true });
 const FIX = path.join(__dirname, '..', 'tests', 'fixtures', 'qa');
@@ -117,7 +117,7 @@ const INIT2 = `(() => {
     const bg = await page.evaluate(() => { const c = getComputedStyle(document.body).backgroundColor.match(/\d+/g) || [242, 242, 247]; return c.slice(0, 3).map(Number); });
     await page.evaluate((n) => { window.__motion.mark(n); window.__deep.mark(); }, name);
     await caster.start();
-    const prof = PROF && PROF.test(name);
+    const prof = PROF && PROF.some((w) => name.includes(w));
     if (prof) { await cdp.send('Profiler.enable'); await cdp.send('Profiler.setSamplingInterval', { interval: 200 }); await cdp.send('Profiler.start');
       await page.evaluate(() => { window.__lt = []; try { new PerformanceObserver((l) => l.getEntries().forEach((e) => window.__lt.push([Math.round(e.startTime), Math.round(e.duration)]))).observe({ type: 'longtask' }); } catch (e) {} window.__lt0 = performance.now(); }); }
     const t0 = Date.now(); let err = ''; const nErr = errors.length;
