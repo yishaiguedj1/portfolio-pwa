@@ -123,6 +123,7 @@ const ICON = {
   ruler: sv('M3 17L17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2'),
   prange: sv('M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4'),
   drange: sv('M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4'),
+  updown: sv('M8 9l4-4 4 4M8 15l4 4 4-4'),
   avwap: sv('M4 20c4-1 6-7 9-9s5-2 7-6M4 20v-3'),
   vprofile: sv('M4 4v16M4 6h9M4 9h13M4 12h16M4 15h10M4 18h6'),
   rect: sv('M4 6h16v12H4z'),
@@ -1982,7 +1983,7 @@ function renderPick(c) {
   const pill = (cap, aria, val, open, items, pick) => {
     const v = h('b', { class: 'kc-pk-v', text: val });
     const b = h('button', { type: 'button', class: 'kc-pk', 'aria-label': aria + ': ' + val, title: aria, onclick: () => { setActive(c.i); open(); } },
-      h('span', { class: 'kc-pk-c', text: cap }), v);
+      h('span', { class: 'kc-pk-c', text: cap }), h('span', { class: 'kc-pk-r' }, v, h('span', { class: 'kc-pk-ud', html: ICON.updown })));   // ⌃⌄ כמו בורר גלילה של iOS — רמז שאפשר לגלגל
     wheel(b, items, (it) => { setActive(c.i); pick(it); }, v);
     return b;
   };
@@ -1990,7 +1991,7 @@ function renderPick(c) {
   c.pick.append(
     pill(T('kcPickTf'), T('kcPickTfA'), tfLabel(ctf), openTfSheet, () => fav.map((tf) => ({ v: tf, t: tfLabel(tf), l: tfLong(tf), cur: tf === ctf })), (it) => setTf(c, it.v)),
     pill(T('kcPickRg'), T('kcPickRgA'), r ? r[0] : spanLabel(c), openRangeSheet, () => RANGES.map((x) => ({ v: x, t: x[0], l: rangeLong(x[0]), cur: !!r && x === r })), (it) => goRange(it.v)));
-  c.pkRg = r ? null : c.pick.lastChild.lastChild;   // בלי טווח שנבחר — מציג את הטווח שרואים בפועל (מתעדכן בגלילה/זום)
+  c.pkRg = r ? null : c.pick.lastChild.querySelector('.kc-pk-v');   // בלי טווח שנבחר — מציג את הטווח שרואים בפועל (מתעדכן בגלילה/זום)
 }
 /* הטווח שרואים עכשיו בגרף → הטווח הקרוב ברשימה (כשלא נבחר טווח, או אחרי זום) */
 function spanLabel(c) {

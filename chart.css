@@ -263,6 +263,9 @@ html.kc-open { overflow: hidden; }
 .kc-pk { display: inline-flex; flex-direction: column; align-items: flex-start; min-width: 52px; padding: 4px 10px; border-radius: var(--radius-sm); color: var(--kc-ink); background: var(--kc-glass); -webkit-backdrop-filter: saturate(180%) blur(14px); backdrop-filter: saturate(180%) blur(14px); text-align: start; }
 .kc-pk:active { background: var(--kc-hov); }
 .kc-pk-c { font-size: 11px; font-weight: 600; line-height: 14px; color: var(--kc-ink2); white-space: nowrap; }
+.kc-pk-r { display: inline-flex; align-items: center; gap: 3px; }
+.kc-pk-ud { display: inline-flex; color: var(--kc-ink2); }
+.kc-pk-ud svg { width: 13px; height: 13px; stroke-width: 2.2; }
 .kc-pk-v { font-size: 15px; font-weight: 700; line-height: 20px; font-variant-numeric: tabular-nums; direction: ltr; }
 .kc-pk-v .kc-roll { display: inline-block; width: 3em; height: 20px; vertical-align: top; }
 .kc-pk-v .kc-roll-i { top: 0; text-align: start; }
