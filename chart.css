@@ -412,3 +412,7 @@ html.kc-open { overflow: hidden; }
 .kc-fab:not(.on), .kc-now { background: var(--gl-card) !important; -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); border-color: transparent !important; box-shadow: var(--gl-card-sh); }
 .kc-btn.pri, .kc-fab.on { --btn-c: var(--kc-acc); background: linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,.05) 48%, rgba(255,255,255,0) 54%), var(--btn-c) !important;
   box-shadow: inset 1px 1px 0 rgba(255,255,255,.55), inset -1px -1px 0 rgba(255,255,255,.2), 0 6px 18px color-mix(in srgb, var(--btn-c) 30%, transparent); }
+/* רקע העמוד כמו בשאר האפליקציה — הגוונים של Invest מאחורי הנרות (הקנבס שקוף); ההפרדה בין חלוניות — קו שיער במקום פער צבוע */
+.kc-root:not(.kc-float), [data-theme="dark"] .kc-root:not(.kc-float) { background: var(--gl-ambient), var(--kc-bg); }
+.kc-grid { background: transparent; }
+.kc-cell { background: transparent; box-shadow: 0 0 0 .5px var(--kc-sep); }
