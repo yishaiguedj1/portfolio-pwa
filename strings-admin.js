@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1333 מפתחות מתוך 5293) */
+/* המחרוזות של admin (1340 מפתחות מתוך 5300) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -440,6 +440,13 @@ he: {
   "admFnlW_test": "רק בדקו",
   "admFnlWhy": "למה ויתרו",
   "admFnlWhyNone": "עוד אין תשובות",
+  "admFsFoot": "נספר בשרת שלנו (לא ב־Vercel ולא מהטלפונים ישירות). היום מתאפס בחצות בשעון קליפורניה. פעולה מעל {x} קריאות בשעה, או קצב שיגיע ל־70% מהמכסה — התראה לטלפון.",
+  "admFsHot": "חריג — כנראה לולאה",
+  "admFsNone": "עוד אין קריאות היום",
+  "admFsPace": "{h} בשעה האחרונה · בקצב הזה עד האיפוס: {p}",
+  "admFsRowS": "{h} בשעה האחרונה",
+  "admFsSum": "{n} מתוך {l} קריאות",
+  "admFsT": "קריאות למסד הנתונים — היום",
   "admGoldBusy": "ריצה קודמת על הסרטון הזה עוד פתוחה — מחכים שתסתיים.",
   "admGoldFailed": "נכשלה",
   "admGoldFoot": "הציון לא משתמש ב־AI ולא עולה טוקנים. מספר גבוה יותר = קרוב יותר לתרגום האנושי.",
@@ -1775,6 +1782,13 @@ en: {
   "admFnlW_test": "Just checking",
   "admFnlWhy": "Why they quit",
   "admFnlWhyNone": "No answers yet",
+  "admFsFoot": "Counted on our server (not Vercel and not phones directly). The day resets at midnight California time. An operation above {x} reads an hour, or a pace reaching 70% of the quota — phone alert.",
+  "admFsHot": "Unusual — likely a loop",
+  "admFsNone": "No reads yet today",
+  "admFsPace": "{h} in the last hour · at this pace by the reset: {p}",
+  "admFsRowS": "{h} in the last hour",
+  "admFsSum": "{n} of {l} reads",
+  "admFsT": "Database reads — today",
   "admGoldBusy": "A previous run of this video is still open — waiting for it to finish.",
   "admGoldFailed": "Failed",
   "admGoldFoot": "Scoring uses no AI and costs no tokens. Higher = closer to the human translation.",

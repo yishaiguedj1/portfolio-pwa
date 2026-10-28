@@ -638,7 +638,7 @@ page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
   if (!D.monT) needMon();
   const V = D.mon;
   // 26/10/2026: תקלה (למשל מכסת Firestore) — הודעה במקום "טוען…" לנצח; ממשיך לנסות כל 30 שנ׳
-  if (!V) { p.append(h('p', 'adm-dt', D.monErr ? t('admErr') + ' · ' + D.monErr : t('admLoading'))); return; }
+  if (!V) { p.append(h('p', 'adm-dt', D.monErr ? t('admErr') + ' · ' + D.monErr : t('admLoading'))); if (D.monFr) p.append(...fsSec(D.monFr)); return; }
   const M = V.mon;
   p.append(h('p', 'adm-dt', t('admMonDt')));
   p.append(grp(t('admMonSrv')));
@@ -665,6 +665,7 @@ page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
   const PV = D.prov;
   if (!PV) p.append(list(row({ c: 'gray', ic: '⋯', t: t('admLoading') })));
   else p.append(list(...[[PROV_NAME.vercel(), PV.vercel], [PROV_NAME.r2(), PV.r2, D.sto && D.sto.r2 ? ['store'] : null], [PROV_NAME.fs(), PV.firestore]].map(([name, P, sk]) => provRow(name, P, sk))), h('p', 'adm-foot', t('admProvNote')));
+  if (D.monFr) p.append(...fsSec(D.monFr));
   // 24/10/2026 (בקשת המשתמש): כל מקומות האחסון שלנו במקום אחד — דליי R2, ה־Drive של הגיבוי והדיסק של כל שרת
   p.append(grp(t('admStoT')));
   p.append(list(...storeRows(D.sto, M.servers)), h('p', 'adm-foot', t('admStoNote')));
@@ -696,6 +697,20 @@ page('mon', { tab: 'sys', parent: 'sys', title: () => t('admMonT'), render(p) {
   p.append(tb);
   p.append(list(row({ c: 'blue', ic: '▣', t: t('admMonApk'), s: t('admMonApkS'), on: monOpen('https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball-admin.apk') })));
 } });
+/* 28/10/2026 (בקשת המשתמש): קריאות Firestore לפי פעולה (lib/fsmeter.js) — מי קורא, כמה היום וכמה בשעה האחרונה.
+   פעולה מעל tagHour בשעה = חריגה (כנראה לולאה) — אדום, והשרת שולח התראה (fs_hot) הרבה לפני שהמכסה נגמרת */
+const nfmt = (n) => Math.round(+n || 0).toLocaleString('en-US');
+function fsSec(F) {
+  const pct = F.lim ? Math.min(100, (F.total / F.lim) * 100) : 0, ppct = F.lim ? (F.proj / F.lim) * 100 : 0;
+  const rows = [row({ c: ppct >= 70 ? 'red' : ppct >= 40 ? 'orange' : 'green', ic: '◇', t: fmt(t('admFsSum'), { n: nfmt(F.total), l: nfmt(F.lim) }),
+    s: fmt(t('admFsPace'), { h: nfmt(F.h), p: nfmt(F.proj) }), v: Math.round(pct) + '%', meter: [pct, pct >= 90 ? 'x' : pct >= 70 ? 'w' : ''] })];
+  for (const [k, n, hr] of (F.top || []).slice(0, 8)) {
+    const hot = hr >= F.tagHour;
+    rows.push(row({ c: hot ? 'red' : 'gray', ic: hot ? '!' : '·', t: k, s: fmt(t('admFsRowS'), { h: nfmt(hr) }) + (hot ? ' · ' + t('admFsHot') : ''), v: nfmt(n) }));
+  }
+  if (!(F.top || []).length) rows.push(row({ c: 'gray', ic: '◎', t: t('admFsNone') }));
+  return [grp(t('admFsT')), list(...rows), h('p', 'adm-foot', fmt(t('admFsFoot'), { x: nfmt(F.tagHour) }))];
+}
 async function needMon() {
   clearTimeout(D.monT); D.monT = -1;   // ‎-1 = בטעינה (לא טוענים שוב מהציור)
   // 26/10/2026: השרתים מוצגים מיד — לא מחכים לשימוש מול הספקים (בקשות חיצוניות איטיות), והוא מתרענן רק פעם בדקה
@@ -703,6 +718,7 @@ async function needMon() {
   const pvP = pvDue ? api('provUsage') : null;
   const r = await api('adminMon');
   if (r.ok) { D.mon = r; D.monErr = ''; } else D.monErr = String(r.error || '');
+  if (r.fr) D.monFr = r.fr;   // 28/10/2026: קריאות Firestore לפי פעולה — מגיע גם כש־Firestore לא עונה
   if (cur === 'mon') paint();
   if (pvP) {
     const pv = await pvP;
