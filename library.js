@@ -286,7 +286,7 @@ async function coverThumb(book) {
 }
 
 /* עריכת פרטי ספר (v316) — הפרטים שהמשתמש ערך נשמרים ב־rec.edit ומוחלים מעל מה שבקובץ, גם אחרי שהקובץ מתעדכן.
-   השדות כמו ב־Calibre: כותר, כותר משנה, כותב + שם למיון, הוצאה, תאריך, שפה, סדרה + מספר, ISBN, נושאים, תקציר, כריכה */
+   השדות לפי ת־קורא: כותר, כותר משנה, כותב + שם למיון, הוצאה, תאריך, שפה, סדרה + מספר, ISBN, נושאים, תקציר, כריכה */
 export const EDIT_FIELDS = ['title', 'subtitle', 'author', 'authorSort', 'pub', 'date', 'lang', 'series', 'seriesIdx', 'isbn', 'tags', 'desc'];
 export function applyEdit(rec, e) {   // טהורה (נבדקת)
   if (!e) return rec;
@@ -1095,7 +1095,7 @@ async function renderHomeNow() {
   if (!shell) tr.append(learn);
   if (mine) tr.append(more, add);
   top.append(back, tr);
-  // v327 (בקשת המשתמש, בהשראת Google Photos): מצב הגיבוי = בועה קטנה בשורת הכותרת, לא כרטיס מעל החיפוש
+  // v327 (בקשת המשתמש, תואם ל־Google Photos): מצב הגיבוי = בועה קטנה בשורת הכותרת, לא כרטיס מעל החיפוש
   const hrow = h('div', 'lib-hrow');
   hrow.append(h('h1', 'lib-large', T('libTitle')));
   if (shell) hrow.textContent = '';         // עצמאי: בלי "ספרייה" מתחת ללוגו — הלוגו של Academy אומר את זה (בקשת המשתמש)
@@ -1240,7 +1240,7 @@ function setShelf(v) {
   libShow(v);
   Promise.resolve(renderHomeNow()).then(() => { if (!root) { ghost.remove(); return; } navScroll(0); cubeGhostRun(root, ghost, cubeSideFwd(v === 'mine'), { y: segHoldY(), on: segHoldOn(from, v) }); }, () => ghost.remove());
 }
-function shelfSeg(nMine) {                 // בורר מקטעים בסגנון iOS
+function shelfSeg(nMine) {                 // בורר מקטעים לפי ת־עיצוב
   const seg = h('div', 'lib-seg no-swipe'); seg.setAttribute('role', 'tablist');
   const one = (v, label, n) => {
     const b = h('button', 'lib-seg-b' + (ui.shelf === v ? ' on' : '')); b.type = 'button';
@@ -2433,7 +2433,7 @@ function fmtDate(iso) {
   try { return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString((typeof getLang === 'function' && getLang()) === 'en' ? 'en-US' : 'he-IL', { day: 'numeric', month: 'long', year: 'numeric' }); } catch (e) { return iso; }
 }
 
-/* חיפוש בספרייה — סלחני כמו בגוגל: שם, כותב, שנה, מוציא ותקציר.
+/* חיפוש בספרייה — סלחני תואם ל־Google: שם, כותב, שנה, מוציא ותקציר.
    מבין טעויות כתיב (מרחק עריכה כולל החלפת סדר), כתיב מלא/חסר ואותיות סופיות (בופט≈באפט), מקלדת בשפה הלא נכונה
    (ניררקאא = buffett), ושמות באנגלית לכותבים בעברית. מסנן ומדרג במקום — בלי לבנות את המסך מחדש (המקלדת נשארת פתוחה). */
 const FINALS = { 'ם': 'מ', 'ן': 'נ', 'ץ': 'צ', 'ף': 'פ', 'ך': 'כ' };
@@ -2830,7 +2830,7 @@ function applyReaderStyle() {
   curlStyleVer++; curlPrebuild();
 }
 
-// v330: האפליקציה עברה בהיר↔כהה (ידנית או לפי המערכת) — קורא פתוח בערכה האוטומטית מתחלף מיד, כמו בקינדל
+// v330: האפליקציה עברה בהיר↔כהה (ידנית או לפי המערכת) — קורא פתוח בערכה האוטומטית מתחלף מיד, לפי ת־קורא
 if (typeof MutationObserver === 'function' && typeof document !== 'undefined' && document.documentElement) {
   new MutationObserver(() => { if (rd && S.theme === 'auto') applyReaderStyle(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 }
@@ -2862,7 +2862,7 @@ async function openReader(id, opt) {
   const acts = h('span', 'rd-acts');
   const tocBtn = h('button', 'rd-ic'); tocBtn.type = 'button'; tocBtn.innerHTML = ICON.list; tocBtn.setAttribute('aria-label', T('rdToc'));
   const bmBtn = h('button', 'rd-ic rd-bm'); bmBtn.type = 'button'; bmBtn.innerHTML = ICON.bookmark; bmBtn.setAttribute('aria-label', T('bmAdd'));
-  // v329 (בקשת המשתמש, בהשראת קינדל): סרט סימנייה תמיד בראש העמוד — מתאר אפור נקי כשאין סימנייה, ירוק מלא כשיש; נגיעה = הוספה/הסרה
+  // v329 (בקשת המשתמש, לפי ת־קורא): סרט סימנייה תמיד בראש העמוד — מתאר אפור נקי כשאין סימנייה, ירוק מלא כשיש; נגיעה = הוספה/הסרה
   const ribbon = h('button', 'rd-ribbon'); ribbon.type = 'button'; ribbon.setAttribute('aria-label', T('bmAdd')); ribbon.setAttribute('aria-pressed', 'false');
   ribbon.innerHTML = RIBBON_SVG;
   ribbon.addEventListener('click', (e) => { e.stopPropagation(); toggleBookmark(); });
@@ -2872,7 +2872,7 @@ async function openReader(id, opt) {
   const chap = h('div', 'rd-chap'); const slider = h('input', 'rd-slider'); slider.type = 'range'; slider.min = '0'; slider.max = '1000'; slider.step = '1';
   slider.setAttribute('aria-label', T('rdProgress'));
   // v331 (בקשת המשתמש, Apple + רעיונות קינדל): ציר ההתקדמות — סימניות על הציר, עצירה "מגנטית" עם רטט כשעוברים עליהן,
-  // תצוגה מקדימה קטנה מעל האגודל (כמו YouTube), ו"חזרה ל־X%" אחרי קפיצה (כמו קינדל). הכיוון — כיוון הספר
+  // תצוגה מקדימה קטנה מעל האגודל (לפי ת־נגן), ו"חזרה ל־X%" אחרי קפיצה (לפי ת־קורא). הכיוון — כיוון הספר
   // v332: גם הדגשות (קו קצר בצבע ההדגשה) והערות (נקודה בצבע) על הציר — כל סוג בצורה משלו, אותה עצירה, רטט ותצוגה מקדימה
   const scrub = h('div', 'rd-scrub'); const track = h('div', 'rd-track'); const marks = h('div', 'rd-bmarks'); marks.setAttribute('aria-hidden', 'true');
   const prev = h('div', 'rd-prev'); prev.setAttribute('aria-hidden', 'true');
@@ -2891,7 +2891,7 @@ async function openReader(id, opt) {
   preloadSecText(rec);
   rec.ann = rec.ann || [];
   annCleanDupes(rec);
-  curlSetup(box);   // v342: דפדוף בקיפול דף כמו בקינדל — נטען ברקע; עד שמוכן (או בתנועה מופחתת) — ההחלקה של המנוע
+  curlSetup(box);   // v342: דפדוף בקיפול דף לפי ת־קורא — נטען ברקע; עד שמוכן (או בתנועה מופחתת) — ההחלקה של המנוע
   ribbon3dSetup(box, ribbon);   // v330: סימנייה תלת־ממדית — נטענת ברקע; עד שמוכנה (או בלי WebGL) נשאר סרט ה־SVG
   const setChrome = (on) => { rd.chrome = on; box.classList.toggle('chrome', on); };
   rd.setChrome = setChrome;
@@ -3039,7 +3039,7 @@ async function ribbon3dSetup(box, btn) {
 function wireDoc(doc, setChrome, index) {
   doc.addEventListener('pointerup', readerRearm, true);
   doc.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); onEscape(); } });
-  // v336 (בקשת המשתמש — כמו בקינדל): נגיעה קצרה = סרגלים בלבד (או סגירת הכרטיס); התרגום והסימון — רק בלחיצה ארוכה
+  // v336 (בקשת המשתמש — לפי ת־קורא): נגיעה קצרה = סרגלים בלבד (או סגירת הכרטיס); התרגום והסימון — רק בלחיצה ארוכה
   doc.addEventListener('click', (e) => {
     if (!(e.target && e.target.closest && e.target.closest('a[href]'))) blockTouchSearch(doc, e);
     if (rd && Date.now() - (rd.holdAt || 0) < 900) return;          // שחרור אחרי לחיצה ארוכה
@@ -3311,7 +3311,7 @@ function openSel(doc, range) {               // v337: הכרטיס במצב סי
   try { doc.getSelection().removeAllRanges(); } catch (e) {}
   selPaint(doc, range);
   const block = blockOf(range.commonAncestorContainer);
-  const hit = annOverlapping(doc, range);   // v326: סימון על הדגשה קיימת — כמו בקינדל: אפשר להחליף צבע או להסיר, בלי עותק נוסף
+  const hit = annOverlapping(doc, range);   // v326: סימון על הדגשה קיימת — לפי ת־קורא: אפשר להחליף צבע או להסיר, בלי עותק נוסף
   const bt = block ? block.textContent : text;
   if (hit) trShow(hit.x, bt, doc, range, { text: hit.x, cfi: hit.c, ann: hit, t: text });
   else trShow(text, bt, doc, range, { text, cfi: rd.view.getCFI(doc.__idx, range), t: text });
@@ -3360,7 +3360,7 @@ function selBar(c, sel, text) {
         pal.append(rm);
       }
       sw.setAttribute('aria-expanded', 'true');
-      sw.after(pal); bar.classList.add('pal-open');   // העיגול נפתח לשורת צבעים במקום כלי הסימון (כמו iOS) — בלי חלון צף
+      sw.after(pal); bar.classList.add('pal-open');   // העיגול נפתח לשורת צבעים במקום כלי הסימון (לפי ת־עיצוב) — בלי חלון צף
     });
     c._closePal = closePal;
     const ib = (cls, icon, label, fn) => { const b = h('button', 'tr-ib ' + cls); b.type = 'button'; b.innerHTML = icon; b.setAttribute('aria-label', T(label)); b.title = T(label); b.addEventListener('click', (e) => { e.stopPropagation(); fn(); }); return b; };
@@ -3378,7 +3378,7 @@ function clearSelection() {
   try { const d = rd && rd.view.renderer.getContents()[0]; d && d.doc.getSelection().removeAllRanges(); } catch (e) {}
   selPaint(null);
 }
-/* v337: הבחירה שלנו — צביעה ב־CSS Highlight (בלי לגעת ב־DOM של הספר) + שתי ידיות לגרירה, כמו בקינדל */
+/* v337: הבחירה שלנו — צביעה ב־CSS Highlight (בלי לגעת ב־DOM של הספר) + שתי ידיות לגרירה, לפי ת־קורא */
 let selCur = null;                         // { doc, range, hs, he }
 function selPaint(doc, range) {
   if (selCur) { try { selCur.doc.defaultView.CSS.highlights.delete('snb-sel'); } catch (e) {} selCur.hs.remove(); selCur.he.remove(); selCur = null; }
@@ -3943,7 +3943,7 @@ export function aiModelLabel(m) {
 function trSecState() { try { return JSON.parse(localStorage.getItem('pwa_trsec_v1') || '{}') || {}; } catch (e) { return {}; } }
 function trSecSave(k, open) { try { const st = trSecState(); st[k] = open ? 1 : 0; localStorage.setItem('pwa_trsec_v1', JSON.stringify(st)); } catch (e) {} }
 const ICON_SAY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
-function trSection(key, headNodes, defOpen) {   // מקטע בסגנון Apple: כותרת אפורה מעל קבוצה לבנה; מקופל = 3 שורות שנמוגות + "הצג עוד"
+function trSection(key, headNodes, defOpen) {   // מקטע לפי ת־עיצוב: כותרת אפורה מעל קבוצה לבנה; מקופל = 3 שורות שנמוגות + "הצג עוד"
   const sec = h('div', 'tr-sec');
   const hd = h('div', 'tr-sec-h'); hd.append(...headNodes);
   const body = h('div', 'tr-sec-b');
@@ -3985,7 +3985,7 @@ function dictRows(o, heSrc) {              // מקטע המילון: לכל חל
   }
   return n ? box : null;
 }
-/* ---- v334: ויקיפדיה (כמו בקינדל) — ישירות מהטלפון, בלי מפתח. הערך נבחר לפי ההקשר (שם הערך מה־AI),
+/* ---- v334: ויקיפדיה (לפי ת־קורא) — ישירות מהטלפון, בלי מפתח. הערך נבחר לפי ההקשר (שם הערך מה־AI),
    ובלי AI — רק התאמה מדויקת של המילה. עברית כשיש ערך בעברית, אחרת אנגלית ---- */
 const ICON_G = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.9h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.4zM12 22c2.7 0 5-.9 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22zm-5.6-8a6 6 0 0 1 0-3.9V7.5H3.1a10 10 0 0 0 0 9zM12 5.9c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3.1 7.5l3.3 2.6C7.2 7.7 9.4 5.9 12 5.9z"/></svg>';
 export function googleUrl(text) {            // חיפוש Google על המילה/הקטע (מילון, תרגום, ערכים) — טהורה
@@ -4029,9 +4029,9 @@ async function wikiInLang(w) {
   if (!extract) return w;
   return Object.assign({}, w, { title: title || w.title, extract, sub: [w.title, desc].filter(Boolean).join(' · '), tr: w.lang });
 }
-/* v341 (בקשת המשתמש): ויקיפדיה כמו בקינדל — החיפוש הוא על הטקסט שנבחר כמו שהוא (מילה או ביטוי), בוויקיפדיה של שפת
+/* v341 (בקשת המשתמש): ויקיפדיה לפי ת־קורא — החיפוש הוא על הטקסט שנבחר כמו שהוא (מילה או ביטוי), בוויקיפדיה של שפת
    הספר (מילה בכתב אחר — בשפה של הכתב), והתוצאה הראשונה של מנוע החיפוש של ויקיפדיה (שמטפל בהפניות ובנטיות).
-   אין ערך — הכרטיס אומר את זה (כמו בקינדל), לא נעלם. התוספת שלנו: הערך בשפת המשתמש — הערך המקביל, ואם אין — תרגום אוטומטי */
+   אין ערך — הכרטיס אומר את זה (לפי ת־קורא), לא נעלם. התוספת שלנו: הערך בשפת המשתמש — הערך המקביל, ואם אין — תרגום אוטומטי */
 export function wikiLangFor(q, bookLang) {  // באיזו ויקיפדיה לחפש — טהורה
   const l = String(bookLang || '').toLowerCase().replace(/^iw/, 'he').slice(0, 2);
   if (/[\u0590-\u05FF]/.test(q)) return 'he';

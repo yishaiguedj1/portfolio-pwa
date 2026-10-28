@@ -65,7 +65,7 @@ object BrIcons {
     val Headphones = icon("headphones", "M12,1c-4.97,0 -9,4.03 -9,9v7c0,1.66 1.34,3 3,3h3v-8H5v-2c0,-3.87 3.13,-7 7,-7s7,3.13 7,7v2h-4v8h3c1.66,0 3,-1.34 3,-3v-7c0,-4.97 -4.03,-9 -9,-9z")
 
     // 27/10/2026 — האייקונים של Chrome לאנדרואיד עצמו (Chromium, רישיון BSD — CHROMIUM_LICENSE.txt), מומרים מ־VectorDrawable.
-    // רוב הקבצים ב־viewport של 960 (Material Symbols); חצים, חיפוש ורענון — מתהפכים בעברית כמו ב־Chrome (values-ldrtl)
+    // רוב הקבצים ב־viewport של 960 (Material Symbols); חצים, חיפוש ורענון — מתהפכים בעברית לפי ת־עיצוב (values-ldrtl)
     private fun cr(name: String, vp: Float, d: String, mirror: Boolean = false) = ImageVector.Builder(name, 24.dp, 24.dp, vp, vp, autoMirror = mirror)
         .addPath(addPathNodes(d), fill = SolidColor(Color.Black)).build()
     val CHome = cr("ic_home_24dp", 960f, "M240,760L360,760L360,520L600,520L600,760L720,760L720,400L480,220L240,400L240,760ZM160,840L160,360L480,120L800,360L800,840L520,840L520,600L440,600L440,840L160,840ZM480,490L480,490L480,490L480,490L480,490L480,490L480,490L480,490L480,490Z")

@@ -15,7 +15,7 @@ import java.io.File
 data class BrVisit(val url: String, val title: String, val at: Long)
 // imp = יובאה מ־Chrome (התיקייה "מיובאות מ־Chrome"); x = מתי יצאה ל־Chrome בקובץ (0 = עוד לא) — BrSync.toExport
 // sid = המזהה בסנכרון עם Chrome (n… = הסימנייה ב־Chrome, a… = נשמרה כאן ועוד לא הגיעה) — BrChrome
-// f = התיקייה כמו ב־Chrome: "b/Learning/x" (b סרגל, o אחרות, m נייד); ריק = נשמרה כאן (בנייד) — BrSync.folderOf; i = המקום בתיקייה ב־Chrome (‎-1 = עוד לא שם — בסוף)
+// f = התיקייה לפי ת־עיצוב: "b/Learning/x" (b סרגל, o אחרות, m נייד); ריק = נשמרה כאן (בנייד) — BrSync.folderOf; i = המקום בתיקייה ב־Chrome (‎-1 = עוד לא שם — בסוף)
 data class BrMark(val url: String, val title: String, val at: Long, val imp: Boolean = false, val x: Long = 0L, val sid: String = "", val f: String = "", val i: Int = -1)
 data class BrTabRec(val url: String, val title: String)
 
@@ -190,7 +190,7 @@ object BrStore {
         saveNow()
     }
 
-    /** הצעות בשורת הכתובת: סימניות קודם, אחר כך היסטוריה לפי כמה פעמים ומתי — כמו Chrome */
+    /** הצעות בשורת הכתובת: סימניות קודם, אחר כך היסטוריה לפי כמה פעמים ומתי — לפי ת־עיצוב */
     fun suggest(q: String, n: Int = 6): List<BrMark> {
         val t = q.trim().lowercase()
         if (t.isEmpty()) return emptyList()
@@ -271,7 +271,7 @@ class BrPrefs(ctx: Context) {
     // בועת ההורדה על הנגן: פועלת, וכמה פעמים הוצגה התווית שלידה
     var bubble: Boolean get() = sp.getBoolean("bub", true); set(v) { sp.edit().putBoolean("bub", v).apply() }
     var bubHints: Int get() = sp.getInt("bubH", 0); set(v) { sp.edit().putInt("bubH", v).apply() }
-    // הצעות חיפוש תוך כדי הקלדה (כמו Chrome — מה שמקלידים נשלח למנוע החיפוש שנבחר), גודל הטקסט בדפים (%)
+    // הצעות חיפוש תוך כדי הקלדה (לפי ת־עיצוב — מה שמקלידים נשלח למנוע החיפוש שנבחר), גודל הטקסט בדפים (%)
     var suggest: Boolean get() = sp.getBoolean("sug", true); set(v) { sp.edit().putBoolean("sug", v).apply() }
     var zoom: Int get() = sp.getInt("zoom", 100); set(v) { sp.edit().putInt("zoom", v).apply() }
     /** הייבוא האחרון מ־Chrome: "סימניות,ביקורים,זמן" — לשורת התוצאה במסך הייבוא */

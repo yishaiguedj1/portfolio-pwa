@@ -204,7 +204,7 @@ async function searchAll(q, deps = {}) {
   const ranked = rank(mergeByIsbn(results), q).filter((r) => !r.enrich && (per[r.src] = (per[r.src] || 0) + 1) <= 6);
   return { results: ranked, status };
 }
-/* כמו Calibre: אותו ספר (אותו ISBN) מכמה מקורות — כל רשומה מקבלת מהאחרות את מה שחסר לה (כריכה, תקציר, עמודים, הוצאה) */
+/* לפי ת־קורא: אותו ספר (אותו ISBN) מכמה מקורות — כל רשומה מקבלת מהאחרות את מה שחסר לה (כריכה, תקציר, עמודים, הוצאה) */
 function mergeByIsbn(list) {
   const by = {};
   const key = (x) => BM.isbn13(x) || x;                  // ס׳6: NLI שומר ISBN‑10 בספרים ישנים, Google מחזיר 13 — אותו ספר

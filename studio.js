@@ -1402,7 +1402,7 @@ async function idbOp(store, mode, id, val) {
 }
 const handleOp = (mode, id, val) => idbOp('handles', mode, id, val);
 
-/* ---------------- 21/10/2026 (בקשת המשתמש — כמו ב־YouTube): תמונה ממוזערת לכל עבודה ----------------
+/* ---------------- 21/10/2026 (בקשת המשתמש — לפי ת־נגן): תמונה ממוזערת לכל עבודה ----------------
    פריים מהסרטון עצמו, בטלפון בלבד (בלי שרת ובלי עלות): מהקובץ המקומי כשמתחילים עבודה, ואחרת מהסרטון בענן דרך ה־SW
    (אותה כתובת של הנגן — באותו מקור, כך שהקנבס לא "מוכתם"). JPEG קטן ב־IndexedDB ('thumbs', לפי מזהה העבודה).
    הפריים הראשון שאינו כהה/אחיד מבין כמה נקודות (פתיח שחור לא נבחר); עבודה אחת בכל פעם, עד THUMB_WAIT לכל אחת */
@@ -2144,7 +2144,7 @@ function closeRequest() {
   // חלון אישור של האפליקציה (askConfirm) פתוח — "חזור" = הביטול שלו (יש לו רשומה משלו, והוא מוריד אותה)
   if (vlUp()) { if (root) watch(); return; }   // 26/10/2026: ״הסרטונים שלי״ — ״חזור״ בתוך תיקייה = תיקייה אחת למעלה
   if (rsClose()) { if (root) watch(); return; }   // 25/10/2026: הגיליון "מה לא היה טוב?" — "חזור" סוגר רק אותו   // ה־Picker של Google פתוח — "חזור" סוגר רק אותו
-  const plm = document.querySelector('.st-pl-menu:not([hidden])');   // תפריט ההגדרות של הנגן — "חזור" סוגר אותו (כמו ב־YouTube)
+  const plm = document.querySelector('.st-pl-menu:not([hidden])');   // תפריט ההגדרות של הנגן — "חזור" סוגר אותו (לפי ת־נגן)
   const dlg = document.querySelector('.dlg-veil.on');
   if (dlg) { const b = dlg.querySelector('.dlg-cancel') || dlg.querySelector('.dlg-ok'); if (b) b.click(); }
   else if (plm) plm.click();
@@ -2533,7 +2533,7 @@ function rowRadio(o) {
   const r = btn('st-row', null, o.disabled ? null : o.onClick, o.k);
   r.setAttribute('role', 'radio'); r.setAttribute('aria-checked', o.on ? 'true' : 'false');
   if (o.disabled) { r.disabled = true; r.classList.add('off'); }
-  const rd = h('span', 'st-radio' + (o.on ? ' on' : '')); rd.append(ico('check'));   // 25/10/2026: ✓ בסוף השורה (CSS), כמו ב־iOS
+  const rd = h('span', 'st-radio' + (o.on ? ' on' : '')); rd.append(ico('check'));   // 25/10/2026: ✓ בסוף השורה (CSS), לפי ת־עיצוב
   r.append(rd, rowTxt(o.label, o.sub));
   if (o.badge) r.append(h('span', 'st-badge gray', o.badge));
   return r;
@@ -2620,7 +2620,7 @@ function copyBox(txt, label, k, prose) {
   return wrap;
 }
 
-/* בורר מצב התרגום — 25/10/2026 (בקשת המשתמש: נקי ומינימלי כמו Apple): כרטיס אחד — בורר מקטעים "רגיל" / "ביצועים"
+/* בורר מצב התרגום — 25/10/2026 (בקשת המשתמש: נקי ומינימלי לפי ת־עיצוב): כרטיס אחד — בורר מקטעים "רגיל" / "ביצועים"
    (+ "כל המודלים" רק למנהל ולמי שברשימה — ui.mf), ומתחתיו שורה אחת על המצב שנבחר: השם, ומדדי איכות, עלות וזמן.
    עד 25/10 — כרטיס גדול עם סרט, שלושה אריחים, כרטיס בחירה נפרד ופסקת מבחן מתחתיו (אותו מידע שלוש פעמים) */
 const tierName = (m) => (m.tier === 'std' ? T('studioTierStd') : m.tier === 'perf' ? T('studioTierPerf') : modeShort(m));
@@ -3066,7 +3066,7 @@ function pageForm(p, editing) {
     const phRow = phOk() ? rowNav({ tile: tile('film', 'green'), label: T('studioPhRow'), value: f.ph ? T('studioPhOn') : '', sub: f.ph ? null : T('studioPhRowS'), onClick: () => phPick(), k: 'ph-pick' }) : null;
     // 25/10/2026 (שלב 2): גם התמלול, הדוברים והיישור בטלפון — הקול לא עוזב אותו. פעם ראשונה: הורדת המודלים (Wi‑Fi)
     const pwRow = f.ph ? rowSwitch({ label: T('studioPhPw'), sub: T('studioPhPwS'), on: f.pw !== false, onClick: () => { f.pw = f.pw === false; render('none'); }, k: 'ph-pw' }) : null;
-    // 25/10/2026 (בקשת המשתמש — "נקי ומסודר כמו Apple"): כל המקורות בקבוצה אחת, במקום שלוש קבוצות נפרדות
+    // 25/10/2026 (בקשת המשתמש — "נקי ומסודר לפי ת־עיצוב"): כל המקורות בקבוצה אחת, במקום שלוש קבוצות נפרדות
     // 26/10/2026 (בקשת המשתמש): "מ־Google Drive" = רשימה שלנו (pageDrivePick), לא Google Picker — הסרטון נשאר ב־Drive, בלי העלאה
     const driveRow = ui.gb ? rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'), onClick: () => { if (dp.st !== 'ok') dp.st = ''; go('dpick'); }, k: 'from-drive' }) : null;
     // 26/10/2026: קריוקי משיר רגיל — הליווי בלי הקול, והמילים נצבעות כשהן נשמעות (רק בשרת שלנו)
@@ -6208,7 +6208,7 @@ function pageProb(p) {
   p.append(h('div', 'st-gap sm'), btn('st-btn danger wide', T('studioFbDel'), () => delFix(x.fp), 'fbx:' + x.fp));
 }
 /* v363: מסך "מגדל הפיקוח" — מה קורה עכשיו, "הרגיל" שלך לכל מצב (נלמד מהעבודות שלך), מתי עוצרים, ועצירות אחרונות */
-/* 13/10/2026 (בקשת המשתמש: "עמוד קצר יותר, אבל כמה שיותר מידע בקלות ובממשק נקי — כמו ש־Apple יודעים"): כמו "סיכום" ב־Health.
+/* 13/10/2026 (בקשת המשתמש: "עמוד קצר יותר, אבל כמה שיותר מידע בקלות ובממשק נקי — לפי ת־עיצוב יודעים"): כמו "סיכום" ב־Health.
    למעלה מה שצריך לראות במבט: המשפט על המצב, שלושת הציונים, מה דורש תשומת לב (2 הראשונות) ופעולות מהירות; ואז שתי
    קבוצות של שורות (סמל, שם, הערך שלה, חץ) — "מצב השירות" ו"סוכנים ועלות" — וכל נושא בעמוד משנה משלו (התראות ותקלות,
    מפת השירות, בעיות ותיקונים, הרגיל ומתי עוצרים; השאר — העמודים שכבר היו). "עכשיו" — רק כשיש עבודה שרצה */
@@ -7064,7 +7064,7 @@ async function playLoad(rec, phFile) {
     if (!src && !fb) { me.st = 'err'; me.err = 'nosw'; plPaint(); return; }
     me.cues = cues; me.iss = issuesList(cues);
     me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: me.iss, chapters: rec.chap || [], T,
-      ladder: src ? ladderOf(rec) : null, alt: src ? altOf(rec) : null, pq: store.settings.pq, onPq: pqSave,   // איכויות כמו ב־YouTube
+      ladder: src ? ladderOf(rec) : null, alt: src ? altOf(rec) : null, pq: store.settings.pq, onPq: pqSave,   // איכויות לפי ת־נגן
       pref: store.settings.pt, onPref: ptSave,   // 23/10/2026: קול וכתוביות — אוטומטי, או מה שנבחר ידנית
       ...rateFlagOpts(rec),   // 25/10/2026: דגל — סימון הכתובית שעל המסך (המשוב שלך)
       poster: thumbFor(rec, (u) => { if (pl === me && me.ctl) me.ctl.setPoster(u); }) });   // 21/10/2026: התמונה לפני הניגון
@@ -7246,7 +7246,7 @@ function pageSubs(p) {
       const at = me.at >= 0 ? me.at : -1;
       se.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues: se.ed.cues(), T,
         ladder: src ? ladderOf(rec) : null, pq: store.settings.pq, onPq: pqSave, pref: store.settings.pt, onPref: ptSave,
-        poster: at >= 0 ? '' : thumbFor(rec, (u) => { if (se === me && me.ctl && !(me.at >= 0)) me.ctl.setPoster(u); }),   // 21/10/2026: כמו ב־YouTube
+        poster: at >= 0 ? '' : thumbFor(rec, (u) => { if (se === me && me.ctl && !(me.at >= 0)) me.ctl.setPoster(u); }),   // 21/10/2026: לפי ת־נגן
         onTime: (t) => { if (me.ed && me.ctl) me.ed.time(t, !me.ctl.video.paused); } });
       se.wt = watchTrack(rec, se.ctl.video);   // 25/10/2026: גם הצפייה בעורך הכתוביות
       if (at >= 0) {   // נפתח על נקודה — הפריים של הנקודה (גם אחרי שהסרטון נטען: לפני כן הדפדפן יכול להתעלם מהקפיצה)
@@ -8304,7 +8304,7 @@ function pageGuide(p) {
   sec(T('studioGd5'), T('studioGd5a'));
 }
 /* כרטיס בעמוד ההגדרות — כמו בהגדרות של Invest (.card מ־styles.css): כותרת בתוך הכרטיס, השורות בלי רקע משלהן */
-/* 25/10/2026 (בקשת המשתמש — כמו ב־Apple): הכותרת קטנה ואפורה מעל הקבוצה, והקבוצה עצמה היא הכרטיס (עד היום — כרטיס עם
+/* 25/10/2026 (בקשת המשתמש — לפי ת־עיצוב): הכותרת קטנה ואפורה מעל הקבוצה, והקבוצה עצמה היא הכרטיס (עד היום — כרטיס עם
    כותרת גדולה בפנים, ובתוכו עוד רשימה עם רקע משלה: כרטיס בתוך כרטיס) */
 function setCard(title, ...nodes) {
   const c = h('section', 'st-setgrp');
@@ -8312,7 +8312,7 @@ function setCard(title, ...nodes) {
   c.append(...nodes.filter(Boolean));
   return c;
 }
-/* עמוד ההגדרות (13/10/2026, בקשת המשתמש: "מסודר, נקי ואינטואיטיבי — כמו ש־Apple הייתה מתכננת"): כמו ב־Invest, ובשאר
+/* עמוד ההגדרות (13/10/2026, בקשת המשתמש: "מסודר, נקי ואינטואיטיבי — לפי ת־עיצוב הייתה מתכננת"): כמו ב־Invest, ובשאר
    כמו בהגדרות של iOS — עמוד ראשי קצר עם שורות (סמל, שם, המצב הנוכחי, חץ), וכל נושא בעמוד משנה משלו:
      תרגום — Claude (מי מתרגם + החיבור / השרת), ברירות מחדל לכל פרויקט, מגדל הפיקוח
      כללי  — אחסון והעלאה (Google Drive, רק ב־Wi‑Fi), התראות, מדריך קצר
@@ -8377,7 +8377,7 @@ function lrnNotice() {
 /* 15/10/2026 (מ׳1): "מחק את התרומות שלי" — הרשומות של כל העבודות שלך במאגר (גם של עבודות שנמחקו). באישור הרסני */
 let lrnForgetBusy = false;
 function lrnForgetRow() {
-  // 25/10/2026: פעולה הרסנית = טקסט אדום בשורה, כמו ב־iOS (ההסבר בחלון האישור)
+  // 25/10/2026: פעולה הרסנית = טקסט אדום בשורה, לפי ת־עיצוב (ההסבר בחלון האישור)
   const r = btn('st-row st-act danger', T('studioLrnForget'), () => askConfirm(T('studioLrnForgetQ'), lrnForget, { danger: true, ok: T('studioLrnForgetOk') }), 'lrnf');
   if (lrnForgetBusy || blocked()) r.disabled = true;
   return r;

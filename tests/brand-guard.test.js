@@ -21,7 +21,7 @@ if (!files.length) { console.log('ok - אין git — מדלגים'); process.ex
 const SKIP = /^(sw\.js|core\.js|auth\.js|strings-[^/]*\.js|vendor\/|node_modules\/|docs\/standards\.md$|tests\/brand-(guard\.test\.js|baseline\.json)$)/;
 const textExt = /\.(js|mjs|md|html|css|json|yml|yaml|py|sh|kt|kts|xml|txt)$/i;
 
-const BRAND = '(?:TradingView|iCharts|Calibre|Caliber|Kindle|Apple Books|Apple|iOS|YouTube|Netflix|Spotify|ServiceNow|OnePlus|Google|' +
+const BRAND = '(?:TradingView|iCharts|Calibre|Caliber|Kindle|Apple Books|Apple|iOS|YouTube|Netflix|Spotify|ServiceNow|OnePlus|Google|Chrome|' +
   'טריידינג ?וויו|קינדל|קליבר|יוטיוב|נטפליקס|גוגל|אפל(?![א-ת]))';
 const rules = [
   // ניסוח של העתקה: "כמו ב־X", "בהשראת X", "ברמה של X", "בסגנון X", "like X", "X-style"

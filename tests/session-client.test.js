@@ -92,7 +92,7 @@ function run(host, server, uid, ls, opt) {
 
   /* 8. חשבון אחר בעוגייה (החליף באפליקציה אחרת) → עובר אליו */
   r = await run('staging.thesnowball.app', () => ({ ok: true, s: 1, u: 'u9', ct: 'T9' }), 'u1');
-  ok(r.customs[0] === 'T9', 'בעוגייה חשבון אחר → עובר אליו (כמו Google)');
+  ok(r.customs[0] === 'T9', 'בעוגייה חשבון אחר → עובר אליו (תואם ל־Google)');
 
   /* 9. התחברות עם Google → העוגייה נוצרת */
   let cookie = false;                                   // שרתון מדומה עם עוגייה: אחרי login — מחובר

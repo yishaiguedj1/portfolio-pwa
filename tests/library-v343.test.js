@@ -16,7 +16,7 @@ ok(M.fontString({ fontStyle: 'italic', fontWeight: '540', fontSize: '19px', font
 ok(JSON.stringify(M.words('  שלום  עולם ')) === '[[2,6,"שלום"],[8,12,"עולם"]]', 'מילים עם המיקום שלהן');
 ok(/getClientRects\(\)/.test(src) && /fontBoundingBoxAscent/.test(src), 'מיקום מדויק מהפריסה האמיתית + קו בסיס מהמדדים של הגופן');
 ok(/Intl\.Segmenter/.test(src), 'מילה שנשברה — לפי גרפמות (ניקוד נשמר)');
-ok(/globalCompositeOperation = 'multiply'/.test(src), 'הדגשות הקורא — באותו צבע (כמו בקינדל)');
+ok(/globalCompositeOperation = 'multiply'/.test(src), 'הדגשות הקורא — באותו צבע (לפי ת־קורא)');
 ok(/import\('\.\/pagetex\.js'\)/.test(lib) && /new FontFace\('SNB Noto'/.test(lib), 'נטען בעצלתיים + הגופן שלנו במסמך הראשי');
 const v = (app.match(/APP_VERSION = '(v\d+)'/) || [])[1];
 ok(!!v && swVersionOk(v), 'גרסה');

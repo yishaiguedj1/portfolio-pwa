@@ -28,7 +28,7 @@ const root = path.join(__dirname, '..');
   ok(q.get('code_challenge_method') === 'S256' && /^[A-Za-z0-9_-]{43}$/.test(q.get('code_challenge')), 'הבקשה ל־Google עם code_challenge (S256)');
   ok(conn && /^[A-Za-z0-9._~-]{43,128}$/.test(conn.verifier), 'ה־verifier נשלח לשרתון יחד עם הקוד');
   const expect = crypto.createHash('sha256').update(conn.verifier).digest('base64url');
-  ok(q.get('code_challenge') === expect, 'ה־challenge = ‏SHA-256 של ה־verifier (כמו ש־Google בודק)');
+  ok(q.get('code_challenge') === expect, 'ה־challenge = ‏SHA-256 של ה־verifier (תואם ל־Google בודק)');
   ok(!authUrl.includes(conn.verifier), 'ה־verifier עצמו לא נשלח ל־Google בבקשה הראשונה (רק בהחלפה, מהשרתון)');
   ok(/^[A-Za-z0-9_-]{24}$/.test(q.get('state')), 'state אקראי קריפטוגרפי (לא Math.random)');
   await BK.connect();

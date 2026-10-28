@@ -1,5 +1,5 @@
-// v334 (בקשות המשתמש 05/10/2026): מילון בכרטיס התרגום (כמו קינדל, נקי), "בהקשר הזה" מ־Mistral עם גיבוי Gemini,
-// ויקיפדיה כמו בקינדל, ושם המודל המדויק בכל תשובת AI (גם בניתוח המכתב)
+// v334 (בקשות המשתמש 05/10/2026): מילון בכרטיס התרגום (לפי ת־קורא, נקי), "בהקשר הזה" מ־Mistral עם גיבוי Gemini,
+// ויקיפדיה לפי ת־קורא, ושם המודל המדויק בכל תשובת AI (גם בניתוח המכתב)
 const fs = require('fs');
 const path = require('path');
 let n = 0;
@@ -35,7 +35,7 @@ ok(/dt=md&dt=ss&dt=rm/.test(lib) && /dt=md&dt=ss&dt=rm/.test(fs.readFileSync(pat
 // ---------- ויקיפדיה ----------
 const wikiWord = pure('wikiWord');
 ok(wikiWord('“wished,”') === 'wished' && wikiWord('הָאֶתוֹס') === 'האתוס' && wikiWord('a') === '', 'v337: ויקיפדיה לכל מילה — המילה לחיפוש בלי ניקוד ופיסוק');
-ok(/wikiKindle\(text\)/.test(lib), 'ויקיפדיה לכל מילה (v341: כמו בקינדל)');
+ok(/wikiKindle\(text\)/.test(lib), 'ויקיפדיה לכל מילה (v341: לפי ת־קורא)');
 ok(/prop=langlinks&lllang=' \+ tl/.test(lib) && /api\/rest_v1\/page\/summary\//.test(lib) && /j\.type === 'disambiguation'/.test(lib), 'ערך בשפת המשתמש דרך הקישור הבין־לשוני; בלי דפי פירושונים');
 ok(/connect-src[^;]*https:\/\/en\.wikipedia\.org https:\/\/he\.wikipedia\.org/.test(html), 'CSP מאפשר את ויקיפדיה');
 ok(/T\('trWiki'\) \+ ' · CC BY-SA'/.test(lib), 'קרדיט לפי הרישיון');

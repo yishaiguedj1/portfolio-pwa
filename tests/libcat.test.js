@@ -52,7 +52,7 @@ cat = r.cat;
 r = C.applyOps(cat, [{ op: 'bulk', ids: ['id-letter-2021', 'id-letter-2022', 'id-letter-2023'], f: { series: 'מכתבי באפט', title: 'לא!' }, tagsAdd: ['מכתבים', 'השקעות'], num: { start: 2021, step: 1 } }], { now: T0 + 10, by: 'a' });
 const bs = ['id-letter-2021', 'id-letter-2022', 'id-letter-2023'].map((id) => r.cat.books[id]);
 ok(bs.every((b) => b.series === 'מכתבי באפט' && b.tags === 'מכתבים, השקעות') && bs.map((b) => b.seriesIdx).join() === '2021,2022,2023', 'מרובה: סדרה, תגיות ומספור לפי הסדר שנבחר');
-ok(bs[2].title === 'מכתב 2023', 'מרובה: הכותר לא נערך (כמו Calibre)');
+ok(bs[2].title === 'מכתב 2023', 'מרובה: הכותר לא נערך (לפי ת־קורא)');
 const rm = C.applyOps(r.cat, [{ op: 'bulk', ids: ['id-letter-2021'], tagsRm: ['השקעות'], clear: ['series'] }], { now: T0 + 11 });
 ok(rm.cat.books['id-letter-2021'].tags === 'מכתבים' && !rm.cat.books['id-letter-2021'].series, 'מרובה: הסרת תגית וניקוי שדה');
 assert.throws(() => C.applyOps(r.cat, [{ op: 'bulk', ids: ['id-letter-2021'] }], { now: 1 }), /bad_op/); n++; console.log('ok - מרובה בלי שום שינוי = שגיאה');

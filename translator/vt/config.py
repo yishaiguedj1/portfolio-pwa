@@ -104,7 +104,7 @@ STYLES: dict[str, Style] = {
         size=88, spacing=3.5, outline=9.0, faux_bold=2.0, blur=1.2,
         shadow=0.0, shadow_alpha=0, line_pitch=74, bottom_y=1012, margin_x=100,
     ),
-    # חלופה עדינה בסגנון Netflix: SemiBold, מסגרת דקה וצל רך.
+    # חלופה עדינה לפי ת־נגן: SemiBold, מסגרת דקה וצל רך.
     "classic": Style(
         name="classic", font="Assistant SemiBold", font_file="Assistant-SemiBold.ttf",
         bold=0, size=58, spacing=0.0, outline=3.2, faux_bold=0.0, blur=0.6,

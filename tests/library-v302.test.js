@@ -34,7 +34,7 @@ ok(ctx.length <= 1500 && ctx.includes('THE MOAT'), 'הקשר לתרגום: עד 
 L._test.setSettings({});
 let css = L._test.bookCSS();
 ok(/font-weight: 100 900/.test(css) && /"SNB Noto"/.test(css), 'הפונט המשתנה עם טווח משקלים (ברירת המחדל שלו Thin — חובה)');
-ok(/html, body \{[^}]*font-weight: 400;/.test(css), 'עובי 1 = Regular (400), כמו בקינדל');
+ok(/html, body \{[^}]*font-weight: 400;/.test(css), 'עובי 1 = Regular (400), לפי ת־קורא');
 ok(/p, li, blockquote, dd \{[^}]*text-align: start;/.test(css), 'יישור לימין (לתחילת השורה) כברירת מחדל — באנגלית זה שמאל');
 L._test.setSettings({ justify: true, weight: 2, theme: 'black', font: 'book' });
 css = L._test.bookCSS();
