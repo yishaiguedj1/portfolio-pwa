@@ -108,6 +108,7 @@ class DmBrowser : Activity() {
             visibility = View.INVISIBLE
         }
         web = WebView(this).apply { layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f) }
+        web.setBackgroundColor(bg)   // 28/10/2026: עד הצביעה הראשונה — רקע המסך, לא לבן שמהבהב בכהה (חוזר ללבן ב־onPageCommitVisible)
         col.addView(top)
         if (refresh.isNotEmpty()) col.addView(TextView(this).apply {   // מה עושים כאן — שורה אחת, רק ברענון
             text = getString(R.string.dmBrRefreshHint); textSize = 14f; setTextColor(fg)
@@ -152,6 +153,7 @@ class DmBrowser : Activity() {
                 return sc != "http" && sc != "https"          // intent:/market:/… לא נפתחים מכאן
             }
             override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? { seen(req.url.toString(), headers = req.requestHeaders); return null }
+            override fun onPageCommitVisible(view: WebView, url: String) { view.setBackgroundColor(Color.WHITE) }
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                 if (url != page) { page = url; found.clear(); synchronized(headSeen) { headSeen.clear() }; paintPill() }
                 if (!bar.hasFocus()) bar.setText(url)

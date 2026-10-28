@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 28/10/2026 (מעבר מקיף — "בלי קפיצות"): המסגרת הראשונה של הווידג'ט — רקע הכרטיס בלבד, בלי ספינר ברירת המחדל;
+     התוכן מצטייר מעליה בלי הבהוב -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_blank_bg" />

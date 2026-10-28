@@ -687,6 +687,10 @@ class BrowserActivity : ComponentActivity() {
     fun ensureWeb(t: BrTab): WebView {
         t.web?.let { return it }
         val w = WebView(this)
+        // 28/10/2026 (מעבר מקיף — "בלי הבהובים"): עד הצביעה הראשונה של הדף — צבע הדף של הדפדפן (שחור בכהה ובפרטי),
+        // לא הלבן של WebView שהבהב. מ־onPageCommitVisible חוזרים ללבן: אתר בלי רקע משלו מניח קנבס לבן
+        val night = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        w.setBackgroundColor(if (t.private) 0xFF131314.toInt() else if (night) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
         // מנהל הסיסמאות של Google (וכל שירות מילוי אחר) ממלא בדפים דרך המילוי האוטומטי של אנדרואיד — WebView תומך בו;
         // כאן רק מוודאים שהוא לא כבוי בטעות לאזור הדף
         // בטאב פרטי — בלי מילוי/שמירה של טפסים (כמו בגלישה בסתר של Chrome)
@@ -728,6 +732,7 @@ class BrowserActivity : ComponentActivity() {
                 if (!req.isForMainFrame && blockReq(t, req.url.host)) return EMPTY()
                 seen(t, req.url.toString(), headers = req.requestHeaders); return null
             }
+            override fun onPageCommitVisible(view: WebView, url: String) { view.setBackgroundColor(android.graphics.Color.WHITE) }
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
                 if (url != t.page && !t.private) { t.la = System.currentTimeMillis(); t.sc = 0f; t.tx = ""; t.mt = 0f; BrCloud.nudge(4000) }
                 if (url != t.page) { t.page = url; t.vid = null; t.blocked = 0; t.playing = false; t.found.clear(); synchronized(t.headSeen) { t.headSeen.clear() }; t.recount(); autoPick(t) }

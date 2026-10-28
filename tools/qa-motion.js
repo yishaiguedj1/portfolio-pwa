@@ -157,26 +157,24 @@ const INIT = `(() => {
       M.cur.shifts.push({ v: +e.value.toFixed(4), t: Math.round(e.startTime - M.cur.t0), src }); } }).observe({ type: 'layout-shift', buffered: true });
   } catch (e) {}
   try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (M.cur) M.cur.longTasks.push(Math.round(e.duration)); }).observe({ type: 'longtask', buffered: true }); } catch (e) {}
-  let last = now(), lastY = -1, lastLibY = -1, lastH = 0, dW = [0, 0], dL = [0, 0];
-  const libRoot = () => document.querySelector('.lib-root');
-  const tick = () => {
-    const t = now(); const gap = t - last; last = t;
-    if (M.cur && gap > 100) M.cur.frameGaps.push(Math.round(gap));
-    const y = window.scrollY || 0; const lr = libRoot(); const ly = lr ? lr.scrollTop : -1;
-    // קפיצה = שינוי גדול בפריים אחד כשלפניו הגלילה עמדה (אנימציה של גלילה זזה בכל פריים — לא נספרת)
-    const jw = lastY >= 0 ? y - lastY : 0, jl = lastLibY >= 0 && ly >= 0 ? ly - lastLibY : 0;
-    if (M.cur && !M.touching && !M.expectScroll) {
-      // v325: גלילה לראש העמוד של מעבר טאב מסומנת data-nav-scroll על <html> (navScrollTop ב־app.js) — לא קפיצה
-      if (Math.abs(jw) > 120 && Math.abs(dW[1]) < 6 && Math.abs(dW[0]) < 6 && !document.documentElement.dataset.navScroll) M.cur.scrollJumps.push({ el: 'window', from: Math.round(lastY), to: Math.round(y), t: Math.round(t - M.cur.t0) });
-      // גלילה של מעבר דף בספרייה (דף חדש מראשו / חזרה למקום השמור) מסומנת data-nav-scroll — לא קפיצה
-      if (Math.abs(jl) > 120 && Math.abs(dL[1]) < 6 && Math.abs(dL[0]) < 6 && !(lr && lr.dataset.navScroll)) M.cur.scrollJumps.push({ el: 'lib', from: Math.round(lastLibY), to: Math.round(ly), t: Math.round(t - M.cur.t0) });
-    }
-    dW = [dW[1], jw]; dL = [dL[1], jl];
-    lastY = y; lastLibY = ly;
-    const hh = document.documentElement.scrollHeight; if (M.cur && lastH && Math.abs(hh - lastH) > 40) M.cur.heightChanges++; lastH = hh;
-    requestAnimationFrame(tick);
-  };
+  // 28/10/2026: בלי קריאות פריסה בכל פריים (scrollY/scrollTop/scrollHeight כופים חישוב פריסה — תחת CPU×4 המדידה עצמה
+  // הכבידה על האנימציות). rAF רק לפערי פריימים; קפיצות גלילה מאירועי scroll; שינוי גובה מ־ResizeObserver
+  let last = now();
+  const tick = () => { const t = now(), gap = t - last; last = t; if (M.cur && gap > 100) M.cur.frameGaps.push(Math.round(gap)); requestAnimationFrame(tick); };
   requestAnimationFrame(tick);
+  const SC = new Map();
+  document.addEventListener('scroll', (ev) => {
+    const tg = ev.target, win = tg === document || tg === document.documentElement, lib = !win && tg.classList && tg.classList.contains('lib-root');
+    if (!win && !lib) return;
+    const y = win ? window.scrollY || 0 : tg.scrollTop, t = now(), p = SC.get(tg);
+    SC.set(tg, { y, t, d: p ? y - p.y : 0, d0: p ? p.d : 0 });
+    if (!p || !M.cur || M.touching || M.expectScroll) return;
+    const d = y - p.y, still = t - p.t > 40 || (Math.abs(p.d) < 6 && Math.abs(p.d0) < 6);
+    // v325: גלילה לראש של מעבר טאב / דף בספרייה מסומנת data-nav-scroll — לא קפיצה
+    if (Math.abs(d) > 120 && still && !(win ? document.documentElement.dataset.navScroll : tg.dataset.navScroll)) M.cur.scrollJumps.push({ el: win ? 'window' : 'lib', from: Math.round(p.y), to: Math.round(y), t: Math.round(t - M.cur.t0) });
+  }, { capture: true, passive: true });
+  let lastH = 0;
+  try { new ResizeObserver((es) => { const hh = es[0].contentRect.height; if (M.cur && lastH && Math.abs(hh - lastH) > 40) M.cur.heightChanges++; lastH = hh; }).observe(document.documentElement); } catch (e) {}
   if (window.__dbgScroll) {   // --debug-scroll: מי גלגל (מחסנית קריאה) — לאבחון קפיצות
     const st = () => (new Error().stack || '').split(String.fromCharCode(10)).slice(2, 6).map((l) => l.trim().replace(/^at /, '').replace(location.origin, '')).join(' < ');
     const w = window.scrollTo.bind(window); window.scrollTo = function () { if (M.cur) (M.cur.scrollLog = M.cur.scrollLog || []).push(['scrollTo', JSON.stringify([...arguments]).slice(0, 50), st()]); return w.apply(window, arguments); };

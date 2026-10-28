@@ -17,6 +17,8 @@ const arg = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? (args[
 const OUT = path.resolve(String(arg('out', 'qa-deep-out')));
 const THEME = arg('theme', 'light'), CPU = +arg('cpu', 1), LAT = +arg('lat', 350), ONLY = String(arg('only', '')), ROUNDS = +arg('rounds', 1), WIDTH = +arg('width', 390);
 const DISCOVER = !!arg('discover', false), FRAMES = !!arg('frames', false);
+// --prof <ביטוי>: פרופיל CPU לצעדים ששמם מתאים — הפונקציות הכבדות (זמן עצמי) והמשימות הארוכות (28/10/2026)
+const PROF = arg('prof', '') ? new RegExp(String(arg('prof', ''))) : null;
 const BASE = 'http://localhost:8792';
 fs.mkdirSync(OUT, { recursive: true });
 const FIX = path.join(__dirname, '..', 'tests', 'fixtures', 'qa');
@@ -67,7 +69,7 @@ const INIT2 = `(() => {
   // צעד של רענון: הדף החדש ממשיך למדוד מהרגע הראשון (אחרת קפיצות של הטעינה עצמה לא נספרות)
   try { const n = sessionStorage.getItem('__qa_mark'); if (n) { sessionStorage.removeItem('__qa_mark'); D.mark(); if (window.__motion) window.__motion.mark(n); } } catch (e) {}
   D.take = () => { D.on = false; return { muts: D.muts.slice(), jumps: D.jumps.slice() }; };
-  const vis = (n) => { const e = n && (n.nodeType === 1 ? n : n.parentElement); if (!e || !e.isConnected) return false; const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight; };
+  const vis = (n) => { const e = n && (n.nodeType === 1 ? n : n.parentElement); return !!(e && e.isConnected); };   // בלי getBoundingClientRect — כפה פריסה בכל מוטציה
   const desc = (n) => { const e = n.nodeType === 1 ? n : n.parentElement; return e ? e.tagName.toLowerCase() + (e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\\s+/).slice(0, 2).join('.') : '') : '?'; };
   const moObs = new MutationObserver((ms) => { if (!D.on) return; const t = Math.round(performance.now() - D.t0); for (const m of ms) { const n = m.type === 'attributes' ? m.target : (m.addedNodes[0] || m.removedNodes[0] || m.target);
     if (m.type === 'attributes' && !/^(class|style|hidden)$/.test(m.attributeName)) continue;
@@ -75,16 +77,16 @@ const INIT2 = `(() => {
   ;
   const obs = () => moObs.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
   if (document.documentElement) obs(); else document.addEventListener('readystatechange', obs, { once: true });
-  let last = new Map(), lastD = new Map();
-  const tick = () => {
-    for (const el of document.querySelectorAll('.an-root, .lib-root, .kc-watch, .st-root, .st-page, main, [data-scroll]')) {
-      const y = el.scrollTop, p = last.get(el), dp = lastD.get(el) || 0, M = window.__motion || {};
-      if (p != null) { const d = y - p; if (D.on && Math.abs(d) > 120 && Math.abs(dp) < 6 && !el.dataset.navScroll && !M.touching && !M.expectScroll) D.jumps.push({ el: desc(el), from: Math.round(p), to: Math.round(y), t: Math.round(performance.now() - D.t0) }); lastD.set(el, d); }
-      last.set(el, y);
-    }
-    requestAnimationFrame(tick);
-  };
-  requestAnimationFrame(tick);
+  // 28/10/2026: מאירועי scroll ולא מסריקה בכל פריים (querySelectorAll + scrollTop בכל פריים כפו פריסה והכבידו על האנימציות)
+  const SEL = '.an-root, .lib-root, .kc-watch, .st-root, .st-page, main, [data-scroll]', SC = new Map();
+  document.addEventListener('scroll', (ev) => {
+    const el = ev.target; if (!el || el.nodeType !== 1 || !el.matches(SEL)) return;
+    const y = el.scrollTop, t = performance.now(), p = SC.get(el), M = window.__motion || {};
+    SC.set(el, { y, t, d: p ? y - p.y : 0 });
+    if (!p || !D.on) return;
+    const d = y - p.y, still = t - p.t > 40 || Math.abs(p.d) < 6;
+    if (Math.abs(d) > 120 && still && !el.dataset.navScroll && !M.touching && !M.expectScroll) D.jumps.push({ el: desc(el), from: Math.round(p.y), to: Math.round(y), t: Math.round(t - D.t0) });
+  }, { capture: true, passive: true });
 })();`;
 
 (async () => {
@@ -115,10 +117,21 @@ const INIT2 = `(() => {
     const bg = await page.evaluate(() => { const c = getComputedStyle(document.body).backgroundColor.match(/\d+/g) || [242, 242, 247]; return c.slice(0, 3).map(Number); });
     await page.evaluate((n) => { window.__motion.mark(n); window.__deep.mark(); }, name);
     await caster.start();
+    const prof = PROF && PROF.test(name);
+    if (prof) { await cdp.send('Profiler.enable'); await cdp.send('Profiler.setSamplingInterval', { interval: 200 }); await cdp.send('Profiler.start');
+      await page.evaluate(() => { window.__lt = []; try { new PerformanceObserver((l) => l.getEntries().forEach((e) => window.__lt.push([Math.round(e.startTime), Math.round(e.duration)]))).observe({ type: 'longtask' }); } catch (e) {} window.__lt0 = performance.now(); }); }
     const t0 = Date.now(); let err = ''; const nErr = errors.length;
     try { await fn(); } catch (e) { err = String(e.message).split('\n')[0].slice(0, 140); }
     await page.waitForTimeout(settle);
     const frames = await caster.stop();
+    if (prof) {
+      const { profile } = await cdp.send('Profiler.stop');
+      const lt = await page.evaluate(() => (window.__lt || []).map(([a, d]) => Math.round(a - window.__lt0) + '+' + d));
+      const by = new Map(), dt = profile.timeDeltas || [], idx = new Map(profile.nodes.map((n) => [n.id, n]));
+      (profile.samples || []).forEach((id, i) => { const n = idx.get(id), cf = n.callFrame, k = (cf.functionName || '(anon)') + ' ' + (cf.url || '').split('/').pop() + ':' + (cf.lineNumber + 1); by.set(k, (by.get(k) || 0) + (dt[i] || 0) / 1000); });
+      const top = [...by].sort((a, b) => b[1] - a[1]).slice(0, 14).map(([k, v]) => '    ' + v.toFixed(0).padStart(5) + 'ms  ' + k).join('\n');
+      console.log('  ⏱ ' + name + ' · משימות ארוכות (התחלה+משך): ' + (lt.join(' ') || '—') + '\n' + top);
+    }
     if (!err && errors.length > nErr) err = 'שגיאת דף: ' + errors.slice(nErr).join(' · ').slice(0, 200);
     const [m] = await page.evaluate(() => window.__motion.take());
     const dp = await page.evaluate(() => window.__deep.take());
@@ -262,7 +275,7 @@ const INIT2 = `(() => {
     for (const [i, n] of [[1, 'מאזן'], [2, 'תזרים'], [3, 'יחסים'], [0, 'רווח והפסד']]) await step('ניתוח: דוחות → ' + n + R, () => nth('.an-page .an-seg.sm button', i), { expect: '.an-rcards' });
     await step('ניתוח: גלילה בדוחות' + R, () => anScroll(1400), { scroll: true });
     await step('ניתוח: דוחות → מאזן (גלול)' + R, () => nth('.an-page .an-seg.sm button', 1), { expect: '.an-rcards', scroll: true });
-    await step('ניתוח: כרטיס דוח → תת־עמוד' + R, () => nth('.an-rcard', 1), { expect: '.an-subw .an-chart' });
+    await step('ניתוח: כרטיס דוח → תת־עמוד' + R, () => nth('.an-rcard', 1), { pre: '.an-rcard >> nth=1', expect: '.an-subw .an-chart', scroll: true });
     for (const n of ['5', 'הכל', '10']) await step('ניתוח: תת־עמוד טווח ' + n + R, async () => { const b = page.locator('.an-subw .an-ctl button').filter({ hasText: n }); if (await b.count()) await b.first().click(); }, {});
     await step('ניתוח: חזור ← דוחות (גלילה שמורה)' + R, back, { expect: '.an-rcards' });
     await step('ניתוח: לשונית הערכת שווי' + R, () => anTab('val'), { expect: '.an-page' });
@@ -283,11 +296,11 @@ const INIT2 = `(() => {
     await step('ניתוח: החלקה ← דוחות' + R, () => sw(260), { settle: 1800, lateAfter: 1500 });
     await step('ניתוח: החלקה ← הערכת שווי' + R, () => sw(260), { settle: 1800, lateAfter: 1500 });
     await step('ניתוח: החלקה → חזרה' + R, () => sw(-260), { settle: 1800, lateAfter: 1500 });
-    await step('ניתוח: סגירה (חזור×)' + R, async () => { for (let k = 0; k < 4 && await page.$('.an-root'); k++) { await back(); await sleep(450); } }, { settle: 1500, expect: '#tab-stocks.active' });
+    await step('ניתוח: סגירה (חזור×)' + R, async () => { for (let k = 0; k < 4 && await page.$('.an-root'); k++) { await back(); await sleep(450); } }, { settle: 1500, expect: '#tab-stocks.active', lateAfter: 2500 });
     // פתיחה קרה — מניה שלא נטענה מראש
     await page.click('.stock.open .stock-head').catch(() => {}); await sleep(900);
     await page.click('#stockList .stock >> nth=4 >> .stock-head'); await sleep(250);
-    await step('ניתוח: פתיחה מיד (קר)' + R, () => click('.stock.open .an-open-btn'), { expect: '.an-root', settle: 2500 });
+    await step('ניתוח: פתיחה מיד (קר)' + R, () => jsClick('.stock.open .an-open-btn'), { expect: '.an-root', settle: 2500 });
     await step('ניתוח: סגירה (כפתור)' + R, () => click('.an-back'), { settle: 1200, expect: '#tab-stocks.active' });
     await page.click('.stock.open .stock-head').catch(() => {}); await sleep(900);
   }

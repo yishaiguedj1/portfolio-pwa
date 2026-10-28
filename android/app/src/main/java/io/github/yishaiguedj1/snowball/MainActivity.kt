@@ -183,7 +183,8 @@ class MainActivity : Activity() {
             setTextColor(Color.parseColor("#A3A9A6"))
             textSize = 15f
             gravity = Gravity.CENTER
-            text = getString(R.string.loading)
+            // 28/10/2026: רק הלוגו — "טוען…" הבהב לרגע לפני ש־Chrome כיסה את המסך. הטקסט מופיע רק בתקלה (showError)
+            text = ""
         }
         root.addView(status, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(12) })
         return root

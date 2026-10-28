@@ -4,6 +4,7 @@
     <style name="DmTheme" parent="android:Theme.DeviceDefault.DayNight">
         <item name="android:windowActionBar">false</item>
         <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">@color/dm_win</item>
     </style>
     <string name="dmShareLabel">הורדה ב־Studio DM</string>
     <string name="dmOpenLabel">הורדה ב־Studio DM</string>
