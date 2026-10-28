@@ -759,6 +759,19 @@ def neighbors(order: list[str], cur: dict[str, str], k: str, nb: int) -> str:
     return (' · לפני: ' + ' / '.join(before) if before else '') + (' · אחרי: ' + ' / '.join(after) if after else '')
 
 
+# 28/10/2026 (ניתוח פרקים 16–20, החלטת המשתמש): ניסוי "ביקורת ב־medium גם במצב high" — השרתון מסמן חצי מהעבודות (xr,
+# lib/studio.js rvAb). הביקורת (ו־qc_round, גם 'rv') במאמץ medium כשהמצב high/max — לא מעלים מצב נמוך, ולא דורסים את
+# ניסוי המאמץ של סט הזהב (xe)
+def rv_ab(eng, st) -> bool:
+    if (st or {}).get('xr') != 1 or (eng.role_effort or {}).get('rv'):
+        return False
+    e = getattr(getattr(eng, 'spec', None), 'effort', None) or 'medium'
+    if e not in llm.EFFORTS or llm.EFFORTS.index(e) <= llm.EFFORTS.index('medium'):
+        return False
+    eng.role_effort = dict(eng.role_effort or {}, rv='medium')
+    return True
+
+
 # ------------------------------------------------------------------ 26/10/2026: שתי טיוטות והכרעה
 # ניתוח המאגר: שתי ריצות של אותו מודל על אותו סרטון — אף טעות משמעותית לא הופיעה בשתיהן (אקמן: 1–3 לכל ריצה, כל פעם במקום
 # אחר); ב־AppLovin ריצה אחת "הוסטה" לאורך עשרות כתוביות והשנייה לא. לכן: טיוטה שנייה (B) לכל החלקים, וקטעים שבהם
@@ -1521,12 +1534,12 @@ class Pipeline:
             self.fix_round('fixes.txt', fx, 'tl')
 
     def dual_on(self) -> bool:
-        v = os.environ.get('SNB_TL_DUAL', '')
-        if v == 'off' or getattr(self.eng, 'manual', False):
+        """28/10/2026 (ערב, ניתוח פרקים 16–20 מול התרגום האנושי, החלטת המשתמש): ניסוי "טיוטה אחת" הסתיים — ב־10 פרקים
+        הטיוטה השנייה וההכרעה לא קירבו לאדם (+21/−13 בחירות, B מול A 263/238), ועלו ~45% מהתרגום ב־high. כבויה תמיד;
+        `SNB_TL_DUAL=on` מדליק (לניסוי חוזר)"""
+        if getattr(self.eng, 'manual', False):
             return False
-        if v != 'on' and (getattr(self.ctx, 'st', None) or {}).get('xd') == 1:   # 28/10/2026: ניסוי "טיוטה אחת" (השרתון קבע לפרק הזה)
-            return False
-        return v == 'on' or 'haiku' in str(getattr(getattr(self.eng, 'spec', None), 'model', ''))
+        return os.environ.get('SNB_TL_DUAL', '') == 'on'
 
     def _raw(self, files) -> dict[str, str]:
         he = {}
@@ -2172,6 +2185,7 @@ def run_auto(jobmod, args) -> int:
     else:
         eng = llm.Engine(llm.Spec.of(mode), cap_usd=float(cap) if cap else DEFAULT_CAP_USD)
         eng.role_effort = llm.norm_xe((st.get('spec') or {}).get('xe'))   # 24/10/2026: ניסוי המאמץ (סט הזהב)
+        rv_ab(eng, st)                                                       # 28/10/2026: ניסוי "ביקורת ב־medium"
     if hasattr(J, 'LIVE_USAGE'):
         J.LIVE_USAGE = eng.ledger.list             # 21/10/2026: העלות בזמן ריצה, וגם בכשל של שלב הכלים (usage_safe)
     ns = SimpleNamespace(force=False)
