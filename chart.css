@@ -337,7 +337,7 @@ html.kc-open { overflow: hidden; }
   .kc-root { padding-top: 0; }
   .kc-top { position: absolute; top: 0; inset-inline: 0; z-index: 8; padding-top: calc(6px + env(safe-area-inset-top, 0px)); background: color-mix(in srgb, var(--kc-bg) 38%, transparent); -webkit-backdrop-filter: saturate(180%) blur(30px); backdrop-filter: saturate(180%) blur(30px); border-bottom: .5px solid color-mix(in srgb, var(--kc-sep) 60%, transparent); }
   .kc-top-end .kc-ib { display: none; }
-  .kc-qm { top: calc(var(--kc-toph, 0px) + 44px); }
+  .kc-qm { top: calc(var(--kc-toph, 0px) + 26px); }
   /* זכוכית מדורגת (בקשת המשתמש 28/10): בלי קו ובלי רקע אחיד — גוון שנמוג מלמעלה למטה, ומתחתיו חמש שכבות טשטוש
      מצטברות (כל אחת מוסיפה טשטוש ונמוגה מוקדם יותר), כך שהטשטוש עולה בהדרגה כלפי מעלה הטשטוש נגמר בקצה הכותרת, ומתחתיה רק הגוון נמוג (24px) — שורת המחירים צמודה וחדה */
   .kc-top { background: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-bottom: 0; }
@@ -358,7 +358,7 @@ html.kc-open { overflow: hidden; }
   .kc-pk { align-items: center; text-align: center; }
   .kc-pk-v .kc-roll-i { text-align: center; }
   [data-theme="dark"] .kc-pk { box-shadow: 0 0 0 .5px rgba(255, 255, 255, .16), 0 1px 4px rgba(0, 0, 0, .3); }
-  .kc-pick { top: calc(var(--kc-toph, 0px) + 44px); }
+  .kc-pick { top: calc(var(--kc-toph, 0px) + 26px); }
   .kc-top-end .kc-ib { width: 34px; }
   /* רשימת המעקב = מגירה מזכוכית מעל כל המסך, ומאחוריה אותו טשטוש של הגיליונות; נגיעה בטשטוש / "חזור" / תפריט אחר סוגרים */
   .kc-watch.on { position: fixed; inset-block: 0; inset-inline-end: 0; z-index: 46; width: min(240px, 72vw); padding: calc(8px + env(safe-area-inset-top, 0px)) 0 calc(8px + env(safe-area-inset-bottom, 0px)); --kc-acc-c: rgba(118, 118, 128, .14);
@@ -388,7 +388,8 @@ html.kc-open { overflow: hidden; }
   .kc-selbar .kc-ib.sm.on { color: var(--kc-acc); background: var(--kc-hov); }
   .kc-selbar .kc-ib.danger { color: var(--kc-dn); }
   .kc-selbar .kc-swatch { width: 24px !important; height: 24px; margin: 0 8px; box-shadow: 0 0 0 2px var(--kc-bg), 0 0 0 3px rgba(118, 118, 128, .35); }
-  .kc-selbar .kc-wcyc, .kc-selbar .kc-dash { display: none !important; }   /* בקשת המשתמש: בלי עובי ובלי קו מקווקו בסרגל של הטלפון */
+  .kc-selbar .kc-wcyc, .kc-selbar .kc-dash { display: none !important; }
+  .kc-hassel .kc-pick, .kc-hassel .kc-qm { visibility: hidden; }   /* בקשת המשתמש: בלי עובי ובלי קו מקווקו בסרגל של הטלפון */
   .kc-selbar .kc-wcyc.on { min-width: 38px; height: 38px; align-items: center; justify-content: center; padding: 0 !important; border-radius: var(--pill); background: none; color: var(--kc-ink); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
   .kc-selbar .kc-sel-div { display: block; width: .5px; align-self: stretch; margin: 8px 2px; background: var(--kc-sep); }
   .kc-selbar.pal .kc-cols { padding: 0 6px; gap: 6px; }

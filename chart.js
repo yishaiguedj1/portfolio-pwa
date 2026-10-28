@@ -2547,6 +2547,7 @@ function renderSel() {
   UI.sel.textContent = '';
   const s = S.sel, o = s && getOv(s.c, s.id);
   UI.sel.classList.toggle('on', !!o);
+  if (ROOT) ROOT.classList.toggle('kc-hassel', !!o);   // בטלפון סרגל העריכה יושב במקום הבוררים — הם מוסתרים בזמן הבחירה
   if (!o) UI.sel.classList.remove('pal');
   if (!o) return;
   if (s.alert) {
