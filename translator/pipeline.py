@@ -41,8 +41,11 @@ FIX_ROUNDS_MAX = 5     # 11/10/2026: סבבים נוספים רק כל עוד מ
 # שניהם על הנתיב הקריטי. אותן קריאות בדיוק (בלי שינוי באיכות), רק יותר בבת אחת; לא תופסות מעבד בשרת (מחכות ל־Claude).
 # ב־80 קריאות לא היה אף 429; גם אם יהיה — ה־SDK וגם _call_retrying מנסים שוב (api_rate חולף)
 TL_PARALLEL = max(1, int(os.environ.get('SNB_TL_PAR', '6')))
-RV_SLICE_CUES = int(os.environ.get('SNB_RV_SLICE', '250'))   # 21/10/2026: קטע ביקורת — עד כמה כתוביות (החשיבה גדלה עם הקטע)
-RV_PARALLEL = int(os.environ.get('SNB_RV_PAR', '6'))
+# 28/10/2026 (ניתוח הזמנים, החלטת המשתמש): 250 → 120. בפרק של 22 דק׳ (~370 כתוביות) היו 2 קטעים והארוך קבע (222 מול 124 שנ׳,
+# 99% חשיבה) — עכשיו 4 קטעים קטנים במקביל. הבלוק הקבוע במטמון, אז קטע נוסף עולה רק קריאה מהמטמון. במקביל 8 — סרטון ארוך לא מחכה לגל שני
+RV_SLICE_CUES = int(os.environ.get('SNB_RV_SLICE', '120'))   # 21/10/2026: קטע ביקורת — עד כמה כתוביות (החשיבה גדלה עם הקטע)
+RV_PARALLEL = int(os.environ.get('SNB_RV_PAR', '8'))
+JG_JOIN_S = 300                  # 28/10/2026: finish מחכה לשופט שרץ ברקע לכל היותר כך (בדרך כלל הוא גמר מזמן — 20 שנ׳ מול צריבה של 4 דק׳)
 # 11/10/2026 (תקלת max_tokens בעבודה אמיתית): תשובה של שורה לכל כתובית שנקטעה — שומרים מה שהגיע ומבקשים רק את החסר.
 TL_ATTEMPTS = 6        # ניסיונות לחלק אחד (כל עוד יש התקדמות)
 FIX_BATCH = 40         # כתוביות לבקשת תיקון אחת (קודם — הכל בבקשה אחת של 16K)
@@ -1648,9 +1651,10 @@ class Pipeline:
         return n_err
 
     # -------------------------------------------------------------- 5.5 שופט האיכות (v375, החלטה 4 — Haiku)
-    def judge(self):
+    def judge(self, bg=False):
         """השופט במצב API: judge_prep (job.py) בונה מדגם מחבילת ביקורת טרייה, Haiku נותן ציון בלבד,
-        job.py judge מפענח. כבוי בחוקים (rl.jx) / מעט כתוביות — judge_prep מדלג. כשל שופט לא מפיל עבודה."""
+        job.py judge מפענח. כבוי בחוקים (rl.jx) / מעט כתוביות — judge_prep מדלג. כשל שופט לא מפיל עבודה.
+        28/10/2026: bg — הקריאה ל־Haiku בתהליכון (במקביל לצריבה), והציון מוחל ב־finish (job.judge_late)."""
         if getattr(self.eng, 'manual', False):
             print('· העתק־הדבק: בלי שופט איכות (הוא רץ ב־API).')
             return
@@ -1669,22 +1673,42 @@ class Pipeline:
         if self.eng.cap is not None and spent is not None and spent >= self.eng.cap:
             print('· תקרת העבודה נוצלה — מדלגים על השופט.')
             return
-        self.ctx.report('rv', 0.9, 'שופט איכות עצמאי נותן ציון', force=True)
+        bg = bg and hasattr(self.J, '_JG_LATE') and bool(st.get('job'))
+        if not bg:
+            self.ctx.report('rv', 0.9, 'שופט איכות עצמאי נותן ציון', force=True)
         js = llm.judge_spec(self.eng.spec.model)        # תמיד Haiku 5.5 · High (11/10/2026)
         jeng = llm.Engine(js, client=self.eng._client)
-        try:
-            res = jeng.complete('jg', '\n\n'.join([RULES, JG_TASK]),
-                                block('judge_sample', sample.read_text(encoding='utf-8')), max_tokens=32000, partial_ok=True)
-        except llm.LLMError as e:
-            print('· השופט נכשל (' + e.code + ') — ממשיכים בלעדיו.')
-            for r in jeng.ledger.list():                      # גם כשל עלה כסף — נרשם בספר הראשי
-                self.eng.ledger.add('jg', r['m'], r, r['usd'])
+        text = sample.read_text(encoding='utf-8')
+
+        def call():
+            try:
+                res = jeng.complete('jg', '\n\n'.join([RULES, JG_TASK]), block('judge_sample', text), max_tokens=32000, partial_ok=True)
+            except llm.LLMError as e:
+                print('· השופט נכשל (' + e.code + ') — ממשיכים בלעדיו.')
+                for r in jeng.ledger.list():                  # גם כשל עלה כסף — נרשם בספר הראשי
+                    self.eng.ledger.add('jg', r['m'], r, r['usd'])
+                return False
+            self.eng.ledger.add('jg', js.model, res.usage, res.usd)
+            jd = self.pd / 'judge'
+            jd.mkdir(exist_ok=True)
+            (jd / 'verdict.txt').write_text(kept_text(res).strip() + '\n', encoding='utf-8')
+            return True
+        if bg:
+            box = {}
+            th = threading.Thread(target=lambda: box.update(ok=call()), name='judge', daemon=True)
+            th.start()
+
+            def late(c):                        # ב־finish: c = ה־Ctx שלו (המצב העדכני)
+                th.join(JG_JOIN_S)
+                c.st['api_usage'] = self.eng.ledger.list()
+                if box.get('ok'):
+                    self.J.judge_apply(c)
+            self.J._JG_LATE[st['job']] = late
             return
-        self.eng.ledger.add('jg', js.model, res.usage, res.usd)
+        ok = call()
         self.save_usage()
-        jd = self.pd / 'judge'
-        jd.mkdir(exist_ok=True)
-        (jd / 'verdict.txt').write_text(kept_text(res).strip() + '\n', encoding='utf-8')
+        if not ok:
+            return
         self.J.judge(SimpleNamespace())
         self.adopt('jd')
 
@@ -2228,6 +2252,8 @@ def run_auto(jobmod, args) -> int:
             pl = Pipeline(ctx, J, eng)
         if hasattr(J, 'learn_media_early'):
             J.learn_media_early(J.Ctx(J.load_state()))   # העותק למאגר הלמידה בזמן הביקורת (המעבד כמעט פנוי)
+        if after < 4 and hasattr(J, 'ladder_go'):
+            J.ladder_go()                    # 28/10/2026: האיכויות הנמוכות בזמן הביקורת (מושהות בצריבה — ladder_pause)
         if after < 4:
             fixed, left = pl.review()
             print(f'✓ תרגום וביקורת: {fixed} תיקוני ביקורת · נשארו {left} שגיאות')
@@ -2238,7 +2264,7 @@ def run_auto(jobmod, args) -> int:
             pl.save_usage()
             pl.line_breaks()                 # 25/10/2026: Haiku בוחר את מקום השבירה; build שאחרי מחיל
             pl.save_usage()
-            pl.judge()                       # שופט האיכות (v375) — ציון בלבד, Haiku; כשל/כיבוי לא עוצרים
+            pl.judge(bg=True)                # שופט האיכות (v375) — ציון בלבד, Haiku; 28/10/2026: ברקע, במקביל לצריבה
         pl.save_usage()
         return J.finish(SimpleNamespace(force=False))
     except llm.LLMError as e:

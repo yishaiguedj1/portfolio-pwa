@@ -4005,6 +4005,32 @@ def judge_prep(args):
 @guarded
 def judge(args):
     ctx = Ctx(load_state())
+    judge_apply(ctx)
+    save_state(ctx.st)
+    return 0
+
+
+# 28/10/2026 (ניתוח הזמנים, החלטת המשתמש): השופט רץ ברקע בזמן הצריבה (~20 שנ׳ שהיו בדרך הקריטית).
+# pipeline רושם כאן פונקציה לפי העבודה; finish קורא לה אחרי ההעלאה (מחכה לקריאה, ומחיל את הציון על המצב שלו)
+_JG_LATE = {}
+
+
+def judge_late(ctx):
+    """finish: השופט שרץ ברקע — מחכים לו ומחילים את הציון ועלותו על ctx.st (ושומרים). כל תקלה — בלי ציון, לא מפיל."""
+    fn = _JG_LATE.pop(ctx.st.get('job'), None)
+    if fn is None:
+        return False
+    try:
+        fn(ctx)
+        save_state(ctx.st)
+        return True
+    except Exception as e:       # noqa: BLE001 — מידע משני
+        print('· השופט ברקע נכשל (' + type(e).__name__ + ') — ממשיכים בלעדיו.')
+        return False
+
+
+def judge_apply(ctx):
+    """verdict.txt → ctx.st['jd'] (בלי לשמור)."""
     jg = ctx.st.get('jg') or {}
     ids = set(x for x in (jg.get('ids') or []) if isinstance(x, int))
     try:
@@ -4021,8 +4047,6 @@ def judge(args):
         r.update({'t': len(ids), 'a': int(jg.get('a') or len(ids))})
         ctx.st['jd'] = r
         print('✓ שופט האיכות: %d/100 על %d כתוביות%s' % (r['s'], r['n'], (' · ' + ', '.join('%s %d' % kv for kv in sorted(r['c'].items()))) if r['c'] else ''))
-    save_state(ctx.st)
-    return 0
 
 
 def approve_render(ctx, wait=None):
@@ -4758,9 +4782,23 @@ def ladder_stop():
     """עוצר בנייה שרצה ברקע (קבוצת התהליכים כולה — גם ffmpeg). בסוף עבודה / ניקוי."""
     if ladder_running():
         try:
-            os.killpg(int((LADDER_DIR / 'pid').read_text()), signal.SIGTERM)
+            pg = int((LADDER_DIR / 'pid').read_text())
+            os.killpg(pg, signal.SIGTERM)
+            os.killpg(pg, signal.SIGCONT)        # 28/10/2026: אם הושהתה בצריבה — אחרת SIGTERM מחכה לה לנצח
         except (OSError, ValueError):
             pass
+
+
+def ladder_pause(on):
+    """28/10/2026 (ניתוח הזמנים, החלטת המשתמש): האיכויות מתחילות בזמן הביקורת (המעבד פנוי — מחכים ל־Claude), ובצריבה
+    מושהות (SIGSTOP לכל הקבוצה) — הצריבה לא חולקת איתן מעבד, כמו מאז 22/10. on=False ממשיך. מחזיר אם נשלח."""
+    if not ladder_running():
+        return False
+    try:
+        os.killpg(int((LADDER_DIR / 'pid').read_text()), signal.SIGSTOP if on else signal.SIGCONT)
+        return True
+    except (OSError, ValueError):
+        return False
 
 
 LADDER_HOLD_CMDS = ('align',)
@@ -4952,7 +4990,12 @@ def finish(args):
         flags = (['--compact'] if 'compact' in want else []) + (['--burn'] if 'same' in want else []) + (['--mkv'] if 'mkv' in want else [])
         if 'small' in want:                      # סבב 8: העותק לוואטסאפ נבנה מסרטון צרוב — בלי צרוב שנבחר, הדחוס (לא עולה)
             flags += (['--compact'] if 'compact' not in want and 'same' not in want else []) + ['--small', str(SMALL_MB)]
-        vt(ctx, ['render', ctx.name] + flags, 'bn', 0.0, 1.0)
+        paused = ladder_pause(True)              # 28/10/2026: האיכויות התחילו בזמן הביקורת — מושהות בצריבה
+        try:
+            vt(ctx, ['render', ctx.name] + flags, 'bn', 0.0, 1.0)
+        finally:
+            if paused:
+                ladder_pause(False)
         ladder_go()                              # 22/10/2026 (אפשרות א׳): הצריבה נגמרה — עכשיו המעבד פנוי לאיכויות הנמוכות
     t_sv = time.time()
     if eth is not None:
@@ -4996,6 +5039,7 @@ def finish(args):
             raise
         except (SystemExit, Exception) as e:   # noqa: BLE001 — קובץ עזר; התוצרים העיקריים כבר עלו. גם כשל אחסון (SystemExit) לא מפיל
             print('· ' + p.name + ' לא עלה (' + (str(e).strip()[:80] if isinstance(e, SystemExit) else type(e).__name__) + ') — ממשיכים בלעדיו')
+    judge_late(ctx)                              # 28/10/2026: השופט שרץ ברקע בזמן הצריבה
     try:
         q = quality(ctx.pdir / 'out' / 'he.srt', chk_ok=not args.force)   # v374: מדד האיכות (בלי טוקנים)
     except Exception:            # noqa: BLE001 — מידע משני; לא מפיל את סוף העבודה

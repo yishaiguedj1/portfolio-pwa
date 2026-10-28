@@ -60,6 +60,9 @@ DEFAULT_MODE = 'haiku-medium'
 # = XE_KEYS / XE_EFFORTS בשרתון (lib/studio.js normXe). רק בהרצות של סט הזהב — לא נבחר בטופס.
 ROLE_EFFORT_KEYS = ('main', 'tl', 'rv')
 EFFORTS = ('low', 'medium', 'high', 'max')
+# 28/10/2026 (ניתוח הזמנים, החלטת המשתמש): עריכת המקור (main) ב־high חשבה פי 3 (37–46K מול 10–16K טוקנים, 160–250 מול
+# 60–95 שנ׳ — והיישור מחכה לה) ותיקנה כמעט אותו מספר מילים (חציון 15 מול 14 מתוך ~2,800) — medium גם במצב high
+ROLE_CAP = {'main': 'medium'}
 
 
 def norm_xe(x) -> dict:
@@ -249,8 +252,13 @@ class Engine:
                     'fb': len(self._fixed_calls), 'th': dict(self.think)}
 
     def effort(self) -> str:
-        """24/10/2026 (ניסוי המאמץ): מאמץ לפי התפקיד של הקריאה (role_effort: main / tl / rv), אחרת של המצב."""
-        return (self.role_effort.get(getattr(_tl, 'k', '')) if self.role_effort else None) or self.spec.effort or 'medium'
+        """24/10/2026 (ניסוי המאמץ): מאמץ לפי התפקיד של הקריאה (role_effort: main / tl / rv), אחרת של המצב.
+        28/10/2026: ROLE_CAP — תקרה לתפקיד כשהמצב גבוה ממנה (ניסוי המאמץ עדיין קובע מעליה)."""
+        k = getattr(_tl, 'k', '')
+        x = self.role_effort.get(k) if self.role_effort else None
+        cap = None if x else ROLE_CAP.get(k)
+        e = x or self.spec.effort or 'medium'
+        return cap if cap and e in EFFORTS and EFFORTS.index(e) > EFFORTS.index(cap) else e
 
     # ------------------------------------------------------------------ ממשק אחד
     def complete(self, k: str, system_fixed: str, prompt: str, max_tokens: int = 32000,

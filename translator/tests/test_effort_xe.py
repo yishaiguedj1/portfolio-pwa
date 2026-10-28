@@ -26,8 +26,16 @@ class EffortXe(unittest.TestCase):
 
     def test_default_is_mode(self):
         e = self.eng()
-        for k in ('main', 'tl', 'rv', 'jg', ''):
+        for k in ('tl', 'rv', 'jg', ''):
             self.assertEqual(self.at(e, k), 'high')
+        # 28/10/2026: עריכת המקור — תקרה medium (חשבה פי 3 ותיקנה אותו דבר, והיישור מחכה לה)
+        self.assertEqual(self.at(e, 'main'), 'medium')
+
+    def test_role_cap(self):
+        self.assertEqual(llm.ROLE_CAP, {'main': 'medium'})
+        low = llm.Engine(llm.Spec.of('sonnet-low'), client=object())
+        self.assertEqual(self.at(low, 'main'), 'low', 'מתחת לתקרה — המצב')
+        self.assertEqual(self.at(self.eng({'main': 'high'}), 'main'), 'high', 'ניסוי המאמץ מעל התקרה')
 
     def test_override_only_chosen_roles(self):
         e = self.eng({'main': 'medium', 'rv': 'medium'})
