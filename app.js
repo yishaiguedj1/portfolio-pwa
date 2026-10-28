@@ -1092,7 +1092,6 @@ he: {
   pfPickContinue: 'המשך',
   pfRangeReturn: 'תשואת התיק',
   stockRangeReturn: 'תשואת המניה',
-  mktRangeReturn: 'תשואה',
   pfNoteTrades: 'היסטוריה אמיתית — משוחזרת מעסקאות IBKR: קניות, מכירות והפקדות/משיכות מנוטרלות מהתשואה',
 
   sourceLabel: 'מקור: {src} · {lag}{sess}{stale}',
@@ -2634,7 +2633,6 @@ en: {
   pfPickContinue: 'Continue',
   pfRangeReturn: 'Portfolio return',
   stockRangeReturn: 'Stock return',
-  mktRangeReturn: 'Return',
   pfNoteTrades: 'True history — reconstructed from IBKR trades: buys, sells and deposits/withdrawals excluded from the return',
 
   sourceLabel: 'Source: {src} · {lag}{sess}{stale}',
@@ -6906,8 +6904,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.82.3';
-const APP_VERSION = 'v615';
+const APP_RELEASE = '2.82.4';
+const APP_VERSION = 'v616';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -15602,7 +15600,7 @@ function renderStockRangeSummary(sym, pts, lineCol) {
   // v236: סמן המניה (● סימבול בצבע הקו) — מימין לשורת התשואה (v238: המשתמש אישר "ככה זה מדהים, תשאיר ככה")
   const wasEmpty = box && !box.innerHTML; // v273: השורה מופיעה בפעם הראשונה — בדהייה
   if (box) box.innerHTML = '<span class="rs-sym"><span class="dot" style="background:' + lineCol + '"></span>' + esc(dispSym(sym)) + '</span>' +
-    '<span class="rs-lbl">' + esc(isWatchOnlySym(sym) ? t('mktRangeReturn') : t('stockRangeReturn')) + '</span>' +
+    (isWatchOnlySym(sym) ? '' : '<span class="rs-lbl">' + esc(t('stockRangeReturn')) + '</span>') +   // 28/10/2026 (בקשת המשתמש): במדד/סחורה/מט"ח בלי המילה "תשואה" (הסימן והאחוז מספיקים)
     '<span class="rs-val ' + (r >= 0 ? 'pos' : 'neg') + '">' + fmtPct(r, true) + '</span>' +
     (rangeName ? '<span class="rs-range">' + esc(rangeName) + '</span>' : '');
   if (box) fitStockFoot(box);
