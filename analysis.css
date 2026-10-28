@@ -390,6 +390,10 @@ button.an-row { cursor: pointer; }
 .an-ptag { position: absolute; transform: translate(-50%, calc(-100% - 6px)); font-size: 11px; font-weight: 600; color: var(--an-ink2); white-space: nowrap; pointer-events: none;
   background: color-mix(in srgb, var(--bg) 80%, transparent); padding: 0 4px; border-radius: var(--pill); }
 .an-ptag::after { content: ""; position: absolute; left: 50%; bottom: -5px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--an-ink3); }
+/* שפל הטווח — אותה תווית, מתחת לנקודה (השטח מתחת לגרף נשמר רק כשיש שפל) */
+.an-ptag-lo { transform: translate(-50%, 6px); }
+.an-ptag-lo::after { bottom: auto; top: -5px; }
+.an-pxc-lo { margin-bottom: 22px; }
 /* דוחות: כרטיס ברוחב המסך לכל מדד */
 .an-rcards { display: flex; flex-direction: column; gap: 12px; }
 .an-rcard { border: 1px solid var(--card-border); background: var(--an-card); box-shadow: var(--shadow); border-radius: var(--radius-xl); padding: 16px 16px 10px;

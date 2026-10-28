@@ -627,6 +627,8 @@ function spark(host, vals, color, line, opt = {}) {
     if (!opt.noDot) { const dot = h('i', { class: 'an-dot', style: `left:${(L[0] / W * 100).toFixed(1)}%;top:${(L[1] / H * 100).toFixed(1)}%;background:${color};--an-dc:${color}` }); host.append(dot); }
     if (opt.peak) { const P = pts.reduce((m, q) => (q[1] < m[1] ? q : m), pts[0]);   // השיא = ה־y הנמוך ביותר
       if (P !== L) host.append(h('span', { class: 'an-ptag', style: `left:${(P[0] / W * 100).toFixed(1)}%;top:${(P[1] / H * 100).toFixed(1)}%` }, opt.peak)); }
+    if (opt.trough) { const B = pts.reduce((m, q) => (q[1] > m[1] ? q : m), pts[0]);   // השפל = ה־y הגבוה ביותר, התווית מתחת לנקודה
+      if (B !== L && B !== pts.reduce((m, q) => (q[1] < m[1] ? q : m), pts[0])) { host.classList.add('an-pxc-lo'); host.append(h('span', { class: 'an-ptag an-ptag-lo', style: `left:${(B[0] / W * 100).toFixed(1)}%;top:${(B[1] / H * 100).toFixed(1)}%` }, opt.trough)); } }
     sparkAxis(host, opt, L[0] / W, L[1] / H);
     return;
   }
@@ -1024,9 +1026,9 @@ function header(co) {
     const host = h('div', { class: 'an-pxc' + (S.heroDone ? ' an-still' : '') });
     chart = h('div', { class: 'an-pxw' }, host);   // display: contents — הציר נכנס אחרי הגרף בתוך העטיפה, ועובר איתו
     S.heroDone = true;   // הגרף בראש מצטייר פעם אחת — לא בכל מעבר לשונית
-    const hiPx = px.length ? Math.max(...px, co.price) : null;
+    const hiPx = px.length ? Math.max(...px, co.price) : null, loPx = px.length ? Math.min(...px, co.price) : null;
     if (ch10 != null) S.after.push(() => spark(host, px.concat(co.price), ch10 >= 0 ? cssv('good') : cssv('bad'), true,
-      { w: 340, h: 64, sw: 2, px: 10, labels: pt.length ? [pt[0].slice(0, 4), T('anToday')] : null, peak: hiPx ? T('anPeak', { v: strip(fmt(hiPx, 'ps', co, 0)) }) : null }));
+      { w: 340, h: 64, sw: 2, px: 10, labels: pt.length ? [pt[0].slice(0, 4), T('anToday')] : null, peak: hiPx ? T('anPeak', { v: strip(fmt(hiPx, 'ps', co, 0)) }) : null, trough: loPx ? T('anLow', { v: strip(fmt(loPx, 'ps', co, 0)) }) : null }));
     S.hero = { co, k: hk, el: chart };
   }
   return h('div', { class: 'an-head' },

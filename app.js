@@ -763,6 +763,7 @@ he: {
   anHTgt: 'רווח צפוי × המכפיל של החברה',
   anHMult: 'המחיר היום מול 10 השנים של החברה',
   anPeak: 'שיא {v}',
+  anLow: 'שפל {v}',
   anYearAgo: 'לפני שנה',
   anGrowthN: 'צמיחה בשנה · {n} שנים',
   anVsPrev: 'מול שנה קודמת',
@@ -2305,6 +2306,7 @@ en: {
   anHTgt: 'Expected profit × the company’s multiple',
   anHMult: 'Today’s price vs the company’s 10 years',
   anPeak: 'High {v}',
+  anLow: 'Low {v}',
   anYearAgo: 'A year ago',
   anGrowthN: 'Growth a year · {n} yrs',
   anVsPrev: 'vs. prior year',
@@ -6906,8 +6908,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.82.5';
-const APP_VERSION = 'v617';
+const APP_RELEASE = '2.82.6';
+const APP_VERSION = 'v618';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
