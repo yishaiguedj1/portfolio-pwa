@@ -14,6 +14,7 @@ function ok(cond, name) { n++; if (!cond) fails.push(name); else console.log('ok
 
 let files = [];
 try { files = execSync('git -c core.quotepath=off ls-files', { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean); } catch (e) { /* בלי git — מדלגים */ }
+files = [...new Set(files)];   // בזמן מיזוג עם התנגשות git ls-files מחזיר את הקובץ שלוש פעמים (שלבים 1–3)
 if (!files.length) { console.log('ok - אין git — מדלגים'); process.exit(0); }
 
 // נוצרים מקבצים אחרים (נבדקים במקור) · ספריות צד שלישי · התקנים עצמם · הבדיקה והרשימה

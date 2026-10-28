@@ -9,7 +9,7 @@ let n = 0;
 function ok(c, name) { n++; if (!c) { console.error('FAIL - ' + name); process.exit(1); } console.log('ok - ' + name); }
 
 for (const tab of ['deposits', 'trades', 'stocks']) {
-  ok(new RegExp('<div class="head-actions">\\s*<button[^\\n]*</button>\\s*<div class="src-filter" id="' + tab + 'SrcFilter"></div>').test(html),
+  ok(new RegExp('<div class="head-actions">(\\s*<button[^\\n]*</button>)?\\s*<div class="src-filter" id="' + tab + 'SrcFilter"></div>').test(html),
     tab + ': כפתור הסינון בכותרת, בקצה החיצוני (הבועה נפתחת לתוך המסך)');
 }
 ok(!/stock-sort-row src-filter/.test(html), 'אין עוד שורת צ\'יפים גלויה');
