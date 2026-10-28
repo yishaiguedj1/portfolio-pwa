@@ -990,7 +990,9 @@ function navBar() {
   const logo = h('span', { class: 'an-logo' });
   if (E.logoHTML) logo.innerHTML = E.logoHTML(S.sym);
   const nm = S.co ? S.co.name : (E.name && E.name(S.sym)) || S.sym;
-  return h('div', { class: 'an-nav' }, back, h('div', { class: 'an-nav-t' }, logo, h('b', { dir: 'auto' }, nm)));
+  // כמו בכותרת גרף הנרות: לוגו · סימבול ומתחתיו השם (בעמוד משנה — כותרת העמוד במקום השם)
+  const sym = String(S.sym || '').replace(/\.TA$/, '');
+  return h('div', { class: 'an-nav' }, back, h('div', { class: 'an-nav-t' }, logo, h('span', { class: 'an-nav-id' }, h('b', { dir: 'auto' }, inSub ? nm : sym), inSub ? null : h('small', { dir: 'auto' }, nm))));
 }
 function header(co) {
   const ch = co.prev ? co.price / co.prev - 1 : null;

@@ -429,3 +429,14 @@ html .kc-pk, html .kc-qm, html .kc-now, html .kc-fab:not(.on) { background: var(
   .kc-oh b.up { color: var(--kc-up); } .kc-oh b.dn { color: var(--kc-dn); }
   .kc-root .kc-pick, .kc-root .kc-qm { top: calc(var(--kc-toph, 0px) + 58px); }   /* מתחת לשורת הנתונים */
 }
+/* 28/10 (בקשת המשתמש): לוגו בולט כמו אייקון, מרווח בין המחיר לחזרה, שורת נתונים מינימלית */
+.kc-logo:not(:empty) { background: #FFFFFF; box-shadow: 0 0 0 .5px rgba(0, 0, 0, .12), 0 2px 8px rgba(0, 0, 0, .14); }
+[data-theme="dark"] .kc-logo:not(:empty) { box-shadow: 0 0 0 .5px rgba(255, 255, 255, .2), 0 2px 10px rgba(0, 0, 0, .5); }
+@media (max-width: 720px) {
+  .kc-logo { width: 36px; height: 36px; border-radius: 10px; }
+  .kc-top .kc-back { margin-inline-start: 10px; width: 38px; height: 38px; }
+  .kc-ohlc { background: none; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; padding: 2px 6px; inset-inline: 4px; }
+  .kc-oh i { font-size: 10px; line-height: 12px; }
+  .kc-oh b { font-size: 12px; line-height: 15px; font-weight: 600; }
+  .kc-root .kc-pick, .kc-root .kc-qm { top: calc(var(--kc-toph, 0px) + 40px); }
+}
