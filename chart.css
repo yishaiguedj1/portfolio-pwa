@@ -168,9 +168,9 @@ html.kc-open { overflow: hidden; }
 /* 28/10 (בקשת המשתמש): גיליונות מזכוכית לפי ת־עיצוב — מה שמאחור מטושטש ומוכהה בעדינות כמו בתפריט הראשי (.menu-veil),
    והגיליון עצמו שקוף למחצה מעליו. הרקע הוא שורש הטשטוש, לכן לגיליון אין backdrop משלו — רק צבע שקוף. מילויים בפנים שקופים גם הם */
 .kc-sh-back { background: rgba(242, 242, 247, .28); -webkit-backdrop-filter: blur(24px) saturate(1.5); backdrop-filter: blur(24px) saturate(1.5); }
-.kc-sheet { --kc-fill: rgba(118, 118, 128, .12); background: color-mix(in srgb, var(--kc-panel) 76%, transparent); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .08), var(--kc-shadow); }
+.kc-sheet { --kc-fill: rgba(118, 118, 128, .12); background: color-mix(in srgb, var(--kc-panel) 74%, transparent); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .08), var(--kc-shadow); }
 [data-theme="dark"] .kc-sh-back { background: rgba(0, 0, 0, .32); }
-[data-theme="dark"] .kc-sheet { --kc-fill: rgba(118, 118, 128, .24); background: color-mix(in srgb, var(--kc-panel) 76%, transparent); box-shadow: 0 0 0 .5px rgba(255, 255, 255, .1), var(--kc-shadow); }
+[data-theme="dark"] .kc-sheet { --kc-fill: rgba(118, 118, 128, .24); background: color-mix(in srgb, var(--kc-panel) 74%, transparent); box-shadow: 0 0 0 .5px rgba(255, 255, 255, .1), var(--kc-shadow); }
 .kc-wveil { display: none; }
 .kc-sheet.wide { width: min(680px, calc(100% - 24px)); }
 .kc-sh-head { display: flex; align-items: center; gap: 8px; padding: 10px 10px 6px 16px; flex: none; }
@@ -362,8 +362,8 @@ html.kc-open { overflow: hidden; }
   .kc-top-end .kc-ib { width: 34px; }
   /* רשימת המעקב = מגירה מזכוכית מעל כל המסך, ומאחוריה אותו טשטוש של הגיליונות; נגיעה בטשטוש / "חזור" / תפריט אחר סוגרים */
   .kc-watch.on { position: fixed; inset-block: 0; inset-inline-end: 0; z-index: 46; width: min(240px, 72vw); padding: calc(8px + env(safe-area-inset-top, 0px)) 0 calc(8px + env(safe-area-inset-bottom, 0px)); --kc-acc-c: rgba(118, 118, 128, .14);
-    background: color-mix(in srgb, var(--kc-panel) 76%, transparent); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .08), var(--kc-shadow); border: 0; animation: kc-side .22s cubic-bezier(.32, .72, 0, 1); }
-  [data-theme="dark"] .kc-watch.on { background: color-mix(in srgb, var(--kc-panel) 76%, transparent); --kc-acc-c: rgba(118, 118, 128, .28); }
+    background: color-mix(in srgb, var(--kc-panel) 74%, transparent); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .08), var(--kc-shadow); border: 0; animation: kc-side .22s cubic-bezier(.32, .72, 0, 1); }
+  [data-theme="dark"] .kc-watch.on { background: color-mix(in srgb, var(--kc-panel) 74%, transparent); --kc-acc-c: rgba(118, 118, 128, .28); }
   .kc-wveil.on { display: block; position: fixed; inset: 0; z-index: 45; background: rgba(242, 242, 247, .28); -webkit-backdrop-filter: blur(24px) saturate(1.5); backdrop-filter: blur(24px) saturate(1.5); animation: kc-fade .2s ease-out; }
   [data-theme="dark"] .kc-wveil.on { background: rgba(0, 0, 0, .32); }
   @keyframes kc-side { from { transform: translateX(100%); } }
@@ -380,7 +380,7 @@ html.kc-open { overflow: hidden; }
   /* סרגל עריכת שרטוט (28/10, בקשת המשתמש): גלולת זכוכית ממורכזת מתחת לכותרת, לפי ת־עיצוב — כפתורים שווים, בלי מסגרת וצבע מבטא;
      עובי = טקסט שקט, צבע = עיגול עם טבעת, קו מפריד לפני הסגירה */
   .kc-selbar { top: calc(var(--kc-toph, 56px) + 1px); gap: 2px; padding: 2px 4px; border: 0; border-radius: var(--pill);
-    background: color-mix(in srgb, var(--kc-bg) 76%, transparent); -webkit-backdrop-filter: saturate(180%) blur(28px); backdrop-filter: saturate(180%) blur(20px);
+    background: color-mix(in srgb, var(--kc-bg) 74%, transparent); -webkit-backdrop-filter: saturate(180%) blur(28px); backdrop-filter: saturate(180%) blur(20px);
     box-shadow: 0 0 0 .5px rgba(0, 0, 0, .1), 0 6px 20px rgba(0, 0, 0, .12); animation: kc-fade .16s ease-out; }
   [data-theme="dark"] .kc-selbar { box-shadow: 0 0 0 .5px rgba(255, 255, 255, .14), 0 6px 20px rgba(0, 0, 0, .45); }
   .kc-selbar .kc-ib.sm { width: 38px; height: 38px; border-radius: var(--pill); color: var(--kc-ink); }
