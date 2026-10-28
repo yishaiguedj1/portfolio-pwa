@@ -825,9 +825,9 @@ html.drag-active .tabpage { transform: none !important; }   /* v324: בלי anim
 /* v236: כרטיס מניה פתוח קומפקטי — נכנס במסך אחד בלי גלילה (בקשת המשתמש): אותו מבנה ועיצוב, פחות רווחים,
    גרף 170 במקום 210, טווחים ושורת התשואה קטנים יותר. כפתור "מדידה", ההסבר וה־legend הוסרו (app.js) */
 .stock.open .stock-head { padding: 12px 16px 10px; gap: 6px 10px; }
-.stock-body-in { padding: 8px 16px 12px; }
+.stock-body-in { padding: 4px 16px 8px; }   /* 28/10/2026: הגרף גבוה יותר — פחות ריווח סביב הנתונים */
 .stock-body .kv-grid { margin: 0 0 6px; }
-.stock-body .kv { padding: 5px 4px 6px; gap: 1px; }
+.stock-body .kv { padding: 3px 4px 4px; gap: 1px; }
 .stock-body .chart-wrap canvas { height: 170px; }
 .stock-body .chip-row.stock-chips { margin-top: 6px; padding-bottom: 0; }
 .stock-chips .range-btn { padding-block: 6px; font-size: 13px; }
@@ -838,7 +838,7 @@ html.drag-active .tabpage { transform: none !important; }   /* v324: בלי anim
 .pf-range-summary .rs-sym .dot { width: 12px; height: 12px; border-radius: var(--pill); flex: none; align-self: center; }
 .stock-body .chart-hint { margin-top: 4px; font-size: 12.5px; }
 /* v237: שורה תחתונה — תשואה (מתכווצת ונשברת לשורה שנייה אם צריך) + "ערוך" צמוד לקצה השמאלי, בלי חפיפה */
-.stock-foot { display: flex; align-items: center; gap: 6px; margin: 2px 0 8px; min-height: 38px; } /* v275: גובה שמור — במניית IBKR (בלי "ערוך") שורת התשואה מופיעה רק אחרי הציור, והכרטיס קפץ בסוף הפתיחה */
+.stock-foot { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; min-height: 32px; } /* v275: גובה שמור — במניית IBKR (בלי "ערוך") שורת התשואה מופיעה רק אחרי הציור, והכרטיס קפץ בסוף הפתיחה */
 .stock-foot .pf-range-summary { flex: 1 1 auto; min-width: 0; margin: 0; flex-wrap: nowrap; align-items: center; gap: 6px; white-space: nowrap; }
 .stock-foot .pf-range-summary > span { flex: none; }
 /* רק התווית "תשואת המניה" מתקצרת כשאין מקום — הסמן, האחוז והטווח תמיד שלמים */
@@ -856,10 +856,14 @@ html.drag-active .tabpage { transform: none !important; }   /* v324: בלי anim
 .stock-foot .stock-edit .chip-btn { padding: 5px 12px; font-size: 13px; gap: 5px; }
 .stock-foot .stock-edit { display: flex; gap: 5px; }
 .stock-foot .stock-edit .chip-btn:not(.danger) { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 38%, var(--card-border)); }   /* 28/10/2026: כל הכפתורים בירוק המערכת */
-.stock-foot .stock-ico-btn { inline-size: 38px; block-size: 38px; padding: 0; justify-content: center; flex: none; }   /* סמל בלבד — יעד לחיצה נוח */
+.stock-foot .stock-edit .chip-btn:not(.danger) { block-size: 32px; padding-block: 0; font-weight: 700; border-width: 1.5px; background: color-mix(in srgb, var(--primary) 10%, transparent); position: relative; }
+.stock-foot .stock-edit .chip-btn:not(.danger)::after { content: ''; position: absolute; inset: -5px -2px; }   /* יעד לחיצה גדול מהמראה */
+.stock-foot .stock-edit .stock-ico-btn:not(.danger) { display: flex; inline-size: 34px; padding: 0; gap: 0; justify-content: center; align-items: center; flex: none; }   /* סמל בלבד, קטן ומודגש, ממורכז */
+.stock-foot .stock-ico-btn svg { display: block; margin: 0; }
+.stock-foot .stock-edit .chip-btn svg * { stroke-width: 2.4; }
 html[dir="ltr"] .stock-foot .kc-open-btn { order: -1; }   /* באנגלית (כיוון הפוך) — עדיין בקצה השמאלי */
-.stock-foot .stock-ico-btn svg, .stock-foot .an-open-btn svg { width: 18px; height: 18px; flex: none; }
-.stock-foot .an-open-btn { block-size: 38px; padding: 0 10px; gap: 5px; flex: none; white-space: nowrap; font-size: 13.5px; }   /* סמל + מילה, באותו גובה כמו כפתורי הסמל */
+.stock-foot .stock-ico-btn svg, .stock-foot .an-open-btn svg { width: 16px; height: 16px; flex: none; }
+.stock-foot .an-open-btn { padding: 0 11px; gap: 5px; flex: none; white-space: nowrap; font-size: 13px; }   /* סמל + מילה, באותו גובה כמו כפתורי הסמל */
 /* תשואה ענקית (מעל 10,000%) מוצגת מקוצרת (‎fmtPct‎ — 12.3K%) — הכפתורים נשארים בגודל נוח ולא נדרסים */
 /* 28/10/2026: התראות המחיר של המניה בכרטיס — רשימה מקובצת בסגנון iOS (כותרת קטנה, שורות עם קו מפריד, חץ) */
 .st-al { margin: 4px 14px 12px; }
@@ -1477,17 +1481,16 @@ html[data-app="academy"] .login-overlay { background: linear-gradient(160deg, #1
 /* ---- v244: כמה רשימות מעקב ----
    כותרת = שם הרשימה + ▾ (תפריט כמו ב־Stocks של Apple); מתחת — צ'יפים גלולים לגלילה (Material filter chips):
    הפעיל מלא בירוק, "＋ חדשה" במתאר מקווקו. מעבר רשימה = כניסה מהצד (ציר משותף). */
-.wl-head { margin-bottom: 6px; }
 .wl-menu { position: relative; }
-.wl-h2 { margin: 0; }
+/* 28/10/2026 (בקשת המשתמש): בלי כותרת הרשימה — רק סמל התפריט בשורת החיפוש, מימין הסינון ברשימות האחרות */
+.search-row > .wl-menu { margin-inline-start: 8px; flex: none; }
+.search-row > .wl-menu .wl-title-btn { inline-size: 40px; block-size: 40px; padding: 0; display: grid; place-items: center; border: 1px solid var(--card-border); border-radius: var(--pill); background: var(--surface-2); color: var(--primary); cursor: pointer; }
+.search-row > .wl-menu .wl-title-btn svg { inline-size: 20px; block-size: 20px; }
 .wl-title-btn {
   display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
   border: 0; background: none; padding: 2px 0; cursor: pointer;
   font: inherit; font-size: inherit; font-weight: inherit; color: inherit; letter-spacing: inherit;
 }
-.wl-title-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wl-title-caret { font-size: .6em; color: var(--primary); transition: transform .25s cubic-bezier(.2, .9, .25, 1); }
-.wl-menu.open .wl-title-caret { transform: rotate(180deg); }
 .wl-menu .wl-pop { inset-inline-end: auto; inset-inline-start: 0; max-height: 70vh; overflow-y: auto; }
 .wl-opt-count { margin-inline-start: auto; font-size: 13px; font-weight: 600; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
 .wl-opt-count + .src-opt-check { margin-inline-start: 6px; }
@@ -1526,7 +1529,7 @@ html[data-app="academy"] .login-overlay { background: linear-gradient(160deg, #1
 }
 .wl-sheet input[type="text"]:focus { box-shadow: 0 0 0 2px var(--primary); }
 .wl-sheet .sheet-row .chip-btn { flex: 1; justify-content: center; }
-@media (prefers-reduced-motion: reduce) { #wishlistList.wl-slide { animation: none; } .wl-title-caret, .wl-tab { transition: none; } }
+@media (prefers-reduced-motion: reduce) { #wishlistList.wl-slide { animation: none; } .wl-tab { transition: none; } }
 
 /* ---- v88/v93: לוגו חברה בכרטיס מניה ---- */
 /* v88/v97: אריח לוגו לבן תמיד — גם בערכת נושא כהה */
@@ -1572,6 +1575,9 @@ html[data-app="academy"] .login-overlay { background: linear-gradient(160deg, #1
 .section-head:has(.head-actions) { flex-wrap: wrap; row-gap: 10px; }
 .section-head:has(.head-actions) h2 { white-space: nowrap; }
 .head-actions { display: flex; align-items: center; gap: 8px; flex: none; margin-inline-start: auto; }
+/* 28/10/2026 (בקשת המשתמש): בלי הכותרת "המניות שלי" — הסינון (והעריכה) משמאל לשורת החיפוש, שהתקצרה בהתאם */
+.search-row > .head-actions { margin-inline-start: 8px; }
+.search-row > .head-actions .chip-btn { height: 40px; padding-block: 0; }
 .src-filter { position: relative; }
 .src-btn { display: inline-flex; align-items: center; }
 .chip-btn.on .ic { stroke: currentColor; }

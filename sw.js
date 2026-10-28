@@ -6,10 +6,10 @@
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
 const CACHE_NAME = 'portfolio-pwa-v599';
 const HASHES = {
-  "./": "6e5db34054a027be5655aab614b1278b",
-  "./index.html": "6e5db34054a027be5655aab614b1278b",
-  "./styles.css": "0e1d094781862ec44446b97f254045e2",
-  "./app.js": "19bcc7c02f430e6611b104533741613b",
+  "./": "a36b1fe1498e2c6b4bda2acb1f04bc54",
+  "./index.html": "a36b1fe1498e2c6b4bda2acb1f04bc54",
+  "./styles.css": "f4454971d3fb1db21d41d0e513aa1ed6",
+  "./app.js": "22cedd24220c6cf202a548186158e740",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "9af566803f9e67e734390306b1e38db2",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",

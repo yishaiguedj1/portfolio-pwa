@@ -9191,7 +9191,7 @@ function editAllowed(key) {
 /* נעילת ממשק במצב IBKR: מסתיר כפתורי עריכה ומכבה מצב עריכה פעיל */
 function renderIbkrLocks() {
   const ibkr = isIbkrMode();
-  for (const id of ['editStocksBtn', 'editDepositsBtn']) {
+  for (const id of ['editDepositsBtn']) {
     const b = document.getElementById(id);
     if (b) b.classList.toggle('hidden', ibkr);
   }
@@ -13345,8 +13345,7 @@ function renderWatchHead() {
   if (!wrap || !tabs) return;
   const ls = wlLists(), cur = wlActive();
   wrap.classList.remove('open');
-  wrap.innerHTML = '<h2 class="wl-h2"><button class="wl-title-btn" type="button" aria-haspopup="true" aria-expanded="false">' +
-    '<span class="wl-title-txt">' + esc(cur.name) + '</span><span class="wl-title-caret" aria-hidden="true">▾</span></button></h2>' +
+  wrap.innerHTML = '<button class="wl-title-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="' + esc(t('wlListsTitle')) + '" title="' + esc(t('wlListsTitle')) + '">' + ICON_LIST + '</button>' +
     '<div class="src-pop menu-drop wl-pop hidden" role="menu">' +
       '<div class="src-pop-title">' + esc(t('wlListsTitle')) + '</div>' +
       ls.map((l) => '<button class="src-opt' + (l.id === cur.id ? ' on' : '') + '" type="button" role="menuitemradio" aria-checked="' + (l.id === cur.id) + '" data-wl="' + esc(l.id) + '">' +
@@ -15245,7 +15244,7 @@ function fitCardToScreen(sym, card, smooth) {
     const head = card.querySelector('.stock-head');
     if (head) card._fitRO.observe(head);
   }
-  const avail = viewH() - topCover() - 20;
+  const avail = viewH() - topCover() - 16;
   const cardH = card.getBoundingClientRect().height - body.getBoundingClientRect().height + Math.max(inner.offsetHeight, inner.scrollHeight);
   const h = Math.round(Math.max(140, Math.min(560, cv.clientHeight + avail - cardH)));
   if (Math.abs(h - cv.clientHeight) < 2) return false;
@@ -16822,7 +16821,6 @@ function init() {
   if (ibkrSi) ibkrSi.addEventListener('click', ibkrSyncImport);
 
   // מצבי עריכה — כבויים כברירת מחדל כדי למנוע טעויות בלחיצות אקראיות
-  wireEditToggle('editStocksBtn', 'editStocksHint', 'stocks', renderStocks);
   wireEditToggle('editDepositsBtn', 'editDepositsHint', 'deposits', renderDeposits);
   wireEditToggle('editPensionBtn', 'editPensionHint', 'pension', renderPension);
   // v87: חיפוש מניות להוספה — זמין בשני המצבים
