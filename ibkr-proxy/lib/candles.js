@@ -71,6 +71,10 @@ function parse(j, iv) {
     out.h[n - 2] = Math.max(out.h[n - 2], out.h[n - 1]); out.l[n - 2] = Math.min(out.l[n - 2], out.l[n - 1]);
     out.c[n - 2] = out.c[n - 1]; out.v[n - 2] += out.v[n - 1];
     for (const k of ['t', 'o', 'h', 'l', 'c', 'v']) out[k].pop();
+  } else if (sec && n > 1 && (out.t[n - 1] - out.t[n - 2]) % sec) {
+    /* 28/10/2026 (מול TradingView): בדקות הראשונות של נר חדש Yahoo עוד לא מחזיר אותו — רק את הנקודה החיה (10:15:37).
+       היא הפכה לנר בזמן לא מיושר, ובטלפון נוצרו כמה נרונים כאלה שהקפיאו את הנר האחרון. מיישרים לתחילת הנר (מעוגן לנר הקודם) */
+    out.t[n - 1] = out.t[n - 2] + Math.floor((out.t[n - 1] - out.t[n - 2]) / sec) * sec;
   }
   out.tz = String(meta.exchangeTimezoneName || 'America/New_York');
   out.cur = String(meta.currency || '').toUpperCase() === 'ILA' ? 'ILS' : String(meta.currency || '');

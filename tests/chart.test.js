@@ -167,6 +167,11 @@ ok(Object.keys(L.IND).length >= 40, 'לפחות 40 אינדיקטורים נוס
   const lv = C._parse({ chart: { result: [{ meta: { currency: 'USD' }, timestamp: [900, 1800, 2400],
     indicators: { quote: [{ open: [10, 11, 12], high: [11, 12, 12], low: [9, 10, 12], close: [11, 11.5, 12], volume: [1, 2, 0] }] } }] } }, '15m');
   ok(lv.t.length === 2 && lv.c[1] === 12 && lv.h[1] === 12 && lv.o[1] === 11 && lv.v[1] === 2, 'נקודה חיה לא מיושרת מתמזגת לנר הקודם');
+  // 28/10 (מול TradingView): נר חדש שעוד לא הגיע מ־Yahoo — הנקודה החיה (10:15:37) מיושרת לתחילת הנר, לא נר בזמן מוזר
+  const al = C._parse({ chart: { result: [{ meta: { currency: 'USD' }, timestamp: [900, 1800, 2737],
+    indicators: { quote: [{ open: [10, 11, 12], high: [11, 12, 12], low: [9, 10, 12], close: [11, 11.5, 12], volume: [1, 2, 0] }] } }] } }, '15m');
+  ok(al.t.length === 3 && al.t[2] === 2700 && al.c[2] === 12, 'נקודה חיה אחרי סוף הנר — נר חדש מיושר');
+  ok(/if \(nd\[j\]\.timestamp !== lastTs && lastTs > nd\[0\]\.timestamp\) \{ c\.chart\.resetData\(\); return; \}/.test(fs.readFileSync(path.join(root, 'chart.js'), 'utf8')), 'נר בגרף שלא קיים בנתונים — טעינה מחדש (לא קפיאה)');
   const kl = fs.readFileSync(path.join(root, 'vendor/klinecharts/klinecharts.min.js'), 'utf8');
   ok(kl.includes('(this._touchCoordinate=null,l.setCrosshair(void 0,{notInvalidate:!0}),n=!0,this._touchCancelCrosshair=!1)') && kl.includes('a=10*(e/this._pinchScale-1)') && /Modified by THE SNOWBALL/.test(kl),
     'KLineChart: הקשה לא פותחת צלב (רק לחיצה ארוכה) וצביטה 1:1 — מסומן בראש הקובץ (Apache-2.0)');
