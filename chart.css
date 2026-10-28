@@ -170,6 +170,9 @@ html.kc-open { overflow: hidden; }
 .kc-sh-back { background: rgba(242, 242, 247, .28); -webkit-backdrop-filter: blur(24px) saturate(1.5); backdrop-filter: blur(24px) saturate(1.5); }
 .kc-sheet { --kc-fill: rgba(118, 118, 128, .12); background: color-mix(in srgb, var(--kc-panel) 74%, transparent); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .08), var(--kc-shadow); }
 [data-theme="dark"] .kc-sh-back { background: rgba(0, 0, 0, .32); }
+/* תפריט אובייקט (התראה/שרטוט) — הגרף נשאר גלוי ובלי טשטוש, כדי לראות לאן הזזתי; הגיליון עצמו מטושטש מתחתיו בלבד */
+.kc-sh-back.clear, [data-theme="dark"] .kc-sh-back.clear { background: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.kc-sh-back.clear .kc-sheet { background: color-mix(in srgb, var(--kc-panel) 88%, transparent); -webkit-backdrop-filter: blur(20px) saturate(1.5); backdrop-filter: blur(20px) saturate(1.5); }
 [data-theme="dark"] .kc-sheet { --kc-fill: rgba(118, 118, 128, .24); background: color-mix(in srgb, var(--kc-panel) 74%, transparent); box-shadow: 0 0 0 .5px rgba(255, 255, 255, .1), var(--kc-shadow); }
 .kc-wveil { display: none; }
 .kc-sheet.wide { width: min(680px, calc(100% - 24px)); }

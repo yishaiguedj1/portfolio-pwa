@@ -192,6 +192,13 @@ ok(Object.keys(L.IND).length >= 40, 'לפחות 40 אינדיקטורים נוס
     && /E\.closedEl\(/.test(cj) && /closedEl: \(q\) =>/.test(fs.readFileSync(path.join(root, 'app.js'), 'utf8')) && /\.kc-qm[^{]*\{[^}]*\+ 44px\)/.test(cc), 'בטלפון: נפח בתוך הגרף, שיא בלי דריסה, בועת שוק סגור');
   // 28/10 (בקשת המשתמש): עריכת מדידה אחרי שנוצרה — גרירת ידית משנה את הנקודה שלה, עם היסט האצבע
   ok(/const edGet = \(\) =>[^\n]*CUR_TOOLS\.has\(o\.name\) && !o\.lock/.test(cj) && /pts\[ed\.i\] = sn\.pt;/.test(cj) && /if \(d\.moved\) changed\(c\);/.test(cj), 'מדידה שנבחרה: גרירת הידיות עורכת אותה');
+  // 28/10 (בקשת המשתמש): גרירת אובייקט בנגיעה ראשונה לפי ת־גרף (בלי "הקשה ואז גרירה"); תפריט אובייקט בלי טשטוש הגרף
+  ok(/let od = null;/.test(cj) && /const hit = hitAt\(c, x, y, 20\);/.test(cj) && /selectHit\(c, hit\);\n    const o = hit\.o;/.test(cj) && /c\.chart\.overrideOverlay\(\{ id: od\.o\.id, points: next \}\)/.test(cj) && /ed \|\| od \|\| ct/.test(cj)
+    && /a\.p = d\.next\[0\]\.value; rearm\(c\.sym, a\)/.test(cj) && /\}, \{ clear: true \}\);/.test(cj) && /\.kc-sh-back\.clear[^{]*\{ background: none; -webkit-backdrop-filter: none/.test(cc), 'גרירת אובייקט מיידית; תפריט אובייקט בלי טשטוש');
+  // 28/10: כל הכלים נתפסים בנגיעה — קו ישר/קרן מעבר לנקודות, כל צורה שאינה קו פשוט בתוך המסגרת, טקסט/תגית עם גוף סביב הנקודה
+  ok(/if \(\/\^\(straightLine\|rayLine\)\$\/\.test\(n\)\)/.test(cj) && /if \(!\/\^\(segment\|rayLine\|straightLine\|kcInfoLine\|kcArrow\|brush\)\$\/\.test\(n\)\)/.test(cj) && /Math\.hypot\(pts\[0\]\.x - x, pts\[0\]\.y - y\) - 14\)/.test(cj), 'hitAt: כיסוי כל כלי השרטוט');
+  // 28/10 (בקשת המשתמש): טרום/אחרי מסחר דלוקים כברירת מחדל, גם למי ששמר כבוי
+  ok(/ext: g\.extV === 2 \? !!g\.ext : true, extV: 2,/.test(cj), 'טרום/אחרי מסחר — ברירת מחדל דלוקה');
   // 28/10 (בקשת המשתמש): גיליונות ורשימת המעקב מזכוכית עם טשטוש מאחור; המגירה נסגרת בנגיעה בחוץ, ב"חזור" ובפתיחת תפריט אחר; תוכן ארוך לא מכווץ בוררים; סרגל עריכה = גלולת זכוכית
   ok(/\.kc-sh-back \{ background: rgba\(242, 242, 247, \.28\); -webkit-backdrop-filter: blur\(24px\)/.test(cc) && /\.kc-sh-body > \* \{ flex-shrink: 0; \}/.test(cc) && /\.kc-wveil\.on \{ display: block; position: fixed;/.test(cc)
     && /UI\.wveil = h\('div', \{ class: 'kc-wveil', onclick: \(\) => closeWatch\(\) \}\)/.test(cj) && /S\.wModal = E\.modalPush\(\(\) => closeWatch\(true\)\)/.test(cj) && /if \(S\.watch && narrow\(\)\) closeWatch\(\);/.test(cj)
