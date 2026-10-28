@@ -146,6 +146,36 @@
 
 ---
 
+## 5. בדיקה חוזרת (28/10/2026, בקשת המשתמש): חיבור חינמי לכל המשתמשים, כמו ב־TradingView?
+**איך TradingView עושה את זה:** ספק צד שלישי מאושר של IBKR ‏(OAuth 1.0a). המשתמש מתחבר בחלון של IBKR, ו־TradingView לא רואה את הסיסמה.
+- **מה זה דורש:** טופס הצטרפות, סינון (2–3 שבועות), בדיקת ציות (3–6 שבועות) והסכם (3–5 שבועות) — כ־8–14 שבועות בסך הכל.
+- רישום אצל רשות פיננסית בכל מדינה שמשרתים (או חוות דעת משפטית) למסחר אוטומטי, מוצר שכבר בשוק ואתר.
+- לפי מקור משני (לא מאומת): חברה רשומה, כ־250 משתמשים פעילים ודמי אינטגרציה. **לא מעשי לנו כרגע.**
+
+**הדרך שלא נבדקה מספיק בסעיף 1 — OAuth 1.0a "עצמי" (Self-Service Portal):** כל בעל חשבון Pro מייצר בעצמו מפתח צרכן, מפתחות RSA ו־DH, ומקבל Access Token + Secret. ‏$0, בלי סיסמה בשרת, בלי Gateway לכל משתמש ובלי 2FA שבועי.
+- **רשמית:** האתר של IBKR מונה רק חשבונות מוסדיים ומפתחי צד שלישי. בפועל, לפי ibind, משתמשים רבים עם חשבון פרטי (חי ו־Paper) הצליחו, ונציג API של IBKR כתב: "I'm not aware of any technical limitations which would prevent an individual accountholder from accessing the OAuth 1.0a self-service portal (in either paper/live mode)".
+- **הפעלה:** המפתח מופעל רק אחרי ההפעלה מחדש של סוף השבוע — עד שבוע, ולפי דיווחים עד שבועיים.
+- **סיכונים:**
+  - לא נתמך רשמית לחשבון פרטי.
+  - שירות שמחזיק את הטוקנים של משתמשים אחרים קרוב להגדרה של "ספק צד שלישי" בלי אישור. IBKR יכולה לחסום.
+- **התנגשות סשנים:** `ssodh/init` עם `compete=true` מנתק את האפליקציה של IBKR בטלפון. לקריאה בלבד (אחזקות ויתרות דרך `/portfolio`) לא צריך סשן מסחר.
+- **מה זה אומר לשלב 1:** קריאה חיה לכל משתמש, ואפילו לבעלים בלי קונטיינר. כדאי לנסות קודם על ה־Paper של הבעלים ($0) לפני שמתקינים את ה־Gateway.
+
+**עוד אפשרויות:**
+- **SnapTrade:** חינם רק לפיתוח (עד 5 חיבורים). בייצור $100 לחודש + $1–2 למשתמש, ול־IBKR רק קריאה. לא חינם.
+- **Gateway לכל משתמש:** בלי דמי רישוי, אבל כ־1.3GB זיכרון למשתמש, סיסמאות של אחרים בשרת ו־2FA שבועי לכל אחד.
+- **Flex** (קיים היום): חינם לכל המשתמשים, פעם ביום.
+
+**מקורות:**
+- [IBKR — Trading Access for Third Parties](https://www.interactivebrokers.com/docs/web-api/trading/getting-started/trading-access-for-third-parties)
+- [IBKR — Web API Authentication](https://www.interactivebrokers.com/docs/web-api/authentication/introduction.md)
+- [IBKR — TradingView דרך Introducing Brokers](https://www.interactivebrokers.com/docs/third-party-integrations/trading-view/introducing-brokers)
+- [ibind — OAuth 1.0a](https://github.com/Voyz/ibind/wiki/OAuth-1.0a)
+- [lantern-os #3529](https://github.com/alex-place/lantern-os/issues/3529)
+- [IBKR — Trading Sessions](https://www.interactivebrokers.com/docs/web-api/authentication/trading)
+- [SnapTrade — Pricing](https://snaptrade.com/pricing)
+- [mylinedchart (משני)](https://mylinedchart.com/resources/articles/broker-api-commercial-access-what-it-takes-to-ship-an-app)
+
 ## מקורות
 - [IBKR — Trading Web API (גישת ריטייל דרך Client Portal Gateway, OAuth לארגונים)](https://www.interactivebrokers.com/campus/ibkr-api-page/web-api-trading/)
 - [IBKR — OAuth 1.0A Extended](https://www.interactivebrokers.com/campus/ibkr-api-page/oauth-1-0a-extended/)
