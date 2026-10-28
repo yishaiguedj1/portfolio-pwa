@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v616';
+const CACHE_NAME = 'portfolio-pwa-v617';
 const HASHES = {
   "./": "16b507afdf51b3641466129e571503e2",
   "./index.html": "16b507afdf51b3641466129e571503e2",
   "./styles.css": "ae83b5a67d8c6547f815332fd36c3f51",
-  "./app.js": "97742d80905fdfcbb4a39f2ed23b9361",
+  "./app.js": "5d5a970b38597a3ba9d3b542f2740e06",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "e50501f26e70aad478a5d8d489754d97",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -31,9 +31,9 @@ const HASHES = {
   "./favicon-48.png": "b06144704421831d745fd553558517a7",
   "./ibkr-logo.png": "3c73fe172d48b3f58f11bcc146dd1987",
   "./acclink.js": "419b035815109478a1f8f9780720af33",
-  "./analysis.js": "5ee4707c43b410ce54e807a542585ba7",
-  "./analysis.css": "46519805fa59daada619f9541cacf9c0",
-  "./chart.js": "f93055b93964125e7624a10968c9aca3",
+  "./analysis.js": "6153c46da03ecf9129d655ed4cc3a3ff",
+  "./analysis.css": "4c957472dbc740b4694df29ccaeed328",
+  "./chart.js": "525fcd9f328059626b76a8d2aad5d51d",
   "./chartlib.js": "5c00c490dac1b09329fa1ce657350a9b",
   "./chart.css": "0e4e6260108563c3f329d204c1398a10",
   "./vendor/klinecharts/klinecharts.min.js": "4202d8661b8302175751d8d072bf6d2f",
@@ -64,8 +64,8 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "d58a511fc759a629121b82ab47fe9a69",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
-  "./strings-academy.js": "298256871d3f43a944f01db5f1fd45c3",
-  "./core.js": "6223cde110d7f05ad589fc7b923c42cf",
+  "./strings-academy.js": "4a5796d4b6366ab4a7d4173f729987e0",
+  "./core.js": "97603374f34840fc89cd5377b3ba9cf9",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "d6703c288cfb84be0bc06cbc61912c68",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -86,7 +86,7 @@ const HASHES = {
   "./studiobg.js": "9abfb368bbd147c5eecfc5c778441213",
   "./studio.html": "e1a77d2576406429bad01f26fccf5d77",
   "./studio-app.js": "29aafde3d0cb75d4d8210d2b2287409d",
-  "./strings-studio.js": "c0d778d9faaca40038525c1462b6b336",
+  "./strings-studio.js": "966094e78c1e3b1be12512b6cbb996bf",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",

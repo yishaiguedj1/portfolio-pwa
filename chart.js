@@ -1546,7 +1546,7 @@ function drawAlerts(c) {
 const EXTC = { pre: '#FF9F0A', post: '#0A84FF', night: '#BF5AF2' };   // צבעי המערכת: כתום טרום, כחול אחרי, סגול לילי
 function drawExt(c) {
   if (!c.chart) return;
-  const q = c.q, st = q && q.st, show = !!(q && q.ext && q.ext.p > 0 && st !== 'REGULAR' && !c.replay && !(L.isIntraday(c.tf) && S.store.g.ext && q.extK !== 'night'));
+  const q = c.q, st = q && q.st, show = !!(q && q.ext && q.ext.p > 0 && st !== 'REGULAR' && !c.replay);   // גם באינטרוולים תוך־יומיים (28/10: הגלולה נעלמה כשהמסחר המורחב מוצג בנרות)
   const k = q && q.extK || (/PRE/.test(st) ? 'pre' : 'post'), t = show ? T({ pre: 'kcPre', post: 'kcPost', night: 'kcNight' }[k]) : '', key = show ? q.ext.p + '|' + t + '|' + c.raw.length : '';
   if (c.extKey === key) return;
   c.extKey = key;
