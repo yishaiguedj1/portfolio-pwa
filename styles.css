@@ -865,7 +865,7 @@ html.drag-active .tabpage { transform: none !important; }   /* v324: בלי anim
 .stock-foot .stock-edit .chip-btn svg * { stroke-width: 2.4; }
 html[dir="ltr"] .stock-foot .kc-open-btn { order: -1; }   /* באנגלית (כיוון הפוך) — עדיין בקצה השמאלי */
 .stock-foot .stock-ico-btn svg, .stock-foot .an-open-btn svg { width: 16px; height: 16px; flex: none; }
-.stock-foot .an-open-btn { padding: 0 11px; gap: 5px; flex: none; white-space: nowrap; font-size: 13px; }   /* סמל + מילה, באותו גובה כמו כפתורי הסמל */
+.stock-foot .an-open-btn { display: inline-flex; align-items: center; justify-content: center; padding: 0 11px; gap: 5px; flex: none; white-space: nowrap; font-size: 13px; line-height: 1; }   /* סמל + מילה, באותו גובה כמו כפתורי הסמל; מרכוז אנכי מפורש */
 /* תשואה ענקית (מעל 10,000%) מוצגת מקוצרת (‎fmtPct‎ — 12.3K%) — הכפתורים נשארים בגודל נוח ולא נדרסים */
 /* 28/10/2026: התראות המחיר של המניה בכרטיס — רשימה מקובצת בסגנון iOS (כותרת קטנה, שורות עם קו מפריד, חץ) */
 .st-al { margin: 4px 14px 12px; }
