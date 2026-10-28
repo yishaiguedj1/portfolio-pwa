@@ -146,6 +146,11 @@ he: {
   kcMore: 'עוד',
   kcColor: 'צבע',
   kcRangesT: 'טווח תצוגה',
+  kcPickTf: 'אינטרוול',
+  kcPickTfA: 'אינטרוול — כמה זמן כל נר',
+  kcPickRg: 'טווח תאריכים',
+  kcPickRgA: 'טווח תאריכים — כמה זמן מוצג בגרף',
+  kcPickRgNote: 'בחירה כאן מתאימה גם את גודל הנר (למשל 5Y = נר שבועי). את גודל הנר אפשר לשנות בנפרד ב"אינטרוול".',
   kcScaleN: 'רגיל',
   kcPlusAt: 'פעולות במחיר הזה',
   kcAlertAt: 'התראה ב־{p}',
@@ -1673,6 +1678,11 @@ en: {
   kcMore: 'More',
   kcColor: 'Color',
   kcRangesT: 'Range',
+  kcPickTf: 'Interval',
+  kcPickTfA: 'Interval — time per candle',
+  kcPickRg: 'Date range',
+  kcPickRgA: 'Date range — time shown on the chart',
+  kcPickRgNote: 'Picking a range also sets a matching candle size (e.g. 5Y = weekly candles). You can still change the candle size with "Interval".',
   kcScaleN: 'Regular',
   kcPlusAt: 'Actions at this price',
   kcAlertAt: 'Add alert at {p}',
@@ -6876,8 +6886,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.76.2';
-const APP_VERSION = 'v600';
+const APP_RELEASE = '2.77.1';
+const APP_VERSION = 'v602';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');

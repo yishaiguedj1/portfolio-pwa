@@ -256,6 +256,19 @@ html.kc-open { overflow: hidden; }
 .kc-qm { position: absolute; z-index: 5; top: 46px; right: 64px; display: none; gap: 0; padding: 2px; border-radius: var(--pill); background: var(--kc-glass); -webkit-backdrop-filter: saturate(180%) blur(14px); backdrop-filter: saturate(180%) blur(14px); box-shadow: 0 0 0 .5px rgba(0,0,0,.12); }
 .kc-qm .kc-ib { width: 32px; height: 30px; }
 .kc-ranges.wrap { flex-wrap: wrap; gap: 4px; direction: ltr; }
+/* "אינטרוול" ו"טווח תאריכים" בפינה העליונה של הגרף (בטלפון): אותו כפתור טקסט מודגש שהיה בסרגל התחתון,
+   עם כותרת קטנה מעליו (כמו TradingView) ורקע זכוכית עדין כדי שיקרא מעל הנרות.
+   הקנבס LTR וציר המחיר מימין, לכן left פיזי (כמו .kc-qm) */
+.kc-pick { position: absolute; z-index: 5; top: 46px; left: 8px; display: none; gap: 4px; }
+.kc-pk { display: inline-flex; flex-direction: column; align-items: flex-start; min-width: 52px; padding: 4px 10px; border-radius: var(--radius-sm); color: var(--kc-ink); background: var(--kc-glass); -webkit-backdrop-filter: saturate(180%) blur(14px); backdrop-filter: saturate(180%) blur(14px); text-align: start; }
+.kc-pk:active { background: var(--kc-hov); }
+.kc-pk-c { font-size: 11px; font-weight: 600; line-height: 14px; color: var(--kc-ink2); white-space: nowrap; }
+.kc-pk-r { display: inline-flex; align-items: center; gap: 3px; }
+.kc-pk-ud { display: inline-flex; color: var(--kc-ink2); }
+.kc-pk-ud svg { width: 13px; height: 13px; stroke-width: 2.2; }
+.kc-pk-v { font-size: 15px; font-weight: 700; line-height: 20px; font-variant-numeric: tabular-nums; direction: ltr; }
+.kc-pk-v .kc-roll { display: inline-block; width: 3em; height: 20px; vertical-align: top; }
+.kc-pk-v .kc-roll-i { top: 0; text-align: start; }
 .kc-swatch, .kc-wcyc { display: none; }
 .kc-swatch { width: 22px !important; height: 22px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .15); margin: 0 4px; }
 
@@ -268,6 +281,8 @@ html.kc-open { overflow: hidden; }
   .kc-mbar { display: flex; }
   .kc-qm { display: flex; }
   .kc-drawing .kc-qm { display: none; }
+  .kc-pick { display: flex; }
+  .kc-drawing .kc-pick { display: none; }
   .kc-cols, .kc-wids, .kc-sel-n { display: none; }
   .kc-selbar.pal .kc-cols { display: flex; }
   .kc-swatch, .kc-wcyc { display: inline-flex; }
