@@ -123,6 +123,7 @@ const ICON = {
   ruler: sv('M3 17L17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2'),
   prange: sv('M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4'),
   drange: sv('M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4'),
+  updown: sv('M8 9l4-4 4 4M8 15l4 4 4-4'),
   avwap: sv('M4 20c4-1 6-7 9-9s5-2 7-6M4 20v-3'),
   vprofile: sv('M4 4v16M4 6h9M4 9h13M4 12h16M4 15h10M4 18h6'),
   rect: sv('M4 6h16v12H4z'),
@@ -988,7 +989,9 @@ function mountCell(c) {
   chart.subscribeAction('onCrosshairChange', (x) => onCross(c, x));
   chart.subscribeAction('onVisibleRangeChange', (r) => { const n = chart.getDataList().length; const back = !!(r && n > 0 && r.to < n - 1); if (c.nowB) c.nowB.classList.toggle('on', back);
     // זום כמו TradingView: כשרואים את הנר האחרון — הוא נשאר צמוד לימין; בגלילה בהיסטוריה — סביב האצבעות/הסמן
-    if (c.anchor !== back) { c.anchor = back; try { chart.setZoomAnchor(back ? 'cursor' : 'last_bar'); } catch (e) { /* גרסה אחרת */ } } });
+    if (c.anchor !== back) { c.anchor = back; try { chart.setZoomAnchor(back ? 'cursor' : 'last_bar'); } catch (e) { /* גרסה אחרת */ } }
+    // זום/גלילה אחרי בחירת טווח — הטווח כבר לא נכון: הבורר עובר להציג את מה שרואים בפועל
+    if (!c.pkRaf) c.pkRaf = requestAnimationFrame(() => { c.pkRaf = 0; if (c.pkRg && c.pkRg.isConnected && !c.pkRg.querySelector('.kc-roll')) c.pkRg.textContent = spanLabel(c); }); });
   wireCellPointer(c);
   setSymbolPeriod(c);
   restoreIndicators(c, c.indSaved);
@@ -1813,7 +1816,9 @@ function build(sym) {
     c.qm = h('div', { class: 'kc-qm' },
       btn('kc-ib sm', T('kcToMeasure'), () => { setActive(c.i); startTool('kcMeasure'); }, ICON.ruler),
       btn('kc-ib sm', T('kcToPRange'), () => { setActive(c.i); startTool('kcPriceRange'); }, ICON.prange));
-    c.el = h('div', { class: 'kc-cell' + (c.i === S.active ? ' act' : '') }, c.host, c.stEl, c.tagEl, c.nowB, c.plusB, c.qm);
+    // בטלפון: "נר" (טווח הזמן של כל נר) ו"תצוגה" (כמה זמן רואים בגרף) בפינה העליונה של הגרף
+    c.pick = h('div', { class: 'kc-pick' });
+    c.el = h('div', { class: 'kc-cell' + (c.i === S.active ? ' act' : '') }, c.host, c.stEl, c.tagEl, c.nowB, c.plusB, c.qm, c.pick);
     UI.grid.appendChild(c.el);
   }
   renderTop(); updBars(); renderSide(); renderFoot(); renderSel(); renderReplay(); updTags();
@@ -1965,10 +1970,56 @@ function updBars() {
   UI.bar.scrollLeft = sx;   // בנייה מחדש בלי קפיצה של הסרגל להתחלה
   renderFoot();
   renderMbar();
+  for (const x of S.cells) renderPick(x);
+}
+
+/* טלפון: שני בוררים בפינה העליונה של הגרף, כל אחד עם כותרת קטנה כמו ב־TradingView —
+   "אינטרוול" (Interval) = כמה זמן כל נר (1D, 1W…), "טווח תאריכים" (Date range) = כמה זמן מוצג בגרף (1M, 1Y…).
+   בדיוק כמו הכפתור שהיה בסרגל התחתון: גרירה אנכית = גלגלת, הקשה = רשימה */
+function renderPick(c) {
+  if (!c.pick) return;
+  c.pick.textContent = '';
+  const r = c === act() && S.range ? RANGES.find((x) => x[0] === S.range && x[1] === c.tf) : null;
+  const pill = (cap, aria, val, open, items, pick) => {
+    const v = h('b', { class: 'kc-pk-v', text: val });
+    const b = h('button', { type: 'button', class: 'kc-pk', 'aria-label': aria + ': ' + val, title: aria, onclick: () => { setActive(c.i); open(); } },
+      h('span', { class: 'kc-pk-c', text: cap }), h('span', { class: 'kc-pk-r' }, v, h('span', { class: 'kc-pk-ud', html: ICON.updown })));   // ⌃⌄ כמו בורר גלילה של iOS — רמז שאפשר לגלגל
+    wheel(b, items, (it) => { setActive(c.i); pick(it); }, v);
+    return b;
+  };
+  const ctf = c.swTf || c.tf, fav = S.store.g.fav.includes(ctf) ? S.store.g.fav : [...S.store.g.fav, ctf];
+  c.pick.append(
+    pill(T('kcPickTf'), T('kcPickTfA'), tfLabel(ctf), openTfSheet, () => fav.map((tf) => ({ v: tf, t: tfLabel(tf), l: tfLong(tf), cur: tf === ctf })), (it) => setTf(c, it.v)),
+    pill(T('kcPickRg'), T('kcPickRgA'), r ? r[0] : spanLabel(c), openRangeSheet, () => RANGES.map((x) => ({ v: x, t: x[0], l: rangeLong(x[0]), cur: !!r && x === r })), (it) => goRange(it.v)));
+  c.pkRg = r ? null : c.pick.lastChild.querySelector('.kc-pk-v');   // בלי טווח שנבחר — מציג את הטווח שרואים בפועל (מתעדכן בגלילה/זום)
+}
+/* הטווח שרואים עכשיו בגרף → הטווח הקרוב ברשימה (כשלא נבחר טווח, או אחרי זום) */
+function spanLabel(c) {
+  const list = c.chart ? c.chart.getDataList() : [];
+  if (list.length < 2) return '—';
+  const vr = c.chart.getVisibleRange(), a = list[Math.max(0, Math.min(list.length - 1, vr.realFrom))], b = list[Math.max(0, Math.min(list.length - 1, vr.realTo - 1))];
+  if (vr.realFrom <= 0) return 'ALL';
+  const d = (b.timestamp - a.timestamp) / 86400000;
+  let best = RANGES[0], bd = Infinity;
+  for (const x of RANGES) if (typeof x[2] === 'number') { const k = Math.abs(Math.log(Math.max(d, 0.3) / x[2])); if (k < bd) { bd = k; best = x; } }
+  return best[0];
+}
+/* שם מלא לטווח בגלגלת ("5 שנים", "1 month") — Intl, בלי מחרוזות חדשות */
+function rangeLong(r) {
+  const m = /^(\d+)(D|M|Y)$/.exec(r);
+  if (!m) return r;
+  try { return new Intl.NumberFormat(E.lang === 'en' ? 'en-US' : 'he-IL', { style: 'unit', unit: { D: 'day', M: 'month', Y: 'year' }[m[2]], unitDisplay: 'long' }).format(+m[1]); } catch (e) { return r; }
+}
+function openRangeSheet() {
+  const c = act();
+  openSheet(T('kcPickRgA'), (b, sh) => {
+    b.appendChild(h('div', { class: 'kc-ranges wrap' }, ...RANGES.map((r) => btn('kc-rg' + (S.range === r[0] && c.tf === r[1] ? ' on' : ''), r[0], () => { closeSheet(sh); goRange(r); }))));
+    b.appendChild(h('div', { class: 'kc-note', text: T('kcPickRgNote') }));
+  });
 }
 
 /* ---------- טלפון: סרגל תחתון כמו TradingView ----------
-   סימבול · טווח זמן (גרירה אנכית = גלגלת כמו iOS, הקשה = רשימה) · ציור · אינדיקטורים · עוד · בטל.
+   סימבול (גרירה אנכית = גלגלת כמו iOS, הקשה = רשימה) · ציור · אינדיקטורים · עוד · בטל.
    בזמן ציור הסרגל מתחלף לכלי הציור: הכלי, מגנט, ציור רציף, נעילה, הסתרה, אובייקטים, סיום. */
 function renderMbar() {
   if (!UI.mbar) return;
@@ -1993,11 +2044,7 @@ function renderMbar() {
   const symB = btn('kc-mb txt sym', T('kcSearch'), () => openSearch());
   symB.textContent = c.sym;
   wheel(symB, () => { const l = [...new Set([c.sym, ...(E.symbols ? E.symbols() : [])])].slice(0, 40); return l.map((x) => ({ v: x, t: x, cur: x === c.sym })); }, (it) => setSym(c, it.v));
-  const ctf = c.swTf || c.tf, fav = S.store.g.fav.includes(ctf) ? S.store.g.fav : [...S.store.g.fav, ctf];
-  const tfB = btn('kc-mb txt', T('kcMoreTf'), openTfSheet);
-  tfB.textContent = tfLabel(ctf);
-  wheel(tfB, () => fav.map((tf) => ({ v: tf, t: tfLabel(tf), l: tfLong(tf), cur: tf === ctf })), (it) => setTf(c, it.v));
-  UI.mbar.append(symB, tfB, h('span', { class: 'kc-sep' }),
+  UI.mbar.append(symB, h('span', { class: 'kc-sep' }),
     ib('pencil', T('kcTools'), openToolsSheet),
     ib('fx', T('kcIndicators'), openIndSheet),
     ib('more', T('kcMore'), openMore),
@@ -2016,7 +2063,7 @@ function tfLong(tf) {
 const WH_ROW = 26, WH_BTN = 20;
 /* מיקום דרך CSSOM (לא מאפיין style — מדיניות CSP) */
 const whPos = (e, y, o) => { e.style.transform = 'translateY(' + y.toFixed(1) + 'px)'; e.style.opacity = Math.max(0, o).toFixed(2); return e; };
-function wheel(b, items, pick) {
+function wheel(b, items, pick, tx = b) {   // tx = האלמנט שהתווית בו מתגלגלת (ברירת מחדל: הכפתור כולו)
   let st = null;
   b.style.touchAction = 'none';
   const at = (i) => st.items[((i % st.n) + st.n) % st.n];
@@ -2051,9 +2098,9 @@ function wheel(b, items, pick) {
       try { b.setPointerCapture(e.pointerId); } catch (x) { /* בלי לכידה */ }
       st.el = h('div', { class: 'kc-wheel', 'aria-hidden': 'true' }, st.list = h('div', { class: 'kc-wh-l' }));
       ROOT.appendChild(st.el);
-      st.txt = b.textContent;
-      b.textContent = '';
-      b.appendChild(st.roll = h('span', { class: 'kc-roll' }));
+      st.txt = tx.textContent;
+      tx.textContent = '';
+      tx.appendChild(st.roll = h('span', { class: 'kc-roll' }));
       requestAnimationFrame(() => { if (st && st.el) st.el.classList.add('on'); });
       draw();
       return;
@@ -2075,11 +2122,11 @@ function wheel(b, items, pick) {
     const el = s0.el;
     el.classList.remove('on');
     setTimeout(() => el.remove(), 180);
-    b.textContent = s0.txt;
+    tx.textContent = s0.txt;
     b.dataset.drag = '1';
     setTimeout(() => { delete b.dataset.drag; }, 60);
     const it = s0.items[((s0.idx % s0.n) + s0.n) % s0.n];
-    if (!it.cur) { b.textContent = it.t; pick(it); }
+    if (!it.cur) { tx.textContent = it.t; pick(it); }
   };
   b.addEventListener('pointerup', end);
   b.addEventListener('pointercancel', end);
