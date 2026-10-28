@@ -12,6 +12,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const FSM = require('./lib/fsmeter');
 
 /* הסודות של השרתון בייצור (ת3, 12/10/2026): הקמת השרת מעתיקה את משתני Vercel לשורה אחת ב־/etc/snb/app.env —
    SNB_ENV_GZ = gzip+base64 של {שם: ערך}. כך ערך עם רווח, #, $ או מירכאות עובר כמו שהוא (קובץ env של compose
@@ -130,7 +131,7 @@ function createServer(opts = {}) {
       }, ms);
     });
     try {
-      await Promise.race([Promise.resolve().then(() => fn(req, res)), timeout]);
+      await Promise.race([FSM.run(FSM.tagOf(name, req), () => Promise.resolve().then(() => fn(req, res))), timeout]);   // 28/10/2026: מונה קריאות Firestore לפי פעולה (lib/fsmeter.js)
     } catch (e) {
       if (!res.headersSent) res.status(500).json({ ok: false, error: 'internal' });
       if (opts.log !== false) console.error('[api]', name, e && e.message);
@@ -234,6 +235,7 @@ if (require.main === module) {
   if (unpacked < 0) console.error('[snb-app] ✗ SNB_ENV_GZ לא נפתח — השרתון עולה בלי הסודות שבו');
   // 24/10/2026: תור ההעברה של "המנוי שלי" (lib/relay.js) — חי בזיכרון של התהליך הזה בלבד (ב־Vercel אין)
   if (process.env.SNB_RELAY_HUB_ON == null) process.env.SNB_RELAY_HUB_ON = '1';
+  globalThis.fetch = FSM.wrapFetch(globalThis.fetch);   // 28/10/2026: כל בקשה ל־Firestore נספרת (GET /api/session מציג את הפילוח)
   const server = createServer();
   const port = +process.env.PORT || 3000;
   server.listen(port, '0.0.0.0', () => console.log('[snb-app] מאזין על', port, '·', server.names.size, 'פונקציות'));
