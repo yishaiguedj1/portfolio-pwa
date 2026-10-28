@@ -8,7 +8,7 @@ const CACHE_NAME = 'portfolio-pwa-v607';
 const HASHES = {
   "./": "16b507afdf51b3641466129e571503e2",
   "./index.html": "16b507afdf51b3641466129e571503e2",
-  "./styles.css": "795651161e322d5eeae7146ff5812e46",
+  "./styles.css": "e8a361005e15e608586c9813786299be",
   "./app.js": "bb54657540ea85bdc8af9f527a3c5bf3",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "e50501f26e70aad478a5d8d489754d97",
