@@ -14,7 +14,7 @@
   --search-fill-solid: #E3E3E8;
   --search-ph: rgba(60, 60, 67, .6);        /* secondaryLabel */
   --surface: #FFFFFF;               /* systemBackground */
-  --surface-2: #E9E9EE;
+  --surface-2: rgba(118, 118, 128, .12);   /* 28/10 זכוכית: מילוי שקוף (היה #E9E9EE) */
   --glass: rgba(255, 255, 255, .68);
   --glass-border: rgba(255, 255, 255, .6);
   --glass-hi: inset 0 1px 0 rgba(255, 255, 255, .55);
@@ -32,7 +32,7 @@
   --on-primary: #06281A;
   --primary-container: rgba(48, 209, 88, .18);
   --on-primary-container: #0B6B2C;  /* טקסט על מיכל ירוק־שקוף — כהה כדי שיהיה קריא על רקע בהיר */
-  --secondary-container: #E4E4E9;
+  --secondary-container: rgba(118, 118, 128, .14);   /* 28/10 זכוכית (היה #E4E4E9) */
 
   /* ---- צבעים סמנטיים של iOS 26 ---- */
   --gain: #30D158;                  /* v216: כמו במצב כהה */
@@ -75,8 +75,13 @@
   --gl-ring: 0 0 0 .5px rgba(0, 0, 0, .08);
   --gl-fill: rgba(118, 118, 128, .12);
   --gl-shadow: 0 10px 34px rgba(0, 0, 0, .16);
-  --gl-card: color-mix(in srgb, var(--gl-base) 74%, transparent);
-  --gl-card-sh: inset 0 .5px 0 rgba(255, 255, 255, .85), 0 0 0 .5px rgba(0, 0, 0, .06), 0 2px 12px rgba(0, 0, 0, .04);
+  --gl-card: color-mix(in srgb, var(--gl-base) 58%, transparent);
+  --gl-card-sh: inset 1px 1px 0 rgba(255, 255, 255, .9), inset -1px -1px 0 rgba(255, 255, 255, .35), inset 0 0 24px rgba(255, 255, 255, .28),
+    0 0 0 .5px rgba(0, 0, 0, .05), 0 8px 28px rgba(0, 0, 0, .06);
+  /* רקע העמוד: שדה צבע רך בגוון האפליקציה ושני גוונים משלימים — מה שהזכוכית מראה */
+  --gl-ambient: radial-gradient(60% 42% at 96% 4%, color-mix(in srgb, var(--primary) 34%, transparent), transparent 72%),
+    radial-gradient(55% 38% at 4% 42%, color-mix(in srgb, var(--sys-teal) 26%, transparent), transparent 72%),
+    radial-gradient(65% 42% at 82% 96%, color-mix(in srgb, var(--sys-purple) 18%, transparent), transparent 72%);
 }
 
 [data-theme="dark"] {
@@ -137,8 +142,12 @@
   --gl-ring: 0 0 0 .5px rgba(255, 255, 255, .1);
   --gl-fill: rgba(118, 118, 128, .24);
   --gl-shadow: 0 10px 34px rgba(0, 0, 0, .5);
-  --gl-card: color-mix(in srgb, var(--gl-base) 74%, transparent);
-  --gl-card-sh: inset 0 .5px 0 rgba(255, 255, 255, .1), 0 0 0 .5px rgba(255, 255, 255, .08);
+  --gl-card: color-mix(in srgb, var(--gl-base) 55%, transparent);
+  --gl-card-sh: inset 1px 1px 0 rgba(255, 255, 255, .16), inset -1px -1px 0 rgba(255, 255, 255, .05), inset 0 0 24px rgba(255, 255, 255, .035),
+    0 0 0 .5px rgba(255, 255, 255, .06), 0 8px 28px rgba(0, 0, 0, .4);
+  --gl-ambient: radial-gradient(60% 42% at 96% 4%, color-mix(in srgb, var(--primary) 30%, transparent), transparent 72%),
+    radial-gradient(55% 38% at 4% 42%, color-mix(in srgb, var(--sys-teal) 20%, transparent), transparent 72%),
+    radial-gradient(65% 42% at 82% 96%, color-mix(in srgb, var(--sys-purple) 16%, transparent), transparent 72%);
 }
 
 /* ---- צבע המערכת לכל אפליקציה (13/10/2026, בקשת המשתמש — הגוונים המדויקים שבחר) ----
@@ -2237,30 +2246,33 @@ html.booting *, html.booting *::before, html.booting *::after { transition: none
    קצה אור דק — חזק למעלה, חלש בתחתית (שבירת אור); טבעת שיער; צל קצר בגוון הכפתור.
    הצבע = --btn-c (ברירת מחדל --primary: Invest ירוק, Academy כחול, Studio אדום; הרסני = --loss). הטקסט נשאר --on-primary. */
 html :is(.btn, .dlg-ok, .tab-ind, .st-btn, .st-plus, .an-btn, .lib-signin, .bk-cta, .adm-btn, .mg-tb.p, .mg-ab.p, .mg-ok56) { --btn-c: var(--primary);
-  --btn-glass: linear-gradient(180deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, .03) 48%, rgba(255, 255, 255, 0) 52%), var(--btn-c); }
+  --btn-glass: linear-gradient(180deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .05) 48%, rgba(255, 255, 255, 0) 54%), var(--btn-c); }
 html .btn.danger-btn, html .dlg-ok.danger { --btn-c: var(--loss); }
 html :is(.btn, .dlg-ok, .tab-ind, .st-btn, .st-plus, .an-btn, .lib-signin, .bk-cta, .adm-btn, .mg-tb.p, .mg-ab.p, .mg-ok56):not(.secondary-btn):not(.ghost):not(.tint):not(.st-btn.danger) {
   background: var(--btn-glass);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .48), inset 0 -1px 0 rgba(255, 255, 255, .14), inset 0 0 0 .5px rgba(255, 255, 255, .24),
-    0 1px 2px rgba(0, 0, 0, .1), 0 5px 14px color-mix(in srgb, var(--btn-c) 26%, transparent);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .55), inset -1px -1px 0 rgba(255, 255, 255, .2), inset 0 0 14px rgba(255, 255, 255, .16),
+    0 0 0 .5px color-mix(in srgb, var(--btn-c), #000 12%), 0 6px 18px color-mix(in srgb, var(--btn-c) 30%, transparent);
 }
 /* בספרייה הצבע מוגדר עם !important — אותו מראה גם שם */
 html .lib-root :is(.bk-cta, .adm-btn, .mg-tb.p, .mg-ab.p) { background: var(--btn-glass) !important; }
 html :is(.btn, .dlg-ok, .st-btn, .st-plus, .an-btn, .lib-signin, .bk-cta, .adm-btn, .mg-ok56):not(.secondary-btn):not(.ghost):not(.tint):active { filter: brightness(.94); }
 [data-theme="dark"] :is(.btn, .dlg-ok, .tab-ind, .st-btn, .st-plus, .an-btn, .lib-signin, .bk-cta, .adm-btn, .mg-ok56):not(.secondary-btn):not(.ghost):not(.tint):not(.st-btn.danger) {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .36), inset 0 -1px 0 rgba(255, 255, 255, .1), inset 0 0 0 .5px rgba(255, 255, 255, .18),
-    0 1px 2px rgba(0, 0, 0, .3), 0 5px 16px color-mix(in srgb, var(--btn-c) 22%, transparent);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .45), inset -1px -1px 0 rgba(255, 255, 255, .14), inset 0 0 14px rgba(255, 255, 255, .12),
+    0 6px 20px color-mix(in srgb, var(--btn-c) 26%, transparent), 0 2px 6px rgba(0, 0, 0, .3);
 }
 
 /* ==== 28/10/2026 — העמודים מזכוכית (בקשת המשתמש: כרטיסים, סרגלי לשוניות ורכיבים בעמוד) ====
-   רקע עדין בגוון האפליקציה מאחור (קבוע, לא נגלל) — בלעדיו זכוכית על רקע אחיד לא נראית. הכרטיסים שקופים 74% עם קצה אור
-   דק וקו שיער במקום מסגרת; בלי backdrop (הרקע מאחור חלק — טשטוש לא מוסיף ועולה בפריימים, ראו v193). */
-body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background: radial-gradient(70% 45% at 100% 0%, color-mix(in srgb, var(--primary) 13%, transparent), transparent 70%),
-    radial-gradient(60% 40% at 0% 75%, color-mix(in srgb, var(--sys-teal) 10%, transparent), transparent 70%); }
+   רקע עדין בגוון האפליקציה מאחור (קבוע, לא נגלל) — בלעדיו זכוכית על רקע אחיד לא נראית. הכרטיסים שקופים (~58%) עם קצה אור
+   כיווני וזוהר פנימי במקום מסגרת; בלי backdrop (הרקע מאחור חלק — טשטוש לא מוסיף ועולה בפריימים, ראו v193). */
+body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--gl-ambient); }
 .card, [data-theme="dark"] .card, .stock, [data-theme="dark"] .stock { background: var(--gl-card); border-color: transparent; box-shadow: var(--gl-card-sh); }
 .pfbk-page .ios-list { background: var(--gl-card); box-shadow: var(--gl-card-sh); }
 .stock-search-results, [data-theme="dark"] .stock-search-results { background: var(--gl-panel); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-ring), var(--gl-shadow); }
 /* סרגל הלשוניות — גלולת זכוכית */
 .tabs { background: var(--gl-bar); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); border: 0; box-shadow: var(--gl-ring), 0 6px 20px rgba(0, 0, 0, .08); }
 [data-theme="dark"] .tabs { box-shadow: var(--gl-ring), 0 6px 20px rgba(0, 0, 0, .4); }
+
+/* כפתורים משניים מזכוכית (28/10, בקשת המשתמש): משטח שקוף עם קצה אור כיווני וטשטוש של מה שמאחור; הצבע של הטקסט/המסגרת נשאר */
+.icon-btn, .fx-pill, .chip-btn:not(.on), .mini-btn:not([aria-pressed="true"]), .btn.secondary-btn {
+  background: var(--gl-card); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-card-sh); }
+.icon-btn, .chip-btn:not(.on), .mini-btn:not([aria-pressed="true"]) { border-color: transparent; }

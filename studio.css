@@ -1100,6 +1100,5 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-abar { background: var(--gl-bar); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); }
 /* העמודים מזכוכית: רקע עדין באדום של Studio מאחור, והכרטיסים (--st-card) שקופים עם קצה אור */
 .st-root, [data-theme="dark"] .st-root { --st-card: var(--gl-card);
-  background: radial-gradient(70% 45% at 100% 0%, color-mix(in srgb, var(--primary) 12%, transparent), transparent 70%),
-    radial-gradient(60% 40% at 0% 75%, color-mix(in srgb, var(--sys-teal) 9%, transparent), transparent 70%), var(--bg); }
+  background: var(--gl-ambient), var(--bg); }
 .st-root :is(.st-list, .st-newcard, .st-filecard, .st-modecard, .st-vcard, .st-twcard, .st-hero, .st-schero, .st-jhero, .st-ut-hero, .st-lk-card, .st-banner) { box-shadow: var(--gl-card-sh); }
