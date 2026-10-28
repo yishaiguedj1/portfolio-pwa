@@ -1824,11 +1824,13 @@ function hitAt(c, x, y, tol) {
     if (/^horizontal/.test(n) || n === 'priceLine') d = Math.abs(pts[0].y - y);
     else if (/^vertical/.test(n)) d = Math.abs(pts[0].x - x);
     else if (n === 'kcCrossLine') d = Math.min(Math.abs(pts[0].y - y), Math.abs(pts[0].x - x));
-    else if (pts.length === 1) d = Math.hypot(pts[0].x - x, pts[0].y - y);
+    else if (pts.length === 1) d = Math.max(0, Math.hypot(pts[0].x - x, pts[0].y - y) - 14);   // טקסט, הערה, תגית, דגל, חץ — יש להם גוף סביב הנקודה
     else {
       for (let i = 1; i < pts.length; i++) d = Math.min(d, segDist(P, pts[i - 1], pts[i]));
-      // צורות שטח (מלבן, פיבונאצ׳י, טווחים, מדידה) — נגיעה בתוך המסגרת
-      if (/rect|fib|range|box|measure|channel/i.test(n)) {
+      // קו ישר / קרן — ממשיכים מעבר לנקודות
+      if (/^(straightLine|rayLine)$/.test(n)) { const a = pts[0], b = pts[1], vx = b.x - a.x, vy = b.y - a.y, k = n === 'rayLine' ? 0 : -1e3; if (vx || vy) d = Math.min(d, segDist(P, { x: a.x + vx * k, y: a.y + vy * k }, { x: a.x + vx * 1e3, y: a.y + vy * 1e3 })); }
+      // כל צורה שאינה קו פשוט (מלבן, פיבונאצ׳י, תבניות, ערוצים, פוזיציה, טווחים, מדידה…) — נגיעה בתוך המסגרת שלה
+      if (!/^(segment|rayLine|straightLine|kcInfoLine|kcArrow|brush)$/.test(n)) {
         const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
         if (x >= Math.min(...xs) && x <= Math.max(...xs) && y >= Math.min(...ys) && y <= Math.max(...ys)) d = Math.min(d, HIT_PX - 1);
       }

@@ -33,7 +33,7 @@ const HASHES = {
   "./acclink.js": "419b035815109478a1f8f9780720af33",
   "./analysis.js": "5ee4707c43b410ce54e807a542585ba7",
   "./analysis.css": "46519805fa59daada619f9541cacf9c0",
-  "./chart.js": "3ff5b74c0064caa52b39a6c04e741134",
+  "./chart.js": "f93055b93964125e7624a10968c9aca3",
   "./chartlib.js": "5c00c490dac1b09329fa1ce657350a9b",
   "./chart.css": "0e4e6260108563c3f329d204c1398a10",
   "./vendor/klinecharts/klinecharts.min.js": "4202d8661b8302175751d8d072bf6d2f",
