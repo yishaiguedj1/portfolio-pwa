@@ -45,6 +45,9 @@ const IMPROVEMENTS = [
   { id: 'i13', at: null, m: ['q', 'jd', 'ht', 'cpm'], src: 'lab',
     he: ['פחות קיצורים מיותרים לקצב קריאה', 'מול התרגום האנושי (OPUS, פרקים 16–20): קיצורי הקצב לפני הבנייה הרחיקו מהאדם ב־82 כתוביות וקירבו ב־13; 61% מהן חרגו עד 10% בלבד. חריגה קלה נשארת להארכה, למיזוג ולסבב הבקרה על המסך'],
     en: ['Fewer needless reading-speed cuts', 'Against the human translation (OPUS, episodes 16–20): pre-build reading-speed cuts moved away from the human in 82 cues and closer in 13; 61% were at most 10% over. Mild overruns are left to extension, merging and the on-screen QC round'] },
+  { id: 'i14', at: null, m: ['cpm', 'act', 'q', 'jd'], src: 'lab',
+    he: ['טיוטה אחת לכל עבודה', 'ניסוי "טיוטה אחת" + 10 פרקים מול התרגום האנושי: הטיוטה השנייה וההכרעה לא קירבו לאדם (בחירות +21/−13, B מול A 263/238) ועלו ~45% מעלות התרגום ב־high ו־30–100 שנ׳ — הסתיים'],
+    en: ['One draft per job', 'The one-draft experiment and 10 episodes against the human translation: the second draft and the arbiter did not get closer to the human (picks +21/−13, B vs A 263/238) and cost ~45% of translation in high plus 30–100 s — ended'] },
 ];
 
 module.exports = { IMPROVEMENTS };

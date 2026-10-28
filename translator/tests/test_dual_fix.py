@@ -70,6 +70,7 @@ class Flow(unittest.TestCase):
             {'id': 3, 'en': "Let's talk about Netflix."}]), encoding='utf-8')
         self.ctx, self.J = Ctx(self.pd), FakeJ(self.pd)
         self.env = os.environ.pop('SNB_TL_DUAL', None)
+        os.environ['SNB_TL_DUAL'] = 'on'          # 28/10/2026: כבויה כברירת מחדל — המנגנון נבדק כשמדליקים אותו
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -101,7 +102,7 @@ class Flow(unittest.TestCase):
                 return msg('#3 בואו נדבר על נטפליקס.' if calls['tl2'] == 1 else '#3 עכשיו על נטפליקס.')
             raise AssertionError(p[:80])
         pl = P.Pipeline(self.ctx, self.J, self.engine(h))
-        self.assertTrue(pl.dual_on(), 'Haiku — דולק כברירת מחדל')
+        self.assertTrue(pl.dual_on(), 'SNB_TL_DUAL=on — דולק')
         pl.translate(fix=False)
         self.assertEqual((calls['tl1'], calls['tl2'], calls['arb']), (2, 2, 1), 'כל חלק פעמיים, הכרעה אחת')
         a, b = P.answer_lines((self.pd / 'tr' / 'batch_002.he.txt').read_text(encoding='utf-8'), {'3'}), \
@@ -125,7 +126,8 @@ class Flow(unittest.TestCase):
         self.assertEqual(len(self.client.calls), 2)
         self.assertFalse((self.pd / 'tr' / 'alt').exists())
         os.environ.pop('SNB_TL_DUAL')
-        self.assertFalse(P.Pipeline(self.ctx, self.J, self.engine(h, 'sonnet-medium')).dual_on(), 'רק Haiku')
+        self.assertFalse(P.Pipeline(self.ctx, self.J, self.engine(h)).dual_on(), '28/10/2026: גם Haiku — טיוטה אחת כברירת מחדל')
+        self.assertFalse(P.Pipeline(self.ctx, self.J, self.engine(h, 'sonnet-medium')).dual_on())
 
     def test_second_draft_failure_is_harmless(self):
         # שתי הטיוטות שולחות בדיוק אותה בקשה ורצות במקביל — הכשל מוזרק לפי היעד (tr/alt), לא לפי סדר הקריאות

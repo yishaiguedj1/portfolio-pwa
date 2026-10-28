@@ -97,6 +97,31 @@ class TestDualAb(unittest.TestCase):
             return pl.dual_on()
 
     def test_xd(self):
-        self.assertTrue(self._pl({}))
+        # 28/10/2026 (ערב): הניסוי הסתיים — טיוטה אחת תמיד; SNB_TL_DUAL=on מדליק
+        self.assertFalse(self._pl({}))
         self.assertFalse(self._pl({'xd': 1}))
         self.assertTrue(self._pl({'xd': 1}, 'on'))
+        self.assertTrue(self._pl({}, 'on'))
+
+    def test_rv_ab(self):
+        import llm
+        def eng(mode, xe=None):
+            e = llm.Engine(llm.Spec.of(mode), client=object())
+            e.role_effort = llm.norm_xe(xe)
+            return e
+        e = eng('haiku-high')
+        self.assertTrue(P.rv_ab(e, {'xr': 1}))
+        self.assertEqual(e.role_effort, {'rv': 'medium'})
+        llm._tl.k = 'rv'
+        try:
+            self.assertEqual(e.effort(), 'medium', 'הביקורת ב־medium')
+            llm._tl.k = 'tl'
+            self.assertEqual(e.effort(), 'high', 'התרגום נשאר high')
+        finally:
+            llm._tl.k = ''
+        self.assertFalse(P.rv_ab(eng('haiku-high'), {}), 'בלי xr — רגיל')
+        self.assertFalse(P.rv_ab(eng('haiku-medium'), {'xr': 1}), 'medium — אין מה להוריד')
+        self.assertFalse(P.rv_ab(eng('sonnet-low'), {'xr': 1}), 'לא מעלים מצב נמוך')
+        g = eng('haiku-high', {'rv': 'high'})
+        self.assertFalse(P.rv_ab(g, {'xr': 1}), 'ניסוי המאמץ של סט הזהב גובר')
+        self.assertEqual(g.role_effort, {'rv': 'high'})
