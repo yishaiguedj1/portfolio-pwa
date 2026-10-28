@@ -924,7 +924,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     await step('studio: הצעה — לבדיקה שלך', () => page.click('[data-k="adv-rvf"]'), { pre: '[data-k="adv-rvf"]', settle: 2200, expect: '[data-k="se-only"].on' });
     await step('studio: חזור ← העבודה (5)', esc, { settle: 1300, expect: '[data-k="adv-rvf"]' });
     await step('studio: צפייה (נגן)', () => page.click('[data-k="play"]'), { pre: '[data-k="play"]', settle: 1500, expect: '.st-pl video' });
-    // הגדרות הנגן (כמו ב־YouTube): הגלגל → גיליון; "חזור" סוגר רק את הגיליון ונשארים בנגן
+    // הגדרות הנגן (לפי ת־נגן): הגלגל → גיליון; "חזור" סוגר רק את הגיליון ונשארים בנגן
     await step('studio: הגדרות הנגן', () => page.evaluate(() => document.querySelector('.st-pl-b.gear').click()), { settle: 600, expect: '.st-pl-menu:not([hidden]) .st-pl-mr' });
     await step('studio: חזור ← סוגר את ההגדרות', esc, { settle: 600, expect: '.st-pl video' });
     await step('studio: חזור ← העבודה (3)', esc, { settle: 1300, expect: '[data-k="ideas"]' });

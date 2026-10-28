@@ -15,7 +15,7 @@ const EDIT_FIELDS = JSON.parse(lib.match(/export const EDIT_FIELDS = (\[[^\]]+\]
 const applyEdit = new Function('bookYear', 'EDIT_FIELDS', lib.match(/export function applyEdit[\s\S]*?\n}\n/)[0].replace('export ', '') + '; return applyEdit;')(bookYear, EDIT_FIELDS);
 const driveSyncPlan = pure('driveSyncPlan')();
 
-ok(EDIT_FIELDS.join() === 'title,subtitle,author,authorSort,pub,date,lang,series,seriesIdx,isbn,tags,desc', 'שדות העריכה — כמו ב־Calibre: כותר, משנה, כותב + מיון, הוצאה, תאריך, שפה, סדרה + מספר, ISBN, נושאים, תקציר');
+ok(EDIT_FIELDS.join() === 'title,subtitle,author,authorSort,pub,date,lang,series,seriesIdx,isbn,tags,desc', 'שדות העריכה — לפי ת־קורא: כותר, משנה, כותב + מיון, הוצאה, תאריך, שפה, סדרה + מספר, ISBN, נושאים, תקציר');
 const r = applyEdit({ title: 'מכתב באפט 1987', year: 1987 }, { title: ' The Intelligent Investor ', author: 'Benjamin Graham', date: '1949', isbn: '9780060555665' });
 ok(r.title === 'The Intelligent Investor' && r.author === 'Benjamin Graham' && r.year === 1949 && r.isbn === '9780060555665', 'עריכה: הערכים מוחלים, השנה מהתאריך (לא מהכותר)');
 ok(applyEdit({ title: 'x' }, { title: '' }).title === '—', 'כותר ריק — לא נשאר ספר בלי שם');

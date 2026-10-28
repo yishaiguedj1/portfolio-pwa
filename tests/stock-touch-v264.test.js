@@ -1,4 +1,4 @@
-// stock-touch-v264.test.js — נגיעה בגרף המניה: אצבע אחת = מחיר ותאריך, שתי אצבעות = מדידת תשואה (כמו בגוגל)
+// stock-touch-v264.test.js — נגיעה בגרף המניה: אצבע אחת = מחיר ותאריך, שתי אצבעות = מדידת תשואה (תואם ל־Google)
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');

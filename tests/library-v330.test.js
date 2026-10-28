@@ -115,7 +115,7 @@ const pure = (name) => new Function(lib.match(new RegExp('export function ' + na
   ok(/lin\(opt\.color \|\| '#30D158'\)/.test(r3src) && /GRAY_D = lin\('#636366'\)/.test(r3src) && /dark \? GRAY_D : GRAY/.test(r3src), 'צבעים: ירוק --primary, אפור נקי (כהה יותר במצב כהה)');
   ok(/stencilFunc\(gl\.NOTEQUAL, k \+ 1, 0xff\)/.test(r3src) && /shadowSamples\(64\)/.test(r3src) && /FS_BLUR/.test(r3src) && !/FS_AO/.test(r3src), 'צל: דגימה אחת לכל פיקסל בכל דגימת אור (סטנסיל) + טשטוש גאוסי; בלי ה־SSAO שיצר הילה מנוקדת');
   ok(/vec3 c = uLite\.a > 0\.5 \? uLite\.rgb \* s : vec3\(0\.012, 0\.016, 0\.03\) \* s;/.test(r3src) && /gl_FragColor = vec4\(c, uLite\.a > 0\.5 \? max\(c\.r, max\(c\.g, c\.b\)\) : s\);/.test(r3src), 'בבהיר הצל מכפיל את מה שמתחתיו; בכהה — צל בהיר (אלפא ≥ צבע, premultiplied תקין)');
-  ok(/\(uLite\.a > 0\.5 \? t\.g : t\.r\)/.test(r3src) && /uK, dark \? 0\.95 : 0\.44, dark \? 0\.05 : 0\.3/.test(r3src), 'מצב כהה "נקי כמו אפל": רק מהחלקים שבאוויר — בלי קו בהיר סביב סרט שוכב');
+  ok(/\(uLite\.a > 0\.5 \? t\.g : t\.r\)/.test(r3src) && /uK, dark \? 0\.95 : 0\.44, dark \? 0\.05 : 0\.3/.test(r3src), 'מצב כהה "נקי לפי ת־עיצוב": רק מהחלקים שבאוויר — בלי קו בהיר סביב סרט שוכב');
   ok(/const bs = dark \? 2\.1 : 0\.55;/.test(r3src) && /uLite, 0\.36, 0\.36, 0\.385, dark \? 1 : 0/.test(r3src), 'מצב כהה: צל בהיר רך ומפוזר (טשטוש רחב), עדין בליבה');
   ok(!/uPool/.test(r3src), 'בריכת האור (הניסיון הראשון במצב כהה) הוסרה');
   ok(/if \(opt\.manual \|\| raf \|\| dead\) return;/.test(r3src) && /_advance\(sec\)/.test(r3src), 'מצב ידני לצילום דטרמיניסטי (QA), בלי לולאה כפולה');
@@ -143,9 +143,9 @@ const pure = (name) => new Function(lib.match(new RegExp('export function ' + na
   ok(/html\[data-lib-vt\]::view-transition-group\(lib-root\) \{ background: var\(--bg\); \}/.test(css), 'רקע אטום לקבוצת המעבר של הספרייה — מה שמתחת (מסך התיק) לא נראה באף שלב');
   ok(/html\[data-lib-vt="fade"\]::view-transition-image-pair\(lib-root\) \{ isolation: isolate; \}/.test(css) && /html\[data-lib-vt="fade"\]::view-transition-old\(lib-root\), html\[data-lib-vt="fade"\]::view-transition-new\(lib-root\) \{ mix-blend-mode: plus-lighter; \}/.test(css), 'הצלבה מדויקת (plus-lighter) — בלי "שקע" שקוף באמצע');
   ok(/vtFadeOut \.2s ease both/.test(css) && /vtFadeIn \.2s ease both/.test(css), 'הצלבה: אותו משך ועקומה לישן ולחדש (סכום השקיפויות = 1)');
-  ok(!/@keyframes vtOutBack[^}]*opacity/.test(css) && !/@keyframes vtInBack[^}]*opacity/.test(css) && /filter: brightness\(var\(--vt-dim\)\)/.test(css), 'דחיפה/חזרה: הדף שמאחור מוחשך (כמו iOS), לא שקוף');
+  ok(!/@keyframes vtOutBack[^}]*opacity/.test(css) && !/@keyframes vtInBack[^}]*opacity/.test(css) && /filter: brightness\(var\(--vt-dim\)\)/.test(css), 'דחיפה/חזרה: הדף שמאחור מוחשך (לפי ת־עיצוב), לא שקוף');
 
-  // ---------- 3ד. הקורא הולך אחרי בהיר/כהה של האפליקציה (כמו קינדל) ----------
+  // ---------- 3ד. הקורא הולך אחרי בהיר/כהה של האפליקציה (לפי ת־קורא) ----------
   {
     const THEMES = { white: 1, sepia: 1, green: 1, black: 1 };
     const defaultsSrc = lib.match(/const defaults = \{[^}]*\};/)[0];
@@ -155,7 +155,7 @@ const pure = (name) => new Function(lib.match(new RegExp('export function ' + na
     ok(normSettings({}).theme === 'auto' && normSettings({ theme: 'white' }).theme === 'auto', 'משתמש קיים שלא בחר ערכה ("לבן" של ברירת המחדל) — עובר לאוטומטי');
     ok(normSettings({ theme: 'white', themeSet: 1 }).theme === 'white' && normSettings({ theme: 'sepia' }).theme === 'sepia' && normSettings({ theme: 'black' }).theme === 'black', 'בחירה ידנית נשמרת (לבן מפורש, ספיה, שחור)');
     ok(normSettings({ theme: 'nope' }).theme === 'auto', 'ערך לא מוכר → אוטומטי');
-    ok(themeKey({ theme: 'auto' }, true) === 'black' && themeKey({ theme: 'auto' }, false) === 'white' && themeKey({ theme: 'sepia' }, true) === 'sepia', 'אוטומטי: כהה → שחור (כמו קינדל), בהיר → לבן; ידני גובר');
+    ok(themeKey({ theme: 'auto' }, true) === 'black' && themeKey({ theme: 'auto' }, false) === 'white' && themeKey({ theme: 'sepia' }, true) === 'sepia', 'אוטומטי: כהה → שחור (לפי ת־קורא), בהיר → לבן; ידני גובר');
     ok(/if \(lib\.s && lib\.s\.t > \(S\.t \|\| 0\)\) \{ S = normSettings\(lib\.s\);/.test(lib), 'הגדרות מהענן עוברות את אותה מיגרציה');
     ok((lib.match(/const th = curTheme\(\);/g) || []).length === 3 && !/THEMES\[S\.theme\]/.test(lib), 'כל מקום שמצייר את הקורא משתמש בערכה האפקטיבית');
     ok(/new MutationObserver\(\(\) => \{ if \(rd && S\.theme === 'auto'\) applyReaderStyle\(\); \}\)\.observe\(document\.documentElement, \{ attributes: true, attributeFilter: \['data-theme'\] \}\)/.test(lib), 'האפליקציה מתחלפת בהיר↔כהה — קורא פתוח מתחלף מיד');

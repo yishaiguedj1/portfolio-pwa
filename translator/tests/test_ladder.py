@@ -27,7 +27,7 @@ class TestPlan(unittest.TestCase):
         self.assertTrue(p['ok'])
         self.assertEqual([r[0] for r in p['rungs']], [720, 480, 360, 240, 144], 'רק מתחת למקור')
         self.assertEqual([r[0] for r in L.plan(sm(w=3840, h=2160))['rungs']], [1440, 1080, 720, 480, 360, 240, 144])
-        self.assertEqual(L.plan(sm(w=1080, h=1920))['short'], 1080, 'אנכי — לפי הצלע הקצרה (כמו YouTube)')
+        self.assertEqual(L.plan(sm(w=1080, h=1920))['short'], 1080, 'אנכי — לפי הצלע הקצרה (לפי ת־נגן)')
         self.assertEqual(L.plan(sm(w=1280, h=720))['rungs'][0][0], 480)
         for kw, why in ((dict(na=L.A_MAX + 1), 'streams'), (dict(other=['subtitle']), 'streams'), (dict(nv=0), 'streams'),
                         (dict(v='prores'), 'vcodec'), (dict(a='pcm_s16le'), 'acodec'), (dict(gop=30.0), 'gop'),

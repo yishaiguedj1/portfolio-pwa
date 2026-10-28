@@ -23,7 +23,7 @@ ok(ctx.s(['en-US']) === 'en' && ctx.s(['iw']) === 'he' && ctx.s(['ru-RU', 'he'])
 ctx.localStorage.v = 'en';
 ok(ctx.g() === 'en', 'אנגלית נשמרת');
 ok(/curUsdOpt: '\$ דולר', curIlsOpt: '₪ שקל'/.test(app) && /curUsdOpt: '\$ Dollar', curIlsOpt: '₪ Shekel'/.test(app), 'מחרוזות המטבע בעברית ובאנגלית');
-// גרסה + ניקוי מטמון עברו לעמוד "אפשרויות מתקדמות" (רשימה בסגנון iOS); שורת "מחובר — הנתונים נשמרים בענן" הוסרה
+// גרסה + ניקוי מטמון עברו לעמוד "אפשרויות מתקדמות" (רשימה לפי ת־עיצוב); שורת "מחובר — הנתונים נשמרים בענן" הוסרה
 const adv = html.slice(html.indexOf('id="tab-advanced"'));
 const acc = html.slice(html.indexOf('id="accountCard"'), html.indexOf('</div>', html.indexOf('id="accountCard"')));
 ok(/id="appInfoCard"[\s\S]*id="appVersion"[\s\S]*id="clearCache"/.test(adv) && !/id="appVersion"|id="clearCache"/.test(acc), 'גרסה + ניקוי מטמון בעמוד המתקדם, לא בכרטיס החשבון');

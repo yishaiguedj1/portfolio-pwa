@@ -255,7 +255,7 @@ html[data-lib-vt="fade"]::view-transition-new(lib-root) { animation: vtFadeIn .2
 .tr-sk.short { width: 55%; }
 .tr-main .tr-sk { height: 22px; width: 42%; margin: 6px 0; }
 @keyframes trSk { to { background-position: -200% 0; } }
-/* v334: כרטיס התרגום בסגנון Apple (כמו "חיפוש מילה" ב־iOS) — קומפקטי ומרווח: גיליון מעט כהה מהדף, קבוצות בצבע הדף,
+/* v334: כרטיס התרגום לפי ת־עיצוב (כמו "חיפוש מילה" ב־iOS) — קומפקטי ומרווח: גיליון מעט כהה מהדף, קבוצות בצבע הדף,
    כותרות אפורות קטנות, קווי הפרדה דקים, "הצג עוד" בטקסט. נפתח בגובה בינוני, בצד שמול המילה */
 .tr-card { max-height: 46vh; padding: 6px 14px 14px; background: color-mix(in srgb, var(--rd-page) 93%, var(--rd-ink));
   transition: max-height .32s cubic-bezier(.2,.9,.25,1), transform .25s cubic-bezier(.2,.9,.25,1); }
@@ -361,7 +361,7 @@ html[data-lib-vt="fade"]::view-transition-new(lib-root) { animation: vtFadeIn .2
 .lib-tr { display: flex; gap: 10px; }
 .rd-bm.on { color: var(--primary) !important; }
 .rd-bm.on svg path { fill: currentColor; }
-/* v329 (בקשת המשתמש, בהשראת קינדל, בעיצוב Apple): סרט סימנייה תמיד בראש העמוד.
+/* v329 (בקשת המשתמש, לפי ת־קורא, בעיצוב Apple): סרט סימנייה תמיד בראש העמוד.
    כבוי = מתאר אפור נקי בצבע הדף, "מציץ" מהקצה; פעיל = ירוק מלא (הירוק של הכפתורים) ויורד מעט יותר. כשהסרגל העליון פתוח — יורד מתחתיו. */
 .rd-ribbon { position: absolute; top: env(safe-area-inset-top); inset-inline-end: 18px; z-index: 6; width: 46px; height: 54px; padding: 0;
   display: flex; justify-content: center; align-items: flex-start; background: none !important; -webkit-tap-highlight-color: transparent;
@@ -376,7 +376,7 @@ html[data-lib-vt="fade"]::view-transition-new(lib-root) { animation: vtFadeIn .2
 .rd-ribbon.on .rb-shine { opacity: 1; }
 .rd-ribbon:active svg { transform: translateY(-9px) scale(.94); }
 .rd-ribbon.on:active svg { transform: translateY(-1px) scale(.94); }
-.rd.chrome .rd-ribbon { top: calc(61px + env(safe-area-inset-top)); }   /* כמו בקינדל — מתחת לסרגל העליון, לא מסתיר את Aa */
+.rd.chrome .rd-ribbon { top: calc(61px + env(safe-area-inset-top)); }   /* לפי ת־קורא — מתחת לסרגל העליון, לא מסתיר את Aa */
 /* שלבים: הוספה — נשמט + קפיצה, הירוק נשפך מלמעלה; הסרה — הירוק מתרוקן, ואז מתקפל למעלה */
 .rd-ribbon.anim-on svg { animation: rbDrop .62s cubic-bezier(.2,.8,.3,1) both; }
 .rd-ribbon.anim-on .rb-fill { animation: rbPour .42s .08s ease-out both; }
@@ -513,7 +513,7 @@ html[data-lib-vt="fade"]::view-transition-new(lib-root) { animation: vtFadeIn .2
 .ac-retry { margin-top: 6px; color: var(--primary) !important; font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .ac-skel { animation: none; } }
 
-/* חיפוש בספרייה — מתחת לכותרת הגדולה, כמו ב־Apple Books */
+/* חיפוש בספרייה — מתחת לכותרת הגדולה, לפי ת־קורא */
 .lib-search { display: flex; align-items: center; gap: 8px; margin: -2px 16px 14px; padding: 0 12px; height: 44px; border-radius: var(--radius-sm);
   background: var(--surface-2); color: var(--on-surface-var); }
 .lib-search svg { width: 20px; height: 20px; flex: none; }
@@ -606,7 +606,7 @@ textarea.ed-in { min-height: 130px; resize: vertical; line-height: 1.55; }
 @keyframes edPulse { from { opacity: .4; } to { opacity: .75; } }
 @media (prefers-reduced-motion: reduce) { .ed-cover.loading .ed-cv { animation: none; } }
 
-/* ---------- v318: שתי ספריות (בורר מקטעים) + גיבוי ל־Google Drive — בסגנון iOS ---------- */
+/* ---------- v318: שתי ספריות (בורר מקטעים) + גיבוי ל־Google Drive — לפי ת־עיצוב ---------- */
 /* 20/10/2026 (בקשת המשתמש): דבוק מתחת להדר בגלילה (‎--appbar-h מ־barHeightVar ב־core) — 12px = הרווח מתחת להדר (.lib-home > .appbar), כך שלא זז כשנדבק (21/10); הרקע אטום — אותו גוון על הרקע
    של הדף (קודם 9% שקוף), כדי שהתוכן שנגלל מתחתיו לא ייראה דרכו */
 .lib-seg { position: sticky; top: calc(var(--appbar-h, 0px) + 12px); z-index: 21; display: grid; grid-template-columns: 1fr 1fr; margin: 0 16px 14px; padding: 2px; border-radius: 10px;
@@ -624,7 +624,7 @@ body.menu-blur .lib-seg, body:has(.appbar .lang-menu:not(.hidden)) .lib-seg { z-
 
 .lib-bkic { flex: none; width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; color: #fff; background: linear-gradient(160deg, #4285F4, #34A853); }
 .lib-bkic svg { width: 21px; height: 21px; }
-/* v327: בועת מצב הגיבוי בשורת הכותרת (בהשראת Google Photos, בשפת Apple של הפרויקט): ענן + ✓ בירוק של הכפתורים */
+/* v327: בועת מצב הגיבוי בשורת הכותרת (תואם ל־Google Photos, בשפת Apple של הפרויקט): ענן + ✓ בירוק של הכפתורים */
 .lib-hrow { display: flex; align-items: center; gap: 10px; }
 .lib-hrow .lib-large { flex: 1; min-width: 0; }
 .lib-bkpill { flex: none; margin-inline-end: 16px; margin-top: -6px; display: inline-flex; align-items: center; gap: 6px; height: 34px;
@@ -835,7 +835,7 @@ label.lib-row input { position: absolute; inset: 0; opacity: 0; cursor: pointer;
 .rd-hdl.drag i::after { transform: scale(1.2); }
 @media (prefers-reduced-motion: reduce) { .rd-hdl i::after { transition: none; } }
 
-/* v342: דפדוף בקיפול דף כמו בקינדל (pagecurl.js). שכבות: מתחת (1) · המנוע (2) · הדף השטוח (3) · צל הקיפול (4) · הכנף (5) ·
+/* v342: דפדוף בקיפול דף לפי ת־קורא (pagecurl.js). שכבות: מתחת (1) · המנוע (2) · הדף השטוח (3) · צל הקיפול (4) · הכנף (5) ·
    הסימנייה (6) · הסרגלים (7). השכבות תמיד ב־DOM (שכפול iframe שזז נטען מחדש) — מוסתרות במנוחה */
 .rd foliate-view { z-index: 2; }
 .rd-topbar, .rd-botbar { z-index: 7; }

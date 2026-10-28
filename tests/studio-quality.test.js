@@ -1,4 +1,4 @@
-// איכויות צפייה כמו ב־YouTube (10/10/2026): הנגן קורא את האינדקס (sidx) מתחילת כל קובץ שהעובד ארז, בונה רשימות HLS
+// איכויות צפייה לפי ת־נגן (10/10/2026): הנגן קורא את האינדקס (sidx) מתחילת כל קובץ שהעובד ארז, בונה רשימות HLS
 // עם טווחי בתים ו־hls.js בוחר איכות. ברירת המחדל = המקור (האיכות הכי טובה); "אוטומטי" — בתפריט ההגדרות.
 // הרצה: node tests/studio-quality.test.js
 const fs = require('fs');
@@ -58,7 +58,7 @@ function sidx(refs, ts, ver = 0, fo = 0) {
   ok(P.pickLevel(L, 'auto') === -1, '"אוטומטי" = hls.js בוחר לפי מהירות החיבור');
   ok(P.pickLevel(L, 720) === 1 && P.pickLevel(L, 1440) === 2 && P.pickLevel(L, 144) === 0, 'גובה שנבחר — הקרוב שלא מעליו; אין כזה — הנמוך');
   ok(P.pickLevel([{ width: 1080, height: 1920 }, { width: 720, height: 1280 }], 720) === 1 && P.qLabel({ w: 1080, h: 1920 }) === '1080p' && P.qHd({ w: 720, h: 1280 }),
-    'אנכי — לפי הצלע הקצרה ("1080p", HD מ־720 — כמו ב־YouTube)');
+    'אנכי — לפי הצלע הקצרה ("1080p", HD מ־720 — לפי ת־נגן)');
   ok(P.normPq(undefined) === 'src' && P.normPq('auto') === 'auto' && P.normPq(720) === 720 && P.normPq(721) === 'src' && P.normPq('x') === 'src', 'ההעדפה שנשמרת: מקור כברירת מחדל');
 
   /* ---------- אותה בדיקה בטלפון ובשרתון ---------- */
@@ -73,7 +73,7 @@ function sidx(refs, ts, ver = 0, fo = 0) {
   ok(/enableWorker: false/.test(pl) && /pLoader: PL/.test(pl) && /capLevelToPlayerSize: false/.test(pl), 'hls.js: בלי Worker (CSP), הרשימות מהזיכרון, בלי הגבלה לגודל הנגן (המקור במלואו)');
   ok(/if \(ladder && !opts\.burned\) startHls\(\); else v\.src = opts\.src/.test(pl) && /toFile\(v\.currentTime \|\| 0\)/.test(pl), 'בלי איכויות / תקלה — הקובץ כמו קודם, מאותו מקום');
   ok(/hls\.currentLevel = pickLevel\(levels, pq\)/.test(pl) && /if \(opts\.onPq\) opts\.onPq\(pq\)/.test(pl), 'בחירה ידנית — מיד, ונשמרת');
-  ok(/const gearB = ib\('gear', 'gear', T\('studioPlSettings'\)/.test(pl) && !/st-pl-b sp/.test(pl), 'גלגל שיניים כמו ב־YouTube (המהירות עברה לתפריט)');
+  ok(/const gearB = ib\('gear', 'gear', T\('studioPlSettings'\)/.test(pl) && !/st-pl-b sp/.test(pl), 'גלגל שיניים לפי ת־נגן (המהירות עברה לתפריט)');
   ok(/pq: 'src'/.test(st) && /s\.pq = normPq\(o\.pq\)/.test(st) && /ladder: src \? ladderOf\(rec\) : null, pq: store\.settings\.pq, onPq: pqSave/.test(st), 'ההעדפה בהגדרות הסטודיו (pwa_studio_v1); הנגן ועורך הכתוביות');
   ok(/hl\[0\]\.id !== vid \|\| rec\.spec\.edl/.test(st), 'רק כשהאיכות הראשונה היא הסרטון שהנגן מנגן (לא בחיתוך לפני התרגום)');
   const app = read('app.js');

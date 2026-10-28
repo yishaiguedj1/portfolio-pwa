@@ -334,7 +334,7 @@
       return;
     }
 
-    // v297 (בקשת המשתמש, אחרי תצוגה מקדימה): בסגנון Apple ID — תמונה + שם + מייל, ופעולה כשורת רשימה
+    // v297 (בקשת המשתמש, אחרי תצוגה מקדימה): לפי ת־עיצוב ID — תמונה + שם + מייל, ופעולה כשורת רשימה
     const OUT_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 17l5-5-5-5"/><path d="M20 12H9"/><path d="M12 20H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6"/></svg>';
     const PHONE_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M11 18h2"/></svg>';
     const KEY_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3"/><path d="M17 6l3 3"/><path d="M15 8l2 2"/></svg>';

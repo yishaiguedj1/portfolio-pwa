@@ -1,4 +1,4 @@
-/* 27/10/2026 (בקשת המשתמש — "גרף נרות" ברמה של TradingView ומעבר): החישובים של גרף הנרות — טהורים, בלי DOM.
+/* 27/10/2026 (בקשת המשתמש — "גרף נרות" לפי ת־גרף ומעבר): החישובים של גרף הנרות — טהורים, בלי DOM.
    chart.js (המסך) מייבא מכאן; הבדיקות (tests/chart.test.js) מריצות ב־vm.
    נר = { timestamp (ms), open, high, low, close, volume }. מערך תוצאה של אינדיקטור = אובייקט לכל נר (ערך חסר = undefined).
    המקורות לנוסחאות: ההגדרות המקובלות (TradingView Help / StockCharts ChartSchool) — כל אינדיקטור נבדק מול ערכים ידניים. */
@@ -29,7 +29,7 @@ export const TF_ORDER = Object.keys(TF);
 export const isIntraday = (tf) => TF[tf] && /m$/.test(TF[tf].base);
 
 /* צבירת נרות בסיס לנר גדול יותר.
-   תוך־יומי: הנר מעוגן לתחילת הסשן (כמו TradingView: 45 דק׳ מ־9:30, 4 שעות = 9:30 ו־13:30) — סשן חדש = פער של 3 שעות ומעלה.
+   תוך־יומי: הנר מעוגן לתחילת הסשן (לפי ת־גרף: 45 דק׳ מ־9:30, 4 שעות = 9:30 ו־13:30) — סשן חדש = פער של 3 שעות ומעלה.
    חודשי: לפי רבעון/חצי/שנה קלנדריים (cal). */
 export function aggregate(bars, tf) {
   const d = TF[tf];
@@ -167,7 +167,7 @@ export function lineBreak(bars, n) {
   }
   return out;
 }
-/* Kagi — היפוך כשהמחיר חוזר בשיעור rev (ברירת מחדל 4% — כמו ב־TradingView: ATR או אחוז). מוצג כנרות "קו" */
+/* Kagi — היפוך כשהמחיר חוזר בשיעור rev (ברירת מחדל 4% — לפי ת־גרף: ATR או אחוז). מוצג כנרות "קו" */
 export function kagi(bars, rev) {
   rev = rev || 0.04;
   if (!bars.length) return [];
@@ -890,7 +890,7 @@ export function rangeStats(bars, i0, i1) {
   return { ch: b.close - a.close, pct: a.close ? (b.close / a.close - 1) * 100 : 0, bars: i1 - i0, ms: b.timestamp - a.timestamp, vol, hi, lo };
 }
 
-/* בדיקה לאחור פשוטה (Strategy Tester בזעיר אנפין): חציית שני ממוצעים / RSI. סטטיסטיקה כמו ב־TradingView:
+/* בדיקה לאחור פשוטה (Strategy Tester בזעיר אנפין): חציית שני ממוצעים / RSI. סטטיסטיקה לפי ת־גרף:
    רווח נקי, אחוז עסקאות מנצחות, Profit factor, ירידה מקסימלית, מספר עסקאות */
 export function backtest(bars, rule) {
   const c = bars.map((b) => b.close);
@@ -924,7 +924,7 @@ export function positionCalc(entry, stop, target, risk) {
 }
 
 /* מספר ספרות אחרי הנקודה לפי המחיר (פני מניה / שקלים / קריפטו זול) */
-/* חיצי עסקאות (כמו TradingView): כל ביצוע לנר שמכיל אותו — הנר האחרון שמתחיל לפניו; כמה ביצועים באותו נר ובאותו
+/* חיצי עסקאות (לפי ת־גרף): כל ביצוע לנר שמכיל אותו — הנר האחרון שמתחיל לפניו; כמה ביצועים באותו נר ובאותו
    כיוון = חץ אחד עם סכום הכמות (ומחיר ממוצע משוקלל). key(bar)/f.k — אותה יחידה: זמן במ"ש, או מספר יום (בטווח של יום ומעלה,
    כדי שביצוע לפני הפתיחה לא ייפול לנר של אתמול). span = אורך הנר האחרון באותה יחידה; ביצוע לפני הנר הראשון או אחריו — לא מוצג.
    fills: [{ k, side: 'BUY'|'SELL', qty, price }] → [{ i, timestamp, buy, qty, price, n, value }] (value: נמוך בקנייה, גבוה במכירה). טהורה. */

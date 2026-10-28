@@ -339,7 +339,7 @@ button.an-row { cursor: pointer; }
 .an-mrow > .an-chev, .an-nrow > .an-chev { justify-self: end; }
 .an-nrow .an-rv { color: var(--an-ink2); font-weight: 500; }
 .an-nrow .an-rt span { font-size: 12.5px; color: var(--an-ink3); }
-/* תת־עמוד: כותרת גדולה כמו ב־iOS, תוכן בכרטיס אחד */
+/* תת־עמוד: כותרת גדולה לפי ת־עיצוב, תוכן בכרטיס אחד */
 .an-back-t { max-width: 34vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .an-h1 { font-size: 30px; font-weight: 800; letter-spacing: -.5px; margin: 2px 2px 0; text-wrap: balance; }
 .an-subw .an-subb { padding: 0; overflow: visible; }

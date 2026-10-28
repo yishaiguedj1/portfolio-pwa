@@ -7,7 +7,7 @@
 
 export const STATE_V = 1;
 export const OPS_V = 1;
-export const HIST_DAYS = 90;     // כמו Chrome במחשב — 90 יום של היסטוריה
+export const HIST_DAYS = 90;     // לפי ת־עיצוב במחשב — 90 יום של היסטוריה
 export const HIST_MAX = 20000;   // ביקורים (לא כתובות) — כל כניסה לדף היא שורה, כמו בהיסטוריה של Chrome
 export const HDEL_HOLD = 300;    // מחיקה גדולה של היסטוריה מהטלפון (ניקוי) — מחכה לאישור בחלון של התוסף
 export const DEL_HOLD_MIN = 10;      // מחיקה גדולה (יותר מ־DEL_HOLD_MIN וגם מרבע) — מחכה לאישור בחלון של התוסף

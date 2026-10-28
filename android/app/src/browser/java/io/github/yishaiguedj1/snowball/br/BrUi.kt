@@ -144,7 +144,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.withContext
 
 /*
- * 27/10/2026 (בקשת המשתמש: "שיראה אחד לאחד כמו Chrome באנדרואיד", ואחר כך: "הצבעים והמראה כמו הממשק שלנו ושל Apple —
+ * 27/10/2026 (בקשת המשתמש: "שיראה אחד לאחד לפי ת־עיצוב באנדרואיד", ואחר כך: "הצבעים והמראה כמו הממשק שלנו ושל Apple —
  * המבנה, המיקום והצורה של כל דבר נשארים זהים ל־Chrome"; התצוגה המקדימה שאושרה: claude.ai/artifact/RoCSRDZTkrSpthtkm7L7gk).
  * המבנה — Chrome 159 לאנדרואיד (נמדד מהקוד של Chromium): סרגל עליון של 56dp (דף הבית · גלולת הכתובת 40dp ברדיוס 24 ·
  * כרטיסייה חדשה 52dp · כרטיסיות · ⋮), תפריט ⋮ שנפתח מהפינה עם שורת חמישה כפתורים עגולים ואחריה הפריטים בסדר של Chrome,
@@ -164,7 +164,7 @@ private val Light = BrC(Color.White, Color(0xF5FFFFFF), Color(0x1F767680), Color
     Color(0x993C3C43), Color(0x4A3C3C43), Red, Color(0x4D3C3C43), false, Color(0xFF3C3C43))
 private val Dark = BrC(Color.Black, Color(0xF51C1C1E), Color(0x3D767680), Color(0x8C2C2C2E), Color(0xFF0E0E11), Color.White,
     Color(0x99EBEBF5), Color(0x5C545458), Color(0xFFFF5A6A), Color(0x4DEBEBF5), true, Color(0xFFD1D1D6))
-/** כרטיסייה פרטית — תמיד כהה, כמו ב־Chrome */
+/** כרטיסייה פרטית — תמיד כהה, לפי ת־עיצוב */
 private val Priv = BrC(Color(0xFF131314), Color(0xFF161618), Color(0x3D767680), Color(0x8C2C2C2E), Color(0xFF0B0B0D), Color.White,
     Color(0x99EBEBF5), Color(0x5C545458), Color(0xFFFF5A6A), Color(0x4DEBEBF5), true, Color(0xFFD1D1D6))
 private val LocalBr = staticCompositionLocalOf { Light }
@@ -264,7 +264,7 @@ private fun Fav(a: BrowserActivity, url: String, size: Dp, radius: Dp = size / 4
     }
 }
 
-/** סמל בתחילת שורה — כמו ב־Chrome: 24dp בצבע הסמלים (האדום רק למה ששייך ל־Studio) */
+/** סמל בתחילת שורה — לפי ת־עיצוב: 24dp בצבע הסמלים (האדום רק למה ששייך ל־Studio) */
 @Composable
 private fun Tile(icon: ImageVector, color: Color) {
     val c = LocalBr.current
@@ -320,7 +320,7 @@ private fun IRow(title: String, sub: String? = null, lead: (@Composable () -> Un
     }
 }
 
-/** כפתור עגול עם סמל (בסרגלים) — 48dp כמו ב־Chrome, ההדגשה בלחיצה עיגול של 40dp */
+/** כפתור עגול עם סמל (בסרגלים) — 48dp לפי ת־עיצוב, ההדגשה בלחיצה עיגול של 40dp */
 @Composable
 private fun IBtn(icon: ImageVector, desc: String, size: Dp = 48.dp, iconSize: Dp = 24.dp, enabled: Boolean = true, tint: Color? = null, on: () -> Unit) {
     val c = LocalBr.current
@@ -382,7 +382,7 @@ private fun PageScreen(a: BrowserActivity) {
     val start = if (t?.url?.startsWith("http") == true) t.url else ""
     var q by remember(a.editing, t?.id) { mutableStateOf(TextFieldValue(start, TextRange(0, start.length))) }
     val ntp = t == null || t.isNtp
-    // הסרגל למטה (הגדרה, כמו ב־Chrome) — חוזר למעלה בכרטיסייה חדשה, בהקלדה ובחיפוש בדף
+    // הסרגל למטה (הגדרה, לפי ת־עיצוב) — חוזר למעלה בכרטיסייה חדשה, בהקלדה ובחיפוש בדף
     val bottom = a.barBottom && !ntp && !a.editing && !a.finding
     Column(Modifier.fillMaxSize().then(if (ntp || a.editing) Modifier.ambient(c) else Modifier.background(c.bar)).statusBarsPadding().imePadding()) {
         if (!bottom) { TopBar(a, q, { q = it }, ntp); if (!ntp && !a.editing) Line(t) }
@@ -452,7 +452,7 @@ private fun TopBar(a: BrowserActivity, q: TextFieldValue, setQ: (TextFieldValue)
     }
 }
 
-/** כפתור הכרטיסיות: ריבוע מעוגל של 18dp עם המספר (כמו ב־Chrome; מעל 99 — ":D"); לחיצה ארוכה — תפריט קצר */
+/** כפתור הכרטיסיות: ריבוע מעוגל של 18dp עם המספר (לפי ת־עיצוב; מעל 99 — ":D"); לחיצה ארוכה — תפריט קצר */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TabsBtn(a: BrowserActivity) {
@@ -475,7 +475,7 @@ private fun TabsBtn(a: BrowserActivity) {
     }
 }
 
-/** הכתובת כמו ב־Chrome: בלי https:// ובלי www., הדומיין בצבע הראשי והשאר בצבע המשני, משמאל לימין */
+/** הכתובת לפי ת־עיצוב: בלי https:// ובלי www., הדומיין בצבע הראשי והשאר בצבע המשני, משמאל לימין */
 private fun urlParts(url: String): Pair<String, String> {
     var u = url.removePrefix("https://").removePrefix("http://")
     if (u.startsWith("www.")) u = u.removePrefix("www.")
@@ -486,8 +486,8 @@ private fun urlParts(url: String): Pair<String, String> {
     return host to rest
 }
 
-/** גלולת הכתובת במנוחה (40dp, רדיוס 24): בדף מאובטח — בלי סמל (כמו ב־Chrome 159; פרטי האתר בתפריט ⋮), בדף לא מאובטח — "לא מאובטח".
- *  גרירה הצידה = הכרטיסייה הבאה, כמו ב־Chrome; ⬇ של Studio בסוף כשיש מה להוריד */
+/** גלולת הכתובת במנוחה (40dp, רדיוס 24): בדף מאובטח — בלי סמל (לפי ת־עיצוב 159; פרטי האתר בתפריט ⋮), בדף לא מאובטח — "לא מאובטח".
+ *  גרירה הצידה = הכרטיסייה הבאה, לפי ת־עיצוב; ⬇ של Studio בסוף כשיש מה להוריד */
 @Composable
 private fun RowScope.Omnibox(a: BrowserActivity) {
     val c = LocalBr.current
@@ -532,7 +532,7 @@ private fun hint(a: BrowserActivity): String {
     return stringResource(R.string.brHintEngine, eng)
 }
 
-/** שורת הכתובת בהקלדה (כמו ב־Chrome): הגלולה מתרחבת עד 8dp מהשוליים, 48dp ברדיוס 16; G של Google (או זכוכית מגדלת) בהתחלה,
+/** שורת הכתובת בהקלדה (לפי ת־עיצוב): הגלולה מתרחבת עד 8dp מהשוליים, 48dp ברדיוס 16; G של Google (או זכוכית מגדלת) בהתחלה,
  *  ✕ לניקוי או 🎤 בסוף; "חזור" של המכשיר יוצא מההקלדה */
 @Composable
 private fun RowScope.EditField(a: BrowserActivity, q: TextFieldValue, setQ: (TextFieldValue) -> Unit) {
@@ -557,7 +557,7 @@ private fun RowScope.EditField(a: BrowserActivity, q: TextFieldValue, setQ: (Tex
     LaunchedEffect(Unit) { runCatching { fr.requestFocus() } }
 }
 
-/** חיפוש בדף — כמו ב־Chrome: במקום הסרגל, שדה · "3/12" · קו · ▲ ▼ · ✕ */
+/** חיפוש בדף — לפי ת־עיצוב: במקום הסרגל, שדה · "3/12" · קו · ▲ ▼ · ✕ */
 @Composable
 private fun FindBar(a: BrowserActivity) {
     val c = LocalBr.current
@@ -593,7 +593,7 @@ private fun WebHost(a: BrowserActivity, t: BrTab) {
     )
 }
 
-/* ======================= כרטיסייה חדשה — כמו ב־Chrome ======================= */
+/* ======================= כרטיסייה חדשה — לפי ת־עיצוב ======================= */
 
 @Composable
 private fun Ntp(a: BrowserActivity) {
@@ -660,7 +660,7 @@ private fun Ntp(a: BrowserActivity) {
     }
 }
 
-/** תיבת החיפוש של הכרטיסייה החדשה (כמו ב־Chrome: 56dp, גלולה מלאה; G · הרמז 18sp · 🎤) — מזכוכית */
+/** תיבת החיפוש של הכרטיסייה החדשה (לפי ת־עיצוב: 56dp, גלולה מלאה; G · הרמז 18sp · 🎤) — מזכוכית */
 @Composable
 private fun NtpSearch(a: BrowserActivity) {
     val c = LocalBr.current
@@ -686,7 +686,7 @@ private fun SiteTile(a: BrowserActivity, s: BrMark, on: () -> Unit) {
     }
 }
 
-/* ======================= הצעות בשורת הכתובת — כרטיסים כמו ב־Chrome ======================= */
+/* ======================= הצעות בשורת הכתובת — כרטיסים לפי ת־עיצוב ======================= */
 
 @Composable
 private fun Suggest(a: BrowserActivity, q: TextFieldValue, setQ: (TextFieldValue) -> Unit) {
@@ -780,7 +780,7 @@ private fun SugRow(icon: ImageVector, title: String, sub: String?, append: (() -
     }
 }
 
-/* ======================= התפריט ⋮ — כמו ב־Chrome לאנדרואיד, חלון זכוכית ======================= */
+/* ======================= התפריט ⋮ — לפי ת־עיצוב לאנדרואיד, חלון זכוכית ======================= */
 
 /** החלון של התפריט: בפינה של ⋮ (למעלה, ובעברית — משמאל), שקוף, בלי עמעום. הרקע מצויר בתוכו (backdrop) */
 private fun glassWindow(w: android.view.Window?, rtl: Boolean, bottom: Boolean, topPx: Int, botPx: Int, dp: Float) {
@@ -877,7 +877,7 @@ private fun MenuSheet(a: BrowserActivity) {
             }
             .border(0.5.dp, Brush.verticalGradient(if (c.dark) listOf(Color.White.copy(alpha = 0.3f), Color.White.copy(alpha = 0.06f)) else listOf(Color.White, Color.White.copy(alpha = 0.5f))), shape)
             .verticalScroll(rememberScrollState()).padding(bottom = 10.dp)) {
-            // שורת הכפתורים: חזרה · קדימה · סימנייה · הורדה · רענון (כמו ב־Chrome 159)
+            // שורת הכפתורים: חזרה · קדימה · סימנייה · הורדה · רענון (לפי ת־עיצוב 159)
             Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 val loading = (t?.progress ?: 0) in 1..99 && web
                 val marked = web && BrStore.isMarked(t!!.url)
@@ -1140,7 +1140,7 @@ private fun ClearDialog(a: BrowserActivity) {
         dismissButton = { TextButton({ a.clearAsk = false }) { Text(stringResource(R.string.brCancel)) } })
 }
 
-/* ======================= מסך הכרטיסיות — כמו ב־Chrome לאנדרואיד ======================= */
+/* ======================= מסך הכרטיסיות — לפי ת־עיצוב לאנדרואיד ======================= */
 
 /** הסרגל: "+" (זכוכית אדומה, 40dp) · מעבר רגיל/פרטי באמצע · ⋮; תיבת "חיפוש בכרטיסיות"; ושתי עמודות של כרטיסים */
 @Composable
@@ -1244,7 +1244,7 @@ private fun TabCard(a: BrowserActivity, t: BrTab) {
     }
 }
 
-/* ======================= היסטוריה — כמו ב־Chrome ======================= */
+/* ======================= היסטוריה — לפי ת־עיצוב ======================= */
 
 @Composable
 private fun HistoryScreen(a: BrowserActivity) {
@@ -1297,7 +1297,7 @@ private fun Empty(text: Int) {
     Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) { Text(stringResource(text), color = c.mute, fontSize = 18.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center) }
 }
 
-/* ======================= סימניות — כמו ב־Chrome ======================= */
+/* ======================= סימניות — לפי ת־עיצוב ======================= */
 
 @Composable
 private fun folderTitle(path: String): String = when (path) {
@@ -1503,7 +1503,7 @@ private fun PrivacyScreen(a: BrowserActivity) {
     }
 }
 
-/** מנהל הסיסמאות — כמו ב־Chrome, והכל ב־Google Password Manager: הוא ממלא לפי האתר כאן, ב־Chrome ובכל אפליקציה בטלפון */
+/** מנהל הסיסמאות — לפי ת־עיצוב, והכל ב־Google Password Manager: הוא ממלא לפי האתר כאן, ב־Chrome ובכל אפליקציה בטלפון */
 @Composable
 private fun PasswordsScreen(a: BrowserActivity) {
     val c = LocalBr.current
@@ -1739,7 +1739,7 @@ private fun Avatar(name: String, email: String, on: Boolean, size: Dp) {
 
 private fun ago(at: Long): String = DateUtils.getRelativeTimeSpanString(at, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString()
 
-/** עמוד "סנכרון" (כמו ב־Chrome): לא מחובר = כניסה עם Google; מחובר = החשבון, מה מסתנכרן, המכשירים, הפסקה/מחיקה */
+/** עמוד "סנכרון" (לפי ת־עיצוב): לא מחובר = כניסה עם Google; מחובר = החשבון, מה מסתנכרן, המכשירים, הפסקה/מחיקה */
 @Composable
 private fun CloudScreen(a: BrowserActivity) {
     val c = LocalBr.current
@@ -1802,7 +1802,7 @@ private fun CloudScreen(a: BrowserActivity) {
             }
         }
         item {
-            // החשבון גם באתרים של Google (Gmail, YouTube, החיפוש) — כמו ב־Chrome; כאן בכניסה אחת בדף של Google
+            // החשבון גם באתרים של Google (Gmail, YouTube, החיפוש) — לפי ת־עיצוב; כאן בכניסה אחת בדף של Google
             val web = a.googleWebOn()
             Group(footer = stringResource(R.string.brGWebFoot)) {
                 IRow(stringResource(R.string.brGWeb), lead = { Image(BrIcons.GoogleG, null, Modifier.size(24.dp)) },
@@ -1899,7 +1899,7 @@ private fun UsersScreen(a: BrowserActivity) {
     }
 }
 
-/** "כרטיסיות אחרונות" (כמו ב־Chrome): לכל מכשיר אחר — הכרטיסיות הפתוחות בו, מהפעילה לאחרונה. נגיעה = ממשיכים מאותו מקום */
+/** "כרטיסיות אחרונות" (לפי ת־עיצוב): לכל מכשיר אחר — הכרטיסיות הפתוחות בו, מהפעילה לאחרונה. נגיעה = ממשיכים מאותו מקום */
 @Composable
 private fun RecentScreen(a: BrowserActivity) {
     val c = LocalBr.current
@@ -1981,7 +1981,7 @@ private fun IncomingBar(a: BrowserActivity, from: String, st: BrCloudCore.STab, 
     }
 }
 
-/** "שליחה למכשירים שלך" (כמו ב־Chrome) — בחירת מכשיר; שם הכרטיסייה קופצת, מאותו מקום */
+/** "שליחה למכשירים שלך" (לפי ת־עיצוב) — בחירת מכשיר; שם הכרטיסייה קופצת, מאותו מקום */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SendSheet(a: BrowserActivity) {
@@ -2100,7 +2100,7 @@ private fun SiteScreen(a: BrowserActivity) {
     }
 }
 
-/** הרשאה אחת: לשאול / מותר / חסום (כמו ב־Chrome) */
+/** הרשאה אחת: לשאול / מותר / חסום (לפי ת־עיצוב) */
 @Composable
 private fun PermRow(title: String, icon: ImageVector, color: Color, v: Int, set: (Int) -> Unit) {
     val c = LocalBr.current

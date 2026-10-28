@@ -49,7 +49,7 @@ object PhPy {
         return d
     }
 
-    /** הסביבה של הפייתון — כמו ש־youtubedl-android מריץ את yt-dlp, ועוד מה ש־job.py צריך בטלפון */
+    /** הסביבה של הפייתון — לפי ת־נגןdl-android מריץ את yt-dlp, ועוד מה ש־job.py צריך בטלפון */
     fun env(ctx: Context, work: File): Map<String, String> {
         val pk = File(ctx.noBackupFilesDir, "youtubedl-android/packages")
         val home = File(pk, "python/usr")

@@ -1,4 +1,4 @@
-// v365: סטודיו התרגום — מגדל הפיקוח 2.0, שלב א׳ (בהשראת ServiceNow Event Management + Service Health):
+// v365: סטודיו התרגום — מגדל הפיקוח 2.0, שלב א׳ (לפי ת־פיקוח Event Management + Service Health):
 // אירועים מכל המקורות → התראות (איחוד, קיבוץ, סגירה), מפת השירות, ובריאות הסטודיו (ציון, זמינות 30 יום, MTTR).
 // הבדיקות המלאות: ibkr-proxy/tests/run.js (הזרימה מול שרתון מדומה), translator/tests/test_worker.py (test_ops_events).
 // הרצה: node tests/studio-v365.test.js

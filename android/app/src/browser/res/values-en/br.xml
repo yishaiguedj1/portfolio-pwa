@@ -119,7 +119,7 @@
     <string name="brClearData">Delete browsing data</string>
     <string name="brPrivacy">Privacy and security</string>
     <string name="brSuggest">Search suggestions</string>
-    <string name="brSuggestSub">What you type in the address bar is sent to %1$s to suggest completions, like in Chrome.</string>
+    <string name="brSuggestSub">What you type in the address bar is sent to %1$s to suggest completions.</string>
     <string name="brPwTitle">Password Manager</string>
     <string name="brPwHero">Your passwords are saved in your Google Account and fill in by site — here, in Chrome and in every app on your phone. A new password you save here shows up in Chrome too, and the other way around.</string>
     <string name="brPwOn">Fills on every site and app</string>
@@ -330,5 +330,5 @@
     <string name="brGWeb">Google account on websites</string>
     <string name="brGWebOn">Signed in to Gmail, YouTube and all of Google</string>
     <string name="brGWebOff">Not signed in — sign in</string>
-    <string name="brGWebFoot">Like Chrome: the same account on Google pages too. Sign in once; it stays for this person only.</string>
+    <string name="brGWebFoot">The same account on Google pages too. Sign in once; it stays for this person only.</string>
 </resources>

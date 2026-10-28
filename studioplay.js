@@ -1,4 +1,4 @@
-/* מ1 (10/10/2026): הנגן של סטודיו התרגום — בסגנון YouTube.
+/* מ1 (10/10/2026): הנגן של סטודיו התרגום — לפי ת־נגן.
    הסרטון המקורי מ־Drive (דרך ה־Service Worker, ./studio-media/<id>) והכתוביות מעליו (עברית / שפת המקור / כבויות),
    נגיעה כפולה בצד = ±10 שנ׳, מהירות, ובפס ההתקדמות — מפת האזהרות (כתוביות שלא עומדות בכללים) כמו "הכי נצפה" ב־YouTube.
    הלוגיקה טהורה (נבדקת ב־node); ה־DOM נבנה רק ב־createPlayer. בלי רשת — studio.js נותן כתובת וכתוביות. */
@@ -88,7 +88,7 @@ export function nextCc(cc, hasEn) { return cc === 'he' ? (hasEn ? 'en' : 'off') 
 
 /* ---- 23/10/2026 (בקשת המשתמש — "כמו בנגנים מתקדמים"): בחירת רצועת קול ורצועת כתוביות מהנגן ----
    ברירת המחדל = "אוטומטי": הקול — ברירת המחדל שסומנה בקובץ (אחרת הראשונה); הכתוביות — התרגום, וכבויות כשהקול כבר בשפת
-   התרגום (אין טעם בכתוביות בעברית מעל קול בעברית). בחירה ידנית נשמרת (העדפה בהגדרות — כמו ב־YouTube) ו"אוטומטי" מחזיר.
+   התרגום (אין טעם בכתוביות בעברית מעל קול בעברית). בחירה ידנית נשמרת (העדפה בהגדרות — לפי ת־נגן) ו"אוטומטי" מחזיר.
    ההעדפה לקול = קוד שפה (רצועה בלי שפה — רק לניגון הזה), לכתוביות = off/he/en/both */
 export const CC_MODES = ['off', 'he', 'en', 'both'];
 export function normTrackPref(x) {
@@ -117,11 +117,11 @@ export function resolveCc(prefCc, auto, hasEn, burned) {
   return prefCc;
 }
 
-/* ---------------- איכויות צפייה כמו ב־YouTube (10/10/2026) ----------------
+/* ---------------- איכויות צפייה לפי ת־נגן (10/10/2026) ----------------
    העובד (translator/ladder.py) אורז את המקור עצמו מחדש — אותו קובץ, אותם זרמים, בלי קידוד — ומוסיף איכויות נמוכות קטנות.
    כל קובץ = MP4 מקוטע עם אינדקס (sidx) בתחילתו. כאן: קוראים את תחילת כל קובץ (בקשת טווח אחת), בונים ממנה רשימות HLS
    עם טווחי בתים, ו־hls.js בוחר איכות (אוטומטי לפי מהירות החיבור, או ידני). אותו דבר יעבוד מ־R2 — רק כתובת אחרת לקובץ.
-   ברירת המחדל = המקור (האיכות הכי טובה — בקשת המשתמש); "אוטומטי" — בתפריט ההגדרות, כמו ב־YouTube. */
+   ברירת המחדל = המקור (האיכות הכי טובה — בקשת המשתמש); "אוטומטי" — בתפריט ההגדרות, לפי ת־נגן. */
 export const HEAD_BYTES = 256 * 1024;
 export const SEG_TARGET = 6, SEG_MAX_BYTES = 24 * 1024 * 1024;   // קטע ~6 שנ׳; לא מעל 24MB (= תקרת הטווח המפורש ב־sw.js)
 export const Q_HEIGHTS = [4320, 2160, 1440, 1080, 720, 480, 360, 240, 144];
@@ -361,7 +361,7 @@ export async function localDecode(file, idx) {
 /* איזו רצועה צריכה את הגשר: כל רצועה חוץ מהראשונה (שהדפדפן מנגן), וגם הראשונה כשהדפדפן לא מכיר את הקודק שלה */
 export function fileNeedsBridge(tracks, i, isType) { return i > 0 || !!(tracks[i] && needAudioBridge(tracks[i].c, isType)); }
 
-/* "1080p" — לפי הצלע הקצרה (אנכי 1080×1920 הוא 1080p, כמו ב־YouTube) */
+/* "1080p" — לפי הצלע הקצרה (אנכי 1080×1920 הוא 1080p, לפי ת־נגן) */
 export const qShort = (l) => Math.min(l.w || l.width || 0, l.h || l.height || 0);
 export const qLabel = (l) => qShort(l) + 'p';
 export const qHd = (l) => qShort(l) >= 720;
@@ -524,7 +524,7 @@ export function createPlayer(opts) {
   let cc = resolveCc(pref.cc, autoCc('', (opts.cues || []).length > 0, !!opts.burned, opts.subLang), (opts.cues || []).some((c) => c.en), !!opts.burned), hideT = 0, lastTap = 0, tapT = 0, dragging = false, destroyed = false;
   const wrap = el('div', 'st-pl' + (opts.burned ? ' burned' : '')); wrap.dir = 'ltr';
   const v = el('video', 'st-pl-v'); v.playsInline = true; v.preload = 'metadata'; v.setAttribute('playsinline', '');
-  // 21/10/2026 (בקשת המשתמש — כמו ב־YouTube): תמונה לפני הניגון. קפיצה לנקודה (seek) מורידה אותה ומציגה את הפריים של הנקודה
+  // 21/10/2026 (בקשת המשתמש — לפי ת־נגן): תמונה לפני הניגון. קפיצה לנקודה (seek) מורידה אותה ומציגה את הפריים של הנקודה
   const setPoster = (u) => { if (typeof u === 'string' && /^(data:image\/(jpeg|png|webp);base64,|blob:)/.test(u)) v.poster = u; };
   setPoster(opts.poster);
   const sub = el('div', 'st-pl-sub'); sub.dir = 'rtl'; sub.setAttribute('aria-live', 'off');
@@ -533,7 +533,7 @@ export function createPlayer(opts) {
   // 25/10/2026: בסרטון צרוב — רק המקור באנגלית מעל (העברית כבר בתמונה), בלי לשמור העדפה
   const ccB = ib('cc', 'cc', T('studioPlCc'), () => { if (opts.burned) cc = cc === 'en' ? 'off' : 'en'; else { cc = nextCc(cc, hasEn()); savePref({ cc }); } paintCc(); paintSub(); });
   const ccL = el('span', 'st-pl-ccl'); ccB.append(ccL);
-  // ההגדרות — כמו ב־YouTube: גלגל שיניים → איכות / מהירות (בתוך הנגן, גם במסך מלא)
+  // ההגדרות — לפי ת־נגן: גלגל שיניים → איכות / מהירות (בתוך הנגן, גם במסך מלא)
   const gearB = ib('gear', 'gear', T('studioPlSettings'), () => openMenu(''));
   const hdB = el('span', 'st-pl-hd', 'HD'); hdB.hidden = true; gearB.append(hdB);
   const menu = el('div', 'st-pl-menu'); menu.hidden = true; menu.setAttribute('role', 'dialog'); menu.setAttribute('aria-label', T('studioPlSettings'));
@@ -553,7 +553,7 @@ export function createPlayer(opts) {
   const fwdB = ib('sm', 'fwd', T('studioPlFwd'), () => jump(10));
   mid.append(backB, playB, fwdB);
   const time = el('div', 'st-pl-time'), cur = el('span'), tot = el('span');
-  // הפרק הנוכחי באמצע שורת הזמן (כמו ב־YouTube) — נגיעה = רשימת הפרקים
+  // הפרק הנוכחי באמצע שורת הזמן (לפי ת־נגן) — נגיעה = רשימת הפרקים
   const chapB = el('button', 'st-pl-chb'); chapB.type = 'button'; chapB.hidden = true;
   const chapL = el('span', 'st-pl-chl'); chapL.dir = 'auto'; chapB.append(chapL, icon('chev'));
   chapB.addEventListener('click', (e) => { e.stopPropagation(); openMenu('c'); });
@@ -583,7 +583,7 @@ export function createPlayer(opts) {
   }
   function setPq(next) {
     pq = normPq(next);
-    if (hls && levels.length) hls.currentLevel = pickLevel(levels, pq);   // ידני — מיד (כמו ב־YouTube); אוטומטי — לפי החיבור
+    if (hls && levels.length) hls.currentLevel = pickLevel(levels, pq);   // ידני — מיד (לפי ת־נגן); אוטומטי — לפי החיבור
     if (opts.onPq) opts.onPq(pq);
     paintHd();
   }
@@ -919,7 +919,7 @@ export function createPlayer(opts) {
     v.currentTime = Math.max(0, Math.min(1, (x - r.left) / r.width)) * d;
     paintBar(); paintSub();
   }
-  // נגיעה: אחת = הצגה/הסתרה של הפקדים; כפולה בשליש הימני/השמאלי = ±10 (כמו ב־YouTube; לפי הצד הפיזי, גם ב־RTL)
+  // נגיעה: אחת = הצגה/הסתרה של הפקדים; כפולה בשליש הימני/השמאלי = ±10 (לפי ת־נגן; לפי הצד הפיזי, גם ב־RTL)
   wrap.addEventListener('click', (e) => {
     if (e.target.closest && e.target.closest('.st-pl-b, .st-pl-bar')) return;
     const now = Date.now(), r = wrap.getBoundingClientRect(), x = (e.clientX - r.left) / Math.max(1, r.width);

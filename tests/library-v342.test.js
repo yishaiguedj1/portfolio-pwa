@@ -1,4 +1,4 @@
-// v342 (בקשת המשתמש 05/10/2026): דפדוף בגלילת דף כמו בקינדל — גאומטריה טהורה + החיבור לקורא
+// v342 (בקשת המשתמש 05/10/2026): דפדוף בגלילת דף לפי ת־קורא — גאומטריה טהורה + החיבור לקורא
 const fs = require('fs');
 const path = require('path');
 let n = 0;
@@ -34,7 +34,7 @@ const ge = M.curlGeom(W, H, M.curlEnd(W, H, 0), 0, 400, false);
 ok(near(area(ge.front), 0) && near(area(ge.roll), 0), 'סוף הדפדוף: הדף והגליל מחוץ למסך');
 const gt = M.curlGeom(W, H, 0.4, M.curlTilt(0.4, 720, 0, H), 720, false);
 const top = gt.front.filter((p) => p[1] === 0).map((p) => p[0]), bot = gt.front.filter((p) => p[1] === H).map((p) => p[0]);
-ok(Math.max(...bot) < Math.max(...top) - 40 && Math.abs(M.curlTilt(0.4, 400, 0, H)) < 0.08, 'הטיה כמו בקינדל — אחיזה בתחתית: הפינה התחתונה מובילה');
+ok(Math.max(...bot) < Math.max(...top) - 40 && Math.abs(M.curlTilt(0.4, 400, 0, H)) < 0.08, 'הטיה לפי ת־קורא — אחיזה בתחתית: הפינה התחתונה מובילה');
 ok(M.curlTilt(0, 700, 0, H) === 0 && Math.abs(M.curlTilt(1, 700, 0, H)) < 1e-9, 'הטיה 0 בתחילת ובסוף הדפדוף');
 ok(M.curlProgress(1, 0, W, H) === 0 && near(M.curlProgress(-1, 0, W, H), M.curlEnd(W, H, 0)) && M.curlProgress(1, 200, W, H) > 0.25, 'התקדמות לפי האצבע (אחורה — מתחיל כשהדף הקודם מחוץ למסך)');
 ok(M.curlCommit(1, 0.05, 0.002) && !M.curlCommit(1, 0.05, 0) && M.curlCommit(1, 0.3, 0) && !M.curlCommit(1, 0.3, -0.002) && M.curlCommit(1, 0.03, 0.0002), 'קדימה: האצבע זזה לכיוון — מדפדף (גם החלקה קצרה שמאטה); עצירה — לפי המרחק; חזרה — מבטל');
@@ -51,9 +51,9 @@ const beginSrc = src.split('function begin(')[1].split('\n  function move(')[0];
 ok(!/jump\(/.test(beginSrc) && /if \(go\) \{[\s\S]{0,600}?turnedLayers[\s\S]{0,320}?await jump\(s\.dir\);/.test(src), 'המעבר האמיתי — רק בסוף דפדוף שהושלם; ביטול — בלי מעבר');
 ok(/ensureNeighbor\('next'\); ensureNeighbor\('prev'\);/.test(src) && /env\.loadSection\(i\)/.test(src) && /st\.textContent = env\.bookCss\(\)/.test(src), 'פרק שכן נטען מראש, באותו עיצוב — גב הדף עם טקסט גם בין פרקים');
 ok(/ct\.plain = dir/.test(lib) && /\(d > 0 \? r\.next\(\) : r\.prev\(\)\)/.test(lib), 'הפרק השכן עוד לא מוכן — מעבר רגיל (ההחלקה לא נבלעת)');
-ok(/curlGeom\(W, H, g\.p, g\.phi, g\.gy, g\.rtl, curlRadius\(W\), g\.T\)/.test(src) && /u_kc/.test(src), 'הסגנון שהמשתמש אהב: גליל צר קבוע + כנף מוגבלת; חרוט עדין לאורך הציר (כמו בקינדל)');
+ok(/curlGeom\(W, H, g\.p, g\.phi, g\.gy, g\.rtl, curlRadius\(W\), g\.T\)/.test(src) && /u_kc/.test(src), 'הסגנון שהמשתמש אהב: גליל צר קבוע + כנף מוגבלת; חרוט עדין לאורך הציר (לפי ת־קורא)');
 ok(/u_ls\.xy \+ \(pos\.xy - u_ls\.xy\) \* \(u_ls\.z/.test(src) && /LIGHT = Array\.from\(\{ length: 32 \}/.test(src) && /gl\.stencilOp\(gl\.KEEP, gl\.KEEP, gl\.INCR\)/.test(src), 'צל רך פיזיקלי: מקור אור שטחי, 32 דגימות, כל פיקסל נספר פעם אחת לדגימה');
-ok(/curlMotion\(dist, rushSpeed\(SPEED/.test(src) && /SPEED = 1\.12/.test(src), 'מהירות קבועה ובלימה בקצה כמו בקינדל (נמדד 1.37 רוחבי מסך/שנ׳; אצלנו 1.12 — קצת לאט, בקשת המשתמש, v345; v346 — פיזיקה רציפה מהשחרור)');
+ok(/curlMotion\(dist, rushSpeed\(SPEED/.test(src) && /SPEED = 1\.12/.test(src), 'מהירות קבועה ובלימה בקצה לפי ת־קורא (נמדד 1.37 רוחבי מסך/שנ׳; אצלנו 1.12 — קצת לאט, בקשת המשתמש, v345; v346 — פיזיקה רציפה מהשחרור)');
 ok(/if \(c\.active\(\)\) c\.finishNow\(\);/.test(lib), 'דפדוף מהיר ברצף — הקודם מסתיים מיד');
 ok(/curlPrebuild\(\)/.test(lib.split("view.addEventListener('relocate'")[1].slice(0, 2500)) && /curlStyleVer\+\+/.test(lib), 'שכפול הפרק נבנה מראש אחרי מעבר עמוד ושינוי עיצוב');
 ok(/if \(r\.curl\) r\.curl\.destroy\(\)/.test(lib), 'ניקוי בסגירת הקורא');

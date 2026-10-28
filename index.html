@@ -194,7 +194,7 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
   <!-- מניות -->
   <section id="tab-stocks" class="tabpage" role="tabpanel">
     <!-- v87: חיפוש מניות להוספה — זמין בשני המצבים -->
-    <!-- v239: שדה חיפוש בסגנון Apple — מילוי אפור, זכוכית מגדלת, ⓧ לניקוי (v245: בלי "ביטול" — בקשת המשתמש) -->
+    <!-- v239: שדה חיפוש לפי ת־עיצוב — מילוי אפור, זכוכית מגדלת, ⓧ לניקוי (v245: בלי "ביטול" — בקשת המשתמש) -->
     <div class="stock-search-wrap">
       <div class="search-row">
         <label class="search-field">
@@ -367,7 +367,7 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
 
     <div class="card" id="ibkrCard">
       <h2 data-i18n="ibkrTitle">חיבור ל־IBKR</h2>
-      <!-- v295 (בקשת המשתמש): סיכום נקי — שלושה מספרים + רשימה בסגנון Apple (תקופה, סנכרון אחרון) בגוון IBKR -->
+      <!-- v295 (בקשת המשתמש): סיכום נקי — שלושה מספרים + רשימה לפי ת־עיצוב (תקופה, סנכרון אחרון) בגוון IBKR -->
       <div id="ibkrData" class="ib-data"></div>
       <div class="fine" id="ibkrStatus" style="padding:0"></div>
       <div class="form-err hidden" id="ibkrNavWarn"></div>
@@ -408,7 +408,7 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
       </button>
     </div>
 
-    <!-- v286 (בקשת המשתמש): כרטיס איפוס קומפקטי — שורה אחת, והאפשרויות בגיליון בסגנון Apple (בלי טקסטי הסבר) -->
+    <!-- v286 (בקשת המשתמש): כרטיס איפוס קומפקטי — שורה אחת, והאפשרויות בגיליון לפי ת־עיצוב (בלי טקסטי הסבר) -->
     <div class="card reset-card" id="resetCard">
       <button id="resetOpen" class="reset-open" type="button" aria-haspopup="dialog" aria-controls="resetSheetVeil">
         <span class="reset-open-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span>
@@ -453,7 +453,7 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
       </details>
     </div>
 
-    <!-- v289: גרסה + ניקוי מטמון — רשימה בסגנון iOS (הועברו מ"החשבון שלי") -->
+    <!-- v289: גרסה + ניקוי מטמון — רשימה לפי ת־עיצוב (הועברו מ"החשבון שלי") -->
     <div class="card list-card" id="appInfoCard">
       <h2 data-i18n="appInfoTitle">אפליקציה</h2>
       <div class="ios-list">
