@@ -45,6 +45,7 @@
 | Studio — השרתון, שרת Hetzner, R2, ניטור, דגלים, יוטיוב בשרת, הורדה מקישור | `docs/studio-server.md` |
 | Studio — העובד: job.py, pipeline, llm.py, vt, Routine/ההעברה, איכות התרגום | `docs/studio-worker.md` |
 | Studio — מאגר הלמידה, האיסוף המלא, מעבדת השיפור | `docs/studio-learning.md` |
+| Studio — **הפרומפט לסבב הניתוח הבא** (מול התרגום האנושי, `tools/learn-vs-human.py`), מה נבדק ומה לא | `docs/studio-analysis-prompt.md` |
 | אנדרואיד נייטיב: Studio DM, Studio Browser + תוסף Chrome, Lab, תרגום בטלפון | `docs/android-apps.md` |
 | צריכת טוקנים: המדידה, המחקר, ההגדרות ומה עוד אפשר | `docs/token-economy.md` |
 | עקרונות ServiceNow (המגדל וההחלטות בסטודיו) | `docs/servicenow.md` |
