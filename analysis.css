@@ -498,3 +498,10 @@ html .an-nav { background: none; -webkit-backdrop-filter: none; backdrop-filter:
   background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 42%, transparent), color-mix(in srgb, var(--bg) 0%, transparent));
   -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx);
   -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent); mask-image: linear-gradient(to bottom, #000 62%, transparent); }
+/* בורר הטווח של הגרף העליון — הכפתורים של כרטיס המניה (styles.css) */
+.an-rng { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 10px; }
+.an-rng .range-btn { padding-block: 6px; font-size: 13px; text-align: center; }
+.an-rng { flex: none; position: relative; z-index: 1; overflow: visible; padding-bottom: 0; min-height: 32px; }
+.an-rng .range-btn { min-height: 32px; line-height: 20px; }
+.an-nav-q b { font-size: 32px; letter-spacing: -.8px; line-height: 1.05; }
+.an-nav-q span { font-size: 15px; }

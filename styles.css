@@ -69,7 +69,7 @@
   --gl-base: #FFFFFF;
   --gl-panel: color-mix(in srgb, var(--gl-base) 74%, transparent);
   --gl-bar: color-mix(in srgb, var(--bg) 74%, transparent);
-  --gl-veil: rgba(242, 242, 247, .28);
+  --gl-veil: var(--gl-ambient), rgba(242, 242, 247, .28);   /* מסך מאחורי חלון — מטושטש ובגוון האפליקציה */
   --gl-veil-fx: blur(24px) saturate(1.5);
   --gl-fx: saturate(180%) blur(28px);
   --gl-ring: 0 0 0 .5px rgba(0, 0, 0, .08);
@@ -141,7 +141,7 @@
   --gl-base: #1C1C1E;
   --gl-panel: color-mix(in srgb, var(--gl-base) 74%, transparent);
   --gl-bar: color-mix(in srgb, var(--bg) 74%, transparent);
-  --gl-veil: rgba(0, 0, 0, .32);
+  --gl-veil: var(--gl-ambient), rgba(0, 0, 0, .32);
   --gl-ring: 0 0 0 .5px rgba(255, 255, 255, .1);
   --gl-fill: rgba(118, 118, 128, .24);
   --gl-shadow: 0 10px 34px rgba(0, 0, 0, .5);
@@ -2255,18 +2255,18 @@ html.booting *, html.booting *::before, html.booting *::after { transition: none
    הצבע של הכפתור נשאר מלא כמו שהיה (בקשת המשתמש) — רק הגימור זכוכיתי: ברק עדין בחצי העליון (לא הילה לבנה),
    קצה אור דק — חזק למעלה, חלש בתחתית (שבירת אור); טבעת שיער; צל קצר בגוון הכפתור.
    הצבע = --btn-c (ברירת מחדל --primary: Invest ירוק, Academy כחול, Studio אדום; הרסני = --loss). הטקסט נשאר --on-primary. */
-html :is(.btn, .dlg-ok, .tab-ind, .st-btn, .st-plus, .an-btn, .lib-signin, .bk-cta, .adm-btn, .mg-tb.p, .mg-ab.p, .mg-ok56) { --btn-c: var(--primary);
+html :is(.range-btn.active, .btn, .dlg-ok, .tab-ind, .st-btn, .st-plus, .an-btn, .lib-signin, .bk-cta, .adm-btn, .mg-tb.p, .mg-ab.p, .mg-ok56) { --btn-c: var(--primary);
   --btn-glass: linear-gradient(180deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .05) 48%, rgba(255, 255, 255, 0) 54%), var(--btn-c); }
 html .btn.danger-btn, html .dlg-ok.danger { --btn-c: var(--loss); }
-html :is(.btn, .dlg-ok, .tab-ind, .st-btn, .st-plus, .an-btn, .lib-signin, .bk-cta, .adm-btn, .mg-tb.p, .mg-ab.p, .mg-ok56):not(.secondary-btn):not(.ghost):not(.tint):not(.st-btn.danger) {
+html :is(.range-btn.active, .btn, .dlg-ok, .tab-ind, .st-btn, .st-plus, .an-btn, .lib-signin, .bk-cta, .adm-btn, .mg-tb.p, .mg-ab.p, .mg-ok56):not(.secondary-btn):not(.ghost):not(.tint):not(.st-btn.danger) {
   background: var(--btn-glass);
   box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .55), inset -1px -1px 0 rgba(255, 255, 255, .2), inset 0 0 14px rgba(255, 255, 255, .16),
     0 0 0 .5px color-mix(in srgb, var(--btn-c), #000 12%), 0 6px 18px color-mix(in srgb, var(--btn-c) 30%, transparent);
 }
 /* בספרייה הצבע מוגדר עם !important — אותו מראה גם שם */
 html .lib-root :is(.bk-cta, .adm-btn, .mg-tb.p, .mg-ab.p) { background: var(--btn-glass) !important; }
-html :is(.btn, .dlg-ok, .st-btn, .st-plus, .an-btn, .lib-signin, .bk-cta, .adm-btn, .mg-ok56):not(.secondary-btn):not(.ghost):not(.tint):active { filter: brightness(.94); }
-[data-theme="dark"] :is(.btn, .dlg-ok, .tab-ind, .st-btn, .st-plus, .an-btn, .lib-signin, .bk-cta, .adm-btn, .mg-ok56):not(.secondary-btn):not(.ghost):not(.tint):not(.st-btn.danger) {
+html :is(.range-btn.active, .btn, .dlg-ok, .st-btn, .st-plus, .an-btn, .lib-signin, .bk-cta, .adm-btn, .mg-ok56):not(.secondary-btn):not(.ghost):not(.tint):active { filter: brightness(.94); }
+[data-theme="dark"] :is(.range-btn.active, .btn, .dlg-ok, .tab-ind, .st-btn, .st-plus, .an-btn, .lib-signin, .bk-cta, .adm-btn, .mg-ok56):not(.secondary-btn):not(.ghost):not(.tint):not(.st-btn.danger) {
   box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .45), inset -1px -1px 0 rgba(255, 255, 255, .14), inset 0 0 14px rgba(255, 255, 255, .12),
     0 6px 20px color-mix(in srgb, var(--btn-c) 26%, transparent), 0 2px 6px rgba(0, 0, 0, .3);
 }
@@ -2283,7 +2283,7 @@ body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-even
 [data-theme="dark"] .tabs { box-shadow: var(--gl-ring), 0 6px 20px rgba(0, 0, 0, .4); }
 
 /* כפתורים משניים מזכוכית (28/10, בקשת המשתמש): משטח שקוף עם קצה אור כיווני וטשטוש של מה שמאחור; הצבע של הטקסט/המסגרת נשאר */
-.icon-btn, .fx-pill, .chip-btn:not(.on), .mini-btn:not([aria-pressed="true"]), .btn.secondary-btn {
+.range-btn:not(.active), .icon-btn, .fx-pill, .chip-btn:not(.on), .mini-btn:not([aria-pressed="true"]), .btn.secondary-btn {
   background: var(--gl-btn); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-btn-sh); }
 .icon-btn, .chip-btn:not(.on), .mini-btn:not([aria-pressed="true"]) { border-color: transparent; }
 
@@ -2292,3 +2292,5 @@ html :is(.subpage-back, .an-back, .adm-back, .st-back) { background: var(--gl-bt
   border: 0; border-radius: var(--pill) !important; min-height: 36px; padding-block: 5px !important; padding-inline: 8px 14px !important; margin-inline-start: 0; }
 html :is(.kc-back, .an-cback) { background: var(--gl-btn) !important; -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-btn-sh); border-radius: 50% !important; }
 html :is(.subpage-back, .an-back, .adm-back, .st-back, .kc-back, .an-cback):active { filter: brightness(.94); opacity: 1; }
+/* "חזור" בכהה — עיגול זכוכית ניטרלי ונקי (לפי ת־עיצוב): אפור שקוף, בלי צל כבד, קצה אור דק; החץ בצבע האפליקציה */
+[data-theme="dark"] :is(.subpage-back, .an-back, .adm-back, .st-back, .kc-back, .an-cback, .lib-back), .st-dark .st-back { background: rgba(78, 78, 84, .86) !important; box-shadow: inset 0 .5px 0 rgba(255, 255, 255, .32), 0 0 0 .5px rgba(255, 255, 255, .14), 0 4px 14px rgba(0, 0, 0, .45) !important; }

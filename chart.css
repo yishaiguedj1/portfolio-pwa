@@ -440,3 +440,8 @@ html .kc-pk, html .kc-qm, html .kc-now, html .kc-fab:not(.on) { background: var(
   .kc-oh b { font-size: 12px; line-height: 15px; font-weight: 600; }
   .kc-root .kc-pick, .kc-root .kc-qm { top: calc(var(--kc-toph, 0px) + 40px); }
 }
+@media (max-width: 720px) {
+  .kc-px { font-size: 32px; letter-spacing: -.8px; }
+  .kc-px.px-lg { font-size: 27px; } .kc-px.px-xl { font-size: 23px; }
+  .kc-ch { font-size: 15px; }
+}

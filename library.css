@@ -1071,6 +1071,11 @@ label.lib-row input { position: absolute; inset: 0; opacity: 0; cursor: pointer;
 
 /* ==== 28/10/2026 — חומר הזכוכית (לפי ת־עיצוב; הטוקנים --gl-* ב־styles.css). Academy שומרת על הכחול שלה ==== */
 .lib-veil { background: var(--gl-veil); -webkit-backdrop-filter: var(--gl-veil-fx); backdrop-filter: var(--gl-veil-fx); }
+/* בקורא — דף הספר לא מטושטש אף פעם (בקשת המשתמש 28/10): גיליון מעליו (תוכן, Aa, הדגשות) רק מעמעם מעט. טשטוש — רק מאחורי הודעה קופצת (askConfirm) */
+html:has(.rd) :is(.lib-veil, .menu-veil, .pf-sheet-veil, .acx-veil) { background: rgba(0, 0, 0, .2); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html:has(.rd) .lib-sheet { background: #F2F2F7 !important; -webkit-backdrop-filter: none; backdrop-filter: none; }   /* גיליון אטום — טקסט הספר לא נראה דרכו */
+html:has(.rd)[data-theme="dark"] .lib-sheet { background: #1C1C1E !important; }
+@media (prefers-color-scheme: dark) { html:has(.rd):not([data-theme="light"]) .lib-sheet { background: #1C1C1E !important; } }
 .lib-sheet, [data-theme="dark"] .lib-sheet { background: var(--gl-panel); box-shadow: var(--gl-ring), var(--gl-shadow);
   --surface-2: var(--gl-fill); --search-fill: var(--gl-fill); --secondary-container: var(--gl-fill); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme]) .lib-sheet { background: color-mix(in srgb, #1C1C1E 74%, transparent); } }

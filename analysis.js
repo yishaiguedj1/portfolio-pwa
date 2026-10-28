@@ -1001,18 +1001,23 @@ function header(co) {
   const ch = co.prev ? co.price / co.prev - 1 : null;
   const meta = [co.sym.replace(/\.TA$/, ''), co.exch, co.sector].filter(Boolean).join(' · ');
   // 10 שנים של מחיר (חודשי) — רקע גרפי לראש המסך
-  const px = co.px && co.px.c ? co.px.c.slice(-121).filter((x) => x != null) : [], p0 = px[0], ch10 = p0 > 0 && px.length > 24 ? co.price / p0 - 1 : null;
-  const yrs = Math.round(px.length / 12);
+  /* 28/10 (בקשת המשתמש): טווח לבחירה — 1Y/3Y/5Y/10Y/MAX, כפתורים כמו בכרטיס המניה. ברירת מחדל 10 שנים */
+  const rm = S.hr == null ? 120 : S.hr, cut = (a) => (rm ? a.slice(-(rm + 1)) : a.slice());
+  const px = co.px && co.px.c ? cut(co.px.c).filter((x) => x != null) : [], p0 = px[0], ch10 = p0 > 0 && px.length > 6 ? co.price / p0 - 1 : null;
+  const yrs = Math.round(px.length / 12), pt = co.px && co.px.t ? cut(co.px.t) : [];
+  const rngLbl = rm === 12 ? T('anInYear') : !rm && pt.length ? T('anSince', { y: pt[0].slice(0, 4) }) : T('anInYears', { n: yrs });
+  const rng = h('div', { class: 'chip-row stock-chips an-rng' }, ...[[12, 'sr1Y'], [36, 'sr3Y'], [60, 'sr5Y'], [120, 'an10Y'], [0, 'srMax']].map(([m, k]) =>
+    h('button', { class: 'range-btn' + (m === rm ? ' active' : ''), type: 'button', 'aria-pressed': String(m === rm), on: { click: () => { if (S.hr === m || (S.hr == null && m === 120)) return; S.hr = m; S.heroDone = false; render(); } } }, T(k))));
   /* 27/10/2026 (סרטון המשתמש — הגרף "מתרענן" בכל מעבר לשונית): אותו גרף בכל הלשוניות — האלמנט עצמו עובר מציור לציור,
      בלי לבנות ולצייר מחדש (עד היום: פריים ריק בכל מעבר, וברצועה הקבועה של הקובייה — בלי גרף בכלל) */
-  const hk = co.sym + '|' + co.price + '|' + (document.documentElement.dataset.theme || '');
+  const hk = co.sym + '|' + co.price + '|' + rm + '|' + (document.documentElement.dataset.theme || '');
   let chart = S.hero && S.hero.co === co && S.hero.k === hk ? S.hero.el : null;
   if (chart) chart.firstChild.classList.add('an-still');   // אלמנט שנכנס שוב לדף מריץ את אנימציות ה־CSS שלו מההתחלה
   if (!chart) {
     const host = h('div', { class: 'an-pxc' + (S.heroDone ? ' an-still' : '') });
     chart = h('div', { class: 'an-pxw' }, host);   // display: contents — הציר נכנס אחרי הגרף בתוך העטיפה, ועובר איתו
     S.heroDone = true;   // הגרף בראש מצטייר פעם אחת — לא בכל מעבר לשונית
-    const pt = co.px && co.px.t ? co.px.t.slice(-121) : [], hiPx = px.length ? Math.max(...px, co.price) : null;
+    const hiPx = px.length ? Math.max(...px, co.price) : null;
     if (ch10 != null) S.after.push(() => spark(host, px.concat(co.price), ch10 >= 0 ? cssv('good') : cssv('bad'), true,
       { w: 340, h: 64, sw: 2, px: 10, labels: pt.length ? [pt[0].slice(0, 4), T('anToday')] : null, peak: hiPx ? T('anPeak', { v: strip(fmt(hiPx, 'ps', co, 0)) }) : null }));
     S.hero = { co, k: hk, el: chart };
@@ -1021,8 +1026,8 @@ function header(co) {
     h('div', { class: 'an-hero' },
       h('div', { class: 'an-idrow' },
         h('div', { class: 'an-px' }, h('b', {}, fmt(co.price, 'ps', co)), ch != null ? h('span', { class: ch >= 0 ? 'an-up' : 'an-down' }, sgn(ch, 2), h('small', {}, ' ' + T('anToday'))) : null),
-        h('div', { class: 'an-idn' }, h('span', { dir: 'auto' }, meta), ch10 != null ? h('span', { class: 'an-ch10' }, T('anInYears', { n: yrs }), ' ', h('b', { class: ch10 >= 0 ? 'an-up' : 'an-down' }, sgn(ch10, 0))) : null)),
-      ch10 != null ? chart : null),
+        h('div', { class: 'an-idn' }, h('span', { dir: 'auto' }, meta), ch10 != null ? h('span', { class: 'an-ch10' }, rngLbl, ' ', h('b', { class: ch10 >= 0 ? 'an-up' : 'an-down' }, sgn(ch10, 0))) : null)),
+      ch10 != null ? chart : null, co.px && co.px.c && co.px.c.length > 13 ? rng : null),
     co.gone ? h('p', { class: 'an-gone' }, T('anGone', { d: dmy(co.gone) })) : null);
 }
 /* הלשוניות — ילד ישיר של העמוד (לא של הראש), כדי שיישארו דבוקות מתחת לסרגל העליון לאורך כל הגלילה */
