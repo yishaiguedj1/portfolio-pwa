@@ -992,7 +992,10 @@ function navBar() {
   const nm = S.co ? S.co.name : (E.name && E.name(S.sym)) || S.sym;
   // כמו בכותרת גרף הנרות: לוגו · סימבול ומתחתיו השם (בעמוד משנה — כותרת העמוד במקום השם)
   const sym = String(S.sym || '').replace(/\.TA$/, '');
-  return h('div', { class: 'an-nav' }, back, h('div', { class: 'an-nav-t' }, logo, h('span', { class: 'an-nav-id' }, h('b', { dir: 'auto' }, inSub ? nm : sym), inSub ? null : h('small', { dir: 'auto' }, nm))));
+  // המחיר בשורה העליונה, ליד החזרה — באותו מיקום כמו בגרף הנרות (במסך הראשי בלבד)
+  const co = S.co, ch = co && co.prev ? co.price / co.prev - 1 : null;
+  const q = !inSub && co && co.price > 0 ? h('div', { class: 'an-nav-q' }, h('b', {}, fmt(co.price, 'ps', co)), ch != null ? h('span', { class: ch >= 0 ? 'an-up' : 'an-down' }, iso((ch >= 0 ? '+' : MINUS) + Math.abs(co.price - co.prev).toFixed(2) + ' (') , sgn(ch, 2), ')') : null) : null;
+  return h('div', { class: 'an-nav' + (q ? ' has-q' : '') }, back, q, h('div', { class: 'an-nav-t' }, logo, h('span', { class: 'an-nav-id' }, h('b', { dir: 'auto' }, inSub ? nm : sym), inSub ? null : h('small', { dir: 'auto' }, nm))));
 }
 function header(co) {
   const ch = co.prev ? co.price / co.prev - 1 : null;
