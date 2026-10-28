@@ -458,3 +458,49 @@ button.an-row { cursor: pointer; }
 .an-c3 label { display: flex; flex-direction: column; align-items: center; gap: 3px; }
 .an-c3 small { font-size: 11px; color: var(--an-ink2); }
 .an-c3 .an-cin { width: 70px; }
+
+/* ==== 28/10/2026 — חומר הזכוכית (לפי ת־עיצוב; הטוקנים --gl-* ב־styles.css) ==== */
+.an-veil { background: var(--gl-veil); -webkit-backdrop-filter: var(--gl-veil-fx); backdrop-filter: var(--gl-veil-fx); }
+.an-sheet { background: var(--gl-panel); box-shadow: var(--gl-ring), var(--gl-shadow); --an-fill: var(--gl-fill); }
+.an-sh-b > * { flex-shrink: 0; }   /* גוף גלילה שהוא flex עמודה — לא לכווץ רכיבים כשהתוכן ארוך */
+.an-grab::before { background: var(--on-surface-var); }
+/* העמודים מזכוכית: רקע עדין מאחור, כרטיסים שקופים עם קצה אור; העמודה הנעוצה בטבלה נשארת אטומה (התוכן נגלל מתחתיה) */
+.an-root, [data-theme="dark"] .an-root { --an-card: var(--gl-card);
+  background: var(--gl-ambient), var(--bg); }
+.an-card, .an-rcard, .an-mtile { box-shadow: var(--gl-card-sh); border-color: transparent; }
+.an-tbl th:first-child, .an-tbl td:first-child, .an-ctbl tbody th { background: var(--gl-base); }
+.an-nav, .an-tabbar { background: var(--gl-bar); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); }
+/* בועות על הגרפים (חלון הנגיעה ותווית השיא) — זכוכית בולטת, כמו בגרף הנרות */
+.an-tip { background: var(--gl-panel); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); border-color: transparent; border-radius: var(--radius-sm); box-shadow: var(--gl-ring), 0 8px 24px rgba(0, 0, 0, .14); }
+[data-theme="dark"] .an-tip { background: rgba(58, 58, 60, .78); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 0 0 .5px rgba(255, 255, 255, .2), 0 8px 24px rgba(0, 0, 0, .5); }
+.an-ptag { background: var(--gl-btn); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-btn-sh); padding: 1px 7px; color: var(--an-ink); }
+/* 28/10 (בקשת המשתמש): החלק העליון כמו בגרף הנרות — לוגו · סימבול ושם משמאל, חזרה עגולה מימין; המחיר בגודל של כרטיס המניה */
+.an-nav { gap: 12px; }
+.an-nav-t { direction: ltr; justify-content: flex-start; margin-inline-end: 0; gap: 10px; }
+.an-nav-id { display: flex; flex-direction: column; min-width: 0; text-align: left; line-height: 1.15; }
+.an-nav-id b { font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.an-nav-id small { font-size: 12.5px; font-weight: 500; color: var(--an-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html .an-back { width: 38px; height: 38px; min-height: 0; padding: 0 !important; justify-content: center; border-radius: 50% !important; }
+.an-back .an-back-t { display: none; }
+.an-px b { font-size: 27px; letter-spacing: -.6px; }
+.an-px span { font-size: 14px; }
+.an-logo .stock-logo { width: 36px; height: 36px; font-size: 16px; box-shadow: 0 0 0 .5px rgba(0, 0, 0, .12), 0 2px 8px rgba(0, 0, 0, .14); }
+[data-theme="dark"] .an-logo .stock-logo { box-shadow: 0 0 0 .5px rgba(255, 255, 255, .2), 0 2px 10px rgba(0, 0, 0, .5); }
+/* המחיר בשורה העליונה (כמו בגרף הנרות): גודל כרטיס המניה, מרווח מהחזרה; בגוף העמוד הוא כבר לא חוזר */
+.an-nav-q { flex: none; display: flex; flex-direction: column; align-items: flex-end; direction: ltr; line-height: 1.1; }
+.an-nav-q b { font-size: 27px; font-weight: 800; letter-spacing: -.6px; font-variant-numeric: tabular-nums; }
+.an-nav-q span { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.an-root:has(.an-nav.has-q) .an-px { display: none; }
+.an-nav { padding-block: 6px; }
+/* רקע החלק העליון כמו בגרף: בלי פס אחיד — זכוכית שקופה שנמוגה כלפי מטה */
+html .an-nav { background: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-bottom: 0; box-shadow: none; }
+.an-nav::before { content: ''; position: absolute; inset: 0 0 -18px 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 42%, transparent), color-mix(in srgb, var(--bg) 0%, transparent));
+  -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx);
+  -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent); mask-image: linear-gradient(to bottom, #000 62%, transparent); }
+/* בורר הטווח של הגרף העליון — הכפתורים של כרטיס המניה (styles.css) */
+/* (.an-rng תפוס — פס הטווח בכרטיסים) — בדיוק כמו בורר הטווחים בכרטיס המניה (styles.css: .stock-body .chip-row.stock-chips), לרוחב העמוד */
+.an-hrng { flex: none; display: flex; gap: 6px; overflow: visible; margin-top: 12px; padding-bottom: 0; }
+.an-hrng > .range-btn { flex: 1 1 0; min-width: 0; padding-block: 6px; padding-inline: 4px; font-size: 13px; text-align: center; white-space: nowrap; }
+.an-nav-q b { font-size: 32px; letter-spacing: -.8px; line-height: 1.05; }
+.an-nav-q span { font-size: 15px; }

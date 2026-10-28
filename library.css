@@ -42,8 +42,8 @@ html[data-lib-vt="fade"]::view-transition-new(lib-root) { animation: vtFadeIn .2
 .lib-setpage > .card { margin: 16px; }   /* עמוד ההגדרות של Academy — הכרטיסים של Invest (styles.css) */
 .lib-home { max-width: 760px; margin: 0 auto; padding: 0 0 28px; }
 .lib-top { display: flex; align-items: center; justify-content: space-between; padding: calc(12px + env(safe-area-inset-top)) 16px 2px; }
-.lib-back { display: flex; align-items: center; gap: 2px; color: var(--primary) !important; font-size: 17px; }
-.lib-back svg { width: 24px; height: 24px; }
+.lib-back { display: flex; align-items: center; gap: 2px; color: var(--primary) !important; font-size: 17px; font-weight: 600 !important; }   /* !important — ".lib-root button { font: inherit }" מחזיר ל־400 */
+.lib-back svg { width: 22px; height: 22px; }
 [dir="ltr"] .lib-back svg { transform: scaleX(-1); }
 .lib-round { width: 42px; height: 42px; border-radius: var(--pill); background: var(--surface); box-shadow: var(--shadow); display: grid; place-items: center;
   color: var(--primary); cursor: pointer; position: relative; overflow: hidden; }
@@ -1068,3 +1068,29 @@ label.lib-row input { position: absolute; inset: 0; opacity: 0; cursor: pointer;
 .lib-set-bk { background: linear-gradient(160deg, #4285F4, #34A853); }
 .lib-set-rs { background: var(--loss); }
 .lib-setcard .lib-set-danger .menu-row-t { color: var(--loss); }
+
+/* ==== 28/10/2026 — חומר הזכוכית (לפי ת־עיצוב; הטוקנים --gl-* ב־styles.css). Academy שומרת על הכחול שלה ==== */
+.lib-veil { background: var(--gl-veil); -webkit-backdrop-filter: var(--gl-veil-fx); backdrop-filter: var(--gl-veil-fx); }
+/* בקורא — דף הספר לא מטושטש אף פעם (בקשת המשתמש 28/10): גיליון מעליו (תוכן, Aa, הדגשות) רק מעמעם מעט. טשטוש — רק מאחורי הודעה קופצת (askConfirm) */
+html:has(.rd) :is(.lib-veil, .menu-veil, .pf-sheet-veil, .acx-veil) { background: rgba(0, 0, 0, .2); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html:has(.rd) .lib-sheet { background: #F2F2F7 !important; -webkit-backdrop-filter: none; backdrop-filter: none; }   /* גיליון אטום — טקסט הספר לא נראה דרכו */
+html:has(.rd)[data-theme="dark"] .lib-sheet { background: #1C1C1E !important; }
+@media (prefers-color-scheme: dark) { html:has(.rd):not([data-theme="light"]) .lib-sheet { background: #1C1C1E !important; } }
+.lib-sheet, [data-theme="dark"] .lib-sheet { background: var(--gl-panel); box-shadow: var(--gl-ring), var(--gl-shadow);
+  --surface-2: var(--gl-fill); --search-fill: var(--gl-fill); --secondary-container: var(--gl-fill); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) .lib-sheet { background: color-mix(in srgb, #1C1C1E 74%, transparent); } }
+.lib-grab { background: color-mix(in srgb, var(--on-surface-var) 45%, transparent); }
+/* בועות כהות קבועות (בחירה בקורא, הודעה עם פעולה) — זכוכית כהה עם טשטוש משלהן */
+.rd-pop, .lib-root .mg-snack { background: rgba(44, 44, 46, .74); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx);
+  box-shadow: 0 0 0 .5px rgba(255, 255, 255, .12), 0 8px 24px rgba(0, 0, 0, .3); }
+/* סרגל הפעולות הצף — גלולת זכוכית בשתי הערכות */
+.lib-root .mg-abar, [data-theme="dark"] .lib-root .mg-abar { background: var(--gl-bar); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx);
+  border: 0; box-shadow: var(--gl-ring), var(--gl-shadow); }
+/* העמודים מזכוכית: רקע עדין בכחול של Academy מאחור, וכל המשטחים (--surface) שקופים עם קצה אור */
+.lib-root, [data-theme="dark"] .lib-root { --surface: var(--gl-card);
+  background: var(--gl-ambient), var(--bg); }
+.lib-root :is(.bk-card, .lib-bkcard, .lib-card, .ac-tile) { box-shadow: var(--gl-card-sh); }
+.lib-root .mg-list { box-shadow: var(--gl-card-sh); }
+.lib-root .lib-round, .lib-root .lib-chip:not(.on) { background: var(--gl-btn) !important; -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-btn-sh); }
+/* כפתור "חזור" — גלולת זכוכית כמו בשאר האפליקציות */
+.lib-root .lib-back { background: var(--gl-btn) !important; -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-btn-sh); border-radius: var(--pill) !important; min-height: 36px; padding-block: 5px !important; padding-inline: 8px 14px !important; }

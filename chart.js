@@ -760,10 +760,12 @@ function registerOverlays() {
       if (mode !== 'd') figs.push(...arrowFig(mx, a.y, mx, b.y, col));
       if (mode !== 'p') figs.push(...arrowFig(a.x, my, b.x, my, col));
       // הכרטיס: מעל המלבן בעלייה, מתחת בירידה (לפי ת־גרף)
-      const fs = 12, lh = 16, w = Math.max(...lines.map((l) => l.length)) * 6.6 + 16, hh = lines.length * lh + 8;
+      const fs = 13, lh = 18, w = Math.max(...lines.map((l) => l.length)) * 7.1 + 28, hh = lines.length * lh + 12, rr = Math.min(hh / 2, 14);
       const ty = (mode === 'd' ? true : up) ? y0 - 8 - hh : y1 + 8;
-      figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: mx - w / 2, y: ty, width: w, height: hh }, styles: { style: 'stroke_fill', color: p.tipBg, borderColor: isDark() ? 'rgba(255,255,255,.14)' : 'rgba(0,0,0,.10)', borderSize: 1, borderRadius: 8 } });
-      lines.forEach((l, i) => figs.push({ type: 'text', ignoreEvent: true, attrs: { x: mx, y: ty + 4 + lh * i + lh / 2, text: l, align: 'center', baseline: 'middle' }, styles: { color: isDark() ? '#F2F2F7' : '#1C1C1E', size: fs, family: p.font, backgroundColor: 'transparent', borderSize: 0, paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 } }));
+      // בועת זכוכית: צל רך, מילוי שקוף למחצה, קו שיער (הקנבס לא מטשטש — המילוי אטום מספיק לקריאות)
+      figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: mx - w / 2, y: ty + 2, width: w, height: hh }, styles: { style: 'fill', color: p.glassSh, borderRadius: rr } });
+      figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: mx - w / 2, y: ty, width: w, height: hh }, styles: { style: 'stroke_fill', color: p.glass, borderColor: p.glassLine, borderSize: 1, borderRadius: rr } });
+      lines.forEach((l, i) => figs.push({ type: 'text', ignoreEvent: true, attrs: { x: mx, y: ty + 6 + lh * i + lh / 2, text: l, align: 'center', baseline: 'middle' }, styles: { color: i === 0 && mode !== 'd' ? (dv >= 0 ? p.up : p.dn) : (isDark() ? '#F2F2F7' : '#1C1C1E'), size: fs, weight: 600, family: p.font, backgroundColor: 'transparent', borderSize: 0, paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 } }));
       // נבחרה: עיגולים חלולים גדולים בשתי הנקודות (ידיות לגרירה)
       if (mSel(overlay)) for (const q of [a, b]) figs.push({ type: 'circle', ignoreEvent: true, attrs: { x: q.x, y: q.y, r: 9 }, styles: { style: 'stroke_fill', color: p.tipBg, borderColor: col, borderSize: 2.5 } });
       return figs;
@@ -996,7 +998,8 @@ function palette() {
   if (g.colors === 'mono') { up = dk ? '#E5E5EA' : '#1C1C1E'; dn = dk ? '#636366' : '#AEAEB2'; }
   return {
     up, dn, text: dk ? '#98989D' : '#636366', grid: dk ? 'rgba(255,255,255,.07)' : 'rgba(60,60,67,.08)', axis: dk ? 'rgba(255,255,255,.14)' : 'rgba(60,60,67,.14)',
-    bg: dk ? '#000000' : '#FFFFFF', cross: dk ? '#8E8E93' : '#8E8E93', tipBg: dk ? '#1C1C1E' : '#FFFFFF', label: dk ? '#3A3A3C' : '#1C1C1E', font: css('--font') || '-apple-system, system-ui, sans-serif',
+    bg: dk ? '#000000' : '#FFFFFF', cross: dk ? '#8E8E93' : '#8E8E93', tipBg: dk ? '#1C1C1E' : '#FFFFFF', label: dk ? '#48484A' : '#1C1C1E',
+    glass: dk ? 'rgba(58,58,60,.84)' : 'rgba(255,255,255,.86)', glassLine: dk ? 'rgba(255,255,255,.24)' : 'rgba(0,0,0,.08)', glassSh: dk ? 'rgba(0,0,0,.45)' : 'rgba(0,0,0,.10)',   // בועות על הגרף — זכוכית (לפי ת־עיצוב) font: css('--font') || '-apple-system, system-ui, sans-serif',
   };
 }
 /* בטלפון הכותרת היא זכוכית שקופה מעל הגרף — בתא העליון המקרא ובוררי הפינה יורדים מתחתיה.
@@ -1028,7 +1031,7 @@ function chartStyles(c) {
         rect: { color: p.tipBg, borderColor: p.axis },
         title: { show: false },
         // בטלפון: שורה אחת (בקשת המשתמש 28/10) — טקסט 10 ורווחים צרים, כך ששש התוויות נכנסות ברוחב הגרף בלי לגלוש לשורה שנייה
-        legend: { color: p.text, size: narrow() ? 10 : 11, family: p.font, marginLeft: narrow() ? 3 : 6, marginTop: 4, marginRight: narrow() ? 3 : 4, template: [{ title: 'open', value: '{open}' }, { title: 'high', value: '{high}' }, { title: 'low', value: '{low}' }, { title: 'close', value: '{close}' }, { title: 'change', value: '{change}' }, { title: 'volume', value: '{volume}' }] },
+        legend: { color: p.text, size: narrow() ? 10 : 11, family: p.font, marginLeft: narrow() ? 3 : 6, marginTop: 4, marginRight: narrow() ? 3 : 4, template: narrow() ? [] : [{ title: 'open', value: '{open}' }, { title: 'high', value: '{high}' }, { title: 'low', value: '{low}' }, { title: 'close', value: '{close}' }, { title: 'change', value: '{change}' }, { title: 'volume', value: '{volume}' }] },
       },
     },
     indicator: {
@@ -1038,8 +1041,8 @@ function chartStyles(c) {
     xAxis: Object.assign({}, axis, { size: xSize() }), yAxis: axis,
     separator: { color: p.axis, activeBackgroundColor: 'rgba(10,132,255,.08)' },
     crosshair: {
-      horizontal: { line: { color: p.cross, style: 'dashed', dashedValue: [4, 3] }, text: { backgroundColor: p.label, borderColor: 'transparent', family: p.font, borderRadius: 4 } },
-      vertical: { line: { color: p.cross, style: 'dashed', dashedValue: [4, 3] }, text: { backgroundColor: p.label, borderColor: 'transparent', family: p.font, borderRadius: 4 } },
+      horizontal: { line: { color: p.cross, style: 'dashed', dashedValue: [4, 3] }, text: { backgroundColor: p.label, borderColor: 'transparent', family: p.font, borderRadius: 6 } },
+      vertical: { line: { color: p.cross, style: 'dashed', dashedValue: [4, 3] }, text: { backgroundColor: p.label, borderColor: 'transparent', family: p.font, borderRadius: 6 } },
     },
     overlay: { line: { color: DEF_COLOR }, point: { color: DEF_COLOR, borderColor: rgba(DEF_COLOR, 0.35), activeColor: DEF_COLOR, activeBorderColor: rgba(DEF_COLOR, 0.35) }, text: { backgroundColor: DEF_COLOR, borderColor: DEF_COLOR } },
   };
@@ -1788,6 +1791,7 @@ function exitReplay(c, silent) {
 }
 function onCross(c, x) {
   c.crossIdx = x && typeof x.dataIndex === 'number' ? x.dataIndex : c.crossIdx;
+  updOhlc(c);
   plusAt(c, x);
   if (c === S.cells[S.active]) updLegendTime(x);
 }
@@ -2064,7 +2068,8 @@ function build(sym) {
       qmBtn(c, 'kcMeasure', T('kcToMeasure'), ICON.qboth), qmBtn(c, 'kcPriceRange', T('kcToPRange'), ICON.qprice));
     // בטלפון: "נר" (טווח הזמן של כל נר) ו"תצוגה" (כמה זמן רואים בגרף) בפינה העליונה של הגרף
     c.pick = h('div', { class: 'kc-pick' });
-    c.el = h('div', { class: 'kc-cell' + (c.i === S.active ? ' act' : '') }, c.host, c.stEl, c.tagEl, c.nowB, c.plusB, c.qm, c.pick);
+    c.ohlc = h('div', { class: 'kc-ohlc', 'aria-hidden': 'true' });
+    c.el = h('div', { class: 'kc-cell' + (c.i === S.active ? ' act' : '') }, c.host, c.stEl, c.tagEl, c.nowB, c.plusB, c.qm, c.pick, c.ohlc);
     UI.grid.appendChild(c.el);
   }
   renderTop(); updBars(); renderSide(); renderFoot(); renderSel(); renderReplay(); updTags();
@@ -2131,9 +2136,22 @@ function renderTop() {
   if (c) updHeader();
   updUndo();
 }
+/* בטלפון: שורת הנתונים (פתיחה/גבוה/נמוך/סגירה/שינוי/נפח) — HTML ברוחב המסך, תווית קטנה ומעליה ערך גדול (לפי ת־גרף),
+   במקום המקרא הזעיר של הקנבס. הנר שתחת הצלב, או האחרון */
+function updOhlc(c) {
+  if (!c || !c.ohlc || !c.disp || !c.disp.length) return;
+  const n = c.disp.length, i = typeof c.crossIdx === 'number' && c.crossIdx >= 0 && c.crossIdx < n ? c.crossIdx : n - 1;
+  const b = c.disp[i], pv = i > 0 ? c.disp[i - 1].close : b.open, pr = L.precisionFor(b.close), ch = b.close - pv;
+  const cells = [['kcOhO', fmtNum(b.open, pr)], ['kcOhH', fmtNum(b.high, pr)], ['kcOhL', fmtNum(b.low, pr)], ['kcOhC', fmtNum(b.close, pr)], ['kcOhCh', fmtPct(pv ? (ch / pv) * 100 : 0), ch > 0 ? 'up' : ch < 0 ? 'dn' : ''], ['kcVolW', fmtBig(b.volume)]];
+  const key = i + '|' + b.close + '|' + b.volume;
+  if (c.ohlc.dataset.k === key) return;
+  c.ohlc.dataset.k = key;
+  c.ohlc.replaceChildren(...cells.map(([k, v, cl]) => h('span', { class: 'kc-oh' }, h('i', { text: T(k) }), h('b', { class: cl || '', text: v }))));
+}
 function updHeader() {
   const c = act();
   if (!c || !UI.hd) return;
+  updOhlc(c);
   const q = c.q, last = c.disp.length ? c.disp[c.disp.length - 1] : null;
   const reg = (q && q.reg && q.reg.p) || (last && last.close) || 0, st = q ? q.st : '';
   /* כמו בכרטיס המניה: מחוץ למסחר הרגיל המחיר הראשי = המחיר המורחב, לידו גלולת "מסחר־מאוחר −0.28%",
