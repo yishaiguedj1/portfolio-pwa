@@ -231,6 +231,7 @@ he: {
   kcKeysList: 'אות/ספרה — חיפוש סימבול · Alt+T קו מגמה · Alt+H קו אופקי · Alt+J קרן אופקית · Alt+V קו אנכי · Alt+C צלב · Alt+F פיבונאצ׳י · Alt+I אינדיקטורים · Alt+A התראה · Alt+R איפוס · Ctrl+Z / Ctrl+Y ביטול/חזרה · Delete מחיקת שרטוט · Esc יציאה · ב־Replay: חץ = נר, רווח = הפעלה',
   kcBarsW: 'נרות',
   kcVolW: 'נפח',
+  kcOhO: 'פתיחה', kcOhH: 'גבוה', kcOhL: 'נמוך', kcOhC: 'סגירה', kcOhCh: 'שינוי',
   kcPosBad: 'הסטופ חייב להיות בצד השני של הכניסה',
   kcPosQty: 'כמות {q} (סיכון {r})',
   kcPosRR: 'סיכוי/סיכון {v}',
@@ -729,6 +730,7 @@ he: {
   anVsToday: 'המחיר היום {p}. האחוז מתחת לכל ערך = ההפרש מהמחיר.',
   anSrcKeHurdle: 'לפחות 10% — הרף של באפט ומנגר (לפי CAPM: {c})',
   anInYears: 'ב־{n} שנים',
+  anInYear: 'בשנה האחרונה', anSince: 'מאז {y}', an10Y: '10Y',
   anGone: 'המניה לא נסחרת מאז {d} — המחיר והנתונים מאותו יום',
   anHMcap: 'מחיר כל החברה',
   anHPe: 'כמה שנים של רווח משלמים',
@@ -1765,6 +1767,7 @@ en: {
   kcKeysList: 'Letter/digit — symbol search · Alt+T trend line · Alt+H horizontal line · Alt+J horizontal ray · Alt+V vertical line · Alt+C cross · Alt+F Fibonacci · Alt+I indicators · Alt+A alert · Alt+R reset · Ctrl+Z / Ctrl+Y undo/redo · Delete removes drawing · Esc exits · Replay: arrow = bar, space = play',
   kcBarsW: 'bars',
   kcVolW: 'Vol',
+  kcOhO: 'Open', kcOhH: 'High', kcOhL: 'Low', kcOhC: 'Close', kcOhCh: 'Change',
   kcPosBad: 'Stop must be on the other side of entry',
   kcPosQty: 'Qty {q} (risk {r})',
   kcPosRR: 'R:R {v}',
@@ -2263,6 +2266,7 @@ en: {
   anVsToday: 'Price today {p}. The percentage under each value = its gap from the price.',
   anSrcKeHurdle: 'At least 10% — the Buffett and Munger hurdle (CAPM: {c})',
   anInYears: 'In {n} years',
+  anInYear: 'Past year', anSince: 'Since {y}', an10Y: '10Y',
   anGone: 'Not traded since {d} — price and data are from that day',
   anHMcap: 'Price of the whole company',
   anHPe: 'Years of profit you pay for',
@@ -6890,8 +6894,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.81.1';
-const APP_VERSION = 'v611';
+const APP_RELEASE = '2.82.0';
+const APP_VERSION = 'v612';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');

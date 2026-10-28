@@ -850,6 +850,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
       localStorage.setItem('pwa_studio_v1', JSON.stringify({ settings: {}, drafts: [], jobs: [{ id, vm: { w: 1080, h: 1920 }, spec: j.spec, up: { folder: 'fold1234567890', started: j.created, a: { done: true, id: 'aud1234567890' }, v: { done: true, id: 'vid1234567890', size: 10 } }, srv: j }] }));
       try { Object.defineProperty(navigator.serviceWorker, 'controller', { configurable: true, get: () => ({ postMessage() {} }) }); } catch (e) {}
       window.firebase = { apps: [1], auth: () => ({ currentUser: { getIdToken: async () => 'tok' } }) };
+      document.documentElement.dataset.app = 'studio';   // הצבעים של Studio (הבדיקה רצה בתוך index.html)
       const m = await import('./studio.js'); m.openStudio({ job: id });
     }, [JD, job]);
     if (!page.url().startsWith(BASE)) { await page.goto(BASE + '/index.html', { waitUntil: 'load' }); await sleep(2000); }

@@ -14,7 +14,7 @@
   --search-fill-solid: #E3E3E8;
   --search-ph: rgba(60, 60, 67, .6);        /* secondaryLabel */
   --surface: #FFFFFF;               /* systemBackground */
-  --surface-2: #E9E9EE;
+  --surface-2: rgba(118, 118, 128, .12);   /* 28/10 זכוכית: מילוי שקוף (היה #E9E9EE) */
   --glass: rgba(255, 255, 255, .68);
   --glass-border: rgba(255, 255, 255, .6);
   --glass-hi: inset 0 1px 0 rgba(255, 255, 255, .55);
@@ -32,7 +32,7 @@
   --on-primary: #06281A;
   --primary-container: rgba(48, 209, 88, .18);
   --on-primary-container: #0B6B2C;  /* טקסט על מיכל ירוק־שקוף — כהה כדי שיהיה קריא על רקע בהיר */
-  --secondary-container: #E4E4E9;
+  --secondary-container: rgba(118, 118, 128, .14);   /* 28/10 זכוכית (היה #E4E4E9) */
 
   /* ---- צבעים סמנטיים של iOS 26 ---- */
   --gain: #30D158;                  /* v216: כמו במצב כהה */
@@ -64,6 +64,27 @@
   --shadow-sm: 0 1px 2px rgba(20, 40, 30, .05);
   --shadow: 0 1px 3px rgba(20, 40, 30, .06), 0 10px 30px rgba(20, 40, 30, .07);
   --glass-blur: blur(22px) saturate(1.7);
+  /* 28/10/2026 — חומר הזכוכית המשותף לכל האפליקציות (לפי ת־עיצוב): שכבה מאחור מטושטשת (היא שורש הטשטוש),
+     לוח שקוף 74% בלי backdrop משלו, קו שיער במקום מסגרת, מילויים שקופים בתוכו. גלולה/תפריט צף בלי שכבה — עם טשטוש משלו */
+  --gl-base: #FFFFFF;
+  --gl-panel: color-mix(in srgb, var(--gl-base) 74%, transparent);
+  --gl-bar: color-mix(in srgb, var(--bg) 74%, transparent);
+  --gl-veil: var(--gl-ambient), rgba(242, 242, 247, .28);   /* מסך מאחורי חלון — מטושטש ובגוון האפליקציה */
+  --gl-veil-fx: blur(24px) saturate(1.5);
+  --gl-fx: saturate(180%) blur(28px);
+  --gl-ring: 0 0 0 .5px rgba(0, 0, 0, .08);
+  --gl-fill: rgba(118, 118, 128, .12);
+  --gl-shadow: 0 10px 34px rgba(0, 0, 0, .16);
+  --gl-card: color-mix(in srgb, var(--gl-base) 58%, transparent);
+  --gl-card-sh: inset 1px 1px 0 rgba(255, 255, 255, .9), inset -1px -1px 0 rgba(255, 255, 255, .35), inset 0 0 24px rgba(255, 255, 255, .28),
+    0 0 0 .5px rgba(0, 0, 0, .05), 0 8px 28px rgba(0, 0, 0, .06);
+  /* רקע העמוד: שדה צבע רך בגוון האפליקציה ושני גוונים משלימים — מה שהזכוכית מראה */
+  --gl-tint: var(--primary); --gl-tint2: var(--sys-teal); --gl-tint3: var(--sys-purple);   /* רקע העמוד: הצבע של האפליקציה + שני גוונים משלימים */
+  --gl-ambient: radial-gradient(70% 44% at 96% 2%, color-mix(in srgb, var(--gl-tint) 32%, transparent), transparent 72%),
+    radial-gradient(60% 40% at 2% 46%, color-mix(in srgb, var(--gl-tint2) 24%, transparent), transparent 72%),
+    radial-gradient(70% 44% at 86% 98%, color-mix(in srgb, var(--gl-tint3) 20%, transparent), transparent 72%),
+    linear-gradient(180deg, color-mix(in srgb, var(--gl-tint) 8%, transparent), color-mix(in srgb, var(--gl-tint) 5%, transparent));
+  --gl-btn: rgba(255,255,255,.78); --gl-btn-sh: inset 0 1px 0 rgba(255,255,255,.95), 0 0 0 .5px rgba(0,0,0,.1), 0 3px 10px rgba(0,0,0,.08);   /* כפתור זכוכית משני — בולט על כל רקע */
 }
 
 [data-theme="dark"] {
@@ -117,6 +138,21 @@
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
   --shadow: 0 1px 3px rgba(0, 0, 0, .4), 0 12px 32px rgba(0, 0, 0, .4);
+  --gl-base: #1C1C1E;
+  --gl-panel: color-mix(in srgb, var(--gl-base) 74%, transparent);
+  --gl-bar: color-mix(in srgb, var(--bg) 74%, transparent);
+  --gl-veil: var(--gl-ambient), rgba(0, 0, 0, .32);
+  --gl-ring: 0 0 0 .5px rgba(255, 255, 255, .1);
+  --gl-fill: rgba(118, 118, 128, .24);
+  --gl-shadow: 0 10px 34px rgba(0, 0, 0, .5);
+  --gl-card: color-mix(in srgb, var(--gl-base) 55%, transparent);
+  --gl-card-sh: inset 1px 1px 0 rgba(255, 255, 255, .16), inset -1px -1px 0 rgba(255, 255, 255, .05), inset 0 0 24px rgba(255, 255, 255, .035),
+    0 0 0 .5px rgba(255, 255, 255, .06), 0 8px 28px rgba(0, 0, 0, .4);
+  --gl-ambient: radial-gradient(70% 44% at 96% 2%, color-mix(in srgb, var(--gl-tint) 36%, transparent), transparent 72%),
+    radial-gradient(60% 40% at 2% 46%, color-mix(in srgb, var(--gl-tint2) 26%, transparent), transparent 72%),
+    radial-gradient(70% 44% at 86% 98%, color-mix(in srgb, var(--gl-tint3) 26%, transparent), transparent 72%),
+    linear-gradient(180deg, color-mix(in srgb, var(--gl-tint) 12%, transparent), color-mix(in srgb, var(--gl-tint3) 8%, transparent));
+  --gl-btn: rgba(255,255,255,.14); --gl-btn-sh: inset 0 1px 0 rgba(255,255,255,.26), inset 0 0 0 .5px rgba(255,255,255,.16), 0 4px 14px rgba(0,0,0,.4);
 }
 
 /* ---- צבע המערכת לכל אפליקציה (13/10/2026, בקשת המשתמש — הגוונים המדויקים שבחר) ----
@@ -127,6 +163,9 @@ html[data-app="studio"] {
   --primary-container: rgba(255, 70, 86, .16); --on-primary-container: #B3121F;
 }
 html[data-app="studio"][data-theme="dark"] { --on-primary-container: #FF9AA3; }
+:root[data-app="admin"] { --gl-tint: #5E5CE6; --gl-tint2: var(--sys-blue); --gl-tint3: var(--sys-pink); }
+:root[data-app="academy"] { --gl-tint2: var(--sys-cyan); --gl-tint3: var(--sys-indigo); }
+:root[data-app="studio"] { --gl-tint2: var(--sys-orange); --gl-tint3: var(--sys-purple); }
 html[data-app="academy"] {
   --primary: #4699FF; --primary-dark: #4699FF; --on-primary: #00214D;
   --primary-container: rgba(70, 153, 255, .16); --on-primary-container: #0B57B5;
@@ -2179,3 +2218,84 @@ html.booting *, html.booting *::before, html.booting *::after { transition: none
 }
 .maint-strip.env-up { bottom: calc(env(safe-area-inset-bottom, 0px) + 38px); }
 [dir="ltr"] .maint-strip { transform: translateX(-50%); }
+
+/* ==== 28/10/2026 — חומר הזכוכית בכל האפליקציות (בקשת המשתמש, לפי ת־עיצוב; הטוקנים --gl-* ב־:root) ====
+   שכבה מאחור = גוון עדין + טשטוש (שורש הטשטוש); הלוח מעליה שקוף 74% בלי backdrop משלו, בלי מסגרת, עם קו שיער.
+   מילויים בתוך הלוח שקופים (--surface-2/--search-fill מקומיים). תפריט צף בלי שכבה מאחור — טשטוש משלו (--gl-fx).
+   הצבעים של כל אפליקציה (--primary) לא משתנים — רק החומר. */
+.menu-veil { background: var(--gl-veil); -webkit-backdrop-filter: var(--gl-veil-fx); backdrop-filter: var(--gl-veil-fx); }
+[data-theme="dark"] .menu-veil { background: var(--gl-veil); }
+.main-menu, [data-theme="dark"] .main-menu { background: var(--gl-panel); border: 0; box-shadow: var(--gl-ring), var(--gl-shadow);
+  --surface-2: var(--gl-fill); --search-fill: var(--gl-fill); --secondary-container: var(--gl-fill); }
+/* תפריטים צפים בלי שכבה מאחור: שפה, סינון מקור/טווח/רשימה, פעולות על פריט */
+.lang-menu, [data-theme="dark"] .lang-menu, .src-pop, [data-theme="dark"] .src-pop, .item-acts, [data-theme="dark"] .item-acts {
+  background: var(--gl-panel); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); border: 0;
+  box-shadow: var(--gl-ring), var(--gl-shadow); --surface-2: var(--gl-fill); --search-fill: var(--gl-fill); }
+/* גיליונות מלמטה (Invest + כניסה) */
+.pf-sheet-veil, .acx-veil { background: var(--gl-veil); -webkit-backdrop-filter: var(--gl-veil-fx); backdrop-filter: var(--gl-veil-fx); }
+.pf-sheet, [data-theme="dark"] .pf-sheet, .acx-sheet, [data-theme="dark"] .acx-sheet {
+  background: var(--gl-panel); box-shadow: var(--gl-ring), var(--gl-shadow);
+  --surface-2: var(--gl-fill); --search-fill: var(--gl-fill); --secondary-container: var(--gl-fill); }
+.pf-sheet .sheet-btn { border: 0; background: var(--gl-fill); }
+.sheet-grab { background: color-mix(in srgb, var(--on-surface-var) 45%, transparent); }
+/* גיליונות שנכנסים בהדרגה: הטשטוש נבנה יחד עם הגוון */
+.earn-veil, .reset-veil { transition: background-color .26s ease, -webkit-backdrop-filter .26s ease, backdrop-filter .26s ease; }
+.earn-veil:not(.show), .reset-veil:not(.in) { background: transparent; -webkit-backdrop-filter: blur(0) saturate(1); backdrop-filter: blur(0) saturate(1); }
+.earn-veil.show, .reset-veil.in { background: var(--gl-veil); }
+/* חלון אישור/הודעה: נשאר קפסולה כהה, עכשיו מעל טשטוש; הקפסולה בלי backdrop משלה */
+.dlg-veil { background: var(--gl-veil); -webkit-backdrop-filter: var(--gl-veil-fx); backdrop-filter: var(--gl-veil-fx); }
+.dlg { background: rgba(30, 32, 31, .74); -webkit-backdrop-filter: none; backdrop-filter: none; border: 0;
+  box-shadow: 0 0 0 .5px rgba(255, 255, 255, .14), 0 18px 48px rgba(0, 0, 0, .38); }
+.dlg-cancel { background: rgba(118, 118, 128, .24); }
+/* שדות בתוך לוח זכוכית — מילוי שקוף בלי מסגרת (הפוקוס נשאר בצבע האפליקציה) */
+.main-menu .form-grid input, .main-menu .form-grid select, .pf-sheet .form-grid input, .pf-sheet .form-grid select,
+.acx-sheet .form-grid input { background: var(--gl-fill); border-color: transparent; }
+
+/* ==== 28/10/2026 — כפתורים ראשיים מזכוכית צבעונית (בקשת המשתמש: המראה הזכוכיתי של כפתור ההורדה בדפדפן, מותאם לת־עיצוב העדכני) ====
+   הצבע של הכפתור נשאר מלא כמו שהיה (בקשת המשתמש) — רק הגימור זכוכיתי: ברק עדין בחצי העליון (לא הילה לבנה),
+   קצה אור דק — חזק למעלה, חלש בתחתית (שבירת אור); טבעת שיער; צל קצר בגוון הכפתור.
+   הצבע = --btn-c (ברירת מחדל --primary: Invest ירוק, Academy כחול, Studio אדום; הרסני = --loss). הטקסט נשאר --on-primary. */
+html :is(.range-btn.active, .btn, .dlg-ok, .tab-ind, .st-btn, .st-plus, .an-btn, .lib-signin, .bk-cta, .adm-btn, .mg-tb.p, .mg-ab.p, .mg-ok56) { --btn-c: var(--primary);
+  --btn-glass: linear-gradient(180deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .05) 48%, rgba(255, 255, 255, 0) 54%), var(--btn-c); }
+html .btn.danger-btn, html .dlg-ok.danger { --btn-c: var(--loss); }
+html :is(.range-btn.active, .btn, .dlg-ok, .tab-ind, .st-btn, .st-plus, .an-btn, .lib-signin, .bk-cta, .adm-btn, .mg-tb.p, .mg-ab.p, .mg-ok56):not(.secondary-btn):not(.ghost):not(.tint):not(.st-btn.danger) {
+  background: var(--btn-glass);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .55), inset -1px -1px 0 rgba(255, 255, 255, .2), inset 0 0 14px rgba(255, 255, 255, .16),
+    0 0 0 .5px color-mix(in srgb, var(--btn-c), #000 12%), 0 6px 18px color-mix(in srgb, var(--btn-c) 30%, transparent);
+}
+/* בספרייה הצבע מוגדר עם !important — אותו מראה גם שם */
+html .lib-root :is(.bk-cta, .adm-btn, .mg-tb.p, .mg-ab.p) { background: var(--btn-glass) !important; }
+html :is(.range-btn.active, .btn, .dlg-ok, .st-btn, .st-plus, .an-btn, .lib-signin, .bk-cta, .adm-btn, .mg-ok56):not(.secondary-btn):not(.ghost):not(.tint):active { filter: brightness(.94); }
+[data-theme="dark"] :is(.range-btn.active, .btn, .dlg-ok, .tab-ind, .st-btn, .st-plus, .an-btn, .lib-signin, .bk-cta, .adm-btn, .mg-ok56):not(.secondary-btn):not(.ghost):not(.tint):not(.st-btn.danger) {
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .45), inset -1px -1px 0 rgba(255, 255, 255, .14), inset 0 0 14px rgba(255, 255, 255, .12),
+    0 6px 20px color-mix(in srgb, var(--btn-c) 26%, transparent), 0 2px 6px rgba(0, 0, 0, .3);
+}
+
+/* ==== 28/10/2026 — העמודים מזכוכית (בקשת המשתמש: כרטיסים, סרגלי לשוניות ורכיבים בעמוד) ====
+   רקע עדין בגוון האפליקציה מאחור (קבוע, לא נגלל) — בלעדיו זכוכית על רקע אחיד לא נראית. הכרטיסים שקופים (~58%) עם קצה אור
+   כיווני וזוהר פנימי במקום מסגרת; בלי backdrop (הרקע מאחור חלק — טשטוש לא מוסיף ועולה בפריימים, ראו v193). */
+body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--gl-ambient); }
+.card, [data-theme="dark"] .card, .stock, [data-theme="dark"] .stock { background: var(--gl-card); border-color: transparent; box-shadow: var(--gl-card-sh); }
+.pfbk-page .ios-list { background: var(--gl-card); box-shadow: var(--gl-card-sh); }
+.stock-search-results, [data-theme="dark"] .stock-search-results { background: var(--gl-panel); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-ring), var(--gl-shadow); }
+/* סרגל הלשוניות — גלולת זכוכית */
+.tabs { background: var(--gl-bar); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); border: 0; box-shadow: var(--gl-ring), 0 6px 20px rgba(0, 0, 0, .08); }
+[data-theme="dark"] .tabs { box-shadow: var(--gl-ring), 0 6px 20px rgba(0, 0, 0, .4); }
+
+/* כפתורים משניים מזכוכית (28/10, בקשת המשתמש): משטח שקוף עם קצה אור כיווני וטשטוש של מה שמאחור; הצבע של הטקסט/המסגרת נשאר */
+.range-btn:not(.active), .icon-btn, .fx-pill, .chip-btn:not(.on), .mini-btn:not([aria-pressed="true"]), .btn.secondary-btn {
+  background: var(--gl-btn); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-btn-sh); }
+.icon-btn, .chip-btn:not(.on), .mini-btn:not([aria-pressed="true"]) { border-color: transparent; }
+
+/* ==== 28/10/2026 — כפתורי "חזור" בכל האפליקציות: גלולת זכוכית כמו בגרף הנרות (הצבע של האפליקציה נשאר) ==== */
+html :is(.subpage-back, .an-back, .adm-back, .st-back) { background: var(--gl-btn) !important; -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-btn-sh);
+  border: 0; border-radius: var(--pill) !important; min-height: 36px; padding-block: 5px !important; padding-inline: 8px 14px !important; margin-inline-start: 0; }
+html :is(.kc-back, .an-cback) { background: var(--gl-btn) !important; -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-btn-sh); border-radius: 50% !important; }
+html :is(.subpage-back, .an-back, .adm-back, .st-back, .kc-back, .an-cback):active { filter: brightness(.94); opacity: 1; }
+/* "חזור" בכהה — עיגול זכוכית ניטרלי ונקי (לפי ת־עיצוב): אפור שקוף, בלי צל כבד, קצה אור דק; החץ בצבע האפליקציה */
+/* "חזור" בכל ממשק כהה (כולל מסכי הנגן של Studio, שכהים תמיד) — גלולת זכוכית אפורה ניטרלית, כמעט אטומה, עם קצה אור:
+   בולטת על כל רקע (גם על הגוון של האפליקציה) ולא מקבלת את צבעו. מקור אחד: --gl-back / --gl-back-sh */
+:root { --gl-back: rgba(84, 84, 90, .8); --gl-back-sh: inset 0 .5px 0 rgba(255, 255, 255, .34), 0 0 0 .5px rgba(255, 255, 255, .16), 0 3px 12px rgba(0, 0, 0, .5); }
+html[data-theme="dark"] :is(.subpage-back, .an-back, .adm-back, .st-back, .kc-back, .an-cback, .lib-back), html .st-dark .st-back,
+html[data-theme="dark"] .lib-root .lib-back { background: var(--gl-back) !important; box-shadow: var(--gl-back-sh) !important;
+  -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); }

@@ -642,7 +642,7 @@ button.st-fnd:active { background: var(--st-fill); }
 
 /* ---------- מ1 (10/10/2026): הנגן — כהה תמיד (כמו עורך התמונות של Apple, YouTube ו־CapCut), בשתי הערכות ---------- */
 .st-root:has(> .st-page.st-dark) { background: #000; color-scheme: dark; }
-.st-page.st-dark { color-scheme: dark; --bg: #000; --surface: #1C1C1E; --st-card: #1C1C1E; --on-surface: #F5F5F7; --on-surface-var: #98989D;
+.st-page.st-dark { color-scheme: dark; --gl-btn: rgba(120, 120, 128, .38); --gl-btn-sh: inset 0 .5px 0 rgba(255, 255, 255, .26), 0 0 0 .5px rgba(255, 255, 255, .1); --bg: #000; --surface: #1C1C1E; --st-card: #1C1C1E; --on-surface: #F5F5F7; --on-surface-var: #98989D;
   --card-border: rgba(255, 255, 255, .12); --search-fill: rgba(118, 118, 128, .24); --st-ter: #636366; color: #F5F5F7; }
 .st-pl { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; overflow: hidden; user-select: none; -webkit-user-select: none;
   touch-action: manipulation; container-type: inline-size; --sub-k: 1; --sub-c: #fff; --sub-lift: 0%; }   /* סבב 5: עיצוב הכתוביות (setStyle) */
@@ -1086,3 +1086,33 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-nsb .st-l b { overflow-wrap: anywhere; }
 .st-nsck { width: 20px; height: 20px; flex: none; color: var(--primary); stroke-width: 2.8; }
 .st-row.st-linkrow { color: var(--primary); font-size: 16px; }
+
+/* ==== 28/10/2026 — חומר הזכוכית (לפי ת־עיצוב; הטוקנים --gl-* ב־styles.css). Studio שומר על האדום שלו ==== */
+/* תפריט הנגן — תמיד כהה (מעל הווידאו): שכבה כהה מטושטשת, לוח כהה שקוף בלי backdrop משלו */
+.st-pl-menu { background: rgba(0, 0, 0, .32); -webkit-backdrop-filter: var(--gl-veil-fx); backdrop-filter: var(--gl-veil-fx); }
+.st-pl-mbox { background: color-mix(in srgb, #1C1C1E 74%, transparent); box-shadow: 0 0 0 .5px rgba(255, 255, 255, .1), 0 -8px 30px rgba(0, 0, 0, .35); }
+/* גיליון הדירוג/הבחירה */
+.st-rs, [data-theme="dark"] .st-rs { background: var(--gl-veil); -webkit-backdrop-filter: var(--gl-veil-fx); backdrop-filter: var(--gl-veil-fx);
+  --st-card: var(--gl-fill); --st-fill: var(--gl-fill); }
+.st-rs-box { background: var(--gl-panel); box-shadow: var(--gl-ring), var(--gl-shadow); }
+.st-rs-box > * { flex-shrink: 0; }   /* גוף גלילה שהוא flex עמודה — בלי זה רכיבים עם overflow נמחצים כשהתוכן ארוך */
+/* סרגל הפעולות בתחתית הרשומה */
+.st-abar { background: var(--gl-bar); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); }
+/* העמודים מזכוכית: רקע עדין באדום של Studio מאחור, והכרטיסים (--st-card) שקופים עם קצה אור */
+.st-root, [data-theme="dark"] .st-root { --st-card: var(--gl-card);
+  background: var(--gl-ambient), var(--bg); }
+/* הבר העליון — זכוכית שנמוגה לתוך הרקע, כמו בגרף ובניתוח (לא פס אטום) */
+.st-root .st-nav { background: none; }
+.st-root .st-nav::before { content: ''; position: absolute; inset: 0 0 -18px 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 42%, transparent), color-mix(in srgb, var(--bg) 0%, transparent));
+  -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx);
+  -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent); mask-image: linear-gradient(to bottom, #000 62%, transparent); }
+/* מסכי הנגן/העורך/החיתוך (כהים תמיד) — שחור עם גוון אדום עדין של Studio, והכרטיסים שקופים מעט */
+.st-root:has(> .st-page.st-dark), [data-theme="dark"] .st-root:has(> .st-page.st-dark) {
+  background: radial-gradient(70% 40% at 96% 0%, color-mix(in srgb, var(--gl-tint) 30%, transparent), transparent 72%),
+    radial-gradient(60% 36% at 0% 42%, color-mix(in srgb, var(--gl-tint2) 14%, transparent), transparent 70%),
+    radial-gradient(80% 46% at 50% 100%, color-mix(in srgb, var(--gl-tint3) 18%, transparent), transparent 72%), #000; }
+.st-page.st-dark { --surface: rgba(36, 36, 40, .74); --st-card: rgba(36, 36, 40, .74); }
+.st-page.st-dark .st-nav::before { background: linear-gradient(to bottom, rgba(0, 0, 0, .42), transparent); }
+.st-se-top { background: rgba(0, 0, 0, .7); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); }
+.st-root :is(.st-list, .st-newcard, .st-filecard, .st-modecard, .st-vcard, .st-twcard, .st-hero, .st-schero, .st-jhero, .st-ut-hero, .st-lk-card, .st-banner) { box-shadow: var(--gl-card-sh); }
