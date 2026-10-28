@@ -1086,3 +1086,15 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-nsb .st-l b { overflow-wrap: anywhere; }
 .st-nsck { width: 20px; height: 20px; flex: none; color: var(--primary); stroke-width: 2.8; }
 .st-row.st-linkrow { color: var(--primary); font-size: 16px; }
+
+/* ==== 28/10/2026 — חומר הזכוכית (לפי ת־עיצוב; הטוקנים --gl-* ב־styles.css). Studio שומר על האדום שלו ==== */
+/* תפריט הנגן — תמיד כהה (מעל הווידאו): שכבה כהה מטושטשת, לוח כהה שקוף בלי backdrop משלו */
+.st-pl-menu { background: rgba(0, 0, 0, .32); -webkit-backdrop-filter: var(--gl-veil-fx); backdrop-filter: var(--gl-veil-fx); }
+.st-pl-mbox { background: color-mix(in srgb, #1C1C1E 76%, transparent); box-shadow: 0 0 0 .5px rgba(255, 255, 255, .1), 0 -8px 30px rgba(0, 0, 0, .35); }
+/* גיליון הדירוג/הבחירה */
+.st-rs, [data-theme="dark"] .st-rs { background: var(--gl-veil); -webkit-backdrop-filter: var(--gl-veil-fx); backdrop-filter: var(--gl-veil-fx);
+  --st-card: var(--gl-fill); --st-fill: var(--gl-fill); }
+.st-rs-box { background: var(--gl-panel); box-shadow: var(--gl-ring), var(--gl-shadow); }
+.st-rs-box > * { flex-shrink: 0; }   /* גוף גלילה שהוא flex עמודה — בלי זה רכיבים עם overflow נמחצים כשהתוכן ארוך */
+/* סרגל הפעולות בתחתית הרשומה */
+.st-abar { background: var(--gl-bar); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); }

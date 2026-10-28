@@ -458,3 +458,9 @@ button.an-row { cursor: pointer; }
 .an-c3 label { display: flex; flex-direction: column; align-items: center; gap: 3px; }
 .an-c3 small { font-size: 11px; color: var(--an-ink2); }
 .an-c3 .an-cin { width: 70px; }
+
+/* ==== 28/10/2026 — חומר הזכוכית (לפי ת־עיצוב; הטוקנים --gl-* ב־styles.css) ==== */
+.an-veil { background: var(--gl-veil); -webkit-backdrop-filter: var(--gl-veil-fx); backdrop-filter: var(--gl-veil-fx); }
+.an-sheet { background: var(--gl-panel); box-shadow: var(--gl-ring), var(--gl-shadow); --an-fill: var(--gl-fill); }
+.an-sh-b > * { flex-shrink: 0; }   /* גוף גלילה שהוא flex עמודה — לא לכווץ רכיבים כשהתוכן ארוך */
+.an-grab::before { background: var(--on-surface-var); }

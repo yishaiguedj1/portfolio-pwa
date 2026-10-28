@@ -1068,3 +1068,16 @@ label.lib-row input { position: absolute; inset: 0; opacity: 0; cursor: pointer;
 .lib-set-bk { background: linear-gradient(160deg, #4285F4, #34A853); }
 .lib-set-rs { background: var(--loss); }
 .lib-setcard .lib-set-danger .menu-row-t { color: var(--loss); }
+
+/* ==== 28/10/2026 — חומר הזכוכית (לפי ת־עיצוב; הטוקנים --gl-* ב־styles.css). Academy שומרת על הכחול שלה ==== */
+.lib-veil { background: var(--gl-veil); -webkit-backdrop-filter: var(--gl-veil-fx); backdrop-filter: var(--gl-veil-fx); }
+.lib-sheet, [data-theme="dark"] .lib-sheet { background: var(--gl-panel); box-shadow: var(--gl-ring), var(--gl-shadow);
+  --surface-2: var(--gl-fill); --search-fill: var(--gl-fill); --secondary-container: var(--gl-fill); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) .lib-sheet { background: color-mix(in srgb, #1C1C1E 76%, transparent); } }
+.lib-grab { background: color-mix(in srgb, var(--on-surface-var) 45%, transparent); }
+/* בועות כהות קבועות (בחירה בקורא, הודעה עם פעולה) — זכוכית כהה עם טשטוש משלהן */
+.rd-pop, .lib-root .mg-snack { background: rgba(44, 44, 46, .76); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx);
+  box-shadow: 0 0 0 .5px rgba(255, 255, 255, .12), 0 8px 24px rgba(0, 0, 0, .3); }
+/* סרגל הפעולות הצף — גלולת זכוכית בשתי הערכות */
+.lib-root .mg-abar, [data-theme="dark"] .lib-root .mg-abar { background: var(--gl-bar); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx);
+  border: 0; box-shadow: var(--gl-ring), var(--gl-shadow); }
