@@ -142,6 +142,7 @@ he: {
   kcAlertNoteOpen: 'אפשר לגרור את קו ההתראה בגרף.',
   kcPre: 'טרום',
   kcPost: 'אחרי',
+  kcNight: 'לילי',
   kcToNow: 'חזרה לזמן אמת',
   kcMore: 'עוד',
   kcColor: 'צבע',
@@ -1674,6 +1675,7 @@ en: {
   kcAlertNoteOpen: 'You can drag the alert line on the chart.',
   kcPre: 'Pre',
   kcPost: 'Post',
+  kcNight: 'Overnight',
   kcToNow: 'Scroll to real time',
   kcMore: 'More',
   kcColor: 'Color',
@@ -6886,8 +6888,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.77.3';
-const APP_VERSION = 'v604';
+const APP_RELEASE = '2.78.0';
+const APP_VERSION = 'v605';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -15026,6 +15028,8 @@ function chartEnv() {
     search: (q, onUpdate) => searchStocksYahoo(q, onUpdate),
     symbols: () => quoteSymbols().filter((s) => s !== FX_SYM),
     onClose: () => refreshStockAlerts(),
+    // מחיר הכותרת בגרף — אותו אפקט רובין הוד של כרטיס המניה
+    pxSwap: (a, txt, px) => { const b = document.createElement('span'); b.dataset.px = String(px); b.textContent = txt; livePriceSwap(a, b); },
     fills: (sym) => chartFills(sym),   // חיצי הקנייה/מכירה וקו הממוצע בגרף   // התראות שנוספו/נמחקו בגרף — מתעדכנות בכרטיס המניה
     store: {
       get: () => { try { return JSON.parse(localStorage.getItem(CHART_LS) || 'null'); } catch (e) { return null; } },

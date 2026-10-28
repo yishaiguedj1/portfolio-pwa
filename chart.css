@@ -46,9 +46,12 @@ html.kc-open { overflow: hidden; }
 .kc-quote { display: flex; flex-direction: column; gap: 1px; min-width: 0; margin-inline-start: 4px; }
 .kc-pxrow { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
 .kc-pxrow.sm { font-size: 12px; color: var(--kc-ink2); }
-.kc-px { font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
-.kc-ch { font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; font-size: 13px; }
+.kc-px { font-weight: 800; font-size: 27px; line-height: 1.1; height: 1.1em; letter-spacing: -.6px; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
+.kc-ch { font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; font-size: 14px; font-weight: 700; }   /* כמו השינוי היומי בכרטיס המניה */
+.kc-px.px-lg { font-size: 23px; }
+.kc-px.px-xl { font-size: 20px; }
 .kc-ext:empty { display: none; }
+.kc-xst { display: flex; align-items: center; min-width: 0; }
 .kc-ext.ext-sess { font-size: 11.5px; padding: 1px 8px; align-self: center; }
 .kc-ext .ext-pct { direction: ltr; unicode-bidi: isolate; }
 .kc-ext .ext-lbl.sm { display: none; }
@@ -280,7 +283,6 @@ html.kc-open { overflow: hidden; }
   .kc-bar, .kc-foot, .kc-fab, .kc-fab.on, .kc-top-end .kc-undo, .kc-top-end .kc-redo { display: none !important; }
   .kc-mbar { display: flex; }
   .kc-qm { display: flex; }
-  .kc-drawing .kc-qm { display: none; }
   .kc-pick { display: flex; }
   .kc-drawing .kc-pick { display: none; }
   .kc-cols, .kc-wids, .kc-sel-n { display: none; }
@@ -294,15 +296,57 @@ html.kc-open { overflow: hidden; }
   .kc-symbtn { flex: 0 1 auto; overflow: hidden; }
   .kc-sym { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .kc-quote .kc-pxrow { gap: 6px; }
-  .kc-quote .kc-ext.ext-sess { font-size: 10.5px; padding: 1px 6px; column-gap: 4px; }
-  .kc-quote .kc-ext .ext-dot { width: 6px; height: 6px; }
+  .kc-xst .kc-ext.ext-sess { font-size: 10.5px; padding: 1px 6px; column-gap: 4px; }
+  .kc-xst .kc-ext .ext-dot { width: 6px; height: 6px; }
   .kc-ext .ext-lbl.lg { display: none; }
   .kc-ext .ext-lbl.sm { display: inline; }
-  .kc-px { font-size: 15px; }
-  .kc-ch { font-size: 11.5px; }
-  .kc-logo { display: none; }
+  /* מחיר ושינוי באותו גודל כמו בכרטיס המניה (sh-r1: 27px / 14px) — ברורים ובולטים */
+  /* הכותרת משמאל לימין (בקשת המשתמש 28/10): לוגו · סימבול ושם | סטטוס המסחר באמצע | המחיר מימין · חזרה בקצה.
+     הלוגו ריבוע מעוגל עם קו דק כמו אייקון של iOS */
+  /* רשת: שורה 1 — לוגו+סימבול | מחיר | חזרה; שורה 2 — בועת הסשן מתחת ללוגו והסימבול */
+  .kc-top { direction: ltr; display: grid; grid-template-columns: auto 1fr auto auto; grid-template-areas: 'sym . quote back' 'xst . quote back'; row-gap: 2px; align-items: center; }
+  .kc-top .kc-back { grid-area: back; }
+  .kc-top-end { display: none; }
+  .kc-top .kc-back { order: 9; }
+  .kc-top-end { order: 8; }
+  .kc-symbtn { order: 1; }
+  .kc-symcol { text-align: left; }
+  .kc-symbtn { grid-area: sym; }
+  .kc-xst { grid-area: xst; justify-content: flex-start; padding-inline-start: 4px; }
+  .kc-xst:has(.kc-ext:empty) { display: none; }
+  .kc-xst .kc-ext { flex: none; flex-wrap: nowrap; white-space: nowrap; width: auto; }
+  .kc-quote { grid-area: quote; align-items: flex-end; text-align: right; margin-inline-start: 0; }
+  .kc-pxrow.sm { direction: ltr; }
+  .kc-logo { width: 30px; height: 30px; border-radius: var(--radius-xs); box-shadow: 0 0 0 .5px var(--kc-sep); background: var(--kc-fill); }
   .kc-symbtn { padding: 4px; }
   .kc-top-end { flex: none; }
+  /* הכותרת: זכוכית שקופה מעל הגרף — הגרף ממשיך מתחתיה. רשימה והגדרות — בסרגל התחתון */
+  /* הגרף עד הקצה העליון של המסך (גם מאחורי שורת הסטטוס) — המרווח הבטוח עובר לכותרת; זכוכית "דקה" */
+  .kc-root { padding-top: 0; }
+  .kc-top { position: absolute; top: 0; inset-inline: 0; z-index: 8; padding-top: calc(6px + env(safe-area-inset-top, 0px)); background: color-mix(in srgb, var(--kc-bg) 38%, transparent); -webkit-backdrop-filter: saturate(180%) blur(30px); backdrop-filter: saturate(180%) blur(30px); border-bottom: .5px solid color-mix(in srgb, var(--kc-sep) 60%, transparent); }
+  .kc-top-end .kc-ib { display: none; }
+  .kc-qm { top: calc(var(--kc-toph, 0px) + 70px); }
+  /* זכוכית מדורגת (בקשת המשתמש 28/10): בלי קו ובלי רקע אחיד — גוון שנמוג מלמעלה למטה, ומתחתיו חמש שכבות טשטוש
+     מצטברות (כל אחת מוסיפה טשטוש ונמוגה מוקדם יותר), כך שהטשטוש עולה בהדרגה כלפי מעלה ו־24px מתחת לכותרת הגרף כבר חד */
+  .kc-top { background: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-bottom: 0; }
+  .kc-pb { position: absolute; inset: 0 0 -24px 0; z-index: -1; pointer-events: none; background: linear-gradient(to bottom, color-mix(in srgb, var(--kc-bg) 24%, transparent) 0%, color-mix(in srgb, var(--kc-bg) 10%, transparent) 62%, transparent 100%); }
+  .kc-pb i { position: absolute; inset: 0; }
+  .kc-pb i:nth-child(1) { -webkit-backdrop-filter: blur(1.5px); backdrop-filter: blur(1.5px); -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent 100%); mask-image: linear-gradient(to bottom, #000 70%, transparent 100%); }
+  .kc-pb i:nth-child(2) { -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent 88%); mask-image: linear-gradient(to bottom, #000 55%, transparent 88%); }
+  .kc-pb i:nth-child(3) { -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); -webkit-mask-image: linear-gradient(to bottom, #000 40%, transparent 76%); mask-image: linear-gradient(to bottom, #000 40%, transparent 76%); }
+  .kc-pb i:nth-child(4) { -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); -webkit-mask-image: linear-gradient(to bottom, #000 25%, transparent 62%); mask-image: linear-gradient(to bottom, #000 25%, transparent 62%); }
+  .kc-pb i:nth-child(5) { -webkit-backdrop-filter: saturate(160%) blur(12px); backdrop-filter: saturate(160%) blur(12px); -webkit-mask-image: linear-gradient(to bottom, #000 10%, transparent 48%); mask-image: linear-gradient(to bottom, #000 10%, transparent 48%); }
+  /* הסרגל התחתון: זכוכית שקופה שצפה מעל הגרף (ציר התאריכים גדל בגובהה — xSize) */
+  .kc-root { padding-bottom: 0; }
+  .kc-mbar:not(.draw) { justify-content: space-around; }
+  .kc-mbar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 8; background: color-mix(in srgb, var(--kc-bg) 42%, transparent); -webkit-backdrop-filter: saturate(180%) blur(24px); backdrop-filter: saturate(180%) blur(24px); border-top: .5px solid color-mix(in srgb, var(--kc-sep) 55%, transparent); }
+  /* הבוררים: מסגרת דקה ורכה שנראית גם על לבן — עדיין נקייה */
+  .kc-pk { box-shadow: 0 0 0 .5px rgba(0, 0, 0, .16), 0 1px 4px rgba(0, 0, 0, .07); }
+  /* הכותרת והערך ממורכזים בבורר (בקשת המשתמש 28/10) — "טווח תאריכים" רחב מהערך, והערך נראה זרוק לצד */
+  .kc-pk { align-items: center; text-align: center; }
+  .kc-pk-v .kc-roll-i { text-align: center; }
+  [data-theme="dark"] .kc-pk { box-shadow: 0 0 0 .5px rgba(255, 255, 255, .16), 0 1px 4px rgba(0, 0, 0, .3); }
+  .kc-pick { top: calc(var(--kc-toph, 0px) + 70px); }
   .kc-top-end .kc-ib { width: 34px; }
   .kc-watch.on { position: absolute; inset-block: 0; inset-inline-end: 0; z-index: 12; background: var(--kc-panel); box-shadow: var(--kc-shadow); width: 200px; }
   .kc-clock { display: none; }

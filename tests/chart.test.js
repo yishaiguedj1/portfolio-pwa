@@ -174,9 +174,24 @@ ok(Object.keys(L.IND).length >= 40, 'לפחות 40 אינדיקטורים נוס
   ok(/const extOn = !!\(q && q\.ext && q\.ext\.p > 0 && st !== 'REGULAR'/.test(cj) && /p = extOn \? q\.ext\.p : reg/.test(cj) && /reg - prev/.test(cj), 'כותרת כמו כרטיס המניה: מחיר מורחב ראשי, גלולה, ושינוי היום מהסגירה הרגילה');
   ok(/function renderMbar\(\)/.test(cj) && /function wheel\(b, items, pick, tx = b\)/.test(cj) && /function openPlus\(c\)/.test(cj) && /function plusAt\(c, x\)/.test(cj) && /name: 'horizontalStraightLine', points: \[\{ timestamp: lastTs\(c\), value: p \}\]/.test(cj), 'טלפון לפי ת־גרף: סרגל תחתון, גלגלת, "+" בציר (התראה / קו אופקי)');
   const cc = fs.readFileSync(path.join(root, 'chart.css'), 'utf8');
+  // 28/10: מדידה בטלפון במצב צלב — צלב שזז יחסית לאצבע, הקשה = נקודה, הקשה שנייה = סיום ובחירה
+  ok(/const CUR_TOOLS = new Set\(\['kcMeasure', 'kcPriceRange', 'kcDateRange'\]\)/.test(cj) && /if \(CUR_TOOLS\.has\(name\) && coarse\(\) && curBegin\(c, name\)\)/.test(cj)
+    && /executeAction\('onCrosshairChange', \{ x: r\.x, y: r\.y, paneId: MAIN \}\)/.test(cj) && /overrideOverlay\(\{ id: s\.id, points: \[s\.p1, r\.pt\] \}\)/.test(cj)
+    && /S\.cur\.x = Math\.max\(0, Math\.min\(sz \? sz\.width - 1 : 9999, ct\.cx \+ dx\)\)/.test(cj) && /if \(o\) select\(c, o\);/.test(cj), 'מדידה בטלפון: מצב צלב');
+  ok(/createYAxisFigures: \(\{ chart, overlay, coordinates, bounding, yAxis \}\) => \{\n      if \(coordinates\.length < 2 \|\| mode === 'd' \|\| !mSel\(overlay\)\)/.test(cj) && /type: 'circle', ignoreEvent: true, attrs: \{ x: q\.x, y: q\.y, r: 9 \}/.test(cj), 'מדידה שנבחרה: ידיות ופס כחול על הצירים');
+  // 28/10: כותרת זכוכית מעל הגרף בטלפון; רשימה והגדרות בסרגל התחתון
+  ok(/ib\('watch', T\('kcWatch'\), toggleWatch, S\.watch\)/.test(cj) && /ib\('gear', T\('kcSettings'\), openSettings\)/.test(cj) && /offsetTop: topPad\(c\)/.test(cj)
+    && /\.kc-top \{ position: absolute; top: 0; inset-inline: 0; z-index: 8;/.test(cc) && /\.kc-top-end \.kc-ib \{ display: none; \}/.test(cc), 'טלפון: כותרת זכוכית מעל הגרף, רשימה והגדרות למטה');
+  // 28/10: מחיר הכותרת כמו בכרטיס המניה — 27px/14px ואפקט הגלגול של רובין הוד (livePriceSwap דרך E.pxSwap)
+  ok(/if \(E\.pxSwap && p\) E\.pxSwap\(pel, pt, p\)/.test(cj) && /\.kc-px \{ font-weight: 800; font-size: 27px;/.test(cc) && /pxSwap: \(a, txt, px\) => \{[^}]*livePriceSwap\(a, b\)/.test(fs.readFileSync(path.join(root, 'app.js'), 'utf8')), 'מחיר הכותרת בגרף כמו בכרטיס המניה');
+  // 28/10 (בקשת המשתמש): כותרת בזכוכית מדורגת (5 שכבות טשטוש עם מסכות), סרגל תחתון צף ושקוף — ציר התאריכים גדל בגובהו
+  ok(/class: 'kc-pb', 'aria-hidden': 'true' \}, \.\.\.\[1, 2, 3, 4, 5\]/.test(cj) && /\.kc-pb i:nth-child\(5\)/.test(cc) && /\.kc-top \{ background: none;/.test(cc)
+    && /function xSize\(\)/.test(cj) && /xAxis: \{ size: xSize\(\) \}/.test(cj) && /\.kc-mbar \{ position: absolute; left: 0; right: 0; bottom: 0;/.test(cc) && /\.kc-pk \{ align-items: center; text-align: center; \}/.test(cc), 'בטלפון: כותרת בזכוכית מדורגת וסרגל תחתון צף');
+  // 28/10: מסחר לילי — היה חסר ב־parseQuote; תווית לפי סשן
+  ok(/st === 'OVERNIGHT' \|\| st === 'CLOSED' \|\| st === 'PREPRE'\) \? x\.night/.test(cj) && /night: 'kcNight'/.test(cj) && /const EXTC = \{ pre: '#FF9F0A', post: '#0A84FF', night: '#BF5AF2' \}/.test(cj), 'מחיר לילי מוצג בגרף, בצבע ובתווית משלו');
   // 28/10 (בקשת המשתמש): בורר האינטרוול עבר מהסרגל התחתון לפינה העליונה של הגרף, ולידו "טווח תאריכים" (טווח הזמן שמוצג)
   ok(/function renderPick\(c\)/.test(cj) && /pill\(T\('kcPickTf'\)[\s\S]{0,200}?setTf\(c, it\.v\)/.test(cj) && /pill\(T\('kcPickRg'\)[\s\S]{0,200}?goRange\(it\.v\)/.test(cj)
-    && /UI\.mbar\.append\(symB, h\('span', \{ class: 'kc-sep' \}\)/.test(cj) && /\.kc-pick \{ display: flex; \}/.test(cc), 'בטלפון: "אינטרוול" ו"טווח תאריכים" בפינה העליונה של הגרף, לא בסרגל התחתון');
+    && /UI\.mbar\.append\(\n    ib\('watch'/.test(cj) && !/const symB = /.test(cj) && /\.kc-pick \{ display: flex; \}/.test(cc), 'בטלפון: "אינטרוול" ו"טווח תאריכים" בפינה העליונה של הגרף, לא בסרגל התחתון');
   ok(/\.kc-bar, \.kc-foot, \.kc-fab, \.kc-fab\.on, \.kc-top-end \.kc-undo, \.kc-top-end \.kc-redo \{ display: none !important; \}/.test(cc) && /\.kc-mbar \{ display: flex; \}/.test(cc), 'בטלפון הסרגל התחתון מחליף את הסרגלים של המחשב');
   ok(/b\.timestamp <= t && t <= b\.timestamp \+ BASESEC\[d\.base\] \* 1000 && b\.close !== p/.test(cj), 'הנר האחרון נסגר על מחיר הסגירה הרשמי');
   ok(/setZoomAnchor\(back \? 'cursor' : 'last_bar'\)/.test(cj) && /navigator\.vibrate\(8\)/.test(cj) && /convertFromPixel\(\[\{ x: e\.clientX - r\.left/.test(cj), 'זום צמוד לנר האחרון, רטט בלחיצה ארוכה, בחירת נר בהקשה');
