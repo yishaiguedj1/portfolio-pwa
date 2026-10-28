@@ -65,6 +65,8 @@ const rgba = (hex, a) => { const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '')
 const fmtNum = (v, p) => (v == null || !isFinite(v) ? '—' : Number(v).toLocaleString(E && E.lang === 'en' ? 'en-US' : 'he-IL', { minimumFractionDigits: p, maximumFractionDigits: p }));
 const fmtPct = (v) => (v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : '') + v.toFixed(2) + '%');
 const fmtBig = (v) => { if (v == null || !isFinite(v)) return '—'; const a = Math.abs(v); return a >= 1e9 ? (v / 1e9).toFixed(2) + 'B' : a >= 1e6 ? (v / 1e6).toFixed(2) + 'M' : a >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : String(Math.round(v)); };
+/* 28/10/2026: בבועת המדידה — מילה מלאה ("18 ימים") ולא קיצור */
+const fmtDurW = (ms) => { const m = Math.round(ms / 60000), n = m < 60 ? m : Math.round(m / 60) < 48 ? Math.round(m / 60) : Math.round(m / 1440), u = m < 60 ? 'Min' : Math.round(m / 60) < 48 ? 'Hour' : 'Day'; return n + ' ' + T(n === 1 ? 'kc' + u + 'W1' : 'kc' + u + 'W'); };
 const fmtDur = (ms) => { const m = Math.round(ms / 60000); if (m < 60) return m + T('kcMinShort'); const hh = Math.round(m / 60); if (hh < 48) return hh + T('kcHourShort'); return Math.round(hh / 24) + T('kcDayShort'); };
 
 /* ---------- אייקונים (SVG קבועים) ---------- */
@@ -713,7 +715,7 @@ function registerOverlays() {
   position('kcShort', false);
 
   /* מדידות (Price Range / Date Range / Date & Price Range) — לפי ת־גרף: מלבן שקוף, חץ אנכי (מחיר) וחץ אופקי (זמן)
-     עם ראשי חצים לכיוון נקודת הסיום, וכרטיס של שלוש שורות: שינוי (אחוז) טיקים · נרות, זמן · נפח. כחול לעלייה, אדום לירידה */
+     עם ראשי חצים לכיוון נקודת הסיום, וכרטיס של שתי שורות (28/10/2026): שינוי למניה (אחוז), ואז "18 ימים, 12 נרות". כחול לעלייה, אדום לירידה */
   const arrowFig = (x1, y1, x2, y2, col) => {
     const ang = Math.atan2(y2 - y1, x2 - x1), k = 7, s1 = ang + Math.PI * 0.82, s2 = ang - Math.PI * 0.82;
     return [{ type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: x1, y: y1 }, { x: x2, y: y2 }] }, styles: { color: col, size: 1.5 } },
@@ -752,9 +754,8 @@ function registerOverlays() {
       const st = L.rangeStats(list, ia, ib), v0 = valAt(overlay, 0), dv = valAt(overlay, 1) - v0, pct = v0 ? dv / v0 * 100 : 0;
       const up = mode === 'd' ? b.x >= a.x : dv >= 0, col = mBlue(), p = palette();
       const lines = [];
-      if (mode !== 'd') lines.push(LRM + (dv >= 0 ? '' : '−') + fmtP(chart, Math.abs(dv)) + ' (' + (dv >= 0 ? '' : '−') + Math.abs(pct).toFixed(2) + '%) ' + (dv >= 0 ? '' : '−') + Math.round(Math.abs(dv) * Math.pow(10, precOf(chart))).toLocaleString('en-US'));
-      if (mode !== 'p' && st) lines.push(LRM + (ib - ia) + ' ' + T('kcBarsW') + ', ' + LRM + fmtDur(Math.abs(overlay.points[1].timestamp - overlay.points[0].timestamp)));
-      if (mode !== 'p' && st) lines.push(T('kcVolW') + ' ' + LRM + fmtBig(st.vol));
+      if (mode !== 'd') lines.push(LRM + (dv >= 0 ? '' : '−') + fmtP(chart, Math.abs(dv)) + ' (' + (dv >= 0 ? '' : '−') + Math.abs(pct).toFixed(2) + '%)');
+      if (mode !== 'p' && st) lines.push(LRM + fmtDurW(Math.abs(overlay.points[1].timestamp - overlay.points[0].timestamp)) + ', ' + LRM + (ib - ia) + ' ' + T('kcBarsW'));
       const x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x), y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y), mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
       const figs = [{ type: 'polygon', ignoreEvent: true, attrs: { coordinates: [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }] }, styles: { style: 'fill', color: rgba(col, 0.2) } }];
       if (mode !== 'd') figs.push(...arrowFig(mx, a.y, mx, b.y, col));

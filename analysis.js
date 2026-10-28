@@ -1001,13 +1001,13 @@ function header(co) {
   const ch = co.prev ? co.price / co.prev - 1 : null;
   const meta = [co.sym.replace(/\.TA$/, ''), co.exch, co.sector].filter(Boolean).join(' · ');
   // 10 שנים של מחיר (חודשי) — רקע גרפי לראש המסך
-  /* 28/10 (בקשת המשתמש): טווח לבחירה — 1Y/3Y/5Y/10Y/MAX, כפתורים כמו בכרטיס המניה. ברירת מחדל 10 שנים */
-  const rm = S.hr == null ? 120 : S.hr, cut = (a) => (rm ? a.slice(-(rm + 1)) : a.slice());
+  /* 28/10 (בקשת המשתמש): טווח לבחירה — 1Y/3Y/5Y/10Y/MAX, כפתורים כמו בכרטיס המניה. ברירת מחדל 5 שנים (בקשת המשתמש 28/10) */
+  const rm = S.hr == null ? 60 : S.hr, cut = (a) => (rm ? a.slice(-(rm + 1)) : a.slice());
   const px = co.px && co.px.c ? cut(co.px.c).filter((x) => x != null) : [], p0 = px[0], ch10 = p0 > 0 && px.length > 6 ? co.price / p0 - 1 : null;
   const yrs = Math.round(px.length / 12), pt = co.px && co.px.t ? cut(co.px.t) : [];
   const rngLbl = rm === 12 ? T('anInYear') : !rm && pt.length ? T('anSince', { y: pt[0].slice(0, 4) }) : T('anInYears', { n: yrs });
   const rng = h('div', { class: 'chip-row stock-chips an-hrng' }, ...[[12, 'sr1Y'], [36, 'sr3Y'], [60, 'sr5Y'], [120, 'an10Y'], [0, 'srMax']].map(([m, k]) =>
-    h('button', { class: 'range-btn' + (m === rm ? ' active' : ''), type: 'button', 'aria-pressed': String(m === rm), on: { click: () => { if (S.hr === m || (S.hr == null && m === 120)) return; S.hr = m; S.heroDone = false; render(); } } }, T(k))));
+    h('button', { class: 'range-btn' + (m === rm ? ' active' : ''), type: 'button', 'aria-pressed': String(m === rm), on: { click: () => { if (S.hr === m || (S.hr == null && m === 60)) return; S.hr = m; S.heroDone = false; render(); } } }, T(k))));
   /* 27/10/2026 (סרטון המשתמש — הגרף "מתרענן" בכל מעבר לשונית): אותו גרף בכל הלשוניות — האלמנט עצמו עובר מציור לציור,
      בלי לבנות ולצייר מחדש (עד היום: פריים ריק בכל מעבר, וברצועה הקבועה של הקובייה — בלי גרף בכלל) */
   const hk = co.sym + '|' + co.price + '|' + rm + '|' + (document.documentElement.dataset.theme || '');
