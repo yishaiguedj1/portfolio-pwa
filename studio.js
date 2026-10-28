@@ -3344,7 +3344,8 @@ function trkSub(f, t) {
 async function trkEnsure(f, ids) {
   const k = f.trk;
   const need = ids.filter((id) => !k.x[id] || k.x[id].st === 'err');
-  if (!need.length || k.busy) return;
+  // 28/10/2026: כבר ירד → רק לצייר (בלי זה בחירה חוזרת של אותה רצועה לא הופיעה); חילוץ שרץ → נאסף בסופו (למטה)
+  if (!need.length || k.busy) { if (form === f) render('none'); return; }
   k.busy = true; k.p = 0;
   for (const id of need) k.x[id] = { st: 'run' };
   render('none');
@@ -3359,6 +3360,8 @@ async function trkEnsure(f, ids) {
   } catch (e) { for (const id of loc) k.x[id] = { st: 'err' }; }
   await dl;
   k.busy = false;
+  const more = [k.src, k.hlp, k.ref].filter((id) => id != null && !k.x[id]);   // נבחרו בזמן שהחילוץ רץ
+  if (more.length) { trkEnsure(f, more); return; }
   if (k.src != null && k.x[k.src] && k.x[k.src].st === 'ok' && !f.subs) trkApply(f);
   if (form === f) render('none');
 }
@@ -3521,7 +3524,7 @@ function nsHave(f) {
 function nsRow(f, t, role) {
   const k = f.trk, on = role && k[role] === t.id;
   const r = h('div', 'st-row st-ric'); r.dataset.k = 'ns:' + t.id;
-  const main = btn('st-nsb', null, role && !k.busy ? () => (role === 'ref' ? trkChooseRef(f, on ? null : t.id) : trkChooseHlp(f, on ? null : t.id)) : null, 'ns-pick:' + t.id);
+  const main = btn('st-nsb', null, role ? () => (role === 'ref' ? trkChooseRef(f, on ? null : t.id) : trkChooseHlp(f, on ? null : t.id)) : null, 'ns-pick:' + t.id);
   if (role) { main.setAttribute('role', 'checkbox'); main.setAttribute('aria-checked', on ? 'true' : 'false'); }
   const bd = nsBadge(t.net.m);
   main.append(tile('cc', t.lang === 'en' ? 'blue' : 'green'), rowTxt(t.name || nsSrcName(t.net.src), trkSub(f, t)), h('span', 'st-badge ' + bd[1], bd[0]));
@@ -3557,13 +3560,26 @@ function nsSection(p, f) {
   if (langs.length > first.length) p.append(h('div', 'st-gap sm'), list(btn('st-row st-linkrow', ui.nsAll ? T('studioNsFewer') : T('studioNsAll', { n: fmtNum(langs.length) }), () => { ui.nsAll = !ui.nsAll; render('none'); }, 'ns-all')));
   p.append(note(T('studioNsNote')));
 }
+/* 28/10/2026: מה מוצג בכל בחירה. רצועה מהרשת נשארת גם אחרי שבוטלה (כבר ירדה — k.x), כדי שאפשר לבחור בה שוב.
+   עזר להגהה = לא בשפת התרגום; השוואה = בשפת התרגום (או שפה לא ידועה) — עזר והשוואה הם שני תפקידים שונים,
+   ושניהם יכולים להיות פעילים יחד: אנגלית לעזר + עברית להשוואה */
+export function trkLists(k, to) {
+  const text = k.tracks.filter((t) => t.kind === 'text' && (!t.net || t.id === k.src || t.id === k.hlp || t.id === k.ref || k.x[t.id]));
+  const tgt = (t) => !t.lang || t.lang === 'und' || to.includes(t.lang);
+  return {
+    text,
+    hlp: text.filter((t) => !to.includes(t.lang) || t.id === k.hlp),
+    ref: text.filter((t) => t.id !== k.src && (tgt(t) || t.id === k.ref)),
+  };
+}
 function pageTracks(p) {
   const f = form;
   if (!f || !f.trk) { back(); return; }
   const k = f.trk, to = normTo(f.to);
-  // 28/10/2026: מהרשת — לתרגום רק "מדויק" שלא בשפת התרגום; לעזר/להשוואה — מה שנבחר בסעיף "מהרשת"
-  const text = k.tracks.filter((t) => t.kind === 'text' && (!t.net || t.id === k.src || t.id === k.hlp || t.id === k.ref));
-  const srcL = text.concat(k.tracks.filter((t) => t.net && t.net.m === 'h' && !to.includes(t.lang) && !text.includes(t)).slice(0, 3));
+  // 28/10/2026: מהרשת — לתרגום רק "מדויק" שלא בשפת התרגום; לעזר/להשוואה — מה שנבחר (או ירד) בסעיף "מהרשת"
+  const { text, hlp, ref: refs } = trkLists(k, to);
+  const srcL = text.filter((t) => !t.net || !to.includes(t.lang) || t.id === k.src)
+    .concat(k.tracks.filter((t) => t.net && t.net.m === 'h' && !to.includes(t.lang) && !text.includes(t)).slice(0, 3));
   const hasLoc = k.tracks.some((t) => !t.net);
   p.append(navBar({ back: f.id ? T('studioEditT') : T('studioNew'), title: hasLoc ? T('studioTrkRow') : T('studioNsRow') }));
   p.append(note(k.vname));
@@ -3575,12 +3591,11 @@ function pageTracks(p) {
     if (!subsOk()) p.append(note(T('studioSubsApiOnly')));
     if (k.src == null && hlpEngine()) p.append(secT(T('studioTrkHlpT')), list(   // 26/10/2026: מהקול — הרצועה כעזר להגהה
       rowRadio({ on: k.hlp == null, label: T('studioTrkHlpNone'), onClick: () => trkChooseHlp(f, null), k: 'trk-hlp:0' }),
-      ...text.map((t) => rowRadio({ on: k.hlp === t.id, label: trkLabel(t), sub: trkSub(f, t), disabled: k.busy, onClick: () => trkChooseHlp(f, t.id), k: 'trk-hlp:' + t.id }))),
+      ...hlp.map((t) => rowRadio({ on: k.hlp === t.id, label: trkLabel(t), sub: trkSub(f, t), onClick: () => trkChooseHlp(f, t.id), k: 'trk-hlp:' + t.id }))),
       note(T('studioTrkHlpNote')));
-    const refs = text.filter((t) => t.id !== k.src);   // רק כשיש רצועה נוספת להשוות אליה
     if (refs.length) p.append(secT(T('studioTrkRefT')), list(
       rowRadio({ on: k.ref == null, label: T('studioTrkRefNone'), onClick: () => trkChooseRef(f, null), k: 'trk-ref:0' }),
-      ...refs.map((t) => rowRadio({ on: k.ref === t.id, label: trkLabel(t), sub: trkSub(f, t), disabled: k.busy, onClick: () => trkChooseRef(f, t.id), k: 'trk-ref:' + t.id }))),
+      ...refs.map((t) => rowRadio({ on: k.ref === t.id, label: trkLabel(t), sub: trkSub(f, t), onClick: () => trkChooseRef(f, t.id), k: 'trk-ref:' + t.id }))),
       note(T('studioTrkRefNote')));
   }
   nsSection(p, f);

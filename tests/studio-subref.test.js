@@ -25,6 +25,22 @@ try {
 ok(/trkHlpAuto\(L\.tracks\)/.test(src) && /!file\.remote \? trkHlpAuto/.test(src), 'בחירה אוטומטית רק כשהקובץ בטלפון (מ־Drive — החילוץ קורא את כל הקובץ ברשת)');
 ok(/k\.src == null && k\.hlp != null/.test(src), 'עזר רק כשהתמלול מהקול (לא כשמתרגמים מהרצועה)');
 ok(/spec\.eng === 'api'\) \{[^]*?trkWait\(f\)[^]*?hlpUpload\(rec, ht\)[^]*?form = null;/.test(src), 'מועלה לפני ההתחלה, רק כשהשרת שלנו מגיה');
+// 28/10/2026 (באג מהטלפון): בחירה חוזרת של כתוביות מהרשת אחרי ביטול, ועזר + השוואה יחד
+{
+  const L = grab('trkLists');
+  ok(L, 'trkLists קיימת');
+  const tr = [{ id: 0, kind: 'text', lang: 'en' }, { id: 'n:1', kind: 'text', lang: 'en', net: {} }, { id: 'n:2', kind: 'text', lang: 'he', net: {} }, { id: 'n:3', kind: 'text', lang: 'en', net: {} }];
+  const ids = (a) => a.map((t) => t.id).join(',');
+  let k = { tracks: tr, x: { 'n:1': { st: 'ok' } }, src: null, hlp: null, ref: null };
+  let r = L(k, ['he']);
+  ok(ids(r.hlp) === '0,n:1', 'רצועה מהרשת שבוטלה (כבר ירדה) נשארת לבחירה חוזרת: ' + ids(r.hlp));
+  ok(ids(r.ref) === '', 'אנגלית לא מוצעת להשוואה לתרגום לעברית: ' + ids(r.ref));
+  k = { tracks: tr, x: { 'n:1': { st: 'ok' }, 'n:2': { st: 'ok' } }, src: null, hlp: 'n:1', ref: 'n:2' };
+  r = L(k, ['he']);
+  ok(r.hlp.some((t) => t.id === 'n:1') && r.ref.some((t) => t.id === 'n:2') && !r.hlp.some((t) => t.id === 'n:2'), 'עזר באנגלית והשוואה בעברית — יחד');
+  ok(/if \(!need\.length \|\| k\.busy\) \{ if \(form === f\) render\('none'\); return; \}/.test(src), 'בחירה ברצועה שכבר ירדה — מציירת');
+  ok(/const more = \[k\.src, k\.hlp, k\.ref\]/.test(src), 'מה שנבחר בזמן חילוץ — נאסף בסופו');
+}
 ok(/which: 'r'/.test(src), 'נרשם כ־r');
 const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 for (const k of ['studioTrkHlpT', 'studioTrkHlpNone', 'studioTrkHlpRow', 'studioTrkHlpNote']) ok((app.match(new RegExp('\\b' + k + ':', 'g')) || []).length === 2, 'מחרוזת בשתי השפות: ' + k);
