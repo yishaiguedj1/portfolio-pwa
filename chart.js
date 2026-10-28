@@ -1005,6 +1005,7 @@ function topPad(c) {
   let t = 0;
   try { if (UI.top && c && c.el && getComputedStyle(UI.top).position === 'absolute' && c.el.offsetTop < 4) t = UI.top.offsetHeight; } catch (e) { t = 0; }
   if (c && c.el) c.el.style.setProperty('--kc-toph', t + 'px');
+  if (t && ROOT) ROOT.style.setProperty('--kc-toph', t + 'px');   // גם לסרגל עריכת השרטוט, שהוא ילד של השורש
   return t ? t + 4 : 6;   // צמוד מתחת לכותרת (הטשטוש נגמר בקצה שלה — המקרא חד). t נמדד, כך שבועה גבוהה ("השוק סגור") מורידה אותו
 }
 /* בטלפון הסרגל התחתון צף (זכוכית) מעל הגרף — ציר התאריכים גדל בגובה הסרגל, כך שהתאריכים נשארים מעליו */
@@ -1026,7 +1027,8 @@ function chartStyles(c) {
         showRule: 'always', showType: 'standard', offsetTop: topPad(c),
         rect: { color: p.tipBg, borderColor: p.axis },
         title: { show: false },
-        legend: { color: p.text, size: 11, family: p.font, marginLeft: 6, marginTop: 4, marginRight: 4, template: [{ title: 'open', value: '{open}' }, { title: 'high', value: '{high}' }, { title: 'low', value: '{low}' }, { title: 'close', value: '{close}' }, { title: 'change', value: '{change}' }, { title: 'volume', value: '{volume}' }] },
+        // בטלפון: שורה אחת (בקשת המשתמש 28/10) — טקסט 10 ורווחים צרים, כך ששש התוויות נכנסות ברוחב הגרף בלי לגלוש לשורה שנייה
+        legend: { color: p.text, size: narrow() ? 10 : 11, family: p.font, marginLeft: narrow() ? 3 : 6, marginTop: 4, marginRight: narrow() ? 3 : 4, template: [{ title: 'open', value: '{open}' }, { title: 'high', value: '{high}' }, { title: 'low', value: '{low}' }, { title: 'close', value: '{close}' }, { title: 'change', value: '{change}' }, { title: 'volume', value: '{volume}' }] },
       },
     },
     indicator: {
@@ -1940,6 +1942,7 @@ function wireCellPointer(c) {
 function openSheet(title, fill, opt) {
   const root = (opt && opt.root) || ROOT;
   if (!root) return null;
+  if (S.watch && narrow()) closeWatch();
   const sh = { el: null, modal: null };
   const body = h('div', { class: 'kc-sh-body' });
   const panel = h('div', { class: 'kc-sheet' + (opt && opt.wide ? ' wide' : ''), role: 'dialog', 'aria-label': title },
@@ -2012,12 +2015,13 @@ function build(sym) {
   UI.side = h('div', { class: 'kc-side', role: 'toolbar', 'aria-label': T('kcTools') });
   UI.grid = h('div', { class: 'kc-grid', 'data-l': String(S.layout) });
   UI.watch = h('div', { class: 'kc-watch' + (S.watch ? ' on' : '') });
+  UI.wveil = h('div', { class: 'kc-wveil', onclick: () => closeWatch() });   // בטלפון: טשטוש מאחורי רשימת המעקב, נגיעה בו סוגרת
   UI.foot = h('div', { class: 'kc-foot' });
   UI.sel = h('div', { class: 'kc-selbar' });
   UI.rep = h('div', { class: 'kc-repbar' });
   UI.fab = btn('kc-fab', T('kcTools'), openToolsSheet, ICON.pencil);
   UI.mbar = h('div', { class: 'kc-mbar' });
-  ROOT.append(UI.top, UI.bar, h('div', { class: 'kc-main' }, UI.side, UI.grid, UI.watch), UI.foot, UI.mbar, UI.sel, UI.rep, UI.fab);
+  ROOT.append(UI.top, UI.bar, h('div', { class: 'kc-main' }, UI.side, UI.grid, UI.wveil, UI.watch), UI.foot, UI.mbar, UI.sel, UI.rep, UI.fab);
   for (const c of S.cells) {
     c.host = h('div', { class: 'kc-host', dir: 'ltr' });
     c.stEl = h('div', { class: 'kc-st' });
@@ -2567,11 +2571,12 @@ function renderSel() {
   UI.sel.append(
     h('span', { class: 'kc-sel-n', text: T(TOOL_INFO[o.name] ? TOOL_INFO[o.name].key : 'kcDrawing') }), sw, cols, wid,
     btn('kc-wid kc-wcyc on', size + 'px', () => selStyle({ width: size % 4 + 1 })),
-    btn('kc-ib sm' + (dash ? ' on' : ''), T('kcDashed'), () => selStyle({ dash: !dash }), '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4M10 12h4M17 12h4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>'),
+    btn('kc-ib sm kc-dash' + (dash ? ' on' : ''), T('kcDashed'), () => selStyle({ dash: !dash }), '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4M10 12h4M17 12h4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>'),
     ...(TEXT_TOOLS.has(o.name) ? [btn('kc-ib sm', T('kcEditText'), () => askText(s.c, s.id), ICON.text)] : []),   // append(null) כותב "null" (נראה בטלפון)
     btn('kc-ib sm' + (o.lock ? ' on' : ''), o.lock ? T('kcUnlock') : T('kcLock'), selLock, o.lock ? ICON.lock : ICON.unlock),
     btn('kc-ib sm', T('kcClone'), selClone, ICON.copy),
     btn('kc-ib sm danger', T('kcDelete'), selDelete, ICON.trash),
+    h('span', { class: 'kc-sel-div', 'aria-hidden': 'true' }),
     btn('kc-ib sm', T('kcClose'), deselect, ICON.close),
   );
 }
@@ -2670,7 +2675,7 @@ function openIndSheet() {
         const star = h('button', { type: 'button', class: 'kc-star' + (isF ? ' on' : ''), 'aria-label': T('kcFav'), html: ICON.star });
         star.addEventListener('click', (e) => { e.stopPropagation(); const i = fav.indexOf(x.n); if (i >= 0) fav.splice(i, 1); else fav.push(x.n); save(); draw(); });
         list.appendChild(h('div', { class: 'kc-li' + (on ? ' on' : ''), role: 'button', tabindex: '0', onclick: () => { addInd(c, x.n); drawActive(); draw(); updBars(); } },
-          h('span', { class: 'kc-li-n' }, h('b', { text: x.n }), indName(x.n) !== x.n ? h('span', { class: 'kc-li-s', text: indName(x.n) }) : null), star));
+          h('span', { class: 'kc-li-n' }, h('b', { text: x.n === 'KCVOL' ? 'VOL' : x.n }), indName(x.n) !== x.n ? h('span', { class: 'kc-li-s', text: indName(x.n) }) : null), star));
       }
       if (!items.length) list.appendChild(h('div', { class: 'kc-note', text: T('kcNoResults') }));
     }
@@ -3020,9 +3025,18 @@ function fetchData(url) {
 }
 
 /* רשימת מעקב בצד (כמו בצד ימין של TradingView) — המניות של התיק והמעקב, מחיר חי */
-function toggleWatch() {
+const narrow = () => typeof matchMedia === 'function' && matchMedia('(max-width: 720px)').matches;
+// בטלפון רשימת המעקב היא מגירה מעל הגרף: נסגרת בנגיעה מחוץ לה, ב"חזור" ובפתיחת כל תפריט אחר
+function closeWatch(fromPop) { if (S.watch) toggleWatch(fromPop); }
+function toggleWatch(fromPop) {
   S.watch = !S.watch;
   UI.watch.classList.toggle('on', S.watch);
+  if (UI.wveil) UI.wveil.classList.toggle('on', S.watch);
+  if (S.watch) {
+    closeFly();
+    while (S.sheets.length) closeSheet(S.sheets[S.sheets.length - 1]);
+    if (narrow() && E.modalPush) S.wModal = E.modalPush(() => closeWatch(true));
+  } else if (S.wModal) { const m = S.wModal; S.wModal = null; if (fromPop !== true) unwind([m]); }
   renderTop(); renderMbar();
   if (S.watch) updWatch();
   setTimeout(() => { for (const c of S.cells) if (c.chart) c.chart.resize(); }, 50);
@@ -3116,7 +3130,9 @@ export function closeChart(fromPop) {
   if (S.ro) { S.ro.disconnect(); S.ro = null; }
   if (S.mq && S.mqf) { try { S.mq.removeEventListener('change', S.mqf); } catch (e) { /* דפדפן ישן */ } }
   if (S.store) saveNow();
-  const recs = [...S.sheets.map((x) => x.modal).reverse(), S.modal];
+  const recs = [...S.sheets.map((x) => x.modal).reverse(), S.wModal, S.modal];
+  S.wModal = null;
+  if (narrow()) S.watch = false;   // בטלפון המגירה לא נשארת פתוחה לפתיחה הבאה
   for (const sh of S.sheets) if (sh.el) sh.el.remove();
   S.sheets = [];
   for (const c of S.cells) {
