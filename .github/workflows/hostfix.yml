@@ -35,6 +35,9 @@ jobs:
       HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
       PROD_FIREBASE_SA: ${{ secrets.PROD_FIREBASE_SA }}
       STG_FIREBASE_SA: ${{ secrets.STG_FIREBASE_SA }}
+      # 28/10/2026: IB Gateway (Paper) — כשמוגדרים, apply כותב גם את /etc/snb/ibgw.env ‏(0600)
+      IBGW_PAPER_USER: ${{ secrets.IBGW_PAPER_USER }}
+      IBGW_PAPER_PASS: ${{ secrets.IBGW_PAPER_PASS }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v601';
+const CACHE_NAME = 'portfolio-pwa-v603';
 const HASHES = {
-  "./": "6e5db34054a027be5655aab614b1278b",
-  "./index.html": "6e5db34054a027be5655aab614b1278b",
-  "./styles.css": "0e1d094781862ec44446b97f254045e2",
-  "./app.js": "db9f446d43ec53d1bac879f7910562fc",
+  "./": "59360ebcda0c0f8621f70e93a4ffd08d",
+  "./index.html": "59360ebcda0c0f8621f70e93a4ffd08d",
+  "./styles.css": "dc0282a851bcf9fd1a6e3af67a7d3502",
+  "./app.js": "5b6854a9e1553d49ecd00989f2820f34",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "9af566803f9e67e734390306b1e38db2",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -64,8 +64,8 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "d58a511fc759a629121b82ab47fe9a69",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
-  "./strings-academy.js": "8e79e1cc1241364a0f04397cc62265fe",
-  "./core.js": "cb46eab40b8ae0a35fe58cff0ee1bb18",
+  "./strings-academy.js": "eaeca4260e7c0b3c69072a437d454bfd",
+  "./core.js": "3739ad52dd784e33ebee8c9adb054f19",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "d6703c288cfb84be0bc06cbc61912c68",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -86,7 +86,7 @@ const HASHES = {
   "./studiobg.js": "9abfb368bbd147c5eecfc5c778441213",
   "./studio.html": "e1a77d2576406429bad01f26fccf5d77",
   "./studio-app.js": "29aafde3d0cb75d4d8210d2b2287409d",
-  "./strings-studio.js": "e11616e29c34d9dd0e57d4294db45679",
+  "./strings-studio.js": "58717d87b348a121eb89ff58c28ce481",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
@@ -380,8 +380,10 @@ self.addEventListener('push', (event) => {
   const hm = /^https:\/\/[^#\s]*(#studio=j[A-Za-z0-9_-]{20})$/.exec(String(m.u || ''));
   // 27/10/2026: התראת מחיר מגרף הנרות (k:'px') — נפתחת בגרף של המניה (#chart=SYM), תג לכל התראה
   const cm = m.k === 'px' ? /^#chart=([A-Za-z0-9.^=%-]{1,40})$/.exec(String(m.u || '')) : null;
-  const url = './' + (hm ? hm[1] : cm ? cm[0] : '');
-  const tag = cm ? 'px-' + String(m.i || cm[1]).slice(0, 40) : m.j ? 'studio-' + m.j : 'studio', at = Number(m.at) || 0;
+  // 28/10/2026: הסשן של IB Gateway נפל (k:'ibgw') — נפתח בהגדרות (כרטיס IBKR), תג אחד שמתחלף
+  const gw = m.k === 'ibgw' && m.u === '#tab=settings';
+  const url = './' + (hm ? hm[1] : cm ? cm[0] : gw ? m.u : '');
+  const tag = cm ? 'px-' + String(m.i || cm[1]).slice(0, 40) : gw ? 'ibgw' : m.j ? 'studio-' + m.j : 'studio', at = Number(m.at) || 0;
   // 27/10/2026 (בקשת המשתמש): כל שלב בעבודה = אותה התראה (תג לעבודה) שמתחלפת — שקטה, עם פס של השלב.
   // סוף / שאלה / אישור / עצירה — מחליפים אותה עם צליל. הודעה ישנה שהגיעה באיחור (שירות ה־push לא שומר על סדר) לא דורסת חדשה
   const stage = m.k === 'stage';

@@ -72,6 +72,9 @@ const RE = {
   uid: /^[A-Za-z0-9]{10,128}$/,
   gclient: /^\d{6,20}-[a-z0-9]{20,40}\.apps\.googleusercontent\.com$/,   // לקוח OAuth של Google (גיבוי הספרייה / Drive של הסטודיו)
   gsecret: /^GOCSPX-[A-Za-z0-9_-]{20,40}$/,
+  // 28/10/2026: IB Gateway (Paper). הסיסמה נכנסת לקובץ env של compose — בלי רווח, $, גרשיים, \, ` ו־# (compose מפרש אותם)
+  ibuser: /^[A-Za-z0-9._-]{3,40}$/,
+  ibpass: /^[A-Za-z0-9!%&()*+,./:;<=>?@\[\]^_{|}~-]{8,64}$/,
 };
 
 function fail(code, msg) { const e = new Error(msg || code); e.code = code; throw e; }
@@ -346,10 +349,23 @@ function prodFiles(e, token, errs, appLine) {
   if (appLine) {
     files.push({ path: '/etc/snb/tunnel-prod.env', lines: ['TUNNEL_TOKEN=' + v(RE.tunnel, e.PROD_TUNNEL_TOKEN, 'tunnel_bad', 'PROD_TUNNEL_TOKEN', { expect: 'מחרוזת ארוכה שמתחילה ב־eyJ, בלי --token' })] });
     files.push({ path: '/etc/snb/app.env', lines: [appLine] });
+    const gw = ibgwFile(e, errs);
+    if (gw) files.push(gw);
     if (e.PROD_TUNNEL_TOKEN && e.PROD_TUNNEL_TOKEN === e.STG_TUNNEL_TOKEN) errs.push('PROD_TUNNEL_TOKEN זהה ל־STG_TUNNEL_TOKEN — לייצור Tunnel נפרד (snb-prod)');
   }
   if (own) failErrs(errs);
   return files;
+}
+
+/* 28/10/2026: IB Gateway — שלב 1 במחקר המסחר (Paper, ‏Read-Only; infra/compose.ibgw.yaml). שני סודות GitHub:
+   IBGW_PAPER_USER, ‏IBGW_PAPER_PASS ("THE SNOWBALL IBKR Gateway paper"). אין אף אחד — אין חדר (null). רק אחד / לא תקין — שגיאה */
+function ibgwFile(e, errs) {
+  const u = String(e.IBGW_PAPER_USER || '').trim(), p = String(e.IBGW_PAPER_PASS || '');
+  if (!u && !p) return null;
+  const v = (...a) => { try { return need(...a); } catch (x) { errs.push(x.message); return ''; } };
+  const lines = ['TWS_USERID=' + v(RE.ibuser, u, 'ibgw_user_bad', 'IBGW_PAPER_USER', { expect: 'שם המשתמש של חשבון ה־Paper' }),
+    'TWS_PASSWORD=' + v(RE.ibpass, p, 'ibgw_pass_bad', 'IBGW_PAPER_PASS', { expect: '8–64 תווים, בלי רווח ובלי $ \' " ` \\ #' })];
+  return { path: '/etc/snb/ibgw.env', lines };
 }
 
 /* כל קובצי הסודות של התוכנית — tokens = {prod, stg}; appLine = השורה של השרתון של הייצור (appEnvLine) */
@@ -532,4 +548,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { ENVS, PLANS, RE, shape, need, saOf, emailsOf, stagingFiles, prodFiles, planFiles, cloudInit, vercelEnv, appEnvLine, appEnv, saVerified, parseExtra, hc, NAME_RE, TYPE_RE, LOC_RE, fsBase, fsToken, register, unregister, create, waitUp, main, MARK };
+module.exports = { ENVS, PLANS, RE, shape, need, saOf, emailsOf, stagingFiles, prodFiles, ibgwFile, planFiles, cloudInit, vercelEnv, appEnvLine, appEnv, saVerified, parseExtra, hc, NAME_RE, TYPE_RE, LOC_RE, fsBase, fsToken, register, unregister, create, waitUp, main, MARK };

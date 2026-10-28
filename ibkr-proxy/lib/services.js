@@ -22,6 +22,7 @@ const SERVICES = [
   { k: 'anthropic', bk: 'anthropic' }, // Routine, העתק־הדבק, תרגום בטלפון
   { k: 'market', bk: 'market' },  // Yahoo — CNBC, Stooq
   { k: 'hf', bk: 'hf' },          // Hugging Face — המודלים כבר בתוך התמונה
+  { k: 'ibkr', bk: 'flex' },      // 28/10/2026: IB Gateway (lib/ibgw.js) — הסשן החי; בלעדיו הנתונים מ־Flex. off = לא הוגדר
 ];
 const KEYS = SERVICES.map((s) => s.k);
 
@@ -38,7 +39,7 @@ function fromProv(P, skip) {
   return { st: lvl(pct), pct, at, m };
 }
 
-/* f = { prov (provMerge), sto (sysUsage.sto), servers ([{seen, paused, dn}]), mail (mailer.view), now } */
+/* f = { prov (provMerge), sto (sysUsage.sto), servers ([{seen, paused, dn}]), mail (mailer.view), ibgw (ibgw.svcView), now } */
 function servicesView(f) {
   const F = f || {}, now = +F.now || Date.now(), P = F.prov || {};
   const out = [];
@@ -71,6 +72,9 @@ function servicesView(f) {
         r = { st: down === sv.length ? 'down' : down ? 'warn' : 'ok', at: seen, n: sv.length, dn: down };
         if (disk.length) { const pc = Math.max(...disk); r.m = [{ k: 'disk', pct: r1(pc) }]; r.pct = r1(pc); if (r.st === 'ok') r.st = lvl(pc); }
       }
+    } else if (s.k === 'ibkr') {
+      const g = F.ibgw;
+      r = g && ['ok', 'warn', 'down'].includes(g.st) ? { st: g.st, gw: String(g.gw || ''), at: +g.at || 0 } : { st: 'off' };
     } else if (s.k === 'mail') {
       const M = F.mail;
       if (!M || !Array.isArray(M.list)) r = { st: 'off' };

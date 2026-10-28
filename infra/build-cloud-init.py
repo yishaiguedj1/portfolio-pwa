@@ -36,6 +36,7 @@ FILES = [
     ('host/snb-maint.service', '/etc/systemd/system/snb-maint.service', '0644'),
     ('host/snb-maint.timer', '/etc/systemd/system/snb-maint.timer', '0644'),
     ('compose.yaml', '/opt/snb/compose.yaml', '0644'),
+    ('compose.ibgw.yaml', '/opt/snb/compose.ibgw.yaml', '0644'),   # 28/10/2026: IB Gateway — דולק רק עם /etc/snb/ibgw.env
 ]
 
 HEAD = """#cloud-config

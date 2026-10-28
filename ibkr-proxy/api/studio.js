@@ -1106,7 +1106,7 @@ async function svcFacts(deps, now, live) {
   let servers = [];
   try { servers = (await query(deps, 'studioServers', null, S.SRV_MAX + 5)) || []; } catch (e) {}
   const mail = await MAILER.view({ fetch: deps.fetch || fetch, token: () => datastoreToken(deps.fetch) }, now).catch(() => null);
-  return { prov, sto: cfg.sto || null, servers: servers.map((x) => ({ seen: +x.seen || 0, paused: !!x.paused, dn: +x.dn || 0, hb: x.hb && typeof x.hb === 'object' ? { disk: x.hb.disk } : null })), mail, now };
+  return { ibgw: require('../lib/ibgw').svcView(), prov, sto: cfg.sto || null, servers: servers.map((x) => ({ seen: +x.seen || 0, paused: !!x.paused, dn: +x.dn || 0, hb: x.hb && typeof x.hb === 'object' ? { disk: x.hb.disk } : null })), mail, now };
 }
 const SV_EVERY = 3600e3;
 let lastSv = 0;

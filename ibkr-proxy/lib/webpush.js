@@ -151,10 +151,16 @@ function encrypt(sub, payload, opt = {}) {
   return Buffer.concat([salt, rs, Buffer.from([asPub.length]), asPub, ct]);
 }
 
+const IBGW_TEXT = {
+  he: ['IBKR — החיבור החי נפל', 'ה־Gateway ממתין לכניסה. לאשר את ה־2FA באפליקציה של IBKR.', 'ה־Gateway לא עונה. בינתיים הנתונים מ־Flex.'],
+  en: ['IBKR — live connection lost', 'The Gateway is waiting to log in. Approve the 2FA in the IBKR app.', 'The Gateway is not responding. Using Flex data meanwhile.'],
+};
 /* התוכן של התראה: כותרת + שורה בשפת המכשיר, ולאן לפתוח. בלי שם קובץ ובלי תוכן העבודה */
 function message(kind, jobId, lang, x, now) {
   // 27/10/2026: התראת מחיר מגרף הנרות (lib/pxalert.js) — הטקסט נבנה מההתראה עצמה; נפתח בגרף של המניה (#chart=)
   if (kind === 'px') { const m = x && x.a ? require('./pxalert').text(x.a, x.p, lang) : null; return m ? { t: m.t, b: m.b, k: 'px', j: '', i: m.i, u: m.u } : null; }
+  // 28/10/2026: הסשן של IB Gateway נפל (lib/ibgw.js, שלב 1 במחקר המסחר) — נפתח בהגדרות של Invest (כרטיס IBKR)
+  if (kind === 'ibgw') { const m = (IBGW_TEXT[lang] || IBGW_TEXT.he)[x && x.st === 'needs2FA' ? 1 : 2]; return { t: IBGW_TEXT[lang === 'en' ? 'en' : 'he'][0], b: m, k: 'ibgw', j: '', i: 'ibgw', u: '#tab=settings' }; }
   const t = kind === 'stage' ? stageText(x, lang) : (TEXT[lang] || TEXT.he)[kind];
   if (!t) return null;
   const j = /^j[A-Za-z0-9_-]{20}$/.test(String(jobId || '')) ? jobId : '';

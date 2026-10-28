@@ -6,7 +6,9 @@
         { op:'status' } · { op:'enable', token, queryId, have } · { op:'disable' }
         { op:'pull', have } → החלקים שמוכנים מאז have · { op:'ack', have } → מוחק מהענן את מה שכבר יובא
         { op:'pxa', act } → התראות המחיר של גרף הנרות ברקע (27/10/2026 — לכל משתמש מחובר; ראו lib/pxalert.js)
-   GET ?job=px — הבודק של התראות המחיר (כל 5 שנ׳ מהשרת שלנו, server.js — startPx)
+        { op:'gwLive' } → IB Gateway (שלב 1 במחקר המסחר, 28/10/2026): מצב הסשן, אחזקות, יתרות ופקודות פתוחות חיות.
+        SERVER_ONLY — רק בחדר האפליקציה (שם הסוקט ל־Gateway); ב־Vercel ‏421 והטלפון נשאר עם Flex. בזיכרון בלבד (lib/ibgw.js)
+   GET ?job=px — הבודק של התראות המחיר (כל 5 שנ׳ מהשרת שלנו, server.js — startPx); גם מתחזק את החיבור ל־Gateway
    אבטחה: ה־token וה־Query ID נשמרים רק מוצפנים (lib/vault.js, AES-256-GCM, מפתח שחי רק ב־Vercel),
    ולעולם לא חוזרים לטלפון; גם הדוחות מוצפנים ונמחקים אחרי הייבוא. מורשים: מנהל הספרייה או IBKR_SYNC_USERS.
    מסמך ב־Firestore: ibkrVault/{uid} — c (פרטי חיבור), a (מאיפה להמשיך), s (חלקים מוכנים): מוצפנים;
@@ -244,6 +246,31 @@ async function pxCron(deps) {
   } finally { PX.busy = false; }
 }
 
+/* ---------- IB Gateway (lib/ibgw.js) — שלב 1: Paper, ‏Read-Only ---------- */
+const IBGW = require('../lib/ibgw');
+/* SERVER_ONLY: פעולות שרק חדר האפליקציה עונה להן. ב־Vercel אין סוקט ל־Gateway — 421, והטלפון לא מנסה שוב (נשאר עם Flex) */
+const SERVER_ONLY_OPS = new Set(['gwLive']);
+async function gwApi(body, uid, ok, res, deps) {
+  if (process.env.VERCEL) return res.status(421).json({ ok: false, error: 'gw_remote' });
+  if (!ok) return res.status(403).json({ ok: false, error: 'not_allowed' });
+  IBGW.owner(uid);                                   // ההתראה כשהסשן נפל — לבעלים (IBGW_OWNER, או מי שמסתכל על הנתונים)
+  if (!IBGW.cfg(deps.env).host) return res.status(200).json({ ok: true, gw: { st: 'off' } });
+  IBGW.tick(deps);
+  return res.status(200).json({ ok: true, gw: await IBGW.live(deps) });
+}
+/* מהבודק (כל 5 שנ׳): מתחזק את החיבור, וכשהסשן נפל — התראה לטלפון של הבעלים (המנויים של Invest, pxAlerts — מהזיכרון) */
+async function gwTick(deps) {
+  IBGW.tick(deps);
+  const st = IBGW.alertDue((deps.now && deps.now()) || Date.now());
+  const uid = st ? IBGW.owner() : '';
+  if (!uid) return 0;
+  const u = await pxGet(deps, uid);
+  if (!u.w.length) return 0;
+  const r = await W.sendAll(deps, await pxVapid(deps), u.w, 'ibgw', '', Date.now(), { st });
+  if (r.subs.length !== u.w.length) { u.w = r.subs; await pxSave(deps, u).catch(() => {}); }
+  return r.sent;
+}
+
 function allowed(user) {
   return !!(user && (isAdmin(user) || hasEmail(user, emails(process.env.IBKR_SYNC_USERS))));
 }
@@ -254,7 +281,8 @@ async function handler(req, res, deps = {}) {
     if (process.env.VERCEL) return res.status(404).json({ ok: false, error: 'not_here' });
     const secret = process.env.CRON_SECRET;
     if (secret && String(req.headers.authorization || '') !== 'Bearer ' + secret) return res.status(401).json({ ok: false });
-    try { return res.status(200).json(Object.assign({ ok: true }, await pxCron(deps))); }
+    const gw = await gwTick(deps).catch(() => 0);
+    try { return res.status(200).json(Object.assign({ ok: true, gw }, await pxCron(deps))); }
     catch (e) { return res.status(502).json({ ok: false, error: String(e && e.message || 'failed').slice(0, 30) }); }
   }
   if (req.method === 'GET') return cron(req, res, deps);
@@ -270,6 +298,7 @@ async function handler(req, res, deps = {}) {
   const uid = user.uid;
   try {
     if (body.op === 'pxa') return await pxApi(body, uid, res, deps);
+    if (SERVER_ONLY_OPS.has(body.op)) return await gwApi(body, uid, ok, res, deps);
     if (body.op === 'status') {
       const doc = ok ? await readDoc(deps, uid) : null;
       return res.status(200).json({ ok: true, allowed: ok, enabled: !!doc, run: doc ? iv(doc.f, 'run') : 0, okAt: doc ? iv(doc.f, 'ok') : 0, err: doc ? sv(doc.f, 'err') : '' });
@@ -312,3 +341,4 @@ module.exports = (req, res) => handler(req, res);
 module.exports._handler = handler;
 module.exports._flexChunk = flexChunk;
 module.exports._px = PX;
+module.exports.SERVER_ONLY_OPS = SERVER_ONLY_OPS;

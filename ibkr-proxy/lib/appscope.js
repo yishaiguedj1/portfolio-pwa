@@ -16,12 +16,16 @@ const SCOPE = {
   translate: ['academy'],
   bookmeta: ['academy'],
   studio: ['studio'],
+  // 28/10/2026: הפעולות החיות של IB Gateway (שלב 1 במחקר המסחר; SERVER_ONLY — רק בחדר האפליקציה). מפורש, לא רק בירושה
+  'ibkr-sync:gwLive': ['invest'],
 };
 /* חריגים לפי op: הגיבוי של Invest ל־Drive (pfbackup.js) עובר דרך פעולות gd* של /api/library;
    op:'cfg' של /api/studio = מצב התחזוקה והדגלים הציבוריים — כל שלוש האפליקציות טוענות אותו (core.js);
    op:'fbSend' = משוב מההגדרות של כל אפליקציה (15/10/2026);
    op:'devErr' = שגיאות JavaScript מהטלפון (האיסוף המלא, 15/10/2026) — מכל אפליקציה, השרתון מקבל רק של המנהל */
 function scopeFor(name, op) {
+  const byOp = SCOPE[name + ':' + String(op || '')];
+  if (byOp) return byOp;
   if (name === 'library' && /^gd[A-Z]/.test(String(op || ''))) return ['academy', 'invest'];
   if (name === 'studio' && (op === 'cfg' || op === 'devErr' || op === 'fbSend')) return null;   // fbSend = משוב מההגדרות של כל אפליקציה   // devErr = שגיאות מהטלפון (האיסוף המלא) — מ־Academy ומ־Studio, רק של המנהל
   return SCOPE[name] || null;

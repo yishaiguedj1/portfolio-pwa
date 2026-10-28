@@ -1,0 +1,63 @@
+# IB Gateway — שלב 1 ב־מחקר-מסחר-IBKR.md (28/10/2026): חשבון Paper, ‏Read-Only. קובץ נפרד מ־compose.yaml:
+# snb_compose (snb-common.sh) מוסיף אותו רק כשיש /etc/snb/ibgw.env — בלי הקובץ הזה בשרת, שום דבר לא משתנה.
+#
+# אבטחה (מחקר-מסחר-IBKR.md, "אבטחה לפי כללי הפרויקט"):
+#   • בלי ports. הסוקט של ה־API (‏4004 = socat מול 4002 של Paper) רק ברשת הפנימית ibgw (internal — בלי יציאה החוצה),
+#     ורק חדר האפליקציה (app) מחובר אליה. ה־Gateway יוצא ל־IBKR דרך רשת נפרדת (ibgw-out), שאף חדר אחר לא בה.
+#   • READ_ONLY_API=yes — גם אם מישהו ישלח פקודה דרך הסוקט, ה־Gateway דוחה אותה (שלב 2 יפתח את זה, באישור).
+#   • VNC כבוי (בלי VNC_SERVER_PASSWORD), ‏SSH כבוי. הסיסמה רק ב־/etc/snb/ibgw.env (‏0600, root) — לא בריפו, לא בתמונה.
+#   • התמונה נעולה ב־digest (gnzsnz/ib-gateway, ‏stable = ‏10.50.1f, ‏06/10/2026, ‏amd64 + arm64). עדכון = שינוי מכוון כאן.
+#   • בלי read_only: ה־Gateway (Java + Xvfb) כותב הגדרות ויומנים לתיקיית הבית שלו. cap_drop ALL ומשתמש 1000 (של התמונה).
+services:
+  ibgw:
+    profiles: [ibgw]
+    image: ghcr.io/gnzsnz/ib-gateway:stable@sha256:1e2236804ac949b789197c225a048c0c891c9958f948c87166226e5b647ff581
+    restart: unless-stopped
+    environment:
+      - TRADING_MODE=paper
+      - READ_ONLY_API=yes
+      - TWS_ACCEPT_INCOMING=accept
+      - TWS_MASTER_CLIENT_ID=7
+      - EXISTING_SESSION_DETECTED_ACTION=primary
+      # הפעלה מחדש כל לילה בלי 2FA (רק הכניסה הראשונה אחרי מוצאי שבת בשעון ניו יורק דורשת 2FA)
+      - TIME_ZONE=America/New_York
+      - AUTO_RESTART_TIME=11:45 PM
+      - TWOFA_TIMEOUT_ACTION=restart
+      - RELOGIN_AFTER_TWOFA_TIMEOUT=yes
+      - JAVA_HEAP_SIZE=768
+    env_file:
+      - /etc/snb/ibgw.env           # TWS_USERID, TWS_PASSWORD — של משתמש ה־Paper (server-provision / hostfix כותבים)
+    user: "1000:1000"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    mem_limit: 1280m
+    memswap_limit: 1280m
+    cpus: 1
+    cpu_shares: 1024
+    networks: [ibgw, ibgw-out]
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    healthcheck:       # 4002 פתוח = ה־Gateway נכנס ל־IBKR (לפני הכניסה / בזמן 2FA הוא סגור)
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/4002"]
+      interval: 1m
+      timeout: 5s
+      start_period: 3m
+
+  # חדר האפליקציה מקבל את הרשת הפנימית ואת הכתובת של ה־Gateway (lib/ibgw.js). compose ממזג את זה עם compose.yaml
+  app:
+    environment:
+      - IBGW_HOST=ibgw
+      - IBGW_PORT=4004
+      - IBGW_MODE=paper
+    networks: [edge-prod, ibgw]
+
+networks:
+  ibgw:
+    internal: true   # בלי יציאה לאינטרנט: רק app ↔ ibgw
+  ibgw-out: {}       # היציאה של ה־Gateway ל־IBKR — רק הוא כאן

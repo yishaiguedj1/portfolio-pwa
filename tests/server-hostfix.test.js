@@ -138,9 +138,25 @@ function world(o = {}) {
   const files = H.loadFiles(ROOT);
   const script = H.rescueScript(files);
   ok(cp.spawnSync('sh', ['-n'], { input: script }).status === 0, 'הסקריפט של ה־Rescue תקין תחבירית');
-  ok(JSON.stringify(H.FILES.map((f) => f[1])) === JSON.stringify(['usr/local/lib/snb/common.sh', 'opt/snb/compose.yaml', 'usr/local/sbin/snb-update']), 'אותם יעדים כמו snb-host-apply');
+  // 28/10/2026: compose.ibgw.yaml — רק ב־hostfix (snb-host-apply בתמונת העובד נשאר עם שלושת הקבצים)
+  const HA = H.FILES.filter((f) => f[1] !== 'opt/snb/compose.ibgw.yaml');
+  ok(JSON.stringify(HA.map((f) => f[1])) === JSON.stringify(['usr/local/lib/snb/common.sh', 'opt/snb/compose.yaml', 'usr/local/sbin/snb-update']), 'אותם יעדים כמו snb-host-apply');
+  ok(H.FILES.some((f) => f[0] === 'infra/compose.ibgw.yaml' && f[1] === 'opt/snb/compose.ibgw.yaml' && f[2] === '644'), 'compose.ibgw.yaml מותקן ב־hostfix');
   const ha = read('infra/worker/snb-host-apply');
-  ok(H.FILES.every(([src, dst, mode]) => ha.includes(':' + dst + ':' + mode)), 'אותן הרשאות כמו snb-host-apply');
+  ok(HA.every(([src, dst, mode]) => ha.includes(':' + dst + ':' + mode)), 'אותן הרשאות כמו snb-host-apply');
+  // הסיסמה של ה־Paper: רק כשיש סודות; 0600; לא נבדקת כסקריפט; ערך לא תקין — עוצרים לפני שנוגעים בשרת
+  ok(H.loadFiles(ROOT, {}).every((f) => f.src !== 'secret'), 'בלי סודות IBGW — לא נוגעים ב־ibgw.env');
+  const gwf = H.loadFiles(ROOT, { IBGW_PAPER_USER: 'paperusr1', IBGW_PAPER_PASS: 'Abc!def%123' }).find((f) => f.src === 'secret');
+  ok(gwf && gwf.dst === 'etc/snb/ibgw.env' && gwf.mode === '600' && String(gwf.body) === 'TWS_USERID=paperusr1\nTWS_PASSWORD=Abc!def%123\n', 'ibgw.env — 0600, שתי שורות');
+  let threw = '';
+  try { H.loadFiles(ROOT, { IBGW_PAPER_USER: 'paperusr1', IBGW_PAPER_PASS: 'has$dollar1' }); } catch (x) { threw = x.message; }
+  ok(/IBGW_PAPER_PASS/.test(threw) && !threw.includes('has$dollar1'), 'סיסמה עם $ — נעצר, והסיסמה לא בהודעה');
+  {
+    const rr = fakeRoot();
+    fs.mkdirSync(path.join(rr, 'etc/snb'), { recursive: true });
+    const rs = runScript(H.rescueScript([gwf]), rr);
+    ok(rs.code === 0 && (fs.statSync(path.join(rr, 'etc/snb/ibgw.env')).mode & 0o777) === 0o600 && !rs.out.includes('Abc!def'), 'ב־Rescue: ‏ibgw.env נכתב 0600, בלי הסיסמה בפלט');
+  }
   let root = fakeRoot();
   let r = runScript(script, root);
   let o = H.parseOut(r.out);

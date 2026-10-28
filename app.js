@@ -1495,7 +1495,7 @@ he: {
   admMailS5: 'שולחים "מייל בדיקה אליי" — ובודקים שהגיע לתיבה ולא לספאם.',
   admMailFoot: 'המפתחות נשמרים מוצפנים בשרת ולא חוזרים לטלפון. כל שירות בחינם — כשהמכסה שלו נגמרת עוברים לבא, ובסוף ל־Firebase. אין חיוב אף פעם.',
   admSvc: 'שירותים', admSvcAttn: '{n} דורשים תשומת לב', admSvcAllOk: 'הכל תקין · בלי גיבוי: {r}', admSvcSecW: 'דורשים תשומת לב', admSvcSecAll: 'כל השירותים',
-  admSvcNHetzner: 'Hetzner — השרת', admSvcNDns: 'Cloudflare DNS', admSvcNMarket: 'נתוני שוק (Yahoo)',
+  admSvcNHetzner: 'Hetzner — השרת', admSvcNDns: 'Cloudflare DNS', admSvcNMarket: 'נתוני שוק (Yahoo)', ibgwLbl: 'חיבור חי (Paper)', ibgwOk: 'מחובר', ibgw2fa: 'ממתין לכניסה', ibgwDown: 'לא מחובר', ibgw2faHint: 'ה־Gateway ממתין לכניסה. לאשר את ה־2FA באפליקציה של IBKR.', ibgwDownHint: 'ה־Gateway לא עונה. בינתיים הנתונים מ־Flex.', ibgwNet: 'שווי החשבון', ibgwCash: 'מזומן', ibgwPos: 'אחזקות חיות · {n}', ibgwOrd: 'פקודות פתוחות · {n}', ibgwNoOrd: 'אין פקודות פתוחות', ibgwBuy: 'קנייה', ibgwSell: 'מכירה', ibgwRo: 'קריאה בלבד — אי אפשר לשלוח פקודות מכאן.', admSvcNIbkr: 'IBKR — החיבור החי', admSvcBkIbkr: 'Flex (הדוח היומי)', admSvcGw2fa: 'ממתין לכניסה (2FA)',
   admSvcBk: 'גיבוי', admSvcBkFs: 'עותק יומי לשחזור בלבד — עדיין בלי גיבוי חי', admSvcBkVercel: 'הוא עצמו הגיבוי החם של השרת שלנו',
   admSvcBkHetzner: 'השרתון — Vercel · התרגום — Routine, העתק־הדבק, הטלפון', admSvcBkR2: 'ספרים וגיבוי יומי — גם ב־Drive',
   admSvcBkMail: 'שירות השליחה הבא, ובסוף Firebase', admSvcBkPages: 'GitHub Pages נפרס במקביל', admSvcBkDns: 'עותק יומי של הרשומות — לשחזור', admSvcBkNone: 'אין גיבוי',
@@ -3026,7 +3026,7 @@ en: {
   admMailS5: 'Tap "Send me a test email" — and check it reached the inbox, not spam.',
   admMailFoot: 'Keys are stored encrypted on the server and never come back to the phone. Every provider is free — when one runs out we move to the next, and finally to Firebase. Never a charge.',
   admSvc: 'Services', admSvcAttn: '{n} need attention', admSvcAllOk: 'All fine · without backup: {r}', admSvcSecW: 'Need attention', admSvcSecAll: 'All services',
-  admSvcNHetzner: 'Hetzner — the server', admSvcNDns: 'Cloudflare DNS', admSvcNMarket: 'Market data (Yahoo)',
+  admSvcNHetzner: 'Hetzner — the server', admSvcNDns: 'Cloudflare DNS', admSvcNMarket: 'Market data (Yahoo)', ibgwLbl: 'Live connection (Paper)', ibgwOk: 'Connected', ibgw2fa: 'Waiting to log in', ibgwDown: 'Not connected', ibgw2faHint: 'The Gateway is waiting to log in. Approve the 2FA in the IBKR app.', ibgwDownHint: 'The Gateway is not responding. Using Flex data meanwhile.', ibgwNet: 'Account value', ibgwCash: 'Cash', ibgwPos: 'Live positions · {n}', ibgwOrd: 'Open orders · {n}', ibgwNoOrd: 'No open orders', ibgwBuy: 'Buy', ibgwSell: 'Sell', ibgwRo: 'Read-only — orders cannot be sent from here.', admSvcNIbkr: 'IBKR — live connection', admSvcBkIbkr: 'Flex (daily report)', admSvcGw2fa: 'Waiting to log in (2FA)',
   admSvcBk: 'Backup', admSvcBkFs: 'Daily copy for restore only — no live backup yet', admSvcBkVercel: 'It is itself the hot backup of our server',
   admSvcBkHetzner: 'Proxy — Vercel · translation — Routine, copy-paste, the phone', admSvcBkR2: 'Books and the daily backup — also on Drive',
   admSvcBkMail: 'The next provider, finally Firebase', admSvcBkPages: 'GitHub Pages is deployed in parallel', admSvcBkDns: 'Daily copy of the records — for restore', admSvcBkNone: 'No backup',
@@ -4598,6 +4598,8 @@ function renderIbkrCard() {
         tile((data.trades || []).length, t('ibkrStatTrades')) + tile((data.cashTransactions || []).length, t('ibkrStatCash')) + '</div>'
       : '';
   }
+  ibkrLivePaint();
+  ibkrLiveLoad(false);
   // התראה בולטת כשהדוח חסר TWR רשמי — בלי זה אין תשואות, רק סכומים
   const w = document.getElementById('ibkrNavWarn');
   if (w) {
@@ -4607,6 +4609,57 @@ function renderIbkrCard() {
   }
 }
 
+
+/* 28/10/2026: IB Gateway — שלב 1 במחקר המסחר (Paper, ‏Read-Only). החיבור החי: מצב הסשן, ואם מחובר — יתרות, אחזקות
+   ופקודות פתוחות. רק מהשרת שלנו (op:'gwLive', SERVER_ONLY): ב־Vercel (421), בלי הרשאה או כשלא הוגדר — השורה לא מוצגת,
+   והכל ממשיך מ־Flex. בזיכרון בלבד (לא localStorage): נתוני חשבון חיים לא נשמרים במכשיר */
+const IBGW_LIVE = { at: 0, v: null, busy: false };
+const IBGW_LIVE_MS = 30e3;
+async function ibkrLiveLoad(force) {
+  if (IBGW_LIVE.busy || (!force && Date.now() - IBGW_LIVE.at < IBGW_LIVE_MS)) return;
+  if (!(typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length && firebase.auth().currentUser)) return;
+  IBGW_LIVE.busy = true;
+  let r = null;
+  try { r = await ibkrBgApi({ op: 'gwLive' }); } catch (e) {}
+  IBGW_LIVE.busy = false;
+  IBGW_LIVE.at = Date.now();
+  IBGW_LIVE.v = r && r.ok && r.gw && ['connected', 'needs2FA', 'down'].includes(r.gw.st) ? r.gw : null;
+  ibkrLivePaint();
+}
+function ibkrLiveHTML(g) {
+  if (!g) return '';
+  const row = (k, v, cls) => '<div class="ib-row"><span>' + esc(k) + '</span><span class="ib-v' + (cls ? ' ' + cls : '') + '" dir="ltr">' + esc(v) + '</span></div>';
+  const st = g.st === 'connected' ? 'ok' : g.st === 'needs2FA' ? 'wait' : 'down';
+  const head = '<div class="ib-row"><span>' + esc(t('ibgwLbl')) + '</span><span class="ib-v ib-gw-' + st + '"><i class="ib-dot"></i>' +
+    esc(st === 'ok' ? t('ibgwOk') : st === 'wait' ? t('ibgw2fa') : t('ibgwDown')) + '</span></div>';
+  if (g.st !== 'connected') return '<div class="ib-sum">' + head + '</div><div class="fine ib-gw-note">' + esc(st === 'wait' ? t('ibgw2faHint') : t('ibgwDownHint')) + '</div>';
+  const sum = Array.isArray(g.sum) ? g.sum : [];
+  const val = (k) => sum.filter((x) => x.k === k && x.c && Number.isFinite(x.v)).map((x) => fmtTradeMoney(x.v, x.c)).join(' · ');
+  let h = '<div class="ib-sum">' + head;
+  if (val('NetLiquidation')) h += row(t('ibgwNet'), val('NetLiquidation'));
+  if (val('TotalCashValue')) h += row(t('ibgwCash'), val('TotalCashValue'));
+  h += '</div>';
+  const pos = Array.isArray(g.pos) ? g.pos : [], ord = Array.isArray(g.ord) ? g.ord : [];
+  const qty = (q) => (Number(q) || 0).toLocaleString('en-US', { maximumFractionDigits: 4 });
+  if (pos.length) {
+    h += '<div class="ib-sum ib-gw-list"><div class="ib-gw-h">' + esc(t('ibgwPos').replace('{n}', pos.length)) + '</div>';
+    for (const p of pos) h += row(p.s, qty(p.q) + (Number.isFinite(p.avg) && p.avg ? ' @ ' + fmtTradeMoney(p.avg, p.c) : ''));
+    h += '</div>';
+  }
+  h += '<div class="ib-sum ib-gw-list"><div class="ib-gw-h">' + esc(t('ibgwOrd').replace('{n}', ord.length)) + '</div>';
+  for (const o of ord) {
+    const px = o.type === 'LMT' && Number.isFinite(o.lmt) ? ' @ ' + fmtTradeMoney(o.lmt, o.c) : (o.type === 'STP' || o.type === 'STP LMT') && Number.isFinite(o.aux) ? ' ⏹ ' + fmtTradeMoney(o.aux, o.c) : '';
+    h += row(o.s, (o.side === 'SELL' ? t('ibgwSell') : t('ibgwBuy')) + ' ' + qty(o.q) + ' ' + o.type + px, o.side === 'SELL' ? 'ib-sell' : 'ib-buy');
+  }
+  if (!ord.length) h += '<div class="fine ib-gw-note">' + esc(t('ibgwNoOrd')) + '</div>';
+  return h + '</div><div class="fine ib-gw-note">' + esc(t('ibgwRo')) + '</div>';
+}
+function ibkrLivePaint() {
+  const el = typeof document !== 'undefined' && document.getElementById('ibkrLive');
+  if (!el) return;
+  el.innerHTML = ibkrLiveHTML(IBGW_LIVE.v);
+  el.classList.toggle('hidden', !IBGW_LIVE.v);
+}
 
 /* צילום הנתונים הידניים לפני יבוא IBKR — כדי שאפשר יהיה לשחזרם בניתוק.
    נשמר רק אם אין כבר צילום (סנכרון חוזר במצב IBKR לא דורס את המקור הידני).
@@ -6886,8 +6939,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.77.0';
-const APP_VERSION = 'v601';
+const APP_RELEASE = '2.78.0';
+const APP_VERSION = 'v603';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');

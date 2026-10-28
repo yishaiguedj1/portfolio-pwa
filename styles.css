@@ -1922,6 +1922,16 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 #ibkrCard .ib-row + .ib-row { border-top: 1px solid var(--ib-line); }
 #ibkrCard .ib-row > span:first-child { color: var(--on-surface-var); flex: none; }
 #ibkrCard .ib-v { color: var(--on-surface); font-weight: 600; font-variant-numeric: tabular-nums; unicode-bidi: isolate; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+/* 28/10/2026: החיבור החי (IB Gateway) */
+#ibkrCard .ib-live { display: flex; flex-direction: column; gap: 8px; margin: 2px 0 8px; }
+#ibkrCard .ib-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-inline-end: 6px; background: currentColor; vertical-align: middle; }
+#ibkrCard .ib-gw-ok { color: var(--gain); }
+#ibkrCard .ib-gw-wait { color: var(--warn-fg); }
+#ibkrCard .ib-gw-down { color: var(--loss); }
+#ibkrCard .ib-buy { color: var(--gain); }
+#ibkrCard .ib-sell { color: var(--loss); }
+#ibkrCard .ib-gw-h { padding: 10px 0 2px; font-size: 13px; font-weight: 700; color: var(--on-surface-var); }
+#ibkrCard .ib-gw-note { padding: 0 2px; }
 #ibkrCard .ib-more { margin-top: 12px; border-top: 1px solid var(--ib-line); }
 #ibkrCard .ib-more > details { padding: 0; margin: 0; border-bottom: 1px solid var(--ib-line); }
 #ibkrCard .ib-more > details:last-child { border-bottom: 0; }

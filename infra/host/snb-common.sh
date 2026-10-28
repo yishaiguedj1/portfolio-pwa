@@ -26,6 +26,8 @@ snb_limits() {
 	case ",$COMPOSE_PROFILES," in *,stg,*|*,tunnel,*) m=$((m - 800)) ;; esac
 	# ת3: השרתון של הייצור (768MB) וה־Tunnel שלו (256MB)
 	case ",$COMPOSE_PROFILES," in *,app,*|*,tunnel-prod,*) m=$((m - 1100)) ;; esac
+	# 28/10/2026: IB Gateway (1280MB)
+	case ",$COMPOSE_PROFILES," in *,ibgw,*) m=$((m - 1300)) ;; esac
 	[ "$m" -ge 1024 ] || m=1024
 	# 16/10/2026 — חלוקה לפי המודל של cgroup v2 (כמו requests/limits ב־Kubernetes), עם מירב הביצועים לעבודה:
 	#   מעבד = משאב שאפשר לחלק בזמן: תקרה (cpus) = כל הליבות לכל עובד — עבודה לבד מקבלת הכל, בלי throttling.
@@ -53,6 +55,8 @@ snb_rooms_wanted() {
 	[ -s /etc/snb/worker-stg.env ] && r="$r,stg-worker"
 	[ -s /etc/snb/app.env ] && r="$r,app"
 	[ -s /etc/snb/tunnel-prod.env ] && r="$r,tunnel-prod"
+	# 28/10/2026: IB Gateway (Paper, ‏Read-Only) — compose.ibgw.yaml, רק כשיש לו סיסמה
+	[ -s /etc/snb/ibgw.env ] && [ -s "$SNB_DIR/compose.ibgw.yaml" ] && r="$r,ibgw"
 	SNB_WANTED=${r#,}
 }
 snb_rooms() {
@@ -93,10 +97,13 @@ snb_runtime() {
 snb_compose() {
 	snb_limits
 	snb_runtime
+	# 28/10/2026: compose.ibgw.yaml — רק כשהחדר ibgw מוגדר (snb_rooms_wanted). בלעדיו — בדיוק כמו קודם
+	f2=''
+	case ",$SNB_WANTED," in *,ibgw,*) f2="$SNB_DIR/compose.ibgw.yaml" ;; esac
 	if docker compose version >/dev/null 2>&1; then
-		docker compose --project-directory "$SNB_DIR" -f "$SNB_DIR/compose.yaml" "$@"
+		docker compose --project-directory "$SNB_DIR" -f "$SNB_DIR/compose.yaml" ${f2:+-f "$f2"} "$@"
 	else
-		docker-compose --project-directory "$SNB_DIR" -f "$SNB_DIR/compose.yaml" "$@"
+		docker-compose --project-directory "$SNB_DIR" -f "$SNB_DIR/compose.yaml" ${f2:+-f "$f2"} "$@"
 	fi
 }
 

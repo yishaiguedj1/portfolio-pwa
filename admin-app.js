@@ -1039,16 +1039,16 @@ async function needSvc() {
   if (r.ok) { D.svc = r.svc; if (['svc', 'sys'].includes(cur)) paint(); } else D.svcAt = 0;
 }
 const SVC_NAME = { fs: () => 'Firebase', vercel: () => 'Vercel', hetzner: () => t('admSvcNHetzner'), r2: () => 'Cloudflare R2', mail: () => t('admMail'), pages: () => 'Cloudflare Pages',
-  dns: () => t('admSvcNDns'), drive: () => 'Google Drive', gemini: () => 'Gemini', anthropic: () => 'Anthropic API', market: () => t('admSvcNMarket'), hf: () => 'Hugging Face' };
+  dns: () => t('admSvcNDns'), drive: () => 'Google Drive', gemini: () => 'Gemini', anthropic: () => 'Anthropic API', market: () => t('admSvcNMarket'), hf: () => 'Hugging Face', ibkr: () => t('admSvcNIbkr') };
 const SVC_BK = { fs: () => t('admSvcBkFs'), vercel: () => t('admSvcBkVercel'), hetzner: () => t('admSvcBkHetzner'), r2: () => t('admSvcBkR2'), mail: () => t('admSvcBkMail'),
-  pages: () => t('admSvcBkPages'), dns: () => t('admSvcBkDns'), none: () => t('admSvcBkNone'), gemini: () => t('admSvcBkGemini'), anthropic: () => t('admSvcBkAnt'), market: () => t('admSvcBkMarket'), hf: () => t('admSvcBkHf') };
+  pages: () => t('admSvcBkPages'), dns: () => t('admSvcBkDns'), none: () => t('admSvcBkNone'), gemini: () => t('admSvcBkGemini'), anthropic: () => t('admSvcBkAnt'), market: () => t('admSvcBkMarket'), hf: () => t('admSvcBkHf'), flex: () => t('admSvcBkIbkr') };
 const SVC_ST = { ok: () => t('admSvcStOk'), warn: () => t('admSvcStWarn'), crit: () => t('admSvcStCrit'), down: () => t('admSvcStDown'), off: () => t('admSvcStOff'), na: () => t('admSvcStNa') };
 const SVC_M = Object.assign({ disk: () => t('admSvcMDisk'), day: () => t('admSvcMDay') }, PROV_ITEM);
 const SVC_COL = { ok: 'green', warn: 'orange', crit: 'red', down: 'red', off: 'gray', na: 'gray' };
 function svcRow(r) {
   const parts = [];
   if (r.m && r.m.length) parts.push(r.m.map((x) => (SVC_M[x.k] || (() => x.k))() + ' ' + Math.round(x.pct) + '%').join(' · '));
-  else parts.push(SVC_ST[r.st]());
+  else parts.push(r.gw === 'needs2FA' ? t('admSvcGw2fa') : SVC_ST[r.st]());
   if (r.paid) parts.push(fmt(t('admSvcPaid'), { g: gbTxt(r.gb) }));
   if (r.k === 'hetzner' && r.dn) parts.push(fmt(t('admSvcSrvDn'), { n: r.dn }));
   if (r.k === 'mail' && r.st !== 'off') parts.push(fmt(t('admMailLeft'), { n: r.left }));

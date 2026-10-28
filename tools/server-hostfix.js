@@ -43,6 +43,8 @@ const FILES = [
   ['infra/host/snb-common.sh', 'usr/local/lib/snb/common.sh', '644'],
   ['infra/compose.yaml', 'opt/snb/compose.yaml', '644'],
   ['infra/host/snb-update', 'usr/local/sbin/snb-update', '755'],
+  // 28/10/2026: IB Gateway (שלב 1 במחקר המסחר) — רק כאן, לא ב־snb-host-apply (בלי בנייה מחדש של תמונת העובד)
+  ['infra/compose.ibgw.yaml', 'opt/snb/compose.ibgw.yaml', '644'],
 ];
 /* מה מודדים בדיסק (du -sk). שמות קבועים — המפתחות בתשובה */
 const DU = [
@@ -75,7 +77,7 @@ function rescueScript(files) {
     'for v in snb_work snb_work-stg; do [ -e "$R/var/lib/docker/volumes/$v/_data/.busy" ] && echo "SNBBUSY $v"; done',
     'put() {',
     '  base64 -d > "$R/$1.snb-new"',
-    '  case "$1" in *.yaml) ;; *) sh -n "$R/$1.snb-new" || { rm -f "$R/$1.snb-new"; echo "SNBERR syntax $1"; exit 4; } ;; esac',
+    '  case "$1" in *.yaml|*.env) ;; *) sh -n "$R/$1.snb-new" || { rm -f "$R/$1.snb-new"; echo "SNBERR syntax $1"; exit 4; } ;; esac',
     '  if cmp -s "$R/$1.snb-new" "$R/$1"; then rm -f "$R/$1.snb-new"; echo "SNBSAME /$1"; return 0; fi',
     '  chmod "$2" "$R/$1.snb-new"',
     '  mv -f "$R/$1.snb-new" "$R/$1"',
@@ -188,12 +190,17 @@ async function clean(e, deps, o = {}) {
 
 /* ---------------------------------------------------------------- ההרצה */
 
-function loadFiles(root) {
-  return FILES.map(([src, dst, mode]) => {
+function loadFiles(root, e) {
+  const out = FILES.map(([src, dst, mode]) => {
     const body = fs.readFileSync(path.join(root, src));
     if (!body.length) fail('empty', 'קובץ ריק: ' + src);
     return { src, dst, mode, body };
   });
+  // 28/10/2026: הסיסמה של ה־Paper (סודות GitHub IBGW_PAPER_USER/PASS) → /etc/snb/ibgw.env, ‏0600. בלי הסודות — לא נוגעים בו
+  const errs = [], gw = e ? P.ibgwFile(e, errs) : null;
+  if (errs.length) fail('ibgw_bad', errs.join(' · '));
+  if (gw) out.push({ src: 'secret', dst: gw.path.slice(1), mode: '600', body: Buffer.from(gw.lines.join('\n') + '\n') });
+  return out;
 }
 
 /* דיסק לפי הדופק של העובדים (אחוז) — הגבוה מבין השרתים המחוברים */
@@ -207,7 +214,7 @@ async function diskNow(e, deps) {
 }
 
 async function apply(e, deps, opts = {}) {
-  const files = loadFiles(opts.root || path.join(__dirname, '..'));
+  const files = loadFiles(opts.root || path.join(__dirname, '..'), e);
   const script = rescueScript(files);
   deps.shCheck(script);                                     // תחביר — לפני שנוגעים בשרת
   const left = await clean(e, deps);                        // שאריות מריצה שנקטעה

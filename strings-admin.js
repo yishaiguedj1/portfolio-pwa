@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1333 מפתחות מתוך 5290) */
+/* המחרוזות של admin (1336 מפתחות מתוך 5307) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1087,6 +1087,7 @@ he: {
   "admSvcBkGemini": "Mistral, MyMemory",
   "admSvcBkHetzner": "השרתון — Vercel · התרגום — Routine, העתק־הדבק, הטלפון",
   "admSvcBkHf": "המודלים כבר בתוך התמונה",
+  "admSvcBkIbkr": "Flex (הדוח היומי)",
   "admSvcBkMail": "שירות השליחה הבא, ובסוף Firebase",
   "admSvcBkMarket": "CNBC, Stooq",
   "admSvcBkNone": "אין גיבוי",
@@ -1094,10 +1095,12 @@ he: {
   "admSvcBkR2": "ספרים וגיבוי יומי — גם ב־Drive",
   "admSvcBkVercel": "הוא עצמו הגיבוי החם של השרת שלנו",
   "admSvcFoot": "רק מספרים שהספקים עצמם מדדו — שירות בלי מונה מסומן \"לא נמדד\", לא \"תקין\". מ־70% מגיעה התראה לטלפון.",
+  "admSvcGw2fa": "ממתין לכניסה (2FA)",
   "admSvcMDay": "היום",
   "admSvcMDisk": "דיסק",
   "admSvcNDns": "Cloudflare DNS",
   "admSvcNHetzner": "Hetzner — השרת",
+  "admSvcNIbkr": "IBKR — החיבור החי",
   "admSvcNMarket": "נתוני שוק (Yahoo)",
   "admSvcPaid": "מעל 10GB — בתשלום ({g})",
   "admSvcSecAll": "כל השירותים",
@@ -2422,6 +2425,7 @@ en: {
   "admSvcBkGemini": "Mistral, MyMemory",
   "admSvcBkHetzner": "Proxy — Vercel · translation — Routine, copy-paste, the phone",
   "admSvcBkHf": "The models are already in the image",
+  "admSvcBkIbkr": "Flex (daily report)",
   "admSvcBkMail": "The next provider, finally Firebase",
   "admSvcBkMarket": "CNBC, Stooq",
   "admSvcBkNone": "No backup",
@@ -2429,10 +2433,12 @@ en: {
   "admSvcBkR2": "Books and the daily backup — also on Drive",
   "admSvcBkVercel": "It is itself the hot backup of our server",
   "admSvcFoot": "Only numbers the providers measured themselves — a service without a meter shows \"Not measured\", not \"OK\". From 70% a notification reaches your phone.",
+  "admSvcGw2fa": "Waiting to log in (2FA)",
   "admSvcMDay": "Today",
   "admSvcMDisk": "Disk",
   "admSvcNDns": "Cloudflare DNS",
   "admSvcNHetzner": "Hetzner — the server",
+  "admSvcNIbkr": "IBKR — live connection",
   "admSvcNMarket": "Market data (Yahoo)",
   "admSvcPaid": "Over 10GB — paid ({g})",
   "admSvcSecAll": "All services",
