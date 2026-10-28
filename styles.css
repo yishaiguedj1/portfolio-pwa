@@ -2229,16 +2229,14 @@ html.booting *, html.booting *::before, html.booting *::after { transition: none
 .acx-sheet .form-grid input { background: var(--gl-fill); border-color: transparent; }
 
 /* ==== 28/10/2026 — כפתורים ראשיים מזכוכית צבעונית (בקשת המשתמש: המראה הזכוכיתי של כפתור ההורדה בדפדפן, מותאם לת־עיצוב העדכני) ====
-   זכוכית צבועה: הצבע של האפליקציה שקוף 74%→86% עם טשטוש ורוויה של מה שמאחור; ברק רך בחצי העליון (לא הילה לבנה);
+   הצבע של הכפתור נשאר מלא כמו שהיה (בקשת המשתמש) — רק הגימור זכוכיתי: ברק עדין בחצי העליון (לא הילה לבנה),
    קצה אור דק — חזק למעלה, חלש בתחתית (שבירת אור); טבעת שיער; צל קצר בגוון הכפתור.
    הצבע = --btn-c (ברירת מחדל --primary: Invest ירוק, Academy כחול, Studio אדום; הרסני = --loss). הטקסט נשאר --on-primary. */
 html :is(.btn, .dlg-ok, .tab-ind, .st-btn, .st-plus, .an-btn, .lib-signin, .bk-cta, .adm-btn, .mg-tb.p, .mg-ab.p, .mg-ok56) { --btn-c: var(--primary);
-  --btn-glass: linear-gradient(180deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .04) 48%, rgba(255, 255, 255, 0) 52%),
-    linear-gradient(180deg, color-mix(in srgb, var(--btn-c) 74%, transparent), color-mix(in srgb, var(--btn-c) 86%, transparent)); }
+  --btn-glass: linear-gradient(180deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, .03) 48%, rgba(255, 255, 255, 0) 52%), var(--btn-c); }
 html .btn.danger-btn, html .dlg-ok.danger { --btn-c: var(--loss); }
 html :is(.btn, .dlg-ok, .tab-ind, .st-btn, .st-plus, .an-btn, .lib-signin, .bk-cta, .adm-btn, .mg-tb.p, .mg-ab.p, .mg-ok56):not(.secondary-btn):not(.ghost):not(.tint):not(.st-btn.danger) {
   background: var(--btn-glass);
-  -webkit-backdrop-filter: blur(14px) saturate(200%) brightness(1.04); backdrop-filter: blur(14px) saturate(200%) brightness(1.04);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .48), inset 0 -1px 0 rgba(255, 255, 255, .14), inset 0 0 0 .5px rgba(255, 255, 255, .24),
     0 1px 2px rgba(0, 0, 0, .1), 0 5px 14px color-mix(in srgb, var(--btn-c) 26%, transparent);
 }
