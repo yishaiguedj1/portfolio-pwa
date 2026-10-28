@@ -1086,4 +1086,6 @@ label.lib-row input { position: absolute; inset: 0; opacity: 0; cursor: pointer;
   background: var(--gl-ambient), var(--bg); }
 .lib-root :is(.bk-card, .lib-bkcard, .lib-card, .ac-tile) { box-shadow: var(--gl-card-sh); }
 .lib-root .mg-list { box-shadow: var(--gl-card-sh); }
-.lib-root .lib-round, .lib-root .lib-chip:not(.on) { background: var(--gl-card) !important; -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-card-sh); }
+.lib-root .lib-round, .lib-root .lib-chip:not(.on) { background: var(--gl-btn) !important; -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-btn-sh); }
+/* כפתור "חזור" — גלולת זכוכית כמו בשאר האפליקציות */
+.lib-root .lib-back { background: var(--gl-btn) !important; -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-btn-sh); border-radius: var(--pill) !important; min-height: 36px; padding-block: 5px !important; padding-inline: 8px 14px !important; }

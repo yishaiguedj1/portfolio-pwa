@@ -84,6 +84,7 @@
     radial-gradient(60% 40% at 2% 46%, color-mix(in srgb, var(--gl-tint2) 24%, transparent), transparent 72%),
     radial-gradient(70% 44% at 86% 98%, color-mix(in srgb, var(--gl-tint3) 20%, transparent), transparent 72%),
     linear-gradient(180deg, color-mix(in srgb, var(--gl-tint) 8%, transparent), color-mix(in srgb, var(--gl-tint) 5%, transparent));
+  --gl-btn: rgba(255,255,255,.78); --gl-btn-sh: inset 0 1px 0 rgba(255,255,255,.95), 0 0 0 .5px rgba(0,0,0,.1), 0 3px 10px rgba(0,0,0,.08);   /* כפתור זכוכית משני — בולט על כל רקע */
 }
 
 [data-theme="dark"] {
@@ -147,10 +148,11 @@
   --gl-card: color-mix(in srgb, var(--gl-base) 55%, transparent);
   --gl-card-sh: inset 1px 1px 0 rgba(255, 255, 255, .16), inset -1px -1px 0 rgba(255, 255, 255, .05), inset 0 0 24px rgba(255, 255, 255, .035),
     0 0 0 .5px rgba(255, 255, 255, .06), 0 8px 28px rgba(0, 0, 0, .4);
-  --gl-ambient: radial-gradient(70% 44% at 96% 2%, color-mix(in srgb, var(--gl-tint) 26%, transparent), transparent 72%),
-    radial-gradient(60% 40% at 2% 46%, color-mix(in srgb, var(--gl-tint2) 18%, transparent), transparent 72%),
-    radial-gradient(70% 44% at 86% 98%, color-mix(in srgb, var(--gl-tint3) 16%, transparent), transparent 72%),
-    linear-gradient(180deg, color-mix(in srgb, var(--gl-tint) 7%, transparent), color-mix(in srgb, var(--gl-tint) 4%, transparent));
+  --gl-ambient: radial-gradient(70% 44% at 96% 2%, color-mix(in srgb, var(--gl-tint) 36%, transparent), transparent 72%),
+    radial-gradient(60% 40% at 2% 46%, color-mix(in srgb, var(--gl-tint2) 26%, transparent), transparent 72%),
+    radial-gradient(70% 44% at 86% 98%, color-mix(in srgb, var(--gl-tint3) 26%, transparent), transparent 72%),
+    linear-gradient(180deg, color-mix(in srgb, var(--gl-tint) 12%, transparent), color-mix(in srgb, var(--gl-tint3) 8%, transparent));
+  --gl-btn: rgba(255,255,255,.14); --gl-btn-sh: inset 0 1px 0 rgba(255,255,255,.26), inset 0 0 0 .5px rgba(255,255,255,.16), 0 4px 14px rgba(0,0,0,.4);
 }
 
 /* ---- צבע המערכת לכל אפליקציה (13/10/2026, בקשת המשתמש — הגוונים המדויקים שבחר) ----
@@ -161,9 +163,9 @@ html[data-app="studio"] {
   --primary-container: rgba(255, 70, 86, .16); --on-primary-container: #B3121F;
 }
 html[data-app="studio"][data-theme="dark"] { --on-primary-container: #FF9AA3; }
-html[data-app="admin"] { --gl-tint: #5E5CE6; --gl-tint2: var(--sys-blue); --gl-tint3: var(--sys-pink); }
-html[data-app="academy"] { --gl-tint2: var(--sys-cyan); --gl-tint3: var(--sys-indigo); }
-html[data-app="studio"] { --gl-tint2: var(--sys-orange); --gl-tint3: var(--sys-purple); }
+:root[data-app="admin"] { --gl-tint: #5E5CE6; --gl-tint2: var(--sys-blue); --gl-tint3: var(--sys-pink); }
+:root[data-app="academy"] { --gl-tint2: var(--sys-cyan); --gl-tint3: var(--sys-indigo); }
+:root[data-app="studio"] { --gl-tint2: var(--sys-orange); --gl-tint3: var(--sys-purple); }
 html[data-app="academy"] {
   --primary: #4699FF; --primary-dark: #4699FF; --on-primary: #00214D;
   --primary-container: rgba(70, 153, 255, .16); --on-primary-container: #0B57B5;
@@ -2282,5 +2284,11 @@ body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-even
 
 /* כפתורים משניים מזכוכית (28/10, בקשת המשתמש): משטח שקוף עם קצה אור כיווני וטשטוש של מה שמאחור; הצבע של הטקסט/המסגרת נשאר */
 .icon-btn, .fx-pill, .chip-btn:not(.on), .mini-btn:not([aria-pressed="true"]), .btn.secondary-btn {
-  background: var(--gl-card); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-card-sh); }
+  background: var(--gl-btn); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-btn-sh); }
 .icon-btn, .chip-btn:not(.on), .mini-btn:not([aria-pressed="true"]) { border-color: transparent; }
+
+/* ==== 28/10/2026 — כפתורי "חזור" בכל האפליקציות: גלולת זכוכית כמו בגרף הנרות (הצבע של האפליקציה נשאר) ==== */
+html :is(.subpage-back, .an-back, .adm-back, .st-back) { background: var(--gl-btn) !important; -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-btn-sh);
+  border: 0; border-radius: var(--pill) !important; min-height: 36px; padding-block: 5px !important; padding-inline: 8px 14px !important; margin-inline-start: 0; }
+html :is(.kc-back, .an-cback) { background: var(--gl-btn) !important; -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-btn-sh); border-radius: 50% !important; }
+html :is(.subpage-back, .an-back, .adm-back, .st-back, .kc-back, .an-cback):active { filter: brightness(.94); opacity: 1; }

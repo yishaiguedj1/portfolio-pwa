@@ -416,3 +416,16 @@ html.kc-open { overflow: hidden; }
 .kc-root:not(.kc-float), [data-theme="dark"] .kc-root:not(.kc-float) { background: var(--gl-ambient), var(--kc-bg); }
 .kc-grid { background: transparent; }
 .kc-cell { background: transparent; box-shadow: 0 0 0 .5px var(--kc-sep); }
+/* הגלולות הצפות על הגרף (טווח, אינטרוול, כלים, "עכשיו") — כפתורי זכוכית בולטים גם בכהה */
+html .kc-pk, html .kc-qm, html .kc-now, html .kc-fab:not(.on) { background: var(--gl-btn) !important; -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-btn-sh); border-color: transparent !important; }
+/* בטלפון: שורת הנתונים ברוחב המסך — גלולת זכוכית, תווית קטנה ומתחתיה ערך ברור */
+.kc-ohlc { display: none; }
+@media (max-width: 720px) {
+  .kc-ohlc { position: absolute; z-index: 4; top: calc(var(--kc-toph, 0px) + 4px); inset-inline: 8px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2px;
+    padding: 6px 8px; border-radius: var(--radius-sm); background: var(--gl-btn); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-btn-sh); pointer-events: none; direction: rtl; }
+  .kc-oh { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0; }
+  .kc-oh i { font-style: normal; font-size: 11px; font-weight: 600; color: var(--kc-ink2); line-height: 13px; }
+  .kc-oh b { font-size: 13.5px; font-weight: 700; color: var(--kc-ink); line-height: 17px; font-variant-numeric: tabular-nums; direction: ltr; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .kc-oh b.up { color: var(--kc-up); } .kc-oh b.dn { color: var(--kc-dn); }
+  .kc-root .kc-pick, .kc-root .kc-qm { top: calc(var(--kc-toph, 0px) + 58px); }   /* מתחת לשורת הנתונים */
+}

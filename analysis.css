@@ -470,3 +470,7 @@ button.an-row { cursor: pointer; }
 .an-card, .an-rcard, .an-mtile { box-shadow: var(--gl-card-sh); border-color: transparent; }
 .an-tbl th:first-child, .an-tbl td:first-child, .an-ctbl tbody th { background: var(--gl-base); }
 .an-nav, .an-tabbar { background: var(--gl-bar); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); }
+/* בועות על הגרפים (חלון הנגיעה ותווית השיא) — זכוכית בולטת, כמו בגרף הנרות */
+.an-tip { background: var(--gl-panel); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); border-color: transparent; border-radius: var(--radius-sm); box-shadow: var(--gl-ring), 0 8px 24px rgba(0, 0, 0, .14); }
+[data-theme="dark"] .an-tip { background: rgba(58, 58, 60, .78); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 0 0 .5px rgba(255, 255, 255, .2), 0 8px 24px rgba(0, 0, 0, .5); }
+.an-ptag { background: var(--gl-btn); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-btn-sh); padding: 1px 7px; color: var(--an-ink); }
