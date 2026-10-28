@@ -333,6 +333,7 @@ he: {
   kcI_BBI: 'מדד שור/דוב',
   kcI_AVP: 'מחיר ממוצע',
   kcI_VOL: 'נפח מסחר',
+  kcI_KCVOL: 'נפח מסחר (בגרף)',
   kcI_MACD: 'MACD',
   kcI_RSI: 'מדד חוזק יחסי',
   kcI_KDJ: 'KDJ',
@@ -1866,6 +1867,7 @@ en: {
   kcI_BBI: 'Bull and bear index',
   kcI_AVP: 'Average price',
   kcI_VOL: 'Volume',
+  kcI_KCVOL: 'Volume (on chart)',
   kcI_MACD: 'MACD',
   kcI_RSI: 'Relative Strength Index',
   kcI_KDJ: 'KDJ',
@@ -6888,8 +6890,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.78.0';
-const APP_VERSION = 'v605';
+const APP_RELEASE = '2.79.0';
+const APP_VERSION = 'v606';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -15030,6 +15032,8 @@ function chartEnv() {
     onClose: () => refreshStockAlerts(),
     // מחיר הכותרת בגרף — אותו אפקט רובין הוד של כרטיס המניה
     pxSwap: (a, txt, px) => { const b = document.createElement('span'); b.dataset.px = String(px); b.textContent = txt; livePriceSwap(a, b); },
+    // השוק סגור (סופ״ש/חג) — אותה בועה של כרטיס המניה: "השוק סגור · סיבה" ומתחת הסשן האחרון והשינוי
+    closedEl: (q) => { const d = document.createElement('span'); d.innerHTML = extSessionHTML(q, { sym: q.symbol }); return d.firstElementChild; },
     fills: (sym) => chartFills(sym),   // חיצי הקנייה/מכירה וקו הממוצע בגרף   // התראות שנוספו/נמחקו בגרף — מתעדכנות בכרטיס המניה
     store: {
       get: () => { try { return JSON.parse(localStorage.getItem(CHART_LS) || 'null'); } catch (e) { return null; } },

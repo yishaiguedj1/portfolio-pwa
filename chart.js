@@ -173,7 +173,7 @@ const NO_HISTORY_MORE = new Set(['renko', 'lb', 'kagi']);   // טרנספורמ�
 /* ---------- אינדיקטורים: מובנים + שלנו ---------- */
 const BUILTIN = {
   MA: { g: 'trend', main: 1 }, EMA: { g: 'trend', main: 1 }, SMA: { g: 'trend', main: 1 }, BOLL: { g: 'vol', main: 1 }, SAR: { g: 'trend', main: 1 },
-  BBI: { g: 'trend', main: 1 }, AVP: { g: 'trend', main: 1 }, VOL: { g: 'volume' }, MACD: { g: 'osc' }, RSI: { g: 'osc', lv: [70, 30] }, KDJ: { g: 'osc' },
+  BBI: { g: 'trend', main: 1 }, AVP: { g: 'trend', main: 1 }, KCVOL: { g: 'volume', main: 1 }, VOL: { g: 'volume' }, MACD: { g: 'osc' }, RSI: { g: 'osc', lv: [70, 30] }, KDJ: { g: 'osc' },
   OBV: { g: 'volume' }, CCI: { g: 'osc' }, DMI: { g: 'trend' }, WR: { g: 'osc' }, AO: { g: 'osc' }, TRIX: { g: 'osc' }, ROC: { g: 'osc' },
   MTM: { g: 'osc' }, BIAS: { g: 'osc' }, BRAR: { g: 'osc' }, CR: { g: 'osc' }, DMA: { g: 'trend' }, EMV: { g: 'volume' }, PSY: { g: 'osc' }, PVT: { g: 'volume' }, VR: { g: 'volume' },
 };
@@ -434,6 +434,31 @@ function registerAll() {
       draw: (p) => { const r = AN.get(p.indicator.id); if (r) { p.ctx.save(); try { def.draw(r, p); } catch (e) { /* ציור חלקי */ } p.ctx.restore(); } return false; },
     });
   }
+  /* נפח משולב: עמודות ברצועה התחתונה של חלון הנרות (16%; הנרות נפרסים על כל הגובה ועוברים מעליהן), סקאלה משלהן (המקסימום במסך), מאחורי הנרות (destination-over)
+     ובשקיפות קלה בלבד — חדות ובולטות. בלי figures, כך שהן לא משפיעות על טווח ציר המחיר */
+  K.registerIndicator({
+    name: 'KCVOL', shortName: '', series: 'normal', calcParams: [], figures: [], calc: (list) => list.map(() => ({})),
+    draw: ({ ctx, chart, xAxis, bounding }) => {
+      const list = chart.getDataList(), vr = chart.getVisibleRange();
+      if (!list.length || !bounding) return false;
+      const a = Math.max(0, vr.from), b = Math.min(list.length, vr.to + 1);
+      let max = 0;
+      for (let i = a; i < b; i++) max = Math.max(max, +list[i].volume || 0);
+      if (!max) return false;
+      const p = palette(), sp = chart.getBarSpace(), w = Math.max(1, (sp && (sp.gapBar || sp.bar * 0.8)) || 3), H = bounding.height * 0.16, y0 = bounding.height;
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-over';
+      for (let i = a; i < b; i++) {
+        const d = list[i], v = +d.volume || 0;
+        if (!v) continue;
+        const hh = Math.max(1, (v / max) * H), x = xAxis.convertToPixel(i);
+        ctx.fillStyle = rgba(d.close >= d.open ? p.up : p.dn, isDark() ? 0.5 : 0.4);
+        ctx.fillRect(Math.round(x - w / 2), Math.round(y0 - hh), Math.max(1, Math.round(w)), Math.round(hh));
+      }
+      ctx.restore();
+      return false;
+    },
+  });
   K.registerIndicator({ name: 'KCCMP', shortName: 'CMP', series: 'price', calcParams: [], figures: [{ key: 'cmp', title: '', type: 'line' }], calc: calcCmp });
   K.registerIndicator({
     name: 'KCBT', shortName: T('kcBtTitle'), series: 'price', calcParams: [], figures: [], calc: (list) => list.map(() => ({})),
@@ -910,7 +935,7 @@ const TEXT_TOOLS = new Set(['kcText', 'kcNote']);
    g = העדפות כלליות + הגרפים במסך (סימבול/טווח/סוג/אינדיקטורים לכל תא, כמו "Layout" של TradingView)
    s = לכל מניה: השרטוטים (כמו TV — שרטוט שייך למניה, בכל טווח זמן) · alerts = התראות מחיר לכל מניה */
 const DEF_FAV = ['1m', '5m', '15m', '1h', '4h', '1D', '1W'];
-const DEF_IND = [{ n: 'VOL', main: false }];
+const DEF_IND = [{ n: 'KCVOL', main: true }];
 function loadStore() {
   let o = null;
   try { o = E.store && E.store.get(); } catch (e) { o = null; }
@@ -980,7 +1005,7 @@ function topPad(c) {
   let t = 0;
   try { if (UI.top && c && c.el && getComputedStyle(UI.top).position === 'absolute' && c.el.offsetTop < 4) t = UI.top.offsetHeight; } catch (e) { t = 0; }
   if (c && c.el) c.el.style.setProperty('--kc-toph', t + 'px');
-  return t ? t + 30 : 6;   // מתחת לשוליים המטושטשים של הכותרת (24px) — המקרא נשאר חד
+  return t ? t + 4 : 6;   // צמוד מתחת לכותרת (הטשטוש נגמר בקצה שלה — המקרא חד). t נמדד, כך שבועה גבוהה ("השוק סגור") מורידה אותו
 }
 /* בטלפון הסרגל התחתון צף (זכוכית) מעל הגרף — ציר התאריכים גדל בגובה הסרגל, כך שהתאריכים נשארים מעליו */
 function xSize() {
@@ -1036,6 +1061,7 @@ function mountCell(c) {
   wireCellPointer(c);
   setSymbolPeriod(c);
   restoreIndicators(c, c.indSaved);
+  volGap(c);
 }
 /* לפי ת־גרף: מתחת לתווית המחיר האחרון — כמה זמן נשאר עד סגירת הנר (mm:ss / h:mm:ss / 3d 4h).
    רק כשהנר באמת חי: תוך־יומי בזמן מסחר (או טרום/אחרי כשהמורחב מוצג), שבועי/חודשי בזמן מסחר. יומי — לא (הסגירה תלויה בבורסה). */
@@ -1445,7 +1471,20 @@ function askText(c, id) {
 }
 
 /* ---------- אינדיקטורים בתא ---------- */
+/* הנרות מקבלים כמה שיותר גובה (בקשת המשתמש 28/10): עם נפח משולב אין לו חלונית — הנרות נפרסים עד התחתית ועוברים מעליו.
+   מרווחי ציר המחיר קטנים מברירת המחדל (0.2/0.1) — רק מה שצריך מתחת לכותרת ומעל ציר התאריכים */
+function volGap(c) {
+  try {
+    // למעלה: השיא (ותווית המחיר שלו) מתחיל מתחת לשורת המקרא — לפי המיקום שלה בפועל (הכותרת מתארכת עם בועה גבוהה)
+    // gap הוא חלק מטווח המחירים (לא מהגובה): חלק f מהגובה = g/(1+g+b) → g = f(1+b)/(1−f)
+    const H = (c.chart.getSize(MAIN) || {}).height || (c.host && c.host.clientHeight) || 600, f = Math.min(0.4, Math.max(0.06, (topPad(c) + 62) / H));   // 62 = שורת המקרא (~22) + תווית השיא שמצוירת מעל הנר (~20) + מרווח
+    const bottom = c.chart.getIndicators({ name: 'KCVOL' }).length ? 0.04 : 0.1;
+    c.chart.overrideYAxis({ paneId: MAIN, gap: { top: f * (1 + bottom) / (1 - f), bottom } });   // ב־10.1 המרווח שייך לציר, לא לאפשרויות החלונית
+  } catch (e) { /* גרסה בלי gap */ }
+}
 function restoreIndicators(c, list) {
+  // פעם אחת: חלונית הנפח (VOL) של ברירת המחדל → נפח משולב בתחתית הגרף (KCVOL). מי שיוסיף VOL אחר כך — יקבל חלונית
+  if (!S.store.g.volIn) { S.store.g.volIn = 1; list = (list || []).map((x) => (x.n === 'VOL' && !x.main ? { n: 'KCVOL', main: true, h: x.h } : x)); save(); }
   for (const x of list || []) { try { addInd(c, x.n, x); } catch (e) { /* אינדיקטור שלא קיים יותר */ } }
 }
 function addInd(c, name, o) {
@@ -1467,6 +1506,7 @@ function addInd(c, name, o) {
     if (ind) c.chart.setPaneOptions({ id: ind.paneId, height: Math.round(Math.min(base, Math.max(32, H * (name === 'VOL' ? 0.15 : 0.2)))), minHeight: 30 });
   }
   if (name === 'KCCONE') c.chart.setOffsetRightDistance(180);
+  if (name === 'KCVOL') volGap(c);
   save();
   return id;
 }
@@ -1475,6 +1515,7 @@ function removeInd(c, id) {
   c.chart.removeIndicator({ id });
   if (ind && ind.name === 'KCCONE') c.chart.setOffsetRightDistance(64);
   if (ind && ind.name === 'KCCMP' && !c.chart.getIndicators({ name: 'KCCMP' }).length) setScale(c, S.store.g.scale);
+  if (ind && ind.name === 'KCVOL') volGap(c);
   save();
 }
 function hasInd(c, name) { return c.chart ? c.chart.getIndicators({ name }).length > 0 : false; }
@@ -1794,8 +1835,45 @@ function wireCellPointer(c) {
   let down = null, lp = 0, ct = null;
   // מצב מדידה בטלפון: נגיעה באצבע אחת מזיזה את הצלב ולא מגיעה לגרף (בלי גלילה/זום); כפתורים מעל הגרף — כרגיל
   const cOn = (e) => S.cur && S.cur.c === c && !(e.target && e.target.closest && e.target.closest('button'));
+  // מדידה שנבחרה: גרירת אחת הידיות משנה את הנקודה שלה, לפי ת־גרף — האצבע שומרת על ההיסט מהידית כדי שלא תסתיר אותה
+  let ed = null;
+  const edGet = () => { const s = S.sel, o = s && !s.alert && s.c === c ? getOv(c, s.id) : null; return o && CUR_TOOLS.has(o.name) && !o.lock && (o.points || []).length === 2 ? o : null; };
   c.el.addEventListener('touchstart', (e) => {
-    if (!cOn(e) || e.touches.length > 1) { ct = null; return; }
+    ed = null;
+    const o = !S.cur && !S.tool && e.touches.length === 1 && !(e.target && e.target.closest && e.target.closest('button')) ? edGet() : null;
+    if (!o) return;
+    const r = c.host.getBoundingClientRect(), t = e.touches[0], x = t.clientX - r.left, y = t.clientY - r.top;
+    let bi = -1, bd = 28;
+    o.points.forEach((q, i) => { const p = px(c.chart, q.timestamp, q.value), d = p ? Math.hypot(p.x - x, p.y - y) : Infinity; if (d < bd) { bd = d; bi = i; ed = { o, i, dx: p.x - x, dy: p.y - y, r }; } });
+    if (bi < 0) { ed = null; return; }
+    e.stopPropagation();
+  }, { capture: true, passive: true });
+  c.el.addEventListener('touchmove', (e) => {
+    if (!ed) return;
+    e.stopPropagation();
+    if (e.cancelable) e.preventDefault();
+    const t = e.touches[0], sn = curSnap(c, t.clientX - ed.r.left + ed.dx, t.clientY - ed.r.top + ed.dy);
+    if (!sn) return;
+    const pts = ed.o.points.slice();
+    pts[ed.i] = sn.pt;
+    ed.moved = true;
+    c.chart.overrideOverlay({ id: ed.o.id, points: pts });
+    ed.o = getOv(c, ed.o.id) || ed.o;
+    c.chart.executeAction('onCrosshairChange', { x: sn.x, y: sn.y, paneId: MAIN });
+  }, { capture: true, passive: false });
+  const edEnd = (e) => {
+    if (!ed) return;
+    const d = ed;
+    ed = null;
+    e.stopPropagation();
+    if (e.cancelable) e.preventDefault();
+    c.chart.executeAction('onCrosshairChange', null);
+    if (d.moved) changed(c);
+  };
+  c.el.addEventListener('touchend', edEnd, { capture: true, passive: false });
+  c.el.addEventListener('touchcancel', edEnd, true);
+  c.el.addEventListener('touchstart', (e) => {
+    if (ed || !cOn(e) || e.touches.length > 1) { ct = null; return; }
     e.stopPropagation();
     const t = e.touches[0];
     ct = { x: t.clientX, y: t.clientY, cx: S.cur.x, cy: S.cur.y, t: Date.now(), moved: false };
@@ -1963,7 +2041,7 @@ function build(sym) {
   });
   if (S.ro) S.ro.disconnect();
   if (typeof ResizeObserver === 'function') {
-    S.ro = new ResizeObserver(() => { for (const c of S.cells) if (c.chart) { c.chart.setStyles({ candle: { tooltip: { offsetTop: topPad(c) } }, xAxis: { size: xSize() } }); c.chart.resize(); } });
+    S.ro = new ResizeObserver(() => { for (const c of S.cells) if (c.chart) { c.chart.setStyles({ candle: { tooltip: { offsetTop: topPad(c) } }, xAxis: { size: xSize() } }); volGap(c); c.chart.resize(); } });
     S.ro.observe(UI.grid);
     S.ro.observe(UI.top);
     S.ro.observe(UI.mbar);   // הכותרת מתארכת כשבועת הסשן מופיעה — המקרא יורד מתחתיה
@@ -2053,6 +2131,9 @@ function updHeader() {
     const sh = { pre: 'kcPre', post: 'kcPost', night: 'kcNight' }[xk];
     UI.hd.ext.replaceChildren(h('span', { class: 'ext-dot' }), h('span', { class: 'ext-lbl lg', text: T(k) }), h('span', { class: 'ext-lbl sm', text: T(sh) }), h('span', { class: 'ext-pct', text: fmtPct(ep) }));
     UI.hd.ext.className = 'kc-ext ext-sess ' + (Math.abs(ep) < 0.005 ? '' : ep > 0 ? 'pos' : 'neg');
+    // השוק סגור (סופ״ש/חג): במקום "לילי" — הבועה הקומפקטית של Invest (שתי שורות, אותו גודל)
+    const cl = st === 'CLOSED' && E.closedEl ? E.closedEl({ symbol: c.sym, session: 'closed', ext: { kind: xk, price: q.ext.p, pct: ep } }) : null;
+    if (cl) { UI.hd.ext.replaceChildren(cl); UI.hd.ext.className = 'kc-ext kc-cl'; }
   } else { UI.hd.ext.textContent = ''; UI.hd.ext.className = 'kc-ext'; }
   updClock();
 }

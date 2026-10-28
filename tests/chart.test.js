@@ -187,6 +187,11 @@ ok(Object.keys(L.IND).length >= 40, 'לפחות 40 אינדיקטורים נוס
   // 28/10 (בקשת המשתמש): כותרת בזכוכית מדורגת (5 שכבות טשטוש עם מסכות), סרגל תחתון צף ושקוף — ציר התאריכים גדל בגובהו
   ok(/class: 'kc-pb', 'aria-hidden': 'true' \}, \.\.\.\[1, 2, 3, 4, 5\]/.test(cj) && /\.kc-pb i:nth-child\(5\)/.test(cc) && /\.kc-top \{ background: none;/.test(cc)
     && /function xSize\(\)/.test(cj) && /xAxis: \{ size: xSize\(\) \}/.test(cj) && /\.kc-mbar \{ position: absolute; left: 0; right: 0; bottom: 0;/.test(cc) && /\.kc-pk \{ align-items: center; text-align: center; \}/.test(cc), 'בטלפון: כותרת בזכוכית מדורגת וסרגל תחתון צף');
+  // 28/10 (בקשת המשתמש): נפח המסחר בתוך הגרף, מאחורי הנרות; מרווח הציר כך שמחיר השיא לא עולה על שורת המקרא; בועת "שוק סגור" כמו ב־Invest
+  ok(/KCVOL: \{ g: 'volume', main: 1 \}/.test(cj) && /globalCompositeOperation = 'destination-over'/.test(cj) && /function volGap\(c\)/.test(cj) && /overrideYAxis\(\{ paneId: MAIN, gap:/.test(cj)
+    && /E\.closedEl\(/.test(cj) && /closedEl: \(q\) =>/.test(fs.readFileSync(path.join(root, 'app.js'), 'utf8')) && /\.kc-qm[^{]*\{[^}]*\+ 44px\)/.test(cc), 'בטלפון: נפח בתוך הגרף, שיא בלי דריסה, בועת שוק סגור');
+  // 28/10 (בקשת המשתמש): עריכת מדידה אחרי שנוצרה — גרירת ידית משנה את הנקודה שלה, עם היסט האצבע
+  ok(/const edGet = \(\) =>[^\n]*CUR_TOOLS\.has\(o\.name\) && !o\.lock/.test(cj) && /pts\[ed\.i\] = sn\.pt;/.test(cj) && /if \(d\.moved\) changed\(c\);/.test(cj), 'מדידה שנבחרה: גרירת הידיות עורכת אותה');
   // 28/10: מסחר לילי — היה חסר ב־parseQuote; תווית לפי סשן
   ok(/st === 'OVERNIGHT' \|\| st === 'CLOSED' \|\| st === 'PREPRE'\) \? x\.night/.test(cj) && /night: 'kcNight'/.test(cj) && /const EXTC = \{ pre: '#FF9F0A', post: '#0A84FF', night: '#BF5AF2' \}/.test(cj), 'מחיר לילי מוצג בגרף, בצבע ובתווית משלו');
   // 28/10 (בקשת המשתמש): בורר האינטרוול עבר מהסרגל התחתון לפינה העליונה של הגרף, ולידו "טווח תאריכים" (טווח הזמן שמוצג)
