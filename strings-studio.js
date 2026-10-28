@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2055 מפתחות מתוך 5293) */
+/* המחרוזות של studio (2056 מפתחות מתוך 5294) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -563,6 +563,7 @@ he: {
   "studioErrOom": "העבודה נעצרה בשרת (כנראה נגמר הזיכרון) — אפשר להמשיך מנקודת השמירה",
   "studioErrPhMeta": "המדידות מהטלפון לא הגיעו או לא תקינות — פתחו שוב את הסרטון באפליקציה",
   "studioErrPhWords": "התמליל מהטלפון לא הגיע או לא תקין — פתחו שוב את הסרטון באפליקציה",
+  "studioErrQuota": "מסד הנתונים בענן הגיע למכסת השימוש היומית. השירות חוזר ב־{t} — העבודות שלך שמורות",
   "studioErrRAuth": "המפתח של ה־Routine לא תקף (בוטל או הוחלף). הדביקו מפתח חדש",
   "studioErrRDown": "Claude לא זמין כרגע. נסו שוב בעוד כמה דקות",
   "studioErrRForbidden": "לחשבון Claude הזה אין גישה ל־Routines",
@@ -2620,6 +2621,7 @@ en: {
   "studioErrOom": "The job stopped on the server (probably out of memory) — you can resume from the checkpoint",
   "studioErrPhMeta": "The measurements from the phone are missing or invalid — open the video in the app again",
   "studioErrPhWords": "The transcript from the phone is missing or invalid — open the video in the app again",
+  "studioErrQuota": "The cloud database reached its daily usage limit. Service resumes at {t} — your jobs are safe",
   "studioErrRAuth": "The Routine key is invalid (revoked or replaced). Paste a new one",
   "studioErrRDown": "Claude is unavailable right now. Try again in a few minutes",
   "studioErrRForbidden": "This Claude account doesn't have access to Routines",
