@@ -122,6 +122,8 @@ const ICON = {
   short: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="6" fill="currentColor" opacity=".12"/><rect x="4" y="12" width="16" height="9" fill="currentColor" opacity=".25"/><path d="M4 12h16" stroke="currentColor" stroke-width="1.8"/></svg>',
   ruler: sv('M3 17L17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2'),
   prange: sv('M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4'),
+  qprice: sv('M7 4h10M7 20h10M12 7v10M9.5 9.5L12 7l2.5 2.5M9.5 14.5L12 17l2.5-2.5'),
+  qboth: sv('M4 4h16v16H4zM12 7.5v9M7.5 12h9M10.2 9.3L12 7.5l1.8 1.8M10.2 14.7L12 16.5l1.8-1.8M9.3 10.2L7.5 12l1.8 1.8M14.7 10.2l1.8 1.8-1.8 1.8'),
   drange: sv('M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4'),
   updown: sv('M8 9l4-4 4 4M8 15l4 4 4-4'),
   avwap: sv('M4 20c4-1 6-7 9-9s5-2 7-6M4 20v-3'),
@@ -693,14 +695,37 @@ function registerOverlays() {
       { type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: x2 + Math.cos(s1) * k, y: y2 + Math.sin(s1) * k }, { x: x2, y: y2 }, { x: x2 + Math.cos(s2) * k, y: y2 + Math.sin(s2) * k }] }, styles: { color: col, size: 1.5 } }];
   };
   const LRM = '\u200E';
+  const mBlue = () => (isDark() ? '#0A84FF' : '#007AFF');   // כחול המערכת — אותו צבע בעלייה ובירידה (המדידה ניטרלית, לא ירוק/אדום)
+  const mSel = (o) => !!(S.sel && !S.sel.alert && S.sel.id === o.id);
+  const mCell = (chart) => S.cells.find((x) => x.chart === chart);
+  const axDate = (chart, ts) => {
+    const c = mCell(chart), intra = c ? L.isIntraday(c.tf) : false, tz = S.store && S.store.g.tz === 'local' ? undefined : (c && c.tz) || 'America/New_York';
+    try { return new Date(ts).toLocaleString(E.lang === 'en' ? 'en-US' : 'he-IL', Object.assign({ timeZone: tz, day: '2-digit', month: 'short', year: '2-digit' }, intra ? { hour: '2-digit', minute: '2-digit', hour12: false } : {})); } catch (e) { return new Date(ts).toISOString().slice(0, 10); }
+  };
   const measure = (name, mode) => R({
-    name, totalStep: 3,
+    name, totalStep: 3, needDefaultXAxisFigure: false, needDefaultYAxisFigure: false,
+    // נבחרה: פס כחול על ציר המחיר בין שני המחירים ותוויות כחולות על שני הצירים
+    createYAxisFigures: ({ chart, overlay, coordinates, bounding, yAxis }) => {
+      if (coordinates.length < 2 || mode === 'd' || !mSel(overlay)) return [];
+      const col = mBlue(), left = yAxis && yAxis.isFromZero && yAxis.isFromZero(), [a, b] = coordinates, y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y);
+      return [{ type: 'rect', ignoreEvent: true, attrs: { x: 0, y: y0, width: bounding.width, height: y1 - y0 }, styles: { style: 'fill', color: rgba(col, 0.18) } },
+        ...[0, 1].map((i) => textFig(left ? 0 : bounding.width, coordinates[i].y, fmtP(chart, valAt(overlay, i)), col, { attrs: { align: left ? 'left' : 'right' }, styles: { paddingTop: 3, paddingBottom: 3, borderRadius: 4 } }))];
+    },
+    // נבחרה: פס כחול על ציר הזמן ושני התאריכים
+    createXAxisFigures: ({ chart, overlay, coordinates, bounding }) => {
+      if (coordinates.length < 2 || mode === 'p' || !mSel(overlay)) return [];
+      const col = mBlue(), [a, b] = coordinates, x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x), y = bounding.height / 2;
+      return [{ type: 'rect', ignoreEvent: true, attrs: { x: x0, y: 0, width: x1 - x0, height: bounding.height }, styles: { style: 'fill', color: rgba(col, 0.18) } },
+        // שני תאריכים קרובים — לא אחד על השני: השמאלי נצמד שמאלה מהנקודה שלו והימני ימינה
+        ...[0, 1].map((i) => { const near = x1 - x0 < 120, lo = coordinates[i].x === x0 && (i === 0 || a.x !== b.x);
+          return textFig(coordinates[i].x, y, axDate(chart, overlay.points[i].timestamp), col, { attrs: { align: near ? (lo ? 'right' : 'left') : 'center' }, styles: { paddingTop: 3, paddingBottom: 3, borderRadius: 4 } }); })];
+    },
     createPointFigures: ({ chart, overlay, coordinates }) => {
       if (coordinates.length < 2) return [];
       const [a, b] = coordinates, list = chart.getDataList();
       const ia = dataIdx(list, overlay.points[0].timestamp), ib = dataIdx(list, overlay.points[1].timestamp);
       const st = L.rangeStats(list, ia, ib), v0 = valAt(overlay, 0), dv = valAt(overlay, 1) - v0, pct = v0 ? dv / v0 * 100 : 0;
-      const up = mode === 'd' ? b.x >= a.x : dv >= 0, col = up ? '#2962FF' : '#F23645', p = palette();
+      const up = mode === 'd' ? b.x >= a.x : dv >= 0, col = mBlue(), p = palette();
       const lines = [];
       if (mode !== 'd') lines.push(LRM + (dv >= 0 ? '' : '−') + fmtP(chart, Math.abs(dv)) + ' (' + (dv >= 0 ? '' : '−') + Math.abs(pct).toFixed(2) + '%) ' + (dv >= 0 ? '' : '−') + Math.round(Math.abs(dv) * Math.pow(10, precOf(chart))).toLocaleString('en-US'));
       if (mode !== 'p' && st) lines.push(LRM + (ib - ia) + ' ' + T('kcBarsW') + ', ' + LRM + fmtDur(Math.abs(overlay.points[1].timestamp - overlay.points[0].timestamp)));
@@ -712,8 +737,10 @@ function registerOverlays() {
       // הכרטיס: מעל המלבן בעלייה, מתחת בירידה (כמו TradingView)
       const fs = 12, lh = 16, w = Math.max(...lines.map((l) => l.length)) * 6.6 + 16, hh = lines.length * lh + 8;
       const ty = (mode === 'd' ? true : up) ? y0 - 8 - hh : y1 + 8;
-      figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: mx - w / 2, y: ty, width: w, height: hh }, styles: { style: 'stroke_fill', color: p.tipBg, borderColor: rgba(col, 0.35), borderSize: 1, borderRadius: 6 } });
+      figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: mx - w / 2, y: ty, width: w, height: hh }, styles: { style: 'stroke_fill', color: p.tipBg, borderColor: isDark() ? 'rgba(255,255,255,.14)' : 'rgba(0,0,0,.10)', borderSize: 1, borderRadius: 8 } });
       lines.forEach((l, i) => figs.push({ type: 'text', ignoreEvent: true, attrs: { x: mx, y: ty + 4 + lh * i + lh / 2, text: l, align: 'center', baseline: 'middle' }, styles: { color: isDark() ? '#F2F2F7' : '#1C1C1E', size: fs, family: p.font, backgroundColor: 'transparent', borderSize: 0, paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 } }));
+      // נבחרה: עיגולים חלולים גדולים בשתי הנקודות (ידיות לגרירה)
+      if (mSel(overlay)) for (const q of [a, b]) figs.push({ type: 'circle', ignoreEvent: true, attrs: { x: q.x, y: q.y, r: 9 }, styles: { style: 'stroke_fill', color: p.tipBg, borderColor: col, borderSize: 2.5 } });
       return figs;
     },
   });
@@ -810,19 +837,20 @@ function registerOverlays() {
     },
   });
 
-  /* מחיר טרום/אחרי המסחר כשהגרף מציג רק מסחר רגיל — קו מקווקו כחול, גלולה "טרום/אחרי" ותווית בציר (כמו TradingView) */
+  /* מחיר טרום/אחרי/לילי כשהגרף מציג רק מסחר רגיל: קו מקווקו, גלולה "טרום/אחרי/לילי" צמודה לציר
+     ותווית המחיר בציר, בצבע של הסשן (טרום כתום, אחרי כחול, לילי סגול — extendData.k) */
   R({
     name: 'kcExtPx', totalStep: 2, needDefaultXAxisFigure: false, needDefaultYAxisFigure: false,
     createPointFigures: ({ overlay, coordinates, bounding }) => {
       if (!coordinates.length) return [];
-      const y = coordinates[0].y;
-      return [{ type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: 0, y }, { x: bounding.width, y }] }, styles: { color: EXTC, size: 1, style: 'dashed', dashedValue: [2, 2] } },
-        textFig(bounding.width - 4, y, (overlay.extendData && overlay.extendData.t) || '', EXTC, { attrs: { align: 'right' }, styles: { size: 10, borderRadius: 3 } })];
+      const y = coordinates[0].y, d = overlay.extendData || {}, col = EXTC[d.k] || EXTC.post;
+      return [{ type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: 0, y }, { x: bounding.width, y }] }, styles: { color: col, size: 1, style: 'dashed', dashedValue: [2, 2] } },
+        textFig(bounding.width, y, d.t || '', col, { attrs: { align: 'right' }, styles: { paddingLeft: 6, paddingRight: 6, paddingTop: 3, borderRadius: 3 } })];
     },
     createYAxisFigures: ({ chart, overlay, coordinates, bounding, yAxis }) => {
       if (!coordinates.length) return [];
       const left = yAxis && yAxis.isFromZero && yAxis.isFromZero();
-      return [textFig(left ? 0 : bounding.width, coordinates[0].y, fmtP(chart, valAt(overlay, 0)), EXTC, { attrs: { align: left ? 'left' : 'right' }, styles: { paddingTop: 3, borderRadius: 3 } })];
+      return [textFig(left ? 0 : bounding.width, coordinates[0].y, fmtP(chart, valAt(overlay, 0)), EXTC[(overlay.extendData || {}).k] || EXTC.post, { attrs: { align: left ? 'left' : 'right' }, styles: { paddingTop: 3, borderRadius: 3 } })];
     },
   });
 
@@ -946,6 +974,14 @@ function palette() {
     bg: dk ? '#000000' : '#FFFFFF', cross: dk ? '#8E8E93' : '#8E8E93', tipBg: dk ? '#1C1C1E' : '#FFFFFF', label: dk ? '#3A3A3C' : '#1C1C1E', font: css('--font') || '-apple-system, system-ui, sans-serif',
   };
 }
+/* בטלפון הכותרת היא זכוכית שקופה מעל הגרף — בתא העליון המקרא ובוררי הפינה יורדים מתחתיה.
+   --kc-toph על התא (CSSOM, לא מאפיין style — CSP) */
+function topPad(c) {
+  let t = 0;
+  try { if (UI.top && c && c.el && getComputedStyle(UI.top).position === 'absolute' && c.el.offsetTop < 4) t = UI.top.offsetHeight; } catch (e) { t = 0; }
+  if (c && c.el) c.el.style.setProperty('--kc-toph', t + 'px');
+  return t + 6;
+}
 function chartStyles(c) {
   const p = palette(), g = S.store.g, line = c.type === 'line';
   const axis = { axisLine: { color: p.axis }, tickLine: { color: p.axis }, tickText: { color: p.text, size: 11, family: p.font } };
@@ -957,7 +993,7 @@ function chartStyles(c) {
       area: { lineSize: 2, lineColor: p.up, value: 'close', smooth: false, backgroundColor: line ? [{ offset: 0, color: rgba(p.up, 0) }, { offset: 1, color: rgba(p.up, 0) }] : [{ offset: 0, color: rgba(p.up, 0.02) }, { offset: 1, color: rgba(p.up, 0.26) }], point: { show: false } },   // כמו Apple Stocks
       priceMark: { show: true, high: { show: g.hl !== 0, color: p.text }, low: { show: g.hl !== 0, color: p.text }, last: { show: true, upColor: p.up, downColor: p.dn, noChangeColor: p.text, line: { show: true, style: 'dashed', dashedValue: [2, 2], size: 1 }, text: { show: true, style: 'fill', size: 11, weight: '600', family: p.font, color: '#FFFFFF', borderStyle: 'solid', borderColor: 'transparent', borderSize: 0, borderDashedValue: [2, 2], paddingLeft: 4, paddingRight: 4, paddingTop: 3, paddingBottom: 2, borderRadius: 3 }, extendTexts: [{ show: true, position: 'below_price', style: 'fill', size: 10, weight: '500', family: p.font, color: '#FFFFFF', backgroundColor: null, borderStyle: 'solid', borderColor: 'transparent', borderSize: 0, borderDashedValue: [2, 2], paddingLeft: 4, paddingRight: 4, paddingTop: 1, paddingBottom: 3, borderRadius: 3, updateInterval: 1000 }] } },
       tooltip: {
-        showRule: 'always', showType: 'standard',
+        showRule: 'always', showType: 'standard', offsetTop: topPad(c),
         rect: { color: p.tipBg, borderColor: p.axis },
         title: { show: false },
         legend: { color: p.text, size: 11, family: p.font, marginLeft: 6, marginTop: 4, marginRight: 4, template: [{ title: 'open', value: '{open}' }, { title: 'high', value: '{high}' }, { title: 'low', value: '{low}' }, { title: 'close', value: '{close}' }, { title: 'change', value: '{change}' }, { title: 'volume', value: '{volume}' }] },
@@ -1000,7 +1036,7 @@ function mountCell(c) {
    רק כשהנר באמת חי: תוך־יומי בזמן מסחר (או טרום/אחרי כשהמורחב מוצג), שבועי/חודשי בזמן מסחר. יומי — לא (הסגירה תלויה בבורסה). */
 function countdown(c, bar, now) {
   if (!bar || c.replay || !c.q) return '';
-  const intra = L.isIntraday(c.tf), st = c.q.st, live = st === 'REGULAR' || (intra && S.store.g.ext && c.q.ext);
+  const intra = L.isIntraday(c.tf), st = c.q.st, live = st === 'REGULAR' || (intra && S.store.g.ext && c.q.ext && c.q.extK !== 'night');
   if (!live || (!intra && c.secReal < 7 * 86400)) return '';
   const ms = bar.timestamp + c.secReal * 1000 - now;
   if (!(ms > 0) || ms > c.secReal * 1000) return '';
@@ -1110,8 +1146,10 @@ function parseQuote(d) {
   const m = r.meta || {}, x = d.x || {}, st = String(x.state || '').toUpperCase();
   const k = String(m.currency || '').toUpperCase() === 'ILA' ? 100 : 1;
   const reg = x.reg || (m.regularMarketPrice > 0 ? { p: m.regularMarketPrice / k, t: m.regularMarketTime || 0, ch: null, pct: null } : null);
-  const ext = st === 'PRE' ? x.pre : st === 'POST' || st === 'POSTPOST' ? x.post : x.night && (st === 'CLOSED' || st === 'PREPRE') ? x.night : null;
-  return { st, reg, ext, prev: (m.chartPreviousClose || m.previousClose || 0) / k, dayVol: m.regularMarketVolume || 0, name: m.longName || m.shortName || '' };
+  // לילי (OVERNIGHT, ‏20:00–04:00 ניו יורק) — היה חסר: באמצע המסחר הלילי לא הוצג מחיר מורחב בכלל
+  const ext = st === 'PRE' ? x.pre : st === 'POST' || st === 'POSTPOST' ? x.post : x.night && (st === 'OVERNIGHT' || st === 'CLOSED' || st === 'PREPRE') ? x.night : null;
+  const extK = !ext ? '' : ext === x.pre ? 'pre' : ext === x.night ? 'night' : 'post';
+  return { st, reg, ext, extK, prev: (m.chartPreviousClose || m.previousClose || 0) / k, dayVol: m.regularMarketVolume || 0, name: m.longName || m.shortName || '' };
 }
 function onQuote(c, q) {
   c.q = q;
@@ -1119,7 +1157,7 @@ function onQuote(c, q) {
   if (c.replay || !c.raw.length || !c.sub) return;
   const d = TF[c.tf], intra = /m$/.test(d.base), regular = q.st === 'REGULAR';
   let price = 0, time = 0;
-  if (regular && q.reg) { price = q.reg.p; time = q.reg.t * 1000; } else if (intra && S.store.g.ext && q.ext) { price = q.ext.p; time = q.ext.t * 1000; }
+  if (regular && q.reg) { price = q.reg.p; time = q.reg.t * 1000; } else if (intra && S.store.g.ext && q.ext && q.extK !== 'night') { price = q.ext.p; time = q.ext.t * 1000; }
   else if (q.reg && q.reg.p > 0 && q.reg.t > 0) {
     /* אחרי הסגירה: הנרות של Yahoo לא כוללים את מכירת הסגירה (נר אחרון 154.81 מול סגירה רשמית 154.78) —
        הנר שמכיל את זמן הסגירה נסגר על המחיר הרשמי, כמו ב־TradingView ובכרטיס המניה */
@@ -1244,11 +1282,74 @@ function startTool(name) {
   const c = S.cells[S.active];
   if (!c || !c.chart || !c.raw.length) return;
   cancelPending(c);
+  curEnd();
   S.tool = name;
+  if (CUR_TOOLS.has(name) && coarse() && curBegin(c, name)) { deselect(); updToolUI(); return; }
   c.chart.createOverlay(Object.assign({ name, groupId: 'user', mode: S.magnet ? (S.magnet === 2 ? 'strong_magnet' : 'weak_magnet') : 'normal', styles: styleSet(DS.color, DS.width, DS.dash) }, ovEvents(c)));
   updToolUI();
 }
-function stopTool() { const c = S.cells[S.active]; cancelPending(c); S.tool = null; updToolUI(); }
+function stopTool() { const c = S.cells[S.active], s = curEnd(); if (s && s.id && s.c.chart) s.c.chart.removeOverlay({ id: s.id }); cancelPending(c); S.tool = null; updToolUI(); }
+
+/* ---------- מדידה בטלפון — מצב צלב (הצלב זז יחסית לאצבע) ----------
+   הקשה על סמל המדידה → צלב על הגרף. גרירה בכל מקום במסך מזיזה את הצלב יחסית לאצבע (האצבע לא מסתירה את הנקודה),
+   הקשה = עיגון הנקודה הראשונה, גרירה = המלבן והנתונים גדלים חי, הקשה שנייה = סיום, והמדידה נבחרת
+   (ידיות, פס כחול על הצירים וסרגל העריכה). בזמן המדידה הגרף לא נגלל. במחשב (עכבר) — הציור הרגיל */
+const CUR_TOOLS = new Set(['kcMeasure', 'kcPriceRange', 'kcDateRange']);
+const coarse = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+function curSnap(c, x, y) {
+  const list = c.chart.getDataList(), sz = c.chart.getSize(MAIN, 'main');
+  if (!list.length || !sz) return null;
+  x = Math.max(0, Math.min(sz.width - 1, x)); y = Math.max(0, Math.min(sz.height - 1, y));
+  const p = c.chart.convertFromPixel([{ x, y }], { paneId: MAIN })[0] || {};
+  const bar = list[Math.max(0, Math.min(list.length - 1, typeof p.dataIndex === 'number' ? p.dataIndex : list.length - 1))];
+  let v = p.value;
+  if (S.magnet) { let bd = Infinity; for (const k of ['open', 'high', 'low', 'close']) { const d = Math.abs(bar[k] - v); if (d < bd) { bd = d; v = bar[k]; } } }   // מגנט: לפתיחה/גבוה/נמוך/סגירה הקרובים
+  const q = px(c.chart, bar.timestamp, v);
+  return { x: q && isFinite(q.x) ? q.x : x, y: q && isFinite(q.y) ? q.y : y, pt: { timestamp: bar.timestamp, value: v } };
+}
+function curShow() {
+  const s = S.cur;
+  if (!s || !s.c.chart) return;
+  s.raf = 0;
+  const r = curSnap(s.c, s.x, s.y);
+  if (!r) return;
+  s.snap = r;
+  s.c.chart.executeAction('onCrosshairChange', { x: r.x, y: r.y, paneId: MAIN });
+  if (s.id) s.c.chart.overrideOverlay({ id: s.id, points: [s.p1, r.pt] });
+}
+function curBegin(c, name) {
+  const sz = c.chart.getSize(MAIN, 'main'), list = c.chart.getDataList(), last = list[list.length - 1];
+  if (!sz || !last) return false;
+  const q = px(c.chart, last.timestamp, last.close), inX = q && q.x >= 0 && q.x < sz.width, inY = q && q.y >= 0 && q.y < sz.height;
+  S.cur = { c, name, x: inX ? q.x : sz.width / 2, y: inY ? q.y : sz.height / 2, p1: null, id: null, raf: 0 };
+  requestAnimationFrame(curShow);
+  return true;
+}
+function curTap() {
+  const s = S.cur;
+  if (!s || !s.snap) return;
+  try { if (navigator.vibrate) navigator.vibrate(5); } catch (x) { /* בלי רטט */ }
+  if (!s.p1) {
+    s.p1 = s.snap.pt;
+    s.id = s.c.chart.createOverlay(Object.assign({ name: s.name, groupId: 'user', points: [s.p1, s.p1], styles: styleSet(DS.color, DS.width, DS.dash) }, ovEvents(s.c)));
+    return;
+  }
+  const c = s.c, id = s.id;
+  curEnd();
+  changed(c);
+  if (S.store.g.stay) { startTool(s.name); return; }
+  S.tool = null; updToolUI();
+  const o = getOv(c, id);
+  if (o) select(c, o);
+}
+function curEnd() {
+  const s = S.cur;
+  if (!s) return null;
+  S.cur = null;
+  cancelAnimationFrame(s.raf);
+  try { s.c.chart.executeAction('onCrosshairChange', null); } catch (e) { /* כבר נסגר */ }
+  return s;
+}
 function changed(c) {
   if (S.restoring || !c.chart) return;
   const s = JSON.stringify(drawSnap(c));
@@ -1390,14 +1491,14 @@ function drawAlerts(c) {
     });
   }
 }
-const EXTC = '#2962FF';
+const EXTC = { pre: '#FF9F0A', post: '#0A84FF', night: '#BF5AF2' };   // צבעי המערכת: כתום טרום, כחול אחרי, סגול לילי
 function drawExt(c) {
   if (!c.chart) return;
-  const q = c.q, st = q && q.st, show = !!(q && q.ext && q.ext.p > 0 && st !== 'REGULAR' && !c.replay && !(L.isIntraday(c.tf) && S.store.g.ext));
-  const t = show ? T(/PRE/.test(st) ? 'kcPre' : 'kcPost') : '', key = show ? q.ext.p + '|' + t + '|' + c.raw.length : '';
+  const q = c.q, st = q && q.st, show = !!(q && q.ext && q.ext.p > 0 && st !== 'REGULAR' && !c.replay && !(L.isIntraday(c.tf) && S.store.g.ext && q.extK !== 'night'));
+  const k = q && q.extK || (/PRE/.test(st) ? 'pre' : 'post'), t = show ? T({ pre: 'kcPre', post: 'kcPost', night: 'kcNight' }[k]) : '', key = show ? q.ext.p + '|' + t + '|' + c.raw.length : '';
   if (c.extKey === key) return;
   c.extKey = key;
-  const o = { points: [{ timestamp: lastTs(c), value: show ? q.ext.p : 0 }], extendData: { t } };
+  const o = { points: [{ timestamp: lastTs(c), value: show ? q.ext.p : 0 }], extendData: { t, k } };
   if (show && c.extId && c.chart.getOverlays({ id: c.extId }).length) return c.chart.overrideOverlay(Object.assign({ id: c.extId }, o));
   c.chart.removeOverlay({ groupId: 'ext' });
   c.extId = show ? c.chart.createOverlay(Object.assign({ name: 'kcExtPx', groupId: 'ext', lock: true }, o)) : null;
@@ -1685,9 +1786,39 @@ function hitAt(c, x, y) {
 }
 function selectHit(c, r) { if (r.alert) selectAlert(c, r.o); else select(c, r.o); }
 function wireCellPointer(c) {
-  let down = null, lp = 0;
+  let down = null, lp = 0, ct = null;
+  // מצב מדידה בטלפון: נגיעה באצבע אחת מזיזה את הצלב ולא מגיעה לגרף (בלי גלילה/זום); כפתורים מעל הגרף — כרגיל
+  const cOn = (e) => S.cur && S.cur.c === c && !(e.target && e.target.closest && e.target.closest('button'));
+  c.el.addEventListener('touchstart', (e) => {
+    if (!cOn(e) || e.touches.length > 1) { ct = null; return; }
+    e.stopPropagation();
+    const t = e.touches[0];
+    ct = { x: t.clientX, y: t.clientY, cx: S.cur.x, cy: S.cur.y, t: Date.now(), moved: false };
+  }, { capture: true, passive: true });
+  c.el.addEventListener('touchmove', (e) => {
+    if (!ct || !cOn(e)) return;
+    e.stopPropagation();
+    if (e.cancelable) e.preventDefault();
+    const t = e.touches[0], dx = t.clientX - ct.x, dy = t.clientY - ct.y;
+    if (!ct.moved && Math.hypot(dx, dy) < 6) return;
+    ct.moved = true;
+    const sz = c.chart && c.chart.getSize(MAIN, 'main');
+    S.cur.x = Math.max(0, Math.min(sz ? sz.width - 1 : 9999, ct.cx + dx));
+    S.cur.y = Math.max(0, Math.min(sz ? sz.height - 1 : 9999, ct.cy + dy));
+    if (!S.cur.raf) S.cur.raf = requestAnimationFrame(curShow);
+  }, { capture: true, passive: false });
+  c.el.addEventListener('touchend', (e) => {
+    if (!ct || !cOn(e)) { ct = null; return; }
+    e.stopPropagation();
+    if (e.cancelable) e.preventDefault();   // בלי עכבר מדומה / click אחרי ההקשה
+    const d = ct;
+    ct = null;
+    if (!d.moved && Date.now() - d.t < 400) curTap();
+  }, { capture: true, passive: false });
+  c.el.addEventListener('touchcancel', () => { ct = null; }, true);
   const far = (e) => down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8;
   c.el.addEventListener('pointerdown', (e) => {
+    if (S.cur && S.cur.c === c) { down = null; clearTimeout(lp); return; }
     down = { x: e.clientX, y: e.clientY, t: Date.now(), touch: e.pointerType === 'touch' };
     if (S.active !== c.i) setActive(c.i);
     clearTimeout(lp);
@@ -1814,8 +1945,7 @@ function build(sym) {
     c.plusB = btn('kc-plus', T('kcPlusAt'), () => openPlus(c), ICON.plus);
     // מדידה מהירה בפינה העליונה (בטלפון, כמו TradingView): מחיר+תאריך, מחיר
     c.qm = h('div', { class: 'kc-qm' },
-      btn('kc-ib sm', T('kcToMeasure'), () => { setActive(c.i); startTool('kcMeasure'); }, ICON.ruler),
-      btn('kc-ib sm', T('kcToPRange'), () => { setActive(c.i); startTool('kcPriceRange'); }, ICON.prange));
+      qmBtn(c, 'kcMeasure', T('kcToMeasure'), ICON.qboth), qmBtn(c, 'kcPriceRange', T('kcToPRange'), ICON.qprice));
     // בטלפון: "נר" (טווח הזמן של כל נר) ו"תצוגה" (כמה זמן רואים בגרף) בפינה העליונה של הגרף
     c.pick = h('div', { class: 'kc-pick' });
     c.el = h('div', { class: 'kc-cell' + (c.i === S.active ? ' act' : '') }, c.host, c.stEl, c.tagEl, c.nowB, c.plusB, c.qm, c.pick);
@@ -1828,9 +1958,15 @@ function build(sym) {
   });
   if (S.ro) S.ro.disconnect();
   if (typeof ResizeObserver === 'function') {
-    S.ro = new ResizeObserver(() => { for (const c of S.cells) if (c.chart) c.chart.resize(); });
+    S.ro = new ResizeObserver(() => { for (const c of S.cells) if (c.chart) { c.chart.setStyles({ candle: { tooltip: { offsetTop: topPad(c) } } }); c.chart.resize(); } });
     S.ro.observe(UI.grid);
+    S.ro.observe(UI.top);   // הכותרת מתארכת כשבועת הסשן מופיעה — המקרא יורד מתחתיה
   }
+}
+function qmBtn(c, tool, label, icon) {
+  const b = btn('kc-ib sm', label, () => { if (S.tool === tool && S.active === c.i) { stopTool(); return; } setActive(c.i); startTool(tool); }, icon);
+  b.dataset.t = tool;
+  return b;
 }
 function setActive(i) {
   if (!S.cells[i] || S.active === i) return;
@@ -1857,7 +1993,8 @@ function renderTop() {
   UI.hd.sym = h('span', { class: 'kc-sym' });
   UI.hd.name = h('span', { class: 'kc-name' });
   UI.hd.logo = h('span', { class: 'kc-logo' });
-  UI.hd.px = h('span', { class: 'kc-px' });
+  UI.hd.px = h('span', { class: 'kc-px stock-price' });   // stock-price: הבזק ירוק/אדום של רובין הוד (styles.css), כמו בכרטיס
+  UI.hd.cur = h('span', { class: 'kc-cur' });
   UI.hd.ch = h('span', { class: 'kc-ch' });
   UI.hd.st = h('span', { class: 'kc-mst' });
   UI.hd.ext = h('span', { class: 'kc-ext' });
@@ -1865,7 +2002,9 @@ function renderTop() {
   UI.top.append(
     btn('kc-ib kc-back', T('kcBack'), () => closeChart(), ICON.back),
     symBtn,
-    h('div', { class: 'kc-quote' }, h('div', { class: 'kc-pxrow' }, UI.hd.px, UI.hd.ext), h('div', { class: 'kc-pxrow sm' }, UI.hd.ch, UI.hd.st)),
+    // סטטוס המסחר (מאוחר / טרום / לילי) — בין הסימבול למחיר (בקשת המשתמש 28/10)
+    h('div', { class: 'kc-xst' }, UI.hd.ext),
+    h('div', { class: 'kc-quote' }, h('div', { class: 'kc-pxrow' }, UI.hd.px, UI.hd.cur), h('div', { class: 'kc-pxrow sm' }, UI.hd.ch, UI.hd.st)),
     h('div', { class: 'kc-top-end' },
       UI.undoB = btn('kc-ib kc-undo', T('kcUndo'), undo, ICON.undo), UI.redoB = btn('kc-ib kc-redo', T('kcRedo'), redo, ICON.redo),
       btn('kc-ib', T('kcShot'), shot, ICON.cam), btn('kc-ib' + (S.watch ? ' on' : ''), T('kcWatch'), toggleWatch, ICON.watch), btn('kc-ib', T('kcSettings'), openSettings, ICON.gear)),
@@ -1889,16 +2028,21 @@ function updHeader() {
   const nm = (E.name && E.name(c.sym)) || c.name || (q && q.name) || '';
   UI.hd.name.textContent = nm && nm !== c.sym ? nm : (c.ex || '');
   const pr = L.precisionFor(p);
-  UI.hd.px.replaceChildren(p ? fmtNum(p, pr) : '—', ...(p && c.cur ? [h('span', { class: 'kc-cur', text: ' ' + c.cur })] : []));
+  // מחיר כמו בכרטיס המניה: הספרות שהשתנו מתגלגלות למעלה/למטה והמחיר מהבהב (livePriceSwap של האפליקציה, E.pxSwap)
+  const pt = p ? fmtNum(p, pr) : '—', pel = UI.hd.px;
+  if (pel.dataset.sym !== c.sym) { pel.dataset.sym = c.sym; delete pel.dataset.px; }   // מניה אחרת — בלי גלגול מהמחיר הקודם
+  if (E.pxSwap && p) E.pxSwap(pel, pt, p); else { pel.textContent = pt; if (p) pel.dataset.px = String(p); }
+  pel.classList.toggle('px-lg', pt.length >= 8 && pt.length < 10); pel.classList.toggle('px-xl', pt.length >= 10);   // כמו בכרטיס: מחיר ארוך מוקטן
+  UI.hd.cur.textContent = p && c.cur ? ' ' + c.cur : '';
   const ch = prev && reg ? reg - prev : null;
   UI.hd.ch.textContent = ch == null ? '' : (ch > 0 ? '+' : '') + fmtNum(ch, pr) + ' (' + fmtPct((reg / prev - 1) * 100) + ')';
   UI.hd.ch.className = 'kc-ch ' + (ch > 0 ? 'up' : ch < 0 ? 'dn' : '');
   UI.hd.st.textContent = !q || extOn ? '' : st === 'REGULAR' ? '● ' + T('kcStLive') : st === 'PRE' || st === 'PREPRE' ? T('kcStPre') : st === 'POST' || st === 'POSTPOST' ? T('kcStPost') : T('kcStClosed');
   UI.hd.st.className = 'kc-mst' + (st === 'REGULAR' ? ' live' : '');
   if (extOn) {
-    const ep = (q.ext.p / q.reg.p - 1) * 100, k = /PRE/.test(st) ? 'sessPreShort' : /POST/.test(st) ? 'sessPostShort' : 'sessNightShort';
-    // בטלפון התווית הקצרה ("אחרי" / "טרום") — אין רוחב ל־"מסחר־מאוחר" ליד המחיר והסימבול
-    const sh = /PRE/.test(st) ? 'kcPre' : 'kcPost';
+    const xk = q.extK || (/PRE/.test(st) ? 'pre' : 'post'), ep = (q.ext.p / q.reg.p - 1) * 100, k = { pre: 'sessPreShort', post: 'sessPostShort', night: 'sessNightShort' }[xk];
+    // בטלפון התווית הקצרה ("אחרי" / "טרום" / "לילי") — אין רוחב ל־"מסחר־מאוחר" ליד המחיר והסימבול
+    const sh = { pre: 'kcPre', post: 'kcPost', night: 'kcNight' }[xk];
     UI.hd.ext.replaceChildren(h('span', { class: 'ext-dot' }), h('span', { class: 'ext-lbl lg', text: T(k) }), h('span', { class: 'ext-lbl sm', text: T(sh) }), h('span', { class: 'ext-pct', text: fmtPct(ep) }));
     UI.hd.ext.className = 'kc-ext ext-sess ' + (Math.abs(ep) < 0.005 ? '' : ep > 0 ? 'pos' : 'neg');
   } else { UI.hd.ext.textContent = ''; UI.hd.ext.className = 'kc-ext'; }
@@ -2044,10 +2188,13 @@ function renderMbar() {
   const symB = btn('kc-mb txt sym', T('kcSearch'), () => openSearch());
   symB.textContent = c.sym;
   wheel(symB, () => { const l = [...new Set([c.sym, ...(E.symbols ? E.symbols() : [])])].slice(0, 40); return l.map((x) => ({ v: x, t: x, cur: x === c.sym })); }, (it) => setSym(c, it.v));
+  // רשימת המניות וההגדרות ירדו מהכותרת לכאן (בקשת המשתמש 28/10) — הכותרת נשארת נקייה: מחיר, לוגו, סימבול
   UI.mbar.append(symB, h('span', { class: 'kc-sep' }),
+    ib('watch', T('kcWatch'), toggleWatch, S.watch),
     ib('pencil', T('kcTools'), openToolsSheet),
     ib('fx', T('kcIndicators'), openIndSheet),
     ib('more', T('kcMore'), openMore),
+    ib('gear', T('kcSettings'), openSettings),
     ib('undo', T('kcUndo'), undo));
   const u = UI.mbar.lastChild;
   u.disabled = !c.undo.length;
@@ -2215,9 +2362,10 @@ function updToolUI() {
   renderMbar();
   UI.fab.classList.toggle('on', !!S.tool);
   ROOT.classList.toggle('kc-drawing', !!S.tool);
+  for (const x of S.cells) if (x.qm) for (const b of x.qm.children) b.classList.toggle('on', !!S.tool && b.dataset.t === S.tool && x.i === S.active);
   if (UI.hint) UI.hint.remove();
   UI.hint = null;
-  if (S.tool) {
+  if (S.tool && !S.cur) {   // במדידה בטלפון — בלי שורת הסבר: הסמל הכחול והצלב אומרים הכל
     UI.hint = h('div', { class: 'kc-hint' }, h('span', { text: T(TOOL_INFO[S.tool] ? TOOL_INFO[S.tool].key : 'kcDrawing') + ' · ' + T('kcDrawHint') }), btn('kc-hint-x', T('kcCancel'), stopTool, ICON.close));
     ROOT.appendChild(UI.hint);
   }
@@ -2788,7 +2936,7 @@ function fetchData(url) {
 function toggleWatch() {
   S.watch = !S.watch;
   UI.watch.classList.toggle('on', S.watch);
-  renderTop();
+  renderTop(); renderMbar();
   if (S.watch) updWatch();
   setTimeout(() => { for (const c of S.cells) if (c.chart) c.chart.resize(); }, 50);
 }
