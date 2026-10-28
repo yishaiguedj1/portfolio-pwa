@@ -62,7 +62,7 @@ const TERMINAL = ['done', 'failed', 'cancelled'];
 function clock(job, now) {
   const c0 = job.c0 || job.claimed || 0;
   if (!c0) return { el: 0, pz: 0, paused: false };
-  const end = TERMINAL.includes(job.state) && job.ended ? job.ended : now;
+  const end = (TERMINAL.includes(job.state) || job.rdy) && job.ended ? job.ended : now;   // 28/10/2026: rdy = התוצרים מוכנים, השעון עוצר
   const open = job.qa && job.qa.at && !job.qa.nb && !(job.qa.a && job.qa.a.at);
   const wv = job.wv0 && !TERMINAL.includes(job.state) ? Math.max(0, now - job.wv0) : 0;
   const pz = Math.max(0, (job.pz || 0) + qaPause(job.qa, end) + wv);
@@ -82,7 +82,7 @@ function slaView(job, now) {
   if (!job || job.kind !== 'tr' || !job.tg || !(job.tg.t > 0)) return null;
   const c = clock(job, now);
   if (!(job.c0 || job.claimed)) return null;
-  const done = job.state === 'done', pf = progFrac(job);
+  const done = job.state === 'done' || !!job.rdy, pf = progFrac(job);
   const ft = c.el / 1000 / job.tg.t;
   const out = { t: { tg: job.tg.t, el: Math.round(c.el / 1000), pz: Math.round(c.pz / 1000), f: Math.round(ft * 100) / 100, lv: level(ft, pf, done), paused: c.paused }, pf: Math.round(pf * 100) / 100 };
   if (job.tg.u > 0) {
