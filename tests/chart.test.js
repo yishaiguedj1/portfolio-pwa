@@ -168,8 +168,8 @@ ok(Object.keys(L.IND).length >= 40, 'לפחות 40 אינדיקטורים נוס
     indicators: { quote: [{ open: [10, 11, 12], high: [11, 12, 12], low: [9, 10, 12], close: [11, 11.5, 12], volume: [1, 2, 0] }] } }] } }, '15m');
   ok(lv.t.length === 2 && lv.c[1] === 12 && lv.h[1] === 12 && lv.o[1] === 11 && lv.v[1] === 2, 'נקודה חיה לא מיושרת מתמזגת לנר הקודם');
   const kl = fs.readFileSync(path.join(root, 'vendor/klinecharts/klinecharts.min.js'), 'utf8');
-  ok(kl.includes('(this._touchCoordinate=null,l.setCrosshair(void 0,{notInvalidate:!0}),n=!0,this._touchCancelCrosshair=!1)') && kl.includes('a=10*(e/this._pinchScale-1)') && /Modified by THE SNOWBALL/.test(kl),
-    'KLineChart: הקשה לא פותחת צלב (רק לחיצה ארוכה) וצביטה 1:1 — מסומן בראש הקובץ (Apache-2.0)');
+  ok(kl.includes('(this._touchCoordinate=null,l.setCrosshair(void 0,{notInvalidate:!0}),n=!0,this._touchCancelCrosshair=!1)') && kl.includes('a=10*(e/this._pinchScale-1)') && kl.includes('this._snbY0=e.y') && kl.includes('s=Math.max(.1,(H-this._snbY0+.2*(H-1))/(Math.max(0,H-e.y)+.2*(H-1)))') && !kl.includes('var s=e.pageY/this._yAxisStartScaleDistance') && /Modified by THE SNOWBALL/.test(kl),
+    'KLineChart: הקשה לא פותחת צלב (רק לחיצה ארוכה), צביטה 1:1, גרירה בציר המחירים כמו TradingView — מסומן בראש הקובץ (Apache-2.0)');
   const cj = fs.readFileSync(path.join(root, 'chart.js'), 'utf8');
   ok(/const extOn = !!\(q && q\.ext && q\.ext\.p > 0 && st !== 'REGULAR'/.test(cj) && /p = extOn \? q\.ext\.p : reg/.test(cj) && /reg - prev/.test(cj), 'כותרת כמו כרטיס המניה: מחיר מורחב ראשי, גלולה, ושינוי היום מהסגירה הרגילה');
   ok(/function renderMbar\(\)/.test(cj) && /function wheel\(b, items, pick\)/.test(cj) && /function openPlus\(c\)/.test(cj) && /function plusAt\(c, x\)/.test(cj) && /name: 'horizontalStraightLine', points: \[\{ timestamp: lastTs\(c\), value: p \}\]/.test(cj), 'טלפון כמו TradingView: סרגל תחתון, גלגלת, "+" בציר (התראה / קו אופקי)');

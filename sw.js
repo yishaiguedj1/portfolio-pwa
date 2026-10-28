@@ -36,7 +36,7 @@ const HASHES = {
   "./chart.js": "939a4a2edd1aa2201ae68b67b62874ad",
   "./chartlib.js": "fb424b894da14987bbf56109828e1c79",
   "./chart.css": "471f47d176c4a1b2028c3cadfb1dfcb5",
-  "./vendor/klinecharts/klinecharts.min.js": "4202d8661b8302175751d8d072bf6d2f",
+  "./vendor/klinecharts/klinecharts.min.js": "f22520b173c7efe2a14d83166d8545d9",
   "./library.js": "ebf4c7295ff22d17fb09b56be12d2cec",
   "./library.css": "76ff87750ae8fd22063cbd07b7f3d8ce",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
