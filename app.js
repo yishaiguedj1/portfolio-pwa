@@ -981,7 +981,7 @@ he: {
   wlDelListConfirm: 'למחוק את "{name}" ואת {n} המניות שבה?', wlListCreated: 'הרשימה נוצרה', wlListDeleted: 'הרשימה נמחקה',
   kvPrevClose: 'סגירה קודמת', kv52High: 'שיא 52 שב׳', kv52Low: 'שפל 52 שב׳', kvYtd: 'מתחילת השנה', kvNextEarn: 'הדוח הבא',
   dragNeedsAdded: 'לסידור בגרירה — מיון "סדר הוספה" בלי סינון',
-  wlRemoveBtn: 'הסר', wlSortAdded: 'סדר הוספה', wlSortName: 'א״ב',
+  wlSortAdded: 'סדר הוספה', wlSortName: 'א״ב',
   searchClear: 'ניקוי',
   stockSearchNoResults: 'לא נמצאו תוצאות',
   mktTase: 'ת״א · ₪',
@@ -2515,7 +2515,7 @@ en: {
   wlDelListConfirm: 'Delete "{name}" and its {n} stocks?', wlListCreated: 'List created', wlListDeleted: 'List deleted',
   kvPrevClose: 'Prev close', kv52High: '52W high', kv52Low: '52W low', kvYtd: 'YTD', kvNextEarn: 'Next earnings',
   dragNeedsAdded: 'To reorder by dragging — sort by "Added" with no filter',
-  wlRemoveBtn: 'Remove', wlSortAdded: 'Added', wlSortName: 'A–Z',
+  wlSortAdded: 'Added', wlSortName: 'A–Z',
   searchClear: 'Clear',
   stockSearchNoResults: 'No results found',
   mktTase: 'TASE · ₪',
@@ -6890,8 +6890,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.79.0';
-const APP_VERSION = 'v606';
+const APP_RELEASE = '2.79.1';
+const APP_VERSION = 'v607';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -14971,17 +14971,8 @@ function buildStockBody(p, m) {
   // v141: גם במצב IBKR — למניות ידניות. מניה לפי עסקאות נפתחת לניהול העסקאות.
   // 25/10/2026: "ניתוח" — מנתח החברות (analysis.js, נטען רק בלחיצה). לא למדדים, סחורות, קריפטו ומט"ח
   const anOk = !isWatchOnlySym(sym) && !isIndexSym(sym);
-  if (p.watch) { // v240: במעקב — "הסר" במקום "ערוך" (באותו מקום ובאותו עיצוב)
-    const actions = el('div', 'edit-actions stock-edit');
-    if (anOk) actions.appendChild(analysisBtn(sym));
-    actions.appendChild(alertBtn(sym));
-    const rb = el('button', 'chip-btn danger', t('wlRemoveBtn'));
-    rb.type = 'button';
-    rb.addEventListener('click', () => wlRemove({ sym: sym }));
-    actions.appendChild(rb);
-    actions.appendChild(chartBtn(sym));   // 28/10/2026 (בקשת המשתמש): הגדלת הגרף תמיד בקצה השמאלי של הכפתורים
-    foot.appendChild(actions);
-  } else if (!isIbkrMode() || p.src === 'manual') {
+  // 28/10/2026 (בקשת המשתמש): במעקב בלי "הסר" — ההסרה בלחיצה ארוכה על הכרטיס (onHold)
+  if (p.watch || !isIbkrMode() || p.src === 'manual') {
     const actions = el('div', 'edit-actions stock-edit');
     if (anOk) actions.appendChild(analysisBtn(sym));
     actions.appendChild(alertBtn(sym));
