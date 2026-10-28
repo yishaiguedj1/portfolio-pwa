@@ -172,8 +172,11 @@ ok(Object.keys(L.IND).length >= 40, 'לפחות 40 אינדיקטורים נוס
     'KLineChart: הקשה לא פותחת צלב (רק לחיצה ארוכה) וצביטה 1:1 — מסומן בראש הקובץ (Apache-2.0)');
   const cj = fs.readFileSync(path.join(root, 'chart.js'), 'utf8');
   ok(/const extOn = !!\(q && q\.ext && q\.ext\.p > 0 && st !== 'REGULAR'/.test(cj) && /p = extOn \? q\.ext\.p : reg/.test(cj) && /reg - prev/.test(cj), 'כותרת כמו כרטיס המניה: מחיר מורחב ראשי, גלולה, ושינוי היום מהסגירה הרגילה');
-  ok(/function renderMbar\(\)/.test(cj) && /function wheel\(b, items, pick\)/.test(cj) && /function openPlus\(c\)/.test(cj) && /function plusAt\(c, x\)/.test(cj) && /name: 'horizontalStraightLine', points: \[\{ timestamp: lastTs\(c\), value: p \}\]/.test(cj), 'טלפון כמו TradingView: סרגל תחתון, גלגלת, "+" בציר (התראה / קו אופקי)');
+  ok(/function renderMbar\(\)/.test(cj) && /function wheel\(b, items, pick, tx = b\)/.test(cj) && /function openPlus\(c\)/.test(cj) && /function plusAt\(c, x\)/.test(cj) && /name: 'horizontalStraightLine', points: \[\{ timestamp: lastTs\(c\), value: p \}\]/.test(cj), 'טלפון כמו TradingView: סרגל תחתון, גלגלת, "+" בציר (התראה / קו אופקי)');
   const cc = fs.readFileSync(path.join(root, 'chart.css'), 'utf8');
+  // 28/10 (בקשת המשתמש): בורר האינטרוול עבר מהסרגל התחתון לפינה העליונה של הגרף, ולידו "טווח תאריכים" (טווח הזמן שמוצג)
+  ok(/function renderPick\(c\)/.test(cj) && /pill\(T\('kcPickTf'\)[\s\S]{0,200}?setTf\(c, it\.v\)/.test(cj) && /pill\(T\('kcPickRg'\)[\s\S]{0,200}?goRange\(it\.v\)/.test(cj)
+    && /UI\.mbar\.append\(symB, h\('span', \{ class: 'kc-sep' \}\)/.test(cj) && /\.kc-pick \{ display: flex; \}/.test(cc), 'בטלפון: "אינטרוול" ו"טווח תאריכים" בפינה העליונה של הגרף, לא בסרגל התחתון');
   ok(/\.kc-bar, \.kc-foot, \.kc-fab, \.kc-fab\.on, \.kc-top-end \.kc-undo, \.kc-top-end \.kc-redo \{ display: none !important; \}/.test(cc) && /\.kc-mbar \{ display: flex; \}/.test(cc), 'בטלפון הסרגל התחתון מחליף את הסרגלים של המחשב');
   ok(/b\.timestamp <= t && t <= b\.timestamp \+ BASESEC\[d\.base\] \* 1000 && b\.close !== p/.test(cj), 'הנר האחרון נסגר על מחיר הסגירה הרשמי');
   ok(/setZoomAnchor\(back \? 'cursor' : 'last_bar'\)/.test(cj) && /navigator\.vibrate\(8\)/.test(cj) && /convertFromPixel\(\[\{ x: e\.clientX - r\.left/.test(cj), 'זום צמוד לנר האחרון, רטט בלחיצה ארוכה, בחירת נר בהקשה');
