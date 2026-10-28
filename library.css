@@ -1073,10 +1073,10 @@ label.lib-row input { position: absolute; inset: 0; opacity: 0; cursor: pointer;
 .lib-veil { background: var(--gl-veil); -webkit-backdrop-filter: var(--gl-veil-fx); backdrop-filter: var(--gl-veil-fx); }
 .lib-sheet, [data-theme="dark"] .lib-sheet { background: var(--gl-panel); box-shadow: var(--gl-ring), var(--gl-shadow);
   --surface-2: var(--gl-fill); --search-fill: var(--gl-fill); --secondary-container: var(--gl-fill); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme]) .lib-sheet { background: color-mix(in srgb, #1C1C1E 76%, transparent); } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) .lib-sheet { background: color-mix(in srgb, #1C1C1E 74%, transparent); } }
 .lib-grab { background: color-mix(in srgb, var(--on-surface-var) 45%, transparent); }
 /* בועות כהות קבועות (בחירה בקורא, הודעה עם פעולה) — זכוכית כהה עם טשטוש משלהן */
-.rd-pop, .lib-root .mg-snack { background: rgba(44, 44, 46, .76); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx);
+.rd-pop, .lib-root .mg-snack { background: rgba(44, 44, 46, .74); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx);
   box-shadow: 0 0 0 .5px rgba(255, 255, 255, .12), 0 8px 24px rgba(0, 0, 0, .3); }
 /* סרגל הפעולות הצף — גלולת זכוכית בשתי הערכות */
 .lib-root .mg-abar, [data-theme="dark"] .lib-root .mg-abar { background: var(--gl-bar); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx);

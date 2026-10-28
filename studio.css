@@ -1090,7 +1090,7 @@ button.st-fnd:active { background: var(--st-fill); }
 /* ==== 28/10/2026 — חומר הזכוכית (לפי ת־עיצוב; הטוקנים --gl-* ב־styles.css). Studio שומר על האדום שלו ==== */
 /* תפריט הנגן — תמיד כהה (מעל הווידאו): שכבה כהה מטושטשת, לוח כהה שקוף בלי backdrop משלו */
 .st-pl-menu { background: rgba(0, 0, 0, .32); -webkit-backdrop-filter: var(--gl-veil-fx); backdrop-filter: var(--gl-veil-fx); }
-.st-pl-mbox { background: color-mix(in srgb, #1C1C1E 76%, transparent); box-shadow: 0 0 0 .5px rgba(255, 255, 255, .1), 0 -8px 30px rgba(0, 0, 0, .35); }
+.st-pl-mbox { background: color-mix(in srgb, #1C1C1E 74%, transparent); box-shadow: 0 0 0 .5px rgba(255, 255, 255, .1), 0 -8px 30px rgba(0, 0, 0, .35); }
 /* גיליון הדירוג/הבחירה */
 .st-rs, [data-theme="dark"] .st-rs { background: var(--gl-veil); -webkit-backdrop-filter: var(--gl-veil-fx); backdrop-filter: var(--gl-veil-fx);
   --st-card: var(--gl-fill); --st-fill: var(--gl-fill); }
