@@ -269,7 +269,7 @@ ok(Object.keys(L.IND).length >= 40, 'לפחות 40 אינדיקטורים נוס
   ok(/if \(S\.cells\.length\) S\.store\.g\.cells = /.test(ch), 'שמירה בלי הגרף פתוח לא דורסת את הפריסה');
   ok(/\.kc-root\.kc-float \{/.test(css), 'שורש שקוף לגיליון מחוץ לגרף');
   ok(/function stockAlertsEl\(sym\)/.test(app) && /wrap\.appendChild\(stockAlertsEl\(sym\)\)/.test(app), 'כרטיס המניה: מקטע התראות המחיר');
-  ok((app.match(/actions\.appendChild\(alertBtn\(sym\)\)/g) || []).length === 3, 'כפתור פעמון בכל שלושת סוגי הכרטיס');
+  ok((app.match(/actions\.appendChild\(alertBtn\(sym\)\)/g) || []).length === 2 && /if \(p\.watch \|\| !isIbkrMode\(\) \|\| p\.src === 'manual'\)/.test(app), 'כפתור פעמון בכל סוגי הכרטיס (מעקב וידני בענף אחד, IBKR בשני)');
   ok(/onClose: \(\) => refreshStockAlerts\(\)/.test(app), 'סגירת הגרף מרעננת את ההתראות בכרטיס');
   const se = app.slice(app.indexOf('function stockAlertsEl'), app.indexOf('function refreshStockAlerts'));
   ok(!/innerHTML = [^'<]/.test(se) && /sub\.textContent = /.test(se), 'הערת ההתראה נכתבת כטקסט (לא HTML)');
