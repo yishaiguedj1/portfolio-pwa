@@ -315,6 +315,9 @@ html.kc-open { overflow: hidden; }
   .kc-xst { grid-area: xst; justify-content: flex-start; padding-inline-start: 4px; }
   .kc-xst:has(.kc-ext:empty) { display: none; }
   .kc-xst .kc-ext { flex: none; flex-wrap: nowrap; white-space: nowrap; width: auto; }
+  /* השוק סגור — הבועה של Invest כמו שהיא (styles.css), רק מיושרת להתחלה מתחת ללוגו */
+  .kc-xst .ext-sess.closed { direction: rtl; align-items: flex-start; align-self: auto; text-align: start; }
+  .kc-xst .ext-sess.closed .ext-line { justify-content: flex-start; flex-wrap: nowrap; }
   .kc-quote { grid-area: quote; align-items: flex-end; text-align: right; margin-inline-start: 0; }
   .kc-pxrow.sm { direction: ltr; }
   .kc-logo { width: 30px; height: 30px; border-radius: var(--radius-xs); box-shadow: 0 0 0 .5px var(--kc-sep); background: var(--kc-fill); }
@@ -325,12 +328,12 @@ html.kc-open { overflow: hidden; }
   .kc-root { padding-top: 0; }
   .kc-top { position: absolute; top: 0; inset-inline: 0; z-index: 8; padding-top: calc(6px + env(safe-area-inset-top, 0px)); background: color-mix(in srgb, var(--kc-bg) 38%, transparent); -webkit-backdrop-filter: saturate(180%) blur(30px); backdrop-filter: saturate(180%) blur(30px); border-bottom: .5px solid color-mix(in srgb, var(--kc-sep) 60%, transparent); }
   .kc-top-end .kc-ib { display: none; }
-  .kc-qm { top: calc(var(--kc-toph, 0px) + 70px); }
+  .kc-qm { top: calc(var(--kc-toph, 0px) + 44px); }
   /* זכוכית מדורגת (בקשת המשתמש 28/10): בלי קו ובלי רקע אחיד — גוון שנמוג מלמעלה למטה, ומתחתיו חמש שכבות טשטוש
-     מצטברות (כל אחת מוסיפה טשטוש ונמוגה מוקדם יותר), כך שהטשטוש עולה בהדרגה כלפי מעלה ו־24px מתחת לכותרת הגרף כבר חד */
+     מצטברות (כל אחת מוסיפה טשטוש ונמוגה מוקדם יותר), כך שהטשטוש עולה בהדרגה כלפי מעלה הטשטוש נגמר בקצה הכותרת, ומתחתיה רק הגוון נמוג (24px) — שורת המחירים צמודה וחדה */
   .kc-top { background: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-bottom: 0; }
   .kc-pb { position: absolute; inset: 0 0 -24px 0; z-index: -1; pointer-events: none; background: linear-gradient(to bottom, color-mix(in srgb, var(--kc-bg) 24%, transparent) 0%, color-mix(in srgb, var(--kc-bg) 10%, transparent) 62%, transparent 100%); }
-  .kc-pb i { position: absolute; inset: 0; }
+  .kc-pb i { position: absolute; inset: 0 0 24px 0; }   /* הטשטוש עד קצה הכותרת; מתחתיה רק הגוון נמוג */
   .kc-pb i:nth-child(1) { -webkit-backdrop-filter: blur(1.5px); backdrop-filter: blur(1.5px); -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent 100%); mask-image: linear-gradient(to bottom, #000 70%, transparent 100%); }
   .kc-pb i:nth-child(2) { -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent 88%); mask-image: linear-gradient(to bottom, #000 55%, transparent 88%); }
   .kc-pb i:nth-child(3) { -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); -webkit-mask-image: linear-gradient(to bottom, #000 40%, transparent 76%); mask-image: linear-gradient(to bottom, #000 40%, transparent 76%); }
@@ -346,7 +349,7 @@ html.kc-open { overflow: hidden; }
   .kc-pk { align-items: center; text-align: center; }
   .kc-pk-v .kc-roll-i { text-align: center; }
   [data-theme="dark"] .kc-pk { box-shadow: 0 0 0 .5px rgba(255, 255, 255, .16), 0 1px 4px rgba(0, 0, 0, .3); }
-  .kc-pick { top: calc(var(--kc-toph, 0px) + 70px); }
+  .kc-pick { top: calc(var(--kc-toph, 0px) + 44px); }
   .kc-top-end .kc-ib { width: 34px; }
   .kc-watch.on { position: absolute; inset-block: 0; inset-inline-end: 0; z-index: 12; background: var(--kc-panel); box-shadow: var(--kc-shadow); width: 200px; }
   .kc-clock { display: none; }
