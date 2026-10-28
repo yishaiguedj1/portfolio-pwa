@@ -272,6 +272,8 @@ a.st-btn { text-decoration: none; }   /* סבב 10: "פתיחת Claude" בכרט
 .st-btn.danger { min-height: 50px; border-radius: var(--radius-sm); background: var(--st-card); color: var(--loss); box-shadow: none; font-size: 17px; font-weight: 600; }
 .st-btn.danger:not(:disabled):active { transform: none; background: var(--st-fill); }
 .st-btn:disabled { background: var(--st-fill); color: var(--st-ter); box-shadow: none; }
+/* 28/10/2026 (בקשת המשתמש): "התחלת התרגום" לפני בחירת סרטון נראה כמו "צפייה" — אותה זכוכית אדומה וטקסט, רק עמום (עד היום: טקסט אפור על זכוכית) */
+html .st-btn:disabled:not(.ghost):not(.tint):not(.danger) { color: var(--on-primary); opacity: .55; }
 .st-btn:not(:disabled):active { transform: scale(.98); }
 .st-btn.in-card { width: 100%; margin-inline: 0; margin-top: 4px; }
 
