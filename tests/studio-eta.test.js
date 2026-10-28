@@ -77,5 +77,29 @@ const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   { const ep = E.etaPlan(null, 'haiku-high', 5000, {}), a = E.subsPlan(ep), b = N.subsPlan(ep);
     ok(JSON.stringify(a) === JSON.stringify(b) && JSON.stringify(E.SUBS_STG) === JSON.stringify(N.SUBS_STG), 'subsPlan זהה בשרתון ובטלפון');
     ok(a.s.tl === ep.s.tl && a.s.rv === ep.s.rv && a.s.tr === 60 && a.t < ep.t, 'subsPlan: התרגום והביקורת כמו בתוכנית, השאר קצר'); }
+  // 28/10/2026 (ניתוח הזמנים): התוצרים אצלך ← "מוכן", והצפי לומד את השמירה עד כאן; חציון לכל מצב
+  { const S = require('../ibkr-proxy/lib/studio.js'), K6 = ['tr', 'al', 'tl', 'rv', 'bn'];
+    const stg0 = Object.fromEntries(K6.map((k, i) => [k, { s: 1000 + i * 100e3, e: 1000 + (i + 1) * 100e3 }]));
+    const job = { kind: 'tr', fires: 1, eng: 'api', spec: { dur: 1320, mode: 'haiku-medium' }, prog: { st: 'sv', p: 0, stg: Object.assign({}, stg0, { sv: { s: 501000, e: 0 } }) } };
+    const early = S.applyReport(job, { st: 'sv', p: 1, out: [{ id: 'x', k: 'srt' }] }, 530000).prog;
+    ok(early.stg.sv.r === 530000 && !early.stg.sv.e, 'השרתון: התוצרים עלו בשמירה ← sv.r (השלב עוד פתוח)');
+    ok(!S.applyReport(job, { st: 'sv', p: 0.5, out: [{ id: 'x', k: 'srt' }] }, 530000).prog.stg.sv.r && !S.applyReport(Object.assign({}, job, { prog: Object.assign({}, job.prog, { st: 'bn' }) }), { st: 'bn', p: 1, out: [{ id: 'x', k: 'srt' }] }, 530000).prog.stg.sv.r,
+      'השרתון: רק דיווח שמירה מלא עם תוצרים (לא הכתוביות המוקדמות בזמן הצריבה)');
+    const later = S.applyReport(Object.assign({}, job, { prog: early }), { st: 'sv', p: 1, out: [{ id: 'x', k: 'srt' }] }, 600000).prog;
+    ok(later.stg.sv.r === 530000, 'השרתון: r נקבע פעם אחת');
+    const fin = S.applyReport(Object.assign({}, job, { prog: early }), { done: true }, 830000);
+    const smp = E.etaSample(Object.assign({}, job, fin), 5);
+    ok(smp.s.sv === 29 && smp.s.bn === 100, 'הצפי: השמירה נמדדת עד התוצרים (29 שנ׳), לא עד סוף הרקע (329)');
+    const pm = N.progressModel({ state: 'running', prog: early }, plan.s, { done: true }, 600000, plan.q);
+    ok(pm.bg && pm.pct === 1 && pm.left80 === 0 && pm.stages.every((x) => x.state === 'done') && pm.stages.find((x) => x.id === 'sv').took === 29,
+      'הטלפון: התוצרים אצלך ← מוכן (100%, 0 נשאר, השמירה ✓ 29 שנ׳) — לא "10 שנ׳" ו־99% חמש דקות');
+    ok(!N.progressModel({ state: 'running', prog: job.prog }, plan.s, { done: true }, 600000, plan.q).bg, 'הטלפון: בלי r — כמו קודם');
+    ok(/m\.bg \? T\('studioNowBg'\)/.test(read('studio.js')) && (read('app.js').match(/studioNowBg: "/g) || []).length === 2, 'הטלפון: "הקבצים מוכנים" ברשימה ובבית, בשתי השפות');
+    // חציון לכל מצב: high לוקח פי 1.3 מהתוכנית, medium כמוה — הצפי של high זז, של medium לא
+    const mk = (m, f, i) => { const d = 1320, p = E.planOf(E.etaModel([], 'a', 0).st, m, d).s; return { e: 'a', m, d, at: i, s: Object.fromEntries(Object.entries(p).map(([k, v]) => [k, Math.round(v * f)])) }; };
+    const smps = []; for (let i = 0; i < 10; i++) smps.push(mk('haiku-high', 1.3, i), mk('haiku-medium', 1, i));
+    const md = E.etaModel(smps, 'a', 10), ph = E.etaPlan(md, 'haiku-high', 1320), pmd = E.etaPlan(md, 'haiku-medium', 1320), po = E.etaPlan(md, 'opus-medium', 1320);
+    ok(md.mq['haiku-high'] - md.mq['haiku-medium'] > 0.2 && ph.q[0] > pmd.q[0] + 0.2 && Math.abs((ph.q[1] - ph.q[0]) - (md.q[1] - md.q[0])) < 0.002, 'הצפי: חציון לכל מצב (high ארוך יותר), אותו רוחב אי־ודאות');
+    ok(JSON.stringify(po.q) === JSON.stringify(md.q) && E.normEp(ph).q[0] === ph.q[0], 'הצפי: מצב בלי מספיק עבודות — החציון הכללי; ep עובר את הבדיקה'); }
   console.log('# ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL - ' + e.message); process.exit(1); });

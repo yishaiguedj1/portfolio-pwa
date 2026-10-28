@@ -158,6 +158,9 @@ export function progressModel(job, est, up, now, q) {
   const ended = job && job.state === 'done';
   // v361: נכשלה / בוטלה — השלב שבו נעצרה נסגר בשרתון, אבל הוא לא "הושלם" (בלי ✓; "המשך" פותח אותו מחדש)
   const stopped = job && (job.state === 'failed' || job.state === 'cancelled');
+  // 28/10/2026 (ניתוח הזמנים): התוצרים כבר אצלך (stg.sv.r מהשרתון) — מה שנשאר רץ ברקע (~5 דק׳ בפרק של 22 דק׳).
+  // עד היום הטבעת עמדה על 99% ו"נשארו 10 שנ׳" כל הזמן הזה; עכשיו — מוכן (bg), והשמירה נמדדת עד שהתוצרים הגיעו
+  const bg = !ended && !stopped && cur === 'sv' && !!(stg.sv && stg.sv.r > 0);
   const qq = Array.isArray(q) && q.length === 3 ? q : Q_DEF;
   // σ של שלב: מאי־הוודאות של העבודות הקודמות (q[2] = 1.28σ של העבודה) × 1.25, בין 0.25 ל־0.8
   const sgS = Math.max(0.25, Math.min(0.8, (qq[2] > 0 ? qq[2] / 1.2816 : STAGE_SIGMA / 1.25) * 1.25));
@@ -184,7 +187,8 @@ export function progressModel(job, est, up, now, q) {
       if (up && up.done) row = { id: s, state: 'done', took: up.took || 0 };
       else row = { id: s, state: up && up.active ? 'now' : 'wait', left: up && up.left > 0 ? up.left : e, p: up ? up.p || 0 : 0, est: e };
     } else if (stopped && s === cur) row = { id: s, state: 'wait', est: e };
-    else if (ended || (stg[s] && stg[s].e && !redo(s))) row = { id: s, state: 'done', took: stg[s] ? spent(stg[s]) : 0 };
+    else if (bg && s === 'sv') row = { id: s, state: 'done', took: Math.max(0, Math.round(((+stg.sv.a || 0) + stg.sv.r - stg.sv.s) / 1000)) };
+    else if (ended || bg || (stg[s] && stg[s].e && !redo(s))) row = { id: s, state: 'done', took: stg[s] ? spent(stg[s]) : 0 };
     else if (s === cur && stg[s]) {
       const el = Math.max(0, (now - stg[s].s) / 1000), p = Math.max(0, Math.min(0.99, prog.p || 0));
       const tot0 = condQuantile(e, sgS, el, 0.5);       // משך השלב הצפוי בהינתן מה שכבר עבר
@@ -206,10 +210,11 @@ export function progressModel(job, est, up, now, q) {
     else left += row.est;
     stages.push(row);
   }
-  const pct = ended ? 1 : Math.max(0, Math.min(0.99, doneW / allW));
+  const fin = ended || bg;
+  const pct = fin ? 1 : Math.max(0, Math.min(0.99, doneW / allW));
   const k = (i) => Math.exp((qq[i] || 0) * (1 - pct));   // האי־ודאות קטנה ככל שנשאר פחות
-  const l50 = ended ? 0 : Math.round(left * k(0));
-  return { stages, left: l50, left80: ended ? 0 : Math.max(l50, Math.round(left * k(1))), left90: ended ? 0 : Math.max(l50, Math.round(left * k(2))), pct, rho };
+  const l50 = fin ? 0 : Math.round(left * k(0));
+  return { stages, left: l50, left80: fin ? 0 : Math.max(l50, Math.round(left * k(1))), left90: fin ? 0 : Math.max(l50, Math.round(left * k(2))), pct, rho, bg };
 }
 
 /* 21/10/2026: מה שמוצג — הטבעת לא חוזרת אחורה (חזרה = "משהו השתבש"), ושעת הסיום יציבה (ראו shownEnd בסטודיו).

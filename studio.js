@@ -2773,6 +2773,7 @@ function heroState(rec, run, ph) {
   if (ph === 'wait') return { pct: u.pct, big: T('studioUpWaitBig'), sub: T('studioUpOf', { a: fmtSize(u.done), b: fmtSize(u.all) }) };
   const parked = (!rec.srv || rec.srv.state === 'new') && !rec.up.started;
   if (parked) return { pct: u.pct, big: T('studioLeftBig', { t: fmtLeft(u.left) }), sub: T('studioUpLeftS') };
+  if (m.bg) return { pct: 1, check: true, big: T('studioNowBg'), sub: '' };   // 28/10/2026: התוצרים אצלך, הרקע לא נספר
   // p80 (שמרני — להקדים ולא לאחר); לפני 8 עבודות שהמודל למד מהן — טווח p50–p90, כי עוד אין מספיק נתונים לשעה אחת
   const end = shownEnd(rec.id, m.left80), now = Date.now();
   const sub = m.n >= 8 || m.left90 - m.left < 120 ? T('studioReadyAt', { t: fmtClock(end) })
@@ -2922,7 +2923,7 @@ function pageHome(p) {
         bd.className = 'st-badge ' + c; bd.textContent = l;
         const upping = ph === 'extract' || ph === 'audio' || ph === 'video';
         tx.textContent = upping ? Math.round(100 * (ph === 'video' ? run.p || 0 : m.stages[0].p || 0)) + '%' + (ph === 'video' && !rec.up.noAudio ? ' · ' + T('studioVideoShort') : '')
-          : ph === 'running' || ph === 'queued' ? T('studioLeftShort', { t: fmtLeft(shownLeft(rec, m)) }) : '';
+          : m.bg ? T('studioNowBg') : ph === 'running' || ph === 'queued' ? T('studioLeftShort', { t: fmtLeft(shownLeft(rec, m)) }) : '';
         const pct = ph === 'done' ? 1 : ph === 'video' ? run.p || 0 : upping ? m.stages[0].p || 0 : ph === 'running' || ph === 'queued' ? shownPct(rec, m.pct, 'h') : m.pct;
         bar.hidden = FINAL.includes(ph) || ph === 'ready';
         bi.style.width = Math.round(100 * pct) + '%';
@@ -6265,7 +6266,7 @@ function pageTower(p) {
         const run = ph === 'running' || ph === 'queued';
         const stop = canResume(rec) && !recovering(rec);
         dot.className = 'st-ut-dot ' + (run || ph === 'done' ? 'ok' : stop ? 'bad' : 'wait');
-        sm.textContent = recovering(rec) ? T('studioBRecover') : run ? T('studioBRunning') + ' · ' + T('studioLeftShort', { t: fmtLeft(shownLeft(rec, m)) })
+        sm.textContent = recovering(rec) ? T('studioBRecover') : run ? T('studioBRunning') + ' · ' + (m.bg ? T('studioNowBg') : T('studioLeftShort', { t: fmtLeft(shownLeft(rec, m)) }))
           : stop ? T('studioUtStopped') + (rec.srv.err ? ' — ' + errText(rec.srv.err) : '') : badgeFor(ph)[1];
         bar.hidden = !run; bi.style.width = Math.round(100 * (run ? shownPct(rec, m.pct, 'h') : m.pct || 0)) + '%';
         tail.replaceChildren(stop ? btn('st-mini ghost', T('studioUtResume'), () => go('job', rec.id), 'ut-r:' + rec.id) : ico('chev', 'st-chev'));

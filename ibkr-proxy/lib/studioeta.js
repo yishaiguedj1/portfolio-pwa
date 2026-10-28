@@ -18,7 +18,7 @@ const PRIOR = {
   r: { tr: [90, 6], al: [120, 4], tl: [180, 39], rv: [120, 9], bn: [60, 18], sv: [20, 2.5] },
 };
 const MODE_MIN = { 'sonnet-medium': 85, 'haiku-high': 76, 'haiku-medium': 74, 'sonnet-high': 95, 'opus-medium': 105, 'sonnet-low': 80 };   // = MODES בטלפון
-const LAMBDA = 3, HALF_LIFE = 30 * 86400e3, SIGMA0 = 0.35, NQ = 8, ET_MAX = 40;
+const LAMBDA = 3, HALF_LIFE = 30 * 86400e3, SIGMA0 = 0.35, NQ = 8, ET_MAX = 40, MQ_MIN = 4;
 // 20/10/2026 (בקשת המשתמש: צפי מדויק ככל האפשר): בשרת שלנו הזמן תלוי בחומרה, לא במשתמש — מאגר אחד לכל העבודות
 // בשרת (studioEta/a), גדול יותר. ה־Routine נשאר לכל משתמש (המנוי שלו). כל עבודה שהסתיימה מעדכנת אותו.
 const ET_G_MAX = 200;
@@ -52,7 +52,9 @@ function etaSample(job, now) {
   const s = {};
   for (const k of STAGES) {
     const x = stg[k];
-    if (x && x.s > 0 && x.e > x.s) s[k] = Math.round((x.e - x.s) / 1000);
+    // 28/10/2026: השמירה — עד שהתוצרים הגיעו אליך (r), בלי מה שהעובד משלים ברקע אחר כך
+    const e = k === 'sv' && x && x.r > x.s ? x.r : x && x.e;
+    if (x && x.s > 0 && e > x.s) s[k] = Math.round((e - x.s) / 1000);
   }
   if (Object.keys(s).length < 3) return null;
   const f = jobFactors(job), out = { e: eng(job.eng), m: MODE_MIN[sp.mode] ? sp.mode : 'opus-medium', d: Math.round(sp.dur), s, at: now };
@@ -117,15 +119,23 @@ function etaModel(samples, e, now) {
     st[k] = fitStage(pts, pri[k][0], pri[k][1], now);
   }
   // אי־ודאות: יחס בפועל/צפי של כל עבודה שלמה (כל ששת השלבים נמדדו) — הצפי עם הגורמים שלה
-  const lr = list.filter((x) => STAGES.every((k) => x.s[k] != null))
-    .map((x) => Math.log(STAGES.reduce((a, k) => a + x.s[k], 0) / Math.max(1, planOf(st, x.m, x.d, x.f).t))).sort((a, b) => a - b);
+  const full = list.filter((x) => STAGES.every((k) => x.s[k] != null))
+    .map((x) => ({ m: x.m, v: Math.log(STAGES.reduce((a, k) => a + x.s[k], 0) / Math.max(1, planOf(st, x.m, x.d, x.f).t)) }));
+  const lr = full.map((x) => x.v).sort((a, b) => a - b);
+  // 28/10/2026 (ניתוח 46 עבודות): המצב משנה יותר ממה ש־MODE_MIN אומר — ב־high גם עריכת המקור (בשלב התמלול) והביקורת
+  // חושבות יותר: הצפי היה קצר ב־16% ב־high ומדויק ב־medium. mq = החציון של 10 העבודות האחרונות באותו מצב (מ־MQ_MIN)
+  const mq = {};
+  for (const m of new Set(full.map((x) => x.m))) {
+    const v = full.filter((x) => x.m === m).slice(-10).map((x) => x.v).sort((a, b) => a - b);
+    if (v.length >= MQ_MIN) mq[m] = r3(v[(v.length - 1) >> 1]);
+  }
   let q;
   if (lr.length >= NQ) {
     const at = (p) => lr[Math.min(lr.length - 1, Math.ceil((lr.length + 1) * p) - 1)];
     const q50 = lr[Math.floor((lr.length - 1) / 2)];
     q = [r3(q50), r3(Math.max(q50, at(0.8))), r3(Math.max(q50, at(0.9)))];
   } else q = [0, r3(Z[80] * SIGMA0), r3(Z[90] * SIGMA0)];
-  return { st, q, n: lr.length };
+  return { st, q, n: lr.length, mq };
 }
 const r3 = (v) => Math.round(v * 1000) / 1000;
 /* התוכנית לעבודה: p50 לכל שלב (שניות) והסכום */
@@ -145,7 +155,10 @@ function etaPlan(model, mode, durSec, fx) {
   const mdl = model || etaModel([], 'a', 0);
   const p = planOf(mdl.st, mode, durSec, fx);
   const bn = (mdl.st && mdl.st.bn) || PRIOR.a.bn;
-  return { s: p.s, t: p.t, q: mdl.q, n: mdl.n, bn: [bn[0], bn[1]], f: fNorm(fx) };
+  // החציון של המצב במקום החציון הכללי — אותו רוחב אי־ודאות (p80/p90 זזים איתו)
+  const d = mdl.mq && typeof mdl.mq[mode] === 'number' && Array.isArray(mdl.q) ? mdl.mq[mode] - mdl.q[0] : 0;
+  const q = d ? mdl.q.map((v) => r3(v + d)) : mdl.q;
+  return { s: p.s, t: p.t, q, n: mdl.n, bn: [bn[0], bn[1]], f: fNorm(fx) };
 }
 /* 22/10/2026: קובץ כתוביות קיים — אין תמלול, יישור וצריבה: השלבים האלה קצרים (ייבוא + תדריך, tr-prep, בניית הקבצים).
    התרגום והביקורת — כמו בתוכנית. SUBS_STG זהה ב־studionet.js (subsPlan) */
@@ -194,6 +207,6 @@ function normEp(ep) {
   return { s, t, q, n: num(ep.n, 0, 1000) ? Math.round(ep.n) : 0 };   // רק מה שהטלפון צריך — bn/f נשארים בשרתון
 }
 
-module.exports = { KA_STG, kaPlan, SUBS_STG, subsPlan, STAGES, PRIOR, MODE_MIN, LAMBDA, HALF_LIFE, SIGMA0, NQ, ET_MAX, ET_G_MAX, etSamplesFor,
+module.exports = { MQ_MIN, KA_STG, kaPlan, SUBS_STG, subsPlan, STAGES, PRIOR, MODE_MIN, LAMBDA, HALF_LIFE, SIGMA0, NQ, ET_MAX, ET_G_MAX, etSamplesFor,
   etaSample, normEtSamples, addEtSample, fitStage, etaModel, etaPlan, etaTarget, etaView, normEp, planOf,
   CPU_ST, REF_CPUS, CPU_EXP, PX_EXP, CC_K, jobFactors, replanPx, pxOf };
