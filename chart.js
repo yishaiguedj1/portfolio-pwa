@@ -1250,6 +1250,9 @@ function pushLive(c, deep) {
   const lastTs = cl[cl.length - 1].timestamp;
   let j = nd.length - 1;
   while (j > 0 && nd[j].timestamp > lastTs) j--;
+  /* 28/10/2026 (מול TradingView): הנר האחרון בגרף לא קיים בנתונים (נר בזמן לא מיושר מרענון קודם) — הוא חסם את העדכונים
+     (רק נרות מאוחרים ממנו נדחפים), והגרף קפא על מחיר ישן עד הנר הבא. טוענים מחדש מהנתונים המתוקנים */
+  if (nd[j].timestamp !== lastTs && lastTs > nd[0].timestamp) { c.chart.resetData(); return; }
   // נרות שכבר בגרף ותוקנו (רענון מהשרתון) — מעדכנים במקום; החדשים/האחרון — דרך subscribeBar
   for (let k = j - 1, n = 0; k >= 0 && n < (deep ? 600 : 2); k--, n++) {
     const i = dataIdx(cl, nd[k].timestamp);
