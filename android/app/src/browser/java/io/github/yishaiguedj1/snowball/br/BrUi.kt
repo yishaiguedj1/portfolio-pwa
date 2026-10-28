@@ -427,10 +427,13 @@ private fun PageScreen(a: BrowserActivity) {
 private fun Line(t: BrTab?) {
     val c = LocalBr.current
     val p = t?.progress ?: 0
-    if (p in 1..99 && t?.url?.startsWith("http") == true)
-        LinearProgressIndicator(progress = { p / 100f }, modifier = Modifier.fillMaxWidth().height(2.dp), color = c.tint, trackColor = c.tint.copy(alpha = 0.18f),
-            gapSize = 0.dp, drawStopIndicator = {})
-    else HorizontalDivider(thickness = 0.5.dp, color = c.line)
+    // 28/10/2026 (מעבר מקיף): גובה קבוע 2dp — ההחלפה בין הסרגל (2dp) לקו (0.5dp) הזיזה את כל הדף פעמיים בכל טעינה
+    Box(Modifier.fillMaxWidth().height(2.dp), contentAlignment = Alignment.BottomCenter) {
+        if (p in 1..99 && t?.url?.startsWith("http") == true)
+            LinearProgressIndicator(progress = { p / 100f }, modifier = Modifier.fillMaxWidth().height(2.dp), color = c.tint, trackColor = c.tint.copy(alpha = 0.18f),
+                gapSize = 0.dp, drawStopIndicator = {})
+        else HorizontalDivider(thickness = 0.5.dp, color = c.line)
+    }
 }
 
 /** הסרגל של Chrome לאנדרואיד: דף הבית · גלולת הכתובת · כרטיסייה חדשה · כרטיסיות · ⋮ (בעברית — מימין לשמאל) */
@@ -695,8 +698,9 @@ private fun Suggest(a: BrowserActivity, q: TextFieldValue, setQ: (TextFieldValue
     val qq = if (q.text.isNotEmpty() && q.selection.length == q.text.length) "" else q.text.trim()
     var net by remember { mutableStateOf<List<String>>(emptyList()) }
     LaunchedEffect(qq, a.engine, a.suggestOn) {
-        net = emptyList()
-        if (qq.isNotBlank()) { delay(120); net = withContext(Dispatchers.IO) { a.fetchSuggest(qq) } }
+        // 28/10/2026 (מעבר מקיף): ההצעות הקודמות נשארות עד שמגיעות החדשות — איפוס בכל הקשה כיווץ והרחיב את הרשימה (קפיצה)
+        if (qq.isBlank()) { net = emptyList(); return@LaunchedEffect }
+        delay(120); net = withContext(Dispatchers.IO) { a.fetchSuggest(qq) }
     }
     val list = remember(qq, a.markRev) {
         if (qq.isBlank()) BrStore.history.asReversed().distinctBy { it.url }.take(6).map { BrMark(it.url, it.title, it.at) } else BrStore.suggest(qq, 5)

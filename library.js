@@ -2502,6 +2502,13 @@ export function searchScore(key, q) {   // 0 = לא מתאים; כל מילה ב
 export function searchHit(key, q) { return searchScore(key, q) > 0; }
 function applySearch(home) {
   const q = (ui.q || '').trim();
+  // 28/10/2026 (QA מעברים): בית גלול + חיפוש = הרשימה מתקצרת, הדפדפן חותך את הגלילה ל־0 ושדה החיפוש קופץ באמצע ההקלדה.
+  // בזמן חיפוש הבית שומר לפחות את הגובה שהיה צריך לגלילה הנוכחית — השדה נשאר במקום
+  const root = home.closest && home.closest('.lib-root');
+  if (root && q) {
+    const need = root.scrollTop + root.clientHeight - (home.getBoundingClientRect().top - root.getBoundingClientRect().top + root.scrollTop);
+    if (need > 0) home.style.minHeight = Math.max(parseFloat(home.style.minHeight) || 0, Math.ceil(need)) + 'px';
+  } else if (root) home.style.minHeight = '';
   home.classList.toggle('searching', !!q);
   const grid = home.querySelector('.lib-grid');
   const items = Array.from(home.querySelectorAll('.lib-item'));
@@ -2918,6 +2925,9 @@ async function openReader(id, opt) {
     const d = e.detail || {};
     box.classList.remove('loading');
     curtainDown();
+    // 28/10/2026 (נמדד, CPU×4): ההכנה של הקיפול (WebGL + שכפול הפרק, ~160ms) נחתה בדיוק על הדהייה של העמוד הראשון —
+    // עכשיו רק אחרי שהיא נגמרת (‎.25s)
+    if (rd && !rd.curlFirst) { rd.curlFirst = 1; setTimeout(curlPrebuild, 350); }
     if (rd && !rd.armed && !CW_OK) { rd.armed = 1; readerArm(box); }   // v350: העמוד הראשון צויר — רשומת הקורא
     const frac = d.fraction || 0;
     const left = d.time && isFinite(d.time.section) ? Math.max(1, Math.round(d.time.section)) : 0;
@@ -3150,7 +3160,7 @@ async function curlSetup(box) {
   for (const ty of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) box.addEventListener(ty, (e) => {
     if (ty === 'touchstart' ? outside(e) : ct) curlTouch(e, 0, 0, null);
   }, { capture: true, passive: false });
-  curlPrebuild();
+  if (rd.curlFirst) curlPrebuild();   // 28/10/2026: אחרת — מ־relocate, אחרי שהעמוד הראשון דהה פנימה
 }
 function curlPrebuild() {                    // שכפול מסמך הפרק + הפרקים השכנים מראש — שהקיפול יתחיל בלי עיכוב
   // v344: מיד אחרי כל דפדוף (לא דחייה של 450ms שמתאפסת בכל מעבר — בדפדוף מהיר היא לא רצה אף פעם והפרק הבא לא נטען)

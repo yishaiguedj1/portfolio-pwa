@@ -6908,8 +6908,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.82.5';
-const APP_VERSION = 'v617';
+const APP_RELEASE = '2.82.6';
+const APP_VERSION = 'v618';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -15020,8 +15020,14 @@ function chartBtn(sym) {
   b.title = t('kcExpand');
   b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-6.5 6.5M4 20l6.5-6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   b.addEventListener('click', (e) => { e.stopPropagation(); openChartFor(sym); });
-  // הספרייה (~200KB) והעיצוב נטענים ברגע הנגיעה — עד שהאצבע עוזבת הם כבר בדרך
-  b.addEventListener('pointerdown', () => { if (b._pre) return; b._pre = 1; import('./chart.js').then((m) => m.prefetchChart && m.prefetchChart(chartEnv())).catch(() => {}); }, { passive: true });
+  // הספרייה (~200KB), העיצוב והנרות של האינטרוול שייפתח — נטענים כשהכפתור נראה (כרטיס המניה נפתח) או ברגע הנגיעה.
+  // 28/10/2026 (בקשת המשתמש — "שהכל נטען מראש"): בלחיצה הגרף עולה מלא, בלי ספינר ובלי נרות שמופיעים אחרי חצי שנייה
+  const pre = () => { if (b._pre) return; b._pre = 1; import('./chart.js').then((m) => m.prefetchChart && m.prefetchChart(chartEnv(), sym)).catch(() => {}); };
+  b.addEventListener('pointerdown', pre, { passive: true });
+  if (typeof IntersectionObserver === 'function') {
+    const io = new IntersectionObserver((es) => { if (es.some((x) => x.isIntersecting)) { io.disconnect(); pre(); } });
+    io.observe(b);
+  }
   return b;
 }
 function chartEnv() {

@@ -1124,12 +1124,40 @@ function loader(c) {
   };
 }
 const canMore = (c) => c.more && !NO_HISTORY_MORE.has(c.type) && !c.replay;
-async function fetchCandles(c, to, sym, tf) {
+/* 28/10/2026 (בקשת המשתמש — "כמו אפליקציה שהכל נטען מראש"): מטמון נרות בזיכרון לפי סימבול|בסיס|מסחר מורחב.
+   החלפת אינטרוול/טווח שהנרות שלו כבר כאן — באותו פריים, בלי שהתווית מתחלפת והגרף הישן נשאר עוד חצי שנייה.
+   הבקשה עצמה נשמרת (גם בזמן שהיא בדרך — שתי לחיצות = בקשה אחת). הרענון התקופתי (reconcile) עוקף ומעדכן */
+const CC = new Map();
+let PEXT = false;   // המסחר המורחב לפני שהגרף נפתח (טעינה מוקדמת מכרטיס המניה)
+const extOn = () => !!(S.store ? S.store.g.ext : PEXT);
+const ccTtl = (base) => (/m$/.test(base) ? 300000 : 900000);   // ישן מעט = מוצג מיד, והרענון התקופתי ממזג את החדשים
+function fetchCandles(c, to, sym, tf, fresh) {
   sym = sym || c.sym; tf = tf || c.tf;
-  const d = TF[tf];
-  const r = await E.api({ op: 'candles', sym, iv: d.base, to: to ? Math.floor(to / 1000) : undefined, pre: !!S.store.g.ext && L.isIntraday(tf) });
-  if (!r || !r.ok) { const e = new Error((r && r.error) || 'fail'); e.code = (r && r.error) || 'fail'; throw e; }
-  return r;
+  const d = TF[tf], ext = extOn() && L.isIntraday(tf), k = sym + '|' + d.base + '|' + (ext ? 1 : 0);
+  if (!to && !fresh) { const e = CC.get(k); if (e && Date.now() - e.at < ccTtl(d.base)) return e.p; }
+  const p = Promise.resolve(E.api({ op: 'candles', sym, iv: d.base, to: to ? Math.floor(to / 1000) : undefined, pre: ext })).then((r) => {
+    if (!r || !r.ok) { const e = new Error((r && r.error) || 'fail'); e.code = (r && r.error) || 'fail'; throw e; }
+    return r;
+  });
+  if (!to) {
+    CC.set(k, { at: Date.now(), p });
+    p.catch(() => { const e = CC.get(k); if (e && e.p === p) CC.delete(k); });
+    if (CC.size > 80) CC.delete(CC.keys().next().value);
+  }
+  return p;
+}
+/* אחרי שהגרף עלה: האינטרוולים המועדפים והטווחים של הסימבול נטענים ברקע, אחד־אחד (לא עומס על השרתון — 90 לדקה) */
+let warmTok = 0;
+function warmCandles(sym) {
+  if (lite()) return;
+  const tok = ++warmTok, seen = new Set(), tfs = [];
+  for (const tf of [...S.store.g.fav, ...RANGES.map((r) => r[1])]) { if (TF[tf] && !seen.has(TF[tf].base)) { seen.add(TF[tf].base); tfs.push(tf); } }
+  const next = () => {
+    if (tok !== warmTok || !ROOT || !tfs.length) return;
+    const tf = tfs.shift();
+    fetchCandles(null, 0, sym, tf).catch(() => {}).then(() => setTimeout(next, 120));
+  };
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(next, { timeout: 1200 }); else setTimeout(next, 600);
 }
 async function fetchInit(c) {
   c.loading = true; c.err = null; renderStatus(c);
@@ -1174,6 +1202,7 @@ function afterInit(c) {
   drawFills(c); drawPos(c);
   if (c.fit) { const f = c.fit; c.fit = null; fitRange(c, f); }
   if (c === S.cells[S.active]) updHeader();
+  if (c === S.cells[S.active] && c.warmed !== c.sym) { c.warmed = c.sym; warmCandles(c.sym); }
 }
 
 /* ---------- זמן אמת: מחיר כל שנייה + רענון נרות תקופתי ---------- */
@@ -1232,7 +1261,7 @@ async function reconcile(c) {
   if (!c.raw.length || c.replay || c.loading) return;
   const seq = c.seq;
   try {
-    const r = await fetchCandles(c);
+    const r = await fetchCandles(c, 0, null, null, true);
     if (seq !== c.seq) return;
     const fresh = L.fromColumns(r);
     if (!fresh.length) return;
@@ -3266,9 +3295,14 @@ export function closeChart(fromPop) {
   if (E.onClose) E.onClose();
 }
 /* טעינה מראש (הכפתור נראה בכרטיס המניה): הספרייה והעיצוב — בלחיצה המסך עולה מיד */
-export function prefetchChart(env) {
+export function prefetchChart(env, sym) {
   E = env || E;
   if (typeof document === 'undefined') return;
   ensureCss();
   loadLib().catch(() => {});
+  // 28/10/2026: גם הנרות של האינטרוול שייפתח — בלחיצה הגרף עולה מלא, בלי ספינר
+  if (!sym || ROOT || lite()) return;
+  const st = loadStore(), c0 = st.g.cells[0], tf = c0 && TF[c0.tf] ? c0.tf : '1D';
+  PEXT = st.g.ext;
+  fetchCandles(null, 0, String(sym).toUpperCase(), tf).catch(() => {});
 }

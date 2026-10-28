@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 28/10/2026 (מעבר מקיף — "בלי הבהובים"): רקע החלון של DmTheme = רקע האפליקציה (DmUi.kt) — בפתיחה ובחזרה מהנגן/הדפדפן
+     המערכת ציירה לבן/שחור עד הפריים הראשון של Compose. כהה: values-night -->
+<resources>
+    <color name="dm_win">#F6F6F8</color>
+</resources>

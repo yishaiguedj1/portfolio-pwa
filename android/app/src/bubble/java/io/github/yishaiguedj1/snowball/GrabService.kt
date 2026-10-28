@@ -156,6 +156,14 @@ class GrabService : AccessibilityService() {
         anchorKey = key
         if (root == null) { show(key, x, y); return }
         shownFor = key
+        if (parked) {
+            val p = lp ?: return
+            parked = false
+            p.flags = p.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv(); p.x = x; p.y = y
+            try { wm?.updateViewLayout(root, p) } catch (e: Exception) {}
+            root?.animate()?.cancel(); root?.animate()?.alpha(1f)?.setDuration(150)?.start()
+            return
+        }
         val p = lp ?: return
         if (p.x != x || p.y != y) { p.x = x; p.y = y; try { wm?.updateViewLayout(root, p) } catch (e: Exception) {} }
     }
@@ -172,6 +180,9 @@ class GrabService : AccessibilityService() {
     private var anchorKey: String? = null                 // הבועה במצב "צמודה לנגן" (בשביל הכתובת הזו)
     private var barBottom = 0                             // התחתית של שורת הכתובת (כשהיא למעלה)
     private var touching = false
+    // 28/10/2026 (מעבר מקיף — "בלי קפיצות"): הנגן יצא מהמסך — הבועה נשארת במקום, שקופה ולא נגישה, במקום להתפרק
+    // ולהיבנות מחדש עם קפיצת גודל בכל גלילה. חוזרת בדהייה קצרה כשהנגן חוזר
+    private var parked = false
 
     private fun deepHas(r: AccessibilityNodeInfo, url: String): Boolean {
         val now = android.os.SystemClock.uptimeMillis()
@@ -222,6 +233,7 @@ class GrabService : AccessibilityService() {
 
     /* ax/ay = צמודה לנגן (פינה עליונה ימנית, בפיקסלים של המסך); בלי — בצד, בגובה שנשמר */
     private fun show(key: String, ax: Int = -1, ay: Int = -1) {
+        if (parked) { val k = anchorKey; hide(); anchorKey = k }   // עוגנה במקום אחר — בונים מחדש
         shownFor = key
         val w = wm ?: return
         if (root != null) return                       // כבר מוצגת — רק הכתובת התחלפה
@@ -274,9 +286,9 @@ class GrabService : AccessibilityService() {
             }
         }
         wireTouch(b, box, p)
+        box.alpha = 0f; b.scaleX = 0.6f; b.scaleY = 0.6f   // לפני addView — בלי פריים בגודל מלא לפני הכניסה
         try { w.addView(box, p) } catch (e: Exception) { return }
         root = box; bubble = b; hint = t; lp = p
-        box.alpha = 0f; b.scaleX = 0.6f; b.scaleY = 0.6f
         box.animate().alpha(1f).setDuration(180).start()
         b.animate().scaleX(1f).scaleY(1f).setDuration(260).setInterpolator(DecelerateInterpolator(2f)).start()
         t?.let { h.postDelayed({ hideHint(); h.post(follow) }, 2500) }
@@ -296,8 +308,16 @@ class GrabService : AccessibilityService() {
     private fun hide(keepAnchor: Boolean = false) {
         if (!keepAnchor) anchorKey = null
         shownFor = null
+        val box = root ?: run { h.removeCallbacks(watch); return }
+        if (keepAnchor) {
+            if (parked) return
+            parked = true
+            box.animate().cancel(); box.animate().alpha(0f).setDuration(120).start()
+            lp?.let { it.flags = it.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE; try { wm?.updateViewLayout(box, it) } catch (e: Exception) {} }
+            return
+        }
         h.removeCallbacks(watch)
-        val box = root ?: return
+        parked = false
         root = null; bubble = null; hint = null; lp = null
         box.animate().alpha(0f).setDuration(150).withEndAction { try { wm?.removeView(box) } catch (e: Exception) {} }.start()
     }

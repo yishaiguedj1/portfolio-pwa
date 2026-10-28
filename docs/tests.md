@@ -14,3 +14,5 @@
 - הכל: הלולאה ב־`.github/workflows/test.yml` (אין `tests/run-all.sh` בריפו). בדיקות תאימות `CACHE_NAME`↔`APP_VERSION` — דרך `tests/_swver.js` (`swVersionOk`). מ־v394 הן תמיד שוות (swgen כותב את שתיהן מאותו מקום); הסובלנות לגרסה אחת אחורה נשארה מהפרוטוקול הדו־שלבי ולא מזיקה. **`tests/swgen.test.js` = השומר**: `sw.js` לא מעודכן לקבצים = אדום. בדיקת גרסה חדשה — רק דרך `swVersionOk`.
 - מוסכמה: בבדיקות multi-chunk מעבירים `{ chunkGapMs: 5 }` — זה מחליף את כל הקצב (בלי מגביל, בלי המתנת poll ראשונה). לבדיקת קצב אמיתי: `{ limiter: ibkrMakeLimiter({now, sleep}), sleep }` עם שעון מדומה.
 - 13 קבצי בדיקות מורשתיים מוחרגים מ־CI (רשימה ב־`.github/workflows/test.yml`): בודקים פונקציות/אלמנטים שהוסרו בריפקטורים (`buildTradesHistory`, `navToTwr`, `ibkrInceptionDate`, `ibkrNavHistory`, `ibkrPerfSums`, `ibkrChunks`). נשמרים כהיסטוריה; החייאה = כתיבה מחדש.
+
+- **QA תנועה** (28/10/2026): `tools/qa-deep.js` — לא חלק מ־t.sh (דפדפן, דקות). פיקסטורות ציבוריות ב־`tests/fixtures/qa/`. ברענון המדידה מתחדשת דרך `sessionStorage '__qa_mark'`. הבדיקה הסטטית של המטמון/וילון/חיפוש — בסוף `tests/chart.test.js`.

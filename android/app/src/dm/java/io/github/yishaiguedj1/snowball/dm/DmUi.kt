@@ -78,6 +78,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -126,7 +128,9 @@ fun DmApp(a: DmActivity) {
         val rev by DmStore.rev.collectAsState()
         // מהירות/התקדמות — רענון כל שנייה כשמשהו רץ (בלי לכתוב לדיסק)
         LaunchedEffect(Unit) { while (true) { delay(1000); if (DmEngine.busy()) DmStore.ping() } }
-        var tab by remember { mutableStateOf(Tab.DOWNLOADS) }
+        var tab by rememberSaveable { mutableStateOf(Tab.DOWNLOADS) }   // 28/10/2026: נשמר גם בהחלפת שפה (recreate)
+        // 28/10/2026 (מעבר מקיף — "בלי קפיצות"): כל לשונית שומרת את המצב שלה (גלילה, חיפוש, מסנן) — חזרה ללשונית לא מתחילה מהראש
+        val keep = rememberSaveableStateHolder()
         var details by remember { mutableStateOf<String?>(null) }
         val sheet by a.sheetUrl
         Scaffold(
@@ -165,9 +169,9 @@ fun DmApp(a: DmActivity) {
             Box(Modifier.padding(pad)) {
                 rev.let { _ -> }
                 when (tab) {
-                    Tab.DOWNLOADS -> Downloads(a, rev) { details = it }
-                    Tab.LIBRARY -> Library(a, rev)
-                    Tab.SETTINGS -> SettingsScreen(a)
+                    Tab.DOWNLOADS -> keep.SaveableStateProvider("dl") { Downloads(a, rev) { details = it } }
+                    Tab.LIBRARY -> keep.SaveableStateProvider("lib") { Library(a, rev) }
+                    Tab.SETTINGS -> keep.SaveableStateProvider("set") { SettingsScreen(a) }
                 }
             }
         }
@@ -182,7 +186,7 @@ fun DmApp(a: DmActivity) {
 private fun Downloads(a: DmActivity, rev: Int, onDetails: (String) -> Unit) {
     val all = remember(rev) { DmStore.all() }
     // חיפוש (24/10, מפת המסכים בדוח: "חיפוש רק מ־10 פריטים") — שם, כותרת או אתר
-    var q by remember { mutableStateOf("") }
+    var q by rememberSaveable { mutableStateOf("") }
     val shown = remember(rev, q) { if (q.isBlank()) all else all.filter { t -> DmFind.match(q, t.name, t.title, DmLink.host(t.url)) } }
     val active = shown.filter { it.state != DmState.DONE }
     val done = shown.filter { it.state == DmState.DONE }.sortedByDescending { it.finishedAt }
@@ -723,7 +727,7 @@ private fun BatchBlock(a: DmActivity, parsed: DmImport.Parsed, ref: String, onCl
 @Composable
 private fun Library(a: DmActivity, rev: Int) {
     val ctx = LocalContext.current
-    var cat by remember { mutableStateOf<DmName.Cat?>(null) }
+    var cat by rememberSaveable { mutableStateOf<DmName.Cat?>(null) }
     val done = remember(rev) { DmStore.all().filter { it.state == DmState.DONE }.sortedByDescending { it.finishedAt } }
     fun catOf(t: DmTask) = if (t.kind == DmKind.YTDL) (if (t.audioOnly) DmName.Cat.AUDIO else DmName.Cat.VIDEO) else DmName.cat(t.name, t.mime)
     val cats = listOf(null, DmName.Cat.VIDEO, DmName.Cat.AUDIO, DmName.Cat.DOC, DmName.Cat.ARCHIVE, DmName.Cat.OTHER)

@@ -893,13 +893,20 @@ function renderSub(co) {
   flushAfter();
 }
 /* מעבר בין עמודים בקובייה (המנוע של האפליקציה — env.cube). mutate משנה את המצב; y = הגלילה בעמוד החדש */
+/* 28/10/2026: גלילה של ניווט (מאחורי רוח הקובייה, באותו פריים של הציור) מסומנת data-nav-scroll — כמו בספרייה (v325),
+   כדי שכלי המעברים לא יספור אותה כקפיצה */
+function navY(v) {
+  if (!ROOT) return;
+  ROOT.dataset.navScroll = '1'; ROOT.scrollTop = v;
+  const r = ROOT; requestAnimationFrame(() => requestAnimationFrame(() => { delete r.dataset.navScroll; }));
+}
 function navTo(fwd, mutate, y, hold) {
   if (!ROOT) return;
   const C = E.cube, cube = C && C.clone && C.run && !(C.reduce && C.reduce());
   const ghost = cube ? C.clone(ROOT) : null;
   mutate();
   render(cube ? 0 : (fwd ? -1 : 1));
-  if (ROOT) ROOT.scrollTop = typeof y === 'function' ? y() : y || 0;
+  if (ROOT) navY(typeof y === 'function' ? y() : y || 0);
   // הרצועה הקבועה היא העתק של העמוד החדש ברגע הזה — הגרף בראש (שמצויר בפריים הבא) חייב להיות בה כבר עכשיו
   if (ghost && hold) flushAfter();
   if (ghost) C.run(ROOT, ghost, C.side(fwd), hold ? { y: hold.y(), on: hold.on } : undefined);
@@ -976,13 +983,13 @@ function wireSwipe() {
     if (S.sub.length) {
       if (next) return null;
       let rec = null, y = 0;
-      return { render: () => { rec = S.sub.pop(); y = rec.y; render(); ROOT.scrollTop = y; }, undo: () => { S.sub.push(rec); render(); ROOT.scrollTop = 0; },
+      return { render: () => { rec = S.sub.pop(); y = rec.y; render(); navY(y); }, undo: () => { S.sub.push(rec); render(); navY(0); },
         commit: () => { if (rec.modal && E.modalDone) E.modalDone(rec.modal); } };
     }
     const i = TABS.indexOf(S.tab), j = i + (next ? 1 : -1);
     if (j < 0 || j >= TABS.length) return null;
     const prev = S.tab, to = TABS[j], y = ROOT.scrollTop, y1 = Math.min(y, stickY());
-    return { render: () => { S.tab = to; S.segX = null; render(); ROOT.scrollTop = y1; }, undo: () => { S.tab = prev; S.segX = null; render(); ROOT.scrollTop = y; },
+    return { render: () => { S.tab = to; S.segX = null; render(); navY(y1); }, undo: () => { S.tab = prev; S.segX = null; render(); navY(y); },
       hold: holdY, holdOn: holdOn(prev, to), commit: () => tabLevel() };
   } });
 }
@@ -1165,7 +1172,7 @@ function repSub(k) {
   const y = stickY();
   if (ROOT.scrollTop > y) {
     ROOT.style.overflowY = 'hidden';
-    ROOT.scrollTop = y;
+    navY(y);
     requestAnimationFrame(() => { if (ROOT) ROOT.style.overflowY = ''; });
   }
   const rtl = document.documentElement.dir === 'rtl';

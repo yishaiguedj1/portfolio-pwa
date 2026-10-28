@@ -10,7 +10,7 @@
     android:targetCellHeight="2"
     android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="0"
-    android:initialLayout="@layout/glance_default_loading_layout"
+    android:initialLayout="@layout/widget_blank"
     android:configure="io.github.yishaiguedj1.snowball.MonConfigActivity"
     android:widgetFeatures="reconfigurable|configuration_optional"
     android:description="@string/mon_widget_desc"

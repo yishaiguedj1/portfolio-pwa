@@ -2180,7 +2180,9 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 
 /* v322: רענון בזמן שהספרייה פתוחה — וילון (מעל שכבת הספרייה 900, מתחת לקורא 920) עד שהדף/העמוד הראשון מוכן; בצבע הרקע,
    או בצבע דף הקורא (--curtain, מהסקריפט ב־index.html) כשחוזרים לספר — ואז דוהה */
-html.lib-curtain body::after { content: ""; position: fixed; inset: 0; z-index: 910; background: var(--curtain, var(--bg)); opacity: 0; transition: opacity .25s ease; pointer-events: none; }
+/* 28/10/2026 (QA מעברים): הווילון ברקע הגוונים של האפליקציה (כמו .lib-root/.st-root) — בצבע שטוח הוא נראה כמסך ריק ואז "רענון"
+   כשהגוונים הופיעו. צבע דף הקורא (--curtain) = שכבה אטומה מעל הגוונים; בלעדיו השכבה שקופה */
+html.lib-curtain body::after { content: ""; position: fixed; inset: 0; z-index: 910; background: linear-gradient(var(--curtain, transparent), var(--curtain, transparent)), var(--gl-ambient), var(--bg); opacity: 0; transition: opacity .25s ease; pointer-events: none; }
 html.lib-restoring body::after { opacity: 1; transition: none; }
 html.lib-open, html.lib-open body { overflow: hidden; }
 
