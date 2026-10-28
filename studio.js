@@ -1323,10 +1323,20 @@ async function refreshStatus(force) {
     ui.lrf = num(j.lrf);                       // 15/10: הנוסח של האיסוף המלא (תקופת הפיתוח) — נקרא
     save();
     lrnNotice();
-  } else ui.access = j.error === 'signin' || j.error === 'no_auth' ? 'signin' : j.error === 'not_allowed' ? 'denied' : j.error === 'net' ? 'offline' : 'error';
+  } else ui.access = j.error === 'signin' || j.error === 'no_auth' ? 'signin' : j.error === 'not_allowed' ? 'denied' : j.error === 'net' ? 'offline' : j.error === 'fs_http_429' ? 'quota' : 'error';
   repaint();
 }
+/* 28/10/2026: מכסת הקריאות של Firestore מתאפסת בחצות בשעון קליפורניה — השעה הזו בשעון המקומי */
+function quotaReset(now = Date.now()) {
+  try {
+    const f = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', hourCycle: 'h23', hour: 'numeric', minute: 'numeric', second: 'numeric' });
+    const p = {}; for (const x of f.formatToParts(new Date(now))) p[x.type] = +x.value;
+    const left = (86400 - ((p.hour % 24) * 3600 + p.minute * 60 + p.second)) * 1000;
+    return new Date(now + left).toLocaleTimeString(uiLang() === 'en' ? 'en-GB' : 'he-IL', { hour: '2-digit', minute: '2-digit' });
+  } catch (e) { return '10:00'; }
+}
 let jobsAt = 0;
+const JOBS_FULL_MS = 5 * 60e3;
 async function refreshJobs(force) {
   if (!force && Date.now() - jobsAt < 10000) return;
   jobsAt = Date.now();
@@ -2586,6 +2596,7 @@ function accessBanner() {
   if (ui.access === 'signin') return banner('warn', T('studioErrSignin'));
   if (ui.access === 'denied') return banner('warn', T('studioErrDenied'));
   if (ui.access === 'offline') return banner('info', T('studioOffline'));
+  if (ui.access === 'quota') return banner('info', T('studioErrQuota', { t: quotaReset() }));   // 28/10/2026: מכסת Firestore — לא "השרתון לא ענה"
   if (ui.access === 'error') return banner('info', T('studioErrServer'));
   return null;
 }
@@ -9091,8 +9102,21 @@ async function pollNow() {
         const j = await net.api('job', { job: x.id });
         if (j.ok && j.job) x.srv = normJob({ id: x.id, srv: j.job }).srv;
       }
-    } else if (ui.view === 'home') await refreshJobs(true);
-    else if (ui.view === 'server') await refreshServers();
+    } else if (ui.view === 'home') {
+      // 28/10/2026: op:'jobs' = קריאה של כל העבודות שלך (70+) מ־Firestore. בזמן עבודה רצה — רק היא (op:'job' = קריאה אחת),
+      // והרשימה המלאה לכל היותר פעם ב־JOBS_FULL_MS. 30 שנ׳ × כל הרשימה × כמה שעות של פרקים = המכסה היומית (28/10)
+      const isLive = (r) => r.srv && (r.srv.state === 'queued' || r.srv.state === 'running' || r.srv.bg);
+      const live = store.jobs.filter(isLive);
+      if (live.length && live.length <= 4 && Date.now() - jobsAt < JOBS_FULL_MS) {
+        for (const r of live) {
+          const j = await net.api('job', { job: r.id });
+          if (j.ok && j.job) adoptSrv(r, j.job);
+          else if (j.error === 'fs_http_429') ui.access = 'quota';
+        }
+        save();
+        if (!live.every(isLive)) await refreshJobs(true);   // עבודה הסתיימה — פעם אחת הרשימה המלאה (התראות, תקלות, הפקות)
+      } else await refreshJobs(true);
+    } else if (ui.view === 'server') await refreshServers();
   } finally { polling = false; repaint(); schedulePoll(); }
 }
 

@@ -35,8 +35,8 @@ ok(/direction:\s*ltr/.test(rule('.rows .r-amt')), 'סימן תמיד לפני ה
 ok(/--on-surface-var/.test(rule('.rows .r-amt.in')), 'משיכה באפור, ירוק שמור לרווח');
 // 6. מעקב
 ok(/border-radius:\s*(16px|var\(--radius-sm\))/.test(rule('.form-row input[type="text"]')) && /font-size:\s*17px/.test(rule('.form-row input[type="text"]')), 'שדות המעקב כמו שאר הטפסים');
-// v240: המעקב = כרטיסי מניה; ההסרה בכפתור מתאר אדום בתחתית הכרטיס הפתוח (במקום "ערוך") — לא ✕
-ok(/el\('button', 'chip-btn danger', t\('wlRemoveBtn'\)\)/.test(src) && !/wl-del[^>]*>✕/.test(src), 'מעקב: כפתור "הסר" (מתאר אדום) כמו בשאר הטאבים');
+// 28/10/2026 (בקשת המשתמש): במעקב אין כפתור "הסר" — ההסרה בלחיצה ארוכה על הכרטיס בלבד
+ok(!/wlRemoveBtn/.test(src) && !/wl-del[^>]*>✕/.test(src) && /onHold: \(card\) => showItemActions\(card, \[\{ kind: 'del', fn: \(\) => wlRemove/.test(src), 'מעקב: בלי כפתור "הסר"; הסרה בלחיצה ארוכה');
 // 7. התחברות
 ok(/#1E9E45/.test(rule('.login-overlay')) && !/#1a73e8/i.test(css), 'מסך התחברות בירוק המותג');
 // 8. חיבור IBKR

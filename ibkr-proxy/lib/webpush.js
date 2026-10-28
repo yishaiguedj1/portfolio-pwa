@@ -15,7 +15,7 @@ const SUB_MAX = 5;                 // מכשירים לאדם
 const TTL = 24 * 3600;             // שעות שההתראה מחכה לטלפון כבוי
 const ADMIN_URL = 'https://admin.thesnowball.app/';   // 20/10/2026: הכתובת של מרכז הניהול (מאחורי Cloudflare Access)
 const SUBJECT = 'https://yishaiguedj1.github.io/portfolio-pwa/';   // VAPID "sub" — כתובת ולא מייל (פרטיות)
-const KINDS = ['done', 'fail', 'ask', 'gate', 'cp', 'srv_down', 'srv_up', 'srv_auth', 'srv_new', 'site_down', 'site_up', 'major', 'bk_fail', 'ready_fail', 'lab_week', 'fund_audit', 'svc_quota'];   // 26/10/2026: svc_quota = שירות חיצוני הגיע ל־70% מהמכסה החינמית / המיילים לא נשלחים (למנהל)   // 25/10/2026: fund_audit = בקרת הדיוק הלילית של מנתח החברות מצאה שמשהו נשבר (למנהל)   // 20/10/2026 (מ׳7): lab_week = הסיכום השבועי של המעבדה (למנהל)   // 15/10/2026: srv_new = שרת שהתחבר בפעם הראשונה (גם מהזמנה אוטומטית)   // 15/10/2026: למנהל — הגיבוי נכשל / בדיקת המוכנות נכשלה (נפתח במרכז הניהול)   // 14/10/2026: major = תקלה רחבה (studioinc majorSync)   // שלב 5: הכתובות עצמן (lib/sitewatch.js)   // סבב 10: cp = העתק־הדבק מחכה לך
+const KINDS = ['done', 'fail', 'ask', 'gate', 'cp', 'srv_down', 'srv_up', 'srv_auth', 'srv_new', 'site_down', 'site_up', 'major', 'bk_fail', 'ready_fail', 'lab_week', 'fund_audit', 'svc_quota', 'fs_hot'];   // 26/10/2026: svc_quota = שירות חיצוני הגיע ל־70% מהמכסה החינמית / המיילים לא נשלחים (למנהל)   // 25/10/2026: fund_audit = בקרת הדיוק הלילית של מנתח החברות מצאה שמשהו נשבר (למנהל)   // 20/10/2026 (מ׳7): lab_week = הסיכום השבועי של המעבדה (למנהל)   // 15/10/2026: srv_new = שרת שהתחבר בפעם הראשונה (גם מהזמנה אוטומטית)   // 15/10/2026: למנהל — הגיבוי נכשל / בדיקת המוכנות נכשלה (נפתח במרכז הניהול)   // 14/10/2026: major = תקלה רחבה (studioinc majorSync)   // שלב 5: הכתובות עצמן (lib/sitewatch.js)   // סבב 10: cp = העתק־הדבק מחכה לך
 const TEXT = {
   he: { done: ['התרגום מוכן ✓', 'הכתוביות והסרטון מחכים בסטודיו'], fail: ['העבודה נעצרה', 'פתחו את הסטודיו לפרטים'],
     ask: ['שאלה מ־Claude', 'העבודה מחכה לתשובה שלך'], gate: ['צריך את האישור שלך', 'העבודה מחכה לאישור'],
@@ -30,6 +30,7 @@ const TEXT = {
     lab_week: ['סיכום השבוע במעבדה', 'מה השתנה השבוע, ואם הגרסה החדשה עזרה — במרכז הניהול'],
     fund_audit: ['נתוני החברות — משהו זז', 'הבדיקה הלילית מצאה ערך שלא תואם לדוח — מה ואיפה, במרכז הניהול'],
     svc_quota: ['שירות מתקרב לסוף המכסה', 'אחד השירותים עבר 70% מהמכסה החינמית — מה ומה הגיבוי, במרכז הניהול'],
+    fs_hot: ['קריאות חריגות למסד הנתונים', 'פעולה אחת קוראת הרבה יותר מהרגיל — פרטים בניטור השרתים'],
     test: ['ההתראות עובדות ✓', 'כך תדעו כשתרגום מוכן או כש־Claude שואל משהו'] },
   en: { done: ['Translation ready ✓', 'Subtitles and video are waiting in the studio'], fail: ['The job stopped', 'Open the studio for details'],
     ask: ['Claude has a question', 'The job is waiting for your answer'], gate: ['Your approval is needed', 'The job is waiting for approval'],
@@ -44,6 +45,7 @@ const TEXT = {
     lab_week: ['This week in the lab', 'What changed this week, and whether the new version helped — in the admin center'],
     fund_audit: ['Company data — something moved', 'The nightly check found a value that no longer matches the filing — what and where, in the admin center'],
     svc_quota: ['A service is near its quota', 'One of the services passed 70% of its free quota — which one and its backup, in the admin center'],
+    fs_hot: ['Unusual database reads', 'One operation reads far more than usual — details in server monitoring'],
     test: ['Notifications work ✓', 'You will know when a translation is ready or Claude asks something'] },
 };
 
@@ -151,8 +153,22 @@ function encrypt(sub, payload, opt = {}) {
   return Buffer.concat([salt, rs, Buffer.from([asPub.length]), asPub, ct]);
 }
 
+const nf = (n) => Math.round(+n || 0).toLocaleString('en-US');
+function fsHotText(x, lang) {
+  if (!x || (x.k !== 'tag' && x.k !== 'pace')) return null;
+  const tag = String(x.tag || '').replace(/[^A-Za-z0-9_:-]/g, '').slice(0, 50);
+  if (lang === 'en') return x.k === 'tag'
+    ? ['Unusual database reads', tag + ' read ' + nf(x.h) + ' documents in the last hour — looks like a loop. At this pace the day ends at ' + nf(x.proj) + ' of 50,000. Details in server monitoring']
+    : ['Database quota will run out today', nf(x.tot) + ' reads so far, ' + nf(x.h) + ' in the last hour — about ' + nf(x.proj) + ' of 50,000 by the reset. Details in server monitoring'];
+  return x.k === 'tag'
+    ? ['קריאות חריגות למסד הנתונים', tag + ' קרא ' + nf(x.h) + ' מסמכים בשעה האחרונה — נראה כמו לולאה. בקצב הזה היום ייגמר ב־' + nf(x.proj) + ' מתוך 50,000. פרטים בניטור השרתים']
+    : ['מכסת מסד הנתונים תיגמר היום', nf(x.tot) + ' קריאות עד עכשיו, ' + nf(x.h) + ' בשעה האחרונה — בערך ' + nf(x.proj) + ' מתוך 50,000 עד האיפוס. פרטים בניטור השרתים'];
+}
+
 /* התוכן של התראה: כותרת + שורה בשפת המכשיר, ולאן לפתוח. בלי שם קובץ ובלי תוכן העבודה */
 function message(kind, jobId, lang, x, now) {
+  // 28/10/2026: קריאות חריגות ל־Firestore (lib/fsmeter.js) — מי ובאיזה קצב, הרבה לפני שהמכסה נגמרת; נפתח בניטור השרתים
+  if (kind === 'fs_hot') { const m = fsHotText(x, lang); return m ? { t: m[0], b: m[1], k: kind, j: '', u: ADMIN_URL + '#mon' } : null; }
   // 27/10/2026: התראת מחיר מגרף הנרות (lib/pxalert.js) — הטקסט נבנה מההתראה עצמה; נפתח בגרף של המניה (#chart=)
   if (kind === 'px') { const m = x && x.a ? require('./pxalert').text(x.a, x.p, lang) : null; return m ? { t: m.t, b: m.b, k: 'px', j: '', i: m.i, u: m.u } : null; }
   const t = kind === 'stage' ? stageText(x, lang) : (TEXT[lang] || TEXT.he)[kind];

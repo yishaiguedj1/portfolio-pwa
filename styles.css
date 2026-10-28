@@ -1524,7 +1524,9 @@ html[data-app="academy"] .login-overlay { background: linear-gradient(160deg, #1
   border: 0; background: none; padding: 2px 0; cursor: pointer;
   font: inherit; font-size: inherit; font-weight: inherit; color: inherit; letter-spacing: inherit;
 }
-.wl-menu .wl-pop { inset-inline-end: auto; inset-inline-start: 0; max-height: 70vh; overflow-y: auto; }
+.wl-menu .wl-pop { inset-inline-start: auto; inset-inline-end: 0; max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto; }   /* 28/10/2026: הסמל בקצה השורה — הבועה נפתחת לתוך המסך */
+/* 28/10/2026 (בקשת המשתמש): סמל הרשימה בעברית — התבליטים מימין */
+[dir="rtl"] .wl-menu .wl-title-btn svg, [dir="rtl"] .wl-pop [data-wl] .src-opt-ic svg { transform: scaleX(-1); }
 .wl-opt-count { margin-inline-start: auto; font-size: 13px; font-weight: 600; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
 .wl-opt-count + .src-opt-check { margin-inline-start: 6px; }
 .wl-plus { font-size: 20px; font-weight: 700; color: var(--primary); }

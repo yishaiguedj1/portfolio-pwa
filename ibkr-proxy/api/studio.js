@@ -62,6 +62,7 @@ const SF = require('../lib/sysflags');
 const YT = require('../lib/ytck');   // 25/10/2026: חשבון יוטיוב ייעודי לשרת (עוגיות מוצפנות)   // 15/10/2026: מצב תחזוקה והגדרות ודגלים (sysCfg/main)   // 15/10/2026 (מ׳2): קורפוס הטקסט — לדלי נפרד snb-learn
 const AICACHE = require('../lib/aicache');   // 15/10/2026: התקרות היומיות של ה־AI (limits) — למסך AI ועלויות
 const AO = require('../lib/adminov');   // 15/10/2026: מרכז הניהול — הסקירה, "מחכה לך" ו"מה רץ איפה"   // 14/10/2026: מאגר הלמידה — רשומה אנונימית לכל עבודה + לוח הבקרה של המנהל
+const FSM = require('../lib/fsmeter');   // 28/10/2026: מונה קריאות Firestore לפי פעולה — ניטור השרתים והתראת fs_hot
 const RL = require('../lib/relay');   // 24/10/2026: ההעברה — השרת עושה הכל, Claude דרך ה־Routine של המשתמש
 const A = require('../lib/studioagents');   // v373: מלאי הסוכנים   // v371: תקלות, שורש סביר ותקלה רחבה
 
@@ -968,6 +969,21 @@ async function watch(req, res, deps) {
   // הסוד (אופציונלי) — של GitHub או של הקרון היומי של Vercel (CRON_SECRET, שולח אותו ככותרת Authorization)
   const secret = process.env.STUDIO_WATCH_SECRET, auth = String((req.headers || {}).authorization || '');
   if (secret && auth !== 'Bearer ' + secret && !(process.env.CRON_SECRET && auth === 'Bearer ' + process.env.CRON_SECRET)) return res.status(401).json({ ok: false });
+  /* 28/10/2026: ?fsw=1 — הבודק של קריאות Firestore (server.js — startFsWatch, כל 5 דק׳, רק בשרת שלנו שבו המונה חי).
+     פעולה אחת מעל FSM.TAG_HOUR בשעה, או קצב שיגמור 70% מהמכסה עד האיפוס → התראה (fs_hot) למנהל, פעם ביום לכל ממצא.
+     בלי ממצא — אין אף קריאה ל־Firestore */
+  if (String((req.query || {}).fsw || '') === '1') {
+    if (process.env.VERCEL) return res.status(404).json({ ok: false, error: 'not_here' });
+    const now = deps.now || Date.now();
+    const al = FSM.alarms(now);
+    let sent = 0;
+    if (al.length) {
+      const cfg = await readDoc(deps, 'sysBackup', 'cfg').catch(() => null);
+      if (cfg && UID_RE.test(String(cfg.uid || ''))) for (const a of al.slice(0, 3)) sent += await notify(deps, cfg.uid, 'fs_hot', '', now, a);
+      console.log('[fsw]', JSON.stringify(al));
+    }
+    return res.status(200).json({ ok: true, al: al.length, sent });
+  }
   /* ת4: בדיקת החיבור ל־R2 (?r2=1) — כותבת קובץ זעיר, קוראת ומוחקת, ובודקת CORS לאתר. בתשובה רק כן/לא וקוד שגיאה */
   if (String((req.query || {}).r2 || '') === '1') {
     if (limited('r2h', 3)) return res.status(429).json({ ok: false, error: 'rate_limited' });
@@ -2848,14 +2864,15 @@ async function handler(req, res, deps = {}) {
       // 22/10/2026: מוניטור — כל השרתים עם היסטוריית הדופק (24 שעות) + העבודות שרצות עכשיו. מנהל, או טוקן קריאה (הווידג׳ט)
       if (!(user.mon === true || isAdmin(user))) return res.status(403).json({ ok: false, error: 'not_admin' });
       let raw;
-      try { raw = await query(deps, 'studioServers', null, S.SRV_MAX + 5); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
+      // 28/10/2026: fr = קריאות Firestore לפי פעולה (lib/fsmeter.js, בזיכרון) — גם כש־Firestore לא עונה: אז הכי צריך לדעת מי צרך
+      try { raw = await query(deps, 'studioServers', null, S.SRV_MAX + 5); } catch (e) { return res.status(503).json({ ok: false, error: 'store', fr: FSM.view(now) }); }
       const jobs = await query(deps, 'studioJobs', { state: 'running' }, 50).catch(() => []);
       const srv = raw.map((x) => { const v = S.serverView(x, now); return v && Object.assign(v, { mon: Array.isArray(x.mon) ? x.mon : [] }); }).filter(Boolean);
       const cfg = (await monCfg(deps, now).catch(() => null)) || {};
       const run = jobs.map((j) => ({ sid: j.sid, st: (j.prog || {}).st, p: (j.prog || {}).p }));
       // 24/10/2026: האחסון והעלות גם בווידג'ט · 26/10: נמדדים פעם בשעה — מטמון AO_TTL (הווידג׳ט מתרענן כל דקה)
       const usg = await aoGet(deps, 'monUsg', () => readDoc(deps, 'sysUsage', 'main'), now);
-      return res.status(200).json({ ok: true, now, tok: { on: !!cfg.monKh, at: cfg.monAt > 0 ? cfg.monAt : 0 }, mon: MON.monView(srv, run, now), sto: USG.stoBrief(usg && usg.sto) });
+      return res.status(200).json({ ok: true, now, tok: { on: !!cfg.monKh, at: cfg.monAt > 0 ? cfg.monAt : 0 }, mon: MON.monView(srv, run, now), sto: USG.stoBrief(usg && usg.sto), fr: FSM.view(now) });
     }
     if (op === 'adminServices') {
       // 26/10/2026: מרכז הניהול ← "שירותים" — כל שירות: מצב, אחוז מהמכסה, הגיבוי, מתי נמדד (lib/services.js)

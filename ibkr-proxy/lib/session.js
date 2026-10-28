@@ -272,7 +272,8 @@ function makeHandler(over = {}) {
     const origin = String(h.origin || '');
     if (req.method === 'GET') {
       res.setHeader('Cache-Control', 'no-store');
-      return res.status(200).json({ ok: true, since: new Date(stats.since).toISOString(), n: stats.n, last: stats.last });
+      // 28/10/2026: fr = קריאות Firestore היום לפי פעולה (lib/fsmeter.js) — לאבחון מכסה בלי גישה ל־Google Cloud; רק שמות פעולות ומספרים
+      return res.status(200).json({ ok: true, since: new Date(stats.since).toISOString(), n: stats.n, last: stats.last, fr: require('./fsmeter').view() });
     }
     const app = appForOrigin(origin, sessEnv(deps.env));
     cors(res, origin, app);

@@ -135,6 +135,7 @@ html.kc-open { overflow: hidden; }
 .kc-selbar.on, .kc-repbar.on { display: flex; }
 .kc-repbar { bottom: calc(52px + env(safe-area-inset-bottom, 0px)); font-size: 13px; }
 .kc-hint { display: flex; top: calc(110px + env(safe-area-inset-top, 0px)); font-size: 13px; padding-inline-start: 12px; }
+.kc-sel-div { display: none; }
 .kc-sel-n { font-size: 12.5px; color: var(--kc-ink2); padding: 0 6px; white-space: nowrap; }
 .kc-cols { display: flex; gap: 4px; padding: 0 4px; }
 .kc-col { width: 22px !important; height: 22px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .15); }
@@ -164,11 +165,19 @@ html.kc-open { overflow: hidden; }
 .kc-sh-back { position: absolute; inset: 0; z-index: 40; background: var(--kc-veil); display: flex; align-items: center; justify-content: center; animation: kc-fade .16s ease-out; }
 @keyframes kc-fade { from { opacity: 0; } }
 .kc-sheet { width: min(460px, calc(100% - 24px)); max-height: min(78vh, 720px); display: flex; flex-direction: column; background: var(--kc-panel); border-radius: var(--radius); box-shadow: var(--kc-shadow); overflow: hidden; }
+/* 28/10 (בקשת המשתמש): גיליונות מזכוכית לפי ת־עיצוב — מה שמאחור מטושטש ומוכהה בעדינות כמו בתפריט הראשי (.menu-veil),
+   והגיליון עצמו שקוף למחצה מעליו. הרקע הוא שורש הטשטוש, לכן לגיליון אין backdrop משלו — רק צבע שקוף. מילויים בפנים שקופים גם הם */
+.kc-sh-back { background: rgba(242, 242, 247, .28); -webkit-backdrop-filter: blur(24px) saturate(1.5); backdrop-filter: blur(24px) saturate(1.5); }
+.kc-sheet { --kc-fill: rgba(118, 118, 128, .12); background: color-mix(in srgb, var(--kc-panel) 74%, transparent); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .08), var(--kc-shadow); }
+[data-theme="dark"] .kc-sh-back { background: rgba(0, 0, 0, .32); }
+[data-theme="dark"] .kc-sheet { --kc-fill: rgba(118, 118, 128, .24); background: color-mix(in srgb, var(--kc-panel) 74%, transparent); box-shadow: 0 0 0 .5px rgba(255, 255, 255, .1), var(--kc-shadow); }
+.kc-wveil { display: none; }
 .kc-sheet.wide { width: min(680px, calc(100% - 24px)); }
 .kc-sh-head { display: flex; align-items: center; gap: 8px; padding: 10px 10px 6px 16px; flex: none; }
 [dir="rtl"] .kc-sh-head { padding: 10px 16px 6px 10px; }
 .kc-sh-title { font-weight: 700; font-size: 20px; flex: 1; min-width: 0; }
 .kc-sh-body { overflow-y: auto; padding: 4px 16px 16px; display: flex; flex-direction: column; gap: 10px; -webkit-overflow-scrolling: touch; user-select: text; -webkit-user-select: text; }
+.kc-sh-body > * { flex-shrink: 0; }   /* כשהתוכן ארוך מהמסך — לא לכווץ: בורר עם overflow (min-height 0) נמחץ לפס דק וכותרות עלו זו על זו */
 .kc-gt { font-size: 12.5px; font-weight: 600; color: var(--kc-ink2); margin-top: 6px; }
 .kc-note { font-size: 12.5px; color: var(--kc-ink2); line-height: 1.5; }
 /* התראות ברקע — שורת מצב אחת בחלון ההתראות (27/10/2026) */
@@ -351,7 +360,15 @@ html.kc-open { overflow: hidden; }
   [data-theme="dark"] .kc-pk { box-shadow: 0 0 0 .5px rgba(255, 255, 255, .16), 0 1px 4px rgba(0, 0, 0, .3); }
   .kc-pick { top: calc(var(--kc-toph, 0px) + 44px); }
   .kc-top-end .kc-ib { width: 34px; }
-  .kc-watch.on { position: absolute; inset-block: 0; inset-inline-end: 0; z-index: 12; background: var(--kc-panel); box-shadow: var(--kc-shadow); width: 200px; }
+  /* רשימת המעקב = מגירה מזכוכית מעל כל המסך, ומאחוריה אותו טשטוש של הגיליונות; נגיעה בטשטוש / "חזור" / תפריט אחר סוגרים */
+  .kc-watch.on { position: fixed; inset-block: 0; inset-inline-end: 0; z-index: 46; width: min(240px, 72vw); padding: calc(8px + env(safe-area-inset-top, 0px)) 0 calc(8px + env(safe-area-inset-bottom, 0px)); --kc-acc-c: rgba(118, 118, 128, .14);
+    background: color-mix(in srgb, var(--kc-panel) 74%, transparent); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .08), var(--kc-shadow); border: 0; animation: kc-side .22s cubic-bezier(.32, .72, 0, 1); }
+  [data-theme="dark"] .kc-watch.on { background: color-mix(in srgb, var(--kc-panel) 74%, transparent); --kc-acc-c: rgba(118, 118, 128, .28); }
+  .kc-wveil.on { display: block; position: fixed; inset: 0; z-index: 45; background: rgba(242, 242, 247, .28); -webkit-backdrop-filter: blur(24px) saturate(1.5); backdrop-filter: blur(24px) saturate(1.5); animation: kc-fade .2s ease-out; }
+  [data-theme="dark"] .kc-wveil.on { background: rgba(0, 0, 0, .32); }
+  @keyframes kc-side { from { transform: translateX(100%); } }
+  [dir="rtl"] .kc-watch.on { animation-name: kc-side-r; }
+  @keyframes kc-side-r { from { transform: translateX(-100%); } }
   .kc-clock { display: none; }
   .kc-grid[data-l="2"] { grid-template: 1fr 1fr / 1fr; }
   .kc-grid[data-l="5"] { grid-template: 1fr 1fr / 1fr 1fr; }
@@ -359,7 +376,22 @@ html.kc-open { overflow: hidden; }
   .kc-sheet, .kc-sheet.wide { width: 100%; max-height: 82vh; border-radius: var(--radius) var(--radius) 0 0; padding-bottom: env(safe-area-inset-bottom, 0px); animation: kc-up .2s cubic-bezier(.2, .8, .2, 1); }
   .kc-sheet::before { content: ''; display: block; width: 36px; height: 5px; border-radius: var(--pill); background: var(--kc-sep); margin: 6px auto 0; flex: none; }
   @keyframes kc-up { from { transform: translateY(40px); opacity: .4; } }
-  .kc-selbar, .kc-hint { top: calc(62px + env(safe-area-inset-top, 0px)); }
+  .kc-hint { top: calc(62px + env(safe-area-inset-top, 0px)); }
+  /* סרגל עריכת שרטוט (28/10, בקשת המשתמש): גלולת זכוכית ממורכזת מתחת לכותרת, לפי ת־עיצוב — כפתורים שווים, בלי מסגרת וצבע מבטא;
+     עובי = טקסט שקט, צבע = עיגול עם טבעת, קו מפריד לפני הסגירה */
+  .kc-selbar { top: calc(var(--kc-toph, 56px) + 1px); gap: 2px; padding: 2px 4px; border: 0; border-radius: var(--pill);
+    background: color-mix(in srgb, var(--kc-bg) 74%, transparent); -webkit-backdrop-filter: saturate(180%) blur(28px); backdrop-filter: saturate(180%) blur(20px);
+    box-shadow: 0 0 0 .5px rgba(0, 0, 0, .1), 0 6px 20px rgba(0, 0, 0, .12); animation: kc-fade .16s ease-out; }
+  [data-theme="dark"] .kc-selbar { box-shadow: 0 0 0 .5px rgba(255, 255, 255, .14), 0 6px 20px rgba(0, 0, 0, .45); }
+  .kc-selbar .kc-ib.sm { width: 38px; height: 38px; border-radius: var(--pill); color: var(--kc-ink); }
+  .kc-selbar .kc-ib.sm svg { width: 20px; height: 20px; }
+  .kc-selbar .kc-ib.sm.on { color: var(--kc-acc); background: var(--kc-hov); }
+  .kc-selbar .kc-ib.danger { color: var(--kc-dn); }
+  .kc-selbar .kc-swatch { width: 24px !important; height: 24px; margin: 0 8px; box-shadow: 0 0 0 2px var(--kc-bg), 0 0 0 3px rgba(118, 118, 128, .35); }
+  .kc-selbar .kc-wcyc, .kc-selbar .kc-dash { display: none !important; }   /* בקשת המשתמש: בלי עובי ובלי קו מקווקו בסרגל של הטלפון */
+  .kc-selbar .kc-wcyc.on { min-width: 38px; height: 38px; align-items: center; justify-content: center; padding: 0 !important; border-radius: var(--pill); background: none; color: var(--kc-ink); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .kc-selbar .kc-sel-div { display: block; width: .5px; align-self: stretch; margin: 8px 2px; background: var(--kc-sep); }
+  .kc-selbar.pal .kc-cols { padding: 0 6px; gap: 6px; }
   .kc-repbar { bottom: calc(60px + env(safe-area-inset-bottom, 0px)); }
 }
 @media (max-width: 440px) {
@@ -374,3 +406,9 @@ html.kc-open { overflow: hidden; }
   .kc-spin { animation-duration: 2s; }
   .kc-cell.busy::before { animation: none; background-size: 100% 100%; }
 }
+
+/* ==== 28/10/2026 — הגרף בחומר הזכוכית המשותף (הטוקנים --gl-* ב־styles.css; הקנבס עצמו נשאר אטום לקריאות) ==== */
+.kc-fly { background: var(--gl-panel); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); border-color: transparent; box-shadow: var(--gl-ring), var(--gl-shadow); }
+.kc-fab:not(.on), .kc-now { background: var(--gl-card) !important; -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); border-color: transparent !important; box-shadow: var(--gl-card-sh); }
+.kc-btn.pri, .kc-fab.on { --btn-c: var(--kc-acc); background: linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,.05) 48%, rgba(255,255,255,0) 54%), var(--btn-c) !important;
+  box-shadow: inset 1px 1px 0 rgba(255,255,255,.55), inset -1px -1px 0 rgba(255,255,255,.2), 0 6px 18px color-mix(in srgb, var(--btn-c) 30%, transparent); }
