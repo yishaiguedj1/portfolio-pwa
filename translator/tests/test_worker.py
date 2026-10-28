@@ -377,6 +377,9 @@ class TestWorker(unittest.TestCase):
         self.assertEqual([o['k'] for o in early[0]['out']][0], 'srt')
         self.assertEqual(sorted(o['k'] for o in early[1]['out']), sorted(o['k'] for o in done['out'] if o['k'] in ('compact', 'srt')))
         self.assertLess(self.fake.reports.index(early[1]), self.fake.reports.index(done))
+        # 28/10/2026: רק הדיווח של סוף ההעלאה אומר rd (בטלפון העבודה "הסתיימה") — לא הכתוביות המוקדמות שלפני הצריבה
+        self.assertFalse(early[0].get('rd'))
+        self.assertTrue(early[1].get('rd'))
 
     # ---------------------------------------------------------------- איכויות צפייה (ladder.py)
     def seed_ladder(self, s='ok', alt=False, multi=False):

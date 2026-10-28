@@ -897,7 +897,7 @@ async function pulseOp(deps, body, sid, now) {
   for (const id of ids) {
     const hit = SHADE_JOB.get(id);
     const job = hit && now - hit.at < SHADE_MS ? hit.job : await readDoc(deps, 'studioJobs', id).catch(() => null);
-    if (!job || job.sid !== sid || job.kind !== 'tr' || job.state !== 'running') continue;
+    if (!job || job.sid !== sid || job.kind !== 'tr' || job.state !== 'running' || job.rdy) continue;
     if (job.qa && job.qa.at && !job.qa.a) continue;   // מחכה לתשובה שלך — יש לזה התראה משלה
     if (!hit || now - hit.at >= SHADE_MS) shadeJob(Object.assign({ id }, job), now);
     n += await shadePush(deps, Object.assign({ id }, job), PG.stageNow(job, now), now);
@@ -2333,7 +2333,7 @@ async function worker(req, res, body, deps) {
         if (!m) return res.status(400).json({ ok: false, error: 'out_bad' });
         o.size = Math.floor(m.size || o.size);
       }
-      up.fo = outs;
+      if (!job.rdy) up.fo = outs;   // 28/10/2026: אחרי rd התוצרים כבר אצלך (אולי ערכת כתוביות) — הדיווח הסופי לא דורס אותם
     }
     if (body.hl != null && job.kind === 'tr' && job.fv && job.folder) {
       // איכויות הצפייה: המקור הוחלף בגרסה הארוזה (אותו מזהה, גודל חדש = vs) + האיכויות הנמוכות. הכל מאומת מול Drive;
@@ -2506,17 +2506,17 @@ async function worker(req, res, body, deps) {
     }
     if (job.kind === 'tr') {
       // שלב 4: התראה לטלפון — מוכן / נעצרה (לא כשממתינים להמשך אוטומטי) / שאלה / אישור
-      const kind = up.state === 'done' ? 'done' : up.state === 'failed' && !up.rw ? 'fail' : gateId ? 'gate' : body.ask != null && up.qa ? 'ask' : up.cp ? 'cp' : '';
+      const kind = (up.state === 'done' && !job.rdy) || up.rdy ? 'done' : up.state === 'failed' && !up.rw ? 'fail' : gateId ? 'gate' : body.ask != null && up.qa ? 'ask' : up.cp ? 'cp' : '';
       if (kind) await notify(deps, job.uid, kind, id, now);
       // 27/10/2026 (בקשת המשתמש): כל שלב בווילון ההתראות — אותה התראה מתחלפת (שלב חדש / כל 10%), שקטה. נגיעה = העבודה
       // 27/10/2026: האחוז = ההערכה של הטלפון (PG.stageNow), לא רק מה שהעובד דיווח; בין הדיווחים — op:'pulse' מהעובד (shadePush)
-      else if ((!up.state || up.state === 'running') && up.prog && !parked) {
+      else if ((!up.state || up.state === 'running') && up.prog && !parked && !job.rdy) {
         const nx = Object.assign({ id }, job, up);
         shadeJob(nx, now);
         const x = PG.stageNow(nx, now) || (up.prog.st ? { st: up.prog.st, p: up.prog.p || 0 } : null);
         await shadePush(deps, nx, x, now);
       }
-      if (up.state && up.state !== 'running') { SHADE_JOB.delete(id); SHADE_PN.delete(id); }
+      if ((up.state && up.state !== 'running') || up.rdy) { SHADE_JOB.delete(id); SHADE_PN.delete(id); }
     }
     if (job.kind === 'tr' && up.state === 'done' && !(job.spec && job.spec.src === 'subs')) {
       // v363: עבודה שהסתיימה מלמדת את המגדל מה "רגיל" אצלך. תקלה כאן לא מפילה את סוף העבודה

@@ -757,7 +757,7 @@ function extVideoOk(meta) {
 function publicJob(job, now) {
   const e = effState(job, now);
   return {
-    id: job.id, kind: job.kind, state: e.state, err: e.err, created: job.created || 0, updated: job.updated || 0,
+    id: job.id, kind: job.kind, state: job.rdy && e.state === 'running' ? 'done' : e.state, bg: job.rdy && e.state === 'running' ? 1 : 0, err: e.err, created: job.created || 0, updated: job.updated || 0,
     fired: job.fired || 0, claimed: job.claimed || 0, ended: job.ended || e.at || 0,
     spec: job.spec || null, files: { a: fileView(job.fa), v: fileView(job.fv), s: fileView(job.fsu), r: fileView(job.fsr), o: Array.isArray(job.fo) ? job.fo : [], c: fileView(job.fc), q: fileView(job.fq), m: fileView(job.fph), w: fileView(job.fpw) },
     folder: FILE_ID_RE.test(String(job.folder || '')) ? job.folder : '',
@@ -1226,6 +1226,12 @@ function applyReport(job, r, now) {
   const prog = Object.assign({ st: '', p: 0, stg: {} }, job.prog || {});
   prog.stg = Object.assign({}, prog.stg);
   const closeCur = () => { if (prog.st && prog.stg[prog.st] && !prog.stg[prog.st].e) prog.stg[prog.st] = Object.assign({}, prog.stg[prog.st], { e: now }); };
+  // 28/10/2026: אחרי rd (התוצרים כבר אצלך) העובד משלים ברקע איכויות צפייה ולמידה — השלב והאחוז לא זזים, רק ההודעה
+  if (job.rdy && r.done !== true && r.fail !== true) {
+    if (r.msg != null) prog.msg = clean(r.msg, 240);
+    prog.at = now;
+    return { prog, updated: now };
+  }
   const st = STAGES.includes(r.st) ? r.st : '';
   if (st && st !== prog.st) {
     closeCur();
@@ -1245,7 +1251,8 @@ function applyReport(job, r, now) {
   if (r.checks && typeof r.checks === 'object') prog.ck = { drive: r.checks.drive === true, server: true };
   prog.at = now;
   const out = { prog, updated: now };
-  if (r.done === true) { closeCur(); prog.p = 1; out.state = 'done'; out.ended = now; }
+  if (r.rd === true && r.done !== true && r.fail !== true && !job.rdy) { closeCur(); prog.p = 1; out.rdy = now; out.ended = now; }   // 28/10/2026: התוצרים מוכנים — בטלפון העבודה "הסתיימה" (publicJob), והעובד משלים ברקע
+  if (r.done === true) { closeCur(); prog.p = 1; out.state = 'done'; if (!job.rdy) out.ended = now; }
   else if (r.fail === true) { closeCur(); out.state = 'failed'; out.err = ERR_RE.test(String(r.err || '')) ? r.err : 'worker'; out.ended = now; }
   return out;
 }
