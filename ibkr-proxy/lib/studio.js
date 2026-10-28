@@ -1243,6 +1243,12 @@ function applyReport(job, r, now) {
   if (r.ex != null) prog.ex = clean(r.ex, 240);
   if (r.eta != null && Number.isFinite(+r.eta)) prog.eta = Math.max(0, Math.min(48 * 3600, Math.round(+r.eta)));   // שניות שנשארו לשלב (העובד יודע הכי טוב)
   if (r.checks && typeof r.checks === 'object') prog.ck = { drive: r.checks.drive === true, server: true };
+  // 28/10/2026 (ניתוח הזמנים): התוצרים עלו והעובד רק משלים ברקע (איכויות צפייה, מאגר הלמידה — ~5 דק׳ בפרק של 22 דק׳).
+  // r = מתי הם הגיעו אליך: הטלפון מציג "מוכן" מכאן, והצפי לומד את השמירה עד כאן (לא את הרקע)
+  const sv = prog.stg.sv;
+  if (r.done !== true && r.fail !== true && prog.st === 'sv' && sv && sv.s > 0 && !(sv.r > 0) && +r.p >= 1 && Array.isArray(r.out) && r.out.length) {
+    prog.stg.sv = Object.assign({}, sv, { r: now });
+  }
   prog.at = now;
   const out = { prog, updated: now };
   if (r.done === true) { closeCur(); prog.p = 1; out.state = 'done'; out.ended = now; }
