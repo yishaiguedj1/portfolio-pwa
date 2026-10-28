@@ -1027,7 +1027,8 @@ function chartStyles(c) {
         showRule: 'always', showType: 'standard', offsetTop: topPad(c),
         rect: { color: p.tipBg, borderColor: p.axis },
         title: { show: false },
-        legend: { color: p.text, size: 11, family: p.font, marginLeft: 6, marginTop: 4, marginRight: 4, template: [{ title: 'open', value: '{open}' }, { title: 'high', value: '{high}' }, { title: 'low', value: '{low}' }, { title: 'close', value: '{close}' }, { title: 'change', value: '{change}' }, { title: 'volume', value: '{volume}' }] },
+        // בטלפון: שורה אחת (בקשת המשתמש 28/10) — טקסט 10 ורווחים צרים, כך ששש התוויות נכנסות ברוחב הגרף בלי לגלוש לשורה שנייה
+        legend: { color: p.text, size: narrow() ? 10 : 11, family: p.font, marginLeft: narrow() ? 3 : 6, marginTop: 4, marginRight: narrow() ? 3 : 4, template: [{ title: 'open', value: '{open}' }, { title: 'high', value: '{high}' }, { title: 'low', value: '{low}' }, { title: 'close', value: '{close}' }, { title: 'change', value: '{change}' }, { title: 'volume', value: '{volume}' }] },
       },
     },
     indicator: {
