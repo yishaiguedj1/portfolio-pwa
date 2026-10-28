@@ -8,7 +8,7 @@ const CACHE_NAME = 'portfolio-pwa-v611';
 const HASHES = {
   "./": "16b507afdf51b3641466129e571503e2",
   "./index.html": "16b507afdf51b3641466129e571503e2",
-  "./styles.css": "13bae7ceffb16e8288d5fe301437c094",
+  "./styles.css": "ae83b5a67d8c6547f815332fd36c3f51",
   "./app.js": "36721004ace2e060abbe6429996e9e47",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "e50501f26e70aad478a5d8d489754d97",
@@ -38,7 +38,7 @@ const HASHES = {
   "./chart.css": "1b0fa69cdba28b532fe99f8e85f48dce",
   "./vendor/klinecharts/klinecharts.min.js": "4202d8661b8302175751d8d072bf6d2f",
   "./library.js": "3243a58a1e6ed5a54989c02f31ac975f",
-  "./library.css": "c2f6fdb2c7f1c76fd6fb84ff298f1eb9",
+  "./library.css": "7552e53ed56852cfc4655df878bd7bb5",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
   "./libbackup.js": "a238c4cf7877166ba8eba5cdcf6eadb8",
   "./ribbon3d.js": "0004ce220226fadce8918b975fa43282",
