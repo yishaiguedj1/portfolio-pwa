@@ -1081,3 +1081,9 @@ label.lib-row input { position: absolute; inset: 0; opacity: 0; cursor: pointer;
 /* סרגל הפעולות הצף — גלולת זכוכית בשתי הערכות */
 .lib-root .mg-abar, [data-theme="dark"] .lib-root .mg-abar { background: var(--gl-bar); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx);
   border: 0; box-shadow: var(--gl-ring), var(--gl-shadow); }
+/* העמודים מזכוכית: רקע עדין בכחול של Academy מאחור, וכל המשטחים (--surface) שקופים עם קצה אור */
+.lib-root, [data-theme="dark"] .lib-root { --surface: var(--gl-card);
+  background: radial-gradient(70% 45% at 100% 0%, color-mix(in srgb, var(--primary) 13%, transparent), transparent 70%),
+    radial-gradient(60% 40% at 0% 75%, color-mix(in srgb, var(--sys-teal) 10%, transparent), transparent 70%), var(--bg); }
+.lib-root :is(.bk-card, .lib-bkcard, .lib-card, .ac-tile) { box-shadow: var(--gl-card-sh); }
+.lib-root .mg-list { box-shadow: var(--gl-card-sh); }

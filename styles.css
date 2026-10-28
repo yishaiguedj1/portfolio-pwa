@@ -75,6 +75,8 @@
   --gl-ring: 0 0 0 .5px rgba(0, 0, 0, .08);
   --gl-fill: rgba(118, 118, 128, .12);
   --gl-shadow: 0 10px 34px rgba(0, 0, 0, .16);
+  --gl-card: color-mix(in srgb, var(--gl-base) 74%, transparent);
+  --gl-card-sh: inset 0 .5px 0 rgba(255, 255, 255, .85), 0 0 0 .5px rgba(0, 0, 0, .06), 0 2px 12px rgba(0, 0, 0, .04);
 }
 
 [data-theme="dark"] {
@@ -135,6 +137,8 @@
   --gl-ring: 0 0 0 .5px rgba(255, 255, 255, .1);
   --gl-fill: rgba(118, 118, 128, .24);
   --gl-shadow: 0 10px 34px rgba(0, 0, 0, .5);
+  --gl-card: color-mix(in srgb, var(--gl-base) 74%, transparent);
+  --gl-card-sh: inset 0 .5px 0 rgba(255, 255, 255, .1), 0 0 0 .5px rgba(255, 255, 255, .08);
 }
 
 /* ---- צבע המערכת לכל אפליקציה (13/10/2026, בקשת המשתמש — הגוונים המדויקים שבחר) ----
@@ -2247,3 +2251,16 @@ html :is(.btn, .dlg-ok, .st-btn, .st-plus, .an-btn, .lib-signin, .bk-cta, .adm-b
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .36), inset 0 -1px 0 rgba(255, 255, 255, .1), inset 0 0 0 .5px rgba(255, 255, 255, .18),
     0 1px 2px rgba(0, 0, 0, .3), 0 5px 16px color-mix(in srgb, var(--btn-c) 22%, transparent);
 }
+
+/* ==== 28/10/2026 — העמודים מזכוכית (בקשת המשתמש: כרטיסים, סרגלי לשוניות ורכיבים בעמוד) ====
+   רקע עדין בגוון האפליקציה מאחור (קבוע, לא נגלל) — בלעדיו זכוכית על רקע אחיד לא נראית. הכרטיסים שקופים 74% עם קצה אור
+   דק וקו שיער במקום מסגרת; בלי backdrop (הרקע מאחור חלק — טשטוש לא מוסיף ועולה בפריימים, ראו v193). */
+body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(70% 45% at 100% 0%, color-mix(in srgb, var(--primary) 13%, transparent), transparent 70%),
+    radial-gradient(60% 40% at 0% 75%, color-mix(in srgb, var(--sys-teal) 10%, transparent), transparent 70%); }
+.card, [data-theme="dark"] .card, .stock, [data-theme="dark"] .stock { background: var(--gl-card); border-color: transparent; box-shadow: var(--gl-card-sh); }
+.pfbk-page .ios-list { background: var(--gl-card); box-shadow: var(--gl-card-sh); }
+.stock-search-results, [data-theme="dark"] .stock-search-results { background: var(--gl-panel); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-ring), var(--gl-shadow); }
+/* סרגל הלשוניות — גלולת זכוכית */
+.tabs { background: var(--gl-bar); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); border: 0; box-shadow: var(--gl-ring), 0 6px 20px rgba(0, 0, 0, .08); }
+[data-theme="dark"] .tabs { box-shadow: var(--gl-ring), 0 6px 20px rgba(0, 0, 0, .4); }

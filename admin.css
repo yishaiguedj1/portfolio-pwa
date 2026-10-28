@@ -172,3 +172,4 @@ html[data-app="admin"] .appbar { --ib: 44px; --pill-h: 44px; }
 
 /* ==== 28/10/2026 — חומר הזכוכית (לפי ת־עיצוב; הטוקנים --gl-* ב־styles.css). המבטא של הניהול נשמר ==== */
 .adm-tabs { background: var(--gl-bar); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); border-top: 0; box-shadow: 0 -.5px 0 color-mix(in srgb, var(--on-surface) 12%, transparent); }
+.adm-list, .adm-top, .adm-side { background: var(--gl-card); box-shadow: var(--gl-card-sh); }   /* הפס הצבעוני של .adm-top (חומרה) נשאר */

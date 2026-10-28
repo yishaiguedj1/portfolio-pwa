@@ -464,3 +464,10 @@ button.an-row { cursor: pointer; }
 .an-sheet { background: var(--gl-panel); box-shadow: var(--gl-ring), var(--gl-shadow); --an-fill: var(--gl-fill); }
 .an-sh-b > * { flex-shrink: 0; }   /* גוף גלילה שהוא flex עמודה — לא לכווץ רכיבים כשהתוכן ארוך */
 .an-grab::before { background: var(--on-surface-var); }
+/* העמודים מזכוכית: רקע עדין מאחור, כרטיסים שקופים עם קצה אור; העמודה הנעוצה בטבלה נשארת אטומה (התוכן נגלל מתחתיה) */
+.an-root, [data-theme="dark"] .an-root { --an-card: var(--gl-card);
+  background: radial-gradient(70% 45% at 100% 0%, color-mix(in srgb, var(--primary) 12%, transparent), transparent 70%),
+    radial-gradient(60% 40% at 0% 75%, color-mix(in srgb, var(--sys-teal) 9%, transparent), transparent 70%), var(--bg); }
+.an-card, .an-rcard, .an-mtile { box-shadow: var(--gl-card-sh); border-color: transparent; }
+.an-tbl th:first-child, .an-tbl td:first-child, .an-ctbl tbody th { background: var(--gl-base); }
+.an-nav, .an-tabbar { background: var(--gl-bar); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); }
