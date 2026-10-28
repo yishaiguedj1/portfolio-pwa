@@ -301,3 +301,62 @@ class Boost(unittest.TestCase):
         finally:
             J.LADDER_DIR = old
             shutil.rmtree(d, ignore_errors=True)
+
+
+class Pause(unittest.TestCase):
+    """28/10/2026: האיכויות מתחילות בזמן הביקורת ומושהות בצריבה (SIGSTOP לכל הקבוצה, גם ffmpeg); ladder_stop עוצר גם מושהית."""
+
+    @unittest.skipUnless(sys.platform.startswith('linux'), 'לינוקס בלבד')
+    def test_pause_resume_stop(self):
+        import time
+        import job as J
+        d = Path(tempfile.mkdtemp())
+        old = J.LADDER_DIR
+        J.LADDER_DIR = d
+        code = ('import os,subprocess,time\n'
+                'c = subprocess.Popen(["sleep", "30"])\n'
+                'open(os.environ["OUT"], "w").write(str(c.pid))\n'
+                'time.sleep(30)\n')
+        p = subprocess.Popen([sys.executable, '-c', code], start_new_session=True, env=dict(os.environ, OUT=str(d / 'child')))
+        try:
+            (d / 'pid').write_text(str(p.pid))
+            for _ in range(200):
+                if (d / 'child').exists() and (d / 'child').read_text():
+                    break
+                time.sleep(0.05)
+            child = int((d / 'child').read_text())
+            state = lambda pid: Path('/proc/%d/stat' % pid).read_text().rsplit(')', 1)[1].split()[0]
+            self.assertTrue(J.ladder_pause(True))
+            time.sleep(0.2)
+            self.assertEqual((state(p.pid), state(child)), ('T', 'T'), 'כל הקבוצה מושהית — גם הילד (ffmpeg)')
+            self.assertTrue(J.ladder_running(), 'מושהית = עדיין רצה (finish מחכה לה)')
+            self.assertTrue(J.ladder_pause(False))
+            time.sleep(0.2)
+            self.assertNotEqual(state(child), 'T')
+            J.ladder_pause(True)
+            J.ladder_stop()
+            p.wait(timeout=5)                    # SIGTERM לא נתקע על תהליך מושהה
+        finally:
+            if p.poll() is None:
+                os.killpg(p.pid, 9)
+                p.wait()
+            J.LADDER_DIR = old
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_no_ladder(self):
+        import job as J
+        d = Path(tempfile.mkdtemp())
+        old = J.LADDER_DIR
+        try:
+            J.LADDER_DIR = d
+            self.assertFalse(J.ladder_pause(True))
+        finally:
+            J.LADDER_DIR = old
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_wired(self):
+        src = (Path(__file__).resolve().parents[1] / 'job.py').read_text(encoding='utf-8')
+        i = src.index("paused = ladder_pause(True)")
+        self.assertLess(i, src.index("vt(ctx, ['render', ctx.name] + flags"), 'משהים לפני הצריבה')
+        pl = (Path(__file__).resolve().parents[1] / 'pipeline.py').read_text(encoding='utf-8')
+        self.assertLess(pl.index('J.ladder_go()'), pl.rindex('fixed, left = pl.review()'), 'משחררים לפני הביקורת')

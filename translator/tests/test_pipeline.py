@@ -488,6 +488,31 @@ class FlowTests(unittest.TestCase):
         rows = {r['k']: r for r in pl.eng.ledger.list()}
         self.assertEqual(rows['jg']['m'], 'claude-haiku-5-5', 'עלות השופט נרשמת בספר של העבודה')
 
+    def test_judge_background(self):
+        """28/10/2026: השופט ברקע (במקביל לצריבה) — בלי דיווח 'rv' (הוא היה מחזיר את השלב אחורה), הציון והעלות מוחלים
+        ב־finish על המצב העדכני דרך _JG_LATE."""
+        J = self.J
+
+        def judge_prep(a):
+            d = self.pd / 'judge'
+            d.mkdir(exist_ok=True)
+            (d / 'sample.md').write_text('#1 Hello\n→ שלום\n', encoding='utf-8')
+            J.st = {'job': 'j1', 'jg': {'ids': [1], 'a': 1}}
+            return 0
+        applied = []
+        J.judge_prep, J.load_state, J._JG_LATE = judge_prep, lambda: getattr(J, 'st', {}), {}
+        J.judge_apply = lambda c: applied.append((self.pd / 'judge' / 'verdict.txt').read_text(encoding='utf-8'))
+        pl = P.Pipeline(self.ctx, J, self.engine(lambda kw: msg('#1 5 ok'), 'haiku-medium'))
+        self.ctx.st['job'] = 'j1'
+        n0 = len(self.ctx.reports)
+        pl.judge(bg=True)
+        self.assertIn('j1', J._JG_LATE)
+        self.assertFalse([r for r in self.ctx.reports[n0:] if r[0] == 'rv'], 'ברקע — בלי דיווח שמחזיר את השלב לביקורת')
+        c = NS(st={"job": "j1"})
+        J._JG_LATE.pop('j1')(c)
+        self.assertEqual(applied, ['#1 5 ok\n'])
+        self.assertIn('jg', [r['k'] for r in c.st['api_usage']], 'עלות השופט נכנסת למצב של finish')
+
     def test_haiku_over_card_windowed_and_review_slices(self):
         """Haiku מעל סף ה־100K: כל חלק עם חלון מהמקור, והביקורת בקטעים — כל בקשה בכרטיס הזול."""
         old = dict(llm.CARD_LIMIT)
@@ -556,6 +581,8 @@ class FlowTests(unittest.TestCase):
         """21/10/2026 (יומני הייצור): קטע של ~700 כתוביות — Haiku High חשב את כל 64K הטוקנים ולא כתב תיקון. עכשיו: קטעים של
         עד RV_SLICE_CUES, במקביל, וקטע שנקטע בלי תשובה — מתפצל ומנסה פעם אחת. כל הכתוביות מגיעות לביקורת."""
         import threading as _th
+        self.addCleanup(setattr, P, 'RV_SLICE_CUES', P.RV_SLICE_CUES)
+        P.RV_SLICE_CUES = 250                      # 28/10/2026: ברירת המחדל 120 — הבדיקה על המנגנון (600 → 3 קטעים)
         cues = ''.join(f'#{i} Line {i}\n→ שורה {i}\n' for i in range(1, 601))
         (self.pd / 'review').mkdir(exist_ok=True)
         self.J.vt = (lambda ctx, args, _v=self.J.vt: (_v(ctx, args), (self.pd / 'review' / 'package.md').write_text(
@@ -1105,7 +1132,7 @@ class RunAutoResume(unittest.TestCase):
                 log.append('lb')
                 return {}
 
-            def judge(self):
+            def judge(self, bg=False):
                 log.append('judge')
 
             def save_usage(self):
@@ -1477,7 +1504,7 @@ class SubsFlow(unittest.TestCase):
                 log.append('lb')
                 return {}
 
-            def judge(self):
+            def judge(self, bg=False):
                 log.append('judge')
 
             def save_usage(self):

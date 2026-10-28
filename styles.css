@@ -150,7 +150,8 @@ a { color: var(--link); }
 /* ---- App bar — זכוכית צפה ---- */
 .appbar {
   position: sticky; top: 0; z-index: 20;
-  --ib: 44px;
+  --ib: clamp(44px, calc((100vw - 184px) / 4), 56px);   /* 27/10/2026: הלוגו 128 בכל מסך מעל 360 (גודלו המקורי); הכפתורים גדלים ברוחב הפנוי (44 בטלפון צר עד 56), והבועות גבוהות כך ששני הטורים משלימים את גובה הלוגו */
+  --pill-h: max(48px, calc(118px - var(--ib) - 10px));
   padding: 10px 16px 8px;
   /* 20/10/2026 (בקשת המשתמש — כמו הממשק של Muse): בלי פס זכוכית — הלוגו "מרחף" באמצע. הרקע = שכבה אחת (::before)
      שנמשכת 110px מתחת להדר: אטומה למעלה, ומתחת לקפסולה נמוגה ומיטשטשת בהדרגה (כ־200px, עקומה רכה) — הכרטיסים
@@ -201,7 +202,7 @@ html[dir="ltr"] .appbar-row > * { --dir: ltr; }
 .appbar-left > .appbar-sub { grid-column: 1 / 5; grid-row: 2; justify-self: start; position: relative; z-index: 1; }
 .appbar .appbar-left > .appbar-sub[hidden] { display: none; }
 .appbar-left > .fx-pill { grid-column: 6 / 10; grid-row: 2; justify-self: end; }
-.appbar .fx-pill, .appbar .appbar-sub > * { box-sizing: border-box; width: calc(var(--ib) * 2 + 8px); min-width: 0; min-height: 44px; }   /* 44 = הגובה של בועת השער (גם ב־320, שם הכפתורים 40) */
+.appbar .fx-pill, .appbar .appbar-sub > * { box-sizing: border-box; width: calc(var(--ib) * 2 + 8px); min-width: 0; min-height: var(--pill-h); }   /* גובה הבועה = משלים את הלוגו (גם ב־320, שם הכפתורים 40) */
 /* שתיהן באותה שורה של הרשת ונמתחות לגובה שלה — באותו גובה תמיד, גם כשהטקסט בטלפון מוגדל (הגדרת נגישות) */
 .appbar-left > .appbar-sub, .appbar-left > .fx-pill { align-self: stretch; }
 .appbar .appbar-left > .appbar-sub { display: flex; align-items: stretch; }
@@ -210,8 +211,8 @@ html[dir="ltr"] .appbar-row > * { --dir: ltr; }
    באותו גובה בכל מצב (נמדד בכל המצבים, בעברית ובאנגלית, ב־320–412). ליד הנקודה החיה — בלי האייקון (אין מקום לשניהם) */
 .appbar .appbar-sub > * { display: flex; flex-wrap: wrap; align-items: center; align-content: center; justify-content: center; column-gap: 5px; row-gap: 0;
   margin: 0; padding: 3px 4px; border-radius: var(--radius-xs); text-align: center; white-space: normal; line-height: 1.2;
-  font-size: 12px; }
-.appbar .appbar-sub > * > small { flex-basis: 100%; font-size: 11px; }
+  font-size: 13px; }
+.appbar .appbar-sub > * > small { flex-basis: 100%; font-size: 12px; }
 .appbar .appbar-sub .st-pill i + svg { display: none; }
 /* תווית ארוכה (Connect Claude) נשברת בתוך עצמה, ליד הנקודה/האייקון — לא יורדת כולה לשורה משלה */
 .appbar .appbar-sub > * > span:not(.sr-only):not(:empty) { max-width: calc(100% - 20px); }
@@ -219,7 +220,7 @@ html[dir="ltr"] .appbar-row > * { --dir: ltr; }
 html, body { overscroll-behavior-x: none; } /* v279: משיכה אופקית = מעבר עמוד, לא "חזור" של הדפדפן */
 .appbar h1.brand { cursor: pointer; -webkit-tap-highlight-color: transparent; } /* v279: לוגו → סקירה */
 .brand-logo {
-  width: 128px; height: 128px; display: block; /* v198: הלוגו גדול ככל שהטור השני (מקור + כפתורים + שער) מאפשר בלי להגביה את ההדר */
+  width: 128px; height: 128px; display: block; /* v198: 128 — גודל מקורי; 27/10/2026: גובה ההדר = גובהו, והכפתורים והבועות (‎--ib‎) גדלו איתו */
   filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.16)) drop-shadow(0 4px 10px rgba(0,0,0,.10));
   -webkit-user-drag: none; user-select: none;
 }
@@ -425,6 +426,7 @@ html.calm .appbar .brand-snow b { animation-play-state: paused; }
 @media (max-width: 374px) { .st-pill { font-size: 11.5px; padding: 3px 9px; gap: 5px; } }
 /* 20/10/2026: השלג של הלוגו עובר מאחורי הפקדים בהדר — רקע אטום באותו גוון בדיוק (הגוון השקוף מעל צבע הדף),
    אחרת בכהה הפתיתים נראו דרך הכפתורים כאילו הם מעליהם */
+.appbar .icon-btn { width: var(--ib); height: var(--ib); font-size: calc(var(--ib) * .45); }
 .appbar .icon-btn, .appbar .fx-pill, .appbar .st-pill.open { background: linear-gradient(var(--surface-2), var(--surface-2)) var(--bg); }
 /* בועת השער כמו הכפתורים: ממוקמת (אחרת שכבת השלג — הקשר ערימה של הלוגו — מצוירת מעליה) ועם אותו מסגור */
 .appbar .fx-pill { position: relative; z-index: 1; border: 1px solid var(--card-border); }
@@ -519,7 +521,7 @@ html.calm .appbar .brand-snow b { animation-play-state: paused; }
 @media (max-width: 360px) {
   .brand-logo { width: 100px; height: 100px; }
   .icon-btn { width: 40px; height: 40px; font-size: 19px; }
-  .appbar { --ib: 40px; }
+  .appbar { --ib: 40px; --pill-h: 44px; }
 }
 
 /* ---- Status banner ---- */
@@ -836,7 +838,7 @@ html.drag-active .tabpage { transform: none !important; }   /* v324: בלי anim
 .pf-range-summary .rs-sym .dot { width: 12px; height: 12px; border-radius: var(--pill); flex: none; align-self: center; }
 .stock-body .chart-hint { margin-top: 4px; font-size: 12.5px; }
 /* v237: שורה תחתונה — תשואה (מתכווצת ונשברת לשורה שנייה אם צריך) + "ערוך" צמוד לקצה השמאלי, בלי חפיפה */
-.stock-foot { display: flex; align-items: center; gap: 10px; margin-top: 8px; min-height: 28px; } /* v275: גובה שמור — במניית IBKR (בלי "ערוך") שורת התשואה מופיעה רק אחרי הציור, והכרטיס קפץ בסוף הפתיחה */
+.stock-foot { display: flex; align-items: center; gap: 6px; margin: 2px 0 8px; min-height: 38px; } /* v275: גובה שמור — במניית IBKR (בלי "ערוך") שורת התשואה מופיעה רק אחרי הציור, והכרטיס קפץ בסוף הפתיחה */
 .stock-foot .pf-range-summary { flex: 1 1 auto; min-width: 0; margin: 0; flex-wrap: nowrap; align-items: center; gap: 6px; white-space: nowrap; }
 .stock-foot .pf-range-summary > span { flex: none; }
 /* רק התווית "תשואת המניה" מתקצרת כשאין מקום — הסמן, האחוז והטווח תמיד שלמים */
@@ -847,15 +849,18 @@ html.drag-active .tabpage { transform: none !important; }   /* v324: בלי anim
 .stock-foot .rs-lbl { font-size: 13.5px; color: var(--on-surface-var); }
 .stock-body .stock-foot .pf-range-summary .rs-val { font-size: 17px; }
 .stock-body .stock-foot .pf-range-summary .rs-range { font-size: 12px; }
+.stock-foot .pf-range-summary.no-sym .rs-sym { font-size: 0; gap: 0; }
 .stock-foot .pf-range-summary.no-lbl > .rs-lbl, .stock-foot .pf-range-summary.no-rng > .rs-range { display: none; }
 .stock-body .edit-actions.stock-edit { flex: none; margin: 0; margin-inline-start: auto; padding: 0; }
 .stock-body .edit-actions .chip-btn { padding-block: 6px; font-size: 13.5px; white-space: nowrap; }
 .stock-foot .stock-edit .chip-btn { padding: 5px 12px; font-size: 13px; gap: 5px; }
-.stock-foot .stock-edit { display: flex; gap: 6px; }
-.stock-foot .an-open-btn svg { width: 15px; height: 15px; flex: none; } /* 25/10/2026: כפתור מנתח החברות */
-.stock-foot .kc-open-btn svg { width: 15px; height: 15px; flex: none; } /* 27/10/2026: כפתור גרף הנרות */
-.stock-foot .st-al-btn { padding-inline: 9px; }
-.stock-foot .st-al-btn svg { width: 16px; height: 16px; flex: none; }
+.stock-foot .stock-edit { display: flex; gap: 5px; }
+.stock-foot .stock-edit .chip-btn:not(.danger) { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 38%, var(--card-border)); }   /* 28/10/2026: כל הכפתורים בירוק המערכת */
+.stock-foot .stock-ico-btn { inline-size: 38px; block-size: 38px; padding: 0; justify-content: center; flex: none; }   /* סמל בלבד — יעד לחיצה נוח */
+html[dir="ltr"] .stock-foot .kc-open-btn { order: -1; }   /* באנגלית (כיוון הפוך) — עדיין בקצה השמאלי */
+.stock-foot .stock-ico-btn svg, .stock-foot .an-open-btn svg { width: 18px; height: 18px; flex: none; }
+.stock-foot .an-open-btn { block-size: 38px; padding: 0 10px; gap: 5px; flex: none; white-space: nowrap; font-size: 13.5px; }   /* סמל + מילה, באותו גובה כמו כפתורי הסמל */
+/* תשואה ענקית (מעל 10,000%) מוצגת מקוצרת (‎fmtPct‎ — 12.3K%) — הכפתורים נשארים בגודל נוח ולא נדרסים */
 /* 28/10/2026: התראות המחיר של המניה בכרטיס — רשימה מקובצת בסגנון iOS (כותרת קטנה, שורות עם קו מפריד, חץ) */
 .st-al { margin: 4px 14px 12px; }
 .st-al[hidden] { display: none; }
@@ -906,16 +911,6 @@ html.drag-active .tabpage { transform: none !important; }   /* v324: בלי anim
 .chart-wrap { position: relative; }
 /* 27/10/2026: לחצן ההגדלה בפינה העליונה של הגרף בכרטיס המניה → גרף הנרות. עיגול זכוכית קטן, כמו בפקדי המדיה של iOS.
    שמאל פיזי בכוונה: הקנבס מצייר את ציר המחיר תמיד מימין (drawStockChart — padR), בכל שפה */
-.kc-expand { position: absolute; top: 6px; left: 6px; z-index: 6; inline-size: 34px; block-size: 34px; padding: 0; display: grid; place-items: center;
-  border: 0; border-radius: var(--pill, 999px); color: var(--on-surface); background: color-mix(in srgb, var(--surface) 72%, transparent);
-  -webkit-backdrop-filter: saturate(1.8) blur(14px); backdrop-filter: saturate(1.8) blur(14px);
-  box-shadow: 0 0 0 .5px var(--separator), 0 1px 3px rgba(0, 0, 0, .08); cursor: pointer; -webkit-tap-highlight-color: transparent;
-  transition: transform .18s cubic-bezier(.2, .8, .2, 1), background-color .18s ease; }
-.kc-expand svg { inline-size: 16px; block-size: 16px; opacity: .85; }
-.kc-expand:active { transform: scale(.9); background: color-mix(in srgb, var(--surface-2) 85%, transparent); }
-.kc-expand:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.chart-wrap.picking .kc-expand { opacity: 0; pointer-events: none; }
-@media (prefers-reduced-motion: reduce) { .kc-expand { transition: none; } }
 .chart-wrap canvas { width: 100%; height: 210px; display: block; touch-action: manipulation; }
 .chart-wrap canvas.measuring { touch-action: none; cursor: crosshair; }
 /* v264: נגיעה בגרף המניה — קו אנכי + נקודה + בועה (מחיר ותאריך); שתי אצבעות — רצועה + תשואה. גלילה אנכית נשארת */
@@ -1616,12 +1611,12 @@ html[data-app="academy"] .login-overlay { background: linear-gradient(160deg, #1
   border: 0; box-shadow: none;
   color: var(--on-surface-var);
 }
-.fx-pill-label { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; white-space: nowrap; line-height: 1.25; }
+.fx-pill-label { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; white-space: nowrap; line-height: 1.25; }
 .fx-pill-label .ext-dot { width: 6px; height: 6px; }
 .fx-pill-label .ext-dot.pos { color: var(--gain); }
 .fx-pill-label .ext-dot.neg { color: var(--loss); }
 .fx-pill-value {
-  font-size: 16px; font-weight: 700; line-height: 1.15; color: var(--on-surface);
+  font-size: 17px; font-weight: 700; line-height: 1.15; color: var(--on-surface);
   font-variant-numeric: tabular-nums;
 }
 .fx-pill-value .fx-num { display: inline-block; direction: ltr; }
