@@ -1901,6 +1901,35 @@ function wireCellPointer(c) {
     if (!d.moved && Date.now() - d.t < 400) curTap();
   }, { capture: true, passive: false });
   c.el.addEventListener('touchcancel', () => { ct = null; }, true);
+  // גרירה אנכית חופשית לפי ת־גרף: הספרייה מזיזה את המחיר רק כשהציר כבר לא אוטומטי (אחרי גרירת הסרגל מימין).
+  // גרירה שנעשית אנכית בזמן שהציר אוטומטי — מקבעת את הטווח הנוכחי וממשיכה אותו עם האצבע; משם הספרייה ממשיכה לבד
+  let pv = null;
+  c.el.addEventListener('pointerdown', (e) => { pv = e.isPrimary && !S.tool && !(S.cur && S.cur.c === c) ? { id: e.pointerId, x: e.clientX, y: e.clientY, r0: null } : null; }, true);
+  c.el.addEventListener('pointermove', (e) => {
+    if (!pv || e.pointerId !== pv.id || ed || ct || !c.chart) return;
+    if (e.pointerType === 'mouse' && !(e.buttons & 1)) { pv = null; return; }
+    const ev = c.chart._chartEvent;
+    if (!ev || !ev._startScrollCoordinate) return;   // הספרייה לא גוללת (שרטוט נגרר, ציר, צלב)
+    const dy = e.clientY - pv.y;
+    if (!pv.r0) {
+      const axs = mainYAxes(c).filter((a) => a.getAutoCalcTickFlag() && a.scrollZoomEnabled !== false);
+      if (!axs.length) { pv = null; return; }
+      if (Math.abs(dy) < 12 || Math.abs(dy) < Math.abs(e.clientX - pv.x) * 0.6) return;
+      const sz = c.chart.getSize(MAIN, 'main');
+      pv.r0 = axs.map((a) => [a, Object.assign({}, a.getRange())]);
+      pv.h = (sz && sz.height) || 1;
+    }
+    pv.r0.forEach(([ax, r]) => {
+      const g = r.range * ((ax.reverse ? -dy : dy) / pv.h), from = r.from + g, to = r.to + g;
+      const rf = ax.valueToRealValue(from, { range: r }), rt = ax.valueToRealValue(to, { range: r });
+      const df = ax.realValueToDisplayValue(rf, { range: r }), dt = ax.realValueToDisplayValue(rt, { range: r });
+      ax.setRange({ from, to, range: to - from, realFrom: rf, realTo: rt, realRange: rt - rf, displayFrom: df, displayTo: dt, displayRange: dt - df });
+    });
+    if (!pv.raf) pv.raf = requestAnimationFrame(() => { if (pv) pv.raf = 0; try { c.chart.layout({ update: true, buildYAxisTick: true }); } catch (x) { /* גרסה אחרת */ } });
+  }, true);
+  const pvEnd = (e) => { if (pv && e.pointerId === pv.id) pv = null; };
+  c.el.addEventListener('pointerup', pvEnd, true);
+  c.el.addEventListener('pointercancel', pvEnd, true);
   const far = (e) => down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8;
   c.el.addEventListener('pointerdown', (e) => {
     if (S.cur && S.cur.c === c) { down = null; clearTimeout(lp); return; }
@@ -2519,11 +2548,14 @@ function renderFoot() {
   const setSc = (v) => { S.store.g.scale = S.store.g.scale === v ? 'normal' : v; for (const x of S.cells) if (x.chart) setScale(x, S.store.g.scale); save(); renderFoot(); };
   UI.foot.append(rs, UI.clock, h('div', { class: 'kc-scales' },
     btn('kc-ib sm', T('kcZoomOut'), () => zoom(0.8), ICON.zoomout), btn('kc-ib sm', T('kcZoomIn'), () => zoom(1.25), ICON.zoomin),
-    btn('kc-ib sm', T('kcFit'), () => { const x = act(); if (x && x.chart) { x.chart.setBarSpace(8); x.chart.scrollToRealTime(); } }, ICON.fit),
+    btn('kc-ib sm', T('kcFit'), () => { const x = act(); if (x && x.chart) fitView(x); }, ICON.fit),
     btn('kc-sc' + (sc === 'percentage' ? ' on' : ''), '%', () => setSc('percentage')),
     btn('kc-sc' + (sc === 'logarithm' ? ' on' : ''), 'log', () => setSc('logarithm'))));
   updClock();
 }
+function mainYAxes(c) { try { const p = c.chart.getDrawPaneById(MAIN); return (p && p.getYAxisComponents && p.getYAxisComponents()) || []; } catch (e) { return []; } }
+// "התאם" מחזיר גם את ציר המחיר לאוטומטי (אחרי גרירה אנכית)
+function fitView(c) { c.chart.setBarSpace(8); c.chart.scrollToRealTime(); const ys = mainYAxes(c).filter((a) => !a.getAutoCalcTickFlag()); if (ys.length) { ys.forEach((a) => a.setAutoCalcTickFlag(true)); try { c.chart.layout({ measureWidth: true, update: true, buildYAxisTick: true }); } catch (e) { /* גרסה אחרת */ } } }
 function zoom(k) { const c = act(); if (!c || !c.chart) return; const sz = c.chart.getSize(MAIN, 'main'); c.chart.zoomAtCoordinate(k, sz ? { x: sz.width - 40, y: sz.height / 2 } : undefined, 150); }
 function updLegendTime() { /* המקרא של הנר (פ/ג/נ/ס) — מצויר בגרף עצמו */ }
 
@@ -3084,7 +3116,7 @@ function onKey(e) {
     const map = { t: 'segment', h: 'horizontalStraightLine', v: 'verticalStraightLine', f: 'kcFibRet', j: 'horizontalRayLine', c: 'kcCrossLine' };
     const code = (e.code || '').replace(/^Key/, '').toLowerCase();
     if (map[code]) { e.preventDefault(); startTool(map[code]); return; }
-    if (code === 'r' && c && c.chart) { e.preventDefault(); c.chart.setBarSpace(8); c.chart.scrollToRealTime(); return; }
+    if (code === 'r' && c && c.chart) { e.preventDefault(); fitView(c); return; }
     if (code === 'i') { e.preventDefault(); openIndSheet(); return; }
     if (code === 'a') { e.preventDefault(); openAlerts(); return; }
   }
