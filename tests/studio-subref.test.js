@@ -8,9 +8,15 @@ const src = fs.readFileSync(path.join(__dirname, '..', 'studio.js'), 'utf8');
 const grab = (name) => { const m = new RegExp('export function ' + name + '\\(([^)]*)\\) \\{([\\s\\S]*?)\\n\\}').exec(src); return m && new Function('SUBS_MAX', 'return function (' + m[1] + ') {' + m[2] + '\n}')(5 * 1024 * 1024); };
 const hlpText = grab('hlpText'), auto = grab('trkHlpAuto');
 ok(hlpText && auto, 'הפונקציות קיימות');
-const txt = hlpText([{ s: 1.4, lines: ['Hello', 'there'] }, { s: 3723.9, lines: ['<i>Late</i>'] }, { s: 9, lines: [' '] }]);
+const txt = hlpText([{ s: 1400, lines: ['Hello', 'there'] }, { s: 3723900, lines: ['<i>Late</i>'] }, { s: 9000, lines: [' '] }]);
 ok(txt === '[00:00:01] Hello there\n[01:02:03] i Late /i\n', 'שורה לכל כתובית, זמן ההתחלה בשניות שלמות, בלי תגיות ובלי ריקות: ' + JSON.stringify(txt));
 ok(hlpText([]) === '', 'בלי כתוביות — ריק');
+// 28/10/2026 (ניתוח פרקים 12–20): importSubs מחזיר מילישניות — hlpText כתב "[05:24:12]" לכתובית של שנייה 19, והעובד פסל
+{
+  const imp = /export function importSubs/.test(fs.readFileSync(path.join(__dirname, '..', 'studiosubs.js'), 'utf8'));
+  ok(imp && /\(Number\(c\.s\) \|\| 0\) \/ 1000/.test(src), 'hlpText ממיר ממילישניות (היחידה של importSubs) לשניות');
+  ok(hlpText([{ s: 19452, lines: ['Kids,'] }]) === '[00:00:19] Kids,\n', 'כתובית בשנייה 19 → [00:00:19], לא [05:24:12]');
+}
 const T = (id, o) => Object.assign({ id, kind: 'text', lang: 'en', forced: false, sdh: false }, o);
 ok(auto([T(1, { forced: true }), T(2, { sdh: true }), T(3)]).id === 3, 'אוטומטי: באנגלית, לא כפויה ולא SDH קודם');
 ok(auto([T(1, { forced: true }), T(2, { sdh: true })]).id === 2, 'אוטומטי: SDH עדיף על כפויה (חלקית)');
