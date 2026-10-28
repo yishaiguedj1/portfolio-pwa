@@ -1144,13 +1144,25 @@ function smForWorker(doc, ser) {
 }
 const jobSeries = (job) => seriesOf((job.fv && job.fv.name) || (job.fa && job.fa.name) || (job.fsu && job.fsu.name) || '');
 /* 28/10/2026: ניסוי "טיוטה אחת" (ניתוח 7 פרקים: ההכרעה בין שתי הטיוטות של Haiku לא עדיפה על מקרה מול התרגום האנושי,
-   והן ~30–35% מעלות הפרק). פרק של סדרה שמספרו 1 או 2 מודולו 4 (פרק 8 כבר תורגם עם שתיהן) — בלי הטיוטה השנייה (xd = 1). מוצלב עם החלוקה של המשתמש
-   (אי־זוגי medium, זוגי high): בכל מצב חצי עם וחצי בלי. נקבע פעם אחת בלקיחה הראשונה (נשמר בעבודה — גם להמשך ולמאגר) */
-const DUAL_AB_UNTIL = Date.UTC(2026, 10, 30);
-function dualAb(job, now) {
-  if (!(now < DUAL_AB_UNTIL)) return 0;
+   והן ~30–35% מעלות הפרק). 28/10/2026 (ערב, ניתוח פרקים 16–20 — 10 פרקים מול האדם, החלטת המשתמש): הניסוי הסתיים —
+   טיוטה אחת לכל עבודה (xd = 1; בלי הטיוטה השנייה B ובלי ההכרעה). ~45% פחות בעלות התרגום ב־high, 30–100 שנ׳ פחות.
+   xd נשאר בעבודה ובמאגר — כך ההשוואה לפני/אחרי ממשיכה. DUAL_AB_UNTIL — רק לבדיקות ולתיעוד */
+const DUAL_AB_UNTIL = Date.UTC(2026, 9, 28, 18);
+function dualAb(job, now) {   // eslint-disable-line no-unused-vars
+  return 1;
+}
+/* 28/10/2026 (ניתוח פרקים 16–20, החלטת המשתמש): ניסוי "ביקורת ב־medium גם במצב high" — הביקורת ב־high חושבת ~145K
+   טוקנים בשביל ~1.2K של תשובה (99%), ‎$0.08 לפרק מול ‎$0.024–0.029 ב־medium, ומול האדם לא נראה הבדל (high ‏+29/‎−17,
+   medium ‏+16/‎−5). חצי מהעבודות (xr = 1): פרק של סדרה שמספרו 0 או 1 מודולו 4 — מוצלב עם medium (אי־זוגי) / high (זוגי)
+   של המשתמש: בפרקי high (זוגיים) חצי עם וחצי בלי; לא סדרה — לפי זוגיות המזהה. העובד מוריד רק מ־high/max, לא מעלה.
+   נקבע פעם אחת בלקיחה הראשונה. המסקנה: ציון השופט, ההתאמה לתרגום האנושי והעלות — ב־high בלבד */
+const RV_AB_UNTIL = Date.UTC(2026, 10, 30);
+function rvAb(job, now) {
+  if (!(now < RV_AB_UNTIL)) return 0;
   const s = jobSeries(job);
-  return s && s.e > 0 && (s.e % 4 === 1 || s.e % 4 === 2) ? 1 : 0;
+  if (s && s.e > 0) return s.e % 4 === 0 || s.e % 4 === 1 ? 1 : 0;
+  const id = String((job && job.id) || '');
+  return id ? id.charCodeAt(id.length - 1) % 2 : 0;
 }
 /* v382: הערה לעובד (Pause + corrective input) — טקסט שלך מהטלפון לעבודה שרצה. נמסרת לעובד בתשובה לדיווח הבא על
    נקודת שמירה (nt → nh עם d = מתי נקראה). עד NOTE_MAX לעבודה, NOTE_LEN תווים; בלי תווי בקרה, תגיות וגרשיים הפוכים */
@@ -1403,7 +1415,7 @@ function fromFields(f) {
   return o;
 }
 
-module.exports = { bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, jobSeries, SM_BYTES, dualAb, DUAL_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
+module.exports = { bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, jobSeries, SM_BYTES, dualAb, DUAL_AB_UNTIL, rvAb, RV_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, cuesSwap, rrSpec, rrJob,

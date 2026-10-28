@@ -51,14 +51,24 @@ try {
 if (py) ok(JSON.stringify(py) === JSON.stringify(a), 'sm_valid בעובד = normSm בשרתון');
 else console.log('# python3 / job.py לא זמינים — דילוג על ההשוואה');
 
-// 5. ניסוי "טיוטה אחת" (28/10/2026) — פרק שמספרו 1/2 מודולו 4, עד DUAL_AB_UNTIL; מוצלב עם medium (אי־זוגי) / high (זוגי)
+// 5. "טיוטה אחת" (28/10/2026): הניסוי הסתיים בערב (ניתוח פרקים 16–20 מול האדם) — xd = 1 לכל עבודה
 {
-  const t = Date.UTC(2026, 9, 28), ab = (n) => S.dualAb({ fv: { name: 'Show.S01E' + String(n).padStart(2, '0') + '.mkv' } }, t);
-  const off = [8, 9, 10, 11, 12, 13, 14, 15].filter((e) => ab(e) === 1);
-  ok(JSON.stringify(off) === '[9,10,13,14]', 'פרקים 8–15: בלי טיוטה שנייה — 9, 10, 13, 14');
-  ok(off.filter((e) => e % 2).length === 2 && off.filter((e) => !(e % 2)).length === 2, 'מוצלב: שניים מכל מצב');
-  ok(S.dualAb({ fv: { name: 'interview.mp4' } }, t) === 0 && S.dualAb({ fv: { name: 'X 1x05.mkv' } }, S.DUAL_AB_UNTIL) === 0, 'לא סדרה / אחרי סוף הניסוי — רגיל');
+  const t = Date.UTC(2026, 9, 28);
+  ok([8, 9, 10, 11].every((e) => S.dualAb({ fv: { name: 'Show.S01E' + String(e).padStart(2, '0') + '.mkv' } }, t) === 1)
+    && S.dualAb({ fv: { name: 'interview.mp4' } }, t + 1e10) === 1, 'טיוטה אחת לכל עבודה — סדרה או לא, גם אחרי סוף הניסוי');
   ok(/if \(job\.kind === 'tr' && !job\.c0 && S\.dualAb\(job, now\)\) patch\.xd = 1;/.test(api) && /if \(job\.xd === 1 \|\| patch\.xd === 1\) wj\.xd = 1;/.test(api), 'נקבע בלקיחה הראשונה ונשלח לעובד');
   ok(/xd: job\.xd === 1 \? 1 : 0/.test(fs.readFileSync(path.join(root, 'ibkr-proxy/lib/studiolearn.js'), 'utf8')), 'נרשם במאגר הלמידה');
+}
+// 6. ניסוי "ביקורת ב־medium גם במצב high" (28/10–30/11/2026): פרק שמספרו 0/1 מודולו 4 — מוצלב עם medium (אי־זוגי) / high (זוגי)
+{
+  const t = Date.UTC(2026, 9, 29), ab = (n) => S.rvAb({ fv: { name: 'Show.S01E' + String(n).padStart(2, '0') + '.mkv' } }, t);
+  const on = [21, 22, 23, 24, 25, 26, 27, 28].filter((e) => ab(e) === 1);
+  ok(JSON.stringify(on) === '[21,24,25,28]', 'פרקים 21–28: ביקורת medium ב־21, 24, 25, 28');
+  ok(on.filter((e) => !(e % 2)).length === 2, 'בפרקי high (זוגיים) — חצי עם וחצי בלי');
+  ok(S.rvAb({ fv: { name: 'X.S01E24.mkv' } }, S.RV_AB_UNTIL) === 0, 'אחרי סוף הניסוי — רגיל');
+  const ids = ['a', 'b', 'c', 'd'].map((x) => S.rvAb({ id: 'job' + x, fv: { name: 'interview.mp4' } }, t));
+  ok(ids.filter(Boolean).length === 2, 'לא סדרה — לפי זוגיות המזהה, חצי וחצי');
+  ok(/if \(job\.kind === 'tr' && !job\.c0 && S\.rvAb\(job, now\)\) patch\.xr = 1;/.test(api) && /if \(job\.xr === 1 \|\| patch\.xr === 1\) wj\.xr = 1;/.test(api), 'נקבע בלקיחה הראשונה ונשלח לעובד');
+  ok(/xr: job\.xr === 1 \? 1 : 0/.test(fs.readFileSync(path.join(root, 'ibkr-proxy/lib/studiolearn.js'), 'utf8')), 'נרשם במאגר הלמידה');
 }
 console.log('# ' + n + ' בדיקות עברו (כולל הניסוי)');
