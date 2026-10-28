@@ -1006,7 +1006,7 @@ function header(co) {
   const px = co.px && co.px.c ? cut(co.px.c).filter((x) => x != null) : [], p0 = px[0], ch10 = p0 > 0 && px.length > 6 ? co.price / p0 - 1 : null;
   const yrs = Math.round(px.length / 12), pt = co.px && co.px.t ? cut(co.px.t) : [];
   const rngLbl = rm === 12 ? T('anInYear') : !rm && pt.length ? T('anSince', { y: pt[0].slice(0, 4) }) : T('anInYears', { n: yrs });
-  const rng = h('div', { class: 'chip-row stock-chips an-rng' }, ...[[12, 'sr1Y'], [36, 'sr3Y'], [60, 'sr5Y'], [120, 'an10Y'], [0, 'srMax']].map(([m, k]) =>
+  const rng = h('div', { class: 'chip-row stock-chips an-hrng' }, ...[[12, 'sr1Y'], [36, 'sr3Y'], [60, 'sr5Y'], [120, 'an10Y'], [0, 'srMax']].map(([m, k]) =>
     h('button', { class: 'range-btn' + (m === rm ? ' active' : ''), type: 'button', 'aria-pressed': String(m === rm), on: { click: () => { if (S.hr === m || (S.hr == null && m === 120)) return; S.hr = m; S.heroDone = false; render(); } } }, T(k))));
   /* 27/10/2026 (סרטון המשתמש — הגרף "מתרענן" בכל מעבר לשונית): אותו גרף בכל הלשוניות — האלמנט עצמו עובר מציור לציור,
      בלי לבנות ולצייר מחדש (עד היום: פריים ריק בכל מעבר, וברצועה הקבועה של הקובייה — בלי גרף בכלל) */

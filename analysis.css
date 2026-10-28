@@ -499,9 +499,8 @@ html .an-nav { background: none; -webkit-backdrop-filter: none; backdrop-filter:
   -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx);
   -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent); mask-image: linear-gradient(to bottom, #000 62%, transparent); }
 /* בורר הטווח של הגרף העליון — הכפתורים של כרטיס המניה (styles.css) */
-.an-rng { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 10px; }
-.an-rng .range-btn { padding-block: 6px; font-size: 13px; text-align: center; }
-.an-rng { flex: none; position: relative; z-index: 1; overflow: visible; padding-bottom: 0; min-height: 32px; }
-.an-rng .range-btn { min-height: 32px; line-height: 20px; }
+/* (.an-rng תפוס — פס הטווח בכרטיסים) — בדיוק כמו בורר הטווחים בכרטיס המניה (styles.css: .stock-body .chip-row.stock-chips), לרוחב העמוד */
+.an-hrng { flex: none; display: flex; gap: 6px; overflow: visible; margin-top: 12px; padding-bottom: 0; }
+.an-hrng > .range-btn { flex: 1 1 0; min-width: 0; padding-block: 6px; padding-inline: 4px; font-size: 13px; text-align: center; white-space: nowrap; }
 .an-nav-q b { font-size: 32px; letter-spacing: -.8px; line-height: 1.05; }
 .an-nav-q span { font-size: 15px; }
