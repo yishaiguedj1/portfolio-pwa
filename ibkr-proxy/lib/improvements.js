@@ -39,6 +39,12 @@ const IMPROVEMENTS = [
   { id: 'i11', at: null, m: ['q', 'jd', 'ht'], src: 'lab',
     he: ['הסתייגויות ותיקוני שמיעה', 'ניתוח האיכות: 16% מההסתייגויות במקור ("אולי", "אני חושב", "בערך") נשמטו, ותמליל ארוך קיבל 1–2 תיקוני הגהה ל־1,000 מילים מול 6–13 בקצר — בדיקה [hdg] בבודק, ההנחיות לכל השלבים, והגהה נוספת בחלקים לתמליל ארוך'],
     en: ['Hedges and mishearings', 'Quality analysis: 16% of source hedges ("maybe", "I think", "about") were dropped, and long transcripts got 1–2 proofreading fixes per 1,000 words vs 6–13 in short ones — an [hdg] check, guidance in every stage, and a chunked proofreading pass for long transcripts'] },
+  { id: 'i12', at: null, m: ['q', 'jd', 'ht'], src: 'lab',
+    he: ['כתוביות העזר מהקובץ נכנסות להגהה', 'ניתוח פרקי הסדרה: הטלפון כתב את זמני העזר במילישניות במקום שניות, והעזר נפסל בכל 4 הפרקים שהיה בהם ("כיסוי 0") — שגיאות שמיעה כמו "prom → chrome" ו־"drunk → sober" עברו לתרגום. עכשיו הציון "גבוה" (דיוק 93%–95%)'],
+    en: ['Embedded subtitles reach the proofreading', 'Series analysis: the phone wrote the helper timestamps in milliseconds as seconds and the helper was rejected in all 4 episodes that had one ("coverage 0") — mishearings like "prom → chrome" reached the translation. Now graded "high" (93%–95% accuracy)'] },
+  { id: 'i13', at: null, m: ['q', 'jd', 'ht', 'cpm'], src: 'lab',
+    he: ['פחות קיצורים מיותרים לקצב קריאה', 'מול התרגום האנושי (OPUS, פרקים 16–20): קיצורי הקצב לפני הבנייה הרחיקו מהאדם ב־82 כתוביות וקירבו ב־13; 61% מהן חרגו עד 10% בלבד. חריגה קלה נשארת להארכה, למיזוג ולסבב הבקרה על המסך'],
+    en: ['Fewer needless reading-speed cuts', 'Against the human translation (OPUS, episodes 16–20): pre-build reading-speed cuts moved away from the human in 82 cues and closer in 13; 61% were at most 10% over. Mild overruns are left to extension, merging and the on-screen QC round'] },
 ];
 
 module.exports = { IMPROVEMENTS };

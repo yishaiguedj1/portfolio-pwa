@@ -239,7 +239,7 @@ def proof_chunks(text: str, size: int = PROOF_PART_WORDS) -> list[tuple[int, int
 # מקור האמת, והכתוביות לא נכנסות לתרגום — רק עוזרות לתקן שמות, מספרים ומילים שהתמלול שמע לא נכון.
 SUBREF_MAX = 200_000                       # תווים — סרט של שלוש שעות ≈ 120K
 SUBREF_PAD = 20.0                          # שניות סביב כל חלק של ההגהה בחלקים
-_REF_LINE = re.compile(r'^\[(\d{1,2}):(\d{2}):(\d{2})(?:[.,]\d+)?\]\s*(\S.*)$')
+_REF_LINE = re.compile(r'^\[(\d{1,4}):(\d{2}):(\d{2})(?:[.,]\d+)?\]\s*(\S.*)$')   # 28/10: גם שעות של 3–4 ספרות (ref_ms)
 _EDIT_TS = re.compile(r'^\[S(?:\d+|\?)\s+(\d{1,2}):(\d{2}):(\d{2})(?:[.,]\d+)?\]', re.M)
 _CTRL = re.compile(r'[\x00-\x08\x0b-\x1f\x7f<>]')
 
@@ -348,18 +348,35 @@ def subref_grade(ref: list[tuple[float, str]], edit: str) -> dict:
     return {**out, 'g': g}
 
 
-def ref_lines(text: str) -> list[tuple[float, str]]:
-    """[(שניות, שורה)] מקובץ העזר — רק שורות בצורה הצפויה, בלי תווי בקרה ותגיות, עד SUBREF_MAX תווים."""
-    out, n = [], 0
+REF_MS_DAY = 86400          # בלי אורך ידוע: זמן מעל יממה = מילישניות
+
+
+def ref_ms(ts: list[int], end: float | None = None) -> bool:
+    """28/10/2026 (ניתוח פרקים 12–20): הטלפון (hlpText עד 2.81.2) כתב מילישניות כאילו הן שניות — "[05:24:12]" לכתובית
+    של שנייה 19, ופרק של 22 דק׳ נגמר ב"[359:33:93]". subref_grade מצא "כיסוי 0" והעזר נזרק בכל הפרקים. מזהים לפי
+    הזמן האחרון מול סוף התמליל (end) — פי 20 ממנו ועוד 10 דק׳ = מילישניות; בלי end — מעל יממה."""
+    if not ts:
+        return False
+    hi = max(ts)
+    return hi > max(20 * end, end + 600) if end else hi > REF_MS_DAY
+
+
+def ref_lines(text: str, end: float | None = None) -> list[tuple[float, str]]:
+    """[(שניות, שורה)] מקובץ העזר — רק שורות בצורה הצפויה, בלי תווי בקרה ותגיות, עד SUBREF_MAX תווים.
+    end = סוף התמליל בשניות (כשידוע) — לזיהוי קובץ שנכתב במילישניות (ref_ms)."""
+    rows = []
     for raw in str(text or '').splitlines():
         m = _REF_LINE.match(raw.strip())
         if not m:
             continue
         body = _CTRL.sub(' ', m.group(4)).strip()[:400]
-        if not body:
-            continue
-        t = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3))
-        line = f'[{m.group(1).zfill(2)}:{m.group(2)}:{m.group(3)}] {body}'
+        if body:
+            rows.append((int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3)), body))
+    if ref_ms([t for t, _ in rows], end):
+        rows = [(t // 1000, b) for t, b in rows]
+    out, n = [], 0
+    for t, body in rows:
+        line = '[%02d:%02d:%02d] %s' % (t // 3600, t // 60 % 60, t % 60, body)
         n += len(line) + 1
         if n > SUBREF_MAX:
             break
@@ -832,6 +849,21 @@ FIX_SKIP = frozenset(('num', 'gls'))
 _NUM_RE = re.compile(r'\d+(?:[.,]\d+)*')
 
 
+# 28/10/2026 (ניתוח פרקים 16–20 מול התרגום האנושי, OPUS): הקיצורים לקצב קריאה לפני הבנייה הרחיקו מהאדם ב־82 כתוביות
+# וקירבו ב־13; ב־110 מתוך 179 החריגה הייתה עד 10% מהתקציב, ועל התזמון הסופי (הארכה, מיזוג) רק 5 מהן עברו 20 תווים/שנ׳.
+# הקיצור נעשה לפני שהבנייה מאריכה — והמודל קיצר בממוצע ל־14.5 (היעד 17), "moved on" → "התקדם", "still" נשמט.
+# חריגה קלה נשארת לבנייה ולסבב הבקרה (qc_round — על הזמן האמיתי, רק מעל 20). חריגה של CPS_FIX_MIN ומעלה — כמו עד היום
+CPS_FIX_MIN = 1.15
+
+
+def cps_mild(msg: str) -> bool:
+    """הערת [cps] שהחריגה בה קטנה מ־CPS_FIX_MIN מהתקציב — לא נשלחת לתיקון לפני הבנייה"""
+    if issue_code(msg) != 'cps':
+        return False
+    m = _OVER_RE.search(msg)
+    return bool(m) and int(m.group(2)) > 0 and int(m.group(1)) < CPS_FIX_MIN * int(m.group(2))
+
+
 def fix_ok(old: str, new: str, msgs: list[str], en: str = '', hard: bool = False) -> bool:
     """תיקון שמחמיר נזרק (הכתובית נשארת כמו שהייתה):
     - בלי שינוי, או '='/'∅' בלי בעיה שחייבת תיקון;
@@ -986,7 +1018,9 @@ FIX_TASK = """תיקון כתוביות שבדיקה אוטומטית סימנה
 ואם לא — מחזירים את הנוסח הקיים כמו שהוא. לא כותבים כתוביות שלא ברשימה.
 `לפני:` / `אחרי:` = הכתוביות השכנות על המסך — רק להקשר (משפט שנמשך, מי מדבר); לא מתקנים אותן.
 שם, מותג או ראשי תיבות שמקובלים בעברית באותיות לטיניות (AI, Netflix) — משאירים; לא מתרגמים רק כדי שתהיה עברית.
-כשמקצרים — לא משמיטים הסתייגות (אולי, כנראה, לדעתי, בערך): היא חלק מהמשמעות. הערה "הסתייגות" — מחזירים אותה במילה אחת."""
+כשמקצרים — לא משמיטים הסתייגות (אולי, כנראה, לדעתי, בערך): היא חלק מהמשמעות. הערה "הסתייגות" — מחזירים אותה במילה אחת.
+קיצור לקצב קריאה — עד התקציב, לא הרבה מתחתיו: קודם מילות פתיחה ומילוי (כן, אוי, טוב, כלומר, אז, למען האמת) וכינוי
+מיותר; לא משנים זמן, גוף או משמעות של פועל, ולא משמיטים "עדיין", "גם", "שוב", "רק" — הם חלק מהמשמעות."""
 
 # 25/10/2026 (ניתוח האיכות של session_01UZAW): התיקון האחרון ביטל שינויים של הביקורת ("הייתה אמורה לאסוף" → "אספה")
 ZF_NOTE = """הכתוביות שמסומנות "הביקורת שינתה" — העורך כבר בדק אותן בהקשר. לא מחזירים לנוסח שלפני הביקורת,
@@ -1166,7 +1200,8 @@ class Pipeline:
                 except OSError:
                     return []
         try:
-            lines = ref_lines(p.read_text(encoding='utf-8', errors='replace'))
+            ts = [int(a) * 3600 + int(b) * 60 + int(c) for a, b, c in _EDIT_TS.findall(edit or '')]
+            lines = ref_lines(p.read_text(encoding='utf-8', errors='replace'), end=max(ts) if ts else None)
         except OSError:
             return []
         if lines and edit is not None:
@@ -1597,7 +1632,8 @@ class Pipeline:
         while r < rounds:
             r += 1
             todo = dict(hard)
-            sf = {kk: [m for m in v if issue_code(m) not in FIX_SKIP] for kk, v in soft.items() if soft_only is None or kk in soft_only}
+            sf = {kk: [m for m in v if issue_code(m) not in FIX_SKIP and not cps_mild(m)]
+                  for kk, v in soft.items() if soft_only is None or kk in soft_only}
             sf = {kk: v for kk, v in sf.items() if v}
             for kk in soft_order(sf)[:max(0, soft_cap(self.pd) - len(todo))]:
                 todo.setdefault(kk, []).extend(sf[kk])

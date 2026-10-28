@@ -3406,12 +3406,14 @@ export function trkHlpAuto(tracks) {
   const en = (tracks || []).filter((t) => t.kind === 'text' && t.lang === 'en');
   return en.find((t) => !t.forced && !t.sdh) || en.find((t) => !t.forced) || null;
 }
+/* cues = התוצאה של importSubs — הזמנים במילישניות (28/10/2026: עד היום נכתבו כשניות, פי 1000 — העובד פסל את העזר
+   בכל הפרקים ("כיסוי 0") וההגהה רצה בלעדיו) */
 export function hlpText(cues) {
   const two = (n) => String(n).padStart(2, '0');
   const out = [];
   let n = 0;
   for (const c of cues || []) {
-    const t = Math.max(0, Math.floor(Number(c.s) || 0));
+    const t = Math.max(0, Math.floor((Number(c.s) || 0) / 1000));
     const body = (c.lines || []).join(' ').replace(/[\u0000-\u001f\u007f<>]+/g, ' ').replace(/\s+/g, ' ').trim();
     if (!body) continue;
     const line = '[' + two(Math.floor(t / 3600)) + ':' + two(Math.floor(t / 60) % 60) + ':' + two(t % 60) + '] ' + body;
