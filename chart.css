@@ -325,8 +325,28 @@ html.kc-open { overflow: hidden; }
   .kc-root { padding-top: 0; }
   .kc-top { position: absolute; top: 0; inset-inline: 0; z-index: 8; padding-top: calc(6px + env(safe-area-inset-top, 0px)); background: color-mix(in srgb, var(--kc-bg) 38%, transparent); -webkit-backdrop-filter: saturate(180%) blur(30px); backdrop-filter: saturate(180%) blur(30px); border-bottom: .5px solid color-mix(in srgb, var(--kc-sep) 60%, transparent); }
   .kc-top-end .kc-ib { display: none; }
-  .kc-qm { top: calc(var(--kc-toph, 0px) + 46px); }
-  .kc-pick { top: calc(var(--kc-toph, 0px) + 46px); }
+  .kc-qm { top: calc(var(--kc-toph, 0px) + 70px); }
+  /* זכוכית מדורגת (בקשת המשתמש 28/10): בלי קו ובלי רקע אחיד — גוון שנמוג מלמעלה למטה, ומתחתיו חמש שכבות טשטוש
+     מצטברות (כל אחת מוסיפה טשטוש ונמוגה מוקדם יותר), כך שהטשטוש עולה בהדרגה כלפי מעלה ו־24px מתחת לכותרת הגרף כבר חד */
+  .kc-top { background: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-bottom: 0; }
+  .kc-pb { position: absolute; inset: 0 0 -24px 0; z-index: -1; pointer-events: none; background: linear-gradient(to bottom, color-mix(in srgb, var(--kc-bg) 24%, transparent) 0%, color-mix(in srgb, var(--kc-bg) 10%, transparent) 62%, transparent 100%); }
+  .kc-pb i { position: absolute; inset: 0; }
+  .kc-pb i:nth-child(1) { -webkit-backdrop-filter: blur(1.5px); backdrop-filter: blur(1.5px); -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent 100%); mask-image: linear-gradient(to bottom, #000 70%, transparent 100%); }
+  .kc-pb i:nth-child(2) { -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent 88%); mask-image: linear-gradient(to bottom, #000 55%, transparent 88%); }
+  .kc-pb i:nth-child(3) { -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); -webkit-mask-image: linear-gradient(to bottom, #000 40%, transparent 76%); mask-image: linear-gradient(to bottom, #000 40%, transparent 76%); }
+  .kc-pb i:nth-child(4) { -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); -webkit-mask-image: linear-gradient(to bottom, #000 25%, transparent 62%); mask-image: linear-gradient(to bottom, #000 25%, transparent 62%); }
+  .kc-pb i:nth-child(5) { -webkit-backdrop-filter: saturate(160%) blur(12px); backdrop-filter: saturate(160%) blur(12px); -webkit-mask-image: linear-gradient(to bottom, #000 10%, transparent 48%); mask-image: linear-gradient(to bottom, #000 10%, transparent 48%); }
+  /* הסרגל התחתון: זכוכית שקופה שצפה מעל הגרף (ציר התאריכים גדל בגובהה — xSize) */
+  .kc-root { padding-bottom: 0; }
+  .kc-mbar:not(.draw) { justify-content: space-around; }
+  .kc-mbar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 8; background: color-mix(in srgb, var(--kc-bg) 42%, transparent); -webkit-backdrop-filter: saturate(180%) blur(24px); backdrop-filter: saturate(180%) blur(24px); border-top: .5px solid color-mix(in srgb, var(--kc-sep) 55%, transparent); }
+  /* הבוררים: מסגרת דקה ורכה שנראית גם על לבן — עדיין נקייה */
+  .kc-pk { box-shadow: 0 0 0 .5px rgba(0, 0, 0, .16), 0 1px 4px rgba(0, 0, 0, .07); }
+  /* הכותרת והערך ממורכזים בבורר (בקשת המשתמש 28/10) — "טווח תאריכים" רחב מהערך, והערך נראה זרוק לצד */
+  .kc-pk { align-items: center; text-align: center; }
+  .kc-pk-v .kc-roll-i { text-align: center; }
+  [data-theme="dark"] .kc-pk { box-shadow: 0 0 0 .5px rgba(255, 255, 255, .16), 0 1px 4px rgba(0, 0, 0, .3); }
+  .kc-pick { top: calc(var(--kc-toph, 0px) + 70px); }
   .kc-top-end .kc-ib { width: 34px; }
   .kc-watch.on { position: absolute; inset-block: 0; inset-inline-end: 0; z-index: 12; background: var(--kc-panel); box-shadow: var(--kc-shadow); width: 200px; }
   .kc-clock { display: none; }

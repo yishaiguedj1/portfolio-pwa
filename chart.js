@@ -980,7 +980,12 @@ function topPad(c) {
   let t = 0;
   try { if (UI.top && c && c.el && getComputedStyle(UI.top).position === 'absolute' && c.el.offsetTop < 4) t = UI.top.offsetHeight; } catch (e) { t = 0; }
   if (c && c.el) c.el.style.setProperty('--kc-toph', t + 'px');
-  return t + 6;
+  return t ? t + 30 : 6;   // מתחת לשוליים המטושטשים של הכותרת (24px) — המקרא נשאר חד
+}
+/* בטלפון הסרגל התחתון צף (זכוכית) מעל הגרף — ציר התאריכים גדל בגובה הסרגל, כך שהתאריכים נשארים מעליו */
+function xSize() {
+  try { if (UI.mbar && getComputedStyle(UI.mbar).position === 'absolute') return 26 + UI.mbar.offsetHeight; } catch (e) { /* ברירת מחדל */ }
+  return 'auto';
 }
 function chartStyles(c) {
   const p = palette(), g = S.store.g, line = c.type === 'line';
@@ -1003,7 +1008,7 @@ function chartStyles(c) {
       bars: [{ style: 'fill', borderStyle: 'solid', borderSize: 1, borderDashedValue: [2, 2], upColor: rgba(p.up, 0.55), downColor: rgba(p.dn, 0.55), noChangeColor: rgba('#8E8E93', 0.55) }],
       lines: ['#FF9F0A', '#BF5AF2', '#0A84FF', '#FF375F', '#64D2FF', '#30D158', '#FFD60A'].map((color) => ({ style: 'solid', smooth: false, size: 1.2, dashedValue: [2, 2], color })),
       tooltip: { showRule: 'always', title: { color: p.text, size: 11, family: p.font }, legend: { color: p.text, size: 11, family: p.font } }, lastValueMark: { show: true, text: { show: true, size: 10, family: p.font } } },
-    xAxis: axis, yAxis: axis,
+    xAxis: Object.assign({}, axis, { size: xSize() }), yAxis: axis,
     separator: { color: p.axis, activeBackgroundColor: 'rgba(10,132,255,.08)' },
     crosshair: {
       horizontal: { line: { color: p.cross, style: 'dashed', dashedValue: [4, 3] }, text: { backgroundColor: p.label, borderColor: 'transparent', family: p.font, borderRadius: 4 } },
@@ -1958,9 +1963,10 @@ function build(sym) {
   });
   if (S.ro) S.ro.disconnect();
   if (typeof ResizeObserver === 'function') {
-    S.ro = new ResizeObserver(() => { for (const c of S.cells) if (c.chart) { c.chart.setStyles({ candle: { tooltip: { offsetTop: topPad(c) } } }); c.chart.resize(); } });
+    S.ro = new ResizeObserver(() => { for (const c of S.cells) if (c.chart) { c.chart.setStyles({ candle: { tooltip: { offsetTop: topPad(c) } }, xAxis: { size: xSize() } }); c.chart.resize(); } });
     S.ro.observe(UI.grid);
-    S.ro.observe(UI.top);   // הכותרת מתארכת כשבועת הסשן מופיעה — המקרא יורד מתחתיה
+    S.ro.observe(UI.top);
+    S.ro.observe(UI.mbar);   // הכותרת מתארכת כשבועת הסשן מופיעה — המקרא יורד מתחתיה
   }
 }
 function qmBtn(c, tool, label, icon) {
@@ -1989,6 +1995,8 @@ function setLayout(l) {
 function renderTop() {
   UI.top.textContent = '';
   UI.hd = {};
+  // זכוכית מדורגת: חמש שכבות טשטוש שכל אחת נמוגה במקום אחר — הטשטוש מתחזק בהדרגה כלפי מעלה, והגרף נעלם לתוכה
+  UI.top.appendChild(h('div', { class: 'kc-pb', 'aria-hidden': 'true' }, ...[1, 2, 3, 4, 5].map(() => h('i'))));
   const c = act();
   UI.hd.sym = h('span', { class: 'kc-sym' });
   UI.hd.name = h('span', { class: 'kc-name' });
@@ -2163,7 +2171,7 @@ function openRangeSheet() {
 }
 
 /* ---------- טלפון: סרגל תחתון כמו TradingView ----------
-   סימבול (גרירה אנכית = גלגלת כמו iOS, הקשה = רשימה) · ציור · אינדיקטורים · עוד · בטל.
+   ציור · אינדיקטורים · עוד · בטל.
    בזמן ציור הסרגל מתחלף לכלי הציור: הכלי, מגנט, ציור רציף, נעילה, הסתרה, אובייקטים, סיום. */
 function renderMbar() {
   if (!UI.mbar) return;
@@ -2185,11 +2193,9 @@ function renderMbar() {
     return;
   }
   UI.mbar.classList.remove('draw');
-  const symB = btn('kc-mb txt sym', T('kcSearch'), () => openSearch());
-  symB.textContent = c.sym;
-  wheel(symB, () => { const l = [...new Set([c.sym, ...(E.symbols ? E.symbols() : [])])].slice(0, 40); return l.map((x) => ({ v: x, t: x, cur: x === c.sym })); }, (it) => setSym(c, it.v));
   // רשימת המניות וההגדרות ירדו מהכותרת לכאן (בקשת המשתמש 28/10) — הכותרת נשארת נקייה: מחיר, לוגו, סימבול
-  UI.mbar.append(symB, h('span', { class: 'kc-sep' }),
+  // בלי הסימבול (בקשת המשתמש 28/10) — הוא בכותרת, והקשה עליו פותחת חיפוש. הכפתורים מתפזרים על כל הרוחב
+  UI.mbar.append(
     ib('watch', T('kcWatch'), toggleWatch, S.watch),
     ib('pencil', T('kcTools'), openToolsSheet),
     ib('fx', T('kcIndicators'), openIndSheet),
