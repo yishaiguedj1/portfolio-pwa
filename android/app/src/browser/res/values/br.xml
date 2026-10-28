@@ -119,7 +119,7 @@
     <string name="brClearData">מחיקת נתוני הגלישה</string>
     <string name="brPrivacy">פרטיות ואבטחה</string>
     <string name="brSuggest">הצעות חיפוש</string>
-    <string name="brSuggestSub">מה שמקלידים בשורת הכתובת נשלח ל־%1$s כדי להציע השלמות, כמו ב־Chrome.</string>
+    <string name="brSuggestSub">מה שמקלידים בשורת הכתובת נשלח ל־%1$s כדי להציע השלמות.</string>
     <string name="brPwTitle">מנהל הסיסמאות</string>
     <string name="brPwHero">הסיסמאות שלך שמורות בחשבון Google וממלאות את עצמן לפי האתר — כאן, ב־Chrome ובכל אפליקציה בטלפון. סיסמה חדשה שתשמור כאן מופיעה גם ב־Chrome, וההפך.</string>
     <string name="brPwOn">ממלא בכל האתרים והאפליקציות</string>
@@ -247,7 +247,7 @@
     <string name="brLockOther">לכרטיסיות הרגילות</string>
     <string name="brPreparing">מכין את האיכויות…</string>
     <string name="brMoreFiles">קבצים נוספים שנמצאו בדף (%1$d)</string>
-    <!-- 27/10/2026 — העיצוב של Chrome לאנדרואיד: המחרוזות כמו ש־Chrome מציג (מקובצי התרגום שלו) -->
+    <!-- 27/10/2026 — מסכי הדפדפן לפי ת־עיצוב (docs/standards.md); הניסוח שלנו -->
     <string name="brMenuShare">שיתוף…</string>
     <string name="brHintEngine">‏חיפוש ב-%1$s או הוספת כתובת URL</string>
     <string name="brTabsSee">הצגת %1$d כרטיסיות</string>
@@ -331,5 +331,5 @@
     <string name="brGWeb">חשבון Google באתרים</string>
     <string name="brGWebOn">מחובר ב־Gmail, YouTube וכל Google</string>
     <string name="brGWebOff">לא מחובר — להתחבר</string>
-    <string name="brGWebFoot">כמו ב־Chrome: אותו חשבון גם בדפים של Google. נכנסים פעם אחת, והכניסה נשמרת למשתמש הזה בלבד.</string>
+    <string name="brGWebFoot">אותו חשבון גם בדפים של Google. נכנסים פעם אחת, והכניסה נשמרת למשתמש הזה בלבד.</string>
 </resources>

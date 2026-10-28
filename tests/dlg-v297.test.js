@@ -1,4 +1,4 @@
-// v297: חלון אישור/הודעה שלנו במקום confirm/alert של הדפדפן (בלי "…github.io says") + כרטיס החשבון בסגנון Apple ID
+// v297: חלון אישור/הודעה שלנו במקום confirm/alert של הדפדפן (בלי "…github.io says") + כרטיס החשבון לפי ת־עיצוב ID
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');

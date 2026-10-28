@@ -63,7 +63,7 @@ export async function md5File(file, onProg) {   // בחתיכות של 4MB — �
 
 /* ---------------------------------------------------------------- טהורות (נבדקות) */
 export const MG_FIELDS = ['title', 'subtitle', 'author', 'authorSort', 'pub', 'date', 'lang', 'series', 'seriesIdx', 'isbn', 'tags', 'desc'];
-export const BULK_FIELDS = ['author', 'lang', 'pub', 'series'];   // כמו Calibre: בעריכה יחד — לא כותר, לא ISBN, לא תקציר
+export const BULK_FIELDS = ['author', 'lang', 'pub', 'series'];   // לפי ת־קורא: בעריכה יחד — לא כותר, לא ISBN, לא תקציר
 export const BOOK_EXT = ['epub', 'azw3', 'azw', 'mobi', 'kf8', 'fb2'];
 const RECENT_MS = 7 * 86400000;
 export const normQ = (s) => String(s || '').toLowerCase().replace(/[֑-ׇ]/g, '').replace(/[״"׳'’.,:;!?()\[\]–—\-_/]/g, ' ').replace(/\s+/g, ' ').trim();

@@ -1,5 +1,5 @@
 // v336 (בקשת המשתמש 05/10/2026): חלון הסימון הוטמע בכרטיס התרגום — שורת פעולות מינימליסטית בראשו, עיגול צבע אחד
-// שנפתח לשורת צבעים, והכרטיס (תרגום + סימון) נפתח רק בלחיצה ארוכה, כמו בקינדל
+// שנפתח לשורת צבעים, והכרטיס (תרגום + סימון) נפתח רק בלחיצה ארוכה, לפי ת־קורא
 const fs = require('fs');
 const path = require('path');
 let n = 0;
@@ -15,7 +15,7 @@ ok(!/buildPop|placePop|'rd-pop rd-pop2'/.test(lib), 'הבועה הצפה היש�
 ok(/trShow\(text, bt, doc, range, \{ text, cfi: rd\.view\.getCFI\(doc\.__idx, range\), t: text \}\)/.test(fn('openSel')) && /openSel\(doc, sel\.getRangeAt\(0\)\.cloneRange\(\)\)/.test(fn('showSel')), 'בחירה (לחיצה ארוכה/ידיות) = כרטיס התרגום במצב סימון');
 ok(/trShow\(ann\.x, [^)]*, doc, range, \{ text: ann\.x, cfi: ann\.c, ann/.test(fn('annPopup')), 'נגיעה בהדגשה קיימת — אותו כרטיס, עם הצבע שלה');
 const click = (lib.match(/doc\.addEventListener\('click', \(e\) => \{[\s\S]*?\n  \}\);/) || [''])[0];
-ok(click && !/trShow|wordAt/.test(click) && /setChrome\(!rd\.chrome\)/.test(click), 'נגיעה קצרה: בלי תרגום — סרגלים בלבד (כמו בקינדל)');
+ok(click && !/trShow|wordAt/.test(click) && /setChrome\(!rd\.chrome\)/.test(click), 'נגיעה קצרה: בלי תרגום — סרגלים בלבד (לפי ת־קורא)');
 ok(/c\.append\(grab, bar, head, dictHost\)/.test(lib) && /const \{ bar, acts \} = selBar\(c, sel, text\)/.test(lib), 'שורת הפעולות בראש הכרטיס, מעל המילה');
 const sb = fn('selBar');
 ok(/tr-sw/.test(sb) && /sw\.after\(pal\); bar\.classList\.add\('pal-open'\)/.test(sb) && /\.tr-bar\.pal-open \.tr-ib \{ display: none; \}/.test(css), 'עיגול צבע אחד שנפתח לשורת צבעים בתוך הסרגל (בלי חלון צף)');

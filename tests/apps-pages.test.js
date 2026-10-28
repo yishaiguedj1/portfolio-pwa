@@ -105,9 +105,9 @@ ok(/\[#&\]studio=\(j\[A-Za-z0-9_-\]\{20\}\)/.test(read('studio-app.js')), 'studi
   ok(/function openAcademySettings\(\) \{ if \(!\(ui\.view && ui\.view\.settings\)\) goView\(\{ settings: 1 \}\); \}/.test(lib) && /if \(ui\.view && ui\.view\.settings\) return renderSettings\(\);/.test(lib), 'Academy: ההגדרות = עמוד בספרייה (רשומה בהיסטוריה)');
   ok(/home\.append\(C\.account\(\), C\.advRow\(\(\) => goView\(\{ advanced: 1 \}\)\), C\.display\(\)\)/.test(lib) && /\.lib-root button:not\(\.appbar button, \.card button\)/.test(read('library.css')), 'Academy: החשבון ותצוגה; האיפוס של כפתורי הספרייה לא נוגע בכרטיסים');
   const ps = st.slice(st.indexOf('function pageSettings('), st.indexOf('function pageEng(p)'));   // העמוד הראשי בלבד
-  // 25/10/2026 (בקשת המשתמש — עיצוב נקי כמו Apple): החשבון בראש העמוד, התצוגה והמתקדמות בסוף
+  // 25/10/2026 (בקשת המשתמש — עיצוב נקי לפי ת־עיצוב): החשבון בראש העמוד, התצוגה והמתקדמות בסוף
   ok(/p\.append\(C\.account\(\)\)/.test(ps) && /C\.display\(\), C\.advRow\(\(\) => go\('adv'\)\)/.test(ps) && ps.indexOf('C.account()') < ps.indexOf('C.display()') && !/secT\(/.test(ps), 'Studio: החשבון של Invest בראש העמוד, התצוגה והמתקדמות בסוף');
-  // 13/10/2026 (בקשת המשתמש: "כמו ש־Apple הייתה מתכננת"): העמוד הראשי = שתי קבוצות של שורות, כל נושא בעמוד משנה
+  // 13/10/2026 (בקשת המשתמש: "לפי ת־עיצוב הייתה מתכננת"): העמוד הראשי = שתי קבוצות של שורות, כל נושא בעמוד משנה
   { const rows = [...ps.matchAll(/onClick: \(\) => go\('(\w+)'\)/g)].map((m) => m[1]).join();
     ok(rows === 'eng,defs,tower,store,push,guide', 'Studio: השורות בעמוד הראשי — ' + rows);
     ok((ps.match(/setCard\(/g) || []).length === 3 && /setCard\(T\('studioGrpTr'\)/.test(ps) && /setCard\(T\('studioGrpGen'\)/.test(ps) && /setCard\(T\('studioLrnGrp'\)/.test(ps), 'Studio: שלוש קבוצות — תרגום, כללי, ופרטיות ושיפור (25/10/2026)'); }
@@ -156,7 +156,7 @@ ok(/\[#&\]studio=\(j\[A-Za-z0-9_-\]\{20\}\)/.test(read('studio-app.js')), 'studi
     ok(/const accent = \(\) =>/.test(lib) && /::selection \{ background: \$\{accentRgba\(\.32\)\}/.test(lib) && /drawOptions: \{ color: accent\(\) \}/.test(lib) && /createRibbonAsync\(cv, \{ color: accent\(\),/.test(lib) && /x\.fillStyle = accent\(\)/.test(lib), 'library.js: בתוך הספר, בקנבס וב־WebGL — צבע המערכת מ־--primary');
     ok(/srcset = o\.logo \+ ' 512w, ' \+ o\.logoLg \+ ' 768w'; img\.sizes = '128px'/.test(sh) && /img\.sizes = '192px'/.test(sh), 'shell: srcset — הלוגו חד בכל צפיפות מסך (הדר 128px, כניסה 192px)');
   }
-  // 25/10/2026 (בקשת המשתמש — כמו ב־Apple): כותרת קטנה מעל הקבוצה, והרשימה עצמה היא הכרטיס (לא כרטיס בתוך כרטיס)
+  // 25/10/2026 (בקשת המשתמש — לפי ת־עיצוב): כותרת קטנה מעל הקבוצה, והרשימה עצמה היא הכרטיס (לא כרטיס בתוך כרטיס)
   ok(/h\('section', 'st-setgrp'\)/.test(st) && /if \(title\) c\.append\(secT\(title\)\)/.test(st) && /\.st-setgrp > \.st-sec-t:first-child/.test(read('studio.css')), 'Studio: קבוצה בהגדרות = כותרת קטנה מעליה, הרשימה היא הכרטיס');
 }
 console.log('# ' + n + ' בדיקות עברו');

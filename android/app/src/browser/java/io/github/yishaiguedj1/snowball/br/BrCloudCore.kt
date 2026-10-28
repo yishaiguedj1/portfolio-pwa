@@ -6,7 +6,7 @@ import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 
 /**
- * סנכרון בענן בין המכשירים (27/10/2026, בקשת המשתמש: "סנכרון בזמן אמת כמו Chrome, וגיבוי ל־Google Drive") — הליבה.
+ * סנכרון בענן בין המכשירים (27/10/2026, בקשת המשתמש: "סנכרון בזמן אמת לפי ת־עיצוב, וגיבוי ל־Google Drive") — הליבה.
  * טהור (בלי אנדרואיד ובלי org.json) — נבדק ב־BrCloudCoreTest. הרשת והחיבור לסימניות/היסטוריה/הגדרות — BrCloud.
  *
  * המודל של Chrome Sync, בלי שרת: כל פריט = רשומה עם מפתח שהלקוח קובע (כמו client_tag_hash) — "m:<BrSync.key>" סימנייה,

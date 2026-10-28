@@ -2,7 +2,7 @@
    נבדק ב־node 22 (עם xmldom לבדיקות) וב־Chromium תחת ה־CSP המדויק של האפליקציה; כל קובץ שהמודול כותב עובר epubcheck 5.3.0.
    מה יש כאן:
    1. ZIP: קריאת התיקייה המרכזית מתוך Blob (בלי לטעון את הקובץ לזיכרון), פריסת רשומה עם תקרה, בדיקת גודל ו־CRC.
-   2. כתיבה מחדש "כמו Calibre" (do_replace): רק מה שהשתנה נדחס מחדש, כל השאר מועתק כבייטים דחוסים (Blob.slice — הפניה,
+   2. כתיבה מחדש "לפי ת־קורא" (do_replace): רק מה שהשתנה נדחס מחדש, כל השאר מועתק כבייטים דחוסים (Blob.slice — הפניה,
       בלי זיכרון ובלי משימות ארוכות). mimetype תמיד ראשון, לא דחוס, בלי extra field ובלי data descriptor;
       שם קובץ בעברית מקבל את דגל UTF-8 (בלעדיו ה־zip.js של foliate מפענח CP437 והספר לא נפתח בכלל).
    3. זיהוי סוג לפי חתימה + epubcheck-lite: פצצות zip, רשומות חופפות, DRM, מבנה OCF/OPF, ומה שכתיבה מחדש מתקנת (repair).
@@ -271,7 +271,7 @@ const NS = {
   OPF: 'http://www.idpf.org/2007/opf', DC: 'http://purl.org/dc/elements/1.1/', CON: 'urn:oasis:names:tc:opendocument:xmlns:container',
   ENC: 'http://www.w3.org/2001/04/xmlenc#', XLINK: 'http://www.w3.org/1999/xlink',
 };
-const OBFUSCATION = new Set(['http://www.idpf.org/2008/embedding', 'http://ns.adobe.com/pdf/enc#RC']);   // כמו Calibre: כל אלגוריתם אחר = DRM
+const OBFUSCATION = new Set(['http://www.idpf.org/2008/embedding', 'http://ns.adobe.com/pdf/enc#RC']);   // לפי ת־קורא: כל אלגוריתם אחר = DRM
 
 export function parseXml(text, DOMParserImpl = globalThis.DOMParser) {
   if (/<!ENTITY/i.test(text)) fail('xml_entities');             // בלי ישויות מוגדרות (billion laughs) — כמו safe_xml_fromstring של Calibre
@@ -641,8 +641,8 @@ export function writeOpfMeta(opf, meta, { now = new Date() } = {}) {
 }
 
 /* ---------------- 8. כריכות בתוך ה־EPUB ----------------
-   כמו Calibre: כריכת JPEG/PNG קיימת מוחלפת במקום (אותו נתיב, אותו פורמט — להמיר קודם ב־imageTo); בלי עמוד כריכה חדש ב־spine (משנה CFI).
-   עמוד כריכה בסגנון Calibre (‏<svg viewBox="0 0 W H"><image width/height>) מקבל את המידות החדשות — אחרת כריכה ביחס אחר נמתחת. */
+   לפי ת־קורא: כריכת JPEG/PNG קיימת מוחלפת במקום (אותו נתיב, אותו פורמט — להמיר קודם ב־imageTo); בלי עמוד כריכה חדש ב־spine (משנה CFI).
+   עמוד כריכה לפי ת־קורא (‏<svg viewBox="0 0 W H"><image width/height>) מקבל את המידות החדשות — אחרת כריכה ביחס אחר נמתחת. */
 export function coverItem(opf) {
   const man = kids(opf.documentElement, NS.OPF, 'manifest')[0], md = metadataEl(opf);
   const items = kids(man, NS.OPF, 'item');

@@ -150,7 +150,7 @@ ok(/Screen\.CHROME -> ChromeScreen\(a\)/.test(R(B + 'BrUi.kt')) && /Screen\.IMPO
 ok(/studio-browser-chrome\.zip/.test(chr), 'הקישור לתוסף');
 ok(/testBrowserReleaseUnitTest/.test(R('.github/workflows/android.yml')) && fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yishaiguedj1/snowball/br/BrImportTest.kt')), 'בדיקת JVM לייבוא ב־CI');
 
-// 27/10/2026 (בקשת המשתמש: "אחד לאחד כמו Chrome באנדרואיד" — המבנה; הצבעים והזכוכית של Apple, האדום של כפתור ההורדה)
+// 27/10/2026 (בקשת המשתמש: "אחד לאחד לפי ת־עיצוב באנדרואיד" — המבנה; הצבעים והזכוכית של Apple, האדום של כפתור ההורדה)
 ok(/private fun TopBar\(/.test(ui) && !/private fun Toolbar\(a: BrowserActivity\)/.test(ui) && /BrIcons\.CNewTab/.test(ui) && /private fun TabsBtn\(/.test(ui),
   'הסרגל של Chrome לאנדרואיד למעלה: דף הבית · הכתובת · כרטיסייה חדשה · כרטיסיות · ⋮ — בלי סרגל תחתון של אייפון');
 ok(/private fun MenuSheet\(a: BrowserActivity\)/.test(ui) && /Dialog\(/.test(ui) && /PixelCopy\.request/.test(ui) && /boxBlur\(bmp/.test(ui) && !/setBackgroundBlurRadius/.test(ui) && /private fun RowScope\.MBtn\(/.test(ui) && !/private fun Dest\(/.test(ui),
@@ -162,7 +162,7 @@ ok(/val GoogleLogo/.test(R(B + 'BrIcons.kt')) && /val CNewTab = cr\("ic_add_box_
   'האייקונים של Chrome עצמו, עם הרישיון של Chromium');
 ok(/fun goBack\(\) \{[\s\S]*?t\.web\?\.canGoBack\(\) == true -> t\.web\?\.goBack\(\)\s*t\.ntpBack && !t\.isNtp -> [\s\S]*?t\.fromApp -> \{ close\(t\); moveTaskToBack\(true\) \}[\s\S]*?t\.parent >= 0[\s\S]*?else -> moveTaskToBack\(true\)/.test(act)
   && /nt\.parent = t\.id/.test(act) && /if \(t\.isNtp\) \{ t\.ntpBack = true/.test(act),
-  '"חזור" כמו ב־Chrome: הדף הקודם → הכרטיסייה החדשה → הכרטיסייה שפתחה את הקישור → האפליקציה שפתחה → רקע');
+  '"חזור" לפי ת־עיצוב: הדף הקודם → הכרטיסייה החדשה → הכרטיסייה שפתחה את הקישור → האפליקציה שפתחה → רקע');
 for (const s of ['ENGINE', 'PASSWORDS', 'PRIVACY', 'BARPOS', 'IMPORT'])
   ok(new RegExp('Screen\\.' + s + ' -> ').test(ui) && new RegExp('Screen\\.' + s).test(act), 'עמוד הגדרות: ' + s);
 ok(/screen in settingsSubs -> screen = Screen\.SETTINGS/.test(act), '"חזור" מעמוד משנה של ההגדרות חוזר להגדרות');

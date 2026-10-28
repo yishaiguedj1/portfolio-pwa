@@ -9,7 +9,7 @@ const STAGES = ['tr', 'al', 'tl', 'rv', 'bn', 'sv'];
 const RATE = { tr: 8 / 77, al: 5 / 77, tl: 50 / 77, rv: 12 / 77, bn: 23 / 77, sv: 3 / 77 };
 // זהה ל־min של MODES ב־studio.js
 const MODE_MIN = { 'sonnet-medium': 85, 'haiku-high': 76, 'haiku-medium': 74, 'sonnet-high': 95, 'opus-medium': 105, 'sonnet-low': 80 };
-const MARKS = [0.5, 0.75];                  // הסימונים על השעון, כמו ב־ServiceNow
+const MARKS = [0.5, 0.75];                  // הסימונים על השעון, לפי ת־פיקוח
 const HP_DEF = 5;                           // החלטה 5: מחיר מתרגם אנושי לדקת סרטון (משנים בדף הערך)
 const HP_MIN = 0.5, HP_MAX = 100;
 const DAY = 86400000;

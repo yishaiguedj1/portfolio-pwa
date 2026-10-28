@@ -73,7 +73,7 @@ object BrShield {
 
     /**
      * מה שהחלטת לאתר אחד: shield = ההגנה פועלת (חסימה והודעות עוגיות); cam/mic/loc: 1 מותר, -1 חסום, 0 לשאול (ברירת
-     * המחדל — כמו ב־Chrome, ההחלטה שלך נזכרת ולא שואלים שוב); speed = מהירות הווידאו באתר (100 = רגיל)
+     * המחדל — לפי ת־עיצוב, ההחלטה שלך נזכרת ולא שואלים שוב); speed = מהירות הווידאו באתר (100 = רגיל)
      */
     data class SiteRule(val host: String, val shield: Boolean = true, val cam: Int = 0, val mic: Int = 0, val loc: Int = 0, val speed: Int = 100) {
         val empty get() = shield && cam == 0 && mic == 0 && loc == 0 && speed == 100
@@ -97,7 +97,7 @@ object BrShield {
 
     private fun ok(h: String) = h.isNotEmpty() && h.length <= 253 && h.all { it.isLetterOrDigit() || it == '.' || it == '-' }
 
-    /** מהירויות הווידאו (באחוזים) — כמו ב־YouTube */
+    /** מהירויות הווידאו (באחוזים) — לפי ת־נגן */
     val SPEEDS = listOf(50, 75, 100, 125, 150, 175, 200)
 
     /* ---------- סקריפטים בדף ---------- */

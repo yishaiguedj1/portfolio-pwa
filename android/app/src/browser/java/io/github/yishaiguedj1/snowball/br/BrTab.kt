@@ -29,7 +29,7 @@ class BrTab(val id: Long, url: String, title: String, val private: Boolean, var 
     /** שלב 3: כמה בקשות של פרסום/מעקב נחסמו בדף הזה, ואם משהו מתנגן בו עכשיו (BrShield.PLAY_JS) */
     var blocked by mutableIntStateOf(0)
     @Volatile var playing = false
-    /** "חזור" כמו ב־Chrome (27/10/2026): הכרטיסייה שממנה נפתחה מקישור (‎-1 = אין) — כשאין לאן לחזור, נסגרת וחוזרים אליה;
+    /** "חזור" לפי ת־עיצוב (27/10/2026): הכרטיסייה שממנה נפתחה מקישור (‎-1 = אין) — כשאין לאן לחזור, נסגרת וחוזרים אליה;
      *  ntpBack = הדף הראשון נפתח מהכרטיסייה החדשה (שם היא רשומה בהיסטוריה) — "חזור" מהדף הראשון חוזר אליה; ntpFwd = ומשם "קדימה" */
     var parent = -1L
     var ntpBack by mutableStateOf(false)

@@ -7,7 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-/* v231: טשטוש בסגנון Apple כשהתפריט פתוח + כרטיסי מניה נסגרים (פתיחת אחר / מעבר טאב / רקע) */
+/* v231: טשטוש לפי ת־עיצוב כשהתפריט פתוח + כרטיסי מניה נסגרים (פתיחת אחר / מעבר טאב / רקע) */
 const root = path.join(__dirname, '..');
 const src = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');

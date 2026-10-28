@@ -236,7 +236,7 @@ function applyOps(cat0, ops, ctx) {
       case 'bulk': {
         const ids = idsOf(op.ids); if (!ids.length) throw opErr(i, 'ids');
         const f = op.f && typeof op.f === 'object' ? op.f : {};
-        const keys = Object.keys(f).filter((k) => FIELDS.includes(k) && k !== 'title' && k !== 'isbn');   // כמו Calibre: כותר ו־ISBN לא במרובה
+        const keys = Object.keys(f).filter((k) => FIELDS.includes(k) && k !== 'title' && k !== 'isbn');   // לפי ת־קורא: כותר ו־ISBN לא במרובה
         const clear = (Array.isArray(op.clear) ? op.clear : []).filter((k) => FIELDS.includes(k) && k !== 'title');
         const add = tagList((op.tagsAdd || []).join(',')), rm = new Set(tagList((op.tagsRm || []).join(',')).map((t) => t.toLowerCase()));
         const num = op.num && typeof op.num === 'object' ? { start: Number(op.num.start), step: Number(op.num.step || 1) } : null;

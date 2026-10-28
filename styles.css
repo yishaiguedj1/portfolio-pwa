@@ -1,6 +1,6 @@
-/* תיק ההשקעות — שפת עיצוב v31: Liquid Glass בסגנון iOS 26.
+/* תיק ההשקעות — שפת עיצוב v31: Liquid Glass לפי ת־עיצוב 26.
    פלטת צבעי המערכת של iOS 26 (בהיר/כהה), זכוכית עם הדגשת hairline עליונה,
-   RTL/LTR לוגי, טיפוגרפיה בסגנון אפל, קצב ריווח 8pt. */
+   RTL/LTR לוגי, טיפוגרפיה לפי ת־עיצוב, קצב ריווח 8pt. */
 :root {
   --ibkr: #A3182E;                  /* v280: בורדו של IBKR (כרטיס החיבור) */
   --ibkr-press: #86101F;
@@ -227,7 +227,7 @@ html, body { overscroll-behavior-x: none; } /* v279: משיכה אופקית = �
 [data-theme="dark"] .brand-logo {
   filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.5)) drop-shadow(0 0 14px rgba(57,255,120,.10));
 }
-/* 20/10/2026 (בקשת המשתמש — "לוגו חי" כמו הדמות של Muse, ברמה של לוגו מקצועי, נקי כמו של Apple).
+/* 20/10/2026 (בקשת המשתמש — "לוגו חי" כמו הדמות של Muse, ברמה של לוגו מקצועי, נקי לפי ת־עיצוב).
    השכבות: .brand-art (הלוגו + הפנים החיות + הברק) זז כיחידה אחת — אף שכבה לא "מחליקה" מהפנים, גם בתלת־ממד;
    סביבו הילה קרה, אד בבסיס, ושלג בשלוש שכבות עומק מאחור + שכבה קרובה ומטושטשת לפני הלוגו (רק בשוליים).
    התנועה = כמה אנימציות על תכונות נפרדות שמתחברות: translate (ריחוף, 6.5 שנ׳), scale (נשימה, 4.6 שנ׳),
@@ -754,7 +754,7 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .stock.open .chev { transform: rotate(180deg); }
 
 /* v193: פתיחה/סגירה של הכרטיס באנימציית גובה חלקה (grid 0fr→1fr) במקום קפיצת display; התוכן בעוטף יחיד .stock-body-in */
-/* v271: תנועה בסגנון אפל — עקומת "קפיץ" אחת (--ease-ios) לגובה, לכותרת ולחץ; התוכן נכנס בדהייה+החלקה קלה
+/* v271: תנועה לפי ת־עיצוב — עקומת "קפיץ" אחת (--ease-ios) לגובה, לכותרת ולחץ; התוכן נכנס בדהייה+החלקה קלה
    ויוצא בדהייה מהירה לפני שהגובה נסגר. אין ציור גרף ואין מדידות בזמן האנימציה (app.js — toggleStock/fitCardToScreen) */
 .stock { --ease-ios: cubic-bezier(.32, .72, 0, 1); --ease-spring: linear(0.000, 0.062, 0.192, 0.338, 0.477, 0.596, 0.694, 0.771, 0.831, 0.877, 0.911, 0.937, 0.955, 0.969, 0.979, 0.986, 0.991, 0.994, 0.997, 0.999, 1.000); } /* v272: אותו קפיץ כמו cardEase ב־app.js */
 .stock-body { display: none; grid-template-rows: 1fr; }
@@ -812,7 +812,7 @@ html.drag-active .tabpage { transform: none !important; }   /* v324: בלי anim
 .wl-tab-ph { flex: none; border: 2px dashed var(--outline); border-radius: var(--pill); box-sizing: border-box; }
 @media (prefers-reduced-motion: reduce) { .stock.holding, .wl-tab.holding, .wl-tab.dragging { transform: none; transition: none; } .item-acts { animation: none; } }
 .kv-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin: 4px 0 14px; }
-/* v234: נתוני הכרטיס בסגנון Apple/Google (בקשת המשתמש, תצוגה מקדימה "ה׳" + גובה/אחוזים של "ה2"): בלי בועות ובלי מסגרת —
+/* v234: נתוני הכרטיס לפי ת־עיצוב/Google (בקשת המשתמש, תצוגה מקדימה "ה׳" + גובה/אחוזים של "ה2"): בלי בועות ובלי מסגרת —
    קו אופקי דק אחד בין השורות, קווים אנכיים קצרים בין העמודות, תווית שקטה / ערך בולט / אחוז קטן ורגיל */
 .kv { position: relative; background: none; border-radius: 0; padding: 7px 4px 8px; min-width: 0; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px; text-align: center; }
 .kv::before { content: ''; position: absolute; inset-inline-start: 0; top: 22%; bottom: 22%; width: .5px; background: var(--outline); }
@@ -867,7 +867,7 @@ html[dir="ltr"] .stock-foot .kc-open-btn { order: -1; }   /* באנגלית (כ�
 .stock-foot .stock-ico-btn svg, .stock-foot .an-open-btn svg { width: 16px; height: 16px; flex: none; }
 .stock-foot .an-open-btn { display: inline-flex; align-items: center; justify-content: center; padding: 0 11px; gap: 5px; flex: none; white-space: nowrap; font-size: 13px; line-height: 1; }   /* סמל + מילה, באותו גובה כמו כפתורי הסמל; מרכוז אנכי מפורש */
 /* תשואה ענקית (מעל 10,000%) מוצגת מקוצרת (‎fmtPct‎ — 12.3K%) — הכפתורים נשארים בגודל נוח ולא נדרסים */
-/* 28/10/2026: התראות המחיר של המניה בכרטיס — רשימה מקובצת בסגנון iOS (כותרת קטנה, שורות עם קו מפריד, חץ) */
+/* 28/10/2026: התראות המחיר של המניה בכרטיס — רשימה מקובצת לפי ת־עיצוב (כותרת קטנה, שורות עם קו מפריד, חץ) */
 .st-al { margin: 4px 14px 12px; }
 .st-al[hidden] { display: none; }
 .st-al-h { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 6px; }
@@ -924,7 +924,7 @@ html[dir="ltr"] .stock-foot .kc-open-btn { order: -1; }   /* באנגלית (כ�
 .sc-ov { position: absolute; inset: 0; pointer-events: none; z-index: 5; animation: scIn .16s ease both; }
 .sc-ov.hidden { display: none; }
 .sc-ov > * { position: absolute; top: 0; left: 0; }
-/* v265: קו אנכי מנוקד (כמו בגוגל) */
+/* v265: קו אנכי מנוקד (תואם ל־Google) */
 .sc-line { width: 4px; margin-left: -2px; background: radial-gradient(circle, var(--on-surface-var) 1.2px, transparent 1.6px) 0 0 / 4px 6px repeat-y; opacity: .75; }
 .sc-l2, .sc-d2, .sc-band { display: none; }
 .sc-ov.m .sc-l2, .sc-ov.m .sc-d2, .sc-ov.m .sc-band { display: block; }
@@ -974,7 +974,7 @@ html[dir="ltr"] .stock-foot .kc-open-btn { order: -1; }   /* באנגלית (כ�
 .pf-range-summary .rs-val.pos { color: var(--gain, #1B7A3D); }
 .pf-range-summary .rs-val.neg { color: var(--loss, #C62828); }
 .pf-range-summary .rs-range { font-size: 13.5px; color: var(--on-surface-var); }
-/* כפתורי מדדי השוואה — פילס נקיים בסגנון אפל */
+/* כפתורי מדדי השוואה — פילס נקיים לפי ת־עיצוב */
 .pf-bench-row { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:2px 0 4px; }
 .pf-bench-toggle {
   display:inline-flex; align-items:center; gap:7px;
@@ -1253,7 +1253,7 @@ footer.fine { text-align: center; }
 [data-theme="dark"] .acx-sheet { background: #1C1C1E; }
 .acx-sheet h3 { margin: 4px 0 18px; font-size: 19px; font-weight: 700; letter-spacing: -.2px; text-align: center; }
 .acx-body { display: flex; flex-direction: column; gap: 12px; }
-/* 27/10/2026: שדות מלאים בסגנון iOS (בלי מסגרת), שני השדות בקבוצה אחת עם קו מפריד; צבע המילוי האוטומטי של Chrome מנוטרל */
+/* 27/10/2026: שדות מלאים לפי ת־עיצוב (בלי מסגרת), שני השדות בקבוצה אחת עם קו מפריד; צבע המילוי האוטומטי של Chrome מנוטרל */
 .acx-in {
   width: 100%; font: inherit; font-size: 17px; padding: 15px 16px; min-height: 52px;
   border-radius: var(--radius-sm); border: 0; box-shadow: none; -webkit-appearance: none; appearance: none;
@@ -1298,7 +1298,7 @@ footer.fine { text-align: center; }
 html[data-app="studio"] .login-overlay { background: linear-gradient(160deg, #C41E2E 0%, #5C0711 100%); }
 html[data-app="academy"] .login-overlay { background: linear-gradient(160deg, #1F63C4 0%, #0A2A5C 100%); }
 
-/* ---- מתגי בחירה בסגנון אפל (שפה / ערכת נושא) ---- */
+/* ---- מתגי בחירה לפי ת־עיצוב (שפה / ערכת נושא) ---- */
 .lang-toggle, .theme-toggle {
   display: flex; background: var(--surface-2);
   border: 1px solid var(--card-border);
@@ -1332,7 +1332,7 @@ html[data-app="academy"] .login-overlay { background: linear-gradient(160deg, #1
 /* ---- כרטיס חשבון ---- */
 .account-row { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
 .account-row img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
-/* v297: כרטיס החשבון בסגנון Apple ID — בלי כותרת, תמונה גדולה + שם + מייל, פעולה כשורת רשימה */
+/* v297: כרטיס החשבון לפי ת־עיצוב ID — בלי כותרת, תמונה גדולה + שם + מייל, פעולה כשורת רשימה */
 #accountCard > h2 { display: none; }
 .acc-id { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
 .acc-id img, .acc-id .acc-av { width: 58px; height: 58px; border-radius: 50%; object-fit: cover; flex: none; }
@@ -1363,7 +1363,7 @@ html[data-app="academy"] .login-overlay { background: linear-gradient(160deg, #1
 .form-row .chip-btn { flex: 1 1 100%; justify-content: center; }
 
 /* ---- דוחות קרובים ---- */
-/* v221: דוחות קרובים — רשימה בסגנון iOS/Material: לוגו, סימבול ושם, שורת "בעוד N ימים", ואריח לוח שנה בקצה */
+/* v221: דוחות קרובים — רשימה לפי ת־עיצוב/Material: לוגו, סימבול ושם, שורת "בעוד N ימים", ואריח לוח שנה בקצה */
 .earn-list { list-style: none; margin: 4px 0 0; padding: 0; }
 /* v223: שני דוחות גלויים, השאר בגלילה בתוך הכרטיס — עוצר על כל שורה, בלי פס גלילה, דהייה בתחתית כשיש עוד */
 .earn-list.earn-scroll { max-height: 150px; overflow-y: auto; overscroll-behavior: contain; scroll-snap-type: y mandatory; scrollbar-width: none; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent); }
@@ -1391,7 +1391,7 @@ html[data-app="academy"] .login-overlay { background: linear-gradient(160deg, #1
 .earn-row.soon .earn-cal { background: var(--primary); }
 .earn-row.soon .earn-mon, .earn-row.soon .earn-day { color: var(--on-primary); }
 .earn-row.soon .earn-sub { color: var(--on-surface); font-weight: 600; }
-/* v222: שורה לחיצה (הוספה ליומן) + גיליון תחתון בסגנון iOS/Android */
+/* v222: שורה לחיצה (הוספה ליומן) + גיליון תחתון לפי ת־עיצוב/Android */
 .earn-row { cursor: pointer; -webkit-tap-highlight-color: transparent; border-radius: var(--radius-xs); transition: background-color .15s ease; }
 .earn-row:active { background: color-mix(in srgb, var(--on-surface) 6%, transparent); }
 .earn-row:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
@@ -1810,7 +1810,7 @@ details.note[open] > :not(summary) { animation: demoIn .28s cubic-bezier(.2, .9,
 .widget-steps { margin: 8px 0 0; padding-inline-start: 22px; display: grid; gap: 6px; line-height: 1.45; }
 a.btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; } /* v215: קישור שנראה ככפתור (הורדת האפליקציה) */
 
-/* v231: טשטוש כשהתפריט פתוח — בסגנון Apple: זכוכית מטושטשת עם הכהיה עדינה, מופיעה ונעלמת ברכות.
+/* v231: טשטוש כשהתפריט פתוח — לפי ת־עיצוב: זכוכית מטושטשת עם הכהיה עדינה, מופיעה ונעלמת ברכות.
    העמוד: שכבה קבועה מתחת להדר (z 19). ההדר: הלוגו, שורת המקור ובועת השער מטושטשים בעצמם (filter) — שכבת
    backdrop בתוך ההדר השאירה את שורת המקור חדה (הטשטוש חלש בקצה העליון של שכבה). הכפתורים והתפריט — חדים. */
 .menu-veil {
@@ -1919,7 +1919,7 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 #ibkrCard .ibkr-btns #ibkrDisconnect { flex: none; }
 @media (max-width: 380px) { #ibkrCard .ibkr-btns > .btn { font-size: 15px; padding-inline: 14px; } }
 #ibkrCard .btn .ic { stroke: currentColor; }
-/* v295 (בקשת המשתמש): כרטיס IBKR מינימליסטי — אריחי מספרים, רשימה בסגנון Apple, שורות הרחבה נקיות */
+/* v295 (בקשת המשתמש): כרטיס IBKR מינימליסטי — אריחי מספרים, רשימה לפי ת־עיצוב, שורות הרחבה נקיות */
 #ibkrCard { --ib-tint: color-mix(in srgb, var(--ibkr) 9%, var(--surface-2)); --ib-line: color-mix(in srgb, var(--ibkr) 18%, var(--card-border)); }
 #ibkrCard .ib-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 2px 0 8px; }
 #ibkrCard .ib-stats > div { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px; border-radius: var(--radius-sm); background: var(--ib-tint); }
@@ -1999,7 +1999,7 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 
 /* v281: בהחלקה קצרה במעקב — הצ'יפ של הרשימה שאליה נעבור מסומן */
 
-/* ---------------- v286: כרטיס איפוס קומפקטי + גיליון בסגנון Apple ---------------- */
+/* ---------------- v286: כרטיס איפוס קומפקטי + גיליון לפי ת־עיצוב ---------------- */
 .reset-card { padding: 6px; }
 .reset-open {
   display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border: 0; border-radius: var(--radius-sm);
@@ -2062,7 +2062,7 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 .pfbk-sw[aria-checked="true"] i { inset-inline-start: 23px; }
 .pfbk-sw:focus-visible { outline: 2.5px solid var(--primary); outline-offset: 2px; }
 
-/* ---------------- v287: שורת קישור בהגדרות (כמו iOS) + עמוד משנה "אפשרויות מתקדמות" ---------------- */
+/* ---------------- v287: שורת קישור בהגדרות (לפי ת־עיצוב) + עמוד משנה "אפשרויות מתקדמות" ---------------- */
 .row-card { padding: 6px; }
 .row-link {
   display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border: 0; border-radius: var(--radius-sm);
@@ -2101,7 +2101,7 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 .display-row.stack .lang-toggle { margin-top: 0; }
 .display-row.stack .display-label { font-size: 15px; color: var(--on-surface-var); }
 
-/* v289: רשימה בסגנון iOS (כרטיס "אפליקציה" בעמוד המתקדם) — שורות 52px, קו דק ביניהן, ערך באפור בצד, פעולה בירוק */
+/* v289: רשימה לפי ת־עיצוב (כרטיס "אפליקציה" בעמוד המתקדם) — שורות 52px, קו דק ביניהן, ערך באפור בצד, פעולה בירוק */
 .ios-list { border-radius: var(--radius-sm); background: var(--surface-2); overflow: hidden; }
 .ios-row {
   display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 12px 16px; box-sizing: border-box;
@@ -2129,7 +2129,7 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 /* כרטיס ההצעה בראש הסקירה — מרווח כמו שאר הכרטיסים */
 #tab-overview > #demoOffer { margin-bottom: 14px; }
 
-/* v311: מתג "עדכון ברקע" בכרטיס IBKR — בסגנון iOS, בגוון הכרטיס; RTL דרך מאפיינים לוגיים */
+/* v311: מתג "עדכון ברקע" בכרטיס IBKR — לפי ת־עיצוב, בגוון הכרטיס; RTL דרך מאפיינים לוגיים */
 #ibkrCard .ib-sw { position: relative; flex: none; width: 50px; height: 30px; border: 0; padding: 0; border-radius: var(--pill); background: var(--ib-line); cursor: pointer; transition: background .2s ease; }
 #ibkrCard .ib-sw i { position: absolute; top: 3px; inset-inline-start: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: inset-inline-start .2s ease; }
 #ibkrCard .ib-sw[aria-checked="true"] { background: var(--ibkr); }

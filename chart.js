@@ -1,4 +1,4 @@
-/* 27/10/2026 (בקשת המשתמש): "גרף נרות" — מסך גרף מלא ברמה של TradingView (ומעבר), לצד "ניתוח" בכרטיס המניה.
+/* 27/10/2026 (בקשת המשתמש): "גרף נרות" — מסך גרף מלא לפי ת־גרף (ומעבר), לצד "ניתוח" בכרטיס המניה.
    מנוע הציור: KLineChart 10.1 (Apache-2.0, vendor/klinecharts — נטען רק כאן). החישובים: chartlib.js (טהור, נבדק).
    נתונים: נרות OHLCV מהשרתון (op:'candles' ב־/api/history), מחיר חי כל שנייה מ־/api/quotes (כמו התיק) + רענון נרות
    תקופתי מהשרתון (תיקון גבוה/נמוך/נפח). הכל דרך env (app.js → chartEnv) — בלי fetch/אחסון במודול.
@@ -368,7 +368,7 @@ const AUTO_DEF = {
   },
 };
 
-/* השוואה (Compare): המניה האחרת מנורמלת לנר הראשון המשותף — ציר האחוזים מראה את הביצוע היחסי (כמו TradingView) */
+/* השוואה (Compare): המניה האחרת מנורמלת לנר הראשון המשותף — ציר האחוזים מראה את הביצוע היחסי (לפי ת־גרף) */
 const CMPC = ['#FF9800', '#9C27B0', '#00BCD4', '#E91E63', '#795548'];
 async function calcCmp(list, ind) {
   const c = cellOf(ind), sym = ind.extendData && ind.extendData.sym;
@@ -685,7 +685,7 @@ function registerOverlays() {
   position('kcLong', true);
   position('kcShort', false);
 
-  /* מדידות (Price Range / Date Range / Date & Price Range) — כמו TradingView: מלבן שקוף, חץ אנכי (מחיר) וחץ אופקי (זמן)
+  /* מדידות (Price Range / Date Range / Date & Price Range) — לפי ת־גרף: מלבן שקוף, חץ אנכי (מחיר) וחץ אופקי (זמן)
      עם ראשי חצים לכיוון נקודת הסיום, וכרטיס של שלוש שורות: שינוי (אחוז) טיקים · נרות, זמן · נפח. כחול לעלייה, אדום לירידה */
   const arrowFig = (x1, y1, x2, y2, col) => {
     const ang = Math.atan2(y2 - y1, x2 - x1), k = 7, s1 = ang + Math.PI * 0.82, s2 = ang - Math.PI * 0.82;
@@ -709,7 +709,7 @@ function registerOverlays() {
       const figs = [{ type: 'polygon', ignoreEvent: true, attrs: { coordinates: [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }] }, styles: { style: 'fill', color: rgba(col, 0.2) } }];
       if (mode !== 'd') figs.push(...arrowFig(mx, a.y, mx, b.y, col));
       if (mode !== 'p') figs.push(...arrowFig(a.x, my, b.x, my, col));
-      // הכרטיס: מעל המלבן בעלייה, מתחת בירידה (כמו TradingView)
+      // הכרטיס: מעל המלבן בעלייה, מתחת בירידה (לפי ת־גרף)
       const fs = 12, lh = 16, w = Math.max(...lines.map((l) => l.length)) * 6.6 + 16, hh = lines.length * lh + 8;
       const ty = (mode === 'd' ? true : up) ? y0 - 8 - hh : y1 + 8;
       figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: mx - w / 2, y: ty, width: w, height: hh }, styles: { style: 'stroke_fill', color: p.tipBg, borderColor: rgba(col, 0.35), borderSize: 1, borderRadius: 6 } });
@@ -810,7 +810,7 @@ function registerOverlays() {
     },
   });
 
-  /* מחיר טרום/אחרי המסחר כשהגרף מציג רק מסחר רגיל — קו מקווקו כחול, גלולה "טרום/אחרי" ותווית בציר (כמו TradingView) */
+  /* מחיר טרום/אחרי המסחר כשהגרף מציג רק מסחר רגיל — קו מקווקו כחול, גלולה "טרום/אחרי" ותווית בציר (לפי ת־גרף) */
   R({
     name: 'kcExtPx', totalStep: 2, needDefaultXAxisFigure: false, needDefaultYAxisFigure: false,
     createPointFigures: ({ overlay, coordinates, bounding }) => {
@@ -863,7 +863,7 @@ function registerOverlays() {
   R(wavePattern('kcThreeDrives', ['', '1', '', '2', '', '3']));
 }
 
-/* ---------- קטלוג הכלים (סרגל הציור) — קבוצות כמו ב־TradingView ---------- */
+/* ---------- קטלוג הכלים (סרגל הציור) — קבוצות לפי ת־גרף ---------- */
 const TOOLS = [
   ['kcGLines', [['segment', 'kcToTrend', 'trend'], ['rayLine', 'kcToRay', 'ray'], ['kcInfoLine', 'kcToInfo', 'info'], ['straightLine', 'kcToExt', 'extline'], ['kcArrow', 'kcToArrow', 'arrow'],
     ['horizontalStraightLine', 'kcToHLine', 'hline'], ['horizontalRayLine', 'kcToHRay', 'hray'], ['verticalStraightLine', 'kcToVLine', 'vline'], ['kcCrossLine', 'kcToCross', 'crossline'], ['priceLine', 'kcToPriceLine', 'tag']]],
@@ -954,7 +954,7 @@ function chartStyles(c) {
     candle: {
       type: candleType(c.type),
       bar: { upColor: p.up, downColor: p.dn, noChangeColor: p.text, upBorderColor: p.up, downBorderColor: p.dn, noChangeBorderColor: p.text, upWickColor: p.up, downWickColor: p.dn, noChangeWickColor: p.text },
-      area: { lineSize: 2, lineColor: p.up, value: 'close', smooth: false, backgroundColor: line ? [{ offset: 0, color: rgba(p.up, 0) }, { offset: 1, color: rgba(p.up, 0) }] : [{ offset: 0, color: rgba(p.up, 0.02) }, { offset: 1, color: rgba(p.up, 0.26) }], point: { show: false } },   // כמו Apple Stocks
+      area: { lineSize: 2, lineColor: p.up, value: 'close', smooth: false, backgroundColor: line ? [{ offset: 0, color: rgba(p.up, 0) }, { offset: 1, color: rgba(p.up, 0) }] : [{ offset: 0, color: rgba(p.up, 0.02) }, { offset: 1, color: rgba(p.up, 0.26) }], point: { show: false } },   // לפי ת־עיצוב Stocks
       priceMark: { show: true, high: { show: g.hl !== 0, color: p.text }, low: { show: g.hl !== 0, color: p.text }, last: { show: true, upColor: p.up, downColor: p.dn, noChangeColor: p.text, line: { show: true, style: 'dashed', dashedValue: [2, 2], size: 1 }, text: { show: true, style: 'fill', size: 11, weight: '600', family: p.font, color: '#FFFFFF', borderStyle: 'solid', borderColor: 'transparent', borderSize: 0, borderDashedValue: [2, 2], paddingLeft: 4, paddingRight: 4, paddingTop: 3, paddingBottom: 2, borderRadius: 3 }, extendTexts: [{ show: true, position: 'below_price', style: 'fill', size: 10, weight: '500', family: p.font, color: '#FFFFFF', backgroundColor: null, borderStyle: 'solid', borderColor: 'transparent', borderSize: 0, borderDashedValue: [2, 2], paddingLeft: 4, paddingRight: 4, paddingTop: 1, paddingBottom: 3, borderRadius: 3, updateInterval: 1000 }] } },
       tooltip: {
         showRule: 'always', showType: 'standard',
@@ -988,7 +988,7 @@ function mountCell(c) {
   try { chart.overrideYAxis({ paneId: MAIN, name: S.store.g.scale }); } catch (e) { /* ברירת מחדל */ }
   chart.subscribeAction('onCrosshairChange', (x) => onCross(c, x));
   chart.subscribeAction('onVisibleRangeChange', (r) => { const n = chart.getDataList().length; const back = !!(r && n > 0 && r.to < n - 1); if (c.nowB) c.nowB.classList.toggle('on', back);
-    // זום כמו TradingView: כשרואים את הנר האחרון — הוא נשאר צמוד לימין; בגלילה בהיסטוריה — סביב האצבעות/הסמן
+    // זום לפי ת־גרף: כשרואים את הנר האחרון — הוא נשאר צמוד לימין; בגלילה בהיסטוריה — סביב האצבעות/הסמן
     if (c.anchor !== back) { c.anchor = back; try { chart.setZoomAnchor(back ? 'cursor' : 'last_bar'); } catch (e) { /* גרסה אחרת */ } }
     // זום/גלילה אחרי בחירת טווח — הטווח כבר לא נכון: הבורר עובר להציג את מה שרואים בפועל
     if (!c.pkRaf) c.pkRaf = requestAnimationFrame(() => { c.pkRaf = 0; if (c.pkRg && c.pkRg.isConnected && !c.pkRg.querySelector('.kc-roll')) c.pkRg.textContent = spanLabel(c); }); });
@@ -996,7 +996,7 @@ function mountCell(c) {
   setSymbolPeriod(c);
   restoreIndicators(c, c.indSaved);
 }
-/* כמו TradingView: מתחת לתווית המחיר האחרון — כמה זמן נשאר עד סגירת הנר (mm:ss / h:mm:ss / 3d 4h).
+/* לפי ת־גרף: מתחת לתווית המחיר האחרון — כמה זמן נשאר עד סגירת הנר (mm:ss / h:mm:ss / 3d 4h).
    רק כשהנר באמת חי: תוך־יומי בזמן מסחר (או טרום/אחרי כשהמורחב מוצג), שבועי/חודשי בזמן מסחר. יומי — לא (הסגירה תלויה בבורסה). */
 function countdown(c, bar, now) {
   if (!bar || c.replay || !c.q) return '';
@@ -1122,7 +1122,7 @@ function onQuote(c, q) {
   if (regular && q.reg) { price = q.reg.p; time = q.reg.t * 1000; } else if (intra && S.store.g.ext && q.ext) { price = q.ext.p; time = q.ext.t * 1000; }
   else if (q.reg && q.reg.p > 0 && q.reg.t > 0) {
     /* אחרי הסגירה: הנרות של Yahoo לא כוללים את מכירת הסגירה (נר אחרון 154.81 מול סגירה רשמית 154.78) —
-       הנר שמכיל את זמן הסגירה נסגר על המחיר הרשמי, כמו ב־TradingView ובכרטיס המניה */
+       הנר שמכיל את זמן הסגירה נסגר על המחיר הרשמי, לפי ת־גרף ובכרטיס המניה */
     const b = c.raw[c.raw.length - 1], t = q.reg.t * 1000, p = q.reg.p;
     if (b && b.timestamp <= t && t <= b.timestamp + BASESEC[d.base] * 1000 && b.close !== p) {
       b.close = p; b.high = Math.max(b.high, p); b.low = Math.min(b.low, p);
@@ -1288,12 +1288,12 @@ function selStyle(patch) {
   if (!o) return;
   const ln = (o.styles && o.styles.line) || {};
   const color = patch.color || ln.color || DS.color, size = patch.width || ln.size || DS.width, dash = patch.dash != null ? patch.dash : ln.style === 'dashed';
-  Object.assign(DS, { color, width: size, dash });   // השרטוט הבא — באותו סגנון (כמו TradingView)
+  Object.assign(DS, { color, width: size, dash });   // השרטוט הבא — באותו סגנון (לפי ת־גרף)
   s.c.chart.overrideOverlay({ id: s.id, styles: styleSet(color, size, dash) });
   changed(s.c); renderSel();
 }
 function selDelete() { const s = S.sel; if (!s) return; if (s.alert) { deselect(); delAlert(s.c.sym, s.alert); return; } s.c.chart.removeOverlay({ id: s.id }); deselect(); changed(s.c); }
-/* לחיצה ארוכה על אובייקט (כמו TradingView): גיליון קצר — מחק תמיד ראשון, ואחריו מה שמתאים */
+/* לחיצה ארוכה על אובייקט (לפי ת־גרף): גיליון קצר — מחק תמיד ראשון, ואחריו מה שמתאים */
 function openObjMenu() {
   const s = S.sel, o = s && getOv(s.c, s.id);
   if (!o) return;
@@ -1348,7 +1348,7 @@ function addInd(c, name, o) {
   const main = o.main != null ? !!o.main && isMain(name) : isMain(name);
   const conf = { name, extendData: { c: c.i, sym: o.sym }, visible: !o.h };
   if (o.p && o.p.length) conf.calcParams = o.p;
-  // נפח נקי כמו TradingView — בלי שלושת הממוצעים של ברירת המחדל (5/10/20, שנשמרו גם אצל מי שלא בחר בהם)
+  // נפח נקי לפי ת־גרף — בלי שלושת הממוצעים של ברירת המחדל (5/10/20, שנשמרו גם אצל מי שלא בחר בהם)
   if (name === 'VOL' && (!conf.calcParams || conf.calcParams.join() === '5,10,20')) conf.calcParams = [];
   if (name === 'KCCMP') { const k = c.chart.getIndicators({ name: 'KCCMP' }).length; conf.shortName = o.sym; conf.styles = { lines: [{ color: CMPC[k % CMPC.length], size: 1.6, style: 'solid', smooth: false, dashedValue: [2, 2] }] }; }
   if (o.res) conf.extendData.res = o.res;
@@ -1642,10 +1642,10 @@ function onCross(c, x) {
   plusAt(c, x);
   if (c === S.cells[S.active]) updLegendTime(x);
 }
-/* מגע כמו TradingView (ו־Apple Stocks): הצלב מופיע רק בלחיצה ארוכה, עם רטט קצר, ונשאר אחרי ההרמה.
+/* מגע לפי ת־גרף (ו־Apple Stocks): הצלב מופיע רק בלחיצה ארוכה, עם רטט קצר, ונשאר אחרי ההרמה.
    הקשה רגילה רק מסתירה אותו (התיקון בספרייה — vendor/klinecharts/README.md). */
 /* פגיעה באצבע: הספרייה בודקת קווים בסטייה של 2px בלבד (מתאים לעכבר) — במגע מחפשים את האובייקט הקרוב עד 14px,
-   כמו TradingView. מחזיר { o, alert } או null. x/y — יחסית לגרף */
+   לפי ת־גרף. מחזיר { o, alert } או null. x/y — יחסית לגרף */
 const HIT_PX = 14;
 function segDist(p, a, b) {
   const dx = b.x - a.x, dy = b.y - a.y, l = dx * dx + dy * dy;
@@ -1694,7 +1694,7 @@ function wireCellPointer(c) {
     if (down.touch && e.isPrimary) lp = setTimeout(() => {
       if (!down) return;
       try { if (navigator.vibrate) navigator.vibrate(8); } catch (x) { /* בלי רטט */ }
-      // הנגיעה בחרה אובייקט (שרטוט / קו התראה) — לחיצה ארוכה עליו = תפריט עם "מחק", כמו TradingView
+      // הנגיעה בחרה אובייקט (שרטוט / קו התראה) — לחיצה ארוכה עליו = תפריט עם "מחק", לפי ת־גרף
       if (S.tool) return;
       const r = c.host.getBoundingClientRect(), hit = hitAt(c, down.x - r.left, down.y - r.top);
       if (hit) selectHit(c, hit);
@@ -1808,11 +1808,11 @@ function build(sym) {
     c.host = h('div', { class: 'kc-host', dir: 'ltr' });
     c.stEl = h('div', { class: 'kc-st' });
     c.tagEl = btn('kc-ctag', '', () => { setActive(c.i); openSearch(); });
-    // ">>" כמו TradingView — מופיע רק כשגללו אחורה והנר האחרון לא במסך
+    // ">>" לפי ת־גרף — מופיע רק כשגללו אחורה והנר האחרון לא במסך
     c.nowB = btn('kc-now', T('kcToNow'), () => { if (c.chart) c.chart.scrollToRealTime(200); }, ICON.now);
     // "+" בציר המחיר ליד הצלב (TradingView): התראה / קו אופקי במחיר הזה
     c.plusB = btn('kc-plus', T('kcPlusAt'), () => openPlus(c), ICON.plus);
-    // מדידה מהירה בפינה העליונה (בטלפון, כמו TradingView): מחיר+תאריך, מחיר
+    // מדידה מהירה בפינה העליונה (בטלפון, לפי ת־גרף): מחיר+תאריך, מחיר
     c.qm = h('div', { class: 'kc-qm' },
       btn('kc-ib sm', T('kcToMeasure'), () => { setActive(c.i); startTool('kcMeasure'); }, ICON.ruler),
       btn('kc-ib sm', T('kcToPRange'), () => { setActive(c.i); startTool('kcPriceRange'); }, ICON.prange));
@@ -1973,7 +1973,7 @@ function updBars() {
   for (const x of S.cells) renderPick(x);
 }
 
-/* טלפון: שני בוררים בפינה העליונה של הגרף, כל אחד עם כותרת קטנה כמו ב־TradingView —
+/* טלפון: שני בוררים בפינה העליונה של הגרף, כל אחד עם כותרת קטנה לפי ת־גרף —
    "אינטרוול" (Interval) = כמה זמן כל נר (1D, 1W…), "טווח תאריכים" (Date range) = כמה זמן מוצג בגרף (1M, 1Y…).
    בדיוק כמו הכפתור שהיה בסרגל התחתון: גרירה אנכית = גלגלת, הקשה = רשימה */
 function renderPick(c) {
@@ -2018,8 +2018,8 @@ function openRangeSheet() {
   });
 }
 
-/* ---------- טלפון: סרגל תחתון כמו TradingView ----------
-   סימבול (גרירה אנכית = גלגלת כמו iOS, הקשה = רשימה) · ציור · אינדיקטורים · עוד · בטל.
+/* ---------- טלפון: סרגל תחתון לפי ת־גרף ----------
+   סימבול (גרירה אנכית = גלגלת לפי ת־עיצוב, הקשה = רשימה) · ציור · אינדיקטורים · עוד · בטל.
    בזמן ציור הסרגל מתחלף לכלי הציור: הכלי, מגנט, ציור רציף, נעילה, הסתרה, אובייקטים, סיום. */
 function renderMbar() {
   if (!UI.mbar) return;
@@ -2058,7 +2058,7 @@ function tfLong(tf) {
   if (!m) return tf;
   try { return new Intl.NumberFormat(E.lang === 'en' ? 'en-US' : 'he-IL', { style: 'unit', unit: { m: 'minute', h: 'hour', D: 'day', W: 'week', M: 'month' }[m[2]], unitDisplay: 'long' }).format(+m[1]); } catch (e) { return tf; }
 }
-/* גלגלת בחירה כמו TradingView: גרירה על הכפתור גוללת ברצף (מעגלית), חלון כהה באמצע הגרף עם השמות המלאים,
+/* גלגלת בחירה לפי ת־גרף: גרירה על הכפתור גוללת ברצף (מעגלית), חלון כהה באמצע הגרף עם השמות המלאים,
    והתווית בכפתור מתגלגלת עם האצבע. רטט קטן בכל מעבר פריט; שחרור = בחירת הפריט הקרוב */
 const WH_ROW = 26, WH_BTN = 20;
 /* מיקום דרך CSSOM (לא מאפיין style — מדיניות CSP) */
@@ -2816,7 +2816,7 @@ function updWatch() {
   if (!syms.length) UI.watch.appendChild(h('div', { class: 'kc-note', text: T('kcWatchEmpty') }));
 }
 
-/* ---------- מקלדת (כמו TradingView) ---------- */
+/* ---------- מקלדת (לפי ת־גרף) ---------- */
 function onKey(e) {
   if (!ROOT) return;
   const tag = e.target && e.target.tagName, typing = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable);

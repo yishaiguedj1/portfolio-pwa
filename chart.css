@@ -227,7 +227,7 @@ html.kc-open { overflow: hidden; }
 .kc-stat > span { font-size: 12px; color: var(--kc-ink2); }
 .kc-stat > b { font-size: 17px; font-variant-numeric: tabular-nums; direction: ltr; text-align: start; }
 
-/* טלפון — סרגל תחתון כמו TradingView (במחשב מוסתר) */
+/* טלפון — סרגל תחתון לפי ת־גרף (במחשב מוסתר) */
 .kc-mbar { display: none; align-items: center; gap: 2px; padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px)); border-top: .5px solid var(--kc-sep); background: var(--kc-glass); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); flex: none; direction: ltr; }
 .kc-mb { height: 40px; min-width: 40px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--pill); color: var(--kc-ink); flex: none; }
 .kc-mb svg { width: 22px; height: 22px; }
@@ -240,7 +240,7 @@ html.kc-open { overflow: hidden; }
 .kc-mbar.draw { justify-content: space-between; }
 .kc-mbar.draw .kc-mb:first-child { color: var(--kc-acc-ink); }
 /* גלגלת iOS שנפתחת בגרירה על הסימבול / הטווח */
-/* גלגלת הטווחים כמו TradingView: חלון כהה באמצע, 7 שורות, השורה הנבחרת לבנה ומודגשת */
+/* גלגלת הטווחים לפי ת־גרף: חלון כהה באמצע, 7 שורות, השורה הנבחרת לבנה ומודגשת */
 .kc-wheel { position: absolute; z-index: 30; left: 50%; top: 45%; width: 150px; height: 182px; overflow: hidden; border-radius: var(--radius-sm); background: rgba(28, 28, 30, .92); -webkit-backdrop-filter: saturate(180%) blur(24px); backdrop-filter: saturate(180%) blur(24px); box-shadow: var(--kc-shadow); pointer-events: none; opacity: 0; transform: translate(-50%, -50%) scale(.94); transition: opacity .16s ease, transform .16s ease; }
 .kc-wheel.on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 .kc-wh-l { position: absolute; inset: 0; }
@@ -257,7 +257,7 @@ html.kc-open { overflow: hidden; }
 .kc-qm .kc-ib { width: 32px; height: 30px; }
 .kc-ranges.wrap { flex-wrap: wrap; gap: 4px; direction: ltr; }
 /* "אינטרוול" ו"טווח תאריכים" בפינה העליונה של הגרף (בטלפון): אותו כפתור טקסט מודגש שהיה בסרגל התחתון,
-   עם כותרת קטנה מעליו (כמו TradingView) ורקע זכוכית עדין כדי שיקרא מעל הנרות.
+   עם כותרת קטנה מעליו (לפי ת־גרף) ורקע זכוכית עדין כדי שיקרא מעל הנרות.
    הקנבס LTR וציר המחיר מימין, לכן left פיזי (כמו .kc-qm) */
 .kc-pick { position: absolute; z-index: 5; top: 46px; left: 8px; display: none; gap: 4px; }
 .kc-pk { display: inline-flex; flex-direction: column; align-items: flex-start; min-width: 52px; padding: 4px 10px; border-radius: var(--radius-sm); color: var(--kc-ink); background: var(--kc-glass); -webkit-backdrop-filter: saturate(180%) blur(14px); backdrop-filter: saturate(180%) blur(14px); text-align: start; }
@@ -275,7 +275,7 @@ html.kc-open { overflow: hidden; }
 /* טלפון: בלי הסרגל האנכי ורשימת המעקב בצד — כפתור כלים צף; גיליונות מלמטה */
 @media (max-width: 720px) {
   .kc-side { display: none; }
-  /* כמו TradingView בטלפון: בלי שורת הטווחים והכלים למעלה, בלי הסרגל התחתון של המחשב ובלי הכפתור הצף —
+  /* לפי ת־גרף בטלפון: בלי שורת הטווחים והכלים למעלה, בלי הסרגל התחתון של המחשב ובלי הכפתור הצף —
      הכל בסרגל התחתון (סימבול · טווח · ציור · אינדיקטורים · עוד · בטל) */
   .kc-bar, .kc-foot, .kc-fab, .kc-fab.on, .kc-top-end .kc-undo, .kc-top-end .kc-redo { display: none !important; }
   .kc-mbar { display: flex; }

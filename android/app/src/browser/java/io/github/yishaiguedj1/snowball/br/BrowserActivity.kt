@@ -256,7 +256,7 @@ class BrowserActivity : ComponentActivity() {
         if (play == null) { bgOn = false; bgTab = null }
     }
 
-    /* תמונה בתוך תמונה: סרטון במסך מלא + יציאה מהאפליקציה (כפתור הבית / החלקה) — ממשיך בחלון קטן, כמו ב־Chrome */
+    /* תמונה בתוך תמונה: סרטון במסך מלא + יציאה מהאפליקציה (כפתור הבית / החלקה) — ממשיך בחלון קטן, לפי ת־עיצוב */
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         if (Build.VERSION.SDK_INT < 31 && pip && customView != null && !privLocked) runCatching { enterPictureInPictureMode(pipParams(false)) }
@@ -304,7 +304,7 @@ class BrowserActivity : ComponentActivity() {
         if (screen != Screen.SWITCHER) screen = Screen.PAGE
     }
 
-    /** טאב פרטי על המסך (או במסך הטאבים) — בלי צילומי מסך ובלי תמונה במסך האפליקציות האחרונות, כמו ב־Chrome */
+    /** טאב פרטי על המסך (או במסך הטאבים) — בלי צילומי מסך ובלי תמונה במסך האפליקציות האחרונות, לפי ת־עיצוב */
     fun applySecure() {
         if (showsPrivate() || (screen == Screen.SWITCHER && tabs.any { it.private } && privLocked)) window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
         else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -527,7 +527,7 @@ class BrowserActivity : ComponentActivity() {
         if (cur?.let { it in tabs } != true) select(tabs.last())
     }
 
-    /** טאבים חיים מעבר ל־liveMax — שומרים את המצב ומשחררים את ה־WebView (כמו Chrome בטלפון). `keep` = כמה חיים מלבד הנוכחי */
+    /** טאבים חיים מעבר ל־liveMax — שומרים את המצב ומשחררים את ה־WebView (לפי ת־עיצוב בטלפון). `keep` = כמה חיים מלבד הנוכחי */
     private fun trim(keep: Int = liveMax - 1) {
         val live = tabs.filter { it.web != null && it !== cur }.sortedByDescending { it.used }
         for (t in live.drop(keep)) {
@@ -580,7 +580,7 @@ class BrowserActivity : ComponentActivity() {
         val now = SystemClock.uptimeMillis()
         if (now - t.snapAt < 2500) return
         t.snapAt = now
-        // כמו Chrome: העתקה אסינכרונית מהמסך (GPU), בלי לצייר את הדף מחדש בתוכנה בתהליכון הראשי — רק לטאב שעל המסך
+        // לפי ת־עיצוב: העתקה אסינכרונית מהמסך (GPU), בלי לצייר את הדף מחדש בתוכנה בתהליכון הראשי — רק לטאב שעל המסך
         if (Build.VERSION.SDK_INT >= 26 && w.isAttachedToWindow && w === cur?.web) {
             val loc = IntArray(2); w.getLocationInWindow(loc)
             val s = 0.35f
@@ -603,7 +603,7 @@ class BrowserActivity : ComponentActivity() {
 
     fun openSwitcher() { cur?.let { snap(it) }; swPrivate = cur?.private == true; menu = false; editing = false; screen = Screen.SWITCHER }
 
-    /** החלקה על שורת הכתובת — הטאב הבא/הקודם באותו סוג (רגיל/פרטי), כמו ב־Chrome */
+    /** החלקה על שורת הכתובת — הטאב הבא/הקודם באותו סוג (רגיל/פרטי), לפי ת־עיצוב */
     fun swipeTab(dir: Int) {
         val c = cur ?: return
         val same = tabs.filter { it.private == c.private }
@@ -618,7 +618,7 @@ class BrowserActivity : ComponentActivity() {
         if (u.isEmpty()) return
         editing = false
         val t = cur ?: newTab("")
-        if (t.isNtp) { t.ntpBack = true; t.ntpFwd = null }   // הכרטיסייה החדשה = רשומה בהיסטוריה, כמו ב־Chrome
+        if (t.isNtp) { t.ntpBack = true; t.ntpFwd = null }   // הכרטיסייה החדשה = רשומה בהיסטוריה, לפי ת־עיצוב
         load(t, u)
     }
 
@@ -664,7 +664,7 @@ class BrowserActivity : ComponentActivity() {
             t == null -> moveTaskToBack(true)
             t.web?.canGoBack() == true -> t.web?.goBack()
             t.ntpBack && !t.isNtp -> { val u = t.url; goHome(); t.ntpBack = false; t.ntpFwd = u }
-            t.fromApp -> { close(t); moveTaskToBack(true) }   // כמו Chrome: קישור מאפליקציה — "חזור" חוזר אליה
+            t.fromApp -> { close(t); moveTaskToBack(true) }   // לפי ת־עיצוב: קישור מאפליקציה — "חזור" חוזר אליה
             t.parent >= 0 && tabs.any { it.id == t.parent } -> { val p = tabs.first { it.id == t.parent }; close(t); select(p) }
             else -> moveTaskToBack(true)
         }
@@ -710,7 +710,7 @@ class BrowserActivity : ComponentActivity() {
         s.setGeolocationEnabled(true)
         s.textZoom = zoom
         if (t.desktop) s.userAgentString = desktopUa(s.userAgentString)
-        runCatching { cmOf(t).setAcceptThirdPartyCookies(w, !t.private) }   // טאב פרטי: בלי עוגיות של צד שלישי (כמו Chrome)
+        runCatching { cmOf(t).setAcceptThirdPartyCookies(w, !t.private) }   // טאב פרטי: בלי עוגיות של צד שלישי (לפי ת־עיצוב)
 
         // המערכת יכולה להוריד את ה־renderer לעדיפות נמוכה כשהדפדפן לא מוצג (במקום להרוג את כל האפליקציה) — רק יחד עם onRenderProcessGone
         if (Build.VERSION.SDK_INT >= 26) runCatching { w.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_BOUND, true) }
@@ -763,7 +763,7 @@ class BrowserActivity : ComponentActivity() {
             override fun onReceivedTitle(view: WebView, title: String?) { if (!title.isNullOrEmpty()) { t.title = title; if (!t.private) BrStore.setTitle(t.url, title) } }
             override fun onReceivedIcon(view: WebView, icon: Bitmap?) { if (icon != null) { t.icon = icon; if (!t.private) BrPics.saveIcon(BrStore.hostOf(t.url), icon) } }
             override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
-                if (!isUserGesture) return false   // חלון קופץ בלי נגיעה — חסום, כמו ב־Chrome
+                if (!isUserGesture) return false   // חלון קופץ בלי נגיעה — חסום, לפי ת־עיצוב
                 val nt = newTab("", private = t.private, after = t)
                 nt.parent = t.id   // נפתחה מקישור: "חזור" בדף הראשון סוגר אותה וחוזר לכאן (FROM_LINK ב־Chrome)
                 editing = false
@@ -899,14 +899,14 @@ class BrowserActivity : ComponentActivity() {
         })
     }
 
-    /** קישור לאפליקציה (intent:, mailto:, tel:, market:…) — כמו ב־Chrome: לאפליקציה שמתאימה, ובלעדיה — כתובת הגיבוי */
+    /** קישור לאפליקציה (intent:, mailto:, tel:, market:…) — לפי ת־עיצוב: לאפליקציה שמתאימה, ובלעדיה — כתובת הגיבוי */
     private fun external(u: String, t: BrTab) {
         val i = try {
             if (u.startsWith("intent:")) Intent.parseUri(u, Intent.URI_INTENT_SCHEME).apply { component = null; selector = null }
             else Intent(Intent.ACTION_VIEW, Uri.parse(u))
         } catch (e: Exception) { return }
         // אבטחה (27/10/2026): קישור מדף לא בוחר דגלים (הרשאות לקבצים, משימה חדשה…), לא מכוון לאפליקציה שלנו, ולא פותח
-        // קבצים מקומיים / content: — כמו ש־Chrome מנקה intent: מהרשת
+        // קבצים מקומיים / content: — לפי ת־עיצוב מנקה intent: מהרשת
         i.flags = 0
         i.clipData = null
         if (i.`package` == packageName) return
@@ -1144,7 +1144,7 @@ class BrowserActivity : ComponentActivity() {
     }
 
     /**
-     * הרשאה לאתר: מה שכבר החלטת לאתר הזה (הגדרות האתר) — בלי לשאול שוב, כמו ב־Chrome; אחרת שואלים אותך (בשם האתר)
+     * הרשאה לאתר: מה שכבר החלטת לאתר הזה (הגדרות האתר) — בלי לשאול שוב, לפי ת־עיצוב; אחרת שואלים אותך (בשם האתר)
      * וזוכרים. ואז את אנדרואיד — רק מה שחסר. בטאב פרטי — שואלים בכל פעם ולא זוכרים
      */
     private fun ask(host: String, kind: Int, need: List<String>, private: Boolean, then: (Boolean) -> Unit) {
@@ -1184,7 +1184,7 @@ class BrowserActivity : ComponentActivity() {
 
     /* ---------------- שורת הכתובת: הצעות, הקישור שהעתקת, חיפוש קולי ---------------- */
 
-    /** הצעות החיפוש של המנוע שנבחר (כמו Chrome). רק כשהמתג פועל; בלי עוגיות; עד 2 שניות; רק טקסט */
+    /** הצעות החיפוש של המנוע שנבחר (לפי ת־עיצוב). רק כשהמתג פועל; בלי עוגיות; עד 2 שניות; רק טקסט */
     fun fetchSuggest(q: String): List<String> {
         val t = q.trim()
         if (!suggestOn || t.length < 2 || t.length > 200 || BrStore.toUrl(t, engine).let { it.isNotEmpty() && it != BrStore.searchUrl(engine, t) }) return emptyList()
