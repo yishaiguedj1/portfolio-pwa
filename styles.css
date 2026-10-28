@@ -79,10 +79,10 @@
   --gl-card-sh: inset 1px 1px 0 rgba(255, 255, 255, .9), inset -1px -1px 0 rgba(255, 255, 255, .35), inset 0 0 24px rgba(255, 255, 255, .28),
     0 0 0 .5px rgba(0, 0, 0, .05), 0 8px 28px rgba(0, 0, 0, .06);
   /* רקע העמוד: שדה צבע רך בגוון האפליקציה ושני גוונים משלימים — מה שהזכוכית מראה */
-  --gl-tint: var(--primary);   /* גוון הרקע — הצבע של כל אפליקציה (ניהול: הסגול שלו) */
+  --gl-tint: var(--primary); --gl-tint2: var(--sys-teal); --gl-tint3: var(--sys-purple);   /* רקע העמוד: הצבע של האפליקציה + שני גוונים משלימים */
   --gl-ambient: radial-gradient(70% 44% at 96% 2%, color-mix(in srgb, var(--gl-tint) 32%, transparent), transparent 72%),
-    radial-gradient(60% 40% at 2% 46%, color-mix(in srgb, var(--gl-tint) 18%, transparent), transparent 72%),
-    radial-gradient(70% 44% at 86% 98%, color-mix(in srgb, var(--gl-tint) 22%, transparent), transparent 72%),
+    radial-gradient(60% 40% at 2% 46%, color-mix(in srgb, var(--gl-tint2) 24%, transparent), transparent 72%),
+    radial-gradient(70% 44% at 86% 98%, color-mix(in srgb, var(--gl-tint3) 20%, transparent), transparent 72%),
     linear-gradient(180deg, color-mix(in srgb, var(--gl-tint) 8%, transparent), color-mix(in srgb, var(--gl-tint) 5%, transparent));
 }
 
@@ -148,8 +148,8 @@
   --gl-card-sh: inset 1px 1px 0 rgba(255, 255, 255, .16), inset -1px -1px 0 rgba(255, 255, 255, .05), inset 0 0 24px rgba(255, 255, 255, .035),
     0 0 0 .5px rgba(255, 255, 255, .06), 0 8px 28px rgba(0, 0, 0, .4);
   --gl-ambient: radial-gradient(70% 44% at 96% 2%, color-mix(in srgb, var(--gl-tint) 26%, transparent), transparent 72%),
-    radial-gradient(60% 40% at 2% 46%, color-mix(in srgb, var(--gl-tint) 14%, transparent), transparent 72%),
-    radial-gradient(70% 44% at 86% 98%, color-mix(in srgb, var(--gl-tint) 18%, transparent), transparent 72%),
+    radial-gradient(60% 40% at 2% 46%, color-mix(in srgb, var(--gl-tint2) 18%, transparent), transparent 72%),
+    radial-gradient(70% 44% at 86% 98%, color-mix(in srgb, var(--gl-tint3) 16%, transparent), transparent 72%),
     linear-gradient(180deg, color-mix(in srgb, var(--gl-tint) 7%, transparent), color-mix(in srgb, var(--gl-tint) 4%, transparent));
 }
 
@@ -161,7 +161,9 @@ html[data-app="studio"] {
   --primary-container: rgba(255, 70, 86, .16); --on-primary-container: #B3121F;
 }
 html[data-app="studio"][data-theme="dark"] { --on-primary-container: #FF9AA3; }
-html[data-app="admin"] { --gl-tint: #5E5CE6; }
+html[data-app="admin"] { --gl-tint: #5E5CE6; --gl-tint2: var(--sys-blue); --gl-tint3: var(--sys-pink); }
+html[data-app="academy"] { --gl-tint2: var(--sys-cyan); --gl-tint3: var(--sys-indigo); }
+html[data-app="studio"] { --gl-tint2: var(--sys-orange); --gl-tint3: var(--sys-purple); }
 html[data-app="academy"] {
   --primary: #4699FF; --primary-dark: #4699FF; --on-primary: #00214D;
   --primary-container: rgba(70, 153, 255, .16); --on-primary-container: #0B57B5;
