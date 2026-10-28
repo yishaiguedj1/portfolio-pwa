@@ -66,5 +66,45 @@ const FSM = require(path.join(root, 'ibkr-proxy/lib/fsmeter.js'));
   const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
   ok((app.match(/studioErrQuota: "[^"]*\{t\}[^"]*"/g) || []).length === 2, 'studioErrQuota בעברית ובאנגלית, עם השעה');
 
+  // (4) ההתראה המוקדמת (בקשת המשתמש 28/10): פעולה מעל TAG_HOUR בשעה, או קצב שיגמור 70% מהמכסה
+  FSM._reset();
+  const t0 = Date.UTC(2026, 9, 28, 17, 0, 0);   // 10:00 בקליפורניה — 14 שעות עד האיפוס
+  await FSM.run('studio:job', async () => { for (let i = 0; i < 30; i++) FSM.add(10, t0 + i * 60e3); });   // 300 בחצי שעה — רגיל
+  ok(FSM.alarms(t0 + 30 * 60e3).length === 0, 'קצב רגיל — בלי התראה');
+  await FSM.run('studio:jobs', async () => { for (let i = 0; i < 30; i++) FSM.add(72, t0 + i * 60e3); });   // 2,160 בחצי שעה = הבאג של הבוקר
+  const al = FSM.alarms(t0 + 30 * 60e3);
+  ok(al.length === 2 && al[0].k === 'tag' && al[0].tag === 'studio:jobs' && al[0].h === 2160, 'הבאג של הבוקר — התראה על הפעולה, בתוך חצי שעה');
+  ok(al[1].k === 'pace' && al[1].proj > 35000, 'וגם התראת קצב (צפי מעל 70% מהמכסה)');
+  ok(FSM.alarms(t0 + 40 * 60e3).length === 0, 'אותה התראה — פעם אחת ביום');
+  const fv = FSM.view(t0 + 30 * 60e3);
+  ok(fv.hot.includes('studio:jobs') && !fv.hot.includes('studio:job') && fv.top[0][2] === 2160, 'view — מסומן חריג, עם השעה האחרונה');
+  ok(FSM.view(t0 + 200 * 60e3).h === 0, 'אחרי יותר משעה בלי קריאות — 0 בשעה האחרונה');
+
+  // נוסח ההתראה
+  const W = require(path.join(root, 'ibkr-proxy/lib/webpush.js'));
+  ok(W.KINDS.includes('fs_hot') && W.TEXT.he.fs_hot && W.TEXT.en.fs_hot, 'fs_hot — סוג התראה, בעברית ובאנגלית');
+  const m1 = W.message('fs_hot', '', 'he', al[0]);
+  ok(m1 && m1.t === 'קריאות חריגות למסד הנתונים' && m1.b.includes('studio:jobs') && m1.b.includes('2,160') && /#mon$/.test(m1.u), 'ההתראה — איזו פעולה, כמה, ונפתחת בניטור השרתים');
+  const m2 = W.message('fs_hot', '', 'en', al[1]);
+  ok(m2 && /quota will run out/.test(m2.t), 'התראת הקצב — באנגלית');
+  ok(W.message('fs_hot', '', 'he', { k: 'tag', tag: 'a<script>', h: 1 }).b.indexOf('<') < 0, 'התווית מסוננת');
+
+  // הבודק בשרתון (?fsw=1): התראה למנהל דרך notify; בלי ממצא — בלי Firestore
+  const studio = require(path.join(root, 'ibkr-proxy/api/studio.js'));
+  let fsCalls = 0;
+  const deps = { now: t0 + 31 * 60e3, fetch: async (url) => { if (String(url).includes('firestore')) fsCalls++; return { status: 404, ok: false, json: async () => ({}), text: async () => '', headers: { get: () => null } }; } };
+  let o2 = null;
+  const res2 = { headers: {}, setHeader() {}, status(c) { this.c = c; return this; }, json(o) { o2 = o; return this; }, end() { return this; } };
+  delete process.env.STUDIO_WATCH_SECRET; delete process.env.VERCEL;
+  await studio._handler({ method: 'GET', headers: {}, query: { fsw: '1' } }, res2, deps);
+  ok(o2 && o2.ok && o2.al === 0 && fsCalls === 0, '?fsw=1 בלי ממצא חדש — בלי קריאה ל־Firestore');
+  process.env.VERCEL = '1';
+  await studio._handler({ method: 'GET', headers: {}, query: { fsw: '1' } }, res2, deps);
+  ok(res2.c === 404, 'ב־Vercel — לא רץ');
+  delete process.env.VERCEL;
+  ok(/startFsWatch\(server\)/.test(srv) && /SNB_FSW/.test(srv), 'server.js — הבודק מופעל כל 5 דק׳');
+  const adm = fs.readFileSync(path.join(root, 'admin-app.js'), 'utf8');
+  ok(/fsSec\(D\.monFr\)/.test(adm) && (app.match(/admFsT: "[^"]+"/g) || []).length === 2, 'ניטור השרתים — מציג את הקריאות לפי פעולה');
+
   console.log('\n' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL -', e); process.exit(1); });

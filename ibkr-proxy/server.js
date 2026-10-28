@@ -228,7 +228,26 @@ function startPx(server, opts = {}) {
   return { tick, stop: () => clearInterval(iv) };
 }
 
-module.exports = { createServer, startCron, startPx, SERVER_ONLY, parseBody, parseCron, cronDue, maxDuration, decorate, unpackEnv };
+/* 28/10/2026: הבודק של קריאות Firestore (GET /api/studio?fsw=1) — כל 5 דק׳, כאן בלבד (המונה lib/fsmeter.js חי בתהליך הזה).
+   SNB_FSW=off — כבוי */
+const FSW_EVERY = 5 * 60e3;
+function startFsWatch(server, opts = {}) {
+  if (!server.names.has('studio')) return null;
+  const tick = () => {
+    const headers = { 'user-agent': 'snb-fsw/1.0' };
+    const sec = process.env.STUDIO_WATCH_SECRET || process.env.CRON_SECRET;
+    if (sec) headers.authorization = 'Bearer ' + sec;
+    const req = { method: 'GET', url: '/api/studio?fsw=1', headers, query: { fsw: '1' }, body: undefined, socket: { remoteAddress: '127.0.0.1' } };
+    const res = decorate(new http.ServerResponse(req));
+    res.assignSocket(new (require('stream').PassThrough)());
+    return server.invoke('studio', req, res).catch((e) => console.error('[fsw]', e && e.message));
+  };
+  const iv = setInterval(tick, opts.every || FSW_EVERY);
+  iv.unref();
+  return { tick, stop: () => clearInterval(iv) };
+}
+
+module.exports = { createServer, startCron, startPx, startFsWatch, SERVER_ONLY, parseBody, parseCron, cronDue, maxDuration, decorate, unpackEnv };
 
 if (require.main === module) {
   const unpacked = unpackEnv(process.env);
@@ -241,6 +260,7 @@ if (require.main === module) {
   server.listen(port, '0.0.0.0', () => console.log('[snb-app] מאזין על', port, '·', server.names.size, 'פונקציות'));
   if (process.env.SNB_CRON === 'on') startCron(server, loadConfig(__dirname));
   if (process.env.SNB_PXA !== 'off') startPx(server);
+  if (process.env.SNB_FSW !== 'off') startFsWatch(server);
   const stop = () => server.close(() => process.exit(0));
   process.on('SIGTERM', stop);
   process.on('SIGINT', stop);
