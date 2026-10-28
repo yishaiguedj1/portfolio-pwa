@@ -271,7 +271,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(/"https:\/\/studio\.thesnowball\.app\/", "https:\/\/studio-staging\.thesnowball\.app\/"/.test(act), 'האפליקציה חוזרת רק לאתר של Studio (ייצור / ניסוי)');
   ok(['studioPh', 'phburn', 'phKey'].every((x) => src.includes(x)) && !/net\.api\('phBurn'/.test(src), 'הדף לא מדווח צריבה (רק האפליקציה, במפתח של העבודה)');
   // 24/10/2026 (בטלפון: הצריבה הופיעה רק בהתראה) — עבודה שהסתיימה ממשיכה להיבדק בזמן הצריבה, והאחוז נשלח כל 5 שנ׳ ברקע
-  ok(/st === 'running' \|\| phBurnLive\(r\) \|\| phPrepLive\(r\) \? 4000/.test(src) && /phBurnTap\.set\(rec\.id, Date\.now\(\)\)/.test(src), 'בזמן הצריבה (וגם כשהטלפון מתמלל/מיישר) דף העבודה שואל כל 4 שנ׳ (גם כשהעבודה "הסתיימה")');
+  ok(/st === 'running' \|\| \(r && r\.srv && r\.srv\.bg\) \|\| phBurnLive\(r\) \|\| phPrepLive\(r\) \? 4000/.test(src) && /phBurnTap\.set\(rec\.id, Date\.now\(\)\)/.test(src), 'בזמן הצריבה (וגם כשהטלפון מתמלל/מיישר) דף העבודה שואל כל 4 שנ׳ (גם כשהעבודה "הסתיימה")');
   ok(/kind === 'ph' && rec\.spec\.pw \? \{ pw: 1 \}/.test(src) && /if \(f\.pw !== false\) spec\.pw = 1/.test(src), 'הכל בטלפון: העבודה נוצרת עם pw, וה־intent מעביר pw=1');
   const work = fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhWork.kt'), 'utf8');
   ok(/lastRep > 2_000/.test(work) && /class Latest/.test(work) && /pending\.getAndSet\(o\) == null/.test(work) && !/\* 0\.95/.test(work) && /repDone\(JSONObject\(\)\.put\("s", "done"\)/.test(work),

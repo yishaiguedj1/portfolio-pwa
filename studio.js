@@ -273,6 +273,7 @@ export function normJob(j) {
     cp: normCp(s.cp),                         // סבב 10: העתק־הדבק — בקשה שמחכה לתשובה שלך
     pbn: normPbn(s.pbn),                      // 24/10/2026: הצריבה בטלפון
     ppr: normPpr(s.ppr),                      // 25/10/2026: מה הטלפון עושה לפני ההתחלה (שלב 2)
+    bg: s.bg === 1 ? 1 : 0,                   // 28/10/2026: התוצרים מוכנים והעובד משלים איכויות צפייה ברקע — ממשיכים לרענן
     sx: num(s.sx),                            // 26/10/2026: מתי סרטון המקור נמחק (0 = עוד שמור)
     rt: s.rt && typeof s.rt === 'object' ? { s: num(s.rt.s), j: num(s.rt.j) } : null,   // עד מתי המקור (s) ועד מתי הקבצים (j)
     w: !!(s.files && s.files.w && s.files.w.id),   // 25/10/2026: המילים מהטלפון הגיעו (שלב 2)
@@ -9069,8 +9070,8 @@ function schedulePoll() {
   let ms = 0;
   // v368: עבודה שמתאוששת — בודקים שוב בסוף החלון (אז השרתון ממשיך אותה)
   const recMs = (list) => { const t = Math.min(...list.filter(recovering).map((r) => r.srv.rw)); return Number.isFinite(t) ? Math.max(2000, Math.min(60000, t - Date.now() + 1500)) : 0; };
-  if (ui.view === 'job') { const r = jobRec(ui.param), st = r && r.srv ? r.srv.state : 'new'; ms = st === 'queued' || st === 'running' || phBurnLive(r) || phPrepLive(r) ? 4000 : st === 'new' && r && r.up.started ? 15000 : r ? recMs([r]) : 0; }
-  else if (ui.view === 'home') ms = store.jobs.some((r) => r.srv && (r.srv.state === 'queued' || r.srv.state === 'running')) ? 30000 : recMs(store.jobs);   // 26/10/2026: 30 שנ׳ (op:'jobs' = כל העבודות שלך — קריאה מ־Firestore לכל אחת)
+  if (ui.view === 'job') { const r = jobRec(ui.param), st = r && r.srv ? r.srv.state : 'new'; ms = st === 'queued' || st === 'running' || (r && r.srv && r.srv.bg) || phBurnLive(r) || phPrepLive(r) ? 4000 : st === 'new' && r && r.up.started ? 15000 : r ? recMs([r]) : 0; }
+  else if (ui.view === 'home') ms = store.jobs.some((r) => r.srv && (r.srv.state === 'queued' || r.srv.state === 'running' || r.srv.bg)) ? 30000 : recMs(store.jobs);   // 26/10/2026: 30 שנ׳ (op:'jobs' = כל העבודות שלך — קריאה מ־Firestore לכל אחת)
   else if (ui.view === 'rr') { ms = rrRunning(rrJobs.get(ui.param)) || rrRunning(rrPv.get(ui.param)) ? 4000 : 0; }   // מ2; סבב 10: גם הבדיקה
   else if (ui.view === 'server' && ui.api && ui.api.admin) ms = 15000;   // מסך השרת: הדופק מתעדכן כל 15 שנ׳
   if (ms) pollT = setTimeout(pollNow, ms);
