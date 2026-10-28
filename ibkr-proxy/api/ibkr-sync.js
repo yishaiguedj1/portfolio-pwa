@@ -250,10 +250,16 @@ async function pxCron(deps) {
 const IBGW = require('../lib/ibgw');
 /* SERVER_ONLY: פעולות שרק חדר האפליקציה עונה להן. ב־Vercel אין סוקט ל־Gateway — 421, והטלפון לא מנסה שוב (נשאר עם Flex) */
 const SERVER_ONLY_OPS = new Set(['gwLive']);
-async function gwApi(body, uid, ok, res, deps) {
+/* Gateway אחד = חשבון IBKR אחד (של הבעלים). לכן רק הבעלים רואה אותו: IBGW_OWNER (uid), ואם לא הוגדר — המנהל.
+   לא allowed() של הסנכרון: משתמש אחר ב־IBKR_SYNC_USERS היה רואה את החשבון של הבעלים */
+function gwOwnerOk(user) {
+  const o = String(process.env.IBGW_OWNER || '').trim();
+  return o ? user.uid === o : isAdmin(user);
+}
+async function gwApi(body, user, res, deps) {
   if (process.env.VERCEL) return res.status(421).json({ ok: false, error: 'gw_remote' });
-  if (!ok) return res.status(403).json({ ok: false, error: 'not_allowed' });
-  IBGW.owner(uid);                                   // ההתראה כשהסשן נפל — לבעלים (IBGW_OWNER, או מי שמסתכל על הנתונים)
+  if (!gwOwnerOk(user)) return res.status(403).json({ ok: false, error: 'not_owner' });
+  IBGW.owner(user.uid);                              // ההתראה כשהסשן נפל — לבעלים
   if (!IBGW.cfg(deps.env).host) return res.status(200).json({ ok: true, gw: { st: 'off' } });
   IBGW.tick(deps);
   return res.status(200).json({ ok: true, gw: await IBGW.live(deps) });
@@ -298,7 +304,7 @@ async function handler(req, res, deps = {}) {
   const uid = user.uid;
   try {
     if (body.op === 'pxa') return await pxApi(body, uid, res, deps);
-    if (SERVER_ONLY_OPS.has(body.op)) return await gwApi(body, uid, ok, res, deps);
+    if (SERVER_ONLY_OPS.has(body.op)) return await gwApi(body, user, res, deps);
     if (body.op === 'status') {
       const doc = ok ? await readDoc(deps, uid) : null;
       return res.status(200).json({ ok: true, allowed: ok, enabled: !!doc, run: doc ? iv(doc.f, 'run') : 0, okAt: doc ? iv(doc.f, 'ok') : 0, err: doc ? sv(doc.f, 'err') : '' });

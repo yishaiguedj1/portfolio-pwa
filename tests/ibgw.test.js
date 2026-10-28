@@ -184,7 +184,7 @@ function mockTws(opts = {}) {
   {
     const gauth = require('../ibkr-proxy/lib/gauth');
     ['IBKR_VAULT_KEY', 'CRON_SECRET', 'VERCEL', 'IBGW_OWNER'].forEach((k) => delete process.env[k]);
-    process.env.IBKR_SYNC_USERS = 'owner@example.com';
+    process.env.IBKR_SYNC_USERS = 'owner@example.com,other@example.com';
     const fb = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }), sa = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
     process.env.GDRIVE_SA_KEY = JSON.stringify({ client_email: 'sa@p.iam.gserviceaccount.com', private_key: sa.privateKey.export({ type: 'pkcs8', format: 'pem' }) });
     gauth._reset();
@@ -225,8 +225,13 @@ function mockTws(opts = {}) {
     let r = await post({ op: 'gwLive', idToken: OWNER });
     ok(r.statusCode === 421 && r.payload.error === 'gw_remote', 'ב־Vercel — 421 (הטלפון נשאר עם Flex)');
     delete process.env.VERCEL;
+    process.env.IBGW_OWNER = 'gwOwner00001';
     r = await post({ op: 'gwLive', idToken: OTHER });
-    ok(r.statusCode === 403, 'משתמש לא מורשה — 403');
+    ok(r.statusCode === 403 && r.payload.error === 'not_owner', 'משתמש אחר — גם אם מורשה לסנכרון Flex — 403: לא רואה את החשבון של הבעלים');
+    delete process.env.IBGW_OWNER;
+    r = await post({ op: 'gwLive', idToken: OWNER });
+    ok(r.statusCode === 403, 'בלי IBGW_OWNER — רק המנהל (כאן לא מנהל) — 403');
+    process.env.IBGW_OWNER = 'gwOwner00001';
     r = await post({ op: 'gwLive' });
     ok(r.statusCode === 401, 'בלי התחברות — 401');
     r = await post({ op: 'gwLive', idToken: OWNER }, Object.assign({}, deps, { env: {} }));
@@ -248,6 +253,7 @@ function mockTws(opts = {}) {
     ok(!c.payload.gw && pushes.length === 1, 'לא שולח שוב על אותה נפילה');
     G._reset();
     delete process.env.IBKR_SYNC_USERS;
+    delete process.env.IBGW_OWNER;
   }
 
   /* ---------- הטלפון: הכרטיס ---------- */
