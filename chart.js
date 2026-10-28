@@ -949,7 +949,7 @@ function loadStore() {
   return {
     g: {
       layout: [1, 2, 3, 4, 5].includes(g.layout) ? g.layout : 1, fav: Array.isArray(g.fav) ? g.fav.filter((x) => TF[x]).slice(0, 12) : DEF_FAV.slice(),
-      ext: !!g.ext, tz: g.tz === 'local' ? 'local' : 'ex', colors: ['tv', 'app', 'mono'].includes(g.colors) ? g.colors : 'app', grid: g.grid === 0 ? 0 : 1,
+      ext: g.extV === 2 ? !!g.ext : true, extV: 2, tz: g.tz === 'local' ? 'local' : 'ex', colors: ['tv', 'app', 'mono'].includes(g.colors) ? g.colors : 'app', grid: g.grid === 0 ? 0 : 1,
       risk: +g.risk > 0 ? +g.risk : 100, scale: ['normal', 'logarithm', 'percentage'].includes(g.scale) ? g.scale : 'normal', hl: g.hl === 0 ? 0 : 1,
       syncSym: !!g.syncSym, syncTf: !!g.syncTf, stay: !!g.stay, fills: g.fills === 0 ? 0 : 1, cells, indFav: Array.isArray(g.indFav) ? g.indFav.filter((x) => typeof x === 'string').slice(0, 30) : [],
     },
@@ -1447,7 +1447,7 @@ function openObjMenu() {
       if (TEXT_TOOLS.has(o.name)) rows.push(it('text', T('kcEditText'), () => askText(s.c, s.id)));
     }
     b.append(h('div', { class: 'kc-act' }, ...rows));
-  });
+  }, { clear: true });   // 28/10 (בקשת המשתמש): בלי טשטוש — רואים את הגרף ולאן האובייקט הוזז
 }
 function selLock() { const s = S.sel, o = s && getOv(s.c, s.id); if (!o) return; s.c.chart.overrideOverlay({ id: s.id, lock: !o.lock }); changed(s.c); renderSel(); }
 function selClone() {
@@ -1806,9 +1806,9 @@ function segDist(p, a, b) {
   const t = l ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l)) : 0;
   return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy);
 }
-function hitAt(c, x, y) {
+function hitAt(c, x, y, tol) {
   if (!c || !c.chart) return null;
-  let best = null, bd = HIT_PX;
+  let best = null, bd = tol || HIT_PX;
   const take = (o, d, alert) => { if (d <= bd) { bd = d; best = { o, alert }; } };
   const P = { x, y };
   for (const o of c.chart.getOverlays({ groupId: 'alert' }) || []) {
@@ -1879,6 +1879,66 @@ function wireCellPointer(c) {
   };
   c.el.addEventListener('touchend', edEnd, { capture: true, passive: false });
   c.el.addEventListener('touchcancel', edEnd, true);
+  // גרירת אובייקט (שרטוט / קו התראה) לפי ת־גרף: נגיעה אחת עליו בוחרת וגוררת מיד, בלי "הקשה ואז גרירה".
+  // קרוב לידית — זזה הידית בלבד; במקום אחר על האובייקט — כולו זז. הספרייה לא רואה את הנגיעה, אז הגרף לא גולל בטעות
+  let od = null;
+  const odSel = (o, i) => {
+    try { c.chart._chartStore.setClickOverlayInfo({ paneId: MAIN, overlay: o, figureType: 'point', figureIndex: i, figure: null }, () => {}, () => {}); } catch (x) { /* בלי ידיות — הסרגל עדיין נבחר */ }
+  };
+  c.el.addEventListener('touchstart', (e) => {
+    od = null;
+    if (ed || S.cur || S.tool || S.pick === c || !c.chart || e.touches.length !== 1 || (e.target && e.target.closest && e.target.closest('button'))) return;
+    const r = c.host.getBoundingClientRect(), t = e.touches[0], x = t.clientX - r.left, y = t.clientY - r.top, sz = c.chart.getSize(MAIN, 'main');
+    if (!sz || x < 0 || y < 0 || x >= sz.width || y >= sz.height) return;   // ציר המחיר והזמן — כרגיל
+    const hit = hitAt(c, x, y, 20);
+    if (!hit) return;
+    selectHit(c, hit);
+    const o = hit.o;
+    if (!hit.alert && o.lock) return;
+    const pts = (o.points || []).map((q) => px(c.chart, q.timestamp, q.value));
+    if (!pts.length || pts.some((q) => !q || !isFinite(q.x) || !isFinite(q.y))) return;
+    let pi = -1;
+    if (!hit.alert && pts.length > 1) { let bd = 26; pts.forEach((q, i) => { const d = Math.hypot(q.x - x, q.y - y); if (d < bd) { bd = d; pi = i; } }); }
+    odSel(o, pi < 0 ? 0 : pi);
+    od = { o, alert: hit.alert, x0: t.clientX, y0: t.clientY, pts, pi, base: (o.points || []).map((q) => ({ timestamp: q.timestamp, value: q.value })), sz, moved: false };
+    e.stopPropagation();
+  }, { capture: true, passive: true });
+  c.el.addEventListener('touchmove', (e) => {
+    if (!od) return;
+    e.stopPropagation();
+    if (e.cancelable) e.preventDefault();
+    const t = e.touches[0], dx = t.clientX - od.x0, dy = t.clientY - od.y0;
+    if (!od.moved && Math.hypot(dx, dy) < 3) return;
+    od.moved = true;
+    const next = od.base.map((b, i) => {
+      if (od.alert) { const q = od.pts[i], cv = c.chart.convertFromPixel([{ x: q.x, y: Math.max(0, Math.min(od.sz.height - 1, q.y + dy)) }], { paneId: MAIN })[0]; return { timestamp: b.timestamp, value: cv && isFinite(cv.value) ? cv.value : b.value }; }
+      if (od.pi >= 0 && od.pi !== i) return b;
+      const q = od.pts[i], cv = c.chart.convertFromPixel([{ x: Math.max(0, Math.min(od.sz.width - 1, q.x + dx)), y: Math.max(0, Math.min(od.sz.height - 1, q.y + dy)) }], { paneId: MAIN })[0];
+      return cv && isFinite(cv.value) ? { timestamp: typeof cv.timestamp === 'number' && isFinite(cv.timestamp) ? cv.timestamp : b.timestamp, value: cv.value } : b;
+    });
+    c.chart.overrideOverlay({ id: od.o.id, points: next });
+    od.next = next;
+  }, { capture: true, passive: false });
+  const odEnd = (e) => {
+    if (!od) return;
+    const d = od;
+    od = null;
+    e.stopPropagation();
+    if (e.cancelable) e.preventDefault();
+    if (!d.moved || !d.next) return;
+    if (d.alert) {
+      const a = (S.store.alerts[c.sym] || []).find((x) => x.id === (d.o.extendData && d.o.extendData.id));
+      if (!a) return;
+      a.p = d.next[0].value; rearm(c.sym, a); save(); bgSoon();
+      setTimeout(() => {
+        drawAlerts(c);
+        const n = (c.chart.getOverlays({ groupId: 'alert' }) || []).find((x) => x.extendData && x.extendData.id === a.id);
+        if (n) { odSel(n, 0); selectAlert(c, n); }   // הקו נבנה מחדש — נשאר נבחר
+      }, 0);
+    } else changed(c);
+  };
+  c.el.addEventListener('touchend', odEnd, { capture: true, passive: false });
+  c.el.addEventListener('touchcancel', odEnd, true);
   c.el.addEventListener('touchstart', (e) => {
     if (ed || !cOn(e) || e.touches.length > 1) { ct = null; return; }
     e.stopPropagation();
@@ -1911,7 +1971,7 @@ function wireCellPointer(c) {
   let pv = null;
   c.el.addEventListener('pointerdown', (e) => { pv = e.isPrimary && !S.tool && !(S.cur && S.cur.c === c) ? { id: e.pointerId, x: e.clientX, y: e.clientY, r0: null } : null; }, true);
   c.el.addEventListener('pointermove', (e) => {
-    if (!pv || e.pointerId !== pv.id || ed || ct || !c.chart) return;
+    if (!pv || e.pointerId !== pv.id || ed || od || ct || !c.chart) return;
     if (e.pointerType === 'mouse' && !(e.buttons & 1)) { pv = null; return; }
     const ev = c.chart._chartEvent;
     if (!ev || !ev._startScrollCoordinate) return;   // הספרייה לא גוללת (שרטוט נגרר, ציר, צלב)
@@ -1981,7 +2041,7 @@ function openSheet(title, fill, opt) {
   const body = h('div', { class: 'kc-sh-body' });
   const panel = h('div', { class: 'kc-sheet' + (opt && opt.wide ? ' wide' : ''), role: 'dialog', 'aria-label': title },
     h('div', { class: 'kc-sh-head' }, h('div', { class: 'kc-sh-title', text: title }), btn('kc-ib', T('kcClose'), () => closeSheet(sh), ICON.close)), body);
-  sh.el = h('div', { class: 'kc-sh-back', onclick: (e) => { if (e.target === sh.el) closeSheet(sh); } }, panel);
+  sh.el = h('div', { class: 'kc-sh-back' + (opt && opt.clear ? ' clear' : ''), onclick: (e) => { if (e.target === sh.el) closeSheet(sh); } }, panel);
   root.appendChild(sh.el);
   if (opt && opt.onClose) sh.onClose = opt.onClose;
   S.sheets.push(sh);
