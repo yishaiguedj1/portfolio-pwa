@@ -13,7 +13,7 @@ function ok(cond, name) { n++; if (!cond) fails.push(name); else console.log('ok
 
 let files;
 try {
-  files = execSync('git ls-files', { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean);
+  files = execSync('git -c core.quotepath=off ls-files', { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean); // 28/10: quotepath=off — אחרת קבצים בשם עברי (היומן!) מדולגים
 } catch (e) {
   // בלי git (למשל ארכיון) — סורקים את תיקיית הפרויקט
   files = [];
