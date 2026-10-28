@@ -28,7 +28,9 @@ const h = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e
 const fmt = (s, o) => String(s).replace(/\{(\w+)\}/g, (_, k) => (o[k] != null ? o[k] : ''));
 const day = (ms) => (ms ? new Date(ms).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { timeZone: 'Asia/Jerusalem', day: 'numeric', month: 'numeric' }) : '—');
 
-async function api(op, body) {
+let track = null;   // 28/10/2026: בזמן טיוטת ניווט — אוסף את הבקשות שהמסך החדש הפעיל (go מחכה להן)
+function api(op, body) { const p = api0(op, body); if (track) track.push(p); return p; }
+async function api0(op, body) {
   const u = A.user();
   if (!u) return { ok: false, error: 'signin' };
   let tk = ''; try { tk = await u.getIdToken(); } catch (e) {}
@@ -66,8 +68,21 @@ const PAGES = {};
 const page = (k, o) => { PAGES[k] = o; };
 let cur = 'ov';
 let booted = false;   // 26/10/2026: הסקירה כבר צוירה — מאגר הלמידה שמגיע אחריה מצייר שוב
-function go(k, push = true) {
+/* 28/10/2026 (בקשת המשתמש: "נכנסים לעמוד והכל סטטי, בלי טעינות"): לפני המעבר — טיוטה מנותקת של המסך החדש. אם היא
+   מציגה "טוען…", הטעינה שהיא הפעילה כבר יצאה; מחכים לה עד 450ms ורק אז מציירים — המסך נכנס מלא, בלי ציור שני */
+let goTok = 0;
+function pending(k) {
+  const was = cur, d = h('div'); cur = k; track = [];
+  try { PAGES[k].render(d); } catch (e) {}
+  const ps = track; track = null; cur = was;
+  const L = t('admLoading');
+  return [...d.querySelectorAll('p, small, b')].some((e) => e.textContent === L) ? ps : [];
+}
+async function go(k, push = true, now = false) {
   if (!PAGES[k]) k = 'ov';
+  const tk = ++goTok, ps = now || k === cur ? [] : pending(k);
+  if (ps.length) await Promise.race([Promise.allSettled(ps), new Promise((r) => setTimeout(r, 450))]);
+  if (tk !== goTok) return;
   cur = k;
   if (push) { try { history.pushState({ adm: k }, '', '#' + k); } catch (e) {} }
   paint();
@@ -86,7 +101,7 @@ function paintNav() {
     const i = h('i', null, ic); i.setAttribute('aria-hidden', 'true');
     a.append(i, h('span', null, name()));
     if (b[k]) a.append(h('span', 'adm-bdg', String(b[k])));
-    a.addEventListener('click', () => go(k));
+    a.addEventListener('click', () => go(k, true, true));   // לשונית מתחלפת מיד — הנתונים שלה נטענו מראש (boot)
     return a;
   });
   tabs.replaceChildren(...mk('adm-tab'));
@@ -123,6 +138,7 @@ function row(o) {
   const m = h('span', 'adm-m'), tx = h('span', 'adm-tx');
   tx.append(h('b', null, o.t));
   if (o.s) { const sm = h('small'); if (typeof o.s === 'string') sm.textContent = o.s; else sm.append(o.s); tx.append(sm); }
+  else if (o.s === '') tx.append(h('small', null, '\u00a0'));   // 28/10/2026: שורת משנה שמגיעה אחר כך — המקום שמור, השורה לא גדלה
   if (o.meter) { const mt = h('span', 'adm-mtr'), mi = h('i', o.meter[1] || ''); mi.style.width = Math.max(0, Math.min(100, o.meter[0])) + '%'; mt.append(mi); tx.append(mt); }
   m.append(tx);
   if (o.sp) m.append(o.sp);
@@ -1388,11 +1404,13 @@ async function load(wait) {
   const ovP = api('adminOv'), labP = api('learn').then((lab) => { D.lab = lab; if (!wait && booted) paint(); return lab; });
   const ov = await ovP;
   D.ov = ov.ok ? ov.ov : null; D.push = ov.ok ? ov.push : null; D.ovAt = Date.now();
-  return { ov, lab: wait ? await labP : null };
+  return { ov, lab: wait ? await labP : null, labP };
 }
 async function boot() {
   root.append(h('p', 'adm-wait', t('admLoading')));
-  const { ov } = await load();
+  const { ov, labP } = await load();
+  // 28/10/2026: אריחי 30 הימים (מהמאגר) נכנסים באמצע הסקירה — מחכים להם עד 400ms, שלא יגיעו אחר כך וידחפו את מה שמתחתיהם
+  if (ov.ok && !D.lab) await Promise.race([labP, new Promise((r) => setTimeout(r, 400))]);
   done();
   if ([ov.error].some((e) => e === 'not_admin' || e === 'not_allowed')) {
     root.replaceChildren(h('p', 'adm-note', t('admNoAdmin')), accountCard(A, 'icon-192.png'));
@@ -1403,6 +1421,9 @@ async function boot() {
   try { history.replaceState({ adm: cur }, '', '#' + cur); } catch (e) {}
   booted = true;
   paint();
+  // 28/10/2026: טעינה מוקדמת של שאר הלשוניות (טיוטה מנותקת מפעילה את הבקשות שלהן) — מעבר לשונית נכנס מלא
+  const idle = window.requestIdleCallback || ((f) => setTimeout(f, 300));
+  setTimeout(() => idle(() => TABS.forEach(([k]) => { if (k !== cur && PAGES[k]) pending(k); })), 1200);
   document.addEventListener('visibilitychange', async () => { if (!document.hidden && Date.now() - D.ovAt > 60000) { await load(true); paint(); } });
 }
 

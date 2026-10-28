@@ -2502,6 +2502,13 @@ export function searchScore(key, q) {   // 0 = לא מתאים; כל מילה ב
 export function searchHit(key, q) { return searchScore(key, q) > 0; }
 function applySearch(home) {
   const q = (ui.q || '').trim();
+  // 28/10/2026 (QA מעברים): בית גלול + חיפוש = הרשימה מתקצרת, הדפדפן חותך את הגלילה ל־0 ושדה החיפוש קופץ באמצע ההקלדה.
+  // בזמן חיפוש הבית שומר לפחות את הגובה שהיה צריך לגלילה הנוכחית — השדה נשאר במקום
+  const root = home.closest && home.closest('.lib-root');
+  if (root && q) {
+    const need = root.scrollTop + root.clientHeight - (home.getBoundingClientRect().top - root.getBoundingClientRect().top + root.scrollTop);
+    if (need > 0) home.style.minHeight = Math.max(parseFloat(home.style.minHeight) || 0, Math.ceil(need)) + 'px';
+  } else if (root) home.style.minHeight = '';
   home.classList.toggle('searching', !!q);
   const grid = home.querySelector('.lib-grid');
   const items = Array.from(home.querySelectorAll('.lib-item'));

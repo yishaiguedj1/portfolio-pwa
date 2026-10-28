@@ -31,7 +31,7 @@ const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const scss = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
 // v354: אותו וילון משמש גם את הסטודיו (h.studio → studio-open); בספרייה — lib-open כמו קודם
 ok(/if\(h&&\(h\.lib\|\|h\.studio\)\)\{var e=document\.documentElement;e\.classList\.add\(h\.lib\?'lib-open':'studio-open','lib-curtain','lib-restoring'\);/.test(html) && /h\.lib>=2[^\n]*pwa_reader_v1[^\n]*--curtain/.test(html), 'index.html: וילון לפני הציור הראשון ברענון בתוך הספרייה; בקורא — בצבע דף הקורא');
-ok(/html\.lib-curtain body::after \{[^}]*z-index: 910[^}]*var\(--curtain, var\(--bg\)\)/.test(scss) && /html\.lib-restoring body::after \{ opacity: 1/.test(scss), 'styles.css: הווילון מעל הספרייה (900) ומתחת לקורא (920)');
+ok(/html\.lib-curtain body::after \{[^}]*z-index: 910[^}]*var\(--curtain, transparent\)[^}]*var\(--gl-ambient\), var\(--bg\)/.test(scss) && /html\.lib-restoring body::after \{ opacity: 1/.test(scss), 'styles.css: הווילון מעל הספרייה (900) ומתחת לקורא (920)');
 ok(/setTimeout\(down, 6000\);/.test(app) && /catch\(\(\) => \{ down\(\); document\.documentElement\.classList\.remove\('lib-open'\); \}\)/.test(app), 'app.js: הווילון יורד בכל מקרה אחרי 6 שניות או בכשל טעינת הספרייה');
 ok(/async function openReader\(id, opt\) \{\s+saveLibScroll\(\);/.test(lib), 'פתיחת ספר שומרת את הגלילה של הדף שמתחת');
 ok(/h\('div', 'rd loading' \+/.test(lib) && /box\.classList\.remove\('loading'\)/.test(lib), 'הקורא נפתח במצב טעינה עד העמוד הראשון');

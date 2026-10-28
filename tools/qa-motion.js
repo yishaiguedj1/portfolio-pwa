@@ -243,9 +243,9 @@ function analyzeFrames(frames, bg, top) {
 
 /* ---------- הרצה ---------- */
 // ייצוא לסקריפטי אבחון: require('./qa-motion.js') מחזיר את הקבצים בלי להריץ
-if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, routes, INIT }; return; }
+if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, routes, INIT, makeCaster, analyzeFrames }; return; }
 (async () => {
-  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium' });
   const ctx = await browser.newContext({ viewport: { width: WIDTH, height: 844 }, deviceScaleFactor: 2, serviceWorkers: 'block', hasTouch: true, ignoreHTTPSErrors: true,
     colorScheme: THEME === 'dark' ? 'dark' : 'light', reducedMotion: RM ? 'reduce' : 'no-preference', locale: LANG === 'en' ? 'en-GB' : 'he-IL' });
   await routes(ctx);

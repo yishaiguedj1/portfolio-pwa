@@ -319,4 +319,18 @@ ok(Object.keys(L.IND).length >= 40, 'לפחות 40 אינדיקטורים נוס
   ok(!/fetch\(|E\.api\(/.test(ch.split('function fillsOf')[1].split('function redrawMine')[0]), 'בלי שום בקשת רשת — רק נתונים שכבר באפליקציה');
 }
 
+{ // טעינה מוקדמת של נרות — המעבר לגרף בלי מסך טעינה
+  const ch = fs.readFileSync(path.join(root, 'chart.js'), 'utf8'), app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+  const fc = ch.split('function fetchCandles')[1].split('\nfunction ')[0];
+  ok(/const CC = new Map\(\)/.test(ch) && /if \(!to && !fresh\)/.test(fc) && /CC\.set\(/.test(fc), 'מטמון נרות לפי מניה/אינטרוול, רק לטעינה הראשונה');
+  ok(/CC\.delete/.test(fc) && /CC\.size > 80/.test(fc), 'כישלון לא נשמר במטמון, והמטמון מוגבל בגודל');
+  ok(/fetchCandles\(c, 0, null, null, true\)/.test(ch), 'רענון (reconcile) עוקף את המטמון ומעדכן אותו');
+  ok(/function warmCandles/.test(ch) && /lite\(\)/.test(ch.split('function warmCandles')[1].slice(0, 600)), 'חימום שאר האינטרוולים — לא במצב חסכוני');
+  ok(/prefetchChart\(chartEnv\(\), sym\)/.test(app), 'כפתור הגרף טוען מראש לפני הלחיצה');
+  const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
+  ok(/html\.lib-curtain body::after[^}]*var\(--gl-ambient\)/.test(css), 'הווילון כולל את רקע הזכוכית — בלי הבהוב שטוח');
+  const lib = fs.readFileSync(path.join(root, 'library.js'), 'utf8');
+  ok(/home\.style\.minHeight = Math\.max/.test(lib.split('function applySearch')[1].slice(0, 900)), 'חיפוש בספרייה שומר גובה — הגלילה לא נחתכת');
+}
+
 console.log('\n' + n + ' בדיקות עברו');

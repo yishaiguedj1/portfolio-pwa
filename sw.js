@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v615';
+const CACHE_NAME = 'portfolio-pwa-v616';
 const HASHES = {
   "./": "16b507afdf51b3641466129e571503e2",
   "./index.html": "16b507afdf51b3641466129e571503e2",
-  "./styles.css": "ae83b5a67d8c6547f815332fd36c3f51",
-  "./app.js": "39031792246bec3e8405a9057b982614",
+  "./styles.css": "99d51190063754243866a0fd44050160",
+  "./app.js": "d23868caaf393056c211fbaa5e43e64b",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "e50501f26e70aad478a5d8d489754d97",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -33,11 +33,11 @@ const HASHES = {
   "./acclink.js": "419b035815109478a1f8f9780720af33",
   "./analysis.js": "5ee4707c43b410ce54e807a542585ba7",
   "./analysis.css": "46519805fa59daada619f9541cacf9c0",
-  "./chart.js": "328ac1b11f2d0743f1fa14d97a627876",
+  "./chart.js": "3b6ab338ec3487842850b06f4d983f03",
   "./chartlib.js": "5c00c490dac1b09329fa1ce657350a9b",
   "./chart.css": "1b0fa69cdba28b532fe99f8e85f48dce",
   "./vendor/klinecharts/klinecharts.min.js": "4202d8661b8302175751d8d072bf6d2f",
-  "./library.js": "3243a58a1e6ed5a54989c02f31ac975f",
+  "./library.js": "ad36d46bcfa46d141231b6df6568f567",
   "./library.css": "7552e53ed56852cfc4655df878bd7bb5",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
   "./libbackup.js": "a238c4cf7877166ba8eba5cdcf6eadb8",
@@ -65,7 +65,7 @@ const HASHES = {
   "./academy.html": "d58a511fc759a629121b82ab47fe9a69",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
   "./strings-academy.js": "298256871d3f43a944f01db5f1fd45c3",
-  "./core.js": "38c7a3447a343a8f11975dfc1599a6b9",
+  "./core.js": "6223cde110d7f05ad589fc7b923c42cf",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "d6703c288cfb84be0bc06cbc61912c68",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
