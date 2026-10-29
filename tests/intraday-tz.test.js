@@ -61,7 +61,9 @@ ok(ticks.length === 2 && ticks[0].close === 617.5 && ticks[1].close === 618, 'ד
 const rows = [{ date: '2026-10-28', time: '19:58', close: 616 }, { date: '2026-10-28', time: '19:59', close: 616.04 }];
 const q = { session: 'night', close: 618, ext: { kind: 'night', price: 618, t: t0 + 120 }, mdate: '2026-10-28', mtime: '19:59' };
 const out = A('intradayLiveRows')(rows, q, ticks);
-ok(out.length === 4 && out[2].time === '20:05' && out[3].close === 618 && out[3].night, 'בלילה — הדקות הליליות אחרי 19:59');
+ok(out.length === 3 && out[2].time === '20:05' && out[2].close === 618 && out[2].night, 'בלילה — אחרי 19:59, נקודה לכל 5 דקות (הסגירה של החלון)');
+rec('META', { session: 'night', close: 619, ext: { kind: 'night', price: 619, t: t0 + 600 } });
+ok(A('intradayLiveRows')(rows, q, A('NIGHT_TICKS').META).length === 4, 'חלון 5 דקות חדש → נקודה חדשה');
 ok(rows.length === 2, 'המטמון לא משתנה');
 ok(A('intradayLiveRows')(rows, q, null).length === 2, 'בלי דקות — כמו קודם');
 const old = [{ date: '2026-10-26', time: '19:59', close: 1 }];
@@ -69,9 +71,31 @@ ok(A('intradayLiveRows')(old, q, ticks).length === 1, 'דקות של לילה א
 rec('META', { session: 'night', close: 600, ext: { kind: 'night', price: 600, t: t0 + 86400 } });
 ok(A('NIGHT_TICKS').META.length === 1, 'לילה חדש מאפס את הרשימה');
 
-// --- 4. חיווט ---
+// --- 4. "מסחר מורחב" (הגדרת גרף הנרות) ---
+const day = [
+  { date: '2026-10-27', time: '15:59', close: 1 },
+  { date: '2026-10-28', time: '04:00', close: 2 }, { date: '2026-10-28', time: '09:30', close: 3 },
+  { date: '2026-10-28', time: '15:59', close: 4 }, { date: '2026-10-28', time: '19:59', close: 5 },
+];
+const sess = A('intraSessionRows');
+ok(sess(day, 'day', 'META', true).map((r) => r.close).join() === '2,3,4,5', 'דלוק: כל היום — טרום־מסחר עד סוף המסחר המאוחר');
+ok(sess(day, 'day', 'META', false).map((r) => r.close).join() === '3,4', 'כבוי: רק 09:30–16:00');
+ok(sess(day, 'day', 'META').map((r) => r.close).join() === '3,4,5', 'בלי הגדרה — כמו קודם (מ־09:30, כולל אחרי־המסחר)');
+const post = { session: 'post', close: 6, mdate: '2026-10-28', mtime: '17:00' };
+const regOnly = [{ date: '2026-10-28', time: '15:59', close: 4 }];
+ok(A('intradayLiveRows')(regOnly, post, null, false).length === 1, 'כבוי: מחיר אחרי־המסחר לא נדבק לגרף');
+ok(A('intradayLiveRows')(regOnly, post, null, true).length === 2, 'דלוק: מחיר אחרי־המסחר נדבק');
+const ls = {}; vm.runInContext('localStorage', sb).getItem = (k) => (k in ls ? ls[k] : null);
+ok(A('chartExtOn')() === true, 'בלי הגדרות שמורות — דלוק (כמו בגרף הנרות)');
+ls.pwa_charts_v1 = JSON.stringify({ g: { ext: false, extV: 2 } });
+ok(A('chartExtOn')() === false, 'כובה בגרף הנרות → כבוי גם בכרטיס');
+ls.pwa_charts_v1 = JSON.stringify({ g: { ext: false } });
+ok(A('chartExtOn')() === true, 'הגדרה ישנה (לפני extV 2) — דלוק, כמו ב־chart.js');
+
+// --- 5. חיווט ---
+ok(/onClose: \(\) => \{ refreshStockAlerts\(\); chartExtRedraw\(\); \}/.test(src), 'סגירת גרף הנרות מציירת מחדש את גרף היום');
 ok(/nightTickRecord\(s, got\[s\]\)/.test(src), 'liveMerge רושם את הדקות הליליות');
-ok(/intradayLiveRows\(shown, state\.quotes\[sym\], range === 'day' \? NIGHT_TICKS\[sym\] : null\)/.test(src), 'גרף היום מקבל את הדקות הליליות');
+ok(/intradayLiveRows\(shown, state\.quotes\[sym\], range === 'day' && ext \? NIGHT_TICKS\[sym\] : null, ext\)/.test(src), 'גרף היום מקבל את הדקות הליליות רק עם מסחר מורחב');
 const chartSrc = fs.readFileSync(path.join(root, 'chart.js'), 'utf8');
 ok(/tz: g\.tz === 'ex' \? 'ex' : 'local'/.test(chartSrc), 'הגרף המתקדם: ברירת המחדל = שעון המכשיר');
 

@@ -8520,20 +8520,24 @@ function nightTickRecord(sym, q, nowMs) {
 /* v139: נקודת "עכשיו" בגרף היומי — המחיר החי בשעת הדקה האחרונה שנסחרה.
    מחליפה את הנר האחרון אם זו אותה דקה, אחרת נוספת אחריו. לא משנה את המטמון.
    29/10/2026: ticks = דקות המסחר הלילי (NIGHT_TICKS) — נוספות אחרי הנר האחרון (עד 10 שעות אחריו). */
-function intradayLiveRows(rows, q, ticks) {
+function intradayLiveRows(rows, q, ticks, ext) {
   const out = (rows || []).slice();
   if (out.length && ticks && ticks.length && (!q || q.session === 'night' || q.session === 'pre' || q.session === 'closed')) {
     const last = out[out.length - 1];
     if (last.time) {
       const lastS = exWallToMs(last.date, last.time, 'America/New_York') / 1000;
+      // נקודה לכל 5 דקות (הסגירה של החלון) — כמו נרות היום (5m); הציר לפי מספר הנקודות, לא לפי הזמן
+      let bucket = -1;
       for (const k of ticks) {
         if (k.ts < lastS + 60 || k.ts - lastS > 10 * 3600) continue;
-        const w = tzWall(k.ts * 1000, 'America/New_York');
-        out.push({ date: w.date, time: w.time, close: k.close, night: true });
+        const b = Math.floor(k.ts / 300), w = tzWall(b * 300000, 'America/New_York');
+        const row = { date: w.date, time: w.time, close: k.close, night: true };
+        if (b === bucket) out[out.length - 1] = row; else { out.push(row); bucket = b; }
       }
     }
   }
   if (!q || !(q.close > 0) || !q.mtime || !q.mdate || !out.length || q.session === 'night') return out; // v226: לילה = היום הבא
+  if (ext === false && q.session !== 'regular') return out; // 29/10/2026: בלי מסחר מורחב — בלי מחיר טרום/אחרי־מסחר
   const last = out[out.length - 1];
   if (q.mdate !== last.date) return out;
   if (q.mtime < (last.time || '')) return out;
@@ -8873,7 +8877,7 @@ async function proxyIntraday(sym, rng, ms) {
 /* v230: מה שמוצג בגרף התוך־יומי — תואם ל־Google:
    1D = יום המסחר האחרון שהיה בו מסחר רגיל, מ־09:30 (כולל אחרי־המסחר; בטרום־מסחר של יום חדש — עדיין יום המסחר הקודם).
    5D = חמשת ימי המסחר האחרונים, נרות 30 דקות, מ־09:30 (הבסיס = הנר הראשון; NOW: 138.00 → −1.72% תואם ל־Google). טהורה */
-function intraSessionRows(rows, range, sym) {
+function intraSessionRows(rows, range, sym, ext) {
   if (!rows || !rows.length) return [];
   const ta = /\.TA$/i.test(sym || '');
   const reg = (r) => ta || !r.time || (r.time >= '09:30' && r.time < '16:00');
@@ -8881,6 +8885,9 @@ function intraSessionRows(rows, range, sym) {
   for (const r of rows) if (reg(r) && days[days.length - 1] !== r.date) days.push(r.date);
   if (!days.length) return rows.slice();
   const keep = new Set(days.slice(range === '5d' ? -5 : -1));
+  // 29/10/2026: 1D לפי "מסחר מורחב" של גרף הנרות — דלוק: כל היום (טרום־מסחר + אחרי־מסחר), כבוי: רק 09:30–16:00
+  if (range !== '5d' && ext === true) return rows.filter((r) => keep.has(r.date));
+  if (range !== '5d' && ext === false) return rows.filter((r) => keep.has(r.date) && reg(r));
   const open = (r) => ta || !r.time || r.time >= '09:30';
   const out = rows.filter((r) => keep.has(r.date) && open(r) && (range !== '5d' || reg(r)));
   // 5D: Google מתחיל ממחיר הפתיחה של היום הראשון ("מחיר ב־09:30"), לא מסגירת הנר הראשון (META: 680.30 מול 711.80)
@@ -15090,6 +15097,10 @@ function buildStockBody(p, m) {
    vendor/klinecharts, נטענים רק כאן). לכל סימבול — גם מדדים, קריפטו ומט"ח. הנרות מהשרתון (op:'candles'),
    המחיר החי כל שנייה מ־/api/quotes. המצב (שרטוטים, אינדיקטורים, התראות) — pwa_charts_v1, מפתח אישי לכל חשבון. */
 const CHART_LS = 'pwa_charts_v1';
+/* 29/10/2026: "מסחר מורחב" מהגדרות גרף הנרות (chart.js loadStore — ברירת מחדל דלוק) — גם לגרף היום בכרטיס המניה */
+function chartExtOn() {
+  try { const o = JSON.parse(localStorage.getItem(CHART_LS) || 'null'), g = o && o.g; return !g || g.extV !== 2 ? true : !!g.ext; } catch (e) { return true; }
+}
 function chartBtn(sym) {
   // 27/10/2026 (בקשת המשתמש): במקום "גרף נרות" + סמל ההגדלה על הגרף — רק סמל ההגדלה, משמאל ל"ניתוח" (אותה פתיחה)
   const b = el('button', 'chip-btn kc-open-btn stock-ico-btn no-swipe');
@@ -15122,7 +15133,7 @@ function chartEnv() {
     },
     search: (q, onUpdate) => searchStocksYahoo(q, onUpdate),
     symbols: () => quoteSymbols().filter((s) => s !== FX_SYM),
-    onClose: () => refreshStockAlerts(),
+    onClose: () => { refreshStockAlerts(); chartExtRedraw(); },
     // מחיר הכותרת בגרף — אותו אפקט רובין הוד של כרטיס המניה
     pxSwap: (a, txt, px) => { const b = document.createElement('span'); b.dataset.px = String(px); b.textContent = txt; livePriceSwap(a, b); },
     // השוק סגור (סופ״ש/חג) — אותה בועה של כרטיס המניה: "השוק סגור · סיבה" ומתחת הסשן האחרון והשינוי
@@ -15149,6 +15160,12 @@ function chartFills(sym) {
   for (const x of mtActiveTrades()) { const m = mtNorm(x); if (m.sym === sym && m.qty > 0) trades.push({ d: m.date, t: '', side: m.side, qty: m.qty, price: m.price }); }
   const p = POSITIONS.find((x) => x.sym === sym), n = p ? Number(p.shares) || 0 : 0, avg = p ? Number(p.avg) || 0 : 0;
   return { trades, pos: n > 0 && avg > 0 ? { n, avg } : null };
+}
+/* 29/10/2026: אחרי סגירת גרף הנרות — "מסחר מורחב" אולי השתנה; גרפי יום/5 ימים פתוחים נצבעים מחדש (מהמטמון) */
+function chartExtRedraw() {
+  for (const sym of Object.keys(state.range || {})) {
+    if (INTRA_RANGES[state.range[sym]] && stockNode(sym, 'chart-')) ensureChartData(sym, true).catch(() => {});
+  }
 }
 function openChartFor(sym) {
   import('./chart.js').then((m) => m.openChart(sym, chartEnv())).catch(() => flash(t('kcErrLib')));
@@ -15509,9 +15526,10 @@ async function ensureChartData(sym, quiet) {
     if (INTRA_RANGES[range] && !state.stockPick[sym]) {
       const intra = await getIntraday(sym, INTRA_RANGES[range]);
       if ((state.range[sym] || 'year') !== range) return; // המשתמש כבר עבר לטווח אחר
-      const shown = intraSessionRows(intra, range, sym);
+      const ext = chartExtOn();
+      const shown = intraSessionRows(intra, range, sym, ext);
       if (shown.length) {
-        drawStockChart(sym, intradayLiveRows(shown, state.quotes[sym], range === 'day' ? NIGHT_TICKS[sym] : null), range);
+        drawStockChart(sym, intradayLiveRows(shown, state.quotes[sym], range === 'day' && ext ? NIGHT_TICKS[sym] : null, ext), range);
         if (loading) loading.classList.add('hidden');
         return;
       }
