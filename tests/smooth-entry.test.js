@@ -59,6 +59,9 @@ for (const [page, mod] of [['academy.html', 'library.js'], ['studio.html', 'stud
   ok(/<html [^>]*class="lib-curtain lib-restoring">/.test(R(page)), page + ': הווילון מההתחלה — הדף מופיע שלם');
   ok(/function curtainDown\(instant\)/.test(R(mod)) && /if \(lg && lg\.decode\) Promise\.race\(\[lg\.decode\(\)/.test(R(mod)), mod + ': הווילון יורד מיד כשמוכן, אחרי שהלוגו פוענח');
 }
+{ const sj = R('studio.js');
+  ok(/store\.st = \{ api: ui\.api \|\| null, mf: ui\.mf \};/.test(sj) && /store = load\(\);\n  if \(store\.st\) \{ if \(!ui\.api\) ui\.api = store\.st\.api; ui\.mf = store\.st\.mf; \}/.test(sj) && /const st = src\.st && typeof src\.st === 'object'/.test(sj),
+    'סטודיו: קפסולת השרת בהדר מהמצב האחרון כבר בציור הראשון (S1 — לא "חיבור Claude" שמתחלף)'); }
 ok(/\} else curtainDown\(true\);/.test(R('library.js')) && /curtainDown\(!restore\);/.test(R('studio.js')), 'הווילון יורד בכל פתיחה (לא רק ברענון)');
 ok(/goJobLink\(jobLink, linkView, 'none'\)/.test(R('studio.js')), 'קישור לעבודה בפתיחה — בלי קובייה על דף שעוד נכנס');
 ok(/data-t="' \+ Date\.now\(\)/.test(app) && /Date\.now\(\) - t0 > 90/.test(app), 'לוגו מניה שמגיע באיחור — בדהייה');
@@ -71,6 +74,7 @@ ok(/for \(const n of \[\.\.\.home\.childNodes\]\) if \(n !== keepHdr\) n\.remove
   ok(c.f() === true && st.fx === 3.1 && st.quotes.A && st.source === 'Yahoo', 'פתיחה: השער והמחירים מהדקות האחרונות — מיד, בלי "—" ו"דיליי"');
   const st2 = { fx: null, quotes: {} }; c.state = st2; store = { at: Date.now() - 3600e3, fx: 3.2, quotes: { A: { close: 1 } }, source: 'Yahoo' };
   c.f(); ok(st2.fx === 3.2 && !st2.quotes.A && !st2.source, 'מטמון ישן — רק השער (לא מחירים ישנים כ"חי")'); }
-ok(/bootQuotesFromCache\(\);\n    renderAll\(\);/.test(app), 'לפני הציור הראשון');
+ok(/bootQuotesFromCache\(\);\n(?:    \/\/[^\n]*\n)?    try \{ updateSourceLabel\(\); paintFxPill\(false\); \} catch \(e\) \{\}\n    renderAll\(\);/.test(app), 'לפני הציור הראשון — וגם הקפסולה ושער הדולר (I1)');
+ok(/const keep = wlAllSyms\(\);/.test(fn(app, 'applyQuotes')) && /wlPrefetch\(\)/.test(app), 'מעבר רשימת מעקב: המחירים של הרשימות האחרות נשמרים ונמשכים מראש (בלי "—")');
 console.log('# ' + (n - bad) + '/' + n);
 process.exit(bad ? 1 : 0);

@@ -93,7 +93,9 @@ const INIT2 = `(() => {
 })();`;
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium' });
+  // --raster (29/10/2026): מעבדה לצביעה מאוחרת (ס2/הפאה הלבנה) — צביעה בתהליך יחיד ומעבד איטי; בטלפון הצביעה של שכבה חדשה מאחרת
+  const RASTER = !!arg('raster', false);
+  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium', args: RASTER ? ['--enable-gpu-rasterization', '--num-raster-threads=1', '--enable-zero-copy=false'] : [] });
   const ctx = await browser.newContext({ viewport: { width: WIDTH, height: 844 }, deviceScaleFactor: 2, serviceWorkers: 'block', hasTouch: true, isMobile: true,
     colorScheme: THEME === 'dark' ? 'dark' : 'light', locale: 'he-IL' });
   await routes(ctx);
@@ -106,7 +108,7 @@ const INIT2 = `(() => {
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e.message).slice(0, 160)));
   const cdp = await ctx.newCDPSession(page);
-  if (CPU > 1) await cdp.send('Emulation.setCPUThrottlingRate', { rate: CPU });
+  if (CPU > 1 || RASTER) await cdp.send('Emulation.setCPUThrottlingRate', { rate: Math.max(CPU, RASTER ? 6 : 1) });
   const caster = QM.makeCaster(cdp, OUT);
   const sleep = (ms) => page.waitForTimeout(ms);
   const back = () => page.goBack().catch(() => {});
@@ -147,6 +149,7 @@ const INIT2 = `(() => {
     const late = [];
     (fr.diffs || []).forEach((d, i) => { if (i > 2 && d > 6 && (fr.diffs[i - 1] < 1 && fr.diffs[i - 2] < 1) && frames[i] && frames[i].t - ft0 > (opt.lateAfter || 450)) late.push(Math.round(frames[i].t - ft0) + 'ms:' + d.toFixed(0)); });
     if (!err && opt.expect) { const ok = await page.locator(opt.expect).first().count().catch(() => 0); if (!ok) err = 'לא במקום הצפוי (' + opt.expect + ')'; }
+    if (!err && opt.dialIs) { const k = await dialCur(opt.dialIs[0]); if (k !== opt.dialIs[1]) err = 'החוגה על ' + k + ' במקום ' + opt.dialIs[1]; }
     const row = { name, cls: +(m ? m.cls : 0).toFixed(4), shifts: m ? m.shifts.slice(0, 5) : [], gaps: m ? m.frameGaps : [], jumps: (m ? m.scrollJumps : []).concat(dp.jumps), flash: fr.flash, flicker: fr.flicker, tail, late, err, diffs: (fr.diffs || []).map((d, i) => [frames[i] ? Math.round(frames[i].t - ft0) : 0, +d.toFixed(1)]), muts: dp.muts.filter((x) => x[0] > (opt.lateAfter || 450)).slice(0, 12) };
     row.bad = row.cls > (opt.cls == null ? 0.01 : opt.cls) || row.jumps.length > 0 || row.flash > 0 || row.flicker > 0 || late.length > 0 || !!err;
     const keep = FRAMES || row.bad;
@@ -156,11 +159,27 @@ const INIT2 = `(() => {
     process.stdout.write((row.bad ? '✗ ' : '✓ ') + name + '  cls=' + row.cls + ' jumps=' + row.jumps.length + ' flash=' + row.flash + ' flicker=' + row.flicker + ' tail=' + tail + (late.length ? ' late=' + late.join(',') : '') + (row.err ? '  ERR ' + row.err : '') + '\n');
   }
   const click = (sel) => page.locator(sel).first().click({ timeout: 5000 });
+  /* מגע אמיתי (CDP): החלקת עמוד וגרירת החוגה (29/10/2026, הסבב השלישי — החוגה החדשה לא נבדקה בגרירה) */
+  const tswipe = async (dx, y = 600, n = 10) => { const x0 = dx > 0 ? 60 : WIDTH - 60;
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y }] });
+    for (let i = 1; i <= n; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x0 + dx * i / n, y }] }); await sleep(16); }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); };
+  const dialDrag = async (sel, dx, hold) => { const r = await page.locator(sel).first().boundingBox(); if (!r) throw new Error('אין ' + sel);
+    const y = r.y + r.height * 0.45, x0 = WIDTH / 2 - dx / 2;
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y }] });
+    for (let i = 1; i <= 14; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x0 + dx * i / 14, y }] }); await sleep(16); }
+    if (hold) await sleep(hold);   // עצירה לפני השחרור — בלי תנופה
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); };
+  // פריט בחוגה: לחיצה אמיתית כשהוא על המסך; פריט שמחוץ למסך (בחוגה של שבעה, הקצוות בחוץ) — click() של הדף, כמו קפיצה ישירה
+  const tapTab = async (sel) => { const vis = await page.evaluate((q) => { const e = document.querySelector(q); if (!e) throw new Error('אין ' + q); const r = e.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; }, sel);
+    if (vis) return page.locator(sel).first().click({ timeout: 5000 }); return jsClick(sel); };
+  // הפריט הנבחר בחוגה = הקרוב למרכז המסך (ב־Academy/Studio אין מחלקה — רק מיקום)
+  const dialCur = (sel) => page.evaluate((q) => { let best = '', d = 1e9; document.querySelectorAll(q + ' .tab').forEach((b) => { const r = b.getBoundingClientRect(), x = Math.abs(r.left + r.width / 2 - innerWidth / 2); if (x < d) { d = x; best = b.dataset.tab; } }); return best; }, sel);
   const jsClick = (sel) => page.evaluate((q) => { const e = document.querySelector(q); if (!e) throw new Error('אין ' + q); e.click(); }, sel);
   const dump = async (root) => page.evaluate((r) => [...document.querySelectorAll(r + ' button, ' + r + ' [role=tab]')].filter((b) => { const x = b.getBoundingClientRect(); return x.width > 0; }).map((b) => b.className + ' | ' + (b.getAttribute('aria-label') || b.textContent.trim()).slice(0, 30)).join('\n'), root);
 
   await page.goto(BASE + '/index.html', { waitUntil: 'load' }); await sleep(2500);
-  await page.click('.tab[data-tab="stocks"]'); await sleep(800);
+  await tapTab('.tab[data-tab="stocks"]'); await sleep(800);
 
   if (DISCOVER) {
     await page.click('#stockList .stock >> nth=0 >> .stock-head'); await sleep(1500);
@@ -185,12 +204,12 @@ const INIT2 = `(() => {
   async function invest(round) {
     const R = ' #' + round;
     for (const t of ['overview', 'stocks', 'trades', 'wishlist', 'deposits', 'pension']) {
-      await page.click('.tab[data-tab="' + t + '"]'); await sleep(900);
+      await tapTab('.tab[data-tab="' + t + '"]'); await sleep(900);
       await step('Invest: רענון בלשונית ' + t + R, async () => { await page.evaluate((n) => sessionStorage.setItem('__qa_mark', n), t); await page.reload({ waitUntil: 'load' }); }, { settle: 4500, lateAfter: 1200, expect: '#tab-' + t + '.active' });
     }
     if (ONLY === 'inv0') return;
-    if (ONLY === 'inv1') { for (const t of ['stocks', 'overview', 'wishlist', 'trades', 'overview']) await step('Invest: לשונית ' + t + R, () => page.click('.tab[data-tab="' + t + '"]'), { scroll: true, settle: 1600, lateAfter: 300, expect: '#tab-' + t + '.active' }); return; }
-    for (const t of ['overview', 'stocks', 'trades', 'wishlist', 'deposits', 'pension', 'overview']) await step('Invest: לשונית ' + t + R, () => page.click('.tab[data-tab="' + t + '"]'), { scroll: true, settle: 1600, lateAfter: 900, expect: '#tab-' + t + '.active' });
+    if (ONLY === 'inv1') { for (const t of ['stocks', 'overview', 'wishlist', 'trades', 'overview']) await step('Invest: לשונית ' + t + R, () => tapTab('.tab[data-tab="' + t + '"]'), { scroll: true, settle: 1600, lateAfter: 300, expect: '#tab-' + t + '.active' }); return; }
+    for (const t of ['overview', 'stocks', 'trades', 'wishlist', 'deposits', 'pension', 'overview']) await step('Invest: לשונית ' + t + R, () => tapTab('.tab[data-tab="' + t + '"]'), { scroll: true, settle: 1600, lateAfter: 900, expect: '#tab-' + t + '.active' });
     await step('Invest: הגדרות' + R, async () => { await jsClick('#menuBtn'); await sleep(350); await jsClick('#langBtn'); }, { scroll: true, settle: 1500, lateAfter: 900 });
     for (const id of ['advancedOpen', 'pfbkOpen', 'feedbackOpen']) {
       if (!(await page.$('#' + id + ':visible'))) continue;
@@ -200,18 +219,32 @@ const INIT2 = `(() => {
     await step('Invest: חזור ← סקירה' + R, back, { scroll: true, settle: 1500, lateAfter: 900 });
     await step('Invest: מטבע ₪' + R, () => click('#curToggleBtn'), { settle: 1500, lateAfter: 900 });
     await step('Invest: מטבע $' + R, () => click('#curToggleBtn'), { settle: 1500, lateAfter: 900 });
-    await page.click('.tab[data-tab="wishlist"]'); await sleep(900);
+    await tapTab('.tab[data-tab="wishlist"]'); await sleep(900);
     const wc = '#tab-wishlist .stock >> nth=0 >> .stock-head';
     if (await page.locator(wc).count()) {
       await step('Invest: מעקב — פתיחת כרטיס' + R, () => page.click(wc), { settle: 1800, lateAfter: 1000 });
       await step('Invest: מעקב — סגירת כרטיס' + R, () => page.click(wc), { settle: 1500, lateAfter: 1000 });
     }
-    await page.click('.tab[data-tab="stocks"]'); await sleep(900);
+    await tapTab('.tab[data-tab="stocks"]'); await sleep(900);
     for (const i of [0, 3, 6]) {
       await step('Invest: מניות — כרטיס ' + i + R, () => page.click('#stockList .stock >> nth=' + i + ' >> .stock-head'), { pre: '#stockList .stock >> nth=' + i, settle: 2000, lateAfter: 1000 });
       for (const rg of ['1D', '5D', '1M', 'YTD', '1Y']) await step('Invest: כרטיס ' + i + ' טווח ' + rg + R, () => page.locator('.stock.open .range-btn').filter({ hasText: new RegExp('^' + rg) }).first().click({ timeout: 4000 }), { settle: 1500, lateAfter: 900 });
       await step('Invest: מניות — סגירת כרטיס ' + i + R, () => page.click('.stock.open .stock-head'), { settle: 1500, lateAfter: 1000 });
     }
+    await investDial(round);
+  }
+  async function investDial(round) {
+    const R = ' #' + round;
+    await tapTab('.tab[data-tab="overview"]'); await sleep(1200); await page.evaluate(() => window.scrollTo(0, 0));
+    for (const dx of [-300, -300, -300, 300, 300, 300]) await step('Invest: החלקת עמוד ' + (dx < 0 ? '←' : '→') + ' (' + await dialCur('nav.tabs') + ')' + R, () => tswipe(dx, 520), { scroll: true, settle: 1600, lateAfter: 900 });
+    await step('Invest: חוגה — הגדרות' + R, () => tapTab('nav.tabs .tab[data-tab="settings"]'), { scroll: true, settle: 1600, lateAfter: 900, expect: '#tab-settings.active' });
+    await step('Invest: חוגה — סקירה' + R, () => tapTab('nav.tabs .tab[data-tab="overview"]'), { scroll: true, settle: 1600, lateAfter: 900, expect: '#tab-overview.active' });
+    await step('Invest: גרירת החוגה פריט אחד' + R, () => dialDrag('nav.tabs', -60, 120), { scroll: true, settle: 1700, lateAfter: 1000 });
+    await step('Invest: גרירת החוגה שלושה פריטים בתנופה' + R, () => dialDrag('nav.tabs', -200), { scroll: true, settle: 1900, lateAfter: 1100 });
+    await step('Invest: גרירת החוגה חזרה' + R, () => dialDrag('nav.tabs', 260, 120), { scroll: true, settle: 1900, lateAfter: 1100 });
+    await page.evaluate(() => window.scrollTo(0, 500)); await sleep(400);
+    await step('Invest: מאמצע הגלילה — החלקה' + R, () => tswipe(-300, 520), { scroll: true, settle: 1600, lateAfter: 900 });
+    await step('Invest: חוגה — סקירה (סוף)' + R, () => tapTab('nav.tabs .tab[data-tab="overview"]'), { scroll: true, settle: 1600, lateAfter: 900, expect: '#tab-overview.active' });
   }
 
 
@@ -255,6 +288,19 @@ const INIT2 = `(() => {
     await step('Academy: מסך הגיבוי' + R, () => click('.lib-bkpill'), { settle: 1200 });
     await step('Academy: חזור ← מגיבוי' + R, back, { settle: 1200, expect: '.lib-dial' });
     await step('Academy: רענון בבית' + R, async () => { await page.evaluate(() => sessionStorage.setItem('__qa_mark', 'home')); await page.reload({ waitUntil: 'load' }); }, { settle: 3000, lateAfter: 1200, expect: '.lib-dial' });
+    await academyDial(round);
+  }
+  async function academyDial(round) {
+    const R = ' #' + round;
+    if (!/academy\.html/.test(page.url())) { await page.goto(BASE + '/academy.html', { waitUntil: 'load' }); await sleep(2500); }
+    for (const k of ['settings', 'snb', 'mine', 'notes', 'snb']) await step('Academy: חוגה — ' + k + R, () => click('.lib-dial .tab[data-tab="' + k + '"]'), { settle: 1500, lateAfter: 900, dialIs: ['.lib-dial', k] });
+    for (const dx of [-300, -300, -300, 300, 300, 300]) await step('Academy: החלקת עמוד ' + (dx < 0 ? '←' : '→') + ' (' + await dialCur('.lib-dial') + ')' + R, () => tswipe(dx, 560), { settle: 1600, lateAfter: 900 });
+    await step('Academy: גרירת החוגה פריט אחד' + R, () => dialDrag('.lib-dial', -70, 120), { settle: 1700, lateAfter: 1000 });
+    await step('Academy: גרירת החוגה בתנופה' + R, () => dialDrag('.lib-dial', 220), { settle: 1900, lateAfter: 1100 });
+    await step('Academy: חוגה — הספרייה שלי' + R, () => click('.lib-dial .tab[data-tab="mine"]'), { settle: 1500, lateAfter: 900 });
+    await page.evaluate(() => { document.querySelector('.lib-root').scrollTop = 500; }); await sleep(400);
+    await step('Academy: מאמצע הגלילה — חוגה ← THE SNOWBALL' + R, () => click('.lib-dial .tab[data-tab="snb"]'), { settle: 1600, lateAfter: 900 });
+    await step('Academy: חוגה — הספרייה שלי (מראש העמוד)' + R, () => click('.lib-dial .tab[data-tab="mine"]'), { settle: 1500, lateAfter: 900 });
   }
 
   /* ---------- מנתח החברות ---------- */
@@ -262,7 +308,7 @@ const INIT2 = `(() => {
   async function analysis(round) {
     const R = ' #' + round;
     await toInvest();
-    await page.click('.tab[data-tab="stocks"]'); await sleep(700);
+    await tapTab('.tab[data-tab="stocks"]'); await sleep(700);
     await openCard(0);
     await step('ניתוח: פתיחה (נטען מראש)' + R, () => click('.stock.open .an-open-btn'), { pre: '.stock.open .an-open-btn', expect: '.an-root .an-keys', settle: 1800 });
     for (const m of ['1Y', '3Y', '10Y', 'MAX', '5Y']) await step('ניתוח: טווח ראש ' + m + R, () => page.locator('.an-hrng .range-btn').filter({ hasText: m }).first().click(), { expect: '.an-pxc svg, .an-pxc canvas' });
@@ -313,7 +359,7 @@ const INIT2 = `(() => {
   async function chart(round) {
     const R = ' #' + round;
     await toInvest();
-    await page.click('.tab[data-tab="stocks"]'); await sleep(700);
+    await tapTab('.tab[data-tab="stocks"]'); await sleep(700);
     await openCard(1);
     await step('גרף: פתיחה' + R, () => click('.stock.open .kc-open-btn'), { pre: '.stock.open .kc-open-btn', expect: '.kc-grid canvas', settle: 2500 });
     await step('גרף: אינטרוול (בורר)' + R, () => nth('.kc-pk', 0), { settle: 1000 });
@@ -429,6 +475,16 @@ const INIT2 = `(() => {
     await step('סטודיו: מאמצע ההגדרות ← אפשרויות מתקדמות' + R, () => row('אפשרויות מתקדמות'), { settle: 1500, expect: '.st-back' });
     await step('סטודיו: חזור ← אמצע ההגדרות' + R, stBack, { settle: 1400 });
     await step('סטודיו: הגדרות ← בית' + R, stBack, { settle: 1500, expect: '.st-newcard' });
+    for (const k of ['tower', 'job', 'settings', 'home', 'job', 'tower', 'home']) await step('סטודיו: חוגה — ' + k + R, () => click('.st-dial .tab[data-tab="' + k + '"]'), { settle: 1600, lateAfter: 900 });
+    for (const dx of [-300, -300, -300, 300, 300, 300]) await step('סטודיו: החלקת עמוד ' + (dx < 0 ? '←' : '→') + ' (' + await dialCur('.st-dial') + ')' + R, () => tswipe(dx, 600), { settle: 1600, lateAfter: 900 });
+    await step('סטודיו: גרירת החוגה פריט אחד' + R, () => dialDrag('.st-dial', -70, 120), { settle: 1700, lateAfter: 1000 });
+    await step('סטודיו: גרירת החוגה בתנופה' + R, () => dialDrag('.st-dial', 220), { settle: 1900, lateAfter: 1100 });
+    await step('סטודיו: חוגה — בית' + R, () => click('.st-dial .tab[data-tab="home"]'), { settle: 1600, lateAfter: 900, expect: '.st-newcard' });
+    await step('סטודיו: פרויקט חדש' + R, () => click('.st-newcard'), { settle: 1600, lateAfter: 900 });
+    await step('סטודיו: חזור ← בית (מפרויקט חדש)' + R, back, { settle: 1600, lateAfter: 900, expect: '.st-newcard' });
+    await scrollMid(); await sleep(400);
+    await step('סטודיו: מאמצע הבית — עבודה' + R, () => page.locator('.st-proj').nth(4).click({ timeout: 5000 }), { settle: 1600, lateAfter: 900, expect: '.st-back' });
+    await step('סטודיו: חזור ← אמצע הבית' + R, stBack, { settle: 1600, lateAfter: 900, expect: '.st-newcard' });
   }
 
   /* ---------- מרכז הניהול (admin.html): מנהל מדומה, נתונים בהשהיה — כל לשונית ותת־עמוד, בלי "טוען…" שמתחלף אחרי הכניסה ---------- */
@@ -464,6 +520,7 @@ const INIT2 = `(() => {
     if (!ONLY || ONLY === 'kc') await chart(r);
     if (!ONLY) await admin(r);
     if (!ONLY || ONLY === 'st') await studio(r);
+    if (ONLY === 'dial') { await investDial(r); await academyDial(r); }
   }
   const bad = results.filter((r) => r.bad);
   const md = ['# QA עמוק — ' + new Date().toISOString().slice(0, 16) + ' · ' + THEME + ' · cpu×' + CPU + ' · lat ' + LAT + 'ms', '', 'צעדים: ' + results.length + ' · בעייתיים: ' + bad.length, '',

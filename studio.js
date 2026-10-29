@@ -903,7 +903,9 @@ export function normStore(o) {
   const d = src.drive && typeof src.drive === 'object' ? { connected: src.drive.connected === true, email: String(src.drive.email || '').slice(0, 120), configured: src.drive.configured !== false } : null;
   const sugx = (Array.isArray(src.sugx) ? src.sugx : []).filter((x) => typeof x === 'string' && /^[a-z]{2,8}[0-9a-z]{1,8}$/.test(x)).slice(-500);   // מ6: "לא להציע שוב" (טביעות, בלי טקסט)
   const amd = (Array.isArray(src.amd) ? src.amd : []).filter((x) => typeof x === 'string' && JOB_RE.test(x)).slice(-200);   // סבב 10: עבודות שכבר הוצעה להן בדיקת משמעות אוטומטית
-  return { settings: migrateSettings(src.settings), drafts, jobs, conn: c, drive: d, sugx, amd };
+  // 29/10/2026 (S1 בסרטון): מצב השרת האחרון — הקפסולה בהדר נכונה כבר בציור הראשון ("שרת המערכת", לא "חיבור Claude" שמתחלף)
+  const st = src.st && typeof src.st === 'object' ? { api: normApi(src.st.api), mf: src.st.mf === true } : null;
+  return { settings: migrateSettings(src.settings), drafts, jobs, conn: c, drive: d, sugx, amd, st };
 }
 /* 10/10/2026: ברירת המחדל עברה מ־Opus Medium ל־Sonnet Medium — הגדרות שנשמרו לפני כן (בלי mv) עם הברירה הישנה עוברות פעם אחת
    לחדשה. בחירה אחרת שנשמרה (Sonnet High וכו׳) נשארת
@@ -1321,6 +1323,7 @@ async function refreshStatus(force) {
     ui.url = j.url === true;                   // 22/10/2026: הורדה מקישור (מנהל / "כל המודלים", הדגל, R2)
     ui.yc = j.yc === true;                     // 25/10/2026: יוטיוב לענן דרך חשבון ייעודי בשרת (הוגדר במרכז הניהול ולא נחסם)
     ui.mf = j.mf === true;                     // 15/10: כל מצבי התרגום (המנהל / רשימת "כל המודלים") — אחרת רק "רגיל" ו"ביצועים"
+    store.st = { api: ui.api || null, mf: ui.mf };   // 29/10/2026 (S1): לפתיחה הבאה
     ui.lrf = num(j.lrf);                       // 15/10: הנוסח של האיסוף המלא (תקופת הפיתוח) — נקרא
     save();
     lrnNotice();
@@ -9339,6 +9342,7 @@ export function openStudio(opt) {
   if (root) { if (jobLink) { if (jobRec(jobLink)) goJobLink(jobLink, linkView); else Promise.resolve(refreshJobs(true)).then(() => { if (root && jobRec(jobLink)) goJobLink(jobLink, linkView); }); } return; }
   const restore = opt && opt.restore && opt.restore.studio ? opt.restore : null;   // רענון בזמן שהסטודיו היה פתוח
   store = load();
+  if (store.st) { if (!ui.api) ui.api = store.st.api; ui.mf = store.st.mf; }   // 29/10/2026 (S1): עד שהסטטוס חוזר — המצב האחרון
   root = h('div', 'st-root no-swipe');
   root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', T('studioTitle'));
   root.tabIndex = -1;

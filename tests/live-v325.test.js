@@ -19,12 +19,16 @@ ok(!/state\.live = false/.test(tick), 'הכשל לא נוגע ב־state.live —
 const ctx = { console, Intl, Date };
 vm.createContext(ctx);
 const pure = app.slice(app.indexOf('function sourceLabelHTML('), app.indexOf('function updateSourceLabel()'));
-vm.runInContext('const t = (k) => k; const esc = (x) => String(x); const marketStatusKind = () => ({ kind: \'open\' }); const SRC_SESS_ICONS = {};\n' + pure + '\nglobalThis.sourceLabelHTML = sourceLabelHTML;', ctx);
+vm.runInContext('const t = (k) => k; const esc = (x) => String(x); const marketStatusKind = () => ({ kind: \'open\' }); const SRC_SESS_ICONS = {}; const LIVE_HOLD_MS = 90e3;\n' + pure + '\nglobalThis.sourceLabelHTML = sourceLabelHTML;', ctx);
 const tue = Date.UTC(2026, 9, 6, 15, 0); // יום ג׳ 11:00 ניו־יורק — שוק פתוח
 const liveHtml = ctx.sourceLabelHTML({ source: 'Yahoo', live: true, stale: false, session: '' }, tue);
 const staleHtml = ctx.sourceLabelHTML({ source: 'Yahoo', live: true, stale: true, session: '' }, tue);
 ok(!/srcDelayed/.test(liveHtml) && !/ delay/.test(liveHtml), 'קפסולה: חי = בלי "דיליי"');
 ok(/srcDelayed/.test(staleHtml) && / delay/.test(staleHtml), 'קפסולה: stale = "· דיליי" + מחלקת delay (נקודה אפורה)');
+// 29/10/2026 (סרטון המשתמש): רענון מלא שנגמר מ־CNBC (מרוץ המקורות) לא הופך את הקפסולה ל"דיליי" כשהיה טיק חי בדקה וחצי האחרונות
+const holdHtml = ctx.sourceLabelHTML({ source: 'CNBC', live: false, stale: false, session: '', liveAt: tue - 30e3 }, tue);
+const oldHtml = ctx.sourceLabelHTML({ source: 'CNBC', live: false, stale: false, session: '', liveAt: tue - 200e3 }, tue);
+ok(!/srcDelayed/.test(holdHtml) && /srcDelayed/.test(oldHtml) && /if \(state\.live\) state\.liveAt = Date\.now\(\);/.test(app) && /if \(c\.liveAt > 0\) state\.liveAt = c\.liveAt;/.test(app), 'קפסולה: חי נשמר דקה וחצי אחרי הטיק החי (בלי הבהוב "דיליי"), וגם בפתיחה מהמטמון');
 
 ok(/LIVE\.fail = true; for \(let i = 0; i < 110; i\+\+\)/.test(qa) && /55 שניות/.test(qa), 'כלי: צעד הכשל ממתין עד 55 שניות (סף 30 + טיק מלא)');
 ok(/row\.flicker > 0 && !opt\.flickerOk/.test(qa) && (qa.match(/flickerOk: true/g) || []).length >= 2, 'כלי: הבהוב מכוון (החלפת ערכת קורא לבן/שחור) מסומן flickerOk');
