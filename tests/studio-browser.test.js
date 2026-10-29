@@ -34,6 +34,9 @@ ok(!/HOOK = """/.test(act) && !/requestMethod = "HEAD"/.test(act), 'בלי עו�
 ok(!/putExtra\([^)]*(ck|cookie|Cookie|ua|userAgent)/.test(act), 'עוגיות ו־User-Agent לא עוברים ב־extras');
 ok(/filter \{ !it\.private && it\.url\.startsWith\("http"\) \}/.test(act), 'טאב פרטי לא נשמר בטאבים הפתוחים');
 ok((act.match(/if \(!t\.private\) BrStore\.(visit|setTitle)/g) || []).length >= 2, 'טאב פרטי לא נכנס להיסטוריה');
+ok(/BrStore\.saveStates\(pub\.map/.test(act) && /BrStore\.loadState\(i\)/.test(act), '"חזור"/"קדימה" שורדים סגירה ברקע — המצב של הטאבים (רק לא פרטיים) נשמר ונטען');
+ok(/restoreState\(st\) \}\.getOrNull\(\) != null\) navState\(t, w\) else if \(t\.url\.startsWith\("http"\)\) w\.loadUrl/.test(act), 'מצב שלא נפתח — טוענים את הכתובת (לא טאב ריק)');
+ok(/BrStore\.clearStates\(\)/.test(act), 'ניקוי נתוני הגלישה מוחק גם את מחסניות "חזור"');
 ok(/deleteProfile\(PRIV\)/.test(act) && /WebViewCompat\.setProfile\(w, PRIV\)/.test(act), 'טאב פרטי = פרופיל נפרד שנמחק');
 ok(/if \(!isUserGesture\) return false/.test(act), 'חלון קופץ בלי נגיעה — חסום');
 ok(/component = null; selector = null/.test(act), 'קישור intent: — בלי רכיב מפורש (לא נפתח רכיב פנימי של אפליקציה אחרת)');
