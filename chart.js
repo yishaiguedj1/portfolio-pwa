@@ -949,7 +949,7 @@ function loadStore() {
   return {
     g: {
       layout: [1, 2, 3, 4, 5].includes(g.layout) ? g.layout : 1, fav: Array.isArray(g.fav) ? g.fav.filter((x) => TF[x]).slice(0, 12) : DEF_FAV.slice(),
-      ext: g.extV === 2 ? !!g.ext : true, extV: 2, tz: g.tz === 'local' ? 'local' : 'ex', colors: ['tv', 'app', 'mono'].includes(g.colors) ? g.colors : 'app', grid: g.grid === 0 ? 0 : 1,
+      ext: g.extV === 2 ? !!g.ext : true, extV: 2, tz: g.tz === 'ex' ? 'ex' : 'local', colors: ['tv', 'app', 'mono'].includes(g.colors) ? g.colors : 'app', grid: g.grid === 0 ? 0 : 1,
       risk: +g.risk > 0 ? +g.risk : 100, scale: ['normal', 'logarithm', 'percentage'].includes(g.scale) ? g.scale : 'normal', hl: g.hl === 0 ? 0 : 1,
       syncSym: !!g.syncSym, syncTf: !!g.syncTf, stay: !!g.stay, fills: g.fills === 0 ? 0 : 1, cells, indFav: Array.isArray(g.indFav) ? g.indFav.filter((x) => typeof x === 'string').slice(0, 30) : [],
     },
