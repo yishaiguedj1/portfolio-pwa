@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2071 מפתחות מתוך 5497) */
+/* המחרוזות של studio (2076 מפתחות מתוך 5514) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -329,6 +329,8 @@ he: {
   "studioBusyWait": "לחכות",
   "studioBusyWaitOk": "נודיע לך כשיסתיים",
   "studioCancel": "ביטול",
+  "studioCapClaude": "Claude",
+  "studioCapSrv": "השרת",
   "studioCheapGo": "להמשיך ב־{m} · זול יותר",
   "studioCheapOk": "להמשיך בזול",
   "studioCheapQ": "להמשיך את העבודה ב־{m}? מנקודת השמירה, בעלות נמוכה יותר — האיכות עשויה להשתנות.",
@@ -1980,6 +1982,9 @@ he: {
   "studioUtWait1": "דבר אחד מחכה לך",
   "studioUtWaitN": "{n} דברים מחכים לך",
   "studioUtWaitS": "כל השאר עובד כרגיל",
+  "studioVConnect": "לחיבור",
+  "studioVOff": "לא מחובר",
+  "studioVOn": "מחובר",
   "studioVaAbQa": "חיכו לתשובה שלך",
   "studioVaAbT": "מסלולים חריגים · 30 יום",
   "studioVaBn": "{p} מהזמן · פי {x} מהצפוי",
@@ -1998,7 +2003,7 @@ he: {
   "studioVaSavedK": "חסכת",
   "studioVaT": "ערך ועלות",
   "studioVcDone": "הסרטון גם בענן ✓ — אפשר לצפות בו מכל מכשיר",
-  "studioVcStop": "העלאת הסרטון לענן נעצרה — ממשיכה לבד כשיש רשת",
+  "studioVcStop": "העלאת הסרטון לענן נעצרה — הכתוביות והצריבה בטלפון לא תלויות בה",
   "studioVcUp": "הסרטון עולה לענן ברקע · {p}% — אפשר לסגור את האפליקציה",
   "studioVideoAfter": "ממשיך כשההעלאה חוזרת",
   "studioVideoShort": "הסרטון",
@@ -2402,6 +2407,8 @@ en: {
   "studioBusyWait": "Wait",
   "studioBusyWaitOk": "We’ll notify you when it ends",
   "studioCancel": "Cancel",
+  "studioCapClaude": "Claude",
+  "studioCapSrv": "Server",
   "studioCheapGo": "Continue with {m} · cheaper",
   "studioCheapOk": "Continue cheaper",
   "studioCheapQ": "Continue the job with {m}? From the checkpoint, at a lower cost — quality may change.",
@@ -4053,6 +4060,9 @@ en: {
   "studioUtWait1": "One thing is waiting for you",
   "studioUtWaitN": "{n} things are waiting for you",
   "studioUtWaitS": "Everything else is running normally",
+  "studioVConnect": "Connect",
+  "studioVOff": "Offline",
+  "studioVOn": "Connected",
   "studioVaAbQa": "Waited for your answer",
   "studioVaAbT": "Unusual paths · 30 days",
   "studioVaBn": "{p} of the time · {x}× expected",
@@ -4071,7 +4081,7 @@ en: {
   "studioVaSavedK": "Saved",
   "studioVaT": "Value & cost",
   "studioVcDone": "The video is in the cloud too ✓ — watch it from any device",
-  "studioVcStop": "The cloud upload of the video stopped — it resumes on its own when there is a network",
+  "studioVcStop": "The cloud upload of the video stopped — the subtitles and the burn on the phone don't depend on it",
   "studioVcUp": "The video is uploading to the cloud in the background · {p}% — you can close the app",
   "studioVideoAfter": "continues when the upload resumes",
   "studioVideoShort": "video",

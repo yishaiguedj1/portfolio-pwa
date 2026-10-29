@@ -3060,7 +3060,13 @@ function jobsCard(rows) {
 function pageHome(p) {
   const pon = apiMode() ? ui.api.online > 0 : !!store.conn;
   const pill = btn('st-cpill' + (pon ? ' on' : ''), null, () => go('eng'), 'cpill');
-  pill.append(h('i'), h('span', null, apiMode() ? T('studioConnApiOn') : store.conn ? T('studioConnOn') : T('studioConnPill')));
+  const lbl = apiMode() ? T('studioConnApiOn') : store.conn ? T('studioConnOn') : T('studioConnPill');
+  // 29/10/2026 (בקשת המשתמש — אותו עיצוב של בועות ההדר, לפי ת־עיצוב): בהדר — כיתוב קטן (נקודה + השרת/Claude) והמצב מודגש מתחתיו
+  if (SA && SA.shell) {
+    const cap = h('span', 'sub-cap'); cap.append(h('i'), document.createTextNode(apiMode() ? T('studioCapSrv') : T('studioCapClaude')));
+    pill.append(cap, h('b', 'sub-val', pon ? T('studioVOn') : apiMode() ? T('studioVOff') : T('studioVConnect')));
+    pill.setAttribute('aria-label', lbl);
+  } else pill.append(h('i'), h('span', null, lbl));
   if (SA && SA.shell) { SA.shell.setStatus(pill); p.append(SA.shell.el); }   // עצמאי: ההדר המשותף — הלוגו של Studio במקום הכותרת, הקפסולה בהדר
   else p.append(navBar({ back: 'THE SNOWBALL', end: pill, go: SA ? () => { appGo(SA.home || './'); } : null }), large(T('studioTitle')));
   const ab = accessBanner(); if (ab) p.append(ab);

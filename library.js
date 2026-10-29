@@ -1231,8 +1231,9 @@ function backupPill() {                    // בועת מצב הגיבוי (ענ
   pillPrev = st;
   const ic = h('span', 'lib-bkpic');
   ic.innerHTML = st === 'ok' ? ICON.cloudOk : st === 'busy' ? ICON.cloudUp : st === 'err' ? ICON.cloudErr : ICON.cloudOff;
-  const label = st === 'ok' ? T('bkPillOk') : st === 'busy' ? T('bkPillBusy') : st === 'err' ? T('bkPillErr') : T('bkPillOff');
-  pill.append(ic, h('span', 'lib-bkplbl', label));
+  // 29/10/2026 (בקשת המשתמש — אותו עיצוב של בועות ההדר, לפי ת־עיצוב): כיתוב קטן (ענן + גיבוי) והמצב מודגש מתחתיו
+  const cap = h('span', 'sub-cap'); cap.append(ic, document.createTextNode(T('bkCap')));
+  pill.append(cap, h('b', 'sub-val', st === 'ok' ? T('bkVOk') : st === 'busy' ? T('bkVBusy') : st === 'err' ? T('bkVErr') : T('bkVOff')));
   // לקורא המסך — הפרטים המלאים (מה שהיה בכרטיס)
   const full = st === 'ok' ? [T('bkRowOn'), fmtWhen(s.lastAt), T('bkBooks', { n: s.count || 0 }), fmtBytes(s.bytes)].filter(Boolean).join(' · ')
     : st === 'busy' ? T('bkRowBusy') : st === 'err' ? T('bkRowErr') + ' · ' + bkErrText(s.err) : (signedIn() ? T('bkRowConnect') : T('bkRowSignIn'));
