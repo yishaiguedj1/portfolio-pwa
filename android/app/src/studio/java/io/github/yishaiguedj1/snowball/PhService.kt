@@ -18,6 +18,7 @@ class PhService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val i = intent ?: return START_NOT_STICKY
+        if (i.action == ACT_VCANCEL) { PhWork.vCancel = true; if (!busy) stopSelf(); return START_NOT_STICKY }   // רק הסרטון לענן
         if (i.action == ACT_CANCEL) { stop = true; PhFf.cancel(); PhPy.cancel(); if (!busy) stopSelf(); return START_NOT_STICKY }
         val pid = i.getStringExtra(X_PID) ?: return START_NOT_STICKY
         val burn = i.action == ACT_BURN
@@ -28,7 +29,18 @@ class PhService : Service() {
         val type = if (burn && Build.VERSION.SDK_INT >= 35) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING else ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
         startForeground(PhWork.N_ID, n, type)
         Thread {
-            try { if (burn) PhWork.burn(this, pid) { stop } else PhWork.up(this, pid) { stop } }
+            try {
+                if (burn) PhWork.burn(this, pid) { stop }
+                else {
+                    PhWork.up(this, pid) { stop }
+                    // 29/10/2026: הסרטון לענן — כשאין UIDT (מתחת לאנדרואיד 14) הוא עולה כאן, באותו שירות, אחרי הקול
+                    val r = PhStore.get(this, pid)
+                    if (!stop && r != null && r.optBoolean("vc") && !r.optBoolean("vJob")) {
+                        PhWork.video(this, pid, { stop }) { n -> PhWork.nm(this).notify(PhWork.N_VID, n) }
+                        PhWork.nm(this).cancel(PhWork.N_VID)
+                    }
+                }
+            }
             finally {
                 busy = false
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -49,6 +61,7 @@ class PhService : Service() {
         const val ACT_UP = "app.thesnowball.studio.PH_UP"
         const val ACT_BURN = "app.thesnowball.studio.PH_BURN"
         const val ACT_CANCEL = "app.thesnowball.studio.PH_CANCEL"
+        const val ACT_VCANCEL = "app.thesnowball.studio.PH_VCANCEL"
         const val X_PID = "pid"
         @Volatile var busy = false; private set
 

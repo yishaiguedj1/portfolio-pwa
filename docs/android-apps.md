@@ -30,3 +30,15 @@
 - מעטפות/בועה/ווידג׳טים (גבוה): 1 MainActivity — Theme.Material (אפור) → שחור → לבן של Chrome; צריך SplashTheme שחור אחיד (main/AndroidManifest.xml:15,28; MainActivity.kt:174-190). 2 MainActivity.kt:146 launch בלי splashScreenStrategy — לבן עד הציור. 3 MainActivity "טוען…" ו־onRestart finish — הבהוב בחזרה. 4 GrabService.kt:296-303/158-160 הבועה מפורקת ונוצרת מחדש עם scale בכל יציאה/חזרה של הנגן מהמסך. 5 GrabService.kt:38-39 updateViewLayout ב־60Hz + refresh — הבועה מדלגת.
 - (בינוני): 6 GrabService.kt:136-139 בועה בצד ואז קפיצה לנגן. 7 snap/hideHint רוחב משתנה (354-368). 8 alpha של low בקפיצה. 9 show() — פריים בגודל מלא לפני alpha=0 (278-283). 10 ווידג׳ט — לוגו מופיע באיחור (SnowballWidget.kt:72-75,380). 11 initialLayout של Glance — ספינר ברירת מחדל. 12 "טוען…" בווידג׳ט בלי retry (MonRefreshWorker). 13 repaint כל דקה גם בלי שינוי (WidgetRefresh.kt:103-118, MonRefresh.kt:82-88).
 - (נמוך): 14 colors בלי night. 15 HuntActivity/DmTheme בלי windowBackground. 16 גרירה ל"לא עכשיו" בלי אנימציה.
+
+**הסרטון לענן מהאפליקציה (`spec.vc`, 29/10/2026):**
+- **ההפעלה.** ה־intent מהאתר כולל `vc:1`, ו־`PhActivity` שומר אותו ברשומה. אחרי `startWork` (גם ב־"להמשיך") מתזמנים `PhUpJob.schedule`. התזמון אפשרי רק כשהאפליקציה גלויה.
+- **`PhUpJob`.** ‏UIDT מאנדרואיד 14, ‏JOB_ID 4300, תהליך `:ph`. ‏`onStopJob` מחזיר true, כלומר ממשיכים מהחלקים שכבר ב־R2.
+- **מתחת לאנדרואיד 14, או כשהתזמון נכשל** (`vJob` false): ‏`PhService` מעלה את הסרטון אחרי הקול.
+- **`PhWork.video`.**
+  - מחכה לעבודה (`aId`) עד 20 דק׳.
+  - מעלה ב־`PhNet.uploadPar`: ‏`CONC = 4`, ו־`r2_gone` מבקש `phUp` מחדש פעם אחת.
+  - מדווח `phVp` כל 3% או 30 שנ׳, ובסוף שולח `phFile` עם which v.
+  - קודים שמנסים שוב: `VC_RETRY`.
+- **`PhStore.update` מסונכרן.** שני תהליכונים כותבים לאותה רשומה, הקול והסרטון.
+- **ביטול בהתראה** (`PhService.ACT_VCANCEL` → `PhWork.vCancel`, באותו תהליך `:ph`): עוצר רק את ההעלאה לענן. נרשם `vE = "cancel"` ו־`phVp` עם `e: cancel`, והמשימה לא חוזרת.

@@ -144,7 +144,8 @@ export async function bgUpload(o, env) {
     };
     let seen = shown(), started = (bg.uploaded || 0) > 0, quiet = 0, last = now(), vt = 0, vb = seen;   // vt = זמן שהדף הוצג, vb = כמה כבר היה בהתחלה
     const poll = () => {
-      if (!o.poll || polling || fin || !vis() || now() - polled < BG_POLL_MS) return;
+      // 29/10/2026: גם כשהדף מוסתר — אחרת Background Fetch שנתקע כשהטלפון בכיס לא נבדק עד שחוזרים (בצילום: 1:20 ש׳)
+      if (!o.poll || polling || fin || now() - polled < BG_POLL_MS) return;
       polling = true; polled = now();
       Promise.resolve().then(() => o.poll()).catch(() => null).then((j) => {
         polling = false;
@@ -163,7 +164,9 @@ export async function bgUpload(o, env) {
       const t = now();
       // כל החלקים כבר ב־R2 — רק הסגירה נשארה (ה־service worker עושה אותה); לא מבטלים ולא סוגרים במקביל אליו
       if (cur !== seen || srv >= o.size) { started = started || cur > seen; seen = cur; quiet = 0; }
-      else if (vis()) quiet += Math.min(10000, Math.max(0, t - last));   // טיק אחרי רקע ארוך — לא נספר כולו
+      // טיק אחרי הקפאה ארוכה — לא נספר כולו. מוסתר: Chrome מריץ טיימרים פעם בדקה — לכן עד דקה לטיק (29/10/2026: עד היום
+      // השעון עמד כשהדף מוסתר, ובדיוק אז Background Fetch עובד לבד)
+      else quiet += Math.min(vis() ? 10000 : 60000, Math.max(0, t - last));
       if (vis()) vt += Math.min(10000, Math.max(0, t - last));
       last = t;
       // איטי: אחרי BG_SLOW_MS של דף מוצג הקצב מתחת ל־BG_FAST_BPS וגם לא נשאר מעט — ההעלאה הרגילה מהירה יותר
@@ -176,7 +179,7 @@ export async function bgUpload(o, env) {
       if (quiet >= bgStallLimit(started, ps)) {
         fin = true; cleanup();
         Promise.resolve().then(() => bg.abort()).catch(() => {}).then(() => env.del && env.del(id)).catch(() => {})
-          .then(() => resolve({ fallback: 'bg_stall', stall: true, started }));
+          .then(() => resolve({ fallback: 'bg_stall', stall: true, started, hid: !vis() }));   // hid — נתקע כשהדף מוסתר: הקורא מנסה Background Fetch חדש
       }
     };
     const iv = setInterval(tick, 2000);   // גם בלי אירוע progress (חלק Chrome לא שולחים אחרי הסיום)

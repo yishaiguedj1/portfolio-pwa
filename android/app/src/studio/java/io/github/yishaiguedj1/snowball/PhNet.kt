@@ -13,6 +13,7 @@ import java.net.URL
  */
 class PhNet(private var base: String, private val job: String, private val key: String) {
     class Err(val code: String) : Exception(code)
+    companion object { const val CONC = 4 }   // 29/10/2026: חלקים במקביל בהעלאת הסרטון (= R2_CONC באתר)
 
     init { require(PhCore.hostOk(base) && PhCore.JOB_RE.matches(job) && PhCore.KEY_RE.matches(key)) }
 
@@ -76,7 +77,67 @@ class PhNet(private var base: String, private val job: String, private val key: 
         }
     }
 
-    private fun put(url: String, f: File, range: LongRange): Int {
+    /** 29/10/2026: הסרטון לענן (spec.vc) — כמו upload, אבל CONC חלקים במקביל (בסלולרי חיבור אחד לא ממלא את קו ההעלאה),
+     *  התקדמות בבתים (כולל מה שבדרך), ו־extra בכל קריאה לשרתון (v=true). עצירה — Err("stopped") אחרי שהחלקים שבדרך
+     *  נגמרו; כמה סבבים בלי שום חלק — Err("net"), והמשימה מתוזמנת שוב וממשיכה מהחלקים שכבר ב־R2 */
+    fun uploadPar(f: File, type: String, name: String, extra: JSONObject, id0: String, up0: String, save: (String, String) -> Unit,
+                  stop: () -> Boolean, progress: (Long) -> Unit): String {
+        val size = f.length()
+        fun body() = JSONObject(extra.toString())
+        fun start(id: String) = call("phUp", body().put("size", size).put("type", type).put("name", name).apply { if (id.isNotEmpty()) put("id", id) })
+        var r = if (up0.isNotEmpty() && id0.isNotEmpty()) call("phParts", body().put("id", id0).put("up", up0)) else start(id0)
+        var idle = 0
+        var regone = false
+        while (true) {
+            if (!r.optBoolean("ok")) {
+                if (r.optString("error") == "r2_gone" && !regone) { regone = true; r = start(id0); continue }   // ההעלאה פגה — מחדש, אותו קובץ
+                throw Err(r.optString("error", "up"))
+            }
+            val id = r.optString("id").ifEmpty { id0 }
+            val up = r.optString("up")
+            if (up.isEmpty()) { if (r.has("file")) return id; throw Err("up") }
+            save(id, up)
+            val ps = maxOf(1L, r.optLong("ps"))
+            val done = HashSet<Int>()
+            r.optJSONArray("done")?.let { a -> for (i in 0 until a.length()) done.add(a.optInt(i)) }
+            val urls = r.optJSONObject("urls") ?: JSONObject()
+            val total = PhCore.parts(size, ps)
+            val base = done.sumOf { n -> PhCore.part(n, ps, size).let { it.last - it.first + 1 } }
+            val todo = java.util.concurrent.ConcurrentLinkedQueue<Pair<Int, String>>()
+            for (k in urls.keys()) { val n = k.toIntOrNull() ?: continue; if (n !in done) todo.add(n to urls.getString(k)) }
+            val live = java.util.concurrent.ConcurrentHashMap<Int, Long>()
+            val sent = java.util.concurrent.atomic.AtomicLong(0)
+            val ok = java.util.concurrent.atomic.AtomicInteger(0)
+            val broke = java.util.concurrent.atomic.AtomicBoolean(false)
+            val lock = Any()
+            fun rep() = synchronized(lock) { progress(minOf(size, base + sent.get() + live.values.sum())) }
+            val th = (1..minOf(CONC, maxOf(1, todo.size))).map {
+                Thread {
+                    while (!broke.get() && !stop()) {
+                        val (n, u) = todo.poll() ?: break
+                        val g = PhCore.part(n, ps, size)
+                        live[n] = 0L
+                        val st = put(u, f, g) { b -> live[n] = b; rep() }
+                        live.remove(n)
+                        if (st in 200..299) { sent.addAndGet(g.last - g.first + 1); ok.incrementAndGet(); rep() } else broke.set(true)   // קישור שפג / ניתוק
+                    }
+                }.apply { start() }
+            }
+            th.forEach { it.join() }
+            if (stop()) throw Err("stopped")
+            if (!broke.get() && done.size + ok.get() >= total) {
+                val d = call("phDone", body().put("id", id).put("up", up))
+                if (d.optBoolean("ok")) return id
+                if (d.optString("error") != "r2_parts") throw Err(d.optString("error", "up"))
+            }
+            idle = if (ok.get() > 0) 0 else idle + 1
+            if (idle > 5) throw Err("net")
+            if (broke.get()) Thread.sleep(minOf(30_000L, 2000L shl minOf(idle, 4)))
+            r = call("phParts", body().put("id", id).put("up", up))
+        }
+    }
+
+    private fun put(url: String, f: File, range: LongRange, onBytes: ((Long) -> Unit)? = null): Int {
         require(url.startsWith("https://"))
         val len = range.last - range.first + 1
         return try {
@@ -88,7 +149,11 @@ class PhNet(private var base: String, private val job: String, private val key: 
                 raf.seek(range.first)
                 c.outputStream.use { o ->
                     val buf = ByteArray(1 shl 16); var left = len
-                    while (left > 0) { val n = raf.read(buf, 0, minOf(buf.size.toLong(), left).toInt()); if (n < 0) break; o.write(buf, 0, n); left -= n }
+                    var last = 0L
+                    while (left > 0) {
+                        val n = raf.read(buf, 0, minOf(buf.size.toLong(), left).toInt()); if (n < 0) break; o.write(buf, 0, n); left -= n
+                        if (onBytes != null && len - left - last >= (1L shl 20)) { last = len - left; onBytes(last) }
+                    }
                 }
             }
             c.responseCode.also { c.disconnect() }

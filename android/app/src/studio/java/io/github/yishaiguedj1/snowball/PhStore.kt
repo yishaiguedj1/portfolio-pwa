@@ -37,7 +37,8 @@ object PhStore {
         t.writeText(r.toString()); t.renameTo(f)
     }
 
-    fun update(ctx: Context, pid: String, fn: (JSONObject) -> Unit): JSONObject? {
+    // 29/10/2026: synchronized — שני תהליכונים כותבים לאותה רשומה (הקול ב־PhService והסרטון ב־PhUpJob); בלי זה אחד דורס את השני
+    @Synchronized fun update(ctx: Context, pid: String, fn: (JSONObject) -> Unit): JSONObject? {
         val r = get(ctx, pid) ?: return null
         fn(r); put(ctx, r); return r
     }

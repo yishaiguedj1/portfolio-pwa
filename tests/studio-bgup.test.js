@@ -299,14 +299,15 @@ const { fakeR2, ENV } = require('./_r2fake');
     {
       let calls = 0;
       const poll = async () => { calls++; return { ok: true, ps: 64, done: [1] }; };
+      // 29/10/2026: גם כשהדף מוסתר שואלים את השרתון (Background Fetch שנתקע כשהמסך כבוי לא זוהה) — אבל רק פעם ב־BG_POLL_MS
       r = await run({ poll, vis: () => false, steps: tens(10) });
-      ok(calls === 0, 'הדף ברקע — לא פונים לשרתון (בלי קריאות מיותרות)');
+      ok(calls >= 3 && calls <= 6, 'הדף ברקע — פונים לשרתון, לכל היותר פעם ב־20 שנ׳');
       calls = 0;
       r = await run({ poll, steps: tens(10) });
       ok(calls >= 3 && calls <= 6, 'פנייה לשרתון לכל היותר פעם ב־20 שנ׳ (לא בכל טיק)');
     }
     r = await run({ vis: () => false, steps: tens(40) });
-    ok(!r.res && !r.aborted, 'הדף ברקע — לא סופרים (שם Background Fetch הוא כל הטעם)');
+    ok(r.res && r.res.stall && r.res.hid, 'הדף ברקע ו־Background Fetch לא זז — מזוהה כתקיעה (hid → מנסים Background Fetch חדש)');
     r = await run({ steps: [{ dt: 10000, up: 0 }, { dt: 60000, up: 0 }, { dt: 60000, up: 0 }] });
     ok(!r.res, 'טיק אחד אחרי הפסקה ארוכה (טיימר מואט) — לא נספר כולו');
     r = await run({ start: 10, steps: tens(15).concat([{ dt: 10000, up: 20 }], tens(15)) });
@@ -419,8 +420,8 @@ const { fakeR2, ENV } = require('./_r2fake');
     'הסרטון ברקע רק אחרי הקול (Background Fetch אי אפשר להשהות), ואחריו תמיד ההעלאה הרגילה (סוגרת / ממשיכה)');
   ok(/const f = cur = flip\(shown, 0\);/.test(uv) && /const f = cur = flip\(handOk, BG_HAND_MS\);/.test(uv) && /signal: f\.signal/.test(uv) && /catch \(e\) \{ if \(!f\.flipped\(\)\) throw e; \}/.test(uv),
     '29/10/2026: דף מוצג — הרגילה; ברקע BG_HAND_MS — Background Fetch; חוזרים לדף — מיד חזרה לרגילה (החלפה לא נחשבת עצירה)');
-  ok(/if \(r && !r\.ok\) bgOff = true;/.test(uv) && /if \(bgOk && shown\(\)\) await Promise\.race\(\[bgAbort\(id\),/.test(uv),
-    'Background Fetch שנכשל — עד הסוף רק הרגילה; העלאה ברקע ישנה מבוטלת לפני הרגילה (לא אותם חלקים פעמיים)');
+  ok(/if \(r && !r\.ok && !\(r\.stall && r\.hid && \+\+bgRe <= BG_RE\)\) bgOff = true;/.test(uv) && /const BG_RE = 2;/.test(st) && /if \(bgOk && shown\(\)\) await Promise\.race\(\[bgAbort\(id\),/.test(uv),
+    'Background Fetch שנכשל — עד הסוף רק הרגילה (חוץ מתקיעה כשהדף מוסתר — עד 2 ניסיונות חדשים); העלאה ברקע ישנה מבוטלת לפני הרגילה');
   ok(/if \(o\.signal && o\.signal\.aborted\) return \{ aborted: true \};/.test(read('studiobg.js')), 'הדף חזר לפני ההתחלה — בלי r2bg ובלי רישום');
   ok((st.match(/audioSettle\(\)/g) || []).length >= 3, 'הקול "הסתיים" בכל מסלול: כבר עלה / אין קול / עלה עכשיו');
   ok(/stopRun\(id\);\s*bgAbort\(id\);/.test(st), 'מחיקה / ביטול עבודה — מבטלים גם את ההעלאה ברקע (גם כשהדף לא מריץ אותה)');
