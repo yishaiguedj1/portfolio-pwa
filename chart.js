@@ -1279,6 +1279,25 @@ function quoteSyms() {
   return [...s];
 }
 let quiet = 0;
+/* 29/10/2026 (סבב קפיצות 4, סרטון הגרף): בפתיחה הראש הציג את סגירת הנר האחרון בלי שורת השינוי, וחצי שנייה אחר כך
+   המחיר החי והשינוי נכנסו והזיזו את הכל. המחירים האחרונים נשמרים באפליקציה (E.qcache — נתוני שוק ציבוריים) ומשמשים לציור
+   הראשון — רק אם הם מ־30 הדקות האחרונות */
+const KCQ_MAX_MS = 30 * 60e3;   // המטמון עצמו באפליקציה (E.qcache, pwa_kcq_v1)
+let kcqAt = 0;
+function kcqSave(d) {
+  if (!d || Date.now() - kcqAt < 15e3) return;
+  kcqAt = Date.now();
+  try { if (E.qcache) E.qcache.set({ t: kcqAt, d: Object.assign({}, S.wq) }); } catch (e) {}
+}
+function kcqSeed() {
+  try {
+    const o = E.qcache ? E.qcache.get() : null;
+    if (o && o.d && Date.now() - (o.t || 0) < KCQ_MAX_MS) for (const k of Object.keys(o.d)) if (!S.wq[k]) S.wq[k] = o.d[k];
+  } catch (e) {}
+  let any = false;
+  for (const c of S.cells) { const d = S.wq[c.sym], q = d && parseQuote(d); if (q && !c.q) { c.q = q; any = true; } }
+  if (any) updHeader();
+}
 /* 27/10/2026 (בקשת המשתמש: "שלא יגיעו בשום צורה למגבלות של Vercel ו־Firebase"): כשהבקשות הולכות ל־Vercel (השרת שלנו
    נפל והטלפון עבר לגיבוי, או כתובת ישנה) — מחיר כל 10 שנ׳ ונרות פי 6 לאט יותר. בשרת שלנו (הרגיל) — כל שנייה */
 const lite = () => { try { return !!(E && E.lite && E.lite()); } catch (e) { return false; } };
@@ -1293,7 +1312,10 @@ async function poll() {
   try {
     const j = await E.quotes(quoteSyms());
     if (!ROOT || !j || !j.ok) return;
-    S.wq = j.data || {};
+    // 29/10/2026 (סבב קפיצות 4, סרטון הגרף): מיזוג ולא החלפה — כשהמגירה סגורה הבקשה רק על המניה שבגרף, ורשימת המעקב
+    // נפתחה שוב עם "—" בכל השורות עד הטיק הבא (אותו לקח כמו applyQuotes ב־Invest)
+    S.wq = Object.assign({}, S.wq, j.data || {});
+    kcqSave(j.data);
     let live = false;
     for (const c of S.cells) {
       const d = S.wq[c.sym], q = d && parseQuote(d);
@@ -3260,10 +3282,11 @@ export async function openChart(sym, env) {
   S.store = loadStore();
   S.sel = null; S.tool = null; S.pick = null; S.sheets = []; S.range = null; S.allLocked = false; S.allHidden = false;
   build(sym);
+  kcqSeed();
   quiet = 0;
   clearInterval(S.timer);
   S.timer = setInterval(() => { poll(); updClock(); }, 1000);
-  setTimeout(poll, 300);
+  setTimeout(poll, 0);
   if (bgList().length || BG.st === 'on') setTimeout(() => bgSync(false), 1500);   // מה שנשלח ברקע → מסומן כאן; מנוי שהתחלף → מתעדכן
   if (typeof matchMedia === 'function') { S.mq = matchMedia('(prefers-color-scheme: dark)'); S.mqf = () => restyleAll(); try { S.mq.addEventListener('change', S.mqf); } catch (e) { /* דפדפן ישן */ } }
 }

@@ -23,6 +23,9 @@
   let auth = null;
   let fs = null;
   let user = null;
+  const LS_ACC_PROF = 'pwa_accprof_v1';    // 29/10/2026: שם/מייל/תמונה מהחיבור האחרון — כרטיס החשבון בציור הראשון (ACCOUNT_KEYS)
+  let authSettled = false;                    // onAuthStateChanged כבר ענה פעם אחת
+  const accProf = () => { try { const o = JSON.parse(localStorage.getItem(LS_ACC_PROF) || 'null'); return o && (o.n || o.e) ? o : null; } catch (e) { return null; } };
   const LS_CLOUD_USER = 'pwa_cloud_user_v1'; // v193: '1' כשיש משתמש ענן מחובר במכשיר הזה
   let localMode = false;
   let bootFallback = null;
@@ -327,7 +330,7 @@
       return d;
     };
 
-    if (!sdkOk()) {
+    if (!sdkOk() && !(isConfigured && !localMode && accProf())) {
       box.appendChild(mk(
         '<p class="fine" style="padding:0">' + t('cloudNotSetup') + '</p>'
       ).firstChild);
@@ -348,7 +351,18 @@
       return list;
     };
 
+    /* 29/10/2026 (סבב קפיצות 4, סרטון Invest — ההגדרות): עד שה־SDK נטען (חצי שנייה אחרי הפתיחה) הכרטיס הציג "חיבור ענן
+       לא הוגדר" ואז קפץ לפרטי החשבון. מי שהיה מחובר במכשיר — הפרטים מהפעם הקודמת (LS_ACC_PROF), באותו גודל בדיוק */
+    const prof = !user && isConfigured && !localMode && !authSettled ? accProf() : null;
+    if (prof) {
+      box.appendChild(idRow('<img alt="" src="' + esc(prof.p || 'icon-192.png') + '">', prof.n || t('userLabel'), prof.e || ''));
+      box.appendChild(actRow('acc-keys', KEY_IC, t('accMethods'), () => { import('./acclink.js').then((m) => m.methodsSheet()).catch(() => {}); }));
+      box.appendChild(actRow('acc-out', OUT_IC, t('signOut'), () => { if (auth) signOut(); }));
+      return;
+    }
+
     if (user) {
+      try { localStorage.setItem(LS_ACC_PROF, JSON.stringify({ n: user.displayName || '', e: user.email || '', p: user.photoURL || '' })); } catch (e) {}
       const unver = !user.emailVerified && (user.providerData || []).some((p) => p && p.providerId === 'password');   // מייל שעוד לא אומת — בלי הרשאות עד האימות
       const row = idRow('<img alt="" src="' + esc(user.photoURL || 'icon-192.png') + '">', user.displayName || t('userLabel'), (user.email || '') + (unver ? ' · ' + t('accUnverified') : ''));
       const img = row.querySelector('img');
@@ -392,7 +406,7 @@
     }
     // v193: האפליקציה כבר צוירה מהנתונים המקומיים (init קורא ל־startApp לפני boot); ה־SDK נטען אחרי הפריים הראשון
     const go = () => loadSdk().then((ok) => {
-      if (!ok || !initSdk()) { renderAccountCard(); fallback(); return; }
+      if (!ok || !initSdk()) { authSettled = true; renderAccountCard(); fallback(); return; }
       wireLoginUi();
       watchAuth();
       emailLinkLanding();
@@ -422,10 +436,13 @@
       clearTimeout(saveTimer);
       ready = false;
       user = u;
+      if (u) authSettled = true;
       // v193: דגל "היה מחובר" — app.js משתמש בו כדי לא לצייר תיק ריק לרגע כשהאחסון המקומי ריק אבל הענן מלא
       try { if (u) localStorage.setItem(LS_CLOUD_USER, '1'); else localStorage.removeItem(LS_CLOUD_USER); } catch (e) {}
       if (!u) {
         if (await sessSignIn()) return;                  // מחובר באפליקציה אחרת — onAuthStateChanged יחזור עם המשתמש
+        authSettled = true;                              // לא מחובר באמת — בלי הפרטים מהפעם הקודמת
+        try { localStorage.removeItem(LS_ACC_PROF); } catch (e) {}
         if (switchOwner(null, null) === true) return;   // v313: התנתקות — הנתונים של החשבון יוצאים מהמכשיר הפעיל
         if (!localMode) showLogin();
         renderAccountCard();

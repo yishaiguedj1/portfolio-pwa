@@ -2337,13 +2337,23 @@ const STUDIO_DIAL = {
     if (!to) { stDialC = { side, p: 0, rub: true, out: cubeFace(root, { dead: true }), bd, from: cur }; return stDialC; }
     const pg = stSibPage(to);
     if (!pg) { bd.remove(); return null; }
-    const ghost = cubeClone(root);
-    stDialC = { from: cur };
-    try { pg.render(); } catch (e) { ghost.remove(); bd.remove(); stDialC = null; return null; }
-    stDialC = { side, p: 0, out: cubeFace(ghost, { dead: true }), in: cubeFace(root), ghost, bd, pg, from: cur, to };
-    return stDialC;
+    // 29/10/2026 (סבב קפיצות 4): ההעתק נצבע שני פריימים לפני שהאח מצויר (core: cubePre). עד אז הקובייה "ממתינה" —
+    // cubeSet רק שומר את p, ו־land/drop משלימים את ההכנה קודם
+    const c = { side, p: 0, bd, from: cur, to };
+    stDialC = c;
+    const build = (ghost) => {
+      c.pre = null;
+      try { pg.render(); } catch (e) { ghost.remove(); bd.remove(); c.dead = true; if (stDialC === c) stDialC = null; return; }
+      Object.assign(c, { out: cubeFace(ghost, { dead: true }), in: cubeFace(root), ghost, pg });
+      delete c.warm;
+      cubeSet(c, c.p || 0);
+    };
+    if (typeof cubePre === 'function') c.pre = cubePre(root, build); else build(cubeClone(root));
+    return c.dead ? null : c;
   },
   drop(c) {
+    if (c.pre) c.pre.now();
+    if (c.dead) return;
     cubeSet(c, 0);
     if (c.pg) { try { c.pg.undo(); } catch (e) {} }
     cubeFaceOff(c.in); if (c.rub) cubeFaceOff(c.out);
@@ -2352,6 +2362,8 @@ const STUDIO_DIAL = {
     if (stDialC === c) stDialC = null;
   },
   land(c) {
+    if (c.pre) c.pre.now();
+    if (c.dead) return;
     cubeSet(c, 1);
     cubeFaceOff(c.in); c.ghost.remove(); c.bd.remove();
     if (stDialC === c) stDialC = null;
@@ -9184,8 +9196,13 @@ function livePaint() {
   for (const el of root.querySelectorAll('[data-live]')) { try { if (el._live) el._live(el); } catch (e) {} }
 }
 const repaint = () => { if (root) livePaint(); };
-function render(kind, still) {     // kind: none (ציור מחדש במקום) / push / pop; still = בלי אנימציה (Chrome כבר הנפיש)
+function render(kind, still, pre) {     // kind: none (ציור מחדש במקום) / push / pop; still = בלי אנימציה (Chrome כבר הנפיש); pre = העתק מוכן (cubePre)
   if (!root) return;
+  /* 29/10/2026 (סבב קפיצות 4): ההעתק נצבע שני פריימים לפני הציור החדש (core: cubePre) — אחרת בטלפון פריים ריק בתחילת
+     כל מעבר. בזמן ההמתנה ציור במקום (רענון חי) מחכה: הציור של המעבר יבוא מיד */
+  const anim0 = (kind === 'push' || kind === 'dfwd' || kind === 'pop' || kind === 'dback') && !still && !reduceMotion() && !document.hidden;
+  if (!pre && anim0 && typeof cubePre === 'function' && root.firstChild) { cubePre(root, (g) => { if (root) render(kind, still, g); else g.remove(); }); return; }
+  if (!pre && kind === 'none' && typeof cubePreBusy === 'function' && cubePreBusy()) return;
   const seq = ++renderSeq;
   if (kind !== 'none') rsClose();   // מעבר דף — הגיליון של המשוב לא נשאר מעל
   const keepY = kind === 'none' ? root.scrollTop : ((kind === 'pop' || kind === 'sibpop' || kind === 'dfwd' || kind === 'dback') ? (scrolls[viewKey()] || 0) : 0);
@@ -9244,14 +9261,14 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'def') pageDef(p);
   else if (ui.view === 'connect') pageConnect(p);
   else pageHome(p);
-  if (!root || seq !== renderSeq) return;   // הדף חזר אחורה תוך כדי בנייה (טיוטה שנמחקה וכו') — הציור החדש כבר במקום
+  if (!root || seq !== renderSeq) { if (pre) pre.remove(); return; }   // הדף חזר אחורה תוך כדי בנייה (טיוטה שנמחקה וכו') — הציור החדש כבר במקום
   /* 14/10/2026 (בקשת המשתמש): מעבר בין דפים = קובייה, כמו בשלוש האפליקציות (core: cubeClone/cubeGhostRun) — הדף היוצא =
      העתק של השכבה, החדש נצבע בשכבה עצמה מתחתיו. בלי המנוע — הכניסה הישנה (in-push/in-pop) */
   const fwd = kind === 'push' || kind === 'dfwd';
   const anim = (fwd || kind === 'pop' || kind === 'dback') && !still && !reduceMotion() && !document.hidden;
   // 29/10/2026: החוגה זזה יחד עם הקובייה (אותו קפיץ). באמצע החלקה / נסיעה של החוגה (sib, העתק על המסך) — המנוע מזיז אותה
   if (kind !== 'sib' && kind !== 'sibpop' && !(kind === 'none' && root.nextElementSibling && root.nextElementSibling.classList.contains('cube-ghost'))) stDialSync(!anim);
-  const ghost = anim && typeof cubeClone === 'function' && root.firstChild ? cubeClone(root) : null;
+  const ghost = pre || (anim && typeof cubeClone === 'function' && root.firstChild ? cubeClone(root) : null);
   if (anim && !ghost) p.classList.add(fwd ? 'in-push' : 'in-pop');
   // 29/10/2026 (בטלפון: תפריט ההמבורגר ב־Studio שקוף, התוכן חד מאחוריו — שונה מ־Academy): שכבת הטשטוש של התפריט (shell.js)
   // יושבת בתוך השכבה; ציור דף מחדש (רענון הרשימה) מחק אותה. נשארת כל עוד התפריט פתוח

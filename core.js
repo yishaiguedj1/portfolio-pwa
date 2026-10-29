@@ -341,8 +341,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.88.0';
-const APP_VERSION = 'v634';
+const APP_RELEASE = '2.88.1';
+const APP_VERSION = 'v635';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -351,7 +351,7 @@ function appVersionLabel() {
 }
 
 const LS_OWNER = 'pwa_owner_v1', LS_STASH = 'pwa_stash_v1:', LS_LEGACY_OWNER = 'pwa_legacy_owner_v1';
-const ACCOUNT_KEYS = ['pwa_db_v1', 'pwa_ibkr_v1', 'pwa_predemo_v1', 'pwa_wlactive_v1', 'pwa_srcfilter_v1', 'pwa_tdkey_v1', 'pwa_libbk_v1', 'pwa_libcoll_v1', 'pwa_studio_v1', 'pwa_pfbk_v1', 'pwa_charts_v1'];   // v318: גיבוי הספרייה הפרטית · v320: אסופות הספרייה · v354: טיוטות הסטודיו · 14/10/2026: גיבוי Invest ל־Drive
+const ACCOUNT_KEYS = ['pwa_db_v1', 'pwa_ibkr_v1', 'pwa_predemo_v1', 'pwa_wlactive_v1', 'pwa_srcfilter_v1', 'pwa_tdkey_v1', 'pwa_libbk_v1', 'pwa_libcoll_v1', 'pwa_studio_v1', 'pwa_pfbk_v1', 'pwa_charts_v1', 'pwa_accprof_v1'];   // v318: גיבוי הספרייה הפרטית · v320: אסופות הספרייה · v354: טיוטות הסטודיו · 14/10/2026: גיבוי Invest ל־Drive · 29/10/2026: פרטי החשבון לציור הראשון
 function accountOwner(store) {
   try { return (store || localStorage).getItem(LS_OWNER) || ''; } catch (e) { return ''; }
 }
@@ -1033,6 +1033,24 @@ function cubeClone(el) {
   animSync(el); animSync(c);             // הלוגו החי בהעתק — באותו רגע של המקור, לא מאפס
   return c;
 }
+/* 29/10/2026 (סבב קפיצות 4 — סרטון הניתוח: פריים שחור מלא ב־13 מתוך 13 לחיצות על לשונית; גם Studio ו־Academy):
+   ההעתק (cubeClone) הוא שכבה חדשה בלי אריחים, והדף האמיתי כבר צויר מחדש ומוסתר בחימום (0.01) — בטלפון, בזמן מגע,
+   הדפדפן לא מחכה לצביעה, ובפריים הראשון לא נראה כלום חוץ מהרקע (cube-bd). cubePre: ההעתק נוצר קודם בשקיפות 0.01
+   מעל הדף הישן (שעוד גלוי ונצבע), שני פריימים, ורק אז go(ghost) מצייר את הדף החדש ומתחיל את הקובייה.
+   קריאה חדשה בזמן ההמתנה — הקודמת רצה מיד (בלי שתי ניווטים במקביל) */
+let _cubePre = null;
+function cubePre(root, go) {
+  if (_cubePre) _cubePre.now();
+  const ghost = cubeClone(root);
+  if (typeof requestAnimationFrame !== 'function' || (typeof document !== 'undefined' && document.hidden)) { go(ghost); return null; }
+  ghost.style.opacity = CUBE_WARM_OP;
+  let done = false;
+  const p = { now() { if (done) return; done = true; if (_cubePre === p) _cubePre = null; ghost.style.opacity = ''; go(ghost); } };
+  _cubePre = p;
+  requestAnimationFrame(() => requestAnimationFrame(() => p.now()));
+  return p;
+}
+const cubePreBusy = () => !!_cubePre;   // ציור במקום (none) בזמן ההמתנה — מחכה לציור של המעבר
 /* 29/10/2026 (המשתמש: "גם הלוגו מתרענן כל הזמן בכל המעברים"): אנימציית CSS מתחילה מאפס בכל פעם שהאלמנט נכנס ל־DOM —
    הלוגו החי (ריחוף, פנים, ברק, שלג) "התאפס" בכל ציור של הבית, בהעתק של הקובייה ובכל חזרה. מצמידים את האנימציות
    האינסופיות של הלוגו לשעון של הדף (startTime 0): בכל כניסה ובכל העתק — אותו רגע בדיוק, כאילו לא יצא אף פעם.
@@ -1131,7 +1149,15 @@ function snbSwipe(o) {
     const pg = o.page ? o.page(s.next) : null;
     const bd = cubeBackdrop(root);
     if (!pg) { s.cube = { side: s.side, p: 0, rub: true, out: cubeFace(root, { dead: true }), bd: bd }; if (o.dial) dialCubeBegin(s.cube, o.dial(), null, s.side); return; }
-    const ghost = cubeClone(root);
+    // 29/10/2026 (סבב קפיצות 4): ההעתק נצבע שני פריימים לפני שהשכן מצויר (cubePre) — הדף הישן גלוי בינתיים, האצבע ממשיכה
+    // (move שומר את p), ו־end/cancel בזמן ההמתנה מסיימים אותה מיד (s.pre.now)
+    if (typeof cubePre === 'function') {
+      s.pre = cubePre(root, (ghost) => { s.pre = null; beginWith(s, pg, bd, ghost); if (s.cube) { cubeSet(s.cube, s.p || 0); if (o.dial) dialCube(s.cube); holdOn(s.cube, s.p || 0); } });
+      return;
+    }
+    beginWith(s, pg, bd, cubeClone(root));
+  }
+  function beginWith(s, pg, bd, ghost) {
     try { pg.render(); } catch (e) { ghost.remove(); bd.remove(); s.cube = null; return; }
     let hy = 0; try { hy = pg.hold ? pg.hold() : 0; } catch (e) {}
     const he = hy > 0 ? cubeHold(root, hy) : null;
@@ -1179,13 +1205,15 @@ function snbSwipe(o) {
     const d = same ? Math.abs(ddx) : 0, p = Math.min(1, d / g.w);
     g.d = d;
     let act = pageSwipeDecide(d, g.w, 0);
-    if (p > 0 && !g.cube) begin(g);
+    g.p = p;
+    if (p > 0 && !g.cube && !g.pre) begin(g);
     if (g.cube) { cubeSet(g.cube, g.cube.rub ? p * 0.15 : p); dialCube(g.cube); holdOn(g.cube, p); }
     if (act === 'page' && !(g.cube && g.cube.pg)) act = null;
     if (act !== g.act && act === 'page') buzz(12);
     g.act = act;
   }
   function finishCube(s, act, vp) {
+    if (s.pre) s.pre.now();              // שחרור לפני שההעתק הוכן — בונים עכשיו וממשיכים מאותה נקודה
     const c = s.cube;
     if (!c) return;
     if (act === 'page') {

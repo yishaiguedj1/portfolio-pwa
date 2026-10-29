@@ -903,8 +903,15 @@ function navY(v) {
 function navTo(fwd, mutate, y, hold) {
   if (!ROOT) return;
   const C = E.cube, cube = C && C.clone && C.run && !(C.reduce && C.reduce());
+  // 29/10/2026 (סבב קפיצות 4): ההעתק נצבע שני פריימים לפני הציור החדש (cubePre) — אחרת פריים שחור בכל לחיצה בטלפון.
+  // המצב משתנה מיד (הקוראים — tabLevel — קוראים אותו מיד אחרי), ורק הציור מחכה
+  if (cube && C.pre) { C.pre(ROOT, (ghost) => { if (ROOT) navGo(fwd, y, hold, ghost); else ghost.remove(); }); mutate(); return; }
   const ghost = cube ? C.clone(ROOT) : null;
   mutate();
+  navGo(fwd, y, hold, ghost);
+}
+function navGo(fwd, y, hold, ghost) {
+  const C = E.cube, cube = !!ghost;
   render(cube ? 0 : (fwd ? -1 : 1));
   if (ROOT) navY(typeof y === 'function' ? y() : y || 0);
   // הרצועה הקבועה היא העתק של העמוד החדש ברגע הזה — הגרף בראש (שמצויר בפריים הבא) חייב להיות בה כבר עכשיו
