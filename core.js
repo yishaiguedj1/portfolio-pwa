@@ -503,11 +503,11 @@ function dialStop() {     // עוצרים באמצע — החוגה נשארת �
   dialPaint(run.states[Math.max(0, Math.min(run.states.length - 1, i))]);
   run.anims.forEach((a) => { try { a.cancel(); } catch (e) {} });
 }
-function dialZap(i) {     // נחיתה על לשונית חדשה: גל וברק על הבועה, פעם אחת
+function dialZap(i) {     // נחיתה על לשונית חדשה: "נשימה" רכה של הבועה, פעם אחת (בלי גל)
   const e = dialEls()[i];
   if (!e || cubeReduce()) return;
   e.it.classList.remove('zap'); void e.it.offsetWidth; e.it.classList.add('zap');
-  clearTimeout(e.zt); e.zt = setTimeout(() => e.it.classList.remove('zap'), 800);
+  clearTimeout(e.zt); e.zt = setTimeout(() => e.it.classList.remove('zap'), 600);
 }
 function dialGo(i, v0) {  // מעבר בלי קובייה (או חזרה למרכז) — אותו קפיץ
   dialStop();

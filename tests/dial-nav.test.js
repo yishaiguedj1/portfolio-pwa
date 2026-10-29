@@ -87,6 +87,6 @@ ok(/\(it\.bub \|\| it\.ico\)/.test(fn('dialNavBuild')) && /\.tab-bub-ico \{ widt
   ok(bs.length === 7 && bs.every((l) => /<span class="tab-bub" aria-hidden="true"><svg class="tab-bub-ico/.test(l) && !/tab-bub" data-i18n/.test(l)), 'Invest: כל בועה = הסמל בלבן (בלי data-i18n שידרוס אותו)'); }
 
 // עיצוב
-ok(/\.tab-disc \{[^}]*transform: scale\(\.72\)/.test(css) && /@keyframes dialWave/.test(css) && /prefers-reduced-motion: reduce\) \{ \.tab\.zap/.test(css), 'עיגול 78 מוקטן (‎.72); גל בנחיתה; בלי אנימציה כשמבקשים להפחית תנועה');
+ok(/\.tab-disc \{[^}]*transform: scale\(\.72\)/.test(css) && /@keyframes dialSettle/.test(css) && !/dialWave|dialSheen/.test(css) && /prefers-reduced-motion: reduce\) \{ \.tab\.zap/.test(css), 'עיגול 78 מוקטן (‎.72); נשימה רכה בנחיתה (בלי גל); בלי אנימציה כשמבקשים להפחית תנועה');
 ok(/body\.has-dock \.toast \{/.test(css), 'ההודעה הקופצת מעל החוגה');
 console.log(n + ' בדיקות עברו');

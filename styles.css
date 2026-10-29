@@ -632,14 +632,9 @@ button, a, .tab, .icon-btn, .ss-add {
 }
 [data-theme="dark"] .tab-glow { box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .45), inset -1px -1px 0 rgba(255, 255, 255, .14), inset 0 0 16px rgba(255, 255, 255, .12),
   0 0 0 6px color-mix(in srgb, var(--btn-c) 16%, transparent), 0 0 30px color-mix(in srgb, var(--btn-c) 42%, transparent), 0 2px 8px rgba(0, 0, 0, .35); }
-/* נחיתה על לשונית: גל הדף יוצא מהבועה וברק עובר עליה — פעם אחת (dialZap) */
-.tab-glow::before, .tab-glow::after { content: ''; position: absolute; border-radius: 50%; pointer-events: none; opacity: 0; }
-.tab-glow::before { inset: 0; background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, .55) 48%, transparent 64%) -80px 0 / 200% 100% no-repeat; }
-.tab-glow::after { inset: -2px; box-shadow: 0 0 0 2px var(--btn-c); }
-.tab.zap .tab-glow::before { animation: dialSheen .7s cubic-bezier(.3, .7, .3, 1) both; }
-.tab.zap .tab-glow::after { animation: dialWave .62s cubic-bezier(.2, .8, .3, 1) both; }
-@keyframes dialSheen { 0% { opacity: 1; background-position: -80px 0; } 100% { opacity: 1; background-position: 80px 0; } }
-@keyframes dialWave { 0% { opacity: .7; transform: scale(1); } 100% { opacity: 0; transform: scale(1.5); } }
+/* נחיתה על לשונית (dialZap): "נשימה" רכה — הבועה והסמל גדלים מעט וחוזרים בקפיץ מרוסן, בלי גל ובלי ברק (בקשת המשתמש: נקי ונעים, לפי ת־עיצוב) */
+.tab.zap .tab-disc, .tab.zap .tab-bub { animation: dialSettle .55s cubic-bezier(.4, 0, .2, 1) both; }
+@keyframes dialSettle { 0% { scale: 1; } 40% { scale: 1.04; } 100% { scale: 1; } }
 .tab-ico { position: relative; width: 38px; height: 38px; display: block; stroke: var(--primary); will-change: opacity; }
 .tab-fill path { fill: var(--primary); }
 .tab-bub {
@@ -653,7 +648,7 @@ html[lang="en"] .tab-bub { font-size: 14px; }
   font-size: 14.5px; font-weight: 600; line-height: 20px; color: var(--on-surface-var); will-change: opacity;
   text-shadow: 0 0 2px color-mix(in srgb, var(--bg) 80%, transparent), 0 0 8px color-mix(in srgb, var(--bg) 90%, transparent);   /* קריא מעל התוכן — הבר שקוף */
 }
-@media (prefers-reduced-motion: reduce) { .tab.zap .tab-glow::before, .tab.zap .tab-glow::after { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .tab.zap .tab-disc, .tab.zap .tab-bub { animation: none; } }
 .icon-btn, .ss-add { transition: transform .16s ease, background .25s ease; }
 .icon-btn:active, .ss-add:active { transform: scale(.9); }
 .count-chip {
