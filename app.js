@@ -1121,6 +1121,7 @@ he: {
   studioLinkToCloudNo: "האתר הזה חוסם את השרת שלנו — רק לטלפון",
   studioLinkToCloudOff: "זמין רק במצב השרת של המערכת",
   studioLinkCloudNote: "יורד ישר לענן של Studio — בלי נתונים ובלי סוללה מהטלפון. התמלול מתחיל מהקול עוד לפני שהסרטון גמר לרדת. אם האתר חוסם את השרת, העבודה תיכשל — אז מורידים לטלפון.",
+  admUCapAdm: "ללא תקרה של המערכת — רק המגבלה בחשבון Claude", studioApiNoCap: "{a} · בלי תקרה של המערכת (רק המגבלה בחשבון Claude)", admUseT: "שימוש ומשאבים", admUseS: "{n} עבודות · {u} ב־30 יום", admUseRecN: "{n} המלצות לבדיקה", admTyVid: "תרגום סרטון", admTyUrl: "תרגום מקישור", admTySub: "קובץ כתוביות", admTyKa: "קריוקי", admTyPh: "תרגום בטלפון", admTyRr: "הפקה מחדש", admTyAi: "גיליון AI", admTyDx: "שמירה ל־Drive", admTyOth: "אחר", admEkApi: "המפתח של המערכת (עולה לנו)", admEkRy: "המנוי של המשתמש", admEkCp: "העתק־הדבק", admEkRt: "Routine", admRecOk: "המשאבים מספיקים כרגע", admRecOkS: "אין המתנה ארוכה בתור, אין עומס ואין קפיצה בכשלים", admRecWait: "המתנה בתור: {v} שנ׳ (90%)", admRecWaitS: "עבודות מחכות לעובד — שווה לשקול עובד או שרת נוסף", admRecUtil: "העובד תפוס {v}% מהזמן", admRecUtilS: "קרוב לקיבולת — בשעות העומס עבודות יחכו", admRecFail: "{v}% מהעבודות נכשלו", admRecFailS: "שווה לבדוק במגדל הפיקוח מה חוזר", admRecGrow: "השימוש גדל ב־{v}% השבוע", admRecGrowS: "לעקוב אחרי זמני ההמתנה והעלות", admRecCut: "מוצגות רק {v} העבודות האחרונות", admRecCutS: "יש יותר עבודות ב־30 יום — המספרים חלקיים", admUseJobs: "עבודות", admUseWk: "{n} השבוע · {g}", admUseCost: "עלות", admUseProj: "צפי לחודש {u}", admUseVid: "שעות וידאו", admUseOkF: "{ok} הצליחו · {f} נכשלו", admUsePeak: "שיא במקביל", admUseUtil: "ניצולת {p}%", admUseDays: "30 הימים האחרונים", admUseHours: "שעות העומס (שעון ישראל)", admUsePkH: "השיא: {h}", admUseTypes: "לפי סוג עבודה", admUseTyS: "{n} · {ok} הצליחו · {f} נכשלו", admUseRun: "ריצה {m}", admUseCpm: "{u} לדקה", admUseLoad: "עומס ומשאבים", admUseWait: "המתנה בתור", admUseWaitS: "חציון {a} · 90% עד {b} · הכי ארוך {m}", admUseRunT: "זמן ריצה", admUseRunS: "חציון {a} · 90% עד {b}", admUseBusy: "ניצולת העובד", admUseBusyS: "{h} ש׳ עבודה ב־30 יום · שיא {c} במקביל ({d})", admUseNow: "רצות עכשיו", admUseNowS: "{n} עבודות בתור או בריצה", admUseEng: "לפי מנוע", admUseMo: "החודש", admUseMoT: "עלות החודש", admUseMoS: "יום {d} מתוך {n} · צפי לסוף החודש {u}", admUseTrend: "השבוע מול הקודם", admUseTrendS: "{a} עבודות מול {b} · {u} מול {v}", admUseErrs: "כשלים נפוצים", admUseSrv: "שרתים", admUseSrvS: "{h} ש׳ עבודה", admUseFoot: "מ־30 הימים האחרונים, כל הסוגים (תרגום, קריוקי, קובץ כתוביות, קישור, טלפון, הפקה מחדש). עלות = רק מה שעלה לנו (המפתח של המערכת). סוג עבודה חדש יופיע כאן לבד. מתעדכן כל 5 דקות.", admSecs: "{n} שנ׳", admUDef: "תקרה לכל משתמש", admUDefS: "ברירת המחדל לחודש · התראה בכל $10, $25, $50…", admUDefQ: "תקרת ברירת המחדל לכל משתמש לחודש (בדולרים). ריק = $20. משתמש עם תקרה משלו לא מושפע.", admTabAct: "פעילות", admLiveT: "עכשיו במערכת", admLiveAll: "הכל", admLiveOther: "משתמש אחר", admLiveMe: "אתה", admLiveWarn: "משתמש אחר עובד עכשיו — מומלץ לא להתחיל תרגום או בדיקה עד שיסיים.", admLiveWaitBtn: "להודיע לי כשמסתיים", admLiveWaitOn: "נודיע לך כשיסתיים ✓", admLiveWaitOff: "ביטול", admLiveStep: "שלב {n} מתוך {t}", admLiveLeft: "עוד ~{n} דק׳", admLiveSoFar: "עלה עד עכשיו", admLiveTok: "טוקנים", admLiveExp: "צפוי בסוף", admLiveNone: "אין עבודות שרצות עכשיו", admLiveStarted: "התחילה ב־{c} · מתעדכן כל 10 שנ׳", admLiveEnded: "הסתיימה ב־{c}", admLiveOf: "מתוך ~{u}", admLiveCost: "העלות לאורך העבודה", admLiveCostS: "מאז שפתחת את המסך", admLiveAgents: "הסוכנים", admLiveStages: "השלבים", admLiveUserAll: "כל הפעילות של {n}", admLiveQ: "מחכה לתשובה של המשתמש", admLiveV: "מחכה לסרטון", admLiveQueued: "בתור", admLiveGone: "העבודה לא נמצאה", admLiveNoTok: "בלי טוקנים", admLiveRoutine: "במנוי של המשתמש — לא עולה לנו", admLiveStNow: "עכשיו", admLiveStDone: "הסתיים", admLiveStWait: "עוד לא", admKTr: "תרגום", admKRr: "הפקה מחדש", admKAi: "גיליון AI", admKDx: "בדיקה", admActUsers: "משתמשים", admActUsersS: "{d} פעילים היום · {w} השבוע", admActAll: "הכל", admActTr: "עבודות", admActAdm: "ניהול", admActNew: "הצטרפות", admActErr: "תקלות", admActAllU: "כל המשתמשים", admActNone: "אין פעילות כזו ב־30 הימים האחרונים", admActFoot: "30 הימים האחרונים — עבודות, פעולות ניהול ומשתמשים חדשים. השעות בשעון ישראל.", admEvJs: "התחלה", admEvJd: "סיום", admEvJf: "עצירה", admEvJc: "ביטול", admEvNow: "רץ עכשיו", admEvQ: "איכות {n}", admEvNu: "משתמש חדש", admUsT: "משתמשים", admUs30: "30 יום", admUsAll: "מאז ומעולם", admUsSum: "Studio · לפי עלות", admUsTot: "סה״כ {u}", admUsRowS: "{n} סרטונים · {h} · {tok}", admUsNow: "עכשיו", admUsPaused: "מושהה", admPpNone: "עוד אין משתמשים עם פעילות", admPpFoot: "השם והמייל — מהחשבון, נשמרים רק בשרת ומוצגים רק לך. עלות = מה שעלה לנו בשרת שלנו; עבודות במנוי של המשתמש לא נספרות. \"מאז ומעולם\" — מהעבודות שעדיין שמורות.", admHrs: "{n} ש׳", admMins: "{n} דק׳", admTokN: "{n} טוקנים", admUState: "מצב", admUNow: "עבודה רצה עכשיו", admUSeen: "פעילות אחרונה {a}", admUJoined: "הצטרפות: {d}", admUMonth: "החודש", admUMonthS: "מתוך {c} · {p}", admUCntS: "{n} סרטונים · {h} · {tok}", admUMgmt: "ניהול", admUCap: "תקרה חודשית", admUCapOwn: "אישית", admUCapSys: "של המערכת", admUCapQ: "תקרה חודשית לעבודות של {n}, בדולרים. ריק = התקרה של המערכת ({d}).", admUCapSave: "לשמור", admUPause: "השהיה", admUPauseOn: "מושהה — בלי עבודות חדשות", admUPauseOff: "פעיל", admUPauseQ: "להשהות את {n}? עבודות חדשות ו\"המשך\" ייחסמו; מה שרץ עכשיו ממשיך.", admUPauseGo: "להשהות", admUResumeQ: "להחזיר את {n} לפעילות?", admUResumeGo: "להחזיר", admUAct: "הפעילות", admUBadCap: "סכום בין 1 ל־10,000", admOvUsers: "{n} פעילים היום", admOvUsersS: "השבוע {w} · החודש {u}", admOvUsersG: "משתמשים", admLgUsCap: "תקרה למשתמש", admLgUsPause: "משתמש הושהה", admLgUsResume: "משתמש הוחזר לפעילות", admBusyQ: "{n} · תרגום רץ עכשיו ({p}%). מומלץ לחכות שיסתיים. להתחיל בכל זאת?", admBusyWait: "לחכות", admBusyWaitOk: "נודיע לך כשיסתיים", studioBusyQ: "{n} · תרגום רץ עכשיו ({p}%). מומלץ לחכות שיסתיים. להתחיל בכל זאת?", studioBusyWait: "לחכות", studioBusyWaitOk: "נודיע לך כשיסתיים", studioErrPaused: "החשבון מושהה כרגע — אפשר לפנות למנהל",   // 29/10/2026: ניטור משתמשים
   studioLinkEStore: "לא הצלחנו לשמור את הסרטון בטלפון (אין מקום?).", studioLinkAudioT: "קול", studioLinkAudioS: "הקול הכי טוב בשפה המקורית — נבחר לבד", studioLinkSzUnknown: "גודל לא ידוע", studioLinkNoReenc: "התמונה והקול מתאחדים לקובץ אחד בלי לקודד מחדש — בדיוק האיכות שהאתר מגיש.", studioLinkSecNote: "רק הקטע הזה יורד ומתורגם — מהיר וזול יותר. שעות:דקות:שניות.", studioLinkFrom: "מ־", studioLinkTo: "עד", studioLinkSecOk: "שמירה", studioLinkSecAllBtn: "כל הסרטון", studioLinkSecBad: "הזמנים לא תקינים", studioLinkChT: "או פרק אחד", studioLinkFcNote: "{q} · {s} · יורד ישר לשרת", studioLinkApiOnly: "הורדה מקישור צריכה את השרת של המערכת — כרגע הוא לא זמין. נסו שוב בעוד כמה דקות.", studioLinkCloudNoteWeb: "יורד ישר לענן של Studio — בלי נתונים ובלי סוללה מהטלפון. התמלול מתחיל מהקול עוד לפני שהסרטון גמר לרדת.", studioFmtHelpT: "מה זה אומר?", studioFmtHelpS: "כל מונח בשפה פשוטה", studioFmtHelpLede: "כל מה שמופיע בבחירת האיכות — במשפט אחד.", studioFmtGQ: "איכות", studioFmtGV: "סוגי תמונה", studioFmtGA: "סוגי קול", studioFmtGM: "עוד", studioFmtQ: "1080p, ‏720p…", studioFmtQS: "כמה שורות יש בתמונה — יותר = חד יותר וקובץ גדול יותר. 1080p (Full HD) חד מספיק לכל מסך טלפון ומחשב.", studioFmtOrig: "הכי קרוב למקור", studioFmtOrigS: "האתר לא שומר את הקובץ שהיוצר העלה. לוקחים את הגרסה הכי טובה שהוא מגיש — כמו שהיא, בלי לדחוס שוב.", studioFmt4k: "4K", studioFmt4kS: "פי 4 פיקסלים מ־1080p. נראה טוב במסך גדול, אבל הקובץ גדול פי 3–4 והצריבה איטית יותר.", studioFmtAv1: "AV1", studioFmtAv1S: "הדחיסה החדשה ביותר: אותה איכות בקובץ קטן יותר. ביוטיוב — בדרך כלל הגרסה האיכותית ביותר.", studioFmtAv1Short: "הכי איכותי לגודל", studioFmtVp9: "VP9", studioFmtVp9S: "הדחיסה של Google — טובה כמעט כמו AV1, נפוצה מאוד ביוטיוב.", studioFmtH264: "H.264", studioFmtH264S: "הוותיקה והנפוצה ביותר — מתנגנת בכל מכשיר, אבל באותו גודל מעט פחות חדה.", studioFmtH264Short: "מתנגן בכל מכשיר", studioFmtOpus: "Opus", studioFmtOpusS: "פורמט קול מודרני — הצליל הכי טוב לכל קילובייט. ביוטיוב זה הקול האיכותי ביותר.", studioFmtAac: "AAC", studioFmtAacS: "פורמט הקול של אפל ושל רוב הנגנים — איכות טובה מאוד.", studioFmtFps: "60fps", studioFmtFpsS: "כמה תמונות בשנייה. 60 חלק יותר בתנועה מהירה (משחקים, ספורט); להרצאה 30 מספיק לגמרי.", studioFmtHdr: "HDR", studioFmtHdrS: "צבעים ובהירות מורחבים. בצריבת כתוביות הצבעים עלולים לצאת דהויים — לכן מעדיפים את הגרסה הרגילה.", studioFmtSize: "גודל משוער", studioFmtSizeS: "כמה מקום הקובץ יתפוס באחסון של הסטודיו. לא יורד לטלפון.", studioFmtSec: "רק חלק מהסרטון", studioFmtSecS: "יורד ומתורגם רק הקטע שבחרתם — מהיר וזול יותר.", studioFmtSrv: "יורד לטלפון שלך", studioFmtSrvS: "Studio מוריד את הסרטון לטלפון (התיקייה Movies/Studio), כמו מנהל הורדות. אחר כך עולה לתרגום רק מה שצריך — הקול קודם.", admFlStRt: "תרגום ב־Claude שבמנוי", admFlStRtS: "עבודות במנוי שלך", admFlStAuto: "\"המשך\" אוטומטי", admFlStAutoS: "ממשיך לבד אחרי תקלה חולפת", admFlLearn: "איסוף למאגר הלמידה", admFlLearnS: "מדדים וטקסט מעבודות חדשות", admFlFull: "איסוף מלא (תקופת הפיתוח)", admFlFullS: "לוגים, יומן הקריאות, מדדים, שגיאות וטקסט מלא — לכבות כשיהיו משתמשים", studioLrnAckQF: "תקופת פיתוח — איסוף מלא: כדי לאבחן ולשפר נשמרים גם שם הקובץ, הטקסט המלא בלי השמטות, ההערות והשאלות שלך, קבצי העבודה (התרגום לכל חלק, הערות המבקר והשופט), הלוגים של השרת, יומן הקריאות ל־Claude והשגיאות באפליקציה — נוסף על הזמנים, העלות, הקול ועותק קטן של הסרטון. הכל מוצפן, בלי הסרטון המקורי ובלי נתוני Invest. הלוגים נמחקים אחרי 30 יום, השאר אחרי 24 חודשים. אפשר לכבות ולמחוק בכל רגע ב־Studio ← הגדרות.", admFlPush: "התראות לטלפון", admFlPushS: "כל ההתראות, גם למנהל", admModels: "מודלים בסטודיו", admModelsN: "אתה ועוד {n} עם כל המודלים", admModelsMe: "כל המודלים — רק לך", admModelsSub: "לכולם: רגיל (Haiku 5.5 · High) וביצועים (Sonnet 5.5 · Medium). מי שברשימה מקבל גם את כל השאר — Sonnet Low/High ו־Opus Medium — לבדיקות.", admModelsPh: "מייל של משתמש", admModelsAdd: "הוספה", admModelsBad: "המייל לא תקין", admModelsMeRow: "אתה (מנהל) — תמיד", admModelsDel: "הסרה", admModelsDelQ: "להסיר את {e} מהרשימה?", admModelsList: "עם כל המודלים", admGoldT: "ריצת מבחן", admGoldShort: "סט הזהב מול תרגום אנושי, בכמה מצבים", admGoldSub: "אותו סרטון עם תרגום אנושי לייחוס — רץ שוב על השרת בכל מצב שבוחרים, והעובד מחשב לכל אחד ציון מול הייחוס (chrF++ וכיסוי זמן). כך רואים אם שינוי שיפר או קלקל.", admGoldNone: "אין עדיין עבודת זהב", admGoldNoneS: "בסטודיו: עבודה שהסתיימה ← \"סט הזהב\" ← להעלות את התרגום האנושי (SRT)", admGoldSrc: "עבודת הזהב", admGoldModes: "מצבים להרצה", admGoldRun: "להריץ {n} · ≈{u}", admGoldQ: "להריץ {n} עבודות על השרת? העלות המשוערת ≈{u}. הן נכנסות לתור ורצות כשיש מקום.", admGoldStartBad: "{n} עבודות לא התחילו — לבדוק בסטודיו", admGoldStarted: "ריצת המבחן התחילה", admGoldBusy: "ריצה קודמת על הסרטון הזה עוד פתוחה — מחכים שתסתיים.", admGoldXe: "ניסוי: הגהה וביקורת במאמץ בינוני", admGoldXeS: "כל מצב שנבחר רץ פעם רגילה ופעם בניסוי — כדי להשוות", admGoldXeTag: "ניסוי מאמץ", admGoldTm: "כיסוי זמן {n}%", admGoldNoScore: "הסתיימה בלי ציון", admGoldRes: "תוצאות", admGoldRefresh: "רענון", admGoldFailed: "נכשלה", admGoldRunning: "רצה / בתור", admGoldFoot: "הציון לא משתמש ב־AI ולא עולה טוקנים. מספר גבוה יותר = קרוב יותר לתרגום האנושי.", admItGold: "כדאי ריצת מבחן", admItGoldVer: "הקוד או ההנחיות השתנו מאז הריצה האחרונה", admItGoldNever: "עוד לא הורצה אף פעם", studioSrcEn: "המקור באנגלית", admModelsFoot: "השרתון אוכף את הרשימה בכל עבודה חדשה. מי שברשימה מקבל גם גישה לסטודיו, עוד לפני שהוא נפתח לכולם. שינוי חל תוך חצי דקה.", admSvHost: "עדכון הגדרת השרת (ידני)", admSvHostS: "במסוף של Hetzner, כשאין עבודת תרגום רצה", admSvHostQ: "מקלידים במסוף של Hetzner (Console), שלוש שורות. שורה 1 מציגה את התמונות — מהשורה של prod מעתיקים את ה־IMAGE ID ומקלידים אותו בשורה 2 במקום image-id. הפקודה מסרבת אם עבודת תרגום רצה — קודם לעצור אותה ב־Studio.", admSvHostCopy: "העתקה", admLgSrvPause: "שרת הושהה", admLgSrvResume: "שרת חזר לעבודה", admLgSrvDel: "שרת הוסר", admLgAnOn: "הודעה פורסמה", admLgAnOff: "הודעה כובתה", admLgFbDone: "פנייה סומנה \"טופל\"", admLgFbDel: "פנייה נמחקה", admSvPause: "השהיה", admSvResume: "המשך", admSvPauseQ: "להשהות את {n}? הוא יסיים את העבודה הנוכחית ולא ייקח חדשות.", admSvDelQ: "להסיר את {n}? הטוקן שלו מת מיד והשרת יפסיק לקחת עבודות. השרת עצמו ב־Hetzner לא נמחק.", admBkT: "גיבויים", admBkWarnN: "{n} דורשים טיפול", admBkOkS: "הגיבוי האחרון ב־{d} · שני גיבויים", admBkR2: "גיבוי יומי (Cloudflare R2)", admBkR2Off: "R2 לא מוגדר", admBkDays: "{n} ימים מתוך {k}", admBkLast: "האחרון ב־{d}", admBkCat: "קטלוג הספרייה", admBkPart: "חלקי", admBkOff: "גיבוי אצל ספק שני (Google Drive)", admBkOffMine: "ב־Drive שלך", admBkOffOther: "ב־Drive של מנהל אחר", admBkUp: "{n} קבצים עלו", admBkLeft: "עוד {n} בתור", admBkOffNoOwner: "אין בעלים לגיבוי", admBkOffNoOwnerS: "נרשם כשהמנהל פותח את Studio ומחבר את הספרייה ל־Drive", admBkR2None: "אין גיבוי יומי ב־R2", admBkR2Stale: "הגיבוי היומי לא רץ מאתמול", admBkOffNone: "הגיבוי ל־Drive עוד לא רץ", admBkOffStale: "הגיבוי ל־Drive לא רץ יותר מיומיים", admBkOffErr: "הגיבוי ל־Drive נכשל", admBkFoot: "הגיבוי היומי רץ מהבדיקה המתוזמנת: Firestore של Studio ו־Academy והקטלוג של הספרייה, 14 יום. הגיבוי השני מעתיק אותו ואת הספרים ל־Drive שלך. התיק של Invest לא נכנס (פרטיות). שחזור — ידני.", admFbOpenN: "{n} פניות חדשות", admFbNone: "אין פניות חדשות", admFbDoneN: "טופלו · {n}", admFbReply: "לענות במייל", admFbDone: "טופל", admFbReopen: "החזרה לחדשות", admFbDelQ: "למחוק את הפנייה?", admFbFoot: "מה שמשתמשים שולחים מ\"שליחת משוב\" בהגדרות של כל אפליקציה, עם האפליקציה, הגרסה וסוג המכשיר.", admAnOn: "הודעה פעילה", admAnOffS: "אין הודעה פעילה · \"מה חדש\" אוטומטי", admAnNew: "הודעה חדשה", admAnTitleL: "כותרת", admAnTitleP: "למשל: עדכון חשוב", admAnBodyL: "הטקסט", admAnBodyP: "מה תרצה לספר למשתמשים?", admAnApps: "באילו אפליקציות", admAnDur1: "יום", admAnDur7: "שבוע", admAnDur30: "חודש", admAnPub: "פרסום", admAnRepub: "פרסום מחדש", admAnOff: "כיבוי", admAnNeed: "צריך כותרת או טקסט, ולפחות אפליקציה אחת", admAnQ: "לפרסם? ההודעה תופיע פעם אחת לכל מי שפותח את האפליקציות שבחרת.", admNewsT: "מה חדש", admNewsAuto: "\"מה חדש\" אחרי כל שחרור", admNewsAutoS: "אוטומטי · השורות של הגרסה מ־CHANGELOG, פעם אחת", admAnFoot: "ההודעה מופיעה פעם אחת בכל מכשיר, כחלון. פרסום מחדש = מופיעה שוב לכולם. בלי קישורים ובלי עיצוב.", admUsS: "{n} עבודות תרגום ב־30 יום", admUsJobs: "עבודות · 30 יום", admUsDone: "{n} הסתיימו", admUsWkU: "משתמשי Studio השבוע", admUsPrevWk: "בשבוע הקודם {n}", admUfAcc: "חשבונות", admUfSess: "עם כניסה אחת לכל האפליקציות", admUfIbkr: "חיברו סנכרון IBKR ברקע", admUfOpen: "פתחו את האפליקציה", admUfBackup: "גיבוי ל־Drive", admUfConn: "חיברו את Claude או את Drive", admUfJob: "הריצו עבודה (30 יום)", admUfDone: "עבודה שהסתיימה (30 יום)", admUgFoot: "רק ספירות של מה שכבר נשמר (חשבונות, חיבורים, עבודות) — בלי מעקב אחרי לחיצות. האחוז = מתוך השלב הראשון.", admAgDt: "{n} עבודות תרגום ב־30 יום, כל המשתמשים", admAgSec: "סוכנים", admAgJobs: "{n} עבודות · {u}", admAgScore: "ציון", admAgNone: "עוד אין עבודות ב־30 הימים האחרונים", admAgModes: "מצבי תרגום", admAgPub: "לכולם", admAgList: "רק לרשימה", admAgN: "{n} עבודות", admAgPerHr: "לשעה בשרת", admAgRisk: "סיכונים ובקרות", admAgRInj: "ניסיון הזרקה בתמליל", admAgRCost: "חריגת עלות", admAgRLoop: "\"המשך\" חוזר", admAgStop: "עוצר את העבודה", admAgMark: "מסמן בלבד", admAgFoot: "מכל העבודות של כל המשתמשים ב־30 הימים האחרונים, במספרים בלבד. ציון = שלמות, כלי נכון ופעולות תקינות. \"לשעה בשרת\" = הרגיל לשעת סרטון במצב השרת.", admSvS: "{n} מקוונים מתוך {m}", admSvNone: "אין שרתים רשומים", admSvAuth: "הטוקן נדחה — השרת לא מתחבר", admSvBusy: "עובד · {s}", admSvIdle: "מקוון, פנוי", admSvDown: "לא מדווח", admSvDisk: "דיסק", admSvFree: "{n}GB פנויים", admSvDiskHold: "פחות מ־8GB פנויים — לא לוקח עבודות חדשות", admSvMem: "זיכרון", admProvT: "שימוש בשירותי הענן", admProvVercel: "Vercel", admProvR2: "Cloudflare R2", admProvFs: "Firestore", admProvOff: "לא מוגדר — צריך טוקן", admProvErr: "שגיאה", admProvApiOff: "ה־API כבוי בפרויקט", admProvNoRole: "אין הרשאה (403)", admProvBilling: "דורש חשבון חיוב בפרויקט", admProvBw: "תעבורה", admProvInv: "קריאות לפונקציות", admProvStore: "אחסון", admProvOps: "פעולות", admProvReads: "קריאות", admProvWrites: "כתיבות", admProvOf: "{u} מתוך {l}", admProvNote: "מכסות חינמיות לפי התיעוד של הספקים. נתון חסר לא מוצג", admMonRange24: "24 שעות", admMonRange31: "31 ימים", admProvHist: "היסטוריה — עד 31 ימים", admMonT: "ניטור שרתים", admMonRow: "ניטור שרתים", admMonRowS: "מעבד, זיכרון, דיסק ורשת — 24 שעות אחורה", admMonDt: "נקודה לכל שרת כל 5 דקות, 24 שעות אחורה. מתרענן כל 30 שניות כשהמסך פתוח", admMonSrv: "שרתים", admMonCpu: "מעבד", admMonNet: "רשת", admMonPsi: "לחץ זיכרון", admMonNone: "אין שרתים מחוברים", admMonJobs: "עבודות שרצות עכשיו", admMonJobsNone: "אין עבודות רצות", admFsT: "קריאות למסד הנתונים — היום", admFsSum: "{n} מתוך {l} קריאות", admFsPace: "{h} בשעה האחרונה · בקצב הזה עד האיפוס: {p}", admFsRowS: "{h} בשעה האחרונה", admFsHot: "חריג — כנראה לולאה", admFsNone: "עוד אין קריאות היום", admFsFoot: "נספר בשרת שלנו (לא ב־Vercel ולא מהטלפונים ישירות). היום מתאפס בחצות בשעון קליפורניה. פעולה מעל {x} קריאות בשעה, או קצב שיגיע ל־70% מהמכסה — התראה לטלפון.", admMonWarn: "חורג מהסף", admMonOk: "תקין", admMonOff: "לא מדווח", admMonNoData: "עוד אין מספיק נקודות", admMonFoot: "הווידג׳ט באנדרואיד מתרענן לכל היותר כל 15 דקות (מגבלת מערכת). כאן הנתונים חיים כל עוד המסך פתוח", admMonTokT: "ווידג׳ט וטוקן קריאה", admMonTokMake: "צור טוקן", admMonTokRotate: "צור טוקן חדש", admMonTokOn: "טוקן פעיל מ־{a}", admMonTokOff: "אין טוקן — הווידג׳ט לא יכול לקרוא", admMonTokNew: "הטוקן מוצג רק עכשיו. העתק אותו והדבק בהגדרות הווידג׳ט", admMonTokCopy: "העתק טוקן", admMonTokRev: "בטל טוקן", admMonTokRevQ: "לבטל את הטוקן? הווידג׳ט יפסיק לקבל נתונים", admMonApk: "אפליקציית הניהול (APK)", admMonApkS: "אפליקציה נפרדת שפותחת את הניהול ישירות, עם הווידג׳ט", admMonAvgMax: "ממוצע {a} · שיא {m}", admMonFree: "פנוי {g}GB", admMonBusy: "עובד על עבודה", admMonIdle: "פנוי לעבודה", admMonSeen: "דיווח {a}", admMonHistWait: "ההיסטוריה מתחילה להצטבר — נקודה לשעה", admStoT: "אחסון", admStoR2: "Cloudflare R2 · סה״כ", admStoOf: "{u} מתוך {l}", admStoAt: "נמדד {a}", admStoFiles: "{n} קבצים", admStoStudio: "סטודיו וספרייה", admStoLearn: "מאגר הלמידה", admStoStg: "סביבת הניסוי", admStoR2Off: "צריך טוקן קריאה של Cloudflare (CF_USAGE_TOKEN)", admStoDrive: "Google Drive · גיבוי המערכת", admStoDriveOff: "עוד לא נמדד — מתעדכן פעם בשעה", admStoSrv: "דיסק השרת · {n}", admStoNote: "R2 ו־Drive נמדדים פעם בשעה. 10GB של R2 חינם — משותף לכל הדליים. העלות היא הערכה לפי המחירון של Cloudflare — החשבונית קובעת", admStoCost: "עלות R2 · צפי לחודש", admStoCSt: "אחסון {v}", admStoCA: "כתיבות {v}", admStoCB: "קריאות {v}", admStoCFree: "בתוך המכסה החינמית", admStoCostMtd: "עד היום {m}", admStoOver: "{g} מעל ה־10GB החינמיים", admSvLoad: "עומס", admSvUp: "עלה {a}", admSvAlO: "יישור: ONNX INT8", admSvAlT: "יישור: torch (איטי יותר)", admSvRebuild: "הקמת שרת מחדש", admSvRebuildS: "Actions ← server (עם האישור שלך)", admSvFoot: "מה שהשרת מדווח בכל פנייה (כל כמה שניות). יצירה, מחיקה והקמה מחדש — רק ב־GitHub Actions וב־Hetzner, עם הזהות שלך.", admScBadN: "{n} דורשים טיפול", admScOkS: "הכל מוגדר · התאריך הקרוב בעוד {n} ימים", admScAllOk: "כל הסודות הנדרשים מוגדרים", admScFromSrv: "נבדק בשרת שלנו", admScFromVercel: "נבדק ב־Vercel", admScNeed: "דורשים טיפול", admScFoot: "רק \"מוגדר\" או \"חסר\" — הערך עצמו אף פעם לא יוצא מהשרתון. נגיעה בשורה: מה הסוד פותח ואיך מחליפים אותו. הרשימה המלאה ב־SECURITY.md.", admScHow: "איך מחליפים:", admScSet: "מוגדר", admScMissing: "חסר", admScOpt: "רשות", admScPart: "חלקי {p}", admScUsers: "{n} משתמשים", admScUntil: "בתוקף עד {d} · עוד {n} ימים", admScWVercel: "משתני Vercel", admScWSrv: "השרת שלנו", admScWWorker: "השרת של העובד", admScWVault: "כספות בשרתון (לכל משתמש)", admScSa: "חשבון השירות", admScSaS: "Firestore (כל המסמכים) ותיקיית הספרייה ב־Drive", admScSaR: "Google Cloud ← IAM ← Service accounts ← Keys: מפתח חדש ← Vercel ← Redeploy ← למחוק את הישן. אם מפתח הכספות לא מוגדר — קודם להגדיר אותו, אחרת הכספות לא ייפתחו.", admScVault: "מפתח הכספות", admScVaultS: "ההצפנה של IBKR, ‏Drive וה־Routine. בלעדיו — נגזר מחשבון השירות", admScVaultR: "32 בתים אקראיים (openssl rand -base64 32) ← Vercel. אחרי החלפה הכספות הישנות לא נפתחות וכולם מתחברים מחדש — לא להחליף בלי סיבה.", admScGdLib: "Drive של הספרייה", admScGdLibS: "חיבור Drive לגיבוי הספרים ול־Invest (OAuth)", admScGdSt: "Drive של הסטודיו", admScGdStS: "חיבור Drive של הסטודיו (לקוח נפרד)", admScGdR: "Google Cloud ← Credentials ← הלקוח ← Reset secret ← Vercel ← Redeploy.", admScR2: "Cloudflare R2", admScR2S: "הקבצים: ספרים, עבודות הסטודיו, גיבויים", admScR2l: "R2 של מאגר הלמידה", admScR2lS: "הדלי snb-learn (מוצפן)", admScR2R: "Cloudflare ← R2 ← Manage API tokens ← טוקן חדש לדלי ← Vercel ← Redeploy ← למחוק את הישן.", admScGemS: "תרגום וניתוח מכתבים ב־Academy", admScMisS: "גיבוי לתרגום בהקשר", admScBooksS: "פרטי ספרים במנהל הספרייה", admScPicker: "בורר הקבצים של Google", admScPickerS: "בחירת סרטון מ־Drive בסטודיו (הבורר הישן)", admScKeyR: "מפתח חדש אצל הספק ← Vercel ← Redeploy ← למחוק את הישן.", admScCron: "הסוד של הסנכרון היומי", admScCronS: "מי רשאי להפעיל את הסנכרון של IBKR", admScWatch: "הסוד של הבדיקה המתוזמנת", admScWatchS: "הבדיקה כל 10 דקות מ־GitHub", admScRandR: "מחרוזת אקראית חדשה ← Vercel (ולסוד של הבדיקה — גם ב־GitHub Secrets, אותו ערך).", admScGh: "טוקן GitHub", admScGhS: "יותר קריאות ל־GitHub במרכז הניהול (בלעדיו — 60 בשעה)", admScGhR: "GitHub ← Settings ← Developer settings ← Fine-grained token לקריאה בלבד ← Vercel.", admScSess: "מפתח החיבור המשותף", admScSessS: "חתימת העוגייה של הכניסה האחת. בלעדיו — נגזר מחשבון השירות", admScSessR: "32 בתים אקראיים ← הסודות של השרת. אחרי החלפה כולם מתחברים מחדש פעם אחת.", admScAnt: "מפתח Anthropic", admScAntS: "Claude במצב \"השרת של המערכת\"", admScAntR: "Console של Anthropic ← מפתח חדש ← שרת חדש עם קוד הקמה חדש (או snb-setup) ← למחוק את הישן ב־Console.", admScApk: "מפתח החתימה של האנדרואיד", admScApkS: "חתימת שלוש האפליקציות", admScApkR: "אי אפשר להחליף בלי שכולם יתקינו מחדש. חובה גיבוי לא מקוון של הקובץ והסיסמה.", admScSrvTok: "טוקן השרת", admScSrvTokS: "השרת לוקח עבודות מהתור (בשרתון נשמר רק hash)", admScSrvTokR: "Actions ← server ← הקמה מחדש, או מסך השרת ← הסרה ← הוספה עם קוד הקמה חדש.", admScIbkrS: "token ו־Query ID של הסנכרון ברקע — מוצפנים", admScIbkrR: "כל משתמש מחליף לבד: IBKR ← Flex Web Service ← טוקן חדש ← באפליקציה ניתוק וחיבור.", admScRtS: "מפתח ה־Routine של הסטודיו — מוצפן", admScRtR: "claude.ai ← הטריגר ← מפתח חדש ← בסטודיו \"הגדרה מחדש\".", admLogT: "יומן פעולות", admLogS: "{n} שינויים השבוע · האחרון {a}", admLogNone: "עוד לא שונה כלום ממרכז הניהול", admLogFoot: "כל שינוי ממרכז הניהול נרשם כאן: מה, מי ומתי. נשמר {n} יום.", admLgMtOn: "מצב תחזוקה הודלק", admLgMtUpd: "הודעת התחזוקה עודכנה", admLgMtOff: "מצב תחזוקה כובה", admLgFlOn: "הודלק: {n}", admLgFlOff: "כובה: {n}", admLgAmAdd: "נוסף לכל המודלים", admTesters: "חשבונות בדיקה", admTestersN: "{n} חשבונות בדיקה", admTestersNone: "אין עדיין", admTestersList: "חשבונות בדיקה", admTestersSub: "מי שברשימה נכנס לסטודיו כמו משתמש רגיל: רגיל וביצועים, המנוי שלו ב־Claude, והשרת של המערכת. בלי שאר המודלים ובלי מגדל הפיקוח המלא.", admYt: "יוטיוב בשרת", admYtOff: "לא מחובר — יוטיוב רק באפליקציה לאנדרואיד", admYtOk: "עובד · לאחרונה {a}", admYtNew: "מחובר · עוד לא נוסה", admYtBad: "נחסם — צריך עוגיות חדשות", admYtN: "{n} עוגיות · נשמרו {a}", admYtSoon: "העוגיות פגות בקרוב — כדאי לייצא חדשות", admYtSub: "חשבון גוגל ייעודי (לא החשבון שלך) שדרכו השרת מוריד מיוטיוב — כך קישור יוטיוב עובד גם באייפון ובמחשב. יוטיוב עלול לחסום את החשבון, ואז מדביקים כאן עוגיות חדשות.", admYtHow: "איך מייצאים (במחשב)", admYtS1: "ב־Chrome מתקינים את התוסף Get cookies.txt LOCALLY, ובפרטי התוסף מסמנים \"אפשר בגלישה בסתר\".", admYtS2: "פותחים חלון גלישה בסתר ונכנסים ביוטיוב לחשבון הגוגל הייעודי.", admYtS3: "באותה לשונית פותחים את youtube.com/robots.txt.", admYtS4: "לוחצים על התוסף ← Export של youtube.com, וסוגרים את חלון הגלישה בסתר. לא נכנסים שוב לחשבון בדפדפן הזה — יוטיוב מחליף את העוגיות.", admYtS5: "מדביקים כאן את תוכן הקובץ, או בוחרים אותו, ושומרים.", admYtPh: "מדביקים כאן את cookies.txt", admYtFile: "בחירת קובץ", admYtSave: "שמירה", admYtClr: "הסרת החשבון", admYtClrQ: "להסיר את חשבון היוטיוב מהשרת? קישורי יוטיוב יעבדו שוב רק באפליקציה לאנדרואיד.", admYtErrIn: "אין בקובץ עוגיות של חשבון מחובר — מייצאים אחרי הכניסה לחשבון ביוטיוב.", admYtErrFmt: "זה לא קובץ cookies.txt (פורמט Netscape) של youtube.com.", admYtErrBig: "הקובץ גדול מדי — מייצאים רק את youtube.com.", admYtScBlocked: "יוטיוב חסם (\"not a bot\")", admYtScLogin: "החשבון לא מחובר", admYtScCk: "העוגיות פגו", admYtFoot: "העוגיות נשמרות מוצפנות, יוצאות רק לשרת התרגום ולא מוצגות שוב. השרת משתמש בהן רק לקישורי יוטיוב, בקצב איטי. אחרי שתי חסימות ברצף קישורי יוטיוב חוזרים לעבוד רק באנדרואיד, ובדיקת המוכנות שולחת התראה.", admLgYtSet: "עוגיות יוטיוב נשמרו", admLgYtClr: "חשבון היוטיוב הוסר", admRdYt: "יוטיוב בשרת", admRdYtOk: "החשבון הייעודי עובד", admRdYtBad: "החשבון הייעודי נחסם", admRdYtFix: "מערכת ← יוטיוב בשרת: לייצא ולהדביק עוגיות חדשות (או חשבון חדש).", admTestersFoot: "האיסוף למאגר הלמידה דולק אצלם כברירת מחדל — ההודעה מוצגת, ואפשר לכבות בהגדרות. השרתון אוכף את הרשימה בכל בקשה; שינוי חל תוך חצי דקה.", admLgTsAdd: "נוסף לחשבונות הבדיקה", admLgTsDel: "הוסר מחשבונות הבדיקה", admLgAmDel: "הוסר מכל המודלים", admLgAcAdd: "קורא נוסף ל־Academy", admLgAcDel: "קורא הוסר מ־Academy", admLgCkOk: "בדיקה בטלפון: עובד", admLgCkNo: "בדיקה בטלפון: לא עובד", admLgCkClr: "בדיקה בטלפון בוטלה", admUsersT: "משתמשים והרשאות", admUsAdmins: "מנהלים", admUsEnv: "ממשתני Vercel", admUsAcSub: "קוראי המדף של THE SNOWBALL. מי שנוסף כאן נכנס תוך דקה.", admUsAcOpen: "הספרייה פתוחה לכל מי שמחובר (\"*\" ב־LIBRARY_READERS). הרשימה כאן חלה רק אם תסיר את ה־\"*\".", admUsAcOpenRow: "כל מי שמחובר", admUsAcNoStore: "אין גישה לרשימה ב־Firebase, ולכן אי אפשר להוסיף מכאן. הקוראים כרגע רק ממשתני Vercel.", admUsAdded: "נוסף ב־{d}", admUsAcDelQ: "להסיר את {e} מקוראי Academy?", admUsReaders: "קוראים · {n}", admUsStEnv: "גישה לסטודיו", admUsNone: "אין", admUsStConn: "חיברו Drive לסטודיו", admUsIb: "סנכרון IBKR ברקע", admUsIbEnv: "מורשים", admUsIbMe: "רק המנהל", admUsIbOn: "הסנכרון פעיל אצל", admUsFoot: "אפשר להוסיף כל מייל — Gmail, Yahoo, Outlook או כל ספק אחר. ההרשאה חלה כשהמשתמש נכנס עם המייל הזה ואימת אותו (מייל האימות נשלח לבד בהרשמה), או כשקישר אליו חשבון Google — אז כל אחד מהמיילים של החשבון מקבל את ההרשאה. ההרשאות נאכפות בשרתון בכל בקשה; שינוי במשתני Vercel נכנס לתוקף רק בפריסה הבאה של השרתון.", admFlLive: "מחירים חיים", admFlLiveS: "עדכון המחירים כל 2 שניות", admMinAgo: "לפני {n} דק׳", admMsgs: "הודעות ומה חדש", admNow: "עכשיו", admPrev: "קודם: {n}", admQuota: "מכסות וחשבונות", admRunAhead: "{n} בניות לפני הייצור", admRunAhead1: "בנייה אחת לפני הייצור", admRunBk: "גיבוי", admRunBuild: "בנייה {b}", admRunPaused: "מושהה", admRunProd: "ייצור", admRunSites: "הכתובות", admRunSitesOk: "כולן עונות", admRunStag: "ניסוי", admSec30: "30 יום", admSecCtl: "שליטה", admSecDates: "תאריכים", admSecLog: "אבטחה ויומן", admSecRun: "מה רץ איפה", admSecSec: "אבטחה", admSecShared: "משותף לכולן", admSecStudioTower: "מגדל הפיקוח", admSecWaitInfra: "מחכה לך", admSecrets: "סודות ותאריכים", admSoon: "בקרוב", admStudioAgents: "סוכנים ומודלים", admStudioSrv: "שרתים ומשאבים", admStudioTower: "המגדל המלא", admStudioTowerS: "התראות, תקלות, סוכנים — ב־Studio (עד שיעבור לכאן)", admTabApps: "אפליקציות", admTabFind: "חיפוש", admTabImp: "שיפור", admTabOv: "סקירה", admTabSys: "מערכת", admTeam: "סשנים ומשימות", admTeamS: "{n} משימות פתוחות · {w} בעבודה", admTeamNow: "בעבודה עכשיו", admTeamNone: "אף סשן לא הכריז על משימה", admTeamPr: "PR פתוחים", admTeamBy: "לפי נושא", admTeamSrc: "משימות-פתוחות.md", admTeamNote: "מהרשימה בריפו. \"בעבודה\" = מה שסשן הכריז עליו.", admUnknown: "לא ידוע", admUpdated: "עודכן {a}", admUsage: "שימוש ומשפכים", admUsers: "משתמשים", admWait0: "מחכה לך", admWaitN: "{n} מחכים לך", admT: "מרכז הניהול", admNoAdmin: "המסך הזה רק למנהל המערכת", admLoading: "טוען…", admErr: "לא הצלחנו לטעון — נסה שוב", admClaudeT: "לנתח עם Claude", admClaudeS: "Claude שבמנוי שלך מנתח את הנתונים — בלי API ובלי עלות נוספת. רק נתונים אנונימיים.", admCopyBrief: "העתק סיכום לשיחה עם Claude", admCopied: "הועתק — הדבק בשיחה עם Claude", admCopyFail: "ההעתקה לא הצליחה", admCopy: "העתק", admDownload: "הורד את כל הנתונים", admTokNew: "טוקן לסשן של Claude Code", admTokOnce: "הטוקן מוצג פעם אחת — העתק אותו עכשיו", admTokCmd: "הפקודה לסשן", admTokList: "טוקנים פעילים", admTokNone: "אין טוקנים פעילים", admTokDel: "בטל", admTokDelQ: "לבטל את הטוקן? סשן שמשתמש בו יפסיק לקבל נתונים", admTokMeta: "נוצר {a} · פג {e} · {u} שימושים", admLabT: "מעבדת השיפור", admLabS: "{n} עבודות במאגר · 30 יום (מתחת: 30 הקודמים)", admLabNone: "עוד אין מסקנות — צריך עוד עבודות", admSev1: "דחוף", admSev2: "חשוב", admSev3: "שווה בדיקה", admTok90: "טוקנים · 90 יום", admLabDt: "{n} עבודות במאגר · {m} ב־90 יום · מאז {d}", admNowTop: "הכי חשוב עכשיו", admImpMo: "≈ {v} בחודש", admLabMore: "לפי נושא", admWas: "קודם {v}", admLabIns: "כל המסקנות", admLabInsS: "מדורגות לפי חשיבות, ואז לפי כמה כסף זה שווה בחודש", admLabCost: "עלות וטוקנים", admLabCostS: "{r} · {p} מהעלות", admLabTime: "זמן", admLabTimeS: "{s} · {p} מהזמן", admLabQual: "איכות", admLabQualS: "השופט מסמן הכי הרבה: {c}", admLabFails: "כשלים", admLabFailsNone: "אין כשלים ב־90 יום", admLabModes: "מצבים ומנועים", admLabAfter: "מה קרה אחרי העבודה", admLabAfterS: "{e} נערכו · {r} הופקו מחדש", admLabRecent: "עבודות אחרונות", admLabRec: "עבודה", admLabData: "מה נאסף", admLabDataS: "{c} עבודות עם טקסט · האיסוף המלא {d}", admOn: "דולק", admOff: "כבוי", admNoData: "עוד אין נתונים", admPerMo: "בחודש", admPerMin: "לדקה", admWhatDo: "מה לעשות", admNumbers: "המספרים", admInsFoot: "המסקנה מחושבת בקוד מהמאגר. לפני שינוי — לבדוק את ההשערה עם Claude על הרשומות עצמן.", admFCode: "קוד", admFRole: "תפקיד", admFStage: "שלב", admFJudge: "בעיה", admFMetric: "מדד", admFModel: "מודל", admFModeA: "המצב הטוב ביותר", admFModeB: "המצב הזול", admFSave: "חיסכון", admFDq: "הפרש בציון", admFShare: "חלק", admFN: "פעמים", admFJobs: "עבודות", admFUsd: "עלות", admFSpm: "שניות לדקת סרטון", admFGold: "ציון מול תרגום אנושי", admFImp: "שווה בחודש", admKusd: "עלות · 30 יום", admKtpm: "טוקנים לדקה", admKmin: "דקות סרטון", admKht: "שיעור העריכה שלך", admKedr: "עבודות שנערכו", admKcov: "נצפה מהסרטון", admKsga: "הצעות שהתקבלו", admKdone: "הסתיימו", admByRole: "לפי תפקיד · 90 יום", admCalls: "{n} קריאות", admCacheP: "{p} מהמטמון", admSavable: "אפשר לחסוך {v}", admTokI: "קלט", admTokCr: "קריאה מהמטמון", admTokCw: "כתיבה למטמון", admTokO: "פלט", admByStage: "לפי שלב · שניות לדקת סרטון", admStgS: "סך הכל {t}", admSpmU: "שנ׳/דקה", admVt: "פקודות vt", admVtCpu: "מעבד ×{r}", admCtG: "לפי סוג התוכן", admCtN: "{n} עבודות", admCtJd: "השופט {v}", admCtOk: "{p} הצליחו מיד", admCtSpm: "{v} שנ׳ לדקה", admCt_talk: "הרצאה / נאום", admCt_interview: "ראיון (שני דוברים)", admCt_panel: "פאנל / שיחה", admCt_show: "סדרה / ריאליטי", admCt_quiet: "מעט דיבור", admVtS: "{n} פעמים · הארוכה {m}", admSecU: " שנ׳", admMinU: " דק׳", admHrU: " שע׳", admStgUp: "העלאה", admStgTr: "תמלול והגהה", admStgAl: "יישור", admStgTl: "תרגום", admStgRv: "ביקורת", admStgBn: "צריבה", admStgSv: "שמירה", admJudgeG: "מה השופט מסמן · {n} כתוביות", admQfG: "מדדי איכות שנכשלו · {n} כתוביות", admQualFoot: "הכתוביות עצמן לדוגמה — בניתוח עם Claude (הטקסט בקורפוס, לא כאן).", admFailsG: "לפי קוד · 90 יום", admFailsFin: "{n} סופיים", admFailsUsd: "{v} אבדו", admFailsFoot: "\"סופיים\" = העבודה נעצרה בהם. השאר עברו אחרי \"המשך\".", admModesG: "מצבי התרגום · 90 יום", admEngG: "לפי מנוע", admEngApi: "השרת של המערכת", admEngSub: "המנוי (Routine)", admModeN: "{n} עבודות", admModeJd: "שופט {v}", admModeQ: "איכות {v}", admModeOk: "{v} בלי עזרה", admModeSpm: "{v} שנ׳/דקה", admAfterJobs: "עבודות · 90 יום", admAfterEd: "נערכו בעורך", admAfterRr: "הופקו מחדש", admAfterAi: "גיליון ה־AI", admAfterGold: "סט הזהב", admAfterUx: "מהטלפון · כמה עבודות", admUxE: "עריכות", admUxES: "{s} שמירות · {n} שינויים · {w} עבודה", admUxPl: "צפייה בנגן", admUxPlS: "{n} הפעלות · {t}", admUxO: "תוצרים", admUxOS: "{d} הורדות · {s} שיתופים · {x} ל־Drive", admUxSg: "הצעות", admUxAR: "{a} התקבלו · {r} נדחו", admUxAi: "גיליון ה־AI", admUxAiS: "{q} בקשות · {a} הוחלו · {r} נדחו", admUxGl: "מילון המונחים", admUxGlS: "{a} מונחים נוספו", admAfterFoot: "שיעור העריכה = מילים שתיקנת ÷ מילים בגרסה האחרונה. נמוך = התרגום היה טוב מההתחלה.", admJsDone: "הסתיימה", admJsFail: "נכשלה", admJsCancel: "בוטלה", admRState: "מצב", admRMode: "מצב התרגום", admREng: "מנוע", admRDur: "אורך הסרטון", admRRun: "זמן ריצה", admRFires: "הפעלות", admRecFoot: "הרשומה אנונימית — בלי שם קובץ ובלי טקסט.", admDataRec: "המדדים", admDataRecT: "רשומות במאגר", admDataRecS: "{n} ב־90 יום · אנונימיות, בלי טקסט", admDataCorpus: "הקורפוס · מוצפן, 24 חודשים", admDataTxt: "טקסט הכתוביות", admDataQ: "{n} בתור לאצווה", admDataEd: "העריכות שלך", admDataMedia: "קול ועותק 240p", admDataMediaS: "{a} קול · {v} וידאו · {m}", admDataSize: "נפח", admDataOff: "הדלי של מאגר הלמידה לא מוגדר", admDataDev: "האיסוף המלא · 30 יום", admDataDevFlag: "הדגל learn_full", admDataDevOnS: "לוגים, יומן קריאות, מדדים ושגיאות נאספים", admDataDevOffS: "לא נאסף כלום חדש", admDataDevJ: "יומני עבודות", admDataDevM: "מנות מדדים", admDataDevE: "שגיאות מהטלפון", admDataDays: "לפי יום", admDataFoot: "לקריאה בסשן של Claude Code: טוקן ניתוח ב\"לנתח עם Claude\".", admI_fail_top: "הכשל הנפוץ ביותר", admA_fail_top: "לפתוח את יומני העבודות שנכשלו בקוד הזה ולתקן את השורש. אם הוא חולף — להוסיף ניסיון חוזר.", admI_first_pass: "עבודות שעוברות בלי עזרה", admA_first_pass: "יותר מדי עבודות צריכות \"המשך\". לבדוק את הכשלים — כל קוד שחוזר הוא תיקון אחד.", admI_cache_low: "המטמון כמעט לא עובד", admA_cache_low: "לבדוק שהחלק הקבוע של ההנחיה לא משתנה בין קריאות (תאריך, מספרים) ושנקודת המטמון אחריו.", admI_cost_role: "תפקיד אחד לוקח את רוב העלות", admA_cost_role: "לנסות לקצר את הקלט של התפקיד הזה או מודל זול יותר רק לו, ולמדוד את האיכות.", admI_think_heavy: "חשיבה כבדה", admA_think_heavy: "רוב הפלט הוא חשיבה. לנסות מאמץ נמוך יותר לתפקיד הזה ולהשוות ציון שופט.", admI_truncated: "תשובות שנקטעו", admA_truncated: "תשובות נקטעו בתקרת הפלט. לחלק לחלקים קטנים יותר או להוריד מאמץ.", admI_cache_miss: "המטמון נכתב מחדש", admA_cache_miss: "המטמון נכתב שוב ושוב — כנראה ההנחיה משתנה או שעבר יותר מדי זמן בין קריאות.", admI_fix_heavy: "הרבה סבבי תיקון", admA_fix_heavy: "הרבה כתוביות נכשלות בבדיקה אחרי התרגום. לחזק את הכללים בהנחיית המתרגם (אורך, קצב).", admI_rv_idle: "המבקר כמעט לא משנה", admA_rv_idle: "המבקר עולה כסף ולא משנה כמעט כלום. לשקול לדלג עליו בסרטונים קלים או מודל זול יותר.", admI_rv_heavy: "המבקר משנה הרבה", admA_rv_heavy: "המבקר מתקן הרבה — המתרגם מפספס. לבדוק מה הוא מתקן ולהעביר את זה להנחיית המתרגם.", admI_judge_top: "הבעיה שהשופט מסמן הכי הרבה", admA_judge_top: "להוסיף להנחיית המתרגם כלל ממוקד לבעיה הזו, ולמדוד בסט הזהב.", admI_q_metric: "מדד איכות שנכשל הרבה", admA_q_metric: "לחזק את המדד הזה בבדיקה האוטומטית או בהנחיה, כדי שייתפס לפני הסוף.", admI_edits_after: "עריכות ידניות אחרי העבודה", admA_edits_after: "אתה עורך הרבה אחרי העבודה. לבדוק בקורפוס מה תיקנת — זה המקור הטוב ביותר לשיפור ההנחיה.", admI_ai_after: "גיליון ה־AI אחרי העבודה", admA_ai_after: "אתה מבקש מה־AI לתקן אחרי העבודה. מה שחוזר — להכניס לתרגום עצמו.", admI_slow_stage: "שלב איטי", admA_slow_stage: "השלב הזה לוקח את רוב הזמן. לבדוק אם אפשר להריץ אותו במקביל או להאיץ את הפקודה הארוכה.", admI_wait_user: "המתנה לך", admA_wait_user: "הרבה זמן עובר בהמתנה לתשובה שלך. לקצר שאלות או לתת ברירת מחדל מוקדמת יותר.", admI_sla_over: "חריגה מיעד הזמן", admI_eta_off: "טעות בצפי הזמן", admI_rv_unrev: "כתוביות בלי ביקורת", admA_rv_unrev: "קטעי ביקורת נקטעו לפני הסוף. להקטין את הקטע (SNB_RV_SLICE) או להוריד את המאמץ של הביקורת.", admA_eta_off: "הזמן שהוצג בטלפון רחוק מהזמן בפועל. לבדוק איזה שלב סוטה ולעדכן את הצפי שלו.", admA_sla_over: "עבודות עוברות את היעד. לעדכן את הצפי או להאיץ את השלב האיטי.", admI_asr_weak: "תמלול חלש", admA_asr_weak: "ההגהה משנה הרבה מהתמלול. לבדוק מודל תמלול אחר או מילון מונחים לתמלול.", admI_align_weak: "יישור חלש", admA_align_weak: "הרבה מילים בלי זמן בטוח. לבדוק את הסרטונים האלה — רעש, מוזיקה או כמה דוברים.", admI_sync_low: "סנכרון קול־וידאו לא ודאי", admA_sync_low: "הסנכרון בין הקול שעלה קודם לסרטון לא ודאי. לבדוק את הקבצים שבהם זה קרה.", admI_mode_value: "מצב זול יותר כמעט באותה איכות", admA_mode_value: "לשקול להפוך את המצב הזול לברירת המחדל — ההפרש באיכות קטן.", admI_inject_seen: "שורות שנראות כמו הוראה", admA_inject_seen: "נמצאו שורות שנראות כמו הוראה ל־AI בתמלול. לוודא שהן תורגמו ולא בוצעו.", admI_gold: "ציון סט הזהב", admA_gold: "הציון מול תרגום אנושי. להריץ שוב אחרי כל שינוי בהנחיות.", admI_need_data: "חסרים נתונים מפורטים", admA_need_data: "אין עדיין עובדות מפורטות מהעובד. הן מגיעות מהעבודות הבאות במצב השרת.", admI_ver_worse: "גרסה חדשה גרועה יותר", admA_ver_worse: "הגרסה החדשה גרועה יותר מהקודמת במדד חשוב, בוודאות. לבדוק מה השתנה בה, ולחזור לגרסה הקודמת אם אין סיבה טובה.", admI_ver_better: "גרסה חדשה טובה יותר", admA_ver_better: "השינוי עזר: הגרסה החדשה טובה יותר מהקודמת, בוודאות. אפשר להמשיך לשפר באותו כיוון.", admFVerDim: "מה השתנה", admFVerNew: "הגרסה החדשה", admFVerOld: "הקודמת", admFVerMet: "המדד", admFVerN: "עבודות בחדשה", admFVerNb: "עבודות בקודמת", admVdEnv: "הקוד של העובד", admVdTl: "ההנחיות של המתרגם", admVdRv: "ההנחיות של המבקר", admVdRb: "ההנחיות של מנהל העבודה", admVdJg: "ההנחיות של השופט", admVvUp: "טוב יותר", admVvDn: "גרוע יותר", admVvEq: "אותו דבר", admVvQ: "עוד לא ברור", admVvFew: "מעט עבודות", admVvMix: "מעורב", admLabVer: "לפני ואחרי לכל גרסה", admImT: "השפעת המאגר", admImWait: "ממתין לשיפור הראשון שנפרס", admImSince: "מאז {d}", admImDt: "הבסיס = כל העבודות לפני {d} · בחודש האחרון: {n} עבודות, {m} דק׳ סרטון", admImR7: "7 ימים", admImR30: "30 יום", admImR90: "90 יום", admImRall: "מאז ההתחלה", admImRcu: "טווח אחר", admImFrom: "מתאריך", admImTo: "עד תאריך", admImGo: "הצגה", admImBadR: "צריך תאריך התחלה וסיום", admImPick: "בוחרים טווח ולוחצים \"הצגה\"", admImRng: "עכשיו = {a}–{b} · {n} עבודות", admImAB: "{a} ← {b}", admImCI: "90%: {lo} עד {hi}", admImFewS: "מעט נתונים ({a} / {b} עבודות)", admImSec: "שנ׳", admImUmin: "{v} דק׳ בחודש", admImUusd: "{v} בחודש", admImUjobs: "{v} עבודות בחודש", admImFspeed: "מהירות (לדקת סרטון)", admImFrel: "אמינות", admImFcost: "עלות (לדקת סרטון)", admImFqual: "איכות", admImM_tot: "כל הזמן שחיכית", admImM_act: "זמן עבודה בפועל", admImM_up: "העלאה מהטלפון עד שהשרת מתחיל", admImM_eta: "טעות בצפי הזמן", admImM_tr: "תמלול והגהה", admImM_al: "יישור", admImM_rv: "ביקורת", admImM_bn: "צריבה", admImM_sv: "שמירה ושליחה", admImM_ok: "הצלחה בלי \"המשך\"", admImM_crash: "נפילות של השרת", admImM_fail: "עבודות שנכשלו", admImM_cpm: "עלות לדקת סרטון", admImM_tpm: "טוקנים לדקת סרטון", admImM_q: "מדד האיכות", admImM_jd: "ציון השופט", admImM_ht: "העריכות שלך (HTER)", admImM_wok: "נצפו עד הסוף בלי תיקון", admImM_num: "מספרים שנעלמו", admImM_glm: "מונחים שלא נשמרו", admImWhere: "מאיפה השיפור", admImStWait: "ממתין לפריסה", admImStLive: "חי מ־{d}", admImDec: "פירוק השינוי מאז ההתחלה", admImRest: "שינויים אחרים ורעש", admImTotal: "סה\"כ", admImHyp: "ההשערה", admImTg: "המדדים שכוונו אליהם", admImOther: "מדדים נוספים שזזו", admImSrcDev: "מהיומנים של הייצור", admImSrcLab: "ממעבדת השיפור", admImSrcUser: "מדיווח שלך", admImSrcOps: "ממגדל הפיקוח", admImFoot: "כל השוואה לדקת סרטון ובתוך אותו מצב ומנוע (מודל זול יותר לא נספר כשיפור) · רווח סמך 90% · לכל שיפור: 28 יום לפני מול 28 יום אחרי, עד השיפור הבא שנוגע באותו מדד", admImIFoot: "לפני = 28 הימים שלפני הפריסה · אחרי = עד 28 יום אחריה · ← = מלפני לאחרי", admImWaitFoot: "יימדד מהרגע שהשיפור חי בייצור", admLabVerNone: "אין עדיין שתי גרסאות להשוואה", admVerDt: "החדשה מ־{d} · {a} עבודות בה מול {b} בקודמת", admVerAb: "{a} מול {b}", admWkUsd: "עלות", admVerFoot: "כל שורה: הממוצע לעבודה בגרסה החדשה מול הקודמת (עד 20 עבודות אחרונות בכל אחת), עם רווח סמך של 90%. \"אותו דבר\" = כל הרווח בתוך סף קטן. \"עוד לא ברור\" = צריך עוד עבודות.", admLabWk: "השבוע", admLabWkS: "{n} עבודות · {m} דקות", admWkDt: "7 הימים האחרונים מול 7 שלפניהם", admWkNv: "גרסאות חדשות השבוע", admWkNone: "לא נכנסו גרסאות חדשות השבוע", admI_num_drop: "מספרים שנעלמו בתרגום", admA_num_drop: "מספר מהמקור לא מופיע בכתובית. להוסיף להנחיות של המתרגם: כל מספר עובר כמו שהוא, ולבדוק את הכתוביות שסומנו.", admI_omit_cues: "כתוביות שנראות מושמטות", admA_omit_cues: "כתוביות ריקות או קצרות מאוד ביחס למקור. לבדוק אם זו השמטה או קיצור מכוון, ולחזק בהנחיות \"לקצר, לא להשמיט\".", admI_tm_late: "כתוביות שעולות מאוחר או יורדות מוקדם", admA_tm_late: "הכתובית לא צמודה לדיבור. לבדוק את היישור ואת כללי הכניסה/היציאה ב־vt (plan).", admI_shot_near: "גבולות קרובים לחילוף שוט", admA_shot_near: "כתוביות שמתחילות או נגמרות 1–11 פריימים מחילוף שוט — מהבהבות לעין. להדק את ההצמדה לשוטים ב־vt.", admI_name_var: "שם אחד בכמה איותים", admA_name_var: "אותו שם כתוב באיותים שונים בעבודה אחת. להוסיף את השמות למילון המונחים, או לשמור איות אחד בהנחיות.", admI_gl_miss: "מונחים מהמילון שלא נשמרו", admA_gl_miss: "מונח מהמילון הופיע במקור, והתרגום שלו לא. לבדוק שהמילון מגיע למתרגם ולמבקר.", admKsb: "SubER אחרי עריכה", admLabMx: "מדדים בקוד", admDmT: "Studio DM — הורדות", admDmS: "{n} אירועים · {u} משתמשים · 14 ימים", admDmOk: "הצלחה", admDmEnded: "מתוך {n} שהסתיימו", admDmDone: "הסתיימו", admDmUsers: "{n} משתמשים", admDmFail: "נכשלו", admDmStop: "נעצרו {n}", admDmSpeed: "מהירות", admDmMed: "חציון", admDmCodes: "למה נכשלו", admDmSites: "לפי אתר", admDmSiteS: "הסתיימו {d} · נכשלו {f} · נעצרו {s}", admDmLast: "הכשלים האחרונים", admDmFoot: "מה ש־Studio DM שולח אחרי כל הורדה (משתמשים שנכנסו עם Google): קוד, אתר, שם קובץ, מהירות ושורות השגיאה — בלי כתובות ובלי עוגיות. לניתוח מלא: tools/dm-pull.js.", admFnlT: "המסלול שלפני העבודה", admFnlS: "{e} ראו אומדן · {s} התחילו · 14 ימים", admFnlConv: "מאומדן להתחלה", admFnlConvS: "{s} מתוך {e}", admFnlSteps: "הצעדים", admFnlWhy: "למה ויתרו", admFnlWhyNone: "עוד אין תשובות", admFnlS_pick: "בחרו סרטון", admFnlS_link: "קישור נמצא", admFnlS_est: "ראו אומדן", admFnlS_quit: "ויתרו באומדן", admFnlS_start: "התחילו עבודה", admFnlS_cut: "פתחו חיתוך", admFnlS_sty: "שינו עיצוב", admFnlS_lyr: "מצאו מילים", admFnlW_exp: "יקר מדי", admFnlW_slow: "ייקח יותר מדי זמן", admFnlW_test: "רק בדקו", admFnlW_later: "אחר כך", admFnlFoot: "מונים בלבד לכל יום — בלי משתמשים, בלי שמות קבצים ובלי קישורים.", admFaT: "דיוק נתוני החברות", admFaS: "{n} חברות · לפני {h} שע׳", admFaFace: "מול הדוח", admFaFaceS: "{ok} מתוך {n} ערכים", admFaCos: "חברות בלי סטייה", admFaCosS: "{ok} מתוך {n}", admFaGold: "סט הזהב", admFaGoldS: "{n} חברות שנבדקו בעין", admFaGoldBad: "זז ב־{n}", admFaGoldOk: "לא זז", admFaKinds: "מה הבדיקות מצאו", admFaCo: "חברות עם סטייה מהדוח", admFaGoldList: "סט הזהב — מה זז", admFaItems: "דוגמאות", admFaUser: "מניות שמשתמשים פתחו · {n} — לתיקון", admFaVs: "בדוח {f} · אצלנו {v}", admFaYahoo: "{n} חברות מ־Yahoo (אין דוחות ב־SEC)", admFaFail: "{n} חברות נכשלו", admFaNone: "הבדיקה הלילית עוד לא רצה", admFaAlert: "משהו נשבר מאז הריצה הקודמת", admFaReport: "הדוח המלא", admFaMore: "ועוד {n}", admFaFoot: "כל לילה, 500 החברות הגדולות: כל ערך שנתי מול הדוח כפי שהחברה הדפיסה אותו, זהויות חשבונאיות, וסט זהב של ערכים שנבדקו בעין. ובנוסף S&P 500 ו־Nasdaq-100: כל ערך שנתי ורבעוני מול SEC, הדוח, Yahoo ו־Nasdaq. רק מספרים ציבוריים.", admFaK_face: "לא תואם לדוח", admFaK_fix: "תוקן אוטומטית", admFaK_ffill: "הושלם מהדוח", admFaK_ffix: "הוחלף בערך שבדוח", admFaK_qeps: "רבעון רביעי — כפי שהחברה פרסמה", admFaK_qmix: "רבעונים לא מאותו בסיס כמו השנה", admFaK_qfy: "רבעון כפי שהחברה פרסמה", admFaK_gpfin: "רווח גולמי — זרוע מימון", admFaK_x: "עוד ערכים שלא תואמים למקורות", admFaX: "כל ערך מול כמה מקורות", admFaXP: "ערכים לבדוק", admFaXS: "{n} ערכים · {c} חברות · S&P 500 ו־Nasdaq-100", admFaXOk: "בלי בעיה", admFaXItems: "לפי חומרה", admFaXVs: "אנחנו {v} · SEC {r} · Yahoo {y} · Nasdaq {n}", admFaXC_bug: "שונה מ־SEC או מהדוח", admFaXC_spl: "פיצול שלא הוחל", admFaXC_estx: "רחוק מהאומדן", admFaXC_ext: "Yahoo ו־Nasdaq מסכימים — ואנחנו לא", admFaXC_odd: "שונה ממקור בלי הסבר ידוע", admFaXC_one: "מקור אחד, ושונה", admFaK_bal: "המאזן לא מתאזן", admFaK_neg: "ערך שלילי שלא אמור להיות", admFaK_scale: "קנה מידה חשוד", admFaK_eps: "רווח למניה לא מתאים לרווח ולמניות", admFaK_gp: "רווח גולמי לא מתאים", admFaK_part: "חלק גדול מהשלם", admFaK_q4: "הרבעונים לא מסתכמים לשנה", admFaK_gr: "צמיחה שלא תואמת לדוח", admFaK_rst: "החברה הציגה מחדש (מטופל)", admFaK_qneg: "רבעון שלילי חשוד", admFaK_xy: "שונה מ־Yahoo", admFaK_gold: "סט הזהב זז", admFaK_other: "בדיקה אחרת", admLabMxS: "מהטיוטה לסופי השתנו {p} מהכתוביות", admMxJobs: "עבודות", admMxDf: "תיקוני המתרגם", admMxFr: "הביקורת", admMxRz: "התיקון האחרון", admMxDz: "מהטיוטה לסופי", admMxDt: "{n} עבודות · {c} כתוביות · 90 יום", admMxStG: "מה כל שלב שינה", admMxChanged: "השתנו", admMxTmG: "תזמון מול הדיבור", admMxLate: "עולות מאוחר", admMxInB: "בחציון {v} שנ׳ לפני המילה הראשונה", admMxInA: "בחציון {v} שנ׳ אחרי שהמילה הראשונה התחילה", admMxCut: "יורדות לפני שהדיבור נגמר", admMxOutB: "בחציון {v} שנ׳ לפני שהמילה האחרונה נגמרת", admMxOutA: "בחציון {v} שנ׳ אחרי המילה האחרונה", admMxNw: "בלי דיבור בתוכן", admMxShot: "קרובות מדי לחילוף שוט", admMxShotS: "גבול שנופל פריים עד 11 פריימים מהחילוף", admMxCsG: "עקביות", admMxNm: "שמות עם יותר מאיות אחד", admMxNmS: "{n} שמות נבדקו", admMxGl: "מונחים מהמילון שלא נשמרו", admMxGlS: "{n} הופעות · {x} מונחים בשני תרגומים", admMxGlMix: "מונחים בשני תרגומים", admMxOmG: "השמטות", admMxEmpty: "כתוביות ריקות", admMxShort: "קצרות מאוד ביחס למקור", admMxRatio: "יחס אורך (חציון): {v}", admMxNum: "מספרים שנעלמו", admMxNumS: "{n} מספרים במקור", admMxFoot: "מחושב בקוד, בלי טוקנים, באותן נוסחאות של הכלים המקובלים למדידת תרגום וכתוביות. שינוי קטן בין שלבים הוא סימן טוב; שינוי גדול — שווה לבדוק למה.", admInsT: "מה הכי שווה לשפר", admKn: "עבודות", admKok: "עברו בלי עזרה", admKcpm: "דולר לדקת סרטון", admKspm: "שניות עבודה לדקה", admKch: "קלט מהמטמון", admKq: "איכות", admKjd: "ציון השופט", studioLrnT: "שיפור התרגום בעזרת העבודות שלי", studioLrnOn: "בלי השם שלך ובלי הסרטון המקורי — רק כדי לשפר את המערכת", studioLrnOff: "העבודות הבאות שלך לא ייכנסו למאגר הלמידה", studioLrnAckQ: "העבודות שלך עוזרות לשפר את התרגום. נשמרים זמנים, עלות וציונים, הטקסט של הכתוביות (המקור, התרגום, העריכות שלך ושמות הדוברים), וגם הקול ועותק קטן של הסרטון באיכות נמוכה. הכל מוצפן, בלי השם שלך ובלי הסרטון המקורי, ונמחק אחרי 24 חודשים. אפשר לכבות ולמחוק בכל רגע ב־Studio ← הגדרות.", studioLrnAckOk: "הבנתי", studioLrnForget: "מחק את התרומות שלי", studioLrnForgetS: "מה שכבר נאסף מהעבודות שלך", studioLrnForgetQ: "למחוק מהמאגר את כל מה שנאסף מהעבודות שלך? העבודות עצמן לא נמחקות. עבודות חדשות ייכנסו רק אם המתג דולק.", studioLrnForgetOk: "למחוק", studioLrnForgetDone: "נמחקו {n} רשומות", studioTwAttnT: "דורש תשומת לב", studioSeeAll: "הכל", studioTwAlertsT: "התראות ותקלות", studioTwAlN: "{n} התראות פתוחות", studioTwIncN: "{n} תקלות פתוחות", studioTwQuiet: "הכל שקט", studioTwGrpHealth: "מצב השירות", studioTwGrpAgents: "סוכנים ועלות", studioTwMapOk: "כל הרכיבים תקינים", studioTwMapNote: "כל עבודה עוברת ברכיבים לפי הסדר. רכיב צבעוני = יש בו התראה פתוחה.", studioTwProbsT: "בעיות ותיקונים", studioTwProbsNone: "אין בעיות פתוחות", studioTwAgentsT: "הסוכנים", studioTwAgentsS: "{n} סוכנים · {j} עבודות ב־30 יום", studioTwNormT: "הרגיל ומתי עוצרים", studioTwNormS: "כמה עולה עבודה רגילה, ומתי המגדל עוצר", studioOnShort: "פועל", studioOffShort: "כבוי", admGoldXeAll: "ניסוי: גם התרגום במאמץ בינוני", admGoldXeAllS: "הגהה, תרגום וביקורת במאמץ בינוני — פעם רגילה ופעם בניסוי", admGoldXeTagAll: "ניסוי מאמץ + תרגום", admGoldXg: "ניסוי: בלי מילון מונחים", admGoldXgS: "כל מצב רץ פעמיים — רגיל ובלי מילון. כך רואים כמה המילון באמת תורם.", admGoldXgTag: "בלי מילון",
   rdClose: 'סגירה', rdToc: 'תוכן העניינים', rdSettings: 'הגדרות תצוגה', rdMinLeftChap: 'עוד {m} דק׳ בפרק', rdMinLeftBook: 'עוד {m} דק׳ בספר', rdProgress: 'מיקום בספר', rdBackTo: 'חזרה ל־{p}',
   rdTranslate: 'תרגום', rdCopy: 'העתק', rdCopied: 'הועתק', rdBackTwice: 'לחיצה נוספת על חזור — חזרה לדף הספר', libDlReady: 'הספר ירד — נגיעה בו פותחת אותו',
@@ -2664,6 +2665,7 @@ en: {
   studioLinkToCloudNo: "This site blocks our server — phone only",
   studioLinkToCloudOff: "Available only in the system’s server mode",
   studioLinkCloudNote: "Downloads straight to the Studio cloud — no data or battery from your phone. Transcription starts from the audio before the video finishes. If the site blocks the server, the job will fail — then download to your phone.",
+  admUCapAdm: "No system cap — only the limit on the Claude account", studioApiNoCap: "{a} · no system cap (only the Claude account limit)", admUseT: "Usage & resources", admUseS: "{n} jobs · {u} in 30 days", admUseRecN: "{n} things to check", admTyVid: "Video translation", admTyUrl: "From a link", admTySub: "Subtitle file", admTyKa: "Karaoke", admTyPh: "On the phone", admTyRr: "Re-render", admTyAi: "AI sheet", admTyDx: "Save to Drive", admTyOth: "Other", admEkApi: "System key (we pay)", admEkRy: "User’s own plan", admEkCp: "Copy-paste", admEkRt: "Routine", admRecOk: "Resources are enough for now", admRecOkS: "No long queue waits, no overload and no jump in failures", admRecWait: "Queue wait: {v}s (90%)", admRecWaitS: "Jobs are waiting for a worker — consider another worker or server", admRecUtil: "The worker is busy {v}% of the time", admRecUtilS: "Close to capacity — jobs will wait at peak hours", admRecFail: "{v}% of jobs failed", admRecFailS: "Check the control tower for what repeats", admRecGrow: "Usage grew {v}% this week", admRecGrowS: "Keep an eye on wait times and cost", admRecCut: "Only the last {v} jobs are shown", admRecCutS: "There are more jobs in 30 days — the numbers are partial", admUseJobs: "Jobs", admUseWk: "{n} this week · {g}", admUseCost: "Cost", admUseProj: "Month forecast {u}", admUseVid: "Video hours", admUseOkF: "{ok} done · {f} failed", admUsePeak: "Peak in parallel", admUseUtil: "{p}% utilization", admUseDays: "Last 30 days", admUseHours: "Busy hours (Israel time)", admUsePkH: "Peak: {h}", admUseTypes: "By job type", admUseTyS: "{n} · {ok} done · {f} failed", admUseRun: "runs {m}", admUseCpm: "{u}/min", admUseLoad: "Load & resources", admUseWait: "Queue wait", admUseWaitS: "median {a} · 90% under {b} · longest {m}", admUseRunT: "Run time", admUseRunS: "median {a} · 90% under {b}", admUseBusy: "Worker utilization", admUseBusyS: "{h} h of work in 30 days · peak {c} in parallel ({d})", admUseNow: "Running now", admUseNowS: "{n} jobs queued or running", admUseEng: "By engine", admUseMo: "This month", admUseMoT: "Cost this month", admUseMoS: "Day {d} of {n} · month-end forecast {u}", admUseTrend: "This week vs last", admUseTrendS: "{a} jobs vs {b} · {u} vs {v}", admUseErrs: "Common failures", admUseSrv: "Servers", admUseSrvS: "{h} h of work", admUseFoot: "From the last 30 days, all job types (translation, karaoke, subtitle file, link, phone, re-render). Cost = only what we paid (system key). A new job type shows up here on its own. Updates every 5 minutes.", admSecs: "{n}s", admUDef: "Cap per user", admUDefS: "Monthly default · alert at $10, $25, $50…", admUDefQ: "Default monthly cap per user (USD). Empty = $20. Users with their own cap aren’t affected.", admTabAct: "Activity", admLiveT: "Live now", admLiveAll: "All", admLiveOther: "Another user", admLiveMe: "You", admLiveWarn: "Another user is working now — better not to start a translation or a test until it ends.", admLiveWaitBtn: "Notify me when it ends", admLiveWaitOn: "We’ll notify you ✓", admLiveWaitOff: "Cancel", admLiveStep: "Step {n} of {t}", admLiveLeft: "~{n} min left", admLiveSoFar: "Spent so far", admLiveTok: "Tokens", admLiveExp: "Expected total", admLiveNone: "Nothing is running right now", admLiveStarted: "Started {c} · updates every 10 s", admLiveEnded: "Ended {c}", admLiveOf: "of ~{u}", admLiveCost: "Cost over time", admLiveCostS: "Since you opened this screen", admLiveAgents: "Agents", admLiveStages: "Stages", admLiveUserAll: "All activity of {n}", admLiveQ: "Waiting for the user’s answer", admLiveV: "Waiting for the video", admLiveQueued: "Queued", admLiveGone: "Job not found", admLiveNoTok: "No tokens", admLiveRoutine: "On the user’s own plan — no cost to us", admLiveStNow: "Now", admLiveStDone: "Done", admLiveStWait: "Not yet", admKTr: "Translation", admKRr: "Re-render", admKAi: "AI sheet", admKDx: "Check", admActUsers: "Users", admActUsersS: "{d} active today · {w} this week", admActAll: "All", admActTr: "Jobs", admActAdm: "Admin", admActNew: "Joined", admActErr: "Failures", admActAllU: "All users", admActNone: "No such activity in the last 30 days", admActFoot: "Last 30 days — jobs, admin actions and new users. Times in Israel time.", admEvJs: "Started", admEvJd: "Finished", admEvJf: "Stopped", admEvJc: "Cancelled", admEvNow: "Running now", admEvQ: "Quality {n}", admEvNu: "New user", admUsT: "Users", admUs30: "30 days", admUsAll: "All time", admUsSum: "Studio · by cost", admUsTot: "Total {u}", admUsRowS: "{n} videos · {h} · {tok}", admUsNow: "Now", admUsPaused: "Paused", admPpNone: "No users with activity yet", admPpFoot: "Name and email come from the account, are stored only on the server and shown only to you. Cost = what it cost us on our server; jobs on the user’s own plan aren’t counted. “All time” — from the jobs still stored.", admHrs: "{n} h", admMins: "{n} min", admTokN: "{n} tokens", admUState: "Status", admUNow: "A job is running now", admUSeen: "Last active {a}", admUJoined: "Joined: {d}", admUMonth: "This month", admUMonthS: "of {c} · {p}", admUCntS: "{n} videos · {h} · {tok}", admUMgmt: "Manage", admUCap: "Monthly cap", admUCapOwn: "Personal", admUCapSys: "System default", admUCapQ: "Monthly cap for {n}’s jobs, in dollars. Empty = the system cap ({d}).", admUCapSave: "Save", admUPause: "Pause", admUPauseOn: "Paused — no new jobs", admUPauseOff: "Active", admUPauseQ: "Pause {n}? New jobs and “resume” will be blocked; what runs now continues.", admUPauseGo: "Pause", admUResumeQ: "Reactivate {n}?", admUResumeGo: "Reactivate", admUAct: "Activity", admUBadCap: "An amount between 1 and 10,000", admOvUsers: "{n} active today", admOvUsersS: "This week {w} · this month {u}", admOvUsersG: "Users", admLgUsCap: "User cap", admLgUsPause: "User paused", admLgUsResume: "User reactivated", admBusyQ: "{n} · a translation is running ({p}%). Better wait until it ends. Start anyway?", admBusyWait: "Wait", admBusyWaitOk: "We’ll notify you when it ends", studioBusyQ: "{n} · a translation is running ({p}%). Better wait until it ends. Start anyway?", studioBusyWait: "Wait", studioBusyWaitOk: "We’ll notify you when it ends", studioErrPaused: "Your account is paused right now — contact the admin",   // 29/10/2026: ניטור משתמשים
   studioLinkEStore: "Couldn’t save the video on your phone (out of space?).", studioLinkAudioT: "Audio", studioLinkAudioS: "The best audio in the original language — picked for you", studioLinkSzUnknown: "Size unknown", studioLinkNoReenc: "Picture and sound are merged into one file without re-encoding — exactly the quality the site serves.", studioLinkSecNote: "Only this part is downloaded and translated — faster and cheaper. Hours:minutes:seconds.", studioLinkFrom: "From", studioLinkTo: "To", studioLinkSecOk: "Save", studioLinkSecAllBtn: "Whole video", studioLinkSecBad: "The times aren’t valid", studioLinkChT: "Or one chapter", studioLinkFcNote: "{q} · {s} · downloads straight to the server", studioLinkApiOnly: "Downloading from a link needs the system server — it isn’t available right now. Try again in a few minutes.", studioLinkCloudNoteWeb: "Downloads straight to the Studio cloud — no data or battery from your phone. Transcription starts from the audio before the video finishes downloading.", studioFmtHelpT: "What does it mean?", studioFmtHelpS: "Every term in plain words", studioFmtHelpLede: "Everything in the quality picker — in one sentence each.", studioFmtGQ: "Quality", studioFmtGV: "Picture formats", studioFmtGA: "Sound formats", studioFmtGM: "More", studioFmtQ: "1080p, 720p…", studioFmtQS: "How many lines the picture has — more = sharper and a bigger file. 1080p (Full HD) is sharp enough for any phone or computer screen.", studioFmtOrig: "Closest to the original", studioFmtOrigS: "Sites don’t keep the file the creator uploaded. We take the best version they serve — as is, without compressing it again.", studioFmt4k: "4K", studioFmt4kS: "4× the pixels of 1080p. Looks great on a big screen, but the file is 3–4× larger and burning takes longer.", studioFmtAv1: "AV1", studioFmtAv1S: "The newest compression: the same quality in a smaller file. On YouTube it’s usually the highest-quality version.", studioFmtAv1Short: "Best quality for its size", studioFmtVp9: "VP9", studioFmtVp9S: "Google’s compression — almost as good as AV1, very common on YouTube.", studioFmtH264: "H.264", studioFmtH264S: "The oldest and most common — plays on every device, but slightly less sharp at the same size.", studioFmtH264Short: "Plays on every device", studioFmtOpus: "Opus", studioFmtOpusS: "A modern sound format — the best sound per kilobyte. On YouTube it’s the highest-quality audio.", studioFmtAac: "AAC", studioFmtAacS: "Apple’s and most players’ sound format — very good quality.", studioFmtFps: "60fps", studioFmtFpsS: "Pictures per second. 60 is smoother for fast motion (games, sports); for a talk, 30 is plenty.", studioFmtHdr: "HDR", studioFmtHdrS: "Extended colors and brightness. When subtitles are burned in, colors can look washed out — so we prefer the regular version.", studioFmtSize: "Estimated size", studioFmtSizeS: "How much space the file takes in the studio’s storage. It doesn’t download to your phone.", studioFmtSec: "Only part of the video", studioFmtSecS: "Only the part you pick is downloaded and translated — faster and cheaper.", studioFmtSrv: "Downloads to your phone", studioFmtSrvS: "Studio downloads the video to your phone (the Movies/Studio folder), like a download manager. Then only what is needed goes up for translation — the audio first.", admFlStRt: "Translation in your Claude plan", admFlStRtS: "Jobs in your plan", admFlStAuto: "Auto-resume", admFlStAutoS: "Continues by itself after a passing failure", admFlLearn: "Learning database collection", admFlLearnS: "Metrics and text from new jobs", admFlFull: "Full collection (development period)", admFlFullS: "Logs, call log, metrics, errors and full text — turn off once there are users", studioLrnAckQF: "Development period — full collection: to diagnose and improve, we also keep the file name, the full unredacted text, your notes and questions, the job files (the translation of every part, the reviewer and judge notes), the server logs, the log of calls to Claude and the app errors — on top of times, cost, the audio and a small copy of the video. Everything is encrypted, without the original video and without Invest data. Logs are deleted after 30 days, the rest after 24 months. You can turn it off and delete it any time in Studio → Settings.", admFlPush: "Phone notifications", admFlPushS: "All notifications, admin too", admModels: "Studio models", admModelsN: "You and {n} more with all models", admModelsMe: "All models — only you", admModelsSub: "Everyone gets Standard (Haiku 5.5 · High) and Performance (Sonnet 5.5 · Medium). People on the list also get the rest — Sonnet Low/High and Opus Medium — for testing.", admModelsPh: "User email", admModelsAdd: "Add", admModelsBad: "Invalid email", admModelsMeRow: "You (admin) — always", admModelsDel: "Remove", admModelsDelQ: "Remove {e} from the list?", admModelsList: "With all models", admGoldT: "Test run", admGoldShort: "Golden set vs. a human translation, across modes", admGoldSub: "The same video with a human reference translation — re-run on the server in every mode you pick, and the worker scores each one against the reference (chrF++ and time coverage). This shows whether a change helped or hurt.", admGoldNone: "No golden job yet", admGoldNoneS: "In Studio: a finished job → \"Golden set\" → upload the human translation (SRT)", admGoldSrc: "Golden job", admGoldModes: "Modes to run", admGoldRun: "Run {n} · ≈{u}", admGoldQ: "Run {n} jobs on the server? Estimated cost ≈{u}. They join the queue and run when there is room.", admGoldStartBad: "{n} jobs didn't start — check Studio", admGoldStarted: "Test run started", admGoldBusy: "A previous run of this video is still open — waiting for it to finish.", admGoldXe: "Experiment: proofreading and review at medium effort", admGoldXeS: "Each selected mode runs once normally and once in the experiment — to compare", admGoldXeTag: "effort test", admGoldTm: "time coverage {n}%", admGoldNoScore: "Finished without a score", admGoldRes: "Results", admGoldRefresh: "Refresh", admGoldFailed: "Failed", admGoldRunning: "Running / queued", admGoldFoot: "Scoring uses no AI and costs no tokens. Higher = closer to the human translation.", admItGold: "A test run is due", admItGoldVer: "The code or the prompts changed since the last run", admItGoldNever: "Never run yet", studioSrcEn: "English source", admModelsFoot: "The server enforces the list on every new job. People on the list also get access to Studio, before it opens to everyone. Changes apply within half a minute.", admSvHost: "Update server setup (manual)", admSvHostS: "In the Hetzner console, when no translation job is running", admSvHostQ: "Type in the Hetzner console, three lines. Line 1 lists the images — take the IMAGE ID from the prod row and type it in line 2 instead of image-id. It refuses while a translation job runs — stop it in Studio first.", admSvHostCopy: "Copy", admLgSrvPause: "Server paused", admLgSrvResume: "Server resumed", admLgSrvDel: "Server removed", admLgAnOn: "Message published", admLgAnOff: "Message turned off", admLgFbDone: "Feedback marked handled", admLgFbDel: "Feedback deleted", admSvPause: "Pause", admSvResume: "Resume", admSvPauseQ: "Pause {n}? It finishes the current job and takes no new ones.", admSvDelQ: "Remove {n}? Its token dies immediately and it stops taking jobs. The Hetzner server itself is not deleted.", admBkT: "Backups", admBkWarnN: "{n} need attention", admBkOkS: "Last backup {d} · two backups", admBkR2: "Daily backup (Cloudflare R2)", admBkR2Off: "R2 not configured", admBkDays: "{n} of {k} days", admBkLast: "Latest {d}", admBkCat: "Library catalog", admBkPart: "Partial", admBkOff: "Second-provider backup (Google Drive)", admBkOffMine: "In your Drive", admBkOffOther: "In another admin’s Drive", admBkUp: "{n} files uploaded", admBkLeft: "{n} more queued", admBkOffNoOwner: "No backup owner", admBkOffNoOwnerS: "Set when the admin opens Studio and connects the library to Drive", admBkR2None: "No daily backup in R2", admBkR2Stale: "Daily backup hasn’t run since yesterday", admBkOffNone: "Drive backup hasn’t run yet", admBkOffStale: "Drive backup hasn’t run for over two days", admBkOffErr: "Drive backup failed", admBkFoot: "The daily backup runs from the scheduled check: Studio and Academy Firestore and the library catalog, 14 days. The second backup copies it and the books to your Drive. Invest portfolios aren’t included (privacy). Restore is manual.", admFbOpenN: "{n} new", admFbNone: "No new feedback", admFbDoneN: "Handled · {n}", admFbReply: "Reply by email", admFbDone: "Handled", admFbReopen: "Back to new", admFbDelQ: "Delete this feedback?", admFbFoot: "What users send from “Send feedback” in each app’s settings, with the app, version and device type.", admAnOn: "Active message", admAnOffS: "No active message · automatic “What’s new”", admAnNew: "New message", admAnTitleL: "Title", admAnTitleP: "e.g. Important update", admAnBodyL: "Text", admAnBodyP: "What would you like to tell users?", admAnApps: "Which apps", admAnDur1: "Day", admAnDur7: "Week", admAnDur30: "Month", admAnPub: "Publish", admAnRepub: "Publish again", admAnOff: "Turn off", admAnNeed: "Needs a title or text, and at least one app", admAnQ: "Publish? The message appears once for everyone who opens the apps you chose.", admNewsT: "What’s new", admNewsAuto: "“What’s new” after every release", admNewsAutoS: "Automatic · the version’s lines from CHANGELOG, once", admAnFoot: "The message appears once per device, as a dialog. Publishing again = shows again to everyone. No links, no formatting.", admUsS: "{n} translation jobs in 30 days", admUsJobs: "Jobs · 30 days", admUsDone: "{n} finished", admUsWkU: "Studio users this week", admUsPrevWk: "{n} the week before", admUfAcc: "Accounts", admUfSess: "With single sign-in across apps", admUfIbkr: "Connected IBKR background sync", admUfOpen: "Opened the app", admUfBackup: "Drive backup", admUfConn: "Connected Claude or Drive", admUfJob: "Ran a job (30 days)", admUfDone: "Finished a job (30 days)", admUgFoot: "Only counts of what’s already stored (accounts, connections, jobs) — no click tracking. Percent = of the first step.", admAgDt: "{n} translation jobs in 30 days, all users", admAgSec: "Agents", admAgJobs: "{n} jobs · {u}", admAgScore: "score", admAgNone: "No jobs in the last 30 days", admAgModes: "Translation modes", admAgPub: "Everyone", admAgList: "List only", admAgN: "{n} jobs", admAgPerHr: "per hour on server", admAgRisk: "Risks & controls", admAgRInj: "Injection attempt in transcript", admAgRCost: "Cost overrun", admAgRLoop: "Repeated “resume”", admAgStop: "Stops the job", admAgMark: "Flags only", admAgFoot: "From all users’ jobs in the last 30 days, numbers only. Score = completeness, right tool and valid actions. “Per hour on server” = the norm per video hour in server mode.", admSvS: "{n} online of {m}", admSvNone: "No servers registered", admSvAuth: "Token rejected — the server can’t connect", admSvBusy: "Working · {s}", admSvIdle: "Online, idle", admSvDown: "Not reporting", admSvDisk: "Disk", admSvFree: "{n}GB free", admSvDiskHold: "Under 8GB free — not taking new jobs", admSvMem: "Memory", admProvT: "Cloud usage", admProvVercel: "Vercel", admProvR2: "Cloudflare R2", admProvFs: "Firestore", admProvOff: "Not set up — token needed", admProvErr: "Error", admProvApiOff: "API is turned off in the project", admProvNoRole: "No permission (403)", admProvBilling: "Needs a billing account on the project", admProvBw: "Bandwidth", admProvInv: "Function calls", admProvStore: "Storage", admProvOps: "Operations", admProvReads: "Reads", admProvWrites: "Writes", admProvOf: "{u} of {l}", admProvNote: "Free-tier quotas from the providers' docs. Missing data is not shown", admMonRange24: "24 hours", admMonRange31: "31 days", admProvHist: "History — up to 31 days", admMonT: "Server monitor", admMonRow: "Server monitor", admMonRowS: "CPU, memory, disk and network — 24 hours back", admMonDt: "One point per server every 5 minutes, 24 hours back. Refreshes every 30 seconds while this screen is open", admMonSrv: "Servers", admMonCpu: "CPU", admMonNet: "Network", admMonPsi: "Memory pressure", admMonNone: "No servers connected", admMonJobs: "Jobs running now", admMonJobsNone: "No jobs running", admFsT: "Database reads — today", admFsSum: "{n} of {l} reads", admFsPace: "{h} in the last hour · at this pace by the reset: {p}", admFsRowS: "{h} in the last hour", admFsHot: "Unusual — likely a loop", admFsNone: "No reads yet today", admFsFoot: "Counted on our server (not Vercel and not phones directly). The day resets at midnight California time. An operation above {x} reads an hour, or a pace reaching 70% of the quota — phone alert.", admMonWarn: "Above threshold", admMonOk: "OK", admMonOff: "Not reporting", admMonNoData: "Not enough points yet", admMonFoot: "The Android widget refreshes at most every 15 minutes (a system limit). Here the data is live while the screen is open", admMonTokT: "Widget and read token", admMonTokMake: "Create token", admMonTokRotate: "Create a new token", admMonTokOn: "Token active since {a}", admMonTokOff: "No token — the widget cannot read", admMonTokNew: "The token is shown only now. Copy it and paste it into the widget settings", admMonTokCopy: "Copy token", admMonTokRev: "Revoke token", admMonTokRevQ: "Revoke the token? The widget will stop receiving data", admMonApk: "Admin app (APK)", admMonApkS: "A separate app that opens the admin directly, with the widget", admMonAvgMax: "avg {a} · peak {m}", admMonFree: "{g}GB free", admMonBusy: "Running a job", admMonIdle: "Idle", admMonSeen: "reported {a}", admMonHistWait: "History is starting to build up — one point per hour", admStoT: "Storage", admStoR2: "Cloudflare R2 · total", admStoOf: "{u} of {l}", admStoAt: "measured {a}", admStoFiles: "{n} files", admStoStudio: "Studio and library", admStoLearn: "Learning pool", admStoStg: "Staging", admStoR2Off: "Needs a Cloudflare read token (CF_USAGE_TOKEN)", admStoDrive: "Google Drive · system backup", admStoDriveOff: "Not measured yet — updates hourly", admStoSrv: "Server disk · {n}", admStoNote: "R2 and Drive are measured hourly. R2’s free 10GB is shared by all buckets. The cost is an estimate from Cloudflare’s price list — the invoice decides", admStoCost: "R2 cost · projected month", admStoCSt: "storage {v}", admStoCA: "writes {v}", admStoCB: "reads {v}", admStoCFree: "Within the free tier", admStoCostMtd: "so far {m}", admStoOver: "{g} above the free 10GB", admSvLoad: "Load", admSvUp: "Up since {a}", admSvAlO: "Alignment: ONNX INT8", admSvAlT: "Alignment: torch (slower)", admSvRebuild: "Rebuild a server", admSvRebuildS: "Actions ← server (with your approval)", admSvFoot: "What the server reports on every call (every few seconds). Creating, deleting and rebuilding — only in GitHub Actions and Hetzner, with your identity.", admScBadN: "{n} need attention", admScOkS: "All set · next date in {n} days", admScAllOk: "All required secrets are set", admScFromSrv: "Checked on our server", admScFromVercel: "Checked on Vercel", admScNeed: "Need attention", admScFoot: "Only “set” or “missing” — the value itself never leaves the server. Tap a row: what the secret unlocks and how to rotate it. The full list is in SECURITY.md.", admScHow: "How to rotate:", admScSet: "Set", admScMissing: "Missing", admScOpt: "Optional", admScPart: "Partial {p}", admScUsers: "{n} users", admScUntil: "Valid until {d} · {n} days left", admScWVercel: "Vercel variables", admScWSrv: "Our server", admScWWorker: "Worker server", admScWVault: "Server vaults (per user)", admScSa: "Service account", admScSaS: "Firestore (all documents) and the library folder in Drive", admScSaR: "Google Cloud ← IAM ← Service accounts ← Keys: new key ← Vercel ← Redeploy ← delete the old one. If the vault key isn’t set, set it first, or the vaults won’t open.", admScVault: "Vault key", admScVaultS: "Encryption of IBKR, Drive and Routine. Without it — derived from the service account", admScVaultR: "32 random bytes (openssl rand -base64 32) ← Vercel. After rotating, old vaults won’t open and everyone reconnects — don’t rotate without a reason.", admScGdLib: "Library Drive", admScGdLibS: "Drive connection for book backup and Invest (OAuth)", admScGdSt: "Studio Drive", admScGdStS: "Studio Drive connection (separate client)", admScGdR: "Google Cloud ← Credentials ← the client ← Reset secret ← Vercel ← Redeploy.", admScR2: "Cloudflare R2", admScR2S: "Files: books, Studio jobs, backups", admScR2l: "Learning bank R2", admScR2lS: "The snb-learn bucket (encrypted)", admScR2R: "Cloudflare ← R2 ← Manage API tokens ← new bucket token ← Vercel ← Redeploy ← delete the old one.", admScGemS: "Translation and letter analysis in Academy", admScMisS: "Backup for in-context translation", admScBooksS: "Book details in the library manager", admScPicker: "Google file picker", admScPickerS: "Picking a video from Drive in Studio (legacy picker)", admScKeyR: "New key at the provider ← Vercel ← Redeploy ← delete the old one.", admScCron: "Daily sync secret", admScCronS: "Who may trigger the IBKR sync", admScWatch: "Scheduled check secret", admScWatchS: "The 10-minute check from GitHub", admScRandR: "New random string ← Vercel (for the check secret — also GitHub Secrets, same value).", admScGh: "GitHub token", admScGhS: "More GitHub calls in the admin center (without it — 60 an hour)", admScGhR: "GitHub ← Settings ← Developer settings ← read-only fine-grained token ← Vercel.", admScSess: "Shared sign-in key", admScSessS: "Signs the single sign-in cookie. Without it — derived from the service account", admScSessR: "32 random bytes ← server secrets. After rotating everyone signs in again once.", admScAnt: "Anthropic key", admScAntS: "Claude in “system server” mode", admScAntR: "Anthropic Console ← new key ← new server with a new setup code (or snb-setup) ← delete the old one in the Console.", admScApk: "Android signing key", admScApkS: "Signs all three apps", admScApkR: "Can’t be replaced without everyone reinstalling. Keep an offline backup of the file and password.", admScSrvTok: "Server token", admScSrvTokS: "The server takes jobs from the queue (only a hash is stored)", admScSrvTokR: "Actions ← server ← rebuild, or the server screen ← remove ← add with a new setup code.", admScIbkrS: "Background sync token and Query ID — encrypted", admScIbkrR: "Each user rotates their own: IBKR ← Flex Web Service ← new token ← disconnect and reconnect in the app.", admScRtS: "Studio Routine key — encrypted", admScRtR: "claude.ai ← the trigger ← new key ← “set up again” in Studio.", admLogT: "Activity log", admLogS: "{n} changes this week · last {a}", admLogNone: "Nothing changed from the admin center yet", admLogFoot: "Every change made from the admin center is logged here: what, who and when. Kept for {n} days.", admLgMtOn: "Maintenance mode on", admLgMtUpd: "Maintenance message updated", admLgMtOff: "Maintenance mode off", admLgFlOn: "Turned on: {n}", admLgFlOff: "Turned off: {n}", admLgAmAdd: "Added to all models", admTesters: "Test accounts", admTestersN: "{n} test accounts", admTestersNone: "None yet", admTestersList: "Test accounts", admTestersSub: "People on the list get into Studio like a regular user: Standard and Performance, their own Claude subscription, and the system server. Not the other models and not the full control tower.", admYt: "YouTube on the server", admYtOff: "Not connected — YouTube only in the Android app", admYtOk: "Working · last {a}", admYtNew: "Connected · not tried yet", admYtBad: "Blocked — new cookies needed", admYtN: "{n} cookies · saved {a}", admYtSoon: "The cookies expire soon — export new ones", admYtSub: "A dedicated Google account (not yours) the server uses to download from YouTube — so YouTube links work on iPhone and desktop too. YouTube may block the account; then paste new cookies here.", admYtHow: "How to export (on a computer)", admYtS1: "In Chrome, install the Get cookies.txt LOCALLY extension and, in its details, turn on \"Allow in Incognito\".", admYtS2: "Open an Incognito window and sign in to the dedicated Google account on YouTube.", admYtS3: "In the same tab, open youtube.com/robots.txt.", admYtS4: "Click the extension → Export for youtube.com, then close the Incognito window. Don’t sign in to that account again in this browser — YouTube rotates the cookies.", admYtS5: "Paste the file contents here, or pick the file, and save.", admYtPh: "Paste cookies.txt here", admYtFile: "Choose file", admYtSave: "Save", admYtClr: "Remove the account", admYtClrQ: "Remove the YouTube account from the server? YouTube links will work only in the Android app again.", admYtErrIn: "No signed-in account cookies in the file — export after signing in on YouTube.", admYtErrFmt: "This isn’t a cookies.txt (Netscape format) for youtube.com.", admYtErrBig: "The file is too large — export youtube.com only.", admYtScBlocked: "YouTube blocked it (\"not a bot\")", admYtScLogin: "The account isn’t signed in", admYtScCk: "The cookies expired", admYtFoot: "The cookies are stored encrypted, go only to the translation server and are never shown again. The server uses them only for YouTube links, at a slow pace. After two blocks in a row, YouTube links go back to Android-only and the readiness check sends an alert.", admLgYtSet: "YouTube cookies saved", admLgYtClr: "YouTube account removed", admRdYt: "YouTube on the server", admRdYtOk: "The dedicated account works", admRdYtBad: "The dedicated account was blocked", admRdYtFix: "System → YouTube on the server: export and paste new cookies (or a new account).", admTestersFoot: "Learning data collection is on for them by default — the notice is shown, and they can turn it off in settings. The server enforces the list on every request; changes apply within half a minute.", admLgTsAdd: "Added to test accounts", admLgTsDel: "Removed from test accounts", admLgAmDel: "Removed from all models", admLgAcAdd: "Academy reader added", admLgAcDel: "Academy reader removed", admLgCkOk: "Phone check: works", admLgCkNo: "Phone check: doesn’t work", admLgCkClr: "Phone check cleared", admUsersT: "Users & permissions", admUsAdmins: "Admins", admUsEnv: "From Vercel variables", admUsAcSub: "Readers of the THE SNOWBALL shelf. People added here get in within a minute.", admUsAcOpen: "The library is open to anyone signed in (\"*\" in LIBRARY_READERS). The list here applies only if you remove the \"*\".", admUsAcOpenRow: "Anyone signed in", admUsAcNoStore: "No access to the list in Firebase, so you can’t add from here. Readers come only from Vercel variables for now.", admUsAdded: "Added {d}", admUsAcDelQ: "Remove {e} from Academy readers?", admUsReaders: "Readers · {n}", admUsStEnv: "Studio access", admUsNone: "None", admUsStConn: "Connected Drive to Studio", admUsIb: "IBKR background sync", admUsIbEnv: "Allowed", admUsIbMe: "Admin only", admUsIbOn: "Sync active for", admUsFoot: "Any email works — Gmail, Yahoo, Outlook or any other provider. A permission applies once the user signs in with that email and verifies it (the verification email is sent on sign-up), or links a Google account with it — then every email on the account gets the permission. Permissions are enforced by the server on every request; Vercel variable changes take effect only on the next server deploy.", admFlLive: "Live prices", admFlLiveS: "Price updates every 2 seconds", admMinAgo: "{n} min ago", admMsgs: "Messages & what's new", admNow: "now", admPrev: "before: {n}", admQuota: "Quotas & accounts", admRunAhead: "{n} builds ahead of production", admRunAhead1: "1 build ahead of production", admRunBk: "Backup", admRunBuild: "Build {b}", admRunPaused: "Paused", admRunProd: "Production", admRunSites: "Sites", admRunSitesOk: "All responding", admRunStag: "Staging", admSec30: "30 days", admSecCtl: "Control", admSecDates: "Dates", admSecLog: "Security & log", admSecRun: "What runs where", admSecSec: "Security", admSecShared: "Shared", admSecStudioTower: "Control tower", admSecWaitInfra: "Waiting for you", admSecrets: "Secrets & dates", admSoon: "Soon", admStudioAgents: "Agents & models", admStudioSrv: "Servers & resources", admStudioTower: "Full control tower", admStudioTowerS: "Alerts, incidents, agents — in Studio (until it moves here)", admTabApps: "Apps", admTabFind: "Search", admTabImp: "Improve", admTabOv: "Overview", admTabSys: "System", admTeam: "Sessions & tasks", admTeamS: "{n} open tasks · {w} in progress", admTeamNow: "In progress now", admTeamNone: "No session has claimed a task", admTeamPr: "Open PRs", admTeamBy: "By topic", admTeamSrc: "the task list", admTeamNote: "From the list in the repo. \"In progress\" = what a session has claimed.", admUnknown: "Unknown", admUpdated: "updated {a}", admUsage: "Usage & funnels", admUsers: "Users", admWait0: "Waiting for you", admWaitN: "{n} waiting for you", admT: "Admin center", admNoAdmin: "This screen is for the system admin only", admLoading: "Loading…", admErr: "Couldn't load — try again", admClaudeT: "Analyze with Claude", admClaudeS: "Claude on your subscription analyzes the data — no API, no extra cost. Anonymous data only.", admCopyBrief: "Copy summary for a Claude chat", admCopied: "Copied — paste it into a Claude chat", admCopyFail: "Copy failed", admCopy: "Copy", admDownload: "Download all data", admTokNew: "Token for a Claude Code session", admTokOnce: "The token is shown once — copy it now", admTokCmd: "Command for the session", admTokList: "Active tokens", admTokNone: "No active tokens", admTokDel: "Revoke", admTokDelQ: "Revoke this token? A session using it will stop receiving data", admTokMeta: "Created {a} · expires {e} · {u} uses", admLabT: "Improvement lab", admLabS: "{n} jobs in the database · 30 days (below: previous 30)", admLabNone: "No insights yet — more jobs needed", admSev1: "Urgent", admSev2: "Important", admSev3: "Worth a look", admTok90: "Tokens · 90 days", admLabDt: "{n} jobs in the database · {m} in 90 days · since {d}", admNowTop: "Most important now", admImpMo: "≈ {v} a month", admLabMore: "By topic", admWas: "was {v}", admLabIns: "All insights", admLabInsS: "Ranked by importance, then by how much money it is worth a month", admLabCost: "Cost and tokens", admLabCostS: "{r} · {p} of the cost", admLabTime: "Time", admLabTimeS: "{s} · {p} of the time", admLabQual: "Quality", admLabQualS: "The judge flags most: {c}", admLabFails: "Failures", admLabFailsNone: "No failures in 90 days", admLabModes: "Modes and engines", admLabAfter: "What happened after the job", admLabAfterS: "{e} edited · {r} re-rendered", admLabRecent: "Recent jobs", admLabRec: "Job", admLabData: "What is collected", admLabDataS: "{c} jobs with text · full collection {d}", admOn: "On", admOff: "Off", admNoData: "No data yet", admPerMo: "a month", admPerMin: "per min", admWhatDo: "What to do", admNumbers: "The numbers", admInsFoot: "The insight is computed in code from the database. Before changing anything, check the hypothesis with Claude on the records themselves.", admFCode: "Code", admFRole: "Role", admFStage: "Stage", admFJudge: "Issue", admFMetric: "Metric", admFModel: "Model", admFModeA: "Best mode", admFModeB: "Cheaper mode", admFSave: "Saving", admFDq: "Score difference", admFShare: "Share", admFN: "Count", admFJobs: "Jobs", admFUsd: "Cost", admFSpm: "Seconds per video minute", admFGold: "Score vs. human translation", admFImp: "Worth a month", admKusd: "Cost · 30 days", admKtpm: "Tokens per minute", admKmin: "Video minutes", admKht: "Your edit rate", admKedr: "Jobs edited", admKcov: "Video watched", admKsga: "Suggestions accepted", admKdone: "Finished", admByRole: "By role · 90 days", admCalls: "{n} calls", admCacheP: "{p} from cache", admSavable: "{v} could be saved", admTokI: "Input", admTokCr: "Cache read", admTokCw: "Cache write", admTokO: "Output", admByStage: "By stage · seconds per video minute", admStgS: "{t} in total", admSpmU: "s/min", admVt: "vt commands", admVtCpu: "CPU ×{r}", admCtG: "By content type", admCtN: "{n} jobs", admCtJd: "judge {v}", admCtOk: "{p} first-try", admCtSpm: "{v} s/min", admCt_talk: "Talk / speech", admCt_interview: "Interview (two speakers)", admCt_panel: "Panel / conversation", admCt_show: "Series / reality", admCt_quiet: "Little speech", admVtS: "{n} times · longest {m}", admSecU: "s", admMinU: " min", admHrU: " h", admStgUp: "Upload", admStgTr: "Transcription and proofreading", admStgAl: "Alignment", admStgTl: "Translation", admStgRv: "Review", admStgBn: "Burn-in", admStgSv: "Saving", admJudgeG: "What the judge flags · {n} subtitles", admQfG: "Quality checks that failed · {n} subtitles", admQualFoot: "Sample subtitles: in the Claude analysis (the text is in the corpus, not here).", admFailsG: "By code · 90 days", admFailsFin: "{n} final", admFailsUsd: "{v} lost", admFailsFoot: "\"Final\" = the job stopped on them. The rest passed after \"resume\".", admModesG: "Translation modes · 90 days", admEngG: "By engine", admEngApi: "System server", admEngSub: "Subscription (Routine)", admModeN: "{n} jobs", admModeJd: "judge {v}", admModeQ: "quality {v}", admModeOk: "{v} unaided", admModeSpm: "{v} s/min", admAfterJobs: "Jobs · 90 days", admAfterEd: "Edited in the editor", admAfterRr: "Re-rendered", admAfterAi: "AI sheet", admAfterGold: "Golden set", admAfterUx: "From the phone · how many jobs", admUxE: "Edits", admUxES: "{s} saves · {n} changes · {w} of work", admUxPl: "Player", admUxPlS: "{n} plays · {t}", admUxO: "Outputs", admUxOS: "{d} downloads · {s} shares · {x} to Drive", admUxSg: "Suggestions", admUxAR: "{a} accepted · {r} rejected", admUxAi: "AI sheet", admUxAiS: "{q} requests · {a} applied · {r} rejected", admUxGl: "Glossary", admUxGlS: "{a} terms added", admAfterFoot: "Edit rate = words you fixed ÷ words in the final version. Low = the translation was good from the start.", admJsDone: "Finished", admJsFail: "Failed", admJsCancel: "Cancelled", admRState: "State", admRMode: "Mode", admREng: "Engine", admRDur: "Video length", admRRun: "Run time", admRFires: "Runs", admRecFoot: "The record is anonymous: no file name and no text.", admDataRec: "Metrics", admDataRecT: "Records in the database", admDataRecS: "{n} in 90 days · anonymous, no text", admDataCorpus: "Corpus · encrypted, 24 months", admDataTxt: "Subtitle text", admDataQ: "{n} waiting for the batch", admDataEd: "Your edits", admDataMedia: "Audio and 240p copy", admDataMediaS: "{a} audio · {v} video · {m}", admDataSize: "Size", admDataOff: "The learning bucket is not configured", admDataDev: "Full collection · 30 days", admDataDevFlag: "The learn_full flag", admDataDevOnS: "Logs, call log, metrics and errors are collected", admDataDevOffS: "Nothing new is collected", admDataDevJ: "Job logs", admDataDevM: "Metric batches", admDataDevE: "Phone errors", admDataDays: "By day", admDataFoot: "To read it in a Claude Code session: an analysis token under \"Analyze with Claude\".", admI_fail_top: "Most common failure", admA_fail_top: "Open the logs of the jobs that failed with this code and fix the root cause. If it is transient, add a retry.", admI_first_pass: "Jobs that pass unaided", admA_first_pass: "Too many jobs need \"resume\". Check the failures: each recurring code is one fix.", admI_cache_low: "The cache barely works", admA_cache_low: "Check that the fixed part of the prompt does not change between calls (dates, numbers) and that the cache point comes after it.", admI_cost_role: "One role takes most of the cost", admA_cost_role: "Try shortening this role’s input or a cheaper model for it alone, and measure quality.", admI_think_heavy: "Heavy thinking", admA_think_heavy: "Most of the output is thinking. Try a lower effort for this role and compare the judge score.", admI_truncated: "Truncated answers", admA_truncated: "Answers hit the output cap. Split into smaller parts or lower the effort.", admI_cache_miss: "Cache rewritten", admA_cache_miss: "The cache is written again and again: the prompt probably changes, or too much time passes between calls.", admI_fix_heavy: "Many fix rounds", admA_fix_heavy: "Many subtitles fail the check after translation. Strengthen the rules in the translator prompt (length, speed).", admI_rv_idle: "The reviewer barely changes anything", admA_rv_idle: "The reviewer costs money and changes almost nothing. Consider skipping it on easy videos or a cheaper model.", admI_rv_heavy: "The reviewer changes a lot", admA_rv_heavy: "The reviewer fixes a lot, so the translator misses things. See what it fixes and move that into the translator prompt.", admI_judge_top: "What the judge flags most", admA_judge_top: "Add a focused rule for this issue to the translator prompt and measure on the golden set.", admI_q_metric: "A quality check that fails a lot", admA_q_metric: "Strengthen this check in the automatic test or the prompt, so it is caught before the end.", admI_edits_after: "Manual edits after the job", admA_edits_after: "You edit a lot after the job. Check in the corpus what you fixed: it is the best source for improving the prompt.", admI_ai_after: "AI sheet after the job", admA_ai_after: "You ask the AI to fix things after the job. What repeats should go into the translation itself.", admI_slow_stage: "A slow stage", admA_slow_stage: "This stage takes most of the time. Check whether it can run in parallel or speed up its longest command.", admI_wait_user: "Waiting for you", admA_wait_user: "A lot of time is spent waiting for your answer. Shorten questions or give an earlier default.", admI_sla_over: "Over the time target", admI_eta_off: "Time estimate is off", admI_rv_unrev: "Cues left unreviewed", admA_rv_unrev: "Review slices were cut before the end. Use smaller slices (SNB_RV_SLICE) or a lower review effort.", admA_eta_off: "The time shown on the phone is far from the actual time. Check which stage drifts and update its estimate.", admA_sla_over: "Jobs go over the target. Update the estimate or speed up the slow stage.", admI_asr_weak: "Weak transcription", admA_asr_weak: "Proofreading changes a lot of the transcript. Check another transcription model or a glossary for it.", admI_align_weak: "Weak alignment", admA_align_weak: "Many words lack a reliable time. Check those videos: noise, music or several speakers.", admI_sync_low: "Uncertain audio-video sync", admA_sync_low: "The sync between the early audio and the video is uncertain. Check the files where it happened.", admI_mode_value: "A cheaper mode at nearly the same quality", admA_mode_value: "Consider making the cheaper mode the default: the quality difference is small.", admI_inject_seen: "Lines that look like instructions", admA_inject_seen: "Lines that look like AI instructions were found in the transcript. Make sure they were translated, not followed.", admI_gold: "Golden set score", admA_gold: "The score against a human translation. Run it again after every prompt change.", admI_need_data: "Detailed data missing", admA_need_data: "No detailed facts from the worker yet. They come with the next jobs on the server.", admI_ver_worse: "A new version is worse", admA_ver_worse: "The new version is worse than the previous one on a key measure, with confidence. Check what changed and go back to the previous version unless there is a good reason.", admI_ver_better: "A new version is better", admA_ver_better: "The change helped: the new version is better than the previous one, with confidence. Keep improving in the same direction.", admFVerDim: "What changed", admFVerNew: "New version", admFVerOld: "Previous", admFVerMet: "Measure", admFVerN: "Jobs on the new one", admFVerNb: "Jobs on the previous", admVdEnv: "Worker code", admVdTl: "Translator prompts", admVdRv: "Reviewer prompts", admVdRb: "Job manager prompts", admVdJg: "Judge prompts", admVvUp: "Better", admVvDn: "Worse", admVvEq: "The same", admVvQ: "Not clear yet", admVvFew: "Few jobs", admVvMix: "Mixed", admLabVer: "Before and after each version", admImT: "Learning store impact", admImWait: "Waiting for the first deployed improvement", admImSince: "Since {d}", admImDt: "Baseline = all jobs before {d} · last month: {n} jobs, {m} video min", admImR7: "7 days", admImR30: "30 days", admImR90: "90 days", admImRall: "Since the start", admImRcu: "Other range", admImFrom: "From", admImTo: "To", admImGo: "Show", admImBadR: "Pick a start and an end date", admImPick: "Pick a range and tap \"Show\"", admImRng: "Now = {a}–{b} · {n} jobs", admImAB: "{a} → {b}", admImCI: "90%: {lo} to {hi}", admImFewS: "Too little data ({a} / {b} jobs)", admImSec: "s", admImUmin: "{v} min a month", admImUusd: "{v} a month", admImUjobs: "{v} jobs a month", admImFspeed: "Speed (per video minute)", admImFrel: "Reliability", admImFcost: "Cost (per video minute)", admImFqual: "Quality", admImM_tot: "Total time you waited", admImM_act: "Actual work time", admImM_up: "Phone upload until the server starts", admImM_eta: "Error in the time estimate", admImM_tr: "Transcription and proofreading", admImM_al: "Alignment", admImM_rv: "Review", admImM_bn: "Burn-in", admImM_sv: "Saving and sending", admImM_ok: "Success without \"resume\"", admImM_crash: "Server crashes", admImM_fail: "Failed jobs", admImM_cpm: "Cost per video minute", admImM_tpm: "Tokens per video minute", admImM_q: "Quality score", admImM_jd: "Judge score", admImM_ht: "Your edits (HTER)", admImM_wok: "Watched to the end without edits", admImM_num: "Numbers that disappeared", admImM_glm: "Glossary terms not kept", admImWhere: "Where the improvement comes from", admImStWait: "Waiting for deployment", admImStLive: "Live since {d}", admImDec: "Breakdown of the change since the start", admImRest: "Other changes and noise", admImTotal: "Total", admImHyp: "Hypothesis", admImTg: "Targeted metrics", admImOther: "Other metrics that moved", admImSrcDev: "From the production logs", admImSrcLab: "From the improvement lab", admImSrcUser: "From your report", admImSrcOps: "From the control tower", admImFoot: "Every comparison is per video minute, within the same mode and engine (a cheaper model is not counted as an improvement) · 90% confidence interval · per improvement: 28 days before vs. 28 days after, until the next improvement that touches the same metric", admImIFoot: "Before = the 28 days before deployment · After = up to 28 days after · → = before to after", admImWaitFoot: "Measured from the moment the improvement is live in production", admLabVerNone: "No two versions to compare yet", admVerDt: "New since {d} · {a} jobs vs {b} on the previous", admVerAb: "{a} vs {b}", admWkUsd: "Cost", admVerFoot: "Each row: the average per job on the new version vs the previous one (up to the last 20 jobs each), with a 90% confidence interval. \"The same\" = the whole interval is within a small margin. \"Not clear yet\" = more jobs are needed.", admLabWk: "This week", admLabWkS: "{n} jobs · {m} minutes", admWkDt: "The last 7 days vs the 7 before", admWkNv: "New versions this week", admWkNone: "No new versions this week", admI_num_drop: "Numbers lost in translation", admA_num_drop: "A number from the source is missing in the subtitle. Tell the translator to carry every number as is, and check the flagged subtitles.", admI_omit_cues: "Subtitles that look omitted", admA_omit_cues: "Empty subtitles or very short ones for their source. Check whether it is omission or intended condensing, and stress \"condense, do not omit\".", admI_tm_late: "Subtitles in late or out early", admA_tm_late: "Subtitles are not tight to the speech. Check alignment and the in/out rules in vt (plan).", admI_shot_near: "Edges close to a shot change", admA_shot_near: "Subtitles start or end 1–11 frames from a shot change, which flickers. Tighten shot snapping in vt.", admI_name_var: "One name, several spellings", admA_name_var: "The same name is spelled differently within one job. Add names to the glossary, or require one spelling.", admI_gl_miss: "Glossary terms not kept", admA_gl_miss: "A glossary term appeared in the source and its translation did not. Check that the glossary reaches the translator and reviewer.", admKsb: "SubER after edits", admLabMx: "Metrics in code", admDmT: "Studio DM — downloads", admDmS: "{n} events · {u} users · 14 days", admDmOk: "Success", admDmEnded: "of {n} finished", admDmDone: "Finished", admDmUsers: "{n} users", admDmFail: "Failed", admDmStop: "{n} stopped", admDmSpeed: "Speed", admDmMed: "Median", admDmCodes: "Why they failed", admDmSites: "By site", admDmSiteS: "Finished {d} · failed {f} · stopped {s}", admDmLast: "Latest failures", admDmFoot: "What Studio DM sends after each download (users signed in with Google): code, site, file name, speed and error lines — no addresses, no cookies. Full analysis: tools/dm-pull.js.", admFnlT: "Before the job", admFnlS: "{e} saw estimate · {s} started · 14 days", admFnlConv: "Estimate to start", admFnlConvS: "{s} of {e}", admFnlSteps: "Steps", admFnlWhy: "Why they quit", admFnlWhyNone: "No answers yet", admFnlS_pick: "Picked a video", admFnlS_link: "Link found", admFnlS_est: "Saw estimate", admFnlS_quit: "Quit at estimate", admFnlS_start: "Started a job", admFnlS_cut: "Opened trim", admFnlS_sty: "Changed style", admFnlS_lyr: "Found lyrics", admFnlW_exp: "Too expensive", admFnlW_slow: "Takes too long", admFnlW_test: "Just checking", admFnlW_later: "Later", admFnlFoot: "Daily counters only — no users, file names or links.", admFaT: "Company data accuracy", admFaS: "{n} companies · {h}h ago", admFaFace: "Vs. the filing", admFaFaceS: "{ok} of {n} values", admFaCos: "Companies with no gap", admFaCosS: "{ok} of {n}", admFaGold: "Golden set", admFaGoldS: "{n} hand-checked companies", admFaGoldBad: "moved in {n}", admFaGoldOk: "unchanged", admFaKinds: "What the checks found", admFaCo: "Companies off the filing", admFaGoldList: "Golden set — what moved", admFaItems: "Examples", admFaUser: "Stocks users opened · {n} — to fix", admFaVs: "Filing {f} · ours {v}", admFaYahoo: "{n} companies from Yahoo (no SEC filings)", admFaFail: "{n} companies failed", admFaNone: "The nightly check hasn’t run yet", admFaAlert: "Something broke since the previous run", admFaReport: "Full report", admFaMore: "and {n} more", admFaFoot: "Every night, the 500 largest companies: every annual value vs. the filing as the company printed it, accounting identities, and a golden set of hand-checked values. Public SEC numbers only.", admFaK_face: "Doesn’t match the filing", admFaK_fix: "Fixed automatically", admFaK_ffill: "Filled from the report", admFaK_ffix: "Replaced with the printed value", admFaK_qeps: "Q4 — as the company announced", admFaK_qmix: "Quarters on a different basis than the year", admFaK_qfy: "Quarter as the company reported", admFaK_gpfin: "Gross profit — finance arm", admFaK_x: "More values that don't match the sources", admFaX: "Every value vs. several sources", admFaXP: "Values to check", admFaXS: "{n} values · {c} companies · S&P 500 and Nasdaq-100", admFaXOk: "No issue", admFaXItems: "By severity", admFaXVs: "Ours {v} · SEC {r} · Yahoo {y} · Nasdaq {n}", admFaXC_bug: "Differs from SEC or the filing", admFaXC_spl: "Split not applied", admFaXC_estx: "Far from the estimate", admFaXC_ext: "Yahoo and Nasdaq agree — we don't", admFaXC_odd: "Differs from a source, no known reason", admFaXC_one: "Only one source, and it differs", admFaK_bal: "Balance sheet doesn’t balance", admFaK_neg: "Negative where it can’t be", admFaK_scale: "Suspicious scale", admFaK_eps: "EPS doesn’t fit income and shares", admFaK_gp: "Gross profit doesn’t fit", admFaK_part: "Part larger than the whole", admFaK_q4: "Quarters don’t add up to the year", admFaK_gr: "Growth that doesn’t match the filing", admFaK_rst: "Restated by the company (handled)", admFaK_qneg: "Suspicious negative quarter", admFaK_xy: "Differs from Yahoo", admFaK_gold: "Golden set moved", admFaK_other: "Other check", admLabMxS: "From draft to final {p} of subtitles changed", admMxJobs: "jobs", admMxDf: "Translator fixes", admMxFr: "Review", admMxRz: "Last fix", admMxDz: "Draft to final", admMxDt: "{n} jobs · {c} subtitles · 90 days", admMxStG: "What each stage changed", admMxChanged: "changed", admMxTmG: "Timing vs. speech", admMxLate: "In late", admMxInB: "Median {v}s before the first word", admMxInA: "Median {v}s after the first word starts", admMxCut: "Out before speech ends", admMxOutB: "Median {v}s before the last word ends", admMxOutA: "Median {v}s after the last word", admMxNw: "No speech inside", admMxShot: "Too close to a shot change", admMxShotS: "An edge 1 to 11 frames from the cut", admMxCsG: "Consistency", admMxNm: "Names with more than one spelling", admMxNmS: "{n} names checked", admMxGl: "Glossary terms not kept", admMxGlS: "{n} occurrences · {x} terms with two translations", admMxGlMix: "Terms with two translations", admMxOmG: "Omissions", admMxEmpty: "Empty subtitles", admMxShort: "Very short for the source", admMxRatio: "Length ratio (median): {v}", admMxNum: "Numbers lost", admMxNumS: "{n} numbers in the source", admMxFoot: "Computed in code, no tokens: TER and chrF++ as in sacrebleu, SubER as in apptek/SubER. A small change between stages is a good sign; a large one is worth a look.", admInsT: "What's most worth improving", admKn: "Jobs", admKok: "Passed unaided", admKcpm: "USD per video minute", admKspm: "Work seconds per minute", admKch: "Input from cache", admKq: "Quality", admKjd: "Judge score", studioLrnT: "Improve translation with my jobs", studioLrnOn: "Without your name or the original video — only to improve the system", studioLrnOff: "Your next jobs won't enter the learning database", studioLrnAckQ: "Your jobs help improve translation. We keep times, cost and scores, the subtitle text (the source, the translation, your edits and the speaker names), and also the audio and a small low-quality copy of the video. Everything is encrypted, without your name or the original video, and deleted after 24 months. You can turn it off and delete it any time in Studio → Settings.", studioLrnAckOk: "Got it", studioLrnForget: "Delete my contributions", studioLrnForgetS: "What's already been collected from your jobs", studioLrnForgetQ: "Delete everything collected from your jobs? The jobs themselves stay. New jobs enter only if the switch is on.", studioLrnForgetOk: "Delete", studioLrnForgetDone: "{n} records deleted", studioTwAttnT: "Needs attention", studioSeeAll: "See all", studioTwAlertsT: "Alerts & incidents", studioTwAlN: "{n} open alerts", studioTwIncN: "{n} open incidents", studioTwQuiet: "All quiet", studioTwGrpHealth: "Service health", studioTwGrpAgents: "Agents & cost", studioTwMapOk: "All components healthy", studioTwMapNote: "Every job passes through the components in order. A colored component has an open alert.", studioTwProbsT: "Problems & fixes", studioTwProbsNone: "No open problems", studioTwAgentsT: "Agents", studioTwAgentsS: "{n} agents · {j} jobs in 30 days", studioTwNormT: "Normal cost & stop rules", studioTwNormS: "What a normal job costs, and when the tower stops", studioOnShort: "On", studioOffShort: "Off", admGoldXeAll: "Experiment: translation at medium effort too", admGoldXeAllS: "Proofreading, translation and review at medium effort — once normally, once in the experiment", admGoldXeTagAll: "effort test + translation", admGoldXg: "Experiment: no glossary", admGoldXgS: "Each mode runs twice — normal and without a glossary — to see how much the glossary really helps.", admGoldXgTag: "no glossary",
   rdClose: 'Close', rdToc: 'Contents', rdSettings: 'Display settings', rdMinLeftChap: '{m} min left in chapter', rdMinLeftBook: '{m} min left in book', rdProgress: 'Position in book', rdBackTo: 'Back to {p}',
   rdTranslate: 'Translate', rdCopy: 'Copy', rdCopied: 'Copied', rdBackTwice: 'Press back again to return to the book page', libDlReady: 'Downloaded — tap the book to open it',
@@ -3176,7 +3178,7 @@ function applyI18n() {
   renderLangToggle();
   try { renderThemeToggle(); } catch (e) {}
   try { renderPfNote(); } catch (e) {}
-  try { if (typeof positionTabIndicator === 'function') positionTabIndicator(); } catch (e) {}
+  try { if (typeof dialSync === 'function') dialSync(true); } catch (e) {}
   try {
     const gSub = document.getElementById('ovGLSub');
     if (gSub) gSub.textContent = (typeof isIbkrMode === 'function' && isIbkrMode())
@@ -4688,8 +4690,13 @@ function ibkrMapImport(data) {
     if (mp > 0) e.mp = mp;
   }
   const positions = [];
+  const ac = ibkrAvgCost(d.trades);
   for (const e of bySym.values()) {
-    const avg = e.cost > 0 ? e.cost / e.shares : e.mp;
+    let avg = e.cost > 0 ? e.cost / e.shares : e.mp;
+    // 29/10/2026: מחיר ממוצע בשיטת IBKR (עלות ממוצעת — מכירה לא משנה את הממוצע), לא FIFO
+    // של הדוח — רק כשהיסטוריית העסקאות מסבירה את כל הכמות (אחרת: פיצול/העברה/היסטוריה חלקית)
+    const a = ac[e.sym];
+    if (a && a.avg > 0 && Math.abs(a.shares - e.shares) < 1e-6) avg = a.avg;
     positions.push({ sym: e.sym, name: e.sym, full: '', shares: e.shares, avg: avg > 0 ? avg : 0 });
   }
   let usd = 0, ils = 0, hasCash = false;
@@ -4825,6 +4832,31 @@ function mtSyncPositions() {
   }
 }
 
+/* עלות ממוצעת לכל סימבול מעסקאות IBKR, בשיטה של IBKR: קנייה מוסיפה כמות ועלות (כולל
+   עמלה), מכירה מורידה עלות לפי הממוצע — הממוצע לא זז. רק USD. מחזיר {sym:{shares,avg}}. טהורה. */
+function ibkrAvgCost(trades) {
+  const out = {};
+  const list = (trades || []).filter((x) => x && x.symbol && (!x.currency || x.currency === 'USD'));
+  list.sort(tradeNewestFirst).reverse();
+  for (const x of list) {
+    const sym = String(x.symbol).trim();
+    const q = Math.abs(Number(x.qty) || 0), px = Math.abs(Number(x.price) || 0);
+    if (!(q > 0)) continue;
+    const sell = Number(x.qty) < 0 || /^SELL/i.test(x.side || '');
+    const fee = (!x.commissionCurrency || x.commissionCurrency === 'USD') ? Math.abs(Number(x.commission) || 0) : 0;
+    const o = out[sym] || (out[sym] = { shares: 0, cost: 0 });
+    if (!sell) { o.shares += q; o.cost += q * px + fee; }
+    else {
+      const k = Math.min(q, o.shares);
+      o.cost -= o.shares > 0 ? (o.cost / o.shares) * k : 0;
+      o.shares -= k;
+    }
+    if (o.shares < 1e-9) { o.shares = 0; o.cost = 0; }
+  }
+  for (const k in out) out[k].avg = out[k].shares > 0 ? out[k].cost / out[k].shares : 0;
+  return out;
+}
+
 /* במצב IBKR: פוזיציה שלא הגיעה מהדוח = ידנית (נוספה ביד לפני v141 — למשל GOOG).
    מסמן src:'manual' כדי שתיכלל בחישובים ותישמר בסנכרון. מחזיר כמה סומנו. */
 function markManualPositions() {
@@ -4832,10 +4864,12 @@ function markManualPositions() {
   const data = ibkrCfg().data;
   if (!data) return 0;
   const ib = {};
-  for (const p of ibkrMapImport(data).positions) ib[p.sym] = true;
+  for (const p of ibkrMapImport(data).positions) ib[p.sym] = p;
   let n = 0;
   for (const p of POSITIONS) {
     if (!p.src && !ib[p.sym]) { p.src = 'manual'; n++; }
+    // 29/10/2026: ממוצע בשיטת IBKR גם לפוזיציות שנשמרו לפני השינוי — בלי לחכות לסנכרון
+    else if (!p.src && ib[p.sym].avg > 0 && ib[p.sym].shares === p.shares && Math.abs(ib[p.sym].avg - p.avg) > 1e-9) { p.avg = ib[p.sym].avg; n++; }
   }
   return n;
 }
@@ -6908,8 +6942,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.82.8';
-const APP_VERSION = 'v620';
+const APP_RELEASE = '2.85.1';
+const APP_VERSION = 'v627';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -8299,6 +8333,7 @@ function liveMerge(got) {
     const old = state.quotes[s];
     if (!old || old.close !== got[s].close) moved.push(s);
     state.quotes[s] = got[s];
+    nightTickRecord(s, got[s]);
   }
   return moved;
 }
@@ -8451,11 +8486,60 @@ function renderLive(syms) {
   try { fitNumbers(); } catch (e) {}
 }
 
+/* 29/10/2026: שעונים בגרף התוך־יומי. הנתונים נשמרים בשעון הבורסה (date+time), והתצוגה — בשעון המכשיר
+   (המיקום/המדינה של המשתמש). tz חסר = שעון המכשיר. טהורות. */
+function symExTz(sym) { return /\.TA$/i.test(sym || '') ? 'Asia/Jerusalem' : 'America/New_York'; }
+function tzWall(ms, tz) {
+  const o = { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' };
+  if (tz) o.timeZone = tz;
+  const p = {};
+  for (const x of new Intl.DateTimeFormat('en-CA', o).formatToParts(new Date(ms))) p[x.type] = x.value;
+  return { date: p.year + '-' + p.month + '-' + p.day, time: (p.hour === '24' ? '00' : p.hour) + ':' + p.minute };
+}
+function exWallToMs(date, time, tz) {
+  const d = String(date || '').split('-'), t = String(time || '00:00').split(':');
+  const wall = Date.UTC(+d[0], +d[1] - 1, +d[2], +t[0] || 0, +t[1] || 0);
+  const off = (ms) => { const w = tzWall(ms, tz), a = w.date.split('-'), b = w.time.split(':'); return Date.UTC(+a[0], +a[1] - 1, +a[2], +b[0], +b[1]) - ms; };
+  let ms = wall - off(wall);
+  ms = wall - off(ms); // מעבר שעון — סבב שני
+  return ms;
+}
+
+/* 29/10/2026: המסחר הלילי (20:00–04:00 בניו יורק) — ל־Yahoo אין נרות לילה, אז נאספות דקות מהמחיר החי
+   (liveMerge, כל המניות) ונוספות לגרף היום אחרי סוף המסחר המאוחר. בזיכרון בלבד. sym → [{ts (שניות), close}] */
+const NIGHT_TICKS = {};
+function nightTickRecord(sym, q, nowMs) {
+  if (!q || q.session !== 'night' || !q.ext || q.ext.kind !== 'night' || !(q.ext.price > 0)) return;
+  const ts = q.ext.t > 0 ? q.ext.t : Math.floor((nowMs || Date.now()) / 1000);
+  let a = NIGHT_TICKS[sym];
+  if (!a || (a.length && ts - a[a.length - 1].ts > 10 * 3600)) a = NIGHT_TICKS[sym] = []; // לילה חדש
+  const last = a[a.length - 1];
+  if (last && ts < last.ts) return;
+  if (last && Math.floor(last.ts / 60) === Math.floor(ts / 60)) a[a.length - 1] = { ts: ts, close: q.ext.price };
+  else { a.push({ ts: ts, close: q.ext.price }); if (a.length > 600) a.shift(); }
+}
+
 /* v139: נקודת "עכשיו" בגרף היומי — המחיר החי בשעת הדקה האחרונה שנסחרה.
-   מחליפה את הנר האחרון אם זו אותה דקה, אחרת נוספת אחריו. לא משנה את המטמון. */
-function intradayLiveRows(rows, q) {
+   מחליפה את הנר האחרון אם זו אותה דקה, אחרת נוספת אחריו. לא משנה את המטמון.
+   29/10/2026: ticks = דקות המסחר הלילי (NIGHT_TICKS) — נוספות אחרי הנר האחרון (עד 10 שעות אחריו). */
+function intradayLiveRows(rows, q, ticks, ext) {
   const out = (rows || []).slice();
+  if (out.length && ticks && ticks.length && (!q || q.session === 'night' || q.session === 'pre' || q.session === 'closed')) {
+    const last = out[out.length - 1];
+    if (last.time) {
+      const lastS = exWallToMs(last.date, last.time, 'America/New_York') / 1000;
+      // נקודה לכל 5 דקות (הסגירה של החלון) — כמו נרות היום (5m); הציר לפי מספר הנקודות, לא לפי הזמן
+      let bucket = -1;
+      for (const k of ticks) {
+        if (k.ts < lastS + 60 || k.ts - lastS > 10 * 3600) continue;
+        const b = Math.floor(k.ts / 300), w = tzWall(b * 300000, 'America/New_York');
+        const row = { date: w.date, time: w.time, close: k.close, night: true };
+        if (b === bucket) out[out.length - 1] = row; else { out.push(row); bucket = b; }
+      }
+    }
+  }
   if (!q || !(q.close > 0) || !q.mtime || !q.mdate || !out.length || q.session === 'night') return out; // v226: לילה = היום הבא
+  if (ext === false && q.session !== 'regular') return out; // 29/10/2026: בלי מסחר מורחב — בלי מחיר טרום/אחרי־מסחר
   const last = out[out.length - 1];
   if (q.mdate !== last.date) return out;
   if (q.mtime < (last.time || '')) return out;
@@ -8795,7 +8879,7 @@ async function proxyIntraday(sym, rng, ms) {
 /* v230: מה שמוצג בגרף התוך־יומי — תואם ל־Google:
    1D = יום המסחר האחרון שהיה בו מסחר רגיל, מ־09:30 (כולל אחרי־המסחר; בטרום־מסחר של יום חדש — עדיין יום המסחר הקודם).
    5D = חמשת ימי המסחר האחרונים, נרות 30 דקות, מ־09:30 (הבסיס = הנר הראשון; NOW: 138.00 → −1.72% תואם ל־Google). טהורה */
-function intraSessionRows(rows, range, sym) {
+function intraSessionRows(rows, range, sym, ext) {
   if (!rows || !rows.length) return [];
   const ta = /\.TA$/i.test(sym || '');
   const reg = (r) => ta || !r.time || (r.time >= '09:30' && r.time < '16:00');
@@ -8803,6 +8887,9 @@ function intraSessionRows(rows, range, sym) {
   for (const r of rows) if (reg(r) && days[days.length - 1] !== r.date) days.push(r.date);
   if (!days.length) return rows.slice();
   const keep = new Set(days.slice(range === '5d' ? -5 : -1));
+  // 29/10/2026: 1D לפי "מסחר מורחב" של גרף הנרות — דלוק: כל היום (טרום־מסחר + אחרי־מסחר), כבוי: רק 09:30–16:00
+  if (range !== '5d' && ext === true) return rows.filter((r) => keep.has(r.date));
+  if (range !== '5d' && ext === false) return rows.filter((r) => keep.has(r.date) && reg(r));
   const open = (r) => ta || !r.time || r.time >= '09:30';
   const out = rows.filter((r) => keep.has(r.date) && open(r) && (range !== '5d' || reg(r)));
   // 5D: Google מתחיל ממחיר הפתיחה של היום הראשון ("מחיר ב־09:30"), לא מסגירת הנר הראשון (META: 680.30 מול 711.80)
@@ -9402,66 +9489,275 @@ function tabShouldRender(name) {
   tabDirty[name] = true;
   return false;
 }
-const TAB_ORDER = ['overview', 'stocks', 'trades', 'wishlist', 'deposits', 'pension', 'settings', 'advanced', 'backup']; // v287: advanced = עמוד משנה של ההגדרות; 14/10/2026: backup (גיבוי ל־Google Drive) — גם
+/* 29/10/2026 (בקשת המשתמש): הסדר מימין לשמאל (ב־RTL) — הגדרות, מעקב, מניות, הסקירה (באמצע), עסקאות, הפקדות, פנסיה; כמו בחוגה */
+const TAB_ORDER = ['settings', 'wishlist', 'stocks', 'overview', 'trades', 'deposits', 'pension', 'advanced', 'backup']; // v287: advanced = עמוד משנה של ההגדרות; 14/10/2026: backup (גיבוי ל־Google Drive) — גם
 function tabRenderer(name) {
   return { overview: renderOverview, stocks: renderStocks, trades: renderTrades, wishlist: renderWishlist, deposits: renderDeposits, pension: renderPension, settings: renderSettingsLive, advanced: renderSettingsLive, backup: pfbkPaint }[name] || null;
 }
-/* v193: גלולה ירוקה שמחליקה בין הלשוניות (במקום רקע שקופץ) — כמו בורר מקטעים של אפל. ממוקמת פיזית (offsetLeft),
-   עובד ב־RTL וב־LTR ובתוך סרגל שגולל. הפעם הראשונה — בלי אנימציה. */
-/* 20/10/2026 (בקשת המשתמש): לשונית "הגדרות" (גלגל שיניים) בסרגל רק כשעמוד ההגדרות פתוח — אחרי "פנסיה" (משמאל בעברית).
-   בכניסה היא נוספת בקצה, והסרגל נגלל אליה בתנועה רכה ("נמשכת" מדופן המסך) יחד עם הקובייה; ביציאה הסרגל נגלל חזרה
-   והיא יורדת רק אחרי שיצאה מהמסך. מחזיר true כשהגלילה של הסרגל בטיפול כאן */
-let _tabSetT = 0;
-function tabSetBar(on) {
-  const tabs = typeof document !== 'undefined' && document.querySelector && document.querySelector('nav.tabs');
-  if (!tabs || !tabs.classList) return false;
-  const had = tabs.classList.contains('set-on');
-  clearTimeout(_tabSetT);
-  if (!on && !had) return false;
-  const rtl = getComputedStyle(tabs).direction === 'rtl', instant = document.documentElement.classList.contains('booting') || cubeReduce();
-  const to = (end) => { const m = Math.max(0, tabs.scrollWidth - tabs.clientWidth); try { tabs.scrollTo({ left: end ? (rtl ? -m : m) : 0, behavior: instant ? 'auto' : 'smooth' }); } catch (e) { tabs.scrollLeft = end ? (rtl ? -m : m) : 0; } };
-  if (on) { tabs.classList.add('set-on'); to(true); return true; }
-  to(false);
-  _tabSetT = setTimeout(() => {
-    if (tabs.querySelector('.tab-set.active')) return;
-    tabs.classList.remove('set-on');
-    tabTrackIndicator(260);   // שאר הלשוניות מתרחבות בחזרה — הסימון עוקב אחריהן
-  }, instant ? 0 : 460);
-  return true;
-}
-function tabTrackIndicator(ms) {   // הסימון צמוד ללשונית הפעילה בזמן שהפריסה של הסרגל משתנה
-  if (typeof requestAnimationFrame !== 'function') { try { positionTabIndicator(true); } catch (e) {} return; }
-  const t0 = Date.now();
-  const f = () => { try { positionTabIndicator(true); } catch (e) {} if (Date.now() - t0 < ms) requestAnimationFrame(f); };
-  requestAnimationFrame(f);
-}
-function positionTabIndicator(track) {
-  const tabs = document.querySelector('.tabs');
-  if (!tabs || !tabs.querySelector) return;
-  let ind = tabs.querySelector('.tab-ind');
-  if (!ind) {
-    ind = document.createElement('span');
-    ind.className = 'tab-ind';
-    ind.setAttribute('aria-hidden', 'true');
-    tabs.insertBefore(ind, tabs.firstChild);
+/* ---- 29/10/2026 (בקשת המשתמש, לפי סרטון): הלשוניות = "חוגה" בתחתית המסך ----
+   הפריטים יושבים על קשת (DIAL_DROP); הפעיל במרכז וגדל לבועה עם הכיתוב, והשאר עיגולים עם סמל וכיתוב מתחת. המצב = {pos, from, to, p}:
+   pos — איזה פריט במרכז (שבר = באמצע תנועה), ו"פעילות" שעוברת בהצלבה מ־from ל־to לפי p (הבועה הישנה מתכווצת והחדשה גדלה יחד).
+   במעבר עמודים החוגה זזה באותו קפיץ ובאותו זמן התחלה של הקובייה (tabCubeRun → dialAnimate, WAAPI — רץ גם כשהעמוד החדש נצבע),
+   ובגרירה של העמוד — צמודה לאצבע (dialCube). גרירה של החוגה עצמה גוללת אותה בחופשיות (בלי לשנות לשונית); לחיצה = מעבר,
+   ואם לא נלחץ כלום היא חוזרת לפעיל. "הגדרות" — לשונית קבועה, הימנית ביותר (בקשת המשתמש); עמודי המשנה שלה מסמנים אותה. */
+const DIAL_TABS = TAB_ORDER.slice(0, 7);   // index 0 = הימני ביותר ב־RTL
+const DIAL_SET = 0, DIAL_S0 = 0.68, DIAL_DROP = 2.4;
+const _dial = { st: null, run: null, drag: null, ride: null, ret: 0, noClick: 0, els: null };
+function dialIndex(name) { const i = DIAL_TABS.indexOf(name); return i >= 0 ? i : (NAV_SUBS.indexOf(name) >= 0 ? DIAL_SET : 0); }
+function dialStep(vw) { return Math.max(60, Math.min(84, (vw || 400) / 6.2)); }   // המרחק בין פריטים — כל השבעה על המסך, הקצוות חצי־גלויים (כמו בסרטון)
+function dialRest(i) { return { pos: i, from: i, to: i, p: 0 }; }
+function dialMax() { return DIAL_TABS.length - 1; }
+/* טהורה (נבדקת): הערכים של כל פריט במצב st — מיקום על הקשת, גודל העיגול, ושקיפות הסמל / הבועה / הכיתוב */
+function dialFrame(st, n, vw, rtl) {
+  const S = dialStep(vw), out = [], c01 = (x) => Math.max(0, Math.min(1, x)), f = (x) => Math.round(x * 100) / 100 || 0;
+  for (let i = 0; i < n; i++) {
+    const d = i - st.pos, ad = Math.abs(d);
+    const a = c01(st.from === st.to ? (i === st.from ? 1 : 0) : (i === st.from ? 1 - st.p : 0) + (i === st.to ? st.p : 0));
+    const e = a * a * (3 - 2 * a);                         // smoothstep — ההצלבה רכה בשני הקצוות
+    const o = c01((3.6 - ad) / 0.6);                       // מעבר לשבעה — נמוגים (בגרירה)
+    const x = (rtl ? -d : d) * S, y = DIAL_DROP * d * d - 4 * e, sc = 1 - 0.045 * Math.min(ad, 3);
+    out.push({
+      it: 'translate3d(' + f(x) + 'px, ' + f(y) + 'px, 0) scale(' + f(sc) + ')', o: f(o),
+      disc: 'scale(' + f(DIAL_S0 + (1 - DIAL_S0) * e) + ')', glow: f(e), ico: f(c01(1 - e * 1.7)),
+      bub: f(c01((e - 0.35) / 0.65)), bs: 'scale(' + f(0.82 + 0.18 * e) + ')', lbl: f(c01(1 - e * 1.8)),
+    });
   }
-  const act = tabs.querySelector('.tab.active');
-  ind.classList.toggle('off', !act); // v223: בהגדרות אין לשונית פעילה — הגלולה נעלמת
-  if (!act || !act.offsetWidth) return;
-  /* 14/10/2026 (נמדד בכניסה מהווידג'ט): החלקה רק כשהלשונית הפעילה התחלפה מול העין — מדידה מחדש של אותה לשונית
-     (גופן שנטען, שינוי רוחב) או לפני הציור הראשון (html.booting) קופצת למקום, לא "נוסעת" לאורך השורה */
-  const same = ind._tab === act.dataset.tab, quiet = same || track === true || document.documentElement.classList.contains('booting');
-  ind._tab = act.dataset.tab;
-  if (quiet) ind.style.transition = 'none';
-  ind.style.width = act.offsetWidth + 'px';
-  ind.style.transform = 'translateX(' + act.offsetLeft + 'px)';
-  if (quiet && tabs.classList.contains('has-ind')) { void ind.offsetWidth; ind.style.transition = ''; }
-  if (!tabs.classList.contains('has-ind')) {
-    ind.style.transition = 'none';
-    tabs.classList.add('has-ind');
-    void ind.offsetWidth; // מיקום ראשון בלי החלקה
-    ind.style.transition = '';
+  return out;
+}
+function dialEls() {
+  if (_dial.els && _dial.els.length && _dial.els[0].it.isConnected) return _dial.els;
+  const nav = typeof document !== 'undefined' && document.querySelector && document.querySelector('nav.tabs');
+  if (!nav) return [];
+  _dial.els = DIAL_TABS.map((k) => nav.querySelector('.tab[data-tab="' + k + '"]')).filter(Boolean).map((it) => ({
+    it, disc: it.querySelector('.tab-disc'), glow: it.querySelector('.tab-glow'), ico: it.querySelector('.tab-ico'), bub: it.querySelector('.tab-bub'), lbl: it.querySelector('.tab-lbl'),
+  }));
+  return _dial.els;
+}
+function dialRtl() { return String((document.documentElement && document.documentElement.dir) || 'ltr') === 'rtl'; }
+function dialPaint(st) {
+  const els = dialEls();
+  _dial.st = st;
+  if (!els.length) return;
+  const fr = dialFrame(st, els.length, window.innerWidth, dialRtl());
+  els.forEach((e, i) => {
+    const v = fr[i];
+    e.it.style.transform = v.it; e.it.style.opacity = v.o; e.it.style.pointerEvents = v.o < 0.3 ? 'none' : '';
+    if (e.disc) e.disc.style.transform = v.disc;
+    if (e.glow) e.glow.style.opacity = v.glow;
+    if (e.ico) e.ico.style.opacity = v.ico;
+    if (e.bub) { e.bub.style.opacity = v.bub; e.bub.style.transform = v.bs; }
+    if (e.lbl) e.lbl.style.opacity = v.lbl;
+  });
+}
+/* states = מצב לכל 1/CUBE_HZ שנ׳ (כמו הקובייה). o.to = הלשונית שאליה נוסעים (null — גלילה חופשית), o.cube = הקובייה שזה חלק ממנה */
+function dialAnimate(states, o) {
+  dialStop();
+  const els = dialEls(), last = states[states.length - 1];
+  if (!els.length || states.length < 2 || typeof els[0].it.animate !== 'function') return dialPaint(last);
+  const frs = states.map((st) => dialFrame(st, els.length, window.innerWidth, dialRtl()));
+  const dur = (states.length - 1) * 1000 / CUBE_HZ, anims = [];
+  const go = (el, kf) => {
+    if (!el) return;
+    const k0 = JSON.stringify(kf[0]);
+    if (kf.every((k) => JSON.stringify(k) === k0)) return;    // לא משתנה — בלי אנימציה
+    try { anims.push(el.animate(kf, { duration: dur, easing: 'linear', fill: 'forwards' })); } catch (e) {}
+  };
+  els.forEach((e, i) => {
+    const kf = (fn) => frs.map((fr) => fn(fr[i]));
+    e.it.style.pointerEvents = '';
+    go(e.it, kf((v) => ({ transform: v.it, opacity: v.o })));
+    go(e.disc, kf((v) => ({ transform: v.disc })));
+    go(e.glow, kf((v) => ({ opacity: v.glow })));
+    go(e.ico, kf((v) => ({ opacity: v.ico })));
+    go(e.bub, kf((v) => ({ transform: v.bs, opacity: v.bub })));
+    go(e.lbl, kf((v) => ({ opacity: v.lbl })));
+  });
+  _dial.st = last;
+  if (!anims.length) return dialPaint(last);
+  // כמו cubeRun: זמן ההתחלה = הפריים הנוכחי כשהוא טרי — אותו רגע בדיוק של הקובייה שנוצרה באותה משימה
+  try {
+    const t0 = document.timeline && document.timeline.currentTime;
+    if (t0 != null && typeof performance !== 'undefined' && performance.now() - t0 < 40) anims.forEach((a) => { a.startTime = t0; });
+  } catch (e) {}
+  const run = { states, anims, to: o && o.to != null ? o.to : null, cube: (o && o.cube) || null, zap: !!(o && o.zap) };
+  _dial.run = run;
+  Promise.all(anims.map((a) => a.finished)).then(() => dialEnd(run), () => {});
+}
+function dialEnd(run) {   // סוף (או סיום מיידי): המצב הסופי ב־style לפני שהאנימציות יורדות — בלי פריים באמצע
+  if (!run || _dial.run !== run) return;
+  _dial.run = null;
+  dialPaint(run.states[run.states.length - 1]);
+  run.anims.forEach((a) => { try { a.cancel(); } catch (e) {} });
+  if (run.zap && run.to != null) dialZap(run.to);
+}
+function dialStop() {     // עוצרים באמצע — החוגה נשארת איפה שהיא נראית עכשיו
+  const run = _dial.run;
+  if (!run) return;
+  _dial.run = null;
+  let i = 0;
+  try { const ct = run.anims[0] && run.anims[0].currentTime; if (ct != null) i = Math.round(ct * CUBE_HZ / 1000); } catch (e) {}
+  dialPaint(run.states[Math.max(0, Math.min(run.states.length - 1, i))]);
+  run.anims.forEach((a) => { try { a.cancel(); } catch (e) {} });
+}
+function dialZap(i) {     // נחיתה על לשונית חדשה: גל וברק על הבועה, פעם אחת
+  const e = dialEls()[i];
+  if (!e || cubeReduce()) return;
+  e.it.classList.remove('zap'); void e.it.offsetWidth; e.it.classList.add('zap');
+  clearTimeout(e.zt); e.zt = setTimeout(() => e.it.classList.remove('zap'), 800);
+}
+function dialGo(i, v0) {  // מעבר בלי קובייה (או חזרה למרכז אחרי גלילה) — אותו קפיץ
+  dialStop();
+  clearTimeout(_dial.ret);
+  const s = _dial.st || dialRest(i), ai = s.p >= 0.5 ? s.to : s.from;
+  const ps = cubeSpring(0, v0 || 0, 1);
+  dialAnimate(ps.map((p) => ({ pos: s.pos + (i - s.pos) * p, from: ai, to: i, p: ai === i ? 0 : p })), { to: i, zap: ai !== i });
+}
+/* מצב הלשוניות אחרי מעבר / שינוי גודל / שפה. מעבר בקובייה כבר מניע את החוגה (run.to) — לא נוגעים */
+function dialSync(instant, name) {   // name — הלשונית החדשה (ב־switchTab העמוד הפעיל עוד לא התחלף)
+  if (typeof document === 'undefined' || !dialEls().length) return;
+  const i = dialIndex(name || currentTabName());
+  if (_dial.drag || _dial.ride || (_dial.run && _dial.run.to === i)) return;
+  const s = _dial.st;
+  if (instant || !s || document.documentElement.classList.contains('booting') || cubeReduce() || document.hidden) { dialStop(); clearTimeout(_dial.ret); return dialPaint(dialRest(i)); }
+  if (!_dial.run && s.pos === i && s.from === i && s.to === i) return dialPaint(s);   // רוחב/שפה — מחשבים מחדש באותו מקום
+  dialGo(i);
+}
+/* הקובייה (tabCubeDrag) — מאיפה החוגה מתחילה ולאן; dialCubeState = המצב שמתאים לזווית p של הקובייה */
+function dialCubeBegin(c, cur, to, side) {
+  dialStop();
+  clearTimeout(_dial.ret);
+  const from = dialIndex(cur), s = _dial.st || dialRest(from), fwd = (side === 1) !== dialRtl();
+  c.dial = { pos0: s.pos, from, to: to ? dialIndex(to) : null, dir: fwd ? 1 : -1 };
+}
+function dialCubeState(c, p) {
+  const d = c.dial;
+  if (d.to == null) return { pos: d.pos0 + d.dir * Math.min(CUBE_RUB, p) * 2.4, from: d.from, to: d.from, p: 0 };   // "קפיץ" — נמשכת מעט ונהדפת
+  return { pos: d.pos0 + (d.to - d.pos0) * p, from: d.from, to: d.to, p };
+}
+function dialCube(c) { if (c && c.dial) dialPaint(dialCubeState(c, c.p || 0)); }
+function dialCubeRun(c, p1, v0) {
+  if (!c || !c.dial) return;
+  const ps = cubeSpring(c.p || 0, v0 || 0, p1), land = p1 === 1 && c.dial.to != null;   // בדיוק הסדרה של cubeRun
+  dialAnimate(ps.map((p) => dialCubeState(c, p)), { to: land ? c.dial.to : c.dial.from, cube: c, zap: land && c.dial.to !== c.dial.from });
+}
+function dialCubeDone(c) { if (_dial.run && _dial.run.cube === c) dialEnd(_dial.run); }
+function dialRubber(pos, max) {   // מעבר לקצה — נמשכת בהתנגדות
+  const over = pos < 0 ? pos : pos > max ? pos - max : 0;
+  return over ? (pos < 0 ? 0 : max) + over * 0.55 / (1 + Math.abs(over) * 1.4) : pos;
+}
+/* 29/10/2026 (סרטון המשתמש): גרירת החוגה מעבירה גם את העמודים — מה שבמרכז נבחר תוך כדי, והקובייה צמודה למיקום החוגה.
+   העמוד בזרימה = הנוכחי (k); הקובייה מולו אל השכן בכיוון של pos, בזווית |pos − k|. הגיע לשכן (זווית מלאה) — הוא נעשה
+   הנוכחי (switchTab בלי אנימציה, כמו סוף קובייה) והנסיעה ממשיכה ממנו. אחרי השחרור — אותו קפיץ של הקובייה (rAF: הפאות מתחלפות באמצע) */
+function dialRidePaint(r, pos) {
+  const max = dialMax(), cp = Math.max(0, Math.min(max, pos)), a = Math.floor(cp);
+  dialPaint({ pos, from: a, to: Math.min(max, a + 1), p: cp - a });
+  if (r) dialRideCube(r, pos);
+}
+function dialRideCube(r, pos) {
+  for (let n = 0; n < 8; n++) {
+    const name = currentTabName(), k = dialIndex(name), d = pos - k, dir = d > 0.001 ? 1 : d < -0.001 ? -1 : 0;
+    if (r.c && r.dir !== dir) dialRideDrop(r);
+    if (!dir) return;
+    const to = DIAL_TABS[k + dir] || null;
+    if (!r.c) {
+      if (to ? !tabCubeOk(name, to, null) : cubeReduce()) {   // בלי קובייה (תנועה מופחתת) — מתחלף בחצי הדרך
+        if (to && Math.abs(d) >= 0.5) { switchTab(to, { instant: true }); continue; }
+        return;
+      }
+      r.c = tabCubeDrag(name, to, cubeSideFwd(dir > 0)); r.dir = dir; tabCube = r.c;
+    }
+    const p = Math.abs(d);
+    if (!to) return cubeSet(r.c, Math.min(1, p) * 0.18);   // קצה — "קפיץ" קטן
+    if (p < 1) return cubeSet(r.c, p);
+    dialRideLand(r);
   }
+}
+function dialRideDrop(r) {   // חזרה לעמוד הנוכחי — הנכנס מוסתר
+  const c = r.c; r.c = null;
+  if (tabCube === c) tabCube = null;
+  cubeSet(c, 0);
+  cubeFaceOff(c.out);
+  if (c.in) { c.in.el.classList.remove('cube-in'); cubeFaceOff(c.in); }
+}
+function dialRideLand(r) {   // הגיע לשכן — הוא העמוד הנוכחי (כמו סוף tabCubeRun)
+  const c = r.c; r.c = null;
+  if (tabCube === c) tabCube = null;
+  cubeSet(c, 1);
+  switchTab(c.to, { cubeDone: true, keepScroll: true });
+  cubeFaceOff(c.out);
+  c.in.el.classList.remove('cube-in'); cubeFaceOff(c.in);
+  cancelScrollRestore(); navScrollTop();
+}
+function dialRideRun(r, xs) {   // xs = מיקום החוגה בכל 1/CUBE_HZ שנ׳
+  const t0 = performance.now(), last = xs[xs.length - 1];
+  const step = () => {
+    if (_dial.ride !== r) return;
+    const i = Math.min(xs.length - 1, Math.round((performance.now() - t0) * CUBE_HZ / 1000));
+    dialRidePaint(r, xs[i]);
+    if (i < xs.length - 1) r.raf = requestAnimationFrame(step); else dialRideEnd(r);
+  };
+  r.finish = () => { cancelAnimationFrame(r.raf); if (_dial.ride === r) { dialRidePaint(r, last); dialRideEnd(r); } };
+  cubeNow = r;   // נגיעה בעמוד / מעבר אחר — מסיימים מיד
+  r.raf = requestAnimationFrame(step);
+}
+function dialRideEnd(r) {
+  if (_dial.ride !== r) return;
+  _dial.ride = null;
+  if (cubeNow === r) cubeNow = null;
+  if (r.c) dialRideDrop(r);
+  const k = dialIndex(currentTabName());
+  dialPaint(dialRest(k));
+  if (k !== r.k0) dialZap(k);
+}
+function wireDial() {
+  const nav = typeof document !== 'undefined' && document.querySelector && document.querySelector('nav.tabs');
+  if (!nav || nav._dial) return;
+  nav._dial = true;
+  const clock = () => ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now());
+  let g = null;
+  nav.addEventListener('touchstart', (e) => {
+    g = null;
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    g = { x0: t.clientX, y0: t.clientY, lock: 0, samples: [[clock(), t.clientX]] };
+  }, { passive: true });
+  nav.addEventListener('touchmove', (e) => {
+    if (!g) return;
+    const t = e.touches[0], dx = t.clientX - g.x0;
+    if (!g.lock) {
+      if (Math.abs(dx) < 8) return;
+      if (cubeNow && cubeNow.finish) cubeNow.finish();   // קובייה / נסיעה קודמת — נוחתת מיד, והחוגה איתה
+      dialStop(); clearTimeout(_dial.ret);
+      const s = _dial.st || dialRest(dialIndex(currentTabName()));
+      Object.assign(g, { lock: 1, x0: t.clientX, pos0: s.pos, tick: Math.round(s.pos) });
+      _dial.drag = g;
+      _dial.ride = { c: null, dir: 0, k0: dialIndex(currentTabName()) };
+    }
+    if (e.cancelable) e.preventDefault();
+    const now = clock();
+    g.samples.push([now, t.clientX]);
+    while (g.samples.length > 2 && now - g.samples[0][0] > 150) g.samples.shift();
+    const max = dialMax(), pos = dialRubber(g.pos0 + (dialRtl() ? 1 : -1) * (t.clientX - g.x0) / dialStep(window.innerWidth), max);
+    dialRidePaint(_dial.ride, pos);
+    const k = Math.round(pos);
+    if (k !== g.tick && k >= 0 && k <= max) { g.tick = k; try { navigator.vibrate && navigator.vibrate(4); } catch (err) {} }   // "קליק" של חוגה בכל פריט
+  }, { passive: false });
+  const end = (e, cancelled) => {
+    const s = g; g = null;
+    if (!s || !s.lock) return;
+    _dial.drag = null;
+    _dial.noClick = clock();
+    const r = _dial.ride, st = _dial.st, max = dialMax(), S = dialStep(window.innerWidth);
+    if (!r) return;
+    const vi = cancelled ? 0 : swipeVelocity(s.samples, clock()) * 1000 / S * (dialRtl() ? 1 : -1);   // פריטים לשנייה
+    const near = Math.max(0, Math.min(max, Math.round(st.pos)));
+    const to = Math.max(0, Math.min(max, Math.max(near - 1, Math.min(near + 1, Math.round(st.pos + vi * 0.2))))), span = to - st.pos;
+    const ps = cubeSpring(0, Math.abs(span) > 0.02 ? vi / span : 0, 1);
+    dialRideRun(r, ps.map((p, i) => (i === ps.length - 1 ? to : st.pos + span * p)));
+  };
+  nav.addEventListener('touchend', (e) => end(e, false), { passive: true });
+  nav.addEventListener('touchcancel', (e) => end(e, true), { passive: true });
+  nav.addEventListener('click', (e) => { if (clock() - _dial.noClick < 400) { e.stopPropagation(); e.preventDefault(); } }, true);   // סוף גרירה אינו לחיצה
 }
 /* v193: כיוון הכניסה של העמוד (ציר משותף, כמו Material/iOS) — לשונית "קדימה" = העמוד נכנס מהצד שאליו הולכים
    (ב־RTL הפוך). נכתב כמשתנה CSS על העמוד; האנימציה עצמה ב־styles.css (tabIn). */
@@ -9570,19 +9866,10 @@ function switchTab(name, opts) {
   if (!cubeDone && cubeNow && cubeNow.finish) cubeNow.finish(); // 14/10/2026: מעבר קודם עוד מסתובב — מסיימים אותו מיד
   if (!cubeDone && tabCubeOk(prev, name, opts)) return tabCubeSwitch(prev, name, opts); // מעבר בקובייה (בסוף: כאן שוב, cubeDone)
   if ((prev === 'stocks' || prev === 'wishlist') && name !== prev) { try { closeStockCards(); } catch (e) {} } // v231; v240: גם מעקב
-  let actTab = null;
   const setPg = name === 'settings' || NAV_SUBS.indexOf(name) >= 0;   // 20/10/2026: גם בעמודי המשנה של ההגדרות — "הגדרות" מסומנת
-  document.querySelectorAll('.tab').forEach((t) => {
-    const on = t.dataset.tab === name || (setPg && t.dataset.tab === 'settings');
-    t.classList.toggle('active', on);
-    if (on) actTab = t;
-  });
-  const setMove = tabSetBar(setPg);
-  // v193: הגלולה נמדדת לפני שהעמוד החדש מוצג — ה־layout הכפוי (offsetLeft) מכסה רק את שורת הלשוניות
-  try { positionTabIndicator(); } catch (e) {}
-  if (!setMove && actTab && actTab.scrollIntoView) {
-    try { actTab.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch (e) {}
-  }
+  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name || (setPg && t.dataset.tab === 'settings')));
+  // 29/10/2026: החוגה בתחתית — במעבר בקובייה היא כבר בתנועה (tabCubeRun); אחרת נוסעת לכאן באותו קפיץ, או במקום בפתיחה
+  try { dialSync(!!(opts && (opts.restore || opts.instant)), name); } catch (e) {}
   setTabPageDirection(prev, name);
   // 14/10/2026: אחרי קובייה — בלי אנימציית הכניסה (no-in נשאר עד שהעמוד יוצא; הסרתו מעמוד פעיל הייתה מריצה אותה מחדש, לקח v324)
   document.querySelectorAll('.tabpage').forEach((s) => { if (s.id !== 'tab-' + name || !cubeDone) s.classList.remove('no-in'); else s.classList.add('no-in'); });
@@ -9655,8 +9942,10 @@ function tabPrewarm() {
 }
 function tabCubeRun(c, p1, v0) {
   tabCube = c;
+  dialCubeRun(c, p1, v0);   // 29/10/2026: החוגה בתחתית — באותו קפיץ ובאותו רגע
   cubeRun(c, p1, v0, () => {
     if (tabCube === c) tabCube = null;
+    dialCubeDone(c);
     cubeFaceOff(c.out); if (c.out) c.out.el.classList.remove('cube-out');
     if (c.in) { c.in.el.classList.remove('cube-in'); cubeFaceOff(c.in); }   // קודם מוסתר, אחר כך חוזר לזרימה
   });
@@ -9696,6 +9985,7 @@ function tabCubeDrag(cur, to, side) { // תחילת התזוזה בגרירה; t
     tabPageRender(to);
     try { fitNumbers(pg); } catch (e) {}
   }
+  dialCubeBegin(c, cur, to, side);
   cubeSet(c, 0);
   return c;
 }
@@ -9710,14 +10000,7 @@ function tabCubeGo(c, v0, name, opts) {
   tabCubeRun(c, 1, v0);
   switchTab(name, Object.assign({}, opts, { cubeDone: true, keepScroll: true }));
   if (sy > 0) { out.style.position = 'relative'; out.style.top = -sy + 'px'; }
-  const tabs = sy > 0 && document.querySelector('.tabs'), t0 = tabs ? tabs.getBoundingClientRect().top : 0;
-  cancelScrollRestore(); navScrollTop();
-  /* 14/10/2026 (דיווח המשתמש): בעמוד גלול שורת הלשוניות מאחורי ההדר (sticky), והחזרה לראש העמוד הציגה אותה בבת אחת.
-     עכשיו היא יורדת ממקומה מאחורי ההדר יחד עם תחילת הסיבוב */
-  if (tabs && typeof tabs.animate === 'function' && !cubeReduce()) {
-    const d = t0 - tabs.getBoundingClientRect().top;
-    if (Math.abs(d) > 1) { try { tabs.animate([{ transform: 'translateY(' + d + 'px)' }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.2,.8,.2,1)' }); } catch (e) {} }
-  }
+  cancelScrollRestore(); navScrollTop();   // 29/10/2026: הלשוניות בתחתית (קבועות) — אין שורה דבוקה שצריכה לרדת עם הגלילה
 }
 function tabCubeCommit(c, v0) { tabCubeGo(c, v0, c.to, null); }
 /* v325: גלילה תוכנתית של מעבר טאב (ראש העמוד) — מסומנת data-nav-scroll על <html> לשני פריימים, כדי שכלי המדידה
@@ -13831,6 +14114,9 @@ function cubeFace(el, o) {
   if (o && o.clip) st.clipPath = 'inset(' + n(Math.max(0, -r.top)) + 'px -60px calc(100% - ' + n(Math.max(0, vh - r.top)) + 'px) -60px)';
   st.backfaceVisibility = 'hidden'; st.webkitBackfaceVisibility = 'hidden'; st.willChange = 'transform';
   if (o && o.dead) st.pointerEvents = 'none';   // רק היוצא; הנכנס לחיץ כבר בזמן הסיבוב
+  // 29/10/2026 (סרטון המשתמש, Studio — בכל מעבר): זכוכית (backdrop-filter) בתוך פאה מסתובבת נצבעה בטלפון כפס אטום מתחת
+  // להדר שחתך את חצי הכותרת הגדולה, ונעלמה רק אחרי הנחיתה. בזמן הסיבוב — בלי זכוכית (styles.css: ‎.cube-face ב־Studio וב־Academy), גם בעמוד גלול
+  if (el.classList) { el.classList.add('cube-face'); f.face = true; }
   st.outline = 'none';                   // טבעת הפוקוס של שכבה (Academy/Studio) הסתובבה איתה כמסגרת כהה
   // 14/10/2026 (נמדד): ההדר בזכוכית (backdrop-filter) בתוך פאה מסתובבת מחושב מחדש בכל פריים — 50ms לפריים במקום 16.
   // פאה בראש הגלילה — מאחורי ההדר רק הרקע האחיד, והטשטוש לא משנה כלום: מכבים אותו (cube-flat) בלי שום הבדל נראה.
@@ -13843,7 +14129,7 @@ function cubeFace(el, o) {
   }
   return f;
 }
-function cubeFaceOff(f) { if (f && f.el) { f.el.style.cssText = f.css; if (f.flat) f.flat(); } }
+function cubeFaceOff(f) { if (f && f.el) { f.el.style.cssText = f.css; if (f.flat) f.flat(); if (f.face) f.el.classList.remove('cube-face'); } }
 function cubeSet(c, p) {
   const vw = window.innerWidth;
   c.p = p;
@@ -13910,9 +14196,27 @@ function cubeClone(el) {
   c.querySelectorAll('[id]:not(svg *)').forEach((x) => x.removeAttribute('id'));
   c.removeAttribute('id'); c.classList.add('cube-ghost'); c.setAttribute('aria-hidden', 'true');
   try { c.inert = true; } catch (e) {}
+  // 29/10/2026 (המשתמש: "הלוגו מתרענן בכל המעברים"): התמונות בהעתק — בפיענוח מיידי (כבר במטמון), אחרת פריים בלי לוגו
+  c.querySelectorAll('img').forEach((x) => { try { x.decoding = 'sync'; } catch (e) {} });
   el.after(c);
   c.scrollTop = el.scrollTop;
+  animSync(el); animSync(c);             // הלוגו החי בהעתק — באותו רגע של המקור, לא מאפס
   return c;
+}
+/* 29/10/2026 (המשתמש: "גם הלוגו מתרענן כל הזמן בכל המעברים"): אנימציית CSS מתחילה מאפס בכל פעם שהאלמנט נכנס ל־DOM —
+   הלוגו החי (ריחוף, פנים, ברק, שלג) "התאפס" בכל ציור של הבית, בהעתק של הקובייה ובכל חזרה. מצמידים את האנימציות
+   האינסופיות של הלוגו לשעון של הדף (startTime 0): בכל כניסה ובכל העתק — אותו רגע בדיוק, כאילו לא יצא אף פעם.
+   מושהית (html.calm) — לא נוגעים */
+function animSync(el) {
+  if (!el || typeof el.getAnimations !== 'function') return;
+  try {
+    for (const a of el.getAnimations({ subtree: true })) {
+      const t = a.effect && a.effect.target;
+      if (!a.animationName || !t || !t.closest || !t.closest('.brand') || a.playState !== 'running') continue;
+      if (a.effect.getTiming().iterations !== Infinity || a.startTime === 0) continue;
+      a.startTime = 0;
+    }
+  } catch (e) {}
 }
 function cubeBackdrop(el) {              // מתחת לשכבה — רקע אטום, כדי שמה שמאחוריה (התיק) לא יבצבץ בין הפאות (לקח v330)
   const d = document.createElement('div');
@@ -13926,14 +14230,17 @@ function cubeBackdrop(el) {              // מתחת לשכבה — רקע אט�
 function cubeHold(root, y) {
   const top = root.getBoundingClientRect().top;
   if (!(y > top + 1)) return null;
-  const copy = (el) => {
+  const copy = (el, hh) => {
     const c = el.cloneNode(false);
     for (const ch of el.childNodes) {
       if (ch.nodeType !== 1) { c.appendChild(ch.cloneNode(true)); continue; }
       const b = ch.getBoundingClientRect();
       if ((!b.width && !b.height) || b.top >= y) continue;
-      c.appendChild(b.bottom <= y + 0.5 ? ch.cloneNode(true) : copy(ch));
+      c.appendChild(b.bottom <= y + 0.5 ? ch.cloneNode(true) : copy(ch, b.height));
     }
+    // 29/10/2026 (גלאי הנחיתה, הניתוח — מעבר בין הלשוניות): אב שהועתק חלקית — בגובה המקורי. אלמנט דביק (sticky) לא חורג
+    // מתחתית האב שלו; באב הקצוץ הלשוניות נדחפו ברצועה 4px למעלה וירדו בנחיתה
+    if (hh > 0) { c.style.boxSizing = 'border-box'; c.style.minHeight = hh + 'px'; }
     return c;
   };
   const c = copy(root);
@@ -13943,6 +14250,9 @@ function cubeHold(root, y) {
   const r = root.getBoundingClientRect(), st = c.style;
   st.position = 'fixed'; st.top = r.top + 'px'; st.left = r.left + 'px'; st.width = r.width + 'px'; st.height = (y - r.top) + 'px';
   st.bottom = 'auto'; st.right = 'auto'; st.overflow = 'hidden'; st.zIndex = '902'; st.pointerEvents = 'none'; st.transform = 'none'; st.clipPath = 'none';
+  // 29/10/2026 (גלאי הנחיתה, Academy — מעבר בין המדפים): רקע מדורג (הזוהר של הזכוכית, radial-gradient ביחס לגודל) נדחס לגובה
+  // הרצועה, והזוהר מאחורי ההדר "קפץ" בנחיתה. הרקע של הרצועה — בגודל השכבה המלאה, כמו שהוא נראה בה
+  st.backgroundSize = r.width + 'px ' + r.height + 'px'; st.backgroundPosition = '0 0'; st.backgroundRepeat = 'no-repeat';
   (root.parentNode || document.body).appendChild(c);
   c.scrollTop = root.scrollTop;
   return c;
@@ -14127,14 +14437,13 @@ function barHeightVar() {
    פס גלילה אופקי, טאבי הרשימות וקצה המסך (מחוות "חזור") — לא נחשבים.
    14/10/2026 (בקשת המשתמש): העמוד מסתובב בקובייה צמוד לאצבע; **ההחלקה הקצרה בין רשימות המעקב בוטלה** —
    בכל הטאבים החלקה = עמוד, ובין הרשימות עוברים בלחיצה על הצ'יפים. */
-const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'settings' && t !== 'advanced' && t !== 'backup');
+// 29/10/2026: ההגדרות = עמוד רגיל, הימני ביותר
+const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'advanced' && t !== 'backup');
 function pageSwipeTarget(cur, next) { // next=true → העמוד הבא (שמאלה ב־RTL)
   if (cur === 'advanced' || cur === 'backup') return next ? null : 'settings'; // v287: עמוד משנה — החלקה אחורה חוזרת להגדרות (כמו באייפון)
-  if (cur === 'settings') return next ? null : PAGE_SWIPE_MAIN[PAGE_SWIPE_MAIN.length - 1];
   const i = PAGE_SWIPE_MAIN.indexOf(cur);
   if (i < 0) return null;
-  if (next) return i === PAGE_SWIPE_MAIN.length - 1 ? 'settings' : PAGE_SWIPE_MAIN[i + 1];
-  return i === 0 ? null : PAGE_SWIPE_MAIN[i - 1];
+  return (next ? PAGE_SWIPE_MAIN[i + 1] : PAGE_SWIPE_MAIN[i - 1]) || null;
 }
 function pageSwipeBlocked(tg, root) {
   if (!tg || !tg.closest) return true;
@@ -14224,7 +14533,7 @@ function wirePageSwipe() {
     let act = pageSwipeDecide(d, g.w, 0);
     if (act === 'page' && !g.to) act = null;
     if (pp > 0 && !g.cube) g.cube = tabCubeDrag(g.cur, g.to, cubeSideFwd(g.next));
-    if (g.cube) cubeSet(g.cube, g.cube.rub ? pp * 0.15 : pp);
+    if (g.cube) { cubeSet(g.cube, g.cube.rub ? pp * 0.15 : pp); dialCube(g.cube); }
     if (act !== g.act && act === 'page') buzz(12);
     g.act = act;
   }
@@ -15012,6 +15321,14 @@ function buildStockBody(p, m) {
    vendor/klinecharts, נטענים רק כאן). לכל סימבול — גם מדדים, קריפטו ומט"ח. הנרות מהשרתון (op:'candles'),
    המחיר החי כל שנייה מ־/api/quotes. המצב (שרטוטים, אינדיקטורים, התראות) — pwa_charts_v1, מפתח אישי לכל חשבון. */
 const CHART_LS = 'pwa_charts_v1';
+/* 29/10/2026: "מסחר מורחב" מהגדרות גרף הנרות (chart.js loadStore — ברירת מחדל דלוק) — גם לגרף היום בכרטיס המניה */
+function chartExtOn() {
+  try { const o = JSON.parse(localStorage.getItem(CHART_LS) || 'null'), g = o && o.g; return !g || g.extV !== 2 ? true : !!g.ext; } catch (e) { return true; }
+}
+/* 29/10/2026: אזור הזמן מאותן הגדרות (chart.js: g.tz — 'ex' שעון הבורסה, אחרת שעון המכשיר) — גם לגרף היום בכרטיס */
+function chartTzLocal() {
+  try { const o = JSON.parse(localStorage.getItem(CHART_LS) || 'null'), g = o && o.g; return !(g && g.tz === 'ex'); } catch (e) { return true; }
+}
 function chartBtn(sym) {
   // 27/10/2026 (בקשת המשתמש): במקום "גרף נרות" + סמל ההגדלה על הגרף — רק סמל ההגדלה, משמאל ל"ניתוח" (אותה פתיחה)
   const b = el('button', 'chip-btn kc-open-btn stock-ico-btn no-swipe');
@@ -15044,7 +15361,7 @@ function chartEnv() {
     },
     search: (q, onUpdate) => searchStocksYahoo(q, onUpdate),
     symbols: () => quoteSymbols().filter((s) => s !== FX_SYM),
-    onClose: () => refreshStockAlerts(),
+    onClose: () => { refreshStockAlerts(); chartExtRedraw(); },
     // מחיר הכותרת בגרף — אותו אפקט רובין הוד של כרטיס המניה
     pxSwap: (a, txt, px) => { const b = document.createElement('span'); b.dataset.px = String(px); b.textContent = txt; livePriceSwap(a, b); },
     // השוק סגור (סופ״ש/חג) — אותה בועה של כרטיס המניה: "השוק סגור · סיבה" ומתחת הסשן האחרון והשינוי
@@ -15071,6 +15388,12 @@ function chartFills(sym) {
   for (const x of mtActiveTrades()) { const m = mtNorm(x); if (m.sym === sym && m.qty > 0) trades.push({ d: m.date, t: '', side: m.side, qty: m.qty, price: m.price }); }
   const p = POSITIONS.find((x) => x.sym === sym), n = p ? Number(p.shares) || 0 : 0, avg = p ? Number(p.avg) || 0 : 0;
   return { trades, pos: n > 0 && avg > 0 ? { n, avg } : null };
+}
+/* 29/10/2026: אחרי סגירת גרף הנרות — "מסחר מורחב" אולי השתנה; גרפי יום/5 ימים פתוחים נצבעים מחדש (מהמטמון) */
+function chartExtRedraw() {
+  for (const sym of Object.keys(state.range || {})) {
+    if (INTRA_RANGES[state.range[sym]] && stockNode(sym, 'chart-')) ensureChartData(sym, true).catch(() => {});
+  }
 }
 function openChartFor(sym) {
   import('./chart.js').then((m) => m.openChart(sym, chartEnv())).catch(() => flash(t('kcErrLib')));
@@ -15431,9 +15754,10 @@ async function ensureChartData(sym, quiet) {
     if (INTRA_RANGES[range] && !state.stockPick[sym]) {
       const intra = await getIntraday(sym, INTRA_RANGES[range]);
       if ((state.range[sym] || 'year') !== range) return; // המשתמש כבר עבר לטווח אחר
-      const shown = intraSessionRows(intra, range, sym);
+      const ext = chartExtOn();
+      const shown = intraSessionRows(intra, range, sym, ext);
       if (shown.length) {
-        drawStockChart(sym, intradayLiveRows(shown, state.quotes[sym]), range);
+        drawStockChart(sym, intradayLiveRows(shown, state.quotes[sym], range === 'day' && ext ? NIGHT_TICKS[sym] : null, ext), range);
         if (loading) loading.classList.add('hidden');
         return;
       }
@@ -15464,11 +15788,18 @@ async function ensureChartData(sym, quiet) {
 
 /* ---------------- גרף קו ---------------- */
 
-function chartPoints(sym, rows, intraday) {
-  return downsample(rows, 400).map((r) => ({
-    label: intraday && r.time ? (intraday === '5d' ? fmtDateIL(r.date).slice(0, 5) + ' ' : '') + r.time.slice(0, 5) : fmtDateIL(r.date),
-    date: r.date, time: r.time, close: r.close
-  }));
+function chartPoints(sym, rows, intraday, local) {
+  const ex = symExTz(sym);
+  if (local === undefined) local = chartTzLocal();
+  return downsample(rows, 400).map((r) => {
+    // 29/10/2026: תוך־יומי — התאריך והשעה בשעון המכשיר (המיקום של המשתמש), או בשעון הבורסה אם נבחר בגרף הנרות
+    let date = r.date, time = r.time;
+    if (intraday && time && local) { try { const w = tzWall(exWallToMs(date, time, ex)); date = w.date; time = w.time; } catch (e) {} }
+    return {
+      label: intraday && time ? (intraday === '5d' ? fmtDateIL(date).slice(0, 5) + ' ' : '') + time.slice(0, 5) : fmtDateIL(date),
+      date: date, time: time, close: r.close
+    };
+  });
 }
 
 function drawStockChart(sym, rows, intraday) {
@@ -16708,6 +17039,7 @@ function init() {
   document.querySelectorAll('.tab').forEach((t) => {
     t.addEventListener('click', () => switchTab(t.dataset.tab));
   });
+  wireDial();   // 29/10/2026: גרירה של החוגה בתחתית
   // מטבע — כפתור בטאב ההגדרות + כפתור בהדר (v109) שמחליפים בין $ ל־₪; נשמר בין רענונים
   const paintCurBtn = () => {
     const lbl = state.currency === 'ILS' ? '₪' : '$';
@@ -17088,7 +17420,7 @@ function init() {
     renderAll();
     document.documentElement.classList.remove('booting');   // 14/10/2026: התוכן מוצג רק מהציור הראשון (styles.css, html.booting)
     barHeightVar();                                          // 20/10/2026: גובה ההדר ללשוניות הדבוקות
-    requestAnimationFrame(() => { try { positionTabIndicator(); } catch (e) {} });
+    requestAnimationFrame(() => { try { dialSync(true); } catch (e) {} });
     refreshQuotes().then(() => { warmHistories(); liveStart(); });
     refreshEarnings().then(() => { renderOverview(); renderWishlist(); });
   };
@@ -17100,7 +17432,7 @@ function init() {
   if (!waitCloud) startApp();
   else setTimeout(startApp, 6000);
   if (window.Cloud && window.Cloud.boot) window.Cloud.boot(startApp);
-  window.addEventListener('resize', () => { try { positionTabIndicator(); } catch (e) {} });
+  window.addEventListener('resize', () => { try { dialSync(true); } catch (e) {} });
 }
 
 if (typeof document !== 'undefined') {

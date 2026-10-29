@@ -1102,7 +1102,7 @@ async function renderHomeNow() {
   if (mine && !shell) { bkAdopt(); if (books.length || cloudOnly.length) hrow.append(backupPill()); }
   /* עצמאי (13/10/2026, בקשת המשתמש): בלי השורה שמתחת להדר — "הוספת ספר" = הכפתור ליד הגלובוס (shell, action),
      "גיבוי" ו"איפוס" — בהגדרות; בועת מצב הגיבוי — בהדר, מעל הכפתורים (כמו קפסולת המצב ב־Invest וב־Studio) */
-  if (shell) { bkAdopt(); shell.setStatus(backupPill()); if (shell.el.parentNode !== home) home.prepend(shell.el); }
+  if (shell) { bkAdopt(); shell.setStatus(backupPill()); if (shell.el.parentNode !== home) home.prepend(shell.el); if (typeof animSync === 'function') animSync(shell.el); }
   else home.append(top, hrow);
   if (SA && SA.auth && SA.auth.state() === 'out') {   // עצמאי בלי חיבור — כניסה עם Google (אחריה הדף נטען מחדש עם החשבון)
     const si = h('button', 'lib-signin'); si.type = 'button'; si.textContent = T('googleSignIn');

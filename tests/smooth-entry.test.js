@@ -21,7 +21,7 @@ ok(tab('#tab=wishlist&wl=b&app=x&n=1') === 'wishlist' && ctx.localStorage.s.wl =
 ok(tab('#tab=wishlist&wl=a&stock=KO') === 'wishlist' && ctx.localStorage.s.wl === 'b', 'מניה שלא ברשימה מהקישור — הרשימה שבה היא');
 ok(tab('#stock=NOW') === 'stocks' && tab('#tab=stocks') === 'stocks' && tab('#app=x') === '' && tab('#tab=evil') === '', 'בלי קישור / טאב לא מוכר — כרגיל');
 ok(/const lk = bootLinkTab\(\);\n    if \(lk\) lastTab = lk;/.test(app), 'בהפעלה: הטאב מהקישור במקום הטאב האחרון (בלי קובייה אחר כך)');
-ok(/const same = ind\._tab === act\.dataset\.tab, quiet = same \|\| (track === true \|\| )?document\.documentElement\.classList\.contains\('booting'\)/.test(fn(app, 'positionTabIndicator')), 'הגלולה לא "נוסעת" במדידה מחדש / לפני הציור');
+ok(/document\.documentElement\.classList\.contains\('booting'\)/.test(fn(app, 'dialSync')), 'החוגה לא "נוסעת" לפני הציור הראשון — במקום');
 ok(/behavior: smooth \? 'smooth' : 'auto'/.test(app) && /tabs\._wlOn = on\.dataset\.wl/.test(app), 'שורת הרשימות במקום בפתיחה; חלקה רק בהחלפה');
 
 // Academy / Studio: מצויר מיד כשיש חשבון בטלפון; העיצוב והלוגו לפני הציור

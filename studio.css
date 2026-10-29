@@ -180,6 +180,7 @@ a.st-row { color: inherit; text-decoration: none; -webkit-tap-highlight-color: t
 /* 21/10/2026: תמונה ממוזערת מהסרטון (paintThumb) — במקום סמל הסרט; דהייה כשהיא מגיעה אחרי הציור */
 .st-thumb.img { background-size: cover; background-position: center; }
 .st-thumb.img > svg { display: none; }
+.st-thumb > .st-tim { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .st-thumb.img.in { animation: stThumbIn .35s ease both; }
 @keyframes stThumbIn { from { opacity: .35; } to { opacity: 1; } }
 /* 21/10/2026: 4 העבודות האחרונות — הכרטיס נגלל בתוכו (הגובה מ־jobsCard), "עבודות קודמות" מתחתיו */

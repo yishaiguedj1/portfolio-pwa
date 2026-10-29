@@ -283,7 +283,7 @@ function laneView(prs, waiting) {
 
 /* יומן פעולות (15/10/2026, מסך 6 בתוכנית 5א): כל שינוי שהמנהל עושה ממרכז הניהול נרשם ב־sysLog — מה, מי (מייל), מתי, ופרט קצר.
    סוגים רק מהקטלוג (בלי טקסט חופשי בסוג), הפרט מנוקה (noteClean, עד 120). נשמר LOG_DAYS ימים */
-const LOG_KINDS = ['srv_pause', 'srv_resume', 'srv_del', 'an_on', 'an_off', 'fb_done', 'fb_del', 'mt_on', 'mt_upd', 'mt_off', 'fl_on', 'fl_off', 'am_add', 'am_del', 'ts_add', 'ts_del', 'ac_add', 'ac_del', 'ck_ok', 'ck_no', 'ck_clr', 'yt_set', 'yt_clr'];
+const LOG_KINDS = ['srv_pause', 'srv_resume', 'srv_del', 'an_on', 'an_off', 'fb_done', 'fb_del', 'mt_on', 'mt_upd', 'mt_off', 'fl_on', 'fl_off', 'am_add', 'am_del', 'ts_add', 'ts_del', 'ac_add', 'ac_del', 'ck_ok', 'ck_no', 'ck_clr', 'yt_set', 'yt_clr', 'us_cap', 'us_pause', 'us_resume'];   // 29/10/2026: תקרה / השהיה למשתמש
 const LOG_DAYS = 90, LOG_SHOW = 200;
 function logEntry(k, d, who, now) {
   if (!LOG_KINDS.includes(k)) return null;

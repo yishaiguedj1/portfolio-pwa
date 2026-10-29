@@ -27,7 +27,7 @@ for (const [fn, tab] of [['renderOverview', 'overview'], ['renderStocks', 'stock
 ok(/function renderAll\(opts\) \{\s*_renderForce = !!\(opts && opts\.all\);/.test(src) && /function renderAllInner\(\)/.test(src), 'renderAll({all:true}) מכריח ציור של כל הטאבים (החלפת שפה)');
 ok(/if \(tabDirty\[name\]\) \{ const fn = tabRenderer\(name\);/.test(src), 'switchTab מצייר טאב שהשתנה בזמן שהיה מוסתר');
 ok(/function setTabPageDirection\(prev, name\)/.test(src) && /'--tab-dx'/.test(src), 'כיוון הכניסה של העמוד נקבע לפי סדר הלשוניות ו־RTL');
-ok(/positionTabIndicator\(\); \} catch \(e\) \{\}\s*if \((!setMove && )?actTab && actTab\.scrollIntoView\)/.test(src), 'הגלולה נמדדת לפני שהעמוד החדש מוצג (layout כפוי קטן)');
+ok(/try \{ dialSync\(!!\(opts && \(opts\.restore \|\| opts\.instant\)\), name\); \} catch \(e\) \{\}/.test(src), 'switchTab מעדכן את החוגה בתחתית (עם הלשונית החדשה — העמוד עוד לא התחלף)');
 
 // --- 2. עוגה: מפתח ציור + מטמון פריסה + איחוד ציורי לוגו ---
 ok(/canvas\._pieDrawKey === key/.test(src), 'drawPie: פריים זהה (טיק חי בלי שינוי) לא מצויר מחדש');
@@ -61,7 +61,7 @@ ok(/k !== CACHE_NAME && k !== RUNTIME/.test(sw), 'sw.js: activate לא מוחק 
 ok(/if \(res && res\.ok\) cache\.put\(request, res\.clone\(\)\);/.test(sw), 'sw.js: רק תשובות תקינות נשמרות (לא opaque)');
 
 // --- 7. תנועה (Apple/Material) ---
-ok(/\.tab-ind \{[^}]*transition: transform \.42s/.test(css) && /\.tabs\.has-ind \.tab\.active \{ background: transparent/.test(css), 'גלולה מחליקה בין הלשוניות');
+ok(/\.tab-glow \{/.test(css) && /function dialAnimate\(states, o\)/.test(src), 'הבועה עוברת בין הלשוניות בהצלבה (החוגה)');
 ok(/\.tabpage\.active \{ display: block; animation: tabIn/.test(css) && /@keyframes tabIn/.test(css), 'עמוד נכנס בציר משותף');
 ok(/\.stock-body \{ display: none;/.test(css) && /\.stock\.open \.stock-body, \.stock\.anim \.stock-body \{ display: grid; \}/.test(css), 'גוף כרטיס סגור = display:none (בלי layout); נפתח באנימציית גובה');
 ok(/card\.classList\.add\('anim'\)/.test(src) && /requestAnimationFrame\(frame\)/.test(src) && /CARD_ANIM_MS/.test(src), 'toggleStock: מצב anim, גובה בכל פריים (v272 — במקום transitionend)');
@@ -103,12 +103,12 @@ ok(R("tabShouldRender('stocks')") === true && R("tabDirty.stocks") === false, '�
 ok(R("tabShouldRender('overview')") === false && R("tabDirty.overview") === true, 'טאב מוסתר: לא מצויר, מסומן dirty');
 ok(R("_renderForce = true; const _r = tabShouldRender('overview'); _renderForce = false; _r") === true && R("tabDirty.overview") === false, 'ציור מלא (renderAll({all:true})): גם טאב מוסתר מצויר וה־dirty מתנקה');
 ok(/try \{ renderAllInner\(\); \} finally \{ _renderForce = false; \}/.test(src), 'renderAll מחזיר את הדגל גם אם ציור נכשל');
+R("setTabPageDirection('stocks', 'overview')");   // 29/10/2026: הסדר החדש — המניות מימין לסקירה
+ok(pages['tab-overview'].style.props['--tab-dx'] === '-22px', 'RTL: קדימה = העמוד נכנס משמאל (‎-22px)');
 R("setTabPageDirection('overview', 'stocks')");
-ok(pages['tab-stocks'].style.props['--tab-dx'] === '-22px', 'RTL: קדימה = העמוד נכנס משמאל (‎-22px)');
-R("setTabPageDirection('stocks', 'overview')");
-ok(pages['tab-overview'].style.props['--tab-dx'] === '22px', 'RTL: אחורה = מימין (‎22px)');
+ok(pages['tab-stocks'].style.props['--tab-dx'] === '22px', 'RTL: אחורה = מימין (‎22px)');
 R("setTabPageDirection('stocks', 'stocks')");
-ok(!pages['tab-stocks'].style.props.x && pages['tab-stocks'].style.props['--tab-dx'] === '-22px', 'אותו טאב: הכיוון לא משתנה');
+ok(!pages['tab-stocks'].style.props.x && pages['tab-stocks'].style.props['--tab-dx'] === '22px', 'אותו טאב: הכיוון לא משתנה');
 
 // גרסאות
 const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];

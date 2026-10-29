@@ -122,7 +122,7 @@ export function normSettings(o) {
 export function normApi(a) {
   if (!a || typeof a !== 'object') return null;
   const n = (x) => (Number.isFinite(+x) && +x >= 0 ? +x : 0);
-  return { month: n(a.month), cap: n(a.cap), online: Math.floor(n(a.online)), servers: Math.floor(n(a.servers)), admin: a.admin === true };
+  return { month: n(a.month), cap: n(a.cap), online: Math.floor(n(a.online)), servers: Math.floor(n(a.servers)), admin: a.admin === true, nc: a.nc === true };   // nc — המנהל: בלי תקרה חודשית של המערכת (29/10/2026)
 }
 /* השרתים (srvList, למנהל) — רק מה שמוצג; השם טקסט בלבד */
 export function normServers(list) {
@@ -357,7 +357,7 @@ export function startEstimate(mode, dur, norm, api, apiOn) {
   const d = dur > 0 ? dur : 0, m = modeById(mode);
   if (!d) return { min: 0, usd: 0, left: null, over: false };
   const usd = Math.round((goldEstimate([{ spec: { mode: m.id, dur: d } }], norm) + (apiOn ? NORM_FIXED_API : NORM_FIXED)) * 100) / 100;   // + הקבוע לעבודה (ב־Routine — פתיחת הסשן)
-  const left = apiOn && api ? Math.max(0, Math.round((api.cap - api.month) * 100) / 100) : null;
+  const left = apiOn && api && !api.nc ? Math.max(0, Math.round((api.cap - api.month) * 100) / 100) : null;
   return { min: Math.max(1, Math.round(m.min * d / 3600)), usd, left, over: left != null && usd > left };
 }
 function estText(e, apiOn) {
@@ -1092,6 +1092,7 @@ function errText(code, extra) {
     case 'signin': case 'no_auth': return T('studioErrSignin');
     case 'not_allowed': return T('studioErrDenied');
     case 'month_cap': return T('studioErrMonthCap');
+    case 'user_paused': return T('studioErrPaused');   // 29/10/2026: המנהל השהה את החשבון
     case 'no_server': return T('studioErrNoServer');
     case 'worker_oom': return T('studioErrOom');
     case 'worker_crash': return T('studioErrCrash');
@@ -1486,7 +1487,9 @@ function thumbsLoad() {
   return hdb().then((db) => new Promise((ok) => {
     try {
       const os = db.transaction('thumbs', 'readonly').objectStore('thumbs'), rq = os.openCursor();
-      rq.onsuccess = () => { const c = rq.result; if (!c) { ok(); return; } if (typeof c.value === 'string' && c.value && !thumbs.has(c.key)) thumbs.set(c.key, c.value); c.continue(); };
+      // 29/10/2026: כל תמונה גם מפוענחת מראש (thumbEl) — הציור הראשון של הבית (מחכה עד 400ms) כבר עם התמונות, בלי אריח ריק
+      const dec = [];
+      rq.onsuccess = () => { const c = rq.result; if (!c) { Promise.all(dec).then(() => ok()); return; } if (typeof c.value === 'string' && c.value && !thumbs.has(c.key)) { thumbs.set(c.key, c.value); try { dec.push(thumbEl(c.key, c.value).decode().catch(() => {})); } catch (e) {} } c.continue(); };
       rq.onerror = () => ok();
     } catch (e) { ok(); }
   })).catch(() => {});
@@ -1531,8 +1534,22 @@ function thumbFor(rec, cb, file) {
   return '';
 }
 /* ציור התמונה על אריח (.st-thumb) — דהייה כשהיא מגיעה אחרי הציור; בלי תמונה נשאר סמל הסרט */
+/* 29/10/2026 (פרויקט "עמודים סטטיים", ס2/ס3 — "הבית מופיע בלי הכרטיסים", "כרטיס ריק אחרי הנחיתה"): התמונה = <img> מפוענח
+   ששמור בזיכרון לפי עבודה, לא background-image. רקע מ־data: מפוענח מחדש בכל ציור של הבית, והאריח נשאר ריק כמה פריימים
+   בטלפון. אותו צומת עובר מציור לציור (גם בהעתק של הקובייה — cloneNode חולק את אותה תמונה מפוענחת) */
+const thumbEls = new Map();
+function thumbEl(id, u) {
+  let im = thumbEls.get(id);
+  if (!im || im._u !== u) {
+    im = new Image(); im.className = 'st-tim'; im.alt = ''; im.decoding = 'sync'; im._u = u; im.src = u;
+    try { im.decode().catch(() => {}); } catch (e) {}
+    thumbEls.set(id, im);
+    if (thumbEls.size > 80) thumbEls.delete(thumbEls.keys().next().value);
+  }
+  return im;
+}
 function paintThumb(th, rec) {
-  const put = (u) => { th.style.backgroundImage = 'url("' + u + '")'; th.classList.add('img'); };
+  const put = (u) => { th.prepend(thumbEl(rec.id, u)); th.classList.add('img'); };
   const t0 = Date.now();
   const u = thumbFor(rec, (x) => { if (!x) return; if (Date.now() - t0 > 250) th.classList.add('in'); put(x); });   // דהייה רק לתמונה חדשה שמגיעה אחרי שהמסך כבר מוצג
   if (u) put(u);
@@ -1735,10 +1752,16 @@ async function muteKind(c, k, hrs) {
   } finally { muteBusy = false; render('none'); }
 }
 /* "התחלה": השרתון מפעיל את ה־Routine. בשלב 2 העובד יודע רק "בדיקת חיבור" — התשובה worker_not_ready והעבודה ממתינה */
-async function tryStart(id, ov, mo) {
+async function tryStart(id, ov, mo, ow) {
   const rec = jobRec(id); if (!rec || rec.up.started) return;
   // v367: ov = "להתחיל בכל זאת" (מצב מעל המקסימום) · v371: mo = להתחיל למרות תקלה רחבה
-  const j = await net.api('start', Object.assign({ job: id }, ov ? { ov: true } : {}, mo ? { mo: true } : {}));
+  const j = await net.api('start', Object.assign({ job: id }, ov ? { ov: true } : {}, mo ? { mo: true } : {}, ow ? { ow: true } : {}));
+  // 29/10/2026 (למנהל): משתמש אחר מתרגם עכשיו — להתחיל בכל זאת (ow), או לחכות ולקבל התראה כשיסיים (adminWait)
+  if (!j.ok && j.error === 'others_busy' && j.ob && typeof askConfirm === 'function') {
+    askConfirm(T('studioBusyQ', { n: String(j.ob.nm || ''), p: Math.round((Number(j.ob.p) || 0) * 100) }), () => tryStart(id, ov, mo, true),
+      { ok: T('studioStartAnyway'), cancel: T('studioBusyWait'), onNo: async () => { const w = await net.api('adminWait', { on: true }); flashSafe(w.ok ? T('studioBusyWaitOk') : errText(w.error)); } });
+    return;
+  }
   if (j.job) rec.srv = normJob({ id, srv: j.job }).srv;
   startDone(rec, j);
   save(); paintSoon();
@@ -6339,7 +6362,7 @@ function pageTower(p) {
   if (va && va.n) {
     const tiles = h('div', 'st-ut-tiles');
     const t1 = h('div', 'st-ut-tile'); t1.append(h('span', null, T('studioUtCost')), (() => { const b = h('b'); b.append(usdEl(va.usd)); return b; })());
-    const cap = ui.api && ui.api.cap;
+    const cap = ui.api && !ui.api.nc && ui.api.cap;
     if (cap) { t1.append(h('small', null, T('studioUtOf', { x: ltr(fmtUsdWhole(cap)) }))); const m = h('span', 'st-ut-meter'); const mi = h('i'); mi.style.width = Math.min(100, Math.round(100 * va.usd / cap)) + '%'; m.append(mi); t1.append(m); }
     const t2 = h('div', 'st-ut-tile'); t2.append(h('span', null, T('studioUtMin')), h('b', null, fmtNum(va.min)), h('small', null, va.n === 1 ? T('studioUtVid1') : T('studioUtVids', { n: va.n })));
     tiles.append(t1, t2);
@@ -8478,7 +8501,7 @@ function pageEng(p) {
     // השרת של המערכת: בלי אשף ובלי Routine — רק התקציב, התקרה לעבודה והשרת
     const a = ui.api;
     p.append(setCard(T('studioSecApi'), list(
-      kvRow(T('studioApiMonth'), T('studioApiOf', { a: fmtUsd(a.month), b: fmtUsd(a.cap) })),
+      kvRow(T('studioApiMonth'), a.nc ? T('studioApiNoCap', { a: fmtUsd(a.month) }) : T('studioApiOf', { a: fmtUsd(a.month), b: fmtUsd(a.cap) })),
       rowNav({ label: T('studioApiCap'), value: '$' + s.cap, onClick: () => go('def', 'cap'), k: 'def:cap' }),
       rowNav({ tile: tile('cloud', a.online ? 'green' : 'orange'), label: T('studioSrvT'), sub: a.online ? T('studioSrvOnN', { n: a.online }) : T('studioSrvNone'), onClick: () => go('server'), k: 'server' }))));
   } else if (!ui.mf) {
@@ -8678,7 +8701,7 @@ async function addServer() {
    לא ממציאים מספר. טהור */
 export function quotaPct(rec, api) {
   const sv = rec && rec.srv, cv = sv ? costView(sv.use, rec.spec.mode) : null;
-  if (!sv || sv.eng !== 'api' || !cv || !(cv.total > 0) || !api || !(api.cap > 0)) return null;
+  if (!sv || sv.eng !== 'api' || !cv || !(cv.total > 0) || !api || api.nc || !(api.cap > 0)) return null;
   const pct = cv.total / api.cap * 100;
   return { pct: pct < 1 ? Math.round(pct * 10) / 10 : Math.round(pct), cap: api.cap };
 }
@@ -9097,6 +9120,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   const veil = root.querySelector(':scope > .menu-veil');
   root.replaceChildren(p);
   if (veil) root.append(veil);
+  if (SA && SA.shell && SA.shell.el.isConnected && typeof animSync === 'function') animSync(SA.shell.el);   // הלוגו ממשיך מאותו רגע (core)
   root.scrollTop = keepY;
   if (ghost) cubeGhostRun(root, ghost, cubeSideFwd(kind === 'push'));
   lastShape = shapeKey();
