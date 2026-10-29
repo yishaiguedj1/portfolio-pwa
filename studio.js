@@ -122,7 +122,7 @@ export function normSettings(o) {
 export function normApi(a) {
   if (!a || typeof a !== 'object') return null;
   const n = (x) => (Number.isFinite(+x) && +x >= 0 ? +x : 0);
-  return { month: n(a.month), cap: n(a.cap), online: Math.floor(n(a.online)), servers: Math.floor(n(a.servers)), admin: a.admin === true, nc: a.nc === true };   // nc — המנהל: בלי תקרה חודשית של המערכת (29/10/2026)
+  return { month: n(a.month), cap: n(a.cap), online: Math.floor(n(a.online)), servers: Math.floor(n(a.servers)), admin: a.admin === true, ka: a.ka === true, nc: a.nc === true };   // nc — המנהל: בלי תקרה חודשית של המערכת (29/10/2026)
 }
 /* השרתים (srvList, למנהל) — רק מה שמוצג; השם טקסט בלבד */
 export function normServers(list) {
@@ -3363,7 +3363,7 @@ function startSubs(f) {
 const SUBS_MAX = 5 * 1024 * 1024;   // = SUBS_MAX בשרתון
 const subsOk = () => apiMode() || cpMode();
 /* 26/10/2026: קריוקי משיר רגיל — רץ כולו בשרת שלנו (הפרדה, יישור, צריבה; בלי Claude), ולכן בכל מנוע כשיש שרת ואחסון */
-const kaOk = () => !!(ui.api && ui.api.servers > 0 && ui.r2 && ui.api.admin);   // עד שמודל ההפרדה בתמונת העובד — רק המנהל (בבדיקה)
+const kaOk = () => !!(ui.api && ui.api.servers > 0 && ui.r2 && (ui.api.admin || ui.api.ka));   // 29/10/2026: המנהל וחשבונות הבדיקה (ka מהשרתון)
 export const KA_LYR_MAX = 8000;   // = KA_LYR_MAX בשרתון ו־LYR_MAX ב־translator/vt/karaoke.py
 const KA_OUTS = ['compact', 'same', 'small'];
 const KA_GV = [0, 10, 20, 30];
