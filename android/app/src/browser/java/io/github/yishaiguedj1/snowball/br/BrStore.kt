@@ -2,7 +2,9 @@ package io.github.yishaiguedj1.snowball.br
 
 import android.content.Context
 import android.net.Uri
+import android.os.Bundle
 import android.os.Handler
+import android.os.Parcel
 import android.os.Looper
 import org.json.JSONArray
 import org.json.JSONObject
@@ -17,7 +19,8 @@ data class BrVisit(val url: String, val title: String, val at: Long)
 // sid = המזהה בסנכרון עם Chrome (n… = הסימנייה ב־Chrome, a… = נשמרה כאן ועוד לא הגיעה) — BrChrome
 // f = התיקייה לפי ת־עיצוב: "b/Learning/x" (b סרגל, o אחרות, m נייד); ריק = נשמרה כאן (בנייד) — BrSync.folderOf; i = המקום בתיקייה ב־Chrome (‎-1 = עוד לא שם — בסוף)
 data class BrMark(val url: String, val title: String, val at: Long, val imp: Boolean = false, val x: Long = 0L, val sid: String = "", val f: String = "", val i: Int = -1)
-data class BrTabRec(val url: String, val title: String)
+// nb = הדף הראשון נפתח מהכרטיסייה החדשה (BrTab.ntpBack); p = המקום ברשימה של הכרטיסייה שפתחה אותה (‎-1 = אין)
+data class BrTabRec(val url: String, val title: String, val nb: Boolean = false, val p: Int = -1)
 
 object BrStore {
     private const val HISTORY_MAX = 20000   // כמו 90 יום של Chrome (התוסף שולח עד 20,000 ביקורים)
@@ -220,15 +223,57 @@ object BrStore {
         if (!::dir.isInitialized) return
         write("tabs.json", JSONArray().apply {
             put(JSONObject().put("cur", cur))
-            tabs.forEach { put(JSONObject().put("u", it.url).put("t", it.title)) }
+            tabs.forEach { put(JSONObject().put("u", it.url).put("t", it.title).apply { if (it.nb) put("nb", true); if (it.p >= 0) put("p", it.p) }) }
         })
     }
 
     fun loadTabs(): Pair<List<BrTabRec>, Int> {
         val a = read("tabs.json") ?: return emptyList<BrTabRec>() to 0
         val cur = a.optJSONObject(0)?.optInt("cur", 0) ?: 0
-        val list = (1 until a.length()).mapNotNull { a.optJSONObject(it) }.map { BrTabRec(it.optString("u"), it.optString("t")) }
+        val list = (1 until a.length()).mapNotNull { a.optJSONObject(it) }.map { BrTabRec(it.optString("u"), it.optString("t"), it.optBoolean("nb"), it.optInt("p", -1)) }
         return list to cur.coerceIn(0, (list.size - 1).coerceAtLeast(0))
+    }
+
+    /**
+     * "חזור"/"קדימה" שורדים סגירה של האפליקציה (29/10/2026, בקשת המשתמש, לפי ת־עיצוב): המצב של כל טאב (WebView.saveState —
+     * מחסנית הדפים שלו) בקובץ משלו `st/<מקום ברשימה>`, ליד tabs.json. נכתב רק כשהשתנה. טאב פרטי — לא נשמר לעולם.
+     */
+    private val stHash = HashMap<Int, Int>()
+
+    fun saveStates(states: List<Bundle?>) {
+        if (!::dir.isInitialized) return
+        val d = File(dir, "st").apply { mkdirs() }
+        states.forEachIndexed { i, b ->
+            val f = File(d, "$i")
+            val bytes = b?.takeIf { !it.isEmpty }?.let { marshal(it) }
+            if (bytes == null) { f.delete(); stHash.remove(i); return@forEachIndexed }
+            val h = bytes.contentHashCode()
+            if (stHash[i] == h && f.exists()) return@forEachIndexed
+            try {
+                val tmp = File(d, "$i.tmp"); tmp.writeBytes(bytes)
+                if (!tmp.renameTo(f)) { f.delete(); tmp.renameTo(f) }
+                stHash[i] = h
+            } catch (e: Exception) {}
+        }
+        d.listFiles()?.forEach { f -> val n = f.name.toIntOrNull(); if (n == null || n >= states.size) { f.delete(); n?.let { stHash.remove(it) } } }
+    }
+
+    fun loadState(i: Int): Bundle? = try {
+        val bytes = File(File(dir, "st"), "$i").takeIf { it.exists() }?.readBytes()
+        bytes?.let { stHash[i] = it.contentHashCode(); unmarshal(it) }
+    } catch (e: Exception) { null }
+
+    /** ניקוי נתוני הגלישה — גם מחסניות "חזור" של הטאבים */
+    fun clearStates() { if (::dir.isInitialized) { File(dir, "st").deleteRecursively(); stHash.clear() } }
+
+    private fun marshal(b: Bundle): ByteArray? {
+        val p = Parcel.obtain()
+        return try { p.writeBundle(b); p.marshall() } catch (e: Exception) { null } finally { p.recycle() }
+    }
+
+    private fun unmarshal(bytes: ByteArray): Bundle? {
+        val p = Parcel.obtain()
+        return try { p.unmarshall(bytes, 0, bytes.size); p.setDataPosition(0); p.readBundle(BrStore::class.java.classLoader) } catch (e: Exception) { null } finally { p.recycle() }
     }
 
     fun hostOf(url: String): String = try { Uri.parse(url).host?.lowercase()?.removePrefix("www.") ?: "" } catch (e: Exception) { "" }

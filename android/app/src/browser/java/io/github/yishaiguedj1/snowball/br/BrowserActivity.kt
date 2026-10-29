@@ -195,7 +195,10 @@ class BrowserActivity : ComponentActivity() {
         // טאבים פרטיים לא שורדים סגירה של האפליקציה — מה שנשאר מהפעם הקודמת נמחק
         if (privOk) runCatching { ProfileStore.getInstance().deleteProfile(PRIV) }
         val (saved, at) = BrStore.loadTabs()
-        saved.forEach { tabs.add(BrTab(nextId++, it.url, it.title, false)) }
+        // כל טאב חוזר עם מחסנית "חזור"/"קדימה" שלו (BrStore.loadState) ועם הכרטיסייה שפתחה אותו — לפי ת־עיצוב, גם אחרי סגירה ברקע
+        val restored = saved.mapIndexed { i, r -> BrTab(nextId++, r.url, r.title, false).also { it.ntpBack = r.nb; it.state = BrStore.loadState(i) } }
+        saved.forEachIndexed { i, r -> if (r.p in restored.indices && r.p != i) restored[i].parent = restored[r.p].id }
+        tabs.addAll(restored)
         // התמונות של הטאבים — ברקע, לא לפני המסך הראשון (50 טאבים = עשרות MB ופענוח בתהליכון הראשי)
         Thread { tabs.toList().forEach { t -> val b = BrPics.thumb(t.url); if (b != null) ui.post { if (t.thumb == null) t.thumb = b } } }.apply { isDaemon = true; priority = Thread.MIN_PRIORITY }.start()
         if (!handle(intent)) {
@@ -446,7 +449,9 @@ class BrowserActivity : ComponentActivity() {
 
     private fun saveSession() {
         val pub = tabs.filter { !it.private && it.url.startsWith("http") }
-        BrStore.saveTabs(pub.map { BrTabRec(it.url, it.title) }, pub.indexOf(cur).coerceAtLeast(0))
+        BrStore.saveTabs(pub.map { t -> BrTabRec(t.url, t.title, t.ntpBack, pub.indexOfFirst { it.id == t.parent }) }, pub.indexOf(cur).coerceAtLeast(0))
+        // מחסנית "חזור"/"קדימה" של כל טאב — שורדת סגירה של האפליקציה ברקע (חי: עכשיו; שוחרר: המצב שנשמר כששוחרר)
+        BrStore.saveStates(pub.map { t -> t.web?.let { w -> runCatching { Bundle().also { w.saveState(it) } }.getOrNull() } ?: t.state ?: t.lastState })
         cur?.takeIf { !it.private }?.let { snap(it) }
         if (blkNew > 0) { prefs.blockedAll = prefs.blockedAll + blkNew; blkNew = 0 }
         BrPics.keepThumbs(pub.map { it.url })
@@ -830,7 +835,11 @@ class BrowserActivity : ComponentActivity() {
         }
         w.setFindListener { active, count, done -> if (done) findRes = (if (count == 0) 0 else active + 1) to count }
         t.web = w
-        t.state?.let { st -> runCatching { w.restoreState(st) }; t.state = null }
+        // מצב שלא נפתח (גרסה אחרת של WebView אחרי עדכון) — טוענים את הכתובת, כמו טאב בלי מצב
+        t.state?.let { st ->
+            t.state = null
+            if (runCatching { w.restoreState(st) }.getOrNull() != null) navState(t, w) else if (t.url.startsWith("http")) w.loadUrl(t.url)
+        }
         return w
     }
 
@@ -1270,11 +1279,11 @@ class BrowserActivity : ComponentActivity() {
     }
 
     fun clearData() {
-        BrStore.clearHistory()
+        BrStore.clearHistory(); BrStore.clearStates()
         val p = userProfile()
         runCatching { val cm = p?.cookieManager ?: CookieManager.getInstance(); cm.removeAllCookies(null); cm.flush() }
         runCatching { (p?.webStorage ?: WebStorage.getInstance()).deleteAllData() }
-        tabs.forEach { t -> runCatching { t.web?.clearCache(true) } }
+        tabs.forEach { t -> runCatching { t.web?.clearCache(true); t.web?.clearHistory() }; t.lastState = null; if (t.web == null) t.state = null; t.web?.let { navState(t, it) } }
         BrPics.clear()
         markRev++
         Toast.makeText(this, R.string.brClearDone, Toast.LENGTH_SHORT).show()
