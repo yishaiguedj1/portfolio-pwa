@@ -157,8 +157,8 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(ug.errs[0].e === 'api_rate' && ug.mo.usd === 20 && ug.mo.dim === 31 && ug.mo.proj > 20 && ug.wk.cur.n === 4, 'שימוש: כשלים, החודש (רק החודש הנוכחי) ותחזית, השבוע');
   const big = UM.usage(Array.from({ length: 12 }, (_, i) => tj({ id: J(50 + i), created: now - H * (i + 1), claimed: now - H * (i + 1) + 1200e3, state: i < 4 ? 'failed' : 'done' })), [], now, { max: 12 });
   ok(['wait', 'fail', 'cut'].every((k) => big.rec.some((r) => r.k === k)) && UM.usage([], [], now, {}).rec.length === 0, 'שימוש: המלצות — המתנה ארוכה, כשלים, רשימה חלקית; ריק = "מספיק"');
-  ok(UM.CAP_DEF === 10000 && /const USER_MONTH = \(\) => \{ const c = Number\(cfgC\.v && cfgC\.v\.ucap\);[^\n]*: UM\.CAP_DEF; \};/.test(api) && !/STUDIO_API_USER_MONTH_USD\) \|\| 30/.test(api),
-    'תקרה: ברירת המחדל גבוהה ($10,000) — "שלא יוגבלו פתאום"; המנהל קובע ב־sysCfg.ucap');
+  ok(UM.CAP_DEF === 20 && /const USER_MONTH = \(\) => \{ const c = Number\(cfgC\.v && cfgC\.v\.ucap\);[^\n]*: UM\.CAP_DEF; \};/.test(api) && !/STUDIO_API_USER_MONTH_USD\) \|\| 30/.test(api),
+    'תקרה: ברירת המחדל $20 לכל משתמש (בקשת המשתמש); המנהל קובע ב־sysCfg.ucap');
   ok((api.match(/await capWarm\(deps, now\);/g) || []).length >= 4 && /if \(body\.def !== undefined\)[\s\S]{0,300}patchDoc\(deps, 'sysCfg', 'main', \{ ucap: c/.test(api), 'תקרה: ההגדרה נטענת לפני כל חישוב, ונשמרת מהמסך');
   ok(UM.spendStep({}, 9, now) === null && UM.spendStep({}, 27, now).s === 25 && UM.spendStep({ msx: '2026-10:25' }, 40, now) === null
     && UM.spendStep({ msx: '2026-10:25' }, 120, now).v === '2026-10:100' && UM.spendStep({ msx: '2026-09:100' }, 12, now).s === 10, 'התראת סכום: פעם אחת לכל סף בחודש, מתאפסת בחודש חדש');

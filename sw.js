@@ -9,7 +9,7 @@ const HASHES = {
   "./": "16b507afdf51b3641466129e571503e2",
   "./index.html": "16b507afdf51b3641466129e571503e2",
   "./styles.css": "712363b6f20381fdc6b146ad11a34d53",
-  "./app.js": "c085df7b44978ba022a27540a4b53659",
+  "./app.js": "4b86ededfde241732de66c69eefd32f3",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "e50501f26e70aad478a5d8d489754d97",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
