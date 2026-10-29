@@ -221,13 +221,13 @@ const INIT2 = `(() => {
     const goAc = async () => { await page.evaluate(() => sessionStorage.setItem('__qa_mark', 'academy')); await page.goto(BASE + '/academy.html', { waitUntil: 'load' }); };
     if (round === 1) {
       await page.goto(BASE + '/academy.html', { waitUntil: 'load' }); await sleep(2000);
-      await page.click('.lib-seg-b:nth-child(2)'); await sleep(700);
+      await page.click('.lib-dial .tab[data-tab="mine"]'); await sleep(700);
       await page.evaluate(async (names) => { const dt = new DataTransfer(); for (const n of names) { const bl = await (await fetch('/.qa-books/' + n)).blob(); dt.items.add(new File([bl], n, { type: 'application/epub+zip' })); } const inp = document.querySelector('input[type=file]'); inp.files = dt.files; inp.dispatchEvent(new Event('change')); }, QM.BOOKS.map((x) => x.name));
       await sleep(9000);
     }
-    await step('Academy: פתיחה (קר)' + R, goAc, { settle: 3000, lateAfter: 1200, expect: '.lib-seg' });
-    await step('Academy: מדף THE SNOWBALL' + R, () => click('.lib-seg-b:nth-child(1)'), { settle: 1200 });
-    await step('Academy: הספרייה שלי' + R, () => click('.lib-seg-b:nth-child(2)'), { settle: 1200, expect: '.lib-chip' });
+    await step('Academy: פתיחה (קר)' + R, goAc, { settle: 3000, lateAfter: 1200, expect: '.lib-dial' });
+    await step('Academy: מדף THE SNOWBALL' + R, () => click('.lib-dial .tab[data-tab="snb"]'), { settle: 1200 });
+    await step('Academy: הספרייה שלי' + R, () => click('.lib-dial .tab[data-tab="mine"]'), { settle: 1200, expect: '.lib-chip' });
     await step('Academy: צ\'יפ הכל' + R, () => page.locator('.lib-chip').filter({ hasText: /^הכל$/ }).first().click(), { settle: 1200, expect: '.lib-item' });
     for (const i of [2, 3]) await step('Academy: צ\'יפ כותב ' + i + R, () => nth('.lib-chip', i), { settle: 1200 });
     await step('Academy: צ\'יפ מדף' + R, () => click('.lib-chip.shelf'), { settle: 1200, expect: '.col-card' });
@@ -243,7 +243,7 @@ const INIT2 = `(() => {
     await step('Academy: רענון בקורא' + R, async () => { await page.evaluate(() => sessionStorage.setItem('__qa_mark', 'rd')); await page.reload({ waitUntil: 'load' }); }, { settle: 4000, lateAfter: 2500, expect: '.rd' });
     await step('Academy: סגירת הקורא' + R, () => page.keyboard.press('Escape'), { settle: 1500 });
     if (await page.$('.rd')) await step('Academy: סגירת הקורא (2)' + R, () => page.keyboard.press('Escape'), { settle: 1500 });
-    await step('Academy: חזור ← בית' + R, back, { settle: 1400, expect: '.lib-seg' });
+    await step('Academy: חזור ← בית' + R, back, { settle: 1400, expect: '.lib-dial' });
     await page.evaluate(() => { document.querySelector('.lib-root').scrollTop = 220; }); await sleep(300);
     await step('Academy: חיפוש (בית גלול — השדה לא קופץ)' + R, () => page.type('.lib-search input', 'rich', { delay: 60 }), { settle: 1000, cls: 0.5, lateAfter: 900 });   // חיפוש בתוך הטקסט מופיע 280ms אחרי ההקלדה — בכוונה
     await step('Academy: ניקוי חיפוש (גלול)' + R, () => page.fill('.lib-search input', ''), { settle: 1000, cls: 0.5 });
@@ -251,10 +251,10 @@ const INIT2 = `(() => {
     await step('Academy: חיפוש' + R, () => page.fill('.lib-search input', 'rich'), { settle: 1000, cls: 0.5, lateAfter: 900 });
     await step('Academy: ניקוי חיפוש' + R, () => page.fill('.lib-search input', ''), { settle: 1000, cls: 0.5 });
     await step('Academy: תפריט ראשי' + R, () => click('.appbar .icon-btn[aria-label="תפריט ראשי"]'), { settle: 1000 });
-    await step('Academy: חזור ← סוגר תפריט' + R, back, { settle: 1000, expect: '.lib-seg' });
+    await step('Academy: חזור ← סוגר תפריט' + R, back, { settle: 1000, expect: '.lib-dial' });
     await step('Academy: מסך הגיבוי' + R, () => click('.lib-bkpill'), { settle: 1200 });
-    await step('Academy: חזור ← מגיבוי' + R, back, { settle: 1200, expect: '.lib-seg' });
-    await step('Academy: רענון בבית' + R, async () => { await page.evaluate(() => sessionStorage.setItem('__qa_mark', 'home')); await page.reload({ waitUntil: 'load' }); }, { settle: 3000, lateAfter: 1200, expect: '.lib-seg' });
+    await step('Academy: חזור ← מגיבוי' + R, back, { settle: 1200, expect: '.lib-dial' });
+    await step('Academy: רענון בבית' + R, async () => { await page.evaluate(() => sessionStorage.setItem('__qa_mark', 'home')); await page.reload({ waitUntil: 'load' }); }, { settle: 3000, lateAfter: 1200, expect: '.lib-dial' });
   }
 
   /* ---------- מנתח החברות ---------- */

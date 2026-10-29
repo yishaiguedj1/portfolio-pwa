@@ -13,8 +13,8 @@ const line = (re) => { const m = app.match(re); assert(m, String(re)); return m[
 
 const ctx = { Math, JSON, NAV_SUBS: ['advanced', 'backup'], CUBE_RUB: 0.07 };
 vm.createContext(ctx);
-vm.runInContext([line(/const TAB_ORDER = [^\n]*/), line(/const DIAL_TABS = [^\n]*/), line(/const DIAL_SET = [^\n]*/), fn('dialIndex'), fn('dialStep'), fn('dialRest'), fn('dialFrame'), fn('dialCubeState'), fn('dialRubber')].join('\n')
-  + '\nthis.api = { DIAL_TABS, DIAL_SET, dialIndex, dialStep, dialRest, dialFrame, dialCubeState, dialRubber };', ctx);
+vm.runInContext([line(/const TAB_ORDER = [^\n]*/), line(/const DIAL_TABS = [^\n]*/), line(/const DIAL_SET = [^\n]*/), line(/const DIAL_S0 = [^\n]*/), line(/function investDialIndex[^\n]*/), fn('dialStep'), fn('dialRest'), fn('dialFrame'), fn('dialCubeState'), fn('dialRubber')].join('\n')
+  + '\nthis.api = { DIAL_TABS, DIAL_SET, dialIndex: investDialIndex, dialStep, dialRest, dialFrame, dialCubeState, dialRubber };', ctx);
 const A = ctx.api;
 const num = (s, i) => +String(s).replace('translate3d', '').match(/-?[\d.]+/g)[i];
 
@@ -53,9 +53,25 @@ ok(/dialCubeBegin\(c, cur, to, side\);/.test(fn('tabCubeDrag')) && /cubeSet\(g\.
 ok(/_dial\.run && _dial\.run\.to === i/.test(fn('dialSync')), 'switchTab לא מפריע לחוגה שכבר נוסעת עם הקובייה');
 ok(/dialRidePaint\(_dial\.ride, pos\)/.test(fn('wireDial')) && /dialRideRun\(r, /.test(fn('wireDial')) && /e\.stopPropagation\(\); e\.preventDefault\(\);/.test(fn('wireDial')), 'גרירת החוגה מעבירה גם את העמודים (29/10/2026), ולא נחשבת ללחיצה');
 ok(/_dial\.ride/.test(fn('dialSync')), 'switchTab בזמן נסיעה של החוגה לא עוצר אותה');
-ok(/r\.c = tabCubeDrag\(name, to, cubeSideFwd\(dir > 0\)\)/.test(fn('dialRideCube')) && /if \(p < 1\) return cubeSet\(r\.c, p\);/.test(fn('dialRideCube')) && /dialRideLand\(r\);/.test(fn('dialRideCube')), 'הקובייה צמודה למיקום החוגה; בזווית מלאה — השכן נעשה הנוכחי');
-ok(/switchTab\(c\.to, \{ cubeDone: true, keepScroll: true \}\)/.test(fn('dialRideLand')) && /cubeNow = r;/.test(fn('dialRideRun')) && /CUBE_HZ/.test(fn('dialRideRun')), 'נחיתה כמו סוף קובייה; השחרור באותו קפיץ, ונגיעה חדשה מסיימת אותו');
+ok(/const c = hst\.begin\(name, to, cubeSideFwd\(dir > 0\)\)/.test(fn('dialRideCube')) && /if \(p < 1\) return cubeSet\(r\.c, p\);/.test(fn('dialRideCube')) && /hst\.land\(c\);/.test(fn('dialRideCube')), 'הקובייה צמודה למיקום החוגה; בזווית מלאה — השכן נעשה הנוכחי');
+const inv = app.slice(app.indexOf('const INVEST_DIAL = {'), app.indexOf('/* <core> */', app.indexOf('const INVEST_DIAL = {')));
+ok(/const c = tabCubeDrag\(cur, to, side\);/.test(inv) && /switchTab\(c\.to, \{ cubeDone: true, keepScroll: true \}\)/.test(inv) && /cubeNow = r;/.test(fn('dialRideRun')) && /CUBE_HZ/.test(fn('dialRideRun')), 'Invest: הקובייה של העמודים; נחיתה כמו סוף קובייה; השחרור באותו קפיץ, ונגיעה חדשה מסיימת אותו');
+ok(/dialHost\(INVEST_DIAL\); wireDial\(INVEST_DIAL\.nav\(\)\);/.test(app), 'Invest מארח את החוגה בפתיחה');
+const core = R('core.js');
+ok(['dialFrame', 'dialAnimate', 'dialRideCube', 'wireDial', 'dialHost', 'dialCubeRun'].every((k) => core.includes('function ' + k + '(')), 'המנוע ב־core.js — משותף לסטודיו');
 ok(!/positionTabIndicator|tab-ind|tabSetBar/.test(app + css), 'בלי שאריות של הגלולה הישנה');
+
+// Studio ו־Academy (29/10/2026, בקשת המשתמש): אותה חוגה אחד לאחד — רק צבע האפליקציה
+const st = R('studio.js'), lib = R('library.js'), stc = R('studio.css'), libc = R('library.css');
+ok(/const ST_SIB = \['settings', 'home', 'job', 'tower'\]/.test(st) && /const LIB_SIB = \['settings', 'snb', 'mine', 'notes'\]/.test(lib), 'הסדר מימין לשמאל: Studio — הגדרות · העבודות · העבודה · המגדל; Academy — הגדרות · THE SNOWBALL · הספרייה שלי · מה למדתי');
+ok(/!FINAL\.includes\(r\.srv\.state\)/.test(st) && /r\.srv\.state === 'done'/.test(st), 'Studio: "העבודה" = הפעילה, ואם אין — האחרונה שהסתיימה');
+ok(/dialNavBuild\('st-dial'/.test(st) && /dialNavBuild\('lib-dial'/.test(lib) && /dialHost\(STUDIO_DIAL\)/.test(st) && /dialHost\(LIB_DIAL\)/.test(lib) && /wireDial\(dialNav\)/.test(st) && /wireDial\(libNav\)/.test(lib), 'שתיהן בונות את החוגה מאותו מנוע (core) ומארחות אותו');
+ok(/dialHost\(dialPrev\)/.test(st) && /dialHost\(libDialPrev\)/.test(lib), 'בסגירה המארח חוזר (Invest מתחת לשכבה)');
+ok(/\.st-dial \{ --primary: #FF4656;[^}]*z-index: 950/.test(stc) && /\.lib-dial \{ --primary: #4699FF;[^}]*z-index: 910/.test(libc), 'אדום ל־Studio, כחול ל־Academy; מעל השכבה (900), Academy מתחת לקורא (920)');
+ok(/dial: \(\) => stKeyOf/.test(st) && /dial: \(\) => libKeyOf/.test(lib) && /if \(o\.dial\) dialCubeBegin\(s\.cube, pg\.from, pg\.to, s\.side\)/.test(app), 'החלקת עמוד (snbSwipe) מזיזה את החוגה צמוד לאצבע');
+ok(/cubeNow !== _dial\.ride/.test(fn('cubeClone')), 'נסיעה של החוגה שמציירת שכן לא נעצרת בהעתק (cubeClone)');
+ok(A.dialStep(412, 4) > A.dialStep(412) && A.dialStep(412, 4) * 2 + 40 < 412 / 2 + 86, 'ארבעה פריטים — מרווחים יותר (הכיתובים לא נוגעים)');
+ok(/history\.go\(1 - d\)/.test(lib) && /ld: 1/.test(lib) && !/history\.go\(/.test(st), 'Academy: מעמוד משנה עמוק — חוזרים לרמת האח (העומק ld, כמו navBack ב־Invest); Studio — מחסנית CloseWatcher, בלי history.go');
 
 // עיצוב
 ok(/\.tab-disc \{[^}]*transform: scale\(\.68\)/.test(css) && /@keyframes dialWave/.test(css) && /prefers-reduced-motion: reduce\) \{ \.tab\.zap/.test(css), 'עיגול 68 מוקטן; גל בנחיתה; בלי אנימציה כשמבקשים להפחית תנועה');

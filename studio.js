@@ -2232,43 +2232,137 @@ function onPop(e) {
   render('pop', uaT);
 }
 /* ---------------- 14/10/2026: החלקה (core: snbSwipe — אותה חוקיות כמו ב־Invest ו־Academy) ----------------
-   עמודים ראשיים = הבית ← מגדל הפיקוח ← הגדרות (כמו הלשוניות וההגדרות ב־Invest); בעמוד משנה — החלקה אחורה = "חזור"
-   (כמו האפשרויות המתקדמות ב־Invest). בלי "החלקה קצרה" לטאבים (בקשת המשתמש) — פרטים · ציר · קשורות רק בלחיצה */
-const ST_SIB = ['home', 'tower', 'settings'];
+   עמודים ראשיים = האחים של החוגה (ST_SIB); בעמוד משנה — החלקה אחורה = "חזור" (כמו האפשרויות המתקדמות ב־Invest).
+   בלי "החלקה קצרה" לטאבים (בקשת המשתמש) — פרטים · ציר · קשורות רק בלחיצה.
+   29/10/2026 (בקשת המשתמש): החוגה של Invest אחד לאחד, באדום — מימין לשמאל: הגדרות · העבודות (הבית, במרכז) · העבודה
+   (הפעילה, ואם אין — האחרונה שהסתיימה) · מגדל הפיקוח. מה שמחוץ לחוגה ממופה לאח שלו (stKeyOf) */
+const ST_SIB = ['settings', 'home', 'job', 'tower'];
 const ST_NOSWIPE = ['play', 'subs', 'cut', 'cutsrc', 'tracks', 'dpick', 'vids', 'link', 'linkfmt', 'linksec', 'fmthelp', 'grab', 'sty', 'ov', 'new', 'edit', 'lang', 'connect', 'ai', 'rr'];   // עורכים, נגן וטפסים — בלי
 const ST_TAB_KEYS = ['d', 't', 'r'];
 let swipePop = 0;
+let stDialJ = '';                 // העבודה שהחוגה פתחה — נשארת "העבודה" גם כשאחרת נעשית פעילה
+function stDialJob() {            // הפעילה (בתור / רצה / בהעלאה), ואם אין — האחרונה שהסתיימה
+  const on = store.jobs.find((r) => r && r.srv && !FINAL.includes(r.srv.state) && (r.srv.state !== 'new' || r.up.started));
+  return on ? { rec: on, on: true } : (() => { const d = store.jobs.find((r) => r && r.srv && r.srv.state === 'done'); return d ? { rec: d, on: false } : null; })();
+}
+function stDialKeys() { return stDialJob() || (stDialJ && ui.view === 'job' && ui.param === stDialJ) ? ST_SIB : ST_SIB.filter((k) => k !== 'job'); }
+function stKeyOf(v, p) {          // לאיזה פריט בחוגה שייך הדף
+  const ch = chainFor(v, p);
+  if (ch.some((x) => x.v === 'tower')) return 'tower';
+  if (ch.some((x) => x.v === 'settings')) return 'settings';
+  const j = ch.find((x) => x.v === 'job'), dj = stDialJob();
+  return j && (j.p === stDialJ || (dj && dj.rec.id === j.p)) ? 'job' : 'home';
+}
+function stSibTarget(k) {
+  if (k === 'job') { const cur = ui.view === 'job' && stKeyOf(ui.view, ui.param) === 'job' ? ui.param : null, dj = stDialJob(); const id = cur || (dj && dj.rec.id); return id ? { v: 'job', p: id } : null; }
+  return ST_SIB.includes(k) ? { v: k, p: null } : null;
+}
 function stSibOk() {              // דף ראשי שהבית נמצא ישר מתחתיו
-  if (!ST_SIB.includes(ui.view) || ui.param != null) return false;
+  if (ui.view === 'job' ? stKeyOf('job', ui.param) !== 'job' : (!ST_SIB.includes(ui.view) || ui.param != null)) return false;
   if (CW_OK) return ui.view === 'home' ? stack.length <= 1 : stack.length === 2 && stack[0].v === 'home';
   return ui.view === 'home' ? depth() <= 1 : depth() === 2;
 }
-function stSwipePage(next) {
-  const cur = ui.view;
-  let to = null, back = null;
-  if (stSibOk()) to = ST_SIB[ST_SIB.indexOf(cur) + (next ? 1 : -1)] || null;
-  else if (!next && CW_OK && stack.length > 1) back = stack[stack.length - 2];
-  if (!to && !back) return null;
+/* המחסנית / ההיסטוריה אחרי מעבר לאח (החלקה, חוגה): הבית לבד, או הבית ומעליו האח */
+function stSibCommit(v, p) {
+  if (v === 'job') stDialJ = p;
+  if (CW_OK) { stack = v === 'home' ? [{ v: 'home', p: null }] : [{ v: 'home', p: null }, { v, p }]; syncState(); return; }
+  // בלי CloseWatcher (דפדפן ישן): רק רשומה אחת אחורה / קדימה / במקום — בלי history.go עם ספירת רשומות (לקח v350–v352);
+  // מעמוד משנה עמוק — האח מחליף את הרשומה הנוכחית
+  const d = depth();
+  if (v === 'home' && d === 2) { swipePop++; afterBack(() => { try { history.back(); } catch (e) {} }); return; }
+  if (d <= 1 && v !== 'home') { afterBack(() => { try { history.pushState(cleanState({ studio: 2, sv: v, sp: p }), ''); } catch (e) {} }); return; }
+  afterBack(() => { try { history.replaceState(cleanState({ studio: Math.max(1, d), sv: v, sp: p }), ''); } catch (e) {} });
+}
+function stSibPage(k) {           // הדף של אח בחוגה: ציור (באמצע קובייה), ביטול, אישור
+  const t = stSibTarget(k);
+  if (!t) return null;
   const pv = ui.view, pp = ui.param, y = root.scrollTop, key = viewKey();
   return {
-    render() {
-      scrolls[key] = y;
-      leaving();
-      if (to) { ui.view = to; ui.param = null; render('sib'); } else { ui.view = back.v; ui.param = back.p; render('sibpop'); }
-    },
+    from: stKeyOf(pv, pp), to: k,
+    render() { scrolls[key] = y; leaving(); ui.view = t.v; ui.param = t.p; render('sib'); if (root && scrolls[viewKey()]) root.scrollTop = scrolls[viewKey()]; },
     undo() { ui.view = pv; ui.param = pp; render('none'); if (root) root.scrollTop = y; },
-    commit() {
-      if (back) { stack.pop(); syncState(); return; }
-      if (CW_OK) {
-        if (to === 'home') stack = [{ v: 'home', p: null }];
-        else if (cur === 'home') stack.push({ v: to, p: null });
-        else stack[stack.length - 1] = { v: to, p: null };
-        syncState();
-      } else if (to === 'home') { swipePop++; afterBack(() => { try { history.back(); } catch (e) {} }); }
-      else if (cur === 'home') afterBack(() => { try { history.pushState(cleanState({ studio: depth() + 1, sv: to, sp: null }), ''); } catch (e) {} });
-      else afterBack(() => { try { history.replaceState(cleanState({ studio: depth(), sv: to, sp: null }), ''); } catch (e) {} });
-    },
+    commit() { stSibCommit(t.v, t.p); stDialSync(true); },
   };
+}
+function stSwipePage(next) {
+  if (stSibOk()) { const ks = stDialKeys(), k = ks[ks.indexOf(stKeyOf(ui.view, ui.param)) + (next ? 1 : -1)]; return k ? stSibPage(k) : null; }
+  if (next || !CW_OK || stack.length < 2) return null;
+  const back = stack[stack.length - 2], pv = ui.view, pp = ui.param, y = root.scrollTop, key = viewKey();
+  return {
+    from: stKeyOf(pv, pp), to: stKeyOf(back.v, back.p),
+    render() { scrolls[key] = y; leaving(); ui.view = back.v; ui.param = back.p; render('sibpop'); },
+    undo() { ui.view = pv; ui.param = pp; render('none'); if (root) root.scrollTop = y; },
+    commit() { stack.pop(); syncState(); stDialSync(true); },
+  };
+}
+/* ---- החוגה (המנוע ב־core: dialHost/wireDial — אותו של Invest) ---- */
+const ST_DIAL_ICO = {
+  home: '<rect x="3.5" y="4" width="17" height="6.5" rx="1.8"/><rect x="3.5" y="13.5" width="17" height="6.5" rx="1.8"/>',
+  job: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 9.2v5.6l4.6-2.8z"/>',
+  tower: '<path d="M9.2 21l.9-8.5h3.8l.9 8.5M7 21h10M6.5 8.5h11l-1.6 4h-7.8zM12 8.5V4.5M9.8 4.5h4.4"/>',
+};
+let dialNav = null, dialPrev = null, stDialC = null;
+function stDialNav() {
+  if (dialNav || typeof dialNavBuild !== 'function') return dialNav;
+  dialNav = dialNavBuild('st-dial', T('studioDialAria'), [
+    { k: 'settings', ico: DIAL_GEAR, lbl: T('studioDialSet') }, { k: 'home', ico: ST_DIAL_ICO.home, lbl: T('studioDialHome') },
+    { k: 'job', ico: ST_DIAL_ICO.job, lbl: T('studioDialLast') }, { k: 'tower', ico: ST_DIAL_ICO.tower, lbl: T('studioDialTower') },
+  ], stDialTo);
+  return dialNav;
+}
+const STUDIO_DIAL = {
+  nav: () => dialNav, keys: stDialKeys, index: (k) => Math.max(0, stDialKeys().indexOf(k)),
+  cur: () => (stDialC ? stDialC.from : stKeyOf(ui.view, ui.param)),
+  begin(cur, to, side) {          // כמו ההחלקה (snbSwipe): העתק של השכבה יוצא, האח נצבע בשכבה עצמה
+    if (!root || cubeReduce() || document.hidden) return null;
+    const bd = cubeBackdrop(root);
+    if (!to) { stDialC = { side, p: 0, rub: true, out: cubeFace(root, { dead: true }), bd, from: cur }; return stDialC; }
+    const pg = stSibPage(to);
+    if (!pg) { bd.remove(); return null; }
+    const ghost = cubeClone(root);
+    stDialC = { from: cur };
+    try { pg.render(); } catch (e) { ghost.remove(); bd.remove(); stDialC = null; return null; }
+    stDialC = { side, p: 0, out: cubeFace(ghost, { dead: true }), in: cubeFace(root), ghost, bd, pg, from: cur, to };
+    return stDialC;
+  },
+  drop(c) {
+    cubeSet(c, 0);
+    if (c.pg) { try { c.pg.undo(); } catch (e) {} }
+    cubeFaceOff(c.in); if (c.rub) cubeFaceOff(c.out);
+    if (c.ghost) c.ghost.remove();
+    c.bd.remove();
+    if (stDialC === c) stDialC = null;
+  },
+  land(c) {
+    cubeSet(c, 1);
+    cubeFaceOff(c.in); c.ghost.remove(); c.bd.remove();
+    if (stDialC === c) stDialC = null;
+    stSibCommit(ui.view, ui.param);   // האח כבר מצויר (begin)
+    onEnter();
+  },
+  instant(to) { stDialTo(to, 'none'); },
+};
+function stDialTo(k, kind) {      // לחיצה על פריט: קובייה לכיוון שלו (כמו לשונית ב־Invest)
+  if (!root) return;
+  const t = stSibTarget(k);
+  if (!t) return;
+  if (ui.view === t.v && ui.param === t.p) { if (stSibOk()) { try { root.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { root.scrollTop = 0; } } else stSibCommit(t.v, t.p); return; }
+  const ks = stDialKeys(), cur = stKeyOf(ui.view, ui.param), fwd = ks.indexOf(k) > ks.indexOf(cur);
+  scrolls[viewKey()] = root.scrollTop;
+  leaving();
+  ui.view = t.v; ui.param = t.p;
+  stSibCommit(t.v, t.p);
+  render(kind || (k === cur ? 'pop' : fwd ? 'dfwd' : 'dback'));
+}
+/* מצב החוגה: גלויה רק בעמודים שאפשר לנווט מהם (לא בעורכים, בנגן ובטפסים); הכיתוב של "העבודה" — פעילה / אחרונה */
+function stDialSync(instant) {
+  if (!dialNav) return;
+  const show = !!root && !ST_NOSWIPE.includes(ui.view);
+  dialNav.hidden = !show;
+  document.documentElement.classList.toggle('st-dock', show);
+  const dj = stDialJob(), jb = dialNav.querySelector('.tab[data-tab="job"]');
+  if (jb) { jb.hidden = !stDialKeys().includes('job'); dialLabel(jb, dj && dj.on ? T('studioDialOn') : T('studioDialLast')); }
+  if (show && !stDialC) dialSync(instant);
 }
 function segAfter() { const seg = root && root.querySelector('.st-page > .st-seg'); const out = []; for (let e = seg && seg.nextElementSibling; e; e = e.nextElementSibling) out.push(e); return out; }
 function stTab(k, v) {            // טאב פנימי — התוכן נכנס מהצד של הטאב החדש (כמו החלפת רשימת מעקב)
@@ -2280,7 +2374,7 @@ function stTab(k, v) {            // טאב פנימי — התוכן נכנס �
 }
 function wireStSwipe() {
   if (typeof snbSwipe !== 'function' || !root) return;
-  snbSwipe({ root: root, page: stSwipePage,
+  snbSwipe({ root: root, page: stSwipePage, dial: () => stKeyOf(ui.view, ui.param),
     ok: () => !!root && !ST_NOSWIPE.includes(ui.view) && !document.querySelector('.dlg-veil.on, .st-pl-menu:not([hidden]), .st-rs') });
 }
 /* כמו בספרייה (v350, בקשת המשתמש): "חזור" מדף הבית של הסטודיו — לסקירה. מטאב ראשי app.js כבר עבר אליה בפתיחה */
@@ -9053,7 +9147,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   if (!root) return;
   const seq = ++renderSeq;
   if (kind !== 'none') rsClose();   // מעבר דף — הגיליון של המשוב לא נשאר מעל
-  const keepY = kind === 'none' ? root.scrollTop : ((kind === 'pop' || kind === 'sibpop') ? (scrolls[viewKey()] || 0) : 0);
+  const keepY = kind === 'none' ? root.scrollTop : ((kind === 'pop' || kind === 'sibpop' || kind === 'dfwd' || kind === 'dback') ? (scrolls[viewKey()] || 0) : 0);
   const ae = document.activeElement;
   const fk = ae && root.contains(ae) && ae.dataset ? ae.dataset.k : null;   // הפוקוס חוזר לאותו רכיב אחרי ציור מחדש
   if (ui.view === 'home') form = null;   // יציאה מהטופס בלי שמירה — הטיוטה לא נשמרת
@@ -9112,9 +9206,12 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   if (!root || seq !== renderSeq) return;   // הדף חזר אחורה תוך כדי בנייה (טיוטה שנמחקה וכו') — הציור החדש כבר במקום
   /* 14/10/2026 (בקשת המשתמש): מעבר בין דפים = קובייה, כמו בשלוש האפליקציות (core: cubeClone/cubeGhostRun) — הדף היוצא =
      העתק של השכבה, החדש נצבע בשכבה עצמה מתחתיו. בלי המנוע — הכניסה הישנה (in-push/in-pop) */
-  const anim = (kind === 'push' || kind === 'pop') && !still && !reduceMotion() && !document.hidden;
+  const fwd = kind === 'push' || kind === 'dfwd';
+  const anim = (fwd || kind === 'pop' || kind === 'dback') && !still && !reduceMotion() && !document.hidden;
+  // 29/10/2026: החוגה זזה יחד עם הקובייה (אותו קפיץ). באמצע החלקה / נסיעה של החוגה (sib, העתק על המסך) — המנוע מזיז אותה
+  if (kind !== 'sib' && kind !== 'sibpop' && !(kind === 'none' && root.nextElementSibling && root.nextElementSibling.classList.contains('cube-ghost'))) stDialSync(!anim);
   const ghost = anim && typeof cubeClone === 'function' && root.firstChild ? cubeClone(root) : null;
-  if (anim && !ghost) p.classList.add(kind === 'push' ? 'in-push' : 'in-pop');
+  if (anim && !ghost) p.classList.add(fwd ? 'in-push' : 'in-pop');
   // 29/10/2026 (בטלפון: תפריט ההמבורגר ב־Studio שקוף, התוכן חד מאחוריו — שונה מ־Academy): שכבת הטשטוש של התפריט (shell.js)
   // יושבת בתוך השכבה; ציור דף מחדש (רענון הרשימה) מחק אותה. נשארת כל עוד התפריט פתוח
   const veil = root.querySelector(':scope > .menu-veil');
@@ -9122,7 +9219,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   if (veil) root.append(veil);
   if (SA && SA.shell && SA.shell.el.isConnected && typeof animSync === 'function') animSync(SA.shell.el);   // הלוגו ממשיך מאותו רגע (core)
   root.scrollTop = keepY;
-  if (ghost) cubeGhostRun(root, ghost, cubeSideFwd(kind === 'push'));
+  if (ghost) cubeGhostRun(root, ghost, cubeSideFwd(fwd));
   lastShape = shapeKey();
   if (kind === 'none' && fk) {
     const el = Array.from(root.querySelectorAll('[data-k]')).find((x) => x.dataset.k === fk);
@@ -9209,7 +9306,8 @@ function closeStudio(instant) {
   ui.wiz = { url: '', key: '', busy: false, err: '' };   // ההעלאה ממשיכה ברקע; מה שהודבק באשף — לא נשאר
   try { if (cw) cw.destroy(); } catch (e) {}
   cw = null;
-  document.documentElement.classList.remove('studio-open');
+  document.documentElement.classList.remove('studio-open', 'st-dock');
+  if (dialNav) { dialNav.remove(); dialNav = null; stDialC = null; if (typeof dialHost === 'function') dialHost(dialPrev); dialPrev = null; }
   if (!r) return;
   if (instant || reduceMotion()) { r.remove(); return; }   // Chrome כבר הנפיש את היציאה — בלי אנימציה שנייה
   r.classList.add('leaving');
@@ -9265,6 +9363,12 @@ export function openStudio(opt) {
     window.addEventListener('offline', repaint); window.addEventListener('online', () => { repaint(); if (root) pollNow(); });   // 26/10/2026: הפס "אין חיבור" בדף העבודה
   }
   document.body.append(root);
+  if (stDialNav()) {                       // 29/10/2026: החוגה — מעל השכבה; המארח של המנוע עובר לסטודיו עד הסגירה
+    document.body.append(dialNav);
+    if (_dial.host !== STUDIO_DIAL) { dialPrev = _dial.host; dialHost(STUDIO_DIAL); }
+    wireDial(dialNav);
+    if (!window._stDialRz) { window._stDialRz = true; window.addEventListener('resize', () => { if (root) stDialSync(true); }); }
+  }
   if (typeof growWatch === 'function') growWatch(root, '.st-banner', () => ui.view + '|' + (ui.param || ''));   // 14/10/2026: פס שמופיע בדף מוצג — נפתח ברכות
   document.documentElement.classList.add('studio-open');
   if (SA && !restore) { try { history.replaceState(cleanState({ studio: 1, sv: 'home', sp: null }), ''); } catch (e) {} }   // עצמאי — הבית הוא הדף

@@ -926,8 +926,13 @@ function libTransition(kind, update) {
   vt.finished.catch(() => {}).then(() => { if (document.documentElement.dataset.libVt === kind) delete document.documentElement.dataset.libVt; });
   return vt.updateCallbackDone.catch(() => {});
 }
-function renderHome(kind) { return libTransition(kind || 'none', renderHomeNow); }
+function renderHome(kind) {
+  // החוגה — למצב הדף (באמצע החלקה / נסיעה של החוגה, כשההעתק על המסך, המנוע מזיז אותה)
+  if (!(root && root.nextElementSibling && root.nextElementSibling.classList.contains('cube-ghost'))) libDialSync(!kind || kind === 'none');
+  return libTransition(kind || 'none', renderHomeNow);
+}
 function navigateTo(kind, y) {           // ציור הדף הנוכחי (ui.view) + גלילה ליעד — בתוך אותו מעבר
+  libDialSync(kind === 'none');            // 29/10/2026: החוגה זזה יחד עם הקובייה (אותו קפיץ)
   if ((kind === 'push' || kind === 'pop') && cubeOk()) return cubeNav(kind, y);
   return libTransition(kind, async () => { await renderHomeNow(); pinScroll(y || 0); });
 }
@@ -940,9 +945,10 @@ async function cubeNav(kind, y) {
   if (!root) { ghost.remove(); return; }
   await cubeGhostRun(root, ghost, cubeSideFwd(kind === 'push'));
 }
-/* ההחלקה (core: snbSwipe — אותה חוקיות כמו ב־Invest). 14/10/2026 (בקשת המשתמש): ארבעה עמודים בשורה אחת, מימין לשמאל —
-   THE SNOWBALL ← הספרייה שלי ← מה למדתי ← הגדרות; שתי הספריות הן עמודים בקובייה (לא טאבים — בלי "החלקה קצרה") */
-const LIB_SIB = ['snb', 'mine', 'notes', 'settings'];
+/* ההחלקה (core: snbSwipe — אותה חוקיות כמו ב־Invest). 14/10/2026 (בקשת המשתמש): ארבעה עמודים בשורה אחת; שתי הספריות הן
+   עמודים בקובייה (לא טאבים — בלי "החלקה קצרה"). 29/10/2026 (בקשת המשתמש): החוגה של Invest אחד לאחד, בכחול, במקום הבורר
+   שמתחת להדר — מימין לשמאל: הגדרות · THE SNOWBALL (הראשי, במרכז) · הספרייה שלי · מה למדתי */
+const LIB_SIB = ['settings', 'snb', 'mine', 'notes'];
 function libSib(v) {                       // העמוד הראשי שמוצג עכשיו, או null בעמוד משנה
   if (!v) return ui.shelf === 'mine' ? 'mine' : 'snb';
   const k = Object.keys(v);
@@ -965,61 +971,39 @@ function libBackPage() {                   // עמוד משנה: החלקה אח
     commit() { swipePop++; afterBack(() => history.back()); },
   };
 }
-/* 14/10/2026 (בקשת המשתמש): בין שתי הספריות רק מה שמתחת לבורר מסתובב (core: cubeHold) — ההדר והבורר נשארים במקום,
-   והסימון בבורר זז עם האצבע (בגרירה), ובשחרור משלים את התנועה (או חוזר בביטול) */
-function segHoldY() {
-  const seg = root && root.querySelector('.lib-seg');
-  if (!seg) return 0;
-  const b = seg.getBoundingClientRect();
-  return b.bottom > 0 && b.bottom < innerHeight * 0.6 ? b.bottom + 7 : 0;
+const libKeyOf = (v) => (!v ? (ui.shelf === 'mine' ? 'mine' : 'snb') : v.notes ? 'notes' : (v.settings || v.backup || v.advanced || v.bkbooks) ? 'settings' : (ui.shelf === 'mine' ? 'mine' : 'snb'));   // הפריט בחוגה
+/* ההיסטוריה אחרי מעבר לאח (החלקה, חוגה): הבית = רשומת הבסיס; אח אחר = רשומה אחת מעליה (ld = העומק מעל הבית) */
+let swipeRep = null;
+function libSibCommit(k) {
+  const st0 = history.state || {}, d = typeof st0.ld === 'number' ? st0.ld : (st0.lv ? 1 : 0);
+  const st = { lib: 1, lv: ui.view, sb: 1, pv: null, ld: 1 };
+  if (libIsHome(k)) { if (d > 0) { swipePop++; afterBack(() => history.go(-d)); } return; }
+  if (d === 0) afterBack(() => history.pushState(cleanState(st), ''));
+  else if (d === 1) afterBack(() => history.replaceState(cleanState(st), ''));
+  else { swipePop++; swipeRep = st; afterBack(() => history.go(1 - d)); }   // מעמוד משנה עמוק — חוזרים לרמה 1 ומחליפים אותה (onPop)
 }
-function segHoldOn(from, to) {
-  const rtl = document.documentElement.dir === 'rtl', x = (k) => (k === 'mine' ? (rtl ? -100 : 100) : 0);
-  const mark = (seg, k) => {
-    seg.classList.toggle('mine', k === 'mine');
-    seg.querySelectorAll('.lib-seg-b').forEach((b, i) => { const on = (i === 0) === (k !== 'mine'); b.classList.toggle('on', on); });
-  };
-  return (el, p) => {
-    const seg = el.querySelector('.lib-seg');
-    if (!seg) return;
-    if (p === 'commit' || p === 'cancel') {
-      mark(seg, p === 'commit' ? to : from);
-      getComputedStyle(seg, '::before').transform;      // המיקום הנוכחי נקבע — הסרת hold מפעילה את המעבר ממנו
-      seg.classList.remove('hold');
-      return;
-    }
-    seg.classList.add('hold');
-    seg.style.setProperty('--segx', (x(from) + (x(to) - x(from)) * p) + '%');
-    mark(seg, p > 0.5 ? to : from);
+function libSibPage(cur, to) {            // האח: ציור (באמצע קובייה), ביטול, אישור
+  const prev = ui.view, prevShelf = ui.shelf, prevAuthor = ui.author, prevQ = ui.q, y = root.scrollTop;
+  return {
+    from: cur, to,
+    render() { saveLibScroll(); libShow(to); root.scrollTop = 0; return renderHomeNow().then(() => { if (root) root.scrollTop = 0; }); },
+    undo() {
+      ui.view = prev; ui.author = prevAuthor; ui.q = prevQ;
+      if (ui.shelf !== prevShelf) { ui.shelf = prevShelf; try { localStorage.setItem(LS_SHELF, prevShelf); } catch (e) {} }
+      return renderHomeNow().then(() => { if (root) root.scrollTop = y; });
+    },
+    commit() { libSibCommit(to); libDialSync(true); },
   };
 }
 function libSwipePage(next) {
   const cur = libSib(ui.view);
   if (!cur || (!libIsHome(cur) && !(history.state || {}).sb)) return next ? null : libBackPage();   // עמוד משנה / הגיעו לא מהבית
   const to = LIB_SIB[LIB_SIB.indexOf(cur) + (next ? 1 : -1)];
-  if (!to) return null;
-  const prev = ui.view, prevShelf = ui.shelf, prevAuthor = ui.author, prevQ = ui.q, y = root.scrollTop;
-  return {
-    render() { saveLibScroll(); libShow(to); root.scrollTop = 0; renderHomeNow().then(() => { if (root) root.scrollTop = 0; }); },
-    undo() {
-      ui.view = prev; ui.author = prevAuthor; ui.q = prevQ;
-      if (ui.shelf !== prevShelf) { ui.shelf = prevShelf; try { localStorage.setItem(LS_SHELF, prevShelf); } catch (e) {} }
-      return renderHomeNow().then(() => { if (root) root.scrollTop = y; });
-    },
-    hold: libIsHome(cur) && libIsHome(to) ? segHoldY : null,
-    holdOn: segHoldOn(cur, to),
-    commit() {
-      const v = ui.view;
-      if (libIsHome(cur) && libIsHome(to)) return;                          // בין שתי הספריות — אותה רשומה (הבית)
-      if (libIsHome(to)) { swipePop++; afterBack(() => history.back()); }   // מ"מה למדתי" חזרה לבית
-      else if (libIsHome(cur)) afterBack(() => history.pushState(cleanState({ lib: 1, lv: v, sb: 1, pv: null }), ''));
-      else afterBack(() => history.replaceState(cleanState({ lib: 1, lv: v, sb: 1 }), ''));
-    },
-  };
+  return to ? libSibPage(cur, to) : null;
 }
 function wireLibSwipe() {
   if (typeof snbSwipe !== 'function' || !root) return;
-  snbSwipe({ root: root, ok: () => !!root && !rd && !root.querySelector('.lib-veil:not(.out)') && !VT.inside, page: libSwipePage });
+  snbSwipe({ root: root, ok: () => !!root && !rd && !root.querySelector('.lib-veil:not(.out)') && !VT.inside, page: libSwipePage, dial: () => libKeyOf(ui.view) });
 }
 let pinT = 0;
 function navScroll(y) {                  // גלילה תוכנתית של מעבר דף — מסומנת (data-nav-scroll) כדי שכלי המדידה לא יספור אותה כקפיצה
@@ -1049,7 +1033,8 @@ function goView(v) {           // מעבר לדף בתוך הספרייה — ר
   const sb = !ui.view && (libSib(v) === 'notes' || libSib(v) === 'settings') ? 1 : 0;   // מהבית — ההחלקה אחורה מגיעה לבית
   const pv = ui.view || null;              // 14/10/2026: הדף הקודם — החלקה אחורה בעמוד משנה מציירת אותו צמוד לאצבע
   ui.view = v;
-  afterBack(() => history.pushState(cleanState({ lib: 1, lv: v, sb: sb, pv: pv }), ''));
+  const ld = ((history.state || {}).ld || 0) + 1;   // 29/10/2026: העומק מעל הבית — החוגה חוזרת ממנו לאח (libSibCommit)
+  afterBack(() => history.pushState(cleanState({ lib: 1, lv: v, sb: sb, pv: pv, ld }), ''));
   navigateTo('push', 0).then(() => { if (root) try { root.focus({ preventScroll: true }); } catch (e) {} });
 }
 
@@ -1072,7 +1057,6 @@ async function renderHomeNow() {
   const allB = await allBooks();
   const mine = ui.shelf === 'mine';
   const books = allB.filter((b) => shelfOf(b) === ui.shelf);
-  const nMine = allB.filter((b) => shelfOf(b) === 'mine').length;
   const have = new Set(books.map((b) => b.id));
   const cloudOnly = mine && cloudBooks ? cloudBooks.filter((c) => !have.has(c.id)) : [];   // v319: בגיבוי ולא בטלפון
   if (mine && cloudBooks === null) refreshCloud();
@@ -1109,7 +1093,6 @@ async function renderHomeNow() {
     si.addEventListener('click', () => { SA.auth.signIn().then((ok) => { if (!ok && typeof flash === 'function') flash(T('loginFailed')); }); });
     home.append(si);
   }
-  home.append(shelfSeg(nMine));
   if (!mine) {
     if (syncNote === 'denied') home.append(h('p', 'lib-note', T('libDenied')));
     else if (syncProgress && syncProgress.total > 1) home.append(h('p', 'lib-note', T('libSyncProg', { n: syncProgress.done, t: syncProgress.total })));
@@ -1232,30 +1215,7 @@ async function renderHomeNow() {
 }
 
 /* ---------------- v318: שתי ספריות + גיבוי ל־Google Drive (ממשק) ---------------- */
-function setShelf(v) {
-  if (ui.shelf === v) return;
-  // 14/10/2026: שתי הספריות = שני עמודים בקובייה (כמו בהחלקה); בלי המנוע — הצלבה כמו קודם
-  if (!cubeOk()) { libShow(v); navigateTo('fade', 0); return; }
-  const ghost = cubeClone(root), from = ui.shelf;
-  libShow(v);
-  Promise.resolve(renderHomeNow()).then(() => { if (!root) { ghost.remove(); return; } navScroll(0); cubeGhostRun(root, ghost, cubeSideFwd(v === 'mine'), { y: segHoldY(), on: segHoldOn(from, v) }); }, () => ghost.remove());
-}
-function shelfSeg(nMine) {                 // בורר מקטעים לפי ת־עיצוב
-  const seg = h('div', 'lib-seg no-swipe'); seg.setAttribute('role', 'tablist');
-  const one = (v, label, n) => {
-    const b = h('button', 'lib-seg-b' + (ui.shelf === v ? ' on' : '')); b.type = 'button';
-    b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', ui.shelf === v ? 'true' : 'false');
-    b.append(h('span', null, label));
-    if (n) b.append(h('small', null, String(n)));
-    b.addEventListener('click', () => setShelf(v));
-    seg.append(b);
-  };
-  one('snb', 'THE SNOWBALL', 0);
-  one('mine', T('libMine'), nMine);
-  seg.classList.toggle('mine', ui.shelf === 'mine');
-  requestAnimationFrame(() => { if (typeof barHeightVar === 'function') barHeightVar(); });   // 20/10/2026: גובה ההדר לבורר הדבוק
-  return seg;
-}
+function setShelf(v) { if (ui.shelf !== v || ui.view) libDialTo(v); }   // אחרי הוספת ספר — לספרייה שלי (כמו לחיצה בחוגה)
 let pillPrev = '';
 export function bkPillState(signed, s, busy) {   // טהורה (נבדקת): off | busy | err | ok
   if (!signed || !s || !s.email) return 'off';
@@ -4329,7 +4289,7 @@ function onPop(e) {
   if (sheetSkip > 0) { sheetSkip--; if (!sheetSkip) sheetClosed = null; const v = root && root.querySelector('.lib-veil.out'); if (v && v._settled) v._settled(); return; }   // v322: סגירה תוכנתית של גיליון — ה־back שלנו
   const ds = document.documentElement.dataset;
   if (ds.modalPop || ds.navSkip) return; // v322: חלון של האפליקציה נסגר ב"חזור" / ה־back שלה (סגירת כפתורי לחיצה ארוכה) — לא ניווט של הספרייה
-  if (swipePop > 0) { swipePop--; ui.view = (history.state && history.state.lv) || null; return; }   // 14/10/2026: חזרה לבית בהחלקה — כבר צויר
+  if (swipePop > 0) { swipePop--; if (!swipePop && swipeRep) { const s = swipeRep; swipeRep = null; try { history.replaceState(cleanState(s), ''); } catch (err) {} } ui.view = (history.state && history.state.lv) || null; return; }   // 14/10/2026: חזרה לבית בהחלקה — כבר צויר
   const st = history.state || {};
   const lvl = st.lib || 0;
   const veils = root ? Array.from(root.querySelectorAll('.lib-veil:not(.out)')) : [];
@@ -4374,7 +4334,8 @@ function curtainDown(instant) {   // 14/10/2026: instant — פתיחה רגיל
 function closeLibrary(instant) {
   const r = root; root = null;
   hideSel(); hideTr(true);
-  document.documentElement.classList.remove('lib-open');
+  document.documentElement.classList.remove('lib-open', 'lib-dock');
+  if (libNav) { libNav.remove(); libNav = null; libDialC = null; if (typeof dialHost === 'function') dialHost(libDialPrev); libDialPrev = null; }
   if (instant === true || reduceMotion()) { r.remove(); return; }
   r.classList.add('leaving');
   setTimeout(() => r.remove(), 260);
@@ -4412,6 +4373,60 @@ function restoreLibScroll() {
 /* שלב 3ג בתוכנית שלוש האפליקציות: הספרייה כדף עצמאי (academy.html) — opt.standalone = { auth: SnbAuth, home }.
    ההבדלים מהשכבה שבתוך התיק: רשומת הבית מחליפה את רשומת הדף (לא נדחפת מעליה) — "חזור" מהבית יוצא מהדף;
    "THE SNOWBALL" בראש הבית עובר ל־Invest; וכשלא מחוברים — כפתור כניסה עם Google (בתיק — מסך ההתחברות שלו). */
+/* ---- החוגה (29/10/2026; המנוע ב־core: dialHost/wireDial — אותו של Invest ושל Studio, רק בכחול) ---- */
+const LIB_DIAL_ICO = {
+  snb: '<path d="M12 2.8v18.4M4 7.4l16 9.2M4 16.6l16-9.2M9.6 4.6 12 7l2.4-2.4M9.6 19.4 12 17l2.4 2.4M4.6 10.6l3.2.9-.9 3.3M19.4 13.4l-3.2-.9.9-3.3M4.6 13.4l3.2-.9-.9-3.3M19.4 10.6l-3.2.9.9 3.3"/>',
+  mine: '<rect x="3.5" y="4" width="4.2" height="16" rx="1"/><rect x="9.6" y="4" width="4.2" height="16" rx="1"/><path d="M15.7 5.4l3.5-.9 3.3 14.6-3.5.9z"/>',
+  notes: '<path d="M9.2 18h5.6M10.2 21h3.6M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.2h5c0-.9.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"/>',
+};
+let libNav = null, libDialPrev = null, libDialC = null;
+const LIB_DIAL = {
+  nav: () => libNav, keys: () => LIB_SIB, index: (k) => Math.max(0, LIB_SIB.indexOf(k)),
+  cur: () => (libDialC ? libDialC.from : libKeyOf(ui.view)),
+  begin(cur, to, side) {          // כמו ההחלקה (snbSwipe): העתק של השכבה יוצא, האח נצבע בשכבה עצמה
+    if (!root || rd || VT.inside || cubeReduce() || document.hidden) return null;
+    const bd = cubeBackdrop(root);
+    if (!to) { libDialC = { side, p: 0, rub: true, out: cubeFace(root, { dead: true }), bd, from: cur }; return libDialC; }
+    const pg = libSibPage(cur, to), ghost = cubeClone(root);
+    libDialC = { from: cur };
+    try { pg.render(); } catch (e) { ghost.remove(); bd.remove(); libDialC = null; return null; }
+    libDialC = { side, p: 0, out: cubeFace(ghost, { dead: true }), in: cubeFace(root), ghost, bd, pg, from: cur, to };
+    return libDialC;
+  },
+  drop(c) {
+    cubeSet(c, 0);
+    if (libDialC === c) libDialC = null;
+    const done = () => { cubeFaceOff(c.in); if (c.rub) cubeFaceOff(c.out); if (c.ghost) c.ghost.remove(); c.bd.remove(); };
+    if (!c.pg) return done();
+    let r; try { r = c.pg.undo(); } catch (e) { r = null; }
+    Promise.resolve(r).then(done, done);   // הדף הקודם נצבע מחדש מאחורי ההעתק — ורק אז ההעתק יורד
+  },
+  land(c) {
+    cubeSet(c, 1);
+    cubeFaceOff(c.in); c.ghost.remove(); c.bd.remove();
+    if (libDialC === c) libDialC = null;
+    libSibCommit(c.to);
+  },
+  instant(to) { libDialTo(to); },
+};
+function libDialTo(k) {           // לחיצה על פריט: קובייה לכיוון שלו (כמו לשונית ב־Invest)
+  if (!root || rd || !LIB_SIB.includes(k)) return;
+  const cur = libKeyOf(ui.view);
+  if (k === cur && libSib(ui.view) === k) { try { root.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { root.scrollTop = 0; } return; }
+  const fwd = LIB_SIB.indexOf(k) > LIB_SIB.indexOf(cur);
+  saveLibScroll();
+  libShow(k);
+  libSibCommit(k);
+  navigateTo(k !== cur && fwd ? 'push' : 'pop', 0);
+}
+/* גלויה מעל השכבה (910) ומתחת לקורא (920) ולגיליונות; לא בעמודי העריכה והניהול (יש להם סרגל משלהם) */
+function libDialSync(instant) {
+  if (!libNav || libDialC) return;
+  const show = !!root && !(ui.view && Object.keys(ui.view).some((k) => LIB_NOBACK.includes(k)));
+  libNav.hidden = !show;
+  document.documentElement.classList.toggle('lib-dock', show);
+  if (show && typeof dialSync === 'function') dialSync(instant);
+}
 let SA = null;
 export async function openLibrary(opt) {
   ensureCss();
@@ -4435,9 +4450,19 @@ export async function openLibrary(opt) {
   // v316: לחיצה ארוכה על כריכה פתחה את תפריט הדפדפן ("הורדת תמונה") — אצלנו לחיצה ארוכה = עריכה/מחיקה
   root.addEventListener('contextmenu', (e) => { if (e.target.closest && e.target.closest('.lib-item, .lib-cover, .ed-cv, .ed-th')) e.preventDefault(); });
   document.body.append(root);
+  if (!libNav && typeof dialNavBuild === 'function') {   // 29/10/2026: החוגה — המארח של המנוע עובר לספרייה עד הסגירה
+    libNav = dialNavBuild('lib-dial', T('libDialAria'), [
+      { k: 'settings', ico: DIAL_GEAR, lbl: T('libDialSet') }, { k: 'snb', ico: LIB_DIAL_ICO.snb, lbl: 'THE SNOWBALL', cls: 'tab-long' },
+      { k: 'mine', ico: LIB_DIAL_ICO.mine, lbl: T('libMine') }, { k: 'notes', ico: LIB_DIAL_ICO.notes, lbl: T('libDialNotes') },
+    ], libDialTo);
+    document.body.append(libNav);
+    if (_dial.host !== LIB_DIAL) { libDialPrev = _dial.host; dialHost(LIB_DIAL); }
+    wireDial(libNav);
+    if (!window._libDialRz) { window._libDialRz = true; window.addEventListener('resize', () => { if (root) libDialSync(true); }); }
+  }
   document.documentElement.classList.add('lib-open');
-  if (SA && !restore) history.replaceState(Object.assign({}, history.state || {}, { lib: 1 }), '');   // עצמאי — הבית הוא הדף ("חזור" ממנו יוצא מהדף)
-  else if (!restore) afterBack(() => history.pushState(Object.assign({}, history.state || {}, { lib: 1 }), ''));   // ברענון — הרשומות כבר בהיסטוריה
+  if (SA && !restore) history.replaceState(Object.assign({}, history.state || {}, { lib: 1, ld: 0 }), '');   // עצמאי — הבית הוא הדף ("חזור" ממנו יוצא מהדף)
+  else if (!restore) afterBack(() => history.pushState(Object.assign({}, history.state || {}, { lib: 1, ld: 0 }), ''));   // ברענון — הרשומות כבר בהיסטוריה
   if (!window._libPop) { window._libPop = true; window.addEventListener('popstate', onPop); }
   ui.view = restore ? (restore.lv || null) : null;
   if (!restore) { ui.author = SHELF; ui.q = ''; }   // v321: כל כניסה לספרייה — מדף ספרים
