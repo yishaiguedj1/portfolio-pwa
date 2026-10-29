@@ -580,8 +580,6 @@ html.calm .appbar .brand-snow b { animation-play-state: paused; }
    הפריטים יושבים על קשת: הפעיל במרכז, גדל לבועה בצבע האפליקציה עם הסמל בלבן (בלי כיתוב), והשאר עיגולי זכוכית עם סמל וכיתוב מתחת. המיקום של כל פריט
    (translate/scale/opacity) נקבע ב־app.js (dialPaint, ובמעבר — dialAnimate באותו קפיץ ובאותו זמן של הקובייה). הסרגל מחוץ ל־main —
    לא חלק מהקובייה, ותמיד גלוי במעבר. שכבת הרקע: זכוכית שנמוגה למעלה (בלי קו חד מעל התוכן), וזוהר עדין מאחורי המרכז */
-:root { --dial-btn: rgba(255, 255, 255, .16); }   /* 29/10/2026: עיגולי החוגה — זכוכית שקופה יותר (לפי ת־עיצוב) */
-[data-theme="dark"] { --dial-btn: rgba(255, 255, 255, .05); }
 body.has-dock { --dock-h: 120px; padding-bottom: calc(var(--dock-h) + env(safe-area-inset-bottom, 0px) + 14px); }
 .tabs {
   position: fixed; inset-inline: 0; bottom: 0; z-index: 21;
@@ -618,7 +616,7 @@ button, a, .tab, .icon-btn, .ss-add {
 .tab-disc {
   position: absolute; top: 16px; left: 7px; width: 78px; height: 78px; border-radius: 50%;
   display: grid; place-items: center; transform: scale(.72); will-change: transform;
-  background: var(--dial-btn, var(--gl-btn)); box-shadow: var(--gl-btn-sh); transition: scale .16s ease;
+  background: var(--gl-btn);   /* הכפתורים אטומים — רק הרקע של הבר שקוף (בקשת המשתמש) */ box-shadow: var(--gl-btn-sh); transition: scale .16s ease;
 }
 .tab:active .tab-disc { scale: .9; }
 .tab-glow {
