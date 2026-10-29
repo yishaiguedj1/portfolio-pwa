@@ -580,20 +580,20 @@ html.calm .appbar .brand-snow b { animation-play-state: paused; }
    הפריטים יושבים על קשת: הפעיל במרכז, גדל לבועה בצבע האפליקציה עם הסמל בלבן (בלי כיתוב), והשאר עיגולי זכוכית עם סמל וכיתוב מתחת. המיקום של כל פריט
    (translate/scale/opacity) נקבע ב־app.js (dialPaint, ובמעבר — dialAnimate באותו קפיץ ובאותו זמן של הקובייה). הסרגל מחוץ ל־main —
    לא חלק מהקובייה, ותמיד גלוי במעבר. שכבת הרקע: זכוכית שנמוגה למעלה (בלי קו חד מעל התוכן), וזוהר עדין מאחורי המרכז */
-:root { --dial-btn: rgba(255, 255, 255, .34); }   /* 29/10/2026: עיגולי החוגה — זכוכית שקופה יותר (לפי ת־עיצוב) */
-[data-theme="dark"] { --dial-btn: rgba(255, 255, 255, .08); }
+:root { --dial-btn: rgba(255, 255, 255, .24); }   /* 29/10/2026: עיגולי החוגה — זכוכית שקופה יותר (לפי ת־עיצוב) */
+[data-theme="dark"] { --dial-btn: rgba(255, 255, 255, .06); }
 body.has-dock { --dock-h: 120px; padding-bottom: calc(var(--dock-h) + env(safe-area-inset-bottom, 0px) + 14px); }
 .tabs {
   position: fixed; inset-inline: 0; bottom: 0; z-index: 21;
   height: calc(var(--dock-h, 120px) + env(safe-area-inset-bottom, 0px));
   isolation: isolate; overflow-x: clip; touch-action: none;
-  --dock-bg: color-mix(in srgb, var(--bg) 14%, transparent); --dock-bg2: color-mix(in srgb, var(--bg) 28%, transparent);
+  --dock-bg: color-mix(in srgb, var(--bg) 4%, transparent); --dock-bg2: color-mix(in srgb, var(--bg) 12%, transparent);
 }
-[data-theme="dark"] .tabs { --dock-bg: color-mix(in srgb, var(--bg) 18%, transparent); --dock-bg2: color-mix(in srgb, var(--bg) 34%, transparent); }
+[data-theme="dark"] .tabs { --dock-bg: color-mix(in srgb, var(--bg) 6%, transparent); --dock-bg2: color-mix(in srgb, var(--bg) 16%, transparent); }
 .tabs::before {
   content: ''; position: absolute; inset: -26px 0 0; z-index: -2; pointer-events: none;
   background: linear-gradient(to bottom, transparent, var(--dock-bg) 34px, var(--dock-bg2) 84px);
-  -webkit-backdrop-filter: blur(14px) saturate(180%); backdrop-filter: blur(14px) saturate(180%);
+  -webkit-backdrop-filter: blur(8px) saturate(170%); backdrop-filter: blur(8px) saturate(170%);
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 30px); mask-image: linear-gradient(to bottom, transparent, #000 30px);
 }
 .tabs::after {   /* "זרקור" מאחורי הבועה — קבוע במרכז, נותן עומק בלי לזוז */
