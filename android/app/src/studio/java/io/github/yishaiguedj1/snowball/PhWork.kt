@@ -209,7 +209,13 @@ object PhWork {
      *  (PhUpJob, אנדרואיד 14+) או השירות בחזית (מתחת ל־14), CONC חלקים במקביל, ממשיכה מהחלקים שכבר ב־R2. העבודה לא מחכה לה
      *  (המדידות במקום הסרטון) — היא לנגן מכל מכשיר, לשמירה ב־Drive ולהפקה מחדש בענן. מתחילה אחרי הקול (שלא יתחרו על הקו).
      *  true = נגמר (עלה / אין מה לעשות / שגיאה קבועה — מדווחת לדף), false = לנסות שוב (רשת, נעצר, הקול עוד לא עלה) */
-    fun video(ctx: Context, pid: String, stopped: () -> Boolean, show: (Notification) -> Unit): Boolean {
+    /** 29/10/2026: "ביטול" בהתראה של הסרטון (PhService.ACT_VCANCEL, אותו תהליך :ph) — עוצר את ההעלאה לענן בלבד; הכתוביות
+     *  והצריבה בטלפון לא תלויות בה. נרשם vE = "cancel", כך שהמשימה לא חוזרת */
+    @Volatile var vCancel = false
+
+    fun video(ctx: Context, pid: String, stopped0: () -> Boolean, show: (Notification) -> Unit): Boolean {
+        vCancel = false
+        val stopped = { stopped0() || vCancel }
         var r = PhStore.get(ctx, pid) ?: return true
         if (!r.optBoolean("vc") || r.optString("vId").isNotEmpty() || r.optString("vE").isNotEmpty()) return true
         val t0 = System.currentTimeMillis()
@@ -241,6 +247,11 @@ object PhWork {
             true
         } catch (e: Throwable) {
             q.stop()
+            if (vCancel) {
+                PhStore.update(ctx, pid) { it.put("vE", "cancel") }
+                try { n.call("phVp", JSONObject().put("p", 0).put("e", "cancel")) } catch (x: Throwable) {}
+                return true
+            }
             val code = codeOf(e)
             if (code == "stopped" || stopped() || code in VC_RETRY) return false
             PhStore.update(ctx, pid) { it.put("vE", code) }
@@ -255,10 +266,13 @@ object PhWork {
         else -> "application/octet-stream"
     }
     const val N_VID = 45
-    fun vprogress(ctx: Context, title: String, p: Float): Notification =
-        builder(ctx).setSmallIcon(android.R.drawable.stat_sys_upload).setContentTitle(title.ifEmpty { s(ctx, R.string.phTitle) })
+    fun vprogress(ctx: Context, title: String, p: Float): Notification {
+        val cancel = PendingIntent.getService(ctx, 13, Intent(ctx, PhService::class.java).setAction(PhService.ACT_VCANCEL), PendingIntent.FLAG_IMMUTABLE)
+        return builder(ctx).setSmallIcon(android.R.drawable.stat_sys_upload).setContentTitle(title.ifEmpty { s(ctx, R.string.phTitle) })
             .setContentText(s(ctx, R.string.phUpV, (p * 100).toInt().coerceIn(0, 100))).setOngoing(true).setOnlyAlertOnce(true)
-            .setProgress(100, (p * 100).toInt().coerceIn(0, 100), false).build()
+            .setProgress(100, (p * 100).toInt().coerceIn(0, 100), false)
+            .addAction(Notification.Action.Builder(null, s(ctx, R.string.dlCancel), cancel).build()).build()
+    }
 
     fun burn(ctx: Context, pid: String, stopped: () -> Boolean) {
         var r = PhStore.get(ctx, pid) ?: return

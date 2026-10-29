@@ -18,6 +18,7 @@ class PhService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val i = intent ?: return START_NOT_STICKY
+        if (i.action == ACT_VCANCEL) { PhWork.vCancel = true; if (!busy) stopSelf(); return START_NOT_STICKY }   // רק הסרטון לענן
         if (i.action == ACT_CANCEL) { stop = true; PhFf.cancel(); PhPy.cancel(); if (!busy) stopSelf(); return START_NOT_STICKY }
         val pid = i.getStringExtra(X_PID) ?: return START_NOT_STICKY
         val burn = i.action == ACT_BURN
@@ -60,6 +61,7 @@ class PhService : Service() {
         const val ACT_UP = "app.thesnowball.studio.PH_UP"
         const val ACT_BURN = "app.thesnowball.studio.PH_BURN"
         const val ACT_CANCEL = "app.thesnowball.studio.PH_CANCEL"
+        const val ACT_VCANCEL = "app.thesnowball.studio.PH_VCANCEL"
         const val X_PID = "pid"
         @Volatile var busy = false; private set
 

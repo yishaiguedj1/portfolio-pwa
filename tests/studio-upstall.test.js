@@ -67,6 +67,9 @@ function ok(c, name) { n++; if (!c) { console.error('FAIL - ' + name); process.e
   ok(/optBoolean\("vJob"\)/.test(svc) && /PhWork\.video\(/.test(svc), 'בלי UIDT — השירות מעלה את הסרטון אחרי הקול');
   const net = read(A + 'java/io/github/yishaiguedj1/snowball/PhNet.kt');
   ok(/const val CONC = 4/.test(net) && /fun uploadPar\(/.test(net), 'ארבעה חיבורים בהעלאה הנייטיב');
+  const work = read(A + 'java/io/github/yishaiguedj1/snowball/PhWork.kt');
+  ok(/ACT_VCANCEL\) \{ PhWork\.vCancel = true/.test(svc) && /setAction\(PhService\.ACT_VCANCEL\)/.test(work) && /it\.put\("vE", "cancel"\)/.test(work) && /put\("e", "cancel"\)/.test(work),
+    'ביטול בהתראת הסרטון — עוצר רק את ההעלאה לענן, נרשם ולא חוזר');
   ok(/@Synchronized fun update/.test(read(A + 'java/io/github/yishaiguedj1/snowball/PhStore.kt')), 'PhStore.update מסונכרן (שני תהליכונים כותבים)');
 
   console.log('\nכל ' + n + ' הבדיקות עברו ✓');
