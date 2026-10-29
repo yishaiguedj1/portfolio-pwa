@@ -391,6 +391,7 @@ const INIT2 = `(() => {
     if (!landing.css) { landing.css = 1; await ctx.addInitScript(() => { const f = () => { const s = document.createElement('style'); s.textContent = '.brand-snow, .brand-snow * { animation: none !important; }'; document.head.appendChild(s); }; if (document.head) f(); else document.addEventListener('DOMContentLoaded', f); }); }
     await page.addStyleTag({ content: '.brand-snow, .brand-snow * { animation: none !important; }' }).catch(() => {});
     try { await fn(); } catch (e) { err = String(e.message).split('\n')[0].slice(0, 140); }
+    if (err) { const d = path.join(OUT, 'err'); fs.mkdirSync(d, { recursive: true }); await page.screenshot({ path: path.join(d, String(results.length).padStart(3, '0') + '.png') }).catch(() => {}); }   // 29/10/2026: מה היה על המסך כשהצעד נכשל
     // הקובייה = אנימציית WAAPI עם perspective מחוץ ללוגו (גם לסיבוב של הלוגו יש perspective — זוהה בטעות כקובייה, 29/10/2026).
     // ב־Academy הקובייה מתחילה אחרי ציור אסינכרוני — מחכים לה עד 1.5 שנ׳
     if (!opt.noLand) await page.waitForFunction(() => document.getAnimations().some((x) => !x.animationName && !x.transitionProperty && x.effect && x.effect.target && !x.effect.target.closest('.brand') && x.effect.getKeyframes().some((k) => /perspective/.test(k.transform || ''))), null, { timeout: 1500, polling: 'raf' }).catch(() => {});
@@ -401,7 +402,7 @@ const INIT2 = `(() => {
       // אנימציה שמונעת מגלילה (hdrScrim — scroll-timeline) לא קשורה לזמן: לא נוגעים בה (finish כפה את הכהות המלאה של ההדר).
       // וכך גם אנימציה סופית מכוונת (הכפתור הנבחר בבורר הניתוח זז יחד עם הקובייה — el.animate): היא מסתיימת. רק אינסופית (שלג, ניצוצות) מוקפאת
       if (a.length) document.getAnimations().forEach((x) => { if (!a.includes(x) && x.timeline === document.timeline) { try { if (x.transitionProperty || (x.effect && x.effect.getTiming().iterations !== Infinity)) x.finish(); else { x.pause(); x.currentTime = 0; } } catch (e) {} } });
-      if (a.length) window.__qaLand = (JSON.stringify([...document.querySelectorAll('.cube-hold')].map((c) => { const q = (r) => { const e = r.querySelector('.an-seg-main, .lib-seg'); return e ? Math.round(e.getBoundingClientRect().top * 10) / 10 : null; }; const live = c.previousElementSibling && document.querySelector('.an-root:not(.cube-ghost):not(.cube-hold), .lib-root:not(.cube-ghost):not(.cube-hold)'); return { st: c.scrollTop, sh: c.scrollHeight, ch: c.clientHeight, seg: q(c), live: live ? q(live) : null, lst: live ? live.scrollTop : null, ltr: live ? live.style.transform.slice(0, 60) : null }; })) + JSON.stringify(document.getAnimations().map((x) => { const t = x.effect && x.effect.target; return [x.animationName || x.transitionProperty || x.id || 'waapi', t ? (t.tagName + '.' + String(t.className).slice(0, 40)) : '', Math.round(x.currentTime), x.playState]; })));
+      if (a.length) window.__qaLand = (JSON.stringify([...document.querySelectorAll('.lib-root, .st-root, .an-root')].map((r) => { const h = r.querySelector('.appbar'); return [r.className.slice(0, 40), r.scrollTop, r.scrollHeight, h ? getComputedStyle(h, '::before').opacity : '-', r.style.transform.slice(0, 50)]; })) + JSON.stringify([...document.querySelectorAll('.cube-hold')].map((c) => { const q = (r) => { const e = r.querySelector('.an-seg-main, .lib-seg'); return e ? Math.round(e.getBoundingClientRect().top * 10) / 10 : null; }; const live = c.previousElementSibling && document.querySelector('.an-root:not(.cube-ghost):not(.cube-hold), .lib-root:not(.cube-ghost):not(.cube-hold)'); return { st: c.scrollTop, sh: c.scrollHeight, ch: c.clientHeight, seg: q(c), live: live ? q(live) : null, lst: live ? live.scrollTop : null, ltr: live ? live.style.transform.slice(0, 60) : null }; })) + JSON.stringify(document.getAnimations().map((x) => { const t = x.effect && x.effect.target; return [x.animationName || x.transitionProperty || x.id || 'waapi', t ? (t.tagName + '.' + String(t.className).slice(0, 40)) : '', Math.round(x.currentTime), x.playState]; })));
       return a.length; });
     if (n && process.env.QA_LAND_DBG) console.log('LANDDBG', name, await page.evaluate(() => window.__qaLand));
     const d = path.join(OUT, 'landing'); fs.mkdirSync(d, { recursive: true });
@@ -466,7 +467,7 @@ const INIT2 = `(() => {
       await step('סטודיו: מגדל ← ' + t + R, () => row(t), { settle: 1500, expect: '.st-back' });
       await step('סטודיו: חזור ← מגדל (' + t + ')' + R, stBack, { settle: 1400 });
     }
-    await step('סטודיו: החלקה ← הגדרות' + R, () => swipe(300), { settle: 1600, scroll: true });
+    await step('סטודיו: חוגה ← הגדרות' + R, () => tapTab('.st-dial .tab[data-tab="settings"]'), { settle: 1600, scroll: true, dialIs: ['.st-dial', 'settings'] });   // 29/10/2026: המגדל בקצה החוגה — החלקה משם לא מגיעה להגדרות
     for (const t of ['Claude', 'ברירות מחדל', 'אחסון והעלאה', 'התראות', 'מדריך קצר', 'אפשרויות מתקדמות']) {
       await step('סטודיו: הגדרות ← ' + t + R, () => row(t), { settle: 1500, expect: '.st-back', pre: '.st-page button.st-row, .st-page button.row-link' });
       await step('סטודיו: חזור ← הגדרות (' + t + ')' + R, stBack, { settle: 1400 });
@@ -475,13 +476,14 @@ const INIT2 = `(() => {
     await step('סטודיו: מאמצע ההגדרות ← אפשרויות מתקדמות' + R, () => row('אפשרויות מתקדמות'), { settle: 1500, expect: '.st-back' });
     await step('סטודיו: חזור ← אמצע ההגדרות' + R, stBack, { settle: 1400 });
     await step('סטודיו: הגדרות ← בית' + R, stBack, { settle: 1500, expect: '.st-newcard' });
-    for (const k of ['tower', 'job', 'settings', 'home', 'job', 'tower', 'home']) await step('סטודיו: חוגה — ' + k + R, () => click('.st-dial .tab[data-tab="' + k + '"]'), { settle: 1600, lateAfter: 900 });
+    for (const k of ['tower', 'job', 'settings', 'home', 'job', 'tower', 'home']) await step('סטודיו: חוגה — ' + k + R, () => tapTab('.st-dial .tab[data-tab="' + k + '"]'), { settle: 1600, lateAfter: 900, dialIs: ['.st-dial', k] });
     for (const dx of [-300, -300, -300, 300, 300, 300]) await step('סטודיו: החלקת עמוד ' + (dx < 0 ? '←' : '→') + ' (' + await dialCur('.st-dial') + ')' + R, () => tswipe(dx, 600), { settle: 1600, lateAfter: 900 });
     await step('סטודיו: גרירת החוגה פריט אחד' + R, () => dialDrag('.st-dial', -70, 120), { settle: 1700, lateAfter: 1000 });
     await step('סטודיו: גרירת החוגה בתנופה' + R, () => dialDrag('.st-dial', 220), { settle: 1900, lateAfter: 1100 });
-    await step('סטודיו: חוגה — בית' + R, () => click('.st-dial .tab[data-tab="home"]'), { settle: 1600, lateAfter: 900, expect: '.st-newcard' });
+    await step('סטודיו: חוגה — בית' + R, () => tapTab('.st-dial .tab[data-tab="home"]'), { settle: 1600, lateAfter: 900, expect: '.st-newcard' });
     await step('סטודיו: פרויקט חדש' + R, () => click('.st-newcard'), { settle: 1600, lateAfter: 900 });
-    await step('סטודיו: חזור ← בית (מפרויקט חדש)' + R, back, { settle: 1600, lateAfter: 900, expect: '.st-newcard' });
+    await step('סטודיו: חזור ← בית (מפרויקט חדש)' + R, () => page.keyboard.press('Escape'),   // CloseWatcher (כמו "חזור" באנדרואיד) — goBack היה עוזב את הדף
+      { settle: 1600, lateAfter: 900, expect: '.st-newcard' });
     await scrollMid(); await sleep(400);
     await step('סטודיו: מאמצע הבית — עבודה' + R, () => page.locator('.st-proj').nth(4).click({ timeout: 5000 }), { settle: 1600, lateAfter: 900, expect: '.st-back' });
     await step('סטודיו: חזור ← אמצע הבית' + R, stBack, { settle: 1600, lateAfter: 900, expect: '.st-newcard' });
@@ -500,14 +502,14 @@ const INIT2 = `(() => {
         const o = ADM[b.op] ? Object.assign({ ok: true }, ADM[b.op]) : { ok: false, error: 'x' }; setTimeout(() => J(r, o), LAT); });
     }
     await step('מנהל: פתיחה' + R, async () => { await page.goto(BASE + '/admin.html#ov', { waitUntil: 'load' }); }, { settle: 2500, expect: '.adm-page', lateAfter: 1200 });
-    const tab = (i) => page.locator('.adm-tab').nth(i).click({ timeout: 5000 });
+    const tab = (n) => page.locator('.adm-tab').filter({ hasText: n }).first().click({ timeout: 5000 });   // 29/10/2026: לפי השם (נוספה "פעילות" — הסדר זז)
     const rowT = (txt) => page.locator('.adm-page button.adm-r').filter({ hasText: txt }).first().click({ timeout: 5000 });
-    await step('מנהל: לשונית מערכת' + R, () => tab(2), { settle: 1400 });
+    await step('מנהל: לשונית מערכת' + R, () => tab('מערכת'), { settle: 1400 });
     await step('מנהל: גיבויים' + R, () => rowT('גיבוי'), { settle: 1400, expect: '.adm-back' });
     await step('מנהל: חזור ← מערכת' + R, back, { settle: 1200 });
     await step('מנהל: יומן' + R, () => rowT('יומן'), { settle: 1400, expect: '.adm-back', scroll: true });
     await step('מנהל: חזור ← מערכת (2)' + R, back, { settle: 1200, scroll: true });
-    for (const [i, n] of [[1, 'אפליקציות'], [3, 'שיפור'], [4, 'חיפוש'], [0, 'סקירה']]) await step('מנהל: לשונית ' + n + R, () => tab(i), { settle: 1400, scroll: true });
+    for (const n of ['פעילות', 'אפליקציות', 'שיפור', 'חיפוש', 'סקירה']) await step('מנהל: לשונית ' + n + R, () => tab(n), { settle: 1400, scroll: true });
     const loads = await page.evaluate(() => [...document.querySelectorAll('.adm-page p')].filter((e) => /טוען/.test(e.textContent)).length);
     if (loads) console.log('  (במסך האחרון עוד ' + loads + ' שורות "טוען…" — נתונים שהמוק לא מחזיר)');
   }
