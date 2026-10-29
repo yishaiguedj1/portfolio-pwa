@@ -15103,6 +15103,10 @@ const CHART_LS = 'pwa_charts_v1';
 function chartExtOn() {
   try { const o = JSON.parse(localStorage.getItem(CHART_LS) || 'null'), g = o && o.g; return !g || g.extV !== 2 ? true : !!g.ext; } catch (e) { return true; }
 }
+/* 29/10/2026: אזור הזמן מאותן הגדרות (chart.js: g.tz — 'ex' שעון הבורסה, אחרת שעון המכשיר) — גם לגרף היום בכרטיס */
+function chartTzLocal() {
+  try { const o = JSON.parse(localStorage.getItem(CHART_LS) || 'null'), g = o && o.g; return !(g && g.tz === 'ex'); } catch (e) { return true; }
+}
 function chartBtn(sym) {
   // 27/10/2026 (בקשת המשתמש): במקום "גרף נרות" + סמל ההגדלה על הגרף — רק סמל ההגדלה, משמאל ל"ניתוח" (אותה פתיחה)
   const b = el('button', 'chip-btn kc-open-btn stock-ico-btn no-swipe');
@@ -15562,12 +15566,13 @@ async function ensureChartData(sym, quiet) {
 
 /* ---------------- גרף קו ---------------- */
 
-function chartPoints(sym, rows, intraday) {
+function chartPoints(sym, rows, intraday, local) {
   const ex = symExTz(sym);
+  if (local === undefined) local = chartTzLocal();
   return downsample(rows, 400).map((r) => {
-    // 29/10/2026: תוך־יומי — התאריך והשעה בשעון המכשיר (המיקום של המשתמש), לא בשעון הבורסה
+    // 29/10/2026: תוך־יומי — התאריך והשעה בשעון המכשיר (המיקום של המשתמש), או בשעון הבורסה אם נבחר בגרף הנרות
     let date = r.date, time = r.time;
-    if (intraday && time) { try { const w = tzWall(exWallToMs(date, time, ex)); date = w.date; time = w.time; } catch (e) {} }
+    if (intraday && time && local) { try { const w = tzWall(exWallToMs(date, time, ex)); date = w.date; time = w.time; } catch (e) {} }
     return {
       label: intraday && time ? (intraday === '5d' ? fmtDateIL(date).slice(0, 5) + ' ' : '') + time.slice(0, 5) : fmtDateIL(date),
       date: date, time: time, close: r.close

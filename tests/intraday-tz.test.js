@@ -92,6 +92,13 @@ ok(A('chartExtOn')() === false, 'כובה בגרף הנרות → כבוי גם 
 ls.pwa_charts_v1 = JSON.stringify({ g: { ext: false } });
 ok(A('chartExtOn')() === true, 'הגדרה ישנה (לפני extV 2) — דלוק, כמו ב־chart.js');
 
+ls.pwa_charts_v1 = JSON.stringify({ g: { tz: 'ex' } });
+ok(A('chartTzLocal')() === false, 'בגרף הנרות נבחר "שעון הבורסה" → גם בכרטיס');
+const exPts = A('chartPoints')('META', [{ date: '2026-10-28', time: '19:59', close: 2 }], 'day');
+ok(exPts[0].time === '19:59' && exPts[0].date === '2026-10-28', 'שעון הבורסה — 19:59 בניו יורק כמו שהוא');
+ls.pwa_charts_v1 = JSON.stringify({ g: { tz: 'local' } });
+ok(A('chartTzLocal')() === true && A('chartPoints')('META', [{ date: '2026-10-28', time: '19:59', close: 2 }], 'day')[0].time === '01:59', 'שעון המכשיר — 01:59 בישראל');
+
 // --- 5. חיווט ---
 ok(/onClose: \(\) => \{ refreshStockAlerts\(\); chartExtRedraw\(\); \}/.test(src), 'סגירת גרף הנרות מציירת מחדש את גרף היום');
 ok(/nightTickRecord\(s, got\[s\]\)/.test(src), 'liveMerge רושם את הדקות הליליות');
