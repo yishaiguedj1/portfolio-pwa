@@ -316,7 +316,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     const seeded = await page.evaluate(() => localStorage.getItem('__qa_lib') === '1');
     if (seeded) return false;
     if (!(await page.$('.lib-root'))) { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1500); }
-    await page.click('.lib-seg-b:nth-child(2)'); await sleep(500);
+    await page.click('.lib-dial .tab[data-tab="mine"]'); await sleep(500);
     await page.evaluate(async (names) => {
       const dt = new DataTransfer();
       for (const n of names) { const bl = await (await fetch('/.qa-books/' + n)).blob(); dt.items.add(new File([bl], n, { type: 'application/epub+zip' })); }
@@ -405,8 +405,8 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
       await page.reload({ waitUntil: 'load' }); await sleep(1500);
       await step('lib: פתיחה (אחרי ייבוא)', () => sleep(300), { settle: 1200, expect: '.lib-root' });
     }
-    await step('lib: מדף → THE SNOWBALL', () => page.click('.lib-seg-b:nth-child(1)'));
-    await step('lib: מדף → הספרייה שלי', () => page.click('.lib-seg-b:nth-child(2)'));
+    await step('lib: מדף → THE SNOWBALL', () => page.click('.lib-dial .tab[data-tab="snb"]'));
+    await step('lib: מדף → הספרייה שלי', () => page.click('.lib-dial .tab[data-tab="mine"]'));
     await step('lib: צ\'יפ הכל', () => page.click('.lib-chip:nth-child(2)'));
     await step('lib: צ\'יפ כותב', () => page.click('.lib-chip:nth-child(3)'));
     await step('lib: צ\'יפ מדף', () => page.click('.lib-chip.shelf'));
@@ -464,9 +464,9 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     await step('lib: חזור ← סוגר את שינוי השם', back, { expect: '.col-hero:not(:has(.lib-veil))' });
     await step('lib: חזור ← מדף (2)', back, { expect: '.col-grid' });
     await step('lib: דף ספר + חזור×2 מהר', async () => { await page.click('.lib-chip:nth-child(2)'); await sleep(600); await jsClick('.lib-item'); await sleep(900); await back(); await back(); }, { settle: 1500, expect: '#tab-overview.active' });
-    await step('lib: פתיחה מחדש', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1500); }, { settle: 1200, expect: '.lib-seg' });
-    await step('lib: "מה למדתי"', async () => { await page.click('.lib-seg-b:nth-child(2)'); await sleep(500); await page.click('.lib-tr .lib-round[aria-label="מה למדתי"], .lib-tr .lib-round[aria-label="What I learned"]'); }, { expect: '.learn-sec, .lib-empty' });   // v325: nth=1 היה תפריט ⋯ (גיליון), לא הדף
-    await step('lib: חזור ← מהעמוד', back, { expect: '.lib-seg' });
+    await step('lib: פתיחה מחדש', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1500); }, { settle: 1200, expect: '.lib-dial' });
+    await step('lib: "מה למדתי"', async () => { await page.click('.lib-dial .tab[data-tab="mine"]'); await sleep(500); await page.click('.lib-tr .lib-round[aria-label="מה למדתי"], .lib-tr .lib-round[aria-label="What I learned"]'); }, { expect: '.learn-sec, .lib-empty' });   // v325: nth=1 היה תפריט ⋯ (גיליון), לא הדף
+    await step('lib: חזור ← מהעמוד', back, { expect: '.lib-dial' });
     await step('lib: ספר → קריאה → Aa', async () => { await page.click('.lib-chip:nth-child(2)'); await sleep(500); await jsClick('.lib-item'); await sleep(1000); await page.click('.bk-cta'); await sleep(2500); await page.touchscreen.tap(195, 818); await sleep(400); await page.click('.rd-topbar .rd-aa'); }, { settle: 1200, expect: '.rd .lib-veil, .lib-root .lib-veil' });
     await step('lib: חזור ← סוגר Aa', back, { expect: '.rd' });
     await step('lib: חזור×2 מהר מהקורא', async () => { await back(); await back(); }, { settle: 1500, expect: '.bk-cta' });
@@ -478,7 +478,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     await step('lib: קריאה (2)', async () => { await page.click('.bk-cta'); await sleep(2500); }, { settle: 1500 });
     await step('lib: רענון בקורא', () => reload(3500), { settle: 2500 });
     await step('lib: ✕ מהקורא', async () => { await page.evaluate(() => { const b = [...document.querySelectorAll('.rd-topbar .rd-ic')].find((x) => /סגירה|Close/.test(x.getAttribute('aria-label') || '')); if (b) b.click(); }); }, { settle: 1300, keep: true, expect: '.bk-cta' });
-    await step('lib: חזור ← בית', back, { expect: '.lib-seg' });
+    await step('lib: חזור ← בית', back, { expect: '.lib-dial' });
     await step('lib: חזור ← יציאה מהספרייה', back, { settle: 1200, expect: '.tab.active' });
     await step('lib: חזור ← יציאה מהאפליקציה (צפוי)', back, { settle: 600, exitOk: true });
   }
@@ -549,7 +549,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     if (!page.url().startsWith(BASE)) { await page.goto(BASE + '/index.html', { waitUntil: 'load' }); await sleep(2000); }
     // הקורא: סימון טקסט → בועה → הדגשה; ערכה שחורה שורדת רענון; מקלדת (חלון נמוך) בחיפוש
     if (await ensureLibSeeded()) { await page.evaluate(() => history.back()); await sleep(800); }
-    await step('ext: ספרייה → ספר → קריאה', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1500); await page.click('.lib-seg-b:nth-child(2)'); await sleep(500); await page.click('.lib-chip:nth-child(2)'); await sleep(500); await jsClick('.lib-item'); await sleep(1000); await page.click('.bk-cta'); await sleep(2500); }, { settle: 1500, expect: '.rd' });
+    await step('ext: ספרייה → ספר → קריאה', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1500); await page.click('.lib-dial .tab[data-tab="mine"]'); await sleep(500); await page.click('.lib-chip:nth-child(2)'); await sleep(500); await jsClick('.lib-item'); await sleep(1000); await page.click('.bk-cta'); await sleep(2500); }, { settle: 1500, expect: '.rd' });
     await step('ext: סימון טקסט → כרטיס עם שורת סימון', async () => { await page.evaluate(() => { const fv = document.querySelector('.rd foliate-view'); const c = fv.renderer.getContents(); const d = c[c.length - 1].doc; const p = d.querySelector('p') || d.body; const sel = d.getSelection(); sel.removeAllRanges(); const r = d.createRange(); r.setStart(p.firstChild || p, 0); r.setEnd(p.firstChild || p, Math.min(12, (p.firstChild && p.firstChild.length) || 1)); sel.addRange(r); d.dispatchEvent(new Event('selectionchange')); }); await sleep(800); }, { expect: '.tr-card .tr-sw' });
     await step('ext: הדגשה בצבע', async () => { await page.click('.tr-card .tr-sw'); await sleep(300); await page.click('.tr-pal .tr-dot >> nth=0'); await sleep(600); }, { expect: '.tr-card .tr-sw.on' });
     await step('ext: נגיעה בהדגשה → בועה', async () => { await page.evaluate(() => { const fv = document.querySelector('.rd foliate-view'); const c = fv.renderer.getContents(); const d = c[c.length - 1].doc; const p = d.querySelector('p'); const r = p.getBoundingClientRect(); const fr = d.defaultView.frameElement.getBoundingClientRect(); window.__hl = { x: fr.left + r.left + 20, y: fr.top + r.top + 8 }; }); const pt = await page.evaluate(() => window.__hl); await page.touchscreen.tap(pt.x, pt.y); await sleep(700); }, { expect: '.rd' });
@@ -621,8 +621,8 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     if (!page.url().startsWith(BASE)) { await page.goto(BASE + '/index.html', { waitUntil: 'load' }); await sleep(2000); }
     // --- ספרייה לעומק ---
     if (await ensureLibSeeded()) { await page.evaluate(() => history.back()); await sleep(800); }
-    await step('ext2: ספרייה מהתפריט', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1500); }, { settle: 1200, expect: '.lib-seg' });
-    await step('ext2: THE SNOWBALL', () => page.click('.lib-seg-b:nth-child(1)'), { scroll: true });
+    await step('ext2: ספרייה מהתפריט', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1500); }, { settle: 1200, expect: '.lib-dial' });
+    await step('ext2: THE SNOWBALL', () => page.click('.lib-dial .tab[data-tab="snb"]'), { scroll: true });
     await step('ext2: צ\'יפ הכל', () => page.click('.lib-chip:nth-child(2)'), { scroll: true, expect: '.lib-grid .lib-item' });
     await a11y('ספרייה');
     const hidN = await page.evaluate(() => (document.querySelector('.lib-hidden-link') || { textContent: '' }).textContent);
@@ -635,7 +635,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     await step('ext2: מילון (אריח 2)', async () => { await page.click('.ac-tile >> nth=1'); }, { pre: '.ac-tiles', settle: 1200, expect: '.lib-root:not(:has(.ac-tiles))' });
     await step('ext2: חזור ← הכל (2)', back, { expect: '.ac-tiles' });
     // עריכת ספר + שחזור מהקובץ
-    await step('ext2: הספרייה שלי → עריכה', async () => { await page.click('.lib-seg-b:nth-child(2)'); await sleep(500); await page.click('.lib-chip:nth-child(2)'); await sleep(500); await hold('.lib-grid .lib-item >> nth=0'); await sleep(400); await page.click('.item-acts .act-edit'); }, { settle: 1200, cls: 1, expect: '.ed-form' });
+    await step('ext2: הספרייה שלי → עריכה', async () => { await page.click('.lib-dial .tab[data-tab="mine"]'); await sleep(500); await page.click('.lib-chip:nth-child(2)'); await sleep(500); await hold('.lib-grid .lib-item >> nth=0'); await sleep(400); await page.click('.item-acts .act-edit'); }, { settle: 1200, cls: 1, expect: '.ed-form' });
     await step('ext2: שינוי כותרת ושמירה', async () => { await page.evaluate(() => { const i = document.querySelector('.ed-form .ed-in'); i.value = 'כותרת QA'; i.dispatchEvent(new Event('input', { bubbles: true })); }); await jsClick('.ed-save'); }, { settle: 1500, expect: '.lib-grid' });   // שמירה = "חזור" לדף שממנו נכנסו (הרשת)
     await step('ext2: הכותרת החדשה ברשת', async () => { const t = await page.evaluate(() => document.querySelector('.lib-home').textContent); if (!/כותרת QA/.test(t)) throw new Error('הכותרת לא השתנתה'); }, { settle: 100 });
     await step('ext2: עריכה (2)', async () => { await hold('.lib-grid .lib-item >> nth=0'); await sleep(400); await page.click('.item-acts .act-edit'); }, { pre: '.lib-grid .lib-item >> nth=0', settle: 1200, cls: 1, expect: '.lib-admin-link' });
@@ -727,7 +727,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     await step('ext3: מחיקת TEVA.TA', async () => { await page.evaluate(() => { state.edit.stocks = false; }); await hold('#stockList .stock[data-sym="TEVA.TA"]'); await sleep(400); await page.click('.item-acts .act-del'); await sleep(400); await page.click('.dlg-ok'); }, { pre: '#stockList .stock[data-sym="TEVA.TA"]', settle: 1200, cls: 1, scroll: true, expect: '#stockList:not(:has(.stock[data-sym="TEVA.TA"]))' });
     // --- שפה בזמן שהספרייה פתוחה ---
     if (await ensureLibSeeded()) { await page.evaluate(() => history.back()); await sleep(800); }
-    await step('ext3: ספרייה', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1500); }, { settle: 1200, expect: '.lib-seg' });
+    await step('ext3: ספרייה', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1500); }, { settle: 1200, expect: '.lib-dial' });
     await snap('ספרייה — מדף');
     await step('ext3: ערכה כהה בספרייה', async () => { await page.evaluate(() => { try { setThemeMode('dark'); } catch (e) {} }); }, { settle: 1200, cls: 0.5, expect: '.lib-root' });
     await snap('ספרייה — כהה');
@@ -795,7 +795,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     await step('ext4: סגירה', () => page.click('#stockList .stock.open .stock-head'), { scroll: true, settle: 1200, cls: 1 });
 
     // --- ספרייה: אסופות, הערה, תרגום (סטאב), ציטוט, "מה למדתי" ---
-    await step('ext4: ספרייה → הספרייה שלי → הכל', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1500); await ensureLibSeeded(); if (!(await page.$('.lib-root'))) { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1500); } await page.click('.lib-seg-b:nth-child(2)'); await sleep(500); await page.click('.lib-chip:nth-child(2)'); await sleep(500); }, { settle: 1500, cls: 1, scroll: true, expect: '.lib-grid .lib-item' });
+    await step('ext4: ספרייה → הספרייה שלי → הכל', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1500); await ensureLibSeeded(); if (!(await page.$('.lib-root'))) { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1500); } await page.click('.lib-dial .tab[data-tab="mine"]'); await sleep(500); await page.click('.lib-chip:nth-child(2)'); await sleep(500); }, { settle: 1500, cls: 1, scroll: true, expect: '.lib-grid .lib-item' });
     await step('ext4: לחיצה ארוכה → אסופה חדשה "אסופת QA"', async () => { await hold('.lib-grid .lib-item >> nth=0'); await sleep(400); await page.click('.item-acts .act-coll'); await sleep(700); await page.click('.lib-veil .lib-row.act'); await sleep(700); await setVal('.lib-veil .col-in', 'אסופת QA'); await page.click('.lib-veil .bk-cta'); await sleep(900); }, { pre: '.lib-grid .lib-item >> nth=0', settle: 1500, cls: 1, scroll: true, expect: '.lib-root:not(:has(.lib-veil:not(.out)))' });
     await step('ext4: מדף — האסופה מופיעה', () => page.click('.lib-chip:nth-child(1)'), { pre: '.lib-chip:nth-child(1)', settle: 1500, cls: 1, scroll: true, expect: '.col-card.mine:has-text("אסופת QA")' });
     await step('ext4: דף האסופה', () => clickText('.col-card.mine', /אסופת QA/), { pre: '.col-card.mine', settle: 1500, cls: 1, scroll: true, expect: '.col-hero' });

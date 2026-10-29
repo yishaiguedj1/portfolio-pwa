@@ -323,8 +323,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.85.1';
-const APP_VERSION = 'v627';
+const APP_RELEASE = '2.86.0';
+const APP_VERSION = 'v628';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -385,6 +385,290 @@ function flash(msg) {
   clearTimeout(toastEl._h);
   toastEl._h = setTimeout(() => toastEl.classList.remove('show'), 2200);
 }
+
+/* ---- החוגה (29/10/2026, Invest ואז Studio — אותו מנוע, רק הצבע של האפליקציה) ----
+   הפריטים יושבים על קשת (DIAL_DROP); הפעיל במרכז וגדל לבועה עם הכיתוב, והשאר עיגולים עם סמל וכיתוב מתחת. המצב = {pos, from, to, p}:
+   pos — איזה פריט במרכז (שבר = באמצע תנועה), ו"פעילות" שעוברת בהצלבה מ־from ל־to לפי p (הבועה הישנה מתכווצת והחדשה גדלה יחד).
+   במעבר עמודים החוגה זזה באותו קפיץ ובאותו זמן התחלה של הקובייה (dialCubeRun → dialAnimate, WAAPI — רץ גם כשהעמוד החדש נצבע),
+   ובגרירה של העמוד — צמודה לאצבע (dialCube). גרירה של החוגה עצמה מעבירה גם את העמודים (dialRide*).
+   המארח (dialHost) = האפליקציה: {nav(), keys(), index(name), cur(), begin(cur, to, side), drop(c), land(c), instant(to)} —
+   begin מחזיר "קובייה" {in, out, to, ...} שהמנוע מזיז ב־cubeSet. אחד בכל רגע (Studio מעל Invest — שלה). */
+const DIAL_S0 = 0.68, DIAL_DROP = 2.7;
+const _dial = { st: null, run: null, drag: null, ride: null, ret: 0, noClick: 0, els: null, ek: '', host: null };
+function dialHost(hst) {
+  if (_dial.host === hst) return;
+  dialStop();
+  if (_dial.ride && _dial.ride.finish) _dial.ride.finish();
+  _dial.host = hst; _dial.els = null; _dial.ek = ''; _dial.st = null; _dial.ride = null; _dial.drag = null;
+}
+function dialKeys() { return (_dial.host && _dial.host.keys()) || []; }
+function dialIndex(name) { return _dial.host ? _dial.host.index(name) : 0; }
+function dialCurName() { return _dial.host ? _dial.host.cur() : ''; }
+function dialStep(vw, n) {   // המרחק בין פריטים — כל השבעה על המסך, הקצוות חצי־גלויים (כמו בסרטון); ארבעה (Studio, Academy) — מרווחים יותר, הכיתובים לא נוגעים
+  return n && n <= 5 ? Math.max(66, Math.min(96, (vw || 400) / 4.8)) : Math.max(60, Math.min(92, (vw || 400) / 6.2));
+}
+function dialRest(i) { return { pos: i, from: i, to: i, p: 0 }; }
+function dialMax() { return Math.max(0, dialKeys().length - 1); }
+/* טהורה (נבדקת): הערכים של כל פריט במצב st — מיקום על הקשת, גודל העיגול, ושקיפות הסמל / הבועה / הכיתוב */
+function dialFrame(st, n, vw, rtl) {
+  const S = dialStep(vw, n), out = [], c01 = (x) => Math.max(0, Math.min(1, x)), f = (x) => Math.round(x * 100) / 100 || 0;
+  for (let i = 0; i < n; i++) {
+    const d = i - st.pos, ad = Math.abs(d);
+    const a = c01(st.from === st.to ? (i === st.from ? 1 : 0) : (i === st.from ? 1 - st.p : 0) + (i === st.to ? st.p : 0));
+    const e = a * a * (3 - 2 * a);                         // smoothstep — ההצלבה רכה בשני הקצוות
+    const o = c01((3.6 - ad) / 0.6);                       // מעבר לשבעה — נמוגים (בגרירה)
+    const x = (rtl ? -d : d) * S, y = DIAL_DROP * d * d - 4 * e, sc = 1 - 0.045 * Math.min(ad, 3);
+    out.push({
+      it: 'translate3d(' + f(x) + 'px, ' + f(y) + 'px, 0) scale(' + f(sc) + ')', o: f(o),
+      disc: 'scale(' + f(DIAL_S0 + (1 - DIAL_S0) * e) + ')', glow: f(e), ico: f(c01(1 - e * 1.7)),
+      bub: f(c01((e - 0.35) / 0.65)), bs: 'scale(' + f(0.82 + 0.18 * e) + ')', lbl: f(c01(1 - e * 1.8)),
+    });
+  }
+  return out;
+}
+function dialEls() {
+  const keys = dialKeys(), ek = keys.join();
+  if (_dial.els && _dial.ek === ek && _dial.els.length && _dial.els[0].it.isConnected) return _dial.els;
+  const nav = typeof document !== 'undefined' && _dial.host && _dial.host.nav();
+  if (!nav) return [];
+  _dial.ek = ek;
+  _dial.els = keys.map((k) => nav.querySelector('.tab[data-tab="' + k + '"]')).filter(Boolean).map((it) => ({
+    it, disc: it.querySelector('.tab-disc'), glow: it.querySelector('.tab-glow'), ico: it.querySelector('.tab-ico'), bub: it.querySelector('.tab-bub'), lbl: it.querySelector('.tab-lbl'),
+  }));
+  return _dial.els;
+}
+function dialRtl() { return String((document.documentElement && document.documentElement.dir) || 'ltr') === 'rtl'; }
+function dialPaint(st) {
+  const els = dialEls();
+  _dial.st = st;
+  if (!els.length) return;
+  const fr = dialFrame(st, els.length, window.innerWidth, dialRtl());
+  els.forEach((e, i) => {
+    const v = fr[i];
+    e.it.style.transform = v.it; e.it.style.opacity = v.o; e.it.style.pointerEvents = v.o < 0.3 ? 'none' : '';
+    if (e.disc) e.disc.style.transform = v.disc;
+    if (e.glow) e.glow.style.opacity = v.glow;
+    if (e.ico) e.ico.style.opacity = v.ico;
+    if (e.bub) { e.bub.style.opacity = v.bub; e.bub.style.transform = v.bs; }
+    if (e.lbl) e.lbl.style.opacity = v.lbl;
+  });
+}
+/* states = מצב לכל 1/CUBE_HZ שנ׳ (כמו הקובייה). o.to = הלשונית שאליה נוסעים (null — גלילה חופשית), o.cube = הקובייה שזה חלק ממנה */
+function dialAnimate(states, o) {
+  dialStop();
+  const els = dialEls(), last = states[states.length - 1];
+  if (!els.length || states.length < 2 || typeof els[0].it.animate !== 'function') return dialPaint(last);
+  const frs = states.map((st) => dialFrame(st, els.length, window.innerWidth, dialRtl()));
+  const dur = (states.length - 1) * 1000 / CUBE_HZ, anims = [];
+  const go = (el, kf) => {
+    if (!el) return;
+    const k0 = JSON.stringify(kf[0]);
+    if (kf.every((k) => JSON.stringify(k) === k0)) return;    // לא משתנה — בלי אנימציה
+    try { anims.push(el.animate(kf, { duration: dur, easing: 'linear', fill: 'forwards' })); } catch (e) {}
+  };
+  els.forEach((e, i) => {
+    const kf = (fn) => frs.map((fr) => fn(fr[i]));
+    e.it.style.pointerEvents = '';
+    go(e.it, kf((v) => ({ transform: v.it, opacity: v.o })));
+    go(e.disc, kf((v) => ({ transform: v.disc })));
+    go(e.glow, kf((v) => ({ opacity: v.glow })));
+    go(e.ico, kf((v) => ({ opacity: v.ico })));
+    go(e.bub, kf((v) => ({ transform: v.bs, opacity: v.bub })));
+    go(e.lbl, kf((v) => ({ opacity: v.lbl })));
+  });
+  _dial.st = last;
+  if (!anims.length) return dialPaint(last);
+  // כמו cubeRun: זמן ההתחלה = הפריים הנוכחי כשהוא טרי — אותו רגע בדיוק של הקובייה שנוצרה באותה משימה
+  try {
+    const t0 = document.timeline && document.timeline.currentTime;
+    if (t0 != null && typeof performance !== 'undefined' && performance.now() - t0 < 40) anims.forEach((a) => { a.startTime = t0; });
+  } catch (e) {}
+  const run = { states, anims, to: o && o.to != null ? o.to : null, cube: (o && o.cube) || null, zap: !!(o && o.zap) };
+  _dial.run = run;
+  Promise.all(anims.map((a) => a.finished)).then(() => dialEnd(run), () => {});
+}
+function dialEnd(run) {   // סוף (או סיום מיידי): המצב הסופי ב־style לפני שהאנימציות יורדות — בלי פריים באמצע
+  if (!run || _dial.run !== run) return;
+  _dial.run = null;
+  dialPaint(run.states[run.states.length - 1]);
+  run.anims.forEach((a) => { try { a.cancel(); } catch (e) {} });
+  if (run.zap && run.to != null) dialZap(run.to);
+}
+function dialStop() {     // עוצרים באמצע — החוגה נשארת איפה שהיא נראית עכשיו
+  const run = _dial.run;
+  if (!run) return;
+  _dial.run = null;
+  let i = 0;
+  try { const ct = run.anims[0] && run.anims[0].currentTime; if (ct != null) i = Math.round(ct * CUBE_HZ / 1000); } catch (e) {}
+  dialPaint(run.states[Math.max(0, Math.min(run.states.length - 1, i))]);
+  run.anims.forEach((a) => { try { a.cancel(); } catch (e) {} });
+}
+function dialZap(i) {     // נחיתה על לשונית חדשה: גל וברק על הבועה, פעם אחת
+  const e = dialEls()[i];
+  if (!e || cubeReduce()) return;
+  e.it.classList.remove('zap'); void e.it.offsetWidth; e.it.classList.add('zap');
+  clearTimeout(e.zt); e.zt = setTimeout(() => e.it.classList.remove('zap'), 800);
+}
+function dialGo(i, v0) {  // מעבר בלי קובייה (או חזרה למרכז) — אותו קפיץ
+  dialStop();
+  clearTimeout(_dial.ret);
+  const s = _dial.st || dialRest(i), ai = s.p >= 0.5 ? s.to : s.from;
+  const ps = cubeSpring(0, v0 || 0, 1);
+  dialAnimate(ps.map((p) => ({ pos: s.pos + (i - s.pos) * p, from: ai, to: i, p: ai === i ? 0 : p })), { to: i, zap: ai !== i });
+}
+/* מצב הלשוניות אחרי מעבר / שינוי גודל / שפה. מעבר בקובייה כבר מניע את החוגה (run.to) — לא נוגעים */
+function dialSync(instant, name) {   // name — הלשונית החדשה (ב־switchTab העמוד הפעיל עוד לא התחלף)
+  if (typeof document === 'undefined' || !dialEls().length) return;
+  const i = dialIndex(name || dialCurName());
+  if (_dial.drag || _dial.ride || (_dial.run && _dial.run.to === i)) return;
+  const s = _dial.st;
+  if (instant || !s || document.documentElement.classList.contains('booting') || cubeReduce() || document.hidden) { dialStop(); clearTimeout(_dial.ret); return dialPaint(dialRest(i)); }
+  if (!_dial.run && s.pos === i && s.from === i && s.to === i) return dialPaint(s);   // רוחב/שפה — מחשבים מחדש באותו מקום
+  dialGo(i);
+}
+/* הקובייה של מעבר עמודים — מאיפה החוגה מתחילה ולאן; dialCubeState = המצב שמתאים לזווית p של הקובייה */
+function dialCubeBegin(c, cur, to, side) {
+  dialStop();
+  clearTimeout(_dial.ret);
+  const from = dialIndex(cur), s = _dial.st || dialRest(from), fwd = (side === 1) !== dialRtl();
+  c.dial = { pos0: s.pos, from, to: to ? dialIndex(to) : null, dir: fwd ? 1 : -1 };
+}
+function dialCubeState(c, p) {
+  const d = c.dial;
+  if (d.to == null) return { pos: d.pos0 + d.dir * Math.min(CUBE_RUB, p) * 2.4, from: d.from, to: d.from, p: 0 };   // "קפיץ" — נמשכת מעט ונהדפת
+  return { pos: d.pos0 + (d.to - d.pos0) * p, from: d.from, to: d.to, p };
+}
+function dialCube(c) { if (c && c.dial) dialPaint(dialCubeState(c, c.p || 0)); }
+function dialCubeRun(c, p1, v0) {
+  if (!c || !c.dial) return;
+  const ps = cubeSpring(c.p || 0, v0 || 0, p1), land = p1 === 1 && c.dial.to != null;   // בדיוק הסדרה של cubeRun
+  dialAnimate(ps.map((p) => dialCubeState(c, p)), { to: land ? c.dial.to : c.dial.from, cube: c, zap: land && c.dial.to !== c.dial.from });
+}
+function dialCubeDone(c) { if (_dial.run && _dial.run.cube === c) dialEnd(_dial.run); }
+function dialRubber(pos, max) {   // מעבר לקצה — נמשכת בהתנגדות
+  const over = pos < 0 ? pos : pos > max ? pos - max : 0;
+  return over ? (pos < 0 ? 0 : max) + over * 0.55 / (1 + Math.abs(over) * 1.4) : pos;
+}
+/* 29/10/2026 (סרטון המשתמש): גרירת החוגה מעבירה גם את העמודים — מה שבמרכז נבחר תוך כדי, והקובייה צמודה למיקום החוגה.
+   העמוד הנוכחי = k; הקובייה (המארח: begin) מולו אל השכן בכיוון של pos, בזווית |pos − k|. הגיע לשכן (זווית מלאה) — הוא נעשה
+   הנוכחי (land, כמו סוף קובייה) והנסיעה ממשיכה ממנו. אחרי השחרור — אותו קפיץ של הקובייה (rAF: הפאות מתחלפות באמצע) */
+function dialRidePaint(r, pos) {
+  const max = dialMax(), cp = Math.max(0, Math.min(max, pos)), a = Math.floor(cp);
+  dialPaint({ pos, from: a, to: Math.min(max, a + 1), p: cp - a });
+  if (r) dialRideCube(r, pos);
+}
+function dialRideCube(r, pos) {
+  const hst = _dial.host;
+  for (let n = 0; n < 8 && hst; n++) {
+    const name = hst.cur(), k = dialIndex(name), d = pos - k, dir = d > 0.001 ? 1 : d < -0.001 ? -1 : 0;
+    if (r.c && r.dir !== dir) { const c = r.c; r.c = null; hst.drop(c); }
+    if (!dir) return;
+    const to = dialKeys()[k + dir] || null;
+    if (!r.c) {
+      const c = hst.begin(name, to, cubeSideFwd(dir > 0));
+      if (!c) {                          // בלי קובייה (תנועה מופחתת) — מתחלף בחצי הדרך
+        if (to && Math.abs(d) >= 0.5) { hst.instant(to); continue; }
+        return;
+      }
+      r.c = c; r.dir = dir;
+    }
+    const p = Math.abs(d);
+    if (!to) return cubeSet(r.c, Math.min(1, p) * 0.18);   // קצה — "קפיץ" קטן
+    if (p < 1) return cubeSet(r.c, p);
+    const c = r.c; r.c = null;
+    hst.land(c);
+  }
+}
+function dialRideRun(r, xs) {   // xs = מיקום החוגה בכל 1/CUBE_HZ שנ׳
+  const t0 = performance.now(), last = xs[xs.length - 1];
+  const step = () => {
+    if (_dial.ride !== r) return;
+    const i = Math.min(xs.length - 1, Math.round((performance.now() - t0) * CUBE_HZ / 1000));
+    dialRidePaint(r, xs[i]);
+    if (i < xs.length - 1) r.raf = requestAnimationFrame(step); else dialRideEnd(r);
+  };
+  r.finish = () => { cancelAnimationFrame(r.raf); if (_dial.ride === r) { dialRidePaint(r, last); dialRideEnd(r); } };
+  cubeNow = r;   // נגיעה בעמוד / מעבר אחר — מסיימים מיד
+  r.raf = requestAnimationFrame(step);
+}
+function dialRideEnd(r) {
+  if (_dial.ride !== r) return;
+  _dial.ride = null;
+  if (cubeNow === r) cubeNow = null;
+  if (r.c && _dial.host) { const c = r.c; r.c = null; _dial.host.drop(c); }
+  const k = dialIndex(dialCurName());
+  dialPaint(dialRest(k));
+  if (k !== r.k0) dialZap(k);
+}
+/* הגרירה של החוגה עצמה (על ה־nav של המארח; פעם אחת לכל nav) */
+function wireDial(nav) {
+  if (!nav || nav._dial) return;
+  nav._dial = true;
+  const clock = () => ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now());
+  let g = null;
+  nav.addEventListener('touchstart', (e) => {
+    g = null;
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    g = { x0: t.clientX, y0: t.clientY, lock: 0, samples: [[clock(), t.clientX]] };
+  }, { passive: true });
+  nav.addEventListener('touchmove', (e) => {
+    if (!g) return;
+    const t = e.touches[0], dx = t.clientX - g.x0;
+    if (!g.lock) {
+      if (Math.abs(dx) < 8) return;
+      if (cubeNow && cubeNow.finish) cubeNow.finish();   // קובייה / נסיעה קודמת — נוחתת מיד, והחוגה איתה
+      dialStop(); clearTimeout(_dial.ret);
+      const s = _dial.st || dialRest(dialIndex(dialCurName()));
+      Object.assign(g, { lock: 1, x0: t.clientX, pos0: s.pos, tick: Math.round(s.pos) });
+      _dial.drag = g;
+      _dial.ride = { c: null, dir: 0, k0: dialIndex(dialCurName()) };
+    }
+    if (e.cancelable) e.preventDefault();
+    const now = clock();
+    g.samples.push([now, t.clientX]);
+    while (g.samples.length > 2 && now - g.samples[0][0] > 150) g.samples.shift();
+    const max = dialMax(), pos = dialRubber(g.pos0 + (dialRtl() ? 1 : -1) * (t.clientX - g.x0) / dialStep(window.innerWidth, max + 1), max);
+    dialRidePaint(_dial.ride, pos);
+    const k = Math.round(pos);
+    if (k !== g.tick && k >= 0 && k <= max) { g.tick = k; try { navigator.vibrate && navigator.vibrate(4); } catch (err) {} }   // "קליק" של חוגה בכל פריט
+  }, { passive: false });
+  const end = (e, cancelled) => {
+    const s = g; g = null;
+    if (!s || !s.lock) return;
+    _dial.drag = null;
+    _dial.noClick = clock();
+    const r = _dial.ride, st = _dial.st, max = dialMax(), S = dialStep(window.innerWidth, max + 1);
+    if (!r) return;
+    const vi = cancelled ? 0 : swipeVelocity(s.samples, clock()) * 1000 / S * (dialRtl() ? 1 : -1);   // פריטים לשנייה
+    const near = Math.max(0, Math.min(max, Math.round(st.pos)));
+    const to = Math.max(0, Math.min(max, Math.max(near - 1, Math.min(near + 1, Math.round(st.pos + vi * 0.2))))), span = to - st.pos;
+    const ps = cubeSpring(0, Math.abs(span) > 0.02 ? vi / span : 0, 1);
+    dialRideRun(r, ps.map((p, i) => (i === ps.length - 1 ? to : st.pos + span * p)));
+  };
+  nav.addEventListener('touchend', (e) => end(e, false), { passive: true });
+  nav.addEventListener('touchcancel', (e) => end(e, true), { passive: true });
+  nav.addEventListener('click', (e) => { if (clock() - _dial.noClick < 400) { e.stopPropagation(); e.preventDefault(); } }, true);   // סוף גרירה אינו לחיצה
+}
+/* החוגה של אפליקציה שבונה אותה בקוד (Studio, Academy) — אותו מבנה בדיוק כמו ב־index.html, ורק הצבע (--primary) של האפליקציה.
+   items = [{k, ico (תוכן SVG קבוע), lbl, bub?, cls?}] — bub: בבועה סמל גדול במקום הכיתוב (פתית השלג של Academy); onTap(k) — לחיצה על פריט */
+const DIAL_GEAR = '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>';
+/* 29/10/2026 (בקשת המשתמש): בבועה של הנבחר — רק הסמל, בלבן (כמו הפתית); it.bub = סמל אחר לבועה (הפתית המפורט) */
+function dialNavBuild(cls, aria, items, onTap) {
+  const nav = document.createElement('nav');
+  nav.className = 'tabs ' + cls; nav.setAttribute('role', 'tablist'); nav.setAttribute('aria-label', aria);
+  items.forEach((it) => {
+    const b = document.createElement('button');
+    b.className = 'tab' + (it.cls ? ' ' + it.cls : ''); b.type = 'button'; b.dataset.tab = it.k; b.setAttribute('role', 'tab');
+    b.innerHTML = '<span class="tab-disc"><span class="tab-glow"></span><svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + it.ico + '</svg></span><span class="tab-bub" aria-hidden="true">'
+      + '<svg class="tab-bub-ico" viewBox="0 0 24 24" fill="none" stroke-width="' + (it.bub ? 1.6 : 2) + '" stroke-linecap="round" stroke-linejoin="round">' + (it.bub || it.ico) + '</svg></span><span class="tab-lbl"></span>';
+    dialLabel(b, it.lbl);
+    b.addEventListener('click', () => onTap(it.k));
+    nav.append(b);
+  });
+  return nav;
+}
+function dialLabel(b, t) { if (!b) return; const u = b.querySelector('.tab-bub'); if (!u.firstElementChild) u.textContent = t; b.querySelector('.tab-lbl').textContent = t; b.setAttribute('aria-label', t); }
 
 let _navSkipPop = 0;
 
@@ -675,7 +959,7 @@ function cubeRun(c, p1, v0, done) {
 function cubeClone(el) {
   // מעבר קודם עוד רץ על אותה שכבה — מסיימים אותו קודם: אחרת ההעתק והפאה החדשה "שומרים" את הסגנון של אמצע הסיבוב,
   // ובסוף השכבה משוחזרת אליו ונשארת מסובבת (נמצא ב־QA: דף שנדחף מיד אחרי דף אחר בסטודיו)
-  if (cubeNow && cubeNow.finish) cubeNow.finish();
+  if (cubeNow && cubeNow !== _dial.ride && cubeNow.finish) cubeNow.finish();   // נסיעה של החוגה מציירת את השכן בעצמה
   const c = el.cloneNode(true);
   const a = el.querySelectorAll('canvas, input, textarea, select'), b = c.querySelectorAll('canvas, input, textarea, select');
   for (let i = 0; i < a.length && i < b.length; i++) {
@@ -793,13 +1077,14 @@ function snbSwipe(o) {
   function begin(s) {                    // התזוזה של העמוד מתחילה — העמוד השכן נצבע, או "קפיץ" כשאין
     const pg = o.page ? o.page(s.next) : null;
     const bd = cubeBackdrop(root);
-    if (!pg) { s.cube = { side: s.side, p: 0, rub: true, out: cubeFace(root, { dead: true }), bd: bd }; return; }
+    if (!pg) { s.cube = { side: s.side, p: 0, rub: true, out: cubeFace(root, { dead: true }), bd: bd }; if (o.dial) dialCubeBegin(s.cube, o.dial(), null, s.side); return; }
     const ghost = cubeClone(root);
     try { pg.render(); } catch (e) { ghost.remove(); bd.remove(); s.cube = null; return; }
     let hy = 0; try { hy = pg.hold ? pg.hold() : 0; } catch (e) {}
     const he = hy > 0 ? cubeHold(root, hy) : null;
     s.cube = { side: s.side, p: 0, out: cubeFace(ghost, { dead: true }), in: cubeFace(root), ghost: ghost, bd: bd, pg: pg, hold: he };
     if (he) { cubeClipTop(s.cube.out, hy); cubeClipTop(s.cube.in, hy); holdOn(s.cube, 0); }
+    if (o.dial) dialCubeBegin(s.cube, pg.from, pg.to, s.side);   // 29/10/2026: החוגה של האפליקציה צמודה לעמוד
   }
   function holdOn(c, p) { if (c && c.hold && c.pg && c.pg.holdOn) { try { c.pg.holdOn(c.hold, p); } catch (e) {} } }
   root.addEventListener('touchstart', (e) => {
@@ -842,7 +1127,7 @@ function snbSwipe(o) {
     g.d = d;
     let act = pageSwipeDecide(d, g.w, 0);
     if (p > 0 && !g.cube) begin(g);
-    if (g.cube) { cubeSet(g.cube, g.cube.rub ? p * 0.15 : p); holdOn(g.cube, p); }
+    if (g.cube) { cubeSet(g.cube, g.cube.rub ? p * 0.15 : p); dialCube(g.cube); holdOn(g.cube, p); }
     if (act === 'page' && !(g.cube && g.cube.pg)) act = null;
     if (act !== g.act && act === 'page') buzz(12);
     g.act = act;
@@ -852,11 +1137,14 @@ function snbSwipe(o) {
     if (!c) return;
     if (act === 'page') {
       holdOn(c, 'commit');
-      cubeRun(c, 1, Math.max(0, vp), () => { cubeFaceOff(c.in); c.ghost.remove(); c.bd.remove(); if (c.hold) c.hold.remove(); c.pg.commit(); });
+      dialCubeRun(c, 1, Math.max(0, vp));
+      cubeRun(c, 1, Math.max(0, vp), () => { dialCubeDone(c); cubeFaceOff(c.in); c.ghost.remove(); c.bd.remove(); if (c.hold) c.hold.remove(); c.pg.commit(); });
       return;
     }
     holdOn(c, 'cancel');
+    dialCubeRun(c, 0, Math.min(0, vp) * (c.rub ? 0.15 : 1));
     cubeRun(c, 0, Math.min(0, vp) * (c.rub ? 0.15 : 1), () => {
+      dialCubeDone(c);
       const done = () => { cubeFaceOff(c.in); cubeFaceOff(c.rub ? c.out : null); if (c.ghost) c.ghost.remove(); c.bd.remove(); if (c.hold) c.hold.remove(); };
       if (!c.pg) return done();
       let r; try { r = c.pg.undo(); } catch (e) { r = null; }

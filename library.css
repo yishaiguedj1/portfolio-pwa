@@ -606,21 +606,7 @@ textarea.ed-in { min-height: 130px; resize: vertical; line-height: 1.55; }
 @keyframes edPulse { from { opacity: .4; } to { opacity: .75; } }
 @media (prefers-reduced-motion: reduce) { .ed-cover.loading .ed-cv { animation: none; } }
 
-/* ---------- v318: שתי ספריות (בורר מקטעים) + גיבוי ל־Google Drive — לפי ת־עיצוב ---------- */
-/* 20/10/2026 (בקשת המשתמש): דבוק מתחת להדר בגלילה (‎--appbar-h מ־barHeightVar ב־core) — 12px = הרווח מתחת להדר (.lib-home > .appbar), כך שלא זז כשנדבק (21/10); הרקע אטום — אותו גוון על הרקע
-   של הדף (קודם 9% שקוף), כדי שהתוכן שנגלל מתחתיו לא ייראה דרכו */
-.lib-seg { position: sticky; top: calc(var(--appbar-h, 0px) + 12px); z-index: 21; display: grid; grid-template-columns: 1fr 1fr; margin: 0 16px 14px; padding: 2px; border-radius: 10px;
-  background: linear-gradient(color-mix(in srgb, var(--on-surface) 9%, transparent), color-mix(in srgb, var(--on-surface) 9%, transparent)), var(--bg); }
-.lib-seg::before { content: ""; position: absolute; top: 2px; bottom: 2px; inset-inline-start: 2px; width: calc(50% - 2px); border-radius: 8px; background: var(--surface);
-  box-shadow: 0 3px 8px rgba(0,0,0,.12), 0 3px 1px rgba(0,0,0,.04); transition: transform .32s cubic-bezier(.3,1.2,.4,1); }
-body.menu-blur .lib-seg, body:has(.appbar .lang-menu:not(.hidden)) .lib-seg { z-index: 5; }   /* תפריט של ההדר פתוח — מעל הבורר */
-[data-theme="dark"] .lib-seg::before { background: #636366; }
-.lib-seg.mine::before { transform: translateX(-100%); }
-[dir] .lib-seg.hold::before { transition: none; transform: translateX(var(--segx, 0)); }   /* 14/10/2026: הסימון עם האצבע בזמן מעבר בין הספריות */
-[dir="ltr"] .lib-seg.mine::before { transform: translateX(100%); }
-.lib-seg-b { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 4px; font-size: 14.5px !important; font-weight: 600; white-space: nowrap; }
-.lib-seg-b small { font-size: 12.5px; font-weight: 500; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
-@media (prefers-reduced-motion: reduce) { .lib-seg::before { transition: none; } }
+/* ---------- v318: גיבוי ל־Google Drive — לפי ת־עיצוב (29/10/2026: הבורר בין שתי הספריות הוסר — החוגה בתחתית במקומו) ---------- */
 
 .lib-bkic { flex: none; width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; color: #fff; background: linear-gradient(160deg, #4285F4, #34A853); }
 .lib-bkic svg { width: 21px; height: 21px; }
@@ -1094,3 +1080,9 @@ html:has(.rd)[data-theme="dark"] .lib-sheet { background: #1C1C1E !important; }
 .lib-root .lib-round, .lib-root .lib-chip:not(.on) { background: var(--gl-btn) !important; -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-btn-sh); }
 /* כפתור "חזור" — גלולת זכוכית כמו בשאר האפליקציות */
 .lib-root .lib-back { background: var(--gl-btn) !important; -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-btn-sh); border-radius: var(--pill) !important; min-height: 36px; padding-block: 5px !important; padding-inline: 8px 14px !important; }
+/* 29/10/2026 (בקשת המשתמש): החוגה בתחתית — אותו עיצוב ואותו מנוע של Invest (styles.css .tabs, core: wireDial), רק בכחול של Academy.
+   מעל השכבה (900) ומתחת לקורא (920), לגיליונות (960) ולהודעה */
+.lib-dial { --primary: #4699FF; --on-primary: #00214D; z-index: 910; }
+.lib-dial[hidden] { display: none; }
+html.lib-dock .lib-root { padding-bottom: calc(var(--dock-h, 120px) + 14px + env(safe-area-inset-bottom)); }
+html.lib-dock #toast.toast { bottom: calc(var(--dock-h, 120px) + 12px + env(safe-area-inset-bottom, 0px)); }

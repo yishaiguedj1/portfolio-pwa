@@ -1121,3 +1121,9 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-page.st-dark .st-nav::before { background: linear-gradient(to bottom, rgba(0, 0, 0, .42), transparent); }
 .st-se-top { background: rgba(0, 0, 0, .7); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); }
 .st-root :is(.st-list, .st-newcard, .st-filecard, .st-modecard, .st-vcard, .st-twcard, .st-hero, .st-schero, .st-jhero, .st-ut-hero, .st-lk-card, .st-banner) { box-shadow: var(--gl-card-sh); }
+/* 29/10/2026 (בקשת המשתמש): החוגה בתחתית — אותו עיצוב ואותו מנוע של Invest (styles.css .tabs, core: wireDial), רק באדום של Studio.
+   מעל השכבה (900) ומתחת להודעה ולחלונות (1000+); כשהתפריט פתוח — מתחת לשכבה */
+.st-dial { --primary: #FF4656; --on-primary: #3D0008; z-index: 950; }
+.st-dial[hidden], .st-dial .tab[hidden] { display: none; }
+html.st-dock .st-root { padding-bottom: calc(var(--dock-h, 120px) + 14px + env(safe-area-inset-bottom)); }
+html.st-dock .toast { bottom: calc(var(--dock-h, 120px) + 12px + env(safe-area-inset-bottom, 0px)); }

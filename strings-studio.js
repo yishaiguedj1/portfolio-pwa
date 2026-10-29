@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2061 מפתחות מתוך 5484) */
+/* המחרוזות של studio (2067 מפתחות מתוך 5493) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -402,6 +402,12 @@ he: {
   "studioDeleteOk": "מחיקה",
   "studioDeleteQ": "למחוק את הטיוטה? הסרטון עצמו נשאר בטלפון.",
   "studioDeleted": "הטיוטה נמחקה",
+  "studioDialAria": "ניווט בסטודיו",
+  "studioDialHome": "עבודות",
+  "studioDialLast": "אחרונה",
+  "studioDialOn": "פעילה",
+  "studioDialSet": "הגדרות",
+  "studioDialTower": "מגדל",
   "studioDisconn": "ניתוק",
   "studioDisconnOk": "ניתוק",
   "studioDisconnQ": "לנתק את Claude? המפתח יימחק מהשרתון. כדי לבטל אותו לגמרי, לוחצים Revoke בהגדרות הטריגר ב־claude.ai.",
@@ -2465,6 +2471,12 @@ en: {
   "studioDeleteOk": "Delete",
   "studioDeleteQ": "Delete this draft? The video itself stays on your phone.",
   "studioDeleted": "Draft deleted",
+  "studioDialAria": "Studio navigation",
+  "studioDialHome": "Jobs",
+  "studioDialLast": "Latest",
+  "studioDialOn": "Active",
+  "studioDialSet": "Settings",
+  "studioDialTower": "Tower",
   "studioDisconn": "Disconnect",
   "studioDisconnOk": "Disconnect",
   "studioDisconnQ": "Disconnect Claude? The key is deleted from the server. To cancel it completely, press Revoke in the trigger settings at claude.ai.",

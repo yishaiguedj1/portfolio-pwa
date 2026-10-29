@@ -103,9 +103,9 @@ ok(R("tabShouldRender('stocks')") === true && R("tabDirty.stocks") === false, '�
 ok(R("tabShouldRender('overview')") === false && R("tabDirty.overview") === true, 'טאב מוסתר: לא מצויר, מסומן dirty');
 ok(R("_renderForce = true; const _r = tabShouldRender('overview'); _renderForce = false; _r") === true && R("tabDirty.overview") === false, 'ציור מלא (renderAll({all:true})): גם טאב מוסתר מצויר וה־dirty מתנקה');
 ok(/try \{ renderAllInner\(\); \} finally \{ _renderForce = false; \}/.test(src), 'renderAll מחזיר את הדגל גם אם ציור נכשל');
-R("setTabPageDirection('stocks', 'overview')");   // 29/10/2026: הסדר החדש — המניות מימין לסקירה
+R("setTabPageDirection('settings', 'overview')");   // 29/10/2026: הסדר החדש — הגדרות, סקירה, מניות, מעקב…
 ok(pages['tab-overview'].style.props['--tab-dx'] === '-22px', 'RTL: קדימה = העמוד נכנס משמאל (‎-22px)');
-R("setTabPageDirection('overview', 'stocks')");
+R("setTabPageDirection('wishlist', 'stocks')");
 ok(pages['tab-stocks'].style.props['--tab-dx'] === '22px', 'RTL: אחורה = מימין (‎22px)');
 R("setTabPageDirection('stocks', 'stocks')");
 ok(!pages['tab-stocks'].style.props.x && pages['tab-stocks'].style.props['--tab-dx'] === '22px', 'אותו טאב: הכיוון לא משתנה');

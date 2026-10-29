@@ -24,5 +24,5 @@ ok(vars['--appbar-h'] === '122px', 'הדר מסובב בקובייה — הגו�
 bars = [mk(122, 218, true), mk(118, 118, false)];
 ctx.barHeightVar();
 ok(vars['--appbar-h'] === '118px', 'ההעתק של המעבר (cube-ghost) ראשון ב־DOM — מודדים את ההדר האמיתי');
-ok(/\.lib-seg \{ position: sticky; top: calc\(var\(--appbar-h, 0px\) \+ 12px\)/.test(css) && /\.lib-home > \.appbar \{ margin-bottom: 12px; \}/.test(css), 'הבורר נדבק באותו מרחק מההדר שבו הוא יושב (12px) — לא זז בתחילת הגלילה');
+ok(!/\.lib-seg/.test(css) && /\.lib-home > \.appbar \{ margin-bottom: 12px; \}/.test(css), 'Academy: הבורר הדבוק הוסר (29/10/2026 — החוגה בתחתית); הרווח מתחת להדר נשאר');
 console.log(n + ' בדיקות עברו');
