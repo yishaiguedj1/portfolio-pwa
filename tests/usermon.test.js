@@ -157,8 +157,8 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(ug.errs[0].e === 'api_rate' && ug.mo.usd === 20 && ug.mo.dim === 31 && ug.mo.proj > 20 && ug.wk.cur.n === 4, 'שימוש: כשלים, החודש (רק החודש הנוכחי) ותחזית, השבוע');
   const big = UM.usage(Array.from({ length: 12 }, (_, i) => tj({ id: J(50 + i), created: now - H * (i + 1), claimed: now - H * (i + 1) + 1200e3, state: i < 4 ? 'failed' : 'done' })), [], now, { max: 12 });
   ok(['wait', 'fail', 'cut'].every((k) => big.rec.some((r) => r.k === k)) && UM.usage([], [], now, {}).rec.length === 0, 'שימוש: המלצות — המתנה ארוכה, כשלים, רשימה חלקית; ריק = "מספיק"');
-  ok(UM.CAP_DEF === 10000 && /const USER_MONTH = \(\) => \{ const c = Number\(cfgC\.v && cfgC\.v\.ucap\);[^\n]*: UM\.CAP_DEF; \};/.test(api) && !/STUDIO_API_USER_MONTH_USD\) \|\| 30/.test(api),
-    'תקרה: ברירת המחדל גבוהה ($10,000) — "שלא יוגבלו פתאום"; המנהל קובע ב־sysCfg.ucap');
+  ok(UM.CAP_DEF === 20 && /const USER_MONTH = \(\) => \{ const c = Number\(cfgC\.v && cfgC\.v\.ucap\);[^\n]*: UM\.CAP_DEF; \};/.test(api) && !/STUDIO_API_USER_MONTH_USD\) \|\| 30/.test(api),
+    'תקרה: ברירת המחדל $20 לכל משתמש (בקשת המשתמש); המנהל קובע ב־sysCfg.ucap');
   ok((api.match(/await capWarm\(deps, now\);/g) || []).length >= 4 && /if \(body\.def !== undefined\)[\s\S]{0,300}patchDoc\(deps, 'sysCfg', 'main', \{ ucap: c/.test(api), 'תקרה: ההגדרה נטענת לפני כל חישוב, ונשמרת מהמסך');
   ok(UM.spendStep({}, 9, now) === null && UM.spendStep({}, 27, now).s === 25 && UM.spendStep({ msx: '2026-10:25' }, 40, now) === null
     && UM.spendStep({ msx: '2026-10:25' }, 120, now).v === '2026-10:100' && UM.spendStep({ msx: '2026-09:100' }, 12, now).s === 10, 'התראת סכום: פעם אחת לכל סף בחודש, מתאפסת בחודש חדש');
@@ -173,6 +173,15 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   for (const m of app.matchAll(/\b(adm[A-Za-z0-9]+): "/g)) kc[m[1]] = (kc[m[1]] || 0) + 1;
   ok(Object.values(kc).every((c) => c <= 2), 'מרכז הניהול: אין מפתח מחרוזת כפול (הכפול האחרון דורס)');
   ok(/page\('use', \{ tab: 'act', parent: 'act'/.test(adm) && /go\('use'\)/.test(adm) && /function defDlg\(\)/.test(adm), 'מרכז הניהול: מסך שימוש ומשאבים, ותקרת ברירת המחדל');
+
+  // המנהל — בלי תקרה חודשית של המערכת (בקשת המשתמש: "שהמערכת שלנו לא תגביל למשתמש שלי"), רק המגבלה בחשבון Claude
+  ok(UM.monthCap({ ad: 1, mc: 5 }, 20) === UM.ADMIN_CAP && UM.monthCap({ mc: 5 }, 20) === 5 && UM.monthCap({}, 20) === 20 && UM.monthCap(null, 20) === 20
+    && S.jobCap({ eng: 'api', cap: 50 }, 900, UM.monthCap({ ad: 1 }, 20), 0) === 50 && S.jobCap({ eng: 'api', cap: 50 }, 20, UM.monthCap({}, 20), 0) === 0,
+    'תקרה: המנהל (ad) — בלי תקרה של המערכת (רק התקרה לעבודה שבחר); משתמש אחר — $20');
+  ok(/const userMonth = \(st\) => UM\.monthCap\(st, USER_MONTH\(\)\)/.test(api) && /const ad = isAdmin\(user\) \? 1 : 0;/.test(api) && /const o = \{ nm: id\.nm, em: id\.em, ad, ls: now/.test(api) && /nc: UM\.isAdm\(st\)/.test(api),
+    'תקרה: הסימון ad נרשם מ־isAdmin בכל כניסה; Studio מקבל nc');
+  ok(/const left = apiOn && api && !api\.nc \?/.test(st) && /a\.nc \? T\('studioApiNoCap'/.test(st) && /r\.ad \? row\(\{ c: 'green', ic: '∞'/.test(adm), 'תקרה: בלי "נשאר מהתקציב" למנהל, ובמרכז הניהול "ללא תקרה"');
+  ok(UM.usersView([{ id: A, nm: 'אני', ad: 1 }], [], now, { cap: 20, me: A }).rows[0].ad === true, 'משתמשים: המנהל מסומן');
 
   console.log('# ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error(e); process.exit(1); });

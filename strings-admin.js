@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1498 מפתחות מתוך 5482) */
+/* המחרוזות של admin (1499 מפתחות מתוך 5484) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1239,14 +1239,15 @@ he: {
   "admTyVid": "תרגום סרטון",
   "admUBadCap": "סכום בין 1 ל־10,000",
   "admUCap": "תקרה חודשית",
+  "admUCapAdm": "ללא תקרה של המערכת — רק המגבלה בחשבון Claude",
   "admUCapOwn": "אישית",
   "admUCapQ": "תקרה חודשית לעבודות של {n}, בדולרים. ריק = התקרה של המערכת ({d}).",
   "admUCapSave": "לשמור",
   "admUCapSys": "של המערכת",
   "admUCntS": "{n} סרטונים · {h} · {tok}",
   "admUDef": "תקרה לכל משתמש",
-  "admUDefQ": "תקרת ברירת המחדל לכל משתמש לחודש (בדולרים). ריק = $10,000 — כמעט בלי הגבלה. משתמש עם תקרה משלו לא מושפע.",
-  "admUDefS": "ברירת המחדל לחודש — במקום חסימה, התראה בכל $10, $25, $50, $100…",
+  "admUDefQ": "תקרת ברירת המחדל לכל משתמש לחודש (בדולרים). ריק = $20. משתמש עם תקרה משלו לא מושפע.",
+  "admUDefS": "ברירת המחדל לחודש · התראה בכל $10, $25, $50…",
   "admUJoined": "הצטרפות: {d}",
   "admUMgmt": "ניהול",
   "admUMonth": "החודש",
@@ -2739,14 +2740,15 @@ en: {
   "admTyVid": "Video translation",
   "admUBadCap": "An amount between 1 and 10,000",
   "admUCap": "Monthly cap",
+  "admUCapAdm": "No system cap — only the limit on the Claude account",
   "admUCapOwn": "Personal",
   "admUCapQ": "Monthly cap for {n}’s jobs, in dollars. Empty = the system cap ({d}).",
   "admUCapSave": "Save",
   "admUCapSys": "System default",
   "admUCntS": "{n} videos · {h} · {tok}",
   "admUDef": "Cap per user",
-  "admUDefQ": "Default monthly cap per user (USD). Empty = $10,000 — practically unlimited. Users with their own cap aren’t affected.",
-  "admUDefS": "Monthly default — instead of blocking, an alert at $10, $25, $50, $100…",
+  "admUDefQ": "Default monthly cap per user (USD). Empty = $20. Users with their own cap aren’t affected.",
+  "admUDefS": "Monthly default · alert at $10, $25, $50…",
   "admUJoined": "Joined: {d}",
   "admUMgmt": "Manage",
   "admUMonth": "This month",
