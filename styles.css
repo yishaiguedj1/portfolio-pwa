@@ -1555,7 +1555,7 @@ html[data-app="academy"] .login-overlay { background: linear-gradient(160deg, #1
 .wl-trash .ic { stroke: currentColor; }
 .wl-tabs {
   display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
-  margin: 0 -16px 14px; padding: 2px 16px; scroll-padding-inline: 16px;
+  margin: -6px -16px 8px; padding: 8px 16px; scroll-padding-inline: 16px;   /* 29/10: ריפוד אנכי (מקוזז במרווח) — הצל של הצ'יפ לא נחתך */
 }
 .wl-tabs::-webkit-scrollbar { display: none; }
 .wl-tab {
@@ -1620,7 +1620,7 @@ html[data-app="academy"] .login-overlay { background: linear-gradient(160deg, #1
 /* ---- v90: שורת מיון מניות ---- */
 .stock-sort-row {
   display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; /* v246: שורה אחת שנגללת הצידה (4 אופציות) */
-  margin: 2px -16px 12px; padding: 2px 18px; overflow-x: auto; scrollbar-width: none;
+  margin: -4px -16px 6px; padding: 8px 18px; overflow-x: auto; scrollbar-width: none;   /* 29/10: ריפוד אנכי (מקוזז במרווח) — הצל לא נחתך */
 }
 .stock-sort-row::-webkit-scrollbar { display: none; }
 .stock-sort-row > * { flex: none; }
@@ -2293,18 +2293,15 @@ html :is(.range-btn.active, .btn, .dlg-ok, .st-btn, .st-plus, .an-btn, .lib-sign
     0 6px 20px color-mix(in srgb, var(--btn-c) 26%, transparent), 0 2px 6px rgba(0, 0, 0, .3);
 }
 
-/* 29/10/2026 (בקשת המשתמש): צ'יפ נבחר בכל העמודים (רשימה, מיון, מסננים) = הבועה הפעילה של החוגה (.tab-glow) —
-   זכוכית נוזלית: ברק למעלה, אור בשפה התחתונה, גוף שמעמיק למטה, טבעת והילה בצבע האפליקציה. !important — גובר על הצבע המלא של כל רכיב */
+/* 29/10/2026 (בקשת המשתמש, צילום של "מעקב"): צ'יפ נבחר בכל העמודים (רשימה, מיון, מסננים) = הגלולה של הלשונית הנבחרת —
+   אותה זכוכית צבעונית של הכפתורים הראשיים (למעלה): ברק בחצי העליון, קצה אור, טבעת שיער וצל קצר בגוון (הילה רחבה נחתכת בשורות הנגללות). !important — גובר על הצבע המלא של כל רכיב */
 html :is(.chip-btn.on, .wl-tab.on, .lib-chip.on, .chip.on, .st-rs-chip.on, .fb-seg .mini-btn[aria-pressed="true"], .adm-seg .mini-btn[aria-pressed="true"]) { --btn-c: var(--primary); border-color: transparent;
-  background: radial-gradient(90% 60% at 50% 0%, rgba(255, 255, 255, .45), rgba(255, 255, 255, 0) 70%),
-    radial-gradient(80% 45% at 50% 100%, rgba(255, 255, 255, .28), rgba(255, 255, 255, 0) 75%),
-    linear-gradient(180deg, color-mix(in srgb, var(--btn-c) 80%, #fff), var(--btn-c) 55%, color-mix(in srgb, var(--btn-c) 88%, #000)) !important;
-  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .55), inset -1px -1px 0 rgba(255, 255, 255, .2), inset 0 0 12px rgba(255, 255, 255, .16),
-    0 0 0 .5px color-mix(in srgb, var(--btn-c), #000 12%), 0 0 0 4px color-mix(in srgb, var(--btn-c) 14%, transparent),
-    0 6px 18px color-mix(in srgb, var(--btn-c) 40%, transparent) !important; }
+  background: linear-gradient(180deg, rgba(255, 255, 255, .26), rgba(255, 255, 255, .07) 48%, rgba(255, 255, 255, 0) 54%), var(--btn-c) !important;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .55), inset -1px -1px 0 rgba(255, 255, 255, .2), inset 0 0 14px rgba(255, 255, 255, .16),
+    0 0 0 .5px color-mix(in srgb, var(--btn-c), #000 12%), 0 2px 7px color-mix(in srgb, var(--btn-c) 38%, transparent) !important; }
 [data-theme="dark"] :is(.chip-btn.on, .wl-tab.on, .lib-chip.on, .chip.on, .st-rs-chip.on, .fb-seg .mini-btn[aria-pressed="true"], .adm-seg .mini-btn[aria-pressed="true"]) {
-  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .45), inset -1px -1px 0 rgba(255, 255, 255, .14), inset 0 0 12px rgba(255, 255, 255, .12),
-    0 0 0 4px color-mix(in srgb, var(--btn-c) 16%, transparent), 0 0 22px color-mix(in srgb, var(--btn-c) 38%, transparent), 0 2px 6px rgba(0, 0, 0, .35) !important; }
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .45), inset -1px -1px 0 rgba(255, 255, 255, .14), inset 0 0 14px rgba(255, 255, 255, .12),
+    0 2px 8px color-mix(in srgb, var(--btn-c) 32%, transparent), 0 1px 3px rgba(0, 0, 0, .3) !important; }
 
 /* ==== 28/10/2026 — העמודים מזכוכית (בקשת המשתמש: כרטיסים, סרגלי לשוניות ורכיבים בעמוד) ====
    רקע עדין בגוון האפליקציה מאחור (קבוע, לא נגלל) — בלעדיו זכוכית על רקע אחיד לא נראית. הכרטיסים שקופים (~58%) עם קצה אור
