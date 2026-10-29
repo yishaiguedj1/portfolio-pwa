@@ -175,7 +175,7 @@ function message(kind, jobId, lang, x, now) {
     if (!t) return null;
     const j = /^j[A-Za-z0-9_-]{20}$/.test(String(jobId || '')) ? jobId : '';
     if ((kind === 'watch' || kind === 'watch_end') && !j) return null;
-    const m = { t: t[0], b: t[1], k: kind, j, u: ADMIN_URL + (j ? '#live=' + j : kind === 'cap80' ? '#users' : kind === 'daily' ? '#act' : '#ov') };
+    const m = { t: t[0], b: t[1], k: kind, j, u: ADMIN_URL + (j ? '#live=' + j : kind === 'cap80' || kind === 'spend' ? '#people' : kind === 'daily' ? '#use' : '#ov') };
     if (Number.isFinite(now)) m.at = now;
     if (kind === 'watch') m.p = Math.round(Math.max(0, Math.min(1, Number(x && x.p) || 0)) * 1000) / 1000;
     return m;

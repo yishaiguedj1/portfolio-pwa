@@ -128,10 +128,51 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
   /* ---- הטלפון ---- */
   const adm = read('admin-app.js'), st = read('studio.js');
-  ok(/\['act', \(\) => t\('admTabAct'\), '◷'\]/.test(adm) && ['now', 'live', 'act', 'users', 'user'].every((k) => adm.includes("page('" + k + "'")), 'מרכז הניהול: לשונית "פעילות" והמסכים');
+  ok(/\['act', \(\) => t\('admTabAct'\), '◷'\]/.test(adm) && ['now', 'live', 'act', 'people', 'user', 'use'].every((k) => adm.includes("page('" + k + "'")), 'מרכז הניהול: לשונית "פעילות" והמסכים');
   ok(/setInterval\(\(\) => \{ if \(booted && !document\.hidden && LIVE_PAGES\.includes\(cur\)\) needLive\(\); \}, 10000\)/.test(adm), 'עכשיו במערכת: כל 10 שנ׳ — רק כשהמסך גלוי ובמסכים החיים');
   ok(/busyGuard\(\(\) => askConfirm\(fmt\(t\('admGoldQ'\)/.test(adm) && /api\('start', \{ job: j\.id, ow: true \}\)/.test(adm), 'ריצת בדיקה: קודם שומר "עבודה של אחר"');
   ok(/j\.error === 'others_busy'/.test(st) && /net\.api\('adminWait', \{ on: true \}\)/.test(st) && /case 'user_paused'/.test(st), 'Studio: "להתחיל בכל זאת / לחכות", והודעה למשתמש מושהה');
+
+  /* ---- שימוש ומשאבים, תקרה גבוהה והתראת סכום (29/10/2026, סבב 2) ---- */
+  const tj = (o) => Object.assign({ kind: 'tr', state: 'done', uid: B, spec: { eng: 'api', dur: 600 } }, o);
+  ok(UM.typeOf(tj({ spec: { ka: 1 } })) === 'ka' && UM.typeOf(tj({ spec: { src: 'subs' } })) === 'sub' && UM.typeOf(tj({ spec: { ph: 1 } })) === 'ph'
+    && UM.typeOf(tj({ spec: { src: 'url' } })) === 'url' && UM.typeOf(tj({})) === 'vid' && UM.typeOf({ kind: 'rr' }) === 'rr' && UM.typeOf({ kind: 'zz' }) === 'oth',
+    'שימוש: סוג העבודה — סרטון, קישור, קובץ כתוביות, קריוקי, בטלפון, הפקה מחדש; סוג חדש = "אחר"');
+  ok(UM.engOf(tj({})) === 'api' && UM.engOf(tj({ spec: { eng: 'api', ry: 1 } })) === 'ry' && UM.engOf(tj({ spec: { eng: 'api', cp: 1 } })) === 'cp' && UM.engOf(tj({ spec: {} })) === 'rt', 'שימוש: המנוע');
+  const H = 3600e3;
+  const uj = [
+    tj({ id: J(31), created: now - 5 * H, claimed: now - 5 * H + 30e3, ended: now - 4 * H, use: use(1.5, 1000), sid: 's1' }),
+    tj({ id: J(32), created: now - 4.5 * H, claimed: now - 4.5 * H + 60e3, ended: now - 3.5 * H, use: use(0.5, 1000), sid: 's1', spec: { eng: 'api', ka: 1, dur: 200 } }),
+    tj({ id: J(33), created: now - 2 * 86400e3, state: 'failed', err: 'api_rate', use: use(0.2, 10) }),
+    tj({ id: J(34), created: now - 10 * 86400e3, use: use(9, 10), spec: { eng: 'api', ry: 1, dur: 60 } }),
+    { id: J(35), kind: 'ping', created: now - H },
+    tj({ id: J(36), created: now - 40 * 86400e3, use: use(5, 10) }),
+    tj({ id: J(37), created: now - 600e3, claimed: now - 500e3, state: 'running', use: use(0.1, 10) }),
+  ];
+  const ug = UM.usage(uj, [{ id: B, mu: { m: '2026-10', usd: 20 } }, { id: C, mu: { m: '2026-09', usd: 99 } }], now, { max: 400 });
+  ok(ug.n === 5 && ug.ok === 3 && ug.f === 1 && ug.live === 1 && ug.usd === 2.3 && ug.types[0].k === 'vid' && ug.types.find((x) => x.k === 'ka').n === 1,
+    'שימוש: 30 יום בלבד, בלי ping; עלות = רק המפתח של המערכת (המנוי של המשתמש = 0)');
+  ok(ug.days.length === 30 && ug.days[29].n === 3 && ug.hours.reduce((a, b) => a + b, 0) === 5 && ug.eng.api === 4 && ug.eng.ry === 1, 'שימוש: לפי יום (היום אחרון), לפי שעה, לפי מנוע');
+  ok(ug.peak.c === 2 && ug.wait.n === 3 && ug.wait.max === 100 && ug.run.p50 === 60 && ug.srv[0].s === 's1' && ug.srv[0].n === 2, 'שימוש: שיא במקביל, המתנה בתור, זמן ריצה, שרתים');
+  ok(ug.errs[0].e === 'api_rate' && ug.mo.usd === 20 && ug.mo.dim === 31 && ug.mo.proj > 20 && ug.wk.cur.n === 4, 'שימוש: כשלים, החודש (רק החודש הנוכחי) ותחזית, השבוע');
+  const big = UM.usage(Array.from({ length: 12 }, (_, i) => tj({ id: J(50 + i), created: now - H * (i + 1), claimed: now - H * (i + 1) + 1200e3, state: i < 4 ? 'failed' : 'done' })), [], now, { max: 12 });
+  ok(['wait', 'fail', 'cut'].every((k) => big.rec.some((r) => r.k === k)) && UM.usage([], [], now, {}).rec.length === 0, 'שימוש: המלצות — המתנה ארוכה, כשלים, רשימה חלקית; ריק = "מספיק"');
+  ok(UM.CAP_DEF === 10000 && /const USER_MONTH = \(\) => \{ const c = Number\(cfgC\.v && cfgC\.v\.ucap\);[^\n]*: UM\.CAP_DEF; \};/.test(api) && !/STUDIO_API_USER_MONTH_USD\) \|\| 30/.test(api),
+    'תקרה: ברירת המחדל גבוהה ($10,000) — "שלא יוגבלו פתאום"; המנהל קובע ב־sysCfg.ucap');
+  ok((api.match(/await capWarm\(deps, now\);/g) || []).length >= 4 && /if \(body\.def !== undefined\)[\s\S]{0,300}patchDoc\(deps, 'sysCfg', 'main', \{ ucap: c/.test(api), 'תקרה: ההגדרה נטענת לפני כל חישוב, ונשמרת מהמסך');
+  ok(UM.spendStep({}, 9, now) === null && UM.spendStep({}, 27, now).s === 25 && UM.spendStep({ msx: '2026-10:25' }, 40, now) === null
+    && UM.spendStep({ msx: '2026-10:25' }, 120, now).v === '2026-10:100' && UM.spendStep({ msx: '2026-09:100' }, 12, now).s === 10, 'התראת סכום: פעם אחת לכל סף בחודש, מתאפסת בחודש חדש');
+  const sm = W.message('spend', '', 'he', { nm: 'רון', usd: 52.1, s: 50, cap: 10000 }, now);
+  ok(sm && /\$50 החודש/.test(sm.t) && /#people$/.test(sm.u) && /#use$/.test(W.message('daily', '', 'he', { u: 1, n: 1, usd: 1, mo: 5 }, now).u)
+    && /החודש \$5\.00/.test(W.message('daily', '', 'he', { u: 1, n: 1, usd: 1, mo: 5 }, now).b), 'התראת סכום וסיכום יומי עם סכום החודש — נפתחים במסכים הנכונים');
+  ok(/if \(sp\) await notify\(deps, adm, 'spend'/.test(api) && /\|spend\)\$\//.test(read('sw.js')) && /people\|use\|act\|ov/.test(read('sw.js')), 'התראת סכום: נשלחת ומוצגת');
+  // מרכז הניהול: כל מסך — שם אחד (מסך כפול דורס את הקודם בשקט), וכל מפתח מחרוזת — פעם אחת בכל שפה
+  const pk = [...adm.matchAll(/^page\('([a-zA-Z]+)'/gm)].map((m) => m[1]);
+  ok(pk.length > 20 && new Set(pk).size === pk.length, 'מרכז הניהול: אין שני מסכים באותו שם');
+  const app = read('app.js'), kc = {};
+  for (const m of app.matchAll(/\b(adm[A-Za-z0-9]+): "/g)) kc[m[1]] = (kc[m[1]] || 0) + 1;
+  ok(Object.values(kc).every((c) => c <= 2), 'מרכז הניהול: אין מפתח מחרוזת כפול (הכפול האחרון דורס)');
+  ok(/page\('use', \{ tab: 'act', parent: 'act'/.test(adm) && /go\('use'\)/.test(adm) && /function defDlg\(\)/.test(adm), 'מרכז הניהול: מסך שימוש ומשאבים, ותקרת ברירת המחדל');
 
   console.log('# ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error(e); process.exit(1); });

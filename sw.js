@@ -9,7 +9,7 @@ const HASHES = {
   "./": "16b507afdf51b3641466129e571503e2",
   "./index.html": "16b507afdf51b3641466129e571503e2",
   "./styles.css": "712363b6f20381fdc6b146ad11a34d53",
-  "./app.js": "12e6de05d43f2e2a95ced5a7b73c0177",
+  "./app.js": "c085df7b44978ba022a27540a4b53659",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "e50501f26e70aad478a5d8d489754d97",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -64,7 +64,7 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "d58a511fc759a629121b82ab47fe9a69",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
-  "./strings-academy.js": "a566eedf4752650bd397514a3d6f91f2",
+  "./strings-academy.js": "44b425c610275702bdd4393ddad485e6",
   "./core.js": "d517f48a5896005ddec7de557034f75d",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "4e5bfbd05e9ea7156dda74b506a8247c",
@@ -86,7 +86,7 @@ const HASHES = {
   "./studiobg.js": "ab4ba7fbd51ae2365068ecdf5c06877b",
   "./studio.html": "e1a77d2576406429bad01f26fccf5d77",
   "./studio-app.js": "29aafde3d0cb75d4d8210d2b2287409d",
-  "./strings-studio.js": "b197bc6d7db3cdfb01ab91921e9696ac",
+  "./strings-studio.js": "a151a7b9b64ea866f4b6845b524b8167",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
@@ -383,8 +383,8 @@ self.addEventListener('push', (event) => {
   // 27/10/2026: התראת מחיר מגרף הנרות (k:'px') — נפתחת בגרף של המניה (#chart=SYM), תג לכל התראה
   const cm = m.k === 'px' ? /^#chart=([A-Za-z0-9.^=%-]{1,40})$/.exec(String(m.u || '')) : null;
   // 29/10/2026: ניטור משתמשים (למנהל) — עבודה של משתמש אחר בתג משלה (watch-<עבודה>), נפתחת במרכז הניהול על העבודה החיה
-  const wk = /^(watch|watch_end|watch_clear|cap80|daily)$/.test(String(m.k || ''));
-  const wm = wk ? /^https:\/\/admin(-staging)?\.thesnowball\.app\/#(live=j[A-Za-z0-9_-]{20}|users|act|ov)$/.exec(String(m.u || '')) : null;
+  const wk = /^(watch|watch_end|watch_clear|cap80|daily|spend)$/.test(String(m.k || ''));
+  const wm = wk ? /^https:\/\/admin(-staging)?\.thesnowball\.app\/#(live=j[A-Za-z0-9_-]{20}|people|use|act|ov)$/.exec(String(m.u || '')) : null;
   const url = wm ? wm[0] : './' + (hm ? hm[1] : cm ? cm[0] : '');
   const tag = wk ? (m.j ? 'watch-' + m.j : 'adm-' + m.k) : cm ? 'px-' + String(m.i || cm[1]).slice(0, 40) : m.j ? 'studio-' + m.j : 'studio', at = Number(m.at) || 0;
   // 27/10/2026 (בקשת המשתמש): כל שלב בעבודה = אותה התראה (תג לעבודה) שמתחלפת — שקטה, עם פס של השלב.

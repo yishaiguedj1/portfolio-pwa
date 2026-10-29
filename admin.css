@@ -204,6 +204,12 @@ html[data-app="admin"] .appbar { --ib: 44px; --pill-h: 44px; }
 .adm-sel { margin: 6px 0 0; font: inherit; font-size: 14px; padding: 6px 10px; border-radius: var(--radius-xs); border: 1px solid color-mix(in srgb, var(--on-surface) 15%, transparent); background: var(--surface); color: inherit; max-width: 100%; }
 .adm-chart { display: block; padding: 10px 14px; }
 .adm-cost { display: block; width: 100%; height: 60px; }
+/* 29/10/2026: שימוש ומשאבים — עמודות לפי יום / שעה (המודגשת = היום / השעה עכשיו) */
+.adm-bars { display: block; width: 100%; height: 64px; }
+.adm-bars .a { fill: #5E5CE6; opacity: .75; }
+.adm-bars .h { fill: #F5A524; }
+.adm-bars .z { fill: var(--line, #8E8E93); opacity: .35; }
+.adm-axis { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; font-size: 12px; color: var(--muted, #8E8E93); }
 .adm-cost .a { fill: none; stroke: #F5A524; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .adm-cost .b { fill: none; stroke: #8E8E93; stroke-width: 1.5; stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
 .adm-inp { display: block; width: 100%; margin: 10px 0 0; font: inherit; font-size: 17px; padding: 9px 12px; border-radius: var(--radius-xs); border: 1px solid color-mix(in srgb, var(--on-surface) 18%, transparent); background: var(--surface); color: inherit; }

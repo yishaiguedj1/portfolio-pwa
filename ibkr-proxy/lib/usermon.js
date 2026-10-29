@@ -10,10 +10,14 @@ const NM_MAX = 40;
 const EM_RE = /^[^\s@<>"']{1,64}@[^\s@<>"']{1,190}$/;
 const UID_RE = /^[A-Za-z0-9_-]{6,128}$/;
 const CAP_MIN = 1, CAP_MAX = 10000;           // תקרה חודשית לכל משתמש, בדולרים שלמים (mc ב־studioStats)
+/* 29/10/2026 (בקשת המשתמש: "שלא יוגבלו פתאום — המערכת בבדיקות"): ברירת המחדל לכל משתמש = התקרה הגבוהה; המנהל משנה
+   במרכז הניהול (sysCfg.ucap). במקום חסימה — התראה בכל פעם שמשתמש חוצה סכום עגול החודש (SPEND_STEPS) */
+const CAP_DEF = CAP_MAX;
+const SPEND_STEPS = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
 const CAP_WARN = 0.8;                         // התראה למנהל כשמשתמש עובר 80% מהתקרה שלו
 const TL_DAYS = 30, TL_MAX = 300;             // הטיימליין: 30 יום (= jobs30), עד 300 אירועים
 const DAILY_H = 21;                           // הסיכום היומי — 21:00 שעון ישראל
-const KINDS = ['watch', 'watch_end', 'watch_clear', 'cap80', 'daily'];
+const KINDS = ['watch', 'watch_end', 'watch_clear', 'cap80', 'daily', 'spend'];
 
 /* השם והמייל מהטוקן — שם נקי (בלי תווי בקרה וסוגריים זוויתיים), מייל רק בצורה תקינה */
 function idOf(user) {
@@ -190,7 +194,10 @@ function pushText(kind, x, lang) {
   if (kind === 'watch_clear') return en ? ['✓ No other users are working', 'You can start a translation or a test run'] : ['✓ אין עבודות של משתמשים אחרים', d + 'אפשר להתחיל תרגום או בדיקה'];
   if (kind === 'cap80') return [en ? nm + ' · 80% of the monthly cap' : nm + ' · 80% מהתקרה החודשית', d + usdT(x.usd) + (en ? ' of ' : ' מתוך ') + usdT(x.cap)];
   if (kind === 'daily') return [en ? 'Today in THE SNOWBALL' : 'היום ב־THE SNOWBALL',
-    d + (en ? x.u + ' active users · ' + x.n + ' translations · ' + usdT(x.usd) : x.u + ' משתמשים פעילים · ' + x.n + ' תרגומים · ' + usdT(x.usd))];
+    d + (en ? x.u + ' active users · ' + x.n + ' translations · ' + usdT(x.usd) : x.u + ' משתמשים פעילים · ' + x.n + ' תרגומים · ' + usdT(x.usd))
+      + (n0(x.mo) > 0 ? (en ? ' · month ' : ' · החודש ') + usdT(x.mo) : '')];
+  if (kind === 'spend') return [en ? nm + ' · passed ' + usdT(x.s).replace('.00', '') + ' this month' : nm + ' · עבר ' + usdT(x.s).replace('.00', '') + ' החודש',
+    d + (en ? usdT(x.usd) + ' used · cap ' : usdT(x.usd) + ' עד עכשיו · תקרה ') + usdT(x.cap).replace('.00', '')];
   return null;
 }
 /* מתי לשלוח את הסיכום היומי: אחרי 21:00 בישראל, פעם אחת ביום. מחזיר את מפתח היום או '' */
@@ -211,7 +218,9 @@ function dailySum(stats, jobs, now) {
     if (n0(j.updated) >= from) us.add(j.uid);
     if (n0(j.created) >= from) { n++; if (ours(j)) usd += S.usdOf(jobUse(j)); }
   }
-  return { u: us.size, n, usd: Math.round(usd * 100) / 100 };
+  let mo = 0;
+  for (const st of stats || []) mo += S.monthUsed(st && st.mu, now);
+  return { u: us.size, n, usd: Math.round(usd * 100) / 100, mo: Math.round(mo * 100) / 100 };
 }
 /* האם לשלוח למנהל: עבודה של משתמש אחר בלבד (העבודה שלך — כבר בהתראה של Studio) */
 const watchFor = (job, adminUid) => !!(job && adminUid && job.uid && job.uid !== adminUid && job.kind === 'tr');
@@ -220,6 +229,109 @@ function capWarn(st, used, def, now) {
   const cap = capOf(st, def), mk = S.monthKey(now);
   return used >= cap * CAP_WARN && (st && st.m80) !== mk ? { cap, mk } : null;
 }
+/* חציית סכום עגול החודש (SPEND_STEPS) — התראה אחת לכל סף; msx = "<חודש>:<הסף האחרון>". מחזיר {s, v} או null */
+function spendStep(st, used, now) {
+  const mk = S.monthKey(now), m = /^(\d{4}-\d{2}):(\d+)$/.exec(String((st && st.msx) || ''));
+  const last = m && m[1] === mk ? Number(m[2]) : 0;
+  let s = 0;
+  for (const x of SPEND_STEPS) if (n0(used) >= x) s = x;
+  return s > last ? { s, v: mk + ':' + s } : null;
+}
 
-module.exports = { KINDS, CAP_MIN, CAP_MAX, CAP_WARN, TL_DAYS, TL_MAX, DAILY_H, idOf, label, tokOf, ours, capOf, normCap, paused, addTotal, backfill,
+/* ---- שימוש ומשאבים (29/10/2026, בקשת המשתמש: "להעריך את כמות השימוש ואת הצורך בשדרוג המשאבים") ----
+   מכל עבודות 30 הימים (jobs30): לפי סוג (סרטון, קישור, קובץ כתוביות, קריוקי, בטלפון, הפקה מחדש, גיליון AI, Drive),
+   לפי יום ולפי שעה, זמני המתנה בתור וריצה, שיא העבודות במקביל, ניצולת, כשלים, שרתים, מגמה, תחזית לחודש — והמלצות */
+const TYPES = ['vid', 'url', 'sub', 'ka', 'ph', 'rr', 'ai', 'dx'];
+function typeOf(j) {
+  if (!j) return 'oth';
+  if (j.kind === 'tr') {
+    const sp = j.spec || {};
+    return sp.ka === 1 ? 'ka' : sp.src === 'subs' ? 'sub' : sp.ph === 1 ? 'ph' : sp.src === 'url' ? 'url' : 'vid';
+  }
+  return TYPES.includes(j.kind) ? j.kind : 'oth';   // סוג עבודה חדש — נספר ב"אחר" עד שיקבל שם
+}
+const engOf = (j) => { const sp = (j && j.spec) || {}; return sp.cp === 1 ? 'cp' : sp.ry === 1 ? 'ry' : sp.eng === 'api' ? 'api' : 'rt'; };
+const IL = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' });
+function ilParts(ms) { const p = Object.fromEntries(IL.formatToParts(new Date(ms)).map((x) => [x.type, x.value])); return { d: p.year + '-' + p.month + '-' + p.day, h: Number(p.hour) % 24 }; }
+const pct = (arr, q) => { if (!arr.length) return 0; const a = arr.slice().sort((x, y) => x - y); return a[Math.min(a.length - 1, Math.floor(q * a.length))]; };
+const r2 = (v) => Math.round(v * 100) / 100;
+const U_REC = { wait: 600, util: 0.5, fail: 0.15, grow: 0.5 };   // ספי ההמלצות: המתנה p90 (שנ׳), ניצולת, שיעור כשלים, צמיחה שבועית
+/* jobs = עבודות 30 יום; stats = studioStats (סכום החודש); o = { max: גבול השאילתה } */
+function usage(jobs, stats, now, o) {
+  const opt = o || {}, from = now - TL_DAYS * 86400000;
+  const L = (jobs || []).filter((j) => j && j.kind !== 'ping' && n0(j.created) >= from);
+  const days = [];
+  for (let i = TL_DAYS - 1; i >= 0; i--) days.push({ d: ilParts(now - i * 86400000).d, n: 0, usd: 0, sec: 0, f: 0, pk: 0, t: {} });
+  const dIx = new Map(days.map((x, i) => [x.d, i]));
+  const hours = new Array(24).fill(0);
+  const ty = {}, eng = { api: 0, ry: 0, cp: 0, rt: 0 }, errs = {}, srv = {};
+  const waits = [], runs = [], iv = [];
+  const tot = { n: 0, ok: 0, f: 0, c: 0, live: 0, usd: 0, tok: 0, sec: 0 };
+  for (const j of L) {
+    const k = typeOf(j), use = jobUse(j), our = ours(j), usd = our ? S.usdOf(use) : 0, tok = our ? tokOf(use) : 0, sec = n0(j.spec && j.spec.dur);
+    const t = ty[k] || (ty[k] = { k, n: 0, ok: 0, f: 0, usd: 0, tok: 0, sec: 0, rm: 0, rn: 0 });
+    t.n++; t.usd += usd; t.tok += tok; t.sec += sec;
+    tot.n++; tot.usd += usd; tot.tok += tok; tot.sec += sec;
+    if (j.state === 'done') { t.ok++; tot.ok++; } else if (j.state === 'failed') { t.f++; tot.f++; errs[String(j.err || '?').slice(0, 30)] = (errs[String(j.err || '?').slice(0, 30)] || 0) + 1; }
+    else if (j.state === 'cancelled') tot.c++;
+    if (isLive(j)) tot.live++;
+    eng[engOf(j)]++;
+    const p = ilParts(n0(j.created)), di = dIx.get(p.d);
+    hours[p.h]++;
+    if (di != null) { const D = days[di]; D.n++; D.usd += usd; D.sec += sec; if (j.state === 'failed') D.f++; D.t[k] = (D.t[k] || 0) + 1; }
+    const c1 = n0(j.claimed), end = n0(j.ended) || (isLive(j) ? now : n0(j.updated));
+    if (c1 && c1 >= n0(j.created)) waits.push((c1 - n0(j.created)) / 1000);
+    if (c1 && end > c1) {
+      const ms = end - c1;
+      if (j.state === 'done') { runs.push(ms / 60000); t.rm += ms; t.rn++; }
+      if (j.kind === 'tr') iv.push([c1, end]);
+      const sid = String(j.sid || '');
+      if (sid) { const sv = srv[sid] || (srv[sid] = { s: sid, n: 0, h: 0 }); sv.n++; sv.h += ms / 3600e3; }
+    }
+  }
+  // שיא במקביל (תרגומים בלבד — הם שתופסים את העובד) וזמן העבודה הכולל
+  const ev = [];
+  let busy = 0;
+  for (const [a, b] of iv) { ev.push([a, 1], [b, -1]); busy += b - a; }
+  ev.sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+  let c = 0, pk = 0, pkAt = 0;
+  for (const [tm, dl] of ev) {
+    c += dl;
+    if (c > pk) { pk = c; pkAt = tm; }
+    const di = dIx.get(ilParts(tm).d);
+    if (di != null && c > days[di].pk) days[di].pk = c;
+  }
+  for (const D of days) { D.usd = r2(D.usd); }
+  const types = Object.values(ty).map((t) => ({ k: t.k, n: t.n, ok: t.ok, f: t.f, usd: r2(t.usd), tok: t.tok, sec: t.sec,
+    run: t.rn ? Math.round(t.rm / t.rn / 60000) : 0, cpm: t.sec >= 60 ? Math.round(t.usd / (t.sec / 60) * 1000) / 1000 : 0 })).sort((a, b) => b.n - a.n);
+  // מגמה: 7 הימים האחרונים מול השבוע שלפניו
+  const wk = (a, b) => L.filter((j) => n0(j.created) >= now - a * 86400000 && n0(j.created) < now - b * 86400000)
+    .reduce((s, j) => ({ n: s.n + 1, usd: s.usd + (ours(j) ? S.usdOf(jobUse(j)) : 0) }), { n: 0, usd: 0 });
+  const cur = wk(7, 0), prev = wk(14, 7);
+  const g = prev.n ? (cur.n - prev.n) / prev.n : 0;
+  // החודש: מה שנוצל (studioStats.mu של כולם) ותחזית לסוף החודש לפי הקצב עד היום
+  let mo = 0;
+  for (const st of stats || []) mo += S.monthUsed(st && st.mu, now);
+  const dt = new Date(now), dim = new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth() + 1, 0)).getUTCDate();
+  const el = Math.max(1, (now - Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), 1)) / 86400000);
+  const util = busy / (TL_DAYS * 86400000);
+  const wait = { p50: Math.round(pct(waits, 0.5)), p90: Math.round(pct(waits, 0.9)), max: Math.round(waits.length ? Math.max(...waits) : 0), n: waits.length };
+  const fin = tot.ok + tot.f, fr = fin ? tot.f / fin : 0;
+  const cut = !!(opt.max && (jobs || []).length >= opt.max);
+  const rec = [];
+  if (wait.n >= 3 && wait.p90 > U_REC.wait) rec.push({ k: 'wait', v: wait.p90 });
+  if (util > U_REC.util) rec.push({ k: 'util', v: Math.round(util * 100) });
+  if (fin >= 5 && fr > U_REC.fail) rec.push({ k: 'fail', v: Math.round(fr * 100) });
+  if (prev.n >= 3 && g > U_REC.grow) rec.push({ k: 'grow', v: Math.round(g * 100) });
+  if (cut) rec.push({ k: 'cut', v: opt.max });
+  return { n: tot.n, ok: tot.ok, f: tot.f, c: tot.c, live: tot.live, usd: r2(tot.usd), tok: tot.tok, sec: tot.sec,
+    types, eng, days, hours, wait, run: { p50: Math.round(pct(runs, 0.5)), p90: Math.round(pct(runs, 0.9)) },
+    peak: { c: pk, at: pkAt, busy: Math.round(busy / 3600e3 * 10) / 10, util: Math.round(util * 1000) / 1000 },
+    errs: Object.entries(errs).map(([e, n]) => ({ e, n })).sort((a, b) => b.n - a.n).slice(0, 6),
+    srv: Object.values(srv).map((x) => ({ s: x.s, n: x.n, h: Math.round(x.h * 10) / 10 })).sort((a, b) => b.n - a.n).slice(0, 8),
+    wk: { cur: { n: cur.n, usd: r2(cur.usd) }, prev: { n: prev.n, usd: r2(prev.usd) }, g: Math.round(g * 100) },
+    mo: { usd: r2(mo), proj: r2(mo / el * dim), d: Math.floor(el), dim }, fr: Math.round(fr * 100), cut, rec };
+}
+
+module.exports = { KINDS, CAP_MIN, CAP_MAX, CAP_DEF, SPEND_STEPS, TYPES, typeOf, engOf, usage, spendStep, CAP_WARN, TL_DAYS, TL_MAX, DAILY_H, idOf, label, tokOf, ours, capOf, normCap, paused, addTotal, backfill,
   liveRow, byAgent, isLive, usersView, timeline, pushText, dailyDue, dailySum, watchFor, capWarn };

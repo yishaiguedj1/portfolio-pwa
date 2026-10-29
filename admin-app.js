@@ -1421,7 +1421,7 @@ async function needLive(fresh) {
 }
 async function needAct(fresh) {
   const r = await api('adminAct', fresh ? { fresh: true } : {});
-  if (r.ok) { D.act = r; if (['act', 'users', 'user', 'ov'].includes(cur)) paint(); }
+  if (r.ok) { D.act = r; if (['act', 'people', 'user', 'use', 'ov'].includes(cur)) paint(); }
   return r;
 }
 const userOf = (u) => ((D.act && D.act.us && D.act.us.rows) || []).find((r) => r.u === u) || null;
@@ -1470,7 +1470,7 @@ function liveSection() {
   }
   const us = D.act && D.act.us;
   if (us) out.push(grp(t('admOvUsersG')), list(row({ c: 'purple', ic: '👥', t: fmt(t('admOvUsers'), { n: us.active.d1 }),
-    s: fmt(t('admOvUsersS'), { w: us.active.d7, u: usd(us.sum.mo) }), v: L.filter((x) => !x.me).length ? '●' : '', on: () => go('users') })));
+    s: fmt(t('admOvUsersS'), { w: us.active.d7, u: usd(us.sum.mo) }), v: L.filter((x) => !x.me).length ? '●' : '', on: () => go('people') })));
   return out;
 }
 page('now', { tab: 'ov', parent: 'ov', title: () => t('admLiveT'), render(p) {
@@ -1548,7 +1548,9 @@ page('act', { tab: 'act', title: () => t('admTabAct'), render(p) {
   const A2 = D.act;
   if (!A2) { needAct(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
   const us = A2.us;
-  p.append(list(row({ c: 'purple', ic: '👥', t: t('admActUsers'), s: fmt(t('admActUsersS'), { d: us.active.d1, w: us.active.d7 }), v: us.n, on: () => go('users') })));
+  const U = A2.use;
+  p.append(list(row({ c: 'purple', ic: '👥', t: t('admActUsers'), s: fmt(t('admActUsersS'), { d: us.active.d1, w: us.active.d7 }), v: us.n, on: () => go('people') }),
+    U ? row({ c: U.rec.length ? 'orange' : 'green', ic: '▤', t: t('admUseT'), s: U.rec.length ? fmt(t('admUseRecN'), { n: U.rec.length }) : fmt(t('admUseS'), { n: U.n, u: usd(U.usd) }), v: U.rec.length ? '●' : '', on: () => go('use') }) : null));
   p.append(chips([['all', t('admActAll')], ['tr', t('admActTr')], ['adm', t('admActAdm')], ['nu', t('admActNew')], ['err', t('admActErr')]], D.actF, (k) => { D.actF = k; paint(); }));
   const sel = h('select', 'adm-sel'); sel.append(new Option(t('admActAllU'), ''));
   for (const r of us.rows) sel.append(new Option(r.me ? t('admLiveMe') : r.name, r.u));
@@ -1559,21 +1561,22 @@ page('act', { tab: 'act', title: () => t('admTabAct'), render(p) {
   else p.append(...timelineEls(evs));
   p.append(h('p', 'adm-foot', t('admActFoot')));
 } });
-page('users', { tab: 'act', parent: 'act', title: () => t('admUsT'), render(p) {
+page('people', { tab: 'act', parent: 'act', title: () => t('admUsT'), render(p) {
   const A2 = D.act;
   if (!A2) { needAct(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
   const P = D.usP, val = (r) => (P === 'all' ? r.all : r.d30);
   const rows = A2.us.rows.slice().sort((a, b) => (b.live - a.live) || (val(b).usd - val(a).usd) || (b.ls - a.ls));
   const tot = rows.reduce((a, r) => a + val(r).usd, 0);
   p.append(chips([['d30', t('admUs30')], ['all', t('admUsAll')]], P, (k) => { D.usP = k; paint(); }));
-  if (!rows.length) { p.append(list(row({ c: 'gray', ic: '👥', t: t('admUsNone') }))); return; }
+  if (!rows.length) { p.append(list(row({ c: 'gray', ic: '👥', t: t('admPpNone') }))); return; }
   p.append(grp(t('admUsSum'), null), list(...rows.map((r) => { const v = val(r);
     return row({ c: r.me ? 'blue' : avC(r.u), ic: r.me ? '✓' : avI(r.name), t: r.me ? t('admLiveMe') : r.name,
       s: [r.live ? '● ' + t('admUsNow') : '', r.ps ? t('admUsPaused') : '', fmt(t('admUsRowS'), { n: v.n, h: hrsTxt(v.sec), tok: fmt(t('admTokN'), { n: tokTxt(v.tok) }) }), r.live ? '' : ago(r.ls)].filter(Boolean).join(' · '),
       v: usd(v.usd), tr: tot ? Math.round(v.usd / tot * 100) + '%' : '', on: () => { D.userU = r.u; go('user'); } }); })));
-  p.append(h('p', 'adm-dt', fmt(t('admUsTot'), { u: usd(tot) })), h('p', 'adm-foot', t('admUsFoot')));
+  p.append(h('p', 'adm-dt', fmt(t('admUsTot'), { u: usd(tot) })));
+  p.append(list(row({ c: 'orange', ic: '⤒', t: t('admUDef'), s: t('admUDefS'), v: usd(A2.capDef, 0), on: defDlg })), h('p', 'adm-foot', t('admPpFoot')));
 } });
-page('user', { tab: 'act', parent: 'users', title: () => { const r = userOf(D.userU); return r ? (r.me ? t('admLiveMe') : r.name) : t('admUsT'); }, render(p) {
+page('user', { tab: 'act', parent: 'people', title: () => { const r = userOf(D.userU); return r ? (r.me ? t('admLiveMe') : r.name) : t('admUsT'); }, render(p) {
   const r = userOf(D.userU);
   if (!r) { if (!D.act) needAct(); p.append(h('p', 'adm-dt', D.act ? t('admLiveGone') : t('admLoading'))); return; }
   if (r.em) { const dt = h('p', 'adm-dt'); dt.append(h('bdi', null, r.em)); p.append(dt); }
@@ -1591,6 +1594,69 @@ page('user', { tab: 'act', parent: 'users', title: () => { const r = userOf(D.us
   const evs = ((D.act && D.act.tl) || []).filter((e) => e.u === r.u).slice(0, 40);
   if (evs.length) p.append(...timelineEls(evs));
 } });
+/* ---- שימוש ומשאבים (29/10/2026, בקשת המשתמש: "להעריך את כמות השימוש ואת הצורך בשדרוג המשאבים") — UM.usage בשרתון:
+   המלצות, 30 יום לפי יום ולפי שעה, לפי סוג עבודה ומנוע, המתנה בתור, ריצה, שיא במקביל, ניצולת, כשלים ושרתים ---- */
+const TY = { vid: 'admTyVid', url: 'admTyUrl', sub: 'admTySub', ka: 'admTyKa', ph: 'admTyPh', rr: 'admTyRr', ai: 'admTyAi', dx: 'admTyDx', oth: 'admTyOth' };
+const TY_C = { vid: 'studio', url: 'blue', sub: 'purple', ka: 'orange', ph: 'green', rr: 'gray', ai: 'academy', dx: 'gray', oth: 'gray' };
+const tyTxt = (k) => t(TY[k] || TY.oth);
+const ENG = { api: 'admEkApi', ry: 'admEkRy', cp: 'admEkCp', rt: 'admEkRt' };
+const REC = { wait: ['orange', '⏳', 'admRecWait'], util: ['orange', '⚙', 'admRecUtil'], fail: ['red', '!', 'admRecFail'], grow: ['blue', '↗', 'admRecGrow'], cut: ['gray', '…', 'admRecCut'] };
+/* עמודות: vals = מספרים; hi = האינדקס המודגש (היום / השעה הנוכחית) */
+function barsSvg(vals, hi) {
+  const NS = 'http://www.w3.org/2000/svg', W = 300, H = 64, n = vals.length, top = Math.max(1e-9, ...vals), bw = W / n;
+  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('preserveAspectRatio', 'none'); svg.setAttribute('class', 'adm-bars');
+  vals.forEach((v, i) => {
+    const r = document.createElementNS(NS, 'rect'), hh = v > 0 ? Math.max(2, (v / top) * (H - 2)) : 1;
+    r.setAttribute('x', ((lang === 'he' ? n - 1 - i : i) * bw + bw * 0.15).toFixed(1)); r.setAttribute('width', (bw * 0.7).toFixed(1));
+    r.setAttribute('y', (H - hh).toFixed(1)); r.setAttribute('height', hh.toFixed(1)); r.setAttribute('class', i === hi ? 'h' : v > 0 ? 'a' : 'z');
+    svg.append(r);
+  });
+  return svg;
+}
+const minTxt = (m) => (m >= 90 ? fmt(t('admHrs'), { n: (m / 60).toFixed(1) }) : fmt(t('admMins'), { n: Math.round(m || 0) }));
+const secTxt = (s) => (s >= 90 ? minTxt(s / 60) : fmt(t('admSecs'), { n: Math.round(s || 0) }));
+page('use', { tab: 'act', parent: 'act', title: () => t('admUseT'), render(p) {
+  const U = D.act && D.act.use;
+  if (!U) { needAct(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  // מה לעשות: ההמלצות (או "מספיק")
+  p.append(list(...(U.rec.length ? U.rec.map((r) => { const R = REC[r.k] || REC.cut; return row({ c: R[0], ic: R[1], t: fmt(t(R[2]), { v: r.v }), s: t(R[2] + 'S') }); })
+    : [row({ c: 'green', ic: '✓', t: t('admRecOk'), s: t('admRecOkS') })])));
+  const dv = U.days.map((d) => d.n), du = U.days.map((d) => d.usd);
+  p.append(tiles(tileEl('purple', t('admUseJobs'), String(U.n), fmt(t('admUseWk'), { n: U.wk.cur.n, g: (U.wk.g > 0 ? '+' : '') + U.wk.g + '%' }), '', dv),
+    tileEl('orange', t('admUseCost'), usd(U.usd), fmt(t('admUseProj'), { u: usd(U.mo.proj, 0) }), '', du),
+    tileEl('blue', t('admUseVid'), hrsTxt(U.sec), fmt(t('admUseOkF'), { ok: U.ok, f: U.f }), U.fr > 15 ? 'neg' : '', U.days.map((d) => d.sec)),
+    tileEl('green', t('admUsePeak'), String(U.peak.c), fmt(t('admUseUtil'), { p: Math.round(U.peak.util * 100) }), '', U.days.map((d) => d.pk))));
+  // 30 יום — עמודות לפי יום (עבודות / עלות)
+  const M = D.useM || 'n', vals = U.days.map((d) => (M === 'usd' ? d.usd : M === 'sec' ? d.sec : d.n));
+  p.append(grp(t('admUseDays')), chips([['n', t('admUseJobs')], ['usd', t('admUseCost')], ['sec', t('admUseVid')]], M, (k) => { D.useM = k; paint(); }));
+  const ch = h('div', 'adm-chart card adm-card'); ch.append(barsSvg(vals, vals.length - 1));
+  const lg = h('div', 'adm-axis'); lg.append(h('span', null, day(Date.now() - 29 * 864e5)), h('span', null, t('admToday'))); ch.append(lg); p.append(ch);
+  // שעות העומס (שעון ישראל)
+  const hrNow = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', hour: '2-digit', hourCycle: 'h23' }).format(new Date())) % 24;
+  const pkH = U.hours.indexOf(Math.max(...U.hours));
+  p.append(grp(t('admUseHours')));
+  const hc = h('div', 'adm-chart card adm-card'); hc.append(barsSvg(U.hours, hrNow));
+  const hl = h('div', 'adm-axis'); hl.append(h('span', null, '00:00'), h('span', null, U.n ? fmt(t('admUsePkH'), { h: String(pkH).padStart(2, '0') + ':00' }) : ''), h('span', null, '23:00')); hc.append(hl); p.append(hc);
+  // לפי סוג עבודה
+  if (U.types.length) p.append(grp(t('admUseTypes')), list(...U.types.map((x) => row({ c: TY_C[x.k] || 'gray', ic: tyTxt(x.k).slice(0, 1), t: tyTxt(x.k),
+    s: [fmt(t('admUseTyS'), { n: x.n, ok: x.ok, f: x.f }), x.sec ? hrsTxt(x.sec) : '', x.run ? fmt(t('admUseRun'), { m: minTxt(x.run) }) : '', x.cpm ? fmt(t('admUseCpm'), { u: '$' + x.cpm }) : ''].filter(Boolean).join(' · '),
+    v: usd(x.usd), tr: U.n ? Math.round(x.n / U.n * 100) + '%' : '' }))));
+  // עומס ומשאבים
+  p.append(grp(t('admUseLoad')), list(
+    row({ c: U.wait.p90 > 600 ? 'orange' : 'green', ic: '⏳', t: t('admUseWait'), s: fmt(t('admUseWaitS'), { a: secTxt(U.wait.p50), b: secTxt(U.wait.p90), m: secTxt(U.wait.max) }), v: U.wait.n ? secTxt(U.wait.p50) : '—' }),
+    row({ c: 'blue', ic: '▶', t: t('admUseRunT'), s: fmt(t('admUseRunS'), { a: minTxt(U.run.p50), b: minTxt(U.run.p90) }), v: U.run.p50 ? minTxt(U.run.p50) : '—' }),
+    row({ c: U.peak.util > 0.5 ? 'orange' : 'green', ic: '⚙', t: t('admUseBusy'), s: fmt(t('admUseBusyS'), { h: U.peak.busy, c: U.peak.c, d: U.peak.at ? day(U.peak.at) : '—' }), v: Math.round(U.peak.util * 100) + '%', meter: [U.peak.util * 100, U.peak.util > 0.5 ? 'w' : ''] }),
+    row({ c: 'gray', ic: '◷', t: t('admUseNow'), s: fmt(t('admUseNowS'), { n: U.live }), v: U.live || '—' })));
+  // מנוע: המפתח של המערכת (עולה לנו) מול המנוי של המשתמש / העתק־הדבק
+  const en = Object.entries(U.eng).filter(([, n]) => n);
+  if (en.length) p.append(grp(t('admUseEng')), list(...en.map(([k, n]) => row({ c: k === 'api' ? 'orange' : 'gray', ic: k === 'api' ? '$' : '·', t: t(ENG[k]), v: n, tr: Math.round(n / U.n * 100) + '%' }))));
+  // החודש
+  p.append(grp(t('admUseMo')), list(row({ c: 'orange', ic: '$', t: t('admUseMoT'), s: fmt(t('admUseMoS'), { d: U.mo.d, n: U.mo.dim, u: usd(U.mo.proj) }), v: usd(U.mo.usd), meter: [U.mo.d / U.mo.dim * 100, ''] }),
+    row({ c: 'blue', ic: '↗', t: t('admUseTrend'), s: fmt(t('admUseTrendS'), { a: U.wk.cur.n, b: U.wk.prev.n, u: usd(U.wk.cur.usd), v: usd(U.wk.prev.usd) }), v: (U.wk.g > 0 ? '+' : '') + U.wk.g + '%' })));
+  if (U.errs.length) p.append(grp(t('admUseErrs')), list(...U.errs.map((e) => row({ c: 'red', ic: '!', t: e.e, v: e.n }))));
+  if (U.srv.length) p.append(grp(t('admUseSrv')), list(...U.srv.map((x) => row({ c: 'gray', ic: '▣', t: x.s, s: fmt(t('admUseSrvS'), { h: x.h }), v: x.n }))));
+  p.append(h('p', 'adm-foot', t('admUseFoot')));
+} });
 async function userSet(r, o) {
   const j = await api('adminUserSet', Object.assign({ u: r.u }, o));
   flash(j.ok ? t('admSaved') : t('admErr'));
@@ -1602,6 +1668,18 @@ function capDlg(r) {
     const v = inp.value.trim();
     if (v && !(Number(v) >= 1 && Number(v) <= 10000)) { flash(t('admUBadCap')); return; }
     userSet(r, { cap: v ? Math.round(Number(v)) : 0 });
+  }, { body: inp, ok: t('admUCapSave') });
+  setTimeout(() => { try { inp.focus(); } catch (e) {} }, 50);
+}
+/* תקרת ברירת המחדל לכל המשתמשים (sysCfg.ucap). ריק = הגבוהה ($10,000) — "שלא יוגבלו פתאום" */
+function defDlg() {
+  const inp = h('input', 'adm-inp'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.min = '1'; inp.max = '10000'; inp.value = String(D.act.capDef || ''); inp.placeholder = '10000';
+  askConfirm(t('admUDefQ'), async () => {
+    const v = inp.value.trim();
+    if (v && !(Number(v) >= 1 && Number(v) <= 10000)) { flash(t('admUBadCap')); return; }
+    const j = await api('adminUserSet', { def: v ? Math.round(Number(v)) : 0 });
+    flash(j.ok ? t('admSaved') : t('admErr'));
+    if (j.ok) { D.log = null; await needAct(true); }
   }, { body: inp, ok: t('admUCapSave') });
   setTimeout(() => { try { inp.focus(); } catch (e) {} }, 50);
 }
