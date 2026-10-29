@@ -102,6 +102,7 @@ export function bgPlan(size, ps, urls) {
 export async function bgUpload(o, env) {
   const id = bgIdOf(o.job);
   if (!id) return { fallback: 'bad_job' };
+  if (o.signal && o.signal.aborted) return { aborted: true };   // 29/10/2026: הדף חזר להיות מוצג לפני שהתחלנו — בלי r2bg ובלי רישום
   let reg;
   try { reg = await env.reg(); } catch (e) { reg = null; }
   if (!reg || !reg.backgroundFetch) return { unsupported: true };
