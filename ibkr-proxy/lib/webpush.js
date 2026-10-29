@@ -15,7 +15,7 @@ const SUB_MAX = 5;                 // מכשירים לאדם
 const TTL = 24 * 3600;             // שעות שההתראה מחכה לטלפון כבוי
 const ADMIN_URL = 'https://admin.thesnowball.app/';   // 20/10/2026: הכתובת של מרכז הניהול (מאחורי Cloudflare Access)
 const SUBJECT = 'https://yishaiguedj1.github.io/portfolio-pwa/';   // VAPID "sub" — כתובת ולא מייל (פרטיות)
-const KINDS = ['done', 'fail', 'ask', 'gate', 'cp', 'srv_down', 'srv_up', 'srv_auth', 'srv_new', 'site_down', 'site_up', 'major', 'bk_fail', 'ready_fail', 'lab_week', 'fund_audit', 'svc_quota', 'fs_hot'];   // 26/10/2026: svc_quota = שירות חיצוני הגיע ל־70% מהמכסה החינמית / המיילים לא נשלחים (למנהל)   // 25/10/2026: fund_audit = בקרת הדיוק הלילית של מנתח החברות מצאה שמשהו נשבר (למנהל)   // 20/10/2026 (מ׳7): lab_week = הסיכום השבועי של המעבדה (למנהל)   // 15/10/2026: srv_new = שרת שהתחבר בפעם הראשונה (גם מהזמנה אוטומטית)   // 15/10/2026: למנהל — הגיבוי נכשל / בדיקת המוכנות נכשלה (נפתח במרכז הניהול)   // 14/10/2026: major = תקלה רחבה (studioinc majorSync)   // שלב 5: הכתובות עצמן (lib/sitewatch.js)   // סבב 10: cp = העתק־הדבק מחכה לך
+const KINDS = ['done', 'fail', 'ask', 'gate', 'cp', 'srv_down', 'srv_up', 'srv_auth', 'srv_new', 'site_down', 'site_up', 'major', 'bk_fail', 'ready_fail', 'lab_week', 'fund_audit', 'svc_quota', 'fs_hot'].concat(require('./usermon').KINDS);   // 29/10/2026: ניטור משתמשים — עבודה של משתמש אחר בווילון, סוף, "אין אחרים", 80% מהתקרה, סיכום יומי (למנהל)   // 26/10/2026: svc_quota = שירות חיצוני הגיע ל־70% מהמכסה החינמית / המיילים לא נשלחים (למנהל)   // 25/10/2026: fund_audit = בקרת הדיוק הלילית של מנתח החברות מצאה שמשהו נשבר (למנהל)   // 20/10/2026 (מ׳7): lab_week = הסיכום השבועי של המעבדה (למנהל)   // 15/10/2026: srv_new = שרת שהתחבר בפעם הראשונה (גם מהזמנה אוטומטית)   // 15/10/2026: למנהל — הגיבוי נכשל / בדיקת המוכנות נכשלה (נפתח במרכז הניהול)   // 14/10/2026: major = תקלה רחבה (studioinc majorSync)   // שלב 5: הכתובות עצמן (lib/sitewatch.js)   // סבב 10: cp = העתק־הדבק מחכה לך
 const TEXT = {
   he: { done: ['התרגום מוכן ✓', 'הכתוביות והסרטון מחכים בסטודיו'], fail: ['העבודה נעצרה', 'פתחו את הסטודיו לפרטים'],
     ask: ['שאלה מ־Claude', 'העבודה מחכה לתשובה שלך'], gate: ['צריך את האישור שלך', 'העבודה מחכה לאישור'],
@@ -169,6 +169,17 @@ function fsHotText(x, lang) {
 function message(kind, jobId, lang, x, now) {
   // 28/10/2026: קריאות חריגות ל־Firestore (lib/fsmeter.js) — מי ובאיזה קצב, הרבה לפני שהמכסה נגמרת; נפתח בניטור השרתים
   if (kind === 'fs_hot') { const m = fsHotText(x, lang); return m ? { t: m[0], b: m[1], k: kind, j: '', u: ADMIN_URL + '#mon' } : null; }
+  // 29/10/2026: ניטור משתמשים (lib/usermon.js) — למנהל בלבד. עבודה של משתמש אחר = תג משלה (watch-<עבודה>), נפתחת במרכז הניהול
+  if (require('./usermon').KINDS.includes(kind)) {
+    const t = require('./usermon').pushText(kind, x || {}, lang);
+    if (!t) return null;
+    const j = /^j[A-Za-z0-9_-]{20}$/.test(String(jobId || '')) ? jobId : '';
+    if ((kind === 'watch' || kind === 'watch_end') && !j) return null;
+    const m = { t: t[0], b: t[1], k: kind, j, u: ADMIN_URL + (j ? '#live=' + j : kind === 'cap80' || kind === 'spend' ? '#people' : kind === 'daily' ? '#use' : '#ov') };
+    if (Number.isFinite(now)) m.at = now;
+    if (kind === 'watch') m.p = Math.round(Math.max(0, Math.min(1, Number(x && x.p) || 0)) * 1000) / 1000;
+    return m;
+  }
   // 27/10/2026: התראת מחיר מגרף הנרות (lib/pxalert.js) — הטקסט נבנה מההתראה עצמה; נפתח בגרף של המניה (#chart=)
   if (kind === 'px') { const m = x && x.a ? require('./pxalert').text(x.a, x.p, lang) : null; return m ? { t: m.t, b: m.b, k: 'px', j: '', i: m.i, u: m.u } : null; }
   const t = kind === 'stage' ? stageText(x, lang) : (TEXT[lang] || TEXT.he)[kind];
@@ -193,7 +204,7 @@ async function sendAll(deps, v, subs, kind, jobId, now, x) {
     if (!msg) return { s, keep: true, ok: false };
     try {
       // התקדמות: חצי שעה מספיקה (מצב ישן לא שימושי), ובלי להעיר את הטלפון בדחיפות
-      const r = await f(s.e, { method: 'POST', headers: { TTL: String(kind === 'stage' ? 1800 : kind === 'px' ? 3600 : TTL), Urgency: kind === 'done' || kind === 'stage' ? 'normal' : 'high',
+      const r = await f(s.e, { method: 'POST', headers: { TTL: String(kind === 'stage' || kind === 'watch' ? 1800 : kind === 'px' ? 3600 : TTL), Urgency: kind === 'done' || kind === 'stage' || kind === 'watch' || kind === 'daily' ? 'normal' : 'high',
         'Content-Encoding': 'aes128gcm', 'Content-Type': 'application/octet-stream', Authorization: vapidAuth(v, s.e, now) },
       body: encrypt(s, JSON.stringify(msg)), redirect: 'manual', signal: AbortSignal.timeout(5000) });
       if (r.status === 404 || r.status === 410) return { s, keep: false, ok: false };      // המנוי בוטל בטלפון
