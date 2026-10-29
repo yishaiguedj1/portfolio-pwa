@@ -9489,7 +9489,8 @@ function tabShouldRender(name) {
   tabDirty[name] = true;
   return false;
 }
-const TAB_ORDER = ['overview', 'stocks', 'trades', 'wishlist', 'deposits', 'pension', 'settings', 'advanced', 'backup']; // v287: advanced = עמוד משנה של ההגדרות; 14/10/2026: backup (גיבוי ל־Google Drive) — גם
+/* 29/10/2026 (בקשת המשתמש): הסדר מימין לשמאל (ב־RTL) — הגדרות, מעקב, מניות, הסקירה (באמצע), עסקאות, הפקדות, פנסיה; כמו בחוגה */
+const TAB_ORDER = ['settings', 'wishlist', 'stocks', 'overview', 'trades', 'deposits', 'pension', 'advanced', 'backup']; // v287: advanced = עמוד משנה של ההגדרות; 14/10/2026: backup (גיבוי ל־Google Drive) — גם
 function tabRenderer(name) {
   return { overview: renderOverview, stocks: renderStocks, trades: renderTrades, wishlist: renderWishlist, deposits: renderDeposits, pension: renderPension, settings: renderSettingsLive, advanced: renderSettingsLive, backup: pfbkPaint }[name] || null;
 }
@@ -9498,14 +9499,14 @@ function tabRenderer(name) {
    pos — איזה פריט במרכז (שבר = באמצע תנועה), ו"פעילות" שעוברת בהצלבה מ־from ל־to לפי p (הבועה הישנה מתכווצת והחדשה גדלה יחד).
    במעבר עמודים החוגה זזה באותו קפיץ ובאותו זמן התחלה של הקובייה (tabCubeRun → dialAnimate, WAAPI — רץ גם כשהעמוד החדש נצבע),
    ובגרירה של העמוד — צמודה לאצבע (dialCube). גרירה של החוגה עצמה גוללת אותה בחופשיות (בלי לשנות לשונית); לחיצה = מעבר,
-   ואם לא נלחץ כלום היא חוזרת לפעיל. "הגדרות" — פריט אחרון שמופיע רק כשהעמוד פתוח (השקיפות שלו = הפעילות שלו). */
-const DIAL_TABS = ['overview', 'stocks', 'trades', 'wishlist', 'deposits', 'pension', 'settings'];
-const DIAL_SET = 6, DIAL_S0 = 0.68, DIAL_DROP = 2.4;
+   ואם לא נלחץ כלום היא חוזרת לפעיל. "הגדרות" — לשונית קבועה, הימנית ביותר (בקשת המשתמש); עמודי המשנה שלה מסמנים אותה. */
+const DIAL_TABS = TAB_ORDER.slice(0, 7);   // index 0 = הימני ביותר ב־RTL
+const DIAL_SET = 0, DIAL_S0 = 0.68, DIAL_DROP = 2.4;
 const _dial = { st: null, run: null, drag: null, ret: 0, noClick: 0, els: null };
 function dialIndex(name) { const i = DIAL_TABS.indexOf(name); return i >= 0 ? i : (NAV_SUBS.indexOf(name) >= 0 ? DIAL_SET : 0); }
 function dialStep(vw) { return Math.max(66, Math.min(84, (vw || 400) / 5.4)); }   // המרחק בין פריטים
 function dialRest(i) { return { pos: i, from: i, to: i, p: 0 }; }
-function dialMax() { return dialIndex(currentTabName()) === DIAL_SET ? DIAL_SET : DIAL_SET - 1; }
+function dialMax() { return DIAL_TABS.length - 1; }
 /* טהורה (נבדקת): הערכים של כל פריט במצב st — מיקום על הקשת, גודל העיגול, ושקיפות הסמל / הבועה / הכיתוב */
 function dialFrame(st, n, vw, rtl) {
   const S = dialStep(vw), out = [], c01 = (x) => Math.max(0, Math.min(1, x)), f = (x) => Math.round(x * 100) / 100 || 0;
@@ -9513,8 +9514,7 @@ function dialFrame(st, n, vw, rtl) {
     const d = i - st.pos, ad = Math.abs(d);
     const a = c01(st.from === st.to ? (i === st.from ? 1 : 0) : (i === st.from ? 1 - st.p : 0) + (i === st.to ? st.p : 0));
     const e = a * a * (3 - 2 * a);                         // smoothstep — ההצלבה רכה בשני הקצוות
-    let o = c01((2.75 - ad) / 0.9);                        // הקצוות נמוגים
-    if (i === DIAL_SET) o *= e;
+    const o = c01((2.75 - ad) / 0.9);                      // הקצוות נמוגים
     const x = (rtl ? -d : d) * S, y = DIAL_DROP * d * d - 4 * e, sc = 1 - 0.045 * Math.min(ad, 3);
     out.push({
       it: 'translate3d(' + f(x) + 'px, ' + f(y) + 'px, 0) scale(' + f(sc) + ')', o: f(o),
@@ -14371,14 +14371,13 @@ function barHeightVar() {
    פס גלילה אופקי, טאבי הרשימות וקצה המסך (מחוות "חזור") — לא נחשבים.
    14/10/2026 (בקשת המשתמש): העמוד מסתובב בקובייה צמוד לאצבע; **ההחלקה הקצרה בין רשימות המעקב בוטלה** —
    בכל הטאבים החלקה = עמוד, ובין הרשימות עוברים בלחיצה על הצ'יפים. */
-const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'settings' && t !== 'advanced' && t !== 'backup');
+// 29/10/2026: ההגדרות = עמוד רגיל, הימני ביותר
+const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'advanced' && t !== 'backup');
 function pageSwipeTarget(cur, next) { // next=true → העמוד הבא (שמאלה ב־RTL)
   if (cur === 'advanced' || cur === 'backup') return next ? null : 'settings'; // v287: עמוד משנה — החלקה אחורה חוזרת להגדרות (כמו באייפון)
-  if (cur === 'settings') return next ? null : PAGE_SWIPE_MAIN[PAGE_SWIPE_MAIN.length - 1];
   const i = PAGE_SWIPE_MAIN.indexOf(cur);
   if (i < 0) return null;
-  if (next) return i === PAGE_SWIPE_MAIN.length - 1 ? 'settings' : PAGE_SWIPE_MAIN[i + 1];
-  return i === 0 ? null : PAGE_SWIPE_MAIN[i - 1];
+  return (next ? PAGE_SWIPE_MAIN[i + 1] : PAGE_SWIPE_MAIN[i - 1]) || null;
 }
 function pageSwipeBlocked(tg, root) {
   if (!tg || !tg.closest) return true;

@@ -13,28 +13,28 @@ const line = (re) => { const m = app.match(re); assert(m, String(re)); return m[
 
 const ctx = { Math, JSON, NAV_SUBS: ['advanced', 'backup'], CUBE_RUB: 0.07 };
 vm.createContext(ctx);
-vm.runInContext([line(/const DIAL_TABS = [^\n]*/), line(/const DIAL_SET = [^\n]*/), fn('dialIndex'), fn('dialStep'), fn('dialRest'), fn('dialFrame'), fn('dialCubeState'), fn('dialRubber')].join('\n')
+vm.runInContext([line(/const TAB_ORDER = [^\n]*/), line(/const DIAL_TABS = [^\n]*/), line(/const DIAL_SET = [^\n]*/), fn('dialIndex'), fn('dialStep'), fn('dialRest'), fn('dialFrame'), fn('dialCubeState'), fn('dialRubber')].join('\n')
   + '\nthis.api = { DIAL_TABS, DIAL_SET, dialIndex, dialStep, dialRest, dialFrame, dialCubeState, dialRubber };', ctx);
 const A = ctx.api;
 const num = (s, i) => +String(s).replace('translate3d', '').match(/-?[\d.]+/g)[i];
 
 // מספור
-ok(A.dialIndex('overview') === 0 && A.dialIndex('pension') === 5 && A.dialIndex('settings') === 6 && A.dialIndex('advanced') === 6 && A.dialIndex('backup') === 6, 'כל לשונית במקומה; עמודי המשנה של ההגדרות = "הגדרות"');
+ok(A.DIAL_TABS.join() === 'settings,wishlist,stocks,overview,trades,deposits,pension', 'הסדר מימין לשמאל: הגדרות, מעקב, מניות, סקירה (באמצע), עסקאות, הפקדות, פנסיה');
+ok(A.dialIndex('settings') === 0 && A.dialIndex('overview') === 3 && A.dialIndex('advanced') === 0 && A.dialIndex('backup') === 0, 'עמודי המשנה של ההגדרות = "הגדרות"');
 ok([...html.matchAll(/<button class="tab[^"]*" data-tab="(\w+)"/g)].map((m) => m[1]).join() === A.DIAL_TABS.join(), 'סדר הכפתורים ב־index.html = DIAL_TABS');
 
 // מנוחה: הפעיל במרכז, גבוה ומוגדל; השכנים על הקשת
-const f = A.dialFrame(A.dialRest(1), 7, 412, true);
-ok(num(f[1].it, 0) === 0 && num(f[1].it, 1) < 0 && f[1].glow === 1 && f[1].bub === 1 && f[1].ico === 0 && f[1].lbl === 0, 'הפעיל במרכז: בועה עם כיתוב, בלי סמל ובלי כיתוב מתחת');
-ok(/scale\(1\)/.test(f[1].disc) && /scale\(0\.68\)/.test(f[0].disc), 'הבועה בגודל מלא (חדה), השאר מוקטנים');
-ok(num(f[0].it, 0) > 0 && num(f[2].it, 0) < 0, 'RTL: הקודם מימין, הבא משמאל');
-ok(num(f[3].it, 1) > num(f[2].it, 1) && num(f[2].it, 1) > 0, 'קשת: ככל שרחוק מהמרכז — נמוך יותר');
-ok(f[6].o === 0 && f[5].o < 1, '"הגדרות" מוסתרת כשאינה פעילה; הקצוות נמוגים');
-ok(num(A.dialFrame(A.dialRest(1), 7, 412, false)[2].it, 0) > 0, 'LTR: הבא מימין');
+const f = A.dialFrame(A.dialRest(3), 7, 412, true);
+ok(num(f[3].it, 0) === 0 && num(f[3].it, 1) < 0 && f[3].glow === 1 && f[3].bub === 1 && f[3].ico === 0 && f[3].lbl === 0, 'הפעיל במרכז: בועה עם כיתוב, בלי סמל ובלי כיתוב מתחת');
+ok(/scale\(1\)/.test(f[3].disc) && /scale\(0\.68\)/.test(f[2].disc), 'הבועה בגודל מלא (חדה), השאר מוקטנים');
+ok(num(f[2].it, 0) > 0 && num(f[4].it, 0) < 0, 'RTL: מניות מימין לסקירה, עסקאות משמאל');
+ok(num(f[5].it, 1) > num(f[4].it, 1) && num(f[4].it, 1) > 0, 'קשת: ככל שרחוק מהמרכז — נמוך יותר');
+ok(f[0].o === 0 && f[6].o === 0 && f[1].o > 0 && f[1].o < 1, 'הקצוות נמוגים — ההגדרות והפנסיה מחוץ למסך כשהסקירה במרכז (כמו בסרטון: גוררים או מחליקים)');
+ok(num(A.dialFrame(A.dialRest(3), 7, 412, false)[4].it, 0) > 0, 'LTR: הבא מימין');
 
 // הצלבה: באמצע המעבר שתי הבועות חצי־שקופות, והחוגה באמצע הדרך
 const m = A.dialFrame({ pos: 1.5, from: 1, to: 2, p: 0.5 }, 7, 412, true);
 ok(m[1].glow === 0.5 && m[2].glow === 0.5 && num(m[1].it, 0) === -num(m[2].it, 0), 'באמצע: שתי הבועות חצי, סימטריות סביב המרכז');
-ok(A.dialFrame({ pos: 6, from: 5, to: 6, p: 1 }, 7, 412, true)[6].o === 1, '"הגדרות" מופיעה כשהיא נעשית פעילה');
 
 // הקובייה: החוגה = אותה זווית
 const c = { dial: { pos0: 1, from: 1, to: 2, dir: 1 } };

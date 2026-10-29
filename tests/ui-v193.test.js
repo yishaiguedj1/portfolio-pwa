@@ -103,12 +103,12 @@ ok(R("tabShouldRender('stocks')") === true && R("tabDirty.stocks") === false, '�
 ok(R("tabShouldRender('overview')") === false && R("tabDirty.overview") === true, 'טאב מוסתר: לא מצויר, מסומן dirty');
 ok(R("_renderForce = true; const _r = tabShouldRender('overview'); _renderForce = false; _r") === true && R("tabDirty.overview") === false, 'ציור מלא (renderAll({all:true})): גם טאב מוסתר מצויר וה־dirty מתנקה');
 ok(/try \{ renderAllInner\(\); \} finally \{ _renderForce = false; \}/.test(src), 'renderAll מחזיר את הדגל גם אם ציור נכשל');
+R("setTabPageDirection('stocks', 'overview')");   // 29/10/2026: הסדר החדש — המניות מימין לסקירה
+ok(pages['tab-overview'].style.props['--tab-dx'] === '-22px', 'RTL: קדימה = העמוד נכנס משמאל (‎-22px)');
 R("setTabPageDirection('overview', 'stocks')");
-ok(pages['tab-stocks'].style.props['--tab-dx'] === '-22px', 'RTL: קדימה = העמוד נכנס משמאל (‎-22px)');
-R("setTabPageDirection('stocks', 'overview')");
-ok(pages['tab-overview'].style.props['--tab-dx'] === '22px', 'RTL: אחורה = מימין (‎22px)');
+ok(pages['tab-stocks'].style.props['--tab-dx'] === '22px', 'RTL: אחורה = מימין (‎22px)');
 R("setTabPageDirection('stocks', 'stocks')");
-ok(!pages['tab-stocks'].style.props.x && pages['tab-stocks'].style.props['--tab-dx'] === '-22px', 'אותו טאב: הכיוון לא משתנה');
+ok(!pages['tab-stocks'].style.props.x && pages['tab-stocks'].style.props['--tab-dx'] === '22px', 'אותו טאב: הכיוון לא משתנה');
 
 // גרסאות
 const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];
