@@ -42,7 +42,8 @@ const BK = require('../lib/backup');
 const OFF = require('../lib/offsite');   // 11/10/2026: גיבוי אצל ספק שני — ל־Google Drive של המנהל (הגישה דרך הלקוח של הספרייה, בתוך offsite.js)
 const LM = require('../lib/libmgr');   // ס׳9: הניקוי היומי של הספרייה   // ת7: גיבוי יומי ל־R2
 const SR = require('../lib/studior2');   // ת4: הקבצים של הסטודיו ב־R2 (תיקייה R2_<עבודה>, מזהה <תיקייה>_<אקראי>)
-const W = require('../lib/webpush');   // שלב 4 בסטודיו: התראות לטלפון (Web Push עצמאי)
+const W = require('../lib/webpush');
+const UM = require('../lib/usermon');   // 29/10/2026: ניטור משתמשים במרכז הניהול   // שלב 4 בסטודיו: התראות לטלפון (Web Push עצמאי)
 const SLO = require('../lib/studioslo');   // v383: תקציב שגיאות
 const AN = require('../lib/studioanom');   // v385: ציון חריגה 0–10
 const LR = require('../lib/studiolearn');
@@ -79,7 +80,11 @@ const PH_KEY_TTL = 7 * 24 * 3600e3;   // הצריבה יכולה לקרות ימ
 const SERVER_OPS = new Set(['poll', 'beat', 'devLog', 'devMet', 'pq', 'ytCk', 'ptNext', 'ptMark', 'pulse']);   // pulse — התראת השלב בווילון כל דקה (27/10/2026)   // ptNext/ptMark — העונה לעבודות שהטלפון מריץ (25/10/2026)   // ytCk — עוגיות החשבון הייעודי (25/10/2026)   // pq — בדיקות קישור (22/10/2026)   // devLog/devMet — האיסוף המלא (lib/devlog.js)
 /* מצב API: תקציב חודשי לכל משתמש (מפתח ה־API של המערכת). מעבר לזה — התקרה ב־Console של Anthropic */
 const LEARN_MAX = 5000, LEARN_SYNC_MAX = 400;   // מאגר הלמידה: כמה רשומות קוראים, וכמה משלימים בכל פתיחה של לוח הבקרה
-const USER_MONTH = () => Math.max(1, Math.min(10000, Number(process.env.STUDIO_API_USER_MONTH_USD) || 30));
+/* 29/10/2026 (בקשת המשתמש: "שלא יוגבלו פתאום"): ברירת המחדל — sysCfg.ucap שהמנהל קבע במרכז הניהול, ואם אין — התקרה הגבוהה
+   (UM.CAP_DEF). STUDIO_API_USER_MONTH_USD כבר לא בשימוש (היה $30). cfgC מתחמם ב־capWarm לפני כל חישוב תקרה */
+const USER_MONTH = () => { const c = Number(cfgC.v && cfgC.v.ucap); return Number.isInteger(c) && c >= UM.CAP_MIN && c <= UM.CAP_MAX ? c : UM.CAP_DEF; };
+/* 29/10/2026: תקרה לכל משתמש (studioStats.mc, נקבעת במרכז הניהול) — ואם אין, התקרה של המערכת */
+const userMonth = (st) => UM.capOf(st, USER_MONTH());
 const FIRE_TIMEOUT = 20000;
 
 const hits = new Map();
@@ -217,6 +222,19 @@ async function adminLog(deps, user, k, d, now) {
   const e = AO.logEntry(k, d, user && user.email, now);
   if (!e) return;
   try { await patchDoc(deps, 'sysLog', now.toString(36) + crypto.randomBytes(3).toString('hex'), e); } catch (err) {}
+}
+/* 29/10/2026: הסיכום היומי למנהל — פעם ביום אחרי 21:00 בישראל (בודק fsw, כל 5 דק׳). היום שנשלח — בזיכרון וב־sysBackup/cfg.dsd */
+let dailyC = '';
+async function dailyPush(deps, now) {
+  if (!umOn(deps)) return 0;
+  const day = UM.dailyDue(now, dailyC);
+  if (!day) return 0;
+  dailyC = day;
+  const cfg = await readDoc(deps, 'sysBackup', 'cfg').catch(() => null);
+  if (!cfg || !UID_RE.test(String(cfg.uid || '')) || cfg.dsd === day) return 0;
+  await patchDoc(deps, 'sysBackup', 'cfg', { dsd: day }).catch(() => {});
+  const [stats, jobs] = await Promise.all([query(deps, 'studioStats', null, 500).catch(() => []), jobs30(deps, now)]);
+  return notify(deps, cfg.uid, 'daily', '', now, UM.dailySum(stats, jobs || [], now));
 }
 /* 15/10/2026: עבודות התרגום של 30 הימים האחרונים מכל המשתמשים — למרכז הניהול (סוכנים, שרתים, שימוש). טווח + orderBy על created
    (בלי אינדקס מורכב), עד 400, מטמון 5 דק׳. null = Firestore לא ענה */
@@ -886,12 +904,16 @@ async function sysCfg(deps, now) {
   cfgC = { at: now, v: d };
   return d;
 }
+const capWarm = (deps, now) => (umOn(deps) ? sysCfg(deps, now).catch(() => null) : null);   // USER_MONTH — מטמון 30 שנ׳
 const flagOn = async (deps, k, now) => SF.flagOn(await sysCfg(deps, now || Date.now()), k);
 /* עבודה חדשה / התחלה / המשך: בזמן תחזוקה — רק המנהל; מנוע שהדגל שלו כבוי — לא; "המשך" אוטומטי — רק כש־st_auto דולק.
    עבודות שכבר רצות ממשיכות (התחזוקה עוצרת רק מה שמתחיל) */
-async function sysBlock(deps, job, now, auto, adm) {
+async function sysBlock(deps, job, now, auto, adm, uid) {
   const d = await sysCfg(deps, now);
   if (SF.maintOn(d, now) && !adm) return { error: 'maint', msg: SF.normMsg(d.mtMsg), til: +d.mtTil || 0 };
+  // 29/10/2026: המנהל השהה את המשתמש (studioStats.ps) — בלי עבודות חדשות / "המשך"; עבודות שכבר רצות ממשיכות
+  const u = uid || (job && job.uid);
+  if (!adm && umOn(deps) && u && UM.paused(await readStats(deps, u))) return { error: 'user_paused' };
   if (['tr', 'rr', 'ai', 'dx'].includes(job.kind)) {
     const fl = apiJob(job) ? 'st_api' : 'st_routine';
     if (!SF.flagOn(d, fl)) return { error: 'flag_off', fl };
@@ -916,6 +938,87 @@ async function notify(deps, uid, kind, jobId, now, x) {
   } catch (e) { return 0; }
 }
 const PUSH_MEM = new Map(), PUSH_MEM_MS = 5 * 60 * 1000;
+/* ---------- 29/10/2026: ניטור משתמשים (lib/usermon.js) ----------
+   בבדיקות עם fetch מדומה — כבוי (אלא אם deps.userMon), כמו jobMem: קריאות וכתיבות נוספות משנות את הספירות של תרחישים קיימים */
+const umOn = (deps) => (deps.userMon != null ? !!deps.userMon : !deps.fetch);
+/* מי המנהל לצורך ההתראות — בעל הגיבוי (sysBackup/cfg.uid, כמו fs_hot), בזיכרון 10 דק׳ */
+let admC = { at: 0, uid: '', wl: 0 };
+async function adminUid(deps, now) {
+  if (admC.at && now - admC.at < 600e3) return admC.uid;
+  const cfg = await readDoc(deps, 'sysBackup', 'cfg').catch(() => null);
+  admC = { at: now, uid: cfg && UID_RE.test(String(cfg.uid || '')) ? cfg.uid : '', wl: (cfg && +cfg.wl) || 0 };
+  return admC.uid;
+}
+/* השם והמייל של המשתמש (מהטוקן) + "נראה לאחרונה" ב־studioStats — כתיבה אחת ל־6 שעות לכל משתמש במופע; בפעם הראשונה
+   במופע — קריאה אחת, כדי לרשום "הצטרף" (fs) רק כשאין */
+const UM_SEEN = new Map(), UM_SEEN_MS = 6 * 3600e3;
+async function seenUser(deps, user, now) {
+  if (!umOn(deps) || !user || user.mon === true || !UID_RE.test(String(user.uid || ''))) return;
+  const id = UM.idOf(user), key = id.nm + '|' + id.em, hit = UM_SEEN.get(user.uid);
+  if (hit && now - hit.at < UM_SEEN_MS && hit.k === key) return;
+  if (UM_SEEN.size > 2000) UM_SEEN.clear();
+  UM_SEEN.set(user.uid, { at: now, k: key });
+  const o = { nm: id.nm, em: id.em, ls: now, updated: now };
+  if (!hit) { const st = await readStats(deps, user.uid); if (!st.fs) o.fs = now; }
+  await patchDoc(deps, 'studioStats', user.uid, o).catch(() => {});
+}
+/* השם לתצוגה של בעל העבודה — מהזיכרון (30 דק׳), אחרת קריאה אחת */
+const NAME_MEM = new Map();
+async function nameOf(deps, uid, now) {
+  const hit = NAME_MEM.get(uid);
+  if (hit && now - hit.at < 1800e3) return hit.st;
+  const d = await readStats(deps, uid);
+  const st = { id: uid, nm: d.nm || '', em: d.em || '' };
+  if (NAME_MEM.size > 1000) NAME_MEM.clear();
+  NAME_MEM.set(uid, { at: now, st });
+  return st;
+}
+/* עבודה של משתמש אחר רצה — התראה למנהל בווילון (תג משלה, מתעדכנת עם ההתקדמות). x = PG.stageNow (או הדיווח) */
+async function watchPush(deps, job, x, now) {
+  if (!umOn(deps) || !x) return 0;
+  const adm = await adminUid(deps, now);
+  if (!UM.watchFor(job, adm)) return 0;
+  const st = await nameOf(deps, job.uid, now);
+  const r = UM.liveRow(job, st, now);
+  return notify(deps, adm, 'watch', job.id, now, { nm: r.nm, st: x.st || r.st, p: r.p, usd: r.usd, left: r.left });
+}
+/* עבודה של משתמש אחר הסתיימה / נעצרה — התראה למנהל, ואם ביקש ("להודיע לי כשמסתיים") ואין עוד עבודות של אחרים — גם זו */
+async function watchEnd(deps, job, ok, now) {
+  if (!umOn(deps)) return 0;
+  const adm = await adminUid(deps, now);
+  if (!UM.watchFor(job, adm)) return 0;
+  const st = await nameOf(deps, job.uid, now), r = UM.liveRow(job, st, now);
+  let n = await notify(deps, adm, 'watch_end', job.id, now, { nm: r.nm, ok, usd: r.usd, min: r.t0 ? (now - r.t0) / 60000 : 0 });
+  if (admC.wl) {
+    const live = await liveJobs(deps, now, true).catch(() => null);
+    if (live && !live.some((j) => j.uid !== adm && j.id !== job.id)) {
+      admC.wl = 0;
+      await patchDoc(deps, 'sysBackup', 'cfg', { wl: 0 }).catch(() => {});
+      n += await notify(deps, adm, 'watch_clear', '', now);
+    }
+  }
+  return n;
+}
+/* העבודות שרצות עכשיו אצל כל המשתמשים — שאילתה אחת לכל מצב, בזיכרון 10 שנ׳ (המסך "עכשיו" מתרענן כל 10 שנ׳) */
+let liveC = { at: 0, v: null };
+async function liveJobs(deps, now, fresh) {
+  if (!fresh && liveC.v && now - liveC.at < 10e3) return liveC.v;
+  const l = (await Promise.all(['running', 'queued'].map((s) => query(deps, 'studioJobs', { state: s }, 30)))).flat().filter(UM.isLive);
+  liveC = { at: now, v: l };
+  return l;
+}
+/* סכומים מצטברים לכל משתמש (studioStats.tt) — כמו monthSpend: קריאה עם updateTime ו־patchIf */
+async function totalAdd(deps, uid, d, now) {
+  if (!umOn(deps)) return;
+  for (let i = 0; i < 4; i++) {
+    const st = await readDocT(deps, 'studioStats', uid).catch(() => undefined);
+    if (st === undefined) break;
+    const o = { tt: Object.assign(UM.addTotal(st && st.tt, d), st && st.tt && st.tt.bf ? { bf: 1 } : {}), updated: now };
+    const ok = st && st._ut ? await patchIf(deps, 'studioStats', uid, o, st._ut).catch(() => true)
+      : await patchDoc(deps, 'studioStats', uid, o).then(() => true, () => true);
+    if (ok) break;
+  }
+}
 /* 27/10/2026 (בקשת המשתמש: "להתעדכן בכל שלבי התרגום בווילון גם כשהאפליקציה סגורה לגמרי"): השרת שלנו שולח כל דקה
    op:'pulse' עם העבודות שהוא מריץ, והשרתון שולח התראת שלב בכל עשירייה של ההערכה (PG.stageNow = הפס בטלפון).
    בלי קריאות ל־Firestore: העבודה מהדיווח האחרון של העובד (SHADE_JOB — אותו תהליך), ומה שנשלח אחרון (SHADE_PN) — בזיכרון.
@@ -929,7 +1032,8 @@ async function shadePush(deps, job, x, now) {
   if (!x || !PG.shadeDue(SHADE_PN.get(job.id), x)) return 0;
   SHADE_PN.set(job.id, PG.shadeMark(x));
   const sp = job.spec || {};
-  return notify(deps, job.uid, 'stage', job.id, now, { st: x.st, p: x.p, to: Array.isArray(sp.to) ? sp.to.join(',') : String(sp.to || ''), v: sp.ka ? 'ka' : sp.src === 'subs' ? 'sb' : '' });
+  const n = await notify(deps, job.uid, 'stage', job.id, now, { st: x.st, p: x.p, to: Array.isArray(sp.to) ? sp.to.join(',') : String(sp.to || ''), v: sp.ka ? 'ka' : sp.src === 'subs' ? 'sb' : '' });
+  return n + await watchPush(deps, job, x, now).catch(() => 0);   // 29/10/2026: וגם למנהל, כשזו עבודה של משתמש אחר
 }
 async function pulseOp(deps, body, sid, now) {
   const ids = (Array.isArray(body.jobs) ? body.jobs : []).map(String).filter((j) => S.JOB_RE.test(j)).slice(0, 8);
@@ -1021,6 +1125,7 @@ async function watch(req, res, deps) {
       if (cfg && UID_RE.test(String(cfg.uid || ''))) for (const a of al.slice(0, 3)) sent += await notify(deps, cfg.uid, 'fs_hot', '', now, a);
       console.log('[fsw]', JSON.stringify(al));
     }
+    sent += await dailyPush(deps, now).catch(() => 0);   // 29/10/2026: הסיכום היומי למנהל (21:00 בישראל)
     return res.status(200).json({ ok: true, al: al.length, sent });
   }
   /* ת4: בדיקת החיבור ל־R2 (?r2=1) — כותבת קובץ זעיר, קוראת ומוחקת, ובודקת CORS לאתר. בתשובה רק כן/לא וקוד שגיאה */
@@ -1373,8 +1478,9 @@ async function authBack(deps, srv, sid, now) {
 /* ---------- מצב "API של המערכת": תור לשרת שלנו (בלי Routine) ---------- */
 /* העבודה נכנסת לתור; שרת פנוי לוקח אותה ב־poll ומקבל מפתח עבודה חדש (המפתח נוצר רק שם — לא מחכה בתור) */
 async function queueApi(deps, uid, job, now) {
+  await capWarm(deps, now);
   const st = await readStats(deps, uid);
-  const cap = S.jobCap(job.spec, S.monthUsed(st.mu, now), USER_MONTH(), S.usdOf(job.use0));
+  const cap = S.jobCap(job.spec, S.monthUsed(st.mu, now), userMonth(st), S.usdOf(job.use0));
   if (!cap) return { ok: false, error: capWhy(job, st, now) };
   let rx = {};
   if (relayJob(job)) {
@@ -1465,8 +1571,21 @@ async function monthSpend(deps, uid, spent, now) {
     const o = { mu: S.addMonth(st && st.mu, spent, now), updated: now };
     const ok = st && st._ut ? await patchIf(deps, 'studioStats', uid, o, st._ut).catch(() => true)
       : await patchDoc(deps, 'studioStats', uid, o).then(() => true, () => true);
-    if (ok) break;
+    if (ok) { await capCheck(deps, uid, st, o.mu, now).catch(() => {}); break; }
   }
+}
+/* 29/10/2026: משתמש עבר 80% מהתקרה החודשית שלו (פעם בחודש, m80), או חצה סכום עגול החודש ($10, $25, $50…; msx) — התראה למנהל */
+async function capCheck(deps, uid, st, mu, now) {
+  if (!umOn(deps)) return;
+  const used = S.monthUsed(mu, now);
+  const w = UM.capWarn(st, used, USER_MONTH(), now), sp = UM.spendStep(st, used, now);
+  if (!w && !sp) return;
+  const adm = await adminUid(deps, now);
+  if (!adm || adm === uid) return;
+  await patchDoc(deps, 'studioStats', uid, Object.assign(w ? { m80: w.mk } : {}, sp ? { msx: sp.v } : {}));
+  const nm = UM.label(st && st.nm, st && st.em), cap = UM.capOf(st, USER_MONTH());
+  if (sp) await notify(deps, adm, 'spend', '', now, { nm, usd: used, s: sp.s, cap });
+  if (w) await notify(deps, adm, 'cap80', '', now, { nm, usd: used, cap: w.cap });
 }
 
 /* 25/10/2026 (שלב 3 של "תרגום בטלפון"): העונה בשרת שלנו (agent.py, טוקן שרת) — הבקשות ל־Claude של כל העבודות שהטלפון
@@ -1521,7 +1640,7 @@ async function ptOp(deps, body, now) {
 }
 
 /* למה אין תקציב להפעלה: התקרה של העבודה נוצלה בסשנים הקודמים (budget_cap — "המשך" במצב זול יותר / תקרה גבוהה יותר), או החודש */
-const capWhy = (job, st, now) => (S.jobCap(job.spec, 0, USER_MONTH(), S.usdOf(job.use0)) ? 'month_cap' : 'budget_cap');
+const capWhy = (job, st, now) => (S.jobCap(job.spec, 0, userMonth(st), S.usdOf(job.use0)) ? 'month_cap' : 'budget_cap');
 const apiJob = (job) => (job.kind === 'tr' || job.kind === 'rr' || job.kind === 'ai' || job.kind === 'dx') && job.spec && job.spec.eng === 'api';   // מ2 · מ7: הפקה מחדש וגיליון ה־AI — באותו מנוע כמו המקור   // מ2: הפקה מחדש — באותו מנוע כמו המקור
 
 /* 21/10/2026 (סבב הייעול, 9 — "חלון עדכון"): עבודה שנלקחה בדיוק כשהעובד מתעדכן נהרגה (worker_lost פעמיים). אחרי קידום
@@ -1712,8 +1831,9 @@ async function server(req, res, body, deps) {
       if (ptJob(job)) continue;   // 25/10/2026: הטלפון לוקח אותה בעצמו (phClaim)
       if (job.vw && !((job.spec && job.spec.ph === 1 ? job.fph : job.fv) || {}).id) continue;   // 15/10/2026: מחכה לסרטון — לא תופסים שרת עד שהוא נרשם (24/10: בתרגום בטלפון — לקובץ המדידות)
       if (fit && S.peakNeed(job, fit) > fit.mb) break;
+      await capWarm(deps, now);
       const st = await readStats(deps, job.uid);
-      const cap = S.jobCap(job.spec, S.monthUsed(st.mu, now), USER_MONTH(), S.usdOf(job.use0));
+      const cap = S.jobCap(job.spec, S.monthUsed(st.mu, now), userMonth(st), S.usdOf(job.use0));
       if (!cap) {
         // התקציב החודשי (או התקרה של העבודה) נגמר בזמן שהעבודה חיכתה — נכשלת, לא נלקחת
         await patchIf(deps, 'studioJobs', job.id, { state: 'failed', err: capWhy(job, st, now), ended: now, updated: now }, job._ut).catch(() => false);
@@ -2080,7 +2200,7 @@ async function phoneOp(req, res, body, deps) {
       const sbp = await sysBlock(deps, job, now, false, false);
       if (sbp) return res.status(409).json(Object.assign({ ok: false }, sbp));
       const stp = await readStats(deps, job.uid);
-      const cap = S.jobCap(job.spec, S.monthUsed(stp.mu, now), USER_MONTH(), S.usdOf(job.use0));
+      const cap = S.jobCap(job.spec, S.monthUsed(stp.mu, now), userMonth(stp), S.usdOf(job.use0));
       if (!cap) return res.status(409).json({ ok: false, error: capWhy(job, stp, now) });
       const fresh = await readDocT(deps, 'studioJobs', id);
       const k = S.newKey();
@@ -2519,6 +2639,9 @@ async function worker(req, res, body, deps) {
     if (ptJob(job)) delete up.use;   // 25/10/2026: תרגום בטלפון — השימוש נרשם בשרתון מכל תשובה (ptMark), לא ממה שהטלפון מדווח
     const spent = job.eng === 'api' && !relayJob(job) && !ptJob(job) && up.use ? S.usdOf(up.use) - (job.mucc || 0) / 100 : 0;
     if (spent > 0) up.mucc = Math.round(S.usdOf(up.use) * 100);
+    // 29/10/2026: ניטור משתמשים — גם הטוקנים (mtk = כמה כבר נספרו, כמו mucc)
+    const tkn = spent > 0 ? Math.max(0, UM.tokOf(up.use) - (job.mtk || 0)) : 0;
+    if (tkn > 0) up.mtk = UM.tokOf(up.use);
     if (parked && up.use) { up.use0 = up.use; up.use = null; }   // הסשן הבא מדווח מאפס — הסכום שלו מצטרף ל־use0 (כמו ב"המשך")
     if (job.kind === 'tr' && up.state === 'failed' && (job.ar || 0) < S.AUTO_RESUME_MAX) {
       // v368: תקלה חולפת (Drive / רשת) — חלון התאוששות, ואז "המשך" אוטומטי אחד
@@ -2535,6 +2658,9 @@ async function worker(req, res, body, deps) {
     await patchJob(deps, id, up);
     if (up.state === 'done' || up.state === 'failed') await learnSave(deps, Object.assign({}, job, up), now);
     if (spent > 0) await monthSpend(deps, job.uid, spent, now);   // מצב API: העלות נספרת בתקציב החודשי של המשתמש
+    // 29/10/2026: הסכומים של המשתמש מאז ומעולם (מרכז הניהול ← משתמשים)
+    const fin = job.kind === 'tr' && up.state === 'done' && job.state !== 'done';
+    if (spent > 0 || fin) await totalAdd(deps, job.uid, { usd: spent, tok: tkn, n: fin ? 1 : 0, ok: fin ? 1 : 0, sec: fin ? (job.spec && job.spec.dur) || 0 : 0 }, now).catch(() => {});
     if (job.kind === 'ping' && up.state === 'done') await patchVault(deps, job.uid, { ok: now, okj: id }).catch(() => {});
     // v364: ספר התיקונים — עצירה של המגדל נרשמת לפי טביעת האצבע; Claude רושם תיקון (אחרי אבחון בהמשך); המגדל הזכיר תיקון מוכר.
     // תקלה כאן לא מפילה את הדיווח עצמו
@@ -2565,6 +2691,7 @@ async function worker(req, res, body, deps) {
       // שלב 4: התראה לטלפון — מוכן / נעצרה (לא כשממתינים להמשך אוטומטי) / שאלה / אישור
       const kind = (up.state === 'done' && !job.rdy) || up.rdy ? 'done' : up.state === 'failed' && !up.rw ? 'fail' : gateId ? 'gate' : body.ask != null && up.qa ? 'ask' : up.cp ? 'cp' : '';
       if (kind) await notify(deps, job.uid, kind, id, now);
+      if (kind === 'done' || kind === 'fail') await watchEnd(deps, Object.assign({ id }, job, up), kind === 'done', now).catch(() => 0);   // 29/10/2026: למנהל
       // 27/10/2026 (בקשת המשתמש): כל שלב בווילון ההתראות — אותה התראה מתחלפת (שלב חדש / כל 10%), שקטה. נגיעה = העבודה
       // 27/10/2026: האחוז = ההערכה של הטלפון (PG.stageNow), לא רק מה שהעובד דיווח; בין הדיווחים — op:'pulse' מהעובד (shadePush)
       else if ((!up.state || up.state === 'running') && up.prog && !parked && !job.rdy) {
@@ -2659,6 +2786,7 @@ async function handler(req, res, deps = {}) {
   if (body.op === 'devErr') return res.status(200).json({ ok: true, saved: await devErr(deps, user, body, deps.now || Date.now()) });   // שגיאות מהטלפון (האיסוף המלא)
   if (!vault.configured()) return res.status(503).json({ ok: false, error: 'vault_not_configured' });
   const uid = user.uid, op = String(body.op || ''), now = deps.now || Date.now();
+  await seenUser(deps, user, now).catch(() => {});   // 29/10/2026: ניטור משתמשים — השם, המייל ו"נראה לאחרונה"
   // 15/10/2026: מצבי התרגום — לכולם רק PUBLIC_MODES ("רגיל" / "ביצועים"); המנהל ומי שברשימת "כל המודלים" — הכל
   const fullModes = async () => isAdmin(user) || SF.amHas(await sysCfg(deps, now), user);
   const modeLocked = async (m) => !S.modeOk(S.modeNow(m), await fullModes());
@@ -2682,8 +2810,9 @@ async function handler(req, res, deps = {}) {
   const servers = async () => (await query(deps, 'studioServers', null, S.SRV_MAX + 5)).map((x) => S.serverView(x, now)).filter(Boolean)
     .sort((a, b) => a.created - b.created);
   const apiView = async (st) => {
+    await capWarm(deps, now);
     const list = await servers().catch(() => []);
-    return { month: S.monthUsed(st.mu, now), cap: USER_MONTH(), online: list.filter((x) => x.online && !x.paused).length, servers: list.length,
+    return { month: S.monthUsed(st.mu, now), cap: userMonth(st), online: list.filter((x) => x.online && !x.paused).length, servers: list.length,
       admin: isAdmin(user), capDef: S.CAP_DEF, capMax: S.CAP_MAX };
   };
   const opsFor = async (u) => { const d = await readDoc(deps, 'studioOps', u).catch(() => null) || {}; return O.opsView(d.al, now, d.mu); };
@@ -2947,6 +3076,82 @@ async function handler(req, res, deps = {}) {
       const busy = {};
       for (const j of jobs || []) if (j.state === 'running' && j.sid && !busy[j.sid]) busy[j.sid] = { st: j.prog && j.prog.st, p: j.prog && j.prog.p };
       return res.status(200).json({ ok: true, srv: AO.serversAdmin(list, busy, now) });
+    }
+    if (op === 'adminLive') {
+      // 29/10/2026 (בקשת המשתמש): מרכז הניהול ← "עכשיו במערכת" — העבודות שרצות אצל כל המשתמשים: מי, איפה, כמה עלתה עד עכשיו.
+      // j = עבודה אחת (גם אם כבר הסתיימה — מההתראה). wl = ביקשת "להודיע לי כשמסתיים"
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      let l;
+      try { l = await liveJobs(deps, now, body.fresh === true); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
+      const live = [];
+      for (const j of l) { const r = UM.liveRow(j, await nameOf(deps, j.uid, now), now); if (r) live.push(Object.assign(r, { me: j.uid === uid })); }
+      live.sort((a, b) => (a.me - b.me) || (b.t0 - a.t0));
+      let one = null;
+      if (S.JOB_RE.test(String(body.j || ''))) {
+        const j = l.find((x) => x.id === body.j) || await readJob(deps, body.j).catch(() => null);
+        if (j && j.kind !== 'ping') one = Object.assign(UM.liveRow(Object.assign({ id: body.j }, j), await nameOf(deps, j.uid, now), now), { me: j.uid === uid, end: +j.ended || 0 });
+      }
+      await adminUid(deps, now);
+      return res.status(200).json({ ok: true, live, one, wl: !!admC.wl, now });
+    }
+    if (op === 'adminWait') {
+      // 29/10/2026: "להודיע לי כשמסתיים" — התראה אחת כשאין יותר עבודות של משתמשים אחרים (watchEnd)
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const on = body.on === true;
+      try { await patchDoc(deps, 'sysBackup', 'cfg', { wl: on ? now : 0 }); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
+      admC.wl = on ? now : 0;
+      return res.status(200).json({ ok: true, wl: on });
+    }
+    if (op === 'adminAct') {
+      // 29/10/2026 (בקשת המשתמש): מרכז הניהול ← משתמשים ופעילות — כמה כל משתמש תרגם ועלה (החודש, 30 יום, מאז ומעולם),
+      // והטיימליין (עבודות, פעולות המנהל, משתמשים חדשים). מטמון AO_TTL; מילוי ראשון של "מאז ומעולם" — עד 5 משתמשים בכל פעם
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      if (body.fresh === true) aoCache.delete('uact');
+      await capWarm(deps, now);
+      const v = await aoGet(deps, 'uact', async () => {
+        const [stats, logs, jobs] = await Promise.all([query(deps, 'studioStats', null, 500), query(deps, 'sysLog', null, 300).catch(() => []), jobs30(deps, now)]);
+        let bf = 0;
+        for (const st of stats) {
+          if (bf >= 5 || !UID_RE.test(String(st.id || '')) || (st.tt && st.tt.bf) || !(st.nm || st.em || st.mu)) continue;
+          bf++;
+          const all = await listJobs(deps, st.id).catch(() => null);
+          if (!all) continue;
+          st.tt = UM.backfill(all);
+          await patchDoc(deps, 'studioStats', st.id, { tt: st.tt, updated: now }).catch(() => {});
+        }
+        return { us: UM.usersView(stats, jobs || [], now, { cap: USER_MONTH(), me: uid }), tl: UM.timeline(jobs || [], logs, stats, now),
+          use: UM.usage(jobs || [], stats, now, { max: 400 }) };
+      }, now);
+      if (!v) return res.status(503).json({ ok: false, error: 'store' });
+      v.us.rows.forEach((r) => { r.me = r.u === uid; });
+      return res.status(200).json(Object.assign({ ok: true, now, capDef: USER_MONTH() }, v));
+    }
+    if (op === 'adminUserSet') {
+      // 29/10/2026: תקרה חודשית (cap: דולרים שלמים, 0 = של המערכת) / השהיה (ps) למשתמש אחד. נרשם ביומן הפעולות
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      if (body.def !== undefined) {
+        // ברירת המחדל לכל המשתמשים (sysCfg.ucap; 0 = התקרה הגבוהה, UM.CAP_DEF)
+        const c = UM.normCap(body.def);
+        if (c < 0) return res.status(400).json({ ok: false, error: 'bad_params' });
+        try { await patchDoc(deps, 'sysCfg', 'main', { ucap: c, updated: now }); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
+        cfgC = { at: 0, v: null }; aoCache.delete('uact');
+        await sysCfg(deps, now).catch(() => null);   // USER_MONTH — מיד, לא אחרי 30 שנ׳
+        await adminLog(deps, user, 'us_cap', '* · ' + (c ? '$' + c : '$' + UM.CAP_DEF), now);
+        return res.status(200).json({ ok: true });
+      }
+      const u = String(body.u || '');
+      if (!UID_RE.test(u)) return res.status(400).json({ ok: false, error: 'bad_params' });
+      const o = { updated: now };
+      if (body.cap !== undefined) { const c = UM.normCap(body.cap); if (c < 0) return res.status(400).json({ ok: false, error: 'bad_params' }); o.mc = c; }
+      if (body.ps !== undefined) { if (u === uid) return res.status(400).json({ ok: false, error: 'bad_params' }); o.ps = body.ps === true ? 1 : 0; }
+      if (o.mc === undefined && o.ps === undefined) return res.status(400).json({ ok: false, error: 'bad_params' });
+      const st = await readStats(deps, u);
+      try { await patchDoc(deps, 'studioStats', u, o); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
+      aoCache.delete('uact');
+      const who = UM.label(st.nm, st.em);
+      if (o.mc !== undefined) await adminLog(deps, user, 'us_cap', who + ' · ' + (o.mc ? '$' + o.mc : '—'), now);
+      if (o.ps !== undefined) await adminLog(deps, user, o.ps ? 'us_pause' : 'us_resume', who, now);
+      return res.status(200).json({ ok: true });
     }
     if (op === 'adminUsage') {
       // 15/10/2026: מרכז הניהול ← שימוש ומשפכים. רק ספירות (aggregation count) ועבודות 30 יום מצטברות — בלי מעקב חדש אחרי משתמשים
@@ -3345,7 +3550,7 @@ async function handler(req, res, deps = {}) {
         if (!(await flagOn(deps, 'st_url', now))) return res.status(409).json({ ok: false, error: 'flag_off', fl: 'st_url' });
         if (!R2.config().ok) return res.status(503).json({ ok: false, error: 'r2_needed' });
       }
-      const sbc = await sysBlock(deps, { kind: 'tr', spec }, now, false, isAdmin(user));   // 15/10/2026: לפני שמעלים כמה GB
+      const sbc = await sysBlock(deps, { kind: 'tr', spec }, now, false, isAdmin(user), uid);   // 15/10/2026: לפני שמעלים כמה GB
       if (sbc) return res.status(409).json(Object.assign({ ok: false }, sbc));
       if (await engLocked(spec)) return res.status(403).json({ ok: false, error: 'eng_locked' });   // 25/10/2026: אחרי התחזוקה והדגלים — ההודעה שלהם קודמת
       const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
@@ -3496,6 +3701,14 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'start') {
+      // 29/10/2026 (בקשת המשתמש): המנהל מתחיל תרגום / ריצת בדיקה בזמן שמשתמש אחר עובד — קודם שואלים (ow = "להתחיל בכל זאת")
+      if (isAdmin(user) && body.ow !== true && job.kind === 'tr' && umOn(deps)) {
+        const oth = (await liveJobs(deps, now).catch(() => [])).filter((j) => j.uid !== uid);
+        if (oth.length) {
+          const r = UM.liveRow(oth[0], await nameOf(deps, oth[0].uid, now), now);
+          return res.status(409).json({ ok: false, error: 'others_busy', ob: { nm: r.nm, p: r.p, left: r.left, n: oth.length } });
+        }
+      }
       const [code, out] = await startJob(deps, uid, job, body, now, { adm: isAdmin(user), modeLocked, engLocked });
       return res.status(code).json(out);
     }

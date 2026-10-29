@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ניטור משתמשים — תצוגה מקדימה</title>
+<!-- תצוגה מקדימה בלבד (29/10/2026): מרכז הניהול ← ניטור משתמשים, טיימליין, עבודה חיה והתראה בווילון. נתוני דמה -->
+<style>
+:root { --bg:#F2F2F7; --surface:#fff; --on:#1C1C1E; --var:#6C6C70; --line:rgba(60,60,67,.12); --accent:#5E5CE6; --green:#30D158; --orange:#F5A524; --red:#FF453A; --blue:#0A84FF; --chip:rgba(118,118,128,.12); --shade:#E9E9EE; --r:14px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#000; --surface:#1C1C1E; --on:#F2F2F7; --var:#98989F; --line:rgba(84,84,88,.45); --chip:rgba(118,118,128,.24); --shade:#2C2C2E; } }
+:root[data-theme="dark"] { --bg:#000; --surface:#1C1C1E; --on:#F2F2F7; --var:#98989F; --line:rgba(84,84,88,.45); --chip:rgba(118,118,128,.24); --shade:#2C2C2E; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--on); font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+header { padding:20px 16px 4px; max-width:1200px; margin:0 auto; }
+header h1 { margin:0 0 4px; font-size:24px; }
+header p { margin:0; color:var(--var); font-size:14px; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:22px; padding:16px; max-width:1200px; margin:0 auto; }
+.scr { background:var(--bg); border:1px solid var(--line); border-radius:24px; padding:14px 0 18px; min-width:0; }
+.cap { font-size:13px; font-weight:700; color:var(--accent); margin:0 16px 8px; }
+.h1 { font-size:28px; font-weight:800; margin:0 16px 2px; }
+.dt { color:var(--var); font-size:13px; margin:0 16px 8px; }
+.grp { font-size:13px; font-weight:600; color:var(--var); margin:16px 28px 6px; display:flex; justify-content:space-between; }
+.grp a { color:var(--accent); text-decoration:none; }
+.list { background:var(--surface); border-radius:var(--r); margin:0 12px; overflow:hidden; }
+.r { display:flex; gap:12px; align-items:center; padding:10px 14px; }
+.r + .r { border-top:1px solid var(--line); }
+.ic { width:30px; height:30px; border-radius:8px; display:grid; place-items:center; color:#fff; font-size:15px; flex:none; }
+.av { width:32px; height:32px; border-radius:50%; display:grid; place-items:center; color:#fff; font-weight:700; font-size:13px; flex:none; }
+.m { flex:1; min-width:0; }
+.m b { display:block; font-weight:600; font-size:15px; }
+.m small { color:var(--var); font-size:12.5px; }
+.v { font-variant-numeric:tabular-nums; font-size:14px; color:var(--var); text-align:end; white-space:nowrap; }
+.v b { color:var(--on); display:block; font-size:15px; }
+.tag { font-size:11px; font-weight:700; padding:1px 7px; border-radius:99px; margin-inline-start:6px; vertical-align:2px; }
+.t-me { background:rgba(10,132,255,.15); color:var(--blue); }
+.t-ot { background:rgba(245,165,36,.18); color:#C27C00; }
+.live { margin:0 12px; border-radius:var(--r); background:var(--surface); padding:12px 14px; border:2px solid var(--orange); }
+.live .top { display:flex; gap:10px; align-items:center; }
+.dot { width:9px; height:9px; border-radius:50%; background:var(--red); animation:p 1.4s infinite; flex:none; }
+@keyframes p { 50% { opacity:.25; } }
+.bar { height:7px; border-radius:99px; background:var(--chip); overflow:hidden; margin:10px 0 6px; }
+.bar i { display:block; height:100%; background:var(--orange); border-radius:99px; }
+.stg { display:flex; gap:3px; margin-top:8px; }
+.stg span { flex:1; height:4px; border-radius:99px; background:var(--chip); }
+.stg .d { background:var(--green); } .stg .n { background:var(--orange); }
+.kp { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:10px 0 0; }
+.kp div { background:var(--chip); border-radius:10px; padding:7px 9px; }
+.kp b { display:block; font-size:17px; font-variant-numeric:tabular-nums; }
+.kp small { color:var(--var); font-size:11.5px; }
+.warn { margin:8px 12px 0; background:rgba(245,165,36,.14); border-radius:12px; padding:9px 12px; font-size:13.5px; }
+.chips { display:flex; gap:6px; overflow-x:auto; margin:4px 12px 2px; padding-bottom:2px; }
+.chips span { background:var(--chip); border-radius:99px; padding:5px 12px; font-size:13px; white-space:nowrap; }
+.chips .on { background:var(--accent); color:#fff; }
+.day { font-size:12px; font-weight:700; color:var(--var); margin:14px 28px 6px; }
+.tl .r { align-items:flex-start; }
+.tl .ic { margin-top:2px; }
+.btn { display:block; margin:12px 12px 0; text-align:center; background:var(--surface); color:var(--accent); font-weight:600; border-radius:12px; padding:11px; }
+.shade { margin:0 12px; background:var(--shade); border-radius:20px; padding:10px; }
+.ntf { background:var(--surface); border-radius:16px; padding:11px 13px; }
+.ntf + .ntf { margin-top:8px; }
+.nh { display:flex; gap:6px; align-items:center; font-size:12px; color:var(--var); }
+.nh img, .nh .lg { width:16px; height:16px; border-radius:4px; background:var(--accent); }
+.nt { font-weight:700; font-size:14.5px; margin-top:4px; }
+.nb { font-size:13.5px; color:var(--var); }
+.nbar { height:4px; border-radius:99px; background:var(--chip); margin-top:8px; overflow:hidden; }
+.nbar i { display:block; height:100%; background:var(--orange); }
+.nbar.me i { background:var(--blue); }
+.spark { width:100%; height:44px; display:block; }
+ol.sug { margin:0 12px; background:var(--surface); border-radius:var(--r); padding:12px 14px 12px 14px; padding-inline-start:30px; font-size:14px; }
+ol.sug li + li { margin-top:7px; }
+ol.sug small { color:var(--var); }
+</style>
+</head>
+<body>
+<header>
+  <h1>מרכז הניהול ← ניטור משתמשים</h1>
+  <p>תצוגה מקדימה לאישור לפני הקוד · נתוני דמה · בהיר וכהה לפי הטלפון</p>
+</header>
+<div class="grid">
+
+<!-- 1. סקירה: עכשיו במערכת -->
+<section class="scr">
+  <div class="cap">1 · סקירה — "עכשיו במערכת" (בראש העמוד, רק כשמשהו רץ)</div>
+  <div class="h1">סקירה</div>
+  <div class="dt">יום חמישי, 29 באוקטובר · עודכן לפני 5 שנ׳</div>
+  <div class="grp"><span>עכשיו במערכת</span><a href="#">הכל</a></div>
+  <div class="live">
+    <div class="top"><span class="dot"></span><div class="av" style="background:#FF9F0A">ד</div>
+      <div class="m"><b>דנה כ. מתרגמת עכשיו <span class="tag t-ot">משתמש אחר</span></b><small>הרצאה · 48 דק׳ · אנגלית ← עברית · Sonnet</small></div></div>
+    <div class="bar"><i style="width:58%"></i></div>
+    <div class="nb" style="display:flex;justify-content:space-between"><span>מתרגם · שלב 4 מ־7</span><span>עוד ~14 דק׳</span></div>
+    <div class="stg"><span class="d"></span><span class="d"></span><span class="d"></span><span class="n"></span><span></span><span></span><span></span></div>
+    <div class="kp"><div><b>$1.84</b><small>עלה עד עכשיו</small></div><div><b>612K</b><small>טוקנים</small></div><div><b>~$3.10</b><small>צפוי בסוף</small></div></div>
+  </div>
+  <div class="warn">⏸ משתמש עובד עכשיו — מומלץ לא להתחיל תרגום או בדיקה עד שיסיים. <b>להודיע לי כשמסתיים</b></div>
+  <div class="grp"><span>היום</span></div>
+  <div class="list">
+    <div class="r"><div class="ic" style="background:var(--accent)">👥</div><div class="m"><b>4 משתמשים פעילים</b><small>2 ב־Studio · 1 ב־Academy · 1 ב־Invest</small></div><div class="v"><b>11</b>השבוע</div></div>
+    <div class="r"><div class="ic" style="background:var(--orange)">$</div><div class="m"><b>עלות היום</b><small>3 תרגומים · 1.9M טוקנים</small></div><div class="v"><b>$6.42</b>החודש $81</div></div>
+  </div>
+</section>
+
+<!-- 2. הווילון -->
+<section class="scr">
+  <div class="cap">2 · ההתראה בווילון — לאורך כל העבודה של המשתמש</div>
+  <div class="h1">הווילון</div>
+  <div class="dt">התראה נפרדת לכל עבודה, מתעדכנת כל דקה, לא נסגרת עד הסוף</div>
+  <div class="shade">
+    <div class="ntf">
+      <div class="nh"><span class="lg"></span>מרכז הניהול · עכשיו</div>
+      <div class="nt">👤 דנה כ. מתרגמת · לא שלך</div>
+      <div class="nb">מתרגם 58% · $1.84 עד עכשיו · עוד ~14 דק׳</div>
+      <div class="nbar"><i style="width:58%"></i></div>
+    </div>
+    <div class="ntf">
+      <div class="nh"><span class="lg" style="background:var(--blue)"></span>Studio · לפני 2 דק׳</div>
+      <div class="nt">העבודה שלך · מתמלל</div>
+      <div class="nb">שלב 2 מ־7 · 22%</div>
+      <div class="nbar me"><i style="width:22%"></i></div>
+    </div>
+  </div>
+  <div class="grp"><span>מה מבדיל</span></div>
+  <div class="list">
+    <div class="r"><div class="ic" style="background:var(--orange)">👤</div><div class="m"><b>משתמש אחר</b><small>כותרת עם השם + "לא שלך", צבע כתום, נפתח במרכז הניהול על העבודה החיה</small></div></div>
+    <div class="r"><div class="ic" style="background:var(--blue)">✓</div><div class="m"><b>שלך</b><small>כמו היום — "העבודה שלך", נפתח ב־Studio</small></div></div>
+    <div class="r"><div class="ic" style="background:var(--green)">■</div><div class="m"><b>בסוף</b><small>"דנה סיימה · $3.02 · 22 דק׳" — עם צליל אחד, ואז נעלמת כשתיגע</small></div></div>
+  </div>
+</section>
+
+<!-- 3. עבודה חיה -->
+<section class="scr">
+  <div class="cap">3 · עבודה חיה (נגיעה בהתראה / בכרטיס)</div>
+  <div class="h1">דנה כ. · עכשיו</div>
+  <div class="dt">התחילה 09:12 · מתעדכן כל 10 שנ׳</div>
+  <div class="list">
+    <div class="r"><div class="m"><b>58% · מתרגם</b><small>עוד ~14 דק׳ · יעד הזמן: בתוך הזמן</small></div><div class="v"><b>$1.84</b>מתוך ~$3.10</div></div>
+  </div>
+  <div class="grp"><span>העלות לאורך העבודה</span></div>
+  <div class="list"><div class="r" style="display:block">
+    <svg class="spark" viewBox="0 0 300 44" preserveAspectRatio="none"><polyline fill="none" stroke="#F5A524" stroke-width="2.5" points="0,42 30,40 60,37 90,35 120,30 150,24 180,18 200,15"/><polyline fill="none" stroke="#8E8E93" stroke-dasharray="4 4" stroke-width="1.5" points="200,15 300,4"/></svg>
+    <small style="color:var(--var)">קו מלא = עד עכשיו · מקווקו = התחזית</small>
+  </div></div>
+  <div class="grp"><span>השלבים</span></div>
+  <div class="list">
+    <div class="r"><div class="ic" style="background:var(--green)">✓</div><div class="m"><b>העלאה · תמלול · יישור</b><small>6 דק׳ · בלי טוקנים</small></div><div class="v">$0.00</div></div>
+    <div class="r"><div class="ic" style="background:var(--orange)">…</div><div class="m"><b>מתרגם (Sonnet)</b><small>8 דק׳ עד עכשיו · 540K טוקנים</small></div><div class="v"><b>$1.52</b></div></div>
+    <div class="r"><div class="ic" style="background:var(--accent)">◎</div><div class="m"><b>מנהל העבודה</b><small>72K טוקנים</small></div><div class="v">$0.32</div></div>
+    <div class="r"><div class="ic" style="background:#8E8E93">○</div><div class="m"><b>מבקר · שופט · בנייה · שמירה</b><small>עוד לא התחילו</small></div></div>
+  </div>
+  <div class="btn">כל העבודות של דנה</div>
+</section>
+
+<!-- 4. טיימליין -->
+<section class="scr">
+  <div class="cap">4 · לשונית חדשה "פעילות" — הטיימליין</div>
+  <div class="h1">פעילות</div>
+  <div class="chips"><span class="on">הכל</span><span>תרגומים</span><span>ניהול</span><span>כניסות</span><span>תקלות</span><span>כל המשתמשים ▾</span></div>
+  <div class="day">היום</div>
+  <div class="list tl">
+    <div class="r"><div class="av" style="background:#FF9F0A">ד</div><div class="m"><b>דנה כ. התחילה תרגום</b><small>Studio · הרצאה 48 דק׳ · רץ עכשיו</small></div><div class="v"><b>$1.84</b>09:12</div></div>
+    <div class="r"><div class="av" style="background:var(--blue)">י</div><div class="m"><b>אתה הוספת קורא ל־Academy <span class="tag t-me">אתה</span></b><small>ניהול · הרשאות</small></div><div class="v">08:40</div></div>
+    <div class="r"><div class="av" style="background:#64D2FF">ר</div><div class="m"><b>רון ל. סיים תרגום</b><small>Studio · 22 דק׳ · איכות 86 · 1.1M טוקנים</small></div><div class="v"><b>$2.71</b>08:05</div></div>
+    <div class="r"><div class="av" style="background:var(--red)">!</div><div class="m"><b>עבודה של רון ל. נעצרה</b><small>המגדל: עלות פי 4 מהרגיל · המשיכה לבד</small></div><div class="v"><b>$0.40</b>07:51</div></div>
+  </div>
+  <div class="day">אתמול</div>
+  <div class="list tl">
+    <div class="r"><div class="av" style="background:#BF5AF2">מ</div><div class="m"><b>מיכל ש. נכנסה לראשונה</b><small>Academy · חשבון חדש</small></div><div class="v">21:30</div></div>
+    <div class="r"><div class="av" style="background:var(--blue)">י</div><div class="m"><b>אתה תרגמת <span class="tag t-me">אתה</span></b><small>Studio · 12 דק׳</small></div><div class="v"><b>$0.88</b>17:02</div></div>
+  </div>
+</section>
+
+<!-- 5. משתמשים -->
+<section class="scr">
+  <div class="cap">5 · משתמשים — מי תרגם כמה ועלה כמה</div>
+  <div class="h1">משתמשים</div>
+  <div class="chips"><span class="on">החודש</span><span>30 יום</span><span>מאז ומעולם</span></div>
+  <div class="grp"><span>Studio · לפי עלות</span><span>סה״כ $81.20</span></div>
+  <div class="list">
+    <div class="r"><div class="av" style="background:#64D2FF">ר</div><div class="m"><b>רון ל.</b><small>14 סרטונים · 6.2 שעות · 21M טוקנים · לפני שעה</small></div><div class="v"><b>$38.10</b>47%</div></div>
+    <div class="r"><div class="av" style="background:#FF9F0A">ד</div><div class="m"><b>דנה כ. <span class="dot" style="display:inline-block;vertical-align:1px"></span></b><small>9 סרטונים · 3.8 שעות · 12M טוקנים · עכשיו</small></div><div class="v"><b>$24.60</b>30%</div></div>
+    <div class="r"><div class="av" style="background:var(--blue)">י</div><div class="m"><b>אתה <span class="tag t-me">אתה</span></b><small>6 סרטונים · 2.1 שעות · 6M טוקנים</small></div><div class="v"><b>$18.50</b>23%</div></div>
+  </div>
+  <div class="grp"><span>דף משתמש (נגיעה)</span></div>
+  <div class="list">
+    <div class="r"><div class="m"><b>רון ל. · מאז 02/10</b><small>Studio + Academy · מכשירים: 2 · התראות: פעילות</small></div></div>
+    <div class="r"><div class="m"><b>תקרה חודשית</b><small>$38.10 מתוך $50 — 76%</small></div><div class="v" style="color:var(--orange)"><b>76%</b></div></div>
+    <div class="r"><div class="m"><b>הצלחה · איכות ממוצעת</b><small>13 מתוך 14 · 84</small></div></div>
+    <div class="r"><div class="m"><b>הטיימליין שלו</b><small>כל הפעולות, מסונן למשתמש</small></div><div class="v">›</div></div>
+  </div>
+</section>
+
+<!-- 6. הצעות -->
+<section class="scr">
+  <div class="cap">6 · מה עוד אני מציע (לבחירתך)</div>
+  <div class="h1">תוספות</div>
+  <ol class="sug">
+    <li><b>שומר "יש עבודה של אחר"</b> — כשאתה מתחיל תרגום / ריצת בדיקה (סט הזהב, מעבדה) בזמן שמשתמש אחר עובד: חלון "דנה מתרגמת עכשיו (58%) — להתחיל בכל זאת / להתחיל לבד כשתסיים". <small>הכי חשוב לבקשה שלך</small></li>
+    <li><b>"להודיע לי כשמסתיים"</b> — פוש אחד כשאין יותר עבודות של אחרים, ואז אפשר לבדוק.</li>
+    <li><b>תקרה חודשית לכל משתמש</b> מהמסך (היום תקרה אחת לכולם) + התראה ב־80%.</li>
+    <li><b>חריגת עלות למשתמש</b> — עבודה שעולה פי 2 מהרגיל שלו → התראה (המגדל כבר עוצר בפי 4).</li>
+    <li><b>סיכום יומי בפוש</b> (21:00): כמה משתמשים, כמה תרגומים, כמה עלה היום.</li>
+    <li><b>משתמשים פעילים</b> — גרף יומי/שבועי לכל אפליקציה, ומי חדש השבוע.</li>
+    <li><b>כפתור "השהה משתמש"</b> — חסימת עבודות חדשות למשתמש אחד (בלי לגעת באחרים).</li>
+  </ol>
+  <div class="dt" style="margin-top:10px">פרטיות: השם והמייל נשמרים רק בשרת (Firestore, פרטי) ומוצגים רק לך, במרכז הניהול. בריפו — כלום.</div>
+</section>
+
+</div>
+</body>
+</html>

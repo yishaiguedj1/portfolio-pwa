@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2056 מפתחות מתוך 5315) */
+/* המחרוזות של studio (2060 מפתחות מתוך 5482) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -324,6 +324,9 @@ he: {
   "studioBenchCopy": "העתקת נתוני המדידה",
   "studioBgNote": "ממשיך גם כשסוגרים את Studio",
   "studioBgTitle": "Studio — מעלה את הסרטון",
+  "studioBusyQ": "{n} · תרגום רץ עכשיו ({p}%). מומלץ לחכות שיסתיים. להתחיל בכל זאת?",
+  "studioBusyWait": "לחכות",
+  "studioBusyWaitOk": "נודיע לך כשיסתיים",
   "studioCancel": "ביטול",
   "studioCheapGo": "להמשיך ב־{m} · זול יותר",
   "studioCheapOk": "להמשיך בזול",
@@ -561,6 +564,7 @@ he: {
   "studioErrNoServer": "אף שרת לא לקח את העבודה — בדקו במסך השרת",
   "studioErrNotAdmin": "רק המנהל יכול לעשות את זה",
   "studioErrOom": "העבודה נעצרה בשרת (כנראה נגמר הזיכרון) — אפשר להמשיך מנקודת השמירה",
+  "studioErrPaused": "החשבון מושהה כרגע — אפשר לפנות למנהל",
   "studioErrPhMeta": "המדידות מהטלפון לא הגיעו או לא תקינות — פתחו שוב את הסרטון באפליקציה",
   "studioErrPhWords": "התמליל מהטלפון לא הגיע או לא תקין — פתחו שוב את הסרטון באפליקציה",
   "studioErrQuota": "מסד הנתונים בענן הגיע למכסת השימוש היומית. השירות חוזר ב־{t} — העבודות שלך שמורות",
@@ -2382,6 +2386,9 @@ en: {
   "studioBenchCopy": "Copy measurement data",
   "studioBgNote": "continues even if you close Studio",
   "studioBgTitle": "Studio — uploading the video",
+  "studioBusyQ": "{n} · a translation is running ({p}%). Better wait until it ends. Start anyway?",
+  "studioBusyWait": "Wait",
+  "studioBusyWaitOk": "We’ll notify you when it ends",
   "studioCancel": "Cancel",
   "studioCheapGo": "Continue with {m} · cheaper",
   "studioCheapOk": "Continue cheaper",
@@ -2619,6 +2626,7 @@ en: {
   "studioErrNoServer": "No server took the job — check the Server screen",
   "studioErrNotAdmin": "Only the admin can do this",
   "studioErrOom": "The job stopped on the server (probably out of memory) — you can resume from the checkpoint",
+  "studioErrPaused": "Your account is paused right now — contact the admin",
   "studioErrPhMeta": "The measurements from the phone are missing or invalid — open the video in the app again",
   "studioErrPhWords": "The transcript from the phone is missing or invalid — open the video in the app again",
   "studioErrQuota": "The cloud database reached its daily usage limit. Service resumes at {t} — your jobs are safe",

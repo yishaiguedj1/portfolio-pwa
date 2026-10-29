@@ -40,7 +40,8 @@ async function verifyIdToken(token, opts = {}) {
   if (!(claims.exp > now) || claims.iat > now + 300) throw new Error('expired');
   if (!claims.sub) throw new Error('bad_token');
   // authTime/provider — לחיבור המשותף (lib/session.js): עוגייה רק מהתחברות טרייה עם Google, לא מטוקן מותאם
-  const u = { uid: claims.sub, email: String(claims.email || '').toLowerCase(), verified: !!claims.email_verified,
+  // 29/10/2026: name — לניטור המשתמשים במרכז הניהול (lib/usermon.js idOf)
+  const u = { uid: claims.sub, email: String(claims.email || '').toLowerCase(), name: String(claims.name || '').slice(0, 80), verified: !!claims.email_verified,
     authTime: +claims.auth_time || 0, provider: String((claims.firebase || {}).sign_in_provider || '') };
   u.linked = await linkedEmails(token, claims, u, opts, project);
   return u;

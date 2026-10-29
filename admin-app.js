@@ -62,7 +62,7 @@ const done = () => de.classList.remove('lib-restoring', 'lib-curtain');
    לפי ת־עיצוב: חמש לשוניות קבועות (בטלפון למטה, במחשב — פס צד), בכל לשונית רשימה קצרה של שורות אינפורמטיביות
    (ערך, מגמה, גרף קטן, שורת מצב אחת), ומשורה נכנסים פנימה (לכל היותר שלוש רמות; "‹" חוזר). מסך שעוד לא נבנה = "בקרוב",
    בלי מספרים מומצאים. כל מסך: { tab, title, parent?, render(p) } */
-const TABS = [['ov', () => t('admTabOv'), '◉'], ['apps', () => t('admTabApps'), '▦'], ['sys', () => t('admTabSys'), '⚙'], ['imp', () => t('admTabImp'), '✦'], ['find', () => t('admTabFind'), '⌕']];
+const TABS = [['ov', () => t('admTabOv'), '◉'], ['act', () => t('admTabAct'), '◷'], ['apps', () => t('admTabApps'), '▦'], ['sys', () => t('admTabSys'), '⚙'], ['imp', () => t('admTabImp'), '✦'], ['find', () => t('admTabFind'), '⌕']];
 const D = { bk: null, fb: null, us: null, ag: null, srv: null, sec: null, log: null, users: null, cfg: null, ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0, rd: null, rdAt: 0, dm: undefined };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
 const PAGES = {};
 const page = (k, o) => { PAGES[k] = o; };
@@ -84,11 +84,11 @@ async function go(k, push = true, now = false) {
   if (ps.length) await Promise.race([Promise.allSettled(ps), new Promise((r) => setTimeout(r, 450))]);
   if (tk !== goTok) return;
   cur = k;
-  if (push) { try { history.pushState({ adm: k }, '', '#' + k); } catch (e) {} }
+  if (push) { try { history.pushState({ adm: k }, '', '#' + hashOf(k)); } catch (e) {} }
   paint();
   try { window.scrollTo(0, 0); } catch (e) {}
 }
-window.addEventListener('popstate', (e) => { const k = (e.state && e.state.adm) || (location.hash || '#ov').slice(1); cur = PAGES[k] ? k : 'ov'; paint(); });
+window.addEventListener('popstate', (e) => { const k = (e.state && e.state.adm) || hashPage((location.hash || '#ov').slice(1)); cur = PAGES[k] ? k : 'ov'; paint(); });
 function badges() {
   const items = (D.ov && D.ov.items) || [];
   const by = { ov: items.filter((x) => x.sev <= 2).length, apps: 0, sys: items.filter((x) => /^(deploy_wait|site_down|srv_off|bk_)/.test(x.k)).length, imp: 0, find: 0 };
@@ -203,6 +203,7 @@ function runRow(x) {
 page('ov', { tab: 'ov', title: () => t('admTabOv'), render(p) {
   const o = D.ov, v = D.lab && D.lab.view;
   p.append(h('p', 'adm-dt', new Date().toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long' }) + (D.ovAt ? ' · ' + fmt(t('admUpdated'), { a: ago(D.ovAt) }) : '')));
+  p.append(...liveSection());   // 29/10/2026: עכשיו במערכת + המשתמשים
   if (!o) { p.append(h('p', 'adm-note', t('admErr'))); return; }
   const items = o.items.map(itemRow).filter(Boolean);
   p.append(grp(items.length ? fmt(t('admWaitN'), { n: items.length }) : t('admWait0')), items.length ? list(...items) : list(row({ c: 'green', ic: '✓', t: t('admAllGood') })));
@@ -396,7 +397,8 @@ function logRow(x) {
     ac_add: ['academy', '▤', t('admLgAcAdd'), d], ac_del: ['gray', '▤', t('admLgAcDel'), d],
     srv_pause: ['orange', '☁', t('admLgSrvPause'), d], srv_resume: ['green', '☁', t('admLgSrvResume'), d], srv_del: ['red', '☁', t('admLgSrvDel'), d],
     an_on: ['purple', '📣', t('admLgAnOn'), d], an_off: ['gray', '📣', t('admLgAnOff'), ''], fb_done: ['green', '✉', t('admLgFbDone'), ''], fb_del: ['gray', '✉', t('admLgFbDel'), ''],
-    ck_ok: ['green', '✓', t('admLgCkOk'), d], ck_no: ['red', '✕', t('admLgCkNo'), d], ck_clr: ['gray', '↺', t('admLgCkClr'), d] }[x.k];
+    ck_ok: ['green', '✓', t('admLgCkOk'), d], ck_no: ['red', '✕', t('admLgCkNo'), d], ck_clr: ['gray', '↺', t('admLgCkClr'), d],
+    us_cap: ['orange', '⤒', t('admLgUsCap'), d], us_pause: ['red', '⏸', t('admLgUsPause'), d], us_resume: ['green', '▶', t('admLgUsResume'), d] }[x.k];
   if (!L) return null;
   const sub = h('span');
   if (L[3]) sub.append(h('bdi', null, L[3]));
@@ -1276,15 +1278,15 @@ page('gold', { tab: 'imp', parent: 'imp', title: () => t('admGoldT'), render(p) 
   const runs = jobs.filter((j) => j.gs === D.gSrc);
   const busy = runs.some((j) => ['new', 'queued', 'running'].includes(j.state));
   const go1 = h('button', 'btn', fmt(t('admGoldRun'), { n: k * sel.length, u: usd(tot) })); go1.type = 'button'; go1.disabled = !sel.length || busy || k * sel.length > GOLD_MAX;
-  go1.addEventListener('click', () => askConfirm(fmt(t('admGoldQ'), { n: k * sel.length, u: usd(tot) }), async () => {
+  go1.addEventListener('click', () => busyGuard(() => askConfirm(fmt(t('admGoldQ'), { n: k * sel.length, u: usd(tot) }), async () => {
     go1.disabled = true;
     const r = await api('goldRun', Object.assign({ ok: true, src: D.gSrc, modes: sel }, D.gXe ? { xe: GOLD_XES[D.gXe] } : {}, D.gXg ? { xg: true } : {}, D.gXe || D.gXg ? { both: true } : {}));
     if (!r.ok) { flash(t('admErr') + ' · ' + (r.error || '')); go1.disabled = false; return; }
     let bad = 0;
-    for (const j of r.jobs || []) { const s2 = await api('start', { job: j.id }); if (!s2.ok) bad++; }
+    for (const j of r.jobs || []) { const s2 = await api('start', { job: j.id, ow: true }); if (!s2.ok) bad++; }   // ow: כבר שאלנו (busyGuard)
     flash(bad ? fmt(t('admGoldStartBad'), { n: bad }) : t('admGoldStarted'));
     needGold(true);
-  }));
+  })));
   const br = h('div', 'btn-row'); br.append(go1);
   p.append(br);
   if (busy) p.append(h('p', 'adm-foot', t('admGoldBusy')));
@@ -1395,6 +1397,312 @@ page('find', { tab: 'find', title: () => t('admTabFind'), render(p) {
   setTimeout(() => { try { inp.focus(); } catch (e) {} }, 50);
 } });
 
+/* ---- ניטור משתמשים (29/10/2026, בקשת המשתמש — התצוגה שאושרה: design-mockups/monitor). "עכשיו במערכת" בראש הסקירה,
+   עבודה חיה, לשונית "פעילות" (הטיימליין), משתמשים ודף משתמש (תקרה, השהיה). adminLive — כל 10 שנ׳ רק בזמן שמסתכלים על
+   הסקירה / העבודות החיות; adminAct — מטמון 5 דק׳ בשרתון. השם והמייל — רק כאן, למנהל ---- */
+const LIVE_PAGES = ['ov', 'now', 'live'];
+const AV_C = ['#FF9F0A', '#64D2FF', '#BF5AF2', '#30D158', '#FF375F', '#5E5CE6', '#AC8E68', '#0A84FF'];
+const avC = (u) => AV_C[[...String(u || '')].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7) % AV_C.length];
+const avI = (nm) => ([...String(nm || '?').trim()][0] || '?').toUpperCase();
+const KIND = { tr: () => t('admKTr'), rr: () => t('admKRr'), ai: () => t('admKAi'), dx: () => t('admKDx') };
+const kindTxt = (k) => (KIND[k] || KIND.tr)();
+const tokTxt = (n) => (n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'K' : String(Math.round(n || 0)));
+const hrsTxt = (sec) => (sec >= 3600 ? fmt(t('admHrs'), { n: (sec / 3600).toFixed(sec >= 36000 ? 0 : 1) }) : fmt(t('admMins'), { n: Math.round((sec || 0) / 60) }));
+D.liveH = {}; D.actF = 'all'; D.actU = ''; D.usP = 'd30';
+async function needLive(fresh) {
+  const r = await api('adminLive', Object.assign(fresh ? { fresh: true } : {}, D.liveJ ? { j: D.liveJ } : {}));
+  if (!r.ok) return r;
+  const before = JSON.stringify([D.live, D.one, D.wl]);
+  D.live = r.live || []; D.one = r.one || null; D.wl = !!r.wl;
+  const now = Date.now();
+  for (const x of D.live.concat(D.one ? [D.one] : [])) { const hs = D.liveH[x.j] || (D.liveH[x.j] = []); if (!hs.length || hs[hs.length - 1][1] !== x.usd) hs.push([now, x.usd]); if (hs.length > 400) hs.shift(); }
+  if (LIVE_PAGES.includes(cur) && JSON.stringify([D.live, D.one, D.wl]) !== before) paint();
+  return r;
+}
+async function needAct(fresh) {
+  const r = await api('adminAct', fresh ? { fresh: true } : {});
+  if (r.ok) { D.act = r; if (['act', 'people', 'user', 'use', 'ov'].includes(cur)) paint(); }
+  return r;
+}
+const userOf = (u) => ((D.act && D.act.us && D.act.us.rows) || []).find((r) => r.u === u) || null;
+async function setWait(on) { const r = await api('adminWait', { on }); if (r.ok) { D.wl = on; paint(); flash(on ? t('admBusyWaitOk') : t('admSaved')); } else flash(t('admErr')); }
+/* כרטיס של עבודה שרצה: מי, איפה, כמה עלתה עד עכשיו. משתמש אחר = מסגרת כתומה ותגית "משתמש אחר" */
+function liveCard(x) {
+  const c = h('button', 'adm-live' + (x.me ? ' me' : '')); c.type = 'button';
+  c.addEventListener('click', () => { D.liveJ = x.j; D.one = x; go('live'); });
+  const top = h('div', 'adm-ltop'), av = h('span', 'adm-ic', x.me ? '✓' : avI(x.nm)); av.style.background = x.me ? COL.blue : avC(x.u);
+  const tx = h('span', 'adm-tx'), b = h('b'); b.append(h('bdi', null, x.me ? t('admLiveMe') : x.nm), h('span', 'adm-tag' + (x.me ? ' me' : ''), x.me ? t('admLiveMe') : t('admLiveOther')));
+  if (x.me) b.firstChild.textContent = kindTxt(x.k);
+  tx.append(b, h('small', null, [kindTxt(x.k), x.dur ? hrsTxt(x.dur) : '', x.mode ? modeName(x.mode) : ''].filter(Boolean).join(' · ')));
+  top.append(h('i', 'adm-pulse'), av, tx);
+  const bar = h('span', 'adm-mtr adm-lbar'), bi = h('i'); bi.style.width = Math.round(x.p * 100) + '%'; bar.append(bi);
+  const ln = h('div', 'adm-lln'), si = STAGES_A.indexOf(x.st);
+  ln.append(h('span', null, x.state === 'queued' ? t('admLiveQueued') : x.wait === 'q' ? t('admLiveQ') : x.wait === 'v' ? t('admLiveV')
+    : (STG[x.st] ? STG[x.st]() + ' · ' : '') + Math.round(x.p * 100) + '%' + (si >= 0 ? ' · ' + fmt(t('admLiveStep'), { n: si + 1, t: STAGES_A.length }) : '')),
+  h('span', null, x.left >= 60 ? fmt(t('admLiveLeft'), { n: Math.round(x.left / 60) }) : ''));
+  const kp = h('div', 'adm-kpis adm-lkp');
+  const k = (v, l) => { const d = h('div', 'adm-kpi'); d.append(h('b', null, v), h('small', null, l)); return d; };
+  kp.append(k(usd(x.usd), x.our ? t('admLiveSoFar') : t('admLiveRoutine')), k(x.tok ? tokTxt(x.tok) : '—', t('admLiveTok')), k(x.exp ? '~' + usd(x.exp) : '—', t('admLiveExp')));
+  c.append(top, bar, ln, stgStrip(x), kp);
+  return c;
+}
+const STAGES_A = ['up', 'tr', 'al', 'tl', 'rv', 'bn', 'sv'];
+function stgStrip(x) {
+  const s = h('div', 'adm-lstg');
+  for (const k of STAGES_A) s.append(h('span', (x.stg || {})[k] === 'd' ? 'd' : k === x.st ? 'n' : ''));
+  return s;
+}
+function waitBox() {
+  const d = h('div', 'adm-warn'); d.append(h('span', null, t('admLiveWarn') + ' '));
+  const a = h('button', 'adm-link', D.wl ? t('admLiveWaitOn') + ' · ' + t('admLiveWaitOff') : t('admLiveWaitBtn')); a.type = 'button';
+  a.addEventListener('click', () => setWait(!D.wl));
+  d.append(a);
+  return d;
+}
+/* בראש הסקירה — רק כשמשהו רץ; ושורת המשתמשים */
+function liveSection() {
+  if (!D.live) needLive();
+  if (!D.act) needAct();
+  const L = D.live || [], out = [];
+  if (L.length) {
+    out.push(grp(t('admLiveT') + ' · ' + L.length, L.length > 2 ? [t('admLiveAll'), () => go('now')] : null), ...L.slice(0, 2).map(liveCard));
+    if (L.some((x) => !x.me)) out.push(waitBox());
+  }
+  const us = D.act && D.act.us;
+  if (us) out.push(grp(t('admOvUsersG')), list(row({ c: 'purple', ic: '👥', t: fmt(t('admOvUsers'), { n: us.active.d1 }),
+    s: fmt(t('admOvUsersS'), { w: us.active.d7, u: usd(us.sum.mo) }), v: L.filter((x) => !x.me).length ? '●' : '', on: () => go('people') })));
+  return out;
+}
+page('now', { tab: 'ov', parent: 'ov', title: () => t('admLiveT'), render(p) {
+  if (!D.live) { needLive(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  if (!D.live.length) { p.append(list(row({ c: 'green', ic: '✓', t: t('admLiveNone') }))); return; }
+  if (D.live.some((x) => !x.me)) p.append(waitBox());
+  for (const x of D.live) p.append(liveCard(x));
+} });
+page('live', { tab: 'ov', parent: 'now', title: () => { const x = liveOne(); return x ? (x.me ? t('admLiveMe') : x.nm) : t('admLiveT'); }, render(p) {
+  const x = liveOne();
+  if (!x) { if (D.liveJ) needLive(); p.append(h('p', 'adm-dt', D.liveAt0 ? t('admLiveGone') : t('admLoading'))); D.liveAt0 = 1; return; }
+  const ended = x.end || !['queued', 'running'].includes(x.state);
+  p.append(h('p', 'adm-dt', ended ? fmt(t('admLiveEnded'), { c: clock(x.end || Date.now()) }) : fmt(t('admLiveStarted'), { c: x.t0 ? clock(x.t0) : '—' })));
+  p.append(list(row({ c: x.me ? 'blue' : 'orange', ic: Math.round(x.p * 100) + '', t: (STG[x.st] ? STG[x.st]() + ' · ' : '') + Math.round(x.p * 100) + '%',
+    s: x.wait === 'q' ? t('admLiveQ') : x.wait === 'v' ? t('admLiveV') : x.left >= 60 ? fmt(t('admLiveLeft'), { n: Math.round(x.left / 60) }) : kindTxt(x.k),
+    v: usd(x.usd), tr: x.exp ? fmt(t('admLiveOf'), { u: usd(x.exp) }) : '', meter: [x.p * 100, ''] })));
+  const hs = D.liveH[x.j] || [];
+  if (hs.length >= 2) {
+    const sv = costSvg(hs, x.exp);
+    const box = h('div', 'adm-r adm-chart'); box.append(sv);
+    p.append(grp(t('admLiveCost'), null), list(box), h('p', 'adm-foot', t('admLiveCostS')));
+  }
+  const ag = Object.entries(x.by || {});
+  if (ag.length) p.append(grp(t('admLiveAgents')), list(...ag.map(([k, a]) => row({ c: k === 'tl' ? 'orange' : k === 'rv' ? 'green' : k === 'jg' ? 'blue' : 'purple', ic: '◎',
+    t: (ROLE[k] || ROLE.sub)(), s: [modeName(String(a.m || '').replace(/^claude-/, '').replace(/-\d.*$/, '')), a.tok ? fmt(t('admTokN'), { n: tokTxt(a.tok) }) : t('admLiveNoTok')].filter(Boolean).join(' · '), v: usd(a.usd) }))));
+  p.append(grp(t('admLiveStages')), list(...STAGES_A.map((k) => { const st = (x.stg || {})[k] === 'd' ? 'd' : k === x.st && !ended ? 'n' : '';
+    return row({ c: st === 'd' ? 'green' : st === 'n' ? 'orange' : 'gray', ic: st === 'd' ? '✓' : st === 'n' ? '…' : '○', t: STG[k] ? STG[k]() : k,
+      v: st === 'd' ? t('admLiveStDone') : st === 'n' ? t('admLiveStNow') : t('admLiveStWait') }); })));
+  if (!x.me) p.append(list(row({ c: avC(x.u), ic: avI(x.nm), t: fmt(t('admLiveUserAll'), { n: x.nm }), on: () => { D.userU = x.u; go('user'); } })));
+} });
+function liveOne() {
+  if (!D.liveJ) return null;
+  return (D.live || []).find((x) => x.j === D.liveJ) || (D.one && D.one.j === D.liveJ ? D.one : null);
+}
+/* גרף העלות: קו מלא = עד עכשיו, מקווקו = עד הצפוי בסוף */
+function costSvg(hs, exp) {
+  const NS = 'http://www.w3.org/2000/svg', W = 300, H = 60;
+  const t0 = hs[0][0], t1 = Math.max(hs[hs.length - 1][0], t0 + 1), top = Math.max(exp || 0, ...hs.map((x) => x[1]), 0.01);
+  const X = (tm) => ((tm - t0) / (t1 - t0)) * (exp ? W * 0.75 : W), Y = (v) => H - 4 - (v / top) * (H - 8);
+  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('preserveAspectRatio', 'none'); svg.setAttribute('class', 'adm-cost');
+  const pl = (pts, cls) => { const e = document.createElementNS(NS, 'polyline'); e.setAttribute('points', pts.map((q) => q.map((n) => n.toFixed(1)).join(',')).join(' ')); e.setAttribute('class', cls); svg.append(e); };
+  const pts = hs.map(([tm, v]) => [X(tm), Y(v)]);
+  pl(pts, 'a');
+  if (exp) pl([pts[pts.length - 1], [W, Y(exp)]], 'b');
+  return svg;
+}
+/* ---- הטיימליין ---- */
+const EV_F = { all: () => true, tr: (e) => /^j/.test(e.t), adm: (e) => e.t === 'ad', nu: (e) => e.t === 'nu', err: (e) => e.t === 'jf' };
+function evRow(e) {
+  if (e.t === 'ad') return logRow(e);
+  const r = userOf(e.u), me = r ? r.me : false, nm = me ? t('admLiveMe') : r ? r.name : '—';
+  if (e.t === 'nu') return row({ c: avC(e.u), ic: avI(nm), t: nm, s: t('admEvNu'), v: clock(e.at) });
+  const what = { js: t('admEvJs'), jd: t('admEvJd'), jf: t('admEvJf'), jc: t('admEvJc') }[e.t];
+  const s = [kindTxt(e.k) + ' · ' + what, e.t === 'js' && e.live ? t('admEvNow') : '', e.dur ? hrsTxt(e.dur) : '', e.q != null ? fmt(t('admEvQ'), { n: e.q }) : '',
+    e.tok ? fmt(t('admTokN'), { n: tokTxt(e.tok) }) : '', e.err || ''].filter(Boolean).join(' · ');
+  const cost = e.usd ? usd(e.usd) : '';
+  return row({ c: e.t === 'jf' ? 'red' : me ? 'blue' : avC(e.u), ic: e.t === 'jf' ? '!' : me ? '✓' : avI(nm), t: nm, s, v: cost || clock(e.at), tr: cost ? clock(e.at) : '',
+    on: e.j && (e.t === 'js' && e.live) ? () => { D.liveJ = e.j; go('live'); } : r ? () => { D.userU = e.u; go('user'); } : null });
+}
+function chips(opts, val, set) {
+  const d = h('div', 'adm-chips');
+  for (const [k, lbl] of opts) { const b = h('button', k === val ? 'on' : '', lbl); b.type = 'button'; b.addEventListener('click', () => set(k)); d.append(b); }
+  return d;
+}
+function timelineEls(evs) {
+  const out = [];
+  const dk = (ms) => new Date(ms).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { timeZone: 'Asia/Jerusalem', weekday: 'long', day: 'numeric', month: 'numeric' });
+  let g = null, rows = [];
+  const flush = () => { if (rows.length) out.push(grp(g), list(...rows)); rows = []; };
+  for (const e of evs) { const k = dk(e.at); if (k !== g) { flush(); g = k; } const r = evRow(e); if (r) rows.push(r); }
+  flush();
+  return out;
+}
+page('act', { tab: 'act', title: () => t('admTabAct'), render(p) {
+  const A2 = D.act;
+  if (!A2) { needAct(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  const us = A2.us;
+  const U = A2.use;
+  p.append(list(row({ c: 'purple', ic: '👥', t: t('admActUsers'), s: fmt(t('admActUsersS'), { d: us.active.d1, w: us.active.d7 }), v: us.n, on: () => go('people') }),
+    U ? row({ c: U.rec.length ? 'orange' : 'green', ic: '▤', t: t('admUseT'), s: U.rec.length ? fmt(t('admUseRecN'), { n: U.rec.length }) : fmt(t('admUseS'), { n: U.n, u: usd(U.usd) }), v: U.rec.length ? '●' : '', on: () => go('use') }) : null));
+  p.append(chips([['all', t('admActAll')], ['tr', t('admActTr')], ['adm', t('admActAdm')], ['nu', t('admActNew')], ['err', t('admActErr')]], D.actF, (k) => { D.actF = k; paint(); }));
+  const sel = h('select', 'adm-sel'); sel.append(new Option(t('admActAllU'), ''));
+  for (const r of us.rows) sel.append(new Option(r.me ? t('admLiveMe') : r.name, r.u));
+  sel.value = D.actU; sel.addEventListener('change', () => { D.actU = sel.value; paint(); });
+  p.append(sel);
+  const evs = A2.tl.filter((e) => EV_F[D.actF](e) && (!D.actU || e.u === D.actU));
+  if (!evs.length) p.append(list(row({ c: 'gray', ic: '◷', t: t('admActNone') })));
+  else p.append(...timelineEls(evs));
+  p.append(h('p', 'adm-foot', t('admActFoot')));
+} });
+page('people', { tab: 'act', parent: 'act', title: () => t('admUsT'), render(p) {
+  const A2 = D.act;
+  if (!A2) { needAct(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  const P = D.usP, val = (r) => (P === 'all' ? r.all : r.d30);
+  const rows = A2.us.rows.slice().sort((a, b) => (b.live - a.live) || (val(b).usd - val(a).usd) || (b.ls - a.ls));
+  const tot = rows.reduce((a, r) => a + val(r).usd, 0);
+  p.append(chips([['d30', t('admUs30')], ['all', t('admUsAll')]], P, (k) => { D.usP = k; paint(); }));
+  if (!rows.length) { p.append(list(row({ c: 'gray', ic: '👥', t: t('admPpNone') }))); return; }
+  p.append(grp(t('admUsSum'), null), list(...rows.map((r) => { const v = val(r);
+    return row({ c: r.me ? 'blue' : avC(r.u), ic: r.me ? '✓' : avI(r.name), t: r.me ? t('admLiveMe') : r.name,
+      s: [r.live ? '● ' + t('admUsNow') : '', r.ps ? t('admUsPaused') : '', fmt(t('admUsRowS'), { n: v.n, h: hrsTxt(v.sec), tok: fmt(t('admTokN'), { n: tokTxt(v.tok) }) }), r.live ? '' : ago(r.ls)].filter(Boolean).join(' · '),
+      v: usd(v.usd), tr: tot ? Math.round(v.usd / tot * 100) + '%' : '', on: () => { D.userU = r.u; go('user'); } }); })));
+  p.append(h('p', 'adm-dt', fmt(t('admUsTot'), { u: usd(tot) })));
+  p.append(list(row({ c: 'orange', ic: '⤒', t: t('admUDef'), s: t('admUDefS'), v: usd(A2.capDef, 0), on: defDlg })), h('p', 'adm-foot', t('admPpFoot')));
+} });
+page('user', { tab: 'act', parent: 'people', title: () => { const r = userOf(D.userU); return r ? (r.me ? t('admLiveMe') : r.name) : t('admUsT'); }, render(p) {
+  const r = userOf(D.userU);
+  if (!r) { if (!D.act) needAct(); p.append(h('p', 'adm-dt', D.act ? t('admLiveGone') : t('admLoading'))); return; }
+  if (r.em) { const dt = h('p', 'adm-dt'); dt.append(h('bdi', null, r.em)); p.append(dt); }
+  const live = (D.live || []).filter((x) => x.u === r.u);
+  for (const x of live) p.append(liveCard(x));
+  const pc = r.cap ? r.mo / r.cap : 0;
+  p.append(list(
+    row({ c: r.live ? 'orange' : 'gray', ic: r.live ? '●' : '◷', t: t('admUState'), s: [r.live ? t('admUNow') : fmt(t('admUSeen'), { a: ago(r.ls) }), r.fs ? fmt(t('admUJoined'), { d: day(r.fs) }) : ''].filter(Boolean).join(' · ') }),
+    row({ c: pc >= 1 ? 'red' : pc >= 0.8 ? 'orange' : 'green', ic: '$', t: t('admUMonth'), s: fmt(t('admUMonthS'), { c: usd(r.cap, 0), p: Math.round(pc * 100) + '%' }), v: usd(r.mo), meter: [pc * 100, pc >= 0.8 ? 'w' : ''] }),
+    row({ c: 'purple', ic: '30', t: t('admUs30'), s: fmt(t('admUCntS'), { n: r.d30.n, h: hrsTxt(r.d30.sec), tok: fmt(t('admTokN'), { n: tokTxt(r.d30.tok) }) }), v: usd(r.d30.usd) }),
+    row({ c: 'purple', ic: '∑', t: t('admUsAll'), s: fmt(t('admUCntS'), { n: r.all.n, h: hrsTxt(r.all.sec), tok: fmt(t('admTokN'), { n: tokTxt(r.all.tok) }) }), v: usd(r.all.usd) })));
+  const mg = [row({ c: 'orange', ic: '⤒', t: t('admUCap'), s: r.mc ? t('admUCapOwn') : t('admUCapSys'), v: usd(r.cap, 0), on: () => capDlg(r) })];
+  if (!r.me) mg.push(row({ c: r.ps ? 'red' : 'green', ic: r.ps ? '⏸' : '▶', t: t('admUPause'), s: r.ps ? t('admUPauseOn') : t('admUPauseOff'), on: () => pauseDlg(r) }));
+  p.append(grp(t('admUMgmt')), list(...mg));
+  const evs = ((D.act && D.act.tl) || []).filter((e) => e.u === r.u).slice(0, 40);
+  if (evs.length) p.append(...timelineEls(evs));
+} });
+/* ---- שימוש ומשאבים (29/10/2026, בקשת המשתמש: "להעריך את כמות השימוש ואת הצורך בשדרוג המשאבים") — UM.usage בשרתון:
+   המלצות, 30 יום לפי יום ולפי שעה, לפי סוג עבודה ומנוע, המתנה בתור, ריצה, שיא במקביל, ניצולת, כשלים ושרתים ---- */
+const TY = { vid: 'admTyVid', url: 'admTyUrl', sub: 'admTySub', ka: 'admTyKa', ph: 'admTyPh', rr: 'admTyRr', ai: 'admTyAi', dx: 'admTyDx', oth: 'admTyOth' };
+const TY_C = { vid: 'studio', url: 'blue', sub: 'purple', ka: 'orange', ph: 'green', rr: 'gray', ai: 'academy', dx: 'gray', oth: 'gray' };
+const tyTxt = (k) => t(TY[k] || TY.oth);
+const ENG = { api: 'admEkApi', ry: 'admEkRy', cp: 'admEkCp', rt: 'admEkRt' };
+const REC = { wait: ['orange', '⏳', 'admRecWait'], util: ['orange', '⚙', 'admRecUtil'], fail: ['red', '!', 'admRecFail'], grow: ['blue', '↗', 'admRecGrow'], cut: ['gray', '…', 'admRecCut'] };
+/* עמודות: vals = מספרים; hi = האינדקס המודגש (היום / השעה הנוכחית) */
+function barsSvg(vals, hi) {
+  const NS = 'http://www.w3.org/2000/svg', W = 300, H = 64, n = vals.length, top = Math.max(1e-9, ...vals), bw = W / n;
+  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('preserveAspectRatio', 'none'); svg.setAttribute('class', 'adm-bars');
+  vals.forEach((v, i) => {
+    const r = document.createElementNS(NS, 'rect'), hh = v > 0 ? Math.max(2, (v / top) * (H - 2)) : 1;
+    r.setAttribute('x', ((lang === 'he' ? n - 1 - i : i) * bw + bw * 0.15).toFixed(1)); r.setAttribute('width', (bw * 0.7).toFixed(1));
+    r.setAttribute('y', (H - hh).toFixed(1)); r.setAttribute('height', hh.toFixed(1)); r.setAttribute('class', i === hi ? 'h' : v > 0 ? 'a' : 'z');
+    svg.append(r);
+  });
+  return svg;
+}
+const minTxt = (m) => (m >= 90 ? fmt(t('admHrs'), { n: (m / 60).toFixed(1) }) : fmt(t('admMins'), { n: Math.round(m || 0) }));
+const secTxt = (s) => (s >= 90 ? minTxt(s / 60) : fmt(t('admSecs'), { n: Math.round(s || 0) }));
+page('use', { tab: 'act', parent: 'act', title: () => t('admUseT'), render(p) {
+  const U = D.act && D.act.use;
+  if (!U) { needAct(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  // מה לעשות: ההמלצות (או "מספיק")
+  p.append(list(...(U.rec.length ? U.rec.map((r) => { const R = REC[r.k] || REC.cut; return row({ c: R[0], ic: R[1], t: fmt(t(R[2]), { v: r.v }), s: t(R[2] + 'S') }); })
+    : [row({ c: 'green', ic: '✓', t: t('admRecOk'), s: t('admRecOkS') })])));
+  const dv = U.days.map((d) => d.n), du = U.days.map((d) => d.usd);
+  p.append(tiles(tileEl('purple', t('admUseJobs'), String(U.n), fmt(t('admUseWk'), { n: U.wk.cur.n, g: (U.wk.g > 0 ? '+' : '') + U.wk.g + '%' }), '', dv),
+    tileEl('orange', t('admUseCost'), usd(U.usd), fmt(t('admUseProj'), { u: usd(U.mo.proj, 0) }), '', du),
+    tileEl('blue', t('admUseVid'), hrsTxt(U.sec), fmt(t('admUseOkF'), { ok: U.ok, f: U.f }), U.fr > 15 ? 'neg' : '', U.days.map((d) => d.sec)),
+    tileEl('green', t('admUsePeak'), String(U.peak.c), fmt(t('admUseUtil'), { p: Math.round(U.peak.util * 100) }), '', U.days.map((d) => d.pk))));
+  // 30 יום — עמודות לפי יום (עבודות / עלות)
+  const M = D.useM || 'n', vals = U.days.map((d) => (M === 'usd' ? d.usd : M === 'sec' ? d.sec : d.n));
+  p.append(grp(t('admUseDays')), chips([['n', t('admUseJobs')], ['usd', t('admUseCost')], ['sec', t('admUseVid')]], M, (k) => { D.useM = k; paint(); }));
+  const ch = h('div', 'adm-chart card adm-card'); ch.append(barsSvg(vals, vals.length - 1));
+  const lg = h('div', 'adm-axis'); lg.append(h('span', null, day(Date.now() - 29 * 864e5)), h('span', null, t('admToday'))); ch.append(lg); p.append(ch);
+  // שעות העומס (שעון ישראל)
+  const hrNow = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', hour: '2-digit', hourCycle: 'h23' }).format(new Date())) % 24;
+  const pkH = U.hours.indexOf(Math.max(...U.hours));
+  p.append(grp(t('admUseHours')));
+  const hc = h('div', 'adm-chart card adm-card'); hc.append(barsSvg(U.hours, hrNow));
+  const hl = h('div', 'adm-axis'); hl.append(h('span', null, '00:00'), h('span', null, U.n ? fmt(t('admUsePkH'), { h: String(pkH).padStart(2, '0') + ':00' }) : ''), h('span', null, '23:00')); hc.append(hl); p.append(hc);
+  // לפי סוג עבודה
+  if (U.types.length) p.append(grp(t('admUseTypes')), list(...U.types.map((x) => row({ c: TY_C[x.k] || 'gray', ic: tyTxt(x.k).slice(0, 1), t: tyTxt(x.k),
+    s: [fmt(t('admUseTyS'), { n: x.n, ok: x.ok, f: x.f }), x.sec ? hrsTxt(x.sec) : '', x.run ? fmt(t('admUseRun'), { m: minTxt(x.run) }) : '', x.cpm ? fmt(t('admUseCpm'), { u: '$' + x.cpm }) : ''].filter(Boolean).join(' · '),
+    v: usd(x.usd), tr: U.n ? Math.round(x.n / U.n * 100) + '%' : '' }))));
+  // עומס ומשאבים
+  p.append(grp(t('admUseLoad')), list(
+    row({ c: U.wait.p90 > 600 ? 'orange' : 'green', ic: '⏳', t: t('admUseWait'), s: fmt(t('admUseWaitS'), { a: secTxt(U.wait.p50), b: secTxt(U.wait.p90), m: secTxt(U.wait.max) }), v: U.wait.n ? secTxt(U.wait.p50) : '—' }),
+    row({ c: 'blue', ic: '▶', t: t('admUseRunT'), s: fmt(t('admUseRunS'), { a: minTxt(U.run.p50), b: minTxt(U.run.p90) }), v: U.run.p50 ? minTxt(U.run.p50) : '—' }),
+    row({ c: U.peak.util > 0.5 ? 'orange' : 'green', ic: '⚙', t: t('admUseBusy'), s: fmt(t('admUseBusyS'), { h: U.peak.busy, c: U.peak.c, d: U.peak.at ? day(U.peak.at) : '—' }), v: Math.round(U.peak.util * 100) + '%', meter: [U.peak.util * 100, U.peak.util > 0.5 ? 'w' : ''] }),
+    row({ c: 'gray', ic: '◷', t: t('admUseNow'), s: fmt(t('admUseNowS'), { n: U.live }), v: U.live || '—' })));
+  // מנוע: המפתח של המערכת (עולה לנו) מול המנוי של המשתמש / העתק־הדבק
+  const en = Object.entries(U.eng).filter(([, n]) => n);
+  if (en.length) p.append(grp(t('admUseEng')), list(...en.map(([k, n]) => row({ c: k === 'api' ? 'orange' : 'gray', ic: k === 'api' ? '$' : '·', t: t(ENG[k]), v: n, tr: Math.round(n / U.n * 100) + '%' }))));
+  // החודש
+  p.append(grp(t('admUseMo')), list(row({ c: 'orange', ic: '$', t: t('admUseMoT'), s: fmt(t('admUseMoS'), { d: U.mo.d, n: U.mo.dim, u: usd(U.mo.proj) }), v: usd(U.mo.usd), meter: [U.mo.d / U.mo.dim * 100, ''] }),
+    row({ c: 'blue', ic: '↗', t: t('admUseTrend'), s: fmt(t('admUseTrendS'), { a: U.wk.cur.n, b: U.wk.prev.n, u: usd(U.wk.cur.usd), v: usd(U.wk.prev.usd) }), v: (U.wk.g > 0 ? '+' : '') + U.wk.g + '%' })));
+  if (U.errs.length) p.append(grp(t('admUseErrs')), list(...U.errs.map((e) => row({ c: 'red', ic: '!', t: e.e, v: e.n }))));
+  if (U.srv.length) p.append(grp(t('admUseSrv')), list(...U.srv.map((x) => row({ c: 'gray', ic: '▣', t: x.s, s: fmt(t('admUseSrvS'), { h: x.h }), v: x.n }))));
+  p.append(h('p', 'adm-foot', t('admUseFoot')));
+} });
+async function userSet(r, o) {
+  const j = await api('adminUserSet', Object.assign({ u: r.u }, o));
+  flash(j.ok ? t('admSaved') : t('admErr'));
+  if (j.ok) { D.log = null; await needAct(true); }
+}
+function capDlg(r) {
+  const inp = h('input', 'adm-inp'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.min = '1'; inp.max = '10000'; inp.value = r.mc ? String(r.mc) : ''; inp.placeholder = String(D.act.capDef || '');
+  askConfirm(fmt(t('admUCapQ'), { n: r.name, d: usd(D.act.capDef, 0) }), () => {
+    const v = inp.value.trim();
+    if (v && !(Number(v) >= 1 && Number(v) <= 10000)) { flash(t('admUBadCap')); return; }
+    userSet(r, { cap: v ? Math.round(Number(v)) : 0 });
+  }, { body: inp, ok: t('admUCapSave') });
+  setTimeout(() => { try { inp.focus(); } catch (e) {} }, 50);
+}
+/* תקרת ברירת המחדל לכל המשתמשים (sysCfg.ucap). ריק = הגבוהה ($10,000) — "שלא יוגבלו פתאום" */
+function defDlg() {
+  const inp = h('input', 'adm-inp'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.min = '1'; inp.max = '10000'; inp.value = String(D.act.capDef || ''); inp.placeholder = '10000';
+  askConfirm(t('admUDefQ'), async () => {
+    const v = inp.value.trim();
+    if (v && !(Number(v) >= 1 && Number(v) <= 10000)) { flash(t('admUBadCap')); return; }
+    const j = await api('adminUserSet', { def: v ? Math.round(Number(v)) : 0 });
+    flash(j.ok ? t('admSaved') : t('admErr'));
+    if (j.ok) { D.log = null; await needAct(true); }
+  }, { body: inp, ok: t('admUCapSave') });
+  setTimeout(() => { try { inp.focus(); } catch (e) {} }, 50);
+}
+function pauseDlg(r) {
+  if (r.ps) askConfirm(fmt(t('admUResumeQ'), { n: r.name }), () => userSet(r, { ps: false }), { ok: t('admUResumeGo') });
+  else askConfirm(fmt(t('admUPauseQ'), { n: r.name }), () => userSet(r, { ps: true }), { danger: true, ok: t('admUPauseGo') });
+}
+/* ריצת בדיקה בזמן שמשתמש אחר עובד — קודם שואלים (כמו "התחל" בסטודיו). onGo = ההמשך הרגיל */
+function busyGuard(onGo) {
+  const oth = (D.live || []).filter((x) => !x.me);
+  if (!oth.length) { onGo(); return; }
+  askConfirm(fmt(t('admBusyQ'), { n: oth[0].nm, p: Math.round(oth[0].p * 100) }), onGo, { ok: t('studioStartAnyway'), cancel: t('admBusyWait'), onNo: () => setWait(true) });
+}
+setInterval(() => { if (booted && !document.hidden && LIVE_PAGES.includes(cur)) needLive(); }, 10000);
+/* קישור מההתראה: ‎#live=<עבודה> (וגם בכתובת של המסך — רענון נשאר על אותה עבודה) */
+const hashOf = (k) => (k === 'live' && D.liveJ ? 'live=' + D.liveJ : k);
+function hashPage(hs) {
+  const m = /^live=(j[A-Za-z0-9_-]{20})$/.exec(hs);
+  if (m) { D.liveJ = m[1]; return 'live'; }
+  return hs;
+}
+window.addEventListener('hashchange', () => { const k = hashPage((location.hash || '#ov').slice(1)); if (k === 'live' && booted) { needLive(); go('live', false, true); } });
+
 if (first === 'out') { loginGate({ app: 'admin', auth: A, logo: 'logo-invest.webp', logoLg: 'logo-invest-lg.webp', name: t('admT') }); done(); }
 else boot();
 
@@ -1416,10 +1724,11 @@ async function boot() {
     root.replaceChildren(h('p', 'adm-note', t('admNoAdmin')), accountCard(A, 'icon-192.png'));
     return;
   }
-  const k = (location.hash || '#ov').slice(1);
+  const k = hashPage((location.hash || '#ov').slice(1));   // 29/10/2026: ‎#live=<עבודה> מההתראה
   cur = PAGES[k] ? k : 'ov';
-  try { history.replaceState({ adm: cur }, '', '#' + cur); } catch (e) {}
+  try { history.replaceState({ adm: cur }, '', '#' + hashOf(cur)); } catch (e) {}
   booted = true;
+  if (cur === 'live') await needLive();
   paint();
   // 28/10/2026: טעינה מוקדמת של שאר הלשוניות (טיוטה מנותקת מפעילה את הבקשות שלהן) — מעבר לשונית נכנס מלא
   const idle = window.requestIdleCallback || ((f) => setTimeout(f, 300));

@@ -3351,7 +3351,7 @@ function stubFetch(text, status = 200) {
     studio._reset();   // הבלוק הזה שלח הרבה בקשות — מאפסים את מגבלת הקצב בזיכרון לפני הבדיקות הבאות
 
     // ---- מצב "API של המערכת": השרת שלנו מושך עבודות (בלי Routine, בלי פורט פתוח) ----
-    process.env.STUDIO_API_USER_MONTH_USD = '12';
+    await run({ op: 'adminUserSet', idToken: OWNER, def: 12 });   // 29/10/2026: התקרה לכל משתמש — sysCfg.ucap (STUDIO_API_USER_MONTH_USD כבר לא בשימוש)
     const srvRun = async (body, token) => { const x = mockRes(); await studio._handler({ method: 'POST', headers: token ? { authorization: 'Bearer ' + token } : {}, body }, x, deps()); payloads.push(JSON.stringify(x.payload)); return x; };
     rr = await run({ op: 'srvCreate', idToken: FRIEND, name: 'x' });
     ok(rr.statusCode === 403 && rr.payload.error === 'not_admin', 'מצב API: רק המנהל מוסיף שרתים');
@@ -3719,7 +3719,7 @@ function stubFetch(text, status = 200) {
     ok(rr.statusCode === 401 && rr.payload.stop, 'מצב API: שרת שהוסר — הטוקן מת מיד');
     ok(S.normSpec(SPEC).eng === undefined && S.normCap(1e9) === 100 && S.normCap(0) === 10 && S.jobCap({ cap: 5 }, 0, 30) === 5,
       'מצב API: עבודה רגילה לא משתנה (המנוי); התקרה לעבודה 1–100 (ברירת מחדל 10)');
-    delete process.env.STUDIO_API_USER_MONTH_USD;
+    await run({ op: 'adminUserSet', idToken: OWNER, def: 0 });
     studio._reset();
 
     // הפעלה שאף סשן לא לקח
@@ -4069,7 +4069,9 @@ function stubFetch(text, status = 200) {
       db.set('aiUse/' + tday, { fields: { t: { integerValue: '1700' }, i: { integerValue: '4' }, u_aaaaaaaaaaaaaaaa: { integerValue: '9' }, u_bbbbbbbbbbbbbbbb: { integerValue: '2' } } });
       const mu0 = db.get('studioStats/ownerUid0001');
       db.set('studioStats/zzAiTestUid01', { fields: { mu: { stringValue: JSON.stringify({ m: mkey, usd: 26 }) } } });
+      await run({ op: 'adminUserSet', idToken: OWNER, def: 30 });   // 29/10/2026: ברירת המחדל $10,000 — האזהרה נבדקת מול תקרה נמוכה
       const aiR = await run({ op: 'adminAi', idToken: OWNER });
+      await run({ op: 'adminUserSet', idToken: OWNER, def: 0 });
       const AIV = aiR.payload.ai;
       ok(aiR.payload.ok && AIV.days.length === 14 && AIV.today.t === 1700 && AIV.today.u === 2 && AIV.today.i === 4, 'AI ועלויות: היום — קריאות, ניתוחים, כמה קוראים');
       ok(AIV.month && AIV.month.users >= 1 && AIV.month.top >= 26 && AIV.month.cap > 0, 'AI ועלויות: ההוצאה החודשית של Studio על השרת');
