@@ -134,10 +134,13 @@ class PhActivity : Activity() {
         val pw = if (r.has("pw")) r.optBoolean("pw") else d.getQueryParameter("pw") == "1"
         // pt=1 — שלב 3: גם שלבי הטקסט בטלפון (PhPy). רק עם pw, נקבע פעם אחת לעבודה (spec.pt)
         val pt = pw && (if (r.has("pt")) r.optBoolean("pt") else d.getQueryParameter("pt") == "1")
+        // vc=1 — 29/10/2026: גם הסרטון לענן, ברקע (PhUpJob); נקבע פעם אחת לעבודה, כמו בשרתון (spec.vc)
+        val vc = if (r.has("vc")) r.optBoolean("vc") else d.getQueryParameter("vc") == "1"
         PhStore.update(this, pid) { it.put("job", j).put("key", k).put("base", b).put("pb", pb).put("ov", d.getQueryParameter("ov") == "1").put("web", web)
-            .put("pw", pw).put("pt", pt).put("cell", d.getQueryParameter("cell") == "1").remove("e") }
+            .put("pw", pw).put("pt", pt).put("vc", vc).put("cell", d.getQueryParameter("cell") == "1").remove("e") }
         PhGcJob.schedule(this)          // הסרטון נשמר עד שהפרויקט נמחק — הבדיקה ברקע
         startWork(pid, false)
+        videoJob(pid)
     }
 
     private fun burn(d: Uri) {
@@ -155,6 +158,16 @@ class PhActivity : Activity() {
         val pid = d.getQueryParameter("pid") ?: ""
         val r = PhStore.get(this, pid) ?: run { fail(R.string.phGone); return }
         startWork(pid, r.optString("est") == "burn" || r.optString("st") == "burn")
+        videoJob(pid)
+    }
+
+    /** 29/10/2026: הסרטון לענן — משימת UIDT כל עוד החלון גלוי (רק אז מותר לתזמן אותה). לא הצליח (מתחת ל־14) — PhService
+     *  מעלה אחרי הקול (vJob=false). כבר עלה / נכשל סופית — כלום */
+    private fun videoJob(pid: String) {
+        val r = PhStore.get(this, pid) ?: return
+        if (!r.optBoolean("vc") || r.optString("vId").isNotEmpty()) return
+        val ok = PhUpJob.schedule(this, pid)
+        PhStore.update(this, pid) { it.put("vJob", ok).remove("vE") }
     }
 
     private fun startWork(pid: String, burn: Boolean) {

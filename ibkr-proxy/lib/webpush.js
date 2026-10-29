@@ -15,10 +15,11 @@ const SUB_MAX = 5;                 // מכשירים לאדם
 const TTL = 24 * 3600;             // שעות שההתראה מחכה לטלפון כבוי
 const ADMIN_URL = 'https://admin.thesnowball.app/';   // 20/10/2026: הכתובת של מרכז הניהול (מאחורי Cloudflare Access)
 const SUBJECT = 'https://yishaiguedj1.github.io/portfolio-pwa/';   // VAPID "sub" — כתובת ולא מייל (פרטיות)
-const KINDS = ['done', 'fail', 'ask', 'gate', 'cp', 'srv_down', 'srv_up', 'srv_auth', 'srv_new', 'site_down', 'site_up', 'major', 'bk_fail', 'ready_fail', 'lab_week', 'fund_audit', 'svc_quota', 'fs_hot'].concat(require('./usermon').KINDS);   // 29/10/2026: ניטור משתמשים — עבודה של משתמש אחר בווילון, סוף, "אין אחרים", 80% מהתקרה, סיכום יומי (למנהל)   // 26/10/2026: svc_quota = שירות חיצוני הגיע ל־70% מהמכסה החינמית / המיילים לא נשלחים (למנהל)   // 25/10/2026: fund_audit = בקרת הדיוק הלילית של מנתח החברות מצאה שמשהו נשבר (למנהל)   // 20/10/2026 (מ׳7): lab_week = הסיכום השבועי של המעבדה (למנהל)   // 15/10/2026: srv_new = שרת שהתחבר בפעם הראשונה (גם מהזמנה אוטומטית)   // 15/10/2026: למנהל — הגיבוי נכשל / בדיקת המוכנות נכשלה (נפתח במרכז הניהול)   // 14/10/2026: major = תקלה רחבה (studioinc majorSync)   // שלב 5: הכתובות עצמן (lib/sitewatch.js)   // סבב 10: cp = העתק־הדבק מחכה לך
+const KINDS = ['done', 'fail', 'ask', 'gate', 'up_stall', 'cp', 'srv_down', 'srv_up', 'srv_auth', 'srv_new', 'site_down', 'site_up', 'major', 'bk_fail', 'ready_fail', 'lab_week', 'fund_audit', 'svc_quota', 'fs_hot'].concat(require('./usermon').KINDS);   // 29/10/2026: ניטור משתמשים — עבודה של משתמש אחר בווילון, סוף, "אין אחרים", 80% מהתקרה, סיכום יומי (למנהל)   // 26/10/2026: svc_quota = שירות חיצוני הגיע ל־70% מהמכסה החינמית / המיילים לא נשלחים (למנהל)   // 25/10/2026: fund_audit = בקרת הדיוק הלילית של מנתח החברות מצאה שמשהו נשבר (למנהל)   // 20/10/2026 (מ׳7): lab_week = הסיכום השבועי של המעבדה (למנהל)   // 15/10/2026: srv_new = שרת שהתחבר בפעם הראשונה (גם מהזמנה אוטומטית)   // 15/10/2026: למנהל — הגיבוי נכשל / בדיקת המוכנות נכשלה (נפתח במרכז הניהול)   // 14/10/2026: major = תקלה רחבה (studioinc majorSync)   // שלב 5: הכתובות עצמן (lib/sitewatch.js)   // סבב 10: cp = העתק־הדבק מחכה לך
 const TEXT = {
   he: { done: ['התרגום מוכן ✓', 'הכתוביות והסרטון מחכים בסטודיו'], fail: ['העבודה נעצרה', 'פתחו את הסטודיו לפרטים'],
     ask: ['שאלה מ־Claude', 'העבודה מחכה לתשובה שלך'], gate: ['צריך את האישור שלך', 'העבודה מחכה לאישור'],
+    up_stall: ['ההעלאה של הסרטון נעצרה', 'פתחו את Studio כדי להמשיך — העבודה מחכה לסרטון'],   // 29/10/2026: העובד מחכה לסרטון 10 דק׳ בלי בית חדש
     cp: ['העתקה והדבקה ל־Claude', 'בקשה חדשה מחכה — מעתיקים, מדביקים ב־Claude ומחזירים את התשובה'],
     srv_down: ['שרת התרגום לא מדווח', 'עבר רבע שעה בלי דיווח מהשרת — פתחו את מסך השרת'], srv_up: ['שרת התרגום חזר ✓', 'השרת מדווח שוב'],
     srv_auth: ['שרת התרגום לא מצליח להתחבר', 'השרתון דוחה את הטוקן שלו — פתחו את מסך השרת'],
@@ -34,6 +35,7 @@ const TEXT = {
     test: ['ההתראות עובדות ✓', 'כך תדעו כשתרגום מוכן או כש־Claude שואל משהו'] },
   en: { done: ['Translation ready ✓', 'Subtitles and video are waiting in the studio'], fail: ['The job stopped', 'Open the studio for details'],
     ask: ['Claude has a question', 'The job is waiting for your answer'], gate: ['Your approval is needed', 'The job is waiting for approval'],
+    up_stall: ['The video upload stopped', 'Open Studio to continue — the job is waiting for the video'],
     cp: ['Copy & paste to Claude', 'A new request is waiting — copy it, paste in Claude and bring back the answer'],
     srv_down: ['Translation server is silent', 'No report from the server for 15 minutes — open the Server screen'], srv_up: ['Translation server is back ✓', 'The server is reporting again'],
     srv_auth: ['Translation server cannot connect', 'Its token is being rejected — open the Server screen'],

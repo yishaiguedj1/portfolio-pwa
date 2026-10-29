@@ -28,7 +28,18 @@ class PhService : Service() {
         val type = if (burn && Build.VERSION.SDK_INT >= 35) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING else ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
         startForeground(PhWork.N_ID, n, type)
         Thread {
-            try { if (burn) PhWork.burn(this, pid) { stop } else PhWork.up(this, pid) { stop } }
+            try {
+                if (burn) PhWork.burn(this, pid) { stop }
+                else {
+                    PhWork.up(this, pid) { stop }
+                    // 29/10/2026: הסרטון לענן — כשאין UIDT (מתחת לאנדרואיד 14) הוא עולה כאן, באותו שירות, אחרי הקול
+                    val r = PhStore.get(this, pid)
+                    if (!stop && r != null && r.optBoolean("vc") && !r.optBoolean("vJob")) {
+                        PhWork.video(this, pid, { stop }) { n -> PhWork.nm(this).notify(PhWork.N_VID, n) }
+                        PhWork.nm(this).cancel(PhWork.N_VID)
+                    }
+                }
+            }
             finally {
                 busy = false
                 stopForeground(STOP_FOREGROUND_REMOVE)

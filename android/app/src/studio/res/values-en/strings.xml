@@ -47,6 +47,7 @@
     <string name="phUpA">Uploading the audio</string>
     <string name="phStart">Starting the translation on the server…</string>
     <string name="phShots">Detecting shot changes (while the server transcribes)…</string>
+    <string name="phUpV">Uploading the video to the cloud · %1$d%%</string>
     <string name="phUpM">Sending the measurements</string>
     <string name="phModels">Downloading the models for on-phone translation (once, about 1.8GB)…</string>
     <string name="phModelsP">Downloading the models · %1$d of %2$d MB</string>
