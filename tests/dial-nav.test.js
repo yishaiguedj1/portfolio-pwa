@@ -90,3 +90,11 @@ ok(/\(it\.bub \|\| it\.ico\)/.test(fn('dialNavBuild')) && /\.tab-bub-ico \{ widt
 ok(/\.tab-disc \{[^}]*transform: scale\(\.72\)/.test(css) && /@keyframes dialSettle/.test(css) && !/dialWave|dialSheen/.test(css) && /prefers-reduced-motion: reduce\) \{ \.tab\.zap/.test(css), 'עיגול 78 מוקטן (‎.72); נשימה רכה בנחיתה (בלי גל); בלי אנימציה כשמבקשים להפחית תנועה');
 ok(/body\.has-dock \.toast \{/.test(css), 'ההודעה הקופצת מעל החוגה');
 console.log(n + ' בדיקות עברו');
+{ // 29/10/2026 (סרטון המשתמש, Academy): באמצע ההצלבה בין שני פריטים — הסמל או הבועה גלויים, לא שני עיגולים ריקים
+  const mid = A.dialFrame({ pos: 0.5, from: 0, to: 1, p: 0.5 }, 4, 390, true);
+  ok([0, 1].every((i) => Math.max(mid[i].ico, mid[i].bub) >= 0.4), 'החוגה באמצע מעבר: בכל פריט הסמל או הבועה גלויים (' + mid.slice(0, 2).map((v) => v.ico + '/' + v.bub).join(' ') + ')');
+}
+{ // 29/10/2026 (סרטון המשתמש, Academy): בחוגה של ארבעה, נבחר בקצה — אין כיתוב לפריטים במרחק 2+ (חפפו ונחתכו בשולי המסך); ב־7 — כמו קודם
+  const e4 = A.dialFrame(A.dialRest(0), 4, 390, true), e7 = A.dialFrame(A.dialRest(3), 7, 412, true);
+  ok(e4[1].lbl === 1 && e4[2].lbl === 0 && e4[3].lbl === 0 && e7[1].lbl === 1 && e7[5].lbl === 1, 'כיתובים בחוגה קטנה: עד מרחק 1 בלבד (' + e4.map((v) => v.lbl).join('/') + ')');
+}

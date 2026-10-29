@@ -156,6 +156,7 @@ function maintPaint(c) {
 }
 let _sysCfgWired = false;
 function sysCfgBoot() {
+  newsIdleWire();
   maintPaint(sysCfgCached());
   if (typeof fetch !== 'function') return;
   const go = () => fetch(ibkrProxyBase() + '/api/studio', { method: 'POST', headers: ibkrProxyHeaders(), body: JSON.stringify({ op: 'cfg' }) })
@@ -164,7 +165,7 @@ function sysCfgBoot() {
       _sysCfg = j.cfg;
       try { localStorage.setItem(LS_SYSCFG, JSON.stringify(j.cfg)); } catch (e) {}
       maintPaint(j.cfg);
-      setTimeout(() => newsShow(j.cfg), 1800);   // אחרי שהדף נפתח — לא מעל מסך הפתיחה
+      setTimeout(() => newsWhenIdle(j.cfg), 1800);   // אחרי שהדף נפתח — לא מעל מסך הפתיחה, ולא באמצע ניווט
     }).catch(() => {});
   go();
   if (!_sysCfgWired && typeof document !== 'undefined') { _sysCfgWired = true; document.addEventListener('visibilitychange', () => { if (!document.hidden) go(); }); }
@@ -228,6 +229,23 @@ function changelogItems(md, rel) {
   }
   return out.slice(0, 5);
 }
+/* 29/10/2026 (סרטון המשתמש, Academy — ס5 בתוכנית "עמודים סטטיים"): "מה חדש" קפץ 0.3 שנ׳ אחרי החלקה בין עמודים, באמצע הניווט.
+   עכשיו החלון מחכה לשקט: 2.5 שנ׳ בלי נגיעה, גלילה או מעבר (קובייה / חוגה) — ורק אז מוצג */
+const NEWS_IDLE_MS = 2500;
+let _newsTouch = 0;
+function newsIdleWire() {               // מהפתיחה — גם נגיעה שלפני שההגדרות הגיעו נספרת
+  if (newsIdleWire.on || typeof document === 'undefined' || !document.addEventListener) return;
+  newsIdleWire.on = true;
+  const mark = () => { _newsTouch = Date.now(); };
+  ['pointerdown', 'touchstart', 'wheel', 'keydown', 'scroll'].forEach((ev) => document.addEventListener(ev, mark, { passive: true, capture: true }));
+}
+function newsWhenIdle(c) {
+  if (typeof document === 'undefined' || !document.addEventListener) return newsShow(c);
+  newsIdleWire();
+  const wait = _newsTouch ? _newsTouch + NEWS_IDLE_MS - Date.now() : 0;
+  if (wait > 0 || (typeof cubeNow !== 'undefined' && cubeNow) || (typeof _dial !== 'undefined' && (_dial.drag || _dial.ride))) return setTimeout(() => newsWhenIdle(c), Math.max(300, wait));
+  newsShow(c);
+}
 function newsShow(c) {
   if (_newsBusy || typeof document === 'undefined' || document.hidden || document.querySelector('.dlg-veil')) return;
   const app = appName();
@@ -237,7 +255,7 @@ function newsShow(c) {
   const an = c && c.an;
   if (an && an.apps && an.apps.includes(app) && get(LS_ANSEEN) !== String(an.id)) {
     _newsBusy = true; set(LS_ANSEEN, String(an.id));
-    askAlert([an.t, an.b].filter(Boolean).join('\n\n'), () => { _newsBusy = false; setTimeout(() => newsShow(c), 400); });
+    askAlert([an.t, an.b].filter(Boolean).join('\n\n'), () => { _newsBusy = false; setTimeout(() => newsWhenIdle(c), 400); });
     return;
   }
   const rel = typeof APP_RELEASE !== 'undefined' ? APP_RELEASE : '';
@@ -323,8 +341,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.87.0';
-const APP_VERSION = 'v632';
+const APP_RELEASE = '2.87.1';
+const APP_VERSION = 'v633';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -420,8 +438,13 @@ function dialFrame(st, n, vw, rtl) {
     const x = (rtl ? -1 : 1) * (d * S + (n > 5 ? Math.max(-1, Math.min(1, d)) * DIAL_GAP : 0)), y = DIAL_DROP * d * d - 4 * e, sc = 1 - 0.045 * Math.min(ad, 3);
     out.push({
       it: 'translate3d(' + f(x) + 'px, ' + f(y) + 'px, 0) scale(' + f(sc) + ')', o: f(o),
-      disc: 'scale(' + f(DIAL_S0 + (1 - DIAL_S0) * e) + ')', glow: f(e), ico: f(c01(1 - e * 1.7)),
-      bub: f(c01((e - 0.35) / 0.65)), bs: 'scale(' + f(0.82 + 0.18 * e) + ')', lbl: f(c01(1 - e * 1.8)),
+      // 29/10/2026 (סרטון המשתמש, Academy): באמצע ההצלבה (e≈0.5) הסמל כבר נמוג (0.15) והבועה עוד לא (0.23) — שני עיגולים כחולים
+      // ריקים בזמן הקובייה. עכשיו הבועה נכנסת מוקדם יותר (0.2→0.6) והסמל יוצא מאוחר יותר (0.3→0.65): בכל רגע אחד מהם גלוי
+      disc: 'scale(' + f(DIAL_S0 + (1 - DIAL_S0) * e) + ')', glow: f(e), ico: f(c01((0.65 - e) / 0.35)),
+      bub: f(c01((e - 0.2) / 0.4)), bs: 'scale(' + f(0.82 + 0.18 * e) + ')',
+      // 29/10/2026 (סרטון המשתמש, Academy): בחוגה של ארבעה, כשהנבחר בקצה, הכיתובים של הפריטים במרחק 2 חפפו ("הספרייה שלי" ו־"THE SNOWBALL")
+      // ונחתכו בשולי המסך. בחוגה קטנה (עד 4) — כיתוב רק עד מרחק 1.5 מהנבחר, ונמוג עד 2; ב־Invest (7) — כמו קודם
+      lbl: f(c01(1 - e * 1.8) * (n <= 4 ? c01((2 - ad) / 0.5) : 1)),
     });
   }
   return out;
@@ -907,9 +930,32 @@ function cubeFace(el, o) {
   return f;
 }
 function cubeFaceOff(f) { if (f && f.el) { f.el.style.cssText = f.css; if (f.flat) f.flat(); if (f.face) f.el.classList.remove('cube-face'); } }
+/* 29/10/2026 (הסבב השלישי, שני סרטוני המשתמש — Invest ו־Academy): בפריים הראשון של הסיבוב הדף הנכנס היה לבן (ב־Academy גם
+   ההעתק של היוצא — רק הכריכה נראתה). הנכנס מתחיל ב־90° = opacity 0, והדפדפן לא מצייר (raster) שכבה בלתי נראית; ההעתק
+   הוא שכבה חדשה. ברגע שהן נחשפות באמצע האנימציה — אין עדיין אריחים, ומוצג לבן. "חימום": שני פריימים לפני התנועה הפאות
+   במקום (בלי סיבוב), הנכנס ב־opacity 0.01 — מצויר ולא נראה. בזמן הזה cubeSet רק שומר את p, ו־cubeRun מחכה */
+const CUBE_WARM_OP = '0.01';
+function cubeWarm(c) {
+  if (c.warm !== undefined) return;
+  c.warm = false;
+  if (!c.in || c.rub || typeof requestAnimationFrame !== 'function' || (typeof document !== 'undefined' && document.hidden)) return;
+  c.warm = true;
+  for (const f of [c.out, c.in]) { if (f && f.el) { f.el.style.transform = 'none'; f.el.style.opacity = f === c.in ? CUBE_WARM_OP : ''; } }
+  requestAnimationFrame(() => requestAnimationFrame(() => cubeWarmEnd(c)));
+}
+function cubeWarmEnd(c) {
+  if (!c.warm) return;
+  c.warm = false;
+  const r = c.warmRun; c.warmRun = null;
+  if (r) return r();
+  if (c.in && c.in.el && c.in.el.classList && !c.in.el.classList.contains('cube-face')) return;   // בוטל בינתיים (cubeFaceOff) — לא נוגעים
+  cubeSet(c, c.p || 0);
+}
 function cubeSet(c, p) {
   const vw = window.innerWidth;
+  cubeWarm(c);
   c.p = p;
+  if (c.warm) return;
   if (c.rub) { if (c.out) c.out.el.style.transform = cubeTransform(Math.min(CUBE_RUB, p), c.side, false, vw); return; }
   for (const [f, isIn] of [[c.out, false], [c.in, true]]) {
     if (!f) continue;
@@ -920,6 +966,13 @@ function cubeSet(c, p) {
 /* מ־c.p אל p1 בקפיץ (v0 = המהירות בשחרור, p לשנייה); done(p1) אחרי הפריים האחרון. c.finish() = לסיים מיד */
 function cubeRun(c, p1, v0, done) {
   if (cubeNow && cubeNow !== c && cubeNow.finish) cubeNow.finish();
+  cubeWarm(c);
+  if (c.warm) {                            // עוד בחימום — הסיבוב יתחיל כשייגמר; finish = לסיים מיד
+    c.warmRun = () => cubeRun(c, p1, v0, done);
+    c.finish = () => { c.warm = false; c.warmRun = null; cubeRun(c, p1, v0, done); if (c.finish) c.finish(); };
+    cubeNow = c;
+    return;
+  }
   const vw = window.innerWidth, ps = cubeSpring(c.p || 0, v0 || 0, p1), dur = Math.max(17, (ps.length - 1) * 1000 / CUBE_HZ);
   const anims = [];
   const one = (f, isIn) => {

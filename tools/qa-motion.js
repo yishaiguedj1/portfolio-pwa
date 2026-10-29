@@ -218,7 +218,9 @@ for f in files:
     for old in hist[-4:-1]:
         r = ImageStat.Stat(ImageChops.difference(im, old).convert('L')).mean[0]
         if r < rev: rev = r
-    out.append({'blank': round(blank, 3), 'diff': round(diff, 2), 'rev': round(rev, 2)})
+    # tex = "מרקם" באמצע המסך (סטיית תקן של הבהירות, 25%–80% מהגובה) — פאה שלא נצבעה (לבנה/ריקה) = מרקם כמעט אפס (29/10/2026)
+    W, H = im.size; tex = ImageStat.Stat(im.crop((0, H // 4, W, H * 4 // 5)).convert('L')).stddev[0]
+    out.append({'blank': round(blank, 3), 'diff': round(diff, 2), 'rev': round(rev, 2), 'tex': round(tex, 1)})
     prev = im; hist.append(im); hist = hist[-5:]
 print(json.dumps(out))
 `;
@@ -227,8 +229,11 @@ function analyzeFrames(frames, bg, top) {
   let rows;
   try { rows = JSON.parse(execFileSync('python3', ['-W', 'ignore', '-c', PY, JSON.stringify(frames.map((f) => f.f)), JSON.stringify(bg), String(top)], { maxBuffer: 1 << 26 }).toString()); }
   catch (e) { return { frames: frames.length, flash: 0, maxDiff: 0, err: String(e.message).slice(0, 80) }; }
-  let flash = 0, maxDiff = 0, blankRun = 0, flicker = 0;
+  let flash = 0, maxDiff = 0, blankRun = 0, flicker = 0, hole = 0;
   for (let i = 1; i < rows.length - 1; i++) {
+    // "חור": המרקם באמצע המסך צונח לפחות מ־40% ממה שהיה לפניו ומה שבא אחריו (פריים או שניים) — דף/פאה שהוצגו לפני שנצבעו
+    { const nx = Math.max(rows[i + 1].tex, (rows[i + 2] || rows[i + 1]).tex, (rows[i + 3] || rows[i + 1]).tex);
+      if (rows[i].tex < 0.4 * Math.min(rows[i - 1].tex, nx) && rows[i - 1].tex > 12) hole++; }
     maxDiff = Math.max(maxDiff, rows[i].diff);
     // הבהוב: מסגרת (או שתיים) כמעט ריקה בין שתי מסגרות עם תוכן — מה שהמשתמש רואה כ"רענון"
     if (rows[i].blank > 0.93 && rows[i - 1].blank < 0.8 && rows[Math.min(rows.length - 1, i + 2)].blank < 0.8) { blankRun++; if (blankRun === 1) flash++; } else blankRun = 0;
@@ -236,7 +241,7 @@ function analyzeFrames(frames, bg, top) {
     // v325: בלי בדיקת החזרה, פריים כפול באמצע אנימציה רציפה (מסך שלא התעדכן ב־screencast) נספר כריצוד — "כרטיס פתוח" אחרי חזרת מחירים
     if (rows[i].diff > 18 && i + 3 < rows.length) { const nxt = rows.slice(i + 1, i + 4); if (nxt.some((r) => r.diff > 18 && r.rev < 4)) flicker++; }
   }
-  return { frames: rows.length, flash, flicker, maxDiff: +maxDiff.toFixed(1), blanks: rows.map((r) => r.blank), diffs: rows.map((r) => r.diff) };
+  return { frames: rows.length, flash: flash + hole, hole, flicker, maxDiff: +maxDiff.toFixed(1), blanks: rows.map((r) => r.blank), diffs: rows.map((r) => r.diff) };
 }
 
 /* ---------- הרצה ---------- */

@@ -119,7 +119,7 @@ const run = (c) => vm.runInContext(c, sb);
   ok(!/renderStocks\(|renderAll\(/.test(rl), 'renderLive לא בונה מחדש את רשימת המניות (לא מאפס טפסים/מיון/מדידה)');
   ok(/renderOverview\(true\)/.test(rl), 'renderLive: סקירה במצב קל');
   ok(/if \(!light\) \{\s*try \{ drawPfChart\(\)/.test(src), 'מצב קל: בלי גרף הביצועים');
-  ok(/refreshQuotes\(\)\.then\(\(\) => \{ warmHistories\(\); liveStart\(\); \}\)/.test(src), 'הלולאה מתחילה אחרי טעינת המחירים הראשונה');
+  ok(/refreshQuotes\(\)\.then\(\(\) => \{ warmHistories\(\); liveStart\(\);/.test(src), 'הלולאה מתחילה אחרי טעינת המחירים הראשונה');
   ok(/state\.ibkrSyncing = !!busy/.test(src), 'סנכרון IBKR מסמן busy לעצירת הטיק');
 
   const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];

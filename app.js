@@ -3910,6 +3910,7 @@ function maintPaint(c) {
 }
 let _sysCfgWired = false;
 function sysCfgBoot() {
+  newsIdleWire();
   maintPaint(sysCfgCached());
   if (typeof fetch !== 'function') return;
   const go = () => fetch(ibkrProxyBase() + '/api/studio', { method: 'POST', headers: ibkrProxyHeaders(), body: JSON.stringify({ op: 'cfg' }) })
@@ -3918,7 +3919,7 @@ function sysCfgBoot() {
       _sysCfg = j.cfg;
       try { localStorage.setItem(LS_SYSCFG, JSON.stringify(j.cfg)); } catch (e) {}
       maintPaint(j.cfg);
-      setTimeout(() => newsShow(j.cfg), 1800);   // אחרי שהדף נפתח — לא מעל מסך הפתיחה
+      setTimeout(() => newsWhenIdle(j.cfg), 1800);   // אחרי שהדף נפתח — לא מעל מסך הפתיחה, ולא באמצע ניווט
     }).catch(() => {});
   go();
   if (!_sysCfgWired && typeof document !== 'undefined') { _sysCfgWired = true; document.addEventListener('visibilitychange', () => { if (!document.hidden) go(); }); }
@@ -3982,6 +3983,23 @@ function changelogItems(md, rel) {
   }
   return out.slice(0, 5);
 }
+/* 29/10/2026 (סרטון המשתמש, Academy — ס5 בתוכנית "עמודים סטטיים"): "מה חדש" קפץ 0.3 שנ׳ אחרי החלקה בין עמודים, באמצע הניווט.
+   עכשיו החלון מחכה לשקט: 2.5 שנ׳ בלי נגיעה, גלילה או מעבר (קובייה / חוגה) — ורק אז מוצג */
+const NEWS_IDLE_MS = 2500;
+let _newsTouch = 0;
+function newsIdleWire() {               // מהפתיחה — גם נגיעה שלפני שההגדרות הגיעו נספרת
+  if (newsIdleWire.on || typeof document === 'undefined' || !document.addEventListener) return;
+  newsIdleWire.on = true;
+  const mark = () => { _newsTouch = Date.now(); };
+  ['pointerdown', 'touchstart', 'wheel', 'keydown', 'scroll'].forEach((ev) => document.addEventListener(ev, mark, { passive: true, capture: true }));
+}
+function newsWhenIdle(c) {
+  if (typeof document === 'undefined' || !document.addEventListener) return newsShow(c);
+  newsIdleWire();
+  const wait = _newsTouch ? _newsTouch + NEWS_IDLE_MS - Date.now() : 0;
+  if (wait > 0 || (typeof cubeNow !== 'undefined' && cubeNow) || (typeof _dial !== 'undefined' && (_dial.drag || _dial.ride))) return setTimeout(() => newsWhenIdle(c), Math.max(300, wait));
+  newsShow(c);
+}
 function newsShow(c) {
   if (_newsBusy || typeof document === 'undefined' || document.hidden || document.querySelector('.dlg-veil')) return;
   const app = appName();
@@ -3991,7 +4009,7 @@ function newsShow(c) {
   const an = c && c.an;
   if (an && an.apps && an.apps.includes(app) && get(LS_ANSEEN) !== String(an.id)) {
     _newsBusy = true; set(LS_ANSEEN, String(an.id));
-    askAlert([an.t, an.b].filter(Boolean).join('\n\n'), () => { _newsBusy = false; setTimeout(() => newsShow(c), 400); });
+    askAlert([an.t, an.b].filter(Boolean).join('\n\n'), () => { _newsBusy = false; setTimeout(() => newsWhenIdle(c), 400); });
     return;
   }
   const rel = typeof APP_RELEASE !== 'undefined' ? APP_RELEASE : '';
@@ -6942,8 +6960,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.87.0';
-const APP_VERSION = 'v632';
+const APP_RELEASE = '2.87.1';
+const APP_VERSION = 'v633';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -8394,6 +8412,7 @@ async function liveTick() {
             state.session = sess === 'regular' ? '' : sess; // v301: 'closed' נשמר — קפסולת "השוק סגור"
             state.source = src;
             state.live = src === 'Yahoo';
+            if (state.live) state.liveAt = Date.now();
             quotesSaveSoon();   // 27/10/2026: לא בכל טיק — ראו QUOTES_SAVE_MS
             updateSourceLabel();
           }
@@ -8554,7 +8573,7 @@ const QUOTES_SAVE_MS = 30e3;
 let _qSaveAt = 0, _qSaveT = 0;
 function quotesSaveNow() {
   clearTimeout(_qSaveT); _qSaveT = 0; _qSaveAt = Date.now();
-  if (state.quotesAt) lsSet(LS_QUOTES, { at: state.quotesAt, fx: state.fx, quotes: state.quotes, source: state.source, session: state.session });
+  if (state.quotesAt) lsSet(LS_QUOTES, { at: state.quotesAt, fx: state.fx, quotes: state.quotes, source: state.source, session: state.session, liveAt: state.liveAt || 0 });
 }
 function quotesSaveSoon() {
   if (_qSaveT) return;
@@ -8567,6 +8586,10 @@ if (typeof window !== 'undefined' && window.addEventListener) window.addEventLis
 
 function applyQuotes(res) {
   taseFixQuotes(res.quotes, taseRef);
+  // 29/10/2026 (I5/I6 בסרטון — מעבר לרשימת מעקב אחרת הציג "—" עד הבקשה הבאה): הבקשה מביאה רק את הרשימה הפתוחה;
+  // המחיר האחרון של מניות ברשימות האחרות נשמר, כך שמעבר רשימה מצייר מיד מספרים (והרענון מחליף אותם)
+  const keep = wlAllSyms();
+  for (const sym of Object.keys(state.quotes || {})) if (!res.quotes[sym] && keep.has(sym)) res.quotes[sym] = state.quotes[sym];
   state.quotes = res.quotes;
   state.fx = res.fx;
   state.fxAt = Date.now();
@@ -8598,10 +8621,14 @@ function marketStatusKind(session, nowMs) {
   if (session === 'closed') return { kind: 'closed', reason: null };
   return { kind: 'open' };
 }
+const LIVE_HOLD_MS = 90e3;
 function sourceLabelHTML(st, nowMs) { // טהורה (נבדקת)
   const s = st || {};
-  if (!s.source) return '<span class="st-pill closed">' + esc(t('srcLoading')) + '</span>';
-  const live = !s.stale && s.live && s.source === 'Yahoo';
+  // 29/10/2026 (I1 בסרטון): סופ״ש/חג ידועים מהשעון — בלי "טוען…" שמתחלף ל"סגור" כשהמחירים מגיעים
+  if (!s.source && marketStatusKind('', nowMs).kind !== 'closed') return '<span class="st-pill closed">' + esc(t('srcLoading')) + '</span>';
+  // 29/10/2026 (סרטון המשתמש — הקפסולה התחלפה "פתוח" ↔ "פתוח · דיליי" כמה פעמים בדקה): מרוץ המקורות ברענון המלא (CNBC מנצח
+  // לפעמים) הפך את התווית ל"דיליי" עד הטיק החי הבא. חי = טיק חי בדקה וחצי האחרונות (LIVE_HOLD_MS), לא רק המקור של הבקשה האחרונה
+  const live = !s.stale && ((s.live && s.source === 'Yahoo') || (s.liveAt > 0 && (nowMs || Date.now()) - s.liveAt < LIVE_HOLD_MS));
   const m = marketStatusKind(s.session, nowMs);
   // 29/10/2026 (בקשת המשתמש — "נקי ומסודר בגודל ובצורה", לפי ת־עיצוב): אותו מבנה של בועת השער — כיתוב קטן למעלה
   // (נקודה/אייקון + "השוק", או שם החג/סופ״ש, או "· דיליי"), והמצב עצמו מודגש למטה ("פתוח" / "סגור" / "מוקדם")
@@ -8653,6 +8680,7 @@ function bootQuotesFromCache() {
     state.quotesAt = c.at;
     state.source = c.source || null;
     state.session = c.session || '';
+    if (c.liveAt > 0) state.liveAt = c.liveAt;   // 29/10/2026: היה חי לפני רגע — הקפסולה לא מתחילה ב"דיליי" ואז קופצת
   }
   return true;
 }
@@ -9565,8 +9593,13 @@ function dialFrame(st, n, vw, rtl) {
     const x = (rtl ? -1 : 1) * (d * S + (n > 5 ? Math.max(-1, Math.min(1, d)) * DIAL_GAP : 0)), y = DIAL_DROP * d * d - 4 * e, sc = 1 - 0.045 * Math.min(ad, 3);
     out.push({
       it: 'translate3d(' + f(x) + 'px, ' + f(y) + 'px, 0) scale(' + f(sc) + ')', o: f(o),
-      disc: 'scale(' + f(DIAL_S0 + (1 - DIAL_S0) * e) + ')', glow: f(e), ico: f(c01(1 - e * 1.7)),
-      bub: f(c01((e - 0.35) / 0.65)), bs: 'scale(' + f(0.82 + 0.18 * e) + ')', lbl: f(c01(1 - e * 1.8)),
+      // 29/10/2026 (סרטון המשתמש, Academy): באמצע ההצלבה (e≈0.5) הסמל כבר נמוג (0.15) והבועה עוד לא (0.23) — שני עיגולים כחולים
+      // ריקים בזמן הקובייה. עכשיו הבועה נכנסת מוקדם יותר (0.2→0.6) והסמל יוצא מאוחר יותר (0.3→0.65): בכל רגע אחד מהם גלוי
+      disc: 'scale(' + f(DIAL_S0 + (1 - DIAL_S0) * e) + ')', glow: f(e), ico: f(c01((0.65 - e) / 0.35)),
+      bub: f(c01((e - 0.2) / 0.4)), bs: 'scale(' + f(0.82 + 0.18 * e) + ')',
+      // 29/10/2026 (סרטון המשתמש, Academy): בחוגה של ארבעה, כשהנבחר בקצה, הכיתובים של הפריטים במרחק 2 חפפו ("הספרייה שלי" ו־"THE SNOWBALL")
+      // ונחתכו בשולי המסך. בחוגה קטנה (עד 4) — כיתוב רק עד מרחק 1.5 מהנבחר, ונמוג עד 2; ב־Invest (7) — כמו קודם
+      lbl: f(c01(1 - e * 1.8) * (n <= 4 ? c01((2 - ad) / 0.5) : 1)),
     });
   }
   return out;
@@ -13638,6 +13671,21 @@ function wlNameCheck(name, lists, exceptId) {
   if (lists.some((l) => l.id !== exceptId && l.name.toLowerCase() === n.toLowerCase())) return { err: t('wlNameDup') };
   return { name: n };
 }
+/* 29/10/2026: כל הסימבולים בכל רשימות המעקב, ומשיכה מוקדמת (בשקט, אחרי הפתיחה) של מה שעוד אין לו מחיר —
+   כך שמעבר לרשימה אחרת לא מציג "—" עד שהבקשה חוזרת (I5/I6 בסרטון). השרתון מחזיר עד 40 בבקשה — בקשה אחת בלבד */
+function wlAllSyms() {
+  const s = new Set();
+  try { for (const l of wlLists()) for (const w of l.items) if (w && w.sym) s.add(w.sym); } catch (e) {}
+  return s;
+}
+let _wlPreAt = 0;
+function wlPrefetch() {
+  if (Date.now() - _wlPreAt < 60e3) return;
+  const miss = [...wlAllSyms()].filter((sym) => !state.quotes[sym]).slice(0, 40);
+  if (!miss.length) return;
+  _wlPreAt = Date.now();
+  liveFetch(miss).then((got) => { if (Object.keys(got).length) { liveMerge(got); quotesSaveSoon(); } }).catch(() => {});
+}
 function wlSwitch(id, dir) {
   if (id === wlActiveId() && !dir) return;
   try { localStorage.setItem(LS_WLACTIVE, id); } catch (e) {}
@@ -14186,9 +14234,32 @@ function cubeFace(el, o) {
   return f;
 }
 function cubeFaceOff(f) { if (f && f.el) { f.el.style.cssText = f.css; if (f.flat) f.flat(); if (f.face) f.el.classList.remove('cube-face'); } }
+/* 29/10/2026 (הסבב השלישי, שני סרטוני המשתמש — Invest ו־Academy): בפריים הראשון של הסיבוב הדף הנכנס היה לבן (ב־Academy גם
+   ההעתק של היוצא — רק הכריכה נראתה). הנכנס מתחיל ב־90° = opacity 0, והדפדפן לא מצייר (raster) שכבה בלתי נראית; ההעתק
+   הוא שכבה חדשה. ברגע שהן נחשפות באמצע האנימציה — אין עדיין אריחים, ומוצג לבן. "חימום": שני פריימים לפני התנועה הפאות
+   במקום (בלי סיבוב), הנכנס ב־opacity 0.01 — מצויר ולא נראה. בזמן הזה cubeSet רק שומר את p, ו־cubeRun מחכה */
+const CUBE_WARM_OP = '0.01';
+function cubeWarm(c) {
+  if (c.warm !== undefined) return;
+  c.warm = false;
+  if (!c.in || c.rub || typeof requestAnimationFrame !== 'function' || (typeof document !== 'undefined' && document.hidden)) return;
+  c.warm = true;
+  for (const f of [c.out, c.in]) { if (f && f.el) { f.el.style.transform = 'none'; f.el.style.opacity = f === c.in ? CUBE_WARM_OP : ''; } }
+  requestAnimationFrame(() => requestAnimationFrame(() => cubeWarmEnd(c)));
+}
+function cubeWarmEnd(c) {
+  if (!c.warm) return;
+  c.warm = false;
+  const r = c.warmRun; c.warmRun = null;
+  if (r) return r();
+  if (c.in && c.in.el && c.in.el.classList && !c.in.el.classList.contains('cube-face')) return;   // בוטל בינתיים (cubeFaceOff) — לא נוגעים
+  cubeSet(c, c.p || 0);
+}
 function cubeSet(c, p) {
   const vw = window.innerWidth;
+  cubeWarm(c);
   c.p = p;
+  if (c.warm) return;
   if (c.rub) { if (c.out) c.out.el.style.transform = cubeTransform(Math.min(CUBE_RUB, p), c.side, false, vw); return; }
   for (const [f, isIn] of [[c.out, false], [c.in, true]]) {
     if (!f) continue;
@@ -14199,6 +14270,13 @@ function cubeSet(c, p) {
 /* מ־c.p אל p1 בקפיץ (v0 = המהירות בשחרור, p לשנייה); done(p1) אחרי הפריים האחרון. c.finish() = לסיים מיד */
 function cubeRun(c, p1, v0, done) {
   if (cubeNow && cubeNow !== c && cubeNow.finish) cubeNow.finish();
+  cubeWarm(c);
+  if (c.warm) {                            // עוד בחימום — הסיבוב יתחיל כשייגמר; finish = לסיים מיד
+    c.warmRun = () => cubeRun(c, p1, v0, done);
+    c.finish = () => { c.warm = false; c.warmRun = null; cubeRun(c, p1, v0, done); if (c.finish) c.finish(); };
+    cubeNow = c;
+    return;
+  }
   const vw = window.innerWidth, ps = cubeSpring(c.p || 0, v0 || 0, p1), dur = Math.max(17, (ps.length - 1) * 1000 / CUBE_HZ);
   const anims = [];
   const one = (f, isIn) => {
@@ -17486,11 +17564,13 @@ function init() {
     appStarted = true;
     bootSig = dbSig();
     bootQuotesFromCache();
+    // 29/10/2026 (I1 בסרטון): הקפסולה ושער הדולר מהמטמון כבר בציור הראשון — לא "מקור: טוען…" ו־"—" עד שהבקשה חוזרת
+    try { updateSourceLabel(); paintFxPill(false); } catch (e) {}
     renderAll();
     document.documentElement.classList.remove('booting');   // 14/10/2026: התוכן מוצג רק מהציור הראשון (styles.css, html.booting)
     barHeightVar();                                          // 20/10/2026: גובה ההדר ללשוניות הדבוקות
     requestAnimationFrame(() => { try { dialSync(true); } catch (e) {} });
-    refreshQuotes().then(() => { warmHistories(); liveStart(); });
+    refreshQuotes().then(() => { warmHistories(); liveStart(); setTimeout(() => { try { wlPrefetch(); } catch (e) {} }, 1500); });
     refreshEarnings().then(() => { renderOverview(); renderWishlist(); });
   };
   /* v193: ציור מיידי מהנתונים המקומיים; הענן מאשר אחר כך (startApp עמיד — מצייר שוב רק אם הנתונים השתנו).

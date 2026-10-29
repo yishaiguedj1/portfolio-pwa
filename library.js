@@ -877,12 +877,22 @@ function coverUrl(b) {
   coverUrls.set(b.id, { blob: b.cover, url });
   return url;
 }
+/* 29/10/2026 (סרטון המשתמש, Academy — כל מעבר לבית): הכריכות בדף הנכנס הופיעו פריים אחד כמלבנים סגולים ריקים. decoding=async
+   מאפשר לצייר את הפריים לפני שהתמונה מפוענחת — גם כשהיא כבר במטמון. כריכה שכבר נטענה פעם אחת — sync: מצוירת באותו פריים */
+const coverSeen = new Set();
+function coverImg(src) {
+  const im = document.createElement('img'); im.alt = '';
+  im.decoding = coverSeen.has(src) ? 'sync' : 'async';
+  if (!coverSeen.has(src)) im.addEventListener('load', () => coverSeen.add(src), { once: true });
+  im.src = src;
+  return im;
+}
 function cover(b, mini) {
   const src = coverUrl(b);
   if (src) {
     const el = h('div', 'lib-cover img' + (mini ? ' mini' : ''));
     if (b.coverRatio) el.style.aspectRatio = String(b.coverRatio);
-    const im = document.createElement('img'); im.src = src; im.alt = ''; im.decoding = 'async';
+    const im = coverImg(src);
     el.append(im);
     return el;
   }
@@ -1246,7 +1256,7 @@ function cloudItem(b, idx) {
   it.dataset.q = searchKey(b); it.dataset.i = String(idx);
   const cv = cover(Object.assign({}, b, { cover: null }));
   const fill = (url) => {
-    const im = document.createElement('img'); im.src = url; im.alt = ''; im.decoding = 'async';
+    const im = coverImg(url);
     cv.className = 'lib-cover img'; cv.textContent = ''; cv.style.background = '';
     if (b.coverRatio) cv.style.aspectRatio = String(b.coverRatio);
     cv.append(im);
