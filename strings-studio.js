@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2067 מפתחות מתוך 5493) */
+/* המחרוזות של studio (2072 מפתחות מתוך 5510) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -329,6 +329,8 @@ he: {
   "studioBusyWait": "לחכות",
   "studioBusyWaitOk": "נודיע לך כשיסתיים",
   "studioCancel": "ביטול",
+  "studioCapClaude": "Claude",
+  "studioCapSrv": "השרת",
   "studioCheapGo": "להמשיך ב־{m} · זול יותר",
   "studioCheapOk": "להמשיך בזול",
   "studioCheapQ": "להמשיך את העבודה ב־{m}? מנקודת השמירה, בעלות נמוכה יותר — האיכות עשויה להשתנות.",
@@ -1979,6 +1981,9 @@ he: {
   "studioUtWait1": "דבר אחד מחכה לך",
   "studioUtWaitN": "{n} דברים מחכים לך",
   "studioUtWaitS": "כל השאר עובד כרגיל",
+  "studioVConnect": "לחיבור",
+  "studioVOff": "לא מחובר",
+  "studioVOn": "מחובר",
   "studioVaAbQa": "חיכו לתשובה שלך",
   "studioVaAbT": "מסלולים חריגים · 30 יום",
   "studioVaBn": "{p} מהזמן · פי {x} מהצפוי",
@@ -2398,6 +2403,8 @@ en: {
   "studioBusyWait": "Wait",
   "studioBusyWaitOk": "We’ll notify you when it ends",
   "studioCancel": "Cancel",
+  "studioCapClaude": "Claude",
+  "studioCapSrv": "Server",
   "studioCheapGo": "Continue with {m} · cheaper",
   "studioCheapOk": "Continue cheaper",
   "studioCheapQ": "Continue the job with {m}? From the checkpoint, at a lower cost — quality may change.",
@@ -4048,6 +4055,9 @@ en: {
   "studioUtWait1": "One thing is waiting for you",
   "studioUtWaitN": "{n} things are waiting for you",
   "studioUtWaitS": "Everything else is running normally",
+  "studioVConnect": "Connect",
+  "studioVOff": "Offline",
+  "studioVOn": "Connected",
   "studioVaAbQa": "Waited for your answer",
   "studioVaAbT": "Unusual paths · 30 days",
   "studioVaBn": "{p} of the time · {x}× expected",
