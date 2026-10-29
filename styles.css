@@ -577,26 +577,28 @@ html.calm .appbar .brand-snow b { animation-play-state: paused; }
 .banner.hidden { display: none; }
 
 /* ---- Tabs — "חוגה" בתחתית המסך (29/10/2026, בקשת המשתמש — לפי סרטון) ----
-   הפריטים יושבים על קשת: הפעיל במרכז, גדל לבועה ירוקה עם הכיתוב, והשאר עיגולי זכוכית עם סמל וכיתוב מתחת. המיקום של כל פריט
+   הפריטים יושבים על קשת: הפעיל במרכז, גדל לבועה בצבע האפליקציה עם הסמל בלבן (בלי כיתוב), והשאר עיגולי זכוכית עם סמל וכיתוב מתחת. המיקום של כל פריט
    (translate/scale/opacity) נקבע ב־app.js (dialPaint, ובמעבר — dialAnimate באותו קפיץ ובאותו זמן של הקובייה). הסרגל מחוץ ל־main —
    לא חלק מהקובייה, ותמיד גלוי במעבר. שכבת הרקע: זכוכית שנמוגה למעלה (בלי קו חד מעל התוכן), וזוהר עדין מאחורי המרכז */
-body.has-dock { --dock-h: 104px; padding-bottom: calc(var(--dock-h) + env(safe-area-inset-bottom, 0px) + 14px); }
+:root { --dial-btn: rgba(255, 255, 255, .5); }   /* 29/10/2026: עיגולי החוגה — זכוכית שקופה יותר (לפי ת־עיצוב) */
+[data-theme="dark"] { --dial-btn: rgba(255, 255, 255, .1); }
+body.has-dock { --dock-h: 120px; padding-bottom: calc(var(--dock-h) + env(safe-area-inset-bottom, 0px) + 14px); }
 .tabs {
   position: fixed; inset-inline: 0; bottom: 0; z-index: 21;
-  height: calc(var(--dock-h, 104px) + env(safe-area-inset-bottom, 0px));
+  height: calc(var(--dock-h, 120px) + env(safe-area-inset-bottom, 0px));
   isolation: isolate; overflow-x: clip; touch-action: none;
-  --dock-bg: color-mix(in srgb, var(--bg) 72%, transparent); --dock-bg2: color-mix(in srgb, var(--bg) 90%, transparent);
+  --dock-bg: color-mix(in srgb, var(--bg) 42%, transparent); --dock-bg2: color-mix(in srgb, var(--bg) 62%, transparent);
 }
-[data-theme="dark"] .tabs { --dock-bg: color-mix(in srgb, var(--bg) 66%, transparent); --dock-bg2: color-mix(in srgb, var(--bg) 88%, transparent); }
+[data-theme="dark"] .tabs { --dock-bg: color-mix(in srgb, var(--bg) 40%, transparent); --dock-bg2: color-mix(in srgb, var(--bg) 60%, transparent); }
 .tabs::before {
   content: ''; position: absolute; inset: -26px 0 0; z-index: -2; pointer-events: none;
   background: linear-gradient(to bottom, transparent, var(--dock-bg) 34px, var(--dock-bg2) 84px);
-  -webkit-backdrop-filter: blur(18px) saturate(170%); backdrop-filter: blur(18px) saturate(170%);
+  -webkit-backdrop-filter: blur(22px) saturate(190%); backdrop-filter: blur(22px) saturate(190%);
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 30px); mask-image: linear-gradient(to bottom, transparent, #000 30px);
 }
 .tabs::after {   /* "זרקור" מאחורי הבועה — קבוע במרכז, נותן עומק בלי לזוז */
   content: ''; position: absolute; inset: -10px 0 0; z-index: -1; pointer-events: none;
-  background: radial-gradient(ellipse 130px 64px at 50% 58px, color-mix(in srgb, var(--primary) 22%, transparent), transparent 72%);
+  background: radial-gradient(ellipse 150px 74px at 50% 67px, color-mix(in srgb, var(--primary) 22%, transparent), transparent 72%);
 }
 body.menu-blur .tabs, body:has(.appbar .lang-menu:not(.hidden)) .tabs { z-index: 15; }
 
@@ -608,15 +610,15 @@ button, a, .tab, .icon-btn, .ss-add {
   -webkit-user-select: none;
 }
 .tab {
-  position: absolute; top: 0; left: calc(50% - 40px); width: 80px; height: var(--dock-h, 104px);
+  position: absolute; top: 0; left: calc(50% - 46px); width: 92px; height: var(--dock-h, 120px);
   padding: 0; margin: 0; border: 0; background: none; cursor: pointer; font-family: var(--font); color: var(--on-surface-var);
-  transform-origin: 40px 48px; will-change: transform, opacity; outline-offset: -4px;
+  transform-origin: 46px 55px; will-change: transform, opacity; outline-offset: -4px;
 }
-/* העיגול: בגודל הבועה (68) ומוקטן כשאינו פעיל — הבועה הפעילה מצוירת חדה בגודלה האמיתי */
+/* העיגול: בגודל הבועה (78) ומוקטן כשאינו פעיל — הבועה הפעילה מצוירת חדה בגודלה האמיתי */
 .tab-disc {
-  position: absolute; top: 14px; left: 6px; width: 68px; height: 68px; border-radius: 50%;
+  position: absolute; top: 16px; left: 7px; width: 78px; height: 78px; border-radius: 50%;
   display: grid; place-items: center; transform: scale(.68); will-change: transform;
-  background: var(--gl-btn); box-shadow: var(--gl-btn-sh); transition: scale .16s ease;
+  background: var(--dial-btn, var(--gl-btn)); box-shadow: var(--gl-btn-sh); transition: scale .16s ease;
 }
 .tab:active .tab-disc { scale: .9; }
 .tab-glow {
@@ -640,17 +642,17 @@ button, a, .tab, .icon-btn, .ss-add {
 .tab.zap .tab-glow::after { animation: dialWave .62s cubic-bezier(.2, .8, .3, 1) both; }
 @keyframes dialSheen { 0% { opacity: 1; background-position: -80px 0; } 100% { opacity: 1; background-position: 80px 0; } }
 @keyframes dialWave { 0% { opacity: .7; transform: scale(1); } 100% { opacity: 0; transform: scale(1.5); } }
-.tab-ico { position: relative; width: 33px; height: 33px; display: block; stroke: var(--primary); will-change: opacity; }
+.tab-ico { position: relative; width: 38px; height: 38px; display: block; stroke: var(--primary); will-change: opacity; }
 .tab-fill path { fill: var(--primary); }
 .tab-bub {
-  position: absolute; top: 14px; left: 6px; width: 68px; height: 68px; padding: 4px; box-sizing: border-box;
+  position: absolute; top: 16px; left: 7px; width: 78px; height: 78px; padding: 4px; box-sizing: border-box;
   display: grid; place-items: center; text-align: center; opacity: 0; will-change: transform, opacity;
-  font-size: 14.5px; font-weight: 800; line-height: 1.1; letter-spacing: -.01em; color: var(--on-primary); overflow-wrap: anywhere;
+  font-size: 16px; font-weight: 800; line-height: 1.1; letter-spacing: -.01em; color: var(--on-primary); overflow-wrap: anywhere;
 }
-html[lang="en"] .tab-bub { font-size: 12.5px; }
+html[lang="en"] .tab-bub { font-size: 14px; }
 .tab-lbl {
-  position: absolute; top: 78px; left: -6px; right: -6px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  font-size: 13px; font-weight: 600; line-height: 18px; color: var(--on-surface-var); will-change: opacity;
+  position: absolute; top: 90px; left: -6px; right: -6px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 14.5px; font-weight: 600; line-height: 20px; color: var(--on-surface-var); will-change: opacity;
 }
 @media (prefers-reduced-motion: reduce) { .tab.zap .tab-glow::before, .tab.zap .tab-glow::after { animation: none; } }
 .icon-btn, .ss-add { transition: transform .16s ease, background .25s ease; }
@@ -2336,6 +2338,9 @@ html[data-theme="dark"] .lib-root .lib-back { background: var(--gl-back) !import
   -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); }
 /* 29/10/2026 (בקשת המשתמש): THE SNOWBALL ב־Academy — פתית שלג גדול ויפה: בבועה הנבחרת הפתית במקום הכיתוב (לבן, עם צל עדין
    בגוון הכפתור), וכשאינו נבחר — פתית מעט גדול משאר הסמלים, והכיתוב מתחת קטן מעט כדי שייכנס */
-.tab-bub-ico { width: 50px; height: 50px; stroke: #fff; filter: drop-shadow(0 1px 1.5px color-mix(in srgb, var(--btn-c, var(--primary)), #000 45%)); }
-.tab-snow .tab-ico { width: 38px; height: 38px; stroke-width: 1.7; }
-.tab-snow .tab-lbl { font-size: 11.5px; letter-spacing: -.02em; }
+.tab-bub-ico { width: 44px; height: 44px; stroke: #fff; filter: drop-shadow(0 1px 1.5px color-mix(in srgb, var(--btn-c, var(--primary)), #000 45%)); }
+.tab-snow .tab-bub-ico { width: 58px; height: 58px; }   /* הפתית — גדול במיוחד */
+.tab-snow .tab-ico { width: 43px; height: 43px; stroke-width: 1.7; }
+.tab-snow .tab-lbl { font-size: 13px; letter-spacing: -.02em; }
+.tab-bub-fill { width: 46px; height: 46px; }   /* סמל מלא (הסקירה) */
+.tab-bub-fill path { fill: #fff; stroke: none; }

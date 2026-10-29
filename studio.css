@@ -1125,5 +1125,5 @@ button.st-fnd:active { background: var(--st-fill); }
    מעל השכבה (900) ומתחת להודעה ולחלונות (1000+); כשהתפריט פתוח — מתחת לשכבה */
 .st-dial { --primary: #FF4656; --on-primary: #3D0008; z-index: 950; }
 .st-dial[hidden], .st-dial .tab[hidden] { display: none; }
-html.st-dock .st-root { padding-bottom: calc(var(--dock-h, 104px) + 14px + env(safe-area-inset-bottom)); }
-html.st-dock .toast { bottom: calc(var(--dock-h, 104px) + 12px + env(safe-area-inset-bottom, 0px)); }
+html.st-dock .st-root { padding-bottom: calc(var(--dock-h, 120px) + 14px + env(safe-area-inset-bottom)); }
+html.st-dock .toast { bottom: calc(var(--dock-h, 120px) + 12px + env(safe-area-inset-bottom, 0px)); }

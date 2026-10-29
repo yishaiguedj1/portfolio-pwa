@@ -1084,5 +1084,5 @@ html:has(.rd)[data-theme="dark"] .lib-sheet { background: #1C1C1E !important; }
    מעל השכבה (900) ומתחת לקורא (920), לגיליונות (960) ולהודעה */
 .lib-dial { --primary: #4699FF; --on-primary: #00214D; z-index: 910; }
 .lib-dial[hidden] { display: none; }
-html.lib-dock .lib-root { padding-bottom: calc(var(--dock-h, 104px) + 14px + env(safe-area-inset-bottom)); }
-html.lib-dock #toast.toast { bottom: calc(var(--dock-h, 104px) + 12px + env(safe-area-inset-bottom, 0px)); }
+html.lib-dock .lib-root { padding-bottom: calc(var(--dock-h, 120px) + 14px + env(safe-area-inset-bottom)); }
+html.lib-dock #toast.toast { bottom: calc(var(--dock-h, 120px) + 12px + env(safe-area-inset-bottom, 0px)); }

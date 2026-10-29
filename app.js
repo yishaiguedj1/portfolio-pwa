@@ -9489,8 +9489,8 @@ function tabShouldRender(name) {
   tabDirty[name] = true;
   return false;
 }
-/* 29/10/2026 (בקשת המשתמש): הסדר מימין לשמאל (ב־RTL) — הגדרות, מעקב, מניות, הסקירה (באמצע), עסקאות, הפקדות, פנסיה; כמו בחוגה */
-const TAB_ORDER = ['settings', 'wishlist', 'stocks', 'overview', 'trades', 'deposits', 'pension', 'advanced', 'backup']; // v287: advanced = עמוד משנה של ההגדרות; 14/10/2026: backup (גיבוי ל־Google Drive) — גם
+/* 29/10/2026 (בקשת המשתמש): הסדר מימין לשמאל (ב־RTL) — הגדרות, הסקירה (הראשי), מניות, מעקב, עסקאות, הפקדות, פנסיה; כמו בחוגה */
+const TAB_ORDER = ['settings', 'overview', 'stocks', 'wishlist', 'trades', 'deposits', 'pension', 'advanced', 'backup']; // v287: advanced = עמוד משנה של ההגדרות; 14/10/2026: backup (גיבוי ל־Google Drive) — גם
 function tabRenderer(name) {
   return { overview: renderOverview, stocks: renderStocks, trades: renderTrades, wishlist: renderWishlist, deposits: renderDeposits, pension: renderPension, settings: renderSettingsLive, advanced: renderSettingsLive, backup: pfbkPaint }[name] || null;
 }
@@ -9536,7 +9536,7 @@ const INVEST_DIAL = {
    ובגרירה של העמוד — צמודה לאצבע (dialCube). גרירה של החוגה עצמה מעבירה גם את העמודים (dialRide*).
    המארח (dialHost) = האפליקציה: {nav(), keys(), index(name), cur(), begin(cur, to, side), drop(c), land(c), instant(to)} —
    begin מחזיר "קובייה" {in, out, to, ...} שהמנוע מזיז ב־cubeSet. אחד בכל רגע (Studio מעל Invest — שלה). */
-const DIAL_S0 = 0.68, DIAL_DROP = 2.4;
+const DIAL_S0 = 0.68, DIAL_DROP = 2.7;
 const _dial = { st: null, run: null, drag: null, ride: null, ret: 0, noClick: 0, els: null, ek: '', host: null };
 function dialHost(hst) {
   if (_dial.host === hst) return;
@@ -9548,7 +9548,7 @@ function dialKeys() { return (_dial.host && _dial.host.keys()) || []; }
 function dialIndex(name) { return _dial.host ? _dial.host.index(name) : 0; }
 function dialCurName() { return _dial.host ? _dial.host.cur() : ''; }
 function dialStep(vw, n) {   // המרחק בין פריטים — כל השבעה על המסך, הקצוות חצי־גלויים (כמו בסרטון); ארבעה (Studio, Academy) — מרווחים יותר, הכיתובים לא נוגעים
-  return n && n <= 5 ? Math.max(60, Math.min(96, (vw || 400) / 4.8)) : Math.max(60, Math.min(84, (vw || 400) / 6.2));
+  return n && n <= 5 ? Math.max(66, Math.min(96, (vw || 400) / 4.8)) : Math.max(60, Math.min(92, (vw || 400) / 6.2));
 }
 function dialRest(i) { return { pos: i, from: i, to: i, p: 0 }; }
 function dialMax() { return Math.max(0, dialKeys().length - 1); }
@@ -9796,6 +9796,7 @@ function wireDial(nav) {
 /* החוגה של אפליקציה שבונה אותה בקוד (Studio, Academy) — אותו מבנה בדיוק כמו ב־index.html, ורק הצבע (--primary) של האפליקציה.
    items = [{k, ico (תוכן SVG קבוע), lbl, bub?, cls?}] — bub: בבועה סמל גדול במקום הכיתוב (פתית השלג של Academy); onTap(k) — לחיצה על פריט */
 const DIAL_GEAR = '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>';
+/* 29/10/2026 (בקשת המשתמש): בבועה של הנבחר — רק הסמל, בלבן (כמו הפתית); it.bub = סמל אחר לבועה (הפתית המפורט) */
 function dialNavBuild(cls, aria, items, onTap) {
   const nav = document.createElement('nav');
   nav.className = 'tabs ' + cls; nav.setAttribute('role', 'tablist'); nav.setAttribute('aria-label', aria);
@@ -9803,7 +9804,7 @@ function dialNavBuild(cls, aria, items, onTap) {
     const b = document.createElement('button');
     b.className = 'tab' + (it.cls ? ' ' + it.cls : ''); b.type = 'button'; b.dataset.tab = it.k; b.setAttribute('role', 'tab');
     b.innerHTML = '<span class="tab-disc"><span class="tab-glow"></span><svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + it.ico + '</svg></span><span class="tab-bub" aria-hidden="true">'
-      + (it.bub ? '<svg class="tab-bub-ico" viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' + it.bub + '</svg>' : '') + '</span><span class="tab-lbl"></span>';
+      + '<svg class="tab-bub-ico" viewBox="0 0 24 24" fill="none" stroke-width="' + (it.bub ? 1.6 : 2) + '" stroke-linecap="round" stroke-linejoin="round">' + (it.bub || it.ico) + '</svg></span><span class="tab-lbl"></span>';
     dialLabel(b, it.lbl);
     b.addEventListener('click', () => onTap(it.k));
     nav.append(b);

@@ -17,7 +17,7 @@ ok(/bk\.addEventListener\('click', \(\) => switchTab\('settings'\)\)/.test(fn('w
 ok(/TAB_ORDER = \[[^\]]*'advanced', 'backup'\]/.test(app) && /backup: pfbkPaint/.test(fn('tabRenderer')), 'בסדר הטאבים, ומצויר כשנפתח');
 ok(/currentTabName\(\) !== 'backup'\) return;/.test(fn('pfbkPaint')), 'לא מצייר כשהעמוד סגור (רק התווית בהגדרות)');
 const ctx = {};
-vm.runInNewContext("const TAB_ORDER = ['settings', 'wishlist', 'stocks', 'overview', 'trades', 'deposits', 'pension', 'advanced', 'backup'];" +
+vm.runInNewContext("const TAB_ORDER = ['settings', 'overview', 'stocks', 'wishlist', 'trades', 'deposits', 'pension', 'advanced', 'backup'];" +
   (app.match(/const PAGE_SWIPE_MAIN = [^\n]+/) || [''])[0] + fn('pageSwipeTarget') + ';this.f = pageSwipeTarget; this.m = PAGE_SWIPE_MAIN;', ctx);
 ok(ctx.f('backup', false) === 'settings' && ctx.f('backup', true) === null && ctx.m.indexOf('backup') < 0, 'החלקה אחורה → הגדרות; קדימה — כלום');
 ok(/modalPush\(/.test(fn('pfbkRsOpen')) && /modalDone\(/.test(fn('pfbkRsClose')) && /pfbkRsOpen\(/.test(fn('pfbkRestore')), 'מסך השחזור — "חזור" של המכשיר סוגר אותו');
