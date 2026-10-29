@@ -204,6 +204,76 @@ object PhWork {
         "tr" -> R.string.phTextTr; "al", "tl" -> R.string.phTextTl; "rv" -> R.string.phTextRv; else -> R.string.phTextSv
     }
 
+    /* ---------------------------------------------------------------- video (29/10/2026) */
+    /** הסרטון לענן (spec.vc) — בצילום של המשתמש העבודה חיכתה 1:20 ש׳ להעלאה מהדפדפן, שקופא כשהמסך כבוי. כאן: משימת UIDT
+     *  (PhUpJob, אנדרואיד 14+) או השירות בחזית (מתחת ל־14), CONC חלקים במקביל, ממשיכה מהחלקים שכבר ב־R2. העבודה לא מחכה לה
+     *  (המדידות במקום הסרטון) — היא לנגן מכל מכשיר, לשמירה ב־Drive ולהפקה מחדש בענן. מתחילה אחרי הקול (שלא יתחרו על הקו).
+     *  true = נגמר (עלה / אין מה לעשות / שגיאה קבועה — מדווחת לדף), false = לנסות שוב (רשת, נעצר, הקול עוד לא עלה) */
+    /** 29/10/2026: "ביטול" בהתראה של הסרטון (PhService.ACT_VCANCEL, אותו תהליך :ph) — עוצר את ההעלאה לענן בלבד; הכתוביות
+     *  והצריבה בטלפון לא תלויות בה. נרשם vE = "cancel", כך שהמשימה לא חוזרת */
+    @Volatile var vCancel = false
+
+    fun video(ctx: Context, pid: String, stopped0: () -> Boolean, show: (Notification) -> Unit): Boolean {
+        vCancel = false
+        val stopped = { stopped0() || vCancel }
+        var r = PhStore.get(ctx, pid) ?: return true
+        if (!r.optBoolean("vc") || r.optString("vId").isNotEmpty() || r.optString("vE").isNotEmpty()) return true
+        val t0 = System.currentTimeMillis()
+        while (!r.optBoolean("pw") && r.optString("aId").isEmpty()) {
+            if (r.optString("st") == "err") return true                  // הקול נעצר — "להמשיך" באתר (phgo) מתזמן שוב
+            if (stopped() || System.currentTimeMillis() - t0 > VC_WAIT) return false
+            Thread.sleep(3000)
+            r = PhStore.get(ctx, pid) ?: return true
+        }
+        val f = try { src(ctx, r) } catch (e: Stop) { return true }
+        val title = r.optString("name")
+        val n = net(r)
+        val size = maxOf(1L, f.length())
+        val q = Latest { o -> n.call("phVp", o) }
+        var shownP = -1; var repP = -1f; var repAt = 0L
+        show(vprogress(ctx, title, 0f))
+        return try {
+            val id = n.uploadPar(f, vmime(f), title, JSONObject().put("v", true), r.optString("vUp0"), r.optString("vUp"),
+                { id, up -> PhStore.update(ctx, pid) { it.put("vUp0", id).put("vUp", up) } }, stopped) { b ->
+                val p = b.toFloat() / size
+                val now = System.currentTimeMillis()
+                if ((p * 100).toInt() != shownP) { shownP = (p * 100).toInt(); show(vprogress(ctx, title, p)) }
+                if (p - repP >= 0.03f || now - repAt > 30_000L) { repP = p; repAt = now; q.post(JSONObject().put("p", p.toDouble())) }
+            }
+            q.stop()
+            val fr = n.call("phFile", JSONObject().put("which", "v").put("id", id).put("v", true))
+            if (!fr.optBoolean("ok")) throw Stop(fr.optString("error", "file"))
+            PhStore.update(ctx, pid) { it.put("vId", id) }
+            true
+        } catch (e: Throwable) {
+            q.stop()
+            if (vCancel) {
+                PhStore.update(ctx, pid) { it.put("vE", "cancel") }
+                try { n.call("phVp", JSONObject().put("p", 0).put("e", "cancel")) } catch (x: Throwable) {}
+                return true
+            }
+            val code = codeOf(e)
+            if (code == "stopped" || stopped() || code in VC_RETRY) return false
+            PhStore.update(ctx, pid) { it.put("vE", code) }
+            try { n.call("phVp", JSONObject().put("p", 0).put("e", code.lowercase().filter { it in 'a'..'z' || it in '0'..'9' || it == '_' }.take(32).padEnd(2, '_'))) } catch (x: Throwable) {}
+            true
+        }
+    }
+    private const val VC_WAIT = 20 * 60_000L    // כמה מחכים לקול לפני שמשחררים את המשימה (היא מתוזמנת שוב)
+    private val VC_RETRY = setOf("net", "rate_limited", "store", "up", "r2_nourls", "r2_none")   // חולפות — מנסים שוב
+    private fun vmime(f: File) = when (f.extension.lowercase()) {
+        "mp4", "m4v" -> "video/mp4"; "mov" -> "video/quicktime"; "mkv" -> "video/x-matroska"; "webm" -> "video/webm"; "avi" -> "video/x-msvideo"
+        else -> "application/octet-stream"
+    }
+    const val N_VID = 45
+    fun vprogress(ctx: Context, title: String, p: Float): Notification {
+        val cancel = PendingIntent.getService(ctx, 13, Intent(ctx, PhService::class.java).setAction(PhService.ACT_VCANCEL), PendingIntent.FLAG_IMMUTABLE)
+        return builder(ctx).setSmallIcon(android.R.drawable.stat_sys_upload).setContentTitle(title.ifEmpty { s(ctx, R.string.phTitle) })
+            .setContentText(s(ctx, R.string.phUpV, (p * 100).toInt().coerceIn(0, 100))).setOngoing(true).setOnlyAlertOnce(true)
+            .setProgress(100, (p * 100).toInt().coerceIn(0, 100), false)
+            .addAction(Notification.Action.Builder(null, s(ctx, R.string.dlCancel), cancel).build()).build()
+    }
+
     fun burn(ctx: Context, pid: String, stopped: () -> Boolean) {
         var r = PhStore.get(ctx, pid) ?: return
         val title = r.optString("name")

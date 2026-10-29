@@ -200,11 +200,13 @@ a { color: var(--link); }
   color: var(--on-surface);
 }
 .appbar::before {
-  content: ''; position: absolute; inset: 0 0 -110px 0; z-index: -1; pointer-events: none;
+  /* 29/10/2026 (בקשת המשתמש — ראש הכרטיס הפתוח "נבלע" בטשטוש שמתחת ללוגו): השכבה נמשכת רק 20px מתחת להדר (במקום 110),
+     והמעבר הרך מתחיל בתחתית ההדר עצמו — כרטיס שעולה לראש המסך (topCover + 10) נראה נקי וחד מהשורה הראשונה */
+  content: ''; position: absolute; inset: 0 0 -20px 0; z-index: -1; pointer-events: none;
   background: var(--bg);
   -webkit-backdrop-filter: blur(10px) saturate(1.2); backdrop-filter: blur(10px) saturate(1.2);
-  --scrim: linear-gradient(#000 0, #000 calc(100% - 200px), rgba(0, 0, 0, .93) calc(100% - 168px), rgba(0, 0, 0, .78) calc(100% - 134px),
-    rgba(0, 0, 0, .56) calc(100% - 100px), rgba(0, 0, 0, .32) calc(100% - 66px), rgba(0, 0, 0, .13) calc(100% - 34px), transparent 100%);
+  --scrim: linear-gradient(#000 0, #000 calc(100% - 56px), rgba(0, 0, 0, .78) calc(100% - 40px), rgba(0, 0, 0, .45) calc(100% - 24px),
+    rgba(0, 0, 0, .16) calc(100% - 10px), transparent 100%);
   -webkit-mask-image: var(--scrim); mask-image: var(--scrim);
 }
 @supports (animation-timeline: scroll()) {
@@ -254,6 +256,19 @@ html[dir="ltr"] .appbar-row > * { --dir: ltr; }
   font-size: 13px; }
 .appbar .appbar-sub > * > small { flex-basis: 100%; font-size: 12px; }
 .appbar .appbar-sub .st-pill i + svg { display: none; }
+/* 29/10/2026 (בקשת המשתמש — "נקי ומסודר בגודל ובצורה", לפי ת־עיצוב): כל בועות ההדר (השער, השוק, החיבור בסטודיו, הגיבוי באקדמיה)
+   באותו מבנה ובאותה טיפוגרפיה — כיתוב קטן ומשני למעלה (נקודה/אייקון + שם) והמצב/הערך מודגש מתחתיו, ממורכזים */
+.appbar .appbar-sub > :has(> .sub-cap) { height: auto; flex-direction: column; flex-wrap: nowrap; justify-content: center; align-items: center; gap: 1px; padding: 4px 8px; }
+.appbar .sub-cap { display: inline-flex; align-items: center; justify-content: center; gap: 5px; max-width: 100% !important; min-width: 0;
+  font-size: 12.5px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--on-surface-var); }
+.appbar .sub-cap i { width: 6px; height: 6px; }
+.appbar .sub-cap svg { width: 13px; height: 13px; flex: none; }
+.appbar .sub-cap small { font-size: inherit; font-weight: inherit; opacity: 1; }
+.appbar .sub-val { display: block; max-width: 100%; font-size: 17px; font-weight: 700; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--on-surface); }
+.appbar .st-pill:is(.pre, .post, .night) .sub-cap, .appbar .st-pill:is(.pre, .post, .night) .sub-val { color: inherit; }
+.appbar .st-pill.closed .sub-val, .appbar .lib-bkpill.off .sub-val { color: var(--on-surface-var); }
+.appbar .lib-bkpill.err .sub-cap, .appbar .lib-bkpill.err .sub-val { color: inherit; }
+@media (max-width: 374px) { .appbar .sub-cap { font-size: 11px; } .appbar .sub-val { font-size: 15px; } }
 /* תווית ארוכה (Connect Claude) נשברת בתוך עצמה, ליד הנקודה/האייקון — לא יורדת כולה לשורה משלה */
 .appbar .appbar-sub > * > span:not(.sr-only):not(:empty) { max-width: calc(100% - 20px); }
 @media (max-width: 374px) { .appbar .appbar-sub > * { font-size: 11px; padding: 3px; } .appbar .appbar-sub > * > small { font-size: 10px; } }
@@ -580,20 +595,18 @@ html.calm .appbar .brand-snow b { animation-play-state: paused; }
    הפריטים יושבים על קשת: הפעיל במרכז, גדל לבועה בצבע האפליקציה עם הסמל בלבן (בלי כיתוב), והשאר עיגולי זכוכית עם סמל וכיתוב מתחת. המיקום של כל פריט
    (translate/scale/opacity) נקבע ב־app.js (dialPaint, ובמעבר — dialAnimate באותו קפיץ ובאותו זמן של הקובייה). הסרגל מחוץ ל־main —
    לא חלק מהקובייה, ותמיד גלוי במעבר. שכבת הרקע: זכוכית שנמוגה למעלה (בלי קו חד מעל התוכן), וזוהר עדין מאחורי המרכז */
-:root { --dial-btn: rgba(255, 255, 255, .5); }   /* 29/10/2026: עיגולי החוגה — זכוכית שקופה יותר (לפי ת־עיצוב) */
-[data-theme="dark"] { --dial-btn: rgba(255, 255, 255, .1); }
 body.has-dock { --dock-h: 120px; padding-bottom: calc(var(--dock-h) + env(safe-area-inset-bottom, 0px) + 14px); }
 .tabs {
   position: fixed; inset-inline: 0; bottom: 0; z-index: 21;
   height: calc(var(--dock-h, 120px) + env(safe-area-inset-bottom, 0px));
   isolation: isolate; overflow-x: clip; touch-action: none;
-  --dock-bg: color-mix(in srgb, var(--bg) 42%, transparent); --dock-bg2: color-mix(in srgb, var(--bg) 62%, transparent);
+  --dock-bg: transparent; --dock-bg2: color-mix(in srgb, var(--bg) 2%, transparent); --dial-btn: rgba(255, 255, 255, .55);
 }
-[data-theme="dark"] .tabs { --dock-bg: color-mix(in srgb, var(--bg) 40%, transparent); --dock-bg2: color-mix(in srgb, var(--bg) 60%, transparent); }
+[data-theme="dark"] .tabs { --dock-bg: transparent; --dock-bg2: color-mix(in srgb, var(--bg) 3%, transparent); --dial-btn: var(--gl-btn); }
 .tabs::before {
   content: ''; position: absolute; inset: -26px 0 0; z-index: -2; pointer-events: none;
   background: linear-gradient(to bottom, transparent, var(--dock-bg) 34px, var(--dock-bg2) 84px);
-  -webkit-backdrop-filter: blur(22px) saturate(190%); backdrop-filter: blur(22px) saturate(190%);
+  -webkit-backdrop-filter: blur(3px) saturate(160%); backdrop-filter: blur(3px) saturate(160%);
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 30px); mask-image: linear-gradient(to bottom, transparent, #000 30px);
 }
 .tabs::after {   /* "זרקור" מאחורי הבועה — קבוע במרכז, נותן עומק בלי לזוז */
@@ -617,8 +630,8 @@ button, a, .tab, .icon-btn, .ss-add {
 /* העיגול: בגודל הבועה (78) ומוקטן כשאינו פעיל — הבועה הפעילה מצוירת חדה בגודלה האמיתי */
 .tab-disc {
   position: absolute; top: 16px; left: 7px; width: 78px; height: 78px; border-radius: 50%;
-  display: grid; place-items: center; transform: scale(.68); will-change: transform;
-  background: var(--dial-btn, var(--gl-btn)); box-shadow: var(--gl-btn-sh); transition: scale .16s ease;
+  display: grid; place-items: center; transform: scale(.72); will-change: transform;
+  background: var(--dial-btn, var(--gl-btn));   /* בהיר — זכוכית לבנה חצי־שקופה; כהה — --gl-btn (המשתמש: "בשחור נראה מעולה") */ box-shadow: var(--gl-btn-sh); transition: scale .16s ease;
 }
 .tab:active .tab-disc { scale: .9; }
 .tab-glow {
@@ -634,14 +647,9 @@ button, a, .tab, .icon-btn, .ss-add {
 }
 [data-theme="dark"] .tab-glow { box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .45), inset -1px -1px 0 rgba(255, 255, 255, .14), inset 0 0 16px rgba(255, 255, 255, .12),
   0 0 0 6px color-mix(in srgb, var(--btn-c) 16%, transparent), 0 0 30px color-mix(in srgb, var(--btn-c) 42%, transparent), 0 2px 8px rgba(0, 0, 0, .35); }
-/* נחיתה על לשונית: גל הדף יוצא מהבועה וברק עובר עליה — פעם אחת (dialZap) */
-.tab-glow::before, .tab-glow::after { content: ''; position: absolute; border-radius: 50%; pointer-events: none; opacity: 0; }
-.tab-glow::before { inset: 0; background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, .55) 48%, transparent 64%) -80px 0 / 200% 100% no-repeat; }
-.tab-glow::after { inset: -2px; box-shadow: 0 0 0 2px var(--btn-c); }
-.tab.zap .tab-glow::before { animation: dialSheen .7s cubic-bezier(.3, .7, .3, 1) both; }
-.tab.zap .tab-glow::after { animation: dialWave .62s cubic-bezier(.2, .8, .3, 1) both; }
-@keyframes dialSheen { 0% { opacity: 1; background-position: -80px 0; } 100% { opacity: 1; background-position: 80px 0; } }
-@keyframes dialWave { 0% { opacity: .7; transform: scale(1); } 100% { opacity: 0; transform: scale(1.5); } }
+/* נחיתה על לשונית (dialZap): "נשימה" רכה — הבועה והסמל גדלים מעט וחוזרים בקפיץ מרוסן, בלי גל ובלי ברק (בקשת המשתמש: נקי ונעים, לפי ת־עיצוב) */
+.tab.zap .tab-disc, .tab.zap .tab-bub { animation: dialSettle .55s cubic-bezier(.4, 0, .2, 1) both; }
+@keyframes dialSettle { 0% { scale: 1; } 40% { scale: 1.04; } 100% { scale: 1; } }
 .tab-ico { position: relative; width: 38px; height: 38px; display: block; stroke: var(--primary); will-change: opacity; }
 .tab-fill path { fill: var(--primary); }
 .tab-bub {
@@ -653,8 +661,9 @@ html[lang="en"] .tab-bub { font-size: 14px; }
 .tab-lbl {
   position: absolute; top: 90px; left: -6px; right: -6px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   font-size: 14.5px; font-weight: 600; line-height: 20px; color: var(--on-surface-var); will-change: opacity;
+  text-shadow: 0 0 2px color-mix(in srgb, var(--bg) 80%, transparent), 0 0 8px color-mix(in srgb, var(--bg) 90%, transparent);   /* קריא מעל התוכן — הבר שקוף */
 }
-@media (prefers-reduced-motion: reduce) { .tab.zap .tab-glow::before, .tab.zap .tab-glow::after { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .tab.zap .tab-disc, .tab.zap .tab-bub { animation: none; } }
 .icon-btn, .ss-add { transition: transform .16s ease, background .25s ease; }
 .icon-btn:active, .ss-add:active { transform: scale(.9); }
 .count-chip {

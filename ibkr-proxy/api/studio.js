@@ -75,7 +75,7 @@ const AAD = (uid) => 'studio|' + uid + '|r';
 const WORKER_OPS = new Set(['claim', 'token', 'report', 'qa', 'r2get', 'r2wup', 'r2wparts', 'r2wdone', 'r2del', 'learnPut', 'learnMedia', 'learnMediaDone', 'srcFile', 'smPut']);   // 22/10/2026: srcFile — הורדה מקישור
 const RELAY_OPS = new Set(['rlPut', 'rlFix', 'rlWait', 'rlEnd', 'rlNext', 'rlMark']);   // 24/10/2026: rlPut…rlEnd = העובד (kh), rlNext/rlMark = ה־Routine (rkh)
 // 24/10/2026: תרגום בטלפון — Studio לאנדרואיד (נייטיב, בלי Origin ובלי התחברות) עם מפתח לעבודה אחת (pkh — רק ה־hash)
-const PHONE_OPS = new Set(['phUp', 'phParts', 'phDone', 'phFile', 'phStart', 'phJob', 'phGet', 'phBurn', 'phProg', 'phAlive', 'phClaim']);   // phClaim — 25/10/2026, שלב 3: הטלפון לוקח את העבודה ומריץ אותה
+const PHONE_OPS = new Set(['phUp', 'phParts', 'phDone', 'phFile', 'phStart', 'phJob', 'phGet', 'phBurn', 'phProg', 'phAlive', 'phClaim', 'phVp']);   // phVp — 29/10/2026: הסרטון לענן (spec.vc)   // phClaim — 25/10/2026, שלב 3: הטלפון לוקח את העבודה ומריץ אותה
 const PH_KEY_TTL = 7 * 24 * 3600e3;   // הצריבה יכולה לקרות ימים אחרי שהתרגום מוכן
 const SERVER_OPS = new Set(['poll', 'beat', 'devLog', 'devMet', 'pq', 'ytCk', 'ptNext', 'ptMark', 'pulse']);   // pulse — התראת השלב בווילון כל דקה (27/10/2026)   // ptNext/ptMark — העונה לעבודות שהטלפון מריץ (25/10/2026)   // ytCk — עוגיות החשבון הייעודי (25/10/2026)   // pq — בדיקות קישור (22/10/2026)   // devLog/devMet — האיסוף המלא (lib/devlog.js)
 /* מצב API: תקציב חודשי לכל משתמש (מפתח ה־API של המערכת). מעבר לזה — התקרה ב־Console של Anthropic */
@@ -2141,6 +2141,23 @@ async function r2Register(deps, job, which, fid, now) {
   return {};
 }
 
+/* 29/10/2026: העבודה מחכה לסרטון (wv מהעובד, כל 5 דק׳) — כמה ממנו כבר ב־R2? ההעלאה הפתוחה של הסרטון = רשומה בתיקייה בגודל
+   של המקור (ListParts — אותה קריאה של r2parts). לא זז UP_STALL_MS → התראה אחת "ההעלאה נעצרה" (S.upStallStep). כל תקלה — בשקט */
+async function upStallCheck(deps, job, up, now) {
+  if (!SR.isFolder(job.folder) || !(job.spec && job.spec.size > 0)) return;
+  const c = R2.config();
+  if (!c.ok) return;
+  let b = 0;
+  try {
+    const recs = await query(deps, 'studioUp', { f: job.folder }, 20);
+    const r = recs.find((x) => x && Number(x.s) === job.spec.size && x.up && !x.ok);
+    if (r) { const parts = await R2.mpList(c, r2deps(deps), r.k, r.up); for (const p of parts || []) b += Number(p.size) || 0; }
+  } catch (e) { return; }
+  const st = S.upStallStep(job.vst, b, now);
+  if (st.vst) up.vst = st.vst;
+  if (st.push) await notify(deps, job.uid, 'up_stall', job.id, now);
+}
+
 /* 24/10/2026: תרגום בטלפון — Studio לאנדרואיד מדבר עם השרתון בלי הדפדפן, במפתח של עבודה אחת (op:'phKey' מהדף).
    מותר רק מה שהטלפון צריך: להעלות לתיקייה של העבודה, לרשום את הקול ואת קובץ המדידות, להתחיל (פעם אחת — כל הבדיקות
    של התחלה רגילה), לקרוא את המצב, להוריד את התוצרים של העבודה (he.ass לצריבה) ולדווח על הצריבה. שום דבר אחר */
@@ -2183,6 +2200,29 @@ async function phoneOp(req, res, body, deps) {
       // 25/10/2026: הצריבה בטלפון מסתיימת אחרי שהעבודה "done" — בלי זה התוצאה שלה לא הגיעה לרשומה במאגר (רק בסוף, לא בכל אחוז)
       if (pbn.s !== 'run') await learnSave(deps, Object.assign({}, job, { pbn }), now);
       return res.status(200).json({ ok: true, now });
+    }
+    // 29/10/2026: הסרטון לענן (spec.vc) — Studio לאנדרואיד מעלה אותו ברקע אחרי הקול, וגם אחרי שהעבודה הסתיימה (העבודה לא
+    // מחכה לו — הנגן, השמירה ב־Drive וההפקה מחדש בענן). רק המקור עצמו: בגודל של העבודה, בתיקייה שלה, נרשם כ־fv
+    if (job.spec.vc === 1 && (op === 'phVp' || (body.v === true && (op === 'phUp' || op === 'phParts' || op === 'phDone' || op === 'phFile')))) {
+      if (!['new', 'queued', 'running', 'failed', 'done'].includes(e.state)) return res.status(409).json({ ok: false, error: 'state' });
+      if (op === 'phVp') {
+        const vcp = S.normVcp(body, now);
+        if (!vcp) return res.status(400).json({ ok: false, error: 'bad_params' });
+        if (job.fv && job.fv.id) return res.status(200).json({ ok: true, now, done: true });   // כבר נרשם — לא דורסים ב"עוד לא"
+        await patchJob(deps, id, { vcp });
+        return res.status(200).json({ ok: true, now });
+      }
+      if (op === 'phFile') {
+        const fid = String(body.id || '');
+        if (!S.FILE_ID_RE.test(fid) || !SR.inFolder(fid, job.folder)) return res.status(400).json({ ok: false, error: 'bad_params' });
+        const rg = await r2Register(deps, job, 'v', fid, now);
+        if (rg.error) return res.status(rg.code).json({ ok: false, error: rg.error });
+        await patchJob(deps, id, { vcp: { p: 1, at: now } });
+        return res.status(200).json({ ok: true, now });
+      }
+      if (op === 'phUp' && Number(body.size) !== job.spec.size) return res.status(400).json({ ok: false, error: 'file_size' });
+      const [code, out] = await r2Files(deps, { phUp: 'up', phParts: 'parts', phDone: 'done' }[op], body, job.uid, job.folder, 'phone');
+      return res.status(code).json(Object.assign({ now }, out));
     }
     if (!['new', 'queued', 'running', 'failed'].includes(e.state)) return res.status(409).json({ ok: false, error: 'state' });
     if (op === 'phProg') {   // 25/10/2026 (שלב 2): התמלול/היישור בטלפון — לפני שהעבודה מתחילה בשרת (רק "חדשה")
@@ -2627,7 +2667,7 @@ async function worker(req, res, body, deps) {
         if (job.tg && job.tg.t) up.tg = Object.assign({}, job.tg, { t: ETA.etaTarget(ep2) });   // היעד נקבע על מידות משוערות
       }
     }
-    if (body.wv === true && job.kind === 'tr') { if (!job.wv0) up.wv0 = now; }
+    if (body.wv === true && job.kind === 'tr') { if (!job.wv0) up.wv0 = now; await upStallCheck(deps, job, up, now); }
     else if (job.wv0 && (body.st || body.done === true || body.fail === true)) {
       up.pz = (up.pz != null ? up.pz : job.pz || 0) + Math.max(0, now - job.wv0); up.wv0 = 0;
       // 21/10/2026: גם השלב שבו חיכינו לא סופר את ההמתנה (עד היום — 39 דק׳ "ביישור" אחרי חזרה לתור, והצפי ‎"עוד 3:09 ש׳")

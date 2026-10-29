@@ -181,6 +181,26 @@ function edlPre(e) {
 const PH_BURN = ['same', 'small'];
 const PH_META_MAX = 4 * 1024 * 1024;
 const PH_WORDS_MAX = 32 * 1024 * 1024;   // 25/10/2026 (שלב 2): המילים עם הזמנים מהטלפון — שעה ≈ 1MB
+/* 29/10/2026 (צילום של המשתמש: 1:20 ש׳ "מחכה שהסרטון יסיים לעלות" על פרק של כ־200MB): העלאה מהדפדפן נעצרת כשהדף ברקע או
+   שהמסך כבוי, ואף אחד לא ידע. העובד מדווח wv כל 5 דק׳ כשהוא מחכה לסרטון; השרתון סופר כמה מהסרטון כבר ב־R2 (b), ואם לא זז
+   UP_STALL_MS — התראה אחת לטלפון. עוד בתים = מתאפס (עצירה נוספת = התראה נוספת). מחזיר { vst } לכתיבה (null = בלי שינוי) ו־push */
+const UP_STALL_MS = 10 * 60e3;
+function upStallStep(prev, b, now) {
+  const p = prev && typeof prev === 'object' ? prev : null;
+  b = Math.max(0, Math.floor(Number(b) || 0));
+  if (!p || b > (Number(p.b) || 0)) return { vst: { b, at: now, n: 0 }, push: false };
+  if (!p.n && now - (Number(p.at) || 0) >= UP_STALL_MS) return { vst: { b: Number(p.b) || 0, at: Number(p.at) || now, n: 1 }, push: true };
+  return { vst: null, push: false };
+}
+/* 29/10/2026: הסרטון עולה לענן מ־Studio לאנדרואיד (spec.vc, op:'phVp') — p = 0–1, e = קוד כשנעצר. **normVcp זהה בטלפון** */
+function normVcp(o, now) {
+  if (!o || typeof o !== 'object') return null;
+  const p = Number(o.p);
+  if (!(Number.isFinite(p) && p >= 0)) return null;
+  const out = { p: Math.min(1, Math.round(p * 1000) / 1000), at: typeof now === 'number' ? now : 0 };
+  if (/^[a-z0-9_]{2,32}$/.test(String(o.e || ''))) out.e = o.e;
+  return out;
+}
 const PH_UP_MAX = 4 * 1024 * 1024 * 1024;   // הקול מהטלפון (בפועל עשרות MB לשעה) — תקרה גסה בלבד   // קובץ המדידות מהטלפון (ffprobe + השוטים) — JSON קטן; יותר = לא תקין
 /* מצב הצריבה בטלפון (op:'phBurn' מהטלפון) — רק מספרים וקוד: s = run/done/fail, p = 0–1, e = קוד שגיאה, sz = גודל התוצר */
 const PBN_S = ['run', 'done', 'fail'];
@@ -250,7 +270,8 @@ function normSpec(s) {
   // 25/10/2026 (שלב 3): pt = גם שלבי הטקסט בטלפון (vt בפייתון של Studio) — השרת רק מעביר את הקריאות ל־Claude (התור, המפתח של
   // המערכת) ומחשב את העלות. רק עם pw, ורק במפתח של המערכת (לא העתק־הדבק ולא "המנוי שלי")
   ph ? Object.assign({ ph: 1 }, s.pw === 1 ? { pw: 1 } : {}, s.pw === 1 && s.pt === 1 && s.cp !== 1 && s.ry !== 1 ? { pt: 1 } : {},
-    PH_BURN.includes(s.pb) ? { pb: s.pb } : {}) : {},   // pb = מה הטלפון צורב בסוף (ריק = רק כתוביות)
+    PH_BURN.includes(s.pb) ? { pb: s.pb } : {}, s.vc === 1 ? { vc: 1 } : {}) : {},   // pb = מה הטלפון צורב בסוף (ריק = רק כתוביות)
+  // 29/10/2026: vc = Studio לאנדרואיד מעלה גם את הסרטון לענן, ברקע ובלי לעכב את העבודה (לנגן ולשמירה) — העבודה לא מחכה לו
   !subs && !link && !ph && edlPre(normEdl(s.edl)) ? { edl: edlPre(normEdl(s.edl)) } : {},   // מ4: חיתוך לפני התרגום (dur = האורך אחרי החיתוך)
   // 21/10/2026: פיקסלים לשנייה ביחס ל־1080p30 (מהמידות שהטלפון קרא; העובד מתקן אחרי הקליטה) — לצפי של הצריבה
   Number.isFinite(+s.px) && +s.px >= 0.02 && +s.px <= 16 ? { px: Math.round(+s.px * 1000) / 1000 } : {},
@@ -792,6 +813,7 @@ function publicJob(job, now) {
     hla: normHl(job.hl, job.fv && job.fv.id) ? normHla(job.hla) : null,   // 22/10/2026: עותק הקול לנגן (הקול המקורי נשאר במקור)
     pbn: normPbn(job.pbn, job.pbn && job.pbn.at),   // 24/10/2026: הצריבה בטלפון (תרגום בטלפון)
     ppr: normPpr(job.ppr, job.ppr && job.ppr.at),   // 25/10/2026: מה הטלפון עושה לפני ההתחלה (שלב 2)
+    vcp: job.spec && job.spec.vc === 1 ? normVcp(job.vcp, job.vcp && job.vcp.at) : null,   // 29/10/2026: הסרטון עולה לענן מ־Studio לאנדרואיד
     sx: job.sx > 0 ? job.sx : 0,                    // 26/10/2026: מתי סרטון המקור נמחק (0 = עוד שמור)
     rt: SC.retention(job, process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e'),   // עד מתי המקור (s) ועד מתי העבודה (j)
   };
@@ -1388,7 +1410,7 @@ function normUtl(o) {
   for (const k of UTL_KEYS) { const v = Number(o[k]); if (Number.isFinite(v) && v >= 0 && v <= 1e11) out[k] = Math.round(v); }
   return Object.keys(out).length ? out : null;
 }
-const JSON_FIELDS = ['mon', 'uh', 'sto', 'upv', 'spec','fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'hla', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl', 'pbr', 'fph', 'pbn', 'fpw', 'ppr', 'urt', 'fsr'];   // 26/10/2026: fsr = רצועת הכתוביות שבקובץ, עזר להגהה   // 25/10/2026: ppr = ההתקדמות בטלפון לפני ההתחלה (שלב 2)   // 25/10/2026: fpw = המילים עם הזמנים מהטלפון (שלב 2)   // 24/10/2026: fph = קובץ המדידות מהטלפון, pbn = הצריבה בטלפון   // 22/10/2026: pbr = סיכום בדיקת קישור (studioProbe)   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['mon', 'uh', 'sto', 'upv', 'spec','fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'hla', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl', 'pbr', 'fph', 'pbn', 'fpw', 'ppr', 'urt', 'fsr', 'vst', 'vcp'];   // 29/10/2026: vst = כמה מהסרטון ב־R2 בפעם האחרונה שזז (העלאה תקועה — upStallStep)   // 26/10/2026: fsr = רצועת הכתוביות שבקובץ, עזר להגהה   // 25/10/2026: ppr = ההתקדמות בטלפון לפני ההתחלה (שלב 2)   // 25/10/2026: fpw = המילים עם הזמנים מהטלפון (שלב 2)   // 24/10/2026: fph = קובץ המדידות מהטלפון, pbn = הצריבה בטלפון   // 22/10/2026: pbr = סיכום בדיקת קישור (studioProbe)   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -1415,7 +1437,7 @@ function fromFields(f) {
   return o;
 }
 
-module.exports = { bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, jobSeries, SM_BYTES, dualAb, DUAL_AB_UNTIL, rvAb, RV_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
+module.exports = { UP_STALL_MS, upStallStep, normVcp, bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, jobSeries, SM_BYTES, dualAb, DUAL_AB_UNTIL, rvAb, RV_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, cuesSwap, rrSpec, rrJob,

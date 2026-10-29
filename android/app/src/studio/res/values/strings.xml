@@ -48,6 +48,7 @@
     <string name="phUpA">מעלה את הקול</string>
     <string name="phStart">מתחיל את התרגום בשרת…</string>
     <string name="phShots">מזהה את חילופי השוטים (בזמן שהשרת מתמלל)…</string>
+    <string name="phUpV">הסרטון עולה לענן · %1$d%%</string>
     <string name="phUpM">שולח את המדידות</string>
     <string name="phModels">מוריד את המודלים לתרגום בטלפון (פעם אחת, כ־1.8GB)…</string>
     <string name="phModelsP">מוריד את המודלים · %1$d מתוך %2$d MB</string>
