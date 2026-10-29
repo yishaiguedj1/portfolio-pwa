@@ -1092,6 +1092,7 @@ function errText(code, extra) {
     case 'signin': case 'no_auth': return T('studioErrSignin');
     case 'not_allowed': return T('studioErrDenied');
     case 'month_cap': return T('studioErrMonthCap');
+    case 'user_paused': return T('studioErrPaused');   // 29/10/2026: המנהל השהה את החשבון
     case 'no_server': return T('studioErrNoServer');
     case 'worker_oom': return T('studioErrOom');
     case 'worker_crash': return T('studioErrCrash');
@@ -1735,10 +1736,16 @@ async function muteKind(c, k, hrs) {
   } finally { muteBusy = false; render('none'); }
 }
 /* "התחלה": השרתון מפעיל את ה־Routine. בשלב 2 העובד יודע רק "בדיקת חיבור" — התשובה worker_not_ready והעבודה ממתינה */
-async function tryStart(id, ov, mo) {
+async function tryStart(id, ov, mo, ow) {
   const rec = jobRec(id); if (!rec || rec.up.started) return;
   // v367: ov = "להתחיל בכל זאת" (מצב מעל המקסימום) · v371: mo = להתחיל למרות תקלה רחבה
-  const j = await net.api('start', Object.assign({ job: id }, ov ? { ov: true } : {}, mo ? { mo: true } : {}));
+  const j = await net.api('start', Object.assign({ job: id }, ov ? { ov: true } : {}, mo ? { mo: true } : {}, ow ? { ow: true } : {}));
+  // 29/10/2026 (למנהל): משתמש אחר מתרגם עכשיו — להתחיל בכל זאת (ow), או לחכות ולקבל התראה כשיסיים (adminWait)
+  if (!j.ok && j.error === 'others_busy' && j.ob && typeof askConfirm === 'function') {
+    askConfirm(T('studioBusyQ', { n: String(j.ob.nm || ''), p: Math.round((Number(j.ob.p) || 0) * 100) }), () => tryStart(id, ov, mo, true),
+      { ok: T('studioStartAnyway'), cancel: T('studioBusyWait'), onNo: async () => { const w = await net.api('adminWait', { on: true }); flashSafe(w.ok ? T('studioBusyWaitOk') : errText(w.error)); } });
+    return;
+  }
   if (j.job) rec.srv = normJob({ id, srv: j.job }).srv;
   startDone(rec, j);
   save(); paintSoon();

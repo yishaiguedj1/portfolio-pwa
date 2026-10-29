@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v620';
+const CACHE_NAME = 'portfolio-pwa-v622';
 const HASHES = {
   "./": "16b507afdf51b3641466129e571503e2",
   "./index.html": "16b507afdf51b3641466129e571503e2",
   "./styles.css": "712363b6f20381fdc6b146ad11a34d53",
-  "./app.js": "b034c0a205eb1941f2419301871aca6c",
+  "./app.js": "f1d71b0feebf6b41f0b84ff4d2573888",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "e50501f26e70aad478a5d8d489754d97",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -64,8 +64,8 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "d58a511fc759a629121b82ab47fe9a69",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
-  "./strings-academy.js": "4a5796d4b6366ab4a7d4173f729987e0",
-  "./core.js": "046766521bee9726905b4a55754648c7",
+  "./strings-academy.js": "a566eedf4752650bd397514a3d6f91f2",
+  "./core.js": "d517f48a5896005ddec7de557034f75d",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "4e5bfbd05e9ea7156dda74b506a8247c",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -74,7 +74,7 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "9e25f8a959b6742d4750061002f3c078",
+  "./studio.js": "268968175a218ec66f7708a1ca8f1e87",
   "./studio.css": "6999d753413baf1d29ac869b9ab9bfbe",
   "./studionet.js": "65cf0acd0f5b82a27c871697a5ff686d",
   "./studioplay.js": "f7a2c41fb9bbcee64b213822d3082a98",
@@ -86,7 +86,7 @@ const HASHES = {
   "./studiobg.js": "ab4ba7fbd51ae2365068ecdf5c06877b",
   "./studio.html": "e1a77d2576406429bad01f26fccf5d77",
   "./studio-app.js": "29aafde3d0cb75d4d8210d2b2287409d",
-  "./strings-studio.js": "966094e78c1e3b1be12512b6cbb996bf",
+  "./strings-studio.js": "b197bc6d7db3cdfb01ab91921e9696ac",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
@@ -372,6 +372,8 @@ self.addEventListener('fetch', (event) => {
    שבמסך. דיווח מהשרתון שמראה פחות (שלב קודם / אחוז נמוך יותר באותו שלב) לא מחזיר אותה אחורה */
 const SHADE_STG = ['up', 'tr', 'al', 'tl', 'rv', 'bn', 'sv'];   // = STAGES ב־studionet.js
 const shadeOrd = (d) => { const i = SHADE_STG.indexOf(d && d.st); return i < 0 ? -1 : i + Math.max(0, Math.min(1, Number(d.p) || 0)) * 0.999; };
+// watch (עבודה של משתמש אחר, למנהל) — לפי האחוז הכללי; stage — לפי השלב והאחוז שבו
+const shadeBehind = (cd, m) => (cd.k === 'stage' ? shadeOrd(m) >= 0 && shadeOrd(cd) > shadeOrd(m) : cd.k === 'watch' && m.k === 'watch' && (Number(cd.p) || 0) > (Number(m.p) || 0));
 self.addEventListener('push', (event) => {
   let m = {};
   try { m = event.data ? event.data.json() : {}; } catch (e) { m = {}; }
@@ -380,21 +382,24 @@ self.addEventListener('push', (event) => {
   const hm = /^https:\/\/[^#\s]*(#studio=j[A-Za-z0-9_-]{20})$/.exec(String(m.u || ''));
   // 27/10/2026: התראת מחיר מגרף הנרות (k:'px') — נפתחת בגרף של המניה (#chart=SYM), תג לכל התראה
   const cm = m.k === 'px' ? /^#chart=([A-Za-z0-9.^=%-]{1,40})$/.exec(String(m.u || '')) : null;
-  const url = './' + (hm ? hm[1] : cm ? cm[0] : '');
-  const tag = cm ? 'px-' + String(m.i || cm[1]).slice(0, 40) : m.j ? 'studio-' + m.j : 'studio', at = Number(m.at) || 0;
+  // 29/10/2026: ניטור משתמשים (למנהל) — עבודה של משתמש אחר בתג משלה (watch-<עבודה>), נפתחת במרכז הניהול על העבודה החיה
+  const wk = /^(watch|watch_end|watch_clear|cap80|daily)$/.test(String(m.k || ''));
+  const wm = wk ? /^https:\/\/admin(-staging)?\.thesnowball\.app\/#(live=j[A-Za-z0-9_-]{20}|users|act|ov)$/.exec(String(m.u || '')) : null;
+  const url = wm ? wm[0] : './' + (hm ? hm[1] : cm ? cm[0] : '');
+  const tag = wk ? (m.j ? 'watch-' + m.j : 'adm-' + m.k) : cm ? 'px-' + String(m.i || cm[1]).slice(0, 40) : m.j ? 'studio-' + m.j : 'studio', at = Number(m.at) || 0;
   // 27/10/2026 (בקשת המשתמש): כל שלב בעבודה = אותה התראה (תג לעבודה) שמתחלפת — שקטה, עם פס של השלב.
   // סוף / שאלה / אישור / עצירה — מחליפים אותה עם צליל. הודעה ישנה שהגיעה באיחור (שירות ה־push לא שומר על סדר) לא דורסת חדשה
-  const stage = m.k === 'stage';
+  const stage = m.k === 'stage' || m.k === 'watch';   // watch = ההתקדמות של משתמש אחר — שקטה ונשארת כמו התראת שלב
   event.waitUntil((async () => {
     let cur = null;
     try { cur = (await self.registration.getNotifications({ tag }))[0] || null; } catch (e) {}
     const cd = cur && cur.data || {};
-    const behind = stage && cur && cd.k === 'stage' && shadeOrd(m) >= 0 && shadeOrd(cd) > shadeOrd(m);   // ראו SHADE_STG
+    const behind = stage && cur && shadeBehind(cd, m);   // ראו SHADE_STG
     if (cur && (behind || at && cd.at > at)) return self.registration.showNotification(cur.title, { body: cur.body, icon: 'icon-192.png', badge: 'favicon-48.png',
       lang: 'he', dir: 'auto', tag, renotify: false, silent: true, data: cd, actions: cur.actions || [] });
     return self.registration.showNotification(title, {
       body: String(m.b || '').slice(0, 160), icon: 'icon-192.png', badge: 'favicon-48.png', lang: 'he', dir: 'auto',
-      tag, renotify: !stage, silent: stage, requireInteraction: false, data: { url, at, k: String(m.k || ''), st: stage ? String(m.st || '') : '', p: stage ? Number(m.p) || 0 : 0 },
+      tag, renotify: !stage, silent: stage, requireInteraction: false, data: { url, at, k: String(m.k || ''), st: m.k === 'stage' ? String(m.st || '') : '', p: stage ? Number(m.p) || 0 : 0 },
       // מ9: עבודה שהסתיימה — ישר לנגן או לעורך (האפליקציה בודקת שאפשר; אחרת נשארת בדף העבודה)
       actions: m.k === 'done' && url !== './' ? [{ action: 'play', title: 'צפייה' }, { action: 'subs', title: 'עריכה' }] : [],
     });
@@ -404,7 +409,7 @@ self.addEventListener('push', (event) => {
    לא נסגרת בלחיצה, ואם נסגרה (החלקה, או אנדרואיד סגר אותה בלחיצה) — מוצגת מחדש מיד, בשקט. רק התראת הסוף/שאלה/עצירה
    מחליפה אותה (אותו תג). SHADE_KEEP: התראה שלא התעדכנה 3 שעות — העבודה כבר לא רצה (סוף שלא הגיע), אפשר לסגור */
 const SHADE_KEEP = 3 * 3600e3;
-const shadeKeep = (d) => !!d && d.k === 'stage' && Date.now() - (Number(d.at) || 0) < SHADE_KEEP;
+const shadeKeep = (d) => !!d && (d.k === 'stage' || d.k === 'watch') && Date.now() - (Number(d.at) || 0) < SHADE_KEEP;
 function shadeAgain(n) {
   return self.registration.showNotification(n.title, { body: n.body, icon: n.icon, badge: n.badge, lang: n.lang, dir: n.dir,
     tag: n.tag, renotify: false, silent: true, data: n.data }).catch(() => {});
@@ -426,6 +431,7 @@ self.addEventListener('notificationclick', (event) => {
    והמשתמש נשאר בדף הקודם ("לחצתי על ההתראה ונפתח פרויקט חדש", 27/10/2026) */
 async function openAt(u, v) {
   const url = new URL(u, self.registration.scope).href;
+  if (!url.startsWith(self.registration.scope)) return self.clients.openWindow(url);   // 29/10/2026: מרכז הניהול (התראת מנהל) — חלון משלו, לא על חשבון Studio הפתוח
   const jm = /#studio=(j[A-Za-z0-9_-]{20})/.exec(u);
   const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
   for (const w of wins) {

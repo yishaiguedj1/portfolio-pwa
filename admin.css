@@ -66,7 +66,7 @@ button.adm-r:active { background: color-mix(in srgb, var(--on-surface) 6%, trans
 .adm-search { width: 100%; box-sizing: border-box; border: 0; border-radius: 12px; padding: 10px 14px; font: inherit; font-size: 16px; background: color-mix(in srgb, var(--on-surface) 7%, transparent); color: var(--on-surface); margin-bottom: 12px; }
 /* הלשוניות — בתחתית בטלפון */
 .adm-tabs { position: fixed; inset-inline: 0; bottom: 0; z-index: 50; display: flex; justify-content: space-around; padding: 6px 0 calc(8px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top: 1px solid color-mix(in srgb, var(--on-surface) 10%, transparent); }
-.adm-tab { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; width: 72px; background: none; border: 0; font: inherit; font-size: 11px; font-weight: 600; color: var(--on-surface-var); cursor: pointer; }
+.adm-tab { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; width: 72px; min-width: 0; flex: 0 1 72px; background: none; border: 0; font: inherit; font-size: 11px; font-weight: 600; color: var(--on-surface-var); cursor: pointer; }
 .adm-tab i { font-style: normal; font-size: 22px; line-height: 26px; }
 .adm-tab.on, .adm-sitem.on { color: #5E5CE6; }
 .adm-tab .adm-bdg { position: absolute; top: -4px; inset-inline-end: 12px; min-width: 18px; height: 18px; font-size: 11px; }
@@ -173,3 +173,37 @@ html[data-app="admin"] .appbar { --ib: 44px; --pill-h: 44px; }
 /* ==== 28/10/2026 — חומר הזכוכית (לפי ת־עיצוב; הטוקנים --gl-* ב־styles.css). המבטא של הניהול נשמר ==== */
 .adm-tabs { background: var(--gl-bar); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); border-top: 0; box-shadow: 0 -.5px 0 color-mix(in srgb, var(--on-surface) 12%, transparent); }
 .adm-list, .adm-top, .adm-side { background: var(--gl-card); box-shadow: var(--gl-card-sh); }   /* הפס הצבעוני של .adm-top (חומרה) נשאר */
+
+/* 29/10/2026: ניטור משתמשים (התצוגה שאושרה — design-mockups/monitor). שש לשוניות: ברוחב 320 כל אחת מתכווצת (flex) */
+.adm-live { display: block; width: 100%; text-align: start; font: inherit; color: inherit; background: var(--surface); border: 2px solid #F5A524; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 10px; box-shadow: var(--shadow); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.adm-live.me { border-color: color-mix(in srgb, #0A84FF 55%, transparent); }
+.adm-ltop { display: flex; align-items: center; gap: 10px; }
+.adm-ltop .adm-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.adm-ltop small { color: var(--on-surface-var); font-size: 12.5px; }
+.adm-pulse { width: 9px; height: 9px; border-radius: var(--pill); background: #FF453A; flex: none; animation: adm-pl 1.4s ease-in-out infinite; }
+.adm-live.me .adm-pulse { background: #0A84FF; }
+@keyframes adm-pl { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .adm-pulse { animation: none; } }
+.adm-tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: var(--pill); margin-inline-start: 6px; vertical-align: 2px; background: color-mix(in srgb, #F5A524 20%, transparent); color: #B87400; }
+.adm-tag.me { background: color-mix(in srgb, #0A84FF 15%, transparent); color: #0A84FF; }
+.adm-lbar { height: 7px; margin-top: 10px; }
+.adm-lbar i { background: #F5A524; }
+.adm-live.me .adm-lbar i { background: #0A84FF; }
+.adm-lln { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--on-surface-var); margin-top: 6px; }
+.adm-lstg { display: flex; gap: 3px; margin-top: 8px; }
+.adm-lstg span { flex: 1; height: 4px; border-radius: var(--pill); background: color-mix(in srgb, var(--on-surface) 10%, transparent); }
+.adm-lstg .d { background: #30D158; }
+.adm-lstg .n { background: #F5A524; }
+.adm-lkp { grid-template-columns: repeat(3, 1fr); margin-top: 10px; }
+.adm-lkp .adm-kpi { padding: 7px 9px; }
+.adm-lkp .adm-kpi b { font-size: 17px; }
+.adm-warn { background: color-mix(in srgb, #F5A524 14%, transparent); border-radius: var(--radius-xs); padding: 9px 12px; font-size: 13.5px; line-height: 1.5; margin: 0 0 10px; }
+.adm-chips { display: flex; gap: 6px; overflow-x: auto; margin: 12px 0 4px; padding-bottom: 2px; scrollbar-width: none; }
+.adm-chips button { flex: none; background: color-mix(in srgb, var(--on-surface) 8%, transparent); border: 0; border-radius: var(--pill); padding: 6px 13px; font: inherit; font-size: 13.5px; color: inherit; cursor: pointer; }
+.adm-chips button.on { background: #5E5CE6; color: #fff; }
+.adm-sel { margin: 6px 0 0; font: inherit; font-size: 14px; padding: 6px 10px; border-radius: var(--radius-xs); border: 1px solid color-mix(in srgb, var(--on-surface) 15%, transparent); background: var(--surface); color: inherit; max-width: 100%; }
+.adm-chart { display: block; padding: 10px 14px; }
+.adm-cost { display: block; width: 100%; height: 60px; }
+.adm-cost .a { fill: none; stroke: #F5A524; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.adm-cost .b { fill: none; stroke: #8E8E93; stroke-width: 1.5; stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
+.adm-inp { display: block; width: 100%; margin: 10px 0 0; font: inherit; font-size: 17px; padding: 9px 12px; border-radius: var(--radius-xs); border: 1px solid color-mix(in srgb, var(--on-surface) 18%, transparent); background: var(--surface); color: inherit; }
