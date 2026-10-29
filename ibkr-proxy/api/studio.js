@@ -114,6 +114,7 @@ async function readDocT(deps, col, id) {
 }
 /* כתיבה חלקית (updateMask) — הטלפון והעובד כותבים שדות שונים באותו מסמך בלי לדרוס זה את זה */
 async function patchDoc(deps, col, id, obj) {
+  if (col === 'studioJobs') obj = jmTouch(obj);
   const keys = Object.keys(obj).filter((k) => obj[k] !== undefined && k !== 'id');
   const q = keys.map((k) => 'updateMask.fieldPaths=' + k).join('&');
   const r = await fsCall(deps, 'PATCH', '/' + col + '/' + id + '?' + q, { fields: S.toFields(obj) });
@@ -121,6 +122,7 @@ async function patchDoc(deps, col, id, obj) {
 }
 /* כתיבה רק אם המסמך לא השתנה מאז שקראנו אותו — שני שרתים לא לוקחים את אותה עבודה */
 async function patchIf(deps, col, id, obj, updateTime) {
+  if (col === 'studioJobs') obj = jmTouch(obj);
   const keys = Object.keys(obj).filter((k) => obj[k] !== undefined && k !== 'id');
   const q = keys.map((k) => 'updateMask.fieldPaths=' + k).join('&') + '&currentDocument.updateTime=' + encodeURIComponent(updateTime);
   const r = await fsCall(deps, 'PATCH', '/' + col + '/' + id + '?' + q, { fields: S.toFields(obj) });
@@ -149,15 +151,52 @@ async function fsCount(deps, col) {
 async function delDoc(deps, col, id) {
   const r = await fsCall(deps, 'DELETE', '/' + col + '/' + id);
   if (r.status !== 200 && r.status !== 404) throw new Error('fs_http_' + r.status);
+  if (col === 'studioJobs') for (const u of jobMem.users.values()) u.jobs.delete(id);
 }
 /* העבודות של משתמש — שאילתה עם שוויון אחד (אינדקס אוטומטי, בלי הגדרה ב־Firebase) */
-async function listJobs(deps, uid) {
+async function listJobsFs(deps, uid) {
   const r = await fsCall(deps, 'POST', ':runQuery', { structuredQuery: { from: [{ collectionId: 'studioJobs' }],
     where: { fieldFilter: { field: { fieldPath: 'uid' }, op: 'EQUAL', value: { stringValue: uid } } }, limit: 300 } });
   if (r.status !== 200) throw new Error('fs_http_' + r.status);
   return (Array.isArray(r.j) ? r.j : []).filter((x) => x && x.document && x.document.name)
-    .map((x) => Object.assign(S.fromFields(x.document.fields), { id: String(x.document.name).split('/').pop() }))
-    .sort((a, b) => (b.created || 0) - (a.created || 0));
+    .map((x) => Object.assign(S.fromFields(x.document.fields), { id: String(x.document.name).split('/').pop() }));
+}
+/* 29/10/2026 (התראת fs_hot: studio:jobs — 1,807 קריאות בשעה): listJobs נקרא מ־op:'jobs' ועוד ~20 מקומות, וכל קריאה = מסמך לכל
+   עבודה (150+). מטמון בזיכרון של המופע: רשימה מלאה למשתמש פעם ב־JM_FULL_MS, ובין לבין שאילתה אחת לכל המשתמשים על מה שנכתב
+   מאז (`mt` — חותמת שכל כתיבה ל־studioJobs מקבלת, patchDoc/patchIf; טווח על שדה אחד = אינדקס אוטומטי), ותוך JM_TTL_MS — בלי
+   קריאה. כתיבה כאן מבטלת את ה־TTL (קוראים מה שכתבנו), מחיקה כאן — מוסרת מיד. מחיקה במופע אחר / כתיבה בלי patchDoc (acmerge) —
+   עד הרשימה המלאה הבאה. בבדיקות עם fetch מדומה — כבוי (אלא אם deps.jobMem) */
+const JM_TTL_MS = 15e3, JM_FULL_MS = 30 * 60e3, JM_OVERLAP_MS = 60e3, JM_SYNC_MAX = 300;
+let jobMem = { users: new Map(), sync: 0, dirty: false };
+function jmTouch(obj) { jobMem.dirty = true; return Object.assign({}, obj, { mt: Date.now() }); }
+async function listJobs(deps, uid) {
+  const on = deps.jobMem != null ? !!deps.jobMem : !deps.fetch;
+  if (!on) return (await listJobsFs(deps, uid)).sort((a, b) => (b.created || 0) - (a.created || 0));
+  const now = Date.now(), m = jobMem;
+  let u = m.users.get(uid);
+  if (!u || !(now >= u.full && now - u.full < JM_FULL_MS)) {
+    const t0 = Date.now();
+    u = { jobs: new Map((await listJobsFs(deps, uid)).map((j) => [j.id, j])), full: now };
+    m.users.set(uid, u);
+    if (!m.sync) { m.sync = t0; m.dirty = false; }
+  } else if (m.dirty || !(now >= m.sync && now - m.sync < JM_TTL_MS)) {
+    const t0 = Date.now();
+    m.dirty = false;
+    const r = await fsCall(deps, 'POST', ':runQuery', { structuredQuery: { from: [{ collectionId: 'studioJobs' }],
+      where: { fieldFilter: { field: { fieldPath: 'mt' }, op: 'GREATER_THAN_OR_EQUAL', value: { integerValue: String(Math.round(m.sync - JM_OVERLAP_MS)) } } },
+      orderBy: [{ field: { fieldPath: 'mt' }, direction: 'DESCENDING' }], limit: JM_SYNC_MAX } });
+    if (r.status !== 200) { m.dirty = true; throw new Error('fs_http_' + r.status); }
+    const got = (Array.isArray(r.j) ? r.j : []).filter((x) => x && x.document && x.document.name)
+      .map((x) => Object.assign(S.fromFields(x.document.fields), { id: String(x.document.name).split('/').pop() }));
+    if (got.length >= JM_SYNC_MAX) { m.users.clear(); m.sync = 0; return listJobs(deps, uid); }   // יותר מדי שינויים — רשימות מלאות
+    for (const j of got) {
+      for (const [k, x] of m.users) if (k !== j.uid) x.jobs.delete(j.id);   // עבודה שעברה משתמש (מיזוג חשבונות)
+      const x = m.users.get(j.uid);
+      if (x) x.jobs.set(j.id, j);
+    }
+    m.sync = t0;
+  }
+  return [...u.jobs.values()].map((j) => structuredClone(j)).sort((a, b) => (b.created || 0) - (a.created || 0));
 }
 const readJob = (deps, id) => readDoc(deps, 'studioJobs', id);
 const patchJob = (deps, id, o) => patchDoc(deps, 'studioJobs', id, o);
@@ -3681,7 +3720,8 @@ async function handler(req, res, deps = {}) {
 
 module.exports = (req, res) => handler(req, res);
 module.exports._handler = handler;
-module.exports._reset = () => { hits.clear(); cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; srcSoon = new Map(); _upd = { at: 0, sha: '', t: 0 }; updWaitAt = 0; srvAuthMem.clear(); orphanAt.clear(); monCfgC = { at: 0, v: null };
+module.exports._reset = () => { hits.clear(); jobMem = { users: new Map(), sync: 0, dirty: false }; cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; srcSoon = new Map(); _upd = { at: 0, sha: '', t: 0 }; updWaitAt = 0; srvAuthMem.clear(); orphanAt.clear(); monCfgC = { at: 0, v: null };
   incSeen.clear(); learnMem = null; provC = { at: 0, v: null }; aoCache.clear(); };   // 26/10/2026: המטמונים של מכסת Firestore
 module.exports._updatePending = updatePending;
 module.exports._updWaiting = (job, now, at) => { if (at != null) updWaitAt = at; return updWaiting(job, now); };
+module.exports._jobMem = { listJobs, patchJob, delDoc, JM_TTL_MS, JM_FULL_MS };
