@@ -155,8 +155,8 @@ a.st-row { color: inherit; text-decoration: none; -webkit-tap-highlight-color: t
 .st-cpill { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding-inline: 11px; border-radius: var(--pill); background: var(--st-fill); color: var(--on-surface); font-size: 13.5px; font-weight: 700; white-space: nowrap; }
 .st-cpill i { width: 7px; height: 7px; border-radius: 50%; background: var(--st-ter); }
 .st-cpill.on { background: var(--st-ok-c); color: var(--st-ok-ink); }
-.appbar .st-cpill { background: linear-gradient(var(--st-fill), var(--st-fill)) var(--bg); }   /* בהדר — אטום, השלג של הלוגו מאחוריו */
-.appbar .st-cpill.on { background: linear-gradient(var(--st-ok-c), var(--st-ok-c)) var(--bg); }
+.appbar .st-cpill { background: linear-gradient(var(--surface-2), var(--surface-2)) var(--bg); }   /* בהדר — אטום, השלג של הלוגו מאחוריו */
+.appbar .st-cpill.on { background: linear-gradient(var(--surface-2), var(--surface-2)) var(--bg); color: var(--on-surface); }   /* 29/10/2026: בהדר — רקע אחיד כמו שאר בועות ההדר; המצב בנקודה הירוקה ובמילה "מחובר" */
 .st-cpill.on i { background: var(--st-ok); }
 .st-cpill:active { opacity: .7; }
 .st-newcard { box-sizing: border-box; display: flex; align-items: center; gap: 14px; width: calc(100% - 32px); margin: 2px 16px 4px; padding: 14px; border-radius: var(--radius); background: var(--st-card); box-shadow: var(--shadow-sm); text-align: start; }
