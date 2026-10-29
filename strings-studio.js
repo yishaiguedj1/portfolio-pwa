@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2060 מפתחות מתוך 5482) */
+/* המחרוזות של studio (2061 מפתחות מתוך 5484) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -292,6 +292,7 @@ he: {
   "studioApiCapNote": "עבודה שמגיעה לתקרה נעצרת ונשמרת — אפשר להמשיך מאותה נקודה. התקרה גם לא עוברת את מה שנשאר מהתקציב החודשי.",
   "studioApiMonth": "נוצל החודש",
   "studioApiMonthT": "התקציב החודשי",
+  "studioApiNoCap": "{a} · בלי תקרה של המערכת (רק המגבלה בחשבון Claude)",
   "studioApiOf": "{a} מתוך {b}",
   "studioApprox": "כ־{v}",
   "studioAskAuto": "לא היה מענה — המשכנו עם: {a}",
@@ -2354,6 +2355,7 @@ en: {
   "studioApiCapNote": "A job that reaches the limit stops and is saved — you can continue from the same point. The limit never exceeds what is left of the monthly budget.",
   "studioApiMonth": "Used this month",
   "studioApiMonthT": "Monthly budget",
+  "studioApiNoCap": "{a} · no system cap (only the Claude account limit)",
   "studioApiOf": "{a} of {b}",
   "studioApprox": "~{v}",
   "studioAskAuto": "No answer — went with: {a}",

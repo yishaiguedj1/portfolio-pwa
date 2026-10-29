@@ -10,9 +10,14 @@ const NM_MAX = 40;
 const EM_RE = /^[^\s@<>"']{1,64}@[^\s@<>"']{1,190}$/;
 const UID_RE = /^[A-Za-z0-9_-]{6,128}$/;
 const CAP_MIN = 1, CAP_MAX = 10000;           // תקרה חודשית לכל משתמש, בדולרים שלמים (mc ב־studioStats)
-/* 29/10/2026 (בקשת המשתמש: "שלא יוגבלו פתאום — המערכת בבדיקות"): ברירת המחדל לכל משתמש = התקרה הגבוהה; המנהל משנה
-   במרכז הניהול (sysCfg.ucap). במקום חסימה — התראה בכל פעם שמשתמש חוצה סכום עגול החודש (SPEND_STEPS) */
-const CAP_DEF = CAP_MAX;
+/* 29/10/2026 (בקשת המשתמש): ברירת המחדל לכל משתמש — $20 לחודש ("תגביל ל־20 דולר כל משתמש כרגע"); המנהל משנה במרכז
+   הניהול (sysCfg.ucap, או תקרה אישית). בנוסף — התראה למנהל בכל פעם שמשתמש חוצה סכום עגול החודש (SPEND_STEPS) */
+const CAP_DEF = 20;
+/* המנהל (studioStats.ad = 1, נרשם בכל כניסה לפי isAdmin) — בלי תקרה חודשית של המערכת; רק המגבלה בחשבון Claude
+   (בקשת המשתמש: "שהמערכת שלנו לא תגביל למשתמש שלי") */
+const ADMIN_CAP = 1e6;
+const isAdm = (st) => !!(st && st.ad === 1);
+const monthCap = (st, def) => (isAdm(st) ? ADMIN_CAP : capOf(st, def));
 const SPEND_STEPS = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
 const CAP_WARN = 0.8;                         // התראה למנהל כשמשתמש עובר 80% מהתקרה שלו
 const TL_DAYS = 30, TL_MAX = 300;             // הטיימליין: 30 יום (= jobs30), עד 300 אירועים
@@ -110,7 +115,7 @@ function usersView(stats, jobs, now, opt) {
     const r = get(st.id);
     r.nm = String(st.nm || ''); r.em = String(st.em || ''); r.ls = n0(st.ls); r.fs = n0(st.fs);
     r.mo = Math.round(S.monthUsed(st.mu, now) * 100) / 100; r.cap = capOf(st, def); r.ps = paused(st);
-    r.mc = capOf(st, 0) || 0;
+    r.mc = capOf(st, 0) || 0; r.ad = isAdm(st);
     if (st.tt && typeof st.tt === 'object') r.tt = addTotal(st.tt, {});
   }
   const from = now - TL_DAYS * 86400000;
@@ -333,5 +338,5 @@ function usage(jobs, stats, now, o) {
     mo: { usd: r2(mo), proj: r2(mo / el * dim), d: Math.floor(el), dim }, fr: Math.round(fr * 100), cut, rec };
 }
 
-module.exports = { KINDS, CAP_MIN, CAP_MAX, CAP_DEF, SPEND_STEPS, TYPES, typeOf, engOf, usage, spendStep, CAP_WARN, TL_DAYS, TL_MAX, DAILY_H, idOf, label, tokOf, ours, capOf, normCap, paused, addTotal, backfill,
+module.exports = { KINDS, CAP_MIN, CAP_MAX, CAP_DEF, ADMIN_CAP, isAdm, monthCap, SPEND_STEPS, TYPES, typeOf, engOf, usage, spendStep, CAP_WARN, TL_DAYS, TL_MAX, DAILY_H, idOf, label, tokOf, ours, capOf, normCap, paused, addTotal, backfill,
   liveRow, byAgent, isLive, usersView, timeline, pushText, dailyDue, dailySum, watchFor, capWarn };

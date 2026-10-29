@@ -1585,10 +1585,12 @@ page('user', { tab: 'act', parent: 'people', title: () => { const r = userOf(D.u
   const pc = r.cap ? r.mo / r.cap : 0;
   p.append(list(
     row({ c: r.live ? 'orange' : 'gray', ic: r.live ? '●' : '◷', t: t('admUState'), s: [r.live ? t('admUNow') : fmt(t('admUSeen'), { a: ago(r.ls) }), r.fs ? fmt(t('admUJoined'), { d: day(r.fs) }) : ''].filter(Boolean).join(' · ') }),
-    row({ c: pc >= 1 ? 'red' : pc >= 0.8 ? 'orange' : 'green', ic: '$', t: t('admUMonth'), s: fmt(t('admUMonthS'), { c: usd(r.cap, 0), p: Math.round(pc * 100) + '%' }), v: usd(r.mo), meter: [pc * 100, pc >= 0.8 ? 'w' : ''] }),
+    r.ad ? row({ c: 'green', ic: '$', t: t('admUMonth'), s: t('admUCapAdm'), v: usd(r.mo) })
+      : row({ c: pc >= 1 ? 'red' : pc >= 0.8 ? 'orange' : 'green', ic: '$', t: t('admUMonth'), s: fmt(t('admUMonthS'), { c: usd(r.cap, 0), p: Math.round(pc * 100) + '%' }), v: usd(r.mo), meter: [pc * 100, pc >= 0.8 ? 'w' : ''] }),
     row({ c: 'purple', ic: '30', t: t('admUs30'), s: fmt(t('admUCntS'), { n: r.d30.n, h: hrsTxt(r.d30.sec), tok: fmt(t('admTokN'), { n: tokTxt(r.d30.tok) }) }), v: usd(r.d30.usd) }),
     row({ c: 'purple', ic: '∑', t: t('admUsAll'), s: fmt(t('admUCntS'), { n: r.all.n, h: hrsTxt(r.all.sec), tok: fmt(t('admTokN'), { n: tokTxt(r.all.tok) }) }), v: usd(r.all.usd) })));
-  const mg = [row({ c: 'orange', ic: '⤒', t: t('admUCap'), s: r.mc ? t('admUCapOwn') : t('admUCapSys'), v: usd(r.cap, 0), on: () => capDlg(r) })];
+  const mg = [r.ad ? row({ c: 'green', ic: '∞', t: t('admUCap'), s: t('admUCapAdm') })   // המנהל — בלי תקרה של המערכת (UM.monthCap)
+    : row({ c: 'orange', ic: '⤒', t: t('admUCap'), s: r.mc ? t('admUCapOwn') : t('admUCapSys'), v: usd(r.cap, 0), on: () => capDlg(r) })];
   if (!r.me) mg.push(row({ c: r.ps ? 'red' : 'green', ic: r.ps ? '⏸' : '▶', t: t('admUPause'), s: r.ps ? t('admUPauseOn') : t('admUPauseOff'), on: () => pauseDlg(r) }));
   p.append(grp(t('admUMgmt')), list(...mg));
   const evs = ((D.act && D.act.tl) || []).filter((e) => e.u === r.u).slice(0, 40);
@@ -1671,9 +1673,9 @@ function capDlg(r) {
   }, { body: inp, ok: t('admUCapSave') });
   setTimeout(() => { try { inp.focus(); } catch (e) {} }, 50);
 }
-/* תקרת ברירת המחדל לכל המשתמשים (sysCfg.ucap). ריק = הגבוהה ($10,000) — "שלא יוגבלו פתאום" */
+/* תקרת ברירת המחדל לכל המשתמשים (sysCfg.ucap). ריק = UM.CAP_DEF ($20) */
 function defDlg() {
-  const inp = h('input', 'adm-inp'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.min = '1'; inp.max = '10000'; inp.value = String(D.act.capDef || ''); inp.placeholder = '10000';
+  const inp = h('input', 'adm-inp'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.min = '1'; inp.max = '10000'; inp.value = String(D.act.capDef || ''); inp.placeholder = '20';
   askConfirm(t('admUDefQ'), async () => {
     const v = inp.value.trim();
     if (v && !(Number(v) >= 1 && Number(v) <= 10000)) { flash(t('admUBadCap')); return; }
