@@ -1629,6 +1629,12 @@ html[data-app="academy"] .login-overlay { background: linear-gradient(160deg, #1
 .stock-sort-row > * { flex: none; }
 .stock-sort-label { font-size: 14px; font-weight: 700; color: var(--on-surface-var); }
 .stock-sort-row .sort-chip { padding: 7px 12px; font-size: 14px; white-space: nowrap; }
+/* 29/10/2026 (באג מהטלפון): השורה הייתה רחבה מהמסך (+66 ב־390) — כל תזוזה קטנה לרוחב גללה אותה, ו"מיון: סדר הוספה" נעלמו וחזרו.
+   עכשיו הכל נכנס ברוחב, אין מה לגלול: התווית לקוראי מסך בלבד, הצ'יפים מתחלקים ברוחב */
+.stock-sort-row { gap: 6px; padding-inline: 16px; }
+.stock-sort-row > .stock-sort-label { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.stock-sort-row > .sort-chip { flex: 1 1 auto; padding-inline: 8px; }
+@media (max-width: 374px) { .stock-sort-row { gap: 4px; padding-inline: 12px; } .stock-sort-row > .sort-chip { padding-inline: 5px; font-size: 12.5px; } }
 /* v156: כפתור "סינון" + בועת בחירה (בסגנון בועת התפריט) */
 /* כותרת בשורה אחת; אם אין מקום — הכפתורים יורדים לשורה משלהם */
 .section-head:has(.head-actions) { flex-wrap: wrap; row-gap: 10px; }

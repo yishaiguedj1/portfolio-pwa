@@ -103,6 +103,7 @@ vm.runInContext('localStorage.removeItem("pwa_wlactive_v1"); DB.wlExtra = [];', 
   ok(/\.menu-veil \{[^}]*visibility: hidden/.test(css) && /body\.menu-blur \.menu-veil \{[^}]*visibility: visible/.test(css), 'מסך התפריט השקוף מוסתר כשסגור (אחרת בטלפון התוכן לא נצבע עד גלילה)');
   ok(/\.appbar \.fx-pill, \.appbar \.appbar-sub > \* \{[^}]*backdrop-filter: var\(--gl-fx\)[^}]*box-shadow: var\(--gl-btn-sh\)/.test(css), 'בועות ההדר בזכוכית של הכפתורים');
   ok(/html :is\(\.chip-btn\.on, \.wl-tab\.on, \.lib-chip\.on[^)]*\) \{[^}]*linear-gradient\(180deg, rgba\(255, 255, 255, \.26\)[^}]*var\(--btn-c\) !important/.test(css), 'צ׳יפ נבחר = הגלולה של הלשונית הנבחרת (זכוכית צבעונית)');
-  ok(/\.search-row > \.wl-menu \{ order: -1;[^}]*align-self: center/.test(css) && /\.search-row > \.wl-menu \.wl-title-btn \{[^}]*border-radius: 50%;[^}]*var\(--gl-btn\)[^}]*var\(--gl-btn-sh\)/.test(css), 'סמל הרשימות: בצד ההתחלה, ממורכז, בעיצוב כפתור התפריט'); }
+  ok(/\.search-row > \.wl-menu \{ order: -1;[^}]*align-self: center/.test(css) && /\.search-row > \.wl-menu \.wl-title-btn \{[^}]*border-radius: 50%;[^}]*var\(--gl-btn\)[^}]*var\(--gl-btn-sh\)/.test(css), 'סמל הרשימות: בצד ההתחלה, ממורכז, בעיצוב כפתור התפריט');
+  ok(/\.stock-sort-row > \.stock-sort-label \{ position: absolute;[^}]*clip-path/.test(css) && /\.stock-sort-row > \.sort-chip \{ flex: 1 1 auto;/.test(css), 'שורת המיון נכנסת ברוחב (בלי גלילה לרוחב — "מיון: סדר הוספה" לא נעלמים)'); }
 
 console.log('\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ' + n + ')');
