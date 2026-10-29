@@ -393,7 +393,7 @@ function flash(msg) {
    ובגרירה של העמוד — צמודה לאצבע (dialCube). גרירה של החוגה עצמה מעבירה גם את העמודים (dialRide*).
    המארח (dialHost) = האפליקציה: {nav(), keys(), index(name), cur(), begin(cur, to, side), drop(c), land(c), instant(to)} —
    begin מחזיר "קובייה" {in, out, to, ...} שהמנוע מזיז ב־cubeSet. אחד בכל רגע (Studio מעל Invest — שלה). */
-const DIAL_S0 = 0.66, DIAL_DROP = 2.7, DIAL_GAP = 14;   // DIAL_GAP: מרווח נוסף בין הבועה לשכנים — שלא ייגעו במסך צר (בקשת המשתמש)
+const DIAL_S0 = 0.72, DIAL_DROP = 2.7, DIAL_GAP = 14;   // DIAL_GAP: מרווח נוסף בין הבועה לשכנים — שלא ייגעו במסך צר (בקשת המשתמש)
 const _dial = { st: null, run: null, drag: null, ride: null, ret: 0, noClick: 0, els: null, ek: '', host: null };
 function dialHost(hst) {
   if (_dial.host === hst) return;
@@ -405,7 +405,7 @@ function dialKeys() { return (_dial.host && _dial.host.keys()) || []; }
 function dialIndex(name) { return _dial.host ? _dial.host.index(name) : 0; }
 function dialCurName() { return _dial.host ? _dial.host.cur() : ''; }
 function dialStep(vw, n) {   // המרחק בין פריטים — כל השבעה על המסך, הקצוות חצי־גלויים (כמו בסרטון); ארבעה (Studio, Academy) — מרווחים יותר, הכיתובים לא נוגעים
-  return n && n <= 5 ? Math.max(66, Math.min(96, (vw || 400) / 4.8)) : Math.max(56, Math.min(88, (vw || 400) / 6.2 - 5));
+  return n && n <= 5 ? Math.max(66, Math.min(96, (vw || 400) / 4.8)) : Math.max(59, Math.min(90, (vw || 400) / 6.2 - 4));
 }
 function dialRest(i) { return { pos: i, from: i, to: i, p: 0 }; }
 function dialMax() { return Math.max(0, dialKeys().length - 1); }

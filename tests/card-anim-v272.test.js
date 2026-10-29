@@ -59,6 +59,6 @@ const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 ok(/data-tab="overview"[^>]*><span class="tab-disc"><span class="tab-glow"><\/span><svg class="tab-ico tab-fill"[^>]*aria-hidden="true"><path d="M/.test(html) && /<span class="tab-lbl" data-i18n="tabOverview">/.test(html), 'הסקירה בחוגה: הסמל שבחר המשתמש (מלא), עם כיתוב');
 ok(/\.tab-fill path \{ fill: var\(--primary\); \}/.test(css) && /\.tab-ico \{[^}]*stroke: var\(--primary\)/.test(css), 'הסמלים בחוגה ירוקים');
 
-ok(/\.tab-ico \{ position: relative; width: 38px; height: 38px;/.test(css), 'סמל 38px בעיגול שמוקטן פי 0.66 (~25px גלוי) — 29/10/2026: החוגה גדולה יותר');
+ok(/\.tab-ico \{ position: relative; width: 38px; height: 38px;/.test(css), 'סמל 38px בעיגול שמוקטן פי 0.72 (~27px גלוי) — 29/10/2026: החוגה גדולה יותר');
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
