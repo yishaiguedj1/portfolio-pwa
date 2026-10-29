@@ -52,3 +52,5 @@
 
 הכלים: `tools/karaoke-he/`. דוגמה:
 `python tools/karaoke-he/guard.py st.json ctc.json out.json 0.7 lyrics.txt ivrit.json`
+
+**המשך:** המחקר המלא (29/10/2026) נמצא ב־`docs/studio-karaoke-research.md`: הספרות, סט הבדיקה והמדדים, השיפורים לפי עדיפות ומלכודות הרישיון.
