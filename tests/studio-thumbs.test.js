@@ -23,6 +23,9 @@ ok(/indexedDB\.open\('snb-studio', 3\)/.test(st) && /'thumbs'/.test(st), 'התמ
 ok(/idbOp\('thumbs', 'del', id\); thumbs\.delete\(id\)/.test(st) && /idbOp\('thumbs', 'del', x\.id\)/.test(st), 'עבודה שנמחקה (בטלפון או בשרתון) — גם התמונה שלה נמחקת');
 ok(/if \(f\.fileObj\) thumbFor\(rec, null, f\.fileObj\)/.test(st), 'עבודה חדשה — התמונה מהקובץ שבטלפון, בלי לחכות להעלאה');
 ok(/paintThumb\(th, rec\)/.test(st) && /\.st-thumb\.img \{ background-size: cover/.test(css) && /\.st-thumb\.img > svg \{ display: none; \}/.test(css), 'רשימת העבודות — התמונה במקום סמל הסרט');
+// 29/10/2026 (פרויקט "עמודים סטטיים"): <img> מפוענח ששמור לפי עבודה — לא background-image שמפוענח מחדש בכל ציור (אריח ריק בטלפון)
+ok(/function thumbEl\(id, u\)[\s\S]{0,400}im\.decoding = 'sync'[\s\S]{0,200}im\.decode\(\)/.test(st) && /th\.prepend\(thumbEl\(rec\.id, u\)\)/.test(st) && !/th\.style\.backgroundImage/.test(st.slice(st.indexOf('function paintThumb'), st.indexOf('function paintThumb') + 500)) && /\.st-thumb > \.st-tim \{ position: absolute; inset: 0;[^}]*object-fit: cover/.test(css), 'התמונה הממוזערת — אותו <img> מפוענח בכל ציור');
+ok(/dec\.push\(thumbEl\(c\.key, c\.value\)\.decode\(\)/.test(st) && /Promise\.all\(dec\)\.then\(\(\) => ok\(\)\)/.test(st), 'התמונות מפוענחות כבר בטעינה — הציור הראשון של הבית מלא');
 ok((st.match(/poster: (rec \? )?thumbFor\(rec/g) || []).length >= 4 && /poster: at >= 0 \? '' : thumbFor\(rec/.test(st), 'כל הנגנים עם תמונה לפני הניגון; העורך שנפתח על נקודה — בלי תמונה');
 ok(/me\.at = Math\.max\(0, me\.ed\.cues\(\)\[k\]\.s - 0\.05\)/.test(st) && /if \(at >= 0\) \{/.test(st) && /firstShown\(\)/.test(fs.readFileSync(path.join(root, 'studiosubs.js'), 'utf8')), 'עורך שנפתח על "רק לבדיקה" — הנגן קופץ לכתובית הראשונה (הפריים שלה)');
 const sp = new Function('v', pl.slice(pl.indexOf('const setPoster'), pl.indexOf('setPoster(opts.poster);')) + '\nreturn setPoster;');

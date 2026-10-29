@@ -1487,7 +1487,9 @@ function thumbsLoad() {
   return hdb().then((db) => new Promise((ok) => {
     try {
       const os = db.transaction('thumbs', 'readonly').objectStore('thumbs'), rq = os.openCursor();
-      rq.onsuccess = () => { const c = rq.result; if (!c) { ok(); return; } if (typeof c.value === 'string' && c.value && !thumbs.has(c.key)) thumbs.set(c.key, c.value); c.continue(); };
+      // 29/10/2026: כל תמונה גם מפוענחת מראש (thumbEl) — הציור הראשון של הבית (מחכה עד 400ms) כבר עם התמונות, בלי אריח ריק
+      const dec = [];
+      rq.onsuccess = () => { const c = rq.result; if (!c) { Promise.all(dec).then(() => ok()); return; } if (typeof c.value === 'string' && c.value && !thumbs.has(c.key)) { thumbs.set(c.key, c.value); try { dec.push(thumbEl(c.key, c.value).decode().catch(() => {})); } catch (e) {} } c.continue(); };
       rq.onerror = () => ok();
     } catch (e) { ok(); }
   })).catch(() => {});
@@ -1532,8 +1534,22 @@ function thumbFor(rec, cb, file) {
   return '';
 }
 /* ציור התמונה על אריח (.st-thumb) — דהייה כשהיא מגיעה אחרי הציור; בלי תמונה נשאר סמל הסרט */
+/* 29/10/2026 (פרויקט "עמודים סטטיים", ס2/ס3 — "הבית מופיע בלי הכרטיסים", "כרטיס ריק אחרי הנחיתה"): התמונה = <img> מפוענח
+   ששמור בזיכרון לפי עבודה, לא background-image. רקע מ־data: מפוענח מחדש בכל ציור של הבית, והאריח נשאר ריק כמה פריימים
+   בטלפון. אותו צומת עובר מציור לציור (גם בהעתק של הקובייה — cloneNode חולק את אותה תמונה מפוענחת) */
+const thumbEls = new Map();
+function thumbEl(id, u) {
+  let im = thumbEls.get(id);
+  if (!im || im._u !== u) {
+    im = new Image(); im.className = 'st-tim'; im.alt = ''; im.decoding = 'sync'; im._u = u; im.src = u;
+    try { im.decode().catch(() => {}); } catch (e) {}
+    thumbEls.set(id, im);
+    if (thumbEls.size > 80) thumbEls.delete(thumbEls.keys().next().value);
+  }
+  return im;
+}
 function paintThumb(th, rec) {
-  const put = (u) => { th.style.backgroundImage = 'url("' + u + '")'; th.classList.add('img'); };
+  const put = (u) => { th.prepend(thumbEl(rec.id, u)); th.classList.add('img'); };
   const t0 = Date.now();
   const u = thumbFor(rec, (x) => { if (!x) return; if (Date.now() - t0 > 250) th.classList.add('in'); put(x); });   // דהייה רק לתמונה חדשה שמגיעה אחרי שהמסך כבר מוצג
   if (u) put(u);
@@ -9104,6 +9120,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   const veil = root.querySelector(':scope > .menu-veil');
   root.replaceChildren(p);
   if (veil) root.append(veil);
+  if (SA && SA.shell && SA.shell.el.isConnected && typeof animSync === 'function') animSync(SA.shell.el);   // הלוגו ממשיך מאותו רגע (core)
   root.scrollTop = keepY;
   if (ghost) cubeGhostRun(root, ghost, cubeSideFwd(kind === 'push'));
   lastShape = shapeKey();

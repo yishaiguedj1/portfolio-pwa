@@ -607,6 +607,9 @@ function cubeFace(el, o) {
   if (o && o.clip) st.clipPath = 'inset(' + n(Math.max(0, -r.top)) + 'px -60px calc(100% - ' + n(Math.max(0, vh - r.top)) + 'px) -60px)';
   st.backfaceVisibility = 'hidden'; st.webkitBackfaceVisibility = 'hidden'; st.willChange = 'transform';
   if (o && o.dead) st.pointerEvents = 'none';   // רק היוצא; הנכנס לחיץ כבר בזמן הסיבוב
+  // 29/10/2026 (סרטון המשתמש, Studio — בכל מעבר): זכוכית (backdrop-filter) בתוך פאה מסתובבת נצבעה בטלפון כפס אטום מתחת
+  // להדר שחתך את חצי הכותרת הגדולה, ונעלמה רק אחרי הנחיתה. בזמן הסיבוב — בלי זכוכית (styles.css: ‎.cube-face ב־Studio וב־Academy), גם בעמוד גלול
+  if (el.classList) { el.classList.add('cube-face'); f.face = true; }
   st.outline = 'none';                   // טבעת הפוקוס של שכבה (Academy/Studio) הסתובבה איתה כמסגרת כהה
   // 14/10/2026 (נמדד): ההדר בזכוכית (backdrop-filter) בתוך פאה מסתובבת מחושב מחדש בכל פריים — 50ms לפריים במקום 16.
   // פאה בראש הגלילה — מאחורי ההדר רק הרקע האחיד, והטשטוש לא משנה כלום: מכבים אותו (cube-flat) בלי שום הבדל נראה.
@@ -619,7 +622,7 @@ function cubeFace(el, o) {
   }
   return f;
 }
-function cubeFaceOff(f) { if (f && f.el) { f.el.style.cssText = f.css; if (f.flat) f.flat(); } }
+function cubeFaceOff(f) { if (f && f.el) { f.el.style.cssText = f.css; if (f.flat) f.flat(); if (f.face) f.el.classList.remove('cube-face'); } }
 function cubeSet(c, p) {
   const vw = window.innerWidth;
   c.p = p;
@@ -686,9 +689,27 @@ function cubeClone(el) {
   c.querySelectorAll('[id]:not(svg *)').forEach((x) => x.removeAttribute('id'));
   c.removeAttribute('id'); c.classList.add('cube-ghost'); c.setAttribute('aria-hidden', 'true');
   try { c.inert = true; } catch (e) {}
+  // 29/10/2026 (המשתמש: "הלוגו מתרענן בכל המעברים"): התמונות בהעתק — בפיענוח מיידי (כבר במטמון), אחרת פריים בלי לוגו
+  c.querySelectorAll('img').forEach((x) => { try { x.decoding = 'sync'; } catch (e) {} });
   el.after(c);
   c.scrollTop = el.scrollTop;
+  animSync(el); animSync(c);             // הלוגו החי בהעתק — באותו רגע של המקור, לא מאפס
   return c;
+}
+/* 29/10/2026 (המשתמש: "גם הלוגו מתרענן כל הזמן בכל המעברים"): אנימציית CSS מתחילה מאפס בכל פעם שהאלמנט נכנס ל־DOM —
+   הלוגו החי (ריחוף, פנים, ברק, שלג) "התאפס" בכל ציור של הבית, בהעתק של הקובייה ובכל חזרה. מצמידים את האנימציות
+   האינסופיות של הלוגו לשעון של הדף (startTime 0): בכל כניסה ובכל העתק — אותו רגע בדיוק, כאילו לא יצא אף פעם.
+   מושהית (html.calm) — לא נוגעים */
+function animSync(el) {
+  if (!el || typeof el.getAnimations !== 'function') return;
+  try {
+    for (const a of el.getAnimations({ subtree: true })) {
+      const t = a.effect && a.effect.target;
+      if (!a.animationName || !t || !t.closest || !t.closest('.brand') || a.playState !== 'running') continue;
+      if (a.effect.getTiming().iterations !== Infinity || a.startTime === 0) continue;
+      a.startTime = 0;
+    }
+  } catch (e) {}
 }
 function cubeBackdrop(el) {              // מתחת לשכבה — רקע אטום, כדי שמה שמאחוריה (התיק) לא יבצבץ בין הפאות (לקח v330)
   const d = document.createElement('div');
@@ -702,14 +723,17 @@ function cubeBackdrop(el) {              // מתחת לשכבה — רקע אט�
 function cubeHold(root, y) {
   const top = root.getBoundingClientRect().top;
   if (!(y > top + 1)) return null;
-  const copy = (el) => {
+  const copy = (el, hh) => {
     const c = el.cloneNode(false);
     for (const ch of el.childNodes) {
       if (ch.nodeType !== 1) { c.appendChild(ch.cloneNode(true)); continue; }
       const b = ch.getBoundingClientRect();
       if ((!b.width && !b.height) || b.top >= y) continue;
-      c.appendChild(b.bottom <= y + 0.5 ? ch.cloneNode(true) : copy(ch));
+      c.appendChild(b.bottom <= y + 0.5 ? ch.cloneNode(true) : copy(ch, b.height));
     }
+    // 29/10/2026 (גלאי הנחיתה, הניתוח — מעבר בין הלשוניות): אב שהועתק חלקית — בגובה המקורי. אלמנט דביק (sticky) לא חורג
+    // מתחתית האב שלו; באב הקצוץ הלשוניות נדחפו ברצועה 4px למעלה וירדו בנחיתה
+    if (hh > 0) { c.style.boxSizing = 'border-box'; c.style.minHeight = hh + 'px'; }
     return c;
   };
   const c = copy(root);
@@ -719,6 +743,9 @@ function cubeHold(root, y) {
   const r = root.getBoundingClientRect(), st = c.style;
   st.position = 'fixed'; st.top = r.top + 'px'; st.left = r.left + 'px'; st.width = r.width + 'px'; st.height = (y - r.top) + 'px';
   st.bottom = 'auto'; st.right = 'auto'; st.overflow = 'hidden'; st.zIndex = '902'; st.pointerEvents = 'none'; st.transform = 'none'; st.clipPath = 'none';
+  // 29/10/2026 (גלאי הנחיתה, Academy — מעבר בין המדפים): רקע מדורג (הזוהר של הזכוכית, radial-gradient ביחס לגודל) נדחס לגובה
+  // הרצועה, והזוהר מאחורי ההדר "קפץ" בנחיתה. הרקע של הרצועה — בגודל השכבה המלאה, כמו שהוא נראה בה
+  st.backgroundSize = r.width + 'px ' + r.height + 'px'; st.backgroundPosition = '0 0'; st.backgroundRepeat = 'no-repeat';
   (root.parentNode || document.body).appendChild(c);
   c.scrollTop = root.scrollTop;
   return c;
