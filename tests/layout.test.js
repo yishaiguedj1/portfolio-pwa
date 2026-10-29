@@ -20,16 +20,14 @@ function block(sel) {
   return m ? m[1] : '';
 }
 
-/* ---------- 1. סרגל הלשוניות: שום לשונית לא נחתכת בקצה ---------- */
+/* ---------- 1. הלשוניות: חוגה קבועה בתחתית (29/10/2026) ---------- */
 const tabs = block('.tabs');
-ok(/overflow-x:\s*(auto|scroll)/.test(tabs), '.tabs גולל פנימית — כל הלשוניות נגישות, אין חיתוך קשיח');
-ok(css.includes('.tabs::-webkit-scrollbar'), 'סרגל הגלילה של הלשוניות מוסתר (נשאר קפסולה נקייה)');
-ok(/scrollbar-width:\s*none/.test(tabs), 'scrollbar-width:none על הלשוניות');
-ok(!/width:\s*\d+(\.\d+)?px/.test(tabs), '.tabs בלי רוחב פיקסלים קבוע שמכריח גלישה');
+ok(/position:\s*fixed/.test(tabs) && /bottom:\s*0/.test(tabs), '.tabs קבועה בתחתית המסך');
+ok(/env\(safe-area-inset-bottom/.test(tabs), 'החוגה מעל אזור המחוות של המכשיר');
+ok(/overflow-x:\s*clip/.test(tabs), 'פריטים מחוץ למסך לא יוצרים גלילה אופקית');
+ok(/body\.has-dock \{[^}]*padding-bottom:\s*calc\(var\(--dock-h\)/.test(css) && html.includes('<body class="has-dock">'), 'התוכן לא מסתתר מתחת לחוגה');
 const tab = block('.tab');
-ok(/min-width:\s*0/.test(tab), '.tab עם min-width:0 — לא דוחף את הסרגל אל מחוץ למסך');
-ok(/white-space:\s*nowrap/.test(tab), 'טקסט הלשונית לא נשבר לשתי שורות');
-ok(/flex:\s*1\s+0\s+auto/.test(tab), '.tab גמיש (flex:1 0 auto) — מתמתח כשיש מקום, לא נמעך מתחת לתוכן');
+ok(/position:\s*absolute/.test(tab) && /white-space:\s*nowrap/.test(block('.tab-lbl')), 'כל פריט ממוקם בנפרד; הכיתוב בשורה אחת');
 ok(/html,\s*body\s*\{[^}]*overflow-x:\s*(clip|hidden)/.test(css), 'אין גלילה אופקית ברמת העמוד');
 
 /* ---------- 2. כותרת עליונה: אין התנגשות במסכים צרים ---------- */

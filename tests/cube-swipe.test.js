@@ -60,7 +60,7 @@ ok(/g\.x0 = t\.clientX;/.test(fn(core, 'snbSwipe')) && /g\.x0 = t\.clientX;/.tes
 ok(/a\.startTime = t0/.test(fn(app, 'cubeRun')) && /performance\.now\(\) - t0 < 40/.test(fn(app, 'cubeRun')), 'השחרור — הסיבוב ממשיך מיד (בלי 1–3 פריימים של המתנה), רק מזמן פריים טרי');
 ok(/transform = 'none'/.test(fn(app, 'cubeRun')), 'הפריים האחרון של הפאה שמגיעה — בלי תלת־ממד (חד כבר בפריים הזה)');
 ok(/px -60px calc\(100% - /.test(fn(app, 'cubeFace')), 'חיתוך לגובה בלבד — הצל של כרטיס בשוליים לא "מופיע" בסוף');
-ok(/cube-flat/.test(fn(app, 'cubeFace')) && /\.cube-flat \.appbar, \.cube-flat \.tabs \{ -webkit-backdrop-filter: none !important; backdrop-filter: none !important; \}/.test(css), 'ההדר בזכוכית בלי טשטוש בפאה שבראש הגלילה (50ms לפריים → 16)');
+ok(/cube-flat/.test(fn(app, 'cubeFace')) && /\.cube-flat \.appbar \{ -webkit-backdrop-filter: none !important; backdrop-filter: none !important; \}/.test(css), 'ההדר בזכוכית בלי טשטוש בפאה שבראש הגלילה (50ms לפריים → 16)');
 // Invest: העמודים לא קופצים בשחרור, ושום פריסה בזמן הסיבוב
 const tft = fn(app, 'tabFlowTop');
 ok(/marginTop/.test(tft) && /tabFlowTop\(out\)/.test(fn(app, 'tabCubeDrag')), 'העמוד המוצמד בדיוק במקום של הזרימה (margin של הילד הראשון — עד עכשיו קפיצה של 8–16px בשחרור)');
@@ -69,7 +69,7 @@ ok(/cube-out/.test(go) && !/cubeFace\(/.test(go) && /keepScroll: true/.test(go) 
 ok(/tabCubeGo\(tabCubeDrag\(prev, name/.test(fn(app, 'tabCubeSwitch')), 'לחיצה על לשונית — אותה דרך כמו גרירה ושחרור');
 { const d = fn(app, 'tabCubeDrag'); ok(d.indexOf('const sy = window.scrollY') >= 0 && d.indexOf('const sy = window.scrollY') < d.indexOf("classList.add('cube-in'") && /top: top \+ sy/.test(d) && d.indexOf("pg.style.position = 'fixed'") < d.indexOf("classList.add('cube-in'") && /c\.in\.css = css0/.test(d), 'עמוד גלול: הגלילה נקראת לפני שהעמוד הנכנס מוצג, והוא מחוץ לזרימה מההתחלה (scroll anchoring הזיז את שני העמודים מהמסך באחורה)'); }
 ok(/classList\.remove\('cube-in'\); cubeFaceOff\(c\.in\)/.test(fn(app, 'tabCubeRun')), 'ביטול: העמוד הנכנס מוסתר לפני שהוא חוזר לזרימה');
-ok(/tabs\.animate\(/.test(fn(app, 'tabCubeGo')), 'עמוד גלול: שורת הלשוניות יורדת ממקומה מאחורי ההדר, לא מופיעה בבת אחת');
+ok(!/tabs\.animate\(/.test(fn(app, 'tabCubeGo')) && /cancelScrollRestore\(\); navScrollTop\(\);/.test(fn(app, 'tabCubeGo')), '29/10/2026: הלשוניות קבועות בתחתית — אין שורה דבוקה שיורדת עם הגלילה');
 ok(/function cubeHold\(root, y\)/.test(app) && /b\.top >= y\) continue/.test(fn(app, 'cubeHold')) && /cube-hold/.test(fn(app, 'cubeHold')), 'רצועה קבועה: מעתיקים רק את מה שמעל הקו, בלי סיבוב');
 ok(/cubeClipTop\(c\.out, hy\); cubeClipTop\(c\.in, hy\)/.test(fn(app, 'cubeGhostRun')) && /cubeClipTop\(s\.cube\.out, hy\)/.test(fn(app, 'snbSwipe')), 'הפאות נחתכות מתחת לרצועה — בלחיצה ובגרירה');
 ok(/holdOn\(c, 'commit'\)/.test(fn(app, 'snbSwipe')) && /holdOn\(c, 'cancel'\)/.test(fn(app, 'snbSwipe')) && /c\.hold\.remove\(\)/.test(fn(app, 'snbSwipe')), 'הרצועה משלימה/חוזרת בשחרור ויורדת בסוף');
