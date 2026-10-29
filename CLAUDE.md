@@ -48,6 +48,7 @@
 | Studio — **הפרומפט לסבב הניתוח הבא** (מול התרגום האנושי, `tools/learn-vs-human.py`), מה נבדק ומה לא · **הוראות פתיחה לפרויקט שיפור** | `docs/studio-analysis-prompt.md`, `docs/studio-project-brief.md` |
 | אנדרואיד נייטיב: Studio DM, Studio Browser + תוסף Chrome, Lab, תרגום בטלפון | `docs/android-apps.md` |
 | צריכת טוקנים: המדידה, המחקר, ההגדרות ומה עוד אפשר | `docs/token-economy.md` |
+| **פרויקט "עמודים סטטיים"** — אפס קפיצות/רענונים במעברים: התוכנית, הגלאים (`qa-deep --landing`), הממצאים | `docs/smooth-plan.md` |
 | עקרונות ServiceNow (המגדל וההחלטות בסטודיו) | `docs/servicenow.md` |
 | **התקנים הפנימיים** (עיצוב, קורא, גרף, ניתוח, נגן, פיקוח) + חוקי הבנייה הנקייה | `docs/standards.md` |
 | היסטורי: תיאום הסשנים הישן, פריטים פתוחים ישנים | `docs/sessions-history.md`, `docs/open-items-history.md` |
