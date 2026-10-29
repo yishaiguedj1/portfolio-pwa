@@ -239,13 +239,7 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
 
   <!-- מעקב (wishlist) — v240: זהה לטאב המניות (חיפוש, מיון, כרטיסים), בלי נתוני אחזקה -->
   <section id="tab-wishlist" class="tabpage" role="tabpanel">
-    <!-- 29/10/2026 (בקשת המשתמש): המיון למעלה, הרשימות מתחת לחיפוש — מעל המניות שהן מסננות -->
-    <div class="stock-sort-row" id="wlSortRow">
-      <span class="stock-sort-label" data-i18n="sortBy">מיון:</span>
-      <button class="chip-btn sort-chip" type="button" data-sort="added" data-i18n="wlSortAdded">סדר הוספה</button>
-      <button class="chip-btn sort-chip" type="button" data-sort="day" data-i18n="sortDay">ביצועי היום</button>
-      <button class="chip-btn sort-chip" type="button" data-sort="name" data-i18n="wlSortName">א״ב</button>
-    </div>
+    <!-- 29/10/2026 (בקשת המשתמש): החיפוש למעלה, המיון, ואז שורת הרשימות -->
     <div class="stock-search-wrap">
       <div class="search-row">
         <label class="search-field">
@@ -257,6 +251,12 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
         <div class="src-filter wl-menu" id="wlMenu"></div>   <!-- 28/10/2026: תפריט הרשימות (חדשה / שינוי שם / מחיקה) כסמל בשורת החיפוש — בלי כותרת -->
       </div>
       <div id="wlSearchResults" class="stock-search-results hidden"></div>
+    </div>
+    <div class="stock-sort-row" id="wlSortRow">
+      <span class="stock-sort-label" data-i18n="sortBy">מיון:</span>
+      <button class="chip-btn sort-chip" type="button" data-sort="added" data-i18n="wlSortAdded">סדר הוספה</button>
+      <button class="chip-btn sort-chip" type="button" data-sort="day" data-i18n="sortDay">ביצועי היום</button>
+      <button class="chip-btn sort-chip" type="button" data-sort="name" data-i18n="wlSortName">א״ב</button>
     </div>
     <div class="wl-tabs" id="wlTabs" role="tablist"></div>
     <div id="wishlistList"></div>

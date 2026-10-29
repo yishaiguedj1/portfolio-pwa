@@ -6,8 +6,8 @@
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
 const CACHE_NAME = 'portfolio-pwa-v627';
 const HASHES = {
-  "./": "33965c7e80b281bb13b588fce0dae66e",
-  "./index.html": "33965c7e80b281bb13b588fce0dae66e",
+  "./": "d83df81dd781ed31953bfd2fde527bfd",
+  "./index.html": "d83df81dd781ed31953bfd2fde527bfd",
   "./styles.css": "1b85e62fb25f6a7eec8a294e4a89a4a2",
   "./app.js": "f50316bb73137a7253fa25e08c67219e",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",

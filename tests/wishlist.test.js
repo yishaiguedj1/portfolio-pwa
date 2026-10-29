@@ -97,8 +97,8 @@ const cloudSrc = fs.readFileSync(path.join(__dirname, '..', 'cloud.js'), 'utf8')
 ok(/Array\.isArray\(clean\.wlExtra\)\) DB\.wlExtra = clean\.wlExtra/.test(cloudSrc), 'ענן: הרשימות הנוספות עוברות בין מכשירים');
 ok(/id="wlMenu"/.test(html) && /id="wlTabs"/.test(html), 'index.html: תפריט הרשימות ושורת הצ׳יפים');
 vm.runInContext('localStorage.removeItem("pwa_wlactive_v1"); DB.wlExtra = [];', sandbox);
-// 29/10/2026 (בקשת המשתמש): שורת המיון למעלה, החיפוש, ואז שורת הרשימות
-{ const i = (id) => html.indexOf(id); ok(i('id="wlSortRow"') < i('id="wlSearchInput"') && i('id="wlSearchInput"') < i('id="wlTabs"') && i('id="wlTabs"') < i('id="wishlistList"'), 'מעקב: מיון ← חיפוש ← רשימות ← הרשימה'); }
+// 29/10/2026 (בקשת המשתמש): החיפוש למעלה, המיון, ואז שורת הרשימות
+{ const i = (id) => html.indexOf(id); ok(i('id="wlSearchInput"') < i('id="wlSortRow"') && i('id="wlSortRow"') < i('id="wlTabs"') && i('id="wlTabs"') < i('id="wishlistList"'), 'מעקב: חיפוש ← מיון ← רשימות ← הרשימה'); }
 { const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
   ok(/\.menu-veil \{[^}]*visibility: hidden/.test(css) && /body\.menu-blur \.menu-veil \{[^}]*visibility: visible/.test(css), 'מסך התפריט השקוף מוסתר כשסגור (אחרת בטלפון התוכן לא נצבע עד גלילה)');
   ok(/\.appbar \.fx-pill, \.appbar \.appbar-sub > \* \{[^}]*backdrop-filter: var\(--gl-fx\)[^}]*box-shadow: var\(--gl-btn-sh\)/.test(css), 'בועות ההדר בזכוכית של הכפתורים');
