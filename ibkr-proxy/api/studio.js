@@ -2834,6 +2834,8 @@ async function handler(req, res, deps = {}) {
   const engLocked = async (spec) => !S.engOk(spec, await fullModes());
   // 25/10/2026 (בקשת המשתמש): הורדה מקישור — גם לחשבונות הבדיקה (sysCfg.tsEm), לא רק למנהל ול"כל המודלים"
   const urlAllowed = async () => (await fullModes()) || SF.tsHas(await sysCfg(deps, now), user);
+  // 29/10/2026 (בקשת המשתמש): קריוקי משיר — המנהל וחשבונות הבדיקה (sysCfg.tsEm), עד שייפתח לכולם
+  const kaAllowed = async () => isAdmin(user) || SF.tsHas(await sysCfg(deps, now), user);
   if ((op === 'status' || op === 'jobs') && watchDue(now)) await checkServers(deps, now, uid).catch(() => 0);
   if (op === 'status' && isAdmin(user)) await offsiteOwner(deps, uid).catch(() => {});   // 11/10/2026: בעל הגיבוי ב־Drive
   // v357: חיבור Drive של הסטודיו (חלון ההסכמה של Google — אותו מנגנון של גיבוי הספרייה, לקוח אחר)
@@ -2853,7 +2855,7 @@ async function handler(req, res, deps = {}) {
     await capWarm(deps, now);
     const list = await servers().catch(() => []);
     return { month: S.monthUsed(st.mu, now), cap: userMonth(st), online: list.filter((x) => x.online && !x.paused).length, servers: list.length,
-      admin: isAdmin(user), nc: UM.isAdm(st), capDef: S.CAP_DEF, capMax: S.CAP_MAX };
+      admin: isAdmin(user), ka: await kaAllowed(), nc: UM.isAdm(st), capDef: S.CAP_DEF, capMax: S.CAP_MAX };
   };
   const opsFor = async (u) => { const d = await readDoc(deps, 'studioOps', u).catch(() => null) || {}; return O.opsView(d.al, now, d.mu); };
   const scFor = async (u) => { const d = await readDoc(deps, 'studioOps', u).catch(() => null) || {}; return SC.scanView(d.sc); };   // v378
@@ -3583,7 +3585,7 @@ async function handler(req, res, deps = {}) {
       if (!S.langReady(spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported' });   // לפני ההעלאה, לא אחריה
       if (await modeLocked(spec.mode)) return res.status(403).json({ ok: false, error: 'mode_locked' });
       if (spec.ph && !R2.config().ok) return res.status(503).json({ ok: false, error: 'r2_needed' });   // 24/10/2026: תרגום בטלפון — הקבצים הקטנים ב־R2
-      if (spec.ka && !isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_allowed' });   // 26/10/2026: קריוקי — רק המנהל עד שמודל ההפרדה בתמונת העובד
+      if (spec.ka && !(await kaAllowed())) return res.status(403).json({ ok: false, error: 'not_allowed' });   // קריוקי — המנהל וחשבונות הבדיקה
       if (spec.ka && !R2.config().ok) return res.status(503).json({ ok: false, error: 'r2_needed' });
       if (spec.src === 'url') {   // 22/10/2026: הורדה מקישור — כמו בבדיקה: מנהל / "כל המודלים" / חשבונות הבדיקה, הדגל, ו־R2
         if (!(await urlAllowed())) return res.status(403).json({ ok: false, error: 'not_allowed' });

@@ -29,7 +29,8 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(INC.ERR_INFO.ka_lyrics && INC.ERR_INFO.ka_noaudio, 'קודי השגיאה של הקריוקי ב־ERR_INFO');
   const api = read('ibkr-proxy/api/studio.js');
   ok(/body\.op === 'create' && body\.spec && body\.spec\.ka === 1 \? 20000 : 4096/.test(api), 'יצירת קריוקי — גוף עד 20KB (המילים), השאר כמו קודם');
-  ok(/if \(spec\.ka && !isAdmin\(user\)\) return res\.status\(403\)/.test(api), 'בינתיים — רק המנהל יוצר קריוקי');
+  ok(/const kaAllowed = async \(\) => isAdmin\(user\) \|\| SF\.tsHas\(await sysCfg\(deps, now\), user\);/.test(api), 'קריוקי — המנהל וחשבונות הבדיקה');
+  ok(/if \(spec\.ka && !\(await kaAllowed\(\)\)\) return res\.status\(403\)/.test(api) && /ka: await kaAllowed\(\)/.test(api), 'השרתון חוסם ביצירה ומדווח לטלפון (ka)');
   ok(/if \(job\.spec\.ka === 1\) ep = ETA\.kaPlan\(ep, job\.spec\.dur\)/.test(api), 'בלקיחה: התוכנית של הקריוקי');
 
   /* ---------- 2. התוכנית — זהה בשרתון ובטלפון ---------- */
@@ -43,7 +44,9 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const st = read('studio.js');
   const kaLyr = new Function('KA_LYR_MAX', (st.match(/export function kaLyr\(t\) \{[\s\S]*?\n\}/) || [''])[0].replace('export ', '') + '; return kaLyr;')(8000);
   for (const t of ['a‎b\r\nc', 'x'.repeat(9000), null, 'שלום‫עולם']) ok(kaLyr(t) === S.normLyr(t), 'kaLyr בטלפון = normLyr בשרתון');
-  ok(/const kaOk = \(\) => !!\(ui\.api && ui\.api\.servers > 0 && ui\.r2 && ui\.api\.admin\)/.test(st), 'הקריוקי מוצע רק כשיש שרת ואחסון');
+  ok(/const kaOk = \(\) => !!\(ui\.api && ui\.api\.servers > 0 && ui\.r2 && \(ui\.api\.admin \|\| ui\.api\.ka\)\)/.test(st), 'הקריוקי מוצע רק כשיש שרת ואחסון, למנהל ולחשבונות הבדיקה');
+  { const N2 = new Function('return ' + (st.match(/export function normApi\(a\) \{[\s\S]*?\n\}/) || [''])[0].replace('export ', ''))();
+    ok(N2({ ka: true }).ka === true && N2({ ka: 1 }).ka === false, 'normApi: ka רק true'); }
   ok(/const kaRow = kaOk\(\) \? rowSwitch/.test(st) && /if \(f\.ka\) \{   \/\/ 26\/10\/2026: קריוקי — המילים/.test(st), 'בטופס: מתג וקטע משלו');
   ok(/inp\.accept = f\.ka \? 'audio\/\*,video\/\*/.test(st), 'בקריוקי — גם שיר בלי וידאו');
   ok((st.match(/kaSpec\(f, spec\)/g) || []).length >= 2, 'הקריוקי נשלח גם מקובץ וגם מקישור');
