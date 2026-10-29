@@ -617,7 +617,7 @@ button, a, .tab, .icon-btn, .ss-add {
 /* העיגול: בגודל הבועה (78) ומוקטן כשאינו פעיל — הבועה הפעילה מצוירת חדה בגודלה האמיתי */
 .tab-disc {
   position: absolute; top: 16px; left: 7px; width: 78px; height: 78px; border-radius: 50%;
-  display: grid; place-items: center; transform: scale(.68); will-change: transform;
+  display: grid; place-items: center; transform: scale(.66); will-change: transform;
   background: var(--dial-btn, var(--gl-btn)); box-shadow: var(--gl-btn-sh); transition: scale .16s ease;
 }
 .tab:active .tab-disc { scale: .9; }
