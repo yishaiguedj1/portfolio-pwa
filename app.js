@@ -4688,8 +4688,13 @@ function ibkrMapImport(data) {
     if (mp > 0) e.mp = mp;
   }
   const positions = [];
+  const ac = ibkrAvgCost(d.trades);
   for (const e of bySym.values()) {
-    const avg = e.cost > 0 ? e.cost / e.shares : e.mp;
+    let avg = e.cost > 0 ? e.cost / e.shares : e.mp;
+    // 29/10/2026: מחיר ממוצע בשיטת IBKR (עלות ממוצעת — מכירה לא משנה את הממוצע), לא FIFO
+    // של הדוח — רק כשהיסטוריית העסקאות מסבירה את כל הכמות (אחרת: פיצול/העברה/היסטוריה חלקית)
+    const a = ac[e.sym];
+    if (a && a.avg > 0 && Math.abs(a.shares - e.shares) < 1e-6) avg = a.avg;
     positions.push({ sym: e.sym, name: e.sym, full: '', shares: e.shares, avg: avg > 0 ? avg : 0 });
   }
   let usd = 0, ils = 0, hasCash = false;
@@ -4825,6 +4830,31 @@ function mtSyncPositions() {
   }
 }
 
+/* עלות ממוצעת לכל סימבול מעסקאות IBKR, בשיטה של IBKR: קנייה מוסיפה כמות ועלות (כולל
+   עמלה), מכירה מורידה עלות לפי הממוצע — הממוצע לא זז. רק USD. מחזיר {sym:{shares,avg}}. טהורה. */
+function ibkrAvgCost(trades) {
+  const out = {};
+  const list = (trades || []).filter((x) => x && x.symbol && (!x.currency || x.currency === 'USD'));
+  list.sort(tradeNewestFirst).reverse();
+  for (const x of list) {
+    const sym = String(x.symbol).trim();
+    const q = Math.abs(Number(x.qty) || 0), px = Math.abs(Number(x.price) || 0);
+    if (!(q > 0)) continue;
+    const sell = Number(x.qty) < 0 || /^SELL/i.test(x.side || '');
+    const fee = (!x.commissionCurrency || x.commissionCurrency === 'USD') ? Math.abs(Number(x.commission) || 0) : 0;
+    const o = out[sym] || (out[sym] = { shares: 0, cost: 0 });
+    if (!sell) { o.shares += q; o.cost += q * px + fee; }
+    else {
+      const k = Math.min(q, o.shares);
+      o.cost -= o.shares > 0 ? (o.cost / o.shares) * k : 0;
+      o.shares -= k;
+    }
+    if (o.shares < 1e-9) { o.shares = 0; o.cost = 0; }
+  }
+  for (const k in out) out[k].avg = out[k].shares > 0 ? out[k].cost / out[k].shares : 0;
+  return out;
+}
+
 /* במצב IBKR: פוזיציה שלא הגיעה מהדוח = ידנית (נוספה ביד לפני v141 — למשל GOOG).
    מסמן src:'manual' כדי שתיכלל בחישובים ותישמר בסנכרון. מחזיר כמה סומנו. */
 function markManualPositions() {
@@ -4832,10 +4862,12 @@ function markManualPositions() {
   const data = ibkrCfg().data;
   if (!data) return 0;
   const ib = {};
-  for (const p of ibkrMapImport(data).positions) ib[p.sym] = true;
+  for (const p of ibkrMapImport(data).positions) ib[p.sym] = p;
   let n = 0;
   for (const p of POSITIONS) {
     if (!p.src && !ib[p.sym]) { p.src = 'manual'; n++; }
+    // 29/10/2026: ממוצע בשיטת IBKR גם לפוזיציות שנשמרו לפני השינוי — בלי לחכות לסנכרון
+    else if (!p.src && ib[p.sym].avg > 0 && ib[p.sym].shares === p.shares && Math.abs(ib[p.sym].avg - p.avg) > 1e-9) { p.avg = ib[p.sym].avg; n++; }
   }
   return n;
 }
@@ -6908,8 +6940,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.82.8';
-const APP_VERSION = 'v620';
+const APP_RELEASE = '2.82.9';
+const APP_VERSION = 'v621';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
