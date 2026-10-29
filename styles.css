@@ -1537,15 +1537,18 @@ html[data-app="academy"] .login-overlay { background: linear-gradient(160deg, #1
    הפעיל מלא בירוק, "＋ חדשה" במתאר מקווקו. מעבר רשימה = כניסה מהצד (ציר משותף). */
 .wl-menu { position: relative; }
 /* 28/10/2026 (בקשת המשתמש): בלי כותרת הרשימה — רק סמל התפריט בשורת החיפוש, מימין הסינון ברשימות האחרות */
-.search-row > .wl-menu { margin-inline-start: 8px; flex: none; }
-.search-row > .wl-menu .wl-title-btn { inline-size: 40px; block-size: 40px; padding: 0; display: grid; place-items: center; border: 1px solid var(--card-border); border-radius: var(--pill); background: var(--surface-2); color: var(--primary); cursor: pointer; }
-.search-row > .wl-menu .wl-title-btn svg { inline-size: 20px; block-size: 20px; }
+/* 29/10/2026 (בקשת המשתמש): הסמל בצד ההתחלה (ימין ב־RTL), ממורכז לגובה השדה, ובעיצוב של כפתור התפריט (☰) בהדר — עיגול זכוכית, סמל בצבע האפליקציה */
+.search-row > .wl-menu { order: -1; margin-inline-end: 8px; flex: none; align-self: center; display: grid; }
+.search-row > .wl-menu .wl-title-btn { inline-size: 44px; block-size: 44px; padding: 0; display: grid; place-items: center; border: 1px solid transparent; border-radius: 50%;
+  background: var(--gl-btn); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-btn-sh); color: var(--primary); cursor: pointer; transition: transform .18s ease; }
+.search-row > .wl-menu .wl-title-btn:active { transform: scale(.94); }
+.search-row > .wl-menu .wl-title-btn svg { inline-size: 22px; block-size: 22px; }
 .wl-title-btn {
   display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
   border: 0; background: none; padding: 2px 0; cursor: pointer;
   font: inherit; font-size: inherit; font-weight: inherit; color: inherit; letter-spacing: inherit;
 }
-.wl-menu .wl-pop { inset-inline-start: auto; inset-inline-end: 0; max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto; }   /* 28/10/2026: הסמל בקצה השורה — הבועה נפתחת לתוך המסך */
+.wl-menu .wl-pop { inset-inline-start: 0; inset-inline-end: auto; max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto; }   /* 28/10/2026: הסמל בקצה השורה — הבועה נפתחת לתוך המסך */
 /* 28/10/2026 (בקשת המשתמש): סמל הרשימה בעברית — התבליטים מימין */
 [dir="rtl"] .wl-menu .wl-title-btn svg, [dir="rtl"] .wl-pop [data-wl] .src-opt-ic svg { transform: scaleX(-1); }
 .wl-opt-count { margin-inline-start: auto; font-size: 13px; font-weight: 600; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
