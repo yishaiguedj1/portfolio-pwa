@@ -209,9 +209,10 @@ a { color: var(--link); }
 }
 @supports (animation-timeline: scroll()) {
   /* 21/10/2026: בלי opacity בסיסית, בעמוד קצר שלא נגלל (ציר לא פעיל — האנימציה לא חלה) השכבה הופיעה במלואה וכיסתה את הכרטיס הראשון */
-  .appbar::before { opacity: 0; animation: hdrScrim linear both; animation-timeline: scroll(nearest block); animation-range: 0 72px; }
+  .appbar::before { opacity: 0; visibility: hidden; animation: hdrScrim linear both; animation-timeline: scroll(nearest block); animation-range: 0 72px; }
 }
-@keyframes hdrScrim { from { opacity: 0; } to { opacity: 1; } }
+/* 29/10/2026: בראש העמוד הזכוכית שקופה — וגם מוסתרת (visibility), כדי שלא תישאר שכבת טשטוש פעילה מעל הדף (כמו menu-veil) */
+@keyframes hdrScrim { from { opacity: 0; visibility: hidden; } to { opacity: 1; visibility: visible; } }
 .cube-flat .appbar::before { -webkit-backdrop-filter: none; backdrop-filter: none; }
 /* v131: לוגו 106px בצד אחד (הלוגו קודם ב־DOM -> קצה ה"התחלה" ב־RTL, כלומר
    ימין), כפתורי הפעולה + שורת "מקור" מקובצים יחד בצד השני (שמאל),
@@ -473,6 +474,9 @@ html.calm .appbar .brand-snow b { animation-play-state: paused; }
 .appbar .st-pill.post { background: color-mix(in srgb, #5E5CE6 18%, var(--bg)); }
 .appbar .st-pill.night { background: color-mix(in srgb, #0A84FF 16%, var(--bg)); }
 .appbar .st-pill.closed { background: color-mix(in srgb, var(--on-surface-var) 16%, var(--bg)); }
+/* 29/10/2026 (בקשת המשתמש): כל בועות ההדר — מצב השוק, השער, הגיבוי ב־Academy ו־Claude ב־Studio — באותה זכוכית של הכפתורים העגולים
+   (טשטוש + קצה אור + צל); הבסיס נשאר אטום בגוון המצב בגלל השלג של הלוגו (ההערה למעלה) */
+.appbar .fx-pill, .appbar .appbar-sub > * { -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-btn-sh); border-color: transparent; }
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
@@ -1533,15 +1537,18 @@ html[data-app="academy"] .login-overlay { background: linear-gradient(160deg, #1
    הפעיל מלא בירוק, "＋ חדשה" במתאר מקווקו. מעבר רשימה = כניסה מהצד (ציר משותף). */
 .wl-menu { position: relative; }
 /* 28/10/2026 (בקשת המשתמש): בלי כותרת הרשימה — רק סמל התפריט בשורת החיפוש, מימין הסינון ברשימות האחרות */
-.search-row > .wl-menu { margin-inline-start: 8px; flex: none; }
-.search-row > .wl-menu .wl-title-btn { inline-size: 40px; block-size: 40px; padding: 0; display: grid; place-items: center; border: 1px solid var(--card-border); border-radius: var(--pill); background: var(--surface-2); color: var(--primary); cursor: pointer; }
-.search-row > .wl-menu .wl-title-btn svg { inline-size: 20px; block-size: 20px; }
+/* 29/10/2026 (בקשת המשתמש): הסמל בצד ההתחלה (ימין ב־RTL), ממורכז לגובה השדה, ובעיצוב של כפתור התפריט (☰) בהדר — עיגול זכוכית, סמל בצבע האפליקציה */
+.search-row > .wl-menu { order: -1; margin-inline-end: 8px; flex: none; align-self: center; display: grid; }
+.search-row > .wl-menu .wl-title-btn { inline-size: 44px; block-size: 44px; padding: 0; display: grid; place-items: center; border: 1px solid transparent; border-radius: 50%;
+  background: var(--gl-btn); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-btn-sh); color: var(--primary); cursor: pointer; transition: transform .18s ease; }
+.search-row > .wl-menu .wl-title-btn:active { transform: scale(.94); }
+.search-row > .wl-menu .wl-title-btn svg { inline-size: 22px; block-size: 22px; }
 .wl-title-btn {
   display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
   border: 0; background: none; padding: 2px 0; cursor: pointer;
   font: inherit; font-size: inherit; font-weight: inherit; color: inherit; letter-spacing: inherit;
 }
-.wl-menu .wl-pop { inset-inline-start: auto; inset-inline-end: 0; max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto; }   /* 28/10/2026: הסמל בקצה השורה — הבועה נפתחת לתוך המסך */
+.wl-menu .wl-pop { inset-inline-start: 0; inset-inline-end: auto; max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto; }   /* 28/10/2026: הסמל בקצה השורה — הבועה נפתחת לתוך המסך */
 /* 28/10/2026 (בקשת המשתמש): סמל הרשימה בעברית — התבליטים מימין */
 [dir="rtl"] .wl-menu .wl-title-btn svg, [dir="rtl"] .wl-pop [data-wl] .src-opt-ic svg { transform: scaleX(-1); }
 .wl-opt-count { margin-inline-start: auto; font-size: 13px; font-weight: 600; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
@@ -1551,7 +1558,7 @@ html[data-app="academy"] .login-overlay { background: linear-gradient(160deg, #1
 .wl-trash .ic { stroke: currentColor; }
 .wl-tabs {
   display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
-  margin: 0 -16px 14px; padding: 2px 16px; scroll-padding-inline: 16px;
+  margin: -6px -16px 8px; padding: 8px 16px; scroll-padding-inline: 16px;   /* 29/10: ריפוד אנכי (מקוזז במרווח) — הצל של הצ'יפ לא נחתך */
 }
 .wl-tabs::-webkit-scrollbar { display: none; }
 .wl-tab {
@@ -1616,7 +1623,7 @@ html[data-app="academy"] .login-overlay { background: linear-gradient(160deg, #1
 /* ---- v90: שורת מיון מניות ---- */
 .stock-sort-row {
   display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; /* v246: שורה אחת שנגללת הצידה (4 אופציות) */
-  margin: 2px -16px 12px; padding: 2px 18px; overflow-x: auto; scrollbar-width: none;
+  margin: -4px -16px 6px; padding: 8px 18px; overflow-x: auto; scrollbar-width: none;   /* 29/10: ריפוד אנכי (מקוזז במרווח) — הצל לא נחתך */
 }
 .stock-sort-row::-webkit-scrollbar { display: none; }
 .stock-sort-row > * { flex: none; }
@@ -1869,9 +1876,12 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; justif
   background: rgba(242, 242, 247, .28);
   -webkit-backdrop-filter: blur(18px) saturate(1.35);
   backdrop-filter: blur(18px) saturate(1.35);
-  transition: opacity .38s cubic-bezier(.32, .72, 0, 1);
+  transition: opacity .38s cubic-bezier(.32, .72, 0, 1), visibility 0s linear .38s;
+  /* 29/10/2026 (סרטון המשתמש, Invest — "מעקב"): סגור = מוסתר לגמרי. שכבת טשטוש שקופה בגודל המסך נשארה שכבה פעילה מעל
+     התוכן, ובטלפון חלק מהעמוד (הרשימות, החיפוש, תחילת שורת המיון) לא נצבע עד גלילה. גם חוסך זיכרון גרפי בכל מסך */
+  visibility: hidden;
 }
-body.menu-blur .menu-veil { opacity: 1; pointer-events: auto; }
+body.menu-blur .menu-veil { opacity: 1; pointer-events: auto; visibility: visible; transition: opacity .38s cubic-bezier(.32, .72, 0, 1), visibility 0s; }
 [data-theme="dark"] .menu-veil { background: rgba(0, 0, 0, .32); }
 .appbar .brand > *, .appbar-sub, .appbar .fx-pill { transition: filter .38s cubic-bezier(.32, .72, 0, 1), opacity .38s cubic-bezier(.32, .72, 0, 1); }
 body.menu-blur .appbar .brand > *, body.menu-blur .appbar-sub, body.menu-blur .appbar .fx-pill { filter: blur(9px) saturate(1.2); opacity: .55; }
@@ -2285,6 +2295,16 @@ html :is(.range-btn.active, .btn, .dlg-ok, .st-btn, .st-plus, .an-btn, .lib-sign
   box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .45), inset -1px -1px 0 rgba(255, 255, 255, .14), inset 0 0 14px rgba(255, 255, 255, .12),
     0 6px 20px color-mix(in srgb, var(--btn-c) 26%, transparent), 0 2px 6px rgba(0, 0, 0, .3);
 }
+
+/* 29/10/2026 (בקשת המשתמש, צילום של "מעקב"): צ'יפ נבחר בכל העמודים (רשימה, מיון, מסננים) = הגלולה של הלשונית הנבחרת —
+   אותה זכוכית צבעונית של הכפתורים הראשיים (למעלה): ברק בחצי העליון, קצה אור, טבעת שיער וצל קצר בגוון (הילה רחבה נחתכת בשורות הנגללות). !important — גובר על הצבע המלא של כל רכיב */
+html :is(.chip-btn.on, .wl-tab.on, .lib-chip.on, .chip.on, .st-rs-chip.on, .fb-seg .mini-btn[aria-pressed="true"], .adm-seg .mini-btn[aria-pressed="true"]) { --btn-c: var(--primary); border-color: transparent;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .26), rgba(255, 255, 255, .07) 48%, rgba(255, 255, 255, 0) 54%), var(--btn-c) !important;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .55), inset -1px -1px 0 rgba(255, 255, 255, .2), inset 0 0 14px rgba(255, 255, 255, .16),
+    0 0 0 .5px color-mix(in srgb, var(--btn-c), #000 12%), 0 2px 7px color-mix(in srgb, var(--btn-c) 38%, transparent) !important; }
+[data-theme="dark"] :is(.chip-btn.on, .wl-tab.on, .lib-chip.on, .chip.on, .st-rs-chip.on, .fb-seg .mini-btn[aria-pressed="true"], .adm-seg .mini-btn[aria-pressed="true"]) {
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .45), inset -1px -1px 0 rgba(255, 255, 255, .14), inset 0 0 14px rgba(255, 255, 255, .12),
+    0 2px 8px color-mix(in srgb, var(--btn-c) 32%, transparent), 0 1px 3px rgba(0, 0, 0, .3) !important; }
 
 /* ==== 28/10/2026 — העמודים מזכוכית (בקשת המשתמש: כרטיסים, סרגלי לשוניות ורכיבים בעמוד) ====
    רקע עדין בגוון האפליקציה מאחור (קבוע, לא נגלל) — בלעדיו זכוכית על רקע אחיד לא נראית. הכרטיסים שקופים (~58%) עם קצה אור

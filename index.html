@@ -239,7 +239,7 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
 
   <!-- מעקב (wishlist) — v240: זהה לטאב המניות (חיפוש, מיון, כרטיסים), בלי נתוני אחזקה -->
   <section id="tab-wishlist" class="tabpage" role="tabpanel">
-    <div class="wl-tabs" id="wlTabs" role="tablist"></div>
+    <!-- 29/10/2026 (בקשת המשתמש): החיפוש למעלה, המיון, ואז שורת הרשימות -->
     <div class="stock-search-wrap">
       <div class="search-row">
         <label class="search-field">
@@ -258,6 +258,7 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
       <button class="chip-btn sort-chip" type="button" data-sort="day" data-i18n="sortDay">ביצועי היום</button>
       <button class="chip-btn sort-chip" type="button" data-sort="name" data-i18n="wlSortName">א״ב</button>
     </div>
+    <div class="wl-tabs" id="wlTabs" role="tablist"></div>
     <div id="wishlistList"></div>
   </section>
 
