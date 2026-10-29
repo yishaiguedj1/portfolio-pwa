@@ -112,7 +112,7 @@ ok(/if \(!CW_OK && !window\._stKey\)/.test(st), 'Escape משלנו רק בלי C
 ok(/const uaT = !!\(e && e\.hasUAVisualTransition\);/.test(st) && /closeStudio\(uaT\); appToOverview\(\);/.test(st) && /render\('pop', uaT\)/.test(st), 'Chrome כבר הנפיש — בלי אנימציה שנייה; יציאה → סקירה');
 ok(S.chainFor('home', null).map((x) => x.v).join() === 'home' && S.chainFor('def', 'out').map((x) => x.v).join() === 'home,settings,defs,def' && S.chainFor('edit', 'dx1234').map((x) => x.v + (x.p || '')).join() === 'home,projectdx1234,editdx1234' && S.chainFor('lang', 'to').map((x) => x.v).join() === 'home,new' && S.chainFor('lang', 'def').map((x) => x.v).join() === 'home,settings,defs,lang',
   'רענון עם CloseWatcher: המסלול עד הדף (דף שפות של טופס → טופס חדש)');
-ok(/if \(!root \|\| seq !== renderSeq\) return;/.test(st), 'חזרה תוך כדי בניית דף — הציור הישן לא דורס את החדש');
+ok(/if \(!root \|\| seq !== renderSeq\) (return;|\{ if \(pre\) pre\.remove\(\); return; \})/.test(st), 'חזרה תוך כדי בניית דף — הציור הישן לא דורס את החדש (וההעתק המוכן יורד)');
 ok(/if \(ds\.modalPop \|\| ds\.navSkip\) return;/.test(st) && /if \(!st\.studio\) \{ closeStudio\(uaT\); appToOverview\(\); return; \}/.test(st), 'popstate: מתעלם מסגירת חלון של האפליקציה, ויוצא כשנגמרות רשומות הסטודיו');
 ok(!/history\.go\(/.test(st), 'בלי history.go עם ספירת רשומות');
 

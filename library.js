@@ -950,7 +950,8 @@ function navigateTo(kind, y) {           // ציור הדף הנוכחי (ui.vie
    הדף היוצא = העתק של השכבה, הדף החדש נצבע בשכבה עצמה מתחתיו — ואז שניהם מסתובבים. דחיפה = קדימה, חזרה = אחורה */
 const cubeOk = () => !!root && !rd && !VT.inside && typeof cubeClone === 'function' && !cubeReduce() && !document.hidden;
 async function cubeNav(kind, y) {
-  const ghost = cubeClone(root);
+  // 29/10/2026 (סבב קפיצות 4): ההעתק נצבע שני פריימים לפני הציור החדש (core: cubePre) — בלי פריים ריק בטלפון
+  const ghost = typeof cubePre === 'function' ? await new Promise((res) => cubePre(root, res)) : cubeClone(root);
   try { await renderHomeNow(); pinScroll(y || 0); } catch (e) { ghost.remove(); throw e; }
   if (!root) { ghost.remove(); return; }
   await cubeGhostRun(root, ghost, cubeSideFwd(kind === 'push'));
@@ -1235,7 +1236,10 @@ export function bkPillState(signed, s, busy) {   // טהורה (נבדקת): off
 }
 function backupPill() {                    // בועת מצב הגיבוי (ענן + ✓ / חץ / !) — נגיעה = מסך הגיבוי
   const s = BK.settings();
-  const st = bkPillState(signedIn(), s, BK.busy());
+  /* 29/10/2026 (סבב קפיצות 4, סרטון Academy): עד שהחיבור נבדק (state 'boot', כ־3 שנ׳ אחרי הפתיחה) הבועה הציגה "כבוי"
+     וקפצה ל"פעיל". הגדרות הגיבוי שמורות בטלפון (pwa_libbk_v1, לפי חשבון) — בזמן הבדיקה מציגים לפיהן */
+  const boot = !!(SA && SA.auth && SA.auth.state && SA.auth.state() === 'boot');
+  const st = bkPillState(signedIn() || boot, s, BK.busy());
   const pill = h('button', 'lib-bkpill ' + st); pill.type = 'button';
   if (st === 'ok' && pillPrev === 'busy') pill.classList.add('done');   // הגיבוי הסתיים עכשיו — ה־✓ "נכתב"
   pillPrev = st;
@@ -4398,13 +4402,24 @@ const LIB_DIAL = {
     if (!root || rd || VT.inside || cubeReduce() || document.hidden) return null;
     const bd = cubeBackdrop(root);
     if (!to) { libDialC = { side, p: 0, rub: true, out: cubeFace(root, { dead: true }), bd, from: cur }; return libDialC; }
-    const pg = libSibPage(cur, to), ghost = cubeClone(root);
-    libDialC = { from: cur };
-    try { pg.render(); } catch (e) { ghost.remove(); bd.remove(); libDialC = null; return null; }
-    libDialC = { side, p: 0, out: cubeFace(ghost, { dead: true }), in: cubeFace(root), ghost, bd, pg, from: cur, to };
-    return libDialC;
+    const pg = libSibPage(cur, to);
+    // 29/10/2026 (סבב קפיצות 4): ההעתק נצבע שני פריימים לפני שהשכן מצויר (core: cubePre). עד אז הקובייה "ממתינה" —
+    // cubeSet רק שומר את p, ו־land/drop משלימים את ההכנה קודם
+    const c = { side, p: 0, bd, from: cur, to };
+    libDialC = c;
+    const build = (ghost) => {
+      c.pre = null;
+      try { pg.render(); } catch (e) { ghost.remove(); bd.remove(); c.dead = true; if (libDialC === c) libDialC = null; return; }
+      Object.assign(c, { out: cubeFace(ghost, { dead: true }), in: cubeFace(root), ghost, pg });
+      delete c.warm;
+      cubeSet(c, c.p || 0);
+    };
+    if (typeof cubePre === 'function') c.pre = cubePre(root, build); else build(cubeClone(root));
+    return c.dead ? null : c;
   },
   drop(c) {
+    if (c.pre) c.pre.now();
+    if (c.dead) return;
     cubeSet(c, 0);
     if (libDialC === c) libDialC = null;
     const done = () => { cubeFaceOff(c.in); if (c.rub) cubeFaceOff(c.out); if (c.ghost) c.ghost.remove(); c.bd.remove(); };
@@ -4413,6 +4428,8 @@ const LIB_DIAL = {
     Promise.resolve(r).then(done, done);   // הדף הקודם נצבע מחדש מאחורי ההעתק — ורק אז ההעתק יורד
   },
   land(c) {
+    if (c.pre) c.pre.now();
+    if (c.dead) return;
     cubeSet(c, 1);
     cubeFaceOff(c.in); c.ghost.remove(); c.bd.remove();
     if (libDialC === c) libDialC = null;
