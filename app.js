@@ -9538,7 +9538,7 @@ const INVEST_DIAL = {
    ובגרירה של העמוד — צמודה לאצבע (dialCube). גרירה של החוגה עצמה מעבירה גם את העמודים (dialRide*).
    המארח (dialHost) = האפליקציה: {nav(), keys(), index(name), cur(), begin(cur, to, side), drop(c), land(c), instant(to)} —
    begin מחזיר "קובייה" {in, out, to, ...} שהמנוע מזיז ב־cubeSet. אחד בכל רגע (Studio מעל Invest — שלה). */
-const DIAL_S0 = 0.68, DIAL_DROP = 2.7;
+const DIAL_S0 = 0.72, DIAL_DROP = 2.7, DIAL_GAP = 14;   // DIAL_GAP: מרווח נוסף בין הבועה לשכנים — שלא ייגעו במסך צר (בקשת המשתמש)
 const _dial = { st: null, run: null, drag: null, ride: null, ret: 0, noClick: 0, els: null, ek: '', host: null };
 function dialHost(hst) {
   if (_dial.host === hst) return;
@@ -9550,7 +9550,7 @@ function dialKeys() { return (_dial.host && _dial.host.keys()) || []; }
 function dialIndex(name) { return _dial.host ? _dial.host.index(name) : 0; }
 function dialCurName() { return _dial.host ? _dial.host.cur() : ''; }
 function dialStep(vw, n) {   // המרחק בין פריטים — כל השבעה על המסך, הקצוות חצי־גלויים (כמו בסרטון); ארבעה (Studio, Academy) — מרווחים יותר, הכיתובים לא נוגעים
-  return n && n <= 5 ? Math.max(66, Math.min(96, (vw || 400) / 4.8)) : Math.max(60, Math.min(92, (vw || 400) / 6.2));
+  return n && n <= 5 ? Math.max(66, Math.min(96, (vw || 400) / 4.8)) : Math.max(59, Math.min(90, (vw || 400) / 6.2 - 4));
 }
 function dialRest(i) { return { pos: i, from: i, to: i, p: 0 }; }
 function dialMax() { return Math.max(0, dialKeys().length - 1); }
@@ -9562,7 +9562,7 @@ function dialFrame(st, n, vw, rtl) {
     const a = c01(st.from === st.to ? (i === st.from ? 1 : 0) : (i === st.from ? 1 - st.p : 0) + (i === st.to ? st.p : 0));
     const e = a * a * (3 - 2 * a);                         // smoothstep — ההצלבה רכה בשני הקצוות
     const o = c01((3.6 - ad) / 0.6);                       // מעבר לשבעה — נמוגים (בגרירה)
-    const x = (rtl ? -d : d) * S, y = DIAL_DROP * d * d - 4 * e, sc = 1 - 0.045 * Math.min(ad, 3);
+    const x = (rtl ? -1 : 1) * (d * S + (n > 5 ? Math.max(-1, Math.min(1, d)) * DIAL_GAP : 0)), y = DIAL_DROP * d * d - 4 * e, sc = 1 - 0.045 * Math.min(ad, 3);
     out.push({
       it: 'translate3d(' + f(x) + 'px, ' + f(y) + 'px, 0) scale(' + f(sc) + ')', o: f(o),
       disc: 'scale(' + f(DIAL_S0 + (1 - DIAL_S0) * e) + ')', glow: f(e), ico: f(c01(1 - e * 1.7)),
@@ -9648,11 +9648,11 @@ function dialStop() {     // עוצרים באמצע — החוגה נשארת �
   dialPaint(run.states[Math.max(0, Math.min(run.states.length - 1, i))]);
   run.anims.forEach((a) => { try { a.cancel(); } catch (e) {} });
 }
-function dialZap(i) {     // נחיתה על לשונית חדשה: גל וברק על הבועה, פעם אחת
+function dialZap(i) {     // נחיתה על לשונית חדשה: "נשימה" רכה של הבועה, פעם אחת (בלי גל)
   const e = dialEls()[i];
   if (!e || cubeReduce()) return;
   e.it.classList.remove('zap'); void e.it.offsetWidth; e.it.classList.add('zap');
-  clearTimeout(e.zt); e.zt = setTimeout(() => e.it.classList.remove('zap'), 800);
+  clearTimeout(e.zt); e.zt = setTimeout(() => e.it.classList.remove('zap'), 600);
 }
 function dialGo(i, v0) {  // מעבר בלי קובייה (או חזרה למרכז) — אותו קפיץ
   dialStop();

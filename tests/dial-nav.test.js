@@ -26,7 +26,14 @@ ok([...html.matchAll(/<button class="tab[^"]*" data-tab="(\w+)"/g)].map((m) => m
 // מנוחה: הפעיל במרכז, גבוה ומוגדל; השכנים על הקשת
 const f = A.dialFrame(A.dialRest(3), 7, 412, true);
 ok(num(f[3].it, 0) === 0 && num(f[3].it, 1) < 0 && f[3].glow === 1 && f[3].bub === 1 && f[3].ico === 0 && f[3].lbl === 0, 'הפעיל במרכז: בועה עם כיתוב, בלי סמל ובלי כיתוב מתחת');
-ok(/scale\(1\)/.test(f[3].disc) && /scale\(0\.68\)/.test(f[2].disc), 'הבועה בגודל מלא (חדה), השאר מוקטנים');
+ok(/scale\(1\)/.test(f[3].disc) && /scale\(0\.72\)/.test(f[2].disc), 'הבועה בגודל מלא (חדה), השאר מוקטנים');
+// 29/10/2026 (בקשת המשתמש, צילום מהטלפון): הפרדה בין הבועה לשכנים גם במסך צר — הבועה (39) + עיגול שכן + 6px לפחות; בין העיגולים — 6px לפחות; הקצה עדיין חצי־גלוי
+for (const vw of [360, 390, 412, 430]) {
+  const g = A.dialFrame(A.dialRest(3), 7, vw, true), x = (i) => Math.abs(num(g[i].it, 0)), r = (i) => 39 * 0.72 * (1 - 0.045 * Math.abs(i - 3));
+  ok(x(2) - 39 - r(2) >= 6 && x(4) - 39 - r(4) >= 6 && x(1) - x(2) - r(1) - r(2) >= 6, 'רווח בין הבועה לשכנים ובין העיגולים (' + vw + 'px)');
+  ok(x(0) - r(0) < vw / 2, 'הקצה נראה (' + vw + 'px)');
+}
+ok(Math.abs(num(A.dialFrame(A.dialRest(1), 4, 360, true)[0].it, 0)) === A.dialStep(360, 4), 'ארבעה פריטים — בלי המרווח הנוסף (רחב ממילא)');
 ok(num(f[2].it, 0) > 0 && num(f[4].it, 0) < 0, 'RTL: הקודם מימין למרכז, הבא משמאל');
 ok(num(f[5].it, 1) > num(f[4].it, 1) && num(f[4].it, 1) > 0, 'קשת: ככל שרחוק מהמרכז — נמוך יותר');
 ok(f.every((v) => v.o === 1), 'כל השבעה גלויים כשהאמצעי במרכז — הקצוות בצדדים');
@@ -80,6 +87,6 @@ ok(/\(it\.bub \|\| it\.ico\)/.test(fn('dialNavBuild')) && /\.tab-bub-ico \{ widt
   ok(bs.length === 7 && bs.every((l) => /<span class="tab-bub" aria-hidden="true"><svg class="tab-bub-ico/.test(l) && !/tab-bub" data-i18n/.test(l)), 'Invest: כל בועה = הסמל בלבן (בלי data-i18n שידרוס אותו)'); }
 
 // עיצוב
-ok(/\.tab-disc \{[^}]*transform: scale\(\.68\)/.test(css) && /@keyframes dialWave/.test(css) && /prefers-reduced-motion: reduce\) \{ \.tab\.zap/.test(css), 'עיגול 68 מוקטן; גל בנחיתה; בלי אנימציה כשמבקשים להפחית תנועה');
+ok(/\.tab-disc \{[^}]*transform: scale\(\.72\)/.test(css) && /@keyframes dialSettle/.test(css) && !/dialWave|dialSheen/.test(css) && /prefers-reduced-motion: reduce\) \{ \.tab\.zap/.test(css), 'עיגול 78 מוקטן (‎.72); נשימה רכה בנחיתה (בלי גל); בלי אנימציה כשמבקשים להפחית תנועה');
 ok(/body\.has-dock \.toast \{/.test(css), 'ההודעה הקופצת מעל החוגה');
 console.log(n + ' בדיקות עברו');
