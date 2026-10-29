@@ -62,7 +62,7 @@ for (const [page, mod] of [['academy.html', 'library.js'], ['studio.html', 'stud
 { const sj = R('studio.js');
   ok(/store\.st = \{ api: ui\.api \|\| null, mf: ui\.mf \};/.test(sj) && /store = load\(\);\n  if \(store\.st\) \{ if \(!ui\.api\) ui\.api = store\.st\.api; ui\.mf = store\.st\.mf; \}/.test(sj) && /const st = src\.st && typeof src\.st === 'object'/.test(sj),
     'סטודיו: קפסולת השרת בהדר מהמצב האחרון כבר בציור הראשון (S1 — לא "חיבור Claude" שמתחלף)'); }
-ok(/\} else curtainDown\(true\);/.test(R('library.js')) && /curtainDown\(!restore\);/.test(R('studio.js')), 'הווילון יורד בכל פתיחה (לא רק ברענון)');
+ok(/\} else curtainDown\(true\);/.test(R('library.js')) && /curtainDown\(!restore( \|\| !!SA)?\);/.test(R('studio.js')), 'הווילון יורד בכל פתיחה (לא רק ברענון)');
 ok(/goJobLink\(jobLink, linkView, 'none'\)/.test(R('studio.js')), 'קישור לעבודה בפתיחה — בלי קובייה על דף שעוד נכנס');
 ok(/data-t="' \+ Date\.now\(\)/.test(app) && /Date\.now\(\) - t0 > 90/.test(app), 'לוגו מניה שמגיע באיחור — בדהייה');
 // 15/10/2026 (סרטון המשתמש): התפריט "מתרענן" — ההדר נכנס שוב לדף בכל ציור, ואנימציית CSS רצה מחדש

@@ -4502,7 +4502,8 @@ export async function openLibrary(opt) {
   if (restore) {
     root.classList.add('restored');        // v322: בלי אנימציית כניסה אחרי רענון
     if (restore.lib >= 2 && restore.book) openReader(restore.book, { restored: true }).catch(() => {}).then(() => { if (!rd) curtainDown(); });
-    else { restoreLibScroll(); curtainDown(); }
+    // 30/10/2026 (סבב קפיצות 5, R9 — משיכה לרענון בבית/מדף): בדף העצמאי הדף מופיע שלם בבת אחת, בלי דהייה של הווילון
+    else { restoreLibScroll(); curtainDown(!!SA); }
   } else curtainDown(true);                // הווילון של academy.html (class בדף) — יורד כשהבית מצויר
   await first;
   backfillCovers();
