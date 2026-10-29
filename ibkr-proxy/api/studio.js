@@ -83,7 +83,7 @@ const LEARN_MAX = 5000, LEARN_SYNC_MAX = 400;   // מאגר הלמידה: כמה
 /* 29/10/2026: ברירת המחדל — sysCfg.ucap שהמנהל קבע במרכז הניהול, ואם אין — UM.CAP_DEF ($20, בקשת המשתמש). STUDIO_API_USER_MONTH_USD כבר לא בשימוש (היה $30). cfgC מתחמם ב־capWarm לפני כל חישוב תקרה */
 const USER_MONTH = () => { const c = Number(cfgC.v && cfgC.v.ucap); return Number.isInteger(c) && c >= UM.CAP_MIN && c <= UM.CAP_MAX ? c : UM.CAP_DEF; };
 /* 29/10/2026: תקרה לכל משתמש (studioStats.mc, נקבעת במרכז הניהול) — ואם אין, התקרה של המערכת */
-const userMonth = (st) => UM.capOf(st, USER_MONTH());
+const userMonth = (st) => UM.monthCap(st, USER_MONTH());   // המנהל (st.ad) — בלי תקרה של המערכת
 const FIRE_TIMEOUT = 20000;
 
 const hits = new Map();
@@ -953,11 +953,12 @@ async function adminUid(deps, now) {
 const UM_SEEN = new Map(), UM_SEEN_MS = 6 * 3600e3;
 async function seenUser(deps, user, now) {
   if (!umOn(deps) || !user || user.mon === true || !UID_RE.test(String(user.uid || ''))) return;
-  const id = UM.idOf(user), key = id.nm + '|' + id.em, hit = UM_SEEN.get(user.uid);
+  const ad = isAdmin(user) ? 1 : 0;   // UM.monthCap — המנהל בלי תקרה חודשית של המערכת (גם בעבודות שהשרת לוקח בלי המשתמש)
+  const id = UM.idOf(user), key = id.nm + '|' + id.em + '|' + ad, hit = UM_SEEN.get(user.uid);
   if (hit && now - hit.at < UM_SEEN_MS && hit.k === key) return;
   if (UM_SEEN.size > 2000) UM_SEEN.clear();
   UM_SEEN.set(user.uid, { at: now, k: key });
-  const o = { nm: id.nm, em: id.em, ls: now, updated: now };
+  const o = { nm: id.nm, em: id.em, ad, ls: now, updated: now };
   if (!hit) { const st = await readStats(deps, user.uid); if (!st.fs) o.fs = now; }
   await patchDoc(deps, 'studioStats', user.uid, o).catch(() => {});
 }
@@ -2812,7 +2813,7 @@ async function handler(req, res, deps = {}) {
     await capWarm(deps, now);
     const list = await servers().catch(() => []);
     return { month: S.monthUsed(st.mu, now), cap: userMonth(st), online: list.filter((x) => x.online && !x.paused).length, servers: list.length,
-      admin: isAdmin(user), capDef: S.CAP_DEF, capMax: S.CAP_MAX };
+      admin: isAdmin(user), nc: UM.isAdm(st), capDef: S.CAP_DEF, capMax: S.CAP_MAX };
   };
   const opsFor = async (u) => { const d = await readDoc(deps, 'studioOps', u).catch(() => null) || {}; return O.opsView(d.al, now, d.mu); };
   const scFor = async (u) => { const d = await readDoc(deps, 'studioOps', u).catch(() => null) || {}; return SC.scanView(d.sc); };   // v378
