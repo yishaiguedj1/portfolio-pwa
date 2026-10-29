@@ -6908,8 +6908,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.82.8';
-const APP_VERSION = 'v620';
+const APP_RELEASE = '2.82.9';
+const APP_VERSION = 'v621';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -13831,6 +13831,9 @@ function cubeFace(el, o) {
   if (o && o.clip) st.clipPath = 'inset(' + n(Math.max(0, -r.top)) + 'px -60px calc(100% - ' + n(Math.max(0, vh - r.top)) + 'px) -60px)';
   st.backfaceVisibility = 'hidden'; st.webkitBackfaceVisibility = 'hidden'; st.willChange = 'transform';
   if (o && o.dead) st.pointerEvents = 'none';   // רק היוצא; הנכנס לחיץ כבר בזמן הסיבוב
+  // 29/10/2026 (סרטון המשתמש, Studio — בכל מעבר): זכוכית (backdrop-filter) בתוך פאה מסתובבת נצבעה בטלפון כפס אטום מתחת
+  // להדר שחתך את חצי הכותרת הגדולה, ונעלמה רק אחרי הנחיתה. בזמן הסיבוב — בלי זכוכית (styles.css: .st-root.cube-face; ב־Academy נמדד שזה דווקא מקפיץ), גם בעמוד גלול
+  if (el.classList) { el.classList.add('cube-face'); f.face = true; }
   st.outline = 'none';                   // טבעת הפוקוס של שכבה (Academy/Studio) הסתובבה איתה כמסגרת כהה
   // 14/10/2026 (נמדד): ההדר בזכוכית (backdrop-filter) בתוך פאה מסתובבת מחושב מחדש בכל פריים — 50ms לפריים במקום 16.
   // פאה בראש הגלילה — מאחורי ההדר רק הרקע האחיד, והטשטוש לא משנה כלום: מכבים אותו (cube-flat) בלי שום הבדל נראה.
@@ -13843,7 +13846,7 @@ function cubeFace(el, o) {
   }
   return f;
 }
-function cubeFaceOff(f) { if (f && f.el) { f.el.style.cssText = f.css; if (f.flat) f.flat(); } }
+function cubeFaceOff(f) { if (f && f.el) { f.el.style.cssText = f.css; if (f.flat) f.flat(); if (f.face) f.el.classList.remove('cube-face'); } }
 function cubeSet(c, p) {
   const vw = window.innerWidth;
   c.p = p;

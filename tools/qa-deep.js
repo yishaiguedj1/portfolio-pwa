@@ -5,7 +5,7 @@
      - קפיצות פריסה (layout-shift) · קפיצות גלילה גם בשכבות שנגללות בעצמן (.an-root, .kc-*, .lib-root)
      - הבהובים וריצודים (צילום רציף, אותו ניתוח של qa-motion)
      - "תוכן מאוחר": שינויים במסך אחרי שהמעבר נגמר (מה שנראה כטעינה/רענון) — ms מהפעולה עד שהמסך נרגע
-   הרצה: node tools/qa-deep.js --out <dir> [--only an|kc|apps] [--theme dark] [--cpu 4] [--lat 500] [--rounds 2]
+   הרצה: node tools/qa-deep.js --out <dir> [--only an|kc|ac|st|adm] [--landing] [--theme dark] [--cpu 4] [--lat 500] [--rounds 2]
    דורש שרת מקומי על 8792 (python3 -m http.server 8792). כל הרשת מדומה: fund/macro מפיקסטורה ציבורית (tests/fixtures/qa), נרות סינתטיים. */
 const fs = require('fs');
 const path = require('path');
@@ -17,6 +17,9 @@ const arg = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? (args[
 const OUT = path.resolve(String(arg('out', 'qa-deep-out')));
 const THEME = arg('theme', 'light'), CPU = +arg('cpu', 1), LAT = +arg('lat', 350), ONLY = String(arg('only', '')), ROUNDS = +arg('rounds', 1), WIDTH = +arg('width', 390);
 const DISCOVER = !!arg('discover', false), FRAMES = !!arg('frames', false);
+// --landing (29/10/2026): במקום הצילום הרציף — "נחיתה": עוצרים את הקובייה בפריים האחרון שלה (עוד בתוך האנימציה) ומשווים לדף אחרי שנרגע. הבדל מעל 4.5 = משהו
+// שנצבע אחרת בזמן הסיבוב ו"קופץ" כשהוא נגמר (בטלפון: זכוכית ההדר כפס אטום שחתך את הכותרת הגדולה בכל מעבר)
+const LANDING = !!arg('landing', false);
 // --prof <ביטוי>: פרופיל CPU לצעדים ששמם מתאים — הפונקציות הכבדות (זמן עצמי) והמשימות הארוכות (28/10/2026)
 const PROF = arg('prof', '') ? new RegExp(String(arg('prof', ''))) : null;
 const BASE = 'http://localhost:8792';
@@ -111,6 +114,7 @@ const INIT2 = `(() => {
 
   /* צעד: פעולה → המתנה → מדידה. tail = הזמן מהפעולה ועד המסגרת האחרונה שהשתנתה (diff>2.5) */
   async function step(name, fn, opt = {}) {
+    if (LANDING) return landing(name, fn, opt);
     const settle = opt.settle || 1400;
     if (opt.pre) { try { await page.locator(opt.pre).first().evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' })); await sleep(250); } catch (e) {} }
     await page.evaluate((x) => { window.__motion.expectScroll = !!x; }, !!opt.scroll);
@@ -335,6 +339,90 @@ const INIT2 = `(() => {
     await page.click('.stock.open .stock-head').catch(() => {}); await sleep(900);
   }
 
+  /* נחיתה: הפריים האחרון של הסיבוב (הגאומטריה כבר סופית, הסגנון עוד של "בזמן הקובייה") מול הדף שנרגע — ממוצע הפרש לכל רצועה של שמינית מסך (0–255). מעבר בלי קובייה — מדלגים */
+  async function landing(name, fn, opt = {}) {
+    let err = '';
+    if (!landing.css) { landing.css = 1; await ctx.addInitScript(() => { const f = () => { const s = document.createElement('style'); s.textContent = '.brand-snow, .brand-snow * { animation: none !important; }'; document.head.appendChild(s); }; if (document.head) f(); else document.addEventListener('DOMContentLoaded', f); }); }
+    await page.addStyleTag({ content: '.brand-snow, .brand-snow * { animation: none !important; }' }).catch(() => {});
+    try { await fn(); } catch (e) { err = String(e.message).split('\n')[0].slice(0, 140); }
+    const n = opt.noLand ? 0 : await page.evaluate(() => { const a = document.getAnimations().filter((x) => x.effect && x.effect.getKeyframes && x.effect.getKeyframes().some((k) => /perspective/.test(k.transform || '')));
+      a.forEach((x) => { x.pause(); x.currentTime = x.effect.getTiming().duration - 0.5; });
+      // שאר האנימציות (שלג, ניצוצות — el.animate) — מוקפאות בתחילתן בשני הצילומים, כדי שרק הנחיתה תיספר
+      if (a.length) document.getAnimations().forEach((x) => { if (!a.includes(x)) { try { x.pause(); x.currentTime = 0; } catch (e) {} } });
+      return a.length; });
+    const d = path.join(OUT, 'landing'); fs.mkdirSync(d, { recursive: true });
+    const base = path.join(d, String(results.length).padStart(3, '0') + '-' + name.replace(/[^\w֐-׿-]+/g, '_'));
+    let bands = [], worst = 0;
+    if (n) {
+      await sleep(250); await page.screenshot({ path: base + '-a.png' });
+      await page.evaluate(() => document.getAnimations().forEach((x) => { try { x.play(); } catch (e) {} }));
+      await sleep(opt.settle || 1400);
+      await page.evaluate(() => document.getAnimations().forEach((x) => { try { x.pause(); x.currentTime = 0; } catch (e) {} }));
+      await sleep(120); await page.screenshot({ path: base + '-b.png' });
+      await page.evaluate(() => document.getAnimations().forEach((x) => { try { x.play(); } catch (e) {} }));
+      const PYL = 'import sys,json\nfrom PIL import Image,ImageChops\na=Image.open(sys.argv[1]).convert("L");b=Image.open(sys.argv[2]).convert("L");w,h=a.size;a=a.resize((w//8,h//8),Image.BOX);b=b.resize((w//8,h//8),Image.BOX);w,h=a.size;o=[]\nfor i in range(8):\n  box=(0,h*i//8,w,h*(i+1)//8);d=ImageChops.difference(a.crop(box),b.crop(box));o.append(round(sum(k*v for k,v in enumerate(d.histogram()))/(d.size[0]*d.size[1]),2))\nprint(json.dumps(o))';
+      try { bands = JSON.parse(require('child_process').execFileSync('python3', ['-c', PYL, base + '-a.png', base + '-b.png']).toString()); } catch (e) { err = err || 'השוואה נכשלה'; }
+      worst = Math.max(0, ...bands);
+    } else await sleep(opt.settle || 1400);
+    if (!err && opt.expect) { const ok = await page.locator(opt.expect).first().count().catch(() => 0); if (!ok) err = 'לא במקום הצפוי (' + opt.expect + ')'; }
+    // מוקטן פי 8 (ממוצע) — בלי הבדלי החלקת הקצוות של טקסט בשכבה מסתובבת; פס/שטח שנצבע אחרת נשאר. הפס האטום נמדד 7–19, טשטוש הרקע מאחורי ההדר ~4
+    const row = { name, landing: bands, cube: n, err, cls: 0, jumps: [], flash: 0, flicker: 0, late: [], shifts: [], muts: [] };
+    row.bad = worst > (opt.landTol || 4.5) || !!err;
+    if (!row.bad) { try { fs.unlinkSync(base + '-a.png'); fs.unlinkSync(base + '-b.png'); } catch (e) {} }
+    results.push(row);
+    process.stdout.write((row.bad ? '✗ ' : '✓ ') + name + (n ? '  נחיתה=' + JSON.stringify(bands) : '  (בלי קובייה)') + (err ? '  ERR ' + err : '') + '\n');
+  }
+
+  /* ---------- Studio (studio.html, 29/10/2026 — סרטון המשתמש: קפיצות ורענונים בכל מעבר): חשבון ונתונים מדומים, כל עמוד ראשי,
+     עמודי המשנה של המגדל וההגדרות, עבודה פתוחה, וחזרה מאמצע עמוד גלול ---------- */
+  async function studio(round) {
+    const R = ' #' + round;
+    if (round === 1) {
+      await ctx.route(/\/auth\.js(\?|$)/, (r) => r.fulfill({ contentType: 'application/javascript', body: `(function(){var cbs=[],u={uid:'qa',email:'qa@example.com',displayName:'QA',getIdToken:async()=>'tok'};
+        window.firebase=window.firebase||{apps:[1],auth:function(){return {currentUser:u}}};
+        window.SnbAuth={start(){setTimeout(()=>cbs.forEach(f=>f('in')),50)},onChange(f){cbs.push(f);return()=>{}},user(){return u},state(){return 'in'},sub(){return null},signIn(){},signOut(){},hasEmail(){return true}};})();` }));
+      const jid = (n) => 'j' + String(n).padStart(20, 'Q');
+      const JOBS = [1, 2, 3, 4, 5, 6].map((n) => ({ id: jid(n), created: Date.now() - n * 3600e3, state: 'done', fired: Date.now() - n * 3600e3, done: Date.now() - n * 3500e3,
+        spec: { name: 'Demo.Show.S01E0' + n + '.720p.mkv', size: 3e8, from: 'en', to: 'he', mode: 'std' }, files: { a: { id: 'fa' + n, size: 1e6 }, v: { id: 'fv' + n, size: 3e8 } } }));
+      await ctx.route(/\/api\/studio/, (r) => { let b = {}; try { b = JSON.parse(r.request().postData() || '{}'); } catch (e) {}
+        const now = Date.now(), J = (o) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o), headers: { 'access-control-allow-origin': '*' } }).catch(() => {});
+        if (b.op === 'status') return setTimeout(() => J({ ok: true, kinds: [], conn: { hint: 'x', ok: now }, drive: { connected: true, email: 'qa@example.com' }, now }), LAT);
+        if (b.op === 'jobs') return setTimeout(() => J({ ok: true, jobs: JOBS, now }), LAT);
+        if (b.op === 'job') return setTimeout(() => J({ ok: true, job: JOBS.find((x) => x.id === b.job) || null }), LAT);
+        return r.fallback(); });
+      await ctx.addInitScript(() => { try { if (location.pathname.endsWith('/studio.html') && !localStorage.getItem('__qa_st')) { localStorage.setItem('pwa_owner_v1', 'qa'); localStorage.setItem('__qa_st', '1'); } } catch (e) {} });
+    }
+    const stBack = () => page.locator('.st-root:not(.cube-ghost) .st-nav-s button').first().click({ timeout: 5000 });
+    const row = (txt) => page.locator('.st-root:not(.cube-ghost) .st-page').locator('button.st-row, button.row-link').filter({ hasText: txt }).first().click({ timeout: 5000 });
+    const swipe = async (dx) => { const y = 600, x0 = dx > 0 ? 60 : 330;
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y }] });
+      for (let i = 1; i <= 10; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x0 + dx * i / 10, y }] }); await sleep(16); }
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); };
+    const scrollMid = () => page.evaluate(() => { const r = document.querySelector('.st-root'); r.scrollTop = Math.round((r.scrollHeight - r.clientHeight) / 2); });
+    await step('סטודיו: פתיחה' + R, async () => { await page.goto(BASE + '/studio.html', { waitUntil: 'load' }); }, { settle: 3000, expect: '.st-page', lateAfter: 1500, noLand: true });
+    await page.locator('.dlg-ok').click({ timeout: 1500 }).catch(() => {}); await sleep(500);
+    await step('סטודיו: מגדל' + R, () => click('button[aria-label="מגדל הפיקוח"]'), { settle: 1500, expect: '.st-back' });
+    await step('סטודיו: מגדל ← בית' + R, stBack, { settle: 1500, expect: '.st-newcard' });
+    await step('סטודיו: עבודה' + R, () => page.locator('.st-proj').first().click({ timeout: 5000 }), { settle: 1500, expect: '.st-back' });
+    await step('סטודיו: עבודה ← בית' + R, stBack, { settle: 1500, expect: '.st-newcard' });
+    await step('סטודיו: עבודה (2)' + R, () => page.locator('.st-proj').nth(2).click({ timeout: 5000 }), { settle: 1500, expect: '.st-back' });
+    await step('סטודיו: עבודה ← בית (2)' + R, stBack, { settle: 1500, expect: '.st-newcard' });
+    await step('סטודיו: מגדל (2)' + R, () => click('button[aria-label="מגדל הפיקוח"]'), { settle: 1500 });
+    for (const t of ['תקציב לעבודה', 'מילון המונחים', 'עוד חוקים']) {
+      await step('סטודיו: מגדל ← ' + t + R, () => row(t), { settle: 1500, expect: '.st-back' });
+      await step('סטודיו: חזור ← מגדל (' + t + ')' + R, stBack, { settle: 1400 });
+    }
+    await step('סטודיו: החלקה ← הגדרות' + R, () => swipe(300), { settle: 1600, scroll: true });
+    for (const t of ['Claude', 'ברירות מחדל', 'אחסון והעלאה', 'התראות', 'מדריך קצר', 'אפשרויות מתקדמות']) {
+      await step('סטודיו: הגדרות ← ' + t + R, () => row(t), { settle: 1500, expect: '.st-back', pre: '.st-page button.st-row, .st-page button.row-link' });
+      await step('סטודיו: חזור ← הגדרות (' + t + ')' + R, stBack, { settle: 1400 });
+    }
+    await scrollMid(); await sleep(400);
+    await step('סטודיו: מאמצע ההגדרות ← אפשרויות מתקדמות' + R, () => row('אפשרויות מתקדמות'), { settle: 1500, expect: '.st-back' });
+    await step('סטודיו: חזור ← אמצע ההגדרות' + R, stBack, { settle: 1400 });
+    await step('סטודיו: הגדרות ← בית' + R, stBack, { settle: 1500, expect: '.st-newcard' });
+  }
+
   /* ---------- מרכז הניהול (admin.html): מנהל מדומה, נתונים בהשהיה — כל לשונית ותת־עמוד, בלי "טוען…" שמתחלף אחרי הכניסה ---------- */
   async function admin(round) {
     const R = ' #' + round;
@@ -367,10 +455,11 @@ const INIT2 = `(() => {
     if (!ONLY || ONLY === 'an') await analysis(r);
     if (!ONLY || ONLY === 'kc') await chart(r);
     if (!ONLY) await admin(r);
+    if (!ONLY || ONLY === 'st') await studio(r);
   }
   const bad = results.filter((r) => r.bad);
   const md = ['# QA עמוק — ' + new Date().toISOString().slice(0, 16) + ' · ' + THEME + ' · cpu×' + CPU + ' · lat ' + LAT + 'ms', '', 'צעדים: ' + results.length + ' · בעייתיים: ' + bad.length, '',
-    ...bad.map((r) => '- ✗ **' + r.name + '** cls=' + r.cls + ' jumps=' + JSON.stringify(r.jumps) + ' flash=' + r.flash + ' flicker=' + r.flicker + ' late=' + r.late.join(',') + (r.err ? ' ERR ' + r.err : '') + (r.shifts.length ? '\n  shifts: ' + JSON.stringify(r.shifts) : '') + (r.muts.length ? '\n  muts: ' + JSON.stringify(r.muts) : ''))];
+    ...bad.map((r) => '- ✗ **' + r.name + '** cls=' + r.cls + ' jumps=' + JSON.stringify(r.jumps) + ' flash=' + r.flash + ' flicker=' + r.flicker + ' late=' + r.late.join(',') + (r.landing ? ' landing=' + JSON.stringify(r.landing) : '') + (r.err ? ' ERR ' + r.err : '') + (r.shifts.length ? '\n  shifts: ' + JSON.stringify(r.shifts) : '') + (r.muts.length ? '\n  muts: ' + JSON.stringify(r.muts) : ''))];
   fs.writeFileSync(path.join(OUT, 'report.md'), md.join('\n') + '\n');
   fs.writeFileSync(path.join(OUT, 'report.json'), JSON.stringify(results, null, 1));
   await browser.close();

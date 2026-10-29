@@ -666,6 +666,8 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 /* 27/10/2026 (סרטון המשתמש — הלשוניות במנתח החברות "כפולות" וקופצות בזמן הסיבוב): גם הרצועה הקבועה (cubeHold) היא העתק —
    בלעדי זה היא הריצה מחדש את אנימציית הכניסה של השכבה (דהייה ותזוזה של 28px) מעל הדף שמתחתיה */
 .cube-ghost, .cube-ghost *, .cube-hold, .cube-hold * { animation: none !important; transition: none !important; }
+/* 29/10/2026 (Studio בלבד — ב־Academy הזכוכית היא המראה, והכיבוי שלה עצמו "קפץ" בנחיתה): פאה בזמן הסיבוב — בלי זכוכית (בטלפון נצבעה כפס אטום שחתך את הכותרת, ו"קפצה" בנחיתה; tools/qa-deep.js --landing) */
+.st-root:is(.cube-face, .cube-ghost) *, .st-root:is(.cube-face, .cube-ghost) *::before, .st-root:is(.cube-face, .cube-ghost) *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 .cube-bd { position: fixed; inset: 0; z-index: 899; background: var(--bg); pointer-events: none; }
 /* 14/10/2026: פאה בראש הגלילה — בלי טשטוש בהדר בזמן הסיבוב (מאחוריו רק רקע אחיד, אז אין הבדל נראה; עם הטשטוש — 50ms לפריים) */
 .cube-flat .appbar, .cube-flat .tabs { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
