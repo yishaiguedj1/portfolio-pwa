@@ -348,7 +348,8 @@ const INIT2 = `(() => {
     const n = opt.noLand ? 0 : await page.evaluate(() => { const a = document.getAnimations().filter((x) => x.effect && x.effect.getKeyframes && x.effect.getKeyframes().some((k) => /perspective/.test(k.transform || '')));
       a.forEach((x) => { x.pause(); x.currentTime = x.effect.getTiming().duration - 0.5; });
       // שאר האנימציות (שלג, ניצוצות — el.animate) — מוקפאות בתחילתן בשני הצילומים, כדי שרק הנחיתה תיספר
-      if (a.length) document.getAnimations().forEach((x) => { if (!a.includes(x)) { try { x.pause(); x.currentTime = 0; } catch (e) {} } });
+      // מעבר CSS (transition — למשל הכפתור הנבחר בבורר שזז למקומו) הוא תנועה מכוונת: מסיימים אותו, אחרת הוא נספר כ"קפיצה" (29/10/2026)
+      if (a.length) document.getAnimations().forEach((x) => { if (!a.includes(x)) { try { if (x.transitionProperty) x.finish(); else { x.pause(); x.currentTime = 0; } } catch (e) {} } });
       return a.length; });
     const d = path.join(OUT, 'landing'); fs.mkdirSync(d, { recursive: true });
     const base = path.join(d, String(results.length).padStart(3, '0') + '-' + name.replace(/[^\w֐-׿-]+/g, '_'));

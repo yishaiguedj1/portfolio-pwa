@@ -665,7 +665,9 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 /* Academy / Studio: הדף היוצא = העתק "מת" של השכבה — בלי אנימציות כניסה שמתחילות מחדש בהעתק; רקע אטום מתחת לשכבה */
 /* 27/10/2026 (סרטון המשתמש — הלשוניות במנתח החברות "כפולות" וקופצות בזמן הסיבוב): גם הרצועה הקבועה (cubeHold) היא העתק —
    בלעדי זה היא הריצה מחדש את אנימציית הכניסה של השכבה (דהייה ותזוזה של 28px) מעל הדף שמתחתיה */
-.cube-ghost, .cube-ghost *, .cube-hold, .cube-hold * { animation: none !important; transition: none !important; }
+.cube-ghost, .cube-ghost *, .cube-hold, .cube-hold * { transition: none !important; }
+/* 29/10/2026: הלוגו החי ממשיך לזוז בהעתק (core: animSync — באותו רגע של המקור); כיבוי שלו כאן הקפיץ אותו למנוחה בכל מעבר */
+.cube-ghost, .cube-ghost *:not(.brand, .brand *), .cube-hold, .cube-hold *:not(.brand, .brand *) { animation: none !important; }
 /* 29/10/2026 (Studio בלבד — ב־Academy הזכוכית היא המראה, והכיבוי שלה עצמו "קפץ" בנחיתה): פאה בזמן הסיבוב — בלי זכוכית (בטלפון נצבעה כפס אטום שחתך את הכותרת, ו"קפצה" בנחיתה; tools/qa-deep.js --landing) */
 .st-root:is(.cube-face, .cube-ghost) *, .st-root:is(.cube-face, .cube-ghost) *::before, .st-root:is(.cube-face, .cube-ghost) *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 .cube-bd { position: fixed; inset: 0; z-index: 899; background: var(--bg); pointer-events: none; }

@@ -118,7 +118,11 @@ ok(/'play', 'subs', 'cut'/.test(st), 'Studio: בלי החלקה בנגן, בעו
 ok(/if \(swipePop > 0\)/.test(fn(st, 'onPop')), 'Studio: חזרה לבית בהחלקה לא מציירת שוב ב־popstate');
 
 // ---- ההעתק והרקע
-ok(/\.cube-ghost, \.cube-ghost \*, \.cube-hold, \.cube-hold \* \{ animation: none !important; transition: none !important; \}/.test(css), 'ההעתק והרצועה הקבועה בלי אנימציות כניסה שמתחילות מחדש');
+ok(/\.cube-ghost, \.cube-ghost \*, \.cube-hold, \.cube-hold \* \{ transition: none !important; \}/.test(css)
+  && /\.cube-ghost, \.cube-ghost \*:not\(\.brand, \.brand \*\), \.cube-hold, \.cube-hold \*:not\(\.brand, \.brand \*\) \{ animation: none !important; \}/.test(css), 'ההעתק והרצועה הקבועה בלי אנימציות כניסה שמתחילות מחדש');
+// 29/10/2026: הלוגו החי ממשיך באותו רגע — בהעתק, בכל כניסה של ההדר ל־DOM (Studio/Academy)
+ok(/function animSync\(el\)[\s\S]{0,700}a\.startTime = 0/.test(core) && /animSync\(el\); animSync\(c\);/.test(core), 'הלוגו בהעתק — באותו שעון של המקור (animSync)');
+ok(/root\.replaceChildren\(p\);[\s\S]{0,200}animSync\(SA\.shell\.el\)/.test(st), 'Studio: ההדר שנכנס שוב לבית — הלוגו ממשיך (animSync)');
 // 27/10/2026 (סרטון המשתמש — מנתח החברות): הרצועה הקבועה הריצה מחדש את אנימציית הכניסה של השכבה, והגרף בראש נעלם בהעתקים
 ok((app.match(/querySelectorAll\('\[id\]:not\(svg \*\)'\)/g) || []).length === 2, 'ההעתקים (cubeClone, cubeHold) שומרים מזהים בתוך SVG — מעבר צבע בגרף לא נעלם');
 {

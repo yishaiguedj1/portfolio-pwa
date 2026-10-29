@@ -9097,6 +9097,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   const veil = root.querySelector(':scope > .menu-veil');
   root.replaceChildren(p);
   if (veil) root.append(veil);
+  if (SA && SA.shell && SA.shell.el.isConnected && typeof animSync === 'function') animSync(SA.shell.el);   // הלוגו ממשיך מאותו רגע (core)
   root.scrollTop = keepY;
   if (ghost) cubeGhostRun(root, ghost, cubeSideFwd(kind === 'push'));
   lastShape = shapeKey();

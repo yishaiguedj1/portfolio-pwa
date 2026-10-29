@@ -689,9 +689,27 @@ function cubeClone(el) {
   c.querySelectorAll('[id]:not(svg *)').forEach((x) => x.removeAttribute('id'));
   c.removeAttribute('id'); c.classList.add('cube-ghost'); c.setAttribute('aria-hidden', 'true');
   try { c.inert = true; } catch (e) {}
+  // 29/10/2026 (המשתמש: "הלוגו מתרענן בכל המעברים"): התמונות בהעתק — בפיענוח מיידי (כבר במטמון), אחרת פריים בלי לוגו
+  c.querySelectorAll('img').forEach((x) => { try { x.decoding = 'sync'; } catch (e) {} });
   el.after(c);
   c.scrollTop = el.scrollTop;
+  animSync(el); animSync(c);             // הלוגו החי בהעתק — באותו רגע של המקור, לא מאפס
   return c;
+}
+/* 29/10/2026 (המשתמש: "גם הלוגו מתרענן כל הזמן בכל המעברים"): אנימציית CSS מתחילה מאפס בכל פעם שהאלמנט נכנס ל־DOM —
+   הלוגו החי (ריחוף, פנים, ברק, שלג) "התאפס" בכל ציור של הבית, בהעתק של הקובייה ובכל חזרה. מצמידים את האנימציות
+   האינסופיות של הלוגו לשעון של הדף (startTime 0): בכל כניסה ובכל העתק — אותו רגע בדיוק, כאילו לא יצא אף פעם.
+   מושהית (html.calm) — לא נוגעים */
+function animSync(el) {
+  if (!el || typeof el.getAnimations !== 'function') return;
+  try {
+    for (const a of el.getAnimations({ subtree: true })) {
+      const t = a.effect && a.effect.target;
+      if (!a.animationName || !t || !t.closest || !t.closest('.brand') || a.playState !== 'running') continue;
+      if (a.effect.getTiming().iterations !== Infinity || a.startTime === 0) continue;
+      a.startTime = 0;
+    }
+  } catch (e) {}
 }
 function cubeBackdrop(el) {              // מתחת לשכבה — רקע אטום, כדי שמה שמאחוריה (התיק) לא יבצבץ בין הפאות (לקח v330)
   const d = document.createElement('div');
