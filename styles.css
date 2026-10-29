@@ -668,8 +668,8 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .cube-ghost, .cube-ghost *, .cube-hold, .cube-hold * { transition: none !important; }
 /* 29/10/2026: הלוגו החי ממשיך לזוז בהעתק (core: animSync — באותו רגע של המקור); כיבוי שלו כאן הקפיץ אותו למנוחה בכל מעבר */
 .cube-ghost, .cube-ghost *:not(.brand, .brand *), .cube-hold, .cube-hold *:not(.brand, .brand *) { animation: none !important; }
-/* 29/10/2026 (Studio בלבד — ב־Academy הזכוכית היא המראה, והכיבוי שלה עצמו "קפץ" בנחיתה): פאה בזמן הסיבוב — בלי זכוכית (בטלפון נצבעה כפס אטום שחתך את הכותרת, ו"קפצה" בנחיתה; tools/qa-deep.js --landing) */
-.st-root:is(.cube-face, .cube-ghost) *, .st-root:is(.cube-face, .cube-ghost) *::before, .st-root:is(.cube-face, .cube-ghost) *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+/* 29/10/2026 (Studio ו־Academy; המדידה הראשונה שאמרה "ב־Academy זה מקפיץ" צילמה את סיבוב הלוגו ולא את הקובייה): פאה בזמן הסיבוב — בלי זכוכית (בטלפון נצבעה כפס אטום שחתך את הכותרת, ו"קפצה" בנחיתה; tools/qa-deep.js --landing) */
+:is(.st-root, .lib-root):is(.cube-face, .cube-ghost) *, :is(.st-root, .lib-root):is(.cube-face, .cube-ghost) *::before, :is(.st-root, .lib-root):is(.cube-face, .cube-ghost) *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 .cube-bd { position: fixed; inset: 0; z-index: 899; background: var(--bg); pointer-events: none; }
 /* 14/10/2026: פאה בראש הגלילה — בלי טשטוש בהדר בזמן הסיבוב (מאחוריו רק רקע אחיד, אז אין הבדל נראה; עם הטשטוש — 50ms לפריים) */
 .cube-flat .appbar, .cube-flat .tabs { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }

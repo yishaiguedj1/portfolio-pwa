@@ -13832,7 +13832,7 @@ function cubeFace(el, o) {
   st.backfaceVisibility = 'hidden'; st.webkitBackfaceVisibility = 'hidden'; st.willChange = 'transform';
   if (o && o.dead) st.pointerEvents = 'none';   // רק היוצא; הנכנס לחיץ כבר בזמן הסיבוב
   // 29/10/2026 (סרטון המשתמש, Studio — בכל מעבר): זכוכית (backdrop-filter) בתוך פאה מסתובבת נצבעה בטלפון כפס אטום מתחת
-  // להדר שחתך את חצי הכותרת הגדולה, ונעלמה רק אחרי הנחיתה. בזמן הסיבוב — בלי זכוכית (styles.css: .st-root.cube-face; ב־Academy נמדד שזה דווקא מקפיץ), גם בעמוד גלול
+  // להדר שחתך את חצי הכותרת הגדולה, ונעלמה רק אחרי הנחיתה. בזמן הסיבוב — בלי זכוכית (styles.css: ‎.cube-face ב־Studio וב־Academy), גם בעמוד גלול
   if (el.classList) { el.classList.add('cube-face'); f.face = true; }
   st.outline = 'none';                   // טבעת הפוקוס של שכבה (Academy/Studio) הסתובבה איתה כמסגרת כהה
   // 14/10/2026 (נמדד): ההדר בזכוכית (backdrop-filter) בתוך פאה מסתובבת מחושב מחדש בכל פריים — 50ms לפריים במקום 16.
@@ -13947,14 +13947,17 @@ function cubeBackdrop(el) {              // מתחת לשכבה — רקע אט�
 function cubeHold(root, y) {
   const top = root.getBoundingClientRect().top;
   if (!(y > top + 1)) return null;
-  const copy = (el) => {
+  const copy = (el, hh) => {
     const c = el.cloneNode(false);
     for (const ch of el.childNodes) {
       if (ch.nodeType !== 1) { c.appendChild(ch.cloneNode(true)); continue; }
       const b = ch.getBoundingClientRect();
       if ((!b.width && !b.height) || b.top >= y) continue;
-      c.appendChild(b.bottom <= y + 0.5 ? ch.cloneNode(true) : copy(ch));
+      c.appendChild(b.bottom <= y + 0.5 ? ch.cloneNode(true) : copy(ch, b.height));
     }
+    // 29/10/2026 (גלאי הנחיתה, הניתוח — מעבר בין הלשוניות): אב שהועתק חלקית — בגובה המקורי. אלמנט דביק (sticky) לא חורג
+    // מתחתית האב שלו; באב הקצוץ הלשוניות נדחפו ברצועה 4px למעלה וירדו בנחיתה
+    if (hh > 0) { c.style.boxSizing = 'border-box'; c.style.minHeight = hh + 'px'; }
     return c;
   };
   const c = copy(root);
@@ -13964,6 +13967,9 @@ function cubeHold(root, y) {
   const r = root.getBoundingClientRect(), st = c.style;
   st.position = 'fixed'; st.top = r.top + 'px'; st.left = r.left + 'px'; st.width = r.width + 'px'; st.height = (y - r.top) + 'px';
   st.bottom = 'auto'; st.right = 'auto'; st.overflow = 'hidden'; st.zIndex = '902'; st.pointerEvents = 'none'; st.transform = 'none'; st.clipPath = 'none';
+  // 29/10/2026 (גלאי הנחיתה, Academy — מעבר בין המדפים): רקע מדורג (הזוהר של הזכוכית, radial-gradient ביחס לגודל) נדחס לגובה
+  // הרצועה, והזוהר מאחורי ההדר "קפץ" בנחיתה. הרקע של הרצועה — בגודל השכבה המלאה, כמו שהוא נראה בה
+  st.backgroundSize = r.width + 'px ' + r.height + 'px'; st.backgroundPosition = '0 0'; st.backgroundRepeat = 'no-repeat';
   (root.parentNode || document.body).appendChild(c);
   c.scrollTop = root.scrollTop;
   return c;

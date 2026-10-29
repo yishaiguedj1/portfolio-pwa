@@ -345,12 +345,19 @@ const INIT2 = `(() => {
     if (!landing.css) { landing.css = 1; await ctx.addInitScript(() => { const f = () => { const s = document.createElement('style'); s.textContent = '.brand-snow, .brand-snow * { animation: none !important; }'; document.head.appendChild(s); }; if (document.head) f(); else document.addEventListener('DOMContentLoaded', f); }); }
     await page.addStyleTag({ content: '.brand-snow, .brand-snow * { animation: none !important; }' }).catch(() => {});
     try { await fn(); } catch (e) { err = String(e.message).split('\n')[0].slice(0, 140); }
-    const n = opt.noLand ? 0 : await page.evaluate(() => { const a = document.getAnimations().filter((x) => x.effect && x.effect.getKeyframes && x.effect.getKeyframes().some((k) => /perspective/.test(k.transform || '')));
+    // הקובייה = אנימציית WAAPI עם perspective מחוץ ללוגו (גם לסיבוב של הלוגו יש perspective — זוהה בטעות כקובייה, 29/10/2026).
+    // ב־Academy הקובייה מתחילה אחרי ציור אסינכרוני — מחכים לה עד 1.5 שנ׳
+    if (!opt.noLand) await page.waitForFunction(() => document.getAnimations().some((x) => !x.animationName && !x.transitionProperty && x.effect && x.effect.target && !x.effect.target.closest('.brand') && x.effect.getKeyframes().some((k) => /perspective/.test(k.transform || ''))), null, { timeout: 1500, polling: 'raf' }).catch(() => {});
+    const n = opt.noLand ? 0 : await page.evaluate(() => { const a = document.getAnimations().filter((x) => !x.animationName && !x.transitionProperty && x.effect && x.effect.target && !x.effect.target.closest('.brand') && x.effect.getKeyframes && x.effect.getKeyframes().some((k) => /perspective/.test(k.transform || '')));
       a.forEach((x) => { x.pause(); x.currentTime = x.effect.getTiming().duration - 0.5; });
       // שאר האנימציות (שלג, ניצוצות — el.animate) — מוקפאות בתחילתן בשני הצילומים, כדי שרק הנחיתה תיספר
       // מעבר CSS (transition — למשל הכפתור הנבחר בבורר שזז למקומו) הוא תנועה מכוונת: מסיימים אותו, אחרת הוא נספר כ"קפיצה" (29/10/2026)
-      if (a.length) document.getAnimations().forEach((x) => { if (!a.includes(x)) { try { if (x.transitionProperty) x.finish(); else { x.pause(); x.currentTime = 0; } } catch (e) {} } });
+      // אנימציה שמונעת מגלילה (hdrScrim — scroll-timeline) לא קשורה לזמן: לא נוגעים בה (finish כפה את הכהות המלאה של ההדר).
+      // וכך גם אנימציה סופית מכוונת (הכפתור הנבחר בבורר הניתוח זז יחד עם הקובייה — el.animate): היא מסתיימת. רק אינסופית (שלג, ניצוצות) מוקפאת
+      if (a.length) document.getAnimations().forEach((x) => { if (!a.includes(x) && x.timeline === document.timeline) { try { if (x.transitionProperty || (x.effect && x.effect.getTiming().iterations !== Infinity)) x.finish(); else { x.pause(); x.currentTime = 0; } } catch (e) {} } });
+      if (a.length) window.__qaLand = (JSON.stringify([...document.querySelectorAll('.cube-hold')].map((c) => { const q = (r) => { const e = r.querySelector('.an-seg-main, .lib-seg'); return e ? Math.round(e.getBoundingClientRect().top * 10) / 10 : null; }; const live = c.previousElementSibling && document.querySelector('.an-root:not(.cube-ghost):not(.cube-hold), .lib-root:not(.cube-ghost):not(.cube-hold)'); return { st: c.scrollTop, sh: c.scrollHeight, ch: c.clientHeight, seg: q(c), live: live ? q(live) : null, lst: live ? live.scrollTop : null, ltr: live ? live.style.transform.slice(0, 60) : null }; })) + JSON.stringify(document.getAnimations().map((x) => { const t = x.effect && x.effect.target; return [x.animationName || x.transitionProperty || x.id || 'waapi', t ? (t.tagName + '.' + String(t.className).slice(0, 40)) : '', Math.round(x.currentTime), x.playState]; })));
       return a.length; });
+    if (n && process.env.QA_LAND_DBG) console.log('LANDDBG', name, await page.evaluate(() => window.__qaLand));
     const d = path.join(OUT, 'landing'); fs.mkdirSync(d, { recursive: true });
     const base = path.join(d, String(results.length).padStart(3, '0') + '-' + name.replace(/[^\w֐-׿-]+/g, '_'));
     let bands = [], worst = 0;
@@ -358,7 +365,7 @@ const INIT2 = `(() => {
       await sleep(250); await page.screenshot({ path: base + '-a.png' });
       await page.evaluate(() => document.getAnimations().forEach((x) => { try { x.play(); } catch (e) {} }));
       await sleep(opt.settle || 1400);
-      await page.evaluate(() => document.getAnimations().forEach((x) => { try { x.pause(); x.currentTime = 0; } catch (e) {} }));
+      await page.evaluate(() => document.getAnimations().forEach((x) => { if (x.timeline !== document.timeline) return; try { x.pause(); x.currentTime = 0; } catch (e) {} }));
       await sleep(120); await page.screenshot({ path: base + '-b.png' });
       await page.evaluate(() => document.getAnimations().forEach((x) => { try { x.play(); } catch (e) {} }));
       const PYL = 'import sys,json\nfrom PIL import Image,ImageChops\na=Image.open(sys.argv[1]).convert("L");b=Image.open(sys.argv[2]).convert("L");w,h=a.size;a=a.resize((w//8,h//8),Image.BOX);b=b.resize((w//8,h//8),Image.BOX);w,h=a.size;o=[]\nfor i in range(8):\n  box=(0,h*i//8,w,h*(i+1)//8);d=ImageChops.difference(a.crop(box),b.crop(box));o.append(round(sum(k*v for k,v in enumerate(d.histogram()))/(d.size[0]*d.size[1]),2))\nprint(json.dumps(o))';

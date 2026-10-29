@@ -120,6 +120,10 @@ ok(/if \(swipePop > 0\)/.test(fn(st, 'onPop')), 'Studio: חזרה לבית בה�
 // ---- ההעתק והרקע
 ok(/\.cube-ghost, \.cube-ghost \*, \.cube-hold, \.cube-hold \* \{ transition: none !important; \}/.test(css)
   && /\.cube-ghost, \.cube-ghost \*:not\(\.brand, \.brand \*\), \.cube-hold, \.cube-hold \*:not\(\.brand, \.brand \*\) \{ animation: none !important; \}/.test(css), 'ההעתק והרצועה הקבועה בלי אנימציות כניסה שמתחילות מחדש');
+// 29/10/2026 (גלאי הנחיתה): הרצועה הקבועה זהה לדף — רקע בגודל השכבה המלאה, אב חלקי בגובה המקורי (הלשוניות הדביקות לא נדחפות)
+ok(/st\.backgroundSize = r\.width \+ 'px ' \+ r\.height \+ 'px'; st\.backgroundPosition = '0 0'/.test(core), 'הרצועה הקבועה — הרקע המדורג בגודל השכבה, לא נדחס');
+ok(/copy\(ch, b\.height\)/.test(core) && /if \(hh > 0\) \{ c\.style\.boxSizing = 'border-box'; c\.style\.minHeight = hh \+ 'px'; \}/.test(core), 'הרצועה הקבועה — אב שהועתק חלקית בגובה המקורי (sticky לא נדחף)');
+ok(/:is\(\.st-root, \.lib-root\):is\(\.cube-face, \.cube-ghost\) \*, [^{]*\{ -webkit-backdrop-filter: none !important; backdrop-filter: none !important; \}/.test(css), 'בלי זכוכית בפאה מסתובבת — Studio ו־Academy');
 // 29/10/2026: הלוגו החי ממשיך באותו רגע — בהעתק, בכל כניסה של ההדר ל־DOM (Studio/Academy)
 ok(/function animSync\(el\)[\s\S]{0,700}a\.startTime = 0/.test(core) && /animSync\(el\); animSync\(c\);/.test(core), 'הלוגו בהעתק — באותו שעון של המקור (animSync)');
 ok(/root\.replaceChildren\(p\);[\s\S]{0,200}animSync\(SA\.shell\.el\)/.test(st), 'Studio: ההדר שנכנס שוב לבית — הלוגו ממשיך (animSync)');
