@@ -1870,18 +1870,46 @@ async function runJob(id, run) {
           if (run.phase === 'video') { const s = upHi(run, 'v', b); run.sent = s; run.p = s / file.size; tickRate(run, s); }
           paintSoon(); saveSoon();
         };
-        if (await bgCan(rec, file)) {
-          await audioSettled; await vGate();
-          tv = Date.now();
-          run.bg = true;
-          try { await bgTry(rec, id, file, sig, vProg); } finally { run.bg = false; utlAdd(rec, 'v', Date.now() - tv); }
-        }
+        // 29/10/2026 (בטלפון: העלאה איטית ונתקעת, "כשנכנסים לאפליקציה לזמן מה זה מסתדר"): Background Fetch שולח חלק אחד
+        // בכל פעם בעדיפות נמוכה (פי ~5 לאט), וההעלאה הרגילה קופאת כשהדף ברקע. לכן לפי מצב הדף: מוצג — הרגילה; ברקע
+        // BG_HAND_MS (והקול כבר עלה) — החלקים החסרים עוברים ל־Background Fetch (אותה העלאה ב־R2, אותו גודל חלק); חוזרים
+        // לדף — מיד חזרה לרגילה, שממשיכה מהחלקים שהגיעו. בכל מקרה הרגילה מסיימת (סוגרת / ממשיכה)
+        const bgOk = await bgCan(rec, file);
+        let aDone = false, bgOff = false, cur = null;
+        const shown = () => typeof document === 'undefined' || document.visibilityState === 'visible';
+        const handOk = () => bgOk && !bgOff && aDone && !shown();
+        const flip = (want, ms) => {   // signal שנעצר בעצירה / מחיקה, וגם כש־want() מחזיק ms — אז flipped() = מחליפים דרך
+          const c = new AbortController(), ab = () => c.abort();
+          let t = 0, fl = false;
+          const chk = () => { clearTimeout(t); if (want()) t = setTimeout(() => { if (want() && !c.signal.aborted) { fl = true; c.abort(); } }, ms); };
+          if (sig.aborted) c.abort(); else sig.addEventListener('abort', ab, { once: true });
+          document.addEventListener('visibilitychange', chk); chk();
+          return { signal: c.signal, chk, flipped: () => fl && !sig.aborted,
+            done: () => { clearTimeout(t); sig.removeEventListener('abort', ab); document.removeEventListener('visibilitychange', chk); } };
+        };
+        audioSettled.then(() => { aDone = true; if (cur) cur.chk(); });
         tv = Date.now();
-        return net.upload({ blob: file, size: file.size, mime: file.type || 'application/octet-stream', signal: sig, gate: vGate,
-          uri: up.v.uri || '', onUri: (u) => { up.v.uri = u; save(); }, r2: up.v.r2, onR2: (x) => { up.v.r2 = x; save(); },
-          meta: { name: rec.spec.name, parents: [up.folder], appProperties: { snbJob: id, snbPart: 'v' } },
-          onProgress: vProg,
-          onWait: onWaitT }).finally(() => utlAdd(rec, 'v', Date.now() - tv));
+        try {
+          if (bgOk && shown()) await Promise.race([bgAbort(id), new Promise((r) => setTimeout(r, 3000))]);   // העלאה ברקע מפעם קודמת שעוד רצה — לא במקביל לרגילה (אותם חלקים); בלי לחכות לנצח ל־ready
+          for (;;) {
+            if (handOk()) {
+              await vGate();
+              const f = cur = flip(shown, 0);
+              run.bg = true;
+              let r = null;
+              try { r = await bgTry(rec, id, file, f.signal, vProg); } catch (e) { if (!f.flipped()) throw e; } finally { f.done(); cur = null; run.bg = false; }
+              if (r && !r.ok) bgOff = true;   // נכשל / לא נתמך — עד סוף ההעלאה הזו רק הרגילה
+            }
+            const f = cur = flip(handOk, BG_HAND_MS);
+            try {
+              return await net.upload({ blob: file, size: file.size, mime: file.type || 'application/octet-stream', signal: f.signal, gate: vGate,
+                uri: up.v.uri || '', onUri: (u) => { up.v.uri = u; save(); }, r2: up.v.r2, onR2: (x) => { up.v.r2 = x; save(); },
+                meta: { name: rec.spec.name, parents: [up.folder], appProperties: { snbJob: id, snbPart: 'v' } },
+                onProgress: vProg,
+                onWait: onWaitT });
+            } catch (e) { if (!f.flipped()) throw e; } finally { f.done(); cur = null; }
+          }
+        } finally { utlAdd(rec, 'v', Date.now() - tv); }
       },
       videoDone: async (f) => {
         await register(id, 'v', f.id, up.folder);
@@ -1917,7 +1945,7 @@ if (typeof window !== 'undefined') window.snbStudioBusy = () => Array.from(runs.
 function stopRun(id) { const r = runs.get(id); if (r && r.active) r.ctl.abort(); }
 
 /* ---------------- 23/10/2026: הסרטון ב־Background Fetch (studiobg.js) — ממשיך גם כשהאפליקציה סגורה ---------------- */
-const BG_SLOW_RETRY_MS = 3 * 86400e3;   // 28/10/2026: העלאה ברקע הייתה איטית מההעלאה הרגילה — לא מנסים שוב שלושה ימים (החיבור משתנה)
+const BG_HAND_MS = 8000;   // 29/10/2026: כמה זמן הדף ברקע לפני שההעלאה עוברת ל־Background Fetch (מעבר מהיר בין אפליקציות — לא מחליפים)
 const BG_RETRY_MS = 30 * 86400e3;   // דפדפן שסירב — מנסים שוב אחרי חודש (עדכון של Chrome)
 const bgStore = typeof indexedDB !== 'undefined' ? bgDb(indexedDB) : null;
 const bgEnv = {
@@ -1931,7 +1959,7 @@ const bgEnv = {
 };
 async function bgCan(rec, file) {
   const s = store.settings, up = rec.up;
-  return bgEligible({ size: file.size, r2: isR2Folder(up.folder), ext: !!up.ext, wifi: s.wifi, off: !!(s.bgNo && Date.now() - s.bgNo < BG_RETRY_MS) || !!(s.bgSl && Date.now() - s.bgSl < BG_SLOW_RETRY_MS),
+  return bgEligible({ size: file.size, r2: isR2Folder(up.folder), ext: !!up.ext, wifi: s.wifi, off: !!(s.bgNo && Date.now() - s.bgNo < BG_RETRY_MS),   // 29/10/2026: bgSl לא חוסם — הרקע רק כשהדף ברקע
     api: typeof navigator !== 'undefined' && !!navigator.serviceWorker && typeof BackgroundFetchManager !== 'undefined' && !!bgStore,
     up: await bgUpOk() });
 }
@@ -2109,6 +2137,9 @@ function leaving() {              // יציאה מדף: המפתח שהודבק 
 function go(view, param, kind) {
   if (!root) return;
   const p = param == null ? null : param;
+  // 29/10/2026 (בטלפון: מפרויקט שהסתיים צריך כמה "חזור"): אותו דף פעמיים ברצף (פתיחה מההתראה כשהעבודה כבר פתוחה,
+  // לחיצה כפולה) נכנס פעמיים למחסנית — ו"חזור" הראשון רק הנפיש מהעבודה לאותה עבודה. הדף כבר מוצג — רק מציירים
+  if (view === ui.view && p === ui.param) { repaint(); return; }
   scrolls[viewKey()] = root.scrollTop;
   leaving();
   ui.view = view; ui.param = p;
@@ -2131,7 +2162,8 @@ function back() {
   if (CW_OK && stack.length > 1) {
     scrolls[viewKey()] = root.scrollTop;
     leaving();
-    stack.pop();
+    const was = stack.pop();
+    while (stack.length > 1 && stack[stack.length - 1].v === was.v && stack[stack.length - 1].p === was.p) stack.pop();   // 29/10/2026: עותק של אותו דף — לא עוד "חזור"
     const top = stack[stack.length - 1];
     ui.view = top.v; ui.param = top.p;
     syncState();
@@ -9248,7 +9280,7 @@ export function openStudio(opt) {
 
 /* קישור מההתראה: דף העבודה, ומשם הנגן / העורך כשאפשר — "חזור" מהם חוזר לעבודה */
 function goJobLink(id, view, kind) {   // 14/10/2026: מיד בפתיחה (kind = 'none') — הדף מופיע כמו שהוא, בלי קובייה על דף שעוד נכנס
-  go('job', id, kind);
+  if (!(ui.view === 'job' && ui.param === id) && !(view && ui.view === view && ui.param === id)) go('job', id, kind);   // 29/10/2026: כבר בדף — לא עוד רשומה
   const rec = jobRec(id);
   if (view === 'play' && canPlay(rec)) go('play', id, kind);
   else if (view === 'subs' && canEdit(rec)) go('subs', id, kind);

@@ -80,6 +80,8 @@ button.st-row:not(:disabled):active { background: var(--st-fill); }
 .st-tile.t-teal { background: linear-gradient(135deg, #64D2FF, #0A84FF); }
 .st-tile.t-orange { background: linear-gradient(135deg, #FFD60A, #FF9F0A); }   /* v363: מגדל הפיקוח — חריג / עצר */
 .st-tile.t-red { background: linear-gradient(135deg, #FF5E57, #FF2D55); }
+.st-tile.t-purple { background: linear-gradient(135deg, #C77DFF, #AF52DE); }   /* 29/10/2026: "קול" במקורות — היה בלי צבע (שקוף, כמעט לא נראה בבהיר) */
+[data-theme="dark"] .st-tile.t-purple { background: linear-gradient(135deg, #D08CFF, #BF5AF2); }
 a.st-row { color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; }   /* 10/10/2026: שורת קישור (התוצרים) */
 /* סבב 2: הצעות לפני ההתחלה — שורה עם פעולה אחת וסגירה */
 .st-row.st-adv { padding-inline-end: 6px; gap: 10px; }
