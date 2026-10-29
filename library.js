@@ -4375,7 +4375,7 @@ function restoreLibScroll() {
    "THE SNOWBALL" בראש הבית עובר ל־Invest; וכשלא מחוברים — כפתור כניסה עם Google (בתיק — מסך ההתחברות שלו). */
 /* ---- החוגה (29/10/2026; המנוע ב־core: dialHost/wireDial — אותו של Invest ושל Studio, רק בכחול) ---- */
 const LIB_DIAL_ICO = {
-  snb: '<path d="M12 2.8v18.4M4 7.4l16 9.2M4 16.6l16-9.2M9.6 4.6 12 7l2.4-2.4M9.6 19.4 12 17l2.4 2.4M4.6 10.6l3.2.9-.9 3.3M19.4 13.4l-3.2-.9.9-3.3M4.6 13.4l3.2-.9-.9-3.3M19.4 10.6l-3.2.9.9 3.3"/>',
+  snb: '<path d="M12 9.4L12 1.8M12 6.4L10.01 4.73M12 6.4L13.99 4.73M12 3.8L10.47 2.51M12 3.8L13.53 2.51M14.25 10.7L20.83 6.9M16.85 9.2L17.3 6.64M16.85 9.2L19.29 10.09M19.1 7.9L19.45 5.93M19.1 7.9L20.98 8.58M14.25 13.3L20.83 17.1M16.85 14.8L19.29 13.91M16.85 14.8L17.3 17.36M19.1 16.1L20.98 15.42M19.1 16.1L19.45 18.07M12 14.6L12 22.2M12 17.6L13.99 19.27M12 17.6L10.01 19.27M12 20.2L13.53 21.49M12 20.2L10.47 21.49M9.75 13.3L3.17 17.1M7.15 14.8L6.7 17.36M7.15 14.8L4.71 13.91M4.9 16.1L4.55 18.07M4.9 16.1L3.02 15.42M9.75 10.7L3.17 6.9M7.15 9.2L4.71 10.09M7.15 9.2L6.7 6.64M4.9 7.9L3.02 8.58M4.9 7.9L4.55 5.93"/><polygon points="12 9.4 14.25 10.7 14.25 13.3 12 14.6 9.75 13.3 9.75 10.7"/>',   // פתית שלג (בקשת המשתמש: "גדול ויפה") — שש זרועות עם ענפים
   mine: '<rect x="3.5" y="4" width="4.2" height="16" rx="1"/><rect x="9.6" y="4" width="4.2" height="16" rx="1"/><path d="M15.7 5.4l3.5-.9 3.3 14.6-3.5.9z"/>',
   notes: '<path d="M9.2 18h5.6M10.2 21h3.6M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.2h5c0-.9.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"/>',
 };
@@ -4452,7 +4452,7 @@ export async function openLibrary(opt) {
   document.body.append(root);
   if (!libNav && typeof dialNavBuild === 'function') {   // 29/10/2026: החוגה — המארח של המנוע עובר לספרייה עד הסגירה
     libNav = dialNavBuild('lib-dial', T('libDialAria'), [
-      { k: 'settings', ico: DIAL_GEAR, lbl: T('libDialSet') }, { k: 'snb', ico: LIB_DIAL_ICO.snb, lbl: 'THE SNOWBALL', cls: 'tab-long' },
+      { k: 'settings', ico: DIAL_GEAR, lbl: T('libDialSet') }, { k: 'snb', ico: LIB_DIAL_ICO.snb, bub: LIB_DIAL_ICO.snb, lbl: 'THE SNOWBALL', cls: 'tab-snow' },
       { k: 'mine', ico: LIB_DIAL_ICO.mine, lbl: T('libMine') }, { k: 'notes', ico: LIB_DIAL_ICO.notes, lbl: T('libDialNotes') },
     ], libDialTo);
     document.body.append(libNav);

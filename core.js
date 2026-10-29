@@ -323,8 +323,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.85.1';
-const APP_VERSION = 'v627';
+const APP_RELEASE = '2.86.0';
+const APP_VERSION = 'v628';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -651,7 +651,7 @@ function wireDial(nav) {
   nav.addEventListener('click', (e) => { if (clock() - _dial.noClick < 400) { e.stopPropagation(); e.preventDefault(); } }, true);   // סוף גרירה אינו לחיצה
 }
 /* החוגה של אפליקציה שבונה אותה בקוד (Studio, Academy) — אותו מבנה בדיוק כמו ב־index.html, ורק הצבע (--primary) של האפליקציה.
-   items = [{k, ico (תוכן SVG קבוע), lbl}]; onTap(k) — לחיצה על פריט */
+   items = [{k, ico (תוכן SVG קבוע), lbl, bub?, cls?}] — bub: בבועה סמל גדול במקום הכיתוב (פתית השלג של Academy); onTap(k) — לחיצה על פריט */
 const DIAL_GEAR = '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>';
 function dialNavBuild(cls, aria, items, onTap) {
   const nav = document.createElement('nav');
@@ -659,14 +659,15 @@ function dialNavBuild(cls, aria, items, onTap) {
   items.forEach((it) => {
     const b = document.createElement('button');
     b.className = 'tab' + (it.cls ? ' ' + it.cls : ''); b.type = 'button'; b.dataset.tab = it.k; b.setAttribute('role', 'tab');
-    b.innerHTML = '<span class="tab-disc"><span class="tab-glow"></span><svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + it.ico + '</svg></span><span class="tab-bub" aria-hidden="true"></span><span class="tab-lbl"></span>';
+    b.innerHTML = '<span class="tab-disc"><span class="tab-glow"></span><svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + it.ico + '</svg></span><span class="tab-bub" aria-hidden="true">'
+      + (it.bub ? '<svg class="tab-bub-ico" viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' + it.bub + '</svg>' : '') + '</span><span class="tab-lbl"></span>';
     dialLabel(b, it.lbl);
     b.addEventListener('click', () => onTap(it.k));
     nav.append(b);
   });
   return nav;
 }
-function dialLabel(b, t) { if (!b) return; b.querySelector('.tab-bub').textContent = t; b.querySelector('.tab-lbl').textContent = t; }
+function dialLabel(b, t) { if (!b) return; const u = b.querySelector('.tab-bub'); if (!u.firstElementChild) u.textContent = t; b.querySelector('.tab-lbl').textContent = t; b.setAttribute('aria-label', t); }
 
 let _navSkipPop = 0;
 

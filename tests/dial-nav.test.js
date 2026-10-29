@@ -73,6 +73,8 @@ ok(/cubeNow !== _dial\.ride/.test(fn('cubeClone')), 'נסיעה של החוגה 
 ok(A.dialStep(412, 4) > A.dialStep(412) && A.dialStep(412, 4) * 2 + 40 < 412 / 2 + 86, 'ארבעה פריטים — מרווחים יותר (הכיתובים לא נוגעים)');
 ok(/history\.go\(1 - d\)/.test(lib) && /ld: 1/.test(lib) && !/history\.go\(/.test(st), 'Academy: מעמוד משנה עמוק — חוזרים לרמת האח (העומק ld, כמו navBack ב־Invest); Studio — מחסנית CloseWatcher, בלי history.go');
 
+ok(/\{ k: 'snb', ico: LIB_DIAL_ICO\.snb, bub: LIB_DIAL_ICO\.snb, lbl: 'THE SNOWBALL', cls: 'tab-snow' \}/.test(lib) && /class="tab-bub-ico"/.test(fn('dialNavBuild')) && /if \(!u\.firstElementChild\) u\.textContent = t;/.test(app) && /\.tab-bub-ico \{ width: 50px; height: 50px; stroke: #fff;/.test(css), 'THE SNOWBALL — פתית שלג גדול בבועה (בקשת המשתמש), הכיתוב מתחת כשאינו נבחר');
+
 // עיצוב
 ok(/\.tab-disc \{[^}]*transform: scale\(\.68\)/.test(css) && /@keyframes dialWave/.test(css) && /prefers-reduced-motion: reduce\) \{ \.tab\.zap/.test(css), 'עיגול 68 מוקטן; גל בנחיתה; בלי אנימציה כשמבקשים להפחית תנועה');
 ok(/body\.has-dock \.toast \{/.test(css), 'ההודעה הקופצת מעל החוגה');

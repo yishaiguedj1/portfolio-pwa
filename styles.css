@@ -2334,6 +2334,8 @@ html :is(.subpage-back, .an-back, .adm-back, .st-back, .kc-back, .an-cback):acti
 html[data-theme="dark"] :is(.subpage-back, .an-back, .adm-back, .st-back, .kc-back, .an-cback, .lib-back), html .st-dark .st-back,
 html[data-theme="dark"] .lib-root .lib-back { background: var(--gl-back) !important; box-shadow: var(--gl-back-sh) !important;
   -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); }
-/* 29/10/2026: פריט עם כיתוב ארוך בחוגה (THE SNOWBALL ב־Academy) — הכיתוב קטן מעט, כדי שייכנס לבועה ולשורה שמתחתיה */
-.tab-long .tab-bub { padding: 2px; font-size: 11px; letter-spacing: -.03em; overflow-wrap: normal; }
-.tab-long .tab-lbl { font-size: 11.5px; letter-spacing: -.02em; }
+/* 29/10/2026 (בקשת המשתמש): THE SNOWBALL ב־Academy — פתית שלג גדול ויפה: בבועה הנבחרת הפתית במקום הכיתוב (לבן, עם צל עדין
+   בגוון הכפתור), וכשאינו נבחר — פתית מעט גדול משאר הסמלים, והכיתוב מתחת קטן מעט כדי שייכנס */
+.tab-bub-ico { width: 50px; height: 50px; stroke: #fff; filter: drop-shadow(0 1px 1.5px color-mix(in srgb, var(--btn-c, var(--primary)), #000 45%)); }
+.tab-snow .tab-ico { width: 38px; height: 38px; stroke-width: 1.7; }
+.tab-snow .tab-lbl { font-size: 11.5px; letter-spacing: -.02em; }

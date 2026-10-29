@@ -14,8 +14,8 @@ const fn = (src, name) => { const i = src.indexOf('function ' + name + '('); if 
 /* ---------- ספרייה: מעברים ---------- */
 ok(/function libTransition\(kind, update\)/.test(lib) && /document\.startViewTransition\(run\)/.test(lib) && /dataset\.libVt = kind/.test(lib), 'libTransition — View Transitions עם סוג המעבר על <html> (data-lib-vt)');
 ok(/reduceMotion\(\)/.test(fn(lib, 'libTransition')) && /document\.hidden/.test(fn(lib, 'libTransition')), 'בלי אנימציה ב־reduced-motion ובכרטיסייה מוסתרת');
-ok(/function renderHome\(kind\) \{ return libTransition\(kind \|\| 'none', renderHomeNow\); \}/.test(lib) && /async function renderHomeNow\(\)/.test(lib), 'renderHome = עטיפה; הציור עצמו ב־renderHomeNow');
-ok(/function navigateTo\(kind, y\)[\s\S]{0,200}await renderHomeNow\(\); pinScroll\(y \|\| 0\);/.test(lib), 'הגלילה נקבעת בתוך המעבר, אחרי הבנייה (לא לפני — הדף הישן קפץ לראש לפריים)');
+ok(/function renderHome\(kind\) \{\n[\s\S]{0,400}?\n  return libTransition\(kind \|\| 'none', renderHomeNow\);\n\}/.test(lib) && /async function renderHomeNow\(\)/.test(lib), 'renderHome = עטיפה; הציור עצמו ב־renderHomeNow');
+ok(/function navigateTo\(kind, y\)[\s\S]{0,320}await renderHomeNow\(\); pinScroll\(y \|\| 0\);/.test(lib), 'הגלילה נקבעת בתוך המעבר, אחרי הבנייה (לא לפני — הדף הישן קפץ לראש לפריים)');
 const goView = fn(lib, 'goView');
 ok(/navigateTo\('push', 0\)/.test(goView) && !/root\.scrollTop = 0/.test(goView) && /afterBack\(\(\) => history\.pushState/.test(goView), 'goView: מעבר push, בלי איפוס גלילה ישיר, pushState דרך afterBack');
 const pop = fn(lib, 'onPop');
@@ -55,7 +55,7 @@ ok(/if \(ds\.modalPop \|\| ds\.navSkip\) return;/.test(pop) && /dataset\.navSkip
 ok(/function closeSheetThen\(veil, fn\)/.test(lib), 'closeSheetThen — פתיחת הבא רק אחרי שה־back של הגיליון נחת');
 ok(!/close\(\); goView\(/.test(lib) && !/close\(\); collNameSheet\(/.test(lib) && !/close\(\); openResetSheet\(\)/.test(lib) && !/close\(\); collDelete\(/.test(lib), 'אין "close(); X()" שדוחף רשומה בזמן ש־back בדרך');
 ok(/const afterBack = \(fn\) => \(typeof window !== 'undefined' && typeof window\.snbAfterBack === 'function'\) \? window\.snbAfterBack\(fn\) : fn\(\);/.test(lib), 'afterBack בספרייה דרך window.snbAfterBack של האפליקציה');
-ok(/if \(!restore\) afterBack\(\(\) => history\.pushState\(Object\.assign\(\{\}, history\.state \|\| \{\}, \{ lib: 1 \}\), ''\)\);/.test(lib), 'פתיחת הספרייה מהתפריט — pushState אחרי שסגירת התפריט נחתה');
+ok(/if \(!restore\) afterBack\(\(\) => history\.pushState\(Object\.assign\(\{\}, history\.state \|\| \{\}, \{ lib: 1, ld: 0 \}\), ''\)\);/.test(lib), 'פתיחת הספרייה מהתפריט — pushState אחרי שסגירת התפריט נחתה');
 ok(/h\('button', 'lib-bkpill ' \+ st\)/.test(lib) && !/lib-bkpill[^']*lib-hide-q/.test(lib), 'שורת הגיבוי (מעל שדה החיפוש) לא מוסתרת בחיפוש — השדה לא זז מתחת לאצבע');
 
 /* ---------- אפליקציה: "חזור" סוגר חלונות ---------- */
