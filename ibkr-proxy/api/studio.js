@@ -80,8 +80,7 @@ const PH_KEY_TTL = 7 * 24 * 3600e3;   // הצריבה יכולה לקרות ימ
 const SERVER_OPS = new Set(['poll', 'beat', 'devLog', 'devMet', 'pq', 'ytCk', 'ptNext', 'ptMark', 'pulse']);   // pulse — התראת השלב בווילון כל דקה (27/10/2026)   // ptNext/ptMark — העונה לעבודות שהטלפון מריץ (25/10/2026)   // ytCk — עוגיות החשבון הייעודי (25/10/2026)   // pq — בדיקות קישור (22/10/2026)   // devLog/devMet — האיסוף המלא (lib/devlog.js)
 /* מצב API: תקציב חודשי לכל משתמש (מפתח ה־API של המערכת). מעבר לזה — התקרה ב־Console של Anthropic */
 const LEARN_MAX = 5000, LEARN_SYNC_MAX = 400;   // מאגר הלמידה: כמה רשומות קוראים, וכמה משלימים בכל פתיחה של לוח הבקרה
-/* 29/10/2026 (בקשת המשתמש: "שלא יוגבלו פתאום"): ברירת המחדל — sysCfg.ucap שהמנהל קבע במרכז הניהול, ואם אין — התקרה הגבוהה
-   (UM.CAP_DEF). STUDIO_API_USER_MONTH_USD כבר לא בשימוש (היה $30). cfgC מתחמם ב־capWarm לפני כל חישוב תקרה */
+/* 29/10/2026: ברירת המחדל — sysCfg.ucap שהמנהל קבע במרכז הניהול, ואם אין — UM.CAP_DEF ($20, בקשת המשתמש). STUDIO_API_USER_MONTH_USD כבר לא בשימוש (היה $30). cfgC מתחמם ב־capWarm לפני כל חישוב תקרה */
 const USER_MONTH = () => { const c = Number(cfgC.v && cfgC.v.ucap); return Number.isInteger(c) && c >= UM.CAP_MIN && c <= UM.CAP_MAX ? c : UM.CAP_DEF; };
 /* 29/10/2026: תקרה לכל משתמש (studioStats.mc, נקבעת במרכז הניהול) — ואם אין, התקרה של המערכת */
 const userMonth = (st) => UM.capOf(st, USER_MONTH());

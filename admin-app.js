@@ -1671,9 +1671,9 @@ function capDlg(r) {
   }, { body: inp, ok: t('admUCapSave') });
   setTimeout(() => { try { inp.focus(); } catch (e) {} }, 50);
 }
-/* תקרת ברירת המחדל לכל המשתמשים (sysCfg.ucap). ריק = הגבוהה ($10,000) — "שלא יוגבלו פתאום" */
+/* תקרת ברירת המחדל לכל המשתמשים (sysCfg.ucap). ריק = UM.CAP_DEF ($20) */
 function defDlg() {
-  const inp = h('input', 'adm-inp'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.min = '1'; inp.max = '10000'; inp.value = String(D.act.capDef || ''); inp.placeholder = '10000';
+  const inp = h('input', 'adm-inp'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.min = '1'; inp.max = '10000'; inp.value = String(D.act.capDef || ''); inp.placeholder = '20';
   askConfirm(t('admUDefQ'), async () => {
     const v = inp.value.trim();
     if (v && !(Number(v) >= 1 && Number(v) <= 10000)) { flash(t('admUBadCap')); return; }
