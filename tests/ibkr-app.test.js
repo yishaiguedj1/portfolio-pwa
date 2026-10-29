@@ -151,6 +151,18 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   const impNoCost = T.ibkrMapImport({ positions: [{ symbol: 'NVDA', asset: 'STK', qty: 3, markPrice: 900, costBasis: 0, currency: 'USD' }] });
   ok(impNoCost.positions[0].avg === 900, 'בלי עלות — נופל למחיר שוק');
 
+  /* 29/10/2026: מחיר ממוצע בשיטת IBKR (עלות ממוצעת) מהעסקאות, לא FIFO של הדוח */
+  const acTrades = [
+    { symbol: 'XYZ', date: '2025-01-02', qty: 10, price: 300, commission: -1, currency: 'USD', side: 'BUY' },
+    { symbol: 'XYZ', date: '2025-06-02', qty: 10, price: 200, commission: -1, currency: 'USD', side: 'BUY' },
+    { symbol: 'XYZ', date: '2025-07-02', qty: -5, price: 250, commission: -1, currency: 'USD', side: 'SELL' },
+  ];
+  // FIFO: נשארו 5 ב־300 + 10 ב־200 → עלות הדוח ≈ 3505.5; ממוצע IBKR = 5002/20 = 250.1
+  const impAc = T.ibkrMapImport({ trades: acTrades, positions: [{ symbol: 'XYZ', asset: 'STK', qty: 15, markPrice: 240, costBasis: 3505.5, currency: 'USD' }] });
+  ok(Math.abs(impAc.positions[0].avg - 250.1) < 1e-9, 'ממוצע בשיטת IBKR — מכירה לא משנה את הממוצע');
+  const impAcGap = T.ibkrMapImport({ trades: acTrades, positions: [{ symbol: 'XYZ', asset: 'STK', qty: 30, markPrice: 240, costBasis: 6000, currency: 'USD' }] });
+  ok(impAcGap.positions[0].avg === 200, 'היסטוריה לא מסבירה את הכמות — נשאר ממוצע הדוח');
+
   /* איחוד לוטות לפי סימבול — הבאג של הכפילויות */
   const impLots = T.ibkrMapImport({
     positions: [
