@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1498 מפתחות מתוך 5482) */
+/* המחרוזות של admin (1499 מפתחות מתוך 5484) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1239,6 +1239,7 @@ he: {
   "admTyVid": "תרגום סרטון",
   "admUBadCap": "סכום בין 1 ל־10,000",
   "admUCap": "תקרה חודשית",
+  "admUCapAdm": "ללא תקרה של המערכת — רק המגבלה בחשבון Claude",
   "admUCapOwn": "אישית",
   "admUCapQ": "תקרה חודשית לעבודות של {n}, בדולרים. ריק = התקרה של המערכת ({d}).",
   "admUCapSave": "לשמור",
@@ -2739,6 +2740,7 @@ en: {
   "admTyVid": "Video translation",
   "admUBadCap": "An amount between 1 and 10,000",
   "admUCap": "Monthly cap",
+  "admUCapAdm": "No system cap — only the limit on the Claude account",
   "admUCapOwn": "Personal",
   "admUCapQ": "Monthly cap for {n}’s jobs, in dollars. Empty = the system cap ({d}).",
   "admUCapSave": "Save",

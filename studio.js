@@ -122,7 +122,7 @@ export function normSettings(o) {
 export function normApi(a) {
   if (!a || typeof a !== 'object') return null;
   const n = (x) => (Number.isFinite(+x) && +x >= 0 ? +x : 0);
-  return { month: n(a.month), cap: n(a.cap), online: Math.floor(n(a.online)), servers: Math.floor(n(a.servers)), admin: a.admin === true };
+  return { month: n(a.month), cap: n(a.cap), online: Math.floor(n(a.online)), servers: Math.floor(n(a.servers)), admin: a.admin === true, nc: a.nc === true };   // nc — המנהל: בלי תקרה חודשית של המערכת (29/10/2026)
 }
 /* השרתים (srvList, למנהל) — רק מה שמוצג; השם טקסט בלבד */
 export function normServers(list) {
@@ -357,7 +357,7 @@ export function startEstimate(mode, dur, norm, api, apiOn) {
   const d = dur > 0 ? dur : 0, m = modeById(mode);
   if (!d) return { min: 0, usd: 0, left: null, over: false };
   const usd = Math.round((goldEstimate([{ spec: { mode: m.id, dur: d } }], norm) + (apiOn ? NORM_FIXED_API : NORM_FIXED)) * 100) / 100;   // + הקבוע לעבודה (ב־Routine — פתיחת הסשן)
-  const left = apiOn && api ? Math.max(0, Math.round((api.cap - api.month) * 100) / 100) : null;
+  const left = apiOn && api && !api.nc ? Math.max(0, Math.round((api.cap - api.month) * 100) / 100) : null;
   return { min: Math.max(1, Math.round(m.min * d / 3600)), usd, left, over: left != null && usd > left };
 }
 function estText(e, apiOn) {
@@ -6346,7 +6346,7 @@ function pageTower(p) {
   if (va && va.n) {
     const tiles = h('div', 'st-ut-tiles');
     const t1 = h('div', 'st-ut-tile'); t1.append(h('span', null, T('studioUtCost')), (() => { const b = h('b'); b.append(usdEl(va.usd)); return b; })());
-    const cap = ui.api && ui.api.cap;
+    const cap = ui.api && !ui.api.nc && ui.api.cap;
     if (cap) { t1.append(h('small', null, T('studioUtOf', { x: ltr(fmtUsdWhole(cap)) }))); const m = h('span', 'st-ut-meter'); const mi = h('i'); mi.style.width = Math.min(100, Math.round(100 * va.usd / cap)) + '%'; m.append(mi); t1.append(m); }
     const t2 = h('div', 'st-ut-tile'); t2.append(h('span', null, T('studioUtMin')), h('b', null, fmtNum(va.min)), h('small', null, va.n === 1 ? T('studioUtVid1') : T('studioUtVids', { n: va.n })));
     tiles.append(t1, t2);
@@ -8485,7 +8485,7 @@ function pageEng(p) {
     // השרת של המערכת: בלי אשף ובלי Routine — רק התקציב, התקרה לעבודה והשרת
     const a = ui.api;
     p.append(setCard(T('studioSecApi'), list(
-      kvRow(T('studioApiMonth'), T('studioApiOf', { a: fmtUsd(a.month), b: fmtUsd(a.cap) })),
+      kvRow(T('studioApiMonth'), a.nc ? T('studioApiNoCap', { a: fmtUsd(a.month) }) : T('studioApiOf', { a: fmtUsd(a.month), b: fmtUsd(a.cap) })),
       rowNav({ label: T('studioApiCap'), value: '$' + s.cap, onClick: () => go('def', 'cap'), k: 'def:cap' }),
       rowNav({ tile: tile('cloud', a.online ? 'green' : 'orange'), label: T('studioSrvT'), sub: a.online ? T('studioSrvOnN', { n: a.online }) : T('studioSrvNone'), onClick: () => go('server'), k: 'server' }))));
   } else if (!ui.mf) {
@@ -8685,7 +8685,7 @@ async function addServer() {
    לא ממציאים מספר. טהור */
 export function quotaPct(rec, api) {
   const sv = rec && rec.srv, cv = sv ? costView(sv.use, rec.spec.mode) : null;
-  if (!sv || sv.eng !== 'api' || !cv || !(cv.total > 0) || !api || !(api.cap > 0)) return null;
+  if (!sv || sv.eng !== 'api' || !cv || !(cv.total > 0) || !api || api.nc || !(api.cap > 0)) return null;
   const pct = cv.total / api.cap * 100;
   return { pct: pct < 1 ? Math.round(pct * 10) / 10 : Math.round(pct), cap: api.cap };
 }
