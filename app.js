@@ -3178,7 +3178,7 @@ function applyI18n() {
   renderLangToggle();
   try { renderThemeToggle(); } catch (e) {}
   try { renderPfNote(); } catch (e) {}
-  try { if (typeof positionTabIndicator === 'function') positionTabIndicator(); } catch (e) {}
+  try { if (typeof dialSync === 'function') dialSync(true); } catch (e) {}
   try {
     const gSub = document.getElementById('ovGLSub');
     if (gSub) gSub.textContent = (typeof isIbkrMode === 'function' && isIbkrMode())
@@ -6942,8 +6942,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.84.2';
-const APP_VERSION = 'v625';
+const APP_RELEASE = '2.85.0';
+const APP_VERSION = 'v626';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -9489,66 +9489,275 @@ function tabShouldRender(name) {
   tabDirty[name] = true;
   return false;
 }
-const TAB_ORDER = ['overview', 'stocks', 'trades', 'wishlist', 'deposits', 'pension', 'settings', 'advanced', 'backup']; // v287: advanced = עמוד משנה של ההגדרות; 14/10/2026: backup (גיבוי ל־Google Drive) — גם
+/* 29/10/2026 (בקשת המשתמש): הסדר מימין לשמאל (ב־RTL) — הגדרות, מעקב, מניות, הסקירה (באמצע), עסקאות, הפקדות, פנסיה; כמו בחוגה */
+const TAB_ORDER = ['settings', 'wishlist', 'stocks', 'overview', 'trades', 'deposits', 'pension', 'advanced', 'backup']; // v287: advanced = עמוד משנה של ההגדרות; 14/10/2026: backup (גיבוי ל־Google Drive) — גם
 function tabRenderer(name) {
   return { overview: renderOverview, stocks: renderStocks, trades: renderTrades, wishlist: renderWishlist, deposits: renderDeposits, pension: renderPension, settings: renderSettingsLive, advanced: renderSettingsLive, backup: pfbkPaint }[name] || null;
 }
-/* v193: גלולה ירוקה שמחליקה בין הלשוניות (במקום רקע שקופץ) — כמו בורר מקטעים של אפל. ממוקמת פיזית (offsetLeft),
-   עובד ב־RTL וב־LTR ובתוך סרגל שגולל. הפעם הראשונה — בלי אנימציה. */
-/* 20/10/2026 (בקשת המשתמש): לשונית "הגדרות" (גלגל שיניים) בסרגל רק כשעמוד ההגדרות פתוח — אחרי "פנסיה" (משמאל בעברית).
-   בכניסה היא נוספת בקצה, והסרגל נגלל אליה בתנועה רכה ("נמשכת" מדופן המסך) יחד עם הקובייה; ביציאה הסרגל נגלל חזרה
-   והיא יורדת רק אחרי שיצאה מהמסך. מחזיר true כשהגלילה של הסרגל בטיפול כאן */
-let _tabSetT = 0;
-function tabSetBar(on) {
-  const tabs = typeof document !== 'undefined' && document.querySelector && document.querySelector('nav.tabs');
-  if (!tabs || !tabs.classList) return false;
-  const had = tabs.classList.contains('set-on');
-  clearTimeout(_tabSetT);
-  if (!on && !had) return false;
-  const rtl = getComputedStyle(tabs).direction === 'rtl', instant = document.documentElement.classList.contains('booting') || cubeReduce();
-  const to = (end) => { const m = Math.max(0, tabs.scrollWidth - tabs.clientWidth); try { tabs.scrollTo({ left: end ? (rtl ? -m : m) : 0, behavior: instant ? 'auto' : 'smooth' }); } catch (e) { tabs.scrollLeft = end ? (rtl ? -m : m) : 0; } };
-  if (on) { tabs.classList.add('set-on'); to(true); return true; }
-  to(false);
-  _tabSetT = setTimeout(() => {
-    if (tabs.querySelector('.tab-set.active')) return;
-    tabs.classList.remove('set-on');
-    tabTrackIndicator(260);   // שאר הלשוניות מתרחבות בחזרה — הסימון עוקב אחריהן
-  }, instant ? 0 : 460);
-  return true;
-}
-function tabTrackIndicator(ms) {   // הסימון צמוד ללשונית הפעילה בזמן שהפריסה של הסרגל משתנה
-  if (typeof requestAnimationFrame !== 'function') { try { positionTabIndicator(true); } catch (e) {} return; }
-  const t0 = Date.now();
-  const f = () => { try { positionTabIndicator(true); } catch (e) {} if (Date.now() - t0 < ms) requestAnimationFrame(f); };
-  requestAnimationFrame(f);
-}
-function positionTabIndicator(track) {
-  const tabs = document.querySelector('.tabs');
-  if (!tabs || !tabs.querySelector) return;
-  let ind = tabs.querySelector('.tab-ind');
-  if (!ind) {
-    ind = document.createElement('span');
-    ind.className = 'tab-ind';
-    ind.setAttribute('aria-hidden', 'true');
-    tabs.insertBefore(ind, tabs.firstChild);
+/* ---- 29/10/2026 (בקשת המשתמש, לפי סרטון): הלשוניות = "חוגה" בתחתית המסך ----
+   הפריטים יושבים על קשת (DIAL_DROP); הפעיל במרכז וגדל לבועה עם הכיתוב, והשאר עיגולים עם סמל וכיתוב מתחת. המצב = {pos, from, to, p}:
+   pos — איזה פריט במרכז (שבר = באמצע תנועה), ו"פעילות" שעוברת בהצלבה מ־from ל־to לפי p (הבועה הישנה מתכווצת והחדשה גדלה יחד).
+   במעבר עמודים החוגה זזה באותו קפיץ ובאותו זמן התחלה של הקובייה (tabCubeRun → dialAnimate, WAAPI — רץ גם כשהעמוד החדש נצבע),
+   ובגרירה של העמוד — צמודה לאצבע (dialCube). גרירה של החוגה עצמה גוללת אותה בחופשיות (בלי לשנות לשונית); לחיצה = מעבר,
+   ואם לא נלחץ כלום היא חוזרת לפעיל. "הגדרות" — לשונית קבועה, הימנית ביותר (בקשת המשתמש); עמודי המשנה שלה מסמנים אותה. */
+const DIAL_TABS = TAB_ORDER.slice(0, 7);   // index 0 = הימני ביותר ב־RTL
+const DIAL_SET = 0, DIAL_S0 = 0.68, DIAL_DROP = 2.4;
+const _dial = { st: null, run: null, drag: null, ride: null, ret: 0, noClick: 0, els: null };
+function dialIndex(name) { const i = DIAL_TABS.indexOf(name); return i >= 0 ? i : (NAV_SUBS.indexOf(name) >= 0 ? DIAL_SET : 0); }
+function dialStep(vw) { return Math.max(60, Math.min(84, (vw || 400) / 6.2)); }   // המרחק בין פריטים — כל השבעה על המסך, הקצוות חצי־גלויים (כמו בסרטון)
+function dialRest(i) { return { pos: i, from: i, to: i, p: 0 }; }
+function dialMax() { return DIAL_TABS.length - 1; }
+/* טהורה (נבדקת): הערכים של כל פריט במצב st — מיקום על הקשת, גודל העיגול, ושקיפות הסמל / הבועה / הכיתוב */
+function dialFrame(st, n, vw, rtl) {
+  const S = dialStep(vw), out = [], c01 = (x) => Math.max(0, Math.min(1, x)), f = (x) => Math.round(x * 100) / 100 || 0;
+  for (let i = 0; i < n; i++) {
+    const d = i - st.pos, ad = Math.abs(d);
+    const a = c01(st.from === st.to ? (i === st.from ? 1 : 0) : (i === st.from ? 1 - st.p : 0) + (i === st.to ? st.p : 0));
+    const e = a * a * (3 - 2 * a);                         // smoothstep — ההצלבה רכה בשני הקצוות
+    const o = c01((3.6 - ad) / 0.6);                       // מעבר לשבעה — נמוגים (בגרירה)
+    const x = (rtl ? -d : d) * S, y = DIAL_DROP * d * d - 4 * e, sc = 1 - 0.045 * Math.min(ad, 3);
+    out.push({
+      it: 'translate3d(' + f(x) + 'px, ' + f(y) + 'px, 0) scale(' + f(sc) + ')', o: f(o),
+      disc: 'scale(' + f(DIAL_S0 + (1 - DIAL_S0) * e) + ')', glow: f(e), ico: f(c01(1 - e * 1.7)),
+      bub: f(c01((e - 0.35) / 0.65)), bs: 'scale(' + f(0.82 + 0.18 * e) + ')', lbl: f(c01(1 - e * 1.8)),
+    });
   }
-  const act = tabs.querySelector('.tab.active');
-  ind.classList.toggle('off', !act); // v223: בהגדרות אין לשונית פעילה — הגלולה נעלמת
-  if (!act || !act.offsetWidth) return;
-  /* 14/10/2026 (נמדד בכניסה מהווידג'ט): החלקה רק כשהלשונית הפעילה התחלפה מול העין — מדידה מחדש של אותה לשונית
-     (גופן שנטען, שינוי רוחב) או לפני הציור הראשון (html.booting) קופצת למקום, לא "נוסעת" לאורך השורה */
-  const same = ind._tab === act.dataset.tab, quiet = same || track === true || document.documentElement.classList.contains('booting');
-  ind._tab = act.dataset.tab;
-  if (quiet) ind.style.transition = 'none';
-  ind.style.width = act.offsetWidth + 'px';
-  ind.style.transform = 'translateX(' + act.offsetLeft + 'px)';
-  if (quiet && tabs.classList.contains('has-ind')) { void ind.offsetWidth; ind.style.transition = ''; }
-  if (!tabs.classList.contains('has-ind')) {
-    ind.style.transition = 'none';
-    tabs.classList.add('has-ind');
-    void ind.offsetWidth; // מיקום ראשון בלי החלקה
-    ind.style.transition = '';
+  return out;
+}
+function dialEls() {
+  if (_dial.els && _dial.els.length && _dial.els[0].it.isConnected) return _dial.els;
+  const nav = typeof document !== 'undefined' && document.querySelector && document.querySelector('nav.tabs');
+  if (!nav) return [];
+  _dial.els = DIAL_TABS.map((k) => nav.querySelector('.tab[data-tab="' + k + '"]')).filter(Boolean).map((it) => ({
+    it, disc: it.querySelector('.tab-disc'), glow: it.querySelector('.tab-glow'), ico: it.querySelector('.tab-ico'), bub: it.querySelector('.tab-bub'), lbl: it.querySelector('.tab-lbl'),
+  }));
+  return _dial.els;
+}
+function dialRtl() { return String((document.documentElement && document.documentElement.dir) || 'ltr') === 'rtl'; }
+function dialPaint(st) {
+  const els = dialEls();
+  _dial.st = st;
+  if (!els.length) return;
+  const fr = dialFrame(st, els.length, window.innerWidth, dialRtl());
+  els.forEach((e, i) => {
+    const v = fr[i];
+    e.it.style.transform = v.it; e.it.style.opacity = v.o; e.it.style.pointerEvents = v.o < 0.3 ? 'none' : '';
+    if (e.disc) e.disc.style.transform = v.disc;
+    if (e.glow) e.glow.style.opacity = v.glow;
+    if (e.ico) e.ico.style.opacity = v.ico;
+    if (e.bub) { e.bub.style.opacity = v.bub; e.bub.style.transform = v.bs; }
+    if (e.lbl) e.lbl.style.opacity = v.lbl;
+  });
+}
+/* states = מצב לכל 1/CUBE_HZ שנ׳ (כמו הקובייה). o.to = הלשונית שאליה נוסעים (null — גלילה חופשית), o.cube = הקובייה שזה חלק ממנה */
+function dialAnimate(states, o) {
+  dialStop();
+  const els = dialEls(), last = states[states.length - 1];
+  if (!els.length || states.length < 2 || typeof els[0].it.animate !== 'function') return dialPaint(last);
+  const frs = states.map((st) => dialFrame(st, els.length, window.innerWidth, dialRtl()));
+  const dur = (states.length - 1) * 1000 / CUBE_HZ, anims = [];
+  const go = (el, kf) => {
+    if (!el) return;
+    const k0 = JSON.stringify(kf[0]);
+    if (kf.every((k) => JSON.stringify(k) === k0)) return;    // לא משתנה — בלי אנימציה
+    try { anims.push(el.animate(kf, { duration: dur, easing: 'linear', fill: 'forwards' })); } catch (e) {}
+  };
+  els.forEach((e, i) => {
+    const kf = (fn) => frs.map((fr) => fn(fr[i]));
+    e.it.style.pointerEvents = '';
+    go(e.it, kf((v) => ({ transform: v.it, opacity: v.o })));
+    go(e.disc, kf((v) => ({ transform: v.disc })));
+    go(e.glow, kf((v) => ({ opacity: v.glow })));
+    go(e.ico, kf((v) => ({ opacity: v.ico })));
+    go(e.bub, kf((v) => ({ transform: v.bs, opacity: v.bub })));
+    go(e.lbl, kf((v) => ({ opacity: v.lbl })));
+  });
+  _dial.st = last;
+  if (!anims.length) return dialPaint(last);
+  // כמו cubeRun: זמן ההתחלה = הפריים הנוכחי כשהוא טרי — אותו רגע בדיוק של הקובייה שנוצרה באותה משימה
+  try {
+    const t0 = document.timeline && document.timeline.currentTime;
+    if (t0 != null && typeof performance !== 'undefined' && performance.now() - t0 < 40) anims.forEach((a) => { a.startTime = t0; });
+  } catch (e) {}
+  const run = { states, anims, to: o && o.to != null ? o.to : null, cube: (o && o.cube) || null, zap: !!(o && o.zap) };
+  _dial.run = run;
+  Promise.all(anims.map((a) => a.finished)).then(() => dialEnd(run), () => {});
+}
+function dialEnd(run) {   // סוף (או סיום מיידי): המצב הסופי ב־style לפני שהאנימציות יורדות — בלי פריים באמצע
+  if (!run || _dial.run !== run) return;
+  _dial.run = null;
+  dialPaint(run.states[run.states.length - 1]);
+  run.anims.forEach((a) => { try { a.cancel(); } catch (e) {} });
+  if (run.zap && run.to != null) dialZap(run.to);
+}
+function dialStop() {     // עוצרים באמצע — החוגה נשארת איפה שהיא נראית עכשיו
+  const run = _dial.run;
+  if (!run) return;
+  _dial.run = null;
+  let i = 0;
+  try { const ct = run.anims[0] && run.anims[0].currentTime; if (ct != null) i = Math.round(ct * CUBE_HZ / 1000); } catch (e) {}
+  dialPaint(run.states[Math.max(0, Math.min(run.states.length - 1, i))]);
+  run.anims.forEach((a) => { try { a.cancel(); } catch (e) {} });
+}
+function dialZap(i) {     // נחיתה על לשונית חדשה: גל וברק על הבועה, פעם אחת
+  const e = dialEls()[i];
+  if (!e || cubeReduce()) return;
+  e.it.classList.remove('zap'); void e.it.offsetWidth; e.it.classList.add('zap');
+  clearTimeout(e.zt); e.zt = setTimeout(() => e.it.classList.remove('zap'), 800);
+}
+function dialGo(i, v0) {  // מעבר בלי קובייה (או חזרה למרכז אחרי גלילה) — אותו קפיץ
+  dialStop();
+  clearTimeout(_dial.ret);
+  const s = _dial.st || dialRest(i), ai = s.p >= 0.5 ? s.to : s.from;
+  const ps = cubeSpring(0, v0 || 0, 1);
+  dialAnimate(ps.map((p) => ({ pos: s.pos + (i - s.pos) * p, from: ai, to: i, p: ai === i ? 0 : p })), { to: i, zap: ai !== i });
+}
+/* מצב הלשוניות אחרי מעבר / שינוי גודל / שפה. מעבר בקובייה כבר מניע את החוגה (run.to) — לא נוגעים */
+function dialSync(instant, name) {   // name — הלשונית החדשה (ב־switchTab העמוד הפעיל עוד לא התחלף)
+  if (typeof document === 'undefined' || !dialEls().length) return;
+  const i = dialIndex(name || currentTabName());
+  if (_dial.drag || _dial.ride || (_dial.run && _dial.run.to === i)) return;
+  const s = _dial.st;
+  if (instant || !s || document.documentElement.classList.contains('booting') || cubeReduce() || document.hidden) { dialStop(); clearTimeout(_dial.ret); return dialPaint(dialRest(i)); }
+  if (!_dial.run && s.pos === i && s.from === i && s.to === i) return dialPaint(s);   // רוחב/שפה — מחשבים מחדש באותו מקום
+  dialGo(i);
+}
+/* הקובייה (tabCubeDrag) — מאיפה החוגה מתחילה ולאן; dialCubeState = המצב שמתאים לזווית p של הקובייה */
+function dialCubeBegin(c, cur, to, side) {
+  dialStop();
+  clearTimeout(_dial.ret);
+  const from = dialIndex(cur), s = _dial.st || dialRest(from), fwd = (side === 1) !== dialRtl();
+  c.dial = { pos0: s.pos, from, to: to ? dialIndex(to) : null, dir: fwd ? 1 : -1 };
+}
+function dialCubeState(c, p) {
+  const d = c.dial;
+  if (d.to == null) return { pos: d.pos0 + d.dir * Math.min(CUBE_RUB, p) * 2.4, from: d.from, to: d.from, p: 0 };   // "קפיץ" — נמשכת מעט ונהדפת
+  return { pos: d.pos0 + (d.to - d.pos0) * p, from: d.from, to: d.to, p };
+}
+function dialCube(c) { if (c && c.dial) dialPaint(dialCubeState(c, c.p || 0)); }
+function dialCubeRun(c, p1, v0) {
+  if (!c || !c.dial) return;
+  const ps = cubeSpring(c.p || 0, v0 || 0, p1), land = p1 === 1 && c.dial.to != null;   // בדיוק הסדרה של cubeRun
+  dialAnimate(ps.map((p) => dialCubeState(c, p)), { to: land ? c.dial.to : c.dial.from, cube: c, zap: land && c.dial.to !== c.dial.from });
+}
+function dialCubeDone(c) { if (_dial.run && _dial.run.cube === c) dialEnd(_dial.run); }
+function dialRubber(pos, max) {   // מעבר לקצה — נמשכת בהתנגדות
+  const over = pos < 0 ? pos : pos > max ? pos - max : 0;
+  return over ? (pos < 0 ? 0 : max) + over * 0.55 / (1 + Math.abs(over) * 1.4) : pos;
+}
+/* 29/10/2026 (סרטון המשתמש): גרירת החוגה מעבירה גם את העמודים — מה שבמרכז נבחר תוך כדי, והקובייה צמודה למיקום החוגה.
+   העמוד בזרימה = הנוכחי (k); הקובייה מולו אל השכן בכיוון של pos, בזווית |pos − k|. הגיע לשכן (זווית מלאה) — הוא נעשה
+   הנוכחי (switchTab בלי אנימציה, כמו סוף קובייה) והנסיעה ממשיכה ממנו. אחרי השחרור — אותו קפיץ של הקובייה (rAF: הפאות מתחלפות באמצע) */
+function dialRidePaint(r, pos) {
+  const max = dialMax(), cp = Math.max(0, Math.min(max, pos)), a = Math.floor(cp);
+  dialPaint({ pos, from: a, to: Math.min(max, a + 1), p: cp - a });
+  if (r) dialRideCube(r, pos);
+}
+function dialRideCube(r, pos) {
+  for (let n = 0; n < 8; n++) {
+    const name = currentTabName(), k = dialIndex(name), d = pos - k, dir = d > 0.001 ? 1 : d < -0.001 ? -1 : 0;
+    if (r.c && r.dir !== dir) dialRideDrop(r);
+    if (!dir) return;
+    const to = DIAL_TABS[k + dir] || null;
+    if (!r.c) {
+      if (to ? !tabCubeOk(name, to, null) : cubeReduce()) {   // בלי קובייה (תנועה מופחתת) — מתחלף בחצי הדרך
+        if (to && Math.abs(d) >= 0.5) { switchTab(to, { instant: true }); continue; }
+        return;
+      }
+      r.c = tabCubeDrag(name, to, cubeSideFwd(dir > 0)); r.dir = dir; tabCube = r.c;
+    }
+    const p = Math.abs(d);
+    if (!to) return cubeSet(r.c, Math.min(1, p) * 0.18);   // קצה — "קפיץ" קטן
+    if (p < 1) return cubeSet(r.c, p);
+    dialRideLand(r);
   }
+}
+function dialRideDrop(r) {   // חזרה לעמוד הנוכחי — הנכנס מוסתר
+  const c = r.c; r.c = null;
+  if (tabCube === c) tabCube = null;
+  cubeSet(c, 0);
+  cubeFaceOff(c.out);
+  if (c.in) { c.in.el.classList.remove('cube-in'); cubeFaceOff(c.in); }
+}
+function dialRideLand(r) {   // הגיע לשכן — הוא העמוד הנוכחי (כמו סוף tabCubeRun)
+  const c = r.c; r.c = null;
+  if (tabCube === c) tabCube = null;
+  cubeSet(c, 1);
+  switchTab(c.to, { cubeDone: true, keepScroll: true });
+  cubeFaceOff(c.out);
+  c.in.el.classList.remove('cube-in'); cubeFaceOff(c.in);
+  cancelScrollRestore(); navScrollTop();
+}
+function dialRideRun(r, xs) {   // xs = מיקום החוגה בכל 1/CUBE_HZ שנ׳
+  const t0 = performance.now(), last = xs[xs.length - 1];
+  const step = () => {
+    if (_dial.ride !== r) return;
+    const i = Math.min(xs.length - 1, Math.round((performance.now() - t0) * CUBE_HZ / 1000));
+    dialRidePaint(r, xs[i]);
+    if (i < xs.length - 1) r.raf = requestAnimationFrame(step); else dialRideEnd(r);
+  };
+  r.finish = () => { cancelAnimationFrame(r.raf); if (_dial.ride === r) { dialRidePaint(r, last); dialRideEnd(r); } };
+  cubeNow = r;   // נגיעה בעמוד / מעבר אחר — מסיימים מיד
+  r.raf = requestAnimationFrame(step);
+}
+function dialRideEnd(r) {
+  if (_dial.ride !== r) return;
+  _dial.ride = null;
+  if (cubeNow === r) cubeNow = null;
+  if (r.c) dialRideDrop(r);
+  const k = dialIndex(currentTabName());
+  dialPaint(dialRest(k));
+  if (k !== r.k0) dialZap(k);
+}
+function wireDial() {
+  const nav = typeof document !== 'undefined' && document.querySelector && document.querySelector('nav.tabs');
+  if (!nav || nav._dial) return;
+  nav._dial = true;
+  const clock = () => ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now());
+  let g = null;
+  nav.addEventListener('touchstart', (e) => {
+    g = null;
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    g = { x0: t.clientX, y0: t.clientY, lock: 0, samples: [[clock(), t.clientX]] };
+  }, { passive: true });
+  nav.addEventListener('touchmove', (e) => {
+    if (!g) return;
+    const t = e.touches[0], dx = t.clientX - g.x0;
+    if (!g.lock) {
+      if (Math.abs(dx) < 8) return;
+      if (cubeNow && cubeNow.finish) cubeNow.finish();   // קובייה / נסיעה קודמת — נוחתת מיד, והחוגה איתה
+      dialStop(); clearTimeout(_dial.ret);
+      const s = _dial.st || dialRest(dialIndex(currentTabName()));
+      Object.assign(g, { lock: 1, x0: t.clientX, pos0: s.pos, tick: Math.round(s.pos) });
+      _dial.drag = g;
+      _dial.ride = { c: null, dir: 0, k0: dialIndex(currentTabName()) };
+    }
+    if (e.cancelable) e.preventDefault();
+    const now = clock();
+    g.samples.push([now, t.clientX]);
+    while (g.samples.length > 2 && now - g.samples[0][0] > 150) g.samples.shift();
+    const max = dialMax(), pos = dialRubber(g.pos0 + (dialRtl() ? 1 : -1) * (t.clientX - g.x0) / dialStep(window.innerWidth), max);
+    dialRidePaint(_dial.ride, pos);
+    const k = Math.round(pos);
+    if (k !== g.tick && k >= 0 && k <= max) { g.tick = k; try { navigator.vibrate && navigator.vibrate(4); } catch (err) {} }   // "קליק" של חוגה בכל פריט
+  }, { passive: false });
+  const end = (e, cancelled) => {
+    const s = g; g = null;
+    if (!s || !s.lock) return;
+    _dial.drag = null;
+    _dial.noClick = clock();
+    const r = _dial.ride, st = _dial.st, max = dialMax(), S = dialStep(window.innerWidth);
+    if (!r) return;
+    const vi = cancelled ? 0 : swipeVelocity(s.samples, clock()) * 1000 / S * (dialRtl() ? 1 : -1);   // פריטים לשנייה
+    const near = Math.max(0, Math.min(max, Math.round(st.pos)));
+    const to = Math.max(0, Math.min(max, Math.max(near - 1, Math.min(near + 1, Math.round(st.pos + vi * 0.2))))), span = to - st.pos;
+    const ps = cubeSpring(0, Math.abs(span) > 0.02 ? vi / span : 0, 1);
+    dialRideRun(r, ps.map((p, i) => (i === ps.length - 1 ? to : st.pos + span * p)));
+  };
+  nav.addEventListener('touchend', (e) => end(e, false), { passive: true });
+  nav.addEventListener('touchcancel', (e) => end(e, true), { passive: true });
+  nav.addEventListener('click', (e) => { if (clock() - _dial.noClick < 400) { e.stopPropagation(); e.preventDefault(); } }, true);   // סוף גרירה אינו לחיצה
 }
 /* v193: כיוון הכניסה של העמוד (ציר משותף, כמו Material/iOS) — לשונית "קדימה" = העמוד נכנס מהצד שאליו הולכים
    (ב־RTL הפוך). נכתב כמשתנה CSS על העמוד; האנימציה עצמה ב־styles.css (tabIn). */
@@ -9657,19 +9866,10 @@ function switchTab(name, opts) {
   if (!cubeDone && cubeNow && cubeNow.finish) cubeNow.finish(); // 14/10/2026: מעבר קודם עוד מסתובב — מסיימים אותו מיד
   if (!cubeDone && tabCubeOk(prev, name, opts)) return tabCubeSwitch(prev, name, opts); // מעבר בקובייה (בסוף: כאן שוב, cubeDone)
   if ((prev === 'stocks' || prev === 'wishlist') && name !== prev) { try { closeStockCards(); } catch (e) {} } // v231; v240: גם מעקב
-  let actTab = null;
   const setPg = name === 'settings' || NAV_SUBS.indexOf(name) >= 0;   // 20/10/2026: גם בעמודי המשנה של ההגדרות — "הגדרות" מסומנת
-  document.querySelectorAll('.tab').forEach((t) => {
-    const on = t.dataset.tab === name || (setPg && t.dataset.tab === 'settings');
-    t.classList.toggle('active', on);
-    if (on) actTab = t;
-  });
-  const setMove = tabSetBar(setPg);
-  // v193: הגלולה נמדדת לפני שהעמוד החדש מוצג — ה־layout הכפוי (offsetLeft) מכסה רק את שורת הלשוניות
-  try { positionTabIndicator(); } catch (e) {}
-  if (!setMove && actTab && actTab.scrollIntoView) {
-    try { actTab.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch (e) {}
-  }
+  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name || (setPg && t.dataset.tab === 'settings')));
+  // 29/10/2026: החוגה בתחתית — במעבר בקובייה היא כבר בתנועה (tabCubeRun); אחרת נוסעת לכאן באותו קפיץ, או במקום בפתיחה
+  try { dialSync(!!(opts && (opts.restore || opts.instant)), name); } catch (e) {}
   setTabPageDirection(prev, name);
   // 14/10/2026: אחרי קובייה — בלי אנימציית הכניסה (no-in נשאר עד שהעמוד יוצא; הסרתו מעמוד פעיל הייתה מריצה אותה מחדש, לקח v324)
   document.querySelectorAll('.tabpage').forEach((s) => { if (s.id !== 'tab-' + name || !cubeDone) s.classList.remove('no-in'); else s.classList.add('no-in'); });
@@ -9742,8 +9942,10 @@ function tabPrewarm() {
 }
 function tabCubeRun(c, p1, v0) {
   tabCube = c;
+  dialCubeRun(c, p1, v0);   // 29/10/2026: החוגה בתחתית — באותו קפיץ ובאותו רגע
   cubeRun(c, p1, v0, () => {
     if (tabCube === c) tabCube = null;
+    dialCubeDone(c);
     cubeFaceOff(c.out); if (c.out) c.out.el.classList.remove('cube-out');
     if (c.in) { c.in.el.classList.remove('cube-in'); cubeFaceOff(c.in); }   // קודם מוסתר, אחר כך חוזר לזרימה
   });
@@ -9783,6 +9985,7 @@ function tabCubeDrag(cur, to, side) { // תחילת התזוזה בגרירה; t
     tabPageRender(to);
     try { fitNumbers(pg); } catch (e) {}
   }
+  dialCubeBegin(c, cur, to, side);
   cubeSet(c, 0);
   return c;
 }
@@ -9797,14 +10000,7 @@ function tabCubeGo(c, v0, name, opts) {
   tabCubeRun(c, 1, v0);
   switchTab(name, Object.assign({}, opts, { cubeDone: true, keepScroll: true }));
   if (sy > 0) { out.style.position = 'relative'; out.style.top = -sy + 'px'; }
-  const tabs = sy > 0 && document.querySelector('.tabs'), t0 = tabs ? tabs.getBoundingClientRect().top : 0;
-  cancelScrollRestore(); navScrollTop();
-  /* 14/10/2026 (דיווח המשתמש): בעמוד גלול שורת הלשוניות מאחורי ההדר (sticky), והחזרה לראש העמוד הציגה אותה בבת אחת.
-     עכשיו היא יורדת ממקומה מאחורי ההדר יחד עם תחילת הסיבוב */
-  if (tabs && typeof tabs.animate === 'function' && !cubeReduce()) {
-    const d = t0 - tabs.getBoundingClientRect().top;
-    if (Math.abs(d) > 1) { try { tabs.animate([{ transform: 'translateY(' + d + 'px)' }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.2,.8,.2,1)' }); } catch (e) {} }
-  }
+  cancelScrollRestore(); navScrollTop();   // 29/10/2026: הלשוניות בתחתית (קבועות) — אין שורה דבוקה שצריכה לרדת עם הגלילה
 }
 function tabCubeCommit(c, v0) { tabCubeGo(c, v0, c.to, null); }
 /* v325: גלילה תוכנתית של מעבר טאב (ראש העמוד) — מסומנת data-nav-scroll על <html> לשני פריימים, כדי שכלי המדידה
@@ -14241,14 +14437,13 @@ function barHeightVar() {
    פס גלילה אופקי, טאבי הרשימות וקצה המסך (מחוות "חזור") — לא נחשבים.
    14/10/2026 (בקשת המשתמש): העמוד מסתובב בקובייה צמוד לאצבע; **ההחלקה הקצרה בין רשימות המעקב בוטלה** —
    בכל הטאבים החלקה = עמוד, ובין הרשימות עוברים בלחיצה על הצ'יפים. */
-const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'settings' && t !== 'advanced' && t !== 'backup');
+// 29/10/2026: ההגדרות = עמוד רגיל, הימני ביותר
+const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'advanced' && t !== 'backup');
 function pageSwipeTarget(cur, next) { // next=true → העמוד הבא (שמאלה ב־RTL)
   if (cur === 'advanced' || cur === 'backup') return next ? null : 'settings'; // v287: עמוד משנה — החלקה אחורה חוזרת להגדרות (כמו באייפון)
-  if (cur === 'settings') return next ? null : PAGE_SWIPE_MAIN[PAGE_SWIPE_MAIN.length - 1];
   const i = PAGE_SWIPE_MAIN.indexOf(cur);
   if (i < 0) return null;
-  if (next) return i === PAGE_SWIPE_MAIN.length - 1 ? 'settings' : PAGE_SWIPE_MAIN[i + 1];
-  return i === 0 ? null : PAGE_SWIPE_MAIN[i - 1];
+  return (next ? PAGE_SWIPE_MAIN[i + 1] : PAGE_SWIPE_MAIN[i - 1]) || null;
 }
 function pageSwipeBlocked(tg, root) {
   if (!tg || !tg.closest) return true;
@@ -14338,7 +14533,7 @@ function wirePageSwipe() {
     let act = pageSwipeDecide(d, g.w, 0);
     if (act === 'page' && !g.to) act = null;
     if (pp > 0 && !g.cube) g.cube = tabCubeDrag(g.cur, g.to, cubeSideFwd(g.next));
-    if (g.cube) cubeSet(g.cube, g.cube.rub ? pp * 0.15 : pp);
+    if (g.cube) { cubeSet(g.cube, g.cube.rub ? pp * 0.15 : pp); dialCube(g.cube); }
     if (act !== g.act && act === 'page') buzz(12);
     g.act = act;
   }
@@ -16844,6 +17039,7 @@ function init() {
   document.querySelectorAll('.tab').forEach((t) => {
     t.addEventListener('click', () => switchTab(t.dataset.tab));
   });
+  wireDial();   // 29/10/2026: גרירה של החוגה בתחתית
   // מטבע — כפתור בטאב ההגדרות + כפתור בהדר (v109) שמחליפים בין $ ל־₪; נשמר בין רענונים
   const paintCurBtn = () => {
     const lbl = state.currency === 'ILS' ? '₪' : '$';
@@ -17224,7 +17420,7 @@ function init() {
     renderAll();
     document.documentElement.classList.remove('booting');   // 14/10/2026: התוכן מוצג רק מהציור הראשון (styles.css, html.booting)
     barHeightVar();                                          // 20/10/2026: גובה ההדר ללשוניות הדבוקות
-    requestAnimationFrame(() => { try { positionTabIndicator(); } catch (e) {} });
+    requestAnimationFrame(() => { try { dialSync(true); } catch (e) {} });
     refreshQuotes().then(() => { warmHistories(); liveStart(); });
     refreshEarnings().then(() => { renderOverview(); renderWishlist(); });
   };
@@ -17236,7 +17432,7 @@ function init() {
   if (!waitCloud) startApp();
   else setTimeout(startApp, 6000);
   if (window.Cloud && window.Cloud.boot) window.Cloud.boot(startApp);
-  window.addEventListener('resize', () => { try { positionTabIndicator(); } catch (e) {} });
+  window.addEventListener('resize', () => { try { dialSync(true); } catch (e) {} });
 }
 
 if (typeof document !== 'undefined') {
