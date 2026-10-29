@@ -29,7 +29,10 @@ ok(num(f[3].it, 0) === 0 && num(f[3].it, 1) < 0 && f[3].glow === 1 && f[3].bub =
 ok(/scale\(1\)/.test(f[3].disc) && /scale\(0\.68\)/.test(f[2].disc), 'הבועה בגודל מלא (חדה), השאר מוקטנים');
 ok(num(f[2].it, 0) > 0 && num(f[4].it, 0) < 0, 'RTL: מניות מימין לסקירה, עסקאות משמאל');
 ok(num(f[5].it, 1) > num(f[4].it, 1) && num(f[4].it, 1) > 0, 'קשת: ככל שרחוק מהמרכז — נמוך יותר');
-ok(f[0].o === 0 && f[6].o === 0 && f[1].o > 0 && f[1].o < 1, 'הקצוות נמוגים — ההגדרות והפנסיה מחוץ למסך כשהסקירה במרכז (כמו בסרטון: גוררים או מחליקים)');
+ok(f.every((v) => v.o === 1), 'כל השבעה גלויים כשהסקירה במרכז — ההגדרות והפנסיה בקצוות (29/10/2026, כמו בסרטון)');
+ok(Math.abs(num(f[0].it, 0)) + 40 > 206 && Math.abs(num(f[0].it, 0)) < 206, 'הקצוות חצי־גלויים: מרכז הפריט בתוך המסך, חלקו מעבר לקצה (412px)');
+ok(A.dialFrame({ pos: 0, from: 0, to: 0, p: 0 }, 7, 412, true)[6].o === 0, 'מעבר לשבעה מקומות — נמוג');
+ok(A.dialStep(412) >= 60 && A.dialStep(412) * 3 < 206, 'המרחק בין פריטים — שלושה מכל צד נכנסים במסך');
 ok(num(A.dialFrame(A.dialRest(3), 7, 412, false)[4].it, 0) > 0, 'LTR: הבא מימין');
 
 // הצלבה: באמצע המעבר שתי הבועות חצי־שקופות, והחוגה באמצע הדרך
@@ -48,7 +51,10 @@ ok(/dialCubeRun\(c, p1, v0\);[^\n]*\n  cubeRun\(c, p1, v0, \(\) => \{\n[^\n]*\n 
 ok(/const ps = cubeSpring\(c\.p \|\| 0, v0 \|\| 0, p1\)/.test(fn('dialCubeRun')) && /a\.startTime = t0/.test(fn('dialAnimate')), 'אותה סדרת מיקומים ואותו זמן התחלה כמו cubeRun');
 ok(/dialCubeBegin\(c, cur, to, side\);/.test(fn('tabCubeDrag')) && /cubeSet\(g\.cube, [^)]*\); dialCube\(g\.cube\);/.test(app), 'גרירת עמוד: החוגה צמודה לאצבע');
 ok(/_dial\.run && _dial\.run\.to === i/.test(fn('dialSync')), 'switchTab לא מפריע לחוגה שכבר נוסעת עם הקובייה');
-ok(/_dial\.ret = setTimeout/.test(fn('wireDial')) && /e\.stopPropagation\(\); e\.preventDefault\(\);/.test(fn('wireDial')), 'גרירת החוגה: לא נחשבת ללחיצה, וחוזרת לפעיל');
+ok(/dialRidePaint\(_dial\.ride, pos\)/.test(fn('wireDial')) && /dialRideRun\(r, /.test(fn('wireDial')) && /e\.stopPropagation\(\); e\.preventDefault\(\);/.test(fn('wireDial')), 'גרירת החוגה מעבירה גם את העמודים (29/10/2026), ולא נחשבת ללחיצה');
+ok(/_dial\.ride/.test(fn('dialSync')), 'switchTab בזמן נסיעה של החוגה לא עוצר אותה');
+ok(/r\.c = tabCubeDrag\(name, to, cubeSideFwd\(dir > 0\)\)/.test(fn('dialRideCube')) && /if \(p < 1\) return cubeSet\(r\.c, p\);/.test(fn('dialRideCube')) && /dialRideLand\(r\);/.test(fn('dialRideCube')), 'הקובייה צמודה למיקום החוגה; בזווית מלאה — השכן נעשה הנוכחי');
+ok(/switchTab\(c\.to, \{ cubeDone: true, keepScroll: true \}\)/.test(fn('dialRideLand')) && /cubeNow = r;/.test(fn('dialRideRun')) && /CUBE_HZ/.test(fn('dialRideRun')), 'נחיתה כמו סוף קובייה; השחרור באותו קפיץ, ונגיעה חדשה מסיימת אותו');
 ok(!/positionTabIndicator|tab-ind|tabSetBar/.test(app + css), 'בלי שאריות של הגלולה הישנה');
 
 // עיצוב
