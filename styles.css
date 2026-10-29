@@ -200,11 +200,13 @@ a { color: var(--link); }
   color: var(--on-surface);
 }
 .appbar::before {
-  content: ''; position: absolute; inset: 0 0 -110px 0; z-index: -1; pointer-events: none;
+  /* 29/10/2026 (בקשת המשתמש — ראש הכרטיס הפתוח "נבלע" בטשטוש שמתחת ללוגו): השכבה נמשכת רק 20px מתחת להדר (במקום 110),
+     והמעבר הרך מתחיל בתחתית ההדר עצמו — כרטיס שעולה לראש המסך (topCover + 10) נראה נקי וחד מהשורה הראשונה */
+  content: ''; position: absolute; inset: 0 0 -20px 0; z-index: -1; pointer-events: none;
   background: var(--bg);
   -webkit-backdrop-filter: blur(10px) saturate(1.2); backdrop-filter: blur(10px) saturate(1.2);
-  --scrim: linear-gradient(#000 0, #000 calc(100% - 200px), rgba(0, 0, 0, .93) calc(100% - 168px), rgba(0, 0, 0, .78) calc(100% - 134px),
-    rgba(0, 0, 0, .56) calc(100% - 100px), rgba(0, 0, 0, .32) calc(100% - 66px), rgba(0, 0, 0, .13) calc(100% - 34px), transparent 100%);
+  --scrim: linear-gradient(#000 0, #000 calc(100% - 56px), rgba(0, 0, 0, .78) calc(100% - 40px), rgba(0, 0, 0, .45) calc(100% - 24px),
+    rgba(0, 0, 0, .16) calc(100% - 10px), transparent 100%);
   -webkit-mask-image: var(--scrim); mask-image: var(--scrim);
 }
 @supports (animation-timeline: scroll()) {
@@ -254,6 +256,19 @@ html[dir="ltr"] .appbar-row > * { --dir: ltr; }
   font-size: 13px; }
 .appbar .appbar-sub > * > small { flex-basis: 100%; font-size: 12px; }
 .appbar .appbar-sub .st-pill i + svg { display: none; }
+/* 29/10/2026 (בקשת המשתמש — "נקי ומסודר בגודל ובצורה", לפי ת־עיצוב): כל בועות ההדר (השער, השוק, החיבור בסטודיו, הגיבוי באקדמיה)
+   באותו מבנה ובאותה טיפוגרפיה — כיתוב קטן ומשני למעלה (נקודה/אייקון + שם) והמצב/הערך מודגש מתחתיו, ממורכזים */
+.appbar .appbar-sub > :has(> .sub-cap) { height: auto; flex-direction: column; flex-wrap: nowrap; justify-content: center; align-items: center; gap: 1px; padding: 4px 8px; }
+.appbar .sub-cap { display: inline-flex; align-items: center; justify-content: center; gap: 5px; max-width: 100% !important; min-width: 0;
+  font-size: 12.5px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--on-surface-var); }
+.appbar .sub-cap i { width: 6px; height: 6px; }
+.appbar .sub-cap svg { width: 13px; height: 13px; flex: none; }
+.appbar .sub-cap small { font-size: inherit; font-weight: inherit; opacity: 1; }
+.appbar .sub-val { display: block; max-width: 100%; font-size: 17px; font-weight: 700; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--on-surface); }
+.appbar .st-pill:is(.pre, .post, .night) .sub-cap, .appbar .st-pill:is(.pre, .post, .night) .sub-val { color: inherit; }
+.appbar .st-pill.closed .sub-val, .appbar .lib-bkpill.off .sub-val { color: var(--on-surface-var); }
+.appbar .lib-bkpill.err .sub-cap, .appbar .lib-bkpill.err .sub-val { color: inherit; }
+@media (max-width: 374px) { .appbar .sub-cap { font-size: 11px; } .appbar .sub-val { font-size: 15px; } }
 /* תווית ארוכה (Connect Claude) נשברת בתוך עצמה, ליד הנקודה/האייקון — לא יורדת כולה לשורה משלה */
 .appbar .appbar-sub > * > span:not(.sr-only):not(:empty) { max-width: calc(100% - 20px); }
 @media (max-width: 374px) { .appbar .appbar-sub > * { font-size: 11px; padding: 3px; } .appbar .appbar-sub > * > small { font-size: 10px; } }
