@@ -34,6 +34,7 @@ ok(/function cubePre\(/.test(core) && /const cubePreBusy = /.test(core), 'cubePr
 }
 ok(/cube: \{ clone: cubeClone, pre: cubePre,/.test(app), 'הניתוח מקבל את cubePre מה־env');
 ok(/C\.pre\(ROOT, \(ghost\) =>/.test(an), 'הניתוח: מעבר בלחיצה דרך cubePre');
+ok(/C\.pre\(ROOT, [^\n]*\); mutate\(\); return; \}/.test(fn(an, 'navTo')), 'הניתוח: המצב משתנה מיד (tabLevel אחרי navTo רואה את הלשונית החדשה — אחרת "חזור" יוצא מהניתוח), רק הציור מחכה');
 ok(/await new Promise\(\(res\) => cubePre\(root, res\)\)/.test(fn(lib, 'cubeNav')), 'Academy: cubeNav דרך cubePre');
 ok(/cubePre\(root, \(g\) =>/.test(fn(st, 'render')) && /if \(pre\) pre\.remove\(\)/.test(fn(st, 'render')), 'Studio: render דרך cubePre, וההעתק יורד אם הציור בוטל');
 ok(/cubePreBusy\(\)\) return;/.test(fn(st, 'render')), 'Studio: ציור במקום בזמן ההמתנה מחכה');
