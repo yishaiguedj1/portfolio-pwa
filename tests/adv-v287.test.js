@@ -18,9 +18,9 @@ ok(/advancedTitle: 'אפשרויות מתקדמות'/.test(app) && /advancedTitl
 ok(/getElementById\('advancedOpen'\)[\s\S]{0,200}switchTab\('advanced'\)/.test(app) && /advB\.addEventListener\('click', \(\) => switchTab\('settings'\)\)/.test(app), 'פתיחה וחזרה');
 ok(/advanced: renderSettingsLive/.test(app) && /currentTabName\(\) !== 'advanced' && !tabShouldRender\('settings'\)/.test(fn('renderSettingsLive')), 'הווידג׳ט מצויר כשהעמוד פתוח');
 const ctx = {};
-vm.runInNewContext("const TAB_ORDER = ['overview', 'stocks', 'trades', 'wishlist', 'deposits', 'pension', 'settings', 'advanced'];" +
-  "const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'settings' && t !== 'advanced');" + fn('pageSwipeTarget') + ';this.f = pageSwipeTarget;', ctx);
+vm.runInNewContext("const TAB_ORDER = ['settings', 'wishlist', 'stocks', 'overview', 'trades', 'deposits', 'pension', 'advanced', 'backup'];" +
+  "const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'advanced' && t !== 'backup');" + fn('pageSwipeTarget') + ';this.f = pageSwipeTarget;', ctx);
 ok(ctx.f('advanced', false) === 'settings' && ctx.f('advanced', true) === null, 'החלקה אחורה מהעמוד → הגדרות; קדימה — כלום');
-ok(ctx.f('pension', true) === 'settings' && ctx.f('settings', true) === null, 'העמוד לא נכנס לסבב העמודים הראשיים');
-ok(/PAGE_SWIPE_MAIN = TAB_ORDER\.filter\(\(t\) => t !== 'settings' && t !== 'advanced'[^)]*\)/.test(app), 'advanced מחוץ לעמודים הראשיים');
+ok(ctx.f('settings', true) === 'wishlist' && ctx.f('pension', true) === null, 'העמוד לא נכנס לסבב העמודים הראשיים');
+ok(/PAGE_SWIPE_MAIN = TAB_ORDER\.filter\(\(t\) => t !== 'advanced' && t !== 'backup'\)/.test(app), 'advanced מחוץ לעמודים הראשיים');
 console.log('# ' + n + ' בדיקות עברו');

@@ -101,6 +101,7 @@ vm.runInContext('localStorage.removeItem("pwa_wlactive_v1"); DB.wlExtra = [];', 
 { const i = (id) => html.indexOf(id); ok(i('id="wlSortRow"') < i('id="wlSearchInput"') && i('id="wlSearchInput"') < i('id="wlTabs"') && i('id="wlTabs"') < i('id="wishlistList"'), 'מעקב: מיון ← חיפוש ← רשימות ← הרשימה'); }
 { const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
   ok(/\.menu-veil \{[^}]*visibility: hidden/.test(css) && /body\.menu-blur \.menu-veil \{[^}]*visibility: visible/.test(css), 'מסך התפריט השקוף מוסתר כשסגור (אחרת בטלפון התוכן לא נצבע עד גלילה)');
-  ok(/\.appbar \.fx-pill, \.appbar \.appbar-sub > \* \{[^}]*backdrop-filter: var\(--gl-fx\)[^}]*box-shadow: var\(--gl-btn-sh\)/.test(css), 'בועות ההדר בזכוכית של הכפתורים'); }
+  ok(/\.appbar \.fx-pill, \.appbar \.appbar-sub > \* \{[^}]*backdrop-filter: var\(--gl-fx\)[^}]*box-shadow: var\(--gl-btn-sh\)/.test(css), 'בועות ההדר בזכוכית של הכפתורים');
+  ok(/html :is\(\.chip-btn\.on, \.wl-tab\.on, \.lib-chip\.on[^)]*\) \{[^}]*radial-gradient[^}]*var\(--btn-c\) 55%/.test(css), 'צ׳יפ נבחר = הבועה הפעילה של החוגה (זכוכית נוזלית)'); }
 
 console.log('\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ' + n + ')');

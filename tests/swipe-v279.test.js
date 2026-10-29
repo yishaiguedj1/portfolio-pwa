@@ -11,14 +11,14 @@ const fn = (name) => { const i = app.indexOf('function ' + name + '('); let d = 
 
 // סדר העמודים — טהור
 const ctx = {};
-vm.runInNewContext("const TAB_ORDER = ['overview', 'stocks', 'trades', 'wishlist', 'deposits', 'pension', 'settings'];" +
-  "const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'settings');" + fn('pageSwipeTarget') + ';this.f = pageSwipeTarget;', ctx);
+vm.runInNewContext("const TAB_ORDER = ['settings', 'wishlist', 'stocks', 'overview', 'trades', 'deposits', 'pension', 'advanced', 'backup'];" +
+  "const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'advanced' && t !== 'backup');" + fn('pageSwipeTarget') + ';this.f = pageSwipeTarget;', ctx);
 const f = ctx.f;
-ok(f('stocks', true) === 'trades' && f('trades', true) === 'wishlist', 'הבא לפי סדר הלשוניות');
-ok(f('trades', false) === 'stocks' && f('stocks', false) === 'overview', 'הקודם לפי סדר הלשוניות');
-ok(f('overview', false) === null, 'לפני הסקירה — אין עמוד');
-ok(f('pension', true) === 'settings', 'אחרי העמוד האחרון — תמיד ההגדרות');
-ok(f('settings', true) === null && f('settings', false) === 'pension', 'מההגדרות — רק חזרה');
+// 29/10/2026 (בקשת המשתמש): מימין לשמאל — הגדרות, מעקב, מניות, סקירה, עסקאות, הפקדות, פנסיה
+ok(f('overview', true) === 'trades' && f('trades', true) === 'deposits' && f('deposits', true) === 'pension', 'הבא (שמאלה ב־RTL) לפי סדר הלשוניות');
+ok(f('overview', false) === 'stocks' && f('stocks', false) === 'wishlist' && f('wishlist', false) === 'settings', 'הקודם (ימינה) לפי סדר הלשוניות');
+ok(f('pension', true) === null && f('settings', false) === null, 'בקצוות — אין עמוד');
+ok(f('settings', true) === 'wishlist', 'ההגדרות = עמוד רגיל, הימני ביותר');
 ok(f('nope', true) === null, 'עמוד לא ראשי — בלי החלקה');
 
 // v281: סף כמו הסטנדרט (טהורה). 14/10/2026 (בקשת המשתמש): בלי "החלקה קצרה" לרשימות — החלקה = עמוד בכל מקום
