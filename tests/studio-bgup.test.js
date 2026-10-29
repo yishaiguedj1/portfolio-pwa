@@ -341,7 +341,9 @@ const { fakeR2, ENV } = require('./_r2fake');
   {
     const st = read('studio.js');
     ok(/visible: \(\) => typeof document === 'undefined' \|\| document\.visibilityState === 'visible'/.test(st), 'studio.js: השעון יודע אם הדף מוצג');
-    ok(/r\.slow \? 5/.test(st) && /BG_SLOW_RETRY_MS/.test(st) && /s\.bgSl = Math\.floor/.test(st), 'studio.js: איטי = 5 במדידה; לא מנסים שוב שלושה ימים; נשמר בהגדרות');
+    ok(/r\.slow \? 5/.test(st) && /s\.bgSl = Math\.floor/.test(st), 'studio.js: איטי = 5 במדידה; נשמר בהגדרות');
+    { const bc = st.slice(st.indexOf('async function bgCan('), st.indexOf('function bgPoll('));
+      ok(!/s\.bgSl/.test(bc), '29/10/2026: "איטי" לא חוסם את הרקע — Background Fetch רק כשהדף ברקע, ושם הוא עדיף על העלאה קפואה'); }
     ok(/r\.stall \? 4/.test(st) && /if \(st >= 2\) store\.settings\.bgNo = Date\.now\(\)/.test(st) && /s\.bgS2 = Math\.min\(9/.test(st),
       'studio.js: נתקע = 4 במדידה; פעם שנייה בטלפון הזה — לא מנסים חודש; המונה נשמר בהגדרות');
     ok(/const stale = Number\(o\.bgSt\) >= 2;/.test(st) && /if \(!stale && Number\.isFinite\(\+o\.bgNo\)/.test(st) && !/s\.bgSt =/.test(st),
@@ -413,8 +415,13 @@ const { fakeR2, ENV } = require('./_r2fake');
   /* ---------- 5. studio.js ---------- */
   const st = read('studio.js');
   const uv = st.slice(st.indexOf('upVideo: async (vGate) => {'), st.indexOf('videoDone: async'));
-  ok(/if \(await bgCan\(rec, file\)\) \{\s*await audioSettled; await vGate\(\);/.test(uv) && uv.indexOf('bgTry(') < uv.indexOf('net.upload('),
+  ok(/const handOk = \(\) => bgOk && !bgOff && aDone && !shown\(\);/.test(uv) && /audioSettled\.then\(\(\) => \{ aDone = true;/.test(uv) && uv.indexOf('bgTry(') < uv.indexOf('net.upload('),
     'הסרטון ברקע רק אחרי הקול (Background Fetch אי אפשר להשהות), ואחריו תמיד ההעלאה הרגילה (סוגרת / ממשיכה)');
+  ok(/const f = cur = flip\(shown, 0\);/.test(uv) && /const f = cur = flip\(handOk, BG_HAND_MS\);/.test(uv) && /signal: f\.signal/.test(uv) && /catch \(e\) \{ if \(!f\.flipped\(\)\) throw e; \}/.test(uv),
+    '29/10/2026: דף מוצג — הרגילה; ברקע BG_HAND_MS — Background Fetch; חוזרים לדף — מיד חזרה לרגילה (החלפה לא נחשבת עצירה)');
+  ok(/if \(r && !r\.ok\) bgOff = true;/.test(uv) && /if \(bgOk && shown\(\)\) await Promise\.race\(\[bgAbort\(id\),/.test(uv),
+    'Background Fetch שנכשל — עד הסוף רק הרגילה; העלאה ברקע ישנה מבוטלת לפני הרגילה (לא אותם חלקים פעמיים)');
+  ok(/if \(o\.signal && o\.signal\.aborted\) return \{ aborted: true \};/.test(read('studiobg.js')), 'הדף חזר לפני ההתחלה — בלי r2bg ובלי רישום');
   ok((st.match(/audioSettle\(\)/g) || []).length >= 3, 'הקול "הסתיים" בכל מסלול: כבר עלה / אין קול / עלה עכשיו');
   ok(/stopRun\(id\);\s*bgAbort\(id\);/.test(st), 'מחיקה / ביטול עבודה — מבטלים גם את ההעלאה ברקע (גם כשהדף לא מריץ אותה)');
   ok(/if \(r\.unsupported\) \{ store\.settings\.bgNo = Date\.now\(\); save\(\); \}/.test(st) && /s\.bgNo = Math\.floor\(\+o\.bgNo\)/.test(st), 'דפדפן שסירב — נשמר, ולא מנסים שוב חודש');

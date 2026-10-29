@@ -27,7 +27,7 @@ if (!/addEventListener\('push'/.test(sw)) {
 const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 const st = fs.readFileSync(path.join(__dirname, '..', 'studio.js'), 'utf8');
 ok(/const sv = get\('v'\);/.test(app) && /\(sv === 'play' \|\| sv === 'subs' \? '&v=' \+ sv : ''\)/.test(app) && /&v=\(play\|subs\)/.test(fs.readFileSync(path.join(__dirname, '..', 'studio-app.js'), 'utf8')), 'האפליקציה מעבירה רק play/subs מהקישור (ל־Studio העצמאי)');
-ok(/function goJobLink\(id, view, kind\) \{[^\n]*\n  go\('job', id, kind\);/.test(st) && /view === 'play' && canPlay\(rec\)/.test(st) && /view === 'subs' && canEdit\(rec\)/.test(st), 'הסטודיו: דף העבודה קודם (חזור → העבודה), נגן/עורך רק כשאפשר');
+ok(/function goJobLink\(id, view, kind\) \{[^\n]*\n  if \(!\(ui\.view === 'job' && ui\.param === id\)[^\n]*go\('job', id, kind\);/.test(st) && /view === 'play' && canPlay\(rec\)/.test(st) && /view === 'subs' && canEdit\(rec\)/.test(st), 'הסטודיו: דף העבודה קודם (חזור → העבודה), נגן/עורך רק כשאפשר');
 if (/actions: m\.k === 'done'/.test(sw)) {
   const vm = require('vm');
   const L = {}, shown = [], nav = [], navd = [], live = new Map();

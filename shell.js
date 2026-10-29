@@ -147,7 +147,7 @@ export function createShell(o) {
       veil = h('div', 'menu-veil'); veil.setAttribute('aria-hidden', 'true');
       veil.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
       (hdr.closest('.lib-root, .st-root') || document.body).append(veil);
-    }
+    } else if (open && !veil.isConnected) (hdr.closest('.lib-root, .st-root') || document.body).append(veil);   // 29/10/2026: ציור מחדש של הדף הוציא אותה
     document.body.classList.toggle('menu-blur', open);
     lang.setAttribute('aria-label', open ? t('menuSettings') : t('langAria'));
     theme.setAttribute('aria-label', open || !act ? t('menuThemeAria') : act.label);

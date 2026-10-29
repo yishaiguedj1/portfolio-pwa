@@ -2297,7 +2297,10 @@ html :is(.subpage-back, .an-back, .adm-back, .st-back, .kc-back, .an-cback):acti
 /* "חזור" בכהה — עיגול זכוכית ניטרלי ונקי (לפי ת־עיצוב): אפור שקוף, בלי צל כבד, קצה אור דק; החץ בצבע האפליקציה */
 /* "חזור" בכל ממשק כהה (כולל מסכי הנגן של Studio, שכהים תמיד) — גלולת זכוכית אפורה ניטרלית, כמעט אטומה, עם קצה אור:
    בולטת על כל רקע (גם על הגוון של האפליקציה) ולא מקבלת את צבעו. מקור אחד: --gl-back / --gl-back-sh */
-:root { --gl-back: rgba(84, 84, 90, .8); --gl-back-sh: inset 0 .5px 0 rgba(255, 255, 255, .34), 0 0 0 .5px rgba(255, 255, 255, .16), 0 3px 12px rgba(0, 0, 0, .5); }
+/* 29/10/2026 (בקשת המשתמש): בדיוק כמו כפתור התפריט בהדר בכהה — --surface-2 (לבן 8%) מעל --bg השחור = #141414 אטום,
+   עם הצל של --gl-btn-sh הכהה (קצה אור עליון + טבעת דקה + צל). הצבע של האפליקציה רק בחץ ובטקסט. ערכים קבועים — גם במסכים הכהים
+   של Studio כשהמערכת בבהיר */
+:root { --gl-back: #141414; --gl-back-sh: inset 0 1px 0 rgba(255, 255, 255, .26), inset 0 0 0 .5px rgba(255, 255, 255, .16), 0 4px 14px rgba(0, 0, 0, .4); }
 html[data-theme="dark"] :is(.subpage-back, .an-back, .adm-back, .st-back, .kc-back, .an-cback, .lib-back), html .st-dark .st-back,
 html[data-theme="dark"] .lib-root .lib-back { background: var(--gl-back) !important; box-shadow: var(--gl-back-sh) !important;
   -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); }
