@@ -9092,7 +9092,11 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   const anim = (kind === 'push' || kind === 'pop') && !still && !reduceMotion() && !document.hidden;
   const ghost = anim && typeof cubeClone === 'function' && root.firstChild ? cubeClone(root) : null;
   if (anim && !ghost) p.classList.add(kind === 'push' ? 'in-push' : 'in-pop');
+  // 29/10/2026 (בטלפון: תפריט ההמבורגר ב־Studio שקוף, התוכן חד מאחוריו — שונה מ־Academy): שכבת הטשטוש של התפריט (shell.js)
+  // יושבת בתוך השכבה; ציור דף מחדש (רענון הרשימה) מחק אותה. נשארת כל עוד התפריט פתוח
+  const veil = root.querySelector(':scope > .menu-veil');
   root.replaceChildren(p);
+  if (veil) root.append(veil);
   root.scrollTop = keepY;
   if (ghost) cubeGhostRun(root, ghost, cubeSideFwd(kind === 'push'));
   lastShape = shapeKey();
