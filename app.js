@@ -6940,8 +6940,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.82.9';
-const APP_VERSION = 'v621';
+const APP_RELEASE = '2.84.0';
+const APP_VERSION = 'v623';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -8331,6 +8331,7 @@ function liveMerge(got) {
     const old = state.quotes[s];
     if (!old || old.close !== got[s].close) moved.push(s);
     state.quotes[s] = got[s];
+    nightTickRecord(s, got[s]);
   }
   return moved;
 }
@@ -8483,10 +8484,55 @@ function renderLive(syms) {
   try { fitNumbers(); } catch (e) {}
 }
 
+/* 29/10/2026: שעונים בגרף התוך־יומי. הנתונים נשמרים בשעון הבורסה (date+time), והתצוגה — בשעון המכשיר
+   (המיקום/המדינה של המשתמש). tz חסר = שעון המכשיר. טהורות. */
+function symExTz(sym) { return /\.TA$/i.test(sym || '') ? 'Asia/Jerusalem' : 'America/New_York'; }
+function tzWall(ms, tz) {
+  const o = { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' };
+  if (tz) o.timeZone = tz;
+  const p = {};
+  for (const x of new Intl.DateTimeFormat('en-CA', o).formatToParts(new Date(ms))) p[x.type] = x.value;
+  return { date: p.year + '-' + p.month + '-' + p.day, time: (p.hour === '24' ? '00' : p.hour) + ':' + p.minute };
+}
+function exWallToMs(date, time, tz) {
+  const d = String(date || '').split('-'), t = String(time || '00:00').split(':');
+  const wall = Date.UTC(+d[0], +d[1] - 1, +d[2], +t[0] || 0, +t[1] || 0);
+  const off = (ms) => { const w = tzWall(ms, tz), a = w.date.split('-'), b = w.time.split(':'); return Date.UTC(+a[0], +a[1] - 1, +a[2], +b[0], +b[1]) - ms; };
+  let ms = wall - off(wall);
+  ms = wall - off(ms); // מעבר שעון — סבב שני
+  return ms;
+}
+
+/* 29/10/2026: המסחר הלילי (20:00–04:00 בניו יורק) — ל־Yahoo אין נרות לילה, אז נאספות דקות מהמחיר החי
+   (liveMerge, כל המניות) ונוספות לגרף היום אחרי סוף המסחר המאוחר. בזיכרון בלבד. sym → [{ts (שניות), close}] */
+const NIGHT_TICKS = {};
+function nightTickRecord(sym, q, nowMs) {
+  if (!q || q.session !== 'night' || !q.ext || q.ext.kind !== 'night' || !(q.ext.price > 0)) return;
+  const ts = q.ext.t > 0 ? q.ext.t : Math.floor((nowMs || Date.now()) / 1000);
+  let a = NIGHT_TICKS[sym];
+  if (!a || (a.length && ts - a[a.length - 1].ts > 10 * 3600)) a = NIGHT_TICKS[sym] = []; // לילה חדש
+  const last = a[a.length - 1];
+  if (last && ts < last.ts) return;
+  if (last && Math.floor(last.ts / 60) === Math.floor(ts / 60)) a[a.length - 1] = { ts: ts, close: q.ext.price };
+  else { a.push({ ts: ts, close: q.ext.price }); if (a.length > 600) a.shift(); }
+}
+
 /* v139: נקודת "עכשיו" בגרף היומי — המחיר החי בשעת הדקה האחרונה שנסחרה.
-   מחליפה את הנר האחרון אם זו אותה דקה, אחרת נוספת אחריו. לא משנה את המטמון. */
-function intradayLiveRows(rows, q) {
+   מחליפה את הנר האחרון אם זו אותה דקה, אחרת נוספת אחריו. לא משנה את המטמון.
+   29/10/2026: ticks = דקות המסחר הלילי (NIGHT_TICKS) — נוספות אחרי הנר האחרון (עד 10 שעות אחריו). */
+function intradayLiveRows(rows, q, ticks) {
   const out = (rows || []).slice();
+  if (out.length && ticks && ticks.length && (!q || q.session === 'night' || q.session === 'pre' || q.session === 'closed')) {
+    const last = out[out.length - 1];
+    if (last.time) {
+      const lastS = exWallToMs(last.date, last.time, 'America/New_York') / 1000;
+      for (const k of ticks) {
+        if (k.ts < lastS + 60 || k.ts - lastS > 10 * 3600) continue;
+        const w = tzWall(k.ts * 1000, 'America/New_York');
+        out.push({ date: w.date, time: w.time, close: k.close, night: true });
+      }
+    }
+  }
   if (!q || !(q.close > 0) || !q.mtime || !q.mdate || !out.length || q.session === 'night') return out; // v226: לילה = היום הבא
   const last = out[out.length - 1];
   if (q.mdate !== last.date) return out;
@@ -15465,7 +15511,7 @@ async function ensureChartData(sym, quiet) {
       if ((state.range[sym] || 'year') !== range) return; // המשתמש כבר עבר לטווח אחר
       const shown = intraSessionRows(intra, range, sym);
       if (shown.length) {
-        drawStockChart(sym, intradayLiveRows(shown, state.quotes[sym]), range);
+        drawStockChart(sym, intradayLiveRows(shown, state.quotes[sym], range === 'day' ? NIGHT_TICKS[sym] : null), range);
         if (loading) loading.classList.add('hidden');
         return;
       }
@@ -15497,10 +15543,16 @@ async function ensureChartData(sym, quiet) {
 /* ---------------- גרף קו ---------------- */
 
 function chartPoints(sym, rows, intraday) {
-  return downsample(rows, 400).map((r) => ({
-    label: intraday && r.time ? (intraday === '5d' ? fmtDateIL(r.date).slice(0, 5) + ' ' : '') + r.time.slice(0, 5) : fmtDateIL(r.date),
-    date: r.date, time: r.time, close: r.close
-  }));
+  const ex = symExTz(sym);
+  return downsample(rows, 400).map((r) => {
+    // 29/10/2026: תוך־יומי — התאריך והשעה בשעון המכשיר (המיקום של המשתמש), לא בשעון הבורסה
+    let date = r.date, time = r.time;
+    if (intraday && time) { try { const w = tzWall(exWallToMs(date, time, ex)); date = w.date; time = w.time; } catch (e) {} }
+    return {
+      label: intraday && time ? (intraday === '5d' ? fmtDateIL(date).slice(0, 5) + ' ' : '') + time.slice(0, 5) : fmtDateIL(date),
+      date: date, time: time, close: r.close
+    };
+  });
 }
 
 function drawStockChart(sym, rows, intraday) {
