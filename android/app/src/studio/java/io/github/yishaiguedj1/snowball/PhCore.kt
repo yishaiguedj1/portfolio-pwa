@@ -164,6 +164,63 @@ object PhCore {
     /** ‎#phpick=<pid>.<base64url של JSON> — מה שהטופס צריך כדי ליצור את העבודה (השם, הגודל, האורך, המידות) */
     /** מה Studio הזה יודע — האתר קובע לפיו את העבודה (studio.js PH_CAP_PT). 3 = גם שלבי הטקסט בטלפון (שלב 3) */
     const val CAP = 3
-    fun pickJson(pid: String, name: String, size: Long, i: Info?): JSONObject = JSONObject().put("pid", pid).put("name", name.take(200)).put("size", size).put("cap", CAP)
+    fun pickJson(pid: String, name: String, size: Long, i: Info?, oh: String = ""): JSONObject = JSONObject().put("pid", pid).put("name", name.take(200)).put("size", size).put("cap", CAP).put("oh", oh)
         .put("dur", i?.dur ?: 0.0).put("w", i?.w ?: 0).put("h", i?.h ?: 0).put("fps", i?.fps ?: 0.0).put("a", i?.hasAudio ?: false)
+
+    // ---------------------------------------------------------------- כתוביות (30/10/2026)
+    /* בקשת המשתמש: גם בבחירה דרך האפליקציה — כתוביות מהרשת ומהקובץ, כמו בבחירה מהדפדפן. הדף לא קורא את הקובץ, לכן
+     * האפליקציה מחשבת את טביעת האצבע של OpenSubtitles (oh — זהה ל־studionet.js osHash) ומחלצת את רצועות הטקסט שבקובץ
+     * למקטע שלישי ב־‎#phpick=<pid>.<json>.<z> — JSON של [{i,l,t,f,x}] דחוס (deflate בלי כותרת) ב־base64url */
+    private const val NS_CH = 65536
+    fun osHash(f: java.io.File): String {
+        val size = f.length()
+        if (size < NS_CH) return ""
+        var h = size
+        java.io.RandomAccessFile(f, "r").use { r ->
+            val b = ByteArray(NS_CH)
+            for (at in longArrayOf(0, size - NS_CH)) {
+                r.seek(at); r.readFully(b)
+                val bb = java.nio.ByteBuffer.wrap(b).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                while (bb.remaining() >= 8) h += bb.long
+            }
+        }
+        return String.format(Locale.ROOT, "%016x", h)
+    }
+
+    val SUB_TEXT = setOf("subrip", "srt", "ass", "ssa", "mov_text", "webvtt", "text")
+    class Sub(val idx: Int, val lang: String, val name: String, val forced: Boolean)
+    /** רצועות הטקסט מ־ffprobe (תמונה — PGS/VobSub — לא; עד 16) */
+    fun subs(probe: JSONObject): List<Sub> {
+        val st = probe.optJSONArray("streams") ?: return emptyList()
+        val out = ArrayList<Sub>()
+        for (k in 0 until st.length()) {
+            val s = st.optJSONObject(k) ?: continue
+            if (s.optString("codec_type") != "subtitle" || s.optString("codec_name") !in SUB_TEXT) continue
+            val tg = s.optJSONObject("tags")
+            out.add(Sub(s.optInt("index", k), tg?.optString("language", "").orEmpty().take(12), tg?.optString("title", "").orEmpty().take(80),
+                s.optJSONObject("disposition")?.optInt("forced", 0) == 1))
+            if (out.size >= 16) break
+        }
+        return out
+    }
+    /** מעבר אחד על הקובץ: כל רצועה → srt בתיקייה */
+    fun subsArgs(src: String, subs: List<Sub>, dir: String): List<String> =
+        listOf("-v", "error", "-nostdin", "-y", "-i", src) + subs.flatMap { listOf("-map", "0:${it.idx}", "-c:s", "srt", "-f", "srt", "$dir/sub${it.idx}.srt") }
+    /** הטקסטים → המקטע לדף. מעל max (דחוס) — הרצועות האחרונות יורדות (הגבול של כתובת ב־Intent) */
+    const val SUBS_MAX = 400_000
+    fun packSubs(subs: List<Pair<Sub, String>>, max: Int = SUBS_MAX): String {
+        var n = subs.size
+        while (n > 0) {
+            val a = JSONArray()
+            for ((s, x) in subs.take(n)) a.put(JSONObject().put("i", s.idx).put("l", s.lang).put("t", s.name).put("f", s.forced).put("x", x))
+            val d = java.util.zip.Deflater(9, true)
+            d.setInput(a.toString().toByteArray(Charsets.UTF_8)); d.finish()
+            val o = java.io.ByteArrayOutputStream(); val buf = ByteArray(65536)
+            while (!d.finished()) o.write(buf, 0, d.deflate(buf))
+            d.end()
+            if (o.size() <= max) return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(o.toByteArray())
+            n--
+        }
+        return ""
+    }
 }

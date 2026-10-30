@@ -15,7 +15,7 @@ import { isR2Folder, isR2Id } from './studiostore.js';
 import { bgEligible, bgUpload, bgIdOf, bgDb, bgUpOk } from './studiobg.js';
 import { createPlayer, normCues, issuesList, fmtT, normLadder, normAlt, normPq, normTrackPref, normChapters, normSty, STY_COLORS, STY_Y } from './studioplay.js';
 import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, toStl, termIssues, flagIndex, normMeta, createTimeline, editDiff, editStats, importSubs } from './studiosubs.js';
-import { listTracks, extractTracks, cuesToFile } from './studiotracks.js';
+import { listTracks, extractTracks, cuesToFile, lang2 } from './studiotracks.js';
 import { createEdlEditor, normEdl, edlPre, edlDur, outDur, silenceSegs, removeRange, addRange, segAt, intersectSegs, cutFillers, normOv, OV_T_MAX, OV_LG_MAX, OV_POS, previewEdl, PV_LEN } from './studioedl.js';
 import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, AI_NOTE_MAX, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges, parseChapters } from './studioai.js';
 
@@ -196,7 +196,7 @@ export function parsePhPick(arg) {
   const a = String(arg || '');
   const m = /^!([a-z_]{1,20})$/.exec(a);
   if (m) return { e: m[1] };
-  const k = /^(p[0-9a-f]{16})\.([A-Za-z0-9_-]{8,6000})$/.exec(a);
+  const k = /^(p[0-9a-f]{16})\.([A-Za-z0-9_-]{8,6000})(?:\.([A-Za-z0-9_-]{8,800000}))?$/.exec(a);   // 30/10/2026: מקטע שלישי — הכתוביות שבקובץ (phSubs)
   if (!k) return null;
   let o = null;
   try { o = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(k[2].replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((k[2].length + 3) % 4)), (c) => c.charCodeAt(0)))); } catch (e) { return null; }
@@ -205,7 +205,8 @@ export function parsePhPick(arg) {
   if (!(size > 0)) return null;
   return { pid: k[1], name: String(o.name || 'video.mp4').replace(/[\u0000-\u001f]/g, '').slice(0, 200) || 'video.mp4', size,
     dur: dur > 0 && dur < 86400 ? dur : 0, w: Math.max(0, Math.floor(Number(o.w) || 0)), h: Math.max(0, Math.floor(Number(o.h) || 0)),
-    cap: Math.max(0, Math.min(99, Math.floor(Number(o.cap) || 0))) };   // 25/10/2026: מה Studio הזה יודע (PH_CAP_PT = גם שלבי הטקסט)
+    cap: Math.max(0, Math.min(99, Math.floor(Number(o.cap) || 0))),   // 25/10/2026: מה Studio הזה יודע (PH_CAP_PT = גם שלבי הטקסט)
+    oh: /^[0-9a-f]{16}$/.test(String(o.oh || '')) ? o.oh : '', z: k[3] || '' };   // 30/10/2026: טביעת האצבע (osHash) והכתוביות — מהאפליקציה
 }
 /* 25/10/2026 (שלב 3): Studio לאנדרואיד שיודע להריץ גם את שלבי הטקסט (vt בפייתון של האפליקציה) מדווח cap ≥ 3 בבחירה.
    ישן — בלי pt (אחרת העבודה הייתה מחכה בתור לטלפון שלא יודע לקחת אותה) */
@@ -3264,7 +3265,7 @@ function pageForm(p, editing) {
     // 29/10/2026: הבחירה הראשית כבר דרך האפליקציה — כאן הדרך הישנה, מהדפדפן (חיתוך לפני התרגום, כתוביות שבתוך הקובץ)
     const phRow = phOk() && !f.file ? rowNav({ tile: tile('globe', 'gray'), label: T('studioPickWeb'), sub: T('studioPickWebS'), onClick: pick, k: 'web-pick' }) : null;
     // 25/10/2026 (שלב 2): גם התמלול, הדוברים והיישור בטלפון — הקול לא עוזב אותו. פעם ראשונה: הורדת המודלים (Wi‑Fi)
-    const pwRow = f.ph ? rowSwitch({ label: T('studioPhPw'), sub: T('studioPhPwS'), on: f.pw !== false, onClick: () => { f.pw = f.pw === false; render('none'); }, k: 'ph-pw' }) : null;
+    const pwRow = f.ph ? rowSwitch({ label: T('studioPhPw'), sub: T('studioPhPwS'), on: f.pw === true, onClick: () => { f.pw = f.pw !== true; render('none'); }, k: 'ph-pw' }) : null;   // 30/10/2026 (בקשת המשתמש): כבוי כברירת מחדל
     // 25/10/2026 (בקשת המשתמש — "נקי ומסודר לפי ת־עיצוב"): כל המקורות בקבוצה אחת, במקום שלוש קבוצות נפרדות
     // 26/10/2026 (בקשת המשתמש): "מ־Google Drive" = רשימה שלנו (pageDrivePick), לא Google Picker — הסרטון נשאר ב־Drive, בלי העלאה
     const driveRow = ui.gb ? rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'), onClick: () => { if (dp.st !== 'ok') dp.st = ''; go('dpick'); }, k: 'from-drive' }) : null;
@@ -3503,14 +3504,44 @@ function tracksFor(f, file) {
   if (!/\.(mkv|mk3d|webm|mp4|m4v|mov)$/i.test(file.name || '')) return;
   listTracks(file).then((L) => {
     if (form !== f || !(f.fileObj === file || (f._rb === file && f.drive && f.drive.id === file.id)) || !L || !L.tracks.length) return;   // _rb — הסרטון ב־Drive (dpPick)
-    const old = f.trk;   // כתוביות מהרשת שכבר הגיעו — נשארות (עם מה שכבר ירד והבחירות שלהן)
-    f.trk = { file, vname: file.name, tracks: L.tracks, x: {}, src: null, ref: null, hlp: null, p: 0, busy: false };
-    if (old) { for (const id of Object.keys(old.x)) if (id.startsWith('n:')) f.trk.x[id] = old.x[id]; for (const c of ['src', 'ref', 'hlp']) if (String(old[c]).startsWith('n:')) f.trk[c] = old[c]; }
     // 26/10/2026: רצועה באנגלית = עזר להגהת התמלול, מראש — רק כשהקובץ בטלפון (מ־Drive החילוץ קורא את כל הקובץ ברשת)
-    const h0 = hlpEngine() && !file.remote ? trkHlpAuto(L.tracks) : null;
-    nsMerge(f, file);
-    if (h0) { f.trk.hlp = h0.id; trkEnsure(f, [h0.id]); } else render('none');
+    const h0 = trkSet(f, file, L.tracks, !file.remote);
+    if (h0) trkEnsure(f, [h0.id]); else render('none');
   }, () => {});
+}
+/* הרצועות שבקובץ → f.trk. כתוביות מהרשת שכבר הגיעו — נשארות (עם מה שכבר ירד והבחירות שלהן). מחזיר את העזר שנבחר מראש */
+function trkSet(f, file, tracks, auto) {
+  const old = f.trk;
+  f.trk = { file, vname: file.name, tracks, x: {}, src: null, ref: null, hlp: null, p: 0, busy: false };
+  if (old) { for (const id of Object.keys(old.x)) if (id.startsWith('n:')) f.trk.x[id] = old.x[id]; for (const c of ['src', 'ref', 'hlp']) if (String(old[c]).startsWith('n:')) f.trk[c] = old[c]; }
+  const h0 = hlpEngine() && auto ? trkHlpAuto(tracks) : null;
+  nsMerge(f, file);
+  if (h0) f.trk.hlp = h0.id;
+  return h0;
+}
+/* 30/10/2026 (בקשת המשתמש — "גם במצב הכל בטלפון ימשכו כתוביות מכל המקורות וגם מהקובץ"): בבחירה דרך האפליקציה הדף
+   לא רואה את הקובץ. מהרשת — לפי טביעת האצבע שהאפליקציה חישבה (oh; Studio ישן — לפי השם בלבד); מהקובץ — הרצועות
+   שהאפליקציה כבר חילצה (z), מוכנות בלי חילוץ נוסף */
+function phTracks(f, r) {
+  const vf = { name: r.name, size: r.size, oh: r.oh || '', ph: r.pid };
+  f.trk = null;
+  nsFor(f, vf);
+  if (!r.z) return;
+  phSubs(r.z).then((L) => {
+    if (form !== f || !f.ph || f.ph.pid !== r.pid || !L.length) return;
+    const tracks = L.map((t) => ({ id: 'p:' + t.i, kind: 'text', fmt: 'srt', lang: lang2(t.l) || '', name: t.t, def: false, forced: t.f, sdh: /\bSDH\b|hearing/i.test(t.t) }));
+    trkSet(f, vf, tracks, true);
+    for (const t of L) f.trk.x['p:' + t.i] = { st: 'ok', text: t.x, n: (t.x.match(/-->/g) || []).length };
+    render('none');
+  }, () => {});
+}
+/* המקטע z: base64url → deflate בלי כותרת → [{i,l,t,f,x}] (PhCore.packSubs) */
+async function phSubs(z) {
+  const b = Uint8Array.from(atob(String(z).replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((z.length + 3) % 4)), (c) => c.charCodeAt(0));
+  const txt = await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
+  const a = JSON.parse(txt);
+  return (Array.isArray(a) ? a : []).filter((t) => t && Number.isInteger(t.i) && typeof t.x === 'string' && t.x.length).slice(0, 16)
+    .map((t) => ({ i: t.i, l: String(t.l || '').slice(0, 12), t: String(t.t || '').replace(/[\u0000-\u001f]/g, '').slice(0, 80), f: t.f === true, x: t.x.slice(0, 2e6) }));
 }
 function trkLabel(t) {
   if (!t || t.id == null) return '';
@@ -4566,6 +4597,7 @@ export function studioPhPick(arg) {
   f.ph = { pid: r.pid, w: r.w, h: r.h, dur: r.dur };
   f.fileObj = null; f.handle = null; f.drive = null; f.link = null; f.linkOk = false; f.edl = null;
   f.file = { name: r.name, size: r.size, type: 'video/*' }; f.dur = r.dur;
+  phTracks(f, r);
   if (root) { if (ui.view !== 'new') go('new', null, 'none'); else render('none'); }
   return true;
 }
@@ -4597,7 +4629,7 @@ function startPhone(f) {
   (async () => {
     const spec = { name: f.file.name, size: f.file.size, type: 'video/*', dur: P.dur || 0, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
       out: [], style: f.style, terms: f.terms, ph: 1, eng: 'api', cap: store.settings.cap };
-    if (f.pw !== false) spec.pw = 1;   // שלב 2: הכל בטלפון (ברירת המחדל)
+    if (f.pw === true) spec.pw = 1;   // שלב 2: הכל בטלפון — רק כשהופעל (30/10/2026: כבר לא ברירת המחדל)
     spec.vc = 1;   // 29/10/2026: האפליקציה מעלה גם את הסרטון לענן, ברקע (לנגן מכל מכשיר, לשמירה ולהפקה מחדש) — העבודה לא מחכה לו
     const pb = phPb(f); if (pb) spec.pb = pb;
     if (cpMode()) spec.cp = 1; else if (ryMode()) spec.ry = 1;
@@ -4609,6 +4641,9 @@ function startPhone(f) {
     const j = await net.api('create', { spec });
     if (!j.ok || !j.job) { ui.starting = false; flashSafe(errText(j.error)); render('none'); return; }
     fnlAdd('start');
+    // 30/10/2026: עזר להגהה (מהקובץ / מהרשת) — עולה כבר עכשיו, במקביל: העבודה מתחילה רק כשהאפליקציה העלתה את הקול
+    const ht = f.trk && f.trk.hlp != null && !f.trk.busy ? trkHlpTxt(f) : '';
+    if (ht) hlpUpload({ id: j.job.id, spec: j.job.spec || spec, up: { folder: j.job.folder || '' } }, ht);
     const k = await phKeyFor(j.job.id);
     if (!k) { ui.starting = false; net.api('remove', { job: j.job.id }).catch(() => {}); flashSafe(errText('phkey')); render('none'); return; }
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
@@ -4618,11 +4653,13 @@ function startPhone(f) {
     }
     ui.starting = false;
     const rec = normJob({ id: j.job.id, created: j.job.created || Date.now(), spec: j.job.spec || spec, srv: j.job,
-      fp: { name: f.file.name, size: f.file.size, lm: 0 }, vm: P.w && P.h ? { w: P.w, h: P.h } : null, org: normOrg({ v: { k: 'pa' } }),
+      fp: { name: f.file.name, size: f.file.size, lm: 0 }, vm: P.w && P.h ? { w: P.w, h: P.h } : null, org: orgOf(f, { k: 'pa' }, ht ? 'api' : ''),
       up: { ph: P.pid, noAudio: 'ph', a: { done: true }, v: { done: true }, folder: j.job.folder || '' } });   // האפליקציה מעלה, לא הדף
     store.jobs.unshift(rec);
     if (f.id) store.drafts = store.drafts.filter((d) => d.id !== f.id);
     save();
+    const refText = trkRefSrt(f);   // רצועת ההשוואה — לתיקיית העבודה (סט הזהב בסוף)
+    if (refText) refUpload(rec, refText);
     form = null;
     if (root) replaceView('job', rec.id);
     // חלון האישור סוגר את עצמו ב־history.back (אסינכרוני) — ניווט בהיסטוריה אחרי ה־intent מבטל אותו. לכן אחרי afterBack

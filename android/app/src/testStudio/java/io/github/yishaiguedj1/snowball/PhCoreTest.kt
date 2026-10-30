@@ -107,4 +107,27 @@ class PhCoreTest {
         assertEquals((0L until 10L), PhCore.part(1, 10, 25)); assertEquals((20L until 25L), PhCore.part(3, 10, 25))
         assertEquals(3, PhCore.parts(25, 10)); assertEquals(1, PhCore.parts(10, 10))
     }
+
+    /* 30/10/2026: כתוביות בבחירה — טביעת האצבע זהה ל־studionet.js osHash, ורצועות הטקסט נארזות לדף */
+    @Test fun pickSubtitles() {
+        val f = java.io.File.createTempFile("oh", ".bin")
+        f.writeBytes(ByteArray(200000) { ((it * 31 + 7) and 255).toByte() })
+        assertEquals("5f9fe02060a3cd40", PhCore.osHash(f))   // הערך מ־osHash בדף על אותם בתים
+        f.writeBytes(ByteArray(10)); assertEquals("", PhCore.osHash(f)); f.delete()
+        val probe = JSONObject("""{"streams":[{"index":0,"codec_type":"video"},{"index":2,"codec_type":"subtitle","codec_name":"subrip","tags":{"language":"eng","title":"SDH"}},
+            {"index":3,"codec_type":"subtitle","codec_name":"hdmv_pgs_subtitle"},{"index":4,"codec_type":"subtitle","codec_name":"ass","disposition":{"forced":1}}]}""")
+        val L = PhCore.subs(probe)
+        assertEquals(listOf(2, 4), L.map { it.idx }); assertEquals("eng", L[0].lang); assertTrue(L[1].forced)
+        assertTrue(PhCore.subsArgs("/s.mkv", L, "/d").containsAll(listOf("0:2", "/d/sub2.srt", "0:4", "/d/sub4.srt")))
+        val z = PhCore.packSubs(listOf(L[0] to "1\n00:00:01,000 --> 00:00:02,000\nשלום\n", L[1] to "x"))
+        val inf = java.util.zip.Inflater(true); inf.setInput(java.util.Base64.getUrlDecoder().decode(z))
+        val buf = ByteArray(1 shl 16); val n = inf.inflate(buf)
+        val a = org.json.JSONArray(String(buf, 0, n, Charsets.UTF_8))
+        assertEquals(2, a.length()); assertEquals(2, a.getJSONObject(0).getInt("i")); assertTrue(a.getJSONObject(0).getString("x").contains("שלום"))
+        val rnd = java.util.Random(1); val big = String(CharArray(3000) { 'a' + rnd.nextInt(26) })
+        val z2 = PhCore.packSubs(listOf(L[0] to "a".repeat(500), L[1] to big), 1000)   // השנייה לא נכנסת — יורדת
+        val inf2 = java.util.zip.Inflater(true); inf2.setInput(java.util.Base64.getUrlDecoder().decode(z2))
+        assertEquals(1, org.json.JSONArray(String(buf, 0, inf2.inflate(buf), Charsets.UTF_8)).length())
+        assertEquals("", PhCore.packSubs(listOf(L[1] to big), 100))
+    }
 }
