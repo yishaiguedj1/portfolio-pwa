@@ -2262,7 +2262,7 @@ function onPop(e) {
    בלי "החלקה קצרה" לטאבים (בקשת המשתמש) — פרטים · ציר · קשורות רק בלחיצה.
    29/10/2026 (בקשת המשתמש): החוגה של Invest אחד לאחד, באדום — מימין לשמאל: הגדרות · העבודות (הבית, במרכז) · העבודה
    (הפעילה, ואם אין — האחרונה שהסתיימה) · מגדל הפיקוח. מה שמחוץ לחוגה ממופה לאח שלו (stKeyOf) */
-const ST_SIB = ['settings', 'home', 'ka', 'job', 'tower'];   // 30/10/2026: קריוקי — כלי נפרד עם רשימה משלו (בקשת המשתמש)
+const ST_SIB = ['settings', 'ka', 'home', 'job', 'tower'];   // 30/10/2026: קריוקי (מימין לתרגום סרטונים, בקשת המשתמש) — כלי נפרד עם רשימה משלו (בקשת המשתמש)
 const ST_NOSWIPE = ['play', 'subs', 'cut', 'cutsrc', 'tracks', 'dpick', 'vids', 'link', 'linkfmt', 'linksec', 'fmthelp', 'grab', 'sty', 'ov', 'new', 'edit', 'lang', 'connect', 'ai', 'rr'];   // עורכים, נגן וטפסים — בלי
 const ST_TAB_KEYS = ['d', 't', 'r'];
 let swipePop = 0;
@@ -2334,8 +2334,8 @@ let dialNav = null, dialPrev = null, stDialC = null;
 function stDialNav() {
   if (dialNav || typeof dialNavBuild !== 'function') return dialNav;
   dialNav = dialNavBuild('st-dial', T('studioDialAria'), [
-    { k: 'settings', ico: DIAL_GEAR, lbl: T('studioDialSet') }, { k: 'home', ico: ST_DIAL_ICO.home, lbl: T('studioDialHome') },
-    { k: 'ka', ico: ST_DIAL_ICO.ka, lbl: T('studioDialKa') },
+    { k: 'settings', ico: DIAL_GEAR, lbl: T('studioDialSet') }, { k: 'ka', ico: ST_DIAL_ICO.ka, lbl: T('studioDialKa') },
+    { k: 'home', ico: ST_DIAL_ICO.home, lbl: T('studioDialHome') },
     { k: 'job', ico: ST_DIAL_ICO.job, lbl: T('studioDialLast') }, { k: 'tower', ico: ST_DIAL_ICO.tower, lbl: T('studioDialTower') },
   ], stDialTo);
   return dialNav;
