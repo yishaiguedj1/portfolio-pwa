@@ -81,15 +81,18 @@ function liveRow(job, st, now) {
   const usd = Math.max(n0(job.tw && job.tw.usd), S.usdOf(use));
   const t0 = n0(job.c0) || n0(job.created);
   const el = t0 ? Math.max(0, now - t0 - n0(job.pz)) : 0;
-  const left = frac >= 0.05 && frac < 1 && el ? Math.round(el * (1 - frac) / frac / 1000) : 0;
-  const exp = frac >= 0.15 ? Math.round(usd / frac * 100) / 100 : n0(job.tg && job.tg.u);
+  // 30/10/2026: אותו צפי שהמשתמש רואה (studiosla fc — לפי השלבים והסוכנים שנשארו), לא הקצנה קווית של עלות/התקדמות
+  const sv = SLA.slaView(job, now), fc = sv && sv.fc;
+  const left = fc ? Math.max(0, Math.round(fc.t - sv.t.el)) : frac >= 0.05 && frac < 1 && el ? Math.round(el * (1 - frac) / frac / 1000) : 0;
+  const exp = fc && fc.u != null ? fc.u : frac >= 0.15 ? Math.round(usd / frac * 100) / 100 : n0(job.tg && job.tg.u);
   const sp = job.spec || {};
   const wait = job.qa && job.qa.at && !job.qa.a ? 'q' : job.wv0 ? 'v' : '';
   return { j: job.id, u: job.uid, nm: label(st && st.nm, st && st.em), em: (st && st.em) || '', k: job.kind, state: job.state,
     st: prog.st || '', sp: Math.round(Math.max(0, Math.min(1, n0(prog.p))) * 1000) / 1000, p: Math.round(frac * 1000) / 1000,
     usd: Math.round(usd * 100) / 100, tok: tokOf(use), exp: Math.round(Math.max(exp, usd) * 100) / 100, left, t0, dur: n0(sp.dur),
     mode: String(sp.mode || ''), to: Array.isArray(sp.to) ? sp.to.join(',') : String(sp.to || ''), our: ours(job), wait,
-    stg: Object.fromEntries(Object.entries(prog.stg || {}).filter(([k]) => S.STAGES.includes(k)).map(([k, v]) => [k, v && v.e ? 'd' : v && v.s ? 'n' : ''])),
+    // 30/10/2026 (המשתמש: "מוציאים את הקול — עוד לא", כשהשאר הסתיימו): ההעלאה קורית בטלפון, לפני שהעבודה בתור — לא נרשמת בשרתון
+    stg: Object.assign(Object.fromEntries(Object.entries(prog.stg || {}).filter(([k]) => S.STAGES.includes(k)).map(([k, v]) => [k, v && v.e ? 'd' : v && v.s ? 'n' : ''])), { up: 'd' }),
     by: byAgent(use) };
 }
 /* העלות והטוקנים לפי סוכן (main/tl/rv/jg/sub) — לכרטיס העבודה החיה */
