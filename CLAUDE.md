@@ -51,6 +51,7 @@
 | אנדרואיד נייטיב: Studio DM, Studio Browser + תוסף Chrome, Lab, תרגום בטלפון | `docs/android-apps.md` |
 | צריכת טוקנים: המדידה, המחקר, ההגדרות ומה עוד אפשר | `docs/token-economy.md` |
 | **פרויקט "עמודים סטטיים"** — אפס קפיצות/רענונים במעברים: התוכנית, הגלאים (`qa-deep --landing`), הממצאים | `docs/smooth-plan.md` |
+| **ארכיטקטורה לחלקות (סבב 6)** — ששת השורשים המבניים של הקפיצות, המחקר, החלופות (מיזוג לפי מפתח, מעברים בלי העתק, commit אחד, APK אחד) וההמלצה | `docs/smooth-architecture.md` |
 | עקרונות ServiceNow (המגדל וההחלטות בסטודיו) | `docs/servicenow.md` |
 | **התקנים הפנימיים** (עיצוב, קורא, גרף, ניתוח, נגן, פיקוח) + חוקי הבנייה הנקייה | `docs/standards.md` |
 | היסטורי: תיאום הסשנים הישן, פריטים פתוחים ישנים | `docs/sessions-history.md`, `docs/open-items-history.md` |
