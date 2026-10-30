@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2087 מפתחות מתוך 5527) */
+/* המחרוזות של studio (2086 מפתחות מתוך 5527) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -409,7 +409,6 @@ he: {
   "studioDialKa": "קריוקי",
   "studioDialLast": "אחרונה",
   "studioDialOn": "פעילה",
-  "studioDialSet": "הגדרות",
   "studioDialTower": "מגדל",
   "studioDisconn": "ניתוק",
   "studioDisconnOk": "ניתוק",
@@ -2498,7 +2497,6 @@ en: {
   "studioDialKa": "Karaoke",
   "studioDialLast": "Latest",
   "studioDialOn": "Active",
-  "studioDialSet": "Settings",
   "studioDialTower": "Tower",
   "studioDisconn": "Disconnect",
   "studioDisconnOk": "Disconnect",
