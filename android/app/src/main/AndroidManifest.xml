@@ -16,6 +16,15 @@
 
         <meta-data android:name="asset_statements" android:resource="@string/assetStatements" />
 
+        <!-- 30/10/2026 (סבב קפיצות 6, R8): מסך הפתיחה עובר ל־Chrome ונשאר עד הציור הראשון של הדף — בלי הלבן שבין המעטפת לאתר -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.twasplash"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/twa_splash_paths" />
+        </provider>
+
         <!-- v254: בלי singleTask — כמו LauncherActivity הרשמי: מופע חדש לכל קישור, מעל ה־TWA ובאותה משימה,
              ו־Chrome מעביר את הכתובת ללשונית הקיימת. singleTask סגר את ה־TWA והקישור אבד (MainActivity.kt). -->
         <activity
