@@ -127,7 +127,7 @@ function zip(files) {
   ok(JSON.stringify(o) === JSON.stringify({ v: { k: 'ln', h: 'youtube.com' }, s: { k: 'net', l: 'he', p: 'wz' }, r: { k: 'trk', l: 'en' } }), 'normOrg: רק שדות מוכרים; p רק למהרשת');
   ok(normOrg({ v: { k: 'ln', h: 'a b<c>' } }).v.h === undefined && normOrg(null) === null && normOrg({}) === null && normOrg({ s: { k: 'net', p: '__proto__' } }).s.p === undefined, 'שם אתר לא תקין / ריק / __proto__');
   ok(/const org = normOrg\(j\.org\)/.test(st) && /\.\.\.\(org \? \{ org \} : \{\}\)/.test(st), 'normJob שומר את org');
-  ok((st.match(/org: orgOf\(f, null, spec\.eng\)/g) || []).length === 2 && /org: normOrg\(\{ v: \{ k: 'ln'/.test(st) && /org: normOrg\(\{ v: \{ k: 'pa' \} \}\)/.test(st), 'org בכל מסלולי היצירה (קובץ/Drive, כתוביות, קישור, תרגום בטלפון)');
+  ok((st.match(/org: orgOf\(f, null, spec\.eng\)/g) || []).length === 2 && /org: normOrg\(\{ v: \{ k: 'ln'/.test(st) && /org: orgOf\(f, \{ k: 'pa' \}, ht \? 'api' : ''\)/.test(st), 'org בכל מסלולי היצירה (קובץ/Drive, כתוביות, קישור, תרגום בטלפון)');
   ok(/p\.append\(\.\.\.orgRows\(rec\)\)/.test(st), 'מסך העבודה מציג את המקורות');
 
   /* ---------- 8. החיבור בטופס ---------- */

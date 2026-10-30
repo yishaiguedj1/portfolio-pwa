@@ -1442,7 +1442,7 @@ function liveCard(x) {
   h('span', null, x.left >= 60 ? fmt(t('admLiveLeft'), { n: Math.round(x.left / 60) }) : ''));
   const kp = h('div', 'adm-kpis adm-lkp');
   const k = (v, l) => { const d = h('div', 'adm-kpi'); d.append(h('b', null, v), h('small', null, l)); return d; };
-  kp.append(k(usd(x.usd), x.our ? t('admLiveSoFar') : t('admLiveRoutine')), k(x.tok ? tokTxt(x.tok) : '—', t('admLiveTok')), k(x.exp ? '~' + usd(x.exp) : '—', t('admLiveExp')));
+  kp.append(k(usd(x.usd), x.our ? t('admLiveSoFar') : t('admLiveRoutine')), k(x.tok ? tokTxt(x.tok) : '—', x.tx > x.tok ? fmt(t('admLiveTokExp'), { n: '~' + tokTxt(x.tx) }) : t('admLiveTok')), k(x.exp ? '~' + usd(x.exp) : '—', t('admLiveExp')));
   c.append(top, bar, ln, stgStrip(x), kp);
   return c;
 }
