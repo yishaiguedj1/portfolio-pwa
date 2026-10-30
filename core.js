@@ -341,8 +341,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.92.0';
-const APP_VERSION = 'v642';
+const APP_RELEASE = '2.92.1';
+const APP_VERSION = 'v643';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -1051,6 +1051,19 @@ function cubePre(root, go) {
   return p;
 }
 const cubePreBusy = () => !!_cubePre;   // ציור במקום (none) בזמן ההמתנה — מחכה לציור של המעבר
+/* 30/10/2026 (סבב קפיצות 6, docs/smooth-architecture.md — ש1): סידור ילדים לפי רשימה, בלי לבנות מחדש. צומת שכבר במקומו
+   לא זז (נשארים הצביעה, התמונה המפוענחת והשכבה שלו); רק מה שחסר נכנס, מה שעבר מקום זז, ומה שלא ברשימה יוצא.
+   לעומת innerHTML = '' + append: אין רגע שבו הרשימה ריקה, ואין צומת חדש לכרטיס שלא השתנה */
+function listSync(parent, nodes) {
+  if (!parent || !nodes) return;
+  const keep = new Set(nodes);
+  for (let c = parent.firstChild; c;) { const nx = c.nextSibling; if (!keep.has(c)) parent.removeChild(c); c = nx; }
+  let cur = parent.firstChild;
+  for (const nd of nodes) {
+    if (nd === cur) { cur = cur.nextSibling; continue; }
+    parent.insertBefore(nd, cur);
+  }
+}
 /* 29/10/2026 (המשתמש: "גם הלוגו מתרענן כל הזמן בכל המעברים"): אנימציית CSS מתחילה מאפס בכל פעם שהאלמנט נכנס ל־DOM —
    הלוגו החי (ריחוף, פנים, ברק, שלג) "התאפס" בכל ציור של הבית, בהעתק של הקובייה ובכל חזרה. מצמידים את האנימציות
    האינסופיות של הלוגו לשעון של הדף (startTime 0): בכל כניסה ובכל העתק — אותו רגע בדיוק, כאילו לא יצא אף פעם.
