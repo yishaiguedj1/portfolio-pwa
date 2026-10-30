@@ -959,8 +959,9 @@ async function cubeNav(kind, y) {
 /* ההחלקה (core: snbSwipe — אותה חוקיות כמו ב־Invest). 14/10/2026 (בקשת המשתמש): ארבעה עמודים בשורה אחת; שתי הספריות הן
    עמודים בקובייה (לא טאבים — בלי "החלקה קצרה"). 29/10/2026 (בקשת המשתמש): החוגה של Invest אחד לאחד, בכחול, במקום הבורר
    שמתחת להדר — מימין לשמאל: THE SNOWBALL (הראשי) · הספרייה שלי · מה למדתי. 30/10/2026 (בקשת המשתמש): ההגדרות יצאו מהחוגה
-   ומההחלקה — נפתחות רק מהתפריט (המבורגר), ובעמודי ההגדרות החוגה מוסתרת */
-const LIB_SIB = ['snb', 'mine', 'notes'];
+   ומההחלקה — נפתחות רק מהתפריט (המבורגר), ובעמודי ההגדרות החוגה מוסתרת. 30/10/2026 (בקשת המשתמש): מימין לשמאל —
+   הספרייה שלי · THE SNOWBALL (הראשי, באמצע) · מה למדתי */
+const LIB_SIB = ['mine', 'snb', 'notes'];
 const libInSet = (v) => !!(v && (v.settings || v.backup || v.advanced || v.bkbooks));
 function libSib(v) {                       // העמוד הראשי שמוצג עכשיו, או null בעמוד משנה
   if (!v) return ui.shelf === 'mine' ? 'mine' : 'snb';
@@ -1009,7 +1010,7 @@ function libSibPage(cur, to) {            // האח: ציור (באמצע קוב
   };
 }
 function libSwipePage(next) {
-  if (ui.view && ui.view.settings) return null;   // עמוד ההגדרות — בלי החלקה (נפתח מהתפריט)
+  if (ui.view && ui.view.settings) return next ? null : libSibPage(libKeyOf(ui.view), 'snb');   // 30/10/2026: ההגדרות — החלקה אחורה = "חזור" לעמוד הראשי
   const cur = libSib(ui.view);
   if (!cur || (!libIsHome(cur) && !(history.state || {}).sb)) return next ? null : libBackPage();   // עמוד משנה / הגיעו לא מהבית
   const to = LIB_SIB[LIB_SIB.indexOf(cur) + (next ? 1 : -1)];
@@ -1356,6 +1357,9 @@ function renderSettings() {
   const home = subPage('');
   home.classList.add('lib-setpage');
   const big = home.querySelector('.lib-large'); if (big) big.remove();   // בלי כותרת "הגדרות" — בקשת המשתמש (כמו ב־Invest)
+  // 30/10/2026 (בקשת המשתמש): ההגדרות נפתחות רק מהתפריט — "‹ THE SNOWBALL" חוזר לעמוד הראשי (לא לדף שממנו פתחו)
+  const bk = home.querySelector('.lib-back');
+  if (bk) { const nb = bk.cloneNode(false); nb.innerHTML = ICON.back; nb.append(h('span', null, 'THE SNOWBALL')); nb.addEventListener('click', () => libDialTo('snb')); bk.replaceWith(nb); }
   const C = SA && SA.cards;
   if (C) home.append(C.account(), C.advRow(() => goView({ advanced: 1 })), C.display());   // הסדר של Invest
   home.append(mineCard());
@@ -4483,8 +4487,8 @@ export async function openLibrary(opt) {
   document.body.append(root);
   if (!libNav && typeof dialNavBuild === 'function') {   // 29/10/2026: החוגה — המארח של המנוע עובר לספרייה עד הסגירה
     libNav = dialNavBuild('lib-dial', T('libDialAria'), [
-      { k: 'snb', ico: LIB_DIAL_ICO.snb, bub: LIB_DIAL_ICO.snb, lbl: 'THE SNOWBALL', cls: 'tab-snow' },
-      { k: 'mine', ico: LIB_DIAL_ICO.mine, lbl: T('libMine') }, { k: 'notes', ico: LIB_DIAL_ICO.notes, lbl: T('libDialNotes') },
+      { k: 'mine', ico: LIB_DIAL_ICO.mine, lbl: T('libMine') }, { k: 'snb', ico: LIB_DIAL_ICO.snb, bub: LIB_DIAL_ICO.snb, lbl: 'THE SNOWBALL', cls: 'tab-snow' },
+      { k: 'notes', ico: LIB_DIAL_ICO.notes, lbl: T('libDialNotes') },
     ], libDialTo);
     document.body.append(libNav);
     if (_dial.host !== LIB_DIAL) { libDialPrev = _dial.host; dialHost(LIB_DIAL); }

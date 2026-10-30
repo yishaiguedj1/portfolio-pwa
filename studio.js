@@ -2263,7 +2263,7 @@ function onPop(e) {
    בלי "החלקה קצרה" לטאבים (בקשת המשתמש) — פרטים · ציר · קשורות רק בלחיצה.
    29/10/2026 (בקשת המשתמש): החוגה של Invest אחד לאחד, באדום — מימין לשמאל: הגדרות · העבודות (הבית, במרכז) · העבודה
    (הפעילה, ואם אין — האחרונה שהסתיימה) · מגדל הפיקוח. מה שמחוץ לחוגה ממופה לאח שלו (stKeyOf) */
-const ST_SIB = ['ka', 'home', 'job', 'tower'];   // 30/10/2026: קריוקי מימין לתרגום סרטונים (בקשת המשתמש)   // 30/10/2026 (בקשת המשתמש): ההגדרות — רק מהתפריט, בלי חוגה ובלי החלקה   // 30/10/2026: קריוקי — כלי נפרד עם רשימה משלו (בקשת המשתמש)
+const ST_SIB = ['ka', 'home', 'job', 'tower'];   // 30/10/2026 (בקשת המשתמש): מימין לשמאל — קריוקי · תרגום סרטונים (הראשי) · העבודה · המגדל; ההגדרות — רק מהתפריט   // 30/10/2026: קריוקי — כלי נפרד עם רשימה משלו (בקשת המשתמש)
 const ST_NOSWIPE = ['play', 'subs', 'cut', 'cutsrc', 'tracks', 'dpick', 'vids', 'link', 'linkfmt', 'linksec', 'fmthelp', 'grab', 'sty', 'ov', 'new', 'edit', 'lang', 'connect', 'ai', 'rr'];   // עורכים, נגן וטפסים — בלי
 const ST_TAB_KEYS = ['d', 't', 'r'];
 let swipePop = 0;
@@ -2312,6 +2312,7 @@ function stSibPage(k) {           // הדף של אח בחוגה: ציור (בא
   };
 }
 function stSwipePage(next) {
+  if (ui.view === 'settings') return next ? null : stSibPage('home');   // 30/10/2026: ההגדרות (מהתפריט) — החלקה אחורה = "חזור" לעמוד הראשי
   if (stSibOk()) { const ks = stDialKeys(), k = ks[ks.indexOf(stKeyOf(ui.view, ui.param)) + (next ? 1 : -1)]; return k ? stSibPage(k) : null; }
   if (next || !CW_OK || stack.length < 2) return null;
   const back = stack[stack.length - 2], pv = ui.view, pp = ui.param, y = root.scrollTop, key = viewKey();
@@ -2419,7 +2420,7 @@ function stTab(k, v) {            // טאב פנימי — התוכן נכנס �
 function wireStSwipe() {
   if (typeof snbSwipe !== 'function' || !root) return;
   snbSwipe({ root: root, page: stSwipePage, dial: () => stKeyOf(ui.view, ui.param),
-    ok: () => !!root && !ST_NOSWIPE.includes(ui.view) && ui.view !== 'settings' && !document.querySelector('.dlg-veil.on, .st-pl-menu:not([hidden]), .st-rs') });
+    ok: () => !!root && !ST_NOSWIPE.includes(ui.view) && !document.querySelector('.dlg-veil.on, .st-pl-menu:not([hidden]), .st-rs') });
 }
 /* כמו בספרייה (v350, בקשת המשתמש): "חזור" מדף הבית של הסטודיו — לסקירה. מטאב ראשי app.js כבר עבר אליה בפתיחה */
 function appToOverview() {
@@ -8635,7 +8636,7 @@ function engReady() {                      // יש מי שיתרגם: Routine מ
 }
 function pageSettings(p) {
   const s = store.settings, m = modeById(s.mode);
-  p.append(navBar({ back: T('studioShort') }));   // בלי כותרת "הגדרות" — בקשת המשתמש (כמו ב־Invest)
+  p.append(navBar({ back: T('studioDialHome'), go: () => stDialTo('home') }));   // בלי כותרת "הגדרות" — בקשת המשתמש; 30/10/2026: "‹ תרגום סרטונים" — לעמוד הראשי
   // באותה שפת עיצוב כמו ההגדרות של Invest: כרטיס החשבון של Invest בראש העמוד (shell.js, רק בדף העצמאי — בתיק
   // החשבון בהגדרות של Invest), "אפשרויות מתקדמות" ו"תצוגה" — ואז ההגדרות של הסטודיו בכרטיסים (.card מ־styles.css)
   const C = SA && SA.cards, A = SA && SA.auth;
