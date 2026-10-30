@@ -89,7 +89,7 @@ function liveRow(job, st, now) {
   const wait = job.qa && job.qa.at && !job.qa.a ? 'q' : job.wv0 ? 'v' : '';
   return { j: job.id, u: job.uid, nm: label(st && st.nm, st && st.em), em: (st && st.em) || '', k: job.kind, state: job.state,
     st: prog.st || '', sp: Math.round(Math.max(0, Math.min(1, n0(prog.p))) * 1000) / 1000, p: Math.round(frac * 1000) / 1000,
-    usd: Math.round(usd * 100) / 100, tok: tokOf(use), exp: Math.round(Math.max(exp, usd) * 100) / 100, left, t0, dur: n0(sp.dur),
+    usd: Math.round(usd * 100) / 100, tok: tokOf(use), tx: fc && fc.k ? fc.k : 0, exp: Math.round(Math.max(exp, usd) * 100) / 100, left, t0, dur: n0(sp.dur),
     mode: String(sp.mode || ''), to: Array.isArray(sp.to) ? sp.to.join(',') : String(sp.to || ''), our: ours(job), wait,
     // 30/10/2026 (המשתמש: "מוציאים את הקול — עוד לא", כשהשאר הסתיימו): ההעלאה קורית בטלפון, לפני שהעבודה בתור — לא נרשמת בשרתון
     stg: Object.assign(Object.fromEntries(Object.entries(prog.stg || {}).filter(([k]) => S.STAGES.includes(k)).map(([k, v]) => [k, v && v.e ? 'd' : v && v.s ? 'n' : ''])), { up: 'd' }),

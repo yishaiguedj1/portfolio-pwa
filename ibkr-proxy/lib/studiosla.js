@@ -119,6 +119,11 @@ function fcCost(job, sp, U) {
   for (const a of Object.keys(FC_SH)) if (!(stg[FC_AG[a]] && stg[FC_AG[a]].e > 0)) rem += Math.max(0, FC_SH[a] * U * rc - (by[a] || 0));
   return Math.round((sp + rem) * 100) / 100;
 }
+const n0 = (v) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
+function fcTok(job) {
+  const use = Array.isArray(job.use) && job.use.length ? job.use : Array.isArray(job.use0) ? job.use0 : [];
+  return use.reduce((a, r) => a + (r ? n0(r.i) + n0(r.o) + n0(r.cr) + n0(r.c5) + n0(r.c1) : 0), 0);
+}
 /* היעדים של עבודה אחת — לטלפון (null = אין יעד: אין אורך, עוד לא נלקחה, או לא עבודת תרגום) */
 function slaView(job, now) {
   if (!job || job.kind !== 'tr' || !job.tg || !(job.tg.t > 0)) return null;
@@ -140,6 +145,9 @@ function slaView(job, now) {
     out.u = { tg: job.tg.u, sp: Math.round(sp * 100) / 100, f: Math.round(fu * 100) / 100, lv: level(fu, pf, done) };
     if (fcOn) {
       out.fc.u = Math.max(Math.round(sp * 100) / 100, fcCost(job, sp, job.tg.u));
+      // הטוקנים: אותו יחס כמו העלות (מחיר לטוקן בעבודה כמעט קבוע — אותו מודל לכל הסוכנים)
+      const tk = fcTok(job);
+      if (tk > 0 && sp > 0) out.fc.k = Math.round(tk * Math.max(1, out.fc.u / sp));
       if (pf >= 0.4 && out.fc.u > job.tg.u && out.u.lv !== 'over') out.u.lv = 'risk';
     }
   }

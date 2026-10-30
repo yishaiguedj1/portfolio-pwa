@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1499 מפתחות מתוך 5515) */
+/* המחרוזות של admin (1500 מפתחות מתוך 5517) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -736,6 +736,7 @@ he: {
   "admLiveStep": "שלב {n} מתוך {t}",
   "admLiveT": "עכשיו במערכת",
   "admLiveTok": "טוקנים",
+  "admLiveTokExp": "טוקנים · צפוי {n}",
   "admLiveUserAll": "כל הפעילות של {n}",
   "admLiveV": "מחכה לסרטון",
   "admLiveWaitBtn": "להודיע לי כשמסתיים",
@@ -2237,6 +2238,7 @@ en: {
   "admLiveStep": "Step {n} of {t}",
   "admLiveT": "Live now",
   "admLiveTok": "Tokens",
+  "admLiveTokExp": "Tokens · expected {n}",
   "admLiveUserAll": "All activity of {n}",
   "admLiveV": "Waiting for the video",
   "admLiveWaitBtn": "Notify me when it ends",

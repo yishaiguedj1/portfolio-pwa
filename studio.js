@@ -634,6 +634,7 @@ export function normSla(o) {
   if (o.fc && typeof o.fc === 'object' && num(o.fc.t, 1e7)) {
     out.fc = { t: o.fc.t };
     if (out.u && num(o.fc.u, 1e5) != null) out.fc.u = o.fc.u;
+    if (out.fc.u != null && num(o.fc.k, 1e9)) out.fc.k = Math.round(o.fc.k);
   }
   return out;
 }
@@ -6082,7 +6083,10 @@ function slaCard(rec) {
       const u = r.srv.sla.u, v = h('span');
       v.append(usdEl(u.sp), ' ' + T('studioSlaOfU') + ' ', approx(fmtUsd(u.tg)));
       const fc = r.srv.sla.fc;
-      if (fc && fc.u != null && r.srv.state === 'running') v.append(' · ' + T('studioSlaFc') + ' ', approx(fmtUsd(Math.max(fc.u, u.sp))));
+      if (fc && fc.u != null && r.srv.state === 'running') {
+        v.append(' · ' + T('studioSlaFc') + ' ', approx(fmtUsd(Math.max(fc.u, u.sp))));
+        if (fc.k) v.append(' · ' + T('studioSlaFcTok', { n: approx(fmtTok(fc.k)) }));   // 30/10/2026: גם צפי הטוקנים
+      }
       paint(row, v, u.f, u.lv);
     }));
   }

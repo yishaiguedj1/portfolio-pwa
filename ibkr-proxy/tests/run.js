@@ -2569,17 +2569,18 @@ function stubFetch(text, status = 200) {
         // 30/10/2026: הצפי לסוף — התמלול/היישור/התרגום הסתיימו (המנהל $0.01, המתרגם $0.03), הביקורת באמצע; יעד $0.15.
         // ההקצנה הקווית (עלות/התקדמות) נתנה $0.06 ולא ידעה שהיעד נדיב; הצפי לפי הסוכנים — מתחת ליעד, מעל מה שהוצא
         const M = 60e3, ep = { s: { tr: 300, al: 200, tl: 60, rv: 120, bn: 240, sv: 60 }, t: 980, q: [0, 0.3, 0.45], n: 9 };
-        const fj = { kind: 'tr', state: 'running', c0: 1, ep, tg: { t: 1500, u: 0.15 }, use: [{ k: 'main', usd: 0.01 }, { k: 'tl', usd: 0.03 }, { k: 'rv', usd: 0.005 }],
+        const fj = { kind: 'tr', state: 'running', c0: 1, ep, tg: { t: 1500, u: 0.15 }, use: [{ k: 'main', usd: 0.01, i: 40000, o: 6000 }, { k: 'tl', usd: 0.03, i: 120000, o: 22000 }, { k: 'rv', usd: 0.005, i: 20000 }],
           prog: { st: 'rv', p: 0.5, stg: { tr: { s: 1, e: 1 + 5 * M }, al: { s: 1 + 5 * M, e: 1 + 9 * M }, tl: { s: 1 + 9 * M, e: 1 + 10 * M }, rv: { s: 1 + 10 * M, e: 0 } } } };
         const fv = L7.slaView(fj, 1 + 11 * M);
         ok(fv.fc && fv.fc.t > 11 * 60 && fv.fc.t < 1500 && fv.fc.u >= 0.045 && fv.fc.u < 0.1 && fv.u.lv === 'ok',
           'סטודיו: צפי לסוף — זמן = השעון + מה שנשאר לפי השלבים, עלות לפי הסוכנים שנשארו (מתוקן ביחס בפועל/יעד)');
+        ok(fv.fc.k > 208000 && fv.fc.k < 420000, 'סטודיו: צפי הטוקנים — מעל מה שנצרך, באותו יחס כמו העלות');
         const slow = Object.assign({}, fj, { tg: { t: 900, u: 0.15 } });
         ok(L7.slaView(slow, 1 + 11 * M).t.lv === 'risk', 'סטודיו: צפי מעל יעד הזמן אחרי 40% מהדרך = "בסיכון" כבר עכשיו');
         ok(!L7.slaView(Object.assign({}, fj, { state: 'done', ended: 1 + 20 * M }), 2e9).fc, 'סטודיו: עבודה שהסתיימה — בלי צפי');
         const UM9 = require('../lib/usermon');
         const lr = UM9.liveRow(Object.assign({ id: 'j1', spec: { eng: 'api', dur: 300 } }, fj), {}, 1 + 11 * M);
-        ok(lr.exp === fv.fc.u && lr.left === Math.round(fv.fc.t - fv.t.el) && lr.stg.up === 'd', 'מרכז הניהול: אותו צפי כמו אצל המשתמש; ההעלאה מסומנת שהסתיימה');
+        ok(lr.exp === fv.fc.u && lr.tx === fv.fc.k && lr.left === Math.round(fv.fc.t - fv.t.el) && lr.stg.up === 'd', 'מרכז הניהול: אותו צפי כמו אצל המשתמש; ההעלאה מסומנת שהסתיימה');
       }
       ok(L7.normPrice(5) === 500 && L7.normPrice(0.1) === 0 && L7.normPrice('x') === 0 && L7.normPrice(101) === 0, 'סטודיו: מחיר מתרגם — טווח קבוע, בסנטים');
       const mon = Date.UTC(2026, 9, 20);
