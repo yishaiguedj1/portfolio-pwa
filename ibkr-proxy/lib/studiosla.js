@@ -77,6 +77,53 @@ function level(f, pf, done) {
   if (f >= MARKS[0]) return 'half';
   return 'ok';
 }
+/* 30/10/2026 (בקשת המשתמש: "למה הצפי מוצג לנו ולא למשתמש? ... שיהיה יותר מדויק"): צפי לסוף — זמן ועלות. אחד למשתמש ולמנהל.
+   עד היום במרכז הניהול: הקצנה קווית (עלות / התקדמות) — התמלול והיישור כמעט חינם, ולכן הצפי טעה בגדול.
+   זמן: השעון + מה שנשאר בשלב הנוכחי (שילוב של הקצב בפועל והתוכנית, לפי האחוז) + השלבים הבאים לפי התוכנית,
+   מתוקנים ביחס בפועל/תוכנית של השלבים שהסתיימו (מכווץ לעבר 1 כשמעט הסתיים — כמו ה־ridge ב־studioeta).
+   עלות: לפי הסוכנים (מנהל = תמלול והגהה, מתרגם, מבקר, שופט = עם הצריבה). מה שהסתיים — בפועל; מה שנשאר — חלקו ביעד
+   התקציב, מתוקן ביחס בפועל/יעד של מה שהסתיים */
+const FC_SH = { main: 0.2, tl: 0.45, rv: 0.25, jg: 0.1 };
+const FC_AG = { main: 'tr', tl: 'tl', rv: 'rv', jg: 'bn' };
+const shrink = (ratio, w, lo, hi) => Math.exp(w * Math.log(Math.max(lo, Math.min(hi, ratio))));
+const stgSec = (x, now) => (!x || !(x.s > 0) ? 0 : Math.max(0, (+x.a || 0) + ((x.e > 0 ? x.e : now) - x.s)) / 1000);
+function fcTime(job, el, now) {
+  const prog = job.prog || {}, stg = prog.stg || {}, plan = planOfJob(job);
+  const all = STAGES.reduce((a, k) => a + (plan[k] || 0), 0);
+  if (!(all > 0)) return 0;
+  let dPlan = 0, dAct = 0;
+  for (const k of STAGES) if (stg[k] && stg[k].e > 0 && k !== prog.st) { dPlan += plan[k] || 0; dAct += stgSec(stg[k], now); }
+  const r = dPlan > 0 && dAct > 0 ? shrink(dAct / dPlan, dPlan / (dPlan + 0.25 * all), 0.4, 2.5) : 1;
+  let rem = 0, seen = false;
+  for (const k of STAGES) {
+    const pk = (plan[k] || 0) * r;
+    if (k === prog.st && stg[k] && !(stg[k].e > 0)) {
+      seen = true;
+      const p = Math.max(0, Math.min(0.99, +prog.p || 0)), sp = stgSec(stg[k], now);
+      const byPlan = Math.max(pk * (1 - p), pk - sp), byRate = p >= 0.05 ? sp * (1 - p) / p : byPlan;
+      rem += Math.max(0, p * byRate + (1 - p) * byPlan);
+    } else if (!(stg[k] && stg[k].e > 0) && (seen || !prog.st || STAGES.indexOf(k) > STAGES.indexOf(prog.st))) rem += pk;
+  }
+  return Math.round(el + rem);
+}
+function fcCost(job, sp, U) {
+  const stg = (job.prog && job.prog.stg) || {}, use = Array.isArray(job.use) && job.use.length ? job.use : Array.isArray(job.use0) ? job.use0 : [];
+  const by = {};
+  for (const x of use) if (x && x.k && typeof x.usd === 'number') by[x.k] = (by[x.k] || 0) + x.usd;
+  const known = Object.values(by).reduce((a, v) => a + v, 0);
+  let dSh = 0, dAct = 0;
+  for (const a of Object.keys(FC_SH)) if (stg[FC_AG[a]] && stg[FC_AG[a]].e > 0) { dSh += FC_SH[a]; dAct += by[a] || 0; }
+  if (!known) dAct = sp;                       // בלי פירוט לפי סוכן — כל מה שהוצא שייך למה שהסתיים
+  const rc = dSh >= 0.15 && dAct > 0 ? shrink(dAct / (dSh * U), dSh / (dSh + 0.2), 0.2, 5) : 1;
+  let rem = 0;
+  for (const a of Object.keys(FC_SH)) if (!(stg[FC_AG[a]] && stg[FC_AG[a]].e > 0)) rem += Math.max(0, FC_SH[a] * U * rc - (by[a] || 0));
+  return Math.round((sp + rem) * 100) / 100;
+}
+const n0 = (v) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
+function fcTok(job) {
+  const use = Array.isArray(job.use) && job.use.length ? job.use : Array.isArray(job.use0) ? job.use0 : [];
+  return use.reduce((a, r) => a + (r ? n0(r.i) + n0(r.o) + n0(r.cr) + n0(r.c5) + n0(r.c1) : 0), 0);
+}
 /* היעדים של עבודה אחת — לטלפון (null = אין יעד: אין אורך, עוד לא נלקחה, או לא עבודת תרגום) */
 function slaView(job, now) {
   if (!job || job.kind !== 'tr' || !job.tg || !(job.tg.t > 0)) return null;
@@ -85,11 +132,24 @@ function slaView(job, now) {
   const done = job.state === 'done' || !!job.rdy, pf = progFrac(job);
   const ft = c.el / 1000 / job.tg.t;
   const out = { t: { tg: job.tg.t, el: Math.round(c.el / 1000), pz: Math.round(c.pz / 1000), f: Math.round(ft * 100) / 100, lv: level(ft, pf, done), paused: c.paused }, pf: Math.round(pf * 100) / 100 };
+  // הצפי לסוף (fc) — רק בזמן ריצה; צפי מעל היעד ב־40% מהדרך ומעלה = "בסיכון" כבר עכשיו (לא מחכים לסימון 75%)
+  const fcOn = !done && !TERMINAL.includes(job.state);
+  if (fcOn) {
+    out.fc = { t: fcTime(job, c.el / 1000, now) };
+    if (pf >= 0.4 && out.fc.t > job.tg.t && out.t.lv !== 'over') out.t.lv = 'risk';
+  }
   if (job.tg.u > 0) {
     // העלות: מהדיווח של העובד (בסוף / בעצירה), ובזמן הריצה — מה שהמגדל מדד
     const sp = Math.max(usdOf(job.use || job.use0), job.tw && typeof job.tw.usd === 'number' ? job.tw.usd : 0);
     const fu = sp / job.tg.u;
     out.u = { tg: job.tg.u, sp: Math.round(sp * 100) / 100, f: Math.round(fu * 100) / 100, lv: level(fu, pf, done) };
+    if (fcOn) {
+      out.fc.u = Math.max(Math.round(sp * 100) / 100, fcCost(job, sp, job.tg.u));
+      // הטוקנים: אותו יחס כמו העלות (מחיר לטוקן בעבודה כמעט קבוע — אותו מודל לכל הסוכנים)
+      const tk = fcTok(job);
+      if (tk > 0 && sp > 0) out.fc.k = Math.round(tk * Math.max(1, out.fc.u / sp));
+      if (pf >= 0.4 && out.fc.u > job.tg.u && out.u.lv !== 'over') out.u.lv = 'risk';
+    }
   }
   return out;
 }
@@ -152,7 +212,7 @@ function valueView(list, now, hpc) {
   return out;
 }
 
-module.exports = {
+module.exports = { fcTime, fcCost,
   STAGES, RATE, MODE_MIN, MARKS, HP_DEF, HP_MIN, HP_MAX,
   stageTargets, targets, progFrac, qaPause, clock, slaView, slaBreaches, normPrice, valueView,
 };

@@ -631,6 +631,12 @@ export function normSla(o) {
     const ut = num(o.u.tg, 1e5), sp = num(o.u.sp, 1e5), uf = num(o.u.f, 1e4);
     if (ut && sp != null && uf != null && SLA_LV.includes(o.u.lv)) out.u = { tg: ut, sp, f: uf, lv: o.u.lv };
   }
+  // 30/10/2026: הצפי לסוף (זמן בשניות, עלות בדולרים) — רק בזמן ריצה
+  if (o.fc && typeof o.fc === 'object' && num(o.fc.t, 1e7)) {
+    out.fc = { t: o.fc.t };
+    if (out.u && num(o.fc.u, 1e5) != null) out.fc.u = o.fc.u;
+    if (out.fc.u != null && num(o.fc.k, 1e9)) out.fc.k = Math.round(o.fc.k);
+  }
   return out;
 }
 /* v377: ערך ועלות החודש, תחזית, צוואר בקבוק ומסלולים חריגים (lib/studiosla.js valueView) */
@@ -6107,13 +6113,20 @@ function slaCard(rec) {
   const rows = [live(tRow, (row) => {
     const r = cur(); if (!r) return;
     const s = r.srv.sla, x = slaLiveT(s, Date.now(), r.srv.state === 'running');
-    paint(row, T('studioSlaOf', { a: fmtShort(x.el), b: approx(fmtShort(s.t.tg)) }), x.f, s.t.lv);
+    // 30/10/2026 (בקשת המשתמש): הצפי לסוף ליד היעד — אותו צפי שבמרכז הניהול; לא פחות מהזמן שכבר עבר
+    const fc = s.fc && r.srv.state === 'running' ? ' · ' + T('studioSlaFc') + ' ' + approx(fmtShort(Math.max(s.fc.t, x.el))) : '';
+    paint(row, T('studioSlaOf', { a: fmtShort(x.el), b: approx(fmtShort(s.t.tg)) }) + fc, x.f, s.t.lv);
   })];
   if (sla.u) {
     rows.push(live(slaRow(T('studioSlaCost'), '', sla.u.f, sla.u.lv, 'sla:u'), (row) => {
       const r = cur(); if (!r || !r.srv.sla.u) return;
       const u = r.srv.sla.u, v = h('span');
       v.append(usdEl(u.sp), ' ' + T('studioSlaOfU') + ' ', approx(fmtUsd(u.tg)));
+      const fc = r.srv.sla.fc;
+      if (fc && fc.u != null && r.srv.state === 'running') {
+        v.append(' · ' + T('studioSlaFc') + ' ', approx(fmtUsd(Math.max(fc.u, u.sp))));
+        if (fc.k) v.append(' · ' + T('studioSlaFcTok', { n: approx(fmtTok(fc.k)) }));   // 30/10/2026: גם צפי הטוקנים
+      }
       paint(row, v, u.f, u.lv);
     }));
   }
