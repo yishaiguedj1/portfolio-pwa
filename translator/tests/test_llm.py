@@ -306,6 +306,20 @@ class AnthropicTests(unittest.TestCase):
         self.assertEqual(e.prompt_tokens('word ' * 40000, 'x'), 42000, 'באזור הסף — count_tokens המדויק (חינם)')
         self.assertEqual(c.counted['model'], 'claude-haiku-5-5')
 
+    def test_content_filter_block_retried_once(self):
+        # 30/10/2026: "Output blocked by content filtering policy" באמצע הזרם — היה api_error כללי שהפיל עבודה ב־0%
+        class APIStatusError(Exception):
+            status_code = None
+        blk = "{'type': 'error', 'error': {'details': None, 'type': 'invalid_request_error', 'message': 'Output blocked by content filtering policy'}}"
+        c = FakeClient([APIStatusError(blk), fake_msg('עבר')])
+        e = llm.Engine(llm.Spec.of('haiku-medium'), client=c)
+        r = e.complete('main', 'X', 'Y')
+        self.assertEqual((r.text, len(c.calls), e.block_retries), ('עבר', 2, 1))
+        c = FakeClient([APIStatusError(blk)] * 3)
+        with self.assertRaises(llm.LLMError) as cm:
+            llm.Engine(llm.Spec.of('haiku-medium'), client=c).complete('main', 'X', 'Y')
+        self.assertEqual((cm.exception.code, len(c.calls)), ('api_blocked', 2), 'ניסיון נוסף אחד, ואז קוד משלו')
+
     def test_refusal_retry_reframed_once(self):
         c = FakeClient([fake_msg('', stop='refusal', o=5), fake_msg('#1 תרגום')])
         e = llm.Engine(llm.Spec.of('haiku-high'), client=c)

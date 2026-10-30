@@ -1161,7 +1161,7 @@ function errText(code, extra) {
     case 'relay_hub': case 'relay_error': case 'relay_bad': return T('studioErrRy');
     case 'api_auth': case 'api_model': case 'no_api_key': return T('studioErrApiKey');   // הסקירה: קודי מצב API
     case 'api_network': case 'api_timeout': case 'api_rate': case 'api_overloaded': return T('studioErrApiNet');
-    case 'model_refusal': return T('studioErrRefusal');
+    case 'model_refusal': case 'api_blocked': return T('studioErrRefusal');   // 30/10/2026: api_blocked = מסנן התוכן חסם את התשובה
     case 'check_errors': return T('studioErrChecks');
     case 'max_tokens': return T('studioErrMaxTok');   // 11/10/2026
     case 'store_net': return T('studioErrStoreNet');   // 11/10/2026: האחסון (R2 / Drive) — ניתוק / חסימה

@@ -269,6 +269,25 @@ class FlowTests(unittest.TestCase):
         pl.ask_late()                        # פעם אחת בלבד
         self.assertEqual(self.J.used, 1)
 
+    def test_proofread_blocked_falls_back_to_parts(self):
+        # 30/10/2026: מסנן התוכן של Claude חסם את ההגהה המלאה (פרק של סדרה) — העבודה נפלה ב־0%. עכשיו: הגהה בחלקים קטנים
+        class APIStatusError(Exception):
+            status_code = None
+        self.addCleanup(setattr, P, 'PROOF_BLOCK_WORDS', P.PROOF_BLOCK_WORDS)
+        P.PROOF_BLOCK_WORDS = 3
+
+        def h(kw):
+            if '<transcript>' in kw['messages'][0]['content']:
+                raise APIStatusError("{'type': 'invalid_request_error', 'message': 'Output blocked by content filtering policy'}")
+            return msg('welcom. => welcome.' if 'welcom.' in kw['messages'][0]['content'] else '')
+        pl = P.Pipeline(self.ctx, self.J, self.engine(h))
+        self.assertEqual(pl.proofread(), [])
+        full = [c for c in self.client.calls if '<transcript>' in c['messages'][0]['content']]
+        self.assertEqual(len(full), 2, 'ההגהה המלאה — ניסיון נוסף אחד')
+        self.assertEqual(len(self.client.calls), 4, 'ואז שני חלקים')
+        self.assertEqual((self.pd / 'en.patch.txt').read_text(encoding='utf-8'), 'welcom. => welcome.\n')
+        self.assertEqual(self.ctx.st.get('pbk'), 1)
+
     def test_ask_never_waits(self):
         # 20/10/2026 (בקשת המשתמש): שאלה לא מעכבת את העבודה — לא ask_user (שמחכה), ותשובה שלא הגיעה = ברירת המחדל
         P.ASK_USER = True
