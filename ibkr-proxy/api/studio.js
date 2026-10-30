@@ -2832,10 +2832,12 @@ async function handler(req, res, deps = {}) {
   const modeLocked = async (m) => !S.modeOk(S.modeNow(m), await fullModes());
   // 25/10/2026 (בקשת המשתמש): למשתמשים רק השרת של המערכת — בלי Routine (גם לא ry) ובלי העתק־הדבק
   const engLocked = async (spec) => !S.engOk(spec, await fullModes());
-  // 25/10/2026 (בקשת המשתמש): הורדה מקישור — גם לחשבונות הבדיקה (sysCfg.tsEm), לא רק למנהל ול"כל המודלים"
-  const urlAllowed = async () => (await fullModes()) || SF.tsHas(await sysCfg(deps, now), user);
-  // 29/10/2026 (בקשת המשתמש): קריוקי משיר — המנהל וחשבונות הבדיקה (sysCfg.tsEm), עד שייפתח לכולם
-  const kaAllowed = async () => isAdmin(user) || SF.tsHas(await sysCfg(deps, now), user);
+  // 25/10/2026: הורדה מקישור — המנהל, "כל המודלים" וחשבונות הבדיקה. 30/10/2026 (בקשת המשתמש): לכל מי שמורשה לסטודיו
+  // (כבר עבר את השער). נשאר: הדגל st_url, ו־R2
+  const urlAllowed = async () => true;
+  // 29/10/2026: קריוקי משיר — המנהל וחשבונות הבדיקה. 30/10/2026 (בקשת המשתמש): "כל מי שמורשה לסטודיו — מורשה לכל
+  // התוכנות שלו, גם הקריוקי"; רק מה שהוגדר למנהל נשאר נעול (מצבים/מודלים, המנוי, המגדל, הורדה מקישור). כאן כבר עבר את השער
+  const kaAllowed = async () => true;
   if ((op === 'status' || op === 'jobs') && watchDue(now)) await checkServers(deps, now, uid).catch(() => 0);
   if (op === 'status' && isAdmin(user)) await offsiteOwner(deps, uid).catch(() => {});   // 11/10/2026: בעל הגיבוי ב־Drive
   // v357: חיבור Drive של הסטודיו (חלון ההסכמה של Google — אותו מנגנון של גיבוי הספרייה, לקוח אחר)
@@ -3559,7 +3561,7 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json(Object.assign({ ok: f.ok, job: view(j) }, f.ok ? (f.unsure ? { unsure: f.unsure, detail: f.detail } : {}) : { error: f.error, retry: f.retry, detail: f.detail || '' }));
     }
     if (op === 'urlProbe') {
-      // 22/10/2026: בדיקת קישור — למנהל, ל"כל המודלים" ולחשבונות הבדיקה (25/10), והדגל st_url. pid = מצב בדיקה קיימת
+      // 22/10/2026: בדיקת קישור — לכל מי שמורשה לסטודיו (30/10), והדגל st_url. pid = מצב בדיקה קיימת
       if (!(await urlAllowed())) return res.status(403).json({ ok: false, error: 'not_allowed' });
       if (!(await flagOn(deps, 'st_url', now))) return res.status(409).json({ ok: false, error: 'flag_off', fl: 'st_url' });
       if (body.pid != null) {
@@ -3585,7 +3587,7 @@ async function handler(req, res, deps = {}) {
       if (!S.langReady(spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported' });   // לפני ההעלאה, לא אחריה
       if (await modeLocked(spec.mode)) return res.status(403).json({ ok: false, error: 'mode_locked' });
       if (spec.ph && !R2.config().ok) return res.status(503).json({ ok: false, error: 'r2_needed' });   // 24/10/2026: תרגום בטלפון — הקבצים הקטנים ב־R2
-      if (spec.ka && !(await kaAllowed())) return res.status(403).json({ ok: false, error: 'not_allowed' });   // קריוקי — המנהל וחשבונות הבדיקה
+      if (spec.ka && !(await kaAllowed())) return res.status(403).json({ ok: false, error: 'not_allowed' });   // קריוקי — כל מי שמורשה לסטודיו (30/10)
       if (spec.ka && !R2.config().ok) return res.status(503).json({ ok: false, error: 'r2_needed' });
       if (spec.src === 'url') {   // 22/10/2026: הורדה מקישור — כמו בבדיקה: מנהל / "כל המודלים" / חשבונות הבדיקה, הדגל, ו־R2
         if (!(await urlAllowed())) return res.status(403).json({ ok: false, error: 'not_allowed' });
