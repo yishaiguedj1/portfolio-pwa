@@ -3557,7 +3557,7 @@ function phTracks(f, r) {
     if (form !== f || !f.ph || f.ph.pid !== r.pid || !L.length) return;
     const tracks = L.map((t) => ({ id: 'p:' + t.i, kind: 'text', fmt: 'srt', lang: lang2(t.l) || '', name: t.t, def: false, forced: t.f, sdh: /\bSDH\b|hearing/i.test(t.t) }));
     trkSet(f, vf, tracks, true);
-    for (const t of L) f.trk.x['p:' + t.i] = { st: 'ok', text: t.x, n: (t.x.match(/-->/g) || []).length };
+    for (const t of L) f.trk.x['p:' + t.i] = { st: 'ok', text: t.x, n: t.x.split(' --> ').length - 1 };
     render('none');
   }, () => {});
 }

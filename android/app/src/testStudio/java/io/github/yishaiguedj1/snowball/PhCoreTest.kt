@@ -110,7 +110,7 @@ class PhCoreTest {
 
     /* 30/10/2026: כתוביות בבחירה — טביעת האצבע זהה ל־studionet.js osHash, ורצועות הטקסט נארזות לדף */
     @Test fun pickSubtitles() {
-        val f = java.io.File.createTempFile("oh", ".bin")
+        val f = java.io.File.createTempFile("ohash", ".bin")
         f.writeBytes(ByteArray(200000) { ((it * 31 + 7) and 255).toByte() })
         assertEquals("5f9fe02060a3cd40", PhCore.osHash(f))   // הערך מ־osHash בדף על אותם בתים
         f.writeBytes(ByteArray(10)); assertEquals("", PhCore.osHash(f)); f.delete()
