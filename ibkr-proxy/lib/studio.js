@@ -85,7 +85,7 @@ function recoverWait(job, now) {
 const TRANSIENT_ERRS = ['net', 'drive', 'drive_net', 'store_net', 'url_net', 'url_timeout', 'api_network', 'api_timeout', 'api_rate', 'api_overloaded', 'worker_lost', 'relay_lost'];   // 24/10/2026: relay_lost = הסשן של ה־Routine נגמר באמצע — "המשך" מפעיל חדש   // 14/10/2026: worker_lost = השרת הופעל מחדש באמצע (עדכון / כיבוי) — ממשיכים מנקודת השמירה   // 11/10: store_net = ניתוק מול R2 / Drive   // הסקירה: גם רשת/קצב/עומס מול Anthropic במצב API
 /* 11/10/2026 (ביקורת העמידות): כשל דטרמיניסטי — אותה בקשה תיכשל שוב. לא "חולף" גם כשבמקרה נשארה פתוחה התראת Drive
    ישנה מאותה עבודה (קודם: max_tokens אחרי התראת הורדה ישנה קיבל "המשך" אוטומטי ששילם שוב על אותו כשל) */
-const DET_ERRS = ['ph_meta', 'ph_words', 'relay_none', 'relay_hub', 'relay_bad', 'worker_oom', 'store_fail', 'max_tokens', 'check_errors', 'model_refusal', 'api_bad_request', 'no_api_key', 'sdk_missing', 'mode_unknown', 'cp_empty', 'cp_timeout',
+const DET_ERRS = ['ph_meta', 'ph_words', 'relay_none', 'relay_hub', 'relay_bad', 'worker_oom', 'store_fail', 'max_tokens', 'check_errors', 'model_refusal', 'api_blocked', 'api_bad_request', 'no_api_key', 'sdk_missing', 'mode_unknown', 'cp_empty', 'cp_timeout',
   'url_login', 'url_gone', 'url_geo', 'url_drm', 'url_live', 'url_unsupported', 'url_playlist', 'url_no_video', 'url_private', 'url_bad_url', 'url_dns', 'url_blocked'];   // 22/10/2026: הורדה מקישור — אותו ניסיון ייכשל שוב
 const TRANSIENT_KINDS = ['drive:dl_retry', 'drive:up_retry', 'drive:dl_fail', 'drive:up_fail'];
 /* עצירה מכוונת — אף פעם לא "חולפת", גם כשבמקרה הייתה תקלת Drive פתוחה (המגדל / התקציב / מתג החירום / ההחלטה שלך) */

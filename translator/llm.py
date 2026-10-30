@@ -94,6 +94,10 @@ REFUSAL_REFRAME = ('הקשר: זו עבודת תרגום כתוביות של ס�
 MAX_OUT = 120_000
 # שגיאות חולפות מול Claude — ניסיון נוסף אחרי ההשהיות האלה (שניות); = TRANSIENT_ERRS בשרתון (חוץ מ־net/drive)
 TRANSIENT_CODES = ('api_overloaded', 'api_network', 'api_timeout', 'api_rate')
+# 30/10/2026: מסנן התוכן של Anthropic חסם את הפלט ("Output blocked by content filtering policy"). התשובה נדגמת מחדש בכל
+# ניסיון — אותה בקשה עברה בפרק הזה יום קודם — ולכן ניסיון אחד נוסף מיד; חסימה שנייה עוברת למתקשר (ההגהה עוברת לחלקים).
+FILTER_RE = re.compile(r'content filtering', re.I)
+BLOCK_RETRIES = 1
 # 15/10/2026 (עבודה בניסוי שעמדה 30+ דק׳ בלי דיווח, הזיכרון 1%): timeout=1800 חל על כל קריאה מהרשת — חיבור שנתקע
 # באמצע הזרם חיכה עד חצי שעה לכל ניסיון (ועוד 4 ניסיונות של ה־SDK). בזרם Anthropic שולח אירועי ping גם בזמן
 # החשיבה, כך שהמתנה ארוכה בלי שום בייט = חיבור מת. read = הזמן המקסימלי בין שני בייטים, לא לכל התשובה.
@@ -239,6 +243,7 @@ class Engine:
         self.cache_warns = 0           # קריאות שהיו אמורות לקרוא מהמטמון (אותו בלוק, קריאה 2+) ולא קראו
         self.think: dict = {}          # שלב → חשיבה מצטברת (טוקנים כשהשרת מדווח; אחרת תווים)
         self.refusal_retries = 0       # סירובים שעברו בניסוח מחדש (Haiku 5.5 — בלי נפילה בצד השרת)
+        self.block_retries = 0         # 30/10/2026: תשובות שמסנן התוכן חסם ונוסו שוב
         self._inflight = 0             # קריאות שנשלחו ועוד לא חזרו (לתקרה בזמן מקבול)
         self.trunc = 0                 # 14/10/2026 (מאגר הלמידה): תשובות שנקטעו בתקרת הטוקנים
         self.mid_retries = 0           # ניסיונות חוזרים על שגיאה חולפת באמצע הזרם
@@ -334,16 +339,22 @@ class Engine:
     def _call_retrying(self, fixed, extra, prompt, max_tokens, on_first_token=None) -> 'Result':
         """11/10/2026 (ביקורת העמידות): ה־SDK מנסה שוב רק את פתיחת הבקשה. עומס (529/5xx) או ניתוק שמגיעים באמצע
         הזרם הכשילו עבודה שלמה של שעה (עשרות קריאות, 4 במקביל). כאן — עוד שני ניסיונות עם השהיה, רק לשגיאות חולפות."""
-        for i in range(len(MID_RETRY_WAIT) + 1):
+        blocked = 0
+        for i in range(len(MID_RETRY_WAIT) + 1 + BLOCK_RETRIES):
             _tl.a = i                        # יומן הקריאות: מספר הניסיון
             try:
                 return self._anthropic(fixed, extra, prompt, max_tokens, on_first_token if i == 0 else None)
             except LLMError as e:
-                if e.code not in TRANSIENT_CODES or i == len(MID_RETRY_WAIT):
+                if e.code == 'api_blocked' and blocked < BLOCK_RETRIES:
+                    blocked += 1
+                    self.block_retries += 1
+                    print('· מסנן התוכן של Claude חסם את התשובה — ניסיון נוסף אחד')
+                    continue
+                if e.code not in TRANSIENT_CODES or i - blocked >= len(MID_RETRY_WAIT):
                     raise
                 self.mid_retries += 1
-                print(f'· שגיאה חולפת מול Claude ({e.code}) — ניסיון נוסף בעוד {MID_RETRY_WAIT[i]} שנ׳')
-                time.sleep(MID_RETRY_WAIT[i])
+                print(f'· שגיאה חולפת מול Claude ({e.code}) — ניסיון נוסף בעוד {MID_RETRY_WAIT[i - blocked]} שנ׳')
+                time.sleep(MID_RETRY_WAIT[i - blocked])
 
     # ------------------------------------------------------------------ כרטיס המחיר (Haiku 5.5)
     @property
@@ -446,6 +457,10 @@ class Engine:
             # והשופט פשוט דילג. זה לא באג בבקשה: שום קריאה לא תעבור עד שהמגבלה מורמת במסוף — קוד משלו, P1, בלי "המשך" לבד.
             if code in ('api_bad_request', 'api_rate', 'api_auth') and re.search(r'usage limits?|credit balance|spend limit', str(e), re.I):
                 code = 'api_quota'
+            # 30/10/2026: "Output blocked by content filtering policy" (אירוע error באמצע הזרם, invalid_request_error) —
+            # המסנן של Anthropic חסם את הפלט (הגהה של פרק שלם משחזרת הרבה דיאלוג). עד היום "api_error" כללי שהפיל את העבודה.
+            if FILTER_RE.search(str(e)):
+                code = 'api_blocked'
             raise LLMError(code, f'{name}: {str(e)[:200]}') from e
         stop = getattr(msg, 'stop_reason', None)
         text = ''.join(getattr(b, 'text', '') for b in msg.content if getattr(b, 'type', '') == 'text')
@@ -544,6 +559,8 @@ class Engine:
                     else 'api_auth' if st in (401, 403) else 'api_bad_request' if st == 400 else 'api_error')
             if re.search(r'usage limit|limit reached|hit your limit', msg, re.I):
                 code = 'sub_limit'               # מגבלת השימוש של המנוי (מתאפסת לבד אחרי כמה שעות) — לא מפתח של המערכת
+            elif FILTER_RE.search(msg):
+                code = 'api_blocked'             # 30/10/2026: מסנן התוכן חסם את הפלט
             raise LLMError(code, 'claude -p: ' + msg[:200])
         otd = u.get('output_tokens_details') or {}
         think = int(otd.get('thinking_tokens') or 0) if isinstance(otd, dict) else 0

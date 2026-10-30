@@ -209,6 +209,7 @@ def _valid_patch(edit_text: str, patch_text: str) -> tuple[list[str], list[str],
 # של תיקוני שמיעה בלבד, בחלקים של כ־PROOF_PART_WORDS מילים, במקביל, אחרי ההגהה הראשית (עם התדריך והמילון שלה).
 PROOF_SPLIT_WORDS = int(os.environ.get('SNB_PROOF_SPLIT', '4000'))
 PROOF_PART_WORDS = 2500
+PROOF_BLOCK_WORDS = 600        # 30/10/2026: אחרי חסימה של מסנן התוכן — חלקים קטנים (תשובה קצרה לכל אחד)
 PROOF_PAR = 4
 
 
@@ -1161,7 +1162,12 @@ class Pipeline:
         if not self.eng.fits_card(fixed, prompt):
             # תמליל של שעות רבות: ההגהה צריכה את כל התמליל בבת אחת — נשארת בקריאה אחת, במחיר המלא (רשום ב־ledger)
             print(f'· {self.eng.spec.model}: התמליל מעל סף 100K הטוקנים — ההגהה תתומחר בכרטיס היקר')
-        res = self.eng.complete('main', fixed, prompt, max_tokens=64000)   # נקטעה — complete מנסה פעם אחת בתקרת המודל
+        try:
+            res = self.eng.complete('main', fixed, prompt, max_tokens=64000)   # נקטעה — complete מנסה פעם אחת בתקרת המודל
+        except llm.LLMError as e:
+            if e.code != 'api_blocked':
+                raise
+            return self.proof_blocked(fixed, edit, terms, ref)
         self.save_usage()
         sec = split_sections(res.text)
         ok, dropped, cur = _valid_patch(edit, sec.get('PATCH', ''))
@@ -1183,6 +1189,19 @@ class Pipeline:
         if dropped and not ok:                    # כולם נזרקו — שתי דוגמאות קצרות ליומן (לאבחון הפורמט, בלי כל התמליל)
             print('· דוגמאות שנזרקו: ' + ' | '.join(repr(d[:48]) for d in dropped[:2]))
         return parse_questions(sec.get('QUESTIONS', ''))
+
+    def proof_blocked(self, fixed: str, edit: str, terms: str, ref) -> list[dict]:
+        """30/10/2026: מסנן התוכן של Claude חסם פעמיים את תשובת ההגהה המלאה (פרק של סדרה — PATCH ארוך שמשחזר דיאלוג).
+        עד היום העבודה נפלה ב־0% ("api_error"). עכשיו: ההגהה בחלקים (תשובה קצרה לכל חלק; חלק שנחסם — מדלגים), בלי תדריך
+        ומילון — התרגום יודע לעבוד בלעדיהם. תמליל קצר מחלק אחד — ממשיכים מהתמליל כמו שהוא."""
+        print('· מסנן התוכן של Claude חסם את ההגהה המלאה — ממשיכים בהגהה בחלקים, בלי תדריך ומילון')
+        self.ctx.st['pbk'] = 1
+        self.save_usage()
+        ok = self.proof_parts(fixed, edit, '', '', terms, ref, PROOF_BLOCK_WORDS) if not getattr(self.eng, 'manual', False) else []
+        if ok:
+            (self.pd / 'en.patch.txt').write_text('\n'.join(ok) + '\n', encoding='utf-8')
+        print(f'✓ הגהה (אחרי החסימה): {len(ok)} תיקונים')
+        return []
 
     def sub_ref(self, edit: str | None = None) -> list[tuple[float, str]]:
         """כתוביות העזר מהקובץ (files.r) — מורדות פעם אחת ל־en.ref.txt. אין / ההורדה נכשלה — ממשיכים בלעדיהן.
@@ -1238,11 +1257,11 @@ class Pipeline:
             print(f'· עזר להגהה: {len(lines)} כתוביות מהקובץ')
         return lines
 
-    def proof_parts(self, fixed: str, cur: str, brief: str, gl: str, terms: str, ref=None) -> list[str]:
+    def proof_parts(self, fixed: str, cur: str, brief: str, gl: str, terms: str, ref=None, size: int = PROOF_PART_WORDS) -> list[str]:
         """המעבר הנוסף בחלקים (PROOF_PART_TASK) על התמליל אחרי ההגהה הראשית. כל חלק בבקשה משלו, במקביל; חלק שנכשל —
         מדלגים עליו (ההגהה הראשית כבר שם). fixed = הבלוק הקבוע של ההגהה הראשית — כבר במטמון, כל החלקים קוראים ממנו;
         המשימה של החלק אחרי נקודת המטמון (system_extra). מחזיר שורות תיקון נוספות, לפי הסדר שבו vt יחיל אותן."""
-        spans = proof_chunks(cur)
+        spans = proof_chunks(cur, size)
         if len(spans) < 2:
             return []
         head = '\n\n'.join(x for x in [block('user_terms', terms) if terms else '',
