@@ -6974,8 +6974,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.93.1';
-const APP_VERSION = 'v645';
+const APP_RELEASE = '2.93.2';
+const APP_VERSION = 'v646';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -13249,8 +13249,7 @@ function renderStocks() {
   const imgs = imgsOf(list);               // סבב 5, R10: הלוגואים שכבר נטענו עוברים לכרטיסים החדשים
   /* סבב 6 (ש1): כרטיס שלא השתנה (אותה מניה, אותו אובייקט, אותו HTML) נשאר הצומת הקיים — בחירה ב"סינון", מיון
      ועדכון שלא נוגע בו לא בונים אותו מחדש. השאר נבנה כמו קודם. הסדר — listSync, בלי רגע של רשימה ריקה */
-  const was = new Map();
-  for (const c of Array.from(list.children || [])) if (c._p) was.set(c._p, c);
+  const was = nodesOf(list);
   const out = [];
   if (editAllowed('stocks')) {
     let add = list.querySelector && list.querySelector(':scope > .add-card');
@@ -13284,10 +13283,8 @@ function renderStocks() {
   let idx = 0;
   for (const p of sortPositionsList(shown, mode, mOf, DB.stockOrder)) {
     const card = buildStockCard(p);
-    const sig = card.outerHTML, o = was.get(p);
-    if (o && o._sig === sig && o.isConnected !== false) { out.push(o); idx++; continue; }
-    card._p = p;
-    card._sig = sig;
+    const o = nodeKeep(was, p, card);
+    if (o) { out.push(o); idx++; continue; }
     imgsKeep(imgs, card);
     if (wasEmpty && idx < 10 && card.style && card.style.setProperty) { card.classList.add('enter'); card.style.setProperty('--i', idx); card.addEventListener('animationend', () => card.classList.remove('enter'), { once: true }); } // v324: בלי enter אחרי הכניסה — החזרה ל־DOM בסוף גרירה/לחיצה ארוכה הריצה את cardIn מחדש
     idx++;
@@ -15085,7 +15082,7 @@ function renderWishlist(opts) {
   const items = wlItems();
   const dir = (opts && opts.dir) || 0;
   const wasEmpty = !!dir || !list.querySelector || !list.querySelector('.stock');
-  list.innerHTML = '';
+  const imgs = imgsOf(list), was = nodesOf(list), out = [];   // סבב 6: כמו renderStocks — בלי ניקוי, סידור בסוף
   paintWatchSortChips();
   // v244: מעבר רשימה — הרשימה החדשה נכנסת מהכיוון שאליו עברו (ציר משותף, כמו מעבר לשוניות)
   if (dir && list.style && list.style.setProperty && list.classList) {
@@ -15097,16 +15094,20 @@ function renderWishlist(opts) {
     const m = el('p', 'fine wl-empty');
     m.style.padding = '0';
     m.textContent = t('wlEmpty');
-    list.appendChild(m);
+    listSync(list, [m]);
     return;
   }
   let idx = 0;
   for (const w of sortWatchList(items, getWatchSort(), (s) => metrics(s).dayChg)) {
     const card = buildStockCard(wlItem(w));
+    const o = nodeKeep(was, w, card);
+    if (o) { out.push(o); idx++; continue; }
+    imgsKeep(imgs, card);
     if (wasEmpty && idx < 10 && card.style && card.style.setProperty) { card.classList.add('enter'); card.style.setProperty('--i', idx); card.addEventListener('animationend', () => card.classList.remove('enter'), { once: true }); } // v324: בלי enter אחרי הכניסה — החזרה ל־DOM בסוף גרירה/לחיצה ארוכה הריצה את cardIn מחדש
     idx++;
-    list.appendChild(card);
+    out.push(card);
   }
+  listSync(list, out);
 }
 
 /* v88/v93: לוגו חברה לכרטיס מניה — עם אות ראשונה כגיבוי אם הלוגו לא נטען.
@@ -15129,6 +15130,20 @@ function setLogoMeta(src, v) {
   if (v === null) { if (!(src in m)) return; delete m[src]; } else if (m[src] === v) return; else m[src] = v;
   clearTimeout(_logoMetaT);
   _logoMetaT = setTimeout(() => { try { localStorage.setItem(LS_LOGO_META, JSON.stringify(m)); } catch (e) {} }, 400);
+}
+/* 30/10/2026 (סבב קפיצות 6, שלב 1): כרטיס או שורה שלא השתנו נשארים הצומת הקיים. המפתח = האובייקט שממנו נבנו
+   (מאזינים בכרטיס סוגרים עליו, ולכן לא לפי סימול), והחתימה = ה־HTML שנבנה. נבנה מחדש → הצומת החדש, וזוכר את שניהם */
+function nodesOf(list) {
+  const m = new Map();
+  for (const c of Array.from((list && list.children) || [])) if (c._k) m.set(c._k, c);
+  return m;
+}
+function nodeKeep(was, k, nd) {
+  const sig = nd.outerHTML, o = k && was.get(k);
+  if (o && o._sig === sig) return o;
+  nd._k = k;
+  nd._sig = sig;
+  return null;
 }
 /* 30/10/2026 (סבב קפיצות 5, R10 — סרטון Invest: בחירה ב"סינון" צבעה את הלוגו כריבוע לבן לשני פריימים): ציור מחדש של רשימה
    יוצר img חדש, וגם כשהקובץ במטמון הוא נטען באסינכרוני. לוגו שכבר נטען עובר כמו שהוא מהכרטיס הישן לחדש (כבר מפוענח) */
@@ -16590,7 +16605,7 @@ function renderTrades() {
   const ib = ready ? ibkrTrades() : [];
   const man = mtList();
   if (!tabShouldRender('trades')) return; // v193
-  list.innerHTML = '';
+  const was = nodesOf(list), out = [];   // סבב 6: שורה שלא השתנתה נשארת
   renderSrcFilter('trades');
   const sf = getSrcFilter('trades');
   if (hint) {
@@ -16600,7 +16615,7 @@ function renderTrades() {
     if (showHint) hint.textContent = t('tradesNeedIbkr');
   }
   if (!ib.length && !man.length) {
-    if (ready) list.appendChild(el('p', 'fine', t('tradesEmpty')));
+    listSync(list, ready ? [el('p', 'fine', t('tradesEmpty'))] : []);
     return;
   }
   // מאוחד, מהחדש לישן — ידניות מסומנות ועם עריכה/מחיקה
@@ -16610,8 +16625,12 @@ function renderTrades() {
     .concat(man.map((x) => ({ d: mtNorm(x).date, mt: x })))
     .filter((r) => srcPass(sf, r.mt ? 'manual' : 'ibkr'))
     .sort((a, b) => (a.d < b.d ? 1 : a.d > b.d ? -1 : 0)); // יציב — בתוך יום נשמר הסדר של ibkrTrades
-  if (!rows.length) list.appendChild(el('p', 'fine', t('srcFilterEmpty')));
-  for (const r of rows) list.appendChild(r.mt ? buildManualTradeRow(r.mt, edit) : buildTradeRow(r.ib, 'ibkr'));
+  if (!rows.length) out.push(el('p', 'fine', t('srcFilterEmpty')));
+  for (const r of rows) {
+    const nd = r.mt ? buildManualTradeRow(r.mt, edit) : buildTradeRow(r.ib, 'ibkr');
+    out.push(nodeKeep(was, r.mt || r.ib, nd) || nd);
+  }
+  listSync(list, out);
 }
 
 function renderDeposits() {
