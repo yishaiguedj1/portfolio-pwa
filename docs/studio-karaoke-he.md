@@ -53,4 +53,11 @@
 הכלים: `tools/karaoke-he/`. דוגמה:
 `python tools/karaoke-he/guard.py st.json ctc.json out.json 0.7 lyrics.txt ivrit.json`
 
+## מדידה מול תיוג אמת (30/10/2026)
+
+- `tools/karaoke-he/eval.py` משווה תוצאה (JSON של השרשרת) לתיוג אמת (CSV: `word_start,word_end,line_end,word`). המדדים: AAE, חציון, P90, ‏PCO@0.3/0.15, אחוז המילים מעל שנייה, הטיה, ההיסט שמאפס את החציון (`shift*`, לכיול), שגיאת סוף מילה, ושורות שמתחילות באיחור של יותר מ־0.3 שנ׳.
+- סט: `eval.py --set <DIR> base cand` (לכל שיר תיקייה עם `ref.csv` ו־`<name>.json`). טיוטת תיוג מהפלט: `eval.py --draft res.json lyrics.txt ref.csv`, ואחר כך תיקון ידני.
+- **הסט נשמר ב־R2 הפרטי בלבד** (החלטת המשתמש 30/10: ‏Drive הוא רק לגיבוי של הלקוח). לא ב־git ולא ב־Drive.
+- בדיקות: `translator/tests/test_karaoke_eval.py` (נתונים סינתטיים).
+
 **המשך:** המחקר המלא (29/10/2026) נמצא ב־`docs/studio-karaoke-research.md`: הספרות, סט הבדיקה והמדדים, השיפורים לפי עדיפות ומלכודות הרישיון.

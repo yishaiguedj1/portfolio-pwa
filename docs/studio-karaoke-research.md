@@ -154,9 +154,11 @@
   - `imvladikon/wav2vec2-xls-r-300m-hebrew`.
   - ReNikud.
   - הנתונים של LRCLIB.
-- **לבדוק עכשיו:**
-  - שמודל ההפרדה שבשימוש הוא `KimberleyJSN/melbandroformer` (תגית MIT ב־HF) ולא מודל קהילתי בלי רישיון.
-  - את הרישיון של Parakeet v2.
+- **נבדק (30/10/2026, מול ה־API של Hugging Face):**
+  - ההפרדה: ה־sha256 של `vocals_mel_band_roformer.ckpt` ב־`infra/worker/Dockerfile` זהה ל־`MelBandRoformer.ckpt` של `KimberleyJSN/melbandroformer`, ‏MIT. תקין.
+  - קולות הרקע: `bs_roformer_karaoke_anvuew.ckpt` זהה ל־`anvuew/karaoke_bs_roformer`, ‏GPL-3.0. מותר רק בשרת: אסור להפיץ את המשקלים, למשל בטלפון.
+  - Parakeet v2 (`nvidia/parakeet-tdt-0.6b-v2` והגרסה ב־ONNX `istupakov/…-onnx`): ‏CC-BY-4.0. מותר, אבל **חובה לתת ייחוס, ואין היום ייחוס במוצר.**
+  - **ממצא:** תרגום הסרטונים (`vt/align_ctc.py`, ‏`vt/cli.py align` בלי `--no-ctc`) מריץ כברירת מחדל את `torchaudio MMS_FA`, ‏CC-BY-NC. זה לא בשימוש מסחרי. משימה ב־`משימות-פתוחות.md`.
 - **CC-BY-4.0** (Parakeet, ‏zipformer2, ‏Phonikud): מותר, **אבל חובה לתת ייחוס.**
 - **נתוני ivrit.ai:** מותרים לאימון מודלים, אבל אסור לשלב את האודיו במוצר.
 - **זכויות יוצרים (היקש, לא ייעוץ משפטי):**
