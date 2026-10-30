@@ -27,7 +27,7 @@ for (const f of ['tools/qa-motion.js', 'tools/qa-deep.js']) {
 // אנדרואיד (ביקורת סטטית, docs/android-apps.md): בלי הבהוב לבן/אפור, מצב נשמר, הבועה לא מתפרקת, ווידג'ט בלי ספינר
 const A = 'android/app/src/';
 const man = rd(A + 'main/AndroidManifest.xml');
-ok(/android:theme="@style\/SplashTheme"/.test(man) && /name="SplashTheme"[\s\S]{0,400}windowBackground">@color\/bar/.test(rd(A + 'main/res/values/styles.xml')), 'מעטפת: SplashTheme שחור אחיד עד הדף');
+ok(/android:theme="@style\/SplashTheme"/.test(man) && /name="SplashTheme"[\s\S]{0,400}windowBackground">@color\/splash_bg/.test(rd(A + 'main/res/values/styles.xml')), 'מעטפת: SplashTheme בצבע הדף (splash_bg) עד הדף');
 ok(!/text = "טוען…"/.test(rd(A + 'main/java/io/github/yishaiguedj1/snowball/MainActivity.kt')), 'מעטפת: בלי "טוען…" שמהבהב');
 for (const f of ['browser/java/io/github/yishaiguedj1/snowball/br/BrowserActivity.kt', 'dm/java/io/github/yishaiguedj1/snowball/dm/DmBrowser.kt', 'studio/java/io/github/yishaiguedj1/snowball/HuntActivity.kt']) {
   const k = rd(A + f);

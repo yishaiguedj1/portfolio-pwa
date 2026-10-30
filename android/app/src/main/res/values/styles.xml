@@ -6,10 +6,11 @@
         <item name="android:fadeScrollbars">true</item>
     </style>
     <!-- 28/10/2026 (מעבר מקיף — "בלי קפיצות"): מסך הפתיחה של המעטפת. Theme.Material צייר רקע אפור (#303030)
-         עד שהלוגו (שחור) עלה — אפור ואז שחור. עכשיו שחור מהפריים הראשון, כולל סרגלי המערכת -->
+         עד שהלוגו (שחור) עלה — אפור ואז שחור. עכשיו שחור מהפריים הראשון, כולל סרגלי המערכת.
+         30/10/2026 (R8): הרקע בצבע הדף (splash_bg: בהיר/כהה לפי המערכת) — אותו צבע עד הציור הראשון של האתר -->
     <style name="SplashTheme" parent="@android:style/Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@color/bar</item>
-        <item name="android:colorBackground">@color/bar</item>
+        <item name="android:windowBackground">@color/splash_bg</item>
+        <item name="android:colorBackground">@color/splash_bg</item>
         <item name="android:statusBarColor">@color/bar</item>
         <item name="android:navigationBarColor">@color/bar</item>
     </style>

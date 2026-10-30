@@ -2,4 +2,6 @@
 <resources>
     <color name="bar">#000000</color>
     <color name="icon_bg">#00000000</color>
+    <!-- 30/10/2026 (סבב קפיצות 6, R8): מסך הפתיחה בצבע הרקע של הדף (--bg) — בבהיר #F2F2F7, בכהה שחור (values-night) -->
+    <color name="splash_bg">#F2F2F7</color>
 </resources>

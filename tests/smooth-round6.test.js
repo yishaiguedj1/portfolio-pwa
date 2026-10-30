@@ -63,4 +63,16 @@ for (const f of ['renderWishlist', 'renderTrades']) {
   ok(!/list\.innerHTML\s*=\s*''/.test(src) && /nodeKeep\(was, /.test(src) && /listSync\(list, out\)/.test(src), f + ': בלי ניקוי, שימוש חוזר, וסידור דרך listSync');
 }
 ok(/listSync\(list, out\)/.test(rs), 'renderStocks: הסידור דרך listSync');
+
+// R8 (אנדרואיד): מסך הפתיחה עובר ל־Chrome ונשאר עד הציור הראשון, בצבע הדף (בהיר/כהה)
+{
+  const A = 'android/app/src/main/';
+  const rd = (f) => fs.readFileSync(path.join(root, f), 'utf8');
+  const kt = rd(A + 'java/io/github/yishaiguedj1/snowball/MainActivity.kt'), man = rd(A + 'AndroidManifest.xml');
+  ok(/PwaWrapperSplashScreenStrategy\(this, R\.mipmap\.ic_launcher_foreground, getColor\(R\.color\.splash_bg\)/.test(kt) && /l\.launch\(builder, null, sp,/.test(kt), 'MainActivity: מסך פתיחה שמועבר ל־Chrome, בצבע splash_bg');
+  ok(/override fun onEnterAnimationComplete\(\)[\s\S]{0,120}onActivityEnterAnimationComplete\(\)/.test(kt), 'MainActivity: מעביר את סוף אנימציית הכניסה למסך הפתיחה');
+  ok(/androidx\.core\.content\.FileProvider[\s\S]{0,120}\$\{applicationId\}\.twasplash[\s\S]{0,200}@xml\/twa_splash_paths/.test(man) && /"\$packageName\.twasplash"/.test(kt), 'Manifest: FileProvider עם אותה רשות כמו בקוד');
+  ok(/files-path path="twa_splash\/"/.test(rd(A + 'res/xml/twa_splash_paths.xml')), 'twa_splash_paths: התיקייה שהספרייה כותבת אליה');
+  ok(/splash_bg">#F2F2F7/.test(rd(A + 'res/values/colors.xml')) && /splash_bg">#000000/.test(rd(A + 'res/values-night/colors.xml')), 'splash_bg: בהיר = --bg של הדף, כהה = שחור');
+}
 console.log(n + ' בדיקות עברו');
