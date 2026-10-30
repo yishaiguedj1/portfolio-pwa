@@ -26,7 +26,7 @@ const cr = fn(lib, 'closeReader');
 ok(/box\.classList\.add\('out'\);/.test(cr) && /await renderHomeNow\(\); pinScroll\(savedLibScroll\(\)\); await gone;/.test(cr) && !/\brenderHome\(\)/.test(cr) && (cr.match(/view\.close\(\)/g) || []).length === 1 && cr.indexOf('view.close()') > cr.indexOf('await gone'), 'סגירת הקורא — הקורא דוהה (CSS על האלמנט — צילום VT לא כולל iframe), הדף מתחתיו מצויר לפני, עם הגלילה השמורה, המנוע נסגר בסוף');
 ok(/\.rd\.out \{ animation: rdOut/.test(css) && !/reader-out/.test(css), 'CSS: .rd.out; אין יותר מעבר reader-out ב־VT');
 ok(/'rd loading' \+ \(opt && opt\.restored \? ' restored' : ''\)/.test(lib) && /root\.classList\.add\('restored'\)/.test(lib) && /\.rd\.restored \{ animation: none; \}/.test(css) && /\.lib-root\.restored \{ animation: none; \}/.test(css), 'שחזור אחרי רענון — בלי אנימציות כניסה');
-ok(/function curtainDown\(instant\) \{[\s\S]{0,900}e\.classList\.remove\('lib-restoring'\);\n[\s\S]{0,200}classList\.remove\('lib-curtain'\)/.test(lib) && (lib.match(/curtainDown\((true)?\)/g) || []).length >= 4, 'הווילון יורד כשהדף/העמוד הראשון מוכן (ודוהה)');
+ok(/function curtainDown\(instant\) \{[\s\S]{0,900}e\.classList\.remove\('lib-restoring'\);\n[\s\S]{0,200}classList\.remove\('lib-curtain'\)/.test(lib) && (lib.match(/curtainDown\((true|!!SA)?\)/g) || []).length >= 4, 'הווילון יורד כשהדף/העמוד הראשון מוכן (ודוהה)');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const scss = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
 // v354: אותו וילון משמש גם את הסטודיו (h.studio → studio-open); בספרייה — lib-open כמו קודם

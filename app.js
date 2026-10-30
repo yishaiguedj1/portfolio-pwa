@@ -5261,8 +5261,22 @@ function renderSrcFilter(tab) {
   const wrap = document.getElementById(tab + 'SrcFilter');
   if (!wrap) return;
   const cur = getSrcFilter(tab);
+  // 30/10/2026 (סבב קפיצות 5, R10): כבר בנוי באותה שפה — מעדכנים את הסימון במקום (בנייה מחדש = פריים בלי הכפתור בטלפון)
+  if (wrap._lang === getLang() && wrap.querySelector) {
+    const b0 = wrap.querySelector('.src-btn');
+    if (b0) {
+      b0.classList.toggle('on', cur !== 'all');
+      wrap.querySelectorAll('button[data-srcf]').forEach((o) => {
+        const on = o.dataset.srcf === cur;
+        o.classList.toggle('on', on); o.setAttribute('aria-checked', String(on));
+        const c = o.querySelector('.src-opt-check'); if (c) c.innerHTML = on ? ICON_CHECK : '';
+      });
+      return;
+    }
+  }
   const lead = { all: ICON_LIST, manual: ICON_EDIT, ibkr: '<img src="ibkr-logo.png" alt="" width="18" height="18">' };
   wrap.classList.remove('open');
+  wrap._lang = getLang();
   wrap.innerHTML = '<button class="chip-btn src-btn' + (cur !== 'all' ? ' on' : '') + '" type="button" aria-haspopup="true" aria-expanded="false">' +
     ICON_FILTER + esc(t('srcFilterBtn')) + '</button>' +
     '<div class="src-pop menu-drop hidden" role="menu">' +
@@ -6960,8 +6974,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.88.0';
-const APP_VERSION = 'v634';
+const APP_RELEASE = '2.88.2';
+const APP_VERSION = 'v636';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -6978,7 +6992,7 @@ const APP_PAGE = (typeof window !== 'undefined' && window.SNB_ENV && window.SNB_
    ושמירת התיק נכשלה בלי שאיש ידע. עכשיו התיק וחיבור IBKR קודמים לכל מטמון: מפנים מטמונים שנטענים שוב מהרשת
    (היסטוריית מחירים, ציטוטים, לוגואים, מדדים), מהגדול לקטן, ומנסים שוב; עדיין לא נכנס → הודעה גלויה (פעם ב־10 דק׳).
    נתונים אישיים (תיק, IBKR, מחסני חשבונות אחרים, הספרייה, הסטודיו) לא נמחקים אף פעם. */
-const LS_CACHE_PREFIXES = ['pwa_hist_v2_', 'pwa_hist_v1_', 'pwa_intra_v1_', 'pwa_quotes_v2', 'pwa_fxhist_v1', 'pwa_bench_v1', 'pwa_wordmarks_v4', 'pwa_logo_meta_v1', 'pwa_earn_v1', 'pwa_syscfg_v1'];
+const LS_CACHE_PREFIXES = ['pwa_hist_v2_', 'pwa_hist_v1_', 'pwa_intra_v1_', 'pwa_quotes_v2', 'pwa_fxhist_v1', 'pwa_bench_v1', 'pwa_wordmarks_v4', 'pwa_logo_meta_v1', 'pwa_earn_v1', 'pwa_syscfg_v1', 'pwa_kcq_v1'];
 function isQuotaErr(e) {
   return !!e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014);
 }
@@ -7039,7 +7053,7 @@ function loadDB() {
    שמתחבר כבר יש מסמך בענן; חשבון חדש מתחיל נקי (והנתונים הישנים נשמרים במחסן 'legacy'). */
 /* <core> */
 const LS_OWNER = 'pwa_owner_v1', LS_STASH = 'pwa_stash_v1:', LS_LEGACY_OWNER = 'pwa_legacy_owner_v1';
-const ACCOUNT_KEYS = ['pwa_db_v1', 'pwa_ibkr_v1', 'pwa_predemo_v1', 'pwa_wlactive_v1', 'pwa_srcfilter_v1', 'pwa_tdkey_v1', 'pwa_libbk_v1', 'pwa_libcoll_v1', 'pwa_studio_v1', 'pwa_pfbk_v1', 'pwa_charts_v1'];   // v318: גיבוי הספרייה הפרטית · v320: אסופות הספרייה · v354: טיוטות הסטודיו · 14/10/2026: גיבוי Invest ל־Drive
+const ACCOUNT_KEYS = ['pwa_db_v1', 'pwa_ibkr_v1', 'pwa_predemo_v1', 'pwa_wlactive_v1', 'pwa_srcfilter_v1', 'pwa_tdkey_v1', 'pwa_libbk_v1', 'pwa_libcoll_v1', 'pwa_studio_v1', 'pwa_pfbk_v1', 'pwa_charts_v1', 'pwa_accprof_v1'];   // v318: גיבוי הספרייה הפרטית · v320: אסופות הספרייה · v354: טיוטות הסטודיו · 14/10/2026: גיבוי Invest ל־Drive · 29/10/2026: פרטי החשבון לציור הראשון
 function accountOwner(store) {
   try { return (store || localStorage).getItem(LS_OWNER) || ''; } catch (e) { return ''; }
 }
@@ -13233,6 +13247,7 @@ function renderStocks() {
   const list = document.getElementById('stockList');
   if (list && list._dragging) { list._pendingRender = true; return; } // v246: לא לצייר מחדש באמצע גרירה
   const wasEmpty = !list.querySelector || !list.querySelector('.stock'); // v193: כניסה מדורגת רק כשהרשימה נבנית מאפס
+  const imgs = imgsOf(list);               // סבב 5, R10: הלוגואים שכבר נטענו עוברים לכרטיסים החדשים
   list.innerHTML = '';
   if (editAllowed('stocks')) {
     const add = el('button', 'card add-card');
@@ -13263,6 +13278,7 @@ function renderStocks() {
   let idx = 0;
   for (const p of sortPositionsList(shown, mode, mOf, DB.stockOrder)) {
     const card = buildStockCard(p);
+    imgsKeep(imgs, card);
     if (wasEmpty && idx < 10 && card.style && card.style.setProperty) { card.classList.add('enter'); card.style.setProperty('--i', idx); card.addEventListener('animationend', () => card.classList.remove('enter'), { once: true }); } // v324: בלי enter אחרי הכניסה — החזרה ל־DOM בסוף גרירה/לחיצה ארוכה הריצה את cardIn מחדש
     idx++;
     list.appendChild(card);
@@ -14337,6 +14353,24 @@ function cubeClone(el) {
   animSync(el); animSync(c);             // הלוגו החי בהעתק — באותו רגע של המקור, לא מאפס
   return c;
 }
+/* 29/10/2026 (סבב קפיצות 4 — סרטון הניתוח: פריים שחור מלא ב־13 מתוך 13 לחיצות על לשונית; גם Studio ו־Academy):
+   ההעתק (cubeClone) הוא שכבה חדשה בלי אריחים, והדף האמיתי כבר צויר מחדש ומוסתר בחימום (0.01) — בטלפון, בזמן מגע,
+   הדפדפן לא מחכה לצביעה, ובפריים הראשון לא נראה כלום חוץ מהרקע (cube-bd). cubePre: ההעתק נוצר קודם בשקיפות 0.01
+   מעל הדף הישן (שעוד גלוי ונצבע), שני פריימים, ורק אז go(ghost) מצייר את הדף החדש ומתחיל את הקובייה.
+   קריאה חדשה בזמן ההמתנה — הקודמת רצה מיד (בלי שתי ניווטים במקביל) */
+let _cubePre = null;
+function cubePre(root, go) {
+  if (_cubePre) _cubePre.now();
+  const ghost = cubeClone(root);
+  if (typeof requestAnimationFrame !== 'function' || (typeof document !== 'undefined' && document.hidden)) { go(ghost); return null; }
+  ghost.style.opacity = CUBE_WARM_OP;
+  let done = false;
+  const p = { now() { if (done) return; done = true; if (_cubePre === p) _cubePre = null; ghost.style.opacity = ''; go(ghost); } };
+  _cubePre = p;
+  requestAnimationFrame(() => requestAnimationFrame(() => p.now()));
+  return p;
+}
+const cubePreBusy = () => !!_cubePre;   // ציור במקום (none) בזמן ההמתנה — מחכה לציור של המעבר
 /* 29/10/2026 (המשתמש: "גם הלוגו מתרענן כל הזמן בכל המעברים"): אנימציית CSS מתחילה מאפס בכל פעם שהאלמנט נכנס ל־DOM —
    הלוגו החי (ריחוף, פנים, ברק, שלג) "התאפס" בכל ציור של הבית, בהעתק של הקובייה ובכל חזרה. מצמידים את האנימציות
    האינסופיות של הלוגו לשעון של הדף (startTime 0): בכל כניסה ובכל העתק — אותו רגע בדיוק, כאילו לא יצא אף פעם.
@@ -14435,7 +14469,15 @@ function snbSwipe(o) {
     const pg = o.page ? o.page(s.next) : null;
     const bd = cubeBackdrop(root);
     if (!pg) { s.cube = { side: s.side, p: 0, rub: true, out: cubeFace(root, { dead: true }), bd: bd }; if (o.dial) dialCubeBegin(s.cube, o.dial(), null, s.side); return; }
-    const ghost = cubeClone(root);
+    // 29/10/2026 (סבב קפיצות 4): ההעתק נצבע שני פריימים לפני שהשכן מצויר (cubePre) — הדף הישן גלוי בינתיים, האצבע ממשיכה
+    // (move שומר את p), ו־end/cancel בזמן ההמתנה מסיימים אותה מיד (s.pre.now)
+    if (typeof cubePre === 'function') {
+      s.pre = cubePre(root, (ghost) => { s.pre = null; beginWith(s, pg, bd, ghost); if (s.cube) { cubeSet(s.cube, s.p || 0); if (o.dial) dialCube(s.cube); holdOn(s.cube, s.p || 0); } });
+      return;
+    }
+    beginWith(s, pg, bd, cubeClone(root));
+  }
+  function beginWith(s, pg, bd, ghost) {
     try { pg.render(); } catch (e) { ghost.remove(); bd.remove(); s.cube = null; return; }
     let hy = 0; try { hy = pg.hold ? pg.hold() : 0; } catch (e) {}
     const he = hy > 0 ? cubeHold(root, hy) : null;
@@ -14483,13 +14525,15 @@ function snbSwipe(o) {
     const d = same ? Math.abs(ddx) : 0, p = Math.min(1, d / g.w);
     g.d = d;
     let act = pageSwipeDecide(d, g.w, 0);
-    if (p > 0 && !g.cube) begin(g);
+    g.p = p;
+    if (p > 0 && !g.cube && !g.pre) begin(g);
     if (g.cube) { cubeSet(g.cube, g.cube.rub ? p * 0.15 : p); dialCube(g.cube); holdOn(g.cube, p); }
     if (act === 'page' && !(g.cube && g.cube.pg)) act = null;
     if (act !== g.act && act === 'page') buzz(12);
     g.act = act;
   }
   function finishCube(s, act, vp) {
+    if (s.pre) s.pre.now();              // שחרור לפני שההעתק הוכן — בונים עכשיו וממשיכים מאותה נקודה
     const c = s.cube;
     if (!c) return;
     if (act === 'page') {
@@ -15062,6 +15106,28 @@ function setLogoMeta(src, v) {
   clearTimeout(_logoMetaT);
   _logoMetaT = setTimeout(() => { try { localStorage.setItem(LS_LOGO_META, JSON.stringify(m)); } catch (e) {} }, 400);
 }
+/* 30/10/2026 (סבב קפיצות 5, R10 — סרטון Invest: בחירה ב"סינון" צבעה את הלוגו כריבוע לבן לשני פריימים): ציור מחדש של רשימה
+   יוצר img חדש, וגם כשהקובץ במטמון הוא נטען באסינכרוני. לוגו שכבר נטען עובר כמו שהוא מהכרטיס הישן לחדש (כבר מפוענח) */
+function imgsOf(root) {
+  const m = new Map();
+  if (root && root.querySelectorAll) root.querySelectorAll('img[data-logo]').forEach((x) => {
+    const s = x.getAttribute('src');
+    if (s && x.complete && x.naturalWidth && !m.has(s)) m.set(s, x);
+  });
+  return m;
+}
+function imgsKeep(m, el) {
+  if (!m || !m.size || !el || !el.querySelectorAll) return;
+  el.querySelectorAll('img[data-logo]').forEach((x) => {
+    const s = x.getAttribute('src'), o = m.get(s);
+    if (!o) return;
+    m.delete(s);
+    o.className = x.className;
+    x.replaceWith(o);
+    const fb = o.previousElementSibling;
+    if (fb && fb.classList && fb.classList.contains('stock-logo-fb')) fb.style.display = 'none';
+  });
+}
 function stockLogoHTML(sym) {
   const nsym = normalizeSym(sym);
   const mk = mktKind(nsym);
@@ -15493,6 +15559,8 @@ function chartEnv() {
     sync: (b) => ibkrBgApi(b),
     // הבקשות הולכות ל־Vercel (כתובת ישנה, או השרת שלנו נפל — firebase-config.js, snb_api_down) → הגרף מאט
     lite: () => { if (/vercel\.app/.test(ibkrProxyBase())) return true; try { return +(sessionStorage.getItem('snb_api_down') || 0) > Date.now(); } catch (e) { return false; } },   // 27/10/2026: התראות מחיר ברקע (op:'pxa' ב־/api/ibkr-sync)
+    // 29/10/2026 (סבב קפיצות 4): המחירים האחרונים לציור הראשון של הגרף (נתוני שוק — LS_CACHE_PREFIXES)
+    qcache: { get: () => { try { return JSON.parse(localStorage.getItem('pwa_kcq_v1') || 'null'); } catch (e) { return null; } }, set: (o) => { try { localStorage.setItem('pwa_kcq_v1', JSON.stringify(o)); } catch (e) {} } },
     quotes: async (syms) => {
       const r = await fetch(ibkrProxyBase() + '/api/quotes', { method: 'POST', headers: ibkrProxyHeaders(), body: JSON.stringify({ syms: syms.slice(0, 40) }) });
       return r.json();
@@ -15634,7 +15702,7 @@ function analysisEnv() {
     name: (s) => companyName(s, s),
     logoHTML: (s) => stockLogoHTML(s),   // התמונה מתחברת לבד (wireImgEvents — מאזין אחד על המסמך)
     // מעבר הקובייה של האפליקציה — בין הלשוניות ובחזרה מתת־עמוד (סעיף 20 ב־CLAUDE.md)
-    cube: { clone: cubeClone, run: cubeGhostRun, side: cubeSideFwd, reduce: cubeReduce, swipe: snbSwipe },
+    cube: { clone: cubeClone, pre: cubePre, run: cubeGhostRun, side: cubeSideFwd, reduce: cubeReduce, swipe: snbSwipe },
   };
 }
 function openAnalysisFor(sym) {

@@ -68,7 +68,7 @@ export function createShell(o) {
   const hdr = h('header', 'appbar');
   const row = h('div', 'appbar-row');
   const brand = h('h1', 'brand');
-  const img = h('img', 'brand-logo'); img.src = o.logo || 'logo-invest.webp'; img.width = 128; img.height = 128; img.alt = ''; img.decoding = 'async';
+  const img = h('img', 'brand-logo'); img.src = o.logo || 'logo-invest.webp'; img.width = 128; img.height = 128; img.alt = ''; img.decoding = 'sync';   // 29/10/2026 (סבב קפיצות 4, Academy): ההדר עובר בין הדפים — async השאיר את הלוגו ריק כל הקובייה ועוד ~230ms אחריה
   // לוגו חד בכל צפיפות מסך (13/10/2026): 512 = פי 4 מ־128; ‏logoLg (768) לטלפונים בצפיפות גבוהה יותר
   if (o.logoLg) { img.srcset = o.logo + ' 512w, ' + o.logoLg + ' 768w'; img.sizes = '128px'; }
   /* 20/10/2026: הלוגו החי — הלוגו, הפנים (face-<app>.webp) והברק בעטיפה אחת שזזה יחד; השלג מאחור ולפני (styles.css) */
@@ -245,6 +245,7 @@ const ACC_IC = {
   cloud: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 0 0 .5-8.97A6 6 0 0 0 6.2 9.1 4 4 0 0 0 6.5 19z"/></svg>',
   key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3"/><path d="M17 6l3 3"/><path d="M15 8l2 2"/></svg>',
 };
+const ACC_PROF = 'pwa_accprof_v1';
 function accIdRow(av, title, sub) {
   const row = h('div', 'acc-id');
   const tx = h('div', 'acc-txt'); tx.append(h('b', null, title), h('span', null, sub));
@@ -266,6 +267,22 @@ export function accountCard(A, icon) {   // icon — תמונה כשאין תמ�
   const box = h('div'); box.id = 'accountInfo';
   card.append(h('h2', null, t('myAccount')), box);
   const u = A && A.user();
+  /* 29/10/2026 (סבב קפיצות 4, סרטון Studio — אחרי רענון): עד שהחיבור נבדק (state 'boot') הכרטיס הציג "מצב מקומי" וכניסה
+     עם Google, ואז קפץ לחשבון. הפרטים מהחיבור האחרון (pwa_accprof_v1 — אותו מפתח של cloud.js, ACCOUNT_KEYS) באותו גודל */
+  const st = A && A.state ? A.state() : '';
+  let prof = null;
+  try {
+    if (u) localStorage.setItem(ACC_PROF, JSON.stringify({ n: u.displayName || '', e: u.email || '', p: u.photoURL || '' }));
+    else if (st === 'out') localStorage.removeItem(ACC_PROF);
+    else if (st === 'boot') { prof = JSON.parse(localStorage.getItem(ACC_PROF) || 'null'); if (!prof || !(prof.n || prof.e)) prof = null; }
+  } catch (e) { prof = null; }
+  if (!u && prof) {
+    const img = h('img'); img.alt = ''; img.src = prof.p || icon || 'icon-192.png';
+    img.addEventListener('error', () => { img.src = icon || 'icon-192.png'; }, { once: true });
+    box.append(accIdRow(img, prof.n || t('userLabel'), prof.e || ''), accActRow('acc-keys', ACC_IC.key, t('accMethods'), () => { import('./acclink.js').then((m) => m.methodsSheet()).catch(() => {}); }),
+      accActRow('acc-out', ACC_IC.out, t('signOut'), () => A.signOut()));   // הדף לא מצויר מחדש כשהבדיקה מסתיימת — הכפתורים פעילים
+    return card;
+  }
   if (u) {
     const img = h('img'); img.alt = ''; img.src = u.photoURL || icon || 'icon-192.png';
     img.addEventListener('error', () => { img.src = icon || 'icon-192.png'; }, { once: true });
