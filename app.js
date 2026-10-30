@@ -6974,8 +6974,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.93.4';
-const APP_VERSION = 'v648';
+const APP_RELEASE = '2.94.1';
+const APP_VERSION = 'v651';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -9533,15 +9533,16 @@ function tabShouldRender(name) {
   tabDirty[name] = true;
   return false;
 }
-/* 29/10/2026 (בקשת המשתמש): הסדר מימין לשמאל (ב־RTL) — הגדרות, הסקירה (הראשי), מניות, מעקב, עסקאות, הפקדות, פנסיה; כמו בחוגה */
-const TAB_ORDER = ['settings', 'overview', 'stocks', 'wishlist', 'trades', 'deposits', 'pension', 'advanced', 'backup']; // v287: advanced = עמוד משנה של ההגדרות; 14/10/2026: backup (גיבוי ל־Google Drive) — גם
+/* 30/10/2026 (בקשת המשתמש): הסדר מימין לשמאל (ב־RTL) — מעקב, מניות, הסקירה (הראשי, באמצע), עסקאות, הפקדות, פנסיה; כמו בחוגה.
+   settings בראש — מחוץ לחוגה ולהחלקה (DIAL_TABS = slice(1, 7)) */
+const TAB_ORDER = ['settings', 'wishlist', 'stocks', 'overview', 'trades', 'deposits', 'pension', 'advanced', 'backup']; // v287: advanced = עמוד משנה של ההגדרות; 14/10/2026: backup (גיבוי ל־Google Drive) — גם
 function tabRenderer(name) {
   return { overview: renderOverview, stocks: renderStocks, trades: renderTrades, wishlist: renderWishlist, deposits: renderDeposits, pension: renderPension, settings: renderSettingsLive, advanced: renderSettingsLive, backup: pfbkPaint }[name] || null;
 }
 /* ---- 29/10/2026 (בקשת המשתמש, לפי סרטון): הלשוניות = "חוגה" בתחתית המסך ----
    המנוע משותף (<core> למטה — גם הסטודיו); כאן רק Invest: אילו לשוניות, איזה עמוד פעיל ואיך עוברים (הקובייה של העמודים).
    30/10/2026 (בקשת המשתמש): "הגדרות" יצאה מהחוגה ומההחלקה — נפתחת רק מהתפריט (המבורגר), ובעמודי ההגדרות החוגה מוסתרת (dock-off). */
-const DIAL_TABS = TAB_ORDER.slice(1, 7);   // index 0 = הימני ביותר ב־RTL (הסקירה)
+const DIAL_TABS = TAB_ORDER.slice(1, 7);   // index 0 = הימני ביותר ב־RTL (מעקב)
 function investDialIndex(name) { return Math.max(0, DIAL_TABS.indexOf(name)); }
 const INVEST_DIAL = {
   nav: () => document.querySelector('nav.tabs'),
@@ -9612,7 +9613,8 @@ function dialFrame(st, n, vw, rtl) {
       bub: f(c01((e - 0.2) / 0.4)), bs: 'scale(' + f(0.82 + 0.18 * e) + ')',
       // 29/10/2026 (סרטון המשתמש, Academy): בחוגה של ארבעה, כשהנבחר בקצה, הכיתובים של הפריטים במרחק 2 חפפו ("הספרייה שלי" ו־"THE SNOWBALL")
       // ונחתכו בשולי המסך. בחוגה קטנה (עד 4) — כיתוב רק עד מרחק 1.5 מהנבחר, ונמוג עד 2; ב־Invest (7) — כמו קודם
-      lbl: f(c01(1 - e * 1.8) * (n <= 4 ? c01((2 - ad) / 0.5) : 1)),
+      // 30/10/2026 (בקשת המשתמש): גם מתחת לפריט הפעיל — הכיתוב שלו ("קריוקי", "תרגום סרטונים"), לא רק סמל בבועה
+      lbl: f(n <= 4 ? c01((2 - ad) / 0.5) : 1),
     });
   }
   return out;
@@ -9863,11 +9865,13 @@ function dialLabel(b, t) { if (!b) return; const u = b.querySelector('.tab-bub')
 /* </core> */
 /* v193: כיוון הכניסה של העמוד (ציר משותף, כמו Material/iOS) — לשונית "קדימה" = העמוד נכנס מהצד שאליו הולכים
    (ב־RTL הפוך). נכתב כמשתנה CSS על העמוד; האנימציה עצמה ב־styles.css (tabIn). */
+/* 30/10/2026: ההגדרות מחוץ לסדר הלשוניות — עמוק יותר = קדימה, רדוד יותר = אחורה ("‹ סקירה" מסתובב כמו "חזור") */
+function tabFwd(prev, name) { const dp = navDepth(prev), dn = navDepth(name); return dp !== dn ? dn > dp : TAB_ORDER.indexOf(name) > TAB_ORDER.indexOf(prev); }
 function setTabPageDirection(prev, name) {
   document.querySelectorAll('.tabpage').forEach((s) => { if (s.style && s.style.animation) s.style.animation = ''; }); // v279: אחרי החלקה בין עמודים — אנימציית הכניסה חוזרת
   const page = document.getElementById('tab-' + name);
   if (!page || !page.style || !page.style.setProperty || prev === name) return;
-  const fwd = TAB_ORDER.indexOf(name) > TAB_ORDER.indexOf(prev);
+  const fwd = tabFwd(prev, name);
   const rtl = String((document.documentElement && document.documentElement.dir) || 'ltr') === 'rtl';
   page.style.setProperty('--tab-dx', ((fwd !== rtl) ? 22 : -22) + 'px');
 }
@@ -10002,7 +10006,7 @@ function tabCubeOk(prev, name, opts) {
   const a = document.getElementById('tab-' + prev), b = document.getElementById('tab-' + name);
   return !!(a && b && a.getClientRects && a.getClientRects().length && typeof a.animate === 'function' && window.innerWidth > 0);
 }
-function tabCubeSide(prev, name) { return cubeSideFwd(TAB_ORDER.indexOf(name) > TAB_ORDER.indexOf(prev)); }
+function tabCubeSide(prev, name) { return cubeSideFwd(tabFwd(prev, name)); }
 function tabPageRender(name) { // העמוד הנכנס בזמן גרירה — נצבע למרות שאינו פעיל (tabShouldRender מדלג על טאב מוסתר)
   if (!tabDirty[name]) return;
   const fn = tabRenderer(name);
@@ -14640,9 +14644,10 @@ function barHeightVar() {
    פס גלילה אופקי, טאבי הרשימות וקצה המסך (מחוות "חזור") — לא נחשבים.
    14/10/2026 (בקשת המשתמש): העמוד מסתובב בקובייה צמוד לאצבע; **ההחלקה הקצרה בין רשימות המעקב בוטלה** —
    בכל הטאבים החלקה = עמוד, ובין הרשימות עוברים בלחיצה על הצ'יפים. */
-// 30/10/2026 (בקשת המשתמש): ההגדרות מחוץ להחלקה — רק מהתפריט; בעמוד ההגדרות עצמו אין החלקה
+// 30/10/2026 (בקשת המשתמש): ההגדרות מחוץ לסבב — רק מהתפריט; מהן החלקה אחורה = "חזור" לסקירה
 const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'settings' && t !== 'advanced' && t !== 'backup');
 function pageSwipeTarget(cur, next) { // next=true → העמוד הבא (שמאלה ב־RTL)
+  if (cur === 'settings') return next ? null : 'overview';   // 30/10/2026: החלקה אחורה מההגדרות = "חזור" לסקירה
   if (cur === 'advanced' || cur === 'backup') return next ? null : 'settings'; // v287: עמוד משנה — החלקה אחורה חוזרת להגדרות (כמו באייפון)
   const i = PAGE_SWIPE_MAIN.indexOf(cur);
   if (i < 0) return null;
@@ -14691,7 +14696,7 @@ function wirePageSwipe() {
     if (cubeNow && cubeNow.finish) cubeNow.finish(); // 14/10/2026: הקובייה עוד מסתובבת — נגיעה מסיימת אותה (העמוד החדש מתחת לאצבע)
     if (e.touches.length !== 1 || state.cardAnim || dragBusy()) return;
     const cur = currentTabName();
-    if (cur !== 'advanced' && cur !== 'backup' && PAGE_SWIPE_MAIN.indexOf(cur) < 0) return;
+    if (cur !== 'settings' && cur !== 'advanced' && cur !== 'backup' && PAGE_SWIPE_MAIN.indexOf(cur) < 0) return;
     const t = e.touches[0], w = window.innerWidth || 400;
     if (t.clientX < PAGE_SWIPE_EDGE || t.clientX > w - PAGE_SWIPE_EDGE) return;
     const tg = e.target; // גם בשטח הריק מתחת לתוכן (body), לא בהדר/בחלונות צפים
@@ -17545,6 +17550,8 @@ function init() {
   const advO = document.getElementById('advancedOpen'), advB = document.getElementById('advancedBack');
   if (advO) advO.addEventListener('click', () => switchTab('advanced'));
   if (advB) advB.addEventListener('click', () => switchTab('settings'));
+  const setB = document.getElementById('settingsBack');   // 30/10/2026: ההגדרות נפתחות רק מהתפריט — "‹ סקירה" חוזר לעמוד הראשי
+  if (setB) setB.addEventListener('click', () => switchTab('overview'));
   const fbO = document.getElementById('feedbackOpen');   // 15/10/2026: שליחת משוב (core)
   if (fbO) fbO.addEventListener('click', () => feedbackOpen());
   // v286: גיליון אפשרויות האיפוס — הגיליון עובר ל־body (כרטיס עם transform/blur שובר position:fixed)

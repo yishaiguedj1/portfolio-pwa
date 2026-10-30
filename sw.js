@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v648';
+const CACHE_NAME = 'portfolio-pwa-v651';
 const HASHES = {
-  "./": "029f8a8b97e1e5e9fde0568bc87f882c",
-  "./index.html": "029f8a8b97e1e5e9fde0568bc87f882c",
+  "./": "90334e5c9a28c6406d157fd801169b90",
+  "./index.html": "90334e5c9a28c6406d157fd801169b90",
   "./styles.css": "35a575b4aad6dddd52039dbf2648864a",
-  "./app.js": "9402686707e541bbb6cf7429c6379017",
+  "./app.js": "c415ba674ce2aef8f3a36af37e120596",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "2cf2e330bfcc2c9150ba47b8f355982d",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -37,8 +37,8 @@ const HASHES = {
   "./chartlib.js": "5c00c490dac1b09329fa1ce657350a9b",
   "./chart.css": "0e4e6260108563c3f329d204c1398a10",
   "./vendor/klinecharts/klinecharts.min.js": "4202d8661b8302175751d8d072bf6d2f",
-  "./library.js": "d31f8e29ea477214933af96f89ad839b",
-  "./library.css": "b1aa96d4017c4ab26c979c04e2dc0a08",
+  "./library.js": "c240229ad5c166438db4da05bef54cf8",
+  "./library.css": "4e8ba44baf16709e07d56c5f85cbe6ac",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
   "./libbackup.js": "a238c4cf7877166ba8eba5cdcf6eadb8",
   "./ribbon3d.js": "0004ce220226fadce8918b975fa43282",
@@ -65,7 +65,7 @@ const HASHES = {
   "./academy.html": "d58a511fc759a629121b82ab47fe9a69",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
   "./strings-academy.js": "105f45549a386f5490a675e5fe32dc47",
-  "./core.js": "582ec98b262041aeded65d93fdc01bdf",
+  "./core.js": "58c3c1284ff29d1e81862d3e74893b4c",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "6b22a08dd74c16eefd740922596fb568",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -74,7 +74,7 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "b582f5d242a39e2ebb8106ac8af4b31c",
+  "./studio.js": "025e09dc9566d43f284f5fa708e0d7f6",
   "./studio.css": "29e654a7d2b6ba995737f7428ba1116d",
   "./studionet.js": "95278522eab4d422170b6a8b8deb26e2",
   "./studioplay.js": "f7a2c41fb9bbcee64b213822d3082a98",

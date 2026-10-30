@@ -21,6 +21,6 @@ const ctx = {};
 vm.runInNewContext("const TAB_ORDER = ['settings', 'overview', 'stocks', 'wishlist', 'trades', 'deposits', 'pension', 'advanced', 'backup'];" +
   (app.match(/const PAGE_SWIPE_MAIN = [^\n]+/) || [''])[0] + fn('pageSwipeTarget') + ';this.f = pageSwipeTarget;', ctx);
 ok(ctx.f('advanced', false) === 'settings' && ctx.f('advanced', true) === null, 'החלקה אחורה מהעמוד → הגדרות; קדימה — כלום');
-ok(ctx.f('settings', true) === null && ctx.f('pension', true) === null, 'העמוד לא נכנס לסבב העמודים הראשיים');
+ok(ctx.f('settings', true) === null && ctx.f('settings', false) === 'overview' && ctx.f('pension', true) === null, 'העמוד לא נכנס לסבב העמודים הראשיים');
 ok(/PAGE_SWIPE_MAIN = TAB_ORDER\.filter\(\(t\) => t !== 'settings' && t !== 'advanced' && t !== 'backup'\)/.test(app), 'advanced (וההגדרות) מחוץ לעמודים הראשיים');
 console.log('# ' + n + ' בדיקות עברו');

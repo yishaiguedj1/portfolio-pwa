@@ -11,14 +11,15 @@ const fn = (name) => { const i = app.indexOf('function ' + name + '('); let d = 
 
 // סדר העמודים — טהור
 const ctx = {};
-vm.runInNewContext("const TAB_ORDER = ['settings', 'overview', 'stocks', 'wishlist', 'trades', 'deposits', 'pension', 'advanced', 'backup'];" +
+vm.runInNewContext((app.match(/const TAB_ORDER = [^\n]+/) || [''])[0] + '\n' +
   (app.match(/const PAGE_SWIPE_MAIN = [^\n]+/) || [''])[0] + fn('pageSwipeTarget') + ';this.f = pageSwipeTarget;', ctx);
 const f = ctx.f;
-// 30/10/2026 (בקשת המשתמש): מימין לשמאל — סקירה, מניות, מעקב, עסקאות, הפקדות, פנסיה; ההגדרות — רק מהתפריט
-ok(f('overview', true) === 'stocks' && f('wishlist', true) === 'trades' && f('trades', true) === 'deposits' && f('deposits', true) === 'pension', 'הבא (שמאלה ב־RTL) לפי סדר הלשוניות');
-ok(f('wishlist', false) === 'stocks' && f('stocks', false) === 'overview', 'הקודם (ימינה) לפי סדר הלשוניות');
-ok(f('pension', true) === null && f('overview', false) === null, 'בקצוות — אין עמוד');
-ok(f('settings', true) === null && f('settings', false) === null, 'ההגדרות מחוץ להחלקה — נפתחות רק מהתפריט (30/10/2026)');
+// 30/10/2026 (בקשת המשתמש): מימין לשמאל — מעקב, מניות, סקירה (באמצע), עסקאות, הפקדות, פנסיה; ההגדרות — רק מהתפריט
+ok(f('wishlist', true) === 'stocks' && f('stocks', true) === 'overview' && f('overview', true) === 'trades' && f('trades', true) === 'deposits' && f('deposits', true) === 'pension', 'הבא (שמאלה ב־RTL) לפי סדר הלשוניות');
+ok(f('overview', false) === 'stocks' && f('stocks', false) === 'wishlist', 'הקודם (ימינה) לפי סדר הלשוניות');
+ok(f('pension', true) === null && f('wishlist', false) === null, 'בקצוות — אין עמוד');
+ok(f('settings', true) === null && f('settings', false) === 'overview' && f('pension', true) === null, 'ההגדרות מחוץ לסבב; החלקה אחורה מהן = "חזור" לסקירה (30/10/2026)');
+ok(/getElementById\('settingsBack'\)[\s\S]{0,300}switchTab\('overview'\)/.test(app) && /tabFwd\(prev, name\)/.test(app), 'כפתור "‹ סקירה" בהגדרות, והמעבר מסתובב כמו "חזור"');
 ok(f('nope', true) === null, 'עמוד לא ראשי — בלי החלקה');
 
 // v281: סף כמו הסטנדרט (טהורה). 14/10/2026 (בקשת המשתמש): בלי "החלקה קצרה" לרשימות — החלקה = עמוד בכל מקום

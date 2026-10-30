@@ -102,7 +102,7 @@ ok(/tabCubeGo\(c, v0, c\.to, null\)/.test(fn(app, 'tabCubeCommit')) && /switchTa
 
 // ---- Academy
 ok(/if \(\(kind === 'push' \|\| kind === 'pop'\) && cubeOk\(\)\) return cubeNav\(kind, y\)/.test(lib), 'Academy: מעבר בין דפים (לחיצה, "חזור") = קובייה');
-ok(/const LIB_SIB = \['snb', 'mine', 'notes'\]/.test(lib) && /wireLibSwipe\(\);/.test(lib), 'Academy (29/10/2026, כמו החוגה): מימין לשמאל — הגדרות ← THE SNOWBALL ← הספרייה שלי ← מה למדתי');
+ok(/const LIB_SIB = \['mine', 'snb', 'notes'\]/.test(lib) && /wireLibSwipe\(\);/.test(lib), 'Academy (29/10/2026, כמו החוגה): מימין לשמאל — הגדרות ← THE SNOWBALL ← הספרייה שלי ← מה למדתי');
 ok(!/libSwipeTabs/.test(lib) && /libDialTo\(v\)/.test(fn(lib, 'setShelf')) && /navigateTo\(k !== cur && fwd \? 'push' : 'pop', 0\)/.test(fn(lib, 'libDialTo')), 'Academy: שתי הספריות = עמודים בקובייה (גם בלחיצה בחוגה)');
 ok(/!\(history\.state \|\| \{\}\)\.sb\)\) return next \? null : libBackPage\(\)/.test(fn(lib, 'libSwipePage')) && /sb: sb/.test(fn(lib, 'goView')), 'Academy: החלקה אחורה לבית רק כשהבית באמת מתחת לרשומה');
 ok(/if \(swipePop > 0\)/.test(fn(lib, 'onPop')), 'Academy: חזרה לבית בהחלקה לא מציירת שוב ב־popstate');
@@ -139,3 +139,6 @@ ok(/dead: true/.test(fn(app, 'cubeGhostRun')) && !/pointerEvents = 'none'; *\n *
 ok(/^\s*if \(cubeNow && cubeNow !== _dial\.ride && cubeNow\.finish\) cubeNow\.finish\(\);[^\n]*\s*const c = el\.cloneNode\(true\);/m.test(fn(app, 'cubeClone').split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n')), 'מעבר שני ברצף: הקודם מסתיים לפני ההעתק — השכבה לא נשארת מסובבת');
 ok(/\[id\]:not\(svg \*\)'\)\.forEach\(\(x\) => x\.removeAttribute\('id'\)\)/.test(fn(app, 'cubeClone')) && /inert = true/.test(fn(app, 'cubeClone')), 'ההעתק: בלי מזהים כפולים, לא לחיץ');
 console.log('# ' + n + ' בדיקות עברו');
+// 30/10/2026 (בקשת המשתמש): ההגדרות נפתחות רק מהתפריט — בכל האפליקציות כפתור והחלקה אחורה לעמוד הראשי
+ok(/if \(ui\.view && ui\.view\.settings\) return next \? null : libSibPage\(libKeyOf\(ui\.view\), 'snb'\)/.test(lib) && /addEventListener\('click', \(\) => libDialTo\('snb'\)\)/.test(lib), 'Academy: מההגדרות — "‹ THE SNOWBALL" והחלקה אחורה לעמוד הראשי');
+ok(/if \(ui\.view === 'settings'\) return next \? null : stSibPage\('home'\)/.test(st) && /navBar\(\{ back: T\('studioDialHome'\), go: \(\) => stDialTo\('home'\) \}\)/.test(st), 'Studio: מההגדרות — "‹ תרגום סרטונים" והחלקה אחורה לעמוד הראשי');

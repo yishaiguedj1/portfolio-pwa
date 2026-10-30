@@ -19,14 +19,14 @@ const A = ctx.api;
 const num = (s, i) => +String(s).replace('translate3d', '').match(/-?[\d.]+/g)[i];
 
 // מספור
-ok(A.DIAL_TABS.join() === 'overview,stocks,wishlist,trades,deposits,pension', 'הסדר מימין לשמאל: סקירה (הראשי), מניות, מעקב, עסקאות, הפקדות, פנסיה — בלי הגדרות (30/10/2026)');
-ok(A.dialIndex('overview') === 0 && A.dialIndex('stocks') === 1 && A.dialIndex('settings') === 0, 'ההגדרות מחוץ לחוגה');
+ok(A.DIAL_TABS.join() === 'wishlist,stocks,overview,trades,deposits,pension', 'הסדר מימין לשמאל: מעקב, מניות, סקירה (הראשי, באמצע), עסקאות, הפקדות, פנסיה — בלי הגדרות (30/10/2026)');
+ok(A.dialIndex('wishlist') === 0 && A.dialIndex('overview') === 2 && A.dialIndex('settings') === 0, 'ההגדרות מחוץ לחוגה');
 ok(!/data-tab="settings"/.test(html) && /body\.dock-off \.tabs \{[^}]*visibility: hidden/.test(css) && /classList\.toggle\('dock-off', navDepth\(name\) > 0\)/.test(app), 'Invest: בלי כפתור הגדרות בחוגה; בעמודי ההגדרות החוגה מוסתרת');
 ok([...html.matchAll(/<button class="tab[^"]*" data-tab="(\w+)"/g)].map((m) => m[1]).join() === A.DIAL_TABS.join(), 'סדר הכפתורים ב־index.html = DIAL_TABS');
 
 // מנוחה: הפעיל במרכז, גבוה ומוגדל; השכנים על הקשת
 const f = A.dialFrame(A.dialRest(3), 7, 412, true);
-ok(num(f[3].it, 0) === 0 && num(f[3].it, 1) < 0 && f[3].glow === 1 && f[3].bub === 1 && f[3].ico === 0 && f[3].lbl === 0, 'הפעיל במרכז: בועה עם כיתוב, בלי סמל ובלי כיתוב מתחת');
+ok(num(f[3].it, 0) === 0 && num(f[3].it, 1) < 0 && f[3].glow === 1 && f[3].bub === 1 && f[3].ico === 0 && f[3].lbl === 1, 'הפעיל במרכז: בועה, בלי סמל, והכיתוב שלו מתחת (30/10/2026)');
 ok(/scale\(1\)/.test(f[3].disc) && /scale\(0\.72\)/.test(f[2].disc), 'הבועה בגודל מלא (חדה), השאר מוקטנים');
 // 29/10/2026 (בקשת המשתמש, צילום מהטלפון): הפרדה בין הבועה לשכנים גם במסך צר — הבועה (39) + עיגול שכן + 6px לפחות; בין העיגולים — 6px לפחות; הקצה עדיין חצי־גלוי
 for (const vw of [360, 390, 412, 430]) {
@@ -71,7 +71,7 @@ ok(!/positionTabIndicator|tab-ind|tabSetBar/.test(app + css), 'בלי שאריו
 
 // Studio ו־Academy (29/10/2026, בקשת המשתמש): אותה חוגה אחד לאחד — רק צבע האפליקציה
 const st = R('studio.js'), lib = R('library.js'), stc = R('studio.css'), libc = R('library.css');
-ok(/const ST_SIB = \['ka', 'home', 'job', 'tower'\]/.test(st) && /const LIB_SIB = \['snb', 'mine', 'notes'\]/.test(lib) && !/k: 'settings'/.test(st + lib), 'הסדר מימין לשמאל: Studio — הגדרות · העבודות · קריוקי (30/10) · העבודה · המגדל; Academy — הגדרות · THE SNOWBALL · הספרייה שלי · מה למדתי');
+ok(/const ST_SIB = \['ka', 'home', 'job', 'tower'\]/.test(st) && /const LIB_SIB = \['mine', 'snb', 'notes'\]/.test(lib) && !/k: 'settings'/.test(st + lib), 'הסדר מימין לשמאל: Studio — הגדרות · העבודות · קריוקי (30/10) · העבודה · המגדל; Academy — הגדרות · THE SNOWBALL · הספרייה שלי · מה למדתי');
 ok(/!FINAL\.includes\(r\.srv\.state\)/.test(st) && /r\.srv\.state === 'done'/.test(st), 'Studio: "העבודה" = הפעילה, ואם אין — האחרונה שהסתיימה');
 ok(/dialNavBuild\('st-dial'/.test(st) && /dialNavBuild\('lib-dial'/.test(lib) && /dialHost\(STUDIO_DIAL\)/.test(st) && /dialHost\(LIB_DIAL\)/.test(lib) && /wireDial\(dialNav\)/.test(st) && /wireDial\(libNav\)/.test(lib), 'שתיהן בונות את החוגה מאותו מנוע (core) ומארחות אותו');
 ok(/dialHost\(dialPrev\)/.test(st) && /dialHost\(libDialPrev\)/.test(lib), 'בסגירה המארח חוזר (Invest מתחת לשכבה)');

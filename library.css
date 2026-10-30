@@ -1083,6 +1083,12 @@ html:has(.rd)[data-theme="dark"] .lib-sheet { background: #1C1C1E !important; }
 /* 29/10/2026 (בקשת המשתמש): החוגה בתחתית — אותו עיצוב ואותו מנוע של Invest (styles.css .tabs, core: wireDial), רק בכחול של Academy.
    מעל השכבה (900) ומתחת לקורא (920), לגיליונות (960) ולהודעה */
 .lib-dial { --primary: #4699FF; --on-primary: #00214D; z-index: 910; }
+/* 30/10/2026 (בקשת המשתמש, צילום): הכיתובים בחוגה נבלעו בכריכות שמתחתיהן — כיתוב בצבע הטקסט הראשי ומשקל חזק יותר (לפי ת־עיצוב),
+   והילה צפופה בצבע הרקע. העיצוב של החוגה עצמה (עיגולים, זכוכית) — בלי שינוי (בקשת המשתמש) */
+.tabs.lib-dial .tab-lbl {
+  color: var(--on-surface); font-weight: 700; letter-spacing: -.01em;
+  text-shadow: 0 0 1px var(--bg), 0 0 3px var(--bg), 0 0 7px color-mix(in srgb, var(--bg) 90%, transparent), 0 0 14px color-mix(in srgb, var(--bg) 70%, transparent);
+}
 .lib-dial[hidden] { display: none; }
 html.lib-dock .lib-root { padding-bottom: calc(var(--dock-h, 120px) + 14px + env(safe-area-inset-bottom)); }
 html.lib-dock #toast.toast { bottom: calc(var(--dock-h, 120px) + 12px + env(safe-area-inset-bottom, 0px)); }
