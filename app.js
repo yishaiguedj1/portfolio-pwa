@@ -5261,8 +5261,22 @@ function renderSrcFilter(tab) {
   const wrap = document.getElementById(tab + 'SrcFilter');
   if (!wrap) return;
   const cur = getSrcFilter(tab);
+  // 30/10/2026 (סבב קפיצות 5, R10): כבר בנוי באותה שפה — מעדכנים את הסימון במקום (בנייה מחדש = פריים בלי הכפתור בטלפון)
+  if (wrap._lang === getLang() && wrap.querySelector) {
+    const b0 = wrap.querySelector('.src-btn');
+    if (b0) {
+      b0.classList.toggle('on', cur !== 'all');
+      wrap.querySelectorAll('button[data-srcf]').forEach((o) => {
+        const on = o.dataset.srcf === cur;
+        o.classList.toggle('on', on); o.setAttribute('aria-checked', String(on));
+        const c = o.querySelector('.src-opt-check'); if (c) c.innerHTML = on ? ICON_CHECK : '';
+      });
+      return;
+    }
+  }
   const lead = { all: ICON_LIST, manual: ICON_EDIT, ibkr: '<img src="ibkr-logo.png" alt="" width="18" height="18">' };
   wrap.classList.remove('open');
+  wrap._lang = getLang();
   wrap.innerHTML = '<button class="chip-btn src-btn' + (cur !== 'all' ? ' on' : '') + '" type="button" aria-haspopup="true" aria-expanded="false">' +
     ICON_FILTER + esc(t('srcFilterBtn')) + '</button>' +
     '<div class="src-pop menu-drop hidden" role="menu">' +
@@ -6960,8 +6974,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.88.1';
-const APP_VERSION = 'v635';
+const APP_RELEASE = '2.88.2';
+const APP_VERSION = 'v636';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -13233,6 +13247,7 @@ function renderStocks() {
   const list = document.getElementById('stockList');
   if (list && list._dragging) { list._pendingRender = true; return; } // v246: לא לצייר מחדש באמצע גרירה
   const wasEmpty = !list.querySelector || !list.querySelector('.stock'); // v193: כניסה מדורגת רק כשהרשימה נבנית מאפס
+  const imgs = imgsOf(list);               // סבב 5, R10: הלוגואים שכבר נטענו עוברים לכרטיסים החדשים
   list.innerHTML = '';
   if (editAllowed('stocks')) {
     const add = el('button', 'card add-card');
@@ -13263,6 +13278,7 @@ function renderStocks() {
   let idx = 0;
   for (const p of sortPositionsList(shown, mode, mOf, DB.stockOrder)) {
     const card = buildStockCard(p);
+    imgsKeep(imgs, card);
     if (wasEmpty && idx < 10 && card.style && card.style.setProperty) { card.classList.add('enter'); card.style.setProperty('--i', idx); card.addEventListener('animationend', () => card.classList.remove('enter'), { once: true }); } // v324: בלי enter אחרי הכניסה — החזרה ל־DOM בסוף גרירה/לחיצה ארוכה הריצה את cardIn מחדש
     idx++;
     list.appendChild(card);
@@ -15089,6 +15105,28 @@ function setLogoMeta(src, v) {
   if (v === null) { if (!(src in m)) return; delete m[src]; } else if (m[src] === v) return; else m[src] = v;
   clearTimeout(_logoMetaT);
   _logoMetaT = setTimeout(() => { try { localStorage.setItem(LS_LOGO_META, JSON.stringify(m)); } catch (e) {} }, 400);
+}
+/* 30/10/2026 (סבב קפיצות 5, R10 — סרטון Invest: בחירה ב"סינון" צבעה את הלוגו כריבוע לבן לשני פריימים): ציור מחדש של רשימה
+   יוצר img חדש, וגם כשהקובץ במטמון הוא נטען באסינכרוני. לוגו שכבר נטען עובר כמו שהוא מהכרטיס הישן לחדש (כבר מפוענח) */
+function imgsOf(root) {
+  const m = new Map();
+  if (root && root.querySelectorAll) root.querySelectorAll('img[data-logo]').forEach((x) => {
+    const s = x.getAttribute('src');
+    if (s && x.complete && x.naturalWidth && !m.has(s)) m.set(s, x);
+  });
+  return m;
+}
+function imgsKeep(m, el) {
+  if (!m || !m.size || !el || !el.querySelectorAll) return;
+  el.querySelectorAll('img[data-logo]').forEach((x) => {
+    const s = x.getAttribute('src'), o = m.get(s);
+    if (!o) return;
+    m.delete(s);
+    o.className = x.className;
+    x.replaceWith(o);
+    const fb = o.previousElementSibling;
+    if (fb && fb.classList && fb.classList.contains('stock-logo-fb')) fb.style.display = 'none';
+  });
 }
 function stockLogoHTML(sym) {
   const nsym = normalizeSym(sym);

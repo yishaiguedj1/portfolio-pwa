@@ -9445,7 +9445,7 @@ export function openStudio(opt) {
   }
   if (restore) root.classList.add('restored');
   render('none');
-  curtainDown(!restore);                   // 14/10/2026: הווילון של studio.html — יורד כשהדף הראשון מצויר
+  curtainDown(!restore || !!SA);           // 30/10/2026 (סבב 5, R9): גם רענון בדף העצמאי — בבת אחת, בלי דהייה. 14/10/2026: הווילון של studio.html — יורד כשהדף הראשון מצויר
   try { root.focus({ preventScroll: true }); } catch (e) {}
   Promise.resolve(refreshStatus(true)).then(() => pushAuto(false)).catch(() => {});
   if (!shadeT) shadeT = setInterval(() => { if (root) shadeSync(); }, SHADE_MS);   // הווילון — כל שנייה
