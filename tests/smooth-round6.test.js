@@ -45,6 +45,22 @@ const N = (k) => ({ k });
 // renderStocks: כרטיס שלא השתנה = הצומת הקיים
 const rs = fn(app, 'renderStocks');
 ok(!/list\.innerHTML\s*=\s*''/.test(rs), 'renderStocks: בלי ניקוי של הרשימה');
-ok(/o\._sig === sig/.test(rs) && /was\.get\(p\)/.test(rs), 'renderStocks: שימוש חוזר רק באותו אובייקט ובאותו HTML');
+ok(/nodeKeep\(was, p, card\)/.test(rs), 'renderStocks: שימוש חוזר רק באותו אובייקט ובאותו HTML (nodeKeep)');
+// nodeKeep: אותו אובייקט + אותו HTML = הצומת הישן; אחרת החדש נרשם
+{
+  const c2 = {};
+  vm.runInNewContext(fn(app, 'nodesOf') + fn(app, 'nodeKeep') + 'this.nodesOf = nodesOf; this.nodeKeep = nodeKeep;', c2);
+  const p1 = {}, p2 = {};
+  const mk = (h) => ({ outerHTML: h });
+  const a = mk('<a>1</a>'); ok(c2.nodeKeep(new Map(), p1, a) === null && a._k === p1 && a._sig === '<a>1</a>', 'nodeKeep: צומת חדש נרשם עם מפתח וחתימה');
+  const was = c2.nodesOf({ children: [a] });
+  ok(c2.nodeKeep(was, p1, mk('<a>1</a>')) === a, 'nodeKeep: אותו אובייקט ואותו HTML — הצומת הקיים');
+  ok(c2.nodeKeep(was, p1, mk('<a>2</a>')) === null, 'nodeKeep: HTML אחר — נבנה מחדש');
+  ok(c2.nodeKeep(was, p2, mk('<a>1</a>')) === null, 'nodeKeep: אובייקט אחר (נתונים חדשים) — נבנה מחדש, כי מאזינים סוגרים עליו');
+}
+for (const f of ['renderWishlist', 'renderTrades']) {
+  const src = fn(app, f);
+  ok(!/list\.innerHTML\s*=\s*''/.test(src) && /nodeKeep\(was, /.test(src) && /listSync\(list, out\)/.test(src), f + ': בלי ניקוי, שימוש חוזר, וסידור דרך listSync');
+}
 ok(/listSync\(list, out\)/.test(rs), 'renderStocks: הסידור דרך listSync');
 console.log(n + ' בדיקות עברו');

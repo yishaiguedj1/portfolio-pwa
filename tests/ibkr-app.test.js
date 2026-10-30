@@ -18,7 +18,7 @@ function elStub() {
   return {
     value: '', textContent: '', innerHTML: '',
     classList: { add() {}, remove() {}, toggle() {} },
-    addEventListener() {}, appendChild() {}, dataset: {}, style: {},
+    addEventListener() {}, appendChild() {}, insertBefore() {}, removeChild() {}, firstChild: null, dataset: {}, style: {},
     setAttribute() {}, querySelectorAll: () => [], querySelector: () => null,
     disabled: false,
   };
