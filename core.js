@@ -342,7 +342,7 @@ function askConfirmP(msg, opts) {
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
 const APP_RELEASE = '2.94.0';
-const APP_VERSION = 'v646';
+const APP_VERSION = 'v647';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -444,7 +444,8 @@ function dialFrame(st, n, vw, rtl) {
       bub: f(c01((e - 0.2) / 0.4)), bs: 'scale(' + f(0.82 + 0.18 * e) + ')',
       // 29/10/2026 (סרטון המשתמש, Academy): בחוגה של ארבעה, כשהנבחר בקצה, הכיתובים של הפריטים במרחק 2 חפפו ("הספרייה שלי" ו־"THE SNOWBALL")
       // ונחתכו בשולי המסך. בחוגה קטנה (עד 4) — כיתוב רק עד מרחק 1.5 מהנבחר, ונמוג עד 2; ב־Invest (7) — כמו קודם
-      lbl: f(c01(1 - e * 1.8) * (n <= 4 ? c01((2 - ad) / 0.5) : 1)),
+      // 30/10/2026 (בקשת המשתמש): גם מתחת לפריט הפעיל — הכיתוב שלו ("קריוקי", "תרגום סרטונים"), לא רק סמל בבועה
+      lbl: f(n <= 4 ? c01((2 - ad) / 0.5) : 1),
     });
   }
   return out;
