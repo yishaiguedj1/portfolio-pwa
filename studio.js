@@ -3404,22 +3404,25 @@ function kaSpec(f, spec) {
 const kaDur = (f) => Math.round(f.dur || (f.link && f.link.r && Number(f.link.r.d)) || 0);
 function kaFind(f) {
   const box = h('div', 'st-ka-find');
-  if (f.lq == null) f.lq = lyrGuess((f.file && f.file.name) || (f.link && f.link.r && f.link.r.t) || '');
+  // 30/10/2026: כמו הכתוביות — שיר חדש (קובץ / קישור) = שאילתה חדשה וחיפוש אוטומטי, כל עוד המשתמש לא כתב בעצמו
+  const nm = (f.file && f.file.name) || (f.link && f.link.r && f.link.r.t) || '';
+  if (f.lq == null || (nm && nm !== f.lqn && !f.lqe)) { f.lq = lyrGuess(nm); f.lqn = nm; f.lr = null; f.le = ''; f.la = false; }
+  if (nm && !f.la && !f.lb && f.lr == null && !String(f.lyr || '').trim() && String(f.lq || '').trim().length >= 2) { f.la = true; setTimeout(() => go(), 0); }
   const inp = h('input', 'st-in st-ka-q'); inp.type = 'search'; inp.dir = 'auto'; inp.value = f.lq; inp.placeholder = T('studioKaFindPh');
   inp.setAttribute('aria-label', T('studioKaFindPh')); inp.maxLength = 120;
-  inp.addEventListener('input', () => { f.lq = inp.value; });
-  const go = async () => {
+  inp.addEventListener('input', () => { f.lq = inp.value; f.lqe = true; });
+  async function go() {
     if (f.lb || String(f.lq || '').trim().length < 2) return;
     f.lb = true; f.le = ''; fnlAdd('lyr'); render('none');
     const r = await net.lyricsSearch(f.lq, kaDur(f));
-    f.lb = false; f.lr = r.ok ? r.list : []; f.le = r.ok ? '' : 'err';
+    f.lb = false; f.lr = r.ok ? r.list : []; f.le = r.ok ? '' : r.error === 'busy' ? 'busy' : 'err';
     if (form === f) render('none');
-  };
+  }
   inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
   const b = btn('st-btn st-ka-go', f.lb ? '…' : T('studioKaFind'), go, 'ka-find');
   b.disabled = !!f.lb;
   const row = h('div', 'st-ka-qrow'); row.append(inp, b); box.append(row);
-  if (f.le) box.append(note(T('studioKaFindErr')));
+  if (f.le) box.append(note(f.le === 'busy' ? T('studioKaFindBusy') : T('studioKaFindErr')));
   else if (Array.isArray(f.lr) && !f.lr.length) box.append(note(T('studioKaFindNone')));
   else if (Array.isArray(f.lr)) {
     box.append(list(...f.lr.map((x, i) => rowNav({ label: x.t || '—', sub: [x.a, x.d ? '\u2066' + fmtDur(x.d) + '\u2069' : '', x.m ? T('studioKaFindLen') : ''].filter(Boolean).join(' · '),

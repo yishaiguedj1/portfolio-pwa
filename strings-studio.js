@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2078 מפתחות מתוך 5517) */
+/* המחרוזות של studio (2079 מפתחות מתוך 5518) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -926,6 +926,7 @@ he: {
   "studioKaBv": "להשאיר את קולות הרקע",
   "studioKaBvS": "רק הזמר הראשי יוצא — ההרמוניות נשארות",
   "studioKaFind": "חיפוש מילים",
+  "studioKaFindBusy": "מאגר המילים עמוס כרגע — נסו שוב בעוד רגע",
   "studioKaFindErr": "החיפוש לא הצליח — בדקו את החיבור לרשת",
   "studioKaFindLen": "באורך השיר",
   "studioKaFindNone": "לא נמצאו מילים — אפשר להדביק אותן ביד",
@@ -3006,6 +3007,7 @@ en: {
   "studioKaBv": "Keep backing vocals",
   "studioKaBvS": "Only the lead singer is removed — harmonies stay",
   "studioKaFind": "Find lyrics",
+  "studioKaFindBusy": "The lyrics library is busy — try again in a moment",
   "studioKaFindErr": "Search failed — check your connection",
   "studioKaFindLen": "Same length",
   "studioKaFindNone": "No lyrics found — paste them by hand",
