@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של academy (697 מפתחות מתוך 5527) */
+/* המחרוזות של academy (696 מפתחות מתוך 5527) */
 const STRINGS = {
 he: {
   "acAiNote": "הניתוח נכתב בעזרת AI מתוך הטקסט של המכתב.",
@@ -305,7 +305,6 @@ he: {
   "libDenied": "החשבון שלך עדיין לא מורשה לספריית המכתבים המשותפת.",
   "libDialAria": "ניווט בספרייה",
   "libDialNotes": "מה למדתי",
-  "libDialSet": "הגדרות",
   "libDlAll": "הורדת כל הספרים מהגיבוי ({n})",
   "libDlErr": "ההורדה נכשלה — נסו שוב",
   "libDlReady": "הספר ירד — נגיעה בו פותחת אותו",
@@ -1004,7 +1003,6 @@ en: {
   "libDenied": "Your account isn't on the shared letters library yet.",
   "libDialAria": "Library navigation",
   "libDialNotes": "What I learned",
-  "libDialSet": "Settings",
   "libDlAll": "Download all books from backup ({n})",
   "libDlErr": "Download failed — try again",
   "libDlReady": "Downloaded — tap the book to open it",

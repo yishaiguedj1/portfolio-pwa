@@ -102,7 +102,7 @@ ok(/tabCubeGo\(c, v0, c\.to, null\)/.test(fn(app, 'tabCubeCommit')) && /switchTa
 
 // ---- Academy
 ok(/if \(\(kind === 'push' \|\| kind === 'pop'\) && cubeOk\(\)\) return cubeNav\(kind, y\)/.test(lib), 'Academy: מעבר בין דפים (לחיצה, "חזור") = קובייה');
-ok(/const LIB_SIB = \['settings', 'snb', 'mine', 'notes'\]/.test(lib) && /wireLibSwipe\(\);/.test(lib), 'Academy (29/10/2026, כמו החוגה): מימין לשמאל — הגדרות ← THE SNOWBALL ← הספרייה שלי ← מה למדתי');
+ok(/const LIB_SIB = \['snb', 'mine', 'notes'\]/.test(lib) && /wireLibSwipe\(\);/.test(lib), 'Academy (29/10/2026, כמו החוגה): מימין לשמאל — הגדרות ← THE SNOWBALL ← הספרייה שלי ← מה למדתי');
 ok(!/libSwipeTabs/.test(lib) && /libDialTo\(v\)/.test(fn(lib, 'setShelf')) && /navigateTo\(k !== cur && fwd \? 'push' : 'pop', 0\)/.test(fn(lib, 'libDialTo')), 'Academy: שתי הספריות = עמודים בקובייה (גם בלחיצה בחוגה)');
 ok(/!\(history\.state \|\| \{\}\)\.sb\)\) return next \? null : libBackPage\(\)/.test(fn(lib, 'libSwipePage')) && /sb: sb/.test(fn(lib, 'goView')), 'Academy: החלקה אחורה לבית רק כשהבית באמת מתחת לרשומה');
 ok(/if \(swipePop > 0\)/.test(fn(lib, 'onPop')), 'Academy: חזרה לבית בהחלקה לא מציירת שוב ב־popstate');
@@ -112,7 +112,7 @@ ok(/const LIB_NOBACK = \['edit', 'mgr', 'admin'\]/.test(lib), 'Academy: בלי �
 // ---- Studio
 const r = fn(st, 'render');
 ok(/cubeClone\(root\)/.test(r) && /cubeGhostRun\(root, ghost, cubeSideFwd\(fwd\)\)/.test(r) && /const fwd = kind === 'push' \|\| kind === 'dfwd'/.test(r), 'Studio: מעבר בין דפים = קובייה');
-ok(/const ST_SIB = \['settings', 'ka', 'home', 'job', 'tower'\]/.test(st) && /wireStSwipe\(\);/.test(st), 'Studio: עמודים ראשיים (29–30/10/2026, כמו החוגה) = הגדרות ← בית ← קריוקי ← העבודה ← מגדל הפיקוח, ההחלקה מחוברת');
+ok(/const ST_SIB = \['ka', 'home', 'job', 'tower'\]/.test(st) && /wireStSwipe\(\);/.test(st), 'Studio: עמודים ראשיים (29–30/10/2026, כמו החוגה) = בית ← קריוקי ← העבודה ← מגדל הפיקוח, ההחלקה מחוברת');
 ok(!/stSwipeTabs|ST_TABS/.test(st) && /stTab\('alTab', k\)/.test(st), 'Studio: בלי החלקה בין הלשוניות — רק בלחיצה');
 ok(/'play', 'subs', 'cut'/.test(st), 'Studio: בלי החלקה בנגן, בעורכים ובטפסים');
 ok(/if \(swipePop > 0\)/.test(fn(st, 'onPop')), 'Studio: חזרה לבית בהחלקה לא מציירת שוב ב־popstate');

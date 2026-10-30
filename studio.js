@@ -2262,7 +2262,7 @@ function onPop(e) {
    בלי "החלקה קצרה" לטאבים (בקשת המשתמש) — פרטים · ציר · קשורות רק בלחיצה.
    29/10/2026 (בקשת המשתמש): החוגה של Invest אחד לאחד, באדום — מימין לשמאל: הגדרות · העבודות (הבית, במרכז) · העבודה
    (הפעילה, ואם אין — האחרונה שהסתיימה) · מגדל הפיקוח. מה שמחוץ לחוגה ממופה לאח שלו (stKeyOf) */
-const ST_SIB = ['settings', 'ka', 'home', 'job', 'tower'];   // 30/10/2026: קריוקי (מימין לתרגום סרטונים, בקשת המשתמש) — כלי נפרד עם רשימה משלו (בקשת המשתמש)
+const ST_SIB = ['ka', 'home', 'job', 'tower'];   // 30/10/2026: קריוקי מימין לתרגום סרטונים (בקשת המשתמש)   // 30/10/2026 (בקשת המשתמש): ההגדרות — רק מהתפריט, בלי חוגה ובלי החלקה   // 30/10/2026: קריוקי — כלי נפרד עם רשימה משלו (בקשת המשתמש)
 const ST_NOSWIPE = ['play', 'subs', 'cut', 'cutsrc', 'tracks', 'dpick', 'vids', 'link', 'linkfmt', 'linksec', 'fmthelp', 'grab', 'sty', 'ov', 'new', 'edit', 'lang', 'connect', 'ai', 'rr'];   // עורכים, נגן וטפסים — בלי
 const ST_TAB_KEYS = ['d', 't', 'r'];
 let swipePop = 0;
@@ -2275,7 +2275,6 @@ function stDialKeys() { const j = stDialJob() || (stDialJ && ui.view === 'job' &
 function stKeyOf(v, p) {          // לאיזה פריט בחוגה שייך הדף
   const ch = chainFor(v, p);
   if (ch.some((x) => x.v === 'tower')) return 'tower';
-  if (ch.some((x) => x.v === 'settings')) return 'settings';
   const j = ch.find((x) => x.v === 'job'), dj = stDialJob();
   if (j && (j.p === stDialJ || (dj && dj.rec.id === j.p))) return 'job';   // "העבודה" — משותפת לשני הכלים
   return ch.some((x) => x.v === 'ka') ? 'ka' : 'home';
@@ -2334,7 +2333,7 @@ let dialNav = null, dialPrev = null, stDialC = null;
 function stDialNav() {
   if (dialNav || typeof dialNavBuild !== 'function') return dialNav;
   dialNav = dialNavBuild('st-dial', T('studioDialAria'), [
-    { k: 'settings', ico: DIAL_GEAR, lbl: T('studioDialSet') }, { k: 'ka', ico: ST_DIAL_ICO.ka, lbl: T('studioDialKa') },
+    { k: 'ka', ico: ST_DIAL_ICO.ka, lbl: T('studioDialKa') },
     { k: 'home', ico: ST_DIAL_ICO.home, lbl: T('studioDialHome') },
     { k: 'job', ico: ST_DIAL_ICO.job, lbl: T('studioDialLast') }, { k: 'tower', ico: ST_DIAL_ICO.tower, lbl: T('studioDialTower') },
   ], stDialTo);
@@ -2399,7 +2398,7 @@ function stDialTo(k, kind) {      // לחיצה על פריט: קובייה לכ
 /* מצב החוגה: גלויה רק בעמודים שאפשר לנווט מהם (לא בעורכים, בנגן ובטפסים); הכיתוב של "העבודה" — פעילה / אחרונה */
 function stDialSync(instant) {
   if (!dialNav) return;
-  const show = !!root && !ST_NOSWIPE.includes(ui.view);
+  const show = !!root && !ST_NOSWIPE.includes(ui.view) && !chainFor(ui.view, ui.param).some((x) => x.v === 'settings');   // בהגדרות — בלי חוגה
   dialNav.hidden = !show;
   document.documentElement.classList.toggle('st-dock', show);
   const dj = stDialJob(), jb = dialNav.querySelector('.tab[data-tab="job"]');
@@ -2419,7 +2418,7 @@ function stTab(k, v) {            // טאב פנימי — התוכן נכנס �
 function wireStSwipe() {
   if (typeof snbSwipe !== 'function' || !root) return;
   snbSwipe({ root: root, page: stSwipePage, dial: () => stKeyOf(ui.view, ui.param),
-    ok: () => !!root && !ST_NOSWIPE.includes(ui.view) && !document.querySelector('.dlg-veil.on, .st-pl-menu:not([hidden]), .st-rs') });
+    ok: () => !!root && !ST_NOSWIPE.includes(ui.view) && ui.view !== 'settings' && !document.querySelector('.dlg-veil.on, .st-pl-menu:not([hidden]), .st-rs') });
 }
 /* כמו בספרייה (v350, בקשת המשתמש): "חזור" מדף הבית של הסטודיו — לסקירה. מטאב ראשי app.js כבר עבר אליה בפתיחה */
 function appToOverview() {

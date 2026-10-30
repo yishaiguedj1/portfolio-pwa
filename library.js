@@ -958,12 +958,14 @@ async function cubeNav(kind, y) {
 }
 /* ההחלקה (core: snbSwipe — אותה חוקיות כמו ב־Invest). 14/10/2026 (בקשת המשתמש): ארבעה עמודים בשורה אחת; שתי הספריות הן
    עמודים בקובייה (לא טאבים — בלי "החלקה קצרה"). 29/10/2026 (בקשת המשתמש): החוגה של Invest אחד לאחד, בכחול, במקום הבורר
-   שמתחת להדר — מימין לשמאל: הגדרות · THE SNOWBALL (הראשי, במרכז) · הספרייה שלי · מה למדתי */
-const LIB_SIB = ['settings', 'snb', 'mine', 'notes'];
+   שמתחת להדר — מימין לשמאל: THE SNOWBALL (הראשי) · הספרייה שלי · מה למדתי. 30/10/2026 (בקשת המשתמש): ההגדרות יצאו מהחוגה
+   ומההחלקה — נפתחות רק מהתפריט (המבורגר), ובעמודי ההגדרות החוגה מוסתרת */
+const LIB_SIB = ['snb', 'mine', 'notes'];
+const libInSet = (v) => !!(v && (v.settings || v.backup || v.advanced || v.bkbooks));
 function libSib(v) {                       // העמוד הראשי שמוצג עכשיו, או null בעמוד משנה
   if (!v) return ui.shelf === 'mine' ? 'mine' : 'snb';
   const k = Object.keys(v);
-  return k.length === 1 && (k[0] === 'notes' || k[0] === 'settings') ? k[0] : null;
+  return k.length === 1 && k[0] === 'notes' ? k[0] : null;
 }
 const libIsHome = (k) => k === 'snb' || k === 'mine';
 function libShow(k) {                      // מעבר מצב לעמוד ראשי (בלי היסטוריה)
@@ -982,7 +984,7 @@ function libBackPage() {                   // עמוד משנה: החלקה אח
     commit() { swipePop++; afterBack(() => history.back()); },
   };
 }
-const libKeyOf = (v) => (!v ? (ui.shelf === 'mine' ? 'mine' : 'snb') : v.notes ? 'notes' : (v.settings || v.backup || v.advanced || v.bkbooks) ? 'settings' : (ui.shelf === 'mine' ? 'mine' : 'snb'));   // הפריט בחוגה
+const libKeyOf = (v) => (!v ? (ui.shelf === 'mine' ? 'mine' : 'snb') : v.notes ? 'notes' : (ui.shelf === 'mine' ? 'mine' : 'snb'));   // הפריט בחוגה
 /* ההיסטוריה אחרי מעבר לאח (החלקה, חוגה): הבית = רשומת הבסיס; אח אחר = רשומה אחת מעליה (ld = העומק מעל הבית) */
 let swipeRep = null;
 function libSibCommit(k) {
@@ -1007,6 +1009,7 @@ function libSibPage(cur, to) {            // האח: ציור (באמצע קוב
   };
 }
 function libSwipePage(next) {
+  if (ui.view && ui.view.settings) return null;   // עמוד ההגדרות — בלי החלקה (נפתח מהתפריט)
   const cur = libSib(ui.view);
   if (!cur || (!libIsHome(cur) && !(history.state || {}).sb)) return next ? null : libBackPage();   // עמוד משנה / הגיעו לא מהבית
   const to = LIB_SIB[LIB_SIB.indexOf(cur) + (next ? 1 : -1)];
@@ -4450,7 +4453,7 @@ function libDialTo(k) {           // לחיצה על פריט: קובייה לכ
 /* גלויה מעל השכבה (910) ומתחת לקורא (920) ולגיליונות; לא בעמודי העריכה והניהול (יש להם סרגל משלהם) */
 function libDialSync(instant) {
   if (!libNav || libDialC) return;
-  const show = !!root && !(ui.view && Object.keys(ui.view).some((k) => LIB_NOBACK.includes(k)));
+  const show = !!root && !libInSet(ui.view) && !(ui.view && Object.keys(ui.view).some((k) => LIB_NOBACK.includes(k)));
   libNav.hidden = !show;
   document.documentElement.classList.toggle('lib-dock', show);
   if (show && typeof dialSync === 'function') dialSync(instant);
@@ -4480,7 +4483,7 @@ export async function openLibrary(opt) {
   document.body.append(root);
   if (!libNav && typeof dialNavBuild === 'function') {   // 29/10/2026: החוגה — המארח של המנוע עובר לספרייה עד הסגירה
     libNav = dialNavBuild('lib-dial', T('libDialAria'), [
-      { k: 'settings', ico: DIAL_GEAR, lbl: T('libDialSet') }, { k: 'snb', ico: LIB_DIAL_ICO.snb, bub: LIB_DIAL_ICO.snb, lbl: 'THE SNOWBALL', cls: 'tab-snow' },
+      { k: 'snb', ico: LIB_DIAL_ICO.snb, bub: LIB_DIAL_ICO.snb, lbl: 'THE SNOWBALL', cls: 'tab-snow' },
       { k: 'mine', ico: LIB_DIAL_ICO.mine, lbl: T('libMine') }, { k: 'notes', ico: LIB_DIAL_ICO.notes, lbl: T('libDialNotes') },
     ], libDialTo);
     document.body.append(libNav);
