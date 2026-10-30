@@ -18,7 +18,8 @@ const f = ctx.f;
 ok(f('wishlist', true) === 'stocks' && f('stocks', true) === 'overview' && f('overview', true) === 'trades' && f('trades', true) === 'deposits' && f('deposits', true) === 'pension', 'הבא (שמאלה ב־RTL) לפי סדר הלשוניות');
 ok(f('overview', false) === 'stocks' && f('stocks', false) === 'wishlist', 'הקודם (ימינה) לפי סדר הלשוניות');
 ok(f('pension', true) === null && f('wishlist', false) === null, 'בקצוות — אין עמוד');
-ok(f('settings', true) === null && f('settings', false) === null, 'ההגדרות מחוץ להחלקה — נפתחות רק מהתפריט (30/10/2026)');
+ok(f('settings', true) === null && f('settings', false) === 'overview' && f('pension', true) === null, 'ההגדרות מחוץ לסבב; החלקה אחורה מהן = "חזור" לסקירה (30/10/2026)');
+ok(/getElementById\('settingsBack'\)[\s\S]{0,300}switchTab\('overview'\)/.test(app) && /tabFwd\(prev, name\)/.test(app), 'כפתור "‹ סקירה" בהגדרות, והמעבר מסתובב כמו "חזור"');
 ok(f('nope', true) === null, 'עמוד לא ראשי — בלי החלקה');
 
 // v281: סף כמו הסטנדרט (טהורה). 14/10/2026 (בקשת המשתמש): בלי "החלקה קצרה" לרשימות — החלקה = עמוד בכל מקום

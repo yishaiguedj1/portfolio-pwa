@@ -318,7 +318,11 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
   </section>
 
   <!-- הגדרות -->
-  <section id="tab-settings" class="tabpage" role="tabpanel">
+  <section id="tab-settings" class="tabpage" role="tabpanel" aria-labelledby="settingsTitleEl">
+    <div class="subpage-head">
+      <button id="settingsBack" class="subpage-back" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg><span data-i18n="tabOverview">סקירה</span></button>
+      <h2 class="subpage-title" id="settingsTitleEl" data-i18n="tabSettings">הגדרות</h2>
+    </div>
     <div class="card" id="accountCard">
       <h2><span data-i18n="myAccount">החשבון שלי</span></h2>
       <div id="accountInfo"><p class="fine" style="padding:0" data-i18n="loading">טוען…</p></div>
