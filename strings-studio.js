@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2086 מפתחות מתוך 5527) */
+/* המחרוזות של studio (2087 מפתחות מתוך 5528) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1257,7 +1257,8 @@ he: {
   "studioPhMeasured": "המדידות מהטלפון הגיעו ✓",
   "studioPhNotMeasured": "הטלפון מעלה את הקול ואת המדידות",
   "studioPhNotMeasuredPw": "הטלפון מתמלל ומיישר — עולה רק טקסט",
-  "studioPhNote": "נשאר בטלפון · עולים רק הקול והמדידות",
+  "studioPhNote": "הקול עולה קודם · הסרטון עולה לענן ברקע",
+  "studioPhOld": "Studio בטלפון ישן — הסרטון לא יעלה לענן",
   "studioPhOtherDev": "הצריבה — בטלפון שבו בחרתם את הסרטון (באפליקציה Studio)",
   "studioPhPtQ": "מתחיל לתרגם בטלפון…",
   "studioPhPw": "הכל בטלפון",
@@ -3345,7 +3346,8 @@ en: {
   "studioPhMeasured": "The measurements from the phone arrived ✓",
   "studioPhNotMeasured": "The phone is uploading the audio and the measurements",
   "studioPhNotMeasuredPw": "The phone transcribes and aligns — only text is uploaded",
-  "studioPhNote": "Stays on the phone · only the audio and measurements are uploaded",
+  "studioPhNote": "The audio goes first · the video uploads to the cloud in the background",
+  "studioPhOld": "Studio on this phone is outdated — the video won't upload to the cloud",
   "studioPhOtherDev": "Burning happens on the phone where you chose the video (in the Studio app)",
   "studioPhPtQ": "Starting the translation on your phone…",
   "studioPhPw": "All on the phone",

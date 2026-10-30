@@ -211,6 +211,7 @@ export function parsePhPick(arg) {
 /* 25/10/2026 (שלב 3): Studio לאנדרואיד שיודע להריץ גם את שלבי הטקסט (vt בפייתון של האפליקציה) מדווח cap ≥ 3 בבחירה.
    ישן — בלי pt (אחרת העבודה הייתה מחכה בתור לטלפון שלא יודע לקחת אותה) */
 export const PH_CAP_PT = 3;
+export const PH_CAP_VC = 4;   // 30/10/2026: Studio שמעלה גם את הסרטון לענן (spec.vc). ישן יותר מתעלם מ־vc — הסרטון נשאר רק בטלפון
 export function normJob(j) {
   if (!j || typeof j !== 'object' || !JOB_RE.test(String(j.id || ''))) return null;
   const sp = j.spec && typeof j.spec === 'object' ? j.spec : {};
@@ -3265,7 +3266,7 @@ function pageForm(p, editing) {
     const txt = h('span', 'st-l');
     const nm = h('b'); nm.append(fileNameEl(f.file.name));
     const sz = h('small'); sz.append(fmtSize(f.file.size) + ' · ', h('span', 'st-linkish', T('studioReplace')));
-    txt.append(nm, sz, f.ph ? h('small', 'st-ok', T('studioPhNote')) : f.drive ? h('small', 'st-ok', T('studioInDriveNote')) : f.fileObj ? h('small', 'st-ok', T('studioPhoneOnly')) : h('small', 'st-warn', T('studioRepick')));
+    txt.append(nm, sz, f.ph ? phNote(f.ph) : f.drive ? h('small', 'st-ok', T('studioInDriveNote')) : f.fileObj ? h('small', 'st-ok', T('studioPhoneOnly')) : h('small', 'st-warn', T('studioRepick')));
     card.append(th, txt);
   } else {
     // 25/10/2026: השורה הראשונה בקבוצת המקורות (לא כרטיס נפרד) — בולטת, וממנה ישר לבורר
@@ -3280,6 +3281,10 @@ function pageForm(p, editing) {
     p.append(inp, secT(f.ka ? T('studioKaSecSong') : T('studioSecVideo')));
     const pickRow = card.classList.contains('st-row') ? card : null;   // 25/10/2026: בלי קובץ — הבורר והמקורות האחרים בקבוצה אחת
     if (!pickRow) p.append(card);
+    if (!pickRow && f.ph && (f.ph.cap || 0) < PH_CAP_VC) {   // הקישור לעדכון — מחוץ לכפתור של הכרטיס
+      const a = h('a', 'st-btn wide', T('studioLinkApk')); a.href = DL_APK; a.rel = 'noopener'; a.dataset.k = 'ph-apk';
+      p.append(a);
+    }
     const subsRow = rowNav({ tile: tile('cc', 'orange'), label: T('studioSubsPick'), sub: subsOk() ? T('studioSubsPickS') : T('studioSubsApiOnly'), onClick: () => pickSubs(f), k: 'subs-pick' });
     // 22/10/2026: הורדה מקישור — שורה ראשונה (המנהל / "כל המודלים", כשהשרתון אומר שאפשר)
     // 25/10/2026: בלי האפליקציה לאנדרואיד (אייפון, מחשב) ההורדה רק לענן — ויוטיוב חוסם את השרת, אז לא מבטיחים אותו
@@ -3548,6 +3553,11 @@ function trkSet(f, file, tracks, auto) {
 /* 30/10/2026 (בקשת המשתמש — "גם במצב הכל בטלפון ימשכו כתוביות מכל המקורות וגם מהקובץ"): בבחירה דרך האפליקציה הדף
    לא רואה את הקובץ. מהרשת — לפי טביעת האצבע שהאפליקציה חישבה (oh; Studio ישן — לפי השם בלבד); מהקובץ — הרצועות
    שהאפליקציה כבר חילצה (z), מוכנות בלי חילוץ נוסף */
+/* 30/10/2026 (הצילום: "הסרטון הפסיק לעלות ל־R2"): Studio ישן מתעלם מ־vc ומעלה רק את הקול — אומרים (הקישור לעדכון — מתחת לכרטיס) */
+function phNote(P) {
+  if ((P.cap || 0) >= PH_CAP_VC) return h('small', 'st-ok', T('studioPhNote'));
+  return h('small', 'st-warn', T('studioPhOld'));
+}
 function phTracks(f, r) {
   const vf = { name: r.name, size: r.size, oh: r.oh || '', ph: r.pid };
   f.trk = null;
@@ -4622,7 +4632,7 @@ export function studioPhPick(arg) {
   if (r.e) { if (r.e !== 'cancel') flashSafe(T('studioPhFail') + ' — ' + phErrText(r.e)); return true; }
   if (!form) form = freshForm(null);
   const f = form;
-  f.ph = { pid: r.pid, w: r.w, h: r.h, dur: r.dur };
+  f.ph = { pid: r.pid, w: r.w, h: r.h, dur: r.dur, cap: r.cap };   // 30/10/2026: cap נשמר — בלעדיו גם pt (שלב 3) לא הופעל אף פעם
   f.fileObj = null; f.handle = null; f.drive = null; f.link = null; f.linkOk = false; f.edl = null;
   f.file = { name: r.name, size: r.size, type: 'video/*' }; f.dur = r.dur;
   phTracks(f, r);
