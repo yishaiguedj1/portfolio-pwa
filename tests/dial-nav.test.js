@@ -13,14 +13,15 @@ const line = (re) => { const m = app.match(re); assert(m, String(re)); return m[
 
 const ctx = { Math, JSON, NAV_SUBS: ['advanced', 'backup'], CUBE_RUB: 0.07 };
 vm.createContext(ctx);
-vm.runInContext([line(/const TAB_ORDER = [^\n]*/), line(/const DIAL_TABS = [^\n]*/), line(/const DIAL_SET = [^\n]*/), line(/const DIAL_S0 = [^\n]*/), line(/function investDialIndex[^\n]*/), fn('dialStep'), fn('dialRest'), fn('dialFrame'), fn('dialCubeState'), fn('dialRubber')].join('\n')
-  + '\nthis.api = { DIAL_TABS, DIAL_SET, dialIndex: investDialIndex, dialStep, dialRest, dialFrame, dialCubeState, dialRubber };', ctx);
+vm.runInContext([line(/const TAB_ORDER = [^\n]*/), line(/const DIAL_TABS = [^\n]*/), line(/const DIAL_S0 = [^\n]*/), line(/function investDialIndex[^\n]*/), fn('dialStep'), fn('dialRest'), fn('dialFrame'), fn('dialCubeState'), fn('dialRubber')].join('\n')
+  + '\nthis.api = { DIAL_TABS, dialIndex: investDialIndex, dialStep, dialRest, dialFrame, dialCubeState, dialRubber };', ctx);
 const A = ctx.api;
 const num = (s, i) => +String(s).replace('translate3d', '').match(/-?[\d.]+/g)[i];
 
 // מספור
-ok(A.DIAL_TABS.join() === 'settings,overview,stocks,wishlist,trades,deposits,pension', 'הסדר מימין לשמאל: הגדרות, סקירה (הראשי), מניות, מעקב, עסקאות, הפקדות, פנסיה (29/10/2026)');
-ok(A.dialIndex('settings') === 0 && A.dialIndex('overview') === 1 && A.dialIndex('advanced') === 0 && A.dialIndex('backup') === 0, 'עמודי המשנה של ההגדרות = "הגדרות"');
+ok(A.DIAL_TABS.join() === 'overview,stocks,wishlist,trades,deposits,pension', 'הסדר מימין לשמאל: סקירה (הראשי), מניות, מעקב, עסקאות, הפקדות, פנסיה — בלי הגדרות (30/10/2026)');
+ok(A.dialIndex('overview') === 0 && A.dialIndex('stocks') === 1 && A.dialIndex('settings') === 0, 'ההגדרות מחוץ לחוגה');
+ok(!/data-tab="settings"/.test(html) && /body\.dock-off \.tabs \{[^}]*visibility: hidden/.test(css) && /classList\.toggle\('dock-off', navDepth\(name\) > 0\)/.test(app), 'Invest: בלי כפתור הגדרות בחוגה; בעמודי ההגדרות החוגה מוסתרת');
 ok([...html.matchAll(/<button class="tab[^"]*" data-tab="(\w+)"/g)].map((m) => m[1]).join() === A.DIAL_TABS.join(), 'סדר הכפתורים ב־index.html = DIAL_TABS');
 
 // מנוחה: הפעיל במרכז, גבוה ומוגדל; השכנים על הקשת
@@ -70,7 +71,7 @@ ok(!/positionTabIndicator|tab-ind|tabSetBar/.test(app + css), 'בלי שאריו
 
 // Studio ו־Academy (29/10/2026, בקשת המשתמש): אותה חוגה אחד לאחד — רק צבע האפליקציה
 const st = R('studio.js'), lib = R('library.js'), stc = R('studio.css'), libc = R('library.css');
-ok(/const ST_SIB = \['settings', 'home', 'ka', 'job', 'tower'\]/.test(st) && /const LIB_SIB = \['settings', 'snb', 'mine', 'notes'\]/.test(lib), 'הסדר מימין לשמאל: Studio — הגדרות · העבודות · קריוקי (30/10) · העבודה · המגדל; Academy — הגדרות · THE SNOWBALL · הספרייה שלי · מה למדתי');
+ok(/const ST_SIB = \['home', 'ka', 'job', 'tower'\]/.test(st) && /const LIB_SIB = \['snb', 'mine', 'notes'\]/.test(lib) && !/k: 'settings'/.test(st + lib), 'הסדר מימין לשמאל: Studio — הגדרות · העבודות · קריוקי (30/10) · העבודה · המגדל; Academy — הגדרות · THE SNOWBALL · הספרייה שלי · מה למדתי');
 ok(/!FINAL\.includes\(r\.srv\.state\)/.test(st) && /r\.srv\.state === 'done'/.test(st), 'Studio: "העבודה" = הפעילה, ואם אין — האחרונה שהסתיימה');
 ok(/dialNavBuild\('st-dial'/.test(st) && /dialNavBuild\('lib-dial'/.test(lib) && /dialHost\(STUDIO_DIAL\)/.test(st) && /dialHost\(LIB_DIAL\)/.test(lib) && /wireDial\(dialNav\)/.test(st) && /wireDial\(libNav\)/.test(lib), 'שתיהן בונות את החוגה מאותו מנוע (core) ומארחות אותו');
 ok(/dialHost\(dialPrev\)/.test(st) && /dialHost\(libDialPrev\)/.test(lib), 'בסגירה המארח חוזר (Invest מתחת לשכבה)');
@@ -84,7 +85,7 @@ ok(/\{ k: 'snb', ico: LIB_DIAL_ICO\.snb, bub: LIB_DIAL_ICO\.snb, lbl: 'THE SNOWB
 // 29/10/2026 (בקשת המשתמש): בכל הפריטים בשלוש האפליקציות — בבועה רק הסמל בלבן, בלי טקסט
 ok(/\(it\.bub \|\| it\.ico\)/.test(fn('dialNavBuild')) && /\.tab-bub-ico \{ width: 44px; height: 44px; stroke: #fff;/.test(css) && /\.tab-bub-fill path \{ fill: #fff;/.test(css), 'Studio/Academy: כל בועה = הסמל בלבן');
 { const bs = [...html.matchAll(/<button class="tab[^"]*" data-tab="\w+"[^\n]*/g)].map((m) => m[0]);
-  ok(bs.length === 7 && bs.every((l) => /<span class="tab-bub" aria-hidden="true"><svg class="tab-bub-ico/.test(l) && !/tab-bub" data-i18n/.test(l)), 'Invest: כל בועה = הסמל בלבן (בלי data-i18n שידרוס אותו)'); }
+  ok(bs.length === 6 && bs.every((l) => /<span class="tab-bub" aria-hidden="true"><svg class="tab-bub-ico/.test(l) && !/tab-bub" data-i18n/.test(l)), 'Invest: כל בועה = הסמל בלבן (בלי data-i18n שידרוס אותו)'); }
 
 // עיצוב
 ok(/\.tab-disc \{[^}]*transform: scale\(\.72\)/.test(css) && /@keyframes dialSettle/.test(css) && !/dialWave|dialSheen/.test(css) && /prefers-reduced-motion: reduce\) \{ \.tab\.zap/.test(css), 'עיגול 78 מוקטן (‎.72); נשימה רכה בנחיתה (בלי גל); בלי אנימציה כשמבקשים להפחית תנועה');

@@ -6974,8 +6974,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.92.1';
-const APP_VERSION = 'v642';
+const APP_RELEASE = '2.93.0';
+const APP_VERSION = 'v643';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -9540,10 +9540,9 @@ function tabRenderer(name) {
 }
 /* ---- 29/10/2026 (בקשת המשתמש, לפי סרטון): הלשוניות = "חוגה" בתחתית המסך ----
    המנוע משותף (<core> למטה — גם הסטודיו); כאן רק Invest: אילו לשוניות, איזה עמוד פעיל ואיך עוברים (הקובייה של העמודים).
-   "הגדרות" — לשונית קבועה, הימנית ביותר (בקשת המשתמש); עמודי המשנה שלה מסמנים אותה. */
-const DIAL_TABS = TAB_ORDER.slice(0, 7);   // index 0 = הימני ביותר ב־RTL
-const DIAL_SET = 0;
-function investDialIndex(name) { const i = DIAL_TABS.indexOf(name); return i >= 0 ? i : (NAV_SUBS.indexOf(name) >= 0 ? DIAL_SET : 0); }
+   30/10/2026 (בקשת המשתמש): "הגדרות" יצאה מהחוגה ומההחלקה — נפתחת רק מהתפריט (המבורגר), ובעמודי ההגדרות החוגה מוסתרת (dock-off). */
+const DIAL_TABS = TAB_ORDER.slice(1, 7);   // index 0 = הימני ביותר ב־RTL (הסקירה)
+function investDialIndex(name) { return Math.max(0, DIAL_TABS.indexOf(name)); }
 const INVEST_DIAL = {
   nav: () => document.querySelector('nav.tabs'),
   keys: () => DIAL_TABS,
@@ -9969,8 +9968,8 @@ function switchTab(name, opts) {
   if (!cubeDone && cubeNow && cubeNow.finish) cubeNow.finish(); // 14/10/2026: מעבר קודם עוד מסתובב — מסיימים אותו מיד
   if (!cubeDone && tabCubeOk(prev, name, opts)) return tabCubeSwitch(prev, name, opts); // מעבר בקובייה (בסוף: כאן שוב, cubeDone)
   if ((prev === 'stocks' || prev === 'wishlist') && name !== prev) { try { closeStockCards(); } catch (e) {} } // v231; v240: גם מעקב
-  const setPg = name === 'settings' || NAV_SUBS.indexOf(name) >= 0;   // 20/10/2026: גם בעמודי המשנה של ההגדרות — "הגדרות" מסומנת
-  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name || (setPg && t.dataset.tab === 'settings')));
+  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
+  document.body.classList.toggle('dock-off', navDepth(name) > 0);   // 30/10/2026: ההגדרות ועמודי המשנה שלהן — בלי חוגה (נפתחות מהתפריט)
   // 29/10/2026: החוגה בתחתית — במעבר בקובייה היא כבר בתנועה (tabCubeRun); אחרת נוסעת לכאן באותו קפיץ, או במקום בפתיחה
   try { dialSync(!!(opts && (opts.restore || opts.instant)), name); } catch (e) {}
   setTabPageDirection(prev, name);
@@ -14638,14 +14637,14 @@ function barHeightVar() {
 /* </core> */
 
 /* ---------------- v279→v281: החלקה בין העמודים הראשיים ----------------
-   משיכה אופקית עוברת לעמוד הסמוך בסדר הלשוניות; אחרי העמוד האחרון (פנסיה) — ההגדרות, כקיצור קבוע.
+   משיכה אופקית עוברת לעמוד הסמוך בסדר הלשוניות.
    v281 (בקשת המשתמש: "קצת פחות קשה, כמו הסטנדרט"): כמו ViewPager/iOS — מעבר במשיכה של שליש מהרוחב, או בהטלה
    מהירה (≥0.45px/ms — ViewPager: 400dp/s) של לפחות 15%. תנועה שמתחילה אנכית = גלילה רגילה; גרף, שדה,
    פס גלילה אופקי, טאבי הרשימות וקצה המסך (מחוות "חזור") — לא נחשבים.
    14/10/2026 (בקשת המשתמש): העמוד מסתובב בקובייה צמוד לאצבע; **ההחלקה הקצרה בין רשימות המעקב בוטלה** —
    בכל הטאבים החלקה = עמוד, ובין הרשימות עוברים בלחיצה על הצ'יפים. */
-// 29/10/2026: ההגדרות = עמוד רגיל, הימני ביותר
-const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'advanced' && t !== 'backup');
+// 30/10/2026 (בקשת המשתמש): ההגדרות מחוץ להחלקה — רק מהתפריט; בעמוד ההגדרות עצמו אין החלקה
+const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'settings' && t !== 'advanced' && t !== 'backup');
 function pageSwipeTarget(cur, next) { // next=true → העמוד הבא (שמאלה ב־RTL)
   if (cur === 'advanced' || cur === 'backup') return next ? null : 'settings'; // v287: עמוד משנה — החלקה אחורה חוזרת להגדרות (כמו באייפון)
   const i = PAGE_SWIPE_MAIN.indexOf(cur);
@@ -14695,7 +14694,7 @@ function wirePageSwipe() {
     if (cubeNow && cubeNow.finish) cubeNow.finish(); // 14/10/2026: הקובייה עוד מסתובבת — נגיעה מסיימת אותה (העמוד החדש מתחת לאצבע)
     if (e.touches.length !== 1 || state.cardAnim || dragBusy()) return;
     const cur = currentTabName();
-    if (cur !== 'settings' && cur !== 'advanced' && cur !== 'backup' && PAGE_SWIPE_MAIN.indexOf(cur) < 0) return;
+    if (cur !== 'advanced' && cur !== 'backup' && PAGE_SWIPE_MAIN.indexOf(cur) < 0) return;
     const t = e.touches[0], w = window.innerWidth || 400;
     if (t.clientX < PAGE_SWIPE_EDGE || t.clientX > w - PAGE_SWIPE_EDGE) return;
     const tg = e.target; // גם בשטח הריק מתחת לתוכן (body), לא בהדר/בחלונות צפים

@@ -602,6 +602,9 @@ body.has-dock { --dock-h: 120px; padding-bottom: calc(var(--dock-h) + env(safe-a
   isolation: isolate; overflow-x: clip; touch-action: none;
   --dock-bg: transparent; --dock-bg2: color-mix(in srgb, var(--bg) 2%, transparent); --dial-btn: rgba(255, 255, 255, .55);
 }
+/* 30/10/2026 (בקשת המשתמש): ההגדרות נפתחות רק מהתפריט — בעמודי ההגדרות החוגה נמוגה (visibility — שלא תישאר שכבה פעילה) */
+.tabs { transition: opacity .18s ease, visibility 0s linear 0s; }
+body.dock-off .tabs { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .18s ease, visibility 0s linear .18s; }
 [data-theme="dark"] .tabs { --dock-bg: transparent; --dock-bg2: color-mix(in srgb, var(--bg) 3%, transparent); --dial-btn: var(--gl-btn); }
 .tabs::before {
   content: ''; position: absolute; inset: -26px 0 0; z-index: -2; pointer-events: none;
