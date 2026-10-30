@@ -18,6 +18,7 @@ import androidx.browser.trusted.TrustedWebActivityIntentBuilder
 import androidx.browser.trusted.sharing.ShareData
 import androidx.browser.trusted.sharing.ShareTarget
 import com.google.androidbrowserhelper.trusted.TwaLauncher
+import com.google.androidbrowserhelper.trusted.splashscreens.PwaWrapperSplashScreenStrategy
 
 /**
  * פותח את האתר כאפליקציה (Trusted Web Activity) — תמיד ב־Chrome (לא בדפדפן ברירת המחדל: דפדפן היצרן
@@ -33,6 +34,7 @@ import com.google.androidbrowserhelper.trusted.TwaLauncher
 class MainActivity : Activity() {
     private var launcher: TwaLauncher? = null
     private var launched = false
+    private var splash: PwaWrapperSplashScreenStrategy? = null
     private lateinit var status: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,6 +44,12 @@ class MainActivity : Activity() {
         if (restartInOwnTask()) { finish(); return }
         setContentView(buildSplash())
         open(urlFor(intent), shareOf(intent))
+    }
+
+    // R8: מסך הפתיחה של ה־TWA מחכה לסוף אנימציית הכניסה (חובה לפי PwaWrapperSplashScreenStrategy)
+    override fun onEnterAnimationComplete() {
+        super.onEnterAnimationComplete()
+        splash?.onActivityEnterAnimationComplete()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -143,7 +151,11 @@ class MainActivity : Activity() {
             if (share != null) builder.setShareParams(ShareTarget(getString(R.string.launchUrl) + "share-file", ShareTarget.METHOD_POST,
                 ShareTarget.ENCODING_TYPE_MULTIPART, ShareTarget.Params(null, "text", listOf(ShareTarget.FileFormField("video", listOf("video/*"))))), share)
             // מופע שנפתח מעל ה־TWA (קישור כשהאפליקציה פתוחה) — נסגר אחרי ההעברה; השורש נשאר עד "אחורה"
-            l.launch(builder, null, null, { launched = true; if (!isTaskRoot) finish() }, TwaLauncher.CCT_FALLBACK_STRATEGY)
+            /* 30/10/2026 (סבב קפיצות 6, R8 — מעבר בין האפליקציות: מסך פתיחה ← לבן ← האפליקציה): מסך הפתיחה (הלוגו על
+               צבע הדף, splash_bg) עובר ל־Chrome ונשאר עד הציור הראשון של האתר. דפדפן בלי תמיכה — כמו קודם */
+            val sp = PwaWrapperSplashScreenStrategy(this, R.mipmap.ic_launcher_foreground, getColor(R.color.splash_bg),
+                ImageView.ScaleType.CENTER, null, 200, "$packageName.twasplash", true).also { splash = it }
+            l.launch(builder, null, sp, { launched = true; if (!isTaskRoot) finish() }, TwaLauncher.CCT_FALLBACK_STRATEGY)
         } catch (e: Throwable) {
             showError(e)
         }
@@ -175,7 +187,7 @@ class MainActivity : Activity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setBackgroundColor(Color.BLACK)
+            setBackgroundColor(getColor(R.color.splash_bg))   // R8: צבע הדף, כמו מסך הפתיחה שעובר ל־Chrome
             setPadding(dp(24), dp(24), dp(24), dp(24))
         }
         root.addView(ImageView(this).apply { setImageResource(R.mipmap.ic_launcher_foreground) }, LinearLayout.LayoutParams(dp(180), dp(180)))
