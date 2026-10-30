@@ -562,6 +562,7 @@ const NS_MS = 9000, NS_MAX = 3 * 1024 * 1024, NS_CH = 65536;
 const nsStr = (v, n) => String(v == null ? '' : v).replace(LRC_CTL, '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, n);
 /* טביעת האצבע של OpenSubtitles: הגודל + סכום של מילים של 64 ביט (little-endian) ב־64KB הראשונים והאחרונים. blob = {size, slice} */
 export async function osHash(blob) {
+  if (blob && /^[0-9a-f]{16}$/.test(String(blob.oh || ''))) return blob.oh;   // 30/10/2026: מהאפליקציה (PhCore.osHash) — הקובץ לא בדף
   const size = blob && Number(blob.size);
   if (!(size >= NS_CH) || typeof BigInt !== 'function') return '';
   const M = (BigInt(1) << BigInt(64)) - BigInt(1);
