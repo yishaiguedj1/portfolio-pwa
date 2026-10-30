@@ -1567,8 +1567,16 @@ function addInd(c, name, o) {
   }
   if (name === 'KCCONE') c.chart.setOffsetRightDistance(180);
   if (name === 'KCVOL') volGap(c);
+  fitPanes(c);
   save();
   return id;
+}
+// חלונית משנה שכל האינדיקטורים בה מוסתרים — מקופלת לגובה 0 (בלי חלונית ריקה עם ציר בתחתית); גלוי שוב → חוזרת לגובה שלה
+function fitPanes(c) {
+  if (!c.chart) return;
+  const panes = new Map();
+  for (const i of c.chart.getIndicators()) if (i.paneId !== MAIN) panes.set(i.paneId, (panes.get(i.paneId) || false) || i.visible !== false);
+  for (const [id, vis] of panes) try { c.chart.setPaneOptions(vis ? { id, state: 'normal', minHeight: 30 } : { id, state: 'minimize', minHeight: 0 }); } catch (e) { /* גרסה בלי state */ }
 }
 function removeInd(c, id) {
   const ind = c.chart.getIndicators({ id })[0];
@@ -2828,7 +2836,7 @@ function openIndSheet() {
         const vis = i.visible !== false;
         activeBox.appendChild(h('div', { class: 'kc-li static' },
           h('span', { class: 'kc-li-n', text: i.name === 'KCCMP' ? T('kcCompare') + ' ' + ((i.extendData && i.extendData.sym) || '') : indName(i.name) + ((i.calcParams || []).length ? ' (' + i.calcParams.join(', ') + ')' : '') }),
-          btn('kc-ib sm', vis ? T('kcHide') : T('kcShow'), () => { c.chart.overrideIndicator({ id: i.id, visible: !vis }); save(); drawActive(); }, vis ? ICON.eye : ICON.eyeoff),
+          btn('kc-ib sm', vis ? T('kcHide') : T('kcShow'), () => { c.chart.overrideIndicator({ id: i.id, visible: !vis }); fitPanes(c); save(); drawActive(); }, vis ? ICON.eye : ICON.eyeoff),
           i.name !== 'KCCMP' && (i.calcParams || []).length ? btn('kc-ib sm', T('kcParams'), () => openParams(c, i, drawActive), ICON.gear) : null,
           btn('kc-ib sm danger', T('kcRemove'), () => { removeInd(c, i.id); drawActive(); draw(); updBars(); }, ICON.trash)));
       }
@@ -3133,7 +3141,7 @@ function openObjects() {
       for (const i of inds) {
         const vis = i.visible !== false;
         b.appendChild(h('div', { class: 'kc-li static' }, h('span', { class: 'kc-li-n', text: AUTO[i.name] ? T('kcAutoN_' + i.name) : i.name === 'KCBT' ? T('kcBtTitle') : i.name === 'KCCMP' ? T('kcCompare') + ' ' + ((i.extendData && i.extendData.sym) || '') : indName(i.name) }),
-          btn('kc-ib sm', vis ? T('kcHide') : T('kcShow'), () => { c.chart.overrideIndicator({ id: i.id, visible: !vis }); save(); draw(); }, vis ? ICON.eye : ICON.eyeoff),
+          btn('kc-ib sm', vis ? T('kcHide') : T('kcShow'), () => { c.chart.overrideIndicator({ id: i.id, visible: !vis }); fitPanes(c); save(); draw(); }, vis ? ICON.eye : ICON.eyeoff),
           btn('kc-ib sm danger', T('kcRemove'), () => { removeInd(c, i.id); updBars(); draw(); }, ICON.trash)));
       }
     }
