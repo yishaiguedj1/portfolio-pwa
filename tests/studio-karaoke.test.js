@@ -55,6 +55,13 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok((st.match(/kaSpec\(f, spec\)/g) || []).length >= 2, 'הקריוקי נשלח גם מקובץ וגם מקישור');
   ok(/if \(est\.min && !f\.ka && !f\.estOk/.test(st) && /if \(est\.min && !f\.ka && typeof askConfirm/.test(st), 'בלי אומדן עלות (אין Claude)');
   ok(/if \(rec\.spec\.ka && \(s\.id === 'tl' \|\| s\.id === 'rv'\)\) continue;/.test(st), 'בדף העבודה — בלי שלבי תרגום וביקורת');
+  // 30/10/2026 (הצילום: שיר מקישור שהורד בטלפון חזר כתרגום רגיל, עם מודל ועלות) — הפרדה מלאה בין הכלים
+  ok(/\.\.\.\(f\.ka \? \{ ka: true, lyr: kaLyr\(f\.lyr\)/.test(st) && /pend\.f\.ka === true\) Object\.assign\(f, \{ ka: true/.test(st), 'הורדה בטלפון: הקריוקי והמילים נשמרים וחוזרים לטופס');
+  ok(/if \(!f\.ka\) tracksFor\(f, file\);\n  if \(root\) \{ if \(ui\.view !== 'new'\) go\('new', f\.ka \? 'ka' : null/.test(st), 'הורדה בטלפון: חוזרים לטופס של הקריוקי');
+  ok(/go\('new', kaTab \? 'ka' : null\)/.test(st) && /if \(!editing && ui\.param === 'ka'\) form\.ka = true;/.test(st), 'הכלי בכתובת הדף — טופס שנבנה מחדש נשאר קריוקי');
+  ok(/\(x === 'new' && y === 'ka'\) \|\| \(x === 'job' && kaJob\(y\)\) \? \['ka', null\]/.test(st), 'שיר ועבודת קריוקי — תחת הקריוקי, לא תחת הסרטונים');
+  ok(/rec\.spec\.ka \? null : kvRow\(T\('studioSecMode'\)/.test(st) && /rec\.spec\.ka \? null : kvRow\(T\('studioSecLangs'\)/.test(st), 'פרטי עבודת קריוקי — בלי מודל ושפות');
+  ok(/end: f\.ka \? null : saveTop/.test(st), 'לטופס של שיר אין "שמירה" (טיוטות — רק לתרגום)');
   const app = read('app.js');
   for (const k of ['studioKaRow', 'studioKaLyr', 'studioKaStart', 'studioStgTrKa', 'studioOutInst', 'studioKaNoAudio'])
     ok((app.match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, 'מחרוזת ' + k + ' בשתי השפות');
