@@ -6974,8 +6974,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.91.0';
-const APP_VERSION = 'v640';
+const APP_RELEASE = '2.91.1';
+const APP_VERSION = 'v641';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -13248,19 +13248,26 @@ function renderStocks() {
   if (list && list._dragging) { list._pendingRender = true; return; } // v246: לא לצייר מחדש באמצע גרירה
   const wasEmpty = !list.querySelector || !list.querySelector('.stock'); // v193: כניסה מדורגת רק כשהרשימה נבנית מאפס
   const imgs = imgsOf(list);               // סבב 5, R10: הלוגואים שכבר נטענו עוברים לכרטיסים החדשים
-  list.innerHTML = '';
+  /* סבב 6 (ש1): כרטיס שלא השתנה (אותה מניה, אותו אובייקט, אותו HTML) נשאר הצומת הקיים — בחירה ב"סינון", מיון
+     ועדכון שלא נוגע בו לא בונים אותו מחדש. השאר נבנה כמו קודם. הסדר — listSync, בלי רגע של רשימה ריקה */
+  const was = new Map();
+  for (const c of Array.from(list.children || [])) if (c._p) was.set(c._p, c);
+  const out = [];
   if (editAllowed('stocks')) {
-    const add = el('button', 'card add-card');
-    add.type = 'button';
-    add.innerHTML = '<span class="add-plus">＋</span> ' + t('addStock');
-    add.addEventListener('click', () => showAddPositionForm(list));
-    list.appendChild(add);
+    let add = list.querySelector && list.querySelector(':scope > .add-card');
+    if (!add) {
+      add = el('button', 'card add-card');
+      add.type = 'button';
+      add.innerHTML = '<span class="add-plus">＋</span> ' + t('addStock');
+      add.addEventListener('click', () => showAddPositionForm(list));
+    }
+    out.push(add);
   }
   if (!POSITIONS.length && !editAllowed('stocks')) {
     const m = el('p', 'fine');
     m.style.padding = '0';
     m.textContent = t('noStocks');
-    list.appendChild(m);
+    out.push(m);
   }
   const mode = getStockSort();
   const mOf = (p) => {
@@ -13273,16 +13280,21 @@ function renderStocks() {
   if (!shown.length && POSITIONS.length) {
     const m = el('p', 'fine', t('srcFilterEmpty'));
     m.style.padding = '0';
-    list.appendChild(m);
+    out.push(m);
   }
   let idx = 0;
   for (const p of sortPositionsList(shown, mode, mOf, DB.stockOrder)) {
     const card = buildStockCard(p);
+    const sig = card.outerHTML, o = was.get(p);
+    if (o && o._sig === sig && o.isConnected !== false) { out.push(o); idx++; continue; }
+    card._p = p;
+    card._sig = sig;
     imgsKeep(imgs, card);
     if (wasEmpty && idx < 10 && card.style && card.style.setProperty) { card.classList.add('enter'); card.style.setProperty('--i', idx); card.addEventListener('animationend', () => card.classList.remove('enter'), { once: true }); } // v324: בלי enter אחרי הכניסה — החזרה ל־DOM בסוף גרירה/לחיצה ארוכה הריצה את cardIn מחדש
     idx++;
-    list.appendChild(card);
+    out.push(card);
   }
+  listSync(list, out);
 }
 
 /* ולידציה למניה (טהורה — ניתנת לבדיקה) */
@@ -14371,6 +14383,19 @@ function cubePre(root, go) {
   return p;
 }
 const cubePreBusy = () => !!_cubePre;   // ציור במקום (none) בזמן ההמתנה — מחכה לציור של המעבר
+/* 30/10/2026 (סבב קפיצות 6, docs/smooth-architecture.md — ש1): סידור ילדים לפי רשימה, בלי לבנות מחדש. צומת שכבר במקומו
+   לא זז (נשארים הצביעה, התמונה המפוענחת והשכבה שלו); רק מה שחסר נכנס, מה שעבר מקום זז, ומה שלא ברשימה יוצא.
+   לעומת innerHTML = '' + append: אין רגע שבו הרשימה ריקה, ואין צומת חדש לכרטיס שלא השתנה */
+function listSync(parent, nodes) {
+  if (!parent || !nodes) return;
+  const keep = new Set(nodes);
+  for (let c = parent.firstChild; c;) { const nx = c.nextSibling; if (!keep.has(c)) parent.removeChild(c); c = nx; }
+  let cur = parent.firstChild;
+  for (const nd of nodes) {
+    if (nd === cur) { cur = cur.nextSibling; continue; }
+    parent.insertBefore(nd, cur);
+  }
+}
 /* 29/10/2026 (המשתמש: "גם הלוגו מתרענן כל הזמן בכל המעברים"): אנימציית CSS מתחילה מאפס בכל פעם שהאלמנט נכנס ל־DOM —
    הלוגו החי (ריחוף, פנים, ברק, שלג) "התאפס" בכל ציור של הבית, בהעתק של הקובייה ובכל חזרה. מצמידים את האנימציות
    האינסופיות של הלוגו לשעון של הדף (startTime 0): בכל כניסה ובכל העתק — אותו רגע בדיוק, כאילו לא יצא אף פעם.

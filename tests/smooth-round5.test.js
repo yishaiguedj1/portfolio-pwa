@@ -12,7 +12,7 @@ const fn = (src, name) => { const i = src.indexOf('function ' + name + '('); if 
 
 // ---- R10: הלוגואים שכבר נטענו עוברים לכרטיסים החדשים
 const rs = fn(app, 'renderStocks');
-ok(/const imgs = imgsOf\(list\);\s*[^\n]*\n\s*list\.innerHTML = ''/.test(rs), 'renderStocks: אוסף את הלוגואים לפני הניקוי');
+ok(/const imgs = imgsOf\(list\);/.test(rs) && rs.indexOf('imgsOf(list)') < rs.indexOf('listSync(list, out)'), 'renderStocks: אוסף את הלוגואים לפני הסידור (סבב 6: listSync במקום ניקוי)');
 ok(/imgsKeep\(imgs, card\)/.test(rs), 'renderStocks: מעביר אותם לכל כרטיס חדש');
 {
   const mkImg = (src, done, cls) => ({ src, complete: done, naturalWidth: done ? 64 : 0, className: cls || '', attrs: { src }, getAttribute(k) { return this.attrs[k]; },
