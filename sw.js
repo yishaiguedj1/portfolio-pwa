@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v649';
+const CACHE_NAME = 'portfolio-pwa-v650';
 const HASHES = {
   "./": "90334e5c9a28c6406d157fd801169b90",
   "./index.html": "90334e5c9a28c6406d157fd801169b90",
   "./styles.css": "35a575b4aad6dddd52039dbf2648864a",
-  "./app.js": "8f8fa090065670e354a1a57481be5e98",
+  "./app.js": "ab693083d05522a22fbb11f8d08ed13c",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "2cf2e330bfcc2c9150ba47b8f355982d",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -37,7 +37,7 @@ const HASHES = {
   "./chartlib.js": "5c00c490dac1b09329fa1ce657350a9b",
   "./chart.css": "0e4e6260108563c3f329d204c1398a10",
   "./vendor/klinecharts/klinecharts.min.js": "4202d8661b8302175751d8d072bf6d2f",
-  "./library.js": "0dfbdfefc251c1eb54c42d2daa4f0d16",
+  "./library.js": "c240229ad5c166438db4da05bef54cf8",
   "./library.css": "4e8ba44baf16709e07d56c5f85cbe6ac",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
   "./libbackup.js": "a238c4cf7877166ba8eba5cdcf6eadb8",
@@ -65,7 +65,7 @@ const HASHES = {
   "./academy.html": "d58a511fc759a629121b82ab47fe9a69",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
   "./strings-academy.js": "159da13311817c6ee13b06a03fbfa345",
-  "./core.js": "e5362d0add79d945b79d1fcc06361820",
+  "./core.js": "0774c10c9bbfa9d9bd6d1f03e5835385",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "6b22a08dd74c16eefd740922596fb568",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -74,7 +74,7 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "a204b153fbd6e855b948e69930c56599",
+  "./studio.js": "137219f70db7ece0f19bacab34a5964f",
   "./studio.css": "29e654a7d2b6ba995737f7428ba1116d",
   "./studionet.js": "95278522eab4d422170b6a8b8deb26e2",
   "./studioplay.js": "f7a2c41fb9bbcee64b213822d3082a98",

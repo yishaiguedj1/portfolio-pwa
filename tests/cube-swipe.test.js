@@ -139,3 +139,6 @@ ok(/dead: true/.test(fn(app, 'cubeGhostRun')) && !/pointerEvents = 'none'; *\n *
 ok(/^\s*if \(cubeNow && cubeNow !== _dial\.ride && cubeNow\.finish\) cubeNow\.finish\(\);[^\n]*\s*const c = el\.cloneNode\(true\);/m.test(fn(app, 'cubeClone').split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n')), 'מעבר שני ברצף: הקודם מסתיים לפני ההעתק — השכבה לא נשארת מסובבת');
 ok(/\[id\]:not\(svg \*\)'\)\.forEach\(\(x\) => x\.removeAttribute\('id'\)\)/.test(fn(app, 'cubeClone')) && /inert = true/.test(fn(app, 'cubeClone')), 'ההעתק: בלי מזהים כפולים, לא לחיץ');
 console.log('# ' + n + ' בדיקות עברו');
+// 30/10/2026 (בקשת המשתמש): ההגדרות נפתחות רק מהתפריט — בכל האפליקציות כפתור והחלקה אחורה לעמוד הראשי
+ok(/if \(ui\.view && ui\.view\.settings\) return next \? null : libSibPage\(libKeyOf\(ui\.view\), 'snb'\)/.test(lib) && /addEventListener\('click', \(\) => libDialTo\('snb'\)\)/.test(lib), 'Academy: מההגדרות — "‹ THE SNOWBALL" והחלקה אחורה לעמוד הראשי');
+ok(/if \(ui\.view === 'settings'\) return next \? null : stSibPage\('home'\)/.test(st) && /navBar\(\{ back: T\('studioDialHome'\), go: \(\) => stDialTo\('home'\) \}\)/.test(st), 'Studio: מההגדרות — "‹ תרגום סרטונים" והחלקה אחורה לעמוד הראשי');
