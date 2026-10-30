@@ -6974,8 +6974,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.93.0';
-const APP_VERSION = 'v644';
+const APP_RELEASE = '2.94.0';
+const APP_VERSION = 'v645';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -9533,15 +9533,16 @@ function tabShouldRender(name) {
   tabDirty[name] = true;
   return false;
 }
-/* 29/10/2026 (בקשת המשתמש): הסדר מימין לשמאל (ב־RTL) — הגדרות, הסקירה (הראשי), מניות, מעקב, עסקאות, הפקדות, פנסיה; כמו בחוגה */
-const TAB_ORDER = ['settings', 'overview', 'stocks', 'wishlist', 'trades', 'deposits', 'pension', 'advanced', 'backup']; // v287: advanced = עמוד משנה של ההגדרות; 14/10/2026: backup (גיבוי ל־Google Drive) — גם
+/* 30/10/2026 (בקשת המשתמש): הסדר מימין לשמאל (ב־RTL) — מעקב, מניות, הסקירה (הראשי, באמצע), עסקאות, הפקדות, פנסיה; כמו בחוגה.
+   settings בראש — מחוץ לחוגה ולהחלקה (DIAL_TABS = slice(1, 7)) */
+const TAB_ORDER = ['settings', 'wishlist', 'stocks', 'overview', 'trades', 'deposits', 'pension', 'advanced', 'backup']; // v287: advanced = עמוד משנה של ההגדרות; 14/10/2026: backup (גיבוי ל־Google Drive) — גם
 function tabRenderer(name) {
   return { overview: renderOverview, stocks: renderStocks, trades: renderTrades, wishlist: renderWishlist, deposits: renderDeposits, pension: renderPension, settings: renderSettingsLive, advanced: renderSettingsLive, backup: pfbkPaint }[name] || null;
 }
 /* ---- 29/10/2026 (בקשת המשתמש, לפי סרטון): הלשוניות = "חוגה" בתחתית המסך ----
    המנוע משותף (<core> למטה — גם הסטודיו); כאן רק Invest: אילו לשוניות, איזה עמוד פעיל ואיך עוברים (הקובייה של העמודים).
    30/10/2026 (בקשת המשתמש): "הגדרות" יצאה מהחוגה ומההחלקה — נפתחת רק מהתפריט (המבורגר), ובעמודי ההגדרות החוגה מוסתרת (dock-off). */
-const DIAL_TABS = TAB_ORDER.slice(1, 7);   // index 0 = הימני ביותר ב־RTL (הסקירה)
+const DIAL_TABS = TAB_ORDER.slice(1, 7);   // index 0 = הימני ביותר ב־RTL (מעקב)
 function investDialIndex(name) { return Math.max(0, DIAL_TABS.indexOf(name)); }
 const INVEST_DIAL = {
   nav: () => document.querySelector('nav.tabs'),

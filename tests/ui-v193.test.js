@@ -105,7 +105,7 @@ ok(R("_renderForce = true; const _r = tabShouldRender('overview'); _renderForce 
 ok(/try \{ renderAllInner\(\); \} finally \{ _renderForce = false; \}/.test(src), 'renderAll מחזיר את הדגל גם אם ציור נכשל');
 R("setTabPageDirection('settings', 'overview')");   // 29/10/2026: הסדר החדש — הגדרות, סקירה, מניות, מעקב…
 ok(pages['tab-overview'].style.props['--tab-dx'] === '-22px', 'RTL: קדימה = העמוד נכנס משמאל (‎-22px)');
-R("setTabPageDirection('wishlist', 'stocks')");
+R("setTabPageDirection('overview', 'stocks')");   // 30/10/2026: מעקב · מניות · סקירה · עסקאות…
 ok(pages['tab-stocks'].style.props['--tab-dx'] === '22px', 'RTL: אחורה = מימין (‎22px)');
 R("setTabPageDirection('stocks', 'stocks')");
 ok(!pages['tab-stocks'].style.props.x && pages['tab-stocks'].style.props['--tab-dx'] === '22px', 'אותו טאב: הכיוון לא משתנה');
