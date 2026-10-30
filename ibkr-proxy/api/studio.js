@@ -2832,8 +2832,9 @@ async function handler(req, res, deps = {}) {
   const modeLocked = async (m) => !S.modeOk(S.modeNow(m), await fullModes());
   // 25/10/2026 (בקשת המשתמש): למשתמשים רק השרת של המערכת — בלי Routine (גם לא ry) ובלי העתק־הדבק
   const engLocked = async (spec) => !S.engOk(spec, await fullModes());
-  // 25/10/2026 (בקשת המשתמש): הורדה מקישור — גם לחשבונות הבדיקה (sysCfg.tsEm), לא רק למנהל ול"כל המודלים"
-  const urlAllowed = async () => (await fullModes()) || SF.tsHas(await sysCfg(deps, now), user);
+  // 25/10/2026: הורדה מקישור — המנהל, "כל המודלים" וחשבונות הבדיקה. 30/10/2026 (בקשת המשתמש): לכל מי שמורשה לסטודיו
+  // (כבר עבר את השער). נשאר: הדגל st_url, ו־R2
+  const urlAllowed = async () => true;
   // 29/10/2026: קריוקי משיר — המנהל וחשבונות הבדיקה. 30/10/2026 (בקשת המשתמש): "כל מי שמורשה לסטודיו — מורשה לכל
   // התוכנות שלו, גם הקריוקי"; רק מה שהוגדר למנהל נשאר נעול (מצבים/מודלים, המנוי, המגדל, הורדה מקישור). כאן כבר עבר את השער
   const kaAllowed = async () => true;
@@ -3560,7 +3561,7 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json(Object.assign({ ok: f.ok, job: view(j) }, f.ok ? (f.unsure ? { unsure: f.unsure, detail: f.detail } : {}) : { error: f.error, retry: f.retry, detail: f.detail || '' }));
     }
     if (op === 'urlProbe') {
-      // 22/10/2026: בדיקת קישור — למנהל, ל"כל המודלים" ולחשבונות הבדיקה (25/10), והדגל st_url. pid = מצב בדיקה קיימת
+      // 22/10/2026: בדיקת קישור — לכל מי שמורשה לסטודיו (30/10), והדגל st_url. pid = מצב בדיקה קיימת
       if (!(await urlAllowed())) return res.status(403).json({ ok: false, error: 'not_allowed' });
       if (!(await flagOn(deps, 'st_url', now))) return res.status(409).json({ ok: false, error: 'flag_off', fl: 'st_url' });
       if (body.pid != null) {

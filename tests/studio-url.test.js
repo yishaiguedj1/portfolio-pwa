@@ -83,12 +83,14 @@ const { fakeR2, ENV } = require('./_r2fake');
     ok(SU.normSrcUrl(u) === '', 'נדחה: ' + u);
 
   /* ---------- 1. בדיקת קישור: טלפון → תור → עובד → טלפון ---------- */
-  ok((await other('urlProbe', { url: 'https://youtu.be/abc' })).error === 'not_allowed', 'משתמש רגיל — בלי הורדה מקישור (שלב ראשון: מנהל / "כל המודלים")');
+  const op0 = await other('urlProbe', { url: 'https://youtu.be/abc' });
+  ok(op0.ok && op0.probe && op0.probe.st === 'q', '30/10/2026 (בקשת המשתמש): הורדה מקישור — לכל מי שמורשה לסטודיו, גם משתמש רגיל');
+  db.delete('studioProbe/' + op0.probe.id);   // מחוץ לתור — כדי שהבדיקות הבאות יעבדו על בדיקה אחת
   ok((await api('urlProbe', { url: 'http://10.0.0.1/v' })).error === 'bad_url', 'כתובת פנימית — נדחית כבר בשרתון');
   let j = await api('urlProbe', { url: 'שתפו https://www.youtube.com/watch?v=abc' });
   ok(j.ok && j.probe.st === 'q' && /^p[0-9a-z]+$/.test(j.probe.id), 'בדיקה נוצרה וממתינה לעובד');
   const PID = j.probe.id;
-  ok((await other('urlProbe', { pid: PID })).error === 'not_allowed' && (await api('urlProbe', { pid: 'pzzzzzzzz' })).error === 'no_probe', 'בדיקה של משתמש אחר / שלא קיימת');
+  ok((await other('urlProbe', { pid: PID })).error === 'no_probe' && (await api('urlProbe', { pid: 'pzzzzzzzz' })).error === 'no_probe', 'בדיקה של משתמש אחר / שלא קיימת');
 
   // שרת רשום
   const SID = 'srv000000001', STOK = SID + '-' + crypto.randomBytes(32).toString('base64url');
@@ -140,7 +142,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   /* ---------- 2. עבודה מקישור ---------- */
   const spec = { name: r.t, size: 170e6, type: 'video/url', dur: 600, from: 'en', to: ['he'], mode: 'haiku-high', out: ['same'], eng: 'api', cap: 5,
     src: 'url', url: r.u, pick: { v: '399', a: '251', h: 1080, ch: 1 } };
-  ok((await other('create', { spec })).error === 'not_allowed', 'משתמש רגיל לא יוצר עבודה מקישור');
+  { const oc = await other('create', { spec }); ok(oc.ok && oc.job.spec.src === 'url', '30/10/2026: משתמש רגיל יוצר עבודה מקישור'); db.delete('studioJobs/' + oc.job.id); }
   ok((await api('create', { spec: Object.assign({}, spec, { eng: undefined }) })).error === 'bad_spec', 'עבודה מקישור — רק במצב השרת');
   j = await api('create', { spec });
   ok(j.ok && j.job.spec.src === 'url' && j.job.spec.pick.v === '399' && SR.isFolder(j.job.folder), 'עבודה מקישור נוצרת עם תיקייה ב־R2');
