@@ -539,6 +539,15 @@ export function lrcResults(json, dur) {
     .slice(0, 8).map((r) => Object.assign(r, { m: dur > 0 && r.d > 0 && Math.abs(r.d - dur) <= 3 }));
 }
 
+/* כמה לחכות לפני ניסיון נוסף ב־LRCLIB (‎-1 = לא לנסות שוב): רק "עמוס" (503) / "יותר מדי" (429), עד LRC_TRIES ניסיונות,
+   לפי Retry-After (שניות) ובין 1 ל־4 שנ׳ */
+export const LRC_TRIES = 3;
+export function lrcWait(status, retryAfter, n) {
+  if ((status !== 503 && status !== 429) || n >= LRC_TRIES) return -1;
+  const s = Number(retryAfter);
+  return Math.round(Math.min(4, Math.max(1, s > 0 ? s : n * 1.5)) * 1000);
+}
+
 /* ---------------- 28/10/2026: כתוביות רשמיות מהרשת (בקשת המשתמש — "כמו VLC / BS Player / Stremio") ----------------
    ישירות מהטלפון: CORS פתוח, בלי מפתח, והמכסה של המשתמש ולא של השרת (החלטת המשתמש). יוצא רק: טביעת האצבע והגודל,
    מזהה IMDb ושם הסדרה/הסרט — הקובץ עצמו לא. זיהוי: טביעת האצבע של OpenSubtitles (64KB מההתחלה + 64KB מהסוף + הגודל)
@@ -1092,17 +1101,23 @@ export function createNet(env) {
     if (!r.ok) throw await driveErr(r);
     return (await r.json()).id;
   }
-  /* מילים לשיר (LRCLIB) — 8 שנ׳ לכל היותר; תקלה = רשימה ריקה עם קוד */
-  async function lyricsSearch(qs, dur) {
+  /* מילים לשיר (LRCLIB) — 8 שנ׳ לכל ניסיון; תקלה = רשימה ריקה עם קוד. 30/10/2026: LRCLIB עונה הרבה 503 "עמוס"
+     (בבדיקה: 5 מתוך 6 בקשות רצופות) — עד LRC_TRIES ניסיונות לפי Retry-After (lrcWait), ואז error 'busy' */
+  async function lyricsSearch(qs, dur, wait = (ms) => new Promise((r) => setTimeout(r, ms))) {
     const qq = String(qs || '').trim().slice(0, 120);
     if (qq.length < 2) return { ok: false, error: 'short', list: [] };
-    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
-    const tm = ctl ? setTimeout(() => ctl.abort(), 8000) : 0;
-    try {
-      const r = await E.fetch(LRC_API + '?q=' + encodeURIComponent(qq), ctl ? { signal: ctl.signal } : {});
-      if (!r.ok) return { ok: false, error: 'http_' + r.status, list: [] };
-      return { ok: true, list: lrcResults(await r.json(), dur || 0) };
-    } catch (e) { return { ok: false, error: 'net', list: [] }; } finally { if (tm) clearTimeout(tm); }
+    for (let n = 1; ; n++) {
+      const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+      const tm = ctl ? setTimeout(() => ctl.abort(), 8000) : 0;
+      let r;
+      try {
+        r = await E.fetch(LRC_API + '?q=' + encodeURIComponent(qq), ctl ? { signal: ctl.signal } : {});
+        if (r.ok) return { ok: true, list: lrcResults(await r.json(), dur || 0) };
+      } catch (e) { return { ok: false, error: 'net', list: [] }; } finally { if (tm) clearTimeout(tm); }
+      const ms = lrcWait(r.status, r.headers && typeof r.headers.get === 'function' ? r.headers.get('retry-after') : '', n);
+      if (ms < 0) return { ok: false, error: r.status === 503 || r.status === 429 ? 'busy' : 'http_' + r.status, list: [] };
+      await wait(ms);
+    }
   }
   /* כתוביות מהרשת: זיהוי + חיפוש בכל המקורות (כל אחד עד NS_MS; מקור שנפל לא עוצר). blob = {size, slice} */
   async function nsGet(url, kind) {

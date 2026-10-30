@@ -47,12 +47,25 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const bad = N.createNet({ fetch: async () => { throw new Error('x'); }, base: () => '', idToken: async () => '' });
   ok((await bad.lyricsSearch('abc', 0)).error === 'net', 'תקלת רשת = קוד, בלי זריקה');
 
+  /* 30/10/2026: LRCLIB עמוס (503) — ניסיון חוזר לפי Retry-After, ואז 'busy' */
+  ok(N.lrcWait(503, '2', 1) === 2000 && N.lrcWait(429, '', 2) === 3000 && N.lrcWait(503, '60', 1) === 4000 && N.lrcWait(503, '0', 1) === 1500, 'המתנה לפי Retry-After, בין 1 ל־4 שנ׳');
+  ok(N.lrcWait(503, '1', N.LRC_TRIES) === -1 && N.lrcWait(404, '1', 1) === -1 && N.lrcWait(500, '', 1) === -1, 'עד LRC_TRIES ניסיונות, ורק על עמוס / יותר מדי');
+  let calls = 0;
+  const waits = [];
+  const busy = (k) => N.createNet({ fetch: async () => { calls++; return calls <= k ? { ok: false, status: 503, headers: { get: () => '1' } } : { ok: true, status: 200, json: async () => raw }; }, base: () => '', idToken: async () => '' });
+  const r1 = await busy(1).lyricsSearch('Song Close', 200, async (ms) => { waits.push(ms); });
+  ok(r1.ok && r1.list.length && calls === 2 && waits[0] === 1000, 'עמוס פעם אחת — מחכים ומצליחים');
+  calls = 0;
+  const r2 = await busy(99).lyricsSearch('Song Close', 200, async () => {});
+  ok(!r2.ok && r2.error === 'busy' && calls === N.LRC_TRIES, 'עמוס כל הזמן — busy אחרי LRC_TRIES ניסיונות');
+
   /* ---------- 5. הטופס והמדיניות ---------- */
   const st = read('studio.js');
   ok(/function kaFind\(f\)/.test(st) && /kaFind\(f\), ta,/.test(st), 'החיפוש בטופס הקריוקי, מעל שדה המילים');
   ok(/net\.lyricsSearch\(/.test(st) && !/lrclib/i.test(st.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')), 'הטופס פונה רק דרך studionet (בלי כתובת בקוד של הסטודיו)');
   for (const p of ['index.html', 'academy.html', 'studio.html', 'admin.html']) ok(/connect-src[^;]*https:\/\/lrclib\.net/.test(read(p)), p + ': lrclib.net ב־connect-src');
-  for (const k of ['studioKaFind', 'studioKaFindPh', 'studioKaFindNone', 'studioKaFindErr', 'studioKaFindLen', 'studioKaFindSrc', 'studioKaFindUsed'])
+  ok(/f\.la = true; setTimeout\(\(\) => go\(\), 0\)/.test(st) && /f\.lqe = true/.test(st), '30/10: שיר חדש = חיפוש אוטומטי (כמו הכתוביות), כל עוד המשתמש לא כתב שאילתה בעצמו');
+  for (const k of ['studioKaFind', 'studioKaFindPh', 'studioKaFindNone', 'studioKaFindErr', 'studioKaFindBusy', 'studioKaFindLen', 'studioKaFindSrc', 'studioKaFindUsed'])
     ok((read('app.js').match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, k + ' בעברית ובאנגלית');
 
   console.log('\n# ' + n + ' בדיקות עברו');
