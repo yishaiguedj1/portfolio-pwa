@@ -2165,9 +2165,10 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
   afterBack(() => { try { if (root && history.state && history.state.studio) history.replaceState(cleanState({ studio: 1, sv: v, sp: p }), ''); } catch (e) {} });
 }
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
+const kaJob = (id) => !!(store && store.jobs && store.jobs.some((r) => r && r.id === id && r.spec && r.spec.ka));
 export function chainFor(v, p) {
-  if ((v === 'lang' && p !== 'def') || v === 'tracks' || v === 'link' || v === 'linkfmt' || v === 'linksec' || v === 'fmthelp' || v === 'grab' || v === 'cutsrc' || v === 'dpick') { v = 'new'; p = null; }   // הטופס (והקובץ) לא שורדים רענון
-  const parent = (x, y) => (x === 'home' ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : (x === 'lang' || x === 'tower' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'towerx' || x === 'rlb' || x === 'rlm' ? ['tower', null] : x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['towerx', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : x === 'vids' ? (vidsParent(y) || ['store', null]) : ['home', null]);
+  if ((v === 'lang' && p !== 'def') || v === 'tracks' || v === 'link' || v === 'linkfmt' || v === 'linksec' || v === 'fmthelp' || v === 'grab' || v === 'cutsrc' || v === 'dpick') { v = 'new'; p = form && form.ka ? 'ka' : null; }   // הטופס (והקובץ) לא שורדים רענון; 30/10: טופס של שיר — תחת הקריוקי
+  const parent = (x, y) => (x === 'home' ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : (x === 'lang' || x === 'tower' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'towerx' || x === 'rlb' || x === 'rlm' ? ['tower', null] : x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['towerx', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : x === 'vids' ? (vidsParent(y) || ['store', null]) : (x === 'new' && y === 'ka') || (x === 'job' && kaJob(y)) ? ['ka', null] : ['home', null]);   // 30/10: שיר — תחת הקריוקי
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -2275,9 +2276,9 @@ function stKeyOf(v, p) {          // לאיזה פריט בחוגה שייך ה�
   const ch = chainFor(v, p);
   if (ch.some((x) => x.v === 'tower')) return 'tower';
   if (ch.some((x) => x.v === 'settings')) return 'settings';
-  if (ch.some((x) => x.v === 'ka')) return 'ka';
   const j = ch.find((x) => x.v === 'job'), dj = stDialJob();
-  return j && (j.p === stDialJ || (dj && dj.rec.id === j.p)) ? 'job' : 'home';
+  if (j && (j.p === stDialJ || (dj && dj.rec.id === j.p))) return 'job';   // "העבודה" — משותפת לשני הכלים
+  return ch.some((x) => x.v === 'ka') ? 'ka' : 'home';
 }
 function stSibTarget(k) {
   if (k === 'job') { const cur = ui.view === 'job' && stKeyOf(ui.view, ui.param) === 'job' ? ui.param : null, dj = stDialJob(); const id = cur || (dj && dj.rec.id); return id ? { v: 'job', p: id } : null; }
@@ -2323,10 +2324,11 @@ function stSwipePage(next) {
 }
 /* ---- החוגה (המנוע ב־core: dialHost/wireDial — אותו של Invest) ---- */
 const ST_DIAL_ICO = {
-  home: '<rect x="3.5" y="4" width="17" height="6.5" rx="1.8"/><rect x="3.5" y="13.5" width="17" height="6.5" rx="1.8"/>',
-  job: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 9.2v5.6l4.6-2.8z"/>',
+  // 30/10/2026 (בקשת המשתמש): הבית = תרגום סרטונים (מסך + כתובית), הקריוקי = תו, העבודה = משותפת לשניהם (פעימה)
+  home: '<rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M10.2 7.6v4.8l4-2.4z"/><path d="M7 16h5.5M14.5 16H17"/>',
+  job: '<path d="M3 12h3.8l2.4-6.5 5.6 13 2.4-6.5H21"/>',
   tower: '<path d="M9.2 21l.9-8.5h3.8l.9 8.5M7 21h10M6.5 8.5h11l-1.6 4h-7.8zM12 8.5V4.5M9.8 4.5h4.4"/>',
-  ka: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',
+  ka: '<circle cx="8.5" cy="17.5" r="3"/><path d="M11.5 17.5V3.5c0 2.6 4.8 3.4 4.8 7.2"/>',
 };
 let dialNav = null, dialPrev = null, stDialC = null;
 function stDialNav() {
@@ -2452,6 +2454,7 @@ const ICON = {   // סמלים קבועים בלבד — אף פעם לא תוכ
   check: '<polyline points="5 12.5 10 17 19 7"/>',
   film: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 9.2v5.6l4.6-2.8z" fill="currentColor" stroke="none"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',
+  note: '<circle cx="8.5" cy="17.5" r="3"/><path d="M11.5 17.5V3.5c0 2.6 4.8 3.4 4.8 7.2"/>',   // 30/10/2026: הקריוקי
   globe: '<circle cx="12" cy="12" r="8.6"/><path d="M3.4 12h17.2M12 3.4c2.4 2.6 3.5 5.5 3.5 8.6s-1.1 6-3.5 8.6c-2.4-2.6-3.5-5.5-3.5-8.6s1.1-6 3.5-8.6z"/>',
   spark: '<path d="M11 2.5l1.9 5.4 5.4 1.9-5.4 1.9L11 17.1l-1.9-5.4-5.4-1.9 5.4-1.9z" fill="currentColor" stroke="none"/><path d="M18.5 14.5l.9 2.4 2.4.9-2.4.9-.9 2.4-.9-2.4-2.4-.9 2.4-.9z" fill="currentColor" stroke="none"/>',
   key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16.2 6.8l2.3 2.3M13.8 9.2l1.8 1.8"/>',
@@ -3103,15 +3106,15 @@ function pageHome(p, kaTab) {
   const hb = haltBanner(); if (hb) p.append(hb);   // v367: מתג החירום פעיל — כאן רואים למה עבודות לא מתחילות
   const mb = majorBanner(); if (mb) p.append(mb);   // v371: תקלה רחבה — במקום הבאנר של ההתראות (היא כבר אומרת את החשוב)
   const ub = mb ? null : urgentBanner(); if (ub) p.append(ub);   // v368: התראה דחופה (P1–P2) — מיד; הקלות — רק בסיכום במגדל
-  const nc = btn('st-newcard', null, () => { form = freshForm(null); if (kaTab) form.ka = true; go('new'); }, 'new');
-  const plus = h('span', 'st-plus'); plus.append(ico(kaTab ? 'mic' : 'plus'));
+  const nc = btn('st-newcard', null, () => { form = freshForm(null); if (kaTab) form.ka = true; go('new', kaTab ? 'ka' : null); }, 'new');
+  const plus = h('span', 'st-plus'); plus.append(ico(kaTab ? 'note' : 'plus'));
   nc.append(plus, kaTab ? rowTxt(T('studioKaNew'), T('studioKaNewSub')) : rowTxt(T('studioNew'), T('studioNewSub')));
   p.append(nc);
   const jobs = store.jobs.filter((rec) => !rec.spec.ka === !kaTab);   // 30/10/2026: שירים — רק בלשונית הקריוקי
   const drafts = kaTab ? [] : store.drafts;
   if (!drafts.length && !jobs.length) {
     const e = h('div', 'st-empty');
-    const ic = h('span', 'st-empty-ic'); ic.append(ico(kaTab ? 'mic' : 'film'));
+    const ic = h('span', 'st-empty-ic'); ic.append(ico(kaTab ? 'note' : 'film'));
     if (kaTab) e.append(ic, h('b', null, T('studioKaEmptyT')), h('p', null, T('studioKaEmptyS')));
     else e.append(ic, h('b', null, T('studioEmptyT')), h('p', null, T('studioEmptyS')));
     p.append(e);
@@ -3226,11 +3229,12 @@ function pageForm(p, editing) {
     if (editing && !d) { back(); return; }
     form = freshForm(d);
   }
+  if (!editing && ui.param === 'ka') form.ka = true;   // 30/10/2026: הכלי בכתובת הדף — טופס שנבנה מחדש נשאר קריוקי
   const f = form;
   const saveTop = btn('st-txt bold', T('studioSave'), saveForm, 'nav-save');
   saveTop.disabled = !f.file || !!f.subs;
-  if (f.ka) saveTop.hidden = true;   // 30/10/2026: לשיר אין טיוטה — הטיוטות שייכות לתרגום   // 22/10/2026: קובץ כתוביות — בלי טיוטה (הקובץ רק בזיכרון)
-  p.append(navBar({ cancel: T('studioCancel'), title: f.ka ? T('studioKaNew') : editing ? T('studioEditT') : T('studioNew'), end: saveTop }));
+  // 30/10/2026: לשיר אין טיוטה — הטיוטות שייכות לתרגום (hidden לא הספיק: ה־CSS של הכפתור גובר)   // 22/10/2026: קובץ כתוביות — בלי טיוטה (הקובץ רק בזיכרון)
+  p.append(navBar({ cancel: T('studioCancel'), title: f.ka ? T('studioKaNew') : editing ? T('studioEditT') : T('studioNew'), end: f.ka ? null : saveTop }));
   if (f.why) p.append(whyCard(f));   // 26/10/2026 (Vid Hub): אחרי "לא" באומדן — שאלה אחת בנגיעה
 
   // הסרטון — מהטלפון. הקובץ נשאר בזיכרון רק עד ההתחלה; בטיוטה נשמרים רק השם, הגודל והסוג
@@ -4437,13 +4441,14 @@ function startLink(f) {
   (async () => {
     const dur = pick.sec ? pick.sec[1] - pick.sec[0] : L.r.d || 0;
     const est = startEstimate(modeFor(f.mode, ui.mf), dur, curNorm(), ui.api, apiMode());
-    if (est.min && typeof askConfirm === 'function') {
+    if (est.min && !f.ka && typeof askConfirm === 'function') {   // קריוקי — בלי Claude, בלי אומדן
       const yes = await estAsk(est, f);
       if (!yes || form !== f) { ui.starting = false; render('none'); return; }
     }
     const n = dlNonce();
     const ch = pick.ch && L.r.ch ? L.r.ch.map((c) => [c[0] - (pick.sec ? pick.sec[0] : 0), c[1]]).filter((c) => c[0] >= 0) : [];
-    const pend = { n, at: Date.now(), dur, f: { from: f.from, to: f.to, mode: f.mode, out: f.out, style: f.style, sty: f.sty || null, terms: f.terms, edl: null },
+    const pend = { n, at: Date.now(), dur, f: { from: f.from, to: f.to, mode: f.mode, out: f.out, style: f.style, sty: f.sty || null, terms: f.terms, edl: null,
+      ...(f.ka ? { ka: true, lyr: kaLyr(f.lyr), bv: !!f.bv, gv: f.gv || 0 } : {}) },   // 30/10/2026: שיר שהורד בטלפון חוזר לטופס של הקריוקי
       t: L.r.t, u: L.r.u || L.u, ch, th: L.r.th || '' };
     try { sessionStorage.setItem(DLP_KEY, JSON.stringify(pend)); } catch (e) {}
     ui.starting = false; ui.dlWait = n; render('none');
@@ -4553,10 +4558,11 @@ async function gotFile(key) {
   form = freshForm(null);
   const f = form;
   if (pend && pend.f) for (const k of ['from', 'to', 'mode', 'out', 'style', 'sty', 'terms']) if (pend.f[k] != null) f[k] = k === 'sty' ? normSty(pend.f[k]) : pend.f[k];
+  if (pend && pend.f && pend.f.ka === true) Object.assign(f, { ka: true, lyr: kaLyr(pend.f.lyr), bv: !!pend.f.bv, gv: KA_GV.includes(pend.f.gv) ? pend.f.gv : 0 });   // 30/10/2026
   f.fileObj = file; f.handle = { inbox: key }; f.drive = null; f.file = { name: file.name, size: file.size, type: file.type || '' };
   f.dl = pend ? { t: pend.t, ch: pend.ch || [], th: pend.th || '', u: pend.u || '' } : null;   // u — לשם האתר במקור (org)
-  inspectFor(f, file); tracksFor(f, file);
-  if (root) { if (ui.view !== 'new') go('new', null, 'none'); else render('none'); }
+  inspectFor(f, file); if (!f.ka) tracksFor(f, file);
+  if (root) { if (ui.view !== 'new') go('new', f.ka ? 'ka' : null, 'none'); else render('none'); }
   if (mine) { flashSafe(T('studioLinkGot')); f.estOk = true; startFromForm(); }
   return true;
 }
@@ -8511,10 +8517,10 @@ function pageJob(p) {
   const rows = [
     kvRow(T('studioFile'), (() => { const s2 = h('span'); s2.append(fileNameEl(rec.spec.name || '—'), ' · ' + fmtSize(rec.spec.size)); return s2; })(), true),
     rec.spec.dur ? kvRow(T('studioDur'), fmtDur(rec.spec.dur), true) : null,
-    kvRow(T('studioSecLangs'), langsText(rec.spec.from, rec.spec.to)),
-    kvRow(T('studioSecMode'), modeName(modeById(rec.spec.mode))),
-    kvRow(T('studioSecOut'), rec.spec.out.concat('srt').map(outShort).join(' + ')),
-    kvRow(T('studioSecStyle'), styleName(rec.spec.style)),
+    rec.spec.ka ? null : kvRow(T('studioSecLangs'), langsText(rec.spec.from, rec.spec.to)),   // 30/10/2026: קריוקי — בלי Claude, בלי שפות ומודל
+    rec.spec.ka ? null : kvRow(T('studioSecMode'), modeName(modeById(rec.spec.mode))),
+    kvRow(T('studioSecOut'), (rec.spec.ka ? rec.spec.out : rec.spec.out.concat('srt')).map(outShort).join(' + ')),
+    rec.spec.ka ? null : kvRow(T('studioSecStyle'), styleName(rec.spec.style)),
     rec.up.a.done ? kvRow(T('studioAudioK'), fmtSize(rec.up.a.size)) : rec.up.noAudio && rec.up.noAudio !== 'video_first' ? kvRow(T('studioAudioK'), T('studioNoAudio')) : null,
     kvRow(T('studioCreated'), fmtDate(rec.created)),
     kvRow(T('studioJobId'), rec.id, true),
