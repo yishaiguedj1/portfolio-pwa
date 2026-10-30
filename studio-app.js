@@ -41,6 +41,9 @@ A.onChange((st) => {
 const link = /[#&]studio=(j[A-Za-z0-9_-]{20})(?:&v=(play|subs))?/.exec(location.hash || '');
 // 22/10/2026: "שיתוף ← Studio" מאנדרואיד (MainActivity: ‎#share=<הטקסט ששותף>) — דף "מקישור" עם הבדיקה כבר רצה
 const hashArg = (k, max) => { const m = new RegExp('[#&]' + k + '=([^&]*)').exec(location.hash || ''); try { return m ? decodeURIComponent(m[1]).slice(0, max) : ''; } catch (e) { return ''; } };
+// 30/10/2026 (הצילום: "חסרות הכתוביות שבקובץ"): ‎#phpick= כולל גם את הכתוביות שבקובץ (מקטע שלישי, עד 800 אלף — parsePhPick).
+// הגבול הישן (6100) חתך אותן, והפענוח נכשל בשקט
+const PHPICK_MAX = 810000;
 const share = hashArg('share', 4096);
 // שלב 2: קובץ שנמצא בדף (דפדפן הציד) — ‎&ref=<הדף>
 const shareRef = hashArg('ref', 2048);
@@ -50,7 +53,7 @@ const shareProbe = share ? hashArg('probe', 200000) : '';
 // 22/10/2026: ההורדה בטלפון — הקובץ שחזר (sw.js → ‎#got=<מפתח>) ושגיאה (‎#dle=<n>.<קוד>)
 const got = hashArg('got', 40), dle = hashArg('dle', 60);
 // 24/10/2026: תרגום בטלפון — הסרטון שנבחר ב־PhActivity (‎#phpick=) ושגיאה מהאפליקציה בקישור לעבודה (‎&phe=<קוד>)
-const phpick = hashArg('phpick', 6100), phe = link ? hashArg('phe', 24) : '';
+const phpick = hashArg('phpick', PHPICK_MAX), phe = link ? hashArg('phe', 24) : '';
 if (link || share || got || dle || phpick) { try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {} }
 const hs = history.state;
 /* ההדר המשותף (shell.js) — הלוגו של Studio, הקפסולה "חיבור ל־Claude" בהדר, ובתפריט מגדל הפיקוח. הגלובוס בתפריט הפתוח = ההגדרות */
@@ -96,7 +99,7 @@ if (typeof navigator !== 'undefined' && navigator.serviceWorker) navigator.servi
 });
 /* 22/10/2026: קישור מהבועה / משיתוף כש־Studio כבר פתוחה — אנדרואיד מעביר אותו ללשונית הקיימת כשינוי ב־hash, בלי טעינה */
 if (typeof window !== 'undefined') window.addEventListener('hashchange', () => {
-  const s = hashArg('share', 4096), pr = hashArg('probe', 200000), g = hashArg('got', 40), de = hashArg('dle', 60), pk = hashArg('phpick', 6100);
+  const s = hashArg('share', 4096), pr = hashArg('probe', 200000), g = hashArg('got', 40), de = hashArg('dle', 60), pk = hashArg('phpick', PHPICK_MAX);
   if (!s && !g && !pk && jobLinkNow()) return;
   if (!s && !pr && !g && !de && !pk) return;
   const r = hashArg('ref', 2048), to = hashArg('to', 10) === 'cloud' ? 'cloud' : '';

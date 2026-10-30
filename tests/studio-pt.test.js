@@ -191,5 +191,9 @@ const sha1 = (t) => crypto.createHash('sha1').update(t, 'utf8').digest('hex');
   const sx = (f) => rd('android/app/src/studio/res/' + f + '/strings.xml');
   for (const k of ['phText', 'phTextTr', 'phTextTl', 'phTextRv', 'phTextSv', 'phTextDone', 'phTextDoneS']) ok(sx('values').includes('name="' + k + '"') && sx('values-en').includes('name="' + k + '"'), 'מחרוזת ' + k + ' בעברית ובאנגלית');
   ok(rd('app.js').split('studioPhPtQ: "').length === 3, 'studioPhPtQ בעברית ובאנגלית');
+  // 30/10/2026: ‎#phpick= עם הכתוביות שבקובץ — studio-app.js לא חותך אותו (הגבול הישן 6100 חתך את המקטע השלישי)
+  { const sa = rd('studio-app.js'), mx = Number((sa.match(/const PHPICK_MAX = (\d+)/) || [])[1]);
+    const zx = Number((rd('studio.js').match(/\(\?:\\\.\(\[A-Za-z0-9_-\]\{8,(\d+)\}\)\)\?\$/) || [])[1]);
+    ok(zx > 0 && mx >= zx + 6200 && (sa.match(/hashArg\('phpick', PHPICK_MAX\)/g) || []).length === 2, '‎#phpick= לא נחתך לפני הכתוביות שבקובץ (PHPICK_MAX ≥ המקטע השלישי)'); }
   console.log('1..' + n);
 })().catch((e) => { console.error(e); process.exit(1); });
