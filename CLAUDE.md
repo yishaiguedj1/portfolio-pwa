@@ -77,6 +77,7 @@
 - `node --check` לכל קובץ JS ששונה; מודול ES — דרך עותק `.mjs` (`--check` לא תמיד תופס).
 - **הדחיפה מותנית בבדיקות** — `bash tools/t.sh && git push …`. אסור `node tests/x | tail` (קוד היציאה של tail) ואסור `;` אחרי בדיקות.
 - קוד שנוגע ב־`window`/`document` — עם שמירה (`typeof window !== 'undefined'`), הבדיקות ב־vm.
+- נגיעה ב־`android/` → `bash tools/android-sdk.sh build` (מתקין את ה־SDK רק לסשן הזה, ובודק קומפילציה).
 - פייתון של העובד: `bash tools/t.sh --py` (או `cd translator && python3 -m unittest …` לקובץ אחד). פירוט ומוסכמות: `docs/tests.md`.
 
 ## 8. פריסה — קריטי (הפרוטוקול המלא: `docs/deploy.md`)
