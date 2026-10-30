@@ -113,7 +113,8 @@ class PhActivity : Activity() {
                 if (!info.hasAudio) throw IllegalArgumentException("no_audio")
                 PhStore.put(this, JSONObject().put("pid", pid).put("name", name.take(200)).put("size", f.length()).put("src", f.absolutePath)
                     .put("probe", probe).put("at", System.currentTimeMillis()).put("web", web).put("st", "picked"))
-                "#phpick=$pid." + DlEngine.b64(PhCore.pickJson(pid, name, f.length(), info).toString())
+                val oh = try { PhCore.osHash(f) } catch (e: Throwable) { "" }
+                "#phpick=$pid." + DlEngine.b64(PhCore.pickJson(pid, name, f.length(), info, oh).toString()) + subsOf(f, probe, work).let { if (it.isEmpty()) "" else ".$it" }
             } catch (e: Throwable) {
                 PhStore.drop(this, pid)
                 "#phpick=!" + ((e as? IllegalArgumentException)?.message ?: "copy")
@@ -184,6 +185,18 @@ class PhActivity : Activity() {
         bar.visibility = View.GONE
         btn.text = s(R.string.dlClose); btn.setOnClickListener { finish() }
     }
+
+    /** 30/10/2026: הכתוביות שבתוך הסרטון — לטופס (רשות: תקלה = בלי) */
+    private fun subsOf(f: File, probe: JSONObject, work: File): String = try {
+        val L = PhCore.subs(probe)
+        if (L.isEmpty()) "" else {
+            val dir = File(work, "subs").apply { mkdirs() }
+            PhFf.run(this, PhCore.subsArgs(f.absolutePath, L, dir.absolutePath), stop = { cancelled })
+            val got = L.mapNotNull { s -> File(dir, "sub${s.idx}.srt").takeIf { it.isFile && it.length() > 0 }?.let { s to it.readText() } }
+            dir.deleteRecursively()
+            PhCore.packSubs(got)
+        }
+    } catch (e: Throwable) { "" }
 
     private fun back(hash: String) {
         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(web + hash), this, MainActivity::class.java))

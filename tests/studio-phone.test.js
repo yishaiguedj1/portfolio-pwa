@@ -253,6 +253,16 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(W.parsePhPick('p0123456789abcdee.' + enc({ pid: PID, size: 5 })) === null, 'pid לא תואם — נדחה');
   ok(W.parsePhPick(PID + '.' + enc({ pid: PID, size: 0 })) === null && W.parsePhPick('x.' + enc({})) === null, 'בלי גודל / מזהה לא תקין — נדחה');
   ok(W.parsePhPick(PID + '.' + enc({ pid: PID, size: 9, name: 'a\u0000\u0007b' })).name === 'ab', 'תווי בקרה בשם — יורדים');
+  // 30/10/2026: בבחירה דרך האפליקציה — טביעת האצבע והכתוביות שבקובץ (מקטע שלישי, דחוס)
+  const zl = require('zlib');
+  const Z = zl.deflateRawSync(Buffer.from(JSON.stringify([{ i: 2, l: 'eng', t: 'SDH', f: false, x: '1\n00:00:01,000 --> 00:00:02,000\nHi\n' }, { i: 'x', x: 'bad' }]))).toString('base64url');
+  pp = W.parsePhPick(PID + '.' + enc({ pid: PID, size: 9, oh: '5f9fe02060a3cd40' }) + '.' + Z);
+  ok(pp && pp.oh === '5f9fe02060a3cd40' && pp.z === Z, '‎#phpick= עם טביעת אצבע וכתוביות');
+  ok(W.parsePhPick(PID + '.' + enc({ pid: PID, size: 9, oh: 'zz' })).oh === '' && W.parsePhPick(PID + '.' + enc({ pid: PID, size: 9 })).z === '', 'בלי (Studio ישן) — ריק');
+  const phSubs = new Function('atob', 'DecompressionStream', 'Response', 'Blob', 'return ' + src.slice(src.indexOf('async function phSubs('), src.indexOf('\n}\n', src.indexOf('async function phSubs(')) + 2).replace(/^export /, ''))(atob, DecompressionStream, Response, Blob);
+  const PS = await phSubs(Z);
+  ok(PS.length === 1 && PS[0].i === 2 && PS[0].l === 'eng' && /Hi/.test(PS[0].x), 'phSubs — פתיחת הדחיסה, רק רצועות תקינות');
+  ok(/phTracks\(f, r\)/.test(src) && /nsFor\(f, vf\)/.test(src) && /blob\.oh/.test(fs.readFileSync(path.join(root, 'studionet.js'), 'utf8')), 'בחירה דרך האפליקציה: כתוביות מהרשת (לפי oh) ומהקובץ');
   for (const c of [{ s: 'run', p: 0.42 }, { s: 'done', sz: 77, p: 0.1 }, { s: 'fail', e: 'no_codec' }, { s: 'fail', e: 'BAD!' }, { s: 'x' }, null]) {
     const a = W.normPbn(c), b = S.normPbn(c, 0);
     ok(JSON.stringify(a && Object.assign({}, a, { at: 0 })) === JSON.stringify(b && Object.assign({}, b, { at: 0, ms: undefined })), 'normPbn זהה בדף ובשרתון: ' + JSON.stringify(c));
@@ -272,7 +282,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(['studioPh', 'phburn', 'phKey'].every((x) => src.includes(x)) && !/net\.api\('phBurn'/.test(src), 'הדף לא מדווח צריבה (רק האפליקציה, במפתח של העבודה)');
   // 24/10/2026 (בטלפון: הצריבה הופיעה רק בהתראה) — עבודה שהסתיימה ממשיכה להיבדק בזמן הצריבה, והאחוז נשלח כל 5 שנ׳ ברקע
   ok(/st === 'running' \|\| \(r && r\.srv && r\.srv\.bg\) \|\| phBurnLive\(r\) \|\| phPrepLive\(r\) \? 4000/.test(src) && /phBurnTap\.set\(rec\.id, Date\.now\(\)\)/.test(src), 'בזמן הצריבה (וגם כשהטלפון מתמלל/מיישר) דף העבודה שואל כל 4 שנ׳ (גם כשהעבודה "הסתיימה")');
-  ok(/kind === 'ph' && rec\.spec\.pw \? \{ pw: 1 \}/.test(src) && /if \(f\.pw !== false\) spec\.pw = 1/.test(src), 'הכל בטלפון: העבודה נוצרת עם pw, וה־intent מעביר pw=1');
+  ok(/kind === 'ph' && rec\.spec\.pw \? \{ pw: 1 \}/.test(src) && /if \(f\.pw === true\) spec\.pw = 1/.test(src) && /on: f\.pw === true/.test(src), 'הכל בטלפון: רק כשהופעל (כבוי כברירת מחדל, 30/10/2026) — העבודה עם pw, וה־intent מעביר pw=1');
   const work = fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhWork.kt'), 'utf8');
   ok(/lastRep > 2_000/.test(work) && /class Latest/.test(work) && /pending\.getAndSet\(o\) == null/.test(work) && !/\* 0\.95/.test(work) && /repDone\(JSONObject\(\)\.put\("s", "done"\)/.test(work),
     'הצריבה מדווחת כל 2 שנ׳, רק הערך האחרון (בלי תור שמפגר — 35% בדף מול 51% בהתראה), אותו אחוז של ההתראה; "הסתיים" אחרון');

@@ -28,7 +28,7 @@ try {
   ok(L.length === 2 && L[0][0] === 1 && L[1][0] === 3723 && L[0][1] === '[00:00:01] Hello there', 'העובד קורא בדיוק את מה שהטלפון כתב');
 } catch (e) { console.log('# בלי python3 / ספריות — דילוג על בדיקת הפורמט מול העובד'); }
 // הזרימה בקוד
-ok(/trkHlpAuto\(L\.tracks\)/.test(src) && /!file\.remote \? trkHlpAuto/.test(src), 'בחירה אוטומטית רק כשהקובץ בטלפון (מ־Drive — החילוץ קורא את כל הקובץ ברשת)');
+ok(/trkSet\(f, file, L\.tracks, !file\.remote\)/.test(src) && /hlpEngine\(\) && auto \? trkHlpAuto\(tracks\)/.test(src), 'בחירה אוטומטית רק כשהקובץ בטלפון (מ־Drive — החילוץ קורא את כל הקובץ ברשת)');
 ok(/k\.src == null && k\.hlp != null/.test(src), 'עזר רק כשהתמלול מהקול (לא כשמתרגמים מהרצועה)');
 ok(/spec\.eng === 'api'\) \{[^]*?trkWait\(f\)[^]*?hlpUpload\(rec, ht\)[^]*?form = null;/.test(src), 'מועלה לפני ההתחלה, רק כשהשרת שלנו מגיה');
 // 28/10/2026 (באג מהטלפון): בחירה חוזרת של כתוביות מהרשת אחרי ביטול, ועזר + השוואה יחד
