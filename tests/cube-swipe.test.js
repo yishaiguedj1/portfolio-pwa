@@ -112,7 +112,7 @@ ok(/const LIB_NOBACK = \['edit', 'mgr', 'admin'\]/.test(lib), 'Academy: בלי �
 // ---- Studio
 const r = fn(st, 'render');
 ok(/cubeClone\(root\)/.test(r) && /cubeGhostRun\(root, ghost, cubeSideFwd\(fwd\)\)/.test(r) && /const fwd = kind === 'push' \|\| kind === 'dfwd'/.test(r), 'Studio: מעבר בין דפים = קובייה');
-ok(/const ST_SIB = \['settings', 'home', 'job', 'tower'\]/.test(st) && /wireStSwipe\(\);/.test(st), 'Studio: עמודים ראשיים (29/10/2026, כמו החוגה) = הגדרות ← בית ← העבודה ← מגדל הפיקוח, ההחלקה מחוברת');
+ok(/const ST_SIB = \['settings', 'home', 'ka', 'job', 'tower'\]/.test(st) && /wireStSwipe\(\);/.test(st), 'Studio: עמודים ראשיים (29–30/10/2026, כמו החוגה) = הגדרות ← בית ← קריוקי ← העבודה ← מגדל הפיקוח, ההחלקה מחוברת');
 ok(!/stSwipeTabs|ST_TABS/.test(st) && /stTab\('alTab', k\)/.test(st), 'Studio: בלי החלקה בין הלשוניות — רק בלחיצה');
 ok(/'play', 'subs', 'cut'/.test(st), 'Studio: בלי החלקה בנגן, בעורכים ובטפסים');
 ok(/if \(swipePop > 0\)/.test(fn(st, 'onPop')), 'Studio: חזרה לבית בהחלקה לא מציירת שוב ב־popstate');

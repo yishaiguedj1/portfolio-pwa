@@ -29,7 +29,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(INC.ERR_INFO.ka_lyrics && INC.ERR_INFO.ka_noaudio, 'קודי השגיאה של הקריוקי ב־ERR_INFO');
   const api = read('ibkr-proxy/api/studio.js');
   ok(/body\.op === 'create' && body\.spec && body\.spec\.ka === 1 \? 20000 : 4096/.test(api), 'יצירת קריוקי — גוף עד 20KB (המילים), השאר כמו קודם');
-  ok(/const kaAllowed = async \(\) => isAdmin\(user\) \|\| SF\.tsHas\(await sysCfg\(deps, now\), user\);/.test(api), 'קריוקי — המנהל וחשבונות הבדיקה');
+  ok(/const kaAllowed = async \(\) => true;/.test(api) && /if \(user\.mon !== true && !allowed\(user\)\)/.test(api), '30/10: קריוקי — כל מי שעבר את שער הסטודיו (בקשת המשתמש)');
   ok(/if \(spec\.ka && !\(await kaAllowed\(\)\)\) return res\.status\(403\)/.test(api) && /ka: await kaAllowed\(\)/.test(api), 'השרתון חוסם ביצירה ומדווח לטלפון (ka)');
   ok(/if \(job\.spec\.ka === 1\) ep = ETA\.kaPlan\(ep, job\.spec\.dur\)/.test(api), 'בלקיחה: התוכנית של הקריוקי');
 
@@ -47,7 +47,10 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/const kaOk = \(\) => !!\(ui\.api && ui\.api\.servers > 0 && ui\.r2 && \(ui\.api\.admin \|\| ui\.api\.ka\)\)/.test(st), 'הקריוקי מוצע רק כשיש שרת ואחסון, למנהל ולחשבונות הבדיקה');
   { const N2 = new Function('return ' + (st.match(/export function normApi\(a\) \{[\s\S]*?\n\}/) || [''])[0].replace('export ', ''))();
     ok(N2({ ka: true }).ka === true && N2({ ka: 1 }).ka === false, 'normApi: ka רק true'); }
-  ok(/const kaRow = kaOk\(\) \? rowSwitch/.test(st) && /if \(f\.ka\) \{   \/\/ 26\/10\/2026: קריוקי — המילים/.test(st), 'בטופס: מתג וקטע משלו');
+  ok(!/const kaRow = /.test(st) && /if \(f\.ka\) \{   \/\/ 26\/10\/2026: קריוקי — המילים/.test(st), 'בטופס: קטע משלו, בלי מתג (30/10: כלי נפרד)');
+  ok(/function pageKa\(p\) \{ pageHome\(p, true\); \}/.test(st) && /ui\.view === 'ka' && kaOk\(\)\) pageKa\(p\)/.test(st) && /if \(kaTab\) form\.ka = true/.test(st), '30/10: לשונית קריוקי — רשימה משלה, והפרויקט החדש נפתח ישר במצב קריוקי');
+  ok(/store\.jobs\.filter\(\(rec\) => !rec\.spec\.ka === !kaTab\)/.test(st) && /k !== 'ka' \|\| kaOk\(\)/.test(st), '30/10: שירים רק בלשונית הקריוקי, והלשונית רק למי שמורשה');
+  ok(/if \(!f\.ka\) tracksFor\(f, file\)/.test(st) && /const adv = f\.ka \? null : advRows/.test(st), '30/10: בשיר — בלי חיפוש כתוביות, רצועות ועצות של תרגום');
   ok(/inp\.accept = f\.ka \? 'audio\/\*,video\/\*/.test(st), 'בקריוקי — גם שיר בלי וידאו');
   ok((st.match(/kaSpec\(f, spec\)/g) || []).length >= 2, 'הקריוקי נשלח גם מקובץ וגם מקישור');
   ok(/if \(est\.min && !f\.ka && !f\.estOk/.test(st) && /if \(est\.min && !f\.ka && typeof askConfirm/.test(st), 'בלי אומדן עלות (אין Claude)');
