@@ -2254,7 +2254,7 @@ function onPop(e) {
    בלי "החלקה קצרה" לטאבים (בקשת המשתמש) — פרטים · ציר · קשורות רק בלחיצה.
    29/10/2026 (בקשת המשתמש): החוגה של Invest אחד לאחד, באדום — מימין לשמאל: הגדרות · העבודות (הבית, במרכז) · העבודה
    (הפעילה, ואם אין — האחרונה שהסתיימה) · מגדל הפיקוח. מה שמחוץ לחוגה ממופה לאח שלו (stKeyOf) */
-const ST_SIB = ['settings', 'home', 'job', 'tower'];
+const ST_SIB = ['settings', 'home', 'ka', 'job', 'tower'];   // 30/10/2026: קריוקי — כלי נפרד עם רשימה משלו (בקשת המשתמש)
 const ST_NOSWIPE = ['play', 'subs', 'cut', 'cutsrc', 'tracks', 'dpick', 'vids', 'link', 'linkfmt', 'linksec', 'fmthelp', 'grab', 'sty', 'ov', 'new', 'edit', 'lang', 'connect', 'ai', 'rr'];   // עורכים, נגן וטפסים — בלי
 const ST_TAB_KEYS = ['d', 't', 'r'];
 let swipePop = 0;
@@ -2263,11 +2263,12 @@ function stDialJob() {            // הפעילה (בתור / רצה / בהעל�
   const on = store.jobs.find((r) => r && r.srv && !FINAL.includes(r.srv.state) && (r.srv.state !== 'new' || r.up.started));
   return on ? { rec: on, on: true } : (() => { const d = store.jobs.find((r) => r && r.srv && r.srv.state === 'done'); return d ? { rec: d, on: false } : null; })();
 }
-function stDialKeys() { return stDialJob() || (stDialJ && ui.view === 'job' && ui.param === stDialJ) ? ST_SIB : ST_SIB.filter((k) => k !== 'job'); }
+function stDialKeys() { const j = stDialJob() || (stDialJ && ui.view === 'job' && ui.param === stDialJ); return ST_SIB.filter((k) => (k !== 'job' || j) && (k !== 'ka' || kaOk())); }
 function stKeyOf(v, p) {          // לאיזה פריט בחוגה שייך הדף
   const ch = chainFor(v, p);
   if (ch.some((x) => x.v === 'tower')) return 'tower';
   if (ch.some((x) => x.v === 'settings')) return 'settings';
+  if (ch.some((x) => x.v === 'ka')) return 'ka';
   const j = ch.find((x) => x.v === 'job'), dj = stDialJob();
   return j && (j.p === stDialJ || (dj && dj.rec.id === j.p)) ? 'job' : 'home';
 }
@@ -2318,12 +2319,14 @@ const ST_DIAL_ICO = {
   home: '<rect x="3.5" y="4" width="17" height="6.5" rx="1.8"/><rect x="3.5" y="13.5" width="17" height="6.5" rx="1.8"/>',
   job: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 9.2v5.6l4.6-2.8z"/>',
   tower: '<path d="M9.2 21l.9-8.5h3.8l.9 8.5M7 21h10M6.5 8.5h11l-1.6 4h-7.8zM12 8.5V4.5M9.8 4.5h4.4"/>',
+  ka: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',
 };
 let dialNav = null, dialPrev = null, stDialC = null;
 function stDialNav() {
   if (dialNav || typeof dialNavBuild !== 'function') return dialNav;
   dialNav = dialNavBuild('st-dial', T('studioDialAria'), [
     { k: 'settings', ico: DIAL_GEAR, lbl: T('studioDialSet') }, { k: 'home', ico: ST_DIAL_ICO.home, lbl: T('studioDialHome') },
+    { k: 'ka', ico: ST_DIAL_ICO.ka, lbl: T('studioDialKa') },
     { k: 'job', ico: ST_DIAL_ICO.job, lbl: T('studioDialLast') }, { k: 'tower', ico: ST_DIAL_ICO.tower, lbl: T('studioDialTower') },
   ], stDialTo);
   return dialNav;
@@ -2391,6 +2394,8 @@ function stDialSync(instant) {
   dialNav.hidden = !show;
   document.documentElement.classList.toggle('st-dock', show);
   const dj = stDialJob(), jb = dialNav.querySelector('.tab[data-tab="job"]');
+  const kb = dialNav.querySelector('.tab[data-tab="ka"]');
+  if (kb) kb.hidden = !stDialKeys().includes('ka');
   if (jb) { jb.hidden = !stDialKeys().includes('job'); dialLabel(jb, dj && dj.on ? T('studioDialOn') : T('studioDialLast')); }
   if (show && !stDialC) dialSync(instant);
 }
@@ -3072,7 +3077,10 @@ function jobsCard(rows) {
   wrap.append(l, more);
   return wrap;
 }
-function pageHome(p) {
+/* 30/10/2026 (בקשת המשתמש — "שני כלים נפרדים לגמרי"): קריוקי = לשונית משלה בחוגה, רשימה משלה ופרויקט חדש משלו.
+   הטופס פותח ישר במצב קריוקי (form.ka קבוע — אין מתג), והבית של התרגום לא מציג שירים */
+function pageKa(p) { pageHome(p, true); }
+function pageHome(p, kaTab) {
   const pon = apiMode() ? ui.api.online > 0 : !!store.conn;
   const pill = btn('st-cpill' + (pon ? ' on' : ''), null, () => go('eng'), 'cpill');
   const lbl = apiMode() ? T('studioConnApiOn') : store.conn ? T('studioConnOn') : T('studioConnPill');
@@ -3088,19 +3096,22 @@ function pageHome(p) {
   const hb = haltBanner(); if (hb) p.append(hb);   // v367: מתג החירום פעיל — כאן רואים למה עבודות לא מתחילות
   const mb = majorBanner(); if (mb) p.append(mb);   // v371: תקלה רחבה — במקום הבאנר של ההתראות (היא כבר אומרת את החשוב)
   const ub = mb ? null : urgentBanner(); if (ub) p.append(ub);   // v368: התראה דחופה (P1–P2) — מיד; הקלות — רק בסיכום במגדל
-  const nc = btn('st-newcard', null, () => { form = freshForm(null); go('new'); }, 'new');
-  const plus = h('span', 'st-plus'); plus.append(ico('plus'));
-  nc.append(plus, rowTxt(T('studioNew'), T('studioNewSub')));
+  const nc = btn('st-newcard', null, () => { form = freshForm(null); if (kaTab) form.ka = true; go('new'); }, 'new');
+  const plus = h('span', 'st-plus'); plus.append(ico(kaTab ? 'mic' : 'plus'));
+  nc.append(plus, kaTab ? rowTxt(T('studioKaNew'), T('studioKaNewSub')) : rowTxt(T('studioNew'), T('studioNewSub')));
   p.append(nc);
-  if (!store.drafts.length && !store.jobs.length) {
+  const jobs = store.jobs.filter((rec) => !rec.spec.ka === !kaTab);   // 30/10/2026: שירים — רק בלשונית הקריוקי
+  const drafts = kaTab ? [] : store.drafts;
+  if (!drafts.length && !jobs.length) {
     const e = h('div', 'st-empty');
-    const ic = h('span', 'st-empty-ic'); ic.append(ico('film'));
-    e.append(ic, h('b', null, T('studioEmptyT')), h('p', null, T('studioEmptyS')));
+    const ic = h('span', 'st-empty-ic'); ic.append(ico(kaTab ? 'mic' : 'film'));
+    if (kaTab) e.append(ic, h('b', null, T('studioKaEmptyT')), h('p', null, T('studioKaEmptyS')));
+    else e.append(ic, h('b', null, T('studioEmptyT')), h('p', null, T('studioEmptyS')));
     p.append(e);
     return;
   }
-  if (store.jobs.length) {
-    const rows = store.jobs.map((rec) => {
+  if (jobs.length) {
+    const rows = jobs.map((rec) => {
       const r = btn('st-proj', null, () => go('job', rec.id), 'j:' + rec.id);
       const th = h('span', 'st-thumb'); th.append(ico('film'));
       paintThumb(th, rec);
@@ -3110,7 +3121,8 @@ function pageHome(p) {
       const stat = h('span', 'st-pstat');
       const bd = h('span', 'st-badge'); const tx = h('span', 'st-ptx');
       stat.append(bd, tx);
-      const sm = h('small'); sm.append(langsText(rec.spec.from, rec.spec.to) + ' · ', h('bdi', 'st-nw', modeShort(modeById(rec.spec.mode))));
+      const sm = h('small');
+      if (rec.spec.ka) sm.append(T('studioKaRow')); else sm.append(langsText(rec.spec.from, rec.spec.to) + ' · ', h('bdi', 'st-nw', modeShort(modeById(rec.spec.mode))));
       info.append(nm, sm, stat);
       r.append(th, info);
       live(r, () => {             // אחוז ומצב — מתעדכנים במקום
@@ -3126,10 +3138,10 @@ function pageHome(p) {
       });
       return r;
     });
-    p.append(secT(T('studioSecJobs')), jobsCard(rows));
+    p.append(secT(kaTab ? T('studioKaSecJobs') : T('studioSecJobs')), jobsCard(rows));
   }
-  if (!store.drafts.length) return;
-  const rows = store.drafts.map((d) => {
+  if (!drafts.length) return;
+  const rows = drafts.map((d) => {
     const r = btn('st-proj', null, () => go('project', d.id), 'p:' + d.id);
     const th = h('span', 'st-thumb'); th.append(ico('film'));
     const info = h('span', 'st-pinfo');
@@ -3209,18 +3221,19 @@ function pageForm(p, editing) {
   }
   const f = form;
   const saveTop = btn('st-txt bold', T('studioSave'), saveForm, 'nav-save');
-  saveTop.disabled = !f.file || !!f.subs;   // 22/10/2026: קובץ כתוביות — בלי טיוטה (הקובץ רק בזיכרון)
-  p.append(navBar({ cancel: T('studioCancel'), title: editing ? T('studioEditT') : T('studioNew'), end: saveTop }));
+  saveTop.disabled = !f.file || !!f.subs;
+  if (f.ka) saveTop.hidden = true;   // 30/10/2026: לשיר אין טיוטה — הטיוטות שייכות לתרגום   // 22/10/2026: קובץ כתוביות — בלי טיוטה (הקובץ רק בזיכרון)
+  p.append(navBar({ cancel: T('studioCancel'), title: f.ka ? T('studioKaNew') : editing ? T('studioEditT') : T('studioNew'), end: saveTop }));
   if (f.why) p.append(whyCard(f));   // 26/10/2026 (Vid Hub): אחרי "לא" באומדן — שאלה אחת בנגיעה
 
   // הסרטון — מהטלפון. הקובץ נשאר בזיכרון רק עד ההתחלה; בטיוטה נשמרים רק השם, הגודל והסוג
   const inp = h('input', 'st-file'); inp.type = 'file'; inp.hidden = true;
-  inp.accept = 'video/*,.mkv,.mov,.mp4,.m4v,.webm,.avi';
+  inp.accept = f.ka ? 'audio/*,video/*,.mp3,.m4a,.flac,.wav,.ogg,.opus,.mkv,.mp4,.webm' : 'video/*,.mkv,.mov,.mp4,.m4v,.webm,.avi';
   const took = (file, handle) => {
     f.fileObj = file; f.handle = handle || null; f.drive = null; f.file = { name: file.name, size: file.size, type: file.type || '' };
     fnlAdd('pick');   // 26/10/2026: המסלול שלפני העבודה
     f.edl = null; f.dur = 0; inspectFor(f, file);   // סבב 2: קובץ חדש — חיתוך ישן לא שייך לו; בדיקה ברקע (חינם)
-    tracksFor(f, file);   // שלב 4: רצועות כתוביות בתוך הסרטון
+    if (!f.ka) tracksFor(f, file);   // שלב 4: רצועות כתוביות בתוך הסרטון (30/10/2026: לא בשיר — שם מילים, לא כתוביות)
     render('none');
   };
   inp.addEventListener('change', () => { const file = inp.files && inp.files[0]; if (file) took(file, null); });
@@ -3249,11 +3262,11 @@ function pageForm(p, editing) {
     // (שקופא ברקע): האפליקציה מעלה את הקול, מודדת, ומעלה את הסרטון לענן ברקע (UIDT) — והעבודה לא מחכה לו
     card = btn('st-row st-ric st-pickrow', null, phOk() && !f.ka ? phPick : pick, 'file');
     const plus = h('span', 'st-plus'); plus.append(ico('film'));
-    card.append(plus, rowTxt(T('studioPick'), T('studioNewSub')), ico('chev', 'st-chev'));
+    card.append(plus, f.ka ? rowTxt(T('studioKaPick'), T('studioKaPickS')) : rowTxt(T('studioPick'), T('studioNewSub')), ico('chev', 'st-chev'));
   }
   if (f.subs) subsSection(p, f);   // 22/10/2026: קובץ כתוביות קיים — במקום הסרטון
   else {
-    p.append(inp, secT(T('studioSecVideo')));
+    p.append(inp, secT(f.ka ? T('studioKaSecSong') : T('studioSecVideo')));
     const pickRow = card.classList.contains('st-row') ? card : null;   // 25/10/2026: בלי קובץ — הבורר והמקורות האחרים בקבוצה אחת
     if (!pickRow) p.append(card);
     const subsRow = rowNav({ tile: tile('cc', 'orange'), label: T('studioSubsPick'), sub: subsOk() ? T('studioSubsPickS') : T('studioSubsApiOnly'), onClick: () => pickSubs(f), k: 'subs-pick' });
@@ -3269,17 +3282,17 @@ function pageForm(p, editing) {
     // 26/10/2026 (בקשת המשתמש): "מ־Google Drive" = רשימה שלנו (pageDrivePick), לא Google Picker — הסרטון נשאר ב־Drive, בלי העלאה
     const driveRow = ui.gb ? rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'), onClick: () => { if (dp.st !== 'ok') dp.st = ''; go('dpick'); }, k: 'from-drive' }) : null;
     // 26/10/2026: קריוקי משיר רגיל — הליווי בלי הקול, והמילים נצבעות כשהן נשמעות (רק בשרת שלנו)
-    const kaRow = kaOk() ? rowSwitch({ label: T('studioKaRow'), sub: T('studioKaRowS'), on: !!f.ka, onClick: () => { f.ka = !f.ka; if (f.ka) { f.ph = false; f.pw = undefined; } render('none'); }, k: 'ka' }) : null;
-    p.append(list(pickRow, f.ka ? null : phRow, f.ka ? null : pwRow, linkRow, f.ka ? null : subsRow, driveRow), kaRow ? list(kaRow) : '');
+    // 30/10/2026: הקריוקי עבר ללשונית משלו (pageKa) — בלי מתג כאן
+    p.append(list(pickRow, f.ka ? null : phRow, f.ka ? null : pwRow, linkRow, f.ka ? null : subsRow, driveRow));
     const tk = f.trk && f.trk.tracks.length ? f.trk.tracks : null;   // שלב 4
     const hl = tk && f.trk.hlp != null && f.trk.src == null && hlpEngine() ? tk.find((t) => t.id === f.trk.hlp) : null;   // 26/10/2026
     const nsN = tk ? tk.filter((t) => t.net).length : 0, hv = nsN ? nsHave(f) : null, nid = f.ns && f.ns.id;   // 28/10/2026: גם מהרשת
     if (tk) p.append(list(rowNav({ tile: tile('cc', 'orange'), label: nsN ? nid ? nsIdText(nid) : T('studioNsRow') : T('studioTrkRow'), value: nsN ? fmtNum(tk.length) : T('studioTrkN', { n: fmtNum(tk.length) }),
       sub: hl ? T('studioTrkHlpRow', { l: trkLabel(hl) }) : nsN ? (nid && nid.by === 'h' ? T('studioNsIdH') : T('studioNsIdN')) : T('studioTrkRowS'), onClick: () => go('tracks'), k: 'tracks' }),
       hv && rowNav({ tile: tile('check', 'green'), label: T('studioNsHave', { l: langName(hv.l, uiLang()) }), sub: hv.ex ? T('studioNsHaveS', { n: fmtNum(hv.n), k: fmtNum(hv.ex) }) : T('studioNsHaveS0', { n: fmtNum(hv.n) }), onClick: () => go('tracks'), k: 'ns-have' })));
-    const adv = advRows(f, pick);
+    const adv = f.ka ? null : advRows(f, pick);   // 30/10/2026: עצות של תרגום (שפה, צריבה) — לא לשיר
     if (adv) p.append(h('div', 'st-gap sm'), adv);
-    if (f.fileObj || (f.drive && !f.drive.bx)) p.append(list(rowNav({ tile: tile('film', 'blue'), label: T('studioEdBefore'), value: f.edl ? edlSum(f.edl, f.dur || 0) : T('studioEdOptional'), onClick: () => { fnlAdd('cut'); go('cutsrc'); }, k: 'cutsrc' })));   // מ4
+    if (!f.ka && (f.fileObj || (f.drive && !f.drive.bx))) p.append(list(rowNav({ tile: tile('film', 'blue'), label: T('studioEdBefore'), value: f.edl ? edlSum(f.edl, f.dur || 0) : T('studioEdOptional'), onClick: () => { fnlAdd('cut'); go('cutsrc'); }, k: 'cutsrc' })));   // מ4
     if (isIOS()) p.append(note(T('studioIosTip')));
   }
 
@@ -9211,7 +9224,7 @@ function render(kind, still, pre) {     // kind: none (ציור מחדש במק�
   const keepY = kind === 'none' ? root.scrollTop : ((kind === 'pop' || kind === 'sibpop' || kind === 'dfwd' || kind === 'dback') ? (scrolls[viewKey()] || 0) : 0);
   const ae = document.activeElement;
   const fk = ae && root.contains(ae) && ae.dataset ? ae.dataset.k : null;   // הפוקוס חוזר לאותו רכיב אחרי ציור מחדש
-  if (ui.view === 'home') form = null;   // יציאה מהטופס בלי שמירה — הטיוטה לא נשמרת
+  if (ui.view === 'home' || ui.view === 'ka') form = null;   // יציאה מהטופס בלי שמירה — הטיוטה לא נשמרת
   const p = h('div', 'st-page');
   if (ui.view === 'new') pageForm(p, false);
   else if (ui.view === 'edit') pageForm(p, true);
@@ -9263,6 +9276,7 @@ function render(kind, still, pre) {     // kind: none (ציור מחדש במק�
   else if (ui.view === 'server') pageServer(p);
   else if (ui.view === 'def') pageDef(p);
   else if (ui.view === 'connect') pageConnect(p);
+  else if (ui.view === 'ka' && kaOk()) pageKa(p);   // 30/10/2026: קריוקי — כלי נפרד
   else pageHome(p);
   if (!root || seq !== renderSeq) { if (pre) pre.remove(); return; }   // הדף חזר אחורה תוך כדי בנייה (טיוטה שנמחקה וכו') — הציור החדש כבר במקום
   /* 14/10/2026 (בקשת המשתמש): מעבר בין דפים = קובייה, כמו בשלוש האפליקציות (core: cubeClone/cubeGhostRun) — הדף היוצא =
