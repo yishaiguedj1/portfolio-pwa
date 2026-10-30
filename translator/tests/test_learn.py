@@ -260,6 +260,46 @@ class LearnMedia(unittest.TestCase):
                 self.assertEqual([s.get('height') for s in st if s['codec_type'] == 'video'], [240])
             self.assertIn(b'tenc', data, 'מסומן כמוצפן (CENC)')
 
+    def test_karaoke_song_audio_and_corpus(self):
+        """30/10/2026: קריוקי — הקול של השיר (סטריאו 128k, בלי וידאו ובלי 240p) והמילים עם הזמנים, באותה צורה של קורפוס"""
+        import base64
+        import gzip
+        import subprocess
+        key, kid = 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6', 'f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1'
+        work = Path(self.tmp.name) / 'ka'
+        work.mkdir()
+        song = work / 'song.mp3'
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=f=440', '-ac', '2', '-t', '3', str(song)], check=True)
+        words = [{'w': 'שיר', 's': 0.5, 'e': 0.9, 'li': 0, 'align': 'ctc'}, {'w': 'אחד', 's': 1.0, 'e': 1.4, 'li': 0},
+                 {'w': 'שורה', 's': 2.0, 'e': 2.5, 'li': 1, 'align': 'BAD ALIGN'}, {'w': 'x', 's': 'nan', 'e': 1}]
+        (work / 'words.json').write_text(json.dumps({'words': words}), encoding='utf-8')
+        orig = job._lm_put
+        job._lm_put = lambda url, path: orig(url.replace('https://r2.test/', self.base), path)
+        try:
+            ans = lambda op, kw: ({'url': 'https://r2.test/' + kw['k'], 'key': key, 'kid': kid, 'max': 50_000_000} if op == 'learnMedia' else {'saved': True})
+            ctx = self.ctx(ans)
+            ctx.st['spec'] = {'from': 'he', 'dur': 3.0}
+            self.assertEqual(job.learn_ka(ctx, song, work), ['a'])
+        finally:
+            job._lm_put = orig
+        self.assertEqual([c[0] for c in self.calls], ['learnPut', 'learnMedia', 'learnMediaDone'])
+        lc = json.loads(gzip.decompress(base64.b64decode(self.calls[0][1]['lc'])))
+        self.assertEqual((lc['v'], lc['mode'], lc['src']), (job.LC_V, 'karaoke', 'he'))
+        self.assertEqual([(c['i'], c['en'], c['s'], c['e']) for c in lc['cu']], [(0, 'שיר אחד', 0.5, 1.4), (1, 'שורה', 2.0, 2.5)])
+        self.assertEqual([w[:3] + [w[7]] for w in lc['wd']], [['שיר', 0.5, 0.9, 'ctc'], ['אחד', 1.0, 1.4, ''], ['שורה', 2.0, 2.5, '']])
+        self.assertEqual(set(self.got), {'/a'})
+        p = Path(self.tmp.name) / 'gota.mp4'
+        p.write_bytes(self.got['/a'])
+        probe = subprocess.run(['ffprobe', '-v', 'error', '-decryption_key', key, '-show_entries', 'stream=codec_type,channels', '-of', 'json', str(p)],
+                               capture_output=True, text=True)
+        self.assertEqual([(s['codec_type'], s['channels']) for s in json.loads(probe.stdout or '{}').get('streams') or []], [('audio', 2)])
+        self.assertFalse((work / '_learn').exists(), 'הקבצים הזמניים נמחקו')
+
+    def test_karaoke_never_fails_the_job(self):
+        def boom(op, kw):
+            raise RuntimeError('x')
+        self.assertEqual(job.learn_ka(self.ctx(boom), Path('/nonexistent.mp3'), Path(self.tmp.name)), [])
+
     def test_video_copied_from_ladder_240(self):
         """21/10/2026: כשיש 240p מאיכויות הצפייה — מעתיקים אותו (בלי קידוד וידאו), ועדיין מוצפן ומתפענח עם המפתח"""
         import subprocess

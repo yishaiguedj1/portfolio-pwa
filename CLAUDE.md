@@ -46,6 +46,8 @@
 | Studio — העובד: job.py, pipeline, llm.py, vt, Routine/ההעברה, איכות התרגום | `docs/studio-worker.md` |
 | Studio — מאגר הלמידה, האיסוף המלא, מעבדת השיפור | `docs/studio-learning.md` |
 | Studio — **הפרומפט לסבב הניתוח הבא** (מול התרגום האנושי, `tools/learn-vs-human.py`), מה נבדק ומה לא · **הוראות פתיחה לפרויקט שיפור** | `docs/studio-analysis-prompt.md`, `docs/studio-project-brief.md` |
+| Studio — **קריוקי בעברית**: השרשרת שנבדקה (ivrit + stable-ts + CTC עברי), כללי ההחלפה, לקחים | `docs/studio-karaoke-he.md` |
+| Studio — **קריוקי: מחקר עומק** (ספרות, מדדים וסט בדיקה, שיפורים לפי עדיפות, מלכודות רישיון, פורמטים ופיצ'רים) | `docs/studio-karaoke-research.md` |
 | אנדרואיד נייטיב: Studio DM, Studio Browser + תוסף Chrome, Lab, תרגום בטלפון | `docs/android-apps.md` |
 | צריכת טוקנים: המדידה, המחקר, ההגדרות ומה עוד אפשר | `docs/token-economy.md` |
 | **פרויקט "עמודים סטטיים"** — אפס קפיצות/רענונים במעברים: התוכנית, הגלאים (`qa-deep --landing`), הממצאים | `docs/smooth-plan.md` |
