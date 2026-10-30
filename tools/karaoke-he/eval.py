@@ -7,6 +7,8 @@
   eval.py <ref.csv> <res.json> [res2.json ...]         טבלה לשיר אחד
   eval.py --set <DIR> <name> [name2 ...]               כל <DIR>/<שיר>/ref.csv מול <DIR>/<שיר>/<name>.json, ממוצע על השירים
   eval.py --draft <res.json> <lyrics.txt> <out.csv>    טיוטת תיוג מהפלט (השורות לפי המילים) — לתיקון ידני
+  eval.py --draft-corpus <corpus.json> <id> <DIR>      שיר שהועלה ב־Studio (learn-pull.js --corpus, mode=karaoke) →
+                                                       <DIR>/ref.csv (טיוטה) + <DIR>/base.json (מה שהשרשרת נתנה)
   --shift S  מחסיר S שנ׳ מכל תוצאה (כיול היסט; העמודה shift* = ההיסט שהיה מאפס את החציון) · --json  פלט JSON
 
 ההתאמה בין המילים: אותו מספר מילים → לפי הסדר; אחרת לפי הטקסט המנורמל (difflib). מילה בלי התאמה נספרת ב־miss.
@@ -130,6 +132,29 @@ def draft(res_path, lyrics_path, out_path):
     print(f'{len(res)} מילים, {len(lines)} שורות → {out_path}')
 
 
+def draft_corpus(corpus_path, lid, d):
+    with open(corpus_path, encoding='utf-8') as f:
+        items = [x for x in json.load(f) if x.get('id') == lid and x.get('mode') == 'karaoke']
+    if not items:
+        sys.exit('אין פריט קריוקי עם המזהה ' + lid)
+    it = items[0]
+    wd, ends, k = it.get('wd') or [], set(), 0
+    for c in it.get('cu') or []:                       # שורה = כתובית; המילים של השורה ברצף ב־wd
+        k += len(str(c.get('en') or '').split())
+        ends.add(k - 1)
+    if k != len(wd):
+        sys.exit(f'מספר המילים בשורות ({k}) שונה מ־wd ({len(wd)})')
+    os.makedirs(d, exist_ok=True)
+    with open(os.path.join(d, 'base.json'), 'w', encoding='utf-8') as f:
+        json.dump({'words': [{'w': w[0], 's': w[1], 'e': w[2], 'align': w[7]} for w in wd]}, f, ensure_ascii=False)
+    with open(os.path.join(d, 'ref.csv'), 'w', encoding='utf-8', newline='') as f:
+        wr = csv.writer(f)
+        wr.writerow(['word_start', 'word_end', 'line_end', 'word'])
+        for i, w in enumerate(wd):
+            wr.writerow([f'{w[1]:.3f}', f'{w[2]:.3f}', int(i in ends), w[0]])
+    print(f'{len(wd)} מילים, {len(ends)} שורות → {d}')
+
+
 def main(argv):
     shift, js = 0.0, False
     if '--shift' in argv:
@@ -141,6 +166,8 @@ def main(argv):
         js = True
     if not argv:
         sys.exit(__doc__)
+    if argv[0] == '--draft-corpus':
+        return draft_corpus(*argv[1:4])
     if argv[0] == '--draft':
         return draft(*argv[1:4])
     if argv[0] == '--set':

@@ -77,6 +77,19 @@ class Files(unittest.TestCase):
             self.assertAlmostEqual(m['aae'], r['aae'])
             self.assertIn('ממוצע', E.table([('ממוצע', m)]))
 
+    def test_draft_from_corpus(self):
+        """פריט קריוקי מ־learn-pull (צורת ka_corpus ב־job.py) → ref.csv + base.json"""
+        item = {'id': 'a' * 20, 'mode': 'karaoke', 'cu': [{'i': 0, 'en': 'שיר אחד'}, {'i': 1, 'en': 'שורה'}],
+                'wd': [['שיר', 0.5, 0.9, 'S1', None, None, None, 'ctc', None], ['אחד', 1.0, 1.4, 'S1', None, None, None, '', None],
+                       ['שורה', 2.0, 2.5, 'S1', None, None, None, '', None]]}
+        with tempfile.TemporaryDirectory() as d:
+            cp = Path(d) / 'corpus.json'
+            cp.write_text(json.dumps([{'id': 'b' * 20, 'cu': []}, item]), encoding='utf-8')
+            E.draft_corpus(str(cp), 'a' * 20, str(Path(d) / 's1'))
+            ref = E.load(str(Path(d) / 's1' / 'ref.csv'))
+            self.assertEqual([(x['w'], x['le']) for x in ref], [('שיר', False), ('אחד', True), ('שורה', True)])
+            self.assertEqual(E.score(ref, E.load(str(Path(d) / 's1' / 'base.json')))['aae'], 0.0)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1430,6 +1430,9 @@ LM_ENC = {
 # 21/10/2026 (מהיומנים של הייצור): הקידוד ל־240p של סרטון של שעה וחצי לקח כ־6 דק׳ בסוף העבודה (91% מעבד, אחרי שהתוצרים כבר עלו).
 # כשאיכויות הצפייה כבר בנו 240p (אותו x264 veryfast, CRF 30) — מעתיקים את הווידאו כמו שהוא ומקודדים רק את הקול (שניות)
 LM_COPY_V = ['-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'copy', '-ac', '1', '-c:a', 'libopus', '-b:a', '32k']
+# 30/10/2026: קריוקי — השיר נשמר לסט הבדיקה של היישור (docs/studio-karaoke-he.md). מונו ב־32k פוגע בהפרדה, ולכן סטריאו
+# 128k (שיר של 4 דק׳ ≈ 4MB, הרבה מתחת ל־MEDIA_MAX.a)
+LM_ENC_KA = ['-vn', '-ac', '2', '-c:a', 'libopus', '-b:a', '128k']
 LM_TIMEOUT = {'a': 900, 'v': 2400}
 LM_VIDEO_EXT = ('.mp4', '.mov', '.mkv', '.webm', '.m4v', '.avi')
 _LM_HEX = re.compile(r'^[0-9a-f]{32}$')
@@ -1478,6 +1481,48 @@ def learn_media_early(ctx):
         return False
 
 
+def ka_corpus(ctx, words):
+    """30/10/2026: קריוקי → פריט קורפוס באותה צורה של סרטון (בלי שינוי ברשימה המותרת בשרתון): שורה של השיר = כתובית
+    (en = הטקסט, s/e = הזמנים שהשרשרת נתנה), wd = הזמן של כל מילה + איך יושרה, mode = karaoke. מזה בונים סט בדיקה
+    (tools/karaoke-he/eval.py --draft-corpus)."""
+    from vt import karaoke as K
+    words = [w for w in words or [] if isinstance(w, dict) and _num_ok(w.get('s')) and _num_ok(w.get('e')) and isinstance(w.get('li'), int)][:LC_MAX_WORDS]
+    if not words:
+        return None
+    cu = [{'i': i, 's': _lc_num(ln['s']), 'e': _lc_num(ln['e']), 'k': 'S1', 'en': _lc_txt(' '.join(w['w'] for w in ln['words'])), 'd': ''}
+          for i, ln in enumerate(K.timed_lines(words)[:LC_MAX_CUES])]
+    wd = [[_lc_txt(w.get('w'))[:60], _lc_num(w.get('s')), _lc_num(w.get('e')), 'S1', None, None, None,
+           str(w.get('align') or '')[:12] if re.match(r'^[a-z0-9_]{0,12}$', str(w.get('align') or '')) else '', None]
+          for w in words]
+    out = {'v': LC_V, 'cu': cu, 'wd': wd, 'mode': 'karaoke'}
+    spec = ctx.st.get('spec') or {}
+    if re.match(r'^[a-z]{2,3}$', str(spec.get('from') or '')):
+        out['src'] = spec['from']
+    if _num_ok(spec.get('dur')):
+        out['dur'] = round(spec['dur'], 1)
+    return out
+
+
+def learn_ka(ctx, src, work):
+    """30/10/2026: קריוקי למאגר הלמידה — המילים והזמנים (learnPut) והשיר עצמו (learnMedia, רק קול). אותם תנאים של
+    סרטון (המתג, ההודעה שנקראה, הדגל) — השרתון מחליט. תקלה כאן לעולם לא מפילה את העבודה."""
+    try:
+        wj = _read_json(work / 'words.json') or {}
+        data = ka_corpus(ctx, wj.get('words') if isinstance(wj, dict) else None)
+        if data:
+            import base64
+            import gzip
+            b = base64.b64encode(gzip.compress(json.dumps(data, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))).decode('ascii')
+            if len(b) <= LC_MAX_B64 and not ctx.c.raw('learnPut', lc=b).get('saved'):
+                print('· מאגר הלמידה: המילים לא נשמרו')
+        return learn_media(ctx, src=src, kinds=('a',), work=work / '_learn')
+    except Stop:
+        raise
+    except (SystemExit, Exception) as e:      # noqa: BLE001 — מידע משני
+        print('· מאגר הלמידה: הקריוקי לא נשמר (' + type(e).__name__ + ')')
+        return []
+
+
 def _learn_media_safe(ctx):
     try:
         learn_media(ctx)
@@ -1506,24 +1551,26 @@ def _lm_put(url, path):
             return 0
 
 
-def learn_media(ctx):
+def learn_media(ctx, src=None, kinds=None, work=None):
+    """src/kinds/work — לקריוקי (learn_ka): השיר עצמו, רק הקול, ובאיכות של שיר (LM_ENC_KA)."""
     if os.environ.get('SNB_LEARNMEDIA') == 'off' or ctx.st.get('kind', 'tr') != 'tr':
         return []
-    src = _lm_source(ctx.pdir)
+    ka = src is not None
+    src = src or _lm_source(ctx.pdir)
     if not src:
         return []
-    work = ctx.pdir / '_learn'
+    work = work or ctx.pdir / '_learn'
     out = []
     try:
-        for k in (('a',) if ph_mode(ctx.st) else ('a', 'v')):   # 24/10/2026: תרגום בטלפון — אין סרטון בשרת
+        for k in kinds or (('a',) if ph_mode(ctx.st) else ('a', 'v')):   # 24/10/2026: תרגום בטלפון — אין סרטון בשרת
             j = ctx.c.raw('learnMedia', k=k)
             url, key, kid = str(j.get('url') or ''), str(j.get('key') or ''), str(j.get('kid') or '')
             if not url.startswith('https://') or not _LM_HEX.match(key) or not _LM_HEX.match(kid):
                 continue                                     # השרתון לא מבקש (מתג / הודעה / דלי / כבר נשמר)
             work.mkdir(parents=True, exist_ok=True)
             dst = work / (k + '.mp4')
-            lad = _lm_ladder240(ctx) if k == 'v' else None
-            ways = ([(lad, LM_COPY_V)] if lad else []) + [(src, LM_ENC[k])]
+            lad = _lm_ladder240(ctx) if k == 'v' and not ka else None
+            ways = ([(lad, LM_COPY_V)] if lad else []) + [(src, LM_ENC_KA if ka else LM_ENC[k])]
             ok = False
             for inp, enc in ways:
                 cmd = (['ffmpeg', '-v', 'error', '-nostdin', '-y', '-i', str(inp)] + enc
@@ -4648,6 +4695,7 @@ def karaoke(args):
         fid = put_output(ctx, p, name, k, mime, lambda x, b=done, s=size: ctx.report('sv', (b + x * s) / total))
         done += size
         up.append({'id': fid, 'name': name, 'size': size, 'k': k})
+    learn_ka(ctx, src, work)                         # לפני הדיווח האחרון (אחריו המפתח מת); השרתון מחליט אם לשמור
     ctx.report(done=True, out=up, msg='הקריוקי מוכן', force=True)
     shutil.rmtree(work, ignore_errors=True)
     try:
