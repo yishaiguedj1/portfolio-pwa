@@ -175,7 +175,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const STUBS = { createNet: () => ({}), probeVideo: async () => ({}), extractAudio: async () => ({}), uploadBoth: async () => {}, stageEstimates: N.stageEstimates, progressModel: N.progressModel, createBackup: () => ({}), waitOAuthCode: () => {},
     normEdl: ED.normEdl, edlPre: ED.edlPre, outDur: ED.outDur, edlDur: ED.edlDur, normTrackPref: (x) => ({ a: '', cc: '', ...(x || {}) }), normPq: (v) => (v === 'auto' || [4320, 2160, 1440, 1080, 720, 480, 360, 240, 144].includes(v) ? v : 'src'), normLadder: () => null, normChapters: () => [], normSty: () => null, STY_COLORS: {}, STY_Y: 40 };
   const body = st.replace(/^export (const|function) /gm, '$1 ').replace(/^import \{([^}]+)\} from '[^']+';$/gm, 'const {$1} = __stubs;');
-  const S = new Function('t', '__stubs', body + '\nreturn { normJob, normStore, sameFile, jobPhase, normSettings };')(undefined, STUBS);
+  const S = new Function('t', '__stubs', body + '\nreturn { normJob, normStore, sameFile, jobPhase, normSettings, upHalt };')(undefined, STUBS);
   const J = { id: 'jAAAAAAAAAAAAAAAAAAAA', created: 5, spec: { name: 'a.mkv', size: 100, to: ['he', 'zz'], mode: 'x', out: ['same', 'evil'] },
     up: { folder: 'F'.repeat(20), a: { done: true, id: 'A'.repeat(20), size: 7, uri: 'https://evil.example/upload' }, v: { uri: 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=X', sent: 50 } },
     fp: { name: 'a.mkv', size: 100, lm: 9 }, srv: { state: 'running', sess: { url: 'javascript:alert(1)' }, prog: { st: 'tr' } } };
@@ -195,6 +195,14 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
     'מצב העבודה בזמן ההעלאה: חילוץ / קול / סרטון / ממתין לרשת / נעצר / צריך לבחור שוב / תקלה');
   ok(ph({ up: { a: { done: true }, v: { done: true } } }, null) === 'ready' && ph({ up: { a: { done: true }, v: { done: true }, started: 5 } }, null) === 'queued'
     && ph({ srv: { state: 'running' } }, null) === 'running' && ph({ srv: { state: 'done' } }, { active: true }) === 'done', 'אחרי ההעלאה: מוכן / הופעל / רץ / הסתיים (מצב השרתון גובר)');
+  // 1/11/2026: הקול עלה והעבודה רצה, הסרטון נעצר באמצע (Background Fetch תקוע / רענון) — חייב כפתור והמשך, לא "רץ" בלי כלום
+  const uh = (patch, run) => { const r = JSON.parse(JSON.stringify(base)); r.fp = { name: 'a', size: 1 }; Object.assign(r.up, { a: { done: true } }, patch.up || {}); if (patch.srv) r.srv = Object.assign(r.srv, patch.srv); return S.upHalt(r, run); };
+  ok(uh({ srv: { state: 'running' } }, null) === 'paused' && uh({ srv: { state: 'queued' } }, { active: false, phase: 'paused' }) === 'paused'
+    && uh({ srv: { state: 'running' } }, { active: false, need: true, phase: 'need' }) === 'need'
+    && uh({ srv: { state: 'running' } }, { active: true, phase: 'video' }) === '' && uh({ srv: { state: 'running' }, up: { v: { done: true } } }, null) === ''
+    && uh({ srv: { state: 'done' } }, null) === '' && uh({ srv: { state: 'new' } }, null) === '' && uh({ srv: { state: 'running' }, up: { link: true } }, null) === '' && uh({ srv: { state: 'running' }, up: { ph: 1 } }, null) === '',
+    'סרטון שנעצר בזמן שהעבודה רצה: "להמשיך" / "לבחור שוב" — רק כשאין העלאה פעילה ולא בעבודה מקישור / בטלפון');
+  ok(/const uh = upHalt\(rec, run0\);\s*\n\s*if \(uh\) acts\.push/.test(st) && /'visible'\) \{[^}]*upRevive\(\)/.test(st), 'דף העבודה מציג את הכפתור, וחזרה לאפליקציה ממשיכה לבד');
 
   /* ---------- 4. שילוב ---------- */
   const sw = read('sw.js'), html = read('index.html'), lib = read('library.js'), bk = read('libbackup.js'), app = read('app.js');
