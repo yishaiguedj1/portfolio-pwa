@@ -1,4 +1,4 @@
-/* ==== כפתורי זכוכית בכל המערכת (31/10/2026, בקשת המשתמש) ====
+/* ==== כפתורי זכוכית בכל המערכת + אריחי הלוגו והמשטחים שנשארו אטומים (31/10/2026, בקשת המשתמש) ====
    לפי ת־עיצוב: זכוכית שקופה — רואים את מה שמאחור דרך טשטוש, מילוי לבן עדין, קו אור דק בשפה וצל רך (בקשת המשתמש: "יותר שקיפות").
    כפתור צבעוני (ראשי / נבחר / הרסני) — זכוכית צבעונית חצי־שקופה בצבע שלו (--gb-tone). מרכז הניהול — סגול.
    (סבב "כדור שלג" עם כיפת שלג נבדק בתצוגות מקדימות ובוטל לבקשת המשתמש — נשארה הזכוכית בלבד.)
@@ -111,6 +111,14 @@ html[data-app="admin"] { --gb-force: #5E5CE6; --gb-on: #fff; }
   -webkit-backdrop-filter: var(--gb-fx) !important; backdrop-filter: var(--gb-fx) !important;
 }
 :where(.stock-logo-img, .pie-leg-logo img, .kc-logo img) { mix-blend-mode: multiply; background: transparent !important; }
+
+/* ---------- 6. משטחים שנשארו אטומים — אותה זכוכית של החלונות והגיליונות במערכת (--gl-panel + טשטוש) ----------
+   (בקשת המשתמש: "שכל הממשק יהיה תואם לעיצוב הזכוכית". הכרטיסים, התפריט, החלונות והחיפוש כבר על --gl-card/--gl-panel;
+   רקע הגרף בגרף הנרות נשאר — הנרות צריכים רקע אחיד) */
+:where(.login-card, .lib-sheet, .kc-sheet) {
+  background: var(--gl-panel) !important; box-shadow: var(--gl-ring), var(--gl-shadow) !important;
+  -webkit-backdrop-filter: var(--gl-fx) !important; backdrop-filter: var(--gl-fx) !important;
+}
 }
 
 /* @glass-exempt — לא כפתורים במראה (נשארים כמו שהם):
