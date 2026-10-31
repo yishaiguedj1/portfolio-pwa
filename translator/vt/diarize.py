@@ -222,8 +222,8 @@ def merge_small(E: np.ndarray, dur: np.ndarray, who: np.ndarray, cent: np.ndarra
     return who, cent
 
 
-def assign(words: list[dict], audio: np.ndarray, embed) -> dict:
-    """ממלא w["spk"] = S1, ‏S2… בסדר ההופעה. מחזיר סטטיסטיקה."""
+def assign(words: list[dict], audio: np.ndarray, embed, thresh: float | None = None) -> dict:
+    """ממלא w["spk"] = S1, ‏S2… בסדר ההופעה. מחזיר סטטיסטיקה. thresh — לשירה (vt/karaoke.auto_singers), אחרת THRESH."""
     us = units(words)
     if not us:
         return {"speakers": 0}
@@ -234,7 +234,7 @@ def assign(words: list[dict], audio: np.ndarray, embed) -> dict:
     strong = np.flatnonzero(dur >= STRONG_S)
     if len(strong) < 2:
         strong = np.arange(len(us))
-    lab = cluster(E[strong])
+    lab = cluster(E[strong], thresh)
     k = int(lab.max()) + 1
     cent = np.stack([E[strong][lab == c].mean(axis=0) for c in range(k)])
     tot = np.array([dur[strong][lab == c].sum() for c in range(k)])
