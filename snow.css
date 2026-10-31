@@ -50,7 +50,7 @@
     .st-jobs-more, .st-lk-paste, .st-mini, .st-cpill, .st-ai-b, .st-se-b, .st-rs-chip, .st-wbtn, .st-chip, .st-lk-q, .st-pill, .col-pill, .lib-bkpill,
     .lib-chip, .lib-sortbtn, .mg-pill, .mg-tok, .mg-ab, .mg-tb.p, .mg-ok56, .pf-bench-toggle, .subpage-back, .lib-back, .st-back, .adm-back, .fx-pill,
     .appbar-sub > *, .chip-btn, .chip, .range-btn, .wl-tab, .mini-btn, .measure-btn, .measure-chip, .add-card, .an-chip, .an-seg-th, .rd-backpos,
-    .kc-btn, .kc-chip, .kc-mb, .kc-rg, .kc-sc, .kc-tb, .kc-tf, .kc-wid, .kc-ib, .kc-sb, .kc-pk) {
+    .kc-btn, .kc-chip, .kc-mb, .kc-rg, .kc-sc, .kc-tb, .kc-tf, .kc-wid, .kc-ib, .kc-sb, .kc-pk, .kc-tcell) {
   --sb-cap: var(--sb-cap-p) 50% 0 / auto 100% repeat-x;
 }
 :where(.btn, .dlg-btn, .st-btn, .chip-btn, .range-btn, .wl-tab, .lib-chip, .st-chip, .an-chip, .kc-chip, .mini-btn, .kc-ib, .kc-sb):nth-child(3n+1) { --sb-cap: var(--sb-cap-p) 22% 0 / auto 100% repeat-x; }
@@ -67,7 +67,7 @@
     .st-jobs-more, .st-lk-paste, .st-mini, .st-cpill, .st-ai-b, .st-se-b, .st-rs-chip, .st-wbtn, .st-chip, .st-lk-q, .st-pill, .col-pill, .lib-bkpill,
     .lib-chip, .lib-sortbtn, .mg-pill, .mg-tok, .mg-ab, .mg-tb.p, .mg-ok56, .pf-bench-toggle, .subpage-back, .lib-back, .st-back, .adm-back, .fx-pill,
     .appbar-sub > *, .chip-btn, .chip, .range-btn, .wl-tab, .mini-btn, .measure-btn, .measure-chip, .add-card, .an-chip, .rd-backpos,
-    .kc-btn, .kc-chip, .kc-mb, .kc-rg, .kc-sc, .kc-tb, .kc-tf, .kc-wid, .kc-ib, .kc-sb, .kc-pk,
+    .kc-btn, .kc-chip, .kc-mb, .kc-rg, .kc-sc, .kc-tb, .kc-tf, .kc-wid, .kc-ib, .kc-sb, .kc-pk, .kc-tcell,
     :where(.adm-seg-b, .mg-seg-b, .st-seg-b, .kc-seg-b, .lang-opt, .theme-opt, .an-seg:not(.an-seg-main) > button, .fb-seg .mini-btn, .adm-seg .mini-btn):where(.on, .active, [aria-pressed="true"])) {
   background: var(--sb-cap), var(--sb-grain), var(--sb-body) !important;
   background-blend-mode: var(--sb-blend) !important;
@@ -82,7 +82,7 @@
     .st-jobs-more, .st-lk-paste, .st-mini, .st-cpill, .st-ai-b, .st-se-b, .st-rs-chip, .st-wbtn, .st-chip, .st-lk-q, .col-pill, .lib-bkpill,
     .lib-chip, .lib-sortbtn, .mg-pill, .mg-tok, .mg-ab, .pf-bench-toggle, .subpage-back, .lib-back, .st-back, .adm-back,
     .chip-btn, .chip, .range-btn, .wl-tab, .mini-btn, .measure-btn, .measure-chip, .add-card, .an-chip, .rd-backpos,
-    .kc-btn, .kc-chip, .kc-mb, .kc-rg, .kc-sc, .kc-tb, .kc-tf, .kc-wid, .kc-ib, .kc-sb, .kc-pk):active { box-shadow: var(--sb-sh-press) !important; }
+    .kc-btn, .kc-chip, .kc-mb, .kc-rg, .kc-sc, .kc-tb, .kc-tf, .kc-wid, .kc-ib, .kc-sb, .kc-pk, .kc-tcell):active { box-shadow: var(--sb-sh-press) !important; }
 /* מסגרת מקווקוות של "הוספה" — נשארת כרמז, בגוון השלג */
 :where(.add-card, .measure-btn, .wl-tab.add) { border-style: dashed !important; border-color: color-mix(in srgb, var(--sb-ink) 22%, transparent) !important; }
 
@@ -91,10 +91,10 @@
     .ed-btn:not(.ghost), .ed-fetch, .st-mini.danger, .lib-btn.danger, .tab-glow, .an-seg-th,
     .range-btn.active, .chip-btn.on, .chip.on, .wl-tab.on, .lib-chip.on, .st-chip.on, .st-rs-chip.on, .st-cpill.on, .st-ai-b.on, .st-se-b.on, .st-lk-q.on,
     .an-chip[aria-pressed="true"], .measure-btn.on, .pf-bench-toggle.on, .mini-btn[aria-pressed="true"],
-    .kc-btn.pri, .kc-fab.on, .kc-ib.on, .kc-mb.on, .kc-rg.on, .kc-sb.on, .kc-sc.on, .kc-tf.on, .kc-wid.on, .kc-chip.on,
+    .kc-btn.pri, .kc-fab.on, .kc-ib.on, .kc-mb.on, .kc-rg.on, .kc-sb.on, .kc-sc.on, .kc-tf.on, .kc-wid.on, .kc-chip.on, .kc-tcell.on,
     .adm-tab.on i,
     :where(.adm-seg-b, .mg-seg-b, .st-seg-b, .kc-seg-b, .lang-opt, .theme-opt, .an-seg:not(.an-seg-main) > button):where(.on, .active, [aria-pressed="true"])) {
-  --sb-tone: var(--btn-c, var(--primary));
+  --sb-tone: var(--sb-force, var(--btn-c, var(--primary)));
   background: var(--sb-cap), var(--sb-grain), radial-gradient(120% 60% at 50% 108%, var(--sb-fill-hi), rgba(255, 255, 255, 0) 62%),
     radial-gradient(130% 120% at 30% 18%, color-mix(in srgb, var(--sb-tone) 72%, #fff) 0 16%, var(--sb-tone) 52%, color-mix(in srgb, var(--sb-tone) 78%, #000) 100%) !important;
   background-blend-mode: normal, normal, multiply, normal, normal !important;
@@ -103,10 +103,10 @@
   color: var(--sb-on, var(--on-primary)) !important;
 }
 /* הרסני */
-:where(.btn.danger-btn, .dlg-ok.danger, .st-btn.danger, .st-mini.danger, .lib-btn.danger, .mg-tb.danger) { --btn-c: var(--loss); --sb-on: #fff; }
+:where(.btn.danger-btn, .dlg-ok.danger, .st-btn.danger, .st-mini.danger, .lib-btn.danger, .mg-tb.danger) { --sb-force: var(--loss); --sb-on: #fff; }
 /* מרכז הניהול — הסגול של הניהול */
-html[data-app="admin"] { --sb-adm: #5E5CE6; }
-html[data-app="admin"] :where(.adm-tab.on i, .adm-seg-b.on, .adm-btn, .adm-seg .mini-btn[aria-pressed="true"]) { --btn-c: var(--sb-adm); --sb-on: #fff; }
+/* --sb-force: צבע של כל האפליקציה שגובר על --btn-c של הרכיבים (שמוגדר מחוץ לשכבה); הרסני כופה אדום גם בתוכה */
+html[data-app="admin"] { --sb-force: #5E5CE6; --sb-on: #fff; }
 /* הסמלים בתוך כפתור צבעוני — בצבע הטקסט שלו */
 :where(.ss-add) circle { fill: transparent !important; }
 :where(.ss-add) path { stroke: var(--primary) !important; }
@@ -123,7 +123,7 @@ html[data-app="admin"] :where(.adm-tab.on i, .adm-seg-b.on, .adm-btn, .adm-seg .
 /* @snow-exempt — לא כפתורים במראה (נשארים כמו שהם):
    שורות/פריטי רשימה/כרטיסים: adm-r ac-lens ac-person ac-step ac-tile ac-track adm-live adm-top an-key an-rcard an-row an-fact bk-card card col-card ft-row gb-row
      ios-row ios-row-btn lib-cont lib-item lib-opt lib-row mg-opt mg-row rd-fontrow reset-cancel reset-open reset-opt row-link src-opt acx-opt st-alr st-al-row
-     st-banner st-filecard st-fnd st-l st-lk-rec st-newcard st-proj st-row st-twcard st-tower stock-head kc-li kc-wr kc-tg kc-fly-i kc-tcell st-pl-mr st-qa-b mg-pc mg-sc
+     st-banner st-filecard st-fnd st-l st-lk-rec st-newcard st-proj st-row st-twcard st-tower stock-head kc-li kc-wr kc-tg kc-fly-i st-pl-mr st-qa-b mg-pc mg-sc
    מתגי הפעלה (מתג iOS): adm-sw ib-sw lib-sw pfbk-sw
    קישורי טקסט ופעולות טקסט: link-btn adm-link an-link lib-admin-link lib-textbtn st-link st-linkb st-txt wk-more ft-more mg-clear st-rate-chg st-pl-fundo es-cancel
      mg-snack-b ac-retry st-dp-up st-nsb st-pl-chb kc-tfpick kc-symbtn mg-tb sf-clear tr-tog

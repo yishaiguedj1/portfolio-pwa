@@ -26,7 +26,7 @@ ok(!both.length, 'מחלקה לא גם בשלג וגם פטורה (חוץ מסג
 
 // הרכיבים המרכזיים מכל אפליקציה — בשלג (לא בטעות בפטורים)
 for (const c of ['icon-btn', 'fx-pill', 'btn', 'dlg-ok', 'chip-btn', 'range-btn', 'wl-tab', 'mini-btn', 'tab-disc', 'tab-glow', 'subpage-back', 'lib-back', 'st-back', 'adm-back',
-  'lib-chip', 'lib-btn', 'st-btn', 'st-chip', 'st-mini', 'st-plus', 'an-btn', 'an-chip', 'an-seg-th', 'kc-btn', 'kc-chip', 'kc-fab', 'kc-ib', 'adm-btn', 'google-btn', 'st-pill'])
+  'lib-chip', 'lib-btn', 'st-btn', 'st-chip', 'st-mini', 'st-plus', 'an-btn', 'an-chip', 'an-seg-th', 'kc-btn', 'kc-chip', 'kc-fab', 'kc-ib', 'kc-tcell', 'adm-btn', 'google-btn', 'st-pill'])
   ok(inSnow(c) && !inEx(c), 'בשלג: .' + c);
 
 // שכבה + !important, בלי pseudo (רכיבים רבים כבר משתמשים ב־::before/::after) ובלי טשטוש
@@ -37,7 +37,7 @@ ok(/backdrop-filter:\s*none\s*!important/.test(layer), 'בלי backdrop-filter �
 ok(!/::(before|after)/.test(layer), 'בלי ::before/::after');
 ok(!/--sb-hill|top:\s*-\d/.test(body), 'בלי בליטה מעל הכפתור (בכהה נראתה כקו — בקשת המשתמש)');
 ok(/\[data-theme="dark"\][^{]*\{[^}]*--sb-cap-r:\s*url\(snow-cap-r-dark\.webp\)/.test(body), 'כהה: כיפה כהה');
-ok(/--sb-tone:\s*var\(--btn-c,\s*var\(--primary\)\)/.test(layer), 'צבעוני = צבע הכפתור (--btn-c / --primary)');
+ok(/--sb-tone:\s*var\(--sb-force,\s*var\(--btn-c,\s*var\(--primary\)\)\)/.test(layer), 'צבעוני = צבע הכפתור (--btn-c / --primary)');
 ok(/data-app="admin"\][^{]*\{[^}]*#5E5CE6/.test(body), 'ניהול: הסגול של הניהול');
 
 for (const f of ['index.html', 'academy.html', 'studio.html', 'admin.html', 'move.html'])
