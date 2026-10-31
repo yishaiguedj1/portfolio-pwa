@@ -520,8 +520,18 @@ export function lyrGuess(name) {
     .replace(/\s*[|•·]\s*/g, ' - ').replace(/\s+/g, ' ').replace(/(\s-)+\s*$/, '').replace(/^[\s-]+|[\s-]+$/g, '');
   return t.slice(0, 120);
 }
-/* תשובת LRCLIB → עד 8 תוצאות עם מילים, הקרובות באורך לשיר קודם (ואז מתוזמנות). dur = אורך השיר בשניות (0 = לא ידוע) */
-export function lrcResults(json, dur) {
+/* 31/10/2026 (הצילום: "ממותה - Full Trunk" הציע את כל האלבום): שם השיר מתוך החיפוש — כל חלק בין המקפים יכול להיות השם
+   (ביוטיוב גם "אמן - שיר" וגם "שיר - אמן"). תוצאה מתאימה = השם שלה שווה לאחד החלקים או מכיל אותו, בלי ניקוד וסימנים */
+const lrcNorm = (t) => String(t || '').toLowerCase().replace(/[\u0591-\u05c7]/g, '').replace(/\([^)]*\)|\[[^\]]*\]/g, ' ').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+export function lrcTitleHit(track, q) {
+  const t = lrcNorm(track);
+  if (!t) return false;
+  return String(q || '').split(/\s[-–—]\s|\s*[|•·]\s*/).map(lrcNorm).filter((x) => x.length >= 2)
+    .some((x) => t === x || (` ${t} `).includes(` ${x} `) || (` ${x} `).includes(` ${t} `));
+}
+/* תשובת LRCLIB → עד 8 תוצאות עם מילים, הקרובות באורך לשיר קודם (ואז מתוזמנות). dur = אורך השיר בשניות (0 = לא ידוע).
+   q = החיפוש: כשיש תוצאות ששמן מתאים לשיר — רק הן (כל הגרסאות של אותו שיר), ולא שאר השירים של האמן */
+export function lrcResults(json, dur, q) {
   if (!Array.isArray(json)) return [];
   const out = [];
   for (const x of json.slice(0, 40)) {
@@ -534,7 +544,8 @@ export function lrcResults(json, dur) {
   }
   const off = (r) => (dur > 0 && r.d > 0 ? Math.abs(r.d - dur) : 999);
   const seen = new Set();
-  return out.map((r, i) => ({ r, i })).sort((x, y) => (Math.min(off(x.r), 999) > 3) - (Math.min(off(y.r), 999) > 3) || off(x.r) - off(y.r) || (y.r.s - x.r.s) || x.i - y.i)
+  const hits = q ? out.filter((r) => lrcTitleHit(r.t, q)) : [];
+  return (hits.length ? hits : out).map((r, i) => ({ r, i })).sort((x, y) => (Math.min(off(x.r), 999) > 3) - (Math.min(off(y.r), 999) > 3) || off(x.r) - off(y.r) || (y.r.s - x.r.s) || x.i - y.i)
     .map((x) => x.r).filter((r) => { const k = r.plain.slice(0, 200); if (seen.has(k)) return false; seen.add(k); return true; })
     .slice(0, 8).map((r) => Object.assign(r, { m: dur > 0 && r.d > 0 && Math.abs(r.d - dur) <= 3 }));
 }
@@ -1112,7 +1123,7 @@ export function createNet(env) {
       let r;
       try {
         r = await E.fetch(LRC_API + '?q=' + encodeURIComponent(qq), ctl ? { signal: ctl.signal } : {});
-        if (r.ok) return { ok: true, list: lrcResults(await r.json(), dur || 0) };
+        if (r.ok) return { ok: true, list: lrcResults(await r.json(), dur || 0, qq) };
       } catch (e) { return { ok: false, error: 'net', list: [] }; } finally { if (tm) clearTimeout(tm); }
       const ms = lrcWait(r.status, r.headers && typeof r.headers.get === 'function' ? r.headers.get('retry-after') : '', n);
       if (ms < 0) return { ok: false, error: r.status === 503 || r.status === 429 ? 'busy' : 'http_' + r.status, list: [] };
