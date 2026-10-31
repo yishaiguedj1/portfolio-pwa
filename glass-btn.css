@@ -19,7 +19,7 @@
     0 0 0 .5px rgba(0, 0, 0, .06), 0 4px 14px -6px rgba(0, 0, 0, .16);
   --gb-sh-press: inset 0 0 0 .5px rgba(255, 255, 255, .8), inset 0 1px 0 rgba(255, 255, 255, .95), 0 0 0 .5px rgba(0, 0, 0, .08), 0 1px 4px -1px rgba(0, 0, 0, .14);
   --gb-fill-a: 84%;
-  --gb-logo-bg: var(--gb-body);
+  --gb-logo-bg: linear-gradient(180deg, rgba(255, 255, 255, .94), rgba(255, 255, 255, .8));
   --gb-ink: #1D2A3D;
 }
 /* כהה — ובמסכים שכהים תמיד (הנגן של Studio): לבן שקוף מעל הרקע הכהה */
@@ -106,11 +106,14 @@ html[data-app="admin"] { --gb-force: #5E5CE6; --gb-ontx: #fff; }
 /* ---------- 5. אריחי הלוגו של החברות — זכוכית במקום המסגרת הלבנה (31/10/2026, בקשת המשתמש) ----------
    בהיר: אותה זכוכית של הכפתורים. כהה: זכוכית בהירה וחלבית — לוגו כהה לא נעלם (ההיפוך של לוגו לבן, .inv, מניח אריח בהיר).
    התמונה במיזוג multiply: הרקע הלבן שבקובץ הלוגו (רוב הלוגואים) נעלם לתוך הזכוכית, הסמל נשאר */
+   31/10/2026 (סבב קפיצות 7, הקלטה מהטלפון): בעמודי מניות/מעקב הדף נעלם אחרי הנחיתה עד 5.6 שניות — עשרות משטחי טשטוש ומיזוג
+   (שכבה נפרדת לכל לוגו) נדלקו יחד בסוף הסיבוב. האריח בלי טשטוש ובלי מיזוג: מאחורי אריח קטן בכרטיס יש רקע אחיד, והטשטוש לא נראה;
+   האריח לבן כמעט אטום (גם בבהיר, כמו בכהה) — הרקע הלבן שבקובץ הלוגו נבלע בו בלי multiply */
 :where(.stock-logo, .pie-leg-logo:not(.cash), .kc-logo:not(:empty)) {
   background: var(--gb-logo-bg) !important; box-shadow: var(--gb-sh) !important;
-  -webkit-backdrop-filter: var(--gb-fx) !important; backdrop-filter: var(--gb-fx) !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
 }
-:where(.stock-logo-img, .pie-leg-logo img, .kc-logo img) { mix-blend-mode: multiply; background: transparent !important; }
+:where(.stock-logo-img, .pie-leg-logo img, .kc-logo img) { background: transparent !important; }
 
 /* ---------- 6. משטחים שנשארו אטומים — אותה זכוכית של החלונות והגיליונות במערכת (--gl-panel + טשטוש) ----------
    (בקשת המשתמש: "שכל הממשק יהיה תואם לעיצוב הזכוכית". הכרטיסים, התפריט, החלונות והחיפוש כבר על --gl-card/--gl-panel;

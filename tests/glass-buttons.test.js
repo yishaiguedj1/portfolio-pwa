@@ -40,7 +40,7 @@ ok(/--gb-tone:\s*var\(--gb-force,\s*var\(--btn-c,\s*var\(--primary\)\)\)/.test(l
 ok(!/color:\s*var\(--gb-on\b/.test(layer) && /color:\s*var\(--gb-ontx, var\(--on-primary\)\)/.test(layer), 'צבע הטקסט בצבעוני — משתנה נפרד מהסימון --gb-on (אחרת color: 1 לא תקין)');
 ok(/data-app="admin"\][^{]*\{[^}]*#5E5CE6/.test(body), 'ניהול: הסגול של הניהול');
 
-ok(/:where\(\.stock-logo,[^{]*\{[^}]*--gb-logo-bg/.test(layer) && /stock-logo-img[^{]*\{[^}]*mix-blend-mode:\s*multiply/.test(layer), 'אריחי הלוגו בזכוכית, הרקע הלבן של הלוגו נבלע (multiply)');
+ok(/:where\(\.stock-logo,[^{]*\{[^}]*--gb-logo-bg[^}]*backdrop-filter:\s*none/.test(layer) && !/mix-blend-mode/.test(layer), 'אריחי הלוגו: בלי טשטוש ובלי מיזוג (31/10 — הדף נעלם אחרי נחיתה בטלפון)');
 ok(/\[data-theme="dark"\][^{]*\{[^}]*--gb-logo-bg:\s*linear-gradient\(180deg, rgba\(255, 255, 255, \.9\)/.test(body), 'כהה: אריח לוגו בהיר — לוגו כהה לא נעלם');
 
 ok(/:where\(\.login-card, \.lib-sheet, \.kc-sheet\)\s*\{[^}]*--gl-panel/.test(layer), 'המשטחים שנשארו אטומים — זכוכית החלונות (--gl-panel)');

@@ -4,6 +4,8 @@
   python3 tools/vid-scan.py <קובץ.mp4> [--fps 60]
 
   HOLE <זמן> [רצועות] — פריים שבו המרקם ברצועה צונח מתחת ל־45% מהשכנים (פריים שחור/לבן/ריק — שכבה שלא נצבעה)
+  EMPTY <מ>-<עד> (משך) — אמצע המסך (30%–85% מהגובה) כמעט אחיד בסף קבוע: דף ריק, גם כשהוא נמשך שניות
+                           (HOLE משווה לחציון השכנים — ריק ארוך גורר את החציון ונעלם; נוסף 31/10/2026, סבב 7)
   POP  <זמן> [רצועות] — שינוי חד באזור כשלפני ואחרי המסך שקט (תוכן מאוחר, "רענון", קפיצה)
 אחרי כל ממצא — לחתוך ולראות: ffmpeg -ss <t-0.05> -t 0.2 -i <קובץ> -vf "fps=60,scale=150:-1,tile=12x1" -frames:v 1 out.png
 POP שנגרם ממגע (טולטיפ, לחיצה) הוא לא באג — רואים את נקודת המגע בחיתוך. דורש ffmpeg ו־numpy.
@@ -46,6 +48,19 @@ def pops(fr, fps, bands=12, top=4):
     return out
 
 
+def empties(fr, fps, thr=14):
+    h = fr.shape[1]
+    sd = fr[:, int(h * .3):int(h * .85)].std(axis=(1, 2))
+    out, run = [], None
+    for i, v in enumerate(list(sd) + [99.0]):
+        if v < thr and run is None:
+            run = i
+        elif v >= thr and run is not None:
+            out.append((run / fps, i / fps))
+            run = None
+    return out
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__)
@@ -54,7 +69,10 @@ def main():
     fps = int(sys.argv[sys.argv.index('--fps') + 1]) if '--fps' in sys.argv else 60
     for t, b in holes(frames(path, fps, 36, 78), fps):
         print(f'HOLE {t:.3f}s {b}')
-    for t, b in pops(frames(path, 30, 72, 157), 30):
+    fr30 = frames(path, 30, 72, 157)
+    for a, b in empties(fr30, 30):
+        print(f'EMPTY {a:.2f}-{b:.2f}s ({round((b - a) * 1000)}ms)')
+    for t, b in pops(fr30, 30):
         print(f'POP  {t:.2f}s {b}')
 
 
