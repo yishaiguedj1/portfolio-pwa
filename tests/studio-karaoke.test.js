@@ -43,7 +43,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(JSON.stringify(ETA.KA_STG) === JSON.stringify(N.KA_STG) && JSON.stringify(ETA.KA_BV) === JSON.stringify(N.KA_BV), 'KA_STG ו־KA_BV זהים');
   { const a = N.kaPlan({ s: {} }, 240), b = N.kaPlan({ s: {} }, 240, true), c = ETA.kaPlan({ s: {} }, 240, true);
     const tr = N.KA_STG.tr[0] + N.KA_STG.tr[1] * 4, tb = tr + N.KA_BV[0] + N.KA_BV[1] * 4;
-    ok(a.s.tr === tr && b.s.tr === tb && c.s.tr === b.s.tr && tr === 780 && tb === 780 + 970, '31/10: ה־prior לפי המדידה — שיר של 4 דק׳: הפרדה 13 דק׳, עם קולות רקע עוד כ־16'); }
+    ok(a.s.tr === tr && b.s.tr === tb && c.s.tr === b.s.tr && tr === 860 && tb === 860 + 240, '31/10: ה־prior לפי השרת — שיר של 4 דק׳: הפרדה כ־14 דק׳, עם קולות רקע עוד 4'); }
   /* 31/10/2026: הצפי לומד — המאגר של הקריוקי נפרד מזה של התרגום */
   {
     const stg = (tr, al, bn, sv) => { let t = 1e6; const o = {}; for (const [k, v] of [['tr', tr], ['al', al], ['bn', bn], ['sv', sv]]) { o[k] = { s: t, e: t + v * 1000 }; t += v * 1000; } return o; };

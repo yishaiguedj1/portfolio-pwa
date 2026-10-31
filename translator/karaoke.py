@@ -30,8 +30,10 @@ KAR_DEFAULT = os.environ.get('SNB_KA_KAR') or 'bs_roformer_karaoke_anvuew.ckpt'
 MODEL_DIR = os.environ.get('SNB_KA_MODELS') or '/opt/separator'
 # שניות חישוב לשניית שיר במעבר אחד, 4 ליבות (נמדד 31/10/2026) — רק היחס ביניהם חשוב (משקל בפס ההתקדמות)
 PASS_W = {'vocals_mel_band_roformer.ckpt': 2.75, 'bs_roformer_karaoke_anvuew.ckpt': 3.6}
-OV_DEFAULT = 2          # נקבע במדידה (docs/studio-karaoke-he.md, "מהירות ההפרדה")
-BV1_DEFAULT = False
+# נקבעו במדידה (31/10/2026, docs/studio-karaoke-he.md "מהירות ההפרדה"): overlap 1 = אותה איכות (±0.1 dB), פי ~1.9 מהר;
+# מעבר אחד של karaoke על השיר = אותו ליווי ואותו קול ראשי כמו Kim ואחריו karaoke (±0.05 dB), בלי המעבר של Kim
+OV_DEFAULT = 1
+BV1_DEFAULT = True
 # audio-separator מותקן בנפרד מ־/opt/vt (requirements-karaoke.lock) — בסוף הנתיב, כך שהספריות של העובד גוברות
 SEP_DEPS = os.environ.get('SNB_KA_DEPS') or '/opt/sepdeps'
 if os.path.isdir(SEP_DEPS) and SEP_DEPS not in sys.path:

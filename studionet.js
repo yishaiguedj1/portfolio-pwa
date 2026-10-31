@@ -146,8 +146,8 @@ export function subsPlan(pl) {
 }
 /* 26/10/2026: קריוקי — = kaPlan ב־ibkr-proxy/lib/studioeta.js (אותם KA_STG/KA_BV): הפרדה, יישור וצריבה, בלי תרגום וביקורת.
    31/10/2026: mdl = המודל הנלמד מהשרתון (status.eta.k — [a, b] לכל שלב, tb = הפרדה עם קולות רקע); בלי — ה־prior */
-export const KA_STG = { tr: [60, 180], al: [40, 30], bn: [30, 40], sv: [20, 2] };
-export const KA_BV = [30, 235];
+export const KA_STG = { tr: [60, 200], al: [40, 30], bn: [30, 40], sv: [20, 2] };
+export const KA_BV = [0, 60];
 const KA_ST = ['tr', 'al', 'bn', 'sv', 'tb'];
 export function kaMdlOk(m) { return !!(m && m.st && KA_ST.every((k) => Array.isArray(m.st[k]) && m.st[k].length === 2 && m.st[k].every((v) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1e5))); }
 export function kaPlan(pl, durSec, bv, mdl) {
