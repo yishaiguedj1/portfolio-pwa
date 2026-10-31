@@ -161,7 +161,7 @@ const INIT2 = `(() => {
     if (keep) { const d = path.join(OUT, String(results.length).padStart(3, '0') + '-' + name.replace(/[^\w֐-׿-]+/g, '_')); fs.mkdirSync(d, { recursive: true }); frames.forEach((f, i) => { try { fs.renameSync(f.f, path.join(d, 'f' + String(i).padStart(3, '0') + '-' + Math.round(f.t - ft0) + '.jpg')); } catch (e) {} }); }
     else frames.forEach((f) => { try { fs.unlinkSync(f.f); } catch (e) {} });
     if (SNOW) { const miss = await page.evaluate((ex) => { const out = []; document.querySelectorAll('button, [role=button]').forEach((b) => { const r = b.getBoundingClientRect(); if (r.width < 4 || r.height < 4 || r.bottom < 0 || r.top > innerHeight) return;
-        const cs = getComputedStyle(b); if (cs.visibility === 'hidden' || +cs.opacity === 0) return; const cl = [...b.classList]; if (cl.some((c) => ex.includes(c))) return;
+        const cs = getComputedStyle(b); if (cs.visibility === 'hidden' || +cs.opacity === 0) return; const cl = [...b.classList]; if (cl.some((c) => ex.includes(c))) return; if (b.closest('.an-seg, .kc-seg, .mg-seg, .st-seg2, .adm-seg, .fb-seg, .rd-seg') && !b.matches('.on, .active, [aria-pressed="true"]')) return;
         if (/snow-cap/.test(cs.backgroundImage)) return; const ch = b.querySelector('.tab-disc, i'); if (ch && /snow-cap/.test(getComputedStyle(ch).backgroundImage)) return;
         out.push((cl.join('.') || '(בלי מחלקה)') + ' «' + (b.getAttribute('aria-label') || b.textContent || '').trim().slice(0, 24) + '» ' + (b.parentElement ? b.parentElement.className.toString().split(' ')[0] : '')); }); return out; }, SNOW_EXEMPT);
       miss.forEach((k) => { if (!snowMiss.has(k)) snowMiss.set(k, name); });

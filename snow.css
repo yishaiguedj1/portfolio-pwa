@@ -121,7 +121,7 @@ html[data-app="admin"] :where(.adm-tab.on i, .adm-seg-b.on, .adm-btn, .adm-seg .
 }
 
 /* @snow-exempt — לא כפתורים במראה (נשארים כמו שהם):
-   שורות/פריטי רשימה/כרטיסים: ac-lens ac-person ac-step ac-tile ac-track adm-live adm-top an-key an-rcard an-row an-fact bk-card card col-card ft-row gb-row
+   שורות/פריטי רשימה/כרטיסים: adm-r ac-lens ac-person ac-step ac-tile ac-track adm-live adm-top an-key an-rcard an-row an-fact bk-card card col-card ft-row gb-row
      ios-row ios-row-btn lib-cont lib-item lib-opt lib-row mg-opt mg-row rd-fontrow reset-cancel reset-open reset-opt row-link src-opt acx-opt st-alr st-al-row
      st-banner st-filecard st-fnd st-l st-lk-rec st-newcard st-proj st-row st-twcard st-tower stock-head kc-li kc-wr kc-tg kc-fly-i kc-tcell st-pl-mr st-qa-b mg-pc mg-sc
    מתגי הפעלה (מתג iOS): adm-sw ib-sw lib-sw pfbk-sw
@@ -129,5 +129,5 @@ html[data-app="admin"] :where(.adm-tab.on i, .adm-seg-b.on, .adm-btn, .adm-seg .
      mg-snack-b ac-retry st-dp-up st-nsb st-pl-chb kc-tfpick kc-symbtn mg-tb sf-clear tr-tog
    דוגמיות צבע, תגיות ואזורי מגע: tr-dot kc-col kc-swatch st-sty kc-ctag kc-star rd-ribbon an-grab st-vl-main
    מעטפות שהכדור שלהן הוא ילד (.tab → .tab-disc, .adm-tab → i): tab adm-tab
-   פריטי סגמנט שאינם נבחרים (המסילה): adm-seg-b mg-seg-b st-seg-b kc-seg-b lang-opt theme-opt
+   פריטי סגמנט שאינם נבחרים (המסילה): adm-seg-b mg-seg-b st-seg-b kc-seg-b lang-opt theme-opt (וכל כפתור לא נבחר בתוך an-seg / kc-seg / mg-seg / st-seg2 / adm-seg / fb-seg / rd-seg)
    (במלאי: tools/btn-inventory.js) */
