@@ -1001,6 +1001,17 @@ export function jobPhase(rec, run) {
   if (!upDone) return run && run.need ? 'need' : 'paused';
   return rec.up.started ? 'queued' : 'ready';
 }
+/* 1/11/2026 (צילום מהטלפון: "עלו 70MB מתוך 99MB · ממשיך כשההעלאה חוזרת", וההתראה של Background Fetch תקועה ב־0%): כשהעבודה
+   כבר רצה בשרת (הקול עלה), jobPhase מחזיר queued/running לפני שבודק את הסרטון — ולכן העלאה שנעצרה (Background Fetch שנתקע
+   ובוטל, דף שנטען מחדש בלי הרשאה לקובץ) נשארה בלי כפתור ובלי המשך. upHalt: הסרטון מהטלפון הזה לא הסתיים ואין העלאה פעילה —
+   'need' (צריך לבחור שוב) / 'paused' (אפשר להמשיך) / '' */
+export function upHalt(rec, run) {
+  const up = rec && rec.up, s = rec && rec.srv ? rec.srv.state : 'new';
+  if (!up || up.v.done || up.noAudio || up.link || up.ext || up.ph || !rec.fp) return '';
+  if (s !== 'queued' && s !== 'running') return '';
+  if (run && run.active) return '';
+  return run && run.need ? 'need' : 'paused';
+}
 
 /* 26/10/2026: מה להגיד כשאין רשת בדף העבודה — רק כשהעבודה כבר בשרת (ההעלאה מהטלפון מציגה "מחכים לחיבור" משלה) */
 export function offlineNote(rec, run, offline) {
@@ -2106,6 +2117,11 @@ async function resumeJob(id, byUser) {
     return;
   }
   startRun(id, file);
+}
+/* 1/11/2026: חזרה לאפליקציה — העלאה של סרטון שנעצרה בזמן שהעבודה כבר רצה ממשיכה לבד (ידית עם הרשאה / Background Fetch
+   שעוד רץ); אחרת המסך מראה "לבחור שוב" (upHalt) */
+function upRevive() {
+  for (const rec of store.jobs) { const r = runs.get(rec.id); if (upHalt(rec, r) === 'paused' && !(r && r.phase === 'error')) resumeJob(rec.id, false); }   // שגיאה — רק בכפתור
 }
 function repickFor(id) {           // "בחרו שוב את הסרטון" — אותו קובץ בדיוק, וממשיכים מאיפה שעצרנו
   const rec = jobRec(id); if (!rec) return;
@@ -8607,7 +8623,9 @@ function pageJob(p) {
     // כרטיס העצירה כבר אומר מה קרה   // שאלה פתוחה — כרטיס השאלה הוא "מה קורה עכשיו"
   // פעולה לפי המצב: בחירה חוזרת / המשך / נסיון חוזר / התחלה
   const acts = [];
-  if (ph0 === 'need') acts.push(btn('st-btn wide', T('studioRepickBtn'), () => repickFor(id), 'repick'));
+  const uh = upHalt(rec, run0);
+  if (uh) acts.push(uh === 'need' ? btn('st-btn wide', T('studioRepickBtn'), () => repickFor(id), 'repick') : btn('st-btn wide', T('studioResume'), () => resumeJob(id, true), 'resume'));
+  else if (ph0 === 'need') acts.push(btn('st-btn wide', T('studioRepickBtn'), () => repickFor(id), 'repick'));
   else if (ph0 === 'paused' || ph0 === 'error') acts.push(btn('st-btn wide', ph0 === 'error' ? T('studioRetry') : T('studioResume'), () => resumeJob(id, true), 'resume'));
   else if (ph0 === 'ready' && rec.up.wait === 'conn_missing') acts.push(btn('st-btn wide', T('studioConnectNow'), () => go('eng'), 'connect-now'));
   // v367: מתג החירום פעיל — "להחזיר" במסך המגדל; מצב מעל המקסימום — "להתחיל בכל זאת"
@@ -9680,7 +9698,7 @@ export function openStudio(opt) {
   if (!window._stVis) {                    // חזרה לאפליקציה: מסך דולק שוב (אם מעלים) ומעקב מחדש
     window._stVis = true;
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') { if (wlWant) wakeOn(); if (root) pollNow(); }
+      if (document.visibilityState === 'visible') { if (wlWant) wakeOn(); if (root) pollNow(); upRevive(); }
       else { clearTimeout(pollT); pollT = 0; watchFlush(); uxFlush(); fnlFlush(); }   // מ׳3: מה שנאסף נשלח לפני שהאפליקציה יורדת לרקע
     });
     window.addEventListener('pagehide', () => { watchFlush(); uxFlush(); fnlFlush(); });   // 25/10/2026: גם כשהדף נסגר / נהרג
