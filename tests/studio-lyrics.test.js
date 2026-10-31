@@ -52,8 +52,18 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const s = await net.lyricsSearch('Song Close', 200);
   ok(s.ok && s.list.length && url.startsWith(N.LRC_API + '?q=Song%20Close'), 'החיפוש פונה ל־LRCLIB עם השאילתה בלבד');
   ok((await net.lyricsSearch(' a ', 0)).error === 'short', 'שאילתה קצרה מדי — בלי פנייה');
-  const bad = N.createNet({ fetch: async () => { throw new Error('x'); }, base: () => '', idToken: async () => '' });
-  ok((await bad.lyricsSearch('abc', 0)).error === 'net', 'תקלת רשת = קוד, בלי זריקה');
+  const bad = N.createNet({ fetch: async () => { throw new Error('x'); }, base: () => '', idToken: async () => '', online: () => false });
+  ok((await bad.lyricsSearch('abc', 0)).error === 'net', 'תקלת רשת (המכשיר לא מחובר) = קוד, בלי זריקה');
+  /* 31/10/2026: LRCLIB נפל (502 בלי CORS → הדפדפן זורק) והמכשיר מחובר — לא "בדקו את החיבור": מנסים שוב כמו עמוס */
+  let nc = 0;
+  const down = N.createNet({ fetch: async () => { nc++; if (nc < 3) throw new TypeError('Failed to fetch'); return { ok: true, status: 200, json: async () => raw }; }, base: () => '', idToken: async () => '', online: () => true });
+  ok((await down.lyricsSearch('Song Close', 200, async () => {})).ok && nc === 3, 'שגיאת רשת כשמחוברים — ניסיון חוזר ומצליחים');
+  /* 01/11/2026: הזדהות ב־Lrclib-Client; אם הכותרת נחסמת (שגיאת רשת) — הניסיון הבא בלעדיה */
+  const hs = [];
+  const hdr = N.createNet({ fetch: async (u, o) => { hs.push(!!(o && o.headers && o.headers['Lrclib-Client'])); if (hs.length === 1) throw new TypeError('cors'); return { ok: true, status: 200, json: async () => raw }; }, base: () => '', idToken: async () => '', online: () => true });
+  ok((await hdr.lyricsSearch('Song Close', 200, async () => {})).ok && hs.join() === 'true,false' && /THE SNOWBALL/.test(N.LRC_CLIENT), 'Lrclib-Client בניסיון הראשון, ובלעדיו אחרי שגיאת רשת');
+  const dead = N.createNet({ fetch: async () => { throw new TypeError('Failed to fetch'); }, base: () => '', idToken: async () => '', online: () => true });
+  ok((await dead.lyricsSearch('Song Close', 200, async () => {})).error === 'busy', 'נפל כל הזמן — "לא עונה", לא "בדקו את החיבור"');
 
   /* 30/10/2026: LRCLIB עמוס (503) — ניסיון חוזר לפי Retry-After, ואז 'busy' */
   ok(N.lrcWait(503, '2', 1) === 2000 && N.lrcWait(429, '', 2) === 3000 && N.lrcWait(503, '60', 1) === 6000 && N.lrcWait(503, '0', 1) === 1500, 'המתנה לפי Retry-After, בין 1 ל־6 שנ׳');

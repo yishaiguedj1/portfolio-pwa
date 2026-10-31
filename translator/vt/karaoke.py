@@ -110,6 +110,58 @@ def _parse(text: str):
     return out, sg, any_tag
 
 
+# 01/11/2026: בלי מילים (LRCLIB לא עונה או לא מכיר את השיר) — טיוטת מילים מתמלול הקול המופרד. השורות נשברות בהפסקה
+# בשירה, בסוף משפט או אחרי DRAFT_MAXW מילים. מילה שנשמעת בקטע כמעט שקט = הזיה של המודל (Whisper "ממציא" בשקט) — יורדת.
+DRAFT_GAP = 0.6       # שנ׳ של הפסקה ששוברת שורה
+DRAFT_MAXW = 8        # מילים לשורה לכל היותר
+DRAFT_MINW = 2        # שורה לא נשברת לפני כך (חוץ מהפסקה ארוכה)
+GATE_DB = -26.0       # מילה בעוצמה נמוכה מזה ביחס לשירה (אחוזון 95) — לא נשמעה באמת
+_EDGE = re.compile(r"^[\s.,!?;:…\"“”„()\[\]{}\-–—]+|[\s.,!?;:…\"“”„()\[\]{}\-–—]+$")
+
+
+def gate(words: list[dict], audio, sr: int = 16000) -> list[dict]:
+    """רק המילים שנשמעות בקול המופרד (עוצמה מעל GATE_DB מתחת לשירה הרגילה)."""
+    import numpy as np
+    a = np.asarray(audio, dtype=np.float32)
+    if a.ndim > 1:
+        a = a.mean(axis=1)
+    hop = max(1, int(sr * 0.05))
+    n = len(a) // hop
+    if n < 2:
+        return list(words)
+    rms = np.sqrt((a[: n * hop].reshape(n, hop) ** 2).mean(axis=1) + 1e-12)
+    ref = float(np.percentile(rms, 95)) or 1e-6
+    lim = ref * 10 ** (GATE_DB / 20)
+    out = []
+    for w in words:
+        i, j = int(float(w["s"]) * sr / hop), int(float(w["e"]) * sr / hop) + 1
+        if i < n and float(rms[i:min(n, max(j, i + 1))].max()) >= lim:
+            out.append(w)
+    return out
+
+
+def draft_lines(words: list[dict]) -> list[str]:
+    """מילים מתוזמנות → שורות טקסט (טיוטת המילים). בלי פיסוק בקצוות, בלי לולאות של מודל (אותה מילה 4+ פעמים ברצף)."""
+    lines, cur, prev, rep = [], [], None, 0
+    for w in words:
+        txt = _EDGE.sub("", _CTRL.sub("", str(w.get("w") or ""))).strip()
+        if not norm(txt):
+            continue
+        rep = rep + 1 if prev is not None and norm(txt) == norm(prev["w"]) else 0
+        if rep >= 3:
+            continue
+        if cur and (float(w["s"]) - float(prev["e"]) >= DRAFT_GAP * (1 if len(cur) >= DRAFT_MINW else 3)
+                    or len(cur) >= DRAFT_MAXW
+                    or (len(cur) >= 3 and str(prev.get("raw", "")).rstrip()[-1:] in ".?!")):
+            lines.append(" ".join(cur))
+            cur = []
+        cur.append(txt)
+        prev = {"w": txt, "e": w["e"], "raw": w.get("w") or ""}
+    if cur:
+        lines.append(" ".join(cur))
+    return lines
+
+
 def anchor(lines: list[list[str]], asr: list[dict]) -> list[dict]:
     """לכל מילה מהשיר — זמן משוער מהתמלול של הקול המופרד (התאמת רצפים). מילה שהתמלול לא שמע: באמצע בין העוגנים
     שלפניה ואחריה, לפי האורך; לפני העוגן הראשון / אחרי האחרון — WORD_S למילה. המיישר מתקן אחר כך."""

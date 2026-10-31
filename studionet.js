@@ -508,6 +508,7 @@ export function goldCompare(hypText, refText) {
 /* 26/10/2026: מילים לקריוקי מ־LRCLIB (מאגר פתוח, בלי מפתח, CORS פתוח) — ישירות מהטלפון, רק שם השיר יוצא.
    התשובה = טקסט מאתר חיצוני: רק שדות מוכרים, אורך מוגבל, ומוצג/נכנס לשדה רק כטקסט */
 export const LRC_API = 'https://lrclib.net/api/search';
+export const LRC_CLIENT = 'THE SNOWBALL Studio (https://studio.thesnowball.app)';
 const LRC_MAX = 8000;   // = KA_LYR_MAX
 const LRC_CTL = /[\u0000-\u0008\u000b-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
 const lrcStr = (v, n) => String(v == null ? '' : v).replace(LRC_CTL, '').replace(/\r\n?/g, '\n').slice(0, n);
@@ -1122,6 +1123,7 @@ export function createNet(env) {
   /* מילים לשיר (LRCLIB) — 8 שנ׳ לכל ניסיון; תקלה = רשימה ריקה עם קוד. 30/10/2026: LRCLIB עונה הרבה 503 "עמוס"
      (בבדיקה: 5 מתוך 6 בקשות רצופות) — ניסיונות חוזרים לפי lrcWait עד LRC_BUDGET_MS, ואז error 'busy'.
      onBusy — נקרא לפני כל המתנה (הטופס מראה "ממשיכים לנסות"). תקלת רשת אמיתית (בלי אינטרנט) — מיד 'net' */
+  let lrcHdr = true;
   async function lyricsSearch(qs, dur, wait = (ms) => new Promise((r) => setTimeout(r, ms)), onBusy) {
     const qq = String(qs || '').trim().slice(0, 120);
     if (qq.length < 2) return { ok: false, error: 'short', list: [] };
@@ -1132,12 +1134,19 @@ export function createNet(env) {
       const tm = ctl ? setTimeout(() => ctl.abort(), 8000) : 0;
       let r, st;
       try {
-        r = await E.fetch(LRC_API + '?q=' + encodeURIComponent(qq), ctl ? { signal: ctl.signal } : {});
+        // 01/11/2026: הזדהות (התיעוד של LRCLIB: כ־90 בקשות בדקה במקום 45; בדפדפן — Lrclib-Client במקום User-Agent).
+        // כותרת = בקשת preflight; אם השרת שלהם לא מתיר אותה (שגיאת רשת) — מכאן והלאה בלעדיה
+        const hd = lrcHdr ? { headers: { 'Lrclib-Client': LRC_CLIENT } } : {};
+        r = await E.fetch(LRC_API + '?q=' + encodeURIComponent(qq), Object.assign(hd, ctl ? { signal: ctl.signal } : {}));
         if (r.ok) return { ok: true, list: lrcResults(await r.json(), dur || 0, qq) };
         st = r.status;
       } catch (e) {
-        if (!(e && e.name === 'AbortError')) return { ok: false, error: 'net', list: [] };
-        st = 0;   // פסק זמן — השרת שלהם לא עונה, כמו "עמוס"
+        // 31/10/2026 (הצילום: "בדקו את החיבור" כשהרשת תקינה): LRCLIB נפל (502) ודף השגיאה שלו בלי CORS — הדפדפן זורק
+        // שגיאת רשת. רק כשהמכשיר באמת לא מחובר — 'net'; אחרת = השרת שלהם לא עונה, כמו "עמוס" (ממשיכים לנסות)
+        const off = typeof E.online === 'function' ? !E.online() : typeof navigator !== 'undefined' && navigator.onLine === false;
+        if (lrcHdr && !off && !(e && e.name === 'AbortError')) lrcHdr = false;   // אולי הכותרת — הניסיון הבא בלעדיה
+        if (off && !(e && e.name === 'AbortError')) return { ok: false, error: 'net', list: [] };
+        st = 0;   // פסק זמן / נפילה — השרת שלהם לא עונה, כמו "עמוס"
       } finally { if (tm) clearTimeout(tm); }
       const ms = lrcWait(st, r && r.headers && typeof r.headers.get === 'function' ? r.headers.get('retry-after') : '', n, waited + Date.now() - t0);
       if (ms < 0) return { ok: false, error: [503, 502, 504, 429, 0].includes(st) ? 'busy' : 'http_' + st, list: [] };
