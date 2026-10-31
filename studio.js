@@ -3277,7 +3277,9 @@ function pageForm(p, editing) {
     // 25/10/2026: השורה הראשונה בקבוצת המקורות (לא כרטיס נפרד) — בולטת, וממנה ישר לבורר
     // 29/10/2026 (הצילום: 1:20 ש׳ מחכים להעלאה מהדפדפן): עם Studio לאנדרואיד — הבחירה דרך האפליקציה. הסרטון לא עולה מהדפדפן
     // (שקופא ברקע): האפליקציה מעלה את הקול, מודדת, ומעלה את הסרטון לענן ברקע (UIDT) — והעבודה לא מחכה לו
-    card = btn('st-row st-ric st-pickrow', null, phOk() && !f.ka ? phPick : pick, 'file');
+    // 31/10/2026 (בקשת המשתמש: "לא בחרתי הכל בטלפון אלא תרגום רגיל על השרת"): הבחירה הראשית שוב מהדפדפן — הסרטון עולה ל־R2
+    // במלואו, השרת צורב, והתוצאה באיכות המלאה להורדה. עבודת טלפון (phPick) — רק כשבוחרים בה במפורש (phRow)
+    card = btn('st-row st-ric st-pickrow', null, pick, 'file');
     const plus = h('span', 'st-plus'); plus.append(ico('film'));
     card.append(plus, f.ka ? rowTxt(T('studioKaPick'), T('studioKaPickS')) : rowTxt(T('studioPick'), T('studioNewSub')), ico('chev', 'st-chev'));
   }
@@ -3296,7 +3298,8 @@ function pageForm(p, editing) {
     const linkRow = devDl() || ui.url ? rowNav({ tile: tile('link', 'red'), label: T('studioLinkRow'), sub: devDl() ? T('studioLinkRowS') : T('studioLinkRowSCloud'), onClick: () => go('link'), k: 'link' }) : null;
     // 24/10/2026: תרגום בטלפון — הסרטון לא עוזב את הטלפון (Studio לאנדרואיד בוחר, מודד, מעלה רק את הקול וצורב בסוף)
     // 29/10/2026: הבחירה הראשית כבר דרך האפליקציה — כאן הדרך הישנה, מהדפדפן (חיתוך לפני התרגום, כתוביות שבתוך הקובץ)
-    const phRow = phOk() && !f.file ? rowNav({ tile: tile('globe', 'gray'), label: T('studioPickWeb'), sub: T('studioPickWebS'), onClick: pick, k: 'web-pick' }) : null;
+    // 31/10/2026: הפוך — הבחירה הראשית מהדפדפן (תרגום וצריבה בשרת), וכאן הבחירה המפורשת בתרגום בטלפון דרך האפליקציה
+    const phRow = phOk() && !f.file && !f.ka ? rowNav({ tile: tile('spark', 'gray'), label: T('studioPickPh'), sub: T('studioPickPhS'), onClick: phPick, k: 'ph-pick' }) : null;
     // 25/10/2026 (שלב 2): גם התמלול, הדוברים והיישור בטלפון — הקול לא עוזב אותו. פעם ראשונה: הורדת המודלים (Wi‑Fi)
     const pwRow = f.ph ? rowSwitch({ label: T('studioPhPw'), sub: T('studioPhPwS'), on: f.pw === true, onClick: () => { f.pw = f.pw !== true; render('none'); }, k: 'ph-pw' }) : null;   // 30/10/2026 (בקשת המשתמש): כבוי כברירת מחדל
     // 25/10/2026 (בקשת המשתמש — "נקי ומסודר לפי ת־עיצוב"): כל המקורות בקבוצה אחת, במקום שלוש קבוצות נפרדות
