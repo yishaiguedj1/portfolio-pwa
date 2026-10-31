@@ -6974,8 +6974,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.94.5';
-const APP_VERSION = 'v655';
+const APP_RELEASE = '2.94.7';
+const APP_VERSION = 'v657';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -10031,7 +10031,10 @@ function tabPrewarm() {
         const pg = n && tabDirty[n] && document.getElementById('tab-' + n);
         if (!pg || pg.classList.contains('cube-in') || pg.classList.contains('active')) continue;
         const css = pg.style.cssText;
-        pg.style.cssText = css + ';position:fixed;top:0;left:' + r.left + 'px;width:' + r.width + 'px;visibility:hidden;pointer-events:none';
+        // 31/10/2026 (סבב קפיצות 6, ש2 — שתי הקלטות מהטלפון): ~300ms אחרי נחיתה (= רגע החימום: 700ms מהשחרור) העמוד הגלוי
+        // נעלם ונשאר ריק עד הנגיעה הבאה. העמוד המחומם — מוצמד, בגובה כל הדף ומעל הגלוי — שינה את סידור השכבות של מה שעל המסך.
+        // עכשיו הוא מחומם מתחת למסך (top: 100vh): אותו רוחב (מידות אמיתיות לגרפים), בלי חפיפה עם שום דבר גלוי
+        pg.style.cssText = css + ';position:fixed;top:100vh;left:' + r.left + 'px;width:' + r.width + 'px;visibility:hidden;pointer-events:none';
         pg._prewarmCss = css;
         pg.classList.add('cube-in', 'prewarm');
         tabPageRender(n);
@@ -15890,6 +15893,21 @@ const CARD_ANIM_MS = 600;
 const CARD_SPRING_W = 8;
 const cardEase = (p) => { if (p <= 0) return 0; if (p >= 1) return 1; const w = CARD_SPRING_W, f = (x) => 1 - (1 + w * x) * Math.exp(-w * x); return f(p) / f(1); };
 function finishCardAnim() { if (state.cardAnim) state.cardAnim.finish(); }
+// 31/10/2026 (בקשת המשתמש, צילום: הכרטיס הפתוח צריך לעמוד מתחת להדר — "לא נמוך יותר", אחרת הטשטוש של החוגה מכסה את תחתיתו):
+// בטלפון, עם רשת אמיתית, תוכן שנטען אחרי האנימציה (מחירים, ציור מחדש של הרשימה/הגרף) הזיז את הכרטיס למטה. לכן אחרי הפתיחה
+// מחזיקים את ראש הכרטיס מתחת להדר עוד כ־3 שניות — כל עוד המשתמש לא נגע/גלל (אותו עיקרון כמו pin ב־openStockCard).
+function holdCardTop(sym) {
+  if (typeof window === 'undefined' || !window.addEventListener || typeof setTimeout !== 'function') return;
+  let touched = false;
+  const evs = ['touchstart', 'wheel', 'mousedown', 'keydown'];
+  const stop = () => { touched = true; };
+  for (const ev of evs) window.addEventListener(ev, stop, { once: true, passive: true });
+  const pin = (last) => {
+    if (!touched && state.open[sym] && !state.cardAnim) { const c = stockCardEl(sym); if (c && c.isConnected) scrollCardToTop(c); }
+    if (last) for (const ev of evs) window.removeEventListener(ev, stop);
+  };
+  [350, 900, 1700, 3000].forEach((ms, i, a) => setTimeout(() => pin(i === a.length - 1), ms));
+}
 function cardAnimOffset() {
   return topCover() + 10;
 }
@@ -15966,6 +15984,7 @@ function toggleStock(sym, card) {
       for (const ev of evs) window.removeEventListener(ev, stopSteer);
       for (const it of items) { it.body.style.height = ''; it.card.classList.remove('anim'); }
       if (opening && state.open[sym] && fitCardToScreen(sym, card, true)) ensureChartData(sym, true);
+      if (opening && steer) holdCardTop(sym);
       if (state.liveDeferred && state.liveDeferred.size) { const m = [...state.liveDeferred]; state.liveDeferred.clear(); renderLive(m); }
     },
   };
