@@ -81,4 +81,11 @@ ok(/listSync\(list, out\)/.test(rs), 'renderStocks: הסידור דרך listSync
   ok(!/\.tabpage\.active \{ will-change/.test(css), 'styles: אין will-change קבוע לעמוד הפעיל');
   ok(/position:fixed;top:100vh;left:' \+ r\.left/.test(fn(app, 'tabPrewarm')), 'tabPrewarm: מחמם מתחת למסך (top: 100vh)');
 }
+{ // סבב 7 (01/11/2026): ההדר עוצר בזמן מעבר עמוד ועד 1.2 שנ׳ אחרי הנחיתה
+  const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
+  const run = fn(app, 'tabCubeRun');
+  ok(/tabHush\(true\)/.test(run) && /tabHush\(false\)/.test(run), 'tabCubeRun: hush בתחילה ובסוף');
+  ok(/classList\.remove\('hush'\), 1200\)/.test(fn(app, 'tabHush')), 'tabHush: חוזר אחרי 1200ms');
+  ok(/:is\(html\.calm, html\.hush\) \.appbar \.brand-art::before/.test(css), 'styles: hush עוצר גם את הפסאודו־אלמנטים (לא בתוך :is)');
+}
 console.log(n + ' בדיקות עברו');
