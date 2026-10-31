@@ -2,7 +2,7 @@
 // סבב כדור השלג בוטל לבקשתו — נשארה מעטפת הזכוכית בלבד).
 // 1. כל מחלקה של <button>/role=button בקוד (tools/btn-inventory.js) מופיעה ב־glass-btn.css — בזכוכית או ברשימת הפטורים (@glass-exempt).
 //    כפתור חדש עם מחלקה חדשה = להוסיף אותה ל־glass-btn.css (לרשימה המתאימה), או לפטור אותה שם עם סיבה (שורה/מתג/קישור טקסט/דוגמית).
-// 2. glass-btn.css בשכבה עם !important (גובר על כל !important של הרכיבים), בלי backdrop-filter, בלי שלג, ונטען בכל הדפים.
+// 2. glass-btn.css בשכבה עם !important (גובר על כל !important של הרכיבים), זכוכית שקופה עם טשטוש (כבוי בסיבוב הקובייה), בלי שלג, ונטען בכל הדפים.
 const fs = require('fs');
 const path = require('path');
 const root = path.join(__dirname, '..');
@@ -32,7 +32,7 @@ for (const c of ['icon-btn', 'fx-pill', 'btn', 'dlg-ok', 'chip-btn', 'range-btn'
 ok(/@layer glassbtn\s*\{/.test(body), 'glass-btn.css ב־@layer glassbtn');
 const layer = body.slice(body.indexOf('@layer glassbtn'));
 ok(/--gb-on:\s*1;\s*background:\s*var\(--gb-body\)\s*!important/.test(layer), 'החומר: גוף הזכוכית, !important, מסומן --gb-on');
-ok(/backdrop-filter:\s*none\s*!important/.test(layer), 'בלי backdrop-filter על הכפתורים');
+ok(/backdrop-filter:\s*var\(--gb-fx\)\s*!important/.test(layer) && /cube-face[^{]*\{[^}]*--gb-fx:\s*none/.test(body), "שקוף עם טשטוש, כבוי בסיבוב הקובייה");
 ok(!/::(before|after)/.test(layer), 'בלי ::before/::after');
 ok(!/snow|url\(/i.test(body), 'בלי שלג ובלי תמונות (בקשת המשתמש: רק הזכוכית)');
 ok(/\[data-theme="dark"\][^{]*\{[^}]*--gb-body:/.test(body), 'כהה: גוף משלו');
