@@ -256,6 +256,59 @@ def assign_singers(lines: list[dict], singers: list) -> None:
         ln["sg"] = singers[li] if singers and li is not None and li < len(singers) else None
 
 
+# 31/10/2026: זיהוי הזמרים כשאין סימון במילים — טביעת קול (vt/diarize, ‏WeSpeaker) על הקול המופרד ואשכול. הספים לשירה
+# נמדדו (docs/studio-karaoke-he.md, "זיהוי הזמרים"; MUSDB18: 8 סולו, 28 דואטים סינתטיים): בסף של הדיבור (0.68) שיר סולו
+# פוצל לשני זמרים ב־2 מתוך 8 — וצבעים שמתחלפים בשיר של זמר אחד גרועים מצבע אחד. 0.78: סולו 8/8, דואט 25/28, שורות 92%.
+SG_TH = 0.78          # מרחק קוסינוס לחיתוך העץ (בדיבור: diarize.THRESH)
+SG_MIN_SHARE = 0.15   # זמר עם פחות מזה מזמן השירה — מצורף לזמר של השורה הקודמת
+SG_MIN_S = 8.0        # ולפחות כך שניות שירה
+
+
+def auto_singers(lines: list[dict], wav: str, embed=None) -> list:
+    """מי שר כל שורה (timed_lines, לפי li) — 1..4 כמו parse_singers. זמר אחד, אין מודל או תקלה — [] (צבע אחד)."""
+    from . import diarize as D
+    try:
+        import soundfile as sf
+        if embed is None:
+            p = D.model_path()
+            if p is None:
+                return []
+            embed = D.Embedder(p)
+        audio, sr = sf.read(wav, dtype="float32")
+        if audio.ndim > 1:
+            audio = audio.mean(axis=1)
+        if sr != D.SR:
+            return []
+        words = [{"w": w["w"], "s": float(w["s"]), "e": float(w["e"]), "li": ln["li"]} for ln in lines for w in ln["words"]]
+        if not words or D.assign(words, audio, embed, SG_TH).get("speakers", 0) < 2:
+            return []
+    except Exception:                                 # זיהוי הזמרים לא מפיל קריוקי
+        return []
+    per: dict = {}                                    # לכל שורה: שניות שירה לכל זמר
+    for w in words:
+        d = per.setdefault(w["li"], {})
+        d[w["spk"]] = d.get(w["spk"], 0.0) + max(0.05, w["e"] - w["s"])
+    line_sg = {li: max(d, key=d.get) for li, d in per.items()}
+    tot: dict = {}
+    for li, d in per.items():
+        tot[line_sg[li]] = tot.get(line_sg[li], 0.0) + sum(d.values())
+    allt = sum(tot.values()) or 1.0
+    weak = {s for s, t in tot.items() if t < SG_MIN_SHARE * allt or t < SG_MIN_S}
+    prev = None
+    for li in sorted(line_sg):
+        if line_sg[li] in weak:
+            line_sg[li] = prev if prev is not None else max(tot, key=tot.get)
+        prev = line_sg[li]
+    order = list(dict.fromkeys(line_sg[li] for li in sorted(line_sg)))
+    if len(order) < 2:
+        return []
+    num = {s: min(4, k + 1) for k, s in enumerate(order)}
+    out: list = [None] * (max(line_sg) + 1)
+    for li, s in line_sg.items():
+        out[li] = num[s]
+    return out
+
+
 def states(shown: list[dict], wipe: bool) -> list[tuple[float, float, int, int, float, int]]:
     """(התחלה, סוף, שורה, מילה, כמה ממנה נשמע 0..1, שורה במסך). מילה שלמה — אחד לכל מילה (= events);
     לאורך המילה — בזמן שהמילה נשמעת, WIPE_FPS צעדים בשנייה (כל צעד מצויר פעם אחת בצריבה המהירה)."""

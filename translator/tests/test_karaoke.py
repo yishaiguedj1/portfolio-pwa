@@ -271,6 +271,68 @@ class Design(unittest.TestCase):
             self.assertEqual(len(b), len(b"P6 48 27 255\n") + 48 * 27 * 3)
 
 
+
+class AutoSingers(unittest.TestCase):
+    """31/10/2026: זיהוי הזמרים בלי סימון במילים — טביעת קול מזויפת (לפי עוצמת הקטע), השרשרת של diarize.assign אמיתית."""
+
+    class Emb:
+        def __call__(self, x):
+            import numpy as np
+            loud = float(np.abs(x).mean()) > 0.2
+            rng = np.random.default_rng(int(x.size) % 97)
+            v = (np.r_[0.0, 1.0] if loud else np.r_[1.0, 0.0]).repeat(8) + rng.normal(0, 0.05, 16)
+            return v / np.linalg.norm(v)
+
+    def run_song(self, amps):
+        import types
+        from unittest import mock
+        import numpy as np
+        sr, lines, sig = 16000, [], []
+        for li, a in enumerate(amps):                  # שורה = 8 מילים של 0.9 שנ׳ + שנייה שקט
+            t0 = li * 9.0
+            lines.append({"li": li, "words": [{"w": f"w{li}{k}.", "s": t0 + k, "e": t0 + k + 0.9} for k in range(8)]})
+            sig.append(np.full(int(8 * sr), a, np.float32))
+            sig.append(np.zeros(sr, np.float32))
+        audio = np.concatenate(sig)
+        sf = types.SimpleNamespace(read=lambda p, dtype=None: (audio, sr))   # בלי soundfile בסביבת הבדיקות
+        with mock.patch.dict(sys.modules, {"soundfile": sf}):
+            return K.auto_singers(lines, "v.wav", self.Emb())
+
+    def test_duet(self):
+        self.assertEqual(self.run_song([0.1] * 4 + [0.5] * 4 + [0.1] * 2), [1, 1, 1, 1, 2, 2, 2, 2, 1, 1])
+
+    def test_solo_and_weak_singer(self):
+        self.assertEqual(self.run_song([0.1] * 8), [])
+        self.assertEqual(self.run_song([0.1] * 9 + [0.5]), [])     # שורה אחת בקול אחר — פחות מהמינימום → זמר אחד
+
+    def test_failure_is_one_colour(self):
+        def boom(*a, **k):
+            raise OSError("no file")
+        import types
+        from unittest import mock
+        with mock.patch.dict(sys.modules, {"soundfile": types.SimpleNamespace(read=boom)}):
+            self.assertEqual(K.auto_singers([{"li": 0, "words": [{"w": "a", "s": 0, "e": 1}]}], "x.wav", self.Emb()), [])
+
+    def test_script_marked_lyrics_win(self):
+        import os
+        import tempfile
+        import types
+        from unittest import mock
+        import karaoke as KA
+        with tempfile.TemporaryDirectory() as d:
+            lyr = Path(d) / "l.txt"
+            a = types.SimpleNamespace(lyrics=str(lyr), voc="v.wav")
+            words = [{"w": "a", "li": 0, "s": 0.0, "e": 1.0}]
+            with mock.patch.object(K, "auto_singers", return_value=[1, 2]) as au:
+                lyr.write_text("[1]\nשלום\n[2]\nעולם\n", encoding="utf-8")
+                self.assertEqual(KA.singers(a, words), [])            # יש סימון — build לוקח ממנו
+                lyr.write_text("שלום\nעולם\n", encoding="utf-8")
+                self.assertEqual(KA.singers(a, words), [1, 2])
+                with mock.patch.dict(os.environ, {"SNB_KA_SG": "0"}):
+                    self.assertEqual(KA.singers(a, words), [])
+                self.assertEqual(au.call_count, 1)
+
+
 class SepCache(unittest.TestCase):
     """31/10/2026: מטמון ההפרדה — מפתח לפי תוכן ומצב, לכל היותר KA_CACHE_N שירים ו־KA_CACHE_TTL."""
     def test_cache(self):
