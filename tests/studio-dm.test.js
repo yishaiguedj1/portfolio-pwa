@@ -118,7 +118,7 @@ for (const [m, pkg] of [['bubble', 'studiodm'], ['studio', 'studiodm'], ['dm', '
 ok(/StudioRow\(a, f\.url, ref, cloudOk\(info\)\)/.test(ui) && /a\.toCloud\(url, ref\)/.test(ui), 'DM: "להוריד ולתרגם" ו"ישר לענן של Studio"');
 ok(/\^youtube/.test(ui) && /export const cloudBlocked = \(r\) => \/\^youtube\/i/.test(R('studio.js')), '"ישר לענן" לא מוצע ביוטיוב — אותו כלל של Studio');
 ok(/snb_to"\) == "cloud"\) "&to=cloud"/.test(R('android/app/src/main/java/io/github/yishaiguedj1/snowball/MainActivity.kt')) &&
-  /hashArg\('to', 10\) === 'cloud'/.test(R('studio-app.js')) && /want === 'cloud' && ui\.url \? 'cloud'/.test(R('studio.js')), 'to=cloud: מ־DM עד הבחירה בדף הקישור');
+  /hashArg\('to', 10\) === 'cloud'/.test(R('studio-app.js')) && /L\.to = ui\.url \|\| !devDl\(\) \? 'cloud' : 'dev';/.test(R('studio.js')), 'to=cloud: מ־DM עד הבחירה בדף הקישור');
 ok(/const val EXTRA_TO = "snb_to"/.test(route), 'אותו שם extra בשני הצדדים');
 ok(/FLAG_GRANT_READ_URI_PERMISSION/.test(route) && /setPackage\(STUDIO_PKG\)/.test(route), 'הקובץ ל־Studio — רק לחבילה שלנו ורק עם הרשאת קריאה לקובץ הזה');
 ok(fs.existsSync(path.join(ROOT, 'android/app/src/testDm/java/io/github/yishaiguedj1/snowball/dm/DmNetTest.kt')), 'בדיקת JVM לעוגיות בהפניה ולמגבלות');

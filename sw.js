@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v654';
+const CACHE_NAME = 'portfolio-pwa-v655';
 const HASHES = {
   "./": "90334e5c9a28c6406d157fd801169b90",
   "./index.html": "90334e5c9a28c6406d157fd801169b90",
   "./styles.css": "f5eb2e1c3e963841b9d1eca929615ef9",
-  "./app.js": "a6069078f7647aaed5d961b08d9e3520",
+  "./app.js": "97bb9c7c1f7097fcf2bcd4bf547fa92b",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "2cf2e330bfcc2c9150ba47b8f355982d",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -64,8 +64,8 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "d58a511fc759a629121b82ab47fe9a69",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
-  "./strings-academy.js": "105f45549a386f5490a675e5fe32dc47",
-  "./core.js": "ca82f7d767e00a3c7465195890f1bee5",
+  "./strings-academy.js": "153035c9e7a68f1859e47c72e006a429",
+  "./core.js": "9499a97b8cd9583a6604a16459f5a2bb",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "6b22a08dd74c16eefd740922596fb568",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -74,9 +74,9 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "c406c10a8fbde176afb6723d9e125748",
+  "./studio.js": "5d1b0a40ee426be8fa95e12102000b1a",
   "./studio.css": "29e654a7d2b6ba995737f7428ba1116d",
-  "./studionet.js": "4a177d5ff4aea52351ef5cff2f81050b",
+  "./studionet.js": "cf08fb54903fca8f651ad8e479d07153",
   "./studioplay.js": "f7a2c41fb9bbcee64b213822d3082a98",
   "./studiosubs.js": "65c3e22404cc9bfa5ea0b610a33f4633",
   "./studiotracks.js": "45a59e4cedc85da6950554bd2c56289e",
@@ -86,7 +86,7 @@ const HASHES = {
   "./studiobg.js": "9013d96cee956642e0735806ea1e60c3",
   "./studio.html": "e1a77d2576406429bad01f26fccf5d77",
   "./studio-app.js": "d2aaad29f3f46cc04426c93bdae1eb83",
-  "./strings-studio.js": "b4dcf415a6d4f332eab3016d719fb2d7",
+  "./strings-studio.js": "685f2883f01905cd13a4b53164e39629",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
