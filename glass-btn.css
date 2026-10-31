@@ -1,0 +1,134 @@
+/* ==== כפתורי זכוכית בכל המערכת + אריחי הלוגו והמשטחים שנשארו אטומים (31/10/2026, בקשת המשתמש) ====
+   לפי ת־עיצוב: זכוכית שקופה — רואים את מה שמאחור דרך טשטוש, מילוי לבן עדין, קו אור דק בשפה וצל רך (בקשת המשתמש: "יותר שקיפות").
+   כפתור צבעוני (ראשי / נבחר / הרסני) — זכוכית צבעונית חצי־שקופה בצבע שלו (--gb-tone). מרכז הניהול — סגול.
+   (סבב "כדור שלג" עם כיפת שלג נבדק בתצוגות מקדימות ובוטל לבקשת המשתמש — נשארה הזכוכית בלבד.)
+
+   איך זה בנוי:
+   - הכל ב־@layer glassbtn עם !important: הצהרה חשובה בשכבה גוברת על כל הצהרה חשובה שלא בשכבה, בלי קשר לספציפיות ולסדר —
+     כך אין צורך לגעת בכללים של כל רכיב (library/studio/admin/chart/analysis), וכפתור חדש עם מחלקה קיימת מקבל את המראה.
+   - כל הרשימות ב־:where (ספציפיות 0) — בתוך השכבה הסדר קובע: חומר → לחיצה → צבעוני → התאמות.
+   - שקוף עם טשטוש (--gb-fx), כבוי בזמן סיבוב הקובייה; בלי ::before/::after (רכיבים רבים כבר משתמשים בהם).
+   - --gb-on: 1 על כל כפתור בזכוכית (qa-deep --glass בודק אותו במסכים).
+   - tests/glass-buttons.test.js: כל מחלקה של <button> בקוד חייבת להופיע כאן — בזכוכית או ברשימת הפטורים (@glass-exempt). */
+
+:root {
+  /* זכוכית שקופה (בקשת המשתמש, לפי ת־עיצוב): רואים את מה שמאחור דרך טשטוש, מילוי לבן עדין, קו אור דק בשפה, צל רך */
+  --gb-fx: blur(18px) saturate(180%);
+  --gb-body: linear-gradient(180deg, rgba(255, 255, 255, .62), rgba(255, 255, 255, .38));
+  --gb-sh: inset 0 0 0 .5px rgba(255, 255, 255, .75), inset 0 1px 0 rgba(255, 255, 255, .9), inset 0 -1px 0 rgba(255, 255, 255, .3),
+    0 0 0 .5px rgba(0, 0, 0, .06), 0 4px 14px -6px rgba(0, 0, 0, .16);
+  --gb-sh-press: inset 0 0 0 .5px rgba(255, 255, 255, .8), inset 0 1px 0 rgba(255, 255, 255, .95), 0 0 0 .5px rgba(0, 0, 0, .08), 0 1px 4px -1px rgba(0, 0, 0, .14);
+  --gb-fill-a: 84%;
+  --gb-logo-bg: var(--gb-body);
+  --gb-ink: #1D2A3D;
+}
+/* כהה — ובמסכים שכהים תמיד (הנגן של Studio): לבן שקוף מעל הרקע הכהה */
+[data-theme="dark"], .st-dark {
+  --gb-body: linear-gradient(180deg, rgba(255, 255, 255, .17), rgba(255, 255, 255, .08));
+  --gb-sh: inset 0 0 0 .5px rgba(255, 255, 255, .2), inset 0 1px 0 rgba(255, 255, 255, .26), 0 0 0 .5px rgba(0, 0, 0, .35), 0 4px 14px -6px rgba(0, 0, 0, .55);
+  --gb-sh-press: inset 0 0 0 .5px rgba(255, 255, 255, .24), inset 0 1px 0 rgba(255, 255, 255, .3), 0 0 0 .5px rgba(0, 0, 0, .35), 0 1px 4px rgba(0, 0, 0, .5);
+  --gb-fill-a: 80%;
+  --gb-logo-bg: linear-gradient(180deg, rgba(255, 255, 255, .9), rgba(255, 255, 255, .74));
+  --gb-ink: #EEF3FA;
+}
+/* בזמן סיבוב הקובייה הטשטוש כבוי (ריצוד וצביעה מחדש — docs/ui.md "זכוכית בתוך פאה מסתובבת") */
+:is(.st-root, .lib-root):is(.cube-face, .cube-ghost), .cube-flat { --gb-fx: none; }
+
+@layer glassbtn {
+
+/* ---------- 1. עגולים ---------- */
+:where(.icon-btn, .ann-more, .learn-exp, .lib-round, .mg-ib, .st-lk-x, .st-rate-b, .st-al-add, .tr-copy, .tr-gg, .tr-ib, .tr-say, .tr-sw, .wl-title-btn,
+    .st-outb, .st-advx, .st-pl-b, .an-x, .an-cback, .an-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic, .tab-disc, .tab-glow, .adm-tab i, .ss-add) {
+  border-radius: 50% !important;
+}
+/* ---------- 2. החומר — כל הכפתורים (פריטי סגמנט: רק הנבחר; השאר יושבים על המסילה) ---------- */
+:where(.icon-btn, .ann-more, .learn-exp, .lib-round, .mg-ib, .st-lk-x, .st-rate-b, .st-al-add, .tr-copy, .tr-gg, .tr-ib, .tr-say, .tr-sw, .wl-title-btn,
+    .st-outb, .st-advx, .st-pl-b, .an-x, .an-cback, .an-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic, .tab-disc, .adm-tab i, .ss-add,
+    .btn, .dlg-btn, .st-btn, .st-plus, .an-btn, .adm-btn, .bk-cta, .lib-signin, .lib-btn, .google-btn, .sheet-btn, .ed-btn, .ed-fetch, .earn-more,
+    .st-jobs-more, .st-lk-paste, .st-mini, .st-cpill, .st-ai-b, .st-se-b, .st-rs-chip, .st-wbtn, .st-chip, .st-lk-q, .st-pill, .col-pill, .lib-bkpill,
+    .lib-chip, .lib-sortbtn, .mg-pill, .mg-tok, .mg-ab, .mg-tb.p, .mg-ok56, .pf-bench-toggle, .subpage-back, .lib-back, .st-back, .adm-back, .fx-pill,
+    .appbar-sub > *, .chip-btn, .chip, .range-btn, .wl-tab, .mini-btn, .measure-btn, .measure-chip, .add-card, .an-chip, .rd-backpos,
+    .kc-btn, .kc-chip, .kc-mb, .kc-rg, .kc-sc, .kc-tb, .kc-tf, .kc-wid, .kc-ib, .kc-sb, .kc-pk, .kc-tcell,
+    :where(.adm-seg-b, .mg-seg-b, .st-seg-b, .kc-seg-b, .lang-opt, .theme-opt, .an-seg:not(.an-seg-main) > button, .fb-seg .mini-btn, .adm-seg .mini-btn):where(.on, .active, [aria-pressed="true"])) {
+  --gb-on: 1;
+  background: var(--gb-body) !important;
+  background-blend-mode: normal !important;
+  box-shadow: var(--gb-sh) !important;
+  border-color: transparent !important; border-style: solid !important;
+  -webkit-backdrop-filter: var(--gb-fx) !important; backdrop-filter: var(--gb-fx) !important;
+}
+
+:where(.icon-btn, .ann-more, .learn-exp, .lib-round, .mg-ib, .st-lk-x, .st-rate-b, .tr-copy, .tr-gg, .tr-ib, .tr-say, .tr-sw, .wl-title-btn,
+    .st-outb, .st-advx, .st-pl-b, .an-x, .an-cback, .an-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic,
+    .btn, .dlg-btn, .st-btn, .an-btn, .adm-btn, .bk-cta, .lib-signin, .lib-btn, .google-btn, .sheet-btn, .ed-btn, .ed-fetch, .earn-more,
+    .st-jobs-more, .st-lk-paste, .st-mini, .st-cpill, .st-ai-b, .st-se-b, .st-rs-chip, .st-wbtn, .st-chip, .st-lk-q, .col-pill, .lib-bkpill,
+    .lib-chip, .lib-sortbtn, .mg-pill, .mg-tok, .mg-ab, .pf-bench-toggle, .subpage-back, .lib-back, .st-back, .adm-back,
+    .chip-btn, .chip, .range-btn, .wl-tab, .mini-btn, .measure-btn, .measure-chip, .add-card, .an-chip, .rd-backpos,
+    .kc-btn, .kc-chip, .kc-mb, .kc-rg, .kc-sc, .kc-tb, .kc-tf, .kc-wid, .kc-ib, .kc-sb, .kc-pk, .kc-tcell):active { box-shadow: var(--gb-sh-press) !important; }
+/* מסגרת מקווקוות של "הוספה" — נשארת כרמז, בגוון הזכוכית */
+:where(.add-card, .measure-btn, .wl-tab.add) { border-style: dashed !important; border-color: color-mix(in srgb, var(--gb-ink) 22%, transparent) !important; }
+
+/* ---------- 3. צבעוני: ראשי / נבחר / הרסני — אותו חומר בצבע הכפתור ---------- */
+:where(.btn:not(.secondary-btn), .dlg-ok, .st-btn:not(.ghost):not(.tint), .st-plus, .an-btn, .adm-btn, .bk-cta, .lib-signin, .mg-tb.p, .mg-ab.p, .mg-ok56,
+    .ed-btn:not(.ghost), .ed-fetch, .st-mini.danger, .lib-btn.danger, .tab-glow, .an-seg-th,
+    .range-btn.active, .chip-btn.on, .chip.on, .wl-tab.on, .lib-chip.on, .st-chip.on, .st-rs-chip.on, .st-cpill.on, .st-ai-b.on, .st-se-b.on, .st-lk-q.on,
+    .an-chip[aria-pressed="true"], .measure-btn.on, .pf-bench-toggle.on, .mini-btn[aria-pressed="true"],
+    .kc-btn.pri, .kc-fab.on, .kc-ib.on, .kc-mb.on, .kc-rg.on, .kc-sb.on, .kc-sc.on, .kc-tf.on, .kc-wid.on, .kc-chip.on, .kc-tcell.on,
+    .adm-tab.on i,
+    :where(.adm-seg-b, .mg-seg-b, .st-seg-b, .kc-seg-b, .lang-opt, .theme-opt, .an-seg:not(.an-seg-main) > button):where(.on, .active, [aria-pressed="true"])) {
+  --gb-tone: var(--gb-force, var(--btn-c, var(--primary)));
+  --gb-on: 1;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .28), rgba(255, 255, 255, .06) 50%, rgba(255, 255, 255, 0) 56%),
+    color-mix(in srgb, var(--gb-tone) var(--gb-fill-a), transparent) !important;
+  background-blend-mode: normal !important;
+  box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .4), inset 0 1px 0 rgba(255, 255, 255, .55), inset 0 -1px 0 rgba(255, 255, 255, .18),
+    0 0 0 .5px color-mix(in srgb, var(--gb-tone) 50%, transparent), 0 4px 14px -6px color-mix(in srgb, var(--gb-tone) 70%, transparent) !important;
+  -webkit-backdrop-filter: var(--gb-fx) !important; backdrop-filter: var(--gb-fx) !important;
+  color: var(--gb-ontx, var(--on-primary)) !important;
+}
+/* הרסני */
+:where(.btn.danger-btn, .dlg-ok.danger, .st-btn.danger, .st-mini.danger, .lib-btn.danger, .mg-tb.danger) { --gb-force: var(--loss); --gb-ontx: #fff; }
+/* מרכז הניהול — הסגול של הניהול */
+/* --gb-force: צבע של כל האפליקציה שגובר על --btn-c של הרכיבים (שמוגדר מחוץ לשכבה); הרסני כופה אדום גם בתוכה */
+html[data-app="admin"] { --gb-force: #5E5CE6; --gb-ontx: #fff; }
+/* הסמלים בתוך כפתור צבעוני — בצבע הטקסט שלו */
+:where(.ss-add) circle { fill: transparent !important; }
+:where(.ss-add) path { stroke: var(--primary) !important; }
+
+/* ---------- 4. גדלים לרכיבים שהיו "סמל בלבד" ---------- */
+.ss-add { width: 28px; height: 28px; align-items: center; justify-content: center; }
+.ss-add svg { width: 22px !important; height: 22px !important; }
+.adm-tab i { display: grid; place-items: center; width: 42px; height: 42px; line-height: 1 !important; font-size: 20px !important; }
+.tab-glow { box-shadow: none !important; }
+.tab.active .tab-glow { box-shadow: 0 8px 18px -8px color-mix(in srgb, var(--btn-c, var(--primary)) 70%, transparent) !important; }
+
+
+/* ---------- 5. אריחי הלוגו של החברות — זכוכית במקום המסגרת הלבנה (31/10/2026, בקשת המשתמש) ----------
+   בהיר: אותה זכוכית של הכפתורים. כהה: זכוכית בהירה וחלבית — לוגו כהה לא נעלם (ההיפוך של לוגו לבן, .inv, מניח אריח בהיר).
+   התמונה במיזוג multiply: הרקע הלבן שבקובץ הלוגו (רוב הלוגואים) נעלם לתוך הזכוכית, הסמל נשאר */
+:where(.stock-logo, .pie-leg-logo:not(.cash), .kc-logo:not(:empty)) {
+  background: var(--gb-logo-bg) !important; box-shadow: var(--gb-sh) !important;
+  -webkit-backdrop-filter: var(--gb-fx) !important; backdrop-filter: var(--gb-fx) !important;
+}
+:where(.stock-logo-img, .pie-leg-logo img, .kc-logo img) { mix-blend-mode: multiply; background: transparent !important; }
+
+/* ---------- 6. משטחים שנשארו אטומים — אותה זכוכית של החלונות והגיליונות במערכת (--gl-panel + טשטוש) ----------
+   (בקשת המשתמש: "שכל הממשק יהיה תואם לעיצוב הזכוכית". הכרטיסים, התפריט, החלונות והחיפוש כבר על --gl-card/--gl-panel;
+   רקע הגרף בגרף הנרות נשאר — הנרות צריכים רקע אחיד) */
+:where(.login-card, .lib-sheet, .kc-sheet) {
+  background: var(--gl-panel) !important; box-shadow: var(--gl-ring), var(--gl-shadow) !important;
+  -webkit-backdrop-filter: var(--gl-fx) !important; backdrop-filter: var(--gl-fx) !important;
+}
+}
+
+/* @glass-exempt — לא כפתורים במראה (נשארים כמו שהם):
+   שורות/פריטי רשימה/כרטיסים: adm-r ac-lens ac-person ac-step ac-tile ac-track adm-live adm-top an-key an-rcard an-row an-fact bk-card card col-card ft-row gb-row
+     ios-row ios-row-btn lib-cont lib-item lib-opt lib-row mg-opt mg-row rd-fontrow reset-cancel reset-open reset-opt row-link src-opt acx-opt st-alr st-al-row
+     st-banner st-filecard st-fnd st-l st-lk-rec st-newcard st-proj st-row st-twcard st-tower stock-head kc-li kc-wr kc-tg kc-fly-i st-pl-mr st-qa-b mg-pc mg-sc
+   מתגי הפעלה (מתג iOS): adm-sw ib-sw lib-sw pfbk-sw
+   קישורי טקסט ופעולות טקסט: link-btn adm-link an-link lib-admin-link lib-textbtn st-link st-linkb st-txt wk-more ft-more mg-clear st-rate-chg st-pl-fundo es-cancel
+     mg-snack-b ac-retry st-dp-up st-nsb st-pl-chb kc-tfpick kc-symbtn mg-tb sf-clear tr-tog
+   דוגמיות צבע, תגיות ואזורי מגע: st-ky-sch tr-dot kc-col kc-swatch st-sty kc-ctag kc-star rd-ribbon an-grab st-vl-main
+   מעטפות שהכדור שלהן הוא ילד (.tab → .tab-disc, .adm-tab → i): tab adm-tab
+   פריטי סגמנט שאינם נבחרים (המסילה): adm-seg-b mg-seg-b st-seg-b kc-seg-b lang-opt theme-opt (וכל כפתור לא נבחר בתוך an-seg / kc-seg / mg-seg / st-seg2 / adm-seg / fb-seg / rd-seg)
+   (במלאי: tools/btn-inventory.js) */

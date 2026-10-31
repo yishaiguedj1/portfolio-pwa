@@ -4,12 +4,13 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v658';
+const CACHE_NAME = 'portfolio-pwa-v659';
 const HASHES = {
-  "./": "90334e5c9a28c6406d157fd801169b90",
-  "./index.html": "90334e5c9a28c6406d157fd801169b90",
+  "./": "27c0788019f4842a124eba31840b522b",
+  "./index.html": "27c0788019f4842a124eba31840b522b",
   "./styles.css": "1f022779ccc73cbbdafb37c699c9b5d4",
-  "./app.js": "a03747e6cff5f57d84ce0dec43bfac9c",
+  "./glass-btn.css": "1e73cbdd238341463e8989bf8fdeeb2e",
+  "./app.js": "ce08c6647dbaab4f83ab023c8c1206fb",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "2cf2e330bfcc2c9150ba47b8f355982d",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -62,10 +63,10 @@ const HASHES = {
   "./vendor/foliate-js/fixed-layout.js": "7aee1d15d8e0479b8a6c59a20304b250",
   "./vendor/foliate-js/vendor/zip.js": "2a0d43157e4a447c6e43351225758795",
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
-  "./academy.html": "d58a511fc759a629121b82ab47fe9a69",
+  "./academy.html": "ff70b7cdf55a58896794457f6812abf4",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
   "./strings-academy.js": "b4a6507e0568d60757a45e35d6514796",
-  "./core.js": "23dd0302da653b4d86d0fd2bd0f37eb9",
+  "./core.js": "b988b65f1a2cfd426a04be89a83979cc",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "6b22a08dd74c16eefd740922596fb568",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -84,7 +85,7 @@ const HASHES = {
   "./studioai.js": "e0a43e7a48c70e3bf5028813acebbf3e",
   "./studiostore.js": "42e717dbfb6b004703532f60659b14bf",
   "./studiobg.js": "9013d96cee956642e0735806ea1e60c3",
-  "./studio.html": "e1a77d2576406429bad01f26fccf5d77",
+  "./studio.html": "83a0db4fc3f1058a17ce5b6370873966",
   "./studio-app.js": "d2aaad29f3f46cc04426c93bdae1eb83",
   "./strings-studio.js": "69e8f21c871346c8971c0a2d410ceecf",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
@@ -100,6 +101,7 @@ const APP_SHELL = [
   './',
   './index.html',
   './styles.css',
+  './glass-btn.css',   // 31/10/2026: כפתורי זכוכית בכל המערכת
   './app.js',
   './returns.js',
   './cloud.js',
