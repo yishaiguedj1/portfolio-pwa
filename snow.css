@@ -1,0 +1,133 @@
+/* ==== כפתורי כדור שלג (31/10/2026, בקשת המשתמש: "כל הכפתורים בכל האפליקציות בעיצוב הזה, בהתאם לצבע של כל כפתור") ====
+   לפי ת־עיצוב: כדור שלג אמיתי (שלג דחוס עם גרעין ונצנוצים) בתוך מעטפת זכוכית — טבעת דקה, קצוות אור, זוהר שבירה בתחתית.
+   למעלה שכבת שלג טבעית עם זליגות בגדלים ומרווחים שונים, שנחתכת בדיוק לפי קו הכפתור (בלי שום בליטה מעליו — בכהה נראתה כקו).
+   כפתור צבעוני (ראשי / נבחר / הרסני) — אותו חומר בצבע שלו (--sb-tone), והשלג למעלה לבן. בכהה: שלג בלילה (כחול־לילה).
+
+   איך זה בנוי:
+   - הכל ב־@layer snow עם !important: הצהרה חשובה בשכבה גוברת על כל הצהרה חשובה שלא בשכבה, בלי קשר לספציפיות ולסדר —
+     כך אין צורך לגעת בכללים של כל רכיב (library/studio/admin/chart/analysis), וכפתור חדש עם מחלקה קיימת מקבל את המראה.
+   - השלג = תמונות מוכנות מראש (tools/snowbtn-gen.py → snow-*.webp), לא מסנני SVG בזמן ריצה: עשרות כפתורים במסך בלי עלות ציור.
+     עגול — snow-cap-r (100%×100%); קפסולה/מלבן — רצועה ארוכה snow-cap-p בגובה הכפתור, ממורכזת (בכל כפתור שלישי במקום אחר).
+   - כל הרשימות ב־:where (ספציפיות 0) — בתוך השכבה הסדר קובע: חומר → לחיצה → צבעוני → התאמות.
+   - בלי backdrop-filter (הגוף אטום — טשטוש רק עולה בפריימים) ובלי ::before/::after (רכיבים רבים כבר משתמשים בהם).
+   - tests/snow-buttons.test.js: כל מחלקה של <button> בקוד חייבת להופיע כאן — בשלג או ברשימת הפטורים (@snow-exempt). */
+
+:root {
+  --sb-cap-r: url(snow-cap-r.webp); --sb-cap-p: url(snow-cap-p.webp);
+  --sb-grain: url(snow-spk.webp) 0 0 / 60px 60px, url(snow-tex.webp) 0 0 / 80px 80px;
+  --sb-body: radial-gradient(120% 60% at 50% 108%, rgba(255, 255, 255, .6), rgba(255, 255, 255, 0) 62%), radial-gradient(130% 120% at 30% 18%, #F4F8FD 0 22%, #EAF0F8 52%, #DCE6F4 100%);
+  --sb-blend: normal, normal, multiply, normal, normal;
+  --sb-sh: inset 0 0 0 1.5px rgba(255, 255, 255, .5), inset 1.5px 2px 1px -1px #fff, inset -1.5px -2px 1px -1px rgba(255, 255, 255, .75), inset 0 -5px 9px rgba(120, 160, 215, .28),
+    0 0 0 .5px rgba(60, 90, 140, .18), 0 1.5px 2px rgba(60, 90, 140, .16), 0 8px 16px -8px rgba(40, 70, 120, .32);
+  --sb-sh-press: inset 1px 1.5px 1px -.5px rgba(255, 255, 255, .95), inset 0 0 0 1px rgba(255, 255, 255, .55), inset 0 -3px 7px rgba(120, 160, 215, .36),
+    0 0 0 .5px rgba(60, 90, 140, .2), 0 1px 2px rgba(60, 90, 140, .18);
+  --sb-fill-hi: rgba(255, 255, 255, .32);
+  --sb-ink: #1D2A3D;
+}
+/* כהה — ובמסכים שכהים תמיד (הנגן של Studio) */
+[data-theme="dark"], .st-dark {
+  --sb-cap-r: url(snow-cap-r-dark.webp); --sb-cap-p: url(snow-cap-p-dark.webp);
+  --sb-body: radial-gradient(130% 120% at 30% 18%, #3A4B6A 0 18%, #2E3C58 50%, #1E2A42 100%);
+  --sb-blend: normal, normal, multiply, normal;
+  --sb-sh: inset 0 0 0 1px rgba(232, 239, 249, .07), inset 1.5px 2px 1px -1px rgba(232, 239, 249, .5), inset 0 -7px 12px -4px rgba(8, 14, 28, .45),
+    0 0 0 .5px rgba(0, 0, 0, .6), 0 6px 16px -6px rgba(0, 0, 0, .7);
+  --sb-sh-press: inset 1px 1.5px 1px -.5px rgba(232, 239, 249, .45), inset 0 0 0 1px rgba(232, 239, 249, .06), inset 0 -5px 10px -4px rgba(8, 14, 28, .5),
+    0 0 0 .5px rgba(0, 0, 0, .6), 0 2px 5px rgba(0, 0, 0, .7);
+  --sb-fill-hi: rgba(255, 255, 255, .18);
+  --sb-ink: #EEF3FA;
+}
+
+@layer snow {
+
+/* ---------- 1. עגולים — כיפת שלג עגולה ---------- */
+:where(.icon-btn, .ann-more, .learn-exp, .lib-round, .mg-ib, .st-lk-x, .st-rate-b, .st-al-add, .tr-copy, .tr-gg, .tr-ib, .tr-say, .tr-sw, .wl-title-btn,
+    .st-outb, .st-advx, .st-pl-b, .an-x, .an-cback, .an-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic, .tab-disc, .tab-glow, .adm-tab i, .ss-add) {
+  --sb-cap: var(--sb-cap-r) 0 0 / 100% 100% no-repeat;
+  border-radius: 50% !important;
+}
+/* ---------- 2. קפסולות ומלבנים — רצועת שלג בגובה הכפתור ---------- */
+:where(.btn, .dlg-btn, .st-btn, .st-plus, .an-btn, .adm-btn, .bk-cta, .lib-signin, .lib-btn, .google-btn, .sheet-btn, .ed-btn, .ed-fetch, .earn-more,
+    .st-jobs-more, .st-lk-paste, .st-mini, .st-cpill, .st-ai-b, .st-se-b, .st-rs-chip, .st-wbtn, .st-chip, .st-lk-q, .st-pill, .col-pill, .lib-bkpill,
+    .lib-chip, .lib-sortbtn, .mg-pill, .mg-tok, .mg-ab, .mg-tb.p, .mg-ok56, .pf-bench-toggle, .subpage-back, .lib-back, .st-back, .adm-back, .fx-pill,
+    .appbar-sub > *, .chip-btn, .chip, .range-btn, .wl-tab, .mini-btn, .measure-btn, .measure-chip, .add-card, .an-chip, .an-seg-th, .rd-backpos,
+    .kc-btn, .kc-chip, .kc-mb, .kc-rg, .kc-sc, .kc-tb, .kc-tf, .kc-wid, .kc-ib, .kc-sb, .kc-pk) {
+  --sb-cap: var(--sb-cap-p) 50% 0 / auto 100% repeat-x;
+}
+:where(.btn, .dlg-btn, .st-btn, .chip-btn, .range-btn, .wl-tab, .lib-chip, .st-chip, .an-chip, .kc-chip, .mini-btn, .kc-ib, .kc-sb):nth-child(3n+1) { --sb-cap: var(--sb-cap-p) 22% 0 / auto 100% repeat-x; }
+:where(.btn, .dlg-btn, .st-btn, .chip-btn, .range-btn, .wl-tab, .lib-chip, .st-chip, .an-chip, .kc-chip, .mini-btn, .kc-ib, .kc-sb):nth-child(3n+2) { --sb-cap: var(--sb-cap-p) 71% 0 / auto 100% repeat-x; }
+/* ---------- 3. פריטי סגמנט ולשוניות — רק הנבחר מקבל את הכדור (צבעוני); השאר יושבים על המסילה ---------- */
+:where(.adm-seg-b, .mg-seg-b, .st-seg-b, .kc-seg-b, .lang-opt, .theme-opt, .an-seg:not(.an-seg-main) > button, .fb-seg .mini-btn, .adm-seg .mini-btn):where(.on, .active, [aria-pressed="true"]) {
+  --sb-cap: var(--sb-cap-p) 50% 0 / auto 100% repeat-x;
+}
+
+/* החומר — כל מה שקיבל --sb-cap (סעיפים 1–3) */
+:where(.icon-btn, .ann-more, .learn-exp, .lib-round, .mg-ib, .st-lk-x, .st-rate-b, .st-al-add, .tr-copy, .tr-gg, .tr-ib, .tr-say, .tr-sw, .wl-title-btn,
+    .st-outb, .st-advx, .st-pl-b, .an-x, .an-cback, .an-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic, .tab-disc, .adm-tab i, .ss-add,
+    .btn, .dlg-btn, .st-btn, .st-plus, .an-btn, .adm-btn, .bk-cta, .lib-signin, .lib-btn, .google-btn, .sheet-btn, .ed-btn, .ed-fetch, .earn-more,
+    .st-jobs-more, .st-lk-paste, .st-mini, .st-cpill, .st-ai-b, .st-se-b, .st-rs-chip, .st-wbtn, .st-chip, .st-lk-q, .st-pill, .col-pill, .lib-bkpill,
+    .lib-chip, .lib-sortbtn, .mg-pill, .mg-tok, .mg-ab, .mg-tb.p, .mg-ok56, .pf-bench-toggle, .subpage-back, .lib-back, .st-back, .adm-back, .fx-pill,
+    .appbar-sub > *, .chip-btn, .chip, .range-btn, .wl-tab, .mini-btn, .measure-btn, .measure-chip, .add-card, .an-chip, .rd-backpos,
+    .kc-btn, .kc-chip, .kc-mb, .kc-rg, .kc-sc, .kc-tb, .kc-tf, .kc-wid, .kc-ib, .kc-sb, .kc-pk,
+    :where(.adm-seg-b, .mg-seg-b, .st-seg-b, .kc-seg-b, .lang-opt, .theme-opt, .an-seg:not(.an-seg-main) > button, .fb-seg .mini-btn, .adm-seg .mini-btn):where(.on, .active, [aria-pressed="true"])) {
+  background: var(--sb-cap), var(--sb-grain), var(--sb-body) !important;
+  background-blend-mode: var(--sb-blend) !important;
+  box-shadow: var(--sb-sh) !important;
+  border-color: transparent !important; border-style: solid !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+}
+
+:where(.icon-btn, .ann-more, .learn-exp, .lib-round, .mg-ib, .st-lk-x, .st-rate-b, .tr-copy, .tr-gg, .tr-ib, .tr-say, .tr-sw, .wl-title-btn,
+    .st-outb, .st-advx, .st-pl-b, .an-x, .an-cback, .an-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic,
+    .btn, .dlg-btn, .st-btn, .an-btn, .adm-btn, .bk-cta, .lib-signin, .lib-btn, .google-btn, .sheet-btn, .ed-btn, .ed-fetch, .earn-more,
+    .st-jobs-more, .st-lk-paste, .st-mini, .st-cpill, .st-ai-b, .st-se-b, .st-rs-chip, .st-wbtn, .st-chip, .st-lk-q, .col-pill, .lib-bkpill,
+    .lib-chip, .lib-sortbtn, .mg-pill, .mg-tok, .mg-ab, .pf-bench-toggle, .subpage-back, .lib-back, .st-back, .adm-back,
+    .chip-btn, .chip, .range-btn, .wl-tab, .mini-btn, .measure-btn, .measure-chip, .add-card, .an-chip, .rd-backpos,
+    .kc-btn, .kc-chip, .kc-mb, .kc-rg, .kc-sc, .kc-tb, .kc-tf, .kc-wid, .kc-ib, .kc-sb, .kc-pk):active { box-shadow: var(--sb-sh-press) !important; }
+/* מסגרת מקווקוות של "הוספה" — נשארת כרמז, בגוון השלג */
+:where(.add-card, .measure-btn, .wl-tab.add) { border-style: dashed !important; border-color: color-mix(in srgb, var(--sb-ink) 22%, transparent) !important; }
+
+/* ---------- 4. צבעוני: ראשי / נבחר / הרסני — אותו חומר בצבע הכפתור ---------- */
+:where(.btn:not(.secondary-btn), .dlg-ok, .st-btn:not(.ghost):not(.tint), .st-plus, .an-btn, .adm-btn, .bk-cta, .lib-signin, .mg-tb.p, .mg-ab.p, .mg-ok56,
+    .ed-btn:not(.ghost), .ed-fetch, .st-mini.danger, .lib-btn.danger, .tab-glow, .an-seg-th,
+    .range-btn.active, .chip-btn.on, .chip.on, .wl-tab.on, .lib-chip.on, .st-chip.on, .st-rs-chip.on, .st-cpill.on, .st-ai-b.on, .st-se-b.on, .st-lk-q.on,
+    .an-chip[aria-pressed="true"], .measure-btn.on, .pf-bench-toggle.on, .mini-btn[aria-pressed="true"],
+    .kc-btn.pri, .kc-fab.on, .kc-ib.on, .kc-mb.on, .kc-rg.on, .kc-sb.on, .kc-sc.on, .kc-tf.on, .kc-wid.on, .kc-chip.on,
+    .adm-tab.on i,
+    :where(.adm-seg-b, .mg-seg-b, .st-seg-b, .kc-seg-b, .lang-opt, .theme-opt, .an-seg:not(.an-seg-main) > button):where(.on, .active, [aria-pressed="true"])) {
+  --sb-tone: var(--btn-c, var(--primary));
+  background: var(--sb-cap), var(--sb-grain), radial-gradient(120% 60% at 50% 108%, var(--sb-fill-hi), rgba(255, 255, 255, 0) 62%),
+    radial-gradient(130% 120% at 30% 18%, color-mix(in srgb, var(--sb-tone) 72%, #fff) 0 16%, var(--sb-tone) 52%, color-mix(in srgb, var(--sb-tone) 78%, #000) 100%) !important;
+  background-blend-mode: normal, normal, multiply, normal, normal !important;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .26), inset 1.5px 2px 1px -1px rgba(255, 255, 255, .8), inset 0 -7px 12px -4px rgba(0, 0, 0, .2),
+    0 0 0 .5px color-mix(in srgb, var(--sb-tone) 60%, #000), 0 8px 16px -8px color-mix(in srgb, var(--sb-tone) 70%, transparent) !important;
+  color: var(--sb-on, var(--on-primary)) !important;
+}
+/* הרסני */
+:where(.btn.danger-btn, .dlg-ok.danger, .st-btn.danger, .st-mini.danger, .lib-btn.danger, .mg-tb.danger) { --btn-c: var(--loss); --sb-on: #fff; }
+/* מרכז הניהול — הסגול של הניהול */
+html[data-app="admin"] { --sb-adm: #5E5CE6; }
+html[data-app="admin"] :where(.adm-tab.on i, .adm-seg-b.on, .adm-btn, .adm-seg .mini-btn[aria-pressed="true"]) { --btn-c: var(--sb-adm); --sb-on: #fff; }
+/* הסמלים בתוך כפתור צבעוני — בצבע הטקסט שלו */
+:where(.ss-add) circle { fill: transparent !important; }
+:where(.ss-add) path { stroke: var(--primary) !important; }
+
+/* ---------- 5. גדלים לרכיבים שהיו "סמל בלבד" ---------- */
+.ss-add { width: 28px; height: 28px; align-items: center; justify-content: center; }
+.ss-add svg { width: 22px !important; height: 22px !important; }
+.adm-tab i { display: grid; place-items: center; width: 42px; height: 42px; line-height: 1 !important; font-size: 20px !important; }
+.tab-glow { box-shadow: none !important; }
+.tab.active .tab-glow { box-shadow: 0 8px 18px -8px color-mix(in srgb, var(--btn-c, var(--primary)) 70%, transparent) !important; }
+
+}
+
+/* @snow-exempt — לא כפתורים במראה (נשארים כמו שהם):
+   שורות/פריטי רשימה/כרטיסים: ac-lens ac-person ac-step ac-tile ac-track adm-live adm-top an-key an-rcard an-row an-fact bk-card card col-card ft-row gb-row
+     ios-row ios-row-btn lib-cont lib-item lib-opt lib-row mg-opt mg-row rd-fontrow reset-cancel reset-open reset-opt row-link src-opt acx-opt st-alr st-al-row
+     st-banner st-filecard st-fnd st-l st-lk-rec st-newcard st-proj st-row st-twcard st-tower stock-head kc-li kc-wr kc-tg kc-fly-i kc-tcell st-pl-mr st-qa-b mg-pc mg-sc
+   מתגי הפעלה (מתג iOS): adm-sw ib-sw lib-sw pfbk-sw
+   קישורי טקסט ופעולות טקסט: link-btn adm-link an-link lib-admin-link lib-textbtn st-link st-linkb st-txt wk-more ft-more mg-clear st-rate-chg st-pl-fundo es-cancel
+     mg-snack-b ac-retry st-dp-up st-nsb st-pl-chb kc-tfpick kc-symbtn mg-tb sf-clear tr-tog
+   דוגמיות צבע, תגיות ואזורי מגע: tr-dot kc-col kc-swatch st-sty kc-ctag kc-star rd-ribbon an-grab st-vl-main
+   מעטפות שהכדור שלהן הוא ילד (.tab → .tab-disc, .adm-tab → i): tab adm-tab
+   פריטי סגמנט שאינם נבחרים (המסילה): adm-seg-b mg-seg-b st-seg-b kc-seg-b lang-opt theme-opt
+   (במלאי: tools/btn-inventory.js) */

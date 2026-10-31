@@ -20,6 +20,11 @@ const DISCOVER = !!arg('discover', false), FRAMES = !!arg('frames', false);
 // --landing (29/10/2026): במקום הצילום הרציף — "נחיתה": עוצרים את הקובייה בפריים האחרון שלה (עוד בתוך האנימציה) ומשווים לדף אחרי שנרגע. הבדל מעל 4.5 = משהו
 // שנצבע אחרת בזמן הסיבוב ו"קופץ" כשהוא נגמר (בטלפון: זכוכית ההדר כפס אטום שחתך את הכותרת הגדולה בכל מעבר)
 const LANDING = !!arg('landing', false);
+// --snow (31/10/2026, כפתורי כדור שלג): בכל צעד — כל <button>/[role=button] גלוי שלא קיבל את השלג (snow-cap ברקע) ואינו פטור (@snow-exempt ב־snow.css)
+// נרשם ל־snow.txt (מחלקה · צעד), וכל צעד מצולם ל־snow-NNN.png. מטרה: "כל הכפתורים במערכת, ללא יוצא מן הכלל"
+const SNOW = !!arg('snow', false);
+const SNOW_EXEMPT = (() => { try { const s = fs.readFileSync(path.join(__dirname, '..', 'snow.css'), 'utf8'); const m = s.match(/\/\* @snow-exempt([\s\S]*?)\*\//); return m ? [...new Set(m[1].match(/\b[a-z][\w-]+-[\w-]+\b|\b(?:card|tab)\b/g))] : []; } catch (e) { return []; } })();
+const snowMiss = new Map();
 // --prof <ביטוי>: פרופיל CPU לצעדים ששמם מתאים — הפונקציות הכבדות (זמן עצמי) והמשימות הארוכות (28/10/2026)
 const PROF = arg('prof', '') ? new RegExp(String(arg('prof', ''))) : null;
 const BASE = 'http://localhost:8792';
@@ -155,6 +160,13 @@ const INIT2 = `(() => {
     const keep = FRAMES || row.bad;
     if (keep) { const d = path.join(OUT, String(results.length).padStart(3, '0') + '-' + name.replace(/[^\w֐-׿-]+/g, '_')); fs.mkdirSync(d, { recursive: true }); frames.forEach((f, i) => { try { fs.renameSync(f.f, path.join(d, 'f' + String(i).padStart(3, '0') + '-' + Math.round(f.t - ft0) + '.jpg')); } catch (e) {} }); }
     else frames.forEach((f) => { try { fs.unlinkSync(f.f); } catch (e) {} });
+    if (SNOW) { const miss = await page.evaluate((ex) => { const out = []; document.querySelectorAll('button, [role=button]').forEach((b) => { const r = b.getBoundingClientRect(); if (r.width < 4 || r.height < 4 || r.bottom < 0 || r.top > innerHeight) return;
+        const cs = getComputedStyle(b); if (cs.visibility === 'hidden' || +cs.opacity === 0) return; const cl = [...b.classList]; if (cl.some((c) => ex.includes(c))) return;
+        if (/snow-cap/.test(cs.backgroundImage)) return; const ch = b.querySelector('.tab-disc, i'); if (ch && /snow-cap/.test(getComputedStyle(ch).backgroundImage)) return;
+        out.push((cl.join('.') || '(בלי מחלקה)') + ' «' + (b.getAttribute('aria-label') || b.textContent || '').trim().slice(0, 24) + '» ' + (b.parentElement ? b.parentElement.className.toString().split(' ')[0] : '')); }); return out; }, SNOW_EXEMPT);
+      miss.forEach((k) => { if (!snowMiss.has(k)) snowMiss.set(k, name); });
+      fs.writeFileSync(path.join(OUT, 'snow.txt'), [...snowMiss].map(([k, n]) => k + '  ·  ' + n).join('\n') + '\n');
+      await page.screenshot({ path: path.join(OUT, 'snow-' + String(results.length).padStart(3, '0') + '.png') }).catch(() => {}); }
     results.push(row);
     process.stdout.write((row.bad ? '✗ ' : '✓ ') + name + '  cls=' + row.cls + ' jumps=' + row.jumps.length + ' flash=' + row.flash + ' flicker=' + row.flicker + ' tail=' + tail + (late.length ? ' late=' + late.join(',') : '') + (row.err ? '  ERR ' + row.err : '') + '\n');
   }
@@ -520,7 +532,7 @@ const INIT2 = `(() => {
     if (!ONLY || ONLY === 'ac') await academy(r);
     if (!ONLY || ONLY === 'an') await analysis(r);
     if (!ONLY || ONLY === 'kc') await chart(r);
-    if (!ONLY) await admin(r);
+    if (!ONLY || ONLY === 'adm') await admin(r);
     if (!ONLY || ONLY === 'st') await studio(r);
     if (ONLY === 'dial') { await investDial(r); await academyDial(r); }
   }
@@ -529,5 +541,6 @@ const INIT2 = `(() => {
     ...bad.map((r) => '- ✗ **' + r.name + '** cls=' + r.cls + ' jumps=' + JSON.stringify(r.jumps) + ' flash=' + r.flash + ' flicker=' + r.flicker + ' late=' + r.late.join(',') + (r.landing ? ' landing=' + JSON.stringify(r.landing) : '') + (r.err ? ' ERR ' + r.err : '') + (r.shifts.length ? '\n  shifts: ' + JSON.stringify(r.shifts) : '') + (r.muts.length ? '\n  muts: ' + JSON.stringify(r.muts) : ''))];
   fs.writeFileSync(path.join(OUT, 'report.md'), md.join('\n') + '\n');
   fs.writeFileSync(path.join(OUT, 'report.json'), JSON.stringify(results, null, 1));
+  if (SNOW) fs.writeFileSync(path.join(OUT, 'snow.txt'), [...snowMiss].map(([k, n]) => k + '  ·  ' + n).join('\n') + '\n');
   await browser.close();
 })().catch((e) => { console.error('QA נכשל:', e); process.exit(1); });

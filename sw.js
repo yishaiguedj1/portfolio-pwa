@@ -4,12 +4,19 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v657';
+const CACHE_NAME = 'portfolio-pwa-v658';
 const HASHES = {
-  "./": "90334e5c9a28c6406d157fd801169b90",
-  "./index.html": "90334e5c9a28c6406d157fd801169b90",
+  "./": "60b115f840e39f84c497504e60da9ca2",
+  "./index.html": "60b115f840e39f84c497504e60da9ca2",
   "./styles.css": "1f022779ccc73cbbdafb37c699c9b5d4",
-  "./app.js": "fb29554875e67f97466f019630840273",
+  "./snow.css": "00ac9579a9810c736b34e592202fd4a1",
+  "./snow-cap-r.webp": "4ffac43c6feeac7156ac2be2e299ef8c",
+  "./snow-cap-r-dark.webp": "98258855bc9277f6c24820f2da3f011a",
+  "./snow-cap-p.webp": "413fef0d383b6388fc09a198e4bcb1f6",
+  "./snow-cap-p-dark.webp": "5aaf35f0979b6b90de318568b10dacc7",
+  "./snow-tex.webp": "0a48a44115051d6f275ce49bfb8f8231",
+  "./snow-spk.webp": "0abe15c8c806028eb318aea7ced27294",
+  "./app.js": "806b20a55ed89de05311b2265245f9cb",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "2cf2e330bfcc2c9150ba47b8f355982d",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -62,10 +69,10 @@ const HASHES = {
   "./vendor/foliate-js/fixed-layout.js": "7aee1d15d8e0479b8a6c59a20304b250",
   "./vendor/foliate-js/vendor/zip.js": "2a0d43157e4a447c6e43351225758795",
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
-  "./academy.html": "d58a511fc759a629121b82ab47fe9a69",
+  "./academy.html": "9568cbf63efedb57f7a79c50037c2594",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
   "./strings-academy.js": "153035c9e7a68f1859e47c72e006a429",
-  "./core.js": "1abdc1f0ccd0feca4ccbfa42fe0a7176",
+  "./core.js": "23dd0302da653b4d86d0fd2bd0f37eb9",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "6b22a08dd74c16eefd740922596fb568",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -84,7 +91,7 @@ const HASHES = {
   "./studioai.js": "e0a43e7a48c70e3bf5028813acebbf3e",
   "./studiostore.js": "42e717dbfb6b004703532f60659b14bf",
   "./studiobg.js": "9013d96cee956642e0735806ea1e60c3",
-  "./studio.html": "e1a77d2576406429bad01f26fccf5d77",
+  "./studio.html": "ef3cadd963a3da67707c0f3a6b72fd60",
   "./studio-app.js": "d2aaad29f3f46cc04426c93bdae1eb83",
   "./strings-studio.js": "685f2883f01905cd13a4b53164e39629",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
@@ -100,6 +107,7 @@ const APP_SHELL = [
   './',
   './index.html',
   './styles.css',
+  './snow.css', './snow-cap-r.webp', './snow-cap-r-dark.webp', './snow-cap-p.webp', './snow-cap-p-dark.webp', './snow-tex.webp', './snow-spk.webp',   // 31/10/2026: כפתורי כדור שלג
   './app.js',
   './returns.js',
   './cloud.js',
