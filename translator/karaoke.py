@@ -2,7 +2,8 @@
 
   sep    — הפרדת קול וליווי (audio-separator, מודלים ברישיון פתוח בלבד — החלטת המשתמש): voc.wav, inst.wav,
            ובמצב "עם קולות רקע" גם inst_bv.wav (מודל karaoke: הקול הראשי מול כל השאר).
-  align  — המילים שהודבקו → עיגון לתמלול של הקול המופרד (Parakeet) → יישור Qwen לכל מילה → words.json.
+  align  — המילים שהודבקו → words.json. שיר עברי (31/10/2026, vt/align_he.py): ivrit + stable-ts + CTC עברי; אחרת עיגון
+           לתמלול של הקול המופרד (Parakeet) → יישור Qwen לכל מילה. בלי סימון זמרים במילים — זיהוי הזמרים מהקול (sg).
   build  — words.json → karaoke.ass (מצב לכל מילה), ‏.lrc, ‏.elrc.lrc.
   video  — רקע לשיר בלי וידאו (צבע אחיד + שם השיר), באורך השיר.
   burn   — הצריבה (אותה צריבה של vt: ציור מראש + overlay).
@@ -141,6 +142,18 @@ def cmd_sep(a):
     print('✓ הקול והליווי הופרדו (' + st['model'] + ')')
 
 
+def singers(a, words) -> list:
+    """31/10/2026: בלי סימון זמרים במילים — זיהוי אוטומטי מהקול המופרד (vt/karaoke.auto_singers). יש סימון — הסימון קובע
+    (build), כאן לא מחשבים. SNB_KA_SG=0 מכבה."""
+    from vt import karaoke as K
+    if os.environ.get('SNB_KA_SG', '1') == '0' or K.parse_singers(Path(a.lyrics).read_text(encoding='utf-8')):
+        return []
+    t0 = time.time()
+    sg = K.auto_singers(K.timed_lines(words), a.voc)
+    print(f'👥 זמרים: {len(set(x for x in sg if x)) or 1} ({time.time() - t0:.0f} שנ׳)', flush=True)
+    return sg
+
+
 def cmd_align(a):
     from vt import karaoke as K
     from vt.align import align_words
@@ -148,12 +161,22 @@ def cmd_align(a):
     lines = K.parse_lyrics(Path(a.lyrics).read_text(encoding='utf-8'))
     if not lines:
         raise SystemExit('✗ לא נמצאו מילים בטקסט שהודבק.')
+    from vt import align_he as H
+    if H.is_hebrew(lines) and H.ready() and os.environ.get('SNB_KA_HE', '1') != '0':
+        # 31/10/2026: שיר עברי — ivrit + stable-ts + CTC עברי (Parakeet ו־Qwen3 לא מכירים עברית: המילים הופיעו בלי קשר לשירה)
+        words, stats = H.align_hebrew(lines, a.voc)
+        n = sum(1 for w in words if w['align'] != 'anchor')
+        Path(a.out).write_text(json.dumps({'words': words, 'stats': stats, 'asr': stats.get('asr', 0),
+                                           'sg': singers(a, words)}, ensure_ascii=False), encoding='utf-8')
+        print(f'✓ יושרו {n} מתוך {len(words)} מילים (עברית: stable-ts {stats["from_st"]}, '
+              f'CTC {stats["from_ctc"]}; עוגנים מהתמלול: {stats.get("asr", 0)})')
+        return
     asr = transcribe(a.voc)['words']                 # הקול המופרד — עוגנים בלבד (המילים מגיעות מהמשתמש)
     words = K.anchor(lines, asr)
     words, stats = align_words(words, a.voc, cache=str(Path(a.out).with_suffix('.part.json')))
     n = sum(1 for w in words if w.get('align') == 'qwen3')
     Path(a.out).write_text(json.dumps({'words': words, 'stats': {k: v for k, v in stats.items() if not isinstance(v, dict)},
-                                       'asr': len(asr)}, ensure_ascii=False), encoding='utf-8')
+                                       'asr': len(asr), 'sg': singers(a, words)}, ensure_ascii=False), encoding='utf-8')
     print(f'✓ יושרו {n} מתוך {len(words)} מילים (עוגנים מהתמלול: {len(asr)})')
 
 
@@ -165,7 +188,8 @@ def cmd_build(a):
     lines = K.timed_lines(words)
     ky = K.norm_ky(json.loads(a.ky or '{}'))
     if a.lyrics and Path(a.lyrics).exists():          # 31/10/2026: דואט — מי שר כל שורה, מהסימון במילים
-        K.assign_singers(lines, K.parse_singers(Path(a.lyrics).read_text(encoding='utf-8')))
+        K.assign_singers(lines, K.parse_singers(Path(a.lyrics).read_text(encoding='utf-8'))
+                         or json.loads(Path(a.words).read_text(encoding='utf-8')).get('sg') or [])   # או מהזיהוי האוטומטי
     shown = K.layout(lines)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)

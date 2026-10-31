@@ -3443,7 +3443,7 @@ function kaSpec(f, spec) {
   if (!f.ka) return spec;
   const out = KA_OUTS.filter((k) => f.out[k]);
   Object.assign(spec, { ka: 1, lyr: kaLyr(f.lyr), ky: normKy(f.ky || store.settings.ky), out: out.length ? out : ['compact'], eng: 'api', cap: store.settings.cap },
-    f.bv !== false ? { bv: 1 } : {}, f.gv > 0 ? { gv: f.gv } : {});
+    f.bv === true ? { bv: 1 } : {}, f.gv > 0 ? { gv: f.gv } : {});
   delete spec.cp; delete spec.ry; delete spec.edl;
   return spec;
 }
@@ -3489,7 +3489,7 @@ function kaSection(p, f) {
   const chip = (lbl, on, fn, k) => { const b = btn('st-chip' + (on ? ' on' : ''), lbl, fn, k); b.setAttribute('aria-pressed', on ? 'true' : 'false'); return b; };
   const gv = h('div', 'st-chips');
   gv.append(...KA_GV.map((x) => chip(x ? '\u2066' + x + '%\u2069' : T('studioKaGv0'), (f.gv || 0) === x, () => { f.gv = x; render('none'); }, 'ka-gv:' + x)));
-  p.append(secT(T('studioKaVoice')), list(rowSwitch({ label: T('studioKaBv'), sub: T('studioKaBvS'), on: f.bv !== false, onClick: () => { f.bv = f.bv === false; render('none'); }, k: 'ka-bv' })),
+  p.append(secT(T('studioKaVoice')), list(rowSwitch({ label: T('studioKaBv'), sub: T('studioKaBvS'), on: f.bv === true, onClick: () => { f.bv = f.bv !== true; render('none'); }, k: 'ka-bv' })),
     secT(T('studioKaGv')), gv);
 }
 /* ---------- 31/10/2026: עיצוב הקריוקי (ת־קריוקי, docs/standards.md) — דף משלו במקום "עיצוב הכתוביות" של הסרטונים.
@@ -4639,7 +4639,7 @@ function startLink(f) {
     const n = dlNonce();
     const ch = pick.ch && L.r.ch ? L.r.ch.map((c) => [c[0] - (pick.sec ? pick.sec[0] : 0), c[1]]).filter((c) => c[0] >= 0) : [];
     const pend = { n, at: Date.now(), dur, f: { from: f.from, to: f.to, mode: f.mode, out: f.out, style: f.style, sty: f.sty || null, terms: f.terms, edl: null,
-      ...(f.ka ? { ka: true, lyr: kaLyr(f.lyr), bv: f.bv !== false, gv: f.gv || 0 } : {}) },   // 30/10/2026: שיר שהורד בטלפון חוזר לטופס של הקריוקי
+      ...(f.ka ? { ka: true, lyr: kaLyr(f.lyr), bv: f.bv === true, gv: f.gv || 0 } : {}) },   // 30/10/2026: שיר שהורד בטלפון חוזר לטופס של הקריוקי
       t: L.r.t, u: L.r.u || L.u, ch, th: L.r.th || '' };
     try { sessionStorage.setItem(DLP_KEY, JSON.stringify(pend)); } catch (e) {}
     ui.starting = false; ui.dlWait = n; render('none');
@@ -4749,7 +4749,7 @@ async function gotFile(key) {
   form = freshForm(null);
   const f = form;
   if (pend && pend.f) for (const k of ['from', 'to', 'mode', 'out', 'style', 'sty', 'terms']) if (pend.f[k] != null) f[k] = k === 'sty' ? normSty(pend.f[k]) : pend.f[k];
-  if (pend && pend.f && pend.f.ka === true) Object.assign(f, { ka: true, lyr: kaLyr(pend.f.lyr), bv: pend.f.bv !== false, gv: KA_GV.includes(pend.f.gv) ? pend.f.gv : 0 });   // 30/10/2026
+  if (pend && pend.f && pend.f.ka === true) Object.assign(f, { ka: true, lyr: kaLyr(pend.f.lyr), bv: pend.f.bv === true, gv: KA_GV.includes(pend.f.gv) ? pend.f.gv : 0 });   // 30/10/2026
   f.fileObj = file; f.handle = { inbox: key }; f.drive = null; f.file = { name: file.name, size: file.size, type: file.type || '' };
   f.dl = pend ? { t: pend.t, ch: pend.ch || [], th: pend.th || '', u: pend.u || '' } : null;   // u — לשם האתר במקור (org)
   inspectFor(f, file); if (!f.ka) tracksFor(f, file);

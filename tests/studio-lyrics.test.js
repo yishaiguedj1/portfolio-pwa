@@ -79,7 +79,8 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   for (const p of ['index.html', 'academy.html', 'studio.html', 'admin.html']) ok(/connect-src[^;]*https:\/\/lrclib\.net/.test(read(p)), p + ': lrclib.net ב־connect-src');
   ok(/f\.la = true; setTimeout\(\(\) => go\(\), 0\)/.test(st) && /f\.lqe = true/.test(st), '30/10: שיר חדש = חיפוש אוטומטי (כמו הכתוביות), כל עוד המשתמש לא כתב שאילתה בעצמו');
   ok(/f\.lb && f\.lw\) box\.append\(note\(T\('studioKaFindWait'\)\)\)/.test(st), '31/10: בזמן הניסיונות — "ממשיכים לנסות"');
-  ok(/on: f\.bv !== false, onClick: \(\) => \{ f\.bv = f\.bv === false;/.test(st) && /f\.bv !== false \? \{ bv: 1 \}/.test(st) && /bv: f\.bv !== false/.test(st) && /bv: pend\.f\.bv !== false/.test(st), '31/10: קולות הרקע נשארים כברירת מחדל — בטופס, ב־spec ובחזרה מהטלפון');
+  // 31/10/2026 (בקשת המשתמש: "בלי קול של זמר בכלל"): "עם קולות רקע" השאיר בליווי ‎-10.7 dB של קול — כבוי כברירת מחדל
+  ok(/on: f\.bv === true, onClick: \(\) => \{ f\.bv = f\.bv !== true;/.test(st) && /f\.bv === true \? \{ bv: 1 \}/.test(st) && /bv: f\.bv === true/.test(st) && /bv: pend\.f\.bv === true/.test(st) && !/bv !== false/.test(st), '31/10: בלי שום קול כברירת מחדל — קולות הרקע רק בבחירה, בטופס, ב־spec ובחזרה מהטלפון');
   ok(/rec\.spec\.ka \? T\('studioNowRunningKa'\) : T\('studioNowRunning'\)/.test(st), '31/10: בקריוקי לא "Claude עובד על הסרטון"');
   for (const k of ['studioNowRunningKa', 'studioKaFindWait', 'studioKaFind', 'studioKaFindPh', 'studioKaFindNone', 'studioKaFindErr', 'studioKaFindBusy', 'studioKaFindLen', 'studioKaFindSrc', 'studioKaFindUsed'])
     ok((read('app.js').match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, k + ' בעברית ובאנגלית');

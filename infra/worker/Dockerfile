@@ -145,6 +145,33 @@ RUN /opt/vt/bin/pip install --no-cache-dir -q --require-hashes --no-deps --only-
     | sha256sum -c - \
  && test -s download_checks.json && rm -rf /tmp/o
 
+# ---------------------------------------------------------------- קריוקי בעברית — סנכרון המילים (31/10/2026, translator/vt/align_he.py)
+# ivrit-ai/whisper-large-v3-turbo-ct2 ‏(Apache-2.0, ‏1.6GB) — תמלול לעוגנים + stable-ts align; imvladikon/wav2vec2-large-xlsr-53-hebrew
+# ‏(Apache-2.0, ‏1.2GB) — CTC עברי בחלונות. שניהם בגרסה נעולה ונבדקים מול sha256. stable-ts-whisperless 2.19.1 ‏(MIT) מופץ רק
+# כקוד מקור טהור (בלי שלב בנייה): ה־tar.gz נבדק מול sha256 ורק התיקייה stable_whisper נפתחת (filter='data') ל־/opt/karaoke-he/py.
+# faster-whisper ו־ctranslate2 — ב־requirements-karaoke.lock (/opt/sepdeps). בלי המודלים: השרשרת האנגלית, כמו קודם.
+FROM deps AS karaokehe
+RUN HF_HOME=/tmp/hf HF_HUB_DISABLE_TELEMETRY=1 /opt/vt/bin/python -c \
+    "from huggingface_hub import hf_hub_download as d; [d('ivrit-ai/whisper-large-v3-turbo-ct2', f, revision='72ad623a37947395efcc3933132353790e5a12f5', local_dir='/opt/karaoke-he/ivrit') for f in ('config.json', 'model.bin', 'preprocessor_config.json', 'tokenizer.json', 'vocabulary.json')]; [d('imvladikon/wav2vec2-large-xlsr-53-hebrew', f, revision='3dd308dda70b20507a6920b459052635973ae3cd', local_dir='/opt/karaoke-he/ctc') for f in ('added_tokens.json', 'config.json', 'model.safetensors', 'preprocessor_config.json', 'special_tokens_map.json', 'tokenizer_config.json', 'vocab.json')]" \
+ && cd /opt/karaoke-he && printf '%s\n' \
+    "c805eff43fc2a1d00d5cfa315e4b2230895f34994257c185959808a116e7c4f0  ivrit/config.json" \
+    "db2a2265aa012c16c7db9edda3d699c99f984efdd3f2e22a72a8ce7e9720f3a2  ivrit/model.bin" \
+    "654cf18d3e163b948ceaf9766da56ce0b52de265d58673cf61c9376f126bd499  ivrit/preprocessor_config.json" \
+    "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd  ivrit/tokenizer.json" \
+    "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1  ivrit/vocabulary.json" \
+    "9673c4a07605742b38d4604c7932b9991007ad2ad72ea5e7fd45d4b72c06186c  ctc/added_tokens.json" \
+    "91deb85f6bc8a7055b4036d51727d900e83f407891d0c1fe1f1d5eb6fd7844f7  ctc/config.json" \
+    "ccb343830f577a24d1c7aa866a459ac93fbc00bd205abb1b90728cf1f767e0da  ctc/model.safetensors" \
+    "c403ce09975b90dff0dd8302c42d422e9de1f166cd7772df23490069893cb0cf  ctc/preprocessor_config.json" \
+    "bb7068de1150661a10b55f9e4b12a0e77af8bf91f5e45e1b58afaf1d0e17f675  ctc/special_tokens_map.json" \
+    "768fe81239d56919fcb7d7bba11878a79c843e386719ebf38622257291a00569  ctc/tokenizer_config.json" \
+    "9682dbaf1cca6f1354a33a3caeb03cab5d5ba8f5c5c4c5fe0ed53f3726e1bf62  ctc/vocab.json" \
+    | sha256sum -c - \
+ && /opt/vt/bin/python -c \
+    "import hashlib, io, tarfile, urllib.request; u='https://files.pythonhosted.org/packages/94/c4/ae003984207b2de10b901549b0d593b71df41e484db8e4801335a53255ed/stable_ts_whisperless-2.19.1.tar.gz'; b=urllib.request.urlopen(u, timeout=120).read(); assert hashlib.sha256(b).hexdigest() == '5a9313dce19aab79fc08f9db89cee0e93ca14091da6e33d79dd507586990f605', 'stable-ts'; t=tarfile.open(fileobj=io.BytesIO(b)); p='stable_ts_whisperless-2.19.1/'; m=[x for x in t.getmembers() if x.name.startswith(p + 'stable_whisper/') and (x.isfile() or x.isdir())]; [setattr(x, 'name', x.name[len(p):]) for x in m]; t.extractall('/opt/karaoke-he/py', members=m, filter='data')" \
+ && test -s /opt/karaoke-he/py/stable_whisper/alignment.py \
+ && rm -rf /tmp/hf /opt/karaoke-he/ivrit/.cache /opt/karaoke-he/ctc/.cache
+
 # ---------------------------------------------------------------- טקסט שעל המסך (25/10/2026, translator/vt/burnin.py)
 # PP-OCRv3 det + rec (‏PaddleOCR, ‏Apache-2.0) מהגלגל הרשמי של rapidocr_onnxruntime 1.2.3 ב־PyPI — הגלגל והמודלים נבדקים
 # מול sha256. det מזהה איפה יש טקסט בפסים העליון/התחתון, rec מאשר שזה טקסט — הכתוביות מורמות מעליו. בלי המודלים: כמו קודם.
@@ -176,6 +203,7 @@ COPY --from=linebreak /opt/linebreak /opt/linebreak
 COPY --from=burnin /opt/burnin /opt/burnin
 COPY --from=separator /opt/sepdeps /opt/sepdeps
 COPY --from=separator /opt/separator /opt/separator
+COPY --from=karaokehe /opt/karaoke-he /opt/karaoke-he
 COPY --chown=root:root translator /app/translator
 # 16/10/2026: הגדרת השרת לעדכון ידני בלי שרת חדש — נתונים בלבד, שום דבר לא מריץ אותם לבד (infra/worker/snb-host-apply)
 COPY --chown=root:root infra/host/snb-common.sh infra/compose.yaml infra/host/snb-update /opt/snb-host/
@@ -184,7 +212,7 @@ RUN rm -rf /app/translator/tests /app/translator/research /app/translator/__pyca
  && find /app /opt/aligner /opt/speaker -type d -exec chmod 755 {} + && find /app /opt/aligner /opt/speaker -type f -exec chmod 644 {} + \
  && find /opt/linebreak -type d -exec chmod 755 {} + && find /opt/linebreak -type f -exec chmod 644 {} + \
  && find /opt/burnin -type d -exec chmod 755 {} + && find /opt/burnin -type f -exec chmod 644 {} + \
- && find /opt/sepdeps /opt/separator -type d -exec chmod 755 {} + && find /opt/sepdeps /opt/separator -type f -exec chmod 644 {} + \
+ && find /opt/sepdeps /opt/separator /opt/karaoke-he -type d -exec chmod 755 {} + && find /opt/sepdeps /opt/separator /opt/karaoke-he -type f -exec chmod 644 {} + \
  && chmod 644 /opt/snb-host/snb-common.sh /opt/snb-host/compose.yaml /opt/snb-host/snb-update
 # 20/10/2026: בדיקת עשן מול הספריות האמיתיות שבתמונה (הבדיקות ב־CI רצות בלי anthropic) — בניית הלקוח של Claude
 # בלי רשת. anthropic 1.x עבר ל־httpx2 ודחה httpx.Timeout ב־TypeError: כל עבודה בשרת קרסה בקריאה הראשונה, והבנייה עברה
@@ -197,6 +225,8 @@ RUN cd /app/translator && HF_HUB_OFFLINE=1 /opt/vt/bin/python -c "from vt import
 RUN cd /app/translator && /opt/vt/bin/python -c "from vt import burnin as B; import numpy as np; assert B.available(), 'burnin'; d = B.Detector(); print('burnin', len(d.frame(np.zeros((360, 640, 3), np.uint8), 0.0)))"
 # 26/10/2026: קריוקי — הספרייה נטענת מ־/opt/sepdeps, ושני המודלים נמצאים (בלי רשת; diffq/onnx2torch לא נדרשים ל־RoFormer)
 RUN cd /app/translator && /opt/vt/bin/python -c "import karaoke as K; assert K.sep_ready(), 'karaoke'; from audio_separator.separator import Separator; print('karaoke', K.SEP_DEFAULT, K.KAR_DEFAULT)"
+# 31/10/2026: הסנכרון בעברית — שני המודלים, stable-ts (מ־/opt/karaoke-he/py), faster-whisper ו־ctranslate2 נטענים בלי רשת
+RUN cd /app/translator && HF_HUB_OFFLINE=1 /opt/vt/bin/python -c "import karaoke; from vt import align_he as H; assert H.ready(), 'karaoke-he'; import stable_whisper, faster_whisper, ctranslate2; m = H.load_ivrit(); c, d = H.load_ctc(); assert '[pad]' in d; print('karaoke-he', stable_whisper.__version__, ctranslate2.__version__)"
 RUN cd /app/translator && ANTHROPIC_API_KEY=build-check /opt/vt/bin/python -B -c \
     "import llm; c = llm.Engine(llm.Spec.of(llm.DEFAULT_MODE))._client_or_new(); assert c.timeout.read == llm.API_READ_TIMEOUT, c.timeout" \
  && cd /app/translator && /opt/vt/bin/python -B -c \
