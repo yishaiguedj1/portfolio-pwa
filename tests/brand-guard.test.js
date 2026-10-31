@@ -64,7 +64,7 @@ if (tighter) console.log('# ' + tighter + ' קבצים נוקו מאז הרשי�
 
 // התקנים עצמם קיימים והחוקים בהם
 const std = fs.readFileSync(path.join(root, 'docs/standards.md'), 'utf8');
-for (const t of ['ת־עיצוב', 'ת־קורא', 'ת־גרף', 'ת־ניתוח', 'ת־נגן', 'ת־פיקוח']) ok(std.includes('## ' + t), 'התקן ' + t + ' קיים');
+for (const t of ['ת־עיצוב', 'ת־קורא', 'ת־גרף', 'ת־ניתוח', 'ת־נגן', 'ת־קריוקי', 'ת־פיקוח']) ok(std.includes('## ' + t), 'התקן ' + t + ' קיים');
 ok(/לא מקור להעתקה/.test(std) && /לומדים מהתנהגות, לא מקוד/.test(std), 'חוקי הבנייה הנקייה בתקנים');
 
 if (fails.length) { console.log('\nFAIL (' + fails.length + '/' + n + '):\n- ' + fails.join('\n- ')); process.exit(1); }
