@@ -35,6 +35,14 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(r.filter((x) => x.plain === 'close line').length === 1, 'מילים זהות — פעם אחת');
   const ev = r.find((x) => x.a === 'Z');
   ok(ev && !/[‮\u0000]/.test(ev.t + ev.a) && ev.d === 0 && ev.plain.length === 8000, 'טקסט מבחוץ: בלי תווי בקרה וכיווניות, אורך מוגבל, משך לא סביר = 0');
+  { // 31/10/2026 (הצילום: "ממותה - Full Trunk" הציע את כל האלבום) — רק הגרסאות של השיר עצמו, הקרובה באורך ראשונה
+    const L = (t, a, d) => ({ trackName: t, artistName: a, duration: d, plainLyrics: 'x ' + t });
+    const raw2 = [L('More', 'Full Trunk', 211), L('ממותה', 'Full Trunk', 209), L('עיניים', 'Full Trunk', 204), L('ממותה (Live)', 'Full Trunk', 230)];
+    ok(N.lrcResults(raw2, 207, 'ממותה - Full Trunk').map((r) => r.t).join('|') === 'ממותה|ממותה (Live)', 'רק הגרסאות של השיר');
+    ok(N.lrcResults(raw2, 207, 'Full Trunk - ממותה (Official Video)').length === 2, 'גם "אמן - שיר"');
+    ok(N.lrcResults(raw2, 207, 'שיר אחר').length === 4 && N.lrcResults(raw2, 207).length === 4, 'אין התאמה לשם — כל התוצאות');
+    ok(N.lrcTitleHit('שָׁלוֹם', 'שלום - אמן') && !N.lrcTitleHit('עיניים', 'ממותה - Full Trunk'), 'בלי ניקוד; שיר אחר לא מתאים');
+  }
   ok(N.lrcResults({ error: 1 }, 0).length === 0 && N.lrcResults(null, 0).length === 0, 'תשובה לא צפויה = רשימה ריקה');
   ok(N.lrcResults(Array.from({ length: 30 }, (_, i) => ({ trackName: 't' + i, plainLyrics: 'l' + i })), 0).length === 8, 'עד 8 תוצאות');
 
