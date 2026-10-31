@@ -1127,3 +1127,47 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-dial[hidden], .st-dial .tab[hidden] { display: none; }
 html.st-dock .st-root { padding-bottom: calc(var(--dock-h, 120px) + 14px + env(safe-area-inset-bottom)); }
 html.st-dock .toast { bottom: calc(var(--dock-h, 120px) + 12px + env(safe-area-inset-bottom, 0px)); }
+
+/* 31/10/2026: עיצוב הקריוקי (ת־קריוקי) — הבמה החיה = מה שנצרב (vt/karaoke.py): שתי שורות, מילוי לאורך המילה
+   (clip-path מימין לשמאל בעברית), סמן זמר, נקודות ספירה. הבמה תמיד כהה — כמו הסרטון */
+.st-ky-wrap { display: grid; gap: 10px; margin-inline: 16px; }
+.st-ky-stage { position: relative; aspect-ratio: 16 / 9; max-width: 100%; border-radius: var(--radius); overflow: hidden; background: #101418;
+  container-type: inline-size; isolation: isolate; color: #fff; --ky-u: #FFFFFF; --ky-c: #FFC83D; --ky-fs: 5.6cqi; }
+.st-ky-stage.v { background: radial-gradient(40% 55% at 25% 35%, #c9784a 0%, transparent 70%), radial-gradient(45% 60% at 75% 30%, #35659f 0%, transparent 70%),
+  linear-gradient(180deg, #2a3445, #12161d); }
+.st-ky-stage.bg-grad { background: linear-gradient(120deg, color-mix(in srgb, var(--ky-c) 33%, #101418), #101418 55%, color-mix(in srgb, var(--ky-c) 20%, #101418)); }
+.st-ky-stage.bg-tint { background: radial-gradient(90% 90% at 50% 120%, color-mix(in srgb, var(--ky-c) 33%, #101418), #0b0d10 70%); }
+.st-ky-scrim { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to top, rgba(0, 0, 0, .72), rgba(0, 0, 0, .35) 38%, transparent 62%); transition: opacity .3s; }
+.st-ky-title { position: absolute; inset-inline: 4cqi; bottom: 21cqi; text-align: center; font-weight: 900; font-size: calc(var(--ky-fs) * 1.05); color: var(--ky-u);
+  text-shadow: 0 0 .06em #000, 0 .04em .12em rgba(0, 0, 0, .85); transition: opacity .4s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-ky-inter { position: absolute; inset-inline: 0; bottom: 21cqi; text-align: center; font-size: calc(var(--ky-fs) * .6); font-weight: 700; color: rgba(255, 255, 255, .7); transition: opacity .3s; }
+.st-ky-lyr { position: absolute; inset-inline: 3cqi; bottom: 5cqi; display: grid; gap: 1.4cqi; }
+.st-ky-row { position: relative; display: flex; justify-content: center; min-height: calc(var(--ky-fs) * 1.25); transition: opacity .3s; }
+.st-ky-line { display: flex; align-items: center; gap: .28em; font-size: var(--ky-fs); font-weight: 900; line-height: 1.2; white-space: nowrap; }
+.st-ky-w { --p: 0%; position: relative; color: var(--ky-u); text-shadow: 0 0 .06em #000, 0 .04em .12em rgba(0, 0, 0, .85); }
+.st-ky-on { position: absolute; inset: 0; color: var(--ky-c); clip-path: inset(0 0 0 calc(100% - var(--p, 0%))); }
+.st-ky-stage[dir="ltr"] .st-ky-on { clip-path: inset(0 calc(100% - var(--p, 0%)) 0 0); }
+.st-ky-mk { display: inline-grid; place-items: center; min-width: 1.6em; height: 1.6em; padding-inline: .35em; box-sizing: border-box; border-radius: var(--radius-xs);
+  background: var(--ky-c); color: #0b0d10; font-size: .5em; font-weight: 800; line-height: 1; }
+.st-ky-line .st-ky-mk { font-size: calc(var(--ky-fs) * .42); border-radius: calc(var(--radius-xs) / 2); }
+.st-ky-dots { position: absolute; bottom: 100%; display: flex; gap: 1.2cqi; margin-block-end: .5cqi; }
+.st-ky-dots i { width: 1.9cqi; height: 1.9cqi; border-radius: 50%; background: var(--ky-c); box-shadow: 0 0 .8cqi var(--ky-c); transition: opacity .2s, transform .2s; }
+.st-ky-dots i.off { opacity: 0; transform: scale(.4); }
+.st-ky-pvseg { justify-self: center; min-width: 60%; }
+.st-ky-schemes { display: flex; gap: 10px; padding: 12px 16px; overflow-x: auto; scrollbar-width: none; }
+.st-ky-sch { display: grid; justify-items: center; gap: 6px; flex: none; color: var(--on-surface); }
+.st-ky-sch small { font-size: 12.5px; font-weight: 600; }
+.st-ky-sw { --a: #FFC83D; --b: #FFFFFF; display: grid; place-items: center; width: 56px; height: 42px; border-radius: var(--radius-xs); background: #15181d; font-size: 18px; font-weight: 900; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1);
+  outline: 2px solid transparent; outline-offset: 2px; }
+.st-ky-sw span { background: linear-gradient(to left, var(--a) 55%, var(--b) 55%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.st-ky-sw.any { background: conic-gradient(from 90deg, #FF5CA8, #FFC83D, #30D158, #3DD6FF, #FF5CA8); }
+.st-ky-sch.on .st-ky-sw { outline-color: var(--primary); }
+.st-ky-pair, .st-ky-sg, .st-ky-it { gap: 10px; }
+.st-ky-pl { font-size: 13px; color: var(--on-surface-var); }
+.st-ky-col { flex: none; width: 34px; height: 34px; padding: 0; border: 0; background: none; border-radius: 50%; }
+.st-ky-it { flex-wrap: wrap; }
+.st-ky-it .st-l { flex: 1 0 auto; }
+.st-ky-it .st-seg2 { flex: 1 1 auto; min-width: 46%; }
+.st-ky-sg .st-l { flex: 1; }
+.st-ky-sg .st-ky-mk { font-size: 13px; min-width: 30px; height: 24px; border-radius: var(--radius-xs); }
+.st-ky-it .st-seg2 button { min-height: 36px; }
