@@ -2093,6 +2093,33 @@ def rr_render_flags(want):
         (['--compact'] if 'compact' in w or ('small' in w and 'same' not in w) else []) + (['--small'] if 'small' in w else [])
 
 
+class KaSepProg:
+    """31/10/2026: התקדמות ההפרדה של הקריוקי — כמה מעברים (Kim, ואז karaoke במצב קולות רקע), כל אחד 0–100%.
+    השורה '⏩ מעברים: w1,w2' (karaoke.py sep) נותנת את המשקלים; '⏱' = מעבר הסתיים. מחזיר שבר מצטבר, לא יורד."""
+    PCT = re.compile(r'(\d{1,3}(?:\.\d)?)%')
+
+    def __init__(self):
+        self.w, self.i, self.best = [1.0], 0, 0.0
+
+    def feed(self, line):
+        if line.startswith('⏩ מעברים: '):
+            try:
+                self.w = [max(0.01, float(x)) for x in line.split(': ', 1)[1].split(',')] or [1.0]
+            except ValueError:
+                pass
+            return None
+        if line.startswith('⏱ '):
+            self.i += 1
+            f = sum(self.w[:self.i]) / sum(self.w)
+        else:
+            m = self.PCT.search(line)
+            if not m or self.i >= len(self.w):
+                return None
+            f = (sum(self.w[:self.i]) + self.w[self.i] * min(1.0, float(m.group(1)) / 100)) / sum(self.w)
+        self.best = max(self.best, min(1.0, f))
+        return self.best
+
+
 class RenderProg:
     """התקדמות של vt render לפי המעברים שהפקודה תריץ (בסדר של cmd_render ב־vt/cli.py)."""
     BURN = re.compile(r'צורב → ')
@@ -4714,7 +4741,8 @@ def karaoke(args):
         print('✓ הקול והליווי מהמטמון (אותו שיר כבר הופרד)', flush=True)
         ctx.report('tr', 1.0, force=True)
     else:
-        script(ctx, 'karaoke.py', ['sep', '--src', str(song), '--out', str(work)] + (['--backing'] if ks['bv'] else []), 'tr')
+        script(ctx, 'karaoke.py', ['sep', '--src', str(song), '--out', str(work)] + (['--backing'] if ks['bv'] else []), 'tr',
+               prog=KaSepProg())
         ka_cache_put(ck, work)
     inst = work / ('inst_bv.wav' if ks['bv'] and (work / 'inst_bv.wav').exists() else 'inst.wav')
     voc16 = work / 'voc16k.wav'

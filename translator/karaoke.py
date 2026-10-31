@@ -28,6 +28,8 @@ sys.path.insert(0, str(HERE))
 SEP_DEFAULT = os.environ.get('SNB_KA_SEP') or 'vocals_mel_band_roformer.ckpt'
 KAR_DEFAULT = os.environ.get('SNB_KA_KAR') or 'bs_roformer_karaoke_anvuew.ckpt'
 MODEL_DIR = os.environ.get('SNB_KA_MODELS') or '/opt/separator'
+# שניות חישוב לשניית שיר במעבר אחד, 4 ליבות (נמדד 31/10/2026) — רק היחס ביניהם חשוב (משקל בפס ההתקדמות)
+PASS_W = {'vocals_mel_band_roformer.ckpt': 2.75, 'bs_roformer_karaoke_anvuew.ckpt': 3.6}
 OV_DEFAULT = 2          # נקבע במדידה (docs/studio-karaoke-he.md, "מהירות ההפרדה")
 BV1_DEFAULT = False
 # audio-separator מותקן בנפרד מ־/opt/vt (requirements-karaoke.lock) — בסוף הנתיב, כך שהספריות של העובד גוברות
@@ -104,7 +106,12 @@ def cmd_sep(a):
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     km = a.kmodel or KAR_DEFAULT
-    if a.backing and km and bv_one_pass() and sep_ready(km):
+    one = bool(a.backing and km and bv_one_pass() and sep_ready(km))
+    # 31/10/2026: המעברים ומשקלם (זמן נמדד לשנייה) — job.py (KaSepProg) מחבר את האחוזים של כל מעבר לפס אחד.
+    # עד אז כל מעבר דיווח 0–100%, והטלפון (שמציג את המקסימום) הראה פס מלא לאורך כל המעבר השני
+    ws = [PASS_W.get(km, 1.0)] if one else [PASS_W.get(a.model or SEP_DEFAULT, 1.0)] + ([PASS_W.get(km, 1.0)] if a.backing and km else [])
+    print('⏩ מעברים: ' + ','.join(f'{w:.2f}' for w in ws), flush=True)
+    if one:
         # מעבר אחד: הקול הראשי (ליישור ולקול המנחה) מול הליווי + קולות הרקע
         st = separate(Path(a.src), out, km, 'k')
         os.replace(out / 'k_voc.wav', out / 'voc.wav')

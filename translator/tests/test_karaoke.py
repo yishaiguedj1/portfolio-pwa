@@ -310,6 +310,36 @@ class SepCache(unittest.TestCase):
         self.assertEqual(list(J.KA_CACHE.iterdir()), [])
 
 
+class SepProgress(unittest.TestCase):
+    """31/10/2026 (הצילום: הפס מלא 20+ דק׳ במצב קולות רקע): שני מעברים = פס אחד משוקלל, לא 0–100% פעמיים."""
+    def test_two_passes(self):
+        import job as J
+        p = J.KaSepProg()
+        self.assertIsNone(p.feed('⏩ מעברים: 2.75,3.60'))
+        w1 = 2.75 / 6.35
+        self.assertAlmostEqual(p.feed(' 50%|#####     | 5/10'), 0.5 * w1, places=3)
+        self.assertAlmostEqual(p.feed('100%|##########| 10/10'), w1, places=3)
+        self.assertAlmostEqual(p.feed('⏱ vocals_mel_band_roformer.ckpt: 600 שנ׳'), w1, places=3)
+        self.assertAlmostEqual(p.feed('  0%|          | 0/12'), w1, places=3)        # המעבר השני מתחיל — לא חוזר ל־0
+        self.assertAlmostEqual(p.feed(' 50%|#####     | 6/12'), w1 + 0.5 * (1 - w1), places=3)
+        self.assertAlmostEqual(p.feed('⏱ bs_roformer_karaoke_anvuew.ckpt: 800 שנ׳'), 1.0, places=3)
+        self.assertIsNone(p.feed('ללא אחוזים'))
+
+    def test_one_pass(self):
+        import job as J
+        p = J.KaSepProg()
+        p.feed('⏩ מעברים: 3.60')
+        self.assertAlmostEqual(p.feed(' 40%|####'), 0.4, places=3)
+
+    def test_marker_from_sep(self):
+        import io
+        from contextlib import redirect_stdout
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            calls, _ = SepModes.run_sep(self, {'SNB_KA_BV1': '0'})
+        self.assertIn('⏩ מעברים: 2.75,3.60', buf.getvalue())
+
+
 class SepModes(unittest.TestCase):
     """31/10/2026: overlap ו"עם קולות רקע" במעבר אחד (SNB_KA_OV / SNB_KA_BV1) — בלי מודלים, separate מדומה."""
     def run_sep(self, env, backing=True):
