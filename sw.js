@@ -6,16 +6,10 @@
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
 const CACHE_NAME = 'portfolio-pwa-v659';
 const HASHES = {
-  "./": "60b115f840e39f84c497504e60da9ca2",
-  "./index.html": "60b115f840e39f84c497504e60da9ca2",
+  "./": "27c0788019f4842a124eba31840b522b",
+  "./index.html": "27c0788019f4842a124eba31840b522b",
   "./styles.css": "1f022779ccc73cbbdafb37c699c9b5d4",
-  "./snow.css": "2658b96afa6e284c044973552b20765a",
-  "./snow-cap-r.webp": "4921393240a5d8eff2d59045090fd8b9",
-  "./snow-cap-r-dark.webp": "2bebfed968ba0bdf4f01675ab9327831",
-  "./snow-cap-p.webp": "cab7f1380e22be04cae66060fe1b23b4",
-  "./snow-cap-p-dark.webp": "c5add9f07449ffa40879e5d5ef732bf8",
-  "./snow-tex.webp": "0a48a44115051d6f275ce49bfb8f8231",
-  "./snow-spk.webp": "0abe15c8c806028eb318aea7ced27294",
+  "./glass-btn.css": "cef7ec6507077e05a0ab6fbd42edbd5d",
   "./app.js": "ce08c6647dbaab4f83ab023c8c1206fb",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "2cf2e330bfcc2c9150ba47b8f355982d",
@@ -69,7 +63,7 @@ const HASHES = {
   "./vendor/foliate-js/fixed-layout.js": "7aee1d15d8e0479b8a6c59a20304b250",
   "./vendor/foliate-js/vendor/zip.js": "2a0d43157e4a447c6e43351225758795",
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
-  "./academy.html": "9568cbf63efedb57f7a79c50037c2594",
+  "./academy.html": "ff70b7cdf55a58896794457f6812abf4",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
   "./strings-academy.js": "b4a6507e0568d60757a45e35d6514796",
   "./core.js": "b988b65f1a2cfd426a04be89a83979cc",
@@ -91,7 +85,7 @@ const HASHES = {
   "./studioai.js": "e0a43e7a48c70e3bf5028813acebbf3e",
   "./studiostore.js": "42e717dbfb6b004703532f60659b14bf",
   "./studiobg.js": "9013d96cee956642e0735806ea1e60c3",
-  "./studio.html": "ef3cadd963a3da67707c0f3a6b72fd60",
+  "./studio.html": "83a0db4fc3f1058a17ce5b6370873966",
   "./studio-app.js": "d2aaad29f3f46cc04426c93bdae1eb83",
   "./strings-studio.js": "69e8f21c871346c8971c0a2d410ceecf",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
@@ -107,7 +101,7 @@ const APP_SHELL = [
   './',
   './index.html',
   './styles.css',
-  './snow.css', './snow-cap-r.webp', './snow-cap-r-dark.webp', './snow-cap-p.webp', './snow-cap-p-dark.webp', './snow-tex.webp', './snow-spk.webp',   // 31/10/2026: כפתורי כדור שלג
+  './glass-btn.css',   // 31/10/2026: כפתורי זכוכית בכל המערכת
   './app.js',
   './returns.js',
   './cloud.js',

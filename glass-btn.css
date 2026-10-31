@@ -1,0 +1,113 @@
+/* ==== כפתורי זכוכית בכל המערכת (31/10/2026, בקשת המשתמש) ====
+   לפי ת־עיצוב: מעטפת זכוכית — גוף בהיר (בכהה כחול־לילה) עם טבעת דקה, קצוות אור, זוהר שבירה בתחתית וצל רך.
+   כפתור צבעוני (ראשי / נבחר / הרסני) — אותה זכוכית בצבע שלו (--gb-tone). מרכז הניהול — סגול.
+   (סבב "כדור שלג" עם כיפת שלג נבדק בתצוגות מקדימות ובוטל לבקשת המשתמש — נשארה הזכוכית בלבד.)
+
+   איך זה בנוי:
+   - הכל ב־@layer glassbtn עם !important: הצהרה חשובה בשכבה גוברת על כל הצהרה חשובה שלא בשכבה, בלי קשר לספציפיות ולסדר —
+     כך אין צורך לגעת בכללים של כל רכיב (library/studio/admin/chart/analysis), וכפתור חדש עם מחלקה קיימת מקבל את המראה.
+   - כל הרשימות ב־:where (ספציפיות 0) — בתוך השכבה הסדר קובע: חומר → לחיצה → צבעוני → התאמות.
+   - בלי backdrop-filter (הגוף אטום — טשטוש רק עולה בפריימים) ובלי ::before/::after (רכיבים רבים כבר משתמשים בהם).
+   - --gb-on: 1 על כל כפתור בזכוכית (qa-deep --glass בודק אותו במסכים).
+   - tests/glass-buttons.test.js: כל מחלקה של <button> בקוד חייבת להופיע כאן — בזכוכית או ברשימת הפטורים (@glass-exempt). */
+
+:root {
+  --gb-body: radial-gradient(120% 60% at 50% 108%, rgba(255, 255, 255, .6), rgba(255, 255, 255, 0) 62%), radial-gradient(130% 120% at 30% 18%, #F4F8FD 0 22%, #EAF0F8 52%, #DCE6F4 100%);
+  --gb-sh: inset 0 0 0 1.5px rgba(255, 255, 255, .5), inset 1.5px 2px 1px -1px #fff, inset -1.5px -2px 1px -1px rgba(255, 255, 255, .75), inset 0 -5px 9px rgba(120, 160, 215, .28),
+    0 0 0 .5px rgba(60, 90, 140, .18), 0 1.5px 2px rgba(60, 90, 140, .16), 0 8px 16px -8px rgba(40, 70, 120, .32);
+  --gb-sh-press: inset 1px 1.5px 1px -.5px rgba(255, 255, 255, .95), inset 0 0 0 1px rgba(255, 255, 255, .55), inset 0 -3px 7px rgba(120, 160, 215, .36),
+    0 0 0 .5px rgba(60, 90, 140, .2), 0 1px 2px rgba(60, 90, 140, .18);
+  --gb-fill-hi: rgba(255, 255, 255, .32);
+  --gb-ink: #1D2A3D;
+}
+/* כהה — ובמסכים שכהים תמיד (הנגן של Studio) */
+[data-theme="dark"], .st-dark {
+  --gb-body: radial-gradient(130% 120% at 30% 18%, #3A4B6A 0 18%, #2E3C58 50%, #1E2A42 100%);
+  --gb-sh: inset 0 0 0 1px rgba(232, 239, 249, .07), inset 1.5px 2px 1px -1px rgba(232, 239, 249, .5), inset 0 -7px 12px -4px rgba(8, 14, 28, .45),
+    0 0 0 .5px rgba(0, 0, 0, .6), 0 6px 16px -6px rgba(0, 0, 0, .7);
+  --gb-sh-press: inset 1px 1.5px 1px -.5px rgba(232, 239, 249, .45), inset 0 0 0 1px rgba(232, 239, 249, .06), inset 0 -5px 10px -4px rgba(8, 14, 28, .5),
+    0 0 0 .5px rgba(0, 0, 0, .6), 0 2px 5px rgba(0, 0, 0, .7);
+  --gb-fill-hi: rgba(255, 255, 255, .18);
+  --gb-ink: #EEF3FA;
+}
+
+@layer glassbtn {
+
+/* ---------- 1. עגולים ---------- */
+:where(.icon-btn, .ann-more, .learn-exp, .lib-round, .mg-ib, .st-lk-x, .st-rate-b, .st-al-add, .tr-copy, .tr-gg, .tr-ib, .tr-say, .tr-sw, .wl-title-btn,
+    .st-outb, .st-advx, .st-pl-b, .an-x, .an-cback, .an-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic, .tab-disc, .tab-glow, .adm-tab i, .ss-add) {
+  border-radius: 50% !important;
+}
+/* ---------- 2. החומר — כל הכפתורים (פריטי סגמנט: רק הנבחר; השאר יושבים על המסילה) ---------- */
+:where(.icon-btn, .ann-more, .learn-exp, .lib-round, .mg-ib, .st-lk-x, .st-rate-b, .st-al-add, .tr-copy, .tr-gg, .tr-ib, .tr-say, .tr-sw, .wl-title-btn,
+    .st-outb, .st-advx, .st-pl-b, .an-x, .an-cback, .an-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic, .tab-disc, .adm-tab i, .ss-add,
+    .btn, .dlg-btn, .st-btn, .st-plus, .an-btn, .adm-btn, .bk-cta, .lib-signin, .lib-btn, .google-btn, .sheet-btn, .ed-btn, .ed-fetch, .earn-more,
+    .st-jobs-more, .st-lk-paste, .st-mini, .st-cpill, .st-ai-b, .st-se-b, .st-rs-chip, .st-wbtn, .st-chip, .st-lk-q, .st-pill, .col-pill, .lib-bkpill,
+    .lib-chip, .lib-sortbtn, .mg-pill, .mg-tok, .mg-ab, .mg-tb.p, .mg-ok56, .pf-bench-toggle, .subpage-back, .lib-back, .st-back, .adm-back, .fx-pill,
+    .appbar-sub > *, .chip-btn, .chip, .range-btn, .wl-tab, .mini-btn, .measure-btn, .measure-chip, .add-card, .an-chip, .rd-backpos,
+    .kc-btn, .kc-chip, .kc-mb, .kc-rg, .kc-sc, .kc-tb, .kc-tf, .kc-wid, .kc-ib, .kc-sb, .kc-pk, .kc-tcell,
+    :where(.adm-seg-b, .mg-seg-b, .st-seg-b, .kc-seg-b, .lang-opt, .theme-opt, .an-seg:not(.an-seg-main) > button, .fb-seg .mini-btn, .adm-seg .mini-btn):where(.on, .active, [aria-pressed="true"])) {
+  --gb-on: 1;
+  background: var(--gb-body) !important;
+  background-blend-mode: normal !important;
+  box-shadow: var(--gb-sh) !important;
+  border-color: transparent !important; border-style: solid !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+}
+
+:where(.icon-btn, .ann-more, .learn-exp, .lib-round, .mg-ib, .st-lk-x, .st-rate-b, .tr-copy, .tr-gg, .tr-ib, .tr-say, .tr-sw, .wl-title-btn,
+    .st-outb, .st-advx, .st-pl-b, .an-x, .an-cback, .an-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic,
+    .btn, .dlg-btn, .st-btn, .an-btn, .adm-btn, .bk-cta, .lib-signin, .lib-btn, .google-btn, .sheet-btn, .ed-btn, .ed-fetch, .earn-more,
+    .st-jobs-more, .st-lk-paste, .st-mini, .st-cpill, .st-ai-b, .st-se-b, .st-rs-chip, .st-wbtn, .st-chip, .st-lk-q, .col-pill, .lib-bkpill,
+    .lib-chip, .lib-sortbtn, .mg-pill, .mg-tok, .mg-ab, .pf-bench-toggle, .subpage-back, .lib-back, .st-back, .adm-back,
+    .chip-btn, .chip, .range-btn, .wl-tab, .mini-btn, .measure-btn, .measure-chip, .add-card, .an-chip, .rd-backpos,
+    .kc-btn, .kc-chip, .kc-mb, .kc-rg, .kc-sc, .kc-tb, .kc-tf, .kc-wid, .kc-ib, .kc-sb, .kc-pk, .kc-tcell):active { box-shadow: var(--gb-sh-press) !important; }
+/* מסגרת מקווקוות של "הוספה" — נשארת כרמז, בגוון הזכוכית */
+:where(.add-card, .measure-btn, .wl-tab.add) { border-style: dashed !important; border-color: color-mix(in srgb, var(--gb-ink) 22%, transparent) !important; }
+
+/* ---------- 3. צבעוני: ראשי / נבחר / הרסני — אותו חומר בצבע הכפתור ---------- */
+:where(.btn:not(.secondary-btn), .dlg-ok, .st-btn:not(.ghost):not(.tint), .st-plus, .an-btn, .adm-btn, .bk-cta, .lib-signin, .mg-tb.p, .mg-ab.p, .mg-ok56,
+    .ed-btn:not(.ghost), .ed-fetch, .st-mini.danger, .lib-btn.danger, .tab-glow, .an-seg-th,
+    .range-btn.active, .chip-btn.on, .chip.on, .wl-tab.on, .lib-chip.on, .st-chip.on, .st-rs-chip.on, .st-cpill.on, .st-ai-b.on, .st-se-b.on, .st-lk-q.on,
+    .an-chip[aria-pressed="true"], .measure-btn.on, .pf-bench-toggle.on, .mini-btn[aria-pressed="true"],
+    .kc-btn.pri, .kc-fab.on, .kc-ib.on, .kc-mb.on, .kc-rg.on, .kc-sb.on, .kc-sc.on, .kc-tf.on, .kc-wid.on, .kc-chip.on, .kc-tcell.on,
+    .adm-tab.on i,
+    :where(.adm-seg-b, .mg-seg-b, .st-seg-b, .kc-seg-b, .lang-opt, .theme-opt, .an-seg:not(.an-seg-main) > button):where(.on, .active, [aria-pressed="true"])) {
+  --gb-tone: var(--gb-force, var(--btn-c, var(--primary)));
+  --gb-on: 1;
+  background: radial-gradient(120% 60% at 50% 108%, var(--gb-fill-hi), rgba(255, 255, 255, 0) 62%),
+    radial-gradient(130% 120% at 30% 18%, color-mix(in srgb, var(--gb-tone) 72%, #fff) 0 16%, var(--gb-tone) 52%, color-mix(in srgb, var(--gb-tone) 78%, #000) 100%) !important;
+  background-blend-mode: normal !important;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .26), inset 1.5px 2px 1px -1px rgba(255, 255, 255, .8), inset 0 -7px 12px -4px rgba(0, 0, 0, .2),
+    0 0 0 .5px color-mix(in srgb, var(--gb-tone) 60%, #000), 0 8px 16px -8px color-mix(in srgb, var(--gb-tone) 70%, transparent) !important;
+  color: var(--gb-on, var(--on-primary)) !important;
+}
+/* הרסני */
+:where(.btn.danger-btn, .dlg-ok.danger, .st-btn.danger, .st-mini.danger, .lib-btn.danger, .mg-tb.danger) { --gb-force: var(--loss); --gb-on: #fff; }
+/* מרכז הניהול — הסגול של הניהול */
+/* --gb-force: צבע של כל האפליקציה שגובר על --btn-c של הרכיבים (שמוגדר מחוץ לשכבה); הרסני כופה אדום גם בתוכה */
+html[data-app="admin"] { --gb-force: #5E5CE6; --gb-on: #fff; }
+/* הסמלים בתוך כפתור צבעוני — בצבע הטקסט שלו */
+:where(.ss-add) circle { fill: transparent !important; }
+:where(.ss-add) path { stroke: var(--primary) !important; }
+
+/* ---------- 4. גדלים לרכיבים שהיו "סמל בלבד" ---------- */
+.ss-add { width: 28px; height: 28px; align-items: center; justify-content: center; }
+.ss-add svg { width: 22px !important; height: 22px !important; }
+.adm-tab i { display: grid; place-items: center; width: 42px; height: 42px; line-height: 1 !important; font-size: 20px !important; }
+.tab-glow { box-shadow: none !important; }
+.tab.active .tab-glow { box-shadow: 0 8px 18px -8px color-mix(in srgb, var(--btn-c, var(--primary)) 70%, transparent) !important; }
+
+}
+
+/* @glass-exempt — לא כפתורים במראה (נשארים כמו שהם):
+   שורות/פריטי רשימה/כרטיסים: adm-r ac-lens ac-person ac-step ac-tile ac-track adm-live adm-top an-key an-rcard an-row an-fact bk-card card col-card ft-row gb-row
+     ios-row ios-row-btn lib-cont lib-item lib-opt lib-row mg-opt mg-row rd-fontrow reset-cancel reset-open reset-opt row-link src-opt acx-opt st-alr st-al-row
+     st-banner st-filecard st-fnd st-l st-lk-rec st-newcard st-proj st-row st-twcard st-tower stock-head kc-li kc-wr kc-tg kc-fly-i st-pl-mr st-qa-b mg-pc mg-sc
+   מתגי הפעלה (מתג iOS): adm-sw ib-sw lib-sw pfbk-sw
+   קישורי טקסט ופעולות טקסט: link-btn adm-link an-link lib-admin-link lib-textbtn st-link st-linkb st-txt wk-more ft-more mg-clear st-rate-chg st-pl-fundo es-cancel
+     mg-snack-b ac-retry st-dp-up st-nsb st-pl-chb kc-tfpick kc-symbtn mg-tb sf-clear tr-tog
+   דוגמיות צבע, תגיות ואזורי מגע: st-ky-sch tr-dot kc-col kc-swatch st-sty kc-ctag kc-star rd-ribbon an-grab st-vl-main
+   מעטפות שהכדור שלהן הוא ילד (.tab → .tab-disc, .adm-tab → i): tab adm-tab
+   פריטי סגמנט שאינם נבחרים (המסילה): adm-seg-b mg-seg-b st-seg-b kc-seg-b lang-opt theme-opt (וכל כפתור לא נבחר בתוך an-seg / kc-seg / mg-seg / st-seg2 / adm-seg / fb-seg / rd-seg)
+   (במלאי: tools/btn-inventory.js) */

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 // מלאי כפתורים: כל מחלקה ראשונה של אלמנט <button> (או role=button) בכל קבצי המקור.
-// משמש את tests/snow-buttons.test.js — כל מחלקה חייבת להופיע ב־snow.css: בכדור שלג או ברשימת הפטורים.
+// משמש את tests/glass-buttons.test.js — כל מחלקה חייבת להופיע ב־glass-btn.css: בזכוכית או ברשימת הפטורים.
 // הרצה ידנית: node tools/btn-inventory.js  → מחלקה, מספר, קבצים.
 const fs = require('fs');
 const path = require('path');
