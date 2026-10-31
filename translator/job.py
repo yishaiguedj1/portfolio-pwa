@@ -4610,7 +4610,8 @@ def ka_spec(spec):
         gv = max(0, min(60, int(spec.get('gv') or 0)))
     except (TypeError, ValueError):
         gv = 0
-    return {'lyr': str(spec.get('lyr') or ''), 'bv': spec.get('bv') == 1, 'gv': gv, 'want': want}
+    ky = spec.get('ky') if isinstance(spec.get('ky'), dict) else {}   # 31/10/2026: עיצוב הקריוקי (מנורמל ב־vt/karaoke.py)
+    return {'lyr': str(spec.get('lyr') or ''), 'bv': spec.get('bv') == 1, 'gv': gv, 'want': want, 'ky': ky}
 
 
 @guarded
@@ -4656,11 +4657,13 @@ def karaoke(args):
     title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120]
     out = work / 'out'
     script(ctx, 'karaoke.py', ['build', '--words', str(work / 'words.json'), '--out', str(out), '--W', str(W), '--H', str(H),
-                               '--title', title, '--style', vt_style(spec)], 'bn', 0, 0.05)
+                               '--title', title, '--style', 'bold', '--ky', json.dumps(ks['ky']), '--lyrics', str(lyr),
+                               '--video', '1' if vs else '0'], 'bn', 0, 0.05)   # ת־קריוקי: גופן עבה תמיד
     base = src
     if not vs:                                       # שיר בלי וידאו — רקע באורך השיר
         base = work / 'bg.mp4'
-        script(ctx, 'karaoke.py', ['video', '--audio', str(song), '--dur', f'{dur:.3f}', '--out', str(base)], 'bn', 0.05, 0.15)
+        script(ctx, 'karaoke.py', ['video', '--audio', str(song), '--dur', f'{dur:.3f}', '--out', str(base), '--ky', json.dumps(ks['ky'])],
+               'bn', 0.05, 0.15)
     res = []
     for i, k in enumerate(ks['want']):
         burned = work / ('burn_' + k + '.mp4')

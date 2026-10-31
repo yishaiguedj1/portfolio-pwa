@@ -127,7 +127,7 @@ html[data-app="admin"] { --sb-force: #5E5CE6; --sb-on: #fff; }
    מתגי הפעלה (מתג iOS): adm-sw ib-sw lib-sw pfbk-sw
    קישורי טקסט ופעולות טקסט: link-btn adm-link an-link lib-admin-link lib-textbtn st-link st-linkb st-txt wk-more ft-more mg-clear st-rate-chg st-pl-fundo es-cancel
      mg-snack-b ac-retry st-dp-up st-nsb st-pl-chb kc-tfpick kc-symbtn mg-tb sf-clear tr-tog
-   דוגמיות צבע, תגיות ואזורי מגע: tr-dot kc-col kc-swatch st-sty kc-ctag kc-star rd-ribbon an-grab st-vl-main
+   דוגמיות צבע, תגיות ואזורי מגע: st-ky-sch tr-dot kc-col kc-swatch st-sty kc-ctag kc-star rd-ribbon an-grab st-vl-main
    מעטפות שהכדור שלהן הוא ילד (.tab → .tab-disc, .adm-tab → i): tab adm-tab
    פריטי סגמנט שאינם נבחרים (המסילה): adm-seg-b mg-seg-b st-seg-b kc-seg-b lang-opt theme-opt (וכל כפתור לא נבחר בתוך an-seg / kc-seg / mg-seg / st-seg2 / adm-seg / fb-seg / rd-seg)
    (במלאי: tools/btn-inventory.js) */
