@@ -16,6 +16,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -39,6 +40,20 @@ def sep_ready(model: str = '') -> bool:
     return m.is_file() and (Path(MODEL_DIR) / 'download_checks.json').is_file()
 
 
+def autocast_ok(flags: str = '') -> bool:
+    """31/10/2026 (הצילום: כ־25 דק׳ הפרדה לשיר של 4 דק׳): autocast במעבד = bfloat16. מעבד בלי bf16 בחומרה
+    (avx512_bf16 / amx_bf16) מדמה אותו — לא מהיר יותר מ־fp32, ולרוב איטי יותר. SNB_KA_AUTOCAST=1/0 גובר (להשוואה)."""
+    env = os.environ.get('SNB_KA_AUTOCAST', '')
+    if env in ('0', '1'):
+        return env == '1'
+    if not flags:
+        try:
+            flags = Path('/proc/cpuinfo').read_text(encoding='utf-8', errors='replace')
+        except OSError:
+            return False
+    return ' avx512_bf16' in flags or ' amx_bf16' in flags
+
+
 def _pick(files, *keys):
     for f in files:
         n = Path(f).name.lower()
@@ -52,7 +67,8 @@ def separate(src: Path, out: Path, model: str, prefix: str) -> dict:
     from audio_separator.separator import Separator
     tmp = out / ('_' + prefix)
     tmp.mkdir(parents=True, exist_ok=True)
-    sep = Separator(output_dir=str(tmp), model_file_dir=MODEL_DIR, output_format='WAV', use_autocast=True,
+    t0, ac = time.time(), autocast_ok()
+    sep = Separator(output_dir=str(tmp), model_file_dir=MODEL_DIR, output_format='WAV', use_autocast=ac,
                     mdxc_params={'overlap': 2, 'segment_size': 256, 'batch_size': 1, 'pitch_shift': 0})
     sep.load_model(model_filename=model)
     files = sep.separate(str(src))
@@ -64,7 +80,9 @@ def separate(src: Path, out: Path, model: str, prefix: str) -> dict:
     shutil.move(str(voc), out / (prefix + '_voc.wav'))
     shutil.move(str(inst), out / (prefix + '_inst.wav'))
     shutil.rmtree(tmp, ignore_errors=True)
-    return {'model': model}
+    sec = round(time.time() - t0, 1)
+    print(f'⏱ {model}: {sec} שנ׳ (autocast={int(ac)}, ליבות={os.cpu_count()})', flush=True)   # המדידה — ביומן העבודה
+    return {'model': model, 'sec': sec, 'ac': int(ac)}
 
 
 def cmd_sep(a):
@@ -77,7 +95,7 @@ def cmd_sep(a):
         km = a.kmodel or KAR_DEFAULT
         if km:
             # "עם קולות רקע": מודל karaoke על הקול המופרד — הקול הראשי מול קולות הרקע; הליווי + קולות הרקע = inst_bv
-            separate(out / 'voc.wav', out, km, 'k')
+            st['ksec'] = separate(out / 'voc.wav', out, km, 'k')['sec']
             os.replace(out / 'k_voc.wav', out / 'lead.wav')
             subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(out / 'inst.wav'), '-i', str(out / 'k_inst.wav'),
                             '-filter_complex', 'amix=inputs=2:normalize=0', str(out / 'inst_bv.wav')], check=True)

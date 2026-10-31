@@ -31,14 +31,17 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/body\.op === 'create' && body\.spec && body\.spec\.ka === 1 \? 20000 : 4096/.test(api), 'יצירת קריוקי — גוף עד 20KB (המילים), השאר כמו קודם');
   ok(/const kaAllowed = async \(\) => true;/.test(api) && /if \(user\.mon !== true && !allowed\(user\)\)/.test(api), '30/10: קריוקי — כל מי שעבר את שער הסטודיו (בקשת המשתמש)');
   ok(/if \(spec\.ka && !\(await kaAllowed\(\)\)\) return res\.status\(403\)/.test(api) && /ka: await kaAllowed\(\)/.test(api), 'השרתון חוסם ביצירה ומדווח לטלפון (ka)');
-  ok(/if \(job\.spec\.ka === 1\) ep = ETA\.kaPlan\(ep, job\.spec\.dur\)/.test(api), 'בלקיחה: התוכנית של הקריוקי');
+  ok(/if \(job\.spec\.ka === 1\) ep = ETA\.kaPlan\(ep, job\.spec\.dur, job\.spec\.bv === 1\)/.test(api), 'בלקיחה: התוכנית של הקריוקי');
 
   /* ---------- 2. התוכנית — זהה בשרתון ובטלפון ---------- */
   for (const d of [0, 60, 215, 600]) {
     const a = ETA.kaPlan({ s: { tr: 1, tl: 99, rv: 99 } }, d), b = N.kaPlan({ s: { tr: 1, tl: 99, rv: 99 } }, d);
     ok(JSON.stringify(a.s) === JSON.stringify(b.s) && a.t === b.t && a.s.tl === 0 && a.s.rv === 0, 'kaPlan זהה בשני הצדדים, בלי תרגום וביקורת (' + d + ' שנ׳)');
   }
-  ok(JSON.stringify(ETA.KA_STG) === JSON.stringify(N.KA_STG), 'KA_STG זהה');
+  ok(JSON.stringify(ETA.KA_STG) === JSON.stringify(N.KA_STG) && JSON.stringify(ETA.KA_BV) === JSON.stringify(N.KA_BV), 'KA_STG ו־KA_BV זהים');
+  { const a = N.kaPlan({ s: {} }, 240), b = N.kaPlan({ s: {} }, 240, true), c = ETA.kaPlan({ s: {} }, 240, true);
+    ok(a.s.tr === 780 && b.s.tr === 780 + 750 && c.s.tr === b.s.tr && b.t - a.t === 750, '31/10: שיר של 4 דק׳ — הפרדה כ־13 דק׳, עם קולות רקע כ־26 (כמו בשרת)'); }
+  ok(/kaPlan\(pl, rec\.spec\.dur, rec\.spec\.bv === 1\)/.test(read('studio.js')), 'הטלפון מעביר את bv לתוכנית');
 
   /* ---------- 3. הטלפון ---------- */
   const st = read('studio.js');

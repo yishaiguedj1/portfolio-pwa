@@ -2910,7 +2910,7 @@ function planFor(rec) {
   const eng = (rec.srv && rec.srv.eng) === 'api' || rec.spec.eng === 'api' ? 'a' : 'r';
   const md = ui.eta && ui.eta[eng];
   const pl = (md && planFrom(md, modeById(rec.spec.mode).min, rec.spec.dur || 0, rec.spec.px)) || { s: stageEstimates(modeById(rec.spec.mode).min, rec.spec.dur || 0), q: Q_DEF, n: 0 };
-  if (rec.spec.ka) return kaPlan(pl, rec.spec.dur);   // 26/10/2026: קריוקי (= השרתון בלקיחה)
+  if (rec.spec.ka) return kaPlan(pl, rec.spec.dur, rec.spec.bv === 1);   // 26/10/2026: קריוקי (= השרתון בלקיחה)
   return rec.spec.src === 'subs' ? subsPlan(pl) : pl;   // 22/10/2026: קובץ כתוביות — בלי תמלול, יישור וצריבה (= השרתון בלקיחה)
 }
 function modelFor(rec) {
