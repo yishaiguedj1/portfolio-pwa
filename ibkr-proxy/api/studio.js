@@ -2464,10 +2464,11 @@ async function worker(req, res, body, deps) {
       // 10/10/2026: התוכנית (p50 לכל שלב + אי־ודאות) מהמודל הנלמד; יעד הזמן = p90 + דקה ("חרגה" רק כשבאמת חריג)
       let ep = job.ep;
       if (job.kind === 'tr' && !ep && job.spec && job.spec.dur > 0) {
-        const ge = job.eng === 'api' ? ((await readDoc(deps, 'studioEta', 'a').catch(() => null)) || {}).et : null;
+        const gd = job.eng === 'api' || job.spec.ka === 1 ? ((await readDoc(deps, 'studioEta', 'a').catch(() => null)) || {}) : {};
+        const ge = job.eng === 'api' ? gd.et : null;
         ep = ETA.etaPlan(ETA.etaModel(ETA.etSamplesFor(stats.et, ge, job.eng === 'api' ? 'a' : 'r'), job.eng === 'api' ? 'a' : 'r', now), job.spec.mode, job.spec.dur, ETA.jobFactors(job));
         if (job.spec.src === 'subs') ep = ETA.subsPlan(ep);   // 22/10/2026: קובץ כתוביות — בלי תמלול, יישור וצריבה
-        if (job.spec.ka === 1) ep = ETA.kaPlan(ep, job.spec.dur, job.spec.bv === 1);   // 26/10/2026: קריוקי — הפרדה, יישור וצריבה, בלי תרגום
+        if (job.spec.ka === 1) ep = ETA.kaPlan(ep, job.spec.dur, job.spec.bv === 1, ETA.kaModel(gd.ka, now));   // 26/10/2026: קריוקי — הפרדה, יישור וצריבה, בלי תרגום · 31/10: נלמד (studioEta/a.ka)
         patch.ep = ep;
       }
       if (job.kind === 'tr' && !job.tg) {
@@ -2760,6 +2761,12 @@ async function worker(req, res, body, deps) {
           await patchDoc(deps, 'studioEta', 'a', { et: ETA.addEtSample(g && g.et, es, ETA.ET_G_MAX), updated: now }).catch(() => {});
         }
       }
+    }
+    const ks = up.state === 'done' ? ETA.kaSample(Object.assign({}, job, up), now) : null;
+    if (ks) {
+      // 31/10/2026: קריוקי שהסתיים מלמד את הצפי של הקריוקי (studioEta/a.ka — באותו מסמך שכבר נקרא, בלי קריאה נוספת בכל status)
+      const g = await readDoc(deps, 'studioEta', 'a').catch(() => null);
+      await patchDoc(deps, 'studioEta', 'a', { ka: ETA.addKaSample(g && g.ka, ks), updated: now }).catch(() => {});
     }
     return res.status(200).json(Object.assign({ ok: true, stop: false, state: up.state || job.state }, gateId ? { gate: gateId } : {}, pirOk != null ? { pir: pirOk } : {}, note ? { note } : {}));
   } catch (err) {
@@ -3339,11 +3346,12 @@ async function handler(req, res, deps = {}) {
     if (op === 'status') {
       const v = await readVault(deps, uid);
       const d = await gdrive.driveState(deps, uid).catch(() => ({ configured: gdrive.configured(), connected: false, email: '' }));
+      const gEta = (await readDoc(deps, 'studioEta', 'a').catch(() => null)) || {};   // מאגר הצפי של השרת (et) והקריוקי (ka)
       const st = await readStats(deps, uid);   // v363: "הרגיל" לכל מצב · v364: ספר התיקונים — למסך "מגדל הפיקוח"
       return res.status(200).json({ ok: true, conn: v && v.r ? { hint: v.hint || '', since: v.since || 0, ok: v.ok || 0 } : null,
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
         norm: S.normsView(st.ns, 'r'), normA: S.normsView(st.ns, 'a') /* 11/10: הרגיל לפי המנוע */, sh: S.thView(st.thr) /* v384: מצב צל לכל מצב */, wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
-        rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now, ((await readDoc(deps, 'studioEta', 'a').catch(() => null)) || {}).et),
+        rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now, gEta.et, gEta.ka) /* 31/10: k — קריוקי */,
         pk: S.pickerCfg(process.env, gdrive.cfg().id), gb: gbrowse.configured() || (gbRemote() ? 'r' : false) /* 26/10: רשימת הקבצים ב־Drive — 'r' = אולי ב־Vercel (gbConfig) */, lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, lra: +st.lra || 0, lrt: +st.lrt || 0, lrm: +st.lrm || 0 /* מ׳4 */, mf: await fullModes() /* 15/10: כל מצבי התרגום (המנהל / הרשימה) */, url: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok /* 22/10: הורדה מקישור */, yc: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok && YT.ytCloud(await ytDoc(deps, now)) /* 25/10: יוטיוב לענן דרך החשבון הייעודי */, lrf: +st.lrf || 0 /* האיסוף המלא — הנוסח נקרא */, lf: +st.lf || 0 /* 15/10 (מ׳1): ההודעה נקראה / מתי נמחקו התרומות */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, kt: { s: SC.SRC_TTL, j: SC.jobTtl(PROJECT()) } /* 26/10: כמה זמן נשמר — באומדן שלפני ההתחלה */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
     }
     if (op === 'push') {

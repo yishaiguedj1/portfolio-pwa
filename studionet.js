@@ -144,14 +144,16 @@ export function subsPlan(pl) {
   const s = Object.assign({}, pl.s, SUBS_STG);
   return Object.assign({}, pl, { s, t: ['tr', 'al', 'tl', 'rv', 'bn', 'sv'].reduce((a, k) => a + (s[k] || 0), 0) });
 }
-/* 26/10/2026: קריוקי — = kaPlan ב־ibkr-proxy/lib/studioeta.js (אותם KA_STG): הפרדה, יישור וצריבה, בלי תרגום וביקורת.
-   31/10/2026: הפרדה = כ־3 דק׳ לדקת שיר, וקולות הרקע (bv) — מודל שני, עוד אותו זמן (KA_BV) */
-export const KA_STG = { tr: [60, 180], al: [40, 30], bn: [30, 40], sv: [20, 2] };
-export const KA_BV = [30, 180];
-export function kaPlan(pl, durSec, bv) {
+/* 26/10/2026: קריוקי — = kaPlan ב־ibkr-proxy/lib/studioeta.js (אותם KA_STG/KA_BV): הפרדה, יישור וצריבה, בלי תרגום וביקורת.
+   31/10/2026: mdl = המודל הנלמד מהשרתון (status.eta.k — [a, b] לכל שלב, tb = הפרדה עם קולות רקע); בלי — ה־prior */
+export const KA_STG = { tr: [60, 200], al: [40, 30], bn: [30, 40], sv: [20, 2] };
+export const KA_BV = [0, 60];
+const KA_ST = ['tr', 'al', 'bn', 'sv', 'tb'];
+export function kaMdlOk(m) { return !!(m && m.st && KA_ST.every((k) => Array.isArray(m.st[k]) && m.st[k].length === 2 && m.st[k].every((v) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1e5))); }
+export function kaPlan(pl, durSec, bv, mdl) {
   const m = Math.max(0, Number(durSec) || 0) / 60, s = Object.assign({}, (pl && pl.s) || {});
-  for (const k of ['tr', 'al', 'tl', 'rv', 'bn', 'sv']) s[k] = KA_STG[k] ? Math.round(KA_STG[k][0] + KA_STG[k][1] * m) : 0;
-  if (bv) s.tr += Math.round(KA_BV[0] + KA_BV[1] * m);
+  const ab = (k) => (kaMdlOk(mdl) ? mdl.st[k] : k === 'tb' ? [KA_STG.tr[0] + KA_BV[0], KA_STG.tr[1] + KA_BV[1]] : KA_STG[k]);
+  for (const k of ['tr', 'al', 'tl', 'rv', 'bn', 'sv']) { const [a, b] = KA_STG[k] ? ab(k === 'tr' && bv ? 'tb' : k) : [0, 0]; s[k] = Math.round(a + b * m); }
   return Object.assign({}, pl || {}, { s, t: ['tr', 'al', 'tl', 'rv', 'bn', 'sv'].reduce((a, k) => a + (s[k] || 0), 0) });
 }
 export function progressModel(job, est, up, now, q) {

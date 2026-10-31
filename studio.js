@@ -8,7 +8,7 @@
    כשהדפדפן תומך — כדי להמשיך העלאה אחרי רענון בלי לבחור שוב.
    "חזור" של המכשיר: עם CloseWatcher — רשומה אחת ומחסנית דפים בזיכרון; בלי — רשומה לכל דף (סעיף 18 ב־CLAUDE.md).
    מחרוזות: t() של app.js (STRINGS.he/en, מפתחות studio*) — כל מפתח כתוב כאן מילולית, והבדיקות מאמתות שהוא קיים בשתי השפות. */
-import { STAGES, createNet, probeVideo, extractAudio, uploadBoth, stageEstimates, progressModel, monoPct, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX, inspectSource, QUIET_DB, subsPlan, kaPlan, lyrGuess } from './studionet.js';
+import { STAGES, createNet, probeVideo, extractAudio, uploadBoth, stageEstimates, progressModel, monoPct, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX, inspectSource, QUIET_DB, subsPlan, kaPlan, kaMdlOk, lyrGuess } from './studionet.js';
 import { createBackup, waitOAuthCode } from './libbackup.js';
 // ת4: מזהים של R2 (העלאה ותוצרים בעבודה במצב שרת)
 import { isR2Folder, isR2Id } from './studiostore.js';
@@ -730,6 +730,7 @@ export function normEta(o) {
     for (const k of ETA_KEYS) { const ab = m.st[k]; if (!Array.isArray(ab) || ab.length !== 2 || !ab.every((v) => typeof v === 'number' && v >= 0 && v <= 1e5)) good = false; else st[k] = ab.slice(); }
     if (good) out[e] = { st, q: qOk(m.q) ? m.q.slice() : Q_DEF.slice(), n: typeof m.n === 'number' && m.n >= 0 ? Math.round(m.n) : 0 };
   }
+  if (kaMdlOk(o.k)) out.k = { st: Object.fromEntries(Object.entries(o.k.st).filter(([k]) => ['tr', 'al', 'bn', 'sv', 'tb'].includes(k)).map(([k, v]) => [k, v.slice()])) };   // 31/10/2026: קריוקי
   return Object.keys(out).length ? out : null;
 }
 
@@ -2911,7 +2912,7 @@ function planFor(rec) {
   const eng = (rec.srv && rec.srv.eng) === 'api' || rec.spec.eng === 'api' ? 'a' : 'r';
   const md = ui.eta && ui.eta[eng];
   const pl = (md && planFrom(md, modeById(rec.spec.mode).min, rec.spec.dur || 0, rec.spec.px)) || { s: stageEstimates(modeById(rec.spec.mode).min, rec.spec.dur || 0), q: Q_DEF, n: 0 };
-  if (rec.spec.ka) return kaPlan(pl, rec.spec.dur, rec.spec.bv === 1);   // 26/10/2026: קריוקי (= השרתון בלקיחה)
+  if (rec.spec.ka) return kaPlan(pl, rec.spec.dur, rec.spec.bv === 1, ui.eta && ui.eta.k);   // 26/10/2026: קריוקי (= השרתון בלקיחה)
   return rec.spec.src === 'subs' ? subsPlan(pl) : pl;   // 22/10/2026: קובץ כתוביות — בלי תמלול, יישור וצריבה (= השרתון בלקיחה)
 }
 function modelFor(rec) {

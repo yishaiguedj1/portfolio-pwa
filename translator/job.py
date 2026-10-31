@@ -2093,6 +2093,33 @@ def rr_render_flags(want):
         (['--compact'] if 'compact' in w or ('small' in w and 'same' not in w) else []) + (['--small'] if 'small' in w else [])
 
 
+class KaSepProg:
+    """31/10/2026: התקדמות ההפרדה של הקריוקי — כמה מעברים (Kim, ואז karaoke במצב קולות רקע), כל אחד 0–100%.
+    השורה '⏩ מעברים: w1,w2' (karaoke.py sep) נותנת את המשקלים; '⏱' = מעבר הסתיים. מחזיר שבר מצטבר, לא יורד."""
+    PCT = re.compile(r'(\d{1,3}(?:\.\d)?)%')
+
+    def __init__(self):
+        self.w, self.i, self.best = [1.0], 0, 0.0
+
+    def feed(self, line):
+        if line.startswith('⏩ מעברים: '):
+            try:
+                self.w = [max(0.01, float(x)) for x in line.split(': ', 1)[1].split(',')] or [1.0]
+            except ValueError:
+                pass
+            return None
+        if line.startswith('⏱ '):
+            self.i += 1
+            f = sum(self.w[:self.i]) / sum(self.w)
+        else:
+            m = self.PCT.search(line)
+            if not m or self.i >= len(self.w):
+                return None
+            f = (sum(self.w[:self.i]) + self.w[self.i] * min(1.0, float(m.group(1)) / 100)) / sum(self.w)
+        self.best = max(self.best, min(1.0, f))
+        return self.best
+
+
 class RenderProg:
     """התקדמות של vt render לפי המעברים שהפקודה תריץ (בסדר של cmd_render ב־vt/cli.py)."""
     BURN = re.compile(r'צורב → ')
@@ -4614,6 +4641,72 @@ def ka_spec(spec):
     return {'lyr': str(spec.get('lyr') or ''), 'bv': spec.get('bv') == 1, 'gv': gv, 'want': want, 'ky': ky}
 
 
+# 31/10/2026: מטמון ההפרדה — אותו שיר שוב (מילים מתוקנות, עיצוב אחר) לא מופרד מחדש. המפתח = sha256 של השמע
+# (song.wav) + המודלים + המצב, לא השם. פרטיות: היום הכל נמחק בסוף העבודה — כאן נשארים רק הקול והליווי המופרדים,
+# לכל היותר KA_CACHE_N שירים ולכל היותר KA_CACHE_TTL, בשרת שלנו בלבד (לא נשלח לשום מקום).
+KA_CACHE = VT_WORK / '_kacache'
+KA_CACHE_N = 4
+KA_CACHE_TTL = 24 * 3600
+KA_CACHE_FILES = ('voc.wav', 'inst.wav', 'inst_bv.wav', 'lead.wav', 'sep.json')
+KA_SEP_V = 2                                    # לשנות כשההפרדה משתנה (מודל/פרמטרים/מבנה) — המטמון הישן לא נשלף
+
+
+def ka_cache_key(song: Path, bv: bool) -> str:
+    h = hashlib.sha256()
+    with open(song, 'rb') as f:
+        for b in iter(lambda: f.read(1 << 20), b''):
+            h.update(b)
+    h.update(json.dumps([KA_SEP_V, bool(bv), os.environ.get('SNB_KA_SEP', ''), os.environ.get('SNB_KA_KAR', ''),
+                         os.environ.get('SNB_KA_OV', ''), os.environ.get('SNB_KA_BV1', '')]).encode())
+    return h.hexdigest()[:32]
+
+
+def _ka_link(a: Path, b: Path):
+    b.unlink(missing_ok=True)
+    try:
+        os.link(a, b)
+    except OSError:
+        shutil.copy2(a, b)
+
+
+def ka_cache_prune(now: float | None = None):
+    now = time.time() if now is None else now
+    try:
+        ds = sorted((d for d in KA_CACHE.iterdir() if d.is_dir()), key=lambda d: d.stat().st_mtime, reverse=True)
+    except OSError:
+        return
+    for i, d in enumerate(ds):
+        if i >= KA_CACHE_N or now - d.stat().st_mtime > KA_CACHE_TTL:
+            shutil.rmtree(d, ignore_errors=True)
+
+
+def ka_cache_get(key: str, work: Path) -> bool:
+    ka_cache_prune()
+    d = KA_CACHE / key
+    if not (d / 'voc.wav').is_file() or not (d / 'sep.json').is_file():
+        return False
+    for n in KA_CACHE_FILES:
+        if (d / n).is_file():
+            _ka_link(d / n, work / n)
+    return True
+
+
+def ka_cache_put(key: str, work: Path):
+    try:
+        d = KA_CACHE / key
+        tmp = KA_CACHE / ('.' + key)
+        shutil.rmtree(tmp, ignore_errors=True)
+        tmp.mkdir(parents=True)
+        for n in KA_CACHE_FILES:
+            if (work / n).is_file():
+                _ka_link(work / n, tmp / n)
+        shutil.rmtree(d, ignore_errors=True)
+        os.replace(tmp, d)
+        ka_cache_prune()
+    except OSError as e:                         # מטמון — לא מפיל עבודה
+        print('· מטמון ההפרדה: ' + str(e)[:120], flush=True)
+
+
 @guarded
 def karaoke(args):
     ctx = Ctx(load_state())
@@ -4643,7 +4736,14 @@ def karaoke(args):
     subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(src), '-vn', '-ac', '2', '-ar', '44100', str(song)], check=True)
     # 1. הפרדה — הכבד ביותר (שלב כבד: לא במקביל לשום דבר)
     ctx.report('tr', 0, 'מפרידים את הקול מהליווי', force=True)
-    script(ctx, 'karaoke.py', ['sep', '--src', str(song), '--out', str(work)] + (['--backing'] if ks['bv'] else []), 'tr')
+    ck = ka_cache_key(song, ks['bv'])
+    if ka_cache_get(ck, work):
+        print('✓ הקול והליווי מהמטמון (אותו שיר כבר הופרד)', flush=True)
+        ctx.report('tr', 1.0, force=True)
+    else:
+        script(ctx, 'karaoke.py', ['sep', '--src', str(song), '--out', str(work)] + (['--backing'] if ks['bv'] else []), 'tr',
+               prog=KaSepProg())
+        ka_cache_put(ck, work)
     inst = work / ('inst_bv.wav' if ks['bv'] and (work / 'inst_bv.wav').exists() else 'inst.wav')
     voc16 = work / 'voc16k.wav'
     subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(work / 'voc.wav'), '-ac', '1', '-ar', '16000', str(voc16)], check=True)

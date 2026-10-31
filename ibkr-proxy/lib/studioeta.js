@@ -48,7 +48,7 @@ const num = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= l
 function etaSample(job, now) {
   if (!job || job.kind !== 'tr' || (job.fires || 0) > 1) return null;
   const sp = job.spec || {}, stg = (job.prog && job.prog.stg) || {};
-  if (!(sp.dur > 0)) return null;
+  if (!(sp.dur > 0) || sp.ka === 1) return null;   // 31/10/2026: קריוקי — מאגר משלו (kaSample); "תמלול" שלו = הפרדה, ניפח את הצפי של התרגום
   const s = {};
   for (const k of STAGES) {
     const x = stg[k];
@@ -169,15 +169,56 @@ function subsPlan(ep) {
   return Object.assign({}, ep, { s, t: STAGES.reduce((a, k) => a + (s[k] || 0), 0) });
 }
 /* 26/10/2026: קריוקי — בלי תרגום וביקורת. tr = הפרדת הקול (הכבד), al = עוגנים + יישור, bn = צריבה; שניות = a + b·דקות.
-   הערכה עד שיימדד על השרת (שלב 0). KA_STG זהה ב־studionet.js (kaPlan).
-   31/10/2026 (הצילום: "כ־6 דק׳" להפרדה, בפועל כ־25 בשיר של 4 דק׳): RoFormer על המעבד = כ־3 דק׳ לדקת שיר (נמדד, Dockerfile),
-   ו"קולות רקע" (bv) = מודל שני על הקול — עוד אותו זמן (KA_BV) */
-const KA_STG = { tr: [60, 180], al: [40, 30], bn: [30, 40], sv: [20, 2] };
-const KA_BV = [30, 180];
-function kaPlan(ep, durSec, bv) {
+   KA_STG זהה ב־studionet.js (kaPlan) — ה־prior, עד שנלמד.
+   31/10/2026: (1) הצפי לומד מהעבודות שהסתיימו (kaSample → studioEta/a.ka, kaModel), במקום מספרים קבועים — הקבוע
+   (3 דק׳ לדקת שיר) נקבע בריצה עם autocast מדומה על מעבד בלי bf16 ונשאר אחרי התיקון; ההפרדה עם קולות רקע (tb) נלמדת בנפרד.
+   (2) ה־prior (docs/studio-karaoke-he.md, "מהירות ההפרדה"): בשרת Kim עם overlap 2 לקח כ־6.4 דק׳ לדקת שיר (העבודה של 31/10);
+   overlap 1 = חצי → כ־200 שנ׳; "עם קולות רקע" = מעבר אחד במודל ה־karaoke (איטי פי 1.3) במקום Kim → עוד כ־60 שנ׳ לדקה */
+const KA_STG = { tr: [60, 200], al: [40, 30], bn: [30, 40], sv: [20, 2] };
+const KA_BV = [0, 60];   // התוספת של "עם קולות רקע" להפרדה (karaoke במקום Kim)
+const KA_ST = ['tr', 'al', 'bn', 'sv'], KA_MAX = 30;
+/* דגימה מעבודת קריוקי שהסתיימה בהפעלה אחת: משך כל שלב, האורך, עם/בלי קולות רקע, הליבות. בלי שמות ובלי תוכן */
+function kaSample(job, now) {
+  if (!job || job.kind !== 'tr' || (job.fires || 0) > 1) return null;
+  const sp = job.spec || {}, stg = (job.prog && job.prog.stg) || {};
+  if (sp.ka !== 1 || !(sp.dur > 0)) return null;
+  const s = {};
+  for (const k of KA_ST) {
+    const x = stg[k], e = k === 'sv' && x && x.r > x.s ? x.r : x && x.e;
+    if (x && x.s > 0 && e > x.s) s[k] = Math.round((e - x.s) / 1000);
+  }
+  if (s.tr != null && s.tr < 5 * sp.dur / 60) delete s.tr;   // מהמטמון של העובד (אותו שיר שוב) — לא הפרדה אמיתית
+  if (Object.keys(s).length < 2) return null;
+  const f = jobFactors(job), out = { d: Math.round(sp.dur), b: sp.bv === 1 ? 1 : 0, s, at: now };
+  if (f.c !== REF_CPUS || f.cc) out.f = { c: f.c, cc: f.cc };
+  return out;
+}
+function normKaSamples(list) {
+  const out = [];
+  for (const x of Array.isArray(list) ? list : []) {
+    if (!x || !num(x.d, 1, 86400) || !num(x.at, 0, 1e14) || !x.s || typeof x.s !== 'object') continue;
+    const s = {};
+    for (const k of KA_ST) if (num(x.s[k], 0, 86400)) s[k] = x.s[k];
+    const o = { d: x.d, b: x.b === 1 ? 1 : 0, s, at: x.at };
+    if (x.f && typeof x.f === 'object') { const f = fNorm(x.f); if (f.c !== REF_CPUS || f.cc) o.f = { c: f.c, cc: f.cc }; }
+    out.push(o);
+  }
+  return out.slice(-KA_MAX);
+}
+function addKaSample(list, smp) { return normKaSamples((Array.isArray(list) ? list : []).concat(smp ? [smp] : [])); }
+/* המודל: לכל שלב [a, b] מותאמים לדגימות (fitStage, הזמנים מנורמלים ל־REF_CPUS); tb = ההפרדה עם קולות רקע */
+function kaModel(samples, now) {
+  const list = normKaSamples(samples), st = {};
+  const pts = (k, keep) => list.filter((x) => x.s[k] != null && keep(x) && !(fNorm(x.f).cc > 0)).map((x) => ({ x: x.d / 60, y: x.s[k] / cpuK(k, fNorm(x.f)), at: x.at }));
+  for (const k of KA_ST) st[k] = fitStage(pts(k, (x) => k !== 'tr' || !x.b), KA_STG[k][0], KA_STG[k][1], now);
+  st.tb = fitStage(pts('tr', (x) => x.b === 1), KA_STG.tr[0] + KA_BV[0], KA_STG.tr[1] + KA_BV[1], now);
+  return { st, n: list.length };
+}
+const kaOk = (m) => !!(m && m.st && KA_ST.concat('tb').every((k) => Array.isArray(m.st[k]) && m.st[k].length === 2 && m.st[k].every((v) => num(v, 0, 1e5))));
+function kaPlan(ep, durSec, bv, mdl) {
   const m = Math.max(0, Number(durSec) || 0) / 60, s = Object.assign({}, (ep && ep.s) || {});
-  for (const k of STAGES) s[k] = KA_STG[k] ? Math.round(KA_STG[k][0] + KA_STG[k][1] * m) : 0;
-  if (bv) s.tr += Math.round(KA_BV[0] + KA_BV[1] * m);
+  const ab = (k) => (kaOk(mdl) ? mdl.st[k] : k === 'tb' ? [KA_STG.tr[0] + KA_BV[0], KA_STG.tr[1] + KA_BV[1]] : KA_STG[k]);
+  for (const k of STAGES) { const [a, b] = KA_STG[k] ? ab(k === 'tr' && bv ? 'tb' : k) : [0, 0]; s[k] = Math.round(a + b * m); }
   return Object.assign({}, ep || {}, { s, t: STAGES.reduce((a, k) => a + (s[k] || 0), 0) });
 }
 /* העובד מדווח px אמיתי (אחרי הקליטה): שלב הצריבה בתוכנית מחושב מחדש, השאר כמו שהיה */
@@ -200,7 +241,7 @@ function etaTarget(ep) {
   return Math.round(ep.t * Math.exp((ep.q && ep.q[2]) || Z[90] * SIGMA0)) + 60;
 }
 /* מה שהטלפון מקבל ב־status: מודל לכל מנוע (לעבודות שעוד לא נלקחו) */
-function etaView(samples, now, globalEt) { return { a: etaModel(etSamplesFor(samples, globalEt, 'a'), 'a', now), r: etaModel(samples, 'r', now) }; }
+function etaView(samples, now, globalEt, globalKa) { return { a: etaModel(etSamplesFor(samples, globalEt, 'a'), 'a', now), r: etaModel(samples, 'r', now), k: kaModel(globalKa, now) }; }   // k — קריוקי (31/10/2026)
 /* הטלפון שולח ep רק בצורה הזו (השרתון לא סומך על מה שנשמר בלי בדיקה) */
 function normEp(ep) {
   if (!ep || typeof ep !== 'object' || !ep.s || typeof ep.s !== 'object') return null;
@@ -211,6 +252,6 @@ function normEp(ep) {
   return { s, t, q, n: num(ep.n, 0, 1000) ? Math.round(ep.n) : 0 };   // רק מה שהטלפון צריך — bn/f נשארים בשרתון
 }
 
-module.exports = { MQ_MIN, KA_STG, KA_BV, kaPlan, SUBS_STG, subsPlan, STAGES, PRIOR, MODE_MIN, LAMBDA, HALF_LIFE, SIGMA0, NQ, ET_MAX, ET_G_MAX, etSamplesFor,
+module.exports = { MQ_MIN, KA_STG, KA_BV, kaPlan, kaSample, addKaSample, normKaSamples, kaModel, SUBS_STG, subsPlan, STAGES, PRIOR, MODE_MIN, LAMBDA, HALF_LIFE, SIGMA0, NQ, ET_MAX, ET_G_MAX, etSamplesFor,
   etaSample, normEtSamples, addEtSample, fitStage, etaModel, etaPlan, etaTarget, etaView, normEp, planOf,
   CPU_ST, REF_CPUS, CPU_EXP, PX_EXP, CC_K, jobFactors, replanPx, pxOf };
