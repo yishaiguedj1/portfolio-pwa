@@ -21,10 +21,24 @@ COUNT_GAP_S = 4.0     # שקט כזה לפני שורה = נקודות ספיר�
 COUNT_S = 3.0         # שלוש נקודות, אחת לשנייה
 WORD_S = 0.35         # מילה בלי עיגון (לפני / אחרי כל העוגנים)
 MAX_LINE_CHARS = 42   # שורת שיר ארוכה מזה מתפצלת לשתיים
-SUNG = "&H0000D7FF"   # צהוב־זהב (ASS = &HAABBGGRR)
+SUNG = "&H003DC8FF"   # זהב — ברירת המחדל של ky.c (ASS = &HAABBGGRR)
 UNSUNG = "&H00FFFFFF"
 LYR_MAX = 8000        # תווים (= KA_LYR_MAX בשרתון)
+WIPE_FPS = 12         # מילוי לאורך המילה: צעדים בשנייה (כל צעד = מצב אחד בצריבה המהירה)
+INTERLUDE_S = 8.0     # שקט כזה בין שורות = תווית "נגינה"
+TITLE_MIN_S = 1.5     # כרטיס פתיחה רק כשהשורה הראשונה מופיעה אחרי כך
 
+# 31/10/2026: עיצוב הקריוקי (ת־קריוקי ב־docs/standards.md). אותם מפתחות וברירות מחדל ב־studio.js (normKy) ובשרתון
+# (ibkr-proxy/lib/studio.js normKy) — tests/studio-karaoke-design.test.js משווה. u לא־שר · c שר · f מילוי (w לאורך המילה,
+# d מילה שלמה) · z גודל · cd ספירה · tc כרטיס פתיחה · dm הכהיה עם וידאו · bg רקע בלי וידאו · sg צבע לכל זמר · sb ביחד
+KY_DEF = {"u": "#FFFFFF", "c": "#FFC83D", "f": "w", "z": "M", "cd": 1, "tc": 1, "dm": 1, "bg": "dark",
+          "sg": ["#3DD6FF", "#FF5CA8", "#7CE38B", "#B48CFF"], "sb": "#FFC83D"}
+KY_Z = {"S": 0.85, "M": 1.0, "L": 1.18}
+KY_BG = ("dark", "grad", "tint")
+_HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+_SINGER = re.compile(r"^\s*[\[(]\s*(?:(?:p|זמר|זמרת|singer|voice|קול)\s*)?([1-4])\s*[\])]\s*:?\s*", re.I)
+_TOGETHER = re.compile(r"^\s*[\[(]\s*(?:ביחד|יחד|כולם|שניהם|both|all|together|1\s*[+&]\s*2(?:\s*[+&]\s*[34])*)\s*[\])]\s*:?\s*", re.I)
 _SECTION = re.compile(r"^\s*[\[(].*[\])]\s*$")
 _REPEAT = re.compile(r"\s*[\[(]?\s*[x×]\s*(\d)\s*[\])]?\s*$", re.I)
 _NIQQUD = re.compile("[֑-ׇ]")
@@ -59,9 +73,26 @@ def _split_long(words: list[str]) -> list[list[str]]:
 def parse_lyrics(text: str) -> list[list[str]]:
     """המילים שהודבקו → שורות של מילים. כותרות קטע ("[Chorus]", "(Verse 2)") יורדות; "×2" בסוף שורה = השורה פעמיים;
     שורה ריקה מפרידה בין בתים (לא נשמרת — הזמנים מגיעים מהשירה)."""
+    return _parse(text)[0]
+
+
+def parse_singers(text: str) -> list:
+    """31/10/2026 (דואט): מי שר כל שורה של parse_lyrics — 1..4, ‏0 = ביחד, None = לא סומן. הסימון ("[1]", "[זמר 2]",
+    "[ביחד]", "(both)") לבד בשורה או בתחילתה, וחל עד הסימון הבא. בלי שום סימון — רשימה ריקה (שיר של זמר אחד)."""
+    lines, sg, any_tag = _parse(text)
+    return sg if any_tag else []
+
+
+def _parse(text: str):
     out: list[list[str]] = []
+    sg: list = []
+    cur, any_tag = None, False
     for raw in clean_lyrics(text).split("\n"):
         line = raw.strip()
+        m = _SINGER.match(line) or _TOGETHER.match(line)
+        if m:
+            cur, any_tag = (int(m.group(1)) if m.re is _SINGER else 0), True
+            line = line[m.end():].strip()
         if not line or _SECTION.match(line):
             continue
         rep = 1
@@ -73,8 +104,10 @@ def parse_lyrics(text: str) -> list[list[str]]:
         if not words:
             continue
         for _ in range(rep):
-            out.extend(_split_long(words))
-    return out
+            parts = _split_long(words)
+            out.extend(parts)
+            sg.extend([cur] * len(parts))
+    return out, sg, any_tag
 
 
 def anchor(lines: list[list[str]], asr: list[dict]) -> list[dict]:
@@ -131,6 +164,8 @@ def timed_lines(words: list[dict]) -> list[dict]:
         while len(out) <= li:
             out.append({"words": []})
         out[li]["words"].append({"w": w["w"], "s": float(w["s"]), "e": float(w["e"])})
+    for li, ln in enumerate(out):
+        ln["li"] = li                                # לשיוך הזמר (parse_singers) — לפני הסינון
     out = [ln for ln in out if ln["words"]]
     for ln in out:
         ln["s"], ln["e"] = ln["words"][0]["s"], ln["words"][-1]["e"]
@@ -153,7 +188,8 @@ def layout(lines: list[dict]) -> list[dict]:
             hide = min(hide, max(ln["e"] + 0.15, nxt))
         prev_end = lines[k - 1]["e"] if k > 0 else 0.0
         cd = ln["s"] - prev_end >= COUNT_GAP_S
-        shown.append({"row": row, "show": round(show, 3), "hide": round(hide, 3), "words": ln["words"], "cd": cd})
+        shown.append({"row": row, "show": round(show, 3), "hide": round(hide, 3), "words": ln["words"], "cd": cd,
+                      "s": ln["s"], "e": ln["e"], "sg": ln.get("sg")})
         free[row] = hide
     return shown
 
@@ -190,11 +226,86 @@ def events(shown: list[dict]) -> list[tuple[float, float, int, int, int]]:
     return out
 
 
-def write_ass(shown: list[dict], style, width: int, height: int, title: str = "", rtl_text: bool = False) -> str:
-    """ASS לצריבה: מצב לכל מילה (בלי \\k — ראו בראש הקובץ), שתי שורות בתחתית, נקודות ספירה לאחור."""
+def norm_ky(d) -> dict:
+    """עיצוב הקריוקי מה־spec → ערכים תקינים (= normKy בטלפון ובשרתון). ערך לא תקין = ברירת המחדל."""
+    d = d if isinstance(d, dict) else {}
+    hx = lambda v, dv: v.upper() if isinstance(v, str) and _HEX.match(v) else dv
+    sg = d.get("sg") if isinstance(d.get("sg"), list) else []
+    return {
+        "u": hx(d.get("u"), KY_DEF["u"]), "c": hx(d.get("c"), KY_DEF["c"]),
+        "f": "d" if d.get("f") == "d" else "w",
+        "z": d.get("z") if d.get("z") in KY_Z else "M",
+        "cd": 0 if d.get("cd") == 0 else 1, "tc": 0 if d.get("tc") == 0 else 1,
+        "dm": d.get("dm") if d.get("dm") in (0, 1, 2) else 1,
+        "bg": d.get("bg") if d.get("bg") in KY_BG else "dark",
+        "sg": [hx(sg[i] if i < len(sg) else None, KY_DEF["sg"][i]) for i in range(4)],
+        "sb": hx(d.get("sb"), KY_DEF["sb"]),
+    }
+
+
+def ass_colour(hx: str, alpha: int = 0) -> str:
+    """‎#RRGGBB → ‎&HAABBGGRR של ASS."""
+    h = hx.lstrip("#")
+    return f"&H{alpha:02X}{h[4:6]}{h[2:4]}{h[0:2]}".upper()
+
+
+def assign_singers(lines: list[dict], singers: list) -> None:
+    """הזמר של כל שורה (מ־parse_singers, לפי li). אין סימון — None."""
+    for ln in lines:
+        li = ln.get("li")
+        ln["sg"] = singers[li] if singers and li is not None and li < len(singers) else None
+
+
+def states(shown: list[dict], wipe: bool) -> list[tuple[float, float, int, int, float, int]]:
+    """(התחלה, סוף, שורה, מילה, כמה ממנה נשמע 0..1, שורה במסך). מילה שלמה — אחד לכל מילה (= events);
+    לאורך המילה — בזמן שהמילה נשמעת, WIPE_FPS צעדים בשנייה (כל צעד מצויר פעם אחת בצריבה המהירה)."""
+    out = []
+    for a, b, li, i, row in events(shown):
+        if i < 0 or not wipe:
+            out.append((a, b, li, i, 1.0, row))
+            continue
+        w = shown[li]["words"][i]
+        ws, we = max(a, w["s"]), min(b, w["e"])
+        n = max(1, min(24, int(round((we - ws) * WIPE_FPS)))) if we > ws else 0
+        t = a
+        for k in range(n):
+            t1 = ws + (we - ws) * (k + 1) / n
+            if t1 > t:
+                out.append((round(t, 3), round(t1, 3), li, i, (k + 1) / n, row))
+            t = t1
+        if b > t:
+            out.append((round(t, 3), b, li, i, 1.0, row))
+    return out
+
+
+def _sung_hex(ln: dict, ky: dict) -> str:
+    sg = ln.get("sg")
+    if sg is None:
+        return ky["c"]
+    return ky["sb"] if sg == 0 else ky["sg"][sg - 1]
+
+
+def _tag_label(sg: int, n_singers: int) -> str:
+    return str(sg) if sg else "+".join(str(k) for k in range(1, max(2, n_singers) + 1))
+
+
+def write_ass(shown: list[dict], style, width: int, height: int, title: str = "", rtl_text: bool = False,
+              ky: dict | None = None, video: bool = True) -> str:
+    """ASS לצריבה לפי ת־קריוקי: שתי שורות בתחתית, מילוי לאורך המילה (מימין לשמאל בעברית) או מילה שלמה, צבע לכל
+    זמר + סמן בתחילת השורה, נקודות ספירה בצבע של מי שנכנס, כרטיס פתיחה, תווית "נגינה", הכהיה בתחתית הווידאו.
+    בלי \\k / \\kf (ראו בראש הקובץ): המילוי = שכבת "שר" עם \\clip מלבני לפי רוחב המילים. כל אירוע עם \\an2\\pos —
+    כך הצריבה המהירה מציירת רק את רצועת הכתוביות (vt/overlay.py ‏_band)."""
+    from dataclasses import replace
     from .subs import _ass_time, _alpha_colour
+    from . import config as C
+    ky = norm_ky(ky)
+    k = KY_Z[ky["z"]]
+    style = replace(style, size=style.size * k, line_pitch=style.line_pitch * k, outline=style.outline * k,
+                    faux_bold=style.faux_bold * k, spacing=style.spacing * k)
     st = style.scaled(width, height)
+    U = ass_colour(ky["u"])
     x = width / 2.0
+    tag_size = st.size * 0.5
     head = [
         "[Script Info]", f"Title: {_esc(title)}", "ScriptType: v4.00+", f"PlayResX: {width}", f"PlayResY: {height}",
         "WrapStyle: 2", "ScaledBorderAndShadow: yes", "YCbCr Matrix: None", "",
@@ -202,38 +313,155 @@ def write_ass(shown: list[dict], style, width: int, height: int, title: str = ""
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, "
         "Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, "
         "Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-        (f"Style: Main,{style.font},{st.size:.1f},{UNSUNG},{UNSUNG},"
+        (f"Style: Main,{style.font},{st.size:.1f},{U},{U},"
          f"{style.outline_colour},{_alpha_colour(style.shadow_alpha)},{style.bold},0,0,0,100,100,"
          f"{st.spacing:.2f},0,1,{st.outline:.2f},{st.shadow:.2f},2,0,0,0,-1"),
-        (f"Style: Fill,{style.font},{st.size:.1f},{UNSUNG},{UNSUNG},"
-         f"{UNSUNG},&H00000000,{style.bold},0,0,0,100,100,"
+        (f"Style: Fill,{style.font},{st.size:.1f},{U},{U},"
+         f"{U},&H00000000,{style.bold},0,0,0,100,100,"
          f"{st.spacing:.2f},0,1,{st.faux_bold:.2f},0,2,0,0,0,-1"),
+        (f"Style: Tag,{style.font},{tag_size:.1f},&H00100D0B,&H00100D0B,{ass_colour(ky['c'])},&HFF000000,"
+         f"1,0,0,0,100,100,0,0,3,{tag_size * 0.32:.2f},0,2,0,0,0,-1"),
         "", "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
     ]
     ev = []
     pitch = st.line_pitch * 1.25
     ys = [st.bottom_y - pitch, st.bottom_y]          # שורה 0 למעלה, שורה 1 למטה
     blur = f"\\blur{st.blur:.2f}" if st.blur > 0 else ""
-    pre = "‏" if rtl_text else ""
-    for a, b, li, upto, row in events(shown):
-        words = shown[li]["words"]
-        y = ys[row]
+    pre = "\u200f" if rtl_text else ""
+    end_t = max((ln["hide"] for ln in shown), default=0.0) + 1.0
+
+    # הכהיה בתחתית הווידאו — מלבן מטושטש מראש רצועת הכתוביות עד התחתית
+    if video and ky["dm"] and shown:
+        top = ys[0] - st.line_pitch * 1.05 - st.size * 1.15 - (st.size * 0.25 + 40) + 60
+        hh = max(10.0, height - top)
+        al = {1: 0x80, 2: 0x50}[ky["dm"]]
+        ev.append(f"Dialogue: 0,{_ass_time(0)},{_ass_time(end_t)},Main,,0,0,0,,{{\\an2\\pos({x:.1f},{height + 100:.1f})"
+                  f"\\bord0\\shad0\\blur{max(8.0, 30 * st.k):.1f}\\c&H000000&\\1a&H{al:02X}&\\p1}}"
+                  f"m 0 0 l {width + 200} 0 {width + 200} {hh + 100:.0f} 0 {hh + 100:.0f}{{\\p0}}")
+
+    # רוחב המילים — לגבולות המילוי (אותו מודד של שבירת השורות בכתוביות)
+    meas = None
+    if ky["f"] == "w":
+        try:
+            from .hebrew import Measurer
+            meas = Measurer(C.FONTS_DIR / style.font_file, st.size, st.spacing, st.outline)
+        except Exception:                            # noqa: BLE001 — בלי מודד: מילה שלמה
+            meas = None
+    g = (lambda t: max(0.0, meas.width(t) - 2 * st.outline) if t else 0.0) if meas else None
+
+    def plain(words, col, fill):
+        c = f"\\c{col}" + (f"\\3c{col}" if fill else "")
+        return "{" + c + "}" + " ".join(_esc(w["w"]) for w in words)
+
+    geo: dict[int, tuple] = {}
+    n_singers = max([ln["sg"] for ln in shown if ln.get("sg")] or [0])
+    for a, b, li, i, p, row in states(shown, meas is not None):
+        ln = shown[li]
+        words, y = ln["words"], ys[row]
+        S = ass_colour(_sung_hex(ln, ky))
         pos = f"\\an2\\pos({x:.1f},{y:.1f})"
-        ev.append(f"Dialogue: 0,{_ass_time(a)},{_ass_time(b)},Main,,0,0,0,,{{{pos}{blur}}}{pre}{_line_text(words, upto, False)}")
+        if meas is None:                             # מילה שלמה
+            parts = []
+            for j, w in enumerate(words):
+                c = S if j <= i else U
+                parts.append(f"{{\\c{c}}}" + _esc(w["w"]))
+            txt0 = " ".join(parts)
+            ev.append(f"Dialogue: 1,{_ass_time(a)},{_ass_time(b)},Main,,0,0,0,,{{{pos}{blur}}}{pre}{txt0}")
+            if st.faux_bold > 0:
+                txt1 = " ".join(f"{{\\c{S if j <= i else U}\\3c{S if j <= i else U}}}" + _esc(w["w"]) for j, w in enumerate(words))
+                ev.append(f"Dialogue: 2,{_ass_time(a)},{_ass_time(b)},Fill,,0,0,0,,{{{pos}}}{pre}{txt1}")
+            continue
+        if li not in geo:
+            ws = [w["w"] for w in words]
+            A = g(" ".join(ws))
+            offs = [g(" ".join(ws[:j]) + " ") + st.spacing if j else 0.0 for j in range(len(ws))]
+            geo[li] = (A, offs, [g(t) for t in ws])
+        A, offs, wd = geo[li]
+        ev.append(f"Dialogue: 1,{_ass_time(a)},{_ass_time(b)},Main,,0,0,0,,{{{pos}{blur}}}{pre}{plain(words, U, False)}")
         if st.faux_bold > 0:
-            ev.append(f"Dialogue: 1,{_ass_time(a)},{_ass_time(b)},Fill,,0,0,0,,{{{pos}}}{pre}{_line_text(words, upto, True)}")
-    for ln in shown:                                 # נקודות ספירה לאחור — מעל השורה
-        if not ln["cd"]:
+            ev.append(f"Dialogue: 2,{_ass_time(a)},{_ass_time(b)},Fill,,0,0,0,,{{{pos}}}{pre}{plain(words, U, True)}")
+        if i < 0:
+            continue
+        y0c, y1c = y - st.size * 1.4, y + st.outline * 2 + 6
+        if rtl_text:
+            xr = x + A / 2 - offs[i]
+            x0c, x1c = xr - p * wd[i], float(width)
+            if p >= 1 and i == len(words) - 1:
+                x0c = 0.0
+        else:
+            xl = x - A / 2 + offs[i]
+            x0c, x1c = 0.0, xl + p * wd[i]
+            if p >= 1 and i == len(words) - 1:
+                x1c = float(width)
+        clip = f"\\clip({x0c:.0f},{y0c:.0f},{x1c:.0f},{y1c:.0f})"
+        ev.append(f"Dialogue: 3,{_ass_time(a)},{_ass_time(b)},Main,,0,0,0,,{{{pos}{blur}{clip}}}{pre}{plain(words, S, False)}")
+        if st.faux_bold > 0:
+            ev.append(f"Dialogue: 4,{_ass_time(a)},{_ass_time(b)},Fill,,0,0,0,,{{{pos}{clip}}}{pre}{plain(words, S, True)}")
+
+    for ln in shown:
+        S = ass_colour(_sung_hex(ln, ky))
+        y = ys[ln["row"]]
+        if ln.get("sg") is not None:                 # סמן הזמר בתחילת השורה
+            lab = _tag_label(ln["sg"], n_singers)
+            if g is not None:
+                A = g(" ".join(w["w"] for w in ln["words"]))
+            else:
+                A = sum(len(w["w"]) + 1 for w in ln["words"]) * st.size * 0.5
+            mw = len(lab) * tag_size * 0.6 + tag_size * 0.64
+            gap = st.size * 0.3
+            mx = x + A / 2 + gap + mw / 2 if rtl_text else x - A / 2 - gap - mw / 2
+            mx = min(max(mx, mw / 2 + 4), width - mw / 2 - 4)
+            my = y - (st.size - tag_size) * 0.45
+            ev.append(f"Dialogue: 5,{_ass_time(ln['show'])},{_ass_time(ln['hide'])},Tag,,0,0,0,,"
+                      f"{{\\an2\\pos({mx:.1f},{my:.1f})\\3c{S}}}{_esc(lab)}")
+        if not (ln["cd"] and ky["cd"]):              # נקודות ספירה לאחור — מעל השורה, בצבע של מי שנכנס
             continue
         s0 = ln["words"][0]["s"]
-        y = ys[ln["row"]] - st.line_pitch * 1.05
-        for k in range(3):
-            a, b = s0 - COUNT_S + k, s0 - COUNT_S + k + 1
+        yd = y - st.line_pitch * 1.05
+        for k2 in range(3):
+            a, b = s0 - COUNT_S + k2, s0 - COUNT_S + k2 + 1
             if a < 0:
                 continue
-            dots = "● " * (3 - k)
-            ev.append(f"Dialogue: 2,{_ass_time(a)},{_ass_time(b)},Main,,0,0,0,,{{\\an2\\pos({x:.1f},{y:.1f})\\fs{st.size * 0.6:.1f}\\c{SUNG}}}{dots.strip()}")
+            dots = "● " * (3 - k2)
+            ev.append(f"Dialogue: 5,{_ass_time(a)},{_ass_time(b)},Main,,0,0,0,,{{\\an2\\pos({x:.1f},{yd:.1f})\\fs{st.size * 0.6:.1f}\\c{S}}}{dots.strip()}")
+
+    if ky["tc"] and title and shown and shown[0]["show"] >= TITLE_MIN_S:      # כרטיס פתיחה
+        ev.append(f"Dialogue: 5,{_ass_time(0)},{_ass_time(shown[0]['show'] - 0.2)},Main,,0,0,0,,"
+                  f"{{\\an2\\pos({x:.1f},{ys[0]:.1f}){blur}\\fs{st.size * 1.05:.1f}}}{pre}{_esc(title)}")
+    lab = "♪ נגינה ♪" if rtl_text else "♪ Instrumental ♪"
+    for k2 in range(1, len(shown)):                  # תווית "נגינה" בהפסקה ארוכה
+        prev_e, nxt = shown[k2 - 1]["e"], shown[k2]
+        if nxt["s"] - prev_e < INTERLUDE_S:
+            continue
+        a = max(ln["hide"] for ln in shown[:k2]) + 0.4
+        b = nxt["show"] - 0.2
+        if b - a >= 1.0:
+            ev.append(f"Dialogue: 5,{_ass_time(a)},{_ass_time(b)},Main,,0,0,0,,"
+                      f"{{\\an2\\pos({x:.1f},{ys[0]:.1f})\\fs{st.size * 0.6:.1f}\\1a&H50&}}{pre}{lab}")
     return "\n".join(head + ev) + "\n"
+
+
+def bg_ppm(ky: dict, w: int = 480, h: int = 270) -> bytes:
+    """רקע לשיר בלי וידאו (בקטן — ffmpeg מגדיל): כהה · מעבר צבע (אלכסון) · צבע הערכה (זוהר מלמטה)."""
+    ky = norm_ky(ky)
+    base = (0x10, 0x14, 0x18)
+    c = tuple(int(ky["c"][i:i + 2], 16) for i in (1, 3, 5))
+    mix = lambda t: bytes(int(base[j] + (c[j] - base[j]) * t) for j in range(3))
+    rows = []
+    for yy in range(h):
+        row = bytearray()
+        for xx in range(w):
+            if ky["bg"] == "grad":
+                d = (xx / w + yy / h) / 2
+                t = 0.33 * max(0.0, 1 - d / 0.55) + 0.2 * max(0.0, (d - 0.45) / 0.55)
+            elif ky["bg"] == "tint":
+                dx, dy = (xx - w / 2) / (w * 0.9), (yy - h * 1.2) / (h * 0.9)
+                t = 0.33 * max(0.0, 1 - (dx * dx + dy * dy) ** 0.5)
+            else:
+                t = 0.0
+            row += mix(t)
+        rows.append(bytes(row))
+    return f"P6 {w} {h} 255\n".encode() + b"".join(rows)
 
 
 def _lrc_t(t: float) -> str:

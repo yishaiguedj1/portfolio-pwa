@@ -114,6 +114,7 @@ export function normSettings(o) {
   const stale = Number(o.bgSt) >= 2;
   if (!stale && Number.isFinite(+o.bgNo) && +o.bgNo > 0) s.bgNo = Math.floor(+o.bgNo);   // 23/10/2026: מתי הדפדפן סירב להעלאה ברקע (ננסה שוב אחרי חודש)   // מתי Google סירב לבורר במסך מלא (ננסה שוב אחרי חודש)
   if (Number.isFinite(+o.bgSl) && +o.bgSl > 0) s.bgSl = Math.floor(+o.bgSl);   // 28/10/2026: מתי העלאה ברקע הייתה איטית (ACCOUNT_KEYS — pwa_studio_v1 כולו)
+  if (o.ky && typeof o.ky === 'object') s.ky = normKy(o.ky);   // 31/10/2026: עיצוב הקריוקי (ברירת המחדל לשיר הבא)
   const sty = normSty(o.sty); if (sty) s.sty = sty;   // סבב 5: עיצוב הכתוביות האחרון (ברירת המחדל להפקה הבאה)
   if (o.lg && typeof o.lg === 'object') { const ov = normOv({ lg: o.lg.d, lp: o.lg.p, ls: o.lg.s }); if (ov) s.lg = { d: ov.lg, p: ov.lp, s: ov.ls }; }   // סבב 7: הלוגו שלך
   return s;
@@ -2172,7 +2173,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 const kaJob = (id) => !!(store && store.jobs && store.jobs.some((r) => r && r.id === id && r.spec && r.spec.ka));
 export function chainFor(v, p) {
   if ((v === 'lang' && p !== 'def') || v === 'tracks' || v === 'link' || v === 'linkfmt' || v === 'linksec' || v === 'fmthelp' || v === 'grab' || v === 'cutsrc' || v === 'dpick') { v = 'new'; p = form && form.ka ? 'ka' : null; }   // הטופס (והקובץ) לא שורדים רענון; 30/10: טופס של שיר — תחת הקריוקי
-  const parent = (x, y) => (x === 'home' ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : (x === 'lang' || x === 'tower' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'towerx' || x === 'rlb' || x === 'rlm' ? ['tower', null] : x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['towerx', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : x === 'vids' ? (vidsParent(y) || ['store', null]) : (x === 'new' && y === 'ka') || (x === 'job' && kaJob(y)) ? ['ka', null] : ['home', null]);   // 30/10: שיר — תחת הקריוקי
+  const parent = (x, y) => (x === 'home' ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : (x === 'lang' || x === 'tower' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'towerx' || x === 'rlb' || x === 'rlm' ? ['tower', null] : x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['towerx', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : x === 'vids' ? (vidsParent(y) || ['store', null]) : x === 'kasty' ? ['new', 'ka'] : (x === 'new' && y === 'ka') || (x === 'job' && kaJob(y)) ? ['ka', null] : ['home', null]);   // 30/10: שיר — תחת הקריוקי
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -3318,7 +3319,8 @@ function pageForm(p, editing) {
   if (f.ka) {   // 26/10/2026: קריוקי — המילים, הקול, ומה לקבל (בלי שפות ובלי מצב תרגום)
     kaSection(p, f);
     p.append(secT(T('studioSecOut')), list(...KA_OUTS.map((k) => rowCheck({ label: outName(k), sub: outSub(k), on: !!f.out[k], onClick: () => { f.out[k] = !f.out[k]; render('none'); }, k: 'o:' + k }))), note(T('studioKaOutNote')));
-    p.append(secT(T('studioSecStyle')), stylePicker(f.style, (k) => { f.style = k; render('none'); }));
+    const ky = normKy(store.settings.ky);   // 31/10/2026: עיצוב הקריוקי — דף משלו (במקום עיצוב הכתוביות של הסרטונים)
+    p.append(list(rowNav({ tile: tile('edit', 'purple'), label: T('studioKyT'), value: kySchName(kySchemeOf(ky)), onClick: () => go('kasty'), k: 'kasty' })));
     const startKa = btn('st-btn wide', ui.starting ? T('studioStarting') : T('studioKaStart'), startFromForm, 'start');
     startKa.disabled = !(f.fileObj || f.drive || (f.link && f.linkOk)) || !kaLyr(f.lyr).trim() || ui.starting;
     const ft = h('div', 'st-foot'); ft.append(startKa, h('p', 'st-foot-n', !kaLyr(f.lyr).trim() ? T('studioKaNeedLyr') : T('studioKaStartNote'))); p.append(ft);
@@ -3410,6 +3412,21 @@ const subsOk = () => apiMode() || cpMode();
 const kaOk = () => !!(ui.api && ui.api.servers > 0 && ui.r2 && (ui.api.admin || ui.api.ka));   // ka מהשרתון — 30/10/2026: כל מי שמורשה לסטודיו
 export const KA_LYR_MAX = 8000;   // = KA_LYR_MAX בשרתון ו־LYR_MAX ב־translator/vt/karaoke.py
 const KA_OUTS = ['compact', 'same', 'small'];
+/* 31/10/2026: עיצוב הקריוקי (ת־קריוקי) — אותם מפתחות וברירות מחדל כמו norm_ky ב־translator/vt/karaoke.py
+   (tests/studio-karaoke-design.test.js משווה). u לא־שר · c שר · f מילוי (w/d) · z גודל · cd ספירה · tc פתיחה · dm הכהיה ·
+   bg רקע בלי וידאו · sg צבע לכל זמר (4) · sb ביחד */
+export const KY_DEF = { u: '#FFFFFF', c: '#FFC83D', f: 'w', z: 'M', cd: 1, tc: 1, dm: 1, bg: 'dark', sg: ['#3DD6FF', '#FF5CA8', '#7CE38B', '#B48CFF'], sb: '#FFC83D' };
+export function normKy(d) {
+  d = d && typeof d === 'object' && !Array.isArray(d) ? d : {};
+  const hx = (v, dv) => (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v.toUpperCase() : dv);
+  const sg = Array.isArray(d.sg) ? d.sg : [];
+  return {
+    u: hx(d.u, KY_DEF.u), c: hx(d.c, KY_DEF.c), f: d.f === 'd' ? 'd' : 'w', z: ['S', 'M', 'L'].includes(d.z) ? d.z : 'M',
+    cd: d.cd === 0 ? 0 : 1, tc: d.tc === 0 ? 0 : 1, dm: [0, 1, 2].includes(d.dm) ? d.dm : 1, bg: ['dark', 'grad', 'tint'].includes(d.bg) ? d.bg : 'dark',
+    sg: [0, 1, 2, 3].map((i) => hx(sg[i], KY_DEF.sg[i])), sb: hx(d.sb, KY_DEF.sb),
+  };
+}
+
 const KA_GV = [0, 10, 20, 30];
 /* המילים מהמשתמש — בלי תווי בקרה וכיווניות (= normLyr בשרתון) */
 export function kaLyr(t) {
@@ -3420,7 +3437,7 @@ export function kaLyr(t) {
 function kaSpec(f, spec) {
   if (!f.ka) return spec;
   const out = KA_OUTS.filter((k) => f.out[k]);
-  Object.assign(spec, { ka: 1, lyr: kaLyr(f.lyr), out: out.length ? out : ['compact'], eng: 'api', cap: store.settings.cap },
+  Object.assign(spec, { ka: 1, lyr: kaLyr(f.lyr), ky: normKy(f.ky || store.settings.ky), out: out.length ? out : ['compact'], eng: 'api', cap: store.settings.cap },
     f.bv ? { bv: 1 } : {}, f.gv > 0 ? { gv: f.gv } : {});
   delete spec.cp; delete spec.ry; delete spec.edl;
   return spec;
@@ -3467,6 +3484,159 @@ function kaSection(p, f) {
   gv.append(...KA_GV.map((x) => chip(x ? '\u2066' + x + '%\u2069' : T('studioKaGv0'), (f.gv || 0) === x, () => { f.gv = x; render('none'); }, 'ka-gv:' + x)));
   p.append(secT(T('studioKaVoice')), list(rowSwitch({ label: T('studioKaBv'), sub: T('studioKaBvS'), on: !!f.bv, onClick: () => { f.bv = !f.bv; render('none'); }, k: 'ka-bv' })),
     secT(T('studioKaGv')), gv);
+}
+/* ---------- 31/10/2026: עיצוב הקריוקי (ת־קריוקי, docs/standards.md) — דף משלו במקום "עיצוב הכתוביות" של הסרטונים.
+   תצוגה חיה בראש הדף (אותה פריסה של vt/karaoke.py: שתי שורות מתחלפות, מילוי לאורך המילה, ספירה, סמן זמר), ההגדרות
+   נשמרות ב־store.settings.ky (ברירת המחדל לשיר הבא) ונשלחות ב־spec.ky ---------- */
+export const KY_SCHEMES = [
+  { k: 'gold', u: '#FFFFFF', c: '#FFC83D' }, { k: 'sky', u: '#FFFFFF', c: '#3DD6FF' }, { k: 'rose', u: '#FFFFFF', c: '#FF5CA8' },
+  { k: 'mint', u: '#FFFFFF', c: '#30D158' }, { k: 'night', u: '#9AA6B8', c: '#FFFFFF' }];
+const kySchName = (k) => (k === 'gold' ? T('studioKySch_gold') : k === 'sky' ? T('studioKySch_sky') : k === 'rose' ? T('studioKySch_rose') : k === 'mint' ? T('studioKySch_mint') : k === 'night' ? T('studioKySch_night') : T('studioKySch_custom'));
+export const kySchemeOf = (ky) => { const x = KY_SCHEMES.find((s) => s.u === ky.u && s.c === ky.c); return x ? x.k : 'custom'; };
+const KY_SG_RE = /^\s*[[(]\s*(?:(?:p|זמר|זמרת|singer|voice|קול)\s*)?([1-4])\s*[\])]\s*:?\s*/i;   // = _SINGER ב־vt/karaoke.py
+const KY_ALL_RE = /^\s*[[(]\s*(?:ביחד|יחד|כולם|שניהם|both|all|together|1\s*[+&]\s*2(?:\s*[+&]\s*[34])*)\s*[\])]\s*:?\s*/i;
+/* שורות לתצוגה מהמילים שהודבקו (עד 4), עם הזמר של כל שורה (null = לא סומן) */
+export function kyPvLines(text) {
+  const out = []; let cur = null;
+  for (const raw of kaLyr(text).split('\n')) {
+    let line = raw.trim();
+    const ms = line.match(KY_SG_RE), m = ms || line.match(KY_ALL_RE);
+    if (m) { cur = ms ? +ms[1] : 0; line = line.slice(m[0].length).trim(); }
+    if (!line || /^\s*[[(].*[\])]\s*$/.test(line)) continue;
+    out.push({ t: line.split(/\s+/).slice(0, 7).join(' '), sg: cur });
+    if (out.length === 4) break;
+  }
+  return out;
+}
+function kySet(patch) { store.settings.ky = normKy(Object.assign({}, normKy(store.settings.ky), patch)); save(); render('none'); }
+function kyPreview(f) {
+  const ky = normKy(store.settings.ky);
+  let lines = kyPvLines(f && f.lyr);
+  if (lines.length < 2) lines = [T('studioKyS1'), T('studioKyS2'), T('studioKyS3'), T('studioKyS4')].map((t, i) => ({ t, sg: [1, 2, 1, 0][i] }));
+  const rtl = /[֐-׿]/.test(lines.map((x) => x.t).join(''));
+  const ttl = (f && f.fileObj && f.fileObj.name ? f.fileObj.name.replace(/\.[^.]+$/, '') : T('studioKySampleT')).slice(0, 60);
+  const wrap = h('div', 'st-ky-wrap');
+  const stage = h('div', 'st-ky-stage'); stage.dir = rtl ? 'rtl' : 'ltr';
+  const vid = ui.kyPv !== 'n';
+  stage.classList.add(vid ? 'v' : 'bg-' + ky.bg);
+  stage.style.setProperty('--ky-u', ky.u); stage.style.setProperty('--ky-c', ky.c);
+  stage.style.setProperty('--ky-fs', { S: 4.6, M: 5.6, L: 6.6 }[ky.z] + 'cqi');
+  const scrim = h('div', 'st-ky-scrim'); scrim.style.opacity = vid ? [0, 0.7, 1][ky.dm] : 0;
+  const card = h('div', 'st-ky-title', ttl);
+  const inter = h('div', 'st-ky-inter', T('studioKyInter'));
+  const rows = [0, 1].map(() => { const r = h('div', 'st-ky-row'); r.append(h('div', 'st-ky-dots'), h('div', 'st-ky-line')); return r; });
+  const lyr = h('div', 'st-ky-lyr'); lyr.append(...rows);
+  stage.append(scrim, inter, card, lyr);
+  const colOf = (sg) => (sg == null ? ky.c : sg === 0 ? ky.sb : ky.sg[sg - 1]);
+  const nSg = Math.max(2, ...lines.map((x) => x.sg || 0));
+  // הזמנים — שורה של 3 שנ', הפסקה ארוכה לפני השלישית (ספירה + "נגינה"); הפריסה = layout() בעובד
+  const starts = [1.2, 4.6, 16, 19.4].slice(0, lines.length), LOOP = 24, PRE = 4, LEAD = 0.6, HOLD = 0.5;
+  const tl = lines.map((x, k) => {
+    const ws = x.t.split(' '), tot = ws.reduce((a, w) => a + w.length + 1, 0); let t = starts[k];
+    const words = ws.map((w) => { const d = 3 * (w.length + 1) / tot; const o = { w, s: t, e: t + d * 0.92 }; t += d; return o; });
+    return { s: starts[k], e: words[words.length - 1].e, words, sg: x.sg };
+  });
+  const free = [0, 0];
+  const shown = tl.map((ln, k) => {
+    const row = k % 2; let show = Math.min(Math.max(free[row], ln.s - PRE, 0), Math.max(0, ln.s - LEAD));
+    let hide = ln.e + HOLD; const nx = tl[k + 2]; if (nx) hide = Math.min(hide, Math.max(ln.e + 0.15, nx.s - PRE));
+    free[row] = hide;
+    return Object.assign({}, ln, { row, show, hide, cd: ln.s - (k ? tl[k - 1].e : 0) >= 4 || k === 0 });
+  });
+  const built = [null, null];
+  const build = (row, li) => {
+    const el = rows[row].lastChild; el.textContent = '';
+    if (li < 0) return;
+    const ln = shown[li];
+    rows[row].style.setProperty('--ky-c', colOf(ln.sg));
+    if (ln.sg != null) { const mk = h('span', 'st-ky-mk', ln.sg ? String(ln.sg) : Array.from({ length: nSg }, (_, i) => i + 1).join('+')); mk.dir = 'ltr'; el.append(mk); }
+    for (const w of ln.words) { const s = h('span', 'st-ky-w', w.w); const on = h('span', 'st-ky-on', w.w); on.setAttribute('aria-hidden', 'true'); s.append(on); el.append(s); }
+  };
+  const frame = (t) => {
+    card.style.opacity = ky.tc && t < shown[0].show ? 1 : 0;
+    for (const row of [0, 1]) {
+      const li = shown.findIndex((l) => l.row === row && t >= l.show && t < l.hide);
+      if (built[row] !== li) { build(row, li); built[row] = li; }
+      rows[row].style.opacity = li < 0 ? 0 : 1;
+      const dots = rows[row].firstChild; dots.textContent = '';
+      if (li < 0) continue;
+      const ln = shown[li], ws = rows[row].lastChild.querySelectorAll('.st-ky-w');
+      ln.words.forEach((w, i) => {
+        const p = ky.f === 'd' ? (t >= w.s ? 1 : 0) : t <= w.s ? 0 : t >= w.e ? 1 : (t - w.s) / (w.e - w.s);
+        ws[i].style.setProperty('--p', (p * 100).toFixed(1) + '%');
+      });
+      if (ky.cd && ln.cd && t >= ln.s - 3 && t < ln.s) for (let k = 0; k < 3; k++) dots.append(h('i', k >= Math.ceil(ln.s - t) ? 'off' : null));
+    }
+    inter.style.opacity = shown.length > 2 && t > shown[1].hide + 0.4 && t < shown[2].show - 0.2 ? 1 : 0;
+  };
+  const t0 = performance.now();
+  const tick = (now) => { if (!stage.isConnected) return; frame(((now - t0) / 1000) % LOOP); requestAnimationFrame(tick); };
+  if (reduceMotion()) frame(starts[0] + 1.4); else requestAnimationFrame((now) => { frame(0); tick(now); });
+  const pv = h('div', 'st-seg2 st-ky-pvseg'); pv.setAttribute('role', 'radiogroup');
+  for (const [k, l] of [['v', T('studioKyPvV')], ['n', T('studioKyPvN')]]) {
+    const b = btn(null, null, () => { ui.kyPv = k; render('none'); }, 'ky-pv:' + k);
+    b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', (ui.kyPv === 'n' ? 'n' : 'v') === k ? 'true' : 'false'); b.append(h('b', null, l)); pv.append(b);
+  }
+  wrap.append(stage, pv);
+  return wrap;
+}
+/* בחירה אחת מתוך כמה (st-seg2) */
+function kySeg(items, cur, onPick, k, aria) {
+  const g = h('div', 'st-seg2'); g.setAttribute('role', 'radiogroup'); g.setAttribute('aria-label', aria);
+  for (const [v, l] of items) {
+    const b = btn(null, null, () => onPick(v), k + ':' + v);
+    b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', v === cur ? 'true' : 'false'); b.append(h('b', null, l)); g.append(b);
+  }
+  return g;
+}
+function kyColor(val, aria, onSet, k) {
+  const i = h('input', 'st-ky-col'); i.type = 'color'; i.value = val.toLowerCase(); i.setAttribute('aria-label', aria); i.dataset.k = k;
+  i.addEventListener('change', () => onSet(i.value.toUpperCase()));
+  return i;
+}
+function pageKaSty(p) {
+  const ky = normKy(store.settings.ky), f = form && form.ka ? form : null;
+  p.append(navBar({ back: T('studioKaNew') }), large(T('studioKyT')), kyPreview(f));
+  // צבעים — ערכות מוכנות + מותאם (שני צבעים)
+  const sch = kySchemeOf(ky), custom = sch === 'custom' || ui.kyCustom;
+  const chips = h('div', 'st-ky-schemes');
+  for (const x of KY_SCHEMES.concat([{ k: 'custom' }])) {
+    const on = x.k === 'custom' ? custom : !custom && sch === x.k;
+    const b = btn('st-ky-sch' + (on ? ' on' : ''), null, () => { if (x.k === 'custom') { ui.kyCustom = true; render('none'); } else { ui.kyCustom = false; kySet({ u: x.u, c: x.c }); } }, 'ky-sch:' + x.k);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    const sw = h('span', 'st-ky-sw' + (x.k === 'custom' ? ' any' : ''));
+    if (x.u) { sw.style.setProperty('--a', x.c); sw.style.setProperty('--b', x.u); sw.append(h('span', null, T('studioKySwTxt'))); }
+    b.append(sw, h('small', null, kySchName(x.k)));
+    chips.append(b);
+  }
+  const colRows = [chips];
+  if (custom) {
+    const r = h('div', 'st-row st-ky-pair');
+    r.append(rowTxt(T('studioKySch_custom')), h('span', 'st-ky-pl', T('studioKyUns')), kyColor(ky.u, T('studioKyUns'), (v) => kySet({ u: v }), 'ky-u'),
+      h('span', 'st-ky-pl', T('studioKySung')), kyColor(ky.c, T('studioKySung'), (v) => kySet({ c: v }), 'ky-c'));
+    colRows.push(r);
+  }
+  p.append(secT(T('studioKyColors')), list(...colRows));
+  // זמרים — צבע לכל זמר בדואט (+ "ביחד"); החלוקה מהסימון במילים
+  const nSg = Math.max(2, Math.min(4, ui.kySgN || (ky.sg[3] !== KY_DEF.sg[3] ? 4 : ky.sg[2] !== KY_DEF.sg[2] ? 3 : 2)));
+  const sgRow = (lbl, val, mk, onSet, k) => { const r = h('div', 'st-row st-ky-sg'); const m = h('span', 'st-ky-mk', mk); m.dir = 'ltr'; m.style.setProperty('--ky-c', val); r.append(kyColor(val, lbl, onSet, k), rowTxt(lbl), m); return r; };
+  const sgs = [];
+  for (let i = 0; i < nSg; i++) sgs.push(sgRow(T('studioKySinger', { n: i + 1 }), ky.sg[i], String(i + 1), (v) => { const a = ky.sg.slice(); a[i] = v; kySet({ sg: a }); }, 'ky-sg:' + i));
+  sgs.push(sgRow(T('studioKyAll'), ky.sb, Array.from({ length: nSg }, (_, i) => i + 1).join('+'), (v) => kySet({ sb: v }), 'ky-sb'));
+  if (nSg < 4) sgs.push(btn('st-row st-act', '+ ' + T('studioKyAdd'), () => { ui.kySgN = nSg + 1; render('none'); }, 'ky-sg-add'));
+  p.append(secT(T('studioKySingers')), list(...sgs), note(T('studioKySingersNote')));
+  // מילים
+  const it = (lbl, ctl, sub) => { const r = h('div', 'st-row st-ky-it'); r.append(rowTxt(lbl, sub), ctl); return r; };
+  p.append(secT(T('studioKyWords')), list(
+    it(T('studioKyFill'), kySeg([['w', T('studioKyWipe')], ['d', T('studioKyWord')]], ky.f, (v) => kySet({ f: v }), 'ky-f', T('studioKyFill'))),
+    it(T('studioKySize'), kySeg([['S', 'S'], ['M', 'M'], ['L', 'L']], ky.z, (v) => kySet({ z: v }), 'ky-z', T('studioKySize'))),
+    rowSwitch({ label: T('studioKyCd'), on: !!ky.cd, onClick: () => kySet({ cd: ky.cd ? 0 : 1 }), k: 'ky-cd' }),
+    rowSwitch({ label: T('studioKyTc'), on: !!ky.tc, onClick: () => kySet({ tc: ky.tc ? 0 : 1 }), k: 'ky-tc' })));
+  // רקע
+  p.append(secT(T('studioKyBg')), list(
+    it(T('studioKyPvV'), kySeg([[0, T('studioKyDim0')], [1, T('studioKyDim1')], [2, T('studioKyDim2')]], ky.dm, (v) => { ui.kyPv = 'v'; kySet({ dm: v }); }, 'ky-dm', T('studioKyDim')), T('studioKyDim')),
+    it(T('studioKyBgN'), kySeg([['dark', T('studioKyBgDark')], ['grad', T('studioKyBgGrad')], ['tint', T('studioKyBgTint')]], ky.bg, (v) => { ui.kyPv = 'n'; kySet({ bg: v }); }, 'ky-bg', T('studioKyBgN')))),
+  note(T('studioKyNote')));
 }
 function pickSubs(f) {
   if (!subsOk()) { flashSafe(T('studioSubsApiOnly')); return; }
@@ -9345,7 +9515,8 @@ function render(kind, still, pre) {     // kind: none (ציור מחדש במק�
   else if (ui.view === 'server') pageServer(p);
   else if (ui.view === 'def') pageDef(p);
   else if (ui.view === 'connect') pageConnect(p);
-  else if (ui.view === 'ka' && kaOk()) pageKa(p);   // 30/10/2026: קריוקי — כלי נפרד
+  else if (ui.view === 'ka' && kaOk()) pageKa(p);
+  else if (ui.view === 'kasty' && kaOk()) pageKaSty(p);   // 31/10/2026: עיצוב הקריוקי   // 30/10/2026: קריוקי — כלי נפרד
   else pageHome(p);
   if (!root || seq !== renderSeq) { if (pre) pre.remove(); return; }   // הדף חזר אחורה תוך כדי בנייה (טיוטה שנמחקה וכו') — הציור החדש כבר במקום
   /* 14/10/2026 (בקשת המשתמש): מעבר בין דפים = קובייה, כמו בשלוש האפליקציות (core: cubeClone/cubeGhostRun) — הדף היוצא =

@@ -111,21 +111,32 @@ def cmd_build(a):
     from vt.util import write_text
     words = json.loads(Path(a.words).read_text(encoding='utf-8'))['words']
     lines = K.timed_lines(words)
+    ky = K.norm_ky(json.loads(a.ky or '{}'))
+    if a.lyrics and Path(a.lyrics).exists():          # 31/10/2026: דואט — מי שר כל שורה, מהסימון במילים
+        K.assign_singers(lines, K.parse_singers(Path(a.lyrics).read_text(encoding='utf-8')))
     shown = K.layout(lines)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     rtl_text = K.is_rtl([[w['w'] for w in ln['words']] for ln in lines])
     style = C.STYLES.get(a.style) or C.STYLES[C.DEFAULT_STYLE]
-    write_text(out / 'karaoke.ass', K.write_ass(shown, style, a.W, a.H, a.title, rtl_text))
+    write_text(out / 'karaoke.ass', K.write_ass(shown, style, a.W, a.H, a.title, rtl_text, ky, a.video == 1))
     write_text(out / 'karaoke.lrc', K.write_lrc(lines, a.title))
     write_text(out / 'karaoke.elrc.lrc', K.write_lrc(lines, a.title, enhanced=True))
     print(f'✓ {len(lines)} שורות, {len(words)} מילים')
 
 
 def cmd_video(a):
-    """שיר בלי וידאו: רקע כהה באורך השיר, 1920×1080 ‏30fps (הכתוביות נצרבות עליו כמו על כל סרטון)."""
-    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', f'color=c=0x101418:s=1920x1080:r=30:d={a.dur:.3f}',
-                    '-i', a.audio, '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18',
+    """שיר בלי וידאו: רקע באורך השיר, 1920×1080 ‏30fps (הכתוביות נצרבות עליו כמו על כל סרטון). 31/10/2026: לפי עיצוב
+    הקריוקי — כהה (צבע אחיד), מעבר צבע או צבע הערכה (תמונה קטנה שמוגדלת, K.bg_ppm)."""
+    from vt import karaoke as K
+    ky = K.norm_ky(json.loads(a.ky or '{}'))
+    if ky['bg'] == 'dark':
+        vin = ['-f', 'lavfi', '-i', f'color=c=0x101418:s=1920x1080:r=30:d={a.dur:.3f}']
+    else:
+        img = Path(a.out).with_suffix('.bg.ppm')
+        img.write_bytes(K.bg_ppm(ky))
+        vin = ['-loop', '1', '-framerate', '30', '-t', f'{a.dur:.3f}', '-i', str(img)]
+    subprocess.run(['ffmpeg', '-v', 'error', '-y'] + vin + ['-i', a.audio, '-vf', 'scale=1920:1080:flags=bicubic', '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18',
                     '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-shortest', a.out], check=True)
 
 
@@ -160,7 +171,9 @@ def main(argv=None):
     s = sp.add_parser('build'); s.add_argument('--words', required=True); s.add_argument('--out', required=True)
     s.add_argument('--W', type=int, default=1920); s.add_argument('--H', type=int, default=1080)
     s.add_argument('--title', default=''); s.add_argument('--style', default='bold')
+    s.add_argument('--ky', default=''); s.add_argument('--lyrics', default=''); s.add_argument('--video', type=int, default=1)
     s = sp.add_parser('video'); s.add_argument('--audio', required=True); s.add_argument('--dur', type=float, required=True); s.add_argument('--out', required=True)
+    s.add_argument('--ky', default='')
     s = sp.add_parser('burn'); s.add_argument('--src', required=True); s.add_argument('--ass', required=True)
     s.add_argument('--out', required=True); s.add_argument('--work', required=True); s.add_argument('--profile', default='small', choices=('same', 'small'))
     s = sp.add_parser('mix'); s.add_argument('--video', required=True); s.add_argument('--inst', required=True)

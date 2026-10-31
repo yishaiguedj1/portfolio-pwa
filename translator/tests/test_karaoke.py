@@ -1,4 +1,5 @@
 """קריוקי משיר רגיל (26/10/2026): המילים → שורות, עיגון לתמלול, תצוגה בשתי שורות, מצב לכל מילה, LRC."""
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -182,3 +183,78 @@ class Flow(unittest.TestCase):
         self.assertTrue(all(s > 0 for _, _, s in outs))
         self.assertTrue(any(kw.get('done') for _, kw in reports))
         self.assertEqual(outs[0][1], 'Song (קריוקי).mp4')
+
+
+class Design(unittest.TestCase):
+    """31/10/2026: עיצוב הקריוקי (ת־קריוקי) — דואט, מילוי מימין לשמאל, כרטיס פתיחה, נגינה, הכהיה, רקע."""
+
+    def _shown(self, txt, gap=9.0, start=5.0):
+        lines = K.parse_lyrics(txt)
+        words, t = [], start
+        for li, ln in enumerate(lines):
+            for w in ln:
+                words.append({"w": w, "li": li, "s": t, "e": t + 0.4})
+                t += 0.5
+            t += gap if li == 1 else 1.0
+        tl = K.timed_lines(words)
+        K.assign_singers(tl, K.parse_singers(txt))
+        return K.layout(tl)
+
+    def test_singers(self):
+        txt = "[1]\nשורה ראשונה כאן\n[זמר 2] שורה שנייה כאן\n[Chorus]\nעוד שורה\n[ביחד]\nכולם שרים\n(both) together now"
+        self.assertEqual(K.parse_lyrics(txt), [["שורה", "ראשונה", "כאן"], ["שורה", "שנייה", "כאן"], ["עוד", "שורה"],
+                                               ["כולם", "שרים"], ["together", "now"]])
+        self.assertEqual(K.parse_singers(txt), [1, 2, 2, 0, 0])
+        self.assertEqual(K.parse_singers("just one singer\nno tags"), [])
+
+    def test_norm_ky(self):
+        d = K.norm_ky({"u": "#abcdef", "c": "red", "f": "d", "z": "L", "cd": 0, "dm": 7, "bg": "x", "sg": ["#000000"], "evil": 1})
+        self.assertEqual(d["u"], "#ABCDEF")
+        self.assertEqual(d["c"], K.KY_DEF["c"])
+        self.assertEqual((d["f"], d["z"], d["cd"], d["tc"], d["dm"], d["bg"]), ("d", "L", 0, 1, 1, "dark"))
+        self.assertEqual(d["sg"], ["#000000"] + K.KY_DEF["sg"][1:])
+        self.assertNotIn("evil", d)
+        self.assertEqual(K.norm_ky(None), K.norm_ky({}))
+        self.assertEqual(K.ass_colour("#FFC83D"), K.SUNG)
+
+    def test_wipe_rtl_duet(self):
+        from vt import config as C
+        sh = self._shown("[1]\nהלילה יורד לאט\n[2] ואני שר לך\n[ביחד]\nכל האורות כבים", start=8.0)
+        st = K.states(sh, True)
+        mid = [x for x in st if 0 < x[4] < 1]
+        self.assertTrue(mid)                                  # מצבים באמצע מילה
+        ass = K.write_ass(sh, C.STYLES["bold"], 1920, 1080, "שיר", True, {"sg": ["#00FF00", "#0000FF"]}, True)
+        self.assertNotIn("\\k", ass)
+        clips = re.findall(r"\\clip\((\d+),\d+,(\d+),\d+\)", ass)
+        self.assertTrue(clips)
+        self.assertTrue(all(int(b) == 1920 for a, b in clips))   # מימין לשמאל: הקצה הימני קבוע
+        self.assertIn("\\c&H0000FF00", ass)                   # זמר 1
+        self.assertIn("\\c&H00FF0000", ass)                   # זמר 2
+        self.assertIn("Style: Tag", ass)
+        self.assertIn("}1+2", ass)                            # סמן "ביחד"
+        self.assertIn("נגינה", ass)                           # הפסקה של 9 שנ'
+        self.assertIn("\\p1", ass)                            # הכהיה
+        self.assertIn("}‏שיר", ass)                           # כרטיס פתיחה (השורה הראשונה אחרי 1.5 שנ')
+        for ln in ass.splitlines():
+            if ln.startswith("Dialogue:"):
+                self.assertIn("\\an2", ln)                    # הצריבה המהירה — רק רצועת הכתוביות
+                self.assertIn("\\pos(", ln)
+
+    def test_ltr_word_mode_options(self):
+        from vt import config as C
+        sh = self._shown("hello there my friend\nsing it now")
+        ass = K.write_ass(sh, C.STYLES["bold"], 1920, 1080, "", False, {"f": "w"}, False)
+        clips = re.findall(r"\\clip\((\d+),\d+,(\d+),\d+\)", ass)
+        self.assertTrue(clips and all(a == "0" for a, b in clips))   # משמאל לימין: הקצה השמאלי קבוע
+        self.assertNotIn("\\p1", ass)                         # בלי וידאו — בלי הכהיה
+        self.assertNotIn("Instrumental", ass)
+        w = K.write_ass(sh, C.STYLES["bold"], 1920, 1080, "T", False, {"f": "d", "cd": 0, "tc": 0}, True)
+        self.assertNotIn("\\clip", w)
+        self.assertNotIn("●", w)
+        self.assertEqual(len(K.states(sh, False)), len(K.events(sh)))
+
+    def test_bg(self):
+        for bg in ("dark", "grad", "tint"):
+            b = K.bg_ppm({"bg": bg}, 48, 27)
+            self.assertTrue(b.startswith(b"P6 48 27 255\n"))
+            self.assertEqual(len(b), len(b"P6 48 27 255\n") + 48 * 27 * 3)

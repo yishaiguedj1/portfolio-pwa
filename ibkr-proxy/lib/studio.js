@@ -227,6 +227,20 @@ function normPpr(o, now) {
 /* 26/10/2026: קריוקי משיר רגיל — המילים שהודבקו (טקסט מהמשתמש: בלי תווי בקרה וכיווניות, עד KA_LYR_MAX). = clean_lyrics ב־translator/vt/karaoke.py */
 const KA_LYR_MAX = 8000;
 const KA_OUTS = ['compact', 'same', 'small'];
+/* 31/10/2026: עיצוב הקריוקי (ת־קריוקי) — אותם מפתחות וברירות מחדל כמו norm_ky ב־translator/vt/karaoke.py
+   (tests/studio-karaoke-design.test.js משווה). u לא־שר · c שר · f מילוי (w/d) · z גודל · cd ספירה · tc פתיחה · dm הכהיה ·
+   bg רקע בלי וידאו · sg צבע לכל זמר (4) · sb ביחד */
+const KY_DEF = { u: '#FFFFFF', c: '#FFC83D', f: 'w', z: 'M', cd: 1, tc: 1, dm: 1, bg: 'dark', sg: ['#3DD6FF', '#FF5CA8', '#7CE38B', '#B48CFF'], sb: '#FFC83D' };
+function normKy(d) {
+  d = d && typeof d === 'object' && !Array.isArray(d) ? d : {};
+  const hx = (v, dv) => (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v.toUpperCase() : dv);
+  const sg = Array.isArray(d.sg) ? d.sg : [];
+  return {
+    u: hx(d.u, KY_DEF.u), c: hx(d.c, KY_DEF.c), f: d.f === 'd' ? 'd' : 'w', z: ['S', 'M', 'L'].includes(d.z) ? d.z : 'M',
+    cd: d.cd === 0 ? 0 : 1, tc: d.tc === 0 ? 0 : 1, dm: [0, 1, 2].includes(d.dm) ? d.dm : 1, bg: ['dark', 'grad', 'tint'].includes(d.bg) ? d.bg : 'dark',
+    sg: [0, 1, 2, 3].map((i) => hx(sg[i], KY_DEF.sg[i])), sb: hx(d.sb, KY_DEF.sb),
+  };
+}
 function normLyr(t) {
   return String(t == null ? '' : t).replace(/[\u0000-\u0008\u000b-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
     .replace(/\r\n?/g, '\n').slice(0, KA_LYR_MAX);
@@ -265,7 +279,7 @@ function normSpec(s) {
     terms: String(s.terms || '').replace(/\u0000/g, '').slice(0, 1000),
   }, subs ? Object.assign({ src: 'subs', sdh: s.sdh === 'keep' ? 'keep' : 'rm' }, SUBS_FPS.includes(String(s.fps)) ? { fps: String(s.fps) } : {}) : {},
   link ? Object.assign({ src: 'url', url, pick }, ref ? { ref } : {}) : {},
-  ka ? Object.assign({ ka: 1, lyr: normLyr(s.lyr) }, s.bv === 1 ? { bv: 1 } : {}, Number.isFinite(+s.gv) && +s.gv > 0 ? { gv: Math.min(60, Math.round(+s.gv)) } : {}) : {},   // קריוקי: עם קולות רקע, קול מנחה ב־%
+  ka ? Object.assign({ ka: 1, lyr: normLyr(s.lyr), ky: normKy(s.ky) }, s.bv === 1 ? { bv: 1 } : {}, Number.isFinite(+s.gv) && +s.gv > 0 ? { gv: Math.min(60, Math.round(+s.gv)) } : {}) : {},   // קריוקי: עם קולות רקע, קול מנחה ב־%
   // 25/10/2026 (שלב 2): pw = גם התמלול והיישור בטלפון — עולים רק המילים עם הזמנים (w) והמדידות (m), בלי קול
   // 25/10/2026 (שלב 3): pt = גם שלבי הטקסט בטלפון (vt בפייתון של Studio) — השרת רק מעביר את הקריאות ל־Claude (התור, המפתח של
   // המערכת) ומחשב את העלות. רק עם pw, ורק במפתח של המערכת (לא העתק־הדבק ולא "המנוי שלי")
@@ -1444,7 +1458,7 @@ module.exports = { UP_STALL_MS, upStallStep, normVcp, bxOk, RATE_WHY, RATE_FLAG_
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normFil, FIL_MAX, normSty, normOv, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
-  normRoutine, hintOf, normSpec, normLyr, KA_LYR_MAX, KA_OUTS, normFile, normOut, OUT_KINDS, OUT_MAX, normHl, normHla, HL_MAX, pickerCfg, extVideoOk, normUsage, normAsk, normAnswer, ASK_MAX,
+  normRoutine, hintOf, normSpec, normLyr, normKy, KY_DEF, KA_LYR_MAX, KA_OUTS, normFile, normOut, OUT_KINDS, OUT_MAX, normHl, normHla, HL_MAX, pickerCfg, extVideoOk, normUsage, normAsk, normAnswer, ASK_MAX,
   RULE_BUDGET_MAX, normRules, modeOver, usdOf, GATE_KINDS, GATE_MAX, GATE_WAIT, newGateId, normGate,
   NORM_MIN, NORM_DEF, NORM_FIXED, NORM_DEF_API, NORM_FIXED_API, normDef, normFixed, engKey, normSample, addSample, learnedNorm, normsView,
   FB_MAX, FIX_MAX, normFixText, fbList, fbNumber, cheaperModes, COST_STOP, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide, fbRemove,
