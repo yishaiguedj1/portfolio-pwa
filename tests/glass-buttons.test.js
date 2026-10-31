@@ -37,6 +37,7 @@ ok(!/::(before|after)/.test(layer), 'בלי ::before/::after');
 ok(!/snow|url\(/i.test(body), 'בלי שלג ובלי תמונות (בקשת המשתמש: רק הזכוכית)');
 ok(/\[data-theme="dark"\][^{]*\{[^}]*--gb-body:/.test(body), 'כהה: גוף משלו');
 ok(/--gb-tone:\s*var\(--gb-force,\s*var\(--btn-c,\s*var\(--primary\)\)\)/.test(layer), 'צבעוני = צבע הכפתור (--btn-c / --primary)');
+ok(!/color:\s*var\(--gb-on\b/.test(layer) && /color:\s*var\(--gb-ontx, var\(--on-primary\)\)/.test(layer), 'צבע הטקסט בצבעוני — משתנה נפרד מהסימון --gb-on (אחרת color: 1 לא תקין)');
 ok(/data-app="admin"\][^{]*\{[^}]*#5E5CE6/.test(body), 'ניהול: הסגול של הניהול');
 
 ok(/:where\(\.stock-logo,[^{]*\{[^}]*--gb-logo-bg/.test(layer) && /stock-logo-img[^{]*\{[^}]*mix-blend-mode:\s*multiply/.test(layer), 'אריחי הלוגו בזכוכית, הרקע הלבן של הלוגו נבלע (multiply)');
