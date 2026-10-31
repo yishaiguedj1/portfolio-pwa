@@ -21,7 +21,7 @@ const man = R('android/app/src/studio/AndroidManifest.xml');
   const fnSrc = (name) => { const a = st.indexOf('function ' + name + '('); return st.slice(a, st.indexOf('\n}\n', a)); };
   const outside = st.replace(fnSrc('linkCheckSrv'), '').replace(fnSrc('startLinkCloud'), '');
   ok(!/urlProbe/.test(outside) && !/src: 'url'/.test(outside), 'השרת רק בשתי פונקציות: linkCheckSrv (דפדפן בלי האפליקציה) ו־startLinkCloud (בחירה)');
-  ok(/L\.to = want === 'cloud' && ui\.url \? 'cloud' : devDl\(\) \? 'dev' : 'cloud';/.test(st) && /if \(ui\.url\) linkCheckSrv\(f, L, seq\); else \{ L\.st = 'err'; L\.e = 'app'; \}/.test(st), 'בטלפון — "dev"; בלי האפליקציה — לענן (כשמותר) או הסבר');
+  ok(/L\.to = ui\.url \|\| !devDl\(\) \? 'cloud' : 'dev';/.test(st) && /if \(L\.to === 'cloud' && !cOk\) L\.to = 'dev';/.test(st) && /if \(ui\.url\) linkCheckSrv\(f, L, seq\); else \{ L\.st = 'err'; L\.e = 'app'; \}/.test(st), '31/10: ברירת המחדל — הענן (כשמותר; מקור חוסם → לטלפון); בלי האפליקציה — לענן (כשמותר) או הסבר');
   ok(/if \(L && L\.to === 'cloud'\) \{ startLinkCloud\(f\); return; \}/.test(st), 'התחלה לפי הבחירה');
   ok(/cloudBlocked = \(r\) => \/\^youtube\/i/.test(st) && /function cloudOk\(L\) \{ return !!\(ui\.url && L && L\.r && !cloudBlocked\(L\.r\)\); \}/.test(st), 'לענן — רק עם ui.url ובלי יוטיוב (חוסם את השרת)');
   ok(/if \(L\.to === 'cloud' && !cOk\) L\.to = 'dev';/.test(st) && /k: 'link-to:cloud'/.test(st) && /k: 'link-to:dev'/.test(st), 'הבחירה בדף הקישור, וחוזרת לטלפון כשהענן לא מותר');

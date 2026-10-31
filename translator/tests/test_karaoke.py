@@ -258,3 +258,23 @@ class Design(unittest.TestCase):
             b = K.bg_ppm({"bg": bg}, 48, 27)
             self.assertTrue(b.startswith(b"P6 48 27 255\n"))
             self.assertEqual(len(b), len(b"P6 48 27 255\n") + 48 * 27 * 3)
+
+
+class Autocast(unittest.TestCase):
+    """31/10/2026: autocast (bfloat16) רק במעבד שתומך בו בחומרה; SNB_KA_AUTOCAST גובר."""
+    def test_flags(self):
+        import os
+        import karaoke as KA
+        old = os.environ.pop('SNB_KA_AUTOCAST', None)
+        try:
+            self.assertFalse(KA.autocast_ok('flags : fpu avx2 avx512f'))
+            self.assertTrue(KA.autocast_ok('flags : fpu avx512f avx512_bf16'))
+            self.assertTrue(KA.autocast_ok('flags : fpu amx_bf16 amx_tile'))
+            os.environ['SNB_KA_AUTOCAST'] = '1'
+            self.assertTrue(KA.autocast_ok('flags : fpu'))
+            os.environ['SNB_KA_AUTOCAST'] = '0'
+            self.assertFalse(KA.autocast_ok('flags : avx512_bf16'))
+        finally:
+            os.environ.pop('SNB_KA_AUTOCAST', None)
+            if old is not None:
+                os.environ['SNB_KA_AUTOCAST'] = old

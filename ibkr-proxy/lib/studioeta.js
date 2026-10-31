@@ -169,11 +169,15 @@ function subsPlan(ep) {
   return Object.assign({}, ep, { s, t: STAGES.reduce((a, k) => a + (s[k] || 0), 0) });
 }
 /* 26/10/2026: קריוקי — בלי תרגום וביקורת. tr = הפרדת הקול (הכבד), al = עוגנים + יישור, bn = צריבה; שניות = a + b·דקות.
-   הערכה עד שיימדד על השרת (שלב 0). KA_STG זהה ב־studionet.js (kaPlan) */
-const KA_STG = { tr: [60, 90], al: [40, 30], bn: [30, 40], sv: [20, 2] };
-function kaPlan(ep, durSec) {
+   הערכה עד שיימדד על השרת (שלב 0). KA_STG זהה ב־studionet.js (kaPlan).
+   31/10/2026 (הצילום: "כ־6 דק׳" להפרדה, בפועל כ־25 בשיר של 4 דק׳): RoFormer על המעבד = כ־3 דק׳ לדקת שיר (נמדד, Dockerfile),
+   ו"קולות רקע" (bv) = מודל שני על הקול — עוד אותו זמן (KA_BV) */
+const KA_STG = { tr: [60, 180], al: [40, 30], bn: [30, 40], sv: [20, 2] };
+const KA_BV = [30, 180];
+function kaPlan(ep, durSec, bv) {
   const m = Math.max(0, Number(durSec) || 0) / 60, s = Object.assign({}, (ep && ep.s) || {});
   for (const k of STAGES) s[k] = KA_STG[k] ? Math.round(KA_STG[k][0] + KA_STG[k][1] * m) : 0;
+  if (bv) s.tr += Math.round(KA_BV[0] + KA_BV[1] * m);
   return Object.assign({}, ep || {}, { s, t: STAGES.reduce((a, k) => a + (s[k] || 0), 0) });
 }
 /* העובד מדווח px אמיתי (אחרי הקליטה): שלב הצריבה בתוכנית מחושב מחדש, השאר כמו שהיה */
@@ -207,6 +211,6 @@ function normEp(ep) {
   return { s, t, q, n: num(ep.n, 0, 1000) ? Math.round(ep.n) : 0 };   // רק מה שהטלפון צריך — bn/f נשארים בשרתון
 }
 
-module.exports = { MQ_MIN, KA_STG, kaPlan, SUBS_STG, subsPlan, STAGES, PRIOR, MODE_MIN, LAMBDA, HALF_LIFE, SIGMA0, NQ, ET_MAX, ET_G_MAX, etSamplesFor,
+module.exports = { MQ_MIN, KA_STG, KA_BV, kaPlan, SUBS_STG, subsPlan, STAGES, PRIOR, MODE_MIN, LAMBDA, HALF_LIFE, SIGMA0, NQ, ET_MAX, ET_G_MAX, etSamplesFor,
   etaSample, normEtSamples, addEtSample, fitStage, etaModel, etaPlan, etaTarget, etaView, normEp, planOf,
   CPU_ST, REF_CPUS, CPU_EXP, PX_EXP, CC_K, jobFactors, replanPx, pxOf };

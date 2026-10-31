@@ -2911,7 +2911,7 @@ function planFor(rec) {
   const eng = (rec.srv && rec.srv.eng) === 'api' || rec.spec.eng === 'api' ? 'a' : 'r';
   const md = ui.eta && ui.eta[eng];
   const pl = (md && planFrom(md, modeById(rec.spec.mode).min, rec.spec.dur || 0, rec.spec.px)) || { s: stageEstimates(modeById(rec.spec.mode).min, rec.spec.dur || 0), q: Q_DEF, n: 0 };
-  if (rec.spec.ka) return kaPlan(pl, rec.spec.dur);   // 26/10/2026: קריוקי (= השרתון בלקיחה)
+  if (rec.spec.ka) return kaPlan(pl, rec.spec.dur, rec.spec.bv === 1);   // 26/10/2026: קריוקי (= השרתון בלקיחה)
   return rec.spec.src === 'subs' ? subsPlan(pl) : pl;   // 22/10/2026: קובץ כתוביות — בלי תמלול, יישור וצריבה (= השרתון בלקיחה)
 }
 function modelFor(rec) {
@@ -3011,7 +3011,8 @@ function nowLine(rec, run, ph) {
   if (ph === 'queued' && rec.spec.pt) return T('studioPhPtQ');   // שלב 3: הטלפון לוקח את העבודה ומתרגם בעצמו
   if (ph === 'queued') return rec.srv && rec.srv.vw ? (rec.spec.ph ? T('studioPhWaitM') : T('studioNowParked')) : rec.srv && rec.srv.uw ? T('studioNowSrvUpd') : rec.srv && rec.srv.eng === 'api' ? T('studioNowQueuedApi') : T('studioNowQueued');
   if (ph === 'running' && ryWaiting(rec, Date.now())) return T('studioNowRyWait');
-  if (ph === 'running') return (rec.srv && rec.srv.prog && rec.srv.prog.msg) || T('studioNowRunning');
+  // 31/10/2026: בקריוקי אין מודל שפה — "Claude עובד על הסרטון" הטעה
+  if (ph === 'running') return (rec.srv && rec.srv.prog && rec.srv.prog.msg) || (rec.spec && rec.spec.ka ? T('studioNowRunningKa') : T('studioNowRunning'));
   if (ph === 'done') return T('studioNowDone');
   // 21/10/2026: נפילה של השרת (לרוב זיכרון ביישור) הוצגה כ"הקשר עם האחסון או עם הרשת נקטע" — מטעה; לכשל כזה ההודעה שלו
   if (ph === 'failed') return recovering(rec) ? (SRV_DIED.has(rec.srv && rec.srv.err) ? errText(rec.srv.err) : T('studioRecLine')) : cardMsg(rec, ph) || errText(rec.srv && rec.srv.err);
@@ -3438,7 +3439,7 @@ function kaSpec(f, spec) {
   if (!f.ka) return spec;
   const out = KA_OUTS.filter((k) => f.out[k]);
   Object.assign(spec, { ka: 1, lyr: kaLyr(f.lyr), ky: normKy(f.ky || store.settings.ky), out: out.length ? out : ['compact'], eng: 'api', cap: store.settings.cap },
-    f.bv ? { bv: 1 } : {}, f.gv > 0 ? { gv: f.gv } : {});
+    f.bv !== false ? { bv: 1 } : {}, f.gv > 0 ? { gv: f.gv } : {});
   delete spec.cp; delete spec.ry; delete spec.edl;
   return spec;
 }
@@ -3456,16 +3457,18 @@ function kaFind(f) {
   inp.addEventListener('input', () => { f.lq = inp.value; f.lqe = true; });
   async function go() {
     if (f.lb || String(f.lq || '').trim().length < 2) return;
-    f.lb = true; f.le = ''; fnlAdd('lyr'); render('none');
-    const r = await net.lyricsSearch(f.lq, kaDur(f));
-    f.lb = false; f.lr = r.ok ? r.list : []; f.le = r.ok ? '' : r.error === 'busy' ? 'busy' : 'err';
+    f.lb = true; f.lw = false; f.le = ''; fnlAdd('lyr'); render('none');
+    // 31/10/2026: המאגר עמוס — ממשיכים לנסות לבד עד דקה (lrcWait), ובינתיים אומרים את זה
+    const r = await net.lyricsSearch(f.lq, kaDur(f), undefined, () => { if (!f.lw) { f.lw = true; if (form === f) render('none'); } });
+    f.lb = false; f.lw = false; f.lr = r.ok ? r.list : []; f.le = r.ok ? '' : r.error === 'busy' ? 'busy' : 'err';
     if (form === f) render('none');
   }
   inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
   const b = btn('st-btn st-ka-go', f.lb ? '…' : T('studioKaFind'), go, 'ka-find');
   b.disabled = !!f.lb;
   const row = h('div', 'st-ka-qrow'); row.append(inp, b); box.append(row);
-  if (f.le) box.append(note(f.le === 'busy' ? T('studioKaFindBusy') : T('studioKaFindErr')));
+  if (f.lb && f.lw) box.append(note(T('studioKaFindWait')));
+  else if (f.le) box.append(note(f.le === 'busy' ? T('studioKaFindBusy') : T('studioKaFindErr')));
   else if (Array.isArray(f.lr) && !f.lr.length) box.append(note(T('studioKaFindNone')));
   else if (Array.isArray(f.lr)) {
     box.append(list(...f.lr.map((x, i) => rowNav({ label: x.t || '—', sub: [x.a, x.d ? '\u2066' + fmtDur(x.d) + '\u2069' : '', x.m ? T('studioKaFindLen') : ''].filter(Boolean).join(' · '),
@@ -3482,7 +3485,7 @@ function kaSection(p, f) {
   const chip = (lbl, on, fn, k) => { const b = btn('st-chip' + (on ? ' on' : ''), lbl, fn, k); b.setAttribute('aria-pressed', on ? 'true' : 'false'); return b; };
   const gv = h('div', 'st-chips');
   gv.append(...KA_GV.map((x) => chip(x ? '\u2066' + x + '%\u2069' : T('studioKaGv0'), (f.gv || 0) === x, () => { f.gv = x; render('none'); }, 'ka-gv:' + x)));
-  p.append(secT(T('studioKaVoice')), list(rowSwitch({ label: T('studioKaBv'), sub: T('studioKaBvS'), on: !!f.bv, onClick: () => { f.bv = !f.bv; render('none'); }, k: 'ka-bv' })),
+  p.append(secT(T('studioKaVoice')), list(rowSwitch({ label: T('studioKaBv'), sub: T('studioKaBvS'), on: f.bv !== false, onClick: () => { f.bv = f.bv === false; render('none'); }, k: 'ka-bv' })),
     secT(T('studioKaGv')), gv);
 }
 /* ---------- 31/10/2026: עיצוב הקריוקי (ת־קריוקי, docs/standards.md) — דף משלו במקום "עיצוב הכתוביות" של הסרטונים.
@@ -4180,7 +4183,8 @@ function linkCheck(f, raw, ref, pre, want) {
   const L = f.link = { u: String(raw || '').trim(), ref: /^https?:\/\//i.test(String(ref || '')) ? String(ref).slice(0, 2048) : '', st: 'busy', e: '', r: null, v: '', sec: null, ch: 1, at: Date.now() };
   const seq = ++linkSeq;
   // 24/10/2026: "ישר לענן של Studio" מ־Studio DM — הענן נבחר מראש (רק כשמותר: ui.url, ומקור שלא חוסם — cloudOk בציור)
-  L.to = want === 'cloud' && ui.url ? 'cloud' : devDl() ? 'dev' : 'cloud';
+  // 31/10/2026 (בקשת המשתמש): הענן הוא ברירת המחדל כשמותר (ui.url); מקור שחוסם את השרת יורד לטלפון (cloudOk בציור)
+  L.to = ui.url || !devDl() ? 'cloud' : 'dev';   // want === 'cloud' ("ישר לענן" מ־Studio DM) — מתקיים ממילא
   if (!devDl()) {   // בלי האפליקציה: רק לענן (כשמותר — ui.url), אחרת הסבר
     // 25/10/2026: יוטיוב חוסם את השרת ("not a bot") — אומרים מיד, במקום בדיקה שתיכשל או עבודה שתיפול באמצע
     if (ui.url && !ui.yc && ytHost(L.u)) { L.st = 'err'; L.e = 'yt'; }
@@ -4459,7 +4463,7 @@ function pageLink(p) {
       return rowNav({ tile: tile('film', 'gray'), label: a.h ? T('studioLinkAltUpTo', { q: qLabel(a.h) }) : T('studioLinkAltQ'), sub, onClick: () => linkCheck(f, a.u, ref), k: 'link-alt:' + i });
     })));
   }
-  // לאן להוריד: לטלפון (ברירת המחדל) או ישר לענן של Studio — כשהמקור לא חוסם את השרת
+  // לאן להוריד: ישר לענן של Studio (ברירת המחדל, 31/10/2026) או לטלפון — כשהמקור לא חוסם את השרת
   if (devDl()) {
     const cOk = cloudOk(L);
     if (L.to === 'cloud' && !cOk) L.to = 'dev';
@@ -4631,7 +4635,7 @@ function startLink(f) {
     const n = dlNonce();
     const ch = pick.ch && L.r.ch ? L.r.ch.map((c) => [c[0] - (pick.sec ? pick.sec[0] : 0), c[1]]).filter((c) => c[0] >= 0) : [];
     const pend = { n, at: Date.now(), dur, f: { from: f.from, to: f.to, mode: f.mode, out: f.out, style: f.style, sty: f.sty || null, terms: f.terms, edl: null,
-      ...(f.ka ? { ka: true, lyr: kaLyr(f.lyr), bv: !!f.bv, gv: f.gv || 0 } : {}) },   // 30/10/2026: שיר שהורד בטלפון חוזר לטופס של הקריוקי
+      ...(f.ka ? { ka: true, lyr: kaLyr(f.lyr), bv: f.bv !== false, gv: f.gv || 0 } : {}) },   // 30/10/2026: שיר שהורד בטלפון חוזר לטופס של הקריוקי
       t: L.r.t, u: L.r.u || L.u, ch, th: L.r.th || '' };
     try { sessionStorage.setItem(DLP_KEY, JSON.stringify(pend)); } catch (e) {}
     ui.starting = false; ui.dlWait = n; render('none');
@@ -4741,7 +4745,7 @@ async function gotFile(key) {
   form = freshForm(null);
   const f = form;
   if (pend && pend.f) for (const k of ['from', 'to', 'mode', 'out', 'style', 'sty', 'terms']) if (pend.f[k] != null) f[k] = k === 'sty' ? normSty(pend.f[k]) : pend.f[k];
-  if (pend && pend.f && pend.f.ka === true) Object.assign(f, { ka: true, lyr: kaLyr(pend.f.lyr), bv: !!pend.f.bv, gv: KA_GV.includes(pend.f.gv) ? pend.f.gv : 0 });   // 30/10/2026
+  if (pend && pend.f && pend.f.ka === true) Object.assign(f, { ka: true, lyr: kaLyr(pend.f.lyr), bv: pend.f.bv !== false, gv: KA_GV.includes(pend.f.gv) ? pend.f.gv : 0 });   // 30/10/2026
   f.fileObj = file; f.handle = { inbox: key }; f.drive = null; f.file = { name: file.name, size: file.size, type: file.type || '' };
   f.dl = pend ? { t: pend.t, ch: pend.ch || [], th: pend.th || '', u: pend.u || '' } : null;   // u — לשם האתר במקור (org)
   inspectFor(f, file); if (!f.ka) tracksFor(f, file);
