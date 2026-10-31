@@ -75,4 +75,10 @@ ok(/listSync\(list, out\)/.test(rs), 'renderStocks: הסידור דרך listSync
   ok(/files-path path="twa_splash\/"/.test(rd(A + 'res/xml/twa_splash_paths.xml')), 'twa_splash_paths: התיקייה שהספרייה כותבת אליה');
   ok(/splash_bg">#F2F2F7/.test(rd(A + 'res/values/colors.xml')) && /splash_bg">#000000/.test(rd(A + 'res/values-night/colors.xml')), 'splash_bg: בהיר = --bg של הדף, כהה = שחור');
 }
+// ש2 (31/10/2026): שכבה יציבה לעמוד הפעיל ב־Invest — בלי קידום במגע ובלי הורדה בנחיתה
+{
+  const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
+  ok(/\n\.tabpage\.active \{ will-change: transform; \}/.test(css), 'styles: העמוד הפעיל בשכבה יציבה (will-change: transform)');
+  ok(/function cubeFaceOff\(f\) \{ if \(f && f\.el\) \{ f\.el\.style\.cssText = f\.css;/.test(app), 'cubeFaceOff מחזיר רק את הסגנון שבשורה — הכלל של העמוד הפעיל נשאר');
+}
 console.log(n + ' בדיקות עברו');
