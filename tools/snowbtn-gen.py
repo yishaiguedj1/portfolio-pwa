@@ -25,7 +25,7 @@ FILT = '''<filter id="f" x="-10%" y="-30%" width="120%" height="160%" color-inte
 <feFlood flood-color="#fff" result="W"/><feComposite in="W" in2="S" operator="out" result="O"/>
 <feOffset in="O" dy="-2.6" result="O1"/><feGaussianBlur in="O1" stdDeviation="1.5" result="O2"/>
 <feComposite in="O2" in2="S" operator="in" result="sh0"/>
-<feColorMatrix in="sh0" type="matrix" values="0 0 0 0 .58 0 0 0 0 .67 0 0 0 0 .82 0 0 0 .6 0" result="sh"/>
+<feColorMatrix in="sh0" type="matrix" values="0 0 0 0 .62 0 0 0 0 .72 0 0 0 0 .86 0 0 0 .42 0" result="sh"/>
 <feOffset in="O" dy="-.7" result="B1"/><feGaussianBlur in="B1" stdDeviation=".35" result="B2"/>
 <feComposite in="B2" in2="S" operator="in" result="b0"/>
 <feColorMatrix in="b0" type="matrix" values="0 0 0 0 .86 0 0 0 0 .91 0 0 0 0 .98 0 0 0 .6 0" result="bl"/>
@@ -41,11 +41,12 @@ FILT = '''<filter id="f" x="-10%" y="-30%" width="120%" height="160%" color-inte
 
 def grad(y1, y2):
     return (f'<linearGradient id="w" gradientUnits="userSpaceOnUse" x1="0" y1="{y1}" x2="0" y2="{y2}"><stop offset="0" stop-color="#FFFFFF"/>'
-            '<stop offset=".35" stop-color="#F7FAFE"/><stop offset="1" stop-color="#EAF1FB"/></linearGradient>')
+            '<stop offset=".35" stop-color="#FBFDFF"/><stop offset="1" stop-color="#F4F8FD"/></linearGradient>')
 
 def drop(dark, d1, b1, d2, b2):
     c1, c2 = ('rgba(0,0,0,.45)', 'rgba(0,0,0,.2)') if dark else ('rgba(60,90,140,.30)', 'rgba(60,90,140,.14)')
-    bright = '<feComponentTransfer in="SourceGraphic" result="src"><feFuncR type="linear" slope=".92"/><feFuncG type="linear" slope=".93"/><feFuncB type="linear" slope=".95"/></feComponentTransfer>' if dark else '<feOffset in="SourceGraphic" result="src"/>'
+    # השלג לבן זהה בבהיר ובכהה (בקשת המשתמש: "לבן בכולם, לא חלק אפורים") — בכהה משתנה רק צבע הצל
+    bright = '<feOffset in="SourceGraphic" result="src"/>'
     return (f'<filter id="ds" x="-5%" y="-5%" width="110%" height="140%" color-interpolation-filters="sRGB">{bright}'
             f'<feDropShadow in="src" dx="{d1 * .3:.2f}" dy="{d1}" stdDeviation="{b1}" flood-color="{c1}" result="a"/>'
             f'<feDropShadow in="a" dx="{d2 * .15:.2f}" dy="{d2}" stdDeviation="{b2}" flood-color="{c2}"/></filter>')
