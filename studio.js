@@ -224,6 +224,9 @@ export function normJob(j) {
   };
   if (edlPre(normEdl(sp.edl))) spec.edl = edlPre(normEdl(sp.edl));   // מ4: חיתוך לפני התרגום (הכתוביות על ציר הזמן שאחרי החיתוך)
   if (num(sp.px) >= 0.02 && num(sp.px) <= 16) spec.px = num(sp.px);   // 21/10/2026: פיקסלים לשנייה מול 1080p30 — לצפי
+  // 31/10/2026 (הצילום: עבודת קריוקי עם שלבי תרגום, תקציב ועיצוב כתוביות): בלי זה — אחרי רענון / סנכרון מהשרת השיר נהיה
+  // "תרגום". המילים עצמן לא נשמרות בטלפון (רק בשרת)
+  if (sp.ka === 1) Object.assign(spec, { ka: 1 }, sp.bv === 1 ? { bv: 1 } : {}, num(sp.gv) > 0 ? { gv: Math.min(60, Math.round(num(sp.gv))) } : {});
   if (sp.src === 'subs') { spec.src = 'subs'; spec.sdh = sp.sdh === 'keep' ? 'keep' : 'rm'; spec.out = []; }   // 22/10/2026: קובץ כתוביות קיים
   if (sp.ph === 1) { spec.ph = 1; spec.out = []; if (PH_BURN.includes(sp.pb)) spec.pb = sp.pb; if (sp.pw === 1) spec.pw = 1; if (sp.pw === 1 && sp.pt === 1) spec.pt = 1; }   // pt — שלב 3: גם שלבי הטקסט · pw — שלב 2: גם התמלול והיישור בטלפון   // 24/10/2026: תרגום בטלפון — הצריבה בטלפון
   const u = j.up && typeof j.up === 'object' ? j.up : {};
@@ -6146,7 +6149,7 @@ function slaCard(rec) {
     const fc = s.fc && r.srv.state === 'running' ? ' · ' + T('studioSlaFc') + ' ' + approx(fmtShort(Math.max(s.fc.t, x.el))) : '';
     paint(row, T('studioSlaOf', { a: fmtShort(x.el), b: approx(fmtShort(s.t.tg)) }) + fc, x.f, s.t.lv);
   })];
-  if (sla.u) {
+  if (sla.u && !rec.spec.ka) {   // 31/10/2026: קריוקי — בלי Claude, בלי תקציב
     rows.push(live(slaRow(T('studioSlaCost'), '', sla.u.f, sla.u.lv, 'sla:u'), (row) => {
       const r = cur(); if (!r || !r.srv.sla.u) return;
       const u = r.srv.sla.u, v = h('span');
@@ -8370,7 +8373,7 @@ function pageJob(p) {
   const ix = ui.inc && ui.inc.list.find((x) => x.j === rec.id);   // v371: התקלה של העבודה — שורה אחת, הפרטים בדף התקלה
   if (ix) p.append(list(incRow(ix, true)));
   // 26/10/2026 (בעקבות Vid Hub): העיצוב אפשר לשנות גם בזמן ההמתנה — העובד שואל לפני הבנייה, עד שהצריבה מתחילה
-  if (styEditable(rec)) p.append(styFold('job:' + rec.id, rec.spec.sty || {}, (patch) => jobStySet(rec, patch)));
+  if (styEditable(rec) && !rec.spec.ka) p.append(styFold('job:' + rec.id, rec.spec.sty || {}, (patch) => jobStySet(rec, patch)));
 
   // מה קורה עכשיו — משפט אחד + דוגמה חיה
   const nowc = h('div', 'st-nowc');
