@@ -144,11 +144,14 @@ export function subsPlan(pl) {
   const s = Object.assign({}, pl.s, SUBS_STG);
   return Object.assign({}, pl, { s, t: ['tr', 'al', 'tl', 'rv', 'bn', 'sv'].reduce((a, k) => a + (s[k] || 0), 0) });
 }
-/* 26/10/2026: קריוקי — = kaPlan ב־ibkr-proxy/lib/studioeta.js (אותם KA_STG): הפרדה, יישור וצריבה, בלי תרגום וביקורת */
-export const KA_STG = { tr: [60, 90], al: [40, 30], bn: [30, 40], sv: [20, 2] };
-export function kaPlan(pl, durSec) {
+/* 26/10/2026: קריוקי — = kaPlan ב־ibkr-proxy/lib/studioeta.js (אותם KA_STG): הפרדה, יישור וצריבה, בלי תרגום וביקורת.
+   31/10/2026: הפרדה = כ־3 דק׳ לדקת שיר, וקולות הרקע (bv) — מודל שני, עוד אותו זמן (KA_BV) */
+export const KA_STG = { tr: [60, 180], al: [40, 30], bn: [30, 40], sv: [20, 2] };
+export const KA_BV = [30, 180];
+export function kaPlan(pl, durSec, bv) {
   const m = Math.max(0, Number(durSec) || 0) / 60, s = Object.assign({}, (pl && pl.s) || {});
   for (const k of ['tr', 'al', 'tl', 'rv', 'bn', 'sv']) s[k] = KA_STG[k] ? Math.round(KA_STG[k][0] + KA_STG[k][1] * m) : 0;
+  if (bv) s.tr += Math.round(KA_BV[0] + KA_BV[1] * m);
   return Object.assign({}, pl || {}, { s, t: ['tr', 'al', 'tl', 'rv', 'bn', 'sv'].reduce((a, k) => a + (s[k] || 0), 0) });
 }
 export function progressModel(job, est, up, now, q) {
@@ -550,13 +553,15 @@ export function lrcResults(json, dur, q) {
     .slice(0, 8).map((r) => Object.assign(r, { m: dur > 0 && r.d > 0 && Math.abs(r.d - dur) <= 3 }));
 }
 
-/* כמה לחכות לפני ניסיון נוסף ב־LRCLIB (‎-1 = לא לנסות שוב): רק "עמוס" (503) / "יותר מדי" (429), עד LRC_TRIES ניסיונות,
-   לפי Retry-After (שניות) ובין 1 ל־4 שנ׳ */
-export const LRC_TRIES = 3;
-export function lrcWait(status, retryAfter, n) {
-  if ((status !== 503 && status !== 429) || n >= LRC_TRIES) return -1;
+/* כמה לחכות לפני ניסיון נוסף ב־LRCLIB (‎-1 = לא לנסות שוב): רק "עמוס" (503/502/504), "יותר מדי" (429) או פסק זמן (0).
+   31/10/2026 (בקשת המשתמש — "לא עוצר עד שמתקבלות המילים, במשך זמן סביר"): במקום 3 ניסיונות — עד LRC_BUDGET_MS בסך הכל,
+   לפי Retry-After (שניות) ובין 1 ל־6 שנ׳. spent = כמה זמן כבר עבר מתחילת החיפוש */
+export const LRC_BUDGET_MS = 60e3;
+export function lrcWait(status, retryAfter, n, spent = 0) {
+  if (![503, 502, 504, 429, 0].includes(status)) return -1;
   const s = Number(retryAfter);
-  return Math.round(Math.min(4, Math.max(1, s > 0 ? s : n * 1.5)) * 1000);
+  const ms = Math.round(Math.min(6, Math.max(1, s > 0 ? s : n * 1.5)) * 1000);
+  return spent + ms > LRC_BUDGET_MS ? -1 : ms;
 }
 
 /* ---------------- 28/10/2026: כתוביות רשמיות מהרשת (בקשת המשתמש — "כמו VLC / BS Player / Stremio") ----------------
@@ -1113,20 +1118,29 @@ export function createNet(env) {
     return (await r.json()).id;
   }
   /* מילים לשיר (LRCLIB) — 8 שנ׳ לכל ניסיון; תקלה = רשימה ריקה עם קוד. 30/10/2026: LRCLIB עונה הרבה 503 "עמוס"
-     (בבדיקה: 5 מתוך 6 בקשות רצופות) — עד LRC_TRIES ניסיונות לפי Retry-After (lrcWait), ואז error 'busy' */
-  async function lyricsSearch(qs, dur, wait = (ms) => new Promise((r) => setTimeout(r, ms))) {
+     (בבדיקה: 5 מתוך 6 בקשות רצופות) — ניסיונות חוזרים לפי lrcWait עד LRC_BUDGET_MS, ואז error 'busy'.
+     onBusy — נקרא לפני כל המתנה (הטופס מראה "ממשיכים לנסות"). תקלת רשת אמיתית (בלי אינטרנט) — מיד 'net' */
+  async function lyricsSearch(qs, dur, wait = (ms) => new Promise((r) => setTimeout(r, ms)), onBusy) {
     const qq = String(qs || '').trim().slice(0, 120);
     if (qq.length < 2) return { ok: false, error: 'short', list: [] };
+    const t0 = Date.now();
+    let waited = 0;
     for (let n = 1; ; n++) {
       const ctl = typeof AbortController === 'function' ? new AbortController() : null;
       const tm = ctl ? setTimeout(() => ctl.abort(), 8000) : 0;
-      let r;
+      let r, st;
       try {
         r = await E.fetch(LRC_API + '?q=' + encodeURIComponent(qq), ctl ? { signal: ctl.signal } : {});
         if (r.ok) return { ok: true, list: lrcResults(await r.json(), dur || 0, qq) };
-      } catch (e) { return { ok: false, error: 'net', list: [] }; } finally { if (tm) clearTimeout(tm); }
-      const ms = lrcWait(r.status, r.headers && typeof r.headers.get === 'function' ? r.headers.get('retry-after') : '', n);
-      if (ms < 0) return { ok: false, error: r.status === 503 || r.status === 429 ? 'busy' : 'http_' + r.status, list: [] };
+        st = r.status;
+      } catch (e) {
+        if (!(e && e.name === 'AbortError')) return { ok: false, error: 'net', list: [] };
+        st = 0;   // פסק זמן — השרת שלהם לא עונה, כמו "עמוס"
+      } finally { if (tm) clearTimeout(tm); }
+      const ms = lrcWait(st, r && r.headers && typeof r.headers.get === 'function' ? r.headers.get('retry-after') : '', n, waited + Date.now() - t0);
+      if (ms < 0) return { ok: false, error: [503, 502, 504, 429, 0].includes(st) ? 'busy' : 'http_' + st, list: [] };
+      if (typeof onBusy === 'function') onBusy();
+      waited += ms;
       await wait(ms);
     }
   }
