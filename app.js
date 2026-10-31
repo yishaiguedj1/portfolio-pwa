@@ -6974,8 +6974,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.97.2';
-const APP_VERSION = 'v664';
+const APP_RELEASE = '2.97.3';
+const APP_VERSION = 'v665';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -10049,12 +10049,21 @@ function tabPrewarm() {
     if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 2500 }); else go();
   }, 700);
 }
+let _hushT = 0;
+function tabHush(on) {   // 01/11/2026: ההדר עוצר בזמן המעבר ועד 1.2 שנ׳ אחרי הנחיתה (styles.css: html.hush) — הדף שנחת נצבע בלי תנועה מתחרה
+  if (typeof document === 'undefined') return;
+  const de = document.documentElement;
+  clearTimeout(_hushT);
+  if (on) de.classList.add('hush'); else _hushT = setTimeout(() => de.classList.remove('hush'), 1200);
+}
 function tabCubeRun(c, p1, v0) {
   tabCube = c;
+  tabHush(true);
   dialCubeRun(c, p1, v0);   // 29/10/2026: החוגה בתחתית — באותו קפיץ ובאותו רגע
   cubeRun(c, p1, v0, () => {
     if (tabCube === c) tabCube = null;
     dialCubeDone(c);
+    tabHush(false);
     cubeFaceOff(c.out); if (c.out) c.out.el.classList.remove('cube-out');
     if (c.in) { c.in.el.classList.remove('cube-in'); cubeFaceOff(c.in); }   // קודם מוסתר, אחר כך חוזר לזרימה
   });
