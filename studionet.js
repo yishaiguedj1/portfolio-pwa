@@ -1136,8 +1136,11 @@ export function createNet(env) {
         if (r.ok) return { ok: true, list: lrcResults(await r.json(), dur || 0, qq) };
         st = r.status;
       } catch (e) {
-        if (!(e && e.name === 'AbortError')) return { ok: false, error: 'net', list: [] };
-        st = 0;   // פסק זמן — השרת שלהם לא עונה, כמו "עמוס"
+        // 31/10/2026 (הצילום: "בדקו את החיבור" כשהרשת תקינה): LRCLIB נפל (502) ודף השגיאה שלו בלי CORS — הדפדפן זורק
+        // שגיאת רשת. רק כשהמכשיר באמת לא מחובר — 'net'; אחרת = השרת שלהם לא עונה, כמו "עמוס" (ממשיכים לנסות)
+        const off = typeof E.online === 'function' ? !E.online() : typeof navigator !== 'undefined' && navigator.onLine === false;
+        if (off && !(e && e.name === 'AbortError')) return { ok: false, error: 'net', list: [] };
+        st = 0;   // פסק זמן / נפילה — השרת שלהם לא עונה, כמו "עמוס"
       } finally { if (tm) clearTimeout(tm); }
       const ms = lrcWait(st, r && r.headers && typeof r.headers.get === 'function' ? r.headers.get('retry-after') : '', n, waited + Date.now() - t0);
       if (ms < 0) return { ok: false, error: [503, 502, 504, 429, 0].includes(st) ? 'busy' : 'http_' + st, list: [] };
