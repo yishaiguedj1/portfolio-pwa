@@ -19,6 +19,7 @@
     0 0 0 .5px rgba(0, 0, 0, .06), 0 4px 14px -6px rgba(0, 0, 0, .16);
   --gb-sh-press: inset 0 0 0 .5px rgba(255, 255, 255, .8), inset 0 1px 0 rgba(255, 255, 255, .95), 0 0 0 .5px rgba(0, 0, 0, .08), 0 1px 4px -1px rgba(0, 0, 0, .14);
   --gb-fill-a: 84%;
+  --gb-logo-bg: var(--gb-body);
   --gb-ink: #1D2A3D;
 }
 /* כהה — ובמסכים שכהים תמיד (הנגן של Studio): לבן שקוף מעל הרקע הכהה */
@@ -27,6 +28,7 @@
   --gb-sh: inset 0 0 0 .5px rgba(255, 255, 255, .2), inset 0 1px 0 rgba(255, 255, 255, .26), 0 0 0 .5px rgba(0, 0, 0, .35), 0 4px 14px -6px rgba(0, 0, 0, .55);
   --gb-sh-press: inset 0 0 0 .5px rgba(255, 255, 255, .24), inset 0 1px 0 rgba(255, 255, 255, .3), 0 0 0 .5px rgba(0, 0, 0, .35), 0 1px 4px rgba(0, 0, 0, .5);
   --gb-fill-a: 80%;
+  --gb-logo-bg: linear-gradient(180deg, rgba(255, 255, 255, .9), rgba(255, 255, 255, .74));
   --gb-ink: #EEF3FA;
 }
 /* בזמן סיבוב הקובייה הטשטוש כבוי (ריצוד וצביעה מחדש — docs/ui.md "זכוכית בתוך פאה מסתובבת") */
@@ -100,6 +102,15 @@ html[data-app="admin"] { --gb-force: #5E5CE6; --gb-on: #fff; }
 .tab-glow { box-shadow: none !important; }
 .tab.active .tab-glow { box-shadow: 0 8px 18px -8px color-mix(in srgb, var(--btn-c, var(--primary)) 70%, transparent) !important; }
 
+
+/* ---------- 5. אריחי הלוגו של החברות — זכוכית במקום המסגרת הלבנה (31/10/2026, בקשת המשתמש) ----------
+   בהיר: אותה זכוכית של הכפתורים. כהה: זכוכית בהירה וחלבית — לוגו כהה לא נעלם (ההיפוך של לוגו לבן, .inv, מניח אריח בהיר).
+   התמונה במיזוג multiply: הרקע הלבן שבקובץ הלוגו (רוב הלוגואים) נעלם לתוך הזכוכית, הסמל נשאר */
+:where(.stock-logo, .pie-leg-logo:not(.cash), .kc-logo:not(:empty)) {
+  background: var(--gb-logo-bg) !important; box-shadow: var(--gb-sh) !important;
+  -webkit-backdrop-filter: var(--gb-fx) !important; backdrop-filter: var(--gb-fx) !important;
+}
+:where(.stock-logo-img, .pie-leg-logo img, .kc-logo img) { mix-blend-mode: multiply; background: transparent !important; }
 }
 
 /* @glass-exempt — לא כפתורים במראה (נשארים כמו שהם):

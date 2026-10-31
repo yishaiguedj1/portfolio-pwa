@@ -39,6 +39,9 @@ ok(/\[data-theme="dark"\][^{]*\{[^}]*--gb-body:/.test(body), 'כהה: גוף מ�
 ok(/--gb-tone:\s*var\(--gb-force,\s*var\(--btn-c,\s*var\(--primary\)\)\)/.test(layer), 'צבעוני = צבע הכפתור (--btn-c / --primary)');
 ok(/data-app="admin"\][^{]*\{[^}]*#5E5CE6/.test(body), 'ניהול: הסגול של הניהול');
 
+ok(/:where\(\.stock-logo,[^{]*\{[^}]*--gb-logo-bg/.test(layer) && /stock-logo-img[^{]*\{[^}]*mix-blend-mode:\s*multiply/.test(layer), 'אריחי הלוגו בזכוכית, הרקע הלבן של הלוגו נבלע (multiply)');
+ok(/\[data-theme="dark"\][^{]*\{[^}]*--gb-logo-bg:\s*linear-gradient\(180deg, rgba\(255, 255, 255, \.9\)/.test(body), 'כהה: אריח לוגו בהיר — לוגו כהה לא נעלם');
+
 for (const f of ['index.html', 'academy.html', 'studio.html', 'admin.html', 'move.html'])
   ok(/<link rel="stylesheet" href="glass-btn\.css">/.test(fs.readFileSync(path.join(root, f), 'utf8')), f + ' טוען את glass-btn.css');
 const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
