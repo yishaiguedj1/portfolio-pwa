@@ -6974,8 +6974,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.94.4';
-const APP_VERSION = 'v654';
+const APP_RELEASE = '2.94.5';
+const APP_VERSION = 'v655';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -10031,7 +10031,10 @@ function tabPrewarm() {
         const pg = n && tabDirty[n] && document.getElementById('tab-' + n);
         if (!pg || pg.classList.contains('cube-in') || pg.classList.contains('active')) continue;
         const css = pg.style.cssText;
-        pg.style.cssText = css + ';position:fixed;top:0;left:' + r.left + 'px;width:' + r.width + 'px;visibility:hidden;pointer-events:none';
+        // 31/10/2026 (סבב קפיצות 6, ש2 — שתי הקלטות מהטלפון): ~300ms אחרי נחיתה (= רגע החימום: 700ms מהשחרור) העמוד הגלוי
+        // נעלם ונשאר ריק עד הנגיעה הבאה. העמוד המחומם — מוצמד, בגובה כל הדף ומעל הגלוי — שינה את סידור השכבות של מה שעל המסך.
+        // עכשיו הוא מחומם מתחת למסך (top: 100vh): אותו רוחב (מידות אמיתיות לגרפים), בלי חפיפה עם שום דבר גלוי
+        pg.style.cssText = css + ';position:fixed;top:100vh;left:' + r.left + 'px;width:' + r.width + 'px;visibility:hidden;pointer-events:none';
         pg._prewarmCss = css;
         pg.classList.add('cube-in', 'prewarm');
         tabPageRender(n);
