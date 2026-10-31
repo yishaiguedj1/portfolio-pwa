@@ -31,7 +31,9 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/body\.op === 'create' && body\.spec && body\.spec\.ka === 1 \? 20000 : 4096/.test(api), 'יצירת קריוקי — גוף עד 20KB (המילים), השאר כמו קודם');
   ok(/const kaAllowed = async \(\) => true;/.test(api) && /if \(user\.mon !== true && !allowed\(user\)\)/.test(api), '30/10: קריוקי — כל מי שעבר את שער הסטודיו (בקשת המשתמש)');
   ok(/if \(spec\.ka && !\(await kaAllowed\(\)\)\) return res\.status\(403\)/.test(api) && /ka: await kaAllowed\(\)/.test(api), 'השרתון חוסם ביצירה ומדווח לטלפון (ka)');
-  ok(/if \(job\.spec\.ka === 1\) ep = ETA\.kaPlan\(ep, job\.spec\.dur, job\.spec\.bv === 1\)/.test(api), 'בלקיחה: התוכנית של הקריוקי');
+  ok(/if \(job\.spec\.ka === 1\) ep = ETA\.kaPlan\(ep, job\.spec\.dur, job\.spec\.bv === 1, ETA\.kaModel\(gd\.ka, now\)\)/.test(api), 'בלקיחה: התוכנית של הקריוקי — מהמודל הנלמד');
+  ok(/const ks = up\.state === 'done' \? ETA\.kaSample\(Object\.assign\(\{\}, job, up\), now\) : null;/.test(api) && /\{ ka: ETA\.addKaSample\(g && g\.ka, ks\), updated: now \}/.test(api), '31/10: קריוקי שהסתיים נכנס למאגר הקריוקי (studioEta/a.ka)');
+  ok(/eta: ETA\.etaView\(st\.et, now, gEta\.et, gEta\.ka\)/.test(api) && (api.match(/readDoc\(deps, 'studioEta', 'a'\)/g) || []).length === 4, 'status: אותה קריאה אחת של studioEta/a — גם לקריוקי (בלי קריאה נוספת)');
 
   /* ---------- 2. התוכנית — זהה בשרתון ובטלפון ---------- */
   for (const d of [0, 60, 215, 600]) {
@@ -40,8 +42,31 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   }
   ok(JSON.stringify(ETA.KA_STG) === JSON.stringify(N.KA_STG) && JSON.stringify(ETA.KA_BV) === JSON.stringify(N.KA_BV), 'KA_STG ו־KA_BV זהים');
   { const a = N.kaPlan({ s: {} }, 240), b = N.kaPlan({ s: {} }, 240, true), c = ETA.kaPlan({ s: {} }, 240, true);
-    ok(a.s.tr === 780 && b.s.tr === 780 + 750 && c.s.tr === b.s.tr && b.t - a.t === 750, '31/10: שיר של 4 דק׳ — הפרדה כ־13 דק׳, עם קולות רקע כ־26 (כמו בשרת)'); }
-  ok(/kaPlan\(pl, rec\.spec\.dur, rec\.spec\.bv === 1\)/.test(read('studio.js')), 'הטלפון מעביר את bv לתוכנית');
+    const tr = N.KA_STG.tr[0] + N.KA_STG.tr[1] * 4, tb = tr + N.KA_BV[0] + N.KA_BV[1] * 4;
+    ok(a.s.tr === tr && b.s.tr === tb && c.s.tr === b.s.tr && tr === 780 && tb === 780 + 970, '31/10: ה־prior לפי המדידה — שיר של 4 דק׳: הפרדה 13 דק׳, עם קולות רקע עוד כ־16'); }
+  /* 31/10/2026: הצפי לומד — המאגר של הקריוקי נפרד מזה של התרגום */
+  {
+    const stg = (tr, al, bn, sv) => { let t = 1e6; const o = {}; for (const [k, v] of [['tr', tr], ['al', al], ['bn', bn], ['sv', sv]]) { o[k] = { s: t, e: t + v * 1000 }; t += v * 1000; } return o; };
+    const job = (d, bv, tr) => ({ kind: 'tr', fires: 1, eng: 'api', hc: 8, spec: Object.assign({ ka: 1, dur: d, mode: 'opus-medium' }, bv ? { bv: 1 } : {}), prog: { stg: stg(tr, 120, 150, 30) } });
+    ok(ETA.etaSample(job(240, 0, 900), 5) === null, 'קריוקי לא נכנס למאגר הצפי של התרגום (ההפרדה נרשמה שם כ"תמלול")');
+    ok(ETA.kaSample({ kind: 'tr', fires: 1, spec: { dur: 240, mode: 'opus-medium' }, prog: { stg: stg(90, 1, 1, 1) } }, 5) === null && ETA.kaSample(Object.assign(job(240, 0, 300), { fires: 2 }), 5) === null, 'kaSample — רק קריוקי בהפעלה אחת');
+    const sm = ETA.kaSample(job(240, 1, 400), 5);
+    ok(sm && sm.d === 240 && sm.b === 1 && sm.s.tr === 400 && sm.s.al === 120 && !('tl' in sm.s) && !sm.f, 'kaSample: השלבים, האורך וקולות הרקע — בלי שמות ותוכן');
+    { const c = ETA.kaSample(job(240, 0, 3), 5); ok(c && !('tr' in c.s) && c.s.al === 120, 'הפרדה מהמטמון (3 שנ׳ לשיר של 4 דק׳) — לא נלמדת, שאר השלבים כן'); }
+    ok(/if ka_cache_get\(ck, work\):/.test(read('translator/job.py')) && /ka_cache_put\(ck, work\)/.test(read('translator/job.py')), 'העובד: מטמון ההפרדה לפני ההפרדה ואחריה');
+    let list = [];
+    for (let i = 0; i < 12; i++) list = ETA.addKaSample(list, ETA.kaSample(job(120 + 30 * i, 0, 20 + 60 * (120 + 30 * i) / 60), 1e12));
+    for (let i = 0; i < 40; i++) list = ETA.addKaSample(list, null);
+    ok(list.length === 12 && ETA.addKaSample(list.concat(list, list), null).length === 30, 'המאגר מוגבל ל־30');
+    const md = ETA.kaModel(list, 1e12), p4 = ETA.kaPlan({ s: {} }, 240, false, md), p0 = ETA.kaPlan({ s: {} }, 240, false);
+    ok(Math.abs(p4.s.tr - 260) < 40 && p0.s.tr !== p4.s.tr, 'נלמד: 12 שירים בקצב דקה לדקת שיר → צפי של כ־4.3 דק׳ לשיר של 4 דק׳ (' + p4.s.tr + ')');
+    ok(ETA.kaPlan({ s: {} }, 240, true, md).s.tr === ETA.kaPlan({ s: {} }, 240, true).s.tr, 'עם קולות רקע — קו משלו (בלי דגימות bv נשאר ה־prior)');
+    const v = ETA.etaView([], 1e12, [], list);
+    ok(v.k && N.kaMdlOk(v.k) && N.kaPlan({ s: {} }, 240, false, v.k).s.tr === p4.s.tr, 'status.eta.k → הטלפון מחשב אותה תוכנית');
+    ok(!N.kaMdlOk({ st: { tr: [1, 2] } }) && N.kaPlan({ s: {} }, 240, false, { st: { tr: [1, 2] } }).s.tr === p0.s.tr, 'מודל חלקי/פגום — ה־prior');
+    ok(/if \(kaMdlOk\(o\.k\)\) out\.k = /.test(read('studio.js')), 'normEta בטלפון מקבל את k');
+  }
+  ok(/kaPlan\(pl, rec\.spec\.dur, rec\.spec\.bv === 1, ui\.eta && ui\.eta\.k\)/.test(read('studio.js')), 'הטלפון מעביר את bv ואת המודל הנלמד לתוכנית');
 
   /* ---------- 3. הטלפון ---------- */
   const st = read('studio.js');

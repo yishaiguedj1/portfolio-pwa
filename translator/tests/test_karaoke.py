@@ -156,11 +156,15 @@ class Flow(unittest.TestCase):
         ctx.name = 'jtest1234'
         real_script = J.script
 
+        seps = []
+
         def fake_script(c, path, args, stage, lo=0.0, hi=1.0, prog=None):
             if args[0] == 'sep':
+                seps.append(1)
                 out = Path(args[args.index('--out') + 1])
                 for n in ('voc.wav', 'inst.wav'):
                     shutil.copy(Path(args[args.index('--src') + 1]), out / n)
+                (out / 'sep.json').write_text('{"model": "m", "sec": 1}', encoding='utf-8')   # כמו karaoke.py sep
                 return []
             if args[0] == 'align':
                 lines = K.parse_lyrics(Path(args[args.index('--lyrics') + 1]).read_text(encoding='utf-8'))
@@ -183,6 +187,13 @@ class Flow(unittest.TestCase):
         self.assertTrue(all(s > 0 for _, _, s in outs))
         self.assertTrue(any(kw.get('done') for _, kw in reports))
         self.assertEqual(outs[0][1], 'Song (קריוקי).mp4')
+        # 31/10/2026: אותו שיר שוב — ההפרדה מהמטמון (לא נקראת שוב), והתוצרים זהים
+        outs.clear()
+        rc = J.karaoke.__wrapped__(None) if hasattr(J.karaoke, '__wrapped__') else J.karaoke(None)
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(seps), 1)
+        self.assertEqual([k for k, _, _ in outs], kinds)
+        self.assertEqual(len([d for d in J.KA_CACHE.iterdir() if d.is_dir()]), 1)
 
 
 class Design(unittest.TestCase):
@@ -258,6 +269,110 @@ class Design(unittest.TestCase):
             b = K.bg_ppm({"bg": bg}, 48, 27)
             self.assertTrue(b.startswith(b"P6 48 27 255\n"))
             self.assertEqual(len(b), len(b"P6 48 27 255\n") + 48 * 27 * 3)
+
+
+class SepCache(unittest.TestCase):
+    """31/10/2026: מטמון ההפרדה — מפתח לפי תוכן ומצב, לכל היותר KA_CACHE_N שירים ו־KA_CACHE_TTL."""
+    def test_cache(self):
+        import os
+        import shutil
+        import tempfile
+        import time
+        import job as J
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
+        old = J.KA_CACHE
+        J.KA_CACHE = tmp / 'c'
+        self.addCleanup(setattr, J, 'KA_CACHE', old)
+        a, b = tmp / 'a.wav', tmp / 'b.wav'
+        a.write_bytes(b'x' * 100)
+        b.write_bytes(b'y' * 100)
+        self.assertNotEqual(J.ka_cache_key(a, False), J.ka_cache_key(a, True))       # עם/בלי קולות רקע — הפרדה אחרת
+        self.assertNotEqual(J.ka_cache_key(a, False), J.ka_cache_key(b, False))
+        self.assertEqual(J.ka_cache_key(a, False), J.ka_cache_key(a, False))
+        w = tmp / 'w'
+        w.mkdir()
+        self.assertFalse(J.ka_cache_get('k0', w))
+        for n in ('voc.wav', 'inst.wav', 'sep.json'):
+            (w / n).write_text(n)
+        for i in range(J.KA_CACHE_N + 2):
+            J.ka_cache_put('k' + str(i), w)
+            os.utime(J.KA_CACHE / ('k' + str(i)), (time.time() - 100 + i, time.time() - 100 + i))
+        J.ka_cache_prune()
+        self.assertEqual(len(list(J.KA_CACHE.iterdir())), J.KA_CACHE_N)              # הישנים ביותר נמחקו
+        self.assertFalse((J.KA_CACHE / 'k0').exists())
+        w2 = tmp / 'w2'
+        w2.mkdir()
+        self.assertTrue(J.ka_cache_get('k5', w2))
+        self.assertEqual((w2 / 'voc.wav').read_text(), 'voc.wav')
+        self.assertFalse((w2 / 'inst_bv.wav').exists())
+        J.ka_cache_prune(time.time() + J.KA_CACHE_TTL + 200)                          # תפוגה
+        self.assertEqual(list(J.KA_CACHE.iterdir()), [])
+
+
+class SepModes(unittest.TestCase):
+    """31/10/2026: overlap ו"עם קולות רקע" במעבר אחד (SNB_KA_OV / SNB_KA_BV1) — בלי מודלים, separate מדומה."""
+    def run_sep(self, env, backing=True):
+        import argparse
+        import os
+        import shutil
+        import tempfile
+        import karaoke as KA
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
+        calls = []
+
+        def fake(src, out, model, prefix):
+            calls.append((Path(src).name, model))
+            (out / (prefix + '_voc.wav')).write_text('v:' + model)
+            (out / (prefix + '_inst.wav')).write_text('i:' + model)
+            return {'model': model, 'sec': 1.0, 'ac': 0, 'ov': KA.sep_overlap()}
+        old = {k: os.environ.get(k) for k in ('SNB_KA_OV', 'SNB_KA_BV1')}
+        sv = (KA.separate, KA.sep_ready, KA.subprocess.run)
+        KA.separate, KA.sep_ready = fake, lambda m='': True
+        KA.subprocess.run = lambda cmd, check=True: Path(cmd[-1]).write_text('mix')
+        os.environ.update(env)
+        try:
+            src = tmp / 'song.wav'
+            src.write_text('s')
+            KA.cmd_sep(argparse.Namespace(src=str(src), out=str(tmp / 'o'), model='', kmodel='', backing=backing))
+            return calls, tmp / 'o'
+        finally:
+            KA.separate, KA.sep_ready, KA.subprocess.run = sv
+            for k, v in old.items():
+                os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+
+    def test_one_pass(self):
+        import json
+        import karaoke as KA
+        calls, o = self.run_sep({'SNB_KA_BV1': '1'})
+        self.assertEqual(calls, [('song.wav', KA.KAR_DEFAULT)])                     # מעבר אחד, על השיר עצמו
+        self.assertEqual((o / 'voc.wav').read_text(), 'v:' + KA.KAR_DEFAULT)        # הקול הראשי — ליישור ולקול המנחה
+        self.assertTrue((o / 'lead.wav').exists() and (o / 'inst_bv.wav').exists() and not (o / 'inst.wav').exists())
+        self.assertEqual(json.loads((o / 'sep.json').read_text())['one'], 1)
+
+    def test_two_pass(self):
+        import karaoke as KA
+        calls, o = self.run_sep({'SNB_KA_BV1': '0'})
+        self.assertEqual(calls, [('song.wav', KA.SEP_DEFAULT), ('voc.wav', KA.KAR_DEFAULT)])
+        self.assertTrue((o / 'inst.wav').exists() and (o / 'inst_bv.wav').exists() and (o / 'lead.wav').exists())
+        calls, o = self.run_sep({'SNB_KA_BV1': '1'}, backing=False)                  # בלי קולות רקע — תמיד Kim
+        self.assertEqual(calls, [('song.wav', KA.SEP_DEFAULT)])
+
+    def test_overlap(self):
+        import os
+        import karaoke as KA
+        old = os.environ.pop('SNB_KA_OV', None)
+        try:
+            self.assertEqual(KA.sep_overlap(), KA.OV_DEFAULT)
+            os.environ['SNB_KA_OV'] = '1'
+            self.assertEqual(KA.sep_overlap(), 1)
+            os.environ['SNB_KA_OV'] = '9'
+            self.assertEqual(KA.sep_overlap(), KA.OV_DEFAULT)
+        finally:
+            os.environ.pop('SNB_KA_OV', None)
+            if old is not None:
+                os.environ['SNB_KA_OV'] = old
 
 
 class Autocast(unittest.TestCase):

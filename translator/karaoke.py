@@ -28,10 +28,25 @@ sys.path.insert(0, str(HERE))
 SEP_DEFAULT = os.environ.get('SNB_KA_SEP') or 'vocals_mel_band_roformer.ckpt'
 KAR_DEFAULT = os.environ.get('SNB_KA_KAR') or 'bs_roformer_karaoke_anvuew.ckpt'
 MODEL_DIR = os.environ.get('SNB_KA_MODELS') or '/opt/separator'
+OV_DEFAULT = 2          # נקבע במדידה (docs/studio-karaoke-he.md, "מהירות ההפרדה")
+BV1_DEFAULT = False
 # audio-separator מותקן בנפרד מ־/opt/vt (requirements-karaoke.lock) — בסוף הנתיב, כך שהספריות של העובד גוברות
 SEP_DEPS = os.environ.get('SNB_KA_DEPS') or '/opt/sepdeps'
 if os.path.isdir(SEP_DEPS) and SEP_DEPS not in sys.path:
     sys.path.append(SEP_DEPS)
+
+
+def sep_overlap() -> int:
+    """31/10/2026: overlap = כמה פעמים כל קטע של 8 שנ׳ עובר במודל (הזמן ליניארי בו). SNB_KA_OV גובר (1–4)."""
+    v = os.environ.get('SNB_KA_OV', '')
+    return int(v) if v in ('1', '2', '3', '4') else OV_DEFAULT
+
+
+def bv_one_pass() -> bool:
+    """31/10/2026: "עם קולות רקע" במעבר אחד — מודל ה־karaoke ישר על השיר (קול ראשי מול כל השאר) במקום Kim ואחריו
+    karaoke על הקול. SNB_KA_BV1=1/0 גובר."""
+    v = os.environ.get('SNB_KA_BV1', '')
+    return v == '1' if v in ('0', '1') else BV1_DEFAULT
 
 
 def sep_ready(model: str = '') -> bool:
@@ -69,7 +84,7 @@ def separate(src: Path, out: Path, model: str, prefix: str) -> dict:
     tmp.mkdir(parents=True, exist_ok=True)
     t0, ac = time.time(), autocast_ok()
     sep = Separator(output_dir=str(tmp), model_file_dir=MODEL_DIR, output_format='WAV', use_autocast=ac,
-                    mdxc_params={'overlap': 2, 'segment_size': 256, 'batch_size': 1, 'pitch_shift': 0})
+                    mdxc_params={'overlap': sep_overlap(), 'segment_size': 256, 'batch_size': 1, 'pitch_shift': 0})
     sep.load_model(model_filename=model)
     files = sep.separate(str(src))
     files = [tmp / Path(f).name if not Path(f).is_absolute() else Path(f) for f in files]
@@ -81,18 +96,28 @@ def separate(src: Path, out: Path, model: str, prefix: str) -> dict:
     shutil.move(str(inst), out / (prefix + '_inst.wav'))
     shutil.rmtree(tmp, ignore_errors=True)
     sec = round(time.time() - t0, 1)
-    print(f'⏱ {model}: {sec} שנ׳ (autocast={int(ac)}, ליבות={os.cpu_count()})', flush=True)   # המדידה — ביומן העבודה
-    return {'model': model, 'sec': sec, 'ac': int(ac)}
+    print(f'⏱ {model}: {sec} שנ׳ (autocast={int(ac)}, overlap={sep_overlap()}, ליבות={os.cpu_count()})', flush=True)   # המדידה — ביומן העבודה
+    return {'model': model, 'sec': sec, 'ac': int(ac), 'ov': sep_overlap()}
 
 
 def cmd_sep(a):
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
+    km = a.kmodel or KAR_DEFAULT
+    if a.backing and km and bv_one_pass() and sep_ready(km):
+        # מעבר אחד: הקול הראשי (ליישור ולקול המנחה) מול הליווי + קולות הרקע
+        st = separate(Path(a.src), out, km, 'k')
+        os.replace(out / 'k_voc.wav', out / 'voc.wav')
+        shutil.copyfile(out / 'voc.wav', out / 'lead.wav')
+        os.replace(out / 'k_inst.wav', out / 'inst_bv.wav')
+        st.update(kmodel=km, one=1)
+        (out / 'sep.json').write_text(json.dumps(st), encoding='utf-8')
+        print('✓ הקול הראשי והליווי עם קולות הרקע הופרדו במעבר אחד (' + km + ')')
+        return
     st = separate(Path(a.src), out, a.model or SEP_DEFAULT, 'm')
     os.replace(out / 'm_voc.wav', out / 'voc.wav')
     os.replace(out / 'm_inst.wav', out / 'inst.wav')
     if a.backing:
-        km = a.kmodel or KAR_DEFAULT
         if km:
             # "עם קולות רקע": מודל karaoke על הקול המופרד — הקול הראשי מול קולות הרקע; הליווי + קולות הרקע = inst_bv
             st['ksec'] = separate(out / 'voc.wav', out, km, 'k')['sec']
