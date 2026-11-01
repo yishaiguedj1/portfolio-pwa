@@ -140,12 +140,16 @@ const { fakeR2, ENV, ACC } = require('./_r2fake');
   const S5 = fakeR2();
   const F3 = SR.folderFor('j' + 'D'.repeat(20));
   const P3 = phoneEnv(S5, F3);
-  const st1 = await P3.api('r2up', { size: 9 * MiB, type: 'audio/mp4' });
-  const st2 = await P3.api('r2up', { id: st1.id, size: 10 * MiB, type: 'audio/mp4' });
+  const st1 = await P3.api('r2up', { size: 19 * MiB, type: 'audio/mp4' });
+  const st2 = await P3.api('r2up', { id: st1.id, size: 20 * MiB, type: 'audio/mp4' });   // 1/11/2026: חלק של 16MiB מהטלפון → 2 חלקים
   ok(st1.id === st2.id && st1.up !== st2.up && S5.ups.size === 1, 'גודל אחר לאותו קובץ = העלאה חדשה, הישנה מבוטלת ב־R2');
   ok((await P3.api('r2parts', { id: st1.id, up: st1.up })).error === 'r2_gone', 'מזהה העלאה ישן → r2_gone');
   ok((await P3.api('r2done', { id: st2.id, up: st2.up })).error === 'r2_parts', 'סגירה לפני שהכל הגיע — נדחית עם רשימת החסרים');
   ok(Object.keys(st2.urls).length === 2 && Number(Object.keys(st2.urls)[0]) === 1, 'קישורים רק לחלקים החסרים');
+  /* 1/11/2026: מהטלפון — חלקים של 16MiB עד 64MiB (~48 חלקים), מהעובד — כמו קודם (8MiB) */
+  ok(SR.phonePartSize(125e6) === 16 * MiB && SR.phonePartSize(250e6) === 16 * MiB && SR.phonePartSize(1.2e9) === 24 * MiB && SR.phonePartSize(4.3e9) === 64 * MiB && SR.phonePartSize(4.3e9) <= SR.BG_PART_MAX,
+    'גודל חלק מהטלפון: 125MB/250MB → 16MiB, 1.2GB → 24MiB, 4.3GB → 64MiB (Background Fetch עדיין יכול להמשיך)');
+  ok(st2.ps === 16 * MiB, 'ההעלאה מהטלפון נפתחת בחלקים של 16MiB');
   ok((await SR.upParts(c, S5.deps, { id: st2.id, rec: P3.recs.get(st2.id), up: st2.up, uid: 'Other12345' })).res.error === 'r2_gone', 'משתמש אחר לא ממשיך העלאה שלא שלו');
 
   /* שגיאה סופית מ־R2 (400) לא נכנסת ללולאה */

@@ -21,6 +21,7 @@ export const ROOT_NAME = 'THE SNOWBALL — סטודיו';
 const K256 = 256 * 1024;
 export const CHUNK_MIN = 4 * K256, CHUNK_MAX = 128 * K256, CHUNK_START = 16 * K256;   // 1MB · 32MB · 4MB
 const STALL_MS = 45000;          // חתיכה בלי שום התקדמות 45 שניות = החיבור נתקע → מנסים שוב
+const FREEZE_GAP_MS = 15000;     // 1/11/2026: טיק של 5 שנ׳ שהגיע אחרי יותר מזה = הדף היה קפוא (לא חיבור תקוע)
 const MAX_FAILS = 12;            // ברצף, כשיש רשת — אחרי זה שגיאה גלויה (והמשתמש יכול "לנסות שוב")
 export const STAGES = ['up', 'tr', 'al', 'tl', 'rv', 'bn', 'sv'];
 
@@ -246,8 +247,15 @@ async function driveErr(r) {
 export function xhrPut(url, body, headers, onProgress, signal) {
   return new Promise((resolve, reject) => {
     const x = new XMLHttpRequest();
-    let last = Date.now(), stalled = false, user = false;
-    const tick = setInterval(() => { if (Date.now() - last > STALL_MS) { stalled = true; x.abort(); } }, 5000);
+    let last = Date.now(), at = last, stalled = false, user = false;
+    /* 1/11/2026: דף מוסתר באנדרואיד קופא, אבל החלק שבדרך ממשיך לעלות בדפדפן. אחרי ההפשרה הטיימר יכול לרוץ לפני אירועי
+       ההתקדמות שהצטברו — ולבטל חלק שכמעט הסתיים. טיק שהגיע באיחור (FREEZE_GAP_MS) = הדף היה קפוא → סופרים מחדש */
+    const tick = setInterval(() => {
+      const now = Date.now();
+      if (now - at > FREEZE_GAP_MS) last = now;
+      at = now;
+      if (now - last > STALL_MS) { stalled = true; x.abort(); }
+    }, 5000);
     const end = () => clearInterval(tick);
     x.open('PUT', url);
     for (const [k, v] of Object.entries(headers || {})) x.setRequestHeader(k, v);
