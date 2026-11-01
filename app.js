@@ -502,6 +502,23 @@ he: {
   anLoading: 'טוען את הדוחות…',
   anErrLoad: 'לא הצלחנו לטעון את הנתונים. בדקו את החיבור ונסו שוב.',
   /* מרכז המס (01/11/2026) — taxcenter.js */
+  txKindInt: "ריבית",
+  txKindDiv: "דיבידנד",
+  txRepH1324c: "מדינה|סוג|תשלומים|ברוטו ₪|נוכה ₪",
+  txRep1324c: "לפי מדינה",
+  txRepH1324: "תאריך|נייר|מדינה|סוג|מטבע|ברוטו במטבע|נוכה במטבע|שער|ברוטו ₪|נוכה ₪",
+  txRep1324: "דיבידנדים וריבית (טופס 1324)",
+  txRep1322: "סיכום (טופס 1322)",
+  txRepH1325: "נייר|ISIN|מדינה|כמות|תאריך קנייה|תאריך מכירה|מטבע|עלות במטבע|תמורה במטבע|שער קנייה|שער מכירה|עלות ₪|תמורה ₪|רווח בשקלים|רווח במטבע × שער|חייב / הפסד מוכר",
+  txRep1325: "מכירות (טופס 1325)",
+  txRepSrc: "שער יציג של בנק ישראל ביום העסקה · עסקאות IBKR Flex · FIFO · הנמוך מבין החישוב בשקלים לחישוב במטבע (סעיף 88)",
+  txRepTitle: "טיוטת דוח רווח הון לשנת {y} — חישוב עזר לבדיקת רו״ח",
+  txEstateGuess: "חלק מהסכום משוער: בנתונים אין ISIN (אפשר להוסיף אותו לשאילתת ה־Flex).",
+  txEstateOver: "נכסים אמריקאיים בשווי {v} — מעל סף מס העיזבון האמריקאי לזר ({t}). כדאי לבדוק עם יועץ.",
+  txEstateOk: "נכסים אמריקאיים בשווי {v} — מתחת לסף מס העיזבון האמריקאי לזר ({t}).",
+  txSurCross: "מכירת הכל השנה תוסיף {v} מס יסף. פריסה של חלק מהמכירות ל־{y} עשויה לחסוך אותו.",
+  txTaxableSum: "רווח חייב",
+  txReportBtn: "הורדת הדוח ל־{y}",
   menuTax: "מרכז המס",
   menuTaxSub: "מס רווח הון לפי הדין בישראל",
   txErrLoad: "לא ניתן לפתוח את מרכז המס — בדקו את החיבור",
@@ -565,9 +582,8 @@ he: {
   txNoLots: "{s}: מכירה ב־{d} בלי קנייה מתאימה — חסרה היסטוריה.",
   txNoFx: "ל־{n} עסקאות לא נמצא שער יציג.",
   txAllOk: "שער יציג נמצא לכל {n} העסקאות, והאחזקות תואמות לברוקר.",
-  txReport: "דוח לרו״ח (טפסים 1322 ו־1324)",
-  txSoon: "בשלב הבא",
-  txReportS: "יופק מהחישוב הזה אחרי סט בדיקות מול מקרים מוכרים.",
+  txReport: "דוח לרו״ח",
+  txReportS: "טיוטה בקובץ לגיליון אלקטרוני: כל מכירה (1325), הסיכום (1322), ודיבידנדים וריבית לפי מדינה (1324). נוצר בטלפון — לבדיקה של רו״ח לפני ההגשה.",
   txInIls: "בשקלים",
   txInCur: "ב־{c} × שער",
   txLotSold: "נקנה {b} · נמכר {s}",
@@ -2122,6 +2138,23 @@ en: {
   anLoading: 'Loading the filings…',
   anErrLoad: 'Couldn’t load the data. Check your connection and try again.',
   /* מרכז המס (01/11/2026) — taxcenter.js */
+  txKindInt: "Interest",
+  txKindDiv: "Dividend",
+  txRepH1324c: "Country|Type|Payments|Gross ₪|Withheld ₪",
+  txRep1324c: "By country",
+  txRepH1324: "Date|Security|Country|Type|Currency|Gross|Withheld|Rate|Gross ₪|Withheld ₪",
+  txRep1324: "Dividends and interest (form 1324)",
+  txRep1322: "Summary (form 1322)",
+  txRepH1325: "Security|ISIN|Country|Quantity|Buy date|Sell date|Currency|Cost|Proceeds|Buy rate|Sell rate|Cost ₪|Proceeds ₪|Gain in shekels|Gain in currency × rate|Taxable / recognized loss",
+  txRep1325: "Sales (form 1325)",
+  txRepSrc: "Bank of Israel official rate on the trade day · IBKR Flex trades · FIFO · the lower of the shekel and the currency calculation (section 88)",
+  txRepTitle: "Draft capital gains report for {y} — an estimate for an accountant to check",
+  txEstateGuess: "Part of the amount is estimated: the data has no ISIN (you can add it to the Flex query).",
+  txEstateOver: "US assets worth {v} — above the US estate tax threshold for non-residents ({t}). Worth checking with an advisor.",
+  txEstateOk: "US assets worth {v} — below the US estate tax threshold for non-residents ({t}).",
+  txSurCross: "Selling everything this year adds {v} in surtax. Moving some sales to {y} may avoid it.",
+  txTaxableSum: "Taxable gain",
+  txReportBtn: "Download the {y} report",
   menuTax: "Tax center",
   menuTaxSub: "Israeli capital gains tax",
   txErrLoad: "Couldn’t open the tax center — check your connection",
@@ -2185,9 +2218,8 @@ en: {
   txNoLots: "{s}: a sale on {d} with no matching buy — history is missing.",
   txNoFx: "No official rate was found for {n} trades.",
   txAllOk: "An official rate was found for all {n} trades, and holdings match the broker.",
-  txReport: "Accountant report (forms 1322 and 1324)",
-  txSoon: "Next",
-  txReportS: "Will be generated from this calculation after a test set against known cases.",
+  txReport: "Accountant report",
+  txReportS: "A spreadsheet draft: every sale (1325), the summary (1322), and dividends and interest by country (1324). Made on the phone — for an accountant to check before filing.",
   txInIls: "In shekels",
   txInCur: "In {c} × rate",
   txLotSold: "Bought {b} · sold {s}",
@@ -7126,8 +7158,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.107.0';
-const APP_VERSION = 'v682';
+const APP_RELEASE = '2.108.0';
+const APP_VERSION = 'v683';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');

@@ -245,6 +245,8 @@ function statementToJson(tree) {
       openClose: x.openCloseIndicator || '',
       exchange: x.exchange || '',
       tradeId: x.tradeID || x.transactionID || '',
+      isin: x.isin || '',                       // 01/11/2026: מרכז המס — דוח 1325 ומד עיזבון (ריק אם לא בשאילתה)
+      country: x.issuerCountryCode || '',
       currency: x.currency || '',
       fxToBase: num(x.fxRateToBase) || 1,
     });
@@ -268,6 +270,8 @@ function statementToJson(tree) {
       costBasis: num(x.costBasisMoney),
       unrealized: num(x.fifoPnlUnrealized),
       currency: x.currency || '',
+      isin: x.isin || '',
+      country: x.issuerCountryCode || '',
       fxToBase: num(x.fxRateToBase) || 1,
       levelOfDetail: lod || 'SUMMARY',
     };
