@@ -4,13 +4,13 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v686';
+const CACHE_NAME = 'portfolio-pwa-v687';
 const HASHES = {
   "./": "6ab1986a1bc13b10b7405e36061fa8ba",
   "./index.html": "6ab1986a1bc13b10b7405e36061fa8ba",
   "./styles.css": "40265dc9a0d4d18b66a8f72526d82667",
-  "./glass-btn.css": "2e6fbc1d80e74f83b16df50be93ee5c8",
-  "./app.js": "8d6bb1e2e069ddf8f74c4cd291e9802e",
+  "./glass-btn.css": "597c83b2453476f8cfa584134b97bdae",
+  "./app.js": "fa76dd96b0a81d8c6ec3bfbdaa542095",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "2cf2e330bfcc2c9150ba47b8f355982d",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -41,15 +41,16 @@ const HASHES = {
   "./chartlib.js": "5c00c490dac1b09329fa1ce657350a9b",
   "./chart.css": "0e4e6260108563c3f329d204c1398a10",
   "./vendor/klinecharts/klinecharts.min.js": "4202d8661b8302175751d8d072bf6d2f",
-  "./library.js": "14aaa91936ff5ef248f07862b14fd97a",
-  "./library.css": "4e8ba44baf16709e07d56c5f85cbe6ac",
+  "./library.js": "777fb445b7d7003cee171448756327fa",
+  "./library.css": "fa87fa43096cd3bd4ca0bd380317563d",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
   "./libbackup.js": "a238c4cf7877166ba8eba5cdcf6eadb8",
   "./ribbon3d.js": "0004ce220226fadce8918b975fa43282",
   "./pagecurl.js": "0c089b75615f03f8d13a2d76725a35f6",
   "./pagetex.js": "f38ae4d98d0e1a35f14cf48cc8be9373",
   "./libadmin.js": "7fa14ea952a3a1a6ae275e6bfb7b3073",
-  "./epubkit.js": "626341438a721d59521d552abc6a854d",
+  "./epubkit.js": "d966ab50d6bc1783ac24ebe9b38a4ffc",
+  "./libpolish.js": "594ddf63357b8b363938f74fa10010b9",
   "./fonts/NotoSansHebrew-VF.woff2": "cc3f6ef471cb7aff587f63873a650e32",
   "./vendor/foliate-js/view.js": "e0093af921feb03bb58fb51aeedc321f",
   "./vendor/foliate-js/epub.js": "dfe347495039e9b5991478986ec6b771",
@@ -68,8 +69,8 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "ff70b7cdf55a58896794457f6812abf4",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
-  "./strings-academy.js": "bb684285bab2eadaaaec65fa0a6e4fa4",
-  "./core.js": "697c5999181b94a7e3a5036eb1b8fc83",
+  "./strings-academy.js": "135e5c03572f72faf38bc91930636642",
+  "./core.js": "9a573e2ae8fe38075750043aabd1e8ca",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "6b22a08dd74c16eefd740922596fb568",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -90,7 +91,7 @@ const HASHES = {
   "./studiobg.js": "9013d96cee956642e0735806ea1e60c3",
   "./studio.html": "83a0db4fc3f1058a17ce5b6370873966",
   "./studio-app.js": "d2aaad29f3f46cc04426c93bdae1eb83",
-  "./strings-studio.js": "ba15dda8e99db14a98069095a051944d",
+  "./strings-studio.js": "1a27673f3133bc6e30ed48ed187bfdfc",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
@@ -126,7 +127,7 @@ const APP_SHELL = [
 /* האקדמיה (שלב 8): קבצי הספרייה והקורא — נטענים מראש בכל עדכון רק אצל מי שכבר נכנס לספרייה
    (library.js במטמון הקודם), כדי שקריאה אופליין תעבוד גם אחרי עדכון גרסה. כשל כאן לא מפיל את ההתקנה. */
 const LIB_SHELL = [
-  './library.js', './library.css', './academy-data.js', './libbackup.js', './ribbon3d.js', './pagecurl.js', './pagetex.js', './libadmin.js', './epubkit.js', './fonts/NotoSansHebrew-VF.woff2',
+  './library.js', './library.css', './academy-data.js', './libbackup.js', './ribbon3d.js', './pagecurl.js', './pagetex.js', './libadmin.js', './epubkit.js', './libpolish.js', './fonts/NotoSansHebrew-VF.woff2',
   './vendor/foliate-js/view.js', './vendor/foliate-js/epub.js', './vendor/foliate-js/epubcfi.js',
   './vendor/foliate-js/paginator.js', './vendor/foliate-js/overlayer.js', './vendor/foliate-js/progress.js',
   './vendor/foliate-js/search.js', './vendor/foliate-js/text-walker.js', './vendor/foliate-js/footnotes.js',
