@@ -55,6 +55,7 @@ object PhWork {
     /* ---------------------------------------------------------------- up */
     fun up(ctx: Context, pid: String, stopped: () -> Boolean) {
         var r = PhStore.get(ctx, pid) ?: return
+        if (r.optBoolean("pu")) return upPu(ctx, pid, stopped)
         val title = r.optString("name")
         val n = net(r)
         val work = PhStore.work(ctx, pid)
@@ -76,7 +77,7 @@ object PhWork {
             rep(st, p)
         }
         try {
-            val f by lazy { src(ctx, r) }   // 1/11/2026: nu — אחרי שהסרטון עלה העותק נמחק; "להמשיך" לא נופל על src_gone
+            val f = src(ctx, r)
             val pw = r.optBoolean("pw")
             // 0. שלב 2 ("הכל בטלפון"): המודלים, ואז התמלול, הדוברים והיישור כאן — עולה רק קובץ המילים (בלי קול)
             if (pw && r.optString("wId").isEmpty()) {
@@ -126,9 +127,8 @@ object PhWork {
                 if (!sr.optBoolean("ok")) throw Stop(sr.optString("error", "start"))
                 r = PhStore.update(ctx, pid) { it.put("started", true) } ?: r
             }
-            // 3. המדידות: ffprobe (נשמר בבחירה) + השוטים (כ־3 דק׳ לשעת סרטון). nu — השרת מודד מהסרטון עצמו
-            val nu = r.optBoolean("nu")
-            if (!nu && r.optString("mId").isEmpty()) {
+            // 3. המדידות: ffprobe (נשמר בבחירה) + השוטים (כ־3 דק׳ לשעת סרטון)
+            if (r.optString("mId").isEmpty()) {
                 val m = File(work, "meta.json")
                 if (!m.isFile) {
                     stage("shots", R.string.phShots)
@@ -163,12 +163,59 @@ object PhWork {
             q.stop()
             nm(ctx).cancel(N_ID)
             nm(ctx).notify(N_DONE, if (pt) simple(ctx, s(ctx, R.string.phTextDone), s(ctx, R.string.phTextDoneS), webIntent(ctx, r, ""))
-                else if (nu) simple(ctx, s(ctx, R.string.phSent), s(ctx, R.string.phSentNu), webIntent(ctx, r, ""))
                 else simple(ctx, s(ctx, R.string.phSent), s(ctx, R.string.phSentS), webIntent(ctx, r, "")))
         } catch (e: Throwable) {
             val code = codeOf(e)
             if (code == "stopped" || stopped()) { q.stop(); return }   // המערכת עצרה — ממשיכים בפעם הבאה מאותו שלב
             if (pw0 && !r.optBoolean("started")) rep("err", -1f, code.lowercase().filter { it in 'a'..'z' || it in '0'..'9' || it == '_' }.take(32).padEnd(2, '_')) else q.stop()
+            PhStore.update(ctx, pid) { it.put("e", code).put("st", "err").put("est", r.optString("st")) }
+            nm(ctx).cancel(N_ID)
+            nm(ctx).notify(N_DONE, simple(ctx, s(ctx, R.string.phFailed), title, webIntent(ctx, r, code)))
+        }
+    }
+
+    /* ---------------------------------------------------------------- pu (1/11/2026) */
+    /** תרגום רגיל בשרת (spec.pu): הקול מה־URI (PhPu.audio, בלי עותק ובלי קידוד) → העלאה → phStart. השרת מתמלל מהקול
+     *  ומצרף את הסרטון כשהוא מגיע (PhUpJob, במקביל). קודק שאי אפשר להעתיק — noA: בלי קול, ו־video() מתחיל אחרי הסרטון */
+    private fun upPu(ctx: Context, pid: String, stopped: () -> Boolean) {
+        var r = PhStore.get(ctx, pid) ?: return
+        val title = r.optString("name")
+        val n = net(r)
+        val work = PhStore.work(ctx, pid)
+        fun stage(st: String, text: Int, p: Float = -1f) {
+            r = PhStore.update(ctx, pid) { it.put("st", st) } ?: r
+            notify(ctx, progress(ctx, title, s(ctx, text), p))
+        }
+        try {
+            PhPu.src(ctx, r)   // ההרשאה ל־URI עדיין בתוקף (אחרת src_gone)
+            if (r.optString("aId").isEmpty() && !r.optBoolean("noA")) {
+                stage("audio", R.string.phAudio, 0f)
+                val a = PhPu.audio(ctx, Uri.parse(r.optString("uri")), work, stopped) { p -> notify(ctx, progress(ctx, title, s(ctx, R.string.phAudio), p)) }
+                if (stopped()) throw Stop("stopped")
+                if (a == null) r = PhStore.update(ctx, pid) { it.put("noA", true) } ?: r
+                else {
+                    stage("upa", R.string.phUpA, 0f)
+                    val id = n.upload(a.f, a.mime, title.substringBeforeLast('.') + ".audio." + a.f.extension, r.optString("aUp0"), r.optString("aUp"),
+                        { id, up -> PhStore.update(ctx, pid) { it.put("aUp0", id).put("aUp", up) } }, stopped) { p ->
+                        notify(ctx, progress(ctx, title, s(ctx, R.string.phUpA), p)) }
+                    val fr = n.call("phFile", JSONObject().put("which", "a").put("id", id))
+                    if (!fr.optBoolean("ok")) throw Stop(fr.optString("error", "file"))
+                    r = PhStore.update(ctx, pid) { it.put("aId", id) } ?: r
+                    a.f.delete()
+                }
+            }
+            if (!r.optBoolean("noA") && !r.optBoolean("started")) {
+                stage("start", R.string.phStart)
+                val sr = n.call("phStart", JSONObject().put("ov", r.optBoolean("ov")))
+                if (!sr.optBoolean("ok")) throw Stop(sr.optString("error", "start"))
+                r = PhStore.update(ctx, pid) { it.put("started", true) } ?: r
+            }
+            PhStore.update(ctx, pid) { it.put("st", "wait") }
+            nm(ctx).cancel(N_ID)
+            if (r.optBoolean("started")) nm(ctx).notify(N_DONE, simple(ctx, s(ctx, R.string.phPuSent), s(ctx, R.string.phPuSentS), webIntent(ctx, r, "")))
+        } catch (e: Throwable) {
+            val code = codeOf(e)
+            if (code == "stopped" || stopped()) return
             PhStore.update(ctx, pid) { it.put("e", code).put("st", "err").put("est", r.optString("st")) }
             nm(ctx).cancel(N_ID)
             nm(ctx).notify(N_DONE, simple(ctx, s(ctx, R.string.phFailed), title, webIntent(ctx, r, code)))
@@ -221,32 +268,50 @@ object PhWork {
         var r = PhStore.get(ctx, pid) ?: return true
         if (!r.optBoolean("vc") || r.optString("vId").isNotEmpty() || r.optString("vE").isNotEmpty()) return true
         val t0 = System.currentTimeMillis()
-        while (!r.optBoolean("pw") && r.optString("aId").isEmpty()) {
+        val pu = r.optBoolean("pu")
+        while (!r.optBoolean("pw") && r.optString("aId").isEmpty() && !(pu && r.optBoolean("noA"))) {
             if (r.optString("st") == "err") return true                  // הקול נעצר — "להמשיך" באתר (phgo) מתזמן שוב
             if (stopped() || System.currentTimeMillis() - t0 > VC_WAIT) return false
             Thread.sleep(3000)
             r = PhStore.get(ctx, pid) ?: return true
         }
-        val f = try { src(ctx, r) } catch (e: Stop) { return true }
+        // 1/11/2026 (pu): הסרטון נקרא במקומו (URI), בלי העותק הפרטי
+        val f: PhNet.Src = try { if (pu) PhPu.src(ctx, r) else PhNet.FileSrc(src(ctx, r)) } catch (e: Stop) {
+            PhStore.update(ctx, pid) { it.put("vE", e.code) }
+            try { net(r).call("phVp", JSONObject().put("p", 0).put("e", e.code)) } catch (x: Throwable) {}
+            return true
+        }
         val title = r.optString("name")
         val n = net(r)
-        val size = maxOf(1L, f.length())
-        val q = Latest { o -> n.call("phVp", o) }
-        var shownP = -1; var repP = -1f; var repAt = 0L
+        val size = maxOf(1L, f.size)
+        val sr = r.optInt("vSr")   // למה המערכת עצרה את המשימה בפעם הקודמת (PhUpJob.onStopJob) — מדידה
+        val q = Latest { o -> n.call("phVp", o.apply { if (sr > 0) put("sr", sr) }) }
+        var shownAt = 0L; var repP = -1f; var repAt = 0L
+        // הקצב: ממוצע נע של כ־3 שנ׳ — בהתראה ("1.2GB מתוך 4.1GB · 3.4MB לשנייה") ובדף העבודה (vcp.r)
+        var rateB = -1L; var rateT = 0L; var rate = 0.0
         show(vprogress(ctx, title, 0f))
         return try {
-            val id = n.uploadPar(f, vmime(f), title, JSONObject().put("v", true), r.optString("vUp0"), r.optString("vUp"),
+            val id = n.uploadPar(f, if (pu) vmimeOf(r.optString("name")) else vmime(File(r.optString("src"))), title, JSONObject().put("v", true), r.optString("vUp0"), r.optString("vUp"),
                 { id, up -> PhStore.update(ctx, pid) { it.put("vUp0", id).put("vUp", up) } }, stopped) { b ->
                 val p = b.toFloat() / size
                 val now = System.currentTimeMillis()
-                if ((p * 100).toInt() != shownP) { shownP = (p * 100).toInt(); show(vprogress(ctx, title, p)) }
-                if (p - repP >= 0.03f || now - repAt > 30_000L) { repP = p; repAt = now; q.post(JSONObject().put("p", p.toDouble())) }
+                if (rateB < 0 || b < rateB) { rateB = b; rateT = now }
+                else if (now - rateT >= 1000) { val v = (b - rateB) * 1000.0 / (now - rateT); rate = if (rate > 0) rate * 0.6 + v * 0.4 else v; rateB = b; rateT = now }
+                if (now - shownAt >= 1000) { shownAt = now; show(vprogress(ctx, title, p, b, size, rate)) }
+                if (p - repP >= 0.03f || now - repAt > 15_000L) { repP = p; repAt = now; q.post(JSONObject().put("p", p.toDouble()).apply { if (rate > 0) put("r", rate.toLong()) }) }
             }
             q.stop()
             val fr = n.call("phFile", JSONObject().put("which", "v").put("id", id).put("v", true))
             if (!fr.optBoolean("ok")) throw Stop(fr.optString("error", "file"))
-            PhStore.update(ctx, pid) { it.put("vId", id) }
-            if (r.optBoolean("nu")) runCatching { f.delete() }   // 1/11/2026: nu — השרת צורב; העותק כבר לא נחוץ
+            r = PhStore.update(ctx, pid) { it.put("vId", id) } ?: r
+            // pu בלי קול (קודק שאי אפשר להעתיק): העבודה מתחילה עכשיו, מהסרטון
+            if (pu && r.optBoolean("noA") && !r.optBoolean("started")) {
+                val st = n.call("phStart", JSONObject().put("ov", r.optBoolean("ov")))
+                if (st.optBoolean("ok")) {
+                    PhStore.update(ctx, pid) { it.put("started", true) }
+                    nm(ctx).notify(N_DONE, simple(ctx, s(ctx, R.string.phSent), s(ctx, R.string.phPuSentS), webIntent(ctx, r, "")))
+                } else nm(ctx).notify(N_DONE, simple(ctx, s(ctx, R.string.phFailed), title, webIntent(ctx, r, st.optString("error", "start"))))
+            }
             true
         } catch (e: Throwable) {
             q.stop()
@@ -264,15 +329,25 @@ object PhWork {
     }
     private const val VC_WAIT = 20 * 60_000L    // כמה מחכים לקול לפני שמשחררים את המשימה (היא מתוזמנת שוב)
     private val VC_RETRY = setOf("net", "rate_limited", "store", "up", "r2_nourls", "r2_none")   // חולפות — מנסים שוב
-    private fun vmime(f: File) = when (f.extension.lowercase()) {
+    private fun vmime(f: File) = vmimeOf(f.name)
+    private fun vmimeOf(name: String) = when (name.substringAfterLast('.', "").lowercase()) {
         "mp4", "m4v" -> "video/mp4"; "mov" -> "video/quicktime"; "mkv" -> "video/x-matroska"; "webm" -> "video/webm"; "avi" -> "video/x-msvideo"
         else -> "application/octet-stream"
     }
     const val N_VID = 45
-    fun vprogress(ctx: Context, title: String, p: Float): Notification {
+    /** גודל קצר כמו fmtSize באתר: 820KB / 14.2MB / 1.24GB */
+    fun mb(b: Long): String = when {
+        b >= 1L shl 30 -> String.format(java.util.Locale.ROOT, "%.2fGB", b / 1073741824.0)
+        b >= 1L shl 20 -> String.format(java.util.Locale.ROOT, if (b >= 100L shl 20) "%.0fMB" else "%.1fMB", b / 1048576.0)
+        else -> String.format(java.util.Locale.ROOT, "%.0fKB", b / 1024.0)
+    }
+    /** 1/11/2026 (בקשת המשתמש — "MB ומהירות, כמו בדף העבודה"): עם הבתים — "1.2GB מתוך 4.1GB · 3.4MB לשנייה" */
+    fun vprogress(ctx: Context, title: String, p: Float, b: Long = 0, size: Long = 0, rate: Double = 0.0): Notification {
         val cancel = PendingIntent.getService(ctx, 13, Intent(ctx, PhService::class.java).setAction(PhService.ACT_VCANCEL), PendingIntent.FLAG_IMMUTABLE)
+        val pc = (p * 100).toInt().coerceIn(0, 100)
+        val txt = if (size > 0 && b > 0) s(ctx, R.string.phUpV, pc) + "\n" + s(ctx, R.string.phUpVB, mb(b), mb(size), if (rate > 0) mb(rate.toLong()) else "—") else s(ctx, R.string.phUpV, pc)
         return builder(ctx).setSmallIcon(android.R.drawable.stat_sys_upload).setContentTitle(title.ifEmpty { s(ctx, R.string.phTitle) })
-            .setContentText(s(ctx, R.string.phUpV, (p * 100).toInt().coerceIn(0, 100))).setOngoing(true).setOnlyAlertOnce(true)
+            .setContentText(txt).setStyle(Notification.BigTextStyle().bigText(txt)).setOngoing(true).setOnlyAlertOnce(true)
             .setProgress(100, (p * 100).toInt().coerceIn(0, 100), false)
             .addAction(Notification.Action.Builder(null, s(ctx, R.string.dlCancel), cancel).build()).build()
     }

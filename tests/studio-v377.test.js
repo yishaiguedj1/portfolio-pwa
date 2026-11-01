@@ -43,7 +43,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const v = st.normValue({ m: '2026-10', n: 2, min: 60, usd: 3, cpm: 0.1, hp: 5, hpd: true, saved: 147, fc: 4.89, bn: { s: 'tl', sh: 0.97, x: 1.7, n: 1 }, ab: { n: 3, rs: 1, qa: 1 } });
   ok(v && v.bn.s === 'tl' && v.ab.rs === 1 && v.hp === 5, 'normValue: תקין');
   ok(st.normValue({ m: 'evil' }) === null && !st.normValue({ m: '2026-10', bn: { s: 'evil', sh: 1 } }).bn, 'normValue: חודש / שלב לא מוכר — נזרק');
-  ok(st.chainFor('value').map((x) => x.v).join() === 'home,settings,tower,towerx,value', 'רענון בדף הערך — חוזר דרך המגדל');
+  ok(st.chainFor('value').map((x) => x.v).join() === 'home,tower,towerx,value', 'רענון בדף הערך — חוזר דרך המגדל');
   const sj = read('studio.js');
   ok(/if \(rec\.srv && rec\.srv\.sla\) p\.append\(\.\.\.slaCard\(rec\)\)/.test(sj) && /h\('em', 'm50'\), h\('em', 'm75'\)/.test(sj), 'דף העבודה: כרטיס יעדים עם סימונים ב־50%/75%');
   // 21/10/2026: הזמן שעבר רץ בין עדכונים — לא כשהשעון עוצר / העבודה לא רצה; עד 10 דק׳ קדימה
