@@ -4638,7 +4638,8 @@ def ka_spec(spec):
     except (TypeError, ValueError):
         gv = 0
     ky = spec.get('ky') if isinstance(spec.get('ky'), dict) else {}   # 31/10/2026: עיצוב הקריוקי (מנורמל ב־vt/karaoke.py)
-    return {'lyr': str(spec.get('lyr') or ''), 'bv': spec.get('bv') == 1, 'gv': gv, 'want': want, 'ky': ky}
+    al = spec.get('al') if spec.get('al') in ('he', 'en') and not str(spec.get('lyr') or '').strip() else ''   # 01/11/2026: בלי מילים
+    return {'lyr': str(spec.get('lyr') or ''), 'bv': spec.get('bv') == 1, 'gv': gv, 'want': want, 'ky': ky, 'al': al}
 
 
 # 31/10/2026: מטמון ההפרדה — אותו שיר שוב (מילים מתוקנות, עיצוב אחר) לא מופרד מחדש. המפתח = sha256 של השמע
@@ -4712,9 +4713,9 @@ def karaoke(args):
     ctx = Ctx(load_state())
     spec = ctx.st.get('spec') or {}
     ks = ka_spec(spec)
-    if not ks['lyr'].strip():
+    if not ks['lyr'].strip() and not ks['al']:
         ctx.report(fail=True, err='ka_lyrics', force=True)
-        raise SystemExit('✗ אין מילים לשיר — בשלב הזה מדביקים אותן בטופס.')
+        raise SystemExit('✗ אין מילים לשיר — מדביקים אותן בטופס, או בוחרים תמלול אוטומטי.')
     url_fetch(ctx)                                   # מקישור — כמו בסרטונים
     files = ctx.st.get('files') or {}
     v = files.get('v') if (files.get('v') or {}).get('id') else None
@@ -4749,7 +4750,16 @@ def karaoke(args):
     subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(work / 'voc.wav'), '-ac', '1', '-ar', '16000', str(voc16)], check=True)
     # 2. המילים → עיגון לתמלול של הקול → יישור לכל מילה
     lyr = work / 'lyrics.txt'
-    lyr.write_text(ks['lyr'], encoding='utf-8')
+    if ks['al']:                                     # 01/11/2026: בלי מילים — טיוטה מתמלול הקול המופרד
+        ctx.report('al', 0, 'מתמללים את המילים מהשירה', force=True)
+        try:
+            script(ctx, 'karaoke.py', ['lyrics', '--voc', str(voc16), '--lang', ks['al'], '--out', str(lyr)], 'al')
+        except SystemExit:
+            if lyr.exists() and not lyr.read_text(encoding='utf-8').strip():   # הסקריפט כתב קובץ ריק = לא נשמעו מילים
+                ctx.report(fail=True, err='ka_nowords', force=True)
+            raise
+    else:
+        lyr.write_text(ks['lyr'], encoding='utf-8')
     ctx.report('al', 0, 'מתאימים כל מילה לרגע שבו היא נשמעת', force=True)
     script(ctx, 'karaoke.py', ['align', '--voc', str(voc16), '--lyrics', str(lyr), '--out', str(work / 'words.json')], 'al')
     # 3. הכתוביות והסרטון
@@ -4787,6 +4797,8 @@ def karaoke(args):
             ('lrc', out / 'karaoke.lrc', title + '.lrc', 'text/plain'),
             ('elrc', out / 'karaoke.elrc.lrc', title + ' (מילה אחר מילה).lrc', 'text/plain'),
             ('ass', out / 'karaoke.ass', title + '.ass', 'text/x-ssa')]
+    if ks['al']:                                     # הטיוטה — לבדיקה, תיקון והדבקה בקריוקי חדש (ההפרדה מהמטמון)
+        res.append(('lyr', lyr, title + ' (מילים — תמלול אוטומטי).txt', 'text/plain'))
     # 4. שמירה
     ctx.report('sv', 0, 'שומרים', force=True)
     total = sum(p.stat().st_size for _, p, _, _ in res if p.exists()) or 1
@@ -4799,7 +4811,7 @@ def karaoke(args):
         done += size
         up.append({'id': fid, 'name': name, 'size': size, 'k': k})
     learn_ka(ctx, src, work)                         # לפני הדיווח האחרון (אחריו המפתח מת); השרתון מחליט אם לשמור
-    ctx.report(done=True, out=up, msg='הקריוקי מוכן', force=True)
+    ctx.report(done=True, out=up, msg='הקריוקי מוכן' + (' — המילים מתמלול אוטומטי' if ks['al'] else ''), force=True)
     shutil.rmtree(work, ignore_errors=True)
     try:
         src.unlink()

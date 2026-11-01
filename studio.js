@@ -55,8 +55,8 @@ export const SOURCE_LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt
 export const LANG_READY = { from: ['auto', 'en'], to: ['he'] };
 export const langReady = (from, to) => LANG_READY.from.includes(from) && Array.isArray(to) && to.length > 0 && to.every((c) => LANG_READY.to.includes(c));
 /* מ1: כל סוגי התוצרים (= OUT_KINDS בשרתון). MAIN — שורות ב"התוצרים"; השאר קבצי עזר (הנגן, העורך) */
-export const OUT_ALL = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta', 'thumb', 'inst', 'lrc', 'elrc'];   // סבב 6: meta — לציר בעורך; סבב 7: thumb — תמונה ממוזערת
-export const OUT_MAIN = ['compact', 'same', 'mkv', 'small', 'srt', 'en', 'inst', 'lrc', 'elrc'];   // 26/10/2026: קריוקי — הליווי ו־LRC
+export const OUT_ALL = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta', 'thumb', 'inst', 'lrc', 'elrc', 'lyr'];   // סבב 6: meta — לציר בעורך; סבב 7: thumb — תמונה ממוזערת
+export const OUT_MAIN = ['compact', 'same', 'mkv', 'small', 'srt', 'en', 'inst', 'lrc', 'elrc', 'lyr'];   // 26/10/2026: קריוקי — הליווי ו־LRC
 export const TARGET_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
 const QUICK_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr'];
 export const STYLES = ['bold', 'classic', 'karaoke'];
@@ -1074,6 +1074,7 @@ function outName(k) {
     case 'inst': return T('studioOutInst');   // 26/10/2026: קריוקי
     case 'lrc': return T('studioOutLrc');
     case 'elrc': return T('studioOutElrc');
+    case 'lyr': return T('studioOutLyr');   // 01/11/2026: טיוטת המילים מהתמלול
     case 'ass': return T('studioOutAss');
     default: return T('studioOutSrt');
   }
@@ -1159,6 +1160,7 @@ function errText(code, extra) {
     case 'lang_unsupported': return T('studioLangSoon');
     case 'ka_lyrics': return T('studioKaNeedLyr');   // 26/10/2026: קריוקי
     case 'ka_noaudio': return T('studioKaNoAudio');
+    case 'ka_nowords': return T('studioKaNoWords');   // 01/11/2026: תמלול אוטומטי בלי מילים
     case 'bad_url': return T('studioErrBadUrl');
     case 'bad_key': return T('studioErrBadKey');
     case 'vault_not_configured': return T('studioErrVault');
@@ -3343,8 +3345,10 @@ function pageForm(p, editing) {
     const ky = normKy(store.settings.ky);   // 31/10/2026: עיצוב הקריוקי — דף משלו (במקום עיצוב הכתוביות של הסרטונים)
     p.append(list(rowNav({ tile: tile('edit', 'purple'), label: T('studioKyT'), value: kySchName(kySchemeOf(ky)), onClick: () => go('kasty'), k: 'kasty' })));
     const startKa = btn('st-btn wide', ui.starting ? T('studioStarting') : T('studioKaStart'), startFromForm, 'start');
-    startKa.disabled = !(f.fileObj || f.drive || (f.link && f.linkOk)) || !kaLyr(f.lyr).trim() || ui.starting;
-    const ft = h('div', 'st-foot'); ft.append(startKa, h('p', 'st-foot-n', !kaLyr(f.lyr).trim() ? T('studioKaNeedLyr') : T('studioKaStartNote'))); p.append(ft);
+    startKa.disabled = !(f.fileObj || f.drive || (f.link && f.linkOk)) || ui.starting;   // 01/11/2026: בלי מילים = תמלול אוטומטי
+    const ftn = h('p', 'st-foot-n', !kaLyr(f.lyr).trim() ? T('studioKaAutoStart') : T('studioKaStartNote'));
+    kaFtn = ftn;
+    const ft = h('div', 'st-foot'); ft.append(startKa, ftn); p.append(ft);
     return;
   }
   // שפות
@@ -3433,6 +3437,10 @@ const subsOk = () => apiMode() || cpMode();
 const kaOk = () => !!(ui.api && ui.api.servers > 0 && ui.r2 && (ui.api.admin || ui.api.ka));   // ka מהשרתון — 30/10/2026: כל מי שמורשה לסטודיו
 export const KA_LYR_MAX = 8000;   // = KA_LYR_MAX בשרתון ו־LYR_MAX ב־translator/vt/karaoke.py
 const KA_OUTS = ['compact', 'same', 'small'];
+/* 01/11/2026: בלי מילים — העובד מתמלל מהשירה (טיוטה). השפה מהטופס: ivrit לא מזהה שפה בעצמו. = KA_AL בשרתון */
+export const KA_AL = ['he', 'en'];
+let kaFtn = null;   // השורה מתחת לכפתור — מתעדכנת בהקלדה בלי render
+const kaAlOf = (f) => (KA_AL.includes(f.al) ? f.al : /[\u05d0-\u05ea]/.test(String(f.lq || '') + ((f.file && f.file.name) || '') + ((f.link && f.link.r && f.link.r.t) || '')) ? 'he' : 'en');
 /* 31/10/2026: עיצוב הקריוקי (ת־קריוקי) — אותם מפתחות וברירות מחדל כמו norm_ky ב־translator/vt/karaoke.py
    (tests/studio-karaoke-design.test.js משווה). u לא־שר · c שר · f מילוי (w/d) · z גודל · cd ספירה · tc פתיחה · dm הכהיה ·
    bg רקע בלי וידאו · sg צבע לכל זמר (4) · sb ביחד */
@@ -3459,7 +3467,7 @@ function kaSpec(f, spec) {
   if (!f.ka) return spec;
   const out = KA_OUTS.filter((k) => f.out[k]);
   Object.assign(spec, { ka: 1, lyr: kaLyr(f.lyr), ky: normKy(f.ky || store.settings.ky), out: out.length ? out : ['compact'], eng: 'api', cap: store.settings.cap },
-    f.bv === true ? { bv: 1 } : {}, f.gv > 0 ? { gv: f.gv } : {});
+    f.bv === true ? { bv: 1 } : {}, f.gv > 0 ? { gv: f.gv } : {}, kaLyr(f.lyr).trim() ? {} : { al: kaAlOf(f) });
   delete spec.cp; delete spec.ry; delete spec.edl;
   return spec;
 }
@@ -3500,8 +3508,19 @@ function kaSection(p, f) {
   const ta = h('textarea', 'st-ask-in st-ka-lyr');
   ta.dir = 'auto'; ta.rows = 8; ta.maxLength = KA_LYR_MAX; ta.value = f.lyr || ''; ta.placeholder = T('studioKaLyrPh');
   ta.setAttribute('aria-label', T('studioKaLyr'));
-  ta.addEventListener('input', () => { f.lyr = ta.value; });
-  p.append(secT(T('studioKaLyr')), kaFind(f), ta, note(T('studioKaLyrNote')));
+  // 01/11/2026: בלי מילים — שפת השיר לתמלול האוטומטי (מופיעה רק כשהשדה ריק; בלי render בכל הקשה)
+  const al = h('div', 'st-ka-al');
+  const alc = h('div', 'st-chips');
+  alc.append(...KA_AL.map((x) => { const b = btn('st-chip' + (kaAlOf(f) === x ? ' on' : ''), x === 'he' ? T('studioKaAlHe') : T('studioKaAlEn'), () => { f.al = x; render('none'); }, 'ka-al:' + x);
+    b.setAttribute('aria-pressed', kaAlOf(f) === x ? 'true' : 'false'); return b; }));
+  al.append(note(T('studioKaAutoNote')), secT(T('studioKaAl')), alc);
+  const empty = () => !kaLyr(f.lyr).trim();
+  al.hidden = !empty();
+  ta.addEventListener('input', () => {
+    f.lyr = ta.value; al.hidden = !empty();
+    if (kaFtn && kaFtn.isConnected) kaFtn.textContent = empty() ? T('studioKaAutoStart') : T('studioKaStartNote');
+  });
+  p.append(secT(T('studioKaLyr')), kaFind(f), ta, note(T('studioKaLyrNote')), al);
   const chip = (lbl, on, fn, k) => { const b = btn('st-chip' + (on ? ' on' : ''), lbl, fn, k); b.setAttribute('aria-pressed', on ? 'true' : 'false'); return b; };
   const gv = h('div', 'st-chips');
   gv.append(...KA_GV.map((x) => chip(x ? '\u2066' + x + '%\u2069' : T('studioKaGv0'), (f.gv || 0) === x, () => { f.gv = x; render('none'); }, 'ka-gv:' + x)));
@@ -4655,7 +4674,7 @@ function startLink(f) {
     const n = dlNonce();
     const ch = pick.ch && L.r.ch ? L.r.ch.map((c) => [c[0] - (pick.sec ? pick.sec[0] : 0), c[1]]).filter((c) => c[0] >= 0) : [];
     const pend = { n, at: Date.now(), dur, f: { from: f.from, to: f.to, mode: f.mode, out: f.out, style: f.style, sty: f.sty || null, terms: f.terms, edl: null,
-      ...(f.ka ? { ka: true, lyr: kaLyr(f.lyr), bv: f.bv === true, gv: f.gv || 0 } : {}) },   // 30/10/2026: שיר שהורד בטלפון חוזר לטופס של הקריוקי
+      ...(f.ka ? { ka: true, lyr: kaLyr(f.lyr), bv: f.bv === true, gv: f.gv || 0, al: KA_AL.includes(f.al) ? f.al : '' } : {}) },   // 30/10/2026: שיר שהורד בטלפון חוזר לטופס של הקריוקי
       t: L.r.t, u: L.r.u || L.u, ch, th: L.r.th || '' };
     try { sessionStorage.setItem(DLP_KEY, JSON.stringify(pend)); } catch (e) {}
     ui.starting = false; ui.dlWait = n; render('none');
@@ -4765,7 +4784,7 @@ async function gotFile(key) {
   form = freshForm(null);
   const f = form;
   if (pend && pend.f) for (const k of ['from', 'to', 'mode', 'out', 'style', 'sty', 'terms']) if (pend.f[k] != null) f[k] = k === 'sty' ? normSty(pend.f[k]) : pend.f[k];
-  if (pend && pend.f && pend.f.ka === true) Object.assign(f, { ka: true, lyr: kaLyr(pend.f.lyr), bv: pend.f.bv === true, gv: KA_GV.includes(pend.f.gv) ? pend.f.gv : 0 });   // 30/10/2026
+  if (pend && pend.f && pend.f.ka === true) Object.assign(f, { ka: true, lyr: kaLyr(pend.f.lyr), al: KA_AL.includes(pend.f.al) ? pend.f.al : undefined, bv: pend.f.bv === true, gv: KA_GV.includes(pend.f.gv) ? pend.f.gv : 0 });   // 30/10/2026
   f.fileObj = file; f.handle = { inbox: key }; f.drive = null; f.file = { name: file.name, size: file.size, type: file.type || '' };
   f.dl = pend ? { t: pend.t, ch: pend.ch || [], th: pend.th || '', u: pend.u || '' } : null;   // u — לשם האתר במקור (org)
   inspectFor(f, file); if (!f.ka) tracksFor(f, file);
@@ -5054,7 +5073,7 @@ function startFromForm() {
     return;
   }
   if (!f.ka && !langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }   // לפני ההעלאה, לא אחריה
-  if (f.ka && (!kaOk() || !kaLyr(f.lyr).trim())) { flashSafe(kaOk() ? T('studioKaNeedLyr') : T('studioKaNoSrv')); return; }
+  if (f.ka && !kaOk()) { flashSafe(T('studioKaNoSrv')); return; }   // 01/11/2026: בלי מילים = תמלול אוטומטי (kaSpec → al)
   ui.starting = true; render('none');
   (async () => {
     const file = f.fileObj || f.drive;   // מ־Drive: הפרטים מ־Drive (בלי לקרוא את הקובץ בטלפון)
@@ -5870,6 +5889,7 @@ function incTitle(e) {
     case 'lang_unsupported': return T('studioIncLang');
     case 'ka_lyrics': return T('studioKaNeedLyr');
     case 'ka_noaudio': return T('studioKaNoAudio');
+    case 'ka_nowords': return T('studioKaNoWords');   // 01/11/2026: תמלול אוטומטי בלי מילים
     case 'max_tokens': return T('studioIncMaxTok');
     default: return /^routine_/.test(e) ? T('studioIncRDown') : T('studioIncWorker');
   }

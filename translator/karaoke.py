@@ -2,6 +2,7 @@
 
   sep    — הפרדת קול וליווי (audio-separator, מודלים ברישיון פתוח בלבד — החלטת המשתמש): voc.wav, inst.wav,
            ובמצב "עם קולות רקע" גם inst_bv.wav (מודל karaoke: הקול הראשי מול כל השאר).
+  lyrics — 01/11/2026: אין מילים → טיוטה מתמלול הקול המופרד (עברית ivrit / אנגלית Parakeet) → lyrics.txt.
   align  — המילים שהודבקו → words.json. שיר עברי (31/10/2026, vt/align_he.py): ivrit + stable-ts + CTC עברי; אחרת עיגון
            לתמלול של הקול המופרד (Parakeet) → יישור Qwen לכל מילה. בלי סימון זמרים במילים — זיהוי הזמרים מהקול (sg).
   build  — words.json → karaoke.ass (מצב לכל מילה), ‏.lrc, ‏.elrc.lrc.
@@ -180,6 +181,33 @@ def cmd_align(a):
     print(f'✓ יושרו {n} מתוך {len(words)} מילים (עוגנים מהתמלול: {len(asr)})')
 
 
+def cmd_lyrics(a):
+    """01/11/2026: אין מילים — טיוטה מתמלול הקול המופרד (16kHz). עברית: ivrit (חובה language=he; בלי VAD — בשירה הוא
+    הפיל חצי מהמשפטים, ו־gate מוריד את ההזיות בשקט). אנגלית: Parakeet. השפה מהטופס (זיהוי השפה של ivrit פגוע)."""
+    import soundfile as sf
+    from vt import karaoke as K
+    audio, sr = sf.read(a.voc, dtype='float32')
+    if audio.ndim > 1:
+        audio = audio.mean(axis=1)
+    t0 = time.time()
+    if a.lang == 'he':
+        from vt import align_he as H
+        if not H.ready():
+            raise SystemExit('✗ המודלים לעברית לא מותקנים בעובד.')
+        words = H.transcribe(H.load_ivrit(), audio, vad=False)
+    else:
+        from vt.asr_parakeet import transcribe
+        words = transcribe(a.voc)['words']
+    heard = K.gate(words, audio, sr)
+    lines = K.draft_lines(heard)
+    if not lines:
+        Path(a.out).write_text('', encoding='utf-8')     # קובץ ריק = הסימן לעובד (ka_nowords), להבדיל מקריסה
+        raise SystemExit('✗ לא נשמעו מילים בשיר.')
+    Path(a.out).write_text('\n'.join(lines) + '\n', encoding='utf-8')
+    print(f'✓ תמלול אוטומטי ({a.lang}): {len(lines)} שורות, {len(heard)} מילים '
+          f'(ירדו {len(words) - len(heard)} בשקט) · {time.time() - t0:.0f} שנ׳', flush=True)
+
+
 def cmd_build(a):
     from vt import config as C
     from vt import karaoke as K
@@ -244,6 +272,8 @@ def main(argv=None):
     s = sp.add_parser('sep'); s.add_argument('--src', required=True); s.add_argument('--out', required=True)
     s.add_argument('--model', default=''); s.add_argument('--kmodel', default=''); s.add_argument('--backing', action='store_true')
     s = sp.add_parser('align'); s.add_argument('--voc', required=True); s.add_argument('--lyrics', required=True); s.add_argument('--out', required=True)
+    s = sp.add_parser('lyrics'); s.add_argument('--voc', required=True); s.add_argument('--lang', default='he', choices=('he', 'en'))
+    s.add_argument('--out', required=True)
     s = sp.add_parser('build'); s.add_argument('--words', required=True); s.add_argument('--out', required=True)
     s.add_argument('--W', type=int, default=1920); s.add_argument('--H', type=int, default=1080)
     s.add_argument('--title', default=''); s.add_argument('--style', default='bold')
@@ -255,7 +285,7 @@ def main(argv=None):
     s = sp.add_parser('mix'); s.add_argument('--video', required=True); s.add_argument('--inst', required=True)
     s.add_argument('--voc', default=''); s.add_argument('--gv', default='0'); s.add_argument('--out', required=True)
     a = p.parse_args(argv)
-    {'sep': cmd_sep, 'align': cmd_align, 'build': cmd_build, 'video': cmd_video, 'burn': cmd_burn, 'mix': cmd_mix}[a.cmd](a)
+    {'sep': cmd_sep, 'lyrics': cmd_lyrics, 'align': cmd_align, 'build': cmd_build, 'video': cmd_video, 'burn': cmd_burn, 'mix': cmd_mix}[a.cmd](a)
 
 
 if __name__ == '__main__':

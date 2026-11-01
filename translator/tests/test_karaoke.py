@@ -156,7 +156,7 @@ class Flow(unittest.TestCase):
         ctx.name = 'jtest1234'
         real_script = J.script
 
-        seps = []
+        seps, lyrs = [], []
 
         def fake_script(c, path, args, stage, lo=0.0, hi=1.0, prog=None):
             if args[0] == 'sep':
@@ -165,6 +165,10 @@ class Flow(unittest.TestCase):
                 for n in ('voc.wav', 'inst.wav'):
                     shutil.copy(Path(args[args.index('--src') + 1]), out / n)
                 (out / 'sep.json').write_text('{"model": "m", "sec": 1}', encoding='utf-8')   # כמו karaoke.py sep
+                return []
+            if args[0] == 'lyrics':                     # 01/11/2026: התמלול האוטומטי — כאן טיוטה קבועה
+                lyrs.append(args[args.index('--lang') + 1])
+                Path(args[args.index('--out') + 1]).write_text('one two three\nfour five six\n', encoding='utf-8')
                 return []
             if args[0] == 'align':
                 lines = K.parse_lyrics(Path(args[args.index('--lyrics') + 1]).read_text(encoding='utf-8'))
@@ -194,6 +198,37 @@ class Flow(unittest.TestCase):
         self.assertEqual(len(seps), 1)
         self.assertEqual([k for k, _, _ in outs], kinds)
         self.assertEqual(len([d for d in J.KA_CACHE.iterdir() if d.is_dir()]), 1)
+        # 01/11/2026: בלי מילים — תמלול אוטומטי (al), טיוטת המילים עולה כתוצר, וההודעה אומרת את זה
+        outs.clear()
+        reports.clear()
+        ctx.st['spec'] = dict(ctx.st['spec'], lyr='', al='he')
+        rc = J.karaoke.__wrapped__(None) if hasattr(J.karaoke, '__wrapped__') else J.karaoke(None)
+        self.assertEqual(rc, 0)
+        self.assertEqual(lyrs, ['he'])
+        self.assertEqual([k for k, _, _ in outs], kinds + ['lyr'])
+        self.assertTrue(outs[-1][1].endswith('(מילים — תמלול אוטומטי).txt'))
+        self.assertEqual(J.ka_spec({'lyr': 'x', 'al': 'he'})['al'], '')
+        self.assertEqual(J.ka_spec({'lyr': '', 'al': 'fr'})['al'], '')
+
+
+class Draft(unittest.TestCase):
+    """01/11/2026: טיוטת מילים מתמלול — שבירת שורות, ניקוי, לולאות של המודל, והורדת "מילים" בשקט."""
+
+    def test_lines(self):
+        ws = [{"w": " שלום", "s": 0, "e": 0.3}, {"w": "עולם.", "s": 0.35, "e": 0.7}, {"w": "מה", "s": 0.75, "e": 0.9},
+              {"w": "נשמע?", "s": 2.0, "e": 2.4}] + [{"w": "לה", "s": 2.5 + i * 0.2, "e": 2.6 + i * 0.2} for i in range(6)]
+        self.assertEqual(K.draft_lines(ws), ["שלום עולם מה", "נשמע לה לה לה"])
+        long = [{"w": f"w{i}", "s": i * 0.3, "e": i * 0.3 + 0.2} for i in range(20)]
+        self.assertTrue(all(len(x.split()) <= K.DRAFT_MAXW for x in K.draft_lines(long)))
+        self.assertEqual(K.draft_lines([{"w": "...", "s": 0, "e": 1}]), [])
+
+    def test_gate(self):
+        import numpy as np
+        sr = 16000
+        a = np.zeros(sr * 4, np.float32)
+        a[: sr * 2] = 0.3 * np.sin(np.arange(sr * 2) * 0.05)       # שירה בשתי השניות הראשונות, אחר כך שקט
+        ws = [{"w": "a", "s": 0.5, "e": 0.9}, {"w": "b", "s": 3.0, "e": 3.4}]
+        self.assertEqual([w["w"] for w in K.gate(ws, a, sr)], ["a"])
 
 
 class Design(unittest.TestCase):

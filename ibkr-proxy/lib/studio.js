@@ -52,7 +52,7 @@ const langReady = (sp) => !!sp && LANG_READY.from.includes(sp.from) && Array.isA
 const LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
 const STYLES = ['bold', 'classic', 'karaoke'];
 const OUTS = ['same', 'compact', 'mkv', 'small'];   // סבב 8: small = עותק לוואטסאפ גם בעבודה עצמה
-const OUT_KINDS = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta', 'thumb', 'inst', 'lrc', 'elrc'];   // 26/10/2026: קריוקי — הליווי, LRC ו־Enhanced LRC   // סבב 6: meta = גל הקול וחילופי השוטים; סבב 7: thumb = תמונה ממוזערת   // מ7: aiout = תשובת גיליון ה־AI   // v358: תוצרים שהעובד מעלה; מ1: קבצי עזר (הנגן והעורך), small = עותק לוואטסאפ
+const OUT_KINDS = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta', 'thumb', 'inst', 'lrc', 'elrc', 'lyr'];   // 26/10/2026: קריוקי — הליווי, LRC ו־Enhanced LRC   // סבב 6: meta = גל הקול וחילופי השוטים; סבב 7: thumb = תמונה ממוזערת   // מ7: aiout = תשובת גיליון ה־AI   // v358: תוצרים שהעובד מעלה; מ1: קבצי עזר (הנגן והעורך), small = עותק לוואטסאפ
 const OUT_MAX = 10;
 const SUBS_MAX = 5 * 1024 * 1024;           // 22/10/2026: קובץ כתוביות קיים (SRT/VTT/ASS) — סרט של שלוש שעות ≈ 300KB
 const SUBS_FPS = ['24000/1001', '24', '25', '30000/1001', '30'];   // = SUBS_FPS ב־job.py (הגריד לתזמון בלי סרטון)
@@ -227,6 +227,7 @@ function normPpr(o, now) {
 /* 26/10/2026: קריוקי משיר רגיל — המילים שהודבקו (טקסט מהמשתמש: בלי תווי בקרה וכיווניות, עד KA_LYR_MAX). = clean_lyrics ב־translator/vt/karaoke.py */
 const KA_LYR_MAX = 8000;
 const KA_OUTS = ['compact', 'same', 'small'];
+const KA_AL = ['he', 'en'];   // 01/11/2026: שפת השיר לתמלול האוטומטי (בלי מילים) — = KA_AL ב־studio.js
 /* 31/10/2026: עיצוב הקריוקי (ת־קריוקי) — אותם מפתחות וברירות מחדל כמו norm_ky ב־translator/vt/karaoke.py
    (tests/studio-karaoke-design.test.js משווה). u לא־שר · c שר · f מילוי (w/d) · z גודל · cd ספירה · tc פתיחה · dm הכהיה ·
    bg רקע בלי וידאו · sg צבע לכל זמר (4) · sb ביחד */
@@ -265,7 +266,9 @@ function normSpec(s) {
   if (s.ph === 1 && !ph) return null;
   // 26/10/2026: קריוקי — רק במצב השרת (בלי Claude: העובד מפריד, מיישר וצורב), לא קובץ כתוביות ולא בטלפון; חייבים מילים
   const ka = s.ka === 1;
-  if (ka && (s.eng !== 'api' || subs || ph || s.cp === 1 || s.ry === 1 || !normLyr(s.lyr).trim())) return null;
+  // 01/11/2026: בלי מילים = תמלול אוטומטי בעובד (al = שפת השיר: he / en — ivrit לא מזהה שפה בעצמו). = KA_AL בטלפון
+  const al = ka && !normLyr(s.lyr).trim() && KA_AL.includes(s.al) ? s.al : '';
+  if (ka && (s.eng !== 'api' || subs || ph || s.cp === 1 || s.ry === 1 || (!normLyr(s.lyr).trim() && !al))) return null;
   return Object.assign({
     name, size,
     type: String(s.type || '').slice(0, 60).replace(/[^\w.+/-]/g, ''),
@@ -279,7 +282,7 @@ function normSpec(s) {
     terms: String(s.terms || '').replace(/\u0000/g, '').slice(0, 1000),
   }, subs ? Object.assign({ src: 'subs', sdh: s.sdh === 'keep' ? 'keep' : 'rm' }, SUBS_FPS.includes(String(s.fps)) ? { fps: String(s.fps) } : {}) : {},
   link ? Object.assign({ src: 'url', url, pick }, ref ? { ref } : {}) : {},
-  ka ? Object.assign({ ka: 1, lyr: normLyr(s.lyr), ky: normKy(s.ky) }, s.bv === 1 ? { bv: 1 } : {}, Number.isFinite(+s.gv) && +s.gv > 0 ? { gv: Math.min(60, Math.round(+s.gv)) } : {}) : {},   // קריוקי: עם קולות רקע, קול מנחה ב־%
+  ka ? Object.assign({ ka: 1, lyr: normLyr(s.lyr), ky: normKy(s.ky) }, al ? { al } : {}, s.bv === 1 ? { bv: 1 } : {}, Number.isFinite(+s.gv) && +s.gv > 0 ? { gv: Math.min(60, Math.round(+s.gv)) } : {}) : {},   // קריוקי: עם קולות רקע, קול מנחה ב־%
   // 25/10/2026 (שלב 2): pw = גם התמלול והיישור בטלפון — עולים רק המילים עם הזמנים (w) והמדידות (m), בלי קול
   // 25/10/2026 (שלב 3): pt = גם שלבי הטקסט בטלפון (vt בפייתון של Studio) — השרת רק מעביר את הקריאות ל־Claude (התור, המפתח של
   // המערכת) ומחשב את העלות. רק עם pw, ורק במפתח של המערכת (לא העתק־הדבק ולא "המנוי שלי")
@@ -1458,7 +1461,7 @@ module.exports = { UP_STALL_MS, upStallStep, normVcp, bxOk, RATE_WHY, RATE_FLAG_
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normFil, FIL_MAX, normSty, normOv, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
-  normRoutine, hintOf, normSpec, normLyr, normKy, KY_DEF, KA_LYR_MAX, KA_OUTS, normFile, normOut, OUT_KINDS, OUT_MAX, normHl, normHla, HL_MAX, pickerCfg, extVideoOk, normUsage, normAsk, normAnswer, ASK_MAX,
+  normRoutine, hintOf, normSpec, normLyr, normKy, KY_DEF, KA_LYR_MAX, KA_OUTS, KA_AL, normFile, normOut, OUT_KINDS, OUT_MAX, normHl, normHla, HL_MAX, pickerCfg, extVideoOk, normUsage, normAsk, normAnswer, ASK_MAX,
   RULE_BUDGET_MAX, normRules, modeOver, usdOf, GATE_KINDS, GATE_MAX, GATE_WAIT, newGateId, normGate,
   NORM_MIN, NORM_DEF, NORM_FIXED, NORM_DEF_API, NORM_FIXED_API, normDef, normFixed, engKey, normSample, addSample, learnedNorm, normsView,
   FB_MAX, FIX_MAX, normFixText, fbList, fbNumber, cheaperModes, COST_STOP, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide, fbRemove,

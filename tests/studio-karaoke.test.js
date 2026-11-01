@@ -18,7 +18,17 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const sp = S.normSpec(Object.assign({}, base, { bv: 1, gv: 99 }));
   ok(sp && sp.ka === 1 && sp.lyr === 'hello world\nagain' && sp.bv === 1 && sp.gv === 60, 'normSpec: קריוקי — המילים מנוקות, קולות רקע, קול מנחה עד 60%');
   ok(JSON.stringify(sp.out) === '["compact","small"]', 'תוצרים: רק סרטונים של קריוקי (בלי MKV)');
-  ok(S.normSpec(Object.assign({}, base, { lyr: '  \n ' })) === null, 'בלי מילים — לא נוצרת עבודה');
+  ok(S.normSpec(Object.assign({}, base, { lyr: '  \n ' })) === null, 'בלי מילים ובלי שפה לתמלול — לא נוצרת עבודה');
+  /* 01/11/2026: בלי מילים = תמלול אוטומטי בעובד — רק עם שפה מוכרת; עם מילים השפה לא נשמרת */
+  const au = S.normSpec(Object.assign({}, base, { lyr: '', al: 'he' }));
+  ok(au && au.ka === 1 && au.al === 'he' && au.lyr === '', 'בלי מילים + al=he — עבודה עם תמלול אוטומטי');
+  ok(S.normSpec(Object.assign({}, base, { lyr: '', al: 'fr' })) === null, 'שפה לא מוכרת — לא נוצרת עבודה');
+  ok(!('al' in S.normSpec(Object.assign({}, base, { al: 'en' }))), 'יש מילים — בלי al');
+  ok(JSON.stringify(S.KA_AL) === JSON.stringify((await import(path.join(root, 'studio.js'))).KA_AL), 'KA_AL זהה בשרתון ובטלפון');
+  ok(S.OUT_KINDS.includes('lyr') && INC.ERR_INFO.ka_nowords, 'טיוטת המילים (lyr) מותרת כתוצר; ka_nowords ב־ERR_INFO');
+  const stj = read('studio.js');
+  ok(/kaLyr\(f\.lyr\)\.trim\(\) \? \{\} : \{ al: kaAlOf\(f\) \}/.test(stj) && !/!kaLyr\(f\.lyr\)\.trim\(\) \|\| ui\.starting/.test(stj), 'הטופס: בלי מילים — הכפתור פעיל וה־spec נושא את השפה');
+  ok(/case 'ka_nowords': return T\('studioKaNoWords'\)/.test(stj) && /case 'lyr': return T\('studioOutLyr'\)/.test(stj), 'הטלפון: קוד השגיאה והתוצר החדשים');
   ok(S.normSpec(Object.assign({}, base, { eng: undefined })) === null, 'רק בשרת שלנו (eng api)');
   ok(S.normSpec(Object.assign({}, base, { cp: 1 })) === null && S.normSpec(Object.assign({}, base, { ry: 1 })) === null, 'לא בהעתק־הדבק ולא ב"מנוי שלי"');
   ok(S.normSpec(Object.assign({}, base, { ph: 1 })) === null, 'לא בתרגום בטלפון');
