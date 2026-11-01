@@ -66,8 +66,6 @@
     <string name="phTextDone">התרגום מוכן</string>
     <string name="phTextDoneS">הכל נעשה בטלפון. נגיעה כאן — לצרוב או לצפות</string>
     <string name="phSent">התרגום רץ בשרת</string>
-    <string name="phSentNu">הסרטון ממשיך לעלות ברקע — גם כשהאפליקציה סגורה</string>
-    <string name="phCopySNu">עותק באחסון של Studio — נמחק כשהסרטון עולה</string>
     <string name="phSentS">הסרטון נשאר בטלפון. כשהתרגום יהיה מוכן — נגיעה ב\"לצרוב בטלפון\" בדף העבודה</string>
     <string name="phFailed">התרגום בטלפון נעצר</string>
     <string name="phGoT">ממשיך ברקע</string>
@@ -80,4 +78,9 @@
     <string name="phSaving">שומר בתיקייה Movies/Studio…</string>
     <string name="phBurned">הסרטון המתורגם מוכן</string>
     <string name="phBurnFailed">הצריבה בטלפון נכשלה</string>
+    <!-- 1/11/2026: תרגום רגיל בשרת — האפליקציה רק מעלה (spec.pu) -->
+    <string name="phUpVB">%1$s מתוך %2$s · %3$s לשנייה</string>
+    <string name="phPuSent">הקול עלה — התרגום רץ בשרת</string>
+    <string name="phPuSentS">הסרטון ממשיך לעלות ברקע, גם כשהמסך כבוי. הצריבה בשרת, כמו תמיד</string>
+    <string name="phPuProbe">קורא את הסרטון…</string>
 </resources>

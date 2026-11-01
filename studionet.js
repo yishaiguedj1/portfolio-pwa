@@ -871,7 +871,7 @@ export function createNet(env) {
     const parent = o.meta && Array.isArray(o.meta.parents) ? o.meta.parents[0] : '';
     if (isR2Folder(parent)) {   // ת4: עבודה במצב שרת — ל־R2 (st = מצב ההעלאה השמור, להמשך אחרי רענון)
       return r2Upload({ api, job: r2JobOf(parent), name: (o.meta && o.meta.name) || '', blob: o.blob, size: o.size, mime: o.mime,
-        signal: o.signal, gate: o.gate, onProgress: o.onProgress, onWait: o.onWait, onState: o.onR2, st: o.r2 },
+        signal: o.signal, gate: o.gate, onProgress: o.onProgress, onWait: o.onWait, onState: o.onR2, st: o.r2, onProto: o.onProto },
       { put: E.put, sleep: E.sleep, now: E.now, online: E.online });
     }
     const size = o.size, mime = o.mime || 'application/octet-stream';
