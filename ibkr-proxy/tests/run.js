@@ -3556,6 +3556,51 @@ function stubFetch(text, status = 200) {
         'park: רק בשרת שלנו (ב־Routine אין תור)');
     }
     {
+      // 01/11/2026 (סבב 3, I3): "חצי מחיר" — העבודה חונה כשהבקשות שלה בתור החיסכון (bw), השרת פנוי, ונלקחת שוב רק
+      // כשהסוכן מדווח שהתשובות חזרו (poll ‏br). "להמשיך עכשיו" (btNow) — יוצאת מהתור
+      const S4 = require('../lib/studio');
+      const sb = S4.normSpec(Object.assign({}, SPECA, { bt: 1, wl: 'ab12cd34ef' }));
+      ok(sb.bt === 1 && sb.wl === 'ab12cd34ef', 'חצי מחיר: bt ורשימת העבודה נשמרים במפרט');
+      ok(!S4.normSpec(Object.assign({}, SPECA, { bt: 1, ry: 1 })).bt && !S4.normSpec(Object.assign({}, SPECA, { bt: 1, cp: 1 })).bt && !S4.normSpec(Object.assign({}, SPECA, { wl: 'A!' })).wl,
+        'חצי מחיר: לא ב־Routine ולא בהעתק־הדבק; מזהה רשימה לא תקין — נזרק');
+      rr = await run({ op: 'create', idToken: OWNER, spec: Object.assign({}, SPECA, { bt: 1, wl: 'ab12cd34ef' }) });
+      const JB = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: JB, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'file', idToken: OWNER, job: JB, which: 'v', id: 'vid1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JB });
+      rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+      const KB = rr.payload.job && rr.payload.job.key;
+      ok(rr.payload.job && rr.payload.job.id === JB, 'חצי מחיר: נלקחת כמו כל עבודה');
+      await wrk({ op: 'claim', job: JB, key: KB });
+      rr = await wrk({ op: 'report', job: JB, key: KB, park: true, bw: true, msg: 'x' });
+      const fb = db.get('studioJobs/' + JB).fields;
+      ok(rr.payload.ok && fb.state.stringValue === 'queued' && !fb.sid.stringValue && Number(fb.bw.integerValue) > 0, 'חצי מחיר: חונה — חוזרת לתור, המפתח מת, השרת פנוי');
+      rr = await run({ op: 'job', idToken: OWNER, job: JB });
+      ok(rr.payload.job.bw === 1 && rr.payload.job.vw === 0 && !rr.payload.job.stale && rr.payload.job.spec.wl === 'ab12cd34ef', 'חצי מחיר: הטלפון רואה "מחכה לתור החיסכון"');
+      rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+      ok(rr.payload.job === null, 'חצי מחיר: לא נלקחת כל עוד התשובות לא חזרו');
+      rr = await srvRun({ op: 'poll', hb: {}, br: [JB] }, STOK);
+      const KB2 = rr.payload.job && rr.payload.job.key;
+      ok(rr.payload.job && rr.payload.job.id === JB && !Number(db.get('studioJobs/' + JB).fields.bw.integerValue), 'חצי מחיר: הסוכן דיווח שהתשובות חזרו → נלקחת שוב (bw מתאפס)');
+      await wrk({ op: 'claim', job: JB, key: KB2 });
+      rr = await run({ op: 'btNow', idToken: OWNER, job: JB });
+      ok(rr.payload.ok && !rr.payload.job.spec.bt, 'חצי מחיר: "להמשיך עכשיו" — יוצאת מתור החיסכון');
+      rr = await wrk({ op: 'report', job: JB, key: KB2, park: true, bw: true });
+      ok(rr.payload.ok && !Number(db.get('studioJobs/' + JB).fields.bw.integerValue), 'חצי מחיר: אחרי "עכשיו" חנייה אחרונה חוזרת מיד לתור הרגיל (בלי לחכות)');
+      rr = await run({ op: 'btNow', idToken: OWNER, job: JB });
+      ok(rr.statusCode === 409, 'חצי מחיר: "עכשיו" רק לעבודה שבתור החיסכון');
+      rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+      const KB3 = rr.payload.job && rr.payload.job.key;
+      ok(rr.payload.job && rr.payload.job.id === JB, 'חצי מחיר: אחרי "עכשיו" נלקחת מיד, בלי br');
+      await wrk({ op: 'claim', job: JB, key: KB3 });
+      await wrk({ op: 'report', job: JB, key: KB3, done: true });
+      const T1 = 1.8e12, bj = { kind: 'tr', state: 'queued', eng: 'api', spec: { eng: 'api', bt: 1 }, bw: T1, fired: T1 - 1e3, claimed: T1 - 5e3, updated: T1 };
+      ok(S4.effState(bj, T1 + 20 * 3600e3).state === 'queued' && S4.effState(bj, T1 + 37 * 3600e3).err === 'no_server' && !S4.isStale(bj, T1 + 5 * 3600e3),
+        'חצי מחיר: עד 36 שעות בתור — לא "אין שרת" ולא "נתקעה"');
+      rr = await run({ op: 'remove', idToken: OWNER, job: JB });
+      studio._hitsClear();   // הבלוק הזה פונה הרבה — שלא יגזול מהבלוק הבא את מכסת הדקה
+    }
+    {
       // 20/10/2026: הסוכן עלה מחדש באמצע עבודה (הקונטיינר הופעל מחדש, /state נמחק) — הפנייה הראשונה (boot) מסמנת אותה
       // worker_lost (תקלה חולפת → המשך אוטומטי מנקודת השמירה), במקום "רצה" שעתיים בלי שאף אחד עובד עליה
       rr = await run({ op: 'create', idToken: OWNER, spec: SPECA });

@@ -252,6 +252,7 @@ function normLyr(t) {
   return String(t == null ? '' : t).replace(/[\u0000-\u0008\u000b-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
     .replace(/\r\n?/g, '\n').slice(0, KA_LYR_MAX);
 }
+const WL_RE = /^[a-z0-9]{8,16}$/;   // 01/11/2026: מזהה רשימת עבודה (= WL_RE בטלפון)
 function normSpec(s) {
   if (!s || typeof s !== 'object') return null;
   const name = clean(s.name, 200), size = Math.floor(Number(s.size) || 0);
@@ -303,6 +304,10 @@ function normSpec(s) {
   !subs && !link && !ph && !nu && edlPre(normEdl(s.edl)) ? { edl: edlPre(normEdl(s.edl)) } : {},   // מ4: חיתוך לפני התרגום (dur = האורך אחרי החיתוך)
   // 21/10/2026: פיקסלים לשנייה ביחס ל־1080p30 (מהמידות שהטלפון קרא; העובד מתקן אחרי הקליטה) — לצפי של הצריבה
   Number.isFinite(+s.px) && +s.px >= 0.02 && +s.px <= 16 ? { px: Math.round(+s.px * 1000) / 1000 } : {},
+  // 01/11/2026 (סבב 3, I3): bt = "חצי מחיר · מוכן תוך כמה שעות" (Message Batches) — רק במפתח של המערכת, לא Routine/העתק־הדבק,
+  // לא קריוקי (בלי Claude) ולא תרגום בטלפון. wl = רשימת עבודה (כמה קבצים שהתחילו יחד) — לקבוצה בבית. = BT_OK / WL_RE בטלפון
+  s.bt === 1 && s.eng === 'api' && s.cp !== 1 && s.ry !== 1 && !ka && !ph ? { bt: 1 } : {},
+  typeof s.wl === 'string' && WL_RE.test(s.wl) ? { wl: s.wl } : {},
   s.eng === 'api' ? Object.assign({ eng: 'api', cap: normCap(s.cap) }, s.cp === 1 ? { cp: 1 } : s.ry === 1 ? { ry: 1 } : {}) : {});   // 24/10/2026: ry = השרת עושה הכל, Claude דרך ה־Routine של המשתמש (lib/relay.js)   // מצב API של המערכת — עם תקרת עבודה ($); סבב 10: cp = העתק־הדבק (Claude של המשתמש)
 }
 /* קובץ שעלה ל־Drive (מה ש־Drive עצמו החזיר — api/studio.js מאמת מולו) */
@@ -413,7 +418,7 @@ function addCk(list, ck, now) {
 }
 const lastCk = (list) => (Array.isArray(list) && list.length ? list[list.length - 1] : null);
 /* העבודה "רצה" אבל לא דיווחה שעתיים — הסשן נפל (מיכל שנסגר, תקלה בצד של Claude) */
-const isStale = (job, now) => !!job && (job.state === 'running' || job.state === 'queued' && job.claimed && !job.vw) && now - (job.updated || 0) > STALE_MS;   // vw: מחכה לסרטון בתור — לא תקועה
+const isStale = (job, now) => !!job && (job.state === 'running' || job.state === 'queued' && job.claimed && !job.vw && !job.bw) && now - (job.updated || 0) > STALE_MS;   // vw: מחכה לסרטון בתור — לא תקועה
 /* אפשר להמשיך? עבודת תרגום עם קבצים, שנכשלה / בוטלה / נתקעה, ולא הופעלה יותר מדי פעמים */
 function canResume(job, now) {
   if (!job || job.kind !== 'tr' || !(job.fa || job.fv)) return 'state';
@@ -769,6 +774,10 @@ function fireSession(j) {
 const recentFires = (fh, now) => (Array.isArray(fh) ? fh : []).filter((t) => now - t < 3600e3).slice(-50);
 
 /* 15/10/2026: עבודה בשרת שלנו שמחכה לסרטון חוזרת לתור (park) — רק תרגום במצב API, רצה, ורק כשהסרטון באמת חסר */
+/* 01/11/2026 (I3): עבודה של "חצי מחיר" שהבקשות שלה בתור החיסכון — חונה (bw) עד שהסוכן מדווח שהתשובות חזרו (poll ‏br) */
+// בלי bt (עברה ל"עכשיו" באמצע — btNow): חונה ומיד חוזרת לתור הרגיל (bw = 0), והחידוש בזמן אמת
+const bwParkable = (job) => !!(job && job.kind === 'tr' && job.state === 'running' && job.spec && job.spec.eng === 'api');
+const BW_MAX = 36 * 3600e3;                 // התור עצמו עד 24 שעות (ואז העובד ממשיך בזמן אמת) — מעבר לזה הסוכן לא חזר
 const parkable = (job) => !!(job && job.kind === 'tr' && job.state === 'running' && job.spec && job.spec.eng === 'api' && !(job.fv && job.fv.id));
 /* ---------- מצב העבודה ---------- */
 /* הופעל ולא נלקח בזמן סביר → נכשל (נבדק בכל קריאה; נשמר בכתיבה הבאה) */
@@ -777,6 +786,7 @@ function effState(job, now) {
   if (job && job.state === 'queued' && job.eng === 'api') {
     // מצב API: העבודה בתור עד ששרת פנוי לוקח אותה. שרת לקח ולא התחיל בזמן / אף שרת לא לקח — נכשלה
     // 15/10/2026: חזרה לתור עד שהסרטון יגיע (vw = מתי) — לא "אין שרת"; 12 שעות בלי סרטון = כמו בעובד
+    if (job.bw && !job.pk) return now - job.bw > BW_MAX ? { state: 'failed', err: 'no_server', at: job.bw + BW_MAX } : { state: 'queued', err: '' };
     if (job.vw && !job.pk) return now - job.vw > PARK_MAX ? { state: 'failed', err: 'upload_timeout', at: job.vw + PARK_MAX } : { state: 'queued', err: '' };
     if (job.pk && now - job.pk > CLAIM_WAIT.tr) return { state: 'failed', err: 'no_claim', at: job.pk + CLAIM_WAIT.tr };
     if (!job.pk && job.fired && now - job.fired > API_QUEUE_WAIT) return { state: 'failed', err: 'no_server', at: job.fired + API_QUEUE_WAIT };
@@ -827,6 +837,7 @@ function publicJob(job, now) {
     urt: normRate(job.urt),                         // 25/10/2026: המשוב שלך (👍/👎, סיבות, כתוביות שסימנת)
     sw: job.state === 'new' && typeof job.sw === 'string' ? job.sw.slice(0, 40) : '',   // 25/10/2026: למה העבודה לא התחילה (קוד הסירוב האחרון)
     vw: job.vw && !job.pk ? 1 : 0,                   // 15/10/2026: מחכה לסרטון בתור — השרת פנוי בינתיים
+    bw: job.bw && !job.pk ? 1 : 0,                   // 01/11/2026 (I3): מחכה לתשובה מתור החיסכון — השרת פנוי בינתיים
     fr: job.fr && typeof job.fr.s === 'number' ? { s: job.fr.s, ms: Math.max(0, Math.round(job.fr.ms || 0)) } : null,   // v369: תוצאת ההפעלה האחרונה
     tr: normTrace(job.tr),                          // v373: עקיבה — פעולות לכל סוכן והקבוצות הנפוצות
     q: normQuality(job.q), ij: normInj(job.ij),     // v374: מדד האיכות ושומר ההזרקות
@@ -1510,5 +1521,5 @@ module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, 
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, EARLY_FAIL_MS, EARLY_WAIT, recoverWait, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, resumeProg, stgSpent, excludeWait, toFields, fromFields, normFit, peakNeed,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, BAD_AUTH_GAP, badAuthDue, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
-  serverMatches, normHb, normEv, SRV_EV, parkable, PARK_MAX, serverView, monthKey, monthUsed, addMonth, jobCap,
+  serverMatches, normHb, normEv, SRV_EV, parkable, bwParkable, BW_MAX, WL_RE, PARK_MAX, serverView, monthKey, monthUsed, addMonth, jobCap,
 };

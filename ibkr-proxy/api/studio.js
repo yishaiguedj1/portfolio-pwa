@@ -1831,9 +1831,11 @@ async function server(req, res, body, deps) {
     // 21/10/2026: השרת כבר מריץ עבודה ושואל אם יש עוד — רק עבודה שהשיא הצפוי שלה נכנס בזיכרון שנשאר לו (fit).
     // לפי הסדר: אם הוותיקה לא נכנסת, לא מקדימים לה עבודה קטנה (אחרת עבודה ארוכה מחכה לנצח מאחורי קצרות)
     const fit = S.normFit(body.fit);
+    const br = Array.isArray(body.br) ? body.br.filter((x) => typeof x === 'string' && x.length <= 64).slice(0, 20) : [];
     for (const job of qd) {
       if (!apiJob(job) || S.effState(job, now).state !== 'queued') continue;
       if (ptJob(job)) continue;   // 25/10/2026: הטלפון לוקח אותה בעצמו (phClaim)
+      if (job.bw && !br.includes(job.id)) continue;   // 01/11/2026 (I3): מחכה לתור החיסכון — רק כשהסוכן אמר שהתשובות חזרו
       if (job.vw && !((job.spec && job.spec.ph === 1 ? job.fph : job.fv) || {}).id) continue;   // 15/10/2026: מחכה לסרטון — לא תופסים שרת עד שהוא נרשם (24/10: בתרגום בטלפון — לקובץ המדידות)
       if (fit && S.peakNeed(job, fit) > fit.mb) break;
       await capWarm(deps, now);
@@ -1847,7 +1849,7 @@ async function server(req, res, body, deps) {
       const key = S.newKey();
       // 21/10/2026: לצפי — הליבות של השרת וכמה עבודות כבר רצות עליו (חולקות את המעבד)
       const fx = Object.assign(hb.cpu > 0 ? { hc: Math.round(hb.cpu) } : {}, { cc: Math.max(0, Math.round(hb.nj || 0)) });
-      const got = await patchIf(deps, 'studioJobs', job.id, Object.assign({ sid: p.sid, pk: now, vw: 0, capc: Math.round(cap * 100), kh: S.keyHash(key), kx: now + S.KEY_TTL, updated: now }, fx), job._ut);
+      const got = await patchIf(deps, 'studioJobs', job.id, Object.assign({ sid: p.sid, pk: now, vw: 0, bw: 0, capc: Math.round(cap * 100), kh: S.keyHash(key), kx: now + S.KEY_TTL, updated: now }, fx), job._ut);
       if (!got) continue;
       await patchDoc(deps, 'studioServers', p.sid, Object.assign(seen, { job: job.id }));
       const dur = job.spec && job.spec.dur > 0 ? Math.round(job.spec.dur) : 0;
@@ -2660,7 +2662,13 @@ async function worker(req, res, body, deps) {
       }
     }
     let parked = false;
-    if (body.park === true) {
+    if (body.park === true && body.bw === true) {
+      // 01/11/2026 (I3): הבקשות של העבודה בתור החיסכון — חוזרת לתור עד שהסוכן מדווח שהתשובות חזרו (poll ‏br), והשרת פנוי
+      if (!S.bwParkable(job)) return res.status(409).json({ ok: false, error: 'park_bad' });
+      Object.assign(up, { state: 'queued', sid: '', pk: 0, kh: '', kx: 0, bw: job.spec.bt === 1 ? now : 0 });
+      delete up.ended; delete up.err;
+      parked = true;
+    } else if (body.park === true) {
       // 15/10/2026: הסרטון לא הגיע — העבודה חוזרת לתור עד שיגיע, והשרת פנוי. המפתח מת (kh), מה ששולם עובר ל־use0
       if (!S.parkable(job)) return res.status(409).json({ ok: false, error: 'park_bad' });
       Object.assign(up, { state: 'queued', sid: '', pk: 0, kh: '', kx: 0, vw: now, wv0: job.wv0 || now });
@@ -3695,7 +3703,12 @@ async function handler(req, res, deps = {}) {
       if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length + src.length > S.maxActive(isAdmin(user))) return res.status(409).json({ ok: false, error: 'too_many' });   // הסקירה: לא לעקוף את MAX_ACTIVE
       for (const old of all.filter((j) => S.FINAL.includes(S.effState(j, now).state) && !j.gd).slice(S.MAX_STORED - src.length)) await delDoc(deps, 'studioJobs', old.id);
       const made = [];
-      for (const [j, m, x] of src) { const c = S.goldClone(j, S.newJobId(), uid, now, m, x); await patchJob(deps, c.id, c); made.push(view(c)); }
+      for (const [j, m, x] of src) {
+        const c = S.goldClone(j, S.newJobId(), uid, now, m, x);
+        // 01/11/2026 (I3): הרצה בחצי מחיר (bt) — מדידת הזמן והכשלים של תור החיסכון על סט הזהב, לפני שזה עולה לכולם
+        if (body.bt === 1 && c.spec.eng === 'api' && !c.spec.ka) c.spec.bt = 1; else delete c.spec.bt;
+        await patchJob(deps, c.id, c); made.push(view(c));
+      }
       return res.status(200).json({ ok: true, jobs: made });
     }
     let job = await mine(body.job);
@@ -3720,6 +3733,17 @@ async function handler(req, res, deps = {}) {
       const gd = { r: ref, n: f.size, at: now };
       await patchJob(deps, job.id, { gd, gq: null, updated: now });
       job.gd = gd; job.gq = null;
+      return res.status(200).json({ ok: true, job: view(job) });
+    }
+    if (op === 'btNow') {
+      // 01/11/2026 (I3): "להמשיך עכשיו במחיר רגיל" — העבודה יוצאת מתור החיסכון: מה שכבר חזר נשמר ונקרא, השאר בזמן אמת.
+      // חונה (bw) — חוזרת לתור הרגיל מיד; רצה — החידוש הבא (או הסבב הבא) כבר בלי התור
+      if (job.kind !== 'tr' || !job.spec || job.spec.bt !== 1 || S.FINAL.includes(st)) return res.status(409).json({ ok: false, error: 'state' });
+      const spec = Object.assign({}, job.spec);
+      delete spec.bt;
+      const upd = Object.assign({ spec, updated: now }, job.bw && !job.pk ? { bw: 0 } : {});
+      await patchJob(deps, job.id, upd);
+      Object.assign(job, upd);
       return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'goldScore') {
@@ -4014,6 +4038,7 @@ module.exports = (req, res) => handler(req, res);
 module.exports._handler = handler;
 module.exports._reset = () => { hits.clear(); jobMem = { users: new Map(), sync: 0, dirty: false }; cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; srcSoon = new Map(); _upd = { at: 0, sha: '', t: 0 }; updWaitAt = 0; srvAuthMem.clear(); orphanAt.clear(); monCfgC = { at: 0, v: null };
   incSeen.clear(); learnMem = null; provC = { at: 0, v: null }; aoCache.clear(); };   // 26/10/2026: המטמונים של מכסת Firestore
+module.exports._hitsClear = () => hits.clear();   // לבדיקות בלבד: מאפס רק את מגביל הקצב
 module.exports._updatePending = updatePending;
 module.exports._updWaiting = (job, now, at) => { if (at != null) updWaitAt = at; return updWaiting(job, now); };
 module.exports._jobMem = { listJobs, patchJob, delDoc, JM_TTL_MS, JM_FULL_MS };

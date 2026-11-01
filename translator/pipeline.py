@@ -2328,6 +2328,28 @@ def run_subs(J, eng, ns) -> int:
     return J.finish(SimpleNamespace(force=False))
 
 
+def eng_batch(eng) -> bool:
+    return getattr(eng, 'batch', None) is not None
+
+
+def bt_on(eng, st: dict) -> None:
+    """01/11/2026 (I3): spec.bt = "חצי מחיר" — הקריאות של main/tl/rv דרך תור החיסכון (llm.BatchWait). רק במפתח של
+    המערכת (לא Routine, לא העתק־הדבק); אחרי BATCH_ROUNDS_MAX סבבים — ממשיכים בזמן אמת (רשת ביטחון)."""
+    sp = st.get('spec') or {}
+    if sp.get('eng') != 'api' or sp.get('ry') == 1 or sp.get('cp') == 1 or not st.get('job'):
+        return
+    jdir = llm.batch_dir() / str(st['job'])
+    (jdir / 'parked').unlink(missing_ok=True)   # התחלנו לרוץ — כבר לא חונה
+    if sp.get('bt') != 1:
+        if (jdir / 'ans').is_dir():             # עברה ל"עכשיו" (btNow): מה ששולם בתור נקרא משם, השאר בזמן אמת
+            eng.batch, eng.batch_ro = jdir, True
+        return
+    if llm.batch_rounds(jdir) >= llm.BATCH_ROUNDS_MAX:
+        print(f'· {llm.BATCH_ROUNDS_MAX} סבבים בתור החיסכון — ממשיכים בזמן אמת')
+        return
+    eng.batch = jdir
+
+
 def run_auto(jobmod, args) -> int:
     """הכל, מקצה לקצה. נקרא מ־job.py auto (אחרי run)."""
     J = jobmod
@@ -2343,6 +2365,7 @@ def run_auto(jobmod, args) -> int:
         eng = llm.Engine(llm.Spec.of(mode), cap_usd=float(cap) if cap else DEFAULT_CAP_USD)
         eng.role_effort = llm.norm_xe((st.get('spec') or {}).get('xe'))   # 24/10/2026: ניסוי המאמץ (סט הזהב)
         rv_ab(eng, st)                                                       # 28/10/2026: ניסוי "ביקורת ב־medium"
+        bt_on(eng, st)                                                       # 01/11/2026 (I3): חצי מחיר — תור החיסכון
     if hasattr(J, 'LIVE_USAGE'):
         J.LIVE_USAGE = eng.ledger.list             # 21/10/2026: העלות בזמן ריצה, וגם בכשל של שלב הכלים (usage_safe)
     ns = SimpleNamespace(force=False)
@@ -2457,6 +2480,8 @@ def run_auto(jobmod, args) -> int:
             J.attach_late(J.Ctx(J.load_state()))
             ctx = J.Ctx(J.load_state())
             pl = Pipeline(ctx, J, eng)
+            if eng_batch(eng):
+                J.save_ck(ctx, 'tl')         # 01/11/2026: בתור החיסכון כל סבב ביקורת = חידוש — לא לצרף את הסרטון שוב בכל אחד
         if hasattr(J, 'learn_media_early'):
             J.learn_media_early(J.Ctx(J.load_state()))   # העותק למאגר הלמידה בזמן הביקורת (המעבד כמעט פנוי)
         if after < 4 and hasattr(J, 'ladder_go'):
@@ -2484,6 +2509,13 @@ def run_auto(jobmod, args) -> int:
         ctx.report(fail=True, err=e.code, msg=str(e)[:200], force=True, usage=eng.ledger.list() or None, lx=lx)
         print('✗ ' + str(e))
         return 1
+    except llm.BatchWait:
+        # 01/11/2026 (I3): הבקשה בתור החיסכון — העבודה חונה (השרת פנוי), וממשיכה מנקודת השמירה כשהתשובות יחזרו
+        n = llm.batch_park(eng.batch)
+        ctx = J.Ctx(J.load_state())
+        ctx.report(park=True, bw=True, msg='מחכה לתשובה מתור החיסכון', force=True, usage=eng.ledger.list() or None)
+        print(f'⏸ סבב {n} בתור החיסכון — העבודה חונה ותמשיך כשהתשובות יחזרו. השרת פנוי בינתיים.')
+        return 3
     except getattr(J, 'Park', ()) or ():
         # 15/10/2026: השרת לא מחכה לסרטון — העבודה חוזרת לתור ("מחכה לסרטון") עם מה ששולם עד עכשיו
         ctx = J.Ctx(J.load_state())

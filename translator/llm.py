@@ -199,6 +199,99 @@ class Ledger:
         return list(self.rows.values())
 
 
+# 01/11/2026 (סבב 3, I3): "חצי מחיר · מוכן תוך כמה שעות" — Message Batches (50% על כל הטוקנים). קריאה של main/tl/rv לא
+# מחכה לתשובה: הבקשה נרשמת בתיקיית העבודה (BATCH_DIR/<עבודה>/req/<h>.json), העבודה חונה (BatchWait → exit 3, השרת פנוי),
+# האוסף ב־agent.py (bt_loop) שולח יחד את הבקשות של כל העבודות, וכשהתשובות חוזרות (ans/<h>.json) העבודה ממשיכה מנקודת
+# השמירה. h = טביעת הבקשה (בלי diagnostics — משתנה בין קריאות), ולכן החידוש בונה אותה בקשה בדיוק וקורא את התשובה.
+# תשובה שפגה / נכשלה (x) → אותה קריאה בזמן אמת, במחיר רגיל. כל תשובה נספרת בעלות פעם אחת (used/<h>).
+BATCH_KEYS = ('main', 'tl', 'rv')      # השופט, שבירת השורות והדוח — Haiku זול, בזמן אמת (לא שווה סבב של תור)
+BATCH_DISCOUNT = 0.5
+BATCH_ROUNDS_MAX = int(os.environ.get('SNB_BATCH_ROUNDS', '14'))   # יותר סבבים מזה — ממשיכים בזמן אמת (רשת ביטחון)
+BATCH_ID_RE = re.compile(r'^[A-Za-z0-9_-]{1,64}$')
+
+
+class BatchWait(BaseException):
+    """הבקשה נרשמה לתור החיסכון — העבודה חונה עד שהתשובה תחזור. BaseException: לא נבלעת ב־except Exception
+    (שופט, תיקונים), ועוברת דרך ThreadPool — כל החלקים המקבילים נרשמים לפני שהעבודה יוצאת."""
+
+
+def batch_dir() -> Path:
+    return Path(os.environ.get('SNB_BATCH_DIR') or str(Path.home() / 'vt-work' / '_batch'))
+
+
+def batch_params(kw: dict) -> dict:
+    """הפרמטרים של בקשה אחת בתור: בלי extra_body (diagnostics) ובלי זרם. JSON בלבד."""
+    return {k: v for k, v in kw.items() if k != 'extra_body'}
+
+
+def batch_key(params: dict) -> str:
+    return hashlib.sha1(json.dumps(params, sort_keys=True, ensure_ascii=False).encode('utf-8')).hexdigest()[:40]
+
+
+def _write_json(path: Path, obj) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + '.part')
+    tmp.write_text(json.dumps(obj, ensure_ascii=False), encoding='utf-8')
+    tmp.replace(path)
+
+
+def batch_get(jdir: Path, h: str) -> dict | None:
+    try:
+        return json.loads((jdir / 'ans' / (h + '.json')).read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return None
+
+
+def batch_put(jdir: Path, h: str, params: dict) -> None:
+    f = jdir / 'req' / (h + '.json')
+    if not f.exists():
+        _write_json(f, {'p': params, 't': time.time()})
+
+
+def batch_rounds(jdir: Path) -> int:
+    try:
+        return int((jdir / 'rounds').read_text().strip() or 0)
+    except (OSError, ValueError):
+        return 0
+
+
+def batch_park(jdir: Path) -> int:
+    """העבודה חונה: מונה הסבבים + סימן "מחכה" (האוסף מדווח לשרתון כשכל הבקשות שלה נענו)."""
+    n = batch_rounds(jdir) + 1
+    jdir.mkdir(parents=True, exist_ok=True)
+    (jdir / 'rounds').write_text(str(n))
+    (jdir / 'parked').write_text(str(int(time.time())))
+    return n
+
+
+def batch_ready(jdir: Path) -> bool:
+    """חונה, ואין בקשה שעוד לא נענתה."""
+    return (jdir / 'parked').exists() and not any((jdir / 'req').glob('*.json'))
+
+
+def msg_result(msg, model: str, discount: float = 1.0) -> 'Result':
+    """Result מהודעה של ה־SDK (אובייקט) או מ־dict (תשובה מהתור, model_dump). discount = 0.5 בתור."""
+    g = (lambda o, k, d=None: o.get(k, d) if isinstance(o, dict) else getattr(o, k, d))
+    content = g(msg, 'content') or []
+    text = ''.join(g(b, 'text', '') or '' for b in content if g(b, 'type', '') == 'text')
+    think = sum(len(g(b, 'thinking', '') or '') for b in content if g(b, 'type', '') == 'thinking')
+    u = g(msg, 'usage') or {}
+    otd = g(u, 'output_tokens_details')
+    tt = g(otd, 'thinking_tokens') if otd is not None else None
+    if isinstance(tt, int) and tt >= 0:
+        think = tt
+    cc = g(u, 'cache_creation')
+    c1 = int(g(cc, 'ephemeral_1h_input_tokens', 0) or 0) if cc else 0
+    c5 = int(g(u, 'cache_creation_input_tokens', 0) or 0) - c1
+    usage = {'i': int(g(u, 'input_tokens', 0) or 0), 'o': int(g(u, 'output_tokens', 0) or 0),
+             'cr': int(g(u, 'cache_read_input_tokens', 0) or 0), 'c5': max(c5, 0), 'c1': c1}
+    usd = cost_anthropic(model, usage['i'], usage['o'], usage['cr'], usage['c5'], usage['c1'])
+    if usd is not None and discount != 1.0:
+        usd = round(usd * discount, 6)
+    return Result(text, usage, usd, g(msg, 'stop_reason'), think_chars=think, diag=g(msg, 'diagnostics'),
+                  rid=g(msg, '_request_id'), mid=g(msg, 'id'))
+
+
 @dataclass
 class Result:
     text: str
@@ -210,6 +303,7 @@ class Result:
     diag: object = None         # response.diagnostics (cache diagnostics, GA) — None = אין סטייה או אין מידע
     rid: object = None          # 15/10: request id (יומן הקריאות — לפנייה לתמיכה של Anthropic)
     mid: object = None          # message id
+    bt: bool = False            # 01/11/2026: התשובה מתור החיסכון (Message Batches)
 
     @property
     def truncated(self) -> bool:
@@ -247,6 +341,8 @@ class Engine:
         self._inflight = 0             # קריאות שנשלחו ועוד לא חזרו (לתקרה בזמן מקבול)
         self.trunc = 0                 # 14/10/2026 (מאגר הלמידה): תשובות שנקטעו בתקרת הטוקנים
         self.mid_retries = 0           # ניסיונות חוזרים על שגיאה חולפת באמצע הזרם
+        self.batch: Path | None = None  # 01/11/2026 (I3): תיקיית העבודה בתור החיסכון — None = בזמן אמת
+        self.batch_ro = False          # רק קריאת תשובות שכבר חזרו (העבודה עברה ל"עכשיו" — btNow)
         self.no_think = False          # 27/10/2026: בחירה מתוך רשימה (שבירת שורות) — בלי חשיבה (Haiku 5.5: disabled מותר עד high)
 
     def facts(self) -> dict:
@@ -311,7 +407,7 @@ class Engine:
                 self.think[k] = self.think.get(k, 0) + res.think_chars
                 if res.stop != 'refusal':
                     self.refusal_retries += 1
-        if n_fixed >= 2 and not res.usage['cr']:
+        if n_fixed >= 2 and not res.usage['cr'] and not res.bt:
             # מהקריאה השנייה עם אותו בלוק קבוע חייבת להיות קריאה מהמטמון. diagnostics מסביר סטייה
             # בבקשה; diagnostics ריק + אפס קריאות = הרשומה פגה בצד השרת (לקצר פערים בין קריאות).
             self.cache_warns += 1
@@ -425,6 +521,10 @@ class Engine:
                   # cache diagnostics (GA, חינם): התשובה אומרת למה המטמון פוספס. חייב להישלח בכל בקשה —
                   # טביעת האצבע נשמרת רק לבקשות שכללו diagnostics.
                   extra_body={'diagnostics': {'previous_message_id': prev_id}})
+        if self.batch is not None and getattr(_tl, 'k', '') in BATCH_KEYS:
+            got = self._batch_answer(kw, on_first_token)
+            if got is not None:
+                return got
         client = self._client_or_new()
         try:
             with client.messages.stream(**kw) as stream:
@@ -462,26 +562,39 @@ class Engine:
             if FILTER_RE.search(str(e)):
                 code = 'api_blocked'
             raise LLMError(code, f'{name}: {str(e)[:200]}') from e
-        stop = getattr(msg, 'stop_reason', None)
-        text = ''.join(getattr(b, 'text', '') for b in msg.content if getattr(b, 'type', '') == 'text')
-        think = sum(len(getattr(b, 'thinking', '') or '') for b in msg.content if getattr(b, 'type', '') == 'thinking')
-        otd = getattr(msg.usage, 'output_tokens_details', None)
-        tt = otd.get('thinking_tokens') if isinstance(otd, dict) else getattr(otd, 'thinking_tokens', None)
-        if isinstance(tt, int) and tt >= 0:
-            think = tt                    # המספר האמיתי — טקסט החשיבה עצמו מושמט כברירת מחדל ב־5.5
-        mid = getattr(msg, 'id', None)
-        if mid:
+        res = msg_result(msg, self.spec.model)
+        if res.mid:
             with self._lock:
-                self._prev_id = mid
-        u = msg.usage
-        cc = getattr(u, 'cache_creation', None)
-        c1 = int(getattr(cc, 'ephemeral_1h_input_tokens', 0) or 0) if cc else 0
-        c5 = int(getattr(u, 'cache_creation_input_tokens', 0) or 0) - c1
-        usage = {'i': int(u.input_tokens or 0), 'o': int(u.output_tokens or 0),
-                 'cr': int(getattr(u, 'cache_read_input_tokens', 0) or 0), 'c5': max(c5, 0), 'c1': c1}
-        usd = cost_anthropic(self.spec.model, usage['i'], usage['o'], usage['cr'], usage['c5'], usage['c1'])
-        return Result(text, usage, usd, stop, think_chars=think, diag=getattr(msg, 'diagnostics', None),
-                      rid=getattr(msg, '_request_id', None), mid=mid)
+                self._prev_id = res.mid
+        return res
+
+    def _batch_answer(self, kw: dict, on_first_token=None) -> 'Result | None':
+        """תור החיסכון: תשובה שכבר חזרה → Result (חצי מחיר, נספר פעם אחת); אין עדיין → רישום הבקשה ו־BatchWait;
+        x (פגה / נכשלה בתור) → None = אותה קריאה בזמן אמת, במחיר רגיל."""
+        params = batch_params(kw)
+        h = batch_key(params)
+        a = batch_get(self.batch, h)
+        if a is None and self.batch_ro:
+            return None                      # יצאה מהתור ("עכשיו"): רק מה שכבר חזר נקרא מהתור, השאר בזמן אמת
+        if a is None:
+            batch_put(self.batch, h, params)
+            if on_first_token is not None:
+                on_first_token()             # המקבול לא מחכה לטוקן ראשון — כל החלקים נרשמים לאותו סבב
+            raise BatchWait(h)
+        if not isinstance(a.get('m'), dict):
+            print(f'· תור החיסכון לא החזיר תשובה ({a.get("x") or "?"}) — הקריאה הזו בזמן אמת, במחיר רגיל')
+            return None
+        res = msg_result(a['m'], self.spec.model, BATCH_DISCOUNT)
+        res.bt = True
+        used = self.batch / 'used' / h
+        with self._lock:
+            if used.exists():                # כבר נספרה בהפעלה קודמת (חידוש מנקודת שמירה) — בלי לחייב שוב
+                res.usage = {k: 0 for k in res.usage}
+                res.usd = 0.0
+            else:
+                used.parent.mkdir(parents=True, exist_ok=True)
+                used.write_text('1')
+        return res
 
     # ------------------------------------------------------------------ claude -p (המנוי, בתוך ה־Routine)
     def _cli0(self, fixed: str, extra: str, prompt: str, max_tokens: int, on_first_token=None) -> Result:
