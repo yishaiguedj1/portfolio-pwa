@@ -348,5 +348,9 @@ class BrPrefs(ctx: Context) {
     var desk: Int get() = sp.getInt("desk", 0); set(v) { sp.edit().putInt("desk", v).apply() }
     var strip: Boolean get() = sp.getBoolean("strip", false); set(v) { sp.edit().putBoolean("strip", v).apply() }
     var ntp: Int get() = sp.getInt("ntp", 15); set(v) { sp.edit().putInt("ntp", v).apply() }
+    /** הגל השלישי: רכיבים מוסתרים לכל אתר (BrDev.zaps*), הקלטות (BrDev.macros*), סקריפטים של משתמשים (BrDev.scripts*) */
+    var zaps: String get() = sp.getString("zaps", "") ?: ""; set(v) { sp.edit().putString("zaps", v).apply() }
+    var macros: String? get() = sp.getString("macros", null); set(v) { sp.edit().putString("macros", v).apply() }
+    var uscripts: String? get() = sp.getString("uscripts", null); set(v) { sp.edit().putString("uscripts", v).apply() }
     var blockedAll: Long get() = sp.getLong("blk", 0L); set(v) { sp.edit().putLong("blk", v).apply() }
 }
