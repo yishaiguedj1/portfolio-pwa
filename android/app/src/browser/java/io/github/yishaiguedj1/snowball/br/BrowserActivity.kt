@@ -91,7 +91,7 @@ import io.github.yishaiguedj1.snowball.dm.DmStore
  */
 class BrowserActivity : ComponentActivity() {
     enum class Screen { PAGE, SWITCHER, HISTORY, BOOKMARKS, SETTINGS, ENGINE, PASSWORDS, PRIVACY, BARPOS, IMPORT, CHROME, SITES, SITE, VIDEO, CLOUD, RECENT, USERS, LAB, TASKS, GROUPS, TOOLBAR, GESTURES, PERF, NTPSET, KEYS,
-        SCRIPTS, WATCHES, MACROS }
+        SCRIPTS, WATCHES, MACROS, READER, READLIST, NOTES }
     /** עמודי המשנה של ההגדרות — "חזור" מהם חוזר להגדרות, לא לדף (אתר אחד — חוזר לרשימת האתרים) */
     private val settingsSubs = setOf(Screen.ENGINE, Screen.PASSWORDS, Screen.PRIVACY, Screen.BARPOS, Screen.IMPORT, Screen.CHROME, Screen.SITES, Screen.VIDEO, Screen.CLOUD, Screen.USERS, Screen.LAB, Screen.TOOLBAR, Screen.GESTURES, Screen.PERF, Screen.NTPSET, Screen.KEYS)
     data class PermAsk(val host: String, val kind: Int, val go: (Boolean) -> Unit)   // kind: 1 מצלמה, 2 מיקרופון, 3 שניהם, 4 מיקום
@@ -189,6 +189,42 @@ class BrowserActivity : ComponentActivity() {
     var editScript by mutableStateOf<BrDev.UScript?>(null)
     var watches by mutableStateOf<List<BrDev.Watch>>(emptyList())
 
+    /* ---- הגל הרביעי (01/11/2026, BrRead/BrCapture): קריאה, צילום ומדיה ---- */
+    /** הגיליון "קריאה, צילום ומדיה" (מ־⋮), והגיליונות שנפתחים ממנו */
+    var readSheet by mutableStateOf(false)
+    var notesSheet by mutableStateOf(false)
+    var mediaSheet by mutableStateOf(false)
+    var qrSheet by mutableStateOf(false)
+    var qrFound by mutableStateOf<String?>(null)
+    var filesFound by mutableStateOf<List<BrRead.FileLink>?>(null)
+    /** 31 מצב קריאה: המאמר שעל המסך, לאן "חזור" חוזר, ומזהה ברשימת הקריאה (כשנפתח משם) */
+    var reader by mutableStateOf<BrRead.Article?>(null)
+    var readerBack = Screen.PAGE
+    var readSize by mutableIntStateOf(19)
+    /** 27 הקראה: הבלוק שמוקרא (-1 = כותרת / בחירה, -2 = לא מקריאים) והמאמר שמוקרא */
+    var speakAt by mutableIntStateOf(-2)
+    var speakArt by mutableStateOf<BrRead.Article?>(null)
+    var speakRate by mutableStateOf(1f)
+    /** 30 רשימת הקריאה, 32 הדגשות והערות — בטלפון בלבד */
+    var readList by mutableStateOf<List<BrRead.Saved>>(emptyList())
+    var marks by mutableStateOf<List<BrRead.Mark>>(emptyList())
+    var markColor by mutableIntStateOf(0)
+    /** 29 פאנל חצי מסך: 0 סגור, 1 קריאה, 2 רשימת הקריאה, 3 הערות; והמאמר שבפאנל */
+    var panel by mutableIntStateOf(0)
+    var panelArt by mutableStateOf<BrRead.Article?>(null)
+    var panelUrl by mutableStateOf("")
+    /** 33 חיפוש בתוכן ההיסטוריה (פועל כברירת מחדל, בטלפון בלבד) */
+    var indexOn by mutableStateOf(true)
+    /** 49 מצב המדיה בכל כרטיסייה חיה */
+    val mediaStates = androidx.compose.runtime.mutableStateMapOf<Long, BrRead.MediaState>()
+    /** 51 החלון הצף: הדף, הבורר והאם פרטי */
+    data class FloatWin(val url: String, val sel: String, val priv: Boolean)
+    var floatWin by mutableStateOf<FloatWin?>(null)
+    var floatPick = false; private set
+    /** 53 קליפ: באיזו כרטיסייה מקליטים, 54 צילום הדף שבעבודה */
+    var clipTab by mutableStateOf<BrTab?>(null)
+    var shooting by mutableStateOf(false)
+
     /** ההגדרות לכל אתר — מתחלף כולו בכל שינוי (נקרא גם מהת׳רד של הרשת) */
     @Volatile var rules: Map<String, BrShield.SiteRule> = emptyMap()
 
@@ -244,6 +280,7 @@ class BrowserActivity : ComponentActivity() {
         BrPics.init(this)
         sets = BrStore.loadSets()
         zaps = BrDev.zapsDecode(prefs.zaps); macros = BrDev.macrosDecode(prefs.macros); uscripts = BrDev.scriptsDecode(prefs.uscripts); watches = BrWatch.load(this)
+        readSize = prefs.readSize; speakRate = prefs.ttsRate; indexOn = prefs.indexOn; loadRead()
         BrMedia.onCmd = { play -> ui.post { mediaCmd(play) } }
         initCloud()
         BrChrome.init(this); BrChrome.attach(this)
@@ -376,6 +413,7 @@ class BrowserActivity : ComponentActivity() {
         // הסבב ברקע ממשיך בלי המסך — לא מחזיקים אותו
         BrCloud.onChange = null; BrCloud.onApplied = null; BrCloud.onIncoming = null; BrCloud.tabsProvider = null
         BrMedia.onCmd = null
+        speaker?.shutdown(); speaker = null; printWeb?.let { kill(it) }; io4.shutdown()
         if (isFinishing) BrMedia.stop(this)
         tabs.forEach { t -> kill(t.web) }
         if (privOk) runCatching { ProfileStore.getInstance().deleteProfile(PRIV) }
@@ -956,6 +994,11 @@ class BrowserActivity : ComponentActivity() {
             ctx != null -> ctx = null
             devSheet -> devSheet = false
             editScript != null -> editScript = null
+            filesFound != null -> filesFound = null
+            qrSheet -> { qrSheet = false; qrFound = null }
+            notesSheet -> notesSheet = false
+            mediaSheet -> mediaSheet = false
+            readSheet -> readSheet = false
             pickMode != 0 -> endPick(false)
             t?.editing == true -> toggleEdit(t)
             recTab != null && recTab === t && screen == Screen.PAGE -> stopRec(true)
@@ -968,6 +1011,8 @@ class BrowserActivity : ComponentActivity() {
             finding -> stopFind()
             editing -> editing = false
             screen == Screen.SITE -> screen = Screen.SITES
+            screen == Screen.READER -> { screen = readerBack; reader = null }
+            floatWin != null && screen == Screen.PAGE && !editing -> floatWin = null
             screen in settingsSubs -> screen = Screen.SETTINGS
             screen == Screen.BOOKMARKS && markPath.isNotEmpty() -> markPath = BrSync.parent(markPath)
             screen != Screen.PAGE -> screen = Screen.PAGE
@@ -1224,6 +1269,10 @@ class BrowserActivity : ComponentActivity() {
         if (!t.private) BrDev.runnable(uscripts, url).forEach { sc -> runCatching { w.evaluateJavascript(BrDev.wrap(sc), null) } }
         if (recTab === t) { recSteps = BrDev.addStep(recSteps, BrDev.Step('n', url)); runCatching { w.evaluateJavascript(BrDev.recJs(true), null) } }
         t.replay?.let { st -> runCatching { w.evaluateJavascript(BrDev.replayJs(st, t.replayAt), null) } }
+        // הגל הרביעי: ההדגשות של הדף (32) והאינדקס של ההיסטוריה (33) — לא בפרטי; פאנל הקריאה מתעדכן לדף החדש (29)
+        if (!t.private) BrRead.forPage(marks, url).takeIf { l -> l.any { it.text.isNotEmpty() } }?.let { runCatching { w.evaluateJavascript(BrRead.applyJs(it), null) } }
+        indexPage(t, url)
+        if (panel == 1 && cur === t && BrRead.pageKey(panelUrl) != BrRead.pageKey(url)) openReader(1)
     }
 
     /** שינוי בהגדרות של אתר אחד — נשמר מיד; הגדרה שחזרה לברירת המחדל נמחקת מהרשימה */
@@ -1585,7 +1634,12 @@ class BrowserActivity : ComponentActivity() {
     /** מה שהדף שלח בערוץ הכלים — מתקבל רק כשהכלי המתאים פועל בכרטיסייה הזו (דף לא יכול "להזריק" צעדים או בחירות) */
     private fun onTool(t: BrTab, d: String) {
         when {
-            d.startsWith("p:") -> if (pickMode == BrDev.PICK_INSPECT && cur === t) { picked = BrDev.pickedParse(d.drop(2)); pickMode = 0; devPane = 3; devSheet = true }
+            d.startsWith("p:") -> if (pickMode == BrDev.PICK_INSPECT && cur === t) {
+                val p = BrDev.pickedParse(d.drop(2)); pickMode = 0
+                // 51: הבחירה הייתה בשביל החלון הצף
+                if (floatPick) { floatPick = false; p?.let { floatWin = FloatWin(t.url, it.sel, t.private) } } else { picked = p; devPane = 3; devSheet = true }
+            }
+            d.startsWith("c:") -> if (clipTab === t) onClip(d.drop(2))
             d.startsWith("z:") -> if (pickMode == BrDev.PICK_ZAP && cur === t) d.drop(2).takeIf { it.isNotEmpty() && it !in zappedNow }?.let { zappedNow.add(it) }
             d.startsWith("r:") -> if (recTab === t) BrDev.stepParse(d.drop(2))?.let { recSteps = BrDev.addStep(recSteps, it) }
             d.startsWith("q:") -> t.replay?.let { st ->
@@ -1605,7 +1659,7 @@ class BrowserActivity : ComponentActivity() {
     /** always = "תמיד באתר הזה" — מה שנמחק נשמר ומוסתר בכל ביקור */
     fun endPick(always: Boolean) {
         val t = cur; val m = pickMode
-        pickMode = 0
+        pickMode = 0; floatPick = false
         t?.let { js(it, BrDev.pickJs(0)) }
         if (m == BrDev.PICK_ZAP && always && t != null && zappedNow.isNotEmpty()) addZaps(BrStore.hostOf(t.url), zappedNow.toList())
         zappedNow.clear()
@@ -1713,6 +1767,369 @@ class BrowserActivity : ComponentActivity() {
     fun setSiteReload(host: String, f: (BrShield.SiteRule) -> BrShield.SiteRule) {
         setRule(host, f)
         tabs.filter { BrStore.hostOf(it.url) == host }.forEach { t -> t.web?.let { applyJs(it, t.url); it.reload() } }
+    }
+
+    /* ---------------- הגל הרביעי (01/11/2026, BrRead/BrCapture): קריאה, צילום ומדיה ---------------- */
+
+    /** קבצים ועבודה כבדה (אינדקס, הקליט, הצילום) — ת׳רד אחד ברקע, לא בת׳רד של הממשק */
+    private val io4 = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private fun udir() = BrUsers.dir(this)
+    private fun loadRead() {
+        io4.execute {
+            val d = udir()
+            val l = BrRead.savedDecode(BrRead.readFile(d, "reading.json")); val m = BrRead.marksDecode(BrRead.readFile(d, "notes.json"))
+            ui.post { readList = l; marks = m }
+        }
+    }
+
+    /** 31 מצב קריאה: into 0 = מסך מלא, 1 = הפאנל */
+    fun openReader(into: Int = 0) {
+        val t = cur ?: return
+        if (into == 0) { readSheet = false; menu = false }
+        js(t, BrRead.READER_JS) { r ->
+            val a = BrRead.articleParse(r, t.url)
+            when {
+                into == 1 -> { panelArt = a; panelUrl = t.url }
+                a == null -> say(R.string.brReadNone)
+                else -> { reader = a; readerBack = Screen.PAGE; screen = Screen.READER }
+            }
+        }
+    }
+    fun pickReadSize(v: Int) { readSize = v.coerceIn(14, 30); prefs.readSize = readSize }
+
+    /* 27 הקראה */
+    private var speaker: BrCapture.Speaker? = null
+    private fun spk() = speaker ?: BrCapture.Speaker(this, onAt = { i -> ui.post { speakAt = i } }, onEnd = { ui.post { speakAt = -2; speakArt = null } },
+        onMissing = { ui.post { say(R.string.brTtsMissing); runCatching { startActivity(Intent("com.android.settings.TTS_SETTINGS")) } } }).also { speaker = it }
+    fun speakArticle(a: BrRead.Article, from: Int = -1) {
+        val u = BrRead.speakUnits(a); if (u.isEmpty()) return
+        val start = u.indexOfFirst { it.first >= from }.coerceAtLeast(0)
+        speakArt = a; speakAt = u[start].first
+        spk().rate = speakRate; spk().speak(u, BrRead.langOf(a.title + " " + a.blocks.take(6).joinToString(" ") { it.t }), start)
+    }
+    fun speakText(s: String) {
+        val u = BrRead.chunks(s).map { -1 to it }; if (u.isEmpty()) return
+        speakArt = null; speakAt = -1
+        spk().rate = speakRate; spk().speak(u, BrRead.langOf(s))
+    }
+    fun stopSpeak() { speaker?.stop(); speakAt = -2; speakArt = null }
+    fun pickRate(r: Float) { speakRate = r; prefs.ttsRate = r; speaker?.rate = r; speakArt?.let { a -> if (speakAt != -2) speakArticle(a, speakAt) } }
+    /** 27 מהבחירה (או, בלי בחירה — המאמר כולו) */
+    fun speakSel(t: BrTab, done: (() -> Unit)? = null) {
+        readSheet = false
+        js(t, BrRead.SEL_JS) { r ->
+            done?.invoke()
+            val s = BrDev.unquote(r)
+            if (s.isNotBlank()) speakText(s)
+            else js(t, BrRead.READER_JS) { a -> BrRead.articleParse(a, t.url)?.let { speakArticle(it) } ?: say(R.string.brReadNone) }
+        }
+    }
+
+    /** הבחירה בדף (תפריט הבחירה של המערכת): "הקראה" ו"הדגשה" (32) לצד העתקה/שיתוף */
+    override fun onActionModeStarted(mode: android.view.ActionMode) {
+        super.onActionModeStarted(mode)
+        val t = cur ?: return
+        if (screen != Screen.PAGE || t.web == null || !t.url.startsWith("http")) return
+        runCatching {
+            val m = mode.menu
+            if (m.findItem(ID_SPEAK) == null) m.add(android.view.Menu.NONE, ID_SPEAK, 60, R.string.brSpeakSel).setOnMenuItemClickListener { speakSel(t) { runCatching { mode.finish() } }; true }
+            if (!t.private && m.findItem(ID_MARK) == null) m.add(android.view.Menu.NONE, ID_MARK, 61, R.string.brMarkSel).setOnMenuItemClickListener { markSel(t) { runCatching { mode.finish() } }; true }
+        }
+    }
+
+    /* 30 רשימת קריאה אופליין */
+    fun saveForLater() {
+        val t = cur?.takeIf { it.url.startsWith("http") && !it.private } ?: return
+        readSheet = false; menu = false
+        js(t, BrRead.READER_JS) { r ->
+            val a = BrRead.articleParse(r, t.url) ?: run { say(R.string.brReadNone); return@js }
+            val s = BrRead.Saved(System.currentTimeMillis().toString(36), t.url, a.title.ifEmpty { t.title }, a.site.ifEmpty { BrStore.hostOf(t.url) }, System.currentTimeMillis(), a.minutes)
+            val (l, out) = BrRead.savedAdd(readList, s)
+            val id = l.first().id
+            putReadList(l)
+            io4.execute { val d = udir(); BrRead.articleFile(d, id).apply { parentFile?.mkdirs(); writeText(BrRead.articleJson(a).toString()) }; out.forEach { BrRead.articleFile(d, it.id).delete() } }
+            say(R.string.brSavedOk)
+        }
+    }
+    private fun putReadList(l: List<BrRead.Saved>) { readList = l; val s = BrRead.savedEncode(l); io4.execute { BrRead.writeFile(udir(), "reading.json", s) } }
+    fun openSaved(s: BrRead.Saved, back: Screen) {
+        io4.execute {
+            val a = runCatching { BrRead.articleOf(org.json.JSONObject(BrRead.articleFile(udir(), s.id).readText())) }.getOrNull()
+            ui.post {
+                if (a == null) { screen = Screen.PAGE; newTab(s.url); return@post }
+                reader = a; readerBack = back; screen = Screen.READER
+                if (!s.read) putReadList(readList.map { if (it.id == s.id) it.copy(read = true) else it })
+            }
+        }
+    }
+    fun delSaved(id: String) { putReadList(readList.filter { it.id != id }); io4.execute { BrRead.articleFile(udir(), id).delete() } }
+    fun isSaved(url: String) = BrRead.pageKey(url).let { k -> readList.any { BrRead.pageKey(it.url) == k } }
+
+    /* 32 הערות והדגשות */
+    private fun putMarks(l: List<BrRead.Mark>) { marks = l.take(BrRead.MARKS_MAX); val s = BrRead.marksEncode(marks); io4.execute { BrRead.writeFile(udir(), "notes.json", s) } }
+    fun markSel(t: BrTab, done: (() -> Unit)? = null) {
+        val id = System.currentTimeMillis().toString(36); val col = markColor
+        js(t, BrRead.markSelJs(id, col)) { r ->
+            done?.invoke()
+            val s = BrDev.unquote(r)
+            if (s.isEmpty()) return@js
+            putMarks(listOf(BrRead.Mark(id, t.url, t.title, s, "", col, System.currentTimeMillis())) + marks)
+            say(R.string.brMarked)
+        }
+    }
+    fun setNote(m: BrRead.Mark) {
+        if (m.text.isEmpty() && m.note.isBlank()) { putMarks(marks.filter { it.id != m.id }); return }
+        putMarks(if (marks.any { it.id == m.id }) marks.map { if (it.id == m.id) m else it } else listOf(m) + marks)
+    }
+    fun delMark(m: BrRead.Mark) {
+        putMarks(marks.filter { it.id != m.id })
+        tabs.filter { BrRead.pageKey(it.url) == BrRead.pageKey(m.url) }.forEach { js(it, BrRead.unmarkJs(m.id)) }
+    }
+    fun gotoMark(m: BrRead.Mark) {
+        notesSheet = false
+        val t = cur
+        if (t != null && BrRead.pageKey(t.url) == BrRead.pageKey(m.url)) { screen = Screen.PAGE; js(t, BrRead.gotoJs(m.id)); return }
+        screen = Screen.PAGE; newTab(m.url)
+    }
+
+    /* 33 חיפוש בתוכן ההיסטוריה — האינדקס נטען רק כשצריך */
+    @Volatile private var docs: List<BrRead.Doc>? = null
+    private var docsDirty = false
+    private fun docsLoad(): List<BrRead.Doc> = docs ?: BrRead.docsDecode(BrRead.readFile(udir(), "hindex.json")).also { docs = it }
+    private fun indexPage(t: BrTab, url: String) {
+        if (!indexOn || t.private || !url.startsWith("http") || BrDev.sensitive(url)) return
+        ui.postDelayed({
+            if (t.page != url || t.web == null) return@postDelayed
+            js(t, BrRead.TEXT_JS) { r ->
+                val d = BrRead.Doc(url, t.title, BrDev.unquote(r), System.currentTimeMillis())
+                io4.execute {
+                    docs = BrRead.indexAdd(docsLoad(), d)
+                    if (!docsDirty) { docsDirty = true; ui.postDelayed({ io4.execute { docsDirty = false; docs?.let { BrRead.writeFile(udir(), "hindex.json", BrRead.docsEncode(it)) } } }, 8000) }
+                }
+            }
+        }, 2500)
+    }
+    fun searchDocs(q: String, cb: (List<BrRead.Hit>) -> Unit) {
+        val alive = BrStore.history.asSequence().map { BrRead.pageKey(it.url) }.toHashSet()
+        io4.execute { val h = BrRead.search(docsLoad(), q, alive); ui.post { cb(h) } }
+    }
+    fun pickIndex(b: Boolean) { indexOn = b; prefs.indexOn = b; if (!b) clearDocs() }
+    private fun clearDocs() { io4.execute { docs = emptyList(); java.io.File(udir(), "hindex.json").delete() } }
+
+    /* 29 פאנל חצי מסך */
+    fun openPanel(p: Int) { readSheet = false; menu = false; panel = p; if (p == 1) openReader(1) }
+
+    /* 49 בקרת מדיה כללית */
+    fun mediaRefresh() { tabs.filter { it.web != null && it.url.startsWith("http") }.forEach { t -> js(t, BrRead.mediaJs("")) { mediaStates[t.id] = BrRead.mediaParse(it) } } }
+    fun mediaDo(t: BrTab, cmd: String) = js(t, BrRead.mediaJs(cmd)) { mediaStates[t.id] = BrRead.mediaParse(it) }
+    fun mediaPauseAll() { tabs.forEach { t -> if (t.web != null) mediaDo(t, "pause") } }
+
+    /* 51 חלון צף לחלק מהדף: בוחרים רכיב (כמו בדיקת רכיב), והוא נפתח בחלון משלו */
+    fun startFloat() {
+        if (cur == null || !toolsOk) return
+        readSheet = false
+        startPick(BrDev.PICK_INSPECT); floatPick = true
+    }
+    fun floatWeb(f: FloatWin): WebView {
+        val w = previewWeb(f.priv, {}, {})
+        w.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView, req: WebResourceRequest): Boolean = req.url.scheme?.lowercase() !in setOf("http", "https")
+            override fun onPageFinished(view: WebView, url: String) { runCatching { view.evaluateJavascript(BrRead.isolateJs(f.sel), null) } }
+        }
+        w.loadUrl(f.url)
+        return w
+    }
+
+    /** העתקה מהמסך של אזור (בפיקסלים של החלון) — כמו התמונות של הכרטיסיות (PixelCopy) */
+    private fun grab(v: View, cb: (Bitmap?) -> Unit) {
+        if (Build.VERSION.SDK_INT < 26 || !v.isAttachedToWindow || v.width <= 0 || v.height <= 0) { cb(null); return }
+        val loc = IntArray(2); v.getLocationInWindow(loc)
+        val b = runCatching { Bitmap.createBitmap(v.width, v.height, Bitmap.Config.ARGB_8888) }.getOrNull() ?: run { cb(null); return }
+        runCatching {
+            android.view.PixelCopy.request(window, android.graphics.Rect(loc[0], loc[1], loc[0] + v.width, loc[1] + v.height), b, { r -> cb(if (r == android.view.PixelCopy.SUCCESS) b else null) }, ui)
+        }.onFailure { cb(null) }
+    }
+    private fun savedMsg(u: Uri?, ok: Int) { say(if (u != null) ok else R.string.brSaveFail); u?.let { lastShot = it } }
+    var lastShot: Uri? = null
+    fun shareShot() { val u = lastShot ?: return; runCatching { startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType(contentResolver.getType(u) ?: "image/png").putExtra(Intent.EXTRA_STREAM, u).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), null)) } }
+
+    /* 53 צילום פריים: התמונה מהסרטון עצמו (canvas), ובאתר שלא מרשה — מהמסך באותו מקום */
+    fun shootFrame() {
+        val t = cur ?: return
+        readSheet = false
+        val name = BrRead.fileName(t.title, "png", System.currentTimeMillis())
+        js(t, BrRead.FRAME_JS) { r ->
+            val f = BrRead.frameParse(r) ?: run { customView?.let { v -> grab(v) { b -> b?.let { saveBmp(it, name) } ?: say(R.string.brNoVideo) } } ?: say(R.string.brNoVideo); return@js }
+            f.png?.let { png -> io4.execute { val u = BrCapture.savePng(this, png, name); ui.post { savedMsg(u, R.string.brFrameSaved) } }; return@js }
+            val v: View = customView ?: t.web ?: return@js
+            ui.postDelayed({
+                grab(v) { b ->
+                    if (b == null) { say(R.string.brSaveFail); return@grab }
+                    val crop = if (customView != null) b else runCatching {
+                        val x = (f.x * f.dpr).toInt().coerceIn(0, b.width - 1); val y = (f.y * f.dpr).toInt().coerceIn(0, b.height - 1)
+                        Bitmap.createBitmap(b, x, y, (f.w * f.dpr).toInt().coerceIn(1, b.width - x), (f.h * f.dpr).toInt().coerceIn(1, b.height - y))
+                    }.getOrDefault(b)
+                    saveBmp(crop, name)
+                }
+            }, 350)   // הגיליון נסגר — שלא ייכנס לצילום
+        }
+    }
+    private fun saveBmp(b: Bitmap, name: String) { io4.execute { val u = BrCapture.saveImage(this, b, name); ui.post { savedMsg(u, R.string.brFrameSaved) } } }
+
+    /* 53 קליפ מהסרטון (MediaRecorder בדף) — החלקים מגיעים בערוץ הכלים */
+    private val clipBuf = StringBuilder()
+    private var clipName = ""
+    fun startClip(sec: Int) {
+        val t = cur ?: return
+        if (clipTab != null || !toolsOk) return
+        readSheet = false
+        clipTab = t; clipBuf.setLength(0); clipName = BrRead.fileName(t.title, "webm", System.currentTimeMillis())
+        js(t, BrRead.clipJs(sec))
+    }
+    fun stopClip() { clipTab?.let { js(it, BrRead.CLIP_STOP_JS) } }
+    private fun onClip(p: String) {
+        when (p) {
+            "!" -> { clipTab = null; clipBuf.setLength(0); say(R.string.brClipNo) }
+            "." -> {
+                clipTab = null
+                val s = clipBuf.toString(); clipBuf.setLength(0); val name = clipName
+                io4.execute {
+                    val data = runCatching { java.util.Base64.getDecoder().decode(s) }.getOrNull()
+                    val u = data?.let { BrCapture.saveVideo(this, it, name) }
+                    ui.post { savedMsg(u, R.string.brClipSaved) }
+                }
+            }
+            else -> if (clipBuf.length + p.length <= BrRead.CLIP_MAX) clipBuf.append(p) else stopClip()
+        }
+    }
+
+    /* 54 צילום הדף המלא: גלילה במסכים, העתקה מהמסך של כל אחד, ותפירה לתמונה אחת */
+    fun shootPage() {
+        val t = cur ?: return
+        val w = t.web ?: return
+        if (shooting) return
+        readSheet = false; shooting = true
+        say(R.string.brShooting)
+        js(t, BrRead.PAGE_DIM_JS) { r ->
+            val o = runCatching { org.json.JSONObject(BrDev.unquote(r)) }.getOrNull()
+            val vh = o?.optInt("v") ?: 0
+            val plan = if (o == null) emptyList() else BrRead.shots(o.optInt("h"), vh)
+            if (plan.isEmpty() || w.height <= 0) { shooting = false; say(R.string.brSaveFail); return@js }
+            val y0 = o!!.optInt("y")
+            val k = w.height.toFloat() / vh                     // פיקסלים של המסך לכל פיקסל של CSS
+            val total = plan.sumOf { it.h } * k
+            val f = minOf(1f, kotlin.math.sqrt(24_000_000f / (w.width * total)))   // עד 24 מיליון פיקסלים (‏RGB_565 — ‏48MB)
+            val out = runCatching { Bitmap.createBitmap((w.width * f).toInt().coerceAtLeast(1), (total * f).toInt().coerceAtLeast(1), Bitmap.Config.RGB_565) }.getOrNull()
+                ?: run { shooting = false; say(R.string.brSaveFail); return@js }
+            val cv = Canvas(out)
+            var dy = 0f
+            fun finish(ok: Boolean) {
+                js(t, BrRead.fixedJs(false)); js(t, BrRead.scrollJs(y0))
+                shooting = false
+                if (!ok) { say(R.string.brSaveFail); return }
+                val name = BrRead.fileName(t.title, "png", System.currentTimeMillis())
+                io4.execute { val u = BrCapture.saveImage(this, out, name); ui.post { savedMsg(u, R.string.brShotSaved) } }
+            }
+            fun step(i: Int) {
+                if (i >= plan.size) { finish(true); return }
+                if (cur !== t || screen != Screen.PAGE) { finish(false); return }
+                val s = plan[i]
+                js(t, BrRead.scrollJs(s.y)) {
+                    ui.postDelayed({
+                        grab(w) { b ->
+                            if (b == null) { finish(false); return@grab }
+                            val src = android.graphics.Rect(0, (s.top * k).toInt(), b.width, ((s.top + s.h) * k).toInt().coerceAtMost(b.height))
+                            val dst = android.graphics.RectF(0f, dy * f, out.width.toFloat(), (dy + src.height()) * f)
+                            cv.drawBitmap(b, src, dst, null); dy += src.height()
+                            b.recycle()
+                            if (i == 0) js(t, BrRead.fixedJs(true))
+                            step(i + 1)
+                        }
+                    }, 320)
+                }
+            }
+            ui.postDelayed({ step(0) }, 300)
+        }
+    }
+
+    /* 55 PDF נקי: המאמר בעיצוב נקי (בלי תפריטים ופרסומות); דף שאינו מאמר — הדף עצמו עם עיצוב הדפסה נקי */
+    private var printWeb: WebView? = null
+    fun cleanPdf() {
+        val t = cur ?: return
+        readSheet = false; menu = false
+        js(t, BrRead.READER_JS) { r ->
+            val a = BrRead.articleParse(r, t.url)
+            if (a != null) printArticle(a)
+            else js(t, BrRead.PRINT_CLEAN_JS) { t.web?.let { if (!BrCapture.print(this, it, t.title)) say(R.string.brSaveFail) } }
+        }
+    }
+    fun printArticle(a: BrRead.Article) {
+        printWeb?.let { kill(it) }
+        val w = WebView(this)
+        w.settings.javaScriptEnabled = false; w.settings.allowFileAccess = false; w.settings.allowContentAccess = false; w.settings.blockNetworkLoads = true
+        w.webViewClient = object : WebViewClient() {
+            var done = false
+            override fun onPageFinished(view: WebView, url: String) { if (!done) { done = true; if (!BrCapture.print(this@BrowserActivity, view, a.title)) say(R.string.brSaveFail) } }
+        }
+        w.loadDataWithBaseURL(null, BrRead.html(a), "text/html", "utf-8", null)
+        printWeb = w
+    }
+
+    /* 56 קוד QR: של הדף (לשיתוף), וקריאה — מהדף שעל המסך או מתמונה */
+    fun qrScanPage() {
+        val w = cur?.web ?: return
+        grab(w) { b -> if (b == null) { qrFound = ""; return@grab }; io4.execute { val s = BrCapture.readQr(b); ui.post { qrFound = s ?: "" } } }
+    }
+    private val pickImg = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { u ->
+        if (u == null) return@registerForActivityResult
+        io4.execute {
+            val b = runCatching {
+                if (Build.VERSION.SDK_INT >= 28) android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(contentResolver, u)) { d, _, _ -> d.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE }
+                else contentResolver.openInputStream(u)?.use { android.graphics.BitmapFactory.decodeStream(it) }
+            }.getOrNull()
+            val s = b?.let { BrCapture.readQr(it) }
+            ui.post { qrFound = s ?: "" }
+        }
+    }
+    fun qrFromImage() = runCatching { pickImg.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+    fun qrOpen(s: String) { qrSheet = false; qrFound = null; screen = Screen.PAGE; newTab(s) }
+    fun copyText(s: String) {
+        (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("", s))
+        if (Build.VERSION.SDK_INT < 33) say(R.string.brTextCopied)
+    }
+    fun shareQr(b: Bitmap, url: String) {
+        io4.execute {
+            val u = BrCapture.saveImage(this, b, BrRead.fileName("QR " + BrStore.hostOf(url), "png", System.currentTimeMillis()))
+            ui.post { if (u == null) say(R.string.brSaveFail) else { lastShot = u; shareShot() } }
+        }
+    }
+
+    /* 57 הורדת כל הקבצים בדף — דרך מנהל ההורדות (Studio DM כשמותקן, אחרת התור שבתוך הדפדפן) */
+    fun scanFiles() {
+        val t = cur ?: return
+        readSheet = false
+        js(t, BrRead.FILES_JS) { r -> val l = BrRead.files(r); if (l.isEmpty()) say(R.string.brFilesNone) else filesFound = l }
+    }
+    fun downloadFiles(l: List<BrRead.FileLink>) {
+        val t = cur ?: return
+        filesFound = null
+        if (l.isEmpty()) return
+        val ua = runCatching { t.web?.settings?.userAgentString }.getOrNull() ?: ""
+        if (DmBridge.remote(this)) {
+            if (!DmBridge.sendFiles(this, l.map { it.url to it.name }, t.url, ua, !t.private)) say(R.string.dmErrFail)
+            return
+        }
+        DmStore.init(this)
+        val now = System.currentTimeMillis()
+        l.take(DmBridge.FILES_MAX).forEachIndexed { i, f ->
+            if (!DmStore.has(f.url)) DmStore.add(io.github.yishaiguedj1.snowball.dm.DmTask(DmStore.newId(), f.url, t.url, io.github.yishaiguedj1.snowball.dm.DmKind.HTTP).apply {
+                name = io.github.yishaiguedj1.snowball.dm.DmName.clean(f.name); created = now + i; this.ua = ua; ck = !t.private
+            })
+        }
+        DmEngine.pump(this)
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+            runCatching { requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 7) }
+        Toast.makeText(this, getString(R.string.dmBridgeFiles, l.size), Toast.LENGTH_SHORT).show()
     }
 
     fun pickHeFix(b: Boolean) { heFix = b; prefs.heFix = b; if (b) cur?.web?.let { runCatching { it.evaluateJavascript(BrPro.HEBREW_JS, null) } } }
@@ -1887,7 +2304,7 @@ class BrowserActivity : ComponentActivity() {
     }
 
     fun clearData() {
-        BrStore.clearHistory(); BrStore.clearStates()
+        BrStore.clearHistory(); BrStore.clearStates(); clearDocs()
         val p = userProfile()
         runCatching { val cm = p?.cookieManager ?: CookieManager.getInstance(); cm.removeAllCookies(null); cm.flush() }
         runCatching { (p?.webStorage ?: WebStorage.getInstance()).deleteAllData() }
@@ -2005,6 +2422,8 @@ class BrowserActivity : ComponentActivity() {
 
     companion object {
         const val PRIV = "private"
+        /** הגל הרביעי: הפריטים שלנו בתפריט הבחירה של המערכת */
+        const val ID_SPEAK = 0x5B01; const val ID_MARK = 0x5B02
         const val USER_NEW = "snb_user_new"
         const val LIVE_MAX = 6   // (עד 27/10/2026 קבוע; היום liveMax לפי הזיכרון — נשאר לבדיקות ישנות)
         /** מהבועה ב־Chrome: כמה זמן מחכים לממצא הראשון כדי לפתוח את הרשימה לבד */
