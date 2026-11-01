@@ -2772,8 +2772,10 @@ function stubFetch(text, status = 200) {
       const S5 = require('../lib/studio');
       ok(JSON.stringify(S5.normRvf([[3, 'g'], [3, 's'], [17, 't']])) === '[[3,"g"],[3,"s"],[17,"t"]]', 'סטודיו: סימונים מהביקורת — כמו שהם');
       ok(S5.normRvf([[3, 's'], [3, 'g']]) === null && S5.normRvf([[3, 'g'], [3, 'g']]) === null && S5.normRvf([[0, 'g']]) === null
-        && S5.normRvf([[2, 'x']]) === null && S5.normRvf([['2', 'g']]) === null && S5.normRvf(Array.from({ length: 41 }, (_, i) => [i + 1, 'g'])) === null
-        && S5.normRvf([]) === null && S5.normRvf('x') === null, 'סטודיו: סימונים — לא ממוין / כפול / קוד לא מוכר / יותר מ־40 — נזרק');
+        && S5.normRvf([[2, 'x']]) === null && S5.normRvf([['2', 'g']]) === null && S5.normRvf(Array.from({ length: 61 }, (_, i) => [i + 1, 'g'])) === null
+        && S5.normRvf([]) === null && S5.normRvf('x') === null, 'סטודיו: סימונים — לא ממוין / כפול / קוד לא מוכר / יותר מ־60 — נזרק');
+      ok(JSON.stringify(S5.normRvf([[3, 'g'], [3, 'p'], [3, 'l'], [8, 'v']])) === '[[3,"g"],[3,"p"],[3,"l"],[8,"v"]]' && S5.normRvf([[3, 'l'], [3, 'p']]) === null,
+        'סטודיו: הקודים של סבב 2 (p משחק מילים · v הצופה · l שפה אחרת) — לפי הסדר של RVF_CODES');
       ok(JSON.stringify(S5.normFil([[1.234, 1.6], [2, 2.5]])) === '[[1.23,1.6],[2,2.5]]', 'סטודיו: מילות מילוי — מעוגל ל־2 ספרות');
       ok(S5.normFil([[1, 1.1]]) === null && S5.normFil([[1, 4]]) === null && S5.normFil([[2, 2.5], [1, 1.5]]) === null && S5.normFil([[1, 1.5], [1.4, 2]]) === null
         && S5.normFil([['1', 2]]) === null && S5.normFil(Array.from({ length: 301 }, (_, i) => [i, i + 0.5])) === null, 'סטודיו: מילות מילוי — קצר / ארוך / חופף / לא ממוין / יותר מ־300 — נזרק');
