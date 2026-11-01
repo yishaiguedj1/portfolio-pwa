@@ -3949,7 +3949,7 @@ function nsFor(f, file) {
   const done = (v) => { if (form !== f || f._nsKey !== key) return; f.ns = v; nsMerge(f, file); render('none'); };
   if (nsCache.has(key)) { done(nsCache.get(key)); return; }
   f.ns = { st: 'run' };
-  net.subsFind(file, file.name).then((r) => {
+  net.subsFind(file, file.name, { dur: f.dur || 0 }).then((r) => {
     const v = r && r.ok && r.list.length ? { st: 'ok', id: r.id, list: r.list } : { st: 'none' };
     nsCache.set(key, v); done(v);
   }, () => done({ st: 'none' }));
