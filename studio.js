@@ -1937,7 +1937,7 @@ async function runJob(id, run) {
         // בכל פעם בעדיפות נמוכה (פי ~5 לאט), וההעלאה הרגילה קופאת כשהדף ברקע. לכן לפי מצב הדף: מוצג — הרגילה; ברקע
         // BG_HAND_MS (והקול כבר עלה) — החלקים החסרים עוברים ל־Background Fetch (אותה העלאה ב־R2, אותו גודל חלק); חוזרים
         // לדף — מיד חזרה לרגילה, שממשיכה מהחלקים שהגיעו. בכל מקרה הרגילה מסיימת (סוגרת / ממשיכה)
-        const bgOk = await bgCan(rec, file);
+        const bgHas = await bgCan(rec, file), bgOk = BG_AUTO && bgHas;
         let aDone = false, bgOff = false, bgRe = 0, cur = null;
         const shown = () => typeof document === 'undefined' || document.visibilityState === 'visible';
         const handOk = () => bgOk && !bgOff && aDone && !shown();
@@ -1953,7 +1953,7 @@ async function runJob(id, run) {
         audioSettled.then(() => { aDone = true; if (cur) cur.chk(); });
         tv = Date.now();
         try {
-          if (bgOk && shown()) await Promise.race([bgAbort(id), new Promise((r) => setTimeout(r, 3000))]);   // העלאה ברקע מפעם קודמת שעוד רצה — לא במקביל לרגילה (אותם חלקים); בלי לחכות לנצח ל־ready
+          if (bgHas && shown()) await Promise.race([bgAbort(id), new Promise((r) => setTimeout(r, 3000))]);   // העלאה ברקע מפעם קודמת שעוד רצה — לא במקביל לרגילה (אותם חלקים); בלי לחכות לנצח ל־ready
           for (;;) {
             if (handOk()) {
               await vGate();
@@ -2011,6 +2011,11 @@ function stopRun(id) { const r = runs.get(id); if (r && r.active) r.ctl.abort();
 
 /* ---------------- 23/10/2026: הסרטון ב־Background Fetch (studiobg.js) — ממשיך גם כשהאפליקציה סגורה ---------------- */
 const BG_RE = 2;          // 29/10/2026: כמה פעמים מתחילים Background Fetch מחדש אחרי תקיעה כשהדף מוסתר
+/* 1/11/2026 (בקשת המשתמש: "פרקים של 4GB עלו חלק ברקע — לחזור למצב הזה"): בלי מעבר אוטומטי ל־Background Fetch כשהדף ברקע.
+   ב־Chrome הוא מריץ לכל היותר 2 בקשות בעדיפות NORMAL ונדחה עד 8 שעות כשהמכשיר לא במנוחה (docs/studio-upload-research.md) —
+   איטי פי ~5 ונתקע במסך כבוי. ההעלאה הרגילה נשארת גם ברקע (כמו עד 23/10), בחלקים גדולים מהשרתון (phonePartSize), כך
+   שהחלקים שבדרך ממשיכים לעלות גם כשהדף קפוא. הקוד נשאר: המשך אחרי רענון (bgResume) וביטול של העלאה ישנה ברקע */
+const BG_AUTO = false;
 const BG_HAND_MS = 8000;   // 29/10/2026: כמה זמן הדף ברקע לפני שההעלאה עוברת ל־Background Fetch (מעבר מהיר בין אפליקציות — לא מחליפים)
 const BG_RETRY_MS = 30 * 86400e3;   // דפדפן שסירב — מנסים שוב אחרי חודש (עדכון של Chrome)
 const bgStore = typeof indexedDB !== 'undefined' ? bgDb(indexedDB) : null;
