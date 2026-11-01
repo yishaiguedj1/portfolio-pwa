@@ -609,8 +609,8 @@ def answer_lines(text: str, allowed: set[str]) -> dict[str, str]:
 # הסיווג לפי הקוד — הודעה חדשה בבודק לא משנה בשקט את העדיפות שלה (כך "אותיות לועזיות" עם המילה "מונח" דחקה את חריגות
 # הקצב, והודעת ההזזה לא נשלחה לתיקון בכלל). בלי קוד (vt ישן / נקודת שמירה ישנה) — לפי המילים, כמו עד היום.
 CODE_HARD = frozenset(('id', 'miss', 'eq', 'drift', 'spk', 'len', 'dlg', 'brk', 'nikud', 'dash', 'tag', 'part'))
-CODE_SOFT = frozenset(('num', 'gls', 'lat', 'name', 'spl', 'gen', 'q', 'hdg', 'short', 'cps', 'cur'))
-CODE_RANK = {'num': 0, 'gen': 1, 'gls': 1, 'lat': 1, 'name': 1, 'spl': 1, 'q': 2, 'hdg': 2, 'short': 3, 'cps': 4, 'cur': 5}
+CODE_SOFT = frozenset(('num', 'gls', 'lat', 'name', 'spl', 'gen', 'agr', 'q', 'hdg', 'short', 'cps', 'cur'))
+CODE_RANK = {'num': 0, 'gen': 1, 'agr': 1, 'gls': 1, 'lat': 1, 'name': 1, 'spl': 1, 'q': 2, 'hdg': 2, 'short': 3, 'cps': 4, 'cur': 5}
 _CODE_RE = re.compile(r'^\[([a-z]+)\] ')
 
 
@@ -1618,7 +1618,8 @@ class Pipeline:
               f'בטיוטה השנייה נבחרו {nb} ({len(picks)} כתוביות)')
 
     def check(self, stage: str = '') -> tuple[dict, dict, int]:
-        lines = self.J.vt(self.ctx, ['tr-check', self.ctx.name])
+        # 01/11/2026 (A2): בבדיקה הראשונה של כל סבב תיקון — גם ההתאמה לפי הניתוח הדקדוקי (טעינת המודל פעם אחת לסבב)
+        lines = self.J.vt(self.ctx, ['tr-check', self.ctx.name] + (['--agree'] if stage.endswith('0') else []))
         errs = re.findall(r'שגיאות (\d+)', '\n'.join(lines or []))
         md = (self.pd / 'tr' / 'check.md')
         txt = md.read_text(encoding='utf-8') if md.exists() else ''

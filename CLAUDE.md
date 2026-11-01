@@ -50,6 +50,7 @@
 | Studio — **קריוקי בעברית**: השרשרת שנבדקה (ivrit + stable-ts + CTC עברי), כללי ההחלפה, לקחים | `docs/studio-karaoke-he.md` |
 | Studio — **קריוקי: מחקר עומק** (ספרות, מדדים וסט בדיקה, שיפורים לפי עדיפות, מלכודות רישיון, פורמטים ופיצ'רים) | `docs/studio-karaoke-research.md` |
 | Studio — **מקורות כתוביות מהרשת**: בדיקה חיה של כל המקורות (מפתח/CORS/כיסוי), המלצה, ושיפורי דיוק | `docs/studio-subs-sources.md` |
+| Studio — **מחקר השדרוג המקצועי** (1/11/2026): מה קיים, מודלים פתוחים לעברית ורישיונות (TTS, מגדר, SDH, OCR), מלכודות, סדר עבודה מומלץ, תפריט הבחירה | `docs/studio-upgrade-research.md` |
 | אנדרואיד נייטיב: Studio DM, Studio Browser + תוסף Chrome, Lab, תרגום בטלפון | `docs/android-apps.md` |
 | **Studio DM — תוכנית השדרוג "מקצועי"** (42 יכולות בארבע חבילות, ההמלצה לסבבים) | `docs/dm-upgrade-plan.md` |
 | **Studio Browser Pro — תוכנית הגלים** (55 היכולות שהמשתמש בחר, גלים 2–6, מה דורש אישור כסף) | `docs/browser-pro-plan.md` |
