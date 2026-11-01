@@ -83,6 +83,27 @@ def _pick(files, *keys):
     return None
 
 
+def relevel(src: Path, a: Path, b: Path) -> list:
+    """01/11/2026: audio-separator מנרמל את הקלט ואת כל פלט לחוד לשיא 0.9 — הליווי יצא שקט מהשיר (נמדד ב"ממותה":
+    ‎-2.6 dB אחיד בקטעי הנגינה, נשמע כאילו "הוסרו כלים"). מחזירים את שני הפלטים לרמת המקור: src ≈ ga·a + gb·b
+    (ריבועים פחותים), ושומרים ב־float — כדי ששיא מעל 1 (פענוח opus/aac) לא ייחתך."""
+    import numpy as np
+    import soundfile as sf
+    s = sf.read(str(src), dtype='float32', always_2d=True)[0]
+    A, sr = sf.read(str(a), dtype='float32', always_2d=True)
+    B = sf.read(str(b), dtype='float32', always_2d=True)[0]
+    n = min(len(s), len(A), len(B))
+    if n < sr:
+        return [1.0, 1.0]
+    x, y, z = (v[:n].astype('float64').ravel() for v in (A, B, s))
+    M = np.array([[x @ x, x @ y], [x @ y, y @ y]])
+    g = np.linalg.solve(M, [x @ z, y @ z]) if abs(np.linalg.det(M)) > 1e-9 * (M[0, 0] * M[1, 1] + 1e-12) else np.ones(2)
+    g = [float(v) if 0.25 < v < 4 else 1.0 for v in g]           # שומר מפני התאמה משובשת (שקט, הפוך מופע)
+    sf.write(str(a), A * g[0], sr, subtype='FLOAT')
+    sf.write(str(b), B * g[1], sr, subtype='FLOAT')
+    return [round(v, 3) for v in g]
+
+
 def separate(src: Path, out: Path, model: str, prefix: str) -> dict:
     """מודל אחד → שני קבצים (קול / ליווי). audio-separator מחליט על הפורמט לפי המודל."""
     from audio_separator.separator import Separator
@@ -101,9 +122,10 @@ def separate(src: Path, out: Path, model: str, prefix: str) -> dict:
     shutil.move(str(voc), out / (prefix + '_voc.wav'))
     shutil.move(str(inst), out / (prefix + '_inst.wav'))
     shutil.rmtree(tmp, ignore_errors=True)
+    g = relevel(src, out / (prefix + '_voc.wav'), out / (prefix + '_inst.wav'))
     sec = round(time.time() - t0, 1)
-    print(f'⏱ {model}: {sec} שנ׳ (autocast={int(ac)}, overlap={sep_overlap()}, ליבות={os.cpu_count()})', flush=True)   # המדידה — ביומן העבודה
-    return {'model': model, 'sec': sec, 'ac': int(ac), 'ov': sep_overlap()}
+    print(f'⏱ {model}: {sec} שנ׳ (autocast={int(ac)}, overlap={sep_overlap()}, ליבות={os.cpu_count()}, רמה={g})', flush=True)   # המדידה — ביומן העבודה
+    return {'model': model, 'sec': sec, 'ac': int(ac), 'ov': sep_overlap(), 'g': g}
 
 
 def cmd_sep(a):
@@ -134,7 +156,7 @@ def cmd_sep(a):
             st['ksec'] = separate(out / 'voc.wav', out, km, 'k')['sec']
             os.replace(out / 'k_voc.wav', out / 'lead.wav')
             subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(out / 'inst.wav'), '-i', str(out / 'k_inst.wav'),
-                            '-filter_complex', 'amix=inputs=2:normalize=0', str(out / 'inst_bv.wav')], check=True)
+                            '-filter_complex', 'amix=inputs=2:normalize=0', '-c:a', 'pcm_f32le', str(out / 'inst_bv.wav')], check=True)
             (out / 'k_inst.wav').unlink(missing_ok=True)
             st['kmodel'] = km
         else:

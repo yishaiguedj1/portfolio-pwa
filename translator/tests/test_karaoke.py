@@ -502,6 +502,35 @@ class SepModes(unittest.TestCase):
                 os.environ['SNB_KA_OV'] = old
 
 
+class Relevel(unittest.TestCase):
+    """01/11/2026: audio-separator מנרמל כל פלט לחוד — relevel מחזיר קול וליווי לרמת השיר, ב־float (שיא מעל 1 נשמר)."""
+    def test_gains(self):
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest('numpy')
+        import sys
+        from types import SimpleNamespace
+        from unittest import mock
+        import karaoke as KA
+        rng = np.random.default_rng(1)
+        v, i = rng.normal(0, .3, (44100 * 2, 2)), rng.normal(0, .5, (44100 * 2, 2))
+        fs = {'s': v + i, 'a': v * 0.7, 'b': i * 0.6}                 # כמו אחרי הנרמול של audio-separator
+        wr = {}
+        sf = SimpleNamespace(read=lambda p, dtype=None, always_2d=True: (fs[p], 44100),
+                             write=lambda p, x, sr, subtype=None: wr.__setitem__(p, (x, subtype)))
+        with mock.patch.dict(sys.modules, {'soundfile': sf}):
+            g = KA.relevel(Path('s'), Path('a'), Path('b'))
+        self.assertAlmostEqual(g[0], 1 / 0.7, places=2)
+        self.assertAlmostEqual(g[1], 1 / 0.6, places=2)
+        self.assertEqual(wr['a'][1], 'FLOAT')
+        self.assertTrue(np.allclose(wr['a'][0] + wr['b'][0], fs['s'], atol=1e-3))   # הסכום = השיר, באותה עוצמה
+        fs['b'] = np.zeros_like(i)                                       # ליווי שקט — לא מחלקים באפס, לא מנפחים
+        with mock.patch.dict(sys.modules, {'soundfile': sf}):
+            g = KA.relevel(Path('s'), Path('a'), Path('b'))
+        self.assertEqual(g[1], 1.0)
+
+
 class Autocast(unittest.TestCase):
     """31/10/2026: autocast (bfloat16) רק במעבד שתומך בו בחומרה; SNB_KA_AUTOCAST גובר."""
     def test_flags(self):
