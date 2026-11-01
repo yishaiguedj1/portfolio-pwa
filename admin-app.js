@@ -1433,11 +1433,12 @@ function liveCard(x) {
   const top = h('div', 'adm-ltop'), av = h('span', 'adm-ic', x.me ? '✓' : avI(x.nm)); av.style.background = x.me ? COL.blue : avC(x.u);
   const tx = h('span', 'adm-tx'), b = h('b'); b.append(h('bdi', null, x.me ? t('admLiveMe') : x.nm), h('span', 'adm-tag' + (x.me ? ' me' : ''), x.me ? t('admLiveMe') : t('admLiveOther')));
   if (x.me) b.firstChild.textContent = kindTxt(x.k);
+  if (x.sm) b.firstChild.textContent = t('admLiveSm');   // 01/11/2026: עבודת הבדיקה אחרי עדכון — לא "תרגום" רגיל (בסטודיו היא מוסתרת)
   tx.append(b, h('small', null, [kindTxt(x.k), x.dur ? hrsTxt(x.dur) : '', x.mode ? modeName(x.mode) : ''].filter(Boolean).join(' · ')));
   top.append(h('i', 'adm-pulse'), av, tx);
   const bar = h('span', 'adm-mtr adm-lbar'), bi = h('i'); bi.style.width = Math.round(x.p * 100) + '%'; bar.append(bi);
   const ln = h('div', 'adm-lln'), si = STAGES_A.indexOf(x.st);
-  ln.append(h('span', null, x.state === 'queued' ? t('admLiveQueued') : x.wait === 'q' ? t('admLiveQ') : x.wait === 'v' ? t('admLiveV')
+  ln.append(h('span', null, x.state === 'queued' ? t(x.sm ? 'admLiveSmQ' : 'admLiveQueued') : x.wait === 'q' ? t('admLiveQ') : x.wait === 'v' ? t('admLiveV')
     : (STG[x.st] ? STG[x.st]() + ' · ' : '') + Math.round(x.p * 100) + '%' + (si >= 0 ? ' · ' + fmt(t('admLiveStep'), { n: si + 1, t: STAGES_A.length }) : '')),
   h('span', null, x.left >= 60 ? fmt(t('admLiveLeft'), { n: Math.round(x.left / 60) }) : ''));
   const kp = h('div', 'adm-kpis adm-lkp');
@@ -1479,7 +1480,7 @@ page('now', { tab: 'ov', parent: 'ov', title: () => t('admLiveT'), render(p) {
   if (D.live.some((x) => !x.me)) p.append(waitBox());
   for (const x of D.live) p.append(liveCard(x));
 } });
-page('live', { tab: 'ov', parent: 'now', title: () => { const x = liveOne(); return x ? (x.me ? t('admLiveMe') : x.nm) : t('admLiveT'); }, render(p) {
+page('live', { tab: 'ov', parent: 'now', title: () => { const x = liveOne(); return x ? (x.sm ? t('admLiveSm') : x.me ? t('admLiveMe') : x.nm) : t('admLiveT'); }, render(p) {
   const x = liveOne();
   if (!x) { if (D.liveJ) needLive(); p.append(h('p', 'adm-dt', D.liveAt0 ? t('admLiveGone') : t('admLoading'))); D.liveAt0 = 1; return; }
   const ended = x.end || !['queued', 'running'].includes(x.state);
