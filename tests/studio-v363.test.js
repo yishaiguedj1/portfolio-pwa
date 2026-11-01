@@ -54,7 +54,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(M.normTw({ lv: 'ok', x: 1, b: 'u', nj: 4 }).nj === 4 && M.normTw({ lv: 'ok', x: 1, nj: 4 }).nj === 0, 'טלפון: normTw — "לפי N העבודות שלך" רק כשנלמד');
   const NN = M.normNorms({ 'opus-medium': { ph: 6, mx: 9, n: 3 }, 'sonnet-high': { ph: 4.2, n: 1, d: true }, evil: { ph: 1 }, 'opus-max': { ph: -1 } });
   ok(NN['opus-medium'].ph === 6 && NN['sonnet-high'].d === true && !NN.evil && !NN['opus-max'] && M.normNorms('x') === null, 'טלפון: normNorms — מצבים מוכרים ומספרים תקינים בלבד');
-  ok(M.chainFor('tower', null).map((x) => x.v).join() === 'home,settings,tower', 'טלפון: רענון במסך המגדל — חוזר אליו (דרך ההגדרות)');
+  ok(M.chainFor('tower', null).map((x) => x.v).join() === 'home,tower', 'טלפון: רענון במסך המגדל — חוזר אליו (אח בחוגה, מתחת לבית)');
   const st = read('studio.js');
   ok(/function pageTower\(p\)/.test(st) && /ui\.view === 'tower'\) pageTower\(p\)/.test(st) && /go\('tower'\)/.test(st), 'טלפון: מסך "מגדל הפיקוח" — מההגדרות, משורת המגדל ומכרטיס העצירה');
   ok(/const c = btn\('st-tower ' \+ tw\.lv/.test(st), 'טלפון: שורת המגדל בדף העבודה = כפתור');

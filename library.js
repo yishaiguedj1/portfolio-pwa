@@ -66,6 +66,7 @@ function idb() {
   });
 }
 async function tx(store, mode, fn) {
+  if (mode === 'readwrite' && [].concat(store).includes('books')) { _booksGen++; _booksMem = null; }   // כל כתיבה — המטמון שבזיכרון מתבטל
   const d = await idb();
   return new Promise((res, rej) => {
     const x = d.transaction(store, mode); const st = x.objectStore(store); let out;
@@ -97,7 +98,20 @@ export function scopeBook(b, cur, legacyTo) {   // טהורה (נבדקת): מת
   return ch;
 }
 export const bookVisible = (b, cur) => b.src === 'drive' || b.owner === cur;
-const allBooksRaw = () => tx('books', 'readonly', (st) => reqP(st.getAll()));
+/* 01/11/2026 (סבב קפיצות 7 — בקשת המשתמש: "שלא יהיו קפיצות ורענונים"): רשימת הספרים מהזיכרון. בהחלקה ובגרירת החוגה הקובייה
+   מתחילה מיד, והעמוד השכן נצבע לתוך השכבה (pg.render) בלי המתנה. קריאה מ־IndexedDB בכל ציור = הפאה הנכנסת הראתה בפריימים
+   הראשונים את הדף הישן, והתחלפה באמצע הסיבוב. עכשיו הקריאה נגמרת במיקרו־משימות — לפני הפריים הראשון. כל כתיבה (tx readwrite)
+   מבטלת; קריאה שהתחילה לפני כתיבה לא נשמרת (_booksGen); חזרה לדף (לשונית אחרת אולי כתבה) — מבטלת. עותק לכל קורא
+   (הקוראים משנים רשומות לפני putBook) */
+let _booksMem = null, _booksGen = 0;
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('visibilitychange', () => { if (!document.hidden) { _booksGen++; _booksMem = null; } });
+const booksCopy = (a) => { try { return typeof structuredClone === 'function' ? structuredClone(a) : a.map((b) => Object.assign({}, b)); } catch (e) { return a.map((b) => Object.assign({}, b)); } };
+const allBooksRaw = async () => {
+  if (_booksMem && _booksMem.gen === _booksGen) return booksCopy(_booksMem.a);
+  const g = _booksGen, a = await tx('books', 'readonly', (st) => reqP(st.getAll()));
+  if (g === _booksGen && Array.isArray(a)) _booksMem = { gen: g, a: booksCopy(a) };
+  return a;
+};
 const allBooks = async () => { const cur = libOwner(); return (await allBooksRaw()).filter((b) => bookVisible(b, cur) && !b.hidden); };
 const hiddenBooks = async () => { const cur = libOwner(); return (await allBooksRaw()).filter((b) => bookVisible(b, cur) && b.hidden); };
 async function scopeLibrary() {

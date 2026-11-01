@@ -39,7 +39,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(v.agents.length === 2 && v.agents[0].pvNew && v.agents[1].m === '' && v.agents[1].ef === '' && v.ev.n === 2, 'normAgents: רק סוכנים מוכרים, מודל ומאמץ תקינים');
   const t = st.normTrace({ a: { main: { n: 5, e: 9, s: 1 } }, g: [['vt:align', 2, 0], ['<x>', 1, 0]] });
   ok(t.a.main.e === 5 && t.g.length === 1, 'normTrace בטלפון: שגיאות ≤ פעולות, מפתח לא תקין נזרק');
-  ok(st.chainFor('agents').map((x) => x.v).join() === 'home,settings,tower,towerx,agents', 'רענון במסך המלאי — חוזר דרך המגדל');
+  ok(st.chainFor('agents').map((x) => x.v).join() === 'home,tower,towerx,agents', 'רענון במסך המלאי — חוזר דרך המגדל');
   const sj = read('studio.js');
   ok(/onClick: \(\) => go\('agents'\), k: 'tw-agents'/.test(sj) && /else if \(ui\.view === 'agents'\) pageAgents\(p\)/.test(sj), 'מגדל: מקטע הסוכנים ומסך המלאי');
   ok(/costCard\(cv, rec\.srv\.tr\)/.test(sj) && !/function traceCard/.test(sj), 'דף העבודה: העקיבה בתוך כרטיס העלות (בלי כרטיס כפול)');
