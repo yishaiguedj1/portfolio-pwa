@@ -190,6 +190,10 @@ export function normVcp(o) {
   if (!(Number.isFinite(p) && p >= 0)) return null;
   const out = { p: Math.min(1, Math.round(p * 1000) / 1000), at: num(o.at) };
   if (/^[a-z0-9_]{2,32}$/.test(String(o.e || ''))) out.e = o.e;
+  const r = Math.round(Number(o.r));   // 1/11/2026: הקצב (בתים לשנייה) והסיבה האחרונה שהמערכת עצרה (מדידה)
+  if (r > 0 && r < 1e10) out.r = r;
+  const sr = Math.floor(Number(o.sr));
+  if (sr > 0 && sr < 100) out.sr = sr;
   return out;
 }
 /* ‎#phpick=<pid>.<base64url של JSON> מ־PhActivity (או ‎!<קוד>) → { pid, name, size, dur, w, h } / { e } / null. טהור */
@@ -207,13 +211,14 @@ export function parsePhPick(arg) {
   return { pid: k[1], name: String(o.name || 'video.mp4').replace(/[\u0000-\u001f]/g, '').slice(0, 200) || 'video.mp4', size,
     dur: dur > 0 && dur < 86400 ? dur : 0, w: Math.max(0, Math.floor(Number(o.w) || 0)), h: Math.max(0, Math.floor(Number(o.h) || 0)),
     cap: Math.max(0, Math.min(99, Math.floor(Number(o.cap) || 0))),   // 25/10/2026: מה Studio הזה יודע (PH_CAP_PT = גם שלבי הטקסט)
-    oh: /^[0-9a-f]{16}$/.test(String(o.oh || '')) ? o.oh : '', z: k[3] || '', nu: o.nu === 1 };   // nu — 1/11/2026: נבחר להעלאה בלבד   // 30/10/2026: טביעת האצבע (osHash) והכתוביות — מהאפליקציה
+    oh: /^[0-9a-f]{16}$/.test(String(o.oh || '')) ? o.oh : '', z: k[3] || '', nu: o.nu === 1 };   // nu — 1/11/2026: נבחר לתרגום רגיל בשרת, בלי עותק   // 30/10/2026: טביעת האצבע (osHash) והכתוביות — מהאפליקציה
 }
 /* 25/10/2026 (שלב 3): Studio לאנדרואיד שיודע להריץ גם את שלבי הטקסט (vt בפייתון של האפליקציה) מדווח cap ≥ 3 בבחירה.
    ישן — בלי pt (אחרת העבודה הייתה מחכה בתור לטלפון שלא יודע לקחת אותה) */
 export const PH_CAP_PT = 3;
-export const PH_CAP_NU = 5;   // 1/11/2026: Studio שיודע להעלות עבודה רגילה (nu) — PhCore.CAP
 export const PH_CAP_VC = 4;   // 30/10/2026: Studio שמעלה גם את הסרטון לענן (spec.vc). ישן יותר מתעלם מ־vc — הסרטון נשאר רק בטלפון
+/* 1/11/2026: Studio שבוחר בלי עותק לתרגום רגיל בשרת (nu, PhPu). ישן יותר מעתיק ועושה גם מדידות — השרתון מתעלם מהן */
+export const PH_CAP_NU = 5;
 export function normJob(j) {
   if (!j || typeof j !== 'object' || !JOB_RE.test(String(j.id || ''))) return null;
   const sp = j.spec && typeof j.spec === 'object' ? j.spec : {};
@@ -1627,7 +1632,7 @@ async function pickWithHandle() {
    הצילום של המשתמש: "מוציאים את הקול ושולחים אותו קודם" — 17 דק׳, בזמן שהסרטון המלא עלה אחר כך ב־4–6MB/שנ׳. בלי מדידה
    מהטלפון אי אפשר לדעת אם זה החילוץ, דף מואט ברקע או משהו אחר. רק מספרים (בלי שמות) → op:'upTel' → job.utl.
    **UTL_KEYS זהה ל־UTL_KEYS בשרתון (lib/studio.js)** */
-export const UTL_KEYS = ['c2s', 'ex', 'ab', 'a', 'v', 'vb', 'hid', 'hn', 'rs', 'wt', 'wl', 'wlr', 'nt', 'dl', 'dm', 'hc', 'vf', 'bg', 'dvp', 'dvs', 'dvn', 'vh'];   // 25/10/2026: dvp/dvs/dvn — המכשיר (devCodes)   // bg — ההעלאה ברקע: 1 הצליחה, 2 חזרה לרגילה, 3 הדפדפן לא תומך
+export const UTL_KEYS = ['c2s', 'ex', 'ab', 'a', 'v', 'vb', 'hid', 'hn', 'rs', 'wt', 'wl', 'wlr', 'nt', 'dl', 'dm', 'hc', 'vf', 'bg', 'dvp', 'dvs', 'dvn', 'vh', 'np'];   // 1/11/2026: np = הפרוטוקול של חלק בהעלאה (1 = http/1.1, 2 = h2, 3 = h3; protoCode ב־studiostore.js)   // 25/10/2026: dvp/dvs/dvn — המכשיר (devCodes)   // bg — ההעלאה ברקע: 1 הצליחה, 2 חזרה לרגילה, 3 הדפדפן לא תומך
 export function normUtl(o) {
   if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
   const out = {};
@@ -1662,14 +1667,31 @@ function utlSend(id) {
   const rec = jobRec(id), tl = rec && normUtl(rec.up.tl);
   if (tl) { try { Promise.resolve(net.api('upTel', { job: id, tl })).catch(() => {}); } catch (e) {} }
 }
+/* 1/11/2026 (משימות-פתוחות ב׳): המסך היה כבוי / הדף ברקע לפחות דקה בזמן העלאת הסרטון, והקצב שם היה נמוך — פחות מ־30% מהקצב
+   כשהדף מוצג, או פחות מ־150KB לשנייה. אז בדף העבודה: "כשהמסך כבוי ההעלאה כמעט נעצרת — כדאי להשאיר אותו דלוק" (באייפון —
+   גם Drive). null = אין מה לומר. טהור */
+export const BG_SLOW_MS = 60e3;
+export function bgSlowOf(ms, bytes, rate) {
+  if (!(ms >= BG_SLOW_MS)) return null;
+  const r = Math.max(0, bytes) / (ms / 1000);
+  return r < Math.max(150e3, (Number(rate) || 0) * 0.3) ? { r: Math.round(r) } : null;
+}
 let wlDenied = false;
 if (typeof document !== 'undefined' && document.addEventListener) {
   document.addEventListener('visibilitychange', () => {        // כמה זמן הדף היה ברקע בזמן העלאה (Chrome מאט / עוצר דף מוסתר)
     const now = Date.now();
     for (const [id, r] of runs) {
       if (!r || !r.active) continue;
-      if (document.visibilityState === 'hidden') r.hid0 = now;
-      else if (r.hid0) { const rec = jobRec(id); if (rec) { utlAdd(rec, 'hid', now - r.hid0); utlAdd(rec, 'hn', 1); } r.hid0 = 0; }
+      if (document.visibilityState === 'hidden') { r.hid0 = now; const rec = jobRec(id); r.vh0 = rec ? utlOf(rec).vh || 0 : 0; }
+      else if (r.hid0) {
+        const rec = jobRec(id);
+        if (rec) {
+          utlAdd(rec, 'hid', now - r.hid0); utlAdd(rec, 'hn', 1);
+          const b = (utlOf(rec).vh || 0) - (r.vh0 || 0);
+          if (r.phase === 'video' && !r.bg) r.bgSlow = bgSlowOf(now - r.hid0, b, r.rate) || (now - r.hid0 >= BG_SLOW_MS ? null : r.bgSlow);
+        }
+        r.hid0 = 0;
+      }
     }
   });
 }
@@ -1978,7 +2000,7 @@ async function runJob(id, run) {
               return await net.upload({ blob: file, size: file.size, mime: file.type || 'application/octet-stream', signal: f.signal, gate: vGate,
                 uri: up.v.uri || '', onUri: (u) => { up.v.uri = u; save(); }, r2: up.v.r2, onR2: (x) => { up.v.r2 = x; save(); },
                 meta: { name: rec.spec.name, parents: [up.folder], appProperties: { snbJob: id, snbPart: 'v' } },
-                onProgress: vProg,
+                onProgress: vProg, onProto: (c) => { utlOf(rec).np = c; },   // 1/11/2026: הפרוטוקול מול R2 (מדידה)
                 onWait: onWaitT });
             } catch (e) { if (!f.flipped()) throw e; } finally { f.done(); cur = null; }
           }
@@ -3298,6 +3320,7 @@ function pageForm(p, editing) {
   };
   inp.addEventListener('change', () => { const file = inp.files && inp.files[0]; if (file) took(file, null); });
   const pick = () => {
+    if (nuPickOk(f)) { nuPick(); return; }   // 1/11/2026: בתוך Studio לאנדרואיד — דרך האפליקציה (תרגום רגיל בשרת)
     if (canPickHandle()) { pickWithHandle().then((r) => { if (r && r.file) took(r.file, r.handle); else if (!r) inp.click(); }); return; }
     inp.click();
   };
@@ -3308,13 +3331,13 @@ function pageForm(p, editing) {
     c.querySelector('.st-l').append(meta);
     card.append(...c.childNodes);
   } else if (f.file) {
-    card = btn('st-filecard', null, f.ph ? (f.ph.nu ? nuPick : phPick) : f.drive && f.drive.bx ? () => go('dpick') : pick, 'file');   // 26/10/2026: מ־Drive — החלפה מהרשימה   // תרגום בטלפון — החלפה דרך האפליקציה
+    card = btn('st-filecard', null, f.ph ? f.ph.nu ? nuPick : phPick : f.drive && f.drive.bx ? () => go('dpick') : pick, 'file');   // 26/10/2026: מ־Drive — החלפה מהרשימה   // תרגום בטלפון — החלפה דרך האפליקציה
     card.setAttribute('aria-label', T('studioReplace') + ': ' + f.file.name);
     const th = h('span', 'st-thumb'); th.append(ico('film'));
     const txt = h('span', 'st-l');
     const nm = h('b'); nm.append(fileNameEl(f.file.name));
     const sz = h('small'); sz.append(fmtSize(f.file.size) + ' · ', h('span', 'st-linkish', T('studioReplace')));
-    txt.append(nm, sz, f.ph ? (f.ph.nu ? h('small', 'st-ok', T('studioNuNote')) : phNote(f.ph)) : f.drive ? h('small', 'st-ok', T('studioInDriveNote')) : f.fileObj ? h('small', 'st-ok', T('studioPhoneOnly')) : h('small', 'st-warn', T('studioRepick')));
+    txt.append(nm, sz, f.ph ? phNote(f.ph) : f.drive ? h('small', 'st-ok', T('studioInDriveNote')) : f.fileObj ? h('small', 'st-ok', T('studioPhoneOnly')) : h('small', 'st-warn', T('studioRepick')));
     card.append(th, txt);
   } else {
     // 25/10/2026: השורה הראשונה בקבוצת המקורות (לא כרטיס נפרד) — בולטת, וממנה ישר לבורר
@@ -3322,9 +3345,7 @@ function pageForm(p, editing) {
     // (שקופא ברקע): האפליקציה מעלה את הקול, מודדת, ומעלה את הסרטון לענן ברקע (UIDT) — והעבודה לא מחכה לו
     // 31/10/2026 (בקשת המשתמש: "לא בחרתי הכל בטלפון אלא תרגום רגיל על השרת"): הבחירה הראשית שוב מהדפדפן — הסרטון עולה ל־R2
     // במלואו, השרת צורב, והתוצאה באיכות המלאה להורדה. עבודת טלפון (phPick) — רק כשבוחרים בה במפורש (phRow)
-    // 1/11/2026 (בקשת המשתמש: "כמו מנהל הורדות — ממשיך לבד גם אחרי סגירה"): עם Studio לאנדרואיד — הבחירה דרך האפליקציה,
-    // אבל תרגום רגיל בשרת (nu): האפליקציה רק מעלה, ב־UIDT, מעותק משלה — בלי "לבחור שוב" אחרי סגירה
-    card = btn('st-row st-ric st-pickrow', null, nuUse(f) ? nuPick : pick, 'file');
+    card = btn('st-row st-ric st-pickrow', null, pick, 'file');
     const plus = h('span', 'st-plus'); plus.append(ico('film'));
     card.append(plus, f.ka ? rowTxt(T('studioKaPick'), T('studioKaPickS')) : rowTxt(T('studioPick'), T('studioNewSub')), ico('chev', 'st-chev'));
   }
@@ -3333,7 +3354,7 @@ function pageForm(p, editing) {
     p.append(inp, secT(f.ka ? T('studioKaSecSong') : T('studioSecVideo')));
     const pickRow = card.classList.contains('st-row') ? card : null;   // 25/10/2026: בלי קובץ — הבורר והמקורות האחרים בקבוצה אחת
     if (!pickRow) p.append(card);
-    if (!pickRow && f.ph && (f.ph.cap || 0) < PH_CAP_VC) {   // הקישור לעדכון — מחוץ לכפתור של הכרטיס
+    if (!pickRow && f.ph && (f.ph.cap || 0) < (f.ph.nu ? PH_CAP_NU : PH_CAP_VC)) {   // הקישור לעדכון — מחוץ לכפתור של הכרטיס
       const a = h('a', 'st-btn wide', T('studioLinkApk')); a.href = DL_APK; a.rel = 'noopener'; a.dataset.k = 'ph-apk';
       p.append(a);
     }
@@ -3796,6 +3817,7 @@ function trkSet(f, file, tracks, auto) {
    שהאפליקציה כבר חילצה (z), מוכנות בלי חילוץ נוסף */
 /* 30/10/2026 (הצילום: "הסרטון הפסיק לעלות ל־R2"): Studio ישן מתעלם מ־vc ומעלה רק את הקול — אומרים (הקישור לעדכון — מתחת לכרטיס) */
 function phNote(P) {
+  if (P.nu) return (P.cap || 0) >= PH_CAP_NU ? h('small', 'st-ok', T('studioNuNote')) : h('small', 'st-warn', T('studioNuOld'));   // 1/11/2026
   if ((P.cap || 0) >= PH_CAP_VC) return h('small', 'st-ok', T('studioPhNote'));
   return h('small', 'st-warn', T('studioPhOld'));
 }
@@ -4863,49 +4885,33 @@ function phIntent(kind, q) {
   try { fb = location.origin + location.pathname + '#phpick=!noapp'; } catch (e) {}
   return 'intent://' + kind + '?' + qs + '#Intent;scheme=snbstudio;package=' + DL_PKG + (fb ? ';S.browser_fallback_url=' + encodeURIComponent(fb) : '') + ';end';
 }
-/* 1/11/2026: nu — תרגום רגיל בשרת, אבל Studio לאנדרואיד בוחר ומעלה (UIDT): ממשיך לבד אחרי סגירה, ניתוק או כיבוי מסך,
-   בלי "לבחור שוב". הסימן ב־sessionStorage מזהה Studio ישן שלא מכיר nu (חוזר בלי nu) — אז מהדפדפן */
-const NU_KEY = 'pwa_studio_nu';
-const nuUse = (f) => phOk() && !ui.nuOff && !(f && f.ka);
-function nuPick() {
-  if (!nuUse(form)) { pick(); return; }
-  try { sessionStorage.setItem(NU_KEY, String(Date.now())); } catch (e) {}
-  location.href = phIntent('phpick', { nu: 1 });
-}
-function nuCard(rec) {
-  const srv = rec.srv || {}, st = srv.state;
-  const card = h('div', 'st-card st-ph');
-  card.append(h('b', null, T('studioNuT')));
-  const cur = () => { const x = jobRec(rec.id) || rec; return x.srv || {}; };
-  const line = () => { const q = cur(), v = q.vcp; return q.fv ? T('studioNuDone') : v && v.e ? T('studioNuStop', { e: v.e }) : v && vcLive(jobRec(rec.id) || rec) ? T('studioNuUp', { p: Math.round(v.p * 100) }) : T('studioNuWait'); };
-  card.append(live(h('small'), (el) => { el.textContent = line(); }));
-  if (!srv.fv) {
-    const pb = h('span', 'st-pbar'), pi = h('i'); pb.append(pi);
-    card.append(live(pb, () => { const v = cur().vcp; pi.style.width = (v && v.p > 0 ? Math.round(v.p * 100) : 0) + '%'; }));
-  }
-  // האפליקציה ממשיכה לבד (UIDT); הכפתור — רק כשהיא לא מדווחת: לא נפתחה, נעצרה, או שהמערכת דחתה אותה
-  const here = !!(rec.up.ph && devDl()), ready = here && phKeys.has(rec.id);
-  const stale = !srv.fv && ['new', 'queued', 'running', 'failed', 'done'].includes(st) && !vcLive(rec);
-  if (stale && here && !ready) phKeyFor(rec.id).then((k) => { if (k && root && ui.view === 'job' && ui.param === rec.id) render('none'); });
-  if (stale && here) { const x = btn('st-btn wide', ready ? T('studioNuGo') : T('studioPhKeyBusy'), () => phHand(rec, 'ph'), 'nu-go'); x.disabled = !ready; card.append(h('div', 'st-gap sm'), x); }
-  else if (stale && !srv.fv) card.append(h('small', 'st-warn', T('studioPhOtherDev')));
-  return card;
-}
 function phPick() {
   if (!phOk()) { flashSafe(T('studioLinkEApp')); return; }
+  try { sessionStorage.removeItem(NU_ASK); } catch (e) {}
   location.href = phIntent('phpick', {});
+}
+/* 1/11/2026 (בקשת המשתמש — "תרגום רגיל בשרת, הסרטון עולה דרך האפליקציה"; משימות-פתוחות א׳): בתוך Studio לאנדרואיד הבחירה
+   הראשית דרך האפליקציה. היא לא מעתיקה את הסרטון: מחלצת את הקול (בלי קידוד), מעלה אותו ומתחילה, והסרטון עולה במשימת
+   UIDT — ממשיכה כשהמסך כבוי והדף קפוא (בדפדפן ההעלאה נעצרת אחרי דקה ברקע). השרת מתרגם וצורב כמו בעבודה רגילה (spec.nu,
+   לא "תרגום בטלפון"). NU_ASK — הבקשה הייתה nu (Studio ישן לא מחזיר nu, והדף נטען מחדש בחזרה) */
+const NU_ASK = 'pwa_studio_nuask';
+export const nuPickOk = (f) => phOk() && !!f && !f.ka;
+function nuPick() {
+  if (!phOk()) { flashSafe(T('studioLinkEApp')); return; }
+  try { sessionStorage.setItem(NU_ASK, '1'); } catch (e) {}
+  location.href = phIntent('phpick', { nu: 1 });
 }
 /* ‎#phpick= מ־PhActivity: הסרטון נבחר והועתק לאחסון של Studio — הטופס עם הקובץ (בלי לקרוא אותו כאן) */
 export function studioPhPick(arg) {
   const r = parsePhPick(arg);
   if (!r) return false;
-  let nuReq = false;
-  try { nuReq = Date.now() - (+sessionStorage.getItem(NU_KEY) || 0) < 3600e3; sessionStorage.removeItem(NU_KEY); } catch (e) {}
-  if (!r.e && nuReq && !r.nu) { ui.nuOff = true; flashSafe(T('studioNuOld')); return true; }   // Studio ישן — הבחירה מהדפדפן
   if (r.e) { if (r.e !== 'cancel') flashSafe(T('studioPhFail') + ' — ' + phErrText(r.e)); return true; }
   if (!form) form = freshForm(null);
   const f = form;
-  f.ph = Object.assign({ pid: r.pid, w: r.w, h: r.h, dur: r.dur, cap: r.cap }, r.nu ? { nu: 1 } : {});   // 30/10/2026: cap נשמר — בלעדיו גם pt (שלב 3) לא הופעל אף פעם
+  let ask = false;
+  try { ask = sessionStorage.getItem(NU_ASK) === '1'; sessionStorage.removeItem(NU_ASK); } catch (e) {}
+  f.ph = { pid: r.pid, w: r.w, h: r.h, dur: r.dur, cap: r.cap };   // 30/10/2026: cap נשמר — בלעדיו גם pt (שלב 3) לא הופעל אף פעם
+  if (r.nu || ask) f.ph.nu = 1;   // 1/11/2026: תרגום רגיל בשרת — האפליקציה רק מעלה
   f.fileObj = null; f.handle = null; f.drive = null; f.link = null; f.linkOk = false; f.edl = null;
   f.file = { name: r.name, size: r.size, type: 'video/*' }; f.dur = r.dur;
   phTracks(f, r);
@@ -4938,19 +4944,16 @@ function startPhone(f) {
   if (!langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }
   ui.starting = true; render('none');
   (async () => {
+    // 1/11/2026 (nu): תרגום רגיל בשרת — התוצרים, הסגנון והצריבה כמו בבחירה מהדפדפן; האפליקציה רק מעלה (vc נקבע בשרתון)
     const spec = P.nu ? { name: f.file.name, size: f.file.size, type: 'video/*', dur: P.dur || 0, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
-      out: OUTS.filter((k) => f.out[k]), style: f.style, ...(f.sty ? { sty: f.sty } : {}), terms: f.terms, nu: 1, vc: 1, eng: 'api', cap: store.settings.cap }   // 1/11/2026: תרגום רגיל בשרת
+      out: OUTS.filter((k) => f.out[k]), style: f.style, ...(f.sty ? { sty: f.sty } : {}), terms: f.terms, nu: 1, eng: 'api', cap: store.settings.cap }
       : { name: f.file.name, size: f.file.size, type: 'video/*', dur: P.dur || 0, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
         out: [], style: f.style, terms: f.terms, ph: 1, eng: 'api', cap: store.settings.cap };
-    if (P.nu) {
-      if (cpMode()) spec.cp = 1; else if (ryMode()) spec.ry = 1;
-    } else {
-      if (f.pw === true) spec.pw = 1;   // שלב 2: הכל בטלפון — רק כשהופעל (30/10/2026: כבר לא ברירת המחדל)
-      spec.vc = 1;   // 29/10/2026: האפליקציה מעלה גם את הסרטון לענן, ברקע (לנגן מכל מכשיר, לשמירה ולהפקה מחדש) — העבודה לא מחכה לו
-      const pb = phPb(f); if (pb) spec.pb = pb;
-      if (cpMode()) spec.cp = 1; else if (ryMode()) spec.ry = 1;
-      else if (spec.pw && (P.cap || 0) >= PH_CAP_PT) spec.pt = 1;   // שלב 3: גם שלבי הטקסט בטלפון — השרת רק מעביר ל־Claude
-    }
+    if (!P.nu && f.pw === true) spec.pw = 1;   // שלב 2: הכל בטלפון — רק כשהופעל (30/10/2026: כבר לא ברירת המחדל)
+    if (!P.nu) spec.vc = 1;   // 29/10/2026: האפליקציה מעלה גם את הסרטון לענן, ברקע (לנגן מכל מכשיר, לשמירה ולהפקה מחדש) — העבודה לא מחכה לו
+    const pb = P.nu ? '' : phPb(f); if (pb) spec.pb = pb;
+    if (cpMode()) spec.cp = 1; else if (ryMode()) spec.ry = 1;
+    else if (spec.pw && (P.cap || 0) >= PH_CAP_PT) spec.pt = 1;   // שלב 3: גם שלבי הטקסט בטלפון — השרת רק מעביר ל־Claude
     if (P.w > 0 && P.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, P.w * P.h / (1920 * 1080))) * 1000) / 1000;
     // קודם יוצרים את העבודה ומבקשים מפתח (רשת — בלי נגיעה), ורק אז האומדן: הנגיעה ב"להתחיל" היא זו שפותחת את
     // האפליקציה (Chrome פותח intent רק מתוך נגיעה; אחרי await של רשת — כבר לא). ביטול — העבודה נמחקת. העבודה נשארת
@@ -5076,6 +5079,38 @@ function phCard(rec) {
   } else if (!burning && st === 'done' && rec.spec.pb && !(b && (b.s === 'run' || b.s === 'done'))) {
     if (here) go('st-btn wide', T('studioPhBurnGo'), 'phburn'); else card.append(h('small', 'st-warn', T('studioPhOtherDev')));
   } else if (!burning && st === 'done' && b && b.s === 'done' && here) go('st-btn ghost wide', T('studioPhBurnAgain'), 'phburn');
+  return card;
+}
+
+/* 1/11/2026 (nu): הסרטון עולה מ־Studio לאנדרואיד — "עלו 1.2GB מתוך 4.1GB · 3.4MB לשנייה · נשארו 14 דק׳" (vcp.r = הקצב בטלפון) */
+export function nuLine(v, size) {
+  const sent = Math.round((v.p || 0) * size), parts = [T('studioUpOf', { a: fmtSize(sent), b: fmtSize(size) })];
+  if (v.r > 0) {
+    parts.push(T('studioPerSec', { v: fmtSize(v.r) }));
+    if (size > sent) parts.push(T('studioStageLeft', { t: fmtShort((size - sent) / v.r) }));
+  }
+  return parts.join(' · ');
+}
+/* ההעלאה מהאפליקציה לא מתקדמת: נעצרה (e), לא דיווחה PPR_LIVE, או לא התחילה 5 דק׳ אחרי היצירה — הכפתור "להמשיך באפליקציה" */
+export const nuStuck = (rec, now) => { const s = (rec && rec.srv) || {}, v = s.vcp; return !!rec && !s.fv && (v ? !!v.e || now - v.at > PPR_LIVE : now - (rec.created || 0) > 5 * 60e3); };
+function nuCard(rec) {
+  const card = h('div', 'st-card st-ph');
+  card.append(h('b', null, T('studioNuCardT')));
+  const cur = () => (jobRec(rec.id) || rec).srv || {};
+  const size = rec.spec.size || 0, pb = h('span', 'st-pbar'), pi = h('i'); pb.append(pi);
+  card.append(live(h('small'), (el) => {
+    const q = cur(), v = q.vcp;
+    el.className = !q.fv && v && v.e ? 'st-warn' : '';
+    el.textContent = q.fv ? T('studioVcDone') : v && v.e ? T('studioNuStop') + (v.e !== 'cancel' ? ' (' + v.e + ')' : '') : v ? nuLine(v, size) : T('studioNuWait');
+  }), live(pb, () => { const q = cur(); pi.style.width = (q.fv ? 100 : q.vcp ? Math.round(q.vcp.p * 100) : 0) + '%'; pb.hidden = !!q.fv; }));
+  if (nuStuck(rec, Date.now())) {
+    const v = (rec.srv || {}).vcp;
+    if (v && !v.e) card.append(h('small', 'st-warn', T('studioNuStuck')));
+    const here = !!(rec.up.ph && devDl()), ready = here && phKeys.has(rec.id);
+    if (here && !ready) phKeyFor(rec.id).then((k) => { if (k && root && ui.view === 'job' && ui.param === rec.id) render('none'); });
+    if (here) { const x = btn('st-btn ghost wide', ready ? T('studioPhResume') : T('studioPhKeyBusy'), () => phHand(rec, 'ph'), 'ph-ph'); x.disabled = !ready; card.append(h('div', 'st-gap sm'), x); }
+    else card.append(h('small', 'st-warn', T('studioNuOtherDev')));
+  }
   return card;
 }
 
@@ -8640,8 +8675,8 @@ function pageJob(p) {
   p.append(live(h('p', 'st-offl'), (el) => { const r = jobRec(id), t = r && offlineNote(r, runs.get(id), navigator.onLine === false); el.hidden = !t; if (t) el.textContent = t === 'studioOfflRun' ? T('studioOfflRun') : T('studioOfflDone'); }));
   const ask = askCard(rec);   // שאלה מ־Claude — מעל הכל, כי היא מחכה לך
   if (ask) p.append(ask);
-  if (rec.spec.ph) p.append(phCard(rec));
-  else if (rec.spec.nu) p.append(nuCard(rec));   // 1/11/2026: הסרטון עולה מ־Studio לאנדרואיד   // 24/10/2026: תרגום בטלפון — הסרטון, המדידות והצריבה בטלפון
+  if (rec.spec.ph) p.append(phCard(rec));   // 24/10/2026: תרגום בטלפון — הסרטון, המדידות והצריבה בטלפון
+  else if (rec.spec.nu && !(rec.srv && rec.srv.fv && rec.srv.state === 'done')) p.append(nuCard(rec));   // 1/11/2026: האפליקציה מעלה את הסרטון
   const cpc = cpCard(rec);   // סבב 10: העתק־הדבק — בקשה שמחכה לתשובה מ־Claude שלך
   if (cpc) p.append(cpc);
   const tstop = towerStopCard(rec);   // v362: מגדל הפיקוח עצר — מה קרה, מה זה אומר, המספרים
@@ -8657,9 +8692,9 @@ function pageJob(p) {
   const nowc = h('div', 'st-nowc');
   const nic = h('span', 'st-nowic');
   nic.append(ico(ph0 === 'wait' ? (run0 && run0.wait === 'wifi' ? 'wifi' : 'cloud') : ph0 === 'error' || ph0 === 'failed' && !recovering(rec) ? 'alert' : ph0 === 'failed' ? 'pause' : ph0 === 'need' || ph0 === 'paused' || ph0 === 'stuck' ? 'pause' : 'up'));
-  const ntx = h('span', 'st-l'); const nb = h('b'), ns = h('small');
+  const ntx = h('span', 'st-l'); const nb = h('b'), ns = h('small'), nw = h('small', 'st-warn');
   const npb = h('span', 'st-pbar'); const npi = h('i'); npb.append(npi);
-  ntx.append(nb, ns, npb);
+  ntx.append(nb, ns, npb, nw);
   nowc.append(nic, ntx);
   live(nowc, () => {
     const r = jobRec(id); if (!r) return;
@@ -8671,6 +8706,9 @@ function pageJob(p) {
       : ph === 'video' ? videoLine(r, run) : ph === 'running' && ex ? ex : '';
     ns.hidden = !ns.textContent;
     const up = ph === 'extract' || ph === 'audio' || ph === 'video';
+    const slow = ph === 'video' && run && run.active && run.bgSlow;   // 1/11/2026: ברקע ההעלאה כמעט נעצרה
+    nw.hidden = !slow;
+    if (slow) nw.textContent = T('studioBgSlow', { v: fmtSize(run.bgSlow.r) }) + (isIOS() ? ' ' + T('studioBgSlowIos') : '');
     npb.hidden = !up;
     if (up) npi.style.width = Math.round(100 * (run.p || 0)) + '%';
   });
@@ -9456,8 +9494,8 @@ let lastShape = '';
 /* "צורת" הדף — כשהיא משתנה (שלב חדש, העלאה הסתיימה, שגיאה) בונים את הדף מחדש; אחרת רק מעדכנים במקום */
 function shapeKey() {
   const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x + (rec.srv.tw.sh ? 's' : '') : '') + (recovering(rec) ? 'R' : '') + (rec.srv && rec.srv.nt ? 'n' + rec.srv.nt.h.length + (rec.srv.nt.p ? 'p' : '') : '') + (rec.srv && rec.srv.cp ? 'c' + rec.srv.cp.n + (rec.srv.cp.a ? 'a' : '') : '') + (cpBusy ? 'B' : '') + (rec.srv && rec.srv.out.length ? 'o' + rec.srv.out.length : '')
-    + (rec.spec.nu && rec.srv ? 'N' + (rec.srv.fv ? 1 : 0) + (rec.srv.vcp && rec.srv.vcp.e || '') + (vcLive(rec) ? 'l' : '') + (phKeys.has(rec.id) ? 'k' : '') : '')
-    + (rec.spec.ph && rec.srv ? 'P' + (rec.srv.m ? 1 : 0) + (rec.srv.pbn ? rec.srv.pbn.s + (rec.srv.pbn.at || '') : '') + (phBurnLive(rec) ? 'b' : '') + (phKeys.has(rec.id) ? 'k' : '') + (rec.srv.ppr ? (rec.srv.ppr.s === 'err' ? 'E' : phPrepLive(rec) ? 'L' : '') : '') + (rec.spec.vc ? 'V' + (rec.srv.fv ? 1 : rec.srv.vcp ? (rec.srv.vcp.e ? 'e' : Math.round(rec.srv.vcp.p * 20)) : '') : '') : ''); };   // 24/10/2026: תרגום בטלפון — המדידות והצריבה   // v382: הערה שנקראה / ממתינה; סבב 10: העתק־הדבק
+    + (rec.spec.ph && rec.srv ? 'P' + (rec.srv.m ? 1 : 0) + (rec.srv.pbn ? rec.srv.pbn.s + (rec.srv.pbn.at || '') : '') + (phBurnLive(rec) ? 'b' : '') + (phKeys.has(rec.id) ? 'k' : '') + (rec.srv.ppr ? (rec.srv.ppr.s === 'err' ? 'E' : phPrepLive(rec) ? 'L' : '') : '') + (rec.spec.vc ? 'V' + (rec.srv.fv ? 1 : rec.srv.vcp ? (rec.srv.vcp.e ? 'e' : Math.round(rec.srv.vcp.p * 20)) : '') : '') : '')
+    + (rec.spec.nu && rec.srv ? 'U' + (rec.srv.fv ? 1 : rec.srv.vcp && rec.srv.vcp.e ? 'e' : '') + (nuStuck(rec, Date.now()) ? 's' : '') + (phKeys.has(rec.id) ? 'k' : '') : ''); };   // 24/10/2026: תרגום בטלפון — המדידות והצריבה   // v382: הערה שנקראה / ממתינה; סבב 10: העתק־הדבק
   const incK = (j) => { const x = ui.inc && ui.inc.list.find((y) => y.j === j); return x ? x.no + x.st + x.s : ''; };
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : '') + '|' + incK(ui.param) + '|' + (r && r.up.dx ? r.up.dx.st + Math.round(r.up.dx.p * 20) + r.up.dx.n : '') + (dxBusy === ui.param ? 'X' : ''); }   // 26/10/2026: השמירה ב־Drive
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join() + '|' + (majorOn(ui.inc) ? ui.inc.mi.no + ':' + ui.inc.mi.n : '');
@@ -9683,7 +9721,7 @@ function schedulePoll() {
   let ms = 0;
   // v368: עבודה שמתאוששת — בודקים שוב בסוף החלון (אז השרתון ממשיך אותה)
   const recMs = (list) => { const t = Math.min(...list.filter(recovering).map((r) => r.srv.rw)); return Number.isFinite(t) ? Math.max(2000, Math.min(60000, t - Date.now() + 1500)) : 0; };
-  if (ui.view === 'job') { const r = jobRec(ui.param), st = r && r.srv ? r.srv.state : 'new'; ms = st === 'queued' || st === 'running' || (r && r.srv && r.srv.bg) || phBurnLive(r) || phPrepLive(r) ? 4000 : st === 'new' && r && r.up.started || vcLive(r) ? 15000 : r ? recMs([r]) : 0; }
+  if (ui.view === 'job') { const r = jobRec(ui.param), st = r && r.srv ? r.srv.state : 'new'; ms = st === 'queued' || st === 'running' || (r && r.srv && r.srv.bg) || phBurnLive(r) || phPrepLive(r) ? 4000 : st === 'new' && r && (r.up.started || r.spec.nu) || vcLive(r) ? 15000 : r ? recMs([r]) : 0; }
   else if (ui.view === 'home') ms = store.jobs.some((r) => r.srv && (r.srv.state === 'queued' || r.srv.state === 'running' || r.srv.bg)) ? 30000 : recMs(store.jobs);   // 26/10/2026: 30 שנ׳ (op:'jobs' = כל העבודות שלך — קריאה מ־Firestore לכל אחת)
   else if (ui.view === 'rr') { ms = rrRunning(rrJobs.get(ui.param)) || rrRunning(rrPv.get(ui.param)) ? 4000 : 0; }   // מ2; סבב 10: גם הבדיקה
   else if (ui.view === 'server' && ui.api && ui.api.admin) ms = 15000;   // מסך השרת: הדופק מתעדכן כל 15 שנ׳

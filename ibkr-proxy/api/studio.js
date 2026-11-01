@@ -2182,8 +2182,9 @@ async function phoneOp(req, res, body, deps) {
     }
     if (!job || !(job.spec && (job.spec.ph === 1 || job.spec.nu === 1)) || job.kind !== 'tr' || !S.keyMatches(job, key, 'pkh') || now > (job.pkx || 0)) return res.status(403).json({ ok: false, error: 'bad_key' });
     const e = S.effState(job, now), op = body.op;
-    // 1/11/2026: nu — האפליקציה רק מעלה (קול, סרטון) ומתחילה; התמלול, המדידות והצריבה בשרת
-    if (job.spec.nu === 1 && ['phBurn', 'phProg', 'phClaim'].includes(op)) return res.status(409).json({ ok: false, error: 'not_ph' });
+    // 1/11/2026: עבודה רגילה שהאפליקציה רק מעלה לה (spec.nu) — הקול, ההתחלה והסרטון. בלי צריבה, מילים או שלבים בטלפון
+    const nu = job.spec.nu === 1;
+    if (nu && ['phBurn', 'phProg', 'phClaim'].includes(op)) return res.status(409).json({ ok: false, error: 'not_ph' });
     if (op === 'phJob') {
       return res.status(200).json({ ok: true, now, job: { id, state: e.state, err: e.err, prog: job.prog || null, pb: job.spec.pb || '',
         out: (Array.isArray(job.fo) ? job.fo : []).map((o) => ({ id: o.id, k: o.k, size: o.size })), a: !!job.fa, m: !!job.fph, w: !!job.fpw, pbn: S.normPbn(job.pbn, job.pbn && job.pbn.at) } });
@@ -2259,7 +2260,9 @@ async function phoneOp(req, res, body, deps) {
     }
     if (op === 'phFile') {
       const pw = !!(job.spec && job.spec.pw === 1);
-      const which = (pw ? body.which === 'w' : body.which === 'a') || (body.which === 'm' && job.spec.nu !== 1) ? body.which : '';   // שלב 2: בלי קול, עם המילים
+      // nu — רק הקול (השוטים בשרת). Studio ישן (לפני cap 5) לא מכיר nu ומעלה גם מדידות — מתעלמים (ok), כדי שלא יעצור בשגיאה
+      if (nu && body.which === 'm') return res.status(200).json({ ok: true, now, ignored: true });
+      const which = nu ? (body.which === 'a' ? 'a' : '') : (pw ? body.which === 'w' : body.which === 'a') || body.which === 'm' ? body.which : '';   // שלב 2: בלי קול, עם המילים
       const fid = String(body.id || '');
       if (!which || !S.FILE_ID_RE.test(fid) || !SR.inFolder(fid, job.folder)) return res.status(400).json({ ok: false, error: 'bad_params' });
       const rg = await r2Register(deps, job, which, fid, now);
@@ -2268,7 +2271,7 @@ async function phoneOp(req, res, body, deps) {
     }
     // phStart: פעם אחת, אחרי שהקול נרשם — אותן בדיקות של התחלה מהדף (תחזוקה ודגלים, מתג החירום והחוקים, תקלה רחבה)
     if (e.state !== 'new') return res.status(200).json({ ok: true, state: e.state, now });   // כבר התחילה — לא שוב
-    if (job.spec && job.spec.pw === 1 ? !(job.fpw && job.fph) : !job.fa) return res.status(409).json({ ok: false, error: 'no_files' });   // שלב 2: המילים והמדידות לפני ההתחלה
+    if (nu ? !job.fa && !job.fv : job.spec && job.spec.pw === 1 ? !(job.fpw && job.fph) : !job.fa) return res.status(409).json({ ok: false, error: 'no_files' });   // nu: קול שאי אפשר להעתיק — מתחילים מהסרטון   // שלב 2: המילים והמדידות לפני ההתחלה
     const sbs = await sysBlock(deps, job, now, false, false);
     if (sbs) return res.status(409).json(Object.assign({ ok: false }, sbs));
     const stop = await ruleBlock(deps, job.uid, job, { ov: body.ov === true });   // ov — מה שאישרת בדף לפני המסירה לאפליקציה
@@ -3769,7 +3772,7 @@ async function handler(req, res, deps = {}) {
     if (op === 'phKey') {
       // 24/10/2026: תרגום בטלפון — מפתח לעבודה אחת בשביל Studio לאנדרואיד (הקול, המדידות, ההתחלה, ההורדה והצריבה בלי
       // הדפדפן). לבדיקה — ה־hash; לשליפה חוזרת — מוצפן בכספת (pke, ‏AAD לפי העבודה), אף פעם לא גלוי במסמך
-      if (job.kind !== 'tr' || !(job.spec && (job.spec.ph === 1 || job.spec.nu === 1)) || !SR.isFolder(job.folder) || !['new', 'queued', 'running', 'failed', 'done'].includes(st)) return res.status(409).json({ ok: false, error: 'state' });   // nu — 1/11/2026
+      if (job.kind !== 'tr' || !(job.spec && (job.spec.ph === 1 || job.spec.nu === 1)) || !SR.isFolder(job.folder) || !['new', 'queued', 'running', 'failed', 'done'].includes(st)) return res.status(409).json({ ok: false, error: 'state' });   // 1/11/2026: גם nu
       // אותו מפתח כל עוד נשאר לו יותר מיום (מוצפן בכספת — pke): הדף מבקש אותו מראש, כדי לפתוח את האפליקציה ישר מהנגיעה
       // (Chrome פותח intent רק מתוך נגיעה), וזה לא מבטל מפתח שהאפליקציה כבר משתמשת בו באמצע העלאה
       const aad = 'phk|' + job.id;

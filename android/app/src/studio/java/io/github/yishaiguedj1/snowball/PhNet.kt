@@ -3,7 +3,6 @@ package io.github.yishaiguedj1.snowball
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
-import java.io.RandomAccessFile
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -13,7 +12,17 @@ import java.net.URL
  */
 class PhNet(private var base: String, private val job: String, private val key: String) {
     class Err(val code: String) : Exception(code)
-    companion object { const val CONC = 4 }   // 29/10/2026: חלקים במקביל בהעלאת הסרטון (= R2_CONC באתר)
+    companion object {
+        const val CONC = 4   // 29/10/2026: חלקים במקביל בהעלאת הסרטון (= R2_CONC באתר)
+        const val BUF = 512 shl 10   // 1/11/2026: באפר הקריאה/הכתיבה של חלק (היה 64KB — יותר קריאות מערכת ומעברי JNI לכל MB)
+    }
+
+    /** 1/11/2026: מה שעולה בחלקים — העותק הפרטי (File) או הסרטון במקומו (URI, בלי עותק — UriSrc). open = זרם שמתחיל ב־off */
+    interface Src { val size: Long; fun open(off: Long): java.io.InputStream }
+    class FileSrc(private val f: File) : Src {
+        override val size: Long get() = f.length()
+        override fun open(off: Long): java.io.InputStream = java.io.FileInputStream(f).also { it.channel.position(off) }
+    }
 
     init { require(PhCore.hostOk(base) && PhCore.JOB_RE.matches(job) && PhCore.KEY_RE.matches(key)) }
 
@@ -80,9 +89,9 @@ class PhNet(private var base: String, private val job: String, private val key: 
     /** 29/10/2026: הסרטון לענן (spec.vc) — כמו upload, אבל CONC חלקים במקביל (בסלולרי חיבור אחד לא ממלא את קו ההעלאה),
      *  התקדמות בבתים (כולל מה שבדרך), ו־extra בכל קריאה לשרתון (v=true). עצירה — Err("stopped") אחרי שהחלקים שבדרך
      *  נגמרו; כמה סבבים בלי שום חלק — Err("net"), והמשימה מתוזמנת שוב וממשיכה מהחלקים שכבר ב־R2 */
-    fun uploadPar(f: File, type: String, name: String, extra: JSONObject, id0: String, up0: String, save: (String, String) -> Unit,
+    fun uploadPar(f: Src, type: String, name: String, extra: JSONObject, id0: String, up0: String, save: (String, String) -> Unit,
                   stop: () -> Boolean, progress: (Long) -> Unit): String {
-        val size = f.length()
+        val size = f.size
         fun body() = JSONObject(extra.toString())
         fun start(id: String) = call("phUp", body().put("size", size).put("type", type).put("name", name).apply { if (id.isNotEmpty()) put("id", id) })
         var r = if (up0.isNotEmpty() && id0.isNotEmpty()) call("phParts", body().put("id", id0).put("up", up0)) else start(id0)
@@ -117,7 +126,7 @@ class PhNet(private var base: String, private val job: String, private val key: 
                         val (n, u) = todo.poll() ?: break
                         val g = PhCore.part(n, ps, size)
                         live[n] = 0L
-                        val st = put(u, f, g) { b -> live[n] = b; rep() }
+                        val st = putSrc(u, f, g) { b -> live[n] = b; rep() }
                         live.remove(n)
                         if (st in 200..299) { sent.addAndGet(g.last - g.first + 1); ok.incrementAndGet(); rep() } else broke.set(true)   // קישור שפג / ניתוק
                     }
@@ -137,7 +146,8 @@ class PhNet(private var base: String, private val job: String, private val key: 
         }
     }
 
-    private fun put(url: String, f: File, range: LongRange, onBytes: ((Long) -> Unit)? = null): Int {
+    /** חלק של הסרטון מ־Src. כל תקלה (גם הרשאה ל־URI שבוטלה) = 0 — לא מפילה את התהליכון; uploadPar בודק את המקור לפני */
+    private fun putSrc(url: String, f: Src, range: LongRange, onBytes: ((Long) -> Unit)? = null): Int {
         require(url.startsWith("https://"))
         val len = range.last - range.first + 1
         return try {
@@ -145,20 +155,21 @@ class PhNet(private var base: String, private val job: String, private val key: 
             c.connectTimeout = 20_000; c.readTimeout = 120_000
             c.requestMethod = "PUT"; c.doOutput = true
             c.setFixedLengthStreamingMode(len)
-            RandomAccessFile(f, "r").use { raf ->
-                raf.seek(range.first)
+            f.open(range.first).use { i ->
                 c.outputStream.use { o ->
-                    val buf = ByteArray(1 shl 16); var left = len
+                    val buf = ByteArray(BUF); var left = len
                     var last = 0L
                     while (left > 0) {
-                        val n = raf.read(buf, 0, minOf(buf.size.toLong(), left).toInt()); if (n < 0) break; o.write(buf, 0, n); left -= n
+                        val n = i.read(buf, 0, minOf(buf.size.toLong(), left).toInt()); if (n < 0) break; o.write(buf, 0, n); left -= n
                         if (onBytes != null && len - left - last >= (1L shl 20)) { last = len - left; onBytes(last) }
                     }
                 }
             }
             c.responseCode.also { c.disconnect() }
-        } catch (e: IOException) { 0 }
+        } catch (e: Throwable) { 0 }
     }
+
+    private fun put(url: String, f: File, range: LongRange): Int = putSrc(url, FileSrc(f), range)
 
     /** הורדה מקישור חתום (התוצרים — he.ass) */
     fun get(url: String, dest: File, max: Long = 64L shl 20) {

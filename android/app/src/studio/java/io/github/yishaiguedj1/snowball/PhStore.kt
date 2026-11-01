@@ -11,6 +11,7 @@ import java.security.SecureRandom
  * ונשמר עד שהפרויקט נמחק באתר (לצריבה נוספת — gcRemote), או אחרי שבוע כשלא נוצרה לו עבודה.
  *
  * שלבים (st): picked → audio → upa → start → shots → upm → wait → burn → done; err = נעצר עם קוד (e)
+ * תרגום רגיל בשרת (pu, 1/11/2026 — uri במקום src, בלי עותק): picked → audio → upa → start → wait; הסרטון ב־PhUpJob
  * "הכל בטלפון" (pw): picked → models → wav → asr → diar → align → upw → shots → upm → start → wait → burn → done
  */
 object PhStore {
@@ -44,6 +45,9 @@ object PhStore {
     }
 
     fun drop(ctx: Context, pid: String) {
+        // 1/11/2026 (pu): הסרטון נקרא במקומו — משחררים את ההרשאה הקבועה ל־URI (אין עותק למחוק)
+        get(ctx, pid)?.optString("uri")?.takeIf { it.startsWith("content://") }?.let { u ->
+            try { ctx.contentResolver.releasePersistableUriPermission(android.net.Uri.parse(u), android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Throwable) {} }
         work(ctx, pid).deleteRecursively()
         File(dir(ctx), "$pid.json").delete()
     }

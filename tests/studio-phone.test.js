@@ -174,7 +174,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   /* ---------- 5א. nu (1/11/2026): תרגום רגיל בשרת, Studio לאנדרואיד רק מעלה (קול + סרטון) ומתחיל ---------- */
   sp = S.normSpec(Object.assign({}, base, { nu: 1, out: ['same'] }));
   ok(sp.nu === 1 && sp.vc === 1 && !sp.ph && sp.out.includes('same'), 'nu נשמר, עם vc ועם התוצרים של עבודה רגילה');
-  ok(!('nu' in S.normSpec(Object.assign({}, base, { nu: 1, ph: 1 }))) && !('nu' in S.normSpec(Object.assign({}, base, { nu: 1, eng: '' }))), 'nu — לא עם ph ולא בלי השרת');
+  ok(S.normSpec(Object.assign({}, base, { nu: 1, ph: 1 })) === null && S.normSpec(Object.assign({}, base, { nu: 1, eng: '' })) === null, 'nu — לא עם ph ולא בלי השרת (נדחה, לא נופל בשקט)');
   const jn = await api('create', { spec: Object.assign({}, base, { nu: 1 }) });
   ok(jn.ok && jn.job.spec.nu === 1, 'עבודת nu נוצרת');
   const pkn = await api('phKey', { job: jn.job.id });
@@ -184,7 +184,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   const un = await nu('phUp', { size: audio.length, type: 'audio/x-matroska', name: 'talk.audio.mka' });
   await R.fetch(un.urls[1], { method: 'PUT', body: audio });
   ok((await nu('phDone', { id: un.id, up: un.up })).ok && (await nu('phFile', { which: 'a', id: un.id })).ok, 'nu: הקול נרשם מהאפליקציה');
-  ok((await nu('phFile', { which: 'm', id: un.id })).error === 'bad_params', 'nu: בלי קובץ מדידות (השרת מודד)');
+  ok((await nu('phFile', { which: 'm', id: un.id })).ignored === true, 'nu: בלי קובץ מדידות (השרת מודד; מ־Studio ישן — מתעלמים)');
   ok((await nu('phProg', { ppr: { s: 'asr', p: 0.1 } })).error === 'not_ph' && (await nu('phClaim', {})).error === 'not_ph' && (await nu('phBurn', { pbn: { s: 'run', p: 0 } })).error === 'not_ph', 'nu: בלי פעולות של תרגום בטלפון');
   j = await nu('phStart', {});
   ok(j.ok && j.state === 'queued', 'nu: האפליקציה התחילה את העבודה');
@@ -271,17 +271,17 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(pp && pp.pid === PID && pp.name === 'הרצאה.mp4' && pp.size === 123456789 && pp.dur === 3600.5 && pp.w === 1920, '‎#phpick= — הסרטון שנבחר בטלפון (שם בעברית)');
   // 1/11/2026: nu — בחירה דרך האפליקציה לתרגום רגיל בשרת (האפליקציה רק מעלה)
   ok(W.parsePhPick(PID + '.' + enc({ pid: PID, size: 9, nu: 1 })).nu === true && W.parsePhPick(PID + '.' + enc({ pid: PID, size: 9 })).nu === false, 'nu מהאפליקציה — רק 1 מפורש');
-  ok(/card = btn\('st-row st-ric st-pickrow', null, nuUse\(f\) \? nuPick : pick, 'file'\)/.test(src) && /phIntent\('phpick', \{ nu: 1 \}\)/.test(src), 'nu: עם Studio לאנדרואיד — הבחירה הראשית דרך האפליקציה');
-  ok(/!\(f && f\.ka\)/.test(src.slice(src.indexOf('const nuUse'), src.indexOf('function nuPick'))), 'nu: קריוקי — מהדפדפן');
-  ok(/if \(!r\.e && nuReq && !r\.nu\) \{ ui\.nuOff = true; flashSafe\(T\('studioNuOld'\)\)/.test(src), 'nu: Studio ישן שלא החזיר nu — לא הופך בשקט לתרגום בטלפון');
-  ok(/out: OUTS\.filter\(\(k\) => f\.out\[k\]\), style: f\.style, \.\.\.\(f\.sty \? \{ sty: f\.sty \} : \{\}\), terms: f\.terms, nu: 1, vc: 1, eng: 'api'/.test(src), 'nu: עבודה רגילה (התוצרים מהטופס), לא spec.ph');
-  ok(/else if \(rec\.spec\.nu\) p\.append\(nuCard\(rec\)\)/.test(src) && /rec\.spec\.ph \|\| rec\.spec\.nu\) && rec\.srv && rec\.srv\.fv/.test(src), 'nu: כרטיס ההעלאה בדף העבודה, והנגן מהסרטון שבענן');
+  ok(/if \(nuPickOk\(f\)\) \{ nuPick\(\); return; \}/.test(src) && /phIntent\('phpick', \{ nu: 1 \}\)/.test(src), 'nu: עם Studio לאנדרואיד — הבחירה הראשית דרך האפליקציה');
+  ok(/export const nuPickOk = \(f\) => phOk\(\) && !!f && !f\.ka;/.test(src), 'nu: קריוקי — מהדפדפן');
+  ok(/if \(r\.nu \|\| ask\) f\.ph\.nu = 1;/.test(src), 'nu: Studio ישן שלא החזיר nu — עדיין עבודה רגילה (לפי NU_ASK), לא תרגום בטלפון');
+  ok(/out: OUTS\.filter\(\(k\) => f\.out\[k\]\), style: f\.style, \.\.\.\(f\.sty \? \{ sty: f\.sty \} : \{\}\), terms: f\.terms, nu: 1, eng: 'api'/.test(src), 'nu: עבודה רגילה (התוצרים מהטופס), לא spec.ph');
+  ok(/else if \(rec\.spec\.nu && [^\n]*p\.append\(nuCard\(rec\)\)/.test(src) && /rec\.spec\.ph \|\| rec\.spec\.nu\) && rec\.srv && rec\.srv\.fv/.test(src), 'nu: כרטיס ההעלאה בדף העבודה, והנגן מהסרטון שבענן');
   ok(/if \(sp\.nu === 1 && sp\.ph !== 1\) Object\.assign\(spec, \{ nu: 1, vc: 1 \}\)/.test(src), 'nu ו־vc נשמרים ברשומה בטלפון (גם אחרי רענון)');
   {
     const act = fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhActivity.kt'), 'utf8');
     const wk = fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhWork.kt'), 'utf8');
-    ok(/"phpick" -> \{ nu = d\.getQueryParameter\("nu"\) == "1"; pick\(\) \}/.test(act) && /\.put\("nu", nu\)\)/.test(act) && /if \(nu\) put\("nu", 1\)/.test(act), 'nu: האפליקציה זוכרת ומחזירה את הבחירה');
-    ok(/if \(!nu && r\.optString\("mId"\)\.isEmpty\(\)\)/.test(wk) && /if \(r\.optBoolean\("nu"\)\) runCatching \{ f\.delete\(\) \}/.test(wk) && /val f by lazy \{ src\(ctx, r\) \}/.test(wk), 'nu: בלי מדידות בטלפון, העותק נמחק כשהסרטון עלה');
+    ok(/"phpick" -> pick\(d\.getQueryParameter\("nu"\) == "1"\)/.test(act) && /\.put\("nu", 1\)\.toString\(\)/.test(act), 'nu: האפליקציה מקבלת ומחזירה את הבחירה');
+    ok(/if \(r\.optBoolean\("pu"\)\) return upPu\(/.test(wk) && !/runCatching \{ f\.delete\(\) \}/.test(wk), 'nu: מסלול משלו, בלי עותק למחוק');
   }
   ok(W.parsePhPick('!space').e === 'space' && W.parsePhPick('!<b>') === null, 'שגיאה מהאפליקציה — רק קוד');
   ok(W.parsePhPick('p0123456789abcdee.' + enc({ pid: PID, size: 5 })) === null, 'pid לא תואם — נדחה');
@@ -316,7 +316,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(['studioPh', 'phburn', 'phKey'].every((x) => src.includes(x)) && !/net\.api\('phBurn'/.test(src), 'הדף לא מדווח צריבה (רק האפליקציה, במפתח של העבודה)');
   // 24/10/2026 (בטלפון: הצריבה הופיעה רק בהתראה) — עבודה שהסתיימה ממשיכה להיבדק בזמן הצריבה, והאחוז נשלח כל 5 שנ׳ ברקע
   ok(/st === 'running' \|\| \(r && r\.srv && r\.srv\.bg\) \|\| phBurnLive\(r\) \|\| phPrepLive\(r\) \? 4000/.test(src) && /phBurnTap\.set\(rec\.id, Date\.now\(\)\)/.test(src), 'בזמן הצריבה (וגם כשהטלפון מתמלל/מיישר) דף העבודה שואל כל 4 שנ׳ (גם כשהעבודה "הסתיימה")');
-  ok(/kind === 'ph' && rec\.spec\.pw \? \{ pw: 1 \}/.test(src) && /if \(f\.pw === true\) spec\.pw = 1/.test(src) && /on: f\.pw === true/.test(src), 'הכל בטלפון: רק כשהופעל (כבוי כברירת מחדל, 30/10/2026) — העבודה עם pw, וה־intent מעביר pw=1');
+  ok(/kind === 'ph' && rec\.spec\.pw \? \{ pw: 1 \}/.test(src) && /if \(!P\.nu && f\.pw === true\) spec\.pw = 1/.test(src) && /on: f\.pw === true/.test(src), 'הכל בטלפון: רק כשהופעל (כבוי כברירת מחדל, 30/10/2026) — העבודה עם pw, וה־intent מעביר pw=1');
   const work = fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhWork.kt'), 'utf8');
   ok(/lastRep > 2_000/.test(work) && /class Latest/.test(work) && /pending\.getAndSet\(o\) == null/.test(work) && !/\* 0\.95/.test(work) && /repDone\(JSONObject\(\)\.put\("s", "done"\)/.test(work),
     'הצריבה מדווחת כל 2 שנ׳, רק הערך האחרון (בלי תור שמפגר — 35% בדף מול 51% בהתראה), אותו אחוז של ההתראה; "הסתיים" אחרון');
@@ -341,7 +341,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   const lf = [...local.matchAll(/File\((?:md|am), "([^"]+)"\)/g)].map((m) => m[1]).filter((x) => /\./.test(x)).map((x) => have.has(x) ? x : 'aligner/model/' + x);
   ok(lf.length >= 5 && lf.every((x) => have.has(x)), 'כל קובץ ש־PhLocal פותח — בין המודלים: ' + lf.join(', '));
   ok(!/models_wifi"\)/.test(work) && !/isActiveNetworkMetered/.test(work), 'הורדת המודלים גם בחבילת גלישה — בלי חובת Wi‑Fi (בקשת המשתמש 25/10/2026)');
-  ok(/fun codeOf\(e: Throwable\)/.test(work) && /"x_" \+ e\.javaClass\.simpleName/.test(work) && (work.match(/val code = codeOf\(e\)/g) || []).length === 3, 'כשל לא צפוי מדווח עם סוג החריגה (x_…), לא "fail" (הקול, הצריבה והסרטון לענן)');
+  ok(/fun codeOf\(e: Throwable\)/.test(work) && /"x_" \+ e\.javaClass\.simpleName/.test(work) && (work.match(/val code = codeOf\(e\)/g) || []).length === 4, 'כשל לא צפוי מדווח עם סוג החריגה (x_…), לא "fail" (הקול, הצריבה, הסרטון לענן ו־pu)');
   ok(/rec\.up\.ph && \(!rec\.srv \|\| !rec\.srv\.state \|\| rec\.srv\.state === 'new'\)/.test(src) && /T\('studioPhStopBig'\)/.test(src), 'עבודה שעוד בטלפון — בלי "הקבצים מוכנים בענן"');
 
   // 25/10/2026 (בקשת המשתמש): הסרטון שנצרב בטלפון — בנגן שלנו, עם בחירת קול וכתוביות
