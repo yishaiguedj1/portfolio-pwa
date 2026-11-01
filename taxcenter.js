@@ -282,10 +282,13 @@ function paintToday(wrap, C) {
   const fake = ok.map((u) => Object.assign({}, u, { sellDate: today }));
   const Yall = tiYear(C.nowY, C.f.sales.concat(fake), C.divs, { carry: Y.carryIn, other: (C.st.other || {})[C.nowY] });
   const extra = Math.max(0, Yall.due - Y.due);
+  const miss = new Set(C.unreal.filter((u) => u.missing).map((u) => u.sym)).size;
+  const none = !ok.length;
   const c1 = h('div', { class: 'tx-card' }, [h('div', { class: 'tx-two' }, [
-    h('div', { class: 'tx-tile' }, [h('span', { class: 'tx-k', text: T('txValue') }), h('span', { class: 'tx-v', text: ils(val) })]),
-    h('div', { class: 'tx-tile' }, [h('span', { class: 'tx-k', text: T('txTaxAll') }), h('span', { class: 'tx-v', text: ils(extra) })]),
-  ]), h('p', { class: 'tx-sub', text: T('txNet', { v: ils(val - extra), fx: ils(fxPart) }) })]);
+    h('div', { class: 'tx-tile' }, [h('span', { class: 'tx-k', text: T('txValue') }), h('span', { class: 'tx-v', text: none ? '—' : ils(val) })]),
+    h('div', { class: 'tx-tile' }, [h('span', { class: 'tx-k', text: T('txTaxAll') }), h('span', { class: 'tx-v', text: none ? '—' : ils(extra) })]),
+  ]), none ? null : h('p', { class: 'tx-sub', text: T('txNet', { v: ils(val - extra), fx: ils(fxPart) }) }),
+  miss ? h('p', { class: 'tx-sub', text: T('txMissing', { n: miss }) }) : null]);
   wrap.appendChild(c1);
   // לפי סימבול
   const by = new Map();
@@ -303,7 +306,7 @@ function paintToday(wrap, C) {
       : [h('span', { class: 'tx-num', text: ils(tax) }), h('span', { class: 'tx-ds', text: T('txOn', { v: ils(it.tx) }) })];
     c2.appendChild(h('button', { class: 'tx-item', type: 'button', onclick: () => openLots(it.sym, it.ls, false) }, [
       h('span', { class: 'tx-tag', text: it.sym.slice(0, 5) }),
-      h('span', {}, [h('div', { class: 'tx-nm', text: it.sym }), h('div', { class: 'tx-ds', text: T('txLotsSince', { n: it.ls.length, d: since ? since.slice(5, 7) + '/' + since.slice(0, 4) : '' }) })]),
+      h('span', {}, [h('div', { class: 'tx-nm', text: it.sym }), h('div', { class: 'tx-ds', text: T(it.ls.length === 1 ? 'txLotSince1' : 'txLotsSince', { n: it.ls.length, d: since ? since.slice(5, 7) + '/' + since.slice(0, 4) : '' }) })]),
       h('span', { class: 'tx-end' }, end),
     ]));
   }
@@ -370,9 +373,9 @@ function openLots(sym, items, sold) {
       h('span', { class: 'tx-ds', text: head }),
       h('div', { class: 'tx-two' }, [
         h('div', { class: 'tx-tile' + (lowIls ? ' tx-win' : '') }, [h('span', { class: 'tx-k', text: T('txInIls') }), h('span', { class: 'tx-v', text: ils(u.gIls) }),
-          h('span', { class: 'tx-f', text: ils(sellIls) + ' − ' + ils(buyIls) })]),
+          h('span', { class: 'tx-f', text: LRI + ils(sellIls) + ' − ' + ils(buyIls) + PDI })]),
         h('div', { class: 'tx-tile' + (lowFx ? ' tx-win' : '') }, [h('span', { class: 'tx-k', text: T('txInCur', { c: cur }) }), h('span', { class: 'tx-v', text: ils(u.gFx) }),
-          h('span', { class: 'tx-f', text: '(' + money(proc, cur) + ' − ' + money(cost, cur) + ') × ' + LRI + fxS.toFixed(3) + PDI })]),
+          h('span', { class: 'tx-f', text: LRI + '(' + money(proc, cur) + ' − ' + money(cost, cur) + ') × ' + fxS.toFixed(3) + PDI })]),
       ]),
       h('p', { class: 'tx-sub', text: explain(u) }),
     ]);

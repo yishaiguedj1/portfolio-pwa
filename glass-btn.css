@@ -38,16 +38,16 @@
 
 /* ---------- 1. עגולים ---------- */
 :where(.icon-btn, .ann-more, .learn-exp, .lib-round, .mg-ib, .st-lk-x, .st-rate-b, .st-al-add, .tr-copy, .tr-gg, .tr-ib, .tr-say, .tr-sw, .wl-title-btn,
-    .st-outb, .st-advx, .st-pl-b, .an-x, .an-cback, .an-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic, .tab-disc, .tab-glow, .adm-tab i, .ss-add) {
+    .st-outb, .st-advx, .st-pl-b, .an-x, .an-cback, .an-back, .tx-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic, .tab-disc, .tab-glow, .adm-tab i, .ss-add) {
   border-radius: 50% !important;
 }
 /* ---------- 2. החומר — כל הכפתורים (פריטי סגמנט: רק הנבחר; השאר יושבים על המסילה) ---------- */
 :where(.icon-btn, .ann-more, .learn-exp, .lib-round, .mg-ib, .st-lk-x, .st-rate-b, .st-al-add, .tr-copy, .tr-gg, .tr-ib, .tr-say, .tr-sw, .wl-title-btn,
-    .st-outb, .st-advx, .st-pl-b, .an-x, .an-cback, .an-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic, .tab-disc, .adm-tab i, .ss-add,
-    .btn, .dlg-btn, .st-btn, .st-plus, .an-btn, .adm-btn, .bk-cta, .lib-signin, .lib-btn, .google-btn, .sheet-btn, .ed-btn, .ed-fetch, .earn-more,
+    .st-outb, .st-advx, .st-pl-b, .an-x, .an-cback, .an-back, .tx-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic, .tab-disc, .adm-tab i, .ss-add,
+    .btn, .dlg-btn, .st-btn, .st-plus, .an-btn, .tx-btn, .adm-btn, .bk-cta, .lib-signin, .lib-btn, .google-btn, .sheet-btn, .ed-btn, .ed-fetch, .earn-more,
     .st-jobs-more, .st-lk-paste, .st-mini, .st-cpill, .st-ai-b, .st-se-b, .st-rs-chip, .st-wbtn, .st-chip, .st-lk-q, .st-pill, .col-pill, .lib-bkpill,
     .lib-chip, .lib-sortbtn, .mg-pill, .mg-tok, .mg-ab, .mg-tb.p, .mg-ok56, .pf-bench-toggle, .subpage-back, .lib-back, .st-back, .adm-back, .fx-pill,
-    .appbar-sub > *, .chip-btn, .chip, .range-btn, .wl-tab, .mini-btn, .measure-btn, .measure-chip, .add-card, .an-chip, .rd-backpos,
+    .appbar-sub > *, .chip-btn, .chip, .range-btn, .wl-tab, .mini-btn, .measure-btn, .measure-chip, .add-card, .an-chip, .tx-chip, .rd-backpos,
     .kc-btn, .kc-chip, .kc-mb, .kc-rg, .kc-sc, .kc-tb, .kc-tf, .kc-wid, .kc-ib, .kc-sb, .kc-pk, .kc-tcell,
     :where(.adm-seg-b, .mg-seg-b, .st-seg-b, .kc-seg-b, .lang-opt, .theme-opt, .an-seg:not(.an-seg-main) > button, .fb-seg .mini-btn, .adm-seg .mini-btn):where(.on, .active, [aria-pressed="true"])) {
   --gb-on: 1;
@@ -59,17 +59,17 @@
 }
 
 :where(.icon-btn, .ann-more, .learn-exp, .lib-round, .mg-ib, .st-lk-x, .st-rate-b, .tr-copy, .tr-gg, .tr-ib, .tr-say, .tr-sw, .wl-title-btn,
-    .st-outb, .st-advx, .st-pl-b, .an-x, .an-cback, .an-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic,
-    .btn, .dlg-btn, .st-btn, .an-btn, .adm-btn, .bk-cta, .lib-signin, .lib-btn, .google-btn, .sheet-btn, .ed-btn, .ed-fetch, .earn-more,
+    .st-outb, .st-advx, .st-pl-b, .an-x, .an-cback, .an-back, .tx-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic,
+    .btn, .dlg-btn, .st-btn, .an-btn, .tx-btn, .adm-btn, .bk-cta, .lib-signin, .lib-btn, .google-btn, .sheet-btn, .ed-btn, .ed-fetch, .earn-more,
     .st-jobs-more, .st-lk-paste, .st-mini, .st-cpill, .st-ai-b, .st-se-b, .st-rs-chip, .st-wbtn, .st-chip, .st-lk-q, .col-pill, .lib-bkpill,
     .lib-chip, .lib-sortbtn, .mg-pill, .mg-tok, .mg-ab, .pf-bench-toggle, .subpage-back, .lib-back, .st-back, .adm-back,
-    .chip-btn, .chip, .range-btn, .wl-tab, .mini-btn, .measure-btn, .measure-chip, .add-card, .an-chip, .rd-backpos,
+    .chip-btn, .chip, .range-btn, .wl-tab, .mini-btn, .measure-btn, .measure-chip, .add-card, .an-chip, .tx-chip, .rd-backpos,
     .kc-btn, .kc-chip, .kc-mb, .kc-rg, .kc-sc, .kc-tb, .kc-tf, .kc-wid, .kc-ib, .kc-sb, .kc-pk, .kc-tcell):active { box-shadow: var(--gb-sh-press) !important; }
 /* מסגרת מקווקוות של "הוספה" — נשארת כרמז, בגוון הזכוכית */
 :where(.add-card, .measure-btn, .wl-tab.add) { border-style: dashed !important; border-color: color-mix(in srgb, var(--gb-ink) 22%, transparent) !important; }
 
 /* ---------- 3. צבעוני: ראשי / נבחר / הרסני — אותו חומר בצבע הכפתור ---------- */
-:where(.btn:not(.secondary-btn), .dlg-ok, .st-btn:not(.ghost):not(.tint), .st-plus, .an-btn, .adm-btn, .bk-cta, .lib-signin, .mg-tb.p, .mg-ab.p, .mg-ok56,
+:where(.btn:not(.secondary-btn), .dlg-ok, .st-btn:not(.ghost):not(.tint), .st-plus, .an-btn, .tx-btn, .adm-btn, .bk-cta, .lib-signin, .mg-tb.p, .mg-ab.p, .mg-ok56,
     .ed-btn:not(.ghost), .ed-fetch, .st-mini.danger, .lib-btn.danger, .tab-glow, .an-seg-th,
     .range-btn.active, .chip-btn.on, .chip.on, .wl-tab.on, .lib-chip.on, .st-chip.on, .st-rs-chip.on, .st-cpill.on, .st-ai-b.on, .st-se-b.on, .st-lk-q.on,
     .an-chip[aria-pressed="true"], .measure-btn.on, .pf-bench-toggle.on, .mini-btn[aria-pressed="true"],
@@ -125,7 +125,7 @@ html[data-app="admin"] { --gb-force: #5E5CE6; --gb-ontx: #fff; }
 }
 
 /* @glass-exempt — לא כפתורים במראה (נשארים כמו שהם):
-   שורות/פריטי רשימה/כרטיסים: adm-r ac-lens ac-person ac-step ac-tile ac-track adm-live adm-top an-key an-rcard an-row an-fact bk-card card col-card ft-row gb-row
+   שורות/פריטי רשימה/כרטיסים: tx-item adm-r ac-lens ac-person ac-step ac-tile ac-track adm-live adm-top an-key an-rcard an-row an-fact bk-card card col-card ft-row gb-row
      ios-row ios-row-btn lib-cont lib-item lib-opt lib-row mg-opt mg-row rd-fontrow reset-cancel reset-open reset-opt row-link src-opt acx-opt st-alr st-al-row
      st-banner st-filecard st-fnd st-l st-lk-rec st-newcard st-proj st-row st-twcard st-tower stock-head kc-li kc-wr kc-tg kc-fly-i st-pl-mr st-qa-b mg-pc mg-sc
    מתגי הפעלה (מתג iOS): adm-sw ib-sw lib-sw pfbk-sw

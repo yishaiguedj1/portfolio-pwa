@@ -529,7 +529,9 @@ he: {
   txDivs: "דיבידנדים וריבית",
   txGross: "ברוטו",
   txWh: "מס שנוכה בחו״ל",
-  txCreditLost: "זיכוי שאבד בקיזוז החובה",
+  txCreditLost: "מס זר שלא יוכר כזיכוי",
+  txLotSince1: "מנה אחת · מ־{d}",
+  txMissing: "אין מחיר עדכני ל־{n} ניירות — הם לא בחישוב.",
   txExtra: "יתרה לתשלום בישראל",
   txSurtax: "מס יסף",
   txSurtaxHint: "כדי לחשב מס יסף צריך את שאר ההכנסה החייבת של השנה (משכורת, עסק).",
@@ -2147,7 +2149,9 @@ en: {
   txDivs: "Dividends and interest",
   txGross: "Gross",
   txWh: "Withheld abroad",
-  txCreditLost: "Credit lost to the mandatory offset",
+  txCreditLost: "Foreign tax not creditable",
+  txLotSince1: "1 lot · since {d}",
+  txMissing: "No current price for {n} securities — they’re left out.",
   txExtra: "Balance due in Israel",
   txSurtax: "Surtax",
   txSurtaxHint: "Surtax needs the rest of this year’s taxable income (salary, business).",
@@ -7122,8 +7126,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.103.1';
-const APP_VERSION = 'v678';
+const APP_RELEASE = '2.105.0';
+const APP_VERSION = 'v680';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
