@@ -45,19 +45,19 @@
 - **`PhStore.update` מסונכרן.** שני תהליכונים כותבים לאותה רשומה, הקול והסרטון.
 - **ביטול בהתראה** (`PhService.ACT_VCANCEL` → `PhWork.vCancel`, באותו תהליך `:ph`): עוצר רק את ההעלאה לענן. נרשם `vE = "cancel"` ו־`phVp` עם `e: cancel`, והמשימה לא חוזרת.
 
-**תרגום רגיל בשרת, הסרטון עולה דרך האפליקציה (`spec.pu`, 1/11/2026, ‏2.100.0):**
-- **מה זה.** עבודה רגילה בשרת (התמלול, השוטים והצריבה בעובד, `out` מהטופס), שהאפליקציה רק מעלה לה את הקבצים. לא "תרגום בטלפון" (`ph`). השרתון: ‏`normSpec` נותן `{ pu: 1, vc: 1 }` בלי `ph` ובלי `edl`; ‏`phKey` ופעולות `ph*` פתוחות גם ל־pu; ‏`phBurn`/‏`phProg`/‏`phClaim` → ‏`not_ph`; ‏`phFile` רק `a` (ו־`m` מ־Studio ישן — `ok` בלי רישום); ‏`phStart` מקבל `fa` **או** `fv`.
-- **האתר.** כש־`phOk()` (בתוך Studio לאנדרואיד) ולא בשיר, כפתור הבחירה הראשי = `puPick` → ‏`phpick?m=pu`. ‏`PU_ASK` ב־sessionStorage זוכר שהבקשה הייתה pu, כי Studio ישן (cap פחות מ־5) לא מחזיר `m`. עם הגרסה הישנה העבודה עדיין עובדת: היא מעתיקה, מעלה קול, מתחילה, ומעלה מדידות שהשרתון מתעלם מהן. ‏`puCard` בדף העבודה מציג `vcp`: אחוז, MB, מהירות (`vcp.r`) וזמן שנשאר. כשההעלאה תקועה (`puStuck`) מופיע הכפתור "להמשיך באפליקציה".
+**תרגום רגיל בשרת, הסרטון עולה דרך האפליקציה (`spec.nu`, 1/11/2026, ‏2.101.0; קודם לכן, ב־2.100.0, אותו `nu` עם עותק באחסון של Studio — הוחלף):**
+- **מה זה.** עבודה רגילה בשרת (התמלול, השוטים והצריבה בעובד, `out` מהטופס), שהאפליקציה רק מעלה לה את הקבצים. לא "תרגום בטלפון" (`ph`). השרתון: ‏`normSpec` נותן `{ nu: 1, vc: 1 }` (ו־`null` כש־nu לא אפשרי — שיר, כתוביות, קישור, ph, בלי השרת) בלי `ph` ובלי `edl`; ‏`phKey` ופעולות `ph*` פתוחות גם ל־nu; ‏`phBurn`/‏`phProg`/‏`phClaim` → ‏`not_ph`; ‏`phFile` רק `a` (ו־`m` מ־Studio ישן — `ok` בלי רישום); ‏`phStart` מקבל `fa` **או** `fv`.
+- **האתר.** כש־`phOk()` (בתוך Studio לאנדרואיד) ולא בשיר, כפתור הבחירה הראשי = `nuPick` → ‏`phpick?nu=1`, והאפליקציה מחזירה `nu:1`. ‏`NU_ASK` ב־sessionStorage זוכר שהבקשה הייתה nu, כי Studio ישן (cap פחות מ־5) לא מחזיר `nu`. עם הגרסה הישנה העבודה עדיין עובדת: היא מעתיקה, מעלה קול, מתחילה, ומעלה מדידות שהשרתון מתעלם מהן. ‏`nuCard` בדף העבודה מציג `vcp`: אחוז, MB, מהירות (`vcp.r`) וזמן שנשאר. כשההעלאה תקועה (`nuStuck`) מופיע הכפתור "להמשיך באפליקציה".
 - **האפליקציה.**
-  - `PhActivity.pickPu`: ‏`FLAG_GRANT_PERSISTABLE_URI_PERMISSION` ו־`takePersistableUriPermission`. אין עותק. ברשומה נשמרים `uri` ו־`pu`.
+  - `PhActivity.pickPu`: ‏`FLAG_GRANT_PERSISTABLE_URI_PERMISSION` ו־`takePersistableUriPermission`. אין עותק. ברשומה נשמרים `uri` ו־`pu` (מפתח פנימי של האפליקציה — לא `nu`, כדי שרשומה ישנה של 2.100.0, עם עותק, לא תנותב לקריאה מה־URI).
   - `PhPu.probe`: ‏MediaExtractor במקום ffprobe. מחזיר מידות (כולל סיבוב), אורך וקצב.
   - `PhPu.audio`: ‏MediaExtractor ו־MediaMuxer בלי קידוד. ‏AAC → ‏m4a, ‏Opus/Vorbis → ‏webm. קודק אחר → ‏`noA`, והעבודה מתחילה אחרי הסרטון (`video()` קורא ל־`phStart`).
   - `PhNet.Src`: ‏`FileSrc` או `PhPu.UriSrc` (‏`channel.position`, ואם הספק נותן צינור — `skip`). ‏`BUF` = 512KB.
   - `PhUpJob`: ‏`setEstimatedNetworkBytes`. ‏`onStopJob` שומר `stopReason` → ‏`vSr` → ‏`vcp.sr`.
   - ההתראה מציגה "X מתוך Y · Z לשנייה" (`phUpVB`, ממוצע נע).
   - `PhStore.drop` משחרר את ההרשאה ל־URI.
-  - `CAP = 5` = ‏`PH_CAP_PU` (נבדק ב־`tests/studio-pu.test.js` וב־`studio-pt`).
+  - `CAP = 5` = ‏`PH_CAP_NU` (נבדק ב־`tests/studio-nu.test.js` וב־`studio-pt`).
 - **לקחים.**
-  - ffmpeg רץ כתהליך נפרד ולא יורש fd. לכן ב־pu אין ffmpeg בכלל, והקול נבנה ב־MediaMuxer.
+  - ffmpeg רץ כתהליך נפרד ולא יורש fd. לכן ב־nu אין ffmpeg בכלל, והקול נבנה ב־MediaMuxer.
   - כשאין קול שאפשר להעתיק, אסור לסמן `noA` אם `stopped()`. ‏`PhPu.audio` מחזיר null גם בעצירה, ולכן הבדיקה של `stopped()` באה לפני.
   - אחרי שינוי של `PhCore.CAP` צריך לעדכן את `PH_CAP_*` באתר, ואת הבדיקות שמשוות ביניהם.

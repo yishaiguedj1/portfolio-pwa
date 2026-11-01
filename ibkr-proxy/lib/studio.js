@@ -271,10 +271,10 @@ function normSpec(s) {
   const ph = s.ph === 1 && s.eng === 'api' && !subs && !link;
   if (s.ph === 1 && !ph) return null;
   // 26/10/2026: קריוקי — רק במצב השרת (בלי Claude: העובד מפריד, מיישר וצורב), לא קובץ כתוביות ולא בטלפון; חייבים מילים
-  // 1/11/2026 (בקשת המשתמש — "תרגום רגיל בשרת, הסרטון עולה דרך האפליקציה"): pu = Studio לאנדרואיד רק מעלה (הקול ואז הסרטון,
+  // 1/11/2026 (בקשת המשתמש — "תרגום רגיל בשרת, הסרטון עולה דרך האפליקציה"): nu = Studio לאנדרואיד רק מעלה (הקול ואז הסרטון,
   // ב־UIDT — ממשיך במסך כבוי), והשרת עושה הכל כמו בעבודה רגילה (התמלול, השוטים, הצריבה). בלי עיבוד בטלפון ובלי חיתוך
-  const pu = s.pu === 1 && s.eng === 'api' && !subs && !link && !ph && s.ka !== 1;
-  if (s.pu === 1 && !pu) return null;
+  const nu = s.nu === 1 && s.eng === 'api' && !subs && !link && !ph && s.ka !== 1;
+  if (s.nu === 1 && !nu) return null;
   const ka = s.ka === 1;
   // 01/11/2026: בלי מילים = תמלול אוטומטי בעובד (al = שפת השיר: he / en — ivrit לא מזהה שפה בעצמו). = KA_AL בטלפון
   const al = ka && !normLyr(s.lyr).trim() && KA_AL.includes(s.al) ? s.al : '';
@@ -299,8 +299,8 @@ function normSpec(s) {
   ph ? Object.assign({ ph: 1 }, s.pw === 1 ? { pw: 1 } : {}, s.pw === 1 && s.pt === 1 && s.cp !== 1 && s.ry !== 1 ? { pt: 1 } : {},
     PH_BURN.includes(s.pb) ? { pb: s.pb } : {}, s.vc === 1 ? { vc: 1 } : {}) : {},   // pb = מה הטלפון צורב בסוף (ריק = רק כתוביות)
   // 29/10/2026: vc = Studio לאנדרואיד מעלה גם את הסרטון לענן, ברקע ובלי לעכב את העבודה (לנגן ולשמירה) — העבודה לא מחכה לו
-  pu ? { pu: 1, vc: 1 } : {},   // vc — אותו מסלול הסרטון לענן (phVp, ‏phUp עם v) כמו בתרגום בטלפון
-  !subs && !link && !ph && !pu && edlPre(normEdl(s.edl)) ? { edl: edlPre(normEdl(s.edl)) } : {},   // מ4: חיתוך לפני התרגום (dur = האורך אחרי החיתוך)
+  nu ? { nu: 1, vc: 1 } : {},   // vc — אותו מסלול הסרטון לענן (phVp, ‏phUp עם v) כמו בתרגום בטלפון
+  !subs && !link && !ph && !nu && edlPre(normEdl(s.edl)) ? { edl: edlPre(normEdl(s.edl)) } : {},   // מ4: חיתוך לפני התרגום (dur = האורך אחרי החיתוך)
   // 21/10/2026: פיקסלים לשנייה ביחס ל־1080p30 (מהמידות שהטלפון קרא; העובד מתקן אחרי הקליטה) — לצפי של הצריבה
   Number.isFinite(+s.px) && +s.px >= 0.02 && +s.px <= 16 ? { px: Math.round(+s.px * 1000) / 1000 } : {},
   s.eng === 'api' ? Object.assign({ eng: 'api', cap: normCap(s.cap) }, s.cp === 1 ? { cp: 1 } : s.ry === 1 ? { ry: 1 } : {}) : {});   // 24/10/2026: ry = השרת עושה הכל, Claude דרך ה־Routine של המשתמש (lib/relay.js)   // מצב API של המערכת — עם תקרת עבודה ($); סבב 10: cp = העתק־הדבק (Claude של המשתמש)

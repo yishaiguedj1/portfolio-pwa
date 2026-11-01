@@ -26,8 +26,8 @@ import java.io.File
 /**
  * 24/10/2026 — תרגום בטלפון, שלב 1: החלון הקטן של Studio מעל האתר. הכתובות מהאתר שלנו (intent://…#Intent;scheme=snbstudio),
  * אבל כל ערך נבדק כאן כאילו הגיע מכל אפליקציה.
- *   snbstudio://phpick?w=<האתר>&l=he&m=pu → 1/11/2026: תרגום רגיל בשרת — בחירה בלי עותק (הרשאה קבועה ל־URI), MediaExtractor
- *                                            במקום ffprobe → ‎#phpick=<pid>.<base64url> עם "m":"pu" (PhPu)
+ *   snbstudio://phpick?w=<האתר>&l=he&nu=1 → 1/11/2026: תרגום רגיל בשרת — בחירה בלי עותק (הרשאה קבועה ל־URI), MediaExtractor
+ *                                            במקום ffprobe → ‎#phpick=<pid>.<base64url> עם "nu":1 (PhPu)
  *   snbstudio://phpick?w=<האתר>&l=he      → בחירת סרטון, העתקה לאחסון הפרטי (ffmpeg לא פותח content://), ffprobe →
  *                                            חזרה לאתר עם ‎#phpick=<pid>.<base64url> (שגיאה: ‎#phpick=!<קוד>)
  *   snbstudio://ph?pid=…&j=…&k=…&b=…&pb=…&ov=0|1[&pw=1&cell=1]   → העבודה נוצרה באתר: הקול, ההתחלה והמדידות (PhService, ברקע);
@@ -60,7 +60,7 @@ class PhActivity : Activity() {
         web = webOk(d.getQueryParameter("w")) ?: s(R.string.launchUrl)
         PhStore.gc(this); PhStore.gcRemoteAsync(this)
         when (d.host) {
-            "phpick" -> pick(d.getQueryParameter("m") == "pu")
+            "phpick" -> pick(d.getQueryParameter("nu") == "1")
             "ph" -> go(d)
             "phburn" -> burn(d)
             "phgo" -> resume(d)
@@ -106,7 +106,7 @@ class PhActivity : Activity() {
                 PhStore.put(this, JSONObject().put("pid", pid).put("name", name.take(200)).put("size", size).put("uri", u.toString()).put("pu", true)
                     .put("at", System.currentTimeMillis()).put("web", web).put("st", "picked"))
                 val oh = try { PhPu.osHash(PhPu.UriSrc(this, u, size)) } catch (e: Throwable) { "" }
-                "#phpick=$pid." + DlEngine.b64(PhCore.pickJson(pid, name, size, info, oh).put("m", "pu").toString())
+                "#phpick=$pid." + DlEngine.b64(PhCore.pickJson(pid, name, size, info, oh).put("nu", 1).toString())
             } catch (e: Throwable) {
                 PhStore.drop(this, pid)
                 try { contentResolver.releasePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (x: Throwable) {}

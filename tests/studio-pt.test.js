@@ -178,7 +178,7 @@ const sha1 = (t) => crypto.createHash('sha1').update(t, 'utf8').digest('hex');
   const A = 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/';
   const web = rd('studio.js'), core = rd(A + 'PhCore.kt'), act = rd(A + 'PhActivity.kt'), wk = rd(A + 'PhWork.kt'), py = rd(A + 'PhPy.kt'), gr = rd('android/app/build.gradle.kts');
   const st = await import(path.join(root, 'studio.js'));
-  ok(Number((core.match(/const val CAP = (\d+)/) || [])[1]) === st.PH_CAP_PU && st.PH_CAP_PU >= st.PH_CAP_VC && st.PH_CAP_VC >= st.PH_CAP_PT && /\.put\("cap", CAP\)/.test(core), 'Studio מדווח את היכולת (CAP) = PH_CAP_PT באתר');
+  ok(Number((core.match(/const val CAP = (\d+)/) || [])[1]) === st.PH_CAP_NU && st.PH_CAP_NU > st.PH_CAP_VC && st.PH_CAP_VC >= st.PH_CAP_PT && /\.put\("cap", CAP\)/.test(core), 'Studio מדווח את היכולת (CAP) = PH_CAP_PT באתר');
   const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
   ok(st.parsePhPick('p' + 'a'.repeat(16) + '.' + b64({ pid: 'p' + 'a'.repeat(16), name: 'x.mp4', size: 9, cap: 3 })).cap === 3
     && st.parsePhPick('p' + 'a'.repeat(16) + '.' + b64({ pid: 'p' + 'a'.repeat(16), name: 'x.mp4', size: 9 })).cap === 0, 'הבחירה מהאפליקציה: cap (ישנה — 0)');

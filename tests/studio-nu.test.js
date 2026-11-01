@@ -1,6 +1,6 @@
-// 1/11/2026: תרגום רגיל בשרת, הסרטון עולה דרך האפליקציה (spec.pu) — Studio לאנדרואיד רק מעלה (הקול, ההתחלה והסרטון, UIDT),
+// 1/11/2026: תרגום רגיל בשרת, הסרטון עולה דרך האפליקציה (spec.nu) — Studio לאנדרואיד רק מעלה (הקול, ההתחלה והסרטון, UIDT),
 // והשרת עושה הכל כמו בעבודה רגילה. השרתון האמיתי מול Firestore ו־R2 מדומים, ובדיקות מקור לאפליקציה ולאתר.
-// הרצה: node tests/studio-pu.test.js
+// הרצה: node tests/studio-nu.test.js
 const path = require('path');
 const crypto = require('crypto');
 let n = 0;
@@ -79,21 +79,21 @@ const { fakeR2, ENV } = require('./_r2fake');
 
   /* ---------- 1. הצורה ---------- */
   const base = { name: 'talk.mp4', size: 900e6, type: 'video/mp4', dur: 3600, from: 'en', to: ['he'], mode: 'haiku-high', eng: 'api', cap: 5 };
-  const sp = S.normSpec(Object.assign({}, base, { pu: 1, out: ['same', 'mkv'], edl: { k: [[1, 20]], ar: '9:16' } }));
-  ok(sp && sp.pu === 1 && sp.vc === 1 && !('ph' in sp) && sp.out.join() === 'same,mkv' && !sp.edl, 'pu: עבודה רגילה עם התוצרים, הסרטון לענן (vc), בלי חיתוך ובלי ph');
-  ok(S.normSpec(Object.assign({}, base, { pu: 1, eng: undefined })) === null, 'pu רק במצב השרת');
-  ok(S.normSpec(Object.assign({}, base, { pu: 1, ph: 1 })) === null, 'pu לא יחד עם תרגום בטלפון');
-  ok(S.normSpec(Object.assign({}, base, { pu: 1, src: 'subs', size: 1000 })) === null, 'pu לא עם קובץ כתוביות');
-  ok(!('pu' in S.normSpec(base)) && !('vc' in S.normSpec(Object.assign({}, base, { vc: 1 }))), 'בלי pu — כמו קודם (vc לבד לא נשמר)');
+  const sp = S.normSpec(Object.assign({}, base, { nu: 1, out: ['same', 'mkv'], edl: { k: [[1, 20]], ar: '9:16' } }));
+  ok(sp && sp.nu === 1 && sp.vc === 1 && !('ph' in sp) && sp.out.join() === 'same,mkv' && !sp.edl, 'nu: עבודה רגילה עם התוצרים, הסרטון לענן (vc), בלי חיתוך ובלי ph');
+  ok(S.normSpec(Object.assign({}, base, { nu: 1, eng: undefined })) === null, 'nu רק במצב השרת');
+  ok(S.normSpec(Object.assign({}, base, { nu: 1, ph: 1 })) === null, 'nu לא יחד עם תרגום בטלפון');
+  ok(S.normSpec(Object.assign({}, base, { nu: 1, src: 'subs', size: 1000 })) === null, 'nu לא עם קובץ כתוביות');
+  ok(!('nu' in S.normSpec(base)) && !('vc' in S.normSpec(Object.assign({}, base, { vc: 1 }))), 'בלי nu — כמו קודם (vc לבד לא נשמר)');
   const v1 = S.normVcp({ p: 0.5, r: 3456789.4, sr: 7 }, 9);
   ok(v1.r === 3456789 && v1.sr === 7 && S.normVcp({ p: 0.5, r: -1, sr: 500 }, 9).r === undefined && S.normVcp({ p: 0.5, sr: 500 }, 9).sr === undefined, 'vcp: הקצב והסיבה לעצירה — רק מספרים בטווח');
 
   /* ---------- 2. יצירה, מפתח, הקול, ההתחלה ---------- */
-  let j = await api('create', { spec: Object.assign({}, base, { pu: 1, out: ['same'] }) });
-  ok(j.ok && j.job.spec.pu === 1 && SR.isFolder(j.job.folder), 'עבודת pu נוצרת עם תיקייה ב־R2');
+  let j = await api('create', { spec: Object.assign({}, base, { nu: 1, out: ['same'] }) });
+  ok(j.ok && j.job.spec.nu === 1 && SR.isFolder(j.job.folder), 'עבודת nu נוצרת עם תיקייה ב־R2');
   const PJ = j.job.id, FOLDER = j.job.folder;
   const pk = await api('phKey', { job: PJ });
-  ok(pk.ok && S.KEY_RE.test(pk.key), 'מפתח טלפון גם לעבודת pu');
+  ok(pk.ok && S.KEY_RE.test(pk.key), 'מפתח טלפון גם לעבודת nu');
   const ph = (op, b) => call(Object.assign({ op, job: PJ, key: pk.key }, b), true).then((x) => x.j);
   ok((await ph('phStart', {})).error === 'no_files', 'בלי קול ובלי סרטון — לא מתחילים');
   ok((await ph('phBurn', { pbn: { s: 'run', p: 0.1 } })).error === 'not_ph' && (await ph('phClaim', {})).error === 'not_ph' && (await ph('phProg', { ppr: { s: 'asr', p: 0.1 } })).error === 'not_ph',
@@ -117,7 +117,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(vj.vcp && vj.vcp.p === 0.25 && vj.vcp.r === 2500000 && vj.vcp.sr === 4, 'בדף העבודה: האחוז, הקצב והסיבה');
 
   /* ---------- 4. בלי קול (קודק שאי אפשר להעתיק) — מתחילים מהסרטון ---------- */
-  const j2 = await api('create', { spec: Object.assign({}, base, { pu: 1, size: 3000 }) });
+  const j2 = await api('create', { spec: Object.assign({}, base, { nu: 1, size: 3000 }) });
   const pk2 = await api('phKey', { job: j2.job.id });
   const ph2 = (op, b) => call(Object.assign({ op, job: j2.job.id, key: pk2.key }, b), true).then((x) => x.j);
   const vbuf = crypto.randomBytes(3000);
@@ -132,12 +132,12 @@ const { fakeR2, ENV } = require('./_r2fake');
   const A = (f) => fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball', f), 'utf8');
   const act = A('PhActivity.kt'), work = A('PhWork.kt'), pu = A('PhPu.kt'), upj = A('PhUpJob.kt'), pnet = A('PhNet.kt'), core = A('PhCore.kt'), pst = A('PhStore.kt');
   const src = fs.readFileSync(path.join(root, 'studio.js'), 'utf8');
-  ok(/"phpick" -> pick\(d\.getQueryParameter\("m"\) == "pu"\)/.test(act) && /FLAG_GRANT_PERSISTABLE_URI_PERMISSION/.test(act) && /takePersistableUriPermission\(u, Intent\.FLAG_GRANT_READ_URI_PERMISSION\)/.test(act),
-    'הבחירה ל־pu: הרשאה קבועה ל־URI');
+  ok(/"phpick" -> pick\(d\.getQueryParameter\("nu"\) == "1"\)/.test(act) && /FLAG_GRANT_PERSISTABLE_URI_PERMISSION/.test(act) && /takePersistableUriPermission\(u, Intent\.FLAG_GRANT_READ_URI_PERMISSION\)/.test(act),
+    'הבחירה ל־nu: הרשאה קבועה ל־URI');
   const pp = act.slice(act.indexOf('private fun pickPu'), act.indexOf('private fun copy'));
-  ok(pp.length > 100 && !/outputStream|copyTo/.test(pp) && /\.put\("uri", u\.toString\(\)\)\.put\("pu", true\)/.test(pp) && /\.put\("m", "pu"\)/.test(pp), 'pickPu: בלי עותק — הרשומה שומרת את ה־URI, והאתר מקבל m=pu');
-  const cap = +(/const val CAP = (\d+)/.exec(core) || [])[1], capW = +(/export const PH_CAP_PU = (\d+)/.exec(src) || [])[1];
-  ok(cap === capW && cap === 5, 'CAP של האפליקציה = PH_CAP_PU באתר (5)');
+  ok(pp.length > 100 && !/outputStream|copyTo/.test(pp) && /\.put\("uri", u\.toString\(\)\)\.put\("pu", true\)/.test(pp) && /\.put\("nu", 1\)/.test(pp), 'pickPu: בלי עותק — הרשומה שומרת את ה־URI, והאתר מקבל nu:1');
+  const cap = +(/const val CAP = (\d+)/.exec(core) || [])[1], capW = +(/export const PH_CAP_NU = (\d+)/.exec(src) || [])[1];
+  ok(cap === capW && cap === 5, 'CAP של האפליקציה = PH_CAP_NU באתר (5)');
   ok(/if \(r\.optBoolean\("pu"\)\) return upPu\(ctx, pid, stopped\)/.test(work) && /PhPu\.audio\(/.test(work) && /if \(pu\) PhPu\.src\(ctx, r\) else PhNet\.FileSrc/.test(work), 'PhWork: pu — הקול ב־MediaMuxer, הסרטון מה־URI');
   ok(/MUXER_OUTPUT_MPEG_4/.test(pu) && /MUXER_OUTPUT_WEBM/.test(pu) && !/PhFf\./.test(pu), 'PhPu: הקול בלי ffmpeg ובלי קידוד (AAC → MP4, ‏Opus/Vorbis → WebM)');
   const upPu = work.slice(work.indexOf('private fun upPu'), work.indexOf('/* ---------------------------------------------------------------- burn */'));
@@ -151,16 +151,16 @@ const { fakeR2, ENV } = require('./_r2fake');
 
   /* ---------- 6. האתר ---------- */
   const st = await import(path.join(root, 'studio.js')).catch(() => null);
-  ok(/if \(puPickOk\(f\)\) \{ puPick\(\); return; \}/.test(src) && /export const puPickOk = \(f\) => phOk\(\) && !!f && !f\.ka;/.test(src), 'בתוך האפליקציה הבחירה הראשית דרכה (לא בשיר)');
-  ok(/phIntent\('phpick', \{ m: 'pu' \}\)/.test(src) && /if \(r\.m === 'pu' \|\| ask\) f\.ph\.pu = true;/.test(src), 'm=pu בבקשה; Studio ישן — לפי הבקשה ששמורה (PU_ASK)');
-  ok(/const spec = P\.pu \? \{ name: f\.file\.name[^\n]*\n\s*out: OUTS\.filter\(\(k\) => f\.out\[k\]\)[^\n]*pu: 1, eng: 'api'/.test(src) && /if \(!P\.pu\) spec\.vc = 1;/.test(src) && /else if \(rec\.spec\.pu && /.test(src),
-    'pu: התוצרים מהטופס, בלי ph, וכרטיס משלו בדף העבודה');
-  if (st && st.puLine) {
-    const t = st.puLine({ p: 0.5, r: 2 * 1048576 }, 400 * 1048576);
-    ok(t.split(' · ').length === 3 && st.puLine({ p: 0.5 }, 400).split(' · ').length === 1 && st.puLine({ p: 1, r: 9 }, 400).split(' · ').length === 2, 'puLine: עלו/מתוך · מהירות · נשאר (בלי קצב — רק כמה עלו)');
-    ok(st.puStuck({ created: 0, srv: { vcp: { p: 0.1, at: 1000 } } }, 1000 + 4 * 60e3) && !st.puStuck({ created: 0, srv: { vcp: { p: 0.1, at: 1000 } } }, 1000 + 60e3)
-      && !st.puStuck({ srv: { fv: { id: 'x' } } }, 1e13) && st.puStuck({ created: 0, srv: { vcp: { p: 0.1, at: 9e12, e: 'net' } } }, 9e12), 'puStuck: נעצר / לא דיווח / לא התחיל');
-    ok(st.parsePhPick('p0123456789abcdef.' + Buffer.from(JSON.stringify({ pid: 'p0123456789abcdef', name: 'a.mp4', size: 9, m: 'pu' })).toString('base64url')).m === 'pu', 'parsePhPick: m=pu');
+  ok(/if \(nuPickOk\(f\)\) \{ nuPick\(\); return; \}/.test(src) && /export const nuPickOk = \(f\) => phOk\(\) && !!f && !f\.ka;/.test(src), 'בתוך האפליקציה הבחירה הראשית דרכה (לא בשיר)');
+  ok(/phIntent\('phpick', \{ nu: 1 \}\)/.test(src) && /if \(r\.nu \|\| ask\) f\.ph\.nu = 1;/.test(src), 'nu=1 בבקשה; Studio ישן — לפי הבקשה ששמורה (NU_ASK)');
+  ok(/const spec = P\.nu \? \{ name: f\.file\.name[^\n]*\n\s*out: OUTS\.filter\(\(k\) => f\.out\[k\]\)[^\n]*nu: 1, eng: 'api'/.test(src) && /if \(!P\.nu\) spec\.vc = 1;/.test(src) && /else if \(rec\.spec\.nu && /.test(src),
+    'nu: התוצרים מהטופס, בלי ph, וכרטיס משלו בדף העבודה');
+  if (st && st.nuLine) {
+    const t = st.nuLine({ p: 0.5, r: 2 * 1048576 }, 400 * 1048576);
+    ok(t.split(' · ').length === 3 && st.nuLine({ p: 0.5 }, 400).split(' · ').length === 1 && st.nuLine({ p: 1, r: 9 }, 400).split(' · ').length === 2, 'nuLine: עלו/מתוך · מהירות · נשאר (בלי קצב — רק כמה עלו)');
+    ok(st.nuStuck({ created: 0, srv: { vcp: { p: 0.1, at: 1000 } } }, 1000 + 4 * 60e3) && !st.nuStuck({ created: 0, srv: { vcp: { p: 0.1, at: 1000 } } }, 1000 + 60e3)
+      && !st.nuStuck({ srv: { fv: { id: 'x' } } }, 1e13) && st.nuStuck({ created: 0, srv: { vcp: { p: 0.1, at: 9e12, e: 'net' } } }, 9e12), 'nuStuck: נעצר / לא דיווח / לא התחיל');
+    ok(st.parsePhPick('p0123456789abcdef.' + Buffer.from(JSON.stringify({ pid: 'p0123456789abcdef', name: 'a.mp4', size: 9, nu: 1 })).toString('base64url')).nu === true, 'parsePhPick: nu');
   }
 
   /* ---------- 7. ב׳ — הכי מהר בדפדפן ---------- */
