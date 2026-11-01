@@ -66,7 +66,26 @@ function zip(files) {
   const mj = { metas: [{ id: 'tt9999999', name: 'Inception Remake', releaseInfo: '2030' }, { imdb_id: 'tt1375666', name: 'Inception', releaseInfo: '2010' }, { id: 'bad' }] };
   const m1 = N.nsPickMeta(mj, g3);
   ok(m1.id === 'tt1375666' && m1.type === 'movie' && m1.by === 'n', 'Cinemeta: השנה מכריעה');
-  ok(N.nsPickMeta(mj, g1).type === 'series' && N.nsPickMeta(mj, g1).e === 7, 'Cinemeta לסדרה — העונה והפרק מהשם');
+  const mh = { metas: [{ id: 'tt0460649', name: 'How I Met Your Mother', releaseInfo: '2005–2014' }] };
+  ok(N.nsPickMeta(mh, g1).type === 'series' && N.nsPickMeta(mh, g1).e === 7, 'Cinemeta לסדרה — העונה והפרק מהשם');
+  ok(N.nsPickMeta(mj, g1) === null, 'אין התאמה בשם — אין זיהוי (לא "התוצאה הראשונה")');
+  /* 01/11/2026 (דיוק): שם זהה גובר על התוצאה הראשונה; שם שמכיל/מוכל לפי ההפרש הקטן */
+  const ub = N.nsGuess('undercover.billionaire.s02e08.cocktail.of.chaos.1080p.web.h264-b2b.mkv');
+  ok(ub.q === 'undercover billionaire' && ub.s === 2 && ub.e === 8 && ub.et === 'cocktail of chaos', 'שם הפרק שאחרי SxxEyy (עד האיכות)');
+  ok(N.nsGuess('Show.S01E01.mkv').et === '' && N.nsGuess('Inception (2010) 1080p.mp4').et === '', 'בלי שם פרק / סרט');
+  const mu = { metas: [{ id: 'tt13662852', name: 'Undercover Billionaire: Comeback City', releaseInfo: '2021' }, { id: 'tt8417266', name: 'Undercover Billionaire', releaseInfo: '2019–' }] };
+  ok(N.nsPickMeta(mu, ub).id === 'tt8417266', 'שם זהה — לא הסדרה הדומה שבראש הרשימה');
+  ok(N.nsPickMeta({ metas: [{ id: 'tt0386676', name: 'The Office', releaseInfo: '2005' }, { id: 'tt1', name: 'Office Space' }] }, N.nsGuess('The.Office.US.S02E01.720p.mkv')).id === 'tt0386676', 'The Office US ↔ The Office (מוכל)');
+  ok(N.nsPickMeta(mj, g3).y === 2010, 'השנה של הסרט נשמרת בזיהוי');
+  /* שם הפרק מאמת / מתקן את המספור */
+  const vids = { meta: { videos: [{ season: 2, episode: 7, name: 'Turning Points' }, { season: 2, episode: 8, name: 'Cocktail of Chaos' }, { season: 2, episode: 9, name: 'Dumpster Fire' }] } };
+  const idn = { type: 'series', id: 'tt8417266', s: 2, e: 8, by: 'n' };
+  ok(N.nsEpFix(vids, idn, 'cocktail of chaos').ep === 'ok', 'שם הפרק תואם — מאושר');
+  const fx = N.nsEpFix(vids, Object.assign({}, idn, { e: 7 }), 'Cocktail of Chaos');
+  ok(fx.e === 8 && fx.s === 2 && fx.ep === 'fix', 'פרק 7 בשם הקובץ, אבל השם של פרק 8 — מתוקן לפרק 8');
+  const v2 = { meta: { videos: [{ season: 1, episode: 1, name: 'Million Dollar Bet' }, { season: 2, episode: 1, name: 'Three Million Dollar Bet' }] } };
+  ok(N.nsEpFix(v2, Object.assign({}, idn, { e: 5 }), 'Three Million Dollar Bet').e === 1 && N.nsEpFix(v2, Object.assign({}, idn, { e: 5 }), 'Three Million Dollar Bet').s === 2, 'שם זהה גובר על שם שמוכל בו');
+  ok(N.nsEpFix(vids, idn, 'something else').ep === undefined && N.nsEpFix(null, idn, 'cocktail of chaos') === idn && N.nsEpFix(vids, idn, 'ab') === idn, 'בלי התאמה / בלי רשימה / קצר — בלי שינוי');
 
   /* ---------- 4. פענוח התשובות (טקסט מאתר חיצוני) ---------- */
   const osj = { subtitles: [
@@ -85,6 +104,36 @@ function zip(files) {
   ok(wz.length === 1 && wz[0].url === N.NS_WIZ + 'files/sub/146' && wz[0].lang === 'he' && wz[0].zip === 1, 'Wizdom: מזהה מספרי בלבד, עברית, zip');
   const so = N.nsSort([...wz, ...os]);
   ok(so[0].m === 'h' && so[so.length - 1].m === 'n', 'סדר: מדויק → אותה הוצאה → השאר');
+
+  /* ---------- 4ב. ה־REST של OpenSubtitles + האימות (01/11/2026) ---------- */
+  const rj = [
+    { IDSubtitleFile: '1952347372', SubFormat: 'srt', SubAutoTranslation: '0', SubSumCD: '1', ISO639: 'he', MovieReleaseName: 'Friends.S01E01.DVDrip.XviD-SAiNTS', MovieFPS: '23.976', SubLastTS: '00:21:30', MatchedBy: 'imdbid' },
+    { IDSubtitleFile: '2', SubFormat: 'srt', SubAutoTranslation: '1', ISO639: 'he', MovieReleaseName: 'x' },
+    { IDSubtitleFile: '3', SubFormat: 'sub', ISO639: 'he', MovieReleaseName: 'x' },
+    { IDSubtitleFile: '4', SubFormat: 'srt', SubSumCD: '2', ISO639: 'he', MovieReleaseName: 'x' },
+    { IDSubtitleFile: '5;rm', SubFormat: 'srt', ISO639: 'he' },
+    { IDSubtitleFile: '6', SubFormat: 'srt', ISO639: 'en', MovieReleaseName: 'Friends.S01E02.DVDrip', MatchedBy: 'moviehash' }, null];
+  const rp = N.nsParseRest(rj, 'Friends.S01E01.DVDrip.XviD-SAiNTS.avi');
+  ok(rp.length === 2 && rp[0].url === N.NS_DLF + '1952347372' && rp[0].lang === 'he' && rp[0].last === 1290 && rp[0].fps === 23.976 && rp[0].m === 'r', 'REST: קישור דרך Stremio, שפה, אורך, הוצאה');
+  ok(rp[1].m === 'h' && /^https:\/\/[a-z0-9-]+\.strem\.io\//.test(rp[1].url), 'REST: לפי טביעה = מדויק; הקישור עובר את subsGet');
+  ok(N.nsParseRest({}, 'a') .length === 0, 'REST: תשובה לא מערך');
+  const idf = { type: 'series', id: 'tt0108778', s: 1, e: 1 };
+  const it = (o) => Object.assign({ src: 'os', lang: 'en', m: 'n', rel: '' }, o);
+  const v = N.nsVerify([
+    it({ id: 'os:1', url: 'https://subs5.strem.io/x/file/77', rel: 'Friends.S01E01' }),
+    it({ id: 'of:77', url: N.NS_DLF + '77', rel: 'Friends.S01E01' }),
+    it({ id: 'of:8', url: N.NS_DLF + '8', rel: 'Friends.S01E02.DVDrip' }),
+    it({ id: 'of:9', url: N.NS_DLF + '9', rel: 'Friends.S01E02', m: 'h' }),
+    it({ id: 'of:10', url: N.NS_DLF + '10', rel: 'Friends S02 complete' }),
+    it({ id: 'of:11', url: N.NS_DLF + '11', rel: 'Friends', last: 1800 }),
+    it({ id: 'of:12', url: N.NS_DLF + '12', rel: 'Friends', last: 1500, m: 'r' }),
+    it({ id: 'of:13', url: N.NS_DLF + '13', rel: 'Friends', last: 1290, m: 'r' }),
+    it({ id: 'of:14', url: N.NS_DLF + '14', rel: 'Friends', last: 500, m: 'r' })], idf, 1320);
+  const vi = v.map((x) => x.id);
+  ok(vi.includes('os:1') && !vi.includes('of:77'), 'אותו קובץ משני הנתיבים — פעם אחת');
+  ok(!vi.includes('of:8') && vi.includes('of:9') && !vi.includes('of:10'), 'פרק/עונה אחרים בשם — נזרק (חוץ מטביעה)');
+  ok(!vi.includes('of:11') && v.find((x) => x.id === 'of:12').m === 'n' && v.find((x) => x.id === 'of:13').m === 'r' && v.find((x) => x.id === 'of:14').m === 'n', 'אורך: הרבה אחרי הסוף נזרק; קצת אחרי / קצר מדי — "ייתכן היסט"');
+  ok(N.nsVerify([it({ id: 'a', url: 'u', rel: 'Inception.2003' }), it({ id: 'b', url: 'u2', rel: 'Inception.2010.1080p' })], { type: 'movie', id: 'tt1375666', y: 2010 }, 0).length === 1, 'סרט: שנה אחרת בשם ההוצאה — נזרק');
 
   /* ---------- 5. zip ---------- */
   const z = zip([{ name: 'HIMYM.S01E06.srt', data: '1\r\n00:00:01,000 --> 00:00:02,000\r\nsix\r\n' },
@@ -107,7 +156,9 @@ function zip(files) {
     return resp(null, false);
   } });
   const r = await net.subsFind(blob, 'How.I.Met.Your.Mother.S01E07.720p.BluRay.x264-SiNNERS.mkv');
-  ok(r.ok && r.id.e === 8 && r.list.length === 3, 'טביעה → פרק 8 (התוכן, לא השם); Wizdom נפל — Stremio נשאר');
+  ok(r.ok && r.id.e === 8 && r.list.length === 2 && !r.list.some((x) => /S01E07/.test(x.rel) && x.m !== 'h'), 'טביעה → פרק 8 (התוכן, לא השם); "S01E07" שלא לפי טביעה נזרק; Wizdom נפל — Stremio נשאר');
+  ok(calls.some((u) => u === N.NS_OSH + 'episode-8/imdbid-0460649/season-1/sublanguageid-heb') && calls.some((u) => u.endsWith('/sublanguageid-eng')), 'REST לפי מזהה ושפה (עברית ואנגלית), בסדר אלפביתי ושבע ספרות');
+  ok(!calls.some((u) => u.startsWith(N.NS_MREF)), 'זוהה בטביעה — בלי בדיקת שם הפרק');
   ok(calls.some((u) => u.includes('/series/tt0460649:1:8/videoHash=')), 'Stremio עם הטביעה והגודל');
   ok(!calls.some((u) => /S01E07|How\.I\.Met/.test(u)), 'כשיש טביעה — שם הקובץ לא נשלח לאף שירות');
   calls.length = 0;
@@ -116,6 +167,12 @@ function zip(files) {
   ok(!r2.ok || r2.list.length === 0, 'בלי כתוביות — רשימה ריקה');
   ok(calls.some((u) => u.startsWith(N.NS_META + 'movie/top/search=Inception')), 'בלי זיהוי בטביעה — Cinemeta לפי השם (רק שם הסרט)');
   ok(await net.subsGet({ url: 'https://evil.example.com/a.srt' }) === null, 'subsGet: רק מהכתובות שאושרו');
+  calls.length = 0;
+  const net3 = N.createNet({ fetch: async (u) => { calls.push(u); return u.startsWith(N.NS_META) ? resp(mu) : u.startsWith(N.NS_MREF) ? resp(vids) : u.startsWith(N.NS_OSH) && !u.includes('imdbid') ? resp([]) : u.startsWith(N.NS_OSH) ? resp(rj.slice(0, 1)) : resp({ subtitles: [] }); } });
+  const r3 = await net3.subsFind(blob, 'undercover.billionaire.s02e07.cocktail.of.chaos.1080p.web.h264-b2b.mkv', { dur: 1320 });
+  ok(r3.ok && r3.id.id === 'tt8417266' && r3.id.e === 8 && r3.id.ep === 'fix', 'לפי השם: הסדרה המדויקת, והפרק לפי שמו');
+  ok(calls.some((u) => u === N.NS_MREF + 'series/tt8417266.json') && calls.some((u) => u.includes('episode-8/imdbid-8417266/season-2')), 'רשימת הפרקים לפי המזהה בלבד, והחיפוש בפרק המתוקן');
+  ok(r3.list.length === 0, 'כתובית של פרק אחר (S01E01) — נזרקת');
 
   /* ---------- 7. מקור הקבצים בעבודה ---------- */
   const st = read('studio.js');
@@ -131,6 +188,7 @@ function zip(files) {
   ok(/p\.append\(\.\.\.orgRows\(rec\)\)/.test(st), 'מסך העבודה מציג את המקורות');
 
   /* ---------- 8. החיבור בטופס ---------- */
+  ok(/net\.subsFind\(file, file\.name, \{ dur: f\.dur \|\| 0 \}\)/.test(st), 'אורך הסרטון עובר לחיפוש');
   ok(/nsFor\(f, file\);[^\n]*\n\s*if \(!\/\\\.\(mkv/.test(st), 'החיפוש מתחיל לכל סרטון — לפני בדיקת הסיומת של הרצועות');
   ok(/t\.net && t\.net\.m === 'h' && !to\.includes\(t\.lang\)/.test(st), 'לתרגום מכתוביות — רק "מדויק" שלא בשפת התרגום');
   ok(/t\.net && t\.lang === 'en' && t\.net\.m !== 'n'/.test(st), 'עזר אוטומטי מהרשת — רק מדויק / אותה הוצאה');
