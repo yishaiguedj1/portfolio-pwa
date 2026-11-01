@@ -22,6 +22,10 @@ object DmEngine {
     val ytEta = ConcurrentHashMap<String, Long>()
     /** 01/11/2026: חיבורים פעילים עכשיו לכל הורדה (מפת המקטעים) */
     val live = ConcurrentHashMap<String, Int>()
+    /** 01/11/2026 (צפייה תוך כדי הורדה): הנקודה שהנגן מחכה לה, לכל הורדה (DmGrowSource) */
+    val want = ConcurrentHashMap<String, Long>()
+    /** בתים שעברו בסלולר בהורדה שרצה עכשיו (Wi‑Fi וסלולר יחד) — לממשק */
+    val alt = ConcurrentHashMap<String, Long>()
 
     /* ---- חום וסוללה (DmHeat, ‏01/11/2026): נקרא לכל היותר פעם ב־10 שנ׳ ---- */
     @Volatile var heatWhy = DmHeat.Why.NONE
@@ -60,7 +64,7 @@ object DmEngine {
     /** "אחר כך" (24/10): מתחילות רק ב־Wi‑Fi ובטעינה — עד אז לא מחזיקות שירות/משימה, רק משימת מערכת עם התנאים (DmRun.scheduleLater) */
     @Volatile var laterReady = false
     fun busy() = running.isNotEmpty()
-    fun hasWork() = DmStore.all().any { (it.state == DmState.QUEUED && (!it.later || laterReady)) || it.state == DmState.RUNNING || it.state == DmState.WAITING }
+    fun hasWork() = DmStore.all().any { (it.state == DmState.QUEUED && (!it.later || laterReady)) || it.state == DmState.RUNNING || (it.state == DmState.WAITING && it.err !in DmR3.PARKED) }
     fun charging(ctx: Context) = runCatching { ctx.getSystemService(android.os.BatteryManager::class.java)?.isCharging == true }.getOrDefault(false)
 
     /** מתחיל מה שאפשר מהתור */
@@ -72,16 +76,19 @@ object DmEngine {
         val pr = DmPrefs(app)
         val okNet = netOk(app, pr.wifiOnly)
         laterReady = netOk(app, true) && charging(app)
-        DmLimit.bytesPerSec = pr.limit
+        DmLimit.bytesPerSec = DmR3.limitNow(app, pr)   // 01/11/2026 (סבב 3): לפי השעה ולפי הרשת
         heatTick(app)
         // הישנה קודם; עד `parallel` בבת אחת ולכל היותר DmLink.PER_HOST מאותו אתר
         val queued = DmStore.all().reversed().filter { !running.containsKey(it.id) && (it.state == DmState.QUEUED || it.state == DmState.WAITING) && (!it.later || laterReady) }
         if (!okNet) queued.forEach { t -> if (t.state != DmState.WAITING) { t.state = DmState.WAITING; t.err = if (pr.wifiOnly) "wifi" else "net"; DmStore.save() } }
         else {
             val run = running.keys.mapNotNull { DmStore.get(it)?.url }
-            DmLink.pickStart(queued.map { it.url }, run, pr.parallel - running.size).forEach { start(app, queued[it], pr) }
+            // 01/11/2026 (סבב 3): תורים בשם — חלון זמן, רשת, מכסת נפח וכמה במקביל לכל תור (DmR3.gate); מה שנחסם — WAITING
+            val ok = DmR3.gate(app, queued, running.keys)
+            DmLink.pickStart(ok.map { it.url }, run, pr.parallel - running.size).forEach { start(app, ok[it], pr) }
         }
         watchNet(app)
+        DmR3.scheduleWake(app)
         if (!laterReady && DmStore.all().any { it.later && it.state == DmState.QUEUED }) DmRun.scheduleLater(app)
         if (hasWork()) DmRun.ensure(app) else DmRun.idle(app)
         DmNotif.update(app)
@@ -94,7 +101,8 @@ object DmEngine {
         DmStore.save()
         Thread {
             val host = DmLink.host(t.url)
-            val conns = DmHostRules.conns(hostRule(pr, host), pr.conns)
+            // חוק לפי אתר וסוג (סבב 3) גובר על הכלל הנלמד
+            val conns = if (t.conns > 0) t.conns else DmHostRules.conns(hostRule(pr, host), pr.conns)
             val t0 = System.currentTimeMillis(); val got0 = t.got
             if (t.kind != DmKind.YTDL) r.conns = conns
             log(ctx, t, r, "start", "", 0, 0)
@@ -102,7 +110,8 @@ object DmEngine {
             running.remove(t.id); speed.remove(t.id); ytStage.remove(t.id); ytEta.remove(t.id); live.remove(t.id)
             when {
                 end == null -> {
-                    t.state = DmState.DONE; t.finishedAt = System.currentTimeMillis(); t.err = ""; DmNotif.done(ctx, t)
+                    t.state = DmState.DONE; t.finishedAt = System.currentTimeMillis(); t.err = ""
+                    if (!DmR3.silent(t)) DmNotif.done(ctx, t)
                     // "להוריד ולתרגם": DM פתוח מול המשתמש — ממשיכים ל־Studio מיד (מהרקע אנדרואיד לא מרשה; אז ההתראה)
                     if (t.tr && DmActivity.visible) android.os.Handler(android.os.Looper.getMainLooper()).post {
                         runCatching { ctx.startActivity(DmNotif.studioSend(t)) }
@@ -110,12 +119,19 @@ object DmEngine {
                 }
                 r.system || end == "stopped_sys" -> { t.state = DmState.QUEUED }
                 end == "stopped" -> { t.state = DmState.PAUSED }
-                else -> { t.state = DmState.FAILED; t.err = end; t.tries++; DmNotif.failed(ctx, t) }
+                else -> {
+                    t.state = DmState.FAILED; t.err = end; t.tries++
+                    // 01/11/2026 (סבב 2): קישור שפג ויש דף — רענון לבד ברקע (DmAutoRefresh); הצליח — ממשיך מאותו בייט
+                    // (סבב 3) תור עם ניסיונות חוזרים — לסוף התור, עד המספר שנקבע (כדי שהתור ייגמר)
+                    if (pr.autoRefresh && DmRefresh.worth(t)) DmAutoRefresh.start(ctx, t)
+                    else if (!DmR3.retryInQueue(ctx, t, end)) DmNotif.failed(ctx, t)
+                }
             }
             val ms = System.currentTimeMillis() - t0
             val k = when (t.state) { DmState.DONE -> "done"; DmState.FAILED -> "fail"; else -> "stop" }
             log(ctx, t, r, k, if (k == "done") "" else end ?: "", ms, (t.got - got0).coerceAtLeast(0))
             DmStore.save()
+            if (t.state == DmState.DONE || t.state == DmState.FAILED) runCatching { DmR3.after(ctx, t) }   // פעולות בסיום, סוף התור
             pump(ctx)
         }.apply { isDaemon = true; name = "dm-${t.id}" }.start()
     }
@@ -158,18 +174,28 @@ object DmEngine {
             t.total = p.total; t.ranges = p.ranges; t.etag = p.etag; t.lastMod = p.lastMod   // t.url נשאר המקורי (ראו DmActivity.probe)
             if (p.mime == "text/html") return "page"   // דף ולא קובץ — הגיליון מציע yt-dlp
         }
+        DmR3.applyRules(ctx, t)   // סבב 3: עכשיו השם ידוע (פעם אחת)
         val u = DmMedia.pending(ctx, t)
         DmStore.save()
         val sink = DmMedia.Sink(ctx, u)
+        // 01/11/2026 (סבב 2): Wi‑Fi וסלולר יחד — הרשת הסלולרית מתבקשת רק כשההגדרה דלוקה וההורדה בחלקים
+        val bonding = pr.bond && t.ranges && conns > 1
+        if (bonding) DmBondNet.acquire(ctx)
         try {
-            val f = DmFetch(t, sink, conns, uaOf(t), cookies = cookiesOf(t), cap = { capFor(conns) })
-            var lastB = 0L; var lastT = System.currentTimeMillis()
+            val f = DmFetch(t, sink, conns, uaOf(t), cookies = cookiesOf(t), cap = { capFor(conns) },
+                route = if (bonding) DmBondNet.route(ctx, pr, conns) else { _ -> null }, wantAt = { want[t.id] ?: -1L },
+                own = if (t.lim > 0) DmBucket({ t.lim }) else null)   // סבב 3: מגבלה להורדה הזו
+            val metered = !netOk(ctx, true)
+            var lastB = 0L; var lastT = System.currentTimeMillis(); var lastAlt = 0L; var lastB0 = 0L
             val res = f.run({ r.stop }) {
                 val now = System.currentTimeMillis()
                 speed[t.id] = ((f.bytes - lastB) * 1000 / (now - lastT).coerceAtLeast(1))
                 lastB = f.bytes; lastT = now
                 live[t.id] = f.live
-                heatTick(ctx)
+                val dAlt = if (bonding) f.altBytes - lastAlt else 0L
+                if (bonding) { val a = f.altBytes; DmBondNet.add(pr, a - lastAlt); lastAlt = a; alt[t.id] = a }
+                DmR3.count(dAlt, true); DmR3.count(f.bytes - lastB0 - dAlt, metered); lastB0 = f.bytes   // מכסת הנפח
+                heatTick(ctx); DmR3.tick(ctx)
                 DmStore.save(); DmNotif.update(ctx)
             }
             if (t.ranges && res !is DmFetch.Result.Stopped) learnHost(pr, host, conns, f.throttled)
@@ -178,7 +204,7 @@ object DmEngine {
                 is DmFetch.Result.Stopped -> if (r.system) "stopped_sys" else "stopped"
                 is DmFetch.Result.Failed -> res.code
             }
-        } finally { sink.close() }
+        } finally { sink.close(); if (bonding) { DmBondNet.release(ctx); alt.remove(t.id) }; want.remove(t.id) }
     }
 
     private fun runYt(ctx: Context, t: DmTask, r: Runner): String? {
@@ -203,7 +229,9 @@ object DmEngine {
                         t.pctYt = pr.frac
                         ytStage[t.id] = pr.stage
                         if (pr.stage == DmYt.Stage.DL) {
-                            t.bytesYt = minOf(got, t.total)
+                            val nb = minOf(got, t.total)
+                            DmR3.count(nb - t.bytesYt, !netOk(ctx, true)); DmR3.tick(ctx)   // סבב 3: מכסה ושעות
+                            t.bytesYt = nb
                             if (pr.bps > 0) speed[t.id] = pr.bps
                         }
                         val now = System.currentTimeMillis()
@@ -314,6 +342,10 @@ object DmEngine {
             DmStore.remove(id); DmNotif.update(ctx)
         }.start()
     }
+
+    /** 01/11/2026 (סבב 3): מה שרץ עכשיו, ועצירה של אחת בלי "מושהה" (חוזרת לתור — חלון נסגר / מכסה) */
+    fun runningIds(): List<String> = running.keys.toList()
+    fun stopSys(id: String) { running[id]?.let { it.system = true; it.stop = true } }
 
     /** המערכת עוצרת (Job נעצר / זמן השירות נגמר): הכל חוזר לתור, מהמקטעים השמורים */
     fun stopAllSystem() { running.values.forEach { it.system = true; it.stop = true } }

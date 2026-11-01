@@ -103,7 +103,7 @@ ok(/token != h\.token \|\| url != h\.url/.test(br) && /handoff = null/.test(br),
 ok(/setDownloadListener/.test(br), 'הורדה שהדף מתחיל — ל־DM');
 ok(/instanceFollowRedirects = false/.test(fetch) && /cookies\?\.invoke\(u\.toString\(\)\)/.test(fetch) && /next\.protocol == "http"/.test(fetch), 'הפניות בתוך המנוע: עוגייה לכל קפיצה בנפרד, בלי ירידה ל־http');
 ok(fetch.includes("'\\n' !in it && '\\r' !in it"), 'בלי הזרקת כותרות דרך העוגייה');
-ok(/DmLimit\.take\(n\.toLong\(\), sleep\)/.test(fetch) && /DmLimit\.bytesPerSec = pr\.limit/.test(eng), 'מגבלת מהירות לכל ההורדות');
+ok(/DmLimit\.take\(n\.toLong\(\), sleep\)/.test(fetch) && /DmLimit\.bytesPerSec = DmR3\.limitNow\(app, pr\)/.test(eng), 'מגבלת מהירות לכל ההורדות');
 ok(/DmLink\.pickStart\(/.test(eng) && /const val PER_HOST = 2/.test(R('android/app/src/dmcore/java/io/github/yishaiguedj1/snowball/dm/DmCore.kt')), 'לכל היותר 2 הורדות במקביל מאותו אתר');
 ok(/if \(t\.total > 0 && f\.size != t\.total\) return "refresh_size"/.test(act), 'רענון קישור רק לאותו קובץ (אותו גודל)');
 ok(/fun cookiesOf\(t: DmTask\)[^\n]*if \(!t\.ck\) null/.test(eng), 'עוגיות רק להורדה שהתחילה בדפדפן');
@@ -165,6 +165,21 @@ for (const k of used) ok(kh.has(k), 'מחרוזת קיימת: ' + k);
   ok(/instanceFollowRedirects = false/.test(brw) && /ck\(u\.toString\(\)\)/.test(brw) && /u\.protocol == "https" && next\.protocol == "http"/.test(brw), 'בדיקת הקובץ: עוגיות לכל קפיצה לפי הכתובת שלה, בלי ירידה ל־http');
   ok(/'\\n' !in it && '\\r' !in it/.test(brw), 'בלי הזרקת כותרות דרך העוגייה בבדיקה');
   ok(!/setRequestProperty\("Cookie"|getCookie\(/.test(R('android/app/src/studio/java/io/github/yishaiguedj1/snowball/HuntActivity.kt')), 'הדפדפן של Studio — לא שולח עוגיות');
+}
+
+// 01/11/2026 (סבב 3): הממשק לאפליקציות אחרות — רק בהרשאה שהמשתמש מאשר; deep link תמיד עם הגיליון; בלי עוגיות מבחוץ;
+// בלי הרשאת שעון מדויק ובלי QUERY_ALL_PACKAGES (בודק ה־APK רואה רק אפליקציות עם סמל)
+{
+  const r3 = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmRound3Android.kt');
+  const core3 = R('android/app/src/dmcore/java/io/github/yishaiguedj1/snowball/dm/DmRound3.kt');
+  ok(/<permission android:name="app\.thesnowball\.permission\.DM_ADD" android:protectionLevel="dangerous"/.test(man), 'DM_ADD — המשתמש מאשר לכל אפליקציה');
+  ok(/android:name="\.dm\.DmApiActivity"\s+android:exported="true"\s+android:permission="app\.thesnowball\.permission\.DM_ADD"/.test(man), 'DmApiActivity מוגן בהרשאה');
+  ok(/return parse\(\{ m\[it\] \}, false\)/.test(core3), 'deep link — אף פעם לא בשקט');
+  ok(!/Cookie|\.ua = |ck = true/.test(r3.slice(r3.indexOf('fun take('), r3.indexOf('class DmApiActivity'))), 'הוספה מבחוץ — בלי עוגיות ובלי User-Agent');
+  ok(!/<uses-permission[^>]*(SCHEDULE_EXACT_ALARM|USE_EXACT_ALARM|QUERY_ALL_PACKAGES|SYSTEM_ALERT_WINDOW)|BIND_ACCESSIBILITY_SERVICE/.test(man), 'בלי הרשאות רגישות');
+  ok(/setMinimumLatency/.test(r3) && !/setExact|AlarmManager/.test(r3), 'חלון זמן — משימת מערכת, לא שעון מדויק');
+  ok(/ctx\.sendBroadcast\([^\n]*PERM_ADD\)/.test(r3), 'שידור סוף התור — רק לבעלי ההרשאה');
+  ok(/cat != DmName\.Cat\.APK/.test(r3), 'פעולה "לפתוח" בסיום — לא מתקינה APK לבד');
 }
 
 console.log('studio-dm: ' + n + ' בדיקות עברו');
