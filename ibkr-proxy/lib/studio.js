@@ -1157,6 +1157,9 @@ function smRows(v, max, cell) {
 }
 const smGl = (v) => smRows(v, SM_GL, (r) => { const en = glClean(r[0], 60), he = glClean(r[1], 80); return en && he ? [en, he] : null; });
 const smCh = (v) => smRows(v, SM_CH, (r) => { const nm = glClean(r[0], 40), g = r[1] === 'm' || r[1] === 'f' ? r[1] : ''; return nm && g ? [nm, g, glClean(r[2], 60)] : null; });
+/* A1 (1/11/2026): מה שמחקת בכרטיס בטלפון — לא חוזר מהפרק הבא (רשימת מפתחות באותיות קטנות) */
+const SM_X = 200;
+const smX = (v) => [...new Set((Array.isArray(v) ? v.slice(0, SM_X * 2) : []).map((t) => glClean(t, 60).toLowerCase()).filter(Boolean))].slice(0, SM_X);
 /* מה שהעובד שלח (smPut) / הסדרה מהקובץ → {gl, ch} נקי */
 function normSm(v) {
   const o = v && typeof v === 'object' ? v : {};
@@ -1169,17 +1172,17 @@ function smParse(text) {
   const s = {};
   for (const [k, x] of Object.entries(j && j.s && typeof j.s === 'object' ? j.s : {}).slice(0, SM_SER)) {
     if (!/^[\p{L}\p{N} ]{2,60}$/u.test(k) || !x || typeof x !== 'object') continue;
-    s[k] = Object.assign({ n: glClean(x.n, 60), at: Math.max(0, +x.at || 0), ep: Math.max(0, Math.floor(+x.ep || 0)) }, normSm(x));
+    s[k] = Object.assign({ n: glClean(x.n, 60), at: Math.max(0, +x.at || 0), ep: Math.max(0, Math.floor(+x.ep || 0)) }, normSm(x), { x: smX(x.x) });
   }
   return { v: 1, s };
 }
 /* מיזוג: שורה קיימת נשארת (הראשון גובר), חדשה נוספת; דמות בלי מגדר קודם — מקבלת. הסדרות הישנות ביותר יוצאות מעל SM_SER */
 function smMerge(doc, ser, add, now) {
   const d = smParse(JSON.stringify(doc || {}));
-  const cur = d.s[ser.k] || { n: ser.n, at: 0, ep: 0, gl: [], ch: [] };
+  const cur = d.s[ser.k] || { n: ser.n, at: 0, ep: 0, gl: [], ch: [], x: [] };
   const a = normSm(add);
-  const have = new Set(cur.gl.map((r) => r[0].toLowerCase())), chave = new Set(cur.ch.map((r) => r[0].toLowerCase()));
-  const next = { n: cur.n || ser.n, at: now, ep: cur.ep + 1,
+  const have = new Set(cur.gl.map((r) => r[0].toLowerCase()).concat(cur.x)), chave = new Set(cur.ch.map((r) => r[0].toLowerCase()).concat(cur.x));
+  const next = { n: cur.n || ser.n, at: now, ep: cur.ep + 1, x: cur.x,
     gl: cur.gl.concat(a.gl.filter((r) => !have.has(r[0].toLowerCase()))).slice(0, SM_GL),
     ch: cur.ch.concat(a.ch.filter((r) => !chave.has(r[0].toLowerCase()))).slice(0, SM_CH) };
   d.s[ser.k] = next;
@@ -1191,6 +1194,34 @@ function smMerge(doc, ser, add, now) {
 function smForWorker(doc, ser) {
   const x = ser && doc && doc.s && doc.s[ser.k];
   return x && (x.gl.length || x.ch.length) ? { n: x.n, ep: x.ep, gl: x.gl, ch: x.ch } : null;
+}
+/* A1 (1/11/2026): כרטיס הסדרה בטלפון — כל הסדרות, החדשה ביותר ראשונה (שמות, מונחים ומגדר; אין כאן טקסט כתוביות) */
+function smView(doc) {
+  const s = (doc && doc.s) || {};
+  return Object.keys(s).sort((a, b) => s[b].at - s[a].at).map((k) => ({ k, n: s[k].n, ep: s[k].ep, at: s[k].at, gl: s[k].gl, ch: s[k].ch }));
+}
+/* עריכה מהטלפון — שינוי קטן בכל פעם (הגוף לשרתון עד 4KB): gl/ch = שורות להוספה או להחלפה (לפי האנגלית / שם הדמות),
+   glx/chx = מה למחוק (נכנס ל־x — לא חוזר מהפרק הבא), drop = הסדרה כולה. עריכה שלך גוברת על "הראשון שנקבע".
+   null = אין סדרה כזו / אין שום שינוי תקין */
+const SM_EDIT_MAX = 20;
+function smEdit(doc, k, e, now) {
+  const d = smParse(JSON.stringify(doc || {}));
+  const cur = d.s[k];
+  if (!cur || !e || typeof e !== 'object') return null;
+  if (e.drop === true) { delete d.s[k]; return d; }
+  const lim = (v) => (Array.isArray(v) ? v.slice(0, SM_EDIT_MAX) : []);
+  const gl = smGl(lim(e.gl)), ch = smCh(lim(e.ch).map((r) => (Array.isArray(r) && r.length < 3 ? r.concat('') : r)));
+  const glx = smX(lim(e.glx)), chx = smX(lim(e.chx));
+  if (!gl.length && !ch.length && !glx.length && !chx.length) return null;
+  const up = (rows, add, del, max) => {
+    const out = rows.filter((r) => !del.includes(r[0].toLowerCase())).map((r) => add.find((a) => a[0].toLowerCase() === r[0].toLowerCase()) || r);
+    for (const a of add) if (!out.some((r) => r[0].toLowerCase() === a[0].toLowerCase())) out.push(a);
+    return out.slice(0, max);
+  };
+  const back = new Set(gl.concat(ch).map((r) => r[0].toLowerCase()));   // מה שהוספת מחדש — כבר לא "נמחק"
+  d.s[k] = Object.assign({}, cur, { at: Math.max(now, cur.at + 1), gl: up(cur.gl, gl, glx, SM_GL), ch: up(cur.ch, ch, chx, SM_CH),
+    x: cur.x.filter((t) => !back.has(t)).concat(glx, chx).filter((t, i, a) => a.indexOf(t) === i && !back.has(t)).slice(-SM_X) });
+  return d;
 }
 const jobSeries = (job) => seriesOf((job.fv && job.fv.name) || (job.fa && job.fa.name) || (job.fsu && job.fsu.name) || '');
 /* 28/10/2026: ניסוי "טיוטה אחת" (ניתוח 7 פרקים: ההכרעה בין שתי הטיוטות של Haiku לא עדיפה על מקרה מול התרגום האנושי,
@@ -1465,7 +1496,7 @@ function fromFields(f) {
   return o;
 }
 
-module.exports = { UP_STALL_MS, upStallStep, normVcp, bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, jobSeries, SM_BYTES, dualAb, DUAL_AB_UNTIL, rvAb, RV_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
+module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, normVcp, bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, jobSeries, SM_BYTES, dualAb, DUAL_AB_UNTIL, rvAb, RV_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, cuesSwap, rrSpec, rrJob,

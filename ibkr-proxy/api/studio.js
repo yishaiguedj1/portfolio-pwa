@@ -3424,6 +3424,23 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json({ ok: true, r2: true, get: await R2.presign(c, rd, { method: 'GET', key, expires: 300 }),
         put: await R2.presign(c, rd, { method: 'PUT', key, expires: 300 }) });
     }
+    if (op === 'smGet' || op === 'smEdit') {
+      // A1 (1/11/2026): כרטיס הסדרה בטלפון — sm/<uid>.json ב־R2 (רק שמות, מונחים ומגדר; טקסט הכתוביות לא עובר כאן — התיקון
+      // לאחור בפרקים הקודמים (A5) רץ בטלפון מול ה־Drive שלך). עריכה = שינוי קטן; at = הגרסה שראית (העובד כתב בינתיים → stale)
+      const c = R2.config(), key = S.smKey(uid);
+      if (!c.ok || !key) return res.status(200).json({ ok: true, r2: false, s: [] });
+      const rd = r2deps(deps);
+      const doc = S.smParse(await R2.getText(c, rd, key, S.SM_BYTES).catch(() => null));
+      if (op === 'smGet') return res.status(200).json({ ok: true, r2: true, s: S.smView(doc) });
+      if (limited('sm:' + uid, 60)) return res.status(429).json({ ok: false, error: 'rate' });
+      const k = String(body.k || ''), cur = doc.s[k];
+      if (!cur) return res.status(404).json({ ok: false, error: 'sm_none', s: S.smView(doc) });
+      if (Math.floor(+body.at || 0) !== cur.at) return res.status(409).json({ ok: false, error: 'stale', s: S.smView(doc) });
+      const next = S.smEdit(doc, k, body, now);
+      if (!next) return res.status(400).json({ ok: false, error: 'bad_params' });
+      await R2.putText(c, rd, key, JSON.stringify(next), 'application/json');
+      return res.status(200).json({ ok: true, r2: true, s: S.smView(next) });
+    }
     if (op === 'fnl') {
       // 26/10/2026 (Vid Hub, שלב א׳): צעדים קבועים במסלול שלפני העבודה ו"למה ויתרת?" — מונים ליום (studioFunnel/<יום>), בלי משתמש.
       // תקלה בכתיבה לא מפריעה לכלום — זו מדידה בלבד
