@@ -20,6 +20,34 @@ object DmEngine {
     /** yt-dlp: השלב שרץ (מתחבר / מוריד / ממזג…) והזמן שנותר לפי yt-dlp — לשורת המצב (DmYt) */
     val ytStage = ConcurrentHashMap<String, DmYt.Stage>()
     val ytEta = ConcurrentHashMap<String, Long>()
+    /** 01/11/2026: חיבורים פעילים עכשיו לכל הורדה (מפת המקטעים) */
+    val live = ConcurrentHashMap<String, Int>()
+
+    /* ---- חום וסוללה (DmHeat, ‏01/11/2026): נקרא לכל היותר פעם ב־10 שנ׳ ---- */
+    @Volatile var heatWhy = DmHeat.Why.NONE
+    @Volatile private var heatAt = 0L
+    @Volatile private var thermal = 0
+    @Volatile private var batt = 100
+    @Volatile private var chg = true
+    @Volatile private var saver = false
+
+    fun heatTick(ctx: Context, force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!force && now - heatAt < 10_000) return
+        heatAt = now
+        if (!DmPrefs(ctx).heat) { thermal = 0; saver = false; chg = true; heatWhy = DmHeat.Why.NONE; DmLimit.heatBps = 0; return }
+        val pm = ctx.getSystemService(android.os.PowerManager::class.java)
+        thermal = runCatching { pm?.currentThermalStatus ?: 0 }.getOrDefault(0)
+        saver = runCatching { pm?.isPowerSaveMode == true }.getOrDefault(false)
+        val bm = ctx.getSystemService(android.os.BatteryManager::class.java)
+        batt = runCatching { bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: 100 }.getOrDefault(100).let { if (it <= 0) 100 else it }
+        chg = charging(ctx)
+        val c = DmHeat.cap(DmSegs.MAX_CONNS, thermal, batt, chg, saver)
+        heatWhy = c.why; DmLimit.heatBps = c.bps
+    }
+
+    /** כמה חיבורים מותר עכשיו להורדה שביקשה `conns` */
+    fun capFor(conns: Int) = if (heatWhy == DmHeat.Why.NONE) conns else DmHeat.cap(conns, thermal, batt, chg, saver).conns
 
     private class Runner(val id: String) {
         @Volatile var stop = false
@@ -45,6 +73,7 @@ object DmEngine {
         val okNet = netOk(app, pr.wifiOnly)
         laterReady = netOk(app, true) && charging(app)
         DmLimit.bytesPerSec = pr.limit
+        heatTick(app)
         // הישנה קודם; עד `parallel` בבת אחת ולכל היותר DmLink.PER_HOST מאותו אתר
         val queued = DmStore.all().reversed().filter { !running.containsKey(it.id) && (it.state == DmState.QUEUED || it.state == DmState.WAITING) && (!it.later || laterReady) }
         if (!okNet) queued.forEach { t -> if (t.state != DmState.WAITING) { t.state = DmState.WAITING; t.err = if (pr.wifiOnly) "wifi" else "net"; DmStore.save() } }
@@ -70,7 +99,7 @@ object DmEngine {
             if (t.kind != DmKind.YTDL) r.conns = conns
             log(ctx, t, r, "start", "", 0, 0)
             val end = try { if (t.kind == DmKind.YTDL) runYt(ctx, t, r) else runHttp(ctx, t, r, conns, pr, host) } catch (e: Throwable) { r.ex = e; "fail" }
-            running.remove(t.id); speed.remove(t.id); ytStage.remove(t.id); ytEta.remove(t.id)
+            running.remove(t.id); speed.remove(t.id); ytStage.remove(t.id); ytEta.remove(t.id); live.remove(t.id)
             when {
                 end == null -> {
                     t.state = DmState.DONE; t.finishedAt = System.currentTimeMillis(); t.err = ""; DmNotif.done(ctx, t)
@@ -133,12 +162,14 @@ object DmEngine {
         DmStore.save()
         val sink = DmMedia.Sink(ctx, u)
         try {
-            val f = DmFetch(t, sink, conns, uaOf(t), cookies = cookiesOf(t))
+            val f = DmFetch(t, sink, conns, uaOf(t), cookies = cookiesOf(t), cap = { capFor(conns) })
             var lastB = 0L; var lastT = System.currentTimeMillis()
             val res = f.run({ r.stop }) {
                 val now = System.currentTimeMillis()
                 speed[t.id] = ((f.bytes - lastB) * 1000 / (now - lastT).coerceAtLeast(1))
                 lastB = f.bytes; lastT = now
+                live[t.id] = f.live
+                heatTick(ctx)
                 DmStore.save(); DmNotif.update(ctx)
             }
             if (t.ranges && res !is DmFetch.Result.Stopped) learnHost(pr, host, conns, f.throttled)
@@ -249,6 +280,27 @@ object DmEngine {
 
     fun resume(ctx: Context, id: String) {
         DmStore.get(id)?.let { if (it.state == DmState.PAUSED || it.state == DmState.FAILED) { it.state = DmState.QUEUED; it.err = "" } }
+        DmStore.save(); pump(ctx)
+    }
+
+    /** אבחון (DmDiag.FEWER): השרת מגביל — חצי חיבורים לאתר הזה (נשמר כמו הכלל הנלמד), ומנסים שוב */
+    fun fewer(ctx: Context, id: String) {
+        val t = DmStore.get(id) ?: return
+        val pr = DmPrefs(ctx); val host = DmLink.host(t.url)
+        synchronized(this) {
+            val m = DmHostRules.parse(pr.hostRules)
+            val cur = m[host] ?: pr.conns
+            if (host.isNotEmpty()) { m[host] = (cur / 2).coerceAtLeast(1); pr.hostRules = DmHostRules.dump(m) }
+        }
+        resume(ctx, id)
+    }
+
+    /** אבחון (DmDiag.RESTART): הקובץ השתנה / לא שלם — מתחילים מאפס, עם בדיקה חדשה של השרת */
+    fun restart(ctx: Context, id: String) {
+        val t = DmStore.get(id) ?: return
+        if (running.containsKey(id)) return
+        t.segs = mutableListOf(); t.total = -1; t.etag = ""; t.lastMod = ""; t.bytesYt = 0; t.pctYt = -1f
+        t.state = DmState.QUEUED; t.err = ""
         DmStore.save(); pump(ctx)
     }
 

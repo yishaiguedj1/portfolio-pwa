@@ -189,7 +189,9 @@ class DmActivity : ComponentActivity() {
 
     /** תוצאת הבדיקה של קישור — לגיליון ההוספה */
     sealed class Found {
-        data class File(val url: String, val name: String, val size: Long, val mime: String, val ranges: Boolean) : Found()
+        /** 01/11/2026: גם מה שהשרת אמר (עודכן, ETag, השרת שאחרי ההפניה) — "בדיקה לפני הורדה" והצצה ל־ZIP */
+        data class File(val url: String, val name: String, val size: Long, val mime: String, val ranges: Boolean,
+                        val lastMod: String = "", val etag: String = "", val server: String = "") : Found()
         data class Video(val url: String, val info: JSONObject) : Found()
         data class Fail(val code: String) : Found()
         data class Playlist(val url: String, val pl: DmPlaylist.Playlist) : Found()
@@ -236,7 +238,8 @@ class DmActivity : ComponentActivity() {
                 if (p.mime != "text/html" && p.mime != "application/xhtml+xml")
                     // נשמרת הכתובת שהמשתמש נתן, לא זו שאחרי ההפניה: קישור הורדה (GitHub, S3…) מפנה לכתובת חתומה שפגה תוך דקות,
                     // ו"המשך" מחר היה נכשל ב־expired. כל חיבור עוקב אחרי ההפניה מחדש; If-Range (ETag) שומר שלא מערבבים קבצים
-                    return Found.File(url, DmName.pick(p.disposition, p.finalUrl, p.mime).let { if (sheetTitle.isEmpty()) it else DmName.titled(sheetTitle, it) }, p.total, p.mime, p.ranges)
+                    return Found.File(url, DmName.pick(p.disposition, p.finalUrl, p.mime).let { if (sheetTitle.isEmpty()) it else DmName.titled(sheetTitle, it) }, p.total, p.mime, p.ranges,
+                        p.lastMod, p.etag, DmLink.host(p.finalUrl))
             } catch (e: Throwable) {
                 if (e is DmHttpError && DmRetry.http(e.status).act == DmRetry.Act.FATAL) return Found.Fail(DmRetry.http(e.status).code)
             }
@@ -244,6 +247,46 @@ class DmActivity : ComponentActivity() {
         return try { Found.Video(url, DlEngine.probe(this, url, ref, DlEngine.cookiesFor(this, url, ref)).also { if (sheetTitle.isNotEmpty()) it.put("t", sheetTitle) }) }
         catch (e: IllegalArgumentException) { if (e.message == "playlist") probeList(url, ref) else Found.Fail(e.message ?: "fail") }
         catch (e: Throwable) { Found.Fail("fail") }
+    }
+
+    /* ---- הצצה לתוך ZIP/APK לפני ההורדה (01/11/2026, DmZipPeek) ---- */
+    data class Peek(val list: DmZipPeek.Listing, val apk: DmApk.Info?)
+
+    private fun peekHttp(f: Found.File, ref: String) = DmZipPeek.Http(f.url, ref, sheetUa.ifEmpty { DmFetch.UA }, f.etag.ifEmpty { f.lastMod }, ckFn())
+
+    /** רשימת הקבצים (ו־AndroidManifest של APK) — כמה בקשות Range לסוף הקובץ. קוד שגיאה ב־Result */
+    fun peek(f: Found.File, ref: String): Result<Peek> = runCatching {
+        val h = peekHttp(f, ref)
+        val l = DmZipPeek.list(f.size, h::read)
+        val m = l.entries.firstOrNull { it.name == "AndroidManifest.xml" && it.size in 1..(4L shl 20) }
+        val apk = if (m == null || !f.name.endsWith(".apk", true)) null else runCatching {
+            val o = java.io.ByteArrayOutputStream(); DmZipPeek.extract(m, h::read, h::stream, o); DmApk.parse(o.toByteArray())
+        }.getOrNull()
+        Peek(l, apk)
+    }
+
+    /** רק הקבצים שסומנו → ‏Download/Studio DM/<שם הארכיון>/… — מחזיר כמה ירדו */
+    fun peekGet(f: Found.File, ref: String, list: List<DmZipPeek.Entry>, onProg: (Int, Long) -> Unit): Result<Int> = runCatching {
+        val h = peekHttp(f, ref)
+        val root = "Download/" + DmMedia.DIR + "/" + DmZip.folderOf(f.name.replace(Regex("\\.(apk|jar|epub|cbz|xapk|apks|apkm|docx|xlsx|pptx|odt|aar|whl|nupkg)$", RegexOption.IGNORE_CASE), ".zip"))
+        var n = 0; var bytes = 0L
+        for (e in list) {
+            if (e.dir) continue
+            val parts = DmZip.safeParts(e.name) ?: continue
+            val before = bytes
+            DmMedia.saveStream(this, (listOf(root) + parts.dropLast(1)).joinToString("/"), parts.last()) { o ->
+                DmZipPeek.extract(e, h::read, h::stream, o, { b -> bytes = before + b; onProg(n, bytes) })
+            }
+            n++; onProg(n, bytes)
+        }
+        n
+    }
+
+    /** "לבדוק עכשיו" באבחון — אותם כותרות ועוגיות של ההורדה עצמה */
+    fun diagCheck(t: DmTask): List<DmDiag.Step> = DmDiag.check(t.url, t.ref, DmEngine.uaOf(t), DmEngine.cookiesOf(t), t.total, t.etag.ifEmpty { t.lastMod })
+
+    fun storageSettings() {
+        runCatching { startActivity(Intent(Settings.ACTION_INTERNAL_STORAGE_SETTINGS)) }
     }
 
     fun addFile(f: Found.File, name: String, ref: String, tr: Boolean = false, later: Boolean = false) {

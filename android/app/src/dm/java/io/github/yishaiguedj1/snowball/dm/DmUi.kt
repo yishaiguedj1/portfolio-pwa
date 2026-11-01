@@ -394,21 +394,9 @@ private fun Details(a: DmActivity, t: DmTask, rev: Int, onClose: () -> Unit) {
             Text(t.name.ifEmpty { t.title }, fontWeight = FontWeight.Bold, fontSize = 20.sp)
             Text(line, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(16.dp))
-            if (t.kind == DmKind.HTTP && t.total > 0) {
-                val segs = remember(rev) { t.segs.toList() }
-                val tot = t.total.toFloat()
-                val track = MaterialTheme.colorScheme.surfaceContainerHigh; val fill = MaterialTheme.colorScheme.primary
-                Canvas(Modifier.fillMaxWidth().height(14.dp)) {
-                    drawRoundRect(track, cornerRadius = CornerRadius(7f, 7f))
-                    for (s in segs) {
-                        val x0 = s.start / tot * size.width
-                        val w = s.done.coerceAtMost(s.end - s.start) / tot * size.width
-                        if (w > 0) drawRect(fill, Offset(x0, 0f), Size(w.coerceAtLeast(1f), size.height))
-                    }
-                }
-                Text(stringResource(R.string.dmSegs, segs.count { !it.finished }, segs.size), style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
-            }
+            // 01/11/2026: מפת המקטעים החיה (צבע לכל חיבור, גרף מהירות, פירוט) ו"למה זה לא יורד?" — DmUiPro
+            SegMap(t, rev)
+            DiagCard(a, t, onClose)
             Spacer(Modifier.height(12.dp))
             Info(stringResource(R.string.dmSource), runCatching { java.net.URI(t.url).host }.getOrNull() ?: t.url)
             Info(stringResource(R.string.dmResume), stringResource(if (t.kind == DmKind.YTDL || t.ranges) R.string.dmYes else R.string.dmNo))
@@ -519,7 +507,7 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
             if (qs != null && want != null) for (i in 0 until qs.length()) if (qs.optJSONObject(i)?.optInt("h") ?: 0 <= want) { qi = i; break }
         }
     }
-    LaunchedEffect(url0) { if (url0.startsWith("http") && DmLink.all(url0).size <= 1) check() }
+    LaunchedEffect(url0) { if (url0.startsWith("http") && DmLink.all(url0).size <= 1 && !DmPattern.has(DmLink.first(url0))) check() }
     // גיליון חדש: ההתקדמות של רשימה קודמת שהסתיימה כבר לא רלוונטית
     LaunchedEffect(Unit) { if (a.batch.value?.finished == true) a.batch.value = null }
 
@@ -539,7 +527,7 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                         else -> DmLink.first(txt).ifEmpty { url }
                     }
                     found = null
-                    if (DmLink.all(url).size == 1 && DmImport.parse(url) !is DmImport.Parsed.Backup) scope.launch { check() }
+                    if (DmImport.parse(url).let { it is DmImport.Parsed.Links && it.urls.size == 1 && !it.pattern }) scope.launch { check() }
                 }) { Icon(DmIcons.Paste, stringResource(R.string.dmPaste)) } })
             Spacer(Modifier.height(14.dp))
             // כבר ברשימה (24/10): אותו קישור הורד / בתור — אזהרה, לא חסימה (אפשר להוריד שוב באיכות אחרת)
@@ -567,6 +555,7 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                     OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text(stringResource(R.string.dmName)) }, shape = RoundedCornerShape(14.dp))
                     Info(stringResource(R.string.dmSize), DmFmt.size(ctx, f.size))
                     Info(stringResource(R.string.dmResume), stringResource(if (f.ranges) R.string.dmYesParts else R.string.dmNo))
+                    if (refTask == null) FileFacts(a, f)
                     Spacer(Modifier.height(12.dp))
                     if (refTask != null) {
                         if (refErr.isNotEmpty()) Text(DmFmt.err(ctx, refErr), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(bottom = 8.dp))
@@ -696,6 +685,7 @@ private fun BatchBlock(a: DmActivity, parsed: DmImport.Parsed, ref: String, onCl
             val st = b
             if (st == null) {
                 Text(stringResource(R.string.dmBatchFound, parsed.urls.size), fontWeight = FontWeight.SemiBold)
+                if (parsed.pattern) Text(stringResource(R.string.dmBatchPattern), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)
                 parsed.urls.take(6).forEach {
                     Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -781,6 +771,8 @@ private fun SettingsScreen(a: DmActivity) {
             SetRow(stringResource(R.string.dmSetConns), conns.toString()) { dlg = "c" }
             Div()
             SetRow(stringResource(R.string.dmSetLimit), limName(lim)) { dlg = "s" }
+            Div()
+            HeatSetting()
             Div()
             SetRow(stringResource(R.string.dmSetLang), langName(lang)) { dlg = "g" }
         }
