@@ -221,7 +221,7 @@ RUN PATH=/opt/vt/bin:/opt/deno:$PATH /opt/vt/bin/python -c "import shutil, yt_dl
 # 25/10/2026: הפלאגין של ה־PO token נטען (ובאמד64 גם הסקריפט שלו קיים)
 RUN /opt/vt/bin/python -c "import os, yt_dlp_plugins.extractor.getpot_bgutil_script as g; f = os.path.isfile('/opt/bgutil/server/src/generate_once.ts'); print('bgutil', f); assert f or os.uname().machine != 'x86_64'"
 # 25/10/2026: מודל שבירת השורות נטען ומנתח משפט, בלי רשת (בלי זה ה־build נופל בשקט לכללים)
-RUN cd /app/translator && HF_HUB_OFFLINE=1 /opt/vt/bin/python -c "from vt import linebreak as L; m = L.DepModel(); t = m.toks('הלכתי אתמול לבית הספר החדש'); assert t and len(t) >= 5, t; print('linebreak', len(t))"
+RUN cd /app/translator && HF_HUB_OFFLINE=1 /opt/vt/bin/python -c "from vt import linebreak as L; m = L.DepModel(); t = m.toks('הלכתי אתמול לבית הספר החדש'); assert t and len(t) >= 5, t; assert len(t[0]) == 7 and any(x[4] for x in t), ('בלי מורפולוגיה', t); print('linebreak', len(t))"
 RUN cd /app/translator && /opt/vt/bin/python -c "from vt import burnin as B; import numpy as np; assert B.available(), 'burnin'; d = B.Detector(); print('burnin', len(d.frame(np.zeros((360, 640, 3), np.uint8), 0.0)))"
 # 26/10/2026: קריוקי — הספרייה נטענת מ־/opt/sepdeps, ושני המודלים נמצאים (בלי רשת; diffq/onnx2torch לא נדרשים ל־RoFormer)
 RUN cd /app/translator && /opt/vt/bin/python -c "import karaoke as K; assert K.sep_ready(), 'karaoke'; from audio_separator.separator import Separator; print('karaoke', K.SEP_DEFAULT, K.KAR_DEFAULT)"

@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2152 מפתחות מתוך 5593) */
+/* המחרוזות של studio (2162 מפתחות מתוך 5603) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -401,7 +401,17 @@ he: {
   "studioCpSeq": "הבקשה כבר התחלפה — רעננו את הדף",
   "studioCpT": "בקשה {n} ל־Claude שלך",
   "studioCpTl": "התרגום: מעתיקים, מדביקים ב־Claude, ומדביקים כאן את כל התשובה (אם נקטעה — גם את ההמשך).",
+  "studioCrAlign": "יישור הזמנים",
+  "studioCrAsr": "תמלול",
+  "studioCrFace": "זיהוי פנים",
+  "studioCrHe": "קריוקי בעברית",
+  "studioCrOcr": "טקסט על המסך",
+  "studioCrParse": "ניתוח דקדוקי",
+  "studioCrSep": "הפרדת קול",
+  "studioCrSpk": "זיהוי דוברים",
   "studioCreated": "נוצר",
+  "studioCredits": "מודלים ורישיונות",
+  "studioCreditsN": "Studio עובד עם מודלים פתוחים. תודה ליוצרים שלהם.",
   "studioDefNote": "חל על פרויקטים חדשים. בכל פרויקט אפשר לשנות.",
   "studioDefsT": "ברירות מחדל",
   "studioDelete": "מחיקת הפרויקט",
@@ -2555,7 +2565,17 @@ en: {
   "studioCpSeq": "The request has changed — refresh the page",
   "studioCpT": "Request {n} for your Claude",
   "studioCpTl": "Translation: copy, paste into Claude, then paste the whole answer here (if it was cut off — the continuation too).",
+  "studioCrAlign": "Timing alignment",
+  "studioCrAsr": "Transcription",
+  "studioCrFace": "Face detection",
+  "studioCrHe": "Hebrew karaoke",
+  "studioCrOcr": "On-screen text",
+  "studioCrParse": "Hebrew parsing",
+  "studioCrSep": "Vocal separation",
+  "studioCrSpk": "Speaker detection",
   "studioCreated": "Created",
+  "studioCredits": "Models & licenses",
+  "studioCreditsN": "Studio runs on open models. Thanks to their creators.",
   "studioDefNote": "Applies to new projects. You can change it in each project.",
   "studioDefsT": "Defaults",
   "studioDelete": "Delete project",

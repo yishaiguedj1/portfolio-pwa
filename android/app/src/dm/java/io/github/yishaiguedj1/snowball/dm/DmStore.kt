@@ -76,6 +76,8 @@ class DmPrefs(ctx: Context) {
     var codec: String get() = (p.getString("codec", DmCodec.SMALL) ?: DmCodec.SMALL).takeIf { it in DmCodec.MODES } ?: DmCodec.SMALL; set(v) = p.edit().putString("codec", v).apply()
     /** לצרף כתוביות של היוצר כשיש (DmSubs) — הבחירה האחרונה בגיליון */
     var subs: Boolean get() = p.getBoolean("subs", true); set(v) = p.edit().putBoolean("subs", v).apply()
+    /** 01/11/2026 (DmHeat): להאט כשהטלפון חם או הסוללה נמוכה — דלוק כברירת מחדל */
+    var heat: Boolean get() = p.getBoolean("heat", true); set(v) = p.edit().putBoolean("heat", v).apply()
     var quick: Boolean get() = p.getBoolean("quick", false); set(v) = p.edit().putBoolean("quick", v).apply()
     var firstRun: Boolean get() = p.getBoolean("first", true); set(v) = p.edit().putBoolean("first", v).apply()
     /** הגבלת מהירות לכל ההורדות יחד, בתים לשנייה (0 = בלי הגבלה) */
