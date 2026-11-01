@@ -17,11 +17,13 @@ object DmStore {
     private val _rev = MutableStateFlow(0)
     val rev: StateFlow<Int> = _rev
     private lateinit var dir: File
+    private var app: Context? = null
 
     @Synchronized
     fun init(ctx: Context) {
         if (loaded) return
         dir = ctx.applicationContext.filesDir
+        app = ctx.applicationContext
         tasks.clear()
         tasks.addAll(DmTask.listOf(runCatching { File(dir, FILE).readText() }.getOrNull()))
         loaded = true
@@ -33,7 +35,18 @@ object DmStore {
     @Synchronized fun has(url: String): Boolean = tasks.any { it.url == url }
 
     @Synchronized
-    fun add(t: DmTask) { tasks.add(0, t); save() }
+    fun add(t: DmTask) {
+        // 01/11/2026 (סבב 3): חוקים לפי אתר וסוג, ומה שאפליקציה אחרת ביקשה (תור, תיקייה, שם) — DmR3.onAdd
+        app?.let { c -> runCatching { DmR3.onAdd(c, t) } }
+        tasks.add(0, t); save()
+    }
+
+    /** 01/11/2026 (סבב 3): "לסוף התור" — הורדה שנכשלה בתור עם ניסיונות חוזרים מחכה שכל השאר יתחילו */
+    @Synchronized
+    fun moveLast(id: String) {
+        val t = tasks.firstOrNull { it.id == id } ?: return
+        tasks.remove(t); tasks.add(0, t); save()
+    }
 
     @Synchronized
     fun remove(id: String) { tasks.removeAll { it.id == id }; save() }
@@ -78,6 +91,13 @@ class DmPrefs(ctx: Context) {
     var subs: Boolean get() = p.getBoolean("subs", true); set(v) = p.edit().putBoolean("subs", v).apply()
     /** 01/11/2026 (DmHeat): להאט כשהטלפון חם או הסוללה נמוכה — דלוק כברירת מחדל */
     var heat: Boolean get() = p.getBoolean("heat", true); set(v) = p.edit().putBoolean("heat", v).apply()
+    /** 01/11/2026 (סבב 2): Wi‑Fi וסלולר יחד — כבוי כברירת מחדל (נפח סלולרי), עם תקרה יומית במגה (0 = בלי) */
+    var bond: Boolean get() = p.getBoolean("bond", false); set(v) = p.edit().putBoolean("bond", v).apply()
+    var bondCapMb: Int get() = p.getInt("bondCap", DmBond.DEFAULT_CAP_MB).coerceAtLeast(0); set(v) = p.edit().putInt("bondCap", v).apply()
+    var bondDay: Long get() = p.getLong("bondDay", 0); set(v) = p.edit().putLong("bondDay", v).apply()
+    var bondUsed: Long get() = p.getLong("bondUsed", 0); set(v) = p.edit().putLong("bondUsed", v).apply()
+    /** 01/11/2026 (סבב 2): קישור שפג — לרענן לבד מהדף (DmAutoRefresh). דלוק כברירת מחדל */
+    var autoRefresh: Boolean get() = p.getBoolean("autoRef", true); set(v) = p.edit().putBoolean("autoRef", v).apply()
     var quick: Boolean get() = p.getBoolean("quick", false); set(v) = p.edit().putBoolean("quick", v).apply()
     var firstRun: Boolean get() = p.getBoolean("first", true); set(v) = p.edit().putBoolean("first", v).apply()
     /** הגבלת מהירות לכל ההורדות יחד, בתים לשנייה (0 = בלי הגבלה) */
@@ -88,6 +108,14 @@ class DmPrefs(ctx: Context) {
     /** אתרים שבהם הורדת דרך הדפדפן של DM, אחד בשורה (SiteList) — לבועה ב־Chrome */
     var brSites: String get() = p.getString("brs", "") ?: ""; set(v) = p.edit().putString("brs", v).apply()
     /** שפת הממשק: he (ברירת המחדל — כמו בשאר האפליקציות) / en / sys = כמו בטלפון */
+    /** 01/11/2026 (סבב 3, DmRound3): תורים (JSON), תיקייה לכל סוג (JSON), חוקים (JSON), מגבלה לפי שעות, מגבלה בסלולר, מכסות ושימוש */
+    var queues: String get() = p.getString("qs", "") ?: ""; set(v) = p.edit().putString("qs", v).apply()
+    var folders: String get() = p.getString("fold", "") ?: ""; set(v) = p.edit().putString("fold", v).apply()
+    var rules: String get() = p.getString("rules", "") ?: ""; set(v) = p.edit().putString("rules", v).apply()
+    var speedPlan: String get() = p.getString("spd", "") ?: ""; set(v) = p.edit().putString("spd", v).apply()
+    var cellLimit: Long get() = p.getLong("cellLim", 0).coerceAtLeast(0); set(v) = p.edit().putLong("cellLim", v).apply()
+    var quotaCaps: String get() = p.getString("qcap", "") ?: ""; set(v) = p.edit().putString("qcap", v).apply()
+    var quotaUse: String get() = p.getString("quse", "") ?: ""; set(v) = p.edit().putString("quse", v).apply()
     var lang: String get() = (p.getString("lang", "he") ?: "he").takeIf { it in DmLang.MODES } ?: "he"; set(v) = p.edit().putString("lang", v).apply()
 }
 

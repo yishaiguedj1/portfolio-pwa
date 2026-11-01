@@ -150,7 +150,8 @@ fun DmApp(a: DmActivity) {
         val g = LocalDmG.current
         // 01/11/2026 (זכוכית של Studio): הרקע עם ההילות, כותרת גדולה עם כפתורים עגולים, ומעגן בועות במקום סרגל הניווט.
         // גיליון פתוח — התוכן שמאחור מטושטש (‏--gl-veil; ‏blur עובד מ־Android 12, מתחת — רק ההחשכה של הגיליון)
-        val veiled = sheet != null || details != null
+        val apk by a.apkCheck
+        val veiled = sheet != null || details != null || apk != null
         val blurR by androidx.compose.animation.core.animateDpAsState(if (veiled) 14.dp else 0.dp, label = "veil")
         Box(Modifier.fillMaxSize().dmAmbient(g)) {
         Scaffold(
@@ -197,6 +198,7 @@ fun DmApp(a: DmActivity) {
             dismissButton = { TextButton(onClick = { a.needBrowser.value = false }) { Text(stringResource(R.string.dmNotNow)) } })
         if (sheet != null) AddSheet(a, sheet ?: "", a.sheetRef.value) { a.sheetDone() }
         details?.let { id -> DmStore.get(id)?.let { t -> Details(a, t, rev) { details = null } } ?: run { details = null } }
+        apk?.let { t -> ApkCheckSheet(a, t) { a.apkCheck.value = null } }   // סבב 3: בודק APK לפני התקנה
     }
 }
 
@@ -421,11 +423,13 @@ private fun Details(a: DmActivity, t: DmTask, rev: Int, onClose: () -> Unit) {
             // 01/11/2026: מפת המקטעים החיה (צבע לכל חיבור, גרף מהירות, פירוט) ו"למה זה לא יורד?" — DmUiPro
             SegMap(t, rev)
             DiagCard(a, t, onClose)
+            WatchLive(a, t)
             Spacer(Modifier.height(12.dp))
             Info(stringResource(R.string.dmSource), runCatching { java.net.URI(t.url).host }.getOrNull() ?: t.url)
             Info(stringResource(R.string.dmResume), stringResource(if (t.kind == DmKind.YTDL || t.ranges) R.string.dmYes else R.string.dmNo))
             if (t.state == DmState.DONE) Info(stringResource(R.string.dmSavedIn), stringResource(R.string.dmSavedWhere))
             if (t.state == DmState.DONE && t.uri.isNotEmpty()) HashBlock(a, t)
+            TaskPro(t)   // סבב 3: תור, מגבלה להורדה הזו, פעולות בסיום / תוצאת בדיקת הסיכום
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 when (t.state) {
@@ -572,6 +576,11 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                         Spacer(Modifier.height(10.dp))
                         GButton(onClick = { onClose(); a.openBrowser(page) }, Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(R.string.dmOpenBr), fontSize = 17.sp) }
                         Text(stringResource(R.string.dmOpenBrHint), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
+                        // 01/11/2026 (סבב 2): כל הקבצים שהדף מקשר אליהם, לבחירה (DmPageLinks)
+                        var links by remember(page) { mutableStateOf(false) }
+                        Spacer(Modifier.height(10.dp))
+                        if (!links) GTonal(onClick = { links = true }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.dmLinksBtn)) }
+                        else PageLinksBlock(a, page, ref, onClose)
                     }
                     TextButton(onClick = { scope.launch { check() } }) { Text(stringResource(R.string.dmRetry)) }
                 }
@@ -797,6 +806,12 @@ private fun SettingsScreen(a: DmActivity) {
             SetRow(stringResource(R.string.dmSetLimit), limName(lim)) { dlg = "s" }
             Div()
             HeatSetting()
+            Div()
+            BondSetting()
+            Div()
+            AutoRefreshSetting()
+            Div()
+            ProSettingRow(a)   // 01/11/2026 (סבב 3): תורים, תיקיות, חוקים, מגבלות, אפליקציות אחרות
             Div()
             SetRow(stringResource(R.string.dmSetLang), langName(lang)) { dlg = "g" }
         }
