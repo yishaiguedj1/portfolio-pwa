@@ -11,12 +11,13 @@ const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_module
 const QM = require('./qa-motion.js');
 const fs = require('fs'), os = require('os'), path = require('path'), { execFileSync } = require('child_process');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-sweep-'));
-// פריים ריק = רצועת האמצע (30%–85% מהגובה) כמעט אחידה — אותו סף של tools/vid-scan.py (EMPTY)
-const PYB = 'import sys,json\nfrom PIL import Image, ImageStat\nout=[]\nfor f in json.loads(sys.argv[1]):\n    im=Image.open(f).convert("L"); w,h=im.size\n    m=im.crop((0,int(h*.3),w,int(h*.85))).resize((72,86)); d=im.crop((0,int(h*.88),w,h)).resize((72,16))\n    out.append([round(ImageStat.Stat(m).stddev[0],1), round(ImageStat.Stat(d).stddev[0],1)])\nprint(json.dumps(out))';
+// פריים ריק = ברצועת האמצע (30%–85% מהגובה) כמעט אין קצוות (טקסט, גבולות כרטיסים) — פחות מ־4 לאלף פיקסלים.
+// לא פיזור צבעים: עמוד דליל אמיתי (עסקאות בתיק הדמו, הבית של Studio בפסטל) ~5–14 בפיזור, אבל ~11+ בקצוות; מסך ריק ~0
+const PYB = 'import sys,json\nfrom PIL import Image, ImageStat, ImageFilter\nout=[]\nfor f in json.loads(sys.argv[1]):\n    im=Image.open(f).convert("L"); w,h=im.size\n    m=im.crop((0,int(h*.3),w,int(h*.85))); d=im.crop((0,int(h*.88),w,h)).resize((72,16))\n    e=ImageStat.Stat(m.filter(ImageFilter.FIND_EDGES).point(lambda p: 255 if p>40 else 0)).mean[0]/255*1000\n    out.append([round(e,1), round(ImageStat.Stat(d).stddev[0],1)])\nprint(json.dumps(out))';
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const BASE = 'http://localhost:8792';
 const APPS = { invest: '/index.html', studio: '/studio.html', academy: '/academy.html' };
-const only = arg('app', null), THEME = arg('theme', 'light');
+const only = arg('app', null), THEME = arg('theme', 'light'), CPU = +arg('cpu', 1);
 let total = 0;
 const bad = (app, step, msg) => { total++; console.log('✗ [' + app + '] ' + step + ' — ' + msg); };
 
@@ -35,12 +36,47 @@ const PROBE = () => {
   requestAnimationFrame(tick);
 };
 
+/* Studio כמו אצל המשתמש: מחובר, מנהל, שרת ו־R2 — כדי שבחוגה יהיו ארבעת הפריטים (קריוקי · תרגום · העבודה · המגדל) */
+async function studioMock(ctx) {
+  await ctx.route(/\/auth\.js(\?|$)/, (r) => r.fulfill({ contentType: 'application/javascript', body: `(function(){var cbs=[],u={uid:'qa',email:'qa@example.com',displayName:'QA',getIdToken:async()=>'tok'};
+    window.firebase=window.firebase||{apps:[1],auth:function(){return {currentUser:u}}};
+    window.SnbAuth={start(){setTimeout(()=>cbs.forEach(f=>f('in')),50)},onChange(f){cbs.push(f);return()=>{}},user(){return u},state(){return 'in'},sub(){return null},signIn(){},signOut(){},hasEmail(){return true}};})();` }));
+  const jid = (n) => 'j' + String(n).padStart(20, 'Q');
+  const JOBS = [1, 2, 3, 4, 5, 6].map((n) => ({ id: jid(n), created: Date.now() - n * 3600e3, state: 'done', fired: Date.now() - n * 3600e3, done: Date.now() - n * 3500e3,
+    spec: { name: 'Demo.Show.S01E0' + n + '.720p.mkv', size: 3e8, from: 'en', to: 'he', mode: 'std' }, files: { a: { id: 'fa' + n, size: 1e6 }, v: { id: 'fv' + n, size: 3e8 } } }));
+  await ctx.route(/\/api\/studio/, (r) => { let b = {}; try { b = JSON.parse(r.request().postData() || '{}'); } catch (e) {}
+    const now = Date.now(), J = (o) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o), headers: { 'access-control-allow-origin': '*' } }).catch(() => {});
+    if (b.op === 'status') return setTimeout(() => J({ ok: true, kinds: [], r2: true, api: { month: 0, cap: 100, online: 1, servers: 1, admin: true, ka: true }, conn: { hint: 'x', ok: now }, drive: { connected: true, email: 'qa@example.com' }, now }), 60);
+    if (b.op === 'jobs') return setTimeout(() => J({ ok: true, jobs: JOBS, now }), 60);
+    if (b.op === 'job') return setTimeout(() => J({ ok: true, job: JOBS.find((x) => x.id === b.job) || null }), 60);
+    return J({ ok: false, error: 'x' }); });
+}
+
+/* Academy כמו אצל המשתמש: ספרים בספרייה שלי, מכתבים במדף THE SNOWBALL, ספרים בקריאה ושנקראו, אוספים (כמו ensureLibSeeded ב־qa-motion) */
+async function academySeed(page) {
+  await page.click('.lib-dial .tab[data-tab="mine"]').catch(() => {}); await page.waitForTimeout(500);
+  await page.evaluate(async (names) => {
+    const dt = new DataTransfer();
+    for (const n of names) { const bl = await (await fetch('/.qa-books/' + n)).blob(); dt.items.add(new File([bl], n, { type: 'application/epub+zip' })); }
+    const inp = document.querySelector('.lib-root input[type=file]'); inp.files = dt.files; inp.dispatchEvent(new Event('change'));
+  }, QM.BOOKS.map((b) => b.name));
+  await page.waitForTimeout(9000);
+  await page.evaluate(() => new Promise((res) => { const r = indexedDB.open('snb-library'); r.onsuccess = () => { const t = r.result.transaction('books', 'readwrite'); const st = t.objectStore('books'); const q = st.getAll(); q.onsuccess = () => q.result.forEach((x) => {
+    if (/מכתב/.test(x.title)) { x.src = 'drive'; x.driveId = 'D' + x.id; x.md5 = 'a'; delete x.owner; }
+    if (/Rich Dad Poor|1985|קיצור/.test(x.title)) { x.fraction = 0.3; x.lastRead = Date.now(); }
+    if (/Subtle|2010|1966/.test(x.title)) { x.done = true; x.fraction = 1; }
+    st.put(x); }); t.oncomplete = res; }; }));
+  await page.evaluate(() => { localStorage.setItem('pwa_libcoll_v1', JSON.stringify({ local: { k1: { n: 'השקעות', s: 'mine', b: ['id-qa-m1', 'id-qa-m2', 'id-qa-m5'], u: 1 }, k2: { n: 'פיתוח אישי', s: 'mine', b: ['id-qa-m3', 'id-qa-m4'], u: 1 }, k3: { n: 'המכתבים האהובים', s: 'snb', b: ['id-qa-l1985', 'id-qa-l2024', 'id-qa-z2020'], u: 1 } } })); });
+  await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(3500);
+}
+
 async function open(b, app) {
   const ctx = await b.newContext({ viewport: { width: 393, height: 852 }, deviceScaleFactor: 2, serviceWorkers: 'block', hasTouch: true, isMobile: true, colorScheme: THEME, locale: 'he-IL' });
   await ctx.addInitScript(({ db, theme }) => {
-    try { localStorage.setItem('pwa_db_v1', JSON.stringify(db)); localStorage.setItem('pwa_owner_v1', location.pathname.endsWith('/index.html') ? 'local' : 'qa'); localStorage.setItem('pwa_theme_v1', theme); localStorage.setItem('pwa_lang_v1', 'he'); } catch (e) {}
+    try { localStorage.setItem('pwa_db_v1', JSON.stringify(db)); localStorage.setItem('pwa_owner_v1', /\/(index|academy)\.html$/.test(location.pathname) ? 'local' : 'qa'); localStorage.setItem('pwa_theme_v1', theme); localStorage.setItem('pwa_lang_v1', 'he'); } catch (e) {}
   }, { db: QM.DB, theme: THEME });
   await QM.routes(ctx);   // כל הרשת מדומה (בלי שרתים אמיתיים)
+  if (app === 'studio') await studioMock(ctx);
   await ctx.addInitScript(PROBE);
   const page = await ctx.newPage();
   const errs = [];
@@ -48,7 +84,9 @@ async function open(b, app) {
   await page.goto(BASE + APPS[app], { waitUntil: 'load' });
   await page.waitForTimeout(3500);
   await page.evaluate(() => { const c = document.querySelector('.login-card'); let o = c; while (o && o.parentElement && o.parentElement !== document.body) o = o.parentElement; if (o && o !== document.body) o.remove(); });
+  if (app === 'academy') await academySeed(page);
   const cdp = await ctx.newCDPSession(page);
+  if (CPU > 1) await cdp.send('Emulation.setCPUThrottlingRate', { rate: CPU });   // --cpu 4 — טלפון עמוס (שם נחשפו התקיעות בחימום)
   const dir = fs.mkdtempSync(path.join(TMP, app + '-'));
   return { ctx, page, cdp, errs, cast: QM.makeCaster(cdp, dir) };
 }
@@ -77,9 +115,11 @@ const STATE = () => {
   if (!he || he === document.body || he === document.documentElement || he.classList.contains('cube-bd')) r.issues.push('אין הדר גלוי (ראש המסך ריק)');
   const left = document.querySelectorAll('.cube-ghost, .cube-bd, .cube-hold');
   if (left.length) r.issues.push('נשארו ' + left.length + ' שאריות קובייה (' + [...left].map((e) => e.className).join(' | ').slice(0, 120) + ')');
-  for (const e of document.querySelectorAll('.cube-face, .cube-in, .cube-out, .prewarm')) r.issues.push('מחלקת קובייה נשארה: ' + (e.id || e.className).slice(0, 60));
+  // .prewarm — חימום מכוון של העמוד השכן מתחת למסך (tabPrewarm: top:100vh, מוסתר) — לא שארית
+  for (const e of document.querySelectorAll('.cube-face, .cube-in, .cube-out')) if (!e.classList.contains('prewarm')) r.issues.push('מחלקת קובייה נשארה: ' + (e.id || '') + ' .' + String(e.className).slice(0, 60));
   for (const e of document.querySelectorAll('.tabpage, .st-root, .lib-root')) {
     const s = e.style;
+    if (e.classList.contains('prewarm')) continue;
     if (s.transform || s.opacity || s.willChange || s.clipPath || (e.classList.contains('tabpage') && s.position)) r.issues.push('סגנון קובייה נשאר על ' + (e.id || e.className).slice(0, 40) + ': ' + [s.transform, s.opacity, s.willChange, s.clipPath, s.position].filter(Boolean).join(' ').slice(0, 120));
   }
   // תוכן: אלמנטים עם טקסט גלוי במרכז המסך (מתחת להדר, מעל החוגה)
@@ -96,11 +136,21 @@ const STATE = () => {
     if (top && (top === e || e.contains(top) || top.contains(e))) txt++;
   }
   r.txt = txt;
-  if (txt < 2) r.issues.push('הדף ריק (' + txt + ' טקסטים גלויים)');
+  if (txt < 1) r.issues.push('הדף ריק (' + txt + ' טקסטים גלויים)');
   return r;
 };
 
-async function settle(page) { await page.waitForTimeout(1600); }
+// מחכים שהמעבר באמת נגמר (אין העתק / רקע / פאה, חוץ מחימום מכוון) — לפחות 900ms, לכל היותר 6 שנ׳. תחת עומס פריים = 100–200ms,
+// ובדיקה אחרי זמן קבוע (1.6 שנ׳) תפסה מעבר באמצע ודיווחה "שארית"; מה שלא נגמר אחרי 6 שנ׳ — באמת תקוע (ומדווח ב־check)
+async function settle(page) {
+  await page.waitForTimeout(900);
+  for (let i = 0; i < 51; i++) {
+    const busy = await page.evaluate(() => !!document.querySelector('.cube-ghost, .cube-bd, .cube-hold, .cube-face:not(.prewarm), .cube-in:not(.prewarm), .cube-out'));
+    if (!busy) break;
+    await page.waitForTimeout(100);
+  }
+  await page.waitForTimeout(250);
+}
 async function touchDrag(cdp, x0, y, dx, steps, gap) {
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y }] });
   for (let i = 1; i <= steps; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x0 + dx * i / steps, y: y + i * 0.3 }] }); await new Promise((r) => setTimeout(r, gap)); }
@@ -118,12 +168,15 @@ async function check(app, S, step, want) {
   S.casting = false;
   if (fr.length) {
     const sd = JSON.parse(execFileSync('python3', ['-c', PYB, JSON.stringify(fr.map((x) => x.f))]).toString());
-    // יחסי: ריק = פחות מחצי מהמרקם של הדף שלפני המעבר ושל הדף שאחריו (דף דליל בצבעי פסטל — כ־14 גם כשהוא תקין)
+    // ריק = פחות מ־4 לאלף, וגם פחות מחצי מהדף שלפני המעבר ומהדף שאחריו (עמוד ריק מטבעו — "מה למדתי" בלי הדגשות — אינו "הבהוב";
+    // דף שנחת ריק — נתפס ב־STATE: אין טקסט גלוי)
     const ref = Math.min(sd[0][0], sd[sd.length - 1][0]), dref = Math.min(sd[0][1], sd[sd.length - 1][1]);
     let run = 0, worst = 0, dock = 0;
-    for (const [m, d] of sd) { run = m < Math.min(14, ref * 0.5) ? run + 1 : 0; worst = Math.max(worst, run); if (d < Math.min(6, dref * 0.4)) dock++; }
+    for (const [m, d] of sd) { run = m < Math.min(4, ref * 0.5) ? run + 1 : 0; worst = Math.max(worst, run); if (d < Math.min(6, dref * 0.4)) dock++; }
     if (worst >= 1) bad(app, step, 'בזמן המעבר: ' + worst + ' פריימים רצופים שבהם אמצע המסך ריק (מתוך ' + sd.length + ')');
     if (dock) bad(app, step, 'בזמן המעבר: ' + dock + ' פריימים בלי חוגה (תחתית המסך אחידה)');
+    // שומרים את הפריימים של צעד שנכשל (KEEP=<תיקייה>) — כדי לראות בעין מה היה על המסך
+    if ((worst >= 1 || dock) && process.env.KEEP) { const d = path.join(process.env.KEEP, app + '-' + step.replace(/[^\w\u0590-\u05ff]+/g, '_')); fs.mkdirSync(d, { recursive: true }); fr.forEach((x, i) => { try { fs.copyFileSync(x.f, path.join(d, String(i).padStart(3, '0') + '-' + sd[i][0] + '.jpg')); } catch (e) {} }); }
     for (const x of fr) { try { fs.unlinkSync(x.f); } catch (e) {} }
   }
   if (S.errs.length) { bad(app, step, 'שגיאות: ' + S.errs.join(' | ')); S.errs.length = 0; }
