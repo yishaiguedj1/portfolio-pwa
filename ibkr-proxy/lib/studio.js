@@ -52,8 +52,8 @@ const langReady = (sp) => !!sp && LANG_READY.from.includes(sp.from) && Array.isA
 const LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
 const STYLES = ['bold', 'classic', 'karaoke'];
 const OUTS = ['same', 'compact', 'mkv', 'small'];   // סבב 8: small = עותק לוואטסאפ גם בעבודה עצמה
-const OUT_KINDS = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta', 'thumb', 'inst', 'lrc', 'elrc', 'lyr'];   // 26/10/2026: קריוקי — הליווי, LRC ו־Enhanced LRC   // סבב 6: meta = גל הקול וחילופי השוטים; סבב 7: thumb = תמונה ממוזערת   // מ7: aiout = תשובת גיליון ה־AI   // v358: תוצרים שהעובד מעלה; מ1: קבצי עזר (הנגן והעורך), small = עותק לוואטסאפ
-const OUT_MAX = 10;
+const OUT_KINDS = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta', 'thumb', 'inst', 'lrc', 'elrc', 'lyr', 'notes'];   // 26/10/2026: קריוקי — הליווי, LRC ו־Enhanced LRC   // סבב 6: meta = גל הקול וחילופי השוטים; סבב 7: thumb = תמונה ממוזערת   // מ7: aiout = תשובת גיליון ה־AI   // v358: תוצרים שהעובד מעלה; מ1: קבצי עזר (הנגן והעורך), small = עותק לוואטסאפ
+const OUT_MAX = 12;   // 01/11/2026: + notes (ההערות לעורך)
 const SUBS_MAX = 5 * 1024 * 1024;           // 22/10/2026: קובץ כתוביות קיים (SRT/VTT/ASS) — סרט של שלוש שעות ≈ 300KB
 const SUBS_FPS = ['24000/1001', '24', '25', '30000/1001', '30'];   // = SUBS_FPS ב־job.py (הגריד לתזמון בלי סרטון)
 const MAX_SIZE = 64 * 1024 ** 3;            // 64GB — הרבה מעל כל ראיון (Drive מקבל עד 5TB)
@@ -1044,8 +1044,8 @@ const JG_CODES = ['mean', 'omit', 'add', 'gram', 'flu', 'term'];
 const JG_F_MAX = 40;   // **זהה ל־JG_F_MAX בעובד (job.py) ובטלפון**
 /* סבב 4: סימונים מהביקורת — [[מספר כתובית, קוד]] (g מגדר, s מי מדבר, t מונח). **RVF_MAX/RVF_CODES זהים בעובד ובטלפון**.
    רק מספרים וקודים מהקטלוג, ממוינים ובלי כפולים — לא תקין נזרק כולו */
-const RVF_CODES = ['g', 's', 't'];
-const RVF_MAX = 40;
+const RVF_CODES = ['g', 's', 't', 'p', 'v', 'l'];   // 01/11/2026: p משחק מילים · v הצופה המדומה · l שפה אחרת
+const RVF_MAX = 60;
 function normRvf(o) {
   if (!Array.isArray(o) || !o.length || o.length > RVF_MAX) return null;
   const out = [];

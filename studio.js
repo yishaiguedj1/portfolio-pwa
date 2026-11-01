@@ -14,7 +14,7 @@ import { createBackup, waitOAuthCode } from './libbackup.js';
 import { isR2Folder, isR2Id } from './studiostore.js';
 import { bgEligible, bgUpload, bgIdOf, bgDb, bgUpOk } from './studiobg.js';
 import { createPlayer, normCues, issuesList, fmtT, normLadder, normAlt, normPq, normTrackPref, normChapters, normSty, STY_COLORS, STY_Y } from './studioplay.js';
-import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, toStl, termIssues, flagIndex, normMeta, createTimeline, editDiff, editStats, importSubs } from './studiosubs.js';
+import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, toStl, termIssues, flagIndex, noteIndex, normMeta, createTimeline, editDiff, editStats, importSubs } from './studiosubs.js';
 import { listTracks, extractTracks, cuesToFile, lang2 } from './studiotracks.js';
 import { createEdlEditor, normEdl, edlPre, edlDur, outDur, silenceSegs, removeRange, addRange, segAt, intersectSegs, cutFillers, normOv, OV_T_MAX, OV_LG_MAX, OV_POS, previewEdl, PV_LEN } from './studioedl.js';
 import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, AI_NOTE_MAX, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges, parseChapters } from './studioai.js';
@@ -55,7 +55,7 @@ export const SOURCE_LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt
 export const LANG_READY = { from: ['auto', 'en'], to: ['he'] };
 export const langReady = (from, to) => LANG_READY.from.includes(from) && Array.isArray(to) && to.length > 0 && to.every((c) => LANG_READY.to.includes(c));
 /* מ1: כל סוגי התוצרים (= OUT_KINDS בשרתון). MAIN — שורות ב"התוצרים"; השאר קבצי עזר (הנגן, העורך) */
-export const OUT_ALL = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta', 'thumb', 'inst', 'lrc', 'elrc', 'lyr'];   // סבב 6: meta — לציר בעורך; סבב 7: thumb — תמונה ממוזערת
+export const OUT_ALL = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta', 'thumb', 'inst', 'lrc', 'elrc', 'lyr', 'notes'];   // סבב 6: meta — לציר בעורך; סבב 7: thumb — תמונה ממוזערת
 export const OUT_MAIN = ['compact', 'same', 'mkv', 'small', 'srt', 'en', 'inst', 'lrc', 'elrc', 'lyr'];   // 26/10/2026: קריוקי — הליווי ו־LRC
 export const TARGET_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
 const QUICK_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr'];
@@ -429,8 +429,8 @@ export function sourceAdvice(m, ctx) {
 }
 /* הצעות אחרי שהעבודה הסתיימה — מהשופט וממידות הסרטון (בעיות קצב/אורך — כבר בעורך, עם הצעות תיקון משלהן). "בדיקת משמעות" = תרגום חוזר רק של מה שהשופט סימן */
 /* סבב 4: סימונים מהביקורת ומילות מילוי — אותה בדיקה כמו בשרתון (normRvf / normFil); לא תקין — null */
-export const RVF_CODES = ['g', 's', 't'];
-export const RVF_MAX = 40;   // **זהה בעובד ובשרתון**
+export const RVF_CODES = ['g', 's', 't', 'p', 'v', 'l'];   // 01/11/2026: p משחק מילים · v הצופה המדומה · l שפה אחרת
+export const RVF_MAX = 60;   // **זהה בעובד ובשרתון**
 export function normRvf(o) {
   if (!Array.isArray(o) || !o.length || o.length > RVF_MAX) return null;
   const out = [];
@@ -7749,7 +7749,7 @@ async function playLoad(rec, phFile) {
 }
 function rvfSub(rvf) {
   const ks = new Set((rvf || []).map((f) => f[1]));
-  return ['g', 's', 't'].filter((k) => ks.has(k)).map((k) => issueName('rv' + k)).join(' · ');
+  return RVF_CODES.filter((k) => ks.has(k)).map((k) => issueName('rv' + k)).join(' · ');
 }
 let seOnly = '';   // סבב 4: העורך נפתח על "רק לבדיקה" (מההצעה בדף העבודה)
 /* סבב 4: סימונים לעורך — מהביקורת (rvf) ומונח שתורגם בשתי דרכים (מילון המונחים + המונחים של העבודה, בלי AI) */
@@ -7762,6 +7762,10 @@ function issueName(k) {
     case 'rvg': return T('studioIsRvg');      // סבב 4: לבדיקה — מהביקורת ומבדיקת המונחים
     case 'rvs': return T('studioIsRvs');
     case 'rvt': return T('studioIsRvt');
+    case 'rvp': return T('studioIsRvp');      // 01/11/2026: משחק מילים · הצופה המדומה · שפה אחרת · ביטחון נמוך (notes)
+    case 'rvv': return T('studioIsRvv');
+    case 'rvl': return T('studioIsRvl');
+    case 'cf': return T('studioIsCf');
     case 'term': return T('studioIsTerm');
     case 'cps': return T('studioIsCps');
     case 'len': return T('studioIsLen');
@@ -7828,7 +7832,8 @@ async function seLoad(rec) {
   const me = se;
   try {
     const mo = outOf(rec, 'meta');   // סבב 6: גל הקול וחילופי השוטים (במקביל לכתוביות; בלעדיו — העורך כמו קודם)
-    const [cj, mj] = await Promise.all([net.driveJson(outOf(rec, 'cues').id), mo ? net.driveJson(mo.id).catch(() => null) : null]);
+    const no = outOf(rec, 'notes');  // A9: ההערות מהעובד (ביטחון, משחקי מילים, הצופה המדומה, שפה אחרת) — בלעדיהן העורך כמו קודם
+    const [cj, nj, mj] = await Promise.all([net.driveJson(outOf(rec, 'cues').id), no ? net.driveJson(no.id).catch(() => null) : null, mo ? net.driveJson(mo.id).catch(() => null) : null]);
     const cues = normCues(cj);
     if (se !== me) return;
     me.meta = normMeta(mj);
@@ -7837,7 +7842,7 @@ async function seLoad(rec) {
     if (!cues.length) { me.st = 'err'; me.err = 'empty'; render('none'); return; }
     const only = seOnly === rec.id; seOnly = '';
     me.at = -1;   // 21/10/2026: נפתח על נקודה מסוימת (רק לבדיקה) — הנגן מציג את הפריים שלה, לא את התמונה של העבודה
-    me.ed = createSubsEditor({ cues, T, issueName, flash: flashSafe, onAi: () => go('ai', rec.id), flags: seFlags(rec, cues), only, shots: me.meta ? me.meta.sh : [],
+    me.ed = createSubsEditor({ cues, T, issueName, flash: flashSafe, onAi: () => go('ai', rec.id), flags: seFlags(rec, cues), only, notes: noteIndex(cues, nj), lang: uiLang(), shots: me.meta ? me.meta.sh : [],
       dismissed: new Set(store.sugx || []), onDismiss: (key) => { store.sugx = (store.sugx || []).concat(key).slice(-500); save(); uxAdd(rec, 'sg', 'r'); },
       onSugFix: () => uxAdd(rec, 'sg', 'a'),
       getTime: () => (me.ctl ? me.ctl.video.currentTime || 0 : 0),
@@ -8996,11 +9001,12 @@ const CREDITS = [
   ['studioCrSpk', 'WeSpeaker', 'WeNet', 'CC-BY-4.0'],
   ['studioCrFace', 'YuNet', 'OpenCV Zoo', 'MIT'],
   ['studioCrOcr', 'PP-OCRv3', 'PaddlePaddle', 'Apache-2.0'],
+  ['studioCrLid', 'Whisper small (faster-whisper)', 'OpenAI · SYSTRAN', 'MIT'],
 ];
 function pageCredits(p) {
   p.append(navBar({ back: T('studioSettings') }), large(T('studioCredits')), note(T('studioCreditsN')));
   const roles = { studioCrAsr: T('studioCrAsr'), studioCrAlign: T('studioCrAlign'), studioCrParse: T('studioCrParse'), studioCrHe: T('studioCrHe'),
-    studioCrSep: T('studioCrSep'), studioCrSpk: T('studioCrSpk'), studioCrFace: T('studioCrFace'), studioCrOcr: T('studioCrOcr') };
+    studioCrSep: T('studioCrSep'), studioCrSpk: T('studioCrSpk'), studioCrFace: T('studioCrFace'), studioCrOcr: T('studioCrOcr'), studioCrLid: T('studioCrLid') };
   const rows = CREDITS.map(([role, name, by, lic]) => {
     const v = h('span'); v.append(h('bdi', null, name + ' · ' + by), h('small', null, lic));
     return kvRow(roles[role] || role, v, true);

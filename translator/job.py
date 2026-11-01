@@ -2659,6 +2659,7 @@ def prepare(args):
     vt(ctx, ['asr', ctx.name, '--engine', 'parakeet'], 'tr', 0.15, 0.95)
     if not a:
         vt(ctx, ['shots', ctx.name])             # חילופי שוטים צריכים וידאו — מהקול זה קורה ב־attach_video
+    lang_safe(ctx)                               # A12: קטעים שאינם באנגלית → foreign.json (לא משנה את התמליל)
     vt(ctx, ['edit-export', ctx.name])
     inject_guard(ctx)                            # v374: לפני שמישהו קורא את התמליל
     ctx.st['src'] = 'a' if a else 'v'
@@ -2676,6 +2677,16 @@ def prepare(args):
         pass
     print('אחר כך (ברקע): python3 translator/job.py align')
     return 0
+
+
+def lang_safe(ctx):
+    """A12: vt lang — כל תקלה (גם יציאה של vt) לא מפילה את התמלול."""
+    try:
+        vt(ctx, ['lang', ctx.name])
+    except Stop:
+        raise
+    except (SystemExit, Exception) as e:          # noqa: BLE001 — שלב משני
+        print('· זיהוי השפות לא רץ (' + type(e).__name__ + ') — ממשיכים בלעדיו')
 
 
 SUBS_FPS = ('24000/1001', '24', '25', '30000/1001', '30')   # הגריד לתזמון בלי סרטון (קובץ כתוביות קיים)
@@ -2741,6 +2752,17 @@ def shift_words(pdir, off):
                     w[k] = round(max(0.0, w[k] + off), 3)
         p.write_text(json.dumps(d, ensure_ascii=False), encoding='utf-8')
         n += 1
+    p = pdir / 'foreign.json'                    # A12: הקטעים שאינם באנגלית — באותו ציר זמן
+    if p.exists():
+        try:
+            d = json.loads(p.read_text(encoding='utf-8'))
+            for g in d.get('seg') or []:
+                for k in ('s', 'e'):
+                    if isinstance(g.get(k), (int, float)):
+                        g[k] = round(max(0.0, g[k] + off), 3)
+            p.write_text(json.dumps(d, ensure_ascii=False), encoding='utf-8')
+        except (OSError, ValueError, AttributeError):
+            pass
     return n
 
 
@@ -2776,6 +2798,7 @@ def attach_video(ctx):
         print('· ההיסט בין הקול לסרטון לא ודאי (%.2f) — מתמללים מחדש מהסרטון (בלי טוקנים, ההגהה נשמרת)' % conf)
         ctx.report('al', 0.05, 'כותבים שוב מהסרטון עצמו', force=True)
         vt(ctx, ['asr', ctx.name, '--engine', 'parakeet'], 'al', 0.05, 0.3)
+        lang_safe(ctx)                           # A12: הזמנים של התמלול החדש
     vt(ctx, ['shots', ctx.name])
     ctx.st['src'] = 'v'
     ctx.st['sync'] = {'off': round(off, 4), 'conf': round(conf, 3)}
@@ -3923,6 +3946,7 @@ JG_N_MAX = 100   # 21/10/2026: בסרטון ארוך 40 כתוביות = ‎±3 
 def judge_n(total):
     return JG_N if total <= JG_N * 15 else min(JG_N_MAX, total // 15)
 JG_CODES = ('ok', 'mean', 'omit', 'add', 'gram', 'flu', 'term')
+JG_ALL_MAX = 1200   # A9: עד כאן — כל הכתוביות לשופט (מעבר — מדגם בפיזור שווה)
 JG_F_MAX = 40   # **זהה ל־JG_F_MAX בשרתון ובטלפון** — כמה מספרי כתוביות מסומנות נשלחים
 _JG_LINE = re.compile(r'^#(\d{1,6})\s+([1-5])\s+([a-z]{2,4})\s*$')
 # 10/10/2026: בעבודה האמיתית הראשונה השופט רץ (7K טוקנים) אבל לא הוצג ציון — כנראה סטייה קטנה מהצורה.
@@ -3973,9 +3997,12 @@ def judge_score(text, ids):
 
 # סבב 4: סימונים מהביקורת — כתוביות שהבודק לא יכול להכריע בלי לראות / לשמוע (g מגדר, s מי מדבר, t מונח בשתי דרכים).
 # שורה "!#מספר קוד" (בתשובה של הביקורת או ב־review/flags.txt). רק מספרים וקודים חוזרים לשרתון — **RVF_MAX/RVF_CODES זהים בשרתון ובטלפון**
-RVF_CODES = ('g', 's', 't')
-RVF_MAX = 40
-_RVF_LINE = re.compile(r'^[\s>*`\-•]*!\s*#?\s*(\d{1,6})\s*[:.|)\-–]*\s*`?([gst])`?\b', re.I)
+# 01/11/2026 (סבב 2 של השדרוג): p = משחק מילים / בדיחה (עם חלופות — review/puns.json), v = הצופה המדומה לא הבין
+# ולא תוקן (A10), l = קטע בשפה שאינה אנגלית (A12). הטקסט (חלופות, הסבר, המקור) — רק בקובץ notes ב־Drive שלך, לא בשרתון
+RVF_CODES = ('g', 's', 't', 'p', 'v', 'l')
+RVF_MAX = 60
+_RVF_LINE = re.compile(r'^[\s>*`\-•]*!\s*#?\s*(\d{1,6})\s*[:.|)\-–]*\s*`?([gstpvl])`?(?=$|[\s`:.|,\-–])', re.I)
+_PUN_ALT_MAX, _PUN_MAX = 3, 20
 
 
 def review_flags(text, ids=None):
@@ -3988,7 +4015,122 @@ def review_flags(text, ids=None):
         i, k = int(m.group(1)), m.group(2).lower()
         if i >= 1 and k in RVF_CODES and (ids is None or i in ids):
             got.add((i, k))
-    return [[i, k] for i, k in sorted(got)][:RVF_MAX]
+    return [[i, k] for i, k in sorted(got, key=lambda x: (x[0], RVF_CODES.index(x[1])))][:RVF_MAX]   # הסדר של השרתון
+
+
+def review_puns(text, ids=None):
+    """A6: שורות "!#מספר p חלופה | חלופה | חלופה" → {מספר: [חלופות]} (2–3 נוסחים עבריים שמשמרים את הבדיחה)."""
+    out = {}
+    for ln in str(text or '').replace('\r', '').split('\n'):
+        m = _RVF_LINE.match(ln.strip())
+        if not m or m.group(2).lower() != 'p':
+            continue
+        i = int(m.group(1))
+        if i < 1 or (ids is not None and i not in ids) or i in out or len(out) >= _PUN_MAX:
+            continue
+        rest = ln.strip()[m.end():].strip(' `:-–|')
+        alts = []
+        for a in rest.split('|'):
+            a = re.sub(r'\s+', ' ', a).strip(' `"\'«»')[:90]
+            if a and a not in alts:
+                alts.append(a)
+        if alts:
+            out[i] = alts[:_PUN_ALT_MAX]
+    return out
+
+
+# A9 (01/11/2026): הערות לעורך — notes.json לצד הכתוביות ב־Drive שלך (הטקסט לא עובר בשרתון). לכל כתובית שיש בה
+# משהו: lv (l לבדוק · m לשקול), r (הסיבות: jg <קוד השופט> · asr · g/s/t · p · v · l), jg (הציון), x (מה הצופה לא
+# הבין), p (חלופות למשחק מילים), lg + o (השפה והמקור). **NOTE_KEYS זהים בטלפון (studio.js normNotes)**
+NOTE_KEYS = ('lv', 'r', 'jg', 'x', 'p', 'lg', 'o')
+NOTE_ASR_LOW = 0.35          # מילה שהתמלול כמעט לא שמע
+NOTE_MAX = 600
+
+
+def judge_lines(text):
+    """תשובת השופט → {מספר: (ציון, קוד)} לכל הכתוביות (לא רק המדגם של המדד)."""
+    got = {}
+    for ln in str(text or '').replace('\r', '').split('\n'):
+        m = _JG_LINE.match(ln.strip()) or _JG_LOOSE.match(ln.strip())
+        if m and int(m.group(1)) not in got and m.group(3).lower() in JG_CODES:
+            got[int(m.group(1))] = (int(m.group(2)), m.group(3).lower())
+    return got
+
+
+def _asr_weak(pdir):
+    """מספרי כתוביות שיש בהן מילה שהתמלול כמעט לא שמע (conf < NOTE_ASR_LOW) — לפי w0/w1 של cues.en.json."""
+    cues = _read_json(pdir / 'cues.en.json')
+    wj = _read_json(pdir / 'en.aligned.json') or _read_json(pdir / 'en.words.json') or {}
+    ws = wj.get('words') if isinstance(wj, dict) else None
+    if not isinstance(cues, list) or not isinstance(ws, list):
+        return set()
+    out = set()
+    for c in cues:
+        if not isinstance(c, dict) or not isinstance(c.get('id'), int):
+            continue
+        a, b = c.get('w0'), c.get('w1')
+        if not isinstance(a, int) or not isinstance(b, int) or a < 0 or b >= len(ws) or b < a:
+            continue
+        if any(isinstance(w, dict) and isinstance(w.get('conf'), (int, float)) and w['conf'] < NOTE_ASR_LOW for w in ws[a:b + 1]):
+            out.add(c['id'])
+    return out
+
+
+def smart_notes(pdir):
+    """{v, n, js, c: {מספר: הערה}} — רק כתוביות שיש בהן משהו. בלי טוקנים: מאחד את מה שהשלבים כבר כתבו."""
+    ids = cue_ids(pdir) or set()
+    if not ids:
+        return None
+    rd = lambda p: _read_json(pdir / p) or {}
+    try:
+        jl = judge_lines((pdir / 'judge' / 'verdict.txt').read_text(encoding='utf-8'))
+    except OSError:
+        jl = {}
+    c = {}
+
+    def put(i, lv, why, **kw):
+        if i not in ids:
+            return
+        n = c.setdefault(i, {'lv': lv, 'r': []})
+        if lv == 'l':
+            n['lv'] = 'l'
+        if why not in n['r']:
+            n['r'].append(why)
+        n.update({k: v for k, v in kw.items() if v})
+    for i, (sc, code) in jl.items():
+        if sc <= 3:
+            put(i, 'l' if sc <= 2 else 'm', 'jg:' + code, jg=sc)
+    for i in _asr_weak(pdir):
+        put(i, 'm', 'asr')
+    for i, k in review_flags_file(pdir):
+        if k in ('g', 's', 't'):
+            put(i, 'm', k)
+    for i, alts in (rd('review/puns.json')).items():
+        if str(i).isdigit() and isinstance(alts, list):
+            put(int(i), 'm', 'p', p=[str(a)[:90] for a in alts[:3] if a])
+    for i, why in (rd('review/viewer.json')).items():
+        if str(i).isdigit():
+            put(int(i), 'l', 'v', x=str(why)[:120])
+    try:
+        import pipeline as _pl
+        fm = _pl.foreign_map(pdir)
+    except Exception:            # noqa: BLE001 — מידע משני
+        fm = {}
+    for i, g in fm.items():
+        put(int(i), 'm', 'l', lg=g['lg'], o=g['tx'][:400])
+    keep = sorted(c, key=lambda i: (c[i]['lv'] != 'l', i))[:NOTE_MAX]
+    js = round(sum(x[0] for x in jl.values()) / len(jl), 2) if jl else None
+    return {'v': 1, 'n': len(ids), 'js': js, 'c': {str(i): c[i] for i in sorted(keep)}}
+
+
+def notes_flags(notes):
+    """הקודים שעוברים לשרתון (רק מספרים וקודים): v ו־l מההערות — נוספים לסימונים של הביקורת."""
+    out = []
+    for k, n in ((notes or {}).get('c') or {}).items():
+        for r in n.get('r') or []:
+            if r in ('v', 'l'):
+                out.append([int(k), r])
+    return out
 
 
 def cue_ids(pdir):
@@ -4064,6 +4206,11 @@ def judge_prep(args):
     pick, total = judge_pick(pkg)
     if total > JG_N * 15:
         pick, total = judge_pick(pkg, judge_n(total))
+    # A9 (01/11/2026): השופט נותן ציון לכל הכתוביות (עד JG_ALL_MAX) — הציון לכל שורה לעורך (notes). מדד האיכות (jd)
+    # נשאר על אותו מדגם כמו קודם (ids), כדי שיהיה בר־השוואה לעבודות הקודמות ולגבולות של השרתון
+    every, _ = judge_pick(pkg, JG_ALL_MAX)
+    metric = [x[0] for x in pick]
+    pick = every if len(every) >= len(pick) else pick
     if len(pick) < 10:
         print('· פחות מ־10 כתוביות — בלי שופט; ממשיכים ל־finish.')
         return 0
@@ -4071,7 +4218,7 @@ def judge_prep(args):
     d.mkdir(exist_ok=True)
     (d / 'verdict.txt').unlink(missing_ok=True)
     (d / 'sample.md').write_text('\n'.join('#%d %s\n→ %s' % x for x in pick) + '\n', encoding='utf-8')
-    ctx.st['jg'] = {'ids': [x[0] for x in pick], 'a': total}
+    ctx.st['jg'] = {'ids': metric, 'a': total}
     save_state(ctx.st)
     print('✓ מדגם לשופט: %d מתוך %d כתוביות → %s' % (len(pick), total, d / 'sample.md'))
     return 0
@@ -5211,6 +5358,7 @@ def finish(args):
         except (SystemExit, Exception) as e:   # noqa: BLE001 — קובץ עזר; התוצרים העיקריים כבר עלו. גם כשל אחסון (SystemExit) לא מפיל
             print('· ' + p.name + ' לא עלה (' + (str(e).strip()[:80] if isinstance(e, SystemExit) else type(e).__name__) + ') — ממשיכים בלעדיו')
     judge_late(ctx)                              # 28/10/2026: השופט שרץ ברקע בזמן הצריבה
+    notes = notes_put(ctx, title, out)           # A9: ההערות לעורך — אחרי השופט (הציון לכל שורה)
     try:
         q = quality(ctx.pdir / 'out' / 'he.srt', chk_ok=not args.force)   # v374: מדד האיכות (בלי טוקנים)
     except Exception:            # noqa: BLE001 — מידע משני; לא מפיל את סוף העבודה
@@ -5222,6 +5370,8 @@ def finish(args):
     sm_send(ctx)                                 # 28/10/2026: מה שנקבע בפרק — לזיכרון הסדרה (לא מפיל)
     try:
         rvf, fil = review_flags_file(ctx.pdir), fillers(ctx.pdir)   # סבב 4: סימונים מהביקורת ומילות מילוי — מידע משני
+        have = {(i, k) for i, k in rvf}
+        rvf = review_flags('\n'.join('!#%d %s' % (i, k) for i, k in rvf + [f for f in notes_flags(notes) if tuple(f) not in have]))
     except Exception:            # noqa: BLE001
         rvf, fil = [], []
     # 21/10/2026 (המשתמש: "תקוע על 'עוד דקה' ו־99% מלא זמן"): התוצרים כבר עלו — הם מגיעים לטלפון עכשיו, ומה שנשאר
@@ -5252,6 +5402,28 @@ def finish(args):
                rvf=rvf or None, fil=fil or None, gq=gq)
     print('✓ העבודה הסתיימה: ' + ', '.join(o['name'] for o in out))
     return 0
+
+
+def notes_put(ctx, title, out):
+    """A9: notes.json → out/ ועולה כקובץ עזר (k = notes). כל תקלה — בלי הערות, לא מפיל."""
+    try:
+        notes = smart_notes(ctx.pdir)
+    except Exception as e:       # noqa: BLE001 — מידע משני
+        print('· ההערות לעורך לא נבנו (' + type(e).__name__ + ')')
+        return None
+    if not notes:
+        return None
+    p = ctx.pdir / 'out' / 'notes.json'
+    try:
+        p.write_text(json.dumps(notes, ensure_ascii=False), encoding='utf-8')
+        fid = put_output(ctx, p, title + '.notes.json', 'notes', 'application/json')
+        out.append({'id': fid, 'name': title + '.notes.json', 'size': p.stat().st_size, 'k': 'notes'})
+        print('✓ הערות לעורך: %d כתוביות (%d לבדוק)' % (len(notes['c']), sum(1 for n in notes['c'].values() if n['lv'] == 'l')))
+    except Stop:
+        raise
+    except (SystemExit, Exception) as e:   # noqa: BLE001 — קובץ עזר
+        print('· notes.json לא עלה (' + type(e).__name__ + ') — ממשיכים בלעדיו')
+    return notes
 
 
 def gold_score(ctx):
