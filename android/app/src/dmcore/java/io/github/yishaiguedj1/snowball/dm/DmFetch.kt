@@ -42,6 +42,13 @@ class DmFetch(
     /** 01/11/2026 (DmHeat): תקרת חיבורים שמשתנה באמצע — חום/סוללה. יורדת → חיבורים עוזבים את המקטע (שנשאר לאחרים);
      *  עולה → חיבורים חדשים חוצים את השארית. בלי — כל `conns` כל הזמן */
     private val cap: () -> Int = { Int.MAX_VALUE },
+    /** 01/11/2026 (Wi‑Fi וסלולר יחד, DmBond): לכל חיבור (לפי המספר שלו) — איך לפתוח אותו ברשת אחרת, או null = הרגילה.
+     *  נשאל בכל ניסיון, כך שרשת שנעלמה באמצע פשוט מחזירה null והחיבור ממשיך ברגילה */
+    private val route: (Int) -> ((URL) -> java.net.URLConnection)? = { null },
+    /** 01/11/2026 (צפייה תוך כדי הורדה): הנקודה שהנגן מחכה לה (‎-1‎ = אין) — חיבור מתחיל משם */
+    private val wantAt: () -> Long = { -1L },
+    /** 01/11/2026 (סבב 3): מגבלת מהירות להורדה הזו בלבד (DmBucket), בנוסף למגבלה הכללית */
+    private val own: DmBucket? = null,
 ) {
     sealed class Result {
         object Done : Result()
@@ -57,6 +64,11 @@ class DmFetch(
 
     /** בתים שנכתבו בהרצה הזו (למהירות) */
     val bytes get() = written.get()
+
+    /** מתוכם — בחיבורים שעברו ברשת האחרת (route) */
+    private val altWritten = AtomicLong(0)
+    val altBytes get() = altWritten.get()
+    private val slots = java.util.concurrent.atomic.AtomicInteger(0)
 
     /** כמה פעמים השרת אמר "יותר מדי" (429/503) בהרצה הזו — ל־DmHostRules */
     private val busyHits = java.util.concurrent.atomic.AtomicInteger(0)
@@ -85,22 +97,32 @@ class DmFetch(
         val busy = HashSet<Seg>()
         active.set(0)
 
+        /** הנקודה שהנגן מחכה לה: מקטע חדש שמתחיל שם (אם אף חיבור לא קרוב אליה) */
+        fun wanted(): Seg? {
+            val w = runCatching { wantAt() }.getOrDefault(-1L)
+            if (w < 0 || w >= task.total) return null
+            if (DmGrow.avail(task.segs, task.total, w) > 0) return null
+            return task.segs.firstOrNull { !it.finished && it !in busy && it.pos <= w && w - it.pos < 2 * DmSegs.MIN_SEG }
+                ?: DmSegs.splitAt(task.segs, w)
+        }
+
         fun launch(s: Seg) {
             busy.add(s)
             active.incrementAndGet()
+            val slot = slots.getAndIncrement()
             threads.add(Thread {
                 var seg: Seg? = s
                 var culled = false
                 try {
                     while (seg != null) {
-                        val r = worker(seg, single = false)
+                        val r = worker(seg, single = false, slot = slot)
                         if (r === CULLED) { culled = true; synchronized(lock) { busy.remove(seg) }; break }
                         if (stopFlag() || fail.get() != null || restart) break
                         // החיבור התפנה: לוקח מקטע שאף אחד לא עובד עליו, ואם אין — חוצה את הגדול ביותר
                         seg = synchronized(lock) {
                             busy.remove(seg)
                             if (active.get() > capNow(want)) null
-                            else (task.segs.firstOrNull { !it.finished && it !in busy } ?: DmSegs.split(task.segs, minSeg))
+                            else (wanted() ?: task.segs.firstOrNull { !it.finished && it !in busy } ?: DmSegs.split(task.segs, minSeg))
                                 ?.also { busy.add(it) }
                         }
                     }
@@ -111,9 +133,11 @@ class DmFetch(
         /** עד התקרה: מקטע שאף אחד לא עובד עליו, ואם אין — חוצים עוד */
         fun fill() {
             while (active.get() < capNow(want) && !stopFlag() && fail.get() == null && !restart) {
-                val n = task.segs.firstOrNull { !it.finished && it !in busy } ?: DmSegs.split(task.segs, minSeg) ?: break
+                val n = wanted() ?: task.segs.firstOrNull { !it.finished && it !in busy } ?: DmSegs.split(task.segs, minSeg) ?: break
                 launch(n)
             }
+            // הנגן מחכה ואין מקום: חיבור אחד מעל התקרה, רק בשביל הנקודה הזו (נגמר — חוזרים לתקרה)
+            if (active.get() <= capNow(want) && !stopFlag() && fail.get() == null && !restart) wanted()?.let { launch(it) }
         }
 
         synchronized(lock) { fill() }
@@ -142,14 +166,16 @@ class DmFetch(
 
     /** חיבור שיצא בגלל התקרה (DmHeat) — המקטע שלו נשאר שלם להמשך */
     private fun cullMe(): Boolean {
-        if (active.get() <= capNow(conns.coerceIn(1, DmSegs.MAX_CONNS))) return false
+        // הנגן מחכה (wantAt) — מותר חיבור אחד מעל התקרה
+        val lim = capNow(conns.coerceIn(1, DmSegs.MAX_CONNS)) + (if (runCatching { wantAt() }.getOrDefault(-1L) >= 0) 1 else 0)
+        if (active.get() <= lim) return false
         synchronized(lock) {
-            if (active.get() <= capNow(conns.coerceIn(1, DmSegs.MAX_CONNS))) return false
+            if (active.get() <= lim) return false
             active.decrementAndGet(); return true
         }
     }
 
-    private fun worker(seg: Seg, single: Boolean): Result {
+    private fun worker(seg: Seg, single: Boolean, slot: Int = 0): Result {
         var attempt = 0
         val buf = ByteArray(BUF)
         while (!seg.finished && !stopFlag() && fail.get() == null && !restart) {
@@ -163,7 +189,8 @@ class DmFetch(
                     val v = task.etag.ifEmpty { task.lastMod }
                     if (v.isNotEmpty()) h["If-Range"] = v
                 }
-                c = open(task.url, task.ref, ua, h, cookies)
+                val alt = if (single) null else runCatching { route(slot) }.getOrNull()
+                c = if (alt != null) open(task.url, task.ref, ua, h, cookies, alt) else open(task.url, task.ref, ua, h, cookies)
                 val st = c.responseCode
                 if (ranged && st == 200) { restart = true; return Result.Failed("changed") }   // If-Range: הקובץ השתנה
                 if (st !in 200..299) throw DmHttpError(st, c.getHeaderField("Retry-After")?.trim()?.toLongOrNull() ?: -1)
@@ -172,7 +199,7 @@ class DmFetch(
                     val start = Regex("bytes\\s+(\\d+)-").find(cr)?.groupValues?.get(1)?.toLongOrNull()
                     if (start != seg.pos) { restart = true; return Result.Failed("changed") }
                 }
-                if (!read(c.inputStream, seg, buf, !single)) return CULLED
+                if (!read(c.inputStream, seg, buf, !single, alt != null)) return CULLED
                 attempt = 0
                 if (single && task.total <= 0) { seg.end = seg.pos; task.total = seg.pos }   // הגודל נודע בסוף
             } catch (e: Throwable) {
@@ -191,7 +218,7 @@ class DmFetch(
     }
 
     /** false = החיבור יצא בגלל התקרה (המקטע לא נגמר) */
-    private fun read(input: InputStream, seg: Seg, buf: ByteArray, cullable: Boolean): Boolean {
+    private fun read(input: InputStream, seg: Seg, buf: ByteArray, cullable: Boolean, alt: Boolean = false): Boolean {
         var k = 0
         input.use { inp ->
             while (!stopFlag() && !restart && fail.get() == null) {
@@ -207,7 +234,9 @@ class DmFetch(
                 sink.write(seg.pos, buf, n)
                 seg.done += n
                 written.addAndGet(n.toLong())
+                if (alt) altWritten.addAndGet(n.toLong())
                 DmLimit.take(n.toLong(), sleep)
+                own?.take(n.toLong(), sleep)
             }
         }
         return true
@@ -224,12 +253,13 @@ class DmFetch(
         /** חיבור מחובר (התשובה כבר הגיעה), אחרי הפניות. ההפניות כאן ולא ב־HttpURLConnection: עוגיות נשלחות רק לאתר
          *  שהן שלו (CookieManager לפי הכתובת של כל קפיצה) — עם instanceFollowRedirects הכותרת Cookie הייתה עוברת לאתר
          *  שאליו מפנים. רק http/https, ובלי ירידה מ־https ל־http */
-        fun open(url: String, ref: String, ua: String, headers: Map<String, String> = emptyMap(), cookies: ((String) -> String?)? = null): HttpURLConnection {
+        fun open(url: String, ref: String, ua: String, headers: Map<String, String> = emptyMap(), cookies: ((String) -> String?)? = null,
+                 conn: (URL) -> java.net.URLConnection = { it.openConnection() }): HttpURLConnection {
             var u = URL(url)
             var hops = 0
             while (true) {
                 if (u.protocol != "http" && u.protocol != "https") throw IOException("bad_scheme")
-                val c = u.openConnection() as HttpURLConnection
+                val c = conn(u) as HttpURLConnection
                 c.instanceFollowRedirects = false
                 c.connectTimeout = 20_000; c.readTimeout = 30_000
                 c.setRequestProperty("User-Agent", ua)

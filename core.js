@@ -351,7 +351,7 @@ function appVersionLabel() {
 }
 
 const LS_OWNER = 'pwa_owner_v1', LS_STASH = 'pwa_stash_v1:', LS_LEGACY_OWNER = 'pwa_legacy_owner_v1';
-const ACCOUNT_KEYS = ['pwa_db_v1', 'pwa_ibkr_v1', 'pwa_predemo_v1', 'pwa_wlactive_v1', 'pwa_srcfilter_v1', 'pwa_tdkey_v1', 'pwa_libbk_v1', 'pwa_libcoll_v1', 'pwa_studio_v1', 'pwa_pfbk_v1', 'pwa_charts_v1', 'pwa_accprof_v1'];   // v318: גיבוי הספרייה הפרטית · v320: אסופות הספרייה · v354: טיוטות הסטודיו · 14/10/2026: גיבוי Invest ל־Drive · 29/10/2026: פרטי החשבון לציור הראשון
+const ACCOUNT_KEYS = ['pwa_db_v1', 'pwa_ibkr_v1', 'pwa_predemo_v1', 'pwa_wlactive_v1', 'pwa_srcfilter_v1', 'pwa_tdkey_v1', 'pwa_libbk_v1', 'pwa_libcoll_v1', 'pwa_studio_v1', 'pwa_pfbk_v1', 'pwa_charts_v1', 'pwa_accprof_v1', 'pwa_tax_v1'];   // v318: גיבוי הספרייה הפרטית · v320: אסופות הספרייה · v354: טיוטות הסטודיו · 14/10/2026: גיבוי Invest ל־Drive · 29/10/2026: פרטי החשבון לציור הראשון · 01/11/2026: הגדרות מרכז המס (הכנסה אחרת, הפסד מועבר)
 function accountOwner(store) {
   try { return (store || localStorage).getItem(LS_OWNER) || ''; } catch (e) { return ''; }
 }

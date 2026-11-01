@@ -47,7 +47,11 @@ class DmPlayer : Activity() {
         player = p
         view.player = p
         val title = intent.getStringExtra(EXTRA_TITLE).orEmpty()
-        p.setMediaItem(MediaItem.Builder().setUri(uri).setMediaMetadata(MediaMetadata.Builder().setTitle(title).build()).build())
+        val item = MediaItem.Builder().setUri(uri).setMediaMetadata(MediaMetadata.Builder().setTitle(title).build()).build()
+        // 01/11/2026 (סבב 2): צפייה תוך כדי הורדה — הקובץ עוד נכתב: קוראים רק מה שירד (DmGrowSource), ומחכים לשאר
+        val live = intent.getStringExtra(EXTRA_LIVE).orEmpty().takeIf { DmStore.get(it)?.let { t -> t.state != DmState.DONE && t.uri == uri.toString() } == true }
+        if (live != null) p.setMediaSource(androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(DmGrowSource.Factory(this, live)).createMediaSource(item))
+        else p.setMediaItem(item)
         val at = prefs(this).getLong(key(), 0L)
         if (at > 0) p.seekTo(at)
         p.addListener(object : Player.Listener {
@@ -72,6 +76,8 @@ class DmPlayer : Activity() {
 
     companion object {
         const val EXTRA_TITLE = "snb_title"
+        /** מזהה הורדה שעוד רצה — הנגן קורא מהקובץ שבכתיבה (רק מתוך האפליקציה; הפעילות לא מיוצאת) */
+        const val EXTRA_LIVE = "snb_live"
         private fun prefs(c: Context) = c.getSharedPreferences("dm-player", Context.MODE_PRIVATE)
     }
 }

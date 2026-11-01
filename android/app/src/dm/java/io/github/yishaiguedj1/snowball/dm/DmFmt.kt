@@ -41,6 +41,8 @@ object DmFmt {
         "unsupported", "no_video" -> R.string.dmErrNoVideo
         "refresh_size" -> R.string.dmErrRefreshSize
         "refresh_kind" -> R.string.dmErrRefreshKind
+        "window" -> R.string.dmErrWindow      // 01/11/2026 (סבב 3): התור מחוץ לחלון הזמן שלו
+        "quota" -> R.string.dmErrQuota        // נגמרה מכסת הנפח (יום/חודש)
         else -> R.string.dmErrFail
     })
 
@@ -83,12 +85,14 @@ object DmFmt {
                 val eta = if (st != null) DmEngine.ytEta[t.id] ?: -1 else -1
                 val l = if (eta >= 0) left(ctx, eta) else if (sp > 0 && tot > 0) left(ctx, (tot - got) / sp) else ""
                 val slow = if (t.kind == DmKind.HTTP) heat(ctx) else ""
-                listOf(pc, sz, speed(ctx, sp), l, slow).filter { it.isNotEmpty() }.joinToString(" · ")
+                // 01/11/2026 (סבב 2): כמה עבר בסלולר (Wi‑Fi וסלולר יחד)
+                val cell = DmEngine.alt[t.id]?.takeIf { it > 0 }?.let { ctx.getString(R.string.dmBondLine, size(ctx, it)) } ?: ""
+                listOf(pc, sz, speed(ctx, sp), l, slow, cell).filter { it.isNotEmpty() }.joinToString(" · ")
             }
             DmState.QUEUED -> ctx.getString(if (t.later && !DmEngine.laterReady) R.string.dmQueuedLater else R.string.dmQueued) + if (got > 0) " · $sz" else ""
             DmState.WAITING -> err(ctx, t.err)
             DmState.PAUSED -> ctx.getString(R.string.dmPaused) + " · " + sz
-            DmState.FAILED -> err(ctx, t.err)
+            DmState.FAILED -> if (DmAutoRefresh.busy(t.id)) ctx.getString(R.string.dmAutoRefreshing) else err(ctx, t.err)
             DmState.DONE -> size(ctx, tot)
         }
     }

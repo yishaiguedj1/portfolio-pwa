@@ -33,6 +33,19 @@ class DmActivity : ComponentActivity() {
     var sheetTitle = ""
     var sheetCk = false
     val refreshId = mutableStateOf("")
+    /** 01/11/2026 (סבב 3): APK שמחכה לבדיקה לפני התקנה (DmApkInspect → ApkCheckSheet) */
+    val apkCheck = mutableStateOf<DmTask?>(null)
+
+    /** בחירת תיקייה במערכת (SAF) לתיקיות לפי סוג ולחוקים — ההרשאה נשמרת לתמיד */
+    private var treeCb: ((String) -> Unit)? = null
+    private val treePick = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()) { u ->
+        val cb = treeCb; treeCb = null
+        if (u != null && cb != null) {
+            runCatching { contentResolver.takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
+            cb(DmFolders.TREE + u)
+        }
+    }
+    fun pickTree(cb: (String) -> Unit) { treeCb = cb; runCatching { treePick.launch(null) }.onFailure { treeCb = null } }
 
     override fun attachBaseContext(newBase: android.content.Context) { super.attachBaseContext(DmLang.wrap(newBase)) }
 
@@ -43,6 +56,7 @@ class DmActivity : ComponentActivity() {
         DmEngine.pump(this)
         handle(intent)
         setContent { DmApp(this) }
+        acceptDrops()
     }
 
     override fun onResume() {
@@ -65,8 +79,14 @@ class DmActivity : ComponentActivity() {
     private fun handle(i: Intent?) {
         i ?: return
         if (i.action == DmTile.ACTION_CLIP) { clipOnFocus = true; return }
+        // 01/11/2026 (סבב 3): deep link ‏studiodm://add?url=… — תמיד עם הגיליון (דף אינטרנט לא מוסיף הורדות בשקט)
+        if (i.action == Intent.ACTION_VIEW && i.data?.scheme == DmApi.SCHEME) {
+            DmApi.fromUri(i.dataString)?.let { r -> DmR3.take(this, r) }
+            return
+        }
         val u = when (i.action) {
-            Intent.ACTION_SEND -> DmLink.first(i.getStringExtra(Intent.EXTRA_TEXT))
+            // 01/11/2026 (סבב 3): כמה קישורים (אפליקציה אחרת / DmApi) — כולם לגיליון, שמציג אותם כרשימה
+            Intent.ACTION_SEND -> DmLink.all(i.getStringExtra(Intent.EXTRA_TEXT)).let { if (it.size > 1) it.take(DmApi.MAX_URLS).joinToString("\n") else it.firstOrNull() ?: "" }
             Intent.ACTION_VIEW -> i.dataString?.takeIf { it.startsWith("http") } ?: ""
             else -> ""
         }
@@ -105,6 +125,23 @@ class DmActivity : ComponentActivity() {
         clipUrl.value = if (u.isNotEmpty() && u != pr.lastClip && !DmStore.has(u)) u else ""
     }
 
+    /** 01/11/2026 (סבב 3): גרירת קישור (מסך מפוצל / חלון צף) אל DM → גיליון ההוספה. רק טקסט — בלי הרשאות */
+    private fun acceptDrops() {
+        window.decorView.setOnDragListener { _, e ->
+            when (e.action) {
+                android.view.DragEvent.ACTION_DRAG_STARTED -> e.clipDescription?.let { it.hasMimeType("text/*") || it.hasMimeType("text/uri-list") } ?: false
+                android.view.DragEvent.ACTION_DROP -> {
+                    val c = e.clipData
+                    val txt = (0 until (c?.itemCount ?: 0)).joinToString("\n") { c!!.getItemAt(it).coerceToText(this).toString() }
+                    val links = DmLink.all(txt)
+                    if (links.isNotEmpty()) { sheetRef.value = ""; sheetCk = false; sheetUa = ""; sheetTitle = ""; refreshId.value = ""; sheetUrl.value = links.joinToString("\n") }
+                    links.isNotEmpty()
+                }
+                else -> true
+            }
+        }
+    }
+
     fun dismissClip() { DmPrefs(this).lastClip = clipUrl.value; clipUrl.value = "" }
 
     fun askNotifications() {
@@ -115,7 +152,7 @@ class DmActivity : ComponentActivity() {
     fun open(t: DmTask) {
         // סרטון וקול — בנגן שלנו (DmPlayer); APK — התקנה; כל השאר — באפליקציה שמתאימה לסוג
         val cat = if (t.kind == DmKind.YTDL) (if (t.audioOnly) DmName.Cat.AUDIO else DmName.Cat.VIDEO) else DmName.cat(t.name, t.mime)
-        if (cat == DmName.Cat.APK && t.uri.startsWith("content://")) { install(t); return }
+        if (cat == DmName.Cat.APK && t.uri.startsWith("content://")) { apkCheck.value = t; return }   // סבב 3: קודם הבדיקה
         if ((cat == DmName.Cat.VIDEO || cat == DmName.Cat.AUDIO) && t.uri.startsWith("content://")) {
             if (runCatching { startActivity(Intent(this, DmPlayer::class.java).setData(Uri.parse(t.uri)).putExtra(DmPlayer.EXTRA_TITLE, t.title.ifEmpty { t.name })) }.isSuccess) return
         }
@@ -235,6 +272,12 @@ class DmActivity : ComponentActivity() {
         // 01/11/2026 (בקשת המשתמש: "שלא יהיו סתם שני דפדפנים"): ב־Studio DM אין דפדפן משלו. הדף נפתח ב־Studio Browser,
         // וההורדות משם חוזרות לכאן (DmBridge). לא מותקן — חלון שמציע להוריד אותו כאן ולהתקין
         if (!DmBridge.openInBrowser(this, start, refresh)) needBrowser.value = true
+    }
+
+    /** 01/11/2026 (סבב 2): צפייה תוך כדי הורדה — הנגן קורא מהקובץ שבכתיבה (DmGrowSource); עצורה — ממשיכים אותה */
+    fun watchLive(t: DmTask) {
+        if (t.state == DmState.PAUSED || t.state == DmState.FAILED) DmEngine.resume(this, t.id)
+        runCatching { startActivity(Intent(this, DmPlayer::class.java).setData(Uri.parse(t.uri)).putExtra(DmPlayer.EXTRA_TITLE, t.title.ifEmpty { t.name }).putExtra(DmPlayer.EXTRA_LIVE, t.id)) }
     }
 
     /** ההורדה של Studio Browser עצמו — דרך DM, ואז ההתקנה במסך של המערכת */

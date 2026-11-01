@@ -125,7 +125,9 @@ for (const f of ['dm', 'browser'])
 for (const f of ['main', 'studio', 'invest', 'lite', 'bubble'])
   if (fs.existsSync(path.join(ROOT, 'android/app/src', f, 'AndroidManifest.xml')))
     ok(!/REQUEST_INSTALL_PACKAGES/.test(R('android/app/src/' + f + '/AndroidManifest.xml')), f + ': בלי הרשאת התקנה (רק מנהל ההורדות)');
-ok(/if \(cat == DmName\.Cat\.APK && t\.uri\.startsWith\("content:\/\/"\)\) \{ install\(t\); return \}/.test(da), 'APK שירד → התקנה');
+// 01/11/2026 (סבב 3): APK שירד → קודם בודק ה־APK (חתימה, גרסה, הרשאות), ומשם ההתקנה באישור
+ok(/if \(cat == DmName\.Cat\.APK && t\.uri\.startsWith\("content:\/\/"\)\) \{ apkCheck\.value = t; return \}/.test(da), 'APK שירד → בדיקה לפני התקנה');
+ok(/onClose\(\); a\.install\(t\)/.test(fs.readFileSync(require('path').join(__dirname, '../android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmUiRound3.kt'), 'utf8')), 'מהבדיקה → התקנה');
 ok(/canRequestPackageInstalls\(\)/.test(da) && /ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri\.parse\("package:\$packageName"\)/.test(da), 'בלי אישור — מסך ההגדרה של DM עצמו, וחזרה ממשיכה');
 ok(/ACTION_VIEW\)\.setDataAndType\(Uri\.parse\(t\.uri\), DmMedia\.APK\)/.test(da) && !/PackageInstaller|INSTALL_PACKAGES"\)|ACTION_INSTALL_PACKAGE/.test(da), 'מתקין החבילות של המערכת (תמיד באישור) — לא התקנה שקטה');
 ok(/if \(DmName\.ext\(name\)\.equals\("apk", true\)\) APK/.test(R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmMedia.kt')), 'קובץ .apk = הסוג של חבילה גם כשהשרת שלח octet-stream');
