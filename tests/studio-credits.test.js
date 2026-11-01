@@ -14,7 +14,10 @@ for (const need of ['Parakeet', 'DictaBERT', 'WeSpeaker']) {
   ok(r && /^CC-BY/.test(r[3]), 'ייחוס ל־' + need + ' (CC-BY)');
 }
 const he = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
-for (const [role] of rows) ok(he.split(role + ':').length === 3, 'המחרוזת ' + role + ' בעברית ובאנגלית');
+for (const [role] of rows) {
+  ok(he.split(role + ':').length === 3, 'המחרוזת ' + role + ' בעברית ובאנגלית');
+  ok(src.includes(role + ": T('" + role + "')"), 'התפקיד ' + role + ' בטבלת התפקידים של pageCredits');
+}
 ok(/ui\.view === 'credits'\) pageCredits\(p\)/.test(src), 'הדף רשום בניווט');
 ok(/x === 'credits'/.test(src), '"חזור" מהדף מוביל להגדרות');
 console.log(fails ? `---- ${fails} נכשלו` : `---- studio-credits: ${rows.length} מודלים, הכל תקין`);
