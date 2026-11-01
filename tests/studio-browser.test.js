@@ -38,7 +38,8 @@ ok(/BrStore\.saveStates\(pub\.map/.test(act) && /BrStore\.loadState\(i\)/.test(a
 ok(/restoreState\(st\) \}\.getOrNull\(\) != null\) navState\(t, w\) else if \(t\.url\.startsWith\("http"\)\) w\.loadUrl/.test(act), 'מצב שלא נפתח — טוענים את הכתובת (לא טאב ריק)');
 ok(/BrStore\.clearStates\(\)/.test(act), 'ניקוי נתוני הגלישה מוחק גם את מחסניות "חזור"');
 ok(/deleteProfile\(PRIV\)/.test(act) && /WebViewCompat\.setProfile\(w, PRIV\)/.test(act), 'טאב פרטי = פרופיל נפרד שנמחק');
-ok(/if \(!isUserGesture\) return false/.test(act), 'חלון קופץ בלי נגיעה — חסום');
+ok(/if \(!BrDev\.popupOk\(rules\[BrStore\.hostOf\(t\.url\)\]\?\.pop \?: 0, isUserGesture\)\) return false/.test(act) && /else -> gesture \}/.test(R(B + 'BrDev.kt')),
+  'חלון קופץ בלי נגיעה — חסום (ברירת המחדל; לכל אתר אפשר לשנות)');
 ok(/component = null; selector = null/.test(act), 'קישור intent: — בלי רכיב מפורש (לא נפתח רכיב פנימי של אפליקציה אחרת)');
 ok(/s\.allowFileAccess = false/.test(act) && /s\.allowContentAccess = false/.test(act), 'בלי גישה לקבצים מהדף');
 const pre = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmPre.kt');
@@ -306,6 +307,27 @@ ok(fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yis
   ok(/srl\.isEnabled = \(a\.gest and BrPro\.G_PULL\) != 0/.test(ui) && /\(a\.gest and BrPro\.G_SWIPE\) != 0/.test(ui), 'מחוות שאפשר לכבות');
   ok(/put\("c", it\.c\)/.test(us) && /b === Priv\) b else b\.copy\(bar = lerp/.test(ui), 'צבע לכל משתמש — לא בכרטיסייה פרטית');
   ok(/if \(sc != null\) \{ scoped\(a, sc\.first, sc\.second\); return@LazyColumn \}/.test(ui) && /a\.runAct\(act\)/.test(ui), 'חיפוש ממוקד ופעולות מהשורה');
+}
+
+// 01/11/2026: Studio Browser Pro — הגל השלישי (docs/browser-pro-plan.md): כלי מפתחים ושליטה באתר
+{
+  const dev = R(B + 'BrDev.kt'), wt = R(B + 'BrWatch.kt'), sh = R(B + 'BrShield.kt');
+  ok(/WebViewCompat\.addWebMessageListener\(w, BrDev\.CH, setOf\("\*"\)\) \{ _, msg, _, main, _ -> if \(main\)/.test(act), 'ערוץ הכלים — רק מהמסגרת הראשית');
+  ok(/if \(pickMode == BrDev\.PICK_INSPECT && cur === t\)/.test(act) && /if \(recTab === t\) BrDev\.stepParse/.test(act), 'הודעה מהדף מתקבלת רק כשהכלי פועל בכרטיסייה הזו');
+  ok(/t==='password'\|\|t==='hidden'\|\|a\.indexOf\('cc-'\)===0/.test(dev) && /if\(secret\(e\)\)return/.test(dev), 'הקלטה: סיסמאות, שדות מוסתרים ופרטי כרטיס לא נרשמים');
+  ok(/fun startRec\(\) \{\s*val t = cur\?\.takeIf \{ it\.url\.startsWith\("http"\) && !it\.private \}/.test(act), 'הקלטה — לא בכרטיסייה פרטית');
+  ok(/if \(!t\.private\) BrDev\.runnable\(uscripts, url\)/.test(act) && /\(!sens \|\| it\.sensitive\)/.test(dev) && /brScriptSensQ/.test(ui),
+    'סקריפטים של משתמשים: לא בפרטי, ובדפים רגישים רק באישור מפורש');
+  ok(!/uscripts|macros|zaps|brw/.test(R(B + 'BrCloud.kt')), 'סקריפטים, הקלטות, רכיבים מוסתרים ומעקבים — בטלפון בלבד, לא בענן');
+  ok(/Cookie\(n, null, true\)/.test(dev) && /HttpOnly/.test(dev), 'עוגיית HttpOnly — השם בלבד, הערך לא נחשף');
+  ok(!/Cookie|cmOf|getCookie/.test(wt) && /fun fetch\(url: String\)/.test(wt), 'מעקב אחרי דף — בלי העוגיות של המשתמש');
+  ok(/PeriodicWorkRequestBuilder<Job>\(1, TimeUnit\.HOURS\)/.test(wt) && /"browserImplementation"\("androidx\.work:work-runtime-ktx/.test(gradle), 'מעקב — WorkManager');
+  ok(/BrDev\.blockRedirect\(rules\[from\]\?\.redir != false/.test(act) && /BrDev\.popupOk\(rules\[/.test(act) && /s\.blockNetworkImage = !img/.test(act), 'מה מותר לכל אתר: הפניות, חלונות קופצים, תמונות');
+  ok(/setAlgorithmicDarkeningAllowed\(s, dark\)/.test(act) && /rules\[host\]\?\.dark == true && !night\(\)/.test(act), 'כהה בכוח: אלגוריתמי, ובערכה בהירה — DARK_JS');
+  ok(/val img: Boolean = true, val pop: Int = 0, val redir: Boolean = true, val dark: Boolean = false/.test(sh) && /img = p\.getOrNull\(8\) != "0"/.test(sh), 'SiteRule: שדות חדשים עם ברירת מחדל ששורה ישנה לא משנה');
+  ok(ui.indexOf('MItem(R.string.brZap') > ui.indexOf('MItem(R.string.brQuick') && ui.indexOf('MItem(R.string.brZap') < ui.lastIndexOf('MItem(R.string.brSettings'),
+    'יכולות הגל בתפריט ⋮ — בקבוצת הכלים, מתחת לפריטים המוכרים');
+  ok(/pickMode != 0 -> endPick\(false\)/.test(act) && /t\?\.editing == true -> toggleEdit\(t\)/.test(act), '"חזור" יוצא מבחירת רכיב ומעריכת הדף');
 }
 
 console.log('studio-browser: ' + n + ' בדיקות עברו');

@@ -58,6 +58,11 @@ class BrTab(val id: Long, url: String, title: String, val private: Boolean, var 
     var born = System.currentTimeMillis()
     val logs = BrPro.Ring<BrPro.Log>(300)
     val net = BrPro.Ring<BrPro.Net>(400)
+    /** הגל השלישי: התחזות למכשיר (BrDev.EMUS; "" = הטלפון), עריכת הדף, והרצת הקלטה (הצעדים ומאיפה ממשיכים בדף הבא) */
+    var emu by mutableStateOf("")
+    var editing by mutableStateOf(false)
+    var replay: List<BrDev.Step>? = null
+    var replayAt = 0
 
     val found = HuntMedia.Found()
     val headSeen = HashSet<String>()

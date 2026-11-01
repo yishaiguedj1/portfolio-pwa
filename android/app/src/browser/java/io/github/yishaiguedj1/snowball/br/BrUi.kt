@@ -142,6 +142,8 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
@@ -232,6 +234,9 @@ fun BrApp(a: BrowserActivity) {
                     BrowserActivity.Screen.PERF -> PerfScreen(a)
                     BrowserActivity.Screen.NTPSET -> NtpSetScreen(a)
                     BrowserActivity.Screen.KEYS -> KeysScreen(a)
+                    BrowserActivity.Screen.SCRIPTS -> ScriptsScreen(a)
+                    BrowserActivity.Screen.WATCHES -> WatchesScreen(a)
+                    BrowserActivity.Screen.MACROS -> MacrosScreen(a)
                 }
                 if (a.privLocked && a.showsPrivate()) LockScreen(a)
                 a.customView?.let { v ->
@@ -418,6 +423,7 @@ private fun PageScreen(a: BrowserActivity) {
     a.preview?.let { PreviewSheet(a, it) }
     a.ctx?.let { CtxSheet(a, it) }
     if (a.devSheet && t != null && !t.isNtp) DevSheet(a, t)
+    if (t != null && !t.isNtp) ToolFloat(a, t)
 }
 
 /** החלון של הכרטיסייה הפעילה: הכרטיסייה החדשה, או הדף עם הכפתור שעל הנגן והבדיקה ברקע */
@@ -1011,6 +1017,12 @@ private fun MenuSheet(a: BrowserActivity) {
             MItem(R.string.brGroups, BrIcons.Tab) { close(); a.screen = BrowserActivity.Screen.GROUPS }
             MItem(R.string.brTasks, BrIcons.Memory) { close(); a.screen = BrowserActivity.Screen.TASKS }
             if (t?.private != true) MItem(R.string.brQuick, BrIcons.CDelete) { close(); a.quickAsk = true }
+            // הגל השלישי — מחיקת רכיב (63), מעקב (65), הקלטה (66); השאר בכלי המפתחים
+            if (web && a.toolsOk) MItem(R.string.brZap, BrIcons.Trash) { close(); a.startPick(BrDev.PICK_ZAP) }
+            if (web && !t!!.private) MItem(R.string.brWatchAdd, BrIcons.Bell) { close(); a.addWatch(t) }
+            if (web && a.toolsOk && !t!!.private) MItem(if (a.recTab != null) R.string.brRecStop else R.string.brRec, BrIcons.Rec, iconTint = if (a.recTab != null) Red else null) {
+                close(); if (a.recTab != null) a.stopRec(true) else a.startRec()
+            }
             MDiv()
             MItem(R.string.brSettings, BrIcons.CSettings) { close(); a.screen = BrowserActivity.Screen.SETTINGS }
         }
@@ -1508,6 +1520,7 @@ private fun SettingsScreen(a: BrowserActivity) {
     val t8 = stringResource(R.string.brLab)
     val w1 = stringResource(R.string.brToolbar); val w2 = stringResource(R.string.brNtpSet); val w3 = stringResource(R.string.brGestures)
     val w4 = stringResource(R.string.brPerf); val w5 = stringResource(R.string.brKeys)
+    val w6 = stringResource(R.string.brScripts); val w7 = stringResource(R.string.brWatches); val w8 = stringResource(R.string.brMacros)
     val perfV = stringResource(listOf(R.string.brSaverOff, R.string.brSaverMid, R.string.brSaverMax)[a.saver.coerceIn(0, 2)])
     SubPage(stringResource(R.string.brSettings), done = true, onDone = { a.screen = BrowserActivity.Screen.PAGE }) {
         item { SearchField(stringResource(R.string.brSearchSettings), q) { q = it } }
@@ -1556,6 +1569,9 @@ private fun SettingsScreen(a: BrowserActivity) {
             w4 to { IRow(w4, value = perfV) { a.screen = BrowserActivity.Screen.PERF } },
             w3 to { IRow(w3) { a.screen = BrowserActivity.Screen.GESTURES } },
             w5 to { IRow(w5) { a.screen = BrowserActivity.Screen.KEYS } },
+            w6 to { IRow(w6, value = if (a.uscripts.isEmpty()) null else "${a.uscripts.count { it.on }}") { a.screen = BrowserActivity.Screen.SCRIPTS } },
+            w7 to { IRow(w7, value = if (a.watches.isEmpty()) null else "${a.watches.size}") { a.screen = BrowserActivity.Screen.WATCHES } },
+            w8 to { IRow(w8, value = if (a.macros.isEmpty()) null else "${a.macros.size}") { a.screen = BrowserActivity.Screen.MACROS } },
             t8 to { IRow(t8) { a.screen = BrowserActivity.Screen.LAB } },
             t5 to { IRow(t5, value = "Studio DM") { a.dlSettings() } },
             t6 to { IRow(t6, value = a.version(), chevron = false) },
@@ -2260,6 +2276,26 @@ private fun SiteScreen(a: BrowserActivity) {
                 }
             }
         }
+        // הגל השלישי (42, 44, 63): מה מותר לאתר מעבר ל־JavaScript, כהה בכוח, ורכיבים שהוסתרו תמיד
+        item {
+            Group(stringResource(R.string.brSiteContent), stringResource(R.string.brSiteContentFoot)) {
+                IRow(stringResource(R.string.brSiteImg), lead = { Tile(BrIcons.Image, Color(0xFF34C759)) }, chevron = false,
+                    trailing = { IosSwitch(r.img) { v -> a.setSiteReload(h) { it.copy(img = v) } } })
+                Sep()
+                PopRow(r.pop) { v -> a.setSiteReload(h) { it.copy(pop = v) } }
+                Sep()
+                IRow(stringResource(R.string.brSiteRedir), lead = { Tile(BrIcons.Forward, Color(0xFF007AFF)) }, chevron = false,
+                    trailing = { IosSwitch(r.redir) { v -> a.setRule(h) { it.copy(redir = v) } } })
+                Sep()
+                IRow(stringResource(R.string.brSiteDark), lead = { Tile(BrIcons.Moon, Color(0xFF3A3A3C)) }, chevron = false,
+                    trailing = { IosSwitch(r.dark) { v -> a.setSiteReload(h) { it.copy(dark = v) } } })
+                if (a.zapCount(h) > 0) {
+                    Sep()
+                    IRow(stringResource(R.string.brZapped), value = "${a.zapCount(h)}", lead = { Tile(BrIcons.Trash, Color(0xFFFF3B30)) }, chevron = false,
+                        trailing = { TextButton({ a.clearZaps(h) }) { Text(stringResource(R.string.brRestore), color = c.tint) } })
+                }
+            }
+        }
         if (a.rules.containsKey(h)) item { Group { IRow(stringResource(R.string.brSiteForget), color = Color(0xFFFF3B30), chevron = false) { a.forgetSite(h) } } }
     }
 }
@@ -2373,53 +2409,157 @@ private fun CtxSheet(a: BrowserActivity, x: BrowserActivity.Ctx) {
 @Composable
 private fun DevSheet(a: BrowserActivity, t: BrTab) {
     val c = LocalBr.current
-    var pane by remember { mutableStateOf(0) }
+    val pane = a.devPane
     var tick by remember { mutableStateOf(0) }
     var code by remember { mutableStateOf("") }
     LaunchedEffect(Unit) { while (true) { delay(700); tick++ } }
     val logs = remember(tick, t.id) { t.logs.all() }
     val net = remember(tick, t.id) { t.net.all().asReversed() }
     val mono = TextStyle(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 12.sp, lineHeight = 16.sp, textDirection = TextDirection.Ltr)
+    // הגל השלישי: אחסון (4), רכיב (5), מקור (6), מהירות (9) — נטענים כשפותחים את הלשונית, ו"רענון" טוען שוב
+    var rev by remember { mutableStateOf(0) }
+    var st by remember(t.id) { mutableStateOf<BrDev.Storage?>(null) }
+    var ck by remember(t.id) { mutableStateOf<List<BrDev.Cookie>>(emptyList()) }
+    var src by remember(t.id, t.url) { mutableStateOf<String?>(null) }
+    var pf by remember(t.id, t.url) { mutableStateOf<BrDev.Perf?>(null) }
+    LaunchedEffect(pane, rev, t.url) {
+        when (pane) {
+            2 -> a.storage(t) { s, k -> st = s; ck = k }
+            4 -> if (src == null || rev > 0) a.source(t) { src = it }
+            5 -> a.perf(t) { pf = it }
+        }
+    }
+    val srcLines = remember(src) { src?.let { BrDev.lines(it) } }
     ModalBottomSheet(onDismissRequest = { a.devSheet = false }, containerColor = c.screen) {
         Column(Modifier.navigationBarsPadding().imePadding()) {
             SheetHead(stringResource(R.string.brDev), BrStore.hostOf(t.url), lead = { Tile(BrIcons.Code, Color(0xFF3A3A3C)) }, close = { a.devSheet = false })
-            Row(Modifier.padding(horizontal = 16.dp).fillMaxWidth().height(40.dp).glass(c, RoundedCornerShape(14.dp), c.fill).padding(3.dp)) {
-                listOf(R.string.brDevConsole, R.string.brDevNet).forEachIndexed { i, s ->
-                    Box(Modifier.weight(1f).fillMaxHeight()
+            Row(Modifier.padding(horizontal = 16.dp).fillMaxWidth().height(40.dp).glass(c, RoundedCornerShape(14.dp), c.fill)
+                .horizontalScroll(rememberScrollState()).padding(3.dp)) {
+                listOf(R.string.brDevConsole, R.string.brDevNet, R.string.brDevStorage, R.string.brDevEls, R.string.brDevSource, R.string.brDevSpeed).forEachIndexed { i, s ->
+                    Box(Modifier.fillMaxHeight()
                         .then(if (pane == i) Modifier.glass(c, RoundedCornerShape(11.dp), if (c.dark) Color(0xCC48484A) else Color(0xF2FFFFFF)) else Modifier.clip(RoundedCornerShape(11.dp)))
-                        .clickable { pane = i }, contentAlignment = Alignment.Center) {
-                        Text(stringResource(s), color = c.fg, fontSize = 15.sp, fontWeight = if (pane == i) FontWeight.SemiBold else FontWeight.Normal)
+                        .clickable { a.devPane = i; rev = 0 }.padding(horizontal = 14.dp), contentAlignment = Alignment.Center) {
+                        Text(stringResource(s), color = c.fg, fontSize = 15.sp, fontWeight = if (pane == i) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1)
                     }
                 }
             }
-            Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(if (pane == 0) "${logs.size}" else stringResource(R.string.brDevNetSum, net.size, net.count { it.blocked }), Modifier.weight(1f), color = c.mute, fontSize = 13.sp, maxLines = 1)
-                TextButton({ if (pane == 0) t.logs.clear() else t.net.clear(); tick++ }) { Text(stringResource(R.string.brDevClear), color = c.tint) }
+            // הכלים שפועלים על הדף: בחירת רכיב (5), עריכת הדף (8), התחזות למכשיר (7)
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (a.toolsOk) DevChip(BrIcons.Select, stringResource(R.string.brPickEl)) { a.startPick(BrDev.PICK_INSPECT) }
+                DevChip(BrIcons.Edit, stringResource(if (t.editing) R.string.brEditDone else R.string.brEditPage), on = t.editing) { a.toggleEdit(t) }
+                Box {
+                    var open by remember { mutableStateOf(false) }
+                    val he = heUi()
+                    DevChip(BrIcons.Phone, BrDev.emu(t.emu).let { if (he) it.he else it.en }, on = t.emu.isNotEmpty()) { open = true }
+                    DropdownMenu(open, { open = false }, containerColor = c.card) {
+                        BrDev.EMUS.forEach { e -> DropdownMenuItem({ Text(if (he) e.he else e.en) }, { open = false; if (e.id != t.emu) a.setEmu(t, e.id) },
+                            trailingIcon = { if (e.id == t.emu) Icon(BrIcons.Check, null, tint = c.tint) }) }
+                    }
+                }
+            }
+            Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                val sum = when (pane) {
+                    0 -> "${logs.size}"
+                    1 -> stringResource(R.string.brDevNetSum, net.size, net.count { it.blocked })
+                    2 -> stringResource(R.string.brStSum, ck.size, (st?.local?.size ?: 0) + (st?.session?.size ?: 0))
+                    3 -> a.picked?.let { "<${it.tag}> ${it.w}×${it.h}" } ?: ""
+                    4 -> srcLines?.let { stringResource(R.string.brSrcSum, it.size) } ?: ""
+                    else -> ""
+                }
+                Text(sum, Modifier.weight(1f), color = c.mute, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                when (pane) {
+                    0, 1 -> TextButton({ if (pane == 0) t.logs.clear() else t.net.clear(); tick++ }) { Text(stringResource(R.string.brDevClear), color = c.tint) }
+                    2, 5 -> TextButton({ rev++ }) { Text(stringResource(if (pane == 5) R.string.brPerfAgain else R.string.brRefresh), color = c.tint) }
+                    4 -> TextButton({ src?.let { a.copyText(it.take(500_000), R.string.brCopiedText) } }, enabled = src != null) { Text(stringResource(R.string.brCopyAll), color = c.tint) }
+                    else -> Spacer(Modifier.height(48.dp))
+                }
             }
             val list = androidx.compose.foundation.lazy.rememberLazyListState()
             if (pane == 0) LaunchedEffect(logs.size) { if (logs.isNotEmpty()) list.scrollToItem(logs.size - 1) }
             Box(Modifier.padding(horizontal = 12.dp).fillMaxWidth().height(380.dp).glass(c, RoundedCornerShape(16.dp))) {
-                val empty = if (pane == 0) logs.isEmpty() else net.isEmpty()
-                if (empty) Text(stringResource(R.string.brDevEmpty), Modifier.align(Alignment.Center), color = c.mute, fontSize = 15.sp)
-                else if (pane == 0) LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(vertical = 6.dp)) {
-                    items(logs) { l ->
-                        val col = when (l.level) { 2 -> Color(0xFFFF453A); 1 -> Color(0xFFFF9F0A); 3 -> c.tint; 4 -> c.mute; else -> c.fg }
-                        val pre = when (l.level) { 3 -> "› "; 4 -> "← "; else -> "" }
-                        Column(Modifier.fillMaxWidth().clickable { a.copyText(l.msg, R.string.brCopiedText) }.padding(horizontal = 12.dp, vertical = 5.dp)) {
-                            Text(pre + l.msg, color = col, style = mono, maxLines = 8, overflow = TextOverflow.Ellipsis)
-                            if (l.src.isNotEmpty()) Text(l.src, color = c.mute, style = mono.copy(fontSize = 10.sp), maxLines = 1)
+                @Composable fun empty(s: Int) = Text(stringResource(s), Modifier.align(Alignment.Center).padding(24.dp), color = c.mute, fontSize = 15.sp, textAlign = TextAlign.Center)
+                when (pane) {
+                    0 -> if (logs.isEmpty()) empty(R.string.brDevEmpty) else LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(vertical = 6.dp)) {
+                        items(logs) { l ->
+                            val col = when (l.level) { 2 -> Color(0xFFFF453A); 1 -> Color(0xFFFF9F0A); 3 -> c.tint; 4 -> c.mute; else -> c.fg }
+                            val pre = when (l.level) { 3 -> "› "; 4 -> "← "; else -> "" }
+                            Column(Modifier.fillMaxWidth().clickable { a.copyText(l.msg, R.string.brCopiedText) }.padding(horizontal = 12.dp, vertical = 5.dp)) {
+                                Text(pre + l.msg, color = col, style = mono, maxLines = 8, overflow = TextOverflow.Ellipsis)
+                                if (l.src.isNotEmpty()) Text(l.src, color = c.mute, style = mono.copy(fontSize = 10.sp), maxLines = 1)
+                            }
+                            HorizontalDivider(thickness = 0.5.dp, color = c.line)
                         }
-                        HorizontalDivider(thickness = 0.5.dp, color = c.line)
                     }
-                } else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 6.dp)) {
-                    items(net) { n ->
-                        Row(Modifier.fillMaxWidth().clickable { a.copyText(BrPro.curl(n.url, n.method, n.headers), R.string.brDevCurl) }.padding(horizontal = 12.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically) {
-                            Text(BrPro.kindOf(n.url, n.main), Modifier.width(44.dp), color = if (n.blocked) Color(0xFFFF453A) else c.tint, style = mono.copy(fontWeight = FontWeight.Bold))
-                            Text((if (n.method != "GET") n.method + " " else "") + n.url, Modifier.weight(1f), color = if (n.blocked) c.mute else c.fg, style = mono.copy(
-                                textDecoration = if (n.blocked) androidx.compose.ui.text.style.TextDecoration.LineThrough else null), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    1 -> if (net.isEmpty()) empty(R.string.brDevEmpty) else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 6.dp)) {
+                        items(net) { n ->
+                            Row(Modifier.fillMaxWidth().clickable { a.copyText(BrPro.curl(n.url, n.method, n.headers), R.string.brDevCurl) }.padding(horizontal = 12.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                Text(BrPro.kindOf(n.url, n.main), Modifier.width(44.dp), color = if (n.blocked) Color(0xFFFF453A) else c.tint, style = mono.copy(fontWeight = FontWeight.Bold))
+                                Text((if (n.method != "GET") n.method + " " else "") + n.url, Modifier.weight(1f), color = if (n.blocked) c.mute else c.fg, style = mono.copy(
+                                    textDecoration = if (n.blocked) androidx.compose.ui.text.style.TextDecoration.LineThrough else null), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            }
+                            HorizontalDivider(thickness = 0.5.dp, color = c.line)
                         }
-                        HorizontalDivider(thickness = 0.5.dp, color = c.line)
+                    }
+                    2 -> {
+                        val s = st
+                        if (ck.isEmpty() && (s == null || (s.local.isEmpty() && s.session.isEmpty() && s.idb.isEmpty()))) empty(R.string.brDevEmpty)
+                        else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 6.dp)) {
+                            if (ck.isNotEmpty()) item { DevHead(stringResource(R.string.brDevCookies)) }
+                            items(ck) { k -> DevKV(k.name, k.value ?: stringResource(R.string.brHttpOnly), mono, dim = k.value == null,
+                                copy = { a.copyText(k.value ?: k.name, R.string.brCopiedText) }) { a.delCookie(t, k.name); rev++ } }
+                            if (s != null && s.local.isNotEmpty()) item { DevHead(stringResource(R.string.brLocalSt)) }
+                            if (s != null) items(s.local) { (k, v) -> DevKV(k, v, mono, copy = { a.copyText(v, R.string.brCopiedText) }) { a.delStorage(t, 'l', k); rev++ } }
+                            if (s != null && s.session.isNotEmpty()) item { DevHead(stringResource(R.string.brSessionSt)) }
+                            if (s != null) items(s.session) { (k, v) -> DevKV(k, v, mono, copy = { a.copyText(v, R.string.brCopiedText) }) { a.delStorage(t, 's', k); rev++ } }
+                            if (s != null && s.idb.isNotEmpty()) item { DevHead("IndexedDB") }
+                            if (s != null) items(s.idb) { n -> DevKV(n, "", mono, copy = { a.copyText(n, R.string.brCopiedText) }) { a.delStorage(t, 'i', n); rev++ } }
+                        }
+                    }
+                    3 -> {
+                        val p = a.picked
+                        if (p == null) Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(stringResource(R.string.brElsEmpty), color = c.mute, fontSize = 15.sp, textAlign = TextAlign.Center)
+                            if (a.toolsOk) TextButton({ a.startPick(BrDev.PICK_INSPECT) }) { Text(stringResource(R.string.brPickEl), color = c.tint) }
+                        } else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp)) {
+                            item { Text(p.sel, Modifier.fillMaxWidth().clickable { a.copyText(p.sel, R.string.brCopiedText) }, color = c.tint, style = mono.copy(fontSize = 13.sp)) }
+                            item {
+                                Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    DevChip(BrIcons.Eye, stringResource(R.string.brElHide)) { a.hidePicked(t, p.sel, false) }
+                                    DevChip(BrIcons.Trash, stringResource(R.string.brElHideAlways)) { a.hidePicked(t, p.sel, true) }
+                                }
+                            }
+                            item { DevHead(stringResource(R.string.brElStyles)) }
+                            items(p.styles) { (k, v) -> Text("$k: $v", Modifier.padding(vertical = 2.dp), color = c.fg, style = mono, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                            item { DevHead("HTML") }
+                            item { Text(p.html, Modifier.fillMaxWidth().clickable { a.copyText(p.html, R.string.brCopiedText) }, color = c.fg, style = mono, maxLines = 40, overflow = TextOverflow.Ellipsis) }
+                        }
+                    }
+                    4 -> {
+                        val ls = srcLines
+                        if (ls == null) empty(R.string.brDevEmpty)
+                        else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 6.dp)) {
+                            itemsIndexed(ls) { i, l ->
+                                Row(Modifier.fillMaxWidth().padding(end = 8.dp)) {
+                                    Text("${i + 1}", Modifier.width(44.dp).padding(end = 8.dp), color = c.mute, style = mono.copy(textAlign = TextAlign.End))
+                                    Text(l, Modifier.weight(1f), color = c.fg, style = mono)
+                                }
+                            }
+                        }
+                    }
+                    else -> {
+                        val p = pf
+                        if (p == null) empty(R.string.brPerfNone)
+                        else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 6.dp)) {
+                            item { PerfRow(stringResource(R.string.brPerfTtfb), ms(p.ttfb), BrDev.grade("ttfb", p.ttfb)) }
+                            item { PerfRow(stringResource(R.string.brPerfFcp), ms(p.fcp), BrDev.grade("fcp", p.fcp)) }
+                            item { PerfRow(stringResource(R.string.brPerfLcp), ms(p.lcp), BrDev.grade("lcp", p.lcp)) }
+                            item { PerfRow(stringResource(R.string.brPerfLoad), ms(p.load), BrDev.grade("load", p.load)) }
+                            item { PerfRow(stringResource(R.string.brPerfCls), if (p.cls < 0) "—" else "%.2f".format(java.util.Locale.US, p.cls / 1000.0), BrDev.grade("cls", p.cls)) }
+                            item { PerfRow(stringResource(R.string.brPerfRes), "${p.res}", -1) }
+                            item { PerfRow(stringResource(R.string.brPerfKb), if (p.kb >= 1024) "%.1f MB".format(java.util.Locale.US, p.kb / 1024.0) else "${p.kb} KB", -1) }
+                            item { PerfRow(stringResource(R.string.brPerfDom), "${p.dom}", -1) }
+                        }
                     }
                 }
             }
@@ -2434,6 +2574,241 @@ private fun DevSheet(a: BrowserActivity, t: BrTab) {
                     TextButton({ a.runJs(t, code); code = ""; tick++ }, enabled = jsOn && code.isNotBlank()) { Text(stringResource(R.string.brDevRun), color = if (jsOn && code.isNotBlank()) c.tint else c.dis) }
                 }
             } else Spacer(Modifier.height(12.dp))
+        }
+    }
+}
+
+/* ---------- הגל השלישי (01/11/2026, BrDev): אבני בניין של כלי המפתחים ---------- */
+
+@Composable
+private fun heUi(): Boolean = LocalConfiguration.current.locales[0].language.let { it == "he" || it == "iw" }
+
+private fun ms(v: Int): String = if (v < 0) "—" else if (v < 1000) "$v ms" else "%.1f s".format(java.util.Locale.US, v / 1000.0)
+
+/** גלולה קטנה עם סמל — הכלים שבגיליון (on = פועל עכשיו) */
+@Composable
+private fun DevChip(icon: ImageVector, label: String, on: Boolean = false, click: () -> Unit) {
+    val c = LocalBr.current
+    Row(Modifier.height(36.dp).glass(c, RoundedCornerShape(18.dp), if (on) c.tint.copy(alpha = 0.18f) else c.fill).clickable(onClick = click).padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, Modifier.size(18.dp), tint = if (on) c.tint else c.fg)
+        Spacer(Modifier.width(6.dp))
+        Text(label, color = if (on) c.tint else c.fg, fontSize = 14.sp, maxLines = 1)
+    }
+}
+
+@Composable
+private fun DevHead(s: String) {
+    val c = LocalBr.current
+    Text(s, Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 4.dp), color = c.mute, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+}
+
+/** שורת מפתח/ערך: נגיעה מעתיקה, ✕ מוחק */
+@Composable
+private fun DevKV(k: String, v: String, mono: TextStyle, dim: Boolean = false, copy: () -> Unit, del: () -> Unit) {
+    val c = LocalBr.current
+    Row(Modifier.fillMaxWidth().clickable(onClick = copy).padding(start = 12.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(k, color = c.fg, style = mono.copy(fontWeight = FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (v.isNotEmpty()) Text(v, color = if (dim) c.mute else c.fg, style = mono.copy(fontSize = 11.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        IBtn(BrIcons.CClose, stringResource(R.string.brDelete), size = 40.dp, iconSize = 18.dp, tint = c.mute, on = del)
+    }
+    HorizontalDivider(thickness = 0.5.dp, color = c.line)
+}
+
+/** מדד בדוח המהירות: נקודה ירוקה/כתומה/אדומה לפי הספים (‎-1 = בלי דירוג) */
+@Composable
+private fun PerfRow(label: String, v: String, g: Int) {
+    val c = LocalBr.current
+    Row(Modifier.fillMaxWidth().height(44.dp).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(10.dp).clip(CircleShape).background(when (g) { 0 -> Color(0xFF34C759); 1 -> Color(0xFFFF9F0A); 2 -> Color(0xFFFF453A); else -> Color.Transparent }))
+        Spacer(Modifier.width(12.dp))
+        Text(label, Modifier.weight(1f), color = c.fg, fontSize = 15.sp)
+        Text(v, color = c.fg, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, style = TextStyle(textDirection = TextDirection.Ltr))
+    }
+    HorizontalDivider(thickness = 0.5.dp, color = c.line)
+}
+
+/** הפס הצף מעל הדף כשכלי פועל: בחירת רכיב (5), מחיקת רכיבים (63), עריכת הדף (8), הקלטה (66) — הדף נשאר נגיש לנגיעות */
+@Composable
+private fun ToolFloat(a: BrowserActivity, t: BrTab) {
+    val c = LocalBr.current
+    val mode = a.pickMode; val rec = a.recTab === t; val edit = t.editing
+    if (mode == 0 && !rec && !edit) return
+    val dy = with(LocalDensity.current) { 88.dp.roundToPx() }
+    androidx.compose.ui.window.Popup(alignment = Alignment.BottomCenter, offset = androidx.compose.ui.unit.IntOffset(0, -dy)) {
+        Row(Modifier.padding(horizontal = 16.dp).heightIn(min = 52.dp).glass(c, RoundedCornerShape(26.dp)).padding(start = 16.dp, end = 6.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            val (icon, label) = when {
+                mode == BrDev.PICK_INSPECT -> BrIcons.Select to stringResource(R.string.brPickHint)
+                mode == BrDev.PICK_ZAP -> BrIcons.Trash to stringResource(R.string.brZapHint, a.zappedNow.size)
+                edit -> BrIcons.Edit to stringResource(R.string.brEditHint)
+                else -> BrIcons.Rec to stringResource(R.string.brRecHint, a.recSteps.count { it.k != 'n' })
+            }
+            Icon(icon, null, Modifier.size(20.dp), tint = if (rec && mode == 0 && !edit) Color(0xFFFF3B30) else c.tint)
+            Spacer(Modifier.width(10.dp))
+            Text(label, Modifier.widthIn(max = 220.dp), color = c.fg, fontSize = 15.sp, maxLines = 2)
+            when {
+                mode == BrDev.PICK_INSPECT -> TextButton({ a.endPick(false) }) { Text(stringResource(R.string.brCancel), color = c.tint) }
+                mode == BrDev.PICK_ZAP -> {
+                    if (a.zappedNow.isNotEmpty()) TextButton({ a.endPick(true) }) { Text(stringResource(R.string.brZapAlways), color = c.tint) }
+                    TextButton({ a.endPick(false) }) { Text(stringResource(R.string.brDone), color = c.tint, fontWeight = FontWeight.SemiBold) }
+                }
+                edit -> TextButton({ a.toggleEdit(t) }) { Text(stringResource(R.string.brDone), color = c.tint, fontWeight = FontWeight.SemiBold) }
+                else -> {
+                    TextButton({ a.stopRec(false) }) { Text(stringResource(R.string.brCancel), color = c.tint) }
+                    TextButton({ a.stopRec(true) }) { Text(stringResource(R.string.brSave), color = c.tint, fontWeight = FontWeight.SemiBold) }
+                }
+            }
+        }
+    }
+}
+
+/** תיבת טקסט בזכוכית (בעורך הסקריפטים) */
+@Composable
+private fun DevField(v: String, set: (String) -> Unit, hint: String, mono: Boolean = false, ltr: Boolean = false, height: Dp? = null) {
+    val c = LocalBr.current
+    val style = TextStyle(color = c.fg, fontSize = if (mono) 13.sp else 16.sp, fontFamily = if (mono) androidx.compose.ui.text.font.FontFamily.Monospace else null,
+        textDirection = if (ltr || mono) TextDirection.Ltr else TextDirection.Content)
+    Box(Modifier.fillMaxWidth().then(if (height != null) Modifier.height(height) else Modifier.heightIn(min = 48.dp))
+        .glass(c, RoundedCornerShape(14.dp), c.fill).padding(horizontal = 14.dp, vertical = 12.dp)) {
+        BasicTextField(v, set, Modifier.fillMaxSize(), singleLine = height == null, cursorBrush = SolidColor(c.tint), textStyle = style,
+            decorationBox = { inner -> Box { if (v.isEmpty()) Text(hint, color = c.mute, style = style.copy(color = c.mute)); inner() } })
+    }
+}
+
+/* ---------- 67 סקריפטים של משתמשים ---------- */
+
+@Composable
+private fun ScriptsScreen(a: BrowserActivity) {
+    val c = LocalBr.current
+    SubPage(stringResource(R.string.brScripts), back = stringResource(R.string.brSettings), onBack = { a.screen = BrowserActivity.Screen.SETTINGS }) {
+        item {
+            Group(footer = stringResource(R.string.brScriptsFoot)) {
+                IRow(stringResource(R.string.brScriptNew), lead = { Tile(BrIcons.CPlus, c.icon) }, color = c.tint, chevron = false) {
+                    a.editScript = BrDev.UScript(System.currentTimeMillis().toString(36), "", a.tabs.firstOrNull { it === a.cur }?.url?.let { BrStore.hostOf(it) } ?: "", "")
+                }
+            }
+        }
+        if (a.uscripts.isNotEmpty()) item {
+            Group {
+                a.uscripts.forEachIndexed { i, s ->
+                    if (i > 0) Sep()
+                    IRow(s.name.ifEmpty { s.match }, s.match, lead = { Tile(BrIcons.Code, if (s.sensitive) Color(0xFFFF3B30) else Color(0xFF3A3A3C)) }, ltrSub = true, chevron = false,
+                        trailing = { IosSwitch(s.on) { v -> a.saveScript(s.copy(on = v)) } }) { a.editScript = s }
+                }
+            }
+        }
+    }
+    a.editScript?.let { ScriptEditor(a, it) }
+}
+
+@Composable
+private fun ScriptEditor(a: BrowserActivity, s0: BrDev.UScript) {
+    val c = LocalBr.current
+    var name by remember(s0.id) { mutableStateOf(s0.name) }
+    var match by remember(s0.id) { mutableStateOf(s0.match) }
+    var code by remember(s0.id) { mutableStateOf(s0.code) }
+    var sens by remember(s0.id) { mutableStateOf(s0.sensitive) }
+    var askSens by remember { mutableStateOf(false) }
+    val exists = a.uscripts.any { it.id == s0.id }
+    val ok = match.isNotBlank() && code.isNotBlank()
+    Dialog(onDismissRequest = { a.editScript = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(Modifier.fillMaxSize().ambient(c).statusBarsPadding().navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
+            Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                TextButton({ a.editScript = null }) { Text(stringResource(R.string.brCancel), color = c.tint) }
+                Text(stringResource(R.string.brScripts), Modifier.weight(1f), color = c.fg, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = 1)
+                TextButton({ a.saveScript(s0.copy(name = name.trim().take(60), match = match.trim().take(500), code = code.take(BrDev.CODE_MAX), sensitive = sens)); a.editScript = null }, enabled = ok) {
+                    Text(stringResource(R.string.brSave), color = if (ok) c.tint else c.dis, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                DevField(name, { name = it }, stringResource(R.string.brScriptName))
+                DevField(match, { match = it }, stringResource(R.string.brScriptMatch), ltr = true)
+                DevField(code, { code = it }, "document.querySelector('…').remove()", mono = true, height = 300.dp)
+            }
+            Spacer(Modifier.height(12.dp))
+            Group(footer = stringResource(R.string.brScriptSensFoot)) {
+                IRow(stringResource(R.string.brScriptSens), lead = { Tile(BrIcons.Warn, Color(0xFFFF3B30)) }, chevron = false,
+                    trailing = { IosSwitch(sens) { v -> if (v) askSens = true else sens = false } })
+            }
+            if (exists) Group { IRow(stringResource(R.string.brDelete), color = Color(0xFFFF3B30), chevron = false) { a.delScript(s0.id); a.editScript = null } }
+        }
+    }
+    if (askSens) AlertDialog(onDismissRequest = { askSens = false }, containerColor = c.card,
+        text = { Text(stringResource(R.string.brScriptSensQ), color = c.fg, fontSize = 15.sp) },
+        confirmButton = { TextButton({ askSens = false; sens = true }) { Text(stringResource(R.string.brScriptAllow), color = Color(0xFFFF3B30)) } },
+        dismissButton = { TextButton({ askSens = false }) { Text(stringResource(R.string.brCancel), color = c.tint) } })
+}
+
+/* ---------- 65 מעקב אחרי דפים ---------- */
+
+@Composable
+private fun WatchesScreen(a: BrowserActivity) {
+    val c = LocalBr.current
+    LaunchedEffect(Unit) { while (true) { a.watchReload(); delay(3000) } }   // ה־Worker כותב ברקע — המסך מתעדכן
+    SubPage(stringResource(R.string.brWatches), back = stringResource(R.string.brSettings), onBack = { a.screen = BrowserActivity.Screen.SETTINGS }) {
+        item {
+            Group(footer = stringResource(R.string.brWatchesFoot)) {
+                if (a.watches.isEmpty()) IRow(stringResource(R.string.brWatchEmpty), lead = { Tile(BrIcons.Bell, c.icon) }, chevron = false)
+                else IRow(stringResource(R.string.brWatchNow), lead = { Tile(BrIcons.CRefresh, c.icon) }, color = c.tint, chevron = false) { BrWatch.checkNow(a) }
+            }
+        }
+        if (a.watches.isNotEmpty()) item {
+            Group {
+                a.watches.forEachIndexed { i, w ->
+                    if (i > 0) Sep()
+                    val sub = if (w.changed > 0) stringResource(R.string.brWatchNew) + (if (w.diff.isNotEmpty()) " · " + w.diff else "")
+                              else BrStore.hostOf(w.url) + " · " + (if (w.at > 0) stringResource(R.string.brWatchAt, ago(w.at)) else stringResource(R.string.brWatchNever))
+                    IRow(w.title.ifEmpty { BrStore.hostOf(w.url) }, sub, lead = { Tile(BrIcons.Bell, if (w.changed > 0) Color(0xFFFF3B30) else c.icon) }, chevron = false,
+                        trailing = {
+                            Box {
+                                var open by remember { mutableStateOf(false) }
+                                TextButton({ open = true }) { Text(stringResource(R.string.brEveryH, w.every), color = c.tint, fontSize = 14.sp) }
+                                DropdownMenu(open, { open = false }, containerColor = c.card) {
+                                    BrDev.EVERY.forEach { h -> DropdownMenuItem({ Text(stringResource(R.string.brEveryH, h)) }, { open = false; a.watchSet(w.id) { it.copy(every = h) } },
+                                        trailingIcon = { if (h == w.every) Icon(BrIcons.Check, null, tint = c.tint) }) }
+                                }
+                            }
+                            IBtn(BrIcons.Trash, stringResource(R.string.brDelete), size = 40.dp, iconSize = 20.dp, tint = c.mute) { a.watchDel(w.id) }
+                        }) { a.watchOpen(w) }
+                }
+            }
+        }
+    }
+}
+
+/* ---------- 66 הקלטות ---------- */
+
+@Composable
+private fun MacrosScreen(a: BrowserActivity) {
+    val c = LocalBr.current
+    SubPage(stringResource(R.string.brMacros), back = stringResource(R.string.brSettings), onBack = { a.screen = BrowserActivity.Screen.SETTINGS }) {
+        item {
+            Group(footer = stringResource(R.string.brMacrosFoot)) {
+                if (a.macros.isEmpty()) IRow(stringResource(R.string.brMacroEmpty), lead = { Tile(BrIcons.Rec, c.icon) }, chevron = false)
+                else a.macros.forEachIndexed { i, m ->
+                    if (i > 0) Sep()
+                    IRow(m.name, BrStore.hostOf(m.url) + " · " + stringResource(R.string.brMacroSteps, m.steps.count { it.k != 'n' }),
+                        lead = { Tile(BrIcons.Rec, Color(0xFFFF3B30)) }, chevron = false,
+                        trailing = { IBtn(BrIcons.Trash, stringResource(R.string.brDelete), size = 40.dp, iconSize = 20.dp, tint = c.mute) { a.putMacros(a.macros.filter { it.id != m.id }) } }) { a.play(m) }
+                }
+            }
+        }
+    }
+}
+
+/** 42 חלונות קופצים לאתר: רק אחרי נגיעה (ברירת המחדל) / מותר / חסום */
+@Composable
+private fun PopRow(v: Int, set: (Int) -> Unit) {
+    val c = LocalBr.current
+    var open by remember { mutableStateOf(false) }
+    val label = @Composable { x: Int -> stringResource(when (x) { 1 -> R.string.brAllowed; -1 -> R.string.brBlocked; else -> R.string.brPopGesture }) }
+    Box {
+        IRow(stringResource(R.string.brSitePop), lead = { Tile(BrIcons.OpenNew, Color(0xFF5856D6)) }, value = label(v)) { open = true }
+        DropdownMenu(open, { open = false }, containerColor = c.card) {
+            listOf(0, 1, -1).forEach { x -> DropdownMenuItem({ Text(label(x)) }, { open = false; set(x) }, trailingIcon = { if (x == v) Icon(BrIcons.Check, null, tint = c.tint) }) }
         }
     }
 }
