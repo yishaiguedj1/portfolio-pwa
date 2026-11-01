@@ -73,19 +73,33 @@ const FSM = require(path.join(root, 'ibkr-proxy/lib/fsmeter.js'));
   ok(FSM.alarms(t0 + 30 * 60e3).length === 0, 'קצב רגיל — בלי התראה');
   await FSM.run('studio:jobs', async () => { for (let i = 0; i < 30; i++) FSM.add(72, t0 + i * 60e3); });   // 2,160 בחצי שעה = הבאג של הבוקר
   const al = FSM.alarms(t0 + 30 * 60e3);
-  ok(al.length === 2 && al[0].k === 'tag' && al[0].tag === 'studio:jobs' && al[0].h === 2160, 'הבאג של הבוקר — התראה על הפעולה, בתוך חצי שעה');
-  ok(al[1].k === 'pace' && al[1].proj > 35000, 'וגם התראת קצב (צפי מעל 70% מהמכסה)');
+  ok(al.length === 1 && al[0].k === 'tag' && al[0].tag === 'studio:jobs' && al[0].h === 2160, 'הבאג של הבוקר — התראה על הפעולה, בתוך חצי שעה (פרץ של שעה — בלי צפי מנופח)');
   ok(FSM.alarms(t0 + 40 * 60e3).length === 0, 'אותה התראה — פעם אחת ביום');
   const fv = FSM.view(t0 + 30 * 60e3);
   ok(fv.hot.includes('studio:jobs') && !fv.hot.includes('studio:job') && fv.top[0][2] === 2160, 'view — מסומן חריג, עם השעה האחרונה');
   ok(FSM.view(t0 + 200 * 60e3).h === 0, 'אחרי יותר משעה בלי קריאות — 0 בשעה האחרונה');
+
+  // 01/11/2026: הצפי — קצב ממוצע של היום, לא שעה אחת × השעות עד האיפוס (צילום המסך: 1,787 בשעה × 21 = "80%")
+  FSM._reset();
+  const t1 = Date.UTC(2026, 10, 1, 8, 0, 0);   // חצות בקליפורניה
+  await FSM.run('studio:jobs', async () => { FSM.add(500, t1 + 10 * 60e3); FSM.add(1787, t1 + 170 * 60e3); });
+  const p1 = FSM.pace(t1 + 175 * 60e3);
+  ok(p1.h === 1787 && p1.proj < 0.4 * FSM.DAY_LIM && !FSM.alarms(t1 + 175 * 60e3).some((a) => a.k === 'pace'), 'פרץ של שעה בבוקר — צפי סביר, בלי התראת קצב');
+  FSM._reset();
+  await FSM.run('studio:status', async () => { for (let i = 0; i < 10 * 6; i++) FSM.add(250, t1 + i * 10 * 60e3); });   // 1,500 בשעה, 10 שעות ברצף
+  const al2 = FSM.alarms(t1 + 600 * 60e3);
+  ok(al2.length === 1 && al2[0].k === 'pace' && al2[0].proj > 35000, 'קצב רציף שיגמור את המכסה — התראת קצב');
+  FSM._reset();
+  await FSM.run('a', async () => { for (let i = 0; i < 6; i++) FSM.add(400, t1 + 600 * 60e3 + i * 10 * 60e3); });
+  await FSM.run('b', async () => { for (let i = 0; i < 6; i++) FSM.add(1000, t1 + 600 * 60e3 + i * 10 * 60e3); });
+  ok(FSM.alarms(t1 + 660 * 60e3).some((a) => a.k === 'pace'), 'שעה אחת שלבדה תגמור את המכסה (כמה פעולות מתחת לסף) — התראה');
 
   // נוסח ההתראה
   const W = require(path.join(root, 'ibkr-proxy/lib/webpush.js'));
   ok(W.KINDS.includes('fs_hot') && W.TEXT.he.fs_hot && W.TEXT.en.fs_hot, 'fs_hot — סוג התראה, בעברית ובאנגלית');
   const m1 = W.message('fs_hot', '', 'he', al[0]);
   ok(m1 && m1.t === 'קריאות חריגות למסד הנתונים' && m1.b.includes('studio:jobs') && m1.b.includes('2,160') && /#mon$/.test(m1.u), 'ההתראה — איזו פעולה, כמה, ונפתחת בניטור השרתים');
-  const m2 = W.message('fs_hot', '', 'en', al[1]);
+  const m2 = W.message('fs_hot', '', 'en', al2[0]);
   ok(m2 && /quota will run out/.test(m2.t), 'התראת הקצב — באנגלית');
   ok(W.message('fs_hot', '', 'he', { k: 'tag', tag: 'a<script>', h: 1 }).b.indexOf('<') < 0, 'התווית מסוננת');
 
