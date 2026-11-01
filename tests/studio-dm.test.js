@@ -84,7 +84,20 @@ const hook = (src) => { const i = src.indexOf('private const val HOOK = ' + Q3);
 ok(hook(br) && hook(br) === hook(hunt), 'אותו סקריפט ציד בשני הדפדפנים (Studio ו־DM)');
 ok(fs.existsSync(path.join(ROOT, 'android/app/src/grab/java/io/github/yishaiguedj1/snowball/HuntMedia.kt')) &&
   !fs.existsSync(path.join(ROOT, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/HuntMedia.kt')), 'HuntMedia משותף (src/grab)');
-ok(/android:name="\.dm\.DmBrowser"\s+android:exported="false"/.test(man), 'הדפדפן לא נגיש לאפליקציות אחרות');
+// 01/11/2026 (בקשת המשתמש: "דפדפן אחד"): ב־DM אין דפדפן — Studio Browser, והגשר (DmBridge) רק בהרשאת חתימה
+{
+  const bman = R('android/app/src/browser/AndroidManifest.xml');
+  const bridge = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmBridge.kt');
+  const hp = /<permission android:name="app\.thesnowball\.permission\.DM_HANDOFF" android:protectionLevel="signature" \/>/;
+  const ba = /android:name="\.dm\.DmBridge"\s+android:exported="true"\s+android:permission="app\.thesnowball\.permission\.DM_HANDOFF"/;
+  ok(!/android:name="\.dm\.DmBrowser"/.test(man), 'ב־Studio DM אין דפדפן משלו');
+  ok(hp.test(man) && hp.test(bman) && ba.test(man) && ba.test(bman), 'הגשר מוגן בהרשאת חתימה בשתי האפליקציות');
+  ok(/DmBridge\.openInBrowser\(this, start, refresh\)/.test(act) && /needBrowser\.value = true/.test(act), 'הגלישה מ־DM → Studio Browser (לא מותקן — הצעה להתקין)');
+  ok(/if \(DmBridge\.remote\(a\)\) return DmBridge\.sendSheet\(/.test(br), 'ב־Studio Browser עם DM מותקן — המסירה עוברת ל־DM');
+  ok(/DmBrowser\.stage\(url, ref, ua, refresh, title\)/.test(bridge) && /DmStore\.get\(it\) != null/.test(bridge), 'ב־DM: מהגשר לאותה מסירה עם אסימון; רענון רק של הורדה שקיימת');
+  ok(/val inDm = packageName == AppRoute\.DM_PKG/.test(bridge) && /ACTION_OPEN -> if \(!inDm\)/.test(bridge), 'כל צד מקבל רק את הפעולות שלו');
+  ok(!/DmLog|Log\.[dewi]\(/.test(bridge), 'הגשר לא כותב ליומן (ב־extras יש עוגיות)');
+}
 ok(/DmBrowser\.take\(i\.getStringExtra\(DmBrowser\.EXTRA_TOKEN\), u\)/.test(act) && !/getBooleanExtra\("?dm_ck/.test(act), 'עוגיות ו־User-Agent רק ממסירה בתוך התהליך — לא מ־extras');
 ok(/token != h\.token \|\| url != h\.url/.test(br) && /handoff = null/.test(br), 'המסירה חד־פעמית, לאותו קישור');
 ok(/setDownloadListener/.test(br), 'הורדה שהדף מתחיל — ל־DM');

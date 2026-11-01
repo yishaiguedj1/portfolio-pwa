@@ -69,9 +69,10 @@ class DmBrowser : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val bg = if (dark) Color.parseColor("#0E0E10") else Color.parseColor("#F6F6F8")
-        val fg = if (dark) Color.WHITE else Color.parseColor("#1C1C1E")
-        val field = if (dark) Color.parseColor("#222226") else Color.WHITE
+        // 01/11/2026: אותם ערכים של הזכוכית של Studio (DmGlass) — בסיס, טקסט, ושדה ב"מילוי" של המערכת
+        val bg = if (dark) Color.BLACK else Color.parseColor("#F2F2F7")
+        val fg = if (dark) Color.WHITE else Color.BLACK
+        val field = if (dark) Color.parseColor("#3D767680") else Color.parseColor("#1F767680")
         window.statusBarColor = bg
         window.navigationBarColor = bg
 
@@ -117,10 +118,13 @@ class DmBrowser : Activity() {
         col.addView(prog); col.addView(web)
         root.addView(col)
         pill = TextView(this).apply {
-            setTextColor(Color.parseColor("#1A0003")); textSize = 16f; gravity = Gravity.CENTER
+            setTextColor(Color.WHITE); textSize = 16f; gravity = Gravity.CENTER; typeface = android.graphics.Typeface.DEFAULT_BOLD
             setPadding(dp(22f), dp(13f), dp(22f), dp(13f))
-            background = GradientDrawable().apply { cornerRadius = dp(999f).toFloat(); setColor(Color.parseColor("#FF4656")) }
-            elevation = dp(8f).toFloat()
+            // זכוכית אדומה: ברק בחצי העליון מעל האדום (סעיף 3 ב־glass-btn.css)
+            background = android.graphics.drawable.LayerDrawable(arrayOf(
+                GradientDrawable().apply { cornerRadius = dp(999f).toFloat(); setColor(Color.parseColor("#FF4656")); setStroke(dp(1f) / 2, Color.parseColor("#6BFFFFFF")) },
+                GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.parseColor("#47FFFFFF"), Color.parseColor("#0FFFFFFF"), Color.TRANSPARENT, Color.TRANSPARENT)).apply { cornerRadius = dp(999f).toFloat() }))
+            elevation = dp(6f).toFloat()
             visibility = View.GONE
             setOnClickListener { pick() }
             layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
@@ -348,17 +352,25 @@ class DmBrowser : Activity() {
          * ל־yt-dlp (דף, HLS, DASH) — קובץ עוגיות זמני של האתר, מכל הכתובות של הדף
          */
         fun handOff(a: Activity, url: String, ref: String, file: Boolean, title: String, ua: String, urls: List<String>, refresh: String = ""): Boolean {
+            // 01/11/2026 (בקשת המשתמש: "דפדפן אחד"): ב־Studio Browser כש־Studio DM מותקן — ההורדה עוברת ל־DM (DmBridge, הרשאת חתימה)
+            if (DmBridge.remote(a)) return DmBridge.sendSheet(a, url, ref, file, title, ua, urls, refresh)
             val cm = DmCookies.get()
             try { cm.flush() } catch (e: Throwable) {}
             if (!file) try {
                 val us = urls.filter { it.startsWith("http") }.distinct()
                 DlEngine.saveCookies(a, ref.ifEmpty { url }, DlDeep.netscape(us.map { it to cm.getCookie(it) }, System.currentTimeMillis() / 1000), ua)
             } catch (e: Throwable) {}
-            val tok = java.util.UUID.randomUUID().toString()
-            synchronized(Companion) { handoff = Handoff(tok, url, ref, ua.take(400), true, refresh, System.currentTimeMillis(), title) }
+            val tok = stage(url, ref, ua, refresh, title)
             return try {
                 a.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url), a, DmActivity::class.java).putExtra(EXTRA_TOKEN, tok)); true
             } catch (e: Exception) { false }
+        }
+
+        /** מכין מסירה בתוך התהליך ומחזיר את האסימון החד־פעמי (גם DmBridge, אחרי שקיבל מ־Studio Browser) */
+        internal fun stage(url: String, ref: String, ua: String, refresh: String, title: String): String {
+            val tok = java.util.UUID.randomUUID().toString()
+            synchronized(Companion) { handoff = Handoff(tok, url, ref, ua.take(400), true, refresh, System.currentTimeMillis(), title) }
+            return tok
         }
 
         /** המסירה — פעם אחת, רק עם האסימון הנכון, לאותו קישור, ותוך דקה */
