@@ -907,7 +907,7 @@ export function fmtUsd(v) {
 }
 /* כרטיס "עלות": שורה לכל שלב (תיאום / תרגום / ביקורת / סוכן־משנה אחר), סכום כולל, והאם סוכן־משנה רץ על מודל אחר מהמצב שנבחר.
    מודל בלי מחירון — usd null: השורה בלי מחיר והסכום מסומן "לפחות" */
-export function costView(use, modeId) {
+export function costView(use, modeId, meas) {
   const rows = normUse(use);
   if (!rows) return null;
   const fam = modeById(modeId).fam;
@@ -922,6 +922,13 @@ export function costView(use, modeId) {
     return { k: r.k, nth: seen[r.k], model: modelLabel(r.m), tok, usd: r.usd, open: sub && r.op ? { tok: r.op, usd: r.oc } : null, off };
   });
   for (const r of out) if (seen[r.k] < 2) r.nth = 0;   // מספור רק כשיש כמה מאותו סוג
+  // 1/11/2026 (המשתמש: "התקציב מתעדכן והעלות לא"): בזמן ריצה יעד התקציב לוקח גם את מה שהמגדל מדד (tw.usd, לפני הפירוט של העובד).
+  // מה שעוד לא מפורט — שורה משלו, כדי שהסה״כ כאן יהיה אותו מספר כמו בתקציב
+  const m = Number(meas);
+  if (Number.isFinite(m) && m - total >= 0.005) {
+    out.push({ k: 'run', nth: 0, model: '', tok: 0, usd: Math.round((m - total) * 100) / 100, open: null, off: false, meas: true });
+    total = m;
+  }
   return { rows: out, total, partial, want: modelLabel('claude-' + fam + '-5-5'), warn: out.filter((r) => r.off) };
 }
 export function normStore(o) {
@@ -7552,9 +7559,37 @@ async function goldRun() {
     flashSafe(T('studioGoldStarted', { n: j.jobs.length }));
   } finally { goldBusy = ''; render('none'); }
 }
-function costCard(cv, tr) {
+/* 1/11/2026: מה שהמגדל מדד בזמן ריצה (אותו מספר שביעד התקציב) — רק כשהעבודה עוד רצה; בסוף הפירוט של העובד הוא הסופי */
+const costMeas = (r) => (r && r.srv && r.srv.sla && r.srv.sla.u && (r.srv.state === 'running' || r.srv.state === 'queued') ? r.srv.sla.u.sp : null);
+/* 1/11/2026 (המשתמש: "רק התקציב מתעדכן בזמן אמת"): הכרטיס נבנה פעם אחת והדף לא נבנה מחדש כשהעלות משתנה —
+   עכשיו הוא מתעדכן במקום (live) מהרשומה העדכנית, ונבנה מחדש רק כשהנתונים השתנו */
+function costCard(cv, tr, id) {
+  const box = h('div');
+  box.style.display = 'contents';
+  live(box, (el) => {
+    const r = id ? jobRec(id) : null;
+    const v = r && r.srv && r.srv.use ? costView(r.srv.use, r.spec.mode, costMeas(r)) || cv : cv;
+    const sig = JSON.stringify(v.rows) + v.total + (v.partial ? 1 : 0);
+    if (el.dataset.sig === sig) return;
+    el.dataset.sig = sig;
+    el.replaceChildren(...costBody(v, r && r.srv ? r.srv.tr : tr));
+  });
+  const out = [secT(T('studioSecCost')), box];
+  if (tr && tr.g.length) out.push(trDetails(tr));
+  out.push(note(T('studioCostNote')));
+  return out;
+}
+function costBody(cv, tr) {
   const rows = cv.rows.map((r) => {
     const row = h('div', 'st-row st-cost' + (r.off ? ' off-model' : ''));
+    if (r.meas) {
+      const l = h('span', 'st-l');
+      l.append(h('b', null, T('studioCostRun')), h('small', null, T('studioCostRunS')));
+      const v = h('span', 'st-v'); v.append(usdEl(r.usd));
+      row.append(l, v);
+      row.dataset.k = 'cost:run';
+      return row;
+    }
     const l = h('span', 'st-l');
     l.append(h('b', null, costLabel(r.k) + (r.nth ? ' ' + r.nth : '')));
     const sm = h('small');
@@ -7573,26 +7608,25 @@ function costCard(cv, tr) {
   const tv = h('span', 'st-v'); tv.append(usdEl(cv.total, cv.partial));
   tot.append(h('span', 'st-l', T('studioCostTotal')), tv);
   tot.dataset.k = 'cost:total';
-  const out = [secT(T('studioSecCost'))];
+  const out = [];
   for (const w of cv.warn) out.push(banner('warn', w.k === 'tl' ? T('studioCostWarnTl', { got: w.model, want: cv.want }) : T('studioCostWarnRv', { got: w.model, want: cv.want })));
   out.push(list(...rows, tot));
-  if (tr && tr.g.length) {
-    // v373: עקיבה — הפעולות הנפוצות (מקופל: פרטים לפי הצורך)
-    const tot2 = Object.values(tr.a).reduce((x, a) => ({ n: x.n + a.n, e: x.e + a.e }), { n: 0, e: 0 });
-    const det = h('details', 'st-details st-dig');
-    det.append(h('summary', null, T('studioTrT', { n: tot2.n }) + (tot2.e ? ' · ' + (tot2.e === 1 ? T('studioTrErr1') : T('studioTrErrs', { n: tot2.e })) : '')), list(...tr.g.map(([k, n, e]) => {
-      const r = h('div', 'st-row');
-      const lb = h('bdi', null, k.replace(/^vt:/, 'vt · ').replace(/^job:/, 'job.py · '));
-      const l = h('span', 'st-l'); const b = h('b'); b.append(lb); l.append(b);
-      if (e) l.append(h('small', 'st-neg', e === 1 ? T('studioTrErr1') : T('studioTrErrs', { n: e })));
-      r.append(l, h('span', 'st-v', ltr(n + '×')));
-      r.dataset.k = 'tr:' + k;
-      return r;
-    })));
-    out.push(det);
-  }
-  out.push(note(T('studioCostNote')));
   return out;
+}
+function trDetails(tr) {
+  // v373: עקיבה — הפעולות הנפוצות (מקופל: פרטים לפי הצורך)
+  const tot2 = Object.values(tr.a).reduce((x, a) => ({ n: x.n + a.n, e: x.e + a.e }), { n: 0, e: 0 });
+  const det = h('details', 'st-details st-dig');
+  det.append(h('summary', null, T('studioTrT', { n: tot2.n }) + (tot2.e ? ' · ' + (tot2.e === 1 ? T('studioTrErr1') : T('studioTrErrs', { n: tot2.e })) : '')), list(...tr.g.map(([k, n, e]) => {
+    const r = h('div', 'st-row');
+    const lb = h('bdi', null, k.replace(/^vt:/, 'vt · ').replace(/^job:/, 'job.py · '));
+    const l = h('span', 'st-l'); const b = h('b'); b.append(lb); l.append(b);
+    if (e) l.append(h('small', 'st-neg', e === 1 ? T('studioTrErr1') : T('studioTrErrs', { n: e })));
+    r.append(l, h('span', 'st-v', ltr(n + '×')));
+    r.dataset.k = 'tr:' + k;
+    return r;
+  })));
+  return det;
 }
 
 /* מסך ההתקדמות — "שגם ילד וגם אדם מבוגר יבינו": כמה נשאר, מתי יהיה מוכן, מה קורה עכשיו, ולכל שלב זמן */
@@ -8831,7 +8865,7 @@ function pageJob(p) {
   p.append(...orgRows(rec));   // 28/10/2026: מאיפה הגיע כל קובץ
   // v359: עלות — שורה לכל שלב, עלות הפתיחה של כל סוכן־משנה, סכום כולל
   const cv = rec.srv && rec.srv.use ? costView(rec.srv.use, rec.spec.mode) : null;
-  if (cv) p.append(...costCard(cv, rec.srv.tr));
+  if (cv) p.append(...costCard(cv, rec.srv.tr, rec.id));
 
   // הסרטון המלא — עולה ברקע אחרי הקול (Claude צריך אותו רק לצריבה)
   if (!rec.up.noAudio && !rec.up.v.done && (ph0 === 'queued' || ph0 === 'running')) {
