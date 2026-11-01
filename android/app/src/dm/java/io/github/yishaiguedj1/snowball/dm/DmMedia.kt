@@ -26,6 +26,26 @@ object DmMedia {
 
     const val APK = "application/vnd.android.package-archive"
 
+    /** התיקייה שבה הקובץ יישמר (לתצוגה לפני ההורדה) */
+    fun folderOf(name: String, mime: String) = where(name, mime).second
+
+    /** קובץ חדש ב־Download (‏rel = נתיב יחסי) שנכתב מזרם — הצצה ל־ZIP. כישלון = הקובץ החלקי נמחק */
+    fun saveStream(ctx: Context, rel: String, name: String, write: (java.io.OutputStream) -> Unit): Uri {
+        val cr = ctx.contentResolver
+        val cv = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(MediaStore.MediaColumns.MIME_TYPE, mimeFor(name, ""))
+            put(MediaStore.MediaColumns.RELATIVE_PATH, rel)
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+        val u = cr.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv) ?: throw DmSpace()
+        try {
+            cr.openOutputStream(u, "w")?.use { o -> write(o) } ?: throw DmSpace()
+            cr.update(u, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
+        } catch (e: Throwable) { runCatching { cr.delete(u, null, null) }; throw e }
+        return u
+    }
+
     /** קובץ .apk = תמיד הסוג של חבילת אנדרואיד (גם כשהשרת שלח octet-stream — אחרת מתקין החבילות לא מזהה אותו) */
     fun mimeFor(name: String, mime: String) = if (DmName.ext(name).equals("apk", true)) APK
         else mime.ifEmpty { DmName.mimeOfExt(DmName.ext(name)) }.ifEmpty { "application/octet-stream" }

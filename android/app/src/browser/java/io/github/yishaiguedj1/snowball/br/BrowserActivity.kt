@@ -71,6 +71,7 @@ import io.github.yishaiguedj1.snowball.YtPage
 import io.github.yishaiguedj1.snowball.HuntMedia
 import io.github.yishaiguedj1.snowball.R
 import io.github.yishaiguedj1.snowball.dm.DmActivity
+import io.github.yishaiguedj1.snowball.dm.DmBridge
 import io.github.yishaiguedj1.snowball.dm.DmBrowser
 import io.github.yishaiguedj1.snowball.dm.DmCookies
 import io.github.yishaiguedj1.snowball.dm.DmEngine
@@ -1028,7 +1029,15 @@ class BrowserActivity : ComponentActivity() {
         val (q, audio, tr) = DmPre.choice(info, k) ?: return
         if (tr && !AppRoute.studioInstalled(this)) return
         val subs = DmSubs.forTask(info.optJSONArray("sub"), !audio)   // 27/10: עם כתוביות כברירת מחדל, כמו בגיליון
-        DmPre.enqueue(this, p.url, info, q, audio, if (p.page) "" else t.page, ck = true, tr = tr, subs = subs)
+        val ref = if (p.page) "" else t.page
+        // 01/11/2026: כש־Studio DM מותקן — ההורדה נכנסת לתור שלו (DmBridge), אחרת לתור של הדפדפן
+        if (DmBridge.remote(this)) {
+            if (!DmBridge.sendTask(this, DmPre.build(this, p.url, info, q, audio, ref, ck = true, tr = tr, subs = subs), runCatching { t.web?.settings?.userAgentString }.getOrNull() ?: "", listOf(t.page))) {
+                Toast.makeText(this, R.string.dmErrFail, Toast.LENGTH_SHORT).show(); return
+            }
+            pick = false; return
+        }
+        DmPre.enqueue(this, p.url, info, q, audio, ref, ck = true, tr = tr, subs = subs)
         pick = false
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             runCatching { requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 7) }
@@ -1085,7 +1094,9 @@ class BrowserActivity : ComponentActivity() {
         } catch (e: Exception) { go("") }
     }
 
-    fun openDownloads() { menu = false; runCatching { startActivity(Intent(this, DmActivity::class.java)) } }
+    /** ההורדות: Studio DM כשהוא מותקן (לשם הן עוברות — DmBridge), אחרת מנהל ההורדות שבתוך הדפדפן */
+    private fun dmIntent(): Intent = (if (DmBridge.remote(this)) packageManager.getLaunchIntentForPackage(AppRoute.DM_PKG) else null) ?: Intent(this, DmActivity::class.java)
+    fun openDownloads() { menu = false; runCatching { startActivity(dmIntent()) } }
 
     /* ---------------- תפריט ---------------- */
 
@@ -1375,7 +1386,7 @@ class BrowserActivity : ComponentActivity() {
         runCatching { startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, txt), getString(R.string.brShare))) }
     }
 
-    fun dlSettings() { runCatching { startActivity(Intent(this, DmActivity::class.java)) } }
+    fun dlSettings() { runCatching { startActivity(dmIntent()) } }
 
     fun version(): String = runCatching { packageManager.getPackageInfo(packageName, 0).versionName ?: "" }.getOrDefault("")
 
