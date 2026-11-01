@@ -39,7 +39,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/chapters: rec\.chap \|\| \[\]/.test(sj), 'playLoad מעביר את הפרקים לנגן');
   ok(/setChapters\(c\) \{ chs = normChapters\(c\)/.test(src) && /chapters: \(\) => chs\.slice\(\)/.test(src), 'setChapters / chapters בנגן');
   ok(/mRow\('chap', T\('studioPlChaps'\)/.test(src) && /page === 'c'/.test(src), 'גלגל השיניים: שורת "פרקים" ← רשימה (נגיעה קופצת)');
-  ok(/time\.append\(cur, chapB, tot\)/.test(src) && /openMenu\('c'\)/.test(src), 'שם הפרק באמצע שורת הזמן — נגיעה פותחת את הרשימה');
+  ok(/tbox\.append\(cur, tsep, tot, chapB\)/.test(src) && /time\.append\(tbox, fsB\)/.test(src) && /openMenu\('c'\)/.test(src), 'שם הפרק אחרי הזמן "0:02 / 18:32" (לפי ת־נגן, 1/11/2026) — נגיעה פותחת את הרשימה; מסך מלא בסוף השורה');
   ok(/c\.t > 0\.5 && c\.t < d - 0\.5/.test(src) && /\.st-pl-chs i/.test(css), 'מפרידים על הפס (לא בתחילת הפרק הראשון ולא בסוף)');
   ok(/chapL\.dir = 'auto'/.test(src) && /t\.dir = 'auto'/.test(src), 'שם פרק בעברית בתוך נגן LTR — dir=auto');
   ok(/rec\.chap = chs; save\(\)/.test(sj) && /'id-chap'/.test(sj) && /'id-chapdel'/.test(sj), '"רעיונות": להוסיף לנגן / להסיר (באישור)');

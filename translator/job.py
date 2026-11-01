@@ -5038,7 +5038,7 @@ def ladder_run(args):
         pass
     r = LD.build(args.src, LADDER_DIR / 'out', log=lambda m: print(m, flush=True), gate=ladder_gate if getattr(args, 'gate', False) else None)
     st = {'job': args.job, 's': 'ok' if r.get('ok') else 'skip', 'why': r.get('why', ''), 'top': r.get('top'), 'rungs': r.get('rungs'),
-          'alt': r.get('alt'), 'alts': r.get('alts'), 'at': time.time()}
+          'alt': r.get('alt'), 'alts': r.get('alts'), 'side': r.get('side'), 'at': time.time()}
     (LADDER_DIR / 'state.json').write_text(json.dumps(st), encoding='utf-8')
     print('✓ איכויות מוכנות' if r.get('ok') else '· בלי איכויות (' + st['why'] + ')', flush=True)
     return 0
@@ -5103,6 +5103,12 @@ def ladder_finish(ctx):
             a.update({k: alt[k] for k in ('l', 'd') if alt.get(k)})
             hla.append(a)
             up.append(dict(a, a=1))              # לניקוי אם משהו נכשל
+        # 1/11/2026: כתוביות/קבצים מצורפים מהמקור — נשמרים ליד המקור לפני שהוא מוחלף (אחרת לא מחליפים)
+        if st.get('side'):
+            sp = Path(str(st['side']))
+            if not sp.exists():
+                raise SystemExit('side')
+            up.append({'id': put_output(ctx, sp, title + ' (כתוביות וקבצים מהמקור).mkv', 'hl', 'video/x-matroska'), 'a': 1})
         tp = Path(top['f'])
         put_output(ctx, tp, title + '.mp4', 'v', 'video/mp4', replace=v['id'])
     except SystemExit as e:

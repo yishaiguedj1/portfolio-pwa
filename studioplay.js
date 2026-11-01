@@ -513,6 +513,8 @@ export function normSty(o) {
 
 /* opts: { src, fallback, cues, issues, chapters, T, burned } — fallback = כתובת לסרטון הצרוב אם המקור לא מתנגן (אז בלי כתוביות מעליו).
    מחזיר { el, video, seek, play, pause, setCues, setChapters, destroy }. el יציב — studio.js משאיר אותו בין ציורים (וידאו שמוצא מהמסמך נעצר) */
+// לפי ת־נגן: הקשה כפולה = 5 שנ׳, כל הקשה נוספת ברצף (עד TAP_RUN אחרי הקודמת) = עוד 5; לחיצה ארוכה = ×2
+export const TAP_STEP = 5, TAP_RUN = 700, HOLD_MS = 450, FAST_RATE = 2;
 export function createPlayer(opts) {
   const T = opts.T || ((k) => k);
   let cues = opts.cues || [], issues = opts.issues || [], chs = normChapters(opts.chapters), chNow = -2;
@@ -547,7 +549,8 @@ export function createPlayer(opts) {
   const flagB = opts.onFlag ? ib('fl', 'flag', T('studioPlFlag'), () => flagNow()) : null;
   const fToast = el('div', 'st-pl-ftoast'); fToast.hidden = true; fToast.dir = 'rtl';
   const fMarks = el('div', 'st-pl-flags');
-  top.append(...[flagB, ccB, gearB, fsB].filter(Boolean));
+  // 1/11/2026 (בקשת המשתמש — הסידור לפי ת־נגן): למעלה בצד הסוף סימון/כתוביות/הגדרות; מסך מלא — למטה בצד הסוף, ליד שורת הזמן
+  top.append(...[flagB, ccB, gearB].filter(Boolean));
   const backB = ib('sm', 'back', T('studioPlBack'), () => jump(-10));
   const playB = ib('bg', 'play', T('studioPlPlay'), () => toggle());
   const fwdB = ib('sm', 'fwd', T('studioPlFwd'), () => jump(10));
@@ -557,7 +560,9 @@ export function createPlayer(opts) {
   const chapB = el('button', 'st-pl-chb'); chapB.type = 'button'; chapB.hidden = true;
   const chapL = el('span', 'st-pl-chl'); chapL.dir = 'auto'; chapB.append(chapL, icon('chev'));
   chapB.addEventListener('click', (e) => { e.stopPropagation(); openMenu('c'); });
-  time.append(cur, chapB, tot);
+  const tsep = el('span', 'st-pl-tsep', ' / '), tbox = el('div', 'st-pl-tbox');
+  tbox.append(cur, tsep, tot, chapB);
+  time.append(tbox, fsB);
   const bar = el('div', 'st-pl-bar'), track = el('div', 'st-pl-track'), buf = el('i', 'buf'), played = el('i', 'pl'), knob = el('span', 'st-pl-knob');
   const heat = el('div', 'st-pl-heat'), marks = el('div', 'st-pl-chs');
   track.append(buf, played); bar.append(heat, track, marks, fMarks, knob);
@@ -566,7 +571,9 @@ export function createPlayer(opts) {
   ui.append(top, mid, bot);
   const rl = el('div', 'st-pl-rip l'), rr = el('div', 'st-pl-rip r');
   const err = el('div', 'st-pl-err'); err.hidden = true;
-  wrap.append(v, sub, rl, rr, ui, fToast, err);
+  // לחיצה ארוכה = ניגון מהיר כל עוד האצבע על המסך (לפי ת־נגן); התווית בראש התמונה
+  const fastL = el('div', 'st-pl-fast'); fastL.hidden = true; fastL.dir = 'auto'; fastL.textContent = T('studioPlFast', { x: FAST_RATE });
+  wrap.append(v, sub, rl, rr, ui, fToast, fastL, err);
 
   /* ---- איכות: hls.js על הקבצים שהעובד ארז (opts.ladder), ברירת מחדל = המקור ---- */
   let pq = normPq(opts.pq), hls = null, levels = [], autoNow = -1, mode = 'file', altsNow = [];
@@ -706,10 +713,11 @@ export function createPlayer(opts) {
     menu.dir = (typeof document !== 'undefined' && document.documentElement.dir) || 'rtl';
     if (!page) {
       if (mode === 'hls' && levels.length > 1) box.append(mRow('tune', T('studioPlQuality'), qNow(), () => openMenu('q')));
+      // הסדר לפי ת־נגן: איכות, כתוביות, מהירות, קול
+      if (cues.length && !ccB.disabled) box.append(mRow('cc', T('studioPlCc'), ccName(cc), () => openMenu('t')));
       box.append(mRow('speed', T('studioPlSpeed'), speedName(v.playbackRate), () => openMenu('s')));
       const ai = audNow();
       if (ai >= 0) box.append(mRow('aud', T('studioPlAudio'), altName(audList()[ai], ai, T, uiLang()), () => openMenu('a')));
-      if (cues.length && !ccB.disabled) box.append(mRow('cc', T('studioPlCc'), ccName(cc), () => openMenu('t')));
       if (chs.length) box.append(mRow('chap', T('studioPlChaps'), String(chs.length), () => openMenu('c')));
     } else {
       box.append(mRow('prev', page === 'q' ? T('studioPlQuality') : page === 'c' ? T('studioPlChaps') : page === 'a' ? T('studioPlAudio') : page === 't' ? T('studioPlCc') : T('studioPlSpeed'), null, () => openMenu('')));
@@ -900,18 +908,28 @@ export function createPlayer(opts) {
     playB.setAttribute('aria-label', v.paused ? T('studioPlPlay') : T('studioPlPause'));
   }
   function poke() {
+    if (holding) return;   // בלחיצה ארוכה הפקדים מוסתרים (לפי ת־נגן) — גם כשהניגון מתחיל
     wrap.classList.remove('hide');
     clearTimeout(hideT);
     if (!v.paused) hideT = setTimeout(() => { if (!dragging && menu.hidden) wrap.classList.add('hide'); }, 2800);
   }
   function toggle() { if (v.paused) { const p = v.play(); if (p && p.catch) p.catch(() => {}); } else v.pause(); poke(); }
-  function jump(dt) {
+  // 1/11/2026 (בקשת המשתמש — לפי ת־נגן): דילוג בהקשה כפולה = 5 שנ׳, וכל הקשה נוספת ברצף באותו צד מוסיפה עוד 5 (התווית מציגה את הסכום)
+  let runSide = 0, runSum = 0, runT = 0, ripT = 0;
+  function jump(dt, label) {
     const d = v.duration || 0;
     v.currentTime = Math.max(0, Math.min(d > 0 ? d - 0.05 : Infinity, (v.currentTime || 0) + dt));
-    const r = dt < 0 ? rl : rr;
-    r.textContent = (dt < 0 ? '−' : '+') + Math.abs(dt) + ' ' + T('studioPlSec');
-    r.classList.add('on'); setTimeout(() => r.classList.remove('on'), 450);
+    const sum = label || dt, r = sum < 0 ? rl : rr;
+    (sum < 0 ? rr : rl).classList.remove('on');
+    r.textContent = (sum < 0 ? '−' : '+') + Math.abs(sum) + ' ' + T('studioPlSec');
+    r.classList.add('on'); clearTimeout(ripT); ripT = setTimeout(() => r.classList.remove('on'), label ? TAP_RUN + 150 : 450);
     poke();
+  }
+  function tapSeek(side) {
+    if (runSide !== side) { runSide = side; runSum = 0; }
+    runSum += side * TAP_STEP;
+    jump(side * TAP_STEP, runSum);
+    clearTimeout(runT); runT = setTimeout(() => { runSide = 0; runSum = 0; }, TAP_RUN);
   }
   function seekX(x) {
     const r = bar.getBoundingClientRect(), d = v.duration || 0;
@@ -919,15 +937,39 @@ export function createPlayer(opts) {
     v.currentTime = Math.max(0, Math.min(1, (x - r.left) / r.width)) * d;
     paintBar(); paintSub();
   }
-  // נגיעה: אחת = הצגה/הסתרה של הפקדים; כפולה בשליש הימני/השמאלי = ±10 (לפי ת־נגן; לפי הצד הפיזי, גם ב־RTL)
+  // נגיעה: אחת = הצגה/הסתרה של הפקדים; כפולה בשליש הימני/השמאלי = ±5, ועוד הקשות ברצף = עוד 5 כל אחת (לפי ת־נגן; לפי הצד הפיזי, גם ב־RTL)
   wrap.addEventListener('click', (e) => {
-    if (e.target.closest && e.target.closest('.st-pl-b, .st-pl-bar')) return;
+    if (held) { held = false; return; }   // סוף לחיצה ארוכה — לא הקשה
+    if (e.target.closest && e.target.closest('.st-pl-b, .st-pl-bar, .st-pl-chb')) return;
     const now = Date.now(), r = wrap.getBoundingClientRect(), x = (e.clientX - r.left) / Math.max(1, r.width);
-    if (now - lastTap < 300 && (x < 0.35 || x > 0.65)) { clearTimeout(tapT); lastTap = 0; jump(x < 0.35 ? -10 : 10); return; }
+    const side = x < 0.35 ? -1 : x > 0.65 ? 1 : 0;
+    if (side && runSide === side) { clearTimeout(tapT); lastTap = 0; tapSeek(side); return; }
+    if (now - lastTap < 300 && side) { clearTimeout(tapT); lastTap = 0; tapSeek(side); return; }
     lastTap = now;
     clearTimeout(tapT);
     tapT = setTimeout(() => { if (wrap.classList.contains('hide')) poke(); else if (!v.paused) wrap.classList.add('hide'); }, 280);
   });
+  // לחיצה ארוכה על התמונה = מהירות ×2 עד שהאצבע עוזבת (לפי ת־נגן); זזה — זו גלילה, לא לחיצה
+  let holdT = 0, held = false, holding = false, holdX = 0, holdY = 0, rate0 = 1;
+  const holdOn = (e) => !(e.target.closest && e.target.closest('.st-pl-b, .st-pl-bar, .st-pl-chb, .st-pl-menu, .st-pl-ftoast'));
+  wrap.addEventListener('pointerdown', (e) => {
+    if (e.button > 0 || !holdOn(e)) return;
+    holdX = e.clientX; holdY = e.clientY; clearTimeout(holdT);
+    holdT = setTimeout(() => {
+      holding = true; held = true; rate0 = v.playbackRate || 1; v.playbackRate = FAST_RATE;
+      if (v.paused) { const p = v.play(); if (p && p.catch) p.catch(() => {}); }
+      clearTimeout(hideT); wrap.classList.add('hide'); fastL.hidden = false;
+    }, HOLD_MS);
+  });
+  wrap.addEventListener('pointermove', (e) => { if (!holding && (Math.abs(e.clientX - holdX) > 12 || Math.abs(e.clientY - holdY) > 12)) clearTimeout(holdT); });
+  const holdEnd = () => {
+    clearTimeout(holdT);
+    if (!holding) return;
+    holding = false; v.playbackRate = rate0; fastL.hidden = true;
+    setTimeout(() => { held = false; }, 400);   // הקליק שאחרי השחרור מגיע מיד; בלי קליק (גלילה/ביטול) — לא נתקעים
+  };
+  wrap.addEventListener('pointerup', holdEnd); wrap.addEventListener('pointercancel', holdEnd);
+  wrap.addEventListener('contextmenu', (e) => { if (holdOn(e)) e.preventDefault(); });
   bar.addEventListener('pointerdown', (e) => { dragging = true; try { bar.setPointerCapture(e.pointerId); } catch (x) {} seekX(e.clientX); poke(); e.stopPropagation(); });
   bar.addEventListener('pointermove', (e) => { if (dragging) seekX(e.clientX); });
   const endDrag = () => { if (dragging) { dragging = false; poke(); } };
@@ -1002,7 +1044,7 @@ export function createPlayer(opts) {
     audioBridge: () => (bridge ? bridge.state() : fBridge ? fBridge.state() : null),   // QA ובדיקות
     audio: () => ({ list: audList().map((a) => a.l || ''), now: audNow() }),             // QA ובדיקות
     destroy() {
-      if (destroyed) return; destroyed = true; clearTimeout(hideT); clearTimeout(tapT); clearTimeout(ftT);
+      if (destroyed) return; destroyed = true; clearTimeout(hideT); clearTimeout(tapT); clearTimeout(ftT); clearTimeout(holdT); clearTimeout(runT); clearTimeout(ripT);
       if (bridge) { bridge.destroy(); bridge = null; }
       if (fBridge) { fBridge.destroy(); fBridge = null; }
       if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }

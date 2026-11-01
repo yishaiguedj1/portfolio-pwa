@@ -28,7 +28,11 @@ A_MAX = 4
 GOP_MAX = 12.0                                   # מפתח לפחות כל 12 שנ׳ — אחרת קטעים ענקיים (קפיצה ומעבר איטיים)
 A_LOW = '64k'
 MOVFLAGS = '+frag_keyframe+empty_moov+default_base_moof+global_sidx'
-WHY = ('streams', 'vcodec', 'acodec', 'gop', 'small', 'edl', 'probe', 'remux', 'verify', 'encode', 'time', 'alt')
+WHY = ('streams', 'vcodec', 'acodec', 'gop', 'small', 'edl', 'probe', 'remux', 'verify', 'encode', 'time', 'alt', 'side')
+# 1/11/2026 (בקשת המשתמש: "למה אין בחירת איכות"): קובצי סרטים וסדרות כמעט תמיד מגיעים עם כתוביות / גופנים בתוך הקובץ, ועד היום
+# זה ביטל את האיכויות לגמרי. עכשיו הם יוצאים כמו שהם (בלי המרה) לקובץ צד קטן (side.mkv) ששמור בתיקיית העבודה ליד המקור — שום דבר
+# לא אובד, והמקור נארז כרגיל. זרם מסוג אחר (לא כתוביות ולא קובץ מצורף) — עדיין לא נוגעים
+SIDE_OK = ('subtitle', 'attachment')
 
 
 def _streams(info):
@@ -57,7 +61,8 @@ def summarize(info, gop):
         dur = 0.0
     tracks = [_track(a) for a in aus]
     first = tracks[0] if tracks else {'c': '', 'ch': 0}
-    return {'nv': len(vs), 'na': len(aus), 'other': other, 'v': v.get('codec_name') or '', 'a': first['c'],
+    subs = [s.get('codec_name') or '' for s in _streams(info) if s.get('codec_type') == 'subtitle']
+    return {'nv': len(vs), 'na': len(aus), 'other': other, 'subs': subs, 'v': v.get('codec_name') or '', 'a': first['c'],
             'ch': first['ch'], 'as': tracks, 'w': w, 'h': h, 'dur': dur, 'gop': gop}
 
 
@@ -78,7 +83,7 @@ def plan(sm, edl=False):
         return {'ok': False, 'why': why, 'short': 0, 'rungs': [], 'alt': False}
     if edl:
         return no('edl')                         # חיתוך לפני התרגום — הנגן מנגן את הצריבה, לא את המקור
-    if sm['nv'] != 1 or sm['na'] > A_MAX or sm['other']:
+    if sm['nv'] != 1 or sm['na'] > A_MAX or any(o not in SIDE_OK for o in sm['other']):
         return no('streams')                     # כתוביות / פרקים / קבצים מצורפים / יותר מ־A_MAX רצועות קול — לא נוגעים במקור
     if sm['v'] not in V_OK:
         return no('vcodec')
@@ -90,7 +95,8 @@ def plan(sm, edl=False):
     rungs = [r for r in RUNGS if r[0] < short - 8]
     if short < 200 or not rungs:
         return no('small')
-    return {'ok': True, 'why': '', 'short': short, 'rungs': rungs, 'alt': sm['na'] > 1 or (bool(sm['na']) and sm['a'] in A_ALT)}
+    return {'ok': True, 'why': '', 'short': short, 'rungs': rungs, 'alt': sm['na'] > 1 or (bool(sm['na']) and sm['a'] in A_ALT),
+            'side': bool(sm['other'])}
 
 
 def _tracks_of(sm):
@@ -380,6 +386,19 @@ def describe(path, segs_hint=None):
     return {'bw': int(max(peak, total * 8 / dur)), 'abw': int(total * 8 / dur), 'c': codecs(b), 'size': os.path.getsize(path), 'w': w, 'h': h}
 
 
+def side_cmd(src, out, sm, ffmpeg='ffmpeg'):
+    """הכתוביות והקבצים המצורפים של המקור (ופרקים) — לקובץ MKV קטן, בלי המרה. mov_text (כתוביות של MP4) לא נכנס ל־MKV — SRT."""
+    cmd = [ffmpeg, '-hide_banner', '-loglevel', 'error', '-y', '-i', str(src), '-map', '0:s?', '-map', '0:t?', '-map_chapters', '0', '-c', 'copy']
+    if 'mov_text' in (sm.get('subs') or []):
+        cmd += ['-c:s', 'srt']
+    return cmd + ['-f', 'matroska', str(out)]
+
+
+def side_count(p, ffprobe='ffprobe'):
+    r = subprocess.run([ffprobe, '-v', 'error', '-show_streams', '-of', 'json', str(p)], capture_output=True, text=True)
+    return sum(1 for s in _streams(json.loads(r.stdout or '{}')) if s.get('codec_type') in SIDE_OK)
+
+
 def verify_same(src, top, ffprobe='ffprobe', na=1):
     """האריזה לא איבדה כלום: אותו מספר מנות וידאו ובכל רצועת קול, ואותו אורך (עד 0.25 שנ׳)."""
     def cnt(p, sel):
@@ -413,6 +432,12 @@ def build(src, outdir, edl=False, ffmpeg='ffmpeg', ffprobe='ffprobe', log=print,
         return {'ok': False, 'why': 'remux'}
     if not verify_same(src, top, ffprobe, sm['na']):
         return {'ok': False, 'why': 'verify'}
+    side = None
+    if pl.get('side'):
+        side = outdir / 'side.mkv'
+        log('איכויות: הכתוביות והקבצים המצורפים של המקור — לקובץ צד (בלי המרה)')
+        if subprocess.run(side_cmd(src, side, sm, ffmpeg)).returncode != 0 or not side.exists() or side_count(side, ffprobe) != len(sm['other']):
+            return {'ok': False, 'why': 'side'}
     alts = []
     if pl['alt']:
         log('איכויות: עותק קול לנגן (Opus%s) — הקול המקורי נשאר בקובץ' % ('' if sm['na'] < 2 else ', %d רצועות' % sm['na']))
@@ -440,6 +465,8 @@ def build(src, outdir, edl=False, ffmpeg='ffmpeg', ffprobe='ffprobe', log=print,
         d.update(f=str(p))                       # האיכויות הנמוכות כבר זקופות (ffmpeg מסובב בפענוח)
         rungs.append(d)
     out = {'ok': True, 'why': '', 'top': t, 'rungs': rungs}
+    if side:
+        out['side'] = str(side)
     if alts:
         tr, lst = _tracks_of(sm), []
         dflt = next((i for i, t in enumerate(tr) if t.get('d')), 0)   # ברירת המחדל של המקור, אחרת הראשונה
