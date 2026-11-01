@@ -158,7 +158,9 @@ ok(/private fun TopBar\(/.test(ui) && !/private fun Toolbar\(a: BrowserActivity\
   'הסרגל של Chrome לאנדרואיד למעלה: דף הבית · הכתובת · כרטיסייה חדשה · כרטיסיות · ⋮ — בלי סרגל תחתון של אייפון');
 ok(/private fun MenuSheet\(a: BrowserActivity\)/.test(ui) && /Dialog\(/.test(ui) && /PixelCopy\.request/.test(ui) && /boxBlur\(bmp/.test(ui) && !/setBackgroundBlurRadius/.test(ui) && /private fun RowScope\.MBtn\(/.test(ui) && !/private fun Dest\(/.test(ui),
   'התפריט ⋮ = החלון של Chrome מהפינה (שורת כפתורים ופריטים), זכוכית עם טשטוש');
-ok(/private val Red = Color\(0xFFFF4656\)/.test(ui) && /Color\(0x4A3C3C43\), Red,/.test(ui) && !/0xFF1A73E8\)\)/.test(ui.replace(/FavPal[^\n]*/, '')),
+// 01/11/2026: הזכוכית והאדום מ־DmGlass (מקור אחד עם Studio DM) — StRed = ‎#FF4656
+const dmGlass = fs.readFileSync(path.join(__dirname, '..', 'android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmGlass.kt'), 'utf8');
+ok(/val StRed = Color\(0xFFFF4656\)/.test(dmGlass) && /private val Red = StRed/.test(ui) && /Color\(0x4A3C3C43\), StRed,/.test(ui) && !/0xFF1A73E8\)\)/.test(ui.replace(/FavPal[^\n]*/, '')),
   'צבע הפעולה = האדום של כפתור ההורדה, לא הכחול של Google');
 ok(/private fun Modifier\.glass\(/.test(ui) && /private fun Modifier\.ambient\(/.test(ui), 'זכוכית ורקע רך (iOS 27)');
 ok(/val GoogleLogo/.test(R(B + 'BrIcons.kt')) && /val CNewTab = cr\("ic_add_box_rounded_corner"/.test(R(B + 'BrIcons.kt')) && fs.existsSync(path.join(ROOT, 'android/app/src/browser/CHROMIUM_LICENSE.txt')),
@@ -182,7 +184,8 @@ ok(/fun clearSite\(t: BrTab\)/.test(act) && /deleteOrigin/.test(act), 'מחיק�
 // 26/10/2026 — שלב 3: פרטיות ווידאו
 const sh = R(B + 'BrShield.kt'), med = R(B + 'BrMedia.kt');
 const adsList = sh.split('val ADS')[1].split('.split(Regex')[0];
-ok(/if \(!req\.isForMainFrame && blockReq\(t, req\.url\.host\)\) return EMPTY\(\)/.test(act), 'חסימה: אף פעם לא הדף הראשי של טאב');
+// 01/11/2026: ההחלטה נשמרת ב־blk (גם לרשומת הרשת בכלי המפתחים) — אותו תנאי
+ok(/val blk = !req\.isForMainFrame && blockReq\(t, req\.url\.host\)/.test(act) && /if \(blk\) return EMPTY\(\)/.test(act), 'חסימה: אף פעם לא הדף הראשי של טאב');
 ok(/site\(h\) == site\(pageHost\)/.test(sh) && !/googletagmanager\.com/.test(adsList) && !/connect\.facebook\.net/.test(adsList), 'חסימה: רק צד שלישי, בלי googletagmanager ו־connect.facebook.net');
 ok(!/youtube|googlevideo|ytimg/.test(adsList), 'חסימה: שום שרת של יוטיוב');
 ok(/fun shieldOn\(host: String\) = shield && rules\[/.test(act) && /fun toggleSiteShield\(t: BrTab\)/.test(act), 'הגנה לכל אתר — אפשר לכבות באתר שנשבר');
