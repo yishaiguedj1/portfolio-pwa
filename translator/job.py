@@ -4649,7 +4649,7 @@ KA_CACHE = VT_WORK / '_kacache'
 KA_CACHE_N = 4
 KA_CACHE_TTL = 24 * 3600
 KA_CACHE_FILES = ('voc.wav', 'inst.wav', 'inst_bv.wav', 'lead.wav', 'sep.json')
-KA_SEP_V = 2                                    # לשנות כשההפרדה משתנה (מודל/פרמטרים/מבנה) — המטמון הישן לא נשלף
+KA_SEP_V = 3                                    # לשנות כשההפרדה משתנה (מודל/פרמטרים/מבנה) — המטמון הישן לא נשלף
 
 
 def ka_cache_key(song: Path, bv: bool) -> str:
@@ -4734,7 +4734,8 @@ def karaoke(args):
         ctx.report(fail=True, err='ka_noaudio', force=True)
         raise SystemExit('✗ אין בקובץ שמע.')
     song = work / 'song.wav'
-    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(src), '-vn', '-ac', '2', '-ar', '44100', str(song)], check=True)
+    # float: פענוח opus/aac עובר את 1 (ב"ממותה" שיא 1.2) — ב־16 ביט זה נחתך לפני ההפרדה
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(src), '-vn', '-ac', '2', '-ar', '44100', '-c:a', 'pcm_f32le', str(song)], check=True)
     # 1. הפרדה — הכבד ביותר (שלב כבד: לא במקביל לשום דבר)
     ctx.report('tr', 0, 'מפרידים את הקול מהליווי', force=True)
     ck = ka_cache_key(song, ks['bv'])
