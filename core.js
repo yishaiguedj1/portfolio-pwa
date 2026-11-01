@@ -341,8 +341,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.98.0';
-const APP_VERSION = 'v666';
+const APP_RELEASE = '2.98.1';
+const APP_VERSION = 'v667';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -930,7 +930,10 @@ function cubeFace(el, o) {
   }
   return f;
 }
-function cubeFaceOff(f) { if (f && f.el) { f.el.style.cssText = f.css; if (f.flat) f.flat(); if (f.face) f.el.classList.remove('cube-face'); } }
+/* 01/11/2026 (סבב קפיצות 7 — הקלטה: גלילה מהירה בחוגה, דף ריק עד נגיעה; שוחזר ב־Playwright במגע): פאה ששוחררה מסומנת (off),
+   ושום כתיבה מאוחרת לא נוגעת בה — החימום (cubeWarmEnd, שני פריימים אחרי) של קובייה שכבר נחתה כתב על העמוד ששוחרר
+   rotateY(±90deg) + opacity 0, ובגלילה מהירה זה נשאר גם על העמוד הגלוי */
+function cubeFaceOff(f) { if (f && f.el) { f.off = true; f.el.style.cssText = f.css; if (f.flat) f.flat(); if (f.face) f.el.classList.remove('cube-face'); } }
 /* 29/10/2026 (הסבב השלישי, שני סרטוני המשתמש — Invest ו־Academy): בפריים הראשון של הסיבוב הדף הנכנס היה לבן (ב־Academy גם
    ההעתק של היוצא — רק הכריכה נראתה). הנכנס מתחיל ב־90° = opacity 0, והדפדפן לא מצייר (raster) שכבה בלתי נראית; ההעתק
    הוא שכבה חדשה. ברגע שהן נחשפות באמצע האנימציה — אין עדיין אריחים, ומוצג לבן. "חימום": שני פריימים לפני התנועה הפאות
@@ -941,7 +944,7 @@ function cubeWarm(c) {
   c.warm = false;
   if (!c.in || c.rub || typeof requestAnimationFrame !== 'function' || (typeof document !== 'undefined' && document.hidden)) return;
   c.warm = true;
-  for (const f of [c.out, c.in]) { if (f && f.el) { f.el.style.transform = 'none'; f.el.style.opacity = f === c.in ? CUBE_WARM_OP : ''; } }
+  for (const f of [c.out, c.in]) { if (f && f.el && !f.off) { f.el.style.transform = 'none'; f.el.style.opacity = f === c.in ? CUBE_WARM_OP : ''; } }
   requestAnimationFrame(() => requestAnimationFrame(() => cubeWarmEnd(c)));
 }
 function cubeWarmEnd(c) {
@@ -957,9 +960,9 @@ function cubeSet(c, p) {
   cubeWarm(c);
   c.p = p;
   if (c.warm) return;
-  if (c.rub) { if (c.out) c.out.el.style.transform = cubeTransform(Math.min(CUBE_RUB, p), c.side, false, vw); return; }
+  if (c.rub) { if (c.out && !c.out.off) c.out.el.style.transform = cubeTransform(Math.min(CUBE_RUB, p), c.side, false, vw); return; }
   for (const [f, isIn] of [[c.out, false], [c.in, true]]) {
-    if (!f) continue;
+    if (!f || f.off) continue;
     f.el.style.transform = cubeTransform(p, c.side, isIn, vw);
     f.el.style.opacity = cubeVisible(p, c.side, isIn, vw) ? '' : '0';
   }
@@ -977,7 +980,7 @@ function cubeRun(c, p1, v0, done) {
   const vw = window.innerWidth, ps = cubeSpring(c.p || 0, v0 || 0, p1), dur = Math.max(17, (ps.length - 1) * 1000 / CUBE_HZ);
   const anims = [];
   const one = (f, isIn) => {
-    if (!f || typeof f.el.animate !== 'function') return;
+    if (!f || f.off || typeof f.el.animate !== 'function') return;
     const kf = ps.map((p) => {
       const q = c.rub ? Math.min(CUBE_RUB, p) : p;
       return { transform: cubeTransform(q, c.side, isIn, vw), opacity: c.rub || cubeVisible(q, c.side, isIn, vw) ? 1 : 0 };
@@ -1044,9 +1047,12 @@ function cubePre(root, go) {
   if (_cubePre) _cubePre.now();
   const ghost = cubeClone(root);
   if (typeof requestAnimationFrame !== 'function' || (typeof document !== 'undefined' && document.hidden)) { go(ghost); return null; }
-  ghost.style.opacity = CUBE_WARM_OP;
+  // 01/11/2026 (סבב קפיצות 7, הקלטה של Studio: פריים לבן בתחילת כל מעבר — רק הכפתור שבהדר נראה): בשקיפות 0.01 ההעתק כמעט
+  // בלתי נראה, והדפדפן לא מחויב לצייר אותו לפני הפריים שבו הוא נחשף. ההעתק זהה לדף שמתחתיו — בהכנה הוא גלוי לגמרי (אין הבדל
+  // בעין), כבר שכבה משלו (אותן תכונות של cubeFace), ובפריים הראשון של הסיבוב הוא מצויר
+  ghost.style.willChange = 'transform'; ghost.style.backfaceVisibility = 'hidden'; ghost.style.webkitBackfaceVisibility = 'hidden';
   let done = false;
-  const p = { now() { if (done) return; done = true; if (_cubePre === p) _cubePre = null; ghost.style.opacity = ''; go(ghost); } };
+  const p = { now() { if (done) return; done = true; if (_cubePre === p) _cubePre = null; go(ghost); } };
   _cubePre = p;
   requestAnimationFrame(() => requestAnimationFrame(() => p.now()));
   return p;
