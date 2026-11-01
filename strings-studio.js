@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2147 מפתחות מתוך 5588) */
+/* המחרוזות של studio (2148 מפתחות מתוך 5589) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1370,6 +1370,7 @@ he: {
   "studioPlChapNow": "פרק: {t} — לרשימת הפרקים",
   "studioPlChaps": "פרקים",
   "studioPlErr": "הסרטון לא נטען",
+  "studioPlFast": "{x}× ▸▸",
   "studioPlFlag": "סימון הכתובית שעל המסך",
   "studioPlFlagMax": "אפשר לסמן עד {n} כתוביות",
   "studioPlFlagNone": "אין כתובית על המסך עכשיו",
@@ -3519,6 +3520,7 @@ en: {
   "studioPlChapNow": "Chapter: {t} — open the chapter list",
   "studioPlChaps": "Chapters",
   "studioPlErr": "The video did not load",
+  "studioPlFast": "{x}× ▸▸",
   "studioPlFlag": "Mark the subtitle on screen",
   "studioPlFlagMax": "You can mark up to {n} subtitles",
   "studioPlFlagNone": "No subtitle on screen right now",
