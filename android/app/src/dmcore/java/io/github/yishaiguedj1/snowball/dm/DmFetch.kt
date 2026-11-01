@@ -47,6 +47,8 @@ class DmFetch(
     private val route: (Int) -> ((URL) -> java.net.URLConnection)? = { null },
     /** 01/11/2026 (צפייה תוך כדי הורדה): הנקודה שהנגן מחכה לה (‎-1‎ = אין) — חיבור מתחיל משם */
     private val wantAt: () -> Long = { -1L },
+    /** 01/11/2026 (סבב 3): מגבלת מהירות להורדה הזו בלבד (DmBucket), בנוסף למגבלה הכללית */
+    private val own: DmBucket? = null,
 ) {
     sealed class Result {
         object Done : Result()
@@ -234,6 +236,7 @@ class DmFetch(
                 written.addAndGet(n.toLong())
                 if (alt) altWritten.addAndGet(n.toLong())
                 DmLimit.take(n.toLong(), sleep)
+                own?.take(n.toLong(), sleep)
             }
         }
         return true

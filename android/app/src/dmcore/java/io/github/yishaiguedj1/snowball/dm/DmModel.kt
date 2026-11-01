@@ -69,6 +69,15 @@ class DmTask(
     var subs = ""              // 24/10: כתוביות היוצר לצרף ("he,en") — DmSubs; subsAuto = כולל אוטומטיות
     var subsAuto = false        // 27/10/2026: לא בשימוש — אוטומטיות לא יורדות (נשאר לקריאת משימות ישנות)
     var autoRefresh = 0        // 01/11/2026: כמה פעמים הקישור רוענן לבד (DmRefresh) — עד MAX_AUTO, ואז המשתמש מחליט
+    // 01/11/2026 (סבב 3, DmRound3): התור (‏"" = הראשי), התיקייה (DmFolders — "" = לפי הסוג), חיבורים ומגבלת מהירות להורדה הזו
+    // (0 = כמו בהגדרות), פעולות בסיום (DmOnDone) ותוצאת בדיקת הסיכום ("" / ok / bad / none)
+    var q = ""
+    var dir = ""
+    var conns = 0
+    var lim = 0L
+    var onDone = ""
+    var sum = ""
+    var ruled = false          // החוקים כבר הוחלו (פעם אחת — שם לפי תבנית לא מתחלף שוב)
 
     val got: Long get() = if (kind == DmKind.YTDL) bytesYt else segs.sumOf { it.done.coerceAtMost(it.end - it.start) }
     // yt-dlp לפני האחוז הראשון (מתחבר, פותר את בדיקת יוטיוב) = ‎-1‎ — פס בתנועה, לא "0" קפוא
@@ -82,7 +91,8 @@ class DmTask(
         put("sg", JSONArray().also { a -> segs.forEach { a.put(it.json()) } })
         put("c", created); put("f", finishedAt); put("uri", uri); put("tr", tries)
         put("vf", vf); put("af", af); put("h", height); put("ao", audioOnly); put("ti", title); put("by", bytesYt); put("py", pctYt.toDouble())
-        put("ua", ua); put("ck", ck); put("st", tr); put("lt", later); put("sb", subs); put("sa", subsAuto); put("ar", autoRefresh)   // st: עד 24/10 "tr" — התנגש עם tries
+        put("ua", ua); put("ck", ck); put("st", tr); put("lt", later); put("sb", subs); put("sa", subsAuto); put("ar", autoRefresh)
+        put("q", q); put("dr", dir); put("cn", conns); put("li", lim); put("od", onDone); put("hk", sum); put("rl", ruled)   // st: עד 24/10 "tr" — התנגש עם tries
     }
 
     companion object {
@@ -106,6 +116,8 @@ class DmTask(
                 vf = o.optString("vf"); af = o.optString("af"); height = o.optInt("h"); audioOnly = o.optBoolean("ao")
                 title = o.optString("ti"); bytesYt = o.optLong("by"); pctYt = o.optDouble("py", -1.0).toFloat()
                 ua = o.optString("ua").take(400); ck = o.optBoolean("ck"); tr = o.optBoolean("st", o.opt("tr") as? Boolean ?: false); later = o.optBoolean("lt"); subs = o.optString("sb").take(120); subsAuto = o.optBoolean("sa"); autoRefresh = o.optInt("ar")
+                q = o.optString("q").take(16); dir = DmFolders.norm(o.optString("dr")); conns = o.optInt("cn").coerceIn(0, DmSegs.MAX_CONNS)
+                lim = o.optLong("li").coerceAtLeast(0); onDone = o.optString("od").take(80); sum = o.optString("hk").take(8); ruled = o.optBoolean("rl")
             }
         }
 

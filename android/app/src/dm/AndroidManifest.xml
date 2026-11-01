@@ -24,11 +24,21 @@
     <!-- 01/11/2026: הגשר Studio Browser ↔ Studio DM (DmBridge) — רק אפליקציות שחתומות במפתח שלנו. מוגדרת בשתיהן -->
     <permission android:name="app.thesnowball.permission.DM_HANDOFF" android:protectionLevel="signature" />
     <uses-permission android:name="app.thesnowball.permission.DM_HANDOFF" />
+    <!-- 01/11/2026 (סבב 3, פריט 45): אפליקציה אחרת שמוסיפה הורדות / עוצרת / שואלת מצב (DmApiActivity) — המשתמש מאשר לכל
+         אפליקציה בנפרד (dangerous). בלי עוגיות ובלי כותרות מבחוץ; deep link מהדפדפן תמיד פותח את הגיליון -->
+    <permission android:name="app.thesnowball.permission.DM_ADD" android:protectionLevel="dangerous"
+        android:label="@string/dmPermAdd" android:description="@string/dmPermAddS" />
 
     <!-- AppRoute: האפליקציה השנייה (Studio ↔ Studio DM) — בלי זה אנדרואיד 11+ "מסתיר" אותה -->
     <queries>
         <package android:name="app.thesnowball.studio" />
         <package android:name="app.thesnowball.browser" />
+        <!-- 01/11/2026 (סבב 3, בודק APK): "זה עדכון של אפליקציה שמותקנת — אותה חתימה?" — רואים אפליקציות עם סמל במסך
+             הבית בלבד (בלי QUERY_ALL_PACKAGES) -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
     </queries>
     <application android:extractNativeLibs="true" tools:replace="android:theme"
         android:theme="@style/DmTheme">
@@ -48,6 +58,35 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
+
+        <!-- 01/11/2026 (סבב 3): אריח שני — לעצור / להמשיך הכל -->
+        <service
+            android:name=".dm.DmTileAll"
+            android:exported="true"
+            android:icon="@drawable/dm_tile"
+            android:label="@string/dmTileAllLabel"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- 01/11/2026 (סבב 3, פריט 45): הממשק לאפליקציות אחרות — רק בהרשאה DM_ADD, בלי ממשק -->
+        <activity
+            android:name=".dm.DmApiActivity"
+            android:exported="true"
+            android:permission="app.thesnowball.permission.DM_ADD"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:noHistory="true">
+            <intent-filter>
+                <action android:name="app.thesnowball.studiodm.ADD" />
+                <action android:name="app.thesnowball.studiodm.API_PAUSE_ALL" />
+                <action android:name="app.thesnowball.studiodm.API_RESUME_ALL" />
+                <action android:name="app.thesnowball.studiodm.STATUS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
 
         <provider
             android:name=".dm.DmSitesProvider"
@@ -93,6 +132,13 @@
                 <data android:mimeType="video/*" />
                 <data android:mimeType="audio/*" />
                 <data android:mimeType="application/*" />
+            </intent-filter>
+            <!-- 01/11/2026 (סבב 3): deep link ‏studiodm://add?url=… — תמיד עם גיליון ההוספה -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="studiodm" android:host="add" />
             </intent-filter>
         </activity>
 

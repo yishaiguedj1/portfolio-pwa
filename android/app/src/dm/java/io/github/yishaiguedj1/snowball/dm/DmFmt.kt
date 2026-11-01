@@ -41,6 +41,8 @@ object DmFmt {
         "unsupported", "no_video" -> R.string.dmErrNoVideo
         "refresh_size" -> R.string.dmErrRefreshSize
         "refresh_kind" -> R.string.dmErrRefreshKind
+        "window" -> R.string.dmErrWindow      // 01/11/2026 (סבב 3): התור מחוץ לחלון הזמן שלו
+        "quota" -> R.string.dmErrQuota        // נגמרה מכסת הנפח (יום/חודש)
         else -> R.string.dmErrFail
     })
 

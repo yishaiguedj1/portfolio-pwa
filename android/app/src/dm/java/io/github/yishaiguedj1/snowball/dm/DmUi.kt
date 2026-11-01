@@ -150,7 +150,8 @@ fun DmApp(a: DmActivity) {
         val g = LocalDmG.current
         // 01/11/2026 (זכוכית של Studio): הרקע עם ההילות, כותרת גדולה עם כפתורים עגולים, ומעגן בועות במקום סרגל הניווט.
         // גיליון פתוח — התוכן שמאחור מטושטש (‏--gl-veil; ‏blur עובד מ־Android 12, מתחת — רק ההחשכה של הגיליון)
-        val veiled = sheet != null || details != null
+        val apk by a.apkCheck
+        val veiled = sheet != null || details != null || apk != null
         val blurR by androidx.compose.animation.core.animateDpAsState(if (veiled) 14.dp else 0.dp, label = "veil")
         Box(Modifier.fillMaxSize().dmAmbient(g)) {
         Scaffold(
@@ -197,6 +198,7 @@ fun DmApp(a: DmActivity) {
             dismissButton = { TextButton(onClick = { a.needBrowser.value = false }) { Text(stringResource(R.string.dmNotNow)) } })
         if (sheet != null) AddSheet(a, sheet ?: "", a.sheetRef.value) { a.sheetDone() }
         details?.let { id -> DmStore.get(id)?.let { t -> Details(a, t, rev) { details = null } } ?: run { details = null } }
+        apk?.let { t -> ApkCheckSheet(a, t) { a.apkCheck.value = null } }   // סבב 3: בודק APK לפני התקנה
     }
 }
 
@@ -427,6 +429,7 @@ private fun Details(a: DmActivity, t: DmTask, rev: Int, onClose: () -> Unit) {
             Info(stringResource(R.string.dmResume), stringResource(if (t.kind == DmKind.YTDL || t.ranges) R.string.dmYes else R.string.dmNo))
             if (t.state == DmState.DONE) Info(stringResource(R.string.dmSavedIn), stringResource(R.string.dmSavedWhere))
             if (t.state == DmState.DONE && t.uri.isNotEmpty()) HashBlock(a, t)
+            TaskPro(t)   // סבב 3: תור, מגבלה להורדה הזו, פעולות בסיום / תוצאת בדיקת הסיכום
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 when (t.state) {
@@ -807,6 +810,8 @@ private fun SettingsScreen(a: DmActivity) {
             BondSetting()
             Div()
             AutoRefreshSetting()
+            Div()
+            ProSettingRow(a)   // 01/11/2026 (סבב 3): תורים, תיקיות, חוקים, מגבלות, אפליקציות אחרות
             Div()
             SetRow(stringResource(R.string.dmSetLang), langName(lang)) { dlg = "g" }
         }
