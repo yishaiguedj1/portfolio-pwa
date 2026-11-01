@@ -375,27 +375,27 @@ function buildCsv(C, year) {
   const L = [];
   const line = (a) => L.push(a.map(csvCell).join(','));
   const head = (k) => line(T(k).split('|'));
-  line([T('txCsvTitle', { y: year })]);
-  line([T('txCsvSrc')]);
+  line([T('txRepTitle', { y: year })]);
+  line([T('txRepSrc')]);
   L.push('');
-  line([T('txCsv1325')]); head('txCsvH1325');
+  line([T('txRep1325')]); head('txRepH1325');
   const f4 = (v) => (v > 0 ? v.toFixed(4) : '');   // שער יציג — 4 ספרות; כמות — עד 6
   const q6 = (v) => String(Math.round(v * 1e6) / 1e6);
   for (const r of R.s1325) line([r.sym, r.isin, r.country, q6(r.qty), r.buyDate, r.sellDate, r.cur, r.cost, r.proceeds, f4(r.fxBuy), f4(r.fxSell), r.costIls, r.proceedsIls, r.gIls, r.nominal ? '' : r.gFx, r.taxable]);
   L.push('');
   if (R.s1322) {
     const m = R.s1322;
-    line([T('txCsv1322')]);
+    line([T('txRep1322')]);
     for (const [k, v] of [[T('txGains'), m.gains], [T('txLosses'), -m.losses], [T('txCarryUsed'), -m.carryUsed], [T('txOffInc'), -m.offIncome],
       [T('txTaxableSum'), m.taxable], [T('txCgTax'), m.cgTax], [T('txCarryOut', { y: year + 1 }), m.carryOut],
       [T('txGross'), m.incGross], [T('txWh'), m.incWh], [T('txExtra'), m.extraInc], [T('txCreditLost'), m.creditLost],
       [T('txSurtax'), m.surtax], [T('txDue', { y: year }), m.due]]) line([k, v]);
     L.push('');
   }
-  line([T('txCsv1324')]); head('txCsvH1324');
+  line([T('txRep1324')]); head('txRepH1324');
   for (const d of R.s1324) line([d.date, d.sym, d.country, T(d.kind === 'interest' ? 'txKindInt' : 'txKindDiv'), d.cur, d.gross, d.wh, f4(d.fx), d.grossIls, d.whIls]);
   L.push('');
-  line([T('txCsv1324c')]); head('txCsvH1324c');
+  line([T('txRep1324c')]); head('txRepH1324c');
   for (const c of R.s1324c) line([c.country, T(c.kind === 'interest' ? 'txKindInt' : 'txKindDiv'), c.n, c.grossIls, c.whIls]);
   return '\ufeff' + L.join('\r\n') + '\r\n';   // BOM — כדי שגיליון אלקטרוני יפתח את העברית נכון
 }
