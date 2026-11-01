@@ -11,7 +11,7 @@ const app = rd('app.js'), core = rd('core.js'), lib = rd('library.js'), st = rd(
 const shell = rd('shell.js'), cloud = rd('cloud.js'), chart = rd('chart.js');
 const fn = (src, name) => { const i = src.indexOf('function ' + name + '('); if (i < 0) return ''; let d = 0; for (let k = src.indexOf('{', i); k < src.length; k++) { if (src[k] === '{') d++; else if (src[k] === '}') { d--; if (!d) return src.slice(i, k + 1); } } return ''; };
 
-// ---- cubePre: ההעתק נצבע (שקיפות 0.01) שני פריימים לפני שהדף מצויר מחדש
+// ---- cubePre: ההעתק נצבע (גלוי, שכבה משלו — סבב 7) שני פריימים לפני שהדף מצויר מחדש
 ok(/function cubePre\(/.test(core) && /const cubePreBusy = /.test(core), 'cubePre ו־cubePreBusy ב־core.js (Academy/Studio)');
 {
   const raf = [];
@@ -20,7 +20,7 @@ ok(/function cubePre\(/.test(core) && /const cubePreBusy = /.test(core), 'cubePr
   vm.runInNewContext('let _cubePre = null;' + fn(app, 'cubePre') + 'this.cubePre = cubePre; this.busy = () => !!_cubePre;', ctx);
   let got = null;
   ctx.cubePre({}, (g) => { got = g; });
-  ok(got === null && ghost.style.opacity === '0.01' && ctx.busy(), 'בהתחלה: ההעתק שקוף כמעט לגמרי, והדף עוד לא מצויר מחדש');
+  ok(got === null && ghost.style.opacity === '' && ghost.style.willChange === 'transform' && ctx.busy(), 'בהתחלה: ההעתק גלוי ושכבה משלו (סבב 7 — לא 0.01), והדף עוד לא מצויר מחדש');
   raf.shift()();
   ok(got === null, 'אחרי פריים אחד — עדיין מחכים');
   raf.shift()();

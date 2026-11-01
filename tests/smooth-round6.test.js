@@ -88,4 +88,9 @@ ok(/listSync\(list, out\)/.test(rs), 'renderStocks: הסידור דרך listSync
   ok(/classList\.remove\('hush'\), 1200\)/.test(fn(app, 'tabHush')), 'tabHush: חוזר אחרי 1200ms');
   ok(/:is\(html\.calm, html\.hush\) \.appbar \.brand-art::before/.test(css), 'styles: hush עוצר גם את הפסאודו־אלמנטים (לא בתוך :is)');
 }
+{ // סבב 7: פאה ששוחררה — אף כתיבה מאוחרת לא נוגעת בה (גלילה מהירה בחוגה השאירה rotateY(90deg)+opacity 0 על עמוד גלוי)
+  ok(/f\.off = true; f\.el\.style\.cssText = f\.css/.test(fn(app, 'cubeFaceOff')), 'cubeFaceOff מסמן off');
+  ok(/if \(!f \|\| f\.off\) continue;/.test(fn(app, 'cubeSet')) && /c\.out && !c\.out\.off/.test(fn(app, 'cubeSet')), 'cubeSet מדלג על פאה ששוחררה');
+  ok(/f\.el && !f\.off/.test(fn(app, 'cubeWarm')) && /!f \|\| f\.off \|\|/.test(fn(app, 'cubeRun')), 'cubeWarm/cubeRun מדלגים על פאה ששוחררה');
+}
 console.log(n + ' בדיקות עברו');
