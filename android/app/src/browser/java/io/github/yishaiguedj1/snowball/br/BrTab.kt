@@ -49,6 +49,8 @@ class BrTab(val id: Long, url: String, title: String, val private: Boolean, var 
     var snapAt = 0L
 
     var web: WebView? = null
+    /** הגל החמישי (60): הסקריפט של ממשקי ה־AI לאתרים בכרטיסייה (כדי להסיר כשמכבים) */
+    var aiH: androidx.webkit.ScriptHandler? = null
     var state: Bundle? = null
     var used = 0L
 

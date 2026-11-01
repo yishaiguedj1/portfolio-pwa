@@ -153,6 +153,10 @@ dependencies {
     "browserImplementation"("androidx.activity:activity-compose:1.10.0")
     "browserImplementation"("androidx.webkit:webkit:1.14.0")
     "browserImplementation"("com.google.zxing:core:3.5.3")   // 01/11/2026 הגל הרביעי: קוד QR (56) — יצירה וקריאה, Apache-2.0, בלי מצלמה ובלי רשת
+    // 01/11/2026 הגל החמישי ("בתוך הטלפון, בלי ענן"): תרגום בלי אינטרנט (58, גם 26 ו־50) וסיכום במודל שבטלפון (59, ‏AICore —
+    // רק בדגמים שתומכים). חינם; הרישיון — תנאי השימוש של ML Kit (לא קוד פתוח), מתועד ב־docs/android-apps.md
+    "browserImplementation"("com.google.mlkit:translate:17.0.3")
+    "browserImplementation"("com.google.mlkit:genai-summarization:1.0.0-beta1")
     "browserImplementation"("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
     "browserImplementation"("androidx.work:work-runtime-ktx:2.12.0")   // הגל השלישי: מעקב אחרי שינוי בדף (BrWatch)
     "browserImplementation"("io.github.junkfood02.youtubedl-android:library:0.18.1")

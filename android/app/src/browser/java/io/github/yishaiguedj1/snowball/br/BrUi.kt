@@ -443,6 +443,11 @@ private fun PageScreen(a: BrowserActivity) {
     a.filesFound?.let { FilesSheet(a, it) }
     a.floatWin?.let { FloatWindow(a, it) }
     WaveFloat(a, t)
+    // הגל החמישי
+    if (a.localSheet && t != null && !t.isNtp) LocalSheet(a, t)
+    if (a.langSheet) LangSheet(a)
+    if (a.sumSheet) SumSheet(a)
+    LocalFloat(a, t)
 }
 
 /** החלון של הכרטיסייה הפעילה: הכרטיסייה החדשה, או הדף עם הכפתור שעל הנגן והבדיקה ברקע */
@@ -1044,6 +1049,8 @@ private fun MenuSheet(a: BrowserActivity) {
             }
             // הגל הרביעי — כל הכלים בגיליון אחד
             if (web) MItem(R.string.brReadTools, BrIcons.Book) { close(); a.readSheet = true }
+            // הגל החמישי — בטלפון, בלי ענן
+            if (web) MItem(R.string.brLocal, BrIcons.Phone, badge = if (a.capTab != null) "CC" else null) { close(); a.localSheet = true }
             MDiv()
             MItem(R.string.brSettings, BrIcons.CSettings) { close(); a.screen = BrowserActivity.Screen.SETTINGS }
         }
@@ -3828,6 +3835,167 @@ private fun FloatWindow(a: BrowserActivity, f: BrowserActivity.FloatWin) {
             }
             key(f) {
                 AndroidView({ _ -> a.floatWeb(f) }, Modifier.weight(1f).fillMaxWidth(), onRelease = { a.previewKill(it) })
+            }
+        }
+    }
+}
+
+/* ======================= הגל החמישי (01/11/2026, BrLocal): בתוך הטלפון, בלי ענן ======================= */
+
+/** הגיליון מ־⋮: תרגום הדף והבחירה (26/58), כתוביות (50), סיכום (59), השפות שבטלפון; ומתג 60 — רק כש־59 קיים */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LocalSheet(a: BrowserActivity, t: BrTab) {
+    val c = LocalBr.current
+    val sum = a.sumOk in 1..3
+    ModalBottomSheet(onDismissRequest = { a.localSheet = false }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
+            SheetHead(stringResource(R.string.brLocal), stringResource(R.string.brLocalNote), close = { a.localSheet = false })
+            val done = a.trTab === t
+            val items = buildList<Triple<Int, ImageVector, () -> Unit>> {
+                add(Triple(if (done) R.string.brTrOrig else R.string.brTrPage, BrIcons.CTranslate) { if (done) { a.localSheet = false; a.showOriginal() } else a.translateHere(t, false) })
+                add(Triple(R.string.brTrSelTile, BrIcons.Translate) { a.translateHere(t, true) })
+                if (a.capOk && a.toolsOk) add(Triple(R.string.brCaptions, BrIcons.Cc) { a.toggleCaptions(t) })
+                if (sum) add(Triple(R.string.brSum, BrIcons.Sparkle) { a.summarizeHere(t) })
+                add(Triple(R.string.brLangs, BrIcons.Globe) { a.openLangs() })
+            }
+            items.chunked(4).forEach { row ->
+                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+                    row.forEach { (l, ic, on) -> ToolTile(stringResource(l), ic, Modifier.weight(1f), on) }
+                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+            if (sum && a.toolsOk) {
+                Spacer(Modifier.height(8.dp))
+                Group {
+                    IRow(stringResource(R.string.brAiSites), stringResource(R.string.brAiSitesSub), lead = { Tile(BrIcons.Code, c.icon) }, chevron = false,
+                        trailing = { IosSwitch(a.aiOn) { a.pickAi(it) } })
+                }
+            }
+        }
+    }
+}
+
+/** 58 השפות שבטלפון: מה שהורד (מחיקה), ושפות להורדה מראש */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LangSheet(a: BrowserActivity) {
+    val c = LocalBr.current
+    val he = java.util.Locale.getDefault().language.let { it == "he" || it == "iw" }
+    ModalBottomSheet(onDismissRequest = { a.langSheet = false }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
+            SheetHead(stringResource(R.string.brLangs), stringResource(R.string.brLangsSub), close = { a.langSheet = false })
+            val have = a.langModels
+            if (have == null) { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.tint) }; return@Column }
+            Group {
+                BrLocal.LANGS.filter { it.code in have }.forEachIndexed { i, l ->
+                    if (i > 0) Sep()
+                    IRow(if (he) l.he else l.en, chevron = false, trailing = if (l.code == "en") null else ({
+                        TextButton({ a.langDelete(l.code) }) { Text(stringResource(R.string.brDelete), color = Color(0xFFFF3B30)) }
+                    }))
+                }
+            }
+            Group(header = stringResource(R.string.brLangsAdd)) {
+                BrLocal.LANGS.filter { it.code !in have }.forEachIndexed { i, l ->
+                    if (i > 0) Sep()
+                    IRow(if (he) l.he else l.en, chevron = false, trailing = {
+                        if (a.langBusy == l.code) CircularProgressIndicator(Modifier.size(22.dp), color = c.tint, strokeWidth = 2.dp)
+                        else Icon(BrIcons.CDownloads, null, Modifier.size(22.dp), tint = c.tint)
+                    }) { a.langDownload(l.code) }
+                }
+            }
+        }
+    }
+}
+
+/** 59 הסיכום: בעבודה — מה קורה עכשיו; אחרי — הנקודות, העתקה */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SumSheet(a: BrowserActivity) {
+    val c = LocalBr.current
+    ModalBottomSheet(onDismissRequest = { a.sumSheet = false }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
+            SheetHead(stringResource(R.string.brSum), null, lead = { Icon(BrIcons.Sparkle, null, Modifier.size(24.dp), tint = c.tint) }, close = { a.sumSheet = false })
+            val res = a.sumRes
+            if (res == null) {
+                Row(Modifier.padding(horizontal = 24.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(22.dp), color = c.tint, strokeWidth = 2.dp)
+                    Spacer(Modifier.width(14.dp))
+                    Text(a.sumBusy, color = c.fg, fontSize = 16.sp)
+                }
+            } else {
+                Group(footer = stringResource(R.string.brSumNote)) {
+                    Column(Modifier.padding(16.dp)) {
+                        res.forEach { b ->
+                            Row(Modifier.padding(vertical = 4.dp)) {
+                                Text("•", color = c.tint, fontSize = 17.sp, lineHeight = 26.sp)
+                                Spacer(Modifier.width(10.dp))
+                                Text(b, color = c.fg, fontSize = 17.sp, lineHeight = 26.sp)
+                            }
+                        }
+                    }
+                }
+                Row(Modifier.padding(horizontal = 16.dp)) {
+                    TextButton({ a.copyText(res.joinToString("\n") { "• $it" }, R.string.brCopiedText) }) {
+                        Icon(BrIcons.Copy, null, Modifier.size(20.dp), tint = c.tint); Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.brCopyText), color = c.tint, fontSize = 16.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** הפס "תורגם מ…" (שפת מקור אחרת / מקור) והכתוביות (50) — מעל הסרגל; כשיש הקראה או קליפ — מעליהם */
+@Composable
+private fun LocalFloat(a: BrowserActivity, t: BrTab?) {
+    val c = LocalBr.current
+    if (t == null || a.screen != BrowserActivity.Screen.PAGE) return
+    val tr = a.trTab === t; val cc = a.capTab === t
+    if (!tr && !cc) return
+    val he = java.util.Locale.getDefault().language.let { it == "he" || it == "iw" }
+    val up = a.speakAt != -2 || a.clipTab != null
+    val dy = with(LocalDensity.current) { (if (up) 148.dp else 88.dp).roundToPx() }
+    androidx.compose.ui.window.Popup(alignment = Alignment.BottomCenter, offset = androidx.compose.ui.unit.IntOffset(0, -dy)) {
+        Column(Modifier.padding(horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            if (cc) {
+                var pick by remember { mutableStateOf(false) }
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xD9000000)).padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        val cap = a.cap
+                        if (cap.lines.isEmpty() && cap.partial.isEmpty()) Text(stringResource(R.string.brCapListening), color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp)
+                        cap.lines.forEach { Text(it, color = Color.White, fontSize = 18.sp, lineHeight = 24.sp) }
+                        if (cap.partial.isNotEmpty()) Text(cap.partial, color = Color.White.copy(alpha = 0.65f), fontSize = 16.sp, lineHeight = 22.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box {
+                            TextButton({ pick = true }) { Text(a.capLang.uppercase(), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+                            DropdownMenu(pick, { pick = false }, containerColor = c.card) {
+                                BrLocal.LANGS.forEach { l -> DropdownMenuItem({ Text(if (he) l.he else l.en, color = c.fg) }, { pick = false; a.pickCapLang(l.code) }) }
+                            }
+                        }
+                        IBtn(BrIcons.Close, stringResource(R.string.brClose), size = 36.dp, iconSize = 18.dp, tint = Color.White) { a.stopCaptions() }
+                    }
+                }
+                if (tr) Spacer(Modifier.height(8.dp))
+            }
+            if (tr) {
+                var pick by remember { mutableStateOf(false) }
+                Row(Modifier.heightIn(min = 48.dp).glass(c, RoundedCornerShape(24.dp)).padding(start = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(BrIcons.CTranslate, null, Modifier.size(20.dp), tint = c.tint)
+                    Spacer(Modifier.width(8.dp))
+                    Box {
+                        Text(if (a.trBusy) stringResource(R.string.brTrBusy) else stringResource(R.string.brTrFrom, BrLocal.name(a.trFrom, he)) + " ▾",
+                            Modifier.clip(RoundedCornerShape(8.dp)).clickable { pick = true }.padding(vertical = 8.dp), color = c.fg, fontSize = 15.sp, maxLines = 1)
+                        DropdownMenu(pick, { pick = false }, containerColor = c.card) {
+                            BrLocal.LANGS.filter { it.code != a.trTo }.forEach { l ->
+                                DropdownMenuItem({ Text(if (he) l.he else l.en, color = c.fg) }, { pick = false; a.translateHere(t, false, l.code) })
+                            }
+                        }
+                    }
+                    TextButton({ a.showOriginal() }) { Text(stringResource(R.string.brTrOrig), color = c.tint, fontWeight = FontWeight.SemiBold) }
+                }
             }
         }
     }
