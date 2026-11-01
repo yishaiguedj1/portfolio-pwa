@@ -1003,7 +1003,7 @@ async function watchEnd(deps, job, ok, now) {
 let liveC = { at: 0, v: null };
 async function liveJobs(deps, now, fresh) {
   if (!fresh && liveC.v && now - liveC.at < 10e3) return liveC.v;
-  const l = (await Promise.all(['running', 'queued'].map((s) => query(deps, 'studioJobs', { state: s }, 30)))).flat().filter(UM.isLive);
+  const l = (await Promise.all(['running', 'queued'].map((s) => query(deps, 'studioJobs', { state: s }, 30)))).flat().filter((j) => UM.isLive(j, now));
   liveC = { at: now, v: l };
   return l;
 }

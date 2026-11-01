@@ -1528,7 +1528,9 @@ function evRow(e) {
     e.tok ? fmt(t('admTokN'), { n: tokTxt(e.tok) }) : '', e.err || ''].filter(Boolean).join(' · ');
   const cost = e.usd ? usd(e.usd) : '';
   return row({ c: e.t === 'jf' ? 'red' : me ? 'blue' : avC(e.u), ic: e.t === 'jf' ? '!' : me ? '✓' : avI(nm), t: nm, s, v: cost || clock(e.at), tr: cost ? clock(e.at) : '',
-    on: e.j && (e.t === 'js' && e.live) ? () => { D.liveJ = e.j; go('live'); } : r ? () => { D.userU = e.u; go('user'); } : null });
+    // 01/11/2026 (המשתמש: "לוחצים על עבודה של משתמש וזה לא פותח אותה — רק מההתראה"): כל שורת עבודה פותחת את דף העבודה
+    // (adminLive j — גם עבודה שהסתיימה); עד היום רק חיה, והשאר — לדף המשתמש, שבתוכו זו הייתה קפיצה לאותו דף
+    on: e.j ? () => { D.liveJ = e.j; D.liveAt0 = 0; go('live'); } : r ? () => { D.userU = e.u; go('user'); } : null });
 }
 function chips(opts, val, set) {
   const d = h('div', 'adm-chips');
