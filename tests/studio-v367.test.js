@@ -48,7 +48,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(r.n.cues.length === 5 && r.n.cues[0].t === '' && r.n.cues[1].x.length === 140, 'normQa: עד 5 כתוביות לדוגמה, טקסט בלבד עד 140');
   ok(st.normQa({ id: 'q1', g: 'b', o: ['go', 'stop'] }) === null && st.normQa({ id: 'g1', g: 'b', o: ['go'] }) === null && st.normQa({ id: 'q1', q: 'שאלה' }).g === undefined,
     'normQa: שער בלי מזהה g / בלי שתי תשובות — נזרק; שאלה רגילה — כמו קודם');
-  ok(st.chainFor('rules', null).map((x) => x.v).join() === 'home,settings,tower,rules', 'רענון במסך החוקים — חוזר אליו (דרך המגדל)');
+  ok(st.chainFor('rules', null).map((x) => x.v).join() === 'home,tower,rules', 'רענון במסך החוקים — חוזר אליו (דרך המגדל)');
   const sj = read('studio.js');
   ok(/function pageRules\(p\)/.test(sj) && /ui\.view === 'rules'\) pageRules\(p\)/.test(sj) && /go\('rules'\)/.test(sj), 'מסך "החוקים שלך" — מהמגדל');
   ok(/askConfirm\(q, \(\) => setHalt\(true\), \{ danger: true/.test(sj) && /net\.api\('halt'/.test(sj) && /net\.api\('rules'/.test(sj), 'מתג החירום — באישור (פעולה הרסנית), ונשמר בשרתון');

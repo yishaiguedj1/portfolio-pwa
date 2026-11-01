@@ -55,7 +55,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   /* ---------- 4. הטלפון ---------- */
   const st = await import(path.join(root, 'studio.js'));
   ok(JSON.stringify(st.normGl({ u: 2, s: [['Moat', 'חפיר'], ['MOAT', 'x'], ['<i>', '']] })) === JSON.stringify({ u: 2, s: [['Moat', 'חפיר']] }) && st.normGl({}) === null, 'normGl בטלפון');
-  ok(JSON.stringify(st.chainFor('gloss').map((x) => x.v)) === JSON.stringify(['home', 'settings', 'tower', 'rules', 'gloss']), 'חזור: מילון ← החוקים שלך ← המגדל');
+  ok(JSON.stringify(st.chainFor('gloss').map((x) => x.v)) === JSON.stringify(['home', 'tower', 'rules', 'gloss']), 'חזור: מילון ← החוקים שלך ← המגדל');
   const sj = read('studio.js');
   ok(/gl: normGl\(s\.gl\)/.test(sj), 'העבודה בטלפון שומרת את ההצעות');
   ok(/function pageGloss\(p\)/.test(sj) && /else if \(ui\.view === 'gloss'\) pageGloss\(p\)/.test(sj) && /go\('gloss'\)/.test(sj), 'דף המילון — מהחוקים שלך (כל מה שקובעים לסוכנים במקום אחד)');
