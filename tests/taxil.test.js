@@ -101,12 +101,14 @@ const divs = T.tiDividends(CASH, fxOf);
   approx(y.taxable, 500, 1e-9, 'קיזוז שוטף ואז הפסד מועבר: 1,000 − 400 − 100');
   approx(y.cgTax, 125, 1e-9, '25% מס רווח הון');
   ok(y.carryOut === 0 && y.carryUsed === 100, 'ההפסד המועבר נוצל');
-  ok(y.flags.includes('fourCase') && y.flags.includes('capSurtax'), 'כללים שלא אומתו מסומנים');
-  // שנת הפסד: 600 נטו, דיבידנד שנוכה במלואו → לא מקזזים, הכל מועבר
+  ok(y.flags.length === 0, 'כל הכללים אומתו — בלי דגלי "הערכה" (כשההכנסה האחרת ידועה ואין זיכוי אבוד)');
+  // שנת הפסד: 92(א)(4) — הקיזוז מול דיבידנד הוא חובה, גם כשנוכה בו מס בארה״ב → הזיכוי הולך לאיבוד
   const d1 = [{ date: '2024-03-01', kind: 'dividend', grossIls: 350, whIls: 87.5 }];
   const y2 = T.tiYear(2024, [{ sellDate: '2024-05-01', taxable: -600 }], d1, { carry: 0, other: 0 });
-  ok(y2.offIncome === 0 && y2.carryOut === 600, 'הפסד לא נשרף מול דיבידנד שכבר נוכה ב־25%');
-  approx(y2.extraInc, 0, 1e-9, 'דיבידנד עם 25% ניכוי — אין מס נוסף בישראל');
+  ok(y2.offIncome === 350 && y2.carryOut === 250, 'הפסד שוטף מקזז חובה את הדיבידנד, והיתרה מועברת');
+  approx(y2.creditLost, 87.5, 1e-9, 'הזיכוי על המס שנוכה בארה״ב לא מנוצל');
+  ok(y2.flags.includes('creditCarry'), 'העברת זיכוי שלא נוצל — לא אומתה, מסומנת');
+  approx(y2.extraInc, 0, 1e-9, 'אין מס נוסף על הדיבידנד');
   // דיבידנד שלא נוכה בו כלום: ההפסד מקזז אותו
   const d2 = [{ date: '2024-03-01', kind: 'dividend', grossIls: 200, whIls: 0 }];
   const y3 = T.tiYear(2024, [{ sellDate: '2024-05-01', taxable: -600 }], d2, { other: 0 });
@@ -122,7 +124,10 @@ const divs = T.tiDividends(CASH, fxOf);
   const y = T.tiYear(2026, [{ sellDate: '2026-02-01', taxable: 200000 }], [], { other: 700000 });
   // סה"כ 900,000; מעל 721,560: 178,440
   approx(y.surtax3, 0.03 * 178440, 1e-6, 'מס יסף 3% על החלק שמעל התקרה');
-  approx(y.surtax2, 0.02 * 178440, 1e-6, 'שכבת 2% על החלק ההוני שמעל התקרה');
+  ok(y.surtax2 === 0, 'שכבת 2%: ההכנסה ההונית לבדה (200,000) מתחת לסף — אפס');
+  const yc = T.tiYear(2026, [{ sellDate: '2026-02-01', taxable: 800000 }], [], { other: 100000 });
+  approx(yc.surtax2, 0.02 * (800000 - 721560), 1e-6, 'שכבת 2% על ההכנסה ההונית לבדה שמעל 721,560');
+  approx(yc.surtax3, 0.03 * (900000 - 721560), 1e-6, 'ושכבת 3% על כל ההכנסה');
   const y24 = T.tiYear(2024, [{ sellDate: '2024-02-01', taxable: 200000 }], [], { other: 700000 });
   ok(y24.surtax2 === 0, 'ב־2024 אין שכבה הונית');
   const yu = T.tiYear(2026, [{ sellDate: '2026-02-01', taxable: 1000 }], [], {});
@@ -152,6 +157,8 @@ const divs = T.tiDividends(CASH, fxOf);
   ok(h.length === 1 && h[0].sym === 'DN', 'קציר: רק מנה עם הפסד מוכר');
   approx(h[0].saves, 125, 1e-9, 'חוסך 25% מהרווח החייב שנשאר (500)');
   approx(h[0].carry, 300, 1e-9, 'יתרת ההפסד עוברת לשנה הבאה');
+  const h2 = T.tiHarvest(u, { year: 2026, taxable: 500, div: { gross: 200 }, interest: { gross: 0 }, offIncome: 0 });
+  ok(h2[0].onIncome === 200 && Math.abs(h2[0].carry - 100) < 1e-9, 'קציר בשנה עם דיבידנד: חלק מההפסד יקזז חובה את הדיבידנד');
   ok(T.tiUnrealized([{ sym: 'NA', cur: 'USD', qty: 1, unit: 1, fx: 3 }], () => 0, () => 4)[0].missing, 'בלי מחיר — מסומן חסר');
 }
 

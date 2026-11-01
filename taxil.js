@@ -1,6 +1,7 @@
 /* taxil.js — מנוע מרכז המס הישראלי של Invest (מחקר-שדרוג-Invest.md, קבוצה ד). טהור: בלי DOM, בלי רשת.
-   ⚠ "הערכה" עד שכל כלל עובר את שער האימות — כל כלל שלא אומת מול מקור ראשי מסומן ב־TI_RULES
-   (verified:false) ומחזיר דגל, והמסך מציג "הערכה, לאמת מול רו״ח".
+   שער האימות (01/11/2026, מול נוסח הפקודה, חוזר מ״ה 22/2002 וע״א 3555/15 מוזס — דנ״א 7517/16 נדחה):
+   הכללים כאן אומתו; מקורות וציטוטים ב־docs/invest.md "מרכז המס". כלל שלא אומת = verified:false → דגל,
+   והמסך מציג "הערכה". זה עדיין לא תחליף לרו״ח.
    קלטים: עסקאות Flex (ibkr-proxy/lib/ibkr.js → data.trades), תנועות מזומן (data.cashTransactions),
    ופונקציית שער fxOf(cur, 'YYYY-MM-DD') → שקלים למטבע (שער יציג ביום, או ביום הפרסום הקודם).
    כל הסכומים בשקלים, אלא אם כתוב אחרת. */
@@ -8,12 +9,15 @@
 /* כללים לפי שנת מס — לא בקוד. ערך שלא אומת = verified:false (שער האימות). */
 const TI_RULES = {
   base: {
-    rate: 0.25,                 // רווח הון ריאלי ודיבידנד ליחיד (לא בעל מניות מהותי)
-    surtax: { th: 721560, r: 0.03 },   // מס יסף (2024–2026 — אותה תקרה)
-    capSurtax: null,            // שכבת ה־2% על הכנסה הונית (מ־2025)
-    verified: { rate: false, fourCase: false, fifo: false, fees: false, offset: false, surtax: false, capSurtax: false, dividend: false },
+    rate: 0.25,                 // 91(ב)(1), 125ב — רווח הון ריאלי ודיבידנד ליחיד (30% לבעל מניות מהותי — לא נתמך)
+    surtax: { th: 721560, r: 0.03 },   // 121ב(א) — 721,560 ₪ ב־2024–2027
+    capSurtax: null,            // 121ב(א1) — מ־2025
+    // fourCase: 88 (שער המטבע הוא המדד — חובה ליחיד) + מוזס; המקרה המעורב (סימנים שונים → 0) נגזר מהמנגנון.
+    // fifo: חוזר 22/2002 §1.5.1 (בתוך חשבון). fees: דברי ההסבר ל־1325. offset: 92(א)(1),(3),(4), 92(ב).
+    // creditCarry: האם זיכוי מס זר שלא נוצל (אחרי קיזוז הפסד מול דיבידנד) עובר לשנה הבאה — לא אומת.
+    verified: { rate: true, fourCase: true, fifo: true, fees: true, offset: true, surtax: true, capSurtax: true, dividend: true, creditCarry: false },
   },
-  2025: { capSurtax: { th: 721560, r: 0.02 } },   // ⚠ סף שכבת ה־2% — סתירה בין מקורות (721,560 מול 1.1 מיליון)
+  2025: { capSurtax: { th: 721560, r: 0.02 } },   // 2% על ההכנסה ההונית בלבד שמעל אותו סף (1.1 מיליון — לא קיים בחוק)
   2026: { capSurtax: { th: 721560, r: 0.02 } },
 };
 function tiRules(year) {
@@ -160,11 +164,11 @@ function tiYear(year, sales, divs, opts) {
     taxable = net - carryUsed;
     carryOut = carryIn - carryUsed;
   } else {
-    // הפסד שוטף: מול דיבידנד/ריבית מני״ע באותה שנה — רק בחלק שעליו יש מס ישראלי מעבר לזיכוי
-    // (קיזוז מול דיבידנד שכבר נוכה במלואו בחו״ל לא מחזיר כסף ושורף הפסד שאפשר להעביר). (verified.offset)
+    // הפסד שוטף: 92(א)(4) — "יקוזז" (חובה) גם כנגד ריבית/דיבידנד מני״ע באותה שנה (שיעור עד 25%).
+    // מול דיבידנד שנוכה בו מס בחו״ל זה שורף גם את ההפסד וגם את הזיכוי (creditLost) — המסך מזהיר.
+    // היתרה מועברת — 92(ב): רק כנגד רווח הון, בלי הגבלת שנים, בתנאי שהוגש דוח לשנת ההפסד.
     let left = -net;
-    const base = Math.max(0, divGross + intGross - (divWh + intWh) / R.rate);
-    offIncome = Math.min(left, base);
+    offIncome = Math.min(left, divGross + intGross);
     left -= offIncome;
     carryOut = carryIn + left;
   }
@@ -173,14 +177,16 @@ function tiYear(year, sales, divs, opts) {
   const israeliInc = R.rate * Math.max(0, incGross - offIncome);
   const credit = Math.min(incWh, israeliInc);
   const extraInc = Math.max(0, israeliInc - incWh);
-  // מס יסף: על כל ההכנסה החייבת; השכבה ההונית — רק על החלק ההוני שמעל הסף
+  const creditLost = Math.max(0, incWh - credit);
+  // מס יסף: 3% על כל ההכנסה החייבת מעל הסף; 2% על ההכנסה ההונית לבדה מעל אותו סף. בלי הסכום האינפלציוני
+  // (החייב כאן כבר ריאלי). לא נכלל במקדמה החצי־שנתית — 121ב(ב).
   const capital = taxable + Math.max(0, incGross - offIncome);
   const other = o.other == null ? null : Math.max(0, tiNum(o.other));
   const total = (other || 0) + capital;
   const s3 = R.surtax ? R.surtax.r * Math.max(0, total - R.surtax.th) : 0;
-  const s2 = R.capSurtax ? R.capSurtax.r * Math.min(capital, Math.max(0, total - R.capSurtax.th)) : 0;
+  const s2 = R.capSurtax ? R.capSurtax.r * Math.max(0, capital - R.capSurtax.th) : 0;
   const flags = [];
-  for (const k of Object.keys(R.verified)) if (!R.verified[k]) flags.push(k);
+  for (const k of Object.keys(R.verified)) if (!R.verified[k] && (k !== 'creditCarry' || creditLost > 0)) flags.push(k);
   if (other == null) flags.push('otherUnknown');
   if (ys.some((s) => s.nominal)) flags.push('nominalIls');
   return {
@@ -188,7 +194,7 @@ function tiYear(year, sales, divs, opts) {
     gains: gains, losses: losses, net: net, carryIn: carryIn, carryUsed: carryUsed, carryOut: carryOut,
     offIncome: offIncome, taxable: taxable, cgTax: cgTax,
     div: { gross: divGross, wh: divWh, n: div.length }, interest: { gross: intGross, wh: intWh, n: intr.length },
-    israeliInc: israeliInc, credit: credit, extraInc: extraInc,
+    israeliInc: israeliInc, credit: credit, extraInc: extraInc, creditLost: creditLost,
     surtax: s3 + s2, surtax3: s3, surtax2: s2,
     due: cgTax + extraInc + s3 + s2, flags: flags,
   };
@@ -236,10 +242,14 @@ function tiHarvest(unreal, yearState) {
   const R = tiRules(yearState && yearState.year || new Date().getFullYear());
   let room = Math.max(0, tiNum(yearState && yearState.taxable));
   const c = (unreal || []).filter((u) => !u.missing && u.taxable < 0).sort((a, b) => a.taxable - b.taxable);
+  // 92(א)(4): מה שלא מקזז רווח הון מקזז חובה דיבידנד/ריבית של השנה — ושם, אם נוכה מס בחו״ל, הזיכוי אובד
+  let incRoom = Math.max(0, tiNum(yearState && yearState.div && yearState.div.gross) + tiNum(yearState && yearState.interest && yearState.interest.gross) - tiNum(yearState && yearState.offIncome));
   return c.map((u) => {
     const use = Math.min(-u.taxable, room);
     room -= use;
-    return { sym: u.sym, date: u.date, qty: u.qty, loss: -u.taxable, saves: R.rate * use, carry: -u.taxable - use };
+    const onInc = Math.min(-u.taxable - use, incRoom);
+    incRoom -= onInc;
+    return { sym: u.sym, date: u.date, qty: u.qty, loss: -u.taxable, saves: R.rate * use, onIncome: onInc, carry: -u.taxable - use - onInc };
   });
 }
 
