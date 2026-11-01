@@ -3853,6 +3853,14 @@ function stubFetch(text, status = 200) {
         if (!ep0) delete fj.ep;
         await run({ op: 'srvRemove', idToken: OWNER, sid: PS });
       }
+      {
+        // 1/11/2026: עבודת הבדיקה שאחרי עדכון (sm) — בלי התראות שלב בווילון (נראתה כמו עבודה כפולה)
+        const fj = db.get('studioJobs/' + jid).fields, n0 = pushes.length;
+        fj.sm = { integerValue: '1' };
+        await wrk({ op: 'report', job: jid, key: kk, st: 'rv', p: 0.9 });
+        ok(pushes.length === n0, '1/11: עבודת בדיקה (sm) — אין התראת שלב');
+        delete fj.sm;
+      }
       pushes = [];
       await wrk({ op: 'report', job: jid, key: kk, ask: { id: 'q1', q: 'Ackman או אקמן?', o: ['אקמן', 'Ackman'], d: 0, w: 600 } });
       const m1 = decrypt(pushes[0].body);

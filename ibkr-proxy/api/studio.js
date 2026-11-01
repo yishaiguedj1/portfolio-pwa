@@ -1029,6 +1029,9 @@ function shadeJob(job, now) {
   SHADE_JOB.set(job.id, { job, at: now });
 }
 async function shadePush(deps, job, x, now) {
+  // 1/11/2026 (צילום מהטלפון): עבודת הבדיקה שאחרי עדכון העובד (sm) מוסתרת מהרשימה, אבל ההתראות שלה ("בודקים ומתקנים 90%")
+  // הופיעו בווילון ליד הסרטון האמיתי ונראו כמו עבודה כפולה. נגיעה בהן פתחה את העבודה הפעילה. בלי התראות שלב לעבודת בדיקה
+  if (job.sm === 1) return 0;
   if (!x || !PG.shadeDue(SHADE_PN.get(job.id), x)) return 0;
   SHADE_PN.set(job.id, PG.shadeMark(x));
   const sp = job.spec || {};
@@ -1822,7 +1825,9 @@ async function server(req, res, body, deps) {
     else if (hb.nj === 0 && orphanDue(p.sid, now)) await lostOnBoot(deps, p.sid, now, true).catch(() => {});   // 26/10: פעם ב־ORPHAN_MS, לא בכל poll   // שרת פנוי — עבודה "רצה" אצלו = יתומה
     if (body.boot === true) await smokeAfterUpdate(deps, srv, p.sid, hb.v, now).catch(() => {});   // פריט 13: עבודת בדיקה אחרי עדכון
     // poll: העבודה הוותיקה ביותר שמחכה לשרת
-    const qd = (await query(deps, 'studioJobs', { state: 'queued', eng: 'api', sid: '' }, 30)).sort((a, b) => (a.fired || 0) - (b.fired || 0));
+    // 1/11/2026: עבודת הבדיקה שאחרי עדכון (sm) — אחרי כל עבודה של משתמש (היא "רצה כשיש מקום"; לפני כן תפסה את השרת
+    // והסרטון האמיתי חיכה "בתור לשרת" עד שהזיכרון התפנה)
+    const qd = (await query(deps, 'studioJobs', { state: 'queued', eng: 'api', sid: '' }, 30)).sort((a, b) => (a.sm === 1) - (b.sm === 1) || (a.fired || 0) - (b.fired || 0));
     // 21/10/2026: השרת כבר מריץ עבודה ושואל אם יש עוד — רק עבודה שהשיא הצפוי שלה נכנס בזיכרון שנשאר לו (fit).
     // לפי הסדר: אם הוותיקה לא נכנסת, לא מקדימים לה עבודה קטנה (אחרת עבודה ארוכה מחכה לנצח מאחורי קצרות)
     const fit = S.normFit(body.fit);
