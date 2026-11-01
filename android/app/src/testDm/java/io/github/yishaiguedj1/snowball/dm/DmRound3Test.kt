@@ -54,7 +54,7 @@ class DmRound3Test {
         assertEquals(60, work.untilOpen(0, 8 * 60))
         assertEquals(0, work.untilOpen(1, 10 * 60))
         assertEquals(60, work.untilClose(1, 17 * 60))
-        assertEquals(2 * 1440 + 9 * 60 - 20 * 60, work.untilOpen(4, 20 * 60))   // חמישי בערב → ראשון בבוקר
+        assertEquals(3 * 1440 + 9 * 60 - 20 * 60, work.untilOpen(4, 20 * 60))   // חמישי בערב → ראשון בבוקר
         val night = DmWindow(DmWindow.ALL, 23 * 60, 6 * 60)     // כל לילה 23:00–06:00
         assertTrue(night.open(3, 23 * 60 + 30)); assertTrue(night.open(4, 2 * 60)); assertFalse(night.open(4, 7 * 60))
         assertEquals(7 * 60 - 30, night.untilClose(3, 23 * 60 + 30))
