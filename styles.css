@@ -2205,6 +2205,7 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 .studio-ic { background: #FF4656; }   /* v354: סטודיו התרגום; 13/10/2026 — צבע המערכת של Studio */
 .academy-ic { background: #4699FF; }  /* 13/10/2026: צבע המערכת של Academy */
 .invest-ic { background: #30D158; }   /* 13/10/2026: צבע המערכת של Invest */
+.tax-ic { background: #5E5CE6; }      /* 01/11/2026: מרכז המס */
 /* כרטיס ההצעה בראש הסקירה — מרווח כמו שאר הכרטיסים */
 #tab-overview > #demoOffer { margin-bottom: 14px; }
 
