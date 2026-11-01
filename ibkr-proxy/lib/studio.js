@@ -199,6 +199,12 @@ function normVcp(o, now) {
   if (!(Number.isFinite(p) && p >= 0)) return null;
   const out = { p: Math.min(1, Math.round(p * 1000) / 1000), at: typeof now === 'number' ? now : 0 };
   if (/^[a-z0-9_]{2,32}$/.test(String(o.e || ''))) out.e = o.e;
+  // 1/11/2026: r = הקצב (בתים לשנייה, ממוצע קצר בטלפון) — "MB ומהירות" בדף העבודה; sr = למה המערכת עצרה את המשימה
+  // בפעם האחרונה (JobParameters.getStopReason) — מדידה בלבד
+  const r = Math.round(Number(o.r));
+  if (r > 0 && r < 1e10) out.r = r;
+  const sr = Math.floor(Number(o.sr));
+  if (sr > 0 && sr < 100) out.sr = sr;
   return out;
 }
 const PH_UP_MAX = 4 * 1024 * 1024 * 1024;   // הקול מהטלפון (בפועל עשרות MB לשעה) — תקרה גסה בלבד   // קובץ המדידות מהטלפון (ffprobe + השוטים) — JSON קטן; יותר = לא תקין
@@ -265,6 +271,10 @@ function normSpec(s) {
   const ph = s.ph === 1 && s.eng === 'api' && !subs && !link;
   if (s.ph === 1 && !ph) return null;
   // 26/10/2026: קריוקי — רק במצב השרת (בלי Claude: העובד מפריד, מיישר וצורב), לא קובץ כתוביות ולא בטלפון; חייבים מילים
+  // 1/11/2026 (בקשת המשתמש — "תרגום רגיל בשרת, הסרטון עולה דרך האפליקציה"): pu = Studio לאנדרואיד רק מעלה (הקול ואז הסרטון,
+  // ב־UIDT — ממשיך במסך כבוי), והשרת עושה הכל כמו בעבודה רגילה (התמלול, השוטים, הצריבה). בלי עיבוד בטלפון ובלי חיתוך
+  const pu = s.pu === 1 && s.eng === 'api' && !subs && !link && !ph && s.ka !== 1;
+  if (s.pu === 1 && !pu) return null;
   const ka = s.ka === 1;
   // 01/11/2026: בלי מילים = תמלול אוטומטי בעובד (al = שפת השיר: he / en — ivrit לא מזהה שפה בעצמו). = KA_AL בטלפון
   const al = ka && !normLyr(s.lyr).trim() && KA_AL.includes(s.al) ? s.al : '';
@@ -289,7 +299,8 @@ function normSpec(s) {
   ph ? Object.assign({ ph: 1 }, s.pw === 1 ? { pw: 1 } : {}, s.pw === 1 && s.pt === 1 && s.cp !== 1 && s.ry !== 1 ? { pt: 1 } : {},
     PH_BURN.includes(s.pb) ? { pb: s.pb } : {}, s.vc === 1 ? { vc: 1 } : {}) : {},   // pb = מה הטלפון צורב בסוף (ריק = רק כתוביות)
   // 29/10/2026: vc = Studio לאנדרואיד מעלה גם את הסרטון לענן, ברקע ובלי לעכב את העבודה (לנגן ולשמירה) — העבודה לא מחכה לו
-  !subs && !link && !ph && edlPre(normEdl(s.edl)) ? { edl: edlPre(normEdl(s.edl)) } : {},   // מ4: חיתוך לפני התרגום (dur = האורך אחרי החיתוך)
+  pu ? { pu: 1, vc: 1 } : {},   // vc — אותו מסלול הסרטון לענן (phVp, ‏phUp עם v) כמו בתרגום בטלפון
+  !subs && !link && !ph && !pu && edlPre(normEdl(s.edl)) ? { edl: edlPre(normEdl(s.edl)) } : {},   // מ4: חיתוך לפני התרגום (dur = האורך אחרי החיתוך)
   // 21/10/2026: פיקסלים לשנייה ביחס ל־1080p30 (מהמידות שהטלפון קרא; העובד מתקן אחרי הקליטה) — לצפי של הצריבה
   Number.isFinite(+s.px) && +s.px >= 0.02 && +s.px <= 16 ? { px: Math.round(+s.px * 1000) / 1000 } : {},
   s.eng === 'api' ? Object.assign({ eng: 'api', cap: normCap(s.cap) }, s.cp === 1 ? { cp: 1 } : s.ry === 1 ? { ry: 1 } : {}) : {});   // 24/10/2026: ry = השרת עושה הכל, Claude דרך ה־Routine של המשתמש (lib/relay.js)   // מצב API של המערכת — עם תקרת עבודה ($); סבב 10: cp = העתק־הדבק (Claude של המשתמש)
@@ -1420,7 +1431,7 @@ function jobCap(spec, used, month, prev) {
 /* ---------- Firestore (REST) ---------- */
 /* 21/10/2026: מדידת ההעלאה מהטלפון (job.utl) — רק מספרים: זמן מהיצירה, החילוץ, העלאת הקול/הסרטון (ms), בייטים, זמן ברקע,
    ניסיונות, Wake Lock, סוג רשת, זיכרון וליבות של הטלפון. **UTL_KEYS זהה ל־UTL_KEYS ב־studio.js** */
-const UTL_KEYS = ['c2s', 'ex', 'ab', 'a', 'v', 'vb', 'hid', 'hn', 'rs', 'wt', 'wl', 'wlr', 'nt', 'dl', 'dm', 'hc', 'vf', 'bg', 'dvp', 'dvs', 'dvn', 'vh'];   // 25/10/2026: המכשיר — dvp/dvs/dvn (devCodes ב־studio.js)   // vf = הסרטון עלה לפני שהחילוץ הסתיים · bg = ההעלאה ברקע (1 הצליחה, 2 חזרה לרגילה, 3 לא נתמכת)
+const UTL_KEYS = ['c2s', 'ex', 'ab', 'a', 'v', 'vb', 'hid', 'hn', 'rs', 'wt', 'wl', 'wlr', 'nt', 'dl', 'dm', 'hc', 'vf', 'bg', 'dvp', 'dvs', 'dvn', 'vh', 'np'];   // 1/11/2026: np = הפרוטוקול של חלק בהעלאה (1 = http/1.1, 2 = h2, 3 = h3; protoCode ב־studiostore.js)   // 25/10/2026: המכשיר — dvp/dvs/dvn (devCodes ב־studio.js)   // vf = הסרטון עלה לפני שהחילוץ הסתיים · bg = ההעלאה ברקע (1 הצליחה, 2 חזרה לרגילה, 3 לא נתמכת)
 function normUtl(o) {
   if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
   const out = {};

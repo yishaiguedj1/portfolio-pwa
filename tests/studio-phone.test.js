@@ -282,7 +282,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(['studioPh', 'phburn', 'phKey'].every((x) => src.includes(x)) && !/net\.api\('phBurn'/.test(src), 'הדף לא מדווח צריבה (רק האפליקציה, במפתח של העבודה)');
   // 24/10/2026 (בטלפון: הצריבה הופיעה רק בהתראה) — עבודה שהסתיימה ממשיכה להיבדק בזמן הצריבה, והאחוז נשלח כל 5 שנ׳ ברקע
   ok(/st === 'running' \|\| \(r && r\.srv && r\.srv\.bg\) \|\| phBurnLive\(r\) \|\| phPrepLive\(r\) \? 4000/.test(src) && /phBurnTap\.set\(rec\.id, Date\.now\(\)\)/.test(src), 'בזמן הצריבה (וגם כשהטלפון מתמלל/מיישר) דף העבודה שואל כל 4 שנ׳ (גם כשהעבודה "הסתיימה")');
-  ok(/kind === 'ph' && rec\.spec\.pw \? \{ pw: 1 \}/.test(src) && /if \(f\.pw === true\) spec\.pw = 1/.test(src) && /on: f\.pw === true/.test(src), 'הכל בטלפון: רק כשהופעל (כבוי כברירת מחדל, 30/10/2026) — העבודה עם pw, וה־intent מעביר pw=1');
+  ok(/kind === 'ph' && rec\.spec\.pw \? \{ pw: 1 \}/.test(src) && /if \(!P\.pu && f\.pw === true\) spec\.pw = 1/.test(src) && /on: f\.pw === true/.test(src), 'הכל בטלפון: רק כשהופעל (כבוי כברירת מחדל, 30/10/2026) — העבודה עם pw, וה־intent מעביר pw=1');
   const work = fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhWork.kt'), 'utf8');
   ok(/lastRep > 2_000/.test(work) && /class Latest/.test(work) && /pending\.getAndSet\(o\) == null/.test(work) && !/\* 0\.95/.test(work) && /repDone\(JSONObject\(\)\.put\("s", "done"\)/.test(work),
     'הצריבה מדווחת כל 2 שנ׳, רק הערך האחרון (בלי תור שמפגר — 35% בדף מול 51% בהתראה), אותו אחוז של ההתראה; "הסתיים" אחרון');
@@ -307,7 +307,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   const lf = [...local.matchAll(/File\((?:md|am), "([^"]+)"\)/g)].map((m) => m[1]).filter((x) => /\./.test(x)).map((x) => have.has(x) ? x : 'aligner/model/' + x);
   ok(lf.length >= 5 && lf.every((x) => have.has(x)), 'כל קובץ ש־PhLocal פותח — בין המודלים: ' + lf.join(', '));
   ok(!/models_wifi"\)/.test(work) && !/isActiveNetworkMetered/.test(work), 'הורדת המודלים גם בחבילת גלישה — בלי חובת Wi‑Fi (בקשת המשתמש 25/10/2026)');
-  ok(/fun codeOf\(e: Throwable\)/.test(work) && /"x_" \+ e\.javaClass\.simpleName/.test(work) && (work.match(/val code = codeOf\(e\)/g) || []).length === 3, 'כשל לא צפוי מדווח עם סוג החריגה (x_…), לא "fail" (הקול, הצריבה והסרטון לענן)');
+  ok(/fun codeOf\(e: Throwable\)/.test(work) && /"x_" \+ e\.javaClass\.simpleName/.test(work) && (work.match(/val code = codeOf\(e\)/g) || []).length === 4, 'כשל לא צפוי מדווח עם סוג החריגה (x_…), לא "fail" (הקול, הצריבה, הסרטון לענן ו־pu)');
   ok(/rec\.up\.ph && \(!rec\.srv \|\| !rec\.srv\.state \|\| rec\.srv\.state === 'new'\)/.test(src) && /T\('studioPhStopBig'\)/.test(src), 'עבודה שעוד בטלפון — בלי "הקבצים מוכנים בענן"');
 
   // 25/10/2026 (בקשת המשתמש): הסרטון שנצרב בטלפון — בנגן שלנו, עם בחירת קול וכתוביות

@@ -34,6 +34,8 @@ class PhUpJob : JobService() {
 
     override fun onStopJob(params: JobParameters): Boolean {
         stopped = true
+        // 1/11/2026: למה המערכת עצרה (רשת, מכסה, סוללה…) — נשלח עם הדיווח הבא (vcp.sr), למדידה של ההעלאה ברקע
+        if (Build.VERSION.SDK_INT >= 31) params.extras?.getString("pid")?.let { pid -> runCatching { PhStore.update(this, pid) { it.put("vSr", params.stopReason) } } }
         return true   // לתזמן שוב — ממשיכים מהחלקים שכבר ב־R2
     }
 
@@ -43,9 +45,13 @@ class PhUpJob : JobService() {
         /** true = תוזמן (אנדרואיד 14+, האפליקציה גלויה); false = PhService יעלה אחרי הקול */
         fun schedule(ctx: Context, pid: String): Boolean {
             if (Build.VERSION.SDK_INT < 34) return false
+            val r = PhStore.get(ctx, pid)
+            val left = maxOf(0L, (r?.optLong("size") ?: 0L))
             val info = JobInfo.Builder(JOB_ID, ComponentName(ctx, PhUpJob::class.java))
                 .setUserInitiated(true)
                 .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+                // 1/11/2026: כמה עולה — המערכת מתזמנת ומעריכה את המשימה לפי זה (בלי — "לא ידוע")
+                .apply { if (left > 0) setEstimatedNetworkBytes(0L, left) }
                 .setExtras(PersistableBundle().apply { putString("pid", pid) })
                 .build()
             return try {

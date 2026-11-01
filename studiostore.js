@@ -39,8 +39,22 @@ export const r2JobOf = (x) => (isR2Folder(x) || isR2Id(x) ? String(x).slice(3, 2
    מחזיר { id, size, name, mimeType } — כמו קובץ של Drive */
 /* 29/10/2026: ארבעה חלקים במקביל (עד היום שניים) — ברשת סלולרית חיבור אחד לא ממלא את קו ההעלאה (השהיה ואיבוד חבילות) */
 export const R2_CONC = 4;
+/* 1/11/2026 (משימות-פתוחות ב׳ — "הכי מהר בדפדפן"): כשהדף מוסתר — 6. אחרי כדקה ברקע Chrome מקפיא את הדף, אבל חלק שכבר יצא
+   עולה מהזיכרון של הדפדפן עד הסוף (Blob, לא הקוד של הדף) — יותר חלקים בדרך ברגע ההקפאה = יותר בתים שעולים במסך כבוי */
+export const R2_CONC_HID = 6;
+const hiddenNow = () => typeof document !== 'undefined' && document.visibilityState === 'hidden';
+export const r2ConcNow = (hidden) => (hidden ? R2_CONC_HID : R2_CONC);
+/* הפרוטוקול של בקשת חלק (Resource Timing: http/1.1, h2, h3) → 1/2/3, ‏0 = לא ידוע (בלי Timing-Allow-Origin הדפדפן מסתיר) */
+export const protoCode = (p) => (/^h3/.test(p) ? 3 : p === 'h2' ? 2 : /^http\/1/.test(p) ? 1 : 0);
+function protoOf(url) {
+  try { const e = performance.getEntriesByName(url); return e.length ? String(e[e.length - 1].nextHopProtocol || '') : ''; } catch (x) { return ''; }
+}
 export async function r2Upload(o, env = {}) {
-  const E = Object.assign({ sleep: (ms) => new Promise((r) => setTimeout(r, ms)), now: () => Date.now(), online: () => true, conc: R2_CONC }, env);
+  const dyn = env.conc == null;   // בלי conc מפורש (הבדיקות) — לפי מצב הדף
+  const E = Object.assign({ sleep: (ms) => new Promise((r) => setTimeout(r, ms)), now: () => Date.now(), online: () => true, conc: R2_CONC, proto: protoOf }, env);
+  const concNow = () => (dyn ? r2ConcNow(hiddenNow()) : E.conc);
+  const concMax = dyn && typeof document !== 'undefined' ? R2_CONC_HID : concNow();
+  let protoSent = false;
   const size = o.size;
   let st = Object.assign({}, o.st || {});
   let done = new Set(), urls = new Map(), urlAt = 0, fails = 0;
@@ -70,7 +84,10 @@ export async function r2Upload(o, env = {}) {
     live.set(n, 0);
     try {
       const r = await E.put(urls.get(n), o.blob.slice(start, end), {}, (b) => { live.set(n, Math.min(b, end - start)); report(); }, o.signal);
-      if (r.status === 200) { done.add(n); urls.delete(n); return true; }
+      if (r.status === 200) {
+        if (!protoSent && o.onProto) { const c = protoCode(E.proto(urls.get(n))); if (c) { protoSent = true; o.onProto(c); } }
+        done.add(n); urls.delete(n); return true;
+      }
       if (r.status === 404) throw Object.assign(new Error('r2_gone'), { code: 'net', gone: true });
       if (r.status >= 400 && r.status < 500 && r.status !== 403 && r.status !== 408 && r.status !== 429) throw fatal('r2_http_' + r.status);
       throw Object.assign(new Error(r.stalled ? 'stalled' : 'r2_http_' + r.status), { code: r.stalled ? 'stalled' : 'net' });
@@ -101,14 +118,15 @@ export async function r2Upload(o, env = {}) {
          השני המשיך לעלות "יתום" — הסבב הבא שלח אותו שוב במקביל לעצמו (רוחב פס כפול לאותם בתים). עכשיו חלק שנכשל רק עוצר
          את החלוקה של חלקים חדשים, מחכים שהחלקים שבדרך יסתיימו, ואז מטפלים בתקלה */
       let i = 0, sent = 0, err = null;
-      const worker = async () => {
+      const worker = async (k) => {
         while (i < ready.length && !err) {
           if (stopped()) throw abortErr();
+          if (k >= concNow()) { await new Promise((r) => setTimeout(r, 400)); continue; }   // מעבר ל־R2_CONC (הדף מוצג) — מחכה עד שיוסתר
           const n = ready[i++];
           try { if (await sendPart(n)) { sent++; fails = 0; } } catch (e) { if (!err) err = e; }
         }
       };
-      await Promise.all(Array.from({ length: Math.min(E.conc, ready.length) }, worker));
+      await Promise.all(Array.from({ length: Math.min(concMax, ready.length) }, (x, k) => worker(k)));
       if (err) throw err;
       if (!sent) throw Object.assign(new Error('r2_none'), { code: 'net' });
     } catch (e) {

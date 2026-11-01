@@ -26,6 +26,8 @@ import java.io.File
 /**
  * 24/10/2026 — תרגום בטלפון, שלב 1: החלון הקטן של Studio מעל האתר. הכתובות מהאתר שלנו (intent://…#Intent;scheme=snbstudio),
  * אבל כל ערך נבדק כאן כאילו הגיע מכל אפליקציה.
+ *   snbstudio://phpick?w=<האתר>&l=he&m=pu → 1/11/2026: תרגום רגיל בשרת — בחירה בלי עותק (הרשאה קבועה ל־URI), MediaExtractor
+ *                                            במקום ffprobe → ‎#phpick=<pid>.<base64url> עם "m":"pu" (PhPu)
  *   snbstudio://phpick?w=<האתר>&l=he      → בחירת סרטון, העתקה לאחסון הפרטי (ffmpeg לא פותח content://), ffprobe →
  *                                            חזרה לאתר עם ‎#phpick=<pid>.<base64url> (שגיאה: ‎#phpick=!<קוד>)
  *   snbstudio://ph?pid=…&j=…&k=…&b=…&pb=…&ov=0|1[&pw=1&cell=1]   → העבודה נוצרה באתר: הקול, ההתחלה והמדידות (PhService, ברקע);
@@ -58,7 +60,7 @@ class PhActivity : Activity() {
         web = webOk(d.getQueryParameter("w")) ?: s(R.string.launchUrl)
         PhStore.gc(this); PhStore.gcRemoteAsync(this)
         when (d.host) {
-            "phpick" -> pick()
+            "phpick" -> pick(d.getQueryParameter("m") == "pu")
             "ph" -> go(d)
             "phburn" -> burn(d)
             "phgo" -> resume(d)
@@ -67,19 +69,51 @@ class PhActivity : Activity() {
     }
 
     /* ---------------------------------------------------------------- בחירה */
-    private fun pick() {
+    private fun pick(pu: Boolean) {
         titleV.text = s(R.string.phPickT); subV.text = s(R.string.phPickS)
         btn.text = s(R.string.dlCancel); btn.setOnClickListener { cancelled = true; back("#phpick=!cancel") }
-        startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("video/*"), REQ_PICK)
+        val i = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("video/*")
+        if (pu) i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        startActivityForResult(i, if (pu) REQ_PICK_PU else REQ_PICK)
     }
 
     @Deprecated("Activity API")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQ_PICK) return
+        if (requestCode != REQ_PICK && requestCode != REQ_PICK_PU) return
         val u = data?.data
         if (resultCode != RESULT_OK || u == null) { back("#phpick=!cancel"); return }
-        copy(u)
+        if (requestCode == REQ_PICK_PU) pickPu(u) else copy(u)
+    }
+
+    /** 1/11/2026 (pu): בלי עותק — ההרשאה ל־URI נשמרת (PhUpJob קורא ממנו גם אחרי הפעלה מחדש), והמידות והאורך מ־MediaExtractor */
+    private fun pickPu(u: Uri) {
+        titleV.text = s(R.string.phPuProbe); subV.text = ""
+        bar.isIndeterminate = true
+        Thread {
+            val pid = PhStore.newPid()
+            val res = try {
+                try { contentResolver.takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Throwable) {}
+                var name = "video.mp4"; var size = -1L
+                contentResolver.query(u, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
+                    if (c.moveToFirst()) { name = c.getString(0) ?: name; if (!c.isNull(1)) size = c.getLong(1) }
+                }
+                if (size <= 0) size = contentResolver.openFileDescriptor(u, "r")?.use { it.statSize } ?: -1L
+                if (size <= 0) throw IllegalArgumentException("probe")
+                if (cancelled) throw IllegalArgumentException("cancel")
+                val info = PhPu.probe(this, u) ?: throw IllegalArgumentException("no_video")
+                if (!info.hasAudio) throw IllegalArgumentException("no_audio")
+                PhStore.put(this, JSONObject().put("pid", pid).put("name", name.take(200)).put("size", size).put("uri", u.toString()).put("pu", true)
+                    .put("at", System.currentTimeMillis()).put("web", web).put("st", "picked"))
+                val oh = try { PhPu.osHash(PhPu.UriSrc(this, u, size)) } catch (e: Throwable) { "" }
+                "#phpick=$pid." + DlEngine.b64(PhCore.pickJson(pid, name, size, info, oh).put("m", "pu").toString())
+            } catch (e: Throwable) {
+                PhStore.drop(this, pid)
+                try { contentResolver.releasePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (x: Throwable) {}
+                "#phpick=!" + ((e as? IllegalArgumentException)?.message ?: "probe")
+            }
+            main.post { if (!isFinishing) back(res) }
+        }.start()
     }
 
     private fun copy(u: Uri) {
@@ -136,7 +170,7 @@ class PhActivity : Activity() {
         // pt=1 — שלב 3: גם שלבי הטקסט בטלפון (PhPy). רק עם pw, נקבע פעם אחת לעבודה (spec.pt)
         val pt = pw && (if (r.has("pt")) r.optBoolean("pt") else d.getQueryParameter("pt") == "1")
         // vc=1 — 29/10/2026: גם הסרטון לענן, ברקע (PhUpJob); נקבע פעם אחת לעבודה, כמו בשרתון (spec.vc)
-        val vc = if (r.has("vc")) r.optBoolean("vc") else d.getQueryParameter("vc") == "1"
+        val vc = r.optBoolean("pu") || if (r.has("vc")) r.optBoolean("vc") else d.getQueryParameter("vc") == "1"   // pu — הסרטון תמיד לענן
         PhStore.update(this, pid) { it.put("job", j).put("key", k).put("base", b).put("pb", pb).put("ov", d.getQueryParameter("ov") == "1").put("web", web)
             .put("pw", pw).put("pt", pt).put("vc", vc).put("cell", d.getQueryParameter("cell") == "1").remove("e") }
         PhGcJob.schedule(this)          // הסרטון נשמר עד שהפרויקט נמחק — הבדיקה ברקע
@@ -230,6 +264,7 @@ class PhActivity : Activity() {
 
     companion object {
         private const val REQ_PICK = 71
+        private const val REQ_PICK_PU = 72
         /** האתר שאליו חוזרים — רק Studio (ייצור / ניסוי) */
         private val WEBS = listOf("https://studio.thesnowball.app/", "https://studio-staging.thesnowball.app/")
         fun webOk(w: String?): String? = w?.let { x -> WEBS.firstOrNull { it == x || it == "$x/" } }

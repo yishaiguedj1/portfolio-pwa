@@ -77,4 +77,9 @@
     <string name="phSaving">Saving to Movies/Studio…</string>
     <string name="phBurned">The translated video is ready</string>
     <string name="phBurnFailed">Burning on the phone failed</string>
+    <!-- 1/11/2026: regular server translation — the app only uploads (spec.pu) -->
+    <string name="phUpVB">%1$s of %2$s · %3$s/s</string>
+    <string name="phPuSent">Audio uploaded — the translation is running on the server</string>
+    <string name="phPuSentS">The video keeps uploading in the background, even with the screen off. Burning happens on the server, as always</string>
+    <string name="phPuProbe">Reading the video…</string>
 </resources>
