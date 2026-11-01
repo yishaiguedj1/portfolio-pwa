@@ -571,7 +571,7 @@ def _head_found(opts: list[str], txt: str) -> bool:
 CHECK_CODES = {
     "id": "h", "miss": "h", "eq": "h", "drift": "h", "spk": "h", "len": "h", "dlg": "h", "brk": "h",
     "nikud": "h", "dash": "h", "tag": "h", "part": "h",
-    "num": "s", "gls": "s", "lat": "s", "name": "s", "spl": "s", "q": "s", "short": "s", "cps": "s", "cur": "s", "hdg": "s", "gen": "s",
+    "num": "s", "gls": "s", "lat": "s", "name": "s", "spl": "s", "q": "s", "short": "s", "cps": "s", "cur": "s", "hdg": "s", "gen": "s", "agr": "s",
     "dots": "-",
 }
 CHECK_CODE_RE = re.compile(r"^- #(\d+): \[([a-z]+)\] ")
@@ -623,12 +623,91 @@ def gender_issues(cues: list[dict], he: dict[str, str], speakers: dict | None) -
     return out
 
 
+# 01/11/2026 (שדרוג הסטודיו, A2): בדיקת התאמה לפי הניתוח הדקדוקי (DictaBERT joint שכבר בתמונה — vt.linebreak.DepModel).
+# הרשימה של _GEN_PAIRS תופסת 35 פעלים בגוף ראשון; המודל — כל פועל ותואר: (1) "אני" כנושא מול מגדר הדובר; (2) נושא ונשוא
+# שלא מתאימים במין או במספר ("הילדה הלך", "האנשים אמר"). הערה "לשקול" בלבד — המתקן מכריע, וניתוח שגוי לא מזיק.
+_UD_G = {"Masc": "m", "Fem": "f"}
+_UD_N = {"Sing": "s", "Plur": "p"}
+_PRED_POS = {"VERB", "ADJ", "AUX"}
+_SUBJ_POS = {"NOUN", "PRON", "PROPN"}
+_SELF = {"אני", "ואני", "שאני", "כשאני", "גםאני"}
+
+
+def agreement_slips(text: str, g: str, dep) -> list[tuple[str, str, str]]:
+    """[(סוג, נושא, נשוא)] — סוג: 'self' (הדובר על עצמו במגדר ההפוך), 'g' (מין), 'n' (מספר). ציטוט — לא נבדק."""
+    t = normalize_he(text)
+    if dep is None or '"' in t:
+        return []
+    try:
+        toks = dep.toks(t)
+    except Exception:                       # noqa: BLE001 — בדיקה בלבד; תקלה במודל לא עוצרת את הבדיקות האחרות
+        return []
+    if not toks or len(toks[0]) < 7:
+        return []
+    out = []
+    for i, tk in enumerate(toks):
+        if not str(tk[2] or "").startswith("nsubj"):
+            continue
+        h = tk[1]
+        if not isinstance(h, int) or not 0 <= h < len(toks) or h == i:
+            continue
+        hd = toks[h]
+        if hd[3] not in _PRED_POS:
+            continue
+        hg, sg = _UD_G.get(hd[4]), _UD_G.get(tk[4])
+        if tk[0] in _SELF:
+            if g in ("m", "f") and hg and hg != g:
+                out.append(("self", tk[0], hd[0]))
+            continue
+        if tk[3] not in _SUBJ_POS or tk[6] == "1":
+            continue
+        if sg and hg and sg != hg:
+            out.append(("g", tk[0], hd[0]))
+        elif _UD_N.get(tk[5]) and _UD_N.get(hd[5]) and _UD_N[tk[5]] != _UD_N[hd[5]]:
+            out.append(("n", tk[0], hd[0]))
+    return out
+
+
+def agreement_issues(cues: list[dict], he: dict[str, str], speakers: dict | None, dep, skip: set | None = None) -> list[str]:
+    """skip = כתוביות שכבר קיבלו הערת [gen] מהרשימה (לא שתי הערות על אותה מילה)."""
+    out = []
+    if dep is None:
+        return out
+    for c in cues:
+        k = str(c["id"])
+        t = he.get(k)
+        if not t or t in ("=", "∅"):
+            continue
+        if c.get("parts"):
+            segs = list(zip([p.get("spk") for p in c["parts"]], t.split("||"))) if "||" in t else []
+        else:
+            segs = [(c.get("spk"), t)]
+        for spk, txt in segs:
+            info = (speakers or {}).get(spk or "") or {}
+            g = gender_of(info)
+            hits = agreement_slips(txt, g, dep)
+            if not hits:
+                continue
+            kind, a, b = hits[0]
+            if kind == "self":
+                if skip and k in skip:
+                    continue
+                who = (info.get("name") or spk) + (", אישה" if g == "f" else ", גבר")
+                out.append(f"- #{k}: [gen] הדובר {spk} ({who}) — '{a} {b}' {'בלשון זכר' if g == 'f' else 'בלשון נקבה'}; "
+                           "אם התוכן מראה שמדבר כאן מישהו אחר — להשאיר")
+            else:
+                out.append(f"- #{k}: [agr] '{a}' ו־'{b}' לא מתאימים {'במין' if kind == 'g' else 'במספר'}; "
+                           "אם זה נכון בהקשר — להשאיר")
+            break
+    return out
+
+
 def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[str]]],
-          max_chars: int = 84, speakers: dict | None = None) -> tuple[list[str], dict]:
+          max_chars: int = 84, speakers: dict | None = None, dep=None) -> tuple[list[str], dict]:
     """בדיקת התרגום מול התכנון. מחזיר (שורות דוח, סיכום)."""
     issues: list[str] = []
     stats = {"total": len(cues), "translated": 0, "missing": 0, "over_budget": 0,
-             "numbers": 0, "latin": 0, "glossary": 0, "glossary_soft": 0, "names": 0, "spell": 0, "questions": 0, "short": 0, "style": 0, "errors": 0, "drift": 0, "hedges": 0, "gender": 0}
+             "numbers": 0, "latin": 0, "glossary": 0, "glossary_soft": 0, "names": 0, "spell": 0, "questions": 0, "short": 0, "style": 0, "errors": 0, "drift": 0, "hedges": 0, "gender": 0, "agree": 0}
     ids = {str(c["id"]) for c in cues}
     # מילים לועזיות שהמילון קובע שנשארות כך ("Claude", "if-else") — לא "לא תורגמו"
     keep_latin = {w.lower() for _t, opts in glossary for o in opts for w in _LAT_WORD.findall(o)}
@@ -783,6 +862,10 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
     gv = gender_issues(cues, he, speakers)   # 26/10/2026: הדובר מדבר על עצמו במגדר ההפוך
     issues += gv
     stats["gender"] = len(gv)
+    av = agreement_issues(cues, he, speakers, dep, skip={x.split(":")[0][3:] for x in gv})   # 01/11/2026: לפי הניתוח
+    issues += av
+    stats["gender"] += sum(1 for x in av if "[gen]" in x)
+    stats["agree"] = sum(1 for x in av if "[agr]" in x)
     return issues, stats
 
 

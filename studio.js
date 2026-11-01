@@ -907,7 +907,7 @@ export function fmtUsd(v) {
 }
 /* כרטיס "עלות": שורה לכל שלב (תיאום / תרגום / ביקורת / סוכן־משנה אחר), סכום כולל, והאם סוכן־משנה רץ על מודל אחר מהמצב שנבחר.
    מודל בלי מחירון — usd null: השורה בלי מחיר והסכום מסומן "לפחות" */
-export function costView(use, modeId) {
+export function costView(use, modeId, meas) {
   const rows = normUse(use);
   if (!rows) return null;
   const fam = modeById(modeId).fam;
@@ -922,6 +922,13 @@ export function costView(use, modeId) {
     return { k: r.k, nth: seen[r.k], model: modelLabel(r.m), tok, usd: r.usd, open: sub && r.op ? { tok: r.op, usd: r.oc } : null, off };
   });
   for (const r of out) if (seen[r.k] < 2) r.nth = 0;   // מספור רק כשיש כמה מאותו סוג
+  // 1/11/2026 (המשתמש: "התקציב מתעדכן והעלות לא"): בזמן ריצה יעד התקציב לוקח גם את מה שהמגדל מדד (tw.usd, לפני הפירוט של העובד).
+  // מה שעוד לא מפורט — שורה משלו, כדי שהסה״כ כאן יהיה אותו מספר כמו בתקציב
+  const m = Number(meas);
+  if (Number.isFinite(m) && m - total >= 0.005) {
+    out.push({ k: 'run', nth: 0, model: '', tok: 0, usd: Math.round((m - total) * 100) / 100, open: null, off: false, meas: true });
+    total = m;
+  }
   return { rows: out, total, partial, want: modelLabel('claude-' + fam + '-5-5'), warn: out.filter((r) => r.off) };
 }
 export function normStore(o) {
@@ -2230,7 +2237,7 @@ const kaJob = (id) => !!(store && store.jobs && store.jobs.some((r) => r && r.id
    דפי המשנה שלו) החוגה כולה ירדה. עכשיו המגדל אח בחוגה: ההורה = הבית, כמו הקריוקי והעבודה */
 export function chainFor(v, p) {
   if ((v === 'lang' && p !== 'def') || v === 'tracks' || v === 'link' || v === 'linkfmt' || v === 'linksec' || v === 'fmthelp' || v === 'grab' || v === 'cutsrc' || v === 'dpick') { v = 'new'; p = form && form.ka ? 'ka' : null; }   // הטופס (והקובץ) לא שורדים רענון; 30/10: טופס של שיר — תחת הקריוקי
-  const parent = (x, y) => (x === 'home' ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : x === 'tower' ? ['home', null] : (x === 'lang' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'towerx' || x === 'rlb' || x === 'rlm' ? ['tower', null] : x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['towerx', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : x === 'vids' ? (vidsParent(y) || ['store', null]) : x === 'kasty' ? ['new', 'ka'] : (x === 'new' && y === 'ka') || (x === 'job' && kaJob(y)) ? ['ka', null] : ['home', null]);   // 30/10: שיר — תחת הקריוקי
+  const parent = (x, y) => (x === 'home' ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : x === 'tower' ? ['home', null] : (x === 'lang' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push' || x === 'credits') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'towerx' || x === 'rlb' || x === 'rlm' ? ['tower', null] : x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['towerx', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : x === 'vids' ? (vidsParent(y) || ['store', null]) : x === 'kasty' ? ['new', 'ka'] : (x === 'new' && y === 'ka') || (x === 'job' && kaJob(y)) ? ['ka', null] : ['home', null]);   // 30/10: שיר — תחת הקריוקי
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -7552,9 +7559,37 @@ async function goldRun() {
     flashSafe(T('studioGoldStarted', { n: j.jobs.length }));
   } finally { goldBusy = ''; render('none'); }
 }
-function costCard(cv, tr) {
+/* 1/11/2026: מה שהמגדל מדד בזמן ריצה (אותו מספר שביעד התקציב) — רק כשהעבודה עוד רצה; בסוף הפירוט של העובד הוא הסופי */
+const costMeas = (r) => (r && r.srv && r.srv.sla && r.srv.sla.u && (r.srv.state === 'running' || r.srv.state === 'queued') ? r.srv.sla.u.sp : null);
+/* 1/11/2026 (המשתמש: "רק התקציב מתעדכן בזמן אמת"): הכרטיס נבנה פעם אחת והדף לא נבנה מחדש כשהעלות משתנה —
+   עכשיו הוא מתעדכן במקום (live) מהרשומה העדכנית, ונבנה מחדש רק כשהנתונים השתנו */
+function costCard(cv, tr, id) {
+  const box = h('div');
+  box.style.display = 'contents';
+  live(box, (el) => {
+    const r = id ? jobRec(id) : null;
+    const v = r && r.srv && r.srv.use ? costView(r.srv.use, r.spec.mode, costMeas(r)) || cv : cv;
+    const sig = JSON.stringify(v.rows) + v.total + (v.partial ? 1 : 0);
+    if (el.dataset.sig === sig) return;
+    el.dataset.sig = sig;
+    el.replaceChildren(...costBody(v, r && r.srv ? r.srv.tr : tr));
+  });
+  const out = [secT(T('studioSecCost')), box];
+  if (tr && tr.g.length) out.push(trDetails(tr));
+  out.push(note(T('studioCostNote')));
+  return out;
+}
+function costBody(cv, tr) {
   const rows = cv.rows.map((r) => {
     const row = h('div', 'st-row st-cost' + (r.off ? ' off-model' : ''));
+    if (r.meas) {
+      const l = h('span', 'st-l');
+      l.append(h('b', null, T('studioCostRun')), h('small', null, T('studioCostRunS')));
+      const v = h('span', 'st-v'); v.append(usdEl(r.usd));
+      row.append(l, v);
+      row.dataset.k = 'cost:run';
+      return row;
+    }
     const l = h('span', 'st-l');
     l.append(h('b', null, costLabel(r.k) + (r.nth ? ' ' + r.nth : '')));
     const sm = h('small');
@@ -7573,26 +7608,25 @@ function costCard(cv, tr) {
   const tv = h('span', 'st-v'); tv.append(usdEl(cv.total, cv.partial));
   tot.append(h('span', 'st-l', T('studioCostTotal')), tv);
   tot.dataset.k = 'cost:total';
-  const out = [secT(T('studioSecCost'))];
+  const out = [];
   for (const w of cv.warn) out.push(banner('warn', w.k === 'tl' ? T('studioCostWarnTl', { got: w.model, want: cv.want }) : T('studioCostWarnRv', { got: w.model, want: cv.want })));
   out.push(list(...rows, tot));
-  if (tr && tr.g.length) {
-    // v373: עקיבה — הפעולות הנפוצות (מקופל: פרטים לפי הצורך)
-    const tot2 = Object.values(tr.a).reduce((x, a) => ({ n: x.n + a.n, e: x.e + a.e }), { n: 0, e: 0 });
-    const det = h('details', 'st-details st-dig');
-    det.append(h('summary', null, T('studioTrT', { n: tot2.n }) + (tot2.e ? ' · ' + (tot2.e === 1 ? T('studioTrErr1') : T('studioTrErrs', { n: tot2.e })) : '')), list(...tr.g.map(([k, n, e]) => {
-      const r = h('div', 'st-row');
-      const lb = h('bdi', null, k.replace(/^vt:/, 'vt · ').replace(/^job:/, 'job.py · '));
-      const l = h('span', 'st-l'); const b = h('b'); b.append(lb); l.append(b);
-      if (e) l.append(h('small', 'st-neg', e === 1 ? T('studioTrErr1') : T('studioTrErrs', { n: e })));
-      r.append(l, h('span', 'st-v', ltr(n + '×')));
-      r.dataset.k = 'tr:' + k;
-      return r;
-    })));
-    out.push(det);
-  }
-  out.push(note(T('studioCostNote')));
   return out;
+}
+function trDetails(tr) {
+  // v373: עקיבה — הפעולות הנפוצות (מקופל: פרטים לפי הצורך)
+  const tot2 = Object.values(tr.a).reduce((x, a) => ({ n: x.n + a.n, e: x.e + a.e }), { n: 0, e: 0 });
+  const det = h('details', 'st-details st-dig');
+  det.append(h('summary', null, T('studioTrT', { n: tot2.n }) + (tot2.e ? ' · ' + (tot2.e === 1 ? T('studioTrErr1') : T('studioTrErrs', { n: tot2.e })) : '')), list(...tr.g.map(([k, n, e]) => {
+    const r = h('div', 'st-row');
+    const lb = h('bdi', null, k.replace(/^vt:/, 'vt · ').replace(/^job:/, 'job.py · '));
+    const l = h('span', 'st-l'); const b = h('b'); b.append(lb); l.append(b);
+    if (e) l.append(h('small', 'st-neg', e === 1 ? T('studioTrErr1') : T('studioTrErrs', { n: e })));
+    r.append(l, h('span', 'st-v', ltr(n + '×')));
+    r.dataset.k = 'tr:' + k;
+    return r;
+  })));
+  return det;
 }
 
 /* מסך ההתקדמות — "שגם ילד וגם אדם מבוגר יבינו": כמה נשאר, מתי יהיה מוכן, מה קורה עכשיו, ולכל שלב זמן */
@@ -8831,7 +8865,7 @@ function pageJob(p) {
   p.append(...orgRows(rec));   // 28/10/2026: מאיפה הגיע כל קובץ
   // v359: עלות — שורה לכל שלב, עלות הפתיחה של כל סוכן־משנה, סכום כולל
   const cv = rec.srv && rec.srv.use ? costView(rec.srv.use, rec.spec.mode) : null;
-  if (cv) p.append(...costCard(cv, rec.srv.tr));
+  if (cv) p.append(...costCard(cv, rec.srv.tr, rec.id));
 
   // הסרטון המלא — עולה ברקע אחרי הקול (Claude צריך אותו רק לצריבה)
   if (!rec.up.noAudio && !rec.up.v.done && (ph0 === 'queued' || ph0 === 'running')) {
@@ -8949,6 +8983,30 @@ function pageGuide(p) {
   sec(T('studioGd4'), T('studioGd4a'));
   sec(T('studioGd5'), T('studioGd5a'));
 }
+/* 01/11/2026 (שדרוג הסטודיו, Z1): הייחוס שהרישיונות דורשים (CC-BY: ‏Parakeet, ‏DictaBERT, ‏WeSpeaker) — וכל המודלים
+   הפתוחים שהעובד מריץ. מודל חדש בעובד = שורה כאן (tests/studio-credits.test.js). */
+const CREDITS = [
+  ['studioCrAsr', 'Parakeet TDT 0.6B v2', 'NVIDIA', 'CC-BY-4.0'],
+  ['studioCrAlign', 'Qwen3-ForcedAligner', 'Qwen', 'Apache-2.0'],
+  ['studioCrAlign', 'MMS_FA (torchaudio)', 'Meta', 'CC-BY-NC-4.0'],
+  ['studioCrParse', 'DictaBERT tiny joint', 'Dicta', 'CC-BY-4.0'],
+  ['studioCrHe', 'whisper-large-v3-turbo', 'ivrit.ai', 'Apache-2.0'],
+  ['studioCrHe', 'wav2vec2-large-xlsr-53-hebrew', 'imvladikon', 'Apache-2.0'],
+  ['studioCrSep', 'MelBand Roformer', 'Kim', 'MIT'],
+  ['studioCrSpk', 'WeSpeaker', 'WeNet', 'CC-BY-4.0'],
+  ['studioCrFace', 'YuNet', 'OpenCV Zoo', 'MIT'],
+  ['studioCrOcr', 'PP-OCRv3', 'PaddlePaddle', 'Apache-2.0'],
+];
+function pageCredits(p) {
+  p.append(navBar({ back: T('studioSettings') }), large(T('studioCredits')), note(T('studioCreditsN')));
+  const roles = { studioCrAsr: T('studioCrAsr'), studioCrAlign: T('studioCrAlign'), studioCrParse: T('studioCrParse'), studioCrHe: T('studioCrHe'),
+    studioCrSep: T('studioCrSep'), studioCrSpk: T('studioCrSpk'), studioCrFace: T('studioCrFace'), studioCrOcr: T('studioCrOcr') };
+  const rows = CREDITS.map(([role, name, by, lic]) => {
+    const v = h('span'); v.append(h('bdi', null, name + ' · ' + by), h('small', null, lic));
+    return kvRow(roles[role] || role, v, true);
+  });
+  p.append(setCard('', list(...rows)));
+}
 /* כרטיס בעמוד ההגדרות — כמו בהגדרות של Invest (.card מ־styles.css): כותרת בתוך הכרטיס, השורות בלי רקע משלהן */
 /* 25/10/2026 (בקשת המשתמש — לפי ת־עיצוב): הכותרת קטנה ואפורה מעל הקבוצה, והקבוצה עצמה היא הכרטיס (עד היום — כרטיס עם
    כותרת גדולה בפנים, ובתוכו עוד רשימה עם רקע משלה: כרטיס בתוך כרטיס) */
@@ -8991,7 +9049,8 @@ function pageSettings(p) {
   p.append(setCard(T('studioGrpGen'), list(
     srow,
     rowNav({ tile: tile('bell', 'red'), label: T('studioSecPush'), value: pushOnNow ? T('studioOnShort') : T('studioOffShort'), onClick: () => go('push'), k: 'push' }),
-    rowNav({ tile: tile('help', 'blue'), label: T('studioGuide'), onClick: () => go('guide'), k: 'guide' }))));   // מ9: מדריך קצר
+    rowNav({ tile: tile('help', 'blue'), label: T('studioGuide'), onClick: () => go('guide'), k: 'guide' }),   // מ9: מדריך קצר
+    rowNav({ tile: tile('shield', 'gray'), label: T('studioCredits'), onClick: () => go('credits'), k: 'credits' }))));   // Z1: ייחוס
   p.append(setCard(T('studioLrnGrp'), list(lrnRow(), lrnForgetRow())));   // 25/10/2026: מאגר הלמידה — קבוצה משלו
   if (C) p.append(C.display(), C.advRow(() => go('adv')));
 }
@@ -9642,6 +9701,7 @@ function render(kind, still, pre) {     // kind: none (ציור מחדש במק�
   else if (ui.view === 'ai') pageAi(p);               // מ7: גיליון ה־AI
   else if (ui.view === 'ideas') pageIdeas(p);         // מ8: רעיונות
   else if (ui.view === 'guide') pageGuide(p);         // מ9: מדריך
+  else if (ui.view === 'credits') pageCredits(p);     // Z1: מודלים ורישיונות
   else if (ui.view === 'adv') pageAdvanced(p);       // אפשרויות מתקדמות (כמו ב־Invest)
   else if (ui.view === 'cutsrc') pageCut(p, true);    // מ4: חיתוך לפני התרגום
   else if (ui.view === 'tracks') pageTracks(p);      // שלב 4: כתוביות בתוך הסרטון

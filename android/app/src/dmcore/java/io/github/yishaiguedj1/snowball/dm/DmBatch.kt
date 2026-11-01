@@ -10,7 +10,8 @@ import java.security.MessageDigest
  */
 object DmImport {
     sealed class Parsed {
-        data class Links(val urls: List<String>) : Parsed()
+        /** pattern = הקישורים נוצרו מתבנית (‏[01-40]) — 01/11/2026, DmPattern */
+        data class Links(val urls: List<String>, val pattern: Boolean = false) : Parsed()
         /** גיבוי של DM: משימות להוספה מחדש — בלי מקטעים, בלי קובץ בטלפון, במצב "בתור" */
         data class Backup(val tasks: List<DmTask>) : Parsed()
         object Empty : Parsed()
@@ -28,6 +29,8 @@ object DmImport {
             if (list.isNotEmpty()) return Parsed.Backup(list)
         }
         val urls = DmLink.all(t)
+        // קישור אחד עם תבנית (‏…/ep[01-40].mp4) = הורדה סדרתית
+        if (urls.size == 1 && DmPattern.has(urls[0])) DmPattern.expand(urls[0]).takeIf { it.isNotEmpty() }?.let { return Parsed.Links(it, true) }
         return if (urls.isEmpty()) Parsed.Empty else Parsed.Links(urls)
     }
 

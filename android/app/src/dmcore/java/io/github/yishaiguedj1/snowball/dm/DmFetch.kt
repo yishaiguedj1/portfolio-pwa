@@ -39,6 +39,9 @@ class DmFetch(
     private val minSeg: Long = DmSegs.MIN_SEG,
     /** עוגיות לכתובת (מהדפדפן של DM, רק להורדה שהתחילה שם) — נשלחות רק לאתר שהן שלו, גם אחרי הפניה */
     private val cookies: ((String) -> String?)? = null,
+    /** 01/11/2026 (DmHeat): תקרת חיבורים שמשתנה באמצע — חום/סוללה. יורדת → חיבורים עוזבים את המקטע (שנשאר לאחרים);
+     *  עולה → חיבורים חדשים חוצים את השארית. בלי — כל `conns` כל הזמן */
+    private val cap: () -> Int = { Int.MAX_VALUE },
 ) {
     sealed class Result {
         object Done : Result()
@@ -80,35 +83,44 @@ class DmFetch(
         val want = conns.coerceIn(1, DmSegs.MAX_CONNS)
         val threads = mutableListOf<Thread>()
         val busy = HashSet<Seg>()
+        active.set(0)
 
         fun launch(s: Seg) {
             busy.add(s)
+            active.incrementAndGet()
             threads.add(Thread {
                 var seg: Seg? = s
-                while (seg != null) {
-                    worker(seg, single = false)
-                    if (stopFlag() || fail.get() != null || restart) break
-                    // החיבור התפנה: לוקח מקטע שאף אחד לא עובד עליו, ואם אין — חוצה את הגדול ביותר
-                    seg = synchronized(lock) {
-                        busy.remove(seg)
-                        (task.segs.firstOrNull { !it.finished && it !in busy } ?: DmSegs.split(task.segs, minSeg))
-                            ?.also { busy.add(it) }
+                var culled = false
+                try {
+                    while (seg != null) {
+                        val r = worker(seg, single = false)
+                        if (r === CULLED) { culled = true; synchronized(lock) { busy.remove(seg) }; break }
+                        if (stopFlag() || fail.get() != null || restart) break
+                        // החיבור התפנה: לוקח מקטע שאף אחד לא עובד עליו, ואם אין — חוצה את הגדול ביותר
+                        seg = synchronized(lock) {
+                            busy.remove(seg)
+                            if (active.get() > capNow(want)) null
+                            else (task.segs.firstOrNull { !it.finished && it !in busy } ?: DmSegs.split(task.segs, minSeg))
+                                ?.also { busy.add(it) }
+                        }
                     }
-                }
+                } finally { if (!culled) active.decrementAndGet() }
             }.apply { isDaemon = true; start() })
         }
 
-        synchronized(lock) {
-            task.segs.filter { !it.finished }.take(want).forEach { launch(it) }
-            // פחות מקטעים פתוחים מחיבורים — חותכים עוד
-            while (threads.size < want) {
-                val n = DmSegs.split(task.segs, minSeg) ?: break
+        /** עד התקרה: מקטע שאף אחד לא עובד עליו, ואם אין — חוצים עוד */
+        fun fill() {
+            while (active.get() < capNow(want) && !stopFlag() && fail.get() == null && !restart) {
+                val n = task.segs.firstOrNull { !it.finished && it !in busy } ?: DmSegs.split(task.segs, minSeg) ?: break
                 launch(n)
             }
         }
+
+        synchronized(lock) { fill() }
         var last = System.currentTimeMillis()
         while (threads.any { it.isAlive }) {
-            threads.forEach { it.join(250) }
+            threads.toList().forEach { it.join(250) }
+            synchronized(lock) { fill() }
             val now = System.currentTimeMillis()
             if (now - last >= TICK_MS) { last = now; synchronized(lock) { onTick() } }
         }
@@ -122,6 +134,21 @@ class DmFetch(
     }
 
     /** חיבור אחד על מקטע אחד, עם ניסיונות חוזרים, עד שהמקטע נגמר / עצירה / תקלה סופית */
+    private val active = java.util.concurrent.atomic.AtomicInteger(0)
+    private fun capNow(want: Int) = runCatching { cap() }.getOrDefault(want).coerceIn(1, want)
+
+    /** חיבורים פעילים עכשיו (לממשק — מפת המקטעים) */
+    val live get() = active.get()
+
+    /** חיבור שיצא בגלל התקרה (DmHeat) — המקטע שלו נשאר שלם להמשך */
+    private fun cullMe(): Boolean {
+        if (active.get() <= capNow(conns.coerceIn(1, DmSegs.MAX_CONNS))) return false
+        synchronized(lock) {
+            if (active.get() <= capNow(conns.coerceIn(1, DmSegs.MAX_CONNS))) return false
+            active.decrementAndGet(); return true
+        }
+    }
+
     private fun worker(seg: Seg, single: Boolean): Result {
         var attempt = 0
         val buf = ByteArray(BUF)
@@ -145,7 +172,7 @@ class DmFetch(
                     val start = Regex("bytes\\s+(\\d+)-").find(cr)?.groupValues?.get(1)?.toLongOrNull()
                     if (start != seg.pos) { restart = true; return Result.Failed("changed") }
                 }
-                read(c.inputStream, seg, buf)
+                if (!read(c.inputStream, seg, buf, !single)) return CULLED
                 attempt = 0
                 if (single && task.total <= 0) { seg.end = seg.pos; task.total = seg.pos }   // הגודל נודע בסוף
             } catch (e: Throwable) {
@@ -163,15 +190,18 @@ class DmFetch(
         return Result.Done
     }
 
-    private fun read(input: InputStream, seg: Seg, buf: ByteArray) {
+    /** false = החיבור יצא בגלל התקרה (המקטע לא נגמר) */
+    private fun read(input: InputStream, seg: Seg, buf: ByteArray, cullable: Boolean): Boolean {
+        var k = 0
         input.use { inp ->
             while (!stopFlag() && !restart && fail.get() == null) {
                 val end = seg.end   // יכול להתקצר באמצע (split) — קוראים בכל סבב
-                if (seg.pos >= end) return
+                if (seg.pos >= end) return true
+                if (cullable && ++k % 4 == 0 && cullMe()) return false
                 val want = minOf(buf.size.toLong(), end - seg.pos).toInt()
                 val n = inp.read(buf, 0, want)
                 if (n < 0) {
-                    if (end == Long.MAX_VALUE) { seg.end = seg.pos; return }   // בלי גודל ידוע — הסוף הוא הסוף
+                    if (end == Long.MAX_VALUE) { seg.end = seg.pos; return true }   // בלי גודל ידוע — הסוף הוא הסוף
                     throw IOException("eof")
                 }
                 sink.write(seg.pos, buf, n)
@@ -180,6 +210,7 @@ class DmFetch(
                 DmLimit.take(n.toLong(), sleep)
             }
         }
+        return true
     }
 
     companion object {
@@ -188,6 +219,7 @@ class DmFetch(
         const val TICK_MS = 2000L
 
         const val MAX_REDIRECTS = 8
+        private val CULLED = Result.Failed("_cull")
 
         /** חיבור מחובר (התשובה כבר הגיעה), אחרי הפניות. ההפניות כאן ולא ב־HttpURLConnection: עוגיות נשלחות רק לאתר
          *  שהן שלו (CookieManager לפי הכתובת של כל קפיצה) — עם instanceFollowRedirects הכותרת Cookie הייתה עוברת לאתר
@@ -258,8 +290,13 @@ object DmLimit {
     private var tokens = 0.0
     private var at = System.nanoTime()
 
+    /** 01/11/2026: תקרה זמנית של DmHeat (טלפון חם מאוד) — הנמוכה מבין השתיים קובעת */
+    @Volatile var heatBps = 0L
+        set(v) { val c = v.coerceAtLeast(0); if (c != field) { field = c; synchronized(this) { tokens = 0.0; at = now() } } }
+
     fun take(n: Long, sleep: (Long) -> Unit) {
-        val rate = bytesPerSec
+        val u = bytesPerSec; val h = heatBps
+        val rate = if (u > 0 && h > 0) minOf(u, h) else maxOf(u, h)
         if (rate <= 0) return
         val wait: Long
         synchronized(this) {
