@@ -421,6 +421,7 @@ private fun Details(a: DmActivity, t: DmTask, rev: Int, onClose: () -> Unit) {
             // 01/11/2026: מפת המקטעים החיה (צבע לכל חיבור, גרף מהירות, פירוט) ו"למה זה לא יורד?" — DmUiPro
             SegMap(t, rev)
             DiagCard(a, t, onClose)
+            WatchLive(a, t)
             Spacer(Modifier.height(12.dp))
             Info(stringResource(R.string.dmSource), runCatching { java.net.URI(t.url).host }.getOrNull() ?: t.url)
             Info(stringResource(R.string.dmResume), stringResource(if (t.kind == DmKind.YTDL || t.ranges) R.string.dmYes else R.string.dmNo))
@@ -572,6 +573,11 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                         Spacer(Modifier.height(10.dp))
                         GButton(onClick = { onClose(); a.openBrowser(page) }, Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(R.string.dmOpenBr), fontSize = 17.sp) }
                         Text(stringResource(R.string.dmOpenBrHint), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
+                        // 01/11/2026 (סבב 2): כל הקבצים שהדף מקשר אליהם, לבחירה (DmPageLinks)
+                        var links by remember(page) { mutableStateOf(false) }
+                        Spacer(Modifier.height(10.dp))
+                        if (!links) GTonal(onClick = { links = true }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.dmLinksBtn)) }
+                        else PageLinksBlock(a, page, ref, onClose)
                     }
                     TextButton(onClick = { scope.launch { check() } }) { Text(stringResource(R.string.dmRetry)) }
                 }
@@ -797,6 +803,10 @@ private fun SettingsScreen(a: DmActivity) {
             SetRow(stringResource(R.string.dmSetLimit), limName(lim)) { dlg = "s" }
             Div()
             HeatSetting()
+            Div()
+            BondSetting()
+            Div()
+            AutoRefreshSetting()
             Div()
             SetRow(stringResource(R.string.dmSetLang), langName(lang)) { dlg = "g" }
         }

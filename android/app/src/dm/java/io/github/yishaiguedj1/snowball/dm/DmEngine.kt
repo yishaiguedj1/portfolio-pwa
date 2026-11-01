@@ -22,6 +22,10 @@ object DmEngine {
     val ytEta = ConcurrentHashMap<String, Long>()
     /** 01/11/2026: חיבורים פעילים עכשיו לכל הורדה (מפת המקטעים) */
     val live = ConcurrentHashMap<String, Int>()
+    /** 01/11/2026 (צפייה תוך כדי הורדה): הנקודה שהנגן מחכה לה, לכל הורדה (DmGrowSource) */
+    val want = ConcurrentHashMap<String, Long>()
+    /** בתים שעברו בסלולר בהורדה שרצה עכשיו (Wi‑Fi וסלולר יחד) — לממשק */
+    val alt = ConcurrentHashMap<String, Long>()
 
     /* ---- חום וסוללה (DmHeat, ‏01/11/2026): נקרא לכל היותר פעם ב־10 שנ׳ ---- */
     @Volatile var heatWhy = DmHeat.Why.NONE
@@ -110,7 +114,11 @@ object DmEngine {
                 }
                 r.system || end == "stopped_sys" -> { t.state = DmState.QUEUED }
                 end == "stopped" -> { t.state = DmState.PAUSED }
-                else -> { t.state = DmState.FAILED; t.err = end; t.tries++; DmNotif.failed(ctx, t) }
+                else -> {
+                    t.state = DmState.FAILED; t.err = end; t.tries++
+                    // 01/11/2026 (סבב 2): קישור שפג ויש דף — רענון לבד ברקע (DmAutoRefresh); הצליח — ממשיך מאותו בייט
+                    if (pr.autoRefresh && DmRefresh.worth(t)) DmAutoRefresh.start(ctx, t) else DmNotif.failed(ctx, t)
+                }
             }
             val ms = System.currentTimeMillis() - t0
             val k = when (t.state) { DmState.DONE -> "done"; DmState.FAILED -> "fail"; else -> "stop" }
@@ -161,14 +169,19 @@ object DmEngine {
         val u = DmMedia.pending(ctx, t)
         DmStore.save()
         val sink = DmMedia.Sink(ctx, u)
+        // 01/11/2026 (סבב 2): Wi‑Fi וסלולר יחד — הרשת הסלולרית מתבקשת רק כשההגדרה דלוקה וההורדה בחלקים
+        val bonding = pr.bond && t.ranges && conns > 1
+        if (bonding) DmBondNet.acquire(ctx)
         try {
-            val f = DmFetch(t, sink, conns, uaOf(t), cookies = cookiesOf(t), cap = { capFor(conns) })
-            var lastB = 0L; var lastT = System.currentTimeMillis()
+            val f = DmFetch(t, sink, conns, uaOf(t), cookies = cookiesOf(t), cap = { capFor(conns) },
+                route = if (bonding) DmBondNet.route(ctx, pr, conns) else { _ -> null }, wantAt = { want[t.id] ?: -1L })
+            var lastB = 0L; var lastT = System.currentTimeMillis(); var lastAlt = 0L
             val res = f.run({ r.stop }) {
                 val now = System.currentTimeMillis()
                 speed[t.id] = ((f.bytes - lastB) * 1000 / (now - lastT).coerceAtLeast(1))
                 lastB = f.bytes; lastT = now
                 live[t.id] = f.live
+                if (bonding) { val a = f.altBytes; DmBondNet.add(pr, a - lastAlt); lastAlt = a; alt[t.id] = a }
                 heatTick(ctx)
                 DmStore.save(); DmNotif.update(ctx)
             }
@@ -178,7 +191,7 @@ object DmEngine {
                 is DmFetch.Result.Stopped -> if (r.system) "stopped_sys" else "stopped"
                 is DmFetch.Result.Failed -> res.code
             }
-        } finally { sink.close() }
+        } finally { sink.close(); if (bonding) { DmBondNet.release(ctx); alt.remove(t.id) }; want.remove(t.id) }
     }
 
     private fun runYt(ctx: Context, t: DmTask, r: Runner): String? {

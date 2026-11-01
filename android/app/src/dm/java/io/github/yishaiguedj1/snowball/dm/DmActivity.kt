@@ -237,6 +237,12 @@ class DmActivity : ComponentActivity() {
         if (!DmBridge.openInBrowser(this, start, refresh)) needBrowser.value = true
     }
 
+    /** 01/11/2026 (סבב 2): צפייה תוך כדי הורדה — הנגן קורא מהקובץ שבכתיבה (DmGrowSource); עצורה — ממשיכים אותה */
+    fun watchLive(t: DmTask) {
+        if (t.state == DmState.PAUSED || t.state == DmState.FAILED) DmEngine.resume(this, t.id)
+        runCatching { startActivity(Intent(this, DmPlayer::class.java).setData(Uri.parse(t.uri)).putExtra(DmPlayer.EXTRA_TITLE, t.title.ifEmpty { t.name }).putExtra(DmPlayer.EXTRA_LIVE, t.id)) }
+    }
+
     /** ההורדה של Studio Browser עצמו — דרך DM, ואז ההתקנה במסך של המערכת */
     fun getBrowser() { needBrowser.value = false; sheetRef.value = ""; sheetCk = false; sheetUa = ""; sheetTitle = ""; refreshId.value = ""; sheetUrl.value = DmBridge.BROWSER_APK }
 

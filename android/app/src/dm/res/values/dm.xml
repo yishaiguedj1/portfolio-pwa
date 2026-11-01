@@ -279,4 +279,26 @@
     <string name="dmNeedBrS">הגלישה עברה ל־Studio Browser, ומה שתוריד בו יגיע לכאן. להוריד אותו עכשיו ולהתקין?</string>
     <string name="dmNeedBrGo">להוריד ולהתקין</string>
     <string name="dmBridgeAdded">נוסף ל־Studio DM</string>
+    <!-- 01/11/2026: השדרוג "מקצועי", סבב 2 -->
+    <string name="dmBondLine">%s בסלולר</string>
+    <string name="dmAutoRefreshing">הקישור פג. מחפש אותו מחדש בדף…</string>
+    <string name="dmSetBond">Wi‑Fi וסלולר יחד</string>
+    <string name="dmSetBondS">חלק מהחיבורים עוברים בסלולר, וההורדה מהירה יותר. רק כשאתה ב־Wi‑Fi. זה צורך נפח סלולרי</string>
+    <string name="dmSetBondCap">תקרה סלולרית ליום</string>
+    <string name="dmSetBondUsed">היום: %s</string>
+    <string name="dmSetBondNoCap">בלי תקרה</string>
+    <string name="dmSetAutoRef">רענון אוטומטי של קישור שפג</string>
+    <string name="dmSetAutoRefS">ההורדה נעצרה כי הקישור פג? DM טוען את הדף ברקע, מוצא את אותו קובץ וממשיך מאותה נקודה</string>
+    <string name="dmWatchLive">לצפות כבר עכשיו</string>
+    <string name="dmLinksBtn">כל הקישורים בדף</string>
+    <string name="dmLinksLoading">טוען את הדף…</string>
+    <string name="dmLinksNone">לא נמצאו קבצים בדף. אם הדף בונה את הקישורים בעצמו, פתח אותו בדפדפן.</string>
+    <string name="dmLinksFound">%d קבצים בדף</string>
+    <string name="dmLinksAll">לבחור הכל</string>
+    <string name="dmLinksNoneSel">לבטל בחירה</string>
+    <string name="dmLinksCheck">לבדוק זמינות וגודל</string>
+    <string name="dmLinksOk">זמין</string>
+    <string name="dmLinksGo">להוריד %d</string>
+    <string name="dmCatImage">תמונות</string>
+    <string name="dmCatApk">אפליקציות</string>
 </resources>

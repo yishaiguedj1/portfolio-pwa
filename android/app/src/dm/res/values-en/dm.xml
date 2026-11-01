@@ -273,4 +273,26 @@
     <string name="dmNeedBrS">Browsing moved to Studio Browser, and whatever you download there arrives here. Download and install it now?</string>
     <string name="dmNeedBrGo">Download and install</string>
     <string name="dmBridgeAdded">Added to Studio DM</string>
+    <!-- 01/11/2026: "pro" upgrade, round 2 -->
+    <string name="dmBondLine">%s on cellular</string>
+    <string name="dmAutoRefreshing">Link expired. Looking for it again on the page…</string>
+    <string name="dmSetBond">Wi‑Fi and cellular together</string>
+    <string name="dmSetBondS">Some connections go over cellular for a faster download. Only while on Wi‑Fi. Uses cellular data</string>
+    <string name="dmSetBondCap">Daily cellular cap</string>
+    <string name="dmSetBondUsed">Today: %s</string>
+    <string name="dmSetBondNoCap">No cap</string>
+    <string name="dmSetAutoRef">Refresh expired links automatically</string>
+    <string name="dmSetAutoRefS">Download stopped because the link expired? DM loads the page in the background, finds the same file and resumes</string>
+    <string name="dmWatchLive">Watch now</string>
+    <string name="dmLinksBtn">All links on the page</string>
+    <string name="dmLinksLoading">Loading the page…</string>
+    <string name="dmLinksNone">No files found on the page. If the page builds its links itself, open it in the browser.</string>
+    <string name="dmLinksFound">%d files on the page</string>
+    <string name="dmLinksAll">Select all</string>
+    <string name="dmLinksNoneSel">Clear selection</string>
+    <string name="dmLinksCheck">Check availability and size</string>
+    <string name="dmLinksOk">Available</string>
+    <string name="dmLinksGo">Download %d</string>
+    <string name="dmCatImage">Images</string>
+    <string name="dmCatApk">Apps</string>
 </resources>

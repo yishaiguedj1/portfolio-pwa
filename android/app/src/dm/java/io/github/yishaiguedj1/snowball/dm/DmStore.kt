@@ -78,6 +78,13 @@ class DmPrefs(ctx: Context) {
     var subs: Boolean get() = p.getBoolean("subs", true); set(v) = p.edit().putBoolean("subs", v).apply()
     /** 01/11/2026 (DmHeat): להאט כשהטלפון חם או הסוללה נמוכה — דלוק כברירת מחדל */
     var heat: Boolean get() = p.getBoolean("heat", true); set(v) = p.edit().putBoolean("heat", v).apply()
+    /** 01/11/2026 (סבב 2): Wi‑Fi וסלולר יחד — כבוי כברירת מחדל (נפח סלולרי), עם תקרה יומית במגה (0 = בלי) */
+    var bond: Boolean get() = p.getBoolean("bond", false); set(v) = p.edit().putBoolean("bond", v).apply()
+    var bondCapMb: Int get() = p.getInt("bondCap", DmBond.DEFAULT_CAP_MB).coerceAtLeast(0); set(v) = p.edit().putInt("bondCap", v).apply()
+    var bondDay: Long get() = p.getLong("bondDay", 0); set(v) = p.edit().putLong("bondDay", v).apply()
+    var bondUsed: Long get() = p.getLong("bondUsed", 0); set(v) = p.edit().putLong("bondUsed", v).apply()
+    /** 01/11/2026 (סבב 2): קישור שפג — לרענן לבד מהדף (DmAutoRefresh). דלוק כברירת מחדל */
+    var autoRefresh: Boolean get() = p.getBoolean("autoRef", true); set(v) = p.edit().putBoolean("autoRef", v).apply()
     var quick: Boolean get() = p.getBoolean("quick", false); set(v) = p.edit().putBoolean("quick", v).apply()
     var firstRun: Boolean get() = p.getBoolean("first", true); set(v) = p.edit().putBoolean("first", v).apply()
     /** הגבלת מהירות לכל ההורדות יחד, בתים לשנייה (0 = בלי הגבלה) */
