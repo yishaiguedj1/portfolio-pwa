@@ -65,7 +65,9 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const gold = [{ spec: { mode: 'opus-medium', dur: 1800 } }, { spec: { mode: 'sonnet-high', dur: 3600 } }];
   ok(st.goldEstimate(gold, { 'opus-medium': { ph: 4 }, 'sonnet-high': { ph: 1.5 } }) === 3.5 && st.goldEstimate(gold, null) === 4.5, 'goldEstimate: הרגיל לשעה × אורך (בלי נתונים — 3$ לשעה)');
   const sj = read('studio.js');
-  ok(/askConfirm\(gold\.length === 1 \? T\('studioGoldRunQ1', \{ usd: fmtUsd\(usd\) \}\) : T\('studioGoldRunQ', \{ n: gold\.length, usd: fmtUsd\(usd\) \}\), go2/.test(sj), 'הרצה — רק אחרי אומדן ואישור');
+  // 01/11/2026 (סבב 3): גם ההרצה בחצי מחיר — אותו אישור, עם הסכום (האומדן × BT_EST)
+  ok(/askConfirm\(bt \? T\('studioGoldRunBtQ', \{ n: gold\.length, usd: fmtUsd\(usd\) \}\) : gold\.length === 1 \? T\('studioGoldRunQ1', \{ usd: fmtUsd\(usd\) \}\) : T\('studioGoldRunQ', \{ n: gold\.length, usd: fmtUsd\(usd\) \}\), go2/.test(sj)
+    && /goldEstimate\(gold, curNorm\(\)\) \* \(bt \? BT_EST : 1\)/.test(sj), 'הרצה — רק אחרי אומדן ואישור (גם בחצי מחיר)');
   ok(/for \(const sj of j\.jobs\) await tryStart\(sj\.id\);/.test(sj), 'ההתחלה — דרך tryStart (מתג חירום, חוקים, תקלה רחבה)');
   ok(/p\.append\(\.\.\.goldCard\(rec\)\);/.test(sj) && /p\.append\(\.\.\.goldSection\(\)\);/.test(sj), 'כרטיס בדף העבודה, ומקטע בבקרת הסוכנים');
   ok(!/fetch\(/.test(sj.slice(sj.indexOf('v387: סט הזהב (golden dataset)'), sj.indexOf('function costCard('))), 'בלי פנייה ישירה לרשת מ־studio.js (הכל דרך studionet)');
