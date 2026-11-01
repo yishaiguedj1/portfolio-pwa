@@ -65,6 +65,8 @@
     <string name="phTextDone">The translation is ready</string>
     <string name="phTextDoneS">Everything ran on the phone. Tap here to burn or watch</string>
     <string name="phSent">Translation is running on the server</string>
+    <string name="phSentNu">The video keeps uploading in the background — even when the app is closed</string>
+    <string name="phCopySNu">A copy in Studio\'s storage — deleted once the video is uploaded</string>
     <string name="phSentS">The video stays on the phone. When the translation is ready, tap \"Burn on the phone\" on the job page</string>
     <string name="phFailed">Translating on the phone stopped</string>
     <string name="phGoT">Continuing in the background</string>
