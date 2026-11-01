@@ -363,7 +363,14 @@ def cmd_tr_check(a):
     pr = Project(a.name)
     cues = read_json(pr.p("cues.en.json"))
     he, dups = load_answers(pr.tr_dir)
-    issues, stats = check(cues, he, load_glossary(pr.tr_dir / "glossary.tsv"), speakers=pr.load().get("speakers") or {})
+    # 01/11/2026 (A2): --agree = גם בדיקת ההתאמה לפי הניתוח הדקדוקי. רק בבדיקה הראשונה של כל סבב תיקון (הצנרת) —
+    # טעינת המודל ~15 שנ׳ לתהליך; הניתוח נשמר ב־lb_parse.json, ושבירת השורות אחר כך קוראת ממנו.
+    dep = None
+    if getattr(a, "agree", False) and os.environ.get("SNB_LB", "") != "off":
+        from . import linebreak as LB
+        m = LB.DepModel(cache_file=pr.tr_dir / "lb_parse.json")
+        dep = m if m.available() else None
+    issues, stats = check(cues, he, load_glossary(pr.tr_dir / "glossary.tsv"), speakers=pr.load().get("speakers") or {}, dep=dep)
     for d in dups:
         issues.insert(0, f"- #{d}: מופיע ביותר ממנה אחת")
     write_text(pr.tr_dir / "check.md", check_report(issues, stats))
@@ -792,7 +799,8 @@ def main(argv=None):
     p = add("tr-prep", cmd_tr_prep, "name", help="קובץ המקור לתרגום (tr/source.md)")
     p.add_argument("--size", type=int, default=150, help="כתוביות בחלק (= קובץ תשובה אחד)")
     p.add_argument("--batches", action="store_true", help="גם קובצי מנה נפרדים בפורמט הישן")
-    add("tr-check", cmd_tr_check, "name", help="בדיקת תרגום")
+    p = add("tr-check", cmd_tr_check, "name", help="בדיקת תרגום")
+    p.add_argument("--agree", action="store_true", help="גם התאמת מין ומספר לפי הניתוח הדקדוקי (DictaBERT)")
     p = add("tr-merge", cmd_tr_merge, "name", help="איחוד תרגום")
     p.add_argument("--allow-missing", action="store_true")
     p = add("build", cmd_build, "name", help="בניית כתוביות + QC")
