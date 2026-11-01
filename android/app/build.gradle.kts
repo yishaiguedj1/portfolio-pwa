@@ -152,6 +152,7 @@ dependencies {
     "browserImplementation"("androidx.compose.ui:ui")
     "browserImplementation"("androidx.activity:activity-compose:1.10.0")
     "browserImplementation"("androidx.webkit:webkit:1.14.0")
+    "browserImplementation"("com.google.zxing:core:3.5.3")   // 01/11/2026 הגל הרביעי: קוד QR (56) — יצירה וקריאה, Apache-2.0, בלי מצלמה ובלי רשת
     "browserImplementation"("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
     "browserImplementation"("androidx.work:work-runtime-ktx:2.12.0")   // הגל השלישי: מעקב אחרי שינוי בדף (BrWatch)
     "browserImplementation"("io.github.junkfood02.youtubedl-android:library:0.18.1")
@@ -164,6 +165,7 @@ dependencies {
     "browserImplementation"("androidx.media3:media3-ui:1.5.1")
     "testDmImplementation"("org.json:json:20240303")
     "testBrowserImplementation"("junit:junit:4.13.2")
+    "testBrowserImplementation"("com.google.zxing:core:3.5.3")   // BrReadTest: QR הלוך־חזור
     "testBrowserImplementation"("org.json:json:20240303")   // ייבוא מ־Chrome (BrImportTest)
 }
 
