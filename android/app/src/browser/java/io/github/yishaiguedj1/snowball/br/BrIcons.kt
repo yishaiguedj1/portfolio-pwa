@@ -85,6 +85,13 @@ object BrIcons {
     val Select = icon("select", "M3,5h2V3c-1.1,0 -2,0.9 -2,2zM3,13h2v-2H3v2zM7,21h2v-2H7v2zM3,9h2V7H3v2zM13,3h-2v2h2V3zM19,3v2h2c0,-1.1 -0.9,-2 -2,-2zM5,21v-2H3c0,1.1 0.9,2 2,2zM3,17h2v-2H3v2zM9,3H7v2h2V3zM11,21h2v-2h-2v2zM19,13h2v-2h-2v2zM19,21c1.1,0 2,-0.9 2,-2h-2v2zM19,9h2V7h-2v2zM19,17h2v-2h-2v2zM15,21h2v-2h-2v2zM15,5h2V3h-2v2zM7,17h10V7H7v10zM9,9h6v6H9V9z")
     val Moon = icon("moon", "M12,3c-4.97,0 -9,4.03 -9,9s4.03,9 9,9 9,-4.03 9,-9c0,-0.46 -0.04,-0.92 -0.1,-1.36 -0.98,1.37 -2.58,2.26 -4.4,2.26 -2.98,0 -5.4,-2.42 -5.4,-5.4 0,-1.81 0.89,-3.42 2.26,-4.4C12.92,3.04 12.46,3 12,3z")
     val Headphones = icon("headphones", "M12,1c-4.97,0 -9,4.03 -9,9v7c0,1.66 1.34,3 3,3h3v-8H5v-2c0,-3.87 3.13,-7 7,-7s7,3.13 7,7v2h-4v8h3c1.66,0 3,-1.34 3,-3v-7c0,-4.97 -4.03,-9 -9,-9z")
+    // הגל הרביעי: מצב קריאה, קוד QR, רשימה (רשימת הקריאה), עמוד מודגש (הערות)
+    val Book = icon("book", "M21,4H3C1.9,4 1,4.9 1,6v13c0,1.1 0.9,2 2,2h18c1.1,0 2,-0.9 2,-2V6C23,4.9 22.1,4 21,4zM3,19V6h8v13H3zM21,19h-8V6h8V19zM14,9.5h6V11h-6V9.5zM14,12h6v1.5h-6V12zM14,14.5h6V16h-6V14.5z")
+    val Qr = icon("qr", "M3,11h8V3H3V11zM5,5h4v4H5V5zM3,21h8v-8H3V21zM5,15h4v4H5V15zM13,3v8h8V3H13zM19,9h-4V5h4V9zM19,19h2v2h-2V19zM13,13h2v2h-2V13zM15,15h2v2h-2V15zM13,17h2v2h-2V17zM15,19h2v2h-2V19zM17,17h2v2h-2V17zM17,13h2v2h-2V13zM19,15h2v2h-2V15z")
+    val Lines = icon("list", "M3,13h2v-2H3V13zM3,17h2v-2H3V17zM3,9h2V7H3V9zM7,13h14v-2H7V13zM7,17h14v-2H7V17zM7,7v2h14V7H7z")
+    val Pdf = icon("pdf", "M20,2H8C6.9,2 6,2.9 6,4v12c0,1.1 0.9,2 2,2h12c1.1,0 2,-0.9 2,-2V4C22,2.9 21.1,2 20,2zM20,16H8V4h12V16zM4,6H2v14c0,1.1 0.9,2 2,2h14v-2H4V6zM10,8h8v1.5h-8V8zM10,11h8v1.5h-8V11z")
+    val Play = icon("play", "M8,5v14l11,-7z")
+    val Pause = icon("pause", "M6,19h4V5H6v14zM14,5v14h4V5h-4z")
 
     // 27/10/2026 — האייקונים של Chrome לאנדרואיד עצמו (Chromium, רישיון BSD — CHROMIUM_LICENSE.txt), מומרים מ־VectorDrawable.
     // רוב הקבצים ב־viewport של 960 (Material Symbols); חצים, חיפוש ורענון — מתהפכים בעברית לפי ת־עיצוב (values-ldrtl)

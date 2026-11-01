@@ -638,6 +638,14 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-glr .st-mini svg { width: 18px; height: 18px; }
 .st-glr .st-mini:disabled { opacity: .45; }
 .st-glc { display: grid; gap: 6px; }
+/* A1 + A5 (1/11/2026): כרטיס הסדרה — מגדר ליד השם, והכרטיס "לעדכן פרקים קודמים?" */
+.st-glr .st-seg2 { flex: none; width: 88px; }
+.st-glr .st-seg2 button { min-height: 34px; padding: 4px; }
+.st-glr .st-gle { flex: 1; min-width: 0; }
+.st-smfix { display: grid; gap: 8px; }
+.st-smchg { margin: 0; font-size: 16px; }
+.st-smchg s { color: var(--on-surface-var); }
+.st-smwarn { margin: 4px 0 0; font-size: 14px; line-height: 1.45; color: var(--on-surface-var); }
 .st-glh { font-size: 14px; font-weight: 700; margin-top: 2px; }
 .st-glc .st-row { padding-inline: 0; min-height: 52px; }
 /* שורת כפתורים בכרטיס (העתק־הדבק) */

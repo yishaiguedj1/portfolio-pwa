@@ -330,4 +330,22 @@ ok(fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yis
   ok(/pickMode != 0 -> endPick\(false\)/.test(act) && /t\?\.editing == true -> toggleEdit\(t\)/.test(act), '"חזור" יוצא מבחירת רכיב ומעריכת הדף');
 }
 
+// 01/11/2026: Studio Browser Pro — הגל הרביעי (docs/browser-pro-plan.md): קריאה, צילום ומדיה
+{
+  const rd = R(B + 'BrRead.kt'), cap = R(B + 'BrCapture.kt'), cloud = R(B + 'BrCloud.kt'), bridge = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmBridge.kt');
+  ok(!/reading\.json|notes\.json|hindex|readList|BrRead/.test(cloud), 'רשימת הקריאה, ההדגשות והאינדקס — בטלפון בלבד, לא בענן');
+  ok(/if \(!indexOn \|\| t\.private \|\| !url\.startsWith\("http"\) \|\| BrDev\.sensitive\(url\)\) return/.test(act), 'אינדקס ההיסטוריה: לא בפרטי ולא בדפים רגישים');
+  ok(/BrRead\.search\(docsLoad\(\), q, alive\)/.test(act) && /clearDocs\(\)/.test(act.slice(act.indexOf('fun clearData'))), 'מה שנמחק מההיסטוריה לא נמצא בחיפוש, ומחיקת הנתונים מוחקת את האינדקס');
+  ok(/if \(!t\.private\) BrRead\.forPage\(marks, url\)/.test(act) && /if \(!t\.private && m\.findItem\(ID_MARK\) == null\)/.test(act), 'הדגשות — לא בכרטיסייה פרטית');
+  ok(/fun saveForLater\(\) \{\s*val t = cur\?\.takeIf \{ it\.url\.startsWith\("http"\) && !it\.private \}/.test(act), 'רשימת קריאה — לא מכרטיסייה פרטית');
+  ok(/d\.startsWith\("c:"\) -> if \(clipTab === t\) onClip/.test(act) && /CLIP_MAX/.test(act), 'קליפ: חלקים מהדף מתקבלים רק כשהקליפ פעיל בכרטיסייה, עם תקרה');
+  ok(/fun esc\(/.test(rd) && /esc\(b\.t\)/.test(rd) && /javaScriptEnabled = false/.test(act) && /blockNetworkLoads = true/.test(act), 'PDF נקי: HTML מוברח, בלי JavaScript ובלי רשת');
+  ok(/"browserImplementation"\("com\.google\.zxing:core:/.test(gradle) && !/CAMERA/.test(cap), 'QR — ZXing core, בלי מצלמה');
+  ok(/fun sendFiles\(/.test(bridge) && /DmKind\.HTTP/.test(bridge) && /FILES_MAX/.test(bridge) && /if \(cookies\) jar\(/.test(bridge), 'הורדת כל הקבצים: ל־DM כקבצים ישירים, עם תקרה, ובפרטי בלי עוגיות');
+  ok(ui.indexOf('MItem(R.string.brReadTools') > ui.indexOf('MItem(R.string.brZap') && ui.indexOf('MItem(R.string.brReadTools') < ui.lastIndexOf('MItem(R.string.brSettings'),
+    'הגל הרביעי בתפריט ⋮ — פריט אחד בקבוצת הכלים');
+  ok(/!in setOf\("http", "https"\)/.test(act.slice(act.indexOf('fun floatWeb'))) && /isolateJs\(f\.sel\)/.test(act), 'החלון הצף: רק http(s), והרכיב שנבחר בלבד');
+  ok(/pickMode = 0; floatPick = false/.test(act) && /screen == Screen\.READER -> \{ screen = readerBack/.test(act), '"חזור" ממצב קריאה ומבחירה לחלון הצף');
+}
+
 console.log('studio-browser: ' + n + ' בדיקות עברו');
