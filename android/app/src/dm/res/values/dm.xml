@@ -274,4 +274,9 @@
     <string name="dmApkAcc">⚠ מבקשת שירות נגישות — שליטה מלאה במסך</string>
     <string name="dmApkNone">בלי הרשאות רגישות</string>
     <string name="dmBatchPattern">מתבנית — מה שלא קיים בשרת פשוט ייכשל</string>
+    <!-- 01/11/2026: דפדפן אחד — Studio Browser, וההורדות ממנו חוזרות ל־DM -->
+    <string name="dmNeedBrT">דרוש Studio Browser</string>
+    <string name="dmNeedBrS">הגלישה עברה ל־Studio Browser, ומה שתוריד בו יגיע לכאן. להוריד אותו עכשיו ולהתקין?</string>
+    <string name="dmNeedBrGo">להוריד ולהתקין</string>
+    <string name="dmBridgeAdded">נוסף ל־Studio DM</string>
 </resources>

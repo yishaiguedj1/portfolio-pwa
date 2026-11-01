@@ -352,17 +352,25 @@ class DmBrowser : Activity() {
          * ל־yt-dlp (דף, HLS, DASH) — קובץ עוגיות זמני של האתר, מכל הכתובות של הדף
          */
         fun handOff(a: Activity, url: String, ref: String, file: Boolean, title: String, ua: String, urls: List<String>, refresh: String = ""): Boolean {
+            // 01/11/2026 (בקשת המשתמש: "דפדפן אחד"): ב־Studio Browser כש־Studio DM מותקן — ההורדה עוברת ל־DM (DmBridge, הרשאת חתימה)
+            if (DmBridge.remote(a)) return DmBridge.sendSheet(a, url, ref, file, title, ua, urls, refresh)
             val cm = DmCookies.get()
             try { cm.flush() } catch (e: Throwable) {}
             if (!file) try {
                 val us = urls.filter { it.startsWith("http") }.distinct()
                 DlEngine.saveCookies(a, ref.ifEmpty { url }, DlDeep.netscape(us.map { it to cm.getCookie(it) }, System.currentTimeMillis() / 1000), ua)
             } catch (e: Throwable) {}
-            val tok = java.util.UUID.randomUUID().toString()
-            synchronized(Companion) { handoff = Handoff(tok, url, ref, ua.take(400), true, refresh, System.currentTimeMillis(), title) }
+            val tok = stage(url, ref, ua, refresh, title)
             return try {
                 a.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url), a, DmActivity::class.java).putExtra(EXTRA_TOKEN, tok)); true
             } catch (e: Exception) { false }
+        }
+
+        /** מכין מסירה בתוך התהליך ומחזיר את האסימון החד־פעמי (גם DmBridge, אחרי שקיבל מ־Studio Browser) */
+        internal fun stage(url: String, ref: String, ua: String, refresh: String, title: String): String {
+            val tok = java.util.UUID.randomUUID().toString()
+            synchronized(Companion) { handoff = Handoff(tok, url, ref, ua.take(400), true, refresh, System.currentTimeMillis(), title) }
+            return tok
         }
 
         /** המסירה — פעם אחת, רק עם האסימון הנכון, לאותו קישור, ותוך דקה */

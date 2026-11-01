@@ -268,4 +268,9 @@
     <string name="dmApkAcc">⚠ Asks for an accessibility service — full control of the screen</string>
     <string name="dmApkNone">No sensitive permissions</string>
     <string name="dmBatchPattern">From a pattern — ones missing on the server will just fail</string>
+    <!-- 01/11/2026: one browser — Studio Browser, downloads from it come back to DM -->
+    <string name="dmNeedBrT">Studio Browser needed</string>
+    <string name="dmNeedBrS">Browsing moved to Studio Browser, and whatever you download there arrives here. Download and install it now?</string>
+    <string name="dmNeedBrGo">Download and install</string>
+    <string name="dmBridgeAdded">Added to Studio DM</string>
 </resources>

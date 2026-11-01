@@ -221,12 +221,24 @@ class DmActivity : ComponentActivity() {
 
     private fun ckFn(): ((String) -> String?)? = if (!sheetCk) null else { u -> runCatching { DmCookies.get().getCookie(u) }.getOrNull() }
 
+    /** 01/11/2026: ב־Studio DM — אין חלון שמציע להתקין את Studio Browser */
+    val needBrowser = mutableStateOf(false)
+
     fun openBrowser(start: String, refresh: String = "") {
-        // 26/10/2026: ב־Studio Browser (אותו קוד) — הדפדפן המלא. רענון קישור של הורדה נשאר בדפדפן הקטן של DM
-        val full = if (refresh.isEmpty()) runCatching { Class.forName(FULL_BROWSER) }.getOrNull() else null
-        if (full != null && runCatching { startActivity(Intent(this, full).putExtra(DmBrowser.EXTRA_START, start)) }.isSuccess) return
-        runCatching { startActivity(Intent(this, DmBrowser::class.java).putExtra(DmBrowser.EXTRA_START, start).putExtra(DmBrowser.EXTRA_REFRESH, refresh)) }
+        // 26/10/2026: ב־Studio Browser (אותו קוד) — הדפדפן המלא. רענון קישור של הורדה נשאר בדפדפן הקטן
+        val inBrowser = runCatching { Class.forName(FULL_BROWSER) }.getOrNull()
+        if (inBrowser != null) {
+            if (refresh.isEmpty() && runCatching { startActivity(Intent(this, inBrowser).putExtra(DmBrowser.EXTRA_START, start)) }.isSuccess) return
+            runCatching { startActivity(Intent(this, DmBrowser::class.java).putExtra(DmBrowser.EXTRA_START, start).putExtra(DmBrowser.EXTRA_REFRESH, refresh)) }
+            return
+        }
+        // 01/11/2026 (בקשת המשתמש: "שלא יהיו סתם שני דפדפנים"): ב־Studio DM אין דפדפן משלו. הדף נפתח ב־Studio Browser,
+        // וההורדות משם חוזרות לכאן (DmBridge). לא מותקן — חלון שמציע להוריד אותו כאן ולהתקין
+        if (!DmBridge.openInBrowser(this, start, refresh)) needBrowser.value = true
     }
+
+    /** ההורדה של Studio Browser עצמו — דרך DM, ואז ההתקנה במסך של המערכת */
+    fun getBrowser() { needBrowser.value = false; sheetRef.value = ""; sheetCk = false; sheetUa = ""; sheetTitle = ""; refreshId.value = ""; sheetUrl.value = DmBridge.BROWSER_APK }
 
     fun probe(url: String, ref: String): Found {
         // Studio Browser כבר בדק את הסרטון ברקע (DmPre) — האיכויות מוכנות מיד
