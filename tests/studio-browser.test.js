@@ -38,7 +38,8 @@ ok(/BrStore\.saveStates\(pub\.map/.test(act) && /BrStore\.loadState\(i\)/.test(a
 ok(/restoreState\(st\) \}\.getOrNull\(\) != null\) navState\(t, w\) else if \(t\.url\.startsWith\("http"\)\) w\.loadUrl/.test(act), 'מצב שלא נפתח — טוענים את הכתובת (לא טאב ריק)');
 ok(/BrStore\.clearStates\(\)/.test(act), 'ניקוי נתוני הגלישה מוחק גם את מחסניות "חזור"');
 ok(/deleteProfile\(PRIV\)/.test(act) && /WebViewCompat\.setProfile\(w, PRIV\)/.test(act), 'טאב פרטי = פרופיל נפרד שנמחק');
-ok(/if \(!isUserGesture\) return false/.test(act), 'חלון קופץ בלי נגיעה — חסום');
+ok(/if \(!BrDev\.popupOk\(rules\[BrStore\.hostOf\(t\.url\)\]\?\.pop \?: 0, isUserGesture\)\) return false/.test(act) && /else -> gesture \}/.test(R(B + 'BrDev.kt')),
+  'חלון קופץ בלי נגיעה — חסום (ברירת המחדל; לכל אתר אפשר לשנות)');
 ok(/component = null; selector = null/.test(act), 'קישור intent: — בלי רכיב מפורש (לא נפתח רכיב פנימי של אפליקציה אחרת)');
 ok(/s\.allowFileAccess = false/.test(act) && /s\.allowContentAccess = false/.test(act), 'בלי גישה לקבצים מהדף');
 const pre = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmPre.kt');
@@ -124,7 +125,9 @@ for (const f of ['dm', 'browser'])
 for (const f of ['main', 'studio', 'invest', 'lite', 'bubble'])
   if (fs.existsSync(path.join(ROOT, 'android/app/src', f, 'AndroidManifest.xml')))
     ok(!/REQUEST_INSTALL_PACKAGES/.test(R('android/app/src/' + f + '/AndroidManifest.xml')), f + ': בלי הרשאת התקנה (רק מנהל ההורדות)');
-ok(/if \(cat == DmName\.Cat\.APK && t\.uri\.startsWith\("content:\/\/"\)\) \{ install\(t\); return \}/.test(da), 'APK שירד → התקנה');
+// 01/11/2026 (סבב 3): APK שירד → קודם בודק ה־APK (חתימה, גרסה, הרשאות), ומשם ההתקנה באישור
+ok(/if \(cat == DmName\.Cat\.APK && t\.uri\.startsWith\("content:\/\/"\)\) \{ apkCheck\.value = t; return \}/.test(da), 'APK שירד → בדיקה לפני התקנה');
+ok(/onClose\(\); a\.install\(t\)/.test(fs.readFileSync(require('path').join(__dirname, '../android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmUiRound3.kt'), 'utf8')), 'מהבדיקה → התקנה');
 ok(/canRequestPackageInstalls\(\)/.test(da) && /ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri\.parse\("package:\$packageName"\)/.test(da), 'בלי אישור — מסך ההגדרה של DM עצמו, וחזרה ממשיכה');
 ok(/ACTION_VIEW\)\.setDataAndType\(Uri\.parse\(t\.uri\), DmMedia\.APK\)/.test(da) && !/PackageInstaller|INSTALL_PACKAGES"\)|ACTION_INSTALL_PACKAGE/.test(da), 'מתקין החבילות של המערכת (תמיד באישור) — לא התקנה שקטה');
 ok(/if \(DmName\.ext\(name\)\.equals\("apk", true\)\) APK/.test(R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmMedia.kt')), 'קובץ .apk = הסוג של חבילה גם כשהשרת שלח octet-stream');
@@ -158,7 +161,9 @@ ok(/private fun TopBar\(/.test(ui) && !/private fun Toolbar\(a: BrowserActivity\
   'הסרגל של Chrome לאנדרואיד למעלה: דף הבית · הכתובת · כרטיסייה חדשה · כרטיסיות · ⋮ — בלי סרגל תחתון של אייפון');
 ok(/private fun MenuSheet\(a: BrowserActivity\)/.test(ui) && /Dialog\(/.test(ui) && /PixelCopy\.request/.test(ui) && /boxBlur\(bmp/.test(ui) && !/setBackgroundBlurRadius/.test(ui) && /private fun RowScope\.MBtn\(/.test(ui) && !/private fun Dest\(/.test(ui),
   'התפריט ⋮ = החלון של Chrome מהפינה (שורת כפתורים ופריטים), זכוכית עם טשטוש');
-ok(/private val Red = Color\(0xFFFF4656\)/.test(ui) && /Color\(0x4A3C3C43\), Red,/.test(ui) && !/0xFF1A73E8\)\)/.test(ui.replace(/FavPal[^\n]*/, '')),
+// 01/11/2026: הזכוכית והאדום מ־DmGlass (מקור אחד עם Studio DM) — StRed = ‎#FF4656
+const dmGlass = fs.readFileSync(path.join(__dirname, '..', 'android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmGlass.kt'), 'utf8');
+ok(/val StRed = Color\(0xFFFF4656\)/.test(dmGlass) && /private val Red = StRed/.test(ui) && /Color\(0x4A3C3C43\), StRed,/.test(ui) && !/0xFF1A73E8\)\)/.test(ui.replace(/FavPal[^\n]*/, '')),
   'צבע הפעולה = האדום של כפתור ההורדה, לא הכחול של Google');
 ok(/private fun Modifier\.glass\(/.test(ui) && /private fun Modifier\.ambient\(/.test(ui), 'זכוכית ורקע רך (iOS 27)');
 ok(/val GoogleLogo/.test(R(B + 'BrIcons.kt')) && /val CNewTab = cr\("ic_add_box_rounded_corner"/.test(R(B + 'BrIcons.kt')) && fs.existsSync(path.join(ROOT, 'android/app/src/browser/CHROMIUM_LICENSE.txt')),
@@ -182,7 +187,8 @@ ok(/fun clearSite\(t: BrTab\)/.test(act) && /deleteOrigin/.test(act), 'מחיק�
 // 26/10/2026 — שלב 3: פרטיות ווידאו
 const sh = R(B + 'BrShield.kt'), med = R(B + 'BrMedia.kt');
 const adsList = sh.split('val ADS')[1].split('.split(Regex')[0];
-ok(/if \(!req\.isForMainFrame && blockReq\(t, req\.url\.host\)\) return EMPTY\(\)/.test(act), 'חסימה: אף פעם לא הדף הראשי של טאב');
+// 01/11/2026: ההחלטה נשמרת ב־blk (גם לרשומת הרשת בכלי המפתחים) — אותו תנאי
+ok(/val blk = !req\.isForMainFrame && blockReq\(t, req\.url\.host\)/.test(act) && /if \(blk\) return EMPTY\(\)/.test(act), 'חסימה: אף פעם לא הדף הראשי של טאב');
 ok(/site\(h\) == site\(pageHost\)/.test(sh) && !/googletagmanager\.com/.test(adsList) && !/connect\.facebook\.net/.test(adsList), 'חסימה: רק צד שלישי, בלי googletagmanager ו־connect.facebook.net');
 ok(!/youtube|googlevideo|ytimg/.test(adsList), 'חסימה: שום שרת של יוטיוב');
 ok(/fun shieldOn\(host: String\) = shield && rules\[/.test(act) && /fun toggleSiteShield\(t: BrTab\)/.test(act), 'הגנה לכל אתר — אפשר לכבות באתר שנשבר');
@@ -279,6 +285,67 @@ ok(fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yis
   ok(/fun googleWeb\(auto: Boolean\)/.test(act) && /accounts\.google\.com\/AccountChooser\?Email=/.test(act) && /is BrCloud\.SignIn\.Ok -> googleWeb\(true\)/.test(act), 'כניסה לסנכרון = גם לאתרים של Google, אם עוד לא מחובר');
   ok(/BrowserActivity\.Screen\.USERS -> UsersScreen\(a\)/.test(ui) && /a\.switchUser\(u\.id\)/.test(ui) && /a\.addUser\(\)/.test(ui), 'מסך המשתמשים: מעבר, הוספה, הסרה');
   ok(/backdrop\(a\.window\) \{ back = it\.asImageBitmap\(\); ready = true \}/.test(ui) && /Color\(0xF7FFFFFF\)/.test(ui), 'ההצעות בשורת הכתובת — על חומר מטושטש ואטום, לא על הדף');
+}
+
+// 01/11/2026: Studio Browser Pro — הגל השני (docs/browser-pro-plan.md): כרטיסיות, שורת הכתובת ונוחות
+{
+  const pro = R(B + 'BrPro.kt'), cl = R(B + 'BrCloud.kt'), us = R(B + 'BrUsers.kt');
+  ok(/var split by mutableStateOf<BrTab\?>\(null\)/.test(act) && /it !== cur && it !== split/.test(act) && /if \(old !== split\) old\.web\?\.onPause\(\)/.test(act),
+    'מסך מפוצל: Activity אחת עם שני WebView — החלון השני לא מושהה ולא משתחרר');
+  ok(/if \(t === split\) split = null/.test(act) && /if \(split in gone\) split = null/.test(act), 'כרטיסייה שנסגרה / נבחרה — יוצאת מהמסך המפוצל');
+  ok(/private fun SplitView\(/.test(ui) && /background\(if \(on\) c\.tint else c\.line\)\.padding/.test(ui), 'המסגרת של החלון הפעיל = רקע עם ריפוד, לא ציור מעל ה־WebView');
+  ok(/fun liveCap\(\): Int = BrPro\.liveCap\(liveMax, saver, batterySaving\(\)\)/.test(act) && /trim\(keep: Int = liveCap\(\) - 1\)/.test(act) && /BrPro\.sleepy\(now - it\.used, saver, b, it\.playing\)/.test(act),
+    'חיסכון בזיכרון ובסוללה: התקרה והשינה דרך BrPro (נבדק ב־BrProTest), כרטיסייה שמנגנת לא נרדמת');
+  ok(/fun previewWeb\(priv: Boolean/.test(act) && /if \(priv && privOk\)[^\n]*WebViewCompat\.setProfile\(w, PRIV\)/.test(act) && /previewKill/.test(ui), 'תצוגה מקדימה: פרטית — בפרופיל הפרטי, וה־WebView נהרס כשנסגרת');
+  ok(/override fun dispatchKeyEvent\(e: KeyEvent\)/.test(act) && /BrPro\.shortcut\(e\.keyCode/.test(act), 'מקלדת אמיתית — דרך BrPro.shortcut');
+  ok(/BrPro\.pushSession\(sets, pub\.map/.test(act) && /fun loadSets\(\)/.test(store) && /"sets\.json"/.test(store) && !/sets\.json|TabSet/.test(cl),
+    'סשנים וקבוצות: רק כרטיסיות רגילות, בתיקייה של המשתמש — לא בענן');
+  ok(/it\.private && !it\.pinned && it\.born >= since|!it\.private && !it\.pinned && it\.born >= since/.test(act) && /it\.born = 0L/.test(act), 'מחיקה מהירה: לא נוגעת בפרטיות ובנעוצות; כרטיסייה ששוחזרה לא "נפתחה עכשיו"');
+  ok(ui.indexOf('MItem(R.string.brSplit') > ui.indexOf('MItem(R.string.brDev') && ui.indexOf('MItem(R.string.brSplit') < ui.lastIndexOf('MItem(R.string.brSettings'),
+    'יכולות הגל בתפריט ⋮ — בקבוצת הכלים, מתחת לפריטים המוכרים');
+  ok(/a\.tools\.forEach \{ id -> ToolBtn\(a, id, ntp\) \}/.test(ui) && /val TOOLS_DEFAULT = listOf\("newtab"\)/.test(pro), 'הסרגל שמסדרים — ברירת המחדל = הסרגל של ת־עיצוב (כרטיסייה חדשה)');
+  ok(/srl\.isEnabled = \(a\.gest and BrPro\.G_PULL\) != 0/.test(ui) && /\(a\.gest and BrPro\.G_SWIPE\) != 0/.test(ui), 'מחוות שאפשר לכבות');
+  ok(/put\("c", it\.c\)/.test(us) && /b === Priv\) b else b\.copy\(bar = lerp/.test(ui), 'צבע לכל משתמש — לא בכרטיסייה פרטית');
+  ok(/if \(sc != null\) \{ scoped\(a, sc\.first, sc\.second\); return@LazyColumn \}/.test(ui) && /a\.runAct\(act\)/.test(ui), 'חיפוש ממוקד ופעולות מהשורה');
+}
+
+// 01/11/2026: Studio Browser Pro — הגל השלישי (docs/browser-pro-plan.md): כלי מפתחים ושליטה באתר
+{
+  const dev = R(B + 'BrDev.kt'), wt = R(B + 'BrWatch.kt'), sh = R(B + 'BrShield.kt');
+  ok(/WebViewCompat\.addWebMessageListener\(w, BrDev\.CH, setOf\("\*"\)\) \{ _, msg, _, main, _ -> if \(main\)/.test(act), 'ערוץ הכלים — רק מהמסגרת הראשית');
+  ok(/if \(pickMode == BrDev\.PICK_INSPECT && cur === t\)/.test(act) && /if \(recTab === t\) BrDev\.stepParse/.test(act), 'הודעה מהדף מתקבלת רק כשהכלי פועל בכרטיסייה הזו');
+  ok(/t==='password'\|\|t==='hidden'\|\|a\.indexOf\('cc-'\)===0/.test(dev) && /if\(secret\(e\)\)return/.test(dev), 'הקלטה: סיסמאות, שדות מוסתרים ופרטי כרטיס לא נרשמים');
+  ok(/fun startRec\(\) \{\s*val t = cur\?\.takeIf \{ it\.url\.startsWith\("http"\) && !it\.private \}/.test(act), 'הקלטה — לא בכרטיסייה פרטית');
+  ok(/if \(!t\.private\) BrDev\.runnable\(uscripts, url\)/.test(act) && /\(!sens \|\| it\.sensitive\)/.test(dev) && /brScriptSensQ/.test(ui),
+    'סקריפטים של משתמשים: לא בפרטי, ובדפים רגישים רק באישור מפורש');
+  ok(!/uscripts|macros|zaps|brw/.test(R(B + 'BrCloud.kt')), 'סקריפטים, הקלטות, רכיבים מוסתרים ומעקבים — בטלפון בלבד, לא בענן');
+  ok(/Cookie\(n, null, true\)/.test(dev) && /HttpOnly/.test(dev), 'עוגיית HttpOnly — השם בלבד, הערך לא נחשף');
+  ok(!/Cookie|cmOf|getCookie/.test(wt) && /fun fetch\(url: String\)/.test(wt), 'מעקב אחרי דף — בלי העוגיות של המשתמש');
+  ok(/PeriodicWorkRequestBuilder<Job>\(1, TimeUnit\.HOURS\)/.test(wt) && /"browserImplementation"\("androidx\.work:work-runtime-ktx/.test(gradle), 'מעקב — WorkManager');
+  ok(/BrDev\.blockRedirect\(rules\[from\]\?\.redir != false/.test(act) && /BrDev\.popupOk\(rules\[/.test(act) && /s\.blockNetworkImage = !img/.test(act), 'מה מותר לכל אתר: הפניות, חלונות קופצים, תמונות');
+  ok(/setAlgorithmicDarkeningAllowed\(s, dark\)/.test(act) && /rules\[host\]\?\.dark == true && !night\(\)/.test(act), 'כהה בכוח: אלגוריתמי, ובערכה בהירה — DARK_JS');
+  ok(/val img: Boolean = true, val pop: Int = 0, val redir: Boolean = true, val dark: Boolean = false/.test(sh) && /img = p\.getOrNull\(8\) != "0"/.test(sh), 'SiteRule: שדות חדשים עם ברירת מחדל ששורה ישנה לא משנה');
+  ok(ui.indexOf('MItem(R.string.brZap') > ui.indexOf('MItem(R.string.brQuick') && ui.indexOf('MItem(R.string.brZap') < ui.lastIndexOf('MItem(R.string.brSettings'),
+    'יכולות הגל בתפריט ⋮ — בקבוצת הכלים, מתחת לפריטים המוכרים');
+  ok(/pickMode != 0 -> endPick\(false\)/.test(act) && /t\?\.editing == true -> toggleEdit\(t\)/.test(act), '"חזור" יוצא מבחירת רכיב ומעריכת הדף');
+}
+
+// 01/11/2026: Studio Browser Pro — הגל הרביעי (docs/browser-pro-plan.md): קריאה, צילום ומדיה
+{
+  const rd = R(B + 'BrRead.kt'), cap = R(B + 'BrCapture.kt'), cloud = R(B + 'BrCloud.kt'), bridge = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmBridge.kt');
+  ok(!/reading\.json|notes\.json|hindex|readList|BrRead/.test(cloud), 'רשימת הקריאה, ההדגשות והאינדקס — בטלפון בלבד, לא בענן');
+  ok(/if \(!indexOn \|\| t\.private \|\| !url\.startsWith\("http"\) \|\| BrDev\.sensitive\(url\)\) return/.test(act), 'אינדקס ההיסטוריה: לא בפרטי ולא בדפים רגישים');
+  ok(/BrRead\.search\(docsLoad\(\), q, alive\)/.test(act) && /clearDocs\(\)/.test(act.slice(act.indexOf('fun clearData'))), 'מה שנמחק מההיסטוריה לא נמצא בחיפוש, ומחיקת הנתונים מוחקת את האינדקס');
+  ok(/if \(!t\.private\) BrRead\.forPage\(marks, url\)/.test(act) && /if \(!t\.private && m\.findItem\(ID_MARK\) == null\)/.test(act), 'הדגשות — לא בכרטיסייה פרטית');
+  ok(/fun saveForLater\(\) \{\s*val t = cur\?\.takeIf \{ it\.url\.startsWith\("http"\) && !it\.private \}/.test(act), 'רשימת קריאה — לא מכרטיסייה פרטית');
+  ok(/d\.startsWith\("c:"\) -> if \(clipTab === t\) onClip/.test(act) && /CLIP_MAX/.test(act), 'קליפ: חלקים מהדף מתקבלים רק כשהקליפ פעיל בכרטיסייה, עם תקרה');
+  ok(/fun esc\(/.test(rd) && /esc\(b\.t\)/.test(rd) && /javaScriptEnabled = false/.test(act) && /blockNetworkLoads = true/.test(act), 'PDF נקי: HTML מוברח, בלי JavaScript ובלי רשת');
+  ok(/"browserImplementation"\("com\.google\.zxing:core:/.test(gradle) && !/CAMERA/.test(cap), 'QR — ZXing core, בלי מצלמה');
+  ok(/fun sendFiles\(/.test(bridge) && /DmKind\.HTTP/.test(bridge) && /FILES_MAX/.test(bridge) && /if \(cookies\) jar\(/.test(bridge), 'הורדת כל הקבצים: ל־DM כקבצים ישירים, עם תקרה, ובפרטי בלי עוגיות');
+  ok(ui.indexOf('MItem(R.string.brReadTools') > ui.indexOf('MItem(R.string.brZap') && ui.indexOf('MItem(R.string.brReadTools') < ui.lastIndexOf('MItem(R.string.brSettings'),
+    'הגל הרביעי בתפריט ⋮ — פריט אחד בקבוצת הכלים');
+  ok(/!in setOf\("http", "https"\)/.test(act.slice(act.indexOf('fun floatWeb'))) && /isolateJs\(f\.sel\)/.test(act), 'החלון הצף: רק http(s), והרכיב שנבחר בלבד');
+  ok(/pickMode = 0; floatPick = false/.test(act) && /screen == Screen\.READER -> \{ screen = readerBack/.test(act), '"חזור" ממצב קריאה ומבחירה לחלון הצף');
 }
 
 console.log('studio-browser: ' + n + ' בדיקות עברו');

@@ -4,13 +4,13 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v682';
+const CACHE_NAME = 'portfolio-pwa-v686';
 const HASHES = {
-  "./": "27c0788019f4842a124eba31840b522b",
-  "./index.html": "27c0788019f4842a124eba31840b522b",
-  "./styles.css": "6f7d1feccfa3d22d0cbc0bc3c98ddfab",
-  "./glass-btn.css": "50379420abb3d193793ba448b98db495",
-  "./app.js": "4266d4056e35f6fb45c3f318a61f6489",
+  "./": "6ab1986a1bc13b10b7405e36061fa8ba",
+  "./index.html": "6ab1986a1bc13b10b7405e36061fa8ba",
+  "./styles.css": "40265dc9a0d4d18b66a8f72526d82667",
+  "./glass-btn.css": "2e6fbc1d80e74f83b16df50be93ee5c8",
+  "./app.js": "8d6bb1e2e069ddf8f74c4cd291e9802e",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "2cf2e330bfcc2c9150ba47b8f355982d",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -34,6 +34,9 @@ const HASHES = {
   "./acclink.js": "419b035815109478a1f8f9780720af33",
   "./analysis.js": "29664af4106cee8a9edecf0beb6735c5",
   "./analysis.css": "4c957472dbc740b4694df29ccaeed328",
+  "./taxcenter.js": "48ad6b76192ff40505c360c5c57e6568",
+  "./taxcenter.css": "7a21a0d4185ccd42f64d41c85bbd100b",
+  "./taxil.js": "99431a77b700f3fd5bb1e57903c5539c",
   "./chart.js": "f449f30b56da8452861aff9919ce0758",
   "./chartlib.js": "5c00c490dac1b09329fa1ce657350a9b",
   "./chart.css": "0e4e6260108563c3f329d204c1398a10",
@@ -65,8 +68,8 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "ff70b7cdf55a58896794457f6812abf4",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
-  "./strings-academy.js": "1436bb99b5baeea32c72c627cf4a57b5",
-  "./core.js": "7f273674ca096dd79584918276df1e71",
+  "./strings-academy.js": "bb684285bab2eadaaaec65fa0a6e4fa4",
+  "./core.js": "697c5999181b94a7e3a5036eb1b8fc83",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "6b22a08dd74c16eefd740922596fb568",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -75,11 +78,11 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "ed8c78db27a02721739d86922d0956be",
-  "./studio.css": "802ffe734c51288b9e1c90e39f7fbc23",
+  "./studio.js": "28f064bef94e2e727fac85285be003eb",
+  "./studio.css": "b5bc9c2853f3ae87b220792419848092",
   "./studionet.js": "67d0da7e52eb5de8eb01b6fac252d4d6",
   "./studioplay.js": "9862ab618839b88fa914399b8eff2ce7",
-  "./studiosubs.js": "65c3e22404cc9bfa5ea0b610a33f4633",
+  "./studiosubs.js": "6aec23d44c0cae05ad98ea1f195f2a7d",
   "./studiotracks.js": "45a59e4cedc85da6950554bd2c56289e",
   "./studioedl.js": "344c0e6f0e7ff9bd59e36eb25db1e335",
   "./studioai.js": "e0a43e7a48c70e3bf5028813acebbf3e",
@@ -87,7 +90,7 @@ const HASHES = {
   "./studiobg.js": "9013d96cee956642e0735806ea1e60c3",
   "./studio.html": "83a0db4fc3f1058a17ce5b6370873966",
   "./studio-app.js": "d2aaad29f3f46cc04426c93bdae1eb83",
-  "./strings-studio.js": "d623d2fbf61da426cd9c5cb599e35489",
+  "./strings-studio.js": "ba15dda8e99db14a98069095a051944d",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
@@ -116,6 +119,7 @@ const APP_SHELL = [
   './ibkr-logo.png',
   './acclink.js',   // 26/10/2026: כניסה עם מייל ושיטות הכניסה (נטען בלחיצה)
   './analysis.js', './analysis.css',   // 25/10/2026: מנתח החברות — נטען בלחיצה, אבל באותה גרסה של app.js
+  './taxcenter.js', './taxcenter.css', './taxil.js',   // 01/11/2026: מרכז המס — נטען בלחיצה
   './chart.js', './chartlib.js', './chart.css', './vendor/klinecharts/klinecharts.min.js'   // 27/10/2026: גרף הנרות — נטען בלחיצה
 ];
 

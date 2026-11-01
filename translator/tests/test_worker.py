@@ -333,7 +333,7 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(int((W / 'src_size').read_text()), len(AUDIO), 'v360: התמלול מהקול שעלה ראשון')
         self.assertTrue(any(r.get('st') == 'tr' and 0.5 < (r.get('p') or 0) < 0.95 for r in self.fake.reports), 'אחוזים מ־vt → התקדמות השלב')
         cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()]
-        self.assertEqual(cmds, ['new', 'ingest', 'asr', 'edit-export'], 'מהקול: בלי חילופי שוטים (צריכים וידאו)')
+        self.assertEqual(cmds, ['new', 'ingest', 'asr', 'lang', 'edit-export'], 'מהקול: בלי חילופי שוטים (צריכים וידאו)')
         self.assertIn('מהקול', out)
 
         code, out = self.job('align')
@@ -342,7 +342,7 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(int((W / 'src_size').read_text()), len(VIDEO), 'הסרטון צורף (וההורדה הושלמה אחרי ניתוק — Range)')
         self.assertEqual([p.name for p in W.glob('source.*')], ['source.mp4'], 'הקול כבר לא המקור')
         self.assertTrue((W / 'audio16k.first.wav').exists())
-        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()][4:]
+        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()][5:]   # new, ingest, asr, lang, edit-export
         self.assertEqual(cmds, ['ingest', 'sync', 'shots', 'edit-import', 'align', 'plan', 'tr-prep'])
         words = json.loads((W / 'asr' / 'parakeet.json').read_text())['words']
         self.assertEqual([(w['s'], w['e']) for w in words], [(1.25, 1.75), (0.35, 0.45)], 'זמני המילים הוזזו לציר הזמן של הסרטון')
@@ -363,7 +363,7 @@ class TestWorker(unittest.TestCase):
         done = self.fake.reports[-1]
         self.assertTrue(done.get('done'))
         kinds = sorted(o['k'] for o in done['out'])
-        self.assertEqual(kinds, ['compact', 'srt'], 'רק התוצרים שנבחרו + SRT')
+        self.assertEqual(kinds, ['compact', 'notes', 'srt'], 'רק התוצרים שנבחרו + SRT')
         up = {u['meta']['appProperties']['snbOut']: u for u in self.fake.uploads.values() if 'snbOut' in u['meta']['appProperties']}
         self.assertEqual(len(up['compact']['data']), 700000, 'העלאה מתחדשת — הקובץ המלא אחרי 308 חלקי')
         self.assertEqual(up['compact']['meta']['parents'], ['FOLDER00001'])
@@ -375,7 +375,7 @@ class TestWorker(unittest.TestCase):
         # 21/10/2026 (3.13ג): קודם הכתוביות לפני הצריבה (שלב bn), ואחר כך כל התוצרים לפני ההשלמות שברקע
         self.assertEqual([r.get('st') for r in early], ['bn', 'sv'])
         self.assertEqual([o['k'] for o in early[0]['out']][0], 'srt')
-        self.assertEqual(sorted(o['k'] for o in early[1]['out']), sorted(o['k'] for o in done['out'] if o['k'] in ('compact', 'srt')))
+        self.assertEqual(sorted(o['k'] for o in early[1]['out']), sorted(o['k'] for o in done['out'] if o['k'] in ('compact', 'srt', 'notes')))
         self.assertLess(self.fake.reports.index(early[1]), self.fake.reports.index(done))
         # 28/10/2026: רק הדיווח של סוף ההעלאה אומר rd (בטלפון העבודה "הסתיימה") — לא הכתוביות המוקדמות שלפני הצריבה
         self.assertFalse(early[0].get('rd'))
@@ -692,7 +692,7 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(int((self.tmp / 'work' / SLUG / 'src_size').read_text()), len(VIDEO))
         self.assertEqual(self.job('align')[0], 0)
         cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()]
-        self.assertEqual(cmds, ['new', 'ingest', 'asr', 'shots', 'edit-export', 'edit-import', 'align', 'plan', 'tr-prep'], 'בלי צירוף ובלי מדידת היסט')
+        self.assertEqual(cmds, ['new', 'ingest', 'asr', 'shots', 'lang', 'edit-export', 'edit-import', 'align', 'plan', 'tr-prep'], 'בלי צירוף ובלי מדידת היסט')
 
     def test_sync_unsure(self):
         # ההיסט לא ודאי → תמלול מחדש מהסרטון (בלי טוקנים), בלי להזיז זמנים
@@ -701,8 +701,8 @@ class TestWorker(unittest.TestCase):
         code, out = self.job('align', env={'FAKE_SYNC': '3.874 0.003'})
         self.assertEqual(code, 0, out)
         self.assertIn('לא ודאי', out)
-        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()][4:]
-        self.assertEqual(cmds[:4], ['ingest', 'sync', 'asr', 'shots'])
+        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()][5:]   # new, ingest, asr, lang, edit-export
+        self.assertEqual(cmds[:5], ['ingest', 'sync', 'asr', 'lang', 'shots'])
         words = json.loads((self.tmp / 'work' / SLUG / 'asr' / 'parakeet.json').read_text())['words']
         self.assertEqual(words[0]['s'], 1.0, 'בלי הזזה — התמלול החדש כבר על ציר הזמן של הסרטון')
 
@@ -716,7 +716,7 @@ class TestWorker(unittest.TestCase):
         code, out = self.job('attach-late', env={'FAKE_SYNC': sync})
         self.assertEqual(code, 0, out)
         self.assertEqual(int((W / 'src_size').read_text()), len(VIDEO), 'הסרטון הוא המקור עכשיו')
-        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()][4:]
+        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()][5:]   # new, ingest, asr, lang, edit-export
         return W, cmds, out
 
     def test_attach_late_shifts_and_retimes(self):
@@ -1032,7 +1032,7 @@ class TestWorker(unittest.TestCase):
         self.assertIn('--compact', r)
         self.assertEqual(r[r.index('--small') + 1], '28')
         outs = {o['k']: o for o in self.fake.reports[-1]['out']}
-        self.assertEqual(sorted(outs), ['small', 'srt'])
+        self.assertEqual(sorted(outs), ['notes', 'small', 'srt'])
         self.assertEqual(outs['small']['size'], 300)
         self.assertTrue(outs['small']['name'].endswith(' (עברית, קטן).mp4'))
 
@@ -1045,7 +1045,7 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(self.job('finish')[0], 0)
         r = [l for l in (self.tmp / 'vt.log').read_text().splitlines() if l.startswith('render')][0].split()
         self.assertNotIn('--compact', r)
-        self.assertEqual(sorted(o['k'] for o in self.fake.reports[-1]['out']), ['same', 'small', 'srt'])
+        self.assertEqual(sorted(o['k'] for o in self.fake.reports[-1]['out']), ['notes', 'same', 'small', 'srt'])
 
     def test_early_subs_before_render(self):
         """21/10/2026 (תוכנית השיפור 3.13ג): הכתוביות עולות ומדווחות לפני הצריבה — ובסוף לא עולות שוב (אותה טביעה)"""
@@ -1088,20 +1088,20 @@ class TestWorker(unittest.TestCase):
         # v367: אישור לפני צריבה — "לצרוב": צורבים כרגיל
         out, cmds, kinds = self.finish_with_gate('go')
         self.assertIn('render', cmds)
-        self.assertEqual(kinds, ['compact', 'srt'])
+        self.assertEqual(kinds, ['compact', 'srt', 'notes'])
 
     def test_render_gate_stop(self):
         # "רק קובץ כתוביות": בלי צריבה — רק he.srt עולה
         out, cmds, kinds = self.finish_with_gate('stop')
         self.assertNotIn('render', cmds)
-        self.assertEqual(kinds, ['srt'])
+        self.assertEqual(kinds, ['srt', 'notes'])
         self.assertIn('בלי צריבה', out)
 
     def test_render_gate_timeout(self):
         # בלי תשובה בזמן: השרתון מקבל askTimeout (ברירת המחדל) — רק כתוביות
         out, cmds, kinds = self.finish_with_gate(None, env={'SNB_ASK_WAIT_SCALE': '0.0002'})
         self.assertNotIn('render', cmds)
-        self.assertEqual(kinds, ['srt'])
+        self.assertEqual(kinds, ['srt', 'notes'])
         self.assertTrue(any(r.get('askTimeout', '').startswith('g') for r in self.fake.reports))
 
     def test_gate_cmd(self):

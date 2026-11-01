@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
 import android.os.ParcelFileDescriptor
+import android.provider.DocumentsContract
 import android.provider.MediaStore
 import java.io.File
 import java.io.FileOutputStream
@@ -26,6 +27,26 @@ object DmMedia {
 
     const val APK = "application/vnd.android.package-archive"
 
+    /** התיקייה שבה הקובץ יישמר (לתצוגה לפני ההורדה) */
+    fun folderOf(name: String, mime: String) = where(name, mime).second
+
+    /** קובץ חדש ב־Download (‏rel = נתיב יחסי) שנכתב מזרם — הצצה ל־ZIP. כישלון = הקובץ החלקי נמחק */
+    fun saveStream(ctx: Context, rel: String, name: String, write: (java.io.OutputStream) -> Unit): Uri {
+        val cr = ctx.contentResolver
+        val cv = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(MediaStore.MediaColumns.MIME_TYPE, mimeFor(name, ""))
+            put(MediaStore.MediaColumns.RELATIVE_PATH, rel)
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+        val u = cr.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv) ?: throw DmSpace()
+        try {
+            cr.openOutputStream(u, "w")?.use { o -> write(o) } ?: throw DmSpace()
+            cr.update(u, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
+        } catch (e: Throwable) { runCatching { cr.delete(u, null, null) }; throw e }
+        return u
+    }
+
     /** קובץ .apk = תמיד הסוג של חבילת אנדרואיד (גם כשהשרת שלח octet-stream — אחרת מתקין החבילות לא מזהה אותו) */
     fun mimeFor(name: String, mime: String) = if (DmName.ext(name).equals("apk", true)) APK
         else mime.ifEmpty { DmName.mimeOfExt(DmName.ext(name)) }.ifEmpty { "application/octet-stream" }
@@ -37,7 +58,11 @@ object DmMedia {
             if (exists(ctx, u)) return u
             t.segs.clear()   // הקובץ נמחק בינתיים (או פג אחרי שבוע) — מתחילים מחדש
         }
-        val (coll, rel) = where(t.name, t.mime)
+        val (coll, rel0) = where(t.name, t.mime)
+        // 01/11/2026 (סבב 3): התיקייה של החוק / של הסוג (DmFolders) — תת־תיקייה, או תיקייה שבחרת במערכת (SAF)
+        val d = t.dir.ifEmpty { DmFolders.pick(DmFolders.parse(DmPrefs(ctx).folders), t.name, t.mime) }
+        if (d.startsWith(DmFolders.TREE)) tree(ctx, d, t)?.let { t.uri = it.toString(); return it }
+        val rel = DmFolders.rel(rel0, d)
         val cv = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, t.name)
             put(MediaStore.MediaColumns.MIME_TYPE, mimeFor(t.name, t.mime))
@@ -48,6 +73,15 @@ object DmMedia {
         t.uri = u.toString()
         return u
     }
+
+    /** קובץ חדש בתיקייה שבחרת (SAF). אין הרשאה יותר / התיקייה נמחקה — null, והקובץ נשמר בתיקייה הרגילה */
+    private fun tree(ctx: Context, d: String, t: DmTask): Uri? = runCatching {
+        val tr = Uri.parse(d.removePrefix(DmFolders.TREE))
+        val parent = DocumentsContract.buildDocumentUriUsingTree(tr, DocumentsContract.getTreeDocumentId(tr))
+        DocumentsContract.createDocument(ctx.contentResolver, parent, mimeFor(t.name, t.mime), t.name)
+    }.getOrNull()
+
+    private fun isDoc(ctx: Context, u: Uri) = runCatching { DocumentsContract.isDocumentUri(ctx, u) }.getOrDefault(false)
 
     private fun exists(ctx: Context, u: Uri): Boolean = try {
         ctx.contentResolver.openFileDescriptor(u, "r")?.use { true } ?: false
@@ -79,7 +113,7 @@ object DmMedia {
         if (t.total > 0) runCatching {
             ctx.contentResolver.openFileDescriptor(u, "rw")?.use { FileOutputStream(it.fileDescriptor).channel.truncate(t.total) }
         }
-        ctx.contentResolver.update(u, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
+        if (!isDoc(ctx, u)) ctx.contentResolver.update(u, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
     }
 
     /** yt-dlp כותב לקובץ רגיל (צריך נתיב) — בסוף מעתיקים פנימה */
@@ -117,6 +151,9 @@ object DmMedia {
     }
 
     fun delete(ctx: Context, t: DmTask) {
-        if (t.uri.isNotEmpty()) runCatching { ctx.contentResolver.delete(Uri.parse(t.uri), null, null) }
+        if (t.uri.isEmpty()) return
+        val u = Uri.parse(t.uri)
+        if (isDoc(ctx, u)) runCatching { DocumentsContract.deleteDocument(ctx.contentResolver, u) }
+        else runCatching { ctx.contentResolver.delete(u, null, null) }
     }
 }

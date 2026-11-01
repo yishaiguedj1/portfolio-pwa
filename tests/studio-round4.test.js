@@ -95,7 +95,7 @@ print(json.dumps(job.fillers(d)))`));
   ok(/termIssues\(cues, terms\)/.test(sj) && /rec\.srv\.gl \? rec\.srv\.gl\.s : \[\]/.test(sj), 'מונחים לבדיקה: מילון המונחים + המונחים של העבודה');
   ok(/cutFillers\(ce\.ed\.segs\(\), fil, /.test(sj) && /k: 'ed-fil'/.test(sj), 'דף החיתוך: "הסרת מילות מילוי"');
   const ss = read('studiosubs.js');
-  ok(/const flagsOf = \(c\) => \{ const f = flags\.get\(c\.i\); return f && f\.t === textOf\(c\) \? f\.k : \[\]; \};/.test(ss) && /cueIssues\(c\)\.concat\(flagsOf\(c\)\)/.test(ss),
+  ok(/const flagsOf = \(c\) => \{ const f = flags\.get\(c\.i\); return f && f\.t === textOf\(c\) \? f\.k : \[\]; \};/.test(ss) && /const f = flagsOf\(c\)[\s\S]{0,60}cueIssues\(c\)\.concat\(f,/.test(ss),
     'העורך: הסימון הוא "בעיה" (בסינון ובספירה) עד שהטקסט נערך');
   ok(/const passes = \(c\) => !cueIssues\(c\)/.test(ss), 'ההצעות האוטומטיות לא מושפעות מהסימונים (אין להן תיקון בקוד)');
   console.log('# ' + n + ' בדיקות עברו');

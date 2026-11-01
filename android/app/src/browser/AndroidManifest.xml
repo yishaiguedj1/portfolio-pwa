@@ -9,6 +9,8 @@
          תמיד באישור שלך במסך של המערכת (DmActivity.install) -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- 01/11/2026 (סבב 2): Wi‑Fi וסלולר יחד — לבקש גם את הרשת הסלולרית (רק כשההגדרה דלוקה; DmBondNet) -->
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- שלב 3 (26/10/2026): ניגון ברקע ובמסך נעול (BrMediaService), ונעילת הטאבים הפרטיים בטביעת אצבע -->
@@ -29,8 +31,12 @@
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.hardware.location" android:required="false" />
 
+    <!-- 01/11/2026: הגשר Studio Browser ↔ Studio DM (DmBridge) — רק אפליקציות שחתומות במפתח שלנו. מוגדרת בשתיהן -->
+    <permission android:name="app.thesnowball.permission.DM_HANDOFF" android:protectionLevel="signature" />
+    <uses-permission android:name="app.thesnowball.permission.DM_HANDOFF" />
     <queries>
         <package android:name="app.thesnowball.studio" />
+        <package android:name="app.thesnowball.studiodm" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
@@ -104,6 +110,14 @@
             android:exported="false" />
 
         <!-- הדפדפן הקטן של DM — רק לרענון קישור של הורדה -->
+        <!-- 01/11/2026: הגשר בין הדפדפן ל־DM (DmBridge) — מיוצא רק בהרשאת חתימה, בלי ממשק -->
+        <activity
+            android:name=".dm.DmBridge"
+            android:exported="true"
+            android:permission="app.thesnowball.permission.DM_HANDOFF"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:noHistory="true" />
         <activity
             android:name=".dm.DmBrowser"
             android:exported="false"

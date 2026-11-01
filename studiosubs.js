@@ -296,6 +296,32 @@ export function flagIndex(cues, list) {
   return m;
 }
 
+/* A9 (01/11/2026): ההערות מהעובד (notes.json) לפי מזהה הכתובית — כמו flagIndex, נעלמות כשהטקסט נערך.
+   **NOTE_KEYS זהים בעובד (job.py smart_notes)**. lv: l לבדוק · m לשקול; p חלופות; x מה הצופה לא הבין; lg + o השפה והמקור */
+export const NOTE_KEYS = ['lv', 'r', 'jg', 'x', 'p', 'lg', 'o'];
+export function normNote(n) {
+  if (!n || typeof n !== 'object' || (n.lv !== 'l' && n.lv !== 'm')) return null;
+  const s = (v, m) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, m) : '');
+  const out = { lv: n.lv, r: Array.isArray(n.r) ? n.r.filter((x) => typeof x === 'string' && /^[a-z:]{1,12}$/.test(x)).slice(0, 8) : [] };
+  if (Number.isInteger(n.jg) && n.jg >= 1 && n.jg <= 5) out.jg = n.jg;
+  if (s(n.x, 120)) out.x = s(n.x, 120);
+  const p = Array.isArray(n.p) ? n.p.map((a) => s(a, 90)).filter(Boolean).slice(0, 3) : [];
+  if (p.length) out.p = p;
+  if (/^[a-z]{2,3}(-[a-z]{2})?$/i.test(String(n.lg || '')) && s(n.o, 400)) { out.lg = String(n.lg).toLowerCase(); out.o = s(n.o, 400); }
+  return out;
+}
+export function noteIndex(cues, notes) {
+  const m = new Map(), c = notes && typeof notes === 'object' && notes.c && typeof notes.c === 'object' ? notes.c : {};
+  for (const [k, v] of Object.entries(c)) {
+    const i = Number(k), n = normNote(v);
+    if (!Number.isInteger(i) || !n) continue;
+    const cue = (cues || []).find((x) => x.i === i);
+    if (cue) m.set(i, { t: textOf(cue), n });
+  }
+  m.js = notes && typeof notes.js === 'number' && notes.js >= 1 && notes.js <= 5 ? Math.round(notes.js * 10) / 10 : null;
+  return m;
+}
+
 /* ---------- סבב 6: הציר — גל הקול, חילופי השוטים, דוברים ----------
    meta.json מהעובד (peaks.py): { v, r, pk: base64 — בית לכל 1/r שנ׳, sh: [שניות] }. **R/PK_MAX/SH_MAX זהים ל־peaks.py** */
 export const META_R = 20, PK_MAX = 4 * 3600 * 20, SH_MAX = 5000;
@@ -478,7 +504,13 @@ export function createSubsEditor(opts) {
   const shots = Array.isArray(opts.shots) ? opts.shots : [];          // סבב 6: חילופי השוטים (הצמדה)
   const colors = spkColors(opts.cues);                                 // סבב 6: צבע לכל דובר
   const flagsOf = (c) => { const f = flags.get(c.i); return f && f.t === textOf(c) ? f.k : []; };
-  const issOf = (c) => { let v = issMemo.get(c); if (!v) { v = cueIssues(c).concat(flagsOf(c)); issMemo.set(c, v); } return v; };
+  const notes = opts.notes instanceof Map ? opts.notes : new Map();    // A9: מזהה → { t, n: ההערה }
+  const noteOf = (c) => { const x = notes.get(c.i); return x && x.t === textOf(c) ? x.n : null; };
+  const issOf = (c) => {
+    let v = issMemo.get(c);
+    if (!v) { const f = flagsOf(c), n = noteOf(c); v = cueIssues(c).concat(f, n && n.lv === 'l' && !f.length ? ['cf'] : []); issMemo.set(c, v); }
+    return v;
+  };
   const T = opts.T || ((k) => k);
   const iname = opts.issueName || ((k) => k);
   const hist = createHistory((opts.cues || []).map((c) => Object.assign({}, c)));
@@ -507,7 +539,8 @@ export function createSubsEditor(opts) {
   const listEl = el('div', 'st-se-list'); listEl.setAttribute('role', 'list');
   const sugEl = el('div', 'st-sg');           // מ6: עד 3 הצעות לתיקון (בדיקות הקוד, חינם)
   const dismissed = opts.dismissed || new Set();
-  wrap.append(bar, sp, sugEl, listEl);
+  const cfEl = confBar();                      // A9: ביטחון בתרגום — רק כשיש הערות מהעובד
+  wrap.append(bar, sp, ...(cfEl ? [cfEl] : []), sugEl, listEl);
   const SUG_LBL = { wrap: () => T('studioSgWrap'), ext: () => T('studioSgExt'), wrapext: () => T('studioSgWrapExt'), merge: () => T('studioSgMerge') };
   function paintSug() {
     const ss = suggestions(hist.cur, dismissed);
@@ -608,6 +641,50 @@ export function createSubsEditor(opts) {
     if (prev >= 0 && prev !== k) paintRow(prev);
     if (k >= 0) { if (rows.has(k)) paintRow(k); else paintList(); scrollTo(k); }
   }
+  function confBar() {
+    if (!notes.size && notes.js == null) return null;
+    const all = opts.cues || [];
+    let l = 0, m = 0;
+    for (const c of all) { const n = noteOf(c); if (n) { if (n.lv === 'l') l++; else m++; } }
+    const ok = Math.max(0, all.length - l - m), tot = Math.max(1, all.length);
+    const box = el('div', 'st-se-cf');
+    const h = el('div', 'st-se-cf-h'); h.append(el('b', null, T('studioCfTitle')));
+    if (notes.js != null) h.append(el('bdi', 'st-se-cf-s', T('studioCfEst', { s: notes.js.toFixed(1) })));
+    const barEl = el('div', 'st-se-cf-bar');
+    for (const [k, n] of [['ok', ok], ['m', m], ['l', l]]) { if (!n) continue; const i = el('i', k); i.style.width = (100 * n / tot).toFixed(2) + '%'; barEl.append(i); }
+    const lg = el('div', 'st-se-cf-lg');
+    for (const [k, txt] of [['ok', T('studioCfOk', { n: ok })], ['m', T('studioCfMid', { n: m })], ['l', T('studioCfLow', { n: l })]]) {
+      const x = el('span'); x.append(el('i', 'st-se-dot ' + k)); x.append(el('bdi', null, txt)); lg.append(x);
+    }
+    box.append(h, barEl, lg);
+    return box;
+  }
+  const jgName = (c) => (c === 'mean' ? T('studioJgMean') : c === 'omit' ? T('studioJgOmit') : c === 'add' ? T('studioJgAdd')
+    : c === 'gram' ? T('studioJgGram') : c === 'flu' ? T('studioJgFlu') : c === 'term' ? T('studioJgTerm') : '');
+  function langName(lg) {
+    try { return new Intl.DisplayNames([opts.lang || 'he'], { type: 'language' }).of(lg) || lg; } catch (e) { return lg; }
+  }
+  /* A9 · A6 · A10 · A12: הפירוט מתחת לכתובית — רק כשיש מה לומר (לשקול בלי פירוט = רק הנקודה ליד הזמן) */
+  function noteBox(c, k) {
+    const n = noteOf(c);
+    if (!n) return null;
+    const box = el('div', 'st-se-nts');
+    const card = (cls, title, text) => { const d = el('div', 'st-se-nt ' + cls); d.append(el('b', null, title)); if (text) { const t = el('bdi', null, text); t.dir = 'auto'; d.append(t); } box.append(d); return d; };
+    if (n.x) card('l', T('studioNtView'), n.x);
+    else if (n.lv === 'l') { const jc = (n.r.find((r) => r.startsWith('jg:')) || '').slice(3); card('l', T('studioNtLow'), jgName(jc) ? T('studioNtJg', { c: jgName(jc) }) : ''); }
+    if (n.p) {
+      const d = card('p', T('studioNtPun'), '');
+      const alts = el('div', 'st-se-alts');
+      for (const a of n.p) {
+        const x = b('st-se-alt', a, () => { const i = idxOf(c); const nx = i >= 0 ? setText(hist.cur, i, a) : null; if (nx && nx !== hist.cur) apply(nx, i); }, 'cue-alt:' + k);
+        x.dir = 'rtl'; x.setAttribute('aria-label', T('studioNtPick', { t: a }));
+        alts.append(x);
+      }
+      d.append(alts);
+    }
+    if (n.lg) card('g', T('studioNtLang', { l: langName(n.lg) }), n.o);
+    return box.childNodes.length ? box : null;
+  }
   function issueChips(c) {
     const box = el('span', 'st-se-iss');
     for (const x of issOf(c)) box.append(el('span', 'st-se-chip', iname(x)));
@@ -627,6 +704,8 @@ export function createSubsEditor(opts) {
     r.setAttribute('role', 'listitem'); r.dataset.k = 'cue:' + k;
     const tm = b('st-se-tm', '', () => { opts.seek(c.s); opts.play(); }, 'cue-t:' + k);   // c — האובייקט, לא האינדקס (שורה שמורה זזה)
     tm.append(el('bdi', null, fmtTc(c.s)));
+    const nt = noteOf(c);
+    if (nt) tm.append(el('i', 'st-se-dot ' + nt.lv));        // A9: ביטחון — כתום לשקול, אדום לבדוק
     tm.setAttribute('aria-label', T('studioSePlayFrom', { t: fmtTc(c.s) }));
     const body = el('div', 'st-se-body');
     if (open) {
@@ -645,6 +724,7 @@ export function createSubsEditor(opts) {
       });
       body.append(ta);
       if (c.en) body.append(srcLine(c.en, T('studioSrcEn')));
+      const nb = noteBox(c, k); if (nb) body.append(nb);
       body.append(el('div', 'st-se-mrow'));
       body.lastChild.append(mt, chips);
       body.append(actions(k, ta));
@@ -654,6 +734,7 @@ export function createSubsEditor(opts) {
       for (const x of c.lines) tx.append(el('div', null, x));
       body.append(tx);
       if (c.en) body.append(srcLine(c.en, T('studioSrcEn')));
+      const nb = noteBox(c, k); if (nb) body.append(nb);
       const iss = issOf(c);
       if (iss.length) { const w = el('span', 'st-se-warn'); w.append(icon('warn')); w.setAttribute('aria-label', iss.map(iname).join(', ')); body.append(w); }
       r.addEventListener('click', () => { const i = idxOf(c); if (i >= 0) choose(i); });
@@ -1205,3 +1286,49 @@ export function importSubs(raw, opt) {
   const nameList = [...names.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   return { fmt, enc: d.enc, fixed: d.fixed, cues: out, stats: st, names: nameList };
 }
+
+/* ---------- A1 + A5 (1/11/2026): כרטיס הסדרה ותיקון לאחור בין פרקים ----------
+   seriesOfName — אותו מפתח סדרה כמו בשרתון (lib/studio.js seriesOf; tests/studio-series-card משווה), כדי למצוא בטלפון את
+   הפרקים הקודמים של הסדרה. smChanges — מה השתנה בכרטיס (כתיב → אפשר להחליף בכתוביות; מגדר → רק להציג איפה הדמות מופיעה).
+   heReplace — החלפת כתיב בעברית גם אחרי אותיות השימוש (ו/ה/ב/ל/מ/ש/כ), רק מילה שלמה. הכל בטלפון, מול ה־Drive שלך */
+const SER_RE_C = /^(.*?)[\s\-–_.([]*(?:s(\d{1,2})[\s._-]*e(\d{1,3})|(\d{1,2})x(\d{2,3}))(?![\p{L}\p{N}])/iu;
+export function seriesOfName(name) {
+  const base = String(name || '').replace(/\.[A-Za-z0-9]{2,4}$/, '').replace(/[._]+/g, ' ');
+  const m = base.match(SER_RE_C);
+  if (!m) return null;
+  const n = m[1].replace(/[\s\-–]*(?:season|עונה)\s*\d{1,2}[\s\-–]*$/iu, ' ').replace(/\(\s*(19|20)\d\d\s*\)|\b(19|20)\d\d\s*$/g, ' ').replace(/[\s\-–[(]+$/, '').replace(/\s+/g, ' ').trim();
+  const k = n.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  return k.length >= 2 ? { k: k.slice(0, 60), s: +(m[2] || m[4]) || 0, e: +(m[3] || m[5]) || 0 } : null;
+}
+/* לפני → אחרי (שורות הכרטיס): rep = [[ישן, חדש]] להחלפה, gen = [[שם, מגדר ישן, חדש]] */
+export function smChanges(before, after) {
+  const rep = [], gen = [];
+  const b = before || {}, a = after || {};
+  const gl0 = new Map((b.gl || []).map((r) => [r[0].toLowerCase(), r[1]]));
+  for (const r of a.gl || []) { const o = gl0.get(r[0].toLowerCase()); if (o && o !== r[1]) rep.push([o, r[1]]); }
+  const ch0 = new Map((b.ch || []).map((r) => [r[0], r[1]])), ch1 = new Map((a.ch || []).map((r) => [r[0], r[1]]));
+  const gone = (b.ch || []).filter((r) => !ch1.has(r[0])), fresh = (a.ch || []).filter((r) => !ch0.has(r[0]));
+  if (gone.length === 1 && fresh.length === 1) rep.push([gone[0][0], fresh[0][0]]);   // שינוי שם של דמות = מחיקה + הוספה בעריכה אחת
+  for (const r of a.ch || []) if (ch0.has(r[0]) && ch0.get(r[0]) !== r[1]) gen.push([r[0], ch0.get(r[0]), r[1]]);
+  return { rep: rep.filter((x) => x[0].trim().length >= 2 && x[0] !== x[1]), gen };
+}
+const heWord = (old) => new RegExp('(^|[^\\p{L}\\p{N}])([והבלמשכ]{0,3})' + reEsc(old) + '(?![\\p{L}\\p{N}])', 'gu');
+/* מחרוזת אחת: [טקסט, כמה הוחלפו] */
+export function heReplace(text, old, nu) {
+  let n = 0;
+  const out = String(text).replace(heWord(old), (m, pre, use) => { n++; return pre + use + nu; });
+  return [out, n];
+}
+/* הכתוביות: כמה כתוביות מושפעות (hit) ומה התוצאה (cues חדשות) — בלי לגעת במקור */
+export function cuesReplace(cues, rep) {
+  let hit = 0;
+  const out = (cues || []).map((c) => {
+    let any = false;
+    const lines = c.lines.map((l) => { let t = l; for (const [o, nu] of rep) { const [x, n] = heReplace(t, o, nu); if (n) { any = true; t = x; } } return t; });
+    if (any) hit++;
+    return any ? Object.assign({}, c, { lines }) : c;
+  });
+  return { hit, cues: out };
+}
+/* בכמה כתוביות מופיע השם (למגדר — רק מראים) */
+export const cuesWith = (cues, name) => (cues || []).filter((c) => c.lines.some((l) => heWord(name).test(l))).length;

@@ -20,7 +20,7 @@ data class BrVisit(val url: String, val title: String, val at: Long)
 // f = התיקייה לפי ת־עיצוב: "b/Learning/x" (b סרגל, o אחרות, m נייד); ריק = נשמרה כאן (בנייד) — BrSync.folderOf; i = המקום בתיקייה ב־Chrome (‎-1 = עוד לא שם — בסוף)
 data class BrMark(val url: String, val title: String, val at: Long, val imp: Boolean = false, val x: Long = 0L, val sid: String = "", val f: String = "", val i: Int = -1)
 // nb = הדף הראשון נפתח מהכרטיסייה החדשה (BrTab.ntpBack); p = המקום ברשימה של הכרטיסייה שפתחה אותה (‎-1 = אין)
-data class BrTabRec(val url: String, val title: String, val nb: Boolean = false, val p: Int = -1)
+data class BrTabRec(val url: String, val title: String, val nb: Boolean = false, val p: Int = -1, val pin: Boolean = false)
 
 object BrStore {
     private const val HISTORY_MAX = 20000   // כמו 90 יום של Chrome (התוסף שולח עד 20,000 ביקורים)
@@ -223,14 +223,20 @@ object BrStore {
         if (!::dir.isInitialized) return
         write("tabs.json", JSONArray().apply {
             put(JSONObject().put("cur", cur))
-            tabs.forEach { put(JSONObject().put("u", it.url).put("t", it.title).apply { if (it.nb) put("nb", true); if (it.p >= 0) put("p", it.p) }) }
+            tabs.forEach { put(JSONObject().put("u", it.url).put("t", it.title).apply { if (it.nb) put("nb", true); if (it.p >= 0) put("p", it.p); if (it.pin) put("pin", true) }) }
         })
     }
+
+    /** הגל השני (01/11/2026): קבוצות שמורות וסשנים (BrPro.TabSet) — בתיקייה של המשתמש, בטלפון בלבד (לא בענן) */
+    fun loadSets(): List<BrPro.TabSet> = if (!::dir.isInitialized) emptyList() else
+        runCatching { BrPro.setsDecode(File(dir, "sets.json").takeIf { it.exists() }?.readText()) }.getOrDefault(emptyList())
+    fun saveSets(l: List<BrPro.TabSet>) { if (::dir.isInitialized) runCatching { write("sets.json", JSONArray(BrPro.setsEncode(l))) } }
+    fun clearSets() { if (::dir.isInitialized) File(dir, "sets.json").delete() }
 
     fun loadTabs(): Pair<List<BrTabRec>, Int> {
         val a = read("tabs.json") ?: return emptyList<BrTabRec>() to 0
         val cur = a.optJSONObject(0)?.optInt("cur", 0) ?: 0
-        val list = (1 until a.length()).mapNotNull { a.optJSONObject(it) }.map { BrTabRec(it.optString("u"), it.optString("t"), it.optBoolean("nb"), it.optInt("p", -1)) }
+        val list = (1 until a.length()).mapNotNull { a.optJSONObject(it) }.map { BrTabRec(it.optString("u"), it.optString("t"), it.optBoolean("nb"), it.optInt("p", -1), it.optBoolean("pin")) }
         return list to cur.coerceIn(0, (list.size - 1).coerceAtLeast(0))
     }
 
@@ -329,6 +335,26 @@ class BrPrefs(ctx: Context) {
     var pip: Boolean get() = sp.getBoolean("pip", true); set(v) { sp.edit().putBoolean("pip", v).apply() }
     /** ההגדרות לכל אתר — BrShield.encode/decode */
     var sites: String get() = sp.getString("sites", "") ?: ""; set(v) { sp.edit().putString("sites", v).apply() }
+    /** Pro (01/11/2026): מתקן עברית (כיוון לכל פסקה) וניקוי קישורים בהעתקה ובשיתוף — במסך "מעבדה" */
+    var heFix: Boolean get() = sp.getBoolean("heFix", true); set(v) { sp.edit().putBoolean("heFix", v).apply() }
+    var cleanCopy: Boolean get() = sp.getBoolean("cleanCp", true); set(v) { sp.edit().putBoolean("cleanCp", v).apply() }
     /** כמה בקשות נחסמו מאז ההתקנה — למסך הפרטיות */
+    /** הגל השני (01/11/2026): הסרגל שמסדרים (BrPro.tools; null = ברירת המחדל), המחוות (סיביות BrPro.G_*), חיסכון בזיכרון
+     *  (0/1/2) ובסוללה, מצב שולחן (0 אוטומטי/1/2), פס הכרטיסיות העליון, ומה מוצג בכרטיסייה חדשה (סיביות NTP_*) */
+    var tools: String? get() = sp.getString("tools", null); set(v) { sp.edit().putString("tools", v).apply() }
+    var gest: Int get() = sp.getInt("gest", BrPro.G_ALL); set(v) { sp.edit().putInt("gest", v).apply() }
+    var saver: Int get() = sp.getInt("saver", 0); set(v) { sp.edit().putInt("saver", v).apply() }
+    var battery: Boolean get() = sp.getBoolean("batt", true); set(v) { sp.edit().putBoolean("batt", v).apply() }
+    var desk: Int get() = sp.getInt("desk", 0); set(v) { sp.edit().putInt("desk", v).apply() }
+    var strip: Boolean get() = sp.getBoolean("strip", false); set(v) { sp.edit().putBoolean("strip", v).apply() }
+    var ntp: Int get() = sp.getInt("ntp", 15); set(v) { sp.edit().putInt("ntp", v).apply() }
+    /** הגל השלישי: רכיבים מוסתרים לכל אתר (BrDev.zaps*), הקלטות (BrDev.macros*), סקריפטים של משתמשים (BrDev.scripts*) */
+    var zaps: String get() = sp.getString("zaps", "") ?: ""; set(v) { sp.edit().putString("zaps", v).apply() }
+    var macros: String? get() = sp.getString("macros", null); set(v) { sp.edit().putString("macros", v).apply() }
+    // הגל הרביעי: גודל הטקסט במצב קריאה, מהירות ההקראה, אינדקס התוכן של ההיסטוריה
+    var readSize: Int get() = sp.getInt("readSz", 19); set(v) { sp.edit().putInt("readSz", v).apply() }
+    var ttsRate: Float get() = sp.getFloat("ttsRate", 1f); set(v) { sp.edit().putFloat("ttsRate", v).apply() }
+    var indexOn: Boolean get() = sp.getBoolean("hIndex", true); set(v) { sp.edit().putBoolean("hIndex", v).apply() }
+    var uscripts: String? get() = sp.getString("uscripts", null); set(v) { sp.edit().putString("uscripts", v).apply() }
     var blockedAll: Long get() = sp.getLong("blk", 0L); set(v) { sp.edit().putLong("blk", v).apply() }
 }

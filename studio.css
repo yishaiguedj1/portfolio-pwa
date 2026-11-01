@@ -638,6 +638,14 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-glr .st-mini svg { width: 18px; height: 18px; }
 .st-glr .st-mini:disabled { opacity: .45; }
 .st-glc { display: grid; gap: 6px; }
+/* A1 + A5 (1/11/2026): כרטיס הסדרה — מגדר ליד השם, והכרטיס "לעדכן פרקים קודמים?" */
+.st-glr .st-seg2 { flex: none; width: 88px; }
+.st-glr .st-seg2 button { min-height: 34px; padding: 4px; }
+.st-glr .st-gle { flex: 1; min-width: 0; }
+.st-smfix { display: grid; gap: 8px; }
+.st-smchg { margin: 0; font-size: 16px; }
+.st-smchg s { color: var(--on-surface-var); }
+.st-smwarn { margin: 4px 0 0; font-size: 14px; line-height: 1.45; color: var(--on-surface-var); }
 .st-glh { font-size: 14px; font-weight: 700; margin-top: 2px; }
 .st-glc .st-row { padding-inline: 0; min-height: 52px; }
 /* שורת כפתורים בכרטיס (העתק־הדבק) */
@@ -799,6 +807,26 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-se-tx { font-size: 16px; line-height: 1.42; overflow-wrap: anywhere; padding-inline-end: 22px; }
 .st-se-warn { position: absolute; inset-inline-end: 0; top: 2px; color: #FFD60A; }
 .st-se-warn svg { width: 16px; height: 16px; display: block; }
+/* A9 · A6 · A10 · A12 (01/11/2026, לפי התצוגה המקדימה שאושרה): נקודת ביטחון ליד הזמן, פירוט רק בשורות שצריך, פס הביטחון */
+.st-se-tm { display: inline-flex; flex-direction: column; align-items: center; gap: 5px; }
+.st-se-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); flex: none; }
+.st-se-dot.m { background: #FF9F0A; }
+.st-se-dot.l { background: #FF453A; }
+.st-se-nts { display: grid; gap: 6px; margin-top: 6px; }
+.st-se-nt { display: grid; gap: 5px; font-size: 13px; line-height: 1.4; padding: 7px 10px; border-radius: var(--radius-xs); overflow-wrap: anywhere; }
+.st-se-nt b { font-weight: 600; }
+.st-se-nt.l { background: rgba(255, 69, 58, .18); } .st-se-nt.l b { color: #FF6961; }
+.st-se-nt.p { background: rgba(191, 90, 242, .2); } .st-se-nt.p b { color: #DDA6FF; }
+.st-se-nt.g { background: rgba(10, 132, 255, .2); } .st-se-nt.g b { color: #7CB8FF; }
+.st-se-alts { display: flex; flex-wrap: wrap; gap: 6px; }
+.st-se-b.st-se-alt { font-size: 13px; padding: 5px 10px; border-radius: var(--pill); background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .16); color: inherit; }
+.st-se-cf { display: grid; gap: 8px; padding: 10px 12px; border-radius: var(--radius-xs); background: rgba(255, 255, 255, .07); }
+.st-se-cf-h { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
+.st-se-cf-s { color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
+.st-se-cf-bar { display: flex; height: 8px; border-radius: var(--pill); overflow: hidden; background: rgba(255, 255, 255, .1); }
+.st-se-cf-bar i { display: block; } .st-se-cf-bar i.ok { background: var(--primary); } .st-se-cf-bar i.m { background: #FF9F0A; } .st-se-cf-bar i.l { background: #FF453A; }
+.st-se-cf-lg { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12.5px; color: var(--on-surface-var); }
+.st-se-cf-lg span { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
 .st-se-ta { width: 100%; box-sizing: border-box; font: inherit; font-size: 17px; line-height: 1.42; color: inherit; background: var(--search-fill);
   border: 1.5px solid var(--primary); border-radius: var(--radius-xs); padding: 8px 10px; resize: none; field-sizing: content; min-height: 3.2em; }
 .st-se-mrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
