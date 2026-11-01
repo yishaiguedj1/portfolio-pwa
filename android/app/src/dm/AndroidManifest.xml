@@ -19,10 +19,14 @@
     <!-- 26/10/2026: רשימת האתרים לבועה (DmSitesProvider) — רק לאפליקציות שחתומות במפתח שלנו. מוגדרת גם ב־Studio Bubble,
          כדי שההרשאה תינתן בלי קשר לסדר ההתקנה -->
     <permission android:name="app.thesnowball.permission.DM_SITES" android:protectionLevel="signature" />
+    <!-- 01/11/2026: הגשר Studio Browser ↔ Studio DM (DmBridge) — רק אפליקציות שחתומות במפתח שלנו. מוגדרת בשתיהן -->
+    <permission android:name="app.thesnowball.permission.DM_HANDOFF" android:protectionLevel="signature" />
+    <uses-permission android:name="app.thesnowball.permission.DM_HANDOFF" />
 
     <!-- AppRoute: האפליקציה השנייה (Studio ↔ Studio DM) — בלי זה אנדרואיד 11+ "מסתיר" אותה -->
     <queries>
         <package android:name="app.thesnowball.studio" />
+        <package android:name="app.thesnowball.browser" />
     </queries>
     <application android:extractNativeLibs="true" tools:replace="android:theme"
         android:theme="@style/DmTheme">
@@ -49,12 +53,16 @@
             android:exported="true"
             android:permission="app.thesnowball.permission.DM_SITES" />
 
-        <!-- הדפדפן של DM — רק מתוך האפליקציה -->
+        <!-- 01/11/2026 (בקשת המשתמש: "שלא יהיו סתם שני דפדפנים"): אין כאן דפדפן — הגלישה ב־Studio Browser (DmBridge).
+             הקוד של DmBrowser נשאר משותף: הצייד, הבדיקה והמסירה של Studio Browser -->
+        <!-- 01/11/2026: הגשר בין הדפדפן ל־DM (DmBridge) — מיוצא רק בהרשאת חתימה, בלי ממשק -->
         <activity
-            android:name=".dm.DmBrowser"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode" />
+            android:name=".dm.DmBridge"
+            android:exported="true"
+            android:permission="app.thesnowball.permission.DM_HANDOFF"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:noHistory="true" />
 
         <activity
             android:name=".dm.DmActivity"

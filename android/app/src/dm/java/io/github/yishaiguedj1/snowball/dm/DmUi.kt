@@ -191,6 +191,10 @@ fun DmApp(a: DmActivity) {
             }
         }
         }
+        if (a.needBrowser.value) AlertDialog(containerColor = g.dialog, shape = RoundedCornerShape(28.dp), onDismissRequest = { a.needBrowser.value = false },
+            title = { Text(stringResource(R.string.dmNeedBrT)) }, text = { Text(stringResource(R.string.dmNeedBrS)) },
+            confirmButton = { TextButton(onClick = { a.getBrowser() }) { Text(stringResource(R.string.dmNeedBrGo)) } },
+            dismissButton = { TextButton(onClick = { a.needBrowser.value = false }) { Text(stringResource(R.string.dmNotNow)) } })
         if (sheet != null) AddSheet(a, sheet ?: "", a.sheetRef.value) { a.sheetDone() }
         details?.let { id -> DmStore.get(id)?.let { t -> Details(a, t, rev) { details = null } } ?: run { details = null } }
     }
