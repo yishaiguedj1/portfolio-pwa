@@ -45,9 +45,11 @@
 | Studio — השרתון, שרת Hetzner, R2, ניטור, דגלים, יוטיוב בשרת, הורדה מקישור | `docs/studio-server.md` |
 | Studio — העובד: job.py, pipeline, llm.py, vt, Routine/ההעברה, איכות התרגום | `docs/studio-worker.md` |
 | Studio — מאגר הלמידה, האיסוף המלא, מעבדת השיפור | `docs/studio-learning.md` |
+| Studio — **העלאה מהירה ברקע ל־R2** (מחקר 1/11/2026: Background Fetch, UIDT, iOS, Local Uploads, גודל חלק; ההערות ב־`docs/research/studio-upload/`) | `docs/studio-upload-research.md` |
 | Studio — **הפרומפט לסבב הניתוח הבא** (מול התרגום האנושי, `tools/learn-vs-human.py`), מה נבדק ומה לא · **הוראות פתיחה לפרויקט שיפור** | `docs/studio-analysis-prompt.md`, `docs/studio-project-brief.md` |
 | Studio — **קריוקי בעברית**: השרשרת שנבדקה (ivrit + stable-ts + CTC עברי), כללי ההחלפה, לקחים | `docs/studio-karaoke-he.md` |
 | Studio — **קריוקי: מחקר עומק** (ספרות, מדדים וסט בדיקה, שיפורים לפי עדיפות, מלכודות רישיון, פורמטים ופיצ'רים) | `docs/studio-karaoke-research.md` |
+| Studio — **מקורות כתוביות מהרשת**: בדיקה חיה של כל המקורות (מפתח/CORS/כיסוי), המלצה, ושיפורי דיוק | `docs/studio-subs-sources.md` |
 | אנדרואיד נייטיב: Studio DM, Studio Browser + תוסף Chrome, Lab, תרגום בטלפון | `docs/android-apps.md` |
 | צריכת טוקנים: המדידה, המחקר, ההגדרות ומה עוד אפשר | `docs/token-economy.md` |
 | **פרויקט "עמודים סטטיים"** — אפס קפיצות/רענונים במעברים: התוכנית, הגלאים (`qa-deep --landing`), הממצאים | `docs/smooth-plan.md` |

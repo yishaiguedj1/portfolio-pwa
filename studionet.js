@@ -21,6 +21,7 @@ export const ROOT_NAME = 'THE SNOWBALL — סטודיו';
 const K256 = 256 * 1024;
 export const CHUNK_MIN = 4 * K256, CHUNK_MAX = 128 * K256, CHUNK_START = 16 * K256;   // 1MB · 32MB · 4MB
 const STALL_MS = 45000;          // חתיכה בלי שום התקדמות 45 שניות = החיבור נתקע → מנסים שוב
+const FREEZE_GAP_MS = 15000;     // 1/11/2026: טיק של 5 שנ׳ שהגיע אחרי יותר מזה = הדף היה קפוא (לא חיבור תקוע)
 const MAX_FAILS = 12;            // ברצף, כשיש רשת — אחרי זה שגיאה גלויה (והמשתמש יכול "לנסות שוב")
 export const STAGES = ['up', 'tr', 'al', 'tl', 'rv', 'bn', 'sv'];
 
@@ -246,8 +247,15 @@ async function driveErr(r) {
 export function xhrPut(url, body, headers, onProgress, signal) {
   return new Promise((resolve, reject) => {
     const x = new XMLHttpRequest();
-    let last = Date.now(), stalled = false, user = false;
-    const tick = setInterval(() => { if (Date.now() - last > STALL_MS) { stalled = true; x.abort(); } }, 5000);
+    let last = Date.now(), at = last, stalled = false, user = false;
+    /* 1/11/2026: דף מוסתר באנדרואיד קופא, אבל החלק שבדרך ממשיך לעלות בדפדפן. אחרי ההפשרה הטיימר יכול לרוץ לפני אירועי
+       ההתקדמות שהצטברו — ולבטל חלק שכמעט הסתיים. טיק שהגיע באיחור (FREEZE_GAP_MS) = הדף היה קפוא → סופרים מחדש */
+    const tick = setInterval(() => {
+      const now = Date.now();
+      if (now - at > FREEZE_GAP_MS) last = now;
+      at = now;
+      if (now - last > STALL_MS) { stalled = true; x.abort(); }
+    }, 5000);
     const end = () => clearInterval(tick);
     x.open('PUT', url);
     for (const [k, v] of Object.entries(headers || {})) x.setRequestHeader(k, v);
@@ -575,6 +583,8 @@ export function lrcWait(status, retryAfter, n, spent = 0) {
 export const NS_OSH = 'https://rest.opensubtitles.org/search/';
 export const NS_OS3 = 'https://opensubtitles-v3.strem.io/subtitles/';
 export const NS_META = 'https://v3-cinemeta.strem.io/catalog/';
+export const NS_MREF = 'https://v3-cinemeta.strem.io/meta/';   // 01/11/2026: רשימת הפרקים (שם הפרק — אימות/תיקון המספור)
+export const NS_DLF = 'https://subs5.strem.io/en/download/subencoding-stremio-utf8/src-api/file/';   // קובץ של OpenSubtitles לפי מזהה, מומר ל־UTF-8
 export const NS_WIZ = 'https://wizdom.xyz/api/';
 export const NS_SRC = { os: 'OpenSubtitles', wz: 'Wizdom' };   // שם המקור שמוצג למשתמש
 const NS_MS = 9000, NS_MAX = 3 * 1024 * 1024, NS_CH = 65536;
@@ -598,14 +608,22 @@ export function nsGuess(name) {
   const t = ' ' + String(name || '').replace(/\.[A-Za-z0-9]{2,4}$/, '').replace(/[._]+/g, ' ') + ' ';
   let s = 0, e = 0, y = 0, cut = t.length;
   const m = /[\s\-[(]s(\d{1,2})\s?-?\s?e(\d{1,3})(?!\d)/i.exec(t) || /[\s\-[(](\d{1,2})x(\d{2,3})(?!\d)/i.exec(t);
-  if (m) { s = +m[1]; e = +m[2]; cut = m.index; }
+  let et = '';
+  if (m) {
+    s = +m[1]; e = +m[2]; cut = m.index;
+    const r = t.slice(m.index + m[0].length), qq = NS_QTAG.exec(r);   // 01/11/2026: שם הפרק שאחרי SxxEyy (עד האיכות)
+    et = (qq ? r.slice(0, qq.index) : r).replace(/[[({][^\])}]*[\])}]/g, ' ').replace(/^[\s-]+|[\s-]+$/g, '').replace(/\s+/g, ' ').slice(0, 80);
+  }
   const ym = /[\s([]((?:19|20)\d{2})(?=[\s)\]])/.exec(t.slice(0, Math.max(cut, 5)) + ' ') || (!m && /[\s([]((?:19|20)\d{2})(?=[\s)\]])/.exec(t));
   if (ym && ym.index > 0) { y = +ym[1]; cut = Math.min(cut, ym.index); }
-  const q0 = /\b(2160p|1080[pi]|720p|480p|web-?dl|webrip|bluray|brrip|bdrip|dvdrip|hdtv|x26[45]|h ?26[45]|hevc|proper|repack)\b/i.exec(t);
+  const q0 = NS_QTAG.exec(t);
   if (q0 && q0.index < cut) cut = q0.index;
   const q = t.slice(0, cut).replace(/[[({][^\])}]*[\])}]/g, ' ').replace(/\s+-\s*$/, '').replace(/\s+/g, ' ').trim().slice(0, 100);
-  return { q, s, e, y };
+  return { q, s, e, y, et };
 }
+const NS_QTAG = /\b(2160p|1080[pi]|720p|480p|web-?dl|webrip|bluray|brrip|bdrip|dvdrip|hdtv|x26[45]|h ?26[45]|hevc|proper|repack)\b/i;
+/* השוואת שמות: אותיות וספרות בלבד, בלי "the" בהתחלה */
+export const nsNorm = (x) => String(x || '').toLowerCase().replace(/&/g, ' and ').replace(/[^\p{L}\p{N}]+/gu, ' ').replace(/^\s*the\s+/, '').trim();
 /* שם הוצאה תואם לשם הקובץ? (אותה קבוצה / אותה איכות+מקור) — רמת ההתאמה 'r' */
 const nsToks = (x) => new Set(String(x || '').toLowerCase().replace(/\.[a-z0-9]{2,4}$/, '').split(/[\s._\-[\]()]+/).filter((w) => w.length > 1));
 const NS_INFO = /^(2160p|1080[pi]|720p|480p|web|webdl|webrip|dl|bluray|brrip|bdrip|dvdrip|hdtv|x264|x265|h264|h265|hevc|amzn|nf|dsnp|hmax|atvp|hulu)$/;
@@ -638,14 +656,86 @@ export function nsPickHash(json, g) {
   const fit = g && g.s ? all.find((v) => v.s === g.s && v.e === g.e) : null;
   return Object.assign({}, fit || all[0], { by: 'h' });
 }
-/* תשובת Cinemeta → הזיהוי לפי השם (עדיפות לשנה התואמת) */
+/* תשובת Cinemeta → הזיהוי לפי השם. 01/11/2026 (דיוק): לא "התוצאה הראשונה" — שם זהה קודם ("Undercover Billionaire" ולא
+   "…: Comeback City"), אחר כך שם שמכיל/מוכל (The Office US ↔ The Office) לפי ההפרש הקטן, ובתוך זה השנה. אין התאמה בשם = אין זיהוי */
 export function nsPickMeta(json, g) {
   const ms = json && Array.isArray(json.metas) ? json.metas.slice(0, 10) : [];
   const ok = ms.filter((m) => m && ttId(m.imdb_id || m.id));
   if (!ok.length) return null;
-  const m = (g && g.y && ok.find((x) => String(x.releaseInfo || x.year || '').startsWith(String(g.y)))) || ok[0];
+  const qa = nsNorm(g && g.q).split(' ').filter(Boolean);
+  if (!qa.length) return null;
+  const qs = new Set(qa);
+  const diff = (m) => {
+    const na = nsNorm(m.name).split(' ').filter(Boolean), ns = new Set(na);
+    if (na.join(' ') === qa.join(' ')) return 0;
+    if (na.length && (na.every((w) => qs.has(w)) || qa.every((w) => ns.has(w)))) return Math.abs(na.length - qa.length);
+    return -1;
+  };
+  const sc = ok.map((m) => ({ m, d: diff(m) })).filter((x) => x.d >= 0);
+  if (!sc.length) return null;
+  const best = Math.min(...sc.map((x) => x.d)), pool = sc.filter((x) => x.d === best).map((x) => x.m);
+  const m = (g && g.y && pool.find((x) => String(x.releaseInfo || x.year || '').startsWith(String(g.y)))) || pool[0];
   const ser = !!(g && g.s);
-  return { type: ser ? 'series' : 'movie', id: ttId(m.imdb_id || m.id), s: ser ? g.s : 0, e: ser ? g.e : 0, t: nsStr(m.name, 100), by: 'n' };
+  const y = +(/^(\d{4})/.exec(String(m.releaseInfo || m.year || '')) || [])[1] || 0;
+  return { type: ser ? 'series' : 'movie', id: ttId(m.imdb_id || m.id), s: ser ? g.s : 0, e: ser ? g.e : 0, t: nsStr(m.name, 100), by: 'n', y: ser ? 0 : y };
+}
+/* 01/11/2026: שם הפרק מהקובץ ("cocktail of chaos") מול רשימת הפרקים (Cinemeta). תואם לפרק שזוהה → ep:'ok'. תואם לפרק
+   אחר (בלבד) → תיקון לפרק ההוא, ep:'fix' — המספור בשם הקובץ לא תמיד לפי IMDb (סדר שידור / DVD, מיוחדים), והשם מדויק יותר */
+export function nsEpFix(json, id, et) {
+  const vids = json && json.meta && Array.isArray(json.meta.videos) ? json.meta.videos.slice(0, 2000) : [];
+  const q = nsNorm(et);
+  if (!id || id.type !== 'series' || q.length < 4 || !vids.length) return id;
+  const nm = (v) => (v && +v.season > 0 && +v.episode > 0 ? nsNorm(v.name || v.title) : '');
+  const ex = vids.filter((v) => nm(v) === q);   // שם זהה גובר על מכיל ("Three Million Dollar Bet" ⊃ "Million Dollar Bet")
+  const hit = ex.length ? ex : vids.filter((v) => { const n = nm(v); return q.length >= 8 && n.length >= 8 && (n.includes(q) || q.includes(n)); });
+  if (!hit.length) return id;
+  if (hit.some((v) => +v.season === id.s && +v.episode === id.e)) return Object.assign({}, id, { ep: 'ok' });
+  if (hit.length !== 1) return id;
+  return Object.assign({}, id, { s: +hit[0].season, e: +hit[0].episode, ep: 'fix' });
+}
+/* 01/11/2026: ה־REST הישן של OpenSubtitles לפי מזהה ושפה — כפול מ־Stremio (שמחזיר רק חלק). בלי מפתח, CORS פתוח.
+   ההורדה דרך Stremio (NS_DLF, מומר ל־UTF-8). תרגום מכונה / פורמט לפי פריימים / כמה דיסקים — נזרקים */
+const nsTs = (x) => { const m = /^(\d{1,2}):(\d{2}):(\d{2})$/.exec(String(x || '')); return m ? +m[1] * 3600 + +m[2] * 60 + +m[3] : 0; };
+export function nsParseRest(json, fileName) {
+  if (!Array.isArray(json)) return [];
+  const out = [];
+  for (const x of json.slice(0, 200)) {
+    if (!x || typeof x !== 'object' || !/^\d{1,12}$/.test(String(x.IDSubtitleFile))) continue;
+    if (String(x.SubAutoTranslation) === '1' || +x.SubSumCD > 1 || !/^(srt|ass|ssa|vtt)$/i.test(String(x.SubFormat || ''))) continue;
+    const lang = lang2(String(x.ISO639 || x.SubLanguageID || '').toLowerCase());
+    if (!/^[a-z]{2,3}$/.test(lang)) continue;
+    const rel = nsStr(x.MovieReleaseName || x.SubFileName, 160);
+    const fps = Number(x.MovieFPS) > 0 && Number(x.MovieFPS) < 200 ? Math.round(Number(x.MovieFPS) * 1000) / 1000 : 0;
+    out.push({ id: 'of:' + x.IDSubtitleFile, src: 'os', url: NS_DLF + x.IDSubtitleFile, lang, rel, fps, last: nsTs(x.SubLastTS),
+      m: x.MatchedBy === 'moviehash' ? 'h' : nsRelMatch(fileName, rel) ? 'r' : 'n' });
+  }
+  return out;
+}
+/* 01/11/2026 (דיוק): אחרי האיסוף. h (טביעה) לא נוגעים — הוא התאמה לקובץ עצמו. השאר:
+   - בשם ההוצאה עונה/פרק אחרים (או שנה אחרת לסרט) → נזרק;
+   - הכתובית האחרונה אחרי סוף הסרטון ביותר מ־5 דק' → נזרק (גרסה/פרק אחר); אחרי הסוף ב־90 שנ' או לפני 60% מהאורך → 'n';
+   - כפולים: אותו קובץ של OpenSubtitles משני הנתיבים (Stremio / REST) — נשאר הראשון */
+const nsFid = (u) => { const m = /\/file\/(\d{1,12})(?:\D|$)/.exec(String(u || '')); return m ? m[1] : ''; };
+export function nsVerify(list, id, dur) {
+  const seen = new Set(), out = [];
+  for (const x0 of list) {
+    const x = Object.assign({}, x0);
+    const f = x.src === 'os' && nsFid(x.url);
+    if (f) { if (seen.has(f)) continue; seen.add(f); }
+    if (x.m !== 'h' && id) {
+      const g = nsGuess(String(x.rel || '') + ' ');   // רווח בסוף: שם הוצאה בלי סיומת (".2003" אינו סיומת)
+      if (id.type === 'series' && g.s && g.e && (g.s !== id.s || g.e !== id.e)) continue;
+      const sm = !g.s && /(?:^|[\s._\-[(])(?:s|season[\s._]?)(\d{1,2})(?!\d)(?![\s._-]?e\d)/i.exec(x.rel || '');   // "S02" / "Season 2" (עונה שלמה)
+      if (id.type === 'series' && sm && +sm[1] !== id.s) continue;
+      if (id.type === 'movie' && id.y && g.y && Math.abs(g.y - id.y) > 1) continue;
+      if (dur > 60 && x.last > 0) {
+        if (x.last > dur + 300) continue;
+        if (x.last > dur + 90 || x.last < dur * 0.6) x.m = 'n';
+      }
+    }
+    out.push(x);
+  }
+  return out;
 }
 /* תשובת Stremio (OpenSubtitles) → פריטים אחידים. url רק מ־https://*.strem.io */
 export function nsParseOs(json, fileName) {
@@ -1167,18 +1257,23 @@ export function createNet(env) {
       return b.length <= NS_MAX ? b : null;
     } catch (e) { return null; } finally { if (tm) clearTimeout(tm); }
   }
-  async function subsFind(blob, name) {
+  /* opt.dur = אורך הסרטון בשניות (אם ידוע) — לבדיקת האורך */
+  async function subsFind(blob, name, opt) {
     const g = nsGuess(name), size = blob ? Number(blob.size) || 0 : 0;
     let hash = '';
     try { hash = await osHash(blob); } catch (e) { hash = ''; }
     let id = hash ? nsPickHash(await nsGet(NS_OSH + 'moviebytesize-' + size + '/moviehash-' + hash, 'json'), g) : null;
     if (!id && g.q.length >= 2) id = nsPickMeta(await nsGet(NS_META + (g.s ? 'series' : 'movie') + '/top/search=' + encodeURIComponent(g.q) + '.json', 'json'), g);
     if (!id) return { ok: false, error: 'none', list: [] };
+    if (id.by === 'n' && id.type === 'series' && nsNorm(g.et).length >= 4) id = nsEpFix(await nsGet(NS_MREF + 'series/' + id.id + '.json', 'json'), id, g.et);
     const vid = id.id + (id.type === 'series' ? ':' + id.s + ':' + id.e : '');
-    const [a, b] = await Promise.all([
+    const rest = (l) => NS_OSH + (id.type === 'series' ? 'episode-' + id.e + '/' : '') + 'imdbid-' + id.id.slice(2) + (id.type === 'series' ? '/season-' + id.s : '') + '/sublanguageid-' + l;
+    const [a, b, c, d] = await Promise.all([
       nsGet(NS_OS3 + id.type + '/' + vid + (hash ? '/videoHash=' + hash + '&videoSize=' + size : '') + '.json', 'json'),
-      nsGet(NS_WIZ + 'search?action=by_id&imdb=' + id.id + (id.type === 'series' ? '&season=' + id.s + '&episode=' + id.e + '&version=1' : ''), 'json')]);
-    return { ok: true, id, hash: !!hash, list: nsSort([...nsParseOs(a, name), ...nsParseWiz(b, name)]) };
+      nsGet(NS_WIZ + 'search?action=by_id&imdb=' + id.id + (id.type === 'series' ? '&season=' + id.s + '&episode=' + id.e + '&version=1' : ''), 'json'),
+      nsGet(rest('heb'), 'json'), nsGet(rest('eng'), 'json')]);
+    const all = nsSort([...nsParseOs(a, name), ...nsParseRest(c, name), ...nsParseRest(d, name), ...nsParseWiz(b, name)]);
+    return { ok: true, id, hash: !!hash, list: nsSort(nsVerify(all, id, Number(opt && opt.dur) || 0)) };
   }
   /* קובץ אחד → בתים (zip נפתח). רק מהכתובות שהפענוח אישר */
   async function subsGet(item, g) {

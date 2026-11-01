@@ -1003,7 +1003,7 @@ async function watchEnd(deps, job, ok, now) {
 let liveC = { at: 0, v: null };
 async function liveJobs(deps, now, fresh) {
   if (!fresh && liveC.v && now - liveC.at < 10e3) return liveC.v;
-  const l = (await Promise.all(['running', 'queued'].map((s) => query(deps, 'studioJobs', { state: s }, 30)))).flat().filter(UM.isLive);
+  const l = (await Promise.all(['running', 'queued'].map((s) => query(deps, 'studioJobs', { state: s }, 30)))).flat().filter((j) => UM.isLive(j, now));
   liveC = { at: now, v: l };
   return l;
 }
@@ -2180,8 +2180,10 @@ async function phoneOp(req, res, body, deps) {
       if (!job) return res.status(404).json({ ok: false, error: 'gone' });
       return res.status(200).json({ ok: true, now, alive: true });
     }
-    if (!job || !(job.spec && job.spec.ph === 1) || job.kind !== 'tr' || !S.keyMatches(job, key, 'pkh') || now > (job.pkx || 0)) return res.status(403).json({ ok: false, error: 'bad_key' });
+    if (!job || !(job.spec && (job.spec.ph === 1 || job.spec.nu === 1)) || job.kind !== 'tr' || !S.keyMatches(job, key, 'pkh') || now > (job.pkx || 0)) return res.status(403).json({ ok: false, error: 'bad_key' });
     const e = S.effState(job, now), op = body.op;
+    // 1/11/2026: nu — האפליקציה רק מעלה (קול, סרטון) ומתחילה; התמלול, המדידות והצריבה בשרת
+    if (job.spec.nu === 1 && ['phBurn', 'phProg', 'phClaim'].includes(op)) return res.status(409).json({ ok: false, error: 'not_ph' });
     if (op === 'phJob') {
       return res.status(200).json({ ok: true, now, job: { id, state: e.state, err: e.err, prog: job.prog || null, pb: job.spec.pb || '',
         out: (Array.isArray(job.fo) ? job.fo : []).map((o) => ({ id: o.id, k: o.k, size: o.size })), a: !!job.fa, m: !!job.fph, w: !!job.fpw, pbn: S.normPbn(job.pbn, job.pbn && job.pbn.at) } });
@@ -2257,7 +2259,7 @@ async function phoneOp(req, res, body, deps) {
     }
     if (op === 'phFile') {
       const pw = !!(job.spec && job.spec.pw === 1);
-      const which = (pw ? body.which === 'w' : body.which === 'a') || body.which === 'm' ? body.which : '';   // שלב 2: בלי קול, עם המילים
+      const which = (pw ? body.which === 'w' : body.which === 'a') || (body.which === 'm' && job.spec.nu !== 1) ? body.which : '';   // שלב 2: בלי קול, עם המילים
       const fid = String(body.id || '');
       if (!which || !S.FILE_ID_RE.test(fid) || !SR.inFolder(fid, job.folder)) return res.status(400).json({ ok: false, error: 'bad_params' });
       const rg = await r2Register(deps, job, which, fid, now);
@@ -3594,7 +3596,7 @@ async function handler(req, res, deps = {}) {
       if (!spec) return res.status(400).json({ ok: false, error: 'bad_spec' });
       if (!S.langReady(spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported' });   // לפני ההעלאה, לא אחריה
       if (await modeLocked(spec.mode)) return res.status(403).json({ ok: false, error: 'mode_locked' });
-      if (spec.ph && !R2.config().ok) return res.status(503).json({ ok: false, error: 'r2_needed' });   // 24/10/2026: תרגום בטלפון — הקבצים הקטנים ב־R2
+      if ((spec.ph || spec.nu) && !R2.config().ok) return res.status(503).json({ ok: false, error: 'r2_needed' });   // 24/10/2026: תרגום בטלפון — הקבצים הקטנים ב־R2
       if (spec.ka && !(await kaAllowed())) return res.status(403).json({ ok: false, error: 'not_allowed' });   // קריוקי — כל מי שמורשה לסטודיו (30/10)
       if (spec.ka && !R2.config().ok) return res.status(503).json({ ok: false, error: 'r2_needed' });
       if (spec.src === 'url') {   // 22/10/2026: הורדה מקישור — כמו בבדיקה: מנהל / "כל המודלים" / חשבונות הבדיקה, הדגל, ו־R2
@@ -3767,7 +3769,7 @@ async function handler(req, res, deps = {}) {
     if (op === 'phKey') {
       // 24/10/2026: תרגום בטלפון — מפתח לעבודה אחת בשביל Studio לאנדרואיד (הקול, המדידות, ההתחלה, ההורדה והצריבה בלי
       // הדפדפן). לבדיקה — ה־hash; לשליפה חוזרת — מוצפן בכספת (pke, ‏AAD לפי העבודה), אף פעם לא גלוי במסמך
-      if (job.kind !== 'tr' || !(job.spec && job.spec.ph === 1) || !SR.isFolder(job.folder) || !['new', 'queued', 'running', 'failed', 'done'].includes(st)) return res.status(409).json({ ok: false, error: 'state' });
+      if (job.kind !== 'tr' || !(job.spec && (job.spec.ph === 1 || job.spec.nu === 1)) || !SR.isFolder(job.folder) || !['new', 'queued', 'running', 'failed', 'done'].includes(st)) return res.status(409).json({ ok: false, error: 'state' });   // nu — 1/11/2026
       // אותו מפתח כל עוד נשאר לו יותר מיום (מוצפן בכספת — pke): הדף מבקש אותו מראש, כדי לפתוח את האפליקציה ישר מהנגיעה
       // (Chrome פותח intent רק מתוך נגיעה), וזה לא מבטל מפתח שהאפליקציה כבר משתמשת בו באמצע העלאה
       const aad = 'phk|' + job.id;

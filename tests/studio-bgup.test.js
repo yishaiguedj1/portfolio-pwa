@@ -420,8 +420,13 @@ const { fakeR2, ENV } = require('./_r2fake');
     'הסרטון ברקע רק אחרי הקול (Background Fetch אי אפשר להשהות), ואחריו תמיד ההעלאה הרגילה (סוגרת / ממשיכה)');
   ok(/const f = cur = flip\(shown, 0\);/.test(uv) && /const f = cur = flip\(handOk, BG_HAND_MS\);/.test(uv) && /signal: f\.signal/.test(uv) && /catch \(e\) \{ if \(!f\.flipped\(\)\) throw e; \}/.test(uv),
     '29/10/2026: דף מוצג — הרגילה; ברקע BG_HAND_MS — Background Fetch; חוזרים לדף — מיד חזרה לרגילה (החלפה לא נחשבת עצירה)');
-  ok(/if \(r && !r\.ok && !\(r\.stall && r\.hid && \+\+bgRe <= BG_RE\)\) bgOff = true;/.test(uv) && /const BG_RE = 2;/.test(st) && /if \(bgOk && shown\(\)\) await Promise\.race\(\[bgAbort\(id\),/.test(uv),
+  ok(/if \(r && !r\.ok && !\(r\.stall && r\.hid && \+\+bgRe <= BG_RE\)\) bgOff = true;/.test(uv) && /const BG_RE = 2;/.test(st) && /if \(bgHas && shown\(\)\) await Promise\.race\(\[bgAbort\(id\),/.test(uv),
     'Background Fetch שנכשל — עד הסוף רק הרגילה (חוץ מתקיעה כשהדף מוסתר — עד 2 ניסיונות חדשים); העלאה ברקע ישנה מבוטלת לפני הרגילה');
+  { const sn = read('studionet.js'), xp = sn.slice(sn.indexOf('export function xhrPut('), sn.indexOf('x.open(', sn.indexOf('export function xhrPut(')));
+    ok(/const FREEZE_GAP_MS = 15000;/.test(sn) && /if \(now - at > FREEZE_GAP_MS\) last = now;/.test(xp) && xp.indexOf('last = now;') < xp.indexOf('x.abort()'),
+      '1/11/2026: טיק באיחור (הדף היה קפוא) לא מבטל חלק שעלה בזמן ההקפאה'); }
+  ok(/const BG_AUTO = false;/.test(st) && /const bgHas = await bgCan\(rec, file\), bgOk = BG_AUTO && bgHas;/.test(uv),
+    '1/11/2026: בלי מעבר אוטומטי ל־Background Fetch — ההעלאה הרגילה נשארת גם כשהדף ברקע');
   ok(/if \(o\.signal && o\.signal\.aborted\) return \{ aborted: true \};/.test(read('studiobg.js')), 'הדף חזר לפני ההתחלה — בלי r2bg ובלי רישום');
   ok((st.match(/audioSettle\(\)/g) || []).length >= 3, 'הקול "הסתיים" בכל מסלול: כבר עלה / אין קול / עלה עכשיו');
   ok(/stopRun\(id\);\s*bgAbort\(id\);/.test(st), 'מחיקה / ביטול עבודה — מבטלים גם את ההעלאה ברקע (גם כשהדף לא מריץ אותה)');

@@ -27,6 +27,13 @@ const BG_PS = 64 * 1024 * 1024;
 const BG_STEPS = 64;
 const bgPartSize = (size) => R2.partSize(size, Math.min(BG_PS, Math.ceil(Math.max(1, size) / BG_STEPS / R2.MIB) * R2.MIB));
 const BG_PART_MAX = 95 * 1000 * 1000;
+/* 1/11/2026 (בקשת המשתמש: "לחזור למצב שבו פרקים של 4GB עלו חלק ברקע"): העלאה מהטלפון בחלקים גדולים יותר — 16MiB עד
+   64MiB, בערך PHONE_STEPS חלקים לסרטון. דף מוסתר באנדרואיד קופא, אבל חלק שכבר בדרך ממשיך לעלות; חלקים גדולים = יותר בייטים
+   שעולים בזמן ההקפאה ופחות "זמן מת" בין חלקים (docs/studio-upload-research.md). התקרה = BG_PS, כדי ש־Background Fetch
+   (דרך /up, עד 100MB לבקשה) עדיין יוכל להמשיך את אותה העלאה */
+const PHONE_PS_MIN = 16 * 1024 * 1024;
+const PHONE_STEPS = 48;
+const phonePartSize = (size) => R2.partSize(size, Math.min(BG_PS, Math.max(PHONE_PS_MIN, Math.ceil(Math.max(1, size) / PHONE_STEPS / R2.MIB) * R2.MIB)));
 const BG_TTL = 3 * 24 * 3600;
 const BG_MAX_PARTS = 400;
 
@@ -95,7 +102,7 @@ async function upStart(c, deps, { uid, folder, id, size, type, name, rec, by, re
   id = id || newId(folder);
   const k = keyOf(uid, id);
   const t = okType(type);
-  r = { k, s: size, t, n: String(name || (r && r.n) || '').slice(0, 200), up: await R2.mpCreate(c, deps, k, t), ps: R2.partSize(size),
+  r = { k, s: size, t, n: String(name || (r && r.n) || '').slice(0, 200), up: await R2.mpCreate(c, deps, k, t), ps: by === 'worker' ? R2.partSize(size) : phonePartSize(size),
     ok: 0, at: (deps.now || Date.now)(), by: by === 'worker' ? 'worker' : 'phone', uid };
   const m = missingOf(r, []);
   return { res: { ok: true, id, up: r.up, ps: r.ps, done: [], urls: await urlsFor(c, deps, r, m.miss) }, rec: normRec(r) };
@@ -219,4 +226,4 @@ async function purgeFolder(c, deps, { uid, folder, recs }) {
 }
 
 module.exports = { isFolder, isId, folderOfId, inFolder, folderFor, newId, keyOf, normRec, missingOf, upStart, upParts, upDone, upBg, bgDone, fileIn, getUrl, delFile,
-  purgeFolder, URLS_PER_CALL, MAX, BG_PS, BG_STEPS, bgPartSize, BG_PART_MAX, BG_TTL, BG_MAX_PARTS };
+  purgeFolder, URLS_PER_CALL, MAX, BG_PS, BG_STEPS, bgPartSize, BG_PART_MAX, BG_TTL, BG_MAX_PARTS, phonePartSize, PHONE_PS_MIN };

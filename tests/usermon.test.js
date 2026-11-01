@@ -24,7 +24,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(UM.idOf({ email: 'not-an-email' }).em === '' && UM.label('', 'ron@x.io') === 'ron' && UM.label('רון', 'ron@x.io') === 'רון', 'מייל לא תקין נזרק; בלי שם — מה שלפני @');
 
   /* ---- עבודה חיה ---- */
-  const run = { id: J(1), uid: B, kind: 'tr', state: 'running', created: now - 20 * 60e3, c0: now - 20 * 60e3,
+  const run = { id: J(1), uid: B, kind: 'tr', state: 'running', created: now - 20 * 60e3, c0: now - 20 * 60e3, updated: now - 30e3,
     spec: { eng: 'api', dur: 2880, mode: 'sonnet-medium', to: ['he'] }, use: use(1.2, 500000), tw: { lv: 'ok', usd: 1.84 },
     prog: { st: 'tl', p: 0.4, stg: { up: { s: 1, e: 2 }, tr: { s: 2, e: 3 }, al: { s: 3, e: 4 }, tl: { s: 4 } } } };
   const r = UM.liveRow(run, { nm: 'דנה כהן', em: 'dana@example.com' }, now);
@@ -32,6 +32,9 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(r.stg.up === 'd' && r.stg.tl === 'n' && r.by.tl.tok === 501000 && !('name' in r), 'שורה חיה: השלבים, העלות לפי סוכן — ובלי שם הקובץ');
   ok(UM.liveRow(Object.assign({}, run, { spec: { eng: 'api', ry: 1, dur: 60 } }), {}, now).our === false, 'במנוי של המשתמש (Routine) — לא עולה לנו');
   ok(UM.isLive(run) && !UM.isLive(Object.assign({}, run, { state: 'done' })) && !UM.isLive(Object.assign({}, run, { kind: 'ping' })), 'חי = בתור או רץ, לא בדיקת חיבור');
+  // 01/11/2026: עבודה "רצה" במסמך בלי דיווח שעתיים (נתקעה) — בסטודיו היא לא פעילה, אז גם לא ב"עכשיו במערכת"
+  ok(UM.isLive(Object.assign({}, run, { updated: now - 60e3 }), now) && !UM.isLive(Object.assign({}, run, { updated: now - 3 * 3600e3 }), now), 'נתקעה (isStale) — לא חיה');
+  ok(!UM.isLive({ id: 'q1', kind: 'tr', state: 'queued', fired: now - 10 * 3600e3, updated: now - 10 * 3600e3 }, now), 'בתור ולא נלקחה (effState: נכשלה) — לא חיה');
 
   /* ---- משתמשים ---- */
   const jobs = [run,
@@ -147,7 +150,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
     tj({ id: J(34), created: now - 10 * 86400e3, use: use(9, 10), spec: { eng: 'api', ry: 1, dur: 60 } }),
     { id: J(35), kind: 'ping', created: now - H },
     tj({ id: J(36), created: now - 40 * 86400e3, use: use(5, 10) }),
-    tj({ id: J(37), created: now - 600e3, claimed: now - 500e3, state: 'running', use: use(0.1, 10) }),
+    tj({ id: J(37), created: now - 600e3, claimed: now - 500e3, updated: now - 60e3, state: 'running', use: use(0.1, 10) }),
   ];
   const ug = UM.usage(uj, [{ id: B, mu: { m: '2026-10', usd: 20 } }, { id: C, mu: { m: '2026-09', usd: 99 } }], now, { max: 400 });
   ok(ug.n === 5 && ug.ok === 3 && ug.f === 1 && ug.live === 1 && ug.usd === 2.3 && ug.types[0].k === 'vid' && ug.types.find((x) => x.k === 'ka').n === 1,

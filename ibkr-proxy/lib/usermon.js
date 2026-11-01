@@ -105,7 +105,10 @@ function byAgent(use) {
   }
   return o;
 }
-const isLive = (j) => !!j && ['queued', 'running'].includes(j.state) && j.kind !== 'ping' && !j.rdy;
+/* 01/11/2026 (המשתמש: "עבודה מהצהריים מופיעה פעילה במרכז הניהול, אבל בסטודיו היא לא"): לפי המצב שהטלפון רואה
+   (effState — נכשלה לפי הזמן) ובלי עבודה שנתקעה (isStale — "רצה" בלי דיווח שעתיים), לא רק לפי השדה state במסמך */
+const isLive = (j, now) => !!j && j.kind !== 'ping' && !j.rdy && ['queued', 'running'].includes(j.state)
+  && (!now || (['queued', 'running'].includes(S.effState(j, now).state) && !S.isStale(j, now)));
 
 /* משתמשים: שורה לכל מי שיש לו studioStats או עבודה ב־30 יום. stats = [{id, nm, em, ls, fs, mu, mc, ps, tt}] */
 function usersView(stats, jobs, now, opt) {
@@ -126,7 +129,7 @@ function usersView(stats, jobs, now, opt) {
     if (!j || !UID_RE.test(String(j.uid || '')) || j.kind === 'ping') continue;
     const r = get(j.uid);
     r.ls = Math.max(r.ls, n0(j.updated));
-    if (isLive(j)) r.live = true;
+    if (isLive(j, now)) r.live = true;
     if (j.kind !== 'tr' || n0(j.created) < from) continue;
     const use = jobUse(j), d = r.d30;
     d.n++; if (j.state === 'done') d.ok++; if (j.state === 'failed') d.f++;
@@ -159,8 +162,8 @@ function timeline(jobs, logs, stats, now) {
     if (!j || j.kind === 'ping' || !UID_RE.test(String(j.uid || ''))) continue;
     const sp = j.spec || {}, use = jobUse(j);
     const base = { u: j.uid, j: j.id, k: j.kind, dur: n0(sp.dur), mode: String(sp.mode || '') };
-    if (n0(j.created) >= from) ev.push(Object.assign({ t: 'js', at: j.created, live: isLive(j) }, base,
-      isLive(j) ? { usd: Math.round(Math.max(n0(j.tw && j.tw.usd), S.usdOf(use)) * 100) / 100 } : {}));
+    if (n0(j.created) >= from) ev.push(Object.assign({ t: 'js', at: j.created, live: isLive(j, now) }, base,
+      isLive(j, now) ? { usd: Math.round(Math.max(n0(j.tw && j.tw.usd), S.usdOf(use)) * 100) / 100 } : {}));
     const end = n0(j.ended) || n0(j.updated);
     if (['done', 'failed', 'cancelled'].includes(j.state) && end >= from) {
       ev.push(Object.assign({ t: j.state === 'done' ? 'jd' : j.state === 'failed' ? 'jf' : 'jc', at: end }, base, {
@@ -282,12 +285,12 @@ function usage(jobs, stats, now, o) {
     tot.n++; tot.usd += usd; tot.tok += tok; tot.sec += sec;
     if (j.state === 'done') { t.ok++; tot.ok++; } else if (j.state === 'failed') { t.f++; tot.f++; errs[String(j.err || '?').slice(0, 30)] = (errs[String(j.err || '?').slice(0, 30)] || 0) + 1; }
     else if (j.state === 'cancelled') tot.c++;
-    if (isLive(j)) tot.live++;
+    if (isLive(j, now)) tot.live++;
     eng[engOf(j)]++;
     const p = ilParts(n0(j.created)), di = dIx.get(p.d);
     hours[p.h]++;
     if (di != null) { const D = days[di]; D.n++; D.usd += usd; D.sec += sec; if (j.state === 'failed') D.f++; D.t[k] = (D.t[k] || 0) + 1; }
-    const c1 = n0(j.claimed), end = n0(j.ended) || (isLive(j) ? now : n0(j.updated));
+    const c1 = n0(j.claimed), end = n0(j.ended) || (isLive(j, now) ? now : n0(j.updated));
     if (c1 && c1 >= n0(j.created)) waits.push((c1 - n0(j.created)) / 1000);
     if (c1 && end > c1) {
       const ms = end - c1;

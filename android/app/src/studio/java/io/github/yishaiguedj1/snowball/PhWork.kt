@@ -76,7 +76,7 @@ object PhWork {
             rep(st, p)
         }
         try {
-            val f = src(ctx, r)
+            val f by lazy { src(ctx, r) }   // 1/11/2026: nu — אחרי שהסרטון עלה העותק נמחק; "להמשיך" לא נופל על src_gone
             val pw = r.optBoolean("pw")
             // 0. שלב 2 ("הכל בטלפון"): המודלים, ואז התמלול, הדוברים והיישור כאן — עולה רק קובץ המילים (בלי קול)
             if (pw && r.optString("wId").isEmpty()) {
@@ -126,8 +126,9 @@ object PhWork {
                 if (!sr.optBoolean("ok")) throw Stop(sr.optString("error", "start"))
                 r = PhStore.update(ctx, pid) { it.put("started", true) } ?: r
             }
-            // 3. המדידות: ffprobe (נשמר בבחירה) + השוטים (כ־3 דק׳ לשעת סרטון)
-            if (r.optString("mId").isEmpty()) {
+            // 3. המדידות: ffprobe (נשמר בבחירה) + השוטים (כ־3 דק׳ לשעת סרטון). nu — השרת מודד מהסרטון עצמו
+            val nu = r.optBoolean("nu")
+            if (!nu && r.optString("mId").isEmpty()) {
                 val m = File(work, "meta.json")
                 if (!m.isFile) {
                     stage("shots", R.string.phShots)
@@ -162,6 +163,7 @@ object PhWork {
             q.stop()
             nm(ctx).cancel(N_ID)
             nm(ctx).notify(N_DONE, if (pt) simple(ctx, s(ctx, R.string.phTextDone), s(ctx, R.string.phTextDoneS), webIntent(ctx, r, ""))
+                else if (nu) simple(ctx, s(ctx, R.string.phSent), s(ctx, R.string.phSentNu), webIntent(ctx, r, ""))
                 else simple(ctx, s(ctx, R.string.phSent), s(ctx, R.string.phSentS), webIntent(ctx, r, "")))
         } catch (e: Throwable) {
             val code = codeOf(e)
@@ -244,6 +246,7 @@ object PhWork {
             val fr = n.call("phFile", JSONObject().put("which", "v").put("id", id).put("v", true))
             if (!fr.optBoolean("ok")) throw Stop(fr.optString("error", "file"))
             PhStore.update(ctx, pid) { it.put("vId", id) }
+            if (r.optBoolean("nu")) runCatching { f.delete() }   // 1/11/2026: nu — השרת צורב; העותק כבר לא נחוץ
             true
         } catch (e: Throwable) {
             q.stop()

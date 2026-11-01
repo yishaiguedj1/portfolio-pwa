@@ -178,7 +178,7 @@ const sha1 = (t) => crypto.createHash('sha1').update(t, 'utf8').digest('hex');
   const T0 = 1e12;
   ok(ryWaiting({ srv: { ry: true, rc: 0, fired: T0 } }, T0 + 121e3) && !ryWaiting({ srv: { ry: true, rc: T0, fired: T0 } }, T0 + 121e3)
     && !ryWaiting({ srv: { ry: true, rc: 0, fired: T0 } }, T0 + 60e3) && !ryWaiting({ srv: { ry: false, rc: 0, fired: T0 } }, T0 + 1e6), 'הודעה רק כשה־Routine לא התחבר אחרי 2 דק׳');
-  ok((src.match(/else if \(ryMode\(\)\)/g) || []).length === 4 && /else if \(ryMode\(\)\) spec\.ry = 1/.test(src), 'ארבעת המסלולים (קובץ, כתוביות, קישור, תרגום בטלפון) — ry במנוי');
+  ok((src.match(/else if \(ryMode\(\)\)/g) || []).length === 5 && /else if \(ryMode\(\)\) spec\.ry = 1/.test(src), 'חמשת המסלולים (קובץ, כתוביות, קישור, תרגום בטלפון, העלאה דרך האפליקציה) — ry במנוי');
   ok(/const hosts = Array\.from\(new Set\(\[host, hub\]\)\)/.test(src), 'אשף החיבור: כתובת התור ברשימת הכתובות של הסביבה');
   for (const k of ['studioNowRyWait', 'studioErrRyNone', 'studioErrRyLost', 'studioErrRy']) ok(app.split(k + ': "').length === 3, 'מחרוזת ' + k + ' בעברית ובאנגלית');
   for (const c of ['relay_none', 'relay_lost', 'relay_hub']) ok(new RegExp("case '" + c + "'").test(src), 'טקסט בטלפון לקוד ' + c);
