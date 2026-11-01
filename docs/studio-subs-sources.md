@@ -37,3 +37,11 @@
 7. **אימות לפי הקול**: מסיכת הדיבור של הסרטון מול זמני הכתוביות (קורלציה, כמו ב־`docs/studio-learning.md`). זה המבחן הכי חזק, כי הוא לא תלוי בשמות, ומתאים לעובד.
 
 מקורות: SubMaker (submaker.elfhosted.com), SubSource API docs (subsource.net/api-docs), Wyzie notice (sub.wyzie.io/notice), Gestdown (api.gestdown.info), subliminal score docs, Ktuvit-api (github.com/maormagori/Ktuvit-api), שרשורי Jellyfin/Emby/Firecore על מכסות OpenSubtitles.
+
+## 3. מה יושם (2.99.0, 01/11/2026)
+- `nsParseRest` — חיפוש ב־REST לפי מזהה ושפה (`heb`, `eng`; שפה אחת בכל בקשה — רשימה עם פסיק לא עובדת). ההורדה דרך `NS_DLF` (Stremio, UTF-8), כך שלא צריך מקור חדש ב־CSP. נזרקים: תרגום מכונה, `sub`/MicroDVD, כמה דיסקים.
+- `nsPickMeta` — שם זהה (`nsNorm`), אחר כך מכיל/מוכל לפי ההפרש הקטן, ואז שנה. אין התאמה בשם = אין זיהוי.
+- `nsGuess().et` + `nsEpFix` — שם הפרק מהקובץ מול `meta/series/<id>.json`. שם זהה גובר על מכיל ("Three Million Dollar Bet" ⊃ "Million Dollar Bet"). רק כשהזיהוי לפי השם — בזיהוי לפי טביעה לא פונים.
+- `nsVerify` — כפולים לפי מזהה הקובץ (Stremio/REST), פרק/עונה/שנה אחרים בשם ההוצאה, אורך (`last` מול `opt.dur`). טביעה (h) לא נפסלת.
+- בדיקה חיה: UB ‏S02E08 מזוהה נכון (ep:'ok'), ועדיין אין לו כתוביות — אין בשום מקור. "S02E05.Three.Million.Dollar.Bet" מתוקן ל־S02E01. ב־Friends ‏S01E01: 90 תוצאות, כולל מה־REST.
+- עוד לא: SubSource/SubDL (מפתח), Gestdown (השרתון), השוואת FPS (אין FPS של הסרטון בטופס), אימות לפי הקול בעובד.
