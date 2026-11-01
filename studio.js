@@ -3077,7 +3077,7 @@ function nowLine(rec, run, ph) {
   if (ph === 'error') return errText(run.err);
   if (ph === 'ready') return rec.up.wait === 'worker_not_ready' ? T('studioWaitWorker') : rec.up.wait ? errText(rec.up.wait) : T('studioReady');
   if (ph === 'queued' && rec.spec.pt) return T('studioPhPtQ');   // שלב 3: הטלפון לוקח את העבודה ומתרגם בעצמו
-  if (ph === 'queued') return rec.srv && rec.srv.vw ? (rec.spec.ph ? T('studioPhWaitM') : T('studioNowParked')) : rec.srv && rec.srv.uw ? T('studioNowSrvUpd') : rec.srv && rec.srv.eng === 'api' ? T('studioNowQueuedApi') : T('studioNowQueued');
+  if (ph === 'queued') return rec.srv && rec.srv.vw ? (rec.spec.ph ? T('studioPhWaitM') : T('studioNowParked')) : rec.srv && rec.srv.uw ? T('studioNowSrvUpd') : rec.srv && rec.srv.eng === 'api' ? queuedApiLine(rec) : T('studioNowQueued');
   if (ph === 'running' && ryWaiting(rec, Date.now())) return T('studioNowRyWait');
   // 31/10/2026: בקריוקי אין מודל שפה — "Claude עובד על הסרטון" הטעה
   if (ph === 'running') return (rec.srv && rec.srv.prog && rec.srv.prog.msg) || (rec.spec && rec.spec.ka ? T('studioNowRunningKa') : T('studioNowRunning'));
@@ -3086,6 +3086,12 @@ function nowLine(rec, run, ph) {
   if (ph === 'failed') return recovering(rec) ? (SRV_DIED.has(rec.srv && rec.srv.err) ? errText(rec.srv.err) : T('studioRecLine')) : cardMsg(rec, ph) || errText(rec.srv && rec.srv.err);
   if (ph === 'stuck') return T('studioNowStuck');
   return rec.srv && rec.srv.err === 'halted' ? T('studioErrHalted') : T('studioNowCancelled');
+}
+/* 1/11/2026 (צילום מהטלפון: "בתור לשרת" דקות ארוכות, וההתראה מראה עבודה אחרת ב"בודקים ומתקנים"): עבודה ישנה שחודשה
+   ("המשך" אוטומטי) רצה בשרת ונמצאת עמוק ברשימה — "בתור לשרת" לבד נראה כמו תקיעה. אומרים מה השרת מסיים קודם */
+function queuedApiLine(rec) {
+  const o = store.jobs.find((x) => x !== rec && x.srv && x.srv.state === 'running' && !x.srv.stale && x.srv.eng === 'api');
+  return o ? T('studioNowBehind', { n: fileTitle(o.spec.name) || T('studioUntitled') }) : T('studioNowQueuedApi');
 }
 function badgeFor(ph) {
   switch (ph) {
@@ -3164,6 +3170,7 @@ function jobsCard(rows) {
 /* 30/10/2026 (בקשת המשתמש — "שני כלים נפרדים לגמרי"): קריוקי = לשונית משלה בחוגה, רשימה משלה ופרויקט חדש משלו.
    הטופס פותח ישר במצב קריוקי (form.ka קבוע — אין מתג), והבית של התרגום לא מציג שירים */
 function pageKa(p) { pageHome(p, true); }
+const LIVE_PH = new Set(['running', 'queued', 'extract', 'audio', 'video', 'wait']);
 function pageHome(p, kaTab) {
   const pon = apiMode() ? ui.api.online > 0 : !!store.conn;
   const pill = btn('st-cpill' + (pon ? ' on' : ''), null, () => go('eng'), 'cpill');
@@ -3185,6 +3192,9 @@ function pageHome(p, kaTab) {
   nc.append(plus, kaTab ? rowTxt(T('studioKaNew'), T('studioKaNewSub')) : rowTxt(T('studioNew'), T('studioNewSub')));
   p.append(nc);
   const jobs = store.jobs.filter((rec) => !rec.spec.ka === !kaTab);   // 30/10/2026: שירים — רק בלשונית הקריוקי
+  // 1/11/2026: עבודה שרצה עכשיו (גם ישנה שחודשה) — בראש הרשימה, לא עמוק ב"עבודות קודמות"; השאר לפי התאריך
+  const busy = (rec) => (LIVE_PH.has(jobPhase(rec, runs.get(rec.id))) ? 0 : 1);
+  jobs.sort((a, b) => busy(a) - busy(b));
   const drafts = kaTab ? [] : store.drafts;
   if (!drafts.length && !jobs.length) {
     const e = h('div', 'st-empty');
