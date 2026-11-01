@@ -116,6 +116,7 @@ const APP_SHELL = [
   './ibkr-logo.png',
   './acclink.js',   // 26/10/2026: כניסה עם מייל ושיטות הכניסה (נטען בלחיצה)
   './analysis.js', './analysis.css',   // 25/10/2026: מנתח החברות — נטען בלחיצה, אבל באותה גרסה של app.js
+  './taxcenter.js', './taxcenter.css', './taxil.js',   // 01/11/2026: מרכז המס — נטען בלחיצה
   './chart.js', './chartlib.js', './chart.css', './vendor/klinecharts/klinecharts.min.js'   // 27/10/2026: גרף הנרות — נטען בלחיצה
 ];
 
