@@ -20,7 +20,7 @@ data class BrVisit(val url: String, val title: String, val at: Long)
 // f = התיקייה לפי ת־עיצוב: "b/Learning/x" (b סרגל, o אחרות, m נייד); ריק = נשמרה כאן (בנייד) — BrSync.folderOf; i = המקום בתיקייה ב־Chrome (‎-1 = עוד לא שם — בסוף)
 data class BrMark(val url: String, val title: String, val at: Long, val imp: Boolean = false, val x: Long = 0L, val sid: String = "", val f: String = "", val i: Int = -1)
 // nb = הדף הראשון נפתח מהכרטיסייה החדשה (BrTab.ntpBack); p = המקום ברשימה של הכרטיסייה שפתחה אותה (‎-1 = אין)
-data class BrTabRec(val url: String, val title: String, val nb: Boolean = false, val p: Int = -1)
+data class BrTabRec(val url: String, val title: String, val nb: Boolean = false, val p: Int = -1, val pin: Boolean = false)
 
 object BrStore {
     private const val HISTORY_MAX = 20000   // כמו 90 יום של Chrome (התוסף שולח עד 20,000 ביקורים)
@@ -223,14 +223,14 @@ object BrStore {
         if (!::dir.isInitialized) return
         write("tabs.json", JSONArray().apply {
             put(JSONObject().put("cur", cur))
-            tabs.forEach { put(JSONObject().put("u", it.url).put("t", it.title).apply { if (it.nb) put("nb", true); if (it.p >= 0) put("p", it.p) }) }
+            tabs.forEach { put(JSONObject().put("u", it.url).put("t", it.title).apply { if (it.nb) put("nb", true); if (it.p >= 0) put("p", it.p); if (it.pin) put("pin", true) }) }
         })
     }
 
     fun loadTabs(): Pair<List<BrTabRec>, Int> {
         val a = read("tabs.json") ?: return emptyList<BrTabRec>() to 0
         val cur = a.optJSONObject(0)?.optInt("cur", 0) ?: 0
-        val list = (1 until a.length()).mapNotNull { a.optJSONObject(it) }.map { BrTabRec(it.optString("u"), it.optString("t"), it.optBoolean("nb"), it.optInt("p", -1)) }
+        val list = (1 until a.length()).mapNotNull { a.optJSONObject(it) }.map { BrTabRec(it.optString("u"), it.optString("t"), it.optBoolean("nb"), it.optInt("p", -1), it.optBoolean("pin")) }
         return list to cur.coerceIn(0, (list.size - 1).coerceAtLeast(0))
     }
 
@@ -329,6 +329,9 @@ class BrPrefs(ctx: Context) {
     var pip: Boolean get() = sp.getBoolean("pip", true); set(v) { sp.edit().putBoolean("pip", v).apply() }
     /** ההגדרות לכל אתר — BrShield.encode/decode */
     var sites: String get() = sp.getString("sites", "") ?: ""; set(v) { sp.edit().putString("sites", v).apply() }
+    /** Pro (01/11/2026): מתקן עברית (כיוון לכל פסקה) וניקוי קישורים בהעתקה ובשיתוף — במסך "מעבדה" */
+    var heFix: Boolean get() = sp.getBoolean("heFix", true); set(v) { sp.edit().putBoolean("heFix", v).apply() }
+    var cleanCopy: Boolean get() = sp.getBoolean("cleanCp", true); set(v) { sp.edit().putBoolean("cleanCp", v).apply() }
     /** כמה בקשות נחסמו מאז ההתקנה — למסך הפרטיות */
     var blockedAll: Long get() = sp.getLong("blk", 0L); set(v) { sp.edit().putLong("blk", v).apply() }
 }

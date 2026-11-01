@@ -1,5 +1,12 @@
 package io.github.yishaiguedj1.snowball.br
 
+import io.github.yishaiguedj1.snowball.dm.DmG
+import io.github.yishaiguedj1.snowball.dm.GlassDark
+import io.github.yishaiguedj1.snowball.dm.GlassLight
+import io.github.yishaiguedj1.snowball.dm.StRed
+import io.github.yishaiguedj1.snowball.dm.dmAmbient
+import io.github.yishaiguedj1.snowball.dm.glassCard
+import io.github.yishaiguedj1.snowball.dm.toneGlass
 import android.graphics.Bitmap
 import android.graphics.Color as AColor
 import android.graphics.PixelFormat
@@ -152,21 +159,23 @@ import kotlinx.coroutines.withContext
  * האדום של כפתור ההורדה (#FF4656) כצבע הפעולה, הניטרליים של iOS, רקע רך עם גוונים מאחורי הזכוכית, כרטיסי זכוכית עם קו אור
  * בשפה העליונה וקו כהה דק סביב, והתפריט ⋮ חלון שמצייר את הדף שמאחוריו מטושטש (PixelCopy + boxBlur).
  */
-private val Red = Color(0xFFFF4656)
+private val Red = StRed
 private val Green = Color(0xFF34C759)
 
 /** הצבעים של מסך: page = הדף, bar = הסרגל, fill = גלולות ותיבות, card = כרטיס זכוכית, screen = הבסיס של הרקע הרך,
  *  fg/mute = טקסט ראשי ומשני, icon = סמלי הרשימות, line = קווים, tint = צבע הפעולה, dis = כבוי */
 data class BrC(val page: Color, val bar: Color, val fill: Color, val card: Color, val screen: Color, val fg: Color,
-               val mute: Color, val line: Color, val tint: Color, val dis: Color, val dark: Boolean, val icon: Color)
+               val mute: Color, val line: Color, val tint: Color, val dis: Color, val dark: Boolean, val icon: Color, val g: DmG)
 
-private val Light = BrC(Color.White, Color(0xF5FFFFFF), Color(0x1F767680), Color(0xA6FFFFFF), Color(0xFFF2F1F6), Color.Black,
-    Color(0x993C3C43), Color(0x4A3C3C43), Red, Color(0x4D3C3C43), false, Color(0xFF3C3C43))
-private val Dark = BrC(Color.Black, Color(0xF51C1C1E), Color(0x3D767680), Color(0x8C2C2C2E), Color(0xFF0E0E11), Color.White,
-    Color(0x99EBEBF5), Color(0x5C545458), Color(0xFFFF5A6A), Color(0x4DEBEBF5), true, Color(0xFFD1D1D6))
+/* 01/11/2026 (בקשת המשתמש: "כל הדפדפן בעיצוב הכי מעודכן של הסטודיו, שירגיש המשך של אותה אפליקציה — אבל אותה תבנית של Chrome"):
+ * הצבעים והזכוכית באים מ־DmGlass (‏dm/DmGlass.kt) — אותו מקור של Studio DM, שמתרגם את --gl-* של styles.css. המבנה לא השתנה. */
+private val Light = BrC(Color.White, GlassLight.panel, GlassLight.fill, GlassLight.card, GlassLight.bg, GlassLight.fg,
+    GlassLight.mute, Color(0x4A3C3C43), StRed, Color(0x4D3C3C43), false, Color(0xFF3C3C43), GlassLight)
+private val Dark = BrC(Color.Black, GlassDark.panel, GlassDark.fill, GlassDark.card, GlassDark.bg, GlassDark.fg,
+    GlassDark.mute, Color(0x5C545458), Color(0xFFFF5A6A), Color(0x4DEBEBF5), true, Color(0xFFD1D1D6), GlassDark)
 /** כרטיסייה פרטית — תמיד כהה, לפי ת־עיצוב */
-private val Priv = BrC(Color(0xFF131314), Color(0xFF161618), Color(0x3D767680), Color(0x8C2C2C2E), Color(0xFF0B0B0D), Color.White,
-    Color(0x99EBEBF5), Color(0x5C545458), Color(0xFFFF5A6A), Color(0x4DEBEBF5), true, Color(0xFFD1D1D6))
+private val Priv = BrC(Color(0xFF131314), GlassDark.panel, GlassDark.fill, GlassDark.card, Color(0xFF0B0B0D), Color.White,
+    GlassDark.mute, Color(0x5C545458), Color(0xFFFF5A6A), Color(0x4DEBEBF5), true, Color(0xFFD1D1D6), GlassDark.copy(bg = Color(0xFF0B0B0D)))
 private val LocalBr = staticCompositionLocalOf { Light }
 
 @Composable
@@ -208,6 +217,7 @@ fun BrApp(a: BrowserActivity) {
                     BrowserActivity.Screen.CLOUD -> CloudScreen(a)
                     BrowserActivity.Screen.RECENT -> RecentScreen(a)
                     BrowserActivity.Screen.USERS -> UsersScreen(a)
+                    BrowserActivity.Screen.LAB -> LabScreen(a)
                 }
                 if (a.privLocked && a.showsPrivate()) LockScreen(a)
                 a.customView?.let { v ->
@@ -224,30 +234,14 @@ fun BrApp(a: BrowserActivity) {
 
 /* ======================= אבני בניין: הרקע הרך, הזכוכית, הרשימות ======================= */
 
-/** הרקע הרך של iOS 27 מאחורי הזכוכית: בסיס בהיר (או כהה) ושלוש הילות — האדום שלנו בפינה העליונה, כחלחל בצד, חם למטה */
-private fun Modifier.ambient(c: BrC): Modifier = drawBehind {
-    val w = size.width; val h = size.height
-    drawRect(Brush.verticalGradient(if (c.dark) listOf(Color(0xFF111114), c.screen) else listOf(Color(0xFFF7F6FA), Color(0xFFEEEDF3))))
-    val k = if (c.dark) 1.25f else 1f
-    fun glow(x: Float, y: Float, r: Float, col: Color) = drawRect(Brush.radialGradient(listOf(col, col.copy(alpha = 0f)), Offset(x, y), r))
-    glow(w * 0.88f, 0f, w * 1.05f, Red.copy(alpha = 0.15f * k))
-    glow(0f, h * 0.38f, w * 0.95f, Color(0xFF788CFF).copy(alpha = 0.13f * k))
-    glow(w * 0.7f, h, w * 1.0f, Color(0xFFFFAA5A).copy(alpha = 0.11f * k))
-}
+/** הרקע של Studio מאחורי הזכוכית (‏--gl-ambient) — אותו ציור של Studio DM */
+private fun Modifier.ambient(c: BrC): Modifier = dmAmbient(c.g)
 
-/** זכוכית (Liquid Glass של iOS 27): מילוי שקוף למחצה, קו כהה דק סביב, וקו אור בשפה העליונה */
-private fun Modifier.glass(c: BrC, shape: Shape, fill: Color = c.card): Modifier = this
-    .clip(shape).background(fill)
-    .border(0.5.dp, if (c.dark) Color.Black.copy(alpha = 0.45f) else Color.Black.copy(alpha = 0.09f), shape)
-    .padding(0.5.dp)
-    .border(0.5.dp, Brush.verticalGradient(if (c.dark) listOf(Color.White.copy(alpha = 0.26f), Color.White.copy(alpha = 0.05f))
-        else listOf(Color.White, Color.White.copy(alpha = 0.4f))), shape)
+/** כרטיס זכוכית (‏--gl-card) — אותו ציור של Studio DM */
+private fun Modifier.glass(c: BrC, shape: Shape, fill: Color = c.card): Modifier = glassCard(c.g, shape, fill)
 
-/** זכוכית אדומה — כפתור ההורדה, "+" במסך הכרטיסיות */
-private fun Modifier.redGlass(shape: Shape): Modifier = this
-    .clip(shape).background(Red.copy(alpha = 0.9f))
-    .border(0.5.dp, Color(0x59780010), shape).padding(0.5.dp)
-    .border(0.5.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.75f), Color.White.copy(alpha = 0.15f))), shape)
+/** זכוכית אדומה (סעיף 3 ב־glass-btn.css) — כפתור ההורדה, "+" במסך הכרטיסיות */
+private fun Modifier.redGlass(shape: Shape): Modifier = toneGlass(GlassLight, shape)
 
 private val FavPal = listOf(0xFF1A73E8, 0xFFEA4335, 0xFF34A853, 0xFFF29900, 0xFF9334E6, 0xFFE8710A, 0xFF129EAF, 0xFFD01884)
 
@@ -420,6 +414,8 @@ private fun PageScreen(a: BrowserActivity) {
     if (a.zoomSheet) ZoomSheet(a)
     if (a.speedSheet) SpeedSheet(a)
     if (a.sendSheet) SendSheet(a)
+    a.ctx?.let { CtxSheet(a, it) }
+    if (a.devSheet && t != null && !t.isNtp) DevSheet(a, t)
 }
 
 /** קו ההתקדמות של Chrome (2dp, בצבע הפעולה) על שפת הסרגל — או הקו הדק שמתחת לסרגל */
@@ -708,6 +704,14 @@ private fun Suggest(a: BrowserActivity, q: TextFieldValue, setQ: (TextFieldValue
     val clip = remember(a.editing) { a.clipHasUrl() }
     val isUrl = qq.isNotEmpty() && BrStore.toUrl(qq, a.engine).let { it.isNotEmpty() && it != BrStore.searchUrl(a.engine, qq) }
     val eng = when (a.engine) { "ddg" -> "DuckDuckGo"; "bing" -> "Bing"; else -> "Google" }
+    // Pro (01/11/2026): התשובה בשורה עצמה (חישוב / המרה), מילת קיצור ("yt …"), וכרטיסייה פתוחה שמתאימה — מעבר אליה במקום עוד עותק
+    val calc = remember(qq) { BrPro.answer(qq) }
+    val kw = remember(qq) { BrPro.keyword(qq) }
+    val open = remember(qq, a.tabs.size) {
+        val s = qq.lowercase()
+        if (s.length < 2) emptyList() else a.tabs.filter { it !== a.cur && it.private == (a.cur?.private == true) && it.url.startsWith("http") &&
+            (it.title.lowercase().contains(s) || it.url.lowercase().contains(s)) }.take(3)
+    }
     // החומר של Apple (27/10/2026, בקשת המשתמש — הטקסט של הדף התערבב בהצעות): כל השטח שמתחת לשורת הכתובת = הדף מטושטש
     // ומעליו שכבה כמעט אטומה, כמו ב־Safari. הצילום נלקח לפני שההצעות מצוירות (עד אז השכבה לא מוצגת), ואז דהייה של 150ms
     var back by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
@@ -732,6 +736,20 @@ private fun Suggest(a: BrowserActivity, q: TextFieldValue, setQ: (TextFieldValue
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (clip) item {
             SugCard { SugRow(BrIcons.Paste, stringResource(R.string.brPasteGo), stringResource(R.string.brClipLink), null) { a.pasteGo() } }
+        }
+        if (calc != null) item {
+            SugCard { SugRow(BrIcons.Calc, "= $calc", stringResource(R.string.brCalcSub), null) { a.copyText(calc, R.string.brCopiedText) } }
+        }
+        if (kw != null) item {
+            SugCard { SugRow(BrIcons.CSearch, kw.second, stringResource(R.string.brSearchWith, kw.first.name), null) { a.go(qq) } }
+        }
+        if (open.isNotEmpty()) item {
+            SugCard {
+                open.forEachIndexed { i, t ->
+                    if (i > 0) SugSep()
+                    SugRow(BrIcons.OpenNew, t.title.ifEmpty { BrStore.hostOf(t.url) }, stringResource(R.string.brSwitchTab) + " · " + BrStore.hostOf(t.url), null) { a.switchTo(t) }
+                }
+            }
         }
         val searches = buildList { if (qq.isNotBlank()) add(qq); net.filter { !it.equals(qq, true) }.forEach { add(it) } }
         if (searches.isNotEmpty()) item {
@@ -913,6 +931,7 @@ private fun MenuSheet(a: BrowserActivity) {
                 if (BrCloud.on && BrCloud.tTabs && !t!!.private) MItem(R.string.brSendDevices, BrIcons.Phone) { close(); a.sendSheet = true }
                 MItem(R.string.brFind, BrIcons.CFind) { a.startFind() }
                 MItem(R.string.brTranslate, BrIcons.CTranslate) { a.translate() }
+                MItem(R.string.brDev, BrIcons.Code) { close(); a.devSheet = true }
                 if (a.zoom == 100) MItem(R.string.brTextSize, BrIcons.TextSize) { close(); a.zoomSheet = true }
                 MItem(R.string.brInstall, BrIcons.Install) { a.install() }
                 MItem(R.string.brDesktop, BrIcons.CDesktop, check = t!!.desktop) { a.toggleDesktop() }
@@ -1073,11 +1092,26 @@ private fun InfoSheet(a: BrowserActivity, t: BrTab) {
                 IRow(stringResource(if (secure) R.string.brSecure else R.string.brNotSecureShort), stringResource(if (secure) R.string.brSecureSub else R.string.brNotSecure),
                     lead = { Tile(if (secure) BrIcons.Lock else BrIcons.Warn, if (secure) Green else Color(0xFFFF3B30)) }, chevron = false)
             }
+            // התעודה (לפי ת־עיצוב של "החיבור מאובטח" במחשב): למי, מי הנפיק, עד מתי — WebView נותן רק של המסגרת הראשית
+            val cert = remember(t.url, t.progress) { if (secure) a.cert(t) else null }
+            if (cert != null) Group(stringResource(R.string.brCert)) {
+                IRow(stringResource(R.string.brCertTo), cert.first, chevron = false, ltrSub = true)
+                Sep()
+                IRow(stringResource(R.string.brCertBy), cert.second, chevron = false, ltrSub = true)
+                if (cert.third > 0) { Sep(); IRow(stringResource(R.string.brCertUntil), java.text.DateFormat.getDateInstance().format(java.util.Date(cert.third)), chevron = false) }
+            }
             @Suppress("UNUSED_VARIABLE") val rv = a.sitesRev
             val host = BrStore.hostOf(t.url)
             if (a.shield) Group(footer = if (a.shieldOn(host)) stringResource(R.string.brShieldSiteOn, t.blocked) else stringResource(R.string.brShieldSiteOff)) {
                 IRow(stringResource(R.string.brShieldSite), lead = { Tile(BrIcons.Shield, Color(0xFFFF9500)) }, chevron = false,
                     trailing = { IosSwitch(a.shieldOn(host)) { a.toggleSiteShield(t) } })
+            }
+            if (!t.private) Group(footer = if (!a.siteJs(t)) stringResource(R.string.brSiteJsOff) else null) {
+                IRow(stringResource(R.string.brSiteJs), lead = { Tile(BrIcons.Code, Color(0xFFFF9F0A)) }, chevron = false,
+                    trailing = { IosSwitch(a.siteJs(t)) { a.setSiteJs(t, it) } })
+                Sep()
+                IRow(stringResource(R.string.brSiteMute), lead = { Tile(BrIcons.VolumeOff, Color(0xFFFF2D55)) }, chevron = false,
+                    trailing = { IosSwitch(a.muted(t)) { a.setSiteMute(t, it) } })
             }
             if (!t.private) Group {
                 IRow(stringResource(R.string.brSiteSettings), lead = { Tile(BrIcons.Tune, Color(0xFF5856D6)) }) {
@@ -1177,6 +1211,8 @@ private fun Switcher(a: BrowserActivity) {
                     DropdownMenuItem({ Text(stringResource(R.string.brNewTab)) }, { more = false; a.screen = BrowserActivity.Screen.PAGE; a.newTab("") }, leadingIcon = { Icon(BrIcons.CNewTab, null) })
                     if (a.privOk) DropdownMenuItem({ Text(stringResource(R.string.brNewPrivate)) }, { more = false; a.screen = BrowserActivity.Screen.PAGE; a.newTab("", private = true) },
                         leadingIcon = { Icon(BrIcons.CIncognito, null) })
+                    if (!a.swPrivate && a.closed.isNotEmpty()) DropdownMenuItem({ Text(stringResource(R.string.brReopen)) }, { more = false; a.reopen() },
+                        leadingIcon = { Icon(BrIcons.CHistory, null) })
                     DropdownMenuItem({ Text(stringResource(if (a.swPrivate) R.string.brCloseAllPriv else R.string.brCloseAll)) }, { more = false; ask = true },
                         enabled = all.isNotEmpty(), leadingIcon = { Icon(BrIcons.CClose, null) })
                     if (!a.swPrivate) DropdownMenuItem({ Text(stringResource(R.string.brClearData)) }, { more = false; a.clearAsk = true }, leadingIcon = { Icon(BrIcons.CDelete, null) })
@@ -1220,19 +1256,22 @@ private fun PaneBtn(on: Boolean, desc: String, click: () -> Unit, content: @Comp
 }
 
 /** כרטיס של Chrome: רדיוס 24, כותרת של 40dp (סמל 18dp · שם 14sp · ✕), התמונה ברדיוס 12/20 בפנים; הנוכחי — מלא בצבע הפעולה */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TabCard(a: BrowserActivity, t: BrTab) {
     val c = LocalBr.current
     val on = t === a.cur
     val shape = RoundedCornerShape(24.dp)
     val fg = if (on) Color.White else c.fg
+    var menu by remember { mutableStateOf(false) }
     Column(
         Modifier.fillMaxWidth().height(232.dp)
             .then(if (on) Modifier.clip(shape).background(c.tint) else Modifier.glass(c, shape))
-            .clickable { a.select(t); a.screen = BrowserActivity.Screen.PAGE }
+            .combinedClickable(onLongClick = { menu = true }) { a.select(t); a.screen = BrowserActivity.Screen.PAGE }
     ) {
         Row(Modifier.fillMaxWidth().height(40.dp).padding(start = 11.dp), verticalAlignment = Alignment.CenterVertically) {
             if (t.url.startsWith("http")) Fav(a, t.url, 18.dp, 4.dp, t.icon) else Icon(BrIcons.CGlobe, null, Modifier.size(18.dp), tint = fg)
+            if (t.pinned) { Spacer(Modifier.width(4.dp)); Icon(BrIcons.Pin, stringResource(R.string.brPin), Modifier.size(14.dp), tint = if (on) Color.White else c.tint) }
             Spacer(Modifier.width(9.dp))
             Text(t.title.ifEmpty { if (t.url.startsWith("http")) BrStore.hostOf(t.url) else stringResource(R.string.brNewTab) },
                 Modifier.weight(1f), color = fg, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1244,6 +1283,15 @@ private fun TabCard(a: BrowserActivity, t: BrTab) {
             .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp, bottomStart = 20.dp, bottomEnd = 20.dp))
             .background(if (t.private) Color(0xFF202124) else if (c.dark) Color(0xFF1C1C1E) else Color.White)) {
             t.thumb?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter) }
+        }
+        // תפריט הכרטיסייה (לחיצה ארוכה, לפי ת־עיצוב של התפריט על לשונית במחשב)
+        DropdownMenu(menu, { menu = false }, shape = RoundedCornerShape(24.dp)) {
+            if (!t.private) DropdownMenuItem({ Text(stringResource(if (t.pinned) R.string.brUnpin else R.string.brPin)) }, { menu = false; a.togglePin(t) },
+                leadingIcon = { Icon(BrIcons.Pin, null) })
+            DropdownMenuItem({ Text(stringResource(R.string.brDuplicate)) }, { menu = false; a.duplicate(t) }, leadingIcon = { Icon(BrIcons.Copy, null) })
+            DropdownMenuItem({ Text(stringResource(R.string.brCloseOthers)) }, { menu = false; a.closeOthers(t) },
+                enabled = a.tabs.any { it !== t && it.private == t.private && !it.pinned }, leadingIcon = { Icon(BrIcons.CClose, null) })
+            DropdownMenuItem({ Text(stringResource(R.string.brCloseTab)) }, { menu = false; a.close(t) }, leadingIcon = { Icon(BrIcons.CDelete, null) })
         }
     }
 }
@@ -1382,6 +1430,7 @@ private fun SettingsScreen(a: BrowserActivity) {
     val t1 = stringResource(R.string.brSetHome); val t2 = stringResource(R.string.brSetBubble); val t3 = stringResource(R.string.brVideoTitle)
     val t4 = stringResource(R.string.brSites); val t5 = stringResource(R.string.brDownloads); val t6 = stringResource(R.string.brAboutApp); val t7 = stringResource(R.string.brEngine)
     val bgV = if (a.bgPlay) stringResource(R.string.brBgShort) else null
+    val t8 = stringResource(R.string.brLab)
     SubPage(stringResource(R.string.brSettings), done = true, onDone = { a.screen = BrowserActivity.Screen.PAGE }) {
         item { SearchField(stringResource(R.string.brSearchSettings), q) { q = it } }
         // חיפוש בהגדרות: מסנן את השורות לפי השם
@@ -1424,6 +1473,7 @@ private fun SettingsScreen(a: BrowserActivity) {
             t2 to { IRow(t2, chevron = false, trailing = { IosSwitch(a.bubble) { a.pickBubble(it) } }) },
             t3 to { IRow(t3, value = bgV) { a.screen = BrowserActivity.Screen.VIDEO } },
             t4 to { IRow(t4) { a.screen = BrowserActivity.Screen.SITES } },
+            t8 to { IRow(t8) { a.screen = BrowserActivity.Screen.LAB } },
             t5 to { IRow(t5, value = "Studio DM") { a.dlSettings() } },
             t6 to { IRow(t6, value = a.version(), chevron = false) },
             // מנוע הדפדפן ועדכוני האבטחה של Chromium (מ־Google Play): הגרסה, וכשהוא מאחר — עדכון בנגיעה
@@ -1911,6 +1961,17 @@ private fun RecentScreen(a: BrowserActivity) {
     LaunchedEffect(Unit) { BrCloud.nudge(0) }
     val devs = BrCloud.devices().filter { it.tabs.isNotEmpty() }
     SubPage(stringResource(R.string.brRecentTabs), onBack = { a.screen = BrowserActivity.Screen.PAGE }) {
+        // נסגרו לאחרונה — במכשיר הזה, עם מחסנית "חזור" של כל כרטיסייה (לפי ת־עיצוב של התפריט "היסטוריה" במחשב)
+        if (a.closed.isNotEmpty()) item(key = "closed") {
+            Group(stringResource(R.string.brClosedRecent)) {
+                a.closed.take(10).forEachIndexed { i, x ->
+                    if (i > 0) Sep()
+                    IRow(x.title.ifEmpty { BrStore.hostOf(x.url) }, BrStore.hostOf(x.url) + " · " + ago(x.at),
+                        lead = { Box(Modifier.size(36.dp).glass(c, CircleShape, if (c.dark) Color(0x8C3A3A3C) else Color(0xB3FFFFFF)), contentAlignment = Alignment.Center) { Fav(a, x.url, 18.dp, 9.dp) } },
+                        chevron = false) { a.reopen(x) }
+                }
+            }
+        }
         if (!BrCloud.on) {
             item {
                 Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().glass(c, RoundedCornerShape(24.dp)).padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -2156,4 +2217,147 @@ private fun LockScreen(a: BrowserActivity) {
         }
     }
     LaunchedEffect(Unit) { a.unlockPriv() }
+}
+
+/* ======================= Pro — הגל הראשון (01/11/2026): לחיצה ארוכה · כלי מפתחים · מעבדה ======================= */
+
+/** לחיצה ארוכה על קישור / תמונה — כל הפעולות של התפריט בלחיצה ימנית במחשב, בגיליון זכוכית */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CtxSheet(a: BrowserActivity, x: BrowserActivity.Ctx) {
+    val c = LocalBr.current
+    val close = { a.ctx = null }
+    val url = x.link ?: x.img ?: return
+    ModalBottomSheet(onDismissRequest = close, containerColor = c.screen) {
+        Column(Modifier.verticalScroll(rememberScrollState()).navigationBarsPadding()) {
+            SheetHead(x.text.ifEmpty { BrStore.hostOf(url) }, url, lead = {
+                Box(Modifier.size(40.dp).glass(c, RoundedCornerShape(10.dp), c.fill), contentAlignment = Alignment.Center) {
+                    if (x.link != null) Fav(a, x.link, 22.dp, 6.dp) else Icon(BrIcons.Image, null, Modifier.size(22.dp), tint = c.icon)
+                }
+            }, close = close)
+            x.link?.let { l ->
+                Group {
+                    IRow(stringResource(R.string.brCtxNewTab), lead = { Tile(BrIcons.CNewTab, Color(0xFF007AFF)) }, chevron = false) { a.ctxOpen(l) }
+                    Sep()
+                    IRow(stringResource(R.string.brCtxBgTab), lead = { Tile(BrIcons.OpenNew, Color(0xFF5856D6)) }, chevron = false) { a.ctxOpen(l, background = true) }
+                    if (a.privOk && !x.tab.private) { Sep(); IRow(stringResource(R.string.brCtxPrivate), lead = { Tile(BrIcons.CIncognito, Color(0xFF3A3A3C)) }, chevron = false) { a.ctxOpen(l, private = true) } }
+                }
+                Group {
+                    IRow(stringResource(R.string.brCtxCopyLink), lead = { Tile(BrIcons.Copy, Color(0xFF8E8E93)) }, chevron = false) { a.copyText(a.linkOut(l), R.string.brCopied); close() }
+                    if (x.text.isNotEmpty()) { Sep(); IRow(stringResource(R.string.brCtxCopyText), lead = { Tile(BrIcons.Copy, Color(0xFF8E8E93)) }, chevron = false) { a.copyText(x.text, R.string.brCopiedText); close() } }
+                    Sep()
+                    IRow(stringResource(R.string.brCtxShareLink), lead = { Tile(BrIcons.Share, Color(0xFF007AFF)) }, chevron = false) { close(); a.shareText(a.linkOut(l)) }
+                    Sep()
+                    IRow(stringResource(R.string.brCtxDlLink), lead = { Tile(BrIcons.Dl, Red) }, chevron = false) { a.ctxDownload(l) }
+                }
+            }
+            x.img?.let { im ->
+                Group {
+                    IRow(stringResource(R.string.brCtxOpenImg), lead = { Tile(BrIcons.Image, Color(0xFF34C759)) }, chevron = false) { a.ctxOpen(im) }
+                    Sep()
+                    IRow(stringResource(R.string.brCtxCopyImg), lead = { Tile(BrIcons.Copy, Color(0xFF8E8E93)) }, chevron = false) { a.copyText(im, R.string.brCopied); close() }
+                    Sep()
+                    IRow(stringResource(R.string.brCtxDlImg), lead = { Tile(BrIcons.Dl, Red) }, chevron = false) { a.ctxDownload(im) }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * כלי המפתחים בטלפון (לפי ת־עיצוב של כלי המפתחים במחשב, בגרסה מצומצמת): קונסולה — ההודעות של הדף והרצת JavaScript;
+ * רשת — כל בקשה שהדף שלח (שיטה, סוג, כתובת, נחסם), ונגיעה מעתיקה אותה כ־curl. מתרענן כל 700ms כשהגיליון פתוח
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DevSheet(a: BrowserActivity, t: BrTab) {
+    val c = LocalBr.current
+    var pane by remember { mutableStateOf(0) }
+    var tick by remember { mutableStateOf(0) }
+    var code by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) { while (true) { delay(700); tick++ } }
+    val logs = remember(tick, t.id) { t.logs.all() }
+    val net = remember(tick, t.id) { t.net.all().asReversed() }
+    val mono = TextStyle(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 12.sp, lineHeight = 16.sp, textDirection = TextDirection.Ltr)
+    ModalBottomSheet(onDismissRequest = { a.devSheet = false }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().imePadding()) {
+            SheetHead(stringResource(R.string.brDev), BrStore.hostOf(t.url), lead = { Tile(BrIcons.Code, Color(0xFF3A3A3C)) }, close = { a.devSheet = false })
+            Row(Modifier.padding(horizontal = 16.dp).fillMaxWidth().height(40.dp).glass(c, RoundedCornerShape(14.dp), c.fill).padding(3.dp)) {
+                listOf(R.string.brDevConsole, R.string.brDevNet).forEachIndexed { i, s ->
+                    Box(Modifier.weight(1f).fillMaxHeight()
+                        .then(if (pane == i) Modifier.glass(c, RoundedCornerShape(11.dp), if (c.dark) Color(0xCC48484A) else Color(0xF2FFFFFF)) else Modifier.clip(RoundedCornerShape(11.dp)))
+                        .clickable { pane = i }, contentAlignment = Alignment.Center) {
+                        Text(stringResource(s), color = c.fg, fontSize = 15.sp, fontWeight = if (pane == i) FontWeight.SemiBold else FontWeight.Normal)
+                    }
+                }
+            }
+            Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(if (pane == 0) "${logs.size}" else stringResource(R.string.brDevNetSum, net.size, net.count { it.blocked }), Modifier.weight(1f), color = c.mute, fontSize = 13.sp, maxLines = 1)
+                TextButton({ if (pane == 0) t.logs.clear() else t.net.clear(); tick++ }) { Text(stringResource(R.string.brDevClear), color = c.tint) }
+            }
+            val list = androidx.compose.foundation.lazy.rememberLazyListState()
+            if (pane == 0) LaunchedEffect(logs.size) { if (logs.isNotEmpty()) list.scrollToItem(logs.size - 1) }
+            Box(Modifier.padding(horizontal = 12.dp).fillMaxWidth().height(380.dp).glass(c, RoundedCornerShape(16.dp))) {
+                val empty = if (pane == 0) logs.isEmpty() else net.isEmpty()
+                if (empty) Text(stringResource(R.string.brDevEmpty), Modifier.align(Alignment.Center), color = c.mute, fontSize = 15.sp)
+                else if (pane == 0) LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(vertical = 6.dp)) {
+                    items(logs) { l ->
+                        val col = when (l.level) { 2 -> Color(0xFFFF453A); 1 -> Color(0xFFFF9F0A); 3 -> c.tint; 4 -> c.mute; else -> c.fg }
+                        val pre = when (l.level) { 3 -> "› "; 4 -> "← "; else -> "" }
+                        Column(Modifier.fillMaxWidth().clickable { a.copyText(l.msg, R.string.brCopiedText) }.padding(horizontal = 12.dp, vertical = 5.dp)) {
+                            Text(pre + l.msg, color = col, style = mono, maxLines = 8, overflow = TextOverflow.Ellipsis)
+                            if (l.src.isNotEmpty()) Text(l.src, color = c.mute, style = mono.copy(fontSize = 10.sp), maxLines = 1)
+                        }
+                        HorizontalDivider(thickness = 0.5.dp, color = c.line)
+                    }
+                } else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 6.dp)) {
+                    items(net) { n ->
+                        Row(Modifier.fillMaxWidth().clickable { a.copyText(BrPro.curl(n.url, n.method, n.headers), R.string.brDevCurl) }.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Text(BrPro.kindOf(n.url, n.main), Modifier.width(44.dp), color = if (n.blocked) Color(0xFFFF453A) else c.tint, style = mono.copy(fontWeight = FontWeight.Bold))
+                            Text((if (n.method != "GET") n.method + " " else "") + n.url, Modifier.weight(1f), color = if (n.blocked) c.mute else c.fg, style = mono.copy(
+                                textDecoration = if (n.blocked) androidx.compose.ui.text.style.TextDecoration.LineThrough else null), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
+                        HorizontalDivider(thickness = 0.5.dp, color = c.line)
+                    }
+                }
+            }
+            if (pane == 0) {
+                val jsOn = a.siteJs(t)
+                Row(Modifier.padding(12.dp).fillMaxWidth().heightIn(min = 48.dp).glass(c, RoundedCornerShape(16.dp), c.fill).padding(start = 14.dp, end = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    BasicTextField(code, { code = it }, Modifier.weight(1f).padding(vertical = 12.dp), enabled = jsOn, maxLines = 5, textStyle = mono.copy(color = c.fg, fontSize = 14.sp),
+                        cursorBrush = SolidColor(c.tint), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+                        keyboardActions = KeyboardActions(onGo = { a.runJs(t, code); code = ""; tick++ }),
+                        decorationBox = { inner -> Box { if (code.isEmpty()) Text(stringResource(if (jsOn) R.string.brDevHint else R.string.brDevNoJs), color = c.mute, style = mono.copy(fontSize = 14.sp)); inner() } })
+                    TextButton({ a.runJs(t, code); code = ""; tick++ }, enabled = jsOn && code.isNotBlank()) { Text(stringResource(R.string.brDevRun), color = if (jsOn && code.isNotBlank()) c.tint else c.dis) }
+                }
+            } else Spacer(Modifier.height(12.dp))
+        }
+    }
+}
+
+/** מעבדה: יכולות חדשות שאפשר לכבות, ומילות הקיצור של שורת הכתובת */
+@Composable
+private fun LabScreen(a: BrowserActivity) {
+    SubPage(stringResource(R.string.brLab), back = stringResource(R.string.brSettings), onBack = { a.screen = BrowserActivity.Screen.SETTINGS }) {
+        item {
+            Group {
+                IRow(stringResource(R.string.brLabHe), stringResource(R.string.brLabHeSub), lead = { Tile(BrIcons.CTranslate, Color(0xFF007AFF)) }, chevron = false,
+                    trailing = { IosSwitch(a.heFix) { a.pickHeFix(it) } })
+                Sep()
+                IRow(stringResource(R.string.brLabClean), stringResource(R.string.brLabCleanSub), lead = { Tile(BrIcons.Shield, Color(0xFF34C759)) }, chevron = false,
+                    trailing = { IosSwitch(a.cleanCopy) { a.pickCleanCopy(it) } })
+            }
+        }
+        item {
+            Group(stringResource(R.string.brLabKeys), stringResource(R.string.brLabKeysFoot)) {
+                BrPro.KEYWORDS.forEachIndexed { i, k ->
+                    if (i > 0) Sep()
+                    IRow(k.name, lead = { Tile(BrIcons.CSearch, Color(0xFF8E8E93)) }, value = null, chevron = false,
+                        trailing = { Text(k.key, color = LocalBr.current.tint, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) })
+                }
+            }
+        }
+    }
 }
