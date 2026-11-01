@@ -522,7 +522,7 @@ class BrowserActivity : ComponentActivity() {
     fun close(t: BrTab) {
         val i = tabs.indexOf(t)
         if (i < 0) return
-        remember(t)
+        keepClosed(t)
         kill(t.web)
         t.web = null
         tabs.removeAt(i)
@@ -540,7 +540,7 @@ class BrowserActivity : ComponentActivity() {
     fun closeAll(private: Boolean) {
         // כרטיסייה נעוצה לא נסגרת ב"סגירת הכל" (לפי ת־עיצוב של כרטיסיות נעוצות במחשב)
         val gone = tabs.filter { it.private == private && !it.pinned }
-        gone.asReversed().forEach { remember(it) }
+        gone.asReversed().forEach { keepClosed(it) }
         gone.forEach { kill(it.web); it.web = null }
         tabs.removeAll { it in gone }
         if (private && privOk) ui.postDelayed({ runCatching { ProfileStore.getInstance().deleteProfile(PRIV) } }, 300)
@@ -551,7 +551,7 @@ class BrowserActivity : ComponentActivity() {
     /* ---------------- Pro: נסגרו לאחרונה, נעוצות, שכפול ---------------- */
 
     /** כרטיסייה רגילה שנסגרת — לראש "נסגרו לאחרונה" (עד 25), עם מחסנית "חזור" שלה. פרטית — אף פעם */
-    private fun remember(t: BrTab) {
+    private fun keepClosed(t: BrTab) {
         if (t.private || !t.url.startsWith("http")) return
         val st = t.web?.let { w -> runCatching { Bundle().also { w.saveState(it) } }.getOrNull() } ?: t.state ?: t.lastState
         closed.removeAll { it.url == t.url }
