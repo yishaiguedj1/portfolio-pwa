@@ -35,15 +35,12 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -51,9 +48,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberSwipeToDismissBoxState
@@ -63,10 +57,8 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -97,6 +89,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.draw.blur
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material.icons.rounded.Add
 import io.github.yishaiguedj1.snowball.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -104,20 +100,38 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
-/* ---------- הערכה: הצבע של Studio, בהיר וכהה, נקי ושקט ---------- */
-private val Red = Color(0xFFFF4656)
-private val Green = Color(0xFF30D158)
+/* ---------- הערכה: הזכוכית של Studio (DmGlass), בהיר וכהה ---------- */
+private val Red = StRed
+private val Green = StGreen
 
 @Composable
 private fun DmTheme(content: @Composable () -> Unit) {
     val dark = isSystemInDarkTheme()
-    val cs = if (dark) darkColorScheme(primary = Red, onPrimary = Color(0xFF1A0003), primaryContainer = Color(0xFF3A1216),
-        onPrimaryContainer = Color(0xFFFFDADB), background = Color(0xFF0E0E10), surface = Color(0xFF0E0E10),
-        surfaceContainer = Color(0xFF1A1A1D), surfaceContainerHigh = Color(0xFF222226), surfaceContainerLow = Color(0xFF151517))
-    else lightColorScheme(primary = Red, onPrimary = Color(0xFF1A0003), primaryContainer = Color(0xFFFFE1E3),
-        onPrimaryContainer = Color(0xFF5A0010), background = Color(0xFFF6F6F8), surface = Color(0xFFF6F6F8),
-        surfaceContainer = Color.White, surfaceContainerHigh = Color.White, surfaceContainerLow = Color(0xFFFFFFFF))
-    MaterialTheme(colorScheme = cs, content = content)
+    val g = if (dark) GlassDark else GlassLight
+    // המשטחים של Material שקופים־למחצה — כך גם רכיב שלא הוחלף (תפריט, חלון) יושב על אותה זכוכית
+    val cs = if (dark) darkColorScheme(primary = Red, onPrimary = Color.White, primaryContainer = Red.copy(alpha = 0.22f),
+        onPrimaryContainer = Color(0xFFFFDADB), secondaryContainer = g.purple.copy(alpha = 0.22f), tertiaryContainer = g.orange.copy(alpha = 0.20f),
+        background = Color.Transparent, surface = Color.Transparent, onSurface = g.fg, onBackground = g.fg, onSurfaceVariant = g.mute, outline = g.mute, outlineVariant = g.hair,
+        surfaceContainer = g.dialog, surfaceContainerHigh = g.fill, surfaceContainerLow = g.dialog, surfaceContainerHighest = g.fill)
+    else lightColorScheme(primary = Red, onPrimary = Color.White, primaryContainer = Red.copy(alpha = 0.13f),
+        onPrimaryContainer = Color(0xFF5A0010), secondaryContainer = g.purple.copy(alpha = 0.13f), tertiaryContainer = g.orange.copy(alpha = 0.14f),
+        background = Color.Transparent, surface = Color.Transparent, onSurface = g.fg, onBackground = g.fg, onSurfaceVariant = g.mute, outline = g.mute, outlineVariant = g.hair,
+        surfaceContainer = g.dialog, surfaceContainerHigh = g.fill, surfaceContainerLow = g.dialog, surfaceContainerHighest = g.fill)
+    CompositionLocalProvider(LocalDmG provides g) {
+        MaterialTheme(colorScheme = cs, shapes = androidx.compose.material3.Shapes(extraLarge = RoundedCornerShape(28.dp), large = RoundedCornerShape(22.dp),
+            medium = RoundedCornerShape(16.dp)), content = content)
+    }
+}
+
+/** גיליון תחתון בזכוכית (‏--gl-panel) — כל הגיליונות של DM דרכו */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun GSheet(onClose: () -> Unit, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    val g = LocalDmG.current
+    ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = g.panel, scrimColor = g.veil, shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        dragHandle = { Box(Modifier.padding(top = 10.dp, bottom = 14.dp).size(38.dp, 5.dp).clip(RoundedCornerShape(3.dp)).background(g.fill)) },
+        content = content)
 }
 
 private enum class Tab { DOWNLOADS, LIBRARY, SETTINGS }
@@ -133,38 +147,39 @@ fun DmApp(a: DmActivity) {
         val keep = rememberSaveableStateHolder()
         var details by remember { mutableStateOf<String?>(null) }
         val sheet by a.sheetUrl
+        val g = LocalDmG.current
+        // 01/11/2026 (זכוכית של Studio): הרקע עם ההילות, כותרת גדולה עם כפתורים עגולים, ומעגן בועות במקום סרגל הניווט.
+        // גיליון פתוח — התוכן שמאחור מטושטש (‏--gl-veil; ‏blur עובד מ־Android 12, מתחת — רק ההחשכה של הגיליון)
+        val veiled = sheet != null || details != null
+        val blurR by androidx.compose.animation.core.animateDpAsState(if (veiled) 14.dp else 0.dp, label = "veil")
+        Box(Modifier.fillMaxSize().dmAmbient(g)) {
         Scaffold(
+            modifier = Modifier.blur(blurR),
             topBar = {
-                TopAppBar(title = {
+                Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 12.dp, top = 10.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(when (tab) { Tab.DOWNLOADS -> R.string.dmTabDownloads; Tab.LIBRARY -> R.string.dmTabLibrary; Tab.SETTINGS -> R.string.dmTabSettings }),
-                        fontWeight = FontWeight.Bold, fontSize = 30.sp)
-                }, actions = {
+                        Modifier.weight(1f), fontWeight = FontWeight.ExtraBold, fontSize = 32.sp, letterSpacing = (-0.5).sp, color = g.fg)
                     if (tab == Tab.DOWNLOADS) {
-                        IconButton(onClick = { a.openBrowser("") }) {
-                            Icon(DmIcons.Globe, stringResource(R.string.dmBrowser), tint = MaterialTheme.colorScheme.primary)
-                        }
-                        IconButton(onClick = { a.sheetRef.value = ""; a.sheetUrl.value = "" }) {
-                            Icon(DmIcons.Paste, stringResource(R.string.dmAdd), tint = MaterialTheme.colorScheme.primary)
-                        }
+                        GRound(DmIcons.Globe, stringResource(R.string.dmBrowser)) { a.openBrowser("") }
+                        GRound(Icons.Rounded.Add, stringResource(R.string.dmAdd), tone = true) { a.sheetRef.value = ""; a.sheetUrl.value = "" }
                         var more by remember { mutableStateOf(false) }
                         val ctx = LocalContext.current
-                        IconButton(onClick = { more = true }) { Icon(DmIcons.More, stringResource(R.string.dmMore)) }
-                        DropdownMenu(more, { more = false }) {
-                            DropdownMenuItem({ Text(stringResource(R.string.dmPauseAll)) }, { more = false; DmEngine.pauseAll(ctx) })
-                            DropdownMenuItem({ Text(stringResource(R.string.dmResumeAll)) }, { more = false; DmEngine.resumeAll(ctx) })
-                            DropdownMenuItem({ Text(stringResource(R.string.dmAddList)) }, { more = false; a.sheetRef.value = ""; a.sheetUrl.value = "" })
+                        Box {
+                            GRound(DmIcons.More, stringResource(R.string.dmMore)) { more = true }
+                            DropdownMenu(more, { more = false }, shape = RoundedCornerShape(18.dp), containerColor = g.dialog) {
+                                DropdownMenuItem({ Text(stringResource(R.string.dmPauseAll)) }, { more = false; DmEngine.pauseAll(ctx) })
+                                DropdownMenuItem({ Text(stringResource(R.string.dmResumeAll)) }, { more = false; DmEngine.resumeAll(ctx) })
+                                DropdownMenuItem({ Text(stringResource(R.string.dmAddList)) }, { more = false; a.sheetRef.value = ""; a.sheetUrl.value = "" })
+                            }
                         }
                     }
-                })
-            },
-            bottomBar = {
-                NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-                    NavigationBarItem(tab == Tab.DOWNLOADS, { tab = Tab.DOWNLOADS }, { Icon(DmIcons.Download, null) }, label = { Text(stringResource(R.string.dmTabDownloads)) })
-                    NavigationBarItem(tab == Tab.LIBRARY, { tab = Tab.LIBRARY }, { Icon(DmIcons.Library, null) }, label = { Text(stringResource(R.string.dmTabLibrary)) })
-                    NavigationBarItem(tab == Tab.SETTINGS, { tab = Tab.SETTINGS }, { Icon(Icons.Rounded.Settings, null) }, label = { Text(stringResource(R.string.dmTabSettings)) })
                 }
             },
-            containerColor = MaterialTheme.colorScheme.background,
+            bottomBar = {
+                GlassDock(listOf(DmIcons.Download to stringResource(R.string.dmTabDownloads), DmIcons.Library to stringResource(R.string.dmTabLibrary),
+                    Icons.Rounded.Settings to stringResource(R.string.dmTabSettings)), tab.ordinal) { tab = Tab.entries[it] }
+            },
+            containerColor = Color.Transparent,
         ) { pad ->
             Box(Modifier.padding(pad)) {
                 rev.let { _ -> }
@@ -174,6 +189,7 @@ fun DmApp(a: DmActivity) {
                     Tab.SETTINGS -> keep.SaveableStateProvider("set") { SettingsScreen(a) }
                 }
             }
+        }
         }
         if (sheet != null) AddSheet(a, sheet ?: "", a.sheetRef.value) { a.sheetDone() }
         details?.let { id -> DmStore.get(id)?.let { t -> Details(a, t, rev) { details = null } } ?: run { details = null } }
@@ -197,17 +213,17 @@ private fun Downloads(a: DmActivity, rev: Int, onDetails: (String) -> Unit) {
     Box(Modifier.fillMaxSize()) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (all.size >= 10) item {
-            OutlinedTextField(q, { q = it }, Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(24.dp),
+            GField(q, { q = it }, Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(24.dp),
                 placeholder = { Text(stringResource(R.string.dmSearch)) }, leadingIcon = { Icon(DmIcons.Search, null) },
                 trailingIcon = { if (q.isNotEmpty()) IconButton(onClick = { q = "" }) { Icon(DmIcons.Close, stringResource(R.string.dmClose)) } })
         }
         if (clip.isNotEmpty()) item {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), shape = RoundedCornerShape(20.dp)) {
+            Box(Modifier.fillMaxWidth().glassCard(LocalDmG.current, RoundedCornerShape(22.dp), Red.copy(alpha = if (LocalDmG.current.dark) 0.20f else 0.12f))) {
                 Column(Modifier.padding(16.dp)) {
                     Text(stringResource(R.string.dmClipT), fontWeight = FontWeight.SemiBold)
                     Text(clip, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
                     Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { a.sheetRef.value = ""; a.sheetUrl.value = clip; a.dismissClip() }) { Text(stringResource(R.string.dmClipGo)) }
+                        GButton(onClick = { a.sheetRef.value = ""; a.sheetUrl.value = clip; a.dismissClip() }) { Text(stringResource(R.string.dmClipGo)) }
                         TextButton(onClick = { a.dismissClip() }) { Text(stringResource(R.string.dmNotNow)) }
                     }
                 }
@@ -230,8 +246,8 @@ private fun Downloads(a: DmActivity, rev: Int, onDetails: (String) -> Unit) {
                 } else false
             })
             SwipeToDismissBox(st, backgroundContent = {
-                Box(Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.errorContainer).padding(horizontal = 20.dp),
-                    contentAlignment = Alignment.CenterEnd) { Icon(DmIcons.Delete, null, tint = MaterialTheme.colorScheme.onErrorContainer) }
+                Box(Modifier.fillMaxSize().clip(RoundedCornerShape(22.dp)).background(Red.copy(alpha = 0.85f)).padding(horizontal = 20.dp),
+                    contentAlignment = Alignment.CenterEnd) { Icon(DmIcons.Delete, null, tint = Color.White) }
             }) { TaskRow(a, t, rev, onDetails) }
         } }
     }
@@ -246,7 +262,7 @@ private fun SignInCard(a: DmActivity) {
     val ctx = LocalContext.current
     var show by remember { mutableStateOf(DmSync.enabled(ctx) && !DmSync.signedIn(ctx) && !DmSync.asked(ctx)) }
     if (!show) return
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer), shape = RoundedCornerShape(20.dp)) {
+    Box(Modifier.fillMaxWidth().glassCard(LocalDmG.current, RoundedCornerShape(22.dp))) {
         Column(Modifier.padding(16.dp)) {
             Text(stringResource(R.string.dmImpT), fontWeight = FontWeight.SemiBold)
             Text(stringResource(R.string.dmImpS), style = MaterialTheme.typography.bodySmall)
@@ -264,7 +280,7 @@ internal fun SignInButton(a: DmActivity, onOk: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
-    Button(enabled = !busy, onClick = {
+    GButton(enabled = !busy, onClick = {
         busy = true
         scope.launch {
             val r = DmSync.signIn(a)
@@ -289,13 +305,13 @@ private fun durTxt(sec: Int) = if (sec >= 3600) String.format(java.util.Locale.U
 @Composable
 private fun LaterRow(on: Boolean, set: (Boolean) -> Unit) {
     ListItem(headlineContent = { Text(stringResource(R.string.dmLater)) }, supportingContent = { Text(stringResource(R.string.dmLaterS)) },
-        trailingContent = { Switch(on, set) }, colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+        trailingContent = { GSwitch(on, set) }, colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
         modifier = Modifier.padding(bottom = 4.dp))
 }
 
 @Composable
-private fun Section(t: String) = Text(t, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-    modifier = Modifier.padding(top = 10.dp, start = 4.dp))
+private fun Section(t: String) = Text(t, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = LocalDmG.current.mute,
+    modifier = Modifier.padding(top = 12.dp, start = 6.dp))
 
 @Composable
 private fun Empty(a: DmActivity) {
@@ -304,14 +320,15 @@ private fun Empty(a: DmActivity) {
         Spacer(Modifier.height(16.dp))
         Text(stringResource(R.string.dmEmptyT), fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
         Text(stringResource(R.string.dmEmptyS), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(24.dp, 6.dp))
-        FilledTonalButton(onClick = { a.sheetRef.value = ""; a.sheetUrl.value = "" }) { Text(stringResource(R.string.dmAdd)) }
+        GTonal(onClick = { a.sheetRef.value = ""; a.sheetUrl.value = "" }) { Text(stringResource(R.string.dmAdd)) }
     }
 }
 
 private fun isVideo(t: DmTask) = if (t.kind == DmKind.YTDL) !t.audioOnly else DmName.cat(t.name, t.mime) == DmName.Cat.VIDEO
 private fun isApk(t: DmTask) = t.kind != DmKind.YTDL && DmName.cat(t.name, t.mime) == DmName.Cat.APK
 
-private fun catIcon(t: DmTask): ImageVector = when (if (t.kind == DmKind.YTDL) (if (t.audioOnly) DmName.Cat.AUDIO else DmName.Cat.VIDEO) else DmName.cat(t.name, t.mime)) {
+private fun catOf(t: DmTask) = if (t.kind == DmKind.YTDL) (if (t.audioOnly) DmName.Cat.AUDIO else DmName.Cat.VIDEO) else DmName.cat(t.name, t.mime)
+private fun catIcon(t: DmTask): ImageVector = when (catOf(t)) {
     DmName.Cat.VIDEO -> DmIcons.Movie
     DmName.Cat.AUDIO -> DmIcons.Music
     DmName.Cat.IMAGE -> DmIcons.Image
@@ -332,8 +349,9 @@ private fun TaskRow(a: DmActivity, t: DmTask, rev: Int, onDetails: (String) -> U
     val line = remember(rev) { DmFmt.line(ctx, t) }
     val f = remember(rev) { t.frac }
     var menu by remember { mutableStateOf(false) }
-    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).combinedClickable(
+    val g = LocalDmG.current
+    val cat = catOf(t)
+    Box(Modifier.fillMaxWidth().glassCard(g, RoundedCornerShape(22.dp)).combinedClickable(
             onClick = {
                 when (t.state) {
                     DmState.RUNNING, DmState.QUEUED, DmState.WAITING -> DmEngine.pause(ctx, t.id)
@@ -343,23 +361,25 @@ private fun TaskRow(a: DmActivity, t: DmTask, rev: Int, onDetails: (String) -> U
             },
             onLongClick = { menu = true })) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
-                Icon(catIcon(t), null, tint = MaterialTheme.colorScheme.primary)
+            Box(Modifier.size(46.dp).toneTile(catTone(g, cat), RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
+                Icon(catIcon(t), null, tint = catTone(g, cat))
             }
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text(t.name.ifEmpty { t.title }.ifEmpty { t.url }, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+                Text(t.name.ifEmpty { t.title }.ifEmpty { t.url }, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                 Text(line, style = MaterialTheme.typography.bodySmall,
                     color = if (t.state == DmState.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (t.state != DmState.DONE) {
                     Spacer(Modifier.height(6.dp))
-                    if (f >= 0) LinearProgressIndicator(progress = { f }, Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
-                        color = if (t.state == DmState.RUNNING) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
-                    else if (t.state == DmState.RUNNING) LinearProgressIndicator(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)))
+                    if (f >= 0) LinearProgressIndicator(progress = { f }, Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                        color = if (t.state == DmState.RUNNING) Red else g.mute, trackColor = g.fill, drawStopIndicator = {}, gapSize = 0.dp)
+                    else if (t.state == DmState.RUNNING) LinearProgressIndicator(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)), color = Red, trackColor = g.fill, gapSize = 0.dp)
                 }
             }
             val ic = when (t.state) { DmState.RUNNING, DmState.QUEUED, DmState.WAITING -> DmIcons.Pause; DmState.PAUSED -> Icons.Rounded.PlayArrow; DmState.FAILED -> Icons.Rounded.Refresh; DmState.DONE -> null }
-            if (ic != null) Icon(ic, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (ic != null) Box(Modifier.size(36.dp).glassBtn(g, androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
+                Icon(ic, null, Modifier.size(18.dp), tint = g.fg)
+            }
             DropdownMenu(menu, { menu = false }) {
                 DropdownMenuItem({ Text(stringResource(R.string.dmDetails)) }, { menu = false; onDetails(t.id) })
                 if (t.state == DmState.QUEUED || t.state == DmState.WAITING || t.state == DmState.PAUSED || t.state == DmState.FAILED)
@@ -387,7 +407,7 @@ private fun copy(ctx: android.content.Context, s: String) {
 @Composable
 private fun Details(a: DmActivity, t: DmTask, rev: Int, onClose: () -> Unit) {
     val ctx = LocalContext.current
-    ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+    GSheet(onClose) {
         Column(Modifier.padding(20.dp, 0.dp, 20.dp, 28.dp).verticalScroll(rememberScrollState())) {
             // rev בתוך התוכן של הגיליון — אחרת אותה למבדה (אותה משימה) והגיליון לא מתעדכן בזמן ההורדה
             val line = remember(rev) { DmFmt.line(ctx, t) }
@@ -406,19 +426,19 @@ private fun Details(a: DmActivity, t: DmTask, rev: Int, onClose: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 when (t.state) {
                     DmState.DONE -> {
-                        Button(onClick = { a.open(t) }) { Text(stringResource(if (isApk(t)) R.string.dmInstall else R.string.dmOpen)) }
-                        if (isVideo(t) && a.studioHere()) FilledTonalButton(onClick = { a.translate(t) }) { Text(stringResource(R.string.dmTranslate)) }
-                        else FilledTonalButton(onClick = { a.share(t) }) { Text(stringResource(R.string.dmShare)) }
+                        GButton(onClick = { a.open(t) }) { Text(stringResource(if (isApk(t)) R.string.dmInstall else R.string.dmOpen)) }
+                        if (isVideo(t) && a.studioHere()) GTonal(onClick = { a.translate(t) }) { Text(stringResource(R.string.dmTranslate)) }
+                        else GTonal(onClick = { a.share(t) }) { Text(stringResource(R.string.dmShare)) }
                     }
-                    DmState.FAILED, DmState.PAUSED -> Button(onClick = { DmEngine.resume(ctx, t.id) }) { Text(stringResource(R.string.dmRetry)) }
-                    else -> FilledTonalButton(onClick = { DmEngine.pause(ctx, t.id) }) { Text(stringResource(R.string.dmPause)) }
+                    DmState.FAILED, DmState.PAUSED -> GButton(onClick = { DmEngine.resume(ctx, t.id) }) { Text(stringResource(R.string.dmRetry)) }
+                    else -> GTonal(onClick = { DmEngine.pause(ctx, t.id) }) { Text(stringResource(R.string.dmPause)) }
                 }
                 TextButton(onClick = { copy(ctx, t.url) }) { Text(stringResource(R.string.dmCopyLink)) }
             }
             // הקישור פג (כתובת חתומה) — מוצאים אותו שוב בדפדפן, וההורדה ממשיכה מאותה נקודה
             if (t.kind == DmKind.HTTP && t.state != DmState.DONE) {
                 Spacer(Modifier.height(4.dp))
-                FilledTonalButton(onClick = { onClose(); a.openBrowser(t.ref.ifEmpty { originOf(t.url) }, t.id) }, Modifier.fillMaxWidth()) {
+                GTonal(onClick = { onClose(); a.openBrowser(t.ref.ifEmpty { originOf(t.url) }, t.id) }, Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.dmRefresh))
                 }
                 if (t.err == "expired") Text(stringResource(R.string.dmRefreshS), style = MaterialTheme.typography.bodySmall,
@@ -440,7 +460,7 @@ private fun HashBlock(a: DmActivity, t: DmTask) {
     val algo = DmHash.algoOf(want) ?: "SHA-256"
     Spacer(Modifier.height(10.dp))
     Text(stringResource(R.string.dmHashT), fontWeight = FontWeight.SemiBold)
-    OutlinedTextField(want, { want = it; res = null }, Modifier.fillMaxWidth(), singleLine = true,
+    GField(want, { want = it; res = null }, Modifier.fillMaxWidth(), singleLine = true,
         label = { Text(stringResource(R.string.dmHashWant)) }, shape = RoundedCornerShape(14.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
         TextButton(enabled = !busy, onClick = {
@@ -511,12 +531,12 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
     // גיליון חדש: ההתקדמות של רשימה קודמת שהסתיימה כבר לא רלוונטית
     LaunchedEffect(Unit) { if (a.batch.value?.finished == true) a.batch.value = null }
 
-    ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+    GSheet(onClose) {
         Column(Modifier.padding(20.dp, 0.dp, 20.dp, 28.dp).verticalScroll(rememberScrollState())) {
             Text(stringResource(if (refTask != null) R.string.dmRefresh else R.string.dmAddT), fontWeight = FontWeight.Bold, fontSize = 22.sp)
             if (refTask != null) Text(refTask.name.ifEmpty { refTask.title }, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(12.dp))
-            OutlinedTextField(url, { url = it; found = null }, Modifier.fillMaxWidth(), singleLine = false, maxLines = 4,
+            GField(url, { url = it; found = null }, Modifier.fillMaxWidth(), singleLine = false, maxLines = 4,
                 label = { Text(stringResource(R.string.dmLink)) }, shape = RoundedCornerShape(14.dp),
                 trailingIcon = { IconButton(onClick = {
                     val cm = ctx.getSystemService(ClipboardManager::class.java)
@@ -538,7 +558,7 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                 null -> if (busy) Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.5.dp)
                     Text(stringResource(R.string.dmChecking), Modifier.padding(start = 12.dp))
-                } else Button(onClick = { scope.launch { check() } }, Modifier.fillMaxWidth(), enabled = url.isNotBlank()) { Text(stringResource(R.string.dmCheck)) }
+                } else GButton(onClick = { scope.launch { check() } }, Modifier.fillMaxWidth(), enabled = url.isNotBlank()) { Text(stringResource(R.string.dmCheck)) }
                 is DmActivity.Found.Fail -> {
                     Text(if (f.code == "bad") stringResource(R.string.dmErrBad) else DmFmt.err(ctx, f.code), color = MaterialTheme.colorScheme.error)
                     // 26/10/2026: דף שלא ירד (למשל קורס שדורש התחברות) — לפתוח אותו בדפדפן של DM, שם הצייד רואה את הסרטון
@@ -546,26 +566,26 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                     val page = DmLink.first(url)
                     if (f.code != "bad" && page.startsWith("http") && refTask == null) {
                         Spacer(Modifier.height(10.dp))
-                        Button(onClick = { onClose(); a.openBrowser(page) }, Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(R.string.dmOpenBr), fontSize = 17.sp) }
+                        GButton(onClick = { onClose(); a.openBrowser(page) }, Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(R.string.dmOpenBr), fontSize = 17.sp) }
                         Text(stringResource(R.string.dmOpenBrHint), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
                     }
                     TextButton(onClick = { scope.launch { check() } }) { Text(stringResource(R.string.dmRetry)) }
                 }
                 is DmActivity.Found.File -> {
-                    OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text(stringResource(R.string.dmName)) }, shape = RoundedCornerShape(14.dp))
+                    GField(name, { name = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text(stringResource(R.string.dmName)) }, shape = RoundedCornerShape(14.dp))
                     Info(stringResource(R.string.dmSize), DmFmt.size(ctx, f.size))
                     Info(stringResource(R.string.dmResume), stringResource(if (f.ranges) R.string.dmYesParts else R.string.dmNo))
                     if (refTask == null) FileFacts(a, f)
                     Spacer(Modifier.height(12.dp))
                     if (refTask != null) {
                         if (refErr.isNotEmpty()) Text(DmFmt.err(ctx, refErr), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(bottom = 8.dp))
-                        Button(onClick = { val e = a.refresh(refTask.id, f, ref); if (e == null) onClose() else refErr = e }, Modifier.fillMaxWidth().height(52.dp)) {
+                        GButton(onClick = { val e = a.refresh(refTask.id, f, ref); if (e == null) onClose() else refErr = e }, Modifier.fillMaxWidth().height(52.dp)) {
                             Text(stringResource(R.string.dmRefreshGo), fontSize = 17.sp)
                         }
                         TextButton(onClick = { a.refreshId.value = "" }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.dmRefreshNew)) }
                     } else {
                         LaterRow(later) { later = it }
-                        Button(onClick = { a.addFile(f, name, ref, later = later); onClose() }, Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(if (later) R.string.dmGoLater else R.string.dmGo), fontSize = 17.sp) }
+                        GButton(onClick = { a.addFile(f, name, ref, later = later); onClose() }, Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(if (later) R.string.dmGoLater else R.string.dmGo), fontSize = 17.sp) }
                         if (DmName.cat(f.name, f.mime) == DmName.Cat.VIDEO) StudioRow(a, f.url, ref, true) { a.addFile(f, name, ref, tr = true); onClose() }
                     }
                 }
@@ -590,12 +610,12 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                             val q = list[i]
                             // הגודל לפי פורמט הווידאו שבהגדרות (תואם = H.264, גדול יותר) — מה שבאמת יירד
                             val sz = DmCodec.prefer(q, info.optJSONArray("fm"), info.optJSONObject("ao"), DmPrefs(ctx).codec).sz
-                            FilterChip(!audio && qi == i, { audio = false; qi = i }, label = {
+                            GChip(!audio && qi == i, { audio = false; qi = i }, label = {
                                 Text(q.optInt("h").toString() + "p" + (if (sz > 0) " · " + DmFmt.size(ctx, sz) else ""))
                             })
                         }
                         if (info.optJSONObject("ao") != null) item {
-                            FilterChip(audio, { audio = true }, label = { Text(stringResource(R.string.dmAudioOnly)) })
+                            GChip(audio, { audio = true }, label = { Text(stringResource(R.string.dmAudioOnly)) })
                         }
                     }
                     Spacer(Modifier.height(8.dp))
@@ -604,10 +624,10 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                     var withSubs by remember(info) { mutableStateOf(true) }
                     if (!audio) ListItem(headlineContent = { Text(stringResource(R.string.dmSubs)) },
                         supportingContent = { Text(if (subs.isNotEmpty()) subs.joinToString(" · ") { it.n.ifEmpty { it.l } } else stringResource(R.string.dmSubsIfAny)) },
-                        trailingContent = { Switch(withSubs, { withSubs = it }) },
+                        trailingContent = { GSwitch(withSubs, { withSubs = it }) },
                         colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent))
                     LaterRow(later) { later = it }
-                    Button(onClick = { a.addVideo(f, list.getOrNull(qi), audio, ref, later = later, subs = DmSubs.forTask(info.optJSONArray("sub"), withSubs)); onClose() }, Modifier.fillMaxWidth().height(52.dp)) {
+                    GButton(onClick = { a.addVideo(f, list.getOrNull(qi), audio, ref, later = later, subs = DmSubs.forTask(info.optJSONArray("sub"), withSubs)); onClose() }, Modifier.fillMaxWidth().height(52.dp)) {
                         Text(stringResource(if (later) R.string.dmGoLater else R.string.dmGo), fontSize = 17.sp)
                     }
                     if (!audio) StudioRow(a, f.url, ref, cloudOk(info)) { a.addVideo(f, list.getOrNull(qi), false, ref, tr = true, subs = DmSubs.forTask(info.optJSONArray("sub"), withSubs)); onClose() }
@@ -623,7 +643,7 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                         color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                     Spacer(Modifier.height(12.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(PL_Q.size) { i -> val o = PL_Q[i]; FilterChip(plQ == o, { plQ = o }, label = { Text(qName(o)) }) }
+                        items(PL_Q.size) { i -> val o = PL_Q[i]; GChip(plQ == o, { plQ = o }, label = { Text(qName(o)) }) }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
                         Text(fmtSel(ctx, plSel.size, pl.entries.size), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
@@ -640,7 +660,7 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                     }
                     Spacer(Modifier.height(8.dp))
                     LaterRow(later) { later = it }
-                    Button(enabled = plSel.isNotEmpty(), onClick = {
+                    GButton(enabled = plSel.isNotEmpty(), onClick = {
                         a.addPlaylist(pl.entries.filterIndexed { i, _ -> i in plSel }, plQ.toIntOrNull() ?: 0, plQ == "audio", later); onClose()
                     }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text(fmtGo(ctx, plSel.size), fontSize = 17.sp) }
                 }
@@ -659,8 +679,8 @@ private fun StudioRow(a: DmActivity, url: String, ref: String, cloud: Boolean, d
     if (!a.studioHere()) return
     Spacer(Modifier.height(6.dp))
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        FilledTonalButton(onClick = downloadAndTranslate, Modifier.weight(1f)) { Text(stringResource(R.string.dmDlTr), maxLines = 2) }
-        if (cloud) FilledTonalButton(onClick = { a.toCloud(url, ref) }, Modifier.weight(1f)) { Text(stringResource(R.string.dmToCloud), maxLines = 2) }
+        GTonal(onClick = downloadAndTranslate, Modifier.weight(1f)) { Text(stringResource(R.string.dmDlTr), maxLines = 2) }
+        if (cloud) GTonal(onClick = { a.toCloud(url, ref) }, Modifier.weight(1f)) { Text(stringResource(R.string.dmToCloud), maxLines = 2) }
     }
 }
 
@@ -674,7 +694,7 @@ private fun BatchBlock(a: DmActivity, parsed: DmImport.Parsed, ref: String, onCl
             var added by remember(parsed) { mutableStateOf(-1) }
             Text(stringResource(R.string.dmBackupFound, parsed.tasks.size), fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(12.dp))
-            if (added < 0) Button(onClick = { added = a.importBackup(parsed.tasks) }, Modifier.fillMaxWidth().height(52.dp)) {
+            if (added < 0) GButton(onClick = { added = a.importBackup(parsed.tasks) }, Modifier.fillMaxWidth().height(52.dp)) {
                 Text(stringResource(R.string.dmBackupGo), fontSize = 17.sp)
             } else {
                 Text(stringResource(R.string.dmBackupDone, added), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -693,7 +713,7 @@ private fun BatchBlock(a: DmActivity, parsed: DmImport.Parsed, ref: String, onCl
                 if (parsed.urls.size > 6) Text(stringResource(R.string.dmBatchMore, parsed.urls.size - 6), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(12.dp))
-                Button(onClick = { a.addBatch(parsed.urls, ref) }, Modifier.fillMaxWidth().height(52.dp)) {
+                GButton(onClick = { a.addBatch(parsed.urls, ref) }, Modifier.fillMaxWidth().height(52.dp)) {
                     Text(stringResource(R.string.dmBatchGo, parsed.urls.size), fontSize = 17.sp)
                 }
             } else {
@@ -725,7 +745,7 @@ private fun Library(a: DmActivity, rev: Int) {
         LazyRow(contentPadding = PaddingValues(16.dp, 0.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(cats.size) { i ->
                 val c = cats[i]
-                FilterChip(cat == c, { cat = c }, label = { Text(stringResource(when (c) {
+                GChip(cat == c, { cat = c }, label = { Text(stringResource(when (c) {
                     null -> R.string.dmCatAll; DmName.Cat.VIDEO -> R.string.dmCatVideo; DmName.Cat.AUDIO -> R.string.dmCatAudio
                     DmName.Cat.DOC -> R.string.dmCatDoc; DmName.Cat.ARCHIVE -> R.string.dmCatArchive; else -> R.string.dmCatOther
                 })) })
@@ -764,7 +784,7 @@ private fun SettingsScreen(a: DmActivity) {
             SetRow(stringResource(R.string.dmSetWhere), stringResource(R.string.dmSavedWhere)) {}
             Div()
             ListItem(headlineContent = { Text(stringResource(R.string.dmSetWifi)) },
-                trailingContent = { Switch(wifi, { wifi = it; pr.wifiOnly = it; DmEngine.pump(ctx) }) })
+                trailingContent = { GSwitch(wifi, { wifi = it; pr.wifiOnly = it; DmEngine.pump(ctx) }) })
             Div()
             SetRow(stringResource(R.string.dmSetParallel), par.toString()) { dlg = "p" }
             Div()
@@ -791,7 +811,7 @@ private fun SettingsScreen(a: DmActivity) {
         Group {
             ListItem(headlineContent = { Text(stringResource(R.string.dmSetImprove)) },
                 supportingContent = { Text(stringResource(if (synced) R.string.dmSetImproveS else R.string.dmSetImproveOff)) },
-                trailingContent = { Switch(synced, { synced = it; DmSync.setEnabled(ctx, it) }) })
+                trailingContent = { GSwitch(synced, { synced = it; DmSync.setEnabled(ctx, it) }) })
             if (synced) {
                 Div()
                 if (signed) ListItem(headlineContent = { Text(DmSync.email(ctx)) })
@@ -802,7 +822,7 @@ private fun SettingsScreen(a: DmActivity) {
         Text(stringResource(if (synced) R.string.dmPrivacyOn else R.string.dmPrivacy), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(8.dp, 16.dp))
     }
-    if (dlg == "f") AlertDialog(onDismissRequest = { dlg = "" }, text = { Text(stringResource(R.string.dmForgetQ)) },
+    if (dlg == "f") AlertDialog(containerColor = LocalDmG.current.dialog, shape = RoundedCornerShape(28.dp), onDismissRequest = { dlg = "" }, text = { Text(stringResource(R.string.dmForgetQ)) },
         confirmButton = { TextButton(onClick = {
             dlg = ""; forgetMsg = "…"
             Thread {
@@ -823,7 +843,7 @@ private fun SettingsScreen(a: DmActivity) {
             lim = it.toLong(); pr.limit = lim; DmLimit.bytesPerSec = lim; dlg = ""
         }
         "c" -> Choose(stringResource(R.string.dmSetConns), listOf("1", "2", "4", "8"), conns.toString(), { it }) { conns = it.toInt(); pr.conns = conns; dlg = "" }
-        "l" -> AlertDialog(onDismissRequest = { dlg = "" }, confirmButton = { TextButton({ dlg = "" }) { Text(stringResource(R.string.dmClose)) } },
+        "l" -> AlertDialog(containerColor = LocalDmG.current.dialog, shape = RoundedCornerShape(28.dp), onDismissRequest = { dlg = "" }, confirmButton = { TextButton({ dlg = "" }) { Text(stringResource(R.string.dmClose)) } },
             title = { Text(stringResource(R.string.dmSetLicenses)) },
             text = { Text(stringResource(R.string.dmLicensesText), Modifier.verticalScroll(rememberScrollState())) })
     }
@@ -850,7 +870,7 @@ private fun langName(m: String) = when (m) {
 }
 
 @Composable
-private fun Group(content: @Composable () -> Unit) = Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceContainer) { Column { content() } }
+private fun Group(content: @Composable () -> Unit) = Column(Modifier.fillMaxWidth().glassCard(LocalDmG.current, RoundedCornerShape(22.dp))) { content() }
 
 @Composable
 private fun Div() = HorizontalDivider(Modifier.padding(start = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .5f))
@@ -863,7 +883,7 @@ private fun SetRow(k: String, v: String, on: () -> Unit) {
 
 @Composable
 private fun Choose(title: String, opts: List<String>, cur: String, label: @Composable (String) -> String, pick: (String) -> Unit) {
-    AlertDialog(onDismissRequest = { pick(cur) }, confirmButton = {}, title = { Text(title) }, text = {
+    AlertDialog(containerColor = LocalDmG.current.dialog, shape = RoundedCornerShape(28.dp), onDismissRequest = { pick(cur) }, confirmButton = {}, title = { Text(title) }, text = {
         Column { opts.forEach { o ->
             ListItem(headlineContent = { Text(label(o), fontWeight = if (o == cur) FontWeight.Bold else FontWeight.Normal) },
                 modifier = Modifier.combinedClickable(onClick = { pick(o) }).width(280.dp))

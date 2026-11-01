@@ -69,9 +69,10 @@ class DmBrowser : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val bg = if (dark) Color.parseColor("#0E0E10") else Color.parseColor("#F6F6F8")
-        val fg = if (dark) Color.WHITE else Color.parseColor("#1C1C1E")
-        val field = if (dark) Color.parseColor("#222226") else Color.WHITE
+        // 01/11/2026: אותם ערכים של הזכוכית של Studio (DmGlass) — בסיס, טקסט, ושדה ב"מילוי" של המערכת
+        val bg = if (dark) Color.BLACK else Color.parseColor("#F2F2F7")
+        val fg = if (dark) Color.WHITE else Color.BLACK
+        val field = if (dark) Color.parseColor("#3D767680") else Color.parseColor("#1F767680")
         window.statusBarColor = bg
         window.navigationBarColor = bg
 
@@ -117,10 +118,13 @@ class DmBrowser : Activity() {
         col.addView(prog); col.addView(web)
         root.addView(col)
         pill = TextView(this).apply {
-            setTextColor(Color.parseColor("#1A0003")); textSize = 16f; gravity = Gravity.CENTER
+            setTextColor(Color.WHITE); textSize = 16f; gravity = Gravity.CENTER; typeface = android.graphics.Typeface.DEFAULT_BOLD
             setPadding(dp(22f), dp(13f), dp(22f), dp(13f))
-            background = GradientDrawable().apply { cornerRadius = dp(999f).toFloat(); setColor(Color.parseColor("#FF4656")) }
-            elevation = dp(8f).toFloat()
+            // זכוכית אדומה: ברק בחצי העליון מעל האדום (סעיף 3 ב־glass-btn.css)
+            background = android.graphics.drawable.LayerDrawable(arrayOf(
+                GradientDrawable().apply { cornerRadius = dp(999f).toFloat(); setColor(Color.parseColor("#FF4656")); setStroke(dp(1f) / 2, Color.parseColor("#6BFFFFFF")) },
+                GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.parseColor("#47FFFFFF"), Color.parseColor("#0FFFFFFF"), Color.TRANSPARENT, Color.TRANSPARENT)).apply { cornerRadius = dp(999f).toFloat() }))
+            elevation = dp(6f).toFloat()
             visibility = View.GONE
             setOnClickListener { pick() }
             layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,

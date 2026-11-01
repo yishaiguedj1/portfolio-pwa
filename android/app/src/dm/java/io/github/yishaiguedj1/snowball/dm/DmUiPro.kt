@@ -18,15 +18,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -208,8 +205,8 @@ internal fun DiagCard(a: DmActivity, t: DmTask, onClose: () -> Unit) {
             val acts = whys.map { it.act }.filter { it != DmDiag.Act.NONE }.distinct().take(2)
             if (acts.isNotEmpty()) Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 acts.forEachIndexed { i, x ->
-                    if (i == 0) Button(onClick = { run(x) }) { Text(stringResource(actRes(x))) }
-                    else FilledTonalButton(onClick = { run(x) }) { Text(stringResource(actRes(x))) }
+                    if (i == 0) GButton(onClick = { run(x) }) { Text(stringResource(actRes(x))) }
+                    else GTonal(onClick = { run(x) }) { Text(stringResource(actRes(x))) }
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -309,7 +306,7 @@ private fun PeekBlock(a: DmActivity, f: DmActivity.Found.File) {
     }
     if (done.isNotEmpty()) Text(done, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
     else if (got >= 0) Text("${got}/${sel.size} · " + DmFmt.size(ctx, bytes), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
-    else if (sel.isNotEmpty()) FilledTonalButton(onClick = {
+    else if (sel.isNotEmpty()) GTonal(onClick = {
         got = 0; bytes = 0
         val pick = r.list.entries.filterIndexed { i, _ -> i in sel }
         scope.launch {
@@ -344,6 +341,6 @@ internal fun HeatSetting() {
     val pr = remember { DmPrefs(ctx) }
     var on by remember { mutableStateOf(pr.heat) }
     ListItem(headlineContent = { Text(stringResource(R.string.dmSetHeat)) }, supportingContent = { Text(stringResource(R.string.dmSetHeatS)) },
-        trailingContent = { Switch(on, { on = it; pr.heat = it; DmEngine.heatTick(ctx, force = true) }) },
+        trailingContent = { GSwitch(on, { on = it; pr.heat = it; DmEngine.heatTick(ctx, force = true) }) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent))
 }
