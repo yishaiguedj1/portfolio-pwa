@@ -33,7 +33,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(st.normRb([{ k: 'net', r: 's', n: 2 }, { k: 'evil', r: 's', n: 1 }, { k: 'cheap', r: 'x' }]).length === 1 && st.normRb('x') === null, 'normRb: רק ספרים מהקטלוג');
   ok(st.cheaperModes('opus-medium').join() === 'sonnet-high,sonnet-medium,sonnet-low,haiku-high,haiku-medium' && st.cheaperModes('sonnet-medium').join() === 'sonnet-low,haiku-high,haiku-medium' && st.cheaperModes('haiku-high').join() === 'haiku-medium' && !st.cheaperModes('haiku-medium').length && st.cheaperModes('opus-max').join() === st.cheaperModes('opus-medium').join(), 'cheaperModes בטלפון = בשרתון');
   ok(st.costStop({ err: 'tower_stop', tw: { why: 'cap' } }) && !st.costStop({ err: 'tower_stop', tw: { why: 'idle' } }) && !st.costStop(null), 'costStop בטלפון = בשרתון');
-  ok(st.chainFor('prob', 3).map((x) => x.v).join() === 'home,settings,tower,towerx,probs,prob', 'רענון בדף בעיה — חוזר דרך המגדל ו"בעיות ותיקונים"');
+  ok(st.chainFor('prob', 3).map((x) => x.v).join() === 'home,tower,towerx,probs,prob', 'רענון בדף בעיה — חוזר דרך המגדל ו"בעיות ותיקונים"');
   const sj = read('studio.js');
   ok(/list\(\.\.\.L\.map\(pbRow\)\)/.test(sj) && /const rb = rbSection\(\);/.test(sj) && !/secT\(T\('studioFbT'\)\)/.test(sj), 'מגדל: מקטע "בעיות" במקום ספר התיקונים (בלי כפילות) + ספרי הפעלה');
   ok(/function pageProb\(p\)/.test(sj) && /else if \(ui\.view === 'prob'\) pageProb\(p\)/.test(sj), 'דף בעיה');

@@ -1,5 +1,6 @@
 """איכויות צפייה (ladder.py): החלטה מי נארז, הפקודות, האינדקס והקודקים — ועם ffmpeg אמיתי (אם יש): המקור הארוז זהה
 בבייטים לזרמים המקוריים, האיכויות הנמוכות עם מפתחות באותם רגעים, והאינדקס מכסה את כל הקובץ."""
+import json
 import os
 import shutil
 import subprocess
@@ -29,11 +30,14 @@ class TestPlan(unittest.TestCase):
         self.assertEqual([r[0] for r in L.plan(sm(w=3840, h=2160))['rungs']], [1440, 1080, 720, 480, 360, 240, 144])
         self.assertEqual(L.plan(sm(w=1080, h=1920))['short'], 1080, 'אנכי — לפי הצלע הקצרה (לפי ת־נגן)')
         self.assertEqual(L.plan(sm(w=1280, h=720))['rungs'][0][0], 480)
-        for kw, why in ((dict(na=L.A_MAX + 1), 'streams'), (dict(other=['subtitle']), 'streams'), (dict(nv=0), 'streams'),
+        for kw, why in ((dict(na=L.A_MAX + 1), 'streams'), (dict(other=['?']), 'streams'), (dict(nv=0), 'streams'),
                         (dict(v='prores'), 'vcodec'), (dict(a='pcm_s16le'), 'acodec'), (dict(gop=30.0), 'gop'),
                         (dict(gop=0.0), 'gop'), (dict(w=176, h=144), 'small')):
             self.assertEqual(L.plan(sm(**kw))['why'], why, kw)
         self.assertTrue(L.plan(sm(na=0, a=''))['ok'], 'בלי קול — בסדר')
+        p = L.plan(sm(other=['subtitle', 'attachment']))
+        self.assertTrue(p['ok'] and p['side'], '1/11/2026: כתוביות/גופנים בתוך הקובץ — לקובץ צד, והאיכויות נבנות')
+        self.assertFalse(L.plan(sm())['side'])
         self.assertEqual(L.plan(sm(), edl=True)['why'], 'edl', 'חיתוך לפני התרגום — הנגן מנגן את הצריבה')
         for why in ('streams', 'vcodec', 'acodec', 'gop', 'small', 'edl', 'alt'):
             self.assertIn(why, L.WHY)
@@ -212,15 +216,24 @@ class TestBuild(unittest.TestCase):
         self.assertEqual(seen, {'top': True, 'low': []}, 'בשער: המקור הארוז קיים, ואף איכות נמוכה עוד לא')
         self.assertEqual(len(r['rungs']), 4)
 
-    def test_not_eligible_untouched(self):
+    def test_side_streams(self):
+        # 1/11/2026: כתוביות בתוך הקובץ — יוצאות לקובץ צד (בלי המרה), והמקור נארז עם איכויות
         mkv = self.tmp / 'sub.mkv'
         srt = self.tmp / 's.srt'
         srt.write_text('1\n00:00:00,000 --> 00:00:01,000\nhi\n')
         subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(self.src), '-i', str(srt), '-map', '0', '-map', '1', '-c', 'copy',
                         '-c:s', 'srt', str(mkv)], capture_output=True)
         r = L.build(mkv, self.tmp / 'out2', log=lambda m: None)
-        self.assertEqual((r['ok'], r['why']), (False, 'streams'), 'כתוביות בתוך הקובץ — לא נוגעים במקור')
-        self.assertFalse((self.tmp / 'out2' / 'top.mp4').exists())
+        self.assertTrue(r['ok'], r)
+        self.assertTrue(Path(r['side']).exists() and L.side_count(r['side']) == 1, 'הכתוביות בקובץ הצד')
+        j = json.loads(subprocess.run(['ffprobe', '-v', 'error', '-show_streams', '-of', 'json', str(self.tmp / 'out2' / 'top.mp4')],
+                                      capture_output=True, text=True).stdout)
+        self.assertEqual(sorted(x['codec_type'] for x in j['streams']), ['audio', 'video'], 'המקור הארוז — בלי הכתוביות')
+
+    def test_not_eligible_untouched(self):
+        sm2 = L.summarize({'streams': [{'codec_type': 'video', 'codec_name': 'h264', 'width': 1920, 'height': 1080},
+                                       {'codec_type': 'audio', 'codec_name': 'aac'}, {'codec_type': 'weird'}]}, 2.0)
+        self.assertEqual(L.plan(sm2)['why'], 'streams', 'זרם לא מוכר — לא נוגעים במקור')
 
 
 if __name__ == '__main__':
