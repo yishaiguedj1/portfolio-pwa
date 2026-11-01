@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2150 מפתחות מתוך 5591) */
+/* המחרוזות של studio (2152 מפתחות מתוך 5593) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -376,6 +376,8 @@ he: {
   "studioCostNoPrice": "אין מחירון למודל",
   "studioCostNote": "לפי מחירון ה־API — במנוי זה נספר במכסת השימוש ולא מחויב לפי טוקן",
   "studioCostOpen": "פתיחה",
+  "studioCostRun": "עוד בריצה",
+  "studioCostRunS": "נמדד עכשיו · הפירוט מתעדכן תוך כדי",
   "studioCostRv": "ביקורת",
   "studioCostSub": "סוכן־משנה",
   "studioCostTl": "תרגום",
@@ -2528,6 +2530,8 @@ en: {
   "studioCostNoPrice": "no price for this model",
   "studioCostNote": "At API prices — on a subscription this counts toward your usage limit and is not billed per token",
   "studioCostOpen": "startup",
+  "studioCostRun": "Still running",
+  "studioCostRunS": "Measured now · breakdown updates as it goes",
   "studioCostRv": "Review",
   "studioCostSub": "Subagent",
   "studioCostTl": "Translation",
