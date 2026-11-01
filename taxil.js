@@ -44,6 +44,7 @@ function tiNormTrades(trades) {
       side: side, qty: Math.abs(qtyS), price: Math.abs(tiNum(t.price)), cur: cur,
       fee: Math.abs(tiNum(t.commission)) + Math.abs(tiNum(t.taxes)), feeCur: feeCur,
       openClose: String(t.openClose || '').toUpperCase(),
+      isin: String(t.isin || '').toUpperCase(), country: String(t.country || '').toUpperCase(),
     });
   }
   const idn = (s) => s.replace(/\D/g, '');
@@ -77,7 +78,7 @@ function tiFifo(trades, fxOf) {
     if (!(fx > 0)) { issues.push({ type: 'noFx', sym: t.sym, date: t.date, cur: t.cur }); continue; }
     const q = lots.get(t.sym) || [];
     if (t.side === 'BUY') {
-      q.push({ sym: t.sym, cur: t.cur, date: t.date, id: t.id, qty: t.qty, unit: t.price + t.fee / t.qty, fx: fx, qty0: t.qty });
+      q.push({ sym: t.sym, cur: t.cur, date: t.date, id: t.id, qty: t.qty, unit: t.price + t.fee / t.qty, fx: fx, qty0: t.qty, isin: t.isin, country: t.country });
       lots.set(t.sym, q);
       continue;
     }
@@ -92,6 +93,7 @@ function tiFifo(trades, fxOf) {
       const gFx = (proceeds - cost) * fx;
       sales.push({
         sym: t.sym, cur: t.cur, qty: take, buyDate: lot.date, sellDate: t.date, buyId: lot.id, sellId: t.id,
+        isin: t.isin || lot.isin || '', country: t.country || lot.country || '',
         cost: cost, proceeds: proceeds, fxBuy: lot.fx, fxSell: fx,
         costIls: cost * lot.fx, proceedsIls: proceeds * fx,
         gIls: gIls, gFx: gFx, taxable: t.cur === 'ILS' ? gIls : tiFourCase(gIls, gFx),
@@ -287,9 +289,59 @@ function tiRateOn(rows, iso) {
   return ans;
 }
 
+/* דוח לרו״ח (ד8) — טיוטה לשנה אחת: שורות 1325 (מכירה לכל חלק FIFO), סיכום 1322, דיבידנדים וריבית ל־1324.
+   שורות בלבד — הכותרות והקובץ (CSV) בממשק (taxcenter.js), כדי שיהיו בשפת המשתמש. Y = tiYear של אותה שנה */
+function tiReport(year, sales, divs, Y) {
+  const y = String(year);
+  const s1325 = (sales || []).filter((s) => s.sellDate.slice(0, 4) === y).map((s) => ({
+    sym: s.sym, isin: s.isin || '', country: s.country || (s.isin ? s.isin.slice(0, 2) : ''), qty: s.qty,
+    buyDate: s.buyDate, sellDate: s.sellDate, cur: s.cur, cost: s.cost, proceeds: s.proceeds, fxBuy: s.fxBuy, fxSell: s.fxSell,
+    costIls: s.costIls, proceedsIls: s.proceedsIls, gIls: s.gIls, gFx: s.gFx, taxable: s.taxable, nominal: !!s.nominal,
+  }));
+  const s1324 = (divs || []).filter((d) => d.date.slice(0, 4) === y);
+  const byCountry = new Map();
+  for (const d of s1324) {
+    const k = (d.country || '—') + '|' + d.kind;
+    const r = byCountry.get(k) || { country: d.country || '', kind: d.kind, grossIls: 0, whIls: 0, n: 0, missing: 0 };
+    if (d.grossIls == null) r.missing++; else { r.grossIls += d.grossIls; r.whIls += d.whIls; }
+    r.n++;
+    byCountry.set(k, r);
+  }
+  const sum = Y ? {
+    gains: Y.gains, losses: Y.losses, carryIn: Y.carryIn, carryUsed: Y.carryUsed, offIncome: Y.offIncome, taxable: Y.taxable,
+    rate: Y.rate, cgTax: Y.cgTax, carryOut: Y.carryOut, incGross: Y.div.gross + Y.interest.gross, incWh: Y.div.wh + Y.interest.wh,
+    credit: Y.credit, extraInc: Y.extraInc, creditLost: Y.creditLost, surtax: Y.surtax, due: Y.due,
+  } : null;
+  return { year: +year, s1325: s1325, s1324: s1324, s1324c: [...byCountry.values()].sort((a, b) => (a.country < b.country ? -1 : 1)), s1322: sum };
+}
+
+/* מד חשיפה למס עיזבון אמריקאי (ד10): שווי נכסים שמקורם בארה״ב מול הסף לזר שאינו תושב (60,000$).
+   מקור: ISIN שמתחיל ב־US או מדינת המנפיק מ־Flex. בלי ISIN — ניחוש: נייר במטבע דולר שאינו ת״א (guess).
+   המזומן ב־IBKR לא נכלל (מעמדו לא ודאי), ומדרגות המס לא מחושבות — לא אומתו במקור ראשי. */
+const TI_ESTATE_TH = 60000;
+function tiEstate(positions, priceOf) {
+  let usd = 0, guess = 0, n = 0;
+  for (const p of (positions || [])) {
+    if (!p || /^(CASH|FX)/i.test(String(p.asset || ''))) continue;
+    const sym = String(p.symbol || '').toUpperCase();
+    const isin = String(p.isin || '').toUpperCase(), ctry = String(p.country || '').toUpperCase();
+    const cur = String(p.currency || '').toUpperCase();
+    let us = false, g = false;
+    if (isin || ctry) us = isin.slice(0, 2) === 'US' || (!isin && ctry === 'US');
+    else if (cur === 'USD' && !/\.TA$/.test(sym)) { us = true; g = true; }
+    if (!us || cur !== 'USD') continue;
+    const px = tiNum(priceOf && priceOf(sym)) || tiNum(p.markPrice);
+    const v = Math.abs(tiNum(p.qty)) * px;
+    if (!(v > 0)) continue;
+    usd += v; n++;
+    if (g) guess += v;
+  }
+  return { usd: usd, n: n, guess: guess, th: TI_ESTATE_TH, over: usd > TI_ESTATE_TH };
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     TI_RULES, tiRules, tiNormTrades, tiFourCase, tiFifo, tiDividends, tiYear, tiYears,
-    tiUnrealized, tiHarvest, tiCheck, tiW8, tiRateOn,
+    tiUnrealized, tiHarvest, tiCheck, tiW8, tiRateOn, tiReport, tiEstate, TI_ESTATE_TH,
   };
 }

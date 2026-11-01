@@ -105,7 +105,7 @@ function compute() {
   const priceOf = (sym) => { const q = E.quote && E.quote(sym); return q && q.close > 0 ? q.close : null; };
   const unreal = tiUnrealized(f.open, priceOf, fxNow, 0);
   const health = tiCheck(f.open, d.positions || []);
-  return { d, f, divs, years, yIdx, unreal, health, w8: tiW8(divs), nowY, st };
+  return { d, f, divs, years, yIdx, unreal, health, w8: tiW8(divs), estate: tiEstate(d.positions || [], priceOf), nowY, st };
 }
 
 /* ---------- פתיחה וסגירה ---------- */
@@ -253,6 +253,14 @@ function paintYear(wrap, C) {
     }
     wrap.appendChild(c4);
   }
+  // הדוח לרו״ח (ד8) — קובץ שנוצר במכשיר, לשנה שנבחרה
+  if (ys2.length || Y.div.n || Y.interest.n) {
+    wrap.appendChild(h('div', { class: 'tx-card' }, [
+      h('p', { class: 'tx-h', text: T('txReport') }),
+      h('p', { class: 'tx-sub', text: T('txReportS') }),
+      h('button', { class: 'tx-btn', type: 'button', text: T('txReportBtn', { y: S.year }), onclick: () => downloadReport(C, S.year) }),
+    ]));
+  }
   // הפסד מועבר מלפני הדוחות
   const first = C.years.length ? Math.min(...C.years.map((y) => y.year)) : C.nowY;
   const c5 = h('div', { class: 'tx-card' }, [h('p', { class: 'tx-h', text: T('txCarry0H') }), h('p', { class: 'tx-sub', text: T('txCarry0S', { y: first }) })]);
@@ -289,6 +297,9 @@ function paintToday(wrap, C) {
     h('div', { class: 'tx-tile' }, [h('span', { class: 'tx-k', text: T('txTaxAll') }), h('span', { class: 'tx-v', text: none ? '—' : ils(extra) })]),
   ]), none ? null : h('p', { class: 'tx-sub', text: T('txNet', { v: ils(val - extra), fx: ils(fxPart) }) }),
   miss ? h('p', { class: 'tx-sub', text: T('txMissing', { n: miss }) }) : null]);
+  // ד3: מכירת הכל חוצה את תקרת מס היסף — פריסה לשנה הבאה עשויה לחסוך אותו
+  const sur = Yall.surtax - Y.surtax;
+  if (!none && sur > 0.5) c1.appendChild(alertRow('o', '%', T('txSurCross', { v: ils(sur), y: C.nowY + 1 })));
   wrap.appendChild(c1);
   // לפי סימבול
   const by = new Map();
@@ -343,11 +354,59 @@ function paintActions(wrap, C) {
   if (noFx) c2.appendChild(alertRow('r', '₪', T('txNoFx', { n: noFx })));
   const nTr = ((C.d.trades) || []).length;
   if (!noFx && !C.health.length && !noLots.length) c2.appendChild(alertRow('g', '✓', T('txAllOk', { n: nTr })));
+  // ד10: מד חשיפה למס עיזבון אמריקאי (רק הסף — המדרגות לא אומתו)
+  const es = C.estate;
+  if (es && es.n) {
+    const usd = (v) => LRI + '$' + Math.round(v).toLocaleString('en-US') + PDI;
+    c2.appendChild(alertRow(es.over ? 'r' : 'g', '$', T(es.over ? 'txEstateOver' : 'txEstateOk', { v: usd(es.usd), t: usd(es.th) }) + (es.guess > 0 ? ' ' + T('txEstateGuess') : '')));
+  }
   wrap.appendChild(c2);
-  wrap.appendChild(h('div', { class: 'tx-card' }, [
-    h('div', { class: 'tx-row' }, [h('span', { class: 'tx-h', text: T('txReport') }), h('span', { class: 'tx-pill', text: T('txSoon') })]),
-    h('p', { class: 'tx-sub', text: T('txReportS') }),
-  ]));
+}
+
+/* ---------- הדוח לרו״ח (ד8): CSV שנוצר במכשיר — לא נשלח ולא נשמר בשום שרת ---------- */
+function csvCell(v) {
+  if (v == null) return '';
+  const s = typeof v === 'number' ? (isFinite(v) ? String(Math.round(v * 100) / 100) : '') : String(v);
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function buildCsv(C, year) {
+  const Y = C.yIdx.get(year);
+  const R = tiReport(year, C.f.sales, C.divs, Y);
+  const L = [];
+  const line = (a) => L.push(a.map(csvCell).join(','));
+  const head = (k) => line(T(k).split('|'));
+  line([T('txCsvTitle', { y: year })]);
+  line([T('txCsvSrc')]);
+  L.push('');
+  line([T('txCsv1325')]); head('txCsvH1325');
+  const f4 = (v) => (v > 0 ? v.toFixed(4) : '');   // שער יציג — 4 ספרות; כמות — עד 6
+  const q6 = (v) => String(Math.round(v * 1e6) / 1e6);
+  for (const r of R.s1325) line([r.sym, r.isin, r.country, q6(r.qty), r.buyDate, r.sellDate, r.cur, r.cost, r.proceeds, f4(r.fxBuy), f4(r.fxSell), r.costIls, r.proceedsIls, r.gIls, r.nominal ? '' : r.gFx, r.taxable]);
+  L.push('');
+  if (R.s1322) {
+    const m = R.s1322;
+    line([T('txCsv1322')]);
+    for (const [k, v] of [[T('txGains'), m.gains], [T('txLosses'), -m.losses], [T('txCarryUsed'), -m.carryUsed], [T('txOffInc'), -m.offIncome],
+      [T('txTaxableSum'), m.taxable], [T('txCgTax'), m.cgTax], [T('txCarryOut', { y: year + 1 }), m.carryOut],
+      [T('txGross'), m.incGross], [T('txWh'), m.incWh], [T('txExtra'), m.extraInc], [T('txCreditLost'), m.creditLost],
+      [T('txSurtax'), m.surtax], [T('txDue', { y: year }), m.due]]) line([k, v]);
+    L.push('');
+  }
+  line([T('txCsv1324')]); head('txCsvH1324');
+  for (const d of R.s1324) line([d.date, d.sym, d.country, T(d.kind === 'interest' ? 'txKindInt' : 'txKindDiv'), d.cur, d.gross, d.wh, f4(d.fx), d.grossIls, d.whIls]);
+  L.push('');
+  line([T('txCsv1324c')]); head('txCsvH1324c');
+  for (const c of R.s1324c) line([c.country, T(c.kind === 'interest' ? 'txKindInt' : 'txKindDiv'), c.n, c.grossIls, c.whIls]);
+  return '\ufeff' + L.join('\r\n') + '\r\n';   // BOM — כדי שגיליון אלקטרוני יפתח את העברית נכון
+}
+function downloadReport(C, year) {
+  try {
+    const url = URL.createObjectURL(new Blob([buildCsv(C, year)], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = 'tax-' + year + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  } catch (e) {}
 }
 function alertRow(kind, icon, text) {
   return h('div', { class: 'tx-alert' }, [h('span', { class: 'tx-ic ' + kind, text: icon }), h('span', { text: text })]);
