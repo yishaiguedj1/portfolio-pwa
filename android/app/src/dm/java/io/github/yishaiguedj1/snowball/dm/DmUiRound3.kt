@@ -98,7 +98,7 @@ private fun ProSheet(a: DmActivity, onClose: () -> Unit) {
 }
 
 @Composable
-private fun Row2(title: String, sub: String, onClick: () -> Unit, trailing: @Composable (() -> Unit)? = null) {
+private fun Row2(title: String, sub: String, trailing: @Composable (() -> Unit)? = null, onClick: () -> Unit) {
     val g = LocalDmG.current
     ListItem(headlineContent = { Text(title, maxLines = 1) }, supportingContent = { if (sub.isNotEmpty()) Text(sub, color = g.mute, maxLines = 2) },
         trailingContent = trailing, modifier = Modifier.padding(vertical = 3.dp).glassCard(g, RoundedCornerShape(18.dp)).clickable(onClick = onClick),
@@ -246,7 +246,7 @@ private fun RulesTab(a: DmActivity) {
     Hint(stringResource(R.string.dmRulesS))
     rs.forEachIndexed { i, r ->
         val title = listOf(r.host.ifEmpty { "*" }, r.exts.joinToString(", ") { ".$it" }).filter { it.isNotEmpty() }.joinToString(" · ")
-        Row2(title, ruleSummary(r), { edit = i }) { GSwitch(r.on, { v -> save(rs.mapIndexed { j, x -> if (j == i) x.copy(on = v) else x }) }) }
+        Row2(title, ruleSummary(r), { GSwitch(r.on, { v -> save(rs.mapIndexed { j, x -> if (j == i) x.copy(on = v) else x }) }) }) { edit = i }
     }
     if (rs.size < DmRules.MAX) GTonal(onClick = { edit = -1 }, Modifier.fillMaxWidth().padding(top = 8.dp)) { Text(stringResource(R.string.dmRuleNew)) }
     edit?.let { i ->
@@ -347,18 +347,18 @@ private fun LimitsTab() {
 
     Label(stringResource(R.string.dmSpeedPlan))
     Hint(stringResource(R.string.dmSpeedPlanS))
-    slots.forEachIndexed { i, s -> Row2(winTxt(s.win), spd(s.bps), { edit = i }) }
+    slots.forEachIndexed { i, s -> Row2(winTxt(s.win), spd(s.bps), onClick = { edit = i }) }
     if (slots.size < DmSpeed.MAX) GTonal(onClick = { edit = -1 }, Modifier.fillMaxWidth().padding(top = 6.dp)) { Text(stringResource(R.string.dmSpeedNew)) }
     Label(stringResource(R.string.dmCellLimit))
-    Row2(stringResource(R.string.dmCellLimitS), spd(cell), {
+    Row2(stringResource(R.string.dmCellLimitS), spd(cell), onClick = {
         cell = SPEEDS[(SPEEDS.indexOf(cell) + 1) % SPEEDS.size]; pr.cellLimit = cell; DmR3.tick(ctx, true)
     })
     Label(stringResource(R.string.dmQuota))
     Hint(stringResource(R.string.dmQuotaS))
-    Row2(stringResource(R.string.dmQuotaDayW), stringResource(R.string.dmQuotaUsed, DmFmt.size(ctx, use.dW), mbOr(caps.dayW)), { saveCaps(caps.copy(dayW = nextMb(caps.dayW))) })
-    Row2(stringResource(R.string.dmQuotaDayC), stringResource(R.string.dmQuotaUsed, DmFmt.size(ctx, use.dC), mbOr(caps.dayC)), { saveCaps(caps.copy(dayC = nextMb(caps.dayC))) })
-    Row2(stringResource(R.string.dmQuotaMonW), stringResource(R.string.dmQuotaUsed, DmFmt.size(ctx, use.mW), mbOr(caps.monW)), { saveCaps(caps.copy(monW = nextMb(caps.monW))) })
-    Row2(stringResource(R.string.dmQuotaMonC), stringResource(R.string.dmQuotaUsed, DmFmt.size(ctx, use.mC), mbOr(caps.monC)), { saveCaps(caps.copy(monC = nextMb(caps.monC))) })
+    Row2(stringResource(R.string.dmQuotaDayW), stringResource(R.string.dmQuotaUsed, DmFmt.size(ctx, use.dW), mbOr(caps.dayW)), onClick = { saveCaps(caps.copy(dayW = nextMb(caps.dayW))) })
+    Row2(stringResource(R.string.dmQuotaDayC), stringResource(R.string.dmQuotaUsed, DmFmt.size(ctx, use.dC), mbOr(caps.dayC)), onClick = { saveCaps(caps.copy(dayC = nextMb(caps.dayC))) })
+    Row2(stringResource(R.string.dmQuotaMonW), stringResource(R.string.dmQuotaUsed, DmFmt.size(ctx, use.mW), mbOr(caps.monW)), onClick = { saveCaps(caps.copy(monW = nextMb(caps.monW))) })
+    Row2(stringResource(R.string.dmQuotaMonC), stringResource(R.string.dmQuotaUsed, DmFmt.size(ctx, use.mC), mbOr(caps.monC)), onClick = { saveCaps(caps.copy(monC = nextMb(caps.monC))) })
     edit?.let { i ->
         SlotDialog(slots.getOrNull(i) ?: DmSlot(DmWindow(0x1f, 9 * 60, 18 * 60), 2L shl 20), onDone = { s ->
             edit = null; if (s != null) saveSlots(if (i in slots.indices) slots.mapIndexed { j, x -> if (j == i) s else x } else slots + s)
