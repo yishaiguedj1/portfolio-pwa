@@ -32,4 +32,12 @@ class BrUsersTest {
         assertTrue(BrUsers.validId(id)); assertFalse(id in listOf("1", "2"))
         assertFalse(BrUsers.validId("a/b")); assertFalse(BrUsers.validId("AB")); assertFalse(BrUsers.validId("1234567890123"))
     }
+
+    /** הגל השני: צבע לכל משתמש — נשמר ונקרא; רשומה ישנה בלי צבע = ‎-1 */
+    @Test fun colorPerUser() {
+        val l = listOf(BrUsers.U(""), BrUsers.U("ab12", c = 3))
+        assertEquals(l, BrUsers.decode(BrUsers.encode(l)))
+        assertEquals(-1, BrUsers.decode("""[{"id":""}]""")[0].c)
+        assertEquals(-1, BrUsers.decode("""[{"id":"","c":999}]""")[0].c)
+    }
 }

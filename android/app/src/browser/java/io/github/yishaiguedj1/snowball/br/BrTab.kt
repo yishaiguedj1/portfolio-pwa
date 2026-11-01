@@ -54,6 +54,8 @@ class BrTab(val id: Long, url: String, title: String, val private: Boolean, var 
 
     /** Pro (01/11/2026): כרטיסייה נעוצה — ראשונה, לא נסגרת ב"סגירת הכל"; והרשומות של כלי המפתחים (רק בזיכרון, נמחקות בדף חדש) */
     var pinned by mutableStateOf(false)
+    /** הגל השני: מתי נפתחה (למחיקה המהירה — כרטיסייה שנפתחה בטווח נסגרת; שוחזרה מהפעם הקודמת = 0) */
+    var born = System.currentTimeMillis()
     val logs = BrPro.Ring<BrPro.Log>(300)
     val net = BrPro.Ring<BrPro.Net>(400)
 

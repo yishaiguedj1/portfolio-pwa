@@ -227,6 +227,12 @@ object BrStore {
         })
     }
 
+    /** הגל השני (01/11/2026): קבוצות שמורות וסשנים (BrPro.TabSet) — בתיקייה של המשתמש, בטלפון בלבד (לא בענן) */
+    fun loadSets(): List<BrPro.TabSet> = if (!::dir.isInitialized) emptyList() else
+        runCatching { BrPro.setsDecode(File(dir, "sets.json").takeIf { it.exists() }?.readText()) }.getOrDefault(emptyList())
+    fun saveSets(l: List<BrPro.TabSet>) { if (::dir.isInitialized) runCatching { write("sets.json", JSONArray(BrPro.setsEncode(l))) } }
+    fun clearSets() { if (::dir.isInitialized) File(dir, "sets.json").delete() }
+
     fun loadTabs(): Pair<List<BrTabRec>, Int> {
         val a = read("tabs.json") ?: return emptyList<BrTabRec>() to 0
         val cur = a.optJSONObject(0)?.optInt("cur", 0) ?: 0
@@ -333,5 +339,14 @@ class BrPrefs(ctx: Context) {
     var heFix: Boolean get() = sp.getBoolean("heFix", true); set(v) { sp.edit().putBoolean("heFix", v).apply() }
     var cleanCopy: Boolean get() = sp.getBoolean("cleanCp", true); set(v) { sp.edit().putBoolean("cleanCp", v).apply() }
     /** כמה בקשות נחסמו מאז ההתקנה — למסך הפרטיות */
+    /** הגל השני (01/11/2026): הסרגל שמסדרים (BrPro.tools; null = ברירת המחדל), המחוות (סיביות BrPro.G_*), חיסכון בזיכרון
+     *  (0/1/2) ובסוללה, מצב שולחן (0 אוטומטי/1/2), פס הכרטיסיות העליון, ומה מוצג בכרטיסייה חדשה (סיביות NTP_*) */
+    var tools: String? get() = sp.getString("tools", null); set(v) { sp.edit().putString("tools", v).apply() }
+    var gest: Int get() = sp.getInt("gest", BrPro.G_ALL); set(v) { sp.edit().putInt("gest", v).apply() }
+    var saver: Int get() = sp.getInt("saver", 0); set(v) { sp.edit().putInt("saver", v).apply() }
+    var battery: Boolean get() = sp.getBoolean("batt", true); set(v) { sp.edit().putBoolean("batt", v).apply() }
+    var desk: Int get() = sp.getInt("desk", 0); set(v) { sp.edit().putInt("desk", v).apply() }
+    var strip: Boolean get() = sp.getBoolean("strip", false); set(v) { sp.edit().putBoolean("strip", v).apply() }
+    var ntp: Int get() = sp.getInt("ntp", 15); set(v) { sp.edit().putInt("ntp", v).apply() }
     var blockedAll: Long get() = sp.getLong("blk", 0L); set(v) { sp.edit().putLong("blk", v).apply() }
 }

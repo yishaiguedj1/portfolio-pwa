@@ -284,4 +284,26 @@ ok(fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yis
   ok(/backdrop\(a\.window\) \{ back = it\.asImageBitmap\(\); ready = true \}/.test(ui) && /Color\(0xF7FFFFFF\)/.test(ui), 'ההצעות בשורת הכתובת — על חומר מטושטש ואטום, לא על הדף');
 }
 
+// 01/11/2026: Studio Browser Pro — הגל השני (docs/browser-pro-plan.md): כרטיסיות, שורת הכתובת ונוחות
+{
+  const pro = R(B + 'BrPro.kt'), cl = R(B + 'BrCloud.kt'), us = R(B + 'BrUsers.kt');
+  ok(/var split by mutableStateOf<BrTab\?>\(null\)/.test(act) && /it !== cur && it !== split/.test(act) && /if \(old !== split\) old\.web\?\.onPause\(\)/.test(act),
+    'מסך מפוצל: Activity אחת עם שני WebView — החלון השני לא מושהה ולא משתחרר');
+  ok(/if \(t === split\) split = null/.test(act) && /if \(split in gone\) split = null/.test(act), 'כרטיסייה שנסגרה / נבחרה — יוצאת מהמסך המפוצל');
+  ok(/private fun SplitView\(/.test(ui) && /background\(if \(on\) c\.tint else c\.line\)\.padding/.test(ui), 'המסגרת של החלון הפעיל = רקע עם ריפוד, לא ציור מעל ה־WebView');
+  ok(/fun liveCap\(\): Int = BrPro\.liveCap\(liveMax, saver, batterySaving\(\)\)/.test(act) && /trim\(keep: Int = liveCap\(\) - 1\)/.test(act) && /BrPro\.sleepy\(now - it\.used, saver, b, it\.playing\)/.test(act),
+    'חיסכון בזיכרון ובסוללה: התקרה והשינה דרך BrPro (נבדק ב־BrProTest), כרטיסייה שמנגנת לא נרדמת');
+  ok(/fun previewWeb\(priv: Boolean/.test(act) && /if \(priv && privOk\)[^\n]*WebViewCompat\.setProfile\(w, PRIV\)/.test(act) && /previewKill/.test(ui), 'תצוגה מקדימה: פרטית — בפרופיל הפרטי, וה־WebView נהרס כשנסגרת');
+  ok(/override fun dispatchKeyEvent\(e: KeyEvent\)/.test(act) && /BrPro\.shortcut\(e\.keyCode/.test(act), 'מקלדת אמיתית — דרך BrPro.shortcut');
+  ok(/BrPro\.pushSession\(sets, pub\.map/.test(act) && /fun loadSets\(\)/.test(store) && /"sets\.json"/.test(store) && !/sets\.json|TabSet/.test(cl),
+    'סשנים וקבוצות: רק כרטיסיות רגילות, בתיקייה של המשתמש — לא בענן');
+  ok(/it\.private && !it\.pinned && it\.born >= since|!it\.private && !it\.pinned && it\.born >= since/.test(act) && /it\.born = 0L/.test(act), 'מחיקה מהירה: לא נוגעת בפרטיות ובנעוצות; כרטיסייה ששוחזרה לא "נפתחה עכשיו"');
+  ok(ui.indexOf('MItem(R.string.brSplit') > ui.indexOf('MItem(R.string.brDev') && ui.indexOf('MItem(R.string.brSplit') < ui.lastIndexOf('MItem(R.string.brSettings'),
+    'יכולות הגל בתפריט ⋮ — בקבוצת הכלים, מתחת לפריטים המוכרים');
+  ok(/a\.tools\.forEach \{ id -> ToolBtn\(a, id, ntp\) \}/.test(ui) && /val TOOLS_DEFAULT = listOf\("newtab"\)/.test(pro), 'הסרגל שמסדרים — ברירת המחדל = הסרגל של ת־עיצוב (כרטיסייה חדשה)');
+  ok(/srl\.isEnabled = \(a\.gest and BrPro\.G_PULL\) != 0/.test(ui) && /\(a\.gest and BrPro\.G_SWIPE\) != 0/.test(ui), 'מחוות שאפשר לכבות');
+  ok(/put\("c", it\.c\)/.test(us) && /b === Priv\) b else b\.copy\(bar = lerp/.test(ui), 'צבע לכל משתמש — לא בכרטיסייה פרטית');
+  ok(/if \(sc != null\) \{ scoped\(a, sc\.first, sc\.second\); return@LazyColumn \}/.test(ui) && /a\.runAct\(act\)/.test(ui), 'חיפוש ממוקד ופעולות מהשורה');
+}
+
 console.log('studio-browser: ' + n + ' בדיקות עברו');

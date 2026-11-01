@@ -257,4 +257,184 @@ if(!window.__snbMuteObs){window.__snbMuteObs=1;document.addEventListener('play',
             return json.substring(1, json.length - 1).replace("\\n", "\n").replace("\\\"", "\"").replace("\\u003C", "<").replace("\\\\", "\\")
         return json
     }
+
+    /* ================= הגל השני (01/11/2026): כרטיסיות, שורת הכתובת ונוחות ================= */
+
+    /** 23 — חיפוש ממוקד: "@כרטיסיות שיר", "@history ynet" — רק במקור אחד (לפי ת־עיצוב של שורת הכתובת במחשב) */
+    enum class Scope { TABS, MARKS, HISTORY }
+    private val SCOPES = listOf(
+        Scope.TABS to listOf("כרטיסיות", "טאבים", "tabs"),
+        Scope.MARKS to listOf("סימניות", "bookmarks"),
+        Scope.HISTORY to listOf("היסטוריה", "history"),
+    )
+    /** המקור והחיפוש שאחריו; null = אין "@" של מקור מוכר */
+    fun scope(raw: String): Pair<Scope, String>? {
+        val q = raw.trimStart()
+        if (!q.startsWith("@")) return null
+        val word = q.drop(1).substringBefore(' ')
+        val sc = SCOPES.firstOrNull { (_, ns) -> ns.any { it.equals(word, ignoreCase = true) } }?.first ?: return null
+        return sc to q.drop(1 + word.length).trim()
+    }
+    /** "@" או תחילת מילה ("@הי") — המקורות שמתאימים, להצעה */
+    fun scopeHints(raw: String): List<Scope> {
+        val q = raw.trim()
+        if (!q.startsWith("@") || ' ' in q) return emptyList()
+        val w = q.drop(1)
+        return SCOPES.filter { (_, ns) -> ns.any { it.startsWith(w, ignoreCase = true) } && ns.none { it.equals(w, ignoreCase = true) } }.map { it.first }
+    }
+    fun scopeWord(s: Scope, he: Boolean): String = SCOPES.first { it.first == s }.second.let { if (he) it[0] else it.last() }
+
+    /** 24 — פעולות מהשורה: מקלידים "מחיקת היסטוריה" / "settings" — שורה שמבצעת את הפעולה (בנוסף לחיפוש, לא במקומו) */
+    enum class Act { CLEAR, QUICK, HISTORY, MARKS, SETTINGS, PRIVATE, DOWNLOADS, PASSWORDS, TASKS, SPLIT, SESSIONS }
+    private val ACTS = listOf(
+        Act.CLEAR to listOf("מחיקת נתוני גלישה", "ניקוי נתוני גלישה", "מחיקת היסטוריה", "ניקוי היסטוריה", "clear browsing data", "clear history", "delete history"),
+        Act.QUICK to listOf("מחיקה מהירה", "מחיקת 15 הדקות האחרונות", "quick delete"),
+        Act.HISTORY to listOf("היסטוריה", "history"),
+        Act.MARKS to listOf("סימניות", "bookmarks"),
+        Act.SETTINGS to listOf("הגדרות", "settings"),
+        Act.PRIVATE to listOf("כרטיסייה פרטית", "גלישה פרטית", "גלישה בסתר", "private tab", "incognito"),
+        Act.DOWNLOADS to listOf("הורדות", "downloads"),
+        Act.PASSWORDS to listOf("סיסמאות", "מנהל הסיסמאות", "passwords"),
+        Act.TASKS to listOf("מנהל המשימות", "מנהל משימות", "task manager"),
+        Act.SPLIT to listOf("מסך מפוצל", "split screen", "split view"),
+        Act.SESSIONS to listOf("קבוצות שמורות", "סשנים", "saved groups", "sessions"),
+    )
+    /** הפעולה שהטקסט מתאר — מ־3 אותיות, תחילה של אחד הניסוחים (או הניסוח עצמו עם עוד מילים, "הגדרות דפדפן") */
+    fun action(raw: String): Act? {
+        val q = raw.trim().lowercase().replace(Regex("\\s+"), " ")
+        if (q.length < 3 || q.startsWith("@") || "://" in q || q.contains('.') && ' ' !in q) return null
+        return ACTS.firstOrNull { (_, ns) -> ns.any { n -> n.startsWith(q) || q.startsWith("$n ") } }?.first
+    }
+
+    /** 35 — סרגל שמסדרים: הכפתורים בין שורת הכתובת לכפתור הכרטיסיות, בסדר שבחרת (עד 3; ריק = רק הכרטיסיות ו־⋮) */
+    val TOOLS = listOf("newtab", "home", "share", "star", "reload", "downloads", "translate", "find", "quick", "split")
+    const val TOOLS_MAX = 3
+    val TOOLS_DEFAULT = listOf("newtab")
+    fun tools(s: String?): List<String> = if (s == null) TOOLS_DEFAULT else s.split(',').map { it.trim() }.filter { it in TOOLS }.distinct().take(TOOLS_MAX)
+    fun toolsEncode(l: List<String>): String = l.filter { it in TOOLS }.distinct().take(TOOLS_MAX).joinToString(",")
+    /** הוספה בסוף / הסרה; מעל התקרה — לא נוסף */
+    fun toolToggle(l: List<String>, id: String): List<String> = if (id in l) l - id else if (l.size >= TOOLS_MAX || id !in TOOLS) l else l + id
+    fun toolMove(l: List<String>, id: String, d: Int): List<String> {
+        val i = l.indexOf(id); val j = i + d
+        if (i < 0 || j !in l.indices) return l
+        return l.toMutableList().also { it[i] = it[j]; it[j] = id }
+    }
+
+    /** 38 — מקלדת אמיתית: הקיצורים של הדפדפנים במחשב. קודי המקשים של KeyEvent (קבועים — נבדקים ב־JVM) */
+    fun shortcut(key: Int, ctrl: Boolean, shift: Boolean, alt: Boolean): String? {
+        if (alt && !ctrl) return when (key) { android.view.KeyEvent.KEYCODE_DPAD_LEFT -> "back"; android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> "fwd"; android.view.KeyEvent.KEYCODE_HOME -> "home"; else -> null }
+        if (!ctrl) return when (key) {
+            android.view.KeyEvent.KEYCODE_F5 -> "reload"
+            android.view.KeyEvent.KEYCODE_F6 -> "address"
+            android.view.KeyEvent.KEYCODE_F3 -> "find"
+            android.view.KeyEvent.KEYCODE_FORWARD -> "fwd"
+            android.view.KeyEvent.KEYCODE_ESCAPE -> if (shift) "tasks" else null
+            else -> null
+        }
+        if (key in android.view.KeyEvent.KEYCODE_1..android.view.KeyEvent.KEYCODE_9 && !shift) return "tab" + (key - android.view.KeyEvent.KEYCODE_0)
+        return when (key) {
+            android.view.KeyEvent.KEYCODE_T -> if (shift) "reopen" else "newtab"
+            android.view.KeyEvent.KEYCODE_N -> if (shift) "private" else "newtab"
+            android.view.KeyEvent.KEYCODE_W, android.view.KeyEvent.KEYCODE_F4 -> if (shift) null else "close"
+            android.view.KeyEvent.KEYCODE_TAB -> if (shift) "prev" else "next"
+            android.view.KeyEvent.KEYCODE_PAGE_DOWN -> "next"
+            android.view.KeyEvent.KEYCODE_PAGE_UP -> "prev"
+            android.view.KeyEvent.KEYCODE_L, android.view.KeyEvent.KEYCODE_K -> "address"
+            android.view.KeyEvent.KEYCODE_R -> "reload"
+            android.view.KeyEvent.KEYCODE_F -> "find"
+            android.view.KeyEvent.KEYCODE_D -> "star"
+            android.view.KeyEvent.KEYCODE_H -> "history"
+            android.view.KeyEvent.KEYCODE_J -> "downloads"
+            android.view.KeyEvent.KEYCODE_O -> if (shift) "marks" else null
+            android.view.KeyEvent.KEYCODE_DEL, android.view.KeyEvent.KEYCODE_FORWARD_DEL -> if (shift) "clear" else null
+            android.view.KeyEvent.KEYCODE_EQUALS, android.view.KeyEvent.KEYCODE_PLUS, android.view.KeyEvent.KEYCODE_NUMPAD_ADD -> "zoomin"
+            android.view.KeyEvent.KEYCODE_MINUS, android.view.KeyEvent.KEYCODE_NUMPAD_SUBTRACT -> "zoomout"
+            android.view.KeyEvent.KEYCODE_0 -> "zoom0"
+            android.view.KeyEvent.KEYCODE_BACKSLASH -> "split"
+            android.view.KeyEvent.KEYCODE_SLASH -> "keys"
+            else -> null
+        }
+    }
+    /** רשימת העזרה (מסך "מקלדת"): הצירוף והפעולה, בסדר הזה */
+    val KEYS_HELP = listOf("Ctrl+T" to "newtab", "Ctrl+Shift+N" to "private", "Ctrl+W" to "close", "Ctrl+Shift+T" to "reopen", "Ctrl+Tab" to "next",
+        "Ctrl+Shift+Tab" to "prev", "Ctrl+1…9" to "tab1", "Ctrl+L" to "address", "Ctrl+R" to "reload", "Ctrl+F" to "find", "Ctrl+D" to "star",
+        "Ctrl+H" to "history", "Ctrl+J" to "downloads", "Ctrl+Shift+O" to "marks", "Alt+←" to "back", "Alt+→" to "fwd", "Ctrl+ +/−/0" to "zoomin",
+        "Ctrl+\\" to "split", "Shift+Esc" to "tasks", "Ctrl+Shift+Del" to "clear", "Ctrl+/" to "keys")
+
+    /** 39 — מחוות: גרירה על הסרגל. 1/‎-1 = כרטיסייה הבאה/הקודמת (אופקית), 2 = מסך הכרטיסיות (אנכית, לכיוון הדף); 0 = כלום */
+    fun swipe(dx: Float, dy: Float, min: Float, barBottom: Boolean): Int {
+        val ax = kotlin.math.abs(dx); val ay = kotlin.math.abs(dy)
+        if (ax >= min && ax > ay * 1.5f) return if (dx < 0) 1 else -1
+        if (ay >= min && ay > ax * 1.5f && (if (barBottom) dy < 0 else dy > 0)) return 2
+        return 0
+    }
+    /** המחוות שפועלות (סיביות): משיכה לרענון, החלקה בין כרטיסיות, גרירה למסך הכרטיסיות */
+    const val G_PULL = 1; const val G_SWIPE = 2; const val G_SWITCHER = 4; const val G_ALL = 7
+
+    /** 17/18 — קבוצות שמורות וסשנים: אוסף כרטיסיות עם שם (או סשן אוטומטי — `auto`) */
+    data class TabSet(val id: String, val name: String, val at: Long, val auto: Boolean, val tabs: List<Pair<String, String>>)
+    const val SESSIONS_MAX = 10
+    const val GROUPS_MAX = 40
+    const val SESSION_GAP = 30 * 60_000L
+    fun setsEncode(l: List<TabSet>): String = org.json.JSONArray().apply {
+        l.forEach { s -> put(org.json.JSONObject().put("id", s.id).put("n", s.name).put("at", s.at).put("a", s.auto)
+            .put("t", org.json.JSONArray().apply { s.tabs.forEach { (u, t) -> put(org.json.JSONArray().put(u).put(t)) } })) }
+    }.toString()
+    fun setsDecode(s: String?): List<TabSet> = runCatching {
+        val a = org.json.JSONArray(s ?: "[]")
+        (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.let { o ->
+            val ta = o.optJSONArray("t") ?: org.json.JSONArray()
+            val tabs = (0 until ta.length()).mapNotNull { j -> ta.optJSONArray(j)?.let { p -> p.optString(0) to p.optString(1) } }.filter { it.first.startsWith("http") }
+            TabSet(o.optString("id"), o.optString("n"), o.optLong("at"), o.optBoolean("a"), tabs).takeIf { it.id.isNotEmpty() && tabs.isNotEmpty() }
+        } }
+    }.getOrDefault(emptyList())
+    /** סשן אוטומטי: אותן כתובות כמו האחרון — רק הזמן; פחות מחצי שעה מהאחרון — מחליף אותו; אחרת סשן חדש. עד 10 סשנים */
+    fun pushSession(l: List<TabSet>, tabs: List<Pair<String, String>>, now: Long, id: () -> String): List<TabSet> {
+        val t = tabs.filter { it.first.startsWith("http") }
+        if (t.isEmpty()) return l
+        val autos = l.filter { it.auto }.sortedByDescending { it.at }
+        val last = autos.firstOrNull()
+        val named = l.filter { !it.auto }
+        val next = when {
+            last != null && last.tabs.map { it.first } == t.map { it.first } -> listOf(last.copy(at = now, tabs = t)) + autos.drop(1)
+            last != null && now - last.at < SESSION_GAP -> listOf(last.copy(at = now, tabs = t)) + autos.drop(1)
+            else -> listOf(TabSet(id(), "", now, true, t)) + autos
+        }
+        return named + next.take(SESSIONS_MAX)
+    }
+    fun saveGroup(l: List<TabSet>, name: String, tabs: List<Pair<String, String>>, now: Long, id: () -> String): List<TabSet> {
+        val t = tabs.filter { it.first.startsWith("http") }
+        if (t.isEmpty() || name.isBlank()) return l
+        val named = l.filter { !it.auto && it.name != name.trim() }
+        return listOf(TabSet(id(), name.trim(), now, false, t)) + named.take(GROUPS_MAX - 1) + l.filter { it.auto }
+    }
+
+    /** 16 — חיסכון בזיכרון: 0 כבוי, 1 מאוזן, 2 מרבי. כמה כרטיסיות חיות מותר, ומתי כרטיסייה ברקע נרדמת (0 = לא לפי זמן) */
+    fun liveCap(base: Int, saver: Int, battery: Boolean): Int = when {
+        saver >= 2 -> 1
+        saver == 1 || battery -> base.coerceAtMost(2)
+        else -> base
+    }.coerceAtLeast(1)
+    fun sleepAfter(saver: Int, battery: Boolean): Long = when {
+        saver >= 2 -> 5 * 60_000L
+        saver == 1 -> 20 * 60_000L
+        battery -> 10 * 60_000L
+        else -> 0L
+    }
+    /** כרטיסייה ברקע שתירדם עכשיו: לא מנגנת, לא על המסך, ועבר הזמן */
+    fun sleepy(idleMs: Long, saver: Int, battery: Boolean, playing: Boolean): Boolean {
+        val after = sleepAfter(saver, battery)
+        return !playing && after > 0 && idleMs >= after
+    }
+
+    /** 74 — מחיקה מהירה: הטווחים (דקות) — 15 דקות (ברירת המחדל), שעה, 24 שעות */
+    val QUICK = listOf(15, 60, 24 * 60)
+    fun since(now: Long, minutes: Int): Long = now - minutes * 60_000L
+
+    /** 37 — צבע לכל משתמש (לפי ת־עיצוב של צבעי פרופילים): הפלטה; ‎-1 = בלי צבע */
+    val USER_COLORS = listOf(0xFF007AFF, 0xFF34C759, 0xFFFF9500, 0xFFAF52DE, 0xFFFF2D55, 0xFF5AC8FA, 0xFFA2845E, 0xFF8E8E93)
+    fun userColor(i: Int): Long? = USER_COLORS.getOrNull(i)
+
+    /** 40 — מצב שולחן: 0 אוטומטי (מסך מ־840dp — טאבלט, DeX, מסך חיצוני), 1 תמיד, 2 אף פעם */
+    fun desk(mode: Int, widthDp: Int): Boolean = when (mode) { 1 -> true; 2 -> false; else -> widthDp >= 840 }
 }
