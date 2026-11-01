@@ -318,7 +318,7 @@ snbTool.postMessage('q:'+i);i++;setTimeout(nx,600)}setTimeout(nx,400)})($arr,$fr
 
     /* ---------- 67 סקריפטים של משתמשים ---------- */
 
-    /** match = רשימת דפוסים מופרדים בפסיק ("ynet.co.il", "*.example.com/news/*"); sensitive = הורשה גם בבנקים ובדפי כניסה */
+    /** match = רשימת דפוסים מופרדים בפסיק ("ynet.co.il", "*.example.com/news/…" — כוכבית בסוף = כל המשך); sensitive = הורשה גם בבנקים ובדפי כניסה */
     data class UScript(val id: String, val name: String, val match: String, val code: String, val on: Boolean = true, val sensitive: Boolean = false)
     const val SCRIPTS_MAX = 40
     const val CODE_MAX = 100_000
