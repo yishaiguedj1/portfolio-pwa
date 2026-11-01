@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1500 מפתחות מתוך 5764) */
+/* המחרוזות של admin (1502 מפתחות מתוך 5766) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -727,6 +727,8 @@ he: {
   "admLiveQ": "מחכה לתשובה של המשתמש",
   "admLiveQueued": "בתור",
   "admLiveRoutine": "במנוי של המשתמש — לא עולה לנו",
+  "admLiveSm": "בדיקה אחרי עדכון",
+  "admLiveSmQ": "מחכה שהשרת יתפנה",
   "admLiveSoFar": "עלה עד עכשיו",
   "admLiveStDone": "הסתיים",
   "admLiveStNow": "עכשיו",
@@ -2229,6 +2231,8 @@ en: {
   "admLiveQ": "Waiting for the user’s answer",
   "admLiveQueued": "Queued",
   "admLiveRoutine": "On the user’s own plan — no cost to us",
+  "admLiveSm": "Post-update check",
+  "admLiveSmQ": "Waiting for the server to free up",
   "admLiveSoFar": "Spent so far",
   "admLiveStDone": "Done",
   "admLiveStNow": "Now",
