@@ -52,7 +52,13 @@ const ok = (c, m) => { assert.ok(c, m); n++; console.log('ok - ' + m); };
     ok(!/if \(run && run\.bg\) continue;/.test(src) && /\(ul \? '\\n' \+ ul : ''\)/.test(src), 'גם בהעלאה ברקע — השורה בהתראה שלנו');
   }
   ok(/function shadeUpBlock\(rec, run, now, curSt\)/.test(src) && /shadeBar\(up, uiLang\(\)\) \+ '  ' \+ Math\.round\(up \* 100\) \+ '%/.test(src) && /shadeUpBlock\(rec, run, now, s\.id\)/.test(src), 'פס ההעלאה — אותו עיצוב כמו פס השלבים');
-  ok(/shadeDir\(\) \+ T\('studioShadeUp'\)/.test(src) && /\\u200F/.test(src) && (app.match(/studioShadeUp: "/g) || []).length === 2 && (app.match(/studioShadeUpOf: "/g) || []).length === 2, 'חלק ההעלאה: שם משלו, כל שורה מימין לשמאל (RLM), בשתי השפות');
+  { const al = src.slice(src.indexOf('function audioLine('), src.indexOf('function uploadLeft('));
+    ok(/studioPerSec/.test(al) && /studioStageLeft/.test(al) && /ph === 'audio' \? audioLine\(run\)/.test(src),
+      '1/11/2026: בדף העבודה — מהירות וזמן שנשאר גם בהעלאת הקול');
+    ok(/run\.phase !== 'video' && run\.phase !== 'audio'/.test(src) && /\(run\.phase === 'audio' \? T\('studioShadeUpA'\) : T\('studioShadeUp'\)\)/.test(src)
+      && (app.match(/studioShadeUpA: "/g) || []).length === 2, '1/11/2026: בווילון — גם הקול: MB ומהירות');
+    ok(/document\.visibilityState === 'hidden'\) utlAdd\(rec, 'vh', b - vLast\)/.test(src), '1/11/2026: מדידה — כמה עלה כשהדף מוסתר (vh)'); }
+  ok(/shadeDir\(\) \+ \(run\.phase === 'audio' \? T\('studioShadeUpA'\) : T\('studioShadeUp'\)\)/.test(src) && /\\u200F/.test(src) && (app.match(/studioShadeUp: "/g) || []).length === 2 && (app.match(/studioShadeUpOf: "/g) || []).length === 2, 'חלק ההעלאה: שם משלו, כל שורה מימין לשמאל (RLM), בשתי השפות');
   ok(/a: shadeIso\(fmtSize\(sent\)\), b: shadeIso\(fmtSize\(size\)\)/.test(src) && /v: shadeIso\(fmtSize\(r\.v\)\)/.test(src) && /'\\u2066' \+ x \+ '\\u2069'/.test(src), 'כל גודל ומהירות מבודדים — הסדר מימין לשמאל נשמר');
   ok(/const body = shadeDir\(\) \+ shadeBar\(p, uiLang\(\)\) \+ '  ' \+ Math\.round\(p \* 100\) \+ '%\\n' \+ shadeDir\(\) \+ T\('studioShadeOf'/.test(src) && /'%\\n' \+ d \+ L\.of/.test(wp), 'כל ההתראה באותו מבנה: פס ואחוז, ואז "שלב 2 מתוך 7" — בדף ובשרתון, מימין לשמאל');
   console.log('# ' + n + ' בדיקות עברו');

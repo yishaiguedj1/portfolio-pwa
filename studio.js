@@ -1627,7 +1627,7 @@ async function pickWithHandle() {
    הצילום של המשתמש: "מוציאים את הקול ושולחים אותו קודם" — 17 דק׳, בזמן שהסרטון המלא עלה אחר כך ב־4–6MB/שנ׳. בלי מדידה
    מהטלפון אי אפשר לדעת אם זה החילוץ, דף מואט ברקע או משהו אחר. רק מספרים (בלי שמות) → op:'upTel' → job.utl.
    **UTL_KEYS זהה ל־UTL_KEYS בשרתון (lib/studio.js)** */
-export const UTL_KEYS = ['c2s', 'ex', 'ab', 'a', 'v', 'vb', 'hid', 'hn', 'rs', 'wt', 'wl', 'wlr', 'nt', 'dl', 'dm', 'hc', 'vf', 'bg', 'dvp', 'dvs', 'dvn'];   // 25/10/2026: dvp/dvs/dvn — המכשיר (devCodes)   // bg — ההעלאה ברקע: 1 הצליחה, 2 חזרה לרגילה, 3 הדפדפן לא תומך
+export const UTL_KEYS = ['c2s', 'ex', 'ab', 'a', 'v', 'vb', 'hid', 'hn', 'rs', 'wt', 'wl', 'wlr', 'nt', 'dl', 'dm', 'hc', 'vf', 'bg', 'dvp', 'dvs', 'dvn', 'vh'];   // 25/10/2026: dvp/dvs/dvn — המכשיר (devCodes)   // bg — ההעלאה ברקע: 1 הצליחה, 2 חזרה לרגילה, 3 הדפדפן לא תומך
 export function normUtl(o) {
   if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
   const out = {};
@@ -1932,7 +1932,11 @@ async function runJob(id, run) {
       start: () => (up.a.done ? tryStart(id) : null),
       upVideo: async (vGate) => {
         utlOf(rec).vb = file.size;
+        // 1/11/2026: כמה בתים עלו כשהדף מוסתר (utl.vh) — מול hid ו־v אומר אם ההעלאה ממשיכה ובאיזה קצב כשהמסך כבוי
+        let vLast = up.v.sent || 0;
         const vProg = (b) => {
+          if (b > vLast && typeof document !== 'undefined' && document.visibilityState === 'hidden') utlAdd(rec, 'vh', b - vLast);
+          vLast = b;
           up.v.sent = b;
           if (run.phase === 'video') { const s = upHi(run, 'v', b); run.sent = s; run.p = s / file.size; tickRate(run, s); }
           paintSoon(); saveSoon();
@@ -2972,6 +2976,16 @@ function videoLine(rec, run) {    // "עלו 1.2GB מתוך 3.2GB · 4.3MB לש�
   else if (run && run.active && run.phase === 'video' && run.rate > 0) {
     parts.push(T('studioPerSec', { v: fmtSize(run.rate) }));
     parts.push(T('studioStageLeft', { t: fmtShort(Math.max(0, size - sent) / run.rate) }));
+  }
+  return parts.join(' · ');
+}
+/* 1/11/2026 (בקשת המשתמש: "גם בהעלאת הקול שתופיע המהירות"): "עלו 64MB מתוך 127MB · 2.1MB לשנייה · עוד 30 שנ׳" — כמו videoLine */
+function audioLine(run) {
+  const sent = run.sent || 0, size = run.total || 0;
+  const parts = [T('studioUpOf', { a: fmtSize(sent), b: fmtSize(size) })];
+  if (run.active && run.rate > 0) {
+    parts.push(T('studioPerSec', { v: fmtSize(run.rate) }));
+    if (size > sent) parts.push(T('studioStageLeft', { t: fmtShort((size - sent) / run.rate) }));
   }
   return parts.join(' · ');
 }
@@ -8653,7 +8667,7 @@ function pageJob(p) {
     nb.textContent = nowLine(r, run, ph);
     const ex = r.srv && r.srv.prog && r.srv.prog.ex;
     ns.textContent = ph === 'extract' ? Math.round(100 * (run.p || 0)) + '%'
-      : ph === 'audio' ? T('studioUpOf', { a: fmtSize(run.sent || 0), b: fmtSize(run.total || 0) })
+      : ph === 'audio' ? audioLine(run)
       : ph === 'video' ? videoLine(r, run) : ph === 'running' && ex ? ex : '';
     ns.hidden = !ns.textContent;
     const up = ph === 'extract' || ph === 'audio' || ph === 'video';
@@ -9480,8 +9494,9 @@ let shadeT = 0;
 /* שורת ההעלאה בהתראה: "עלו 140MB מתוך 520MB · 4.2MB לשנייה". המהירות — מדגימה משלה כל שנייה (ממוצע נע קצר),
    כדי שתגיב מהר יותר מ־run.rate (דגימה כל 2 שנ׳) */
 function shadeUpLine(rec, run, now) {
-  if (!run || !run.active || run.phase !== 'video') { shadeRate.delete(rec.id); return ''; }
-  const sent = run.sent || 0, size = rec.spec.size || run.total || 0;
+  // 1/11/2026 (בקשת המשתמש): גם בהעלאת הקול — כמה MB עלו ובאיזו מהירות, כמו בסרטון
+  if (!run || !run.active || (run.phase !== 'video' && run.phase !== 'audio')) { shadeRate.delete(rec.id); return ''; }
+  const sent = run.sent || 0, size = run.phase === 'audio' ? run.total || 0 : rec.spec.size || run.total || 0;
   let r = shadeRate.get(rec.id);
   if (!r || sent < r.b) { r = { t: now, b: sent, v: run.rate || 0 }; shadeRate.set(rec.id, r); }
   else if (now - r.t >= 900) { const v = (sent - r.b) / ((now - r.t) / 1000); r.v = r.v ? r.v * 0.5 + v * 0.5 : v; r.t = now; r.b = sent; }
@@ -9500,9 +9515,9 @@ const shadeIso = (x) => (uiLang() === 'en' ? x : '\u2066' + x + '\u2069');
 function shadeUpBlock(rec, run, now, curSt) {
   const ln = shadeUpLine(rec, run, now);
   if (!ln) return '';
-  if (curSt === 'up') return ln;
-  const size = rec.spec.size || run.total || 0, up = size > 0 ? Math.max(0, Math.min(1, (run.sent || 0) / size)) : 0;
-  return shadeDir() + T('studioShadeUp') + '\n' + shadeDir() + shadeBar(up, uiLang()) + '  ' + Math.round(up * 100) + '%\n' + ln;
+  if (curSt === 'up') return ln;   // הקול = השלב הראשון: הפס של השלב כבר שלו
+  const size = run.phase === 'audio' ? run.total || 0 : rec.spec.size || run.total || 0, up = size > 0 ? Math.max(0, Math.min(1, (run.sent || 0) / size)) : 0;
+  return shadeDir() + (run.phase === 'audio' ? T('studioShadeUpA') : T('studioShadeUp')) + '\n' + shadeDir() + shadeBar(up, uiLang()) + '  ' + Math.round(up * 100) + '%\n' + ln;
 }
 /* 27/10/2026: עבודה שכבר לא רצה (בוטלה, נגמרה בלי שהתראת הסוף הגיעה) — התראת השלב נסגרת (sw.js מחזיר רק כשהמשתמש סגר) */
 function shadeEnd(id) {
