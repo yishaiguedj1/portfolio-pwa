@@ -2230,7 +2230,7 @@ const kaJob = (id) => !!(store && store.jobs && store.jobs.some((r) => r && r.id
    דפי המשנה שלו) החוגה כולה ירדה. עכשיו המגדל אח בחוגה: ההורה = הבית, כמו הקריוקי והעבודה */
 export function chainFor(v, p) {
   if ((v === 'lang' && p !== 'def') || v === 'tracks' || v === 'link' || v === 'linkfmt' || v === 'linksec' || v === 'fmthelp' || v === 'grab' || v === 'cutsrc' || v === 'dpick') { v = 'new'; p = form && form.ka ? 'ka' : null; }   // הטופס (והקובץ) לא שורדים רענון; 30/10: טופס של שיר — תחת הקריוקי
-  const parent = (x, y) => (x === 'home' ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : x === 'tower' ? ['home', null] : (x === 'lang' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'towerx' || x === 'rlb' || x === 'rlm' ? ['tower', null] : x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['towerx', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : x === 'vids' ? (vidsParent(y) || ['store', null]) : x === 'kasty' ? ['new', 'ka'] : (x === 'new' && y === 'ka') || (x === 'job' && kaJob(y)) ? ['ka', null] : ['home', null]);   // 30/10: שיר — תחת הקריוקי
+  const parent = (x, y) => (x === 'home' ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : x === 'tower' ? ['home', null] : (x === 'lang' || x === 'guide' || x === 'credits' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'towerx' || x === 'rlb' || x === 'rlm' ? ['tower', null] : x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['towerx', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : x === 'vids' ? (vidsParent(y) || ['store', null]) : x === 'kasty' ? ['new', 'ka'] : (x === 'new' && y === 'ka') || (x === 'job' && kaJob(y)) ? ['ka', null] : ['home', null]);   // 30/10: שיר — תחת הקריוקי
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -8949,6 +8949,28 @@ function pageGuide(p) {
   sec(T('studioGd4'), T('studioGd4a'));
   sec(T('studioGd5'), T('studioGd5a'));
 }
+/* 01/11/2026 (שדרוג הסטודיו, Z1): הייחוס שהרישיונות דורשים (CC-BY: ‏Parakeet, ‏DictaBERT, ‏WeSpeaker) — וכל המודלים
+   הפתוחים שהעובד מריץ. מודל חדש בעובד = שורה כאן (tests/studio-credits.test.js). */
+const CREDITS = [
+  ['studioCrAsr', 'Parakeet TDT 0.6B v2', 'NVIDIA', 'CC-BY-4.0'],
+  ['studioCrAlign', 'Qwen3-ForcedAligner', 'Qwen', 'Apache-2.0'],
+  ['studioCrAlign', 'MMS_FA (torchaudio)', 'Meta', 'CC-BY-NC-4.0'],
+  ['studioCrParse', 'DictaBERT tiny joint', 'Dicta', 'CC-BY-4.0'],
+  ['studioCrHe', 'whisper-large-v3-turbo', 'ivrit.ai', 'Apache-2.0'],
+  ['studioCrHe', 'wav2vec2-large-xlsr-53-hebrew', 'imvladikon', 'Apache-2.0'],
+  ['studioCrSep', 'MelBand Roformer', 'Kim', 'MIT'],
+  ['studioCrSpk', 'WeSpeaker', 'WeNet', 'CC-BY-4.0'],
+  ['studioCrFace', 'YuNet', 'OpenCV Zoo', 'MIT'],
+  ['studioCrOcr', 'PP-OCRv3', 'PaddlePaddle', 'Apache-2.0'],
+];
+function pageCredits(p) {
+  p.append(navBar({ back: T('studioSettings') }), large(T('studioCredits')), note(T('studioCreditsN')));
+  const rows = CREDITS.map(([role, name, by, lic]) => {
+    const v = h('span'); v.append(h('bdi', null, name + ' · ' + by), h('small', null, lic));
+    return kvRow(T(role), v, true);
+  });
+  p.append(setCard('', list(...rows)));
+}
 /* כרטיס בעמוד ההגדרות — כמו בהגדרות של Invest (.card מ־styles.css): כותרת בתוך הכרטיס, השורות בלי רקע משלהן */
 /* 25/10/2026 (בקשת המשתמש — לפי ת־עיצוב): הכותרת קטנה ואפורה מעל הקבוצה, והקבוצה עצמה היא הכרטיס (עד היום — כרטיס עם
    כותרת גדולה בפנים, ובתוכו עוד רשימה עם רקע משלה: כרטיס בתוך כרטיס) */
@@ -8991,7 +9013,8 @@ function pageSettings(p) {
   p.append(setCard(T('studioGrpGen'), list(
     srow,
     rowNav({ tile: tile('bell', 'red'), label: T('studioSecPush'), value: pushOnNow ? T('studioOnShort') : T('studioOffShort'), onClick: () => go('push'), k: 'push' }),
-    rowNav({ tile: tile('help', 'blue'), label: T('studioGuide'), onClick: () => go('guide'), k: 'guide' }))));   // מ9: מדריך קצר
+    rowNav({ tile: tile('help', 'blue'), label: T('studioGuide'), onClick: () => go('guide'), k: 'guide' }),   // מ9: מדריך קצר
+    rowNav({ tile: tile('shield', 'gray'), label: T('studioCredits'), onClick: () => go('credits'), k: 'credits' }))));   // Z1: ייחוס
   p.append(setCard(T('studioLrnGrp'), list(lrnRow(), lrnForgetRow())));   // 25/10/2026: מאגר הלמידה — קבוצה משלו
   if (C) p.append(C.display(), C.advRow(() => go('adv')));
 }
@@ -9642,6 +9665,7 @@ function render(kind, still, pre) {     // kind: none (ציור מחדש במק�
   else if (ui.view === 'ai') pageAi(p);               // מ7: גיליון ה־AI
   else if (ui.view === 'ideas') pageIdeas(p);         // מ8: רעיונות
   else if (ui.view === 'guide') pageGuide(p);         // מ9: מדריך
+  else if (ui.view === 'credits') pageCredits(p);     // Z1: מודלים ורישיונות
   else if (ui.view === 'adv') pageAdvanced(p);       // אפשרויות מתקדמות (כמו ב־Invest)
   else if (ui.view === 'cutsrc') pageCut(p, true);    // מ4: חיתוך לפני התרגום
   else if (ui.view === 'tracks') pageTracks(p);      // שלב 4: כתוביות בתוך הסרטון
