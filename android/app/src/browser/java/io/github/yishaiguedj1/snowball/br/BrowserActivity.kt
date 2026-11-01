@@ -32,6 +32,8 @@ import android.os.SystemClock
 import android.util.Rational
 import android.provider.Settings
 import android.speech.RecognizerIntent
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.view.textclassifier.TextClassifier
@@ -88,9 +90,9 @@ import io.github.yishaiguedj1.snowball.dm.DmStore
  * כך שהעוגיות של האתרים לא יוצאות מהאפליקציה. הממשק — BrUi.kt.
  */
 class BrowserActivity : ComponentActivity() {
-    enum class Screen { PAGE, SWITCHER, HISTORY, BOOKMARKS, SETTINGS, ENGINE, PASSWORDS, PRIVACY, BARPOS, IMPORT, CHROME, SITES, SITE, VIDEO, CLOUD, RECENT, USERS }
+    enum class Screen { PAGE, SWITCHER, HISTORY, BOOKMARKS, SETTINGS, ENGINE, PASSWORDS, PRIVACY, BARPOS, IMPORT, CHROME, SITES, SITE, VIDEO, CLOUD, RECENT, USERS, LAB, TASKS, GROUPS, TOOLBAR, GESTURES, PERF, NTPSET, KEYS }
     /** עמודי המשנה של ההגדרות — "חזור" מהם חוזר להגדרות, לא לדף (אתר אחד — חוזר לרשימת האתרים) */
-    private val settingsSubs = setOf(Screen.ENGINE, Screen.PASSWORDS, Screen.PRIVACY, Screen.BARPOS, Screen.IMPORT, Screen.CHROME, Screen.SITES, Screen.VIDEO, Screen.CLOUD, Screen.USERS)
+    private val settingsSubs = setOf(Screen.ENGINE, Screen.PASSWORDS, Screen.PRIVACY, Screen.BARPOS, Screen.IMPORT, Screen.CHROME, Screen.SITES, Screen.VIDEO, Screen.CLOUD, Screen.USERS, Screen.LAB, Screen.TOOLBAR, Screen.GESTURES, Screen.PERF, Screen.NTPSET, Screen.KEYS)
     data class PermAsk(val host: String, val kind: Int, val go: (Boolean) -> Unit)   // kind: 1 מצלמה, 2 מיקרופון, 3 שניהם, 4 מיקום
 
     val tabs = mutableStateListOf<BrTab>()
@@ -135,6 +137,38 @@ class BrowserActivity : ComponentActivity() {
     /** האתר שפתוח במסך "הגדרות האתר" */
     var siteHost by mutableStateOf("")
     var sitesRev by mutableIntStateOf(0)
+    /* Pro — הגל הראשון (01/11/2026, BrPro): לחיצה ארוכה, נסגרו לאחרונה, כלי מפתחים, מעבדה */
+    /** לחיצה ארוכה על קישור / תמונה — הגיליון עם כל הפעולות (לפי ת־עיצוב של התפריט בלחיצה ימנית במחשב) */
+    data class Ctx(val tab: BrTab, val link: String?, val img: String?, val text: String)
+    /** כרטיסייה שנסגרה — חוזרת עם מחסנית "חזור" שלה */
+    data class Closed(val url: String, val title: String, val state: Bundle?, val pinned: Boolean, val at: Long)
+    var ctx by mutableStateOf<Ctx?>(null)
+    val closed = mutableStateListOf<Closed>()
+    var devSheet by mutableStateOf(false)
+    var heFix by mutableStateOf(true)
+    var cleanCopy by mutableStateOf(true)
+
+    /* ---- הגל השני (01/11/2026): כרטיסיות, שורת הכתובת ונוחות ---- */
+    /** 13 מסך מפוצל: הכרטיסייה השנייה שעל המסך (לא הפעילה); splitFirst = הפעילה בחלון הראשון (למעלה / בהתחלה) */
+    var split by mutableStateOf<BrTab?>(null)
+    var splitFirst by mutableStateOf(true)
+    var splitPick by mutableStateOf(false)
+    /** 14 תצוגה מקדימה לקישור (מהלחיצה הארוכה) */
+    var preview by mutableStateOf<String?>(null)
+    var quickAsk by mutableStateOf(false)
+    /** 35 הסרגל, 39 המחוות, 16 החיסכון, 40 מצב שולחן, 19 פס הכרטיסיות, 36 הכרטיסייה החדשה, 37 צבע המשתמש */
+    var tools by mutableStateOf(BrPro.TOOLS_DEFAULT)
+    var gest by mutableIntStateOf(BrPro.G_ALL)
+    var saver by mutableIntStateOf(0)
+    var battery by mutableStateOf(true)
+    var desk by mutableIntStateOf(0)
+    var strip by mutableStateOf(false)
+    var ntpShow by mutableIntStateOf(15)
+    var ucolor by mutableIntStateOf(-1)
+    /** 17/18 קבוצות שמורות וסשנים */
+    var sets by mutableStateOf<List<BrPro.TabSet>>(emptyList())
+    var tasksRev by mutableIntStateOf(0)
+
     /** ההגדרות לכל אתר — מתחלף כולו בכל שינוי (נקרא גם מהת׳רד של הרשת) */
     @Volatile var rules: Map<String, BrShield.SiteRule> = emptyMap()
 
@@ -183,9 +217,12 @@ class BrowserActivity : ComponentActivity() {
         barBottom = prefs.barBottom; homeBtn = prefs.homeBtn; engine = prefs.engine; bubble = prefs.bubble
         suggestOn = prefs.suggest; zoom = prefs.zoom; lastImport = prefs.lastImport
         shield = prefs.shield; cookies = prefs.cookies; lockPriv = prefs.lockPriv; bgPlay = prefs.bgPlay; pip = prefs.pip
-        rules = BrShield.decode(prefs.sites)
+        rules = BrShield.decode(prefs.sites); heFix = prefs.heFix; cleanCopy = prefs.cleanCopy
+        tools = BrPro.tools(prefs.tools); gest = prefs.gest; saver = prefs.saver; battery = prefs.battery; desk = prefs.desk; strip = prefs.strip
+        ntpShow = prefs.ntp; ucolor = BrUsers.color(this)
         BrStore.init(this)
         BrPics.init(this)
+        sets = BrStore.loadSets()
         BrMedia.onCmd = { play -> ui.post { mediaCmd(play) } }
         initCloud()
         BrChrome.init(this); BrChrome.attach(this)
@@ -197,7 +234,7 @@ class BrowserActivity : ComponentActivity() {
         if (privOk) runCatching { ProfileStore.getInstance().deleteProfile(PRIV) }
         val (saved, at) = BrStore.loadTabs()
         // כל טאב חוזר עם מחסנית "חזור"/"קדימה" שלו (BrStore.loadState) ועם הכרטיסייה שפתחה אותו — לפי ת־עיצוב, גם אחרי סגירה ברקע
-        val restored = saved.mapIndexed { i, r -> BrTab(nextId++, r.url, r.title, false).also { it.ntpBack = r.nb; it.state = BrStore.loadState(i) } }
+        val restored = saved.mapIndexed { i, r -> BrTab(nextId++, r.url, r.title, false).also { it.born = 0L; it.ntpBack = r.nb; it.pinned = r.pin; it.state = BrStore.loadState(i) } }
         saved.forEachIndexed { i, r -> if (r.p in restored.indices && r.p != i) restored[i].parent = restored[r.p].id }
         tabs.addAll(restored)
         // התמונות של הטאבים — ברקע, לא לפני המסך הראשון (50 טאבים = עשרות MB ופענוח בתהליכון הראשי)
@@ -214,7 +251,7 @@ class BrowserActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); handle(intent) }
     override fun onResume() {
         super.onResume(); checkDefault(); checkFill(); cur?.web?.onResume(); BrChrome.sync(this); ui.postDelayed(chromeTick, CHROME_EVERY)
-        BrCloud.foreground(true); ui.postDelayed(measureTick, MEASURE_EVERY)
+        BrCloud.foreground(true); ui.postDelayed(measureTick, MEASURE_EVERY); ui.postDelayed(sleepTick, SLEEP_EVERY)
         // חזרה מניגון ברקע — הדף שוב יודע שהוא מוצג, והשירות נעצר
         if (bgOn) { bgOn = false; runCatching { bgTab?.web?.evaluateJavascript(BrShield.bgJs(false), null) }; bgTab = null; BrMedia.stop(this) }
         if (privLocked && showsPrivate()) unlockPriv()
@@ -225,7 +262,7 @@ class BrowserActivity : ComponentActivity() {
     /** כל עוד האפליקציה פתוחה — סנכרון עם Chrome כל כמה דקות (התוסף במחשב מסנכרן בקצב דומה) */
     private val chromeTick: Runnable = Runnable { BrChrome.sync(this); ui.postDelayed(chromeTick, CHROME_EVERY) }
     override fun onPause() {
-        ui.removeCallbacks(chromeTick); ui.removeCallbacks(measureTick)
+        ui.removeCallbacks(chromeTick); ui.removeCallbacks(measureTick); ui.removeCallbacks(sleepTick)
         // הסנכרון בענן: המקום המדויק בכרטיסייה, ואז הכל עולה מיד (המכשיר השני יכול להמשיך מכאן)
         cur?.let { measure(it) }
         ui.postDelayed({ BrCloud.foreground(false) }, 300)
@@ -348,7 +385,7 @@ class BrowserActivity : ComponentActivity() {
     private fun reloadPrefs() {
         barBottom = prefs.barBottom; homeBtn = prefs.homeBtn; engine = prefs.engine; bubble = prefs.bubble
         suggestOn = prefs.suggest; shield = prefs.shield; cookies = prefs.cookies; bgPlay = prefs.bgPlay; pip = prefs.pip
-        rules = BrShield.decode(prefs.sites); sitesRev++
+        rules = BrShield.decode(prefs.sites); heFix = prefs.heFix; cleanCopy = prefs.cleanCopy; sitesRev++
         if (zoom != prefs.zoom) { zoom = prefs.zoom; tabs.forEach { t -> runCatching { t.web?.settings?.textZoom = zoom } } }
     }
 
@@ -359,6 +396,12 @@ class BrowserActivity : ComponentActivity() {
         runCatching { w.evaluateJavascript(BrCloudJs.MEASURE) { r -> BrCloudJs.parse(r)?.let { (sc, tx, mt) -> t.sc = sc; t.tx = tx; t.mt = mt } } }
     }
     private val measureTick: Runnable = Runnable { cur?.let { measure(it) }; ui.postDelayed(measureTick, MEASURE_EVERY) }
+    /** 16 חיסכון בזיכרון ובסוללה: כל דקה — כרטיסייה ברקע שלא נגעת בה מספיק זמן נרדמת (המצב נשמר, חוזרת לאותו מקום) */
+    private val sleepTick: Runnable = Runnable {
+        val now = SystemClock.uptimeMillis(); val b = batterySaving()
+        tabs.filter { it.web != null && it !== cur && it !== split && BrPro.sleepy(now - it.used, saver, b, it.playing) }.forEach { sleep(it) }
+        ui.postDelayed(sleepTick, SLEEP_EVERY)
+    }
 
     /** כרטיסייה ממכשיר אחר — כרטיסייה חדשה, וכשהדף נטען חוזרים בדיוק לאותו מקום (ובסרטון — לאותו רגע) */
     fun openRemote(st: BrCloudCore.STab) {
@@ -450,12 +493,15 @@ class BrowserActivity : ComponentActivity() {
 
     private fun saveSession() {
         val pub = tabs.filter { !it.private && it.url.startsWith("http") }
-        BrStore.saveTabs(pub.map { t -> BrTabRec(t.url, t.title, t.ntpBack, pub.indexOfFirst { it.id == t.parent }) }, pub.indexOf(cur).coerceAtLeast(0))
+        BrStore.saveTabs(pub.map { t -> BrTabRec(t.url, t.title, t.ntpBack, pub.indexOfFirst { it.id == t.parent }, t.pinned) }, pub.indexOf(cur).coerceAtLeast(0))
         // מחסנית "חזור"/"קדימה" של כל טאב — שורדת סגירה של האפליקציה ברקע (חי: עכשיו; שוחרר: המצב שנשמר כששוחרר)
         BrStore.saveStates(pub.map { t -> t.web?.let { w -> runCatching { Bundle().also { w.saveState(it) } }.getOrNull() } ?: t.state ?: t.lastState })
         cur?.takeIf { !it.private }?.let { snap(it) }
         if (blkNew > 0) { prefs.blockedAll = prefs.blockedAll + blkNew; blkNew = 0 }
         BrPics.keepThumbs(pub.map { it.url })
+        // 18 סשנים: התמונה של הכרטיסיות הרגילות — אותו סשן עד חצי שעה, אחר כך סשן חדש (עד 10)
+        val ns = BrPro.pushSession(sets, pub.map { it.url to it.title }, System.currentTimeMillis()) { setId() }
+        if (ns != sets) { sets = ns; BrStore.saveSets(ns) }
         BrStore.saveNow()
     }
 
@@ -484,6 +530,7 @@ class BrowserActivity : ComponentActivity() {
 
     fun newTab(url: String, private: Boolean = false, fromApp: Boolean = false, after: BrTab? = null): BrTab {
         val t = BrTab(nextId++, "", "", private && privOk, fromApp)
+        if (deskNow()) t.desktop = true   // 40 מצב שולחן: גרסת המחשב של האתרים, לפי ת־עיצוב בטאבלטים
         val i = after?.let { tabs.indexOf(it) + 1 } ?: tabs.size
         tabs.add(i.coerceIn(0, tabs.size), t)
         select(t)
@@ -493,28 +540,40 @@ class BrowserActivity : ComponentActivity() {
 
     fun select(t: BrTab) {
         val old = cur
-        if (old != null && old !== t) { snap(old); measure(old); old.web?.onPause() }
+        if (t === split) split = null   // הכרטיסייה השנייה נבחרה — ממשיכים בה במסך מלא
+        // במסך מפוצל הכרטיסייה השנייה נשארת על המסך — לא משהים אותה
+        if (old != null && old !== t) { snap(old); measure(old); if (old !== split) old.web?.onPause() }
         if (old !== t) { t.la = System.currentTimeMillis(); BrCloud.nudge(4000) }
         cur = t
         t.used = SystemClock.uptimeMillis()
-        // טאב ששוחזר / שהשתחרר: עם מצב שמור — חוזר לאותו מקום; בלי — טוען את הכתובת מחדש
+        wake(t)
+        trim()
+        finding = false
+    }
+
+    /** טאב ששוחזר / שהשתחרר: עם מצב שמור — חוזר לאותו מקום; בלי — טוען את הכתובת מחדש */
+    private fun wake(t: BrTab) {
         if (t.web == null && (t.state != null || t.url.startsWith("http"))) {
             val fresh = t.state == null
             val w = ensureWeb(t)
             if (fresh) w.loadUrl(t.url)
         }
         t.web?.onResume()
-        trim()
-        finding = false
     }
 
     fun close(t: BrTab) {
         val i = tabs.indexOf(t)
         if (i < 0) return
+        if (t === split) { split = null; t.web?.onPause() }
+        // מסך מפוצל: סוגרים את החלון הפעיל — השני ממלא את המסך
+        val other = if (cur === t) split else null
+        if (other != null) split = null
+        keepClosed(t)
         kill(t.web)
         t.web = null
         tabs.removeAt(i)
         if (t.private && tabs.none { it.private } && privOk) ui.postDelayed({ runCatching { ProfileStore.getInstance().deleteProfile(PRIV) } }, 300)
+        if (other != null && other in tabs) { select(other); return }
         if (cur === t) {
             val same = tabs.filter { it.private == t.private }
             when {
@@ -526,16 +585,64 @@ class BrowserActivity : ComponentActivity() {
     }
 
     fun closeAll(private: Boolean) {
-        tabs.filter { it.private == private }.forEach { kill(it.web); it.web = null }
-        tabs.removeAll { it.private == private }
+        // כרטיסייה נעוצה לא נסגרת ב"סגירת הכל" (לפי ת־עיצוב של כרטיסיות נעוצות במחשב)
+        val gone = tabs.filter { it.private == private && !it.pinned }
+        if (split in gone) split = null
+        gone.asReversed().forEach { keepClosed(it) }
+        gone.forEach { kill(it.web); it.web = null }
+        tabs.removeAll { it in gone }
         if (private && privOk) ui.postDelayed({ runCatching { ProfileStore.getInstance().deleteProfile(PRIV) } }, 300)
         if (tabs.isEmpty()) { newTab(""); return }
         if (cur?.let { it in tabs } != true) select(tabs.last())
     }
 
+    /* ---------------- Pro: נסגרו לאחרונה, נעוצות, שכפול ---------------- */
+
+    /** כרטיסייה רגילה שנסגרת — לראש "נסגרו לאחרונה" (עד 25), עם מחסנית "חזור" שלה. פרטית — אף פעם */
+    private fun keepClosed(t: BrTab) {
+        if (t.private || !t.url.startsWith("http")) return
+        val st = t.web?.let { w -> runCatching { Bundle().also { w.saveState(it) } }.getOrNull() } ?: t.state ?: t.lastState
+        closed.removeAll { it.url == t.url }
+        closed.add(0, Closed(t.url, t.title, st, t.pinned, System.currentTimeMillis()))
+        while (closed.size > 25) closed.removeAt(closed.size - 1)
+    }
+
+    /** פתיחה מחדש (ברירת המחדל — האחרונה שנסגרה), במקום שלה בסוף הרשימה */
+    fun reopen(c: Closed? = closed.firstOrNull()) {
+        c ?: return
+        closed.remove(c)
+        val t = BrTab(nextId++, c.url, c.title, false)
+        t.state = c.state; t.pinned = c.pinned
+        tabs.add(if (c.pinned) tabs.count { it.pinned && !it.private } else tabs.size, t)
+        select(t); screen = Screen.PAGE
+    }
+
+    /** נעיצה: הנעוצות תמיד ראשונות (בסדר שננעצו), השאר אחריהן באותו סדר */
+    fun togglePin(t: BrTab) {
+        if (t.private) return
+        t.pinned = !t.pinned
+        val order = tabs.filter { it.pinned && !it.private } + tabs.filter { !(it.pinned && !it.private) }
+        tabs.clear(); tabs.addAll(order)
+    }
+
+    /** שכפול — אותו דף עם אותה מחסנית "חזור", מיד אחרי המקורית */
+    fun duplicate(t: BrTab) {
+        val st = t.web?.let { w -> runCatching { Bundle().also { w.saveState(it) } }.getOrNull() } ?: t.state
+        val n = BrTab(nextId++, t.url, t.title, t.private)
+        n.state = st; n.parent = t.parent
+        tabs.add(tabs.indexOf(t) + 1, n)
+        select(n); screen = Screen.PAGE
+    }
+
+    /** סגירת כל האחרות מאותו סוג (הנעוצות נשארות) */
+    fun closeOthers(t: BrTab) { tabs.filter { it !== t && it.private == t.private && !it.pinned }.forEach { close(it) } }
+
+    /** "מעבר לכרטיסייה" משורת הכתובת */
+    fun switchTo(t: BrTab) { editing = false; select(t); screen = Screen.PAGE }
+
     /** טאבים חיים מעבר ל־liveMax — שומרים את המצב ומשחררים את ה־WebView (לפי ת־עיצוב בטלפון). `keep` = כמה חיים מלבד הנוכחי */
-    private fun trim(keep: Int = liveMax - 1) {
-        val live = tabs.filter { it.web != null && it !== cur }.sortedByDescending { it.used }
+    private fun trim(keep: Int = liveCap() - 1) {
+        val live = tabs.filter { it.web != null && it !== cur && it !== split }.sortedByDescending { it.used }
         for (t in live.drop(keep)) {
             val b = Bundle(); runCatching { t.web?.saveState(b) }; t.state = b
             kill(t.web); t.web = null
@@ -617,10 +724,187 @@ class BrowserActivity : ComponentActivity() {
         if (i in same.indices) select(same[i])
     }
 
+    /* ---------------- הגל השני: מסך מפוצל, שינה, קבוצות וסשנים, מחיקה מהירה ---------------- */
+
+    /** 16: כמה חיות מותר עכשיו — לפי הזיכרון של המכשיר, החיסכון שבחרת, וחיסכון הסוללה של הטלפון */
+    fun liveCap(): Int = BrPro.liveCap(liveMax, saver, batterySaving())
+    fun liveBase(): Int = liveMax
+    fun batterySaving(): Boolean = battery && runCatching { (getSystemService(POWER_SERVICE) as android.os.PowerManager).isPowerSaveMode }.getOrDefault(false)
+    /** להרדים כרטיסייה ברקע (מנהל המשימות / החיסכון): המצב נשמר, ה־WebView משתחרר */
+    fun sleep(t: BrTab) {
+        if (t === cur || t === split || t.web == null) return
+        val b = Bundle(); runCatching { t.web?.saveState(b) }; t.state = b
+        kill(t.web); t.web = null; tasksRev++
+    }
+    fun sleepAll() { tabs.toList().forEach { sleep(it) } }
+    fun pickSaver(v: Int) { saver = v.coerceIn(0, 2); prefs.saver = saver; trim() }
+    fun pickBattery(b: Boolean) { battery = b; prefs.battery = b; trim() }
+
+    /** 40: מצב שולחן — מסך רחב (טאבלט, DeX, מסך חיצוני) או לפי הבחירה */
+    fun deskNow(): Boolean = BrPro.desk(desk, resources.configuration.screenWidthDp)
+    fun pickDesk(v: Int) { desk = v; prefs.desk = v }
+    fun pickStrip(b: Boolean) { strip = b; prefs.strip = b }
+    fun pickTools(l: List<String>) { tools = l; prefs.tools = BrPro.toolsEncode(l) }
+    fun pickGest(v: Int) { gest = v; prefs.gest = v }
+    fun pickNtp(v: Int) { ntpShow = v; prefs.ntp = v }
+    fun pickUserColor(i: Int) { ucolor = i; BrUsers.setColor(this, i); usersRev++ }
+
+    /** 13: הכרטיסיות שאפשר לפתוח בחלון השני (מאותו סוג, עם דף) */
+    fun splitCands(): List<BrTab> = tabs.filter { it !== cur && it.private == (cur?.private == true) && it.url.startsWith("http") }
+    fun toggleSplit() { menu = false; if (split != null) endSplit() else if (splitCands().isEmpty()) startSplit(null) else splitPick = true }
+    /** פתיחה במסך מפוצל: עם כרטיסייה קיימת — בחלון השני; בלי — כרטיסייה חדשה בחלון השני, והיא הפעילה (להקלדה) */
+    fun startSplit(o: BrTab?) {
+        val c = cur ?: return
+        splitPick = false; menu = false; screen = Screen.PAGE
+        if (o != null) { split = o; splitFirst = true; o.used = SystemClock.uptimeMillis(); wake(o); trim(); return }
+        val n = BrTab(nextId++, "", "", c.private && privOk)
+        tabs.add(tabs.indexOf(c) + 1, n)
+        split = c; splitFirst = false
+        select(n); editing = true
+    }
+    /** נגיעה בחלון השני — הוא הפעיל (שורת הכתובת, ⋮, "חזור"); החלונות נשארים במקום */
+    fun focusSplit() {
+        val o = split ?: return
+        val c = cur ?: return
+        split = c; splitFirst = !splitFirst; editing = false; finding = false
+        select(o)
+    }
+    fun endSplit() { split?.web?.onPause(); split = null; trim() }
+
+    /** 17/18: קבוצה שמורה / סשן — נפתחות ככרטיסיות חדשות (נטענות רק כשבוחרים בהן) */
+    fun setId(): String = java.lang.Long.toString(System.nanoTime() xor (System.currentTimeMillis() shl 20), 36).takeLast(10)
+    fun saveGroup(name: String) {
+        val pub = tabs.filter { !it.private && it.url.startsWith("http") }
+        sets = BrPro.saveGroup(sets, name, pub.map { it.url to it.title }, System.currentTimeMillis()) { setId() }
+        BrStore.saveSets(sets)
+        Toast.makeText(this, R.string.brGroupSaved, Toast.LENGTH_SHORT).show()
+    }
+    fun openSet(s: BrPro.TabSet) {
+        if (s.tabs.isEmpty()) return
+        val added = s.tabs.map { (u, ti) -> BrTab(nextId++, u, ti, false) }
+        tabs.addAll(added)
+        screen = Screen.PAGE; select(added.first())
+    }
+    fun deleteSet(s: BrPro.TabSet) { sets = sets.filter { it.id != s.id }; BrStore.saveSets(sets) }
+
+    /** 74 מחיקה מהירה (לפי ת־עיצוב): ההיסטוריה של הטווח, הכרטיסיות שנפתחו בו (לא נעוצות), "נסגרו לאחרונה" והמטמון */
+    fun quickDelete(minutes: Int) {
+        quickAsk = false; menu = false
+        val since = BrPro.since(System.currentTimeMillis(), minutes)
+        val vis = BrStore.history.filter { it.at >= since }
+        vis.forEach { BrStore.removeVisit(it) }
+        closed.removeAll { it.at >= since }
+        val gone = tabs.filter { !it.private && !it.pinned && it.born >= since }
+        if (split in gone) split = null
+        gone.forEach { kill(it.web); it.web = null }
+        tabs.removeAll(gone)
+        runCatching { tabs.firstNotNullOfOrNull { it.web }?.clearCache(true) }
+        sets = sets.filter { !(it.auto && it.at >= since) }; BrStore.saveSets(sets)
+        when {
+            tabs.none { !it.private } -> newTab("")
+            cur?.let { it in tabs } != true -> select(tabs.last { !it.private })
+        }
+        markRev++
+        Toast.makeText(this, getString(R.string.brQuickDone, vis.size, gone.size), Toast.LENGTH_LONG).show()
+    }
+
+    /** 14 תצוגה מקדימה: WebView קטן לקישור, באותו פרופיל של הכרטיסייה (פרטית — בפרופיל הפרטי), בלי חלונות ובלי הורדות */
+    @SuppressLint("SetJavaScriptEnabled")
+    fun previewWeb(priv: Boolean, onUrl: (String) -> Unit, onTitle: (String) -> Unit): WebView {
+        val w = WebView(this)
+        if (priv && privOk) runCatching { ProfileStore.getInstance().getOrCreateProfile(PRIV); WebViewCompat.setProfile(w, PRIV) }
+        else userProfile()?.let { p -> runCatching { WebViewCompat.setProfile(w, p.name) } }
+        val s = w.settings
+        s.javaScriptEnabled = true; s.domStorageEnabled = true; s.allowFileAccess = false; s.allowContentAccess = false
+        s.mediaPlaybackRequiresUserGesture = true; s.loadWithOverviewMode = true; s.useWideViewPort = true; s.textZoom = zoom
+        w.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView, req: WebResourceRequest): Boolean = req.url.scheme?.lowercase() !in setOf("http", "https")
+            override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) { onUrl(url) }
+        }
+        w.webChromeClient = object : WebChromeClient() { override fun onReceivedTitle(view: WebView, title: String?) { if (!title.isNullOrEmpty()) onTitle(title) } }
+        return w
+    }
+    fun previewOpen(url: String) {
+        val t = cur; preview = null
+        if (url.startsWith("http")) newTab(url, private = t?.private == true, after = t).parent = t?.id ?: -1L
+    }
+    fun previewKill(w: WebView) { kill(w) }
+
+    /** 38 מקלדת אמיתית: הקיצורים של הדפדפנים במחשב (BrPro.shortcut). Ctrl+C/V/A/Z — נשארים לדף ולשדות */
+    override fun dispatchKeyEvent(e: KeyEvent): Boolean {
+        if (e.action == KeyEvent.ACTION_DOWN && e.repeatCount == 0) {
+            val id = BrPro.shortcut(e.keyCode, e.isCtrlPressed, e.isShiftPressed, e.isAltPressed)
+            if (id != null && keyCmd(id)) return true
+        }
+        return super.dispatchKeyEvent(e)
+    }
+    fun keyCmd(id: String): Boolean {
+        val t = cur
+        val web = t?.url?.startsWith("http") == true
+        when {
+            id == "newtab" -> { screen = Screen.PAGE; newTab("", private = t?.private == true) }
+            id == "private" -> { if (!privOk) return false; screen = Screen.PAGE; newTab("", private = true) }
+            id == "close" -> { if (t == null || screen != Screen.PAGE) return false; close(t) }
+            id == "reopen" -> { if (closed.isEmpty()) return false; reopen() }
+            id == "next" || id == "prev" -> cycleTab(if (id == "next") 1 else -1)
+            id.startsWith("tab") -> {
+                val same = tabs.filter { it.private == (t?.private == true) }
+                val n = id.removePrefix("tab").toIntOrNull() ?: return false
+                val pick = if (n == 9) same.lastOrNull() else same.getOrNull(n - 1)
+                pick?.let { switchTo(it) } ?: return false
+            }
+            id == "address" -> { screen = Screen.PAGE; finding = false; editing = true }
+            id == "reload" -> { if (!web) return false; reload() }
+            id == "find" -> { if (!web) return false; screen = Screen.PAGE; startFind() }
+            id == "star" -> { if (!web) return false; toggleMark() }
+            id == "history" -> screen = Screen.HISTORY
+            id == "downloads" -> openDownloads()
+            id == "marks" -> { markPath = ""; screen = Screen.BOOKMARKS }
+            id == "back" -> { if (screen != Screen.PAGE) return false; goBack() }
+            id == "fwd" -> forward()
+            id == "home" -> goHome()
+            id == "zoomin" -> pickZoom(zoom + 10)
+            id == "zoomout" -> pickZoom(zoom - 10)
+            id == "zoom0" -> pickZoom(100)
+            id == "split" -> { screen = Screen.PAGE; toggleSplit() }
+            id == "tasks" -> screen = Screen.TASKS
+            id == "clear" -> clearAsk = true
+            id == "keys" -> screen = Screen.KEYS
+            else -> return false
+        }
+        return true
+    }
+    /** 24 פעולה מהשורה (BrPro.action) — מה שהשורה הציעה, בנגיעה */
+    fun runAct(x: BrPro.Act) {
+        editing = false; screen = Screen.PAGE
+        when (x) {
+            BrPro.Act.CLEAR -> clearAsk = true
+            BrPro.Act.QUICK -> quickAsk = true
+            BrPro.Act.HISTORY -> screen = Screen.HISTORY
+            BrPro.Act.MARKS -> { markPath = ""; screen = Screen.BOOKMARKS }
+            BrPro.Act.SETTINGS -> screen = Screen.SETTINGS
+            BrPro.Act.PRIVATE -> if (privOk) newTab("", private = true)
+            BrPro.Act.DOWNLOADS -> openDownloads()
+            BrPro.Act.PASSWORDS -> screen = Screen.PASSWORDS
+            BrPro.Act.TASKS -> screen = Screen.TASKS
+            BrPro.Act.SPLIT -> toggleSplit()
+            BrPro.Act.SESSIONS -> screen = Screen.GROUPS
+        }
+    }
+
+    /** Ctrl+Tab — הבאה, ובסוף חוזרים לראשונה (לפי ת־עיצוב במחשב) */
+    fun cycleTab(d: Int) {
+        val c = cur ?: return
+        val same = tabs.filter { it.private == c.private }
+        if (same.size < 2) return
+        select(same[(same.indexOf(c) + d).mod(same.size)]); screen = Screen.PAGE
+    }
+
     /* ---------------- ניווט ---------------- */
 
     fun go(raw: String) {
-        val u = BrStore.toUrl(raw, engine)
+        // "yt שיר" → חיפוש ביוטיוב (BrPro.KEYWORDS), כמו מילות המפתח של מנועי החיפוש במחשב
+        val u = BrPro.keyword(raw)?.let { (k, q) -> BrPro.keywordUrl(k, q) } ?: BrStore.toUrl(raw, engine)
         if (u.isEmpty()) return
         editing = false
         val t = cur ?: newTab("")
@@ -631,6 +915,7 @@ class BrowserActivity : ComponentActivity() {
     fun load(t: BrTab, url: String) {
         t.url = url
         val w = ensureWeb(t)
+        applyJs(w, url)
         w.loadUrl(url)
     }
 
@@ -642,6 +927,11 @@ class BrowserActivity : ComponentActivity() {
             customView != null -> hideCustom()
             permAsk != null -> { permAsk?.go?.invoke(false); permAsk = null }
             pick -> pick = false
+            preview != null -> preview = null
+            splitPick -> splitPick = false
+            quickAsk -> quickAsk = false
+            ctx != null -> ctx = null
+            devSheet -> devSheet = false
             sendSheet -> sendSheet = false
             clearAsk -> clearAsk = false
             zoomSheet -> zoomSheet = false
@@ -689,7 +979,7 @@ class BrowserActivity : ComponentActivity() {
 
     /* ---------------- WebView ---------------- */
 
-    @SuppressLint("SetJavaScriptEnabled")
+    @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
     fun ensureWeb(t: BrTab): WebView {
         t.web?.let { return it }
         val w = WebView(this)
@@ -729,18 +1019,22 @@ class BrowserActivity : ComponentActivity() {
             override fun shouldOverrideUrlLoading(view: WebView, req: WebResourceRequest): Boolean {
                 val u = req.url.toString()
                 val sc = req.url.scheme?.lowercase()
-                if (sc == "http" || sc == "https") return false
+                if (sc == "http" || sc == "https") { if (req.isForMainFrame) applyJs(view, u); return false }
                 if (sc == "about" || sc == "javascript" || sc == "data" || sc == "blob") return false
                 external(u, t)
                 return true
             }
             override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? {
-                if (!req.isForMainFrame && blockReq(t, req.url.host)) return EMPTY()
+                val blk = !req.isForMainFrame && blockReq(t, req.url.host)
+                // כלי המפתחים — מה ש־WebView מראה: הכתובת, השיטה והכותרות (בלי גוף ובלי התשובה)
+                t.net.add(BrPro.Net(System.currentTimeMillis(), req.method ?: "GET", req.url.toString(), req.isForMainFrame, blk, req.requestHeaders ?: emptyMap()))
+                if (blk) return EMPTY()
                 seen(t, req.url.toString(), headers = req.requestHeaders); return null
             }
             override fun onPageCommitVisible(view: WebView, url: String) { view.setBackgroundColor(android.graphics.Color.WHITE) }
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
                 if (url != t.page && !t.private) { t.la = System.currentTimeMillis(); t.sc = 0f; t.tx = ""; t.mt = 0f; BrCloud.nudge(4000) }
+                if (url != t.page) { t.logs.clear(); t.net.add(BrPro.Net(System.currentTimeMillis(), "GET", url, true, false)) }
                 if (url != t.page) { t.page = url; t.vid = null; t.blocked = 0; t.playing = false; t.found.clear(); synchronized(t.headSeen) { t.headSeen.clear() }; t.recount(); autoPick(t) }
                 // 26/10/2026 (דיווח המשתמש: אחרי רענון של אותו דף הרשימה גדלה בכפילויות): מסמך חדש באותה כתובת (רענון) —
                 // הנגן מבקש את הכל מחדש, עם חתימות חדשות. מה שנמצא במסמך הקודם כבר לא רלוונטי
@@ -771,6 +1065,11 @@ class BrowserActivity : ComponentActivity() {
         }
         w.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView, p: Int) { t.progress = p }
+            override fun onConsoleMessage(m: android.webkit.ConsoleMessage): Boolean {
+                val lv = when (m.messageLevel()) { android.webkit.ConsoleMessage.MessageLevel.ERROR -> 2; android.webkit.ConsoleMessage.MessageLevel.WARNING -> 1; else -> 0 }
+                t.logs.add(BrPro.Log(System.currentTimeMillis(), lv, m.message().take(2000), "${m.sourceId().substringAfterLast('/').take(60)}:${m.lineNumber()}"))
+                return false
+            }
             override fun onReceivedTitle(view: WebView, title: String?) { if (!title.isNullOrEmpty()) { t.title = title; if (!t.private) BrStore.setTitle(t.url, title) } }
             override fun onReceivedIcon(view: WebView, icon: Bitmap?) { if (icon != null) { t.icon = icon; if (!t.private) BrPics.saveIcon(BrStore.hostOf(t.url), icon) } }
             override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
@@ -834,6 +1133,10 @@ class BrowserActivity : ComponentActivity() {
             }
             if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) WebViewCompat.addDocumentStartJavaScript(w, BrShield.PLAY_JS, setOf("*"))
         }
+        w.setOnLongClickListener { longPress(t, w) }
+        // 13 מסך מפוצל: נגיעה בחלון השני — הוא הפעיל (לא עוצרים את הנגיעה; הדף מקבל אותה כרגיל)
+        w.setOnTouchListener { _, e -> if (e.actionMasked == MotionEvent.ACTION_DOWN && split === t) ui.post { if (split === t) focusSplit() }; false }
+        applyJs(w, t.url)
         w.setFindListener { active, count, done -> if (done) findRes = (if (count == 0) 0 else active + 1) to count }
         t.web = w
         // מצב שלא נפתח (גרסה אחרת של WebView אחרי עדכון) — טוענים את הכתובת, כמו טאב בלי מצב
@@ -868,6 +1171,8 @@ class BrowserActivity : ComponentActivity() {
         if (cookies && shieldOn(host)) runCatching { w.evaluateJavascript(BrShield.COOKIE_JS, null) }
         val sp = rules[host]?.speed ?: 100
         if (sp != 100) runCatching { w.evaluateJavascript(BrShield.speedJs(sp), null) }
+        if (heFix) runCatching { w.evaluateJavascript(BrPro.HEBREW_JS, null) }
+        if (rules[host]?.mute == true) runCatching { w.evaluateJavascript(BrPro.muteJs(true), null) }
     }
 
     /** שינוי בהגדרות של אתר אחד — נשמר מיד; הגדרה שחזרה לברירת המחדל נמחקת מהרשימה */
@@ -1112,14 +1417,103 @@ class BrowserActivity : ComponentActivity() {
         menu = false
         val t = cur ?: return
         if (!t.url.startsWith("http")) return
-        runCatching { startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, t.url).putExtra(Intent.EXTRA_SUBJECT, t.title), getString(R.string.brShare))) }
+        runCatching { startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, linkOut(t.url)).putExtra(Intent.EXTRA_SUBJECT, t.title), getString(R.string.brShare))) }
     }
 
     fun copyLink() {
         val t = cur ?: return
-        getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("url", t.url))
+        getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("url", linkOut(t.url)))
         Toast.makeText(this, R.string.brCopied, Toast.LENGTH_SHORT).show()
     }
+
+    /** קישור שיוצא מהדפדפן (העתקה, שיתוף) — בלי פרמטרי מעקב, כשהמתג במעבדה דולק */
+    fun linkOut(u: String) = if (cleanCopy) BrPro.clean(u) else u
+
+    fun copyText(s: String, toast: Int = R.string.brCopied) {
+        getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("text", s))
+        Toast.makeText(this, toast, Toast.LENGTH_SHORT).show()
+    }
+
+    fun shareText(s: String) {
+        runCatching { startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, s), getString(R.string.brShare))) }
+    }
+
+    /* ---------------- Pro: הגיליון של לחיצה ארוכה ---------------- */
+
+    /** לחיצה ארוכה בדף: קישור / תמונה / תמונה בתוך קישור → הגיליון (ctx). טקסט — נשאר לבחירה של WebView */
+    private fun longPress(t: BrTab, w: WebView): Boolean {
+        val h = w.hitTestResult
+        val type = h.type
+        if (type != WebView.HitTestResult.SRC_ANCHOR_TYPE && type != WebView.HitTestResult.IMAGE_TYPE && type != WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE) return false
+        val extra = h.extra
+        val hd = Handler(Looper.getMainLooper()) { m ->
+            val d = m.data
+            val link = (d.getString("url") ?: if (type == WebView.HitTestResult.SRC_ANCHOR_TYPE) extra else null)?.takeIf { it.startsWith("http") }
+            val img = if (type == WebView.HitTestResult.SRC_ANCHOR_TYPE) null else (d.getString("src") ?: extra)?.takeIf { it.startsWith("http") }
+            if (link != null || img != null) { w.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); ctx = Ctx(t, link, img, d.getString("title").orEmpty().trim()) }
+            true
+        }
+        w.requestFocusNodeHref(hd.obtainMessage())
+        return true
+    }
+
+    /** פתיחת הקישור מהגיליון: בכרטיסייה חדשה, ברקע (בלי לעבור אליה) או בפרטית */
+    fun ctxOpen(url: String, background: Boolean = false, private: Boolean = false) {
+        val c = ctx ?: return
+        ctx = null
+        val priv = (private || c.tab.private) && privOk
+        if (background) {
+            val n = BrTab(nextId++, url, "", priv)
+            n.parent = c.tab.id
+            tabs.add(tabs.indexOf(c.tab) + 1, n)
+            Toast.makeText(this, R.string.brOpenedBg, Toast.LENGTH_SHORT).show()
+        } else newTab(url, private = priv, after = c.tab).parent = c.tab.id
+    }
+
+    /** הורדה מהגיליון — אותו מסלול של הורדה מהדף (DmActivity, עם העוגיות של האתר) */
+    fun ctxDownload(url: String) { val c = ctx ?: return; ctx = null; send(c.tab, url, c.tab.page, file = true) }
+
+    /* ---------------- Pro: הגדרות אתר — JavaScript, השתקה, תעודה ---------------- */
+
+    /** JavaScript לפי האתר — נקבע לפני שהדף נטען (WebView לא משנה סקריפטים של דף שכבר רץ) */
+    private fun applyJs(w: WebView, url: String) {
+        val on = rules[BrStore.hostOf(url)]?.js != false
+        if (w.settings.javaScriptEnabled != on) w.settings.javaScriptEnabled = on
+    }
+
+    fun setSiteJs(t: BrTab, on: Boolean) {
+        val h = BrStore.hostOf(t.url).ifEmpty { return }
+        setRule(h) { it.copy(js = on) }
+        t.web?.let { applyJs(it, t.url); it.reload() }
+    }
+
+    fun setSiteMute(t: BrTab, on: Boolean) {
+        val h = BrStore.hostOf(t.url).ifEmpty { return }
+        setRule(h) { it.copy(mute = on) }
+        runCatching { t.web?.evaluateJavascript(BrPro.muteJs(on), null) }
+    }
+    fun siteJs(t: BrTab) = rules[BrStore.hostOf(t.url)]?.js != false
+    fun muted(t: BrTab?) = t != null && rules[BrStore.hostOf(t.url)]?.mute == true
+
+    /** התעודה של הדף: למי הונפקה, מי הנפיק, עד מתי — null בדף לא מאובטח */
+    fun cert(t: BrTab): Triple<String, String, Long>? {
+        val c = t.web?.certificate ?: return null
+        val to = c.issuedTo?.cName.orEmpty()
+        val by = c.issuedBy?.oName?.takeIf { it.isNotEmpty() } ?: c.issuedBy?.cName.orEmpty()
+        return Triple(to, by, c.validNotAfterDate?.time ?: 0L)
+    }
+
+    /* ---------------- Pro: כלי מפתחים, מעבדה ---------------- */
+
+    fun runJs(t: BrTab, code: String) {
+        val w = t.web ?: return
+        if (code.isBlank()) return
+        t.logs.add(BrPro.Log(System.currentTimeMillis(), 3, code, ""))
+        runCatching { w.evaluateJavascript(code) { r -> t.logs.add(BrPro.Log(System.currentTimeMillis(), 4, BrPro.evalShow(r), "")) } }
+    }
+
+    fun pickHeFix(b: Boolean) { heFix = b; prefs.heFix = b; if (b) cur?.web?.let { runCatching { it.evaluateJavascript(BrPro.HEBREW_JS, null) } } }
+    fun pickCleanCopy(b: Boolean) { cleanCopy = b; prefs.cleanCopy = b }
 
     fun translate() {
         menu = false
@@ -1414,6 +1808,7 @@ class BrowserActivity : ComponentActivity() {
         const val HUNT_MS = 45_000L
         const val CHROME_EVERY = 5 * 60_000L
         const val MEASURE_EVERY = 8_000L
+        const val SLEEP_EVERY = 60_000L
         const val GMS = "com.google.android.gms"
         /** הצבעים של האות במקום סמל — אותם צבעים של Fav במסך */
         val FAV_COLORS = intArrayOf(0xFF1A73E8.toInt(), 0xFFEA4335.toInt(), 0xFF34A853.toInt(), 0xFFF29900.toInt(), 0xFF9334E6.toInt(), 0xFFE8710A.toInt(), 0xFF129EAF.toInt(), 0xFFD01884.toInt())
