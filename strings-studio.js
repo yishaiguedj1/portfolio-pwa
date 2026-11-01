@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2149 מפתחות מתוך 5590) */
+/* המחרוזות של studio (2150 מפתחות מתוך 5591) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1150,6 +1150,7 @@ he: {
   "studioNoAudio": "אין. Claude יוציא אותה מהסרטון",
   "studioNotConn": "לא מחובר",
   "studioNowAudio": "שולחים קודם את הקול, כדי ש־Claude יתחיל מהר",
+  "studioNowBehind": "השרת מסיים קודם את «{n}» — ואז מתחיל",
   "studioNowBg": "הקבצים מוכנים",
   "studioNowCancelled": "העבודה בוטלה",
   "studioNowDone": "התרגום מוכן!",
@@ -3301,6 +3302,7 @@ en: {
   "studioNoAudio": "None. Claude will take it from the video",
   "studioNotConn": "Not connected",
   "studioNowAudio": "Sending the audio first so Claude can start fast",
+  "studioNowBehind": "The server is finishing “{n}” first — then it starts",
   "studioNowBg": "Your files are ready",
   "studioNowCancelled": "The job was cancelled",
   "studioNowDone": "Translation ready!",
