@@ -197,6 +197,23 @@ const { fakeR2, ENV } = require('./_r2fake');
   Object.assign(process.env, ENV); R2._reset();
   ok(gu.ok && gu.r2 === false && cl2.ok && cl2.job.gl === null, 'מילון: בלי R2 בשרתון — r2:false והעובד קורא מ־Drive כמו קודם');
 
+  /* ---------- 7ב. A1 (1/11/2026): כרטיס הסדרה — smGet / smEdit (sm/<uid>.json, רק של המשתמש) ---------- */
+  {
+    const sk = 'sm/ownerUid0001.json';
+    R.objs.set(sk, Buffer.from(JSON.stringify(S.smMerge({}, S.seriesOf('Show.S01E01.mkv'), { gl: [['Scherbatsky', 'שרבטסקי']], ch: [['רובין', 'm', '']] }, 100))));
+    R.meta.set(sk, { type: 'application/json', am: {} });
+    let g = await api('smGet', {});
+    ok(g.ok && g.r2 && g.s.length === 1 && g.s[0].k === 'show' && g.s[0].at === 100 && g.s[0].gl[0][1] === 'שרבטסקי', 'סדרה: smGet — הכרטיס של המשתמש');
+    ok((await other('smGet', {})).s.length === 0, 'סדרה: משתמש אחר לא רואה את הכרטיס');
+    ok((await api('smEdit', { k: 'show', at: 99, gl: [['Scherbatsky', 'שרבצקי']] })).error === 'stale', 'סדרה: גרסה ישנה (העובד כתב בינתיים) — stale');
+    ok((await api('smEdit', { k: 'nope', at: 100, gl: [['A', 'א']] })).error === 'sm_none', 'סדרה: סדרה שלא קיימת');
+    ok((await api('smEdit', { k: 'show', at: 100 })).error === 'bad_params', 'סדרה: בלי שינוי — bad_params');
+    g = await api('smEdit', { k: 'show', at: 100, gl: [['Scherbatsky', 'שרבצקי']], ch: [['רובין', 'f']] });
+    ok(g.ok && g.s[0].gl[0][1] === 'שרבצקי' && g.s[0].ch[0][1] === 'f' && g.s[0].at > 100, 'סדרה: עריכה — הכתיב והמגדר שלך גוברים');
+    g = await api('smEdit', { k: 'show', at: g.s[0].at, drop: true });
+    ok(g.ok && g.s.length === 0 && (await api('smGet', {})).s.length === 0, 'סדרה: מחיקת הסדרה');
+  }
+
   /* ---------- 8. תיקיות יתומות ב־R2 — סריקה וניקוי (11/10) ---------- */
   studio._reset();
   j = await api('create', { spec });

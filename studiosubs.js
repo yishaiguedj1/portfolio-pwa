@@ -1286,3 +1286,49 @@ export function importSubs(raw, opt) {
   const nameList = [...names.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   return { fmt, enc: d.enc, fixed: d.fixed, cues: out, stats: st, names: nameList };
 }
+
+/* ---------- A1 + A5 (1/11/2026): כרטיס הסדרה ותיקון לאחור בין פרקים ----------
+   seriesOfName — אותו מפתח סדרה כמו בשרתון (lib/studio.js seriesOf; tests/studio-series-card משווה), כדי למצוא בטלפון את
+   הפרקים הקודמים של הסדרה. smChanges — מה השתנה בכרטיס (כתיב → אפשר להחליף בכתוביות; מגדר → רק להציג איפה הדמות מופיעה).
+   heReplace — החלפת כתיב בעברית גם אחרי אותיות השימוש (ו/ה/ב/ל/מ/ש/כ), רק מילה שלמה. הכל בטלפון, מול ה־Drive שלך */
+const SER_RE_C = /^(.*?)[\s\-–_.([]*(?:s(\d{1,2})[\s._-]*e(\d{1,3})|(\d{1,2})x(\d{2,3}))(?![\p{L}\p{N}])/iu;
+export function seriesOfName(name) {
+  const base = String(name || '').replace(/\.[A-Za-z0-9]{2,4}$/, '').replace(/[._]+/g, ' ');
+  const m = base.match(SER_RE_C);
+  if (!m) return null;
+  const n = m[1].replace(/[\s\-–]*(?:season|עונה)\s*\d{1,2}[\s\-–]*$/iu, ' ').replace(/\(\s*(19|20)\d\d\s*\)|\b(19|20)\d\d\s*$/g, ' ').replace(/[\s\-–[(]+$/, '').replace(/\s+/g, ' ').trim();
+  const k = n.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  return k.length >= 2 ? { k: k.slice(0, 60), s: +(m[2] || m[4]) || 0, e: +(m[3] || m[5]) || 0 } : null;
+}
+/* לפני → אחרי (שורות הכרטיס): rep = [[ישן, חדש]] להחלפה, gen = [[שם, מגדר ישן, חדש]] */
+export function smChanges(before, after) {
+  const rep = [], gen = [];
+  const b = before || {}, a = after || {};
+  const gl0 = new Map((b.gl || []).map((r) => [r[0].toLowerCase(), r[1]]));
+  for (const r of a.gl || []) { const o = gl0.get(r[0].toLowerCase()); if (o && o !== r[1]) rep.push([o, r[1]]); }
+  const ch0 = new Map((b.ch || []).map((r) => [r[0], r[1]])), ch1 = new Map((a.ch || []).map((r) => [r[0], r[1]]));
+  const gone = (b.ch || []).filter((r) => !ch1.has(r[0])), fresh = (a.ch || []).filter((r) => !ch0.has(r[0]));
+  if (gone.length === 1 && fresh.length === 1) rep.push([gone[0][0], fresh[0][0]]);   // שינוי שם של דמות = מחיקה + הוספה בעריכה אחת
+  for (const r of a.ch || []) if (ch0.has(r[0]) && ch0.get(r[0]) !== r[1]) gen.push([r[0], ch0.get(r[0]), r[1]]);
+  return { rep: rep.filter((x) => x[0].trim().length >= 2 && x[0] !== x[1]), gen };
+}
+const heWord = (old) => new RegExp('(^|[^\\p{L}\\p{N}])([והבלמשכ]{0,3})' + reEsc(old) + '(?![\\p{L}\\p{N}])', 'gu');
+/* מחרוזת אחת: [טקסט, כמה הוחלפו] */
+export function heReplace(text, old, nu) {
+  let n = 0;
+  const out = String(text).replace(heWord(old), (m, pre, use) => { n++; return pre + use + nu; });
+  return [out, n];
+}
+/* הכתוביות: כמה כתוביות מושפעות (hit) ומה התוצאה (cues חדשות) — בלי לגעת במקור */
+export function cuesReplace(cues, rep) {
+  let hit = 0;
+  const out = (cues || []).map((c) => {
+    let any = false;
+    const lines = c.lines.map((l) => { let t = l; for (const [o, nu] of rep) { const [x, n] = heReplace(t, o, nu); if (n) { any = true; t = x; } } return t; });
+    if (any) hit++;
+    return any ? Object.assign({}, c, { lines }) : c;
+  });
+  return { hit, cues: out };
+}
+/* בכמה כתוביות מופיע השם (למגדר — רק מראים) */
+export const cuesWith = (cues, name) => (cues || []).filter((c) => c.lines.some((l) => heWord(name).test(l))).length;
