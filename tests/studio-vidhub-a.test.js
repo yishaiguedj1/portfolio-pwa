@@ -108,7 +108,7 @@ except Exception as e:
   const st = read('studio.js');
   ok(/for \(const k of STYLES\.filter\(\(x\) => x !== 'karaoke'\)\)/.test(st) && /style: s\.style === 'karaoke' \? 'bold' : s\.style/.test(st), 'קריוקי לא מוצע בטופס; טיוטה ישנה עם קריוקי = מודגש');
   ok(/sty: normSty\(store\.settings\.sty\)/.test(st), 'בטופס: העיצוב האחרון שבחרת = ברירת המחדל');
-  ok((st.match(/\.\.\.\(f\.sty \? \{ sty: f\.sty \} : \{\}\)/g) || []).length === 2 && /sty: f\.sty \|\| null, terms/.test(st), 'העיצוב נשלח ביצירה (קובץ, קישור, והורדה בטלפון)');
+  ok((st.match(/\.\.\.\(f\.sty \? \{ sty: f\.sty \} : \{\}\)/g) || []).length === 3 && /sty: f\.sty \|\| null, terms/.test(st), 'העיצוב נשלח ביצירה (קובץ, קישור, הורדה בטלפון והעלאה דרך האפליקציה)');
   ok(/styFold\('form'/.test(st) && /if \(styEditable\(rec\) && !rec\.spec\.ka\) p\.append\(styFold\('job:'/.test(st), 'מקטע העיצוב בטופס ובדף העבודה');
   ok(/function styEditable\(rec\)[\s\S]{0,500}\['bn', 'sv'\]\.includes\(stg\)/.test(st), 'בדף העבודה — רק עד שהצריבה מתחילה');
   ok(/net\.api\('sty', \{ job: rec\.id, sty: rec\.spec\.sty \|\| null \}\)/.test(st) && /setTimeout\([\s\S]{0,300}, 600\)\);/.test(st), 'נשלח לשרתון אחרי 600ms בלי נגיעה (רק הבחירה האחרונה)');

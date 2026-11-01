@@ -66,6 +66,8 @@
     <string name="phTextDone">התרגום מוכן</string>
     <string name="phTextDoneS">הכל נעשה בטלפון. נגיעה כאן — לצרוב או לצפות</string>
     <string name="phSent">התרגום רץ בשרת</string>
+    <string name="phSentNu">הסרטון ממשיך לעלות ברקע — גם כשהאפליקציה סגורה</string>
+    <string name="phCopySNu">עותק באחסון של Studio — נמחק כשהסרטון עולה</string>
     <string name="phSentS">הסרטון נשאר בטלפון. כשהתרגום יהיה מוכן — נגיעה ב\"לצרוב בטלפון\" בדף העבודה</string>
     <string name="phFailed">התרגום בטלפון נעצר</string>
     <string name="phGoT">ממשיך ברקע</string>

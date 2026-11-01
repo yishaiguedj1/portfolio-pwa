@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2137 מפתחות מתוך 5578) */
+/* המחרוזות של studio (2146 מפתחות מתוך 5587) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1183,6 +1183,15 @@ he: {
   "studioNsT": "מהרשת · {l} · {n}",
   "studioNsViaOs": "OpenSubtitles (דרך Stremio)",
   "studioNtSending": "שולחים…",
+  "studioNuBig": "מעלים דרך Studio",
+  "studioNuDone": "הסרטון עלה ✓",
+  "studioNuGo": "להמשיך את ההעלאה ב־Studio",
+  "studioNuNote": "עולה דרך Studio לאנדרואיד — ממשיך לבד גם כשהאפליקציה סגורה",
+  "studioNuOld": "צריך לעדכן את Studio לאנדרואיד — בינתיים הבחירה מהדפדפן",
+  "studioNuStop": "ההעלאה נעצרה ({e})",
+  "studioNuT": "הסרטון המלא",
+  "studioNuUp": "Studio לאנדרואיד מעלה ברקע · {p}% — אפשר לסגור את האפליקציה",
+  "studioNuWait": "ממתין ל־Studio לאנדרואיד — ממשיך לבד כשיש רשת",
   "studioOffShort": "כבוי",
   "studioOfflDone": "אין חיבור לרשת — הקבצים יירדו כשהחיבור יחזור",
   "studioOfflRun": "אין חיבור לרשת — העבודה ממשיכה בשרת, והדף יתעדכן כשהחיבור יחזור",
@@ -3322,6 +3331,15 @@ en: {
   "studioNsT": "From the web · {l} · {n}",
   "studioNsViaOs": "OpenSubtitles (via Stremio)",
   "studioNtSending": "Sending…",
+  "studioNuBig": "Uploading through Studio",
+  "studioNuDone": "The video is uploaded ✓",
+  "studioNuGo": "Continue the upload in Studio",
+  "studioNuNote": "Uploads through Studio for Android — resumes on its own, even when the app is closed",
+  "studioNuOld": "Update Studio for Android — meanwhile, picking from the browser",
+  "studioNuStop": "The upload stopped ({e})",
+  "studioNuT": "The full video",
+  "studioNuUp": "Studio for Android uploads in the background · {p}% — you can close the app",
+  "studioNuWait": "Waiting for Studio for Android — resumes on its own when online",
   "studioOffShort": "Off",
   "studioOfflDone": "No connection — downloads will work when you are back online",
   "studioOfflRun": "No connection — the job keeps running on the server, and this page updates when you are back online",

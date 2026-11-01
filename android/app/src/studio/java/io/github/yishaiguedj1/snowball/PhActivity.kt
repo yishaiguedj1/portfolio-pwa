@@ -42,6 +42,8 @@ class PhActivity : Activity() {
     private lateinit var btn: Button
     private var web = ""
     @Volatile private var cancelled = false
+    /** 1/11/2026: nu=1 — תרגום רגיל בשרת; האפליקציה רק מעלה (ממשיך גם כשהיא סגורה). העותק נמחק כשהסרטון עלה */
+    private var nu = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,7 +60,7 @@ class PhActivity : Activity() {
         web = webOk(d.getQueryParameter("w")) ?: s(R.string.launchUrl)
         PhStore.gc(this); PhStore.gcRemoteAsync(this)
         when (d.host) {
-            "phpick" -> pick()
+            "phpick" -> { nu = d.getQueryParameter("nu") == "1"; pick() }
             "ph" -> go(d)
             "phburn" -> burn(d)
             "phgo" -> resume(d)
@@ -83,7 +85,7 @@ class PhActivity : Activity() {
     }
 
     private fun copy(u: Uri) {
-        titleV.text = s(R.string.phCopyT); subV.text = s(R.string.phCopyS)
+        titleV.text = s(R.string.phCopyT); subV.text = s(if (nu) R.string.phCopySNu else R.string.phCopyS)
         bar.isIndeterminate = false; bar.progress = 0
         Thread {
             val pid = PhStore.newPid()
@@ -93,8 +95,8 @@ class PhActivity : Activity() {
                     if (c.moveToFirst()) { name = c.getString(0) ?: name; if (!c.isNull(1)) size = c.getLong(1) }
                 }
                 val work = PhStore.work(this, pid)
-                // מקום: העותק + הקול + הצריבה (בערך כמו המקור) + מרווח
-                if (size > 0 && StatFs(work.absolutePath).availableBytes < size * 2 + (300L shl 20)) throw IllegalArgumentException("space")
+                // מקום: העותק + הקול + הצריבה (בערך כמו המקור) + מרווח. nu — בלי צריבה בטלפון: העותק + הקול
+                if (size > 0 && StatFs(work.absolutePath).availableBytes < size * (if (nu) 1 else 2) + (300L shl 20)) throw IllegalArgumentException("space")
                 val ext = name.substringAfterLast('.', "").lowercase().takeIf { Regex("^[a-z0-9]{2,5}$").matches(it) } ?: "mp4"
                 val f = File(work, "src.$ext")
                 contentResolver.openInputStream(u)!!.use { i -> f.outputStream().use { o ->
@@ -112,9 +114,9 @@ class PhActivity : Activity() {
                 val info = PhCore.info(probe) ?: throw IllegalArgumentException("no_video")
                 if (!info.hasAudio) throw IllegalArgumentException("no_audio")
                 PhStore.put(this, JSONObject().put("pid", pid).put("name", name.take(200)).put("size", f.length()).put("src", f.absolutePath)
-                    .put("probe", probe).put("at", System.currentTimeMillis()).put("web", web).put("st", "picked"))
+                    .put("probe", probe).put("at", System.currentTimeMillis()).put("web", web).put("st", "picked").put("nu", nu))
                 val oh = try { PhCore.osHash(f) } catch (e: Throwable) { "" }
-                "#phpick=$pid." + DlEngine.b64(PhCore.pickJson(pid, name, f.length(), info, oh).toString()) + subsOf(f, probe, work).let { if (it.isEmpty()) "" else ".$it" }
+                "#phpick=$pid." + DlEngine.b64(PhCore.pickJson(pid, name, f.length(), info, oh).apply { if (nu) put("nu", 1) }.toString()) + subsOf(f, probe, work).let { if (it.isEmpty()) "" else ".$it" }
             } catch (e: Throwable) {
                 PhStore.drop(this, pid)
                 "#phpick=!" + ((e as? IllegalArgumentException)?.message ?: "copy")
