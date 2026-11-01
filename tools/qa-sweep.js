@@ -17,7 +17,7 @@ const PYB = 'import sys,json\nfrom PIL import Image, ImageStat, ImageFilter\nout
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const BASE = 'http://localhost:8792';
 const APPS = { invest: '/index.html', studio: '/studio.html', academy: '/academy.html' };
-const only = arg('app', null), THEME = arg('theme', 'light'), CPU = +arg('cpu', 1);
+const only = arg('app', null), THEME = arg('theme', 'light'), CPU = +arg('cpu', 1), SLOWIDB = +arg('slowidb', 0);
 let total = 0;
 const bad = (app, step, msg) => { total++; console.log('✗ [' + app + '] ' + step + ' — ' + msg); };
 
@@ -29,7 +29,13 @@ const PROBE = () => {
       const nav = [...document.querySelectorAll('nav.tabs')].find((n) => !n.hidden && n.getClientRects().length);
       const cs = nav && getComputedStyle(nav);
       const navOk = !!nav && cs.visibility === 'visible' && +cs.opacity > 0.5;
-      P.log.push({ t: Math.round(performance.now()), navOk });
+      // פאה נכנסת עם התוכן הישן: באמצע קובייה (העתק קיים) השכבה מציגה את אותו טקסט כמו ההעתק — העמוד החדש עוד לא נצבע,
+      // והוא יתחלף באמצע הסיבוב ("רענון"). Academy / Studio — השכבה נצבעת מחדש באותו אלמנט
+      let stale = false;
+      const gh = document.querySelector('.lib-root.cube-ghost, .st-root.cube-ghost');
+      if (gh) { const rt = document.querySelector(gh.classList.contains('lib-root') ? '.lib-root:not(.cube-ghost)' : '.st-root:not(.cube-ghost)');
+        if (rt && rt.classList.contains('cube-face') && rt.style.transform && rt.style.transform !== 'none') { const sig = (e) => (e.textContent || '').replace(/\s+/g, ''); stale = sig(rt) === sig(gh); } }
+      P.log.push({ t: Math.round(performance.now()), navOk, stale });
     }
     requestAnimationFrame(tick);
   };
@@ -55,6 +61,7 @@ async function studioMock(ctx) {
 /* Academy כמו אצל המשתמש: ספרים בספרייה שלי, מכתבים במדף THE SNOWBALL, ספרים בקריאה ושנקראו, אוספים (כמו ensureLibSeeded ב־qa-motion) */
 async function academySeed(page) {
   await page.click('.lib-dial .tab[data-tab="mine"]').catch(() => {}); await page.waitForTimeout(500);
+  await page.waitForSelector('.lib-root input[type=file]', { state: 'attached', timeout: 15000 }).catch(() => {});
   await page.evaluate(async (names) => {
     const dt = new DataTransfer();
     for (const n of names) { const bl = await (await fetch('/.qa-books/' + n)).blob(); dt.items.add(new File([bl], n, { type: 'application/epub+zip' })); }
@@ -67,6 +74,7 @@ async function academySeed(page) {
     if (/Subtle|2010|1966/.test(x.title)) { x.done = true; x.fraction = 1; }
     st.put(x); }); t.oncomplete = res; }; }));
   await page.evaluate(() => { localStorage.setItem('pwa_libcoll_v1', JSON.stringify({ local: { k1: { n: 'השקעות', s: 'mine', b: ['id-qa-m1', 'id-qa-m2', 'id-qa-m5'], u: 1 }, k2: { n: 'פיתוח אישי', s: 'mine', b: ['id-qa-m3', 'id-qa-m4'], u: 1 }, k3: { n: 'המכתבים האהובים', s: 'snb', b: ['id-qa-l1985', 'id-qa-l2024', 'id-qa-z2020'], u: 1 } } })); });
+  if (SLOWIDB) await page.evaluate(() => localStorage.setItem('__qa_slowidb', '1'));
   await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(3500);
 }
 
@@ -77,7 +85,15 @@ async function open(b, app) {
   }, { db: QM.DB, theme: THEME });
   await QM.routes(ctx);   // כל הרשת מדומה (בלי שרתים אמיתיים)
   if (app === 'studio') await studioMock(ctx);
+  if (SLOWIDB && app !== 'academy') await ctx.addInitScript(() => { try { localStorage.setItem('__qa_slowidb', '1'); } catch (e) {} });
   await ctx.addInitScript(PROBE);
+  // --slowidb 120: כל getAll של IndexedDB מתעכב (טלפון: עשרות ms) — חושף ציור שלא מחכה לנתונים
+  if (SLOWIDB) await ctx.addInitScript((ms) => {
+    const slow = (proto, ev, d) => { const on = Object.getOwnPropertyDescriptor(proto, ev);
+      Object.defineProperty(proto, ev, { configurable: true, get() { return this['__' + ev] || null; }, set(f) { this['__' + ev] = f; on.set.call(this, f ? (e) => { let on2 = false; try { on2 = localStorage.getItem('__qa_slowidb') === '1'; } catch (x) {} if (on2) setTimeout(() => f.call(this, e), d); else f.call(this, e); } : null); } }); };
+    // פעיל רק אחרי הכנת הנתונים (__qa_slowidb) — הזריעה עצמה כותבת בתוך קריאה
+    slow(IDBRequest.prototype, 'onsuccess', ms); slow(IDBTransaction.prototype, 'oncomplete', ms + 5);   // אותו סדר: success ואז complete
+  }, SLOWIDB);
   const page = await ctx.newPage();
   const errs = [];
   page.on('pageerror', (e) => errs.push(String(e.message).slice(0, 160)));
@@ -167,6 +183,8 @@ async function check(app, S, step, want) {
   const log = await S.page.evaluate(() => { const l = window.__probe.log; window.__probe.log = []; window.__probe.on = false; return l; });
   const navGone = log.filter((x) => !x.navOk).length;
   if (navGone) bad(app, step, 'בזמן המעבר החוגה נעלמה ב־' + navGone + ' פריימים');
+  const stale = log.filter((x) => x.stale).length;
+  if (stale) bad(app, step, 'בזמן המעבר הפאה הנכנסת הראתה את הדף הישן ב־' + stale + ' פריימים (מתחלף באמצע הסיבוב)');
   const fr = S.casting ? await S.cast.stop() : [];
   S.casting = false;
   if (fr.length) {
