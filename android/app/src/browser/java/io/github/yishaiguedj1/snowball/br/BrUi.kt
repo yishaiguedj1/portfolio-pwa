@@ -2792,7 +2792,7 @@ private fun MacrosScreen(a: BrowserActivity) {
                     if (i > 0) Sep()
                     IRow(m.name, BrStore.hostOf(m.url) + " · " + stringResource(R.string.brMacroSteps, m.steps.count { it.k != 'n' }),
                         lead = { Tile(BrIcons.Rec, Color(0xFFFF3B30)) }, chevron = false,
-                        trailing = { IBtn(BrIcons.Trash, stringResource(R.string.brDelete), size = 40.dp, iconSize = 20.dp, tint = c.mute) { a.setMacros(a.macros.filter { it.id != m.id }) } }) { a.play(m) }
+                        trailing = { IBtn(BrIcons.Trash, stringResource(R.string.brDelete), size = 40.dp, iconSize = 20.dp, tint = c.mute) { a.putMacros(a.macros.filter { it.id != m.id }) } }) { a.play(m) }
                 }
             }
         }

@@ -1612,13 +1612,13 @@ class BrowserActivity : ComponentActivity() {
     }
     fun addZaps(host: String, sels: List<String>) {
         if (host.isEmpty()) return
-        setZaps(zaps + (host to ((zaps[host] ?: emptyList()) + sels).distinct().takeLast(BrDev.ZAPS_MAX)))
+        putZaps(zaps + (host to ((zaps[host] ?: emptyList()) + sels).distinct().takeLast(BrDev.ZAPS_MAX)))
         tabs.filter { BrStore.hostOf(it.url) == host }.forEach { js(it, BrDev.hideJs(zaps[host] ?: emptyList())) }
     }
-    private fun setZaps(m: Map<String, List<String>>) { zaps = m.filterValues { it.isNotEmpty() }; prefs.zaps = BrDev.zapsEncode(zaps); sitesRev++ }
+    private fun putZaps(m: Map<String, List<String>>) { zaps = m.filterValues { it.isNotEmpty() }; prefs.zaps = BrDev.zapsEncode(zaps); sitesRev++ }
     fun zapCount(host: String) = zaps[host]?.size ?: 0
     fun clearZaps(host: String) {
-        setZaps(zaps - host)
+        putZaps(zaps - host)
         tabs.filter { BrStore.hostOf(it.url) == host }.forEach { js(it, BrDev.hideJs(emptyList())); it.web?.reload() }
     }
     /** מהלוח של הרכיב: הסתרה עכשיו (ואם always — גם בביקורים הבאים) */
@@ -1676,11 +1676,11 @@ class BrowserActivity : ComponentActivity() {
         val steps = recSteps.dropLastWhile { it.k == 'n' }
         if (save && steps.any { it.k != 'n' }) {
             val m = BrDev.Macro(System.currentTimeMillis().toString(36), recUrl, t.title.ifEmpty { BrStore.hostOf(recUrl) }.take(60), steps)
-            setMacros((listOf(m) + macros).take(BrDev.MACROS_MAX)); say(R.string.brMacroSaved)
+            putMacros((listOf(m) + macros).take(BrDev.MACROS_MAX)); say(R.string.brMacroSaved)
         }
         recSteps = emptyList()
     }
-    fun setMacros(l: List<BrDev.Macro>) { macros = l; prefs.macros = BrDev.macrosEncode(l) }
+    fun putMacros(l: List<BrDev.Macro>) { macros = l; prefs.macros = BrDev.macrosEncode(l) }
     fun play(m: BrDev.Macro) {
         val t = cur?.takeIf { !it.private } ?: newTab("")
         screen = Screen.PAGE
