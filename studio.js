@@ -3511,7 +3511,7 @@ function kaSection(p, f) {
   // 01/11/2026: בלי מילים — שפת השיר לתמלול האוטומטי (מופיעה רק כשהשדה ריק; בלי render בכל הקשה)
   const al = h('div', 'st-ka-al');
   const alc = h('div', 'st-chips');
-  alc.append(...KA_AL.map((x) => { const b = btn('st-chip' + (kaAlOf(f) === x ? ' on' : ''), T(x === 'he' ? 'studioKaAlHe' : 'studioKaAlEn'), () => { f.al = x; render('none'); }, 'ka-al:' + x);
+  alc.append(...KA_AL.map((x) => { const b = btn('st-chip' + (kaAlOf(f) === x ? ' on' : ''), x === 'he' ? T('studioKaAlHe') : T('studioKaAlEn'), () => { f.al = x; render('none'); }, 'ka-al:' + x);
     b.setAttribute('aria-pressed', kaAlOf(f) === x ? 'true' : 'false'); return b; }));
   al.append(note(T('studioKaAutoNote')), secT(T('studioKaAl')), alc);
   const empty = () => !kaLyr(f.lyr).trim();
