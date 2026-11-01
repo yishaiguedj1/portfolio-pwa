@@ -46,7 +46,7 @@ async function studioMock(ctx) {
     spec: { name: 'Demo.Show.S01E0' + n + '.720p.mkv', size: 3e8, from: 'en', to: 'he', mode: 'std' }, files: { a: { id: 'fa' + n, size: 1e6 }, v: { id: 'fv' + n, size: 3e8 } } }));
   await ctx.route(/\/api\/studio/, (r) => { let b = {}; try { b = JSON.parse(r.request().postData() || '{}'); } catch (e) {}
     const now = Date.now(), J = (o) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o), headers: { 'access-control-allow-origin': '*' } }).catch(() => {});
-    if (b.op === 'status') return setTimeout(() => J({ ok: true, kinds: [], r2: true, api: { month: 0, cap: 100, online: 1, servers: 1, admin: true, ka: true }, conn: { hint: 'x', ok: now }, drive: { connected: true, email: 'qa@example.com' }, now }), 60);
+    if (b.op === 'status') return setTimeout(() => J({ ok: true, kinds: [], r2: true, lra: now, lrt: now, lrm: now, lrf: now, api: { month: 0, cap: 100, online: 1, servers: 1, admin: true, ka: true }, conn: { hint: 'x', ok: now }, drive: { connected: true, email: 'qa@example.com' }, now }), 60);
     if (b.op === 'jobs') return setTimeout(() => J({ ok: true, jobs: JOBS, now }), 60);
     if (b.op === 'job') return setTimeout(() => J({ ok: true, job: JOBS.find((x) => x.id === b.job) || null }), 60);
     return J({ ok: false, error: 'x' }); });
@@ -111,6 +111,9 @@ const STATE = () => {
       if (o < 0.9 || to < 0.9) r.issues.push('הפריט הפעיל (' + r.active + ') לא בשקיפות מלאה: בועה ' + o.toFixed(2) + ', פריט ' + to.toFixed(2));
     }
   }
+  // חלון / גיליון פתוח מעל הכל — הסריקה לא רואה את הדף (נמצא 01/11: הודעת מאגר הלמידה כיסתה את כל Studio, והכל "עבר")
+  const veil = [...document.querySelectorAll('.dlg-veil, .lib-veil, .modal-veil, [role="dialog"]')].find((v) => !v.matches('.st-root, .lib-root, .cube-ghost') && v.getClientRects().length && getComputedStyle(v).visibility === 'visible' && +getComputedStyle(v).opacity > 0.1);
+  if (veil) r.issues.push('חלון פתוח מכסה את המסך: ' + String(veil.className || veil.getAttribute('role')).slice(0, 40) + ' — ' + (veil.textContent || '').trim().slice(0, 40));
   const he = document.elementFromPoint(innerWidth / 2, 56);
   if (!he || he === document.body || he === document.documentElement || he.classList.contains('cube-bd')) r.issues.push('אין הדר גלוי (ראש המסך ריק)');
   const left = document.querySelectorAll('.cube-ghost, .cube-bd, .cube-hold');
