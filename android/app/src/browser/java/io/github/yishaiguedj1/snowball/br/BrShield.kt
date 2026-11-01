@@ -75,13 +75,15 @@ object BrShield {
      * מה שהחלטת לאתר אחד: shield = ההגנה פועלת (חסימה והודעות עוגיות); cam/mic/loc: 1 מותר, -1 חסום, 0 לשאול (ברירת
      * המחדל — לפי ת־עיצוב, ההחלטה שלך נזכרת ולא שואלים שוב); speed = מהירות הווידאו באתר (100 = רגיל)
      */
-    data class SiteRule(val host: String, val shield: Boolean = true, val cam: Int = 0, val mic: Int = 0, val loc: Int = 0, val speed: Int = 100) {
-        val empty get() = shield && cam == 0 && mic == 0 && loc == 0 && speed == 100
+    /** js/mute — Pro (01/11/2026): JavaScript באתר (כבוי = הדף נטען בלי סקריפטים) והשתקת האתר, לפי ת־עיצוב של הגדרות האתר במחשב */
+    data class SiteRule(val host: String, val shield: Boolean = true, val cam: Int = 0, val mic: Int = 0, val loc: Int = 0, val speed: Int = 100,
+                        val js: Boolean = true, val mute: Boolean = false) {
+        val empty get() = shield && cam == 0 && mic == 0 && loc == 0 && speed == 100 && js && !mute
     }
 
-    /** "host|s|c|m|l|v" בכל שורה — בלי JSON (נבדק ב־JVM בלי אנדרואיד) */
+    /** "host|s|c|m|l|v|j|u" בכל שורה — בלי JSON (נבדק ב־JVM בלי אנדרואיד); j/u חסרים בשורה ישנה = ברירת המחדל */
     fun encode(rules: Collection<SiteRule>): String = rules.filter { !it.empty && ok(it.host) }
-        .joinToString("\n") { "${it.host}|${if (it.shield) 1 else 0}|${it.cam}|${it.mic}|${it.loc}|${it.speed}" }
+        .joinToString("\n") { "${it.host}|${if (it.shield) 1 else 0}|${it.cam}|${it.mic}|${it.loc}|${it.speed}|${if (it.js) 1 else 0}|${if (it.mute) 1 else 0}" }
 
     fun decode(s: String): Map<String, SiteRule> {
         val out = LinkedHashMap<String, SiteRule>()
@@ -89,7 +91,8 @@ object BrShield {
             val p = line.split('|')
             if (p.size < 5 || !ok(p[0])) continue
             fun tri(x: String) = (x.toIntOrNull() ?: 0).coerceIn(-1, 1)
-            val r = SiteRule(p[0], p[1] != "0", tri(p[2]), tri(p[3]), tri(p[4]), (p.getOrNull(5)?.toIntOrNull() ?: 100).let { if (it in SPEEDS) it else 100 })
+            val r = SiteRule(p[0], p[1] != "0", tri(p[2]), tri(p[3]), tri(p[4]), (p.getOrNull(5)?.toIntOrNull() ?: 100).let { if (it in SPEEDS) it else 100 },
+                js = p.getOrNull(6) != "0", mute = p.getOrNull(7) == "1")
             if (!r.empty) out[r.host] = r
         }
         return out
