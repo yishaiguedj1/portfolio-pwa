@@ -13,7 +13,7 @@ const fs = require('fs'), os = require('os'), path = require('path'), { execFile
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-sweep-'));
 // פריים ריק = ברצועת האמצע (30%–85% מהגובה) כמעט אין קצוות (טקסט, גבולות כרטיסים) — פחות מ־4 לאלף פיקסלים.
 // לא פיזור צבעים: עמוד דליל אמיתי (עסקאות בתיק הדמו, הבית של Studio בפסטל) ~5–14 בפיזור, אבל ~11+ בקצוות; מסך ריק ~0
-const PYB = 'import sys,json\nfrom PIL import Image, ImageStat, ImageFilter\nout=[]\nfor f in json.loads(sys.argv[1]):\n    im=Image.open(f).convert("L"); w,h=im.size\n    m=im.crop((0,int(h*.3),w,int(h*.85))); d=im.crop((0,int(h*.88),w,h)).resize((72,16))\n    e=ImageStat.Stat(m.filter(ImageFilter.FIND_EDGES).point(lambda p: 255 if p>40 else 0)).mean[0]/255*1000\n    out.append([round(e,1), round(ImageStat.Stat(d).stddev[0],1)])\nprint(json.dumps(out))';
+const PYB = 'import sys,json\nfrom PIL import Image, ImageStat, ImageFilter\nout=[]\nfor f in json.loads(sys.argv[1]):\n    im=Image.open(f).convert("L"); w,h=im.size\n    if w!=393: im=im.resize((393,round(h*393/w))); w,h=im.size\n    m=im.crop((0,int(h*.3),w,int(h*.85))); d=im.crop((0,int(h*.88),w,h)).resize((72,16))\n    e=ImageStat.Stat(m.filter(ImageFilter.FIND_EDGES).point(lambda p: 255 if p>40 else 0)).mean[0]/255*1000\n    out.append([round(e,1), round(ImageStat.Stat(d).stddev[0],1)])\nprint(json.dumps(out))';
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const BASE = 'http://localhost:8792';
 const APPS = { invest: '/index.html', studio: '/studio.html', academy: '/academy.html' };
@@ -168,9 +168,10 @@ async function check(app, S, step, want) {
   S.casting = false;
   if (fr.length) {
     const sd = JSON.parse(execFileSync('python3', ['-c', PYB, JSON.stringify(fr.map((x) => x.f))]).toString());
-    // ריק = פחות מ־4 לאלף, וגם פחות מחצי מהדף שלפני המעבר ומהדף שאחריו (עמוד ריק מטבעו — "מה למדתי" בלי הדגשות — אינו "הבהוב";
+    // ריק = פחות מ־4 לאלף, וגם פחות מחצי מהדף שלפני המעבר, מהדף שאחריו ומהעמוד הדליל ביותר באפליקציה (S.base — נסיעה של שני
+    // פריטים עוברת דרך עמוד שלישי, למשל העסקאות הריקות בתיק הדמו) (עמוד ריק מטבעו — "מה למדתי" בלי הדגשות — אינו "הבהוב";
     // דף שנחת ריק — נתפס ב־STATE: אין טקסט גלוי)
-    const ref = Math.min(sd[0][0], sd[sd.length - 1][0]), dref = Math.min(sd[0][1], sd[sd.length - 1][1]);
+    const ref = Math.min(sd[0][0], sd[sd.length - 1][0], S.base || Infinity), dref = Math.min(sd[0][1], sd[sd.length - 1][1]);
     let run = 0, worst = 0, dock = 0;
     for (const [m, d] of sd) { run = m < Math.min(4, ref * 0.5) ? run + 1 : 0; worst = Math.max(worst, run); if (d < Math.min(6, dref * 0.4)) dock++; }
     if (worst >= 1) bad(app, step, 'בזמן המעבר: ' + worst + ' פריימים רצופים שבהם אמצע המסך ריק (מתוך ' + sd.length + ')');
@@ -192,6 +193,17 @@ async function sweep(b, app) {
   const keys = st0.keys || [];
   console.log('[' + app + '] פריטים בחוגה: ' + keys.join(', ') + ' · טקסטים בדף: ' + st0.txt);
   if (!keys.length) { await S.ctx.close(); return; }
+  // הבסיס: צפיפות הקצוות של כל עמוד במנוחה — הדליל ביותר
+  const shots = [];
+  for (const k of keys) {
+    await S.page.evaluate((k) => { const t = [...document.querySelectorAll('nav.tabs .tab')].find((x) => x.dataset.tab === k && !x.hidden); if (t) t.click(); }, k);
+    await settle(S.page);
+    const f = path.join(TMP, app + '-base-' + k + '.jpg'); await S.page.screenshot({ path: f, type: 'jpeg', quality: 60 }); shots.push(f);
+  }
+  const bs = JSON.parse(execFileSync('python3', ['-c', PYB, JSON.stringify(shots)]).toString()).map((x) => x[0]);
+  S.base = Math.min(...bs);
+  console.log('[' + app + '] בסיס (קצוות לאלף, לכל עמוד): ' + keys.map((k, i) => k + ' ' + bs[i]).join(' · '));
+  await S.page.evaluate(() => { window.__probe.log = []; });
   const navBox = await S.page.evaluate(() => { const n = [...document.querySelectorAll('nav.tabs')].find((x) => !x.hidden && x.getClientRects().length); const r = n.getBoundingClientRect(); return { y: r.top + r.height * 0.45 }; });
   // 1. לחיצה על כל פריט, הלוך ושוב (כל זוג)
   for (const a of keys) for (const k of keys) {
