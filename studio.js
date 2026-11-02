@@ -1566,6 +1566,7 @@ function thumbsLoad() {
 }
 function thumbSet(id, u) {
   thumbs.set(id, u);
+  if (thumbsTop.includes(id)) thumbsTopSave();   // סבב קפיצות 9: עבודה מראש הבית — גם לציור הראשון של הפתיחה הבאה
   const w = thumbWait.get(id); thumbWait.delete(id);
   if (w) for (const f of w) { try { f(u); } catch (e) {} }
 }
@@ -1624,7 +1625,33 @@ function paintThumb(th, rec) {
   const u = thumbFor(rec, (x) => { if (!x) return; if (Date.now() - t0 > 250) th.classList.add('in'); put(x); });   // דהייה רק לתמונה חדשה שמגיעה אחרי שהמסך כבר מוצג
   if (u) put(u);
 }
-export const thumbsReady = thumbChain = thumbsLoad();   // מיד בטעינת המודול — studio-app.js מחכה לו (עד 400ms) לפני הציור הראשון
+/* 02/11/2026 (סבב קפיצות 9 — הקלטה: פתיחה מהתפריט, אחרי מסך הפתיחה של אנדרואיד רקע ריק ~170ms): הבית מצויר בתוך הריצה
+   הסינכרונית של המודול (studio-app.js) — רק היא חוסמת ציור. IndexedDB אסינכרוני ואיטי בפתיחה (נמדד: ~200ms אחרי שהמודול רץ),
+   ולכן התמונות של העבודות שבראש הבית (THUMBS_TOP — מה שנראה בלי גלילה) שמורות גם ב־localStorage (‏pwa_stthumb_v1, ‏ACCOUNT_KEYS)
+   ונטענות כאן מיד: הציור הראשון = הבית עם התמונות. השאר — מ־IndexedDB כמו קודם */
+export const LS_THUMBS = 'pwa_stthumb_v1', THUMBS_TOP = 4;
+let thumbsTop = [], thumbsTopSig = '';
+const thumbsSig = (o, ks) => ks.map((k) => k + ':' + o[k].length).join(',');
+function thumbsTopLoad() {
+  try {
+    const o = JSON.parse(localStorage.getItem(LS_THUMBS) || 'null');
+    if (!o || typeof o !== 'object') return;
+    const ks = Object.keys(o).filter((k) => typeof o[k] === 'string' && /^data:image\//.test(o[k]));
+    for (const k of ks) if (!thumbs.has(k)) { thumbs.set(k, o[k]); thumbEl(k, o[k]); }
+    thumbsTop = ks; thumbsTopSig = thumbsSig(o, ks);
+  } catch (e) {}
+}
+function thumbsTopSave(ids) {
+  if (ids) thumbsTop = ids.slice(0, THUMBS_TOP);
+  const o = {};
+  for (const id of thumbsTop) { const u = thumbs.get(id); if (u) o[id] = u; }
+  const sig = thumbsSig(o, Object.keys(o));   // גם האורך — תמונה שהוחלפה לאותה עבודה נשמרת מחדש
+  if (sig === thumbsTopSig) return;
+  thumbsTopSig = sig;
+  try { if (sig) localStorage.setItem(LS_THUMBS, JSON.stringify(o)); else localStorage.removeItem(LS_THUMBS); } catch (e) {}
+}
+if (typeof localStorage !== 'undefined') thumbsTopLoad();
+export const thumbsReady = thumbChain = thumbsLoad();   // מיד בטעינת המודול — השאר מ־IndexedDB
 
 /* סבב 8: טיוטת עורך הכתוביות — שינויים שלא נשמרו שורדים רענון וסגירה (בטלפון בלבד, לפי מזהה העבודה).
    ev = הגרסה בשרתון שעליה נערך; טיוטה על גרסה ישנה יותר — רק באישור (אחרת הייתה דורסת שמירה מאוחרת) */
@@ -3231,6 +3258,7 @@ function pageHome(p, kaTab) {
   // 1/11/2026: עבודה שרצה עכשיו (גם ישנה שחודשה) — בראש הרשימה, לא עמוק ב"עבודות קודמות"; השאר לפי התאריך
   const busy = (rec) => (LIVE_PH.has(jobPhase(rec, runs.get(rec.id))) ? 0 : 1);
   jobs.sort((a, b) => busy(a) - busy(b));
+  if (!kaTab) thumbsTopSave(jobs.map((rec) => rec.id));   // סבב קפיצות 9: התמונות שבראש הבית — גם ב־localStorage
   const drafts = kaTab ? [] : store.drafts;
   if (!drafts.length && !jobs.length) {
     const e = h('div', 'st-empty');
