@@ -15,7 +15,7 @@ const TI_RULES = {
     // fourCase: 88 (שער המטבע הוא המדד — חובה ליחיד) + מוזס. N>0, D<0 → 0: דוגמה 2 של מוזס; N<0, D>0 → 0: נגזר מהמנגנון.
     // fifo: תקנה 5 לתקנות החישוב (2002) + "ניירות ערך זהים" (תקנה 1) — FIFO נפרד לכל חשבון. fees: דברי ההסבר ל־1325. offset: 92(א)(1),(3),(4), 92(ב).
     // creditCarry: 205א — עודף זיכוי עובר 5 שנים מול אותו מקור (הנוסח אומת, docs/tax-il-research.md). לא ודאי: שהמקור
-    // הוא "דיבידנד מחו״ל" בלי קשר למדינה, וההצמדה למדד לא מחושבת (נומינלי — שמרני). לכן ניצול מהמאגר = הערכה.
+    // הוא "דיבידנד מחו״ל" בלי קשר למדינה; ההצמדה למדד (מ־03/11/2026, opts.cpi) לפי המדד הידוע בסוף כל שנה. ניצול = הערכה.
     verified: { rate: true, fourCase: true, fifo: true, fees: true, offset: true, surtax: true, capSurtax: true, dividend: true, creditCarry: false },
   },
   2025: { capSurtax: { th: 721560, r: 0.02 } },   // 2% על ההכנסה ההונית בלבד שמעל אותו סף (1.1 מיליון — לא קיים בחוק)
@@ -111,7 +111,17 @@ function tiFourCase(gIls, gFx) {
      (עלות במטבע הנייר ותאריך הקנייה המקורי) → tinNoCost ובלי מנה. יוצאת → המנות יוצאות בלי מכירה.
    - אופציות (ח2): Ep → מכירה ב־0 (G17, כמו כל מכירה); Ex/A → הפרמיה עוברת לעסקת נכס הבסיס באותו יום.
    - מכירה בחסר (ח3): מכירה בלי מנות עם openClose=O → פוזיציית שורט; הכיסוי סוגר אותה (G31). בלי O → noLots כמו קודם.
+   - cpi(date) → המדד הידוע ביום (03/11/2026): נייר שקלי לפי מדד המחירים (88). R = תמורה − עלות × max(1, מדד מכירה/מדד
+     קנייה), והחייב = tiFourCase(N, R) — אותו מנגנון של מוזס: רווח ריאלי; רווח נומינלי שכולו אינפלציה → 0; הפסד →
+     הנומינלי. בלי מדד — נומינלי ומסומן, כמו קודם. (לא ודאי: יום הפרסום, וההפסד הנומינלי — verified.cpiReal)
    מחזיר {open:[מנות פתוחות], sales:[חלקי מכירה], fx:[חלקי המרות מט״ח], issues:[בעיות נתונים]} */
+/* נייר שקלי: החייב הריאלי לפי המדד הידוע. null — אין מדד לאחד התאריכים */
+function tiReal(cost, proceeds, buyDate, sellDate, cpi) {
+  const a = tiNum(cpi && cpi(buyDate)), b = tiNum(cpi && cpi(sellDate));
+  if (!(a > 0) || !(b > 0)) return null;
+  const real = proceeds - cost * Math.max(1, b / a);
+  return { real: real, taxable: tiFourCase(proceeds - cost, real) };
+}
 const TI_CA_SCALE = ['FS', 'RS', 'FI', 'IC', 'SD'];
 function tiCorpGroups(rows) {
   const g = new Map();
@@ -143,7 +153,12 @@ function tiFifo(trades, fxOf, opts) {
     return ks.find((k) => pre && k.startsWith(pre)) || ks[0] || pre + sym;
   };
   const addLots = (key, arr) => { const q = (lots.get(key) || []).concat(arr); q.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)); lots.set(key, q); };
-  const sale = (x) => sales.push(Object.assign({ isin: '', country: '', nominal: false }, x));
+  const sale = (x) => { const r = Object.assign({ isin: '', country: '', nominal: false }, x); if (r.cur === 'ILS') ilsReal(r); sales.push(r); };
+  // מכירה בשקלים: ריאלי לפי המדד הידוע כשיש לשני התאריכים (openDate — מכירה בחסר)
+  const ilsReal = (r) => {
+    const x = tiReal(r.cost, r.proceeds, r.openDate || r.buyDate, r.sellDate, o.cpi);
+    if (x) { r.taxable = x.taxable; r.gReal = x.real; r.nominal = false; r.cpiReal = true; }
+  };
   const ev = [];
   T.forEach((t, i) => ev.push({ d: t.date, r: t.optEx ? 2 : 3, i: i, t: t }));
   tiCorpGroups(o.corp).forEach((g, i) => ev.push({ d: g.date, r: 0, i: i, g: g }));
@@ -199,6 +214,7 @@ function tiFifo(trades, fxOf, opts) {
           costIls: cost * fx, proceedsIls: proceeds * s0.fx, gIls: gIls, gFx: gFx,
           taxable: t.cur === 'ILS' ? gIls : tiFourCase(gIls, gFx), nominal: t.cur === 'ILS', short: true,
         }, tag));
+        if (t.cur === 'ILS') ilsReal(out[out.length - 1]);
         s0.qty -= take; left -= take;
         if (s0.qty <= 1e-9) sq.shift();
       }
@@ -222,9 +238,10 @@ function tiFifo(trades, fxOf, opts) {
         cost: cost, proceeds: proceeds, fxBuy: lot.fx, fxSell: fx,
         costIls: cost * lot.fx, proceedsIls: proceeds * fx,
         gIls: gIls, gFx: gFx, taxable: t.cash ? gIls : t.cur === 'ILS' ? gIls : tiFourCase(gIls, gFx),
-        // נייר שקלי: רווח נומינלי — הריאלי (לפי מדד) קטן ממנו; מסומן
+        // נייר שקלי: ריאלי לפי המדד כשיש (ilsReal); בלי מדד — נומינלי ומסומן
         nominal: !t.cash && t.cur === 'ILS',
       }, tag));
+      if (!t.cash && t.cur === 'ILS') ilsReal(out[out.length - 1]);
       lot.qty -= take;
       left -= take;
       if (lot.qty <= 1e-9) q.shift();
@@ -473,7 +490,7 @@ function tiYear(year, sales, divs, opts) {
   if (marginInt > 0.5) flags.push('marginInt');
   if (mgmtFee > 0.5) flags.push('mgmtFee');
   if (yd.some((d) => d.kind === 'dataFee')) flags.push('dataFee');
-  for (const f of ['deriv', 'short', 'crypto', 'corp', 'resEx']) if (ys.some((s) => s[f])) flags.push(f);
+  for (const f of ['deriv', 'short', 'crypto', 'corp', 'resEx', 'cpiReal']) if (ys.some((s) => s[f])) flags.push(f);
   if (sub.size && (subGain > 0 || subDiv > 0)) flags.push('sub');
   if (o.noOffInt || o.poolCg || o.fxTax) flags.push('disputed');
   // G28: ניכוי ריבית המרווח = 30% על הרווח פחות הריבית (101א(ב)), מול 25% בלי ניכוי. מידע בלבד, נומינלי
@@ -499,7 +516,7 @@ function tiYear(year, sales, divs, opts) {
 
 /* האופציות של שנה אחת מתוך ההגדרות של כל השנים */
 function tiYearOpts(o, y, carry, pool) {
-  return { carry: carry, pool: pool, other: (o.other || {})[y], otherCap: (o.otherCap || {})[y],
+  return { carry: carry, pool: pool, cpi: o.cpi, other: (o.other || {})[y], otherCap: (o.otherCap || {})[y],
     noOffInt: !!o.noOffInt, poolCg: !!o.poolCg, fxTax: !!o.fxTax, fx: o.fx || [], sub: o.sub || [] };
 }
 
@@ -536,7 +553,10 @@ function tiYears(sales, divs, opts) {
     // ח15: הפסד של שנה שלא הוגש עליה דוח לא עובר (92(ב)) — ההפסד המועבר הוותיק ממשיך
     if ((o.filed || {})[y] === false) { const keep = r.carryIn - r.carryUsed; r.carryLost = Math.max(0, r.carryOut - keep); r.carryOut = Math.min(r.carryOut, keep); }
     carry = r.carryOut;
-    pool = r.poolOut;
+    // 205א: עודף הזיכוי צמוד למדד — מסוף שנה לסוף השנה הבאה (המדד הידוע; השנה הנוכחית — האחרון שפורסם)
+    const c0 = tiNum(o.cpi && o.cpi(y + '-12-31')), c1 = tiNum(o.cpi && o.cpi((y + 1) + '-12-31'));
+    const k = c0 > 0 && c1 > 0 ? Math.max(1, c1 / c0) : 1;
+    pool = r.poolOut.map((p) => (k === 1 ? p : Object.assign({}, p, { amt: p.amt * k })));
     out.push(r);
   }
   return out;
@@ -555,7 +575,7 @@ function tiSemi(sales, year) {
 
 /* "המס אם אמכור היום": לכל מנה פתוחה — ארבעת המצבים מול מחיר ושער של היום.
    priceOf(sym) → מחיר במטבע הנייר; fxNow(cur) → שער היום. fee — עמלת מכירה משוערת למנה (במטבע) */
-function tiUnrealized(open, priceOf, fxNow, fee) {
+function tiUnrealized(open, priceOf, fxNow, fee, cpi) {
   const rows = [];
   for (const l of (open || [])) {
     const p = tiNum(priceOf && priceOf(l.sym));
@@ -568,6 +588,10 @@ function tiUnrealized(open, priceOf, fxNow, fee) {
       fxPart: gIls - gFx,   // החלק שנבע מהשער (לא חייב, והפסד ממנו לא מתקזז)
       taxable: l.cur === 'ILS' ? gIls : tiFourCase(gIls, gFx), nominal: l.cur === 'ILS',
     }));
+    if (l.cur === 'ILS') {
+      const x = tiReal(cost, proceeds, l.date, '9999-12-31', cpi);   // המדד הידוע היום = האחרון בסדרה
+      if (x) Object.assign(rows[rows.length - 1], { taxable: x.taxable, gReal: x.real, nominal: false, cpiReal: true });
+    }
   }
   return rows;
 }
@@ -690,6 +714,6 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     TI_RULES, tiRules, tiNormTrades, tiFourCase, tiFifo, tiDividends, tiYear, tiYears,
     tiUnrealized, tiHarvest, tiCheck, tiSemi, TI_SRC, tiW8, tiRateOn, tiReport, tiEstate, TI_ESTATE_TH,
-    tiEstateTax, tiCorpGroups, tiResident, tiYearOpts,
+    tiEstateTax, tiCorpGroups, tiResident, tiYearOpts, tiReal,
   };
 }
