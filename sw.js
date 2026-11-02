@@ -4,13 +4,13 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v696';
+const CACHE_NAME = 'portfolio-pwa-v698';
 const HASHES = {
   "./": "6ab1986a1bc13b10b7405e36061fa8ba",
   "./index.html": "6ab1986a1bc13b10b7405e36061fa8ba",
-  "./styles.css": "40265dc9a0d4d18b66a8f72526d82667",
+  "./styles.css": "47dd34c6ecc02ea1a577611a3574dbd1",
   "./glass-btn.css": "597c83b2453476f8cfa584134b97bdae",
-  "./app.js": "4344589f9c9058fd2ce9cec818f682c4",
+  "./app.js": "e2bd847bad04194dff2e7d4c769952a0",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "2cf2e330bfcc2c9150ba47b8f355982d",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -41,7 +41,7 @@ const HASHES = {
   "./chartlib.js": "5c00c490dac1b09329fa1ce657350a9b",
   "./chart.css": "0e4e6260108563c3f329d204c1398a10",
   "./vendor/klinecharts/klinecharts.min.js": "4202d8661b8302175751d8d072bf6d2f",
-  "./library.js": "0341d21a7ccd3df3e86a842ce622b6d8",
+  "./library.js": "bc0da357bad24872901978dead342bf3",
   "./library.css": "fa87fa43096cd3bd4ca0bd380317563d",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
   "./libbackup.js": "a238c4cf7877166ba8eba5cdcf6eadb8",
@@ -70,7 +70,7 @@ const HASHES = {
   "./academy.html": "ff70b7cdf55a58896794457f6812abf4",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
   "./strings-academy.js": "7eee437f6221367cde5e66427fb87d4f",
-  "./core.js": "50829280052fcb61ff51ba77a8a002e3",
+  "./core.js": "20884d091010b4ccd6443277c044cca1",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "6b22a08dd74c16eefd740922596fb568",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -79,7 +79,7 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "8d6bfd5a0fca86d55786ab8e6cbe55d0",
+  "./studio.js": "a8563a00e4f887d2a8d9f3135be27d46",
   "./studio.css": "b5bc9c2853f3ae87b220792419848092",
   "./studionet.js": "67d0da7e52eb5de8eb01b6fac252d4d6",
   "./studioplay.js": "9862ab618839b88fa914399b8eff2ce7",
