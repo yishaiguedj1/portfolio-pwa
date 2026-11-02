@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1529 מפתחות מתוך 6101) */
+/* המחרוזות של admin (1531 מפתחות מתוך 6103) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1392,6 +1392,8 @@ he: {
   "admWas": "קודם {v}",
   "admWaveAdd": "עוד זרוע",
   "admWaveArm": "זרוע {n}",
+  "admWaveArmAll": "מקורות הגל (למטה)",
+  "admWaveArmN": "{n} מקורות לזרוע הזו",
   "admWaveBt": "חצי מחיר · מוכן תוך כמה שעות",
   "admWaveDel": "להסיר את הזרוע",
   "admWaveFoot": "הניתוח — ב־quality-bench, מחוץ לטלפון: זוגות עיוורים מול הזרוע הראשונה.",
@@ -2923,6 +2925,8 @@ en: {
   "admWas": "was {v}",
   "admWaveAdd": "Add arm",
   "admWaveArm": "Arm {n}",
+  "admWaveArmAll": "Wave sources (below)",
+  "admWaveArmN": "{n} sources for this arm",
   "admWaveBt": "Half price · ready within a few hours",
   "admWaveDel": "Remove arm",
   "admWaveFoot": "Analysis runs in quality-bench, off the phone: blind pairs against the first arm.",

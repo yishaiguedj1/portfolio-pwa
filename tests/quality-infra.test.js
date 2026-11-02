@@ -23,7 +23,11 @@ const R = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   const arms = S.normArms([{ mode: 'haiku-medium' }, { mode: 'haiku-high', xf: ['smf'] }], srcs.map((j) => j.id));
   const wv = S.waveOrder(srcs, arms);
   ok(wv.length === 24 && wv.every(([j, a, i], k) => j.id === 'g' + Math.floor(k / 2) && i === k % 2), 'waveOrder — 12 מקורות × 2 זרועות, בסדר משולב');
-  ok(S.normArms([{ mode: 'nope' }], []) === null && S.normArms([{}, {}, {}, {}], []) === null && S.normArms([], []) === null, 'normArms — מצב לא מוכר / יותר מ־3 / ריק = null');
+  { const src = { id: 'jAAAAAAAAAAAAAAAAAAAA', spec: { eng: 'api', ph: 1, pw: 1, dur: 600, mode: 'haiku-medium' }, fa: { id: 'a' }, fph: { id: 'm' }, fpw: { id: 'w' }, folder: 'f' };
+    const c = S.goldClone(src, 'jBBBBBBBBBBBBBBBBBBBB', 'u', 1, 'haiku-medium'), w = S.waveClone(src, 'jCCCCCCCCCCCCCCCCCCCC', 'u', 1, { mode: 'haiku-high', xf: [] }, 1), k = S.smokeJob(src, 'jDDDDDDDDDDDDDDDDDDDD', 'u', 1);
+    ok(c.fph.id === 'm' && c.fpw.id === 'w' && w.fph.id === 'm' && k.fph.id === 'm', 'goldClone — תרגום בטלפון: המדידות והמילים עוברות לעותק (בלי זה upload_timeout אחרי 12 שעות)');
+    ok(!('fph' in S.goldClone(Object.assign({}, src, { fph: null, fpw: null }), 'jEEEEEEEEEEEEEEEEEEEE', 'u', 1)), 'goldClone — בלי מדידות במקור: אין שדה ריק'); }
+  ok(S.normArms([{ mode: 'nope' }], []) === null && S.normArms([{}, {}, {}, {}, {}], []) === null && S.normArms([{}, {}, {}, {}], []).length === 4 && S.normArms([], []) === null, 'normArms — מצב לא מוכר / יותר מ־4 / ריק = null');
   ok(S.normArms([{ src: ['x'] }], ['g0']) === null, 'normArms — רשימת מקורות בלי אף מקור מוכר = null');
   const a1 = S.normArms([{ src: ['g1', 'zz'] }], ['g0', 'g1']);
   ok(a1 && a1[0].mode === S.DEFAULT_MODE && a1[0].src.join() === 'g1' && S.waveOrder(srcs, a1).length === 1, 'normArms — בלי מצב = ברירת המחדל; מקור לא מוכר נזרק');
@@ -106,7 +110,8 @@ const R = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   const ak = /const XF_KEYS = (\[[^\]]*\]), GOLD_ARMS = (\d+);/.exec(adm);
   ok(ak && JSON.stringify(JSON.parse(ak[1].replace(/'/g, '"'))) === JSON.stringify(S.XF_KEYS) && +ak[2] === S.GOLD_ARMS, 'admin-app — XF_KEYS ו־GOLD_ARMS זהים לשרתון');
   ok(/api\('goldRun', \{ ok: true, arms: arms\.map/.test(adm) && /n > GOLD_MAX \* arms\.length/.test(adm), 'admin-app — הגל בקריאה אחת עם arms, ובתקרה GOLD_MAX × זרועות');
-  ok(/function paintWave[\s\S]{0,3000}askConfirm\(/.test(adm), 'admin-app — אישור לפני הרצת גל');
+  ok(/function paintWave[\s\S]{0,4500}askConfirm\(/.test(adm), 'admin-app — אישור לפני הרצת גל');
+  ok(/const armSrc = \(a\) =>/.test(adm) && /src: x\.map\(\(j\) => j\.id\)/.test(adm), 'admin-app — מקורות לכל זרוע (M1: זרועות על מקורות שונים)');
 
   console.log(`${n - fail}/${n}`);
   process.exit(fail ? 1 : 0);

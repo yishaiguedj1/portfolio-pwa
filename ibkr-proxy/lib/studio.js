@@ -1015,7 +1015,7 @@ function normXf(x) {
   return o.length ? o : null;
 }
 /* "הרץ גל": עד GOLD_ARMS זרועות — לכל אחת מצב, דגלים, ואפשר גם רשימת מקורות (מזהי עבודות זהב). null = לא תקין */
-const GOLD_ARMS = 3;
+const GOLD_ARMS = 4;   // 02/11/2026: M1 — א/ב/ג + ד (חצי מחיר)
 function normArms(a, srcIds) {
   if (!Array.isArray(a) || !a.length || a.length > GOLD_ARMS) return null;
   const ids = new Set(srcIds || []), out = [];
@@ -1053,7 +1053,12 @@ function goldClone(src, id, uid, now, mode, xe) {
   const x = normXe(v.xe);
   if (x) spec.xe = x;
   if (v.xg === 1) spec.xg = 1;   // 24/10/2026: ניסוי "בלי מילון מונחים" — העובד כותב glossary.tsv בלי מונחים
-  return { id, uid, kind: 'tr', state: 'new', created: now, updated: now, spec, fa: src.fa || null, fv: src.fv || null, folder: src.folder, gs: src.id, gr: gd ? gd.r : '' };
+  // 02/11/2026: תרגום בטלפון (spec.ph) — אין סרטון בשרת, העובד מחכה למדידות (fph) ולמילים (fpw). בלי ההעתקה עבודת הבדיקה
+  // וכל עבודות הגל חיכו 12 שעות ונכשלו ב־upload_timeout (31/10–2/11, שלוש פעמים)
+  const ph = {};
+  if (src.fph) ph.fph = src.fph;
+  if (src.fpw) ph.fpw = src.fpw;
+  return Object.assign({ id, uid, kind: 'tr', state: 'new', created: now, updated: now, spec, fa: src.fa || null, fv: src.fv || null, folder: src.folder, gs: src.id, gr: gd ? gd.r : '' }, ph);
 }
 /* פריט 13 (21/10/2026): עבודת בדיקה אחרי עדכון של העובד — הדקה הראשונה של עבודת הזהב, רק SRT, במצב ברירת המחדל.
    sm = 1: לא בסט הזהב, לא במדדים (gs — כמו הרצה של סט הזהב), בלי ציון (בלי gr). רק עבודת זהב של השרת (eng api) ובלי חיתוך משלה */
