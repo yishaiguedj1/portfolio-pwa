@@ -1,9 +1,10 @@
 """סבב 6 (11/10/2026): גל הקול וחילופי השוטים לעורך הכתוביות בטלפון — מ־audio16k.wav ומ־shots.json של vt. בלי טוקנים.
 
 רץ בסביבת vt (numpy), מ־finish. הפלט = out/timeline.json:
-  {"v": 1, "r": 20, "pk": "<base64: בית לכל 1/r שנ׳ — עוצמה בסולם dB, 0–255>", "sh": [שניות של חילופי שוטים]}
+  {"v": 1, "r": 20, "pk": "<base64: בית לכל 1/r שנ׳ — עוצמה בסולם dB, 0–255>", "sh": [שניות של חילופי שוטים],
+   "wd": [[התחלה, סוף, "מילה", ביטחון 0–100 או ‎-1], …]}   ← סבב 4 של השדרוג (2/11/2026): זמן לכל מילה ומילים לא בטוחות בעורך
 כך הטלפון לא צריך לפענח שעה של קול (זיכרון וסוללה) כדי לצייר את הציר.
-**R / PK_MAX / SH_MAX זהים ל־normMeta בטלפון (studiosubs.js)**.
+**R / PK_MAX / SH_MAX / WD_MAX / WD_LEN זהים ל־normMeta בטלפון (studiosubs.js)**.
 """
 import argparse
 import base64
@@ -15,6 +16,8 @@ from pathlib import Path
 R = 20                    # נקודות לשנייה
 PK_MAX = 4 * 3600 * R     # עד 4 שעות
 SH_MAX = 5000
+WD_MAX = 60000            # מילים — כ־6 שעות דיבור רצוף
+WD_LEN = 40               # תווים למילה
 DB_FLOOR = -60.0
 
 
@@ -60,6 +63,36 @@ def shots(path):
     return sorted(set(out))[:SH_MAX]
 
 
+def words(pd):
+    """סבב 4 של השדרוג: המילים של המקור עם הזמנים והביטחון — מהיישור (en.aligned.json), ואם אין — מהתמלול (en.words.json).
+    אותו בסיס זמן כמו הכתוביות (shift_words בעובד מזיז את שני הקבצים). ביטחון: conf 0–1 ← 0–100, בלי ציון = ‎-1."""
+    for name in ('en.aligned.json', 'en.words.json'):
+        try:
+            raw = json.loads((Path(pd) / name).read_text(encoding='utf-8')).get('words')
+        except (OSError, ValueError, AttributeError):
+            continue
+        if not isinstance(raw, list):
+            continue
+        out, last = [], -1.0
+        for w in raw:
+            if not isinstance(w, dict):
+                continue
+            t, s, e, c = str(w.get('w') or '').strip()[:WD_LEN], w.get('s'), w.get('e'), w.get('conf')
+            if not t or not isinstance(s, (int, float)) or not isinstance(e, (int, float)) or not (0 <= s < 86400) or s != s or e != e:
+                continue
+            s = round(float(s), 2)
+            if s < last:
+                continue                              # רק בסדר עולה (הטלפון מחפש בחיפוש בינארי)
+            e = round(max(float(e), s + 0.01), 2)
+            cc = int(min(100, max(0, float(c) * 100)) + 0.5) if isinstance(c, (int, float)) and c == c else -1
+            out.append([s, e, t, cc])
+            last = s
+            if len(out) >= WD_MAX:
+                break
+        return out
+    return []
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description='גל הקול וחילופי השוטים לעורך הכתוביות')
     p.add_argument('--project', required=True)
@@ -72,8 +105,11 @@ def main(argv=None):
         return 0
     pk = peaks(wav)
     meta = {'v': 1, 'r': R, 'pk': base64.b64encode(pk).decode('ascii'), 'sh': shots(pd / 'shots.json')}
+    wd = words(pd)
+    if wd:
+        meta['wd'] = wd
     Path(a.out).write_text(json.dumps(meta, separators=(',', ':')), encoding='utf-8')
-    print('✓ גל הקול: %d שנ׳, %d חילופי שוטים' % (len(pk) // R, len(meta['sh'])))
+    print('✓ גל הקול: %d שנ׳, %d חילופי שוטים, %d מילים' % (len(pk) // R, len(meta['sh']), len(wd)))
     return 0
 
 
