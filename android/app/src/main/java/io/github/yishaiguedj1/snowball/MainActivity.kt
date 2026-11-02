@@ -43,7 +43,7 @@ class MainActivity : Activity() {
         if (savedInstanceState?.getBoolean(KEY_LAUNCHED) == true) { finish(); return }
         if (restartInOwnTask()) { finish(); return }
         setContentView(buildSplash())
-        open(urlFor(intent), shareOf(intent))
+        open(urlFor(intent), shareOf(intent), isBook(intent))
     }
 
     // R8: מסך הפתיחה של ה־TWA מחכה לסוף אנימציית הכניסה (חובה לפי PwaWrapperSplashScreenStrategy)
@@ -55,7 +55,7 @@ class MainActivity : Activity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        open(urlFor(intent), shareOf(intent))
+        open(urlFor(intent), shareOf(intent), isBook(intent))
     }
 
     // חזרה מהאתר (כפתור "אחורה") — סוגרים, במקום להשאיר מסך לוגו ריק
@@ -117,7 +117,7 @@ class MainActivity : Activity() {
     /* 22/10/2026: סרטון ששותף ל־Studio (מהגלריה, או בסוף ההורדה בטלפון — DlState.handoffIntent): Chrome שולח את הקובץ
        ב־POST ל־/share-file באתר (Web Share Target), ו־sw.js שומר אותו ומעביר לדף. רק ב־Studio יש intent-filter כזה */
     private fun shareOf(i: Intent?): ShareData? {
-        if (i?.action != Intent.ACTION_SEND || !(i.type ?: "").startsWith("video/")) return null
+        if (i?.action != Intent.ACTION_SEND || !((i.type ?: "").startsWith("video/") || isBook(i))) return null
         @Suppress("DEPRECATION")
         val u = (if (android.os.Build.VERSION.SDK_INT >= 33) i.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
             else i.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri) ?: return null
@@ -125,7 +125,11 @@ class MainActivity : Activity() {
         return ShareData(null, t, listOf(u))
     }
 
-    private fun open(url: Uri, share: ShareData? = null) {
+    /* 02/11/2026 (Studio Browser, הגל השישי — 70 מאמר ל־Academy): ספר EPUB ששותף ל־Academy (רק ב־Academy יש intent-filter
+       כזה — src/academy/AndroidManifest.xml). אותו מסלול של הסרטון ב־Studio: POST ל־/share-file עם השדה book, ו־sw.js מעביר לדף */
+    private fun isBook(i: Intent?) = i?.action == Intent.ACTION_SEND && i.type == "application/epub+zip"
+
+    private fun open(url: Uri, share: ShareData? = null, book: Boolean = false) {
         try {
             val pkg = CustomTabsClient.getPackageName(this, CHROME_PACKAGES, true)
             if (pkg == null) {
@@ -149,7 +153,7 @@ class MainActivity : Activity() {
                 // 14/10/2026: שתי האפליקציות האחרות — מקורות מאומתים (מעבר בתפריט כשהשנייה לא מותקנת נשאר במסך מלא)
                 .setAdditionalTrustedOrigins(APP_ORIGINS.filter { !it.endsWith("//" + getString(R.string.siteHost)) })
             if (share != null) builder.setShareParams(ShareTarget(getString(R.string.launchUrl) + "share-file", ShareTarget.METHOD_POST,
-                ShareTarget.ENCODING_TYPE_MULTIPART, ShareTarget.Params(null, "text", listOf(ShareTarget.FileFormField("video", listOf("video/*"))))), share)
+                ShareTarget.ENCODING_TYPE_MULTIPART, ShareTarget.Params(null, "text", listOf(if (book) ShareTarget.FileFormField("book", listOf("application/epub+zip")) else ShareTarget.FileFormField("video", listOf("video/*"))))), share)
             // מופע שנפתח מעל ה־TWA (קישור כשהאפליקציה פתוחה) — נסגר אחרי ההעברה; השורש נשאר עד "אחורה"
             /* 30/10/2026 (סבב קפיצות 6, R8 — מעבר בין האפליקציות: מסך פתיחה ← לבן ← האפליקציה): מסך הפתיחה (הלוגו על
                צבע הדף, splash_bg) עובר ל־Chrome ונשאר עד הציור הראשון של האתר. דפדפן בלי תמיכה — כמו קודם */

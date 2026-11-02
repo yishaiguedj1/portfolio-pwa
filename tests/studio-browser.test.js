@@ -364,4 +364,19 @@ ok(fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yis
     'הגל החמישי בתפריט ⋮ — פריט אחד בקבוצת הכלים');
 }
 
+// 02/11/2026: Studio Browser Pro — הגל השישי (docs/browser-pro-plan.md): רק אצלנו — Studio, Academy, Invest
+{
+  const ours = R(B + 'BrOurs.kt'), oa = R(B + 'BrOursAndroid.kt');
+  const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8'), lib = fs.readFileSync(path.join(__dirname, '..', 'library.js'), 'utf8');
+  const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  ok(!/HttpURLConnection|openConnection/.test(ours), 'BrOurs טהור — בלי רשת (הרשת רק ב־BrOursAndroid)');
+  ok(/if \(!t\.private\) autoSubs\(t\)/.test(act), 'כתוביות שמורות לא נטענות בכרטיסייה פרטית');
+  ok(/q\.syms\.ifEmpty \{/.test(oa) && (oa.match(/post\("/g) || []).length === 2, 'כרטיס מניה: לכל היותר חיפוש אחד ובקשת מחירים אחת דרך השרתון');
+  ok(/kind === 'book' \? \/\^\(application\\\/\(epub\\\+zip\|octet-stream\)\)\?\$\//.test(sw) && /64 \* 1048576/.test(sw), 'sw: ספר ששותף — רק EPUB, עם תקרה');
+  ok(/inboxBook\(\);/.test(lib), 'Academy מייבאת ספר מהתיבה');
+  ok(/askConfirm\(t\('wlAddAsk'/.test(app) && /linkPending = \(\) => \/\(\?:\^#\|&\)\(\?:[a-z|]*watch\)=/.test(app), 'Invest: ‎#watch= מוסיף למעקב רק אחרי אישור');
+  ok(ui.indexOf('MItem(R.string.brOurs') > ui.indexOf('MItem(R.string.brLocal') && ui.indexOf('MItem(R.string.brOurs') < ui.lastIndexOf('MItem(R.string.brSettings'),
+    'הגל השישי בתפריט ⋮ — פריט אחד בקבוצת הכלים');
+}
+
 console.log('studio-browser: ' + n + ' בדיקות עברו');

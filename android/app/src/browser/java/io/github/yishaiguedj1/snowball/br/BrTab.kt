@@ -53,6 +53,9 @@ class BrTab(val id: Long, url: String, title: String, val private: Boolean, var 
     var aiH: androidx.webkit.ScriptHandler? = null
     var state: Bundle? = null
     var used = 0L
+    /** הגל השישי (68/73): הכתוביות שחזרו מ־Studio לדף הזה (בטלפון בלבד), ולאיזה דף נטענו */
+    var subs by mutableStateOf<List<BrOurs.Cue>?>(null)
+    var subsKey = ""
 
     /** Pro (01/11/2026): כרטיסייה נעוצה — ראשונה, לא נסגרת ב"סגירת הכל"; והרשומות של כלי המפתחים (רק בזיכרון, נמחקות בדף חדש) */
     var pinned by mutableStateOf(false)
