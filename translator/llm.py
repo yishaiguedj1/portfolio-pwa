@@ -212,7 +212,16 @@ BATCH_ID_RE = re.compile(r'^[A-Za-z0-9_-]{1,64}$')
 
 class BatchWait(BaseException):
     """הבקשה נרשמה לתור החיסכון — העבודה חונה עד שהתשובה תחזור. BaseException: לא נבלעת ב־except Exception
-    (שופט, תיקונים), ועוברת דרך ThreadPool — כל החלקים המקבילים נרשמים לפני שהעבודה יוצאת."""
+    (שופט, תיקונים), ועוברת דרך ThreadPool — כל החלקים המקבילים נרשמים לפני שהעבודה יוצאת.
+    2/11/2026: k = התפקיד שחנה (main/tl/rv) — הדיווח לשרתון מסמן את השלב שבאמת מחכה (BATCH_STAGE). התרגום רץ במקביל
+    ליישור בשקט, ובלי זה הטלפון הראה "מתאימים כל משפט · לוקח יותר מהרגיל" שעות אחרי שהיישור הסתיים."""
+
+    def __init__(self, h: str = '', k: str = ''):
+        super().__init__(h)
+        self.k = k
+
+
+BATCH_STAGE = {'main': 'tr', 'tl': 'tl', 'rv': 'rv'}   # התפקיד → השלב בטלפון (ההגהה היא חלק מ"כותבים כל מילה")
 
 
 def batch_dir() -> Path:
@@ -580,7 +589,7 @@ class Engine:
             batch_put(self.batch, h, params)
             if on_first_token is not None:
                 on_first_token()             # המקבול לא מחכה לטוקן ראשון — כל החלקים נרשמים לאותו סבב
-            raise BatchWait(h)
+            raise BatchWait(h, getattr(_tl, 'k', ''))
         if not isinstance(a.get('m'), dict):
             print(f'· תור החיסכון לא החזיר תשובה ({a.get("x") or "?"}) — הקריאה הזו בזמן אמת, במחיר רגיל')
             return None
