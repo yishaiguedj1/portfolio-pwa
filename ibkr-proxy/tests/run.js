@@ -3620,13 +3620,21 @@ function stubFetch(text, status = 200) {
       const KB = rr.payload.job && rr.payload.job.key;
       ok(rr.payload.job && rr.payload.job.id === JB, 'חצי מחיר: נלקחת כמו כל עבודה');
       await wrk({ op: 'claim', job: JB, key: KB });
-      rr = await wrk({ op: 'report', job: JB, key: KB, park: true, bw: true, msg: 'x' });
+      rr = await wrk({ op: 'report', job: JB, key: KB, st: 'tl', park: true, bw: true, msg: 'x' });   // 2/11/2026: השלב שמחכה
       const fb = db.get('studioJobs/' + JB).fields;
       ok(rr.payload.ok && fb.state.stringValue === 'queued' && !fb.sid.stringValue && Number(fb.bw.integerValue) > 0, 'חצי מחיר: חונה — חוזרת לתור, המפתח מת, השרת פנוי');
       rr = await run({ op: 'job', idToken: OWNER, job: JB });
       ok(rr.payload.job.bw === 1 && rr.payload.job.vw === 0 && !rr.payload.job.stale && rr.payload.job.spec.wl === 'ab12cd34ef', 'חצי מחיר: הטלפון רואה "מחכה לתור החיסכון"');
       rr = await srvRun({ op: 'poll', hb: {} }, STOK);
       ok(rr.payload.job === null, 'חצי מחיר: לא נלקחת כל עוד התשובות לא חזרו');
+      // 2/11/2026 (בקשת המשתמש: "לוודא שהעבודה באמת מחכה בתור"): הסוכן מדווח מה קורה בתור — נשמר רק כשהשתנה, והטלפון רואה
+      const tS = Math.floor(Date.now() / 1000) - 60;
+      rr = await srvRun({ op: 'poll', hb: { be: 'auth', bn: 3, bp: 2, bf: 1, bo: tS }, bq: { [JB]: ['s', tS], jBAD: ['s', tS], ['j' + 'Z'.repeat(20)]: ['x', tS] } }, STOK);
+      ok(rr.payload.job === null && JSON.parse(db.get('studioJobs/' + JB).fields.bq.stringValue).s === 's', 'תור החיסכון: מצב העבודה נשמר מהדיווח (ערכים לא תקינים — נזרקים)');
+      rr = await run({ op: 'job', idToken: OWNER, job: JB });
+      ok(rr.payload.job.bq && rr.payload.job.bq.s === 's' && rr.payload.job.bq.t === tS * 1000 && rr.payload.job.prog.st === 'tl', 'תור החיסכון: הטלפון רואה "נשלח ב־" והשלב שמחכה (התרגום)');
+      ok(S.normHb({ be: 'auth', bn: 3, bp: 2, bf: 1, bo: tS }).be === 'auth' && S.normHb({ be: '<x>' }).be === '' && S.SRV_EV.includes('bt'), 'תור החיסכון: תקלה בדופק — מקטלוג בלבד');
+      ok(S.bqView({ bw: 1000, pk: 0 }, 1000 + S.BQ_SILENT_MS + 1).s === 'n' && S.bqView({ bw: 1000, pk: 0 }, 2000) === null && S.bqView({ bw: 0 }, 1e12) === null, 'תור החיסכון: בלי דיווח 20 דק׳ — "הסוכן שותק"');
       rr = await srvRun({ op: 'poll', hb: {}, br: [JB] }, STOK);
       const KB2 = rr.payload.job && rr.payload.job.key;
       ok(rr.payload.job && rr.payload.job.id === JB && !Number(db.get('studioJobs/' + JB).fields.bw.integerValue), 'חצי מחיר: הסוכן דיווח שהתשובות חזרו → נלקחת שוב (bw מתאפס)');
@@ -3635,6 +3643,7 @@ function stubFetch(text, status = 200) {
       ok(rr.payload.ok && !rr.payload.job.spec.bt, 'חצי מחיר: "להמשיך עכשיו" — יוצאת מתור החיסכון');
       rr = await wrk({ op: 'report', job: JB, key: KB2, park: true, bw: true });
       ok(rr.payload.ok && !Number(db.get('studioJobs/' + JB).fields.bw.integerValue), 'חצי מחיר: אחרי "עכשיו" חנייה אחרונה חוזרת מיד לתור הרגיל (בלי לחכות)');
+      ok(JSON.parse(db.get('studioJobs/' + JB).fields.bq.stringValue) === null, 'תור החיסכון: חנייה חדשה מאפסת את מצב הסבב הקודם');
       rr = await run({ op: 'btNow', idToken: OWNER, job: JB });
       ok(rr.statusCode === 409, 'חצי מחיר: "עכשיו" רק לעבודה שבתור החיסכון');
       rr = await srvRun({ op: 'poll', hb: {} }, STOK);

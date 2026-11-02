@@ -2523,11 +2523,13 @@ def run_auto(jobmod, args) -> int:
         ctx.report(fail=True, err=e.code, msg=str(e)[:200], force=True, usage=eng.ledger.list() or None, lx=lx)
         print('✗ ' + str(e))
         return 1
-    except llm.BatchWait:
+    except llm.BatchWait as bwe:
         # 01/11/2026 (I3): הבקשה בתור החיסכון — העבודה חונה (השרת פנוי), וממשיכה מנקודת השמירה כשהתשובות יחזרו
         n = llm.batch_park(eng.batch)
         ctx = J.Ctx(J.load_state())
-        ctx.report(park=True, bw=True, msg='מחכה לתשובה מתור החיסכון', force=True, usage=eng.ledger.list() or None)
+        # 2/11/2026: השלב שמחכה (התרגום שרץ בשקט במקביל ליישור — לא היישור שכבר הסתיים)
+        ctx.report(llm.BATCH_STAGE.get(getattr(bwe, 'k', '')), park=True, bw=True, msg='מחכה לתשובה מתור החיסכון', force=True,
+                   usage=eng.ledger.list() or None)
         print(f'⏸ סבב {n} בתור החיסכון — העבודה חונה ותמשיך כשהתשובות יחזרו. השרת פנוי בינתיים.')
         return 3
     except getattr(J, 'Park', ()) or ():
