@@ -64,7 +64,9 @@ ok(srcFn.indexOf('hl[hl.length - 1].id') < srcFn.indexOf("['small', 'compact', '
 ok(/for \(const x of srcs\) \{ tried = true; u = await grabFrame\(x\.u, x\.wait\); if \(u\) break; \}/.test(st), 'מקור שנכשל — עוברים לבא');
 ok(/x\.spec\.name === sp\.name && x\.spec\.size === sp\.size/.test(st) && /u = thumbs\.get\(x\.id\) \|\| ''/.test(st) && /for \(const y of thumbSources\(x\)\)/.test(st),
   'עבודה בלי סרטון בענן (בוטלה לפני ההעלאה) — התמונה של עבודה אחרת מאותו קובץ, או פריים מהסרטון שלה');
-ok(/export const thumbsReady = thumbChain = thumbsLoad\(\);/.test(st) && /Promise\.race\(\[thumbsReady, new Promise\(\(r\) => setTimeout\(r, 400\)\)\]\)\.then\(\(\) =>\s*openStudio\(/.test(app),
-  'התמונות השמורות נטענות לפני הציור הראשון (מאחורי הווילון, עד 400ms) — בלי הבהוב בכל פתיחה');
+// 02/11/2026 (סבב קפיצות 9): ההמתנה של עד 400ms ל־IndexedDB השאירה רקע ריק אחרי מסך הפתיחה. התמונות שבראש הבית — מ־localStorage
+// באותה ריצה של המודול, והשאר מ־IndexedDB (tests/smooth-r9.test.js)
+ok(/export const thumbsReady = thumbChain = thumbsLoad\(\);/.test(st) && /if \(typeof localStorage !== 'undefined'\) thumbsTopLoad\(\);/.test(st) && /Promise\.resolve\(openStudio\(/.test(app) && !/thumbsReady/.test(app),
+  'התמונות שבראש הבית לפני הציור הראשון (localStorage, סינכרוני), השאר מ־IndexedDB — בלי המתנה');
 ok(/if \(Date\.now\(\) - t0 > 250\) th\.classList\.add\('in'\)/.test(st), 'דהייה רק לתמונה חדשה שמגיעה אחרי שהמסך מוצג');
 console.log(n + ' בדיקות עברו');

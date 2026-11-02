@@ -78,7 +78,9 @@ ok(/listSync\(list, out\)/.test(rs), 'renderStocks: הסידור דרך listSync
 // ש2 (31/10/2026): העמוד המחומם — מתחת למסך, בלי חפיפה עם העמוד הגלוי; ובלי שכבה קבועה לעמוד הפעיל (החמירה בטלפון)
 {
   const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
-  ok(!/\.tabpage\.active \{ will-change/.test(css), 'styles: אין will-change קבוע לעמוד הפעיל');
+  // 02/11/2026 (סבב קפיצות 9): השכבה הקבועה חזרה — הביטול כאן (2.94.5) יוחס לחפיפה של החימום, שתוקנה (top: 100vh); בלעדיה
+  // כל לחיצה יצרה שכבה על עמוד גלוי (qa-sweep: 38 הפרות). transform בלבד — לא opacity (שובר את הזכוכית). tests/smooth-r9.test.js
+  ok(/\.tabpage\.active \{ will-change: transform; \}/.test(css), 'styles: שכבה קבועה לעמוד הפעיל — transform בלבד (סבב 9)');
   ok(/position:fixed;top:100vh;left:' \+ r\.left/.test(fn(app, 'tabPrewarm')), 'tabPrewarm: מחמם מתחת למסך (top: 100vh)');
 }
 { // סבב 7 (01/11/2026): ההדר עוצר בזמן מעבר עמוד ועד 1.2 שנ׳ אחרי הנחיתה

@@ -26,8 +26,19 @@ let total = 0;
 const bad = (app, step, msg) => { total++; console.log('✗ [' + app + '] ' + step + ' — ' + msg); };
 
 const PROBE = () => {
-  window.__probe = { on: false, log: [] };
+  window.__probe = { on: false, log: [], ent: [] };
   const P = window.__probe;
+  /* 02/11/2026 (סבב קפיצות 9, הקלטת Invest — פתיחה מהתפריט: ההדר והחוגה מצוירים, הרשימה ריקה ~100ms ואז הכרטיסים "עולים"):
+     אנימציית כניסה מ־opacity 0 (cardIn ‏— ‎.stock.enter) בציור הראשון או בזמן מעבר = תוכן שמוסתר ואז מופיע. נרשמת כל התחלה;
+     check() מדווח על מה שהתחיל בפתיחה (לפני הצעד הראשון) או בתוך מעבר */
+  /* ציור ראשון בלי תוכן (סבב 9, הקלטת Studio — פתיחה מהתפריט: אחרי מסך הפתיחה של אנדרואיד רקע ריק ~170ms): מסך הפתיחה של
+     ה־TWA יורד בציור הראשון — ואם בו יש רק רקע, זה מה שרואים עד שהקוד מצייר. fp = הציור הראשון, fc = הפריים הראשון עם טקסט גלוי */
+  P.fp = null; P.fc = null;
+  try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (e.name === 'first-paint' && P.fp === null) P.fp = e.startTime; }).observe({ type: 'paint', buffered: true }); } catch (e) {}
+  const fcChk = () => { const de = document.documentElement; if (P.fc === null && document.body && !de.classList.contains('booting') && document.body.innerText.trim().length > 20) P.fc = performance.now(); if (P.fc === null) requestAnimationFrame(fcChk); };
+  requestAnimationFrame(fcChk);
+  const ENT = new Set(['cardIn', 'kvIn', 'scIn', 'demoIn']);
+  document.addEventListener('animationstart', (e) => { if (ENT.has(e.animationName)) P.ent.push(e.animationName + ':' + ((e.target && e.target.id) || (e.target && e.target.className && String(e.target.className).split(' ')[0]) || '?')); }, true);
   const tick = () => {
     if (P.on) {
       const nav = [...document.querySelectorAll('nav.tabs')].find((n) => !n.hidden && n.getClientRects().length);
@@ -121,7 +132,22 @@ async function open(b, app) {
    ב־Studio ~10 כאלה (ההדר, הלוגו והשלג, הכרטיסים). נספרות רק שכבות של העתק (בתוך ‎.cube-ghost / ‎.cube-hold): לא המנגנון של
    מעבר ממוקד (‎::view-transition*, השכבה בזמן הצילום — ‎.cube-vt), לא ‎.cube-bd (צבע אחיד — "לא צויר" שלו נראה אותו דבר),
    ולא עמוד אמיתי שהקובייה עוברת דרכו (נסיעה של החוגה על שני פריטים) */
-const LAYER_KIND = "function () { const e = this; if (!e || e.nodeType !== 1) return 'other'; if (e.closest('.cube-ghost, .cube-hold')) return 'copy'; if (e.classList.contains('cube-bd') || e.classList.contains('cube-vt')) return 'engine'; return 'page'; }";
+/* 02/11/2026 (סבב קפיצות 9, הקלטת Invest — לחיצה על "מעקב": שני פריימים ריקים לגמרי בחימום): גם שכבה חדשה לתוכן שכבר היה על
+   המסך לפני המעבר ('shown' — מסומן ב־arm: data-qa-vis) = ריק בטלפון, גם אם היא נשארת. בקובייה של Invest העמוד היוצא קיבל
+   שכבה משלו רק בתחילת המעבר (cubeFace: will-change + clip-path) — ובחימום, כשהוא עוד במקומו, הוצג לפני שצויר */
+const LAYER_KIND = "function () { const e = this; if (!e || e.nodeType !== 1) return 'other'; if (e.closest('.cube-ghost, .cube-hold')) return 'copy'; if (e.classList.contains('cube-bd') || e.classList.contains('cube-vt')) return 'engine'; if (e.hasAttribute('data-qa-vis')) return 'shown'; return 'page'; }";
+const VIS_MARK = () => {
+  const va = innerWidth * innerHeight;
+  for (const e of document.querySelectorAll('[data-qa-vis]')) e.removeAttribute('data-qa-vis');
+  for (const e of document.body.querySelectorAll('*')) {
+    const r = e.getBoundingClientRect();
+    const w = Math.max(0, Math.min(r.right, innerWidth) - Math.max(r.left, 0)), hh = Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0));
+    if (w * hh < va * 0.3) continue;
+    const cs = getComputedStyle(e);
+    if (cs.visibility !== 'visible' || +cs.opacity < 0.5 || cs.display === 'none') continue;
+    e.setAttribute('data-qa-vis', '');
+  }
+};
 async function layerWatch(S) {
   const VA = 393 * 852;
   S.lt = { on: false, last: [], base: new Set(), born: new Map() };
@@ -147,7 +173,7 @@ function layerTransient(S) {
   if (!S.lt || !S.lt.on) return [];
   S.lt.on = false;
   const fin = new Set(S.lt.last.map((l) => l.layerId));
-  return [...S.lt.born].filter(([id, r]) => !fin.has(id) && r.kind === 'copy').map(([id, r]) => r.size + (r.node ? ' ' + r.node : '') + (r.why && r.why.length ? '(' + r.why.slice(0, 2).join(',') + ')' : ''));
+  return [...S.lt.born].filter(([id, r]) => (!fin.has(id) && r.kind === 'copy') || r.kind === 'shown').map(([id, r]) => r.size + (r.node ? ' ' + r.node : '') + (r.why && r.why.length ? '(' + r.why.slice(0, 2).join(',') + ')' : ''));
 }
 
 const STATE = () => {
@@ -226,6 +252,12 @@ async function check(app, S, step, want) {
   const log = await S.page.evaluate(() => { const l = window.__probe.log; window.__probe.log = []; window.__probe.on = false; return l; });
   const navGone = log.filter((x) => !x.navOk).length;
   if (navGone) bad(app, step, 'בזמן המעבר החוגה נעלמה ב־' + navGone + ' פריימים');
+  if (step === 'פתיחה') {
+    const fx = await S.page.evaluate(() => [window.__probe.fp, window.__probe.fc]);
+    if (fx[0] !== null && fx[1] !== null && fx[1] - fx[0] > 34) bad(app, step, 'ציור ראשון בלי תוכן: ' + Math.round(fx[1] - fx[0]) + 'ms של רקע ריק (ציור ראשון ' + Math.round(fx[0]) + 'ms, תוכן ' + Math.round(fx[1]) + 'ms)');
+  }
+  const ent = await S.page.evaluate(() => { const l = window.__probe.ent; window.__probe.ent = []; return l; });
+  if (ent.length) bad(app, step, 'אנימציית כניסה מ־opacity 0 ב' + (step === 'פתיחה' ? 'ציור הראשון' : 'זמן המעבר') + ' (' + ent.length + '): ' + [...new Set(ent)].slice(0, 4).join(' '));
   const tl = layerTransient(S);
   if (tl.length) bad(app, step, 'בזמן המעבר נוצרו ונהרסו ' + tl.length + ' שכבות גדולות (בטלפון — ריק עד שהן נצבעות): ' + tl.slice(0, 4).join(' '));
   const stale = log.filter((x) => x.stale).length;
@@ -252,7 +284,7 @@ async function check(app, S, step, want) {
   return st;
 }
 let CUR = null;
-const arm = async (page) => { if (CUR) layerArm(CUR); await page.evaluate(() => { window.__probe.log = []; window.__probe.on = true; }); if (CUR && !CUR.casting) { await CUR.cast.start(); CUR.casting = true; } };
+const arm = async (page) => { await page.evaluate(VIS_MARK); if (CUR) layerArm(CUR); await page.evaluate(() => { window.__probe.log = []; window.__probe.ent = []; window.__probe.on = true; }); if (CUR && !CUR.casting) { await CUR.cast.start(); CUR.casting = true; } };
 
 async function sweep(b, app) {
   const S = await open(b, app);
@@ -334,7 +366,7 @@ async function sweep(b, app) {
   await S.ctx.close();
 }
 
-if (require.main !== module) module.exports = { open, settle, touchDrag, STATE, APPS, BASE, layerArm, layerTransient, MOCK };
+if (require.main !== module) module.exports = { open, settle, touchDrag, STATE, APPS, BASE, layerArm, layerTransient, MOCK, VIS_MARK };
 else (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium', args: LAUNCH });
   for (const app of Object.keys(APPS)) { if (!only || only === app) { try { await sweep(b, app); } catch (e) { bad(app, 'הסריקה', String(e.message).slice(0, 200)); } } }
