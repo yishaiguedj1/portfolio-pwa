@@ -118,6 +118,21 @@ function stubFetch(text, status = 200) {
   ok(eq.cashBalances.length === 1 && eq.cashBalances[0].currency === 'USD' && eq.cashBalances[0].balance === 750,
     'בלי Cash Report: המזומן מהיום האחרון ב־NAV in Base');
   ok(multi.navHistory.length === 3, 'שלוש שורות NAV נשמרו להיסטוריה');
+  // 02/11/2026 (מרכז המס, שלב 3): רק שורות EXECUTION; שמות השדות (בלי ערכים) ב־meta.fields; שדות חדשים — תוספות.
+  // שמות התכונות החדשות עוד לא אומתו מול XML אמיתי — לעדכן אחרי הבדיקה (docs/tax-il-research.md סעיף 3).
+  const lotX = statementToJson(parseXml('<FlexStatement fromDate="20260101" toDate="20261022" accountId="U0"><Trades>' +
+    '<Trade levelOfDetail="EXECUTION" symbol="AA" assetCategory="OPT" multiplier="100" conid="77" accountId="U0" tradeDate="20260105" dateTime="20260105;101500" quantity="2" tradePrice="3" tradeMoney="600" tradeID="1" notes="O;LI" origTradeID="" transactionType="ExchTrade"/>' +
+    '<Trade levelOfDetail="CLOSED_LOT" symbol="AA" quantity="2" tradePrice="3"/>' +
+    '<Trade levelOfDetail="SYMBOL_SUMMARY" symbol="AA" quantity="2"/>' +
+    '</Trades><CashTransactions><CashTransaction type="Dividends" amount="1" actionID="5" dateTime="20260110"/></CashTransactions></FlexStatement>'));
+  ok(lotX.trades.length === 1 && lotX.trades[0].multiplier === 100 && lotX.trades[0].conid === '77' && lotX.trades[0].tradeMoney === 600 &&
+    lotX.trades[0].tradeDate === '2026-01-05' && lotX.trades[0].notes === 'O;LI' && lotX.trades[0].asset === 'OPT', 'Trades: רק EXECUTION, עם השדות החדשים');
+  ok(lotX.cashTransactions[0].actionId === '5', 'CashTransaction: actionID');
+  ok(lotX.meta.fields.Trade.includes('multiplier') && lotX.meta.fields.lod.join() === 'CLOSED_LOT,EXECUTION,SYMBOL_SUMMARY' &&
+    !JSON.stringify(lotX.meta.fields).includes('U0'), 'meta.fields: שמות וקטגוריות בלבד, בלי ערכים');
+  const ordX = statementToJson(parseXml('<FlexStatement><Trades><Trade levelOfDetail="ORDER" symbol="B" quantity="1"/><Trade levelOfDetail="CLOSED_LOT" symbol="B" quantity="1"/><Trade symbol="C" quantity="1"/></Trades></FlexStatement>'));
+  ok(ordX.trades.length === 2 && ordX.trades[0].multiplier === 1, 'בלי EXECUTION: ORDER ושורות בלי רמה נשמרות, CLOSED_LOT לא');
+
   ok(multi.navHistory[0].toDate === '2024-01-01' && multi.navHistory[2].endingValue === 10890, 'תאריכים וערכים יומיים מפוענחים');
   const expTwr = (1.1 * 1.1 * 0.9 - 1) * 100;
   ok(Math.abs(multi.nav.twr - expTwr) < 1e-9, 'TWR תקופתי מורכב משורות יומיות (1.1*1.1*0.9-1)');
