@@ -272,6 +272,7 @@
     <string name="dmNeedBrS">Browsing moved to Studio Browser, and whatever you download there arrives here. Download and install it now?</string>
     <string name="dmNeedBrGo">Download and install</string>
     <string name="dmBridgeAdded">Added to Studio DM</string>
+    <string name="dmBridgeFiles">%d files added to Studio DM</string>
     <!-- 01/11/2026: "pro" upgrade, round 2 -->
     <string name="dmBondLine">%s on cellular</string>
     <string name="dmAutoRefreshing">Link expired. Looking for it again on the page…</string>

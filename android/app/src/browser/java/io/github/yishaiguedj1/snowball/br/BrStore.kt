@@ -351,6 +351,13 @@ class BrPrefs(ctx: Context) {
     /** הגל השלישי: רכיבים מוסתרים לכל אתר (BrDev.zaps*), הקלטות (BrDev.macros*), סקריפטים של משתמשים (BrDev.scripts*) */
     var zaps: String get() = sp.getString("zaps", "") ?: ""; set(v) { sp.edit().putString("zaps", v).apply() }
     var macros: String? get() = sp.getString("macros", null); set(v) { sp.edit().putString("macros", v).apply() }
+    // הגל הרביעי: גודל הטקסט במצב קריאה, מהירות ההקראה, אינדקס התוכן של ההיסטוריה
+    var readSize: Int get() = sp.getInt("readSz", 19); set(v) { sp.edit().putInt("readSz", v).apply() }
+    var ttsRate: Float get() = sp.getFloat("ttsRate", 1f); set(v) { sp.edit().putFloat("ttsRate", v).apply() }
+    var indexOn: Boolean get() = sp.getBoolean("hIndex", true); set(v) { sp.edit().putBoolean("hIndex", v).apply() }
+    // הגל החמישי: המצב האחרון של המודל שבטלפון (59), וממשקי ה־AI לאתרים (60, כבוי כברירת מחדל)
+    var sumSt: Int get() = sp.getInt("sumSt", -1); set(v) { sp.edit().putInt("sumSt", v).apply() }
+    var aiOn: Boolean get() = sp.getBoolean("aiOn", false); set(v) { sp.edit().putBoolean("aiOn", v).apply() }
     var uscripts: String? get() = sp.getString("uscripts", null); set(v) { sp.edit().putString("uscripts", v).apply() }
     var blockedAll: Long get() = sp.getLong("blk", 0L); set(v) { sp.edit().putLong("blk", v).apply() }
 }

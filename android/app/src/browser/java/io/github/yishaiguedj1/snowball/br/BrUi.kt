@@ -145,6 +145,12 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.ui.window.Dialog
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -237,6 +243,9 @@ fun BrApp(a: BrowserActivity) {
                     BrowserActivity.Screen.SCRIPTS -> ScriptsScreen(a)
                     BrowserActivity.Screen.WATCHES -> WatchesScreen(a)
                     BrowserActivity.Screen.MACROS -> MacrosScreen(a)
+                    BrowserActivity.Screen.READER -> ReaderScreen(a)
+                    BrowserActivity.Screen.READLIST -> ReadListScreen(a)
+                    BrowserActivity.Screen.NOTES -> NotesScreen(a)
                 }
                 if (a.privLocked && a.showsPrivate()) LockScreen(a)
                 a.customView?.let { v ->
@@ -410,6 +419,8 @@ private fun PageScreen(a: BrowserActivity) {
             if (a.editing) Suggest(a, q) { q = it }
             a.incoming?.let { (from, st) -> if (!a.editing) IncomingBar(a, from, st, Modifier.align(Alignment.TopCenter)) }
         }
+        // 29 פאנל חצי מסך — מתחת לדף (הדף ממשיך לעבוד למעלה)
+        if (a.panel != 0 && !a.editing && !a.finding && t != null && !ntp) PanelView(a, t, Modifier.weight(1f).fillMaxWidth())
         if (bottom) { Line(t); TopBar(a, q, { q = it }, false) }
         Spacer(Modifier.navigationBarsPadding())
     }
@@ -424,6 +435,23 @@ private fun PageScreen(a: BrowserActivity) {
     a.ctx?.let { CtxSheet(a, it) }
     if (a.devSheet && t != null && !t.isNtp) DevSheet(a, t)
     if (t != null && !t.isNtp) ToolFloat(a, t)
+    // הגל הרביעי
+    if (a.readSheet && t != null && !t.isNtp) ReadSheet(a, t)
+    if (a.notesSheet && t != null && !t.isNtp) NotesSheet(a, t)
+    if (a.mediaSheet) MediaSheet(a)
+    if (a.qrSheet && t != null) QrSheet(a, t)
+    a.filesFound?.let { FilesSheet(a, it) }
+    a.floatWin?.let { FloatWindow(a, it) }
+    WaveFloat(a, t)
+    // הגל החמישי
+    if (a.localSheet && t != null && !t.isNtp) LocalSheet(a, t)
+    if (a.langSheet) LangSheet(a)
+    if (a.sumSheet) SumSheet(a)
+    LocalFloat(a, t)
+    // הגל השישי
+    if (a.oursSheet) OursSheet(a, t)
+    if (a.chapSheet) ChapSheet(a)
+    if (a.stockSheet) StockSheet(a)
 }
 
 /** החלון של הכרטיסייה הפעילה: הכרטיסייה החדשה, או הדף עם הכפתור שעל הנגן והבדיקה ברקע */
@@ -1023,6 +1051,12 @@ private fun MenuSheet(a: BrowserActivity) {
             if (web && a.toolsOk && !t!!.private) MItem(if (a.recTab != null) R.string.brRecStop else R.string.brRec, BrIcons.Rec, iconTint = if (a.recTab != null) Red else null) {
                 close(); if (a.recTab != null) a.stopRec(true) else a.startRec()
             }
+            // הגל הרביעי — כל הכלים בגיליון אחד
+            if (web) MItem(R.string.brReadTools, BrIcons.Book) { close(); a.readSheet = true }
+            // הגל החמישי — בטלפון, בלי ענן
+            if (web) MItem(R.string.brLocal, BrIcons.Phone, badge = if (a.capTab != null) "CC" else null) { close(); a.localSheet = true }
+            // הגל השישי — רק אצלנו (Studio, Academy, Invest)
+            MItem(R.string.brOurs, BrIcons.Sparkle, badge = if (t?.subs != null) "CC" else null) { close(); a.oursSheet = true }
             MDiv()
             MItem(R.string.brSettings, BrIcons.CSettings) { close(); a.screen = BrowserActivity.Screen.SETTINGS }
         }
@@ -1390,41 +1424,88 @@ private fun HistoryScreen(a: BrowserActivity) {
     val c = LocalBr.current
     var q by remember { mutableStateOf("") }
     var rev by remember { mutableIntStateOf(0) }
+    // 34 לפי נושאים, 33 תוצאות מתוך הטקסט של הדפים
+    var byTopic by remember { mutableStateOf(false) }
+    var hits by remember { mutableStateOf<List<BrRead.Hit>>(emptyList()) }
+    val open = remember { mutableStateListOf<String>() }
     val today = stringResource(R.string.brToday); val yday = stringResource(R.string.brYesterday)
     val days = remember(q, rev, a.markRev) {
         val t = q.trim().lowercase()
         val list = BrStore.history.asReversed().filter { t.isEmpty() || it.title.lowercase().contains(t) || it.url.lowercase().contains(t) }.take(500)
         list.groupBy { java.util.Calendar.getInstance().apply { timeInMillis = it.at }.let { k -> k.get(java.util.Calendar.YEAR) * 1000 + k.get(java.util.Calendar.DAY_OF_YEAR) } }.values.toList()
     }
+    val topics = remember(byTopic, rev, a.markRev) {
+        if (!byTopic) emptyList() else {
+            val from = System.currentTimeMillis() - 30L * DateUtils.DAY_IN_MILLIS
+            BrRead.topics(BrStore.history.asReversed().asSequence().filter { it.at >= from }.take(1500).toList())
+        }
+    }
+    LaunchedEffect(q, a.indexOn, rev) {
+        hits = emptyList()
+        if (a.indexOn && q.trim().length >= 2) { delay(250); a.searchDocs(q) { hits = it.take(20) } }
+    }
     val ctx = LocalContext.current
+    val row = @Composable { v: BrVisit, sub: String? ->
+        IRow(v.title.ifEmpty { v.url }, sub ?: BrStore.hostOf(v.url), lead = {
+            Box(Modifier.size(36.dp).glass(c, CircleShape, if (c.dark) Color(0x8C3A3A3C) else Color(0xB3FFFFFF)), contentAlignment = Alignment.Center) { Fav(a, v.url, 16.dp, 8.dp) }
+        }, chevron = false, ltrSub = sub == null, trailing = {
+            Box(Modifier.size(40.dp).clip(CircleShape).clickable { BrStore.removeVisit(v); rev++; a.markRev++ }, contentAlignment = Alignment.Center) {
+                Icon(BrIcons.CClose, stringResource(R.string.brDelete), Modifier.size(20.dp), tint = c.mute)
+            }
+        }) { a.screen = BrowserActivity.Screen.PAGE; a.go(v.url) }
+    }
     SubPage(stringResource(R.string.brHistory), done = true, onDone = { a.screen = BrowserActivity.Screen.PAGE }) {
         item { SearchField(stringResource(R.string.brSearchHistory), q) { q = it } }
         item {
-            Text(stringResource(R.string.brClearData) + "…", Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp).clip(RoundedCornerShape(12.dp))
-                .clickable { a.clearAsk = true }.padding(horizontal = 16.dp, vertical = 12.dp), color = c.tint, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-        }
-        if (days.isEmpty()) item { Empty(R.string.brHistoryEmpty) }
-        days.forEach { day ->
-            item {
-                val at = day[0].at
-                val date = DateUtils.formatDateTime(ctx, at, DateUtils.FORMAT_SHOW_WEEKDAY or DateUtils.FORMAT_ABBREV_WEEKDAY or DateUtils.FORMAT_ABBREV_MONTH or DateUtils.FORMAT_SHOW_YEAR)
-                val label = when {
-                    DateUtils.isToday(at) -> "$today - $date"
-                    DateUtils.isToday(at + DateUtils.DAY_IN_MILLIS) -> "$yday - $date"
-                    else -> date
+            Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.brClearData) + "…", Modifier.clip(RoundedCornerShape(12.dp)).clickable { a.clearAsk = true }.padding(horizontal = 16.dp, vertical = 12.dp),
+                    color = c.tint, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.weight(1f))
+                if (q.isEmpty()) listOf(false to R.string.brByTime, true to R.string.brByTopic).forEach { (v, l) ->
+                    val on = byTopic == v
+                    Text(stringResource(l), Modifier.padding(start = 6.dp).clip(RoundedCornerShape(16.dp)).background(if (on) c.tint.copy(alpha = 0.16f) else Color.Transparent)
+                        .clickable { byTopic = v }.padding(horizontal = 12.dp, vertical = 7.dp), color = if (on) c.tint else c.fg, fontSize = 15.sp, fontWeight = if (on) FontWeight.SemiBold else null)
                 }
-                Group(label) {
-                    day.forEachIndexed { i, v ->
-                        if (i > 0) Sep()
-                        IRow(v.title.ifEmpty { v.url }, BrStore.hostOf(v.url), lead = {
-                            Box(Modifier.size(36.dp).glass(c, CircleShape, if (c.dark) Color(0x8C3A3A3C) else Color(0xB3FFFFFF)), contentAlignment = Alignment.Center) { Fav(a, v.url, 16.dp, 8.dp) }
-                        }, chevron = false, ltrSub = true, trailing = {
-                            Box(Modifier.size(40.dp).clip(CircleShape).clickable { BrStore.removeVisit(v); rev++; a.markRev++ }, contentAlignment = Alignment.Center) {
-                                Icon(BrIcons.CClose, stringResource(R.string.brDelete), Modifier.size(20.dp), tint = c.mute)
-                            }
-                        }) { a.screen = BrowserActivity.Screen.PAGE; a.go(v.url) }
+            }
+        }
+        if (hits.isNotEmpty()) item {
+            Group(stringResource(R.string.brInPages)) {
+                hits.forEachIndexed { i, h ->
+                    if (i > 0) Sep()
+                    row(BrVisit(h.doc.url, h.doc.title, h.doc.at), h.snip)
+                }
+            }
+        }
+        if (byTopic && q.isEmpty()) {
+            if (topics.isEmpty()) item { Empty(R.string.brHistoryEmpty) }
+            topics.forEach { tp ->
+                item {
+                    val name = tp.name.ifEmpty { stringResource(R.string.brTopicOther) }.replaceFirstChar { it.uppercase() }
+                    val all = tp.name in open
+                    Group("$name · ${tp.visits.size}") {
+                        (if (all) tp.visits.take(200) else tp.visits.take(4)).forEachIndexed { i, v -> if (i > 0) Sep(); row(v, null) }
+                        if (!all && tp.visits.size > 4) { Sep(); IRow(stringResource(R.string.brShowAll, tp.visits.size), color = c.tint, chevron = false) { open.add(tp.name) } }
                     }
                 }
+            }
+        } else {
+            if (days.isEmpty() && hits.isEmpty()) item { Empty(R.string.brHistoryEmpty) }
+            days.forEach { day ->
+                item {
+                    val at = day[0].at
+                    val date = DateUtils.formatDateTime(ctx, at, DateUtils.FORMAT_SHOW_WEEKDAY or DateUtils.FORMAT_ABBREV_WEEKDAY or DateUtils.FORMAT_ABBREV_MONTH or DateUtils.FORMAT_SHOW_YEAR)
+                    val label = when {
+                        DateUtils.isToday(at) -> "$today - $date"
+                        DateUtils.isToday(at + DateUtils.DAY_IN_MILLIS) -> "$yday - $date"
+                        else -> date
+                    }
+                    Group(label) { day.forEachIndexed { i, v -> if (i > 0) Sep(); row(v, null) } }
+                }
+            }
+        }
+        item {
+            Group(footer = stringResource(R.string.brIndexFoot)) {
+                IRow(stringResource(R.string.brIndex), lead = { Tile(BrIcons.CSearch, c.icon) }, chevron = false, trailing = { IosSwitch(a.indexOn) { a.pickIndex(it) } })
             }
         }
     }
@@ -2641,7 +2722,7 @@ private fun ToolFloat(a: BrowserActivity, t: BrTab) {
         Row(Modifier.padding(horizontal = 16.dp).heightIn(min = 52.dp).glass(c, RoundedCornerShape(26.dp)).padding(start = 16.dp, end = 6.dp),
             verticalAlignment = Alignment.CenterVertically) {
             val (icon, label) = when {
-                mode == BrDev.PICK_INSPECT -> BrIcons.Select to stringResource(R.string.brPickHint)
+                mode == BrDev.PICK_INSPECT -> BrIcons.Select to stringResource(if (a.floatPick) R.string.brFloatHint else R.string.brPickHint)
                 mode == BrDev.PICK_ZAP -> BrIcons.Trash to stringResource(R.string.brZapHint, a.zappedNow.size)
                 edit -> BrIcons.Edit to stringResource(R.string.brEditHint)
                 else -> BrIcons.Rec to stringResource(R.string.brRecHint, a.recSteps.count { it.k != 'n' })
@@ -3299,6 +3380,755 @@ private fun KeysScreen(a: BrowserActivity) {
                     })
                 }
             }
+        }
+    }
+}
+
+/* ======================= הגל הרביעי (01/11/2026, BrRead): קריאה, צילום ומדיה ======================= */
+
+/** הגיליון מ־⋮: כל הכלים של הגל ברשת אחת (במקום 14 שורות בתפריט) */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReadSheet(a: BrowserActivity, t: BrTab) {
+    val c = LocalBr.current
+    var clip by remember { mutableStateOf(false) }
+    ModalBottomSheet(onDismissRequest = { a.readSheet = false }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
+            SheetHead(stringResource(R.string.brReadTools), null, close = { a.readSheet = false })
+            val speaking = a.speakAt != -2
+            val items = buildList<Triple<Int, ImageVector, () -> Unit>> {
+                add(Triple(R.string.brReader, BrIcons.Book) { a.openReader() })
+                add(Triple(if (speaking) R.string.brSpeakStop else R.string.brSpeak, BrIcons.Headphones) { if (speaking) { a.stopSpeak(); a.readSheet = false } else a.speakSel(t) })
+                if (!t.private) add(Triple(R.string.brSaveLater, BrIcons.Bookmark) { a.saveForLater() })
+                add(Triple(R.string.brReadList, BrIcons.Lines) { a.readSheet = false; a.screen = BrowserActivity.Screen.READLIST })
+                if (!t.private) add(Triple(R.string.brNotes, BrIcons.Edit) { a.readSheet = false; a.notesSheet = true })
+                add(Triple(R.string.brPanel, BrIcons.Split) { a.openPanel(1) })
+                add(Triple(R.string.brShotPage, BrIcons.Image) { a.shootPage() })
+                add(Triple(R.string.brFrame, BrIcons.Camera) { a.shootFrame() })
+                if (a.toolsOk) add(Triple(R.string.brClip, BrIcons.Rec) { clip = !clip })
+                add(Triple(R.string.brPdf, BrIcons.Pdf) { a.cleanPdf() })
+                add(Triple(R.string.brQr, BrIcons.Qr) { a.readSheet = false; a.qrFound = null; a.qrSheet = true })
+                add(Triple(R.string.brFiles, BrIcons.Folder) { a.scanFiles() })
+                if (a.toolsOk) add(Triple(R.string.brFloat, BrIcons.Pip) { a.startFloat() })
+                add(Triple(R.string.brMedia, BrIcons.Play) { a.readSheet = false; a.mediaRefresh(); a.mediaSheet = true })
+            }
+            items.chunked(4).forEach { row ->
+                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+                    row.forEach { (l, ic, on) -> ToolTile(stringResource(l), ic, Modifier.weight(1f), on) }
+                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+            if (clip) Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth().glass(c, RoundedCornerShape(16.dp)).padding(start = 16.dp, end = 6.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.brClipLen), Modifier.weight(1f), color = c.fg, fontSize = 16.sp)
+                BrRead.CLIP_SECS.forEach { s -> TextButton({ a.startClip(s) }) { Text(stringResource(R.string.brSecs, s), color = c.tint, fontSize = 16.sp) } }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolTile(label: String, icon: ImageVector, m: Modifier, on: () -> Unit) {
+    val c = LocalBr.current
+    Column(m.clip(RoundedCornerShape(14.dp)).clickable(onClick = on).padding(vertical = 10.dp, horizontal = 2.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.size(52.dp).glass(c, CircleShape, if (c.dark) Color(0x593A3A3C) else Color(0x8CFFFFFF)), contentAlignment = Alignment.Center) {
+            Icon(icon, null, Modifier.size(24.dp), tint = c.tint)
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(label, color = c.fg, fontSize = 13.sp, lineHeight = 16.sp, maxLines = 2, textAlign = TextAlign.Center, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** הפס הצף בזמן הקראה או הקלטת קליפ (כמו של כלי המפתחים — כשאין כלי אחר פעיל) */
+@Composable
+private fun WaveFloat(a: BrowserActivity, t: BrTab?) {
+    val c = LocalBr.current
+    val speak = a.speakAt != -2; val clip = a.clipTab != null
+    if (!speak && !clip) return
+    if (a.pickMode != 0 || (a.recTab != null && a.recTab === t) || t?.editing == true) return
+    val dy = with(LocalDensity.current) { 88.dp.roundToPx() }
+    androidx.compose.ui.window.Popup(alignment = Alignment.BottomCenter, offset = androidx.compose.ui.unit.IntOffset(0, -dy)) {
+        Row(Modifier.padding(horizontal = 16.dp).heightIn(min = 52.dp).glass(c, RoundedCornerShape(26.dp)).padding(start = 16.dp, end = 6.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Icon(if (clip) BrIcons.Rec else BrIcons.Headphones, null, Modifier.size(20.dp), tint = if (clip) Color(0xFFFF3B30) else c.tint)
+            Spacer(Modifier.width(10.dp))
+            Text(stringResource(if (clip) R.string.brClipRec else R.string.brSpeaking), color = c.fg, fontSize = 15.sp, maxLines = 1)
+            if (clip) TextButton({ a.stopClip() }) { Text(stringResource(R.string.brSave), color = c.tint, fontWeight = FontWeight.SemiBold) }
+            else TextButton({ a.stopSpeak() }) { Text(stringResource(R.string.brSpeakStop), color = c.tint, fontWeight = FontWeight.SemiBold) }
+        }
+    }
+}
+
+/* ---------- 31 מצב קריאה (מסך מלא) ---------- */
+
+@Composable
+private fun ReaderScreen(a: BrowserActivity) {
+    val c = LocalBr.current
+    val art = a.reader ?: run { LaunchedEffect(Unit) { a.screen = BrowserActivity.Screen.PAGE }; return }
+    val speaking = a.speakArt == art && a.speakAt != -2
+    var aa by remember { mutableStateOf(false) }
+    SubPage(art.site.ifEmpty { BrStore.hostOf(art.url) }, back = stringResource(R.string.brBack), onBack = { a.screen = a.readerBack; a.reader = null }, actions = {
+        IBtn(if (speaking) BrIcons.Pause else BrIcons.Headphones, stringResource(if (speaking) R.string.brSpeakStop else R.string.brSpeak), tint = c.tint) {
+            if (speaking) a.stopSpeak() else a.speakArticle(art)
+        }
+        Box {
+            IBtn(BrIcons.TextSize, stringResource(R.string.brTextSize), tint = c.tint) { aa = true }
+            DropdownMenu(aa, { aa = false }, containerColor = c.card) {
+                Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    ZoomBtn("A", 15, stringResource(R.string.brSmaller), a.readSize > 14) { a.pickReadSize(a.readSize - 1) }
+                    Text("${a.readSize}", Modifier.width(48.dp), color = c.fg, fontSize = 17.sp, textAlign = TextAlign.Center)
+                    ZoomBtn("A", 24, stringResource(R.string.brBigger), a.readSize < 30) { a.pickReadSize(a.readSize + 1) }
+                }
+                Text(stringResource(R.string.brRate), Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp), color = c.mute, fontSize = 13.sp)
+                listOf(0.8f, 1f, 1.25f, 1.5f, 2f).forEach { r ->
+                    DropdownMenuItem({ Text("×" + (if (r % 1f == 0f) r.toInt().toString() else r.toString())) }, { aa = false; a.pickRate(r) },
+                        trailingIcon = { if (r == a.speakRate) Icon(BrIcons.Check, null, tint = c.tint) })
+                }
+            }
+        }
+        IBtn(BrIcons.Pdf, stringResource(R.string.brPdf), tint = c.tint) { a.printArticle(art) }
+        if (a.readerBack == BrowserActivity.Screen.PAGE) IBtn(BrIcons.OpenNew, stringResource(R.string.brOpenPage), tint = c.tint) { a.screen = BrowserActivity.Screen.PAGE; a.reader = null }
+        else IBtn(BrIcons.OpenNew, stringResource(R.string.brOpenPage), tint = c.tint) { a.reader = null; a.screen = BrowserActivity.Screen.PAGE; a.newTab(art.url) }
+    }) {
+        readerItems(a, art, a.readSize)
+    }
+}
+
+/** המאמר עצמו — במסך המלא ובפאנל. נגיעה בפסקה בזמן הקראה = ממשיכים להקריא משם; הפסקה שמוקראת מודגשת */
+private fun LazyListScope.readerItems(a: BrowserActivity, art: BrRead.Article, size: Int) {
+    item {
+        val c = LocalBr.current
+        Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 8.dp)) {
+            Text(art.title, color = c.fg, fontSize = (size + 8).sp, lineHeight = (size + 16).sp, fontWeight = FontWeight.Bold, style = TextStyle(textDirection = TextDirection.Content))
+            val meta = listOf(art.byline, stringResource(R.string.brMins, art.minutes)).filter { it.isNotEmpty() }.joinToString(" · ")
+            Text(meta, Modifier.padding(top = 6.dp), color = c.mute, fontSize = 14.sp, style = TextStyle(textDirection = TextDirection.Content))
+        }
+    }
+    itemsIndexed(art.blocks) { i, b ->
+        val c = LocalBr.current
+        val on = a.speakArt == art && a.speakAt == i
+        val st = TextStyle(textDirection = TextDirection.Content, fontFamily = if (b.k == 'h') null else androidx.compose.ui.text.font.FontFamily.Serif)
+        Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp).clip(RoundedCornerShape(10.dp)).background(if (on) c.tint.copy(alpha = 0.14f) else Color.Transparent)
+            .clickable(enabled = a.speakArt == art) { a.speakArticle(art, i) }.padding(horizontal = 8.dp, vertical = if (b.k == 'l') 3.dp else 7.dp)) {
+            when (b.k) {
+                'h' -> Text(b.t, color = c.fg, fontSize = (size + 3).sp, lineHeight = (size + 9).sp, fontWeight = FontWeight.SemiBold, style = st)
+                'q' -> Row(Modifier.height(IntrinsicSize.Min)) {
+                    Box(Modifier.width(3.dp).fillMaxHeight().background(c.mute.copy(alpha = 0.5f))); Spacer(Modifier.width(12.dp))
+                    Text(b.t, color = c.mute, fontSize = size.sp, lineHeight = (size * 1.6f).sp, style = st)
+                }
+                'l' -> Text("•  " + b.t, color = c.fg, fontSize = size.sp, lineHeight = (size * 1.6f).sp, style = st)
+                else -> Text(b.t, color = c.fg, fontSize = size.sp, lineHeight = (size * 1.65f).sp, style = st)
+            }
+        }
+    }
+}
+
+/* ---------- 30 רשימת הקריאה ---------- */
+
+@Composable
+private fun ReadListScreen(a: BrowserActivity) {
+    SubPage(stringResource(R.string.brReadList), done = true, onDone = { a.screen = BrowserActivity.Screen.PAGE }) {
+        item { ReadListGroup(a) { s -> a.openSaved(s, BrowserActivity.Screen.READLIST) } }
+    }
+}
+
+@Composable
+private fun ReadListGroup(a: BrowserActivity, open: (BrRead.Saved) -> Unit) {
+    val c = LocalBr.current
+    Group(footer = stringResource(R.string.brReadListFoot)) {
+        if (a.readList.isEmpty()) IRow(stringResource(R.string.brReadListEmpty), lead = { Tile(BrIcons.Book, c.icon) }, chevron = false)
+        else a.readList.forEachIndexed { i, s ->
+            if (i > 0) Sep()
+            val sub = s.site + " · " + stringResource(R.string.brMins, s.mins) + (if (s.read) " · " + stringResource(R.string.brReadDone) else "")
+            IRow(s.title.ifEmpty { s.url }, sub, lead = { Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) { Fav(a, s.url, 24.dp, 6.dp) } }, chevron = false,
+                color = if (s.read) c.mute else null,
+                trailing = { IBtn(BrIcons.Trash, stringResource(R.string.brDelete), size = 40.dp, iconSize = 20.dp, tint = c.mute) { a.delSaved(s.id) } }) { open(s) }
+        }
+    }
+}
+
+/* ---------- 32 הדגשות והערות ---------- */
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NotesSheet(a: BrowserActivity, t: BrTab) {
+    val c = LocalBr.current
+    ModalBottomSheet(onDismissRequest = { a.notesSheet = false }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().imePadding().padding(bottom = 16.dp).verticalScroll(rememberScrollState())) {
+            SheetHead(stringResource(R.string.brNotes), t.title.ifEmpty { BrStore.hostOf(t.url) }, close = { a.notesSheet = false })
+            NotesBody(a, t)
+        }
+    }
+}
+
+/** ההדגשות וההערה של הדף הזה — בגיליון ובפאנל */
+@Composable
+private fun NotesBody(a: BrowserActivity, t: BrTab) {
+    val c = LocalBr.current
+    val mine = remember(a.marks, t.url) { BrRead.forPage(a.marks, t.url) }
+    val pageNote = mine.firstOrNull { it.text.isEmpty() }
+    var note by remember(t.url, pageNote?.id) { mutableStateOf(pageNote?.note ?: "") }
+    var edit by remember { mutableStateOf<BrRead.Mark?>(null) }
+    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.brMarkColor), Modifier.weight(1f), color = c.mute, fontSize = 14.sp)
+            BrRead.COLORS.forEachIndexed { i, col ->
+                Box(Modifier.padding(start = 8.dp).size(30.dp).clip(CircleShape).background(Color(col)).border(if (a.markColor == i) 3.dp else 0.dp, c.tint, CircleShape).clickable { a.markColor = i })
+            }
+        }
+        Text(stringResource(R.string.brPageNote), color = c.mute, fontSize = 14.sp)
+        DevField(note, { note = it; a.setNote(BrRead.Mark(pageNote?.id ?: "n" + System.currentTimeMillis().toString(36), t.url, t.title, "", it.take(4000), 0, System.currentTimeMillis())) },
+            stringResource(R.string.brNoteHint), height = 96.dp)
+    }
+    Spacer(Modifier.height(12.dp))
+    val hl = mine.filter { it.text.isNotEmpty() }
+    Group(footer = stringResource(R.string.brNotesFoot)) {
+        if (hl.isEmpty()) IRow(stringResource(R.string.brNotesEmpty), lead = { Tile(BrIcons.Edit, c.icon) }, chevron = false)
+        hl.forEachIndexed { i, m ->
+            if (i > 0) Sep()
+            MarkRow(a, m, onEdit = { edit = m })
+        }
+    }
+    Text(stringResource(R.string.brNotesAll), Modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(12.dp)).clickable { a.notesSheet = false; a.screen = BrowserActivity.Screen.NOTES }
+        .padding(horizontal = 16.dp, vertical = 12.dp), color = c.tint, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+    edit?.let { m -> NoteDialog(m, { edit = null }) { a.setNote(m.copy(note = it)); edit = null } }
+}
+
+@Composable
+private fun MarkRow(a: BrowserActivity, m: BrRead.Mark, onEdit: () -> Unit) {
+    val c = LocalBr.current
+    Row(Modifier.fillMaxWidth().clickable { a.gotoMark(m) }.padding(start = 16.dp, end = 4.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.width(4.dp).height(40.dp).clip(RoundedCornerShape(2.dp)).background(Color(BrRead.COLORS[m.color])))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(m.text, color = c.fg, fontSize = 15.sp, lineHeight = 21.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, style = TextStyle(textDirection = TextDirection.Content))
+            if (m.note.isNotEmpty()) Text(m.note, Modifier.padding(top = 2.dp), color = c.mute, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, style = TextStyle(textDirection = TextDirection.Content))
+        }
+        IBtn(BrIcons.Edit, stringResource(R.string.brNoteHint), size = 40.dp, iconSize = 20.dp, tint = c.mute) { onEdit() }
+        IBtn(BrIcons.Trash, stringResource(R.string.brDelete), size = 40.dp, iconSize = 20.dp, tint = c.mute) { a.delMark(m) }
+    }
+}
+
+@Composable
+private fun NoteDialog(m: BrRead.Mark, dismiss: () -> Unit, save: (String) -> Unit) {
+    val c = LocalBr.current
+    var v by remember(m.id) { mutableStateOf(m.note) }
+    AlertDialog(onDismissRequest = dismiss, containerColor = c.card,
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(m.text, color = c.mute, fontSize = 14.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, style = TextStyle(textDirection = TextDirection.Content))
+                DevField(v, { v = it }, stringResource(R.string.brNoteHint), height = 120.dp)
+            }
+        },
+        confirmButton = { TextButton({ save(v.take(4000)) }) { Text(stringResource(R.string.brSave), color = c.tint, fontWeight = FontWeight.SemiBold) } },
+        dismissButton = { TextButton(dismiss) { Text(stringResource(R.string.brCancel), color = c.tint) } })
+}
+
+/** כל ההדגשות וההערות, לפי הדף */
+@Composable
+private fun NotesScreen(a: BrowserActivity) {
+    val c = LocalBr.current
+    var edit by remember { mutableStateOf<BrRead.Mark?>(null) }
+    val pages = remember(a.marks) { BrRead.pages(a.marks) }
+    SubPage(stringResource(R.string.brNotesAll), done = true, onDone = { a.screen = BrowserActivity.Screen.PAGE }) {
+        if (pages.isEmpty()) item { Empty(R.string.brNotesAllEmpty) }
+        pages.forEach { (p, _) ->
+            item {
+                val l = BrRead.forPage(a.marks, p.url)
+                Group(p.title.ifEmpty { BrStore.hostOf(p.url) }) {
+                    l.forEachIndexed { i, m ->
+                        if (i > 0) Sep()
+                        if (m.text.isEmpty()) IRow(m.note, stringResource(R.string.brPageNote), lead = { Tile(BrIcons.Edit, c.icon) }, chevron = false) { a.gotoMark(m) }
+                        else MarkRow(a, m, onEdit = { edit = m })
+                    }
+                }
+            }
+        }
+    }
+    edit?.let { m -> NoteDialog(m, { edit = null }) { a.setNote(m.copy(note = it)); edit = null } }
+}
+
+/* ---------- 29 פאנל חצי מסך ---------- */
+
+@Composable
+private fun PanelView(a: BrowserActivity, t: BrTab, m: Modifier) {
+    val c = LocalBr.current
+    LaunchedEffect(a.panel, t.url) { if (a.panel == 1 && BrRead.pageKey(a.panelUrl) != BrRead.pageKey(t.url)) a.openReader(1) }
+    Column(m.background(c.screen)) {
+        HorizontalDivider(thickness = 0.5.dp, color = c.line)
+        Row(Modifier.fillMaxWidth().height(48.dp).padding(start = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
+                listOf(1 to R.string.brReader, 2 to R.string.brReadList, 3 to R.string.brNotes).forEach { (p, l) ->
+                    if (p != 3 || !t.private) {
+                        val on = a.panel == p
+                        Text(stringResource(l), Modifier.padding(end = 6.dp).clip(RoundedCornerShape(16.dp)).background(if (on) c.tint.copy(alpha = 0.16f) else Color.Transparent)
+                            .clickable { a.openPanel(p) }.padding(horizontal = 14.dp, vertical = 7.dp), color = if (on) c.tint else c.fg, fontSize = 15.sp, fontWeight = if (on) FontWeight.SemiBold else null)
+                    }
+                }
+            }
+            IBtn(BrIcons.CClose, stringResource(R.string.brClose), size = 44.dp, iconSize = 20.dp, tint = c.mute) { a.panel = 0 }
+        }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            when (a.panel) {
+                1 -> {
+                    val art = a.panelArt
+                    if (BrRead.pageKey(a.panelUrl) != BrRead.pageKey(t.url)) Box(Modifier.fillMaxSize())
+                    else if (art == null) Empty(R.string.brReadNone)
+                    else androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize()) {
+                        item {
+                            Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                val sp = a.speakArt == art && a.speakAt != -2
+                                TextButton({ if (sp) a.stopSpeak() else a.speakArticle(art) }) {
+                                    Icon(if (sp) BrIcons.Pause else BrIcons.Headphones, null, Modifier.size(20.dp), tint = c.tint); Spacer(Modifier.width(6.dp))
+                                    Text(stringResource(if (sp) R.string.brSpeakStop else R.string.brSpeak), color = c.tint)
+                                }
+                                TextButton({ a.reader = art; a.readerBack = BrowserActivity.Screen.PAGE; a.screen = BrowserActivity.Screen.READER }) { Text(stringResource(R.string.brReader), color = c.tint) }
+                            }
+                        }
+                        readerItems(a, art, (a.readSize - 2).coerceAtLeast(14))
+                        item { Spacer(Modifier.height(16.dp)) }
+                    }
+                }
+                2 -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 8.dp)) { ReadListGroup(a) { s -> a.go(s.url) } }
+                else -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 8.dp)) { NotesBody(a, t) }
+            }
+        }
+    }
+}
+
+/* ---------- 49 מדיה בכל הכרטיסיות ---------- */
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MediaSheet(a: BrowserActivity) {
+    val c = LocalBr.current
+    LaunchedEffect(Unit) { while (true) { delay(1500); a.mediaRefresh() } }
+    val list = a.tabs.filter { (a.mediaStates[it.id]?.n ?: 0) > 0 }
+    ModalBottomSheet(onDismissRequest = { a.mediaSheet = false }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
+            SheetHead(stringResource(R.string.brMedia), null, close = { a.mediaSheet = false })
+            Group {
+                if (list.isEmpty()) IRow(stringResource(R.string.brMediaNone), lead = { Tile(BrIcons.Play, c.icon) }, chevron = false)
+                list.forEachIndexed { i, t ->
+                    if (i > 0) Sep()
+                    val s = a.mediaStates[t.id] ?: BrRead.MediaState(0, false, false)
+                    IRow(t.title.ifEmpty { BrStore.hostOf(t.url) }, BrStore.hostOf(t.url), lead = { Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) { Fav(a, t.url, 24.dp, 6.dp, t.icon) } },
+                        chevron = false, ltrSub = true, trailing = {
+                            Row {
+                                IBtn(if (s.muted) BrIcons.VolumeOff else BrIcons.Headphones, stringResource(if (s.muted) R.string.brUnmute else R.string.brMute), size = 44.dp, iconSize = 22.dp,
+                                    tint = if (s.muted) Color(0xFFFF3B30) else c.tint) { a.mediaDo(t, if (s.muted) "unmute" else "mute") }
+                                IBtn(if (s.playing) BrIcons.Pause else BrIcons.Play, stringResource(if (s.playing) R.string.brPause else R.string.brPlay), size = 44.dp, iconSize = 24.dp,
+                                    tint = c.tint) { a.mediaDo(t, if (s.playing) "pause" else "play") }
+                            }
+                        }) { a.mediaSheet = false; a.select(t) }
+                }
+            }
+            if (list.any { a.mediaStates[it.id]?.playing == true })
+                Text(stringResource(R.string.brPauseAll), Modifier.align(Alignment.CenterHorizontally).clip(RoundedCornerShape(12.dp)).clickable { a.mediaPauseAll() }
+                    .padding(horizontal = 16.dp, vertical = 12.dp), color = c.tint, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+
+/* ---------- 56 קוד QR ---------- */
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun QrSheet(a: BrowserActivity, t: BrTab) {
+    val c = LocalBr.current
+    val url = if (t.url.startsWith("http")) t.url else ""
+    val bmp = remember(url) { if (url.isEmpty()) null else BrCapture.qr(url, 720) }
+    ModalBottomSheet(onDismissRequest = { a.qrSheet = false; a.qrFound = null }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp).verticalScroll(rememberScrollState())) {
+            SheetHead(stringResource(R.string.brQr), null, close = { a.qrSheet = false; a.qrFound = null })
+            if (bmp != null) {
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Image(bmp.asImageBitmap(), url, Modifier.size(220.dp).clip(RoundedCornerShape(16.dp)).background(Color.White))
+                    Text(url, Modifier.padding(horizontal = 24.dp, vertical = 8.dp), color = c.mute, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center, style = TextStyle(textDirection = TextDirection.Ltr))
+                    Row {
+                        TextButton({ a.shareQr(bmp, url) }) { Text(stringResource(R.string.brShareImg), color = c.tint, fontSize = 16.sp) }
+                        TextButton({ a.copyText(url) }) { Text(stringResource(R.string.brCopyText), color = c.tint, fontSize = 16.sp) }
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Group {
+                IRow(stringResource(R.string.brQrScan), lead = { Tile(BrIcons.Qr, c.icon) }, chevron = false) { a.qrScanPage() }
+                Sep()
+                IRow(stringResource(R.string.brQrImage), lead = { Tile(BrIcons.Image, c.icon) }, chevron = false) { a.qrFromImage() }
+            }
+            a.qrFound?.let { s ->
+                Group {
+                    if (s.isEmpty()) IRow(stringResource(R.string.brQrNone), lead = { Tile(BrIcons.Warn, c.icon) }, chevron = false)
+                    else IRow(s, lead = { Tile(BrIcons.Qr, c.icon) }, chevron = false, trailing = {
+                        Row {
+                            if (s.startsWith("http://") || s.startsWith("https://")) TextButton({ a.qrOpen(s) }) { Text(stringResource(R.string.brOpenTab), color = c.tint) }
+                            TextButton({ a.copyText(s) }) { Text(stringResource(R.string.brCopyText), color = c.tint) }
+                        }
+                    })
+                }
+            }
+        }
+    }
+}
+
+/* ---------- 57 הורדת כל הקבצים בדף ---------- */
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FilesSheet(a: BrowserActivity, all: List<BrRead.FileLink>) {
+    val c = LocalBr.current
+    val off = remember(all) { mutableStateListOf<String>() }
+    var cats by remember(all) { mutableStateOf(BrRead.CATS.filter { k -> all.any { it.cat == k } }.toSet()) }
+    val shown = all.filter { it.cat in cats }
+    val pick = shown.filter { it.url !in off }
+    val catName = @Composable { k: Char -> stringResource(when (k) { 'd' -> R.string.brCatD; 'a' -> R.string.brCatA; 'v' -> R.string.brCatV; 'i' -> R.string.brCatI; 'z' -> R.string.brCatZ; else -> R.string.brCatO }) }
+    ModalBottomSheet(onDismissRequest = { a.filesFound = null }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().padding(bottom = 12.dp)) {
+            SheetHead(stringResource(R.string.brFiles), stringResource(R.string.brFilesN, all.size), close = { a.filesFound = null })
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
+                BrRead.CATS.filter { k -> all.any { it.cat == k } }.forEach { k ->
+                    val on = k in cats
+                    Text(catName(k) + " " + all.count { it.cat == k }, Modifier.padding(end = 6.dp).clip(RoundedCornerShape(16.dp))
+                        .background(if (on) c.tint.copy(alpha = 0.16f) else c.fill).clickable { cats = if (on) cats - k else cats + k }.padding(horizontal = 14.dp, vertical = 7.dp),
+                        color = if (on) c.tint else c.fg, fontSize = 15.sp)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            androidx.compose.foundation.lazy.LazyColumn(Modifier.weight(1f, fill = false).heightIn(max = 420.dp)) {
+                items(shown, key = { it.url }) { f ->
+                    val on = f.url !in off
+                    Row(Modifier.fillMaxWidth().clickable { if (on) off.add(f.url) else off.remove(f.url) }.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(24.dp).clip(RoundedCornerShape(6.dp)).background(if (on) c.tint else Color.Transparent).border(2.dp, if (on) c.tint else c.mute, RoundedCornerShape(6.dp)),
+                            contentAlignment = Alignment.Center) { if (on) Icon(BrIcons.Check, null, Modifier.size(18.dp), tint = Color.White) }
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(f.name, color = c.fg, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(textDirection = TextDirection.Content))
+                            Text(f.ext.uppercase() + " · " + BrRead.host(f.url), color = c.mute, fontSize = 13.sp, maxLines = 1, style = TextStyle(textDirection = TextDirection.Ltr))
+                        }
+                    }
+                }
+            }
+            Button({ a.downloadFiles(pick) }, Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth().height(48.dp), enabled = pick.isNotEmpty(),
+                colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Color.White)) {
+                Text(stringResource(R.string.brFilesGo, pick.size), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+/* ---------- 51 חלון צף לחלק מהדף ---------- */
+
+@Composable
+private fun FloatWindow(a: BrowserActivity, f: BrowserActivity.FloatWin) {
+    val c = LocalBr.current
+    var off by remember(f) { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    var big by remember(f) { mutableStateOf(false) }
+    Box(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+        Column(Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 120.dp)
+            .offset { androidx.compose.ui.unit.IntOffset(off.x.toInt(), off.y.toInt()) }
+            .size(if (big) 340.dp else 260.dp, if (big) 300.dp else 200.dp)
+            .graphicsLayer { alpha = if (a.shooting) 0f else 1f }
+            .glass(c, RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp))) {
+            Row(Modifier.fillMaxWidth().height(36.dp).pointerInput(f) { detectDragGestures { ch, d -> ch.consume(); off += d } }.padding(start = 10.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Icon(BrIcons.Pip, null, Modifier.size(18.dp), tint = c.mute)
+                Spacer(Modifier.width(6.dp))
+                Text(BrStore.hostOf(f.url), Modifier.weight(1f), color = c.mute, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                IBtn(if (big) BrIcons.Minus else BrIcons.Add, stringResource(if (big) R.string.brSmaller else R.string.brBigger), size = 36.dp, iconSize = 18.dp, tint = c.tint) { big = !big }
+                IBtn(BrIcons.CClose, stringResource(R.string.brClose), size = 36.dp, iconSize = 18.dp, tint = c.tint) { a.floatWin = null }
+            }
+            key(f) {
+                AndroidView({ _ -> a.floatWeb(f) }, Modifier.weight(1f).fillMaxWidth(), onRelease = { a.previewKill(it) })
+            }
+        }
+    }
+}
+
+/* ======================= הגל החמישי (01/11/2026, BrLocal): בתוך הטלפון, בלי ענן ======================= */
+
+/** הגיליון מ־⋮: תרגום הדף והבחירה (26/58), כתוביות (50), סיכום (59), השפות שבטלפון; ומתג 60 — רק כש־59 קיים */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LocalSheet(a: BrowserActivity, t: BrTab) {
+    val c = LocalBr.current
+    val sum = a.sumOk in 1..3
+    ModalBottomSheet(onDismissRequest = { a.localSheet = false }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
+            SheetHead(stringResource(R.string.brLocal), stringResource(R.string.brLocalNote), close = { a.localSheet = false })
+            val done = a.trTab === t
+            val items = buildList<Triple<Int, ImageVector, () -> Unit>> {
+                add(Triple(if (done) R.string.brTrOrig else R.string.brTrPage, BrIcons.CTranslate) { if (done) { a.localSheet = false; a.showOriginal() } else a.translateHere(t, false) })
+                add(Triple(R.string.brTrSelTile, BrIcons.Translate) { a.translateHere(t, true) })
+                if (a.capOk && a.toolsOk) add(Triple(R.string.brCaptions, BrIcons.Cc) { a.toggleCaptions(t) })
+                if (sum) add(Triple(R.string.brSum, BrIcons.Sparkle) { a.summarizeHere(t) })
+                add(Triple(R.string.brLangs, BrIcons.Globe) { a.openLangs() })
+            }
+            items.chunked(4).forEach { row ->
+                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+                    row.forEach { (l, ic, on) -> ToolTile(stringResource(l), ic, Modifier.weight(1f), on) }
+                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+            if (sum && a.toolsOk) {
+                Spacer(Modifier.height(8.dp))
+                Group {
+                    IRow(stringResource(R.string.brAiSites), stringResource(R.string.brAiSitesSub), lead = { Tile(BrIcons.Code, c.icon) }, chevron = false,
+                        trailing = { IosSwitch(a.aiOn) { a.pickAi(it) } })
+                }
+            }
+        }
+    }
+}
+
+/** 58 השפות שבטלפון: מה שהורד (מחיקה), ושפות להורדה מראש */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LangSheet(a: BrowserActivity) {
+    val c = LocalBr.current
+    val he = java.util.Locale.getDefault().language.let { it == "he" || it == "iw" }
+    ModalBottomSheet(onDismissRequest = { a.langSheet = false }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
+            SheetHead(stringResource(R.string.brLangs), stringResource(R.string.brLangsSub), close = { a.langSheet = false })
+            val have = a.langModels
+            if (have == null) { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.tint) }; return@Column }
+            Group {
+                BrLocal.LANGS.filter { it.code in have }.forEachIndexed { i, l ->
+                    if (i > 0) Sep()
+                    IRow(if (he) l.he else l.en, chevron = false, trailing = if (l.code == "en") null else ({
+                        TextButton({ a.langDelete(l.code) }) { Text(stringResource(R.string.brDelete), color = Color(0xFFFF3B30)) }
+                    }))
+                }
+            }
+            Group(header = stringResource(R.string.brLangsAdd)) {
+                BrLocal.LANGS.filter { it.code !in have }.forEachIndexed { i, l ->
+                    if (i > 0) Sep()
+                    IRow(if (he) l.he else l.en, chevron = false, trailing = {
+                        if (a.langBusy == l.code) CircularProgressIndicator(Modifier.size(22.dp), color = c.tint, strokeWidth = 2.dp)
+                        else Icon(BrIcons.CDownloads, null, Modifier.size(22.dp), tint = c.tint)
+                    }) { a.langDownload(l.code) }
+                }
+            }
+        }
+    }
+}
+
+/** 59 הסיכום: בעבודה — מה קורה עכשיו; אחרי — הנקודות, העתקה */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SumSheet(a: BrowserActivity) {
+    val c = LocalBr.current
+    ModalBottomSheet(onDismissRequest = { a.sumSheet = false }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
+            SheetHead(stringResource(R.string.brSum), null, lead = { Icon(BrIcons.Sparkle, null, Modifier.size(24.dp), tint = c.tint) }, close = { a.sumSheet = false })
+            val res = a.sumRes
+            if (res == null) {
+                Row(Modifier.padding(horizontal = 24.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(22.dp), color = c.tint, strokeWidth = 2.dp)
+                    Spacer(Modifier.width(14.dp))
+                    Text(a.sumBusy, color = c.fg, fontSize = 16.sp)
+                }
+            } else {
+                Group(footer = stringResource(R.string.brSumNote)) {
+                    Column(Modifier.padding(16.dp)) {
+                        res.forEach { b ->
+                            Row(Modifier.padding(vertical = 4.dp)) {
+                                Text("•", color = c.tint, fontSize = 17.sp, lineHeight = 26.sp)
+                                Spacer(Modifier.width(10.dp))
+                                Text(b, color = c.fg, fontSize = 17.sp, lineHeight = 26.sp)
+                            }
+                        }
+                    }
+                }
+                Row(Modifier.padding(horizontal = 16.dp)) {
+                    TextButton({ a.copyText(res.joinToString("\n") { "• $it" }, R.string.brCopiedText) }) {
+                        Icon(BrIcons.Copy, null, Modifier.size(20.dp), tint = c.tint); Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.brCopyText), color = c.tint, fontSize = 16.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** הפס "תורגם מ…" (שפת מקור אחרת / מקור) והכתוביות (50) — מעל הסרגל; כשיש הקראה או קליפ — מעליהם */
+@Composable
+private fun LocalFloat(a: BrowserActivity, t: BrTab?) {
+    val c = LocalBr.current
+    if (t == null || a.screen != BrowserActivity.Screen.PAGE) return
+    val tr = a.trTab === t; val cc = a.capTab === t
+    if (!tr && !cc) return
+    val he = java.util.Locale.getDefault().language.let { it == "he" || it == "iw" }
+    val up = a.speakAt != -2 || a.clipTab != null
+    val dy = with(LocalDensity.current) { (if (up) 148.dp else 88.dp).roundToPx() }
+    androidx.compose.ui.window.Popup(alignment = Alignment.BottomCenter, offset = androidx.compose.ui.unit.IntOffset(0, -dy)) {
+        Column(Modifier.padding(horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            if (cc) {
+                var pick by remember { mutableStateOf(false) }
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xD9000000)).padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        val cap = a.cap
+                        if (cap.lines.isEmpty() && cap.partial.isEmpty()) Text(stringResource(R.string.brCapListening), color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp)
+                        cap.lines.forEach { Text(it, color = Color.White, fontSize = 18.sp, lineHeight = 24.sp) }
+                        if (cap.partial.isNotEmpty()) Text(cap.partial, color = Color.White.copy(alpha = 0.65f), fontSize = 16.sp, lineHeight = 22.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box {
+                            TextButton({ pick = true }) { Text(a.capLang.uppercase(), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+                            DropdownMenu(pick, { pick = false }, containerColor = c.card) {
+                                BrLocal.LANGS.forEach { l -> DropdownMenuItem({ Text(if (he) l.he else l.en, color = c.fg) }, { pick = false; a.pickCapLang(l.code) }) }
+                            }
+                        }
+                        IBtn(BrIcons.Close, stringResource(R.string.brClose), size = 36.dp, iconSize = 18.dp, tint = Color.White) { a.stopCaptions() }
+                    }
+                }
+                if (tr) Spacer(Modifier.height(8.dp))
+            }
+            if (tr) {
+                var pick by remember { mutableStateOf(false) }
+                Row(Modifier.heightIn(min = 48.dp).glass(c, RoundedCornerShape(24.dp)).padding(start = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(BrIcons.CTranslate, null, Modifier.size(20.dp), tint = c.tint)
+                    Spacer(Modifier.width(8.dp))
+                    Box {
+                        Text(if (a.trBusy) stringResource(R.string.brTrBusy) else stringResource(R.string.brTrFrom, BrLocal.name(a.trFrom, he)) + " ▾",
+                            Modifier.clip(RoundedCornerShape(8.dp)).clickable { pick = true }.padding(vertical = 8.dp), color = c.fg, fontSize = 15.sp, maxLines = 1)
+                        DropdownMenu(pick, { pick = false }, containerColor = c.card) {
+                            BrLocal.LANGS.filter { it.code != a.trTo }.forEach { l ->
+                                DropdownMenuItem({ Text(if (he) l.he else l.en, color = c.fg) }, { pick = false; a.translateHere(t, false, l.code) })
+                            }
+                        }
+                    }
+                    TextButton({ a.showOriginal() }) { Text(stringResource(R.string.brTrOrig), color = c.tint, fontWeight = FontWeight.SemiBold) }
+                }
+            }
+        }
+    }
+}
+
+/* ======================= הגל השישי (02/11/2026, BrOurs): רק אצלנו — Studio, Academy ו־Invest ======================= */
+
+/** הגיליון מ־⋮: תרגום הסרטון ב־Studio (68), אחר כך מתורגם (69), הכתוביות לנגן (68), פרקים וסיכום (73), מאמר ל־Academy (70), מניה (71) */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OursSheet(a: BrowserActivity, t: BrTab?) {
+    val c = LocalBr.current
+    val web = t != null && t.url.startsWith("http")
+    val video = web && (t!!.foundN > 0 || t.pageIsVideo())
+    ModalBottomSheet(onDismissRequest = { a.oursSheet = false }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
+            SheetHead(stringResource(R.string.brOurs), stringResource(R.string.brOursNote), close = { a.oursSheet = false })
+            val items = buildList<Triple<Int, ImageVector, () -> Unit>> {
+                if (web) add(Triple(R.string.brStudioTr, BrIcons.Translate) { a.studioTranslate(t!!) })
+                if (video) add(Triple(R.string.brLater, BrIcons.History) { a.laterTranslated(t!!) })
+                if (web) {
+                    if (t!!.subs != null) add(Triple(R.string.brSubsOff, BrIcons.Cc) { a.dropSubs(t) })
+                    else add(Triple(R.string.brSubsLoad, BrIcons.Cc) { a.pickSubs() })
+                }
+                if (video || t?.subs != null) add(Triple(R.string.brChap, BrIcons.Lines) { a.chaptersHere(t!!) })
+                if (web) add(Triple(R.string.brAcademy, BrIcons.Book) { a.articleToAcademy(t!!) })
+                add(Triple(R.string.brStock, BrIcons.Bar) { a.stockAsk() })
+            }
+            items.chunked(4).forEach { row ->
+                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+                    row.forEach { (l, ic, on) -> ToolTile(stringResource(l), ic, Modifier.weight(1f), on) }
+                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+        }
+    }
+}
+
+/** 73 פרקים, סיכום ושאלה — מהתמליל בלבד. נגיעה בשורה קופצת לזמן בסרטון */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChapSheet(a: BrowserActivity) {
+    val c = LocalBr.current
+    ModalBottomSheet(onDismissRequest = { a.chapSheet = false }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
+            val x = a.chap
+            SheetHead(stringResource(R.string.brChap), if (x == null) null else stringResource(if (x.studio) R.string.brChapFromStudio else R.string.brChapFromPage),
+                lead = { Icon(BrIcons.Lines, null, Modifier.size(24.dp), tint = c.tint) }, close = { a.chapSheet = false })
+            if (x == null) { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.tint) }; return@Column }
+            var q by remember { mutableStateOf("") }
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().height(44.dp).glass(c, RoundedCornerShape(22.dp), c.fill).padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Icon(BrIcons.Search, null, Modifier.size(20.dp), tint = c.mute); Spacer(Modifier.width(10.dp))
+                BasicTextField(q, { q = it }, Modifier.weight(1f), singleLine = true, textStyle = TextStyle(color = c.fg, fontSize = 16.sp, textDirection = TextDirection.Content),
+                    cursorBrush = SolidColor(c.tint), decorationBox = { inner -> Box { if (q.isEmpty()) Text(stringResource(R.string.brChapAsk), color = c.mute, fontSize = 16.sp, maxLines = 1); inner() } })
+            }
+            Spacer(Modifier.height(12.dp))
+            val hits = remember(q, x) { if (q.trim().length < 2) null else BrOurs.search(x.cues, q) }
+            if (hits != null) {
+                Group(header = stringResource(R.string.brChapHits, hits.size)) {
+                    if (hits.isEmpty()) IRow(stringResource(R.string.brChapNoHit), chevron = false)
+                    hits.forEachIndexed { i, h -> if (i > 0) Sep(); IRow(h.t, value = BrOurs.clock(h.s), chevron = false) { a.seekTo(h.s) } }
+                }
+                return@Column
+            }
+            if (x.ch.isNotEmpty()) Group(header = stringResource(R.string.brChapList)) {
+                x.ch.forEachIndexed { i, ch -> if (i > 0) Sep(); IRow(ch.title, value = BrOurs.clock(ch.s), chevron = false) { a.seekTo(ch.s) } }
+            }
+            if (x.sum.isNotEmpty()) Group(header = stringResource(R.string.brSum), footer = stringResource(R.string.brChapSumNote)) {
+                x.sum.forEachIndexed { i, s -> if (i > 0) Sep(); IRow(s.t, value = BrOurs.clock(s.s), chevron = false) { a.seekTo(s.s) } }
+            }
+            Row(Modifier.padding(horizontal = 16.dp)) {
+                TextButton({ a.copyText((x.ch.map { BrOurs.clock(it.s) + " " + it.title } + listOf("") + x.sum.map { "• " + it.t }).joinToString("\n"), R.string.brCopiedText) }) {
+                    Icon(BrIcons.Copy, null, Modifier.size(20.dp), tint = c.tint); Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.brCopyText), color = c.tint, fontSize = 16.sp)
+                }
+            }
+        }
+    }
+}
+
+/** 71 כרטיס מניה: מחיר, שינוי יומי (וטרום/אחרי מסחר), ו־Invest — הגרף או הוספה למעקב (Invest שואל לפני) */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun StockSheet(a: BrowserActivity) {
+    val c = LocalBr.current
+    ModalBottomSheet(onDismissRequest = { a.stockSheet = false }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
+            SheetHead(stringResource(R.string.brStock), a.stockQ.ifEmpty { null }, lead = { Icon(BrIcons.Bar, null, Modifier.size(24.dp), tint = c.tint) }, close = { a.stockSheet = false })
+            var q by remember { mutableStateOf(a.stockQ) }
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().height(44.dp).glass(c, RoundedCornerShape(22.dp), c.fill).padding(start = 16.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                BasicTextField(q, { q = it }, Modifier.weight(1f), singleLine = true, textStyle = TextStyle(color = c.fg, fontSize = 16.sp, textDirection = TextDirection.Content),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { a.stockFind(q) }),
+                    cursorBrush = SolidColor(c.tint), decorationBox = { inner -> Box { if (q.isEmpty()) Text(stringResource(R.string.brStockHint), color = c.mute, fontSize = 16.sp, maxLines = 1); inner() } })
+                IBtn(BrIcons.Search, stringResource(R.string.brStock), size = 40.dp, iconSize = 20.dp) { a.stockFind(q) }
+            }
+            Spacer(Modifier.height(12.dp))
+            val cs = a.stockCards
+            when {
+                cs == null -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.tint) }
+                a.stockErr == 1 -> Group { IRow(stringResource(R.string.brStockNet), chevron = false) }
+                a.stockErr == 2 -> Group { IRow(stringResource(R.string.brStockNotFound), chevron = false) }
+                else -> cs.forEach { k ->
+                    val up = k.chg >= 0
+                    val col = if (k.chg == 0.0) c.mute else if (up) Color(0xFF30D158) else Color(0xFFFF453A)
+                    Group(footer = if (k.ta) stringResource(R.string.brStockTa) else null) {
+                        Column(Modifier.padding(16.dp)) {
+                            Text(k.sym, color = c.mute, fontSize = 14.sp, style = TextStyle(textDirection = TextDirection.Ltr))
+                            if (k.name.isNotEmpty()) Text(k.name, color = c.fg, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Spacer(Modifier.height(6.dp))
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                Text(BrOurs.money(k.price, k.cur), color = c.fg, fontSize = 28.sp, fontWeight = FontWeight.Bold, style = TextStyle(textDirection = TextDirection.Ltr))
+                                Spacer(Modifier.width(10.dp))
+                                Text(BrOurs.pctText(k.pct), color = col, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, style = TextStyle(textDirection = TextDirection.Ltr))
+                            }
+                            if (k.ext != null) Text(stringResource(if (k.state.startsWith("PRE")) R.string.brStockPre else R.string.brStockPost,
+                                BrOurs.money(k.ext, k.cur) + "  " + (k.extPct?.let { BrOurs.pctText(it) } ?: "")), color = c.mute, fontSize = 14.sp)
+                        }
+                        Sep()
+                        IRow(stringResource(R.string.brStockChart), lead = { Icon(BrIcons.Bar, null, Modifier.size(22.dp), tint = c.tint) }) { a.openInvest(BrOurs.chartUrl(k.sym)) }
+                        Sep()
+                        IRow(stringResource(R.string.brStockWatch), lead = { Icon(BrIcons.Add, null, Modifier.size(22.dp), tint = c.tint) }) { a.openInvest(BrOurs.watchUrl(k.sym, k.name)) }
+                    }
+                }
+            }
+            Text(stringResource(R.string.brStockNote), Modifier.padding(horizontal = 32.dp), color = c.mute, fontSize = 13.sp, lineHeight = 18.sp)
         }
     }
 }

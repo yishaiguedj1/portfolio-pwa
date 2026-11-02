@@ -330,4 +330,53 @@ ok(fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yis
   ok(/pickMode != 0 -> endPick\(false\)/.test(act) && /t\?\.editing == true -> toggleEdit\(t\)/.test(act), '"חזור" יוצא מבחירת רכיב ומעריכת הדף');
 }
 
+// 01/11/2026: Studio Browser Pro — הגל הרביעי (docs/browser-pro-plan.md): קריאה, צילום ומדיה
+{
+  const rd = R(B + 'BrRead.kt'), cap = R(B + 'BrCapture.kt'), cloud = R(B + 'BrCloud.kt'), bridge = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmBridge.kt');
+  ok(!/reading\.json|notes\.json|hindex|readList|BrRead/.test(cloud), 'רשימת הקריאה, ההדגשות והאינדקס — בטלפון בלבד, לא בענן');
+  ok(/if \(!indexOn \|\| t\.private \|\| !url\.startsWith\("http"\) \|\| BrDev\.sensitive\(url\)\) return/.test(act), 'אינדקס ההיסטוריה: לא בפרטי ולא בדפים רגישים');
+  ok(/BrRead\.search\(docsLoad\(\), q, alive\)/.test(act) && /clearDocs\(\)/.test(act.slice(act.indexOf('fun clearData'))), 'מה שנמחק מההיסטוריה לא נמצא בחיפוש, ומחיקת הנתונים מוחקת את האינדקס');
+  ok(/if \(!t\.private\) BrRead\.forPage\(marks, url\)/.test(act) && /if \(!t\.private && m\.findItem\(ID_MARK\) == null\)/.test(act), 'הדגשות — לא בכרטיסייה פרטית');
+  ok(/fun saveForLater\(\) \{\s*val t = cur\?\.takeIf \{ it\.url\.startsWith\("http"\) && !it\.private \}/.test(act), 'רשימת קריאה — לא מכרטיסייה פרטית');
+  ok(/d\.startsWith\("c:"\) -> if \(clipTab === t\) onClip/.test(act) && /CLIP_MAX/.test(act), 'קליפ: חלקים מהדף מתקבלים רק כשהקליפ פעיל בכרטיסייה, עם תקרה');
+  ok(/fun esc\(/.test(rd) && /esc\(b\.t\)/.test(rd) && /javaScriptEnabled = false/.test(act) && /blockNetworkLoads = true/.test(act), 'PDF נקי: HTML מוברח, בלי JavaScript ובלי רשת');
+  ok(/"browserImplementation"\("com\.google\.zxing:core:/.test(gradle) && !/CAMERA/.test(cap), 'QR — ZXing core, בלי מצלמה');
+  ok(/fun sendFiles\(/.test(bridge) && /DmKind\.HTTP/.test(bridge) && /FILES_MAX/.test(bridge) && /if \(cookies\) jar\(/.test(bridge), 'הורדת כל הקבצים: ל־DM כקבצים ישירים, עם תקרה, ובפרטי בלי עוגיות');
+  ok(ui.indexOf('MItem(R.string.brReadTools') > ui.indexOf('MItem(R.string.brZap') && ui.indexOf('MItem(R.string.brReadTools') < ui.lastIndexOf('MItem(R.string.brSettings'),
+    'הגל הרביעי בתפריט ⋮ — פריט אחד בקבוצת הכלים');
+  ok(/!in setOf\("http", "https"\)/.test(act.slice(act.indexOf('fun floatWeb'))) && /isolateJs\(f\.sel\)/.test(act), 'החלון הצף: רק http(s), והרכיב שנבחר בלבד');
+  ok(/pickMode = 0; floatPick = false/.test(act) && /screen == Screen\.READER -> \{ screen = readerBack/.test(act), '"חזור" ממצב קריאה ומבחירה לחלון הצף');
+}
+
+// 01/11/2026: Studio Browser Pro — הגל החמישי (docs/browser-pro-plan.md): בתוך הטלפון, בלי ענן
+{
+  const lo = R(B + 'BrLocal.kt'), ai = R(B + 'BrLocalAi.kt'), cloud = R(B + 'BrCloud.kt');
+  ok(!/BrLocal|BrMl|BrCaptions/.test(cloud) && !/https?:\/\//.test(ai) && !/https?:\/\//.test(lo), 'התרגום, הכתוביות והסיכום — בטלפון בלבד, בלי ענן ובלי כתובות רשת');
+  ok(/"browserImplementation"\("com\.google\.mlkit:translate:/.test(gradle) && /"browserImplementation"\("com\.google\.mlkit:genai-summarization:/.test(gradle), 'ML Kit: תרגום וסיכום — רק בטעם של הדפדפן');
+  ok(/createOnDeviceSpeechRecognizer/.test(ai) && !/createSpeechRecognizer\(/.test(ai), 'כתוביות: זיהוי הדיבור במכשיר בלבד');
+  ok(/d\.startsWith\("a:"\) -> if \(capTab === t\) caps\?\.feed/.test(act) && /AUDIO_MAX/.test(ai), 'כתוביות: קול מהדף מתקבל רק כשהכתוביות דולקות בכרטיסייה, עם תקרה');
+  ok(/if \(!aiOn \|\| sumOk !in 1\.\.3 \|\| t\.private/.test(act) && /if \(!aiOn \|\| t\.private \|\| t\.aiH == null\) return/.test(act), 'ממשקי ה־AI לאתרים: רק כשההגדרה דלוקה, רק כשהמודל שבטלפון קיים, לא בפרטי');
+  ok(/allowDl = false/.test(act.slice(act.indexOf('private fun onAi'))) && /n >= 3/.test(act), 'אתר לא מוריד מודלים ולא מעמיס (עד 3 בקשות)');
+  ok(/if\(window!==top\|\|window\.__snbAi\)return/.test(lo) && /if\(name in window\)return/.test(lo), 'השכבה: רק במסגרת הראשית, ולא דורסת ממשק קיים');
+  ok(/if \(sum\) add\(Triple\(R\.string\.brSum/.test(ui) && /if \(sum && a\.toolsOk\)/.test(ui) && /if \(a\.capOk && a\.toolsOk\)/.test(ui), 'סיכום, ממשקי AI וכתוביות — מוסתרים בטלפון שלא תומך');
+  ok(/if \(url != t\.page\) \{ localLeave\(t\)/.test(act) && /stopCaptions\(\); speaker\?\.shutdown\(\)/.test(act), 'מסמך חדש מבטל תרגום וכתוביות; היציאה עוצרת את הכתוביות');
+  ok(ui.indexOf('MItem(R.string.brLocal') > ui.indexOf('MItem(R.string.brReadTools') && ui.indexOf('MItem(R.string.brLocal') < ui.lastIndexOf('MItem(R.string.brSettings'),
+    'הגל החמישי בתפריט ⋮ — פריט אחד בקבוצת הכלים');
+}
+
+// 02/11/2026: Studio Browser Pro — הגל השישי (docs/browser-pro-plan.md): רק אצלנו — Studio, Academy, Invest
+{
+  const ours = R(B + 'BrOurs.kt'), oa = R(B + 'BrOursAndroid.kt');
+  const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8'), lib = fs.readFileSync(path.join(__dirname, '..', 'library.js'), 'utf8');
+  const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  ok(!/HttpURLConnection|openConnection/.test(ours), 'BrOurs טהור — בלי רשת (הרשת רק ב־BrOursAndroid)');
+  ok(/if \(!t\.private\) autoSubs\(t\)/.test(act), 'כתוביות שמורות לא נטענות בכרטיסייה פרטית');
+  ok(/q\.syms\.ifEmpty \{/.test(oa) && (oa.match(/post\("/g) || []).length === 2, 'כרטיס מניה: לכל היותר חיפוש אחד ובקשת מחירים אחת דרך השרתון');
+  ok(/kind === 'book' \? \/\^\(application\\\/\(epub\\\+zip\|octet-stream\)\)\?\$\//.test(sw) && /64 \* 1048576/.test(sw), 'sw: ספר ששותף — רק EPUB, עם תקרה');
+  ok(/inboxBook\(\);/.test(lib), 'Academy מייבאת ספר מהתיבה');
+  ok(/askConfirm\(t\('wlAddAsk'/.test(app) && /linkPending = \(\) => \/\(\?:\^#\|&\)\(\?:[a-z|]*watch\)=/.test(app), 'Invest: ‎#watch= מוסיף למעקב רק אחרי אישור');
+  ok(ui.indexOf('MItem(R.string.brOurs') > ui.indexOf('MItem(R.string.brLocal') && ui.indexOf('MItem(R.string.brOurs') < ui.lastIndexOf('MItem(R.string.brSettings'),
+    'הגל השישי בתפריט ⋮ — פריט אחד בקבוצת הכלים');
+}
+
 console.log('studio-browser: ' + n + ' בדיקות עברו');

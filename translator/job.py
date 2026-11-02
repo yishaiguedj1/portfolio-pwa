@@ -15,6 +15,7 @@ import argparse
 import hashlib
 import io
 import json
+import math
 import os
 import re
 import shutil
@@ -1126,7 +1127,8 @@ def learn_corpus(ctx):
     # 27/10/2026: {**} ולא dict(d, **ab, **fixes) — כתובית שנבחרה מהטיוטה השנייה ותוקנה אחר כך הפילה את כל הקורפוס
     # (TypeError: multiple values for keyword argument), והטקסט של כל העבודות מ־26/10 לא נשמר — בשקט
     f = {**d, **ab, **_lc_answers([td / 'fixes.txt'])}
-    r = dict(f, **_lc_answers([td / 'fixes_review.txt']))
+    # 02/11/2026 (PR1 1.2): גם הצופה (A10, fixes_rview) — אחרי הביקורת ולפני התיקון האחרון, כמו בבנייה (sorted(glob))
+    r = dict(f, **_lc_answers([td / 'fixes_review.txt', td / 'fixes_rview.txt']))
     z = dict(r, **_lc_answers([td / 'fixes_zfinal.txt', td / 'fixes_zqc.txt']))   # 25/10: גם סבב הבקרה על המסך
     cu = []
     for c in cues[:LC_MAX_CUES]:
@@ -1152,6 +1154,9 @@ def learn_corpus(ctx):
     rj = _lc_rej(td / 'learn_rej.jsonl')
     if rj:
         out['rj'] = rj
+    du = ctx.st.get('dual')                                        # 02/11/2026 (PR1 1.6): ההכרעה בין הטיוטות, לכל קטע
+    if isinstance(du, dict) and du:
+        out['dual'] = {k: du[k] for k in ('sg', 'c', 'b', 'bc', 'n', 'pk') if k in du}
     spec = ctx.st.get('spec') or {}
     for key, val in (('mode', spec.get('mode')), ('src', spec.get('from')), ('dst', ','.join(spec.get('to') or []) if isinstance(spec.get('to'), list) else '')):
         if re.match(r'^[a-z][a-z0-9,-]{0,47}$', str(val or '')):
@@ -2659,6 +2664,7 @@ def prepare(args):
     vt(ctx, ['asr', ctx.name, '--engine', 'parakeet'], 'tr', 0.15, 0.95)
     if not a:
         vt(ctx, ['shots', ctx.name])             # חילופי שוטים צריכים וידאו — מהקול זה קורה ב־attach_video
+    lang_safe(ctx)                               # A12: קטעים שאינם באנגלית → foreign.json (לא משנה את התמליל)
     vt(ctx, ['edit-export', ctx.name])
     inject_guard(ctx)                            # v374: לפני שמישהו קורא את התמליל
     ctx.st['src'] = 'a' if a else 'v'
@@ -2676,6 +2682,16 @@ def prepare(args):
         pass
     print('אחר כך (ברקע): python3 translator/job.py align')
     return 0
+
+
+def lang_safe(ctx):
+    """A12: vt lang — כל תקלה (גם יציאה של vt) לא מפילה את התמלול."""
+    try:
+        vt(ctx, ['lang', ctx.name])
+    except Stop:
+        raise
+    except (SystemExit, Exception) as e:          # noqa: BLE001 — שלב משני
+        print('· זיהוי השפות לא רץ (' + type(e).__name__ + ') — ממשיכים בלעדיו')
 
 
 SUBS_FPS = ('24000/1001', '24', '25', '30000/1001', '30')   # הגריד לתזמון בלי סרטון (קובץ כתוביות קיים)
@@ -2741,6 +2757,17 @@ def shift_words(pdir, off):
                     w[k] = round(max(0.0, w[k] + off), 3)
         p.write_text(json.dumps(d, ensure_ascii=False), encoding='utf-8')
         n += 1
+    p = pdir / 'foreign.json'                    # A12: הקטעים שאינם באנגלית — באותו ציר זמן
+    if p.exists():
+        try:
+            d = json.loads(p.read_text(encoding='utf-8'))
+            for g in d.get('seg') or []:
+                for k in ('s', 'e'):
+                    if isinstance(g.get(k), (int, float)):
+                        g[k] = round(max(0.0, g[k] + off), 3)
+            p.write_text(json.dumps(d, ensure_ascii=False), encoding='utf-8')
+        except (OSError, ValueError, AttributeError):
+            pass
     return n
 
 
@@ -2776,6 +2803,7 @@ def attach_video(ctx):
         print('· ההיסט בין הקול לסרטון לא ודאי (%.2f) — מתמללים מחדש מהסרטון (בלי טוקנים, ההגהה נשמרת)' % conf)
         ctx.report('al', 0.05, 'כותבים שוב מהסרטון עצמו', force=True)
         vt(ctx, ['asr', ctx.name, '--engine', 'parakeet'], 'al', 0.05, 0.3)
+        lang_safe(ctx)                           # A12: הזמנים של התמלול החדש
     vt(ctx, ['shots', ctx.name])
     ctx.st['src'] = 'v'
     ctx.st['sync'] = {'off': round(off, 4), 'conf': round(conf, 3)}
@@ -3451,7 +3479,10 @@ def gl_merge(ctx):
         old = head + '\n'.join(ln for ln in rest.splitlines()
                                if ln.strip() and not ln.lstrip().startswith('#') and ln.split('\t')[0].strip().lower() not in bk)
     keys = {r[0].lower() for r in hit}
-    smr = [r for r in ((ctx.st.get('sm') or {}).get('gl') or []) if _gl_word(r[0], low) and r[0].lower() not in keys]   # זיכרון הסדרה
+    # זיכרון הסדרה. 02/11/2026 (PR2 2.6): עדיפות — המילון שלך > זיכרון ודאי > מילון העבודה > זיכרון "לא ודאי"
+    work = {ln.split('\t')[0].strip().lower(): ln for ln in old.splitlines() if '\t' in ln and not ln.lstrip().startswith('#')}
+    smr = [r for r in ((ctx.st.get('sm') or {}).get('gl') or []) if _gl_word(r[0], low) and r[0].lower() not in keys
+           and not (len(r) > 4 and r[4] & SM_UNSURE and r[0].lower() in work and 'לא ודאי' not in work[r[0].lower()])]
     keys |= {r[0].lower() for r in smr}
     keep = [ln for ln in old.splitlines() if ln.lstrip().startswith('#') or ln.split('\t')[0].strip().lower() not in keys]
     raw = gp.read_text(encoding='utf-8') if gp.exists() else ''
@@ -3465,7 +3496,7 @@ def gl_merge(ctx):
     if biz:
         body += BIZ_MARK + '\n' + '\n'.join(gl_line(r) for r in biz) + '\n'
     if smr:
-        body += SM_MARK + '\n' + '\n'.join(gl_line(r) for r in smr) + '\n'
+        body += SM_MARK + '\n' + '\n'.join(gl_line([r[0], sm_he(r)]) for r in smr) + '\n'   # ⚠ שתי עמודות בלבד (r[2] = n, לא הערה)
     if hit:
         body += GL_MARK + '\n' + '\n'.join(gl_line(r) for r in hit) + '\n'
     elif not rows and GL_MARK in raw:              # המילון שלך לא נטען / ריק — הבלוק הקודם נשאר כמו שהוא (כמו עד היום)
@@ -3485,49 +3516,119 @@ def gl_merge(ctx):
 # (sm/<uid>.json ב־R2, lib/studio.js smMerge) ושולח בלקיחה רק את הסדרה של העבודה; בסוף העבודה — מה שנקבע בה (smPut).
 # בהגהה — בלוק series_memory (התדריך והמילון נכתבים לפיו); במילון — מתחת ל־SM_MARK: גובר על שורה של העבודה, המילון שלך גובר עליו
 SM_MARK = '# — מזיכרון הסדרה (נקבע בפרקים קודמים — גובר על שורה של העבודה) —'
-SM_GL, SM_CH = 150, 40
+SM_GL, SM_CH = 250, 60                       # = lib/studio.js (tests/studio-series משווה)
+# 02/11/2026 (תוכנית איכות התרגום PR2, ‏D1): שורה = מונח [en, he, n, l, f] / דמות [שם, g, תפקיד, n, l, f] — n בכמה פרקים, l הפרק
+# האחרון, f: SM_LOCK נעול בכרטיס, SM_UNSURE "לא ודאי", SM_FIX "החלף כתיב" (רק מהעובד). שורה ישנה (2–3 שדות) = n 1, l 0, f 0
+SM_LOCK, SM_UNSURE, SM_FIX = 1, 2, 4         # = lib/studio.js
+_SM_GL_UNSURE = re.compile(r'\s*\(\s*לא ודאי[תםן]?\s*\)\s*$')
+_SM_CH_UNSURE = re.compile(r'\s*[—–-]\s*לא ודאי[ת]?\s*$')
+_SM_CH_JUNK = re.compile(r'ודאי|ידוע|נוספ|דובר')
+_SM_TITLES = {'מר', 'גברת', 'ד"ר', 'דוקטור', 'הרב', 'דוד', 'דודה'}
+_SM_NAME = re.compile(r"^(?:(?:Mr|Mrs|Ms|Dr|Miss|Aunt|Uncle|Rabbi)\.? )?[A-Z][a-zA-Z'’\-]+(?: [A-Z][a-zA-Z'’\-]+){0,2}$")
+_SM_CAL = {'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'january', 'february', 'march', 'april',
+           'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december', 'christmas', 'thanksgiving', 'halloween',
+           'easter', 'hanukkah'}
+# 2.7 (D3 §5.7): דמות מתווית מפוקפקת בטבלת הדוברים — לא נכנסת לזיכרון (51 מתוך 214 תוויות בעונה שנבדקה)
+_SM_DOUBT = re.compile(r'[/;?]|לא ודאי|כנראה|ככל הנראה|לא מזוהה|נוסף|אחר')
 
 
-def sm_valid(v):
-    """מה שהגיע בלקיחה → {n, ep, gl: [[en, he]], ch: [[שם, m/f, תפקיד]]} או None — אותו ניקוי של normSm בשרתון."""
+def sm_ch_key(nm):
+    """= chKey: לפי המילה הראשונה (או תואר + מילה) — "דמות־ב" ו"דמות־ב משפחה" הן אותה דמות"""
+    t = str(nm or '').lower().split()
+    return (t[0] + ' ' + t[1]) if t and t[0] in _SM_TITLES and len(t) > 1 else (t[0] if t else '')
+
+
+def sm_is_name(en):
+    """= smIsName: שם (מילה באות גדולה, לא הכל גדולות, לא יום/חודש/חג)"""
+    en = str(en or '')
+    return bool(_SM_NAME.match(en)) and en != en.upper() and en.lower() not in _SM_CAL
+
+
+def _sm_int(x, mx):
+    """= smInt בשרתון (Math.floor(+x || 0) בין 0 ל־mx)"""
+    if isinstance(x, bool):
+        x = int(x)
+    try:
+        v = float(x) if isinstance(x, (int, float, str)) else 0.0
+    except ValueError:
+        return 0
+    if v != v:
+        return 0
+    return mx if v >= mx else 0 if v <= 0 else int(math.floor(v))
+
+
+def sm_he(r):
+    """העברית של שורת זיכרון, עם "(לא ודאי)" כשהיא לא ודאית — למילון ולבלוק"""
+    return r[1] + (' (לא ודאי)' if len(r) > 4 and r[4] & SM_UNSURE else '')
+
+
+def sm_valid(v, mask=SM_LOCK | SM_UNSURE):
+    """מה שהגיע בלקיחה → {n, ep, gl: [[en, he, n, l, f]], ch: [[שם, m/f, תפקיד, n, l, f]]} או None — אותו ניקוי של normSm
+    בשרתון (mask = הדגלים שנשמרים; "(לא ודאי)" / "— לא ודאי" בטקסט → SM_UNSURE; זבל ותוויות כלליות בחוץ; דמות לפי sm_ch_key)."""
     if not isinstance(v, dict):
         return None
     gl, ch, seen, cseen = [], [], set(), set()
     for r in (v.get('gl') if isinstance(v.get('gl'), list) else [])[:SM_GL * 2]:
-        if isinstance(r, list) and len(r) >= 2:
-            en, he = gl_clean(r[0], 60), gl_clean(r[1], 80)
-            if en and he and en.lower() not in seen and len(gl) < SM_GL:
-                seen.add(en.lower())
-                gl.append([en, he])
+        if not isinstance(r, list) or len(gl) >= SM_GL:
+            continue
+        en, he = gl_clean(r[0] if r else '', 60), gl_clean(r[1] if len(r) > 1 else '', 80)
+        f = _sm_int(r[4] if len(r) > 4 else 0, 15) & mask
+        if _SM_GL_UNSURE.search(he):
+            he, f = _SM_GL_UNSURE.sub('', he).strip(), f | SM_UNSURE
+        if en and he and en.lower() not in seen:
+            seen.add(en.lower())
+            gl.append([en, he, max(1, _sm_int(r[2] if len(r) > 2 else 0, 999)), _sm_int(r[3] if len(r) > 3 else 0, 1000000), f])
     for r in (v.get('ch') if isinstance(v.get('ch'), list) else [])[:SM_CH * 2]:
-        if isinstance(r, list) and len(r) >= 2 and r[1] in ('m', 'f'):
-            nm = gl_clean(r[0], 40)
-            if nm and nm.lower() not in cseen and len(ch) < SM_CH:
-                cseen.add(nm.lower())
-                ch.append([nm, r[1], gl_clean(r[2] if len(r) > 2 else '', 60)])
+        if not isinstance(r, list) or len(ch) >= SM_CH:
+            continue
+        nm, g = gl_clean(r[0] if r else '', 40), (r[1] if len(r) > 1 and r[1] in ('m', 'f') else '')
+        f = _sm_int(r[5] if len(r) > 5 else 0, 15) & mask
+        if _SM_CH_UNSURE.search(nm):
+            nm, f = _SM_CH_UNSURE.sub('', nm).strip(), f | SM_UNSURE
+        if nm and g and not _SM_CH_JUNK.search(nm) and sm_ch_key(nm) not in cseen:
+            cseen.add(sm_ch_key(nm))
+            ch.append([nm, g, gl_clean(r[2] if len(r) > 2 else '', 60), max(1, _sm_int(r[3] if len(r) > 3 else 0, 999)),
+                       _sm_int(r[4] if len(r) > 4 else 0, 1000000), f])
     if not gl and not ch:
         return None
     return {'n': gl_clean(v.get('n'), 60), 'ep': _int(v.get('ep')), 'gl': gl, 'ch': ch}
 
 
-def sm_block(st):
-    """בלוק הטקסט להגהה (התדריך והמילון נכתבים ממנו) — '' כשאין זיכרון."""
+SM_COMMON = 60
+
+
+def sm_block(st, text=None, ref=None):
+    """בלוק הטקסט להגהה (התדריך והמילון נכתבים ממנו) — '' כשאין זיכרון. "(לא ודאי)" חוזר לטקסט.
+    02/11/2026 (PR2 2.8, דגל xf ‏smf): עם text — רק השורות שנאמרות בתמליל או בכתוביות העזר (הבלוק המלא ~2.9K טוקנים,
+    הרלוונטי ~7.6%); בלי כתוביות עזר — גם עד 60 שמות של מילה אחת עם n≥2 (תיקוני שמיעה); דמויות — שמילה מהשם שלהן בעברית
+    של שורה שנבחרה, או n≥3. בלי text — הכל, כמו עד היום."""
     sm = (st or {}).get('sm')
     if not sm:
         return ''
+    gl, ch = sm.get('gl') or [], sm.get('ch') or []
+    if text is not None:
+        low, rlow = str(text).lower(), str(ref or '').lower()
+        sel = [r for r in gl if _gl_word(r[0], low) or (rlow and _gl_word(r[0], rlow))]
+        if not rlow:
+            got = {r[0].lower() for r in sel}
+            sel += [r for r in gl if r[0].lower() not in got and ' ' not in r[0] and len(r) > 2 and r[2] >= 2 and sm_is_name(r[0])][:SM_COMMON]
+        words = {w for r in sel for w in r[1].split()} - _SM_TITLES
+        ch = [c for c in ch if sm_ch_key(c[0]).split()[-1:] and (sm_ch_key(c[0]).split()[-1] in words or (len(c) > 3 and c[3] >= 3))]
+        gl = sel
     out = []
-    if sm.get('ch'):
+    if ch:
         out.append('דמויות (שם · מגדר · תפקיד):')
-        out += [f"- {c[0]} · {'אישה' if c[1] == 'f' else 'גבר'}" + (f' · {c[2]}' if c[2] else '') for c in sm['ch']]
-    if sm.get('gl'):
+        out += [f"- {c[0]}{' — לא ודאי' if len(c) > 5 and c[5] & SM_UNSURE else ''} · {'אישה' if c[1] == 'f' else 'גבר'}"
+                + (f' · {c[2]}' if c[2] else '') for c in ch]
+    if gl:
         out.append('שמות ומונחים (אנגלית → עברית):')
-        out += [f'- {r[0]} → {r[1]}' for r in sm['gl']]
+        out += [f'- {r[0]} → {sm_he(r)}' for r in gl]
     return '\n'.join(out)
 
 
 def sm_collect(ctx):
-    """בסוף העבודה: מה שנקבע בה לזיכרון הסדרה — שורות המילון של העבודה (לא העסקיות, לא שלך, לא מהזיכרון)
-    והדמויות מטבלת הדוברים בתדריך (רק עם מגדר). None = אין מה לשלוח."""
+    """בסוף העבודה: מה שנקבע בה לזיכרון הסדרה — שורות המילון של העבודה (לא העסקיות, לא שלך), שורות הזיכרון שנאמרו בפרק
+    (השרתון סופר אותן — n/l; הכתיב לא משתנה), והדמויות מטבלת הדוברים בתדריך (רק עם מגדר ודאי ושם לא מפוקפק). None = אין מה לשלוח."""
     td = ctx.pdir / 'tr'
     try:
         gtxt = (td / 'glossary.tsv').read_text(encoding='utf-8') if (td / 'glossary.tsv').exists() else ''
@@ -3537,15 +3638,20 @@ def sm_collect(ctx):
     own = gtxt
     for mk in (BIZ_MARK, SM_MARK, GL_MARK):
         own = own.split(mk)[0]
-    gl = [[r[0], r[1]] for r in gl_parse(own)][:SM_GL]
+    gl = [[r[0], r[1], 1, 0, 0] for r in gl_parse(own)]
+    if SM_MARK in gtxt:
+        have = {r[0].lower() for r in gl}
+        gl += [[r[0], r[1], 1, 0, 0] for r in gl_parse(gtxt.split(SM_MARK, 1)[1].split(GL_MARK)[0]) if r[0].lower() not in have]
     ch = []
     if brief:
         from vt.translate import speakers_from_brief, gender_of
         for v in speakers_from_brief(brief).values():
             g = gender_of(v)
-            if g and not any(c[0] == v['name'] for c in ch):
-                ch.append([v['name'], g, v.get('role') or ''])
-    v = sm_valid({'gl': gl, 'ch': ch[:SM_CH]})
+            nm = str(v.get('name') or '')
+            if g and nm and not _SM_DOUBT.search(nm) and 'לא ודאי' not in str(v.get('gender') or '') \
+                    and not any(c[0] == nm for c in ch):
+                ch.append([nm, g, v.get('role') or ''])
+    v = sm_valid({'gl': gl[:SM_GL], 'ch': ch[:SM_CH]}, mask=SM_UNSURE | SM_FIX)
     return {'gl': v['gl'], 'ch': v['ch']} if v else None
 
 
@@ -3555,8 +3661,13 @@ def sm_send(ctx):
         sm = sm_collect(ctx)
         if sm and getattr(ctx, 'c', None):
             j = ctx.c.raw('smPut', sm=sm)
-            if j.get('saved'):
-                print(f"✓ זיכרון הסדרה: {len(sm['gl'])} שמות ומונחים, {len(sm['ch'])} דמויות")
+            s = j.get('saved')
+            if s:   # מספרים בלבד (פרטיות): מה נוסף, מה נספר שוב, מה הוחלף, מה יצא, וכמה בזיכרון
+                gs = s.get('gl') if isinstance(s, dict) and isinstance(s.get('gl'), dict) else None
+                print(f"✓ זיכרון הסדרה: {len(sm['gl'])} שמות ומונחים, {len(sm['ch'])} דמויות"
+                      + (f" · נוספו {gs.get('add', 0)}, נספרו {gs.get('hit', 0)}, הוחלפו {gs.get('fix', 0)}, יצאו {gs.get('out', 0)}"
+                         f" · בזיכרון {s.get('ng', 0)}/{SM_GL}, {s.get('nc', 0)}/{SM_CH}" + ('' if s.get('fresh', 1) else ' · פרק שכבר נספר')
+                         if gs else ''))
     except Stop:
         raise
     except (SystemExit, Exception):   # noqa: BLE001 — מידע משני
@@ -3923,6 +4034,7 @@ JG_N_MAX = 100   # 21/10/2026: בסרטון ארוך 40 כתוביות = ‎±3 
 def judge_n(total):
     return JG_N if total <= JG_N * 15 else min(JG_N_MAX, total // 15)
 JG_CODES = ('ok', 'mean', 'omit', 'add', 'gram', 'flu', 'term')
+JG_ALL_MAX = 1200   # A9: עד כאן — כל הכתוביות לשופט (מעבר — מדגם בפיזור שווה)
 JG_F_MAX = 40   # **זהה ל־JG_F_MAX בשרתון ובטלפון** — כמה מספרי כתוביות מסומנות נשלחים
 _JG_LINE = re.compile(r'^#(\d{1,6})\s+([1-5])\s+([a-z]{2,4})\s*$')
 # 10/10/2026: בעבודה האמיתית הראשונה השופט רץ (7K טוקנים) אבל לא הוצג ציון — כנראה סטייה קטנה מהצורה.
@@ -3973,9 +4085,12 @@ def judge_score(text, ids):
 
 # סבב 4: סימונים מהביקורת — כתוביות שהבודק לא יכול להכריע בלי לראות / לשמוע (g מגדר, s מי מדבר, t מונח בשתי דרכים).
 # שורה "!#מספר קוד" (בתשובה של הביקורת או ב־review/flags.txt). רק מספרים וקודים חוזרים לשרתון — **RVF_MAX/RVF_CODES זהים בשרתון ובטלפון**
-RVF_CODES = ('g', 's', 't')
-RVF_MAX = 40
-_RVF_LINE = re.compile(r'^[\s>*`\-•]*!\s*#?\s*(\d{1,6})\s*[:.|)\-–]*\s*`?([gst])`?\b', re.I)
+# 01/11/2026 (סבב 2 של השדרוג): p = משחק מילים / בדיחה (עם חלופות — review/puns.json), v = הצופה המדומה לא הבין
+# ולא תוקן (A10), l = קטע בשפה שאינה אנגלית (A12). הטקסט (חלופות, הסבר, המקור) — רק בקובץ notes ב־Drive שלך, לא בשרתון
+RVF_CODES = ('g', 's', 't', 'p', 'v', 'l')
+RVF_MAX = 60
+_RVF_LINE = re.compile(r'^[\s>*`\-•]*!\s*#?\s*(\d{1,6})\s*[:.|)\-–]*\s*`?([gstpvl])`?(?=$|[\s`:.|,\-–])', re.I)
+_PUN_ALT_MAX, _PUN_MAX = 3, 20
 
 
 def review_flags(text, ids=None):
@@ -3988,7 +4103,122 @@ def review_flags(text, ids=None):
         i, k = int(m.group(1)), m.group(2).lower()
         if i >= 1 and k in RVF_CODES and (ids is None or i in ids):
             got.add((i, k))
-    return [[i, k] for i, k in sorted(got)][:RVF_MAX]
+    return [[i, k] for i, k in sorted(got, key=lambda x: (x[0], RVF_CODES.index(x[1])))][:RVF_MAX]   # הסדר של השרתון
+
+
+def review_puns(text, ids=None):
+    """A6: שורות "!#מספר p חלופה | חלופה | חלופה" → {מספר: [חלופות]} (2–3 נוסחים עבריים שמשמרים את הבדיחה)."""
+    out = {}
+    for ln in str(text or '').replace('\r', '').split('\n'):
+        m = _RVF_LINE.match(ln.strip())
+        if not m or m.group(2).lower() != 'p':
+            continue
+        i = int(m.group(1))
+        if i < 1 or (ids is not None and i not in ids) or i in out or len(out) >= _PUN_MAX:
+            continue
+        rest = ln.strip()[m.end():].strip(' `:-–|')
+        alts = []
+        for a in rest.split('|'):
+            a = re.sub(r'\s+', ' ', a).strip(' `"\'«»')[:90]
+            if a and a not in alts:
+                alts.append(a)
+        if alts:
+            out[i] = alts[:_PUN_ALT_MAX]
+    return out
+
+
+# A9 (01/11/2026): הערות לעורך — notes.json לצד הכתוביות ב־Drive שלך (הטקסט לא עובר בשרתון). לכל כתובית שיש בה
+# משהו: lv (l לבדוק · m לשקול), r (הסיבות: jg <קוד השופט> · asr · g/s/t · p · v · l), jg (הציון), x (מה הצופה לא
+# הבין), p (חלופות למשחק מילים), lg + o (השפה והמקור). **NOTE_KEYS זהים בטלפון (studio.js normNotes)**
+NOTE_KEYS = ('lv', 'r', 'jg', 'x', 'p', 'lg', 'o')
+NOTE_ASR_LOW = 0.35          # מילה שהתמלול כמעט לא שמע
+NOTE_MAX = 600
+
+
+def judge_lines(text):
+    """תשובת השופט → {מספר: (ציון, קוד)} לכל הכתוביות (לא רק המדגם של המדד)."""
+    got = {}
+    for ln in str(text or '').replace('\r', '').split('\n'):
+        m = _JG_LINE.match(ln.strip()) or _JG_LOOSE.match(ln.strip())
+        if m and int(m.group(1)) not in got and m.group(3).lower() in JG_CODES:
+            got[int(m.group(1))] = (int(m.group(2)), m.group(3).lower())
+    return got
+
+
+def _asr_weak(pdir):
+    """מספרי כתוביות שיש בהן מילה שהתמלול כמעט לא שמע (conf < NOTE_ASR_LOW) — לפי w0/w1 של cues.en.json."""
+    cues = _read_json(pdir / 'cues.en.json')
+    wj = _read_json(pdir / 'en.aligned.json') or _read_json(pdir / 'en.words.json') or {}
+    ws = wj.get('words') if isinstance(wj, dict) else None
+    if not isinstance(cues, list) or not isinstance(ws, list):
+        return set()
+    out = set()
+    for c in cues:
+        if not isinstance(c, dict) or not isinstance(c.get('id'), int):
+            continue
+        a, b = c.get('w0'), c.get('w1')
+        if not isinstance(a, int) or not isinstance(b, int) or a < 0 or b >= len(ws) or b < a:
+            continue
+        if any(isinstance(w, dict) and isinstance(w.get('conf'), (int, float)) and w['conf'] < NOTE_ASR_LOW for w in ws[a:b + 1]):
+            out.add(c['id'])
+    return out
+
+
+def smart_notes(pdir):
+    """{v, n, js, c: {מספר: הערה}} — רק כתוביות שיש בהן משהו. בלי טוקנים: מאחד את מה שהשלבים כבר כתבו."""
+    ids = cue_ids(pdir) or set()
+    if not ids:
+        return None
+    rd = lambda p: _read_json(pdir / p) or {}
+    try:
+        jl = judge_lines((pdir / 'judge' / 'verdict.txt').read_text(encoding='utf-8'))
+    except OSError:
+        jl = {}
+    c = {}
+
+    def put(i, lv, why, **kw):
+        if i not in ids:
+            return
+        n = c.setdefault(i, {'lv': lv, 'r': []})
+        if lv == 'l':
+            n['lv'] = 'l'
+        if why not in n['r']:
+            n['r'].append(why)
+        n.update({k: v for k, v in kw.items() if v})
+    for i, (sc, code) in jl.items():
+        if sc <= 3:
+            put(i, 'l' if sc <= 2 else 'm', 'jg:' + code, jg=sc)
+    for i in _asr_weak(pdir):
+        put(i, 'm', 'asr')
+    for i, k in review_flags_file(pdir):
+        if k in ('g', 's', 't'):
+            put(i, 'm', k)
+    for i, alts in (rd('review/puns.json')).items():
+        if str(i).isdigit() and isinstance(alts, list):
+            put(int(i), 'm', 'p', p=[str(a)[:90] for a in alts[:3] if a])
+    for i, why in (rd('review/viewer.json')).items():
+        if str(i).isdigit():
+            put(int(i), 'l', 'v', x=str(why)[:120])
+    try:
+        import pipeline as _pl
+        fm = _pl.foreign_map(pdir)
+    except Exception:            # noqa: BLE001 — מידע משני
+        fm = {}
+    for i, g in fm.items():
+        put(int(i), 'm', 'l', lg=g['lg'], o=g['tx'][:400])
+    keep = sorted(c, key=lambda i: (c[i]['lv'] != 'l', i))[:NOTE_MAX]
+    js = round(sum(x[0] for x in jl.values()) / len(jl), 2) if jl else None
+    return {'v': 1, 'n': len(ids), 'js': js, 'c': {str(i): c[i] for i in sorted(keep)}}
+
+
+def notes_flags(notes):
+    """הקודים שעוברים לשרתון (רק מספרים וקודים): v ו־l מההערות — נוספים לסימונים של הביקורת."""
+    out = []
+    for k, n in ((notes or {}).get('c') or {}).items():
+        for r in n.get('r') or []:
+            if r in ('v', 'l'):
+                out.append([int(k), r])
+    return out
 
 
 def cue_ids(pdir):
@@ -4064,6 +4294,11 @@ def judge_prep(args):
     pick, total = judge_pick(pkg)
     if total > JG_N * 15:
         pick, total = judge_pick(pkg, judge_n(total))
+    # A9 (01/11/2026): השופט נותן ציון לכל הכתוביות (עד JG_ALL_MAX) — הציון לכל שורה לעורך (notes). מדד האיכות (jd)
+    # נשאר על אותו מדגם כמו קודם (ids), כדי שיהיה בר־השוואה לעבודות הקודמות ולגבולות של השרתון
+    every, _ = judge_pick(pkg, JG_ALL_MAX)
+    metric = [x[0] for x in pick]
+    pick = every if len(every) >= len(pick) else pick
     if len(pick) < 10:
         print('· פחות מ־10 כתוביות — בלי שופט; ממשיכים ל־finish.')
         return 0
@@ -4071,7 +4306,7 @@ def judge_prep(args):
     d.mkdir(exist_ok=True)
     (d / 'verdict.txt').unlink(missing_ok=True)
     (d / 'sample.md').write_text('\n'.join('#%d %s\n→ %s' % x for x in pick) + '\n', encoding='utf-8')
-    ctx.st['jg'] = {'ids': [x[0] for x in pick], 'a': total}
+    ctx.st['jg'] = {'ids': metric, 'a': total}
     save_state(ctx.st)
     print('✓ מדגם לשופט: %d מתוך %d כתוביות → %s' % (len(pick), total, d / 'sample.md'))
     return 0
@@ -5211,6 +5446,7 @@ def finish(args):
         except (SystemExit, Exception) as e:   # noqa: BLE001 — קובץ עזר; התוצרים העיקריים כבר עלו. גם כשל אחסון (SystemExit) לא מפיל
             print('· ' + p.name + ' לא עלה (' + (str(e).strip()[:80] if isinstance(e, SystemExit) else type(e).__name__) + ') — ממשיכים בלעדיו')
     judge_late(ctx)                              # 28/10/2026: השופט שרץ ברקע בזמן הצריבה
+    notes = notes_put(ctx, title, out)           # A9: ההערות לעורך — אחרי השופט (הציון לכל שורה)
     try:
         q = quality(ctx.pdir / 'out' / 'he.srt', chk_ok=not args.force)   # v374: מדד האיכות (בלי טוקנים)
     except Exception:            # noqa: BLE001 — מידע משני; לא מפיל את סוף העבודה
@@ -5222,6 +5458,8 @@ def finish(args):
     sm_send(ctx)                                 # 28/10/2026: מה שנקבע בפרק — לזיכרון הסדרה (לא מפיל)
     try:
         rvf, fil = review_flags_file(ctx.pdir), fillers(ctx.pdir)   # סבב 4: סימונים מהביקורת ומילות מילוי — מידע משני
+        have = {(i, k) for i, k in rvf}
+        rvf = review_flags('\n'.join('!#%d %s' % (i, k) for i, k in rvf + [f for f in notes_flags(notes) if tuple(f) not in have]))
     except Exception:            # noqa: BLE001
         rvf, fil = [], []
     # 21/10/2026 (המשתמש: "תקוע על 'עוד דקה' ו־99% מלא זמן"): התוצרים כבר עלו — הם מגיעים לטלפון עכשיו, ומה שנשאר
@@ -5252,6 +5490,28 @@ def finish(args):
                rvf=rvf or None, fil=fil or None, gq=gq)
     print('✓ העבודה הסתיימה: ' + ', '.join(o['name'] for o in out))
     return 0
+
+
+def notes_put(ctx, title, out):
+    """A9: notes.json → out/ ועולה כקובץ עזר (k = notes). כל תקלה — בלי הערות, לא מפיל."""
+    try:
+        notes = smart_notes(ctx.pdir)
+    except Exception as e:       # noqa: BLE001 — מידע משני
+        print('· ההערות לעורך לא נבנו (' + type(e).__name__ + ')')
+        return None
+    if not notes:
+        return None
+    p = ctx.pdir / 'out' / 'notes.json'
+    try:
+        p.write_text(json.dumps(notes, ensure_ascii=False), encoding='utf-8')
+        fid = put_output(ctx, p, title + '.notes.json', 'notes', 'application/json')
+        out.append({'id': fid, 'name': title + '.notes.json', 'size': p.stat().st_size, 'k': 'notes'})
+        print('✓ הערות לעורך: %d כתוביות (%d לבדוק)' % (len(notes['c']), sum(1 for n in notes['c'].values() if n['lv'] == 'l')))
+    except Stop:
+        raise
+    except (SystemExit, Exception) as e:   # noqa: BLE001 — קובץ עזר
+        print('· notes.json לא עלה (' + type(e).__name__ + ') — ממשיכים בלעדיו')
+    return notes
 
 
 def gold_score(ctx):

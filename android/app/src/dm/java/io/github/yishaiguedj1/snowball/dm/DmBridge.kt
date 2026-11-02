@@ -56,6 +56,8 @@ class DmBridge : Activity() {
     }
 
     private fun task(i: Intent) {
+        // 01/11/2026 (Studio Browser, הגל הרביעי — 57): כל הקבצים בדף בבת אחת
+        i.getStringExtra(X_FILES)?.let { files(i, it); return }
         val o = runCatching { JSONObject(i.getStringExtra(X_TASK).orEmpty()) }.getOrNull() ?: return
         // מזהה חדש ומצב נקי: רק מה שמתאר את הבחירה עובר, לא מצב הורדה (מקטעים, קובץ, שגיאה)
         o.put("id", DmStore.newId()).put("s", DmState.QUEUED.name).put("e", "").put("uri", "").put("sg", JSONArray())
@@ -67,6 +69,25 @@ class DmBridge : Activity() {
         DmStore.init(this)
         DmStore.add(t); DmPre.rememberSite(this, t.ref.ifEmpty { t.url }, true); DmEngine.pump(this)
         Toast.makeText(this, R.string.dmBridgeAdded, Toast.LENGTH_SHORT).show()
+    }
+
+    /** 57 "הורדת כל הקבצים בדף": קבצים ישירים (המנוע שלנו, לא yt-dlp), עם הדף כמפנה ואותו User-Agent; מה שכבר בתור — לא נכפל */
+    private fun files(i: Intent, s: String) {
+        val a = runCatching { JSONArray(s) }.getOrNull() ?: return
+        val ref = i.getStringExtra(X_REF).orEmpty().takeIf { http(it) } ?: ""
+        val ua = cleanUa(i.getStringExtra(X_UA))
+        cookies(i, ua, ref)
+        DmStore.init(this)
+        val now = System.currentTimeMillis(); var n = 0
+        for (k in 0 until minOf(a.length(), FILES_MAX)) {
+            val o = a.optJSONObject(k) ?: continue
+            val u = o.optString("u").takeIf { http(it) && it.length < 4000 } ?: continue
+            if (DmStore.has(u)) continue
+            DmStore.add(DmTask(DmStore.newId(), u, ref, DmKind.HTTP).apply { name = DmName.clean(o.optString("n").take(150)); created = now + k; this.ua = ua; ck = true })
+            n++
+        }
+        if (n > 0) DmEngine.pump(this)
+        Toast.makeText(this, getString(R.string.dmBridgeFiles, n), Toast.LENGTH_SHORT).show()
     }
 
     /** העוגיות של ההורדה לתוך מאגר העוגיות של DM (המנוע קורא משם בכל המשך), ולקובץ של yt-dlp */
@@ -104,7 +125,8 @@ class DmBridge : Activity() {
         const val ACTION_OPEN = "app.thesnowball.br.OPEN"
         private const val CLS = "io.github.yishaiguedj1.snowball.dm.DmBridge"
         private const val X_URL = "u"; private const val X_REF = "r"; private const val X_UA = "ua"; private const val X_TITLE = "ti"
-        private const val X_REFRESH = "rf"; private const val X_CKS = "ck"; private const val X_NETS = "nc"; private const val X_TASK = "t"
+        private const val X_REFRESH = "rf"; private const val X_CKS = "ck"; private const val X_NETS = "nc"; private const val X_TASK = "t"; private const val X_FILES = "fs"
+        const val FILES_MAX = 500
         private const val MAX_CK = 40
         /** הקישור להתקנת Studio Browser (מנהל ההורדות מוריד ומתקין אותו בעצמו) */
         const val BROWSER_APK = "https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball-browser.apk"
@@ -149,6 +171,15 @@ class DmBridge : Activity() {
             return try {
                 a.startActivity(toDm(a, ACTION_TASK).putExtra(X_TASK, t.json().toString()).putExtra(X_UA, (ck?.ua ?: ua).take(400))
                     .putExtra(X_CKS, jar(listOf(t.url, page) + urls).toString()).putExtra(X_NETS, nets)); true
+            } catch (e: Exception) { false }
+        }
+
+        /** 57 מ־Studio Browser: כמה קבצים ישירים לתור של DM (name = השם מהדף). cookies = false בכרטיסייה פרטית */
+        fun sendFiles(a: Activity, files: List<Pair<String, String>>, ref: String, ua: String, cookies: Boolean): Boolean {
+            val arr = JSONArray(); files.take(FILES_MAX).forEach { (u, n) -> arr.put(JSONObject().put("u", u).put("n", n)) }
+            return try {
+                a.startActivity(toDm(a, ACTION_TASK).putExtra(X_FILES, arr.toString()).putExtra(X_REF, ref).putExtra(X_UA, ua.take(400))
+                    .putExtra(X_CKS, if (cookies) jar(listOf(ref) + files.map { it.first }).toString() else "[]")); true
             } catch (e: Exception) { false }
         }
 

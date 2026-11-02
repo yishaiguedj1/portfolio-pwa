@@ -111,7 +111,7 @@ class Flow(unittest.TestCase):
         picked = pl.draft()['3']
         self.assertEqual(picked, b['3'], 'B נבחרה → היא הטיוטה')
         self.assertEqual(pl.current()['3'], b['3'])
-        self.assertEqual(self.ctx.st['dual'], {'sg': 1, 'c': 1, 'b': 1, 'bc': 1, 'n': 3})
+        self.assertEqual(self.ctx.st['dual'], {'sg': 1, 'c': 1, 'b': 1, 'bc': 1, 'n': 3, 'pk': 'B'})
         # "המשך": ההכרעה כבר נכתבה — בלי טיוטה שנייה ובלי הכרעה נוספת
         n0 = len(self.client.calls)
         pl.translate(fix=False)

@@ -162,6 +162,27 @@ def cmd_compare(a):
     log(f"{len(diffs)} נקודות מחלוקת → {out}")
 
 
+def cmd_lang(a):
+    """A12 (01/11/2026): קטעים שאינם באנגלית → foreign.json (vt/lang.py). רק Parakeet (מנועי הענן רב־לשוניים);
+    בלי המודל בתמונה / בלי מועמדים — קובץ ריק, ושום דבר לא נופל."""
+    from . import lang as L
+    pr = Project(a.name)
+    pr.load()
+    out = pr.p("foreign.json")
+    eng, res = _asr_preferred(pr, None)
+    if eng != "parakeet" or not L.ready():
+        write_json(out, {"v": 1, "seg": []})
+        log("שפות: " + ("המנוע רב־לשוני" if eng != "parakeet" else "אין מודל זיהוי בתמונה") + " — מדלגים")
+        return
+    try:
+        seg = L.detect(str(pr.p("audio16k.wav")), res.get("words") or [])
+    except Exception as e:      # noqa: BLE001 — שלב משני; התמלול באנגלית ממשיך כרגיל
+        log(f"שפות: הזיהוי נכשל ({type(e).__name__}) — ממשיכים בלעדיו")
+        seg = []
+    write_json(out, {"v": 1, "seg": seg})
+    log(f"שפות: {len(seg)} קטעים שאינם באנגלית" + (" — " + ", ".join(sorted({g['lg'] for g in seg})) if seg else ""))
+
+
 def cmd_edit_export(a):
     from .transcript import export_edit
     pr = Project(a.name)
@@ -781,6 +802,7 @@ def main(argv=None):
     p = add("compare", cmd_compare, "name", help="השוואת שני תמלולים")
     p.add_argument("a")
     p.add_argument("b")
+    add("lang", cmd_lang, "name", help="קטעים שאינם באנגלית (A12)")
     p = add("edit-export", cmd_edit_export, "name", help="קובץ הגהה")
     p.add_argument("--from", dest="source")
     p.add_argument("--force", action="store_true")

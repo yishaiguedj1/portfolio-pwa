@@ -135,6 +135,23 @@ class LearnCorpus(unittest.TestCase):
         self.assertEqual(c['vg'], {'S1': {'g': 'f', 'hz': 181.4}, 'S2': {'g': '?'}})   # 27/10: רמז המגדר מהקול   # בקשת המשתמש: שמות הדוברים נשמרים
         self.assertEqual((c['mode'], c['src'], c['dst'], c['dur']), ('sonnet-medium', 'en', 'he', 300))
 
+    def test_viewer_in_corpus(self):
+        # 02/11/2026 (PR1 1.2): fixes_rview (הצופה, A10) — אחרי הביקורת ולפני התיקון האחרון, כמו בבנייה
+        td = self.ctx.pdir / 'tr'
+        (td / 'fixes_rview.txt').write_text('#3 שלוש (צופה)\n#4 ארבע (צופה)\n', encoding='utf-8')
+        cu = {x['i']: x for x in job.learn_corpus(self.ctx)['cu']}
+        self.assertEqual(cu[3]['r'], 'שלוש (צופה)')          # הצופה גובר על הביקורת
+        self.assertEqual(cu[4]['r'], 'ארבע (צופה)')
+        self.assertEqual(cu[2]['z'], 'שתיים.')               # zfinal על כתובית אחרת — לא נפגע
+        self.assertNotIn('r', cu[2])
+
+    def test_dual_picks(self):
+        # 02/11/2026 (PR1 1.6): ההכרעה בין הטיוטות לכל קטע — נשלחת למאגר (מדידה בלבד)
+        self.ctx.st['dual'] = {'sg': 3, 'c': 7, 'b': 1, 'bc': 2, 'n': 4, 'pk': 'AB-', 'zz': 1}
+        self.assertEqual(job.learn_corpus(self.ctx)['dual'], {'sg': 3, 'c': 7, 'b': 1, 'bc': 2, 'n': 4, 'pk': 'AB-'})
+        self.ctx.st.pop('dual')
+        self.assertNotIn('dual', job.learn_corpus(self.ctx))
+
     def test_second_draft(self):
         # 26/10/2026: b = הטיוטה השנייה כשהיא שונה, p = היא נבחרה; f נמדד מול הטיוטה אחרי ההכרעה
         pd = self.ctx.pdir

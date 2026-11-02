@@ -75,7 +75,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   /* ---------- 4. קבצי העזר ---------- */
   const S = require(path.join(root, 'ibkr-proxy/lib/studio.js'));
   const st = await import(path.join(root, 'studio.js'));
-  ok(JSON.stringify(st.OUT_ALL) === JSON.stringify(S.OUT_KINDS) && S.OUT_MAX === 10, 'סוגי התוצרים זהים בטלפון ובשרתון');
+  ok(JSON.stringify(st.OUT_ALL) === JSON.stringify(S.OUT_KINDS) && S.OUT_MAX === 12, 'סוגי התוצרים זהים בטלפון ובשרתון');
   ok(/AUX_FILES = \(\s*\n\s*\('cues', 'cues\.final\.json'/.test(job) && /for k, fname, suffix, mime in AUX_FILES:/.test(job) && /קובץ עזר; התוצרים העיקריים כבר עלו/.test(job), 'העובד מעלה את קבצי העזר (תקלה בהם לא מפילה את העבודה)');
   const sj = read('studio.js');
   ok(/canPlay\(rec\)\) p\.append\(btn\('st-btn wide', T\('studioPlWatch'\)/.test(sj) && /x === 'play' \|\| x === 'subs'/.test(sj), 'דף העבודה: "צפייה" → דף הנגן (חזור → העבודה)');

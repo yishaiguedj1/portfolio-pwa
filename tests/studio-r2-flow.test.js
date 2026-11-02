@@ -197,6 +197,39 @@ const { fakeR2, ENV } = require('./_r2fake');
   Object.assign(process.env, ENV); R2._reset();
   ok(gu.ok && gu.r2 === false && cl2.ok && cl2.job.gl === null, 'מילון: בלי R2 בשרתון — r2:false והעובד קורא מ־Drive כמו קודם');
 
+  /* ---------- 7ב. A1 (1/11/2026): כרטיס הסדרה — smGet / smEdit (sm/<uid>.json, רק של המשתמש). שמות בדויים.
+     02/11/2026 (PR2 2.3/2.10): כתיבה רק דרך smUpdate (If-Match) — 412 → ניסיון חוזר; קריאה כושלת = שגיאה ובלי כתיבה ---------- */
+  {
+    const sk = 'sm/ownerUid0001.json';
+    let d0 = S.smMerge({}, S.seriesOf('Show.S01E01.mkv'), { gl: [['Vexley', 'וקסלי']], ch: [['נעמה', 'm', '']] }, 100);
+    d0 = S.smMerge(d0, S.seriesOf('Show.S01E02.mkv'), { gl: [['Vexley', 'וקסלי']] }, 100);
+    R.objs.set(sk, Buffer.from(JSON.stringify(d0)));
+    R.meta.set(sk, { type: 'application/json', am: {} });
+    let g = await api('smGet', {});
+    ok(g.ok && g.r2 && g.s.length === 1 && g.s[0].k === 'show' && g.s[0].at === 100 && JSON.stringify(g.s[0].gl[0]) === '["Vexley","וקסלי"]'
+      && JSON.stringify(g.s[0].ch[0]) === '["נעמה","m",""]', 'סדרה: smGet — הכרטיס של המשתמש, בצורה של הטלפון (בלי n/l/f)');
+    ok((await other('smGet', {})).s.length === 0, 'סדרה: משתמש אחר לא רואה את הכרטיס');
+    ok((await api('smEdit', { k: 'show', at: 99, gl: [['Vexley', 'וקסלה']] })).error === 'stale', 'סדרה: גרסה ישנה (העובד כתב בינתיים) — stale');
+    ok((await api('smEdit', { k: 'nope', at: 100, gl: [['A', 'א']] })).error === 'sm_none', 'סדרה: סדרה שלא קיימת');
+    ok((await api('smEdit', { k: 'show', at: 100 })).error === 'bad_params', 'סדרה: בלי שינוי — bad_params');
+    // קריאה כושלת — שגיאה, ולא כותבים כלום (עד היום: "אין סדרות" / קובץ חדש בלי שאר הסדרות)
+    const before = R.objs.get(sk);
+    R.fail = (m, u) => (u.pathname.endsWith('/' + sk) && m === 'GET' ? 500 : 0);
+    const gf = await api('smGet', {}), ef = await api('smEdit', { k: 'show', at: 100, gl: [['Vexley', 'וקסלה']] });
+    R.fail = () => 0;
+    ok(gf.error === 'sm_read' && ef.error === 'sm_read' && R.objs.get(sk) === before, 'סדרה: קריאה כושלת — שגיאה, והקובץ לא נגע');
+    // 412 (מישהו כתב בינתיים) — ניסיון חוזר, ובסוף הכתיבה עוברת
+    let n412 = 0;
+    R.fail = (m, u) => (u.pathname.endsWith('/' + sk) && m === 'PUT' && n412++ < 1 ? 412 : 0);
+    g = await api('smEdit', { k: 'show', at: 100, gl: [['Vexley', 'וקסלה']], ch: [['נעמה', 'f']] });
+    R.fail = () => 0;
+    ok(n412 === 2 && g.ok && g.s[0].gl[0][1] === 'וקסלה' && g.s[0].ch[0][1] === 'f' && g.s[0].at > 100, 'סדרה: 412 → ניסיון חוזר; הכתיב והמגדר שלך גוברים');
+    const raw = S.smParse(R.objs.get(sk).toString('utf8')).s.show;
+    ok(JSON.stringify(raw.gl[0]) === JSON.stringify(['Vexley', 'וקסלה', 2, 2, S.SM_LOCK]) && raw.ch[0][5] === S.SM_LOCK, 'סדרה: עריכה שומרת n/l ונועלת (f=1)');
+    g = await api('smEdit', { k: 'show', at: g.s[0].at, drop: true });
+    ok(g.ok && g.s.length === 0 && (await api('smGet', {})).s.length === 0, 'סדרה: מחיקת הסדרה');
+  }
+
   /* ---------- 8. תיקיות יתומות ב־R2 — סריקה וניקוי (11/10) ---------- */
   studio._reset();
   j = await api('create', { spec });
