@@ -53,7 +53,7 @@ sa.shell = createShell({
   ],
   onSettings: () => sa.settings && sa.settings(),
   /* ליד הגלובוס — הוספת ספר (בקשת המשתמש 13/10/2026); כשהתפריט פתוח — בהיר/כהה, כמו ₪ ב־Invest */
-  action: { label: t('libImport'), on: () => sa.addBook && sa.addBook(),
+  action: { label: t('cvAddT'), on: () => sa.addBook && sa.addBook(),
     icon: _IC_PRE + '<path d="M12 5v14M5 12h14"/></svg>' },
 });
 /* לא מחובר — מסך הכניסה של Invest, עם הלוגו והשם של Academy (shell.js) */

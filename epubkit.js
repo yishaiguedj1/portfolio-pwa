@@ -159,7 +159,7 @@ export async function deflateRaw(u8) {           // CompressionStream מקורי
    ספר 50MB — הטמעת פרטים 0.15–0.2 שנ׳ (×4: ~1.1 שנ׳), ‏+0.2MB זיכרון, אפס משימות ארוכות; 3,000 רשומות — 0.07 שנ׳ (×4: 0.24 שנ׳).
    (fflate סינכרוני שפורס ודוחס הכל: משימה אחת של 0.34 שנ׳, ×4: ‏1.5 שנ׳, ו־+100MB.) */
 const STORE_EXT = /\.(jpe?g|png|gif|webp|avif|woff2?|mp3|mp4|m4a|ogg|zip)$/i;   // כבר דחוסים — נשמרים בלי דחיסה
-export async function rewriteZip(blob, zip, { put = new Map(), del = new Set(), now = new Date(), merge = true } = {}) {
+export async function rewriteZip(blob, zip, { put = new Map(), del = new Set(), now = new Date(), merge = true, epub = true } = {}) {   // epub:false — ZIP רגיל (DOCX), בלי mimetype
   let parts = [], run = null;                                  // run = רצף רשומות מקוריות שמועתק כפרוסה אחת
   const groups = [], cen = [];                                 // Blob של Blobs בקבוצות + ויתור על השרשור כל ~10ms: בלי משימה ארוכה (נמדד)
   const flushRun = () => { if (run) { parts.push(blob.slice(run.s, run.e)); run = null; } };
@@ -200,7 +200,7 @@ export async function rewriteZip(blob, zip, { put = new Map(), del = new Set(), 
   };
   await prefetchRanges(blob, zip.entries.filter((e) => !put.has(e.name) && !del.has(e.name)));
   const pace = pacer();
-  await writeNew('mimetype', enc.encode('application/epub+zip'));   // תמיד ראשון ותקין — מתקן גם קובץ שבו הוא דחוס/לא ראשון (PKG-006)
+  if (epub) await writeNew('mimetype', enc.encode('application/epub+zip'));   // תמיד ראשון ותקין — מתקן גם קובץ שבו הוא דחוס/לא ראשון (PKG-006)
   const pending = new Map(put);
   for (const e of zip.entries) {
     if (e.name === 'mimetype' || del.has(e.name)) continue;
@@ -221,7 +221,7 @@ export async function rewriteZip(blob, zip, { put = new Map(), del = new Set(), 
   z.setUint32(0, SIG_EOCD, true); z.setUint16(8, cen.length, true); z.setUint16(10, cen.length, true);
   z.setUint32(12, cdSize, true); z.setUint32(16, off, true);
   await yieldNow();
-  return new Blob([...groups, ...parts, tail], { type: 'application/epub+zip' });
+  return new Blob([...groups, ...parts, tail], { type: epub ? 'application/epub+zip' : 'application/zip' });
 }
 
 /* ---------------- 4. זיהוי סוג לפי חתימה ---------------- */
@@ -1830,3 +1830,431 @@ export function codepointsOf(texts) {                   // כל התווים ב�
   for (const t of texts) for (const ch of String(t)) s.add(ch.codePointAt(0));
   return s;
 }
+
+/* ---------------- 15. המרות — Academy Pro גל 3 (02/11/2026) ----------------
+   הכל טהור (בלי DOM): בניית EPUB חדש מפרקים, טקסט/Markdown/PDF → פרקים, וייצוא ל־Word/Markdown/טקסט.
+   החיבור לקבצים (pdf.js, mammoth, foliate) והמסכים — ב־libconvert.js, שנטען רק כשממירים. */
+const ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0' };
+export const decodeEnt = (s) => String(s).replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e) => {
+  if (e[0] === '#') { const c = e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10); try { return String.fromCodePoint(c); } catch (er) { return m; } }
+  return Object.prototype.hasOwnProperty.call(ENT, e.toLowerCase()) ? ENT[e.toLowerCase()] : m;
+});
+export const xmlSafe = (s) => String(s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]/g, '');   // תווים אסורים ב־XML (נפוץ ב־PDF)
+export function guessLang(text) {                     // 'he' כשיש מספיק אותיות עבריות, אחרת 'en'
+  const t = String(text).slice(0, 20000);
+  const he = (t.match(/[\u05d0-\u05ea]/g) || []).length, la = (t.match(/[A-Za-z]/g) || []).length;
+  return he && he >= la * 0.3 ? 'he' : la ? 'en' : 'he';
+}
+export const dirOf = (lang) => /^(he|iw|ar|fa|ur|yi)\b/i.test(String(lang || '')) ? 'rtl' : 'ltr';
+const MIME_EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg', 'image/avif': 'avif' };
+export const extOfMime = (t) => MIME_EXT[String(t || '').toLowerCase()] || 'bin';
+export const mimeOfName = (n) => ({ jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', avif: 'image/avif',
+  css: 'text/css', ttf: 'font/ttf', otf: 'font/otf', woff: 'font/woff', woff2: 'font/woff2' })[String(n).split('.').pop().toLowerCase()] || 'application/octet-stream';
+export function natSort(a, b) { return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' }); }
+
+/* ZIP רגיל (DOCX / Markdown עם תמונות): files = [{ name, data: Uint8Array|Blob|string }] */
+export async function zipFiles(files, { now = new Date(), epub = false } = {}) {
+  const put = new Map();
+  for (const f of files) put.set(f.name, typeof f.data === 'string' ? enc.encode(f.data) : f.data);
+  return rewriteZip(new Blob([]), { entries: [] }, { put, now, epub });
+}
+
+/* בניית EPUB 3 (עם toc.ncx ל־EPUB 2) — spec:
+   { title, author, lang, dir, id, chapters: [{ title, body, lvl }], images: [{ name, data, type }], cover: { data, type } | null,
+     css, fixed: { w, h } | null (פריסה קבועה — קומיקס / תמונות עמודים), tocPage, now }
+   body = XHTML של הגוף בלבד; תמונות מופנות כ־"../Images/<name>". מחזיר Blob. */
+export const BOOK_CSS = 'body { margin: 0 4%; line-height: 1.6; }\nh1, h2, h3 { line-height: 1.3; page-break-after: avoid; }\nh1 { font-size: 1.6em; margin: 1.2em 0 .6em; }\nh2 { font-size: 1.3em; margin: 1em 0 .5em; }\n'
+  + 'p { margin: 0 0 .7em; }\nblockquote { margin: .8em 1.5em; font-style: italic; }\nimg { max-width: 100%; height: auto; }\npre, code { font-family: monospace; white-space: pre-wrap; }\n.pg { text-align: center; margin: 1em 0; }\n';
+const FIXED_CSS = 'html, body { margin: 0; padding: 0; width: 100%; height: 100%; }\nbody { display: flex; align-items: center; justify-content: center; }\nimg { width: 100%; height: 100%; object-fit: contain; }\n';
+const pad3 = (i) => String(i).padStart(3, '0');
+export function bookUid(seed) {                      // urn:uuid: יציב מתוך מחרוזת (FNV) — אותה המרה של אותו קובץ = אותו מזהה
+  let h1 = 0x811c9dc5, h2 = 0x01000193;
+  for (const ch of String(seed)) { const c = ch.codePointAt(0); h1 = Math.imul(h1 ^ c, 16777619) >>> 0; h2 = Math.imul(h2 ^ (c + 7), 2246822519) >>> 0; }
+  const x = (h1.toString(16).padStart(8, '0') + h2.toString(16).padStart(8, '0')).repeat(2);
+  return 'urn:uuid:' + x.slice(0, 8) + '-' + x.slice(8, 12) + '-4' + x.slice(13, 16) + '-a' + x.slice(17, 20) + '-' + x.slice(20, 32);
+}
+function xdoc(title, body, { lang, dir, css = true, viewport } = {}) {
+  return '<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE html>\n<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="' + escX(lang) + '" xml:lang="' + escX(lang) + '" dir="' + dir + '">\n<head>\n<meta charset="utf-8"/>\n<title>' + escX(title) + '</title>\n'
+    + (viewport ? '<meta name="viewport" content="width=' + viewport.w + ', height=' + viewport.h + '"/>\n' : '') + (css ? '<link rel="stylesheet" type="text/css" href="../Styles/style.css"/>\n' : '') + '</head>\n<body>\n' + xmlSafe(body) + '\n</body>\n</html>\n';
+}
+export async function buildEpub(spec) {
+  const now = spec.now || new Date();
+  const lang = spec.lang || 'he', dir = spec.dir || dirOf(lang), fixed = spec.fixed || null;
+  const title = xmlSafe(String(spec.title || '').trim()) || 'ספר', author = xmlSafe(String(spec.author || '').trim());
+  const id = spec.id || bookUid([title, author, (spec.chapters || []).length, (spec.chapters || []).map((c) => String(c.body || '').length).join(',')].join('|'));
+  const files = [], man = [], spine = [], toc = [];
+  const add = (name, data, type, { idr, props, inSpine, linear } = {}) => {
+    files.push({ name: 'OEBPS/' + name, data });
+    const iid = idr || ('i' + (man.length + 1));
+    man.push('<item id="' + iid + '" href="' + escX(name) + '" media-type="' + type + '"' + (props ? ' properties="' + props + '"' : '') + '/>');
+    if (inSpine) spine.push('<itemref idref="' + iid + '"' + (linear === false ? ' linear="no"' : '') + (fixed && inSpine === 'page' ? '' : '') + '/>');
+    return iid;
+  };
+  add('Styles/style.css', String(spec.css || '') + (fixed ? FIXED_CSS : BOOK_CSS), 'text/css', { idr: 'css' });
+  for (const im of spec.images || []) add('Images/' + im.name, im.data, im.type || mimeOfName(im.name));
+  for (const ft of spec.fonts || []) add('Fonts/' + ft.name, ft.data, ft.type || mimeOfName(ft.name));
+  if (spec.cover && spec.cover.data) {
+    const cn = 'cover.' + extOfMime(spec.cover.type);
+    add('Images/' + cn, spec.cover.data, spec.cover.type || 'image/jpeg', { idr: 'cover-img', props: 'cover-image' });
+    if (!fixed) add('Text/cover.xhtml', xdoc(title, '<div class="pg"><img src="../Images/' + cn + '" alt="' + escX(title) + '"/></div>', { lang, dir }), 'application/xhtml+xml', { idr: 'cover', inSpine: true });
+  }
+  const navName = 'nav.xhtml';
+  (spec.chapters || []).forEach((c, i) => {
+    const nm = 'Text/ch' + pad3(i + 1) + '.xhtml', t = xmlSafe(String(c.title || '').trim());
+    add(nm, xdoc(t || title, c.body || '', { lang, dir, viewport: fixed ? { w: c.w || fixed.w, h: c.h || fixed.h } : null }), 'application/xhtml+xml', { inSpine: 'page' });
+    if (t) toc.push({ p: 'OEBPS/' + nm, t, lvl: Math.max(1, Math.min(3, c.lvl || 1)) });
+  });
+  if (!toc.length && spec.chapters && spec.chapters.length) toc.push({ p: 'OEBPS/Text/ch001.xhtml', t: title, lvl: 1 });
+  const navBody = '<nav epub:type="toc" id="toc">\n  <h1>' + escX(lang === 'he' ? 'תוכן העניינים' : 'Contents') + '</h1>' + buildNavOl(toc.map((x) => Object.assign({}, x)), 'OEBPS/' + navName) + '\n</nav>';
+  const nav = xdoc(lang === 'he' ? 'תוכן העניינים' : 'Contents', navBody, { lang, dir, css: !fixed }).replace('href="../Styles/style.css"', 'href="Styles/style.css"');
+  files.push({ name: 'OEBPS/' + navName, data: nav });
+  man.push('<item id="nav" href="' + navName + '" media-type="application/xhtml+xml" properties="nav"/>');
+  if (spec.tocPage && !fixed) spine.splice(spec.cover && spec.cover.data ? 1 : 0, 0, '<itemref idref="nav"/>');
+  const ncxT = '<?xml version="1.0" encoding="UTF-8"?>\n<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">\n<head>\n<meta name="dtb:uid" content="' + escX(id) + '"/>\n<meta name="dtb:depth" content="1"/>\n</head>\n<docTitle><text>' + escX(title) + '</text></docTitle>\n<navMap></navMap>\n</ncx>\n';
+  files.push({ name: 'OEBPS/toc.ncx', data: writeNcx(ncxT, toc, 'OEBPS/toc.ncx') });
+  man.push('<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>');
+  const mod = now.toISOString().replace(/\.\d+Z$/, 'Z');
+  const meta = ['<dc:identifier id="uid">' + escX(id) + '</dc:identifier>', '<dc:title>' + escX(title) + '</dc:title>', '<dc:language>' + escX(lang) + '</dc:language>',
+    author ? '<dc:creator id="au">' + escX(author) + '</dc:creator>' : '', spec.date ? '<dc:date>' + escX(spec.date) + '</dc:date>' : '',
+    '<meta property="dcterms:modified">' + mod + '</meta>', spec.cover && spec.cover.data ? '<meta name="cover" content="cover-img"/>' : '',
+    fixed ? '<meta property="rendition:layout">pre-paginated</meta>\n<meta property="rendition:spread">none</meta>' : ''].filter(Boolean).join('\n');
+  const opf = '<?xml version="1.0" encoding="UTF-8"?>\n<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="uid" xml:lang="' + escX(lang) + '"' + (fixed ? ' prefix="rendition: http://www.idpf.org/vocab/rendition/#"' : '') + '>\n<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">\n'
+    + meta + '\n</metadata>\n<manifest>\n' + man.join('\n') + '\n</manifest>\n<spine toc="ncx" page-progression-direction="' + dir + '">\n' + spine.join('\n') + '\n</spine>\n</package>\n';
+  files.unshift({ name: 'META-INF/container.xml', data: '<?xml version="1.0" encoding="UTF-8"?>\n<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">\n<rootfiles>\n<rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>\n</rootfiles>\n</container>\n' },
+    { name: 'OEBPS/content.opf', data: opf });
+  return zipFiles(files, { now, epub: true });
+}
+
+/* ---------- טקסט ו־Markdown → פרקים ---------- */
+const HEAD_RE = /^(?:פרק|חלק|שער|מבוא|הקדמה|פתח דבר|אחרית דבר|סיכום|נספח|epilogue|prologue|introduction|preface|chapter|part|appendix)(?=[\s:.\-–—]|$)[^\n]{0,70}$/i;
+export function isHeadLine(line) { const t = String(line).trim(); return t.length > 0 && t.length <= 80 && HEAD_RE.test(t) && !(t.length > 30 && /[.,;!?]$/.test(t)) && (t.match(/,/g) || []).length < 2; }
+const CHUNK = 60000;                                   // פרק בלי כותרות — מפוצל לחלקים של ~60 אלף תווים (הקורא נשאר מהיר)
+function chunkParas(paras, title) {
+  const out = []; let cur = [], len = 0;
+  for (const p of paras) { cur.push(p); len += p.length; if (len >= CHUNK) { out.push(cur); cur = []; len = 0; } }
+  if (cur.length) out.push(cur);
+  return out.map((ps, i) => ({ title: out.length > 1 ? title + ' (' + (i + 1) + ')' : title, body: ps.join('\n'), lvl: 1 }));
+}
+export function textToChapters(text, { title = '', headings = true } = {}) {
+  const src = xmlSafe(String(text).replace(/^\ufeff/, '').replace(/\r\n?/g, '\n'));
+  const blank = /\n[ \t]*\n/.test(src);
+  const blocks = (blank ? src.split(/\n[ \t]*\n+/) : src.split('\n')).map((b) => b.trim()).filter(Boolean);
+  const chapters = []; let cur = null, pre = [];
+  for (const b of blocks) {
+    const first = b.split('\n')[0];
+    if (headings && isHeadLine(first)) {
+      if (cur) chapters.push(cur); else if (pre.length) chapters.push(...chunkParas(pre, title));
+      cur = { title: first.trim(), paras: [] };
+      const rest = b.split('\n').slice(1).join(' ').trim();
+      if (rest) cur.paras.push('<p>' + escT(rest) + '</p>');
+      continue;
+    }
+    const p = '<p>' + escT(b.replace(/\s*\n\s*/g, ' ')) + '</p>';
+    if (cur) cur.paras.push(p); else pre.push(p);
+  }
+  if (cur) chapters.push(cur);
+  else if (pre.length) return chunkParas(pre, title || 'טקסט');
+  return chapters.map((c) => c.paras ? { title: c.title, body: '<h1>' + escT(c.title) + '</h1>\n' + c.paras.join('\n'), lvl: 1 } : c);
+}
+function mdInline(s) {
+  const code = [];
+  let t = String(s).replace(/`([^`]+)`/g, (m, c) => { code.push(c); return '\u0000' + (code.length - 1) + '\u0000'; });
+  t = escT(t);
+  t = t.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (m, alt) => alt ? '[' + alt + ']' : '');   // תמונה מהרשת — לא נכנסת לספר (הוא עובד בלי רשת)
+  t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (m, x, u) => '<a href="' + u.replace(/"/g, '&quot;') + '">' + x + '</a>');
+  t = t.replace(/\*\*([^*]+)\*\*|__([^_]+)__/g, (m, a, b) => '<b>' + (a || b) + '</b>');
+  t = t.replace(/(^|[^*\w])\*([^*\s][^*]*)\*(?!\*)/g, '$1<i>$2</i>').replace(/(^|[^_\w])_([^_\s][^_]*)_(?![_\w])/g, '$1<i>$2</i>');
+  t = t.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+  return t.replace(/\u0000(\d+)\u0000/g, (m, i) => '<code>' + escT(code[+i]) + '</code>');
+}
+export function mdToHtml(md) {                        // Markdown נפוץ → XHTML: כותרות, פסקאות, רשימות, ציטוט, קוד, קו, הדגשה, קישור
+  const lines = xmlSafe(String(md).replace(/^\ufeff/, '').replace(/\r\n?/g, '\n')).split('\n');
+  const out = []; let para = [], list = null, quote = [], i = 0;
+  const flushP = () => { if (para.length) { out.push('<p>' + mdInline(para.join(' ')) + '</p>'); para = []; } };
+  const flushL = () => { if (list) { out.push('<' + list.t + '>' + list.items.map((x) => '<li>' + mdInline(x) + '</li>').join('') + '</' + list.t + '>'); list = null; } };
+  const flushQ = () => { if (quote.length) { out.push('<blockquote>' + mdToHtml(quote.join('\n')) + '</blockquote>'); quote = []; } };
+  const flush = () => { flushP(); flushL(); flushQ(); };
+  while (i < lines.length) {
+    const ln = lines[i];
+    const fence = /^\s*(```|~~~)/.exec(ln);
+    if (fence) {
+      flush(); const body = []; i++;
+      while (i < lines.length && !lines[i].trim().startsWith(fence[1])) body.push(lines[i++]);
+      out.push('<pre><code>' + escT(body.join('\n')) + '</code></pre>'); i++; continue;
+    }
+    if (/^\s*>/.test(ln)) { flushP(); flushL(); quote.push(ln.replace(/^\s*>\s?/, '')); i++; continue; } else flushQ();
+    const hm = /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/.exec(ln);
+    if (hm) { flush(); out.push('<h' + hm[1].length + '>' + mdInline(hm[2]) + '</h' + hm[1].length + '>'); i++; continue; }
+    if (i + 1 < lines.length && ln.trim() && !list && /^\s*(=+|-+)\s*$/.test(lines[i + 1]) && !para.length) { flush(); const l = lines[i + 1].trim()[0] === '=' ? 1 : 2; out.push('<h' + l + '>' + mdInline(ln.trim()) + '</h' + l + '>'); i += 2; continue; }
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(ln)) { flush(); out.push('<hr/>'); i++; continue; }
+    const li = /^\s*([-*+]|\d+[.)])\s+(.*)$/.exec(ln);
+    if (li) { flushP(); const t = /\d/.test(li[1]) ? 'ol' : 'ul'; if (list && list.t !== t) flushL(); if (!list) list = { t, items: [] }; list.items.push(li[2]); i++; continue; }
+    if (!ln.trim()) { flush(); i++; continue; }
+    if (list && /^\s{2,}\S/.test(ln)) { list.items[list.items.length - 1] += ' ' + ln.trim(); i++; continue; }
+    flushL(); para.push(ln.trim()); i++;
+  }
+  flush();
+  return out.join('\n');
+}
+/* גוף XHTML → פרקים לפי כותרות (h1, ואם אין — h2). בלי כותרות: פרק אחד (או חלקים) */
+export function splitBody(body, { title = '', levels } = {}) {
+  const src = String(body);
+  const has = (l) => new RegExp('<h' + l + '\\b', 'i').test(src);
+  const lv = levels || (has(1) ? [1] : has(2) ? [2] : []);
+  if (!lv.length) return src.length > CHUNK * 1.5 ? chunkParas(src.split(/(?=<(?:p|div|h[3-6]|ul|ol|blockquote|pre|table)\b)/i), title) : [{ title, body: src, lvl: 1 }];
+  const re = new RegExp('<h(' + lv.join('|') + ')\\b[^>]*>([\\s\\S]*?)<\\/h\\1>', 'gi');
+  const cuts = []; let m;
+  while ((m = re.exec(src))) cuts.push({ at: m.index, t: decodeEnt(m[2].replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim() });
+  const out = [];
+  const pre = src.slice(0, cuts[0].at);
+  if (pre.replace(/<[^>]*>/g, '').trim() || /<img\b/i.test(pre)) out.push({ title: title || '', body: pre, lvl: 1 });
+  cuts.forEach((c, i) => out.push({ title: c.t, body: src.slice(c.at, i + 1 < cuts.length ? cuts[i + 1].at : src.length), lvl: 1 }));
+  return out;
+}
+
+/* ---------- PDF → פרקים (C4) ----------
+   pages = [{ n, w, h, items: [{ s, x, y (מלמעלה), h (גובה הגופן), w }] }] — מה ש־pdf.js נותן, מנורמל ב־libconvert.
+   שורות לפי y; כותרות עליונות/תחתונות = שורה שחוזרת (ספרות מנורמלות) בשוליים של רוב העמודים; כותרת = גופן גדול מהגוף;
+   פסקה חדשה = רווח גדול / שורה קצרה שמסתיימת בסוף משפט. עמוד בלי טקסט = סרוק (scanned) — התמונה נכנסת במקומו. */
+export function pdfLines(page) {
+  const items = (page.items || []).filter((it) => it && String(it.s).trim() && it.h > 0)
+    .map((it) => Object.assign({}, it, { s: xmlSafe(String(it.s)) })).sort((a, b) => a.y - b.y || a.x - b.x);
+  const lines = [];
+  for (const it of items) {
+    const L = lines.find((l) => Math.abs(l.y - it.y) <= Math.max(2, Math.min(l.h, it.h) * 0.5));
+    if (L) { L.items.push(it); L.h = Math.max(L.h, it.h); } else lines.push({ y: it.y, h: it.h, items: [it] });
+  }
+  for (const L of lines) {
+    const txt = L.items.map((x) => x.s).join('');
+    const rtl = (txt.match(/[\u0590-\u05ff\u0600-\u06ff]/g) || []).length > (txt.match(/[A-Za-z]/g) || []).length;
+    L.items.sort((a, b) => rtl ? (b.x + b.w) - (a.x + a.w) : a.x - b.x);
+    let s = '', prev = null;
+    for (const it of L.items) {
+      if (prev) {
+        const gap = rtl ? prev.x - (it.x + it.w) : it.x - (prev.x + prev.w);
+        if (gap > it.h * 0.15 && !/\s$/.test(s) && !/^\s/.test(it.s)) s += ' ';
+      }
+      s += it.s; prev = it;
+    }
+    L.text = s.replace(/\s+/g, ' ').trim(); L.rtl = rtl;
+    L.x0 = Math.min(...L.items.map((x) => x.x)); L.x1 = Math.max(...L.items.map((x) => x.x + x.w));
+    L.size = L.items.reduce((a, x) => a + x.h * x.s.length, 0) / Math.max(1, L.items.reduce((a, x) => a + x.s.length, 0));
+  }
+  return lines.filter((l) => l.text).sort((a, b) => a.y - b.y);
+}
+const normRun = (t) => String(t).replace(/\d+/g, '#').replace(/\s+/g, ' ').trim();
+export function pdfToChapters(pages, { title = '', headings = true, strip = true } = {}) {
+  const P = pages.map((pg) => ({ n: pg.n, w: pg.w, h: pg.h, lines: pdfLines(pg) }));
+  const scanned = P.filter((pg) => !pg.lines.length).map((pg) => pg.n);
+  const textPages = P.filter((pg) => pg.lines.length);
+  let removed = 0;
+  if (strip && textPages.length >= 3) {
+    const cnt = new Map();
+    for (const pg of textPages) {
+      const seen = new Set();
+      for (const l of pg.lines) if (l.y < pg.h * 0.1 || l.y > pg.h * 0.9) { const k = normRun(l.text); if (!seen.has(k)) { seen.add(k); cnt.set(k, (cnt.get(k) || 0) + 1); } }
+    }
+    const rep = new Set([...cnt].filter(([k, c]) => c >= Math.max(3, textPages.length * 0.4) || k === '#').map(([k]) => k));
+    for (const pg of textPages) {
+      const before = pg.lines.length;
+      pg.lines = pg.lines.filter((l) => !((l.y < pg.h * 0.1 || l.y > pg.h * 0.9) && (rep.has(normRun(l.text)) || /^[-–—\s]*\d{1,4}[-–—\s]*$/.test(l.text))));
+      removed += before - pg.lines.length;
+    }
+  }
+  const all = textPages.flatMap((pg) => pg.lines);
+  const sizes = all.map((l) => l.size).sort((a, b) => a - b);
+  const weigh = new Map(); all.forEach((l) => { const k = Math.round(l.size * 2) / 2; weigh.set(k, (weigh.get(k) || 0) + l.text.length); });
+  const body = [...weigh].sort((a, b) => b[1] - a[1])[0] ? [...weigh].sort((a, b) => b[1] - a[1])[0][0] : (sizes[0] || 10);
+  const lang = guessLang(all.map((l) => l.text).join(' '));
+  const blocks = [];       // { k:'h', l, t } | { k:'p', t } | { k:'scan', n }
+  let para = null;
+  const endP = () => { if (para) { blocks.push({ k: 'p', t: para.t }); para = null; } };
+  for (const pg of P) {
+    if (!pg.lines.length) { if (scanned.includes(pg.n)) { endP(); blocks.push({ k: 'scan', n: pg.n }); } continue; }
+    const gaps = []; for (let i = 1; i < pg.lines.length; i++) gaps.push(pg.lines[i].y - pg.lines[i - 1].y);
+    const lead = gaps.length ? gaps.slice().sort((a, b) => a - b)[Math.floor(gaps.length / 2)] : body * 1.4;
+    const wMax = Math.max(...pg.lines.map((l) => l.x1 - l.x0));
+    pg.lines.forEach((l, i) => {
+      const big = l.size >= body * 1.25 && l.text.length <= 120;
+      if (headings && big) {
+        const lvl = l.size >= body * 1.6 ? 1 : 2, last = blocks[blocks.length - 1];
+        endP();
+        if (last && last.k === 'h' && last.l === lvl && last.pg === pg.n && l.y - last.y <= l.size * 1.8) { last.t += ' ' + l.text; last.y = l.y; }   // כותרת בשתי שורות
+        else blocks.push({ k: 'h', l: lvl, t: l.text, pg: pg.n, y: l.y });
+        return;
+      }
+      const prev = i > 0 ? pg.lines[i - 1] : null;
+      const gapBig = prev && (l.y - prev.y) > lead * 1.45;
+      const prevShort = prev && (prev.x1 - prev.x0) < wMax * 0.8 && /[.!?:"״”’)\]]$/.test(prev.text);
+      const indent = prev && (l.rtl ? (prev.x1 - l.x1) : (l.x0 - prev.x0)) > l.size * 1.2;
+      if (!para || (prev && (gapBig || prevShort || indent))) { endP(); para = { t: l.text }; }
+      else if (/[A-Za-z]-$/.test(para.t)) para.t = para.t.slice(0, -1) + l.text;          // מקף חיתוך בסוף שורה (אנגלית)
+      else para.t += ' ' + l.text;
+    });
+    // פסקה שנמשכת לעמוד הבא — רק כשהשורה האחרונה לא נגמרת בסוף משפט
+    if (para && /[.!?:"״”]$/.test(para.t)) endP();
+  }
+  endP();
+  const html = (b) => b.k === 'h' ? '<h' + b.l + '>' + escT(b.t) + '</h' + b.l + '>' : b.k === 'scan' ? '\u0001SCAN' + b.n + '\u0001' : '<p>' + escT(b.t) + '</p>';
+  const lv1 = blocks.some((b) => b.k === 'h' && b.l === 1) ? 1 : 2;
+  const chapters = [];
+  let cur = null;
+  for (const b of blocks) {
+    if (headings && b.k === 'h' && b.l === lv1) { if (cur) chapters.push(cur); cur = { title: b.t, parts: [html(b)], lvl: 1 }; continue; }
+    if (!cur) cur = { title: title || '', parts: [], lvl: 1 };
+    cur.parts.push(html(b));
+  }
+  if (cur) chapters.push(cur);
+  const out = [];
+  for (const c of chapters) {
+    const bodyHtml = c.parts.join('\n');
+    if (bodyHtml.length > CHUNK * 1.5) out.push(...chunkParas(c.parts, c.title || title || 'PDF'));
+    else out.push({ title: c.title, body: bodyHtml, lvl: 1 });
+  }
+  return { chapters: out, scanned, removed, lang, pages: pages.length, bodySize: body };
+}
+
+/* ---------- ייצוא: XHTML → בלוקים → Markdown / טקסט / Word (C8) ---------- */
+const HB_BLOCK = /^(p|div|h[1-6]|li|blockquote|pre|tr|td|th|dt|dd|figcaption|caption|section|article|aside|header|footer|figure|table|ul|ol|dl|nav|hr|br)$/;
+export function htmlBlocks(src) {                     // מסמך/גוף XHTML → [{ k:'h'|'p'|'img'|'hr', l, r:[{ t, b, i, sup, href }], q, li, pre, src }]
+  let s = String(src);
+  const bi = s.search(/<body\b/i); if (bi >= 0) s = s.slice(s.indexOf('>', bi) + 1);
+  s = s.replace(/<\/body>[\s\S]*$/i, '').replace(/<!--[\s\S]*?-->/g, '').replace(/<(script|style|svg:style|head)\b[\s\S]*?<\/\1>/gi, '');
+  const out = []; let cur = null;
+  const st = { b: 0, i: 0, sup: 0, href: '', q: 0, pre: 0, list: [], hl: 0 };
+  const open = (k, extra) => { close(); cur = Object.assign({ k, r: [], q: st.q > 0 || undefined, pre: st.pre > 0 || undefined }, extra || {}); };
+  const close = () => {
+    if (!cur) return;
+    if (cur.r.some((x) => x.t.trim())) {
+      if (!cur.pre) { cur.r.forEach((x) => { x.t = x.t.replace(/\s+/g, ' '); }); cur.r[0].t = cur.r[0].t.replace(/^\s+/, ''); const L = cur.r[cur.r.length - 1]; L.t = L.t.replace(/\s+$/, ''); }
+      cur.r = cur.r.filter((x) => x.t);
+      out.push(cur);
+    }
+    cur = null;
+  };
+  const re = /<(\/?)([a-zA-Z][\w:-]*)([^>]*?)(\/?)>|([^<]+)/g; let m;
+  while ((m = re.exec(s))) {
+    if (m[5] != null) {
+      const t = decodeEnt(m[5]); if (!t) continue;
+      if (!cur) { if (!t.trim()) continue; open(st.hl ? 'h' : 'p', st.hl ? { l: st.hl } : null); }
+      cur.r.push({ t, b: st.b > 0 || undefined, i: st.i > 0 || undefined, sup: st.sup > 0 || undefined, href: st.href || undefined });
+      continue;
+    }
+    const endTag = !!m[1], tag = m[2].toLowerCase().replace(/^.*:/, ''), attrs = m[3] || '', self = !!m[4];
+    const attr = (n) => { const a = new RegExp('(?:^|\\s)(?:xlink:)?' + n + '\\s*=\\s*(["\'])([\\s\\S]*?)\\1', 'i').exec(attrs); return a ? decodeEnt(a[2]) : ''; };
+    if (tag === 'img' || tag === 'image') { close(); const sr = attr('src') || attr('href'); if (sr) out.push({ k: 'img', src: sr, alt: attr('alt') }); continue; }
+    if (tag === 'hr') { close(); out.push({ k: 'hr' }); continue; }
+    if (tag === 'br') { if (cur) cur.r.push({ t: '\n', br: true }); continue; }
+    if (/^(b|strong)$/.test(tag)) { st.b += endTag ? -1 : self ? 0 : 1; continue; }
+    if (/^(i|em|cite|var)$/.test(tag)) { st.i += endTag ? -1 : self ? 0 : 1; continue; }
+    if (tag === 'sup') { st.sup += endTag ? -1 : self ? 0 : 1; continue; }
+    if (tag === 'a') { st.href = endTag ? '' : (/^https?:/i.test(attr('href')) ? attr('href') : ''); continue; }
+    if (tag === 'blockquote') { close(); st.q += endTag ? -1 : 1; continue; }
+    if (tag === 'pre') { close(); st.pre += endTag ? -1 : 1; if (!endTag) open('p'); continue; }
+    if (tag === 'ul' || tag === 'ol') { close(); if (endTag) st.list.pop(); else st.list.push(tag); continue; }
+    if (/^h[1-6]$/.test(tag)) { close(); st.hl = endTag ? 0 : +tag[1]; if (!endTag) open('h', { l: +tag[1] }); continue; }
+    if (tag === 'li') { close(); if (!endTag) open('p', { li: st.list[st.list.length - 1] || 'ul', depth: st.list.length }); continue; }
+    if (HB_BLOCK.test(tag)) { if (!(st.pre && tag !== 'pre')) close(); continue; }
+  }
+  close();
+  return out;
+}
+const mdEsc = (t) => String(t).replace(/([\\`*_[\]#])/g, '\\$1').replace(/^(\s*)([-+>]|\d+\.)(\s)/, '$1\\$2$3');
+function mdRuns(r) {
+  return r.map((x) => {
+    if (x.br) return '  \n';
+    let t = mdEsc(x.t);
+    const lead = /^\s*/.exec(t)[0], tail = /\s*$/.exec(t)[0]; t = t.trim(); if (!t) return lead + tail;
+    if (x.sup) t = '^' + t + '^';
+    if (x.b) t = '**' + t + '**';
+    if (x.i) t = '*' + t + '*';
+    if (x.href) t = '[' + t + '](' + x.href + ')';
+    return lead + t + tail;
+  }).join('');
+}
+export function blocksToMd(blocks, { img = (b) => b.src } = {}) {
+  const out = []; let n = 0;
+  for (const b of blocks) {
+    if (b.k === 'hr') { out.push('---'); continue; }
+    if (b.k === 'img') { const u = img(b); if (u) out.push('![' + mdEsc(b.alt || '') + '](' + u + ')'); continue; }
+    if (b.k === 'h') { out.push('#'.repeat(Math.min(6, b.l || 1)) + ' ' + mdRuns(b.r).replace(/\s*\n\s*/g, ' ')); continue; }
+    if (b.pre) { out.push('```\n' + b.r.map((x) => x.t).join('') + '\n```'); continue; }
+    let t = mdRuns(b.r);
+    if (b.li) { n = b.li === 'ol' ? n + 1 : 0; t = '  '.repeat(Math.max(0, (b.depth || 1) - 1)) + (b.li === 'ol' ? n + '. ' : '- ') + t; } else n = 0;
+    if (b.q) t = t.split('\n').map((x) => '> ' + x).join('\n');
+    out.push(t);
+  }
+  return out.join('\n\n').replace(/\n(-|\s*\d+\.) /g, (m) => m).replace(/(\n\n)(?=(?:\s*(?:- |\d+\. )))/g, (m, a, off, all) => /(?:^|\n)\s*(?:- |\d+\. )[^\n]*$/.test(all.slice(0, off)) ? '\n' : a) + '\n';
+}
+export function blocksToText(blocks) {
+  return blocks.map((b) => b.k === 'hr' ? '* * *' : b.k === 'img' ? '' : (b.li ? '• ' : '') + b.r.map((x) => x.t).join('').trim())
+    .filter((x) => x !== '').join('\n\n') + '\n';
+}
+
+/* Word (DOCX) בלי ספרייה: chapters = [{ blocks }], images: Map(src → { name, data, type, w, h }) — מחזיר קבצים ל־zipFiles */
+const W_NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"';
+export function docxParts(chapters, { title = '', author = '', lang = 'he', images = new Map(), now = new Date() } = {}) {
+  const rtl = dirOf(lang) === 'rtl', rels = [], media = [];
+  let rid = 10, pid = 1;
+  const runX = (x) => {
+    if (x.br) return '<w:r><w:br/></w:r>';
+    const pr = (rtl ? '<w:rtl/>' : '') + (x.b ? '<w:b/><w:bCs/>' : '') + (x.i ? '<w:i/><w:iCs/>' : '') + (x.sup ? '<w:vertAlign w:val="superscript"/>' : '') + (x.href ? '<w:rStyle w:val="Hyperlink"/>' : '');
+    const r = '<w:r>' + (pr ? '<w:rPr>' + pr + '</w:rPr>' : '') + '<w:t xml:space="preserve">' + escT(xmlSafe(x.t)) + '</w:t></w:r>';
+    if (!x.href) return r;
+    const id = 'rId' + (++rid); rels.push('<Relationship Id="' + id + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="' + escX(x.href) + '" TargetMode="External"/>');
+    return '<w:hyperlink r:id="' + id + '">' + r + '</w:hyperlink>';
+  };
+  const pPr = (style, extra = '') => '<w:pPr>' + (style ? '<w:pStyle w:val="' + style + '"/>' : '') + (rtl ? '<w:bidi/>' : '') + extra + '</w:pPr>';
+  const used = new Map();
+  const imgX = (b) => {
+    const im = images.get(b.src); if (!im || !im.data) return '';
+    let rec = used.get(b.src);
+    if (!rec) {
+      const id = 'rId' + (++rid), name = 'image' + (media.length + 1) + '.' + (im.name ? im.name.split('.').pop() : extOfMime(im.type));
+      media.push({ name: 'word/media/' + name, data: im.data }); rels.push('<Relationship Id="' + id + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/' + name + '"/>');
+      rec = { id }; used.set(b.src, rec);
+    }
+    const maxW = 5943600, w0 = (im.w || 600) * 9525, h0 = (im.h || 400) * 9525, k = Math.min(1, maxW / w0), cx = Math.round(w0 * k), cy = Math.round(h0 * k), n = pid++;
+    return '<w:p>' + pPr('', '<w:jc w:val="center"/>') + '<w:r><w:drawing><wp:inline><wp:extent cx="' + cx + '" cy="' + cy + '"/><wp:docPr id="' + n + '" name="Picture ' + n + '" descr="' + escX(b.alt || '') + '"/>'
+      + '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="' + n + '" name="Picture ' + n + '"/><pic:cNvPicPr/></pic:nvPicPr>'
+      + '<pic:blipFill><a:blip r:embed="' + rec.id + '"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>';
+  };
+  const body = [];
+  chapters.forEach((c, ci) => {
+    (c.blocks || []).forEach((b, bi) => {
+      const brk = ci > 0 && bi === 0 ? '<w:pageBreakBefore/>' : '';
+      if (b.k === 'img') { body.push(imgX(b)); return; }
+      if (b.k === 'hr') { body.push('<w:p>' + pPr('', '<w:jc w:val="center"/>') + '<w:r><w:t>* * *</w:t></w:r></w:p>'); return; }
+      const style = b.k === 'h' ? 'Heading' + Math.min(3, b.l || 1) : b.q ? 'Quote' : b.li ? 'ListParagraph' : '';
+      const bullet = b.li ? [{ t: b.li === 'ol' ? '' : '• ' }] : [];
+      body.push('<w:p>' + pPr(style, brk) + bullet.concat(b.r).filter((x) => x.t || x.br).map(runX).join('') + '</w:p>');
+    });
+  });
+  const ms = rtl ? '<w:rtl/>' : '';
+  const sty = (id, name, rpr, ppr, basedOn) => '<w:style w:type="paragraph" w:styleId="' + id + '"><w:name w:val="' + name + '"/>' + (basedOn ? '<w:basedOn w:val="Normal"/><w:next w:val="Normal"/>' : '') + '<w:qFormat/><w:pPr>' + (rtl ? '<w:bidi/>' : '') + (ppr || '') + '</w:pPr><w:rPr>' + ms + (rpr || '') + '</w:rPr></w:style>';
+  const styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:styles ' + W_NS + '><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="24"/><w:szCs w:val="24"/><w:lang w:val="' + (rtl ? 'he-IL' : 'en-US') + '" w:bidi="he-IL"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="160" w:line="300" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>'
+    + sty('Normal', 'Normal', '', '', false)
+    + sty('Heading1', 'heading 1', '<w:b/><w:bCs/><w:sz w:val="40"/><w:szCs w:val="40"/>', '<w:keepNext/><w:spacing w:before="360" w:after="200"/><w:outlineLvl w:val="0"/>', true)
+    + sty('Heading2', 'heading 2', '<w:b/><w:bCs/><w:sz w:val="32"/><w:szCs w:val="32"/>', '<w:keepNext/><w:spacing w:before="280" w:after="160"/><w:outlineLvl w:val="1"/>', true)
+    + sty('Heading3', 'heading 3', '<w:b/><w:bCs/><w:sz w:val="28"/><w:szCs w:val="28"/>', '<w:keepNext/><w:spacing w:before="240" w:after="120"/><w:outlineLvl w:val="2"/>', true)
+    + sty('Quote', 'Quote', '<w:i/><w:iCs/>', '<w:ind w:start="720" w:end="720"/>', true)
+    + sty('ListParagraph', 'List Paragraph', '', '<w:ind w:start="720"/>', true)
+    + '<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:rPr><w:color w:val="0563C1"/><w:u w:val="single"/></w:rPr></w:style></w:styles>';
+  const doc = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:document ' + W_NS + '><w:body>' + body.join('') + '<w:sectPr>' + (rtl ? '<w:bidi/>' : '') + '<w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr></w:body></w:document>';
+  const ext = [...new Set(media.map((m) => m.name.split('.').pop()))];
+  const ct = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>'
+    + ext.map((e) => '<Default Extension="' + e + '" ContentType="' + (mimeOfName('x.' + e)) + '"/>').join('')
+    + '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>';
+  const iso = now.toISOString().replace(/\.\d+Z$/, 'Z');
+  const core = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>' + escT(xmlSafe(title)) + '</dc:title><dc:creator>' + escT(xmlSafe(author)) + '</dc:creator><dc:language>' + escT(lang) + '</dc:language><dcterms:created xsi:type="dcterms:W3CDTF">' + iso + '</dcterms:created></cp:coreProperties>';
+  return [
+    { name: '[Content_Types].xml', data: ct },
+    { name: '_rels/.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>' },
+    { name: 'docProps/core.xml', data: core },
+    { name: 'word/document.xml', data: doc },
+    { name: 'word/styles.xml', data: styles },
+    { name: 'word/_rels/document.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' + rels.join('') + '</Relationships>' },
+    ...media,
+  ];
+}
+export const safeFileName = (t, ext) => (String(t || '').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'book') + '.' + ext;
