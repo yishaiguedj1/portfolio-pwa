@@ -46,7 +46,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
   /* ---------- 3. השרתון ---------- */
   const S = require(path.join(root, 'ibkr-proxy/lib/studio.js'));
-  ok(/op === 'goldRun'[\s\S]{0,2500}S\.maxActive\(isAdmin\(user\)\)\) return res\.status\(409\)\.json\(\{ ok: false, error: 'too_many' \}\)/.test(read('ibkr-proxy/api/studio.js')), 'goldRun: לא עוקף את MAX_ACTIVE (הסקירה)');
+  ok(/op === 'goldRun'[\s\S]{0,6000}S\.maxActive\(isAdmin\(user\)\)\) return res\.status\(409\)\.json\(\{ ok: false, error: 'too_many' \}\)/.test(read('ibkr-proxy/api/studio.js')), 'goldRun: לא עוקף את MAX_ACTIVE (הסקירה)');
   ok(S.GOLD_REF_MAX === N.GOLD_REF_MAX && S.GOLD_MAX === S.MAX_ACTIVE, 'אותה מגבלת גודל בטלפון ובשרתון; סט הזהב עד MAX_ACTIVE עבודות (רץ ביחד בלי לעקוף את המגבלה)');
   // 02/11/2026: למנהל עד GOLD_MAX_ADMIN — סט המדידה של איכות התרגום; עדיין רץ ביחד, בתוך MAX_ACTIVE_ADMIN
   ok(S.goldMax(false) === S.GOLD_MAX && S.goldMax(true) === S.GOLD_MAX_ADMIN && S.GOLD_MAX_ADMIN > S.GOLD_MAX && S.GOLD_MAX_ADMIN <= S.MAX_ACTIVE_ADMIN, 'התקרה לפי תפקיד: למנהל GOLD_MAX_ADMIN (בתוך MAX_ACTIVE_ADMIN), לשאר GOLD_MAX');

@@ -28,6 +28,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import llm
+import xflags
 
 HERE = Path(__file__).resolve().parent
 GUIDE = HERE / 'guides' / 'style-guide-he.md'
@@ -1657,6 +1658,7 @@ class Pipeline:
         segs = dual_segments(order, a, b)
         picks: dict[str, str] = {}
         nb = 0
+        pk_all = []          # 02/11/2026 (PR1 1.6): ההכרעה לכל קטע לפי הסדר — A / B / '-' (נכשלה). מדידה בלבד, בלי שינוי התנהגות
         batches, cur = [], []
         for g in segs:
             if cur and sum(len(x) for x in cur) + len(g) > ARB_MAX_CUES:
@@ -1677,6 +1679,7 @@ class Pipeline:
                 print(f'· ההכרעה בין הטיוטות נכשלה ({e.code}) — נשארים עם הטיוטה הראשונה בקטעים האלה')
                 pk = {}
             for i, g in enumerate(bt, first):
+                pk_all.append(pk.get(i) if pk.get(i) in ('A', 'B') else ('-' if not pk else 'A'))
                 if pk.get(i) == 'B':
                     nb += 1
                     picks.update({k: b[k] for k in g})
@@ -1685,7 +1688,8 @@ class Pipeline:
         tmp = out.with_name(out.name + '.part')
         tmp.write_text(fmt_lines(picks) + '\n' if picks else '', encoding='utf-8')
         tmp.replace(out)
-        self.ctx.st['dual'] = {'sg': len(segs), 'c': sum(len(g) for g in segs), 'b': nb, 'bc': len(picks), 'n': len(order)}
+        self.ctx.st['dual'] = {'sg': len(segs), 'c': sum(len(g) for g in segs), 'b': nb, 'bc': len(picks), 'n': len(order),
+                               'pk': ''.join(pk_all)[:2000]}
         print(f'· שתי טיוטות: {len(segs)} קטעים שונים ({sum(len(g) for g in segs)} כתוביות מתוך {len(order)}), '
               f'בטיוטה השנייה נבחרו {nb} ({len(picks)} כתוביות)')
 
@@ -1881,13 +1885,14 @@ class Pipeline:
             return '\n\n' + block('auto_fixes', '\n'.join(rows)) if rows else ''
 
         n_cues = len(re.findall(r'(?m)^#\d+', pkg))
-        n = max(1, -(-n_cues // RV_SLICE_CUES))
+        rvs = 60 if xflags.on(getattr(self.ctx, 'st', None), 'rvs60') else RV_SLICE_CUES   # 02/11/2026: דגל ניסוי (xf), לא מתג סביבה
+        n = max(1, -(-n_cues // rvs))
         slices = split_package(pkg, n) if n > 1 else [pkg]
         while not self.eng.fits_card(fixed, block('review_package', slices[0]) + auto_block(slices[0])) and n < 64:
             n *= 2
             slices = split_package(pkg, n)
         if len(slices) > 1:
-            print(f'· {self.eng.spec.model}: הביקורת ב־{len(slices)} קטעים (עד {RV_SLICE_CUES} כתוביות, {RV_PARALLEL} במקביל)')
+            print(f'· {self.eng.spec.model}: הביקורת ב־{len(slices)} קטעים (עד {rvs} כתוביות, {RV_PARALLEL} במקביל)')
         got, flags = {}, []
         warm = threading.Event()                 # המטמון: הקטע הראשון כותב את הבלוק הקבוע, השאר מתחילים כשהוא כבר עונה
         if len(slices) == 1:

@@ -498,7 +498,7 @@ const normFixed = (eng) => (engKey(eng) === 'a' ? NORM_FIXED_API : NORM_FIXED);
 function normSample(job, use, now) {
   const sp = job && job.spec;
   if (!job || job.kind !== 'tr' || (job.fires || 0) > 1 || !sp || !MODES.includes(sp.mode) || !(sp.dur > 0)) return null;
-  if (sp.xe || sp.xg) return null;   // 24/10/2026: ניסוי המאמץ / בלי מילון — לא מה שהמצב עולה בדרך כלל
+  if (sp.xe || sp.xg || sp.xf) return null;   // 02/11/2026: גם דגלי ניסוי (xf). 24/10/2026: ניסוי המאמץ / בלי מילון — לא מה שהמצב עולה בדרך כלל
   if (!Array.isArray(use) || !use.length || use.some((r) => r.usd == null)) return null;   // מודל בלי מחירון — לא יודעים כמה עלה
   const u = use.reduce((s, r) => s + (r.usd || 0), 0);
   if (!(u > 0) || u > 1e4) return null;
@@ -836,7 +836,7 @@ function publicJob(job, now) {
     gl: normGl(job.gl),                             // v380: מונחים מהמילון שלך שימשו + מונחים חדשים להצעה
     nt: noteView(job),                              // v382: הערה לעובד — מחכה לנקודת השמירה הבאה / נקראה
     sla: SLA.slaView(job, now),                     // v377: יעד זמן ותקציב (השעון עוצר כשמחכים לך)
-    gd: normGd(job.gd), gs: JOB_RE.test(String(job.gs || '')) ? job.gs : '', gq: normGq(job.gq), sm: job.sm ? 1 : 0,   // v387: סט הזהב — ייחוס, מקור ההרצה, הציון
+    gd: normGd(job.gd), gs: JOB_RE.test(String(job.gs || '')) ? job.gs : '', gq: normGq(job.gq), sm: job.sm ? 1 : 0, wa: Number.isInteger(job.wa) && job.wa >= 0 && job.wa < GOLD_ARMS ? job.wa : -1,   // v387: סט הזהב — ייחוס, מקור ההרצה, הציון
     hl: normHl(job.hl, job.fv && job.fv.id),       // איכויות הצפייה (הראשונה = המקור עצמו)
     hla: normHl(job.hl, job.fv && job.fv.id) ? normHla(job.hla) : null,   // 22/10/2026: עותק הקול לנגן (הקול המקורי נשאר במקור)
     pbn: normPbn(job.pbn, job.pbn && job.pbn.at),   // 24/10/2026: הצריבה בטלפון (תרגום בטלפון)
@@ -972,12 +972,49 @@ function normXe(x) {
   for (const k of XE_KEYS) if (XE_EFFORTS.includes(x[k])) o[k] = x[k];
   return Object.keys(o).length ? o : null;
 }
+/* 02/11/2026 (תוכנית איכות התרגום, PR1 1.8): דגלי ניסוי — רשימה סגורה, **= XF_KEYS ב־translator/xflags.py**. העובד: דגלים =
+   XF_DEFAULT ∪ spec.xf; '-שם' מכבה דגל שכבר הופעל כברירת מחדל. רק מ־goldRun עם arms (מנהל) — לא מהטופס. עבודה עם xf לא מלמדת
+   את הצפי ואת נורמת העלות, ומסומנת במאגר הלמידה */
+const XF_KEYS = ['smf', 'gq', 'qskip', 'rvs60'], XF_MAX = 8;
+function normXf(x) {
+  if (!Array.isArray(x)) return null;
+  const o = Array.from(new Set(x.map(String).filter((f) => XF_KEYS.includes(f.replace(/^-/, ''))))).slice(0, XF_MAX).sort();
+  return o.length ? o : null;
+}
+/* "הרץ גל": עד GOLD_ARMS זרועות — לכל אחת מצב, דגלים, ואפשר גם רשימת מקורות (מזהי עבודות זהב). null = לא תקין */
+const GOLD_ARMS = 3;
+function normArms(a, srcIds) {
+  if (!Array.isArray(a) || !a.length || a.length > GOLD_ARMS) return null;
+  const ids = new Set(srcIds || []), out = [];
+  for (const x of a) {
+    if (!x || typeof x !== 'object' || Array.isArray(x)) return null;
+    const mode = x.mode == null ? DEFAULT_MODE : (MODES.includes(x.mode) || LEGACY_MODES[x.mode]) ? modeNow(x.mode) : null;
+    if (!mode || (x.xf != null && !Array.isArray(x.xf)) || (x.src != null && !Array.isArray(x.src))) return null;
+    const src = Array.isArray(x.src) ? Array.from(new Set(x.src.map(String))).filter((i) => ids.has(i)) : null;
+    if (src && !src.length) return null;
+    out.push({ mode, xf: normXf(x.xf), src });
+  }
+  return out;
+}
+/* כל המקורות × כל הזרועות, בסדר משולב (מקור 1 זרוע א, מקור 1 זרוע ב, מקור 2…) — אותה גרסת עובד ואותו זיכרון לכל הזרועות */
+function waveOrder(srcs, arms) {
+  const out = [];
+  for (const j of srcs) arms.forEach((a, i) => { if (!a.src || a.src.includes(j.id)) out.push([j, a, i]); });
+  return out;
+}
+function waveClone(src, id, uid, now, arm, i) {
+  const c = goldClone(src, id, uid, now, arm.mode);
+  c.spec = Object.assign({}, c.spec, { out: ['srt'] });   // הרצת גל: רק SRT — בלי צריבה ובלי העלאת וידאו (כמו עבודת העשן)
+  if (arm.xf) c.spec.xf = arm.xf;
+  c.wa = i;   // מספר הזרועה בגל (0..) — לזיווג בניתוח
+  return c;
+}
 function goldClone(src, id, uid, now, mode, xe) {
   const out = Array.from(new Set((Array.isArray(src.spec && src.spec.out) ? src.spec.out : []).concat(['srt'])));   // ההשוואה צריכה SRT
   const gd = normGd(src.gd), spec = Object.assign({}, src.spec, { out }, mode ? { mode: modeNow(mode) } : {});
   // 24/10/2026: ההשוואה בין המצבים רצה על השרת של המערכת — בלי ה־Routine (ry) ובלי העתק־הדבק (cp), כך שכל ההרצות
   // באותם תנאים ולא תלויות בסשן של המשתמש; הניסוי (xe) רק כשנבחר
-  delete spec.ry; delete spec.cp; delete spec.xe; delete spec.xg;
+  delete spec.ry; delete spec.cp; delete spec.xe; delete spec.xg; delete spec.xf;
   const v = xe && (xe.xe || xe.xg) ? xe : { xe };   // וריאנט: { xe, xg } (או מאמץ לבד — הצורה הישנה)
   const x = normXe(v.xe);
   if (x) spec.xe = x;
@@ -1502,7 +1539,7 @@ function fromFields(f) {
 module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, normVcp, bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, jobSeries, SM_BYTES, dualAb, DUAL_AB_UNTIL, rvAb, RV_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
-  GOLD_MAX, GOLD_MAX_ADMIN, goldMax, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, cuesSwap, rrSpec, rrJob,
+  GOLD_MAX, GOLD_MAX_ADMIN, goldMax, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XF_KEYS, XF_MAX, normXf, GOLD_ARMS, normArms, waveOrder, waveClone, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, cuesSwap, rrSpec, rrJob,
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normFil, FIL_MAX, normSty, normOv, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
