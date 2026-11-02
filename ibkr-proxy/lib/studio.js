@@ -993,7 +993,7 @@ function normXf(x) {
   return o.length ? o : null;
 }
 /* "הרץ גל": עד GOLD_ARMS זרועות — לכל אחת מצב, דגלים, ואפשר גם רשימת מקורות (מזהי עבודות זהב). null = לא תקין */
-const GOLD_ARMS = 3;
+const GOLD_ARMS = 4;   // 02/11/2026: M1 — א/ב/ג + ד (חצי מחיר)
 function normArms(a, srcIds) {
   if (!Array.isArray(a) || !a.length || a.length > GOLD_ARMS) return null;
   const ids = new Set(srcIds || []), out = [];

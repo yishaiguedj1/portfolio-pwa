@@ -2142,8 +2142,8 @@ function stubFetch(text, status = 200) {
       ok(rr.statusCode === 403 || rr.payload.error === 'admin' || rr.payload.error === 'no_gold' || !rr.payload.ok, 'סטודיו: הרץ גל — לא למי שאינו מנהל');
       rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, arms: [{ mode: 'nope' }] });
       ok(rr.statusCode === 400 && rr.payload.error === 'bad_params', 'סטודיו: הרץ גל — מצב לא מוכר בזרועה נדחה');
-      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, arms: [{}, {}, {}, {}] });
-      ok(rr.statusCode === 400, 'סטודיו: הרץ גל — עד 3 זרועות');
+      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, arms: [{}, {}, {}, {}, {}] });
+      ok(rr.statusCode === 400, 'סטודיו: הרץ גל — עד 4 זרועות');
       rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, arms: [{ mode: 'haiku-medium' }, { mode: 'haiku-high', xf: ['smf', 'zzz', 'smf'] }] });
       const wj = rr.payload.jobs || [];
       ok(rr.payload.ok && wj.length === 24 && wj.every((j, i) => j.wa === i % 2 && j.spec.mode === (i % 2 ? 'haiku-high' : 'haiku-medium') && j.state === 'new')
