@@ -1,6 +1,6 @@
 """מנוע התזמון — סנכרון מדויק לפריים בין הדיבור לכתובית.
 
-הכללים (Netflix Timed Text Style Guide — Subtitle Timing Guidelines):
+הכללים (לפי ת־כתוביות — הנחיות התזמון):
 • כניסה בפריים הראשון של הדיבור (עד 1–2 פריימים לפניו).
 • יציאה עד חצי שנייה אחרי סוף הדיבור, וארוך יותר רק אם קצב הקריאה מחייב.
 • משך: לפחות 5/6 שנייה, לכל היותר 7 שניות.
@@ -142,6 +142,20 @@ def time_cues(cues: list[dict], grid: FrameGrid, shots: list[int] | None,
         if c["fo"] <= c["fi"]:
             c["fo"] = c["fi"] + MIN
             c["flags"].append("forced_min")
+    # 02/11/2026 (PR3, ‏D9 §5.6): forced_min ושרשור יכלו להשאיר כתובית שנגמרת אחרי שהבאה כבר נכנסה (8 ב־17 פרקים).
+    # מעבר אחרון: חותכים את הראשונה כשנשאר לה לפחות פריים; אחרת דוחפים את הבאה — והדחיפה ממשיכה לזוג הבא
+    for i in range(len(cues) - 1):
+        a, b = cues[i], cues[i + 1]
+        if a["fo"] > b["fi"] - G:
+            if b["fi"] - G - a["fi"] >= 1:
+                a["fo"] = b["fi"] - G
+                a["flags"].append("overlap_cut")
+            else:
+                b["fi"] = a["fi"] + MIN + G
+                b["fo"] = max(b["fo"], b["fi"] + MIN)
+                b["flags"].append("pushed")
+                a["fo"] = b["fi"] - G
+    for c in cues:
         if c["fo"] - c["fi"] > MAX:          # כלל קשיח: לעולם לא יותר מ־7 שניות
             c["fo"] = c["fi"] + MAX
             c["flags"].append("clamped_max")

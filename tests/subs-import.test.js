@@ -16,7 +16,8 @@ const ok = (c, m) => { if (c) pass++; else { fail++; console.log('FAIL', m); } }
   const LINE = () => {
     const r = rnd();
     if (r < 0.06) return pick(['[DOOR SLAMS]', '(sighs)', '♪ ♪', '(LAUGHTER)']);
-    if (r < 0.1) return pick(['MICHAEL: ', 'SARAH (whispering): ', '- JOHN: ', 'DR. REES: ', 'WARNING: HIGH VOLTAGE ']) + pick(W) + ' ' + pick(W);
+    if (r < 0.1) return pick(['MICHAEL: ', 'SARAH (whispering): ', '- JOHN: ', 'DR. REES: ', 'WARNING: HIGH VOLTAGE ', 'OREN & NAAMA: ', 'MAN, WOMAN AND BOY: ', 'BIG RED DOG & CAT: ']) + pick(W) + ' ' + pick(W);
+    if (r < 0.11) return pick(['OREN:', '- NAAMA & DAN:', 'NOTE:']);   // 02/11/2026: תווית לבד בשורה
     if (r < 0.13) return pick(['Synced by kitty', 'www.addic7ed.com', 'Subtitles by OpenSubtitles']);
     if (r < 0.2) return '<i>' + pick(W) + ' ' + pick(W) + '</i>';
     if (r < 0.24) return '- ' + pick(W) + ' ' + pick(W);

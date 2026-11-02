@@ -506,7 +506,7 @@ def _build(pr: Project, style_name: str | None, chooser, sty: dict | None = None
     en_cues = [dict(c, en_lines=[c["en"]]) for c in final]
     write_text(od / "en.reference.srt", write_srt(en_cues, with_rlm=False, key="en_lines"))
     keep = ("id", "spk", "speech_s", "speech_e", "si", "so", "fi", "fo", "start", "end", "lines", "chars",
-            "cps", "flags", "en", "he", "snap_in", "snap_out", "chained", "merged", "cps_merged", "it", "top", "lift", "tpl")
+            "cps", "flags", "en", "he", "snap_in", "snap_out", "chained", "merged", "cps_merged", "it", "top", "lift", "tpl", "plan_s")
     write_json(od / "cues.final.json", [{k: c[k] for k in keep if k in c} for c in final])
     # האפשרויות לבחירה של Haiku (pipeline: lb-prompt → Claude → lb-apply → build שוב)
     lb_items = LB.items_for(final, tx.max_chars_line, meas, st.max_line_px)

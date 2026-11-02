@@ -2262,7 +2262,11 @@ def align_ck_watch(ctx, stop):
 
 
 def _vt(ctx, args, stage, lo, hi, t0):
-    proc = subprocess.Popen([VT_PY, '-m', 'vt'] + args, cwd=str(HERE), env=vt_env(),
+    import xflags
+    env = vt_env()
+    if xflags.on(getattr(ctx, 'st', None), 'gq'):   # 02/11/2026 (PR3): דגל ניסוי — מגדר "לא ודאי" → בלי מגדר (vt.translate.gender_of)
+        env['VT_GQ'] = '1'
+    proc = subprocess.Popen([VT_PY, '-m', 'vt'] + args, cwd=str(HERE), env=env,
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
     tail = []
     rp = RenderProg(args[1:]) if args and args[0] == 'render' else None
@@ -4118,7 +4122,7 @@ def review_puns(text, ids=None):
             continue
         rest = ln.strip()[m.end():].strip(' `:-–|')
         alts = []
-        for a in rest.split('|'):
+        for a in re.split(r'(?<!\|)\|(?!\|)', rest):   # 02/11/2026 (PR3): רק | בודד — || בתוך חלופה = שני דוברים
             a = re.sub(r'\s+', ' ', a).strip(' `"\'«»')[:90]
             if a and a not in alts:
                 alts.append(a)

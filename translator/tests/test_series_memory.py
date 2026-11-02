@@ -159,7 +159,8 @@ class TestDualAb(unittest.TestCase):
             self.assertEqual(e.effort(), 'high', 'התרגום נשאר high')
         finally:
             llm._tl.k = ''
-        self.assertFalse(P.rv_ab(eng('haiku-high'), {}), 'בלי xr — רגיל')
+        self.assertTrue(P.rv_ab(eng('haiku-high'), {}), '02/11/2026 (PR3): xr קבוע — גם בלי xr')
+        self.assertFalse(P.rv_ab(eng('sonnet-high'), {}), 'רק ב־Haiku')
         self.assertFalse(P.rv_ab(eng('haiku-medium'), {'xr': 1}), 'medium — אין מה להוריד')
         self.assertFalse(P.rv_ab(eng('sonnet-low'), {'xr': 1}), 'לא מעלים מצב נמוך')
         g = eng('haiku-high', {'rv': 'high'})
