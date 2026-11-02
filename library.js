@@ -4570,6 +4570,36 @@ function libDialSync(instant) {
   if (show && typeof dialSync === 'function') dialSync(instant);
 }
 let SA = null;
+/* 02/11/2026 (Studio Browser, הגל השישי — 70 מאמר ל־Academy): ספר EPUB ששותף ל־Academy. האפליקציה לאנדרואיד שולחת אותו
+   ב־POST ל־/share-file (Web Share Target), sw.js שומר אותו בתיבה snb-inbox ומעביר לדף עם ‎#book=<מפתח>. כאן — הוספה לספרייה
+   הפרטית (אותו ייבוא של "הוספת ספר"), והקובץ נמחק מהתיבה. מפתח לא מוכר / קובץ שלא נקרא — לא קורה כלום */
+async function inboxBook() {
+  let k = '';
+  try { const m = /(?:^#|&)book=([a-z2-9]{12})(?:&|$)/.exec(location.hash || ''); k = m ? m[1] : ''; } catch (e) {}
+  if (!k || typeof indexedDB === 'undefined') return;
+  try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
+  const op = (mode) => new Promise((ok) => {
+    const r = indexedDB.open('snb-inbox', 1);
+    r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains('f')) r.result.createObjectStore('f'); };
+    r.onerror = () => ok(null);
+    r.onsuccess = () => {
+      try {
+        const os = r.result.transaction('f', mode === 'get' ? 'readonly' : 'readwrite').objectStore('f');
+        const q = mode === 'get' ? os.get(k) : os.delete(k);
+        q.onsuccess = () => ok(mode === 'get' ? q.result || null : null); q.onerror = () => ok(null);
+      } catch (x) { ok(null); }
+    };
+  });
+  const rec = await op('get');
+  if (!rec || !rec.f) return;
+  const name = String((rec.f && rec.f.name) || rec.t || 'article').replace(/\.epub$/i, '').slice(0, 80) + '.epub';
+  const n = await importFiles([new File([rec.f], name, { type: 'application/epub+zip' })]).catch(() => 0);
+  await op('del');
+  if (!n) return;
+  if (ui.shelf !== 'mine') setShelf('mine'); else renderHome();
+  indexAll(); BK.schedule();
+  flashSafe(T('libBookGot'));
+}
 export async function openLibrary(opt) {
   ensureCss();
   if (root) return;
@@ -4621,6 +4651,7 @@ export async function openLibrary(opt) {
   } else curtainDown(true);                // הווילון של academy.html (class בדף) — יורד כשהבית מצויר
   await first;
   backfillCovers();
+  inboxBook();                             // 70: מאמר מ־Studio Browser (שיתוף ← Academy)
   BK.schedule(8000);                       // v318: גיבוי אוטומטי של הספרייה הפרטית, אם הגיע הזמן
   refreshCloud(true);                      // v319: ספרים שבגיבוי ולא בטלפון
   await pullCloud();

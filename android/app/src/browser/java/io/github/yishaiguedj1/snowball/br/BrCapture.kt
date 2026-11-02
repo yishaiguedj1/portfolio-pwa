@@ -29,7 +29,7 @@ import java.util.Locale
  * הקראה (TextToSpeech של המערכת — בטלפון, בלי ענן) והדפסה ל־PDF (PrintManager). הלוגיקה הטהורה — BrRead.
  */
 object BrCapture {
-    private const val DIR = "Studio Browser"
+    const val DIR = "Studio Browser"
 
     /** תמונה לגלריה (Pictures/Studio Browser) — מחזיר את הכתובת, או null */
     fun saveImage(ctx: Context, b: Bitmap, name: String): Uri? = save(ctx, name, "image/png", true) { o -> b.compress(Bitmap.CompressFormat.PNG, 100, o) }
