@@ -1046,9 +1046,11 @@ class JobHooks(unittest.TestCase):
 class RunAutoResume(unittest.TestCase):
     """run_auto: המשך מנקודת שמירה מדלג על מה שכבר שולם — בלי Claude אמיתי (Pipeline ו־Engine מדומים)."""
 
-    def flow(self, ck, resumed, proofed=False, src=None, attach=False, tl_fail=False, rc_want=0, park='', late=False):
+    def flow(self, ck, resumed, proofed=False, src=None, attach=False, tl_fail=False, rc_want=0, park='', late=False, bw=False):
         log = []
         state = {'job': 'j' + 'a' * 20, 'spec': {'mode': 'opus-medium'}, 'ck': ck}
+        if bw:
+            state['spec'].update(bt=1, eng='api')   # 01/11/2026 (I3): חצי מחיר
         if src:
             state['src'] = src
 
@@ -1112,7 +1114,7 @@ class RunAutoResume(unittest.TestCase):
                 return 0
 
             def Ctx(self, st):
-                return NS(st=st, report=lambda *a, **k: log.append('fail') if k.get('fail') else log.append('park') if k.get('park') else None)
+                return NS(st=st, report=lambda *a, **k: log.append('fail') if k.get('fail') else log.append('park:bw' if k.get('bw') else 'park') if k.get('park') else None)
 
         J.Park = Park
 
@@ -1129,6 +1131,8 @@ class RunAutoResume(unittest.TestCase):
 
             def translate(self, fix=True, quiet=False):
                 log.append('translate')
+                if bw:
+                    raise P.llm.BatchWait('h')
                 if tl_fail:
                     raise P.llm.LLMError('max_tokens', 'נקטעה')
 
@@ -1235,6 +1239,21 @@ class RunAutoResume(unittest.TestCase):
         self.assertLess(log.index('ck:tl'), log.index('park'))
         log = self.flow([{'s': 'tl', 'id': 'x'}], 'tl', src='a', late=True)
         self.assertEqual([x for x in log if x != 'prefetch'], ['restore', 'attach_late', 'review', 'qc', 'lb', 'judge', 'finish'])
+
+    def test_batch_wait_parks_after_saving(self):
+        # 01/11/2026 (I3): התרגום נרשם לתור החיסכון — מחכים ליישור, שומרים al, חונים (קוד 3, bw) וסופרים סבב
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ['SNB_BATCH_DIR'] = tmp
+            try:
+                log = self.flow([], None, bw=True, rc_want=3)
+            finally:
+                os.environ.pop('SNB_BATCH_DIR', None)
+            self.assertEqual(log[-1], 'park:bw')
+            self.assertLess(log.index('ck:al'), log.index('park:bw'))
+            jd = Path(tmp) / ('j' + 'a' * 20)
+            self.assertEqual((jd / 'rounds').read_text(), '1')
+            self.assertTrue((jd / 'parked').exists())
 
     def test_park_before_anything_paid(self):
         # בלי קול נפרד: מחכים לסרטון עוד בהכנה — אין מה לשמור, פשוט חוזרים לתור

@@ -220,6 +220,8 @@ def poll(server: str, tok: str, op: str = 'poll', busy: str = '', fit: dict | No
         body = {'op': op, 'v': 1, 'hb': hb}
         if fit:
             body['fit'] = fit
+        if op == 'poll' and BT_READY:
+            body['br'] = BT_READY[:20]   # 01/11/2026 (I3): עבודות שהתשובות שלהן חזרו מתור החיסכון — השרתון משחרר אותן
         if op == 'poll' and _boot:
             body['boot'] = True      # 20/10/2026: הפנייה הראשונה אחרי העלייה — השרתון מסמן עבודה שנקטעה אצלנו (worker_lost)
         st, j, hd = J.http('POST', server + '/api/studio', body,
@@ -967,7 +969,8 @@ class Slot:
         for d in (self.state, self.work):
             shutil.rmtree(d, ignore_errors=True)
             d.mkdir(parents=True, exist_ok=True)
-        env = dict(os.environ, SNB_STATE=str(self.state), VT_WORK=str(self.work), SNB_SLOT=str(self.n), SNB_FLIGHT_DIR=str(FLIGHT_DIR))
+        env = dict(os.environ, SNB_STATE=str(self.state), VT_WORK=str(self.work), SNB_SLOT=str(self.n), SNB_FLIGHT_DIR=str(FLIGHT_DIR),
+                   SNB_BATCH_DIR=str(BT_DIR))   # 01/11/2026 (I3): תור החיסכון — משותף לכל המשבצות
         self.p = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), '--slot'], env=env, cwd=str(HERE.parent),
                                   stdin=subprocess.PIPE, start_new_session=True)
         # העבודה (כולל המפתח) — ב־stdin, לא בשורת הפקודה (שגלויה ב־ps)
@@ -1329,6 +1332,160 @@ def yt_loop(server: str, tok: str):
             time.sleep(1)
 
 
+# ---------------------------------------------------------------- תור החיסכון (01/11/2026, סבב 3 — I3)
+# עבודה של "חצי מחיר" רושמת את הבקשות שלה ל־Claude ב־BT_DIR/<עבודה>/req/ וחונה (llm.BatchWait). כאן — חוט אחד לכל השרת:
+# אוסף את הבקשות של כל העבודות (BT_GATHER_S אחרי האחרונה — הקבצים של רשימת עבודה מגיעים יחד), שולח batch אחד,
+# בודק כל BT_POLL_S, כותב את התשובות (ans/) ומדווח לשרתון (poll ‏br) אילו עבודות מוכנות להמשך.
+BT_DIR = Path(os.environ.get('SNB_BATCH_DIR') or str(J.VT_WORK / '_batch'))
+BT_GATHER_S = float(os.environ.get('SNB_BT_GATHER_S', '180'))
+BT_POLL_S = float(os.environ.get('SNB_BT_POLL_S', '120'))
+BT_MAX_REQ = 2000
+BT_MAX_BYTES = 150 * 1024 * 1024       # התקרה של Anthropic 256MB — עם מרווח
+BT_KEEP_S = 3 * 86400                  # תיקיית עבודה שלא חונה ולא נגעו בה 3 ימים — נמחקת
+BT_READY: list = []
+_bt_last: dict = {'poll': 0.0}
+
+
+def bt_cid(job: str, h: str) -> str:
+    return re.sub(r'[^A-Za-z0-9_-]', '', job)[:23] + '-' + h
+
+
+def bt_sent() -> dict:
+    """batch id → {'ids': {custom_id: [job, h]}, 't'}"""
+    out = {}
+    for f in (BT_DIR / '_sent').glob('*.json'):
+        try:
+            out[f.stem] = json.loads(f.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            continue
+    return out
+
+
+def bt_pending(sent: dict) -> list:
+    """בקשות שנרשמו ועוד לא נשלחו: [(job, h, params, t)]"""
+    fly = {tuple(v) for b in sent.values() for v in (b.get('ids') or {}).values()}
+    out = []
+    for jd in BT_DIR.iterdir() if BT_DIR.exists() else ():
+        if not jd.is_dir() or jd.name.startswith('_'):
+            continue
+        for f in (jd / 'req').glob('*.json'):
+            if (jd.name, f.stem) in fly or (jd / 'ans' / f.name).exists():
+                continue
+            try:
+                d = json.loads(f.read_text(encoding='utf-8'))
+            except (OSError, ValueError):
+                continue
+            if isinstance(d.get('p'), dict):
+                out.append((jd.name, f.stem, d['p'], float(d.get('t') or 0)))
+    return out
+
+
+def bt_submit(client, reqs: list, now: float) -> list:
+    """שולח את הבקשות ב־batch אחד או יותר (תקרת מספר וגודל). מחזיר את מזהי ה־batch."""
+    ids, chunk, size = [], [], 0
+
+    def flush():
+        if not chunk:
+            return
+        b = client.messages.batches.create(requests=[{'custom_id': bt_cid(j, h), 'params': p} for j, h, p, _ in chunk])
+        _bt_write(BT_DIR / '_sent' / (b.id + '.json'), {'ids': {bt_cid(j, h): [j, h] for j, h, _, _ in chunk}, 't': now})
+        ids.append(b.id)
+
+    for r in reqs:
+        n = len(json.dumps(r[2], ensure_ascii=False).encode('utf-8'))
+        if chunk and (len(chunk) >= BT_MAX_REQ or size + n > BT_MAX_BYTES):
+            flush()
+            chunk, size = [], 0
+        chunk.append(r)
+        size += n
+    flush()
+    return ids
+
+
+def _bt_write(path: Path, obj) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + '.part')
+    tmp.write_text(json.dumps(obj, ensure_ascii=False), encoding='utf-8')
+    tmp.replace(path)
+
+
+def _bt_dump(m):
+    if isinstance(m, dict):
+        return m
+    try:
+        return m.model_dump(mode='json')
+    except TypeError:
+        return m.model_dump()
+
+
+def bt_collect(client, bid: str, info: dict) -> bool:
+    """batch שהסתיים — כל תשובה לתיקייה של העבודה שלה (m = ההודעה, x = פגה/נכשלה/בוטלה → בזמן אמת). True = טופל."""
+    b = client.messages.batches.retrieve(bid)
+    if getattr(b, 'processing_status', '') != 'ended':
+        return False
+    ids = dict(info.get('ids') or {})
+    for r in client.messages.batches.results(bid):
+        jh = ids.pop(getattr(r, 'custom_id', ''), None)
+        if not jh:
+            continue
+        res = getattr(r, 'result', None)
+        t = getattr(res, 'type', '') or 'errored'
+        ans = {'m': _bt_dump(res.message)} if t == 'succeeded' and getattr(res, 'message', None) is not None else {'x': t}
+        _bt_write(BT_DIR / jh[0] / 'ans' / (jh[1] + '.json'), ans)
+        (BT_DIR / jh[0] / 'req' / (jh[1] + '.json')).unlink(missing_ok=True)
+    for j, h in ids.values():                      # לא חזרה תשובה — כמו כשל (העבודה תקרא בזמן אמת)
+        _bt_write(BT_DIR / j / 'ans' / (h + '.json'), {'x': 'missing'})
+        (BT_DIR / j / 'req' / (h + '.json')).unlink(missing_ok=True)
+    (BT_DIR / '_sent' / (bid + '.json')).unlink(missing_ok=True)
+    return True
+
+
+def bt_tick(client, now: float | None = None) -> dict:
+    """סבב אחד של האוסף: איסוף מה שהסתיים (כל BT_POLL_S), שליחת מה שחיכה מספיק, רשימת המוכנות, ניקוי."""
+    now = time.time() if now is None else now
+    out = {'sent': [], 'done': 0}
+    sent = bt_sent()
+    if sent and now - _bt_last['poll'] >= BT_POLL_S:
+        _bt_last['poll'] = now
+        for bid, info in list(sent.items()):
+            if bt_collect(client, bid, info):
+                out['done'] += 1
+                sent.pop(bid, None)
+    pend = bt_pending(sent)
+    if pend and (now - max(r[3] for r in pend) >= BT_GATHER_S or now - min(r[3] for r in pend) >= 4 * BT_GATHER_S):
+        out['sent'] = bt_submit(client, pend, now)
+    ready = []
+    for jd in BT_DIR.iterdir() if BT_DIR.exists() else ():
+        if not jd.is_dir() or jd.name.startswith('_'):
+            continue
+        if _bt_ready(jd):
+            ready.append(jd.name)
+        elif not (jd / 'parked').exists() and now - jd.stat().st_mtime > BT_KEEP_S:
+            shutil.rmtree(jd, ignore_errors=True)
+    BT_READY[:] = ready
+    return out
+
+
+def _bt_ready(jd: Path) -> bool:
+    return (jd / 'parked').exists() and not any((jd / 'req').glob('*.json'))
+
+
+def bt_loop(server: str = '', tok: str = ''):      # noqa: ARG001 — אותה חתימה כמו שאר החוטים
+    client = None
+    while not _stop:
+        try:
+            if client is None:
+                import anthropic
+                client = anthropic.Anthropic(max_retries=4, timeout=60.0)
+            bt_tick(client)
+        except Exception as e:     # noqa: BLE001 — חוט רקע: תקלה ברשת / ב־API — ננסה שוב בסבב הבא
+            print('· תור החיסכון: ' + type(e).__name__, flush=True)
+        for _ in range(30):
+            if _stop:
+                return
+            time.sleep(1)
+
+
 WARM_WAIT_S = 900
 
 
@@ -1370,6 +1527,8 @@ def main(once: bool = False) -> int:
         threading.Thread(target=beat_loop, args=(server, tok), daemon=True).start()
         if os.environ.get('SNB_PT', 'on') != 'off' and os.environ.get('ANTHROPIC_API_KEY'):
             threading.Thread(target=pt_loop, args=(server, tok), daemon=True).start()   # 25/10/2026: תרגום בטלפון — Claude
+        if os.environ.get('SNB_BT', 'on') != 'off' and os.environ.get('ANTHROPIC_API_KEY'):
+            threading.Thread(target=bt_loop, args=(server, tok), daemon=True).start()   # 01/11/2026 (I3): תור החיסכון
         if os.environ.get('SNB_PROBE', 'on') != 'off':
             threading.Thread(target=probe_loop, args=(server, tok), daemon=True).start()   # 22/10/2026: בדיקות קישור
         if os.environ.get('SNB_YT', 'on') != 'off':
