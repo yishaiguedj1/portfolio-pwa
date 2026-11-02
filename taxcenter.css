@@ -83,3 +83,7 @@ html.tx-open { overflow: hidden; }
 .tx-grab { width: 40px; height: 5px; border-radius: var(--pill); background: var(--separator); margin: 0 auto 2px; }
 .tx-lot { display: flex; flex-direction: column; gap: 8px; padding: 10px 0; border-top: 1px solid var(--separator); }
 .tx-h + .tx-lot { border-top: 0; }
+/* 02/11/2026 (מרכז המס, שלבים 11–12): הגדרות מתקדמות וסימון */
+.tx-adv summary { cursor: pointer; list-style: none; }
+.tx-adv summary::-webkit-details-marker { display: none; }
+.tx-chk input { width: auto; inline-size: 22px; block-size: 22px; accent-color: var(--primary); }

@@ -38,6 +38,12 @@ function cashKey(c) {
   return [c.date, c.type, Math.round((Number(c.amount) || 0) * 100), (c.description || '').slice(0, 30)].join('|');
 }
 
+/* פעולה תאגידית / העברת ניירות (מרכז המס): מזהה, אחרת התוכן */
+function taxEvKey(e) {
+  const id = String((e && e.id) || '').trim();
+  return (e && e.k) + '|' + (id ? 'id:' + id : [e.date, e.type, e.symbol, e.qty].join('|'));
+}
+
 /* האם שתי תקופות חופפות (כולל מגע בקצוות)? */
 function rPeriodsOverlap(a, b) {
   if (!a || !b || !a.fromDate || !a.toDate || !b.fromDate || !b.toDate) return false;
@@ -145,6 +151,7 @@ function rMergeData(a, b) {
     if (x && !x.time && x.tradeId && tB.has(String(x.tradeId))) trades[i] = Object.assign({}, x, { time: tB.get(String(x.tradeId)) });
   }
   const cashTransactions = unionCount(A.cashTransactions, B.cashTransactions, cashKey);
+  const taxEvents = unionCount(A.taxEvents, B.taxEvents, taxEvKey);   // מרכז המס (02/11/2026)
   const seenP = rMergePeriods(A.navPeriods, B.navPeriods);
   const navPeriods = seenP.periods;
   const mA = A.meta || {}, mB = B.meta || {};
@@ -165,6 +172,7 @@ function rMergeData(a, b) {
     trades: trades,
     positions: posSrc.positions || [],
     cashTransactions: cashTransactions,
+    taxEvents: taxEvents,
     navPeriods: navPeriods,
     navDaily: rMergeNavDaily(A.navDaily, B.navDaily),
     cashBalances: cashSrc.cashBalances || [],

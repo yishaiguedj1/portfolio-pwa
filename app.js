@@ -583,6 +583,35 @@ he: {
   txSemi1: "דוח ומקדמה למחצית הראשונה — עד 31/7: כ־{v}.",
   txSemi2: "דוח ומקדמה למחצית השנייה — עד 31/1/{y}: כ־{v}.",
   txW8: "{s} ({d}): נוכה יותר מ־25% בארה״ב — את העודף ({v}) אפשר לקבל רק מה־IRS. כדאי לבדוק שטופס W-8BEN בתוקף.",
+  txMgmtFee: "מתוכם דמי ניהול (תקנה 6)",
+  txPoolCg: "עודף זיכוי מדיבידנד מול רווח הון זר",
+  txShortcut: "במסלול המקוצר (5329ב, בלי קיזוז) המס היה {v} — להשוואה בלבד.",
+  txCarryLost: "הפסד שלא עובר (לא הוגש דוח)",
+  txFiled: "הוגש דוח לשנת {y} (תנאי להעברת ההפסד)",
+  txMarginCmp: "השוואה (101א(ב)): בלי ניכוי {a}; עם ניכוי הריבית, ב־30% — {b}.",
+  txMarginCmpY: "כאן הניכוי זול יותר — כדאי לבדוק עם רו״ח.",
+  txAdvH: "הגדרות מתקדמות",
+  txAdvS: "מצבים נדירים והגדרות שנויות במחלוקת. כל שינוי כאן מסמן את התוצאה כהערכה.",
+  txResL: "תאריך תושבות — עולה חדש או תושב חוזר ותיק (פטור 10 שנים)",
+  txSubL: "ניירות שבהם אני בעל מניות מהותי (30%), מופרדים בפסיק",
+  txNoOffIntL: "לא לקזז הפסד מול ריבית על מזומן",
+  txPoolCgL: "עודף זיכוי מדיבידנד גם מול רווח הון זר (205א(ב))",
+  txFxTaxL: "הפרשי שער על המרות מט״ח — כרווח הון",
+  txNoteEst: "חלק מהחישובים (נגזרים, מכירה בחסר, פעולות תאגידיות, תושבות, דמי ניהול, הגדרות במחלוקת) הם הערכה.",
+  txNoteData: "דמי נתונים לא מנוכים.",
+  txCorpDecide: "{s} ({d}): פעולה תאגידית {c} — צריך להחליט איך לחלק את העלות. בלי החלטה היא לא נכנסת לחישוב.",
+  txCorpPct: "אחוז העלות שעובר ל־{n}",
+  txCorpNoLots: "{s} ({d}): פעולה תאגידית {c} בלי מנות פתוחות — חסרה היסטוריה.",
+  txCorp: "{s} ({d}): פעולה תאגידית {c} — העלות והתאריך עברו הלאה (הערכה).",
+  txTinNoCost: "{s} ({d}): {q} יחידות הועברו לחשבון בלי עלות. צריך את העלות המקורית ואת תאריך הקנייה.",
+  txTinCost: "עלות כוללת, במטבע הנייר",
+  txTinDate: "תאריך הקנייה",
+  txShort: "{s} ({d}): מכירה בחסר — המס לפי שער המכירה (הערכה).",
+  txShortOpen: "{s}: מכירה בחסר פתוחה מ־{d} ({q}).",
+  txOption: "{s} ({d}): מימוש או הקצאה של אופציה — הפרמיה עברה לעלות של נכס הבסיס (הערכה).",
+  txOptOrphan: "{s} ({d}): אופציה מומשה, ולא נמצאה עסקה בנכס הבסיס באותו יום.",
+  txCrypto: "{s} ({d}): מכירת קריפטו — מדווחים בטופס 1399 תוך 30 יום, לא ב־1325.",
+  txEstateTax: "מס עיזבון משוער: {v}.",
   txHealth: "{s}: אצל הברוקר {b}, בעסקאות שבמכשיר {l} — חסרות עסקאות, והמס של הנייר לא אמין.",
   txNoLots: "{s}: מכירה ב־{d} בלי קנייה מתאימה — חסרה היסטוריה.",
   txLotMethod: "{s}: ‏IBKR התאימה מנות בשיטה {c} — כאן מחושב FIFO, כמו שהחוק דורש.",
@@ -2229,6 +2258,35 @@ en: {
   txSemi1: "First-half return and payment — by 31/7: about {v}.",
   txSemi2: "Second-half return and payment — by 31/1/{y}: about {v}.",
   txW8: "{s} ({d}): more than 25% was withheld in the US — the excess ({v}) can only be refunded by the IRS. Check that your W-8BEN is valid.",
+  txMgmtFee: "Of which management fees (Reg. 6)",
+  txPoolCg: "Excess dividend credit against foreign gains",
+  txShortcut: "Under the short track (5329B, no offsetting) the tax would be {v} — for comparison only.",
+  txCarryLost: "Loss not carried forward (no return filed)",
+  txFiled: "A return was filed for {y} (required to carry the loss)",
+  txMarginCmp: "Comparison (101A(b)): without deduction {a}; deducting the interest at 30% — {b}.",
+  txMarginCmpY: "Here deducting is cheaper — check with your accountant.",
+  txAdvH: "Advanced settings",
+  txAdvS: "Rare situations and disputed settings. Any change here marks the result as an estimate.",
+  txResL: "Residency date — new immigrant or senior returning resident (10-year exemption)",
+  txSubL: "Securities where I am a substantial shareholder (30%), comma-separated",
+  txNoOffIntL: "Don't offset losses against interest on cash",
+  txPoolCgL: "Use excess dividend credit against foreign capital gains too (205A(b))",
+  txFxTaxL: "Treat FX conversion differences as capital gains",
+  txNoteEst: "Some figures (derivatives, short sales, corporate actions, residency, management fees, disputed settings) are estimates.",
+  txNoteData: "Market-data fees are not deducted.",
+  txCorpDecide: "{s} ({d}): corporate action {c} — decide how to split the cost. Until then it is left out.",
+  txCorpPct: "Share of the cost moved to {n} (%)",
+  txCorpNoLots: "{s} ({d}): corporate action {c} with no open lots — history is missing.",
+  txCorp: "{s} ({d}): corporate action {c} — cost and date carried over (estimate).",
+  txTinNoCost: "{s} ({d}): {q} units were transferred in without a cost. Enter the original cost and purchase date.",
+  txTinCost: "Total cost, in the security's currency",
+  txTinDate: "Purchase date",
+  txShort: "{s} ({d}): short sale — taxed at the sale rate (estimate).",
+  txShortOpen: "{s}: short position open since {d} ({q}).",
+  txOption: "{s} ({d}): option exercise or assignment — the premium moved into the underlying's cost (estimate).",
+  txOptOrphan: "{s} ({d}): an option was exercised but no trade in the underlying was found that day.",
+  txCrypto: "{s} ({d}): crypto sale — report on form 1399 within 30 days, not on 1325.",
+  txEstateTax: "Estimated estate tax: {v}.",
   txHealth: "{s}: the broker shows {b}, the trades on this device {l} — trades are missing, so this security’s tax isn’t reliable.",
   txNoLots: "{s}: a sale on {d} with no matching buy — history is missing.",
   txLotMethod: "{s}: IBKR matched lots by {c} — FIFO is used here, as the law requires.",
@@ -4495,8 +4553,9 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
   const iso = (y) => y.slice(0, 4) + '-' + y.slice(4, 6) + '-' + y.slice(6, 8);
   const merged = {
     meta: { fromDate: iso(startYmd), toDate: '', baseCurrency: 'USD', kind: 'flex', title: 'IBKR Flex' },
-    trades: [], positions: [], cashTransactions: [], navPeriods: [], cashBalances: [],
+    trades: [], positions: [], cashTransactions: [], navPeriods: [], cashBalances: [], taxEvents: [],
   };
+  const seenTaxEv = new Set();   // מרכז המס: פעולות תאגידיות והעברות ניירות
   const seenTrade = new Set(), seenCash = new Map(), seenNav = new Set(), navDay = new Map();
   const chunkResults = [];
   let latestChunkOk = false, posTd = '', metaTd = '', minFromDate = '', consecFails = 0, anyOk = false;
@@ -4535,6 +4594,10 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
       used[k] = (used[k] || 0) + 1;
       const already = seenCash.get(k) || 0;
       if (used[k] > already) { seenCash.set(k, already + 1); merged.cashTransactions.push(c); }
+    }
+    for (const e of (data.taxEvents || [])) {
+      const k = e.k + '|' + (e.id ? 'id:' + e.id : [e.date, e.type, e.symbol, e.qty].join('|'));
+      if (!seenTaxEv.has(k)) { seenTaxEv.add(k); merged.taxEvents.push(e); }
     }
     for (const r of (data.navHistory || [])) {
       const k = (r.fromDate || '') + '|' + (r.toDate || '');
@@ -7183,8 +7246,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.118.0';
-const APP_VERSION = 'v701';
+const APP_RELEASE = '2.119.0';
+const APP_VERSION = 'v702';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');

@@ -64,7 +64,9 @@ function fxNeeds(d) {
     if (!need[cur] || date < need[cur]) need[cur] = date;
   };
   for (const x of (d.trades || [])) add(x.currency, String(x.date || '').slice(0, 10));
-  for (const x of (d.cashTransactions || [])) if (/dividend|withholding|interest|lieu/i.test(x.type || '')) add(x.currency, String(x.date || '').slice(0, 10));
+  for (const x of (d.cashTransactions || [])) if (/dividend|withholding|interest|lieu|fee/i.test(x.type || '')) add(x.currency, String(x.date || '').slice(0, 10));
+  for (const x of (d.taxEvents || [])) add(x.currency, String(x.date || '').slice(0, 10));
+  for (const v of Object.values(settings().tinCost || {})) add('USD', v && v.date);
   // פוזיציה בלי עסקאות — מספיקים השערים של השבועיים האחרונים (שער היום לפעמים עוד לא פורסם)
   const back = new Date(Date.now() - 14 * 864e5).toISOString().slice(0, 10);
   for (const x of (d.positions || [])) add(x.currency, back);
@@ -92,20 +94,25 @@ const fxNow = (cur) => {
 function compute() {
   const d = (E.data && E.data()) || {};
   const st = settings();
-  const f = tiFifo(d.trades || [], fxOf);
-  const divs = tiDividends(d.cashTransactions || [], fxOf);
-  const years = tiYears(f.sales, divs, { carry: Number(st.carry0) || 0, other: st.other || {}, otherCap: st.otherCap || {} });
+  // 02/11/2026 (שלבים 7–12): פעולות תאגידיות והעברות ניירות, ההחלטות של המשתמש, תושבות וההגדרות השנויות במחלוקת
+  const ev = d.taxEvents || [];
+  const f = tiFifo(d.trades || [], fxOf, { corp: ev.filter((e) => e.k === 'ca'), tin: ev.filter((e) => e.k === 'tr'), alloc: st.alloc || {}, tinCost: st.tinCost || {} });
+  const R = tiResident(f.sales, tiDividends(d.cashTransactions || [], fxOf), st.res);
+  const sales = R.sales, divs = R.divs;
+  const yo = { carry: Number(st.carry0) || 0, other: st.other || {}, otherCap: st.otherCap || {}, noOffInt: !!st.noOffInt, poolCg: !!st.poolCg,
+    fxTax: !!st.fxTax, fx: f.fx || [], sub: st.sub || [], filed: st.filed || {} };
+  const years = tiYears(sales, divs, yo);
   const nowY = new Date().getFullYear();
   const yIdx = new Map(years.map((y) => [y.year, y]));
   if (!yIdx.has(nowY)) {
     const prev = years.filter((y) => y.year < nowY).pop();
-    const cur = tiYear(nowY, f.sales, divs, { carry: prev ? prev.carryOut : Number(st.carry0) || 0, other: (st.other || {})[nowY], otherCap: (st.otherCap || {})[nowY], pool: prev ? prev.poolOut : [] });
+    const cur = tiYear(nowY, sales, divs, tiYearOpts(yo, nowY, prev ? prev.carryOut : Number(st.carry0) || 0, prev ? prev.poolOut : []));
     years.push(cur); yIdx.set(nowY, cur);
   }
   const priceOf = (sym) => { const q = E.quote && E.quote(sym); return q && q.close > 0 ? q.close : null; };
   const unreal = tiUnrealized(f.open, priceOf, fxNow, 0);
   const health = tiCheck(f.open, d.positions || []);
-  return { d, f, divs, years, yIdx, unreal, health, w8: tiW8(divs), estate: tiEstate(d.positions || [], priceOf), nowY, st };
+  return { d, f, sales, divs, yo, years, yIdx, unreal, health, w8: tiW8(divs), estate: tiEstate(d.positions || [], priceOf), nowY, st };
 }
 
 /* ---------- פתיחה וסגירה ---------- */
@@ -192,7 +199,9 @@ function render(loading) {
   const flags = new Set();
   for (const yr of C.years) for (const f of yr.flags) flags.add(f);
   wrap.appendChild(h('div', { class: 'tx-note' }, [h('span', { text: 'ⓘ' }), h('span', {}, [h('b', { text: T('txNoteB') }), ' ' + T('txNote') +
-    (S.fxErr ? ' ' + T('txNoteFx') : '') + (flags.has('nominalIls') ? ' ' + T('txNoteIls') : '')])]));
+    (S.fxErr ? ' ' + T('txNoteFx') : '') + (flags.has('nominalIls') ? ' ' + T('txNoteIls') : '') +
+    (['deriv', 'short', 'corp', 'resEx', 'sub', 'disputed', 'crypto', 'mgmtFee'].some((k) => flags.has(k)) ? ' ' + T('txNoteEst') : '') +
+    (flags.has('dataFee') ? ' ' + T('txNoteData') : '')])]));
   if (S.tab === 'year') paintYear(wrap, C);
   else if (S.tab === 'today') paintToday(wrap, C);
   else paintActions(wrap, C);
@@ -215,10 +224,23 @@ function paintYear(wrap, C) {
   ]);
   c1.appendChild(row(T('txGains'), ils(Y.gains)));
   if (Y.losses > 0) c1.appendChild(row(T('txLosses'), ils(-Y.losses)));
+  if (Y.mgmtFee > 0.5) c1.appendChild(row(T('txMgmtFee'), ils(-Y.mgmtFee)));
   if (Y.carryUsed > 0) c1.appendChild(row(T('txCarryUsed'), ils(-Y.carryUsed)));
   if (Y.offIncome > 0) c1.appendChild(row(T('txOffInc'), ils(-Y.offIncome)));
   c1.appendChild(row(T('txCgTax'), ils(Y.cgTax), 'tx-tot'));
+  if (Y.poolCg > 0.5) c1.appendChild(row(T('txPoolCg'), ils(-Y.poolCg)));
   if (Y.carryOut > 0) c1.appendChild(row(T('txCarryOut', { y: S.year + 1 }), ils(Y.carryOut)));
+  if (Y.carryLost > 0.5) c1.appendChild(row(T('txCarryLost'), ils(Y.carryLost), 'tx-loss'));
+  // ח13: המסלול המקוצר (5329ב) — השוואה בלבד
+  if (Y.shortcut != null && Math.abs(Y.shortcut - Y.cgTax) > 0.5) c1.appendChild(h('p', { class: 'tx-sub', text: T('txShortcut', { v: ils(Y.shortcut) }) }));
+  // ח15: הפסד עובר רק אם הוגש דוח לשנת ההפסד (92(ב))
+  if (!cur && Y.net < 0) {
+    c1.appendChild(chkField('txFiled' + S.year, T('txFiled', { y: S.year }), (C.st.filed || {})[S.year] !== false, (v) => {
+      const o = Object.assign({}, settings().filed || {});
+      if (v) delete o[S.year]; else o[S.year] = false;
+      saveSettings({ filed: o }); recompute();
+    }));
+  }
   wrap.appendChild(c1);
   // דיבידנדים וריבית
   // הזיכוי מחושב לכל מקור בנפרד (199, 204(ב)); עודף → החזר מה־IRS או מאגר ל־5 שנים (205א)
@@ -233,6 +255,7 @@ function paintYear(wrap, C) {
     if (Y.marginInt > 0.5) {
       c2.appendChild(row(T('txMarginInt'), ils(Y.marginInt)));
       c2.appendChild(h('p', { class: 'tx-sub', text: T('txMarginIntS') }));
+      if (Y.marginCmp) c2.appendChild(h('p', { class: 'tx-sub', text: T('txMarginCmp', { a: ils(Y.marginCmp.no), b: ils(Y.marginCmp.deduct) }) + (Y.marginCmp.better ? ' ' + T('txMarginCmpY') : '') }));
     }
     wrap.appendChild(c2);
   }
@@ -254,7 +277,7 @@ function paintYear(wrap, C) {
   }));
   wrap.appendChild(c3);
   // מכירות השנה
-  const ys2 = C.f.sales.filter((s) => s.sellDate.slice(0, 4) === String(S.year));
+  const ys2 = C.sales.filter((s) => s.sellDate.slice(0, 4) === String(S.year));
   if (ys2.length) {
     const c4 = h('div', { class: 'tx-card' }, [h('p', { class: 'tx-h', text: T('txSales', { n: ys2.length }) })]);
     for (const s of ys2.slice().reverse()) {
@@ -279,6 +302,27 @@ function paintYear(wrap, C) {
   const c5 = h('div', { class: 'tx-card' }, [h('p', { class: 'tx-h', text: T('txCarry0H') }), h('p', { class: 'tx-sub', text: T('txCarry0S', { y: first }) })]);
   c5.appendChild(numField('txCarry0', T('txCarry0L'), C.st.carry0, (v) => { saveSettings({ carry0: v }); recompute(); }));
   wrap.appendChild(c5);
+  // הגדרות מתקדמות (שלבים 11–12): תושבות, בעל מניות מהותי, וההגדרות השנויות במחלוקת. סגור כברירת מחדל
+  const adv = h('details', { class: 'tx-card tx-adv' }, [h('summary', { class: 'tx-h', text: T('txAdvH') }), h('p', { class: 'tx-sub', text: T('txAdvS') })]);
+  adv.appendChild(txtField('txRes', T('txResL'), (C.st.res || {}).date || '', 'date', (v) => { saveSettings({ res: v ? { date: v } : null }); recompute(); }));
+  adv.appendChild(txtField('txSub', T('txSubL'), (C.st.sub || []).join(', '), 'text', (v) => {
+    saveSettings({ sub: String(v || '').toUpperCase().split(/[\s,;]+/).filter((x) => /^[A-Z0-9.]{1,12}$/.test(x)) }); recompute();
+  }));
+  for (const k of ['noOffInt', 'poolCg', 'fxTax']) adv.appendChild(chkField('tx_' + k, T('tx' + k[0].toUpperCase() + k.slice(1) + 'L'), !!C.st[k], (v) => { saveSettings({ [k]: v }); recompute(); }));
+  wrap.appendChild(adv);
+}
+
+function txtField(id, label, val, type, onSave) {
+  const inp = h('input', { id: id, type: type, dir: 'ltr' });
+  inp.value = val || '';
+  inp.addEventListener('change', () => onSave(inp.value.trim() || null));
+  return h('div', { class: 'tx-field' }, [h('label', { for: id, text: label }), inp]);
+}
+function chkField(id, label, val, onSave) {
+  const inp = h('input', { id: id, type: 'checkbox' });
+  inp.checked = !!val;
+  inp.addEventListener('change', () => onSave(inp.checked));
+  return h('div', { class: 'tx-field tx-chk' }, [h('label', { for: id, text: label }), inp]);
 }
 
 function numField(id, label, val, onSave) {
@@ -301,7 +345,7 @@ function paintToday(wrap, C) {
   // (דרך tiYear — כך הקיזוז, ההפסד המועבר והקיזוז מול דיבידנד נשארים נכונים)
   const today = todayISO();
   const fake = ok.map((u) => Object.assign({}, u, { sellDate: today }));
-  const Yall = tiYear(C.nowY, C.f.sales.concat(fake), C.divs, { carry: Y.carryIn, other: (C.st.other || {})[C.nowY], otherCap: Y.otherCap, pool: Y.poolIn });
+  const Yall = tiYear(C.nowY, C.sales.concat(fake), C.divs, tiYearOpts(C.yo, C.nowY, Y.carryIn, Y.poolIn));
   const extra = Math.max(0, Yall.due - Y.due);
   const miss = new Set(C.unreal.filter((u) => u.missing).map((u) => u.sym)).size;
   const none = !ok.length;
@@ -354,7 +398,7 @@ function paintActions(wrap, C) {
   wrap.appendChild(c1);
   // דוח ומקדמה חצי־שנתיים — 91(ד)(2ג)(ב)
   // מצטבר: הפסד המחצית הראשונה מקטין את מקדמת השנייה (tiSemi)
-  const { h1, h2 } = tiSemi(C.f.sales, C.nowY);
+  const { h1, h2 } = tiSemi(C.sales, C.nowY);
   const c2 = h('div', { class: 'tx-card' }, [h('p', { class: 'tx-h', text: T('txChecks') })]);
   if (h1 > 0) c2.appendChild(alertRow('o', '31/7', T('txSemi1', { v: ils(h1 * Y.rate) })));
   if (h2 > 0) c2.appendChild(alertRow('o', '31/1', T('txSemi2', { v: ils(h2 * Y.rate), y: C.nowY + 1 })));
@@ -372,6 +416,26 @@ function paintActions(wrap, C) {
     if (Array.isArray(fl.CashTransaction) && fl.CashTransaction.length && !fl.CashTransaction.includes('actionID')) need.push('actionID');
     if (need.length) c2.appendChild(alertRow('o', '+', T('txFields', { f: need.join(', ') })));
   }
+  // 02/11/2026 (שלבים 7, 10, 12): פעולות תאגידיות, העברות נכנסות, שורט, אופציות וקריפטו
+  for (const i of C.f.issues) {
+    const a = { s: i.sym, d: dmy(i.date), c: i.ca || '', n: i.dst || '', q: qtyTxt(Math.abs(i.qty || 0)) };
+    if (i.type === 'corpDecide') {
+      c2.appendChild(alertRow('r', '?', T('txCorpDecide', a)));
+      if (i.dst) c2.appendChild(numField('txAl_' + i.gid, T('txCorpPct', a), (C.st.alloc || {})[i.gid], (v) => {
+        const o = Object.assign({}, settings().alloc || {}); if (v == null) delete o[i.gid]; else o[i.gid] = Math.min(100, v);
+        saveSettings({ alloc: o }); recompute();
+      }));
+    } else if (i.type === 'tinNoCost') {
+      c2.appendChild(alertRow('r', '?', T('txTinNoCost', a)));
+      const cur = (C.st.tinCost || {})[i.id] || {};
+      const save = (p) => { const o = Object.assign({}, settings().tinCost || {}); o[i.id] = Object.assign({}, o[i.id] || {}, p); saveSettings({ tinCost: o }); recompute(); };
+      c2.appendChild(numField('txTc_' + i.id, T('txTinCost'), cur.cost, (v) => save({ cost: v })));
+      c2.appendChild(txtField('txTd_' + i.id, T('txTinDate'), cur.date || '', 'date', (v) => save({ date: v })));
+    } else if (['corp', 'corpNoLots', 'short', 'shortOpen', 'option', 'optOrphan'].includes(i.type)) {
+      c2.appendChild(alertRow('o', '!', T('tx' + i.type[0].toUpperCase() + i.type.slice(1), a)));
+    }
+  }
+  for (const s of C.sales.filter((x) => x.crypto && x.sellDate.slice(0, 4) === String(C.nowY))) c2.appendChild(alertRow('o', '₿', T('txCrypto', { s: s.sym, d: dmy(s.sellDate) })));
   const noFx = C.f.issues.filter((i) => i.type === 'noFx').length;
   if (noFx) c2.appendChild(alertRow('r', '₪', T('txNoFx', { n: noFx })));
   const nTr = ((C.d.trades) || []).length;
@@ -380,7 +444,7 @@ function paintActions(wrap, C) {
   const es = C.estate;
   if (es && es.n) {
     const usd = (v) => LRI + '$' + Math.round(v).toLocaleString('en-US') + PDI;
-    c2.appendChild(alertRow(es.over ? 'r' : 'g', '$', T(es.over ? 'txEstateOver' : 'txEstateOk', { v: usd(es.usd), t: usd(es.th) }) + (es.guess > 0 ? ' ' + T('txEstateGuess') : '')));
+    c2.appendChild(alertRow(es.over ? 'r' : 'g', '$', T(es.over ? 'txEstateOver' : 'txEstateOk', { v: usd(es.usd), t: usd(es.th) }) + (es.tax > 0.5 ? ' ' + T('txEstateTax', { v: usd(es.tax) }) : '') + (es.guess > 0 ? ' ' + T('txEstateGuess') : '')));
   }
   wrap.appendChild(c2);
 }
@@ -393,7 +457,7 @@ function csvCell(v) {
 }
 function buildCsv(C, year) {
   const Y = C.yIdx.get(year);
-  const R = tiReport(year, C.f.sales, C.divs, Y);
+  const R = tiReport(year, C.sales, C.divs, Y);
   const L = [];
   const line = (a) => L.push(a.map(csvCell).join(','));
   const head = (k) => line(T(k).split('|'));
