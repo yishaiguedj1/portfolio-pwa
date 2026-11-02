@@ -453,17 +453,40 @@ const LEARN_REMOTE_OPS = new Set(['learnForget', 'learn', 'adminDm']);   // admi
 async function smRead(deps, job) {
   const ser = S.jobSeries(job), c = R2.config(), key = S.smKey(job.uid);
   if (!ser || !c.ok || !key) return null;
-  try { return S.smForWorker(S.smParse(await R2.getText(c, r2deps(deps), key, S.SM_BYTES)), ser); } catch (e) { return null; }
+  // SM_READ (2MB) — קובץ שעבר את גבול הכתיבה עדיין נקרא (לא "אין זיכרון" בגלל גודל)
+  try { return S.smForWorker(S.smParse(await R2.getText(c, r2deps(deps), key, S.SM_READ)), ser); } catch (e) { return null; }
 }
+/* 02/11/2026 (תוכנית איכות התרגום PR2, 2.3): עדכון מותנה של sm/<uid>.json — getCond עם ה־ETag ו־putCond עם If-Match (אין קובץ —
+   If-None-Match: *). ‏412 = מישהו כתב בינתיים (עבודה מקבילה / עריכה מהטלפון) — קוראים שוב ומחילים שוב; ‏429 — מחכים. תקלה בקריאה /
+   קובץ גדול מדי = זורק, ולא כותבים (עד היום: .catch(() => null) → קובץ חדש בלי שאר הסדרות). fn מחזיר את המסמך החדש, או null =
+   לא לכתוב; ‏{doc, next} — doc כפי שנקרא (לתשובה של הכרטיס). כל כתיבה לזיכרון — רק דרך כאן */
+async function smUpdate(deps, uid, fn) {
+  const c = R2.config(), key = S.smKey(uid);
+  if (!c.ok || !key) return null;
+  const rd = r2deps(deps), wait = deps.sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
+  let doc = null;
+  for (let i = 0; i < 3; i++) {
+    const g = await R2.getCond(c, rd, key, S.SM_READ);
+    doc = g.status === 404 ? S.smParse('') : S.smParse(g.buf.toString('utf8'));
+    const next = fn(doc);
+    if (!next) return { doc, next: null };
+    const put = await R2.putCond(c, rd, key, JSON.stringify(next),
+      { type: 'application/json', ifMatch: g.etag || undefined, ifNoneMatch: g.etag ? undefined : '*' });
+    if (put.status === 200) return { doc, next };
+    if (i < 2) await wait(put.status === 429 ? 1100 : 80 + Math.floor(Math.random() * 300));
+  }
+  throw new Error('sm_busy');
+}
+/* 2.4: עבודת זהב / עותק של ניסוי (דגלי xf / מנוע או מודל אחר) לא כותבת לזיכרון — אחרת כל הרצת מדידה סופרת את הפרק שוב */
+const smWrites = (job) => !!job && job.kind === 'tr' && !job.gs && !(job.spec && (job.spec.xf || job.spec.xe || job.spec.xg));
 async function smPut(deps, job, sm, now) {
-  const ser = S.jobSeries(job), c = R2.config(), key = S.smKey(job.uid);
-  if (job.kind !== 'tr' || !ser || !c.ok || !key) return false;
-  const add = S.normSm(sm);
+  const ser = S.jobSeries(job);
+  if (!smWrites(job) || !ser) return false;
+  const add = S.normSm(sm, S.SM_WORKER);
   if (!add.gl.length && !add.ch.length) return false;
-  const rd = r2deps(deps);
-  const doc = S.smParse(await R2.getText(c, rd, key, S.SM_BYTES).catch(() => null));
-  await R2.putText(c, rd, key, JSON.stringify(S.smMerge(doc, ser, add, now)), 'application/json');
-  return true;
+  const st = {};
+  const r = await smUpdate(deps, job.uid, (doc) => S.smMerge(doc, ser, add, now, st)).catch(() => null);
+  return r && r.next ? st : false;   // ליומן העובד (מספרים בלבד): נוספו / נספרו / הוחלפו / יצאו / כמה בזיכרון. עובד ישן — truthy
 }
 async function learnPut(deps, job, b64, now) {
   try {
@@ -3442,22 +3465,34 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json({ ok: true, r2: true, get: await R2.presign(c, rd, { method: 'GET', key, expires: 300 }),
         put: await R2.presign(c, rd, { method: 'PUT', key, expires: 300 }) });
     }
-    if (op === 'smGet' || op === 'smEdit') {
+    if (op === 'smGet' || op === 'smEdit' || op === 'smAlias') {
       // A1 (1/11/2026): כרטיס הסדרה בטלפון — sm/<uid>.json ב־R2 (רק שמות, מונחים ומגדר; טקסט הכתוביות לא עובר כאן — התיקון
-      // לאחור בפרקים הקודמים (A5) רץ בטלפון מול ה־Drive שלך). עריכה = שינוי קטן; at = הגרסה שראית (העובד כתב בינתיים → stale)
+      // לאחור בפרקים הקודמים (A5) רץ בטלפון מול ה־Drive שלך). עריכה = שינוי קטן; at = הגרסה שראית (העובד כתב בינתיים → stale).
+      // 02/11/2026 (PR2, 2.10): קריאה כושלת = שגיאה (לא "אין סדרות"), וכתיבה רק דרך smUpdate (If-Match). smAlias (2.9, מנהל) —
+      // איחוד שני מפתחות של אותה סדרה: from נכנס ל־to, ו־al[from] = to
       const c = R2.config(), key = S.smKey(uid);
       if (!c.ok || !key) return res.status(200).json({ ok: true, r2: false, s: [] });
-      const rd = r2deps(deps);
-      const doc = S.smParse(await R2.getText(c, rd, key, S.SM_BYTES).catch(() => null));
-      if (op === 'smGet') return res.status(200).json({ ok: true, r2: true, s: S.smView(doc) });
+      if (op === 'smGet') {
+        const g = await R2.getCond(c, r2deps(deps), key, S.SM_READ).catch(() => null);
+        if (!g) return res.status(503).json({ ok: false, error: 'sm_read' });
+        return res.status(200).json({ ok: true, r2: true, s: S.smView(S.smParse(g.status === 200 ? g.buf.toString('utf8') : '')) });
+      }
+      if (op === 'smAlias' && !isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
       if (limited('sm:' + uid, 60)) return res.status(429).json({ ok: false, error: 'rate' });
-      const k = String(body.k || ''), cur = doc.s[k];
-      if (!cur) return res.status(404).json({ ok: false, error: 'sm_none', s: S.smView(doc) });
-      if (Math.floor(+body.at || 0) !== cur.at) return res.status(409).json({ ok: false, error: 'stale', s: S.smView(doc) });
-      const next = S.smEdit(doc, k, body, now);
-      if (!next) return res.status(400).json({ ok: false, error: 'bad_params' });
-      await R2.putText(c, rd, key, JSON.stringify(next), 'application/json');
-      return res.status(200).json({ ok: true, r2: true, s: S.smView(next) });
+      const k = String(body.k || ''), to = String(body.to || '');
+      let why = null;
+      const r = await smUpdate(deps, uid, (doc) => {
+        if (op === 'smAlias') { const n = S.smAlias(doc, k, to, now); if (!n) why = 'sm_none'; return n; }
+        const cur = doc.s[k];
+        if (!cur) { why = 'sm_none'; return null; }
+        if (Math.floor(+body.at || 0) !== cur.at) { why = 'stale'; return null; }
+        const n = S.smEdit(doc, k, body, now);
+        if (!n) why = 'bad_params';
+        return n;
+      }).catch(() => null);
+      if (!r) return res.status(503).json({ ok: false, error: 'sm_read' });
+      if (!r.next) return res.status(why === 'stale' ? 409 : why === 'bad_params' ? 400 : 404).json({ ok: false, error: why, s: S.smView(r.doc) });
+      return res.status(200).json({ ok: true, r2: true, s: S.smView(r.next) });
     }
     if (op === 'fnl') {
       // 26/10/2026 (Vid Hub, שלב א׳): צעדים קבועים במסלול שלפני העבודה ו"למה ויתרת?" — מונים ליום (studioFunnel/<יום>), בלי משתמש.
