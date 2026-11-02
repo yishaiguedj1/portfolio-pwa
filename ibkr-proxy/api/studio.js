@@ -1865,6 +1865,14 @@ async function server(req, res, body, deps) {
     // לפי הסדר: אם הוותיקה לא נכנסת, לא מקדימים לה עבודה קטנה (אחרת עבודה ארוכה מחכה לנצח מאחורי קצרות)
     const fit = S.normFit(body.fit);
     const br = Array.isArray(body.br) ? body.br.filter((x) => typeof x === 'string' && x.length <= 64).slice(0, 20) : [];
+    // 2/11/2026: מצב תור החיסכון לכל עבודה שחונה — נכתב רק כשהשתנה (נאספת → נשלחה: שתי כתיבות לסבב, בלי קריאות נוספות)
+    const bq = S.normBq(body.bq);
+    for (const job of qd) {
+      const v = bq[job.id];
+      // עבודה שהתשובות שלה חזרו (br) — לא כותבים: הכתיבה משנה את updateTime, ו־patchIf של הלקיחה למטה היה נכשל
+      if (!v || !job.bw || job.pk || br.includes(job.id) || (job.bq && job.bq.s === v.s && job.bq.t === v.t)) continue;
+      await patchDoc(deps, 'studioJobs', job.id, { bq: v }).catch(() => null);
+    }
     for (const job of qd) {
       if (!apiJob(job) || S.effState(job, now).state !== 'queued') continue;
       if (ptJob(job)) continue;   // 25/10/2026: הטלפון לוקח אותה בעצמו (phClaim)
@@ -2698,7 +2706,7 @@ async function worker(req, res, body, deps) {
     if (body.park === true && body.bw === true) {
       // 01/11/2026 (I3): הבקשות של העבודה בתור החיסכון — חוזרת לתור עד שהסוכן מדווח שהתשובות חזרו (poll ‏br), והשרת פנוי
       if (!S.bwParkable(job)) return res.status(409).json({ ok: false, error: 'park_bad' });
-      Object.assign(up, { state: 'queued', sid: '', pk: 0, kh: '', kx: 0, bw: job.spec.bt === 1 ? now : 0 });
+      Object.assign(up, { state: 'queued', sid: '', pk: 0, kh: '', kx: 0, bw: job.spec.bt === 1 ? now : 0, bq: null });   // bq: הסבב הקודם לא נגרר
       delete up.ended; delete up.err;
       parked = true;
     } else if (body.park === true) {

@@ -208,9 +208,11 @@ export function progressModel(job, est, up, now, q) {
       l = Math.max(10, Math.round(l));
       // הפס: מה שדווח, ולפחות הזחילה לפי הזמן — אבל לא יותר ממה שהזמן שנשאר מרשה
       const pv = Math.max(p, Math.min(creep(el, e), el / (el + l)));
+      // 2/11/2026: חונה בתור החיסכון (job.bw) — מחכה ל־Anthropic, לא "לוקח יותר מהרגיל"; הצפי — השלב כולו (מתחיל כשהתשובה חוזרת).
       // 02/11/2026: בחצי מחיר (bt) שלב ארוך הוא הצפוי (תור החיסכון) — בלי "לוקח יותר מהרגיל"
-      const over = !(job.spec && job.spec.bt === 1) && el > condQuantile(e, sgS, 0, 0.9) && el > 120;
-      row = { id: s, state: 'now', left: l, p, pv, est: e, slow: over, over };
+      const bw = !!(job && job.bw);
+      const over = !bw && !(job && job.spec && job.spec.bt === 1) && el > condQuantile(e, sgS, 0, 0.9) && el > 120;
+      row = bw ? { id: s, state: 'now', left: e, p: 0, pv: 0, est: e, slow: false, over: false, bw: true } : { id: s, state: 'now', left: l, p, pv, est: e, slow: over, over };
     } else row = { id: s, state: 'wait', est: e };
     if (row.state === 'done') doneW += e0;
     else if (row.state === 'now') { left += row.left; doneW += e0 * (row.pv != null ? row.pv : row.p || 0); }

@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1524 מפתחות מתוך 6063) */
+/* המחרוזות של admin (1529 מפתחות מתוך 6072) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1148,6 +1148,10 @@ he: {
   "admSvAlO": "יישור: ONNX INT8",
   "admSvAlT": "יישור: torch (איטי יותר)",
   "admSvAuth": "הטוקן נדחה — השרת לא מתחבר",
+  "admSvBt": "תור החיסכון",
+  "admSvBtErr": "השליחה נכשלת ({k}) · {n} סבבים ברצף",
+  "admSvBtF": "{n} בדרך מ־{t}",
+  "admSvBtP": "{n} בקשות ממתינות לשליחה",
   "admSvBusy": "עובד · {s}",
   "admSvDelQ": "להסיר את {n}? הטוקן שלו מת מיד והשרת יפסיק לקחת עבודות. השרת עצמו ב־Hetzner לא נמחק.",
   "admSvDisk": "דיסק",
@@ -1497,6 +1501,7 @@ he: {
   "studioQLines": "עד שתי שורות",
   "studioSeeAll": "הכל",
   "studioSrvEvAuth": "השרתון לא מכיר את טוקן השרת",
+  "studioSrvEvBt": "תור החיסכון נכשל כמה פעמים ברצף",
   "studioSrvEvCrash": "עבודה קרסה",
   "studioSrvEvDone": "עבודה הסתיימה",
   "studioSrvEvFail": "עבודה נכשלה",
@@ -2674,6 +2679,10 @@ en: {
   "admSvAlO": "Alignment: ONNX INT8",
   "admSvAlT": "Alignment: torch (slower)",
   "admSvAuth": "Token rejected — the server can’t connect",
+  "admSvBt": "Savings queue",
+  "admSvBtErr": "Sending fails ({k}) · {n} rounds in a row",
+  "admSvBtF": "{n} in flight since {t}",
+  "admSvBtP": "{n} requests waiting to be sent",
   "admSvBusy": "Working · {s}",
   "admSvDelQ": "Remove {n}? Its token dies immediately and it stops taking jobs. The Hetzner server itself is not deleted.",
   "admSvDisk": "Disk",
@@ -3023,6 +3032,7 @@ en: {
   "studioQLines": "Two lines at most",
   "studioSeeAll": "See all",
   "studioSrvEvAuth": "The proxy rejected the server token",
+  "studioSrvEvBt": "The savings queue failed several times in a row",
   "studioSrvEvCrash": "Job crashed",
   "studioSrvEvDone": "Job finished",
   "studioSrvEvFail": "Job failed",
