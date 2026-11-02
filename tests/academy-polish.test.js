@@ -74,7 +74,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/import\('\.\/libpolish\.js'\)/.test(lib) && !/^import .*libpolish/m.test(lib), 'libpolish נטען רק בלחיצה');
   ok(sw.includes("'./libpolish.js'") && cg.includes("'libpolish.js'"), 'במטמון הספרייה ובמחרוזות של Academy');
   ok(/isMine: isMineBook/.test(lib) && /if \(!isMineBook\(b\)\) return;/.test(lib) && /if \(!E\.isMine\(b\)\) return;/.test(lp), 'רק ספרים של המשתמש');
-  ok(/st\.put\(prev, PREV \+ id\)/.test(lib) && /st\.delete\(PREV \+ b\.id\)/.test(lib), 'הגרסה הקודמת נשמרת לביטול ונמחקת עם הספר');
+  ok(/st\.put\(prev, PREV \+ id\)/.test(lib) && /st\.delete\(PREV \+ (b\.)?id\)/.test(lib), 'הגרסה הקודמת נשמרת לביטול ונמחקת עם הספר');
   ok(/'pwa_libpace_v1'/.test(app.match(/const ACCOUNT_KEYS = \[[^\]]*\]/)[0]), 'קצב הקריאה = מפתח אישי (ACCOUNT_KEYS)');
   ok(/FETCH_GAP_MS = 2\d{3}/.test(lp), 'משיכת פרטים: לא יותר מ־30 בקשות בדקה (השרתון מגביל ל־40)');
   ok(!/innerHTML\s*=\s*[^'"]*\b(b\.title|val|x\.p)/.test(lp), 'בלי innerHTML עם נתוני ספר');

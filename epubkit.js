@@ -1346,3 +1346,487 @@ export async function polishBook(blob, opts = {}, { dry = false, DOMParserImpl, 
   if (cover && meta) out = await embedMetadata(out, {}, { cover, DOMParserImpl, XMLSerializerImpl, now });
   return { blob: out, stats: st, issues, info };
 }
+
+/* ---------------- 14. עורך הספר (Academy Pro, גל 2 — A1–A4, A6–A9, A13–A16) ----------------
+   הכל טהור (מחרוזות ובייטים), בלי DOM של הדף — הממשק ב־bookedit.js. עקרונות:
+   - חיפוש "בטקסט" רץ רק על טקסט שאחרי <body> (לא בתגיות, לא ב־code/pre/style) — החלפה לא שוברת קוד; "בקוד" — על המקור כמו שהוא.
+   - עריכה בדף (A2) משנה רק את התווים שהשתנו, בתוך צמתי הטקסט — התגיות סביב נשארות, ה־CFI של ההדגשות שלפני השינוי לא זז.
+   - כל שינוי מבני (שם, פיצול, מיזוג) עובר על כל הקישורים בספר דרך rewriteRefs. */
+const DEC_ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+function decodeMap(raw) {                             // טקסט גולמי → טקסט מפוענח + מיפוי אינדקס מפוענח → גולמי (באורך t.length+1)
+  let t = ''; const map = [];
+  for (let i = 0; i < raw.length;) {
+    if (raw[i] === '&') {
+      const m = /^&(#x[0-9a-f]+|#\d+|[a-z]+);/i.exec(raw.slice(i, i + 12));
+      if (m) {
+        const k = m[1]; let ch = null;
+        if (k[0] === '#') { const cp = k[1] === 'x' || k[1] === 'X' ? parseInt(k.slice(2), 16) : parseInt(k.slice(1), 10); try { ch = String.fromCodePoint(cp); } catch (e) {} }
+        else ch = DEC_ENT[k.toLowerCase()] || null;
+        if (ch != null) { for (let j = 0; j < ch.length; j++) map.push(i); t += ch; i += m[0].length; continue; }
+      }
+    }
+    map.push(i); t += raw[i]; i++;
+  }
+  map.push(raw.length);
+  return { t, map };
+}
+const escT = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+export function textSegments(src) {                   // צמתי הטקסט שאחרי <body>: { s, e (במקור), t (מפוענח), map }
+  const s = String(src), bm = /<body\b(?:[^>"']|"[^"]*"|'[^']*')*>/i.exec(s), out = [];
+  if (!bm) return out;
+  let last = bm.index + bm[0].length, skip = 0, m;
+  const seg = (a, b) => { if (skip || b <= a) return; const d = decodeMap(s.slice(a, b)); out.push({ s: a, e: b, t: d.t, map: d.map }); };
+  const re = new RegExp(TAG_RE.source, 'g'); re.lastIndex = last;
+  while ((m = re.exec(s))) {
+    seg(last, m.index);
+    const tm = /^<(\/?)([\w:.-]+)/.exec(m[0]);
+    if (tm && SKIP_TEXT.test(tm[2].split(':').pop())) { if (tm[1]) skip = Math.max(0, skip - 1); else if (!/\/\s*>$/.test(m[0])) skip++; }
+    last = re.lastIndex;
+  }
+  seg(last, s.length);
+  return out;
+}
+export function plainText(src) { return textSegments(src).map((x) => x.t).join(''); }
+
+/* A3 — חיפוש. docs = [{ p, src }]. mode: plain | regex. code=true → במקור עצמו (גם תגיות). מחזיר התאמות לפי הסדר בספר */
+export function makeFindRe(q, { mode = 'plain', cs = false, word = false } = {}) {
+  if (!q) return null;
+  let body = mode === 'regex' ? q : q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (word) body = '(?<![\\p{L}\\p{N}_])(?:' + body + ')(?![\\p{L}\\p{N}_])';
+  return new RegExp(body, 'gu' + (cs ? '' : 'i'));      // זורק על ביטוי לא תקין — הממשק מציג את השגיאה
+}
+export function bookFind(docs, re, { code = false, max = 5000 } = {}) {
+  const hits = [];
+  if (!re) return hits;
+  for (const d of docs) {
+    const runs = code ? [{ s: 0, e: d.src.length, t: d.src, map: null }] : textSegments(d.src);
+    for (const g of runs) {
+      re.lastIndex = 0; let m;
+      while ((m = re.exec(g.t))) {
+        if (!m[0]) { re.lastIndex++; continue; }
+        const a = m.index, b = a + m[0].length;
+        const s = g.map ? g.s + g.map[a] : a, e = g.map ? g.s + g.map[b] : b;
+        hits.push({ p: d.p, s, e, m: m[0], g: m.slice(1), pre: a > 40 ? g.t.slice(a - 40, a).replace(/^\S*\s/, '') : g.t.slice(0, a), post: b + 40 < g.t.length ? g.t.slice(b, b + 40).replace(/\s\S*$/, '') : g.t.slice(b), code });   // ההקשר נחתך בגבול מילה
+        if (hits.length >= max) return hits;
+      }
+    }
+  }
+  return hits;
+}
+/* A4 — החלפה מחושבת. rep: מחרוזת עם $1..$9, $& ו־$n (מונה ההתאמות שמוחלפות, מ־start). calc: פונקציה על ההתאמה */
+export function hebNumeral(n) {
+  n = Math.floor(n); if (!(n > 0 && n < 1000)) return String(n);
+  const O = ['', 'א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט'], T = ['', 'י', 'כ', 'ל', 'מ', 'נ', 'ס', 'ע', 'פ', 'צ'], H = ['', 'ק', 'ר', 'ש', 'ת', 'תק', 'תר', 'תש', 'תת', 'תתק'];
+  let s = H[Math.floor(n / 100)], r = n % 100;
+  if (r === 15) s += 'טו'; else if (r === 16) s += 'טז'; else s += T[Math.floor(r / 10)] + O[r % 10];
+  return s.length > 1 ? s.slice(0, -1) + '״' + s.slice(-1) : s + '׳';
+}
+export const CALC = {
+  renum: { q: '\\[(\\d+)\\]', f: (m, n) => m.replace(/\d+/, String(n)) },            // מספור מחדש: [4] [7] [9] → [1] [2] [3]
+  hebnum: { q: 'פרק (\\d+)', f: (m) => m.replace(/\d+/, (d) => hebNumeral(+d)) },     // "פרק 3" → "פרק ג׳"
+  upper: { q: '\\b[a-z][\\w\'-]*', f: (m) => m.toUpperCase() },
+  title: { q: '\\b[a-z][\\w\'-]*', f: (m) => m.charAt(0).toUpperCase() + m.slice(1).toLowerCase() },
+};
+export function expandRep(hit, rep, n) {
+  return String(rep).replace(/\$(\d|&|n|\$)/g, (x, k) => k === '$' ? '$' : k === '&' ? hit.m : k === 'n' ? String(n) : (hit.g[+k - 1] != null ? hit.g[+k - 1] : ''));
+}
+export function bookReplace(docs, hits, repOf, { start = 1 } = {}) {   // repOf(hit, n) → טקסט חדש. מחזיר Map(p → מקור חדש) ומספר
+  const by = new Map(); let n = start - 1;
+  for (const h of hits) { if (h.skip) continue; n++; (by.get(h.p) || by.set(h.p, []).get(h.p)).push({ h, r: repOf(h, n) }); }
+  const out = new Map();
+  for (const d of docs) {
+    const list = by.get(d.p); if (!list) continue;
+    let s = d.src;
+    list.sort((x, y) => y.h.s - x.h.s);
+    let lastS = Infinity;
+    for (const { h, r } of list) { if (h.e > lastS) continue; s = s.slice(0, h.s) + (h.code ? r : escT(r)) + s.slice(h.e); lastS = h.s; }
+    out.set(d.p, s);
+  }
+  return { put: out, n: n - start + 1 };
+}
+
+/* A2 — עריכה בדף: oldText = הטקסט של הפסקה כמו בקורא, newText = אחרי העריכה. ההשוואה ברווחים מכווצים (הקורא מכווץ,
+   במקור יש ירידות שורה והזחה) וממופה חזרה למקור — רק התווים שהשתנו נכתבים, בתוך צמתי הטקסט; התגיות סביב נשארות */
+export function spliceCollapsed(all, oldText, newText) {   // → { a, b, ins } טווח במחרוזת all, או null (לא נמצא / מופיע פעמיים)
+  const idx = [], c = []; let prevSp = false;
+  for (let i = 0; i < all.length; i++) { const sp = /\s/.test(all[i]); if (sp && prevSp) continue; idx.push(i); c.push(sp ? ' ' : all[i]); prevSp = sp; }
+  const C = c.join(''), oc = String(oldText).replace(/\s+/g, ' ').trim(), nc = String(newText).replace(/\s+/g, ' ').trim();
+  if (!oc) return null;
+  const k = C.indexOf(oc); if (k < 0 || C.indexOf(oc, k + 1) >= 0) return null;
+  let p = 0; while (p < oc.length && p < nc.length && oc[p] === nc[p]) p++;
+  let q = 0; while (q < oc.length - p && q < nc.length - p && oc[oc.length - 1 - q] === nc[nc.length - 1 - q]) q++;
+  const at = (j) => (j < idx.length ? idx[j] : all.length);
+  return { a: at(k + p), b: at(k + oc.length - q), ins: nc.slice(p, nc.length - q) };
+}
+export function spliceRuns(runs, sp) {             // runs = אורכי צמתי הטקסט לפי הסדר → [{ i, lo, hi, r }] (r רק בראשון)
+  const out = []; let off = 0, placed = false;
+  runs.forEach((len, i) => {
+    const gs = off, ge = off + len; off = ge;
+    const lo = Math.max(sp.a, gs), hi = Math.min(sp.b, ge);
+    if (hi > lo || (!placed && sp.a >= gs && sp.a <= ge && (sp.a < ge || sp.a === sp.b))) { out.push({ i, lo: lo - gs, hi: Math.max(lo, hi) - gs, r: placed ? '' : sp.ins }); placed = true; }
+  });
+  return placed ? out : null;
+}
+export function editText(src, oldText, newText) {
+  const segs = textSegments(src), sp = spliceCollapsed(segs.map((x) => x.t).join(''), oldText, newText);
+  if (!sp) return null;
+  if (sp.a === sp.b && !sp.ins) return String(src);
+  const ed = spliceRuns(segs.map((x) => x.t.length), sp); if (!ed) return null;
+  let s = String(src);
+  for (const x of ed.reverse()) { const g = segs[x.i]; s = s.slice(0, g.s + g.map[x.lo]) + escT(x.r) + s.slice(g.s + g.map[x.hi]); }
+  return s;
+}
+
+/* A16 — סידור קוד. formatMarkup: שורה לכל בלוק (לא נוגע בתוך pre ובטקסט). tidyXhtml: קוד לא תקין → מנתח HTML סלחני → XHTML */
+const BLOCK = 'p|div|h[1-6]|li|ul|ol|dl|dt|dd|blockquote|section|article|aside|header|footer|nav|figure|figcaption|table|thead|tbody|tr|td|th|head|body|title|link|meta|hr|br|img|html';
+export function formatMarkup(src) {
+  return String(src).split(/(<pre\b[\s\S]*?<\/pre>)/i).map((part, i) => i % 2 ? part : part
+    .replace(new RegExp('>[ \\t]*\\r?\\n?[ \\t]*(<(?:' + BLOCK.replace('|br|img', '') + ')\\b)', 'gi'), '>\n$1')
+    .replace(new RegExp('(</(?:' + BLOCK + ')>|<(?:br|hr|img|link|meta)\\b[^>]*/>)[ \\t]*(?=<)', 'gi'), '$1\n')
+    .replace(/<body\b([^>]*)>\s*/i, '<body$1>\n').replace(/\n{3,}/g, '\n\n')).join('');
+}
+const INLINE_TAGS = new Set(['a', 'abbr', 'b', 'big', 'cite', 'code', 'del', 'dfn', 'em', 'font', 'i', 'ins', 'kbd', 'mark', 'q', 's', 'samp', 'small', 'span', 'strike', 'strong', 'sub', 'sup', 'tt', 'u', 'var']);
+const BLOCK_TAGS = new Set(['address', 'aside', 'blockquote', 'body', 'dd', 'div', 'dl', 'dt', 'figcaption', 'figure', 'footer', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'li', 'nav', 'ol', 'p', 'pre', 'section', 'table', 'td', 'th', 'tr', 'ul']);
+export function closeInlines(src) {                    // תגי עיצוב (b, i, span…) שנשארו פתוחים — נסגרים לפני גבול הבלוק; תג סוגר יתום נמחק
+  const s = String(src), re = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<!DOCTYPE[^>]*>|<(\/?)([A-Za-z][\w:-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
+  let out = '', last = 0, m; const open = [];
+  const shut = () => { let t = ''; while (open.length) t += '</' + open.pop() + '>'; return t; };
+  while ((m = re.exec(s))) {
+    out += s.slice(last, m.index); last = re.lastIndex;
+    if (!m[2]) { out += m[0]; continue; }
+    const name = m[2].toLowerCase(), close = !!m[1], self = /\/\s*$/.test(m[3]);
+    if (INLINE_TAGS.has(name)) {
+      if (self) out += m[0];
+      else if (!close) { open.push(m[2]); out += m[0]; }
+      else { const k = open.map((x) => x.toLowerCase()).lastIndexOf(name); if (k < 0) continue; while (open.length > k + 1) out += '</' + open.pop() + '>'; open.pop(); out += m[0]; }
+    } else { if (BLOCK_TAGS.has(name)) out += shut(); out += m[0]; }
+  }
+  return out + s.slice(last) + shut();
+}
+export function tidyXhtml(src, { DOMParserImpl = globalThis.DOMParser, XMLSerializerImpl = globalThis.XMLSerializer } = {}) {
+  let x = String(src).replace(/<br\s*>/gi, '<br/>').replace(/<hr\s*>/gi, '<hr/>').replace(/<(img|meta|link)\b((?:[^>"'/]|"[^"]*"|'[^']*')*)>/gi, '<$1$2/>')
+    .replace(/&nbsp;/g, '&#160;');
+  let fixed = 0;
+  let bad = false; try { parseXml(x, DOMParserImpl); } catch (e) { bad = true; }
+  if (bad) {                                           // קודם תיקון מקומי: תג עיצוב פתוח נסגר בסוף הפסקה שלו (מנתח HTML היה מעתיק אותו לכל הפסקאות שאחריה)
+    x = closeInlines(x); fixed = 1;
+    try { parseXml(x, DOMParserImpl); bad = false; } catch (e) {}
+  }
+  if (bad) {
+    if (!DOMParserImpl || !XMLSerializerImpl) return { src, ok: false, fixed: 0 };
+    let doc; try { doc = new DOMParserImpl().parseFromString(x, 'text/html'); } catch (e2) { return { src, ok: false, fixed: 0 }; }
+    if (!doc || !doc.documentElement) return { src, ok: false, fixed: 0 };
+    const decl = /^\s*<\?xml[^>]*\?>\s*/.exec(x), dt = /<!DOCTYPE[^>]*>\s*/i.exec(x);
+    let out = new XMLSerializerImpl().serializeToString(doc.documentElement);
+    if (!/xmlns=/.test(out.slice(0, 200))) out = out.replace(/^<html\b/i, '<html xmlns="http://www.w3.org/1999/xhtml"');
+    x = (decl ? decl[0].trim() + '\n' : '<?xml version="1.0" encoding="utf-8"?>\n') + (dt ? dt[0].trim() + '\n' : '') + out;
+    try { parseXml(x, DOMParserImpl); } catch (e3) { return { src, ok: false, fixed: 0 }; }
+    fixed = 1;
+  }
+  const out = formatMarkup(x);
+  return { src: out, ok: true, fixed, changed: out !== src };
+}
+export function tidyCss(css) {                         // כלל לכל שורה, הצהרה לכל שורה; מחרוזות והערות נשמרות
+  let out = '', depth = 0, i = 0; const s = String(css), ind = () => '  '.repeat(depth);
+  let buf = '';
+  const flush = () => { const t = buf.replace(/\s+/g, ' ').trim(); buf = ''; return t; };
+  while (i < s.length) {
+    const c = s[i];
+    if (c === '/' && s[i + 1] === '*') { const e = s.indexOf('*/', i + 2), end = e < 0 ? s.length : e + 2; const t = flush(); if (t) out += ind() + t + '\n'; out += ind() + s.slice(i, end) + '\n'; i = end; continue; }
+    if (c === '"' || c === "'") { let j = i + 1; while (j < s.length && s[j] !== c) { if (s[j] === '\\') j++; j++; } buf += s.slice(i, j + 1); i = j + 1; continue; }
+    if (c === '{') { out += ind() + flush() + ' {\n'; depth++; i++; continue; }
+    if (c === ';') { const t = flush(); if (t) out += ind() + t.replace(/\s*:\s*/, ': ') + ';\n'; i++; continue; }
+    if (c === '}') { const t = flush(); if (t) out += ind() + t.replace(/\s*:\s*/, ': ') + ';\n'; depth = Math.max(0, depth - 1); out += ind() + '}\n'; i++; continue; }
+    buf += c; i++;
+  }
+  const t = flush(); if (t) out += t + '\n';
+  return out.replace(/\}\n(?=\S)/g, '}\n\n');
+}
+
+/* A7 — השוואת גרסאות: שורה מול שורה. [['c'|'a'|'r', שורה]]; קצוות זהים נחתכים, ומעל התקרה — "הכל הוחלף" (בלי משימה ארוכה) */
+export function diffLines(a, b, { maxCells = 4e6 } = {}) {
+  const A = String(a).split('\n'), B = String(b).split('\n');
+  let p = 0; while (p < A.length && p < B.length && A[p] === B[p]) p++;
+  let q = 0; while (q < A.length - p && q < B.length - p && A[A.length - 1 - q] === B[B.length - 1 - q]) q++;
+  const out = A.slice(0, p).map((x) => ['c', x]);
+  const a2 = A.slice(p, A.length - q), b2 = B.slice(p, B.length - q), n = a2.length, m = b2.length;
+  if (n * m > maxCells) { a2.forEach((x) => out.push(['r', x])); b2.forEach((x) => out.push(['a', x])); }
+  else {
+    const L = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
+    for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = a2[i] === b2[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+    let i = 0, j = 0;
+    while (i < n && j < m) { if (a2[i] === b2[j]) { out.push(['c', a2[i]]); i++; j++; } else if (L[i + 1][j] >= L[i][j + 1]) out.push(['r', a2[i++]]); else out.push(['a', b2[j++]]); }
+    while (i < n) out.push(['r', a2[i++]]); while (j < m) out.push(['a', b2[j++]]);
+  }
+  A.slice(A.length - q).forEach((x) => out.push(['c', x]));
+  return out;
+}
+
+/* קישורים: כל href/src/xlink:href ו־url() בקובץ → fn(נתיב ב־ZIP, עוגן) מחזיר { p, f } חדש או null (בלי שינוי) */
+export function rewriteRefs(src, base, fn, { css = false } = {}) {
+  const one = (href) => {
+    if (/^[a-z][a-z0-9+.-]*:|^#|^\/\//i.test(href)) return null;
+    const [h0, frag = null] = String(href).split('#');
+    const p = h0 ? resolvePath(base, h0) : null; if (!p) return null;
+    const r = fn(p, frag); if (!r) return null;
+    return relPath(base, r.p) + (r.f != null && r.f !== '' ? '#' + r.f : '');
+  };
+  let s = String(src).replace(/url\(\s*(["']?)([^"')]+)\1\s*\)/gi, (m, qq, u) => { const r = one(u.trim()); return r == null ? m : 'url(' + qq + r + qq + ')'; });
+  if (!css) s = s.replace(/(\s(?:src|href|xlink:href)\s*=\s*)(["'])([^"']*)\2/gi, (m, a, qq, u) => { const r = one(u.replace(/&amp;/g, '&')); return r == null ? m : a + qq + r.replace(/&/g, '&amp;') + qq; });
+  return s;
+}
+
+/* A9 — פיצול בכל כותרת (או לפני כל אלמנט עם id ברשימה) ומיזוג */
+const docParts = (src) => {
+  const s = String(src), bm = /<body\b(?:[^>"']|"[^"]*"|'[^']*')*>/i.exec(s), em = /<\/body\s*>/i.exec(s);
+  if (!bm || !em) return null;
+  return { head: s.slice(0, bm.index + bm[0].length), body: s.slice(bm.index + bm[0].length, em.index), tail: s.slice(em.index) };
+};
+export function splitPoints(src, levels = [1, 2]) {   // מיקומי הכותרות בגוף (ברמה העליונה בלבד — לא בתוך div פתוח של כותרת אחרת)
+  const d = docParts(src); if (!d) return [];
+  const re = new RegExp('<h(' + levels.join('|') + ')\\b', 'gi'), out = []; let m;
+  while ((m = re.exec(d.body))) if (d.body.slice(0, m.index).trim()) out.push(m.index);
+  return out;
+}
+export function splitDoc(src, at) {                    // at = מיקומים בגוף (מ־splitPoints) → מסמכים שלמים; הראשון שומר את הראש
+  const d = docParts(src); if (!d || !at.length) return [String(src)];
+  const cuts = [0, ...at.filter((x) => x > 0 && x < d.body.length).sort((x, y) => x - y), d.body.length];
+  const parts = [];
+  for (let i = 0; i < cuts.length - 1; i++) parts.push(d.head + (i ? '\n' : '') + d.body.slice(cuts[i], cuts[i + 1]).replace(/^\s*\n/, '') + (i < cuts.length - 2 ? '\n' : '') + d.tail);
+  return parts;
+}
+export function mergeDocs(srcs) {
+  const ds = srcs.map(docParts); if (ds.some((x) => !x)) return null;
+  return ds[0].head + ds.map((x) => x.body.replace(/^\s+|\s+$/g, '')).join('\n') + '\n' + ds[0].tail;
+}
+export function idsOf(src) { const out = new Set(); for (const m of String(src).matchAll(/\s(?:id|xml:id)\s*=\s*(["'])([^"']+)\1/gi)) out.add(m[2]); return out; }
+
+/* A8 — תוכן עניינים. פריט = { t, p (נתיב ב־ZIP), f (עוגן), lvl 1..6 } */
+export function tocFromHeadings(docs, levels = [1, 2]) {   // docs לפי סדר הקריאה; כותרת בלי id מקבלת id → put
+  const items = [], put = new Map();
+  for (const d of docs) {
+    let k = 0, changed = false; const ids = idsOf(d.src);
+    const re = new RegExp('<h(' + levels.join('|') + ')\\b((?:[^>"\']|"[^"]*"|\'[^\']*\')*)>([\\s\\S]*?)</h\\1\\s*>', 'gi');
+    const src = d.src.replace(re, (m, lv, attrs, inner) => {
+      const t = decodeMap(inner.replace(/<[^>]*>/g, '')).t.replace(/\s+/g, ' ').trim();
+      if (!t) return m;
+      let id = (/\sid\s*=\s*(["'])([^"']+)\1/i.exec(attrs) || [])[2];
+      if (!id) { do { id = 'toc-' + (++k); } while (ids.has(id)); ids.add(id); changed = true; m = '<h' + lv + ' id="' + id + '"' + attrs + '>' + inner + '</h' + lv + '>'; }
+      items.push({ t, p: d.p, f: id, lvl: levels.indexOf(+lv) + 1 });
+      return m;
+    });
+    if (changed) put.set(d.p, src);
+  }
+  return { items, put };
+}
+export function tocFromSelector(docs, sel) {         // "p.chapter-title" / "div" / ".chapter" → פריטים ברמה 1
+  const m = /^\s*([a-z][\w-]*)?(?:\.([\w-]+))?\s*$/i.exec(String(sel || ''));
+  if (!m || (!m[1] && !m[2])) return { items: [], put: new Map() };
+  const items = [], put = new Map(), clsRe = m[2] ? new RegExp('\\sclass\\s*=\\s*["\'](?:[^"\']*\\s)?' + m[2] + '(?:\\s[^"\']*)?["\']') : null;
+  for (const d of docs) {
+    let k = 0, out = '', last = 0, mm; const ids = idsOf(d.src);
+    const re = /<([a-z][\w-]*)\b((?:[^>"']|"[^"]*"|'[^']*')*)>/gi;
+    while ((mm = re.exec(d.src))) {
+      const [open, tg, attrs] = mm;
+      if ((m[1] && tg.toLowerCase() !== m[1].toLowerCase()) || (clsRe && !clsRe.test(attrs)) || /\/$/.test(attrs)) continue;
+      const end = d.src.toLowerCase().indexOf('</' + tg.toLowerCase(), re.lastIndex); if (end < 0) continue;
+      const t = decodeMap(d.src.slice(re.lastIndex, end).replace(/<[^>]*>/g, '')).t.replace(/\s+/g, ' ').trim(); if (!t) continue;
+      let id = (/\sid\s*=\s*(["'])([^"']+)\1/i.exec(attrs) || [])[2];
+      if (!id) { do { id = 'toc-' + (++k); } while (ids.has(id)); ids.add(id); out += d.src.slice(last, mm.index) + '<' + tg + ' id="' + id + '"' + attrs + '>'; last = re.lastIndex; }
+      items.push({ t, p: d.p, f: id, lvl: 1 });
+      re.lastIndex = end;
+    }
+    if (last) put.set(d.p, out + d.src.slice(last));
+  }
+  return { items, put };
+}
+export function readNav(src, navPath) {               // nav של EPUB 3 → פריטים (רק ה־nav של toc)
+  const s = String(src), nm = /<nav\b[^>]*epub:type\s*=\s*["'][^"']*\btoc\b[^"']*["'][^>]*>([\s\S]*?)<\/nav>/i.exec(s);
+  if (!nm) return null;
+  const items = []; let lvl = 0; const re = /<(\/?)(ol|li)\b[^>]*>|<a\b((?:[^>"']|"[^"]*"|'[^']*')*)>([\s\S]*?)<\/a>|<span\b[^>]*>([\s\S]*?)<\/span>/gi; let m;
+  while ((m = re.exec(nm[1]))) {
+    if (m[2] && m[2].toLowerCase() === 'ol') lvl += m[1] ? -1 : 1;
+    else if (m[3] != null) {
+      const href = (/\shref\s*=\s*(["'])([^"']*)\1/i.exec(m[3]) || [])[2] || '';
+      const [h0, f = ''] = href.split('#');
+      items.push({ t: decodeMap(m[4].replace(/<[^>]*>/g, '')).t.replace(/\s+/g, ' ').trim(), p: resolvePath(navPath, h0.replace(/&amp;/g, '&')), f, lvl: Math.max(1, lvl) });
+    }
+  }
+  return items;
+}
+export function readNcx(src, ncxPath) {
+  const items = []; let lvl = 0; const re = /<(\/?)navPoint\b[^>]*>|<text>([\s\S]*?)<\/text>|<content\b[^>]*\ssrc\s*=\s*(["'])([^"']*)\3/gi; let m, cur = null;
+  while ((m = re.exec(String(src)))) {
+    if (m[1] === '' && /navPoint/i.test(m[0])) { lvl++; cur = { t: '', p: '', f: '', lvl }; items.push(cur); }
+    else if (m[1] === '/') lvl--;
+    else if (m[2] != null && cur && !cur.t) cur.t = decodeMap(m[2]).t.trim();
+    else if (m[4] != null && cur && !cur.p) { const [h0, f = ''] = m[4].split('#'); cur.p = resolvePath(ncxPath, h0); cur.f = f; }
+  }
+  return items.filter((x) => x.p);
+}
+export function buildNavOl(items, navPath) {
+  let out = '', lvl = 0;
+  const href = (it) => escX(relPath(navPath, it.p) + (it.f ? '#' + it.f : ''));
+  items.forEach((it, i) => {
+    const L = Math.max(1, Math.min(it.lvl, lvl + 1));
+    if (L > lvl) { out += '\n' + '  '.repeat(L) + '<ol>'; lvl = L; }
+    else { out += '</li>'; while (lvl > L) { out += '\n' + '  '.repeat(lvl) + '</ol></li>'; lvl--; } }
+    out += '\n' + '  '.repeat(L + 1) + '<li><a href="' + href(it) + '">' + escX(it.t) + '</a>';
+    items[i]._L = L;
+  });
+  if (lvl) { out += '</li>'; while (lvl > 1) { out += '\n' + '  '.repeat(lvl) + '</ol></li>'; lvl--; } out += '\n  </ol>'; }
+  items.forEach((it) => delete it._L);
+  return out;
+}
+export function writeNav(src, items, navPath) {       // מחליף רק את ה־nav של toc; landmarks/page-list נשארים
+  const ol = buildNavOl(items, navPath) + '\n';
+  return String(src).replace(/(<nav\b[^>]*epub:type\s*=\s*["'][^"']*\btoc\b[^"']*["'][^>]*>)([\s\S]*?)(<\/nav>)/i, (m, a, inner, c) => {
+    const hd = /<h[1-6]\b[\s\S]*?<\/h[1-6]>/i.exec(inner);
+    return a + (hd ? '\n  ' + hd[0] : '') + ol + c;
+  });
+}
+export function writeNcx(src, items, ncxPath) {
+  let out = '', lvl = 0, k = 0;
+  const pts = items.map((it) => ({ it, L: 0 }));
+  pts.forEach((x) => { x.L = Math.max(1, Math.min(x.it.lvl, lvl + 1)); lvl = x.L; });
+  lvl = 0;
+  for (const x of pts) {
+    while (lvl >= x.L) { out += '\n' + '  '.repeat(lvl) + '</navPoint>'; lvl--; }
+    k++;
+    out += '\n' + '  '.repeat(x.L) + '<navPoint id="np' + k + '" playOrder="' + k + '"><navLabel><text>' + escX(x.it.t) + '</text></navLabel><content src="' + escX(relPath(ncxPath, x.it.p) + (x.it.f ? '#' + x.it.f : '')) + '"/>';
+    lvl = x.L;
+  }
+  while (lvl > 0) { out += '\n' + '  '.repeat(lvl) + '</navPoint>'; lvl--; }
+  let depth = pts.reduce((a, x) => Math.max(a, x.L), 1);
+  return String(src).replace(/<navMap\b[^>]*>[\s\S]*?<\/navMap>/i, '<navMap>' + out + '\n</navMap>')
+    .replace(/(<meta\b[^>]*name\s*=\s*["']dtb:depth["'][^>]*content\s*=\s*["'])\d+/i, '$1' + depth);
+}
+
+/* A15 — הוספת תוכן */
+export function newChapter(title, { lang = 'he', dir = 'rtl', css = [] } = {}) {
+  return '<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE html>\n<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="' + escX(lang) + '" xml:lang="' + escX(lang) + '"' + (dir ? ' dir="' + dir + '"' : '') + '>\n<head>\n<title>' + escX(title) + '</title>\n' +
+    css.map((h) => '<link rel="stylesheet" type="text/css" href="' + escX(h) + '"/>\n').join('') + '</head>\n<body>\n<h1>' + escX(title) + '</h1>\n<p></p>\n</body>\n</html>\n';
+}
+export function addFootnote(src, at, text) {          // at = מיקום במקור (הסמן בעורך). מספר = הבא אחרי ההערות שכבר בפרק
+  let s = String(src);
+  const ids = idsOf(s); let n = 1; while (ids.has('fn' + n) || ids.has('fnref' + n)) n++;
+  if (!/xmlns:epub\s*=/.test(s.slice(0, 600))) s = s.replace(/<html\b/i, '<html xmlns:epub="http://www.idpf.org/2007/ops"');
+  const shift = s.length - String(src).length; at += shift;
+  const ref = '<sup><a epub:type="noteref" href="#fn' + n + '" id="fnref' + n + '">' + n + '</a></sup>';
+  s = s.slice(0, at) + ref + s.slice(at);
+  const note = '<aside epub:type="footnote" id="fn' + n + '"><p><a href="#fnref' + n + '">' + n + '</a> ' + escT(text || '') + '</p></aside>\n';
+  s = s.replace(/<\/body\s*>/i, (m) => note + m);
+  return { src: s, n, at: at + ref.length };
+}
+
+/* A13 — גופנים: מי מוגדר (@font-face) ומי בשימוש (font-family מחוץ ל־@font-face, גם ב־style="") */
+const famList = (v) => String(v).split(',').map((x) => x.trim().replace(/^["']|["']$/g, '').toLowerCase()).filter(Boolean);
+export function fontFaces(css, base) {
+  const out = [];
+  for (const m of String(css).matchAll(/@font-face\s*\{([^}]*)\}/gi)) {
+    const fam = (/font-family\s*:\s*([^;]+)/i.exec(m[1]) || [])[1];
+    const srcs = [...m[1].matchAll(/url\(\s*(["']?)([^"')]+)\1\s*\)/gi)].map((u) => resolvePath(base, u[2].trim())).filter(Boolean);
+    if (fam) out.push({ family: famList(fam)[0], srcs, weight: ((/font-weight\s*:\s*([^;]+)/i.exec(m[1]) || [])[1] || '').trim(), style: ((/font-style\s*:\s*([^;]+)/i.exec(m[1]) || [])[1] || '').trim() });
+  }
+  return out;
+}
+export function familiesUsed(texts) {                  // texts = מקורות CSS ו־XHTML
+  const used = new Set();
+  for (const t of texts) {
+    const noFace = String(t).replace(/@font-face\s*\{[^}]*\}/gi, '');
+    for (const m of noFace.matchAll(/font-family\s*:\s*((?:[^;}"'<>]|"[^"<>]*"|'[^'<>]*')+)/gi)) famList(m[1]).forEach((f) => used.add(f));
+    for (const m of noFace.matchAll(/(?:^|[;{\s])font\s*:\s*([^;}]+)/gi)) { const p = /(?:\d[\w.%]*\s*(?:\/\s*[\w.%]+)?\s+)(.+)$/.exec(m[1]); if (p) famList(p[1]).forEach((f) => used.add(f)); }
+  }
+  return used;
+}
+export function replaceFamily(text, from, to) {        // font-family: X → Y (גם בשרשרת), לא בתוך @font-face של X
+  const f = String(from).toLowerCase(), q = /[\s\d]/.test(to) ? '"' + to + '"' : to;
+  return String(text).replace(/(font-family\s*:\s*)([^;}]+)/gi, (m, a, v) => {
+    const parts = v.split(',');
+    let hit = false;
+    const np = parts.map((x) => { const n = x.trim().replace(/^["']|["']$/g, '').toLowerCase(); if (n === f) { hit = true; return (x.match(/^\s*/)[0]) + q; } return x; });
+    return hit ? a + np.join(',') : m;
+  });
+}
+/* הקטנת גופן TrueType לתווים שבשימוש: הקווים של גליפים שלא בשימוש נמחקים (המספרים לא זזים — cmap/GSUB/GPOS/hmtx נשארים תקפים).
+   רק sfnt עם glyf (TTF, ‏OTF של TrueType); CFF ו־WOFF/WOFF2 → null (נשארים כמו שהם) */
+export function subsetTtf(u8, codepoints) {
+  if (!(u8 instanceof Uint8Array) || u8.length < 12) return null;
+  const v = dv(u8), ver = v.getUint32(0);
+  if (ver !== 0x00010000 && ver !== 0x74727565) return null;
+  const nt = v.getUint16(4), T = {};
+  for (let i = 0; i < nt; i++) { const o = 12 + i * 16; if (o + 16 > u8.length) return null; const tag = String.fromCharCode(u8[o], u8[o + 1], u8[o + 2], u8[o + 3]); T[tag] = { tag, off: v.getUint32(o + 8), len: v.getUint32(o + 12) }; }
+  for (const k of ['head', 'maxp', 'loca', 'glyf', 'cmap']) if (!T[k] || T[k].off + T[k].len > u8.length) return null;
+  const numGlyphs = v.getUint16(T.maxp.off + 4), longLoca = v.getInt16(T.head.off + 50) === 1;
+  const loca = (g) => longLoca ? v.getUint32(T.loca.off + g * 4) : v.getUint16(T.loca.off + g * 2) * 2;
+  // cmap: format 4 / 12 של Unicode
+  const cm = T.cmap.off, nSub = v.getUint16(cm + 2), keep = new Set([0]);
+  const want = new Set(codepoints);
+  for (let i = 0; i < nSub; i++) {
+    const pid = v.getUint16(cm + 4 + i * 8), eid = v.getUint16(cm + 6 + i * 8), so = cm + v.getUint32(cm + 8 + i * 8);
+    if (!(pid === 0 || (pid === 3 && (eid === 1 || eid === 10)))) continue;
+    const fmt = v.getUint16(so);
+    if (fmt === 4) {
+      const segX2 = v.getUint16(so + 6), ends = so + 14, starts = ends + segX2 + 2, deltas = starts + segX2, ranges = deltas + segX2;
+      for (let s = 0; s < segX2 / 2; s++) {
+        const end = v.getUint16(ends + s * 2), st = v.getUint16(starts + s * 2), dl = v.getInt16(deltas + s * 2), ro = v.getUint16(ranges + s * 2);
+        for (const cp of want) {
+          if (cp < st || cp > end) continue;
+          let g;
+          if (!ro) g = (cp + dl) & 0xffff;
+          else { const ga = ranges + s * 2 + ro + (cp - st) * 2; g = ga + 2 <= u8.length ? v.getUint16(ga) : 0; if (g) g = (g + dl) & 0xffff; }
+          if (g && g < numGlyphs) keep.add(g);
+        }
+      }
+    } else if (fmt === 12) {
+      const ng = v.getUint32(so + 12);
+      for (let k = 0; k < ng; k++) { const b = so + 16 + k * 12, s0 = v.getUint32(b), e0 = v.getUint32(b + 4), g0 = v.getUint32(b + 8); for (const cp of want) if (cp >= s0 && cp <= e0) { const g = g0 + cp - s0; if (g < numGlyphs) keep.add(g); } }
+    }
+  }
+  if (keep.size <= 1) return null;
+  // גליפים מורכבים — גם הרכיבים
+  const stack = [...keep];
+  while (stack.length) {
+    const g = stack.pop(), a = loca(g), b = loca(g + 1);
+    if (b <= a || T.glyf.off + b > u8.length) continue;
+    const go = T.glyf.off + a;
+    if (v.getInt16(go) >= 0) continue;
+    let p = go + 10, flags;
+    do {
+      flags = v.getUint16(p); const cg = v.getUint16(p + 2);
+      if (!keep.has(cg) && cg < numGlyphs) { keep.add(cg); stack.push(cg); }
+      p += 4 + (flags & 1 ? 4 : 2) + (flags & 8 ? 2 : flags & 0x40 ? 4 : flags & 0x80 ? 8 : 0);
+    } while (flags & 0x20 && p < T.glyf.off + b);
+  }
+  // glyf + loca חדשים (loca ארוך)
+  let glen = 0; for (const g of keep) { const a = loca(g), b = loca(g + 1); if (b > a) glen += ((b - a) + 3) & ~3; }
+  const glyf = new Uint8Array(glen), locaN = new Uint8Array((numGlyphs + 1) * 4), lv = dv(locaN);
+  let o = 0;
+  for (let g = 0; g < numGlyphs; g++) {
+    lv.setUint32(g * 4, o);
+    if (keep.has(g)) { const a = loca(g), b = loca(g + 1); if (b > a) { glyf.set(u8.subarray(T.glyf.off + a, T.glyf.off + b), o); o += ((b - a) + 3) & ~3; } }
+  }
+  lv.setUint32(numGlyphs * 4, o);
+  const tables = Object.values(T).filter((t) => t.tag !== 'DSIG').map((t) => ({ tag: t.tag, data: t.tag === 'glyf' ? glyf : t.tag === 'loca' ? locaN : u8.slice(t.off, t.off + t.len) }));
+  const head = tables.find((t) => t.tag === 'head'); dv(head.data).setInt16(50, 1); dv(head.data).setUint32(8, 0);
+  tables.sort((x, y) => (x.tag < y.tag ? -1 : 1));
+  const n = tables.length; let es = 0; while ((1 << (es + 1)) <= n) es++;
+  const hdr = 12 + n * 16; let total = hdr; for (const t of tables) total += (t.data.length + 3) & ~3;
+  const out = new Uint8Array(total), ov = dv(out);
+  ov.setUint32(0, 0x00010000); ov.setUint16(4, n); ov.setUint16(6, 16 << es); ov.setUint16(8, es); ov.setUint16(10, n * 16 - (16 << es));
+  const sum = (d) => { let s = 0; const pad = new Uint8Array((d.length + 3) & ~3); pad.set(d); const pv = dv(pad); for (let i = 0; i < pad.length; i += 4) s = (s + pv.getUint32(i)) >>> 0; return s; };
+  let at = hdr, headAt = 0;
+  tables.forEach((t, i) => {
+    const r = 12 + i * 16; for (let k = 0; k < 4; k++) out[r + k] = t.tag.charCodeAt(k);
+    ov.setUint32(r + 4, sum(t.data)); ov.setUint32(r + 8, at); ov.setUint32(r + 12, t.data.length);
+    out.set(t.data, at); if (t.tag === 'head') headAt = at; at += (t.data.length + 3) & ~3;
+  });
+  ov.setUint32(headAt + 8, (0xB1B0AFBA - sum(out)) >>> 0);
+  return { u8: out, kept: keep.size, of: numGlyphs };
+}
+export function codepointsOf(texts) {                   // כל התווים בטקסט של הספר + ASCII הבסיסי (מספרים, פיסוק)
+  const s = new Set(); for (let c = 0x20; c < 0x7f; c++) s.add(c);
+  [0xa0, 0x5be, 0x5f3, 0x5f4, 0x2013, 0x2014, 0x2018, 0x2019, 0x201c, 0x201d, 0x2026].forEach((c) => s.add(c));
+  for (const t of texts) for (const ch of String(t)) s.add(ch.codePointAt(0));
+  return s;
+}
