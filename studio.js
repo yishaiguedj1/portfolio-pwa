@@ -388,7 +388,8 @@ export const LIST_MAX = 5, BT_EST = 0.55;
 export const WL_RE = /^[a-z0-9]{8,16}$/;
 export const wlNew = () => (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)).slice(0, 14);
 // 02/11/2026 (צילום המשתמש): גם סרטון שנבחר דרך Studio לאנדרואיד (ph.nu — תרגום רגיל בשרת) — לא רק מהדפדפן
-const btOk = (f) => !!(f && (f.fileObj || f.drive || (f.ph && f.ph.nu)) && !f.link && !f.ka && !(f.ph && !f.ph.nu) && !f.subs && apiMode());
+// 02/11/2026 (בקשת המשתמש): חצי מחיר — כרגע רק למנהל (גם נאכף בשרתון: create)
+const btOk = (f) => !!(ui.api && ui.api.admin) && !!(f && (f.fileObj || f.drive || (f.ph && f.ph.nu)) && !f.link && !f.ka && !(f.ph && !f.ph.nu) && !f.subs && apiMode());
 const listOk = (f) => !!(btOk(f) && f.fileObj);
 export function startEstimate(mode, dur, norm, api, apiOn) {
   const d = dur > 0 ? dur : 0, m = modeById(mode);
