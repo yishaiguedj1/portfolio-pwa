@@ -247,6 +247,7 @@
     <string name="brLockOther">לכרטיסיות הרגילות</string>
     <string name="brPreparing">מכין את האיכויות…</string>
     <string name="brMoreFiles">קבצים נוספים שנמצאו בדף (%1$d)</string>
+    <string name="brMoreOpts">רק קטע ועוד אפשרויות…</string>
     <!-- 27/10/2026 — מסכי הדפדפן לפי ת־עיצוב (docs/standards.md); הניסוח שלנו -->
     <string name="brMenuShare">שיתוף…</string>
     <string name="brHintEngine">‏חיפוש ב-%1$s או הוספת כתובת URL</string>

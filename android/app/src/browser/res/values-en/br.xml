@@ -247,6 +247,7 @@
     <string name="brLockOther">Go to regular tabs</string>
     <string name="brPreparing">Preparing the qualities…</string>
     <string name="brMoreFiles">Other files on this page (%1$d)</string>
+    <string name="brMoreOpts">Clip and more options…</string>
     <string name="brMenuShare">Share…</string>
     <string name="brHintEngine">Search %1$s or type URL</string>
     <string name="brTabsSee">See %1$d tabs</string>
