@@ -1184,8 +1184,21 @@ const glFormat = (rows) => GL_HEAD + rows.map((r) => r[0] + '\t' + r[1] + (r[2] 
 /* 28/10/2026: זיכרון סדרה (ניתוח 5 פרקים מול כתוביות אנושיות: אותו שם בשלושה כתיבים בין פרקים, מגדר דמות שנקבע מחדש
    בכל פרק). קובץ אחד לכל משתמש ב־R2 (sm/<uid>.json) — לכל סדרה (מפתח משם הקובץ: מה שלפני S01E02 / 1x02) השמות והמונחים
    שנקבעו בפרקים הקודמים, והדמויות עם המגדר. בלקיחה העובד מקבל רק את הסדרה של העבודה; בסוף העבודה (smPut) — מה שנקבע בה.
-   הראשון שנקבע גובר (עקביות); המילון שלך גובר על הכל (בעובד). normSm זהה ל־sm_valid בעובד — tests/studio-series משווה */
-const SM_SER = 60, SM_GL = 150, SM_CH = 40, SM_BYTES = 512 * 1024;
+   02/11/2026 (תוכנית איכות התרגום PR2, ‏D1): הזיכרון נעצר אחרי 5–6 פרקים ("הראשון גובר" + חיתוך בתקרה) — מעכשיו כל שורה
+   סופרת: מונח [en, he, n, l, f], דמות [שם, g, תפקיד, n, l, f] (n = בכמה פרקים, l = ה־ep בשימוש האחרון, f = SM_LOCK נעול
+   בכרטיס · SM_UNSURE לא ודאי · SM_FIX "החלף כתיב" — רק מהעובד, לא נשמר). שורה ישנה (2–3 שדות) = n 1, l 0, f 0. מעל התקרה
+   יוצאת (מבין הלא נעולות, ובלי שמות שחזרו ב־2 פרקים) זו עם n הנמוך → מונח לפני שם → l הישן. done = פרקים שכבר נספרו.
+   normSm זהה ל־sm_valid בעובד — tests/studio-series משווה */
+const SM_SER = 60, SM_GL = 250, SM_CH = 60, SM_NEW = 60, SM_DONE = 200, SM_BYTES = 1024 * 1024, SM_READ = 2 * 1024 * 1024;   // = job.py
+const SM_LOCK = 1, SM_UNSURE = 2, SM_FIX = 4, SM_FILE = SM_LOCK | SM_UNSURE, SM_WORKER = SM_UNSURE | SM_FIX;
+const GL_UNSURE = /\s*\(\s*לא ודאי[תםן]?\s*\)\s*$/u, CH_UNSURE = /\s*[—–-]\s*לא ודאי[ת]?\s*$/u, CH_JUNK = /ודאי|ידוע|נוספ|דובר/u;
+const CH_TITLES = new Set(['מר', 'גברת', 'ד"ר', 'דוקטור', 'הרב', 'דוד', 'דודה']);
+const chKey = (nm) => { const t = String(nm || '').toLowerCase().split(/\s+/); return CH_TITLES.has(t[0]) && t[1] ? t[0] + ' ' + t[1] : t[0]; };
+const SM_NAME = /^(?:(?:Mr|Mrs|Ms|Dr|Miss|Aunt|Uncle|Rabbi)\.? )?[A-Z][a-zA-Z'’-]+(?: [A-Z][a-zA-Z'’-]+){0,2}$/;
+const SM_CAL = new Set(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'january', 'february', 'march', 'april',
+  'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december', 'christmas', 'thanksgiving', 'halloween', 'easter', 'hanukkah']);
+const smIsName = (en) => SM_NAME.test(en) && en !== en.toUpperCase() && !SM_CAL.has(String(en).toLowerCase());
+const smInt = (x, max) => Math.min(max, Math.max(0, Math.floor(+x || 0)));
 const smKey = (uid) => (/^[A-Za-z0-9]{6,128}$/.test(String(uid || '')) ? 'sm/' + uid + '.json' : '');
 const SER_RE = /^(.*?)[\s\-–_.([]*(?:s(\d{1,2})[\s._-]*e(\d{1,3})|(\d{1,2})x(\d{2,3}))(?![\p{L}\p{N}])/iu;
 function seriesOf(name) {
@@ -1194,85 +1207,197 @@ function seriesOf(name) {
   if (!m) return null;
   const n = m[1].replace(/[\s\-–]*(?:season|עונה)\s*\d{1,2}[\s\-–]*$/iu, ' ').replace(/\(\s*(19|20)\d\d\s*\)|\b(19|20)\d\d\s*$/g, ' ').replace(/[\s\-–[(]+$/, '').replace(/\s+/g, ' ').trim();
   const k = n.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-  return k.length >= 2 ? { k: k.slice(0, 60), n: glClean(n, 60), e: +(m[3] || m[5]) || 0 } : null;
+  return k.length >= 2 ? { k: k.slice(0, 60), n: glClean(n, 60), s: +(m[2] || m[4]) || 0, e: +(m[3] || m[5]) || 0 } : null;   // s — ל־done
 }
-function smRows(v, max, cell) {
+function smRows(v, max, cell, key = (x) => x[0].toLowerCase()) {
   const out = [], seen = new Set();
   for (const r of Array.isArray(v) ? v.slice(0, max * 2) : []) {
     const x = Array.isArray(r) ? cell(r) : null;
-    if (!x || seen.has(x[0].toLowerCase())) continue;
-    seen.add(x[0].toLowerCase());
+    if (!x || seen.has(key(x))) continue;
+    seen.add(key(x));
     out.push(x);
     if (out.length >= max) break;
   }
   return out;
 }
-const smGl = (v) => smRows(v, SM_GL, (r) => { const en = glClean(r[0], 60), he = glClean(r[1], 80); return en && he ? [en, he] : null; });
-const smCh = (v) => smRows(v, SM_CH, (r) => { const nm = glClean(r[0], 40), g = r[1] === 'm' || r[1] === 'f' ? r[1] : ''; return nm && g ? [nm, g, glClean(r[2], 60)] : null; });
+const smGl = (v, mask = SM_FILE) => smRows(v, SM_GL, (r) => {
+  const en = glClean(r[0], 60);
+  let he = glClean(r[1], 80), f = smInt(r[4], 15) & mask;
+  if (GL_UNSURE.test(he)) { he = he.replace(GL_UNSURE, '').trim(); f |= SM_UNSURE; }
+  return en && he ? [en, he, Math.max(1, smInt(r[2], 999)), smInt(r[3], 1e6), f] : null;
+});
+const smCh = (v, mask = SM_FILE) => smRows(v, SM_CH, (r) => {
+  let nm = glClean(r[0], 40), f = smInt(r[5], 15) & mask;
+  const g = r[1] === 'm' || r[1] === 'f' ? r[1] : '';
+  if (CH_UNSURE.test(nm)) { nm = nm.replace(CH_UNSURE, '').trim(); f |= SM_UNSURE; }
+  return nm && g && !CH_JUNK.test(nm) ? [nm, g, glClean(r[2], 60), Math.max(1, smInt(r[3], 999)), smInt(r[4], 1e6), f] : null;
+}, (x) => chKey(x[0]));
 /* A1 (1/11/2026): מה שמחקת בכרטיס בטלפון — לא חוזר מהפרק הבא (רשימת מפתחות באותיות קטנות) */
 const SM_X = 200;
 const smX = (v) => [...new Set((Array.isArray(v) ? v.slice(0, SM_X * 2) : []).map((t) => glClean(t, 60).toLowerCase()).filter(Boolean))].slice(0, SM_X);
-/* מה שהעובד שלח (smPut) / הסדרה מהקובץ → {gl, ch} נקי */
-function normSm(v) {
+/* מה שהעובד שלח (smPut, mask = SM_WORKER — בלי "נעול") / הסדרה מהקובץ (SM_FILE) → {gl, ch} נקי */
+function normSm(v, mask = SM_FILE) {
   const o = v && typeof v === 'object' ? v : {};
-  return { gl: smGl(o.gl), ch: smCh(o.ch) };
+  return { gl: smGl(o.gl, mask), ch: smCh(o.ch, mask) };
 }
-/* הקובץ → {v, s: {k: {n, at, ep, gl, ch}}} — מה שלא תקין נזרק */
+const SER_KEY = /^[\p{L}\p{N} ]{2,60}$/u;
+/* הקובץ → {v, s: {k: {n, at, ep, done, gl, ch, x}}, al: {כינוי: מפתח}} — מה שלא תקין נזרק */
 function smParse(text) {
   let j = null;
   try { j = JSON.parse(String(text || '')); } catch (e) { j = null; }
   const s = {};
   for (const [k, x] of Object.entries(j && j.s && typeof j.s === 'object' ? j.s : {}).slice(0, SM_SER)) {
-    if (!/^[\p{L}\p{N} ]{2,60}$/u.test(k) || !x || typeof x !== 'object') continue;
-    s[k] = Object.assign({ n: glClean(x.n, 60), at: Math.max(0, +x.at || 0), ep: Math.max(0, Math.floor(+x.ep || 0)) }, normSm(x), { x: smX(x.x) });
+    if (!SER_KEY.test(k) || !x || typeof x !== 'object') continue;
+    s[k] = Object.assign({ n: glClean(x.n, 60), at: Math.max(0, +x.at || 0), ep: Math.max(0, Math.floor(+x.ep || 0)),
+      done: (Array.isArray(x.done) ? x.done : []).map((i) => smInt(i, 1e5)).filter(Boolean).slice(-SM_DONE) }, normSm(x, SM_FILE), { x: smX(x.x) });
   }
-  return { v: 1, s };
+  // al (2.9): אותה סדרה תחת שני מפתחות (שמות קבצים שונים) — הכינוי מצביע על המפתח שבו הזיכרון
+  const al = {};
+  for (const [a, k] of Object.entries(j && j.al && typeof j.al === 'object' ? j.al : {}).slice(0, SM_SER)) {
+    if (SER_KEY.test(a) && typeof k === 'string' && s[k] && a !== k && !s[a]) al[a] = k;
+  }
+  return { v: 1, s, al };
 }
-/* מיזוג: שורה קיימת נשארת (הראשון גובר), חדשה נוספת; דמות בלי מגדר קודם — מקבלת. הסדרות הישנות ביותר יוצאות מעל SM_SER */
-function smMerge(doc, ser, add, now) {
+const smResolve = (d, k) => (d && d.al && d.al[k] && d.s[d.al[k]] ? d.al[k] : k);
+/* פינוי מעל התקרה: מבין הלא נעולות ובלי שמות שחזרו ב־2 פרקים ומעלה (2.6) — n הנמוך → מונח לפני שם → l הישן → המוקדמת */
+function smEvict(rows, cap, ni, isName, st) {
+  const F = ni + 2, less = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] < b[i]; return false; };
+  while (rows.length > cap) {
+    let w = -1, ws = null;
+    rows.forEach((r, i) => {
+      if (r[F] & SM_LOCK || (isName(r) && r[ni] >= 2)) return;
+      const s = [r[ni], isName(r) ? 1 : 0, r[ni + 1], i];
+      if (!ws || less(s, ws)) { w = i; ws = s; }
+    });
+    if (w < 0) break;
+    rows.splice(w, 1);
+    if (st) st.out++;
+  }
+  return rows;
+}
+/* שורה קיימת — n+1 (רק בפרק שעוד לא נספר: done), l = ep. הכתיב/המגדר נשארים, חוץ מ: נעולה — לא משתנה; "לא ודאי" ומגיעה
+   ודאית — מתחלפת; SM_FIX מהעובד — מתחלפת. חדשה — עד SM_NEW בכתיבה */
+function smRowsMerge(cur, add, key, cap, ni, ep, fresh, isName, st, x) {
+  const rows = cur.map((r) => r.slice()), at = new Map(rows.map((r, i) => [key(r), i])), F = ni + 2;
+  let nw = 0;
+  for (const r of add) {
+    if (x.includes(r[0].toLowerCase())) continue;   // נמחקה בכרטיס — לא חוזרת
+    const i = at.get(key(r));
+    if (i === undefined) {
+      if (nw++ >= SM_NEW) continue;
+      const y = r.slice(0, ni).concat([1, ep, r[F] & SM_UNSURE]);
+      at.set(key(y), rows.push(y) - 1); st.add++;
+      continue;
+    }
+    const y = rows[i]; st.hit++;
+    if (fresh) y[ni] = Math.min(999, y[ni] + 1);
+    y[ni + 1] = ep;
+    if (y[F] & SM_LOCK) continue;
+    if ((y[F] & SM_UNSURE && !(r[F] & SM_UNSURE)) || r[F] & SM_FIX) {
+      for (let j = 1; j < ni; j++) y[j] = r[j];
+      y[F] = r[F] & SM_UNSURE; st.fix++;
+    }
+  }
+  return smEvict(rows, cap, ni, isName, st);
+}
+const glIsName = (r) => smIsName(r[0]);
+function smMerge(doc, ser, add, now, st = {}) {
   const d = smParse(JSON.stringify(doc || {}));
-  const cur = d.s[ser.k] || { n: ser.n, at: 0, ep: 0, gl: [], ch: [], x: [] };
-  const a = normSm(add);
-  const have = new Set(cur.gl.map((r) => r[0].toLowerCase()).concat(cur.x)), chave = new Set(cur.ch.map((r) => r[0].toLowerCase()).concat(cur.x));
-  const next = { n: cur.n || ser.n, at: now, ep: cur.ep + 1, x: cur.x,
-    gl: cur.gl.concat(a.gl.filter((r) => !have.has(r[0].toLowerCase()))).slice(0, SM_GL),
-    ch: cur.ch.concat(a.ch.filter((r) => !chave.has(r[0].toLowerCase()))).slice(0, SM_CH) };
-  d.s[ser.k] = next;
-  const keys = Object.keys(d.s).sort((x, y) => d.s[y].at - d.s[x].at);
-  for (const k of keys.slice(SM_SER)) delete d.s[k];
+  const k = smResolve(d, ser.k);
+  const cur = d.s[k] || { n: ser.n, at: 0, ep: 0, done: [], gl: [], ch: [], x: [] };
+  const a = normSm(add, SM_WORKER);
+  const id = ser.e ? (ser.s || 0) * 1000 + ser.e : 0, fresh = !id || !cur.done.includes(id), ep = cur.ep + (fresh ? 1 : 0);   // הרצה חוזרת של אותו פרק — לא עוד פרק
+  const sg = { add: 0, hit: 0, fix: 0, out: 0 }, sch = { add: 0, hit: 0, fix: 0, out: 0 };
+  d.s[k] = { n: cur.n || ser.n, at: now, ep, done: (fresh && id ? cur.done.concat(id) : cur.done).slice(-SM_DONE), x: cur.x,
+    gl: smRowsMerge(cur.gl, a.gl, (r) => r[0].toLowerCase(), SM_GL, 2, ep, fresh, glIsName, sg, cur.x),
+    ch: smRowsMerge(cur.ch, a.ch, (r) => chKey(r[0]), SM_CH, 3, ep, fresh, () => true, sch, cur.x) };
+  smTrim(d, k);
+  Object.assign(st, { gl: sg, ch: sch, ng: d.s[k].gl.length, nc: d.s[k].ch.length, fresh: fresh ? 1 : 0 });
   return d;
 }
-/* לעובד: הסדרה של העבודה (או null) */
-function smForWorker(doc, ser) {
-  const x = ser && doc && doc.s && doc.s[ser.k];
-  return x && (x.gl.length || x.ch.length) ? { n: x.n, ep: x.ep, gl: x.gl, ch: x.ch } : null;
+/* מעל SM_SER — הסדרות הישנות יוצאות; מעל SM_BYTES — עוד ישנות (לא keep), כדי שהקובץ לא יגיע ל־r2_too_large */
+function smTrim(d, keep) {
+  const keys = Object.keys(d.s).sort((x, y) => d.s[y].at - d.s[x].at);
+  for (const k of keys.slice(SM_SER)) delete d.s[k];
+  let size = Buffer.byteLength(JSON.stringify(d));   // פעם אחת, ואז לפי גודל כל סדרה (לא stringify של הכל בכל צעד)
+  for (const k of keys.slice(0, SM_SER).reverse()) {
+    if (size <= SM_BYTES) break;
+    if (k === keep) continue;
+    size -= Buffer.byteLength(JSON.stringify(k)) + Buffer.byteLength(JSON.stringify(d.s[k])) + 2;
+    delete d.s[k];
+  }
+  for (const a of Object.keys(d.al || {})) if (!d.s[d.al[a]]) delete d.al[a];
 }
-/* A1 (1/11/2026): כרטיס הסדרה בטלפון — כל הסדרות, החדשה ביותר ראשונה (שמות, מונחים ומגדר; אין כאן טקסט כתוביות) */
+/* לעובד: הסדרה של העבודה (או null) — השכיחות קודם (עובד ישן שחותך ב־150 לוקח את החשובות) */
+function smForWorker(doc, ser) {
+  const x = ser && doc && doc.s && doc.s[smResolve(doc, ser.k)];
+  return x && (x.gl.length || x.ch.length) ? { n: x.n, ep: x.ep, gl: x.gl.slice().sort((a, b) => b[2] - a[2]), ch: x.ch.slice().sort((a, b) => b[3] - a[3]) } : null;
+}
+/* A1 (1/11/2026): כרטיס הסדרה בטלפון — כל הסדרות, החדשה ביותר ראשונה (שמות, מונחים ומגדר; אין כאן טקסט כתוביות).
+   02/11/2026 (2.10): בצורה של הטלפון — [en, he] ו־[שם, g, תפקיד]; n/l/f נשארים בשרתון (הטלפון לא משתנה) */
 function smView(doc) {
   const s = (doc && doc.s) || {};
-  return Object.keys(s).sort((a, b) => s[b].at - s[a].at).map((k) => ({ k, n: s[k].n, ep: s[k].ep, at: s[k].at, gl: s[k].gl, ch: s[k].ch }));
+  return Object.keys(s).sort((a, b) => s[b].at - s[a].at).map((k) => ({ k, n: s[k].n, ep: s[k].ep, at: s[k].at,
+    gl: s[k].gl.map((r) => r.slice(0, 2)), ch: s[k].ch.map((r) => r.slice(0, 3)) }));
 }
 /* עריכה מהטלפון — שינוי קטן בכל פעם (הגוף לשרתון עד 4KB): gl/ch = שורות להוספה או להחלפה (לפי האנגלית / שם הדמות),
-   glx/chx = מה למחוק (נכנס ל־x — לא חוזר מהפרק הבא), drop = הסדרה כולה. עריכה שלך גוברת על "הראשון שנקבע".
+   glx/chx = מה למחוק (נכנס ל־x — לא חוזר מהפרק הבא), drop = הסדרה כולה. עריכה שלך = נעולה (SM_LOCK): לא מתפנה,
+   והעובד לא משנה אותה. n/l של שורה ערוכה נשמרים; שינוי שם (מחיקה אחת + שורה חדשה אחת) מעביר אותם לשם החדש.
    null = אין סדרה כזו / אין שום שינוי תקין */
 const SM_EDIT_MAX = 20;
 function smEdit(doc, k, e, now) {
   const d = smParse(JSON.stringify(doc || {}));
   const cur = d.s[k];
   if (!cur || !e || typeof e !== 'object') return null;
-  if (e.drop === true) { delete d.s[k]; return d; }
+  if (e.drop === true) { delete d.s[k]; smTrim(d, ''); return d; }
   const lim = (v) => (Array.isArray(v) ? v.slice(0, SM_EDIT_MAX) : []);
-  const gl = smGl(lim(e.gl)), ch = smCh(lim(e.ch).map((r) => (Array.isArray(r) && r.length < 3 ? r.concat('') : r)));
+  const gl = smGl(lim(e.gl), 0), ch = smCh(lim(e.ch).map((r) => (Array.isArray(r) && r.length < 3 ? r.concat('') : r)), 0);
   const glx = smX(lim(e.glx)), chx = smX(lim(e.chx));
   if (!gl.length && !ch.length && !glx.length && !chx.length) return null;
-  const up = (rows, add, del, max) => {
-    const out = rows.filter((r) => !del.includes(r[0].toLowerCase())).map((r) => add.find((a) => a[0].toLowerCase() === r[0].toLowerCase()) || r);
-    for (const a of add) if (!out.some((r) => r[0].toLowerCase() === a[0].toLowerCase())) out.push(a);
-    return out.slice(0, max);
+  const up = (rows, add, del, max, key, ni, isName) => {
+    const dk = new Set(del.map((t) => key([t])));
+    const carry = del.length === 1 && add.length === 1 ? rows.find((r) => key(r) === key([del[0]])) : null;
+    const out = rows.filter((r) => !dk.has(key(r)));
+    for (const a of add) {
+      const i = out.findIndex((r) => key(r) === key(a));
+      const base = i >= 0 ? out[i] : rows.find((r) => key(r) === key(a)) || carry;
+      const y = a.slice(0, ni).concat([base ? base[ni] : 1, base ? base[ni + 1] : cur.ep, SM_LOCK]);
+      if (i >= 0) out[i] = y; else out.push(y);
+    }
+    return smEvict(out, max, ni, isName, null);
   };
   const back = new Set(gl.concat(ch).map((r) => r[0].toLowerCase()));   // מה שהוספת מחדש — כבר לא "נמחק"
-  d.s[k] = Object.assign({}, cur, { at: Math.max(now, cur.at + 1), gl: up(cur.gl, gl, glx, SM_GL), ch: up(cur.ch, ch, chx, SM_CH),
+  d.s[k] = Object.assign({}, cur, { at: Math.max(now, cur.at + 1),
+    gl: up(cur.gl, gl, glx, SM_GL, (r) => String(r[0]).toLowerCase(), 2, glIsName),
+    ch: up(cur.ch, ch, chx, SM_CH, (r) => chKey(r[0]), 3, () => true),
     x: cur.x.filter((t) => !back.has(t)).concat(glx, chx).filter((t, i, a) => a.indexOf(t) === i && !back.has(t)).slice(-SM_X) });
+  return d;
+}
+/* 2.9: איחוד ידני של שני מפתחות של אותה סדרה (פעולת מנהל) — from נכנס לתוך to, ו־al[from] = to. בהתנגשות to גובר
+   (חוץ מ"לא ודאי" מול ודאי); n מצטבר, נעול נשמר. null = אין שתי סדרות כאלה */
+function smAlias(doc, from, to, now) {
+  const d = smParse(JSON.stringify(doc || {}));
+  const A = d.s[to], B = d.s[from];
+  if (!A || !B || from === to) return null;
+  const join = (ra, rb, key, ni, cap, isName) => {
+    const out = ra.map((r) => r.slice()), at = new Map(out.map((r, i) => [key(r), i])), F = ni + 2;
+    for (const r of rb) {
+      const i = at.get(key(r));
+      if (i === undefined) { at.set(key(r), out.push(r.slice()) - 1); continue; }
+      const y = out[i];
+      y[ni] = Math.min(999, y[ni] + r[ni]);
+      y[ni + 1] = Math.max(y[ni + 1], r[ni + 1]);
+      if (!(y[F] & SM_LOCK) && ((y[F] & SM_UNSURE && !(r[F] & SM_UNSURE)) || r[F] & SM_LOCK)) { for (let j = 1; j < ni; j++) y[j] = r[j]; y[F] = r[F]; }
+      else y[F] |= r[F] & SM_LOCK;
+    }
+    return smEvict(out, cap, ni, isName, null);
+  };
+  d.s[to] = Object.assign({}, A, { at: Math.max(now, A.at + 1, B.at), ep: A.ep + B.ep,
+    done: [...new Set(A.done.concat(B.done))].slice(-SM_DONE), x: [...new Set(A.x.concat(B.x))].slice(-SM_X),
+    gl: join(A.gl, B.gl, (r) => r[0].toLowerCase(), 2, SM_GL, glIsName), ch: join(A.ch, B.ch, (r) => chKey(r[0]), 3, SM_CH, () => true) });
+  delete d.s[from];
+  for (const a of Object.keys(d.al)) if (d.al[a] === from) d.al[a] = to;
+  d.al[from] = to;
   return d;
 }
 const jobSeries = (job) => seriesOf((job.fv && job.fv.name) || (job.fa && job.fa.name) || (job.fsu && job.fsu.name) || '');
@@ -1548,7 +1673,7 @@ function fromFields(f) {
   return o;
 }
 
-module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, normVcp, bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, jobSeries, SM_BYTES, dualAb, DUAL_AB_UNTIL, rvAb, RV_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
+module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, normVcp, bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, smAlias, smResolve, smRowsMerge, smEvict, smIsName, chKey, jobSeries, SM_BYTES, SM_READ, SM_GL, SM_CH, SM_NEW, SM_DONE, SM_LOCK, SM_UNSURE, SM_FIX, SM_WORKER, dualAb, DUAL_AB_UNTIL, rvAb, RV_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_MAX_ADMIN, goldMax, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XF_KEYS, XF_MAX, normXf, GOLD_ARMS, normArms, waveOrder, waveClone, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, cuesSwap, rrSpec, rrJob,

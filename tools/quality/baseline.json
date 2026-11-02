@@ -12,5 +12,10 @@
  "chrf_v1_fixed": 40.5,
  "jd": {"all": 90.5, "medium": 88.6, "high": 92.8},
  "usd": {"all": 0.084, "medium": 0.071, "high": 0.099},
- "ready_s": {"all": 980, "medium": 958, "high": 1005}
+ "ready_s": {"all": 980, "medium": 958, "high": 1005},
+ "m0": {"date": "2026-11-02", "note": "שחזור חינמי ומקומי: המומחה והזוגות מ־JSONL של המחקר; chrF v2 מ־learn-vs-human v2 על המאגר (עם vis של המחקר — 49.84)",
+        "expert": {"mqm_content": 90.16, "mqm": 133.93, "majcrit": 19.69, "issues": 50.69},
+        "pairs": {"b": 177, "a": 83, "t": 47, "win": 0.681, "lo": 0.622, "hi": 0.735},
+        "chrf_v2_d7": {"all": 49.92, "medium": 50.18, "high": 49.64},
+        "chrf_v2_edit": {"all": 50.09, "medium": 50.21, "high": 49.95, "differs": 3}}
 }
