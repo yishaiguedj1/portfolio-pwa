@@ -40,6 +40,8 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   { const SM0 = require('../ibkr-proxy/lib/studio');
     const sk = SM0.smokeJob({ id: 'g', uid: B, spec: { eng: 'api', dur: 300, bt: 1, out: ['srt'] }, gd: null }, 'x', B, now);
     ok(sk && sk.sm === 1 && !('bt' in sk.spec), 'עבודת הבדיקה אחרי עדכון — לא בחצי מחיר (לא מחכה שעות בתור החיסכון)'); }
+  { const st0 = require('fs').readFileSync(require('path').join(__dirname, '..', 'studio.js'), 'utf8'), ap0 = require('fs').readFileSync(require('path').join(__dirname, '..', 'ibkr-proxy', 'api', 'studio.js'), 'utf8');
+    ok(/const btOk = \(f\) => !!\(ui\.api && ui\.api\.admin\) &&/.test(st0) && /if \(spec\.bt && !isAdmin\(user\)\) delete spec\.bt;/.test(ap0), 'חצי מחיר — רק למנהל (בטלפון ובשרתון)'); }
   { const SLA0 = require('../ibkr-proxy/lib/studiosla');
     const b = { id: 'z', kind: 'tr', state: 'queued', c0: now - 26 * 60e3, created: now - 26 * 60e3, tg: { t: 23 * 60 }, prog: { st: 'al', p: 0.6 }, spec: { eng: 'api' } };
     ok(SLA0.slaView(b, now).t.lv === 'over' && SLA0.slaView(Object.assign({}, b, { spec: { eng: 'api', bt: 1 } }), now).t.lv !== 'over', 'חצי מחיר: יעד הזמן = חלון תור החיסכון, בלי "חרגה" אחרי 26 דק׳'); }

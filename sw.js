@@ -79,7 +79,7 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "8d6bfd5a0fca86d55786ab8e6cbe55d0",
+  "./studio.js": "d5d14074654c8950304a619aad442793",
   "./studio.css": "b5bc9c2853f3ae87b220792419848092",
   "./studionet.js": "b7fb301d8ff96593f79770d794c68917",
   "./studioplay.js": "9862ab618839b88fa914399b8eff2ce7",
