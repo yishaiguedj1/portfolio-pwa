@@ -360,13 +360,19 @@ async function learnPull(req, res, body, deps) {
   try {
     const t = await readDoc(deps, 'sysTokens', atId(tok));
     if (!t || !(t.exp > now)) return res.status(401).json({ ok: false, error: 'bad_token' });
+    const pg = LC.pageArgs(body);
+    if (body.co === true) {   // 02/11/2026 (PR1 1.3): עמוד המשך — רק הקורפוס: בלי learnLoad/records/view/checks (רק קריאה וכתיבה של הטוקן)
+      await patchDoc(deps, 'sysTokens', t.id, { last: now, uses: (t.uses || 0) + 1 }).catch(() => {});
+      const corpus = await learnCorpusView(deps, pg).catch(() => ({ on: false, error: 'r2' }));
+      return res.status(200).json({ ok: true, v: LR.LR_V, at: now, corpus });
+    }
     const { recs } = await learnLoad(deps, now);
     await patchDoc(deps, 'sysTokens', t.id, { last: now, uses: (t.uses || 0) + 1 }).catch(() => {});
     const view = LR.learnView(recs, now);
     // 15/10/2026: גם התשובות של המנהל לבדיקות בטלפון — כך הסשן יודע מה עובד ומה לא (רק כותרת, מצב והערה של המנהל)
     const checks = Object.entries(await checkAnswers(deps)).map(([id, x]) => ({ id, t: x.t, st: x.st, n: x.n, at: x.at }));
     // מ׳2: קורפוס הטקסט — המספרים תמיד; הפריטים עצמם (עד 20) רק כשהסשן ביקש (ci) — לניתוח ב־Claude שבמנוי
-    const corpus = await learnCorpusView(deps, Math.max(0, Math.min(20, Math.floor(+body.ci || 0)))).catch(() => ({ on: false, error: 'r2' }));
+    const corpus = await learnCorpusView(deps, pg).catch(() => ({ on: false, error: 'r2' }));
     // 22/10/2026 (בקשת המשתמש — מעבר דקה־דקה על הסרטונים): הקול / ה־240p של עד 4 עבודות — קישור קריאה חתום לשעה + המפתח
     const media = Array.isArray(body.mi) ? await learnMediaPull(deps, body.mi, body.mv === true).catch(() => ({})) : undefined;
     return res.status(200).json(Object.assign({ ok: true, v: LR.LR_V, at: now, brief: LR.learnBrief(view, now), view, records: recs, checks, corpus }, media ? { media } : {}));
@@ -471,6 +477,7 @@ async function learnPut(deps, job, b64, now) {
     const item = LC.normCorpus(JSON.parse(raw.toString('utf8')), LC.monthOf(now), full);
     if (!item) return false;
     if (full) Object.assign(item, fullExtras(job));
+    Object.assign(item, LC.expMark(job));   // 02/11/2026 (PR1 1.8): ניסוי — xf / gs / wa כשדות מפורשים, לזיווג בניתוח
     const lid = LR.lid(job.id);
     await R2.putText(c, r2deps(deps), LC.qKey(lid), vault.seal(item, 'learn|' + lid), 'application/octet-stream');
     await patchJob(deps, job.id, { lc: now });
@@ -590,32 +597,35 @@ async function learnCorpusForget(deps, ids) {
   return n;
 }
 /* למנהל ולסשן הניתוח: כמה פריטים, כמה בתור, כמה MB — מרשימת המפתחות בלבד. items = עד n פריטים פתוחים, מהחודש החדש */
-async function learnCorpusView(deps, items) {
+async function learnCorpusView(deps, pga) {
   const c = learnCfg();
   if (!c.ok) return { on: false };
+  const pg = typeof pga === 'object' && pga ? pga : LC.pageArgs({ ci: pga });   // מספר = הצורה הישנה (ci)
   const rd = r2deps(deps);
   const keys = [...await R2.list(c, rd, 'q/', 5000), ...await R2.list(c, rd, 'c/', 50000), ...await R2.list(c, rd, 'qe/', 5000), ...await R2.list(c, rd, 'e/', 50000), ...await R2.list(c, rd, 'm/', 50000)];
   const out = Object.assign({ on: true }, LC.corpusStats(keys));
-  if (items > 0) {
+  if (pg.list || pg.items > 0) {
     const list = [];
     // 24/10/2026 (בקשת המשתמש): גם עבודות שעוד בתור (q/) — עד האצווה היומית עבודה שהסתיימה עכשיו לא נראתה בניתוח.
     // התור קודם (החדשות), ואחריו c/ מהחדש לישן; אותה עבודה פעם אחת. q:1 = עוד לא עברה באצווה
-    const rank = (k) => (k.lastModified ? Date.parse(k.lastModified) || 0 : 0);
-    const qd = keys.filter((k) => (LC.parseKey(k.key) || {}).kind === 'q').sort((a, b) => rank(b) - rank(a));
-    const cd = keys.filter((k) => (LC.parseKey(k.key) || {}).kind === 'c').sort((a, b) => (a.key < b.key ? 1 : -1));
-    const seen = new Set();
-    for (const it of [...qd, ...cd]) {
-      if (list.length >= Math.min(items, 20)) break;
+    // 02/11/2026 (PR1 1.3): בעמודים — cx (רשימת המזהים), cl (לפי מזהה), cs (דילוג); הסדר יציב (LC.pageOrder)
+    let order = LC.pageOrder(keys);
+    out.tot = order.length;
+    if (pg.list) out.ids = order.map((it) => { const p = LC.parseKey(it.key); return { id: p.lid, q: p.kind === 'q' ? 1 : 0, m: p.month || '' }; });
+    order = pg.ids ? order.filter((it) => pg.ids.includes(LC.parseKey(it.key).lid)) : order.slice(pg.skip);
+    let used = 0;
+    for (const it of order) {
+      if (list.length >= pg.items) break;
+      used++;   // גם פריט שלא נפתח נספר — אחרת next נתקע
       const p = LC.parseKey(it.key);
-      if (seen.has(p.lid)) continue;
       const x = vault.open(await R2.getText(c, rd, it.key, LC_MAX_BODY * 2), 'learn|' + p.lid);
       if (!x) continue;
-      seen.add(p.lid);
       if (p.kind === 'q') x.q = 1;
       const ek = keys.find((k) => { const q = LC.parseKey(k.key); return q && q.lid === p.lid && (q.kind === 'e' || q.kind === 'qe'); });   // מ׳3: העריכות של אותה עבודה
       const ed = ek ? vault.open(await R2.getText(c, rd, ek.key, LE_MAX * 3), 'learn|' + p.lid) : null;
       list.push(Object.assign({ id: p.lid }, x, ed ? { ed: ed.ss } : {}));
     }
+    if (!pg.ids) out.next = pg.items > 0 && pg.skip + used < out.tot ? pg.skip + used : null;
     out.items = list;
   }
   return out;
@@ -1831,9 +1841,11 @@ async function server(req, res, body, deps) {
     // 21/10/2026: השרת כבר מריץ עבודה ושואל אם יש עוד — רק עבודה שהשיא הצפוי שלה נכנס בזיכרון שנשאר לו (fit).
     // לפי הסדר: אם הוותיקה לא נכנסת, לא מקדימים לה עבודה קטנה (אחרת עבודה ארוכה מחכה לנצח מאחורי קצרות)
     const fit = S.normFit(body.fit);
+    const br = Array.isArray(body.br) ? body.br.filter((x) => typeof x === 'string' && x.length <= 64).slice(0, 20) : [];
     for (const job of qd) {
       if (!apiJob(job) || S.effState(job, now).state !== 'queued') continue;
       if (ptJob(job)) continue;   // 25/10/2026: הטלפון לוקח אותה בעצמו (phClaim)
+      if (job.bw && !br.includes(job.id)) continue;   // 01/11/2026 (I3): מחכה לתור החיסכון — רק כשהסוכן אמר שהתשובות חזרו
       if (job.vw && !((job.spec && job.spec.ph === 1 ? job.fph : job.fv) || {}).id) continue;   // 15/10/2026: מחכה לסרטון — לא תופסים שרת עד שהוא נרשם (24/10: בתרגום בטלפון — לקובץ המדידות)
       if (fit && S.peakNeed(job, fit) > fit.mb) break;
       await capWarm(deps, now);
@@ -1847,7 +1859,7 @@ async function server(req, res, body, deps) {
       const key = S.newKey();
       // 21/10/2026: לצפי — הליבות של השרת וכמה עבודות כבר רצות עליו (חולקות את המעבד)
       const fx = Object.assign(hb.cpu > 0 ? { hc: Math.round(hb.cpu) } : {}, { cc: Math.max(0, Math.round(hb.nj || 0)) });
-      const got = await patchIf(deps, 'studioJobs', job.id, Object.assign({ sid: p.sid, pk: now, vw: 0, capc: Math.round(cap * 100), kh: S.keyHash(key), kx: now + S.KEY_TTL, updated: now }, fx), job._ut);
+      const got = await patchIf(deps, 'studioJobs', job.id, Object.assign({ sid: p.sid, pk: now, vw: 0, bw: 0, capc: Math.round(cap * 100), kh: S.keyHash(key), kx: now + S.KEY_TTL, updated: now }, fx), job._ut);
       if (!got) continue;
       await patchDoc(deps, 'studioServers', p.sid, Object.assign(seen, { job: job.id }));
       const dur = job.spec && job.spec.dur > 0 ? Math.round(job.spec.dur) : 0;
@@ -2660,7 +2672,13 @@ async function worker(req, res, body, deps) {
       }
     }
     let parked = false;
-    if (body.park === true) {
+    if (body.park === true && body.bw === true) {
+      // 01/11/2026 (I3): הבקשות של העבודה בתור החיסכון — חוזרת לתור עד שהסוכן מדווח שהתשובות חזרו (poll ‏br), והשרת פנוי
+      if (!S.bwParkable(job)) return res.status(409).json({ ok: false, error: 'park_bad' });
+      Object.assign(up, { state: 'queued', sid: '', pk: 0, kh: '', kx: 0, bw: job.spec.bt === 1 ? now : 0 });
+      delete up.ended; delete up.err;
+      parked = true;
+    } else if (body.park === true) {
       // 15/10/2026: הסרטון לא הגיע — העבודה חוזרת לתור עד שיגיע, והשרת פנוי. המפתח מת (kh), מה ששולם עובר ל־use0
       if (!S.parkable(job)) return res.status(409).json({ ok: false, error: 'park_bad' });
       Object.assign(up, { state: 'queued', sid: '', pk: 0, kh: '', kx: 0, vw: now, wv0: job.wv0 || now });
@@ -2758,7 +2776,7 @@ async function worker(req, res, body, deps) {
       // 22/10/2026: קובץ כתוביות (בלי תמלול ויישור) לא מלמד את הצפי ואת "הרגיל" של עבודות מסרטון — שלבים וזמנים אחרים
       const smp = S.normSample(job, up.use || job.use, now);
       // 10/10/2026: וגם כמה לקח כל שלב — מזה נלמד הצפי (studioeta.js)
-      const es = job.spec && (job.spec.xe || job.spec.xg) ? null : ETA.etaSample(Object.assign({}, job, up), now);   // 24/10/2026: ניסוי המאמץ לא מלמד את הצפי
+      const es = job.spec && (job.spec.xe || job.spec.xg || job.spec.xf) ? null : ETA.etaSample(Object.assign({}, job, up), now);   // 24/10/2026: ניסוי המאמץ לא מלמד את הצפי
       if (smp || es) {
         const st0 = await readStats(deps, job.uid);
         const patchS = { updated: now };
@@ -3677,8 +3695,28 @@ async function handler(req, res, deps = {}) {
       if (body.ok !== true) return res.status(400).json({ ok: false, error: 'confirm' });
       if ((await readStats(deps, uid)).halt) return res.status(409).json({ ok: false, error: 'halted' });
       const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
+      if (body.arms != null) {
+        // 02/11/2026 (איכות התרגום, PR1 1.8): "הרץ גל" — עד 3 זרועות (מצב, דגלי xf, מקורות), כל המקורות × כל הזרועות בקריאה
+        // אחת ובסדר משולב. מנהל בלבד; רק SRT; קריאה אחת לגל (gold_busy)
+        if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'admin' });
+        const gs0 = S.goldSources(all), arms = S.normArms(body.arms, gs0.map((j) => j.id));
+        if (!arms) return res.status(400).json({ ok: false, error: 'bad_params' });
+        for (const a of arms) if (await modeLocked(a.mode)) return res.status(403).json({ ok: false, error: 'mode_locked' });
+        const wv = S.waveOrder(gs0, arms).slice(0, S.goldMax(true) * arms.length);
+        if (!wv.length) return res.status(400).json({ ok: false, error: 'no_gold' });
+        if (all.some((j) => j.gs && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'gold_busy' });
+        if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length + wv.length > S.maxActive(true)) return res.status(409).json({ ok: false, error: 'too_many' });
+        // הניקוי: קודם עותקי זהב ישנים (gs), ורק אחר כך עבודות רגילות — הישנות קודם
+        const fin = all.filter((j) => S.FINAL.includes(S.effState(j, now).state) && !j.gd);
+        const old = fin.filter((j) => j.gs).sort((a, b) => (a.created || 0) - (b.created || 0))
+          .concat(fin.filter((j) => !j.gs).sort((a, b) => (a.created || 0) - (b.created || 0)));
+        for (const o of old.slice(0, Math.max(0, all.length + wv.length - S.MAX_STORED))) await delDoc(deps, 'studioJobs', o.id);
+        const made = [];
+        for (const [j, a, i] of wv) { const c = S.waveClone(j, S.newJobId(), uid, now, a, i); await patchJob(deps, c.id, c); made.push(view(c)); }
+        return res.status(200).json({ ok: true, jobs: made });
+      }
       // פריט 15 ("ריצת מבחן"): src = עבודת זהב אחת, modes = כמה מצבים עליה (השוואה בין מצבים על אותו סרטון)
-      const modes = Array.isArray(body.modes) ? Array.from(new Set(body.modes.filter((m) => S.MODES.includes(m) || S.LEGACY_MODES[m]).map((m) => S.modeNow(m)))).slice(0, S.GOLD_MAX) : [];   // מצב לא מוכר — נזרק (לא ברירת המחדל)
+      const modes = Array.isArray(body.modes) ? Array.from(new Set(body.modes.filter((m) => S.MODES.includes(m) || S.LEGACY_MODES[m]).map((m) => S.modeNow(m)))).slice(0, S.goldMax(isAdmin(user))) : [];   // מצב לא מוכר — נזרק (לא ברירת המחדל)
       if (Array.isArray(body.modes) && (!modes.length || !body.src)) return res.status(400).json({ ok: false, error: 'bad_params' });
       for (const m of modes) if (await modeLocked(m)) return res.status(403).json({ ok: false, error: 'mode_locked' });
       const gsrc = S.goldSources(all).filter((j) => !body.src || j.id === body.src);
@@ -3689,13 +3727,18 @@ async function handler(req, res, deps = {}) {
       // both = לכל מצב גם הרצה רגילה וגם הרצה בניסוי (השוואה על אותו סרטון, באותו זמן)
       const vx = xe || xg ? { xe, xg: xg ? 1 : 0 } : null;
       const vars = vx ? (body.both === true ? [null, vx] : [vx]) : [null];
-      const src = (modes.length ? modes.flatMap((m) => vars.map((x) => [gsrc[0], m, x])) : gsrc.map((j) => [j, null, vx])).filter((x) => x[0]).slice(0, S.GOLD_MAX);
+      const src = (modes.length ? modes.flatMap((m) => vars.map((x) => [gsrc[0], m, x])) : gsrc.map((j) => [j, null, vx])).filter((x) => x[0]).slice(0, S.goldMax(isAdmin(user)));
       if (!src.length) return res.status(400).json({ ok: false, error: 'no_gold' });
       if (all.some((j) => j.gs && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'gold_busy' });   // הרצה קודמת עוד פתוחה
       if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length + src.length > S.maxActive(isAdmin(user))) return res.status(409).json({ ok: false, error: 'too_many' });   // הסקירה: לא לעקוף את MAX_ACTIVE
       for (const old of all.filter((j) => S.FINAL.includes(S.effState(j, now).state) && !j.gd).slice(S.MAX_STORED - src.length)) await delDoc(deps, 'studioJobs', old.id);
       const made = [];
-      for (const [j, m, x] of src) { const c = S.goldClone(j, S.newJobId(), uid, now, m, x); await patchJob(deps, c.id, c); made.push(view(c)); }
+      for (const [j, m, x] of src) {
+        const c = S.goldClone(j, S.newJobId(), uid, now, m, x);
+        // 01/11/2026 (I3): הרצה בחצי מחיר (bt) — מדידת הזמן והכשלים של תור החיסכון על סט הזהב, לפני שזה עולה לכולם
+        if (body.bt === 1 && c.spec.eng === 'api' && !c.spec.ka) c.spec.bt = 1; else delete c.spec.bt;
+        await patchJob(deps, c.id, c); made.push(view(c));
+      }
       return res.status(200).json({ ok: true, jobs: made });
     }
     let job = await mine(body.job);
@@ -3712,7 +3755,7 @@ async function handler(req, res, deps = {}) {
       const ref = String(body.ref || '');
       if (!S.FILE_ID_RE.test(ref)) return res.status(400).json({ ok: false, error: 'bad_params' });
       const others = (await listJobs(deps, uid)).filter((j) => j.id !== job.id && S.normGd(j.gd));
-      if (others.length >= S.GOLD_MAX) return res.status(409).json({ ok: false, error: 'gold_full' });
+      if (others.length >= S.goldMax(isAdmin(user))) return res.status(409).json({ ok: false, error: 'gold_full' });   // 02/11/2026: למנהל 16
       const f = await driveFileInFolder(deps, uid, job.folder, ref);
       if (!f) return res.status(400).json({ ok: false, error: 'file_bad' });
       if (f.error) return res.status(200).json({ ok: false, error: f.error });
@@ -3720,6 +3763,17 @@ async function handler(req, res, deps = {}) {
       const gd = { r: ref, n: f.size, at: now };
       await patchJob(deps, job.id, { gd, gq: null, updated: now });
       job.gd = gd; job.gq = null;
+      return res.status(200).json({ ok: true, job: view(job) });
+    }
+    if (op === 'btNow') {
+      // 01/11/2026 (I3): "להמשיך עכשיו במחיר רגיל" — העבודה יוצאת מתור החיסכון: מה שכבר חזר נשמר ונקרא, השאר בזמן אמת.
+      // חונה (bw) — חוזרת לתור הרגיל מיד; רצה — החידוש הבא (או הסבב הבא) כבר בלי התור
+      if (job.kind !== 'tr' || !job.spec || job.spec.bt !== 1 || S.FINAL.includes(st)) return res.status(409).json({ ok: false, error: 'state' });
+      const spec = Object.assign({}, job.spec);
+      delete spec.bt;
+      const upd = Object.assign({ spec, updated: now }, job.bw && !job.pk ? { bw: 0 } : {});
+      await patchJob(deps, job.id, upd);
+      Object.assign(job, upd);
       return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'goldScore') {
@@ -4014,6 +4068,7 @@ module.exports = (req, res) => handler(req, res);
 module.exports._handler = handler;
 module.exports._reset = () => { hits.clear(); jobMem = { users: new Map(), sync: 0, dirty: false }; cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; srcSoon = new Map(); _upd = { at: 0, sha: '', t: 0 }; updWaitAt = 0; srvAuthMem.clear(); orphanAt.clear(); monCfgC = { at: 0, v: null };
   incSeen.clear(); learnMem = null; provC = { at: 0, v: null }; aoCache.clear(); };   // 26/10/2026: המטמונים של מכסת Firestore
+module.exports._hitsClear = () => hits.clear();   // לבדיקות בלבד: מאפס רק את מגביל הקצב
 module.exports._updatePending = updatePending;
 module.exports._updWaiting = (job, now, at) => { if (at != null) updWaitAt = at; return updWaiting(job, now); };
 module.exports._jobMem = { listJobs, patchJob, delDoc, JM_TTL_MS, JM_FULL_MS };

@@ -37,6 +37,9 @@
     <queries>
         <package android:name="app.thesnowball.studio" />
         <package android:name="app.thesnowball.studiodm" />
+        <!-- הגל השישי (02/11/2026): מאמר ל־Academy (70) וכרטיס מניה ל־Invest (71) -->
+        <package android:name="app.thesnowball.academy" />
+        <package android:name="io.github.yishaiguedj1.snowball" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
@@ -82,6 +85,13 @@
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
+            </intent-filter>
+            <!-- 68 (02/11/2026): הכתוביות שחזרו מ־Studio (שיתוף של "שם הסרטון.he.srt") → לנגן של הדף שנשלח ממנו -->
+            <intent-filter android:label="@string/brSubsLoad">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/x-subrip" />
+                <data android:mimeType="text/vtt" />
             </intent-filter>
         </activity>
 

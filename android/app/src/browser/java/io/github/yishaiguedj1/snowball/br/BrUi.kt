@@ -443,6 +443,15 @@ private fun PageScreen(a: BrowserActivity) {
     a.filesFound?.let { FilesSheet(a, it) }
     a.floatWin?.let { FloatWindow(a, it) }
     WaveFloat(a, t)
+    // הגל החמישי
+    if (a.localSheet && t != null && !t.isNtp) LocalSheet(a, t)
+    if (a.langSheet) LangSheet(a)
+    if (a.sumSheet) SumSheet(a)
+    LocalFloat(a, t)
+    // הגל השישי
+    if (a.oursSheet) OursSheet(a, t)
+    if (a.chapSheet) ChapSheet(a)
+    if (a.stockSheet) StockSheet(a)
 }
 
 /** החלון של הכרטיסייה הפעילה: הכרטיסייה החדשה, או הדף עם הכפתור שעל הנגן והבדיקה ברקע */
@@ -1044,6 +1053,10 @@ private fun MenuSheet(a: BrowserActivity) {
             }
             // הגל הרביעי — כל הכלים בגיליון אחד
             if (web) MItem(R.string.brReadTools, BrIcons.Book) { close(); a.readSheet = true }
+            // הגל החמישי — בטלפון, בלי ענן
+            if (web) MItem(R.string.brLocal, BrIcons.Phone, badge = if (a.capTab != null) "CC" else null) { close(); a.localSheet = true }
+            // הגל השישי — רק אצלנו (Studio, Academy, Invest)
+            MItem(R.string.brOurs, BrIcons.Sparkle, badge = if (t?.subs != null) "CC" else null) { close(); a.oursSheet = true }
             MDiv()
             MItem(R.string.brSettings, BrIcons.CSettings) { close(); a.screen = BrowserActivity.Screen.SETTINGS }
         }
@@ -3829,6 +3842,293 @@ private fun FloatWindow(a: BrowserActivity, f: BrowserActivity.FloatWin) {
             key(f) {
                 AndroidView({ _ -> a.floatWeb(f) }, Modifier.weight(1f).fillMaxWidth(), onRelease = { a.previewKill(it) })
             }
+        }
+    }
+}
+
+/* ======================= הגל החמישי (01/11/2026, BrLocal): בתוך הטלפון, בלי ענן ======================= */
+
+/** הגיליון מ־⋮: תרגום הדף והבחירה (26/58), כתוביות (50), סיכום (59), השפות שבטלפון; ומתג 60 — רק כש־59 קיים */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LocalSheet(a: BrowserActivity, t: BrTab) {
+    val c = LocalBr.current
+    val sum = a.sumOk in 1..3
+    ModalBottomSheet(onDismissRequest = { a.localSheet = false }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
+            SheetHead(stringResource(R.string.brLocal), stringResource(R.string.brLocalNote), close = { a.localSheet = false })
+            val done = a.trTab === t
+            val items = buildList<Triple<Int, ImageVector, () -> Unit>> {
+                add(Triple(if (done) R.string.brTrOrig else R.string.brTrPage, BrIcons.CTranslate) { if (done) { a.localSheet = false; a.showOriginal() } else a.translateHere(t, false) })
+                add(Triple(R.string.brTrSelTile, BrIcons.Translate) { a.translateHere(t, true) })
+                if (a.capOk && a.toolsOk) add(Triple(R.string.brCaptions, BrIcons.Cc) { a.toggleCaptions(t) })
+                if (sum) add(Triple(R.string.brSum, BrIcons.Sparkle) { a.summarizeHere(t) })
+                add(Triple(R.string.brLangs, BrIcons.Globe) { a.openLangs() })
+            }
+            items.chunked(4).forEach { row ->
+                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+                    row.forEach { (l, ic, on) -> ToolTile(stringResource(l), ic, Modifier.weight(1f), on) }
+                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+            if (sum && a.toolsOk) {
+                Spacer(Modifier.height(8.dp))
+                Group {
+                    IRow(stringResource(R.string.brAiSites), stringResource(R.string.brAiSitesSub), lead = { Tile(BrIcons.Code, c.icon) }, chevron = false,
+                        trailing = { IosSwitch(a.aiOn) { a.pickAi(it) } })
+                }
+            }
+        }
+    }
+}
+
+/** 58 השפות שבטלפון: מה שהורד (מחיקה), ושפות להורדה מראש */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LangSheet(a: BrowserActivity) {
+    val c = LocalBr.current
+    val he = java.util.Locale.getDefault().language.let { it == "he" || it == "iw" }
+    ModalBottomSheet(onDismissRequest = { a.langSheet = false }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
+            SheetHead(stringResource(R.string.brLangs), stringResource(R.string.brLangsSub), close = { a.langSheet = false })
+            val have = a.langModels
+            if (have == null) { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.tint) }; return@Column }
+            Group {
+                BrLocal.LANGS.filter { it.code in have }.forEachIndexed { i, l ->
+                    if (i > 0) Sep()
+                    IRow(if (he) l.he else l.en, chevron = false, trailing = if (l.code == "en") null else ({
+                        TextButton({ a.langDelete(l.code) }) { Text(stringResource(R.string.brDelete), color = Color(0xFFFF3B30)) }
+                    }))
+                }
+            }
+            Group(header = stringResource(R.string.brLangsAdd)) {
+                BrLocal.LANGS.filter { it.code !in have }.forEachIndexed { i, l ->
+                    if (i > 0) Sep()
+                    IRow(if (he) l.he else l.en, chevron = false, trailing = {
+                        if (a.langBusy == l.code) CircularProgressIndicator(Modifier.size(22.dp), color = c.tint, strokeWidth = 2.dp)
+                        else Icon(BrIcons.CDownloads, null, Modifier.size(22.dp), tint = c.tint)
+                    }) { a.langDownload(l.code) }
+                }
+            }
+        }
+    }
+}
+
+/** 59 הסיכום: בעבודה — מה קורה עכשיו; אחרי — הנקודות, העתקה */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SumSheet(a: BrowserActivity) {
+    val c = LocalBr.current
+    ModalBottomSheet(onDismissRequest = { a.sumSheet = false }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
+            SheetHead(stringResource(R.string.brSum), null, lead = { Icon(BrIcons.Sparkle, null, Modifier.size(24.dp), tint = c.tint) }, close = { a.sumSheet = false })
+            val res = a.sumRes
+            if (res == null) {
+                Row(Modifier.padding(horizontal = 24.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(22.dp), color = c.tint, strokeWidth = 2.dp)
+                    Spacer(Modifier.width(14.dp))
+                    Text(a.sumBusy, color = c.fg, fontSize = 16.sp)
+                }
+            } else {
+                Group(footer = stringResource(R.string.brSumNote)) {
+                    Column(Modifier.padding(16.dp)) {
+                        res.forEach { b ->
+                            Row(Modifier.padding(vertical = 4.dp)) {
+                                Text("•", color = c.tint, fontSize = 17.sp, lineHeight = 26.sp)
+                                Spacer(Modifier.width(10.dp))
+                                Text(b, color = c.fg, fontSize = 17.sp, lineHeight = 26.sp)
+                            }
+                        }
+                    }
+                }
+                Row(Modifier.padding(horizontal = 16.dp)) {
+                    TextButton({ a.copyText(res.joinToString("\n") { "• $it" }, R.string.brCopiedText) }) {
+                        Icon(BrIcons.Copy, null, Modifier.size(20.dp), tint = c.tint); Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.brCopyText), color = c.tint, fontSize = 16.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** הפס "תורגם מ…" (שפת מקור אחרת / מקור) והכתוביות (50) — מעל הסרגל; כשיש הקראה או קליפ — מעליהם */
+@Composable
+private fun LocalFloat(a: BrowserActivity, t: BrTab?) {
+    val c = LocalBr.current
+    if (t == null || a.screen != BrowserActivity.Screen.PAGE) return
+    val tr = a.trTab === t; val cc = a.capTab === t
+    if (!tr && !cc) return
+    val he = java.util.Locale.getDefault().language.let { it == "he" || it == "iw" }
+    val up = a.speakAt != -2 || a.clipTab != null
+    val dy = with(LocalDensity.current) { (if (up) 148.dp else 88.dp).roundToPx() }
+    androidx.compose.ui.window.Popup(alignment = Alignment.BottomCenter, offset = androidx.compose.ui.unit.IntOffset(0, -dy)) {
+        Column(Modifier.padding(horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            if (cc) {
+                var pick by remember { mutableStateOf(false) }
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xD9000000)).padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        val cap = a.cap
+                        if (cap.lines.isEmpty() && cap.partial.isEmpty()) Text(stringResource(R.string.brCapListening), color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp)
+                        cap.lines.forEach { Text(it, color = Color.White, fontSize = 18.sp, lineHeight = 24.sp) }
+                        if (cap.partial.isNotEmpty()) Text(cap.partial, color = Color.White.copy(alpha = 0.65f), fontSize = 16.sp, lineHeight = 22.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box {
+                            TextButton({ pick = true }) { Text(a.capLang.uppercase(), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+                            DropdownMenu(pick, { pick = false }, containerColor = c.card) {
+                                BrLocal.LANGS.forEach { l -> DropdownMenuItem({ Text(if (he) l.he else l.en, color = c.fg) }, { pick = false; a.pickCapLang(l.code) }) }
+                            }
+                        }
+                        IBtn(BrIcons.Close, stringResource(R.string.brClose), size = 36.dp, iconSize = 18.dp, tint = Color.White) { a.stopCaptions() }
+                    }
+                }
+                if (tr) Spacer(Modifier.height(8.dp))
+            }
+            if (tr) {
+                var pick by remember { mutableStateOf(false) }
+                Row(Modifier.heightIn(min = 48.dp).glass(c, RoundedCornerShape(24.dp)).padding(start = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(BrIcons.CTranslate, null, Modifier.size(20.dp), tint = c.tint)
+                    Spacer(Modifier.width(8.dp))
+                    Box {
+                        Text(if (a.trBusy) stringResource(R.string.brTrBusy) else stringResource(R.string.brTrFrom, BrLocal.name(a.trFrom, he)) + " ▾",
+                            Modifier.clip(RoundedCornerShape(8.dp)).clickable { pick = true }.padding(vertical = 8.dp), color = c.fg, fontSize = 15.sp, maxLines = 1)
+                        DropdownMenu(pick, { pick = false }, containerColor = c.card) {
+                            BrLocal.LANGS.filter { it.code != a.trTo }.forEach { l ->
+                                DropdownMenuItem({ Text(if (he) l.he else l.en, color = c.fg) }, { pick = false; a.translateHere(t, false, l.code) })
+                            }
+                        }
+                    }
+                    TextButton({ a.showOriginal() }) { Text(stringResource(R.string.brTrOrig), color = c.tint, fontWeight = FontWeight.SemiBold) }
+                }
+            }
+        }
+    }
+}
+
+/* ======================= הגל השישי (02/11/2026, BrOurs): רק אצלנו — Studio, Academy ו־Invest ======================= */
+
+/** הגיליון מ־⋮: תרגום הסרטון ב־Studio (68), אחר כך מתורגם (69), הכתוביות לנגן (68), פרקים וסיכום (73), מאמר ל־Academy (70), מניה (71) */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OursSheet(a: BrowserActivity, t: BrTab?) {
+    val c = LocalBr.current
+    val web = t != null && t.url.startsWith("http")
+    val video = web && (t!!.foundN > 0 || t.pageIsVideo())
+    ModalBottomSheet(onDismissRequest = { a.oursSheet = false }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
+            SheetHead(stringResource(R.string.brOurs), stringResource(R.string.brOursNote), close = { a.oursSheet = false })
+            val items = buildList<Triple<Int, ImageVector, () -> Unit>> {
+                if (web) add(Triple(R.string.brStudioTr, BrIcons.Translate) { a.studioTranslate(t!!) })
+                if (video) add(Triple(R.string.brLater, BrIcons.History) { a.laterTranslated(t!!) })
+                if (web) {
+                    if (t!!.subs != null) add(Triple(R.string.brSubsOff, BrIcons.Cc) { a.dropSubs(t) })
+                    else add(Triple(R.string.brSubsLoad, BrIcons.Cc) { a.pickSubs() })
+                }
+                if (video || t?.subs != null) add(Triple(R.string.brChap, BrIcons.Lines) { a.chaptersHere(t!!) })
+                if (web) add(Triple(R.string.brAcademy, BrIcons.Book) { a.articleToAcademy(t!!) })
+                add(Triple(R.string.brStock, BrIcons.Bar) { a.stockAsk() })
+            }
+            items.chunked(4).forEach { row ->
+                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+                    row.forEach { (l, ic, on) -> ToolTile(stringResource(l), ic, Modifier.weight(1f), on) }
+                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+        }
+    }
+}
+
+/** 73 פרקים, סיכום ושאלה — מהתמליל בלבד. נגיעה בשורה קופצת לזמן בסרטון */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChapSheet(a: BrowserActivity) {
+    val c = LocalBr.current
+    ModalBottomSheet(onDismissRequest = { a.chapSheet = false }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
+            val x = a.chap
+            SheetHead(stringResource(R.string.brChap), if (x == null) null else stringResource(if (x.studio) R.string.brChapFromStudio else R.string.brChapFromPage),
+                lead = { Icon(BrIcons.Lines, null, Modifier.size(24.dp), tint = c.tint) }, close = { a.chapSheet = false })
+            if (x == null) { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.tint) }; return@Column }
+            var q by remember { mutableStateOf("") }
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().height(44.dp).glass(c, RoundedCornerShape(22.dp), c.fill).padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Icon(BrIcons.Search, null, Modifier.size(20.dp), tint = c.mute); Spacer(Modifier.width(10.dp))
+                BasicTextField(q, { q = it }, Modifier.weight(1f), singleLine = true, textStyle = TextStyle(color = c.fg, fontSize = 16.sp, textDirection = TextDirection.Content),
+                    cursorBrush = SolidColor(c.tint), decorationBox = { inner -> Box { if (q.isEmpty()) Text(stringResource(R.string.brChapAsk), color = c.mute, fontSize = 16.sp, maxLines = 1); inner() } })
+            }
+            Spacer(Modifier.height(12.dp))
+            val hits = remember(q, x) { if (q.trim().length < 2) null else BrOurs.search(x.cues, q) }
+            if (hits != null) {
+                Group(header = stringResource(R.string.brChapHits, hits.size)) {
+                    if (hits.isEmpty()) IRow(stringResource(R.string.brChapNoHit), chevron = false)
+                    hits.forEachIndexed { i, h -> if (i > 0) Sep(); IRow(h.t, value = BrOurs.clock(h.s), chevron = false) { a.seekTo(h.s) } }
+                }
+                return@Column
+            }
+            if (x.ch.isNotEmpty()) Group(header = stringResource(R.string.brChapList)) {
+                x.ch.forEachIndexed { i, ch -> if (i > 0) Sep(); IRow(ch.title, value = BrOurs.clock(ch.s), chevron = false) { a.seekTo(ch.s) } }
+            }
+            if (x.sum.isNotEmpty()) Group(header = stringResource(R.string.brSum), footer = stringResource(R.string.brChapSumNote)) {
+                x.sum.forEachIndexed { i, s -> if (i > 0) Sep(); IRow(s.t, value = BrOurs.clock(s.s), chevron = false) { a.seekTo(s.s) } }
+            }
+            Row(Modifier.padding(horizontal = 16.dp)) {
+                TextButton({ a.copyText((x.ch.map { BrOurs.clock(it.s) + " " + it.title } + listOf("") + x.sum.map { "• " + it.t }).joinToString("\n"), R.string.brCopiedText) }) {
+                    Icon(BrIcons.Copy, null, Modifier.size(20.dp), tint = c.tint); Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.brCopyText), color = c.tint, fontSize = 16.sp)
+                }
+            }
+        }
+    }
+}
+
+/** 71 כרטיס מניה: מחיר, שינוי יומי (וטרום/אחרי מסחר), ו־Invest — הגרף או הוספה למעקב (Invest שואל לפני) */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun StockSheet(a: BrowserActivity) {
+    val c = LocalBr.current
+    ModalBottomSheet(onDismissRequest = { a.stockSheet = false }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
+            SheetHead(stringResource(R.string.brStock), a.stockQ.ifEmpty { null }, lead = { Icon(BrIcons.Bar, null, Modifier.size(24.dp), tint = c.tint) }, close = { a.stockSheet = false })
+            var q by remember { mutableStateOf(a.stockQ) }
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().height(44.dp).glass(c, RoundedCornerShape(22.dp), c.fill).padding(start = 16.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                BasicTextField(q, { q = it }, Modifier.weight(1f), singleLine = true, textStyle = TextStyle(color = c.fg, fontSize = 16.sp, textDirection = TextDirection.Content),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { a.stockFind(q) }),
+                    cursorBrush = SolidColor(c.tint), decorationBox = { inner -> Box { if (q.isEmpty()) Text(stringResource(R.string.brStockHint), color = c.mute, fontSize = 16.sp, maxLines = 1); inner() } })
+                IBtn(BrIcons.Search, stringResource(R.string.brStock), size = 40.dp, iconSize = 20.dp) { a.stockFind(q) }
+            }
+            Spacer(Modifier.height(12.dp))
+            val cs = a.stockCards
+            when {
+                cs == null -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.tint) }
+                a.stockErr == 1 -> Group { IRow(stringResource(R.string.brStockNet), chevron = false) }
+                a.stockErr == 2 -> Group { IRow(stringResource(R.string.brStockNotFound), chevron = false) }
+                else -> cs.forEach { k ->
+                    val up = k.chg >= 0
+                    val col = if (k.chg == 0.0) c.mute else if (up) Color(0xFF30D158) else Color(0xFFFF453A)
+                    Group(footer = if (k.ta) stringResource(R.string.brStockTa) else null) {
+                        Column(Modifier.padding(16.dp)) {
+                            Text(k.sym, color = c.mute, fontSize = 14.sp, style = TextStyle(textDirection = TextDirection.Ltr))
+                            if (k.name.isNotEmpty()) Text(k.name, color = c.fg, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Spacer(Modifier.height(6.dp))
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                Text(BrOurs.money(k.price, k.cur), color = c.fg, fontSize = 28.sp, fontWeight = FontWeight.Bold, style = TextStyle(textDirection = TextDirection.Ltr))
+                                Spacer(Modifier.width(10.dp))
+                                Text(BrOurs.pctText(k.pct), color = col, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, style = TextStyle(textDirection = TextDirection.Ltr))
+                            }
+                            if (k.ext != null) Text(stringResource(if (k.state.startsWith("PRE")) R.string.brStockPre else R.string.brStockPost,
+                                BrOurs.money(k.ext, k.cur) + "  " + (k.extPct?.let { BrOurs.pctText(it) } ?: "")), color = c.mute, fontSize = 14.sp)
+                        }
+                        Sep()
+                        IRow(stringResource(R.string.brStockChart), lead = { Icon(BrIcons.Bar, null, Modifier.size(22.dp), tint = c.tint) }) { a.openInvest(BrOurs.chartUrl(k.sym)) }
+                        Sep()
+                        IRow(stringResource(R.string.brStockWatch), lead = { Icon(BrIcons.Add, null, Modifier.size(22.dp), tint = c.tint) }) { a.openInvest(BrOurs.watchUrl(k.sym, k.name)) }
+                    }
+                }
+            }
+            Text(stringResource(R.string.brStockNote), Modifier.padding(horizontal = 32.dp), color = c.mute, fontSize = 13.sp, lineHeight = 18.sp)
         }
     }
 }

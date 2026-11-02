@@ -252,6 +252,7 @@ function normLyr(t) {
   return String(t == null ? '' : t).replace(/[\u0000-\u0008\u000b-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
     .replace(/\r\n?/g, '\n').slice(0, KA_LYR_MAX);
 }
+const WL_RE = /^[a-z0-9]{8,16}$/;   // 01/11/2026: מזהה רשימת עבודה (= WL_RE בטלפון)
 function normSpec(s) {
   if (!s || typeof s !== 'object') return null;
   const name = clean(s.name, 200), size = Math.floor(Number(s.size) || 0);
@@ -303,6 +304,10 @@ function normSpec(s) {
   !subs && !link && !ph && !nu && edlPre(normEdl(s.edl)) ? { edl: edlPre(normEdl(s.edl)) } : {},   // מ4: חיתוך לפני התרגום (dur = האורך אחרי החיתוך)
   // 21/10/2026: פיקסלים לשנייה ביחס ל־1080p30 (מהמידות שהטלפון קרא; העובד מתקן אחרי הקליטה) — לצפי של הצריבה
   Number.isFinite(+s.px) && +s.px >= 0.02 && +s.px <= 16 ? { px: Math.round(+s.px * 1000) / 1000 } : {},
+  // 01/11/2026 (סבב 3, I3): bt = "חצי מחיר · מוכן תוך כמה שעות" (Message Batches) — רק במפתח של המערכת, לא Routine/העתק־הדבק,
+  // לא קריוקי (בלי Claude) ולא תרגום בטלפון. wl = רשימת עבודה (כמה קבצים שהתחילו יחד) — לקבוצה בבית. = BT_OK / WL_RE בטלפון
+  s.bt === 1 && s.eng === 'api' && s.cp !== 1 && s.ry !== 1 && !ka && !ph ? { bt: 1 } : {},
+  typeof s.wl === 'string' && WL_RE.test(s.wl) ? { wl: s.wl } : {},
   s.eng === 'api' ? Object.assign({ eng: 'api', cap: normCap(s.cap) }, s.cp === 1 ? { cp: 1 } : s.ry === 1 ? { ry: 1 } : {}) : {});   // 24/10/2026: ry = השרת עושה הכל, Claude דרך ה־Routine של המשתמש (lib/relay.js)   // מצב API של המערכת — עם תקרת עבודה ($); סבב 10: cp = העתק־הדבק (Claude של המשתמש)
 }
 /* קובץ שעלה ל־Drive (מה ש־Drive עצמו החזיר — api/studio.js מאמת מולו) */
@@ -413,7 +418,7 @@ function addCk(list, ck, now) {
 }
 const lastCk = (list) => (Array.isArray(list) && list.length ? list[list.length - 1] : null);
 /* העבודה "רצה" אבל לא דיווחה שעתיים — הסשן נפל (מיכל שנסגר, תקלה בצד של Claude) */
-const isStale = (job, now) => !!job && (job.state === 'running' || job.state === 'queued' && job.claimed && !job.vw) && now - (job.updated || 0) > STALE_MS;   // vw: מחכה לסרטון בתור — לא תקועה
+const isStale = (job, now) => !!job && (job.state === 'running' || job.state === 'queued' && job.claimed && !job.vw && !job.bw) && now - (job.updated || 0) > STALE_MS;   // vw: מחכה לסרטון בתור — לא תקועה
 /* אפשר להמשיך? עבודת תרגום עם קבצים, שנכשלה / בוטלה / נתקעה, ולא הופעלה יותר מדי פעמים */
 function canResume(job, now) {
   if (!job || job.kind !== 'tr' || !(job.fa || job.fv)) return 'state';
@@ -498,7 +503,7 @@ const normFixed = (eng) => (engKey(eng) === 'a' ? NORM_FIXED_API : NORM_FIXED);
 function normSample(job, use, now) {
   const sp = job && job.spec;
   if (!job || job.kind !== 'tr' || (job.fires || 0) > 1 || !sp || !MODES.includes(sp.mode) || !(sp.dur > 0)) return null;
-  if (sp.xe || sp.xg) return null;   // 24/10/2026: ניסוי המאמץ / בלי מילון — לא מה שהמצב עולה בדרך כלל
+  if (sp.xe || sp.xg || sp.xf) return null;   // 02/11/2026: גם דגלי ניסוי (xf). 24/10/2026: ניסוי המאמץ / בלי מילון — לא מה שהמצב עולה בדרך כלל
   if (!Array.isArray(use) || !use.length || use.some((r) => r.usd == null)) return null;   // מודל בלי מחירון — לא יודעים כמה עלה
   const u = use.reduce((s, r) => s + (r.usd || 0), 0);
   if (!(u > 0) || u > 1e4) return null;
@@ -769,6 +774,10 @@ function fireSession(j) {
 const recentFires = (fh, now) => (Array.isArray(fh) ? fh : []).filter((t) => now - t < 3600e3).slice(-50);
 
 /* 15/10/2026: עבודה בשרת שלנו שמחכה לסרטון חוזרת לתור (park) — רק תרגום במצב API, רצה, ורק כשהסרטון באמת חסר */
+/* 01/11/2026 (I3): עבודה של "חצי מחיר" שהבקשות שלה בתור החיסכון — חונה (bw) עד שהסוכן מדווח שהתשובות חזרו (poll ‏br) */
+// בלי bt (עברה ל"עכשיו" באמצע — btNow): חונה ומיד חוזרת לתור הרגיל (bw = 0), והחידוש בזמן אמת
+const bwParkable = (job) => !!(job && job.kind === 'tr' && job.state === 'running' && job.spec && job.spec.eng === 'api');
+const BW_MAX = 36 * 3600e3;                 // התור עצמו עד 24 שעות (ואז העובד ממשיך בזמן אמת) — מעבר לזה הסוכן לא חזר
 const parkable = (job) => !!(job && job.kind === 'tr' && job.state === 'running' && job.spec && job.spec.eng === 'api' && !(job.fv && job.fv.id));
 /* ---------- מצב העבודה ---------- */
 /* הופעל ולא נלקח בזמן סביר → נכשל (נבדק בכל קריאה; נשמר בכתיבה הבאה) */
@@ -777,6 +786,7 @@ function effState(job, now) {
   if (job && job.state === 'queued' && job.eng === 'api') {
     // מצב API: העבודה בתור עד ששרת פנוי לוקח אותה. שרת לקח ולא התחיל בזמן / אף שרת לא לקח — נכשלה
     // 15/10/2026: חזרה לתור עד שהסרטון יגיע (vw = מתי) — לא "אין שרת"; 12 שעות בלי סרטון = כמו בעובד
+    if (job.bw && !job.pk) return now - job.bw > BW_MAX ? { state: 'failed', err: 'no_server', at: job.bw + BW_MAX } : { state: 'queued', err: '' };
     if (job.vw && !job.pk) return now - job.vw > PARK_MAX ? { state: 'failed', err: 'upload_timeout', at: job.vw + PARK_MAX } : { state: 'queued', err: '' };
     if (job.pk && now - job.pk > CLAIM_WAIT.tr) return { state: 'failed', err: 'no_claim', at: job.pk + CLAIM_WAIT.tr };
     if (!job.pk && job.fired && now - job.fired > API_QUEUE_WAIT) return { state: 'failed', err: 'no_server', at: job.fired + API_QUEUE_WAIT };
@@ -827,6 +837,7 @@ function publicJob(job, now) {
     urt: normRate(job.urt),                         // 25/10/2026: המשוב שלך (👍/👎, סיבות, כתוביות שסימנת)
     sw: job.state === 'new' && typeof job.sw === 'string' ? job.sw.slice(0, 40) : '',   // 25/10/2026: למה העבודה לא התחילה (קוד הסירוב האחרון)
     vw: job.vw && !job.pk ? 1 : 0,                   // 15/10/2026: מחכה לסרטון בתור — השרת פנוי בינתיים
+    bw: job.bw && !job.pk ? 1 : 0,                   // 01/11/2026 (I3): מחכה לתשובה מתור החיסכון — השרת פנוי בינתיים
     fr: job.fr && typeof job.fr.s === 'number' ? { s: job.fr.s, ms: Math.max(0, Math.round(job.fr.ms || 0)) } : null,   // v369: תוצאת ההפעלה האחרונה
     tr: normTrace(job.tr),                          // v373: עקיבה — פעולות לכל סוכן והקבוצות הנפוצות
     q: normQuality(job.q), ij: normInj(job.ij),     // v374: מדד האיכות ושומר ההזרקות
@@ -836,7 +847,7 @@ function publicJob(job, now) {
     gl: normGl(job.gl),                             // v380: מונחים מהמילון שלך שימשו + מונחים חדשים להצעה
     nt: noteView(job),                              // v382: הערה לעובד — מחכה לנקודת השמירה הבאה / נקראה
     sla: SLA.slaView(job, now),                     // v377: יעד זמן ותקציב (השעון עוצר כשמחכים לך)
-    gd: normGd(job.gd), gs: JOB_RE.test(String(job.gs || '')) ? job.gs : '', gq: normGq(job.gq), sm: job.sm ? 1 : 0,   // v387: סט הזהב — ייחוס, מקור ההרצה, הציון
+    gd: normGd(job.gd), gs: JOB_RE.test(String(job.gs || '')) ? job.gs : '', gq: normGq(job.gq), sm: job.sm ? 1 : 0, wa: Number.isInteger(job.wa) && job.wa >= 0 && job.wa < GOLD_ARMS ? job.wa : -1,   // v387: סט הזהב — ייחוס, מקור ההרצה, הציון
     hl: normHl(job.hl, job.fv && job.fv.id),       // איכויות הצפייה (הראשונה = המקור עצמו)
     hla: normHl(job.hl, job.fv && job.fv.id) ? normHla(job.hla) : null,   // 22/10/2026: עותק הקול לנגן (הקול המקורי נשאר במקור)
     pbn: normPbn(job.pbn, job.pbn && job.pbn.at),   // 24/10/2026: הצריבה בטלפון (תרגום בטלפון)
@@ -849,8 +860,11 @@ function publicJob(job, now) {
 /* v387: סט הזהב (Agentic evaluation · golden dataset) — עבודה שהסתיימה + תרגום אנושי לייחוס (קובץ SRT בתיקיית העבודה ב־Drive).
    gd = הייחוס {r מזהה הקובץ, n גודל, at}; gs = עבודה שהיא הרצה חוזרת של עבודת זהב (המקור); gq = הציון מול הייחוס {s chrF, tm כיסוי זמן, n כתוביות, at}.
    הציון מחושב בטלפון (studionet.goldCompare — דטרמיניסטי, בלי AI). הרצה חוזרת = עבודות חדשות עם אותו מקור — רק בלחיצה, אחרי אומדן ואישור */
-// הסקירה (10/10): עד MAX_ACTIVE (5) — כל הסט רץ ביחד, בלי לעקוף את מגבלת העבודות הפעילות (מבחן TED = 4 הרצאות)
-const GOLD_MAX = 5, GOLD_REF_MAX = 2 * 1024 * 1024;
+// הסקירה (10/10): עד MAX_ACTIVE (5) — כל הסט רץ ביחד, בלי לעקוף את מגבלת העבודות הפעילות (מבחן TED = 4 הרצאות).
+// 02/11/2026: למנהל עד GOLD_MAX_ADMIN (16, בתוך MAX_ACTIVE_ADMIN) — סט המדידה של איכות התרגום: 10 פרקים, ראיון, הרצאה ועבודות זהב
+// קיימות. עבודת זהב גם לא נמחקת בניקוי המקורות (srcPending) — הסימון שומר את המקור להרצות חוזרות. לשאר — 5, כמו קודם
+const GOLD_MAX = 5, GOLD_MAX_ADMIN = 16, GOLD_REF_MAX = 2 * 1024 * 1024;
+const goldMax = (admin) => (admin ? GOLD_MAX_ADMIN : GOLD_MAX);
 function normGd(o) {
   if (!o || typeof o !== 'object' || !FILE_ID_RE.test(String(o.r || ''))) return null;
   return { r: o.r, n: Number.isInteger(o.n) && o.n > 0 && o.n <= GOLD_REF_MAX ? o.n : 0, at: typeof o.at === 'number' ? o.at : 0 };
@@ -969,12 +983,50 @@ function normXe(x) {
   for (const k of XE_KEYS) if (XE_EFFORTS.includes(x[k])) o[k] = x[k];
   return Object.keys(o).length ? o : null;
 }
+/* 02/11/2026 (תוכנית איכות התרגום, PR1 1.8): דגלי ניסוי — רשימה סגורה, **= XF_KEYS ב־translator/xflags.py**. העובד: דגלים =
+   XF_DEFAULT ∪ spec.xf; '-שם' מכבה דגל שכבר הופעל כברירת מחדל. רק מ־goldRun עם arms (מנהל) — לא מהטופס. עבודה עם xf לא מלמדת
+   את הצפי ואת נורמת העלות, ומסומנת במאגר הלמידה */
+const XF_KEYS = ['smf', 'gq', 'qskip', 'rvs60'], XF_MAX = 8;
+function normXf(x) {
+  if (!Array.isArray(x)) return null;
+  const o = Array.from(new Set(x.map(String).filter((f) => XF_KEYS.includes(f.replace(/^-/, ''))))).slice(0, XF_MAX).sort();
+  return o.length ? o : null;
+}
+/* "הרץ גל": עד GOLD_ARMS זרועות — לכל אחת מצב, דגלים, ואפשר גם רשימת מקורות (מזהי עבודות זהב). null = לא תקין */
+const GOLD_ARMS = 3;
+function normArms(a, srcIds) {
+  if (!Array.isArray(a) || !a.length || a.length > GOLD_ARMS) return null;
+  const ids = new Set(srcIds || []), out = [];
+  for (const x of a) {
+    if (!x || typeof x !== 'object' || Array.isArray(x)) return null;
+    const mode = x.mode == null ? DEFAULT_MODE : (MODES.includes(x.mode) || LEGACY_MODES[x.mode]) ? modeNow(x.mode) : null;
+    if (!mode || (x.xf != null && !Array.isArray(x.xf)) || (x.src != null && !Array.isArray(x.src))) return null;
+    const src = Array.isArray(x.src) ? Array.from(new Set(x.src.map(String))).filter((i) => ids.has(i)) : null;
+    if (src && !src.length) return null;
+    out.push(Object.assign({ mode, xf: normXf(x.xf), src }, x.bt === 1 ? { bt: 1 } : {}));   // bt: הזרוע בחצי מחיר (I3)
+  }
+  return out;
+}
+/* כל המקורות × כל הזרועות, בסדר משולב (מקור 1 זרוע א, מקור 1 זרוע ב, מקור 2…) — אותה גרסת עובד ואותו זיכרון לכל הזרועות */
+function waveOrder(srcs, arms) {
+  const out = [];
+  for (const j of srcs) arms.forEach((a, i) => { if (!a.src || a.src.includes(j.id)) out.push([j, a, i]); });
+  return out;
+}
+function waveClone(src, id, uid, now, arm, i) {
+  const c = goldClone(src, id, uid, now, arm.mode);
+  c.spec = Object.assign({}, c.spec, { out: ['srt'] });   // הרצת גל: רק SRT — בלי צריבה ובלי העלאת וידאו (כמו עבודת העשן)
+  if (arm.xf) c.spec.xf = arm.xf;
+  if (arm.bt === 1 && c.spec.eng === 'api' && !c.spec.ka) c.spec.bt = 1; else delete c.spec.bt;   // חצי מחיר לכל זרוע (כמו body.bt בהרצה הרגילה)
+  c.wa = i;   // מספר הזרועה בגל (0..) — לזיווג בניתוח
+  return c;
+}
 function goldClone(src, id, uid, now, mode, xe) {
   const out = Array.from(new Set((Array.isArray(src.spec && src.spec.out) ? src.spec.out : []).concat(['srt'])));   // ההשוואה צריכה SRT
   const gd = normGd(src.gd), spec = Object.assign({}, src.spec, { out }, mode ? { mode: modeNow(mode) } : {});
   // 24/10/2026: ההשוואה בין המצבים רצה על השרת של המערכת — בלי ה־Routine (ry) ובלי העתק־הדבק (cp), כך שכל ההרצות
   // באותם תנאים ולא תלויות בסשן של המשתמש; הניסוי (xe) רק כשנבחר
-  delete spec.ry; delete spec.cp; delete spec.xe; delete spec.xg;
+  delete spec.ry; delete spec.cp; delete spec.xe; delete spec.xg; delete spec.xf;
   const v = xe && (xe.xe || xe.xg) ? xe : { xe };   // וריאנט: { xe, xg } (או מאמץ לבד — הצורה הישנה)
   const x = normXe(v.xe);
   if (x) spec.xe = x;
@@ -1499,7 +1551,7 @@ function fromFields(f) {
 module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, normVcp, bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, jobSeries, SM_BYTES, dualAb, DUAL_AB_UNTIL, rvAb, RV_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
-  GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, cuesSwap, rrSpec, rrJob,
+  GOLD_MAX, GOLD_MAX_ADMIN, goldMax, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XF_KEYS, XF_MAX, normXf, GOLD_ARMS, normArms, waveOrder, waveClone, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, cuesSwap, rrSpec, rrJob,
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normFil, FIL_MAX, normSty, normOv, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
@@ -1510,5 +1562,5 @@ module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, 
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, EARLY_FAIL_MS, EARLY_WAIT, recoverWait, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, resumeProg, stgSpent, excludeWait, toFields, fromFields, normFit, peakNeed,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, BAD_AUTH_GAP, badAuthDue, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
-  serverMatches, normHb, normEv, SRV_EV, parkable, PARK_MAX, serverView, monthKey, monthUsed, addMonth, jobCap,
+  serverMatches, normHb, normEv, SRV_EV, parkable, bwParkable, BW_MAX, WL_RE, PARK_MAX, serverView, monthKey, monthUsed, addMonth, jobCap,
 };

@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של academy (781 מפתחות מתוך 5830) */
+/* המחרוזות של academy (782 מפתחות מתוך 5868) */
 const STRINGS = {
 he: {
   "acAiNote": "הניתוח נכתב בעזרת AI מתוך הטקסט של המכתב.",
@@ -315,6 +315,7 @@ he: {
   "libAddFolder": "הוספת תיקייה",
   "libAddFolderS": "כל הספרים שבתיקייה",
   "libAll": "הכל",
+  "libBookGot": "המאמר נוסף לספרייה שלך",
   "libCancel": "ביטול",
   "libContinue": "להמשיך לקרוא",
   "libCount": "{n} ספרים",
@@ -1098,6 +1099,7 @@ en: {
   "libAddFolder": "Add a folder",
   "libAddFolderS": "Every book in the folder",
   "libAll": "All",
+  "libBookGot": "The article was added to your library",
   "libCancel": "Cancel",
   "libContinue": "Continue reading",
   "libCount": "{n} books",

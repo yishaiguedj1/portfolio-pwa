@@ -130,12 +130,33 @@ function normCorpus0(o, month, full) {
   if (Array.isArray(o.ccs)) { const x = o.ccs.filter((v) => CK_STAGES.includes(v)); if (x.length) out.ccs = x; }
   const rj = normRj(o.rj);
   if (rj) out.rj = rj;
+  const du = normDual(o.dual);
+  if (du) out.dual = du;
   if (full) {
     out.full = 1;
     const tx = normTx(o.tx);
     if (tx) out.tx = tx;
   }
   return out;
+}
+
+/* 02/11/2026 (PR1 1.8): סימון הניסוי בפריט — מהעבודה בשרתון, לא מהעובד: xf (דגלים), gs (עבודת הזהב שממנה הועתקה),
+   wa (מספר הזרועה בגל). quality-bench מזווג לפיהם. רק מזהים ודגלים מהרשימה הסגורה */
+const XF_RE = /^-?[a-z][a-z0-9]{0,11}$/;
+function expMark(job) {
+  const o = {}, sp = (job && job.spec) || {};
+  if (Array.isArray(sp.xf)) { const x = sp.xf.filter((f) => XF_RE.test(String(f))).slice(0, 8); if (x.length) o.xf = x; }
+  if (/^[A-Za-z0-9_-]{6,40}$/.test(String((job && job.gs) || ''))) o.gs = job.gs;
+  if (job && Number.isInteger(job.wa) && job.wa >= 0 && job.wa < 8) o.wa = job.wa;
+  return o;
+}
+/* PR1 1.6: ההכרעה בין שתי הטיוטות — מספרים, ו־pk = ההכרעה לכל קטע לפי הסדר (A / B / '-' = נכשלה) */
+function normDual(d) {
+  if (!d || typeof d !== 'object' || Array.isArray(d)) return null;
+  const o = {};
+  for (const k of ['sg', 'c', 'b', 'bc', 'n']) if (isNum(d[k]) && d[k] >= 0) o[k] = Math.round(Math.min(d[k], 1e6));
+  if (typeof d.pk === 'string' && /^[AB-]{1,2000}$/.test(d.pk)) o.pk = d.pk;
+  return Object.keys(o).length ? o : null;
 }
 
 /* מ׳3 (15/10/2026): העריכות שלך בעורך הכתוביות אחרי העבודה — לכל שמירה (ss) רשימת שינויים: t סוג (txt tm sp mg add del mx),
@@ -168,6 +189,25 @@ function addEdits(prev, sess, month) {
   let left = ED_CH;
   for (let k = ss.length - 1; k >= 0; k--) { if (left <= 0) { ss.splice(0, k + 1); break; } if (ss[k].ch.length > left) ss[k].ch = ss[k].ch.slice(0, left); left -= ss[k].ch.length; }
   return { v: LC_V, k: 'ed', m: ok && MONTH_RE.test(String(prev.m || '')) ? prev.m : (MONTH_RE.test(String(month || '')) ? month : ''), ss };
+}
+
+/* PR1 1.3 (02/11/2026): learnPull בעמודים. cx = רשימת כל המזהים (בלי גוף); cl = בדיוק המזהים האלה (עד PAGE_MAX);
+   cs + ci = דילוג ואז עד ci פריטים. ci הישן לבד — כמו קודם */
+const PAGE_MAX = 20;
+function pageArgs(b) {
+  const x = b || {};
+  const ids = Array.isArray(x.cl) ? [...new Set(x.cl.map(String).filter((v) => LID_RE.test(v)))].slice(0, PAGE_MAX) : null;
+  return { items: ids ? ids.length : Math.max(0, Math.min(PAGE_MAX, Math.floor(+x.ci || 0))),
+    skip: ids ? 0 : Math.max(0, Math.min(1e5, Math.floor(+x.cs || 0))), ids, list: x.cx === true };
+}
+/* מפתח אחד לכל מזהה (התור קודם): q/ ואז c/, כל אחד לפי lastModified יורד ואז המפתח — יציב בין קריאות */
+function pageOrder(keys) {
+  const rank = (k) => (k.lastModified ? Date.parse(k.lastModified) || 0 : 0);
+  const cmp = (a, b) => (rank(b) - rank(a)) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
+  const of = (kind) => keys.filter((k) => (parseKey(k.key) || {}).kind === kind).sort(cmp);
+  const seen = new Set(), out = [];
+  for (const it of [...of('q'), ...of('c')]) { const p = parseKey(it.key); if (seen.has(p.lid)) continue; seen.add(p.lid); out.push(it); }
+  return out;
 }
 
 const monthOf = (now) => new Date(now).toISOString().slice(0, 7);
@@ -214,4 +254,4 @@ function corpusStats(items) {
   return out;
 }
 
-module.exports = { CK_STAGES, REJ_W, LC_V, KEEP_MONTHS, LID_RE, scrub, normCorpus, normTx, normEditSession, addEdits, ED_SS, ED_CH, monthOf, qKey, cKey, qeKey, eKey, mKey, MEDIA_KINDS, MEDIA_MAX, parseKey, oldestMonth, expired, corpusStats };
+module.exports = { CK_STAGES, REJ_W, LC_V, KEEP_MONTHS, LID_RE, scrub, normCorpus, normTx, normEditSession, addEdits, ED_SS, ED_CH, monthOf, qKey, cKey, expMark, normDual, PAGE_MAX, pageArgs, pageOrder, qeKey, eKey, mKey, MEDIA_KINDS, MEDIA_MAX, parseKey, oldestMonth, expired, corpusStats };

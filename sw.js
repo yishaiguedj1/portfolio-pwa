@@ -4,13 +4,13 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v687';
+const CACHE_NAME = 'portfolio-pwa-v692';
 const HASHES = {
   "./": "6ab1986a1bc13b10b7405e36061fa8ba",
   "./index.html": "6ab1986a1bc13b10b7405e36061fa8ba",
   "./styles.css": "40265dc9a0d4d18b66a8f72526d82667",
   "./glass-btn.css": "597c83b2453476f8cfa584134b97bdae",
-  "./app.js": "fa76dd96b0a81d8c6ec3bfbdaa542095",
+  "./app.js": "c2894369de203d3f3b0217525d595479",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "2cf2e330bfcc2c9150ba47b8f355982d",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -41,7 +41,7 @@ const HASHES = {
   "./chartlib.js": "5c00c490dac1b09329fa1ce657350a9b",
   "./chart.css": "0e4e6260108563c3f329d204c1398a10",
   "./vendor/klinecharts/klinecharts.min.js": "4202d8661b8302175751d8d072bf6d2f",
-  "./library.js": "777fb445b7d7003cee171448756327fa",
+  "./library.js": "0341d21a7ccd3df3e86a842ce622b6d8",
   "./library.css": "fa87fa43096cd3bd4ca0bd380317563d",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
   "./libbackup.js": "a238c4cf7877166ba8eba5cdcf6eadb8",
@@ -69,8 +69,8 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "ff70b7cdf55a58896794457f6812abf4",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
-  "./strings-academy.js": "135e5c03572f72faf38bc91930636642",
-  "./core.js": "9a573e2ae8fe38075750043aabd1e8ca",
+  "./strings-academy.js": "2632d4cd89987dbe7872ab4230a94116",
+  "./core.js": "eadd215c8f8bd0bdba502ee9b572247e",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "6b22a08dd74c16eefd740922596fb568",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -79,7 +79,7 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "28f064bef94e2e727fac85285be003eb",
+  "./studio.js": "c5fd3c7a6c23c8602e0243f2fdf38e83",
   "./studio.css": "b5bc9c2853f3ae87b220792419848092",
   "./studionet.js": "67d0da7e52eb5de8eb01b6fac252d4d6",
   "./studioplay.js": "9862ab618839b88fa914399b8eff2ce7",
@@ -91,7 +91,7 @@ const HASHES = {
   "./studiobg.js": "9013d96cee956642e0735806ea1e60c3",
   "./studio.html": "83a0db4fc3f1058a17ce5b6370873966",
   "./studio-app.js": "d2aaad29f3f46cc04426c93bdae1eb83",
-  "./strings-studio.js": "1a27673f3133bc6e30ed48ed187bfdfc",
+  "./strings-studio.js": "26036cc58be5097944737927f79ca472",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
@@ -296,11 +296,14 @@ async function mediaFetch(event, id) {
    (snb-inbox — מסד קטן משלו, בלי תלות בגרסה של snb-studio) ומעבירים לדף עם ‎#got=<מפתח> (studio.js → studioGot) */
 const SHARE_RE = /\/share-file$/;
 async function shareFile(request) {
-  let key = '';
+  let key = '', kind = 'got';
   try {
     const fd = await request.formData();
-    const f = fd.get('video'), t = String(fd.get('text') || '').slice(0, 200);
-    if (f && typeof f === 'object' && f.size > 0 && /^video\//.test(f.type || 'video/')) {
+    // 02/11/2026 (Studio Browser, 70 מאמר ל־Academy): גם ספר EPUB ששותף ל־Academy (השדה book) — אותה תיבה, ‎#book=<מפתח>
+    const v = fd.get('video'), b = fd.get('book'), t = String(fd.get('text') || '').slice(0, 200);
+    const f = v || b;
+    if (b && !v) kind = 'book';
+    if (f && typeof f === 'object' && f.size > 0 && (kind === 'book' ? /^(application\/(epub\+zip|octet-stream))?$/.test(f.type || '') && f.size <= 64 * 1048576 : /^video\//.test(f.type || 'video/'))) {
       key = Array.from(self.crypto.getRandomValues(new Uint8Array(12)), (b) => 'abcdefghijkmnpqrstuvwxyz23456789'[b % 32]).join('');
       await new Promise((ok, no) => {
         const r = indexedDB.open('snb-inbox', 1);
@@ -314,7 +317,7 @@ async function shareFile(request) {
       });
     }
   } catch (e) { key = ''; }
-  return Response.redirect(new URL('./' + (key ? '#got=' + key : ''), self.registration.scope).href, 303);
+  return Response.redirect(new URL('./' + (key ? '#' + kind + '=' + key : ''), self.registration.scope).href, 303);
 }
 
 self.addEventListener('fetch', (event) => {

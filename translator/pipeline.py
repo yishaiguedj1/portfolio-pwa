@@ -28,6 +28,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import llm
+import xflags
 
 HERE = Path(__file__).resolve().parent
 GUIDE = HERE / 'guides' / 'style-guide-he.md'
@@ -1657,6 +1658,7 @@ class Pipeline:
         segs = dual_segments(order, a, b)
         picks: dict[str, str] = {}
         nb = 0
+        pk_all = []          # 02/11/2026 (PR1 1.6): ההכרעה לכל קטע לפי הסדר — A / B / '-' (נכשלה). מדידה בלבד, בלי שינוי התנהגות
         batches, cur = [], []
         for g in segs:
             if cur and sum(len(x) for x in cur) + len(g) > ARB_MAX_CUES:
@@ -1677,6 +1679,7 @@ class Pipeline:
                 print(f'· ההכרעה בין הטיוטות נכשלה ({e.code}) — נשארים עם הטיוטה הראשונה בקטעים האלה')
                 pk = {}
             for i, g in enumerate(bt, first):
+                pk_all.append(pk.get(i) if pk.get(i) in ('A', 'B') else ('-' if not pk else 'A'))
                 if pk.get(i) == 'B':
                     nb += 1
                     picks.update({k: b[k] for k in g})
@@ -1685,7 +1688,8 @@ class Pipeline:
         tmp = out.with_name(out.name + '.part')
         tmp.write_text(fmt_lines(picks) + '\n' if picks else '', encoding='utf-8')
         tmp.replace(out)
-        self.ctx.st['dual'] = {'sg': len(segs), 'c': sum(len(g) for g in segs), 'b': nb, 'bc': len(picks), 'n': len(order)}
+        self.ctx.st['dual'] = {'sg': len(segs), 'c': sum(len(g) for g in segs), 'b': nb, 'bc': len(picks), 'n': len(order),
+                               'pk': ''.join(pk_all)[:2000]}
         print(f'· שתי טיוטות: {len(segs)} קטעים שונים ({sum(len(g) for g in segs)} כתוביות מתוך {len(order)}), '
               f'בטיוטה השנייה נבחרו {nb} ({len(picks)} כתוביות)')
 
@@ -1881,13 +1885,14 @@ class Pipeline:
             return '\n\n' + block('auto_fixes', '\n'.join(rows)) if rows else ''
 
         n_cues = len(re.findall(r'(?m)^#\d+', pkg))
-        n = max(1, -(-n_cues // RV_SLICE_CUES))
+        rvs = 60 if xflags.on(getattr(self.ctx, 'st', None), 'rvs60') else RV_SLICE_CUES   # 02/11/2026: דגל ניסוי (xf), לא מתג סביבה
+        n = max(1, -(-n_cues // rvs))
         slices = split_package(pkg, n) if n > 1 else [pkg]
         while not self.eng.fits_card(fixed, block('review_package', slices[0]) + auto_block(slices[0])) and n < 64:
             n *= 2
             slices = split_package(pkg, n)
         if len(slices) > 1:
-            print(f'· {self.eng.spec.model}: הביקורת ב־{len(slices)} קטעים (עד {RV_SLICE_CUES} כתוביות, {RV_PARALLEL} במקביל)')
+            print(f'· {self.eng.spec.model}: הביקורת ב־{len(slices)} קטעים (עד {rvs} כתוביות, {RV_PARALLEL} במקביל)')
         got, flags = {}, []
         warm = threading.Event()                 # המטמון: הקטע הראשון כותב את הבלוק הקבוע, השאר מתחילים כשהוא כבר עונה
         if len(slices) == 1:
@@ -2328,6 +2333,28 @@ def run_subs(J, eng, ns) -> int:
     return J.finish(SimpleNamespace(force=False))
 
 
+def eng_batch(eng) -> bool:
+    return getattr(eng, 'batch', None) is not None
+
+
+def bt_on(eng, st: dict) -> None:
+    """01/11/2026 (I3): spec.bt = "חצי מחיר" — הקריאות של main/tl/rv דרך תור החיסכון (llm.BatchWait). רק במפתח של
+    המערכת (לא Routine, לא העתק־הדבק); אחרי BATCH_ROUNDS_MAX סבבים — ממשיכים בזמן אמת (רשת ביטחון)."""
+    sp = st.get('spec') or {}
+    if sp.get('eng') != 'api' or sp.get('ry') == 1 or sp.get('cp') == 1 or not st.get('job'):
+        return
+    jdir = llm.batch_dir() / str(st['job'])
+    (jdir / 'parked').unlink(missing_ok=True)   # התחלנו לרוץ — כבר לא חונה
+    if sp.get('bt') != 1:
+        if (jdir / 'ans').is_dir():             # עברה ל"עכשיו" (btNow): מה ששולם בתור נקרא משם, השאר בזמן אמת
+            eng.batch, eng.batch_ro = jdir, True
+        return
+    if llm.batch_rounds(jdir) >= llm.BATCH_ROUNDS_MAX:
+        print(f'· {llm.BATCH_ROUNDS_MAX} סבבים בתור החיסכון — ממשיכים בזמן אמת')
+        return
+    eng.batch = jdir
+
+
 def run_auto(jobmod, args) -> int:
     """הכל, מקצה לקצה. נקרא מ־job.py auto (אחרי run)."""
     J = jobmod
@@ -2343,6 +2370,7 @@ def run_auto(jobmod, args) -> int:
         eng = llm.Engine(llm.Spec.of(mode), cap_usd=float(cap) if cap else DEFAULT_CAP_USD)
         eng.role_effort = llm.norm_xe((st.get('spec') or {}).get('xe'))   # 24/10/2026: ניסוי המאמץ (סט הזהב)
         rv_ab(eng, st)                                                       # 28/10/2026: ניסוי "ביקורת ב־medium"
+        bt_on(eng, st)                                                       # 01/11/2026 (I3): חצי מחיר — תור החיסכון
     if hasattr(J, 'LIVE_USAGE'):
         J.LIVE_USAGE = eng.ledger.list             # 21/10/2026: העלות בזמן ריצה, וגם בכשל של שלב הכלים (usage_safe)
     ns = SimpleNamespace(force=False)
@@ -2457,6 +2485,8 @@ def run_auto(jobmod, args) -> int:
             J.attach_late(J.Ctx(J.load_state()))
             ctx = J.Ctx(J.load_state())
             pl = Pipeline(ctx, J, eng)
+            if eng_batch(eng):
+                J.save_ck(ctx, 'tl')         # 01/11/2026: בתור החיסכון כל סבב ביקורת = חידוש — לא לצרף את הסרטון שוב בכל אחד
         if hasattr(J, 'learn_media_early'):
             J.learn_media_early(J.Ctx(J.load_state()))   # העותק למאגר הלמידה בזמן הביקורת (המעבד כמעט פנוי)
         if after < 4 and hasattr(J, 'ladder_go'):
@@ -2484,6 +2514,13 @@ def run_auto(jobmod, args) -> int:
         ctx.report(fail=True, err=e.code, msg=str(e)[:200], force=True, usage=eng.ledger.list() or None, lx=lx)
         print('✗ ' + str(e))
         return 1
+    except llm.BatchWait:
+        # 01/11/2026 (I3): הבקשה בתור החיסכון — העבודה חונה (השרת פנוי), וממשיכה מנקודת השמירה כשהתשובות יחזרו
+        n = llm.batch_park(eng.batch)
+        ctx = J.Ctx(J.load_state())
+        ctx.report(park=True, bw=True, msg='מחכה לתשובה מתור החיסכון', force=True, usage=eng.ledger.list() or None)
+        print(f'⏸ סבב {n} בתור החיסכון — העבודה חונה ותמשיך כשהתשובות יחזרו. השרת פנוי בינתיים.')
+        return 3
     except getattr(J, 'Park', ()) or ():
         # 15/10/2026: השרת לא מחכה לסרטון — העבודה חוזרת לתור ("מחכה לסרטון") עם מה ששולם עד עכשיו
         ctx = J.Ctx(J.load_state())

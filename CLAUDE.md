@@ -48,6 +48,7 @@
 | Studio — מאגר הלמידה, האיסוף המלא, מעבדת השיפור | `docs/studio-learning.md` |
 | Studio — **העלאה מהירה ברקע ל־R2** (מחקר 1/11/2026: Background Fetch, UIDT, iOS, Local Uploads, גודל חלק; ההערות ב־`docs/research/studio-upload/`) | `docs/studio-upload-research.md` |
 | Studio — **הפרומפט לסבב הניתוח הבא** (מול התרגום האנושי, `tools/learn-vs-human.py`), מה נבדק ומה לא · **הוראות פתיחה לפרויקט שיפור** | `docs/studio-analysis-prompt.md`, `docs/studio-project-brief.md` |
+| Studio — **תוכנית איכות התרגום** (2/11/2026): הממצאים לפי שורש, הגלים וה־PRים, פרוטוקול המדידה וקריטריון ההפעלה, דגלי `xf` ו"הרץ גל" | `docs/studio-quality-plan.md` |
 | Studio — **קריוקי בעברית**: השרשרת שנבדקה (ivrit + stable-ts + CTC עברי), כללי ההחלפה, לקחים | `docs/studio-karaoke-he.md` |
 | Studio — **קריוקי: מחקר עומק** (ספרות, מדדים וסט בדיקה, שיפורים לפי עדיפות, מלכודות רישיון, פורמטים ופיצ'רים) | `docs/studio-karaoke-research.md` |
 | Studio — **מקורות כתוביות מהרשת**: בדיקה חיה של כל המקורות (מפתח/CORS/כיסוי), המלצה, ושיפורי דיוק | `docs/studio-subs-sources.md` |
