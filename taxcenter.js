@@ -362,6 +362,16 @@ function paintActions(wrap, C) {
   for (const m of C.health) c2.appendChild(alertRow('o', '⇄', T('txHealth', { s: m.sym, b: qtyTxt(m.broker), l: qtyTxt(m.lots) })));
   const noLots = C.f.issues.filter((i) => i.type === 'noLots');
   for (const i of noLots) c2.appendChild(alertRow('o', '?', T('txNoLots', { s: i.sym, d: dmy(i.date) })));
+  // 02/11/2026 (שלבים 3–4): שיטת התאמה שאינה FIFO, המרות מט״ח שסוננו, שדות חסרים בשאילתה
+  for (const i of C.f.issues.filter((x) => x.type === 'lotMethod')) c2.appendChild(alertRow('o', 'FIFO', T('txLotMethod', { s: i.sym, c: i.code })));
+  const fxc = C.f.fx || [];
+  if (fxc.length) c2.appendChild(alertRow('o', '⇄', T('txFxConv', { n: fxc.length, v: ils(fxc.reduce((a, x) => a + x.gIls, 0)) })));
+  const fl = (C.d.meta || {}).fields;
+  if (fl && Array.isArray(fl.Trade) && fl.Trade.length) {
+    const need = ['assetCategory', 'multiplier', 'conid', 'accountId', 'tradeDate', 'tradeMoney', 'notes', 'levelOfDetail', 'origTradeID', 'transactionType'].filter((k) => !fl.Trade.includes(k));
+    if (Array.isArray(fl.CashTransaction) && fl.CashTransaction.length && !fl.CashTransaction.includes('actionID')) need.push('actionID');
+    if (need.length) c2.appendChild(alertRow('o', '+', T('txFields', { f: need.join(', ') })));
+  }
   const noFx = C.f.issues.filter((i) => i.type === 'noFx').length;
   if (noFx) c2.appendChild(alertRow('r', '₪', T('txNoFx', { n: noFx })));
   const nTr = ((C.d.trades) || []).length;
