@@ -105,31 +105,34 @@ def ts(v):
 
 
 def _interp(out):
-    """זמנים חסרים: בין שני משפטים עם זמן — לפי מיקום התווים המצטבר; בקצוות — ‎±2 שנ׳"""
-    n = len(out)
-    pos, acc = [], 0
+    """זמנים חסרים — כמו parse2 של המחקר (D7, M0 02/11/2026: עם הגרסה הקודמת chrF v2 יצא 49.27 במקום 49.8): כל זמן ידוע
+    (התחלה או סוף) הוא נקודה על ציר התווים המצטבר, וכל זמן חסר — אינטרפולציה ליניארית ביניהן; בקצוות — 15 תווים לשנייה.
+    סוף שלא אחרי ההתחלה — שנייה אחת"""
+    cum = [0]
     for r in out:
-        pos.append(acc)
-        acc += len(r[2]) + 1
-    known = [i for i in range(n) if out[i][0] is not None]
-    for i in range(n):
-        if out[i][0] is not None:
-            continue
-        lo = max((k for k in known if k < i), default=None)
-        hi = min((k for k in known if k > i), default=None)
-        if lo is not None and hi is not None and pos[hi] > pos[lo]:
-            out[i][0] = out[lo][0] + (out[hi][0] - out[lo][0]) * (pos[i] - pos[lo]) / (pos[hi] - pos[lo])
-        elif lo is not None:
-            out[i][0] = (out[lo][1] if out[lo][1] is not None else out[lo][0]) + 0.01 * (i - lo)
-        elif hi is not None:
-            out[i][0] = max(0.0, out[hi][0] - 2 * (hi - i))
-        else:
-            out[i][0] = 2.0 * i
-    for i in range(n):
-        if out[i][1] is None or out[i][1] < out[i][0]:
-            nx = out[i + 1][0] if i + 1 < n else None
-            out[i][1] = min(out[i][0] + 2, nx) if nx is not None and nx > out[i][0] else out[i][0] + 2
-    return out
+        cum.append(cum[-1] + max(1, len(r[2])))
+    pos = lambda k, f: cum[k] + f * (cum[k + 1] - cum[k])   # noqa: E731
+    P = sorted((pos(k, f), t) for k, r in enumerate(out) for f, t in ((0.0, r[0]), (1.0, r[1])) if t is not None)
+    if not P:
+        return []
+
+    def at(p):
+        if p <= P[0][0]:
+            return P[0][1] - (P[0][0] - p) / 15.0
+        if p >= P[-1][0]:
+            return P[-1][1] + (p - P[-1][0]) / 15.0
+        lo, hi = 0, len(P) - 1
+        while hi - lo > 1:
+            mid = (lo + hi) // 2
+            lo, hi = (mid, hi) if P[mid][0] <= p else (lo, mid)
+        (p0, t0), (p1, t1) = P[lo], P[hi]
+        return t0 if p1 == p0 else t0 + (t1 - t0) * (p - p0) / (p1 - p0)
+    res = []
+    for k, r in enumerate(out):
+        a = r[0] if r[0] is not None else at(pos(k, 0))
+        b = r[1] if r[1] is not None else at(pos(k, 1))
+        res.append([a, b if b > a else a + 1.0, r[2]])
+    return res
 
 
 def parse_text(x):
