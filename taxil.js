@@ -14,7 +14,8 @@ const TI_RULES = {
     capSurtax: null,            // 121ב(א1) — מ־2025
     // fourCase: 88 (שער המטבע הוא המדד — חובה ליחיד) + מוזס; המקרה המעורב (סימנים שונים → 0) נגזר מהמנגנון.
     // fifo: חוזר 22/2002 §1.5.1 (בתוך חשבון). fees: דברי ההסבר ל־1325. offset: 92(א)(1),(3),(4), 92(ב).
-    // creditCarry: האם זיכוי מס זר שלא נוצל (אחרי קיזוז הפסד מול דיבידנד) עובר לשנה הבאה — לא אומת.
+    // creditCarry: 205א — עודף זיכוי עובר 5 שנים מול אותו מקור (הנוסח אומת, docs/tax-il-research.md). לא ודאי: שהמקור
+    // הוא "דיבידנד מחו״ל" בלי קשר למדינה, וההצמדה למדד לא מחושבת (נומינלי — שמרני). לכן ניצול מהמאגר = הערכה.
     verified: { rate: true, fourCase: true, fifo: true, fees: true, offset: true, surtax: true, capSurtax: true, dividend: true, creditCarry: false },
   },
   2025: { capSurtax: { th: 721560, r: 0.02 } },   // 2% על ההכנסה ההונית בלבד שמעל אותו סף (1.1 מיליון — לא קיים בחוק)
@@ -112,24 +113,30 @@ function tiFifo(trades, fxOf) {
   return { open: open, sales: sales, issues: issues };
 }
 
-/* דיבידנדים וניכוי במקור מתנועות המזומן של Flex. התיאור של IBKR: "AAPL(US0378331005) Cash Dividend ..." */
+/* דיבידנדים וניכוי במקור מתנועות המזומן של Flex. התיאור של IBKR: "AAPL(US0378331005) Cash Dividend ..."
+   kind: dividend · interest (ריבית זכות) · interestPaid (ריבית מרווח/אג״ח ששולמה — לא מנוכה מההכנסות: 101א(ב)
+   מטיל 30% על מי שתובע ניכוי ריבית, ולכן היא מוצגת כמידע בלבד). ניכוי במקור על ריבית — לפי התיאור. */
 function tiDividends(cashTx, fxOf) {
   const m = new Map();
   for (const c of (cashTx || [])) {
     const type = String((c && c.type) || '');
     const isDiv = /dividend|payment in lieu/i.test(type);
     const isWh = /withholding/i.test(type);
-    const isInt = /interest/i.test(type) && !isWh;
-    if (!isDiv && !isWh && !isInt) continue;
+    const isPaid = !isWh && /interest/i.test(type) && /paid/i.test(type);
+    const isInt = /interest/i.test(type) && !isWh && !isPaid;
+    if (!isDiv && !isWh && !isInt && !isPaid) continue;
     const date = tiDate(c.date), amt = tiNum(c.amount);
     if (!date || !amt) continue;
     const desc = String(c.description || '');
     const sm = desc.match(/^\s*([A-Z0-9.]+)\s*\(/);
     const im = desc.match(/\(([A-Z]{2})[A-Z0-9]{9}\d\)/);
-    const sym = isInt ? '' : (sm ? sm[1] : '');
+    // ניכוי על ריבית זכות: בלי "SYM(ISIN" ועם "interest"/"INT" בתיאור
+    const whInt = isWh && !im && /interest|\bINT\b/i.test(desc);
+    const kind = isPaid ? 'interestPaid' : (isInt || whInt) ? 'interest' : 'dividend';
+    const sym = kind === 'dividend' ? (sm ? sm[1] : '') : '';
     const cur = String(c.currency || 'USD').toUpperCase();
-    const key = date + '|' + (isInt ? 'INT' : sym) + '|' + cur;
-    const r = m.get(key) || { date: date, sym: sym, kind: isInt ? 'interest' : 'dividend', country: im ? im[1] : '', cur: cur, gross: 0, wh: 0 };
+    const key = date + '|' + (kind === 'interestPaid' ? 'PAID' : kind === 'interest' ? 'INT' : sym) + '|' + cur;
+    const r = m.get(key) || { date: date, sym: sym, kind: kind, country: im ? im[1] : '', cur: cur, gross: 0, wh: 0 };
     if (isWh) r.wh += -amt; else r.gross += amt;     // ביטול ניכוי מגיע חיובי — מקטין את הניכוי
     if (!r.country && im) r.country = im[1];
     m.set(key, r);
@@ -147,7 +154,10 @@ function tiDividends(cashTx, fxOf) {
 }
 
 /* שנת מס: קיזוז, מס רווח הון, דיבידנד וזיכוי, מס יסף.
-   opts.carry — הפסד מועבר משנים קודמות (חיובי, בשקלים); opts.other — הכנסה חייבת אחרת (למס יסף; null = לא ידוע) */
+   opts.carry — הפסד מועבר משנים קודמות (חיובי, בשקלים); opts.other — הכנסה חייבת אחרת שאינה הונית (עבודה, עסק — למס
+   יסף; null = לא ידוע); opts.otherCap — הכנסה הונית אחרת מחוץ ל־IBKR (שכבת ה־2%); opts.pool — מאגר עודף זיכוי
+   [{y, src, amt}] משנים קודמות (205א). */
+const TI_SRC = ['dividend', 'interest'];   // מקורות הכנסה לזיכוי (199, 204(ב)) — כל מקור בנפרד
 function tiYear(year, sales, divs, opts) {
   const o = opts || {};
   const R = tiRules(year);
@@ -156,9 +166,15 @@ function tiYear(year, sales, divs, opts) {
   const yd = (divs || []).filter((d) => d.date.slice(0, 4) === y && d.grossIls != null);
   let gains = 0, losses = 0;
   for (const s of ys) { if (s.taxable > 0) gains += s.taxable; else losses -= s.taxable; }
-  const div = yd.filter((d) => d.kind === 'dividend'), intr = yd.filter((d) => d.kind === 'interest');
-  const divGross = div.reduce((a, d) => a + d.grossIls, 0), divWh = div.reduce((a, d) => a + d.whIls, 0);
-  const intGross = intr.reduce((a, d) => a + d.grossIls, 0), intWh = intr.reduce((a, d) => a + d.whIls, 0);
+  const src = {};
+  for (const k of TI_SRC) {
+    const L = yd.filter((d) => d.kind === k);
+    src[k] = { gross: L.reduce((a, d) => a + d.grossIls, 0), wh: L.reduce((a, d) => a + d.whIls, 0), n: L.length };
+  }
+  // ניכוי מעל 25% בדיבידנד אמריקאי — מוחזר רק מה־IRS (האמנה, סעיף 12), לא נכנס למאגר
+  const irsRefund = yd.filter((d) => d.kind === 'dividend' && d.country === 'US')
+    .reduce((a, d) => a + Math.max(0, d.whIls - 0.25 * d.grossIls), 0);
+  const marginInt = -yd.filter((d) => d.kind === 'interestPaid').reduce((a, d) => a + d.grossIls, 0);
   const carryIn = Math.max(0, tiNum(o.carry));
   let net = gains - losses, carryUsed = 0, carryOut = carryIn, offIncome = 0, taxable = 0;
   if (net >= 0) {
@@ -167,37 +183,66 @@ function tiYear(year, sales, divs, opts) {
     carryOut = carryIn - carryUsed;
   } else {
     // הפסד שוטף: 92(א)(4) — "יקוזז" (חובה) גם כנגד ריבית/דיבידנד מני״ע באותה שנה (שיעור עד 25%).
-    // מול דיבידנד שנוכה בו מס בחו״ל זה שורף גם את ההפסד וגם את הזיכוי (creditLost) — המסך מזהיר.
+    // קודם מול המקור שנוכה בו פחות מס בחו״ל — כך נשמר יותר זיכוי (סדר הקיזוז בבחירת הנישום; חוזר 10/2025, משני).
     // היתרה מועברת — 92(ב): רק כנגד רווח הון, בלי הגבלת שנים, בתנאי שהוגש דוח לשנת ההפסד.
     let left = -net;
-    offIncome = Math.min(left, divGross + intGross);
-    left -= offIncome;
+    const ratio = (k) => (src[k].gross > 0 ? src[k].wh / src[k].gross : 0);
+    for (const k of TI_SRC.slice().sort((a, b) => ratio(a) - ratio(b))) {
+      const use = Math.min(left, Math.max(0, src[k].gross));
+      src[k].off = use; left -= use; offIncome += use;
+    }
     carryOut = carryIn + left;
   }
   const cgTax = R.rate * taxable;
-  const incGross = divGross + intGross, incWh = divWh + intWh;
-  const israeliInc = R.rate * Math.max(0, incGross - offIncome);
-  const credit = Math.min(incWh, israeliInc);
-  const extraInc = Math.max(0, israeliInc - incWh);
-  const creditLost = Math.max(0, incWh - credit);
+  // זיכוי לכל מקור: עד המס הישראלי על אותו מקור (204(ב)); העודף → מאגר ל־5 שנים (205א); המאגר מנוצל מהוותיק
+  const pool = (o.pool || []).filter((p) => p.amt > 0.005 && p.y >= +year - 5 && p.y < +year).map((p) => Object.assign({}, p));
+  let israeliInc = 0, credit = 0, extraInc = 0, creditLost = 0, poolUsed = 0;
+  for (const k of TI_SRC) {
+    const S = src[k];
+    S.tax = R.rate * Math.max(0, S.gross - (S.off || 0));
+    S.credit = Math.min(Math.max(0, S.wh), S.tax);
+    S.excess = Math.max(0, S.wh - S.credit);
+    let due = S.tax - S.credit;
+    S.poolUsed = 0;
+    for (const p of pool.filter((q) => q.src === k).sort((a, b) => a.y - b.y)) {
+      if (due <= 0.005) break;
+      const u = Math.min(due, p.amt);
+      p.amt -= u; due -= u; S.poolUsed += u;
+    }
+    S.extra = due;
+    israeliInc += S.tax; credit += S.credit; extraInc += due; creditLost += S.excess; poolUsed += S.poolUsed;
+  }
+  const refundDiv = Math.min(irsRefund, src.dividend.excess);
+  const poolOut = pool.filter((p) => p.amt > 0.005);
+  for (const k of TI_SRC) {
+    const add = src[k].excess - (k === 'dividend' ? refundDiv : 0);
+    if (add > 0.005) poolOut.push({ y: +year, src: k, amt: add });
+  }
   // מס יסף: 3% על כל ההכנסה החייבת מעל הסף; 2% על ההכנסה ההונית לבדה מעל אותו סף. בלי הסכום האינפלציוני
   // (החייב כאן כבר ריאלי). לא נכלל במקדמה החצי־שנתית — 121ב(ב).
-  const capital = taxable + Math.max(0, incGross - offIncome);
+  const incNet = TI_SRC.reduce((a, k) => a + Math.max(0, src[k].gross - (src[k].off || 0)), 0);
+  const otherCap = Math.max(0, tiNum(o.otherCap));
+  const capital = taxable + incNet + otherCap;
   const other = o.other == null ? null : Math.max(0, tiNum(o.other));
   const total = (other || 0) + capital;
   const s3 = R.surtax ? R.surtax.r * Math.max(0, total - R.surtax.th) : 0;
   const s2 = R.capSurtax ? R.capSurtax.r * Math.max(0, capital - R.capSurtax.th) : 0;
   const flags = [];
-  for (const k of Object.keys(R.verified)) if (!R.verified[k] && (k !== 'creditCarry' || creditLost > 0)) flags.push(k);
+  for (const k of Object.keys(R.verified)) if (!R.verified[k] && (k !== 'creditCarry' || poolUsed > 0)) flags.push(k);
   if (other == null) flags.push('otherUnknown');
   if (ys.some((s) => s.nominal)) flags.push('nominalIls');
+  if (marginInt > 0.5) flags.push('marginInt');
+  const pick = (k) => ({ gross: src[k].gross, wh: src[k].wh, n: src[k].n, off: src[k].off || 0, tax: src[k].tax, credit: src[k].credit, excess: src[k].excess, poolUsed: src[k].poolUsed, extra: src[k].extra });
   return {
     year: +year, rate: R.rate, sales: ys.length,
     gains: gains, losses: losses, net: net, carryIn: carryIn, carryUsed: carryUsed, carryOut: carryOut,
     offIncome: offIncome, taxable: taxable, cgTax: cgTax,
-    div: { gross: divGross, wh: divWh, n: div.length }, interest: { gross: intGross, wh: intWh, n: intr.length },
-    israeliInc: israeliInc, credit: credit, extraInc: extraInc, creditLost: creditLost,
-    surtax: s3 + s2, surtax3: s3, surtax2: s2,
+    div: pick('dividend'), interest: pick('interest'),
+    israeliInc: israeliInc, credit: credit, extraInc: extraInc,
+    creditLost: creditLost,                 // כל העודף של השנה (לא "אבד": refund להחזר מה־IRS, השאר למאגר)
+    irsRefund: refundDiv, poolIn: o.pool || [], poolUsed: poolUsed, poolOut: poolOut,
+    poolAdded: creditLost - refundDiv, marginInt: marginInt,
+    surtax: s3 + s2, surtax3: s3, surtax2: s2, otherCap: otherCap,
     due: cgTax + extraInc + s3 + s2, flags: flags,
   };
 }
@@ -209,14 +254,26 @@ function tiYears(sales, divs, opts) {
   for (const s of (sales || [])) ys.add(+s.sellDate.slice(0, 4));
   for (const d of (divs || [])) ys.add(+d.date.slice(0, 4));
   const list = [...ys].filter((y) => y > 1990).sort((a, b) => a - b);
-  let carry = Math.max(0, tiNum(o.carry));
+  let carry = Math.max(0, tiNum(o.carry)), pool = [];
   const out = [];
   for (const y of list) {
-    const r = tiYear(y, sales, divs, { carry: carry, other: (o.other || {})[y] });
+    const r = tiYear(y, sales, divs, { carry: carry, other: (o.other || {})[y], otherCap: (o.otherCap || {})[y], pool: pool });
     carry = r.carryOut;
+    pool = r.poolOut;
     out.push(r);
   }
   return out;
+}
+
+/* דוח ומקדמה חצי־שנתיים — 91(ד)(2ג)(ב): עד 31/7 על המחצית הראשונה, עד 31/1 על השנה כולה פחות מה שכבר דווח.
+   מצטבר: הפסד של המחצית הראשונה מקטין את מקדמת השנייה (ולא נעלם). בלי מס יסף (121ב(ב)) ובלי הפסד מועבר
+   (קיזוזו בדיווח החצי־שנתי שנוי במחלוקת — docs/tax-il-research.md). מחזיר את הבסיס החייב, לא את המס. */
+function tiSemi(sales, year) {
+  const y = String(year);
+  const sum = (a, b) => (sales || []).filter((s) => s.sellDate >= y + a && s.sellDate <= y + b).reduce((x, s) => x + s.taxable, 0);
+  const n1 = sum('-01-01', '-06-30'), n2 = sum('-07-01', '-12-31');
+  const h1 = Math.max(0, n1);
+  return { n1: n1, n2: n2, h1: h1, h2: Math.max(0, n1 + n2 - h1) };
 }
 
 /* "המס אם אמכור היום": לכל מנה פתוחה — ארבעת המצבים מול מחיר ושער של היום.
@@ -244,7 +301,7 @@ function tiHarvest(unreal, yearState) {
   const R = tiRules(yearState && yearState.year || new Date().getFullYear());
   let room = Math.max(0, tiNum(yearState && yearState.taxable));
   const c = (unreal || []).filter((u) => !u.missing && u.taxable < 0).sort((a, b) => a.taxable - b.taxable);
-  // 92(א)(4): מה שלא מקזז רווח הון מקזז חובה דיבידנד/ריבית של השנה — ושם, אם נוכה מס בחו״ל, הזיכוי אובד
+  // 92(א)(4): מה שלא מקזז רווח הון מקזז חובה דיבידנד/ריבית של השנה — ושם, אם נוכה מס בחו״ל, הזיכוי עובר למאגר (205א)
   let incRoom = Math.max(0, tiNum(yearState && yearState.div && yearState.div.gross) + tiNum(yearState && yearState.interest && yearState.interest.gross) - tiNum(yearState && yearState.offIncome));
   return c.map((u) => {
     const use = Math.min(-u.taxable, room);
@@ -273,7 +330,7 @@ function tiCheck(open, positions) {
   return out.sort((x, y) => (x.sym < y.sym ? -1 : 1));
 }
 
-/* W-8BEN: דיבידנד אמריקאי שנוכה בו יותר מ־25% (העודף לא חוזר בישראל) */
+/* W-8BEN: דיבידנד אמריקאי שנוכה בו יותר מ־25% (העודף לא מתקזז בישראל — רק החזר מה־IRS) */
 function tiW8(divs) {
   return (divs || []).filter((d) => d.kind === 'dividend' && d.country === 'US' && d.whRate != null && d.whRate > 0.26)
     .map((d) => ({ date: d.date, sym: d.sym, rate: d.whRate, lostIls: d.grossIls != null ? d.grossIls * (d.whRate - 0.25) : null }));
@@ -298,7 +355,7 @@ function tiReport(year, sales, divs, Y) {
     buyDate: s.buyDate, sellDate: s.sellDate, cur: s.cur, cost: s.cost, proceeds: s.proceeds, fxBuy: s.fxBuy, fxSell: s.fxSell,
     costIls: s.costIls, proceedsIls: s.proceedsIls, gIls: s.gIls, gFx: s.gFx, taxable: s.taxable, nominal: !!s.nominal,
   }));
-  const s1324 = (divs || []).filter((d) => d.date.slice(0, 4) === y);
+  const s1324 = (divs || []).filter((d) => d.date.slice(0, 4) === y && d.kind !== 'interestPaid');
   const byCountry = new Map();
   for (const d of s1324) {
     const k = (d.country || '—') + '|' + d.kind;
@@ -310,7 +367,8 @@ function tiReport(year, sales, divs, Y) {
   const sum = Y ? {
     gains: Y.gains, losses: Y.losses, carryIn: Y.carryIn, carryUsed: Y.carryUsed, offIncome: Y.offIncome, taxable: Y.taxable,
     rate: Y.rate, cgTax: Y.cgTax, carryOut: Y.carryOut, incGross: Y.div.gross + Y.interest.gross, incWh: Y.div.wh + Y.interest.wh,
-    credit: Y.credit, extraInc: Y.extraInc, creditLost: Y.creditLost, surtax: Y.surtax, due: Y.due,
+    credit: Y.credit, extraInc: Y.extraInc, creditLost: Y.creditLost, irsRefund: Y.irsRefund, poolUsed: Y.poolUsed,
+    poolAdded: Y.poolAdded, marginInt: Y.marginInt, surtax: Y.surtax, due: Y.due,
   } : null;
   return { year: +year, s1325: s1325, s1324: s1324, s1324c: [...byCountry.values()].sort((a, b) => (a.country < b.country ? -1 : 1)), s1322: sum };
 }
@@ -342,6 +400,6 @@ function tiEstate(positions, priceOf) {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     TI_RULES, tiRules, tiNormTrades, tiFourCase, tiFifo, tiDividends, tiYear, tiYears,
-    tiUnrealized, tiHarvest, tiCheck, tiW8, tiRateOn, tiReport, tiEstate, TI_ESTATE_TH,
+    tiUnrealized, tiHarvest, tiCheck, tiSemi, TI_SRC, tiW8, tiRateOn, tiReport, tiEstate, TI_ESTATE_TH,
   };
 }

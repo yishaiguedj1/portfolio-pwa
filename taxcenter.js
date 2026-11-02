@@ -6,7 +6,7 @@
 let E = { t: (k) => k };
 const T = (k, v) => (E && typeof E.t === 'function' ? E.t(k, v) : k);
 const LRI = '⁦', PDI = '⁩', MINUS = '−';
-const LS_TAX = 'pwa_tax_v1';   // הגדרות אישיות: הכנסה אחרת לכל שנה (מס יסף), הפסד מועבר מלפני הדוחות — ACCOUNT_KEYS
+const LS_TAX = 'pwa_tax_v1';   // הגדרות אישיות: הכנסה אחרת והכנסה הונית אחרת לכל שנה (מס יסף), הפסד מועבר מלפני הדוחות — ACCOUNT_KEYS
 
 let ROOT = null;
 const S = { tab: 'year', year: null, modal: null, sheet: null, fx: {}, fxErr: false, seq: 0, calc: null };
@@ -94,12 +94,12 @@ function compute() {
   const st = settings();
   const f = tiFifo(d.trades || [], fxOf);
   const divs = tiDividends(d.cashTransactions || [], fxOf);
-  const years = tiYears(f.sales, divs, { carry: Number(st.carry0) || 0, other: st.other || {} });
+  const years = tiYears(f.sales, divs, { carry: Number(st.carry0) || 0, other: st.other || {}, otherCap: st.otherCap || {} });
   const nowY = new Date().getFullYear();
   const yIdx = new Map(years.map((y) => [y.year, y]));
   if (!yIdx.has(nowY)) {
     const prev = years.filter((y) => y.year < nowY).pop();
-    const cur = tiYear(nowY, f.sales, divs, { carry: prev ? prev.carryOut : Number(st.carry0) || 0, other: (st.other || {})[nowY] });
+    const cur = tiYear(nowY, f.sales, divs, { carry: prev ? prev.carryOut : Number(st.carry0) || 0, other: (st.other || {})[nowY], otherCap: (st.otherCap || {})[nowY], pool: prev ? prev.poolOut : [] });
     years.push(cur); yIdx.set(nowY, cur);
   }
   const priceOf = (sym) => { const q = E.quote && E.quote(sym); return q && q.close > 0 ? q.close : null; };
@@ -221,12 +221,19 @@ function paintYear(wrap, C) {
   if (Y.carryOut > 0) c1.appendChild(row(T('txCarryOut', { y: S.year + 1 }), ils(Y.carryOut)));
   wrap.appendChild(c1);
   // דיבידנדים וריבית
-  if (Y.div.n || Y.interest.n) {
+  // הזיכוי מחושב לכל מקור בנפרד (199, 204(ב)); עודף → החזר מה־IRS או מאגר ל־5 שנים (205א)
+  if (Y.div.n || Y.interest.n || Y.marginInt > 0.5) {
     const c2 = h('div', { class: 'tx-card' }, [h('p', { class: 'tx-h', text: T('txDivs') })]);
     c2.appendChild(row(T('txGross'), ils(Y.div.gross + Y.interest.gross)));
     c2.appendChild(row(T('txWh'), ils(Y.div.wh + Y.interest.wh)));
-    if (Y.creditLost > 0.5) c2.appendChild(row(T('txCreditLost'), ils(Y.creditLost), 'tx-loss'));
+    if (Y.poolUsed > 0.5) c2.appendChild(row(T('txPoolUsed'), ils(-Y.poolUsed)));
     c2.appendChild(row(T('txExtra'), ils(Y.extraInc), 'tx-tot'));
+    if (Y.irsRefund > 0.5) c2.appendChild(row(T('txIrsRefund'), ils(Y.irsRefund), 'tx-loss'));
+    if (Y.poolAdded > 0.5) c2.appendChild(row(T('txPoolAdded', { y: S.year + 5 }), ils(Y.poolAdded)));
+    if (Y.marginInt > 0.5) {
+      c2.appendChild(row(T('txMarginInt'), ils(Y.marginInt)));
+      c2.appendChild(h('p', { class: 'tx-sub', text: T('txMarginIntS') }));
+    }
     wrap.appendChild(c2);
   }
   // מס יסף
@@ -238,6 +245,12 @@ function paintYear(wrap, C) {
     const o = Object.assign({}, settings().other || {});
     if (v == null) delete o[S.year]; else o[S.year] = v;
     saveSettings({ other: o }); recompute();
+  }));
+  // שכבת ה־2% (121ב(א1)) — על ההכנסה ההונית לבדה: רווחים, דיבידנד וריבית מחוץ ל־IBKR
+  c3.appendChild(numField('txOtherCap', T('txOtherCapL', { y: S.year }), (C.st.otherCap || {})[S.year], (v) => {
+    const o = Object.assign({}, settings().otherCap || {});
+    if (v == null) delete o[S.year]; else o[S.year] = v;
+    saveSettings({ otherCap: o }); recompute();
   }));
   wrap.appendChild(c3);
   // מכירות השנה
@@ -288,7 +301,7 @@ function paintToday(wrap, C) {
   // (דרך tiYear — כך הקיזוז, ההפסד המועבר והקיזוז מול דיבידנד נשארים נכונים)
   const today = todayISO();
   const fake = ok.map((u) => Object.assign({}, u, { sellDate: today }));
-  const Yall = tiYear(C.nowY, C.f.sales.concat(fake), C.divs, { carry: Y.carryIn, other: (C.st.other || {})[C.nowY] });
+  const Yall = tiYear(C.nowY, C.f.sales.concat(fake), C.divs, { carry: Y.carryIn, other: (C.st.other || {})[C.nowY], otherCap: Y.otherCap, pool: Y.poolIn });
   const extra = Math.max(0, Yall.due - Y.due);
   const miss = new Set(C.unreal.filter((u) => u.missing).map((u) => u.sym)).size;
   const none = !ok.length;
@@ -340,9 +353,8 @@ function paintActions(wrap, C) {
   if (!n1) c1.appendChild(h('p', { class: 'tx-sub', text: T('txNothing') }));
   wrap.appendChild(c1);
   // דוח ומקדמה חצי־שנתיים — 91(ד)(2ג)(ב)
-  const half = (a, b) => C.f.sales.filter((s) => s.sellDate >= a && s.sellDate <= b).reduce((x, s) => x + s.taxable, 0);
-  const yS = String(C.nowY);
-  const h1 = half(yS + '-01-01', yS + '-06-30'), h2 = half(yS + '-07-01', yS + '-12-31');
+  // מצטבר: הפסד המחצית הראשונה מקטין את מקדמת השנייה (tiSemi)
+  const { h1, h2 } = tiSemi(C.f.sales, C.nowY);
   const c2 = h('div', { class: 'tx-card' }, [h('p', { class: 'tx-h', text: T('txChecks') })]);
   if (h1 > 0) c2.appendChild(alertRow('o', '31/7', T('txSemi1', { v: ils(h1 * Y.rate) })));
   if (h2 > 0) c2.appendChild(alertRow('o', '31/1', T('txSemi2', { v: ils(h2 * Y.rate), y: C.nowY + 1 })));
@@ -388,7 +400,8 @@ function buildCsv(C, year) {
     line([T('txRep1322')]);
     for (const [k, v] of [[T('txGains'), m.gains], [T('txLosses'), -m.losses], [T('txCarryUsed'), -m.carryUsed], [T('txOffInc'), -m.offIncome],
       [T('txTaxableSum'), m.taxable], [T('txCgTax'), m.cgTax], [T('txCarryOut', { y: year + 1 }), m.carryOut],
-      [T('txGross'), m.incGross], [T('txWh'), m.incWh], [T('txExtra'), m.extraInc], [T('txCreditLost'), m.creditLost],
+      [T('txGross'), m.incGross], [T('txWh'), m.incWh], [T('txPoolUsed'), -m.poolUsed], [T('txExtra'), m.extraInc],
+      [T('txIrsRefund'), m.irsRefund], [T('txPoolAdded', { y: year + 5 }), m.poolAdded], [T('txMarginInt'), m.marginInt],
       [T('txSurtax'), m.surtax], [T('txDue', { y: year }), m.due]]) line([k, v]);
     L.push('');
   }

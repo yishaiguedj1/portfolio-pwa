@@ -134,4 +134,75 @@ const fxFrom = (map) => (cur, d) => (cur === 'USD' ? T.tiRateOn(Object.entries(m
   ok(T.tiEstate([{ symbol: 'AA', asset: 'STK', qty: 200, currency: 'USD', isin: 'US0000000001', markPrice: 400 }]).over, 'G10 מעל 60,000$');
 }
 
+/* G11–G15 — חמש הדוגמאות של פס״ד מוזס (ע״א 3555/15, פס׳ 26; דנ״א 7517/16 נדחה). קנייה 1 × $100 בשער 5 = 500 ₪.
+   N = מכירה$ × שער − 500; D = (מכירה$ − 100) × שער.
+   G11 $150/7: N 550, D 350 → 350 · G12 $50/11: N 50, D −550 → 0 · G13 $50/7: N −150, D −350 → −150
+   G14 $200/3: N 100, D 300 → 100 · G15 $50/3: N −350, D −150 → −150 */
+for (const [g, p, r, want] of [['G11', 150, 7, 350], ['G12', 50, 11, 0], ['G13', 50, 7, -150], ['G14', 200, 3, 100], ['G15', 50, 3, -150]]) {
+  const f = T.tiFifo([tr('M', '2010-01-04', 1, 100, 0, 1), tr('M', '2015-01-05', -1, p, 0, 2)], fxFrom({ '2010-01-04': 5, '2015-01-05': r }));
+  eq(f.sales[0].taxable, want, g + ' מוזס: $' + p + ' בשער ' + r);
+}
+
+/* G21 — ריבית מרווח לא מנוכה (101א(ב)). באותו יום, בשער 3.7: דיבידנד +$100 (ארה״ב), ניכוי −$25, Broker Interest Paid −$40.
+   דיבידנד 370, ניכוי 92.5 → מס ישראלי 92.5, זיכוי 92.5, יתרה 0, אין עודף. בסיס היסף 370. ריבית המרווח 148 — מידע בלבד. */
+{
+  const cash = [
+    { date: '2025-03-03', type: 'Dividends', amount: 100, currency: 'USD', description: 'AA(US0000000001) Cash Dividend USD 1.00 per Share' },
+    { date: '2025-03-03', type: 'Withholding Tax', amount: -25, currency: 'USD', description: 'AA(US0000000001) Cash Dividend USD 1.00 per Share - US Tax' },
+    { date: '2025-03-03', type: 'Broker Interest Paid', amount: -40, currency: 'USD', description: 'USD DEBIT INT FOR FEB-2025' },
+  ];
+  const divs = T.tiDividends(cash, () => 3.7);
+  const Y = T.tiYear(2025, [], divs, { other: 0 });
+  eq(Y.div.gross, 370, 'G21 ברוטו דיבידנד');
+  eq(Y.interest.gross, 0, 'G21 ריבית ששולמה אינה הכנסה שלילית');
+  eq(Y.extraInc, 0, 'G21 אין יתרה');
+  eq(Y.creditLost, 0, 'G21 אין עודף זיכוי מדומה');
+  eq(Y.marginInt, 148, 'G21 ריבית המרווח מוצגת');
+  ok(Y.flags.includes('marginInt'), 'G21 דגל ריבית מרווח');
+}
+
+/* G22 — זיכוי לכל מקור (199, 204(ב)). בשער 3.5: דיבידנד $1,000 (ארה״ב) עם ניכוי 30% = 3,500 / 1,050; ריבית זכות $1,000 = 3,500 / 0.
+   דיבידנד: מס 875, זיכוי 875, עודף 175 (כולו מעל 25% → החזר מה־IRS, לא למאגר). ריבית: מס 875, זיכוי 0. מס נוסף 875. */
+{
+  const divs = [
+    { date: '2025-04-01', kind: 'dividend', country: 'US', grossIls: 3500, whIls: 1050 },
+    { date: '2025-04-01', kind: 'interest', country: '', grossIls: 3500, whIls: 0 },
+  ];
+  const Y = T.tiYear(2025, [], divs, { other: 0 });
+  eq(Y.extraInc, 875, 'G22 מס נוסף 875 (ולא 700)');
+  eq(Y.irsRefund, 175, 'G22 העודף מעל 25% — להחזר מה־IRS');
+  eq(Y.poolAdded, 0, 'G22 לא נכנס למאגר');
+}
+
+/* G24 — מקדמה מצטברת (91(ד)(2ג)(ב)). ינואר–יוני נטו −1,000; יולי–דצמבר +3,000.
+   31/7: 0. 31/1: 3,000 − 1,000 − 0 = 2,000 → מס 500 (ולא 750). */
+{
+  const s = T.tiSemi([{ sellDate: '2025-03-01', taxable: -1000 }, { sellDate: '2025-09-01', taxable: 3000 }], 2025);
+  eq(s.h1, 0, 'G24 מחצית ראשונה');
+  eq(s.h2 * 0.25, 500, 'G24 מחצית שנייה — 500');
+}
+
+/* G25 — מס יסף עם הכנסה הונית אחרת (121ב(א1), 2025).
+   עבודה 400,000, רווח 1,100,000: 3% × 778,440 = 23,353.2; 2% × 378,440 = 7,568.8 → 30,922.
+   הונית אחרת 300,000, רווח 500,000, עבודה 0: 3% × 78,440 + 2% × 78,440 = 3,922.
+   הוני 500,000 + עבודה 500,000: 3% × 278,440 = 8,353.2, ו־2% = 0. */
+{
+  eq(T.tiYear(2025, [{ sellDate: '2025-04-01', taxable: 1100000 }], [], { other: 400000 }).surtax, 30922, 'G25 עבודה + הון');
+  eq(T.tiYear(2025, [{ sellDate: '2025-04-01', taxable: 500000 }], [], { other: 0, otherCap: 300000 }).surtax, 3922, 'G25 הונית אחרת בשכבת ה־2%');
+  eq(T.tiYear(2025, [{ sellDate: '2025-04-01', taxable: 500000 }], [], { other: 500000 }).surtax, 8353.2, 'G25 בלי 2% כשההון מתחת לסף');
+}
+
+/* G27 — מאגר עודף זיכוי (205א). הקלט של G5 (הפסד 1,000, דיבידנד 370 עם ניכוי 92.5, לא מארה״ב) → עודף 92.5 למאגר.
+   2026: דיבידנד 400 בלי ניכוי → מס 100 − 92.5 מהמאגר = 7.5 (הערכה: נומינלי, בלי הצמדה). 2031 — פקע. */
+{
+  const sales = [{ sellDate: '2025-05-01', taxable: -1000 }];
+  const divs = [{ date: '2025-06-01', kind: 'dividend', country: 'IE', grossIls: 370, whIls: 92.5 }, { date: '2026-06-01', kind: 'dividend', country: 'IE', grossIls: 400, whIls: 0 }];
+  const ys = T.tiYears(sales, divs, {});
+  eq(ys[0].poolAdded, 92.5, 'G27 2025 נכנס למאגר');
+  eq(ys[1].extraInc, 7.5, 'G27 2026 ניצול מהמאגר');
+  ok(ys[1].flags.includes('creditCarry'), 'G27 מסומן "הערכה"');
+  const late = T.tiYear(2031, [], [{ date: '2031-06-01', kind: 'dividend', grossIls: 400, whIls: 0 }], { pool: ys[0].poolOut });
+  eq(late.extraInc, 100, 'G27 אחרי 5 שנים — פקע');
+}
+
 console.log('# taxil-golden: ' + n + ' בדיקות עברו');

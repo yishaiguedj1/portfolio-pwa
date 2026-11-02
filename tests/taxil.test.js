@@ -102,12 +102,18 @@ const divs = T.tiDividends(CASH, fxOf);
   approx(y.cgTax, 125, 1e-9, '25% מס רווח הון');
   ok(y.carryOut === 0 && y.carryUsed === 100, 'ההפסד המועבר נוצל');
   ok(y.flags.length === 0, 'כל הכללים אומתו — בלי דגלי "הערכה" (כשההכנסה האחרת ידועה ואין זיכוי אבוד)');
-  // שנת הפסד: 92(א)(4) — הקיזוז מול דיבידנד הוא חובה, גם כשנוכה בו מס בארה״ב → הזיכוי הולך לאיבוד
+  // שנת הפסד: 92(א)(4) — הקיזוז מול דיבידנד הוא חובה, גם כשנוכה בו מס בארה״ב → הזיכוי עובר למאגר (205א)
   const d1 = [{ date: '2024-03-01', kind: 'dividend', grossIls: 350, whIls: 87.5 }];
   const y2 = T.tiYear(2024, [{ sellDate: '2024-05-01', taxable: -600 }], d1, { carry: 0, other: 0 });
   ok(y2.offIncome === 350 && y2.carryOut === 250, 'הפסד שוטף מקזז חובה את הדיבידנד, והיתרה מועברת');
-  approx(y2.creditLost, 87.5, 1e-9, 'הזיכוי על המס שנוכה בארה״ב לא מנוצל');
-  ok(y2.flags.includes('creditCarry'), 'העברת זיכוי שלא נוצל — לא אומתה, מסומנת');
+  approx(y2.creditLost, 87.5, 1e-9, 'הזיכוי על המס שנוכה בחו״ל לא מנוצל השנה');
+  ok(y2.poolOut.length === 1 && y2.poolOut[0].src === 'dividend' && Math.abs(y2.poolOut[0].amt - 87.5) < 1e-9, 'העודף נכנס למאגר 205א');
+  ok(!y2.flags.includes('creditCarry'), 'כל עוד המאגר לא נוצל — אין דגל');
+  const yP = T.tiYear(2025, [], [{ date: '2025-03-01', kind: 'dividend', grossIls: 400, whIls: 0 }], { other: 0, pool: y2.poolOut });
+  approx(yP.extraInc, 12.5, 1e-9, 'ניצול המאגר בשנה הבאה: 100 − 87.5');
+  ok(yP.flags.includes('creditCarry'), 'ניצול מהמאגר — הערכה (המקור וההצמדה לא ודאיים)');
+  const y8 = T.tiYear(2030, [], [{ date: '2030-03-01', kind: 'dividend', grossIls: 400, whIls: 0 }], { other: 0, pool: y2.poolOut });
+  approx(y8.poolUsed, 0, 1e-9, 'המאגר פוקע אחרי 5 שנים');
   approx(y2.extraInc, 0, 1e-9, 'אין מס נוסף על הדיבידנד');
   // דיבידנד שלא נוכה בו כלום: ההפסד מקזז אותו
   const d2 = [{ date: '2024-03-01', kind: 'dividend', grossIls: 200, whIls: 0 }];
