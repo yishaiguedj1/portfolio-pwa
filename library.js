@@ -121,6 +121,12 @@ async function scopeLibrary() {
 const putBook = (b) => tx('books', 'readwrite', (st) => st.put(b));
 const getFile = (id) => tx('files', 'readonly', (st) => reqP(st.get(id)));
 const PREV = 'prev:';                    // Academy Pro: הגרסה שלפני הליטוש האחרון (לביטול) — באותו מאגר, מפתח נפרד
+const CP = 'cp:';                        // Academy Pro גל 2: נקודות שמירה — 'cp:<id>:<זמן>' → { key, f, n, at, kind }; 'orig' = לפני העריכה הראשונה
+const CP_MAX = 10;                       // נקודות אוטומטיות/ידניות לספר (+ המקור, שלא נמחק)
+function delFiles(st, id) {              // כל הקבצים של ספר: הקובץ, הגרסה לביטול ונקודות השמירה
+  st.delete(id); st.delete(PREV + id);
+  if (typeof IDBKeyRange !== 'undefined') st.delete(IDBKeyRange.bound(CP + id + ':', CP + id + ':\uffff'));
+}
 
 /* ---------------- פרטי ספר (טהורות — נבדקות) ---------------- */
 export function langText(x) {
@@ -616,7 +622,7 @@ async function syncShelf(tk, j) {
       if (keep && (b.lastRead || 0) > (keep.lastRead || 0)) { Object.assign(keep, { lastRead: b.lastRead, fraction: Math.max(keep.fraction || 0, b.fraction || 0), done: !!(keep.done || b.done) }); await putBook(keep); }
     }
     await tx('books', 'readwrite', (st) => st.delete(b.id));
-    await tx('files', 'readwrite', (st) => { st.delete(b.id); st.delete(PREV + b.id); });
+    await tx('files', 'readwrite', (st) => delFiles(st, b.id));
     changed++;
   }
   if (!failed) {
@@ -673,7 +679,7 @@ function syncDrive() {
       const cur = (await allBooksRaw()).find((x) => x.id === b.id);
       if (!cur || cur.driveId !== b.driveId) continue;   // הספר כבר עבר לקובץ אחר באותו מזהה (למשל גרסה מעודכנת בתיקייה אחרת)
       await tx('books', 'readwrite', (st) => st.delete(b.id));
-      await tx('files', 'readwrite', (st) => { st.delete(b.id); st.delete(PREV + b.id); });
+      await tx('files', 'readwrite', (st) => delFiles(st, b.id));
       changed++;
     }
     return changed;
@@ -1441,7 +1447,7 @@ async function resetMine() {
   const ids = (await allBooksRaw()).filter((b) => isPrivate(b, cur)).map((b) => b.id);
   for (const id of ids) {
     await tx('books', 'readwrite', (st) => st.delete(id));
-    await tx('files', 'readwrite', (st) => { st.delete(id); st.delete(PREV + id); });
+    await tx('files', 'readwrite', (st) => delFiles(st, id));
     await tx('text', 'readwrite', (st) => st.delete(id)).catch(() => {});
     const u = coverUrls.get(id); if (u) { URL.revokeObjectURL(u.url); coverUrls.delete(id); }
   }
@@ -2262,8 +2268,49 @@ async function afterFileChange(id, file) {
   indexAll(); BK.schedule();
 }
 async function savePolished(id, file, prev) {
+  await cpAdd(id, prev, T('beCpPolish'), 'auto');
   await tx('files', 'readwrite', (st) => { st.put(prev, PREV + id); st.put(file, id); });
   await afterFileChange(id, file);
+}
+/* גל 2: נקודות שמירה (A6) — עותק מלא של הקובץ לפני כל שמירה מהעורך / ליטוש / חזרה לגרסה. נשמרות CP_MAX האחרונות + המקור */
+const cpRange = (id) => IDBKeyRange.bound(CP + id + ':', CP + id + ':\uffff');
+async function cpList(id) { try { return (await tx('files', 'readonly', (st) => reqP(st.getAll(cpRange(id))))) || []; } catch (e) { return []; } }
+async function cpGet(key) { return tx('files', 'readonly', (st) => reqP(st.get(key))); }
+async function cpAdd(id, file, name, kind) {
+  if (!file) return;
+  const list = await cpList(id), at = Math.max(Date.now(), ...list.map((x) => x.at + 1));
+  const key = CP + id + ':' + String(at).padStart(14, '0');
+  const rec = { key, f: file, n: String(name || '').slice(0, 80), at, kind: list.some((x) => x.kind === 'orig') ? (kind || 'auto') : 'orig' };
+  const rest = list.filter((x) => x.kind !== 'orig').sort((a, b) => a.at - b.at);
+  const drop = rest.slice(0, Math.max(0, rest.length + (rec.kind === 'orig' ? 0 : 1) - CP_MAX));
+  await tx('files', 'readwrite', (st) => { st.put(rec, key); drop.forEach((x) => st.delete(x.key)); });
+}
+async function saveEdited(id, file, prev, name) {
+  await cpAdd(id, prev, name, 'auto');
+  await tx('files', 'readwrite', (st) => st.put(file, id));
+  await afterFileChange(id, file);
+}
+async function cpRestore(id, key) {
+  const c = await cpGet(key); if (!c || !c.f) throw new Error('nocp');
+  const cur = await getFile(id);
+  await cpAdd(id, cur, T('beCpRestore', { n: c.n }), 'auto');
+  const f = new File([c.f], (cur && cur.name) || c.f.name || (id + '.epub'), { type: 'application/epub+zip' });
+  await tx('files', 'readwrite', (st) => st.put(f, id));
+  await afterFileChange(id, f);
+}
+let BEK = null;
+async function editKit() {
+  if (!BEK) {
+    const m = await import('./bookedit.js');
+    BEK = m.createEditor({
+      h, T, sheet, swEl, fmtBytes, getFile, isMine: isMineBook,
+      flash: (m2) => { if (typeof flash === 'function') flash(m2); },
+      askConfirm: (msg, fn, o) => { if (typeof askConfirm === 'function') askConfirm(msg, fn, o); else fn(); },
+      renderHome: () => { if (root && !rd) renderHome(); },
+      saveEdited, cpList, cpGet, cpAdd, cpRestore,
+    });
+  }
+  return BEK;
 }
 async function undoPolish(id) {
   const prev = await getFile(PREV + id); if (!prev) throw new Error('noprev');
@@ -2317,7 +2364,12 @@ function editExtras(home, b) {
   const ch = h('span', 'pl-chev'); ch.setAttribute('aria-hidden', 'true'); ch.innerHTML = ICON.chev || '';
   r.append(l, ch);
   r.addEventListener('click', () => polishKit().then((P) => P.openPolish(b)));
-  card.append(r); slot.append(card);
+  const r2 = h('button', 'lib-row pl-open'); r2.type = 'button';
+  const l2 = h('span', 'pl-rl'); l2.append(h('span', 'pl-rt', T('beTitle')), h('span', 'pl-rs', T('beSub')));
+  const ch2 = h('span', 'pl-chev'); ch2.setAttribute('aria-hidden', 'true'); ch2.innerHTML = ICON.chev || '';
+  r2.append(l2, ch2);
+  r2.addEventListener('click', () => editKit().then((K) => K.open(b)));
+  card.append(r, r2); slot.append(card);
 }
 
 /* ס׳4–ס׳5: מנהל הספרייה (libadmin.js) — נטען רק כשהמנהל פותח "ניהול"; כל מה שהוא צריך מהספרייה מוזרק */
@@ -2666,7 +2718,7 @@ function askRemove(b) {
       const cur = (await allBooksRaw()).find((x) => x.id === b.id);
       if (cur) { cur.hidden = 1; await putBook(cur); }
     } else await tx('books', 'readwrite', (st) => st.delete(b.id));
-    await tx('files', 'readwrite', (st) => { st.delete(b.id); st.delete(PREV + b.id); });
+    await tx('files', 'readwrite', (st) => delFiles(st, b.id));
     if (ui.view && ui.view.book === b.id) history.back(); else renderHome();
   };
   if (typeof askConfirm === 'function') askConfirm(T(drive ? 'libHideQ' : 'libRemoveQ', { t: b.title }), go, { danger: true, ok: T(drive ? 'libHide' : 'libRemove') });
@@ -2676,7 +2728,7 @@ function askRemoveBacked(b) {
   sheet('', (sh, close) => {
     sh.append(h('h3', 'lib-sh-big', b.title), h('p', 'lib-sh-p', T('libRemoveBkQ')));
     const done = () => { if (ui.view && ui.view.book === b.id) history.back(); else renderHome(); };
-    const local = async () => { await tx('books', 'readwrite', (st) => st.delete(b.id)); await tx('files', 'readwrite', (st) => { st.delete(b.id); st.delete(PREV + b.id); }); };
+    const local = async () => { await tx('books', 'readwrite', (st) => st.delete(b.id)); await tx('files', 'readwrite', (st) => delFiles(st, b.id)); };
     const a = h('button', 'lib-btn danger'); a.type = 'button'; a.textContent = T('libRemoveBoth');
     a.addEventListener('click', async () => {
       a.disabled = true;
@@ -2983,6 +3035,7 @@ async function openReader(id, opt) {
   root.append(box);
   rd = { view, rec, els: { box, foot, fL, fR, chap, slider, nL, nR, ttl, bmBtn, ribbon, scrub, marks, prev, pvCh, pvTx, pvPct, pvBm, backPos }, chrome: false, saveT: 0, annTap: 0, pvSeq: 0 };
   bookWords(rec.id).then((w) => { if (rd && rd.rec === rec) rd.words = w; });
+  libDialSync(true);
   if (CW_OK) readerWatch();                // v352: "חזור" של אנדרואיד = בקשת סגירה, לא ניווט (בלי צילום של Chrome)
   preloadSecText(rec);
   rec.ann = rec.ann || [];
@@ -3081,6 +3134,7 @@ function closeReader(opt) {
   const instant = !!(opt && opt.instant);
   const r = rd; rd = null;
   try { if (r.cw) r.cw.destroy(); } catch (e) {}   // v352
+  libDialSync(true);
   if (r.rec) { clearTimeout(r.saveT); pushProgress(r.rec, true); }
   hideSel(); hideTr(true);
   if (root) root.querySelectorAll('.lib-veil').forEach((v) => v.remove());   // v349: גיליון של הקורא (Aa/תוכן) נסגר איתו
@@ -3373,10 +3427,11 @@ const blockText = (n) => { const b = blockOf(n); return b ? b.textContent : ''; 
 /* ---------------- בועת סימון + תרגום בהקשר ---------------- */
 let selPop = null;
 function hideSel() { if (selPop) { selPop.remove(); selPop = null; } }
-function blockOf(node) {
+const BLOCK_RE = /^(P|LI|TD|TH|BLOCKQUOTE|H[1-6]|DD|DT|FIGCAPTION|CAPTION)$/i;   // i: בספר XHTML שמות התגים באותיות קטנות ("p")
+function blockOf(node) {                    // הפסקה של הצומת; null כשאין (לא כל ה־html — זה היה ההקשר לתרגום, וב"ערוך כאן" כל הפרק)
   let el = node && (node.nodeType === 1 ? node : node.parentElement);
-  while (el && el.parentElement && !/^(P|LI|TD|TH|BLOCKQUOTE|H[1-6]|DD|DT|FIGCAPTION|CAPTION)$/.test(el.tagName)) el = el.parentElement;
-  return el;
+  while (el && !BLOCK_RE.test(el.tagName)) el = el.parentElement;
+  return el || null;
 }
 function annOverlapping(doc, range) {     // הדגשה פעילה שחופפת לסימון (באותו פרק)
   if (!rd || !range) return null;
@@ -3427,6 +3482,7 @@ function annPopup(value, range, index) {    // נגיעה בהדגשה קיימ�
 const HL_LAST = 'pwa_hlcolor_v1';
 function hlLast() { try { const k = localStorage.getItem(HL_LAST); return HL_COLORS[k] ? k : 'b'; } catch (e) { return 'b'; } }
 const ICON_NOTE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>';
+const ICON_EDHERE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7V4h16v3"/><path d="M12 4v16"/><path d="M8 20h8"/></svg>';
 const ICON_TERM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/></svg>';
 function selBar(c, sel, text) {
   const bar = h('div', 'tr-bar');
@@ -3466,6 +3522,11 @@ function selBar(c, sel, text) {
     side.append(sw,
       ib('tr-note', ICON_NOTE, sel.ann && String(sel.ann.n || '').trim() ? 'hlEditNote' : 'hlNote', () => { const a = sel.ann && !sel.ann.d ? sel.ann : saveHighlight({ text: sel.text, cfi: sel.cfi, k: hlLast() }); hideTr(true); noteSheet(a, rd.rec); }),
       ib('tr-quote', ICON.quote, 'hlQuote', () => { hideTr(true); quoteCard(sel.text); }));
+    // A2 (גל 2): "ערוך כאן" — רק בספר של המשתמש. הפסקה והפרק נלקחים מהבחירה הנוכחית (selCur) לפני שהכרטיס נסגר
+    if (rd && rd.rec && isMineBook(rd.rec) && selCur) {
+      const doc0 = selCur.doc, block = blockOf(selCur.range.commonAncestorContainer), idx = doc0 && doc0.__idx;
+      if (block && idx != null) side.append(ib('tr-edhere', ICON_EDHERE, 'edHere', () => { const bk = rd.rec; hideTr(true); editKit().then((K) => K.openHere(bk, { idx, block })); }));
+    }
     const gm = glossaryMatch(sel.text);
     if (gm) side.append(ib('tr-term', ICON_TERM, 'acTerm', () => sheet(T('acTerm'), (sh) => sh.append(termRow(gm)))));
   }
@@ -4564,7 +4625,7 @@ function libDialTo(k) {           // לחיצה על פריט: קובייה לכ
 /* גלויה מעל השכבה (910) ומתחת לקורא (920) ולגיליונות; לא בעמודי העריכה והניהול (יש להם סרגל משלהם) */
 function libDialSync(instant) {
   if (!libNav || libDialC) return;
-  const show = !!root && !libInSet(ui.view) && !(ui.view && Object.keys(ui.view).some((k) => LIB_NOBACK.includes(k)));
+  const show = !!root && !rd && !libInSet(ui.view) && !(ui.view && Object.keys(ui.view).some((k) => LIB_NOBACK.includes(k)));   // !rd: בקורא החוגה (z 910) הייתה מעל הטקסט ומעל הגיליונות שלו (lib-root = 900)
   libNav.hidden = !show;
   document.documentElement.classList.toggle('lib-dock', show);
   if (show && typeof dialSync === 'function') dialSync(instant);
