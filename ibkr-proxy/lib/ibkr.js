@@ -223,6 +223,7 @@ function statementToJson(tree) {
     trades: [],
     positions: [],
     cashTransactions: [],
+    taxEvents: [],          // 02/11/2026 (מרכז המס, שלבים 7 ו־ח9): פעולות תאגידיות והעברות ניירות
     nav: null,
     cashBalances: [],
   };
@@ -357,6 +358,31 @@ function statementToJson(tree) {
       fxToBase: num(x.fxRateToBase) || 1,
       type: 'Transfer ' + (dir === 'OUT' ? 'OUT' : 'IN'),
       description: x.description || '',
+    });
+  }
+  /* 02/11/2026 (מרכז המס): פעולות תאגידיות (k:'ca') והעברות ניירות (k:'tr', כמות בלי עלות — ח9). ריק אם המקטע
+     לא בשאילתה. שמות התכונות לפי ibflex — לא אומתו מול XML אמיתי (docs/tax-il-research.md סעיף 3). */
+  const caEls = findKids(st, 'CorporateAction');
+  out.meta.fields.CorporateAction = names(caEls);
+  for (const c of caEls) {
+    const x = c.attrs;
+    const lod = String(x.levelOfDetail || '').toUpperCase();
+    if (lod && lod !== 'DETAIL') continue;
+    out.taxEvents.push({
+      k: 'ca', id: x.transactionID || '', actionId: x.actionID || '', type: x.type || '',
+      symbol: x.symbol || '', conid: x.conid || '', date: flexDate(x.reportDate || x.dateTime || x.date),
+      qty: num(x.quantity) || 0, proceeds: num(x.proceeds) || 0, currency: x.currency || '',
+      asset: x.assetCategory || '', description: x.actionDescription || x.description || '',
+    });
+  }
+  for (const c of findKids(st, 'Transfer')) {
+    const x = c.attrs;
+    const q = num(x.quantity);
+    if (!isFinite(q) || q === 0 || /^CASH$/i.test(x.assetCategory || '')) continue;
+    const out1 = String(x.direction || '').toUpperCase() === 'OUT';
+    out.taxEvents.push({
+      k: 'tr', id: x.transactionID || '', type: x.type || '', symbol: x.symbol || '', conid: x.conid || '',
+      date: flexDate(x.dateTime || x.date), qty: out1 ? -Math.abs(q) : Math.abs(q), currency: x.currency || '', asset: x.assetCategory || '',
     });
   }
   /* ChangeInNAV: שורה אחת = סיכום תקופה; כמה שורות = פירוט יומי (Level=Detail).

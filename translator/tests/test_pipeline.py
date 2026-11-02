@@ -1114,7 +1114,7 @@ class RunAutoResume(unittest.TestCase):
                 return 0
 
             def Ctx(self, st):
-                return NS(st=st, report=lambda *a, **k: log.append('fail') if k.get('fail') else log.append('park:bw' if k.get('bw') else 'park') if k.get('park') else None)
+                return NS(st=st, report=lambda *a, **k: log.append('fail') if k.get('fail') else log.append(('park:bw' + (':' + a[0] if a and a[0] else '')) if k.get('bw') else 'park') if k.get('park') else None)
 
         J.Park = Park
 
@@ -1132,7 +1132,7 @@ class RunAutoResume(unittest.TestCase):
             def translate(self, fix=True, quiet=False):
                 log.append('translate')
                 if bw:
-                    raise P.llm.BatchWait('h')
+                    raise P.llm.BatchWait('h', 'tl')
                 if tl_fail:
                     raise P.llm.LLMError('max_tokens', 'נקטעה')
 
@@ -1249,8 +1249,9 @@ class RunAutoResume(unittest.TestCase):
                 log = self.flow([], None, bw=True, rc_want=3)
             finally:
                 os.environ.pop('SNB_BATCH_DIR', None)
-            self.assertEqual(log[-1], 'park:bw')
-            self.assertLess(log.index('ck:al'), log.index('park:bw'))
+            # 2/11/2026: הדיווח מסמן את השלב שמחכה — התרגום (שרץ בשקט במקביל ליישור), לא היישור שכבר הסתיים
+            self.assertEqual(log[-1], 'park:bw:tl')
+            self.assertLess(log.index('ck:al'), log.index('park:bw:tl'))
             jd = Path(tmp) / ('j' + 'a' * 20)
             self.assertEqual((jd / 'rounds').read_text(), '1')
             self.assertTrue((jd / 'parked').exists())

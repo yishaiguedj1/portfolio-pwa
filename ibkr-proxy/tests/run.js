@@ -128,6 +128,16 @@ function stubFetch(text, status = 200) {
   ok(lotX.trades.length === 1 && lotX.trades[0].multiplier === 100 && lotX.trades[0].conid === '77' && lotX.trades[0].tradeMoney === 600 &&
     lotX.trades[0].tradeDate === '2026-01-05' && lotX.trades[0].notes === 'O;LI' && lotX.trades[0].asset === 'OPT', 'Trades: רק EXECUTION, עם השדות החדשים');
   ok(lotX.cashTransactions[0].actionId === '5', 'CashTransaction: actionID');
+  // 02/11/2026 (מרכז המס, שלב 7 וח9): פעולות תאגידיות והעברות ניירות → taxEvents; העברת מזומן נשארת בתזרים
+  const caX = statementToJson(parseXml('<FlexStatement fromDate="20260101" toDate="20261022"><CorporateActions>' +
+    '<CorporateAction levelOfDetail="DETAIL" type="FS" symbol="ABC" quantity="30" reportDate="20260110" actionID="9" transactionID="77" actionDescription="ABC SPLIT 4 FOR 1" currency="USD"/>' +
+    '<CorporateAction levelOfDetail="SUMMARY" type="FS" symbol="ABC" quantity="30" reportDate="20260110"/>' +
+    '</CorporateActions><Transfers><Transfer symbol="XYZ" quantity="10" direction="IN" assetCategory="STK" dateTime="20260201" transactionID="88"/>' +
+    '<Transfer cashTransfer="100" direction="IN" currency="USD" dateTime="20260202"/></Transfers></FlexStatement>'));
+  ok(caX.taxEvents.length === 2, 'taxEvents: פעולה + העברת ניירות (בלי SUMMARY)');
+  ok(caX.taxEvents[0].k === 'ca' && caX.taxEvents[0].type === 'FS' && caX.taxEvents[0].qty === 30 && caX.taxEvents[0].actionId === '9' && caX.taxEvents[0].date === '2026-01-10', 'CorporateAction: שדות');
+  ok(caX.taxEvents[1].k === 'tr' && caX.taxEvents[1].qty === 10 && caX.taxEvents[1].symbol === 'XYZ', 'Transfer ניירות: כמות');
+  ok(caX.cashTransactions.length === 1 && caX.cashTransactions[0].amount === 100, 'Transfer מזומן: נשאר בתזרים');
   ok(lotX.meta.fields.Trade.includes('multiplier') && lotX.meta.fields.lod.join() === 'CLOSED_LOT,EXECUTION,SYMBOL_SUMMARY' &&
     !JSON.stringify(lotX.meta.fields).includes('U0'), 'meta.fields: שמות וקטגוריות בלבד, בלי ערכים');
   const ordX = statementToJson(parseXml('<FlexStatement><Trades><Trade levelOfDetail="ORDER" symbol="B" quantity="1"/><Trade levelOfDetail="CLOSED_LOT" symbol="B" quantity="1"/><Trade symbol="C" quantity="1"/></Trades></FlexStatement>'));
@@ -2142,8 +2152,8 @@ function stubFetch(text, status = 200) {
       ok(rr.statusCode === 403 || rr.payload.error === 'admin' || rr.payload.error === 'no_gold' || !rr.payload.ok, 'סטודיו: הרץ גל — לא למי שאינו מנהל');
       rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, arms: [{ mode: 'nope' }] });
       ok(rr.statusCode === 400 && rr.payload.error === 'bad_params', 'סטודיו: הרץ גל — מצב לא מוכר בזרועה נדחה');
-      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, arms: [{}, {}, {}, {}] });
-      ok(rr.statusCode === 400, 'סטודיו: הרץ גל — עד 3 זרועות');
+      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, arms: [{}, {}, {}, {}, {}] });
+      ok(rr.statusCode === 400, 'סטודיו: הרץ גל — עד 4 זרועות');
       rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, arms: [{ mode: 'haiku-medium' }, { mode: 'haiku-high', xf: ['smf', 'zzz', 'smf'] }] });
       const wj = rr.payload.jobs || [];
       ok(rr.payload.ok && wj.length === 24 && wj.every((j, i) => j.wa === i % 2 && j.spec.mode === (i % 2 ? 'haiku-high' : 'haiku-medium') && j.state === 'new')
@@ -3610,13 +3620,21 @@ function stubFetch(text, status = 200) {
       const KB = rr.payload.job && rr.payload.job.key;
       ok(rr.payload.job && rr.payload.job.id === JB, 'חצי מחיר: נלקחת כמו כל עבודה');
       await wrk({ op: 'claim', job: JB, key: KB });
-      rr = await wrk({ op: 'report', job: JB, key: KB, park: true, bw: true, msg: 'x' });
+      rr = await wrk({ op: 'report', job: JB, key: KB, st: 'tl', park: true, bw: true, msg: 'x' });   // 2/11/2026: השלב שמחכה
       const fb = db.get('studioJobs/' + JB).fields;
       ok(rr.payload.ok && fb.state.stringValue === 'queued' && !fb.sid.stringValue && Number(fb.bw.integerValue) > 0, 'חצי מחיר: חונה — חוזרת לתור, המפתח מת, השרת פנוי');
       rr = await run({ op: 'job', idToken: OWNER, job: JB });
       ok(rr.payload.job.bw === 1 && rr.payload.job.vw === 0 && !rr.payload.job.stale && rr.payload.job.spec.wl === 'ab12cd34ef', 'חצי מחיר: הטלפון רואה "מחכה לתור החיסכון"');
       rr = await srvRun({ op: 'poll', hb: {} }, STOK);
       ok(rr.payload.job === null, 'חצי מחיר: לא נלקחת כל עוד התשובות לא חזרו');
+      // 2/11/2026 (בקשת המשתמש: "לוודא שהעבודה באמת מחכה בתור"): הסוכן מדווח מה קורה בתור — נשמר רק כשהשתנה, והטלפון רואה
+      const tS = Math.floor(Date.now() / 1000) - 60;
+      rr = await srvRun({ op: 'poll', hb: { be: 'auth', bn: 3, bp: 2, bf: 1, bo: tS }, bq: { [JB]: ['s', tS], jBAD: ['s', tS], ['j' + 'Z'.repeat(20)]: ['x', tS] } }, STOK);
+      ok(rr.payload.job === null && JSON.parse(db.get('studioJobs/' + JB).fields.bq.stringValue).s === 's', 'תור החיסכון: מצב העבודה נשמר מהדיווח (ערכים לא תקינים — נזרקים)');
+      rr = await run({ op: 'job', idToken: OWNER, job: JB });
+      ok(rr.payload.job.bq && rr.payload.job.bq.s === 's' && rr.payload.job.bq.t === tS * 1000 && rr.payload.job.prog.st === 'tl', 'תור החיסכון: הטלפון רואה "נשלח ב־" והשלב שמחכה (התרגום)');
+      ok(S.normHb({ be: 'auth', bn: 3, bp: 2, bf: 1, bo: tS }).be === 'auth' && S.normHb({ be: '<x>' }).be === '' && S.SRV_EV.includes('bt'), 'תור החיסכון: תקלה בדופק — מקטלוג בלבד');
+      ok(S.bqView({ bw: 1000, pk: 0 }, 1000 + S.BQ_SILENT_MS + 1).s === 'n' && S.bqView({ bw: 1000, pk: 0 }, 2000) === null && S.bqView({ bw: 0 }, 1e12) === null, 'תור החיסכון: בלי דיווח 20 דק׳ — "הסוכן שותק"');
       rr = await srvRun({ op: 'poll', hb: {}, br: [JB] }, STOK);
       const KB2 = rr.payload.job && rr.payload.job.key;
       ok(rr.payload.job && rr.payload.job.id === JB && !Number(db.get('studioJobs/' + JB).fields.bw.integerValue), 'חצי מחיר: הסוכן דיווח שהתשובות חזרו → נלקחת שוב (bw מתאפס)');
@@ -3625,6 +3643,7 @@ function stubFetch(text, status = 200) {
       ok(rr.payload.ok && !rr.payload.job.spec.bt, 'חצי מחיר: "להמשיך עכשיו" — יוצאת מתור החיסכון');
       rr = await wrk({ op: 'report', job: JB, key: KB2, park: true, bw: true });
       ok(rr.payload.ok && !Number(db.get('studioJobs/' + JB).fields.bw.integerValue), 'חצי מחיר: אחרי "עכשיו" חנייה אחרונה חוזרת מיד לתור הרגיל (בלי לחכות)');
+      ok(JSON.parse(db.get('studioJobs/' + JB).fields.bq.stringValue) === null, 'תור החיסכון: חנייה חדשה מאפסת את מצב הסבב הקודם');
       rr = await run({ op: 'btNow', idToken: OWNER, job: JB });
       ok(rr.statusCode === 409, 'חצי מחיר: "עכשיו" רק לעבודה שבתור החיסכון');
       rr = await srvRun({ op: 'poll', hb: {} }, STOK);

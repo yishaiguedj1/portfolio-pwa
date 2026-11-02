@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2253 מפתחות מתוך 6084) */
+/* המחרוזות של studio (2258 מפתחות מתוך 6124) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1190,6 +1190,10 @@ he: {
   "studioNowBehind": "השרת מסיים קודם את «{n}» — ואז מתחיל",
   "studioNowBg": "הקבצים מוכנים",
   "studioNowBw": "מחכה לתשובה מתור החיסכון (חצי מחיר). השרת פנוי בינתיים, וההמשך מאותה נקודה",
+  "studioNowBwE": "השליחה לתור החיסכון נכשלת — אפשר להמשיך עכשיו במחיר רגיל",
+  "studioNowBwG": "מצטרף לתור החיסכון (חצי מחיר) — נשלח בעוד כמה דקות. השרת פנוי בינתיים",
+  "studioNowBwN": "השרת לא מדווח על תור החיסכון כבר {n} דק׳ — אפשר להמשיך עכשיו במחיר רגיל",
+  "studioNowBwS": "נשלח לתור החיסכון (חצי מחיר) ב־{t}. התשובה חוזרת בדרך כלל תוך שעה, לכל היותר 24 שעות. השרת פנוי בינתיים",
   "studioNowCancelled": "העבודה בוטלה",
   "studioNowDone": "התרגום מוכן!",
   "studioNowExtract": "מוציאים את הקול מהסרטון",
@@ -1861,6 +1865,7 @@ he: {
   "studioSrvDisk": "דיסק {n}%",
   "studioSrvEmpty": "עוד אין שרתים",
   "studioSrvEvAuth": "השרתון לא מכיר את טוקן השרת",
+  "studioSrvEvBt": "תור החיסכון נכשל כמה פעמים ברצף",
   "studioSrvEvCrash": "עבודה קרסה",
   "studioSrvEvDone": "עבודה הסתיימה",
   "studioSrvEvFail": "עבודה נכשלה",
@@ -3445,6 +3450,10 @@ en: {
   "studioNowBehind": "The server is finishing “{n}” first — then it starts",
   "studioNowBg": "Your files are ready",
   "studioNowBw": "Waiting for the savings queue (half price). The server is free meanwhile, and it resumes from the same point",
+  "studioNowBwE": "Sending to the savings queue is failing — you can continue now at the regular price",
+  "studioNowBwG": "Joining the savings queue (half price) — sent in a few minutes. The server is free meanwhile",
+  "studioNowBwN": "The server hasn't reported on the savings queue for {n} min — you can continue now at the regular price",
+  "studioNowBwS": "Sent to the savings queue (half price) at {t}. Answers usually return within an hour, 24 hours at most. The server is free meanwhile",
   "studioNowCancelled": "The job was cancelled",
   "studioNowDone": "Translation ready!",
   "studioNowExtract": "Taking the audio out of the video",
@@ -4116,6 +4125,7 @@ en: {
   "studioSrvDisk": "Disk {n}%",
   "studioSrvEmpty": "No servers yet",
   "studioSrvEvAuth": "The proxy rejected the server token",
+  "studioSrvEvBt": "The savings queue failed several times in a row",
   "studioSrvEvCrash": "Job crashed",
   "studioSrvEvDone": "Job finished",
   "studioSrvEvFail": "Job failed",

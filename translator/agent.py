@@ -222,6 +222,9 @@ def poll(server: str, tok: str, op: str = 'poll', busy: str = '', fit: dict | No
             body['fit'] = fit
         if op == 'poll' and BT_READY:
             body['br'] = BT_READY[:20]   # 01/11/2026 (I3): עבודות שהתשובות שלהן חזרו מתור החיסכון — השרתון משחרר אותן
+        hb.update(bt_hb())               # 2/11/2026: מצב תור החיסכון למסך השרת (תקלה בשליחה, כמה ממתין, מתי נשלח)
+        if op == 'poll' and BT_JOBS:
+            body['bq'] = dict(list(BT_JOBS.items())[:20])   # 2/11/2026: לכל עבודה שחונה — נאספת / נשלחה / תקלה, ומתי
         if op == 'poll' and _boot:
             body['boot'] = True      # 20/10/2026: הפנייה הראשונה אחרי העלייה — השרתון מסמן עבודה שנקטעה אצלנו (worker_lost)
         st, j, hd = J.http('POST', server + '/api/studio', body,
@@ -1345,6 +1348,65 @@ BT_MAX_BYTES = 150 * 1024 * 1024       # התקרה של Anthropic 256MB — ע�
 BT_KEEP_S = 3 * 86400                  # תיקיית עבודה שלא חונה ולא נגעו בה 3 ימים — נמחקת
 BT_READY: list = []
 _bt_last: dict = {'poll': 0.0}
+# 2/11/2026 (בקשת המשתמש: "לוודא שהעבודה באמת מחכה בתור ושאין באג שתוקע"): עד היום תקלה בחוט הזה נכתבה רק ללוג
+# של הקונטיינר — העבודה חיכתה בשקט עד BW_MAX (36 שעות). עכשיו: לכל עבודה שחונה — ['g' נאספת | 's' נשלחה | 'e' תקלה, t],
+# ולשרת — קוד התקלה (קטלוג BT_ERRS, זהה ל־normHb בשרתון) ומספר הסבבים שנכשלו ברצף. מספרים וקודים בלבד.
+BT_JOBS: dict = {}
+BT_ERRS = ('auth', 'bad', 'rate', 'srv', 'net', 'other')
+BT_ERR_EV = 3                          # כמה סבבים שנכשלו ברצף = אירוע ביומן השרת ('bt') ותקלה בעבודות שמחכות
+_bt_err: dict = {'k': '', 'n': 0, 't': 0.0}
+_bt_info: dict = {'bp': 0, 'bf': 0, 'bo': 0}
+
+
+def bt_err_code(e: BaseException) -> str:
+    """סוג התקלה מהמחלקה של ה־SDK (בלי הטקסט — עלול להכיל תוכן)."""
+    n = type(e).__name__
+    if n in ('AuthenticationError', 'PermissionDeniedError'):
+        return 'auth'
+    if n in ('BadRequestError', 'UnprocessableEntityError', 'NotFoundError', 'ConflictError', 'RequestTooLargeError'):
+        return 'bad'
+    if n == 'RateLimitError':
+        return 'rate'
+    if n in ('InternalServerError', 'OverloadedError', 'ServiceUnavailableError'):
+        return 'srv'
+    if n in ('APIConnectionError', 'APITimeoutError') or isinstance(e, OSError):
+        return 'net'
+    st = getattr(e, 'status_code', 0) or 0
+    return 'srv' if st >= 500 else 'bad' if 400 <= st < 500 else 'other'
+
+
+def bt_hb() -> dict:
+    """לדופק: be = התקלה (רק בסבבים שנכשלו ברצף), bn = כמה, bp = בקשות שעוד לא נשלחו, bf = batches בדרך, bo = הוותיק שבהם."""
+    out = {k: v for k, v in _bt_info.items() if v}
+    if _bt_err['n']:
+        out.update(be=_bt_err['k'], bn=_bt_err['n'])
+    return out
+
+
+def bt_status(now: float) -> None:
+    """מצב התור לכל עבודה שחונה (BT_JOBS) ולשרת (_bt_info) — מהקבצים, אחרי כל סבב."""
+    sent = bt_sent()
+    st: dict = {}
+    for info in sent.values():
+        t = float(info.get('t') or 0)
+        for j, _h in (info.get('ids') or {}).values():
+            if j not in st or t < st[j][1]:
+                st[j] = ['s', t]
+    pend = bt_pending(sent)
+    first: dict = {}
+    for j, _h, _p, t in pend:
+        first[j] = min(t, first.get(j, t))
+    bad = _bt_err['n'] >= BT_ERR_EV
+    for j, t in first.items():         # חלק עוד לא נשלח — העבודה מחכה לו (גם אם חלקים אחרים כבר בדרך)
+        st[j] = ['e' if bad else 'g', t]
+    jobs = {}
+    for j, v in st.items():
+        if (BT_DIR / j / 'parked').exists():
+            jobs[j] = [v[0], int(v[1])]
+    BT_JOBS.clear()
+    BT_JOBS.update(jobs)
+    ts = [float(i.get('t') or 0) for i in sent.values() if i.get('t')]
+    _bt_info.update(bp=len(pend), bf=len(sent), bo=int(min(ts)) if ts else 0)
 
 
 def bt_cid(job: str, h: str) -> str:
@@ -1464,6 +1526,7 @@ def bt_tick(client, now: float | None = None) -> dict:
         elif not (jd / 'parked').exists() and now - jd.stat().st_mtime > BT_KEEP_S:
             shutil.rmtree(jd, ignore_errors=True)
     BT_READY[:] = ready
+    bt_status(now)
     return out
 
 
@@ -1479,8 +1542,16 @@ def bt_loop(server: str = '', tok: str = ''):      # noqa: ARG001 — אותה �
                 import anthropic
                 client = anthropic.Anthropic(max_retries=4, timeout=60.0)
             bt_tick(client)
+            _bt_err.update(k='', n=0, t=0.0)
         except Exception as e:     # noqa: BLE001 — חוט רקע: תקלה ברשת / ב־API — ננסה שוב בסבב הבא
             print('· תור החיסכון: ' + type(e).__name__, flush=True)
+            _bt_err.update(k=bt_err_code(e), n=_bt_err['n'] + 1, t=time.time())
+            if _bt_err['n'] == BT_ERR_EV:
+                ev('bt')           # 2/11/2026: ביומן השרת (מסך השרת במרכז הניהול) — פעם אחת לכל רצף
+            try:
+                bt_status(time.time())   # העבודות שמחכות — "תקלה" (הטלפון מציע להמשיך עכשיו במחיר רגיל)
+            except OSError:
+                pass
         for _ in range(30):
             if _stop:
                 return

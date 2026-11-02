@@ -154,6 +154,74 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(sorted(A.BT_READY), ['jobA', 'jobB'])
         self.assertFalse(list((d / '_sent').glob('*.json')))
 
+    def test_status_per_job_and_errors(self):
+        # 2/11/2026 (בקשת המשתמש: "לוודא שהעבודה באמת מחכה בתור"): נאספת → נשלחה (ומתי) → תקלה ברצף = e + אירוע
+        A, d = self.A, Path(self.tmp.name)
+        A._bt_err.update(k='', n=0, t=0.0)
+        llm.batch_put(d / 'jobA', 'a' * 40, {'model': 'm', 'n': 1})
+        llm.batch_park(d / 'jobA')
+        llm.batch_put(d / 'jobZ', 'z' * 40, {'model': 'm', 'n': 3})   # לא חונה (עוד רצה) — לא מדווחים
+        c = FakeBatches()
+        t0 = json.loads((d / 'jobA' / 'req' / ('a' * 40 + '.json')).read_text())['t']
+        A.bt_tick(c, t0 + 10)
+        self.assertEqual(A.BT_JOBS, {'jobA': ['g', int(t0)]})
+        self.assertEqual(A.bt_hb()['bp'], 2)
+        A.bt_tick(c, t0 + A.BT_GATHER_S + 5)
+        self.assertEqual(A.BT_JOBS['jobA'], ['s', int(t0 + A.BT_GATHER_S + 5)])
+        hb = A.bt_hb()
+        self.assertEqual((hb.get('bf'), hb.get('bo'), hb.get('bp')), (1, int(t0 + A.BT_GATHER_S + 5), None))
+        self.assertNotIn('be', hb)
+        # תקלה: השליחה נכשלת שלוש פעמים ברצף — e לעבודה שמחכה לשליחה, קוד בדופק ואירוע אחד ביומן השרת
+
+        class Boom(FakeBatches):
+            def create(self, requests):
+                raise type('AuthenticationError', (Exception,), {})('x')
+        llm.batch_put(d / 'jobB', 'b' * 40, {'model': 'm', 'n': 2})
+        llm.batch_park(d / 'jobB')
+        A._stop = False
+        evs = []
+        orig_ev, orig_sleep = A.ev, A.time.sleep
+        A.ev = evs.append
+        n = {'i': 0}
+
+        def tick(cl, now=None):
+            n['i'] += 1
+            if n['i'] >= A.BT_ERR_EV:
+                A._stop = True                      # הסבב השלישי נכשל — ואז הלולאה יוצאת
+            return orig_tick(Boom(), t0 + 10_000)
+        orig_tick = A.bt_tick
+        A.bt_tick = tick
+        A.time.sleep = lambda s: None
+        try:
+            import anthropic  # noqa: F401
+        except ImportError:
+            sys.modules['anthropic'] = NS(Anthropic=lambda **k: None)
+        try:
+            A.bt_loop()
+        finally:
+            A.bt_tick, A.ev, A.time.sleep, A._stop = orig_tick, orig_ev, orig_sleep, False
+        self.assertEqual(evs, ['bt'])
+        self.assertEqual((A._bt_err['k'], A._bt_err['n']), ('auth', A.BT_ERR_EV))
+        self.assertEqual(A.BT_JOBS['jobB'][0], 'e')
+        self.assertEqual(A.bt_hb()['be'], 'auth')
+        A._bt_err.update(k='', n=0, t=0.0)
+
+    def test_err_codes(self):
+        A = self.A
+        mk = lambda n, **kw: type(n, (Exception,), kw)()   # noqa: E731
+        self.assertEqual(A.bt_err_code(mk('PermissionDeniedError')), 'auth')
+        self.assertEqual(A.bt_err_code(mk('BadRequestError')), 'bad')
+        self.assertEqual(A.bt_err_code(mk('RateLimitError')), 'rate')
+        self.assertEqual(A.bt_err_code(mk('APIConnectionError')), 'net')
+        self.assertEqual(A.bt_err_code(mk('APIStatusError', status_code=529)), 'srv')
+        self.assertEqual(A.bt_err_code(ValueError()), 'other')
+        self.assertTrue(set(A.BT_ERRS) >= {'auth', 'bad', 'rate', 'srv', 'net', 'other'})
+
+    def test_batchwait_carries_role(self):
+        e = llm.BatchWait('h', 'tl')
+        self.assertEqual((e.k, llm.BATCH_STAGE[e.k]), ('tl', 'tl'))
+        self.assertEqual(llm.BATCH_STAGE['main'], 'tr')
+
     def test_custom_id_valid(self):
         cid = self.A.bt_cid('AbC_123-xyz' * 4, 'f' * 40)
         self.assertTrue(llm.BATCH_ID_RE.match(cid))
