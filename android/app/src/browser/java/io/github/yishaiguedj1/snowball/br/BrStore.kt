@@ -355,6 +355,9 @@ class BrPrefs(ctx: Context) {
     var readSize: Int get() = sp.getInt("readSz", 19); set(v) { sp.edit().putInt("readSz", v).apply() }
     var ttsRate: Float get() = sp.getFloat("ttsRate", 1f); set(v) { sp.edit().putFloat("ttsRate", v).apply() }
     var indexOn: Boolean get() = sp.getBoolean("hIndex", true); set(v) { sp.edit().putBoolean("hIndex", v).apply() }
+    // הגל החמישי: המצב האחרון של המודל שבטלפון (59), וממשקי ה־AI לאתרים (60, כבוי כברירת מחדל)
+    var sumSt: Int get() = sp.getInt("sumSt", -1); set(v) { sp.edit().putInt("sumSt", v).apply() }
+    var aiOn: Boolean get() = sp.getBoolean("aiOn", false); set(v) { sp.edit().putBoolean("aiOn", v).apply() }
     var uscripts: String? get() = sp.getString("uscripts", null); set(v) { sp.edit().putString("uscripts", v).apply() }
     var blockedAll: Long get() = sp.getLong("blk", 0L); set(v) { sp.edit().putLong("blk", v).apply() }
 }

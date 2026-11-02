@@ -225,6 +225,30 @@ class BrowserActivity : ComponentActivity() {
     var clipTab by mutableStateOf<BrTab?>(null)
     var shooting by mutableStateOf(false)
 
+    /* ---- הגל החמישי (01/11/2026, BrLocal/BrLocalAi): בתוך הטלפון, בלי ענן ---- */
+    /** הגיליון "בטלפון, בלי ענן" (מ־⋮), השפות שבטלפון, והסיכום */
+    var localSheet by mutableStateOf(false)
+    var langSheet by mutableStateOf(false)
+    var langModels by mutableStateOf<Set<String>?>(null)
+    var langBusy by mutableStateOf("")
+    /** 26/58 הכרטיסייה שתורגמה (הפס "תורגם מ…"), משפת המקור, ובעבודה */
+    var trTab by mutableStateOf<BrTab?>(null)
+    var trFrom by mutableStateOf("")
+    var trBusy by mutableStateOf(false)
+    val trTo by lazy { BrLocal.target(resources.configuration.locales[0].language) }
+    /** 50 כתוביות: הכרטיסייה, שפת הדיבור, והשורות */
+    var capTab by mutableStateOf<BrTab?>(null)
+    var capLang by mutableStateOf("en")
+    var cap by mutableStateOf(BrLocal.Cap())
+    val capOk by lazy { BrCaptions.ok(this) }
+    /** 59 המודל שבטלפון: -1 לא נבדק · 0 אין · 1 להורדה · 2 בהורדה · 3 זמין; הסיכום שעל המסך */
+    var sumOk by mutableIntStateOf(-1)
+    var sumSheet by mutableStateOf(false)
+    var sumBusy by mutableStateOf("")
+    var sumRes by mutableStateOf<List<String>?>(null)
+    /** 60 ממשקי ה־AI לאתרים (כבוי כברירת מחדל) */
+    var aiOn by mutableStateOf(false)
+
     /** ההגדרות לכל אתר — מתחלף כולו בכל שינוי (נקרא גם מהת׳רד של הרשת) */
     @Volatile var rules: Map<String, BrShield.SiteRule> = emptyMap()
 
@@ -281,6 +305,7 @@ class BrowserActivity : ComponentActivity() {
         sets = BrStore.loadSets()
         zaps = BrDev.zapsDecode(prefs.zaps); macros = BrDev.macrosDecode(prefs.macros); uscripts = BrDev.scriptsDecode(prefs.uscripts); watches = BrWatch.load(this)
         readSize = prefs.readSize; speakRate = prefs.ttsRate; indexOn = prefs.indexOn; loadRead()
+        sumOk = prefs.sumSt; aiOn = prefs.aiOn; checkSum()
         BrMedia.onCmd = { play -> ui.post { mediaCmd(play) } }
         initCloud()
         BrChrome.init(this); BrChrome.attach(this)
@@ -413,7 +438,7 @@ class BrowserActivity : ComponentActivity() {
         // הסבב ברקע ממשיך בלי המסך — לא מחזיקים אותו
         BrCloud.onChange = null; BrCloud.onApplied = null; BrCloud.onIncoming = null; BrCloud.tabsProvider = null
         BrMedia.onCmd = null
-        speaker?.shutdown(); speaker = null; printWeb?.let { kill(it) }; io4.shutdown()
+        stopCaptions(); speaker?.shutdown(); speaker = null; printWeb?.let { kill(it) }; io4.shutdown()
         if (isFinishing) BrMedia.stop(this)
         tabs.forEach { t -> kill(t.web) }
         if (privOk) runCatching { ProfileStore.getInstance().deleteProfile(PRIV) }
@@ -1119,7 +1144,7 @@ class BrowserActivity : ComponentActivity() {
                 if (url != t.page && !t.private) { t.la = System.currentTimeMillis(); t.sc = 0f; t.tx = ""; t.mt = 0f; BrCloud.nudge(4000) }
                 if (url != t.page) { t.logs.clear(); t.net.add(BrPro.Net(System.currentTimeMillis(), "GET", url, true, false)) }
                 // הגל השלישי: עריכה ובחירת רכיב שייכות לדף — מסמך חדש מבטל אותן
-                if (url != t.page) { t.editing = false; if (cur === t && pickMode != 0) { pickMode = 0; zappedNow.clear() } }
+                if (url != t.page) { localLeave(t); t.editing = false; if (cur === t && pickMode != 0) { pickMode = 0; zappedNow.clear() } }
                 if (url != t.page) { t.page = url; t.vid = null; t.blocked = 0; t.playing = false; t.found.clear(); synchronized(t.headSeen) { t.headSeen.clear() }; t.recount(); autoPick(t) }
                 // 26/10/2026 (דיווח המשתמש: אחרי רענון של אותו דף הרשימה גדלה בכפילויות): מסמך חדש באותה כתובת (רענון) —
                 // הנגן מבקש את הכל מחדש, עם חתימות חדשות. מה שנמצא במסמך הקודם כבר לא רלוונטי
@@ -1221,6 +1246,7 @@ class BrowserActivity : ComponentActivity() {
             // הגל השלישי: הערוץ של הכלים (רכיב שנבחר / נמחק, צעד שהוקלט / הוצג) — רק מהמסגרת הראשית; ומדדי המהירות מתחילת הדף
             WebViewCompat.addWebMessageListener(w, BrDev.CH, setOf("*")) { _, msg, _, main, _ -> if (main) msg.data?.let { onTool(t, it) } }
             if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) WebViewCompat.addDocumentStartJavaScript(w, BrDev.PERF_START, setOf("*"))
+            aiInject(t, w)   // הגל החמישי (60): רק כשההגדרה דלוקה והמודל שבטלפון קיים
         }
         w.setOnLongClickListener { longPress(t, w) }
         // 13 מסך מפוצל: נגיעה בחלון השני — הוא הפעיל (לא עוצרים את הנגיעה; הדף מקבל אותה כרגיל)
@@ -1640,6 +1666,9 @@ class BrowserActivity : ComponentActivity() {
                 if (floatPick) { floatPick = false; p?.let { floatWin = FloatWin(t.url, it.sel, t.private) } } else { picked = p; devPane = 3; devSheet = true }
             }
             d.startsWith("c:") -> if (clipTab === t) onClip(d.drop(2))
+            // הגל החמישי: הקול של הדף לכתוביות (רק מהכרטיסייה שהדליקה), ובקשות מממשקי ה־AI לאתרים
+            d.startsWith("a:") -> if (capTab === t) caps?.feed(d.drop(2))
+            d.startsWith("i:") -> onAi(t, d.drop(2))
             d.startsWith("z:") -> if (pickMode == BrDev.PICK_ZAP && cur === t) d.drop(2).takeIf { it.isNotEmpty() && it !in zappedNow }?.let { zappedNow.add(it) }
             d.startsWith("r:") -> if (recTab === t) BrDev.stepParse(d.drop(2))?.let { recSteps = BrDev.addStep(recSteps, it) }
             d.startsWith("q:") -> t.replay?.let { st ->
@@ -1833,6 +1862,7 @@ class BrowserActivity : ComponentActivity() {
         runCatching {
             val m = mode.menu
             if (m.findItem(ID_SPEAK) == null) m.add(android.view.Menu.NONE, ID_SPEAK, 60, R.string.brSpeakSel).setOnMenuItemClickListener { speakSel(t) { runCatching { mode.finish() } }; true }
+            if (m.findItem(ID_TR) == null) m.add(android.view.Menu.NONE, ID_TR, 59, R.string.brTrSel).setOnMenuItemClickListener { translateHere(t, true); runCatching { mode.finish() }; true }
             if (!t.private && m.findItem(ID_MARK) == null) m.add(android.view.Menu.NONE, ID_MARK, 61, R.string.brMarkSel).setOnMenuItemClickListener { markSel(t) { runCatching { mode.finish() } }; true }
         }
     }
@@ -2135,6 +2165,192 @@ class BrowserActivity : ComponentActivity() {
     fun pickHeFix(b: Boolean) { heFix = b; prefs.heFix = b; if (b) cur?.web?.let { runCatching { it.evaluateJavascript(BrPro.HEBREW_JS, null) } } }
     fun pickCleanCopy(b: Boolean) { cleanCopy = b; prefs.cleanCopy = b }
 
+    /* ---------------- הגל החמישי (01/11/2026, BrLocal/BrLocalAi): בתוך הטלפון, בלי ענן ---------------- */
+
+    private fun langName(code: String) = BrLocal.name(code, resources.configuration.locales[0].language.let { it == "he" || it == "iw" })
+    private fun sayS(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
+
+    /** הבדיקה של המודל שבטלפון (59) — פעם בהפעלה, ברקע; המצב האחרון נשמר כדי ש־60 יוזרק כבר מהדף הראשון */
+    private fun checkSum() {
+        BrMl.ex.execute { val s = BrMl.sumStatus(this); ui.post { sumOk = s; prefs.sumSt = s; if (s == 0 && aiOn) pickAi(false) } }
+    }
+
+    /**
+     * 26 (sel) / 58 תרגום במקום, בלי אינטרנט: אוספים את הטקסט מהדף, מזהים את השפה, ומתרגמים בטלפון (ML Kit) בחבילות —
+     * כל חבילה מוחלת מיד. from = שפת מקור שנבחרה ביד (מהפס). בחירה שכבר בשפת היעד — לאנגלית.
+     */
+    fun translateHere(t: BrTab, sel: Boolean, from: String? = null) {
+        localSheet = false; menu = false
+        if (trBusy) return
+        if (!sel && trTab === t) { trTab = null; js(t, BrLocal.RESTORE_JS) { translateHere(t, false, from) }; return }
+        js(t, BrLocal.collectJs(sel)) { r ->
+            val c = BrLocal.collected(r) ?: run { say(R.string.brTrFail); return@js }
+            if (c.busy) { js(t, BrLocal.RESTORE_JS) { translateHere(t, sel, from) }; return@js }
+            if (c.texts.isEmpty()) { say(if (sel) R.string.brTrNoSel else R.string.brReadNone); return@js }
+            val src = from ?: BrLocal.detect(if (sel) null else c.lang, c.texts.joinToString(" ").take(6000))
+            val dst = if (src == trTo) (if (sel) "en" else { trFrom = src; trTab = t; say(R.string.brTrSame); return@js }) else trTo
+            val p = BrLocal.plan(c.texts)
+            trTab = t; trFrom = src; trBusy = true
+            val needDl = !BrMl.has(src) || !BrMl.has(dst)
+            if (needDl) sayS(getString(R.string.brTrModel, langName(if (!BrMl.has(src)) src else dst)))
+            BrMl.ex.execute {
+                val done = arrayOfNulls<String>(p.uniq.size).toMutableList()
+                var lo = 0; var ok = true
+                while (lo < p.uniq.size && trTab === t) {
+                    val hi = minOf(p.uniq.size, lo + 30)
+                    val part = BrMl.translate(src, dst, p.uniq.subList(lo, hi)) ?: run { ok = false; null } ?: break
+                    part.forEachIndexed { i, x -> done[lo + i] = x }
+                    val pairs = BrLocal.fresh(p, c.base, lo, hi, done)
+                    ui.post { if (trTab === t && pairs.isNotEmpty()) js(t, BrLocal.applyJs(pairs, BrLocal.rtl(dst))) }
+                    lo = hi
+                }
+                ui.post { trBusy = false; if (!ok) { say(R.string.brTrNoModel); if (lo == 0) { js(t, BrLocal.RESTORE_JS); if (trTab === t) trTab = null } } }
+            }
+        }
+    }
+    /** "מקור" — הטקסט המקורי חוזר */
+    fun showOriginal() { val t = trTab ?: return; trTab = null; js(t, BrLocal.RESTORE_JS) }
+
+    /** השפות שבטלפון (58): רשימה, הורדה מראש ומחיקה */
+    fun openLangs() { localSheet = false; langSheet = true; refreshLangs() }
+    private fun refreshLangs() { BrMl.ex.execute { val m = BrMl.models() + "en"; ui.post { langModels = m } } }
+    fun langDownload(code: String) {
+        if (langBusy.isNotEmpty()) return
+        langBusy = code
+        BrMl.ex.execute { val ok = BrMl.download(code); ui.post { langBusy = ""; if (!ok) say(R.string.brTrNoModel); refreshLangs() } }
+    }
+    fun langDelete(code: String) { BrMl.ex.execute { BrMl.delete(code); refreshLangs() } }
+
+    /* 50 כתוביות חיות */
+    private var caps: BrCaptions? = null
+    private var capRestarts = ArrayList<Long>()
+    fun toggleCaptions(t: BrTab) { localSheet = false; menu = false; if (capTab != null) stopCaptions() else startCaptions(t) }
+    fun startCaptions(t: BrTab, lang: String? = null) {
+        if (!capOk || !toolsOk || Build.VERSION.SDK_INT < 33) return
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            // הזיהוי של המערכת דורש את ההרשאה גם כשהקול מגיע מאיתנו (לא מהמיקרופון)
+            permThen = { ok -> if (ok) startCaptions(t, lang) else say(R.string.brCapMic) }
+            permLaunch.launch(arrayOf(Manifest.permission.RECORD_AUDIO)); return
+        }
+        js(t, BrLocal.audioJs(BrDev.CH)) { r ->
+            val (ok, v) = BrLocal.audioRes(r)
+            if (!ok) { say(when (v) { "none" -> R.string.brCapNone; "noaudio", "nocap" -> R.string.brCapNoAudio; else -> R.string.brCapFail }); return@js }
+            val l = lang ?: BrLocal.norm(v).ifEmpty { BrLocal.detect(null, t.title) }
+            BrCaptions.support(this, l) { s ->
+                when (s) {
+                    0 -> runCaptions(t, l)
+                    1 -> { js(t, BrLocal.AUDIO_STOP_JS); BrCaptions.download(this, l); sayS(getString(R.string.brCapDl, langName(l))) }
+                    else -> { js(t, BrLocal.AUDIO_STOP_JS); sayS(getString(R.string.brCapLang, langName(l))) }
+                }
+            }
+        }
+    }
+    @androidx.annotation.RequiresApi(33)
+    private fun runCaptions(t: BrTab, l: String) {
+        caps?.stop()
+        capTab = t; capLang = l; cap = BrLocal.Cap()
+        val c = BrCaptions(this, l) { k, s -> ui.post { onCap(t, k, s) } }
+        caps = c; runCatching { c.start() }.onFailure { stopCaptions(); say(R.string.brCapFail) }
+    }
+    private fun onCap(t: BrTab, k: Int, s: String) {
+        if (capTab !== t) return
+        when (k) {
+            0 -> cap = BrLocal.capPartial(cap, s)
+            1 -> if (capLang == trTo) cap = BrLocal.capFinal(cap, s) else {
+                cap = BrLocal.capPartial(cap, s)
+                val from = capLang
+                BrMl.ex.execute { val x = BrMl.translate(from, trTo, listOf(s))?.firstOrNull() ?: s; ui.post { if (capTab === t) cap = BrLocal.capFinal(cap, x) } }
+            }
+            else -> {
+                // 7 (לא זוהה דיבור) ו־6 (שקט) — ממשיכים; נגמר או תקלה אחרת — מתחילים מחדש (עד 5 פעמים בחצי דקה)
+                val code = s.toIntOrNull() ?: 0
+                if (k == 2 && (code == 12 || code == 13)) { stopCaptions(); sayS(getString(R.string.brCapLang, langName(capLang))); return }
+                if (k == 2 && code == 9) { stopCaptions(); say(R.string.brCapMic); return }
+                val now = System.currentTimeMillis(); capRestarts.removeAll { now - it > 30_000 }; capRestarts.add(now)
+                if (capRestarts.size > 5) { stopCaptions(); say(R.string.brCapFail); return }
+                if (Build.VERSION.SDK_INT >= 33) ui.postDelayed({ if (capTab === t) runCaptions(t, capLang) }, 300)
+            }
+        }
+    }
+    fun stopCaptions() {
+        caps?.stop(); caps = null
+        capTab?.let { js(it, BrLocal.AUDIO_STOP_JS) }
+        capTab = null; cap = BrLocal.Cap(); capRestarts.clear()
+    }
+    fun pickCapLang(l: String) { val t = capTab ?: return; stopCaptions(); startCaptions(t, l) }
+
+    /** מסמך חדש בכרטיסייה — התרגום והכתוביות שייכים לדף הקודם */
+    private fun localLeave(t: BrTab) {
+        if (trTab === t) { trTab = null; trBusy = false }
+        if (capTab === t) stopCaptions()
+    }
+
+    /* 59 סיכום במודל שבטלפון (שפה שהמודל לא מסכם בה — דרך 58 לאנגלית ובחזרה) */
+    fun summarizeHere(t: BrTab) {
+        localSheet = false; menu = false
+        if (sumOk !in 1..3 || sumBusy.isNotEmpty()) return
+        sumRes = null; sumSheet = true; sumBusy = getString(R.string.brSumReading)
+        js(t, BrRead.READER_JS) { r ->
+            val a = BrRead.articleParse(r, t.url) ?: run { sumBusy = ""; sumSheet = false; say(R.string.brReadNone); return@js }
+            val text = BrLocal.sumInput(a)
+            val lang = BrLocal.detect(a.lang, text)
+            BrMl.ex.execute {
+                if (sumOk != 3) {
+                    ui.post { sumBusy = getString(R.string.brSumDl) }
+                    val ok = BrMl.sumDownload(this) { d, all -> if (all > 0) ui.post { sumBusy = getString(R.string.brSumDlPct, (d * 100 / all).toInt()) } }
+                    val s = BrMl.sumStatus(this); ui.post { sumOk = s; prefs.sumSt = s }
+                    if (!ok || s != 3) { ui.post { sumBusy = ""; sumSheet = false; say(R.string.brSumFail) }; return@execute }
+                }
+                ui.post { sumBusy = getString(if (lang in BrLocal.SUM_LANGS) R.string.brSumWork else R.string.brSumWorkTr) }
+                val res = BrMl.summarize(this, text, lang, trTo)
+                ui.post { sumBusy = ""; if (res.isNullOrEmpty()) { sumSheet = false; say(R.string.brSumFail) } else sumRes = res }
+            }
+        }
+    }
+
+    /* 60 ממשקי ה־AI לאתרים — שכבת תאימות מעל 59 (וגם 58 לתרגום, רק לשפות שכבר בטלפון) */
+    private fun aiInject(t: BrTab, w: WebView) {
+        if (!aiOn || sumOk !in 1..3 || t.private || !toolsOk || !WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return
+        if (t.aiH == null) t.aiH = runCatching { WebViewCompat.addDocumentStartJavaScript(w, BrLocal.shimJs(BrDev.CH), setOf("*")) }.getOrNull()
+    }
+    fun pickAi(b: Boolean) {
+        aiOn = b; prefs.aiOn = b
+        tabs.forEach { t -> if (b) t.web?.let { aiInject(t, it) } else { runCatching { t.aiH?.remove() }; t.aiH = null } }
+    }
+    private val aiPending = HashMap<Long, Int>()
+    private fun onAi(t: BrTab, d: String) {
+        if (!aiOn || t.private || t.aiH == null) return
+        val q = BrLocal.aiReq(d) ?: return
+        fun reply(ok: Boolean, v: Any?) = ui.post { if (t.web != null) js(t, BrLocal.aiReply(q.id, ok, v)) }
+        when (q.op) {
+            "sa" -> reply(true, BrLocal.avail(sumOk))
+            "d" -> reply(true, BrLocal.detectRes(BrLocal.aiText(q, 6000)))
+            "ta" -> {
+                val s = BrLocal.norm(q.a.optString("sourceLanguage")); val dd = BrLocal.norm(q.a.optString("targetLanguage"))
+                if (s.isEmpty() || dd.isEmpty()) reply(true, "unavailable") else BrMl.ex.execute { reply(true, if (BrMl.has(s) && BrMl.has(dd)) "available" else "downloadable") }
+            }
+            "s", "t" -> {
+                // לכל היותר 3 בקשות בעבודה לכרטיסייה — אתר לא מעמיס על הטלפון
+                val n = aiPending[t.id] ?: 0
+                if (n >= 3) { reply(false, "busy"); return }
+                aiPending[t.id] = n + 1
+                val text = BrLocal.aiText(q)
+                BrMl.ex.execute {
+                    val res: Any? = if (q.op == "t") {
+                        val s = BrLocal.norm(q.a.optString("s")); val dd = BrLocal.norm(q.a.optString("d"))
+                        // אתר לא מוריד מודלים: רק שפות שכבר בטלפון (מורידים ב"שפות בטלפון")
+                        if (s.isEmpty() || dd.isEmpty()) null else BrMl.translate(s, dd, listOf(text), allowDl = false)?.firstOrNull()
+                    } else if (sumOk != 3) null else {
+                        val b = when (q.a.optString("length")) { "short" -> 1; "medium" -> 2; else -> 3 }
+                        BrMl.summarize(this, text, BrLocal.guess(text), "en", b, allowDl = false)?.joinToString("\n") { "* $it" }
+                    }
+                    ui.post { aiPending[t.id] = ((aiPending[t.id] ?: 1) - 1).coerceAtLeast(0) }
+                    reply(res != null, res ?: "unavailable")
+                }
+            }
+        }
+    }
+
     fun translate() {
         menu = false
         val t = cur ?: return
@@ -2423,7 +2639,7 @@ class BrowserActivity : ComponentActivity() {
     companion object {
         const val PRIV = "private"
         /** הגל הרביעי: הפריטים שלנו בתפריט הבחירה של המערכת */
-        const val ID_SPEAK = 0x5B01; const val ID_MARK = 0x5B02
+        const val ID_SPEAK = 0x5B01; const val ID_MARK = 0x5B02; const val ID_TR = 0x5B03
         const val USER_NEW = "snb_user_new"
         const val LIVE_MAX = 6   // (עד 27/10/2026 קבוע; היום liveMax לפי הזיכרון — נשאר לבדיקות ישנות)
         /** מהבועה ב־Chrome: כמה זמן מחכים לממצא הראשון כדי לפתוח את הרשימה לבד */
