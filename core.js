@@ -341,8 +341,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.116.3';
-const APP_VERSION = 'v697';
+const APP_RELEASE = '2.116.4';
+const APP_VERSION = 'v698';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -906,6 +906,9 @@ function growWatch(root, sel, view) {
 }
 /* מכין אלמנט להיות פאה. o.fix = {top, left, width} — מוצמד למסך במקום הזה; o.clip — נחתך לגובה המסך (עמוד ארוך) */
 function cubeFace(el, o) {
+  // 02/11/2026 (סבב קפיצות 8): מעבר ב־View Transition — הפאות הן הצילום של הדף היוצא (old) והדף החי (new); אין אלמנט לעצב
+  if (el && el._vtG) return cubeVTFace(el._vtG, false);
+  if (el && el._cubeVT) return cubeVTFace(el._cubeVT, true);
   const st = el.style, f = { el: el, css: st.cssText };
   if (o && o.fix) { st.position = 'fixed'; st.top = o.fix.top + 'px'; st.left = o.fix.left + 'px'; st.width = o.fix.width + 'px'; st.right = 'auto'; st.margin = '0'; }
   st.transform = '';
@@ -933,7 +936,7 @@ function cubeFace(el, o) {
 /* 01/11/2026 (סבב קפיצות 7 — הקלטה: גלילה מהירה בחוגה, דף ריק עד נגיעה; שוחזר ב־Playwright במגע): פאה ששוחררה מסומנת (off),
    ושום כתיבה מאוחרת לא נוגעת בה — החימום (cubeWarmEnd, שני פריימים אחרי) של קובייה שכבר נחתה כתב על העמוד ששוחרר
    rotateY(±90deg) + opacity 0, ובגלילה מהירה זה נשאר גם על העמוד הגלוי */
-function cubeFaceOff(f) { if (f && f.el) { f.off = true; f.el.style.cssText = f.css; if (f.flat) f.flat(); if (f.face) f.el.classList.remove('cube-face'); } }
+function cubeFaceOff(f) { if (f && f.pe) { f.off = true; if (f.hold) { try { f.hold.cancel(); } catch (e) {} f.hold = null; } return; } if (f && f.el) { f.off = true; f.el.style.cssText = f.css; if (f.flat) f.flat(); if (f.face) f.el.classList.remove('cube-face'); } }
 /* 29/10/2026 (הסבב השלישי, שני סרטוני המשתמש — Invest ו־Academy): בפריים הראשון של הסיבוב הדף הנכנס היה לבן (ב־Academy גם
    ההעתק של היוצא — רק הכריכה נראתה). הנכנס מתחיל ב־90° = opacity 0, והדפדפן לא מצייר (raster) שכבה בלתי נראית; ההעתק
    הוא שכבה חדשה. ברגע שהן נחשפות באמצע האנימציה — אין עדיין אריחים, ומוצג לבן. "חימום": שני פריימים לפני התנועה הפאות
@@ -942,6 +945,8 @@ const CUBE_WARM_OP = '0.01';
 function cubeWarm(c) {
   if (c.warm !== undefined) return;
   c.warm = false;
+  const vg = (c.in && c.in.vt) || (c.out && c.out.vt);
+  if (vg) { if (!vg.ready && !vg.dead) { c.warm = true; vg.wait.push(c); } return; }   // הפסאודו־אלמנטים עוד לא קיימים — cubeWarmEnd ב־ready
   if (!c.in || c.rub || typeof requestAnimationFrame !== 'function' || (typeof document !== 'undefined' && document.hidden)) return;
   c.warm = true;
   for (const f of [c.out, c.in]) { if (f && f.el && !f.off) { f.el.style.transform = 'none'; f.el.style.opacity = f === c.in ? CUBE_WARM_OP : ''; } }
@@ -952,7 +957,7 @@ function cubeWarmEnd(c) {
   c.warm = false;
   const r = c.warmRun; c.warmRun = null;
   if (r) return r();
-  if (c.in && c.in.el && c.in.el.classList && !c.in.el.classList.contains('cube-face')) return;   // בוטל בינתיים (cubeFaceOff) — לא נוגעים
+  if (c.in && (c.in.pe ? c.in.off : (c.in.el && c.in.el.classList && !c.in.el.classList.contains('cube-face')))) return;   // בוטל בינתיים (cubeFaceOff) — לא נוגעים
   cubeSet(c, c.p || 0);
 }
 function cubeSet(c, p) {
@@ -960,12 +965,19 @@ function cubeSet(c, p) {
   cubeWarm(c);
   c.p = p;
   if (c.warm) return;
-  if (c.rub) { if (c.out && !c.out.off) c.out.el.style.transform = cubeTransform(Math.min(CUBE_RUB, p), c.side, false, vw); return; }
+  if (c.rub) { if (c.out && !c.out.off) faceSet(c.out, cubeTransform(Math.min(CUBE_RUB, p), c.side, false, vw), null); return; }
   for (const [f, isIn] of [[c.out, false], [c.in, true]]) {
     if (!f || f.off) continue;
-    f.el.style.transform = cubeTransform(p, c.side, isIn, vw);
-    f.el.style.opacity = cubeVisible(p, c.side, isIn, vw) ? '' : '0';
+    faceSet(f, cubeTransform(p, c.side, isIn, vw), cubeVisible(p, c.side, isIn, vw) ? '' : '0');
   }
+}
+/* מצב קבוע של פאה: אלמנט — סגנון בשורה; פסאודו־אלמנט של View Transition — אנימציה מושהית אחת לכל פאה (setKeyframes) */
+function faceSet(f, tr, op) {
+  if (!f.pe) { f.el.style.transform = tr; if (op !== null) f.el.style.opacity = op; return; }
+  const k = { transform: tr };
+  if (op !== null) k.opacity = op === '' ? 1 : +op;
+  try { if (f.hold) { f.hold.effect.setKeyframes([k, k]); return; } } catch (e) {}
+  try { f.hold = f.el.animate([k, k], { pseudoElement: f.pe, duration: 1e7, fill: 'both' }); f.hold.pause(); } catch (e) {}
 }
 /* מ־c.p אל p1 בקפיץ (v0 = המהירות בשחרור, p לשנייה); done(p1) אחרי הפריים האחרון. c.finish() = לסיים מיד */
 function cubeRun(c, p1, v0, done) {
@@ -988,7 +1000,9 @@ function cubeRun(c, p1, v0, done) {
     // הפאה שמגיעה למקום — הפריים האחרון בלי תלת־ממד (none): העמוד מצויר חד כבר בפריים הזה, ולא "מתחדד" אחרי שהאנימציה יורדת
     const fin = c.rub ? Math.min(CUBE_RUB, p1) : p1;
     if ((isIn && fin === 1) || (!isIn && fin === 0)) kf[kf.length - 1].transform = 'none';
-    try { anims.push(f.el.animate(kf, { duration: dur, easing: 'linear', fill: 'forwards' })); } catch (e) {}
+    const opt = { duration: dur, easing: 'linear', fill: 'forwards' };
+    if (f.pe) opt.pseudoElement = f.pe;
+    try { anims.push(f.el.animate(kf, opt)); } catch (e) {}
   };
   one(c.out, false); if (!c.rub) one(c.in, true);
   // 14/10/2026 (נמדד בזמן אמת): אנימציה חדשה "ממתינה" 1–3 פריימים עד שהיא מוכנה, והקובייה עמדה במקום ברגע השחרור —
@@ -1045,6 +1059,7 @@ function cubeClone(el) {
 let _cubePre = null;
 function cubePre(root, go) {
   if (_cubePre) _cubePre.now();
+  if (cubeVTOk(root)) { const v = cubeVTPre(root, go); if (v) return v; }
   const ghost = cubeClone(root);
   if (typeof requestAnimationFrame !== 'function' || (typeof document !== 'undefined' && document.hidden)) { go(ghost); return null; }
   // 01/11/2026 (סבב קפיצות 7, הקלטה של Studio: פריים לבן בתחילת כל מעבר — רק הכפתור שבהדר נראה): בשקיפות 0.01 ההעתק כמעט
@@ -1057,7 +1072,92 @@ function cubePre(root, go) {
   requestAnimationFrame(() => requestAnimationFrame(() => p.now()));
   return p;
 }
-const cubePreBusy = () => !!_cubePre;   // ציור במקום (none) בזמן ההמתנה — מחכה לציור של המעבר
+const cubePreBusy = () => !!_cubePre;
+/* 02/11/2026 (סבב קפיצות 8, הקלטת Studio: דף ריק לפריים או שניים בתחילת מעברים ובסופם; docs/smooth-architecture.md — ש2):
+   כל מעבר יצר עשרות שכבות GPU חדשות (ההעתק של הדף: ההדר, הלוגו והשלג, הכרטיסים) והרס אותן בנחיתה; בטלפון שכבה חדשה
+   מוצגת לפני שצוירה — ריק. מעבר ממוקד לשכבה (element.startViewTransition): הדף היוצא = הצילום של מה שכבר על המסך
+   (‎::view-transition-old(root)), הנכנס = הדף החי עצמו (‎::view-transition-new(root)) — אין העתק ב־DOM, אין שכבות חדשות,
+   ואין כיבוי של הזכוכית באמצע. הפסאודו־אלמנטים מצוירים בתוך השכבה — החוגה (מחוץ לה) נשארת חיה, לחיצה וזכוכית.
+   נגיעה בתוך השכבה בזמן המעבר מגיעה ל־body — מסיימים את המעבר מיד (cubeVTTouch), והלחיצה / הגלילה מגיעות לאלמנט האמיתי.
+   בלי התמיכה (דפדפן ישן) — ההעתק הישן. window.__cubeVT = false — הנתיב הישן (השוואה בגלאים) */
+let _cubeVTOn = null;
+function cubeVTOk(root) {
+  if (!root || !root.classList || !(root.classList.contains('st-root') || root.classList.contains('lib-root')) || typeof root.startViewTransition !== 'function') return false;
+  if (typeof window !== 'undefined' && window.__cubeVT === false) return false;
+  return !cubeReduce() && !(typeof document !== 'undefined' && document.hidden);
+}
+function cubeVTFace(g, isNew) {
+  const f = { el: g.root, pe: isNew ? '::view-transition-new(root)' : '::view-transition-old(root)', vt: g };
+  if (g.dead) f.off = true; else { g.faces.push(f); if (!isNew) g.faced(); }
+  return f;
+}
+function cubeVTPre(root, go) {
+  if (cubeNow && cubeNow !== _dial.ride && cubeNow.finish) cubeNow.finish();   // כמו cubeClone: מעבר קודם נוחת קודם
+  if (root._cubeVT) root._cubeVT.remove();
+  const g = { root: root, ready: false, dead: false, wait: [], faces: [], vt: null };
+  g._vtG = g;
+  let res = null, tm = 0, called = false, done = false;
+  const dom = new Promise((r) => { res = r; });
+  g.faced = () => { if (!res) return; const r = res; res = null; clearTimeout(tm); r(); };
+  const clean = () => {
+    if (done) return;
+    done = true; g.dead = true; g.faced();
+    for (const f of g.faces) { f.off = true; if (f.hold) { try { f.hold.cancel(); } catch (e) {} f.hold = null; } }
+    root.classList.remove('cube-vt');
+    if (root._cubeVT === g) root._cubeVT = null;
+    if (_cubeVTOn === g) _cubeVTOn = null;
+    const w = g.wait; g.wait = [];
+    for (const c of w) cubeWarmEnd(c);    // קובייה שחיכתה לצילומים — נוחתת מיד (הפאות כבויות)
+  };
+  g.remove = () => { const v = g.vt; clean(); if (v) { try { v.skipTransition(); } catch (e) {} } };
+  const p = {
+    now() {                              // לפני שהצילום של היוצא מוכן — הציור מיד, בלי סיבוב (כמו ההעתק: go סינכרוני)
+      if (called) return;
+      called = true; if (_cubePre === p) _cubePre = null;
+      g.dead = true;
+      try { go(g); } catch (e) { if (typeof console !== 'undefined') console.error(e); }
+      g.remove();
+    },
+  };
+  try {
+    g.vt = root.startViewTransition(() => {
+      if (called) return;
+      called = true; if (_cubePre === p) _cubePre = null;
+      try { go(g); } catch (e) { if (typeof console !== 'undefined') console.error(e); }
+      if (res && !g.dead) tm = setTimeout(g.faced, 600);   // הציור לא יצר פאה — לא מקפיאים את המסך
+      return dom;
+    });
+  } catch (e) { clean(); return null; }
+  root._cubeVT = g; _cubeVTOn = g; _cubePre = p;
+  root.classList.add('cube-vt');
+  cubeVTWire();
+  g.vt.ready.then(() => {
+    if (g.dead) return;
+    g.ready = true;
+    const w = g.wait; g.wait = [];
+    for (const c of w) cubeWarmEnd(c);
+  }, () => clean());
+  g.vt.finished.then(clean, clean);
+  return p;
+}
+/* נגיעה בשכבה בזמן המעבר: הפגיעה (hit test) היא ב־body. מסיימים מיד — הלחיצה והגלילה (שנבחרות אחרי touchstart) כבר
+   מגיעות לאלמנט האמיתי; התחלה של החלקה עוברת ל־snbSwipe של השכבה (root._snbStart) עם האלמנט שמתחת לאצבע */
+function cubeVTTouch(e) {
+  const g = _cubeVTOn;
+  if (!g || !e.touches || !e.touches[0] || g.root.contains(e.target)) return;
+  const t = e.touches[0], r = g.root.getBoundingClientRect();
+  if (t.clientX < r.left || t.clientX > r.right || t.clientY < r.top || t.clientY > r.bottom) return;
+  if (_cubePre) _cubePre.now();
+  if (cubeNow && cubeNow.finish) cubeNow.finish();
+  if (_cubeVTOn === g) g.remove();
+  let tg = null; try { tg = document.elementFromPoint(t.clientX, t.clientY); } catch (x) {}
+  if (tg && g.root.contains(tg) && typeof g.root._snbStart === 'function') g.root._snbStart(e, tg);
+}
+function cubeVTWire() {
+  if (cubeVTWire.on || typeof document === 'undefined' || !document.addEventListener) return;
+  cubeVTWire.on = true;
+  document.addEventListener('touchstart', cubeVTTouch, { capture: true, passive: true });
+}   // ציור במקום (none) בזמן ההמתנה — מחכה לציור של המעבר
 /* 30/10/2026 (סבב קפיצות 6, docs/smooth-architecture.md — ש1): סידור ילדים לפי רשימה, בלי לבנות מחדש. צומת שכבר במקומו
    לא זז (נשארים הצביעה, התמונה המפוענחת והשכבה שלו); רק מה שחסר נכנס, מה שעבר מקום זז, ומה שלא ברשימה יוצא.
    לעומת innerHTML = '' + append: אין רגע שבו הרשימה ריקה, ואין צומת חדש לכרטיס שלא השתנה */
@@ -1086,7 +1186,10 @@ function animSync(el) {
     }
   } catch (e) {}
 }
+function cubeBackdropReal(el) { const d = document.createElement('div'); d.className = 'cube-bd'; el.before(d); return d; }   // הקפיץ — השכבה עצמה זזה
 function cubeBackdrop(el) {              // מתחת לשכבה — רקע אטום, כדי שמה שמאחוריה (התיק) לא יבצבץ בין הפאות (לקח v330)
+  // מעבר ממוקד (cubeVTPre) — הרקע הוא של הפסאודו־אלמנט ‎::view-transition (styles.css), לא שכבה חדשה ב־DOM
+  if (el && (el._cubeVT || cubeVTOk(el))) return { remove() {} };
   const d = document.createElement('div');
   d.className = 'cube-bd';
   el.before(d);
@@ -1126,7 +1229,7 @@ function cubeHold(root, y) {
   return c;
 }
 function cubeClipTop(f, y) {             // הפאה נחתכת מתחת לרצועה הקבועה (לפני הסיבוב — מידות אמיתיות)
-  if (!f || !f.el) return;
+  if (!f || !f.el || f.pe) return;
   f.el.style.clipPath = 'inset(' + Math.max(0, Math.round((y - f.el.getBoundingClientRect().top) * 10) / 10) + 'px 0 0 0)';
 }
 /* מעבר שלם בשכבה (לחיצה, "חזור"): ghost = הדף היוצא (cubeClone, לפני הציור), root = הדף החדש שכבר צויר.
@@ -1167,7 +1270,7 @@ function snbSwipe(o) {
   };
   function begin(s) {                    // התזוזה של העמוד מתחילה — העמוד השכן נצבע, או "קפיץ" כשאין
     const pg = o.page ? o.page(s.next) : null;
-    const bd = cubeBackdrop(root);
+    const bd = pg ? cubeBackdrop(root) : cubeBackdropReal(root);
     if (!pg) { s.cube = { side: s.side, p: 0, rub: true, out: cubeFace(root, { dead: true }), bd: bd }; if (o.dial) dialCubeBegin(s.cube, o.dial(), null, s.side); return; }
     // 29/10/2026 (סבב קפיצות 4): ההעתק נצבע שני פריימים לפני שהשכן מצויר (cubePre) — הדף הישן גלוי בינתיים, האצבע ממשיכה
     // (move שומר את p), ו־end/cancel בזמן ההמתנה מסיימים אותה מיד (s.pre.now)
@@ -1186,13 +1289,13 @@ function snbSwipe(o) {
     if (o.dial) dialCubeBegin(s.cube, pg.from, pg.to, s.side);   // 29/10/2026: החוגה של האפליקציה צמודה לעמוד
   }
   function holdOn(c, p) { if (c && c.hold && c.pg && c.pg.holdOn) { try { c.pg.holdOn(c.hold, p); } catch (e) {} } }
-  root.addEventListener('touchstart', (e) => {
+  const start = (e, real) => {          // real — האלמנט שמתחת לאצבע כשהנגיעה הגיעה ל־body (מעבר ממוקד, cubeVTTouch)
     if (g) cancel();
     if (cubeNow && cubeNow.finish) cubeNow.finish();
     if (e.touches.length !== 1 || !root.isConnected || (o.ok && !o.ok())) return;
     const t = e.touches[0], w = root.clientWidth || window.innerWidth || 400;
     if (t.clientX < PAGE_SWIPE_EDGE || t.clientX > w - PAGE_SWIPE_EDGE) return;
-    const tg = e.target;
+    const tg = real || e.target;
     if (blocked(tg)) return;
     g = { x0: t.clientX, y0: t.clientY, w: w, lock: 0, act: null, samples: [[clock(), t.clientX]], tg: tg };
     // העמוד השכן נצבע באמצע הגרירה ומוחק את האלמנט שנגעו בו — האירועים ממשיכים להגיע רק אליו (לקח v283 ב־Invest):
@@ -1200,7 +1303,9 @@ function snbSwipe(o) {
     tg.addEventListener('touchmove', move, { passive: false });
     tg.addEventListener('touchend', end, { passive: true });
     tg.addEventListener('touchcancel', cancel, { passive: true });
-  }, { passive: true });
+  };
+  root.addEventListener('touchstart', (e) => start(e), { passive: true });
+  root._snbStart = start;
   document.addEventListener('touchmove', (e) => { if (g) move(e); }, { passive: false });
   document.addEventListener('touchend', (e) => { if (g) end(e); }, { passive: true });
   document.addEventListener('touchcancel', (e) => { if (g) cancel(e); }, { passive: true });

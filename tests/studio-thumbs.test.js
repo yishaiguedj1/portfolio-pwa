@@ -40,7 +40,7 @@ const jobsFit = new Function(fitSrc + '\nreturn jobsFit;')();
 ok(jobsFit([106, 106, 106, 106, 106, 106, 106], 430) === 4 && jobsFit([106, 106, 106, 106, 106, 106, 106], 540) === 5 && jobsFit(Array(12).fill(100), 640) === 6,
   'כמה עבודות בכרטיס — לפי הגובה הפנוי במסך (4 בטלפון רגיל, 5–6 במסך גדול)');
 ok(jobsFit(Array(9).fill(106), 150) === 2 && jobsFit(Array(20).fill(50), 5000) === 8, 'מסך קטן מאוד — לפחות 2; מסך ענק — עד 8');
-ok(/function jobsCard\(rows\)/.test(st) && /jobsCard\(rows\)\)/.test(st) && /const avail = \(sc\.clientHeight \|\| innerHeight\) - top - mb - Math\.max\(16, pb\);/.test(st),
+ok(/function jobsCard\(rows\)/.test(st) && /jobsCardIn\(rows\)\)/.test(st) && /const avail = \(sc\.clientHeight \|\| innerHeight\) - top - mb - Math\.max\(16, pb\);/.test(st),
   'הגובה הפנוי = המסך פחות מה שמעל הכרטיס, הכפתור והריפוד בתחתית — העמוד סטטי והכפתור תמיד גלוי');
 ok(/new ResizeObserver\(/.test(st.slice(st.indexOf('function jobsCard'))) && /addEventListener\('resize', onRs\)/.test(st) && /document\.fonts\.ready\.then/.test(st),
   'חישוב מחדש כשגובה השורות משתנה (גופן, שם בשתי שורות) וכשהמסך משתנה');

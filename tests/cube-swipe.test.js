@@ -35,7 +35,7 @@ ok(convex, 'קובייה קמורה: הצלע הרחוקה נסוגה אחורה
 // 14/10/2026 (דיווח המשתמש): פאה שהגב שלה פונה אליך — מוסתרת כולה; ההדר בזכוכית (שכבה מורכבת) הופיע הפוך מעל הדף החדש
 ok(V(0, 1, false, W) && !V(0, 1, true, W) && V(1, 1, true, W) && !V(1, 1, false, W), 'בהתחלה רק היוצא, בסוף רק הנכנס');
 ok(!V(0.92, -1, false, W) && !V(0.08, -1, true, W) && V(0.5, -1, false, W) && V(0.5, -1, true, W), 'קרוב לקצה — הפאה שמפנה גב מוסתרת, באמצע שתיהן גלויות');
-ok(/opacity: c\.rub \|\| cubeVisible\(q, c\.side, isIn, vw\) \? 1 : 0/.test(fn(app, 'cubeRun')) && /style\.opacity = cubeVisible/.test(fn(app, 'cubeSet')), 'ההסתרה גם באנימציה וגם בגרירה');
+ok(/opacity: c\.rub \|\| cubeVisible\(q, c\.side, isIn, vw\) \? 1 : 0/.test(fn(app, 'cubeRun')) && /faceSet\(f, cubeTransform\(p, c\.side, isIn, vw\), cubeVisible\(p, c\.side, isIn, vw\) \? '' : '0'\)/.test(fn(app, 'cubeSet')), 'ההסתרה גם באנימציה וגם בגרירה');
 const s1 = S(0.4, 3, 1);
 ok(Math.abs(s1[0] - 0.4) < 1e-9 && s1[s1.length - 1] === 1 && s1.every((x) => x >= 0 && x <= 1), 'הקפיץ: מהמקום של האצבע עד הסוף, בגבולות');
 ok(Math.abs((s1[1] - s1[0]) * HZ - 3) < 1.2, 'הקפיץ ממשיך מהמהירות של האצבע (בלי קפיצה במהירות בשחרור)');
