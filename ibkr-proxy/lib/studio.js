@@ -777,6 +777,27 @@ const recentFires = (fh, now) => (Array.isArray(fh) ? fh : []).filter((t) => now
 /* 01/11/2026 (I3): עבודה של "חצי מחיר" שהבקשות שלה בתור החיסכון — חונה (bw) עד שהסוכן מדווח שהתשובות חזרו (poll ‏br) */
 // בלי bt (עברה ל"עכשיו" באמצע — btNow): חונה ומיד חוזרת לתור הרגיל (bw = 0), והחידוש בזמן אמת
 const bwParkable = (job) => !!(job && job.kind === 'tr' && job.state === 'running' && job.spec && job.spec.eng === 'api');
+/* 2/11/2026 (בקשת המשתמש: "לוודא שהעבודה באמת מחכה בתור"): הסוכן מדווח ב־poll ‏(bq) לכל עבודה שחונה — g נאספת, s נשלחה
+   ל־Anthropic, e השליחה נכשלת — ומתי (שניות). נשמר בעבודה כ־{ s, t: ms }; הטלפון מציג "נשלח ב־11:07" או תקלה.
+   בלי שום דיווח BQ_SILENT_MS אחרי החנייה = n (הסוכן לא מדווח — גרסה ישנה או חוט שמת) */
+const BQ_S = ['g', 's', 'e'];
+const BQ_SILENT_MS = 20 * 60e3;
+function normBq(o) {
+  const out = {};
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return out;
+  for (const [id, v] of Object.entries(o).slice(0, 20)) {
+    if (!JOB_RE.test(id) || !Array.isArray(v) || !BQ_S.includes(v[0])) continue;
+    const t = Math.round(Number(v[1]));
+    if (t > 1.6e9 && t < 4e9) out[id] = { s: v[0], t: t * 1000 };
+  }
+  return out;
+}
+function bqView(job, now) {
+  if (!job || !job.bw || job.pk) return null;
+  const q = job.bq && BQ_S.includes(job.bq.s) && job.bq.t > 0 ? job.bq : null;
+  if (q) return { s: q.s, t: q.t };
+  return now - job.bw > BQ_SILENT_MS ? { s: 'n', t: job.bw } : null;
+}
 const BW_MAX = 36 * 3600e3;                 // התור עצמו עד 24 שעות (ואז העובד ממשיך בזמן אמת) — מעבר לזה הסוכן לא חזר
 const parkable = (job) => !!(job && job.kind === 'tr' && job.state === 'running' && job.spec && job.spec.eng === 'api' && !(job.fv && job.fv.id));
 /* ---------- מצב העבודה ---------- */
@@ -838,6 +859,7 @@ function publicJob(job, now) {
     sw: job.state === 'new' && typeof job.sw === 'string' ? job.sw.slice(0, 40) : '',   // 25/10/2026: למה העבודה לא התחילה (קוד הסירוב האחרון)
     vw: job.vw && !job.pk ? 1 : 0,                   // 15/10/2026: מחכה לסרטון בתור — השרת פנוי בינתיים
     bw: job.bw && !job.pk ? 1 : 0,                   // 01/11/2026 (I3): מחכה לתשובה מתור החיסכון — השרת פנוי בינתיים
+    bq: bqView(job, now),                           // 2/11/2026: מצב הבקשות בתור (נאספות / נשלחו ומתי / תקלה / הסוכן שותק)
     fr: job.fr && typeof job.fr.s === 'number' ? { s: job.fr.s, ms: Math.max(0, Math.round(job.fr.ms || 0)) } : null,   // v369: תוצאת ההפעלה האחרונה
     tr: normTrace(job.tr),                          // v373: עקיבה — פעולות לכל סוכן והקבוצות הנפוצות
     q: normQuality(job.q), ij: normInj(job.ij),     // v374: מדד האיכות ושומר ההזרקות
@@ -1574,6 +1596,9 @@ function normHb(h) {
     cpu: n(h.cpu, 0, 512), nj: n(h.nj, 0, 16), mx: n(h.mx, 0, 4e6),
     // 22/10/2026 (ניטור): מעבד בפועל %, קצב רשת (בייטים לשנייה), לחץ זיכרון %
     cu: n(h.cu, 0, 100), rx: n(h.rx, 0, 1e12), tx: n(h.tx, 0, 1e12), psi: n(h.psi, 0, 100),
+    // 2/11/2026: תור החיסכון (translator/agent.py — bt_hb): be = תקלה בשליחה/באיסוף (קטלוג BT_ERRS), bn = סבבים שנכשלו ברצף,
+    // bp = בקשות שעוד לא נשלחו, bf = batches בדרך, bo = מתי נשלח הוותיק שבהם (שניות)
+    be: BT_ERRS.includes(h.be) ? h.be : '', bn: n(h.bn, 0, 1e6), bp: n(h.bp, 0, 1e6), bf: n(h.bf, 0, 1e4), bo: n(h.bo, 0, 4e9),
     dl: h.dl === 1 ? 1 : 0,   // 26/10/2026: פחות מ־8GB פנויים — העובד לא לוקח עבודה חדשה (translator/agent.py — disk_low)
     ev: normEv(h.ev) };   // ת7: יומן השרת — האירועים האחרונים (קודים מקטלוג קבוע + זמן)
 }
@@ -1594,7 +1619,8 @@ function peakNeed(job, fit) {
 }
 /* ת7 (11/10/2026): יומן השרת במקום אחד — העובד שולח בכל פנייה את 12 האירועים האחרונים שלו ([שניות, קוד]), ומסך השרת
    מציג אותם. רק קודים מהקטלוג (בלי טקסט חופשי, בלי מזהי עבודות) — מה שלא מתאים נזרק */
-const SRV_EV = ['up', 'job', 'done', 'fail', 'stop', 'oom', 'timeout', 'crash', 'auth', 'net', 'warm', 'lost', 'park'];   // 14/10: lost = עבודה נקטעה בהפעלה מחדש; 15/10: park = חזרה לתור עד שהסרטון יגיע
+const BT_ERRS = ['auth', 'bad', 'rate', 'srv', 'net', 'other'];   // 2/11/2026: = BT_ERRS ב־translator/agent.py
+const SRV_EV = ['up', 'job', 'done', 'fail', 'stop', 'oom', 'timeout', 'crash', 'auth', 'net', 'warm', 'lost', 'park', 'bt'];   // 2/11/2026: bt = תור החיסכון נכשל 3 סבבים ברצף   // 14/10: lost = עבודה נקטעה בהפעלה מחדש; 15/10: park = חזרה לתור עד שהסרטון יגיע
 function normEv(a) {
   const out = [];
   for (const x of Array.isArray(a) ? a.slice(-12) : []) {
@@ -1646,7 +1672,7 @@ function normUtl(o) {
   for (const k of UTL_KEYS) { const v = Number(o[k]); if (Number.isFinite(v) && v >= 0 && v <= 1e11) out[k] = Math.round(v); }
   return Object.keys(out).length ? out : null;
 }
-const JSON_FIELDS = ['mon', 'uh', 'sto', 'upv', 'spec','fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'hla', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl', 'pbr', 'fph', 'pbn', 'fpw', 'ppr', 'urt', 'fsr', 'vst', 'vcp'];   // 29/10/2026: vst = כמה מהסרטון ב־R2 בפעם האחרונה שזז (העלאה תקועה — upStallStep)   // 26/10/2026: fsr = רצועת הכתוביות שבקובץ, עזר להגהה   // 25/10/2026: ppr = ההתקדמות בטלפון לפני ההתחלה (שלב 2)   // 25/10/2026: fpw = המילים עם הזמנים מהטלפון (שלב 2)   // 24/10/2026: fph = קובץ המדידות מהטלפון, pbn = הצריבה בטלפון   // 22/10/2026: pbr = סיכום בדיקת קישור (studioProbe)   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['mon', 'bq', 'uh', 'sto', 'upv', 'spec','fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'hla', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl', 'pbr', 'fph', 'pbn', 'fpw', 'ppr', 'urt', 'fsr', 'vst', 'vcp'];   // 29/10/2026: vst = כמה מהסרטון ב־R2 בפעם האחרונה שזז (העלאה תקועה — upStallStep)   // 26/10/2026: fsr = רצועת הכתוביות שבקובץ, עזר להגהה   // 25/10/2026: ppr = ההתקדמות בטלפון לפני ההתחלה (שלב 2)   // 25/10/2026: fpw = המילים עם הזמנים מהטלפון (שלב 2)   // 24/10/2026: fph = קובץ המדידות מהטלפון, pbn = הצריבה בטלפון   // 22/10/2026: pbr = סיכום בדיקת קישור (studioProbe)   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -1687,5 +1713,5 @@ module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, 
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, EARLY_FAIL_MS, EARLY_WAIT, recoverWait, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, resumeProg, stgSpent, excludeWait, toFields, fromFields, normFit, peakNeed,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, BAD_AUTH_GAP, badAuthDue, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
-  serverMatches, normHb, normEv, SRV_EV, parkable, bwParkable, BW_MAX, WL_RE, PARK_MAX, serverView, monthKey, monthUsed, addMonth, jobCap,
+  serverMatches, normHb, normEv, SRV_EV, parkable, bwParkable, BW_MAX, BT_ERRS, normBq, bqView, BQ_SILENT_MS, WL_RE, PARK_MAX, serverView, monthKey, monthUsed, addMonth, jobCap,
 };

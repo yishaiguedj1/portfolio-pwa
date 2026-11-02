@@ -484,7 +484,7 @@ page('agents', { tab: 'apps', parent: 'studio', title: () => t('admStudioAgents'
 } });
 const SV_EV = { up: () => t('studioSrvEvUp'), job: () => t('studioSrvEvJob'), done: () => t('studioSrvEvDone'), fail: () => t('studioSrvEvFail'), stop: () => t('studioSrvEvStop'),
   oom: () => t('studioSrvEvOom'), timeout: () => t('studioSrvEvTimeout'), crash: () => t('studioSrvEvCrash'), auth: () => t('studioSrvEvAuth'), net: () => t('studioSrvEvNet'),
-  warm: () => t('studioSrvEvWarm'), lost: () => t('studioSrvEvLost'), park: () => t('studioSrvEvPark') };
+  warm: () => t('studioSrvEvWarm'), lost: () => t('studioSrvEvLost'), park: () => t('studioSrvEvPark'), bt: () => t('studioSrvEvBt') };
 const ISO = { mem: () => t('studioIsoMem'), missing: () => t('studioIsoMissing'), selftest: () => t('studioIsoSelftest'), manual: () => t('studioIsoManual') };
 const STG = { up: () => t('studioStgUp'), tr: () => t('studioStgTr'), al: () => t('studioStgAl'), tl: () => t('admRoleTl'), rv: () => t('studioStgRv'), bn: () => t('studioStgBn'), sv: () => t('studioStgSv') };
 const upTxt = (s) => (s == null ? '—' : s < 3600 ? fmt(t('admMinAgo'), { n: Math.round(s / 60) }) : s < 86400 ? fmt(t('admHrAgo'), { n: Math.round(s / 3600) }) : fmt(t('admDayAgo'), { n: Math.round(s / 86400) }));
@@ -501,6 +501,9 @@ page('servers', { tab: 'apps', parent: 'studio', title: () => t('admStudioSrv'),
     if (hb.mem != null) rows.push(row({ c: x.warn.includes('mem') ? 'orange' : 'gray', ic: '▦', t: t('admSvMem'), v: Math.round(hb.mem) + '%', meter: [hb.mem, hb.mem >= 90 ? 'w' : ''] }));
     if (hb.load != null) rows.push(row({ c: 'gray', ic: '∿', t: t('admSvLoad'), s: hb.up != null ? fmt(t('admSvUp'), { a: upTxt(hb.up) }) : '', v: hb.load }));
     if (hb.iso) rows.push(row({ c: hb.iso === 'g' ? 'green' : 'orange', ic: '⛨', t: hb.iso === 'g' ? t('studioIsoG') : (ISO[hb.iw] || (() => t('studioIsoR')))(), s: hb.al === 'o' ? t('admSvAlO') : hb.al === 't' ? t('admSvAlT') : '' }));
+    // 2/11/2026: תור החיסכון — רק כשיש בו משהו או כשהוא נכשל (בקשות שמחכות לשליחה, batches בדרך ומאז מתי, תקלה)
+    if (hb.be || hb.bp || hb.bf) rows.push(row({ c: hb.be ? 'red' : 'gray', ic: '⧗', t: t('admSvBt'),
+      s: hb.be ? fmt(t('admSvBtErr'), { k: hb.be, n: hb.bn || 1 }) : [hb.bp ? fmt(t('admSvBtP'), { n: hb.bp }) : '', hb.bf ? fmt(t('admSvBtF'), { n: hb.bf, t: hb.bo ? clock(hb.bo * 1000) : '—' }) : ''].filter(Boolean).join(' · ') }));
     if (hb.ev && hb.ev.length) rows.push(row({ c: 'gray', ic: '☰', t: t('studioSrvEvT'), s: hb.ev.slice(-3).reverse().map((e) => (SV_EV[e[1]] || (() => e[1]))()).join(' · ') }));
     const br = h('div', 'btn-row adm-srvbtns');
     const pz = h('button', 'btn secondary-btn', x.paused ? t('admSvResume') : t('admSvPause')); pz.type = 'button';

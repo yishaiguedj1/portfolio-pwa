@@ -272,6 +272,8 @@ export function normJob(j) {
     use: normUse(s.use),   // v359: טוקנים ועלות (מהעובד, דרך השרתון)
     eng: s.eng === 'api' ? 'api' : 'sub',   // מצב API: העבודה רצה על השרת של המערכת (בתור עד ששרת פנוי)
     bw: s.bw === 1,   // 01/11/2026 (סבב 3): מחכה לתשובה מתור החיסכון — השרת פנוי בינתיים
+    // 2/11/2026: מצב הבקשות בתור (השרתון — bqView): g נאספות, s נשלחו ב־t, e השליחה נכשלת, n הסוכן לא מדווח
+    bq: s.bq && ['g', 's', 'e', 'n'].includes(s.bq.s) && num(s.bq.t) > 0 ? { s: s.bq.s, t: num(s.bq.t) } : null,
     vw: s.vw === 1 || s.vw === true,   // 15/10/2026: מחכה לסרטון בתור — השרת פנוי בינתיים
     urt: normRate(s.urt),   // 25/10/2026: המשוב שלך על התרגום (👍/👎, סיבות, כתוביות שסימנת)
     sw: typeof s.sw === 'string' ? s.sw.slice(0, 40) : '',   // 25/10/2026: למה העבודה לא התחילה (קוד הסירוב בשרתון — גם ממכשיר אחר)
@@ -2991,10 +2993,20 @@ function planFor(rec) {
   if (rec.spec.ka) return kaPlan(pl, rec.spec.dur, rec.spec.bv === 1, ui.eta && ui.eta.k);   // 26/10/2026: קריוקי (= השרתון בלקיחה)
   return rec.spec.src === 'subs' ? subsPlan(pl) : pl;   // 22/10/2026: קובץ כתוביות — בלי תמלול, יישור וצריבה (= השרתון בלקיחה)
 }
+/* 2/11/2026 (בקשת המשתמש: "לוודא שהעבודה באמת מחכה בתור ושאין באג שתוקע"): מה קורה בתור החיסכון — נשלח ומתי, או תקלה
+   (ואז "להמשיך עכשיו במחיר רגיל" הוא הצעד). בלי דיווח מהשרת (גרסה ישנה) — הנוסח הכללי */
+function bwLine(rec) {
+  const q = rec.srv && rec.srv.bq;
+  if (!q) return T('studioNowBw');
+  if (q.s === 's') return T('studioNowBwS', { t: fmtClock(q.t) });
+  if (q.s === 'g') return T('studioNowBwG');
+  if (q.s === 'e') return T('studioNowBwE');
+  return T('studioNowBwN', { n: Math.max(1, Math.round((Date.now() - q.t) / 60e3)) });
+}
 function modelFor(rec) {
   const run = runs.get(rec.id);
   const pl = planFor(rec);
-  const m = progressModel({ state: rec.srv ? rec.srv.state : 'new', prog: rec.srv && rec.srv.prog }, pl.s, upState(rec, run), Date.now(), pl.q);
+  const m = progressModel({ state: rec.srv ? rec.srv.state : 'new', prog: rec.srv && rec.srv.prog, bw: !!(rec.srv && rec.srv.bw) }, pl.s, upState(rec, run), Date.now(), pl.q);
   m.n = pl.n || 0;
   return m;
 }
@@ -3097,7 +3109,7 @@ function nowLine(rec, run, ph) {
   if (ph === 'error') return errText(run.err);
   if (ph === 'ready') return rec.up.wait === 'worker_not_ready' ? T('studioWaitWorker') : rec.up.wait ? errText(rec.up.wait) : T('studioReady');
   if (ph === 'queued' && rec.spec.pt) return T('studioPhPtQ');   // שלב 3: הטלפון לוקח את העבודה ומתרגם בעצמו
-  if (ph === 'queued' && rec.srv && rec.srv.bw) return T('studioNowBw');
+  if (ph === 'queued' && rec.srv && rec.srv.bw) return bwLine(rec);
   if (ph === 'queued') return rec.srv && rec.srv.vw ? (rec.spec.ph ? T('studioPhWaitM') : T('studioNowParked')) : rec.srv && rec.srv.uw ? T('studioNowSrvUpd') : rec.srv && rec.srv.eng === 'api' ? queuedApiLine(rec) : T('studioNowQueued');
   if (ph === 'running' && ryWaiting(rec, Date.now())) return T('studioNowRyWait');
   // 31/10/2026: בקריוקי אין מודל שפה — "Claude עובד על הסרטון" הטעה
@@ -9123,7 +9135,8 @@ function pageJob(p) {
     live(tm, () => {
       const mm = modelFor(jobRec(id) || rec).stages.find((x) => x.id === s.id) || s;
       if (ov) ov.hidden = !(mm.state === 'now' && mm.over);
-      tm.textContent = mm.state === 'done' ? (mm.took ? '✓ ' + fmtShort(mm.took) : '✓') : mm.state === 'now' ? T('studioStageLeft', { t: fmtShort(mm.left) }) : approx(fmtShort(mm.est));
+      // 2/11/2026: בתור החיסכון — "בתור החיסכון" במקום "עוד דקה" שלא נגמרת
+      tm.textContent = mm.state === 'done' ? (mm.took ? '✓ ' + fmtShort(mm.took) : '✓') : mm.state === 'now' ? (mm.bw ? T('studioBwShort') : T('studioStageLeft', { t: fmtShort(mm.left) })) : approx(fmtShort(mm.est));
     });
     stl.append(row);
   }
@@ -9690,6 +9703,7 @@ function srvEvText(k) {
     case 'warm': return T('studioSrvEvWarm');
     case 'lost': return T('studioSrvEvLost');
     case 'park': return T('studioSrvEvPark');
+    case 'bt': return T('studioSrvEvBt');   // 2/11/2026: תור החיסכון נכשל 3 סבבים ברצף
     default: return '';
   }
 }
