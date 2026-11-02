@@ -210,8 +210,77 @@ function flexTime(dt) {
 }
 
 /* ---------- Flex statement -> clean JSON ---------- */
+/* 03/11/2026: שאילתה של כמה חשבונות מחזירה כמה <FlexStatement>. עד עכשיו נקרא רק הראשון. חשבון אחד — בדיוק
+   כמו קודם; כמה — כל אחד בנפרד ואז מיזוג (statementsMerge). */
 function statementToJson(tree) {
-  const st = firstKid(tree, 'FlexStatement') || { attrs: {}, children: [] };
+  const sts = findKids(tree, 'FlexStatement');
+  if (sts.length <= 1) return statementOne(sts[0] || { attrs: {}, children: [] });
+  return statementsMerge(sts.map(statementOne));
+}
+
+/* מיזוג חשבונות: עסקאות/תנועות/פעולות — שרשור (עם מספר החשבון בכל עסקה, ל־FIFO נפרד); אחזקות ומזומן — סכום לפי
+   סימבול/מטבע; NAV יומי — סכום, רק בימים שכל החשבונות דיווחו; ChangeInNAV — סכום לכל תקופה, ו־twr מקורב
+   (mtm / (התחלה + חצי מהתזרים) — דיץ מתוקן), כי ה־TWR של כל חשבון לא מתחבר. */
+function statementsMerge(list) {
+  const tag = (arr, acct) => arr.map((t) => (t.account || !acct ? t : Object.assign({}, t, { account: acct })));
+  const trades = [].concat(...list.map((x) => tag(x.trades, x.meta.accountId)));   // לפני ש־meta של הראשון משתנה
+  const out = list[0];
+  const ids = list.map((x) => x.meta.accountId).filter(Boolean);
+  out.meta.accountId = ids.join(',');
+  out.meta.accounts = list.length;
+  out.meta.fromDate = list.map((x) => x.meta.fromDate).filter(Boolean).sort()[0] || out.meta.fromDate;
+  out.meta.toDate = list.map((x) => x.meta.toDate).filter(Boolean).sort().pop() || out.meta.toDate;
+  const fields = {};
+  for (const x of list) for (const [k, v] of Object.entries(x.meta.fields || {})) fields[k] = [...new Set((fields[k] || []).concat(v))].sort();
+  out.meta.fields = fields;
+  out.trades = trades;
+  out.cashTransactions = [].concat(...list.map((x) => x.cashTransactions));
+  out.taxEvents = [].concat(...list.map((x) => x.taxEvents || []));
+  const pos = new Map();
+  for (const x of list) for (const p of x.positions) {
+    const a = pos.get(p.symbol);
+    if (!a) { pos.set(p.symbol, Object.assign({}, p)); continue; }
+    for (const k of ['qty', 'marketValue', 'costBasis', 'unrealized']) a[k] = (isFinite(a[k]) ? a[k] : 0) + (isFinite(p[k]) ? p[k] : 0);
+  }
+  out.positions = [...pos.values()];
+  const cash = new Map();
+  for (const x of list) for (const c of x.cashBalances) {
+    const k = c.currency + (c.base ? '|b' : '');
+    const a = cash.get(k);
+    if (a) a.balance += c.balance; else cash.set(k, Object.assign({}, c));
+  }
+  out.cashBalances = [...cash.values()];
+  const days = new Map();
+  for (const x of list) for (const d of x.navDaily) { const a = days.get(d.date) || { n: 0, total: 0 }; a.n++; a.total += d.total; days.set(d.date, a); }
+  out.navDaily = [...days.entries()].filter(([, a]) => a.n === list.length).sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([date, a]) => ({ date, total: a.total }));
+  const per = new Map();
+  for (const x of list) for (const r of x.navHistory) {
+    const k = r.fromDate + '|' + r.toDate;
+    const a = per.get(k);
+    if (!a) { per.set(k, Object.assign({}, r, { n: 1 })); continue; }
+    a.n++; a.startingValue += r.startingValue; a.endingValue += r.endingValue; a.mtm += r.mtm; a.flows += r.flows;
+  }
+  out.navHistory = [...per.values()].filter((r) => r.n === list.length).sort((a, b) => (a.fromDate < b.fromDate ? -1 : 1)).map((r) => {
+    const base = r.startingValue + r.flows / 2;
+    const o = Object.assign({}, r, { twr: base > 0 ? (r.mtm / base) * 100 : null });
+    delete o.n;
+    return o;
+  });
+  out.nav = navSummary(out.navHistory);
+  return out;
+}
+
+/* סיכום NAV לתקופת הדוח מתוך שורות ChangeInNAV */
+function navSummary(h) {
+  if (h.length === 1) { const r = h[0]; return { startingValue: r.startingValue, endingValue: r.endingValue, twr: r.twr, mtm: r.mtm }; }
+  if (!h.length) return null;
+  let f = 1, twrOk = true, mtmSum = 0;
+  for (const r of h) { if (r.twr === null || !isFinite(r.twr)) { twrOk = false; break; } f *= 1 + r.twr / 100; }
+  for (const r of h) mtmSum += r.mtm || 0;
+  return { startingValue: h[0].startingValue, endingValue: h[h.length - 1].endingValue, twr: twrOk ? (f - 1) * 100 : null, mtm: mtmSum };
+}
+
+function statementOne(st) {
   const a = st.attrs || {};
   const out = {
     meta: {
@@ -413,24 +482,8 @@ function statementToJson(tree) {
     if (/^\d{4}-\d{2}-\d{2}$/.test(date || '')) navDay.set(date, num(x.total));
   }
   out.navDaily = [...navDay.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([date, total]) => ({ date, total }));
-  if (out.navHistory.length === 1) {
-    const r = out.navHistory[0];
-    out.nav = { startingValue: r.startingValue, endingValue: r.endingValue, twr: r.twr, mtm: r.mtm };
-  } else if (out.navHistory.length > 1) {
-    let f = 1, twrOk = true, mtmSum = 0;
-    for (const r of out.navHistory) {
-      if (r.twr === null || !isFinite(r.twr)) { twrOk = false; break; }
-      f *= 1 + r.twr / 100;
-    }
-    for (const r of out.navHistory) mtmSum += r.mtm || 0;
-    const first = out.navHistory[0], last = out.navHistory[out.navHistory.length - 1];
-    out.nav = {
-      startingValue: first.startingValue,
-      endingValue: last.endingValue,
-      twr: twrOk ? (f - 1) * 100 : null,
-      mtm: mtmSum,
-    };
-  }
+  const ns = navSummary(out.navHistory);
+  if (ns) out.nav = ns;
   // יתרות מזומן. ב־Flex המקטע Cash Report = שורות CashReportCurrency עם endingCash (לא cashBalance — 23/10/2026:
   // עד אז השם לא נמצא, והמזומן מ־IBKR אף פעם לא הגיע לאפליקציה), ושורת סיכום BASE_SUMMARY שלא סופרים.
   // המקור הראשון שיש בו שורות גובר (בלי לספור פעמיים). בלי Cash Report — המזומן מהיום האחרון ב־NAV in Base.

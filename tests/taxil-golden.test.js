@@ -503,4 +503,16 @@ const fx36 = fxFrom({ '2024-01-01': 3.5, '2025-01-01': 3.6, '2025-06-01': 3.7 })
   eq(T.tiYears(sales, divs, { cpi: cpi })[1].extraInc, 3.8, '205א צמוד — 3.8');
 }
 
+/* ח2 — מימוש במזומן (אופציה על מדד): קנייה 1 × $5 × 100 = $500 בשער 3.5; מימוש (Ex) בתמורה $800 בשער 3.6.
+   N = 2,880 − 1,750 = 1,130; D = 300·3.6 = 1,080 → 1,080, כמכירה רגילה ובלי optOrphan. */
+{
+  const f = T.tiFifo([
+    { symbol: 'SPX   250620C05000000', date: '2024-06-01', qty: 1, price: 5, multiplier: 100, currency: 'USD', side: 'BUY', tradeId: '1', asset: 'OPT', openClose: 'O' },
+    { symbol: 'SPX   250620C05000000', date: '2025-03-01', qty: -1, price: 8, multiplier: 100, tradeMoney: -800, currency: 'USD', side: 'SELL', tradeId: '2', asset: 'OPT', openClose: 'C', notes: 'Ex' },
+  ], fx36);
+  eq(f.sales.length, 1, 'ח2 מזומן — מכירה');
+  eq(f.sales[0].taxable, 1080, 'ח2 מזומן — חייב 1,080');
+  ok(!f.issues.some((i) => i.type === 'optOrphan'), 'ח2 מזומן — בלי optOrphan');
+}
+
 console.log('# taxil-golden: ' + n + ' בדיקות עברו');

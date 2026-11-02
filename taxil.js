@@ -65,7 +65,8 @@ function tiNormTrades(trades) {
       crypto: String(t.asset || '').toUpperCase() === 'CRYPTO',
       oc: String(t.openClose || '').toUpperCase(),
     };
-    r.optEx = r.deriv && (codes.includes('EX') || codes.includes('A'));
+    // מימוש/הקצאה במסירה (תמורה 0); מימוש במזומן (אופציה על מדד) מגיע עם תמורה — מכירה רגילה
+    r.optEx = r.deriv && (codes.includes('EX') || codes.includes('A')) && money < 1e-9;
     r.under = String(t.underlying || '').trim().toUpperCase() || r.sym.split(/\s+/)[0];
     if (cancel) { r.orig = String(t.origTradeId || ''); cancels.push(r); } else out.push(r);
   }
