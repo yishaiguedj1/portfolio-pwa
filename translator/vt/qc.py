@@ -1,4 +1,4 @@
-"""בקרת איכות לפי ת־נגן על הכתוביות הסופיות + בדיקת כיסוי הדיבור."""
+"""בקרת איכות לפי ת־כתוביות על הכתוביות הסופיות + בדיקת כיסוי הדיבור."""
 
 from __future__ import annotations
 
@@ -8,6 +8,8 @@ from .config import TimingRules, TextRules
 from .hebrew import visible_len, has_latin
 from .util import fmt_ts
 
+JUMP_S = 3.0
+
 
 def run_qc(cues: list[dict], words: list[dict], rules: TimingRules, text: TextRules,
            fps: float, shots: list[int], measure=None, max_px: float | None = None) -> tuple[str, dict]:
@@ -15,6 +17,7 @@ def run_qc(cues: list[dict], words: list[dict], rules: TimingRules, text: TextRu
     gap_min = rules.min_gap_frames
     n_over15 = n_over17 = 0
     durs = []
+    jumps = []   # 02/11/2026 (PR3, ‏D9 §5.2): כתובית שהיישור הזיז יותר מ־3 שנ׳ מהתכנון — תצפית בלבד
     for i, c in enumerate(cues):
         tag = f"#{c['id']} `{fmt_ts(c['start'])}`"
         lines = c["lines"]
@@ -44,6 +47,8 @@ def run_qc(cues: list[dict], words: list[dict], rules: TimingRules, text: TextRu
                 errors.append(f"{tag}: חפיפה עם הכתובית הבאה")
             elif g < gap_min:
                 errors.append(f"{tag}: מרווח {g} פריימים (מינ׳ {gap_min})")
+        if isinstance(c.get("plan_s"), (int, float)) and abs(c["speech_s"] - c["plan_s"]) > JUMP_S:
+            jumps.append(c["id"])
         early = (c["si"] - c["fi"]) / fps
         late = (c["fi"] - c["si"]) / fps
         if late > rules.shot_red_s + 0.01:
@@ -87,8 +92,12 @@ def run_qc(cues: list[dict], words: list[dict], rules: TimingRules, text: TextRu
     _ = covered_until
 
     total = len(cues)
+    if jumps:
+        warns.append(f"קפיצת יישור (מעל {JUMP_S:g} שנ׳ מהתכנון): " + ", ".join(f"#{k}" for k in jumps[:40])
+                     + (f" ועוד {len(jumps) - 40}" if len(jumps) > 40 else ""))
     stats = {
         "cues": total,
+        "jump": len(jumps),
         "errors": len(errors),
         "warnings": len(warns),
         "avg_duration": round(sum(durs) / total, 2) if total else 0,
