@@ -207,5 +207,24 @@ ok(T.tiRateOn([['2024-01-01', 3.5], ['2024-01-03', 3.6]], '2024-01-02') === 3.5 
   const fs = require('fs');
   const hist = fs.readFileSync(path.join(__dirname, '..', 'ibkr-proxy/api/history.js'), 'utf8');
   ok(/op === 'boifx'/.test(hist), 'history.js מנתב את op:boifx (בלי פונקציה חדשה ב־Vercel)');
+  // 02/11/2026 — שלב 4: עמלה במטבע אחר (✗11), מפתח חשבון|conid (ח4), אזהרת שיטת התאמה (ח8)
+  {
+    const fx = (cur, d) => (cur === 'USD' ? 3.5 : cur === 'EUR' ? 4 : null);
+    const b = { symbol: 'X', date: '2025-01-02', qty: 10, price: 100, currency: 'USD', side: 'BUY', tradeId: '1', commission: -7, commissionCurrency: 'EUR' };
+    const f = T.tiFifo([b], fx);
+    ok(Math.abs(f.open[0].unit - (100 + 7 * 4 / 3.5 / 10)) < 1e-9 && !f.issues.length, 'עמלה באירו מומרת לדולר בשער היום');
+    const nf = T.tiFifo([b], (cur) => (cur === 'USD' ? 3.5 : null));
+    ok(nf.issues.some((i) => i.type === 'feeCur'), 'עמלה בלי שער — מסומנת');
+    const k = (acct, conid, qty, id) => ({ symbol: 'Y', account: acct, conid: conid, date: '2025-01-0' + id, qty: qty, price: 10, currency: 'USD', tradeId: String(id) });
+    const two = T.tiFifo([k('A', '9', 5, 1), k('B', '9', -5, 2)], fx);
+    ok(!two.sales.length && two.issues.some((i) => i.type === 'noLots'), 'FIFO נפרד לכל חשבון');
+    const mix = T.tiFifo([k('A', '9', 5, 1), Object.assign(k('A', '', -5, 2), { account: '' })], fx);
+    ok(mix.sales.length === 1, 'נתונים ישנים בלי conid — נופלים לסימבול');
+    const li = T.tiFifo([k('A', '9', 5, 1), Object.assign(k('A', '9', -5, 2), { notes: 'C;LI' })], fx);
+    ok(li.issues.some((i) => i.type === 'lotMethod' && i.code === 'LI'), 'שיטת התאמה LI — אזהרה');
+    const cash = T.tiNormTrades([{ symbol: 'EUR.USD', asset: 'CASH', date: '2025-01-02', qty: 100, price: 1.1, currency: 'USD' }]);
+    ok(cash.length === 1 && cash[0].cash, 'המרת מט״ח מסומנת cash');
+  }
+
   console.log('# taxil: ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL - ' + e.stack); process.exit(1); });
