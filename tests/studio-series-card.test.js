@@ -39,6 +39,20 @@ const S = require(path.join(root, 'ibkr-proxy/lib/studio.js'));
   const v = S.smView(S.smMerge(e4, S.seriesOf('Other.S01E01.mkv'), { gl: [['A', 'א']] }, 70));
   ok(v.length === 2 && v[0].k === 'other' && !('x' in v[0]), 'smView — החדשה ראשונה, בלי x');
 
+  // 2ב. PR2 (02/11/2026, 2.10): העריכה שומרת n/l ונועלת; שינוי שם מעביר את n/l; הנעול לא מתפנה והעובד לא משנה אותו. שמות בדויים
+  {
+    let m = {};
+    for (let e = 1; e <= 3; e++) m = S.smMerge(m, S.seriesOf('Show.S01E0' + e + '.mkv'), { gl: [['Vexley', 'וקסלי']], ch: [['נעמה', 'f', '']] }, e);
+    const k1 = S.smEdit(m, 'show', { gl: [['Vexley', 'וקסלה']] }, 10).s.show;
+    ok(JSON.stringify(k1.gl[0]) === JSON.stringify(['Vexley', 'וקסלה', 3, 3, S.SM_LOCK]), 'עריכה לא מוחקת n/l, ומדליקה f=1 (נעול)');
+    const k2 = S.smEdit(m, 'show', { chx: ['נעמה'], ch: [['נעמי', 'f', '']] }, 10).s.show;
+    ok(k2.ch.length === 1 && k2.ch[0][0] === 'נעמי' && k2.ch[0][3] === 3 && k2.ch[0][5] === S.SM_LOCK, 'שינוי שם (מחיקה + שורה חדשה) מעביר את n לשם החדש');
+    const k3 = S.smMerge({ v: 1, s: { show: k1 } }, S.seriesOf('Show.S01E04.mkv'), { gl: [['Vexley', 'וקסלי']] }, 20).s.show;
+    ok(k3.gl[0][1] === 'וקסלה' && k3.gl[0][2] === 4, 'העובד לא משנה שורה נעולה (אבל סופר אותה)');
+    const view = S.smView({ v: 1, s: { show: k1 } })[0];
+    ok(view.gl[0].length === 2 && view.ch[0].length === 3, 'smView — הצורה של הטלפון (הטלפון לא משתנה)');
+  }
+
   // 3. A5 — מה השתנה, והחלפה בכתוביות
   const ch = C.smChanges({ gl: [['Scherbatsky', 'שרבטסקי'], ['Metro', 'מטרו']], ch: [['רובין', 'm', ''], ['טד', 'm', '']] },
     { gl: [['Scherbatsky', 'שרבצקי'], ['Metro', 'מטרו']], ch: [['רובינה', 'm', ''], ['טד', 'f', '']] });
