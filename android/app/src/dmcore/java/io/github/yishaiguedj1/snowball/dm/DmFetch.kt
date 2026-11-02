@@ -17,6 +17,8 @@ interface DmSink {
 data class DmProbe(
     val total: Long, val ranges: Boolean, val etag: String, val lastMod: String,
     val mime: String, val disposition: String, val finalUrl: String,
+    /** 02/11/2026 (סבב 4, ‏47): הסיכום של הקובץ כולו מהשרת (Repr-Digest / Digest) — "SHA-256:hex", או "" */
+    val digest: String = "",
 )
 
 class DmHttpError(val status: Int, val retryAfter: Long) : IOException("http_$status")
@@ -175,24 +177,39 @@ class DmFetch(
         }
     }
 
+    /** 02/11/2026 (סבב 4, Metalink): מראות — לכל חיבור כתובת אחרת; מראה שנכשלה סופית יוצאת (DmMirrors) */
+    private val mirrors = task.mirrors()
+    private val dead = java.util.Collections.synchronizedSet(HashSet<Int>())
+    private fun urlFor(slot: Int): Pair<Int, String> {
+        if (mirrors.size < 2) return -1 to task.url
+        val i = synchronized(dead) { DmMirrors.pick(mirrors, slot, dead.toSet()) } ?: return -1 to task.url
+        return i to mirrors[i]
+    }
+
     private fun worker(seg: Seg, single: Boolean, slot: Int = 0): Result {
         var attempt = 0
         val buf = ByteArray(BUF)
         while (!seg.finished && !stopFlag() && fail.get() == null && !restart) {
             var c: HttpURLConnection? = null
+            var mirror = -1
             try {
                 if (single) { seg.done = 0 }   // בלי Range — כל ניסיון מההתחלה
                 val ranged = !single
                 val h = LinkedHashMap<String, String>()
+                val (mi, mu) = if (single) (-1 to task.url) else urlFor(slot)
+                mirror = mi
                 if (ranged) {
                     h["Range"] = "bytes=${seg.pos}-${seg.end - 1}"
-                    val v = task.etag.ifEmpty { task.lastMod }
+                    // ETag של שרת אחד לא תקף בשרת אחר — במראות השלמות נבדקת בסיכומים (DmMeta4), לא ב־If-Range
+                    val v = if (mi >= 0) "" else task.etag.ifEmpty { task.lastMod }
                     if (v.isNotEmpty()) h["If-Range"] = v
                 }
                 val alt = if (single) null else runCatching { route(slot) }.getOrNull()
-                c = if (alt != null) open(task.url, task.ref, ua, h, cookies, alt) else open(task.url, task.ref, ua, h, cookies)
+                c = if (alt != null) open(mu, task.ref, ua, h, cookies, alt) else open(mu, task.ref, ua, h, cookies)
                 val st = c.responseCode
-                if (ranged && st == 200) { restart = true; return Result.Failed("changed") }   // If-Range: הקובץ השתנה
+                // מראה שלא תומכת בטווחים — יוצאת מהסבב (יש אחרות); אחרת If-Range: הקובץ השתנה
+                if (ranged && mirror >= 0 && st == 200 && synchronized(dead) { mirror in dead || (dead.size < mirrors.size - 1 && dead.add(mirror)) }) continue
+                if (ranged && st == 200) { restart = true; return Result.Failed("changed") }
                 if (st !in 200..299) throw DmHttpError(st, c.getHeaderField("Retry-After")?.trim()?.toLongOrNull() ?: -1)
                 if (ranged) {
                     val cr = c.getHeaderField("Content-Range") ?: ""
@@ -206,7 +223,12 @@ class DmFetch(
                 val v = if (e is DmHttpError) DmRetry.http(e.status) else DmRetry.io(e)
                 if (e is DmHttpError && (e.status == 429 || e.status == 503)) busyHits.incrementAndGet()
                 if (v.act == DmRetry.Act.RESTART) { restart = true; return Result.Failed("changed") }
-                if (v.act == DmRetry.Act.FATAL || ++attempt > DmRetry.MAX_TRIES) { fail.compareAndSet(null, v.code); return Result.Failed(v.code) }
+                if (v.act == DmRetry.Act.FATAL || ++attempt > DmRetry.MAX_TRIES) {
+                    // מראה שנכשלה — עוברים לאחרת (כל עוד נשארה אחת), במקום להפיל את כל ההורדה
+                    // (חיבור אחר כבר סימן את אותה מראה — גם זה מעבר, לא כשל של ההורדה כולה)
+                    if (mirror >= 0 && synchronized(dead) { mirror in dead || (dead.size < mirrors.size - 1 && dead.add(mirror)) }) { attempt = 0; continue }
+                    fail.compareAndSet(null, v.code); return Result.Failed(v.code)
+                }
                 val wait = DmRetry.backoffMs(attempt - 1, (e as? DmHttpError)?.retryAfter ?: -1)
                 var waited = 0L
                 while (waited < wait && !stopFlag()) { sleep(200); waited += 200 }
@@ -254,21 +276,30 @@ class DmFetch(
          *  שהן שלו (CookieManager לפי הכתובת של כל קפיצה) — עם instanceFollowRedirects הכותרת Cookie הייתה עוברת לאתר
          *  שאליו מפנים. רק http/https, ובלי ירידה מ־https ל־http */
         fun open(url: String, ref: String, ua: String, headers: Map<String, String> = emptyMap(), cookies: ((String) -> String?)? = null,
-                 conn: (URL) -> java.net.URLConnection = { it.openConnection() }): HttpURLConnection {
+                 conn: (URL) -> java.net.URLConnection = { DmNet.openRaw(it) }, method: String = "GET"): HttpURLConnection {
             var u = URL(url)
             var hops = 0
+            var authTried = ""   // 02/11/2026 (סבב 4, ‏18): ניסיון כניסה אחד לכל כתובת (Basic/Digest), רק לאתר עצמו
+            var auth: String? = null
             while (true) {
                 if (u.protocol != "http" && u.protocol != "https") throw IOException("bad_scheme")
                 val c = conn(u) as HttpURLConnection
                 c.instanceFollowRedirects = false
-                c.connectTimeout = 20_000; c.readTimeout = 30_000
-                c.setRequestProperty("User-Agent", ua)
+                c.requestMethod = method
+                c.connectTimeout = DmNet.connectMs; c.readTimeout = DmNet.readMs   // סבב 4 (31): זמני חיבור מההגדרות
+                c.setRequestProperty("User-Agent", DmNet.uaFor(DmLink.host(u.toString()), ua))   // User-Agent לפי אתר (31)
+                (auth ?: DmNet.preAuth(u))?.let { c.setRequestProperty("Authorization", it) }
                 c.setRequestProperty("Accept-Encoding", "identity")   // בלי דחיסה — אחרת הטווחים לא בבתים של הקובץ
                 if (ref.startsWith("http")) c.setRequestProperty("Referer", ref)
                 headers.forEach { (k, v) -> c.setRequestProperty(k, v) }
                 cookies?.invoke(u.toString())?.takeIf { it.isNotBlank() && '\n' !in it && '\r' !in it }?.let { c.setRequestProperty("Cookie", it) }
                 val st = c.responseCode
+                if (st == 401 && authTried != u.toString()) {
+                    val a = DmNet.answer(u, method, c.headerFields?.entries?.firstOrNull { it.key.equals("WWW-Authenticate", true) }?.value ?: emptyList())
+                    if (a != null) { authTried = u.toString(); auth = a; runCatching { c.errorStream?.close() }; c.disconnect(); continue }
+                }
                 if (st !in 300..399 || st == 304) return c
+                auth = null
                 val loc = c.getHeaderField("Location")
                 runCatching { c.inputStream.close() }; c.disconnect()
                 if (loc.isNullOrBlank() || ++hops > MAX_REDIRECTS) throw DmHttpError(st, -1)
@@ -303,7 +334,8 @@ class DmFetch(
                 else c.getHeaderField("Content-Length")?.toLongOrNull() ?: -1L
                 val etag = (c.getHeaderField("ETag") ?: "").takeIf { !it.startsWith("W/") } ?: ""   // ETag חלש לא מתאים ל־If-Range
                 return DmProbe(total, ranged && total > 0, etag, c.getHeaderField("Last-Modified") ?: "",
-                    (c.contentType ?: "").substringBefore(';').trim(), c.getHeaderField("Content-Disposition") ?: "", c.url.toString())
+                    (c.contentType ?: "").substringBefore(';').trim(), c.getHeaderField("Content-Disposition") ?: "", c.url.toString(),
+                    DmDigest.parse(c.getHeaderField("Repr-Digest"), c.getHeaderField("Digest")))
             } finally { runCatching { c.inputStream.close() }; c.disconnect() }
         }
     }

@@ -131,9 +131,20 @@ class DmService : Service() {
 class DmAct : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         DmStore.init(ctx)
-        if (intent.action == PAUSE_ALL) DmEngine.pauseAll(ctx)
+        when (intent.action) {
+            PAUSE_ALL -> DmEngine.pauseAll(ctx)
+            RESUME_ALL -> DmEngine.resumeAll(ctx)   // 02/11/2026 (סבב 4): מהווידג'ט
+            FASTER -> intent.getStringExtra("id")?.let { DmR4.faster(ctx, it) }   // סבב 4 (40): מההתראה
+            PAUSE_ONE -> intent.getStringExtra("id")?.let { DmEngine.pause(ctx, it) }
+        }
+        DmR4.widget(ctx, true)
     }
-    companion object { const val PAUSE_ALL = "app.thesnowball.studiodm.PAUSE_ALL" }
+    companion object {
+        const val PAUSE_ALL = "app.thesnowball.studiodm.PAUSE_ALL"
+        const val RESUME_ALL = "app.thesnowball.studiodm.RESUME_ALL"
+        const val FASTER = "app.thesnowball.studiodm.FASTER"
+        const val PAUSE_ONE = "app.thesnowball.studiodm.PAUSE_ONE"
+    }
 }
 
 /** אחרי אתחול: לא מתחילים ברקע (אנדרואיד 15 אוסר dataSync מ־BOOT_COMPLETED) — התראה "ממתינות", נגיעה = המשך */
@@ -178,12 +189,23 @@ object DmNotif {
         val sp = DmEngine.speed.values.sum()
         val txt = if (act.size == 1) DmFmt.line(ctx, act[0])
             else listOf(if (pct >= 0) "$pct%" else "", DmFmt.speed(ctx, sp)).filter { it.isNotEmpty() }.joinToString(" · ")
-        return builder(ctx, CH).setSmallIcon(android.R.drawable.stat_sys_download)
+        val b = builder(ctx, CH).setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle(title.ifEmpty { ctx.getString(R.string.app_name) })
             .setContentText(txt)
             .setOngoing(true).setOnlyAlertOnce(true).setContentIntent(openApp(ctx))
-            .addAction(0, ctx.getString(R.string.dmPauseAll), PendingIntent.getBroadcast(ctx, 7, Intent(ctx, DmAct::class.java).setAction(DmAct.PAUSE_ALL), PendingIntent.FLAG_IMMUTABLE))
-            .setProgress(100, pct.coerceAtLeast(0), pct < 0).build()
+            .setProgress(100, pct.coerceAtLeast(0), pct < 0)
+        // 02/11/2026 (סבב 4, ‏40): הורדה אחת — מפת המקטעים, מהירות, זמן שנותר וחיבורים בהתראה המורחבת, ו"עצירה" / "מהר יותר"
+        if (act.size == 1) {
+            val t = act[0]
+            val rich = DmR4.richText(ctx, t)
+            if (rich.isNotEmpty()) b.setStyle(Notification.BigTextStyle().bigText(txt + "\n" + rich))
+            b.addAction(0, ctx.getString(R.string.dmPause), PendingIntent.getBroadcast(ctx, 8, Intent(ctx, DmAct::class.java).setAction(DmAct.PAUSE_ONE).putExtra("id", t.id),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+            if (t.kind == DmKind.HTTP && t.ranges && DmEngine.connsOf(t.id) < DmSegs.MAX_CONNS)
+                b.addAction(0, ctx.getString(R.string.dmFaster), PendingIntent.getBroadcast(ctx, 9, Intent(ctx, DmAct::class.java).setAction(DmAct.FASTER).putExtra("id", t.id),
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+        } else b.addAction(0, ctx.getString(R.string.dmPauseAll), PendingIntent.getBroadcast(ctx, 7, Intent(ctx, DmAct::class.java).setAction(DmAct.PAUSE_ALL), PendingIntent.FLAG_IMMUTABLE))
+        return b.build()
     }
 
     fun update(ctx: Context) {

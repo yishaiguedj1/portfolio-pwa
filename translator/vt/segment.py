@@ -249,7 +249,7 @@ def plan(words: list[dict], timing: TimingRules, text: TextRules) -> list[dict]:
             qa = (not two and _qa_turn(words, a["ids"], b["ids"]) and ae - as_ <= 3.0
                   and ea <= 30 and eb <= 30 and bs - ae <= 0.8 and be - as_ <= 5.0)
             if two or qa:
-                final.append({"ids": a["ids"] + b["ids"], "spk": a.get("spk"),
+                final.append({"ids": a["ids"] + b["ids"], "spk": a.get("spk"), "src": "spk" if two else "qa",
                               "parts": [{"ids": a["ids"], "spk": a.get("spk")},
                                         {"ids": b["ids"], "spk": b.get("spk")}]})
                 i += 2
@@ -262,13 +262,14 @@ def plan(words: list[dict], timing: TimingRules, text: TextRules) -> list[dict]:
         ids = g["ids"]
         s, e = _span(words, ids)
         cue = {"id": k, "w0": ids[0], "w1": ids[-1], "spk": g.get("spk"),
-               "speech_s": round(s, 3), "speech_e": round(e, 3),
+               "speech_s": round(s, 3), "speech_e": round(e, 3), "plan_s": round(s, 3),   # plan_s (02/11/2026): לדגל "קפיצת יישור"
                "en": " ".join(words[i]["w"] for i in ids if not words[i].get("filler")).strip()}
         if "parts" in g:
             cue["parts"] = [{"spk": p["spk"],
                              "en": " ".join(words[i]["w"] for i in p["ids"] if not words[i].get("filler")),
                              "speech_s": round(words[p["ids"][0]]["s"], 3),
                              "speech_e": round(words[p["ids"][-1]]["e"], 3)} for p in g["parts"]]
+            cue["psrc"] = g.get("src") or "spk"   # 02/11/2026 (PR3): מקור ה־parts — spk (תווית קול) / qa (שאלה ותשובה)
         cues.append(cue)
 
     budgets(cues, timing, text)
@@ -292,7 +293,7 @@ def cps_merge(cues: list[dict], timing: TimingRules, text: TextRules, refit) -> 
     """מיזוג מונע־CPS אחרי התרגום: כתובית שגם אחרי כל ההארכה אין לה זמן קריאה (דגל reading_speed
     מ־time_cues) מתאחדת עם שכנתה — אותו דובר, דיבור רציף — לכתובית אחת ארוכה יותר.
 
-    זה השלב שחסר בסולם של נטפליקס (הארכה → השאלה מהמרווח → מיזוג → רק בסוף קיצור טקסט):
+    זה השלב שחסר בסולם של ת־כתוביות (הארכה → השאלה מהמרווח → מיזוג → רק בסוף קיצור טקסט):
     בניסוי המתועד במחקר, הארכה לבדה הורידה חריגות קריאה מ־68% ל־29% והמיזוג ל־24% — בלי לשנות מילה.
 
     refit(cue) מחשב מחדש lines/chars לפי הטקסט העברי (break_lines + מדידת הגופן) ומחזיר אם נכנס

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 02/11/2026 (Studio DM סבב 4, ‏27): שם, שורת מצב, "הדבקה מהלוח", עצירה / המשך -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="horizontal" android:gravity="center_vertical"
+    android:background="@drawable/dm_widget_bg" android:padding="12dp" android:layoutDirection="locale">
+    <LinearLayout android:id="@+id/dmwLine" android:layout_width="0dp" android:layout_height="wrap_content"
+        android:layout_weight="1" android:orientation="vertical">
+        <TextView android:id="@+id/dmwTitle" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textStyle="bold" android:textSize="15sp" android:textColor="@color/dm_widget_fg" android:text="@string/app_name" />
+        <TextView android:id="@+id/dmwText" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textSize="13sp" android:textColor="@color/dm_widget_mute" android:maxLines="1" android:ellipsize="end" android:text="@string/dmWidgetIdle" />
+    </LinearLayout>
+    <TextView android:id="@+id/dmwPaste" android:layout_width="wrap_content" android:layout_height="40dp"
+        android:gravity="center" android:paddingStart="14dp" android:paddingEnd="14dp" android:layout_marginStart="6dp"
+        android:background="@drawable/dm_widget_btn" android:textColor="#FFFFFF" android:textSize="14sp" android:text="@string/dmWidgetPaste" />
+    <TextView android:id="@+id/dmwPause" android:layout_width="wrap_content" android:layout_height="40dp"
+        android:gravity="center" android:paddingStart="14dp" android:paddingEnd="14dp" android:layout_marginStart="6dp"
+        android:background="@drawable/dm_widget_btn2" android:textColor="@color/dm_widget_fg" android:textSize="14sp" android:text="@string/dmPauseAll" />
+</LinearLayout>

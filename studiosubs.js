@@ -1185,7 +1185,9 @@ function imItalic(line, it) {
 }
 const imWs = (s) => pyStrip(s.replace(/[ \t\u00a0]+/g, ' '));
 const IM_AD = /(subtitles?|subs|captions?|captioning|synced?|sync|resync(?:ed)?|corrected|ripped|encoded|transcript|timing)\s*(?:&\s*\w+\s*)?(by|:)|opensubtitles|addic7ed|subscene|podnapisi|yts\.|yify|\bwww\.|https?:\/\/|[a-z0-9-]+\.(?:com|org|net|tv|io)\b|support us|become (?:a )?vip|advertise your|osdb\.link/i;
-const IM_LABEL = /^([-\u2013\u2014]\s*)?([A-Z][A-Z0-9'\u2019.\- ]{0,24}?)(\s*\([^)]{0,30}\))?\s*:\s+(?=\S)/;
+// 02/11/2026: גם "A & B:" (עד 3 שמות, עד 3 מילים לכל שם), ותווית לבד בשורה — רק כשיש עוד שורה. מראה: _LABEL ב־subsimport.py
+const IM_LABEL = /^([-\u2013\u2014]\s*)?([A-Z][A-Z0-9'\u2019.\- ]{0,24}?(?:\s*(?:&|,|AND)\s*[A-Z][A-Z0-9'\u2019.\- ]{0,24}?){0,2})(\s*\([^)]{0,30}\))?\s*:(?:\s+(?=\S)|\s*$)/;
+const IM_LABEL_SEP = /\s*(?:&|,|\bAND\b)\s*/;
 const IM_MUSIC = /^[\s\u266a\u266b#*]+$/;
 const isUpperCh = (c) => c === c.toUpperCase() && c !== c.toLowerCase();
 const isAlphaCh = (c) => /\p{L}/u.test(c);
@@ -1204,12 +1206,13 @@ function imSpans(lines, op, cl) {
   }
   return [out.join('').split('\n'), n];
 }
-function imLabel(line) {
+function imLabel(line, multi = true) {
   const m = IM_LABEL.exec(line);
   if (!m) return [line, ''];
   const label = pyStrip(m[2]), rest = line.slice(m[0].length);
-  const words = label.split(/\s+/).filter(Boolean);
-  if (!words.length || words.length > 3 || !/[A-Z]/.test(label)) return [line, ''];
+  const names = label.split(IM_LABEL_SEP).map((x) => x.split(/\s+/).filter(Boolean));
+  if (names.some((x) => !x.length || x.length > 3) || !/[A-Z]/.test(label)) return [line, ''];
+  if (!pyStrip(rest) && !multi) return [line, ''];
   const letters = [...rest].filter(isAlphaCh);
   if (letters.length && letters.every(isUpperCh)) return [line, ''];
   return [(m[1] || '') + rest, label];
@@ -1252,7 +1255,7 @@ export function importSubs(raw, opt) {
       for (let ln of lines) {
         ln = imWs(ln);
         if (ln && IM_MUSIC.test(ln)) continue;
-        let [ln2, label] = imLabel(ln);
+        let [ln2, label] = imLabel(ln, lines.length > 1);
         let nm = '';
         if (label) { st.labels++; nm = imTitle(label); names.set(nm, (names.get(nm) || 0) + 1); }
         ln2 = imWs(ln2);

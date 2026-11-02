@@ -182,4 +182,17 @@ for (const k of used) ok(kh.has(k), 'מחרוזת קיימת: ' + k);
   ok(/cat != DmName\.Cat\.APK/.test(r3), 'פעולה "לפתוח" בסיום — לא מתקינה APK לבד');
 }
 
+// סבב 4 (02/11/2026): נגן ברקע, כספת, תור סנכרון, ווידג'ט, QR
+{
+  const D = 'android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/';
+  const r4 = R(D + 'DmRound4Android.kt'), ui4 = R(D + 'DmUiRound4.kt'), pl = R(D + 'DmPlayer.kt'), st = R(D + 'DmStore.kt');
+  ok(/onGetSession\([^)]*\)[^\n]*info\.packageName == packageName/.test(pl), 'סשן המדיה — רק לאפליקציה שלנו ולמערכת');
+  ok(/exportJson\(\)[^\n]*!it\.priv/.test(st), 'כספת — לא בייצוא');
+  ok(/BIOMETRIC_STRONG/.test(ui4) && !/androidx\.biometric/.test(gradle), 'כספת — ביומטריה חזקה של הפלטפורמה');
+  ok(/class DmVaultProvider : FileProvider\(\)/.test(r4), 'FileProvider של הכספת — מחלקה משלו (לא התנגשות במיזוג)');
+  ok(/setMinimumLatency/.test(r4) && !/setExact|AlarmManager/.test(r4), 'תור סנכרון — משימת מערכת, לא שעון מדויק');
+  ok(!/api\.thesnowball\.app|thesnowball\.app\/api/.test(r4 + ui4), 'סבב 4 — בלי השרת שלנו');
+  ok(/AndroidKeyStore/.test(r4), 'סיסמאות לאתרים — מוצפנות ב־Keystore');
+}
+
 console.log('studio-dm: ' + n + ' בדיקות עברו');
