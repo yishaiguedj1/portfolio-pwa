@@ -23,5 +23,10 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const sj = read('studio.js');
   ok(/net\.api\('btNow', \{ job: id \}\)/.test(sj) && /askConfirm\(T\('studioBtNowQ'\)/.test(sj), 'להמשיך עכשיו — רק אחרי אישור');
   ok(/est\.usd = Math\.round\(est\.usd \* BT_EST \* 100\) \/ 100/.test(sj), 'האומדן בחצי מחיר — לפני ההתחלה, עם הסכום');
+  // 02/11/2026: גם דרך Studio לאנדרואיד (ph.nu) — "מתי" מוצג, והחצי מחיר נכנס למפרט ולאומדן
+  ok(/\(f\.ph && f\.ph\.nu\)\) && !f\.link && !f\.ka && !\(f\.ph && !f\.ph\.nu\)/.test(sj) && /P\.nu && btOk\(f\) && f\.bt\) spec\.bt = 1/.test(sj)
+    && (sj.match(/est\.usd = Math\.round\(est\.usd \* BT_EST \* 100\) \/ 100/g) || []).length === 2, 'חצי מחיר גם בבחירה דרך האפליקציה');
+  const S2 = S.normSpec({ name: 'a.mp4', size: 1, dur: 60, from: 'en', to: ['he'], eng: 'api', nu: 1, bt: 1 });
+  ok(S2 && S2.bt === 1, 'השרתון: עבודת nu עם חצי מחיר — נשמר');
   console.log(n + ' בדיקות עברו');
 })().catch((e) => { console.error(e); process.exit(1); });

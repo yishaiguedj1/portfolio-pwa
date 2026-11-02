@@ -387,7 +387,8 @@ export const NORM_FIXED_API = 0.05;
 export const LIST_MAX = 5, BT_EST = 0.55;
 export const WL_RE = /^[a-z0-9]{8,16}$/;
 export const wlNew = () => (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)).slice(0, 14);
-const btOk = (f) => !!(f && (f.fileObj || f.drive) && !f.link && !f.ka && !f.ph && !f.subs && apiMode());
+// 02/11/2026 (צילום המשתמש): גם סרטון שנבחר דרך Studio לאנדרואיד (ph.nu — תרגום רגיל בשרת) — לא רק מהדפדפן
+const btOk = (f) => !!(f && (f.fileObj || f.drive || (f.ph && f.ph.nu)) && !f.link && !f.ka && !(f.ph && !f.ph.nu) && !f.subs && apiMode());
 const listOk = (f) => !!(btOk(f) && f.fileObj);
 export function startEstimate(mode, dur, norm, api, apiOn) {
   const d = dur > 0 ? dur : 0, m = modeById(mode);
@@ -5027,6 +5028,7 @@ function startPhone(f) {
     if (!P.nu) spec.vc = 1;   // 29/10/2026: האפליקציה מעלה גם את הסרטון לענן, ברקע (לנגן מכל מכשיר, לשמירה ולהפקה מחדש) — העבודה לא מחכה לו
     const pb = P.nu ? '' : phPb(f); if (pb) spec.pb = pb;
     if (cpMode()) spec.cp = 1; else if (ryMode()) spec.ry = 1;
+    else if (P.nu && btOk(f) && f.bt) spec.bt = 1;   // 02/11/2026: חצי מחיר — גם דרך האפליקציה
     else if (spec.pw && (P.cap || 0) >= PH_CAP_PT) spec.pt = 1;   // שלב 3: גם שלבי הטקסט בטלפון — השרת רק מעביר ל־Claude
     if (P.w > 0 && P.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, P.w * P.h / (1920 * 1080))) * 1000) / 1000;
     // קודם יוצרים את העבודה ומבקשים מפתח (רשת — בלי נגיעה), ורק אז האומדן: הנגיעה ב"להתחיל" היא זו שפותחת את
@@ -5041,6 +5043,7 @@ function startPhone(f) {
     const k = await phKeyFor(j.job.id);
     if (!k) { ui.starting = false; net.api('remove', { job: j.job.id }).catch(() => {}); flashSafe(errText('phkey')); render('none'); return; }
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
+    if (spec.bt && est.min) { est.bt = true; est.usd = Math.round(est.usd * BT_EST * 100) / 100; est.over = est.left != null && est.usd > est.left; }
     if (est.min && typeof askConfirm === 'function') {
       const yes = await estAsk(est, f);
       if (!yes || form !== f) { ui.starting = false; net.api('remove', { job: j.job.id }).catch(() => {}); render('none'); return; }
