@@ -1003,7 +1003,7 @@ function normArms(a, srcIds) {
     if (!mode || (x.xf != null && !Array.isArray(x.xf)) || (x.src != null && !Array.isArray(x.src))) return null;
     const src = Array.isArray(x.src) ? Array.from(new Set(x.src.map(String))).filter((i) => ids.has(i)) : null;
     if (src && !src.length) return null;
-    out.push({ mode, xf: normXf(x.xf), src });
+    out.push(Object.assign({ mode, xf: normXf(x.xf), src }, x.bt === 1 ? { bt: 1 } : {}));   // bt: הזרוע בחצי מחיר (I3)
   }
   return out;
 }
@@ -1017,6 +1017,7 @@ function waveClone(src, id, uid, now, arm, i) {
   const c = goldClone(src, id, uid, now, arm.mode);
   c.spec = Object.assign({}, c.spec, { out: ['srt'] });   // הרצת גל: רק SRT — בלי צריבה ובלי העלאת וידאו (כמו עבודת העשן)
   if (arm.xf) c.spec.xf = arm.xf;
+  if (arm.bt === 1 && c.spec.eng === 'api' && !c.spec.ka) c.spec.bt = 1; else delete c.spec.bt;   // חצי מחיר לכל זרוע (כמו body.bt בהרצה הרגילה)
   c.wa = i;   // מספר הזרועה בגל (0..) — לזיווג בניתוח
   return c;
 }

@@ -1311,11 +1311,12 @@ function paintWave(p, jobs, srcs) {
   arms.forEach((a, i) => {
     const on = D.wOpen === i;
     rows.push(row({ c: on ? 'purple' : 'gray', ic: String.fromCharCode(0x5d0 + i), t: fmt(t('admWaveArm'), { n: i + 1 }) + ' · ' + modeName(a.m),
-      s: h('bdi', null, a.xf.length ? a.xf.join(' · ') : t('admWaveNoXf')), on: () => { D.wOpen = on ? -1 : i; paint(); } }));
+      s: h('bdi', null, (a.xf.length ? a.xf.join(' · ') : t('admWaveNoXf')) + (a.bt ? ' · ½' : '')), on: () => { D.wOpen = on ? -1 : i; paint(); } }));
     if (!on) return;
     rows.push(row({ c: 'blue', ic: '⇄', t: t('admWaveMode'), v: modeName(a.m), on: () => { a.m = GOLD_MODES[(GOLD_MODES.indexOf(a.m) + 1) % GOLD_MODES.length]; paint(); } }));
     for (const k of XF_KEYS) rows.push(row({ c: a.xf.includes(k) ? 'purple' : 'gray', ic: a.xf.includes(k) ? '✓' : '', t: k,
       on: () => { a.xf = a.xf.includes(k) ? a.xf.filter((x) => x !== k) : a.xf.concat([k]).sort(); paint(); } }));
+    rows.push(row({ c: a.bt ? 'green' : 'gray', ic: a.bt ? '✓' : '', t: t('admWaveBt'), on: () => { a.bt = !a.bt; paint(); } }));
     if (arms.length > 1) rows.push(row({ c: 'red', ic: '×', t: t('admWaveDel'), on: () => { arms.splice(i, 1); D.wOpen = -1; paint(); } }));
   });
   if (arms.length < GOLD_ARMS) rows.push(row({ c: 'gray', ic: '+', t: t('admWaveAdd'), on: () => { arms.push({ m: arms[0].m, xf: [] }); D.wOpen = arms.length - 1; paint(); } }));
@@ -1323,13 +1324,13 @@ function paintWave(p, jobs, srcs) {
   p.append(grp(t('admWaveSrcs')), list(...srcs.map((j) => row({ c: D.wSrc.has(j.id) ? 'orange' : 'gray', ic: D.wSrc.has(j.id) ? '✓' : '',
     t: (j.spec && j.spec.name) || j.id, on: () => { if (D.wSrc.has(j.id)) D.wSrc.delete(j.id); else D.wSrc.add(j.id); paint(); } }))));
   const n = ss.length * arms.length, mins = Math.round(ss.reduce((x, j) => x + ((j.spec && +j.spec.dur) || 0), 0) * arms.length / 60);
-  const tot = arms.reduce((x, a) => x + ss.reduce((y, j) => y + (goldEst(j, a.m) || 0), 0), 0);
+  const tot = arms.reduce((x, a) => x + (a.bt ? 0.5 : 1) * ss.reduce((y, j) => y + (goldEst(j, a.m) || 0), 0), 0);   // bt: בערך חצי (רק במנוע api)
   const busy = jobs.some((j) => j.gs && ['new', 'queued', 'running'].includes(j.state));
   const b = h('button', 'btn', fmt(t('admWaveRun'), { n, u: usd(tot) })); b.type = 'button'; b.disabled = !n || busy || n > GOLD_MAX * arms.length;
   b.addEventListener('click', () => busyGuard(() => askConfirm(fmt(t('admWaveQ'), { n, m: mins, u: usd(tot) }), async () => {
     b.disabled = true;
     const all = ss.length === srcs.length, ids = ss.map((j) => j.id);
-    const r = await api('goldRun', { ok: true, arms: arms.map((a) => Object.assign({ mode: a.m, xf: a.xf }, all ? {} : { src: ids })) });
+    const r = await api('goldRun', { ok: true, arms: arms.map((a) => Object.assign({ mode: a.m, xf: a.xf }, a.bt ? { bt: 1 } : {}, all ? {} : { src: ids })) });
     if (!r.ok) { flash(t('admErr') + ' · ' + (r.error || '')); b.disabled = false; return; }
     let bad = 0;
     for (const j of r.jobs || []) { const s2 = await api('start', { job: j.id, ow: true }); if (!s2.ok) bad++; }

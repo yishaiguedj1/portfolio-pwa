@@ -30,6 +30,10 @@ const R = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   const src0 = { id: 'jSRC', uid: 'u', kind: 'tr', state: 'done', folder: 'f', spec: { mode: 'haiku-high', out: ['compact'], xf: ['gq'], xe: { tl: 'low' } }, fa: { id: 'a' }, gd: { r: 'refs1234567890' } };
   const c = S.waveClone(src0, 'jNEW', 'u', 1, arms[1], 1);
   ok(c.spec.out.join() === 'srt' && JSON.stringify(c.spec.xf) === '["smf"]' && !c.spec.xe && c.wa === 1 && c.gs === 'jSRC' && c.spec.mode === 'haiku-high', 'waveClone — רק SRT, xf של הזרועה (לא של המקור), מספר הזרועה');
+  const ab = S.normArms([{ mode: 'haiku-medium', bt: 1 }, { mode: 'haiku-medium', bt: true }], ['jSRC']);
+  const apiSrc = Object.assign({}, src0, { spec: Object.assign({}, src0.spec, { eng: 'api', bt: 1 }) });
+  ok(ab[0].bt === 1 && !ab[1].bt && S.waveClone(apiSrc, 'j1', 'u', 1, ab[0], 0).spec.bt === 1 && !S.waveClone(apiSrc, 'j2', 'u', 1, ab[1], 1).spec.bt
+    && !S.waveClone(src0, 'j3', 'u', 1, ab[0], 0).spec.bt, 'זרוע בחצי מחיר (bt) — רק כשביקשו (1) ורק במנוע api; מהמקור לא עובר');
   ok(!S.goldClone(src0, 'jX', 'u', 1).spec.xf, 'goldClone — xf של המקור לא עובר להרצה רגילה');
   ok(S.publicJob(Object.assign({}, c, { created: 1, updated: 1 }), 2).wa === 1 && S.publicJob(Object.assign({}, src0, { created: 1, updated: 1 }), 2).wa === -1, 'publicJob — wa (‎-1 = לא בגל)');
   const api = R('ibkr-proxy/api/studio.js');
