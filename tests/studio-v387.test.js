@@ -48,6 +48,10 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const S = require(path.join(root, 'ibkr-proxy/lib/studio.js'));
   ok(/op === 'goldRun'[\s\S]{0,2500}S\.maxActive\(isAdmin\(user\)\)\) return res\.status\(409\)\.json\(\{ ok: false, error: 'too_many' \}\)/.test(read('ibkr-proxy/api/studio.js')), 'goldRun: לא עוקף את MAX_ACTIVE (הסקירה)');
   ok(S.GOLD_REF_MAX === N.GOLD_REF_MAX && S.GOLD_MAX === S.MAX_ACTIVE, 'אותה מגבלת גודל בטלפון ובשרתון; סט הזהב עד MAX_ACTIVE עבודות (רץ ביחד בלי לעקוף את המגבלה)');
+  // 02/11/2026: למנהל עד GOLD_MAX_ADMIN — סט המדידה של איכות התרגום; עדיין רץ ביחד, בתוך MAX_ACTIVE_ADMIN
+  ok(S.goldMax(false) === S.GOLD_MAX && S.goldMax(true) === S.GOLD_MAX_ADMIN && S.GOLD_MAX_ADMIN > S.GOLD_MAX && S.GOLD_MAX_ADMIN <= S.MAX_ACTIVE_ADMIN, 'התקרה לפי תפקיד: למנהל GOLD_MAX_ADMIN (בתוך MAX_ACTIVE_ADMIN), לשאר GOLD_MAX');
+  const apiG = read('ibkr-proxy/api/studio.js');
+  ok(/others\.length >= S\.goldMax\(isAdmin\(user\)\)\) return res\.status\(409\)\.json\(\{ ok: false, error: 'gold_full' \}\)/.test(apiG) && /\.filter\(\(x\) => x\[0\]\)\.slice\(0, S\.goldMax\(isAdmin\(user\)\)\)/.test(apiG), 'השרתון: התקרה לפי התפקיד — בסימון ובהרצה');
   const src = { id: 'j' + 'Q'.repeat(20), kind: 'tr', state: 'done', gd: { r: 'refs1234567890', n: 4 }, fa: { id: 'aud1234567890' }, folder: 'fold1234567890', spec: { mode: 'opus-medium', out: ['compact'] } };
   ok(S.goldSources([src, Object.assign({}, src, { gd: null }), Object.assign({}, src, { state: 'failed' }), Object.assign({}, src, { fa: null })]).length === 1, 'goldSources: רק שהסתיימו, עם ייחוס וקבצים');
   const c = S.goldClone(src, 'j' + 'R'.repeat(20), 'u1', 5);
