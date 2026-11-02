@@ -650,8 +650,8 @@ def answer_lines(text: str, allowed: set[str]) -> dict[str, str]:
 # הסיווג לפי הקוד — הודעה חדשה בבודק לא משנה בשקט את העדיפות שלה (כך "אותיות לועזיות" עם המילה "מונח" דחקה את חריגות
 # הקצב, והודעת ההזזה לא נשלחה לתיקון בכלל). בלי קוד (vt ישן / נקודת שמירה ישנה) — לפי המילים, כמו עד היום.
 CODE_HARD = frozenset(('id', 'miss', 'eq', 'drift', 'spk', 'len', 'dlg', 'brk', 'nikud', 'dash', 'tag', 'part'))
-CODE_SOFT = frozenset(('num', 'gls', 'lat', 'name', 'spl', 'gen', 'agr', 'q', 'hdg', 'short', 'cps', 'cur'))
-CODE_RANK = {'num': 0, 'gen': 1, 'agr': 1, 'gls': 1, 'lat': 1, 'name': 1, 'spl': 1, 'q': 2, 'hdg': 2, 'short': 3, 'cps': 4, 'cur': 5}
+CODE_SOFT = frozenset(('num', 'gls', 'lat', 'name', 'spl', 'gen', 'agr', 'q', 'hdg', 'short', 'cps', 'cur', 'turn'))
+CODE_RANK = {'num': 0, 'turn': 0, 'gen': 1, 'agr': 1, 'gls': 1, 'lat': 1, 'name': 1, 'spl': 1, 'q': 2, 'hdg': 2, 'short': 3, 'cps': 4, 'cur': 5}
 _CODE_RE = re.compile(r'^\[([a-z]+)\] ')
 
 
@@ -804,8 +804,13 @@ def neighbors(order: list[str], cur: dict[str, str], k: str, nb: int) -> str:
 # 28/10/2026 (ניתוח פרקים 16–20, החלטת המשתמש): ניסוי "ביקורת ב־medium גם במצב high" — השרתון מסמן חצי מהעבודות (xr,
 # lib/studio.js rvAb). הביקורת (ו־qc_round, גם 'rv') במאמץ medium כשהמצב high/max — לא מעלים מצב נמוך, ולא דורסים את
 # ניסוי המאמץ של סט הזהב (xe)
-def rv_ab(eng, st) -> bool:
-    if (st or {}).get('xr') != 1 or (eng.role_effort or {}).get('rv'):
+def rv_ab(eng, st) -> bool:   # noqa: ARG001 — st נשאר בחתימה (הקריאה בצנרת), xr כבר לא נקרא
+    """02/11/2026 (PR3, ‏D5 §5.2 · ‏D10 R8(1), אישור 5): "xr קבוע" — הביקורת ב־medium גם במצב high/max, רק ב־Haiku.
+    ‏+0.20 בשיעור הניצחון (p=0.050), ‏‎−$0.033 ו־‎−113 שנ׳ לפרק ב־high. השדה xr שהשרתון עוד מסמן עד 30/11 — רעש
+    (docs/studio-worker.md). ניסוי המאמץ של סט הזהב (role_effort.rv) גובר"""
+    if (eng.role_effort or {}).get('rv'):
+        return False
+    if 'haiku' not in str(getattr(getattr(eng, 'spec', None), 'model', '') or ''):
         return False
     e = getattr(getattr(eng, 'spec', None), 'effort', None) or 'medium'
     if e not in llm.EFFORTS or llm.EFFORTS.index(e) <= llm.EFFORTS.index('medium'):
@@ -902,7 +907,7 @@ ARB_TASK = """הכרעה בין שני תרגומים של אותן כתוביו
 # התיקון האחרון — 37% / 28%. הקלקולים מהערות "לשקול" שהמודל ניסה לרצות: מספרים (27 קלקלו מול 12 שיפרו — "רגל" במקום
 # מטר, "שנות ה־90" למספר, מספר מתמלול שגוי) ומחרוזות מילון (29 מול 12 — יחיד במקום רבים, סמיכות שבורה). הן נשארות בבדיקה
 # (בדוח, אצל השופט ובביקורת) — רק לא נשלחות לתיקון אוטומטי. וכל תשובה עוברת fix_ok לפני שהיא נכנסת.
-FIX_SKIP = frozenset(('num', 'gls'))
+FIX_SKIP = frozenset(('num', 'gls', 'turn'))   # turn (02/11/2026, PR3) — מידע לביקורת ולשופט, לא חוזר למתקן
 _NUM_RE = re.compile(r'\d+(?:[.,]\d+)*')
 
 
@@ -2129,7 +2134,8 @@ class Pipeline:
     # -------------------------------------------------------------- 6.6 שבירת שורות (25/10/2026, אישור המשתמש)
     def line_breaks(self) -> dict:
         """vt (session_01UZAW, ‏vt/linebreak.py) מציע לכל כתובית דו־שורתית כמה מקומות שבירה; Haiku 5.5 · low בוחר
-        (שיפוט עיוור: 2% לא קבילות מול 5–9% למודל התחבירי ו־14% לכללים). הבחירה משנה רק את מקום השבירה —
+        (שיפוט עיוור ב־25/10: 2% לא קבילות מול 5–9% למודל התחבירי ו־14% לכללים; ‏D9 ב־02/11 — לא מתקיים בלי חשיבה:
+        13.6% חותכות קשר תחבירי חזק מול 0.1% במודל, ו־31% זהות לו. התיקון ב־PR8). הבחירה משנה רק את מקום השבירה —
         לא טקסט ולא תזמון — ו־build שאחריה (השופט, finish) מחיל אותה. כל תקלה / vt בלי הפקודות / העתק־הדבק —
         ממשיכים בלי (המודל התחבירי / הכללים)."""
         if getattr(self.eng, 'manual', False):
@@ -2372,7 +2378,7 @@ def run_auto(jobmod, args) -> int:
     else:
         eng = llm.Engine(llm.Spec.of(mode), cap_usd=float(cap) if cap else DEFAULT_CAP_USD)
         eng.role_effort = llm.norm_xe((st.get('spec') or {}).get('xe'))   # 24/10/2026: ניסוי המאמץ (סט הזהב)
-        rv_ab(eng, st)                                                       # 28/10/2026: ניסוי "ביקורת ב־medium"
+        rv_ab(eng, st)                                                       # 02/11/2026: xr קבוע — ביקורת ב־medium (Haiku)
         bt_on(eng, st)                                                       # 01/11/2026 (I3): חצי מחיר — תור החיסכון
     if hasattr(J, 'LIVE_USAGE'):
         J.LIVE_USAGE = eng.ledger.list             # 21/10/2026: העלות בזמן ריצה, וגם בכשל של שלב הכלים (usage_safe)

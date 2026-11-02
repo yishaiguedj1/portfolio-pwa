@@ -138,7 +138,7 @@ ok(undef.length === 0, 'כל משתנה CSS בסטודיו מוגדר (שם שג
 const inner = st.split('\n').filter((l) => /innerHTML/.test(l));
 ok(inner.length === 1 && /s\.innerHTML = ICON\[k\];/.test(inner[0]), 'innerHTML רק לסמלים הקבועים — כל טקסט דרך textContent');
 ok(!/\bfetch\(|XMLHttpRequest|sendBeacon|WebSocket/.test(st), 'הממשק לא פונה לרשת בעצמו — רק דרך studionet.js (שלב 2)');
-ok(!/localStorage\.setItem\((?!LS_STUDIO)/.test(st), 'כותב רק למפתח שלו ב־localStorage');
+ok(!/localStorage\.setItem\((?!LS_STUDIO|LS_THUMBS)/.test(st), 'כותב רק למפתחות שלו ב־localStorage (02/11/2026: גם LS_THUMBS — התמונות שבראש הבית לציור הראשון)');
 // שלב 2: יש שדה למפתח של ה־Routine — שדה סיסמה, נמחק מהזיכרון אחרי שמירה מוצלחת וביציאה מהדף, ולעולם לא נכנס לאחסון
 ok(/keyIn\.type = 'password'/.test(st) && /w\.key = '';/.test(st) && /ui\.wiz = \{ url: ui\.wiz\.url, key: '', busy: false, err: '' \}/.test(st)
   && !JSON.stringify(S.normStore({ settings: { k: 'sk-ant-oat01-' + 'a'.repeat(30) }, conn: { hint: 'trig_…abcd', k: 'sk-ant-oat01-' + 'a'.repeat(30), u: 'https://x' } })).includes('sk-ant'), 'המפתח של ה־Routine: שדה סיסמה, נמחק אחרי השמירה וביציאה, ולא נכנס לאחסון בטלפון');

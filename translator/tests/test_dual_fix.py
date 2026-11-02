@@ -55,7 +55,7 @@ class PureFixOk(unittest.TestCase):
         self.assertFalse(P.fix_ok('דיברנו עם אקמן אתמול בערב', 'דיברנו', nm), 'פחות מחצי — נזרק')
 
     def test_skip_codes(self):
-        self.assertEqual(P.FIX_SKIP, frozenset(('num', 'gls')))
+        self.assertEqual(P.FIX_SKIP, frozenset(('num', 'gls', 'turn')))   # turn — 02/11/2026 (PR3)
         self.assertTrue(P.FIX_SKIP <= P.CODE_SOFT, 'רק הערות "לשקול" — בעיה שחייבת נשלחת תמיד')
 
 

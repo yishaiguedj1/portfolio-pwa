@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import csv
 import math
+import os
 import re
 from pathlib import Path
 
@@ -67,6 +68,10 @@ def speaker_label(spk: str | None, speakers: dict) -> str:
 def gender_of(info: dict | None) -> str:
     """'f' / 'm' / '' מתוך שדה המגדר של הדובר (כמו שההגהה כתבה בטבלה: "נקבה", "זכר (לפי השם)")."""
     g = str((info or {}).get("gender") or "")
+    # 02/11/2026 (PR3, ‏D3 §2 · דגל gq): "לא ודאי" / "?" → בלי מגדר (בלי רמז ובלי [gen]). בדגל ולא כבאג: ב־17 פרקים, כשהתדריך
+    # כתב "לא ודאי", המגדר היה נכון ב־11 מתוך 14. העבודה מדליקה את VT_GQ (job._vt) רק כשהדגל פעיל; נמדד ב־M2 (מונה gen)
+    if os.environ.get("VT_GQ") == "1" and ("לא ודאי" in g or "?" in g):
+        return ""
     f, m = ("נקבה" in g or "אישה" in g), ("זכר" in g or "גבר" in g)
     return "f" if f and not m else "m" if m and not f else ""
 
@@ -461,12 +466,18 @@ def drift_ids(cues: list[dict], he: dict[str, str]) -> dict[str, int]:
 _TAG_Q = re.compile(r"^(?:right|you know|ok(?:ay)?|yeah|huh|no|isn't it|don't you|you see|correct|true)\W*$", re.I)
 
 
+# 02/11/2026 (PR3, ‏D5 §5.3): מילות שיח ושאלה רטורית — לא שאלה ("you know what?", "guess what?"). ב־17 פרקים: 8 סימונים,
+# 5 מהם הזיקו בתיקון וניצחון אחד
+_DISC_Q = re.compile(r"^(?:(?:and|but|so|oh|well),?\s+)?(?:you know what|guess what|you know something|know what|"
+                     r"can you believe\b.*)\W*$", re.I)
+
+
 def _real_question(en: str) -> bool:
     """משפט שאלה של 3 מילים ומעלה באמצע הכתובית — לא "right?" בסוף משפט (מילת מילוי שמשמיטים לפי המדריך)"""
     for m in re.finditer(r"([^.?!…]+)\?", en):
         q = m.group(1).strip().strip(",;:-—")
         tail = q.split(",")[-1].strip()
-        if len(q.split()) >= 3 and not _TAG_Q.match(tail):
+        if len(q.split()) >= 3 and not _TAG_Q.match(tail) and not _DISC_Q.match(q):
             return True
     return False
 
@@ -476,7 +487,7 @@ def _tag_question(en: str) -> bool:
     last = re.split(r"[.!…]\s+", en.rstrip())[-1]
     q = last.rstrip().rstrip("?").strip()
     tail = re.split(r"[,;—–]\s*|\s-\s", q)[-1].strip()
-    return bool(_TAG_Q.match(tail)) and len(q.split()) > len(tail.split())
+    return (bool(_TAG_Q.match(tail)) and len(q.split()) > len(tail.split())) or bool(_DISC_Q.match(q))
 
 
 # 25/10/2026 (ניתוח האיכות, session_01UZAW + המאגר): הסתייגות שנשמטה הופכת השערה לעובדה ("maybe", "I think", "about three
@@ -494,10 +505,10 @@ _HEDGE_EN = re.compile("|".join([
     r"\bi don't know (?:if|that|whether)\b",
     r"\b(?:about|around|roughly|approximately|nearly|almost|close to|something like|like) " + _HEDGE_NUM + r"\b",
 ]), re.I)
-_HEDGE_MAY = re.compile(r"\bmay\b(?! \d)")          # רק באות קטנה — May = החודש
+_HEDGE_MAY = re.compile(r"\bmay\b(?! \d)(?! (?:I|we)\b)")   # רק באות קטנה — May = החודש; "may I/we" = בקשה מנומסת (PR3)
 _HEDGE_HE = re.compile(
     r"אולי|כנראה|מן הסתם|סביר|ייתכן|יתכן|יכול להיות|יכולים להיות|עשוי|עשויה|עשויים|עלול|עלולה|עלולים|בערך|בסביבות|סביב|"
-    r"כמעט|קרוב ל|משהו כמו|פחות או יותר|יותר או פחות|לדעתי|לדעתנו|בעיניי|חושב|חושבת|חושבים|נראה|נדמה|מניח|מניחה|מניחים|"
+    r"כמעט|קרוב ל|משהו כמו|פחות או יותר|יותר או פחות|לדעתי|לדעתנו|בעיניי|חושב|חושבת|חושבים|נרא(?:ה|ית|ים|ות)|נדמ(?:ה|ית|ים)|מניח|מניחה|מניחים|"
     r"משער|מאמין|מאמינה|מאמינים|לא בטוח|לא יודע|במידה|מעין|סוג של|קצת|כביכול|לכאורה|אומרים|סיפרו לי|שמעתי|מתברר|מסתבר|"
     r"אפשר ש|מרגיש|מרגישה|הייתי אומר|לפחות|נשמע|"
     r"(?:^|\s)כ[־-]?(?:\d|אחד|שניים|שתיים|שני|שתי|שלוש|ארבע|חמש|שש|שבע|שמונה|תשע|עשר|עשרים|שלושים|ארבעים|חמישים|שישים|"
@@ -571,7 +582,7 @@ def _head_found(opts: list[str], txt: str) -> bool:
 CHECK_CODES = {
     "id": "h", "miss": "h", "eq": "h", "drift": "h", "spk": "h", "len": "h", "dlg": "h", "brk": "h",
     "nikud": "h", "dash": "h", "tag": "h", "part": "h",
-    "num": "s", "gls": "s", "lat": "s", "name": "s", "spl": "s", "q": "s", "short": "s", "cps": "s", "cur": "s", "hdg": "s", "gen": "s", "agr": "s",
+    "num": "s", "gls": "s", "lat": "s", "name": "s", "spl": "s", "q": "s", "short": "s", "cps": "s", "cur": "s", "hdg": "s", "gen": "s", "agr": "s", "turn": "s",
     "dots": "-",
 }
 CHECK_CODE_RE = re.compile(r"^- #(\d+): \[([a-z]+)\] ")
@@ -749,8 +760,14 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
         txt = normalize_he(t.replace("||", " ").replace("|", " "))
         n = visible_len(txt)
         if c.get("parts") and "||" not in t:
-            issues.append(f"- #{k}: [spk] כתובית של שני דוברים — חסר '||' בין הדוברים")
-            stats["errors"] += 1
+            # 02/11/2026 (PR3, ‏D3 §5.6): קשיח רק כשהמקור חזק — מקף בכתוביות האנגליות (ref) או בכתוביות שהמשתמש העלה
+            # (subs). תווית קול / שאלה ותשובה — הטיוטה כותבת || תמיד, והסרה שלו היא החלטה של הביקורת שראתה את ההקשר
+            # (17 פרקים: 6 מ־8 ההחזרות של התיקון האחרון היו שגויות). בלי psrc (תוכנית ישנה) — רך
+            if c.get("psrc", "spk") in ("ref", "subs"):
+                issues.append(f"- #{k}: [spk] כתובית של שני דוברים — חסר '||' בין הדוברים")
+                stats["errors"] += 1
+            else:
+                issues.append(f"- #{k}: [turn] אולי שני דוברים — '||' רק אם ברור מההקשר")
         if n > max_chars:
             issues.append(f"- #{k}: [len] {n} תווים — מעל {max_chars} (לא ייכנס בשתי שורות)")
             stats["errors"] += 1
@@ -799,7 +816,7 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
         if NIKUD_RE.search(txt):
             issues.append(f"- #{k}: [nikud] ניקוד בתרגום — כתוביות נכתבות בכתיב מלא בלי ניקוד (מילה דו־משמעית: לנסח מחדש)")
             stats["errors"] += 1
-        # כללי נטפליקס־עברית (המסמך הנורמטיבי הפומבי היחיד לכתוביות עבריות):
+        # כללי ת־כתוביות לעברית (המסמך הנורמטיבי הפומבי היחיד לכתוביות עבריות):
         if re.match(r"^[-–־]", t.lstrip()):
             issues.append(f"- #{k}: [dash] מקף דובר בתחילת הכתובית — המקף נוסף אוטומטית (לשני דוברים כותבים 'א || ב')")
             stats["errors"] += 1

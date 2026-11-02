@@ -689,6 +689,12 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
    היוצא נשאר מוצג עד סוף הסיבוב (cube-out); אחרי קובייה — בלי אנימציית הכניסה (no-in, עד שהעמוד יוצא) */
 .tabpage.cube-in, .tabpage.cube-out { display: block; }
 .tabpage.no-in { animation: none; }
+/* 02/11/2026 (סבב קפיצות 9 — הקלטת Invest, לחיצה על "מעקב": שני פריימים ריקים לגמרי לפני הסיבוב): העמוד הגלוי קיבל שכבת GPU
+   משלו רק בתחילת המעבר (cubeFace: will-change), ובטלפון שכבה חדשה מוצגת לפני שצוירה. עכשיו השכבה קיימת כבר במנוחה, והמעבר רק
+   מזיז אותה (qa-sweep: שכבה חדשה לתוכן שהיה גלוי — 38 → 0). transform ולא opacity: opacity הופך את העמוד ל"שורש רקע", והזכוכית
+   שבתוכו (כפתור "חזור", צ'יפים) מפסיקה לטשטש את הרקע שמאחוריו (נמדד). הבלוק המכיל של position:fixed בתוכו — העמוד: הגרירה
+   מקזזת את תזוזתו (dragLift), והחלונות והכפתורים הצפים נוספים ל־body */
+.tabpage.active { will-change: transform; }
 /* 31/10/2026 (סבב קפיצות 6, ש2): שכבה קבועה לעמוד הפעיל (will-change: transform, 2.94.3) בוטלה — בהקלטה מהטלפון החמירה:
    הדף נעלם אחרי נחיתה בכל העמודים במקום רק בסקירה. הסיבה כנראה בחימום השכנים (tabPrewarm ב־app.js), לא בשכבה */
 /* Academy / Studio: הדף היוצא = העתק "מת" של השכבה — בלי אנימציות כניסה שמתחילות מחדש בהעתק; רקע אטום מתחת לשכבה */
@@ -700,6 +706,16 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 /* 29/10/2026 (Studio ו־Academy; המדידה הראשונה שאמרה "ב־Academy זה מקפיץ" צילמה את סיבוב הלוגו ולא את הקובייה): פאה בזמן הסיבוב — בלי זכוכית (בטלפון נצבעה כפס אטום שחתך את הכותרת, ו"קפצה" בנחיתה; tools/qa-deep.js --landing) */
 :is(.st-root, .lib-root):is(.cube-face, .cube-ghost) *, :is(.st-root, .lib-root):is(.cube-face, .cube-ghost) *::before, :is(.st-root, .lib-root):is(.cube-face, .cube-ghost) *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 .cube-bd { position: fixed; inset: 0; z-index: 899; background: var(--bg); pointer-events: none; }
+/* 02/11/2026 (סבב קפיצות 8): מעבר ממוקד לשכבה (core: cubeVTPre) — הצילומים של הדף היוצא והנכנס הם הפאות; המנוע מזיז אותם
+   (Web Animations על הפסאודו־אלמנטים). בלי האנימציות של הדפדפן (דהייה, מיזוג plus-lighter); הקבוצה "חיה" עד שהמנוע מסיים
+   (skipTransition) — רשת ביטחון של 20 שנ׳. הנכנס מתחיל בלתי נראה (p = 0), כמו בקובייה */
+@keyframes cube-vt-keep { from { opacity: 1; } to { opacity: 1; } }
+.cube-vt::view-transition { background: var(--bg); }   /* מאחורי הפאות (במקום ‎.cube-bd) */
+.cube-vt::view-transition-group(root) { animation: cube-vt-keep 20s linear; }
+.cube-vt::view-transition-image-pair(root) { isolation: auto; }
+.cube-vt::view-transition-old(root), .cube-vt::view-transition-new(root) { animation: none; mix-blend-mode: normal; -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+.cube-vt::view-transition-new(root) { opacity: 0; }
+.cube-vt::view-transition-group-children(root) { animation: none; }
 /* 14/10/2026: פאה בראש הגלילה — בלי טשטוש בהדר בזמן הסיבוב (מאחוריו רק רקע אחיד, אז אין הבדל נראה; עם הטשטוש — 50ms לפריים) */
 .cube-flat .appbar { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 

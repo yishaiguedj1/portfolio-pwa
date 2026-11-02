@@ -1168,6 +1168,8 @@ private fun PickSheet(a: BrowserActivity, t: BrTab) {
                 if (vs.isNotEmpty() && io.github.yishaiguedj1.snowball.AppRoute.studioInstalled(ctx)) Group {
                     IRow(stringResource(R.string.dmDlTr), color = Red, chevron = false) { a.menuPick(t, "t" + vs[0].k) }
                 }
+                // 02/11/2026 (המשתמש לא מצא "רק קטע"): הגיליון המלא של מנהל ההורדות — קטע, המרה, עד גודל, פרקים, פרטי
+                m.p?.let { mp -> Group { IRow(stringResource(R.string.brMoreOpts), color = Red, chevron = true) { a.download(mp) } } }
             } else if (m.st == 1) Group {
                 Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                     CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = c.mute)

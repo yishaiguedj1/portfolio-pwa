@@ -38,6 +38,7 @@ object DmStore {
     fun add(t: DmTask) {
         // 01/11/2026 (סבב 3): חוקים לפי אתר וסוג, ומה שאפליקציה אחרת ביקשה (תור, תיקייה, שם) — DmR3.onAdd
         app?.let { c -> runCatching { DmR3.onAdd(c, t) } }
+        runCatching { DmR4.onAdd(t) }   // 02/11/2026 (סבב 4): קטע / המרה / פרקים / פרטי — מה שנבחר בגיליון
         tasks.add(0, t); save()
     }
 
@@ -71,7 +72,7 @@ object DmStore {
 
     fun newId(): String = java.util.UUID.randomUUID().toString().replace("-", "").take(16)
 
-    fun exportJson(): String = DmTask.listJson(all().map { t ->
+    fun exportJson(): String = DmTask.listJson(all().filter { !it.priv }.map { t ->   // סבב 4 (29): בלי הפרטיות
         // ייצוא = רק מה שצריך כדי להוסיף שוב (בלי מקטעים, בלי קבצים בטלפון)
         DmTask(t.id, t.url, t.ref, t.kind).also { it.name = t.name; it.vf = t.vf; it.af = t.af; it.height = t.height; it.audioOnly = t.audioOnly; it.title = t.title }
     })

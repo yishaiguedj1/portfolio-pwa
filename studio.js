@@ -387,7 +387,9 @@ export const NORM_FIXED_API = 0.05;
 export const LIST_MAX = 5, BT_EST = 0.55;
 export const WL_RE = /^[a-z0-9]{8,16}$/;
 export const wlNew = () => (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)).slice(0, 14);
-const btOk = (f) => !!(f && (f.fileObj || f.drive) && !f.link && !f.ka && !f.ph && !f.subs && apiMode());
+// 02/11/2026 (צילום המשתמש): גם סרטון שנבחר דרך Studio לאנדרואיד (ph.nu — תרגום רגיל בשרת) — לא רק מהדפדפן
+// 02/11/2026 (בקשת המשתמש): חצי מחיר — כרגע רק למנהל (גם נאכף בשרתון: create)
+const btOk = (f) => !!(ui.api && ui.api.admin) && !!(f && (f.fileObj || f.drive || (f.ph && f.ph.nu)) && !f.link && !f.ka && !(f.ph && !f.ph.nu) && !f.subs && apiMode());
 const listOk = (f) => !!(btOk(f) && f.fileObj);
 export function startEstimate(mode, dur, norm, api, apiOn) {
   const d = dur > 0 ? dur : 0, m = modeById(mode);
@@ -1564,6 +1566,7 @@ function thumbsLoad() {
 }
 function thumbSet(id, u) {
   thumbs.set(id, u);
+  if (thumbsTop.includes(id)) thumbsTopSave();   // סבב קפיצות 9: עבודה מראש הבית — גם לציור הראשון של הפתיחה הבאה
   const w = thumbWait.get(id); thumbWait.delete(id);
   if (w) for (const f of w) { try { f(u); } catch (e) {} }
 }
@@ -1622,7 +1625,33 @@ function paintThumb(th, rec) {
   const u = thumbFor(rec, (x) => { if (!x) return; if (Date.now() - t0 > 250) th.classList.add('in'); put(x); });   // דהייה רק לתמונה חדשה שמגיעה אחרי שהמסך כבר מוצג
   if (u) put(u);
 }
-export const thumbsReady = thumbChain = thumbsLoad();   // מיד בטעינת המודול — studio-app.js מחכה לו (עד 400ms) לפני הציור הראשון
+/* 02/11/2026 (סבב קפיצות 9 — הקלטה: פתיחה מהתפריט, אחרי מסך הפתיחה של אנדרואיד רקע ריק ~170ms): הבית מצויר בתוך הריצה
+   הסינכרונית של המודול (studio-app.js) — רק היא חוסמת ציור. IndexedDB אסינכרוני ואיטי בפתיחה (נמדד: ~200ms אחרי שהמודול רץ),
+   ולכן התמונות של העבודות שבראש הבית (THUMBS_TOP — מה שנראה בלי גלילה) שמורות גם ב־localStorage (‏pwa_stthumb_v1, ‏ACCOUNT_KEYS)
+   ונטענות כאן מיד: הציור הראשון = הבית עם התמונות. השאר — מ־IndexedDB כמו קודם */
+export const LS_THUMBS = 'pwa_stthumb_v1', THUMBS_TOP = 4;
+let thumbsTop = [], thumbsTopSig = '';
+const thumbsSig = (o, ks) => ks.map((k) => k + ':' + o[k].length).join(',');
+function thumbsTopLoad() {
+  try {
+    const o = JSON.parse(localStorage.getItem(LS_THUMBS) || 'null');
+    if (!o || typeof o !== 'object') return;
+    const ks = Object.keys(o).filter((k) => typeof o[k] === 'string' && /^data:image\//.test(o[k]));
+    for (const k of ks) if (!thumbs.has(k)) { thumbs.set(k, o[k]); thumbEl(k, o[k]); }
+    thumbsTop = ks; thumbsTopSig = thumbsSig(o, ks);
+  } catch (e) {}
+}
+function thumbsTopSave(ids) {
+  if (ids) thumbsTop = ids.slice(0, THUMBS_TOP);
+  const o = {};
+  for (const id of thumbsTop) { const u = thumbs.get(id); if (u) o[id] = u; }
+  const sig = thumbsSig(o, Object.keys(o));   // גם האורך — תמונה שהוחלפה לאותה עבודה נשמרת מחדש
+  if (sig === thumbsTopSig) return;
+  thumbsTopSig = sig;
+  try { if (sig) localStorage.setItem(LS_THUMBS, JSON.stringify(o)); else localStorage.removeItem(LS_THUMBS); } catch (e) {}
+}
+if (typeof localStorage !== 'undefined') thumbsTopLoad();
+export const thumbsReady = thumbChain = thumbsLoad();   // מיד בטעינת המודול — השאר מ־IndexedDB
 
 /* סבב 8: טיוטת עורך הכתוביות — שינויים שלא נשמרו שורדים רענון וסגירה (בטלפון בלבד, לפי מזהה העבודה).
    ev = הגרסה בשרתון שעליה נערך; טיוטה על גרסה ישנה יותר — רק באישור (אחרת הייתה דורסת שמירה מאוחרת) */
@@ -2426,7 +2455,7 @@ const STUDIO_DIAL = {
   cur: () => (stDialC ? stDialC.from : stKeyOf(ui.view, ui.param)),
   begin(cur, to, side) {          // כמו ההחלקה (snbSwipe): העתק של השכבה יוצא, האח נצבע בשכבה עצמה
     if (!root || cubeReduce() || document.hidden) return null;
-    const bd = cubeBackdrop(root);
+    const bd = !to && typeof cubeBackdropReal === 'function' ? cubeBackdropReal(root) : cubeBackdrop(root);   // הקפיץ — השכבה עצמה זזה
     if (!to) { stDialC = { side, p: 0, rub: true, out: cubeFace(root, { dead: true }), bd, from: cur }; return stDialC; }
     const pg = stSibPage(to);
     if (!pg) { bd.remove(); return null; }
@@ -3175,7 +3204,10 @@ function jobsCard(rows) {
   const onRs = () => { clearTimeout(rsT); rsT = setTimeout(fit, 120); };
   addEventListener('resize', onRs);
   // גובה השורות משתנה אחרי הציור (הגופן נטען, שם שנשבר לשתי שורות) — מחשבים שוב, אחרת עבודה אחת יותר מדי והעמוד נגלל
-  if (typeof ResizeObserver === 'function') { const ro = new ResizeObserver(() => { if (!l.isConnected) { ro.disconnect(); return; } onRs(); }); rows.forEach((r) => ro.observe(r)); }
+  let ro = null;
+  if (typeof ResizeObserver === 'function') { ro = new ResizeObserver(() => { if (!l.isConnected) { ro.disconnect(); return; } onRs(); }); rows.forEach((r) => ro.observe(r)); }
+  // ציור במקום של הבית (jobsCardIn): אותו כרטיס, שורות חדשות — הסגירות כאן קוראות את rows העדכני
+  wrap._jc = (nr) => { rows = nr; listSync(l, rows); if (ro) rows.forEach((r) => ro.observe(r)); fit(); };
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (l.isConnected) fit(); });
   l.addEventListener('scroll', () => { ui.jobsY = l.scrollTop; paint(); }, { passive: true });
   requestAnimationFrame(() => {
@@ -3191,6 +3223,17 @@ function jobsCard(rows) {
    הטופס פותח ישר במצב קריוקי (form.ka קבוע — אין מתג), והבית של התרגום לא מציג שירים */
 function pageKa(p) { pageHome(p, true); }
 const LIVE_PH = new Set(['running', 'queued', 'extract', 'audio', 'video', 'wait']);
+/* 02/11/2026 (סבב קפיצות 8, הקלטת Studio: ההדר והכרטיסים מהבהבים בבית כשהרשימה מתעדכנת; docs/smooth-architecture.md ש1/ש2):
+   ציור במקום (none) של הבית בנה דף חדש והעביר אליו את ההדר — הוצאה מהמסמך הורסת את השכבות שלו (הלוגו החי והשלג, הגדולות
+   בדף) והחזרה יוצרת חדשות, ובטלפון הן מוצגות לפני שנצבעו. עכשיו: מקום שמור (shellKeep.ph) בדף החדש, והילדים עוברים לדף
+   הקיים (listSync) — ההדר לא יוצא מהמסמך. כך גם הכרטיס הנגלל של העבודות (שכבה משלו): הכרטיס הקיים מקבל את השורות החדשות
+   (wrap._jc) ונשאר במקומו — גם הגלילה שלו */
+let shellKeep = null;
+function jobsCardIn(rows) {
+  const o = shellKeep && shellKeep.old.querySelector(':scope > .st-jobs-w');
+  if (o && o._jc && rows.length > 3) { o._jc(rows); const ph = h('i'); shellKeep.map.set(ph, o); return ph; }
+  return jobsCard(rows);
+}
 function pageHome(p, kaTab) {
   const pon = apiMode() ? ui.api.online > 0 : !!store.conn;
   const pill = btn('st-cpill' + (pon ? ' on' : ''), null, () => go('eng'), 'cpill');
@@ -3201,7 +3244,7 @@ function pageHome(p, kaTab) {
     pill.append(cap, h('b', 'sub-val', pon ? T('studioVOn') : apiMode() ? T('studioVOff') : T('studioVConnect')));
     pill.setAttribute('aria-label', lbl);
   } else pill.append(h('i'), h('span', null, lbl));
-  if (SA && SA.shell) { SA.shell.setStatus(pill); p.append(SA.shell.el); }   // עצמאי: ההדר המשותף — הלוגו של Studio במקום הכותרת, הקפסולה בהדר
+  if (SA && SA.shell) { SA.shell.setStatus(pill); p.append(shellKeep && shellKeep.hdr ? (shellKeep.ph = h('i')) : SA.shell.el); }   // עצמאי: ההדר המשותף — הלוגו של Studio במקום הכותרת, הקפסולה בהדר
   else p.append(navBar({ back: 'THE SNOWBALL', end: pill, go: SA ? () => { appGo(SA.home || './'); } : null }), large(T('studioTitle')));
   const ab = accessBanner(); if (ab) p.append(ab);
   const hb = haltBanner(); if (hb) p.append(hb);   // v367: מתג החירום פעיל — כאן רואים למה עבודות לא מתחילות
@@ -3215,6 +3258,7 @@ function pageHome(p, kaTab) {
   // 1/11/2026: עבודה שרצה עכשיו (גם ישנה שחודשה) — בראש הרשימה, לא עמוק ב"עבודות קודמות"; השאר לפי התאריך
   const busy = (rec) => (LIVE_PH.has(jobPhase(rec, runs.get(rec.id))) ? 0 : 1);
   jobs.sort((a, b) => busy(a) - busy(b));
+  if (!kaTab) thumbsTopSave(jobs.map((rec) => rec.id));   // סבב קפיצות 9: התמונות שבראש הבית — גם ב־localStorage
   const drafts = kaTab ? [] : store.drafts;
   if (!drafts.length && !jobs.length) {
     const e = h('div', 'st-empty');
@@ -3253,7 +3297,7 @@ function pageHome(p, kaTab) {
       });
       return r;
     });
-    p.append(secT(kaTab ? T('studioKaSecJobs') : T('studioSecJobs')), jobsCard(rows));
+    p.append(secT(kaTab ? T('studioKaSecJobs') : T('studioSecJobs')), jobsCardIn(rows));
   }
   if (!drafts.length) return;
   const rows = drafts.map((d) => {
@@ -5027,6 +5071,7 @@ function startPhone(f) {
     if (!P.nu) spec.vc = 1;   // 29/10/2026: האפליקציה מעלה גם את הסרטון לענן, ברקע (לנגן מכל מכשיר, לשמירה ולהפקה מחדש) — העבודה לא מחכה לו
     const pb = P.nu ? '' : phPb(f); if (pb) spec.pb = pb;
     if (cpMode()) spec.cp = 1; else if (ryMode()) spec.ry = 1;
+    else if (P.nu && btOk(f) && f.bt) spec.bt = 1;   // 02/11/2026: חצי מחיר — גם דרך האפליקציה
     else if (spec.pw && (P.cap || 0) >= PH_CAP_PT) spec.pt = 1;   // שלב 3: גם שלבי הטקסט בטלפון — השרת רק מעביר ל־Claude
     if (P.w > 0 && P.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, P.w * P.h / (1920 * 1080))) * 1000) / 1000;
     // קודם יוצרים את העבודה ומבקשים מפתח (רשת — בלי נגיעה), ורק אז האומדן: הנגיעה ב"להתחיל" היא זו שפותחת את
@@ -5041,6 +5086,7 @@ function startPhone(f) {
     const k = await phKeyFor(j.job.id);
     if (!k) { ui.starting = false; net.api('remove', { job: j.job.id }).catch(() => {}); flashSafe(errText('phkey')); render('none'); return; }
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
+    if (spec.bt && est.min) { est.bt = true; est.usd = Math.round(est.usd * BT_EST * 100) / 100; est.over = est.left != null && est.usd > est.left; }
     if (est.min && typeof askConfirm === 'function') {
       const yes = await estAsk(est, f);
       if (!yes || form !== f) { ui.starting = false; net.api('remove', { job: j.job.id }).catch(() => {}); render('none'); return; }
@@ -9963,6 +10009,8 @@ function render(kind, still, pre) {     // kind: none (ציור מחדש במק�
   const fk = ae && root.contains(ae) && ae.dataset ? ae.dataset.k : null;   // הפוקוס חוזר לאותו רכיב אחרי ציור מחדש
   if (ui.view === 'home' || ui.view === 'ka') form = null;   // יציאה מהטופס בלי שמירה — הטיוטה לא נשמרת
   const p = h('div', 'st-page');
+  const oldPg = kind === 'none' && (ui.view === 'home' || ui.view === 'ka') ? root.querySelector(':scope > .st-page') : null;
+  shellKeep = oldPg ? { ph: null, old: oldPg, map: new Map(), hdr: !!(SA && SA.shell && oldPg.contains(SA.shell.el)) } : null;
   if (ui.view === 'new') pageForm(p, false);
   else if (ui.view === 'edit') pageForm(p, true);
   else if (ui.view === 'lang') pageLang(p);
@@ -10025,14 +10073,24 @@ function render(kind, still, pre) {     // kind: none (ציור מחדש במק�
   const fwd = kind === 'push' || kind === 'dfwd';
   const anim = (fwd || kind === 'pop' || kind === 'dback') && !still && !reduceMotion() && !document.hidden;
   // 29/10/2026: החוגה זזה יחד עם הקובייה (אותו קפיץ). באמצע החלקה / נסיעה של החוגה (sib, העתק על המסך) — המנוע מזיז אותה
-  if (kind !== 'sib' && kind !== 'sibpop' && !(kind === 'none' && root.nextElementSibling && root.nextElementSibling.classList.contains('cube-ghost'))) stDialSync(!anim);
+  if (kind !== 'sib' && kind !== 'sibpop' && !(kind === 'none' && (root._cubeVT || (root.nextElementSibling && root.nextElementSibling.classList.contains('cube-ghost'))))) stDialSync(!anim);
   const ghost = pre || (anim && typeof cubeClone === 'function' && root.firstChild ? cubeClone(root) : null);
   if (anim && !ghost) p.classList.add(fwd ? 'in-push' : 'in-pop');
   // 29/10/2026 (בטלפון: תפריט ההמבורגר ב־Studio שקוף, התוכן חד מאחוריו — שונה מ־Academy): שכבת הטשטוש של התפריט (shell.js)
   // יושבת בתוך השכבה; ציור דף מחדש (רענון הרשימה) מחק אותה. נשארת כל עוד התפריט פתוח
   const veil = root.querySelector(':scope > .menu-veil');
-  root.replaceChildren(p);
-  if (veil) root.append(veil);
+  const keep = shellKeep; shellKeep = null;
+  if (keep && ((keep.ph && keep.ph.parentNode === p) || keep.map.size) && oldPg.isConnected && oldPg.parentNode === root) {
+    // ההדר והכרטיס הנגלל נשארים במקומם בדף הקיים (listSync לא נוגע בצומת שכבר במקומו); שאר הילדים — מהדף החדש
+    const kids = [...p.childNodes].map((n) => (keep.ph && n === keep.ph ? SA.shell.el : keep.map.get(n) || n));
+    for (const a of [...oldPg.attributes]) if (!p.hasAttribute(a.name)) oldPg.removeAttribute(a.name);
+    for (const a of [...p.attributes]) if (oldPg.getAttribute(a.name) !== a.value) oldPg.setAttribute(a.name, a.value);
+    listSync(oldPg, kids);
+    for (const c of [...root.children]) if (c !== oldPg && c !== veil) c.remove();
+  } else {
+    root.replaceChildren(p);
+    if (veil) root.append(veil);
+  }
   if (SA && SA.shell && SA.shell.el.isConnected && typeof animSync === 'function') animSync(SA.shell.el);   // הלוגו ממשיך מאותו רגע (core)
   root.scrollTop = keepY;
   if (ghost) cubeGhostRun(root, ghost, cubeSideFwd(fwd));

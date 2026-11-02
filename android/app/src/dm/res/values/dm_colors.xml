@@ -3,4 +3,9 @@
      המערכת ציירה לבן/שחור עד הפריים הראשון של Compose. כהה: values-night -->
 <resources>
     <color name="dm_win">#F6F6F8</color>
+    <!-- 02/11/2026 (סבב 4, ‏27): הווידג'ט -->
+    <color name="dm_widget_bg">#F2FFFFFF</color>
+    <color name="dm_widget_fg">#16161A</color>
+    <color name="dm_widget_mute">#6B6B75</color>
+    <color name="dm_widget_fill">#14000000</color>
 </resources>

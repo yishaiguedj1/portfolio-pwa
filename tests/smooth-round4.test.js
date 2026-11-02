@@ -17,7 +17,7 @@ ok(/function cubePre\(/.test(core) && /const cubePreBusy = /.test(core), 'cubePr
   const raf = [];
   const ghost = { style: { opacity: '' }, removed: false, remove() { this.removed = true; } };
   const ctx = { CUBE_WARM_OP: '0.01', document: { hidden: false }, requestAnimationFrame: (f) => raf.push(f), cubeClone: () => ghost };
-  vm.runInNewContext('let _cubePre = null;' + fn(app, 'cubePre') + 'this.cubePre = cubePre; this.busy = () => !!_cubePre;', ctx);
+  vm.runInNewContext('let _cubePre = null; const cubeVTOk = () => false;' + fn(app, 'cubePre') + 'this.cubePre = cubePre; this.busy = () => !!_cubePre;', ctx);
   let got = null;
   ctx.cubePre({}, (g) => { got = g; });
   ok(got === null && ghost.style.opacity === '' && ghost.style.willChange === 'transform' && ctx.busy(), 'בהתחלה: ההעתק גלוי ושכבה משלו (סבב 7 — לא 0.01), והדף עוד לא מצויר מחדש');

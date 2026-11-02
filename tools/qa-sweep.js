@@ -18,12 +18,27 @@ const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ?
 const BASE = 'http://localhost:8792';
 const APPS = { invest: '/index.html', studio: '/studio.html', academy: '/academy.html' };
 const only = arg('app', null), THEME = arg('theme', 'light'), CPU = +arg('cpu', 1), SLOWIDB = +arg('slowidb', 0);
+// --gpumem N: זיכרון GPU מוגבל (MB) עם צביעה ב־GPU (swiftshader) — כמו טלפון: אריחים שלא נכנסים בתקציב לא נצבעים,
+// והפריים מוצג בלעדיהם (צבע הרקע). כך נראה ריק של "שכבה שלא נצבעה" גם ב־Playwright
+const GPUMEM = +arg('gpumem', 0);
+const LAUNCH = GPUMEM ? ['--enable-gpu-rasterization', '--ignore-gpu-blocklist', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--force-gpu-mem-available-mb=' + GPUMEM] : [];
 let total = 0;
 const bad = (app, step, msg) => { total++; console.log('✗ [' + app + '] ' + step + ' — ' + msg); };
 
 const PROBE = () => {
-  window.__probe = { on: false, log: [] };
+  window.__probe = { on: false, log: [], ent: [] };
   const P = window.__probe;
+  /* 02/11/2026 (סבב קפיצות 9, הקלטת Invest — פתיחה מהתפריט: ההדר והחוגה מצוירים, הרשימה ריקה ~100ms ואז הכרטיסים "עולים"):
+     אנימציית כניסה מ־opacity 0 (cardIn ‏— ‎.stock.enter) בציור הראשון או בזמן מעבר = תוכן שמוסתר ואז מופיע. נרשמת כל התחלה;
+     check() מדווח על מה שהתחיל בפתיחה (לפני הצעד הראשון) או בתוך מעבר */
+  /* ציור ראשון בלי תוכן (סבב 9, הקלטת Studio — פתיחה מהתפריט: אחרי מסך הפתיחה של אנדרואיד רקע ריק ~170ms): מסך הפתיחה של
+     ה־TWA יורד בציור הראשון — ואם בו יש רק רקע, זה מה שרואים עד שהקוד מצייר. fp = הציור הראשון, fc = הפריים הראשון עם טקסט גלוי */
+  P.fp = null; P.fc = null;
+  try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (e.name === 'first-paint' && P.fp === null) P.fp = e.startTime; }).observe({ type: 'paint', buffered: true }); } catch (e) {}
+  const fcChk = () => { const de = document.documentElement; if (P.fc === null && document.body && !de.classList.contains('booting') && document.body.innerText.trim().length > 20) P.fc = performance.now(); if (P.fc === null) requestAnimationFrame(fcChk); };
+  requestAnimationFrame(fcChk);
+  const ENT = new Set(['cardIn', 'kvIn', 'scIn', 'demoIn']);
+  document.addEventListener('animationstart', (e) => { if (ENT.has(e.animationName)) P.ent.push(e.animationName + ':' + ((e.target && e.target.id) || (e.target && e.target.className && String(e.target.className).split(' ')[0]) || '?')); }, true);
   const tick = () => {
     if (P.on) {
       const nav = [...document.querySelectorAll('nav.tabs')].find((n) => !n.hidden && n.getClientRects().length);
@@ -43,17 +58,19 @@ const PROBE = () => {
 };
 
 /* Studio כמו אצל המשתמש: מחובר, מנהל, שרת ו־R2 — כדי שבחוגה יהיו ארבעת הפריטים (קריוקי · תרגום · העבודה · המגדל) */
+const MOCK = { jobs: 0, delay: 0 };
 async function studioMock(ctx) {
   await ctx.route(/\/auth\.js(\?|$)/, (r) => r.fulfill({ contentType: 'application/javascript', body: `(function(){var cbs=[],u={uid:'qa',email:'qa@example.com',displayName:'QA',getIdToken:async()=>'tok'};
     window.firebase=window.firebase||{apps:[1],auth:function(){return {currentUser:u}}};
     window.SnbAuth={start(){setTimeout(()=>cbs.forEach(f=>f('in')),50)},onChange(f){cbs.push(f);return()=>{}},user(){return u},state(){return 'in'},sub(){return null},signIn(){},signOut(){},hasEmail(){return true}};})();` }));
   const jid = (n) => 'j' + String(n).padStart(20, 'Q');
-  const JOBS = [1, 2, 3, 4, 5, 6].map((n) => ({ id: jid(n), created: Date.now() - n * 3600e3, state: 'done', fired: Date.now() - n * 3600e3, done: Date.now() - n * 3500e3,
+  const mkJobs = (cnt) => Array.from({ length: cnt }, (_, i) => i + 1).map((n) => ({ id: jid(n), created: Date.now() - n * 3600e3, state: 'done', fired: Date.now() - n * 3600e3, done: Date.now() - n * 3500e3,
     spec: { name: 'Demo.Show.S01E0' + n + '.720p.mkv', size: 3e8, from: 'en', to: 'he', mode: 'std' }, files: { a: { id: 'fa' + n, size: 1e6 }, v: { id: 'fv' + n, size: 3e8 } } }));
+  const JOBS = mkJobs(6);
   await ctx.route(/\/api\/studio/, (r) => { let b = {}; try { b = JSON.parse(r.request().postData() || '{}'); } catch (e) {}
     const now = Date.now(), J = (o) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o), headers: { 'access-control-allow-origin': '*' } }).catch(() => {});
     if (b.op === 'status') return setTimeout(() => J({ ok: true, kinds: [], r2: true, lra: now, lrt: now, lrm: now, lrf: now, api: { month: 0, cap: 100, online: 1, servers: 1, admin: true, ka: true }, conn: { hint: 'x', ok: now }, drive: { connected: true, email: 'qa@example.com' }, now }), 60);
-    if (b.op === 'jobs') return setTimeout(() => J({ ok: true, jobs: JOBS, now }), 60);
+    if (b.op === 'jobs') { const L = MOCK.jobs ? mkJobs(MOCK.jobs) : JOBS; return setTimeout(() => J({ ok: true, jobs: L, now }), MOCK.delay || 60); }   // רענון שקט: רשימה אחרת, מאוחר
     if (b.op === 'job') return setTimeout(() => J({ ok: true, job: JOBS.find((x) => x.id === b.job) || null }), 60);
     return J({ ok: false, error: 'x' }); });
 }
@@ -87,6 +104,7 @@ async function open(b, app) {
   if (app === 'studio') await studioMock(ctx);
   if (SLOWIDB && app !== 'academy') await ctx.addInitScript(() => { try { localStorage.setItem('__qa_slowidb', '1'); } catch (e) {} });
   await ctx.addInitScript(PROBE);
+  if (process.argv.includes('--oldvt')) await ctx.addInitScript(() => { window.__cubeVT = false; });   // הנתיב הישן (העתק) — לבדוק שהגלאים תופסים אותו
   // --slowidb 120: כל getAll של IndexedDB מתעכב (טלפון: עשרות ms) — חושף ציור שלא מחכה לנתונים
   if (SLOWIDB) await ctx.addInitScript((ms) => {
     const slow = (proto, ev, d) => { const on = Object.getOwnPropertyDescriptor(proto, ev);
@@ -104,7 +122,58 @@ async function open(b, app) {
   const cdp = await ctx.newCDPSession(page);
   if (CPU > 1) await cdp.send('Emulation.setCPUThrottlingRate', { rate: CPU });   // --cpu 4 — טלפון עמוס (שם נחשפו התקיעות בחימום)
   const dir = fs.mkdtempSync(path.join(TMP, app + '-'));
-  return { ctx, page, cdp, errs, cast: QM.makeCaster(cdp, dir) };
+  const S = { ctx, page, cdp, errs, cast: QM.makeCaster(cdp, dir) };
+  await layerWatch(S);
+  return S;
+}
+/* 02/11/2026 (סבב קפיצות 8, הקלטת Studio — ריק בתחילת מעברים ובסופם; docs/smooth-architecture.md ש2): שכבה זמנית = שכבת GPU
+   גדולה (30%+ מהמסך) שנולדה אחרי תחילת המעבר ואיננה בעמוד שנחת. בטלפון שכבה חדשה מוצגת לפני שצוירה (ריק), ושכבה שנהרסת
+   כשהיא גלויה משאירה חור — ובצילום (screencast) זה לא נראה, כי הוא מחכה לציור. ההעתק של הדף (cubeClone) יצר בכל מעבר
+   ב־Studio ~10 כאלה (ההדר, הלוגו והשלג, הכרטיסים). נספרות רק שכבות של העתק (בתוך ‎.cube-ghost / ‎.cube-hold): לא המנגנון של
+   מעבר ממוקד (‎::view-transition*, השכבה בזמן הצילום — ‎.cube-vt), לא ‎.cube-bd (צבע אחיד — "לא צויר" שלו נראה אותו דבר),
+   ולא עמוד אמיתי שהקובייה עוברת דרכו (נסיעה של החוגה על שני פריטים) */
+/* 02/11/2026 (סבב קפיצות 9, הקלטת Invest — לחיצה על "מעקב": שני פריימים ריקים לגמרי בחימום): גם שכבה חדשה לתוכן שכבר היה על
+   המסך לפני המעבר ('shown' — מסומן ב־arm: data-qa-vis) = ריק בטלפון, גם אם היא נשארת. בקובייה של Invest העמוד היוצא קיבל
+   שכבה משלו רק בתחילת המעבר (cubeFace: will-change + clip-path) — ובחימום, כשהוא עוד במקומו, הוצג לפני שצויר */
+const LAYER_KIND = "function () { const e = this; if (!e || e.nodeType !== 1) return 'other'; if (e.closest('.cube-ghost, .cube-hold')) return 'copy'; if (e.classList.contains('cube-bd') || e.classList.contains('cube-vt')) return 'engine'; if (e.hasAttribute('data-qa-vis')) return 'shown'; return 'page'; }";
+const VIS_MARK = () => {
+  const va = innerWidth * innerHeight;
+  for (const e of document.querySelectorAll('[data-qa-vis]')) e.removeAttribute('data-qa-vis');
+  for (const e of document.body.querySelectorAll('*')) {
+    const r = e.getBoundingClientRect();
+    const w = Math.max(0, Math.min(r.right, innerWidth) - Math.max(r.left, 0)), hh = Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0));
+    if (w * hh < va * 0.3) continue;
+    const cs = getComputedStyle(e);
+    if (cs.visibility !== 'visible' || +cs.opacity < 0.5 || cs.display === 'none') continue;
+    e.setAttribute('data-qa-vis', '');
+  }
+};
+async function layerWatch(S) {
+  const VA = 393 * 852;
+  S.lt = { on: false, last: [], base: new Set(), born: new Map() };
+  try { await S.cdp.send('LayerTree.enable'); } catch (e) { return; }
+  S.cdp.on('LayerTree.layerTreeDidChange', (e) => {
+    if (!e.layers) return;
+    const L = S.lt; L.last = e.layers;
+    if (!L.on) return;
+    for (const l of e.layers) {
+      if (!l.drawsContent || L.base.has(l.layerId) || L.born.has(l.layerId) || Math.min(l.width, 393) * Math.min(l.height, 852) < VA * 0.3) continue;
+      const rec = { size: l.width + 'x' + l.height, why: null };
+      L.born.set(l.layerId, rec);
+      S.cdp.send('LayerTree.compositingReasons', { layerId: l.layerId }).then((r) => { rec.why = r.compositingReasonIds || []; }, () => { rec.why = []; });
+      if (!l.backendNodeId) continue;
+      S.cdp.send('DOM.describeNode', { backendNodeId: l.backendNodeId }).then((r) => { const n = r.node || {}; rec.node = (n.pseudoType ? '::' + n.pseudoType : n.localName) + ((n.attributes || []).indexOf('class') >= 0 ? '.' + String(n.attributes[(n.attributes || []).indexOf('class') + 1]).split(' ').slice(0, 2).join('.') : ''); }, () => {});
+      S.cdp.send('DOM.resolveNode', { backendNodeId: l.backendNodeId }).then((r) => S.cdp.send('Runtime.callFunctionOn', { objectId: r.object.objectId, functionDeclaration: LAYER_KIND, returnByValue: true }))
+        .then((r) => { rec.kind = r.result && r.result.value; }, () => {});
+    }
+  });
+}
+function layerArm(S) { if (!S.lt) return; S.lt.base = new Set(S.lt.last.map((l) => l.layerId)); S.lt.born = new Map(); S.lt.on = true; }
+function layerTransient(S) {
+  if (!S.lt || !S.lt.on) return [];
+  S.lt.on = false;
+  const fin = new Set(S.lt.last.map((l) => l.layerId));
+  return [...S.lt.born].filter(([id, r]) => (!fin.has(id) && r.kind === 'copy') || r.kind === 'shown').map(([id, r]) => r.size + (r.node ? ' ' + r.node : '') + (r.why && r.why.length ? '(' + r.why.slice(0, 2).join(',') + ')' : ''));
 }
 
 const STATE = () => {
@@ -132,7 +201,7 @@ const STATE = () => {
   if (veil) r.issues.push('חלון פתוח מכסה את המסך: ' + String(veil.className || veil.getAttribute('role')).slice(0, 40) + ' — ' + (veil.textContent || '').trim().slice(0, 40));
   const he = document.elementFromPoint(innerWidth / 2, 56);
   if (!he || he === document.body || he === document.documentElement || he.classList.contains('cube-bd')) r.issues.push('אין הדר גלוי (ראש המסך ריק)');
-  const left = document.querySelectorAll('.cube-ghost, .cube-bd, .cube-hold');
+  const left = document.querySelectorAll('.cube-ghost, .cube-bd, .cube-hold, .cube-vt');   // ‎.cube-vt — מעבר ממוקד שלא הסתיים
   if (left.length) r.issues.push('נשארו ' + left.length + ' שאריות קובייה (' + [...left].map((e) => e.className).join(' | ').slice(0, 120) + ')');
   // .prewarm — חימום מכוון של העמוד השכן מתחת למסך (tabPrewarm: top:100vh, מוסתר) — לא שארית
   for (const e of document.querySelectorAll('.cube-face, .cube-in, .cube-out')) if (!e.classList.contains('prewarm')) r.issues.push('מחלקת קובייה נשארה: ' + (e.id || '') + ' .' + String(e.className).slice(0, 60));
@@ -164,7 +233,7 @@ const STATE = () => {
 async function settle(page) {
   await page.waitForTimeout(900);
   for (let i = 0; i < 51; i++) {
-    const busy = await page.evaluate(() => !!document.querySelector('.cube-ghost, .cube-bd, .cube-hold, .cube-face:not(.prewarm), .cube-in:not(.prewarm), .cube-out'));
+    const busy = await page.evaluate(() => !!document.querySelector('.cube-ghost, .cube-bd, .cube-hold, .cube-vt, .cube-face:not(.prewarm), .cube-in:not(.prewarm), .cube-out'));
     if (!busy) break;
     await page.waitForTimeout(100);
   }
@@ -183,6 +252,14 @@ async function check(app, S, step, want) {
   const log = await S.page.evaluate(() => { const l = window.__probe.log; window.__probe.log = []; window.__probe.on = false; return l; });
   const navGone = log.filter((x) => !x.navOk).length;
   if (navGone) bad(app, step, 'בזמן המעבר החוגה נעלמה ב־' + navGone + ' פריימים');
+  if (step === 'פתיחה') {
+    const fx = await S.page.evaluate(() => [window.__probe.fp, window.__probe.fc]);
+    if (fx[0] !== null && fx[1] !== null && fx[1] - fx[0] > 34) bad(app, step, 'ציור ראשון בלי תוכן: ' + Math.round(fx[1] - fx[0]) + 'ms של רקע ריק (ציור ראשון ' + Math.round(fx[0]) + 'ms, תוכן ' + Math.round(fx[1]) + 'ms)');
+  }
+  const ent = await S.page.evaluate(() => { const l = window.__probe.ent; window.__probe.ent = []; return l; });
+  if (ent.length) bad(app, step, 'אנימציית כניסה מ־opacity 0 ב' + (step === 'פתיחה' ? 'ציור הראשון' : 'זמן המעבר') + ' (' + ent.length + '): ' + [...new Set(ent)].slice(0, 4).join(' '));
+  const tl = layerTransient(S);
+  if (tl.length) bad(app, step, 'בזמן המעבר נוצרו ונהרסו ' + tl.length + ' שכבות גדולות (בטלפון — ריק עד שהן נצבעות): ' + tl.slice(0, 4).join(' '));
   const stale = log.filter((x) => x.stale).length;
   if (stale) bad(app, step, 'בזמן המעבר הפאה הנכנסת הראתה את הדף הישן ב־' + stale + ' פריימים (מתחלף באמצע הסיבוב)');
   const fr = S.casting ? await S.cast.stop() : [];
@@ -195,7 +272,9 @@ async function check(app, S, step, want) {
     const ref = Math.min(sd[0][0], sd[sd.length - 1][0], S.base || Infinity), dref = Math.min(sd[0][1], sd[sd.length - 1][1]);
     let run = 0, worst = 0, dock = 0;
     for (const [m, d] of sd) { run = m < Math.min(4, ref * 0.5) ? run + 1 : 0; worst = Math.max(worst, run); if (d < Math.min(6, dref * 0.4)) dock++; }
-    if (worst >= 1) bad(app, step, 'בזמן המעבר: ' + worst + ' פריימים רצופים שבהם אמצע המסך ריק (מתוך ' + sd.length + ')');
+    // 02/11/2026: עמוד שאין בו תוכן באמצע המסך (ref < 1.5 — "מה למדתי" הריק: שורת כותרת למעלה ומעבר צבע) — ריק ומלא נראים
+    // אותו דבר, והמדידה היא רעש של הדחיסה (נמדד: 0.1–3.7 לאלף בקפיץ שבקצה). דף שנחת ריק — STATE
+    if (worst >= 1 && ref >= 1.5) bad(app, step, 'בזמן המעבר: ' + worst + ' פריימים רצופים שבהם אמצע המסך ריק (מתוך ' + sd.length + ')');
     if (dock) bad(app, step, 'בזמן המעבר: ' + dock + ' פריימים בלי חוגה (תחתית המסך אחידה)');
     // שומרים את הפריימים של צעד שנכשל (KEEP=<תיקייה>) — כדי לראות בעין מה היה על המסך
     if ((worst >= 1 || dock) && process.env.KEEP) { const d = path.join(process.env.KEEP, app + '-' + step.replace(/[^\w\u0590-\u05ff]+/g, '_')); fs.mkdirSync(d, { recursive: true }); fr.forEach((x, i) => { try { fs.copyFileSync(x.f, path.join(d, String(i).padStart(3, '0') + '-' + sd[i][0] + '.jpg')); } catch (e) {} }); }
@@ -205,7 +284,7 @@ async function check(app, S, step, want) {
   return st;
 }
 let CUR = null;
-const arm = async (page) => { await page.evaluate(() => { window.__probe.log = []; window.__probe.on = true; }); if (CUR && !CUR.casting) { await CUR.cast.start(); CUR.casting = true; } };
+const arm = async (page) => { await page.evaluate(VIS_MARK); if (CUR) layerArm(CUR); await page.evaluate(() => { window.__probe.log = []; window.__probe.ent = []; window.__probe.on = true; }); if (CUR && !CUR.casting) { await CUR.cast.start(); CUR.casting = true; } };
 
 async function sweep(b, app) {
   const S = await open(b, app);
@@ -254,6 +333,27 @@ async function sweep(b, app) {
     await settle(S.page);
     await check(app, S, 'גרירת חוגה ' + span + 'px ' + (dir < 0 ? 'שמאלה' : 'ימינה') + ' #' + (i + 1), null);
   }
+  // 5. (Studio) רענון שקט בבית — 02/11/2026 (סבב קפיצות 8): הרשימה מהשרתון מגיעה אחרי הנחיתה ושונה (עבודה נוספה/נמחקה) →
+  // ציור במקום (render none). אף שכבה גדולה של הדף שנחת (ההדר: הלוגו והשלג; הכרטיס הנגלל) לא נהרסת — בטלפון שכבה חדשה = ריק
+  if (app === 'studio' && keys.includes('home') && keys.includes('tower')) {
+    for (const cnt of [5, 6]) {
+      const tap = (k) => S.page.evaluate((k) => { const t = [...document.querySelectorAll('nav.tabs .tab')].find((x) => x.dataset.tab === k && !x.hidden); if (t) t.click(); }, k);
+      await tap('home'); await settle(S.page);   // כבר במגדל — לחיצה עליו לא נכנסת מחדש (ולא מבקשת את הרשימה)
+      MOCK.jobs = cnt; MOCK.delay = 5000;
+      await tap('tower'); await settle(S.page);
+      await tap('home'); await settle(S.page);
+      MOCK.delay = 0;
+      const was = new Map(S.lt.last.filter((l) => l.drawsContent && l.width * l.height > 393 * 852 * 0.05).map((l) => [l.layerId, l.width + 'x' + l.height]));
+      const n0 = await S.page.evaluate(() => document.querySelectorAll('.st-root .st-page *').length);
+      await S.page.waitForTimeout(5200);
+      const n1 = await S.page.evaluate(() => document.querySelectorAll('.st-root .st-page *').length);
+      const now = new Set(S.lt.last.map((l) => l.layerId)), gone = [...was].filter(([id]) => !now.has(id)).map(([, sz]) => sz);
+      if (n0 === n1) bad(app, 'רענון שקט (' + cnt + ' עבודות)', 'הרשימה לא התעדכנה — הצעד לא בדק כלום');
+      else if (gone.length) bad(app, 'רענון שקט (' + cnt + ' עבודות)', 'ציור במקום הרס ' + gone.length + ' שכבות גדולות של הדף הגלוי (בטלפון — ריק עד שהן נצבעות): ' + gone.slice(0, 6).join(' '));
+      await check(app, S, 'רענון שקט (' + cnt + ' עבודות)', 'home');
+    }
+    MOCK.jobs = 0;
+  }
   // 4. רצף מהיר — הבא לפני שהקודם נגמר (חוגה ועמוד לסירוגין), ואז בדיקה אחת
   await arm(S.page);
   for (let i = 0; i < 16; i++) {
@@ -266,8 +366,9 @@ async function sweep(b, app) {
   await S.ctx.close();
 }
 
-(async () => {
-  const b = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium' });
+if (require.main !== module) module.exports = { open, settle, touchDrag, STATE, APPS, BASE, layerArm, layerTransient, MOCK, VIS_MARK };
+else (async () => {
+  const b = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium', args: LAUNCH });
   for (const app of Object.keys(APPS)) { if (!only || only === app) { try { await sweep(b, app); } catch (e) { bad(app, 'הסריקה', String(e.message).slice(0, 200)); } } }
   await b.close();
   console.log('הפרות: ' + total);

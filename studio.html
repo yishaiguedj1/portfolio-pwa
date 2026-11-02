@@ -32,12 +32,15 @@ var h=history.state;if(h&&h.studio)e.classList.add('lib-curtain','lib-restoring'
 <link rel="modulepreload" href="studiosubs.js">
 <link rel="modulepreload" href="studioedl.js">
 <link rel="modulepreload" href="studioai.js">
-</head>
-<body>
+<!-- 02/11/2026 (סבב קפיצות 9 — הקלטה: פתיחה מהתפריט, אחרי מסך הפתיחה של אנדרואיד רקע ריק ~170ms): הסקריפטים בראש הדף, והמודול
+     blocking="render" (עובד רק ב־head) — הדפדפן לא מצייר עד שהמודול רץ, והוא מצייר את הבית מיד (קובץ האתחול). מסך הפתיחה של
+     ה־TWA יורד בציור הראשון = הבית המלא, לא רקע ריק. defer ומודול — רצים אחרי הניתוח, באותו סדר -->
 <script src="firebase-config.js" defer></script>
 <script src="strings-studio.js" defer></script>
 <script src="core.js" defer></script>
 <script src="auth.js" defer></script>
-<script type="module" src="studio-app.js"></script>
+<script type="module" src="studio-app.js" blocking="render"></script>
+</head>
+<body>
 </body>
 </html>

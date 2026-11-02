@@ -27,6 +27,8 @@ class Flags(unittest.TestCase):
         self.assertEqual(J.review_puns(txt), {4: ['ממש מעוגן', 'עומד על עוגן', 'לא זז מהמזח']})
         self.assertEqual(J.review_flags(txt), [[4, 'p'], [7, 'g'], [9, 'p']])
         self.assertEqual(J.review_puns(txt, {7}), {})
+        # 02/11/2026 (PR3): חלופה של שני דוברים (||) נשארת שלמה
+        self.assertEqual(J.review_puns('!#5 p מה? || עוגן! | לא זז'), {5: ['מה? || עוגן!', 'לא זז']})
 
     def test_word_after_code_is_not_a_code(self):
         self.assertEqual(J.review_flags('!#3 pun here'), [])     # "pun" ≠ הקוד p
