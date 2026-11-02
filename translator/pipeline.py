@@ -1206,9 +1206,12 @@ class Pipeline:
         self.J.save_state(self.ctx.st)
 
     # -------------------------------------------------------------- 2. הגהה + תדריך + מילון + שאלות
-    def sm_part(self) -> str:
-        """28/10/2026: זיכרון הסדרה להגהה ולתדריך — '' כשאין."""
-        t = getattr(self.J, 'sm_block', lambda _st: '')(self.ctx.st)
+    def sm_part(self, text: str = '', ref: str = '') -> str:
+        """28/10/2026: זיכרון הסדרה להגהה ולתדריך — '' כשאין. 02/11/2026 (PR2 2.8, דגל xf ‏smf): רק השורות שנאמרות בפרק"""
+        fn = getattr(self.J, 'sm_block', None)
+        if not fn:
+            return ''
+        t = fn(self.ctx.st, text, ref) if xflags.on(getattr(self.ctx, 'st', None), 'smf') else fn(self.ctx.st)
         return SM_NOTE + '\n\n' + block('series_memory', t) if t else ''
 
     def proofread(self) -> list[dict]:
@@ -1227,7 +1230,7 @@ class Pipeline:
             block('user_terms', terms) if terms else '',
             candidates_block(edit),
             block('voice', voice_block(self.pd)) if voice_block(self.pd) else '',
-            self.sm_part(),
+            self.sm_part(edit, '\n'.join(l for _, l in ref) if ref else ''),
             note if ref else '',
             block('existing_subtitles', '\n'.join(l for _, l in ref)) if ref else '',
             block('transcript', edit)] if x)
@@ -1390,7 +1393,7 @@ class Pipeline:
         prompt = '\n\n'.join(x for x in [
             block('user_terms', terms) if terms else '',
             block('speaker_labels', ', '.join(str(n) for n in names[:40])) if names else '',
-            self.sm_part(),
+            self.sm_part(text),
             candidates_block(text),
             block('subtitles', text)] if x)
         if not self.eng.fits_card(fixed, prompt):

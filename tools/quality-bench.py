@@ -42,11 +42,11 @@ _spec.loader.exec_module(V)
 MODEL, EFFORT = 'claude-opus-5-5', 'medium'      # אותו מודל כמו נקודת הבסיס; החלפה = בסיס חדש (hash ב־manifest.json)
 EXPERT_BATCH, PAIRS_BATCH = 50, 40
 SEVS = {'min': 1, 'maj': 5, 'crit': 10}
-CATS = ('mean', 'omit', 'add', 'gen', 'reg', 'name', 'joke', 'flu', 'gram', 'spk', 'fmt', 'time')
+CATS = ('src', 'mean', 'omit', 'add', 'joke', 'name', 'gen', 'reg', 'gram', 'fmt', 'time', 'spk')   # = תבנית המחקר (נקודת הבסיס); 'flu' לשעבר = reg
 NON_CONTENT = ('fmt', 'time')                    # "MQM לתוכן" — בלי עיצוב ותזמון
-WHY = ('mean', 'gen', 'reg', 'joke', 'flu')
+WHY = ('mean', 'joke', 'read', 'nat', 'gen', 'gram', 'fmt', 'other')   # = תבנית הזוגות של המחקר (נקודת הבסיס)
 GENRES = ('sitcom', 'lecture', 'interview')
-PAIR_W = ('X', 'Y', 'T')
+PAIR_W = {'X': 'X', 'Y': 'Y', '=': 'T'}   # v בפלט ← w בפנים (T = תיקו)
 
 
 # ------------------------------------------------------------------ כללי
@@ -180,12 +180,15 @@ def cmd_prep(a):
 # ------------------------------------------------------------------ pairs (השוואה עיוורת)
 def stage_pairs(o) -> list:
     fx = V.fix_files(o.get('tx'))
+    cu = o.get('cu') or []
+    T = [V.stage_texts(c, fx) for c in cu]
     out = []
-    for c in o.get('cu') or []:
-        t = V.stage_texts(c, fx)
+    for j, (c, t) in enumerate(zip(cu, T)):
+        d = max(0.0, float(c.get('e') or 0) - float(c.get('s') or 0))
         for k, x, y in V.STEPS:
             if V.norm(t[x]) != V.norm(t[y]):
-                out.append({'ep': ep_tag(o), 'i': c.get('i'), 'k': k, 'en': c.get('en', ''), 'a': t[x], 'b': t[y]})
+                out.append({'ep': ep_tag(o), 'i': c.get('i'), 'k': k, 'en': c.get('en', ''), 'a': t[x], 'b': t[y], 'da': d, 'db': d,
+                            'pre': T[j - 1]['z'] if j else '', 'nxt': T[j + 1]['z'] if j + 1 < len(T) else ''})
     return out
 
 
@@ -211,6 +214,8 @@ def match_runs(A, B) -> list:
 def ab_pairs(A, B, n, seed, touched=None) -> list:
     """עד n זוגות שונים לפרק: קודם כתוביות שהדגל נגע בהן (touched — מספרי כתובית), אחר כך השאר; לפי seed"""
     rnd = random.Random(seed)
+    ra = fin_rows(A)
+    pos = {id(r): j for j, r in enumerate(ra)}
     m = [(x, y) for x, y in match_runs(A, B) if V.norm(x['h']) != V.norm(y['h'])]
     t = set(touched or [])
     first = [p for p in m if (p[1]['c'] or {}).get('i') in t]
@@ -219,9 +224,19 @@ def ab_pairs(A, B, n, seed, touched=None) -> list:
     rnd.shuffle(rest)
     out = []
     for x, y in (first + rest)[:n]:
+        j = pos.get(id(x))
         out.append({'ep': ep_tag(A), 'i': (x['c'] or {}).get('i'), 'k': 'ab', 'en': (x['c'] or {}).get('en', ''), 'a': x['h'], 'b': y['h'],
+                    'da': x['e'] - x['s'], 'db': y['e'] - y['s'],
+                    'pre': ra[j - 1]['h'] if j else '', 'nxt': ra[j + 1]['h'] if j is not None and j + 1 < len(ra) else '',
                     'ft': 1 if (y['c'] or {}).get('i') in t else 0})
     return out
+
+
+def rd(h, d) -> str:
+    """(משך, תווים לשנייה) ליד כל נוסח — כמו בבסיס: היעד עד 17, עד 20 סביר"""
+    if not d:
+        return ''
+    return f'({d:.1f} שנ׳, {V.vis_len(h) / d:.1f} תו/שנ׳)'
 
 
 def write_pairs(items, out: Path, seed: int, both: bool, tpl: str, batch=PAIRS_BATCH):
@@ -245,8 +260,9 @@ def write_pairs(items, out: Path, seed: int, both: bool, tpl: str, batch=PAIRS_B
         L = [fill(tpl, N=min(batch, len(allr) - b)), '']
         for (n, o_, flip, it) in allr[b:b + batch]:
             pid = f'p{n:04d}{"b" if o_ else "a"}'
-            x, y = (it['b'], it['a']) if flip else (it['a'], it['b'])
-            L += [f'§{pid}', f'EN: {it["en"]}', f'X: {x}', f'Y: {y}', '']
+            (x, dx), (y, dy) = ((it['b'], it.get('db')), (it['a'], it.get('da'))) if flip else ((it['a'], it.get('da')), (it['b'], it.get('db')))
+            L += [f'§{pid}', f'EN: {it["en"]}'] + ([f'לפני: {it["pre"]}'] if it.get('pre') else []) + ([f'אחרי: {it["nxt"]}'] if it.get('nxt') else []) \
+                + [f'X {rd(x, dx)}: {x}', f'Y {rd(y, dy)}: {y}', '']
             key[pid] = {'n': n, 'o': o_, 'xb': 1 if flip else 0, 'ep': it['ep'], 'i': it.get('i'), 'k': it['k'], 'ft': it.get('ft', 0)}
         (out / 'pairs' / f'batch_{b // batch + 1:03d}.md').write_text('\n'.join(L), encoding='utf-8')
     (out / 'key' / 'pairs.json').write_text(json.dumps(key, ensure_ascii=False), encoding='utf-8')
@@ -303,8 +319,8 @@ def parse_pairs(text: str, ids: set) -> list:
             r = json.loads(ln)
         except ValueError:
             continue
-        if isinstance(r, dict) and r.get('p') in ids and r.get('w') in PAIR_W:
-            out.append({'p': r['p'], 'w': r['w'], 'why': r.get('why') if r.get('why') in WHY else ''})
+        if isinstance(r, dict) and r.get('p') in ids and r.get('v') in PAIR_W:
+            out.append({'p': r['p'], 'w': PAIR_W[r['v']], 'why': r.get('c') if r.get('c') in WHY else ''})
     return out
 
 

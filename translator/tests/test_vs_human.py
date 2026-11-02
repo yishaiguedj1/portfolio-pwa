@@ -46,6 +46,11 @@ class ParseOpus(unittest.TestCase):
         self.assertAlmostEqual(dens, 2 / 3)
         self.assertTrue(10 < ref[1][0] < 20)             # האמצעי בין שני העוגנים, לפי מיקום התווים
         self.assertLessEqual(ref[1][1], 20)
+        # M0 (02/11/2026): גם סוף ידוע הוא עוגן (כמו parse2 של המחקר), וסוף לא אחרי ההתחלה — שנייה
+        ref, _mt, _d = V.parse_text(xml([(10, 11, 'אחת'), (None, 19, 'שתיים שלוש ארבע'), (20, 21, 'חמש')]))
+        self.assertEqual(ref[1][1], 19)
+        self.assertTrue(11 <= ref[1][0] < 19)
+        self.assertEqual(V.parse_text(xml([(5, 5, 'אחת')]))[0][0][:2], [5, 6.0])
 
 
 class Norm(unittest.TestCase):

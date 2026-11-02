@@ -136,7 +136,7 @@ class Pairs(Base):
         def reply(req):   # שופט שתמיד בוחר ב־B (הנוסח החדש), לפי המפתח
             out = []
             for pid in re.findall(r'^§(p\d{4}[ab])$', req, re.M):
-                out.append(json.dumps({'p': pid, 'w': 'X' if key[pid]['xb'] else 'Y', 'why': 'mean'}))
+                out.append(json.dumps({'p': pid, 'v': 'X' if key[pid]['xb'] else 'Y', 'c': 'mean', 'why': 'הסבר'}))
             return '\n'.join(out)
         Q.cmd_run(Q.build_parser().parse_args(['run', '--task', 'pairs', '--in', str(d)]), FakeEngine(reply))
         pr = Q.main(['score', '--in', str(d)])['pairs']
