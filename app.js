@@ -7181,8 +7181,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.117.0';
-const APP_VERSION = 'v699';
+const APP_RELEASE = '2.117.1';
+const APP_VERSION = 'v700';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -7260,7 +7260,7 @@ function loadDB() {
    שמתחבר כבר יש מסמך בענן; חשבון חדש מתחיל נקי (והנתונים הישנים נשמרים במחסן 'legacy'). */
 /* <core> */
 const LS_OWNER = 'pwa_owner_v1', LS_STASH = 'pwa_stash_v1:', LS_LEGACY_OWNER = 'pwa_legacy_owner_v1';
-const ACCOUNT_KEYS = ['pwa_db_v1', 'pwa_ibkr_v1', 'pwa_predemo_v1', 'pwa_wlactive_v1', 'pwa_srcfilter_v1', 'pwa_tdkey_v1', 'pwa_libbk_v1', 'pwa_libcoll_v1', 'pwa_studio_v1', 'pwa_pfbk_v1', 'pwa_charts_v1', 'pwa_accprof_v1', 'pwa_tax_v1', 'pwa_libpace_v1'];   // v318: גיבוי הספרייה הפרטית · v320: אסופות הספרייה · v354: טיוטות הסטודיו · 14/10/2026: גיבוי Invest ל־Drive · 29/10/2026: פרטי החשבון לציור הראשון · 01/11/2026: הגדרות מרכז המס (הכנסה אחרת, הפסד מועבר) · 01/11/2026: קצב הקריאה (Academy)
+const ACCOUNT_KEYS = ['pwa_db_v1', 'pwa_ibkr_v1', 'pwa_predemo_v1', 'pwa_wlactive_v1', 'pwa_srcfilter_v1', 'pwa_tdkey_v1', 'pwa_libbk_v1', 'pwa_libcoll_v1', 'pwa_studio_v1', 'pwa_pfbk_v1', 'pwa_charts_v1', 'pwa_accprof_v1', 'pwa_tax_v1', 'pwa_libpace_v1', 'pwa_stthumb_v1'];   // v318: גיבוי הספרייה הפרטית · v320: אסופות הספרייה · v354: טיוטות הסטודיו · 14/10/2026: גיבוי Invest ל־Drive · 29/10/2026: פרטי החשבון לציור הראשון · 01/11/2026: הגדרות מרכז המס (הכנסה אחרת, הפסד מועבר) · 01/11/2026: קצב הקריאה (Academy) · 02/11/2026: התמונות שבראש הבית של Studio — לציור הראשון (סבב קפיצות 9)
 function accountOwner(store) {
   try { return (store || localStorage).getItem(LS_OWNER) || ''; } catch (e) { return ''; }
 }
@@ -13483,7 +13483,11 @@ function renderStocks() {
   if (!tabShouldRender('stocks')) return; // v193
   const list = document.getElementById('stockList');
   if (list && list._dragging) { list._pendingRender = true; return; } // v246: לא לצייר מחדש באמצע גרירה
-  const wasEmpty = !list.querySelector || !list.querySelector('.stock'); // v193: כניסה מדורגת רק כשהרשימה נבנית מאפס
+  /* v193: כניסה מדורגת רק כשהרשימה נבנית מאפס. 02/11/2026 (סבב קפיצות 9 — הקלטת Invest, פתיחה מהתפריט: ההדר והחוגה מצוירים,
+     הרשימה ריקה ~100ms והכרטיסים "עולים"): לא בציור הראשון של הרשימה (פתיחה, או לשונית שמצוירת לראשונה — גם בתוך קובייה).
+     הציור הראשון סטטי; הכניסה — רק כשרשימה שכבר צוירה מתרוקנת ומתמלאת (סינון, תיק הדמו). qa-sweep: אנימציית כניסה בפתיחה */
+  const first = !list._painted; list._painted = true;
+  const wasEmpty = !first && (!list.querySelector || !list.querySelector('.stock'));
   const imgs = imgsOf(list);               // סבב 5, R10: הלוגואים שכבר נטענו עוברים לכרטיסים החדשים
   /* סבב 6 (ש1): כרטיס שלא השתנה (אותה מניה, אותו אובייקט, אותו HTML) נשאר הצומת הקיים — בחירה ב"סינון", מיון
      ועדכון שלא נוגע בו לא בונים אותו מחדש. השאר נבנה כמו קודם. הסדר — listSync, בלי רגע של רשימה ריקה */
@@ -15126,8 +15130,12 @@ function dragLift(node, r, w) {
   const pg = node.closest && node.closest('.tabpage');
   if (pg) pg.classList.add('no-in');
   Object.assign(node.style, { position: 'fixed', top: r.top + 'px', left: r.left + 'px', width: w + 'px', margin: '0', zIndex: '45' });
-  const q = node.getBoundingClientRect();
-  return { x: q.left - r.left, y: q.top - r.top };   // 0,0 = המסך הוא הבלוק המכיל
+  const q = node.getBoundingClientRect(), x = q.left - r.left, y = q.top - r.top;
+  if (!pg || (!x && !y)) return { x: x, y: y };   // 0,0 = המסך הוא הבלוק המכיל
+  /* 02/11/2026 (סבב קפיצות 9): העמוד הפעיל מחזיק שכבה משלו במנוחה (styles.css: ‎.tabpage.active — will-change: transform),
+     ולכן הוא הבלוק המכיל — וזז עם הגלילה. ההיסט חי: גלילה אוטומטית ליד הקצה לא סוחבת את הכרטיס */
+  const t0 = pg.getBoundingClientRect().top, l0 = pg.getBoundingClientRect().left;
+  return { get x() { return x + pg.getBoundingClientRect().left - l0; }, get y() { return y + pg.getBoundingClientRect().top - t0; } };
 }
 function wireCardDrag(list, cfg) {
   if (!list || list._dragWired) return;
@@ -15431,7 +15439,8 @@ function renderWishlist(opts) {
   try { renderWatchHead(); } catch (e) {}
   const items = wlItems();
   const dir = (opts && opts.dir) || 0;
-  const wasEmpty = !!dir || !list.querySelector || !list.querySelector('.stock');
+  const first = !list._painted; list._painted = true;   // סבב קפיצות 9: הציור הראשון של הרשימה — בלי כניסה (renderStocks)
+  const wasEmpty = !!dir || (!first && (!list.querySelector || !list.querySelector('.stock')));
   const imgs = imgsOf(list), was = nodesOf(list), out = [];   // סבב 6: כמו renderStocks — בלי ניקוי, סידור בסוף
   paintWatchSortChips();
   // v244: מעבר רשימה — הרשימה החדשה נכנסת מהכיוון שאליו עברו (ציר משותף, כמו מעבר לשוניות)

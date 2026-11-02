@@ -3,7 +3,6 @@
    קישור מהתראה (#studio=<עבודה>&v=play|subs) פותח את העבודה. עד שלב 5 ההתראות עדיין פותחות את האתר המאוחד. */
 import { openStudio } from './studio.js';
 import { studioShare, studioProbeRes, studioGot, studioDlErr, studioPhPick, studioPhErr } from './studio.js';   // 22/10/2026: קישור מהבועה כש־Studio כבר פתוחה; ההורדה בטלפון
-import { thumbsReady } from './studio.js';   // 21/10/2026: התמונות של העבודות — לפני הציור הראשון
 import { createShell, appBoot, APP_URL, loginGate, accountCard, displayCard, advancedRow, advancedCards } from './shell.js';
 
 if (window.SNB_MOVING) await new Promise(() => {});   // שלב 5: הכתובת הישנה עוברת לחדשה (הסקריפט המוטבע) — לא מתחילים כאן
@@ -77,9 +76,12 @@ sa.shell = createShell({
 /* לא מחובר — מסך הכניסה של Invest, עם הלוגו והשם של Studio (shell.js) */
 if (first === 'out') loginGate({ app: 'studio', auth: A, logo: 'logo-studio.webp', logoLg: 'logo-studio-lg.webp', name: 'Studio' });
 else if (first === 'boot') ready.then((st) => { if (st === 'out') loginGate({ app: 'studio', auth: A, logo: 'logo-studio.webp', logoLg: 'logo-studio-lg.webp', name: 'Studio' }); });
-/* 21/10/2026: התמונות של העבודות נטענות מהטלפון לפני הציור הראשון (מאחורי הווילון, עד 400ms) — הרשימה מופיעה איתן, בלי הבהוב */
-Promise.race([thumbsReady, new Promise((r) => setTimeout(r, 400))]).then(() =>
-  openStudio({ standalone: sa, restore: hs && hs.studio && !share && !got ? hs : null, job: link ? link[1] : '', view: link && link[2] ? link[2] : '', share, ref: shareRef, probe: shareProbe, to: shareTo, got, dle }))
+/* 21/10/2026: התמונות של העבודות נטענות מהטלפון לפני הציור הראשון — הרשימה מופיעה איתן, בלי הבהוב.
+   02/11/2026 (סבב קפיצות 9 — הקלטה: פתיחה מהתפריט, אחרי מסך הפתיחה של אנדרואיד רקע ריק ~170ms): הציור עכשיו, בתוך הריצה
+   הסינכרונית של המודול — רק היא חוסמת ציור (blocking="render" ב־studio.html; נמדד: await ברמה העליונה לא חוסם). כך הציור
+   הראשון של הדף = הבית המלא, ומסך הפתיחה של ה־TWA יורד אליו. התמונות כבר בזיכרון (נקראו בראש הדף — thumbsSync); אם עוד לא —
+   האריחים מקבלים אותן כשהן מגיעות, במקום מסך ריק עד 400ms. qa-sweep: "ציור ראשון בלי תוכן" */
+Promise.resolve(openStudio({ standalone: sa, restore: hs && hs.studio && !share && !got ? hs : null, job: link ? link[1] : '', view: link && link[2] ? link[2] : '', share, ref: shareRef, probe: shareProbe, to: shareTo, got, dle }))
   .then(() => { if (phpick) studioPhPick(phpick); if (phe) studioPhErr(link[1], phe); });   // 24/10/2026: תרגום בטלפון
 /* 27/10/2026: נגיעה בהתראה כש־Studio כבר פתוחה — sw.js מנווט לאותו דף עם ‎#studio=<עבודה>, וזה מגיע כשינוי ב־hash בלבד.
    עד היום רק הטעינה הראשונה קראה אותו, והנגיעה לא פתחה את העבודה */
