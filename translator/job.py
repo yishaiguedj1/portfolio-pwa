@@ -1126,7 +1126,8 @@ def learn_corpus(ctx):
     # 27/10/2026: {**} ולא dict(d, **ab, **fixes) — כתובית שנבחרה מהטיוטה השנייה ותוקנה אחר כך הפילה את כל הקורפוס
     # (TypeError: multiple values for keyword argument), והטקסט של כל העבודות מ־26/10 לא נשמר — בשקט
     f = {**d, **ab, **_lc_answers([td / 'fixes.txt'])}
-    r = dict(f, **_lc_answers([td / 'fixes_review.txt']))
+    # 02/11/2026 (PR1 1.2): גם הצופה (A10, fixes_rview) — אחרי הביקורת ולפני התיקון האחרון, כמו בבנייה (sorted(glob))
+    r = dict(f, **_lc_answers([td / 'fixes_review.txt', td / 'fixes_rview.txt']))
     z = dict(r, **_lc_answers([td / 'fixes_zfinal.txt', td / 'fixes_zqc.txt']))   # 25/10: גם סבב הבקרה על המסך
     cu = []
     for c in cues[:LC_MAX_CUES]:
@@ -1152,6 +1153,9 @@ def learn_corpus(ctx):
     rj = _lc_rej(td / 'learn_rej.jsonl')
     if rj:
         out['rj'] = rj
+    du = ctx.st.get('dual')                                        # 02/11/2026 (PR1 1.6): ההכרעה בין הטיוטות, לכל קטע
+    if isinstance(du, dict) and du:
+        out['dual'] = {k: du[k] for k in ('sg', 'c', 'b', 'bc', 'n', 'pk') if k in du}
     spec = ctx.st.get('spec') or {}
     for key, val in (('mode', spec.get('mode')), ('src', spec.get('from')), ('dst', ','.join(spec.get('to') or []) if isinstance(spec.get('to'), list) else '')):
         if re.match(r'^[a-z][a-z0-9,-]{0,47}$', str(val or '')):

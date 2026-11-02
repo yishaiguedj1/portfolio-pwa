@@ -22,7 +22,7 @@ ok(src.spec.ry === 1 && src.spec.xe.tl === 'low', 'goldClone — לא נוגע �
 const done = { kind: 'tr', fires: 1, spec: { mode: 'haiku-high', dur: 600 }, eng: 'a' }, use = [{ usd: 0.1 }];
 ok(S.normSample(done, use, 1) && S.normSample(Object.assign({}, done, { spec: Object.assign({}, done.spec, { xe: { rv: 'medium' } }) }), use, 1) === null, 'הרצה בניסוי לא נלמדת ל"רגיל"');
 const api = R('ibkr-proxy/api/studio.js');
-ok(/job\.spec && \(job\.spec\.xe \|\| job\.spec\.xg\) \? null : ETA\.etaSample/.test(api), 'הרצה בניסוי לא נלמדת לצפי הזמנים');
+ok(/job\.spec && \(job\.spec\.xe \|\| job\.spec\.xg \|\| job\.spec\.xf\) \? null : ETA\.etaSample/.test(api), 'הרצה בניסוי לא נלמדת לצפי הזמנים');
 ok(/body\.xe != null && \(!xe \|\| !isAdmin\(user\)\)/.test(api), 'השרתון — ניסוי רק למנהל');
 
 const adm = R('admin-app.js'), app = R('app.js');

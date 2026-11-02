@@ -2119,6 +2119,29 @@ function stubFetch(text, status = 200) {
       ok(rr.payload.ok && xv.join() === 'haiku-high:null,haiku-high:{"main":"medium","rv":"medium"},sonnet-low:null,sonnet-low:{"main":"medium","rv":"medium"}',
         'סטודיו: ניסוי המאמץ — לכל מצב רגילה + ניסוי, רק התפקידים המוכרים');
       runs.push(...rr.payload.jobs.map((j) => j.id));
+      // 02/11/2026 (איכות התרגום, PR1 1.8): "הרץ גל" — 12 מקורות × 2 זרועות בקריאה אחת, בסדר משולב; רק SRT; xf לזרועה
+      for (const id of runs.splice(0)) await run({ op: 'remove', idToken: OWNER, job: id });
+      const W = Array.from({ length: 11 }, (_, i) => 'jWAVE' + String(i).padStart(2, '0') + '0'.repeat(14));
+      for (const id of W) db.set('studioJobs/' + id, { fields: SG.toFields(Object.assign({}, base, { gd: { r: 'refs1234567890', n: 4000, at: now }, fo: [{ id: 'outs1234567890', k: 'srt', size: 9 }] })) });
+      rr = await run({ op: 'goldRun', idToken: FRIEND, ok: true, arms: [{ mode: 'haiku-medium' }] });
+      ok(rr.statusCode === 403 || rr.payload.error === 'admin' || rr.payload.error === 'no_gold' || !rr.payload.ok, 'סטודיו: הרץ גל — לא למי שאינו מנהל');
+      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, arms: [{ mode: 'nope' }] });
+      ok(rr.statusCode === 400 && rr.payload.error === 'bad_params', 'סטודיו: הרץ גל — מצב לא מוכר בזרועה נדחה');
+      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, arms: [{}, {}, {}, {}] });
+      ok(rr.statusCode === 400, 'סטודיו: הרץ גל — עד 3 זרועות');
+      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, arms: [{ mode: 'haiku-medium' }, { mode: 'haiku-high', xf: ['smf', 'zzz', 'smf'] }] });
+      const wj = rr.payload.jobs || [];
+      ok(rr.payload.ok && wj.length === 24 && wj.every((j, i) => j.wa === i % 2 && j.spec.mode === (i % 2 ? 'haiku-high' : 'haiku-medium') && j.state === 'new')
+        && wj.every((j, i) => i % 2 === 0 || j.gs === wj[i - 1].gs) && new Set(wj.map((j) => j.gs)).size === 12,
+        'סטודיו: הרץ גל — 12 מקורות × 2 זרועות = 24 עבודות בקריאה אחת, בסדר משולב, מצב לכל זרועה');
+      ok(wj.every((j) => j.spec.out.join() === 'srt') && wj.every((j, i) => i % 2 ? JSON.stringify(j.spec.xf) === '["smf"]' : !j.spec.xf), 'סטודיו: הרץ גל — רק SRT, ו־xf (רשימה סגורה) רק בזרועה שלו');
+      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, arms: [{ mode: 'haiku-medium' }] });
+      ok(rr.statusCode === 409 && rr.payload.error === 'gold_busy', 'סטודיו: הרץ גל — קריאה שנייה בזמן ריצה = 409');
+      for (const j of wj) await run({ op: 'remove', idToken: OWNER, job: j.id });
+      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, arms: [{ mode: 'haiku-medium', src: [W[0], 'nope'] }, { mode: 'haiku-medium', xf: ['gq'], src: [W[0]] }] });
+      ok(rr.payload.ok && rr.payload.jobs.length === 2 && rr.payload.jobs.every((j) => j.gs === W[0]), 'סטודיו: הרץ גל — רשימת מקורות לזרועה (מזהה לא מוכר נזרק)');
+      for (const j of rr.payload.jobs) await run({ op: 'remove', idToken: OWNER, job: j.id });
+      for (const id of W) await run({ op: 'remove', idToken: OWNER, job: id });
       rr = await run({ op: 'gold', idToken: OWNER, job: JGD, ref: null });
       ok(rr.payload.ok && rr.payload.job.gd === null && rr.payload.job.gq === null, 'סטודיו: סט הזהב — הסרה');
       for (const id of [JGD, JNS].concat(runs)) await run({ op: 'remove', idToken: OWNER, job: id });
@@ -4289,6 +4312,9 @@ function stubFetch(text, status = 200) {
       await run({ op: 'adminCheck', idToken: OWNER, id: 'abcdef012345', st: '' });
       ok(!db.has('sysChecks/abcdef012345'), 'בדיקות בטלפון: ביטול מוחק את התשובה');
       ok((await run({ op: 'learnPull', at: 'snbL_' + 'x'.repeat(32) })).statusCode === 401, 'Claude: טוקן שלא קיים — 401');
+      studio._reset();
+      const lpc = await run({ op: 'learnPull', at: TK, co: true, cl: ['0123456789abcdef0123'] });   // 02/11/2026 (PR1 1.3): עמוד המשך
+      ok(lpc.payload.ok && !('records' in lpc.payload) && !('checks' in lpc.payload) && !('view' in lpc.payload) && lpc.payload.corpus, 'Claude: עמוד המשך (co) — רק הקורפוס, בלי רשומות, ניתוח ובדיקות');
       ok((await run({ op: 'learnPull', at: TK, op2: 1, idToken: OWNER })).payload.ok, 'Claude: המשיכה לא דורשת Origin/Firebase');
       const tl = await run({ op: 'atList', idToken: OWNER });
       ok(tl.payload.tokens.length === 1 && tl.payload.tokens[0].uses >= 2 && !('by' in tl.payload.tokens[0]), 'Claude: רשימת הטוקנים — שימושים, בלי מי יצר');

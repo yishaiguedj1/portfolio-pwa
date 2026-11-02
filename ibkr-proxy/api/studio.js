@@ -360,13 +360,19 @@ async function learnPull(req, res, body, deps) {
   try {
     const t = await readDoc(deps, 'sysTokens', atId(tok));
     if (!t || !(t.exp > now)) return res.status(401).json({ ok: false, error: 'bad_token' });
+    const pg = LC.pageArgs(body);
+    if (body.co === true) {   // 02/11/2026 (PR1 1.3): עמוד המשך — רק הקורפוס: בלי learnLoad/records/view/checks (רק קריאה וכתיבה של הטוקן)
+      await patchDoc(deps, 'sysTokens', t.id, { last: now, uses: (t.uses || 0) + 1 }).catch(() => {});
+      const corpus = await learnCorpusView(deps, pg).catch(() => ({ on: false, error: 'r2' }));
+      return res.status(200).json({ ok: true, v: LR.LR_V, at: now, corpus });
+    }
     const { recs } = await learnLoad(deps, now);
     await patchDoc(deps, 'sysTokens', t.id, { last: now, uses: (t.uses || 0) + 1 }).catch(() => {});
     const view = LR.learnView(recs, now);
     // 15/10/2026: גם התשובות של המנהל לבדיקות בטלפון — כך הסשן יודע מה עובד ומה לא (רק כותרת, מצב והערה של המנהל)
     const checks = Object.entries(await checkAnswers(deps)).map(([id, x]) => ({ id, t: x.t, st: x.st, n: x.n, at: x.at }));
     // מ׳2: קורפוס הטקסט — המספרים תמיד; הפריטים עצמם (עד 20) רק כשהסשן ביקש (ci) — לניתוח ב־Claude שבמנוי
-    const corpus = await learnCorpusView(deps, Math.max(0, Math.min(20, Math.floor(+body.ci || 0)))).catch(() => ({ on: false, error: 'r2' }));
+    const corpus = await learnCorpusView(deps, pg).catch(() => ({ on: false, error: 'r2' }));
     // 22/10/2026 (בקשת המשתמש — מעבר דקה־דקה על הסרטונים): הקול / ה־240p של עד 4 עבודות — קישור קריאה חתום לשעה + המפתח
     const media = Array.isArray(body.mi) ? await learnMediaPull(deps, body.mi, body.mv === true).catch(() => ({})) : undefined;
     return res.status(200).json(Object.assign({ ok: true, v: LR.LR_V, at: now, brief: LR.learnBrief(view, now), view, records: recs, checks, corpus }, media ? { media } : {}));
@@ -471,6 +477,7 @@ async function learnPut(deps, job, b64, now) {
     const item = LC.normCorpus(JSON.parse(raw.toString('utf8')), LC.monthOf(now), full);
     if (!item) return false;
     if (full) Object.assign(item, fullExtras(job));
+    Object.assign(item, LC.expMark(job));   // 02/11/2026 (PR1 1.8): ניסוי — xf / gs / wa כשדות מפורשים, לזיווג בניתוח
     const lid = LR.lid(job.id);
     await R2.putText(c, r2deps(deps), LC.qKey(lid), vault.seal(item, 'learn|' + lid), 'application/octet-stream');
     await patchJob(deps, job.id, { lc: now });
@@ -590,32 +597,35 @@ async function learnCorpusForget(deps, ids) {
   return n;
 }
 /* למנהל ולסשן הניתוח: כמה פריטים, כמה בתור, כמה MB — מרשימת המפתחות בלבד. items = עד n פריטים פתוחים, מהחודש החדש */
-async function learnCorpusView(deps, items) {
+async function learnCorpusView(deps, pga) {
   const c = learnCfg();
   if (!c.ok) return { on: false };
+  const pg = typeof pga === 'object' && pga ? pga : LC.pageArgs({ ci: pga });   // מספר = הצורה הישנה (ci)
   const rd = r2deps(deps);
   const keys = [...await R2.list(c, rd, 'q/', 5000), ...await R2.list(c, rd, 'c/', 50000), ...await R2.list(c, rd, 'qe/', 5000), ...await R2.list(c, rd, 'e/', 50000), ...await R2.list(c, rd, 'm/', 50000)];
   const out = Object.assign({ on: true }, LC.corpusStats(keys));
-  if (items > 0) {
+  if (pg.list || pg.items > 0) {
     const list = [];
     // 24/10/2026 (בקשת המשתמש): גם עבודות שעוד בתור (q/) — עד האצווה היומית עבודה שהסתיימה עכשיו לא נראתה בניתוח.
     // התור קודם (החדשות), ואחריו c/ מהחדש לישן; אותה עבודה פעם אחת. q:1 = עוד לא עברה באצווה
-    const rank = (k) => (k.lastModified ? Date.parse(k.lastModified) || 0 : 0);
-    const qd = keys.filter((k) => (LC.parseKey(k.key) || {}).kind === 'q').sort((a, b) => rank(b) - rank(a));
-    const cd = keys.filter((k) => (LC.parseKey(k.key) || {}).kind === 'c').sort((a, b) => (a.key < b.key ? 1 : -1));
-    const seen = new Set();
-    for (const it of [...qd, ...cd]) {
-      if (list.length >= Math.min(items, 20)) break;
+    // 02/11/2026 (PR1 1.3): בעמודים — cx (רשימת המזהים), cl (לפי מזהה), cs (דילוג); הסדר יציב (LC.pageOrder)
+    let order = LC.pageOrder(keys);
+    out.tot = order.length;
+    if (pg.list) out.ids = order.map((it) => { const p = LC.parseKey(it.key); return { id: p.lid, q: p.kind === 'q' ? 1 : 0, m: p.month || '' }; });
+    order = pg.ids ? order.filter((it) => pg.ids.includes(LC.parseKey(it.key).lid)) : order.slice(pg.skip);
+    let used = 0;
+    for (const it of order) {
+      if (list.length >= pg.items) break;
+      used++;   // גם פריט שלא נפתח נספר — אחרת next נתקע
       const p = LC.parseKey(it.key);
-      if (seen.has(p.lid)) continue;
       const x = vault.open(await R2.getText(c, rd, it.key, LC_MAX_BODY * 2), 'learn|' + p.lid);
       if (!x) continue;
-      seen.add(p.lid);
       if (p.kind === 'q') x.q = 1;
       const ek = keys.find((k) => { const q = LC.parseKey(k.key); return q && q.lid === p.lid && (q.kind === 'e' || q.kind === 'qe'); });   // מ׳3: העריכות של אותה עבודה
       const ed = ek ? vault.open(await R2.getText(c, rd, ek.key, LE_MAX * 3), 'learn|' + p.lid) : null;
       list.push(Object.assign({ id: p.lid }, x, ed ? { ed: ed.ss } : {}));
     }
+    if (!pg.ids) out.next = pg.items > 0 && pg.skip + used < out.tot ? pg.skip + used : null;
     out.items = list;
   }
   return out;
@@ -2766,7 +2776,7 @@ async function worker(req, res, body, deps) {
       // 22/10/2026: קובץ כתוביות (בלי תמלול ויישור) לא מלמד את הצפי ואת "הרגיל" של עבודות מסרטון — שלבים וזמנים אחרים
       const smp = S.normSample(job, up.use || job.use, now);
       // 10/10/2026: וגם כמה לקח כל שלב — מזה נלמד הצפי (studioeta.js)
-      const es = job.spec && (job.spec.xe || job.spec.xg) ? null : ETA.etaSample(Object.assign({}, job, up), now);   // 24/10/2026: ניסוי המאמץ לא מלמד את הצפי
+      const es = job.spec && (job.spec.xe || job.spec.xg || job.spec.xf) ? null : ETA.etaSample(Object.assign({}, job, up), now);   // 24/10/2026: ניסוי המאמץ לא מלמד את הצפי
       if (smp || es) {
         const st0 = await readStats(deps, job.uid);
         const patchS = { updated: now };
@@ -3685,6 +3695,26 @@ async function handler(req, res, deps = {}) {
       if (body.ok !== true) return res.status(400).json({ ok: false, error: 'confirm' });
       if ((await readStats(deps, uid)).halt) return res.status(409).json({ ok: false, error: 'halted' });
       const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
+      if (body.arms != null) {
+        // 02/11/2026 (איכות התרגום, PR1 1.8): "הרץ גל" — עד 3 זרועות (מצב, דגלי xf, מקורות), כל המקורות × כל הזרועות בקריאה
+        // אחת ובסדר משולב. מנהל בלבד; רק SRT; קריאה אחת לגל (gold_busy)
+        if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'admin' });
+        const gs0 = S.goldSources(all), arms = S.normArms(body.arms, gs0.map((j) => j.id));
+        if (!arms) return res.status(400).json({ ok: false, error: 'bad_params' });
+        for (const a of arms) if (await modeLocked(a.mode)) return res.status(403).json({ ok: false, error: 'mode_locked' });
+        const wv = S.waveOrder(gs0, arms).slice(0, S.goldMax(true) * arms.length);
+        if (!wv.length) return res.status(400).json({ ok: false, error: 'no_gold' });
+        if (all.some((j) => j.gs && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'gold_busy' });
+        if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length + wv.length > S.maxActive(true)) return res.status(409).json({ ok: false, error: 'too_many' });
+        // הניקוי: קודם עותקי זהב ישנים (gs), ורק אחר כך עבודות רגילות — הישנות קודם
+        const fin = all.filter((j) => S.FINAL.includes(S.effState(j, now).state) && !j.gd);
+        const old = fin.filter((j) => j.gs).sort((a, b) => (a.created || 0) - (b.created || 0))
+          .concat(fin.filter((j) => !j.gs).sort((a, b) => (a.created || 0) - (b.created || 0)));
+        for (const o of old.slice(0, Math.max(0, all.length + wv.length - S.MAX_STORED))) await delDoc(deps, 'studioJobs', o.id);
+        const made = [];
+        for (const [j, a, i] of wv) { const c = S.waveClone(j, S.newJobId(), uid, now, a, i); await patchJob(deps, c.id, c); made.push(view(c)); }
+        return res.status(200).json({ ok: true, jobs: made });
+      }
       // פריט 15 ("ריצת מבחן"): src = עבודת זהב אחת, modes = כמה מצבים עליה (השוואה בין מצבים על אותו סרטון)
       const modes = Array.isArray(body.modes) ? Array.from(new Set(body.modes.filter((m) => S.MODES.includes(m) || S.LEGACY_MODES[m]).map((m) => S.modeNow(m)))).slice(0, S.goldMax(isAdmin(user))) : [];   // מצב לא מוכר — נזרק (לא ברירת המחדל)
       if (Array.isArray(body.modes) && (!modes.length || !body.src)) return res.status(400).json({ ok: false, error: 'bad_params' });
