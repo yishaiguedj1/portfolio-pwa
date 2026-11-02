@@ -454,15 +454,21 @@ internal fun VideoPro4(url: String, info: JSONObject, sizes: List<Long>, audio: 
         DmR4.nextVideo = DmR4.Video(url, if (clipOk) s0 else 0, if (clipOk) (if (to.isEmpty() && from.isNotEmpty()) dur else s1) else 0, cv, chm, priv, System.currentTimeMillis() + 120_000)
     }
     val g = LocalDmG.current
-    Text(stringResource(if (open) R.string.dmMoreOptsHide else R.string.dmMoreOpts), color = StRed, fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.clickable { open = !open }.padding(vertical = 8.dp))
-    if (!open) return
-    L(stringResource(R.string.dmCutT))
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        GField(from, { from = it.take(9) }, Modifier.weight(1f), singleLine = true, label = { Text(stringResource(R.string.dmCutFrom)) }, shape = RoundedCornerShape(14.dp))
-        GField(to, { to = it.take(9) }, Modifier.weight(1f), singleLine = true, label = { Text(if (dur > 0) DmClip.fmt(dur) else stringResource(R.string.dmCutTo)) }, shape = RoundedCornerShape(14.dp))
+    // 02/11/2026 (המשתמש לא מצא את האפשרות): "רק קטע" גלוי תמיד כבחירה, לא מוסתר תחת "עוד אפשרויות"
+    var cut by remember(url) { mutableStateOf(false) }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        GChip(cut, { cut = !cut; if (!cut) { from = ""; to = "" } }, { Text(stringResource(R.string.dmCutT)) })
+        Text(stringResource(if (open) R.string.dmMoreOptsHide else R.string.dmMoreOpts), color = StRed, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.clickable { open = !open }.padding(vertical = 8.dp))
     }
-    if (!clipOk) Text(stringResource(R.string.dmCutBad), color = StRed, fontSize = 13.sp)
+    if (cut) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            GField(from, { from = it.take(9) }, Modifier.weight(1f), singleLine = true, label = { Text(stringResource(R.string.dmCutFrom)) }, shape = RoundedCornerShape(14.dp))
+            GField(to, { to = it.take(9) }, Modifier.weight(1f), singleLine = true, label = { Text(if (dur > 0) DmClip.fmt(dur) else stringResource(R.string.dmCutTo)) }, shape = RoundedCornerShape(14.dp))
+        }
+        if (!clipOk) Text(stringResource(R.string.dmCutBad), color = StRed, fontSize = 13.sp)
+    }
+    if (!open) return
     L(stringResource(R.string.dmConvT))
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         listOf("" to R.string.dmConvNone, "mp4" to R.string.dmConvMp4, "mp3" to R.string.dmConvMp3, "m4a" to R.string.dmConvM4a, "opus" to R.string.dmConvOpus).forEach { (k, s) ->
