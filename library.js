@@ -120,6 +120,7 @@ async function scopeLibrary() {
 }
 const putBook = (b) => tx('books', 'readwrite', (st) => st.put(b));
 const getFile = (id) => tx('files', 'readonly', (st) => reqP(st.get(id)));
+const PREV = 'prev:';                    // Academy Pro: הגרסה שלפני הליטוש האחרון (לביטול) — באותו מאגר, מפתח נפרד
 
 /* ---------------- פרטי ספר (טהורות — נבדקות) ---------------- */
 export function langText(x) {
@@ -615,7 +616,7 @@ async function syncShelf(tk, j) {
       if (keep && (b.lastRead || 0) > (keep.lastRead || 0)) { Object.assign(keep, { lastRead: b.lastRead, fraction: Math.max(keep.fraction || 0, b.fraction || 0), done: !!(keep.done || b.done) }); await putBook(keep); }
     }
     await tx('books', 'readwrite', (st) => st.delete(b.id));
-    await tx('files', 'readwrite', (st) => st.delete(b.id));
+    await tx('files', 'readwrite', (st) => { st.delete(b.id); st.delete(PREV + b.id); });
     changed++;
   }
   if (!failed) {
@@ -672,7 +673,7 @@ function syncDrive() {
       const cur = (await allBooksRaw()).find((x) => x.id === b.id);
       if (!cur || cur.driveId !== b.driveId) continue;   // הספר כבר עבר לקובץ אחר באותו מזהה (למשל גרסה מעודכנת בתיקייה אחרת)
       await tx('books', 'readwrite', (st) => st.delete(b.id));
-      await tx('files', 'readwrite', (st) => st.delete(b.id));
+      await tx('files', 'readwrite', (st) => { st.delete(b.id); st.delete(PREV + b.id); });
       changed++;
     }
     return changed;
@@ -851,6 +852,8 @@ const ICON = {
   undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>',
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l7 2.8v5.2c0 4.3-2.9 7.6-7 9-4.1-1.4-7-4.7-7-9V6.3z"/><path d="M8.8 12.2l2.3 2.3 4.3-4.6"/></svg>',
+  folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2v7.8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>',
   sort: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 5v14M4 16l3 3 3-3M17 19V5M14 8l3-3 3 3"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   bookmark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"><path d="M7 4h10v16l-5-3.6L7 20z"/></svg>',
@@ -1316,10 +1319,12 @@ async function downloadCloud(b, it, open) {
   if (open) safeGoView({ book: b.id }); else if (root && !rd) renderHome();
   return true;
 }
-function importInput(after) {
-  const inp = h('input'); inp.type = 'file'; inp.multiple = true; inp.accept = '.epub,.azw3,.azw,.mobi,.kf8,.fb2,application/epub+zip';
+const BOOK_EXT = /\.(epub|azw3?|mobi|kf8|fb2)$/i;
+function importInput(after, folder) {     // C14: כמה ספרים יחד, או תיקייה שלמה (רק קבצי ספרים מתוכה)
+  const inp = h('input'); inp.type = 'file'; inp.multiple = true;
+  if (folder) inp.webkitdirectory = true; else inp.accept = '.epub,.azw3,.azw,.mobi,.kf8,.fb2,application/epub+zip';
   inp.addEventListener('change', async () => {
-    const n = await importFiles(Array.from(inp.files || [])); inp.value = '';
+    const n = await importFiles(Array.from(inp.files || []).filter((f) => !folder || BOOK_EXT.test(f.name || ''))); inp.value = '';
     if (after) after();
     if (n) { if (ui.shelf !== 'mine') setShelf('mine'); else renderHome(); indexAll(); BK.schedule(); }
   });
@@ -1396,12 +1401,15 @@ function mineCard() {
   const bkSub = st === 'ok' ? [T('bkRowOn'), fmtWhen(s.lastAt)].filter(Boolean).join(' · ') : st === 'busy' ? T('bkRowBusy') : st === 'err' ? T('bkRowErr') : (signedIn() ? T('bkRowConnect') : T('bkRowSignIn'));
   card.append(
     row('lib-set-bk', ICON.cloud, T('bkTitle'), bkSub, () => goView({ backup: 1 })),
-    row('adv-ic', ICON.plus, T('libImport'), null, addBookPick),
+    row('adv-ic', ICON.plus, T('libImport'), null, addBookPick));
+  if ('webkitdirectory' in h('input')) card.append(row('adv-ic', ICON.folder, T('libAddFolder'), T('libAddFolderS'), () => addBookPick(true)));
+  card.append(
+    row('adv-ic', ICON.check, T('lcTitle'), T('lcSub'), () => polishKit().then((P) => P.openLibCheck())),
     row('lib-set-rs', ICON.trash, T('libResetMine'), null, openResetSheet, 'lib-set-danger'));
   return card;
 }
-function addBookPick() {                      // בורר הקבצים — בתוך הנגיעה (כפתור ההדר / ההגדרות)
-  const inp = importInput(() => inp.remove());
+function addBookPick(folder) {                // בורר הקבצים — בתוך הנגיעה (כפתור ההדר / ההגדרות)
+  const inp = importInput(() => inp.remove(), folder === true);
   inp.hidden = true; document.body.append(inp);
   inp.click();
 }
@@ -1433,7 +1441,7 @@ async function resetMine() {
   const ids = (await allBooksRaw()).filter((b) => isPrivate(b, cur)).map((b) => b.id);
   for (const id of ids) {
     await tx('books', 'readwrite', (st) => st.delete(id));
-    await tx('files', 'readwrite', (st) => st.delete(id));
+    await tx('files', 'readwrite', (st) => { st.delete(id); st.delete(PREV + id); });
     await tx('text', 'readwrite', (st) => st.delete(id)).catch(() => {});
     const u = coverUrls.get(id); if (u) { URL.revokeObjectURL(u.url); coverUrls.delete(id); }
   }
@@ -2026,6 +2034,7 @@ async function renderEdit(id) {
   }
   cvBox.append(cvImg, cvActs);
   home.append(cvBox);
+  editExtras(home, b);                      // Academy Pro: עמודים וזמן קריאה + ליטוש ובדיקה (רק ספר שלך)
   // שדות
   const form = h('div', 'bk-card ed-form');
   const inputs = {};
@@ -2226,6 +2235,89 @@ function renderGlossary() {
   inp.addEventListener('input', draw);
   home.append(inp, list);
   draw();
+}
+
+/* Academy Pro, גל 1: ליטוש ובדיקה (libpolish.js) — נטען רק כשנכנסים. הקובץ הקודם נשמר ב־PREV לביטול; ההתקדמות וההדגשות
+   לפי המזהה של הספר (לא משתנה). אחרי שינוי: הגודל משתנה → אינדקס החיפוש נבנה מחדש, והגיבוי מעלה את הקובץ (bkD) */
+let PLK = null;
+const isMineBook = (b) => isPrivate(b, libOwner());
+async function polishKit() {
+  if (!PLK) {
+    const m = await import('./libpolish.js');
+    PLK = m.createPolish({
+      h, T, sheet, closeSheetThen, swEl, cover, fmtBytes, allBooksRaw, getFile, isMine: isMineBook, meta: metaApi, remoteCover, coverFromBlob,
+      flash: (m2) => { if (typeof flash === 'function') flash(m2); },
+      renderHome: () => { if (root && !rd) renderHome(); },
+      savePolished, undoPolish, saveFields,
+    });
+  }
+  return PLK;
+}
+async function afterFileChange(id, file) {
+  const cur = (await allBooksRaw()).find((x) => x.id === id); if (!cur) return;
+  cur.size = file.size; cur.bkD = Date.now();
+  await putBook(cur);
+  await tx('text', 'readwrite', (st) => st.delete(id)).catch(() => {});
+  ftCache = null;
+  indexAll(); BK.schedule();
+}
+async function savePolished(id, file, prev) {
+  await tx('files', 'readwrite', (st) => { st.put(prev, PREV + id); st.put(file, id); });
+  await afterFileChange(id, file);
+}
+async function undoPolish(id) {
+  const prev = await getFile(PREV + id); if (!prev) throw new Error('noprev');
+  await tx('files', 'readwrite', (st) => { st.put(prev, id); st.delete(PREV + id); });
+  await afterFileChange(id, prev);
+}
+async function saveFields(id, vals, cv) {          // D14: שדות שאושרו בלבד, מעל העריכה הקיימת
+  const cur = (await allBooksRaw()).find((x) => x.id === id); if (!cur) return false;
+  const e = {};
+  EDIT_FIELDS.forEach((k) => { e[k] = (cur.edit && typeof cur.edit[k] === 'string') ? cur.edit[k] : (cur[k] != null ? String(cur[k]) : ''); });
+  Object.assign(e, vals);
+  cur.edit = e; applyEdit(cur, e);
+  if (cv) Object.assign(cur, { cover: cv.blob, coverRatio: cv.w / cv.h, coverCustom: 1, coverV: 1 });
+  if (cur.src !== 'drive') cur.bkD = Date.now();
+  await putBook(cur);
+  BK.schedule();
+  return true;
+}
+/* D13: מספר המילים — מאינדקס החיפוש (נבנה ברקע לכל ספר); הקצב — מהקורא (דפדוף קדימה רגיל בלבד) */
+const LS_PACE = 'pwa_libpace_v1';
+async function bookWords(id) {
+  try { const x = await tx('text', 'readonly', (st) => reqP(st.get(id))); if (!x) return 0; const m = await import('./libpolish.js'); return m.countWords(x.secs); } catch (e) { return 0; }
+}
+function paceGet() { try { const p = JSON.parse(localStorage.getItem(LS_PACE) || 'null'); return p && p.ms >= 0 ? p : { ms: 0, w: 0 }; } catch (e) { return { ms: 0, w: 0 }; } }
+function paceTick(frac) {
+  if (!rd) return;
+  const now = Date.now(), p = rd.pace;
+  rd.pace = { f: frac, t: now };
+  if (!p || !rd.words) return;
+  const dw = (frac - p.f) * rd.words, dt = now - p.t;
+  if (dw <= 0 || dw > 1200 || dt < 3000 || dt > 180000) return;   // לא קפיצה, לא אחורה, לא הפסקה
+  const P = paceGet(); P.ms += dt; P.w += dw;
+  if (P.ms > 20 * 3600000) { P.ms /= 2; P.w /= 2; }   // בערך 20 השעות האחרונות
+  try { localStorage.setItem(LS_PACE, JSON.stringify({ ms: Math.round(P.ms), w: Math.round(P.w) })); } catch (e) {}
+}
+function editExtras(home, b) {
+  if (!isMineBook(b)) return;
+  const slot = h('div', 'pl-ed'); home.append(slot);
+  bookWords(b.id).then(async (w) => {
+    if (!w || !slot.isConnected) return;
+    const m = await import('./libpolish.js');
+    const s = m.readingStats(w, b.fraction, paceGet(), b.lang);
+    const strip = h('div', 'pl-stats');
+    const cell = (v, k) => { const c = h('div', 'pl-stat'); c.append(h('b', null, v), h('span', null, T(k))); strip.append(c); };
+    cell(s.pages.toLocaleString(), 'plPages'); cell(m.fmtHours(s.totalMin), 'plHours'); if (b.fraction > 0 && !b.done) cell(m.fmtHours(s.leftMin), 'plLeft');
+    slot.prepend(strip, h('p', 'pl-note', T(s.mine ? 'plWordsMine' : 'plWordsAvg', { n: w.toLocaleString() })));
+  });
+  const card = h('div', 'lib-ios pl-card');
+  const r = h('button', 'lib-row pl-open'); r.type = 'button';
+  const l = h('span', 'pl-rl'); l.append(h('span', 'pl-rt', T('plTitle')), h('span', 'pl-rs', T('plSub')));
+  const ch = h('span', 'pl-chev'); ch.setAttribute('aria-hidden', 'true'); ch.innerHTML = ICON.chev || '';
+  r.append(l, ch);
+  r.addEventListener('click', () => polishKit().then((P) => P.openPolish(b)));
+  card.append(r); slot.append(card);
 }
 
 /* ס׳4–ס׳5: מנהל הספרייה (libadmin.js) — נטען רק כשהמנהל פותח "ניהול"; כל מה שהוא צריך מהספרייה מוזרק */
@@ -2574,7 +2666,7 @@ function askRemove(b) {
       const cur = (await allBooksRaw()).find((x) => x.id === b.id);
       if (cur) { cur.hidden = 1; await putBook(cur); }
     } else await tx('books', 'readwrite', (st) => st.delete(b.id));
-    await tx('files', 'readwrite', (st) => st.delete(b.id));
+    await tx('files', 'readwrite', (st) => { st.delete(b.id); st.delete(PREV + b.id); });
     if (ui.view && ui.view.book === b.id) history.back(); else renderHome();
   };
   if (typeof askConfirm === 'function') askConfirm(T(drive ? 'libHideQ' : 'libRemoveQ', { t: b.title }), go, { danger: true, ok: T(drive ? 'libHide' : 'libRemove') });
@@ -2584,7 +2676,7 @@ function askRemoveBacked(b) {
   sheet('', (sh, close) => {
     sh.append(h('h3', 'lib-sh-big', b.title), h('p', 'lib-sh-p', T('libRemoveBkQ')));
     const done = () => { if (ui.view && ui.view.book === b.id) history.back(); else renderHome(); };
-    const local = async () => { await tx('books', 'readwrite', (st) => st.delete(b.id)); await tx('files', 'readwrite', (st) => st.delete(b.id)); };
+    const local = async () => { await tx('books', 'readwrite', (st) => st.delete(b.id)); await tx('files', 'readwrite', (st) => { st.delete(b.id); st.delete(PREV + b.id); }); };
     const a = h('button', 'lib-btn danger'); a.type = 'button'; a.textContent = T('libRemoveBoth');
     a.addEventListener('click', async () => {
       a.disabled = true;
@@ -2890,6 +2982,7 @@ async function openReader(id, opt) {
   box.append(view, ribbon, foot, topBar, botBar);
   root.append(box);
   rd = { view, rec, els: { box, foot, fL, fR, chap, slider, nL, nR, ttl, bmBtn, ribbon, scrub, marks, prev, pvCh, pvTx, pvPct, pvBm, backPos }, chrome: false, saveT: 0, annTap: 0, pvSeq: 0 };
+  bookWords(rec.id).then((w) => { if (rd && rd.rec === rec) rd.words = w; });
   if (CW_OK) readerWatch();                // v352: "חזור" של אנדרואיד = בקשת סגירה, לא ניווט (בלי צילום של Chrome)
   preloadSecText(rec);
   rec.ann = rec.ann || [];
@@ -2938,7 +3031,7 @@ async function openReader(id, opt) {
     // v334: "העמוד זז" לפי פרק + מספר עמוד — לא לפי מחרוזת ה־CFI: בנגיעה עם רעד של אצבע המנוע "מצמיד" את העמוד
     // (~0.5 שנ׳), והטווח הגלוי נמדד מחדש בהיסט של שבר פיקסל — ה־CFI משתנה בתו־שניים והכרטיס נסגר (דיווח המשתמש: "קופץ ונעלם")
     const moved = pageMoved(rd.loc, d) && !(trCard && Date.now() - (trCard._at || 0) < 900 && !pageMoved(rd.loc, d, true));
-    rd.loc = d; markBookmark(); curlPrebuild();
+    rd.loc = d; markBookmark(); curlPrebuild(); paceTick(frac);
     if (moved) { hideSel(); hideTr(); }
     clearTimeout(rd.saveT);
     rd.saveT = setTimeout(() => {
