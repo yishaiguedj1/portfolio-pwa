@@ -172,6 +172,19 @@ RUN HF_HOME=/tmp/hf HF_HUB_DISABLE_TELEMETRY=1 /opt/vt/bin/python -c \
  && test -s /opt/karaoke-he/py/stable_whisper/alignment.py \
  && rm -rf /tmp/hf /opt/karaoke-he/ivrit/.cache /opt/karaoke-he/ctc/.cache
 
+# ---------------------------------------------------------------- קטעים שאינם באנגלית (01/11/2026, translator/vt/lang.py — A12)
+# Systran/faster-whisper-small ‏(MIT, ‏~480MB, ct2) — זיהוי שפה ותמלול של קטע בשפה אחרת; faster-whisper מ־/opt/sepdeps
+FROM deps AS lid
+RUN HF_HOME=/tmp/hf HF_HUB_DISABLE_TELEMETRY=1 /opt/vt/bin/python -c \
+    "from huggingface_hub import hf_hub_download as d; [d('Systran/faster-whisper-small', f, revision='536b0662742c02347bc0e980a01041f333bce120', local_dir='/opt/lid/whisper-small') for f in ('config.json', 'model.bin', 'tokenizer.json', 'vocabulary.txt')]" \
+ && cd /opt/lid && printf '%s\n' \
+    "b55496ac7940a7ae47d2c01eab40edfd8701feec1229d9cce3b40014383fb828  whisper-small/config.json" \
+    "3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671  whisper-small/model.bin" \
+    "fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab  whisper-small/tokenizer.json" \
+    "34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913  whisper-small/vocabulary.txt" \
+    | sha256sum -c - \
+ && rm -rf /tmp/hf /opt/lid/whisper-small/.cache
+
 # ---------------------------------------------------------------- טקסט שעל המסך (25/10/2026, translator/vt/burnin.py)
 # PP-OCRv3 det + rec (‏PaddleOCR, ‏Apache-2.0) מהגלגל הרשמי של rapidocr_onnxruntime 1.2.3 ב־PyPI — הגלגל והמודלים נבדקים
 # מול sha256. det מזהה איפה יש טקסט בפסים העליון/התחתון, rec מאשר שזה טקסט — הכתוביות מורמות מעליו. בלי המודלים: כמו קודם.
@@ -204,6 +217,7 @@ COPY --from=burnin /opt/burnin /opt/burnin
 COPY --from=separator /opt/sepdeps /opt/sepdeps
 COPY --from=separator /opt/separator /opt/separator
 COPY --from=karaokehe /opt/karaoke-he /opt/karaoke-he
+COPY --from=lid /opt/lid /opt/lid
 COPY --chown=root:root translator /app/translator
 # 16/10/2026: הגדרת השרת לעדכון ידני בלי שרת חדש — נתונים בלבד, שום דבר לא מריץ אותם לבד (infra/worker/snb-host-apply)
 COPY --chown=root:root infra/host/snb-common.sh infra/compose.yaml infra/host/snb-update /opt/snb-host/
@@ -212,7 +226,7 @@ RUN rm -rf /app/translator/tests /app/translator/research /app/translator/__pyca
  && find /app /opt/aligner /opt/speaker -type d -exec chmod 755 {} + && find /app /opt/aligner /opt/speaker -type f -exec chmod 644 {} + \
  && find /opt/linebreak -type d -exec chmod 755 {} + && find /opt/linebreak -type f -exec chmod 644 {} + \
  && find /opt/burnin -type d -exec chmod 755 {} + && find /opt/burnin -type f -exec chmod 644 {} + \
- && find /opt/sepdeps /opt/separator /opt/karaoke-he -type d -exec chmod 755 {} + && find /opt/sepdeps /opt/separator /opt/karaoke-he -type f -exec chmod 644 {} + \
+ && find /opt/sepdeps /opt/separator /opt/karaoke-he /opt/lid -type d -exec chmod 755 {} + && find /opt/sepdeps /opt/separator /opt/karaoke-he /opt/lid -type f -exec chmod 644 {} + \
  && chmod 644 /opt/snb-host/snb-common.sh /opt/snb-host/compose.yaml /opt/snb-host/snb-update
 # 20/10/2026: בדיקת עשן מול הספריות האמיתיות שבתמונה (הבדיקות ב־CI רצות בלי anthropic) — בניית הלקוח של Claude
 # בלי רשת. anthropic 1.x עבר ל־httpx2 ודחה httpx.Timeout ב־TypeError: כל עבודה בשרת קרסה בקריאה הראשונה, והבנייה עברה
@@ -221,12 +235,14 @@ RUN PATH=/opt/vt/bin:/opt/deno:$PATH /opt/vt/bin/python -c "import shutil, yt_dl
 # 25/10/2026: הפלאגין של ה־PO token נטען (ובאמד64 גם הסקריפט שלו קיים)
 RUN /opt/vt/bin/python -c "import os, yt_dlp_plugins.extractor.getpot_bgutil_script as g; f = os.path.isfile('/opt/bgutil/server/src/generate_once.ts'); print('bgutil', f); assert f or os.uname().machine != 'x86_64'"
 # 25/10/2026: מודל שבירת השורות נטען ומנתח משפט, בלי רשת (בלי זה ה־build נופל בשקט לכללים)
-RUN cd /app/translator && HF_HUB_OFFLINE=1 /opt/vt/bin/python -c "from vt import linebreak as L; m = L.DepModel(); t = m.toks('הלכתי אתמול לבית הספר החדש'); assert t and len(t) >= 5, t; print('linebreak', len(t))"
+RUN cd /app/translator && HF_HUB_OFFLINE=1 /opt/vt/bin/python -c "from vt import linebreak as L; m = L.DepModel(); t = m.toks('הלכתי אתמול לבית הספר החדש'); assert t and len(t) >= 5, t; assert len(t[0]) == 7 and any(x[4] for x in t), ('בלי מורפולוגיה', t); print('linebreak', len(t))"
 RUN cd /app/translator && /opt/vt/bin/python -c "from vt import burnin as B; import numpy as np; assert B.available(), 'burnin'; d = B.Detector(); print('burnin', len(d.frame(np.zeros((360, 640, 3), np.uint8), 0.0)))"
 # 26/10/2026: קריוקי — הספרייה נטענת מ־/opt/sepdeps, ושני המודלים נמצאים (בלי רשת; diffq/onnx2torch לא נדרשים ל־RoFormer)
 RUN cd /app/translator && /opt/vt/bin/python -c "import karaoke as K; assert K.sep_ready(), 'karaoke'; from audio_separator.separator import Separator; print('karaoke', K.SEP_DEFAULT, K.KAR_DEFAULT)"
 # 31/10/2026: הסנכרון בעברית — שני המודלים, stable-ts (מ־/opt/karaoke-he/py), faster-whisper ו־ctranslate2 נטענים בלי רשת
 RUN cd /app/translator && HF_HUB_OFFLINE=1 /opt/vt/bin/python -c "import karaoke; from vt import align_he as H; assert H.ready(), 'karaoke-he'; import stable_whisper, faster_whisper, ctranslate2; m = H.load_ivrit(); c, d = H.load_ctc(); assert '[pad]' in d; print('karaoke-he', stable_whisper.__version__, ctranslate2.__version__)"
+# 01/11/2026 (A12): מודל זיהוי השפה נטען בלי רשת
+RUN cd /app/translator && HF_HUB_OFFLINE=1 /opt/vt/bin/python -c "from vt import lang as L; assert L.ready(), 'lid'; m = L._model(); print('lid', L.LID_DIR)"
 RUN cd /app/translator && ANTHROPIC_API_KEY=build-check /opt/vt/bin/python -B -c \
     "import llm; c = llm.Engine(llm.Spec.of(llm.DEFAULT_MODE))._client_or_new(); assert c.timeout.read == llm.API_READ_TIMEOUT, c.timeout" \
  && cd /app/translator && /opt/vt/bin/python -B -c \

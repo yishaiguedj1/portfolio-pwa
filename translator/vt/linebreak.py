@@ -44,6 +44,17 @@ _INTENS = H.INTENSIFIERS | {"ביותר", "מדי", "קצת"}
 # המודל
 # ---------------------------------------------------------------------------
 
+# 01/11/2026 (שדרוג הסטודיו, A2): לכל טוקן גם המורפולוגיה — [טוקן, ראש, קשר, חלק דיבר, מין, מספר, גוף] — לבדיקת ההתאמה
+# בעברית (vt.translate.agreement_issues). v2: מטמון ישן (בלי המורפולוגיה) לא נקרא.
+CACHE_V = 2
+
+
+def _morph(t: dict) -> list[str]:
+    m = t.get("morph") or {}
+    f = m.get("feats") or {}
+    return [str(m.get("pos") or ""), str(f.get("Gender") or ""), str(f.get("Number") or ""), str(f.get("Person") or "")]
+
+
 class DepModel:
     """עטיפה עצלה למודל: נטען רק כשיש כתובית שצריכה שבירה. כל תקלה = אין מודל (הכללים)."""
 
@@ -60,7 +71,7 @@ class DepModel:
         if self.cache_file and self._sig:
             try:
                 d = json.loads(self.cache_file.read_text(encoding="utf-8"))
-                if d.get("v") == 1 and d.get("m") == self._sig and isinstance(d.get("c"), dict):
+                if d.get("v") == CACHE_V and d.get("m") == self._sig and isinstance(d.get("c"), dict):
                     self.cache.update(d["c"])
             except (OSError, ValueError):
                 pass
@@ -78,7 +89,7 @@ class DepModel:
         try:
             self.cache_file.parent.mkdir(parents=True, exist_ok=True)
             tmp = self.cache_file.with_suffix(".tmp")
-            tmp.write_text(json.dumps({"v": 1, "m": self._sig, "c": self.cache}, ensure_ascii=False), encoding="utf-8")
+            tmp.write_text(json.dumps({"v": CACHE_V, "m": self._sig, "c": self.cache}, ensure_ascii=False), encoding="utf-8")
             os.replace(tmp, self.cache_file)
         except OSError:
             pass
@@ -123,7 +134,7 @@ class DepModel:
                     chunk = todo[i:i + BATCH]
                     out = self._m.predict(chunk, self._tok, output_style="json")
                     for txt, s in zip(chunk, out):
-                        self.cache[txt] = [[t["token"], t["syntax"]["dep_head_idx"], t["syntax"]["dep_func"]]
+                        self.cache[txt] = [[t["token"], t["syntax"]["dep_head_idx"], t["syntax"]["dep_func"], *_morph(t)]
                                            for t in s["tokens"]]
             self._save()
         except Exception as e:                                    # noqa: BLE001

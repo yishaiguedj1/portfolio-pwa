@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Academy בלבד (02/11/2026, Studio Browser — הגל השישי, 70 מאמר ל־Academy): "שיתוף ← Academy" של ספר EPUB.
+     MainActivity פותח את Academy עם הקובץ (Web Share Target: POST ל־/share-file עם השדה book), sw.js שומר אותו ומעביר
+     לדף עם ‎#book=<מפתח>, והספרייה מוסיפה אותו לספרייה הפרטית (library.js — inboxBook). בלי הרשאות. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter android:label="@string/app_name">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/epub+zip" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

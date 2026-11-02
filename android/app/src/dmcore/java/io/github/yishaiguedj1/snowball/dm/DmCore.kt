@@ -35,6 +35,20 @@ object DmSegs {
         return n
     }
 
+    /**
+     * 01/11/2026 (צפייה תוך כדי הורדה): מקטע שמתחיל בדיוק ב־at — לחיבור חדש. אם החיבור שעל המקטע שמכיל את at כבר קרוב
+     * (פחות מ־near בתים לפניו), אין צורך: הוא יגיע בעצמו — null. אחרת חוצים שם (הישן מתקצר עד at)
+     */
+    fun splitAt(segs: MutableList<Seg>, at: Long, near: Long = 2 * MIN_SEG, min: Long = 256 * 1024L): Seg? {
+        val s = segs.firstOrNull { !it.finished && it.pos <= at && at < it.end } ?: return null
+        if (at - s.pos < near) return null
+        if (s.end - at < min) return null
+        val n = Seg(at, s.end)
+        s.end = at
+        segs.add(segs.indexOf(s) + 1, n)
+        return n
+    }
+
     /** חתכים שנגמרו ושהם רצופים — מאחדים (הרשימה לא גדלה בלי סוף בקובץ גדול) */
     fun compact(segs: MutableList<Seg>) {
         var i = 0

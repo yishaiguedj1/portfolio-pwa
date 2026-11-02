@@ -88,6 +88,14 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
               <span class="row-link-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 6 9 12 15 18"/></svg></span>
             </button>
           </div>
+          <!-- מרכז המס (01/11/2026): taxcenter.js נטען בלחיצה -->
+          <div class="menu-section menu-demo">
+            <button id="menuTaxBtn" class="row-link menu-row" type="button">
+              <span class="row-link-ic tax-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.8h9l4 4v14.4H6z"/><path d="M15 2.8v4h4"/><path d="M9.5 16.5l5-6"/><circle cx="10" cy="11" r="1.1" fill="currentColor" stroke="none"/><circle cx="14" cy="16" r="1.1" fill="currentColor" stroke="none"/></svg></span>
+              <span class="row-link-txt"><span class="menu-row-t" data-i18n="menuTax">מרכז המס</span><span class="menu-row-s" data-i18n="menuTaxSub">מס רווח הון לפי הדין בישראל</span></span>
+              <span class="row-link-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 6 9 12 15 18"/></svg></span>
+            </button>
+          </div>
           <div class="menu-section">
             <h3 class="menu-title" data-i18n="cashTitle">מזומן בתיק</h3>
             <div class="form-grid">

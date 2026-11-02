@@ -31,6 +31,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(r.nm === 'דנה כהן' && r.usd === 1.84 && r.tok === 501000 && r.p > 0.2 && r.p < 1 && r.left > 0 && r.exp >= r.usd && r.our, 'שורה חיה: שם, עלות (המגדל — החי ביותר), טוקנים, אחוז, זמן וצפי');
   ok(r.stg.up === 'd' && r.stg.tl === 'n' && r.by.tl.tok === 501000 && !('name' in r), 'שורה חיה: השלבים, העלות לפי סוכן — ובלי שם הקובץ');
   ok(UM.liveRow(Object.assign({}, run, { spec: { eng: 'api', ry: 1, dur: 60 } }), {}, now).our === false, 'במנוי של המשתמש (Routine) — לא עולה לנו');
+  ok(r.sm === 0 && UM.liveRow(Object.assign({}, run, { sm: 1 }), {}, now).sm === 1, 'עבודת הבדיקה אחרי עדכון — מסומנת (sm)');
   ok(UM.isLive(run) && !UM.isLive(Object.assign({}, run, { state: 'done' })) && !UM.isLive(Object.assign({}, run, { kind: 'ping' })), 'חי = בתור או רץ, לא בדיקת חיבור');
   // 01/11/2026: עבודה "רצה" במסמך בלי דיווח שעתיים (נתקעה) — בסטודיו היא לא פעילה, אז גם לא ב"עכשיו במערכת"
   ok(UM.isLive(Object.assign({}, run, { updated: now - 60e3 }), now) && !UM.isLive(Object.assign({}, run, { updated: now - 3 * 3600e3 }), now), 'נתקעה (isStale) — לא חיה');

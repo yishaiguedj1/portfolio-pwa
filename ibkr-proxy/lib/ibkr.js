@@ -227,7 +227,20 @@ function statementToJson(tree) {
     cashBalances: [],
   };
 
-  for (const t of findKids(st, 'Trade')) {
+  /* 02/11/2026 (מרכז המס, שלב 3): רק שורות ביצוע. שאילתה עם Closed Lots / סיכומים שולחת גם אותן כ־<Trade>,
+     וכל עסקה הייתה נספרת פעמיים. יש EXECUTION → רק הן (וגם בלי levelOfDetail — נתונים ישנים);
+     אין EXECUTION בכלל → כל מה שאינו CLOSED_LOT/סיכום (שאילתה ברמת ORDER). */
+  const tradeEls = findKids(st, 'Trade');
+  const lodOf = (t) => String((t.attrs || {}).levelOfDetail || '').toUpperCase();
+  const hasExec = tradeEls.some((t) => lodOf(t) === 'EXECUTION');
+  const keepTrade = (t) => { const l = lodOf(t); return !l || (hasExec ? l === 'EXECUTION' : !/LOT|SUMMARY/.test(l)); };
+  /* שמות התכונות שהגיעו (רק שמות וערכי קטגוריה — לא ערכים אישיים): מרכז המס מציג אילו שדות חסרים בשאילתה */
+  const names = (els) => { const n = new Set(); for (const e of els) for (const k of Object.keys(e.attrs || {})) if (/^[A-Za-z]{1,40}$/.test(k)) n.add(k); return [...n].sort().slice(0, 150); };
+  const cats = (els, k) => [...new Set(els.map((e) => String((e.attrs || {})[k] || '')).filter((v) => /^[A-Z_]{1,20}$/.test(v)))].sort().slice(0, 20);
+  const cashEls = findKids(st, 'CashTransaction');
+  out.meta.fields = { Trade: names(tradeEls), CashTransaction: names(cashEls), lod: cats(tradeEls, 'levelOfDetail'), asset: cats(tradeEls, 'assetCategory') };
+  for (const t of tradeEls) {
+    if (!keepTrade(t)) continue;
     const x = t.attrs;
     out.trades.push({
       symbol: x.symbol || '',
@@ -245,8 +258,22 @@ function statementToJson(tree) {
       openClose: x.openCloseIndicator || '',
       exchange: x.exchange || '',
       tradeId: x.tradeID || x.transactionID || '',
+      isin: x.isin || '',                       // 01/11/2026: מרכז המס — דוח 1325 ומד עיזבון (ריק אם לא בשאילתה)
+      country: x.issuerCountryCode || '',
       currency: x.currency || '',
       fxToBase: num(x.fxRateToBase) || 1,
+      // 02/11/2026 (שלב 3, תוספות בלבד; ריק אם השדה לא בשאילתה): סינון מט״ח, מכפיל, מפתח מנות, ביטולים, שיטת התאמה
+      asset: x.assetCategory || '',
+      subCategory: x.subCategory || '',
+      multiplier: num(x.multiplier) || 1,
+      conid: x.conid || '',
+      account: x.accountId || '',
+      tradeDate: flexDate(x.tradeDate),
+      transactionType: x.transactionType || '',
+      notes: x.notes || '',
+      levelOfDetail: lodOf(t),
+      origTradeId: x.origTradeID || '',
+      tradeMoney: num(x.tradeMoney),
     });
   }
   // פוזיציות: מעדיפים SUMMARY לכל סימבול; לסימבול שאין לו SUMMARY מצרפים LOT-ים.
@@ -268,6 +295,8 @@ function statementToJson(tree) {
       costBasis: num(x.costBasisMoney),
       unrealized: num(x.fifoPnlUnrealized),
       currency: x.currency || '',
+      isin: x.isin || '',
+      country: x.issuerCountryCode || '',
       fxToBase: num(x.fxRateToBase) || 1,
       levelOfDetail: lod || 'SUMMARY',
     };
@@ -300,7 +329,7 @@ function statementToJson(tree) {
       currency: x.currency || '',
       fxToBase: num(x.fxRateToBase) || 1,
       type: x.type || '',
-      description: x.description || '',
+      description: x.description || '',      actionId: x.actionID || '',               // 02/11/2026: קיבוץ דיבידנד וניכוי שלו (שלב 5)
     });
   }
   /* Transfers: הפקדות/משיכות בין חשבונות (כולל INTERNAL) — נחשבות תזרים.

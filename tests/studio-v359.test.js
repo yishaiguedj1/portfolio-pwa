@@ -45,9 +45,12 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(M.costView(USE, 'sonnet-high').warn.map((w) => w.k).join() === 'tl', 'טלפון: במצב Sonnet — אזהרה על תרגום ב־Opus (התיאום לא נבדק)');
   const cv2 = M.costView(USE.concat({ k: 'tl', m: 'claude-haiku-5-5', n: 1, i: 1, o: 1, cr: 0, c5: 10, c1: 0, usd: null, op: 10, oc: null }), 'opus-medium');
   ok(cv2.partial && cv2.rows[1].nth === 1 && cv2.rows[3].nth === 2 && cv2.rows[0].nth === 0 && cv2.rows[3].usd === null, 'טלפון: מודל בלי מחירון — "+" בסכום; שני מתרגמים ממוספרים');
+  const cv3 = M.costView(USE, 'opus-medium', 3.5);   // 1/11/2026: מה שהמגדל מדד בזמן ריצה — שורה משלו, והסה״כ = התקציב
+  ok(cv3.rows.length === 4 && cv3.rows[3].meas && cv3.rows[3].usd === 0.29 && cv3.total === 3.5 && M.costView(USE, 'opus-medium', 3.2).rows.length === 3, 'טלפון: עלות בזמן ריצה — כמו יעד התקציב');
+  ok(/live\(box,/.test(st) && /costMeas\(r\)/.test(st), 'טלפון: כרטיס העלות מתעדכן במקום (live)');
   ok(M.costView(null, 'opus-medium') === null && M.costView([{ k: 'main', m: 'gpt-4' }], 'opus-medium') === null, 'טלפון: בלי נתונים / נתון זר — בלי כרטיס');
   ok(M.normJob({ id: 'jAbCdEfGhIjKlMnOpQrSt', spec: {}, srv: { state: 'done', use: USE } }).srv.use.length === 3, 'טלפון: normJob שומר את העלות מהשרתון');
-  ok(/if \(cv\) p\.append\(\.\.\.costCard\(cv(?:, rec\.srv\.tr)?\)\)/.test(st) && /studioCostNote/.test(st) && /rec\.srv && rec\.srv\.use \? 'u' : ''/.test(st), 'טלפון: כרטיס "עלות" בדף העבודה (וציור מחדש כשהנתון מגיע)');
+  ok(/if \(cv\) p\.append\(\.\.\.costCard\(cv(?:, rec\.srv\.tr(?:, rec\.id)?)?\)\)/.test(st) && /studioCostNote/.test(st) && /rec\.srv && rec\.srv\.use \? 'u' : ''/.test(st), 'טלפון: כרטיס "עלות" בדף העבודה (וציור מחדש כשהנתון מגיע)');
   const app = read('app.js');
   ok(/studioCostNote: "לפי מחירון ה־API — במנוי זה נספר במכסת השימוש ולא מחויב לפי טוקן"/.test(app) && /studioCostNote: "At API prices/.test(app), 'טלפון: ההערה על המנוי — עברית ואנגלית');
 

@@ -42,7 +42,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(st.chainFor('agents').map((x) => x.v).join() === 'home,tower,towerx,agents', 'רענון במסך המלאי — חוזר דרך המגדל');
   const sj = read('studio.js');
   ok(/onClick: \(\) => go\('agents'\), k: 'tw-agents'/.test(sj) && /else if \(ui\.view === 'agents'\) pageAgents\(p\)/.test(sj), 'מגדל: מקטע הסוכנים ומסך המלאי');
-  ok(/costCard\(cv, rec\.srv\.tr\)/.test(sj) && !/function traceCard/.test(sj), 'דף העבודה: העקיבה בתוך כרטיס העלות (בלי כרטיס כפול)');
+  ok(/costCard\(cv, rec\.srv\.tr(?:, rec\.id)?\)/.test(sj) && !/function traceCard/.test(sj), 'דף העבודה: העקיבה בתוך כרטיס העלות (בלי כרטיס כפול)');
   ok(!/innerHTML/.test(sj.slice(sj.indexOf('function agentName'), sj.indexOf('function fbWhy'))), 'המלאי נבנה בלי innerHTML');
   const app = read('app.js');
   for (const k of ['studioTrActs', 'studioTrT', 'studioTrErrs', 'studioTrErr1', 'studioAgMain', 'studioAgTl', 'studioAgRv', 'studioAgMainA', 'studioAgTlA', 'studioAgRvA', 'studioAgSec', 'studioAgJobs',

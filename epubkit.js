@@ -935,3 +935,414 @@ export async function typoCover({ title, author = '', w = 1200, h = 1800, bg = '
   g.font = `400 54px "${font}"`; g.globalAlpha = 0.85; g.fillText(author, w / 2, h * 0.78);
   return new Promise((r) => cv.toBlob(r, 'image/jpeg', 0.9));
 }
+
+/* ---------------- 13. ליטוש ובדיקת הספר (Academy Pro, גל 1 — B1–B10, H3, H4, A10) ----------------
+   עקרונות: עותק חדש של הקובץ (הקודם נשמר אצל הקורא לביטול), dc:identifier לא משתנה, ובתוכן — רק החלפה של תו בתו
+   (״ ׳ ־ וסוגריים), כדי שה־CFI של ההדגשות לא יזוז. היוצא מן הכלל: הסרת תווי כיוון מיותרים (תו אחד פחות בפסקה).
+   הכל מחרוזות (בלי DOMParser+XMLSerializer על מסמכי התוכן) — רק ה־OPF וה־NCX עוברים דרך DOM, כמו בשאר הקובץ. */
+const HEL = '[\\u05D0-\\u05EA][\\u0591-\\u05C7]*';                       // אות עברית + ניקוד/טעמים אחריה
+const RE_MAQAF = new RegExp('(' + HEL + ')-(?=[\\u05D0-\\u05EA0-9])', 'g');   // בית-ספר → בית־ספר, ב-1965 → ב־1965
+/* H3: פיסוק עברי — מעבר אחד משמאל לימין על " ו־' (גם המסולסלים):
+   - בין שתי אותיות: גרשיים/גרש (צה"ל, ג'ירפה) — אלא אם לפניו רק אותיות שימוש (ו, ה, ש…) והמילה שאחריו נסגרת באותו סימן:
+     ו"המכתב" / ה'לא' = מירכאות, לא נוגעים. ב־" גם: יותר משתי אותיות אחרי הסימן = כנראה מירכאות (לא נוגעים).
+   - אחרי מילה (' בלבד): סגירת ציטוט אם נפתח ציטוט, אחרת גרש (ג׳, עמ׳, פרופ׳).
+   מירכאות של ציטוט ("שלום") לא משתנות. כל החלפה = תו אחד בתו אחד (ה־CFI לא זז) */
+export function hebrewPunct(text) {
+  let n = 0;
+  const heb = (c) => c >= '\u05D0' && c <= '\u05EA', mark = (c) => c >= '\u0591' && c <= '\u05C7';
+  const open = { '"': false, "'": false };
+  let t = String(text).replace(/["'\u201C\u201D\u2018\u2019]/g, (m, off, str) => {
+    const dbl = m === '"' || m === '\u201C' || m === '\u201D', key = dbl ? '"' : "'";
+    let j = off - 1;
+    while (j >= 0 && mark(str[j])) j--;
+    const pv = j >= 0 && heb(str[j]), nx = heb(str[off + 1] || ''), nxw = /\w/.test(str[off + 1] || '');
+    if (pv && nx) {
+      let s0 = j; while (s0 > 0 && (heb(str[s0 - 1]) || mark(str[s0 - 1]))) s0--;
+      const before = str.slice(s0, j + 1).replace(/[\u0591-\u05C7]/g, '');
+      let e = off + 1; while (e < str.length && (heb(str[e]) || mark(str[e]))) e++;
+      const after = str.slice(off + 1, e).replace(/[\u0591-\u05C7]/g, ''), close = str[e] || '';
+      const closes = dbl ? /["\u201C\u201D]/.test(close) : /['\u2018\u2019]/.test(close);
+      if (/^[בהוכלמש]{1,3}$/.test(before) && closes) { open[key] = true; return m; }
+      if (dbl && after.length > 2) return m;
+      n++; return dbl ? '\u05F4' : '\u05F3';
+    }
+    if (pv && !nxw) {
+      if (open[key]) { open[key] = false; return m; }
+      if (dbl) return m;
+      n++; return '\u05F3';
+    }
+    if (!pv && nx) open[key] = true;
+    return m;
+  });
+  t = t.replace(RE_MAQAF, (m, l) => { n++; return l + '\u05BE'; });
+  return { text: t, n };
+}
+/* H4: כיווניות. תווי הטבעה/דריסה ישנים (U+202A–202E) נמחקים; סימן כיוון ליד אות באותו כיוון לא משנה כלום ונמחק; רצף סימנים → אחד;
+   סוגריים הפוכים מהמרה חזותית — ")עמ' 42(" → "(עמ' 42)" — רק כשאין בקטע סוגר פותח לפני הסוגר הראשון */
+export function bidiFix(text) {
+  let n = 0;
+  let t = text.replace(/[‪-‮]/g, () => { n++; return ''; });
+  t = t.replace(/([‎‏])[‎‏]+/g, (m, a) => { n += m.length - 1; return a; });
+  t = t.replace(/‏(?=[א-ת])|(?<=[א-ת֑-ׇ])‏/g, () => { n++; return ''; });
+  t = t.replace(/‎(?=[A-Za-z])|(?<=[A-Za-z])‎/g, () => { n++; return ''; });
+  const o = t.indexOf('('), c = t.indexOf(')');
+  if (c >= 0 && (o < 0 || c < o) && /[א-ת]/.test(t)) t = t.replace(/\)([^()\n]{1,120})\(/g, (m, x) => { n++; return '(' + x + ')'; });
+  return { text: t, n };
+}
+/* הטקסט של מסמך XHTML בלבד (אחרי <body>, בלי script/style/pre/code/svg/math), עם fn על כל קטע טקסט.
+   &quot; ו־&apos; בטקסט = " ו־' (מותר כתו רגיל בטקסט של XML), כדי שצה&quot;ל ייתפס. קטע שלא השתנה נשאר בדיוק כמו שהיה */
+const SKIP_TEXT = /^(script|style|pre|code|kbd|samp|tt|svg|math|head)$/i;
+const TAG_RE = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<(?:[^>"']|"[^"]*"|'[^']*')*>/g;
+export function mapText(src, fn) {
+  const s = String(src), bm = /<body\b(?:[^>"']|"[^"]*"|'[^']*')*>/i.exec(s);
+  if (!bm) return s;
+  const start = bm.index + bm[0].length;
+  let out = s.slice(0, start), last = start, skip = 0, m;
+  const seg = (x) => {
+    if (skip || !/\S/.test(x)) return x;
+    const d = x.replace(/&(quot|#34|#x22);/gi, '"').replace(/&(apos|#39|#x27);/gi, "'");
+    const r = fn(d);
+    return r === d ? x : r;
+  };
+  TAG_RE.lastIndex = start;
+  while ((m = TAG_RE.exec(s))) {
+    if (m.index > last) out += seg(s.slice(last, m.index));
+    const t = m[0], tm = /^<(\/?)([\w:.-]+)/.exec(t);
+    if (tm && SKIP_TEXT.test(tm[2].split(':').pop())) { if (tm[1]) skip = Math.max(0, skip - 1); else if (!/\/\s*>$/.test(t)) skip++; }
+    out += t; last = TAG_RE.lastIndex;
+  }
+  if (last < s.length) out += seg(s.slice(last));
+  return out;
+}
+
+/* CSS: סורק קטן (הערות, מחרוזות, סוגריים, בלוקים מקוננים). keepSel(sel) → בורר מסונן או '' למחיקה;
+   keepDecl(prop, value, sel) → false למחיקה; dropAt(name) → true = מחיקת כל הבלוק (למשל @page). כלל שהתרוקן — נמחק */
+export function cssTransform(css, { keepSel, keepDecl, dropAt } = {}) {
+  const src = String(css), n = src.length;
+  let i = 0;
+  const skipStr = () => { const q = src[i]; i++; while (i < n && src[i] !== q) { if (src[i] === '\\') i++; i++; } };
+  const scanTo = (stops) => {                     // i נעצר על התו שנמצא (או n)
+    let p = 0;
+    for (; i < n; i++) {
+      const c = src[i];
+      if (c === '/' && src[i + 1] === '*') { const e = src.indexOf('*/', i + 2); i = e < 0 ? n - 1 : e + 1; continue; }
+      if (c === '"' || c === "'") { skipStr(); continue; }
+      if (c === '(') p++; else if (c === ')') { if (p) p--; } else if (!p && stops.includes(c)) return c;
+    }
+    return '';
+  };
+  const rawBlock = () => {                         // i אחרי '{' → i אחרי ה־'}' התואם
+    let d = 1;
+    for (; i < n && d; i++) {
+      const c = src[i];
+      if (c === '/' && src[i + 1] === '*') { const e = src.indexOf('*/', i + 2); i = e < 0 ? n - 1 : e + 1; continue; }
+      if (c === '"' || c === "'") { skipStr(); continue; }
+      if (c === '{') d++; else if (c === '}') d--;
+    }
+  };
+  const splitDecl = (body) => {                    // ';' מחוץ למחרוזות ולסוגריים (url(data:…;base64,…))
+    const out = []; let p = 0, s = 0;
+    for (let j = 0; j < body.length; j++) {
+      const c = body[j];
+      if (c === '"' || c === "'") { const q = c; j++; while (j < body.length && body[j] !== q) { if (body[j] === '\\') j++; j++; } continue; }
+      if (c === '(') p++; else if (c === ')') { if (p) p--; } else if (c === ';' && !p) { out.push(body.slice(s, j)); s = j + 1; }
+    }
+    out.push(body.slice(s));
+    return out;
+  };
+  const stripC = (x) => x.replace(/\/\*[\s\S]*?\*\//g, '');
+  const list = (nested) => {
+    let out = '';
+    while (i < n) {
+      const s = i, c = scanTo('{;}'), pre = src.slice(s, i);
+      if (c === '}') { i++; if (nested) return out + pre; out += pre + '}'; continue; }
+      if (c !== '{') { out += pre + (c ? ';' : ''); i++; continue; }
+      i++;
+      const lead = pre.match(/^\s*/)[0], head = stripC(pre).trim(), at = /^@([\w-]+)/.exec(head);
+      if (at) {
+        const name = at[1].toLowerCase();
+        if (/^(media|supports|document|-moz-document|layer|container)$/.test(name)) {
+          const inner = list(true);
+          if (stripC(inner).trim()) out += pre + '{' + inner + '}';
+          continue;
+        }
+        rawBlock();
+        if (!(dropAt && dropAt(name))) out += src.slice(s, i);
+        continue;
+      }
+      const b0 = i; rawBlock();
+      const body = src.slice(b0, i - 1);
+      const sel = keepSel ? keepSel(head) : head;
+      if (!sel) continue;
+      let nb = body;
+      if (keepDecl) {
+        const parts = splitDecl(body), kept = parts.filter((d) => {
+          const k = stripC(d), ix = k.indexOf(':');
+          if (ix < 0) return !!k.trim();
+          return keepDecl(k.slice(0, ix).trim().toLowerCase(), k.slice(ix + 1).trim(), head);
+        });
+        if (kept.length !== parts.length) {
+          if (!kept.some((d) => stripC(d).trim())) continue;
+          nb = kept.join(';');
+        }
+      }
+      out += lead + (sel === head ? pre.slice(lead.length) : sel + ' ') + '{' + nb + '}';
+    }
+    return out;
+  };
+  return list(false);
+}
+/* B3: בורר שלא יכול להתאים לשום אלמנט בספר — מחלקה או id שלא מופיעים באף מסמך. :is/:where/:has ו־escape — נשארים (זהירות) */
+export function selectorUsed(sel, used) {
+  const keep = [];
+  for (const one of splitTop(sel)) {
+    const s = one.trim();
+    if (!s) continue;
+    if (/\\|:(is|where|has|matches|-webkit-any|-moz-any)\(/i.test(s)) { keep.push(one); continue; }
+    const bare = s.replace(/\[[^\]]*\]/g, '').replace(/:not\((?:[^()]|\([^()]*\))*\)/gi, '');
+    const cls = [...bare.matchAll(/\.(-?[_a-zA-Z -￿][\w -￿-]*)/g)].map((x) => x[1]);
+    const ids = [...bare.matchAll(/#(-?[_a-zA-Z -￿][\w -￿-]*)/g)].map((x) => x[1]);
+    if (cls.every((c) => used.cls.has(c)) && ids.every((x) => used.ids.has(x))) keep.push(one);
+  }
+  return keep.length ? keep.map((x) => x.trim()).join(', ') : '';
+}
+function splitTop(sel) {                            // פסיקים ברמה העליונה בלבד
+  const out = []; let p = 0, s = 0;
+  for (let j = 0; j < sel.length; j++) { const c = sel[j]; if (c === '(' || c === '[') p++; else if (c === ')' || c === ']') p--; else if (c === ',' && !p) { out.push(sel.slice(s, j)); s = j + 1; } }
+  out.push(sel.slice(s));
+  return out;
+}
+/* B4: עיצוב כפוי. parts = { font, color, size, margin }. שוליים — רק על html/body (שוליי העמוד של המו״ל) ו־@page */
+const ABS_UNIT = /\d(\.\d+)?\s*(px|pt|pc|cm|mm|in)\b/i;
+export function forcedFilter(parts) {
+  return (prop, val, sel) => {
+    if (parts.font && prop === 'font-family') return false;
+    if ((parts.font || parts.size) && prop === 'font') return false;
+    if (parts.color && (prop === 'color' || prop === 'background-color' || (prop === 'background' && !/url\(/i.test(val)))) return false;
+    if (parts.size && (prop === 'font-size' || prop === 'line-height') && ABS_UNIT.test(val)) return false;
+    if (parts.margin && /^(margin|padding)(-|$)/.test(prop) && /(^|[\s,>+~(])(html|body)(?![\w-])/i.test(sel || '')) return false;
+    return true;
+  };
+}
+/* style="" במסמכי התוכן — אותו מסנן (בלי שוליים: אין בורר) */
+function filterStyleAttrs(src, keepDecl) {
+  return String(src).replace(/(\sstyle\s*=\s*)(["'])([^"']*)\2/gi, (m, pre, q, v) => {
+    const parts = v.split(';'), kept = parts.filter((d) => { const ix = d.indexOf(':'); return ix < 0 ? !!d.trim() : keepDecl(d.slice(0, ix).trim().toLowerCase(), d.slice(ix + 1).trim(), ''); });
+    if (kept.length === parts.length) return m;
+    return kept.some((d) => d.trim()) ? pre + q + kept.join(';') + q : '';
+  });
+}
+export function relPath(fromFile, toPath) {         // נתיב ב־ZIP → href יחסי למסמך fromFile
+  const a = fromFile.split('/').slice(0, -1), b = toPath.split('/');
+  let k = 0;
+  while (k < a.length && k < b.length - 1 && a[k] === b[k]) k++;
+  return '../'.repeat(a.length - k) + b.slice(k).map(encodeURIComponent).join('/');
+}
+const escX = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const HYPH_MARK = '/* snb-hyphens */';
+const HYPH_CSS = '\n' + HYPH_MARK + '\np, li, blockquote, dd { -webkit-hyphens: auto; hyphens: auto; }\n';
+const FONT_RE = /font|opentype|truetype|woff|sfnt/i, FONT_EXT = /\.(ttf|otf|woff2?|eot)$/i;
+const opfBytes = (opf, Ser) => { const x = new (Ser || globalThis.XMLSerializer)().serializeToString(opf); return enc.encode(/^<\?xml/.test(x) ? x : '<?xml version="1.0" encoding="UTF-8"?>\n' + x); };
+export const POLISH_ALL = { punct: true, bidi: true, css: true, forced: { font: true, color: true, size: true, margin: true }, epub3: true, kindle: true, hyph: true };
+export const POLISH_DEFAULT = { punct: true, bidi: true, css: true, forced: { font: true, color: true, size: false, margin: false }, epub3: true, kindle: true, hyph: true };
+
+/* B1: ליטוש בפעולה אחת. dry = רק ספירה (לחלון — "כמה מקומות", "כמה KB"), בלי לכתוב קובץ.
+   מחזיר { blob, stats, issues, info }. issues = A10: { code, n, first, fix } — fix: 'auto' (כל ליטוש) / 'kindle' / 'epub3' / null (ידני) */
+export async function polishBook(blob, opts = {}, { dry = false, DOMParserImpl, XMLSerializerImpl, now = new Date(), meta, cover } = {}) {
+  const rep = await inspectEpub(blob, { DOMParserImpl });
+  if (!rep.ok) fail('not_editable', { errors: rep.errors });
+  const DP = DOMParserImpl || globalThis.DOMParser;
+  const zip = rep.zip, opf = rep.opf, pkg = opf.documentElement, md = metadataEl(opf), opfPath = rep.opfPath;
+  const man = kids(pkg, NS.OPF, 'manifest')[0], spine = kids(pkg, NS.OPF, 'spine')[0];
+  const items = kids(man, NS.OPF, 'item');
+  const put = new Map(), del = new Set();
+  const st = { punct: 0, bidi: 0, cssBytes: 0, forcedBytes: 0, hyph: 0, fontsRemoved: 0, fontBytes: 0, missingRemoved: 0, tocFixed: 0, upgraded: false, langAdded: false, docs: 0 };
+  const issues = [];
+  const issue = (code, fix, n = 1, first = '') => { const x = issues.find((y) => y.code === code); if (x) { x.n += n; return; } issues.push({ code, n, first, fix }); };
+  let opfChanged = false;
+  const pathOf = (it) => { const h = it.getAttribute('href') || ''; return /^[a-z][a-z0-9+.-]*:/i.test(h) ? null : resolvePath(opfPath, h); };
+  const isDoc = (it) => /xhtml|html/.test(it.getAttribute('media-type') || '');
+  const isCss = (it) => (it.getAttribute('media-type') || '') === 'text/css' || /\.css$/i.test(it.getAttribute('href') || '');
+  const isFont = (it) => FONT_RE.test(it.getAttribute('media-type') || '') || FONT_EXT.test(it.getAttribute('href') || '');
+  const docs = [], csss = [];
+  for (const it of items) {
+    const p = pathOf(it), e = p && zip.byName.get(p);
+    if (!e) continue;
+    if (isDoc(it)) docs.push({ it, p, src: await readText(blob, e, 16 << 20) });
+    else if (isCss(it)) csss.push({ it, p, src: await readText(blob, e, 8 << 20) });
+    if (docs.length % 20 === 0) await yieldNow();
+  }
+  st.docs = docs.length;
+  // A10 — מה שה־inspect כבר מצא
+  for (const w of rep.warnings) {
+    if (/^mimetype_|^utf8_flag/.test(w.code)) issue('container', 'auto');
+    else if (w.code === 'missing_file') issue('missing_file', 'kindle', 1, w.href || '');
+    else if (w.code === 'no_language') issue('no_language', 'kindle');
+    else if (w.code === 'no_toc') issue('no_toc', 'epub3');
+    else if (w.code === 'remote_resource') issue('remote_resource', null, 1, w.href || '');
+    else if (w.code === 'no_title') issue('no_title', null);
+  }
+  try { await deepCheck(blob, zip); } catch (e) { issue('corrupt', null, 1, (e && e.code) || ''); }
+  // שפה וכיוון: לפי dc:language, ואם אין — לפי הטקסט
+  const langEl = kids(md, NS.DC, 'language')[0];
+  let lang = textOf(langEl).toLowerCase();
+  if (!lang) {
+    const sample = docs.slice(0, 6).map((d) => d.src.replace(/<[^>]*>/g, ' ')).join(' ').slice(0, 40000);
+    const he = (sample.match(/[א-ת]/g) || []).length, la = (sample.match(/[A-Za-z]/g) || []).length;
+    lang = he > la ? 'he' : la ? 'en' : '';
+  }
+  const hebrew = /^(he|iw)\b/.test(lang);
+  const v = opfVersion(opf);
+  // מה שמשמש בספר: מחלקות, id, וקבצים שמוזכרים (תמונות, גופנים)
+  const used = { cls: new Set(), ids: new Set() }, refd = new Set();
+  const addRefs = (text, base) => {
+    for (const m of String(text).matchAll(/url\(\s*(["']?)([^"')]+)\1\s*\)/gi)) { const p = resolvePath(base, m[2].trim()); if (p) refd.add(p); }
+    for (const m of String(text).matchAll(/\s(?:src|href|xlink:href)\s*=\s*(["'])([^"']+)\1/gi)) { if (!/^[a-z][a-z0-9+.-]*:|^#/i.test(m[2])) { const p = resolvePath(base, m[2]); if (p) refd.add(p); } }
+  };
+  for (const d of docs) {
+    for (const m of d.src.matchAll(/\sclass\s*=\s*(["'])([^"']*)\1/gi)) m[2].split(/\s+/).forEach((c) => c && used.cls.add(c));
+    for (const m of d.src.matchAll(/\sid\s*=\s*(["'])([^"']*)\1/gi)) used.ids.add(m[2]);
+    addRefs(d.src, d.p);
+    for (const m of d.src.matchAll(/<(?:img|image)\b[^>]*?\s(?:src|xlink:href)\s*=\s*(["'])([^"']+)\1/gi)) {
+      if (/^[a-z][a-z0-9+.-]*:/i.test(m[2])) continue;
+      const p = resolvePath(d.p, m[2]);
+      if (p && !zip.byName.has(p)) issue('missing_img', null, 1, m[2]);
+    }
+  }
+  for (const c of csss) addRefs(c.src, c.p);
+  // מסמכי התוכן: עברית, כיווניות, עיצוב כפוי ב־style=""
+  const forced = opts.forced && Object.values(opts.forced).some(Boolean) ? forcedFilter(opts.forced) : null;
+  for (const d of docs) {
+    let out = d.src;
+    if (hebrew && (opts.punct || opts.bidi)) {
+      const sample = (t, x) => {                       // דוגמה ל"לפני/אחרי" בחלון — מהספר עצמו
+        let k = 0; while (k < t.length && t[k] === x[k]) k++;
+        const s0 = Math.max(0, k - 60), e0 = Math.min(t.length, k + 110), dl = x.length - t.length, ws = (y) => y.replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '').replace(/\s+/g, ' ');   // תווי כיוון לא נראים — בלעדיהם ההדגשה תו מול תו
+        st.sample = { b: ws(t.slice(s0, e0)), a: ws(x.slice(s0, e0 + dl)) };
+      };
+      out = mapText(out, (t) => {
+        let x = t, pn = 0, bn = 0;
+        if (opts.punct) { const r = hebrewPunct(x); st.punct += pn = r.n; x = r.text; }
+        if (opts.bidi) { const r = bidiFix(x); st.bidi += bn = r.n; x = r.text; }
+        /* הדוגמה מראה את התוצאה המלאה של הקטע — הקטע עם הכי הרבה תיקונים (הראשון בתיקו) */
+        if ((pn || bn) && (!st.sample || pn + bn > st.sample.n)) { sample(t, x); st.sample.n = pn + bn; }
+        return x;
+      });
+    }
+    if (hebrew && opts.bidi) { const o2 = ensureHtmlLangDir(out, { lang: 'he', dir: 'rtl' }); if (o2 !== out) { st.bidi++; out = o2; } }
+    if (!hebrew && opts.hyph && lang) out = ensureHtmlLangDir(out, { lang });
+    if (forced) { const o2 = filterStyleAttrs(out, forced); st.forcedBytes += out.length - o2.length; out = o2; }
+    if (out !== d.src) put.set(d.p, enc.encode(out));
+    d.out = out;
+  }
+  await yieldNow();
+  // קבצי CSS: לא בשימוש (B3), עיצוב כפוי (B4), חלוקת מילים (B8)
+  for (const c of csss) {
+    let out = c.src;
+    if (opts.css && !rep.scripted) { const o2 = cssTransform(out, { keepSel: (s) => selectorUsed(s, used) }); st.cssBytes += out.length - o2.length; out = o2; }
+    if (forced) { const o2 = cssTransform(out, { keepDecl: forced, dropAt: (name) => !!(opts.forced.margin && name === 'page') }); st.forcedBytes += out.length - o2.length; out = o2; }
+    if (opts.hyph && !hebrew && lang && !out.includes(HYPH_MARK)) { out += HYPH_CSS; st.hyph++; }
+    if (out !== c.src) put.set(c.p, enc.encode(out));
+  }
+  // B10 — מוכן לכל קורא: פריטים חסרים ב־manifest, גופנים שלא בשימוש, שפה חסרה, תוכן עניינים שבור (NCX)
+  const ncxIt = items.find((it) => (it.getAttribute('media-type') || '') === 'application/x-dtbncx+xml');
+  const ncxPath = ncxIt && pathOf(ncxIt);
+  let ncx = null;
+  if (ncxPath && zip.byName.has(ncxPath)) { try { ncx = parseXml(await readText(blob, zip.byName.get(ncxPath)), DP); } catch (e) { issue('bad_toc', null); } }
+  const navPoints = ncx ? Array.from(ncx.getElementsByTagName('*')).filter((x) => x.localName === 'navPoint') : [];
+  const broken = navPoints.filter((np) => {
+    const c = kids(np, null, 'content')[0], src = c && c.getAttribute('src');
+    const p = src && resolvePath(ncxPath, src);
+    return !p || !zip.byName.has(p);
+  });
+  if (broken.length) issue('broken_toc', 'kindle', broken.length, (kids(kids(broken[0], null, 'navLabel')[0], null, 'text')[0] || {}).textContent || '');
+  const encrypted = zip.byName.has('META-INF/encryption.xml');
+  const unusedFonts = encrypted ? [] : items.filter((it) => { const p = pathOf(it); return p && isFont(it) && zip.byName.has(p) && !refd.has(p); });
+  if (unusedFonts.length) issue('unused_font', 'kindle', unusedFonts.length, (pathOf(unusedFonts[0]) || '').split('/').pop());
+  if (opts.kindle) {
+    for (const it of items) {
+      const p = pathOf(it), inSpine = kids(spine, NS.OPF, 'itemref').some((r) => r.getAttribute('idref') === it.getAttribute('id'));
+      if (p && !zip.byName.has(p) && !inSpine) { removeNode(it); st.missingRemoved++; opfChanged = true; }
+    }
+    for (const it of unusedFonts) { const p = pathOf(it); st.fontBytes += zip.byName.get(p).csize || 0; del.add(p); removeNode(it); st.fontsRemoved++; opfChanged = true; }
+    if (!langEl && lang) { writeOpfMeta(opf, { lang }, { now }); st.langAdded = true; opfChanged = true; }
+    if (broken.length) {
+      for (const np of broken) if (!kids(np, null, 'navPoint').length && np.parentNode) { np.parentNode.removeChild(np); st.tocFixed++; }
+      if (st.tocFixed) put.set(ncxPath, opfBytes(ncx, XMLSerializerImpl));
+    }
+  }
+  // B5 — שדרוג ל־EPUB 3: גרסה, תוכן עניינים nav (מה־NCX או מהפרקים), מאפייני opf: ישנים → refines, cover-image
+  if (opts.epub3 && v === 2) {
+    st.upgraded = true; opfChanged = true;
+    pkg.setAttribute('version', '3.0');
+    for (const el of [...kids(md, NS.DC, 'creator'), ...kids(md, NS.DC, 'contributor')]) {
+      const role = opfAttr(el, 'role'), fa = opfAttr(el, 'file-as');
+      if (role) refine(opf, md, el, 'role', role, { scheme: MARC });
+      if (fa) refine(opf, md, el, 'file-as', fa);
+      ['role', 'file-as'].forEach((a) => { el.removeAttributeNS(NS.OPF, a); el.removeAttribute('opf:' + a); });
+    }
+    const uidId = pkg.getAttribute('unique-identifier');
+    for (const el of kids(md, NS.DC, 'identifier')) {
+      const sch = opfAttr(el, 'scheme').toLowerCase();
+      if (sch === 'isbn' && el.getAttribute('id') !== uidId && normIsbn(textOf(el))) setText(opf, el, 'urn:isbn:' + normIsbn(textOf(el)));
+      el.removeAttributeNS(NS.OPF, 'scheme'); el.removeAttribute('opf:scheme');
+    }
+    const dates = kids(md, NS.DC, 'date');
+    const keepD = dates.find((d) => !dateEvent(d) || dateEvent(d) === 'publication') || dates[0];
+    for (const d of dates) { if (d !== keepD) removeNode(d); else { d.removeAttributeNS(NS.OPF, 'event'); d.removeAttribute('opf:event'); } }
+    const cm = legacyMeta(md, 'cover')[0], cid = cm && cm.getAttribute('content');
+    const cit = cid && items.find((it) => it.getAttribute('id') === cid);
+    if (cit && !/\bcover-image\b/.test(cit.getAttribute('properties') || '') && /^image\//.test(cit.getAttribute('media-type') || '')) cit.setAttribute('properties', ((cit.getAttribute('properties') || '') + ' cover-image').trim());
+    if (!items.some((it) => /\bnav\b/.test(it.getAttribute('properties') || ''))) {
+      const dir = opfPath.includes('/') ? opfPath.slice(0, opfPath.lastIndexOf('/') + 1) : '';
+      let name = 'nav.xhtml', k = 1;
+      while (zip.byName.has(dir + name)) name = 'nav' + (k++) + '.xhtml';
+      const navPath = dir + name;
+      const li = (label, p) => '<li><a href="' + escX(relPath(navPath, p)) + '">' + escX(label || p.split('/').pop()) + '</a>';
+      const walk = (parent) => {
+        const pts = kids(parent, null, 'navPoint').filter((np) => np.parentNode);
+        if (!pts.length) return '';
+        return '<ol>' + pts.map((np) => {
+          const c = kids(np, null, 'content')[0], src = (c && c.getAttribute('src')) || '';
+          const p = resolvePath(ncxPath, src.split('#')[0]), frag = src.includes('#') ? '#' + src.split('#')[1] : '';
+          const label = textOf(kids(kids(np, null, 'navLabel')[0], null, 'text')[0]);
+          return (p ? li(label, p).replace('">', frag ? escX(frag) + '">' : '">') : '<li><span>' + escX(label) + '</span>') + walk(np) + '</li>';
+        }).join('') + '</ol>';
+      };
+      let ol = ncx ? walk(kids(ncx.documentElement, null, 'navMap')[0]) : '';
+      if (!ol) {
+        const byId = new Map(items.map((it) => [it.getAttribute('id'), it]));
+        ol = '<ol>' + kids(spine, NS.OPF, 'itemref').map((r) => {
+          const it = byId.get(r.getAttribute('idref')), d = it && docs.find((x) => x.it === it);
+          if (!d) return '';
+          const h = /<(h[1-3]|title)\b[^>]*>([\s\S]*?)<\/\1>/i.exec(d.src), label = h ? h[2].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim() : '';
+          return li(label, d.p) + '</li>';
+        }).join('') + '</ol>';
+      }
+      const l = lang || 'und', title = textOf(kids(md, NS.DC, 'title')[0]) || 'Contents';
+      const nav = '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE html>\n<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="' + escX(l) + '" xml:lang="' + escX(l) + '"' + (hebrew ? ' dir="rtl"' : '') + '>\n<head><meta charset="utf-8"/><title>' + escX(title) + '</title></head>\n<body><nav epub:type="toc" id="toc">' + ol + '</nav></body>\n</html>\n';
+      put.set(navPath, enc.encode(nav));
+      const it = opf.createElementNS(NS.OPF, 'item');
+      it.setAttribute('id', newId(opf, 'nav')); it.setAttribute('href', relPath(opfPath, navPath)); it.setAttribute('media-type', 'application/xhtml+xml'); it.setAttribute('properties', 'nav');
+      const tail = man.lastChild && man.lastChild.nodeType === 3 && !man.lastChild.nodeValue.trim() ? man.lastChild : null;
+      man.insertBefore(opf.createTextNode('\n    '), tail); man.insertBefore(it, tail);
+    }
+    if (hebrew) setSpineDirection(opf, 'rtl');
+  } else if (hebrew && opts.bidi && setSpineDirection(opf, 'rtl')) { opfChanged = true; st.bidi++; }
+  // B6 — הפרטים מהספרייה לתוך הקובץ (רק שדות שיש בהם ערך — לא מוחקים מה שבקובץ)
+  if (meta) {
+    const m = {};
+    for (const [k, val] of Object.entries(meta)) if (val != null && val !== '' && !(Array.isArray(val) && !val.length)) m[k] = val;
+    if (m.isbn && !normIsbn(m.isbn)) delete m.isbn;
+    if (Object.keys(m).length) { writeOpfMeta(opf, m, { now }); opfChanged = true; st.meta = Object.keys(m).length; }
+  }
+  if (opfChanged || put.size || del.size) {
+    if (opfVersion(opf) === 3) writeOpfMeta(opf, {}, { now });     // dcterms:modified
+    put.set(opfPath, opfBytes(opf, XMLSerializerImpl));
+  }
+  const info = { version: v, lang, hebrew, size: blob.size, scripted: !!rep.scripted, hasNcx: !!ncx, cssFiles: csss.length };
+  if (dry) return { blob, stats: st, issues, info };
+  let out = put.size || del.size || rep.repair.length ? await rewriteZip(blob, zip, { put, del, now }) : blob;
+  if (cover && meta) out = await embedMetadata(out, {}, { cover, DOMParserImpl, XMLSerializerImpl, now });
+  return { blob: out, stats: st, issues, info };
+}

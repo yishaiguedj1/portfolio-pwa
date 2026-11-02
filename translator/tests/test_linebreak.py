@@ -144,7 +144,7 @@ class TestHaikuFiles(unittest.TestCase):
             b = Fake(md, cf)
             b.parse(["אחת שתיים"])
             self.assertEqual(len(loads), 1)
-            self.assertEqual(b.toks("אחת שתיים"), [["אחת", -1, "root"], ["שתיים", -1, "root"]])
+            self.assertEqual(b.toks("אחת שתיים"), [["אחת", -1, "root", "", "", "", ""], ["שתיים", -1, "root", "", "", "", ""]])
             b.parse(["טקסט חדש"])
             self.assertEqual(len(loads), 2)
             (md / "model.safetensors").write_bytes(b"y" * 11)     # מודל אחר — המטמון לא תקף

@@ -7,11 +7,16 @@ const { AsyncLocalStorage } = require('async_hooks');
 
 const als = new AsyncLocalStorage();
 const TAG_MAX = 120;
-let day = '', total = 0, by = new Map(), hours = new Map(), win = [], fired = new Set();
+let day = '', t0 = 0, total = 0, by = new Map(), hours = new Map(), win = [], fired = new Set();
 /* 28/10/2026 (בקשת המשתמש): התראה הרבה לפני החסימה. חלון נע של שעה (6 × 10 דק׳) לכל פעולה:
    פעולה אחת מעל TAG_HOUR בשעה = כנראה לולאה/ריענון שקורא אוסף שלם (כמו op:'jobs' כל 30 שנ׳ — 8,600 בשעה).
    ובנוסף קצב כולל: מה שכבר נקרא + קצב השעה האחרונה עד האיפוס > PACE × המכסה. כל התראה — פעם אחת ביום מכסה */
 const DAY_LIM = 50000, TAG_HOUR = 1500, PACE = 0.7, WIN_MS = 10 * 60e3, WIN_N = 6;
+/* 01/11/2026 (צילום מסך: 2,276 קריאות היום, אדום 80%): הצפי היה "השעה האחרונה × השעות עד האיפוס" — שעה אחת של שימוש
+   ער (פתיחת מרכז הניהול ממלאת מטמונים קרים: adminAct 307, learn 238) הוכפלה ב־21 שעות → 39,800. השימוש בא בפרצים, לא ברצף.
+   עכשיו: הקצב הממוצע מאז תחילת המדידה היום (לפחות PACE_MIN_H שעות במכנה), והשעה האחרונה רק כשהיא לבדה תגמור את כל המכסה.
+   לולאה של פעולה אחת — נתפסת ממילא בהתראת TAG_HOUR */
+const PACE_MIN_H = 6;
 
 const dayKey = (now) => new Date(now).toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
 const tagOf = (name, req) => {
@@ -23,7 +28,7 @@ function run(tag, fn) { return als.run({ tag }, fn); }
 function add(reads, now = Date.now()) {
   if (!(reads > 0)) return;
   const d = dayKey(now);
-  if (d !== day) { day = d; total = 0; by = new Map(); hours = new Map(); fired = new Set(); }
+  if (d !== day) { day = d; t0 = now; total = 0; by = new Map(); hours = new Map(); fired = new Set(); }
   const st = als.getStore();
   let t = (st && st.tag) || 'other';
   if (!by.has(t) && by.size >= TAG_MAX) t = 'other';
@@ -51,8 +56,10 @@ function hoursLeft(now = Date.now()) {
 function pace(now = Date.now()) {
   const lh = lastHour(now);
   const h = [...lh.values()].reduce((a, b) => a + b, 0);
-  const tot = dayKey(now) === day ? total : 0;
-  return { h, tot, proj: Math.round(tot + h * hoursLeft(now)), lh };
+  const tot = dayKey(now) === day ? total : 0, left = hoursLeft(now);
+  const avg = tot / Math.max(PACE_MIN_H, (now - t0) / 3600e3);
+  const burst = tot + h * left;   // השעה האחרונה נמשכת עד האיפוס — רק אם זה לבדו גומר את המכסה
+  return { h, tot, proj: Math.round(burst > DAY_LIM ? burst : tot + avg * left), lh };
 }
 /* התראות חדשות (כל אחת פעם ביום מכסה): { k:'tag', tag, h, proj } / { k:'pace', h, tot, proj } */
 function alarms(now = Date.now()) {
@@ -103,6 +110,6 @@ function view(now = Date.now()) {
   const hrs = [...hours.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).slice(-24);
   return { day, total, top, hours: hrs, h: P.h, proj: P.proj, lim: DAY_LIM, tagHour: TAG_HOUR, hot: top.filter((x) => x[2] >= TAG_HOUR).map((x) => x[0]) };
 }
-const _reset = () => { day = ''; total = 0; by = new Map(); hours = new Map(); win = []; fired = new Set(); };
+const _reset = () => { day = ''; t0 = 0; total = 0; by = new Map(); hours = new Map(); win = []; fired = new Set(); };
 
-module.exports = { run, add, readsOf, wrapFetch, view, alarms, pace, hoursLeft, tagOf, dayKey, DAY_LIM, TAG_HOUR, _reset };
+module.exports = { run, add, readsOf, wrapFetch, view, alarms, pace, hoursLeft, tagOf, dayKey, DAY_LIM, TAG_HOUR, PACE_MIN_H, _reset };

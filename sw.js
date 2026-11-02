@@ -4,13 +4,13 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v676';
+const CACHE_NAME = 'portfolio-pwa-v696';
 const HASHES = {
-  "./": "27c0788019f4842a124eba31840b522b",
-  "./index.html": "27c0788019f4842a124eba31840b522b",
-  "./styles.css": "6f7d1feccfa3d22d0cbc0bc3c98ddfab",
-  "./glass-btn.css": "50379420abb3d193793ba448b98db495",
-  "./app.js": "40642fe1e626c62a72b4ef8a326a9b9e",
+  "./": "6ab1986a1bc13b10b7405e36061fa8ba",
+  "./index.html": "6ab1986a1bc13b10b7405e36061fa8ba",
+  "./styles.css": "40265dc9a0d4d18b66a8f72526d82667",
+  "./glass-btn.css": "597c83b2453476f8cfa584134b97bdae",
+  "./app.js": "4344589f9c9058fd2ce9cec818f682c4",
   "./returns.js": "7c2a8e1d4c31b5ea1bfab42d040bd2dd",
   "./cloud.js": "2cf2e330bfcc2c9150ba47b8f355982d",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -34,19 +34,23 @@ const HASHES = {
   "./acclink.js": "419b035815109478a1f8f9780720af33",
   "./analysis.js": "29664af4106cee8a9edecf0beb6735c5",
   "./analysis.css": "4c957472dbc740b4694df29ccaeed328",
+  "./taxcenter.js": "8186b0bc377ab641b80a85377a5a404f",
+  "./taxcenter.css": "7a21a0d4185ccd42f64d41c85bbd100b",
+  "./taxil.js": "0fb3567a931da9af7beca76618d282be",
   "./chart.js": "f449f30b56da8452861aff9919ce0758",
   "./chartlib.js": "5c00c490dac1b09329fa1ce657350a9b",
   "./chart.css": "0e4e6260108563c3f329d204c1398a10",
   "./vendor/klinecharts/klinecharts.min.js": "4202d8661b8302175751d8d072bf6d2f",
-  "./library.js": "14aaa91936ff5ef248f07862b14fd97a",
-  "./library.css": "4e8ba44baf16709e07d56c5f85cbe6ac",
+  "./library.js": "0341d21a7ccd3df3e86a842ce622b6d8",
+  "./library.css": "fa87fa43096cd3bd4ca0bd380317563d",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
   "./libbackup.js": "a238c4cf7877166ba8eba5cdcf6eadb8",
   "./ribbon3d.js": "0004ce220226fadce8918b975fa43282",
   "./pagecurl.js": "0c089b75615f03f8d13a2d76725a35f6",
   "./pagetex.js": "f38ae4d98d0e1a35f14cf48cc8be9373",
   "./libadmin.js": "7fa14ea952a3a1a6ae275e6bfb7b3073",
-  "./epubkit.js": "626341438a721d59521d552abc6a854d",
+  "./epubkit.js": "d966ab50d6bc1783ac24ebe9b38a4ffc",
+  "./libpolish.js": "594ddf63357b8b363938f74fa10010b9",
   "./fonts/NotoSansHebrew-VF.woff2": "cc3f6ef471cb7aff587f63873a650e32",
   "./vendor/foliate-js/view.js": "e0093af921feb03bb58fb51aeedc321f",
   "./vendor/foliate-js/epub.js": "dfe347495039e9b5991478986ec6b771",
@@ -65,8 +69,8 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "ff70b7cdf55a58896794457f6812abf4",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
-  "./strings-academy.js": "b17b36f90c5f69e859b77d79acffe245",
-  "./core.js": "8e9de85172594fb33ad51b6f46712be9",
+  "./strings-academy.js": "7eee437f6221367cde5e66427fb87d4f",
+  "./core.js": "50829280052fcb61ff51ba77a8a002e3",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "6b22a08dd74c16eefd740922596fb568",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -75,11 +79,11 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "ed8c78db27a02721739d86922d0956be",
-  "./studio.css": "802ffe734c51288b9e1c90e39f7fbc23",
+  "./studio.js": "8d6bfd5a0fca86d55786ab8e6cbe55d0",
+  "./studio.css": "b5bc9c2853f3ae87b220792419848092",
   "./studionet.js": "67d0da7e52eb5de8eb01b6fac252d4d6",
   "./studioplay.js": "9862ab618839b88fa914399b8eff2ce7",
-  "./studiosubs.js": "65c3e22404cc9bfa5ea0b610a33f4633",
+  "./studiosubs.js": "6aec23d44c0cae05ad98ea1f195f2a7d",
   "./studiotracks.js": "45a59e4cedc85da6950554bd2c56289e",
   "./studioedl.js": "344c0e6f0e7ff9bd59e36eb25db1e335",
   "./studioai.js": "e0a43e7a48c70e3bf5028813acebbf3e",
@@ -87,7 +91,7 @@ const HASHES = {
   "./studiobg.js": "9013d96cee956642e0735806ea1e60c3",
   "./studio.html": "83a0db4fc3f1058a17ce5b6370873966",
   "./studio-app.js": "d2aaad29f3f46cc04426c93bdae1eb83",
-  "./strings-studio.js": "0ab973060248184db359f5d35260881e",
+  "./strings-studio.js": "361851182db50533c6d679bb7e5b060e",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
@@ -116,13 +120,14 @@ const APP_SHELL = [
   './ibkr-logo.png',
   './acclink.js',   // 26/10/2026: כניסה עם מייל ושיטות הכניסה (נטען בלחיצה)
   './analysis.js', './analysis.css',   // 25/10/2026: מנתח החברות — נטען בלחיצה, אבל באותה גרסה של app.js
+  './taxcenter.js', './taxcenter.css', './taxil.js',   // 01/11/2026: מרכז המס — נטען בלחיצה
   './chart.js', './chartlib.js', './chart.css', './vendor/klinecharts/klinecharts.min.js'   // 27/10/2026: גרף הנרות — נטען בלחיצה
 ];
 
 /* האקדמיה (שלב 8): קבצי הספרייה והקורא — נטענים מראש בכל עדכון רק אצל מי שכבר נכנס לספרייה
    (library.js במטמון הקודם), כדי שקריאה אופליין תעבוד גם אחרי עדכון גרסה. כשל כאן לא מפיל את ההתקנה. */
 const LIB_SHELL = [
-  './library.js', './library.css', './academy-data.js', './libbackup.js', './ribbon3d.js', './pagecurl.js', './pagetex.js', './libadmin.js', './epubkit.js', './fonts/NotoSansHebrew-VF.woff2',
+  './library.js', './library.css', './academy-data.js', './libbackup.js', './ribbon3d.js', './pagecurl.js', './pagetex.js', './libadmin.js', './epubkit.js', './libpolish.js', './fonts/NotoSansHebrew-VF.woff2',
   './vendor/foliate-js/view.js', './vendor/foliate-js/epub.js', './vendor/foliate-js/epubcfi.js',
   './vendor/foliate-js/paginator.js', './vendor/foliate-js/overlayer.js', './vendor/foliate-js/progress.js',
   './vendor/foliate-js/search.js', './vendor/foliate-js/text-walker.js', './vendor/foliate-js/footnotes.js',
@@ -291,11 +296,14 @@ async function mediaFetch(event, id) {
    (snb-inbox — מסד קטן משלו, בלי תלות בגרסה של snb-studio) ומעבירים לדף עם ‎#got=<מפתח> (studio.js → studioGot) */
 const SHARE_RE = /\/share-file$/;
 async function shareFile(request) {
-  let key = '';
+  let key = '', kind = 'got';
   try {
     const fd = await request.formData();
-    const f = fd.get('video'), t = String(fd.get('text') || '').slice(0, 200);
-    if (f && typeof f === 'object' && f.size > 0 && /^video\//.test(f.type || 'video/')) {
+    // 02/11/2026 (Studio Browser, 70 מאמר ל־Academy): גם ספר EPUB ששותף ל־Academy (השדה book) — אותה תיבה, ‎#book=<מפתח>
+    const v = fd.get('video'), b = fd.get('book'), t = String(fd.get('text') || '').slice(0, 200);
+    const f = v || b;
+    if (b && !v) kind = 'book';
+    if (f && typeof f === 'object' && f.size > 0 && (kind === 'book' ? /^(application\/(epub\+zip|octet-stream))?$/.test(f.type || '') && f.size <= 64 * 1048576 : /^video\//.test(f.type || 'video/'))) {
       key = Array.from(self.crypto.getRandomValues(new Uint8Array(12)), (b) => 'abcdefghijkmnpqrstuvwxyz23456789'[b % 32]).join('');
       await new Promise((ok, no) => {
         const r = indexedDB.open('snb-inbox', 1);
@@ -309,7 +317,7 @@ async function shareFile(request) {
       });
     }
   } catch (e) { key = ''; }
-  return Response.redirect(new URL('./' + (key ? '#got=' + key : ''), self.registration.scope).href, 303);
+  return Response.redirect(new URL('./' + (key ? '#' + kind + '=' + key : ''), self.registration.scope).href, 303);
 }
 
 self.addEventListener('fetch', (event) => {

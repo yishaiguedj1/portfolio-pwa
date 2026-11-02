@@ -52,8 +52,8 @@ const langReady = (sp) => !!sp && LANG_READY.from.includes(sp.from) && Array.isA
 const LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
 const STYLES = ['bold', 'classic', 'karaoke'];
 const OUTS = ['same', 'compact', 'mkv', 'small'];   // סבב 8: small = עותק לוואטסאפ גם בעבודה עצמה
-const OUT_KINDS = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta', 'thumb', 'inst', 'lrc', 'elrc', 'lyr'];   // 26/10/2026: קריוקי — הליווי, LRC ו־Enhanced LRC   // סבב 6: meta = גל הקול וחילופי השוטים; סבב 7: thumb = תמונה ממוזערת   // מ7: aiout = תשובת גיליון ה־AI   // v358: תוצרים שהעובד מעלה; מ1: קבצי עזר (הנגן והעורך), small = עותק לוואטסאפ
-const OUT_MAX = 10;
+const OUT_KINDS = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta', 'thumb', 'inst', 'lrc', 'elrc', 'lyr', 'notes'];   // 26/10/2026: קריוקי — הליווי, LRC ו־Enhanced LRC   // סבב 6: meta = גל הקול וחילופי השוטים; סבב 7: thumb = תמונה ממוזערת   // מ7: aiout = תשובת גיליון ה־AI   // v358: תוצרים שהעובד מעלה; מ1: קבצי עזר (הנגן והעורך), small = עותק לוואטסאפ
+const OUT_MAX = 12;   // 01/11/2026: + notes (ההערות לעורך)
 const SUBS_MAX = 5 * 1024 * 1024;           // 22/10/2026: קובץ כתוביות קיים (SRT/VTT/ASS) — סרט של שלוש שעות ≈ 300KB
 const SUBS_FPS = ['24000/1001', '24', '25', '30000/1001', '30'];   // = SUBS_FPS ב־job.py (הגריד לתזמון בלי סרטון)
 const MAX_SIZE = 64 * 1024 ** 3;            // 64GB — הרבה מעל כל ראיון (Drive מקבל עד 5TB)
@@ -252,6 +252,7 @@ function normLyr(t) {
   return String(t == null ? '' : t).replace(/[\u0000-\u0008\u000b-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
     .replace(/\r\n?/g, '\n').slice(0, KA_LYR_MAX);
 }
+const WL_RE = /^[a-z0-9]{8,16}$/;   // 01/11/2026: מזהה רשימת עבודה (= WL_RE בטלפון)
 function normSpec(s) {
   if (!s || typeof s !== 'object') return null;
   const name = clean(s.name, 200), size = Math.floor(Number(s.size) || 0);
@@ -303,6 +304,10 @@ function normSpec(s) {
   !subs && !link && !ph && !nu && edlPre(normEdl(s.edl)) ? { edl: edlPre(normEdl(s.edl)) } : {},   // מ4: חיתוך לפני התרגום (dur = האורך אחרי החיתוך)
   // 21/10/2026: פיקסלים לשנייה ביחס ל־1080p30 (מהמידות שהטלפון קרא; העובד מתקן אחרי הקליטה) — לצפי של הצריבה
   Number.isFinite(+s.px) && +s.px >= 0.02 && +s.px <= 16 ? { px: Math.round(+s.px * 1000) / 1000 } : {},
+  // 01/11/2026 (סבב 3, I3): bt = "חצי מחיר · מוכן תוך כמה שעות" (Message Batches) — רק במפתח של המערכת, לא Routine/העתק־הדבק,
+  // לא קריוקי (בלי Claude) ולא תרגום בטלפון. wl = רשימת עבודה (כמה קבצים שהתחילו יחד) — לקבוצה בבית. = BT_OK / WL_RE בטלפון
+  s.bt === 1 && s.eng === 'api' && s.cp !== 1 && s.ry !== 1 && !ka && !ph ? { bt: 1 } : {},
+  typeof s.wl === 'string' && WL_RE.test(s.wl) ? { wl: s.wl } : {},
   s.eng === 'api' ? Object.assign({ eng: 'api', cap: normCap(s.cap) }, s.cp === 1 ? { cp: 1 } : s.ry === 1 ? { ry: 1 } : {}) : {});   // 24/10/2026: ry = השרת עושה הכל, Claude דרך ה־Routine של המשתמש (lib/relay.js)   // מצב API של המערכת — עם תקרת עבודה ($); סבב 10: cp = העתק־הדבק (Claude של המשתמש)
 }
 /* קובץ שעלה ל־Drive (מה ש־Drive עצמו החזיר — api/studio.js מאמת מולו) */
@@ -413,7 +418,7 @@ function addCk(list, ck, now) {
 }
 const lastCk = (list) => (Array.isArray(list) && list.length ? list[list.length - 1] : null);
 /* העבודה "רצה" אבל לא דיווחה שעתיים — הסשן נפל (מיכל שנסגר, תקלה בצד של Claude) */
-const isStale = (job, now) => !!job && (job.state === 'running' || job.state === 'queued' && job.claimed && !job.vw) && now - (job.updated || 0) > STALE_MS;   // vw: מחכה לסרטון בתור — לא תקועה
+const isStale = (job, now) => !!job && (job.state === 'running' || job.state === 'queued' && job.claimed && !job.vw && !job.bw) && now - (job.updated || 0) > STALE_MS;   // vw: מחכה לסרטון בתור — לא תקועה
 /* אפשר להמשיך? עבודת תרגום עם קבצים, שנכשלה / בוטלה / נתקעה, ולא הופעלה יותר מדי פעמים */
 function canResume(job, now) {
   if (!job || job.kind !== 'tr' || !(job.fa || job.fv)) return 'state';
@@ -498,7 +503,7 @@ const normFixed = (eng) => (engKey(eng) === 'a' ? NORM_FIXED_API : NORM_FIXED);
 function normSample(job, use, now) {
   const sp = job && job.spec;
   if (!job || job.kind !== 'tr' || (job.fires || 0) > 1 || !sp || !MODES.includes(sp.mode) || !(sp.dur > 0)) return null;
-  if (sp.xe || sp.xg) return null;   // 24/10/2026: ניסוי המאמץ / בלי מילון — לא מה שהמצב עולה בדרך כלל
+  if (sp.xe || sp.xg || sp.xf) return null;   // 02/11/2026: גם דגלי ניסוי (xf). 24/10/2026: ניסוי המאמץ / בלי מילון — לא מה שהמצב עולה בדרך כלל
   if (!Array.isArray(use) || !use.length || use.some((r) => r.usd == null)) return null;   // מודל בלי מחירון — לא יודעים כמה עלה
   const u = use.reduce((s, r) => s + (r.usd || 0), 0);
   if (!(u > 0) || u > 1e4) return null;
@@ -769,6 +774,10 @@ function fireSession(j) {
 const recentFires = (fh, now) => (Array.isArray(fh) ? fh : []).filter((t) => now - t < 3600e3).slice(-50);
 
 /* 15/10/2026: עבודה בשרת שלנו שמחכה לסרטון חוזרת לתור (park) — רק תרגום במצב API, רצה, ורק כשהסרטון באמת חסר */
+/* 01/11/2026 (I3): עבודה של "חצי מחיר" שהבקשות שלה בתור החיסכון — חונה (bw) עד שהסוכן מדווח שהתשובות חזרו (poll ‏br) */
+// בלי bt (עברה ל"עכשיו" באמצע — btNow): חונה ומיד חוזרת לתור הרגיל (bw = 0), והחידוש בזמן אמת
+const bwParkable = (job) => !!(job && job.kind === 'tr' && job.state === 'running' && job.spec && job.spec.eng === 'api');
+const BW_MAX = 36 * 3600e3;                 // התור עצמו עד 24 שעות (ואז העובד ממשיך בזמן אמת) — מעבר לזה הסוכן לא חזר
 const parkable = (job) => !!(job && job.kind === 'tr' && job.state === 'running' && job.spec && job.spec.eng === 'api' && !(job.fv && job.fv.id));
 /* ---------- מצב העבודה ---------- */
 /* הופעל ולא נלקח בזמן סביר → נכשל (נבדק בכל קריאה; נשמר בכתיבה הבאה) */
@@ -777,6 +786,7 @@ function effState(job, now) {
   if (job && job.state === 'queued' && job.eng === 'api') {
     // מצב API: העבודה בתור עד ששרת פנוי לוקח אותה. שרת לקח ולא התחיל בזמן / אף שרת לא לקח — נכשלה
     // 15/10/2026: חזרה לתור עד שהסרטון יגיע (vw = מתי) — לא "אין שרת"; 12 שעות בלי סרטון = כמו בעובד
+    if (job.bw && !job.pk) return now - job.bw > BW_MAX ? { state: 'failed', err: 'no_server', at: job.bw + BW_MAX } : { state: 'queued', err: '' };
     if (job.vw && !job.pk) return now - job.vw > PARK_MAX ? { state: 'failed', err: 'upload_timeout', at: job.vw + PARK_MAX } : { state: 'queued', err: '' };
     if (job.pk && now - job.pk > CLAIM_WAIT.tr) return { state: 'failed', err: 'no_claim', at: job.pk + CLAIM_WAIT.tr };
     if (!job.pk && job.fired && now - job.fired > API_QUEUE_WAIT) return { state: 'failed', err: 'no_server', at: job.fired + API_QUEUE_WAIT };
@@ -827,6 +837,7 @@ function publicJob(job, now) {
     urt: normRate(job.urt),                         // 25/10/2026: המשוב שלך (👍/👎, סיבות, כתוביות שסימנת)
     sw: job.state === 'new' && typeof job.sw === 'string' ? job.sw.slice(0, 40) : '',   // 25/10/2026: למה העבודה לא התחילה (קוד הסירוב האחרון)
     vw: job.vw && !job.pk ? 1 : 0,                   // 15/10/2026: מחכה לסרטון בתור — השרת פנוי בינתיים
+    bw: job.bw && !job.pk ? 1 : 0,                   // 01/11/2026 (I3): מחכה לתשובה מתור החיסכון — השרת פנוי בינתיים
     fr: job.fr && typeof job.fr.s === 'number' ? { s: job.fr.s, ms: Math.max(0, Math.round(job.fr.ms || 0)) } : null,   // v369: תוצאת ההפעלה האחרונה
     tr: normTrace(job.tr),                          // v373: עקיבה — פעולות לכל סוכן והקבוצות הנפוצות
     q: normQuality(job.q), ij: normInj(job.ij),     // v374: מדד האיכות ושומר ההזרקות
@@ -836,7 +847,7 @@ function publicJob(job, now) {
     gl: normGl(job.gl),                             // v380: מונחים מהמילון שלך שימשו + מונחים חדשים להצעה
     nt: noteView(job),                              // v382: הערה לעובד — מחכה לנקודת השמירה הבאה / נקראה
     sla: SLA.slaView(job, now),                     // v377: יעד זמן ותקציב (השעון עוצר כשמחכים לך)
-    gd: normGd(job.gd), gs: JOB_RE.test(String(job.gs || '')) ? job.gs : '', gq: normGq(job.gq), sm: job.sm ? 1 : 0,   // v387: סט הזהב — ייחוס, מקור ההרצה, הציון
+    gd: normGd(job.gd), gs: JOB_RE.test(String(job.gs || '')) ? job.gs : '', gq: normGq(job.gq), sm: job.sm ? 1 : 0, wa: Number.isInteger(job.wa) && job.wa >= 0 && job.wa < GOLD_ARMS ? job.wa : -1,   // v387: סט הזהב — ייחוס, מקור ההרצה, הציון
     hl: normHl(job.hl, job.fv && job.fv.id),       // איכויות הצפייה (הראשונה = המקור עצמו)
     hla: normHl(job.hl, job.fv && job.fv.id) ? normHla(job.hla) : null,   // 22/10/2026: עותק הקול לנגן (הקול המקורי נשאר במקור)
     pbn: normPbn(job.pbn, job.pbn && job.pbn.at),   // 24/10/2026: הצריבה בטלפון (תרגום בטלפון)
@@ -849,8 +860,11 @@ function publicJob(job, now) {
 /* v387: סט הזהב (Agentic evaluation · golden dataset) — עבודה שהסתיימה + תרגום אנושי לייחוס (קובץ SRT בתיקיית העבודה ב־Drive).
    gd = הייחוס {r מזהה הקובץ, n גודל, at}; gs = עבודה שהיא הרצה חוזרת של עבודת זהב (המקור); gq = הציון מול הייחוס {s chrF, tm כיסוי זמן, n כתוביות, at}.
    הציון מחושב בטלפון (studionet.goldCompare — דטרמיניסטי, בלי AI). הרצה חוזרת = עבודות חדשות עם אותו מקור — רק בלחיצה, אחרי אומדן ואישור */
-// הסקירה (10/10): עד MAX_ACTIVE (5) — כל הסט רץ ביחד, בלי לעקוף את מגבלת העבודות הפעילות (מבחן TED = 4 הרצאות)
-const GOLD_MAX = 5, GOLD_REF_MAX = 2 * 1024 * 1024;
+// הסקירה (10/10): עד MAX_ACTIVE (5) — כל הסט רץ ביחד, בלי לעקוף את מגבלת העבודות הפעילות (מבחן TED = 4 הרצאות).
+// 02/11/2026: למנהל עד GOLD_MAX_ADMIN (16, בתוך MAX_ACTIVE_ADMIN) — סט המדידה של איכות התרגום: 10 פרקים, ראיון, הרצאה ועבודות זהב
+// קיימות. עבודת זהב גם לא נמחקת בניקוי המקורות (srcPending) — הסימון שומר את המקור להרצות חוזרות. לשאר — 5, כמו קודם
+const GOLD_MAX = 5, GOLD_MAX_ADMIN = 16, GOLD_REF_MAX = 2 * 1024 * 1024;
+const goldMax = (admin) => (admin ? GOLD_MAX_ADMIN : GOLD_MAX);
 function normGd(o) {
   if (!o || typeof o !== 'object' || !FILE_ID_RE.test(String(o.r || ''))) return null;
   return { r: o.r, n: Number.isInteger(o.n) && o.n > 0 && o.n <= GOLD_REF_MAX ? o.n : 0, at: typeof o.at === 'number' ? o.at : 0 };
@@ -969,12 +983,50 @@ function normXe(x) {
   for (const k of XE_KEYS) if (XE_EFFORTS.includes(x[k])) o[k] = x[k];
   return Object.keys(o).length ? o : null;
 }
+/* 02/11/2026 (תוכנית איכות התרגום, PR1 1.8): דגלי ניסוי — רשימה סגורה, **= XF_KEYS ב־translator/xflags.py**. העובד: דגלים =
+   XF_DEFAULT ∪ spec.xf; '-שם' מכבה דגל שכבר הופעל כברירת מחדל. רק מ־goldRun עם arms (מנהל) — לא מהטופס. עבודה עם xf לא מלמדת
+   את הצפי ואת נורמת העלות, ומסומנת במאגר הלמידה */
+const XF_KEYS = ['smf', 'gq', 'qskip', 'rvs60'], XF_MAX = 8;
+function normXf(x) {
+  if (!Array.isArray(x)) return null;
+  const o = Array.from(new Set(x.map(String).filter((f) => XF_KEYS.includes(f.replace(/^-/, ''))))).slice(0, XF_MAX).sort();
+  return o.length ? o : null;
+}
+/* "הרץ גל": עד GOLD_ARMS זרועות — לכל אחת מצב, דגלים, ואפשר גם רשימת מקורות (מזהי עבודות זהב). null = לא תקין */
+const GOLD_ARMS = 3;
+function normArms(a, srcIds) {
+  if (!Array.isArray(a) || !a.length || a.length > GOLD_ARMS) return null;
+  const ids = new Set(srcIds || []), out = [];
+  for (const x of a) {
+    if (!x || typeof x !== 'object' || Array.isArray(x)) return null;
+    const mode = x.mode == null ? DEFAULT_MODE : (MODES.includes(x.mode) || LEGACY_MODES[x.mode]) ? modeNow(x.mode) : null;
+    if (!mode || (x.xf != null && !Array.isArray(x.xf)) || (x.src != null && !Array.isArray(x.src))) return null;
+    const src = Array.isArray(x.src) ? Array.from(new Set(x.src.map(String))).filter((i) => ids.has(i)) : null;
+    if (src && !src.length) return null;
+    out.push(Object.assign({ mode, xf: normXf(x.xf), src }, x.bt === 1 ? { bt: 1 } : {}));   // bt: הזרוע בחצי מחיר (I3)
+  }
+  return out;
+}
+/* כל המקורות × כל הזרועות, בסדר משולב (מקור 1 זרוע א, מקור 1 זרוע ב, מקור 2…) — אותה גרסת עובד ואותו זיכרון לכל הזרועות */
+function waveOrder(srcs, arms) {
+  const out = [];
+  for (const j of srcs) arms.forEach((a, i) => { if (!a.src || a.src.includes(j.id)) out.push([j, a, i]); });
+  return out;
+}
+function waveClone(src, id, uid, now, arm, i) {
+  const c = goldClone(src, id, uid, now, arm.mode);
+  c.spec = Object.assign({}, c.spec, { out: ['srt'] });   // הרצת גל: רק SRT — בלי צריבה ובלי העלאת וידאו (כמו עבודת העשן)
+  if (arm.xf) c.spec.xf = arm.xf;
+  if (arm.bt === 1 && c.spec.eng === 'api' && !c.spec.ka) c.spec.bt = 1; else delete c.spec.bt;   // חצי מחיר לכל זרוע (כמו body.bt בהרצה הרגילה)
+  c.wa = i;   // מספר הזרועה בגל (0..) — לזיווג בניתוח
+  return c;
+}
 function goldClone(src, id, uid, now, mode, xe) {
   const out = Array.from(new Set((Array.isArray(src.spec && src.spec.out) ? src.spec.out : []).concat(['srt'])));   // ההשוואה צריכה SRT
   const gd = normGd(src.gd), spec = Object.assign({}, src.spec, { out }, mode ? { mode: modeNow(mode) } : {});
   // 24/10/2026: ההשוואה בין המצבים רצה על השרת של המערכת — בלי ה־Routine (ry) ובלי העתק־הדבק (cp), כך שכל ההרצות
   // באותם תנאים ולא תלויות בסשן של המשתמש; הניסוי (xe) רק כשנבחר
-  delete spec.ry; delete spec.cp; delete spec.xe; delete spec.xg;
+  delete spec.ry; delete spec.cp; delete spec.xe; delete spec.xg; delete spec.xf;
   const v = xe && (xe.xe || xe.xg) ? xe : { xe };   // וריאנט: { xe, xg } (או מאמץ לבד — הצורה הישנה)
   const x = normXe(v.xe);
   if (x) spec.xe = x;
@@ -1044,8 +1096,8 @@ const JG_CODES = ['mean', 'omit', 'add', 'gram', 'flu', 'term'];
 const JG_F_MAX = 40;   // **זהה ל־JG_F_MAX בעובד (job.py) ובטלפון**
 /* סבב 4: סימונים מהביקורת — [[מספר כתובית, קוד]] (g מגדר, s מי מדבר, t מונח). **RVF_MAX/RVF_CODES זהים בעובד ובטלפון**.
    רק מספרים וקודים מהקטלוג, ממוינים ובלי כפולים — לא תקין נזרק כולו */
-const RVF_CODES = ['g', 's', 't'];
-const RVF_MAX = 40;
+const RVF_CODES = ['g', 's', 't', 'p', 'v', 'l'];   // 01/11/2026: p משחק מילים · v הצופה המדומה · l שפה אחרת
+const RVF_MAX = 60;
 function normRvf(o) {
   if (!Array.isArray(o) || !o.length || o.length > RVF_MAX) return null;
   const out = [];
@@ -1132,8 +1184,21 @@ const glFormat = (rows) => GL_HEAD + rows.map((r) => r[0] + '\t' + r[1] + (r[2] 
 /* 28/10/2026: זיכרון סדרה (ניתוח 5 פרקים מול כתוביות אנושיות: אותו שם בשלושה כתיבים בין פרקים, מגדר דמות שנקבע מחדש
    בכל פרק). קובץ אחד לכל משתמש ב־R2 (sm/<uid>.json) — לכל סדרה (מפתח משם הקובץ: מה שלפני S01E02 / 1x02) השמות והמונחים
    שנקבעו בפרקים הקודמים, והדמויות עם המגדר. בלקיחה העובד מקבל רק את הסדרה של העבודה; בסוף העבודה (smPut) — מה שנקבע בה.
-   הראשון שנקבע גובר (עקביות); המילון שלך גובר על הכל (בעובד). normSm זהה ל־sm_valid בעובד — tests/studio-series משווה */
-const SM_SER = 60, SM_GL = 150, SM_CH = 40, SM_BYTES = 512 * 1024;
+   02/11/2026 (תוכנית איכות התרגום PR2, ‏D1): הזיכרון נעצר אחרי 5–6 פרקים ("הראשון גובר" + חיתוך בתקרה) — מעכשיו כל שורה
+   סופרת: מונח [en, he, n, l, f], דמות [שם, g, תפקיד, n, l, f] (n = בכמה פרקים, l = ה־ep בשימוש האחרון, f = SM_LOCK נעול
+   בכרטיס · SM_UNSURE לא ודאי · SM_FIX "החלף כתיב" — רק מהעובד, לא נשמר). שורה ישנה (2–3 שדות) = n 1, l 0, f 0. מעל התקרה
+   יוצאת (מבין הלא נעולות, ובלי שמות שחזרו ב־2 פרקים) זו עם n הנמוך → מונח לפני שם → l הישן. done = פרקים שכבר נספרו.
+   normSm זהה ל־sm_valid בעובד — tests/studio-series משווה */
+const SM_SER = 60, SM_GL = 250, SM_CH = 60, SM_NEW = 60, SM_DONE = 200, SM_BYTES = 1024 * 1024, SM_READ = 2 * 1024 * 1024;   // = job.py
+const SM_LOCK = 1, SM_UNSURE = 2, SM_FIX = 4, SM_FILE = SM_LOCK | SM_UNSURE, SM_WORKER = SM_UNSURE | SM_FIX;
+const GL_UNSURE = /\s*\(\s*לא ודאי[תםן]?\s*\)\s*$/u, CH_UNSURE = /\s*[—–-]\s*לא ודאי[ת]?\s*$/u, CH_JUNK = /ודאי|ידוע|נוספ|דובר/u;
+const CH_TITLES = new Set(['מר', 'גברת', 'ד"ר', 'דוקטור', 'הרב', 'דוד', 'דודה']);
+const chKey = (nm) => { const t = String(nm || '').toLowerCase().split(/\s+/); return CH_TITLES.has(t[0]) && t[1] ? t[0] + ' ' + t[1] : t[0]; };
+const SM_NAME = /^(?:(?:Mr|Mrs|Ms|Dr|Miss|Aunt|Uncle|Rabbi)\.? )?[A-Z][a-zA-Z'’-]+(?: [A-Z][a-zA-Z'’-]+){0,2}$/;
+const SM_CAL = new Set(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'january', 'february', 'march', 'april',
+  'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december', 'christmas', 'thanksgiving', 'halloween', 'easter', 'hanukkah']);
+const smIsName = (en) => SM_NAME.test(en) && en !== en.toUpperCase() && !SM_CAL.has(String(en).toLowerCase());
+const smInt = (x, max) => Math.min(max, Math.max(0, Math.floor(+x || 0)));
 const smKey = (uid) => (/^[A-Za-z0-9]{6,128}$/.test(String(uid || '')) ? 'sm/' + uid + '.json' : '');
 const SER_RE = /^(.*?)[\s\-–_.([]*(?:s(\d{1,2})[\s._-]*e(\d{1,3})|(\d{1,2})x(\d{2,3}))(?![\p{L}\p{N}])/iu;
 function seriesOf(name) {
@@ -1142,55 +1207,198 @@ function seriesOf(name) {
   if (!m) return null;
   const n = m[1].replace(/[\s\-–]*(?:season|עונה)\s*\d{1,2}[\s\-–]*$/iu, ' ').replace(/\(\s*(19|20)\d\d\s*\)|\b(19|20)\d\d\s*$/g, ' ').replace(/[\s\-–[(]+$/, '').replace(/\s+/g, ' ').trim();
   const k = n.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-  return k.length >= 2 ? { k: k.slice(0, 60), n: glClean(n, 60), e: +(m[3] || m[5]) || 0 } : null;
+  return k.length >= 2 ? { k: k.slice(0, 60), n: glClean(n, 60), s: +(m[2] || m[4]) || 0, e: +(m[3] || m[5]) || 0 } : null;   // s — ל־done
 }
-function smRows(v, max, cell) {
+function smRows(v, max, cell, key = (x) => x[0].toLowerCase()) {
   const out = [], seen = new Set();
   for (const r of Array.isArray(v) ? v.slice(0, max * 2) : []) {
     const x = Array.isArray(r) ? cell(r) : null;
-    if (!x || seen.has(x[0].toLowerCase())) continue;
-    seen.add(x[0].toLowerCase());
+    if (!x || seen.has(key(x))) continue;
+    seen.add(key(x));
     out.push(x);
     if (out.length >= max) break;
   }
   return out;
 }
-const smGl = (v) => smRows(v, SM_GL, (r) => { const en = glClean(r[0], 60), he = glClean(r[1], 80); return en && he ? [en, he] : null; });
-const smCh = (v) => smRows(v, SM_CH, (r) => { const nm = glClean(r[0], 40), g = r[1] === 'm' || r[1] === 'f' ? r[1] : ''; return nm && g ? [nm, g, glClean(r[2], 60)] : null; });
-/* מה שהעובד שלח (smPut) / הסדרה מהקובץ → {gl, ch} נקי */
-function normSm(v) {
+const smGl = (v, mask = SM_FILE) => smRows(v, SM_GL, (r) => {
+  const en = glClean(r[0], 60);
+  let he = glClean(r[1], 80), f = smInt(r[4], 15) & mask;
+  if (GL_UNSURE.test(he)) { he = he.replace(GL_UNSURE, '').trim(); f |= SM_UNSURE; }
+  return en && he ? [en, he, Math.max(1, smInt(r[2], 999)), smInt(r[3], 1e6), f] : null;
+});
+const smCh = (v, mask = SM_FILE) => smRows(v, SM_CH, (r) => {
+  let nm = glClean(r[0], 40), f = smInt(r[5], 15) & mask;
+  const g = r[1] === 'm' || r[1] === 'f' ? r[1] : '';
+  if (CH_UNSURE.test(nm)) { nm = nm.replace(CH_UNSURE, '').trim(); f |= SM_UNSURE; }
+  return nm && g && !CH_JUNK.test(nm) ? [nm, g, glClean(r[2], 60), Math.max(1, smInt(r[3], 999)), smInt(r[4], 1e6), f] : null;
+}, (x) => chKey(x[0]));
+/* A1 (1/11/2026): מה שמחקת בכרטיס בטלפון — לא חוזר מהפרק הבא (רשימת מפתחות באותיות קטנות) */
+const SM_X = 200;
+const smX = (v) => [...new Set((Array.isArray(v) ? v.slice(0, SM_X * 2) : []).map((t) => glClean(t, 60).toLowerCase()).filter(Boolean))].slice(0, SM_X);
+/* מה שהעובד שלח (smPut, mask = SM_WORKER — בלי "נעול") / הסדרה מהקובץ (SM_FILE) → {gl, ch} נקי */
+function normSm(v, mask = SM_FILE) {
   const o = v && typeof v === 'object' ? v : {};
-  return { gl: smGl(o.gl), ch: smCh(o.ch) };
+  return { gl: smGl(o.gl, mask), ch: smCh(o.ch, mask) };
 }
-/* הקובץ → {v, s: {k: {n, at, ep, gl, ch}}} — מה שלא תקין נזרק */
+const SER_KEY = /^[\p{L}\p{N} ]{2,60}$/u;
+/* הקובץ → {v, s: {k: {n, at, ep, done, gl, ch, x}}, al: {כינוי: מפתח}} — מה שלא תקין נזרק */
 function smParse(text) {
   let j = null;
   try { j = JSON.parse(String(text || '')); } catch (e) { j = null; }
   const s = {};
   for (const [k, x] of Object.entries(j && j.s && typeof j.s === 'object' ? j.s : {}).slice(0, SM_SER)) {
-    if (!/^[\p{L}\p{N} ]{2,60}$/u.test(k) || !x || typeof x !== 'object') continue;
-    s[k] = Object.assign({ n: glClean(x.n, 60), at: Math.max(0, +x.at || 0), ep: Math.max(0, Math.floor(+x.ep || 0)) }, normSm(x));
+    if (!SER_KEY.test(k) || !x || typeof x !== 'object') continue;
+    s[k] = Object.assign({ n: glClean(x.n, 60), at: Math.max(0, +x.at || 0), ep: Math.max(0, Math.floor(+x.ep || 0)),
+      done: (Array.isArray(x.done) ? x.done : []).map((i) => smInt(i, 1e5)).filter(Boolean).slice(-SM_DONE) }, normSm(x, SM_FILE), { x: smX(x.x) });
   }
-  return { v: 1, s };
+  // al (2.9): אותה סדרה תחת שני מפתחות (שמות קבצים שונים) — הכינוי מצביע על המפתח שבו הזיכרון
+  const al = {};
+  for (const [a, k] of Object.entries(j && j.al && typeof j.al === 'object' ? j.al : {}).slice(0, SM_SER)) {
+    if (SER_KEY.test(a) && typeof k === 'string' && s[k] && a !== k && !s[a]) al[a] = k;
+  }
+  return { v: 1, s, al };
 }
-/* מיזוג: שורה קיימת נשארת (הראשון גובר), חדשה נוספת; דמות בלי מגדר קודם — מקבלת. הסדרות הישנות ביותר יוצאות מעל SM_SER */
-function smMerge(doc, ser, add, now) {
+const smResolve = (d, k) => (d && d.al && d.al[k] && d.s[d.al[k]] ? d.al[k] : k);
+/* פינוי מעל התקרה: מבין הלא נעולות ובלי שמות שחזרו ב־2 פרקים ומעלה (2.6) — n הנמוך → מונח לפני שם → l הישן → המוקדמת */
+function smEvict(rows, cap, ni, isName, st) {
+  const F = ni + 2, less = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] < b[i]; return false; };
+  while (rows.length > cap) {
+    let w = -1, ws = null;
+    rows.forEach((r, i) => {
+      if (r[F] & SM_LOCK || (isName(r) && r[ni] >= 2)) return;
+      const s = [r[ni], isName(r) ? 1 : 0, r[ni + 1], i];
+      if (!ws || less(s, ws)) { w = i; ws = s; }
+    });
+    if (w < 0) break;
+    rows.splice(w, 1);
+    if (st) st.out++;
+  }
+  return rows;
+}
+/* שורה קיימת — n+1 (רק בפרק שעוד לא נספר: done), l = ep. הכתיב/המגדר נשארים, חוץ מ: נעולה — לא משתנה; "לא ודאי" ומגיעה
+   ודאית — מתחלפת; SM_FIX מהעובד — מתחלפת. חדשה — עד SM_NEW בכתיבה */
+function smRowsMerge(cur, add, key, cap, ni, ep, fresh, isName, st, x) {
+  const rows = cur.map((r) => r.slice()), at = new Map(rows.map((r, i) => [key(r), i])), F = ni + 2;
+  let nw = 0;
+  for (const r of add) {
+    if (x.includes(r[0].toLowerCase())) continue;   // נמחקה בכרטיס — לא חוזרת
+    const i = at.get(key(r));
+    if (i === undefined) {
+      if (nw++ >= SM_NEW) continue;
+      const y = r.slice(0, ni).concat([1, ep, r[F] & SM_UNSURE]);
+      at.set(key(y), rows.push(y) - 1); st.add++;
+      continue;
+    }
+    const y = rows[i]; st.hit++;
+    if (fresh) y[ni] = Math.min(999, y[ni] + 1);
+    y[ni + 1] = ep;
+    if (y[F] & SM_LOCK) continue;
+    if ((y[F] & SM_UNSURE && !(r[F] & SM_UNSURE)) || r[F] & SM_FIX) {
+      for (let j = 1; j < ni; j++) y[j] = r[j];
+      y[F] = r[F] & SM_UNSURE; st.fix++;
+    }
+  }
+  return smEvict(rows, cap, ni, isName, st);
+}
+const glIsName = (r) => smIsName(r[0]);
+function smMerge(doc, ser, add, now, st = {}) {
   const d = smParse(JSON.stringify(doc || {}));
-  const cur = d.s[ser.k] || { n: ser.n, at: 0, ep: 0, gl: [], ch: [] };
-  const a = normSm(add);
-  const have = new Set(cur.gl.map((r) => r[0].toLowerCase())), chave = new Set(cur.ch.map((r) => r[0].toLowerCase()));
-  const next = { n: cur.n || ser.n, at: now, ep: cur.ep + 1,
-    gl: cur.gl.concat(a.gl.filter((r) => !have.has(r[0].toLowerCase()))).slice(0, SM_GL),
-    ch: cur.ch.concat(a.ch.filter((r) => !chave.has(r[0].toLowerCase()))).slice(0, SM_CH) };
-  d.s[ser.k] = next;
-  const keys = Object.keys(d.s).sort((x, y) => d.s[y].at - d.s[x].at);
-  for (const k of keys.slice(SM_SER)) delete d.s[k];
+  const k = smResolve(d, ser.k);
+  const cur = d.s[k] || { n: ser.n, at: 0, ep: 0, done: [], gl: [], ch: [], x: [] };
+  const a = normSm(add, SM_WORKER);
+  const id = ser.e ? (ser.s || 0) * 1000 + ser.e : 0, fresh = !id || !cur.done.includes(id), ep = cur.ep + (fresh ? 1 : 0);   // הרצה חוזרת של אותו פרק — לא עוד פרק
+  const sg = { add: 0, hit: 0, fix: 0, out: 0 }, sch = { add: 0, hit: 0, fix: 0, out: 0 };
+  d.s[k] = { n: cur.n || ser.n, at: now, ep, done: (fresh && id ? cur.done.concat(id) : cur.done).slice(-SM_DONE), x: cur.x,
+    gl: smRowsMerge(cur.gl, a.gl, (r) => r[0].toLowerCase(), SM_GL, 2, ep, fresh, glIsName, sg, cur.x),
+    ch: smRowsMerge(cur.ch, a.ch, (r) => chKey(r[0]), SM_CH, 3, ep, fresh, () => true, sch, cur.x) };
+  smTrim(d, k);
+  Object.assign(st, { gl: sg, ch: sch, ng: d.s[k].gl.length, nc: d.s[k].ch.length, fresh: fresh ? 1 : 0 });
   return d;
 }
-/* לעובד: הסדרה של העבודה (או null) */
+/* מעל SM_SER — הסדרות הישנות יוצאות; מעל SM_BYTES — עוד ישנות (לא keep), כדי שהקובץ לא יגיע ל־r2_too_large */
+function smTrim(d, keep) {
+  const keys = Object.keys(d.s).sort((x, y) => d.s[y].at - d.s[x].at);
+  for (const k of keys.slice(SM_SER)) delete d.s[k];
+  let size = Buffer.byteLength(JSON.stringify(d));   // פעם אחת, ואז לפי גודל כל סדרה (לא stringify של הכל בכל צעד)
+  for (const k of keys.slice(0, SM_SER).reverse()) {
+    if (size <= SM_BYTES) break;
+    if (k === keep) continue;
+    size -= Buffer.byteLength(JSON.stringify(k)) + Buffer.byteLength(JSON.stringify(d.s[k])) + 2;
+    delete d.s[k];
+  }
+  for (const a of Object.keys(d.al || {})) if (!d.s[d.al[a]]) delete d.al[a];
+}
+/* לעובד: הסדרה של העבודה (או null) — השכיחות קודם (עובד ישן שחותך ב־150 לוקח את החשובות) */
 function smForWorker(doc, ser) {
-  const x = ser && doc && doc.s && doc.s[ser.k];
-  return x && (x.gl.length || x.ch.length) ? { n: x.n, ep: x.ep, gl: x.gl, ch: x.ch } : null;
+  const x = ser && doc && doc.s && doc.s[smResolve(doc, ser.k)];
+  return x && (x.gl.length || x.ch.length) ? { n: x.n, ep: x.ep, gl: x.gl.slice().sort((a, b) => b[2] - a[2]), ch: x.ch.slice().sort((a, b) => b[3] - a[3]) } : null;
+}
+/* A1 (1/11/2026): כרטיס הסדרה בטלפון — כל הסדרות, החדשה ביותר ראשונה (שמות, מונחים ומגדר; אין כאן טקסט כתוביות).
+   02/11/2026 (2.10): בצורה של הטלפון — [en, he] ו־[שם, g, תפקיד]; n/l/f נשארים בשרתון (הטלפון לא משתנה) */
+function smView(doc) {
+  const s = (doc && doc.s) || {};
+  return Object.keys(s).sort((a, b) => s[b].at - s[a].at).map((k) => ({ k, n: s[k].n, ep: s[k].ep, at: s[k].at,
+    gl: s[k].gl.map((r) => r.slice(0, 2)), ch: s[k].ch.map((r) => r.slice(0, 3)) }));
+}
+/* עריכה מהטלפון — שינוי קטן בכל פעם (הגוף לשרתון עד 4KB): gl/ch = שורות להוספה או להחלפה (לפי האנגלית / שם הדמות),
+   glx/chx = מה למחוק (נכנס ל־x — לא חוזר מהפרק הבא), drop = הסדרה כולה. עריכה שלך = נעולה (SM_LOCK): לא מתפנה,
+   והעובד לא משנה אותה. n/l של שורה ערוכה נשמרים; שינוי שם (מחיקה אחת + שורה חדשה אחת) מעביר אותם לשם החדש.
+   null = אין סדרה כזו / אין שום שינוי תקין */
+const SM_EDIT_MAX = 20;
+function smEdit(doc, k, e, now) {
+  const d = smParse(JSON.stringify(doc || {}));
+  const cur = d.s[k];
+  if (!cur || !e || typeof e !== 'object') return null;
+  if (e.drop === true) { delete d.s[k]; smTrim(d, ''); return d; }
+  const lim = (v) => (Array.isArray(v) ? v.slice(0, SM_EDIT_MAX) : []);
+  const gl = smGl(lim(e.gl), 0), ch = smCh(lim(e.ch).map((r) => (Array.isArray(r) && r.length < 3 ? r.concat('') : r)), 0);
+  const glx = smX(lim(e.glx)), chx = smX(lim(e.chx));
+  if (!gl.length && !ch.length && !glx.length && !chx.length) return null;
+  const up = (rows, add, del, max, key, ni, isName) => {
+    const dk = new Set(del.map((t) => key([t])));
+    const carry = del.length === 1 && add.length === 1 ? rows.find((r) => key(r) === key([del[0]])) : null;
+    const out = rows.filter((r) => !dk.has(key(r)));
+    for (const a of add) {
+      const i = out.findIndex((r) => key(r) === key(a));
+      const base = i >= 0 ? out[i] : rows.find((r) => key(r) === key(a)) || carry;
+      const y = a.slice(0, ni).concat([base ? base[ni] : 1, base ? base[ni + 1] : cur.ep, SM_LOCK]);
+      if (i >= 0) out[i] = y; else out.push(y);
+    }
+    return smEvict(out, max, ni, isName, null);
+  };
+  const back = new Set(gl.concat(ch).map((r) => r[0].toLowerCase()));   // מה שהוספת מחדש — כבר לא "נמחק"
+  d.s[k] = Object.assign({}, cur, { at: Math.max(now, cur.at + 1),
+    gl: up(cur.gl, gl, glx, SM_GL, (r) => String(r[0]).toLowerCase(), 2, glIsName),
+    ch: up(cur.ch, ch, chx, SM_CH, (r) => chKey(r[0]), 3, () => true),
+    x: cur.x.filter((t) => !back.has(t)).concat(glx, chx).filter((t, i, a) => a.indexOf(t) === i && !back.has(t)).slice(-SM_X) });
+  return d;
+}
+/* 2.9: איחוד ידני של שני מפתחות של אותה סדרה (פעולת מנהל) — from נכנס לתוך to, ו־al[from] = to. בהתנגשות to גובר
+   (חוץ מ"לא ודאי" מול ודאי); n מצטבר, נעול נשמר. null = אין שתי סדרות כאלה */
+function smAlias(doc, from, to, now) {
+  const d = smParse(JSON.stringify(doc || {}));
+  const A = d.s[to], B = d.s[from];
+  if (!A || !B || from === to) return null;
+  const join = (ra, rb, key, ni, cap, isName) => {
+    const out = ra.map((r) => r.slice()), at = new Map(out.map((r, i) => [key(r), i])), F = ni + 2;
+    for (const r of rb) {
+      const i = at.get(key(r));
+      if (i === undefined) { at.set(key(r), out.push(r.slice()) - 1); continue; }
+      const y = out[i];
+      y[ni] = Math.min(999, y[ni] + r[ni]);
+      y[ni + 1] = Math.max(y[ni + 1], r[ni + 1]);
+      if (!(y[F] & SM_LOCK) && ((y[F] & SM_UNSURE && !(r[F] & SM_UNSURE)) || r[F] & SM_LOCK)) { for (let j = 1; j < ni; j++) y[j] = r[j]; y[F] = r[F]; }
+      else y[F] |= r[F] & SM_LOCK;
+    }
+    return smEvict(out, cap, ni, isName, null);
+  };
+  d.s[to] = Object.assign({}, A, { at: Math.max(now, A.at + 1, B.at), ep: A.ep + B.ep,
+    done: [...new Set(A.done.concat(B.done))].slice(-SM_DONE), x: [...new Set(A.x.concat(B.x))].slice(-SM_X),
+    gl: join(A.gl, B.gl, (r) => r[0].toLowerCase(), 2, SM_GL, glIsName), ch: join(A.ch, B.ch, (r) => chKey(r[0]), 3, SM_CH, () => true) });
+  delete d.s[from];
+  for (const a of Object.keys(d.al)) if (d.al[a] === from) d.al[a] = to;
+  d.al[from] = to;
+  return d;
 }
 const jobSeries = (job) => seriesOf((job.fv && job.fv.name) || (job.fa && job.fa.name) || (job.fsu && job.fsu.name) || '');
 /* 28/10/2026: ניסוי "טיוטה אחת" (ניתוח 7 פרקים: ההכרעה בין שתי הטיוטות של Haiku לא עדיפה על מקרה מול התרגום האנושי,
@@ -1465,10 +1673,10 @@ function fromFields(f) {
   return o;
 }
 
-module.exports = { UP_STALL_MS, upStallStep, normVcp, bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, jobSeries, SM_BYTES, dualAb, DUAL_AB_UNTIL, rvAb, RV_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
+module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, normVcp, bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, smAlias, smResolve, smRowsMerge, smEvict, smIsName, chKey, jobSeries, SM_BYTES, SM_READ, SM_GL, SM_CH, SM_NEW, SM_DONE, SM_LOCK, SM_UNSURE, SM_FIX, SM_WORKER, dualAb, DUAL_AB_UNTIL, rvAb, RV_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
-  GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, cuesSwap, rrSpec, rrJob,
+  GOLD_MAX, GOLD_MAX_ADMIN, goldMax, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XF_KEYS, XF_MAX, normXf, GOLD_ARMS, normArms, waveOrder, waveClone, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, cuesSwap, rrSpec, rrJob,
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normFil, FIL_MAX, normSty, normOv, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
@@ -1479,5 +1687,5 @@ module.exports = { UP_STALL_MS, upStallStep, normVcp, bxOk, RATE_WHY, RATE_FLAG_
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, EARLY_FAIL_MS, EARLY_WAIT, recoverWait, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, resumeProg, stgSpent, excludeWait, toFields, fromFields, normFit, peakNeed,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, BAD_AUTH_GAP, badAuthDue, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
-  serverMatches, normHb, normEv, SRV_EV, parkable, PARK_MAX, serverView, monthKey, monthUsed, addMonth, jobCap,
+  serverMatches, normHb, normEv, SRV_EV, parkable, bwParkable, BW_MAX, WL_RE, PARK_MAX, serverView, monthKey, monthUsed, addMonth, jobCap,
 };

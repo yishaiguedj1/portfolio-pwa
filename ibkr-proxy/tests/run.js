@@ -118,6 +118,21 @@ function stubFetch(text, status = 200) {
   ok(eq.cashBalances.length === 1 && eq.cashBalances[0].currency === 'USD' && eq.cashBalances[0].balance === 750,
     'בלי Cash Report: המזומן מהיום האחרון ב־NAV in Base');
   ok(multi.navHistory.length === 3, 'שלוש שורות NAV נשמרו להיסטוריה');
+  // 02/11/2026 (מרכז המס, שלב 3): רק שורות EXECUTION; שמות השדות (בלי ערכים) ב־meta.fields; שדות חדשים — תוספות.
+  // שמות התכונות החדשות עוד לא אומתו מול XML אמיתי — לעדכן אחרי הבדיקה (docs/tax-il-research.md סעיף 3).
+  const lotX = statementToJson(parseXml('<FlexStatement fromDate="20260101" toDate="20261022" accountId="U0"><Trades>' +
+    '<Trade levelOfDetail="EXECUTION" symbol="AA" assetCategory="OPT" multiplier="100" conid="77" accountId="U0" tradeDate="20260105" dateTime="20260105;101500" quantity="2" tradePrice="3" tradeMoney="600" tradeID="1" notes="O;LI" origTradeID="" transactionType="ExchTrade"/>' +
+    '<Trade levelOfDetail="CLOSED_LOT" symbol="AA" quantity="2" tradePrice="3"/>' +
+    '<Trade levelOfDetail="SYMBOL_SUMMARY" symbol="AA" quantity="2"/>' +
+    '</Trades><CashTransactions><CashTransaction type="Dividends" amount="1" actionID="5" dateTime="20260110"/></CashTransactions></FlexStatement>'));
+  ok(lotX.trades.length === 1 && lotX.trades[0].multiplier === 100 && lotX.trades[0].conid === '77' && lotX.trades[0].tradeMoney === 600 &&
+    lotX.trades[0].tradeDate === '2026-01-05' && lotX.trades[0].notes === 'O;LI' && lotX.trades[0].asset === 'OPT', 'Trades: רק EXECUTION, עם השדות החדשים');
+  ok(lotX.cashTransactions[0].actionId === '5', 'CashTransaction: actionID');
+  ok(lotX.meta.fields.Trade.includes('multiplier') && lotX.meta.fields.lod.join() === 'CLOSED_LOT,EXECUTION,SYMBOL_SUMMARY' &&
+    !JSON.stringify(lotX.meta.fields).includes('U0'), 'meta.fields: שמות וקטגוריות בלבד, בלי ערכים');
+  const ordX = statementToJson(parseXml('<FlexStatement><Trades><Trade levelOfDetail="ORDER" symbol="B" quantity="1"/><Trade levelOfDetail="CLOSED_LOT" symbol="B" quantity="1"/><Trade symbol="C" quantity="1"/></Trades></FlexStatement>'));
+  ok(ordX.trades.length === 2 && ordX.trades[0].multiplier === 1, 'בלי EXECUTION: ORDER ושורות בלי רמה נשמרות, CLOSED_LOT לא');
+
   ok(multi.navHistory[0].toDate === '2024-01-01' && multi.navHistory[2].endingValue === 10890, 'תאריכים וערכים יומיים מפוענחים');
   const expTwr = (1.1 * 1.1 * 0.9 - 1) * 100;
   ok(Math.abs(multi.nav.twr - expTwr) < 1e-9, 'TWR תקופתי מורכב משורות יומיות (1.1*1.1*0.9-1)');
@@ -2119,6 +2134,29 @@ function stubFetch(text, status = 200) {
       ok(rr.payload.ok && xv.join() === 'haiku-high:null,haiku-high:{"main":"medium","rv":"medium"},sonnet-low:null,sonnet-low:{"main":"medium","rv":"medium"}',
         'סטודיו: ניסוי המאמץ — לכל מצב רגילה + ניסוי, רק התפקידים המוכרים');
       runs.push(...rr.payload.jobs.map((j) => j.id));
+      // 02/11/2026 (איכות התרגום, PR1 1.8): "הרץ גל" — 12 מקורות × 2 זרועות בקריאה אחת, בסדר משולב; רק SRT; xf לזרועה
+      for (const id of runs.splice(0)) await run({ op: 'remove', idToken: OWNER, job: id });
+      const W = Array.from({ length: 11 }, (_, i) => 'jWAVE' + String(i).padStart(2, '0') + '0'.repeat(14));
+      for (const id of W) db.set('studioJobs/' + id, { fields: SG.toFields(Object.assign({}, base, { gd: { r: 'refs1234567890', n: 4000, at: now }, fo: [{ id: 'outs1234567890', k: 'srt', size: 9 }] })) });
+      rr = await run({ op: 'goldRun', idToken: FRIEND, ok: true, arms: [{ mode: 'haiku-medium' }] });
+      ok(rr.statusCode === 403 || rr.payload.error === 'admin' || rr.payload.error === 'no_gold' || !rr.payload.ok, 'סטודיו: הרץ גל — לא למי שאינו מנהל');
+      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, arms: [{ mode: 'nope' }] });
+      ok(rr.statusCode === 400 && rr.payload.error === 'bad_params', 'סטודיו: הרץ גל — מצב לא מוכר בזרועה נדחה');
+      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, arms: [{}, {}, {}, {}] });
+      ok(rr.statusCode === 400, 'סטודיו: הרץ גל — עד 3 זרועות');
+      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, arms: [{ mode: 'haiku-medium' }, { mode: 'haiku-high', xf: ['smf', 'zzz', 'smf'] }] });
+      const wj = rr.payload.jobs || [];
+      ok(rr.payload.ok && wj.length === 24 && wj.every((j, i) => j.wa === i % 2 && j.spec.mode === (i % 2 ? 'haiku-high' : 'haiku-medium') && j.state === 'new')
+        && wj.every((j, i) => i % 2 === 0 || j.gs === wj[i - 1].gs) && new Set(wj.map((j) => j.gs)).size === 12,
+        'סטודיו: הרץ גל — 12 מקורות × 2 זרועות = 24 עבודות בקריאה אחת, בסדר משולב, מצב לכל זרועה');
+      ok(wj.every((j) => j.spec.out.join() === 'srt') && wj.every((j, i) => i % 2 ? JSON.stringify(j.spec.xf) === '["smf"]' : !j.spec.xf), 'סטודיו: הרץ גל — רק SRT, ו־xf (רשימה סגורה) רק בזרועה שלו');
+      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, arms: [{ mode: 'haiku-medium' }] });
+      ok(rr.statusCode === 409 && rr.payload.error === 'gold_busy', 'סטודיו: הרץ גל — קריאה שנייה בזמן ריצה = 409');
+      for (const j of wj) await run({ op: 'remove', idToken: OWNER, job: j.id });
+      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, arms: [{ mode: 'haiku-medium', src: [W[0], 'nope'] }, { mode: 'haiku-medium', xf: ['gq'], src: [W[0]] }] });
+      ok(rr.payload.ok && rr.payload.jobs.length === 2 && rr.payload.jobs.every((j) => j.gs === W[0]), 'סטודיו: הרץ גל — רשימת מקורות לזרועה (מזהה לא מוכר נזרק)');
+      for (const j of rr.payload.jobs) await run({ op: 'remove', idToken: OWNER, job: j.id });
+      for (const id of W) await run({ op: 'remove', idToken: OWNER, job: id });
       rr = await run({ op: 'gold', idToken: OWNER, job: JGD, ref: null });
       ok(rr.payload.ok && rr.payload.job.gd === null && rr.payload.job.gq === null, 'סטודיו: סט הזהב — הסרה');
       for (const id of [JGD, JNS].concat(runs)) await run({ op: 'remove', idToken: OWNER, job: id });
@@ -2772,8 +2810,10 @@ function stubFetch(text, status = 200) {
       const S5 = require('../lib/studio');
       ok(JSON.stringify(S5.normRvf([[3, 'g'], [3, 's'], [17, 't']])) === '[[3,"g"],[3,"s"],[17,"t"]]', 'סטודיו: סימונים מהביקורת — כמו שהם');
       ok(S5.normRvf([[3, 's'], [3, 'g']]) === null && S5.normRvf([[3, 'g'], [3, 'g']]) === null && S5.normRvf([[0, 'g']]) === null
-        && S5.normRvf([[2, 'x']]) === null && S5.normRvf([['2', 'g']]) === null && S5.normRvf(Array.from({ length: 41 }, (_, i) => [i + 1, 'g'])) === null
-        && S5.normRvf([]) === null && S5.normRvf('x') === null, 'סטודיו: סימונים — לא ממוין / כפול / קוד לא מוכר / יותר מ־40 — נזרק');
+        && S5.normRvf([[2, 'x']]) === null && S5.normRvf([['2', 'g']]) === null && S5.normRvf(Array.from({ length: 61 }, (_, i) => [i + 1, 'g'])) === null
+        && S5.normRvf([]) === null && S5.normRvf('x') === null, 'סטודיו: סימונים — לא ממוין / כפול / קוד לא מוכר / יותר מ־60 — נזרק');
+      ok(JSON.stringify(S5.normRvf([[3, 'g'], [3, 'p'], [3, 'l'], [8, 'v']])) === '[[3,"g"],[3,"p"],[3,"l"],[8,"v"]]' && S5.normRvf([[3, 'l'], [3, 'p']]) === null,
+        'סטודיו: הקודים של סבב 2 (p משחק מילים · v הצופה · l שפה אחרת) — לפי הסדר של RVF_CODES');
       ok(JSON.stringify(S5.normFil([[1.234, 1.6], [2, 2.5]])) === '[[1.23,1.6],[2,2.5]]', 'סטודיו: מילות מילוי — מעוגל ל־2 ספרות');
       ok(S5.normFil([[1, 1.1]]) === null && S5.normFil([[1, 4]]) === null && S5.normFil([[2, 2.5], [1, 1.5]]) === null && S5.normFil([[1, 1.5], [1.4, 2]]) === null
         && S5.normFil([['1', 2]]) === null && S5.normFil(Array.from({ length: 301 }, (_, i) => [i, i + 0.5])) === null, 'סטודיו: מילות מילוי — קצר / ארוך / חופף / לא ממוין / יותר מ־300 — נזרק');
@@ -3554,6 +3594,51 @@ function stubFetch(text, status = 200) {
         'park: רק בשרת שלנו (ב־Routine אין תור)');
     }
     {
+      // 01/11/2026 (סבב 3, I3): "חצי מחיר" — העבודה חונה כשהבקשות שלה בתור החיסכון (bw), השרת פנוי, ונלקחת שוב רק
+      // כשהסוכן מדווח שהתשובות חזרו (poll ‏br). "להמשיך עכשיו" (btNow) — יוצאת מהתור
+      const S4 = require('../lib/studio');
+      const sb = S4.normSpec(Object.assign({}, SPECA, { bt: 1, wl: 'ab12cd34ef' }));
+      ok(sb.bt === 1 && sb.wl === 'ab12cd34ef', 'חצי מחיר: bt ורשימת העבודה נשמרים במפרט');
+      ok(!S4.normSpec(Object.assign({}, SPECA, { bt: 1, ry: 1 })).bt && !S4.normSpec(Object.assign({}, SPECA, { bt: 1, cp: 1 })).bt && !S4.normSpec(Object.assign({}, SPECA, { wl: 'A!' })).wl,
+        'חצי מחיר: לא ב־Routine ולא בהעתק־הדבק; מזהה רשימה לא תקין — נזרק');
+      rr = await run({ op: 'create', idToken: OWNER, spec: Object.assign({}, SPECA, { bt: 1, wl: 'ab12cd34ef' }) });
+      const JB = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: JB, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'file', idToken: OWNER, job: JB, which: 'v', id: 'vid1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JB });
+      rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+      const KB = rr.payload.job && rr.payload.job.key;
+      ok(rr.payload.job && rr.payload.job.id === JB, 'חצי מחיר: נלקחת כמו כל עבודה');
+      await wrk({ op: 'claim', job: JB, key: KB });
+      rr = await wrk({ op: 'report', job: JB, key: KB, park: true, bw: true, msg: 'x' });
+      const fb = db.get('studioJobs/' + JB).fields;
+      ok(rr.payload.ok && fb.state.stringValue === 'queued' && !fb.sid.stringValue && Number(fb.bw.integerValue) > 0, 'חצי מחיר: חונה — חוזרת לתור, המפתח מת, השרת פנוי');
+      rr = await run({ op: 'job', idToken: OWNER, job: JB });
+      ok(rr.payload.job.bw === 1 && rr.payload.job.vw === 0 && !rr.payload.job.stale && rr.payload.job.spec.wl === 'ab12cd34ef', 'חצי מחיר: הטלפון רואה "מחכה לתור החיסכון"');
+      rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+      ok(rr.payload.job === null, 'חצי מחיר: לא נלקחת כל עוד התשובות לא חזרו');
+      rr = await srvRun({ op: 'poll', hb: {}, br: [JB] }, STOK);
+      const KB2 = rr.payload.job && rr.payload.job.key;
+      ok(rr.payload.job && rr.payload.job.id === JB && !Number(db.get('studioJobs/' + JB).fields.bw.integerValue), 'חצי מחיר: הסוכן דיווח שהתשובות חזרו → נלקחת שוב (bw מתאפס)');
+      await wrk({ op: 'claim', job: JB, key: KB2 });
+      rr = await run({ op: 'btNow', idToken: OWNER, job: JB });
+      ok(rr.payload.ok && !rr.payload.job.spec.bt, 'חצי מחיר: "להמשיך עכשיו" — יוצאת מתור החיסכון');
+      rr = await wrk({ op: 'report', job: JB, key: KB2, park: true, bw: true });
+      ok(rr.payload.ok && !Number(db.get('studioJobs/' + JB).fields.bw.integerValue), 'חצי מחיר: אחרי "עכשיו" חנייה אחרונה חוזרת מיד לתור הרגיל (בלי לחכות)');
+      rr = await run({ op: 'btNow', idToken: OWNER, job: JB });
+      ok(rr.statusCode === 409, 'חצי מחיר: "עכשיו" רק לעבודה שבתור החיסכון');
+      rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+      const KB3 = rr.payload.job && rr.payload.job.key;
+      ok(rr.payload.job && rr.payload.job.id === JB, 'חצי מחיר: אחרי "עכשיו" נלקחת מיד, בלי br');
+      await wrk({ op: 'claim', job: JB, key: KB3 });
+      await wrk({ op: 'report', job: JB, key: KB3, done: true });
+      const T1 = 1.8e12, bj = { kind: 'tr', state: 'queued', eng: 'api', spec: { eng: 'api', bt: 1 }, bw: T1, fired: T1 - 1e3, claimed: T1 - 5e3, updated: T1 };
+      ok(S4.effState(bj, T1 + 20 * 3600e3).state === 'queued' && S4.effState(bj, T1 + 37 * 3600e3).err === 'no_server' && !S4.isStale(bj, T1 + 5 * 3600e3),
+        'חצי מחיר: עד 36 שעות בתור — לא "אין שרת" ולא "נתקעה"');
+      rr = await run({ op: 'remove', idToken: OWNER, job: JB });
+      studio._hitsClear();   // הבלוק הזה פונה הרבה — שלא יגזול מהבלוק הבא את מכסת הדקה
+    }
+    {
       // 20/10/2026: הסוכן עלה מחדש באמצע עבודה (הקונטיינר הופעל מחדש, /state נמחק) — הפנייה הראשונה (boot) מסמנת אותה
       // worker_lost (תקלה חולפת → המשך אוטומטי מנקודת השמירה), במקום "רצה" שעתיים בלי שאף אחד עובד עליה
       rr = await run({ op: 'create', idToken: OWNER, spec: SPECA });
@@ -4242,6 +4327,9 @@ function stubFetch(text, status = 200) {
       await run({ op: 'adminCheck', idToken: OWNER, id: 'abcdef012345', st: '' });
       ok(!db.has('sysChecks/abcdef012345'), 'בדיקות בטלפון: ביטול מוחק את התשובה');
       ok((await run({ op: 'learnPull', at: 'snbL_' + 'x'.repeat(32) })).statusCode === 401, 'Claude: טוקן שלא קיים — 401');
+      studio._reset();
+      const lpc = await run({ op: 'learnPull', at: TK, co: true, cl: ['0123456789abcdef0123'] });   // 02/11/2026 (PR1 1.3): עמוד המשך
+      ok(lpc.payload.ok && !('records' in lpc.payload) && !('checks' in lpc.payload) && !('view' in lpc.payload) && lpc.payload.corpus, 'Claude: עמוד המשך (co) — רק הקורפוס, בלי רשומות, ניתוח ובדיקות');
       ok((await run({ op: 'learnPull', at: TK, op2: 1, idToken: OWNER })).payload.ok, 'Claude: המשיכה לא דורשת Origin/Firebase');
       const tl = await run({ op: 'atList', idToken: OWNER });
       ok(tl.payload.tokens.length === 1 && tl.payload.tokens[0].uses >= 2 && !('by' in tl.payload.tokens[0]), 'Claude: רשימת הטוקנים — שימושים, בלי מי יצר');

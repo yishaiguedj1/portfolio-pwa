@@ -41,8 +41,25 @@ object DmFmt {
         "unsupported", "no_video" -> R.string.dmErrNoVideo
         "refresh_size" -> R.string.dmErrRefreshSize
         "refresh_kind" -> R.string.dmErrRefreshKind
+        "window" -> R.string.dmErrWindow      // 01/11/2026 (סבב 3): התור מחוץ לחלון הזמן שלו
+        "quota" -> R.string.dmErrQuota        // נגמרה מכסת הנפח (יום/חודש)
         else -> R.string.dmErrFail
     })
+
+    /** 01/11/2026 (DmHeat): למה ההורדה הואטה — ריק כשלא */
+    fun heat(ctx: Context): String = when (DmEngine.heatWhy) {
+        DmHeat.Why.NONE -> ""
+        DmHeat.Why.HOT -> ctx.getString(R.string.dmHeatHot)
+        DmHeat.Why.HEAT -> ctx.getString(R.string.dmHeatHeat)
+        DmHeat.Why.BATTERY -> ctx.getString(R.string.dmHeatBatt)
+        DmHeat.Why.SAVER -> ctx.getString(R.string.dmHeatSaver)
+    }
+
+    /** Last-Modified של HTTP → תאריך מקומי קצר (ריק כשלא מבין) */
+    fun httpDate(s: String): String = runCatching {
+        val d = java.text.SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.US).parse(s) ?: return ""
+        java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM).format(d)
+    }.getOrDefault("")
 
     /** שורת המצב של הורדה */
     fun line(ctx: Context, t: DmTask): String {
@@ -67,12 +84,15 @@ object DmFmt {
                 val sp = DmEngine.speed[t.id] ?: 0
                 val eta = if (st != null) DmEngine.ytEta[t.id] ?: -1 else -1
                 val l = if (eta >= 0) left(ctx, eta) else if (sp > 0 && tot > 0) left(ctx, (tot - got) / sp) else ""
-                listOf(pc, sz, speed(ctx, sp), l).filter { it.isNotEmpty() }.joinToString(" · ")
+                val slow = if (t.kind == DmKind.HTTP) heat(ctx) else ""
+                // 01/11/2026 (סבב 2): כמה עבר בסלולר (Wi‑Fi וסלולר יחד)
+                val cell = DmEngine.alt[t.id]?.takeIf { it > 0 }?.let { ctx.getString(R.string.dmBondLine, size(ctx, it)) } ?: ""
+                listOf(pc, sz, speed(ctx, sp), l, slow, cell).filter { it.isNotEmpty() }.joinToString(" · ")
             }
             DmState.QUEUED -> ctx.getString(if (t.later && !DmEngine.laterReady) R.string.dmQueuedLater else R.string.dmQueued) + if (got > 0) " · $sz" else ""
             DmState.WAITING -> err(ctx, t.err)
             DmState.PAUSED -> ctx.getString(R.string.dmPaused) + " · " + sz
-            DmState.FAILED -> err(ctx, t.err)
+            DmState.FAILED -> if (DmAutoRefresh.busy(t.id)) ctx.getString(R.string.dmAutoRefreshing) else err(ctx, t.err)
             DmState.DONE -> size(ctx, tot)
         }
     }

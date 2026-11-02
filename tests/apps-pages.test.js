@@ -109,7 +109,7 @@ ok(/\[#&\]studio=\(j\[A-Za-z0-9_-\]\{20\}\)/.test(read('studio-app.js')), 'studi
   ok(/p\.append\(C\.account\(\)\)/.test(ps) && /C\.display\(\), C\.advRow\(\(\) => go\('adv'\)\)/.test(ps) && ps.indexOf('C.account()') < ps.indexOf('C.display()') && !/secT\(/.test(ps), 'Studio: החשבון של Invest בראש העמוד, התצוגה והמתקדמות בסוף');
   // 13/10/2026 (בקשת המשתמש: "לפי ת־עיצוב הייתה מתכננת"): העמוד הראשי = שתי קבוצות של שורות, כל נושא בעמוד משנה
   { const rows = [...ps.matchAll(/onClick: \(\) => go\('(\w+)'\)/g)].map((m) => m[1]).join();
-    ok(rows === 'eng,defs,tower,store,push,guide', 'Studio: השורות בעמוד הראשי — ' + rows);
+    ok(rows === 'eng,defs,tower,store,push,guide,credits', 'Studio: השורות בעמוד הראשי — ' + rows);
     ok((ps.match(/setCard\(/g) || []).length === 3 && /setCard\(T\('studioGrpTr'\)/.test(ps) && /setCard\(T\('studioGrpGen'\)/.test(ps) && /setCard\(T\('studioLrnGrp'\)/.test(ps), 'Studio: שלוש קבוצות — תרגום, כללי, ופרטיות ושיפור (25/10/2026)'); }
   for (const [v, fn] of [['eng', 'pageEng'], ['defs', 'pageDefs'], ['store', 'pageStore'], ['push', 'pagePush']]) ok(new RegExp("else if \\(ui\\.view === '" + v + "'\\) " + fn + '\\(p\\);').test(st) && st.includes('function ' + fn + '(p) {'), 'Studio: עמוד המשנה ' + v);
   { const sec = (f) => { const a = st.indexOf('function ' + f + '(p) {'); return st.slice(a, st.indexOf('\n}\n', a)); };

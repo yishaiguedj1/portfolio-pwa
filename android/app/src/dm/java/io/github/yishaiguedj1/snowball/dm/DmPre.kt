@@ -110,7 +110,15 @@ object DmPre {
      */
     fun enqueue(ctx: Context, url: String, info: JSONObject, q: JSONObject?, audio: Boolean, ref: String, ck: Boolean,
                 tr: Boolean = false, later: Boolean = false, subs: List<DmSubs.Sub> = emptyList()): DmTask {
-        val t = DmTask(DmStore.newId(), url, ref, DmKind.YTDL).apply {
+        val t = build(ctx, url, info, q, audio, ref, ck, tr, later, subs)
+        DmStore.add(t); rememberSite(ctx, ref, ck); DmEngine.pump(ctx)
+        return t
+    }
+
+    /** המשימה בלי להוסיף אותה (Studio Browser שולח אותה ל־Studio DM — DmBridge.sendTask) */
+    fun build(ctx: Context, url: String, info: JSONObject, q: JSONObject?, audio: Boolean, ref: String, ck: Boolean,
+              tr: Boolean = false, later: Boolean = false, subs: List<DmSubs.Sub> = emptyList()): DmTask {
+        return DmTask(DmStore.newId(), url, ref, DmKind.YTDL).apply {
             this.tr = tr && !audio; this.later = later
             if (!audio) { this.subs = DmSubs.langs(subs); subsAuto = false }
             title = info.optString("t"); name = title
@@ -123,8 +131,6 @@ object DmPre {
             if (audio) total = info.optJSONObject("ao")?.optLong("sz", -1) ?: -1
             created = System.currentTimeMillis(); this.ck = ck
         }
-        DmStore.add(t); rememberSite(ctx, ref, ck); DmEngine.pump(ctx)
-        return t
     }
 
     /** הורדה שהגיעה מדפדפן (עם העוגיות שלו) — האתר נשמר לבועה ב־Chrome (SiteList, DmSitesProvider) */

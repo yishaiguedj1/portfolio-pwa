@@ -46,7 +46,7 @@ ok(P.crossed(A('up', 100), 99, 100) && !P.crossed(A('up', 100), 101, 99) && P.cr
 /* ---------- sw.js והאפליקציה ---------- */
 const sw = R('sw.js'), app = R('app.js'), ch = R('chart.js');
 ok(/m\.k === 'px' \? \/\^#chart=/.test(sw) && /'px-' \+/.test(sw), 'sw.js: התראת מחיר נפתחת ב־#chart= עם תג לכל התראה');
-ok(/get\('chart'\)/.test(app) && /openChartFor\(ch\)/.test(app) && /tab\|stock\|studio\|chart\)=/.test(app), 'app.js: הקישור #chart= פותח את הגרף (גם מהרקע)');
+ok(/get\('chart'\)/.test(app) && /openChartFor\(ch\)/.test(app) && /tab\|stock\|studio\|chart(\|watch)?\)=/.test(app), 'app.js: הקישור #chart= פותח את הגרף (גם מהרקע)');
 ok(/lite: \(\) => \{ if \(\/vercel/.test(app) && /if \(slow && S\.poll % 10\) return;/.test(ch), 'גרף: מצב חסכוני כשהבקשות הולכות ל־Vercel (מחיר כל 10 שנ׳)');
 ok(/sync: \(b\) => ibkrBgApi\(b\)/.test(app), 'app.js: הגרף מסנכרן דרך /api/ibkr-sync עם טוקן ההתחברות');
 ok(/op: 'pxa', act: 'sync'/.test(ch) && /pushManager\.subscribe/.test(ch) && /BG\.st === 'on'\) return/.test(ch), 'chart.js: סנכרון + מנוי Push; בלי התראת מערכת כפולה כשהרקע פעיל');
