@@ -234,6 +234,8 @@ export function normJob(j) {
   // 31/10/2026 (הצילום: עבודת קריוקי עם שלבי תרגום, תקציב ועיצוב כתוביות): בלי זה — אחרי רענון / סנכרון מהשרת השיר נהיה
   // "תרגום". המילים עצמן לא נשמרות בטלפון (רק בשרת)
   if (sp.ka === 1) Object.assign(spec, { ka: 1 }, sp.bv === 1 ? { bv: 1 } : {}, num(sp.gv) > 0 ? { gv: Math.min(60, Math.round(num(sp.gv))) } : {});
+  if (sp.bt === 1) spec.bt = 1;   // 01/11/2026 (סבב 3, I3): חצי מחיר — תור החיסכון
+  if (WL_RE.test(String(sp.wl || ''))) spec.wl = sp.wl;   // רשימת עבודה — כמה סרטונים יחד
   if (sp.src === 'subs') { spec.src = 'subs'; spec.sdh = sp.sdh === 'keep' ? 'keep' : 'rm'; spec.out = []; }   // 22/10/2026: קובץ כתוביות קיים
   // 1/11/2026: nu — תרגום רגיל בשרת, Studio לאנדרואיד מעלה (vc). vc נשמר גם בעבודת טלפון (עד היום נפל אחרי רענון)
   if (sp.nu === 1 && sp.ph !== 1) Object.assign(spec, { nu: 1, vc: 1 });
@@ -269,6 +271,7 @@ export function normJob(j) {
       .map((o) => ({ id: o.id, k: o.k, size: num(o.size) })),
     use: normUse(s.use),   // v359: טוקנים ועלות (מהעובד, דרך השרתון)
     eng: s.eng === 'api' ? 'api' : 'sub',   // מצב API: העבודה רצה על השרת של המערכת (בתור עד ששרת פנוי)
+    bw: s.bw === 1,   // 01/11/2026 (סבב 3): מחכה לתשובה מתור החיסכון — השרת פנוי בינתיים
     vw: s.vw === 1 || s.vw === true,   // 15/10/2026: מחכה לסרטון בתור — השרת פנוי בינתיים
     urt: normRate(s.urt),   // 25/10/2026: המשוב שלך על התרגום (👍/👎, סיבות, כתוביות שסימנת)
     sw: typeof s.sw === 'string' ? s.sw.slice(0, 40) : '',   // 25/10/2026: למה העבודה לא התחילה (קוד הסירוב בשרתון — גם ממכשיר אחר)
@@ -379,6 +382,13 @@ export const NORM_DEF_API = { 'sonnet-medium': 2.6, 'haiku-high': 0.55, 'haiku-m
 export const NORM_FIXED_API = 0.05;
 /* מ6 (כלל 2): אומדן לפני כל התחלה — זמן (דקות לשעת וידאו של המצב × האורך) ועלות ("הרגיל" שלך, אחרת ברירת המחדל).
    במצב השרת — גם כמה נשאר מהתקציב החודשי. טהור */
+/* 01/11/2026 (סבב 3, I3): רשימת עבודה וחצי מחיר. LIST_MAX = MAX_ACTIVE של השרתון; WL_RE זהה ל־lib/studio.js.
+   BT_EST — האומדן בחצי מחיר: שמרני (ההנחה 50%, אבל המטמון בתור עובד "כשאפשר"), עד שיהיו עבודות אמיתיות למדוד */
+export const LIST_MAX = 5, BT_EST = 0.55;
+export const WL_RE = /^[a-z0-9]{8,16}$/;
+export const wlNew = () => (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)).slice(0, 14);
+const btOk = (f) => !!(f && (f.fileObj || f.drive) && !f.link && !f.ka && !f.ph && !f.subs && apiMode());
+const listOk = (f) => !!(btOk(f) && f.fileObj);
 export function startEstimate(mode, dur, norm, api, apiOn) {
   const d = dur > 0 ? dur : 0, m = modeById(mode);
   if (!d) return { min: 0, usd: 0, left: null, over: false };
@@ -389,6 +399,7 @@ export function startEstimate(mode, dur, norm, api, apiOn) {
 function estText(e, apiOn) {
   const t = e.min < 60 ? T('studioMinShort', { m: e.min }) : T('studioHMShort', { t: fmtHM(e.min) });
   if (!apiOn) return T('studioEstSub', { t, usd: fmtUsd(e.usd) });
+  if (e.bt) return T('studioEstBt', { usd: fmtUsd(e.usd), left: fmtUsd(e.left || 0) }) + (e.over ? ' ' + T('studioEstOver') : '') + keepLine();
   return T('studioEstApi', { t, usd: fmtUsd(e.usd), left: fmtUsd(e.left || 0) }) + (e.over ? ' ' + T('studioEstOver') : '') + keepLine();
 }
 /* 26/10/2026 (בעקבות Vid Hub): כמה זמן נשמר — כבר לפני ההתחלה (עד היום רק בדף העבודה, אחריה). רק במצב השרת (R2) */
@@ -1251,6 +1262,7 @@ function freshForm(d) {
     to: s.to.slice(), mode: s.mode, out: Object.assign({}, s.out), style: s.style === 'karaoke' ? 'bold' : s.style,
     sty: normSty(store.settings.sty),   // 26/10/2026: העיצוב האחרון שבחרת = ברירת המחדל
     terms: d ? d.terms : '',
+    more: [], bt: 0,   // 01/11/2026 (סבב 3, I3): עוד סרטונים מהטלפון באותן הגדרות (רק בזיכרון) · חצי מחיר
     subs: null, sdh: 'rm', trk: null,   // שלב 4: רצועות הכתוביות שבתוך הסרטון (רק בזיכרון)   // 22/10/2026: קובץ כתוביות קיים (בזיכרון בלבד — בלי טיוטה) ומה עושים עם SDH
   };
 }
@@ -1870,7 +1882,7 @@ function startRun(id, file) {
   if (prev && prev.active) return;
   const run = { active: true, phase: 'prep', p: 0, sent: 0, total: 0, rate: 0, wait: '', err: '', need: false, file, t0: Date.now(), ctl: new AbortController() };
   runs.set(id, run);
-  runJob(id, run);
+  return runJob(id, run);   // 01/11/2026: רשימת עבודה — הסרטון הבא עולה כשההעלאה של הקודם הסתיימה
 }
 async function runJob(id, run) {
   const rec = jobRec(id);
@@ -3084,6 +3096,7 @@ function nowLine(rec, run, ph) {
   if (ph === 'error') return errText(run.err);
   if (ph === 'ready') return rec.up.wait === 'worker_not_ready' ? T('studioWaitWorker') : rec.up.wait ? errText(rec.up.wait) : T('studioReady');
   if (ph === 'queued' && rec.spec.pt) return T('studioPhPtQ');   // שלב 3: הטלפון לוקח את העבודה ומתרגם בעצמו
+  if (ph === 'queued' && rec.srv && rec.srv.bw) return T('studioNowBw');
   if (ph === 'queued') return rec.srv && rec.srv.vw ? (rec.spec.ph ? T('studioPhWaitM') : T('studioNowParked')) : rec.srv && rec.srv.uw ? T('studioNowSrvUpd') : rec.srv && rec.srv.eng === 'api' ? queuedApiLine(rec) : T('studioNowQueued');
   if (ph === 'running' && ryWaiting(rec, Date.now())) return T('studioNowRyWait');
   // 31/10/2026: בקריוקי אין מודל שפה — "Claude עובד על הסרטון" הטעה
@@ -3224,6 +3237,7 @@ function pageHome(p, kaTab) {
       stat.append(bd, tx);
       const sm = h('small');
       if (rec.spec.ka) sm.append(T('studioKaRow')); else sm.append(langsText(rec.spec.from, rec.spec.to) + ' · ', h('bdi', 'st-nw', modeShort(modeById(rec.spec.mode))));
+      if (rec.spec.bt) sm.append(' · ' + T('studioBtTag'));   // 01/11/2026 (סבב 3): חצי מחיר
       info.append(nm, sm, stat);
       r.append(th, info);
       live(r, () => {             // אחוז ומצב — מתעדכנים במקום
@@ -3232,7 +3246,7 @@ function pageHome(p, kaTab) {
         bd.className = 'st-badge ' + c; bd.textContent = l;
         const upping = ph === 'extract' || ph === 'audio' || ph === 'video';
         tx.textContent = upping ? Math.round(100 * (ph === 'video' ? run.p || 0 : m.stages[0].p || 0)) + '%' + (ph === 'video' && !rec.up.noAudio ? ' · ' + T('studioVideoShort') : '')
-          : m.bg ? T('studioNowBg') : ph === 'running' || ph === 'queued' ? T('studioLeftShort', { t: fmtLeft(shownLeft(rec, m)) }) : '';
+          : m.bg ? T('studioNowBg') : ph === 'queued' && rec.srv && rec.srv.bw ? T('studioBwShort') : ph === 'running' || ph === 'queued' ? T('studioLeftShort', { t: fmtLeft(shownLeft(rec, m)) }) : '';
         const pct = ph === 'done' ? 1 : ph === 'video' ? run.p || 0 : upping ? m.stages[0].p || 0 : ph === 'running' || ph === 'queued' ? shownPct(rec, m.pct, 'h') : m.pct;
         bar.hidden = FINAL.includes(ph) || ph === 'ready';
         bi.style.width = Math.round(100 * pct) + '%';
@@ -3314,6 +3328,41 @@ function whyCard(f) {
   return c;
 }
 const whyTxt = (k) => (k === 'exp' ? T('studioWhy_exp') : k === 'slow' ? T('studioWhy_slow') : k === 'test' ? T('studioWhy_test') : T('studioWhy_later'));
+/* 01/11/2026 (סבב 3, I3): רשימת עבודה — עוד סרטונים מהטלפון, באותן הגדרות. כל אחד = עבודה משלו; הם עולים אחד אחרי השני,
+   ובחצי מחיר הבקשות של כולם נשלחות לתור יחד. הקבצים רק בזיכרון (בלי טיוטה) */
+function moreRows(f) {
+  const more = f.more || (f.more = []);
+  const inp = h('input', 'st-file'); inp.type = 'file'; inp.hidden = true; inp.multiple = true;
+  inp.accept = 'video/*,.mkv,.mov,.mp4,.m4v,.webm,.avi';
+  inp.addEventListener('change', () => {
+    const fs = Array.from(inp.files || []);
+    for (const file of fs) {
+      if (1 + more.length >= LIST_MAX) { flashSafe(T('studioListMax', { n: LIST_MAX })); break; }
+      const m = { fileObj: file, file: { name: file.name, size: file.size, type: file.type || '' }, dur: 0 };
+      more.push(m);
+      inspectSource(file).then((x) => { if (x && x.dur) { m.dur = x.dur; if (form === f) render('none'); } }, () => {});
+    }
+    render('none');
+  });
+  const rows = more.map((m, i) => {
+    const r = h('div', 'st-row st-ric');
+    const th = h('span', 'st-plus'); th.append(ico('film'));
+    const l = h('span', 'st-l'), nm = h('b'); nm.append(fileNameEl(m.file.name));
+    l.append(nm, h('small', null, fmtSize(m.file.size) + (m.dur ? ' · ' + fmtDur(m.dur) : '')));
+    const x = btn('st-advx', null, () => { more.splice(i, 1); render('none'); }, 'more-x:' + i);
+    x.append(ico('x')); x.setAttribute('aria-label', T('studioRemoveV') + ': ' + m.file.name);
+    r.append(th, l, x);
+    return r;
+  });
+  const full = 1 + more.length >= LIST_MAX;
+  const add = full ? null : rowNav({ tile: tile('film', 'blue'), label: T('studioMoreVid'), sub: more.length ? null : T('studioMoreVidS', { n: LIST_MAX }), onClick: () => inp.click(), k: 'more-add' });
+  const box = h('div');
+  box.style.display = 'contents';
+  const tot = (f.dur || 0) + more.reduce((a, m) => a + (m.dur || 0), 0);
+  box.append(inp, list(...rows, add));
+  if (more.length) box.append(note(T('studioMoreTotal', { n: 1 + more.length, t: fmtDur(tot) })));
+  return box;
+}
 function pageForm(p, editing) {
   if (!form) {
     const d = editing ? store.drafts.find((x) => x.id === ui.param) : null;
@@ -3374,6 +3423,7 @@ function pageForm(p, editing) {
     p.append(inp, secT(f.ka ? T('studioKaSecSong') : T('studioSecVideo')));
     const pickRow = card.classList.contains('st-row') ? card : null;   // 25/10/2026: בלי קובץ — הבורר והמקורות האחרים בקבוצה אחת
     if (!pickRow) p.append(card);
+    if (!pickRow && listOk(f)) p.append(moreRows(f));   // 01/11/2026 (סבב 3, I3): רשימת עבודה
     if (!pickRow && f.ph && (f.ph.cap || 0) < (f.ph.nu ? PH_CAP_NU : PH_CAP_VC)) {   // הקישור לעדכון — מחוץ לכפתור של הכרטיס
       const a = h('a', 'st-btn wide', T('studioLinkApk')); a.href = DL_APK; a.rel = 'noopener'; a.dataset.k = 'ph-apk';
       p.append(a);
@@ -3429,6 +3479,9 @@ function pageForm(p, editing) {
 
   // מצב התרגום — המומלץ מסומן ונבחר מראש
   p.append(secT(T('studioSecMode')), ...modePicker(f.mode, (id) => { f.mode = id; render('none'); }));
+  if (btOk(f)) p.append(secT(T('studioSecWhen')), list(   // 01/11/2026 (סבב 3, I3): חצי מחיר — רק כשבוחרים בו
+    rowRadio({ label: T('studioWhenNow'), sub: T('studioWhenNowS'), on: !f.bt, onClick: () => { f.bt = 0; render('none'); }, k: 'when:now' }),
+    rowRadio({ label: T('studioWhenBt'), sub: T('studioWhenBtS'), on: !!f.bt, onClick: () => { f.bt = 1; render('none'); }, k: 'when:bt' })));
   // מה לקבל — "זהה למקור" כברירת מחדל, SRT תמיד
   if (f.subs) {   // 22/10/2026: בלי סרטון — קובצי כתוביות בלבד (VTT ו־ASS עולים תמיד כקובצי עזר)
     p.append(secT(T('studioSecOut')), list(rowCheck({ on: true, locked: true, label: T('studioOutSrt'), sub: T('studioOutSrtS') }),
@@ -3448,7 +3501,8 @@ function pageForm(p, editing) {
   }
 
   // התחלה: יוצרים עבודה בשרתון ומעלים ל־Drive (הקול קודם). טיוטה — אפשרות משנית
-  const startBtn = btn('st-btn wide', ui.starting ? T('studioStarting') : T('studioStart'), startFromForm, 'start');
+  const nList = listOk(f) ? 1 + (f.more || []).length : 1;
+  const startBtn = btn('st-btn wide', ui.starting ? T('studioStarting') : nList > 1 ? T('studioStartN', { n: nList }) : T('studioStart'), startFromForm, 'start');
   startBtn.disabled = !(f.fileObj || f.drive || f.subs || f.ph || (f.link && f.linkOk)) || ui.starting;   // ph — תרגום בטלפון
   if (f.subs) { const ft = h('div', 'st-foot'); ft.append(startBtn, h('p', 'st-foot-n', T('studioSubsStartNote'))); p.append(ft); return; }   // בלי טיוטה: הקובץ רק בזיכרון
   // 25/10/2026: כפתור אחד, דבוק לתחתית המסך. הטיוטה — "שמירה" בסרגל העליון (עד היום גם כפתור שני כאן, אותה פעולה)
@@ -5207,8 +5261,16 @@ function startFromForm() {
     else if (cpMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap, cp: 1 });   // סבב 10: העתק־הדבק — השרת מתמלל וצורב, Claude שלך מתרגם
     else if (ryMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap, ry: 1 });   // 24/10/2026: המנוי שלך — השרת עושה הכל, Claude דרך ה־Routine
     kaSpec(f, spec);   // 26/10/2026: קריוקי — בלי Claude, בלי אומדן עלות
+    // 01/11/2026 (סבב 3, I3): חצי מחיר, ורשימת עבודה — מזהה משותף, אומדן אחד לכולם
+    if (btOk(f) && f.bt) spec.bt = 1;
+    const extras = listOk(f) ? (f.more || []).filter((m) => m.fileObj) : [];
+    if (extras.length) {
+      spec.wl = wlNew();
+      await Promise.all(extras.map((m) => (m.dur ? null : probeVideo(m.fileObj).then((x) => { m.dur = (x && x.dur) || 0; }, () => {}))));
+    }
     // מ6 (כלל 2): אומדן ואישור לפני ההתחלה — עוד לפני שנוצרת עבודה ולפני ההעלאה
-    const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
+    const est = startEstimate(spec.mode, spec.dur + extras.reduce((a, m) => a + (m.dur || 0), 0), curNorm(), ui.api, apiMode());
+    if (spec.bt && est.min) { est.bt = true; est.usd = Math.round(est.usd * BT_EST * 100) / 100; est.over = est.left != null && est.usd > est.left; }
     if (est.min && !f.ka && !f.estOk && typeof askConfirm === 'function') {   // estOk — מקישור: האומדן אושר לפני ההורדה בטלפון
       const yes = await estAsk(est, f);
       if (!yes || form !== f) { ui.starting = false; render('none'); return; }
@@ -5235,10 +5297,24 @@ function startFromForm() {
       const ht = trkHlpTxt(f);
       if (ht) await hlpUpload(rec, ht);
     }
+    const more = [];   // 01/11/2026 (סבב 3, I3): שאר הרשימה — עבודה לכל סרטון, באותן הגדרות
+    for (const m of extras) {
+      const sp2 = Object.assign({}, spec, { name: m.file.name, size: m.file.size, type: m.file.type, dur: m.dur || 0 });
+      delete sp2.edl; delete sp2.px;   // החיתוך והמידות — של הסרטון הראשון בלבד
+      const j2 = await net.api('create', { spec: sp2 });
+      if (!j2.ok || !j2.job) { flashSafe(errText(j2.error)); break; }
+      const r2 = normJob({ id: j2.job.id, created: j2.job.created || Date.now(), spec: j2.job.spec || sp2, srv: j2.job,
+        fp: { name: m.file.name, size: m.file.size, lm: m.fileObj.lastModified || 0 }, vm: null, org: orgOf(f, null, sp2.eng),
+        up: isR2Folder(j2.job.folder) ? { folder: j2.job.folder } : {} });
+      if (!r2) continue;
+      store.jobs.unshift(r2); thumbFor(r2, null, m.fileObj); more.push([r2.id, m.fileObj]);
+    }
+    if (more.length) save();
+    const rest = async (p0) => { try { await p0; } catch (e) {} for (const [mid, fo] of more) { try { await startRun(mid, fo); } catch (e) {} } };
     form = null;
-    if (!root) { startRun(rec.id, ext ? null : file); return; }
+    if (!root) { rest(startRun(rec.id, ext ? null : file)); return; }
     replaceView('job', rec.id);
-    startRun(rec.id, ext ? null : file);
+    rest(startRun(rec.id, ext ? null : file));
   })();
 }
 
@@ -7717,18 +7793,21 @@ function goldSection() {
   const active = runs.some((r) => ['new', 'queued', 'running'].includes(r.srv.state));
   const run = btn('st-btn wide', active ? T('studioGoldRunning') : T('studioGoldRun', { n: gold.length }), active || goldBusy ? null : () => goldRunAsk(gold), 'gold-run');
   if (active) run.disabled = true;
-  return [secT(T('studioGoldT')), list(...rows), run, note(T('studioGoldRunNote'))];
+  // 01/11/2026 (סבב 3, I3): אותה הרצה בתור החיסכון — לבדוק זמנים וכשלים בפועל. רק בלחיצה, עם הסכום באישור
+  const half = apiMode() ? btn('st-btn ghost wide', T('studioGoldRunBt'), active || goldBusy ? null : () => goldRunAsk(gold, true), 'gold-run-bt') : null;
+  if (half && active) half.disabled = true;
+  return [secT(T('studioGoldT')), list(...rows), run, half, note(T('studioGoldRunNote'))].filter(Boolean);
 }
-function goldRunAsk(gold) {
-  const usd = goldEstimate(gold, curNorm());
-  const go2 = () => goldRun();
-  if (typeof askConfirm === 'function') askConfirm(gold.length === 1 ? T('studioGoldRunQ1', { usd: fmtUsd(usd) }) : T('studioGoldRunQ', { n: gold.length, usd: fmtUsd(usd) }), go2, { ok: T('studioGoldRunOk') });
+function goldRunAsk(gold, bt) {
+  const usd = Math.round(goldEstimate(gold, curNorm()) * (bt ? BT_EST : 1) * 100) / 100;
+  const go2 = () => goldRun(bt);
+  if (typeof askConfirm === 'function') askConfirm(bt ? T('studioGoldRunBtQ', { n: gold.length, usd: fmtUsd(usd) }) : gold.length === 1 ? T('studioGoldRunQ1', { usd: fmtUsd(usd) }) : T('studioGoldRunQ', { n: gold.length, usd: fmtUsd(usd) }), go2, { ok: T('studioGoldRunOk') });
 }
-async function goldRun() {
+async function goldRun(bt) {
   if (goldBusy) return;
   goldBusy = 'run'; render('none');
   try {
-    const j = await net.api('goldRun', { ok: true });
+    const j = await net.api('goldRun', bt ? { ok: true, bt: 1 } : { ok: true });
     if (!j.ok || !Array.isArray(j.jobs)) { flashSafe(errText(j.error)); return; }
     for (const sj of j.jobs) {
       const rec = recFromSrv(sj);
@@ -9084,6 +9163,7 @@ function pageJob(p) {
     rec.spec.ka ? null : kvRow(T('studioSecMode'), modeName(modeById(rec.spec.mode))),
     kvRow(T('studioSecOut'), (rec.spec.ka ? rec.spec.out : rec.spec.out.concat('srt')).map(outShort).join(' + ')),
     rec.spec.ka ? null : kvRow(T('studioSecStyle'), styleName(rec.spec.style)),
+    rec.spec.bt ? kvRow(T('studioSecWhen'), T('studioBtTag')) : null,   // 01/11/2026 (סבב 3)
     rec.up.a.done ? kvRow(T('studioAudioK'), fmtSize(rec.up.a.size)) : rec.up.noAudio && rec.up.noAudio !== 'video_first' ? kvRow(T('studioAudioK'), T('studioNoAudio')) : null,
     kvRow(T('studioCreated'), fmtDate(rec.created)),
     kvRow(T('studioJobId'), rec.id, true),
@@ -9101,6 +9181,15 @@ function pageJob(p) {
 
   // ביטול / מחיקה
   const fin = FINAL.includes(ph0);
+  // 01/11/2026 (סבב 3, I3): בתור החיסכון — אפשר לצאת ולהמשיך עכשיו במחיר הרגיל (השרתון: op btNow)
+  if (rec.spec.bt && rec.srv && !fin) p.append(h('div', 'st-gap'), list(rowNav({ tile: tile('spark', 'orange'), label: T('studioBtNow'), sub: T('studioBtNowS'), k: 'bt-now',
+    onClick: () => askConfirm(T('studioBtNowQ'), async () => {
+      const j = await net.api('btNow', { job: id });
+      if (!j.ok || !j.job) { flashSafe(errText(j.error)); return; }
+      const r = jobRec(id);
+      if (r) { const n = normJob({ id, spec: j.job.spec || r.spec, srv: j.job }); if (n) { r.srv = n.srv; delete r.spec.bt; } }
+      save(); repaint();
+    }, { ok: T('studioBtNowOk') }) })));
   const del = btn('st-btn danger wide', fin || ph0 === 'ready' || ph0 === 'paused' || ph0 === 'need' || ph0 === 'error' ? T('studioJobDel') : T('studioJobCancel'), () => {
     const removing = fin || ph0 === 'ready' || ph0 === 'paused' || ph0 === 'need' || ph0 === 'error';
     const doIt = async () => {
