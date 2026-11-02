@@ -58,6 +58,8 @@ object DmMedia {
             if (exists(ctx, u)) return u
             t.segs.clear()   // הקובץ נמחק בינתיים (או פג אחרי שבוע) — מתחילים מחדש
         }
+        // 02/11/2026 (סבב 4, ‏29): הורדה פרטית — בתיקייה הנעולה שבתוך האפליקציה, לא בגלריה
+        if (t.priv) return DmR4.vaultUri(ctx, t).also { t.uri = it.toString() }
         val (coll, rel0) = where(t.name, t.mime)
         // 01/11/2026 (סבב 3): התיקייה של החוק / של הסוג (DmFolders) — תת־תיקייה, או תיקייה שבחרת במערכת (SAF)
         val d = t.dir.ifEmpty { DmFolders.pick(DmFolders.parse(DmPrefs(ctx).folders), t.name, t.mime) }
@@ -113,7 +115,7 @@ object DmMedia {
         if (t.total > 0) runCatching {
             ctx.contentResolver.openFileDescriptor(u, "rw")?.use { FileOutputStream(it.fileDescriptor).channel.truncate(t.total) }
         }
-        if (!isDoc(ctx, u)) ctx.contentResolver.update(u, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
+        if (!isDoc(ctx, u) && !DmR4.isVault(ctx, u)) ctx.contentResolver.update(u, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
     }
 
     /** yt-dlp כותב לקובץ רגיל (צריך נתיב) — בסוף מעתיקים פנימה */

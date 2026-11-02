@@ -105,7 +105,7 @@ private val Red = StRed
 private val Green = StGreen
 
 @Composable
-private fun DmTheme(content: @Composable () -> Unit) {
+internal fun DmTheme(content: @Composable () -> Unit) {
     val dark = isSystemInDarkTheme()
     val g = if (dark) GlassDark else GlassLight
     // המשטחים של Material שקופים־למחצה — כך גם רכיב שלא הוחלף (תפריט, חלון) יושב על אותה זכוכית
@@ -151,7 +151,8 @@ fun DmApp(a: DmActivity) {
         // 01/11/2026 (זכוכית של Studio): הרקע עם ההילות, כותרת גדולה עם כפתורים עגולים, ומעגן בועות במקום סרגל הניווט.
         // גיליון פתוח — התוכן שמאחור מטושטש (‏--gl-veil; ‏blur עובד מ־Android 12, מתחת — רק ההחשכה של הגיליון)
         val apk by a.apkCheck
-        val veiled = sheet != null || details != null || apk != null
+        val r4 by DmR4Ui.sheet
+        val veiled = sheet != null || details != null || apk != null || r4.isNotEmpty()
         val blurR by androidx.compose.animation.core.animateDpAsState(if (veiled) 14.dp else 0.dp, label = "veil")
         Box(Modifier.fillMaxSize().dmAmbient(g)) {
         Scaffold(
@@ -171,6 +172,7 @@ fun DmApp(a: DmActivity) {
                                 DropdownMenuItem({ Text(stringResource(R.string.dmPauseAll)) }, { more = false; DmEngine.pauseAll(ctx) })
                                 DropdownMenuItem({ Text(stringResource(R.string.dmResumeAll)) }, { more = false; DmEngine.resumeAll(ctx) })
                                 DropdownMenuItem({ Text(stringResource(R.string.dmAddList)) }, { more = false; a.sheetRef.value = ""; a.sheetUrl.value = "" })
+                                R4MenuItems(a) { more = false }   // 02/11/2026 (סבב 4): קוד מהמחשב, סורק, תור סנכרון, חיפוש בכתוביות, כספת
                             }
                         }
                     }
@@ -199,6 +201,7 @@ fun DmApp(a: DmActivity) {
         if (sheet != null) AddSheet(a, sheet ?: "", a.sheetRef.value) { a.sheetDone() }
         details?.let { id -> DmStore.get(id)?.let { t -> Details(a, t, rev) { details = null } } ?: run { details = null } }
         apk?.let { t -> ApkCheckSheet(a, t) { a.apkCheck.value = null } }   // סבב 3: בודק APK לפני התקנה
+        R4Sheets(a, rev)   // סבב 4: הגיליונות החדשים ומצב חו"ל
     }
 }
 
@@ -206,7 +209,8 @@ fun DmApp(a: DmActivity) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Downloads(a: DmActivity, rev: Int, onDetails: (String) -> Unit) {
-    val all = remember(rev) { DmStore.all() }
+    // סבב 4 (29): הורדה פרטית שהסתיימה — רק בכספת
+    val all = remember(rev) { DmStore.all().filter { !(it.priv && it.state == DmState.DONE) } }
     // חיפוש (24/10, מפת המסכים בדוח: "חיפוש רק מ־10 פריטים") — שם, כותרת או אתר
     var q by rememberSaveable { mutableStateOf("") }
     val shown = remember(rev, q) { if (q.isBlank()) all else all.filter { t -> DmFind.match(q, t.name, t.title, DmLink.host(t.url)) } }
@@ -223,6 +227,7 @@ private fun Downloads(a: DmActivity, rev: Int, onDetails: (String) -> Unit) {
                 placeholder = { Text(stringResource(R.string.dmSearch)) }, leadingIcon = { Icon(DmIcons.Search, null) },
                 trailingIcon = { if (q.isNotEmpty()) IconButton(onClick = { q = "" }) { Icon(DmIcons.Close, stringResource(R.string.dmClose)) } })
         }
+        item { TravelCard(rev) }   // סבב 4 (24): מצב חו"ל / נדידה שמחכה
         if (clip.isNotEmpty()) item {
             Box(Modifier.fillMaxWidth().glassCard(LocalDmG.current, RoundedCornerShape(22.dp), Red.copy(alpha = if (LocalDmG.current.dark) 0.20f else 0.12f))) {
                 Column(Modifier.padding(16.dp)) {
@@ -421,15 +426,18 @@ private fun Details(a: DmActivity, t: DmTask, rev: Int, onClose: () -> Unit) {
             Text(line, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(16.dp))
             // 01/11/2026: מפת המקטעים החיה (צבע לכל חיבור, גרף מהירות, פירוט) ו"למה זה לא יורד?" — DmUiPro
-            SegMap(t, rev)
-            DiagCard(a, t, onClose)
+            // סבב 4 (42): מצב מקצוען כבוי — בלי השורות הטכניות
+            val pro = remember(rev) { proMode(ctx) }
+            if (pro) SegMap(t, rev)
+            if (pro) DiagCard(a, t, onClose)
             WatchLive(a, t)
             Spacer(Modifier.height(12.dp))
             Info(stringResource(R.string.dmSource), runCatching { java.net.URI(t.url).host }.getOrNull() ?: t.url)
             Info(stringResource(R.string.dmResume), stringResource(if (t.kind == DmKind.YTDL || t.ranges) R.string.dmYes else R.string.dmNo))
             if (t.state == DmState.DONE) Info(stringResource(R.string.dmSavedIn), stringResource(R.string.dmSavedWhere))
-            if (t.state == DmState.DONE && t.uri.isNotEmpty()) HashBlock(a, t)
-            TaskPro(t)   // סבב 3: תור, מגבלה להורדה הזו, פעולות בסיום / תוצאת בדיקת הסיכום
+            if (pro && t.state == DmState.DONE && t.uri.isNotEmpty()) HashBlock(a, t)
+            if (pro) TaskPro(t)   // סבב 3: תור, מגבלה להורדה הזו, פעולות בסיום / תוצאת בדיקת הסיכום
+            TaskPro4(a, t)   // סבב 4: תגיות והערה, פרקים, מראות, למחשב
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 when (t.state) {
@@ -558,6 +566,7 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                     if (DmImport.parse(url).let { it is DmImport.Parsed.Links && it.urls.size == 1 && !it.pattern }) scope.launch { check() }
                 }) { Icon(DmIcons.Paste, stringResource(R.string.dmPaste)) } })
             Spacer(Modifier.height(14.dp))
+            if (refTask == null) SmartRow(a, url, onClose)   // סבב 4 (39): Metalink, פיד, קוד מהמחשב, magnet
             // כבר ברשימה (24/10): אותו קישור הורד / בתור — אזהרה, לא חסימה (אפשר להוריד שוב באיכות אחרת)
             val dup = remember(url) { DmLink.first(url).let { u -> u.isNotEmpty() && refTask == null && DmStore.has(u) } }
             if (dup && !multi) Text(stringResource(R.string.dmDup), color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))
@@ -589,6 +598,7 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                     Info(stringResource(R.string.dmSize), DmFmt.size(ctx, f.size))
                     Info(stringResource(R.string.dmResume), stringResource(if (f.ranges) R.string.dmYesParts else R.string.dmNo))
                     if (refTask == null) FileFacts(a, f)
+                    if (refTask == null) FilePro4(f.url)   // סבב 4 (29): פרטי
                     Spacer(Modifier.height(12.dp))
                     if (refTask != null) {
                         if (refErr.isNotEmpty()) Text(DmFmt.err(ctx, refErr), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(bottom = 8.dp))
@@ -639,6 +649,9 @@ private fun AddSheet(a: DmActivity, url0: String, ref: String, onClose: () -> Un
                         supportingContent = { Text(if (subs.isNotEmpty()) subs.joinToString(" · ") { it.n.ifEmpty { it.l } } else stringResource(R.string.dmSubsIfAny)) },
                         trailingContent = { GSwitch(withSubs, { withSubs = it }) },
                         colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent))
+                    // סבב 4 (33/34/35/29): קטע, המרה, "עד גודל", פרקים, פרטי
+                    VideoPro4(f.url, info, list.map { q -> DmCodec.prefer(q, info.optJSONArray("fm"), info.optJSONObject("ao"), DmPrefs(ctx).codec).sz }, audio,
+                        setQ = { audio = false; qi = it }, setAudio = { audio = it })
                     LaterRow(later) { later = it }
                     GButton(onClick = { a.addVideo(f, list.getOrNull(qi), audio, ref, later = later, subs = DmSubs.forTask(info.optJSONArray("sub"), withSubs)); onClose() }, Modifier.fillMaxWidth().height(52.dp)) {
                         Text(stringResource(if (later) R.string.dmGoLater else R.string.dmGo), fontSize = 17.sp)
@@ -751,7 +764,12 @@ private fun BatchBlock(a: DmActivity, parsed: DmImport.Parsed, ref: String, onCl
 private fun Library(a: DmActivity, rev: Int) {
     val ctx = LocalContext.current
     var cat by rememberSaveable { mutableStateOf<DmName.Cat?>(null) }
-    val done = remember(rev) { DmStore.all().filter { it.state == DmState.DONE }.sortedByDescending { it.finishedAt } }
+    // סבב 4 (28): חיפוש, מיון, תגיות, בחירה מרובה. הפרטיות — רק בכספת
+    var lq by remember { mutableStateOf(DmLib.Q()) }
+    var selecting by remember { mutableStateOf(false) }
+    var sel by remember { mutableStateOf(setOf<String>()) }
+    val done0 = remember(rev) { DmStore.all().filter { it.state == DmState.DONE && !it.priv } }
+    val done = remember(rev, lq) { DmLib.apply(done0, lq) }
     fun catOf(t: DmTask) = if (t.kind == DmKind.YTDL) (if (t.audioOnly) DmName.Cat.AUDIO else DmName.Cat.VIDEO) else DmName.cat(t.name, t.mime)
     val cats = listOf(null, DmName.Cat.VIDEO, DmName.Cat.AUDIO, DmName.Cat.DOC, DmName.Cat.ARCHIVE, DmName.Cat.OTHER)
     Column {
@@ -765,9 +783,15 @@ private fun Library(a: DmActivity, rev: Int) {
             }
         }
         val list = done.filter { cat == null || catOf(it) == cat || (cat == DmName.Cat.OTHER && catOf(it) in setOf(DmName.Cat.OTHER, DmName.Cat.APK, DmName.Cat.IMAGE)) }
+        if (done0.size >= 3) LibraryTools(done0, lq, { lq = it }, selecting) { selecting = it; sel = emptySet() }
+        if (selecting) SelectBar(a, sel) { sel = emptySet(); selecting = false }
         if (list.isEmpty()) Text(stringResource(R.string.dmLibEmpty), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(24.dp))
+        // סבב 4 (36): "לנגן הכל" — תור ניגון של הסרטונים / הקול שברשימה
+        val media = list.filter { catOf(it) == DmName.Cat.VIDEO || catOf(it) == DmName.Cat.AUDIO }
+        if (!selecting && media.size > 1) TextButton(onClick = { a.playAll(media) }, Modifier.padding(start = 8.dp)) { Text(stringResource(R.string.dmPlayAll, media.size)) }
         LazyColumn(contentPadding = PaddingValues(16.dp, 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(list, key = { it.id }) { TaskRow(a, it, rev) {} }
+            if (selecting) items(list, key = { it.id }) { t -> SelectRow(t, t.id in sel) { sel = if (t.id in sel) sel - t.id else sel + t.id } }
+            else items(list, key = { it.id }) { TaskRow(a, it, rev) {} }
         }
     }
 }

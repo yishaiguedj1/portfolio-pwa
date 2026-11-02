@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="dm_win">#0E0E10</color>
+    <!-- 02/11/2026 (סבב 4, ‏27): הווידג'ט -->
+    <color name="dm_widget_bg">#F21C1C20</color>
+    <color name="dm_widget_fg">#F5F5F7</color>
+    <color name="dm_widget_mute">#A0A0AA</color>
+    <color name="dm_widget_fill">#24FFFFFF</color>
 </resources>

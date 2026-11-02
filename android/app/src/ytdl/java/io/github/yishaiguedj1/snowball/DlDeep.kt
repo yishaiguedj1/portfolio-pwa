@@ -126,6 +126,15 @@ object DlDeep {
         return false
     }
 
+    /** 02/11/2026 (Studio DM: המרה לקול): MP3 ‏(ID3 או מסגרת FFFx), Ogg/Opus ‏(OggS), FLAC, WAV — ו־M4A כבר עובר כ־ftyp */
+    fun looksLikeAudio(b: ByteArray): Boolean {
+        if (b.size < 4) return false
+        val h = String(b, 0, 4, Charsets.ISO_8859_1)
+        if (h.startsWith("ID3") || h == "OggS" || h == "fLaC") return true
+        if (h == "RIFF" && b.size >= 12 && String(b, 8, 4, Charsets.ISO_8859_1) == "WAVE") return true
+        return b[0] == 0xFF.toByte() && (b[1].toInt() and 0xE0) == 0xE0
+    }
+
     const val ALT_MAX = 8
 
     /** שאר הקבצים האמיתיים (מהטוב לפחות טוב) — באתר: "מקורות נוספים בדף". רק כתובת, גובה, משך וגודל */

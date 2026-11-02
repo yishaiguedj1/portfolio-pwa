@@ -53,7 +53,9 @@ class DmActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         DmStore.init(this)
+        DmR4.autoClean(this)   // 02/11/2026 (סבב 4, ‏28): ניקוי אוטומטי של הרשימה (לא של הקבצים), אם הופעל
         DmEngine.pump(this)
+        DmR4.scheduleWatch(this)   // תור הסנכרון (7/38) — המשימה הבאה של המערכת
         handle(intent)
         setContent { DmApp(this) }
         acceptDrops()
@@ -79,6 +81,7 @@ class DmActivity : ComponentActivity() {
     private fun handle(i: Intent?) {
         i ?: return
         if (i.action == DmTile.ACTION_CLIP) { clipOnFocus = true; return }
+        if (i.action == DmR4.ACTION_TRAVEL) { DmR4.travelPrompt.value = true; return }   // סבב 4 (24): מההתראה על נדידה
         // 01/11/2026 (סבב 3): deep link ‏studiodm://add?url=… — תמיד עם הגיליון (דף אינטרנט לא מוסיף הורדות בשקט)
         if (i.action == Intent.ACTION_VIEW && i.data?.scheme == DmApi.SCHEME) {
             DmApi.fromUri(i.dataString)?.let { r -> DmR3.take(this, r) }
@@ -122,7 +125,8 @@ class DmActivity : ComponentActivity() {
             clipUrl.value = ""
             return
         }
-        clipUrl.value = if (u.isNotEmpty() && u != pr.lastClip && !DmStore.has(u)) u else ""
+        // 02/11/2026 (סבב 4, ‏30): אתר / סיומת ברשימת החריגים — לא מוצע מהלוח
+        clipUrl.value = if (u.isNotEmpty() && u != pr.lastClip && !DmStore.has(u) && !DmR4.excluded(this, u)) u else ""
     }
 
     /** 01/11/2026 (סבב 3): גרירת קישור (מסך מפוצל / חלון צף) אל DM → גיליון ההוספה. רק טקסט — בלי הרשאות */
@@ -214,6 +218,13 @@ class DmActivity : ComponentActivity() {
         val i = Intent(Intent.ACTION_SEND).setType(DmMedia.mimeFor(t.name, t.mime)).putExtra(Intent.EXTRA_STREAM, Uri.parse(t.uri))
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         runCatching { startActivity(Intent.createChooser(i, null)) }
+    }
+
+    /** 02/11/2026 (סבב 4, ‏36): תור ניגון — מתחיל מהראשון ברשימה */
+    fun playAll(ts: List<DmTask>) {
+        val t = ts.firstOrNull { it.uri.startsWith("content://") } ?: return
+        runCatching { startActivity(Intent(this, DmPlayer::class.java).setData(Uri.parse(t.uri)).putExtra(DmPlayer.EXTRA_TITLE, t.title.ifEmpty { t.name })
+            .putExtra(DmPlayer.EXTRA_QUEUE, ts.filter { it.uri.startsWith("content://") }.take(300).map { it.id }.toTypedArray())) }
     }
 
     fun shareText(s: String) {
