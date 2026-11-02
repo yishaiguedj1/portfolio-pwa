@@ -23,6 +23,10 @@ const R = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   const arms = S.normArms([{ mode: 'haiku-medium' }, { mode: 'haiku-high', xf: ['smf'] }], srcs.map((j) => j.id));
   const wv = S.waveOrder(srcs, arms);
   ok(wv.length === 24 && wv.every(([j, a, i], k) => j.id === 'g' + Math.floor(k / 2) && i === k % 2), 'waveOrder — 12 מקורות × 2 זרועות, בסדר משולב');
+  { const src = { id: 'jAAAAAAAAAAAAAAAAAAAA', spec: { eng: 'api', ph: 1, pw: 1, dur: 600, mode: 'haiku-medium' }, fa: { id: 'a' }, fph: { id: 'm' }, fpw: { id: 'w' }, folder: 'f' };
+    const c = S.goldClone(src, 'jBBBBBBBBBBBBBBBBBBBB', 'u', 1, 'haiku-medium'), w = S.waveClone(src, 'jCCCCCCCCCCCCCCCCCCCC', 'u', 1, { mode: 'haiku-high', xf: [] }, 1), k = S.smokeJob(src, 'jDDDDDDDDDDDDDDDDDDDD', 'u', 1);
+    ok(c.fph.id === 'm' && c.fpw.id === 'w' && w.fph.id === 'm' && k.fph.id === 'm', 'goldClone — תרגום בטלפון: המדידות והמילים עוברות לעותק (בלי זה upload_timeout אחרי 12 שעות)');
+    ok(!('fph' in S.goldClone(Object.assign({}, src, { fph: null, fpw: null }), 'jEEEEEEEEEEEEEEEEEEEE', 'u', 1)), 'goldClone — בלי מדידות במקור: אין שדה ריק'); }
   ok(S.normArms([{ mode: 'nope' }], []) === null && S.normArms([{}, {}, {}, {}, {}], []) === null && S.normArms([{}, {}, {}, {}], []).length === 4 && S.normArms([], []) === null, 'normArms — מצב לא מוכר / יותר מ־4 / ריק = null');
   ok(S.normArms([{ src: ['x'] }], ['g0']) === null, 'normArms — רשימת מקורות בלי אף מקור מוכר = null');
   const a1 = S.normArms([{ src: ['g1', 'zz'] }], ['g0', 'g1']);
