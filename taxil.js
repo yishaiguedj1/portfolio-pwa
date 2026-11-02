@@ -169,14 +169,22 @@ function tiDividends(cashTx, fxOf) {
     const kind = isPaid ? 'interestPaid' : (isInt || whInt) ? 'interest' : 'dividend';
     const sym = kind === 'dividend' ? (sm ? sm[1] : '') : '';
     const cur = String(c.currency || 'USD').toUpperCase();
-    const key = date + '|' + (kind === 'interestPaid' ? 'PAID' : kind === 'interest' ? 'INT' : sym) + '|' + cur;
+    // ✗5: דיבידנד, הניכוי שלו, ביטול ורישום מחדש — אירוע אחד לפי actionId, בשנה ובשער של התשלום המקורי (התאריך
+    // המוקדם בקבוצה). בלי actionId (נתונים ישנים / השדה לא בשאילתה) — המפתח הישן: תאריך+סימבול+מטבע.
+    const aid = String((c && c.actionId) || '').trim();
+    const tag = kind === 'interestPaid' ? 'PAID' : kind === 'interest' ? 'INT' : sym;
+    const key = aid ? 'A|' + aid + '|' + kind + '|' + cur : date + '|' + tag + '|' + cur;
     const r = m.get(key) || { date: date, sym: sym, kind: kind, country: im ? im[1] : '', cur: cur, gross: 0, wh: 0 };
     if (isWh) r.wh += -amt; else r.gross += amt;     // ביטול ניכוי מגיע חיובי — מקטין את הניכוי
     if (!r.country && im) r.country = im[1];
+    if (!r.sym && sym) r.sym = sym;
+    if (date < r.date) r.date = date;
+    if (aid) r.actionId = aid;
     m.set(key, r);
   }
   const out = [];
   for (const r of m.values()) {
+    if (r.actionId && Math.abs(r.gross) < 1e-9 && Math.abs(r.wh) < 1e-9) continue;   // אירוע שבוטל כולו
     const fx = r.cur === 'ILS' ? 1 : tiNum(fxOf && fxOf(r.cur, r.date));
     r.fx = fx > 0 ? fx : null;
     r.grossIls = r.fx ? r.gross * r.fx : null;

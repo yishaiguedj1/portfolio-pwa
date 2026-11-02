@@ -239,4 +239,43 @@ for (const [g, p, r, want] of [['G11', 150, 7, 350], ['G12', 50, 11, 0], ['G13',
   eq(f.fx[0].gIls, 1000, 'G20 הפרש השער');
 }
 
+/* G23 — תיקון דיבידנד בשנה הבאה (✗5). 15/12/2025, שער 3.6: דיבידנד $100, ניכוי $30. 10/1/2026, שער 3.7: ביטול
+   (−100 דיבידנד, +30 ניכוי) ורישום מחדש (+100, ניכוי −25), הכול עם אותו actionId.
+   ביד: אירוע אחד בתאריך המקורי ובשער 3.6 — ברוטו 100−100+100 = $100 → 360 ₪; ניכוי 30−30+25 = $25 → 90 ₪ (25%).
+   W-8BEN: 25% — אין התראה. 2026: אין דיבידנד ואין ניכוי שלילי, ולכן אין extraInc פיקטיבי. */
+{
+  const fxOf = (cur, d) => (d < '2026-01-01' ? 3.6 : 3.7);
+  const D = 'AAPL(US0378331005) Cash Dividend USD 0.25 per Share';
+  const W = 'AAPL(US0378331005) Cash Dividend USD 0.25 per Share - US Tax';
+  const rows = (aid) => [
+    { type: 'Dividends', date: '2025-12-15', amount: 100, currency: 'USD', description: D, actionId: aid },
+    { type: 'Withholding Tax', date: '2025-12-15', amount: -30, currency: 'USD', description: W, actionId: aid },
+    { type: 'Dividends', date: '2026-01-10', amount: -100, currency: 'USD', description: D, actionId: aid },
+    { type: 'Withholding Tax', date: '2026-01-10', amount: 30, currency: 'USD', description: W, actionId: aid },
+    { type: 'Dividends', date: '2026-01-10', amount: 100, currency: 'USD', description: D, actionId: aid },
+    { type: 'Withholding Tax', date: '2026-01-10', amount: -25, currency: 'USD', description: W, actionId: aid },
+  ];
+  const divs = T.tiDividends(rows('9001'), fxOf);
+  eq(divs.length, 1, 'G23 אירוע אחד');
+  const Y5 = T.tiYear(2025, [], divs, { other: 0 }), Y6 = T.tiYear(2026, [], divs, { other: 0 });
+  eq(Y5.div.gross, 360, 'G23 2025 ברוטו 360');
+  eq(Y5.div.wh, 90, 'G23 2025 ניכוי 90');
+  eq(T.tiW8(divs).length, 0, 'G23 בלי התראת W-8BEN');
+  eq(Y6.div.gross, 0, 'G23 2026 אין ברוטו');
+  eq(Y6.div.wh, 0, 'G23 2026 אין ניכוי שלילי');
+  eq(Y6.extraInc, 0, 'G23 2026 אין מס פיקטיבי');
+  // נפילה בלי actionId: המפתח הישן (תאריך+סימבול+מטבע) — שתי רשומות, כמו לפני שלב 5
+  const old = T.tiDividends(rows(''), fxOf);
+  eq(old.length, 2, 'G23 בלי actionId — שתי רשומות לפי תאריך');
+  eq(old[0].wh, 30, 'G23 בלי actionId — 2025 ניכוי $30');
+  eq(old[1].gross, 0, 'G23 בלי actionId — 2026 ברוטו 0');
+  ok(old.every((d) => !d.actionId), 'G23 בלי actionId — אין מזהה');
+  // actionId שונה לכל דיבידנד באותו יום — לא מתמזגים
+  const two = T.tiDividends([
+    { type: 'Dividends', date: '2025-06-01', amount: 10, currency: 'USD', description: D, actionId: 'a1' },
+    { type: 'Dividends', date: '2025-06-01', amount: 20, currency: 'USD', description: D, actionId: 'a2' },
+  ], fxOf);
+  eq(two.length, 2, 'G23 שני אירועים נפרדים');
+}
+
 console.log('# taxil-golden: ' + n + ' בדיקות עברו');
