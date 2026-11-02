@@ -1453,7 +1453,7 @@ page('find', { tab: 'find', title: () => t('admTabFind'), render(p) {
 /* ---- ניטור משתמשים (29/10/2026, בקשת המשתמש — התצוגה שאושרה: design-mockups/monitor). "עכשיו במערכת" בראש הסקירה,
    עבודה חיה, לשונית "פעילות" (הטיימליין), משתמשים ודף משתמש (תקרה, השהיה). adminLive — כל 10 שנ׳ רק בזמן שמסתכלים על
    הסקירה / העבודות החיות; adminAct — מטמון 5 דק׳ בשרתון. השם והמייל — רק כאן, למנהל ---- */
-const LIVE_PAGES = ['ov', 'now', 'live'];
+const LIVE_PAGES = ['ov', 'now', 'queue', 'live'];
 const AV_C = ['#FF9F0A', '#64D2FF', '#BF5AF2', '#30D158', '#FF375F', '#5E5CE6', '#AC8E68', '#0A84FF'];
 const avC = (u) => AV_C[[...String(u || '')].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7) % AV_C.length];
 const avI = (nm) => ([...String(nm || '?').trim()][0] || '?').toUpperCase();
@@ -1487,11 +1487,11 @@ function liveCard(x) {
   const tx = h('span', 'adm-tx'), b = h('b'); b.append(h('bdi', null, x.me ? t('admLiveMe') : x.nm), h('span', 'adm-tag' + (x.me ? ' me' : ''), x.me ? t('admLiveMe') : t('admLiveOther')));
   if (x.me) b.firstChild.textContent = kindTxt(x.k);
   if (x.sm) b.firstChild.textContent = t('admLiveSm');   // 01/11/2026: עבודת הבדיקה אחרי עדכון — לא "תרגום" רגיל (בסטודיו היא מוסתרת)
-  tx.append(b, h('small', null, [kindTxt(x.k), x.dur ? hrsTxt(x.dur) : '', x.mode ? modeName(x.mode) : ''].filter(Boolean).join(' · ')));
+  tx.append(b, h('small', null, [kindTxt(x.k), x.dur ? hrsTxt(x.dur) : '', x.mode ? modeName(x.mode) : '', x.bt ? t('admLiveBt') : ''].filter(Boolean).join(' · ')));   // 02/11/2026: חצי מחיר
   top.append(h('i', 'adm-pulse'), av, tx);
   const bar = h('span', 'adm-mtr adm-lbar'), bi = h('i'); bi.style.width = Math.round(x.p * 100) + '%'; bar.append(bi);
   const ln = h('div', 'adm-lln'), si = STAGES_A.indexOf(x.st);
-  ln.append(h('span', null, x.state === 'queued' ? t(x.sm ? 'admLiveSmQ' : 'admLiveQueued') : x.wait === 'q' ? t('admLiveQ') : x.wait === 'v' ? t('admLiveV')
+  ln.append(h('span', null, x.state === 'queued' ? (x.bw ? t('admLiveBw') + (x.p > 0 ? ' · ' + Math.round(x.p * 100) + '%' : '') : t(x.sm ? 'admLiveSmQ' : 'admLiveQueued')) : x.wait === 'q' ? t('admLiveQ') : x.wait === 'v' ? t('admLiveV')
     : (STG[x.st] ? STG[x.st]() + ' · ' : '') + Math.round(x.p * 100) + '%' + (si >= 0 ? ' · ' + fmt(t('admLiveStep'), { n: si + 1, t: STAGES_A.length }) : '')),
   h('span', null, x.left >= 60 ? fmt(t('admLiveLeft'), { n: Math.round(x.left / 60) }) : ''));
   const kp = h('div', 'adm-kpis adm-lkp');
@@ -1517,21 +1517,34 @@ function waitBox() {
 function liveSection() {
   if (!D.live) needLive();
   if (!D.act) needAct();
-  const L = D.live || [], out = [];
-  if (L.length) {
-    out.push(grp(t('admLiveT') + ' · ' + L.length, L.length > 2 ? [t('admLiveAll'), () => go('now')] : null), ...L.slice(0, 2).map(liveCard));
-    if (L.some((x) => !x.me)) out.push(waitBox());
-  }
+  // 02/11/2026 (בקשת המשתמש): בסקירה — רק מה שרץ באמת על שרת; מה שבתור (לשרת, בתור החיסכון, הבדיקה אחרי עדכון) — בדף "בתור"
+  const L = liveRun(), Q = liveQ(), out = [];
+  if (L.length || Q.length) out.push(grp(t('admLiveT') + (L.length ? ' · ' + L.length : ''), L.length > 2 ? [t('admLiveAll'), () => go('now')] : null), ...L.slice(0, 2).map(liveCard));
+  if (Q.length) out.push(list(row({ c: 'orange', ic: String(Q.length), t: fmt(t('admLiveQN'), { n: Q.length }),
+    s: Q.some((x) => x.bw) ? t('admLiveQS') : '', on: () => go('queue') })));
+  if (L.some((x) => !x.me)) out.push(waitBox());
   const us = D.act && D.act.us;
   if (us) out.push(grp(t('admOvUsersG')), list(row({ c: 'purple', ic: '👥', t: fmt(t('admOvUsers'), { n: us.active.d1 }),
-    s: fmt(t('admOvUsersS'), { w: us.active.d7, u: usd(us.sum.mo) }), v: L.filter((x) => !x.me).length ? '●' : '', on: () => go('people') })));
+    s: fmt(t('admOvUsersS'), { w: us.active.d7, u: usd(us.sum.mo) }), v: (D.live || []).some((x) => !x.me) ? '●' : '', on: () => go('people') })));
   return out;
 }
+const liveRun = () => (D.live || []).filter((x) => x.state !== 'queued');
+const liveQ = () => (D.live || []).filter((x) => x.state === 'queued');
 page('now', { tab: 'ov', parent: 'ov', title: () => t('admLiveT'), render(p) {
   if (!D.live) { needLive(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
-  if (!D.live.length) { p.append(list(row({ c: 'green', ic: '✓', t: t('admLiveNone') }))); return; }
-  if (D.live.some((x) => !x.me)) p.append(waitBox());
-  for (const x of D.live) p.append(liveCard(x));
+  const L = liveRun(), Q = liveQ();
+  if (!L.length) p.append(list(row({ c: 'green', ic: '✓', t: t('admLiveNone') })));
+  if (L.some((x) => !x.me)) p.append(waitBox());
+  for (const x of L) p.append(liveCard(x));
+  if (Q.length) p.append(list(row({ c: 'orange', ic: String(Q.length), t: fmt(t('admLiveQN'), { n: Q.length }), on: () => go('queue') })));
+} });
+/* 02/11/2026 (בקשת המשתמש): כל העבודות שממתינות בתור — לשרת, בתור החיסכון (חצי מחיר), והבדיקה אחרי עדכון */
+page('queue', { tab: 'ov', parent: 'ov', title: () => t('admLiveQT'), render(p) {
+  if (!D.live) { needLive(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  const Q = liveQ();
+  if (!Q.length) { p.append(list(row({ c: 'green', ic: '✓', t: t('admLiveQNone') }))); return; }
+  p.append(h('p', 'adm-foot', t('admLiveQFoot')));
+  for (const x of Q) p.append(liveCard(x));
 } });
 page('live', { tab: 'ov', parent: 'now', title: () => { const x = liveOne(); return x ? (x.sm ? t('admLiveSm') : x.me ? t('admLiveMe') : x.nm) : t('admLiveT'); }, render(p) {
   const x = liveOne();
@@ -1539,7 +1552,7 @@ page('live', { tab: 'ov', parent: 'now', title: () => { const x = liveOne(); ret
   const ended = x.end || !['queued', 'running'].includes(x.state);
   p.append(h('p', 'adm-dt', ended ? fmt(t('admLiveEnded'), { c: clock(x.end || Date.now()) }) : fmt(t('admLiveStarted'), { c: x.t0 ? clock(x.t0) : '—' })));
   p.append(list(row({ c: x.me ? 'blue' : 'orange', ic: Math.round(x.p * 100) + '', t: (STG[x.st] ? STG[x.st]() + ' · ' : '') + Math.round(x.p * 100) + '%',
-    s: x.wait === 'q' ? t('admLiveQ') : x.wait === 'v' ? t('admLiveV') : x.left >= 60 ? fmt(t('admLiveLeft'), { n: Math.round(x.left / 60) }) : kindTxt(x.k),
+    s: x.state === 'queued' && x.bw ? t('admLiveBw') : x.wait === 'q' ? t('admLiveQ') : x.wait === 'v' ? t('admLiveV') : x.left >= 60 ? fmt(t('admLiveLeft'), { n: Math.round(x.left / 60) }) : kindTxt(x.k),
     v: usd(x.usd), tr: x.exp ? fmt(t('admLiveOf'), { u: usd(x.exp) }) : '', meter: [x.p * 100, ''] })));
   const hs = D.liveH[x.j] || [];
   if (hs.length >= 2) {
