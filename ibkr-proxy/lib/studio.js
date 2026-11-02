@@ -1063,6 +1063,9 @@ function smokeJob(src, id, uid, now) {
   if (!sp || sp.eng !== 'api' || sp.edl || !(sp.dur > SMOKE_S + 5)) return null;
   const c = goldClone(src, id, uid, now, DEFAULT_MODE);
   c.spec = Object.assign({}, c.spec, { out: ['srt'], dur: SMOKE_S, edl: { k: [[0, SMOKE_S]], ar: 'src', x: 0.5 } });
+  // 02/11/2026 (המשתמש: "כל פעם שאני נכנס לניהול יש את עבודת הבדיקה הזאת"): עבודת זהב שרצה בחצי מחיר העבירה את bt לבדיקה —
+  // בדיקה של דקה חיכתה שעות בתור החיסכון. הבדיקה תמיד בזמן אמת
+  delete c.spec.bt;
   return Object.assign(c, { gr: '', sm: 1 });
 }
 /* v373: עקיבה מהעובד (מהיומנים, בלי טוקנים): לכל סוכן n פעולות, e שנכשלו, s שניות; וקבוצות [מפתח, n, e].

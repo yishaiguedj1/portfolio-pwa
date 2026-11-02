@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1522 מפתחות מתוך 5885) */
+/* המחרוזות של admin (1529 מפתחות מתוך 5892) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -713,6 +713,8 @@ he: {
   "admLgYtSet": "עוגיות יוטיוב נשמרו",
   "admLiveAgents": "הסוכנים",
   "admLiveAll": "הכל",
+  "admLiveBt": "חצי מחיר",
+  "admLiveBw": "בתור החיסכון — מחכה לתשובות",
   "admLiveCost": "העלות לאורך העבודה",
   "admLiveCostS": "מאז שפתחת את המסך",
   "admLiveEnded": "הסתיימה ב־{c}",
@@ -725,6 +727,11 @@ he: {
   "admLiveOf": "מתוך ~{u}",
   "admLiveOther": "משתמש אחר",
   "admLiveQ": "מחכה לתשובה של המשתמש",
+  "admLiveQFoot": "עבודות שמחכות לשרת פנוי או לתשובות מתור החיסכון. זמן ההמתנה בתור החיסכון צפוי (עד כמה שעות) — לא חריגה.",
+  "admLiveQN": "{n} בתור",
+  "admLiveQNone": "אין עבודות שממתינות בתור",
+  "admLiveQS": "כולל תור החיסכון (חצי מחיר)",
+  "admLiveQT": "בתור",
   "admLiveQueued": "בתור",
   "admLiveRoutine": "במנוי של המשתמש — לא עולה לנו",
   "admLiveSm": "בדיקה אחרי עדכון",
@@ -2237,6 +2244,8 @@ en: {
   "admLgYtSet": "YouTube cookies saved",
   "admLiveAgents": "Agents",
   "admLiveAll": "All",
+  "admLiveBt": "Half price",
+  "admLiveBw": "In the savings queue — waiting for answers",
   "admLiveCost": "Cost over time",
   "admLiveCostS": "Since you opened this screen",
   "admLiveEnded": "Ended {c}",
@@ -2249,6 +2258,11 @@ en: {
   "admLiveOf": "of ~{u}",
   "admLiveOther": "Another user",
   "admLiveQ": "Waiting for the user’s answer",
+  "admLiveQFoot": "Jobs waiting for a free server or for answers from the savings queue. Waiting in the savings queue is expected (up to a few hours), not a breach.",
+  "admLiveQN": "{n} queued",
+  "admLiveQNone": "No jobs waiting in the queue",
+  "admLiveQS": "Includes the savings queue (half price)",
+  "admLiveQT": "Queue",
   "admLiveQueued": "Queued",
   "admLiveRoutine": "On the user’s own plan — no cost to us",
   "admLiveSm": "Post-update check",

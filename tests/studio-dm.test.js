@@ -193,6 +193,8 @@ for (const k of used) ok(kh.has(k), 'מחרוזת קיימת: ' + k);
   ok(/setMinimumLatency/.test(r4) && !/setExact|AlarmManager/.test(r4), 'תור סנכרון — משימת מערכת, לא שעון מדויק');
   ok(!/api\.thesnowball\.app|thesnowball\.app\/api/.test(r4 + ui4), 'סבב 4 — בלי השרת שלנו');
   ok(/AndroidKeyStore/.test(r4), 'סיסמאות לאתרים — מוצפנות ב־Keystore');
+  ok(/GChip\(cut,/.test(ui4) && ui4.indexOf('GChip(cut,') < ui4.indexOf('if (!open) return'), '"רק קטע" גלוי בגיליון — לא מוסתר תחת "עוד אפשרויות"');
+  ok(/R\.string\.brMoreOpts[^\n]*a\.download\(mp\)/.test(R('android/app/src/browser/java/io/github/yishaiguedj1/snowball/br/BrUi.kt')), 'בדפדפן — שורה לגיליון המלא (קטע ועוד)');
 }
 
 console.log('studio-dm: ' + n + ' בדיקות עברו');

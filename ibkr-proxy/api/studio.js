@@ -3681,6 +3681,7 @@ async function handler(req, res, deps = {}) {
       const spec = S.normSpec(body.spec);
       if (!spec) return res.status(400).json({ ok: false, error: 'bad_spec' });
       if (!S.langReady(spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported' });   // לפני ההעלאה, לא אחריה
+      if (spec.bt && !isAdmin(user)) delete spec.bt;   // 02/11/2026 (בקשת המשתמש): חצי מחיר (תור החיסכון) — כרגע רק למנהל; אחרים — בזמן אמת
       if (await modeLocked(spec.mode)) return res.status(403).json({ ok: false, error: 'mode_locked' });
       if ((spec.ph || spec.nu) && !R2.config().ok) return res.status(503).json({ ok: false, error: 'r2_needed' });   // 24/10/2026: תרגום בטלפון — הקבצים הקטנים ב־R2
       if (spec.ka && !(await kaAllowed())) return res.status(403).json({ ok: false, error: 'not_allowed' });   // קריוקי — כל מי שמורשה לסטודיו (30/10)
