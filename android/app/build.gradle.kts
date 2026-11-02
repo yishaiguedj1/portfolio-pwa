@@ -145,6 +145,12 @@ dependencies {
     // 24/10/2026: נגן בתוך DM (Media3 — ExoPlayer + PlayerView): כתוביות שבתוך הקובץ, מהירות, מסך מלא
     "dmImplementation"("androidx.media3:media3-exoplayer:1.5.1")
     "dmImplementation"("androidx.media3:media3-ui:1.5.1")
+    // 02/11/2026 (סבב 4): נגן ברקע עם שליטה מההתראה (MediaSession), QR — יצירה (zxing core, Apache 2.0) וסריקה
+    // (סורק הקודים של Google Play services — בלי הרשאת מצלמה), ותיקייה נעולה בטביעת אצבע (BiometricPrompt)
+    "dmImplementation"("androidx.media3:media3-session:1.5.1")
+    "dmImplementation"("com.google.zxing:core:3.5.3")
+    "dmImplementation"("com.google.android.gms:play-services-code-scanner:16.1.0")
+    "testDmImplementation"("com.google.zxing:core:3.5.3")
     "testDmImplementation"("junit:junit:4.13.2")
     // 26/10/2026: Studio Browser — אותן תלויות של DM, ומשיכה לרענון
     "browserImplementation"(platform("androidx.compose:compose-bom:2025.02.00"))
@@ -162,6 +168,9 @@ dependencies {
     "browserImplementation"("com.google.android.gms:play-services-auth:21.1.1")   // סנכרון עם Chrome: הרשאת drive.appdata (AuthorizationClient)
     "browserImplementation"("androidx.media3:media3-exoplayer:1.5.1")
     "browserImplementation"("androidx.media3:media3-ui:1.5.1")
+    "browserImplementation"("androidx.media3:media3-session:1.5.1")   // סבב 4 של DM (הקוד של src/dm נבנה גם כאן)
+    "browserImplementation"("com.google.zxing:core:3.5.3")
+    "browserImplementation"("com.google.android.gms:play-services-code-scanner:16.1.0")
     "testDmImplementation"("org.json:json:20240303")
     "testBrowserImplementation"("junit:junit:4.13.2")
     "testBrowserImplementation"("org.json:json:20240303")   // ייבוא מ־Chrome (BrImportTest)

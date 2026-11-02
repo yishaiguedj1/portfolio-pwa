@@ -43,6 +43,7 @@ object DmFmt {
         "refresh_kind" -> R.string.dmErrRefreshKind
         "window" -> R.string.dmErrWindow      // 01/11/2026 (סבב 3): התור מחוץ לחלון הזמן שלו
         "quota" -> R.string.dmErrQuota        // נגמרה מכסת הנפח (יום/חודש)
+        "roam" -> R.string.dmErrRoam          // 02/11/2026 (סבב 4): נדידה בחו"ל — מחכה ל־Wi‑Fi (או למצב חו"ל)
         else -> R.string.dmErrFail
     })
 

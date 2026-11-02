@@ -81,7 +81,8 @@ private fun ProSheet(a: DmActivity, onClose: () -> Unit) {
             Text(stringResource(R.string.dmPro), fontWeight = FontWeight.Bold, fontSize = 20.sp)
             Spacer(Modifier.height(10.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(R.string.dmProQueues, R.string.dmProFolders, R.string.dmProRules, R.string.dmProLimits, R.string.dmProApps).forEachIndexed { i, s ->
+                listOf(R.string.dmProQueues, R.string.dmProFolders, R.string.dmProRules, R.string.dmProLimits, R.string.dmProApps,
+                    R.string.dmProNet, R.string.dmProLogins, R.string.dmProExcl, R.string.dmProMore).forEachIndexed { i, s ->   // סבב 4
                     GChip(tab == i, { tab = i }, { Text(stringResource(s)) })
                 }
             }
@@ -91,7 +92,11 @@ private fun ProSheet(a: DmActivity, onClose: () -> Unit) {
                 1 -> FoldersTab(a)
                 2 -> RulesTab(a)
                 3 -> LimitsTab()
-                else -> AppsTab()
+                4 -> AppsTab()
+                5 -> NetTab()      // סבב 4 (31)
+                6 -> LoginsTab()   // סבב 4 (18)
+                7 -> ExclTab()     // סבב 4 (30)
+                else -> MoreTab()  // סבב 4 (42/41/24/28)
             }
         }
     }

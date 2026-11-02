@@ -64,6 +64,8 @@ object DmEngine {
     /** "אחר כך" (24/10): מתחילות רק ב־Wi‑Fi ובטעינה — עד אז לא מחזיקות שירות/משימה, רק משימת מערכת עם התנאים (DmRun.scheduleLater) */
     @Volatile var laterReady = false
     fun busy() = running.isNotEmpty()
+    /** 02/11/2026 (סבב 4, ‏40): כמה חיבורים פתוחים עכשיו להורדה (להתראה העשירה) */
+    fun connsOf(id: String) = running[id]?.conns ?: 0
     fun hasWork() = DmStore.all().any { (it.state == DmState.QUEUED && (!it.later || laterReady)) || it.state == DmState.RUNNING || (it.state == DmState.WAITING && it.err !in DmR3.PARKED) }
     fun charging(ctx: Context) = runCatching { ctx.getSystemService(android.os.BatteryManager::class.java)?.isCharging == true }.getOrDefault(false)
 
@@ -73,14 +75,17 @@ object DmEngine {
         val app = ctx.applicationContext
         DmStore.init(app)
         DmLogFile.init(app)
+        DmR4.init(app)   // 02/11/2026 (סבב 4): פרוקסי, זמנים, User-Agent לפי אתר, כניסות
         val pr = DmPrefs(app)
-        val okNet = netOk(app, pr.wifiOnly)
+        // סבב 4 (24): נדידה בלי מצב חו"ל — רק Wi‑Fi, והמשתמש נשאל (התראה + כרטיס באפליקציה)
+        val roam = DmR4.travelWifiOnly(app)
+        val okNet = netOk(app, pr.wifiOnly || roam)
         laterReady = netOk(app, true) && charging(app)
         DmLimit.bytesPerSec = DmR3.limitNow(app, pr)   // 01/11/2026 (סבב 3): לפי השעה ולפי הרשת
         heatTick(app)
         // הישנה קודם; עד `parallel` בבת אחת ולכל היותר DmLink.PER_HOST מאותו אתר
         val queued = DmStore.all().reversed().filter { !running.containsKey(it.id) && (it.state == DmState.QUEUED || it.state == DmState.WAITING) && (!it.later || laterReady) }
-        if (!okNet) queued.forEach { t -> if (t.state != DmState.WAITING) { t.state = DmState.WAITING; t.err = if (pr.wifiOnly) "wifi" else "net"; DmStore.save() } }
+        if (!okNet) queued.forEach { t -> if (t.state != DmState.WAITING) { t.state = DmState.WAITING; t.err = if (roam && !pr.wifiOnly && netOk(app, false)) "roam" else if (pr.wifiOnly) "wifi" else "net"; DmStore.save() } }
         else {
             val run = running.keys.mapNotNull { DmStore.get(it)?.url }
             // 01/11/2026 (סבב 3): תורים בשם — חלון זמן, רשת, מכסת נפח וכמה במקביל לכל תור (DmR3.gate); מה שנחסם — WAITING
@@ -92,6 +97,7 @@ object DmEngine {
         if (!laterReady && DmStore.all().any { it.later && it.state == DmState.QUEUED }) DmRun.scheduleLater(app)
         if (hasWork()) DmRun.ensure(app) else DmRun.idle(app)
         DmNotif.update(app)
+        DmR4.widget(app)
     }
 
     private fun start(ctx: Context, t: DmTask, pr: DmPrefs) {
@@ -138,6 +144,9 @@ object DmEngine {
 
     /** אירוע ליומן המקומי (DmLog) — דומיין ושם קובץ בלבד, לא הכתובת ולא עוגיות */
     private fun log(ctx: Context, t: DmTask, r: Runner, k: String, code: String, ms: Long, got: Long) {
+        // סבב 4 (41): סיכום יומי — רק מספרים (בלי שמות)
+        if (k != "start") runCatching { DmR4.daily(ctx, got, ms, when (k) { "done" -> true; "fail" -> false; else -> null }) }
+        if (t.priv) return   // סבב 4 (29): הורדה פרטית — לא ביומן ולא בסנכרון
         val e = r.ex
         DmLogFile.add(DmLog.Event(
             t = System.currentTimeMillis(), k = k, id = t.id, kind = if (t.kind == DmKind.YTDL) "yt" else "http",
@@ -172,6 +181,7 @@ object DmEngine {
             if (t.name.isEmpty()) t.name = DmName.pick(p.disposition, p.finalUrl, p.mime)
             if (t.mime.isEmpty()) t.mime = p.mime
             t.total = p.total; t.ranges = p.ranges; t.etag = p.etag; t.lastMod = p.lastMod   // t.url נשאר המקורי (ראו DmActivity.probe)
+            if (t.dg.isEmpty()) t.dg = p.digest   // סבב 4 (47): הסיכום שהשרת הצהיר (Repr-Digest) — נבדק בסוף
             if (p.mime == "text/html") return "page"   // דף ולא קובץ — הגיליון מציע yt-dlp
         }
         DmR3.applyRules(ctx, t)   // סבב 3: עכשיו השם ידוע (פעם אחת)
@@ -200,7 +210,12 @@ object DmEngine {
             }
             if (t.ranges && res !is DmFetch.Result.Stopped) learnHost(pr, host, conns, f.throttled)
             return when (res) {
-                is DmFetch.Result.Done -> { sink.close(); DmMedia.publish(ctx, t); null }
+                is DmFetch.Result.Done -> {
+                    sink.close()
+                    // סבב 4 (10/47): חלקים פגומים לפי ה־Metalink → יורדים שוב (חוזר לתור עם המקטעים האלה); ואז הסיכום של הקובץ כולו
+                    if (DmR4.verify(ctx, t) == DmR4.Check.REDO) return "stopped_sys"
+                    DmMedia.publish(ctx, t); null
+                }
                 is DmFetch.Result.Stopped -> if (r.system) "stopped_sys" else "stopped"
                 is DmFetch.Result.Failed -> res.code
             }
@@ -208,9 +223,10 @@ object DmEngine {
     }
 
     private fun runYt(ctx: Context, t: DmTask, r: Runner): String? {
-        val pick = DlEngine.Pick(t.vf, t.af, t.height.coerceAtLeast(0), 0, 0)
+        // סבב 4 (33): קטע מהסרטון (s0–s1 בשניות)
+        val pick = DlEngine.Pick(t.vf, t.af, t.height.coerceAtLeast(0), t.s0, t.s1)
         // בלי פורמט שנבחר מראש (רשימת השמעה, ייבוא) — הבורר לפי הגובה ופורמט הווידאו שבהגדרות
-        val fmt = if (t.audioOnly) "ba/b" else if (t.vf.isEmpty()) DmPlaylist.format(t.height, false, DmPrefs(ctx).codec) else ""
+        val fmt = DmR4.ytFormat(ctx, t, if (t.audioOnly) "ba/b" else if (t.vf.isEmpty()) DmPlaylist.format(t.height, false, DmPrefs(ctx).codec) else "")   // סבב 4 (34): המרה
         var lastP = 0L
         val pr = DmYt.Progress(if (t.audioOnly || t.af.isEmpty()) 1 else 2, t.pctYt)
         ytStage[t.id] = pr.stage
@@ -246,6 +262,7 @@ object DmEngine {
         return try {
             // כל שורה של yt-dlp → שלב ואחוז של כל ההורדה (וידאו ואחריו קול); האחוז שלו לבדו מתאפס בכל חלק
             val f = DlEngine.download(ctx, t.url, t.ref, pick, "dm-" + t.id, fmt, subs = if (t.audioOnly || t.subs.isEmpty()) "" else DlEngine.SUBS,   // 27/10: כמו Studio — רק של היוצר
+                extra = DmR4.ytExtra(t), audioOk = t.audioOnly || DmConv.audio(t.cv),   // סבב 4 (34/35): המרה ופרקים
                 onLine = ln@{ line ->
                 r.tail.add(line)
                 if (!synchronized(pr) { pr.feed(line) }) return@ln
@@ -260,6 +277,7 @@ object DmEngine {
                 if (moved || now - lastP > 2000) { lastP = now; DmStore.save(); DmNotif.update(ctx) }
                 else if (now - lastN > 500) { lastN = now; DmStore.ping() }
             }) { _, _ -> }
+            runCatching { DmR4.afterYt(ctx, t, f) }   // סבב 4 (35/37): פרקים, כתוביות לחיפוש, קובץ לכל פרק
             DmMedia.importFile(ctx, t, f)
             null
         } catch (e: IllegalArgumentException) {
@@ -338,7 +356,8 @@ object DmEngine {
         Thread {
             var n = 0
             while (running.containsKey(id) && n++ < 50) Thread.sleep(100)
-            if (file || t.state != DmState.DONE) DmMedia.delete(ctx, t)
+            if (file || t.state != DmState.DONE || t.priv) DmMedia.delete(ctx, t)   // פרטי: הקובץ הנעול נמחק תמיד עם השורה
+            DmR4.forget(ctx, id)   // סבב 4: החלקים של ה־Metalink, הכתוביות לחיפוש
             DmStore.remove(id); DmNotif.update(ctx)
         }.start()
     }

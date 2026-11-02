@@ -193,7 +193,7 @@ object DlEngine {
     /** format = בורר yt-dlp משלך (Studio DM: "רק קול" — ‎ba/b‎); ריק = לפי pick, כמו ב־Studio */
     /** subs = שפות כתוביות לצרף לקובץ — SUBS (Studio ו־Studio DM), ריק = בלי.
      *  27/10/2026 (החלטת המשתמש): רק כתוביות שהיוצר העלה — אף פעם לא אוטומטיות של יוטיוב או של אתר אחר, בשום אפליקציה */
-    fun download(ctx: Context, url: String, ref: String, pick: Pick, id: String, format: String, onLine: (String) -> Unit = {}, subs: String = "", progress: (Float, Long) -> Unit): File {
+    fun download(ctx: Context, url: String, ref: String, pick: Pick, id: String, format: String, onLine: (String) -> Unit = {}, subs: String = "", extra: List<String> = emptyList(), audioOk: Boolean = false, progress: (Float, Long) -> Unit): File {
         prepare(ctx)
         val dir = dirOf(ctx, id).apply { mkdirs() }
         val req = base(YoutubeDLRequest(url), ref, cookiesFor(ctx, url, ref))
@@ -206,6 +206,13 @@ object DlEngine {
             // הקובץ שירד מוצאים בתיקייה של ההורדה (DlProbe.outFile)
             .addOption("--newline")
         if (pick.s1 > pick.s0) req.addOption("--download-sections", "*${pick.s0}-${pick.s1}")
+        // 02/11/2026 (Studio DM סבב 4): המרה / פרקים — רשימה שטוחה (מפתח ואחריו ערך, אם יש). {DIR} = תיקיית ההורדה
+        var i = 0
+        while (i < extra.size) {
+            val k = extra[i]
+            val v = extra.getOrNull(i + 1)
+            if (v != null && !v.startsWith("-")) { req.addOption(k, v.replace("{DIR}", dir.absolutePath)); i += 2 } else { req.addOption(k); i++ }
+        }
         if (Regex("^[A-Za-z0-9_-]{1,20}(,[A-Za-z0-9_-]{1,20}){0,4}$").matches(subs)) {
             // כתוביות בתוך הקובץ (MP4 = mov_text, MKV = srt) — לא קבצים נפרדים; כשל בכתוביות לא מפיל את ההורדה
             req.addOption("--write-subs").addOption("--no-write-auto-subs").addOption("--sub-langs", subs).addOption("--embed-subs").addOption("--convert-subs", "srt").addOption("--ignore-errors")
@@ -222,7 +229,8 @@ object DlEngine {
         // לא סרטון (דף שגיאה, פרסומת, קובץ ריק) — לא נשמר בגלריה; האתר מציג "הקובץ שירד הוא לא סרטון"
         val head = ByteArray(200)
         val n = try { f.inputStream().use { it.read(head) } } catch (e: Throwable) { 0 }
-        if (f.length() < DlDeep.MIN_BYTES / 3 || !DlDeep.looksLikeVideo(head.copyOf(maxOf(n, 0)))) {
+        val okHead = DlDeep.looksLikeVideo(head.copyOf(maxOf(n, 0))) || (audioOk && DlDeep.looksLikeAudio(head.copyOf(maxOf(n, 0))))
+        if (f.length() < DlDeep.MIN_BYTES / 3 || !okHead) {
             dir.deleteRecursively()
             throw IllegalArgumentException("not_video")
         }

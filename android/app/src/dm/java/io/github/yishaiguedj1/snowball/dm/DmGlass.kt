@@ -177,10 +177,11 @@ fun GField(
     value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier, singleLine: Boolean = false, maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
     label: (@Composable () -> Unit)? = null, placeholder: (@Composable () -> Unit)? = null, leadingIcon: (@Composable () -> Unit)? = null,
     trailingIcon: (@Composable () -> Unit)? = null, shape: Shape = RoundedCornerShape(16.dp),
+    visualTransformation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None,   // סבב 4: סיסמה
 ) {
     val g = LocalDmG.current
     OutlinedTextField(value, onValueChange, modifier, singleLine = singleLine, maxLines = maxLines, label = label, placeholder = placeholder,
-        leadingIcon = leadingIcon, trailingIcon = trailingIcon, shape = shape,
+        leadingIcon = leadingIcon, trailingIcon = trailingIcon, shape = shape, visualTransformation = visualTransformation,
         colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = g.fill, unfocusedContainerColor = g.fill,
             focusedBorderColor = StRed.copy(alpha = 0.7f), unfocusedBorderColor = Color.Transparent, cursorColor = StRed, focusedLabelColor = StRed))
 }
