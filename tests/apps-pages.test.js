@@ -64,7 +64,7 @@ ok(/if \(lvl < 1 && root && !SA\)/.test(read('library.js')) && /if \(!st\.studio
   ok(/\.appbar-actions \.shell-theme \{ display: none; \}/.test(css) && /\.appbar-actions\.menu-open \.shell-theme \{ display: flex;/.test(css), 'shell: בהיר/כהה מופיע רק כשהתפריט פתוח');
   ok(/acts\.append\(theme, langWrap, menuWrap\)/.test(sh) && sh.includes("btnFacesHTML(ICON_GLOBE, ICON_GEAR)") && sh.includes("btnFacesHTML(ICON_MENU, ICON_CLOSE)"), 'shell: הסדר והפנים של הכפתורים כמו ב־Invest');
   ok(/modalPush\(\(\) => setOpen\(false\)\)/.test(sh) && /window\.snbMenuClose = /.test(sh) && /window\.snbMenuClose && window\.snbMenuClose\(\)/.test(read('studio.js')), 'shell: "חזור" סוגר את התפריט (גם דרך CloseWatcher של הסטודיו)');
-  ok(/if \(shell\) hrow\.textContent = ''/.test(read('library.js')) && /if \(SA && SA\.shell\) \{ SA\.shell\.setStatus\(pill\); p\.append\(SA\.shell\.el\); \}/.test(read('studio.js')), 'עצמאי: בלי "ספרייה" / "תרגום סרטונים" מתחת ללוגו (בקשת המשתמש)');
+  ok(/if \(shell\) hrow\.textContent = ''/.test(read('library.js')) && /if \(SA && SA\.shell\) \{ SA\.shell\.setStatus\(pill\); p\.append\(shellKeep && shellKeep\.hdr \? \(shellKeep\.ph = h\('i'\)\) : SA\.shell\.el\); \}/.test(read('studio.js')), 'עצמאי: בלי "ספרייה" / "תרגום סרטונים" מתחת ללוגו (בקשת המשתמש)');
   ok(/\.lib-root button:not\(\.appbar button[,)]/.test(read('library.css')), 'האיפוס של כפתורי הספרייה לא חל על ההדר');
   ok(require(path.join(root, 'tools/coregen.js')).APPS.academy.includes('shell.js') && require(path.join(root, 'tools/coregen.js')).APPS.studio.includes('shell.js'), 'coregen: המחרוזות של shell.js בשתי האפליקציות');
 }

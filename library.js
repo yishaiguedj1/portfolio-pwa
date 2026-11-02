@@ -952,7 +952,7 @@ function libTransition(kind, update) {
 }
 function renderHome(kind) {
   // החוגה — למצב הדף (באמצע החלקה / נסיעה של החוגה, כשההעתק על המסך, המנוע מזיז אותה)
-  if (!(root && root.nextElementSibling && root.nextElementSibling.classList.contains('cube-ghost'))) libDialSync(!kind || kind === 'none');
+  if (!(root && (root._cubeVT || (root.nextElementSibling && root.nextElementSibling.classList.contains('cube-ghost'))))) libDialSync(!kind || kind === 'none');
   return libTransition(kind || 'none', renderHomeNow);
 }
 function navigateTo(kind, y) {           // ציור הדף הנוכחי (ui.view) + גלילה ליעד — בתוך אותו מעבר
@@ -4421,7 +4421,7 @@ const LIB_DIAL = {
   cur: () => (libDialC ? libDialC.from : libKeyOf(ui.view)),
   begin(cur, to, side) {          // כמו ההחלקה (snbSwipe): העתק של השכבה יוצא, האח נצבע בשכבה עצמה
     if (!root || rd || VT.inside || cubeReduce() || document.hidden) return null;
-    const bd = cubeBackdrop(root);
+    const bd = !to && typeof cubeBackdropReal === 'function' ? cubeBackdropReal(root) : cubeBackdrop(root);   // הקפיץ — השכבה עצמה זזה
     if (!to) { libDialC = { side, p: 0, rub: true, out: cubeFace(root, { dead: true }), bd, from: cur }; return libDialC; }
     const pg = libSibPage(cur, to);
     // 29/10/2026 (סבב קפיצות 4): ההעתק נצבע שני פריימים לפני שהשכן מצויר (core: cubePre). עד אז הקובייה "ממתינה" —
