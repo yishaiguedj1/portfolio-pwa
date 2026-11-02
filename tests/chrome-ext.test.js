@@ -143,6 +143,18 @@ const ok = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exit(1); }
   }
   ok(/chrome-e2e/.test(R('android/app/src/testBrowser/java/io/github/yishaiguedj1/snowball/br/BrE2eTest.kt')), 'BrE2eTest קורא את העצים');
 
+  // --- 02/11/2026 (Studio DM סבב 4, ‏11): קוד ה־QR של "להוריד בטלפון" — המקרים ש־DmQrExtTest מפענח ב־zxing נוצרו מה־qr.js הנוכחי
+  const Q = await import(path.join(ROOT, 'android/chrome-ext/qr.js'));
+  const QT = await import(path.join(ROOT, 'tools/chrome-ext-qr.mjs'));
+  const qc = QT.cases();
+  for (let i = 0; i < qc.length; i++) {
+    const f = path.join(QT.OUT, 'case' + (i + 1) + '.txt');
+    ok(fs.existsSync(f) && fs.readFileSync(f, 'utf8') === await QT.build(Q.qr, qc[i]), 'qr/case' + (i + 1) + '.txt מעודכן ל־qr.js (אחרת: node tools/chrome-ext-qr.mjs)');
+  }
+  ok(Q.qr('x'.repeat(1300)) === null && Q.qr('a').length === 21, 'QR: גרסה 1 = 21×21, ארוך מדי → null');
+  ok(Q.phoneLink('https://a.b/c?d=1&e=2') === 'studiodm://add?url=https%3A%2F%2Fa.b%2Fc%3Fd%3D1%26e%3D2', 'הקישור לטלפון — studiodm://add?url=');
+  ok(/DmQrExtTest/.test(fs.readdirSync(path.join(ROOT, 'android/app/src/testDm/java/io/github/yishaiguedj1/snowball/dm')).join(' ')), 'DmQrExtTest מפענח ב־zxing');
+
   // --- המבנה של התוסף
   const man = JSON.parse(R('android/chrome-ext/manifest.json'));
   ok(man.manifest_version === 3 && man.background.type === 'module', 'MV3 + service worker כמודול');
@@ -150,7 +162,8 @@ const ok = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exit(1); }
   ok(/^286578855160-[a-z0-9]+\.apps\.googleusercontent\.com$/.test(man.oauth2.client_id), 'לקוח OAuth אמיתי מפרויקט ה־Firebase — לא מחזיק מקום (27/10/2026: בלעדיו "להתחבר" לא עושה כלום)');
   ok(/^[A-Za-z0-9+/=]{300,}$/.test(man.key), 'key קבוע → מזהה תוסף קבוע (ללקוח ה־OAuth)');
   for (const p of ['bookmarks', 'history', 'identity', 'storage', 'alarms']) ok(man.permissions.includes(p), 'הרשאה: ' + p);
-  ok(!man.permissions.includes('tabs') && !man.host_permissions.some((h) => !/googleapis\.com/.test(h)), 'בלי הרשאות מעבר לנדרש');
+  // activeTab (11, "להוריד בטלפון") — הכתובת של הלשונית רק כשפתחת את החלון; לא tabs
+  ok(!man.permissions.includes('tabs') && man.permissions.filter((p) => !['bookmarks', 'history', 'identity', 'identity.email', 'storage', 'alarms', 'activeTab'].includes(p)).length === 0 && !man.host_permissions.some((h) => !/googleapis\.com/.test(h)), 'בלי הרשאות מעבר לנדרש');
   for (const f of ['popup.html', 'welcome.html']) ok(!/<script>(?!<\/)/.test(R('android/chrome-ext/' + f)) && !/ on[a-z]+=/.test(R('android/chrome-ext/' + f)), f + ': בלי סקריפט מוטבע (CSP של MV3)');
   ok(!/innerHTML/.test(R('android/chrome-ext/popup.js')), 'החלון בלי innerHTML');
   ok(/'appDataFolder'/.test(R('android/chrome-ext/drive.js')) && !/thesnowball|vercel/i.test(fs.readdirSync(EXT).filter((f) => f.endsWith('.js')).map((f) => R('android/chrome-ext/' + f)).join('')), 'רק Drive של המשתמש — לא השרת שלנו');

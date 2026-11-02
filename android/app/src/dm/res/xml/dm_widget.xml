@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 02/11/2026 (Studio DM סבב 4, ‏27): הווידג'ט — מתעדכן מהאפליקציה (DmR4.widget), לא לפי שעון -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp" android:minHeight="56dp"
+    android:targetCellWidth="4" android:targetCellHeight="1"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/dm_widget"
+    android:resizeMode="horizontal"
+    android:widgetCategory="home_screen" />

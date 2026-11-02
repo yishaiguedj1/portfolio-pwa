@@ -78,6 +78,19 @@ class DmTask(
     var onDone = ""
     var sum = ""
     var ruled = false          // החוקים כבר הוחלו (פעם אחת — שם לפי תבנית לא מתחלף שוב)
+    // 02/11/2026 (סבב 4, DmRound4): קטע (שניות, 0/0 = הכל), המרה (DmConv), פרקים (DmChap: מצב ורשימה), מראות (Metalink —
+    // כתובת בשורה; החלקים בקובץ נפרד), אורך חלק ואלגוריתם, הסיכום מהשרת/מה־Metalink ("SHA-256:hex"), תגיות והערה,
+    // פרטי (לא ביומן, לא בהיסטוריה, בתיקייה הנעולה) ופריט המעקב שיצר את ההורדה (DmWatch)
+    var s0 = 0; var s1 = 0
+    var cv = ""
+    var chm = ""; var chp = ""
+    var mir = ""
+    var pl = 0L; var pa = ""
+    var dg = ""
+    var tags = ""; var note = ""
+    var priv = false
+    var wid = ""
+    fun mirrors(): List<String> = if (mir.isEmpty()) emptyList() else mir.split('\n').filter { it.startsWith("http") }
 
     val got: Long get() = if (kind == DmKind.YTDL) bytesYt else segs.sumOf { it.done.coerceAtMost(it.end - it.start) }
     // yt-dlp לפני האחוז הראשון (מתחבר, פותר את בדיקת יוטיוב) = ‎-1‎ — פס בתנועה, לא "0" קפוא
@@ -92,7 +105,9 @@ class DmTask(
         put("c", created); put("f", finishedAt); put("uri", uri); put("tr", tries)
         put("vf", vf); put("af", af); put("h", height); put("ao", audioOnly); put("ti", title); put("by", bytesYt); put("py", pctYt.toDouble())
         put("ua", ua); put("ck", ck); put("st", tr); put("lt", later); put("sb", subs); put("sa", subsAuto); put("ar", autoRefresh)
-        put("q", q); put("dr", dir); put("cn", conns); put("li", lim); put("od", onDone); put("hk", sum); put("rl", ruled)   // st: עד 24/10 "tr" — התנגש עם tries
+        put("q", q); put("dr", dir); put("cn", conns); put("li", lim); put("od", onDone); put("hk", sum); put("rl", ruled)
+        put("s0", s0); put("s1", s1); put("cv", cv); put("chm", chm); put("chp", chp); put("mi", mir); put("pl", pl); put("pa", pa); put("dg", dg)
+        put("tg", tags); put("nt", note); put("pv", priv); put("wi", wid)   // st: עד 24/10 "tr" — התנגש עם tries
     }
 
     companion object {
@@ -118,6 +133,9 @@ class DmTask(
                 ua = o.optString("ua").take(400); ck = o.optBoolean("ck"); tr = o.optBoolean("st", o.opt("tr") as? Boolean ?: false); later = o.optBoolean("lt"); subs = o.optString("sb").take(120); subsAuto = o.optBoolean("sa"); autoRefresh = o.optInt("ar")
                 q = o.optString("q").take(16); dir = DmFolders.norm(o.optString("dr")); conns = o.optInt("cn").coerceIn(0, DmSegs.MAX_CONNS)
                 lim = o.optLong("li").coerceAtLeast(0); onDone = o.optString("od").take(80); sum = o.optString("hk").take(8); ruled = o.optBoolean("rl")
+                s0 = o.optInt("s0").coerceAtLeast(0); s1 = o.optInt("s1").coerceAtLeast(0); cv = DmConv.norm(o.optString("cv")); chm = DmChap.norm(o.optString("chm")); chp = o.optString("chp").take(40_000)
+                mir = o.optString("mi").take(8 * 4096); pl = o.optLong("pl").coerceAtLeast(0); pa = o.optString("pa").take(10); dg = o.optString("dg").take(140)
+                tags = o.optString("tg").take(260); note = o.optString("nt").take(500); priv = o.optBoolean("pv"); wid = o.optString("wi").take(16)
             }
         }
 
