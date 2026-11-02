@@ -214,7 +214,11 @@ _AD = re.compile(
     r"(subtitles?|subs|captions?|captioning|synced?|sync|resync(?:ed)?|corrected|ripped|encoded|transcript|timing)\s*(?:&\s*\w+\s*)?(by|:)"
     r"|opensubtitles|addic7ed|subscene|podnapisi|yts\.|yify|\bwww\.|https?://|[a-z0-9-]+\.(?:com|org|net|tv|io)\b"
     r"|support us|become (?:a )?vip|advertise your|osdb\.link", re.I)
-_LABEL = re.compile(r"^([-–—]\s*)?([A-Z][A-Z0-9'’.\- ]{0,24}?)(\s*\([^)]{0,30}\))?\s*:\s+(?=\S)")
+# 02/11/2026 (PR3, ‏D2 C6): גם "A & B:" / "A, B AND C:" (עד 3 שמות, עד 3 מילים לכל שם), וגם תווית לבד בשורה —
+# שמוסרת רק כשיש בכתובית עוד שורה. **מראה: IM_LABEL ו־imLabel ב־studiosubs.js** (tests/subs-import.test.js משווה)
+_LABEL = re.compile(r"^([-–—]\s*)?([A-Z][A-Z0-9'’.\- ]{0,24}?(?:\s*(?:&|,|AND)\s*[A-Z][A-Z0-9'’.\- ]{0,24}?){0,2})"
+                    r"(\s*\([^)]{0,30}\))?\s*:(?:\s+(?=\S)|\s*$)")
+_LABEL_SEP = re.compile(r"\s*(?:&|,|\bAND\b)\s*")
 _MUSIC_ONLY = re.compile(r"^[\s♪♫#*]+$")
 
 
@@ -238,15 +242,17 @@ def _remove_spans(lines: list[str], op: str, cl: str) -> tuple[list[str], int]:
     return "".join(out).split("\n"), n
 
 
-def _strip_label(line: str) -> tuple[str, str]:
+def _strip_label(line: str, multi: bool = True) -> tuple[str, str]:
     m = _LABEL.match(line)
     if not m:
         return line, ""
     label = m.group(2).strip()
     rest = line[m.end():]
-    words = label.split()
-    if not words or len(words) > 3 or not re.search(r"[A-Z]", label):
+    names = [x.split() for x in _LABEL_SEP.split(label)]
+    if not all(names) or any(len(x) > 3 for x in names) or not re.search(r"[A-Z]", label):
         return line, ""
+    if not rest.strip() and not multi:
+        return line, ""                                # תווית לבד בכתובית של שורה אחת — אולי זה הטקסט
     letters = [c for c in rest if c.isalpha()]
     if letters and all(c.isupper() for c in letters):
         return line, ""                                # "WARNING: HIGH VOLTAGE" — שלט, לא דובר
@@ -323,7 +329,7 @@ def import_subs(raw: bytes, sdh: bool = True) -> dict:
                 ln = _norm_ws(ln)
                 if _MUSIC_ONLY.match(ln or "#") and ln:
                     continue
-                ln2, label = _strip_label(ln)
+                ln2, label = _strip_label(ln, len(lines) > 1)
                 nm = ""
                 if label:
                     st["labels"] += 1
@@ -403,6 +409,7 @@ def to_vt(imp: dict) -> tuple[list[dict], dict]:
             cue["en"] = a + " " + b
             cue["parts"] = [{"spk": cue["spk"], "en": a, "speech_s": s, "speech_e": e},
                             {"spk": sid(c["spk2"]), "en": b, "speech_s": s, "speech_e": e}]
+            cue["psrc"] = "subs"   # 02/11/2026 (PR3): מקף בכתוביות שהמשתמש העלה — [spk] קשיח
         cues.append(cue)
     return cues, speakers
 

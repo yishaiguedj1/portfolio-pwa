@@ -205,6 +205,7 @@ class TestSegment(unittest.TestCase):
         cues = plan(ws, C.TimingRules(), C.TextRules())
         self.assertEqual(len(cues), 1)
         self.assertEqual([p["en"] for p in cues[0]["parts"]], ["Do you know this story?", "Yeah."])
+        self.assertEqual(cues[0]["psrc"], "qa")                          # 02/11/2026 (PR3): מקור ה־parts
 
     def test_rhetorical_question_stays_one_speaker(self):
         ws = words_from("Why? Because it works.", 0.0, spk="S?")
@@ -404,6 +405,8 @@ class TestCtcConsensus(unittest.TestCase):
         # 22/10/2026 (הקול מהמאגר): "So" נאמר ב־3000.9 — כאן CTC טועה, אבל בפער כזה הוא צודק ברוב המקרים
         # (Undercover: 8 מתוך 9), ולכן הכלל לא השתנה. הבדיקה — רק שהמילה לא מתפרשת על פני השתיקה.
         self.assertLess(w[0]["e"] - w[0]["s"], 1.0)
+        # 02/11/2026 (PR3, ‏D9 R2): מחלוקת מעל שנייה והמילה הבאה הדוקה — המקור הקרוב אליה (התמלול) גובר
+        self.assertAlmostEqual(w[0]["s"], 3000.87, places=2)
 
 
 class TestConsensusNeighbors(unittest.TestCase):
@@ -416,7 +419,7 @@ class TestConsensusNeighbors(unittest.TestCase):
         ws = [w("Hey,", 5387.0, 5387.1, 5387.05), w("no,", None, 5394.4, 5388.4), w("no.", 5389.7, 5389.75, 5389.8)]
         st = consensus(ws)
         self.assertAlmostEqual(ws[1]["s"], 5388.4, places=2)
-        self.assertEqual(st["neighbors"], 1)
+        self.assertEqual(st["neighbors"] + st["next_tight"], 1)          # 02/11/2026: כאן כבר כלל ב׳ (המילה הבאה הדוקה)
         self.assertLess(ws[1]["s"], ws[2]["s"])
 
     def test_no_sure_neighbor_keeps_ctc(self):
@@ -425,6 +428,64 @@ class TestConsensusNeighbors(unittest.TestCase):
                "s_asr": 13.0, "e_asr": 13.2}]
         consensus(ws)
         self.assertAlmostEqual(ws[0]["s"], 10.0, places=2)
+
+
+class TestNoOverlap(unittest.TestCase):
+    """02/11/2026 (PR3, ‏D9 §5.6): אף כתובית לא נגמרת אחרי שהבאה נכנסה — גם בדיבור צפוף מאוד"""
+    def test_dense_and_random(self):
+        import random
+        rnd = random.Random(7)
+        g = FrameGrid(Fraction(25))
+        r = C.TimingRules()
+        for trial in range(200):
+            t, cues = 0.0, []
+            for i in range(1, 12):
+                t += rnd.choice((0.0, 0.01, 0.04, 0.3, 1.5))
+                d = rnd.choice((0.02, 0.1, 0.8, 3.0))
+                cues.append({"id": i, "speech_s": round(t, 3), "speech_e": round(t + d, 3), "chars": rnd.choice((3, 20, 60))})
+                t += d
+            out = time_cues(cues, g, [], r)
+            for a, b in zip(out, out[1:]):
+                self.assertLessEqual(a["fo"], b["fi"] - r.min_gap_frames, (trial, a["id"]))
+                self.assertGreater(a["fo"], a["fi"])
+
+
+class TestAlignJump(unittest.TestCase):
+    def test_plan_s_and_qc_flag(self):
+        """02/11/2026 (PR3, ‏D9 §5.2): התכנון שומר plan_s; qc סופר כתובית שזזה מעל 3 שנ׳ (תצפית — לא שגיאה)"""
+        from vt.qc import run_qc
+        cues = plan(words_from("Hello there.", 1.0), C.TimingRules(), C.TextRules())
+        self.assertEqual(cues[0]["plan_s"], cues[0]["speech_s"])
+        mk = lambda i, s, ps: {"id": i, "start": s, "lines": ["שלום"], "chars": 4, "fi": int(s * 25), "fo": int(s * 25) + 40,
+                               "si": int(s * 25), "so": int(s * 25) + 30, "speech_s": s, "speech_e": s + 1.2, "plan_s": ps}
+        rep, st = run_qc([mk(1, 2.0, 2.1), mk(2, 10.0, 4.0)], [], C.TimingRules(), C.TextRules(), 25.0, [])
+        self.assertEqual(st["jump"], 1)
+        self.assertEqual(st["errors"], 0)
+        self.assertIn("קפיצת יישור", rep)
+        self.assertIn("#2", rep)
+
+
+class TestConsensusRuleB(unittest.TestCase):
+    """02/11/2026 (PR3, ‏D9 R2): Qwen חסר ושני המקורות רחוקים — לא נופלים ל־CTC בלי בדיקה"""
+    def w(self, t, q, c, a):
+        return {"w": t, "s": 0, "e": 0, "s_qwen": q, "e_qwen": q and q + 0.2, "s_ctc": c, "e_ctc": c + 0.2,
+                "s_asr": a, "e_asr": a + 0.2}
+
+    def test_next_tight_wins(self):
+        from vt.align_ctc import consensus
+        ws = [self.w("Well", None, 81.0, 100.0), self.w("then", 100.3, 100.31, 100.35)]
+        st = consensus(ws)
+        self.assertAlmostEqual(ws[0]["s"], 100.0, places=2)                # לא 19 שנ׳ לפני הדיבור
+        self.assertEqual(st["next_tight"], 1)
+
+    def test_small_gap_or_loose_next_keeps_old_rule(self):
+        from vt.align_ctc import consensus
+        ws = [self.w("Well", None, 10.0, 10.8), self.w("then", 11.0, 11.02, 11.05)]
+        self.assertEqual(consensus(ws)["next_tight"], 0)                 # פער עד שנייה — הכלל הקודם
+        self.assertAlmostEqual(ws[0]["s"], 10.0, places=2)
+        ws = [self.w("Well", None, 10.0, 13.0), self.w("then", 13.2, 14.5, 13.3)]
+        st = consensus(ws)                                               # הבאה לא הדוקה (שלושה מקורות, פיזור 1.3)
+        self.assertEqual(st["next_tight"], 0)
 
 
 class TestCtcPlan(unittest.TestCase):

@@ -225,7 +225,7 @@ def consensus(words: list[dict]) -> dict:
     מצרף את השתיקה שאחרי המילה לסוף שלה).
     """
     n = len(words)
-    st = {"median3": 0, "two": 0, "one": 0, "moved_100ms": 0, "neighbors": 0}
+    st = {"median3": 0, "two": 0, "one": 0, "moved_100ms": 0, "neighbors": 0, "next_tight": 0}
     for w in words:
         if "s_qwen" not in w:
             w["s_qwen"], w["e_qwen"] = (w["s"], w["e"]) if w.get("align") == "qwen3" else (None, None)
@@ -237,6 +237,14 @@ def consensus(words: list[dict]) -> dict:
         xs = [x for x in (w.get("s_qwen"), w.get("s_ctc"), w.get("s_asr")) if x is not None]
         sure.append(statistics.median(xs) if len(xs) == 3 else
                     (sum(xs) / 2 if len(xs) == 2 and abs(xs[0] - xs[1]) <= 0.25 else None))
+    # 02/11/2026 (PR3, ‏D9 R2): מילה "הדוקה" — שלושה מקורות בטווח 0.25 שנ׳, או שניים שמסכימים. במחלוקת גדולה (מעל שנייה)
+    # בין שני מקורות — המקור הקרוב למילה ההדוקה הבאה (עד 3 מילים קדימה) גובר על ברירת המחדל CTC. ב־17 פרקים: כלל ב׳
+    # נכון ב־49/60 (היום 19); כתוביות מוקדמות מ־3 שנ׳: ‏17→4 (כתובית שהופיעה 19 שנ׳ לפני הדיבור)
+    tight = []
+    for w in words:
+        xs = [x for x in (w.get("s_qwen"), w.get("s_ctc"), w.get("s_asr")) if x is not None]
+        tight.append(statistics.median(xs) if len(xs) == 3 and max(xs) - min(xs) <= 0.25 else
+                     (sum(xs) / 2 if len(xs) == 2 and abs(xs[0] - xs[1]) <= 0.25 else None))
     prv, nxs, last = [None] * n, [None] * n, None
     for i in range(n):
         prv[i] = last
@@ -262,13 +270,21 @@ def consensus(words: list[dict]) -> dict:
             if abs(ss[0] - ss[1]) <= 0.25:
                 s = sum(ss) / 2
             else:
-                pick = "ctc" if w.get("s_ctc") is not None else ("qwen" if w.get("s_qwen") is not None else "asr")
-                lo = prv[i] - 0.3 if prv[i] is not None else float("-inf")
-                hi = nxs[i] + 0.3 if nxs[i] is not None else float("inf")
-                fit = [k for k in ("ctc", "qwen", "asr") if w.get("s_" + k) is not None and lo <= w["s_" + k] <= hi]
-                if len(fit) == 1:
-                    pick = fit[0]
-                    st["neighbors"] += pick != "ctc"
+                nx = None
+                if abs(ss[0] - ss[1]) > 1.0:
+                    nx = next((tight[j] for j in range(i + 1, min(n, i + 4)) if tight[j] is not None), None)
+                if nx is not None:
+                    pick = min((k for k in ("ctc", "qwen", "asr") if w.get("s_" + k) is not None),
+                               key=lambda k: abs(nx - w["s_" + k]))
+                    st["next_tight"] += 1
+                else:
+                    pick = "ctc" if w.get("s_ctc") is not None else ("qwen" if w.get("s_qwen") is not None else "asr")
+                    lo = prv[i] - 0.3 if prv[i] is not None else float("-inf")
+                    hi = nxs[i] + 0.3 if nxs[i] is not None else float("inf")
+                    fit = [k for k in ("ctc", "qwen", "asr") if w.get("s_" + k) is not None and lo <= w["s_" + k] <= hi]
+                    if len(fit) == 1:
+                        pick = fit[0]
+                        st["neighbors"] += pick != "ctc"
                 s = w.get("s_" + pick)
             st["two"] += 1
         else:

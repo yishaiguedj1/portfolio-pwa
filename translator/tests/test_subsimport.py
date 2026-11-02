@@ -77,6 +77,17 @@ class Srt(unittest.TestCase):
         self.assertEqual(r["cues"][0]["lines"], ["WARNING: HIGH VOLTAGE"])
         self.assertEqual(r["stats"]["labels"], 0)
 
+    def test_joint_and_alone_labels(self):
+        """02/11/2026 (PR3, ‏D2 C6): "A & B:" מוסרת; תווית לבד מוסרת רק כשיש עוד שורה; עד 3 מילים לכל שם"""
+        self.assertEqual(S._strip_label("OREN & NAAMA: Hi there."), ("Hi there.", "OREN & NAAMA"))
+        self.assertEqual(S._strip_label("- MAN, WOMAN AND BOY: Run!"), ("- Run!", "MAN, WOMAN AND BOY"))
+        self.assertEqual(S._strip_label("BIG RED DOG & CAT: Woof."), ("Woof.", "BIG RED DOG & CAT"))
+        self.assertEqual(S._strip_label("OREN:"), ("", "OREN"))
+        self.assertEqual(S._strip_label("OREN:", multi=False), ("OREN:", ""))
+        r = S.import_subs(b"1\n00:00:01,000 --> 00:00:02,000\nOREN:\nWhere were you?\n\n"
+                          b"2\n00:00:03,000 --> 00:00:04,000\nNOTE:\n")
+        self.assertEqual([c["lines"] for c in r["cues"]], [["Where were you?"], ["NOTE:"]])
+
 
 class VttAss(unittest.TestCase):
     def test_vtt(self):

@@ -95,6 +95,64 @@ class TestSpeakerGender(unittest.TestCase):
         self.assertEqual(stats["gender"], 2)
 
 
+class TestGenderUnsure(unittest.TestCase):
+    """02/11/2026 (PR3 · דגל gq): "לא ודאי" → בלי מגדר רק כשהעבודה הדליקה את VT_GQ"""
+    def test_flag(self):
+        import os
+        from unittest import mock
+        from vt.translate import gender_of
+        info = {"gender": "נקבה (לא ודאי)"}
+        with mock.patch.dict(os.environ, {"VT_GQ": ""}):
+            self.assertEqual(gender_of(info), "f")
+        with mock.patch.dict(os.environ, {"VT_GQ": "1"}):
+            self.assertEqual(gender_of(info), "")
+            self.assertEqual(gender_of({"gender": "זכר?"}), "")
+            self.assertEqual(gender_of({"gender": "זכר"}), "m")
+
+    def test_job_sets_env(self):
+        import inspect
+        import job
+        src = inspect.getsource(job._vt)
+        self.assertIn("'gq'", src)
+        self.assertIn("VT_GQ", src)
+
+
+class TestSpkBySource(unittest.TestCase):
+    """02/11/2026 (PR3, ‏D3 §5.6): ‏[spk] קשיח רק כשמקור ה־parts חזק (ref/subs); תווית קול / qa / ישן — [turn] רך."""
+    def run_check(self, psrc):
+        c = {"id": 1, "spk": "S1", "en": "Ready? Yes.", "budget": 60, "dur": 3.0, "speech_s": 0.0, "speech_e": 3.0,
+             "parts": [{"spk": "S1", "en": "Ready?"}, {"spk": "S2", "en": "Yes."}]}
+        if psrc:
+            c["psrc"] = psrc
+        issues, stats = check([c], {"1": "מוכן? כן."}, [])
+        return [CHECK_CODE_RE.match(x).group(2) for x in issues if CHECK_CODE_RE.match(x)], stats["errors"]
+
+    def test_hard_only_for_strong(self):
+        for s in ("ref", "subs"):
+            codes, err = self.run_check(s)
+            self.assertIn("spk", codes, s)
+            self.assertNotIn("turn", codes, s)
+            self.assertGreaterEqual(err, 1)
+        for s in ("spk", "qa", None):
+            codes, err = self.run_check(s)
+            self.assertNotIn("spk", codes, s)
+            self.assertIn("turn", codes, s)
+            self.assertEqual(err, 0, s)
+        self.assertEqual(CHECK_CODES["turn"], "s")
+
+    def test_turn_not_sent_to_fixer(self):
+        import pipeline as P
+        self.assertIn("turn", P.FIX_SKIP)
+        hard, soft = P.parse_issues("- #1: [turn] אולי שני דוברים — '||' רק אם ברור מההקשר")
+        self.assertEqual(hard, {})            # רגרסיה: הביקורת הסירה || מתווית קול — התיקון האחרון לא מקבל "חייב"
+        self.assertIn("1", soft)
+
+    def test_subs_import_is_strong(self):
+        import inspect
+        import subsimport
+        self.assertIn('cue["psrc"] = "subs"', inspect.getsource(subsimport))
+
+
 class TestMaqaf(unittest.TestCase):
     def test_prefix_before_digit_or_latin(self):
         self.assertEqual(normalize_he("ב-2010 ה-AI"), "ב־2010 ה־AI")

@@ -50,6 +50,23 @@ class TestHedgeDetect(unittest.TestCase):
             self.assertFalse(hedge_kept_he(he), he)
 
 
+class TestDetectors0211(unittest.TestCase):
+    """02/11/2026 (PR3, ‏D5 §5.3): "you know what?" אינה שאלה; "may I/we" אינה הסתייגות; "נראים" כן"""
+    def test_q_and_hdg(self):
+        from vt.translate import _real_question, _tag_question
+        for s in ("You know what? I'm done.", "Guess what?", "Oh, you know what?", "Can you believe this guy?"):
+            self.assertFalse(_real_question(s), s)
+        self.assertTrue(_tag_question("Well, guess what?"))
+        self.assertTrue(_real_question("Where did you go? Home."))
+        self.assertFalse(_tag_question("Where did you go?"))
+        self.assertEqual(hedges_in("may we sit here?"), [])
+        self.assertEqual(hedges_in("so may I ask"), [])
+        self.assertEqual(hedges_in("we may lose"), ["may"])
+        self.assertTrue(hedge_kept_he("הם נראים עייפים"))
+        self.assertTrue(hedge_kept_he("היא נראית בסדר"))
+        self.assertTrue(hedge_kept_he("נדמית לי"))
+
+
 class TestHedgeCheck(unittest.TestCase):
     def test_dropped_hedge_flagged_soft(self):
         self.assertEqual(CHECK_CODES["hdg"], "s")

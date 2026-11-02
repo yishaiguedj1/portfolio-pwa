@@ -29,25 +29,51 @@ function tiRules(year) {
 function tiNum(v) { const n = Number(v); return isFinite(n) ? n : 0; }
 function tiDate(d) { const s = String(d || '').slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : ''; }
 
-/* עסקאות Flex → צורה אחידה, מהישנה לחדשה (תאריך, שעה, מזהה עסקה) */
+/* עסקאות Flex → צורה אחידה, מהישנה לחדשה (תאריך, שעה, מזהה עסקה).
+   02/11/2026 (שלבים 3–4, docs/tax-il-research.md): ערך כספי מ־tradeMoney/proceeds (כולל מכפיל — אופציות, אג״ח),
+   ובהיעדרם כמות × מחיר × מכפיל. תאריך ההמרה = tradeDate. ביטול (BUY (Ca.) / TradeCancel / קוד Ca) מוחק את
+   העסקה המקורית לפי origTradeID (G19). שורת assetCategory=CASH (המרת מט״ח) לא נכנסת — cash:true (G20). */
+const TI_LOT_CODES = ['LI', 'HC', 'SL', 'ML', 'MLG', 'MLL', 'MSG', 'MSL'];   // שיטת התאמה שאינה FIFO (ח8)
 function tiNormTrades(trades) {
-  const out = [];
+  const out = [], cancels = [];
   for (const t of (trades || [])) {
     if (!t || !t.symbol) continue;
-    const date = tiDate(t.date), qtyS = tiNum(t.qty);
+    const date = tiDate(t.tradeDate) || tiDate(t.date), qtyS = tiNum(t.qty);
     if (!date || !qtyS) continue;
     const sideRaw = String(t.side || '').toUpperCase();
-    const side = sideRaw === 'BUY' || sideRaw === 'SELL' ? sideRaw : (qtyS > 0 ? 'BUY' : 'SELL');
+    const codes = String(t.notes || '').toUpperCase().split(/[;,\s]+/).filter(Boolean);
+    const cancel = /\(CA/.test(sideRaw) || /CANCEL/i.test(String(t.transactionType || '')) || codes.includes('CA');
+    const base = sideRaw.replace(/\s*\(.*$/, '');
+    const side = base === 'BUY' || base === 'SELL' ? base : (qtyS > 0 ? 'BUY' : 'SELL');
     const cur = String(t.currency || 'USD').toUpperCase();
     const feeCur = String(t.commissionCurrency || cur).toUpperCase();
-    out.push({
+    const mult = tiNum(t.multiplier) > 0 ? tiNum(t.multiplier) : 1;
+    const qty = Math.abs(qtyS);
+    const money = Math.abs(tiNum(t.tradeMoney)) || Math.abs(tiNum(t.proceeds)) || qty * Math.abs(tiNum(t.price)) * mult;
+    const r = {
       sym: String(t.symbol).trim().toUpperCase(), date: date, time: String(t.time || ''), id: String(t.tradeId || ''),
-      side: side, qty: Math.abs(qtyS), price: Math.abs(tiNum(t.price)), cur: cur,
+      side: side, qty: qty, price: Math.abs(tiNum(t.price)), money: money, mult: mult, cur: cur,
       fee: Math.abs(tiNum(t.commission)) + Math.abs(tiNum(t.taxes)), feeCur: feeCur,
       openClose: String(t.openClose || '').toUpperCase(),
       isin: String(t.isin || '').toUpperCase(), country: String(t.country || '').toUpperCase(),
-    });
+      conid: String(t.conid || ''), account: String(t.account || ''),
+      cash: String(t.asset || '').toUpperCase() === 'CASH',
+      lotCode: codes.find((c) => TI_LOT_CODES.includes(c)) || '',
+    };
+    if (cancel) { r.orig = String(t.origTradeId || ''); cancels.push(r); } else out.push(r);
   }
+  // ביטול: לפי origTradeID; בלי מזהה — העסקה התואמת הראשונה (סימבול, תאריך, כמות, מחיר)
+  for (const c of cancels) {
+    let i = c.orig ? out.findIndex((x) => x.id === c.orig) : -1;
+    if (i < 0) i = out.findIndex((x) => x.sym === c.sym && x.date === c.date && Math.abs(x.qty - c.qty) < 1e-9 && Math.abs(x.price - c.price) < 1e-9);
+    if (i >= 0) out.splice(i, 1);
+  }
+  // מפתח מנות (ח4): חשבון|conid — רק כשכל העסקאות של הסימבול נושאות אותם (אחרת נתונים ישנים יתפצלו → noLots)
+  const full = new Map();
+  for (const x of out) full.set(x.sym, (full.get(x.sym) !== false) && !!x.conid);
+  const fullAcct = new Map();
+  for (const x of out) fullAcct.set(x.sym, (fullAcct.get(x.sym) !== false) && !!x.account);
+  for (const x of out) x.key = (fullAcct.get(x.sym) ? x.account + '|' : '') + (full.get(x.sym) ? 'c' + x.conid : x.sym);
   const idn = (s) => s.replace(/\D/g, '');
   out.sort((a, b) => {
     if (a.date !== b.date) return a.date < b.date ? -1 : 1;
@@ -67,50 +93,58 @@ function tiFourCase(gIls, gFx) {
   return 0;
 }
 
-/* מנוע המנות: FIFO לכל סימבול. עמלת קנייה נכנסת לעלות, עמלת מכירה יורדת מהתמורה (verified.fees).
-   מחזיר {open:[מנות פתוחות], sales:[חלקי מכירה], issues:[בעיות נתונים]} */
+/* מנוע המנות: FIFO לכל חשבון ונייר. עמלת קנייה נכנסת לעלות, עמלת מכירה יורדת מהתמורה (verified.fees);
+   עמלה במטבע אחר מומרת בשער של יום העסקה (✗11). המרות מט״ח (CASH) — FIFO נפרד ב־fx: הפרש השער בשקלים,
+   מוצג כ"פטור (דגל)" ולא נכנס לרווח ההון (G20).
+   מחזיר {open:[מנות פתוחות], sales:[חלקי מכירה], fx:[חלקי המרות מט״ח], issues:[בעיות נתונים]} */
 function tiFifo(trades, fxOf) {
-  const lots = new Map(); // sym -> [{...}]
-  const sales = [], issues = [];
+  const lots = new Map(), fxLots = new Map(); // key -> [{...}]
+  const sales = [], fxSales = [], issues = [], lotWarn = new Set();
   const rate = (cur, d) => (cur === 'ILS' ? 1 : tiNum(fxOf && fxOf(cur, d)));
   for (const t of tiNormTrades(trades)) {
-    if (t.feeCur !== t.cur) issues.push({ type: 'feeCur', sym: t.sym, date: t.date });
     const fx = rate(t.cur, t.date);
     if (!(fx > 0)) { issues.push({ type: 'noFx', sym: t.sym, date: t.date, cur: t.cur }); continue; }
-    const q = lots.get(t.sym) || [];
+    let fee = t.fee;
+    if (fee && t.feeCur !== t.cur) {
+      const ff = rate(t.feeCur, t.date);
+      if (ff > 0) fee = fee * ff / fx; else issues.push({ type: 'feeCur', sym: t.sym, date: t.date });
+    }
+    if (t.lotCode && !lotWarn.has(t.key)) { lotWarn.add(t.key); issues.push({ type: 'lotMethod', sym: t.sym, date: t.date, code: t.lotCode }); }
+    const book = t.cash ? fxLots : lots, out = t.cash ? fxSales : sales;
+    const q = book.get(t.key) || [];
     if (t.side === 'BUY') {
-      q.push({ sym: t.sym, cur: t.cur, date: t.date, id: t.id, qty: t.qty, unit: t.price + t.fee / t.qty, fx: fx, qty0: t.qty, isin: t.isin, country: t.country });
-      lots.set(t.sym, q);
+      q.push({ sym: t.sym, key: t.key, cur: t.cur, date: t.date, id: t.id, qty: t.qty, unit: (t.money + fee) / t.qty, fx: fx, qty0: t.qty, isin: t.isin, country: t.country });
+      book.set(t.key, q);
       continue;
     }
     // מכירה: מתאימים למנות הוותיקות קודם
     let left = t.qty;
-    const unitNet = t.price - t.fee / t.qty;
+    const unitNet = (t.money - fee) / t.qty;
     while (left > 1e-9 && q.length) {
       const lot = q[0];
       const take = Math.min(left, lot.qty);
       const cost = take * lot.unit, proceeds = take * unitNet;
       const gIls = proceeds * fx - cost * lot.fx;
       const gFx = (proceeds - cost) * fx;
-      sales.push({
+      out.push({
         sym: t.sym, cur: t.cur, qty: take, buyDate: lot.date, sellDate: t.date, buyId: lot.id, sellId: t.id,
         isin: t.isin || lot.isin || '', country: t.country || lot.country || '',
         cost: cost, proceeds: proceeds, fxBuy: lot.fx, fxSell: fx,
         costIls: cost * lot.fx, proceedsIls: proceeds * fx,
-        gIls: gIls, gFx: gFx, taxable: t.cur === 'ILS' ? gIls : tiFourCase(gIls, gFx),
+        gIls: gIls, gFx: gFx, taxable: t.cash ? gIls : t.cur === 'ILS' ? gIls : tiFourCase(gIls, gFx),
         // נייר שקלי: רווח נומינלי — הריאלי (לפי מדד) קטן ממנו; מסומן
-        nominal: t.cur === 'ILS',
+        nominal: !t.cash && t.cur === 'ILS',
       });
       lot.qty -= take;
       left -= take;
       if (lot.qty <= 1e-9) q.shift();
     }
-    if (left > 1e-9) issues.push({ type: 'noLots', sym: t.sym, date: t.date, qty: left });
-    lots.set(t.sym, q);
+    if (left > 1e-9 && !t.cash) issues.push({ type: 'noLots', sym: t.sym, date: t.date, qty: left });
+    book.set(t.key, q);
   }
   const open = [];
   for (const q of lots.values()) for (const l of q) if (l.qty > 1e-9) open.push(l);
-  return { open: open, sales: sales, issues: issues };
+  return { open: open, sales: sales, fx: fxSales, issues: issues };
 }
 
 /* דיבידנדים וניכוי במקור מתנועות המזומן של Flex. התיאור של IBKR: "AAPL(US0378331005) Cash Dividend ..."

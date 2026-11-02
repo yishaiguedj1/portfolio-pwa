@@ -585,6 +585,9 @@ he: {
   txW8: "{s} ({d}): נוכה יותר מ־25% בארה״ב — את העודף ({v}) אפשר לקבל רק מה־IRS. כדאי לבדוק שטופס W-8BEN בתוקף.",
   txHealth: "{s}: אצל הברוקר {b}, בעסקאות שבמכשיר {l} — חסרות עסקאות, והמס של הנייר לא אמין.",
   txNoLots: "{s}: מכירה ב־{d} בלי קנייה מתאימה — חסרה היסטוריה.",
+  txLotMethod: "{s}: ‏IBKR התאימה מנות בשיטה {c} — כאן מחושב FIFO, כמו שהחוק דורש.",
+  txFxConv: "המרות מט״ח: {n} — לא נכללו ברווח ההון. הפרש השער {v} (פטור — הערכה).",
+  txFields: "חסרים בשאילתת ה־Flex שדות שהמס מדויק יותר איתם: {f}.",
   txNoFx: "ל־{n} עסקאות לא נמצא שער יציג.",
   txAllOk: "שער יציג נמצא לכל {n} העסקאות, והאחזקות תואמות לברוקר.",
   txReport: "דוח לרו״ח",
@@ -2227,6 +2230,9 @@ en: {
   txW8: "{s} ({d}): more than 25% was withheld in the US — the excess ({v}) can only be refunded by the IRS. Check that your W-8BEN is valid.",
   txHealth: "{s}: the broker shows {b}, the trades on this device {l} — trades are missing, so this security’s tax isn’t reliable.",
   txNoLots: "{s}: a sale on {d} with no matching buy — history is missing.",
+  txLotMethod: "{s}: IBKR matched lots by {c} — FIFO is used here, as the law requires.",
+  txFxConv: "Currency conversions: {n} — not counted as capital gains. FX difference {v} (exempt — estimate).",
+  txFields: "The Flex query is missing fields that make the tax more accurate: {f}.",
   txNoFx: "No official rate was found for {n} trades.",
   txAllOk: "An official rate was found for all {n} trades, and holdings match the broker.",
   txReport: "Accountant report",
@@ -4559,6 +4565,11 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
     // fromDate: התאריך המוקדם ביותר מכל חלק שהצליח — לא תלוי בסדר העיבוד
     // (v123: סבב הניסיון החוזר בסוף מעבד חלקים שלא בסדר כרונולוגי)
     if (m.fromDate && (!minFromDate || m.fromDate < minFromDate)) { minFromDate = m.fromDate; merged.meta.fromDate = m.fromDate; }
+    // 02/11/2026: שמות השדות שהגיעו מ־Flex (מרכז המס מציג מה חסר בשאילתה) — איחוד של כל החלקים
+    if (m.fields && typeof m.fields === 'object') {
+      const F = merged.meta.fields || (merged.meta.fields = {});
+      for (const k of Object.keys(m.fields)) if (Array.isArray(m.fields[k])) F[k] = [...new Set((F[k] || []).concat(m.fields[k]))].sort();
+    }
     if (td >= metaTd) {
       merged.meta.toDate = m.toDate || merged.meta.toDate;
       merged.meta.baseCurrency = m.baseCurrency || merged.meta.baseCurrency;
@@ -7170,8 +7181,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.116.1';
-const APP_VERSION = 'v695';
+const APP_RELEASE = '2.116.3';
+const APP_VERSION = 'v697';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
