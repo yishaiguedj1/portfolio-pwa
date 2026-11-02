@@ -239,4 +239,234 @@ for (const [g, p, r, want] of [['G11', 150, 7, 350], ['G12', 50, 11, 0], ['G13',
   eq(f.fx[0].gIls, 1000, 'G20 הפרש השער');
 }
 
+/* G23 — תיקון דיבידנד בשנה הבאה (✗5). 15/12/2025, שער 3.6: דיבידנד $100, ניכוי $30. 10/1/2026, שער 3.7: ביטול
+   (−100 דיבידנד, +30 ניכוי) ורישום מחדש (+100, ניכוי −25), הכול עם אותו actionId.
+   ביד: אירוע אחד בתאריך המקורי ובשער 3.6 — ברוטו 100−100+100 = $100 → 360 ₪; ניכוי 30−30+25 = $25 → 90 ₪ (25%).
+   W-8BEN: 25% — אין התראה. 2026: אין דיבידנד ואין ניכוי שלילי, ולכן אין extraInc פיקטיבי. */
+{
+  const fxOf = (cur, d) => (d < '2026-01-01' ? 3.6 : 3.7);
+  const D = 'AAPL(US0378331005) Cash Dividend USD 0.25 per Share';
+  const W = 'AAPL(US0378331005) Cash Dividend USD 0.25 per Share - US Tax';
+  const rows = (aid) => [
+    { type: 'Dividends', date: '2025-12-15', amount: 100, currency: 'USD', description: D, actionId: aid },
+    { type: 'Withholding Tax', date: '2025-12-15', amount: -30, currency: 'USD', description: W, actionId: aid },
+    { type: 'Dividends', date: '2026-01-10', amount: -100, currency: 'USD', description: D, actionId: aid },
+    { type: 'Withholding Tax', date: '2026-01-10', amount: 30, currency: 'USD', description: W, actionId: aid },
+    { type: 'Dividends', date: '2026-01-10', amount: 100, currency: 'USD', description: D, actionId: aid },
+    { type: 'Withholding Tax', date: '2026-01-10', amount: -25, currency: 'USD', description: W, actionId: aid },
+  ];
+  const divs = T.tiDividends(rows('9001'), fxOf);
+  eq(divs.length, 1, 'G23 אירוע אחד');
+  const Y5 = T.tiYear(2025, [], divs, { other: 0 }), Y6 = T.tiYear(2026, [], divs, { other: 0 });
+  eq(Y5.div.gross, 360, 'G23 2025 ברוטו 360');
+  eq(Y5.div.wh, 90, 'G23 2025 ניכוי 90');
+  eq(T.tiW8(divs).length, 0, 'G23 בלי התראת W-8BEN');
+  eq(Y6.div.gross, 0, 'G23 2026 אין ברוטו');
+  eq(Y6.div.wh, 0, 'G23 2026 אין ניכוי שלילי');
+  eq(Y6.extraInc, 0, 'G23 2026 אין מס פיקטיבי');
+  // נפילה בלי actionId: המפתח הישן (תאריך+סימבול+מטבע) — שתי רשומות, כמו לפני שלב 5
+  const old = T.tiDividends(rows(''), fxOf);
+  eq(old.length, 2, 'G23 בלי actionId — שתי רשומות לפי תאריך');
+  eq(old[0].wh, 30, 'G23 בלי actionId — 2025 ניכוי $30');
+  eq(old[1].gross, 0, 'G23 בלי actionId — 2026 ברוטו 0');
+  ok(old.every((d) => !d.actionId), 'G23 בלי actionId — אין מזהה');
+  // actionId שונה לכל דיבידנד באותו יום — לא מתמזגים
+  const two = T.tiDividends([
+    { type: 'Dividends', date: '2025-06-01', amount: 10, currency: 'USD', description: D, actionId: 'a1' },
+    { type: 'Dividends', date: '2025-06-01', amount: 20, currency: 'USD', description: D, actionId: 'a2' },
+  ], fxOf);
+  eq(two.length, 2, 'G23 שני אירועים נפרדים');
+}
+
+/* ---------- שלבים 7–12 (02/11/2026). כל המקרים כאן מסומנים "לא ודאי" במנוע, חוץ מ־G26/G30 ---------- */
+const fx36 = fxFrom({ '2024-01-01': 3.5, '2025-01-01': 3.6, '2025-06-01': 3.7 });
+
+/* G17 — פוט שפקעה אצל הקונה (ח2): 1 חוזה × $2 × 100 + עמלה 0.65 = $200.65 בשער 3.6 (2025-03-01); פקיעה (Ep) בשער 3.7.
+   N = −200.65·3.6 = −722.34; D = −200.65·3.7 = −742.405 → שני הפסדים, הקטן: −722.34. */
+{
+  const t = [
+    { symbol: 'XYZ   250620P00050000', date: '2025-03-01', qty: 1, price: 2, multiplier: 100, commission: -0.65, currency: 'USD', side: 'BUY', tradeId: '1', asset: 'OPT', openClose: 'O' },
+    { symbol: 'XYZ   250620P00050000', date: '2025-06-20', qty: -1, price: 0, multiplier: 100, currency: 'USD', side: 'SELL', tradeId: '2', asset: 'OPT', openClose: 'C', notes: 'Ep' },
+  ];
+  const f = T.tiFifo(t, fx36);
+  eq(f.sales.length, 1, 'G17 מכירה אחת');
+  eq(f.sales[0].taxable, -722.34, 'G17 הפסד −722.34');
+  ok(f.sales[0].deriv, 'G17 מסומן נגזר');
+  ok(T.tiYear(2025, f.sales, [], { other: 0 }).flags.includes('deriv'), 'G17 דגל deriv');
+}
+
+/* G18 — פיצול 4:1 (שלב 7). 10 × $400 בשער 3.5 (14,000 ₪); FS: +30 מניות; מכירה 40 × $110 בשער 3.6.
+   N = 15,840 − 14,000 = 1,840; D = (4,400 − 4,000)·3.6 = 1,440 → 1,440, בלי noLots ועם תאריך הקנייה המקורי. */
+{
+  const f = T.tiFifo([tr('ABC', '2024-03-01', 10, 400, 0, 1), tr('ABC', '2025-02-01', -40, 110, 0, 2)], fx36,
+    { corp: [{ type: 'FS', symbol: 'ABC', date: '2025-01-10', qty: 30, actionId: 'c1', description: 'ABC SPLIT 4 FOR 1' }] });
+  eq(f.sales.length, 1, 'G18 מכירה אחת');
+  eq(f.sales[0].taxable, 1440, 'G18 חייב 1,440');
+  ok(f.sales[0].buyDate === '2024-03-01', 'G18 תאריך הקנייה המקורי');
+  ok(!f.issues.some((i) => i.type === 'noLots'), 'G18 בלי noLots');
+  // איחוד 1:4 בשתי שורות (יוצאות 40, נכנסות 10) — אותה עלות כוללת
+  const r = T.tiFifo([tr('ABC', '2024-03-01', 40, 100, 0, 1)], fx36,
+    { corp: [{ type: 'RS', symbol: 'ABC', date: '2025-01-10', qty: -40, actionId: 'c2' }, { type: 'RS', symbol: 'ABC', date: '2025-01-10', qty: 10, actionId: 'c2' }] });
+  eq(r.open[0].qty, 10, 'G18 איחוד — 10 מניות');
+  eq(r.open[0].qty * r.open[0].unit, 4000, 'G18 איחוד — העלות נשמרת');
+  // שינוי מזהה (IC): הסימבול החדש יורש את המנות
+  const ic = T.tiFifo([tr('OLD', '2024-03-01', 5, 100, 0, 1), tr('NEW', '2025-02-01', -5, 120, 0, 2)], fx36,
+    { corp: [{ type: 'IC', symbol: 'OLD', date: '2025-01-10', qty: -5, actionId: 'c3' }, { type: 'IC', symbol: 'NEW', date: '2025-01-10', qty: 5, actionId: 'c3' }] });
+  eq(ic.sales.length, 1, 'G18 IC — המכירה של NEW מותאמת');
+  eq(ic.sales[0].costIls, 1750, 'G18 IC — עלות מקורית');
+}
+
+/* פעולות תאגידיות — מחיקה (DW) ו"דורש החלטה" (SO). DW: 10 × $50 בשער 3.5 (עלות 1,750 ₪), מחיקה בשער 3.6:
+   N = −1,750; D = −500·3.6 = −1,800 → −1,750. SO: בלי alloc → corpDecide; עם 20%: האם 80% מהעלות, החדש 20%. */
+{
+  const dw = T.tiFifo([tr('DED', '2024-03-01', 10, 50, 0, 1)], fx36, { corp: [{ type: 'DW', symbol: 'DED', date: '2025-03-01', qty: -10, actionId: 'd1' }] });
+  eq(dw.sales[0].taxable, -1750, 'DW הפסד −1,750');
+  eq(dw.open.length, 0, 'DW אין מנה פתוחה');
+  // ב־Flex מגיעה לרוב שורה אחת (KID +5); האם מזוהה מהתיאור
+  const so = [{ type: 'SO', symbol: 'KID', date: '2025-03-01', qty: 5, actionId: 's2', description: 'PAR(US0000000001) SPINOFF 1 FOR 2 (KID)' }];
+  const a = T.tiFifo([tr('PAR', '2024-03-01', 10, 100, 0, 1)], fx36, { corp: so });
+  ok(a.issues.some((i) => i.type === 'corpDecide' && i.gid === 's2' && i.sym === 'PAR' && i.dst === 'KID'), 'SO בלי הקצאה → corpDecide');
+  const b = T.tiFifo([tr('PAR', '2024-03-01', 10, 100, 0, 1)], fx36, { corp: [{ type: 'SO', symbol: 'KID', date: '2025-03-01', qty: 5, actionId: 's9' }] });
+  ok(b.issues.some((i) => i.type === 'corpDecide' || i.type === 'corpNoLots'), 'SO בלי תיאור — סימון');
+  const c = T.tiFifo([tr('PAR', '2024-03-01', 10, 100, 0, 1)], fx36, { corp: [{ type: 'SO', symbol: 'PAR', date: '2025-03-01', qty: 0, actionId: 's3' }, { type: 'SO', symbol: 'KID', date: '2025-03-01', qty: 5, actionId: 's3' }], alloc: { s3: 20 } });
+  const par = c.open.find((l) => l.sym === 'PAR'), kid = c.open.find((l) => l.sym === 'KID');
+  eq(par.qty * par.unit, 800, 'SO 20% — האם $800');
+  eq(kid.qty * kid.unit, 200, 'SO 20% — החדש $200');
+  eq(kid.qty, 5, 'SO 20% — 5 מניות חדשות');
+  ok(kid.date === '2024-03-01', 'SO — תאריך הקנייה של האם');
+}
+
+/* ח9 — העברה נכנסת: בלי עלות → tinNoCost ובלי מנה; עם עלות $1,000 ותאריך 2024-03-01 (3.5) → מנה של 3,500 ₪. */
+{
+  const tin = [{ id: 't1', symbol: 'TRF', date: '2025-02-01', qty: 10, currency: 'USD' }];
+  const a = T.tiFifo([], fx36, { tin: tin });
+  ok(a.issues.some((i) => i.type === 'tinNoCost' && i.id === 't1'), 'ח9 בלי עלות — סימון');
+  eq(a.open.length, 0, 'ח9 בלי עלות — אין מנה');
+  const b = T.tiFifo([], fx36, { tin: tin, tinCost: { t1: { cost: 1000, date: '2024-03-01' } } });
+  eq(b.open[0].qty * b.open[0].unit * b.open[0].fx, 3500, 'ח9 עם עלות — 3,500 ₪');
+  ok(b.open[0].date === '2024-03-01', 'ח9 תאריך הקנייה המקורי');
+}
+
+/* ח2 — מימוש קול: קנייה 1 × $5 × 100 = $500 בשער 3.5 (1,750 ₪). מימוש (Ex) ב־2025-03-01 (3.6): 100 מניות × $150.
+   עלות המניות = 15,000·3.6 + 1,750 = 55,750 ₪. מכירה 100 × $160 ב־2025-04-01 (3.6): 57,600 − 55,750 = 1,850; D = 1,850. */
+{
+  const t = [
+    { symbol: 'AAPL  250620C00150000', date: '2024-06-01', qty: 1, price: 5, multiplier: 100, currency: 'USD', side: 'BUY', tradeId: '1', asset: 'OPT', openClose: 'O' },
+    { symbol: 'AAPL  250620C00150000', date: '2025-03-01', qty: -1, price: 0, multiplier: 100, currency: 'USD', side: 'SELL', tradeId: '2', asset: 'OPT', openClose: 'C', notes: 'Ex' },
+    tr('AAPL', '2025-03-01', 100, 150, 0, 3), tr('AAPL', '2025-04-01', -100, 160, 0, 4),
+  ];
+  const f = T.tiFifo(t, fx36);
+  eq(f.sales.length, 1, 'ח2 מימוש — רק מכירת המניות');
+  eq(f.sales[0].costIls, 55750, 'ח2 מימוש — הפרמיה בעלות');
+  eq(f.sales[0].taxable, 1850, 'ח2 מימוש — חייב 1,850');
+}
+
+/* G31 — מכירה בחסר (ח3): מכירה 10 × $50 (O) בשער 3.7, כיסוי 10 × $40 בשער 3.5 (2026 — לפי fxFrom).
+   N = 1,850 − 1,400 = 450; D לפי שער המכירה = 100·3.7 = 370 → 370, דגל short, בלי מנה פתוחה מדומה. */
+{
+  const fxs = fxFrom({ '2025-06-01': 3.7, '2025-09-01': 3.5 });
+  const t = [
+    { symbol: 'SHT', date: '2025-07-01', qty: -10, price: 50, currency: 'USD', side: 'SELL', tradeId: '1', openClose: 'O' },
+    { symbol: 'SHT', date: '2025-10-01', qty: 10, price: 40, currency: 'USD', side: 'BUY', tradeId: '2', openClose: 'C' },
+  ];
+  const f = T.tiFifo(t, fxs);
+  eq(f.sales.length, 1, 'G31 מכירה אחת');
+  eq(f.sales[0].taxable, 370, 'G31 חייב 370');
+  ok(f.sales[0].short && f.issues.some((i) => i.type === 'short'), 'G31 דגל short');
+  eq(f.open.length, 0, 'G31 בלי מנה פתוחה מדומה');
+  ok(!f.issues.some((i) => i.type === 'noLots'), 'G31 בלי noLots');
+}
+
+/* G26 — דמי ניהול (תקנה 6): רווח 2,000; Advisor Fees $50 בשער 3.6 = 180 → חייב 1,820, מס 455.
+   שנה בלי מכירות → הפסד 180 שמקזז קודם הכנסה (92(א)(4)) ואז עובר. Other Fees של נתונים → דגל בלבד. */
+{
+  const fees = T.tiDividends([
+    { type: 'Advisor Fees', date: '2025-05-01', amount: -50, currency: 'USD', description: 'Advisor Fee' },
+    { type: 'Other Fees', date: '2025-05-01', amount: -10, currency: 'USD', description: 'Market Data Snapshot' },
+  ], () => 3.6);
+  const sales = [{ sym: 'X', sellDate: '2025-07-01', taxable: 2000, cur: 'USD' }];
+  const Y = T.tiYear(2025, sales, fees, { other: 0 });
+  eq(Y.taxable, 1820, 'G26 חייב 1,820');
+  eq(Y.cgTax, 455, 'G26 מס 455');
+  ok(Y.flags.includes('dataFee') && Y.flags.includes('mgmtFee'), 'G26 דגלים');
+  const Y0 = T.tiYear(2025, [], fees, { other: 0 });
+  eq(Y0.carryOut, 180, 'G26 בלי מכירות — הפסד 180 עובר');
+  eq(T.tiReport(2025, [], fees, Y).s1324.length, 0, 'G26 דמי ניהול לא ב־1324');
+}
+
+/* G28 — השוואת ריבית מרווח (101א(ב)): רווח 10,000, ריבית מרווח 3,000. בלי ניכוי 2,500; עם ניכוי 30%·7,000 = 2,100 → כדאי. */
+{
+  const Y = T.tiYear(2025, [{ sym: 'X', sellDate: '2025-07-01', taxable: 10000, cur: 'USD' }], [{ date: '2025-07-01', kind: 'interestPaid', grossIls: -3000, whIls: 0 }], { other: 0 });
+  eq(Y.marginCmp.no, 2500, 'G28 בלי ניכוי 2,500');
+  eq(Y.marginCmp.deduct, 2100, 'G28 עם ניכוי 2,100');
+  ok(Y.marginCmp.better, 'G28 ההמלצה: לנכות');
+  eq(Y.due, 2500, 'G28 המס בפועל לא משתנה (השוואה בלבד)');
+}
+
+/* G29 — עולה חדש (97(ב)(3)): תושבות 1/1/2020, קנייה 1/1/2015, מכירה 1/1/2035, חייב 100.
+   פטור = 100·5,479/7,305 = 75.0034; חייב 24.9966. מכירה ב־2025 (בתוך העשור) → 0. דיבידנד זר בתוך העשור → פטור. */
+{
+  const R = T.tiResident([
+    { sym: 'X', cur: 'USD', country: 'US', buyDate: '2015-01-01', sellDate: '2035-01-01', taxable: 100 },
+    { sym: 'Y', cur: 'USD', country: 'US', buyDate: '2015-01-01', sellDate: '2025-01-01', taxable: 100 },
+    { sym: 'Z', cur: 'ILS', country: 'IL', buyDate: '2015-01-01', sellDate: '2025-01-01', taxable: 100 },
+  ], [{ date: '2025-03-01', kind: 'dividend', country: 'US', grossIls: 100, whIls: 25 }], { date: '2020-01-01' });
+  eq(R.sales[0].taxable, 24.9966, 'G29 ליניארי לפי ימים');
+  eq(R.sales[1].taxable, 0, 'G29 בתוך העשור — פטור');
+  eq(R.sales[2].taxable, 100, 'G29 נייר ישראלי — חייב');
+  eq(T.tiYear(2025, R.sales, R.divs, { other: 0 }).div.gross, 0, 'G29 דיבידנד זר פטור');
+}
+
+/* G30 — מדרגות עיזבון (§2001(c) פחות $13,000) */
+{
+  const cases = [[60000, 0], [100000, 10800], [250000, 57800], [500000, 142800], [1000000, 332800], [2000000, 732800]];
+  for (const [v, tax] of cases) eq(T.tiEstateTax(v), tax, 'G30 ' + v);
+}
+
+/* G32 — קיזוז מול ריבית ממזומן: הפסד 1,000, ריבית 400. מצב א׳ (ברירת מחדל): קיזוז 400, מס 0, עובר 600.
+   מצב ב׳ (noOffInt): מס 100 על הריבית, עובר 1,000, ודגל disputed. */
+{
+  const sales = [{ sym: 'X', sellDate: '2025-07-01', taxable: -1000, cur: 'USD' }];
+  const divs = [{ date: '2025-07-01', kind: 'interest', country: '', grossIls: 400, whIls: 0 }];
+  const A = T.tiYear(2025, sales, divs, { other: 0 }), B = T.tiYear(2025, sales, divs, { other: 0, noOffInt: true });
+  eq(A.offIncome, 400, 'G32 א׳ קיזוז 400');
+  eq(A.carryOut, 600, 'G32 א׳ עובר 600');
+  eq(B.extraInc, 100, 'G32 ב׳ מס 100');
+  eq(B.carryOut, 1000, 'G32 ב׳ עובר 1,000');
+  ok(B.flags.includes('disputed'), 'G32 ב׳ דגל disputed');
+}
+
+/* ח15 — "הוגש דוח": הפסד 2024 של 1,000 בלי דוח לא עובר ל־2025; רווח 2025 של 500 חייב במלואו. */
+{
+  const sales = [{ sym: 'X', sellDate: '2024-07-01', taxable: -1000, cur: 'USD' }, { sym: 'X', sellDate: '2025-07-01', taxable: 500, cur: 'USD' }];
+  const a = T.tiYears(sales, [], {}), b = T.tiYears(sales, [], { filed: { 2024: false } });
+  eq(a[1].taxable, 0, 'ח15 עם דוח — קיזוז');
+  eq(b[1].taxable, 500, 'ח15 בלי דוח — אין קיזוז');
+  eq(b[0].carryLost, 1000, 'ח15 ההפסד שאבד');
+}
+
+/* ח10 — בעל מניות מהותי: רווח 1,000 מ־SUB → 30% = 300. ח13 — המסלול המקוצר: רווח 1,000 והפסד 400 → מלא 150, מקוצר 250. */
+{
+  const Y = T.tiYear(2025, [{ sym: 'SUB', sellDate: '2025-07-01', taxable: 1000, cur: 'USD' }], [], { other: 0, sub: ['sub'] });
+  eq(Y.cgTax, 300, 'ח10 30%');
+  const Z = T.tiYear(2025, [{ sym: 'A', sellDate: '2025-07-01', taxable: 1000, cur: 'USD' }, { sym: 'B', sellDate: '2025-07-01', taxable: -400, cur: 'USD' }], [], { other: 0 });
+  eq(Z.cgTax, 150, 'ח13 מלא 150');
+  eq(Z.shortcut, 250, 'ח13 מקוצר 250');
+}
+
+/* ח12 — קריפטו: נכנס למס, לא לשורות 1325; ב־s1399. 205א(ב) (poolCg): מאגר 92.5 מול מס 250 על רווח זר → 157.5. */
+{
+  const f = T.tiFifo([
+    { symbol: 'BTC.USD', date: '2025-02-01', qty: 1, price: 1000, currency: 'USD', side: 'BUY', tradeId: '1', asset: 'CRYPTO' },
+    { symbol: 'BTC.USD', date: '2025-03-01', qty: -1, price: 1100, currency: 'USD', side: 'SELL', tradeId: '2', asset: 'CRYPTO' },
+  ], fx36);
+  const Y = T.tiYear(2025, f.sales, [], { other: 0 });
+  const R = T.tiReport(2025, f.sales, [], Y);
+  eq(R.s1325.length, 0, 'ח12 לא ב־1325');
+  eq(R.s1399.length, 1, 'ח12 ב־1399');
+  ok(Y.flags.includes('crypto'), 'ח12 דגל');
+  const P = T.tiYear(2026, [{ sym: 'X', sellDate: '2026-07-01', taxable: 1000, cur: 'USD' }], [], { other: 0, poolCg: true, pool: [{ y: 2025, src: 'dividend', amt: 92.5 }] });
+  eq(P.due, 157.5, '205א(ב) — המאגר מול רווח זר');
+}
+
 console.log('# taxil-golden: ' + n + ' בדיקות עברו');

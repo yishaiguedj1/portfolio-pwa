@@ -128,6 +128,16 @@ function stubFetch(text, status = 200) {
   ok(lotX.trades.length === 1 && lotX.trades[0].multiplier === 100 && lotX.trades[0].conid === '77' && lotX.trades[0].tradeMoney === 600 &&
     lotX.trades[0].tradeDate === '2026-01-05' && lotX.trades[0].notes === 'O;LI' && lotX.trades[0].asset === 'OPT', 'Trades: רק EXECUTION, עם השדות החדשים');
   ok(lotX.cashTransactions[0].actionId === '5', 'CashTransaction: actionID');
+  // 02/11/2026 (מרכז המס, שלב 7 וח9): פעולות תאגידיות והעברות ניירות → taxEvents; העברת מזומן נשארת בתזרים
+  const caX = statementToJson(parseXml('<FlexStatement fromDate="20260101" toDate="20261022"><CorporateActions>' +
+    '<CorporateAction levelOfDetail="DETAIL" type="FS" symbol="ABC" quantity="30" reportDate="20260110" actionID="9" transactionID="77" actionDescription="ABC SPLIT 4 FOR 1" currency="USD"/>' +
+    '<CorporateAction levelOfDetail="SUMMARY" type="FS" symbol="ABC" quantity="30" reportDate="20260110"/>' +
+    '</CorporateActions><Transfers><Transfer symbol="XYZ" quantity="10" direction="IN" assetCategory="STK" dateTime="20260201" transactionID="88"/>' +
+    '<Transfer cashTransfer="100" direction="IN" currency="USD" dateTime="20260202"/></Transfers></FlexStatement>'));
+  ok(caX.taxEvents.length === 2, 'taxEvents: פעולה + העברת ניירות (בלי SUMMARY)');
+  ok(caX.taxEvents[0].k === 'ca' && caX.taxEvents[0].type === 'FS' && caX.taxEvents[0].qty === 30 && caX.taxEvents[0].actionId === '9' && caX.taxEvents[0].date === '2026-01-10', 'CorporateAction: שדות');
+  ok(caX.taxEvents[1].k === 'tr' && caX.taxEvents[1].qty === 10 && caX.taxEvents[1].symbol === 'XYZ', 'Transfer ניירות: כמות');
+  ok(caX.cashTransactions.length === 1 && caX.cashTransactions[0].amount === 100, 'Transfer מזומן: נשאר בתזרים');
   ok(lotX.meta.fields.Trade.includes('multiplier') && lotX.meta.fields.lod.join() === 'CLOSED_LOT,EXECUTION,SYMBOL_SUMMARY' &&
     !JSON.stringify(lotX.meta.fields).includes('U0'), 'meta.fields: שמות וקטגוריות בלבד, בלי ערכים');
   const ordX = statementToJson(parseXml('<FlexStatement><Trades><Trade levelOfDetail="ORDER" symbol="B" quantity="1"/><Trade levelOfDetail="CLOSED_LOT" symbol="B" quantity="1"/><Trade symbol="C" quantity="1"/></Trades></FlexStatement>'));
