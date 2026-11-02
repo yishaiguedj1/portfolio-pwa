@@ -125,18 +125,22 @@ function fcTok(job) {
   return use.reduce((a, r) => a + (r ? n0(r.i) + n0(r.o) + n0(r.cr) + n0(r.c5) + n0(r.c1) : 0), 0);
 }
 /* היעדים של עבודה אחת — לטלפון (null = אין יעד: אין אורך, עוד לא נלקחה, או לא עבודת תרגום) */
+const BT_TG = 24 * 3600;   // חלון תור החיסכון (24 שעות — אחריו העובד ממשיך בזמן אמת)
 function slaView(job, now) {
   if (!job || job.kind !== 'tr' || !job.tg || !(job.tg.t > 0)) return null;
   const c = clock(job, now);
   if (!(job.c0 || job.claimed)) return null;
   const done = job.state === 'done' || !!job.rdy, pf = progFrac(job);
-  const ft = c.el / 1000 / job.tg.t;
-  const out = { t: { tg: job.tg.t, el: Math.round(c.el / 1000), pz: Math.round(c.pz / 1000), f: Math.round(ft * 100) / 100, lv: level(ft, pf, done), paused: c.paused }, pf: Math.round(pf * 100) / 100 };
+  // 02/11/2026 (המשתמש: "בעבודות שבתור לא יהיה חריגת זמנים — זה מה שאמור להיות"): חצי מחיר (bt) = "מוכן תוך כמה שעות" —
+  // יעד הזמן הוא חלון תור החיסכון (BT_TG), לא הזמן של עבודה רגילה; אחרת "חרגה" והתראת sla_time על כל עבודה כזו
+  const tg = job.spec && job.spec.bt === 1 ? Math.max(job.tg.t, BT_TG) : job.tg.t;
+  const ft = c.el / 1000 / tg;
+  const out = { t: { tg, el: Math.round(c.el / 1000), pz: Math.round(c.pz / 1000), f: Math.round(ft * 100) / 100, lv: level(ft, pf, done), paused: c.paused }, pf: Math.round(pf * 100) / 100 };
   // הצפי לסוף (fc) — רק בזמן ריצה; צפי מעל היעד ב־40% מהדרך ומעלה = "בסיכון" כבר עכשיו (לא מחכים לסימון 75%)
   const fcOn = !done && !TERMINAL.includes(job.state);
   if (fcOn) {
     out.fc = { t: fcTime(job, c.el / 1000, now) };
-    if (pf >= 0.4 && out.fc.t > job.tg.t && out.t.lv !== 'over') out.t.lv = 'risk';
+    if (pf >= 0.4 && out.fc.t > tg && out.t.lv !== 'over') out.t.lv = 'risk';
   }
   if (job.tg.u > 0) {
     // העלות: מהדיווח של העובד (בסוף / בעצירה), ובזמן הריצה — מה שהמגדל מדד

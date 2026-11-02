@@ -32,6 +32,17 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(r.stg.up === 'd' && r.stg.tl === 'n' && r.by.tl.tok === 501000 && !('name' in r), 'שורה חיה: השלבים, העלות לפי סוכן — ובלי שם הקובץ');
   ok(UM.liveRow(Object.assign({}, run, { spec: { eng: 'api', ry: 1, dur: 60 } }), {}, now).our === false, 'במנוי של המשתמש (Routine) — לא עולה לנו');
   ok(r.sm === 0 && UM.liveRow(Object.assign({}, run, { sm: 1 }), {}, now).sm === 1, 'עבודת הבדיקה אחרי עדכון — מסומנת (sm)');
+  // 02/11/2026: חצי מחיר (bt) וחונה בתור החיסכון (bw) — מסומנים; ומרכז הניהול מפריד בין מה שרץ לתור
+  { const q = UM.liveRow(Object.assign({}, run, { state: 'queued', bw: now - 60e3, spec: Object.assign({}, run.spec, { bt: 1 }) }), {}, now);
+    ok(r.bt === 0 && r.bw === 0 && q.bt === 1 && q.bw === 1 && UM.liveRow(Object.assign({}, run, { bw: now, pk: now }), {}, now).bw === 0, 'שורה חיה: חצי מחיר ותור החיסכון'); }
+  { const adm0 = require('fs').readFileSync(require('path').join(__dirname, '..', 'admin-app.js'), 'utf8');
+    ok(adm0.includes("page('queue'") && /const L = liveRun\(\), Q = liveQ\(\)/.test(adm0) && adm0.includes("t('admLiveBw')"), 'מרכז הניהול: בסקירה רק מה שרץ, התור בדף "בתור"'); }
+  { const SM0 = require('../ibkr-proxy/lib/studio');
+    const sk = SM0.smokeJob({ id: 'g', uid: B, spec: { eng: 'api', dur: 300, bt: 1, out: ['srt'] }, gd: null }, 'x', B, now);
+    ok(sk && sk.sm === 1 && !('bt' in sk.spec), 'עבודת הבדיקה אחרי עדכון — לא בחצי מחיר (לא מחכה שעות בתור החיסכון)'); }
+  { const SLA0 = require('../ibkr-proxy/lib/studiosla');
+    const b = { id: 'z', kind: 'tr', state: 'queued', c0: now - 26 * 60e3, created: now - 26 * 60e3, tg: { t: 23 * 60 }, prog: { st: 'al', p: 0.6 }, spec: { eng: 'api' } };
+    ok(SLA0.slaView(b, now).t.lv === 'over' && SLA0.slaView(Object.assign({}, b, { spec: { eng: 'api', bt: 1 } }), now).t.lv !== 'over', 'חצי מחיר: יעד הזמן = חלון תור החיסכון, בלי "חרגה" אחרי 26 דק׳'); }
   ok(UM.isLive(run) && !UM.isLive(Object.assign({}, run, { state: 'done' })) && !UM.isLive(Object.assign({}, run, { kind: 'ping' })), 'חי = בתור או רץ, לא בדיקת חיבור');
   // 01/11/2026: עבודה "רצה" במסמך בלי דיווח שעתיים (נתקעה) — בסטודיו היא לא פעילה, אז גם לא ב"עכשיו במערכת"
   ok(UM.isLive(Object.assign({}, run, { updated: now - 60e3 }), now) && !UM.isLive(Object.assign({}, run, { updated: now - 3 * 3600e3 }), now), 'נתקעה (isStale) — לא חיה');
