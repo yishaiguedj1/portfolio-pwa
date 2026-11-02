@@ -21,7 +21,7 @@ export function cases() {
 
 export async function build(qr, text) {
   const m = qr(text);
-  return Buffer.from(text, 'utf8').toString('base64') + '\n' + m.map((r) => r.map((d) => (d ? '1' : '0')).join('')).join('\n') + '\n';
+  return Buffer.from(text, 'utf8').toString('base64') + '\n' + m.map((r) => r.map((d) => (d ? '#' : '.')).join('')).join('\n') + '\n';
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {

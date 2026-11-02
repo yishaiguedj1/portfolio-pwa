@@ -19,7 +19,7 @@ class DmQrExtTest {
             val want = String(java.util.Base64.getDecoder().decode(lines[0]), Charsets.UTF_8)
             val rows = lines.drop(1)
             val m = BitMatrix(rows.size)
-            rows.forEachIndexed { y, r -> r.forEachIndexed { x, c -> if (c == '1') m.set(x, y) } }
+            rows.forEachIndexed { y, r -> r.forEachIndexed { x, c -> if (c == '#') m.set(x, y) } }
             assertEquals("case${n + 1}", want, Decoder().decode(m).text)
             if (want.startsWith("studiodm://")) assertTrue(DmScan.parse(want)?.urls?.size == 1)
             n++
