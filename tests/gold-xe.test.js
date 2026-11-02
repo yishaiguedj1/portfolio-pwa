@@ -27,7 +27,7 @@ ok(/body\.xe != null && \(!xe \|\| !isAdmin\(user\)\)/.test(api), 'השרתון 
 
 const adm = R('admin-app.js'), app = R('app.js');
 const gm = /GOLD_XES = \{ pr: \{ main: 'medium', rv: 'medium' \}, all: \{ main: 'medium', tl: 'medium', rv: 'medium' \} \}, GOLD_MAX = (\d+)/.exec(adm);
-ok(gm && +gm[1] === S.GOLD_MAX, 'מרכז הניהול — GOLD_MAX זהה לשרתון');
+ok(gm && +gm[1] === S.GOLD_MAX_ADMIN, 'מרכז הניהול — GOLD_MAX זהה לשרתון (GOLD_MAX_ADMIN — מרכז הניהול הוא למנהל בלבד)');
 ok(/D\.gXe \? \{ xe: GOLD_XES\[D\.gXe\] \} : \{\}, D\.gXg \? \{ xg: true \} : \{\}, D\.gXe \|\| D\.gXg \? \{ both: true \}/.test(adm) && /t\('admGoldXeTag'\)/.test(adm) && /t\('admGoldXeTagAll'\)/.test(adm), 'מרכז הניהול — הבחירה נשלחת, והרצה בניסוי מסומנת בתוצאות (עם התרגום / בלי)');
 for (const k of ['admGoldXe', 'admGoldXeS', 'admGoldXeTag', 'admGoldXeAll', 'admGoldXeAllS', 'admGoldXeTagAll']) ok((app.match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, 'מחרוזת ' + k + ' בעברית ובאנגלית');
 

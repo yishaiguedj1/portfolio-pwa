@@ -3678,7 +3678,7 @@ async function handler(req, res, deps = {}) {
       if ((await readStats(deps, uid)).halt) return res.status(409).json({ ok: false, error: 'halted' });
       const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
       // פריט 15 ("ריצת מבחן"): src = עבודת זהב אחת, modes = כמה מצבים עליה (השוואה בין מצבים על אותו סרטון)
-      const modes = Array.isArray(body.modes) ? Array.from(new Set(body.modes.filter((m) => S.MODES.includes(m) || S.LEGACY_MODES[m]).map((m) => S.modeNow(m)))).slice(0, S.GOLD_MAX) : [];   // מצב לא מוכר — נזרק (לא ברירת המחדל)
+      const modes = Array.isArray(body.modes) ? Array.from(new Set(body.modes.filter((m) => S.MODES.includes(m) || S.LEGACY_MODES[m]).map((m) => S.modeNow(m)))).slice(0, S.goldMax(isAdmin(user))) : [];   // מצב לא מוכר — נזרק (לא ברירת המחדל)
       if (Array.isArray(body.modes) && (!modes.length || !body.src)) return res.status(400).json({ ok: false, error: 'bad_params' });
       for (const m of modes) if (await modeLocked(m)) return res.status(403).json({ ok: false, error: 'mode_locked' });
       const gsrc = S.goldSources(all).filter((j) => !body.src || j.id === body.src);
@@ -3689,7 +3689,7 @@ async function handler(req, res, deps = {}) {
       // both = לכל מצב גם הרצה רגילה וגם הרצה בניסוי (השוואה על אותו סרטון, באותו זמן)
       const vx = xe || xg ? { xe, xg: xg ? 1 : 0 } : null;
       const vars = vx ? (body.both === true ? [null, vx] : [vx]) : [null];
-      const src = (modes.length ? modes.flatMap((m) => vars.map((x) => [gsrc[0], m, x])) : gsrc.map((j) => [j, null, vx])).filter((x) => x[0]).slice(0, S.GOLD_MAX);
+      const src = (modes.length ? modes.flatMap((m) => vars.map((x) => [gsrc[0], m, x])) : gsrc.map((j) => [j, null, vx])).filter((x) => x[0]).slice(0, S.goldMax(isAdmin(user)));
       if (!src.length) return res.status(400).json({ ok: false, error: 'no_gold' });
       if (all.some((j) => j.gs && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'gold_busy' });   // הרצה קודמת עוד פתוחה
       if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length + src.length > S.maxActive(isAdmin(user))) return res.status(409).json({ ok: false, error: 'too_many' });   // הסקירה: לא לעקוף את MAX_ACTIVE
@@ -3712,7 +3712,7 @@ async function handler(req, res, deps = {}) {
       const ref = String(body.ref || '');
       if (!S.FILE_ID_RE.test(ref)) return res.status(400).json({ ok: false, error: 'bad_params' });
       const others = (await listJobs(deps, uid)).filter((j) => j.id !== job.id && S.normGd(j.gd));
-      if (others.length >= S.GOLD_MAX) return res.status(409).json({ ok: false, error: 'gold_full' });
+      if (others.length >= S.goldMax(isAdmin(user))) return res.status(409).json({ ok: false, error: 'gold_full' });   // 02/11/2026: למנהל 16
       const f = await driveFileInFolder(deps, uid, job.folder, ref);
       if (!f) return res.status(400).json({ ok: false, error: 'file_bad' });
       if (f.error) return res.status(200).json({ ok: false, error: f.error });

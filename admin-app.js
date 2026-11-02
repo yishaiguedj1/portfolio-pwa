@@ -1242,7 +1242,7 @@ page('imp', { tab: 'imp', title: () => t('admTabImp'), render(p) {
 /* ---- ריצת מבחן (פריט 15 בסבב הייעול, 21/10/2026): עבודת זהב (תרגום אנושי לייחוס) × כמה מצבים, על השרת של המערכת.
    אומדן ואישור לפני; העבודות נוצרות ב־goldRun ומתחילות ב־start (כל השמירות הרגילות); הציון (chrF++, כיסוי זמן) — מהעובד ---- */
 // ניסוי המאמץ: pr = ההגהה והביקורת במאמץ בינוני; all = גם התרגום (פריט 8 בסבב הייעול)
-const GOLD_XES = { pr: { main: 'medium', rv: 'medium' }, all: { main: 'medium', tl: 'medium', rv: 'medium' } }, GOLD_MAX = 5;   // = S.GOLD_MAX בשרתון
+const GOLD_XES = { pr: { main: 'medium', rv: 'medium' }, all: { main: 'medium', tl: 'medium', rv: 'medium' } }, GOLD_MAX = 16;   // = S.GOLD_MAX_ADMIN בשרתון (מרכז הניהול — מנהל בלבד)
 const GOLD_MODES = ['haiku-medium', 'haiku-high', 'sonnet-low', 'sonnet-medium', 'sonnet-high', 'opus-medium'];
 const jobUsd = (j) => (Array.isArray(j.use) ? j.use : []).reduce((a, r) => a + (r && typeof r.usd === 'number' ? r.usd : 0), 0);
 async function needGold(force) {
