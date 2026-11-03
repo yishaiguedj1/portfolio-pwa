@@ -10070,8 +10070,10 @@ function render(kind, still, pre) {     // kind: none (ציור מחדש במק�
   const fk = ae && root.contains(ae) && ae.dataset ? ae.dataset.k : null;   // הפוקוס חוזר לאותו רכיב אחרי ציור מחדש
   if (ui.view === 'home' || ui.view === 'ka') form = null;   // יציאה מהטופס בלי שמירה — הטיוטה לא נשמרת
   const p = h('div', 'st-page');
-  const oldPg = kind === 'none' && (ui.view === 'home' || ui.view === 'ka') ? root.querySelector(':scope > .st-page') : null;
-  shellKeep = oldPg ? { ph: null, old: oldPg, map: new Map(), hdr: !!(SA && SA.shell && oldPg.contains(SA.shell.el)) } : null;
+  /* 03/11/2026 (סבב קפיצות 10): ציור במקום — בכל הדפים, לא רק בבית. ראו pageKeep */
+  const oldPg = kind === 'none' ? root.querySelector(':scope > .st-page') : null;
+  const homeV = ui.view === 'home' || ui.view === 'ka';
+  shellKeep = oldPg ? { ph: null, old: oldPg, map: new Map(), hdr: !!(homeV && SA && SA.shell && oldPg.contains(SA.shell.el)) } : null;
   if (ui.view === 'new') pageForm(p, false);
   else if (ui.view === 'edit') pageForm(p, true);
   else if (ui.view === 'lang') pageLang(p);
@@ -10141,9 +10143,10 @@ function render(kind, still, pre) {     // kind: none (ציור מחדש במק�
   // יושבת בתוך השכבה; ציור דף מחדש (רענון הרשימה) מחק אותה. נשארת כל עוד התפריט פתוח
   const veil = root.querySelector(':scope > .menu-veil');
   const keep = shellKeep; shellKeep = null;
-  if (keep && ((keep.ph && keep.ph.parentNode === p) || keep.map.size) && oldPg.isConnected && oldPg.parentNode === root) {
-    // ההדר והכרטיס הנגלל נשארים במקומם בדף הקיים (listSync לא נוגע בצומת שכבר במקומו); שאר הילדים — מהדף החדש
-    const kids = [...p.childNodes].map((n) => (keep.ph && n === keep.ph ? SA.shell.el : keep.map.get(n) || n));
+  if (keep && oldPg.isConnected && oldPg.parentNode === root) {
+    // ההדר והכרטיס הנגלל נשארים במקומם בדף הקיים (listSync לא נוגע בצומת שכבר במקומו); כל חלק שלא השתנה — גם (pageKeep);
+    // השאר — מהדף החדש
+    const kids = pageKeep(oldPg, [...p.childNodes].map((n) => (keep.ph && n === keep.ph ? SA.shell.el : keep.map.get(n) || n)), p);
     for (const a of [...oldPg.attributes]) if (!p.hasAttribute(a.name)) oldPg.removeAttribute(a.name);
     for (const a of [...p.attributes]) if (oldPg.getAttribute(a.name) !== a.value) oldPg.setAttribute(a.name, a.value);
     listSync(oldPg, kids);
@@ -10165,6 +10168,47 @@ function render(kind, still, pre) {     // kind: none (ציור מחדש במק�
   if (CW_OK && !cw) watch();             // מאזין "חזור" חסר (למשל אחרי רענון) — חוזר
   if (kind !== 'none') onEnter();
   schedulePoll();
+}
+/* 03/11/2026 (סבב קפיצות 10, הקלטת Studio 03/11 08:53): במגדל, תוך כדי גלילה, הסרגל העליון "נעלם" לשני פריימים —
+   המספרים של הכרטיס (671, ‏$2.53) נראו חדים מעל הכותרת. ובבית הבועה בהדר הוצגה פעם כמלבן אדום ריק. השורש אחד:
+   ציור במקום (none) בנה את כל הדף מחדש, וכל משטח זכוכית (הסרגל ‎::before, הכרטיסים) נולד כשכבה חדשה, שבטלפון מוצגת
+   לפני שנצבעה. הבית כבר צויר במקום (סבב 8), ושאר הדפים לא.
+   עכשיו: כל ילד של הדף החדש שזהה בדיוק (outerHTML) לילד של הדף הקיים — הקיים נשאר במקומו, עם הצביעה והשכבה שלו.
+   לא נשמר: ילד עם עדכון חי (data-live — הפונקציה החיה סוגרת על הצמתים החדשים), שדה קלט, וידאו, קנבס.
+   הנגיעה: הצומת הקיים מחזיק את החדש (_fwd). בנגיעה הוא מתחלף בחדש ורק אז הלחיצה מגיעה אליו (stKeepTap) — כך הפעולה
+   תמיד מהציור האחרון ופועלת על מה שעל המסך (מתג שמשנה את עצמו במקום), כמו לפני השינוי. שכבה חדשה רק ברגע הנגיעה */
+const KEEP_NO = 'input,textarea,select,video,audio,canvas,iframe,[contenteditable],[data-live]';
+const keepable = (n) => n.nodeType === 1 && !n.matches(KEEP_NO) && !n.querySelector(KEEP_NO);
+function pageKeep(oldPg, kids, newPg) {
+  const pool = new Map();
+  for (const c of oldPg.children) {
+    if (kids.includes(c) || !keepable(c)) continue;
+    const k = c.outerHTML; const a = pool.get(k); if (a) a.push(c); else pool.set(k, [c]);
+  }
+  if (!pool.size) return kids;
+  return kids.map((n) => {
+    if (n.parentNode !== newPg || !keepable(n)) return n;
+    const a = pool.get(n.outerHTML);
+    if (!a || !a.length) return n;
+    const o = a.shift(); o._fwd = n; return o;
+  });
+}
+function stKeepTap(e) {
+  const pg = root && root.querySelector(':scope > .st-page');
+  if (!pg || !e.target || !e.target.closest) return;
+  let o = e.target.nodeType === 1 ? e.target : e.target.parentElement;
+  while (o && o.parentElement !== pg) o = o.parentElement;
+  const f = o && o._fwd;
+  if (!f || f.isConnected) return;
+  const path = [];
+  for (let n = e.target.nodeType === 1 ? e.target : e.target.parentElement; n && n !== o; n = n.parentElement) path.unshift([...n.parentElement.children].indexOf(n));
+  let m = f;
+  for (const i of path) { m = m && m.children[i]; }
+  o._fwd = null;
+  o.replaceWith(f);
+  if (!m) return;                 // מבנה שונה (לא אמור לקרות) — החדש במקום, הלחיצה הבאה תגיע אליו
+  e.stopPropagation(); e.preventDefault();
+  m.click();
 }
 const reduceMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 /* נכנסים לדף: מרעננים ממה שבשרתון (מצב החיבור, העבודות) */
@@ -10280,6 +10324,7 @@ export function openStudio(opt) {
   root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', T('studioTitle'));
   root.tabIndex = -1;
   root.addEventListener('pointerup', () => { if (CW_OK && root && !cw) watch(); }, true);   // נגיעה = הפעלת משתמש → מאזין חדש אם חסר
+  root.addEventListener('click', stKeepTap, true);   // סבב קפיצות 10: חלק שנשאר מציור קודם — הנגיעה עוברת לציור האחרון (pageKeep)
   wireStSwipe();                          // 14/10/2026: החלקה בין עמודים ובין טאבים (core: snbSwipe)
   if (!CW_OK && !window._stKey) {          // עם CloseWatcher גם Escape הוא בקשת סגירה — בלי מאזין משלנו
     window._stKey = true;

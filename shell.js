@@ -81,6 +81,16 @@ export function createShell(o) {
   if (o.onBrand) brand.addEventListener('click', o.onBrand);
   const left = h('div', 'appbar-left');
   const sub = h('div', 'appbar-sub src-row'); sub.hidden = true;           // קפסולת מצב של האפליקציה (Invest: מצב השוק)
+  /* 03/11/2026 (סבב קפיצות 10, הקלטת Studio: הבועה בהדר "כל הזמן מתרעננת", ופעם אחת נראתה כמלבן אדום בלי טקסט ובלי פינות):
+     כל ציור של הבית בנה בועה חדשה והחליף את הקודמת. בועת זכוכית חדשה = שכבה חדשה, ובטלפון היא מוצגת לפני שנצבעה.
+     עכשיו הבועה הקיימת נשארת ומקבלת את המחלקות, התכונות והתוכן של החדשה (רק מה שהשתנה). הנגיעה עוברת לבועה החדשה
+     (שלא נכנסה ל־DOM), כדי שהפעולה תמיד תהיה מהציור האחרון. הפעולה של הבועה היא ניווט בלבד (מסך החיבור / מסך הגיבוי) */
+  sub.addEventListener('click', (e) => {
+    const f = sub._fwd;
+    if (!f || f.isConnected) return;
+    e.stopPropagation(); e.preventDefault();
+    f.click();
+  }, true);
   const acts = h('div', 'appbar-actions');
   /* o.action = {icon, label, on}: כפתור עם שני פנים כמו ₪ ב־Invest — רגיל = הפעולה של האפליקציה (Academy: הוספת ספר),
      בתפריט הפתוח = בהיר/כהה. בלעדיו — כפתור הערכה מופיע רק כשהתפריט פתוח */
@@ -182,8 +192,25 @@ export function createShell(o) {
   return {
     el: hdr,
     close: () => setOpen(false),
-    setStatus(node) { sub.textContent = ''; if (node) sub.append(node); sub.hidden = !node; },
+    setStatus(node) { statusSet(sub, node); },
   };
+}
+
+/* סבב קפיצות 10: הבועה בהדר מתעדכנת במקום (ראו למעלה). מיוצאת לבדיקה */
+export function statusSet(sub, node) {
+  const cur = sub.childNodes.length === 1 ? sub.firstElementChild : null;
+  if (node && cur && cur !== node && cur.tagName === node.tagName) {
+    if (cur.outerHTML !== node.outerHTML) {
+      for (const a of [...cur.attributes]) if (!node.hasAttribute(a.name)) cur.removeAttribute(a.name);
+      for (const a of [...node.attributes]) if (cur.getAttribute(a.name) !== a.value) cur.setAttribute(a.name, a.value);
+      if (cur.innerHTML !== node.innerHTML) cur.replaceChildren(...node.childNodes);
+    }
+    sub._fwd = node; sub.hidden = false;
+    return cur;
+  }
+  sub._fwd = null;
+  sub.textContent = ''; if (node) sub.append(node); sub.hidden = !node;
+  return node;
 }
 
 /* מסך הכניסה של Academy ו־Studio (13/10/2026, בקשת המשתמש: "מסך התחברות כזה בכל העמודים") — אותו מסך של Invest
