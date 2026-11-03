@@ -87,6 +87,12 @@ ok(/width:32px;height:32px;border-radius:50%/.test(vjs) && /setAttribute\('aria-
   const tab = R(B + 'BrTab.kt');
   ok(/fun liveOnly\(\) = live && !pageIsVideo\(\) && embed\.isEmpty\(\) && found\.size == 0/.test(tab) && /if \(liveOnly\(\)\) page else null/.test(tab), 'הדף הוא המועמד רק כשלא נמצא שום דבר אחר');
   ok(/d\?\.startsWith\(BrVideo\.LIVE\) == true/.test(act) && /t\.live = false/.test(act) && /t\.liveOnly\(\) && DmPre\.state\(t\.page\) == 3\)\) 0/.test(act), 'נגן על המסך → בדיקה; yt-dlp לא מצא → בלי כפתור'); }
+// 03/11/2026 (דיווח המשתמש בסרטון: מהחיפוש של גוגל — לפעמים בלי כפתור על הנגן, והתפריט "טוען ולא נטען")
+ok(/function tl\(el\)[\s\S]{0,200}:modal[\s\S]{0,120}:popover-open/.test(vjs) && /\(tl\(bx\)\|\|document\.documentElement\)/.test(vjs)
+  && /var o=host\.getBoundingClientRect\(\),ox=o\.left,oy=o\.top;/.test(vjs) && /btn\.style\.top=\(top-oy\)\+'px'/.test(vjs), 'נגן בחלון בשכבה העליונה — הכפתור בתוך החלון, עם תיקון ההיסט');
+ok(/val YT_ORIGINS = setOf\("https:\/\/www\.youtube\.com", "https:\/\/www\.youtube-nocookie\.com"\)/.test(vjs) && vjs.includes('if(window.top===window||!/^')
+  && /addWebMessageListener\(w, "snbYt", BrVideo\.YT_ORIGINS\) \{ _, msg, _, main, _ -> if \(!main\)/.test(act) && /addDocumentStartJavaScript\(w, BrVideo\.YT_FRAME, BrVideo\.YT_ORIGINS\)/.test(act), 'האיכויות מתוך מסגרת יוטיוב — רק ממקורות יוטיוב, רק במסגרת משנה');
+ok(/fun ytFrame\(t: BrTab, raw: String\)[\s\S]{0,300}if \(t\.private \|\| e\.isEmpty\(\)[\s\S]{0,200}YtPage\.toInfo\(org\.json\.JSONObject\.quote\(raw\), e\)/.test(act), 'רק לנגן המוטמע של הטאב, ו־toInfo בודק שזה אותו סרטון');
 ok(/if\(!box\|\|N<=0\)/.test(vjs) && /function up\(n,l,m,k\)\{N=\+n\|\|0/.test(vjs), 'מופיע רק כשיש נגן על המסך וגם הדפדפן מצא מה להוריד');
 // 26/10/2026: התפריט שנפתח מהכפתור — האיכויות מהבדיקה ברקע, הבחירה עם המפתח של הטאב, ההורדה בלי לצאת מהדף
 ok(/Object\.defineProperty\(window,'__snbUp',\{value:up,writable:false,configurable:false\}\)/.test(vjs), 'הדף לא יכול להחליף את __snbUp (ולגנוב את המפתח)');

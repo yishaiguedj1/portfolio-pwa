@@ -1273,6 +1273,9 @@ class BrowserActivity : ComponentActivity() {
                 }
             }
             if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) WebViewCompat.addDocumentStartJavaScript(w, BrVideo.JS, setOf("*"))
+            // נגן יוטיוב מוטמע (למשל בחיפוש של גוגל): רשימת האיכויות מתוך המסגרת שלו — רק ממקורות יוטיוב (BrVideo.YT_FRAME)
+            WebViewCompat.addWebMessageListener(w, "snbYt", BrVideo.YT_ORIGINS) { _, msg, _, main, _ -> if (!main) msg.data?.let { ytFrame(t, it) } }
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) WebViewCompat.addDocumentStartJavaScript(w, BrVideo.YT_FRAME, BrVideo.YT_ORIGINS)
             // מה מתנגן בדף (כל המסגרות) — לניגון ברקע; ובאותו סקריפט מהירות הווידאו של האתר
             WebViewCompat.addWebMessageListener(w, "snbPlay", setOf("*")) { _, msg, _, _, _ ->
                 val p = msg.data == "1"; t.playing = p
@@ -1444,6 +1447,14 @@ class BrowserActivity : ComponentActivity() {
 
     /** הנגן המוטמע שבדף (BrTab.embed) — האחרון שנטען / שעל המסך */
     fun setEmbed(t: BrTab, e: String) { if (t.embed != e) { t.embed = e; t.recount() } }
+
+    /** האיכויות מנגן יוטיוב מוטמע (BrVideo.YT_FRAME) — רק לנגן המוטמע של הטאב (toInfo בודק שזה אותו סרטון), לא בטאב פרטי */
+    fun ytFrame(t: BrTab, raw: String) {
+        val e = t.embed
+        if (t.private || e.isEmpty() || raw.length > 200_000 || DmPre.state(e) == 2) return
+        val info = YtPage.toInfo(org.json.JSONObject.quote(raw), e) ?: return
+        if (DmPre.seed(e, info)) pushDl(t)
+    }
 
     /** הכפתור שעל הנגן (BrVideo): המצב לדף — כמה נמצא (0 = בלי כפתור; גם כשכובה בהגדרות) והתווית */
     fun pushDl(t: BrTab) {
