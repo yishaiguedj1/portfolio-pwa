@@ -1090,6 +1090,7 @@ html:has(.rd)[data-theme="dark"] .lib-sheet { background: #1C1C1E !important; }
   text-shadow: 0 0 1px var(--bg), 0 0 3px var(--bg), 0 0 7px color-mix(in srgb, var(--bg) 90%, transparent), 0 0 14px color-mix(in srgb, var(--bg) 70%, transparent);
 }
 .lib-dial[hidden] { display: none; }
+html:has(.lib-veil) .lib-dial { visibility: hidden; }   /* גיליון פתוח: lib-root (900) מתחת לחוגה (910) — בלי זה החוגה מכסה את כפתורי הגיליון */
 html.lib-dock .lib-root { padding-bottom: calc(var(--dock-h, 120px) + 14px + env(safe-area-inset-bottom)); }
 html.lib-dock #toast.toast { bottom: calc(var(--dock-h, 120px) + 12px + env(safe-area-inset-bottom, 0px)); }
 
@@ -1129,6 +1130,9 @@ html.lib-dock #toast.toast { bottom: calc(var(--dock-h, 120px) + 12px + env(safe
 .pl-sample mark { color: inherit; border-radius: 4px; padding: 0 1px; }
 .pl-sample mark.after { background: rgba(52, 199, 89, .22); }
 .pl-sample mark.before { background: rgba(255, 59, 48, .18); }
+.lib-sheet:has(.pl-foot) { padding-bottom: 0; }   /* הריפוד של הגיליון השאיר רצועה מתחת לסרגל הדביק, והתוכן נראה דרכה */
+.lib-sheet:has(.pl-foot) .pl-foot { margin: 0 -32px -16px; padding-inline: 32px; padding-bottom: calc(42px + env(safe-area-inset-bottom, 0px));   /* בגיליון: לכל הרוחב (גיליון 16 + pl 16) ועד הקצה, באותו חומר כמו הגיליון — לא מלבן אטום (שחור בכהה) */
+  background: var(--surface); -webkit-backdrop-filter: saturate(1.8) blur(28px); backdrop-filter: saturate(1.8) blur(28px); }
 .pl-foot { position: sticky; bottom: 0; display: flex; flex-direction: column; gap: 10px; padding-block: 10px calc(4px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(var(--surface), var(--surface)), var(--bg);   /* אטום: --surface שקוף למחצה בגיליון */ border-top: 1px solid var(--card-border); }
 .pl-delta { margin: 0; text-align: center; font-size: 14.5px; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
 .pl-delta b { color: #248A3D; }
@@ -1276,3 +1280,29 @@ textarea.be-inp { resize: vertical; line-height: 1.55; }
 .be-dl i { flex: none; width: 12px; font-style: normal; color: var(--on-surface-var); user-select: none; }
 .be-dl.a { background: var(--be-add); } .be-dl.r { background: var(--be-del); } .be-dl.c { color: var(--on-surface-var); }
 .be-dsk { padding: 2px 10px; font-size: 11.5px; font-weight: 600; color: var(--on-surface-var); background: var(--surface-2); }
+
+/* Academy Pro גל 3 — המרות (libconvert.js): הוספה, המרה, ספר מכמה מאמרים, ייצוא. לפי ת־עיצוב: גיליון, קבוצות, גלולות */
+.lib-root .lib-sheet .cv-pick { gap: 12px; min-height: 56px; cursor: pointer; width: 100%; text-align: start; }
+.cv-ic { flex: none; width: 34px; height: 34px; border-radius: var(--radius-sm); display: grid; place-items: center; background: var(--surface-2); color: var(--primary-dark, var(--primary));
+  font: 700 10.5px/1 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: .02em; }
+.cv-sub { margin: -4px 0 0; font-size: 14px; color: var(--on-surface-var); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.cv-note { margin: 0; font-size: 13.5px; color: var(--on-surface-var); padding-inline: 4px; }
+.cv-seg { display: flex; gap: 2px; padding: 3px; border-radius: var(--pill); background: var(--surface-2); }
+.lib-root .lib-sheet .cv-segb { flex: 1; min-height: 34px; padding: 6px 8px; border-radius: var(--pill); background: transparent; color: var(--on-surface-var); font-size: 14.5px; font-weight: 600; border: 0; }
+.lib-root .lib-sheet .cv-segb[aria-checked="true"] { background: var(--surface); color: var(--on-surface); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+[data-theme="dark"] .lib-root .lib-sheet .cv-segb[aria-checked="true"] { background: color-mix(in srgb, var(--on-surface) 18%, transparent); }
+.cv-prog { display: flex; flex-direction: column; gap: 6px; }
+.cv-pl { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
+.cv-warn { color: #B25000; text-align: end; }
+[data-theme="dark"] .cv-warn { color: #FF9F0A; }
+.cv-field { width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: var(--radius-sm); border: 0; background: var(--surface-2); color: var(--on-surface); font: inherit; font-size: 16px; }
+.cv-ta { min-height: 140px; resize: vertical; line-height: 1.5; }
+.cv-paste { display: flex; flex-direction: column; gap: 8px; }
+.cv-prog[hidden], .cv-paste[hidden], .cv-warn[hidden] { display: none; }
+.cv-arts .cv-art { gap: 10px; touch-action: pan-y; }
+.cv-drag { flex: none; color: var(--on-surface-var); letter-spacing: -2px; font-size: 16px; cursor: grab; touch-action: none; padding: 8px 2px; user-select: none; }
+.cv-art.cv-dragging { background: var(--surface-2); box-shadow: 0 6px 18px rgba(0,0,0,.18); position: relative; z-index: 1; }
+.lib-root .lib-sheet .cv-mini { flex: none; min-width: 34px; height: 34px; padding: 0 10px; border-radius: var(--pill); border: 0; background: var(--surface-2); color: var(--on-surface); font-size: 15px; font-weight: 600; }
+.lib-root .lib-sheet .cv-mini:disabled { opacity: .35; }
+.lib-root .lib-sheet .bk-cta.cv-ghost { background: var(--surface-2) !important; color: var(--on-surface) !important; }
+.pl.busy .cv-pick { opacity: .5; pointer-events: none; }

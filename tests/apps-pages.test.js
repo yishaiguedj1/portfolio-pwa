@@ -129,8 +129,8 @@ ok(/\[#&\]studio=\(j\[A-Za-z0-9_-\]\{20\}\)/.test(read('studio-app.js')), 'studi
   // 13/10/2026 (בקשת המשתמש): בלי הבר האפור — ה־+ בהדר מימין לגלובוס, הגיבוי וההוספה בהגדרות, הבועה בהדר
   { const aa = read('academy-app.js');
     ok(/const act = o\.action \|\| null;/.test(sh) && /btnFacesHTML\(act\.icon, themeIcon\(\)\)/.test(sh) && /if \(act && !isOpen\(\)\) \{ act\.on\(\); return; \}/.test(sh), 'shell: כפתור פעולה — סגור = הפעולה, פתוח = בהיר/כהה (כמו $ ב־Invest)');
-    ok(/action: \{ label: t\('libImport'\), on: \(\) => sa\.addBook && sa\.addBook\(\),\s*icon: _IC_PRE \+/.test(aa), 'Academy: ה־+ בהדר = הוספת ספר, אייקון בסגנון של שאר הכפתורים (_IC_PRE)');
-    ok(/SA\.addBook = addBookPick/.test(lib) && /function mineCard\(\)/.test(lib) && /home\.append\(mineCard\(\)\)/.test(lib), 'Academy: הגיבוי, ההוספה והאיפוס — בכרטיס "הספרייה שלי" בהגדרות');
+    ok(/action: \{ label: t\('cvAddT'\), on: \(\) => sa\.addBook && sa\.addBook\(\),\s*icon: _IC_PRE \+/.test(aa), 'Academy: ה־+ בהדר = הוספת ספר, אייקון בסגנון של שאר הכפתורים (_IC_PRE)');
+    ok(/SA\.addBook = openAddSheet/.test(lib) && /function mineCard\(\)/.test(lib) && /home\.append\(mineCard\(\)\)/.test(lib), 'Academy: הגיבוי, ההוספה והאיפוס — בכרטיס "הספרייה שלי" בהגדרות');
     ok(/if \(shell\) \{ bkAdopt\(\); shell\.setStatus\(backupPill\(\)\); if \(shell\.el\.parentNode !== home\) home\.prepend\(shell\.el\);(?: if \(typeof animSync === 'function'\) animSync\(shell\.el\);)? \}\s*else home\.append\(top, hrow\);/.test(lib), 'Academy: בדף העצמאי בלי שורת הכותרת האפורה — בועת הגיבוי בהדר, תמיד');
     // המחרוזות של דפי האפליקציות עצמם נכנסות לקובץ המחרוזות (עד 13/10/2026 התפריט הציג "shellBackup")
     for (const [f, sf] of [['academy-app.js', 'strings-academy.js'], ['studio-app.js', 'strings-studio.js']]) {
