@@ -67,6 +67,9 @@ function fxNeeds(d) {
   for (const x of (d.cashTransactions || [])) if (/dividend|withholding|interest|lieu|fee/i.test(x.type || '')) add(x.currency, String(x.date || '').slice(0, 10));
   for (const x of (d.taxEvents || [])) add(x.currency, String(x.date || '').slice(0, 10));
   for (const v of Object.values(settings().tinCost || {})) add('USD', v && v.date);
+  // מדד המחירים (op:'boifx', cur:'CPI'): נייר שקלי ריאלי והצמדת עודף הזיכוי — מהעסקה הראשונה
+  const first = [...(d.trades || []), ...(d.cashTransactions || [])].map((x) => String(x.date || '').slice(0, 10)).filter(Boolean).sort()[0];
+  if (first) need.CPI = first;
   // פוזיציה בלי עסקאות — מספיקים השערים של השבועיים האחרונים (שער היום לפעמים עוד לא פורסם)
   const back = new Date(Date.now() - 14 * 864e5).toISOString().slice(0, 10);
   for (const x of (d.positions || [])) add(x.currency, back);
@@ -79,8 +82,8 @@ async function loadFx(need) {
     try {
       const j = await E.api({ op: 'boifx', cur: cur, from: need[cur] });
       if (j && j.ok && Array.isArray(j.rows) && j.rows.length) S.fx[cur] = { from: need[cur], rows: j.rows };
-      else S.fxErr = true;
-    } catch (e) { S.fxErr = true; }
+      else if (cur !== 'CPI') S.fxErr = true;   // בלי מדד — נייר שקלי נשאר נומינלי ומסומן (לא "חסרים שערים")
+    } catch (e) { if (cur !== 'CPI') S.fxErr = true; }
   }));
 }
 const fxOf = (cur, d) => (S.fx[cur] ? tiRateOn(S.fx[cur].rows, d) : null);
@@ -96,11 +99,12 @@ function compute() {
   const st = settings();
   // 02/11/2026 (שלבים 7–12): פעולות תאגידיות והעברות ניירות, ההחלטות של המשתמש, תושבות וההגדרות השנויות במחלוקת
   const ev = d.taxEvents || [];
-  const f = tiFifo(d.trades || [], fxOf, { corp: ev.filter((e) => e.k === 'ca'), tin: ev.filter((e) => e.k === 'tr'), alloc: st.alloc || {}, tinCost: st.tinCost || {} });
+  const cpi = S.fx.CPI ? (dt) => tiRateOn(S.fx.CPI.rows, dt) : null;
+  const f = tiFifo(d.trades || [], fxOf, { cpi: cpi, corp: ev.filter((e) => e.k === 'ca'), tin: ev.filter((e) => e.k === 'tr'), alloc: st.alloc || {}, tinCost: st.tinCost || {} });
   const R = tiResident(f.sales, tiDividends(d.cashTransactions || [], fxOf), st.res);
   const sales = R.sales, divs = R.divs;
   const yo = { carry: Number(st.carry0) || 0, other: st.other || {}, otherCap: st.otherCap || {}, noOffInt: !!st.noOffInt, poolCg: !!st.poolCg,
-    fxTax: !!st.fxTax, fx: f.fx || [], sub: st.sub || [], filed: st.filed || {} };
+    fxTax: !!st.fxTax, fx: f.fx || [], sub: st.sub || [], filed: st.filed || {}, cpi: cpi };
   const years = tiYears(sales, divs, yo);
   const nowY = new Date().getFullYear();
   const yIdx = new Map(years.map((y) => [y.year, y]));
@@ -110,7 +114,7 @@ function compute() {
     years.push(cur); yIdx.set(nowY, cur);
   }
   const priceOf = (sym) => { const q = E.quote && E.quote(sym); return q && q.close > 0 ? q.close : null; };
-  const unreal = tiUnrealized(f.open, priceOf, fxNow, 0);
+  const unreal = tiUnrealized(f.open, priceOf, fxNow, 0, cpi);
   const health = tiCheck(f.open, d.positions || []);
   return { d, f, sales, divs, yo, years, yIdx, unreal, health, w8: tiW8(divs), estate: tiEstate(d.positions || [], priceOf), nowY, st };
 }
@@ -200,7 +204,7 @@ function render(loading) {
   for (const yr of C.years) for (const f of yr.flags) flags.add(f);
   wrap.appendChild(h('div', { class: 'tx-note' }, [h('span', { text: 'ⓘ' }), h('span', {}, [h('b', { text: T('txNoteB') }), ' ' + T('txNote') +
     (S.fxErr ? ' ' + T('txNoteFx') : '') + (flags.has('nominalIls') ? ' ' + T('txNoteIls') : '') +
-    (['deriv', 'short', 'corp', 'resEx', 'sub', 'disputed', 'crypto', 'mgmtFee'].some((k) => flags.has(k)) ? ' ' + T('txNoteEst') : '') +
+    (['deriv', 'short', 'corp', 'resEx', 'sub', 'disputed', 'crypto', 'mgmtFee', 'cpiReal'].some((k) => flags.has(k)) ? ' ' + T('txNoteEst') : '') +
     (flags.has('dataFee') ? ' ' + T('txNoteData') : '')])]));
   if (S.tab === 'year') paintYear(wrap, C);
   else if (S.tab === 'today') paintToday(wrap, C);

@@ -138,6 +138,22 @@ function stubFetch(text, status = 200) {
   ok(caX.taxEvents[0].k === 'ca' && caX.taxEvents[0].type === 'FS' && caX.taxEvents[0].qty === 30 && caX.taxEvents[0].actionId === '9' && caX.taxEvents[0].date === '2026-01-10', 'CorporateAction: שדות');
   ok(caX.taxEvents[1].k === 'tr' && caX.taxEvents[1].qty === 10 && caX.taxEvents[1].symbol === 'XYZ', 'Transfer ניירות: כמות');
   ok(caX.cashTransactions.length === 1 && caX.cashTransactions[0].amount === 100, 'Transfer מזומן: נשאר בתזרים');
+  // 03/11/2026: שאילתה של שני חשבונות — שני FlexStatement (עד עכשיו נקרא רק הראשון)
+  const two = statementToJson(parseXml('<FlexQueryResponse><FlexStatements>' +
+    '<FlexStatement accountId="U1" fromDate="20260101" toDate="20260105" baseCurrency="USD"><Trades><Trade symbol="A" quantity="1" tradeID="1" dateTime="20260102"/></Trades>' +
+    '<OpenPositions><OpenPosition symbol="A" position="1" markPrice="10" positionValue="10"/></OpenPositions>' +
+    '<EquitySummaryInBase><EquitySummaryByReportDateInBase reportDate="20260102" total="100"/><EquitySummaryByReportDateInBase reportDate="20260103" total="110"/></EquitySummaryInBase>' +
+    '<ChangeInNAV fromDate="20260101" toDate="20260105" startingValue="100" endingValue="110" mtm="10" twr="10"/></FlexStatement>' +
+    '<FlexStatement accountId="U2" fromDate="20260101" toDate="20260105" baseCurrency="USD"><Trades><Trade symbol="A" quantity="2" tradeID="2" dateTime="20260102"/></Trades>' +
+    '<OpenPositions><OpenPosition symbol="A" position="2" markPrice="10" positionValue="20"/></OpenPositions>' +
+    '<EquitySummaryInBase><EquitySummaryByReportDateInBase reportDate="20260102" total="300"/></EquitySummaryInBase>' +
+    '<ChangeInNAV fromDate="20260101" toDate="20260105" startingValue="300" endingValue="330" mtm="30" twr="10"/></FlexStatement>' +
+    '</FlexStatements></FlexQueryResponse>'));
+  ok(two.trades.length === 2 && two.trades[0].account === 'U1' && two.trades[1].account === 'U2', 'שני חשבונות: כל העסקאות, עם מספר החשבון');
+  ok(two.positions.length === 1 && two.positions[0].qty === 3 && two.positions[0].marketValue === 30, 'שני חשבונות: אחזקה מסוכמת');
+  ok(two.navDaily.length === 1 && two.navDaily[0].total === 400, 'שני חשבונות: NAV יומי רק ביום ששניהם דיווחו');
+  ok(two.navHistory.length === 1 && two.navHistory[0].endingValue === 440 && Math.abs(two.navHistory[0].twr - 10) < 1e-9, 'שני חשבונות: ChangeInNAV מסוכם');
+  ok(two.meta.accountId === 'U1,U2' && two.meta.accounts === 2, 'שני חשבונות: meta');
   ok(lotX.meta.fields.Trade.includes('multiplier') && lotX.meta.fields.lod.join() === 'CLOSED_LOT,EXECUTION,SYMBOL_SUMMARY' &&
     !JSON.stringify(lotX.meta.fields).includes('U0'), 'meta.fields: שמות וקטגוריות בלבד, בלי ערכים');
   const ordX = statementToJson(parseXml('<FlexStatement><Trades><Trade levelOfDetail="ORDER" symbol="B" quantity="1"/><Trade levelOfDetail="CLOSED_LOT" symbol="B" quantity="1"/><Trade symbol="C" quantity="1"/></Trades></FlexStatement>'));
