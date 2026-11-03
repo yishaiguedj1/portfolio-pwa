@@ -450,6 +450,7 @@ private fun PageScreen(a: BrowserActivity) {
     LocalFloat(a, t)
     // הגל השישי
     if (a.oursSheet) OursSheet(a, t)
+    if (a.scanSheet) ScanSheet(a)
     if (a.chapSheet) ChapSheet(a)
     if (a.stockSheet) StockSheet(a)
 }
@@ -1057,6 +1058,8 @@ private fun MenuSheet(a: BrowserActivity) {
             if (web) MItem(R.string.brLocal, BrIcons.Phone, badge = if (a.capTab != null) "CC" else null) { close(); a.localSheet = true }
             // הגל השישי — רק אצלנו (Studio, Academy, Invest)
             MItem(R.string.brOurs, BrIcons.Sparkle, badge = if (t?.subs != null) "CC" else null) { close(); a.oursSheet = true }
+            // 03/11/2026 סריקת אתר — כל הסרטונים באתר, לפי הפרקים, ל־DM
+            if (web || a.scanRun) MItem(R.string.brScan, BrIcons.Video, badge = if (a.scanRun) a.scanGroups.sumOf { it.items.size }.toString() else null) { close(); a.scanOpen() }
             MDiv()
             MItem(R.string.brSettings, BrIcons.CSettings) { close(); a.screen = BrowserActivity.Screen.SETTINGS }
         }
@@ -4131,6 +4134,113 @@ private fun StockSheet(a: BrowserActivity) {
                 }
             }
             Text(stringResource(R.string.brStockNote), Modifier.padding(horizontal = 32.dp), color = c.mute, fontSize = 13.sp, lineHeight = 18.sp)
+        }
+    }
+}
+
+/* ======================= 03/11/2026 סריקת אתר (BrScan) ======================= */
+
+/** בחירת היקף → סריקה עדינה (אפשר לסגור את הגיליון והיא ממשיכה) → רשימה מסודרת לפי סדרה/עונה/פרק → DM */
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun ScanSheet(a: BrowserActivity) {
+    val c = LocalBr.current
+    var mode by remember { mutableStateOf(BrScan.Mode.LINKS) }
+    var cap by remember { mutableStateOf(300) }
+    var h by remember { mutableStateOf(1080) }
+    val all = a.scanGroups.flatMap { it.items }
+    val off = remember(a.scanStart) { mutableStateListOf<String>() }
+    val pick = all.map { it.id }.filter { it !in off }.toSet()
+    val idle = !a.scanRun && a.scanEnd == null
+    ModalBottomSheet(onDismissRequest = { a.scanSheet = false }, containerColor = c.screen) {
+        Column(Modifier.navigationBarsPadding().padding(bottom = 12.dp)) {
+            SheetHead(stringResource(R.string.brScan), BrScan.host(a.scanStart).ifEmpty { null },
+                lead = { Icon(BrIcons.Video, null, Modifier.size(24.dp), tint = c.tint) }, ltrTitle = false, close = { a.scanSheet = false })
+            val chip = @Composable { label: String, on: Boolean, click: () -> Unit ->
+                Text(label, Modifier.padding(end = 6.dp, bottom = 6.dp).clip(RoundedCornerShape(16.dp)).background(if (on) c.tint.copy(alpha = 0.16f) else c.fill)
+                    .clickable(onClick = click).padding(horizontal = 14.dp, vertical = 7.dp), color = if (on) c.tint else c.fg, fontSize = 15.sp)
+            }
+            val note = @Composable { s: String -> Text(s, Modifier.padding(horizontal = 20.dp, vertical = 4.dp), color = c.mute, fontSize = 13.sp, lineHeight = 18.sp) }
+            if (idle) {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text(stringResource(R.string.brScanWhere), Modifier.padding(start = 20.dp, top = 4.dp, bottom = 6.dp), color = c.mute, fontSize = 14.sp)
+                    androidx.compose.foundation.layout.FlowRow(Modifier.padding(horizontal = 16.dp)) {
+                        listOf(BrScan.Mode.PAGE to R.string.brScanPage, BrScan.Mode.LINKS to R.string.brScanLinks, BrScan.Mode.SECTION to R.string.brScanSection,
+                            BrScan.Mode.SITE to R.string.brScanSite).forEach { (m, l) -> chip(stringResource(l), mode == m) { mode = m } }
+                    }
+                    if (mode != BrScan.Mode.PAGE) {
+                        Text(stringResource(R.string.brScanMax), Modifier.padding(start = 20.dp, top = 8.dp, bottom = 6.dp), color = c.mute, fontSize = 14.sp)
+                        androidx.compose.foundation.layout.FlowRow(Modifier.padding(horizontal = 16.dp)) {
+                            listOf(100, 300, 1000).forEach { n -> chip(n.toString(), cap == n) { cap = n } }
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    note(stringResource(if (a.scanPriv) R.string.brScanPrivate else if (a.scanLogged) R.string.brScanLogged else R.string.brScanLogin))
+                    note(stringResource(R.string.brScanPolite))
+                    Button({ a.scanGo(mode, if (mode == BrScan.Mode.PAGE) 1 else cap) }, Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth().height(48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Color.White)) {
+                        Text(stringResource(R.string.brScanGo), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+                return@Column
+            }
+            // מצב: רץ / הסתיים
+            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (a.scanRun) { CircularProgressIndicator(Modifier.size(18.dp), color = c.tint, strokeWidth = 2.dp); Spacer(Modifier.width(10.dp)) }
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.brScanProg, a.scanPages, all.size), color = c.fg, fontSize = 15.sp)
+                    val e = a.scanEnd
+                    if (a.scanRun && a.scanCur.isNotEmpty()) Text(a.scanCur.substringAfter("://"), color = c.mute, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        style = TextStyle(textDirection = TextDirection.Ltr))
+                    else if (e != null) Text(stringResource(when (e) {
+                        BrScan.End.DONE -> R.string.brScanEndDone; BrScan.End.CAP -> R.string.brScanEndCap; BrScan.End.STOPPED -> R.string.brScanEndStopped
+                        BrScan.End.BUSY -> R.string.brScanEndBusy; BrScan.End.DENIED -> R.string.brScanEndDenied; BrScan.End.LOGIN -> R.string.brScanEndLogin
+                        BrScan.End.FAIL -> R.string.brScanEndFail
+                    }), color = if (e == BrScan.End.DONE || e == BrScan.End.CAP || e == BrScan.End.STOPPED) c.mute else Red, fontSize = 13.sp, lineHeight = 18.sp)
+                }
+                TextButton({ if (a.scanRun) a.scanHalt() else a.scanReset() }) { Text(stringResource(if (a.scanRun) R.string.brScanStop else R.string.brScanAgain), color = c.tint, fontSize = 15.sp) }
+            }
+            if (all.isEmpty()) { if (!a.scanRun) note(stringResource(R.string.brScanNone)); return@Column }
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                listOf(1080, 720, 480, 0).forEach { q -> chip(if (q == 0) stringResource(R.string.brScanAudio) else q.toString() + "p", h == q) { h = q } }
+                Spacer(Modifier.weight(1f))
+                TextButton({ if (off.isEmpty()) off.addAll(all.map { it.id }) else off.clear() }) {
+                    Text(stringResource(if (off.isEmpty()) R.string.brScanClear else R.string.brScanAll), color = c.tint, fontSize = 14.sp)
+                }
+            }
+            androidx.compose.foundation.lazy.LazyColumn(Modifier.weight(1f, fill = false).heightIn(max = 460.dp)) {
+                a.scanGroups.forEach { g ->
+                    item(key = "g:" + g.key) {
+                        val name = g.name.ifEmpty { stringResource(R.string.brScanOther) } + if (g.season >= 0 && g.key.isNotEmpty()) " · " + stringResource(R.string.brScanSeason, g.season) else ""
+                        val ids = g.items.map { it.id }
+                        val allOn = ids.none { it in off }
+                        Row(Modifier.fillMaxWidth().clickable { if (allOn) off.addAll(ids) else off.removeAll(ids) }.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Text(name, Modifier.weight(1f), color = c.fg, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                style = TextStyle(textDirection = TextDirection.Content))
+                            Text(g.items.size.toString(), color = c.mute, fontSize = 14.sp)
+                        }
+                    }
+                    items(g.items, key = { it.id }) { f ->
+                        val on = f.id !in off
+                        Row(Modifier.fillMaxWidth().clickable { if (on) off.add(f.id) else off.remove(f.id) }.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(24.dp).clip(RoundedCornerShape(6.dp)).background(if (on) c.tint else Color.Transparent).border(2.dp, if (on) c.tint else c.mute, RoundedCornerShape(6.dp)),
+                                contentAlignment = Alignment.Center) { if (on) Icon(BrIcons.Check, null, Modifier.size(18.dp), tint = Color.White) }
+                            Spacer(Modifier.width(14.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(BrScan.fileName(f, g).let { n -> if (f.media.kind == 'f') n.substringBeforeLast('.') else n }, color = c.fg, fontSize = 15.sp, maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis, style = TextStyle(textDirection = TextDirection.Content))
+                                Text(stringResource(when (f.media.kind) { 'f' -> R.string.brScanKindF; 's' -> R.string.brScanKindS; 'e' -> R.string.brScanKindE; else -> R.string.brScanKindP }) +
+                                    " · " + BrScan.host(f.media.url), color = c.mute, fontSize = 13.sp, maxLines = 1)
+                            }
+                        }
+                    }
+                }
+            }
+            Button({ a.scanSend(pick, h) }, Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth().height(48.dp), enabled = pick.isNotEmpty(),
+                colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Color.White)) {
+                Text(stringResource(if (io.github.yishaiguedj1.snowball.dm.DmBridge.remote(a)) R.string.brScanSend else R.string.brFilesGo, minOf(pick.size, io.github.yishaiguedj1.snowball.dm.DmBridge.FILES_MAX)), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }
