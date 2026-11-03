@@ -14,7 +14,7 @@ import { createBackup, waitOAuthCode } from './libbackup.js';
 import { isR2Folder, isR2Id } from './studiostore.js';
 import { bgEligible, bgUpload, bgIdOf, bgDb, bgUpOk } from './studiobg.js';
 import { createPlayer, normCues, issuesList, fmtT, normLadder, normAlt, normPq, normTrackPref, normChapters, normSty, STY_COLORS, STY_Y } from './studioplay.js';
-import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, toStl, termIssues, flagIndex, noteIndex, normMeta, createTimeline, editDiff, editStats, importSubs, seriesOfName, smChanges, cuesReplace, cuesWith } from './studiosubs.js';
+import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, toStl, termIssues, flagIndex, noteIndex, normMeta, createTimeline, editDiff, editStats, importSubs, seriesOfName, smChanges, cuesReplace, cuesWith, fmtTc } from './studiosubs.js';
 import { listTracks, extractTracks, cuesToFile, lang2 } from './studiotracks.js';
 import { createEdlEditor, normEdl, edlPre, edlDur, outDur, silenceSegs, removeRange, addRange, segAt, intersectSegs, cutFillers, normOv, OV_T_MAX, OV_LG_MAX, OV_POS, previewEdl, PV_LEN } from './studioedl.js';
 import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, AI_NOTE_MAX, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges, parseChapters } from './studioai.js';
@@ -296,6 +296,7 @@ export function normJob(j) {
     gd: normGd(s.gd), gs: JOB_RE.test(String(s.gs || '')) ? s.gs : '', gq: normGq(s.gq),   // v387: סט הזהב
     kind: s.kind === 'rr' ? 'rr' : 'tr', rp: JOB_RE.test(String(s.rp || '')) ? s.rp : '',   // מ2: הפקה מחדש (והעבודה המקורית)
     ev: num(s.ev), vh: (Array.isArray(s.vh) ? s.vh : []).slice(0, 20).map(num),   // מ2: גרסת הכתוביות, ומתי נשמרה כל גרסה קודמת
+    vc: (Array.isArray(s.vc) ? s.vc : []).slice(0, 20).map((x) => (FID_RE.test(String(x || '')) ? x : '')),   // C4: קובץ הכתוביות של כל גרסה קודמת (להשוואה)
     folder: FID_RE.test(String(s.folder || '')) ? s.folder : '',
     hl: normLadder(s.hl),                     // איכויות הצפייה (הראשונה = המקור עצמו)
     hla: s.hl ? normAlt(s.hla) : null,        // 22/10/2026: עותק הקול לנגן (הקול המקורי — Dolby/DTS… — נשאר במקור)
@@ -960,7 +961,20 @@ export function normStore(o) {
   const amd = (Array.isArray(src.amd) ? src.amd : []).filter((x) => typeof x === 'string' && JOB_RE.test(x)).slice(-200);   // סבב 10: עבודות שכבר הוצעה להן בדיקת משמעות אוטומטית
   // 29/10/2026 (S1 בסרטון): מצב השרת האחרון — הקפסולה בהדר נכונה כבר בציור הראשון ("שרת המערכת", לא "חיבור Claude" שמתחלף)
   const st = src.st && typeof src.st === 'object' ? { api: normApi(src.st.api), mf: src.st.mf === true } : null;
-  return { settings: migrateSettings(src.settings), drafts, jobs, conn: c, drive: d, sugx, amd, st };
+  return { settings: migrateSettings(src.settings), drafts, jobs, conn: c, drive: d, sugx, amd, st, spkc: normSpkc(src.spkc) };
+}
+/* C3 (סבב 4 של השדרוג): הצבע שבחרת לכל שם דובר — { שם: 0–5 }, עד SPKC_MAX שמות (האחרונים) */
+export const SPKC_MAX = 100;
+export function normSpkc(o) {
+  const out = {};
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return out;
+  for (const [k, v] of Object.entries(o).slice(-SPKC_MAX)) if (typeof k === 'string' && k.trim() && k.length <= 20 && Number.isInteger(v) && v >= 0 && v < 6) out[k] = v;
+  return out;
+}
+function spkcSet(name, i) {
+  const o = Object.assign({}, store.spkc || {});
+  delete o[name]; o[name] = i;   // לסוף — הקיצוץ שומר את האחרונים
+  store.spkc = normSpkc(o); save();
 }
 /* 10/10/2026: ברירת המחדל עברה מ־Opus Medium ל־Sonnet Medium — הגדרות שנשמרו לפני כן (בלי mv) עם הברירה הישנה עוברות פעם אחת
    לחדשה. בחירה אחרת שנשמרה (Sonnet High וכו׳) נשארת
@@ -8088,6 +8102,8 @@ function issueName(k) {
     case 'len': return T('studioIsLen');
     case 'lines': return T('studioIsLines');
     case 'dur': return T('studioIsDur');
+    case 'gap': return T('studioIsGap');      // סבב 4 של השדרוג: לוח הבדיקה
+    case 'cut': return T('studioIsCut');
     default: return T('studioIsEn');
   }
 }
@@ -8160,6 +8176,7 @@ async function seLoad(rec) {
     const only = seOnly === rec.id; seOnly = '';
     me.at = -1;   // 21/10/2026: נפתח על נקודה מסוימת (רק לבדיקה) — הנגן מציג את הפריים שלה, לא את התמונה של העבודה
     me.ed = createSubsEditor({ cues, T, issueName, flash: flashSafe, onAi: () => go('ai', rec.id), flags: seFlags(rec, cues), only, notes: noteIndex(cues, nj), lang: uiLang(), shots: me.meta ? me.meta.sh : [],
+      meta: me.meta, spkOver: store.spkc || {}, onSpkColor: spkcSet,   // סבב 4 של השדרוג: מילים / נשימה, צבע לדובר
       dismissed: new Set(store.sugx || []), onDismiss: (key) => { store.sugx = (store.sugx || []).concat(key).slice(-500); save(); uxAdd(rec, 'sg', 'r'); },
       onSugFix: () => uxAdd(rec, 'sg', 'a'),
       getTime: () => (me.ctl ? me.ctl.video.currentTime || 0 : 0),
@@ -8212,6 +8229,32 @@ async function seSave(then) {
     me.saving = false; seSavePaint(); repaint();
   }
 }
+/* C4 (סבב 4 של השדרוג): מה השתנה מהגרסה הקודמת עד הכתוביות שבעורך עכשיו (editDiff — כמו מ׳3), ואז שחזור */
+const VER_SHOW = 6;
+async function verDiff(rec, i, fileId, box) {
+  const old = box.querySelector('.st-ver-d');
+  if (old) { old.remove(); return; }
+  const d = h('div', 'st-ver-d', T('studioSeLoading'));
+  box.append(d);
+  let txt = '', diff = null;
+  try { diff = editDiff(normCues(await net.driveJson(fileId)), se && se.ed ? se.ed.cues() : []); } catch (e) { txt = T('studioVerErr'); }
+  if (!d.isConnected) return;
+  d.replaceChildren();
+  if (diff) {
+    d.append(h('div', 'st-ver-n', diff.length ? T('studioVerDiff', { n: diff.length }) : T('studioVerSame')));
+    for (const x of diff.slice(0, VER_SHOW)) {
+      const it = h('div', 'st-ver-i');
+      const t0 = (x.a[0] || x.b[0] || {}).s;
+      it.append(h('bdi', 'st-ver-t', t0 != null ? fmtTc(t0) : ''));
+      const bt = x.b.map((c) => c.h.replace(/\n/g, ' ')).join(' / '), at = x.a.map((c) => c.h.replace(/\n/g, ' ')).join(' / ');
+      if (bt) { const del = h('del', null, bt); del.dir = 'rtl'; it.append(del); }
+      if (at) { const ins = h('ins', null, at); ins.dir = 'rtl'; it.append(ins); }
+      d.append(it);
+    }
+    if (diff.length > VER_SHOW) d.append(h('div', 'st-ver-n', T('studioVerMore', { n: diff.length - VER_SHOW })));
+  } else d.append(h('div', 'st-ver-n', txt));
+  d.append(btn('st-btn tint wide', T('studioSeRestore'), () => seRestore(rec, i), 'se-ver-r:' + i));
+}
 function seRestore(rec, i) {
   const doIt = async () => {
     const j = await net.api('cuesRestore', { job: rec.id, i, ev: rec.srv.ev || 0 });
@@ -8254,9 +8297,10 @@ function pageSubs(p) {
   if (se.ctl) top.append(se.ctl.el); else top.append(h('div', 'st-pl-ph', T('studioPlNoSw')));
   if (se.ctl && se.meta && !se.tl) {   // סבב 6: הציר — גל הקול, הכתוביות לפי דובר, חילופי השוטים
     const me = se;
-    se.tl = createTimeline({ meta: se.meta, cues: () => me.ed.cues(), sel: () => me.ed.selected(), video: se.ctl.video, colors: () => me.ed.colors(),
-      seek: (t) => { if (me.ctl) me.ctl.seek(t); }, pick: (k) => me.ed.select(k) });
-    se.tl.el.setAttribute('aria-label', T('studioTlL'));
+    se.tl = createTimeline({ meta: se.meta, cues: () => me.ed.cues(), sel: () => me.ed.selected(), video: se.ctl.video, colors: () => me.ed.colors(), T,
+      seek: (t) => { if (me.ctl) me.ctl.seek(t); }, pick: (k) => me.ed.select(k), edge: (k, e, t) => me.ed.edge(k, e, t) });   // C1: גרירת קצה
+    se.tl.cv.setAttribute('aria-label', T('studioTlL'));
+    if (se.meta.wd) se.tl.el.classList.add('w');   // H1: פס המילים
   }
   if (se.tl) { top.append(se.tl.el); requestAnimationFrame(() => se && se.tl && se.tl.draw()); }
   p.append(top, se.ed.el);
@@ -8282,9 +8326,12 @@ function pageSubs(p) {
   if (vh.length) {
     const det = h('details', 'st-details');
     det.append(h('summary', null, T('studioSeVers', { n: vh.length })), list(...vh.map((at, i) => i).reverse().map((i) => {
-      const r = btn('st-row', null, () => seRestore(rec, i), 'se-ver:' + i);
-      r.append(rowTxt(T('studioSeVerName', { n: i + 1 }), vh[i] ? fmtClock(vh[i]) : ''), h('span', 'st-v', T('studioSeRestore')));
-      return r;
+      const vc = (rec.srv.vc || [])[i];
+      const wrapV = h('div', 'st-ver');
+      const r = btn('st-row', null, () => (vc ? verDiff(rec, i, vc, wrapV) : seRestore(rec, i)), 'se-ver:' + i);
+      r.append(rowTxt(T('studioSeVerName', { n: i + 1 }), vh[i] ? fmtClock(vh[i]) : ''), h('span', 'st-v', vc ? T('studioVerOpen') : T('studioSeRestore')));
+      wrapV.append(r);
+      return wrapV;
     })));
     p.append(det);
   }

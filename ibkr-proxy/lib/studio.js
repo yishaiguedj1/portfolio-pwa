@@ -841,7 +841,7 @@ function publicJob(job, now) {
     fired: job.fired || 0, claimed: job.claimed || 0, ended: job.ended || e.at || 0,
     spec: job.spec || null, files: { a: fileView(job.fa), v: fileView(job.fv), s: fileView(job.fsu), r: fileView(job.fsr), o: Array.isArray(job.fo) ? job.fo : [], c: fileView(job.fc), q: fileView(job.fq), m: fileView(job.fph), w: fileView(job.fpw) },
     folder: FILE_ID_RE.test(String(job.folder || '')) ? job.folder : '',
-    rp: job.rp || '', ev: job.ev || 0, vh: Array.isArray(job.vh) ? job.vh.map((x) => (x && x.at) || 0) : [],   // מ2: הפקה מחדש (העבודה המקורית), גרסת הכתוביות, מתי נשמרה כל גרסה קודמת
+    rp: job.rp || '', ev: job.ev || 0, vh: Array.isArray(job.vh) ? job.vh.map((x) => (x && x.at) || 0) : [], vc: Array.isArray(job.vh) ? job.vh.map((x) => (x && FILE_ID_RE.test(String(x.c || '')) ? x.c : '')) : [],   /* C4 (2/11/2026): קובץ הכתוביות של כל גרסה — להשוואה בטלפון */   // מ2: הפקה מחדש (העבודה המקורית), גרסת הכתוביות, מתי נשמרה כל גרסה קודמת
     sess: job.sess && job.sess.url ? { url: job.sess.url } : null,
     prog: job.prog || null, ed: job.ed || '',
     use: Array.isArray(job.use) ? job.use : Array.isArray(job.use0) ? job.use0 : null,   // v359: טוקנים ועלות (v361: כולל סשנים קודמים)

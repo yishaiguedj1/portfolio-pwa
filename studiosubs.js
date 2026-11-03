@@ -223,32 +223,38 @@ export function sugKey(c, k) {                // טביעה: סוג + הטקסט
 const passes = (c) => !cueIssues(c).some((k) => k !== 'en');
 /* לכל כתובית עם בעיה — תיקון אחד שפותר אותה (אם יש): שבירת שורות מחדש ו/או הארכה לתוך הרווח (עד 2 שנ׳, בלי לגעת
    בשכנות), ואם לא מספיק — מיזוג עם הבאה. מחזיר עד max: { i, k: 'wrap'|'ext'|'wrapext'|'merge', key, cues } */
+const ceil3 = (x) => Math.ceil(x * 1000 - 1e-6) / 1000, floor3 = (x) => Math.floor(x * 1000 + 1e-6) / 1000;
+/* התיקון לכתובית i (גם ללוח הבדיקה, סבב 4 של השדרוג): { k, cues } או null */
+export function fixOf(cues, i) {
+  const c = cues[i], iss = c ? cueIssues(c) : [];
+  if (!iss.length || (iss.length === 1 && iss[0] === 'en')) return null;   // אנגלית שלא תורגמה — רק תרגום (גיליון ה־AI)
+  let fix = c, k = '';
+  if (iss.includes('len') || iss.includes('lines')) {
+    const lines = autoBreak(c.lines.join(' '));
+    if (lines.length <= Q_LINES) { fix = Object.assign({}, fix, { lines }); k = 'wrap'; }
+  }
+  if (iss.includes('cps') || iss.includes('dur')) {
+    const chars = fix.lines.reduce((t, x) => t + x.length, 0), need = Math.max(Q_MIN_DUR, chars / Q_CPS) - (c.e - c.s);
+    const next = cues[i + 1], prev = cues[i - 1];
+    const maxE = next ? next.s - GAP_MIN : Infinity, minS = prev ? prev.e + GAP_MIN : 0;
+    const roomE = Math.max(0, maxE - c.e), roomS = Math.max(0, c.s - minS);
+    if (need > 0 && need <= EXT_MAX && need <= roomE + roomS + 1e-9) {
+      const de = Math.min(need, roomE), ds = need - de;
+      fix = Object.assign({}, fix, { s: Math.max(minS, floor3(c.s - ds)), e: Math.min(maxE, ceil3(c.e + de)) });
+      k = k ? 'wrapext' : 'ext';
+    }
+  }
+  let next = null;
+  if (k && passes(fix)) { next = cues.slice(); next[i] = fix; }
+  else if (cues[i + 1]) { const m = mergeCues(cues, i); if (m && passes(m[i])) { next = m; k = 'merge'; } }
+  return next ? { k, cues: next } : null;
+}
 export function suggestions(cues, dismissed, max = SUG_MAX) {
   const out = [], no = dismissed || new Set();
-  const ceil3 = (x) => Math.ceil(x * 1000 - 1e-6) / 1000, floor3 = (x) => Math.floor(x * 1000 + 1e-6) / 1000;
   for (let i = 0; i < cues.length && out.length < max; i++) {
-    const c = cues[i], iss = cueIssues(c);
-    if (!iss.length || (iss.length === 1 && iss[0] === 'en')) continue;   // אנגלית שלא תורגמה — רק תרגום (גיליון ה־AI)
-    let fix = c, k = '';
-    if (iss.includes('len') || iss.includes('lines')) {
-      const lines = autoBreak(c.lines.join(' '));
-      if (lines.length <= Q_LINES) { fix = Object.assign({}, fix, { lines }); k = 'wrap'; }
-    }
-    if (iss.includes('cps') || iss.includes('dur')) {
-      const chars = fix.lines.reduce((t, x) => t + x.length, 0), need = Math.max(Q_MIN_DUR, chars / Q_CPS) - (c.e - c.s);
-      const next = cues[i + 1], prev = cues[i - 1];
-      const maxE = next ? next.s - GAP_MIN : Infinity, minS = prev ? prev.e + GAP_MIN : 0;
-      const roomE = Math.max(0, maxE - c.e), roomS = Math.max(0, c.s - minS);
-      if (need > 0 && need <= EXT_MAX && need <= roomE + roomS + 1e-9) {
-        const de = Math.min(need, roomE), ds = need - de;
-        fix = Object.assign({}, fix, { s: Math.max(minS, floor3(c.s - ds)), e: Math.min(maxE, ceil3(c.e + de)) });
-        k = k ? 'wrapext' : 'ext';
-      }
-    }
-    let next = null;
-    if (k && passes(fix)) { next = cues.slice(); next[i] = fix; }
-    else if (cues[i + 1]) { const m = mergeCues(cues, i); if (m && passes(m[i])) { next = m; k = 'merge'; } }
-    if (!next) continue;
+    const f = fixOf(cues, i);
+    if (!f) continue;
+    const c = cues[i], k = f.k, next = f.cues;
     const key = sugKey(c, k);
     if (!no.has(key)) out.push({ i, k, key, cues: next });
   }
@@ -335,7 +341,169 @@ export function normMeta(j) {
   } catch (e) { return null; }
   const sh = [];
   for (const t of Array.isArray(j.sh) ? j.sh.slice(0, SH_MAX) : []) if (typeof t === 'number' && t > 0 && t < 86400 && (!sh.length || t > sh[sh.length - 1])) sh.push(t);
-  return { r: META_R, pk, sh };
+  return { r: META_R, pk, sh, wd: normWords(j.wd) };
+}
+
+/* ---------- סבב 4 של השדרוג (2/11/2026): זמן לכל מילה, מילים לא בטוחות, נשימה, בדיקה, דוברים ----------
+   המילים של המקור מ־timeline.json (peaks.py): [[s, e, מילה, ביטחון 0–100 או ‎-1], …] בסדר עולה.
+   **WD_MAX / WD_LEN זהים ל־peaks.py**. בלי מילים (עבודה ישנה) — wd = null והעורך כמו קודם */
+export const WD_MAX = 60000, WD_LEN = 40, UNSURE = 50;
+export function normWords(a) {
+  if (!Array.isArray(a) || !a.length) return null;
+  const n = Math.min(a.length, WD_MAX), s = new Float64Array(n), e = new Float64Array(n), c = new Int8Array(n), w = [];
+  let k = 0, last = -1;
+  for (let i = 0; i < n; i++) {
+    const x = a[i];
+    if (!Array.isArray(x)) continue;
+    const xs = x[0], xe = x[1], xw = typeof x[2] === 'string' ? x[2].trim() : '', xc = x[3];
+    if (typeof xs !== 'number' || !(xs >= 0 && xs < 86400) || typeof xe !== 'number' || !(xe > xs) || !xw || xs < last) continue;
+    s[k] = xs; e[k] = Math.min(xe, xs + 10); w.push(xw.slice(0, WD_LEN));
+    c[k] = Number.isInteger(xc) && xc >= 0 && xc <= 100 ? xc : -1;
+    last = xs; k++;
+  }
+  return k ? { n: k, s: s.subarray(0, k), e: e.subarray(0, k), w, c: c.subarray(0, k) } : null;
+}
+/* המילים שמרכזן בתוך [a, b] — [מ־, עד) באינדקסים (חיפוש בינארי; מילה ארוכה לכל היותר 10 שנ׳) */
+export function wordsIn(wd, a, b) {
+  if (!wd) return [0, 0];
+  let lo = 0, hi = wd.n;
+  while (lo < hi) { const m = (lo + hi) >> 1; if (wd.s[m] < a - 10) lo = m + 1; else hi = m; }
+  let i0 = -1, i1 = -1;
+  for (let i = lo; i < wd.n && wd.s[i] <= b; i++) {
+    const mid = (wd.s[i] + wd.e[i]) / 2;
+    if (mid >= a && mid <= b) { if (i0 < 0) i0 = i; i1 = i + 1; }
+  }
+  return i0 < 0 ? [0, 0] : [i0, i1];
+}
+/* C2: המילים בכתובית שהזיהוי לא בטוח בהן (ביטחון מתחת ל־UNSURE) */
+export function unsureIn(wd, c) {
+  const out = [];
+  if (!wd || !c) return out;
+  const [i0, i1] = wordsIn(wd, c.s, c.e);
+  for (let i = i0; i < i1; i++) if (wd.c[i] >= 0 && wd.c[i] < UNSURE) out.push({ w: wd.w[i], s: wd.s[i], e: wd.e[i], c: wd.c[i] });
+  return out;
+}
+/* המילים הלא בטוחות על הטקסט באנגלית של הכתובית: [[מ־, עד) בתווים, מילה] לפי הסדר — השוואה בלי פיסוק ורישיות */
+const wNorm = (x) => String(x).toLowerCase().replace(/[^\p{L}\p{N}']/gu, '');
+export function markUnsure(en, uns) {
+  const out = [], toks = [], re = /\S+/g;
+  let m;
+  while ((m = re.exec(String(en || '')))) toks.push([m.index, m.index + m[0].length, wNorm(m[0])]);
+  let at = 0;
+  for (const u of uns || []) {
+    const q = wNorm(u.w);
+    if (!q) continue;
+    for (let j = at; j < toks.length; j++) if (toks[j][2] === q) { out.push([toks[j][0], toks[j][1], u]); at = j + 1; break; }
+  }
+  return out;
+}
+/* B4: הנשימה בתוך הכתובית — הרווח הארוך בין מילים (לפחות BR_MIN, לא ב־BR_EDGE הקצוות); בלי מילים — השקט הארוך בגל
+   (25 dB מתחת לשיא של הכתובית). מחזיר { a, b } בשניות או null */
+export const BR_MIN = 0.15, BR_EDGE = 0.4, BR_DB = 106;   // 106 ≈ 25 dB בסולם של peaks.py (255 ל־60 dB)
+export function breathIn(meta, c) {
+  if (!meta || !c) return null;
+  const lo = c.s + BR_EDGE, hi = c.e - BR_EDGE;
+  if (hi <= lo) return null;
+  let best = null;
+  const wd = meta.wd;
+  if (wd) {
+    const [i0, i1] = wordsIn(wd, c.s, c.e);
+    for (let i = i0; i + 1 < i1; i++) {
+      const a = wd.e[i], b = wd.s[i + 1];
+      if (b - a >= BR_MIN && a >= lo && b <= hi && (!best || b - a > best.b - best.a)) best = { a, b };
+    }
+    if (best || i1 - i0 >= 2) return best;   // יש מילים ואין רווח — אין נשימה (לא מנחשים מהגל)
+  }
+  const pk = meta.pk, r = meta.r || META_R;
+  if (!pk || !pk.length) return null;
+  let top = 0;
+  for (let i = Math.max(0, Math.floor(c.s * r)); i < Math.min(pk.length, Math.ceil(c.e * r)); i++) if (pk[i] > top) top = pk[i];
+  const q = top - BR_DB, iA = Math.ceil(lo * r), iB = Math.min(pk.length, Math.floor(hi * r));
+  let a = -1;
+  for (let i = iA; i <= iB; i++) {
+    const quiet = i < iB && pk[i] <= q;
+    if (quiet && a < 0) a = i;
+    if (!quiet && a >= 0) { const len = (i - a) / r; if (len >= BR_MIN && (!best || len > best.b - best.a)) best = { a: a / r, b: i / r }; a = -1; }
+  }
+  return best;
+}
+/* B4: פיצול בנשימה — הזמן לפי הנשימה, הטקסט לפי כמה מהמקור נאמר לפניה (מילים; בלי — לפי הזמן), ברווח הקרוב ליחס
+   (עדיפות לפסיק / נקודה). null = אין נשימה / מילה אחת / חלק קצר מ־MIN_DUR */
+export function splitBreath(cues, i, meta) {
+  const c = cues[i], br = c ? breathIn(meta, c) : null;
+  if (!br) return null;
+  const all = words(c.lines.join(' '));
+  let fr = null;
+  if (meta.wd) {
+    const [i0, i1] = wordsIn(meta.wd, c.s, c.e);
+    let nb = 0;
+    for (let j = i0; j < i1; j++) if (meta.wd.e[j] <= br.a + 1e-6) nb++;
+    if (i1 > i0) fr = nb / (i1 - i0);
+  }
+  if (fr == null) fr = (br.a - c.s) / (c.e - c.s);
+  const target = all.length * fr;
+  let at = -1, sc = Infinity;
+  for (let p = 1; p < all.length - 1; p++) {
+    if (all[p] !== ' ') continue;
+    const d = Math.abs(p - target) / all.length - (/[,.;:?!]/.test(all[p - 1]) ? 0.12 : 0);
+    if (d < sc) { sc = d; at = p; }
+  }
+  if (at < 0) return null;
+  const t1 = r3(Math.min(br.a + 0.05, (br.a + br.b) / 2)), t2 = r3(Math.max(br.b - 0.05, t1 + GAP_MIN));
+  if (t1 - c.s < MIN_DUR || c.e - t2 < MIN_DUR) return null;
+  const ew = words(c.en).split(' ').filter(Boolean), k = Math.round(ew.length * fr);
+  const out = cues.slice();
+  out.splice(i, 1, Object.assign({}, c, { e: t1, lines: autoBreak(all.slice(0, at)), en: ew.slice(0, k).join(' ') }),
+    Object.assign({}, c, { i: -1, s: t2, lines: autoBreak(all.slice(at + 1)), en: ew.slice(k).join(' ') }));
+  return out;
+}
+/* B1: לוח הבדיקה לפי ת־כתוביות — לכל סוג, האינדקסים. gap = פחות משני פריימים לבאה; cut = קצה ליד חיתוך ולא עליו */
+export const QC_KINDS = ['cps', 'dur', 'len', 'lines', 'gap', 'cut'];
+export function qcScan(cues, shots) {
+  const m = {};
+  for (const k of QC_KINDS) m[k] = [];
+  const sh = Array.isArray(shots) && shots.length ? shots : null;
+  (cues || []).forEach((c, i) => {
+    for (const k of cueIssues(c)) if (m[k]) m[k].push(i);
+    const nx = cues[i + 1];
+    if (nx && nx.s - c.e < GAP_MIN - 1e-6) m.gap.push(i);
+    if (sh && (snapEdge(cues, i, 's', sh) || snapEdge(cues, i, 'e', sh))) m.cut.push(i);
+  });
+  return m;
+}
+/* תיקון של הסוגים שנבחרו בכל הכתוביות (צעד ביטול אחד בעורך). מהסוף להתחלה — מיזוג משנה רק את מה שאחרי.
+   מחזיר { cues, n } — n = כמה תיקונים */
+export function qcFix(cues, kinds, shots) {
+  const want = new Set(kinds || []);
+  let cur = cues, n = 0;
+  if (want.has('cut') && Array.isArray(shots) && shots.length) { const r = snapAll(cur, shots); if (r.n) { cur = r.cues; n += r.n; } }
+  for (let i = cur.length - 1; i >= 0; i--) {
+    if (cueIssues(cur[i]).some((k) => want.has(k))) { const f = fixOf(cur, i); if (f) { cur = f.cues; n++; } }
+    const c = cur[i], nx = cur[i + 1];
+    if (want.has('gap') && c && nx && nx.s - c.e < GAP_MIN - 1e-6) {
+      const o = setEdge(cur, i, 'e', r3(nx.s - GAP_MIN));
+      if (o && o !== cur && nx.s - o[i].e >= GAP_MIN - 1e-6) { cur = o; n++; }
+    }
+  }
+  return { cues: cur, n };
+}
+/* C3: דובר לכתובית, ושינוי שם לדובר בכל הכתוביות (השם נשמר בשדה spk — עד 20 תווים, כמו rerender.py) */
+export const SPK_LEN = 20;
+const spkName = (x) => clean(String(x || '')).replace(/\s+/g, ' ').trim().slice(0, SPK_LEN);
+export function setSpk(cues, i, spk) {
+  const c = cues[i], v = spkName(spk);
+  if (!c || !v) return null;
+  if (c.spk === v) return cues;
+  const out = cues.slice(); out[i] = Object.assign({}, c, { spk: v });
+  return out;
+}
+export function renameSpk(cues, from, to) {
+  const v = spkName(to);
+  if (!from || !v) return null;
+  if (v === from) return cues;
+  let hit = false;
+  const out = cues.map((c) => (c.spk === from ? (hit = true, Object.assign({}, c, { spk: v })) : c));
+  return hit ? out : null;
 }
 /* הצמדה לחיתוך (כלל Netflix): התחלה עד SNAP_WIN מחילוף שוט — בדיוק עליו; סוף עד SNAP_WIN מחילוף — שני פריימים לפניו.
    לא חוצים כתובית שכנה ולא מקצרים מתחת ל־MIN_DUR (setEdge). מחזיר כתוביות חדשות או null (אין מה להצמיד) */
@@ -366,29 +534,57 @@ export function snapAll(cues, sh) {
 }
 /* צבע לכל דובר (לפי סדר ההופעה) — רק כשיש לפחות שניים */
 export const SPK_COLORS = ['#64D2FF', '#FFD60A', '#FF9F0A', '#BF5AF2', '#30D158', '#FF6482'];
-export function spkColors(cues) {
-  const m = new Map();
-  for (const c of cues || []) if (c.spk && !m.has(c.spk)) m.set(c.spk, SPK_COLORS[m.size % SPK_COLORS.length]);
+/* C3 (2/11/2026): over = { שם: מספר צבע } — הבחירה שלך, לפי שם הדובר (אותה דמות — אותו צבע בכל הפרקים) */
+export function spkColors(cues, over) {
+  const m = new Map(), o = over && typeof over === 'object' ? over : {};
+  for (const c of cues || []) if (c.spk && !m.has(c.spk)) {
+    const x = o[c.spk];
+    m.set(c.spk, SPK_COLORS[Number.isInteger(x) && x >= 0 && x < SPK_COLORS.length ? x : m.size % SPK_COLORS.length]);
+  }
   return m.size >= 2 ? m : new Map();
 }
-/* הציר מתחת לנגן: חלון של TL_SPAN שנ׳ סביב הזמן; גל הקול, הכתוביות (צבע הדובר), חילופי השוטים, סמן הניגון.
-   נגיעה = קפיצה (על כתובית — בחירה שלה); גרירה = גלילה בזמן. opts: { meta, cues(), sel(), video, seek(t), pick(k), colors() } */
-export const TL_SPAN = 16, TL_BEFORE = 5;
+/* הציר מתחת לנגן: חלון של span שנ׳ סביב הזמן; גל הקול, הכתוביות (צבע הדובר), חילופי השוטים, סמן הניגון.
+   סבב 4 של השדרוג (C1 + H1 + B3): זום (צביטה / כפתורים, ZOOMS), גרירת קצה של הכתובית הנבחרת עם הצמדה לחיתוך
+   ולגבול מילה, ופס המילים של המקור (לא בטוחה — כתום). נגיעה = קפיצה (על כתובית — בחירה; על מילה — לתחילתה);
+   גרירה = גלילה בזמן. opts: { meta, cues(), sel(), video, seek(t), pick(k), colors(), edge(k, e, t), T } */
+export const TL_SPAN = 16, TL_BEFORE = 5, ZOOMS = [4, 8, 16, 32, 64], TL_GRAB = 14, TL_SNAP = 9;
+/* הצמדה בזמן הגרירה: חיתוך (התחלה — עליו, סוף — שני פריימים לפניו) קודם, אחר כך גבול מילה. px = שנ׳ לפיקסל */
+export function tlSnap(t, edge, sh, wd, px) {
+  let best = null;
+  const near = (v, lim, kind) => { const d = Math.abs(v - t); if (d <= lim && (!best || d < best.d)) best = { t: v, d, kind }; };
+  for (const x of sh || []) { if (x > t + 1) break; if (x > t - 1) near(edge === 's' ? x : r3(x - GAP_MIN), TL_SNAP * px, 'cut'); }
+  if (!best && wd) { const [i0, i1] = wordsIn(wd, t - 1, t + 1); for (let i = i0; i < i1; i++) near(edge === 's' ? wd.s[i] : wd.e[i], (TL_SNAP - 3) * px, 'w'); }
+  return best;
+}
 export function createTimeline(opts) {
+  const T = opts.T || ((k) => k);
+  const box = el('div', 'st-tlw');
   const cv = el('canvas', 'st-tl');
   cv.setAttribute('role', 'img'); cv.dataset.k = 'se-tl';
   const ctx = cv.getContext && cv.getContext('2d');
-  let raf = 0, drag = null, alive = true;
+  const wd = opts.meta && opts.meta.wd;
+  let raf = 0, drag = null, alive = true, span = TL_SPAN, magnet = null;
+  const pts = new Map();
+  const zl = el('div', 'st-tl-z');
+  const zb = (lbl, d, k) => { const x = el('button', 'st-tl-zb', d < 0 ? '+' : '−'); x.type = 'button'; x.dataset.k = k; x.setAttribute('aria-label', lbl); x.addEventListener('click', (e) => { e.stopPropagation(); zoom(d); }); return x; };
+  zl.append(zb(T('studioTlZoomIn'), -1, 'tl-zin'), zb(T('studioTlZoomOut'), 1, 'tl-zout'));
+  box.append(cv, zl);
   const v = opts.video;
   const now = () => (v ? v.currentTime || 0 : 0);
-  const geo = () => { const w = cv.clientWidth || 320, h = cv.clientHeight || 56; return { w, h, t0: now() - TL_BEFORE, k: w / TL_SPAN }; };
+  const geo = () => { const w = cv.clientWidth || 320, h = cv.clientHeight || 88; return { w, h, t0: now() - span * TL_BEFORE / TL_SPAN, k: w / span }; };
+  function zoom(d) {
+    const i = ZOOMS.indexOf(span), j = i < 0 ? ZOOMS.findIndex((z) => z >= span) : i + d;
+    span = ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, j))];
+    draw();
+  }
+  const WL = wd ? 20 : 0;   // פס המילים בתחתית
   function draw() {
     if (!ctx || !alive) return;
     const dpr = (typeof devicePixelRatio === 'number' && devicePixelRatio) || 1, g = geo();
     if (cv.width !== Math.round(g.w * dpr) || cv.height !== Math.round(g.h * dpr)) { cv.width = Math.round(g.w * dpr); cv.height = Math.round(g.h * dpr); }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, g.w, g.h);
-    const xOf = (t) => (t - g.t0) * g.k, band = 16, mid = band + (g.h - band) / 2, amp = (g.h - band) / 2 - 2;
+    const xOf = (t) => (t - g.t0) * g.k, band = 16, bot = g.h - WL, mid = band + (bot - band) / 2, amp = (bot - band) / 2 - 2;
     // גל הקול: עמודה לכל 2px — השיא בתחום
     const pk = opts.meta && opts.meta.pk, r = META_R;
     if (pk) {
@@ -402,22 +598,44 @@ export function createTimeline(opts) {
         ctx.fillRect(x, mid - hh, 1.5, hh * 2);
       }
     }
-    // חילופי השוטים
+    // חילופי השוטים (זה שהקצה נצמד אליו — עבה יותר)
     const sh = (opts.meta && opts.meta.sh) || [];
     ctx.fillStyle = 'rgba(255,214,10,.85)';
-    for (const t of sh) { if (t < g.t0) continue; if (t > g.t0 + TL_SPAN) break; ctx.fillRect(Math.round(xOf(t)), 0, 1, g.h); }
+    for (const t of sh) { if (t < g.t0) continue; if (t > g.t0 + span) break; ctx.fillRect(Math.round(xOf(t)) - (t === magnet ? 1 : 0), 0, t === magnet ? 3 : 1, bot); }
     // הכתוביות בפס העליון
     const cs = opts.cues(), sel = opts.sel(), col = opts.colors ? opts.colors() : null;
     for (let i = 0; i < cs.length; i++) {
       const c = cs[i];
       if (c.e < g.t0) continue;
-      if (c.s > g.t0 + TL_SPAN) break;
+      if (c.s > g.t0 + span) break;
       const x0 = xOf(c.s), x1 = xOf(c.e);
       ctx.fillStyle = (col && col.get(c.spk)) || '#30D158';
       ctx.globalAlpha = i === sel ? 1 : 0.55;
       ctx.fillRect(x0 + 0.5, 3, Math.max(2, x1 - x0 - 1), band - 6);
       ctx.globalAlpha = 1;
-      if (i === sel) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.strokeRect(x0 + 0.5, 2.5, Math.max(2, x1 - x0 - 1), band - 5); }
+      if (i === sel) {
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.strokeRect(x0 + 0.5, 2.5, Math.max(2, x1 - x0 - 1), band - 5);
+        if (opts.edge) {   // C1: הידיות — הגבולות של הנבחרת לאורך הגל
+          ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(x0, band, x1 - x0, bot - band);
+          ctx.fillStyle = '#fff';
+          for (const x of [x0, x1]) { ctx.fillRect(Math.round(x) - 1, band, 2, bot - band); ctx.fillRect(Math.round(x) - 3, mid - 9, 6, 18); }
+        }
+      }
+    }
+    // H1 + C2: המילים של המקור
+    if (wd) {
+      const [i0, i1] = wordsIn(wd, g.t0 - 1, g.t0 + span + 1);
+      ctx.font = '11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      for (let i = i0; i < i1; i++) {
+        const x0 = xOf(wd.s[i]), x1 = xOf(wd.e[i]), lo = wd.c[i] >= 0 && wd.c[i] < UNSURE, ww = Math.max(2, x1 - x0 - 1);
+        ctx.fillStyle = lo ? 'rgba(255,159,10,.30)' : 'rgba(235,235,245,.12)';
+        ctx.fillRect(x0 + 0.5, bot + 3, ww, WL - 6);
+        if (ww >= 18) {
+          ctx.save(); ctx.beginPath(); ctx.rect(x0 + 1, bot, ww - 1, WL); ctx.clip();
+          ctx.fillStyle = lo ? '#FF9F0A' : 'rgba(235,235,245,.8)'; ctx.fillText(wd.w[i], x0 + 0.5 + ww / 2, bot + WL / 2);
+          ctx.restore();
+        }
+      }
     }
     // סמן הניגון
     ctx.fillStyle = '#fff';
@@ -426,24 +644,57 @@ export function createTimeline(opts) {
   function loop() { draw(); if (alive && v && !v.paused) raf = requestAnimationFrame(loop); else raf = 0; }
   const kick = () => { if (!raf && typeof requestAnimationFrame === 'function') raf = requestAnimationFrame(loop); };
   if (v) for (const ev of ['play', 'seeked', 'timeupdate', 'loadedmetadata']) v.addEventListener(ev, kick);
-  cv.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, t: now(), moved: false }; try { cv.setPointerCapture(e.pointerId); } catch (x) {} });
+  const pinchD = () => { const [a, b] = [...pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y) || 1; };
+  cv.addEventListener('pointerdown', (e) => {
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try { cv.setPointerCapture(e.pointerId); } catch (x) {}
+    if (pts.size === 2) { drag = { k: 'pinch', d: pinchD(), span }; return; }
+    if (pts.size > 2) return;
+    const rc = cv.getBoundingClientRect(), g = geo(), px = e.clientX - rc.left, py = e.clientY - rc.top, k = opts.sel(), c = k >= 0 ? opts.cues()[k] : null;
+    if (opts.edge && c && py < g.h - WL) {   // C1: גרירת קצה של הכתובית הנבחרת
+      const ds = Math.abs(px - (c.s - g.t0) * g.k), de = Math.abs(px - (c.e - g.t0) * g.k);
+      if (Math.min(ds, de) <= TL_GRAB) { drag = { k: 'edge', e: ds <= de ? 's' : 'e', i: k }; return; }
+    }
+    drag = { k: 'pan', x: e.clientX, t: now(), moved: false };
+  });
   cv.addEventListener('pointermove', (e) => {
+    if (pts.has(e.pointerId)) pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (!drag) return;
+    if (drag.k === 'pinch') { if (pts.size === 2) { span = Math.max(ZOOMS[0], Math.min(ZOOMS[ZOOMS.length - 1], drag.span * drag.d / pinchD())); draw(); } return; }
+    const g = geo();
+    if (drag.k === 'edge') {
+      const rc = cv.getBoundingClientRect();
+      let t = g.t0 + (e.clientX - rc.left) / g.k;
+      const sn = tlSnap(t, drag.e, opts.meta && opts.meta.sh, wd, 1 / g.k);
+      magnet = sn && sn.kind === 'cut' ? (drag.e === 's' ? sn.t : r3(sn.t + GAP_MIN)) : null;
+      if (sn) t = sn.t;
+      opts.edge(drag.i, drag.e, Math.max(0, t)); draw();
+      return;
+    }
     const dx = e.clientX - drag.x;
     if (Math.abs(dx) > 4) drag.moved = true;
-    if (drag.moved) { opts.seek(Math.max(0, drag.t - dx / geo().k)); kick(); }
+    if (drag.moved) { opts.seek(Math.max(0, drag.t - dx / g.k)); kick(); }
   });
   cv.addEventListener('pointerup', (e) => {
-    const d = drag; drag = null;
+    pts.delete(e.pointerId);
+    const d = drag;
+    if (d && d.k === 'pinch') { if (!pts.size) drag = null; return; }
+    drag = null;
+    if (d && d.k === 'edge') { magnet = null; draw(); return; }
     if (!d || d.moved) return;
-    const rc = cv.getBoundingClientRect(), g = geo(), t = g.t0 + (e.clientX - rc.left) / g.k;
+    const rc = cv.getBoundingClientRect(), g = geo(), t = g.t0 + (e.clientX - rc.left) / g.k, y = e.clientY - rc.top;
+    if (wd && y >= g.h - WL) {   // H1: נגיעה במילה — לתחילתה
+      const [i0, i1] = wordsIn(wd, t - 1, t + 1);
+      for (let i = i0; i < i1; i++) if (t >= wd.s[i] - 0.05 && t <= wd.e[i] + 0.05) { opts.seek(Math.max(0, wd.s[i] - 0.05)); kick(); return; }
+    }
     const k = cueAt(opts.cues(), t);
-    if (e.clientY - rc.top < 18 && k >= 0 && opts.pick) opts.pick(k);
+    if (y < 18 && k >= 0 && opts.pick) opts.pick(k);
     opts.seek(Math.max(0, t)); kick();
   });
-  cv.addEventListener('pointercancel', () => { drag = null; });
+  cv.addEventListener('pointercancel', (e) => { pts.delete(e.pointerId); drag = null; magnet = null; });
+  cv.addEventListener('wheel', (e) => { if (!e.ctrlKey) return; e.preventDefault(); zoom(e.deltaY > 0 ? 1 : -1); }, { passive: false });   // מחשב: Ctrl + גלגלת
   if (typeof ResizeObserver === 'function') { const ro = new ResizeObserver(() => draw()); ro.observe(cv); }
-  return { el: cv, draw, destroy() { alive = false; if (raf) cancelAnimationFrame(raf); } };
+  return { el: box, cv, draw, span: () => span, zoom, destroy() { alive = false; if (raf) cancelAnimationFrame(raf); } };
 }
 
 export function createHistory(initial) {
@@ -491,10 +742,21 @@ function b(cls, label, fn, k, iconK) {
    מחזיר { el, cues(), ver(), time(t), setSaved(ver), destroy }. כתובית אחת פתוחה לעריכה בכל רגע (תיבת טקסט אחת — קל גם ל־1,500 כתוביות) */
 /* 21/10/2026 (בקשת המשתמש): לכל כתובית גם המקור באנגלית של אותו קטע — קטן ואפור, משמאל לימין, עם תווית EN
    (אותה צורה כמו בבדיקה לפני הצריבה ב־studio.js; העיצוב ב־studio.css: .st-src) */
-function srcLine(e, label) {
+function srcLine(e, label, marks, onWord, wLabel) {
   const d = el('div', 'st-src'); d.dir = 'ltr'; d.lang = 'en';
   const tag = el('span', 'st-src-l', 'EN'); tag.setAttribute('aria-label', label);
-  d.append(tag, el('span', 'st-src-x', String(e)));
+  const x = el('span', 'st-src-x'), txt = String(e);
+  // C2 (סבב 4 של השדרוג): מילה שהזיהוי לא בטוח בה — קו מנוקד; נגיעה = השמעה של הרגע
+  let at = 0;
+  for (const [a, z, u] of marks || []) {
+    if (a > at) x.append(txt.slice(at, a));
+    const w = el('button', 'st-src-u', txt.slice(a, z)); w.type = 'button';
+    w.setAttribute('aria-label', (wLabel || '') + ' · ' + u.c + '%');
+    w.addEventListener('click', (ev) => { ev.stopPropagation(); if (onWord) onWord(u); });
+    x.append(w); at = z;
+  }
+  if (at < txt.length) x.append(txt.slice(at));
+  d.append(tag, x);
   return d;
 }
 
@@ -502,7 +764,16 @@ export function createSubsEditor(opts) {
   const issMemo = new WeakMap();                       // מ9: הבדיקות לכל אובייקט כתובית — פעם אחת (בכל הקשה סופרים את כולן)
   const flags = opts.flags instanceof Map ? opts.flags : new Map();   // סבב 4: מזהה → { t: הטקסט המקורי, k: [סוגים] }
   const shots = Array.isArray(opts.shots) ? opts.shots : [];          // סבב 6: חילופי השוטים (הצמדה)
-  const colors = spkColors(opts.cues);                                 // סבב 6: צבע לכל דובר
+  const tmeta = opts.meta || null;                                     // סבב 4 של השדרוג: המילים והגל (נשימה, מילים לא בטוחות)
+  const spkOver = opts.spkOver && typeof opts.spkOver === 'object' ? opts.spkOver : {};   // C3: הצבע שבחרת לכל שם
+  const spkOrd = [];                                                   // סדר ההופעה — הצבעים לא קופצים כשכתובית נמחקת / שם משתנה
+  let colors = new Map();                                              // סבב 6: צבע לכל דובר
+  function recolor(cs) {
+    for (const c of cs) if (c.spk && !spkOrd.includes(c.spk)) spkOrd.push(c.spk);
+    const live = new Set(cs.map((c) => c.spk).filter(Boolean));
+    colors = spkColors(spkOrd.filter((x) => live.has(x)).map((spk) => ({ spk })), spkOver);
+  }
+  recolor(opts.cues || []);
   const flagsOf = (c) => { const f = flags.get(c.i); return f && f.t === textOf(c) ? f.k : []; };
   const notes = opts.notes instanceof Map ? opts.notes : new Map();    // A9: מזהה → { t, n: ההערה }
   const noteOf = (c) => { const x = notes.get(c.i); return x && x.t === textOf(c) ? x.n : null; };
@@ -514,14 +785,15 @@ export function createSubsEditor(opts) {
   const T = opts.T || ((k) => k);
   const iname = opts.issueName || ((k) => k);
   const hist = createHistory((opts.cues || []).map((c) => Object.assign({}, c)));
-  let sel = -1, only = !!opts.only, act = -1, q = '', rep = '', searchOn = false, shiftOn = false;
+  let sel = -1, only = !!opts.only, act = -1, q = '', rep = '', searchOn = false, shiftOn = false, spkOn = false;
   const wrap = el('div', 'st-se');
   const bar = el('div', 'st-se-bar');
   const undoB = b('ic', T('studioSeUndo'), () => { if (hist.undo()) { sel = Math.min(sel, hist.cur.length - 1); changed(true); } }, 'se-undo', 'undo');
   const redoB = b('ic', T('studioSeRedo'), () => { if (hist.redo()) { sel = Math.min(sel, hist.cur.length - 1); changed(true); } }, 'se-redo', 'redo');
-  const onlyB = b('chip', '', () => { only = !only; sel = -1; paintList(); }, 'se-only');
+  const onlyB = b('chip', '', () => { only = !only; sel = -1; paintBar(); paintQc(); paintList(); }, 'se-only');
   const findB = b('ic', T('studioSeFind'), () => { searchOn = !searchOn; paintSearch(); if (searchOn) fq.focus(); }, 'se-find', 'search');
-  bar.append(undoB, redoB, onlyB, el('span', 'st-se-sp'), findB);
+  const spkB = b('chip', T('studioSpkT'), () => { spkOn = !spkOn; paintSpk(); }, 'se-spk');   // C3: שם וצבע לכל דובר
+  bar.append(undoB, redoB, onlyB, spkB, el('span', 'st-se-sp'), findB);
   if (opts.onAi) bar.append(b('ic', T('studioAiTitle'), () => opts.onAi(), 'se-ai', 'ai'));   // מ7: גיליון ה־AI
   const sp = el('div', 'st-se-search'); sp.hidden = true;
   const fq = el('input', 'st-se-in'); fq.type = 'search'; fq.placeholder = T('studioSeFindPh'); fq.dir = 'auto'; fq.dataset.k = 'se-q';
@@ -540,7 +812,70 @@ export function createSubsEditor(opts) {
   const sugEl = el('div', 'st-sg');           // מ6: עד 3 הצעות לתיקון (בדיקות הקוד, חינם)
   const dismissed = opts.dismissed || new Set();
   const cfEl = confBar();                      // A9: ביטחון בתרגום — רק כשיש הערות מהעובד
-  wrap.append(bar, sp, ...(cfEl ? [cfEl] : []), sugEl, listEl);
+  const qcEl = el('div', 'st-qc'); qcEl.hidden = true;   // B1: לוח הבדיקה — נפתח עם "רק בעיות"
+  const spEl = el('div', 'st-spk'); spEl.hidden = true;  // C3: הדוברים
+  wrap.append(bar, sp, spEl, ...(cfEl ? [cfEl] : []), qcEl, sugEl, listEl);
+  const QC_NAME = { gap: () => T('studioIsGap'), cut: () => T('studioIsCut') };
+  let qcAt = {};
+  function paintQc() {
+    qcEl.hidden = !only;
+    if (!only) return;
+    const m = qcScan(hist.cur, shots), ks = QC_KINDS.filter((k) => m[k].length);
+    qcEl.replaceChildren();
+    const hd = el('div', 'st-qc-h'); hd.append(el('b', null, T('studioQcT')), el('span', 'st-se-sp'));
+    if (ks.length) hd.append(b('done', T('studioQcAll'), () => fixKinds(ks), 'qc-all'));
+    qcEl.append(hd);
+    if (!ks.length) { qcEl.append(el('div', 'st-qc-r st-qc-ok', T('studioQcNone'))); return; }
+    for (const k of ks) {
+      const r = el('div', 'st-qc-r');
+      const nm = el('span', 'st-qc-k', QC_NAME[k] ? QC_NAME[k]() : iname(k));
+      r.append(nm, el('bdi', 'st-qc-n', String(m[k].length)),
+        b('', T('studioQcGo'), () => {   // הבאה מהסוג הזה אחרי הנבחרת (במעגל)
+          const xs = qcScan(hist.cur, shots)[k];
+          if (!xs.length) return;
+          const from = qcAt[k] != null ? qcAt[k] : sel, nx = xs.find((i) => i > from) != null ? xs.find((i) => i > from) : xs[0];
+          qcAt[k] = nx; choose(nx); opts.seek(hist.cur[nx].s);
+        }, 'qc-go:' + k),
+        b('', T('studioQcFix'), () => fixKinds([k]), 'qc-fix:' + k));
+      qcEl.append(r);
+    }
+  }
+  function fixKinds(ks) {
+    const r = qcFix(hist.cur, ks, shots);
+    if (r.n && apply(r.cues, null)) { if (opts.flash) opts.flash(T('studioQcDone', { n: r.n })); }
+    else if (opts.flash) opts.flash(T('studioQcNoFix'));
+  }
+  function paintSpk() {
+    spkB.hidden = colors.size < 2; spkB.classList.toggle('on', spkOn);
+    spEl.hidden = !spkOn || colors.size < 2;
+    if (spEl.hidden) return;
+    spEl.replaceChildren();
+    for (const [name, col] of colors) {
+      const r = el('div', 'st-spk-r'); r.style.setProperty('--spk', col);
+      const inp = el('input', 'st-se-in'); inp.type = 'text'; inp.value = name; inp.maxLength = SPK_LEN; inp.dir = 'auto';
+      inp.setAttribute('aria-label', T('studioSpkName')); inp.dataset.k = 'spk-n';
+      inp.addEventListener('change', () => {
+        const nx = renameSpk(hist.cur, name, inp.value);
+        if (!nx || nx === hist.cur) { inp.value = name; return; }
+        const to = nx.find((c, j) => hist.cur[j].spk === name).spk;   // renameSpk — אותו סדר, רק השם
+        const at = spkOrd.indexOf(name);
+        if (at >= 0 && !spkOrd.includes(to)) spkOrd[at] = to;
+        if (spkOver[name] != null && spkOver[to] == null && opts.onSpkColor) opts.onSpkColor(to, spkOver[name]);
+        apply(nx, sel >= 0 ? sel : null);
+      });
+      const sw = el('div', 'st-spk-sw');
+      SPK_COLORS.forEach((cc, ci) => {
+        const x = b(cc === col ? 'on' : '', T('studioSpkCol'), () => {
+          spkOver[name] = ci; if (opts.onSpkColor) opts.onSpkColor(name, ci);
+          recolor(hist.cur); keep = new WeakMap(); paintSpk(); paintList(); if (opts.onChange) opts.onChange(hist.cur, hist.ver);
+        }, 'spk-c:' + ci, null);
+        x.textContent = ''; x.setAttribute('aria-label', T('studioSpkCol') + ' ' + (ci + 1)); x.setAttribute('aria-pressed', cc === col ? 'true' : 'false');
+        x.style.setProperty('--c', cc); sw.append(x);
+      });
+      r.append(el('i', 'st-spk-dot'), inp, sw);
+      spEl.append(r);
+    }
+  }
   const SUG_LBL = { wrap: () => T('studioSgWrap'), ext: () => T('studioSgExt'), wrapext: () => T('studioSgWrapExt'), merge: () => T('studioSgMerge') };
   function paintSug() {
     const ss = suggestions(hist.cur, dismissed);
@@ -578,15 +913,17 @@ export function createSubsEditor(opts) {
   }
 
   function changed(structural) {
+    if (structural) { const n0 = colors.size, k0 = [...colors].join(); recolor(hist.cur); if ([...colors].join() !== k0) keep = new WeakMap(); if (n0 !== colors.size || spkOn) paintSpk(); }
     paintBar();
     if (structural) { paintList(); paintSug(); } else paintRow(sel);
+    if (structural) paintQc();   // B1
     if (opts.onChange) opts.onChange(hist.cur, hist.ver);
   }
   function paintBar() {
     undoB.disabled = !hist.canUndo(); redoB.disabled = !hist.canRedo();
     const n = hist.cur.reduce((a, c) => a + (issOf(c).length ? 1 : 0), 0);
     onlyB.textContent = n ? T('studioSeOnly', { n }) : T('studioSeNoIssues');
-    onlyB.classList.toggle('on', only); onlyB.disabled = !n && !only;
+    onlyB.classList.toggle('on', only); onlyB.disabled = !n && !only && !shots.length;   // B1: גם בלי בעיות — הלוח (חיתוכים / צמודות)
     onlyB.setAttribute('aria-pressed', only ? 'true' : 'false');
   }
   function paintSearch() {
@@ -601,7 +938,7 @@ export function createSubsEditor(opts) {
   }
   /* מ9 (ביצועים): שורה סגורה שמורה לפי אובייקט הכתובית (הפעולות לא משנות במקום) — אחרי פיצול / מיזוג / ביטול
      רק השורות החדשות נבנות, והשאר נשארות במקומן ב־DOM (בלי חישוב סגנון מחדש ל־1,500 שורות) */
-  const keep = new WeakMap();
+  let keep = new WeakMap();
   function paintList() {
     rows.clear();
     const ks = visible(), want = [];
@@ -697,6 +1034,20 @@ export function createSubsEditor(opts) {
     m.append(d);
     return m;
   }
+  /* C2: המקור עם המילים הלא בטוחות; נגיעה במילה = הנגן מהרגע שלפניה */
+  function src(c) {
+    const uns = tmeta && tmeta.wd ? unsureIn(tmeta.wd, c) : [];
+    return srcLine(c.en, T('studioSrcEn'), uns.length ? markUnsure(c.en, uns) : null,
+      (u) => { opts.seek(Math.max(0, u.s - 0.4)); opts.play(); }, T('studioUnsure'));
+  }
+  function spkPick(k, c) {
+    const box = el('div', 'st-se-spks');
+    for (const [name, col] of colors) {
+      const x = b(name === c.spk ? 'on' : '', name, () => apply(setSpk(hist.cur, k, name), k), 'cue-spk:' + k);
+      x.style.setProperty('--spk', col); x.dir = 'auto'; box.append(x);
+    }
+    return box;
+  }
   function mkRow(k) {
     const c = hist.cur[k], open = k === sel;
     const r = el('div', 'st-se-row' + (open ? ' open' : '') + (k === act ? ' act' : '') + (issOf(c).length ? ' bad' : '') + (colors.has(c.spk) ? ' spk' : ''));
@@ -722,8 +1073,9 @@ export function createSubsEditor(opts) {
         paintBar();
         if (opts.onChange) opts.onChange(hist.cur, hist.ver);
       });
+      if (colors.has(c.spk)) body.append(spkPick(k, c));   // C3: הדובר של הכתובית
       body.append(ta);
-      if (c.en) body.append(srcLine(c.en, T('studioSrcEn')));
+      if (c.en) body.append(src(c));
       const nb = noteBox(c, k); if (nb) body.append(nb);
       body.append(el('div', 'st-se-mrow'));
       body.lastChild.append(mt, chips);
@@ -731,9 +1083,10 @@ export function createSubsEditor(opts) {
       setTimeout(() => { try { if (document.activeElement !== ta && opts.autofocus !== false) ta.focus({ preventScroll: true }); } catch (e) {} }, 0);
     } else {
       const tx = el('div', 'st-se-tx'); tx.dir = 'rtl';
+      if (colors.has(c.spk)) { const w = el('bdi', 'st-se-who', c.spk); tx.append(w); }   // C3: שם הדובר
       for (const x of c.lines) tx.append(el('div', null, x));
       body.append(tx);
-      if (c.en) body.append(srcLine(c.en, T('studioSrcEn')));
+      if (c.en) body.append(src(c));
       const nb = noteBox(c, k); if (nb) body.append(nb);
       const iss = issOf(c);
       if (iss.length) { const w = el('span', 'st-se-warn'); w.append(icon('warn')); w.setAttribute('aria-label', iss.map(iname).join(', ')); body.append(w); }
@@ -765,6 +1118,7 @@ export function createSubsEditor(opts) {
     tr.append(edge('s', T('studioSeStart')), edge('e', T('studioSeEnd')));
     const ar = el('div', 'st-se-arow');
     ar.append(b('', T('studioSeSplit'), () => { if (!apply(splitCue(hist.cur, k, ta.selectionStart || 0), k)) opts.flash && opts.flash(T('studioSeSplitNo')); }, 'cue-split:' + k));
+    if (tmeta && breathIn(tmeta, c)) ar.append(b('', T('studioSeBreath'), () => { if (!apply(splitBreath(hist.cur, k, tmeta), k)) opts.flash && opts.flash(T('studioSeSplitNo')); }, 'cue-breath:' + k));   // B4
     if (k < hist.cur.length - 1) ar.append(b('', T('studioSeMerge'), () => apply(mergeCues(hist.cur, k), k), 'cue-merge:' + k));
     if (shots.length) {   // סבב 6: הצמדה לחיתוך הקרוב (התחלה ו/או סוף)
       const snapped = () => { let cur = hist.cur, any = false; for (const e of ['s', 'e']) { const nx = snapEdge(cur, k, e, shots); if (nx) { cur = nx; any = true; } } return any ? cur : null; };
@@ -787,7 +1141,7 @@ export function createSubsEditor(opts) {
     const r = rows.get(k);
     if (r && r.scrollIntoView) try { r.scrollIntoView({ block: 'nearest' }); } catch (e) {}
   }
-  paintBar(); paintList(); paintSug();
+  paintBar(); paintSpk(); paintQc(); paintList(); paintSug();
   return {
     el: wrap,
     cues: () => hist.cur, ver: () => hist.ver,
@@ -802,6 +1156,16 @@ export function createSubsEditor(opts) {
     },
     select(k) { choose(k); },
     colors: () => colors,   // סבב 6: לציר
+    /* C1 (סבב 4 של השדרוג): גרירת קצה בציר — גרירה רצופה = צעד ביטול אחד (אותו תג) */
+    edge(k, e, t) {
+      const pv = hist.cur[k - 1], nx0 = hist.cur[k + 1];   // שני פריימים מהשכנה (כמו vt) — הגרירה לא יוצרת "צמודה"
+      if (e === 'e' && nx0) t = Math.min(t, r3(nx0.s - GAP_MIN));
+      if (e === 's' && pv) t = Math.max(t, r3(pv.e + GAP_MIN));
+      const nx = setEdge(hist.cur, k, e, t);
+      if (!nx || nx === hist.cur) return false;
+      if (hist.push(nx, 'edge:' + k + e, Date.now())) { changed(false); return true; }
+      return false;
+    },
     /* סבב 4: "רק בעיות" מבחוץ (ההצעה "לבדיקה שלך" כשהעורך כבר טעון) */
     showOnly(on) { if (only === !!on) return; only = !!on; sel = -1; paintBar(); paintList(); },
     selected: () => sel,
