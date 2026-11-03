@@ -379,4 +379,18 @@ ok(fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yis
     'הגל השישי בתפריט ⋮ — פריט אחד בקבוצת הכלים');
 }
 
+// 03/11/2026: סריקת אתר (BrScan) — עדינות מול השרת ואבטחה בסריקה כמחובר
+{
+  const sc = R(B + 'BrScan.kt'), sa = R(B + 'BrScanAndroid.kt'), br = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmBridge.kt');
+  ok(!/HttpURLConnection|openConnection|CookieManager/.test(sc), 'BrScan טהור — בלי רשת ובלי עוגיות (הרשת רק ב־BrScanAndroid)');
+  ok(/MIN_GAP_MS = 1500L/.test(sc) && /crawlDelay/.test(sc) && /fun busy\(retryAfterSec/.test(sc) && /if \(hits > 0\) sleep\(pace\.gap\(\)\)/.test(sc), 'סריקה עדינה: מרווח מינימלי, Crawl-delay, Retry-After ומרווח לפני כל בקשה');
+  ok(/log-\?out\|sign-\?out/.test(sc) && /\[\?&\]\(action\|do\|cmd\|token\|nonce/.test(sc) && /httpsOnly && !u\.startsWith\("https:\/\/"\)/.test(sc), 'סריקה כמחובר: בלי התנתקות/פעולות, ובלי ירידה ל־http');
+  ok(/if \(u\.userInfo != null\) return null/.test(sc) && /host\(u\) != host0/.test(sc), 'רק אותו אתר, בלי סיסמה בכתובת');
+  ok(/BrScanAndroid\.fetcher\(ua, !priv\)/.test(act) && /cookies = if \(cookies\)/.test(sa) && !/Log\.|println/.test(sa), 'כרטיסייה פרטית בלי עוגיות; בלי לוג של כתובות');
+  ok(/if \(BrDev\.sensitive\(t\.url\)\) \{ say\(R\.string\.brScanSensitive\)/.test(act), 'דף רגיש לא נסרק');
+  ok(/X_SCAN\)\?\.let \{ scan\(i, it\); return \}/.test(br) && /DmFolders\.norm\(DmFolders\.SUB/.test(br), 'DM: הרשימה רק דרך הגשר בהרשאת חתימה, ותיקייה מנוקה');
+  ok(ui.indexOf('MItem(R.string.brScan') > ui.indexOf('MItem(R.string.brOurs') && ui.indexOf('MItem(R.string.brScan') < ui.lastIndexOf('MItem(R.string.brSettings'),
+    'סריקת אתר בתפריט ⋮ — פריט אחד בקבוצת הכלים');
+}
+
 console.log('studio-browser: ' + n + ' בדיקות עברו');
