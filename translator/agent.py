@@ -412,8 +412,16 @@ def cleanup():
     shutil.rmtree(J.STATE.parent / 'ladder', ignore_errors=True)   # שארית מגרסה קודמת (שם היא מילאה את /state)
     w = J.VT_WORK
     if w.is_dir():
+        # 3/11/2026 (באג: "השרת לא מדווח על תור החיסכון כבר 1222 דק׳"): תור החיסכון (BT_DIR = /work/_batch) משותף לכל
+        # העבודות ושורד אותן — הבקשות שחונות, מזהי ה־batch שנשלחו והתשובות. עד היום הניקוי בעלייה (כל עדכון של העובד)
+        # ובסוף כל עבודה מחק גם אותו: העבודה שחנתה נשארה בלי בקשה ובלי תשובה, אף אחד לא דיווח עליה, והיא חיכתה עד BW_MAX
+        keep = {'.busy', '_batch'}
+        try:
+            bt = BT_DIR.resolve()
+        except (NameError, OSError):
+            bt = None
         for p in w.iterdir():
-            if p.name == '.busy':
+            if p.name in keep or (bt is not None and p.resolve() == bt):
                 continue
             if p.is_dir():
                 shutil.rmtree(p, ignore_errors=True)

@@ -235,6 +235,26 @@ class CollectorTests(unittest.TestCase):
         A.bt_tick(FakeBatches(), 10 * 86400)
         self.assertFalse(old.exists())
 
+    def test_agent_cleanup_keeps_batch_dir(self):
+        # 3/11/2026: הניקוי בעלייה / בסוף עבודה מחק את התור — העבודה שחנתה חיכתה 36 שעות בלי דיווח
+        A, d = self.A, Path(self.tmp.name)
+        work = d / 'work'
+        bt = work / '_batch'
+        llm.batch_put(bt / 'jobA', 'a' * 40, {'model': 'm', 'n': 1})
+        llm.batch_park(bt / 'jobA')
+        (work / 'video.mp4').write_bytes(b'x')
+        (work / 's0').mkdir()
+        old_w, old_bt = A.J.VT_WORK, A.BT_DIR
+        A.J.VT_WORK, A.BT_DIR = work, bt
+        try:
+            A.cleanup()
+        finally:
+            A.J.VT_WORK, A.BT_DIR = old_w, old_bt
+        self.assertTrue((bt / 'jobA' / 'parked').exists())
+        self.assertEqual(len(list((bt / 'jobA' / 'req').glob('*.json'))), 1)
+        self.assertFalse((work / 'video.mp4').exists())
+        self.assertFalse((work / 's0').exists())
+
 
 if __name__ == '__main__':
     unittest.main()
