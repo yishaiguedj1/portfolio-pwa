@@ -93,6 +93,10 @@ ok(/function tl\(el\)[\s\S]{0,200}:modal[\s\S]{0,120}:popover-open/.test(vjs) &&
 ok(/val YT_ORIGINS = setOf\("https:\/\/www\.youtube\.com", "https:\/\/www\.youtube-nocookie\.com"\)/.test(vjs) && vjs.includes('if(window.top===window||!/^')
   && /addWebMessageListener\(w, "snbYt", BrVideo\.YT_ORIGINS\) \{ _, msg, _, main, _ -> if \(!main\)/.test(act) && /addDocumentStartJavaScript\(w, BrVideo\.YT_FRAME, BrVideo\.YT_ORIGINS\)/.test(act), 'האיכויות מתוך מסגרת יוטיוב — רק ממקורות יוטיוב, רק במסגרת משנה');
 ok(/fun ytFrame\(t: BrTab, raw: String\)[\s\S]{0,300}if \(t\.private \|\| e\.isEmpty\(\)[\s\S]{0,200}YtPage\.toInfo\(org\.json\.JSONObject\.quote\(raw\), e\)/.test(act), 'רק לנגן המוטמע של הטאב, ו־toInfo בודק שזה אותו סרטון');
+// 03/11/2026 (דיווח שני): המסגרת אומרת מה היא; בקשת המסגרת דרך ה־Service Worker; נגן שעוד לא ניגן — הפורמטים מאותו שרת
+ok(vjs.includes("ch.postMessage('!u:'+String(location.href)") && /if \(raw\.startsWith\(BrVideo\.FRAME_URL\)\) \{ BrVideo\.embedOf/.test(act), 'המסגרת שולחת את הכתובת שלה');
+ok(/ServiceWorkerClient\(\) \{[\s\S]{0,500}BrVideo\.embedOf\(req\.url\.toString\(\)\)/.test(act), 'גם בקשות שעוברות דרך ה־Service Worker');
+ok(vjs.includes("fetch('/youtubei/v1/player?prettyPrint=false'") && vjs.includes("!asked){asked=1;ask();}") && !/https?:\/\/[^'"\s]*youtubei/.test(vjs), 'הפורמטים מאותו מקור של המסגרת, פעם אחת');
 ok(/if\(!box\|\|N<=0\)/.test(vjs) && /function up\(n,l,m,k\)\{N=\+n\|\|0/.test(vjs), 'מופיע רק כשיש נגן על המסך וגם הדפדפן מצא מה להוריד');
 // 26/10/2026: התפריט שנפתח מהכפתור — האיכויות מהבדיקה ברקע, הבחירה עם המפתח של הטאב, ההורדה בלי לצאת מהדף
 ok(/Object\.defineProperty\(window,'__snbUp',\{value:up,writable:false,configurable:false\}\)/.test(vjs), 'הדף לא יכול להחליף את __snbUp (ולגנוב את המפתח)');

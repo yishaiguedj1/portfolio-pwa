@@ -1380,7 +1380,14 @@ class BrowserActivity : ComponentActivity() {
     /** בקשות של Service Worker — לטאב הנוכחי (אין דרך לדעת מאיזה טאב) */
     private fun swClient() = runCatching {
         ServiceWorkerController.getInstance().setServiceWorkerClient(object : ServiceWorkerClient() {
-            override fun shouldInterceptRequest(req: WebResourceRequest): WebResourceResponse? { cur?.let { seen(it, req.url.toString(), headers = req.requestHeaders) }; return null }
+            override fun shouldInterceptRequest(req: WebResourceRequest): WebResourceResponse? {
+                cur?.let { t ->
+                    // 03/11/2026: מסגרת יוטיוב מוטמעת נטענת דרך ה־Service Worker של יוטיוב (מי שכבר ביקר בו) — לא דרך WebViewClient
+                    if (!req.isForMainFrame) BrVideo.embedOf(req.url.toString())?.let { e -> ui.post { setEmbed(t, e) } }
+                    seen(t, req.url.toString(), headers = req.requestHeaders)
+                }
+                return null
+            }
         })
     }
 
@@ -1450,6 +1457,8 @@ class BrowserActivity : ComponentActivity() {
 
     /** האיכויות מנגן יוטיוב מוטמע (BrVideo.YT_FRAME) — רק לנגן המוטמע של הטאב (toInfo בודק שזה אותו סרטון), לא בטאב פרטי */
     fun ytFrame(t: BrTab, raw: String) {
+        // המסגרת אומרת מה היא ("!u:<כתובת>") — הנגן המוטמע ידוע גם כשהבקשה שלה לא נראתה (BrVideo.YT_FRAME)
+        if (raw.startsWith(BrVideo.FRAME_URL)) { BrVideo.embedOf(raw.removePrefix(BrVideo.FRAME_URL))?.let { setEmbed(t, it) }; return }
         val e = t.embed
         if (t.private || e.isEmpty() || raw.length > 200_000 || DmPre.state(e) == 2) return
         val info = YtPage.toInfo(org.json.JSONObject.quote(raw), e) ?: return
