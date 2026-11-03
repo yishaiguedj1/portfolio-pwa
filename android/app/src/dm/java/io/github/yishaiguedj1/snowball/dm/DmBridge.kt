@@ -58,6 +58,7 @@ class DmBridge : Activity() {
     private fun task(i: Intent) {
         // 01/11/2026 (Studio Browser, הגל הרביעי — 57): כל הקבצים בדף בבת אחת
         i.getStringExtra(X_FILES)?.let { files(i, it); return }
+        i.getStringExtra(X_SCAN)?.let { scan(i, it); return }
         val o = runCatching { JSONObject(i.getStringExtra(X_TASK).orEmpty()) }.getOrNull() ?: return
         // מזהה חדש ומצב נקי: רק מה שמתאר את הבחירה עובר, לא מצב הורדה (מקטעים, קובץ, שגיאה)
         o.put("id", DmStore.newId()).put("s", DmState.QUEUED.name).put("e", "").put("uri", "").put("sg", JSONArray())
@@ -88,6 +89,19 @@ class DmBridge : Activity() {
         }
         if (n > 0) DmEngine.pump(this)
         Toast.makeText(this, getString(R.string.dmBridgeFiles, n), Toast.LENGTH_SHORT).show()
+    }
+
+    /** 03/11/2026 סריקת אתר מ־Studio Browser: רשימה מסודרת — קבצים ישירים במנוע שלנו, נגנים ודפים ב־yt-dlp, לתיקייה של הסדרה */
+    private fun scan(i: Intent, s: String) {
+        val a = runCatching { JSONArray(s) }.getOrNull() ?: return
+        val ref = i.getStringExtra(X_REF).orEmpty().takeIf { http(it) } ?: ""
+        val ua = cleanUa(i.getStringExtra(X_UA))
+        cookies(i, ua, ref)
+        DmStore.init(this)
+        val l = scanTasks(a, ua, true).filter { !DmStore.has(it.url) }
+        l.forEach { DmStore.add(it) }
+        if (l.isNotEmpty()) DmEngine.pump(this)
+        Toast.makeText(this, getString(R.string.dmBridgeFiles, l.size), Toast.LENGTH_SHORT).show()
     }
 
     /** העוגיות של ההורדה לתוך מאגר העוגיות של DM (המנוע קורא משם בכל המשך), ולקובץ של yt-dlp */
@@ -126,6 +140,7 @@ class DmBridge : Activity() {
         private const val CLS = "io.github.yishaiguedj1.snowball.dm.DmBridge"
         private const val X_URL = "u"; private const val X_REF = "r"; private const val X_UA = "ua"; private const val X_TITLE = "ti"
         private const val X_REFRESH = "rf"; private const val X_CKS = "ck"; private const val X_NETS = "nc"; private const val X_TASK = "t"; private const val X_FILES = "fs"
+        private const val X_SCAN = "sc"
         const val FILES_MAX = 500
         private const val MAX_CK = 40
         /** הקישור להתקנת Studio Browser (מנהל ההורדות מוריד ומתקין אותו בעצמו) */
@@ -180,6 +195,44 @@ class DmBridge : Activity() {
             return try {
                 a.startActivity(toDm(a, ACTION_TASK).putExtra(X_FILES, arr.toString()).putExtra(X_REF, ref).putExtra(X_UA, ua.take(400))
                     .putExtra(X_CKS, if (cookies) jar(listOf(ref) + files.map { it.first }).toString() else "[]")); true
+            } catch (e: Exception) { false }
+        }
+
+        /**
+         * 03/11/2026 סריקת אתר: כל פריט {u כתובת, n שם, k "y"=yt-dlp/"h"=קובץ, r הדף, d תיקייה, h גובה (0 = שמע)}.
+         * משותף לשתי האפליקציות (מהדפדפן ל־DM, או לתור שבתוך הדפדפן כש־DM לא מותקן)
+         */
+        fun scanTasks(a: JSONArray, ua: String, ck: Boolean): List<DmTask> {
+            val now = System.currentTimeMillis()
+            return (0 until minOf(a.length(), FILES_MAX)).mapNotNull { k ->
+                val o = a.optJSONObject(k) ?: return@mapNotNull null
+                val u = o.optString("u").takeIf { http(it) && it.length < 4000 } ?: return@mapNotNull null
+                val yt = o.optString("k") == "y"
+                DmTask(DmStore.newId(), u, o.optString("r").takeIf { http(it) && it.length < 4000 } ?: "", if (yt) DmKind.YTDL else DmKind.HTTP).apply {
+                    name = DmName.clean(o.optString("n").take(150)); created = now + k; this.ua = ua; this.ck = ck
+                    dir = DmFolders.norm(DmFolders.SUB + o.optString("d").take(80))
+                    if (yt) {
+                        title = name
+                        val h = o.optInt("h", 1080).coerceIn(0, 4320)
+                        audioOnly = h == 0; height = h
+                        if (!audioOnly) subs = DmSubs.langs(DmSubs.ANY)
+                    }
+                }
+            }
+        }
+
+        /** 03/11/2026 סריקת אתר → התור של DM. העוגיות — רק של האתר שנסרק (ושל הקבצים), ורק כשהכרטיסייה לא פרטית */
+        fun sendScan(a: Activity, items: JSONArray, ref: String, ua: String, cookies: Boolean): Boolean {
+            runCatching { DmCookies.get().flush() }
+            val urls = (listOf(ref) + (0 until items.length()).flatMap { k -> items.optJSONObject(k)?.let { listOf(it.optString("u"), it.optString("r")) } ?: emptyList() })
+                .filter { http(it) }.distinctBy { DmLink.host(it) }
+            val nets = if (!cookies) "" else runCatching {
+                val cm = DmCookies.get()
+                DlDeep.netscape(urls.map { it to cm.getCookie(it) }, System.currentTimeMillis() / 1000)
+            }.getOrDefault("")
+            return try {
+                a.startActivity(toDm(a, ACTION_TASK).putExtra(X_SCAN, items.toString()).putExtra(X_REF, ref).putExtra(X_UA, ua.take(400))
+                    .putExtra(X_CKS, if (cookies) jar(urls).toString() else "[]").putExtra(X_NETS, nets)); true
             } catch (e: Exception) { false }
         }
 
