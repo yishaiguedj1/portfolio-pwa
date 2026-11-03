@@ -77,5 +77,13 @@ class BrTab(val id: Long, url: String, title: String, val private: Boolean, var 
 
     val isNtp get() = !url.startsWith("http") && web == null && state == null
     fun pageIsVideo() = VideoUrl.classify(page) is VideoUrl.Hit.Video
-    fun recount() { foundN = found.size + (if (pageIsVideo()) 1 else 0) }
+    /**
+     * 03/11/2026 (דיווח המשתמש: סרטון שנפתח מהחיפוש של גוגל — בלי כפתור הורדה, ובאתר של יוטיוב כן): הדף עצמו אינו סרטון
+     * (google.com/search), והנגן הוא מסגרת מוטמעת (youtube.com/embed/…) שמנגנת בקטעים (MSE) — הצייד לא מוצא בה זרם.
+     * לכן כתובת הצפייה של הנגן המוטמע (BrVideo.embedOf) נחשבת "הסרטון בדף". מתאפס בכל מסמך חדש
+     */
+    var embed by mutableStateOf("")
+    /** הסרטון שבדף: הדף עצמו כשהוא דף צפייה, אחרת הנגן המוטמע; null = אין */
+    fun vidPage(): String? = if (pageIsVideo()) page else embed.ifEmpty { null }
+    fun recount() { foundN = found.size + (if (vidPage() != null) 1 else 0) }
 }

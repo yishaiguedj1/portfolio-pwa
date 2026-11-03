@@ -59,7 +59,25 @@ ok(fs.existsSync(path.join(ROOT, 'android/app/src/browser/res/mipmap-xxxhdpi/br_
 // הבועה של Compose מעל ה־WebView לא הופיעה בטלפון — הכפתור בתוך הדף, והבדיקה של yt-dlp רצה מראש
 const vjs = R(B + 'BrVideo.kt');
 ok(!fs.existsSync(path.join(ROOT, B + 'BrBubble.kt')) && !/VideoBubble|FullBubble/.test(ui), 'בלי הבועה המרחפת של Compose');
-ok(/attachShadow\(\{mode:'closed'\}\)/.test(vjs) && /position:fixed/.test(vjs) && /box\.left\+box\.width\/2/.test(vjs), 'הכפתור בתוך הדף: shadow DOM סגור, באמצע החלק העליון של הנגן');
+ok(/attachShadow\(\{mode:'closed'\}\)/.test(vjs) && /position:fixed/.test(vjs) && /rx=Math\.min\(box\.left\+box\.width,innerWidth\)-8/.test(vjs), 'הכפתור בתוך הדף: shadow DOM סגור, בפינה הימנית העליונה של הנגן');
+// 03/11/2026 (בקשת המשתמש: "רק סימן של הורדה וזהו, נקי"): עיגול קטן עם חץ, בלי טקסט; התווית לקורא המסך
+ok(/width:32px;height:32px;border-radius:50%/.test(vjs) && /setAttribute\('aria-label',L\)/.test(vjs) && !/txt\.textContent/.test(vjs), 'כפתור אייקון בלבד');
+// 03/11/2026 (דיווח המשתמש: מהחיפוש של גוגל — בלי כפתור הורדה): נגן מוטמע = הסרטון בדף
+{ const embedOf = (u) => { u = String(u ?? '').trim(); if (u.length > 2048) return null; let m;
+    if ((m = /^https?:\/\/(?:www\.|m\.)?youtube(?:-nocookie)?\.com\/embed\/([A-Za-z0-9_-]{11})(?:[/?#]|$)/i.exec(u))) return 'https://www.youtube.com/watch?v=' + m[1];
+    if ((m = /^https?:\/\/player\.vimeo\.com\/video\/(\d{4,})(?:[/?#]|$)/i.exec(u))) return 'https://vimeo.com/' + m[1];
+    if ((m = /^https?:\/\/(?:www\.|geo\.)?dailymotion\.com\/(?:embed\/video\/|player\.html\?video=)([A-Za-z0-9]{5,})/i.exec(u))) return 'https://www.dailymotion.com/video/' + m[1];
+    return null; };
+  ok(embedOf('https://www.youtube.com/embed/dQw4w9WgXcQ?enablejsapi=1&origin=https%3A%2F%2Fwww.google.com') === 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+    && embedOf('https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ') === 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+    && embedOf('https://player.vimeo.com/video/76979871?h=1') === 'https://vimeo.com/76979871', 'נגן מוטמע → כתובת הצפייה');
+  ok(embedOf('https://www.google.com/search?q=x') === null && embedOf('https://evil.com/?u=https://www.youtube.com/embed/dQw4w9WgXcQ') === null
+    && embedOf('https://www.youtube.com/embed/short') === null && embedOf(null) === null, 'רק נגן מוכר, בתחילת הכתובת');
+  ok(/YT_EMBED = Regex\("\^https\?:\/\/\(\?:www\\\\\.\|m\\\\\.\)\?youtube\(\?:-nocookie\)\?/.test(vjs) && /fun embedOf\(url: String\?\)/.test(vjs), 'אותם כללים בקוטלין');
+  ok(/bf=el\.tagName==='IFRAME'/.test(vjs) && /ch\.postMessage\('!f:'\+bf/.test(vjs) && /d\?\.startsWith\(BrVideo\.FRAME\) == true/.test(act)
+    && /if \(!req\.isForMainFrame\) BrVideo\.embedOf\(req\.url\.toString\(\)\)/.test(act), 'הנגן המוטמע — מהסקריפט ומהבקשות של המסגרות');
+  ok(/fun vidPage\(\): String\? = if \(pageIsVideo\(\)\) page else embed\.ifEmpty \{ null \}/.test(R(B + 'BrTab.kt')) && /t\.vidPage\(\)\?\.let \{ add\(Pick\(R\.string\.brPage/.test(act)
+    && /t\.vid = null; t\.embed = ""/.test(act), 'הנגן המוטמע הוא "הסרטון בדף", ומתאפס בדף חדש'); }
 ok(/if\(!box\|\|N<=0\)/.test(vjs) && /function up\(n,l,m,k\)\{N=\+n\|\|0/.test(vjs), 'מופיע רק כשיש נגן על המסך וגם הדפדפן מצא מה להוריד');
 // 26/10/2026: התפריט שנפתח מהכפתור — האיכויות מהבדיקה ברקע, הבחירה עם המפתח של הטאב, ההורדה בלי לצאת מהדף
 ok(/Object\.defineProperty\(window,'__snbUp',\{value:up,writable:false,configurable:false\}\)/.test(vjs), 'הדף לא יכול להחליף את __snbUp (ולגנוב את המפתח)');
@@ -80,7 +98,7 @@ ok(/fun bubbleTap\(\)[\s\S]{0,200}if \(ps\.size == 1 && ps\[0\]\.file\) download
   && /if \(ps\.size == 1 && ps\[0\]\.file\) a\.download\(ps\[0\]\) else a\.pick = true/.test(ui), 'הכפתור = ⬇ בשורת הכתובת (אותה בחירה)');
 ok(/var bubble: Boolean get\(\) = sp\.getBoolean\("bub", true\)/.test(store) && /pickBubble/.test(ui) && /prefs\.bubble = b; cur\?\.let \{ pushDl\(it\) \}/.test(act), 'אפשר לכבות בהגדרות; פועל כברירת מחדל');
 // האיכויות מוכנות מראש
-ok(/LaunchedEffect\(t\.id, t\.foundN, a\.bubble, t\.web, t\.url\) \{\s*a\.pushDl\(t\)\s*if \(t\.foundN > 0\) \{\s*delay\(1500\); a\.prefetch\(t\); a\.pushDl\(t\)/.test(ui) && /if \(m != last\) \{ last = m; a\.pushDl\(t\) \}/.test(ui), 'הסרטון שעל המסך נבדק ברקע, והתפריט עובר לדף כשהבדיקה מסתיימת');
+ok(/LaunchedEffect\(t\.id, t\.foundN, a\.bubble, t\.web, t\.url, t\.embed\) \{\s*a\.pushDl\(t\)\s*if \(t\.foundN > 0\) \{\s*delay\(1500\); a\.prefetch\(t\); a\.pushDl\(t\)/.test(ui) && /if \(m != last\) \{ last = m; a\.pushDl\(t\) \}/.test(ui), 'הסרטון שעל המסך נבדק ברקע, והתפריט עובר לדף כשהבדיקה מסתיימת');
 ok(/if \(t\.private \|\| cur !== t \|\| t\.foundN == 0\) return/.test(act) && /ps\.firstOrNull \{ !it\.page && !it\.file \}/.test(act), 'רק הטאב שעל המסך, לא פרטי, ורק מה שנבדק ב־yt-dlp');
 ok(/DmPre\.await\(url\)\?\.let \{ return Found\.Video/.test(R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmActivity.kt')), 'מנהל ההורדות לוקח את התוצאה המוכנה');
 ok(/if \(url in busy \|\| fresh\(done\[url\], now\)\) return/.test(pre) && /while \(url in busy\)/.test(pre) && /JSONObject\(e\.info\.toString\(\)\)/.test(pre), 'בדיקה אחת לכל כתובת, מחכים לבדיקה שרצה, ועותק לכל מי שמבקש');
