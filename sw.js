@@ -4,13 +4,13 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v710';
+const CACHE_NAME = 'portfolio-pwa-v711';
 const HASHES = {
   "./": "6ab1986a1bc13b10b7405e36061fa8ba",
   "./index.html": "6ab1986a1bc13b10b7405e36061fa8ba",
   "./styles.css": "548ed276d76b5a06a8e4b527995ba650",
-  "./glass-btn.css": "5fd927735217e8fdfe732c8c89df5a41",
-  "./app.js": "2f34cd0530bb800f4ebae0e4ac04eadf",
+  "./glass-btn.css": "3cc5faba35d133d49a695970d25297a1",
+  "./app.js": "a1d812e573bd66cab6fd1ad1427720a5",
   "./returns.js": "3590562b0282025a8a79650ad6b3a49b",
   "./cloud.js": "2cf2e330bfcc2c9150ba47b8f355982d",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -41,7 +41,7 @@ const HASHES = {
   "./chartlib.js": "5c00c490dac1b09329fa1ce657350a9b",
   "./chart.css": "0e4e6260108563c3f329d204c1398a10",
   "./vendor/klinecharts/klinecharts.min.js": "4202d8661b8302175751d8d072bf6d2f",
-  "./library.js": "41db525527d079b081ed2118af763bcd",
+  "./library.js": "39e86753b6ca17a9df80a35a8216d2ff",
   "./library.css": "c60af5ef4fdc02fbbc920ebd7ff00499",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
   "./libbackup.js": "a238c4cf7877166ba8eba5cdcf6eadb8",
@@ -74,7 +74,7 @@ const HASHES = {
   "./academy.html": "ff70b7cdf55a58896794457f6812abf4",
   "./academy-app.js": "130b15379b74427d8f0071032894b5f0",
   "./strings-academy.js": "90f866da637b9d1e04b8be334116332e",
-  "./core.js": "f67de7ed288fed59d4bb25c20127e9fa",
+  "./core.js": "a6373c86f7437e238de77fb9a9928b14",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "3108c90ef333e70a80d4c6f0898f9a23",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
