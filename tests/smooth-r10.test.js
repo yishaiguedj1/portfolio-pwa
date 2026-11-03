@@ -61,5 +61,14 @@ ok(/if \(l\._flat\) return; ui\.jobsY = l\.scrollTop;/.test(st), 'כרטיס ה�
 ok(/title: T\('studioTwT'\), coll: true \}\), large\(T\('studioTwT'\)\)/.test(st), 'המגדל: coll בסרגל');
 ok(/@supports \(animation-timeline: scroll\(\)\) \{\s*\.st-nav-t\.coll \{ animation: stNavT/.test(css) && /@keyframes stNavT \{ from \{ color: transparent; \}/.test(css), 'מונע בגלילה, על הצבע (לא opacity — בלי שכבה)');
 
+
+// 5. אנדרואיד — פתיחה מהתפריט: מסך פתיחה אחד בגודל אחד, וה־TWA נכנס בלי אנימציה
+const kt = R('android/app/src/main/java/io/github/yishaiguedj1/snowball/MainActivity.kt'), v31 = R('android/app/src/main/res/values-v31/styles.xml'), v0 = R('android/app/src/main/res/values/styles.xml');
+ok(/private fun noAnim\(\) \{ overridePendingTransition\(0, 0\) \}/.test(kt) && /\{ launched = true; noAnim\(\);/.test(kt) && /startActivity\(Intent\(intent\)\.setFlags[^\n]*\n\s*noAnim\(\)\n\s*return true/.test(kt), 'ה־TWA וההפעלה מחדש במשימה שלנו — בלי אנימציית מעבר');
+ok(/setImageResource\(R\.mipmap\.ic_launcher_foreground\); scaleType = ImageView\.ScaleType\.CENTER/.test(kt) && /ImageView\.ScaleType\.CENTER, null, 200/.test(kt) && !/dp\(180\)/.test(kt), 'הלוגו של המעטפת = הלוגו של מסך הפתיחה שעובר ל־Chrome (CENTER, גודל טבעי)');
+ok(/windowSplashScreenAnimatedIcon">@android:color\/transparent/.test(v31) && /windowSplashScreenBackground">@color\/splash_bg/.test(v31), 'אנדרואיד 12+: מסך הפתיחה של המערכת — רק הרקע');
+const items = (x) => (x.match(/<style name="SplashTheme"[\s\S]*?<\/style>/) || [''])[0].match(/name="android:[^"]+">[^<]+/g) || [];
+ok(items(v0).every((i) => items(v31).includes(i)), 'values-v31 כולל את כל הערכים של SplashTheme הרגיל');
+
 console.log(n - bad + '/' + n + ' passed');
 process.exit(bad ? 1 : 0);

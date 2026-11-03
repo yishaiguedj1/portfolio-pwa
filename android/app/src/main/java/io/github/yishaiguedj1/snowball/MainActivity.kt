@@ -8,8 +8,8 @@ import android.net.Uri
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.Gravity
+import android.widget.FrameLayout
 import android.widget.ImageView
-import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.browser.customtabs.CustomTabColorSchemeParams
 import androidx.browser.customtabs.CustomTabsClient
@@ -82,8 +82,15 @@ class MainActivity : Activity() {
         if (f and Intent.FLAG_ACTIVITY_NEW_TASK != 0 && f and Intent.FLAG_ACTIVITY_NEW_DOCUMENT == 0) return false
         if (referrer?.host == packageName) return false
         startActivity(Intent(intent).setFlags((f or Intent.FLAG_ACTIVITY_NEW_TASK) and Intent.FLAG_ACTIVITY_NEW_DOCUMENT.inv()))
+        noAnim()
         return true
     }
+
+    /* 03/11/2026 (סבב קפיצות 10, הקלטת Studio 0.27–0.47 שנ׳ — פתיחה מהתפריט של Invest: לוגו דהוי, ואז פס אפור מחליק):
+       ה־TWA נכנס מעל מסך הפתיחה באנימציית הפתיחה של המערכת (החלקה עם הכהיה של מה שמתחת). מסך הפתיחה שעובר ל־Chrome זהה
+       לגמרי לשלנו (אותו לוגו, אותו גודל, אותו רקע) — לכן כניסה מיידית בלי אנימציה, והמעבר לא נראה בכלל */
+    @Suppress("DEPRECATION")
+    private fun noAnim() { overridePendingTransition(0, 0) }
 
     /* הכתובת לפתיחה + ‎app=<חתימת רשימת הווידג'ט> ב־hash: האתר יודע שהוא בתוך האפליקציה ומה הווידג'ט כבר מכיר,
        ומסנכרן רשימה רק כשיש הבדל (app.js → appWidgetSync). hash — לא משנה את הכתובת במטמון של ה־SW */
@@ -159,7 +166,7 @@ class MainActivity : Activity() {
                צבע הדף, splash_bg) עובר ל־Chrome ונשאר עד הציור הראשון של האתר. דפדפן בלי תמיכה — כמו קודם */
             val sp = PwaWrapperSplashScreenStrategy(this, R.mipmap.ic_launcher_foreground, getColor(R.color.splash_bg),
                 ImageView.ScaleType.CENTER, null, 200, "$packageName.twasplash", true).also { splash = it }
-            l.launch(builder, null, sp, { launched = true; if (!isTaskRoot) finish() }, TwaLauncher.CCT_FALLBACK_STRATEGY)
+            l.launch(builder, null, sp, { launched = true; noAnim(); if (!isTaskRoot) { finish(); noAnim() } }, TwaLauncher.CCT_FALLBACK_STRATEGY)
         } catch (e: Throwable) {
             showError(e)
         }
@@ -187,22 +194,25 @@ class MainActivity : Activity() {
 
     private fun dp(v: Int) = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v.toFloat(), resources.displayMetrics).toInt()
 
-    private fun buildSplash(): LinearLayout {
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
+    /* 03/11/2026 (סבב קפיצות 10): הלוגו בדיוק כמו במסך הפתיחה של PwaWrapperSplashScreenStrategy — אותו ציור בגודל הטבעי
+       (ScaleType.CENTER על כל המסך) ובמרכז. קודם: 180dp כאן ו־108dp שם, והלוגו "קפץ" כשהאסטרטגיה החליפה את התוכן.
+       הטקסט (רק בתקלה) מתחת ללוגו, בלי להזיז אותו מהמרכז */
+    private fun buildSplash(): FrameLayout {
+        val root = FrameLayout(this).apply {
             setBackgroundColor(getColor(R.color.splash_bg))   // R8: צבע הדף, כמו מסך הפתיחה שעובר ל־Chrome
-            setPadding(dp(24), dp(24), dp(24), dp(24))
         }
-        root.addView(ImageView(this).apply { setImageResource(R.mipmap.ic_launcher_foreground) }, LinearLayout.LayoutParams(dp(180), dp(180)))
+        root.addView(ImageView(this).apply { setImageResource(R.mipmap.ic_launcher_foreground); scaleType = ImageView.ScaleType.CENTER },
+            FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         status = TextView(this).apply {
             setTextColor(Color.parseColor("#A3A9A6"))
             textSize = 15f
             gravity = Gravity.CENTER
+            setPadding(dp(24), 0, dp(24), 0)
+            translationY = dp(78).toFloat()
             // 28/10/2026: רק הלוגו — "טוען…" הבהב לרגע לפני ש־Chrome כיסה את המסך. הטקסט מופיע רק בתקלה (showError)
             text = ""
         }
-        root.addView(status, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(12) })
+        root.addView(status, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
         return root
     }
 
