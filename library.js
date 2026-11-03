@@ -2054,6 +2054,7 @@ async function renderBook(id) {
   });
   d.append(toc);
   const sim = h('div', 'bk-sim'); d.append(sim);   // D9: ספרים דומים — מחבר, סדרה, תגיות ותוכן
+  if (PRK && PRK.similarNow) PRK.similarNow(sim, b);   // סבב קפיצות 12: ספר שכבר נפתח — הדומים כבר בדף לפני המעבר
   home.append(top, d);
   setTimeout(() => { if (sim.isConnected) pro((P) => P.similarInto(sim, b)); }, 350);
 }

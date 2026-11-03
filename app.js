@@ -9893,6 +9893,9 @@ function dialKeys() { return (_dial.host && _dial.host.keys()) || []; }
 function dialIndex(name) { return _dial.host ? _dial.host.index(name) : 0; }
 function dialCurName() { return _dial.host ? _dial.host.cur() : ''; }
 function dialStep(vw, n) {   // המרחק בין פריטים — כל השבעה על המסך, הקצוות חצי־גלויים (כמו בסרטון); ארבעה (Studio, Academy) — מרווחים יותר, הכיתובים לא נוגעים
+  /* 03/11/2026 (סבב קפיצות 12, qa-deep): ב־Academy (שלושה) הכיתובים "THE SNOWBALL" ו"הספרייה שלי" חפפו — 9px ב־390, 16px ב־360.
+     עד שלושה — יש מקום: מרווחים יותר (הפריט הרחוק בקצה חצי־גלוי, כמו ב־Invest) */
+  if (n && n <= 3) return Math.max(66, Math.min(104, (vw || 400) / 3.75));
   return n && n <= 5 ? Math.max(66, Math.min(96, (vw || 400) / 4.8)) : Math.max(59, Math.min(90, (vw || 400) / 6.2 - 4));
 }
 function dialRest(i) { return { pos: i, from: i, to: i, p: 0 }; }

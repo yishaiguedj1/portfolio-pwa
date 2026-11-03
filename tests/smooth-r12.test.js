@@ -29,5 +29,19 @@ ok(head.indexOf('auth.js') < head.indexOf('academy-app.js'), 'הסדר נשמר'
 // 4. הגלאי
 ok(/L\.glass\.push/.test(qa), 'qa-sweep: שכבת טשטוש חדשה בתוך הדף בזמן מעבר');
 
+// 5. ספרים דומים — מהזיכרון בכניסה חוזרת, דעיכה רכה בכניסה הראשונה
+const pro = R('libpro.js'), css = R('library.css'), app = R('app.js');
+ok(/function similarNow\(host, b\)/.test(pro) && /similarInto, similarNow,/.test(pro), 'libpro: similarNow מיוצא');
+ok(/if \(!host\.isConnected \|\| host\._sim === simIds\(list\)\) return;/.test(pro), 'אותם ספרים — לא בונים מחדש');
+const rb = lib.indexOf("const sim = h('div', 'bk-sim')");
+ok(rb > 0 && lib.indexOf('PRK.similarNow(sim, b)', rb) > rb && lib.indexOf('PRK.similarNow(sim, b)', rb) < lib.indexOf('home.append(top, d)', rb), 'דף ספר: הדומים מהזיכרון לפני שהדף נכנס');
+ok(/\.bk-sim\.in \{ animation: vtFadeIn/.test(css), 'דעיכה רכה בכניסה הראשונה');
+
+// 6. החוגה של שלושה — מרווחים יותר (הכיתובים לא חופפים)
+const ds = app.slice(app.indexOf('function dialStep('), app.indexOf('function dialRest('));
+const dialStep = new Function('return ' + ds.replace(/\/\*[\s\S]*?\*\//g, ''))();
+ok(dialStep(360, 3) >= 95 && dialStep(390, 3) >= 103 && dialStep(412, 3) <= 104, 'שלושה פריטים: ' + dialStep(360, 3).toFixed(1) + ' / ' + dialStep(390, 3).toFixed(1));
+ok(dialStep(390, 4) === Math.max(66, Math.min(96, 390 / 4.8)) && dialStep(390, 7) < 70, 'ארבעה ושבעה — בלי שינוי');
+
 console.log(n - bad + '/' + n + ' passed');
 process.exit(bad ? 1 : 0);
