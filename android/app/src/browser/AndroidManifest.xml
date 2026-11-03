@@ -120,6 +120,14 @@
             android:exported="false" />
 
         <!-- הדפדפן הקטן של DM — רק לרענון קישור של הורדה -->
+        <!-- 03/11/2026: ההתחברות העדכנית של אתר ל־DM (DmSession.pull) — קריאה בלבד, רק בהרשאת חתימה; הספק בודק גם את חבילת הפונה ואת חתימתה -->
+        <provider
+            android:name=".br.BrSessionProvider"
+            android:authorities="app.thesnowball.browser.session"
+            android:exported="true"
+            android:readPermission="app.thesnowball.permission.DM_HANDOFF"
+            android:writePermission="app.thesnowball.permission.DM_HANDOFF" />
+
         <!-- 01/11/2026: הגשר בין הדפדפן ל־DM (DmBridge) — מיוצא רק בהרשאת חתימה, בלי ממשק -->
         <activity
             android:name=".dm.DmBridge"

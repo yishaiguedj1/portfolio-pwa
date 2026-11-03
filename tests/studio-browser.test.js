@@ -393,4 +393,18 @@ ok(fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yis
     'סריקת אתר בתפריט ⋮ — פריט אחד בקבוצת הכלים');
 }
 
+// 03/11/2026: ההתחברות של הדפדפן ל־DM (DmSession + BrSessionProvider) — מקור אמת אחד, משיכה לפני כל הורדה
+{
+  const ses = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmSession.kt'), prov = R(B + 'BrSessionProvider.kt');
+  const man = R('android/app/src/browser/AndroidManifest.xml'), eng = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmEngine.kt');
+  const pm = man.slice(man.indexOf('.br.BrSessionProvider') - 80, man.indexOf('.br.BrSessionProvider') + 400);
+  ok(/android:readPermission="app\.thesnowball\.permission\.DM_HANDOFF"/.test(pm) && /android:writePermission="app\.thesnowball\.permission\.DM_HANDOFF"/.test(pm), 'הספק: קריאה וכתיבה רק בהרשאת חתימה');
+  ok(/caller != AppRoute\.DM_PKG \|\| pm\.checkSignatures\(caller, ctx\.packageName\) != PackageManager\.SIGNATURE_MATCH/.test(prov), 'הספק בודק את חבילת הפונה ואת החתימה שלה');
+  ok(/if \(!DmSession\.granted\(ctx, u\)\) return null/.test(prov) && /insert\(uri: Uri, values: ContentValues\?\): Uri\? = null/.test(prov), 'הספק עונה רק על אתר שאושר, ואין כתיבה');
+  ok(/info\.packageName == AppRoute\.BROWSER_PKG && pm\.checkSignatures/.test(ses) && /TTL_MS = 30L \* 24 \* 3600 \* 1000/.test(ses) && /PULL_GAP_MS = 30_000L/.test(ses), 'DM בודק שהספק הוא הדפדפן שלנו; הרשאה ל־30 יום; משיכה לכל היותר פעם בחצי דקה');
+  ok(/it == '\\r' \|\| it == '\\n'/.test(ses) && !/Log\.|println/.test(ses + prov), 'בלי הזרקת כותרות, בלי יומן');
+  ok((act.match(/if \(!t\.private\) io\.github\.yishaiguedj1\.snowball\.dm\.DmSession\.grant/g) || []).length >= 3 && /DmSession\.revokeAll\(this\)/.test(act), 'הרשאה רק ממסירה מכרטיסייה רגילה; "מחיקת נתונים" מבטלת');
+  ok(/if \(t\.ck\) runCatching \{ DmSession\.pull\(/.test(eng), 'DM מושך את ההתחברות לפני כל התחלה של הורדה מהדפדפן');
+}
+
 console.log('studio-browser: ' + n + ' בדיקות עברו');

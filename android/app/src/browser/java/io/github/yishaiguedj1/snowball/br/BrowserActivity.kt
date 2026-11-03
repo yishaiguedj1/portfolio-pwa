@@ -1493,6 +1493,7 @@ class BrowserActivity : ComponentActivity() {
         val ref = if (p.page) "" else t.page
         // 01/11/2026: כש־Studio DM מותקן — ההורדה נכנסת לתור שלו (DmBridge), אחרת לתור של הדפדפן
         if (DmBridge.remote(this)) {
+            if (!t.private) io.github.yishaiguedj1.snowball.dm.DmSession.grant(this, listOf(p.url, t.page))   // 03/11: DM רשאי למשוך את ההתחברות העדכנית של האתר
             if (!DmBridge.sendTask(this, DmPre.build(this, p.url, info, q, audio, ref, ck = true, tr = tr, subs = subs), runCatching { t.web?.settings?.userAgentString }.getOrNull() ?: "", listOf(t.page))) {
                 Toast.makeText(this, R.string.dmErrFail, Toast.LENGTH_SHORT).show(); return
             }
@@ -1545,6 +1546,7 @@ class BrowserActivity : ComponentActivity() {
             if (!done) {
                 done = true
                 val urls = listOf(t.page, url) + t.found.list.map { it.url }
+                if (!t.private && DmBridge.remote(this)) io.github.yishaiguedj1.snowball.dm.DmSession.grant(this, listOf(t.page, url))
                 if (!DmBrowser.handOff(this, url, ref, file, title, w?.settings?.userAgentString ?: "", urls)) Toast.makeText(this, R.string.dmErrFail, Toast.LENGTH_SHORT).show()
             }
         }
@@ -2177,6 +2179,7 @@ class BrowserActivity : ComponentActivity() {
         if (l.isEmpty()) return
         val ua = runCatching { t.web?.settings?.userAgentString }.getOrNull() ?: ""
         if (DmBridge.remote(this)) {
+            if (!t.private) io.github.yishaiguedj1.snowball.dm.DmSession.grant(this, listOf(t.url) + l.map { it.url })
             if (!DmBridge.sendFiles(this, l.map { it.url to it.name }, t.url, ua, !t.private)) say(R.string.dmErrFail)
             return
         }
@@ -2251,6 +2254,7 @@ class BrowserActivity : ComponentActivity() {
         if (arr.length() == 0) return
         val ck = !scanPriv
         if (DmBridge.remote(this)) {
+            if (ck) io.github.yishaiguedj1.snowball.dm.DmSession.grant(this, listOf(scanStart) + (0 until arr.length()).flatMap { k -> listOf(arr.getJSONObject(k).optString("u"), arr.getJSONObject(k).optString("r")) }.distinctBy { BrScan.host(it) }.take(50))
             if (DmBridge.sendScan(this, arr, scanStart, scanUa, ck)) scanSheet = false else say(R.string.dmErrFail)
             return
         }
@@ -2454,6 +2458,7 @@ class BrowserActivity : ComponentActivity() {
         val subs = DmSubs.forTask(info.optJSONArray("sub"), true)
         val ref = if (p.page) "" else t.page
         if (DmBridge.remote(this)) {
+            if (!t.private) io.github.yishaiguedj1.snowball.dm.DmSession.grant(this, listOf(p.url, t.page))
             if (!DmBridge.sendTask(this, DmPre.build(this, p.url, info, q, false, ref, ck = true, tr = true, later = true, subs = subs),
                     runCatching { t.web?.settings?.userAgentString }.getOrNull() ?: "", listOf(t.page))) { say(R.string.dmErrFail); return }
         } else DmPre.enqueue(this, p.url, info, q, false, ref, ck = true, tr = true, later = true, subs = subs)
@@ -2792,6 +2797,7 @@ class BrowserActivity : ComponentActivity() {
         BrStore.clearHistory(); BrStore.clearStates(); clearDocs()
         val p = userProfile()
         runCatching { val cm = p?.cookieManager ?: CookieManager.getInstance(); cm.removeAllCookies(null); cm.flush() }
+        io.github.yishaiguedj1.snowball.dm.DmSession.revokeAll(this)   // 03/11: גם ההרשאה של DM למשוך התחברות
         runCatching { (p?.webStorage ?: WebStorage.getInstance()).deleteAllData() }
         tabs.forEach { t -> runCatching { t.web?.clearCache(true); t.web?.clearHistory() }; t.lastState = null; if (t.web == null) t.state = null; t.web?.let { navState(t, it) } }
         BrPics.clear()
