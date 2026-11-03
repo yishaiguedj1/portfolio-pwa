@@ -7252,8 +7252,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.124.1';
-const APP_VERSION = 'v711';
+const APP_RELEASE = '2.124.2';
+const APP_VERSION = 'v712';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -9893,6 +9893,9 @@ function dialKeys() { return (_dial.host && _dial.host.keys()) || []; }
 function dialIndex(name) { return _dial.host ? _dial.host.index(name) : 0; }
 function dialCurName() { return _dial.host ? _dial.host.cur() : ''; }
 function dialStep(vw, n) {   // המרחק בין פריטים — כל השבעה על המסך, הקצוות חצי־גלויים (כמו בסרטון); ארבעה (Studio, Academy) — מרווחים יותר, הכיתובים לא נוגעים
+  /* 03/11/2026 (סבב קפיצות 12, qa-deep): ב־Academy (שלושה) הכיתובים "THE SNOWBALL" ו"הספרייה שלי" חפפו — 9px ב־390, 16px ב־360.
+     עד שלושה — יש מקום: מרווחים יותר (הפריט הרחוק בקצה חצי־גלוי, כמו ב־Invest) */
+  if (n && n <= 3) return Math.max(66, Math.min(104, (vw || 400) / 3.75));
   return n && n <= 5 ? Math.max(66, Math.min(96, (vw || 400) / 4.8)) : Math.max(59, Math.min(90, (vw || 400) / 6.2 - 4));
 }
 function dialRest(i) { return { pos: i, from: i, to: i, p: 0 }; }

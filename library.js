@@ -2054,6 +2054,7 @@ async function renderBook(id) {
   });
   d.append(toc);
   const sim = h('div', 'bk-sim'); d.append(sim);   // D9: ספרים דומים — מחבר, סדרה, תגיות ותוכן
+  if (PRK && PRK.similarNow) PRK.similarNow(sim, b);   // סבב קפיצות 12: ספר שכבר נפתח — הדומים כבר בדף לפני המעבר
   home.append(top, d);
   setTimeout(() => { if (sim.isConnected) pro((P) => P.similarInto(sim, b)); }, 350);
 }
@@ -5000,6 +5001,9 @@ export async function openLibrary(opt) {
     });
   }
   root.append(h('div', 'lib-home'));
+  /* 03/11/2026 (סבב קפיצות 12 — ציור ראשון ריק בפתיחה, 46ms של רקע): ההדר המשותף והבועה — עוד לפני ה־await הראשון (IndexedDB).
+     הציור הראשון (שבו מסך הפתיחה של ה־TWA יורד) כבר כולל את ההדר והחוגה; המדפים נכנסים מתחתם. renderHomeNow שומר את אותו הדר */
+  if (SA && SA.shell && !restore) { try { SA.shell.setStatus(backupPill()); } catch (e) {} root.firstChild.prepend(SA.shell.el); }
   wireLibSwipe();                          // 14/10/2026: החלקה בין עמודים ובין שתי הספריות (core: snbSwipe)
   // v316: לחיצה ארוכה על כריכה פתחה את תפריט הדפדפן ("הורדת תמונה") — אצלנו לחיצה ארוכה = עריכה/מחיקה
   root.addEventListener('contextmenu', (e) => { if (e.target.closest && e.target.closest('.lib-item, .lib-cover, .ed-cv, .ed-th')) e.preventDefault(); });

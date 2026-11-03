@@ -86,13 +86,13 @@ async function academySeed(page) {
   }, QM.BOOKS.map((b) => b.name));
   await page.waitForTimeout(9000);
   // 03/11/2026 (סבב קפיצות 11): כריכה (PNG) לכל ספר — בלעדיה הגלאי של יציבות הכריכות לא בודק כלום
-  const cvPng = await page.evaluate(async () => { const c = document.createElement('canvas'); c.width = 60; c.height = 90; const g = c.getContext('2d'); g.fillStyle = '#b5482e'; g.fillRect(0, 0, 60, 90); return c.toDataURL('image/png'); });
-  await page.evaluate((png) => new Promise(async (res) => { const bl = await (await fetch(png)).blob(); const r = indexedDB.open('snb-library'); r.onsuccess = () => { const t = r.result.transaction('books', 'readwrite'); const st = t.objectStore('books'); const q = st.getAll(); q.onsuccess = () => q.result.forEach((x) => {
+  // (בתוך הדף: fetch לכתובת data: נחסם ב־CSP של הדף, וההבטחה לא נגמרה)
+  await page.evaluate(() => new Promise(async (res) => { const c = document.createElement('canvas'); c.width = 60; c.height = 90; const g = c.getContext('2d'); g.fillStyle = '#b5482e'; g.fillRect(0, 0, 60, 90); const bl = await new Promise((ok) => c.toBlob(ok, 'image/png')); const r = indexedDB.open('snb-library'); r.onsuccess = () => { const t = r.result.transaction('books', 'readwrite'); const st = t.objectStore('books'); const q = st.getAll(); q.onsuccess = () => q.result.forEach((x) => {
     if (!(x.cover instanceof Blob)) { x.cover = bl; x.coverRatio = 2 / 3; x.coverV = 1; }
     if (/מכתב/.test(x.title)) { x.src = 'drive'; x.driveId = 'D' + x.id; x.md5 = 'a'; delete x.owner; }
     if (/Rich Dad Poor|1985|קיצור/.test(x.title)) { x.fraction = 0.3; x.lastRead = Date.now(); }
     if (/Subtle|2010|1966/.test(x.title)) { x.done = true; x.fraction = 1; }
-    st.put(x); }); t.oncomplete = res; }; }), cvPng);
+    st.put(x); }); t.oncomplete = res; }; }));
   await page.evaluate(() => { localStorage.setItem('pwa_libcoll_v1', JSON.stringify({ local: { k1: { n: 'השקעות', s: 'mine', b: ['id-qa-m1', 'id-qa-m2', 'id-qa-m5'], u: 1 }, k2: { n: 'פיתוח אישי', s: 'mine', b: ['id-qa-m3', 'id-qa-m4'], u: 1 }, k3: { n: 'המכתבים האהובים', s: 'snb', b: ['id-qa-l1985', 'id-qa-l2024', 'id-qa-z2020'], u: 1 } } })); });
   if (SLOWIDB) await page.evaluate(() => localStorage.setItem('__qa_slowidb', '1'));
   await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(3500);
@@ -153,7 +153,7 @@ const VIS_MARK = () => {
 };
 async function layerWatch(S) {
   const VA = 393 * 852;
-  S.lt = { on: false, last: [], base: new Set(), born: new Map(), seen: new Set(), pills: [] };
+  S.lt = { on: false, last: [], base: new Set(), born: new Map(), seen: new Set(), pills: [], glass: [] };
   try { await S.cdp.send('LayerTree.enable'); } catch (e) { return; }
   S.cdp.on('LayerTree.layerTreeDidChange', (e) => {
     if (!e.layers) return;
@@ -165,6 +165,10 @@ async function layerWatch(S) {
       if (l.drawsContent && l.backendNodeId && !L.base.has(l.layerId) && !L.seen.has(l.layerId)) {
         L.seen.add(l.layerId);
         S.cdp.send('DOM.describeNode', { backendNodeId: l.backendNodeId }).then((r) => { const a = (r.node && r.node.attributes) || [], c = a.indexOf('class') >= 0 ? a[a.indexOf('class') + 1] : ''; if (/(^|\s)(st-cpill|lib-bkpill|st-pill|fx-pill)(\s|$)/.test(c) && L.on) L.pills.push(c.split(' ')[0] + ' ' + l.width + 'x' + l.height); }, () => {});
+        /* 03/11/2026 (סבב קפיצות 12, Academy): שכבת טשטוש חדשה על רכיב בתוך הדף (צ'יפ מדף, "חזרה", "המשך קריאה") — הטשטוש נכבה בפאה
+           ונדלק בסוף, וכל אחד מהם שכבה חדשה. כפתורי ההדר הדביק (icon-btn) — מחוץ לגלאי: מאחוריהם השלג, והטשטוש שם נראה. ישן: 16, חדש: 0 */
+        S.cdp.send('LayerTree.compositingReasons', { layerId: l.layerId }).then((x) => { if (!L.on || !(x.compositingReasonIds || []).includes('backdropFilter') && !(x.compositingReasonIds || []).some((r) => /BackdropFilter/i.test(r) && !/Mask|Animation/.test(r))) return;
+          return S.cdp.send('DOM.describeNode', { backendNodeId: l.backendNodeId }).then((r) => { const a = (r.node && r.node.attributes) || [], c = a.indexOf('class') >= 0 ? a[a.indexOf('class') + 1] : ''; if (L.on && !/(^|\s)icon-btn(\s|$)/.test(c) && !(r.node && r.node.pseudoType)) L.glass.push((r.node.localName || '') + '.' + c.split(' ')[0]); }); }, () => {});
       }
       if (!l.drawsContent || L.base.has(l.layerId) || L.born.has(l.layerId) || Math.min(l.width, 393) * Math.min(l.height, 852) < VA * 0.3) continue;
       const rec = { size: l.width + 'x' + l.height, why: null };
@@ -177,7 +181,7 @@ async function layerWatch(S) {
     }
   });
 }
-function layerArm(S) { if (!S.lt) return; S.lt.base = new Set(S.lt.last.map((l) => l.layerId)); S.lt.born = new Map(); S.lt.seen = new Set(); S.lt.pills = []; S.lt.on = true; }
+function layerArm(S) { if (!S.lt) return; S.lt.base = new Set(S.lt.last.map((l) => l.layerId)); S.lt.born = new Map(); S.lt.seen = new Set(); S.lt.pills = []; S.lt.glass = []; S.lt.on = true; }
 function layerTransient(S) {
   if (!S.lt || !S.lt.on) return [];
   S.lt.on = false;
@@ -267,8 +271,9 @@ async function check(app, S, step, want) {
   }
   const ent = await S.page.evaluate(() => { const l = window.__probe.ent; window.__probe.ent = []; return l; });
   if (ent.length) bad(app, step, 'אנימציית כניסה מ־opacity 0 ב' + (step === 'פתיחה' ? 'ציור הראשון' : 'זמן המעבר') + ' (' + ent.length + '): ' + [...new Set(ent)].slice(0, 4).join(' '));
-  const pl = S.lt && S.lt.on ? S.lt.pills.slice() : [];
+  const pl = S.lt && S.lt.on ? S.lt.pills.slice() : [], gl = S.lt && S.lt.on && app === 'academy' ? S.lt.glass.slice() : [];
   const tl = layerTransient(S);
+  if (gl.length) bad(app, step, 'בזמן המעבר נוצרו ' + gl.length + ' שכבות טשטוש חדשות לרכיבים בתוך הדף (בטלפון — הבהוב לפריים): ' + [...new Set(gl)].slice(0, 5).join(' '));
   if (pl.length) bad(app, step, 'בזמן המעבר נוצרו ' + pl.length + ' שכבות חדשות לבועות בהדר (בטלפון — מלבן ריק לפריים): ' + [...new Set(pl)].slice(0, 4).join(' '));
   if (tl.length) bad(app, step, 'בזמן המעבר נוצרו ונהרסו ' + tl.length + ' שכבות גדולות (בטלפון — ריק עד שהן נצבעות): ' + tl.slice(0, 4).join(' '));
   const stale = log.filter((x) => x.stale).length;

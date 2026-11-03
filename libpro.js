@@ -228,10 +228,20 @@ export function createPro(E) {
     });
     return row;
   }
+  /* 03/11/2026 (סבב קפיצות 12, "דף ספר" ב־qa-deep): "ספרים דומים" נכנס 350ms אחרי הפתיחה (קריאה מ־IndexedDB + מילות מפתח), כלומר
+     אחרי שהקובייה נחתה. התוצאה נשמרת בזיכרון לפי ספר: בכניסה הבאה הדומים נבנים מיד (similarNow, לפני המעבר). בכניסה הראשונה
+     הם נכנסים בדעיכה רכה (bk-sim.in) מתחת לתוכן, בלי להזיז אותו. בחישוב החוזר — אותם ספרים, ולכן לא נוגעים */
+  const SIMC = new Map();
+  const simIds = (l) => l.map((x) => x.b.id).join('|');
+  const simFill = (host, list) => { host.replaceChildren(h('div', 'pl-gh', T('pxSimilar')), coverRow(list, (x) => quickLook(x))); host._sim = simIds(list); };
+  function similarNow(host, b) { const l = SIMC.get(b.id); if (!l || !l.length) return false; simFill(host, l); return true; }
   async function similarInto(host, b) {
     const list = await similarOf(b);
-    if (!list.length || !host.isConnected) return;
-    host.append(h('div', 'pl-gh', T('pxSimilar')), coverRow(list, (x) => quickLook(x)));
+    SIMC.set(b.id, list);
+    if (!host.isConnected || host._sim === simIds(list)) return;
+    if (!list.length) { host.replaceChildren(); host._sim = ''; return; }
+    if (!host.firstChild) host.classList.add('in');
+    simFill(host, list);
   }
 
   /* ספר מתוך גיליון (דומים / מחבר / סדרה) — לדף הספר (סוגרים קודם את הגיליון) */
@@ -445,5 +455,5 @@ export function createPro(E) {
     await K.printRaw({ title, lang, body: String(text).split(/\n{2,}/).map((p) => '<p dir="auto">' + esc(p).replace(/\n/g, '<br>') + '</p>').join('') + '<p style="color:#666;font-size:9pt">— ' + esc(src) + '</p>' });
   }
 
-  return { openBrowser, authorPage, seriesPage, similarInto, openStats, openHlExport, findPane, viewer, printChapter, printText };
+  return { openBrowser, authorPage, seriesPage, similarInto, similarNow, openStats, openHlExport, findPane, viewer, printChapter, printText };
 }
