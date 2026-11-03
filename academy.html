@@ -29,12 +29,14 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
 <link rel="modulepreload" href="libbackup.js">
 <link rel="modulepreload" href="academy-data.js">
 <link rel="modulepreload" href="vendor/foliate-js/view.js">
-</head>
-<body>
+<!-- 03/11/2026 (סבב קפיצות 12, כמו Studio בסבב 9): הסקריפטים בראש הדף, והמודול חוסם את הציור (blocking="render" — רק ב־head) עד
+     סוף ההרצה הסינכרונית שלו: ההדר והחוגה כבר בציור הראשון. defer ומודול — רצים אחרי הניתוח, באותו סדר -->
 <script src="firebase-config.js" defer></script>
 <script src="strings-academy.js" defer></script>
 <script src="core.js" defer></script>
 <script src="auth.js" defer></script>
-<script type="module" src="academy-app.js"></script>
+<script type="module" src="academy-app.js" blocking="render"></script>
+</head>
+<body>
 </body>
 </html>

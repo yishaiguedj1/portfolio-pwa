@@ -4,13 +4,13 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v711';
+const CACHE_NAME = 'portfolio-pwa-v712';
 const HASHES = {
   "./": "6ab1986a1bc13b10b7405e36061fa8ba",
   "./index.html": "6ab1986a1bc13b10b7405e36061fa8ba",
   "./styles.css": "548ed276d76b5a06a8e4b527995ba650",
-  "./glass-btn.css": "3cc5faba35d133d49a695970d25297a1",
-  "./app.js": "a1d812e573bd66cab6fd1ad1427720a5",
+  "./glass-btn.css": "de44d9f7f456b2b4a5c349a8b3f32fd1",
+  "./app.js": "d1391b60ed4c9fc117f2acef0da13334",
   "./returns.js": "3590562b0282025a8a79650ad6b3a49b",
   "./cloud.js": "2cf2e330bfcc2c9150ba47b8f355982d",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -41,7 +41,7 @@ const HASHES = {
   "./chartlib.js": "5c00c490dac1b09329fa1ce657350a9b",
   "./chart.css": "0e4e6260108563c3f329d204c1398a10",
   "./vendor/klinecharts/klinecharts.min.js": "4202d8661b8302175751d8d072bf6d2f",
-  "./library.js": "39e86753b6ca17a9df80a35a8216d2ff",
+  "./library.js": "f8dd420bacdce874be328a33cda9c683",
   "./library.css": "c60af5ef4fdc02fbbc920ebd7ff00499",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
   "./libbackup.js": "a238c4cf7877166ba8eba5cdcf6eadb8",
@@ -71,10 +71,10 @@ const HASHES = {
   "./vendor/foliate-js/fixed-layout.js": "7aee1d15d8e0479b8a6c59a20304b250",
   "./vendor/foliate-js/vendor/zip.js": "2a0d43157e4a447c6e43351225758795",
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
-  "./academy.html": "ff70b7cdf55a58896794457f6812abf4",
+  "./academy.html": "5f56f60e654738ec753d8039eeedc8cf",
   "./academy-app.js": "130b15379b74427d8f0071032894b5f0",
   "./strings-academy.js": "90f866da637b9d1e04b8be334116332e",
-  "./core.js": "a6373c86f7437e238de77fb9a9928b14",
+  "./core.js": "48783d0ded3d40835c6f423dadb1fce6",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "3108c90ef333e70a80d4c6f0898f9a23",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
