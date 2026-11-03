@@ -59,7 +59,7 @@ object BrScan {
             "|/cart|/checkout|/basket|add[-_]to[-_]cart|/order|/payment|/billing|/subscribe|unsubscribe|/account|/my-account|/profile|/settings|/preferences" +
             "|/delete|/remove|/destroy|/edit|/admin|/cdn-cgi/|/wp-json|xmlrpc|/feed/?$|/rss|/comments?/|replytocom=|[?&](action|do|cmd|token|nonce|_wpnonce|delete|logout)=" +
             "|[?&](s|q|search|query)=|/search|/print/|[?&]print=|[?&]share=|/share/|/download/?$|/like/|/vote/|/follow/|/report/" +
-            "|/(un)?watch(ed)?/?$|/setfree|/set_?free|/mark|/complete|/progress|/track|/attach|/upload|/discussion|/quiz|/captcha|/cable|/bookmark|/favou?rite|/rate/|/enroll|/purchase|/payments?/|shoppingcart|/storage|/api/|/graphql|/ajax",
+            "|/(un)?watch(ed)?/?$|/setfree|/set_?free|/mark|/complete|/progress|/track|[/_-]attach|[/_-]upload|discussion|[/_-]quiz|/captcha|/cable|/bookmark|/favou?rite|/rate/|/enroll|/purchase|/payments?/|shoppingcart|/storage|/api/|/graphql|/ajax",
         RegexOption.IGNORE_CASE)
     private val LOW = Regex("/(tag|tags|author|authors|category|categories|archive|archives|date|about|contact|privacy|terms|faq|help|blog|news|press|careers|jobs)(/|$)|/20\\d\\d/\\d\\d(/|$)", RegexOption.IGNORE_CASE)
     private val HIGH = Regex("watch|video|episode|series|season|serie|lesson|lecture|course|chapter|play|vod|stream|פרק|עונה|סדרה|שיעור|הרצאה|קורס|צפי", RegexOption.IGNORE_CASE)
