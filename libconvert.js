@@ -532,6 +532,13 @@ export function createConvert(E) {
       body += '<section class="ch">' + s + '</section>';
     }
     if (extra) body += '<section class="ch">' + extra.map((b) => b.k === 'h' ? '<h1>' + esc(b.r[0].t) + '</h1>' : b.q ? '<blockquote>' + esc(b.r[0].t) + '</blockquote>' : '<p><i>' + esc(b.r[0].t) + '</i></p>').join('') + '</section>';
+    return printRaw({ title, lang, body, urls, dir });
+  }
+  /* הדפסה כללית (גם לפרק, לקטע ולהדגשות — Academy Pro גל 4, E14/E5): body = HTML מוכן; urls = כתובות blob לשחרור אחרי ההדפסה */
+  async function printRaw({ title, lang, body, urls = [], dir }) {
+    const EK = await kit(); dir = dir || EK.dirOf(lang);
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const fontUrl = new URL('fonts/NotoSansHebrew-VF.woff2', document.baseURI).href;
     const css = '@font-face{font-family:"SNB P";src:url("' + fontUrl + '") format("woff2");font-weight:100 900}'
       + '@page{size:A4;margin:18mm 16mm}html{direction:' + dir + '}body{font-family:"SNB P","Noto Sans Hebrew",serif;font-size:11.5pt;line-height:1.6;color:#111;margin:0}'
       + 'h1,h2,h3{line-height:1.25;break-after:avoid}h1{font-size:20pt}h2{font-size:15pt}p{margin:0 0 .6em;orphans:2;widows:2}img,svg{max-width:100%;height:auto;break-inside:avoid}'
@@ -591,5 +598,5 @@ export function createConvert(E) {
     } catch (e) { flash(T(e && e.msg ? e.msg : 'cvFailAll')); return false; }
   }
 
-  return { openAdd, openConvert, openArticles, openExport, toEpub, exportAs, kindOf };
+  return { openAdd, openConvert, openArticles, openExport, toEpub, exportAs, kindOf, printRaw, saveBlob };
 }

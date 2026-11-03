@@ -134,7 +134,7 @@ ok(L.ftFind(txt, 'ק').length === 0 && L.ftFind(txt, 'קוקה קולה').length
 const sn = L.snippet('א'.repeat(200) + ' מילה חשובה כאן ' + 'ב'.repeat(200), 201, 4);
 ok(sn.hit === 'מילה' && sn.pre.startsWith('…') && sn.post.endsWith('…') && !/\n/.test(sn.pre), 'קטע תוצאה: סביב ההתאמה, עם …');
 ok(/op: 'me'/.test(lib) && /removeReader/.test(lib) && /ui\.admin/.test(lib), 'ניהול: מוצג רק כשהשרתון אומר שזה מנהל');
-ok(/view\.search\(\{ query: opt\.find\.q, index: opt\.find\.sec/.test(lib), 'נגיעה בתוצאה פותחת את הקורא בפרק ובמופע הנכון');
+ok(/view\.search\(\{ query: f\.q, index: f\.sec/.test(lib) && /if \(opt && opt\.find\) await findInView\(view, opt\.find\)/.test(lib), 'נגיעה בתוצאה פותחת את הקורא בפרק ובמופע הנכון');
 
 // שלב 8: חיפוש מהיר — הקיפול המהיר זהה לקיפול עם המפה, והמיקומים נכונים עם ניקוד ובלעדיו
 const fsamp = 'בַּאפֶט אָמַר: "מרווח ביטחון" — ‘Margin’ של ברקשייר״ם ן־ץ';
