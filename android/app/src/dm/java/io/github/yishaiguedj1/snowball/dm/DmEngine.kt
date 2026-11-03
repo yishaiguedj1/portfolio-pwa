@@ -112,6 +112,8 @@ object DmEngine {
             val t0 = System.currentTimeMillis(); val got0 = t.got
             if (t.kind != DmKind.YTDL) r.conns = conns
             log(ctx, t, r, "start", "", 0, 0)
+            // 03/11/2026: הורדה מהדפדפן — ההתחברות העדכנית של האתר נמשכת מ־Studio Browser לפני כל התחלה (DmSession, הרשאת חתימה)
+            if (t.ck) runCatching { DmSession.pull(ctx, t.ref.ifEmpty { t.url }, listOf(t.url), t.ua) }
             val end = try { if (t.kind == DmKind.YTDL) runYt(ctx, t, r) else runHttp(ctx, t, r, conns, pr, host) } catch (e: Throwable) { r.ex = e; "fail" }
             running.remove(t.id); speed.remove(t.id); ytStage.remove(t.id); ytEta.remove(t.id); live.remove(t.id)
             when {
