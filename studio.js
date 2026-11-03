@@ -2642,7 +2642,7 @@ function navBar(o) {
   else { lead = btn('st-back', null, o.go || back, 'nav-back'); const l = h('span', 'st-back-l'); l.append(h('bdi', null, o.back)); lead.append(ico('back'), l); }
   const s = h('span', 'st-nav-s'); s.append(lead);
   const e = h('span', 'st-nav-e'); if (o.end) e.append(o.end);
-  bar.append(s, h('span', 'st-nav-t', o.title || ''), e);
+  bar.append(s, h('span', 'st-nav-t' + (o.coll ? ' coll' : ''), o.title || ''), e);   // coll: יש כותרת גדולה — הקטנה רק כשהיא נגללת (studio.css)
   return bar;
 }
 const large = (txt) => h('h1', 'st-large', txt);
@@ -3235,7 +3235,7 @@ function jobsCard(rows) {
   // ציור במקום של הבית (jobsCardIn): אותו כרטיס, שורות חדשות — הסגירות כאן קוראות את rows העדכני
   wrap._jc = (nr) => { rows = nr; listSync(l, rows); if (ro) rows.forEach((r) => ro.observe(r)); fit(); };
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (l.isConnected) fit(); });
-  l.addEventListener('scroll', () => { ui.jobsY = l.scrollTop; paint(); }, { passive: true });
+  l.addEventListener('scroll', () => { if (l._flat) return; ui.jobsY = l.scrollTop; paint(); }, { passive: true });   // _flat: מוקפא למעבר (core: scrollFlat) — ה־0 של החיתוך לא נשמר
   requestAnimationFrame(() => {
     if (!l.isConnected) return;
     fit();
@@ -7023,7 +7023,7 @@ function pageTower(p) {
       : last ? T('studioUtLast', { a: opsAgo(last.srv.ended) }) : T('studioUtHelloS')));
   hero.append(hi, ht);
   const dt = new Date();
-  p.append(navBar({ back: T('studioBack'), title: T('studioTwT') }), large(T('studioTwT')),
+  p.append(navBar({ back: T('studioBack'), title: T('studioTwT'), coll: true }), large(T('studioTwT')),
     h('p', 'st-ut-date', dt.toLocaleDateString(uiLang() === 'en' ? 'en-US' : 'he-IL', { weekday: 'long', day: 'numeric', month: 'long' })));
   if (ui.access === 'ok') p.append(hero);   // לא מחובר — הבאנר שמתחת מסביר; בלי "הכל עובד" שסותר אותו
   const ab = accessBanner(); if (ab) p.append(ab);

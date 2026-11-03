@@ -48,5 +48,18 @@ ok(/const KEEP_NO = 'input,textarea,select,video,audio,canvas,iframe,\[contented
 ok(/o\._fwd = null;\s*o\.replaceWith\(f\);/.test(st), 'בנגיעה — החלק מתחלף בחדש לפני הלחיצה (הפעולה מהציור האחרון, על מה שעל המסך)');
 ok(/רענון שקט במגדל/.test(qa) && /הבועה בהדר נבנתה מחדש/.test(qa), 'qa-sweep: גלאי המגדל והבועה');
 
+
+// 3. גלילה פנימית בדף היוצא — מוקפאת לצילום/להעתק (scrollFlat, core)
+const app = R('app.js'), core = R('core.js'), css = R('studio.css');
+ok(/function scrollFlat\(root, from\)/.test(app) && /function scrollFlat\(root, from\)/.test(core), 'scrollFlat קיים (app.js ו־core.js שנוצר)');
+ok(/scrollFlat\(c, el\);/.test(app), 'cubeClone: ההעתק — הגלילות הפנימיות במקום של המקור');
+ok(/const unflat = scrollFlat\(root\);/.test(app) && /unflat\(\);\n    root\.classList\.remove\('cube-vt'\);/.test(app), 'cubeVTPre: מוקפא לפני הצילום, משוחזר ב־clean');
+ok(/el\.style\.overflow = 'clip';/.test(app) && /k\.style\.translate = \(-x\) \+ 'px ' \+ \(-y\) \+ 'px'/.test(app), 'חיתוך + הזזה דו־ממדית (בלי שכבה), גם ב־RTL (scrollLeft שלילי)');
+ok(/if \(l\._flat\) return; ui\.jobsY = l\.scrollTop;/.test(st), 'כרטיס העבודות לא שומר את ה־0 של ההקפאה');
+
+// 4. כותרת כפולה במגדל — הקטנה רק בגלילה
+ok(/title: T\('studioTwT'\), coll: true \}\), large\(T\('studioTwT'\)\)/.test(st), 'המגדל: coll בסרגל');
+ok(/@supports \(animation-timeline: scroll\(\)\) \{\s*\.st-nav-t\.coll \{ animation: stNavT/.test(css) && /@keyframes stNavT \{ from \{ color: transparent; \}/.test(css), 'מונע בגלילה, על הצבע (לא opacity — בלי שכבה)');
+
 console.log(n - bad + '/' + n + ' passed');
 process.exit(bad ? 1 : 0);
