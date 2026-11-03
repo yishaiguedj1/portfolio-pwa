@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2258 מפתחות מתוך 6334) */
+/* המחרוזות של studio (2265 מפתחות מתוך 6400) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -117,6 +117,13 @@ he: {
   "shellTowerSub": "מצב השירות והסוכנים",
   "signOut": "התנתקות",
   "skipLogin": "המשך בלי חשבון",
+  "studioAcFail": "השליחה ל־Academy נכשלה — נסו שוב",
+  "studioAcFull": "יש יותר מדי פריטים שמחכים — פתחו את Academy",
+  "studioAcRow": "שליחה ל־Academy",
+  "studioAcRowS": "ההרצאה כטקסט לקריאה, עם פרקים",
+  "studioAcSending": "שולח ל־Academy…",
+  "studioAcSent": "נשלח — ייכנס לספרייה בפתיחה הבאה של Academy",
+  "studioAcSignin": "צריך להתחבר כדי לשלוח ל־Academy",
   "studioAdvAfterT": "הצעות",
   "studioAdvAsk": "לתקן לפי התשובה שלך",
   "studioAdvAskS": "ענית: {a} · Claude מתקן רק כתוביות שהתשובה משנה, באישורך",
@@ -2377,6 +2384,13 @@ en: {
   "shellTowerSub": "Service and agent status",
   "signOut": "Sign out",
   "skipLogin": "Continue without an account",
+  "studioAcFail": "Sending to Academy failed — try again",
+  "studioAcFull": "Too many items are waiting — open Academy",
+  "studioAcRow": "Send to Academy",
+  "studioAcRowS": "The talk as text to read, with chapters",
+  "studioAcSending": "Sending to Academy…",
+  "studioAcSent": "Sent — it will join your library next time you open Academy",
+  "studioAcSignin": "Sign in to send to Academy",
   "studioAdvAfterT": "Suggestions",
   "studioAdvAsk": "Fix to match your answer",
   "studioAdvAskS": "You answered: {a} · Claude fixes only the subtitles it changes, with your approval",

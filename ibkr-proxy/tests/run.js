@@ -1173,6 +1173,117 @@ function stubFetch(text, status = 200) {
     gauth._reset();
   }
 
+  /* ---------- Academy Pro גל 6: OCR ב־bookAi, webGet (הגנה מכתובות פנימיות), תיבת הדואר ב־R2 (הכל מדומה) ---------- */
+  {
+    const crypto = require('crypto');
+    const gauth = require('../lib/gauth');
+    const lib = require('../api/library');
+    const WEB = require('../lib/libweb');
+    const scope = require('../lib/appscope');
+    const env = ['GEMINI_API_KEY', 'MISTRAL_API_KEY'].map((k) => [k, process.env[k]]);
+    const fb = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    gauth._reset();
+    const keys = { k1: fb.publicKey.export({ type: 'spki', format: 'pem' }) };
+    const b64u = (o) => Buffer.from(JSON.stringify(o)).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const tnow = Math.floor(Date.now() / 1000);
+    const tok = (sub) => { const hd = b64u({ alg: 'RS256', kid: 'k1' }), bd = b64u({ aud: 'yishaiguedj1-c786e', iss: 'https://securetoken.google.com/yishaiguedj1-c786e', sub, iat: tnow - 5, exp: tnow + 3000, email: 'reader6@example.com', email_verified: true });
+      return hd + '.' + bd + '.' + crypto.sign('RSA-SHA256', Buffer.from(hd + '.' + bd), fb.privateKey).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_'); };
+    const U = tok('webUser00001');
+    process.env.GEMINI_API_KEY = 'k-test'; delete process.env.MISTRAL_API_KEY;
+
+    /* OCR */
+    const mem = new Map();
+    const store = { get: async (k, p) => mem.get(k + JSON.stringify(p)) || null, set: async (k, p, v) => { mem.set(k + JSON.stringify(p), v); }, allow: async () => ({ ok: true }) };
+    const calls = []; let reply = null;
+    const fakeAi = async (url, opt) => { calls.push({ url: String(url), body: opt && opt.body }); const o = reply(String(url)); return { status: o.st || 200, json: async () => o.j }; };
+    const runAi = async (body) => { const r = mockRes(); await lib._handler(mockReq({ body: Object.assign({ op: 'bookAi' }, body) }), r, { verify: { keys }, fetch: fakeAi, aiStore: store, models: ['gemini-test'] }); return r; };
+    const IMG = '/9j/' + 'A'.repeat(800);
+    reply = () => ({ j: { candidates: [{ content: { parts: [{ text: JSON.stringify({ paras: ['שורה ראשונה של העמוד', '  ', 'פסקה   שנייה'], title: 'פרק א' }) }] } }] } });
+    let r = await runAi({ task: 'ocr', img: IMG, idToken: U });
+    const sentO = JSON.parse(calls[calls.length - 1].body);
+    ok(r.statusCode === 200 && r.payload.paras.join('|') === 'שורה ראשונה של העמוד|פסקה שנייה' && r.payload.title === 'פרק א', 'bookAi ocr: עמוד סרוק → פסקאות נקיות וכותרת');
+    ok(sentO.contents[0].parts[0].inlineData.mimeType === 'image/jpeg' && sentO.contents[0].parts[0].inlineData.data === IMG, 'bookAi ocr: התמונה נשלחת כ־inlineData');
+    r = await runAi({ task: 'ocr', img: 'iVBOR' + 'A'.repeat(800), idToken: U });
+    ok(r.statusCode === 400, 'bookAi ocr: רק JPEG');
+    r = await runAi({ task: 'ocr', img: '/9j/' + 'A'.repeat(500000), idToken: U });
+    ok(r.statusCode === 400 || r.statusCode === 413, 'bookAi ocr: תמונה גדולה מדי — נדחית');
+    process.env.MISTRAL_API_KEY = 'm-test'; reply = (u) => (/mistral/.test(u) ? { j: { choices: [{ message: { content: '{"paras":["x"]}' } }] } } : { st: 500, j: {} });
+    const nm = calls.length;
+    r = await runAi({ task: 'ocr', img: '/9j/' + 'B'.repeat(800), idToken: U });
+    ok(r.statusCode === 502 && !calls.slice(nm).some((c) => /mistral/.test(c.url)), 'bookAi ocr: בלי גיבוי Mistral (אין לו תמונה)');
+    delete process.env.MISTRAL_API_KEY;
+
+    /* webGet */
+    ok(!WEB.checkUrl('ftp://a.com/x') && !WEB.checkUrl('http://localhost/x') && !WEB.checkUrl('http://10.0.0.5/') && !WEB.checkUrl('http://[::1]/') && !WEB.checkUrl('http://a.com:8080/') && !WEB.checkUrl('http://u:p@a.com/') && !WEB.checkUrl('http://intranet/'), 'webGet: כתובות אסורות (פרוטוקול, מקומי, פנימי, פורט, סיסמה, שם בלי נקודה)');
+    ok(!!WEB.checkUrl('https://news.example.com/a?b=1#c') && WEB.checkUrl('https://news.example.com/a#c').hash === '', 'webGet: כתובת רגילה מותרת (בלי #)');
+    ok(WEB.privateIp('169.254.169.254') && WEB.privateIp('::ffff:127.0.0.1') && WEB.privateIp('fd00::1') && !WEB.privateIp('8.8.8.8') && !WEB.privateIp('2606:4700::1'), 'webGet: זיהוי כתובות פנימיות (כולל מטא־דאטה של ענן ו־IPv6)');
+    ok(WEB.charsetOf('text/html; charset=windows-1255', '') === 'windows-1255' && WEB.charsetOf('text/html', '<meta charset="utf-8">') === 'utf-8' && WEB.charsetOf('', '') === 'utf-8', 'webGet: קידוד מהכותרת או מה־meta');
+    const hdr = (o) => ({ get: (k) => o[k.toLowerCase()] == null ? null : String(o[k.toLowerCase()]) });
+    const web = []; let pages = {};
+    const fakeWeb = async (url, opt) => { web.push({ url, opt }); const p = pages[url]; if (!p) throw new Error('net'); return { status: p.st || 200, headers: hdr(p.h || {}), arrayBuffer: async () => Buffer.from(p.body || '') }; };
+    const dnsMap = { 'news.example.com': '93.184.216.34', 'evil.example.com': '10.1.2.3', 'cdn.example.com': '93.184.216.35' };
+    const look = async (h) => (dnsMap[h] ? [{ address: dnsMap[h] }] : Promise.reject(new Error('nx')));
+    const runW = async (body) => { const rr = mockRes(); await lib._handler(mockReq({ body: Object.assign({ op: 'webGet' }, body) }), rr, { verify: { keys }, fetch: fakeWeb, lookup: look }); return rr; };
+    r = await runW({ url: 'https://news.example.com/a' });
+    ok(r.statusCode === 401, 'webGet: בלי התחברות — 401');
+    pages = { 'https://news.example.com/a': { h: { 'content-type': 'text/html; charset=utf-8' }, body: '<html><body><article><p>שלום</p></article></body></html>' } };
+    r = await runW({ url: 'https://news.example.com/a', idToken: U });
+    ok(r.statusCode === 200 && r.payload.text.includes('שלום') && r.payload.type === 'text/html' && web[web.length - 1].opt.redirect === 'manual', 'webGet: דף מהרשת → טקסט, בלי הפניות אוטומטיות');
+    r = await runW({ url: 'https://evil.example.com/', idToken: U });
+    ok(r.statusCode === 400 && r.payload.error === 'bad_host', 'webGet: שם שמצביע לכתובת פנימית — נחסם (אחרי DNS)');
+    pages = { 'https://news.example.com/r': { st: 302, h: { location: 'http://169.254.169.254/latest/meta-data' } } };
+    r = await runW({ url: 'https://news.example.com/r', idToken: U });
+    ok(r.statusCode === 400 && !web.some((w) => /169\.254/.test(w.url)), 'webGet: הפניה לכתובת פנימית — נחסמת לפני הבקשה');
+    pages = { 'https://news.example.com/r2': { st: 301, h: { location: 'https://cdn.example.com/feed.xml' } }, 'https://cdn.example.com/feed.xml': { h: { 'content-type': 'application/rss+xml' }, body: '<rss><channel><title>T</title></channel></rss>' } };
+    r = await runW({ url: 'https://news.example.com/r2', idToken: U });
+    ok(r.statusCode === 200 && r.payload.url === 'https://cdn.example.com/feed.xml' && r.payload.type === 'application/rss+xml', 'webGet: הפניה רגילה — נעקבת, הכתובת הסופית מוחזרת');
+    pages = { 'https://news.example.com/z': { h: { 'content-type': 'application/zip' }, body: 'PK' } };
+    r = await runW({ url: 'https://news.example.com/z', idToken: U });
+    ok(r.statusCode === 415, 'webGet: סוג קובץ לא של דף — נדחה');
+    pages = { 'https://news.example.com/big': { h: { 'content-type': 'text/html', 'content-length': 9e6 }, body: 'x' } };
+    r = await runW({ url: 'https://news.example.com/big', idToken: U });
+    ok(r.statusCode === 413, 'webGet: דף גדול מדי — נדחה');
+    pages = { 'https://news.example.com/he': { h: { 'content-type': 'text/html; charset=windows-1255' }, body: Buffer.from([0xf9, 0xec, 0xe5, 0xed]) } };
+    r = await runW({ url: 'https://news.example.com/he', idToken: U });
+    ok(r.payload.text === 'שלום', 'webGet: דף ישן בקידוד עברי (1255) — מפוענח');
+
+    /* תיבת הדואר */
+    const objs = new Map(); const r2log = [];
+    const fakeR2 = {
+      list: async (c, rd, pre) => [...objs.entries()].filter(([k]) => k.startsWith(pre)).map(([key, o]) => ({ key, size: o.size, at: o.at })),
+      del: async (c, rd, key) => { r2log.push('del ' + key); objs.delete(key); },
+      presign: async (c, rd, o) => { r2log.push(o.method + ' ' + o.key); return 'https://r2.example/' + o.key + '?sig=' + o.method; },
+    };
+    let tnow2 = Date.now();
+    const runI = async (body, extra) => { const rr = mockRes(); await lib._handler(mockReq({ body: Object.assign({ op: 'inbox' }, body) }), rr, Object.assign({ verify: { keys }, r2: { ok: true }, R2: fakeR2, now: () => tnow2 }, extra || {})); return rr; };
+    r = await runI({ act: 'list' });
+    ok(r.statusCode === 401, 'inbox: בלי התחברות — 401');
+    r = await runI({ act: 'put', ext: 'epub', size: 1000, name: 'שיעור 1: מבוא', from: 'studio', idToken: U });
+    ok(r.statusCode === 200 && /^https:\/\/r2\.example\/inbox\/webUser00001\//.test(r.payload.url) && r.payload.type === 'application/epub+zip' && /_s_/.test(r.payload.id), 'inbox put: כתובת העלאה חתומה בתיבה של המשתמש בלבד');
+    const id1 = r.payload.id; objs.set('inbox/webUser00001/' + id1, { size: 1000 });
+    objs.set('inbox/otherUser0001/' + id1, { size: 5 });
+    r = await runI({ act: 'list', idToken: U });
+    ok(r.payload.items.length === 1 && r.payload.items[0].name === 'שיעור 1: מבוא' && r.payload.items[0].from === 'studio' && r.payload.items[0].ext === 'epub', 'inbox list: רק שלו, עם השם המקורי ומאיפה נשלח');
+    r = await runI({ act: 'get', id: '../otherUser0001/' + id1, idToken: U });
+    ok(r.statusCode === 400 && !r2log.some((x) => /otherUser/.test(x)), 'inbox get: מזהה עם נתיב — נדחה (אין גישה לתיבה של אחר)');
+    r = await runI({ act: 'get', id: id1, idToken: U });
+    ok(r.payload.url.includes('inbox/webUser00001/' + id1) && /sig=GET/.test(r.payload.url), 'inbox get: כתובת הורדה חתומה');
+    r = await runI({ act: 'put', ext: 'exe', size: 10, idToken: U });
+    const r2b = await runI({ act: 'put', ext: 'epub', size: 61 * 1024 * 1024, idToken: U });
+    ok(r.statusCode === 400 && r2b.statusCode === 400, 'inbox put: רק epub/md, עד 60MB');
+    tnow2 += 15 * 864e5;
+    r = await runI({ act: 'list', idToken: U });
+    ok(r.payload.items.length === 0 && !objs.has('inbox/webUser00001/' + id1) && objs.has('inbox/otherUser0001/' + id1), 'inbox list: מה שישן מ־14 יום — נמחק (רק בתיבה שלו)');
+    for (let i = 0; i < 40; i++) objs.set('inbox/webUser00001/' + tnow2.toString(36) + '_a' + i + '_a_eA.md', { size: 1 });
+    r = await runI({ act: 'put', ext: 'md', size: 10, idToken: U });
+    ok(r.statusCode === 429 && r.payload.error === 'inbox_full', 'inbox put: תיבה מלאה (40) — 429');
+    r = await runI({ act: 'list', idToken: U }, { r2: null });
+    ok(r.statusCode === 503, 'inbox: בלי R2 — 503');
+    ok(String(scope.scopeFor('library', 'inbox')) === 'academy,studio' && String(scope.scopeFor('library', 'webGet')) === 'academy', 'appscope: תיבת הדואר גם מ־Studio, webGet רק מ־Academy');
+    env.forEach(([k, v]) => { if (v === undefined) delete process.env[k]; else process.env[k] = v; });
+    gauth._reset();
+  }
+
   /* ---------- v318: גיבוי הספרייה הפרטית ל־Google Drive — חיבור, גישה זמנית, ניתוק (Google ו־Firestore מדומים) ---------- */
   {
     const crypto = require('crypto');

@@ -14,7 +14,7 @@ import { createBackup, waitOAuthCode } from './libbackup.js';
 import { isR2Folder, isR2Id } from './studiostore.js';
 import { bgEligible, bgUpload, bgIdOf, bgDb, bgUpOk } from './studiobg.js';
 import { createPlayer, normCues, issuesList, fmtT, normLadder, normAlt, normPq, normTrackPref, normChapters, normSty, STY_COLORS, STY_Y } from './studioplay.js';
-import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, toStl, termIssues, flagIndex, noteIndex, normMeta, createTimeline, editDiff, editStats, importSubs, seriesOfName, smChanges, cuesReplace, cuesWith, fmtTc } from './studiosubs.js';
+import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, toStl, termIssues, flagIndex, noteIndex, normMeta, createTimeline, editDiff, editStats, importSubs, seriesOfName, smChanges, cuesReplace, cuesWith, fmtTc, toLectureMd } from './studiosubs.js';
 import { listTracks, extractTracks, cuesToFile, lang2 } from './studiotracks.js';
 import { createEdlEditor, normEdl, edlPre, edlDur, outDur, silenceSegs, removeRange, addRange, segAt, intersectSegs, cutFillers, normOv, OV_T_MAX, OV_LG_MAX, OV_POS, previewEdl, PV_LEN } from './studioedl.js';
 import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, AI_NOTE_MAX, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges, parseChapters } from './studioai.js';
@@ -9147,6 +9147,7 @@ function pageJob(p) {
     canEdit(rec) ? rowNav({ tile: tile('spark', 'teal'), label: T('studioIdTitle'), sub: T('studioIdSub'), onClick: () => go('ideas', id), k: 'ideas' }) : null,   // מ8
     driveOk() && outs.some((o) => DX_MOVE.includes(o.k) || o.k === 'srt') ? dxRow(rec) : null,   // 26/10/2026: ״הסרטונים שלי״ ב־Drive   // התוצר לתיקייה שבחרת ב־Drive
     jobFolder(rec) && !isR2Folder(jobFolder(rec)) ? rowExt({ href: 'https://drive.google.com/drive/folders/' + jobFolder(rec), tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null,
+    outs.some((o) => o.k === 'srt') ? rowNav({ tile: tile('copy', 'orange'), label: T('studioAcRow'), sub: T('studioAcRowS'), onClick: () => sendToAcademy(rec), k: 'academy' }) : null,   // Academy Pro גל 6 (C12)
     btn('st-row st-act', T('studioRcpt'), () => shareReceipt(rec), 'receipt')));   // שלב 4: קבלה
     const kn = keepNote(rec);   // 26/10/2026: עד מתי אפשר לצרוב מחדש ועד מתי הקבצים נשמרים
     if (kn) p.append(kn);
@@ -9727,6 +9728,24 @@ export function receiptText(rec, api) {
   if (sv.jd && sv.jd.s != null) kv(T('studioRcptJudge'), sv.jd.s + '/100');
   kv(T('studioJobId'), rec.id);
   return L.join('\n');
+}
+/* Academy Pro גל 6 (C12): ההרצאה כטקסט — לתיבת הדואר של Academy (R2 פרטי של המשתמש); נכנסת לספרייה בכניסה הבאה ל־Academy */
+let acBusy = false;
+const AC_INBOX = { op: 'inbox', path: '/api/library' };   // appscope: ‏inbox מותר גם מ־Studio
+async function sendToAcademy(rec) {
+  if (acBusy) return; acBusy = true;
+  flashSafe(T('studioAcSending'));
+  try {
+    const co = outOf(rec, 'cues'), so = outOf(rec, 'srt');
+    let cues = co ? normCues(await net.driveJson(co.id)) : [];
+    if (!cues.length && so) cues = normCues(parseSrt(await net.driveText(so.id)));
+    if (!cues.length) throw new Error('nocues');
+    const name = fileTitle(rec.spec.name) || T('studioUntitled');
+    const blob = new Blob([toLectureMd(cues, rec.chap || [], name)], { type: 'text/markdown' });
+    await net.signedPut(AC_INBOX.op, { act: 'put', ext: 'md', size: blob.size, name, from: 'studio' }, AC_INBOX.path, blob);
+    flashSafe(T('studioAcSent'));
+  } catch (e) { const m = e && e.message; flashSafe(m === 'signin' ? T('studioAcSignin') : m === 'inbox_full' ? T('studioAcFull') : T('studioAcFail')); }
+  acBusy = false;
 }
 async function shareReceipt(rec) {
   const txt = receiptText(rec, ui.api);

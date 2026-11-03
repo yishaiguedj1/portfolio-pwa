@@ -18,6 +18,12 @@ export function kindOf(name) {
 const baseName = (n) => String(n || '').replace(/\.[^.]+$/, '').replace(/[_]+/g, ' ').trim();
 const wordsOf = (html) => (String(html).replace(/<[^>]*>/g, ' ').match(/[\p{L}\p{N}][\p{L}\p{N}\p{M}'׳״-]*/gu) || []).length;
 
+const escX = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+export function b64(u8) {                              // Uint8Array → base64 (בחלקים — בלי לפוצץ את המחסנית)
+  let s = '';
+  for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+  return btoa(s);
+}
 export function createConvert(E) {
   const { h, T } = E;
   const flash = (m) => E.flash && E.flash(m);
@@ -156,15 +162,25 @@ export function createConvert(E) {
         onProg && onProg(i / N * 0.8, i, N);
       }
       const r = EK.pdfToChapters(pages, { title, headings: opt.headings, strip: opt.strip });
-      const scanImg = new Map();
-      for (const n of r.scanned) {                     // עמוד סרוק — התמונה במקומו, כדי ששום דבר לא יאבד
+      const scanImg = new Map(), ocrHtml = new Map(); let ocrStop = !(opt.ocr && E.ocr);
+      for (const [si, n] of r.scanned.entries()) {     // עמוד סרוק — גל 6 (C5): זיהוי הטקסט בשרתון; אם אי אפשר — התמונה במקומו, כדי ששום דבר לא יאבד
         const pg = await doc.getPage(n), im = await renderPage(pg, 1200); pg.cleanup();
+        if (!ocrStop) {
+          onProg && onProg(0.8 + 0.2 * si / r.scanned.length, si + 1, r.scanned.length, 'ocr');
+          try {
+            let data = im.data;
+            if (data.length > 300000) { const pg2 = await doc.getPage(n); data = (await renderPage(pg2, 1000, 0.6)).data; pg2.cleanup(); }
+            const o = await E.ocr(b64(data), r.lang);
+            const paras = (o && Array.isArray(o.paras) ? o.paras : []).filter((t) => String(t).trim());
+            if (paras.length) { ocrHtml.set(n, (o.title ? '<h2>' + escX(o.title) + '</h2>' : '') + paras.map((t) => '<p>' + escX(t) + '</p>').join('\n')); continue; }
+          } catch (e) { ocrStop = true; }            // מכסה / בלי התחברות / בלי רשת — שאר העמודים נשארים תמונות
+        }
         const name = 'scan' + String(n).padStart(4, '0') + '.jpg'; images.push({ name, data: im.data, type: 'image/jpeg' }); scanImg.set(n, name);
       }
-      const chapters = r.chapters.map((c) => Object.assign({}, c, { body: c.body.replace(/\u0001SCAN(\d+)\u0001/g, (m, n) => '<div class="pg"><img src="../Images/' + scanImg.get(+n) + '" alt=""/></div>') }));
+      const chapters = r.chapters.map((c) => Object.assign({}, c, { body: c.body.replace(/\u0001SCAN(\d+)\u0001/g, (m, n) => ocrHtml.get(+n) || '<div class="pg"><img src="../Images/' + scanImg.get(+n) + '" alt=""/></div>') }));
       let cover = null;
       try { const pg = await doc.getPage(1), im = await renderPage(pg, 900, 0.85); pg.cleanup(); cover = { data: im.data, type: 'image/jpeg' }; } catch (e) {}
-      return { title, author, lang: r.lang, chapters, images, cover, pages: N, scanned: r.scanned };
+      return { title, author, lang: r.lang, chapters, images, cover, pages: N, scanned: r.scanned.filter((n) => !ocrHtml.has(n)), ocr: ocrHtml.size };
     } finally { try { doc.destroy(); } catch (e) {} }
   }
   async function comicSrc(files, opt, onProg) {       // CBZ אחד, או כמה תמונות → עמוד לכל תמונה
@@ -280,6 +296,8 @@ export function createConvert(E) {
         pickRow('DOC', T('cvDoc'), T('cvDocS'), DOC_ACCEPT, true, go((fs) => openConvert(fs, 'doc'))),
         pickRow('CBZ', T('cvComic'), T('cvComicS'), COMIC_ACCEPT, true, go((fs) => openConvert(fs, 'comic'))),
         (() => { const r = btn('lib-row pl-row cv-pick', null, () => E.closeSheetThen(sh.parentNode, () => openArticles())); r.append(badge('+N'), rowL(T('cvArts'), T('cvArtsS'))); const ch = h('span', 'pl-chev'); ch.setAttribute('aria-hidden', 'true'); ch.innerHTML = E.chev || ''; r.append(ch); return r; })(),
+        E.openArticle ? (() => { const r = btn('lib-row pl-row cv-pick', null, () => E.closeSheetThen(sh.parentNode, () => E.openArticle())); r.append(badge('URL'), rowL(T('cnArt'), T('cnArtRow'))); const ch = h('span', 'pl-chev'); ch.setAttribute('aria-hidden', 'true'); ch.innerHTML = E.chev || ''; r.append(ch); return r; })() : null,
+        E.openPaper ? (() => { const r = btn('lib-row pl-row cv-pick', null, () => E.closeSheetThen(sh.parentNode, () => E.openPaper())); r.append(badge('RSS'), rowL(T('cnPaper'), T('cnPaperRow'))); const ch = h('span', 'pl-chev'); ch.setAttribute('aria-hidden', 'true'); ch.innerHTML = E.chev || ''; r.append(ch); return r; })() : null,
       ]));
       if (E.canFolder) box.append(btn('bk-cta cv-ghost', T('libAddFolder'), () => E.closeSheetThen(sh.parentNode, () => E.addFolder())));
     });
@@ -293,7 +311,7 @@ export function createConvert(E) {
     if (!comic && bad.length === files.length) { flash(T('cvBadType')); return; }
     const list = comic ? files : files.filter((f) => !bad.includes(f));
     const pdf = !comic && list.some((f) => kindOf(f.name) === 'pdf');
-    const S = { headings: true, strip: true, polish: true, pdfMode: 'text', dir: 'rtl', tocPage: false };
+    const S = { headings: true, strip: true, polish: true, pdfMode: 'text', dir: 'rtl', tocPage: false, ocr: !!E.ocr };
     E.sheet(T('cvConvT'), async (sh, close) => {
       const box = h('div', 'pl'); sh.append(box);
       const one = list.length === 1 || comic;
@@ -308,6 +326,7 @@ export function createConvert(E) {
           rowsWrap.replaceChildren(group('', [
             S.pdfMode === 'text' ? swRow(S, 'headings', T('cvHeads'), pdf ? T('cvHeadsPdfS') : T('cvHeadsS')) : null,
             pdf && S.pdfMode === 'text' ? swRow(S, 'strip', T('cvStrip'), T('cvStripS')) : null,
+            pdf && S.pdfMode === 'text' && E.ocr ? swRow(S, 'ocr', T('cvOcr'), T('cvOcrS')) : null,
             S.pdfMode === 'text' ? swRow(S, 'polish', T('cvPolish'), T('cvPolishS')) : null,
           ].filter(Boolean)));
           if (S.pdfMode === 'img') rowsWrap.append(h('p', 'cv-note', T('cvImgNote')));
@@ -326,11 +345,12 @@ export function createConvert(E) {
         const jobs = comic ? [list] : list.map((f) => [f]);
         for (let j = 0; j < jobs.length; j++) {
           const fs = jobs[j];
-          const onProg = (x, i, N) => { fill.style.width = Math.round(((j + Math.min(1, x || 0)) / jobs.length) * 100) + '%'; pt.textContent = N ? T('cvPageOf', { i, n: N }) : (jobs.length > 1 ? T('cvFileOf', { i: j + 1, n: jobs.length }) : T('cvWorking')); };
+          const onProg = (x, i, N, k) => { fill.style.width = Math.round(((j + Math.min(1, x || 0)) / jobs.length) * 100) + '%'; pt.textContent = k === 'ocr' ? T('cvOcrOf', { i, n: N }) : N ? T('cvPageOf', { i, n: N }) : (jobs.length > 1 ? T('cvFileOf', { i: j + 1, n: jobs.length }) : T('cvWorking')); };
           onProg(0);
           try {
             const src = comic ? await comicSrc(fs, S, onProg) : await srcOf(fs[0], S, onProg);
             if (src.scanned && src.scanned.length) pw.textContent = T('cvScanned', { p: rangeText(src.scanned) });
+            else if (src.ocr) pw.textContent = T('cvOcrDone', { n: src.ocr });
             pt.textContent = T('cvBuilding');
             const f = await toEpubBlob(src, S);
             added += await E.importFiles([f]);
@@ -598,5 +618,5 @@ export function createConvert(E) {
     } catch (e) { flash(T(e && e.msg ? e.msg : 'cvFailAll')); return false; }
   }
 
-  return { openAdd, openConvert, openArticles, openExport, toEpub, exportAs, kindOf, printRaw, saveBlob };
+  return { openAdd, openConvert, openArticles, openExport, toEpub, exportAs, kindOf, printRaw, saveBlob, srcOf, toEpubBlob };
 }

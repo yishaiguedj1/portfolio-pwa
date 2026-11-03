@@ -805,20 +805,28 @@ export function createNet(env) {
   const E = Object.assign({ fetch: (...a) => fetch(...a), now: () => Date.now(), sleep: (ms) => new Promise((r) => setTimeout(r, ms)), put: xhrPut }, env);
   let dtok = null;      // { at, exp } — גישה זמנית ל־Drive (שעה), רק בזיכרון
 
-  async function api(op, body) {
+  async function api(op, body, path) {   // path — נקודת קצה אחרת (גל 6: תיבת הדואר של Academy)
     let tk = '';
     try { tk = await E.idToken(); } catch (e) {}
     if (!tk) return { ok: false, error: 'signin' };
     let r;
     try {
       // 25/10/2026: learnUx נשלח גם כשהדף נסגר (pagehide) — keepalive כדי שהבקשה לא תבוטל עם הדף (גוף קטן, ≤64KB)
-      r = await E.fetch(E.base() + '/api/studio', Object.assign({ method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, E.headers ? E.headers() : {}),
+      r = await E.fetch(E.base() + (path || '/api/studio'), Object.assign({ method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, E.headers ? E.headers() : {}),
         body: JSON.stringify(Object.assign({}, body || {}, { op, idToken: tk })) }, op === 'learnUx' || op === 'fnl' ? { keepalive: true } : {}));
     } catch (e) { return { ok: false, error: 'net' }; }
     let j = null; try { j = await r.json(); } catch (e) {}
     return j && typeof j === 'object' ? j : { ok: false, error: 'http_' + r.status };
   }
 
+  /* גל 6 (C12): קובץ לכתובת העלאה חתומה שהשרתון נותן (op + נתיב מהממשק) — למשל ההרצאה לתיבת הדואר של Academy */
+  async function signedPut(op, body, path, blob) {
+    const j = await api(op, body, path);
+    if (!j.ok) throw new Error(j.error || 'put');
+    let r; try { r = await E.fetch(j.url, { method: 'PUT', body: blob, headers: { 'Content-Type': j.type || blob.type || 'application/octet-stream' } }); } catch (e) { throw new Error('net'); }
+    if (!r.ok) throw new Error('upload');
+    return j;
+  }
   async function driveToken(force) {
     if (!force && dtok && dtok.exp - 120e3 > E.now()) return dtok.at;
     const j = await api('drive');
@@ -1289,5 +1297,5 @@ export function createNet(env) {
   const goldUpload = (folderId, text) => textUpload(folderId, GOLD_REF_NAME, 'application/x-subrip', text, { snbRef: '1' });
 
 
-  return { api, driveApi, driveToken, browseList, rangeBlob, vidsRoot, vidsList, vidsFolder, vidsSub, driveRename, driveTrash, driveMoveTo, jobFolder, upload, r2ToDrive, r2Get, cloudInitTemplate, glossLoad, glossSave, driveText, driveBlob, driveJson, goldUpload, textUpload, mediaUrl, driveMeta, driveMove, driveCopy, lyricsSearch, subsFind, subsGet, _forget: () => { dtok = null; } };
+  return { api, signedPut, driveApi, driveToken, browseList, rangeBlob, vidsRoot, vidsList, vidsFolder, vidsSub, driveRename, driveTrash, driveMoveTo, jobFolder, upload, r2ToDrive, r2Get, cloudInitTemplate, glossLoad, glossSave, driveText, driveBlob, driveJson, goldUpload, textUpload, mediaUrl, driveMeta, driveMove, driveCopy, lyricsSearch, subsFind, subsGet, _forget: () => { dtok = null; } };
 }

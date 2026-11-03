@@ -4,13 +4,13 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v710';
+const CACHE_NAME = 'portfolio-pwa-v711';
 const HASHES = {
   "./": "6ab1986a1bc13b10b7405e36061fa8ba",
   "./index.html": "6ab1986a1bc13b10b7405e36061fa8ba",
   "./styles.css": "548ed276d76b5a06a8e4b527995ba650",
-  "./glass-btn.css": "5fd927735217e8fdfe732c8c89df5a41",
-  "./app.js": "2f34cd0530bb800f4ebae0e4ac04eadf",
+  "./glass-btn.css": "bb1f7543ac5757eeed30d82b7a10926e",
+  "./app.js": "ab064f737afcd419fec9f25aee3f7a75",
   "./returns.js": "3590562b0282025a8a79650ad6b3a49b",
   "./cloud.js": "2cf2e330bfcc2c9150ba47b8f355982d",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -41,8 +41,8 @@ const HASHES = {
   "./chartlib.js": "5c00c490dac1b09329fa1ce657350a9b",
   "./chart.css": "0e4e6260108563c3f329d204c1398a10",
   "./vendor/klinecharts/klinecharts.min.js": "4202d8661b8302175751d8d072bf6d2f",
-  "./library.js": "41db525527d079b081ed2118af763bcd",
-  "./library.css": "c60af5ef4fdc02fbbc920ebd7ff00499",
+  "./library.js": "5da38a1443cb1f903c66c43b77d9330b",
+  "./library.css": "39c1895bb126c99d08ac267dfc187e7e",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
   "./libbackup.js": "a238c4cf7877166ba8eba5cdcf6eadb8",
   "./ribbon3d.js": "0004ce220226fadce8918b975fa43282",
@@ -52,9 +52,10 @@ const HASHES = {
   "./epubkit.js": "ac988e8a671a15d10b29d8d0bb6df86a",
   "./libpolish.js": "594ddf63357b8b363938f74fa10010b9",
   "./bookedit.js": "5ee3fe1e957b72a1767fb1998a1296b1",
-  "./libconvert.js": "ce719f24ce7bd0a0be6c7e776c67e4de",
+  "./libconvert.js": "6f5aca6d86aea61a54fa4adeb1b9054e",
   "./libpro.js": "6192cc50635b9b12fb39990fd820d0ae",
   "./libai.js": "ebd5c2b17703d0755482a4df9d4173b7",
+  "./libconnect.js": "855fe2e8c223a065715b19742ddf7d64",
   "./fonts/NotoSansHebrew-VF.woff2": "cc3f6ef471cb7aff587f63873a650e32",
   "./vendor/foliate-js/view.js": "e0093af921feb03bb58fb51aeedc321f",
   "./vendor/foliate-js/epub.js": "dfe347495039e9b5991478986ec6b771",
@@ -73,8 +74,8 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "ff70b7cdf55a58896794457f6812abf4",
   "./academy-app.js": "130b15379b74427d8f0071032894b5f0",
-  "./strings-academy.js": "90f866da637b9d1e04b8be334116332e",
-  "./core.js": "f67de7ed288fed59d4bb25c20127e9fa",
+  "./strings-academy.js": "afcdd6371b8c97241cc925c6298d73a2",
+  "./core.js": "51e558f8fc69e7ffbfac78f38700b0bd",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "3108c90ef333e70a80d4c6f0898f9a23",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -83,11 +84,11 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "c929c744a34b0f7381da9fbdc1c5a280",
+  "./studio.js": "3e83d4cbe6177029ded91ece2651479b",
   "./studio.css": "fbec07a1100d0fbd15bcab4d8220709a",
-  "./studionet.js": "3e30f7916a9918c8cbcda3de987683ad",
+  "./studionet.js": "47c4ee87ffbb85c7fd16aa00555c33e5",
   "./studioplay.js": "9862ab618839b88fa914399b8eff2ce7",
-  "./studiosubs.js": "3b8a834b492c00abae78ef77f96f8d8c",
+  "./studiosubs.js": "70bc46119d744ff7b566e153836898f0",
   "./studiotracks.js": "45a59e4cedc85da6950554bd2c56289e",
   "./studioedl.js": "344c0e6f0e7ff9bd59e36eb25db1e335",
   "./studioai.js": "e0a43e7a48c70e3bf5028813acebbf3e",
@@ -95,7 +96,7 @@ const HASHES = {
   "./studiobg.js": "9013d96cee956642e0735806ea1e60c3",
   "./studio.html": "6748141d96e70a259c8b7fa585d9bba1",
   "./studio-app.js": "6da5423c0adb04bb841765b5f1c567da",
-  "./strings-studio.js": "b1b1fcd7001fb6cb51808ab8be8d3136",
+  "./strings-studio.js": "ba06c307d2a378749c3936b38275f101",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
@@ -131,7 +132,7 @@ const APP_SHELL = [
 /* האקדמיה (שלב 8): קבצי הספרייה והקורא — נטענים מראש בכל עדכון רק אצל מי שכבר נכנס לספרייה
    (library.js במטמון הקודם), כדי שקריאה אופליין תעבוד גם אחרי עדכון גרסה. כשל כאן לא מפיל את ההתקנה. */
 const LIB_SHELL = [
-  './library.js', './library.css', './academy-data.js', './libbackup.js', './ribbon3d.js', './pagecurl.js', './pagetex.js', './libadmin.js', './epubkit.js', './libpolish.js', './bookedit.js', './libconvert.js', './libpro.js', './libai.js', './fonts/NotoSansHebrew-VF.woff2',
+  './library.js', './library.css', './academy-data.js', './libbackup.js', './ribbon3d.js', './pagecurl.js', './pagetex.js', './libadmin.js', './epubkit.js', './libpolish.js', './bookedit.js', './libconvert.js', './libpro.js', './libai.js', './libconnect.js', './fonts/NotoSansHebrew-VF.woff2',
   './vendor/foliate-js/view.js', './vendor/foliate-js/epub.js', './vendor/foliate-js/epubcfi.js',
   './vendor/foliate-js/paginator.js', './vendor/foliate-js/overlayer.js', './vendor/foliate-js/progress.js',
   './vendor/foliate-js/search.js', './vendor/foliate-js/text-walker.js', './vendor/foliate-js/footnotes.js',

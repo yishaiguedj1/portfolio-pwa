@@ -1400,3 +1400,11 @@ button.bk-series { display: block; margin-inline: auto; }
 .ai-tts-sl span { font-size: 13px; }
 .lib-root .ai-tts-sl.on { color: var(--primary); }
 @media (prefers-reduced-motion: reduce) { .ai-busy { animation: none; } }
+
+/* ---------- Academy Pro גל 6 (03/11/2026): חיבורים — מאמר מהרשת, עיתון בוקר, שליחה למכשיר אחר, ייבוא הדגשות, גיבוי מלא ---------- */
+.cn-out { display: flex; flex-direction: column; gap: 12px; }
+.cn-out:empty { display: none; }
+.cn-prog { min-height: 1.4em; }
+.cn-prog:empty { display: none; }
+label.cn-file { display: block; text-align: center; cursor: pointer; }
+.cn-miss .pl-rt { color: var(--on-surface-var); }
