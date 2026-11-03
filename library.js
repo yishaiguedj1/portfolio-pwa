@@ -1106,8 +1106,8 @@ async function renderHomeNow() {
   const top = h('div', 'lib-top');
   const back = h('button', 'lib-back'); back.type = 'button'; back.innerHTML = ICON.back; back.append(h('span', null, 'THE SNOWBALL'));
   back.addEventListener('click', () => { if (SA) appGo(SA.home || './'); else history.back(); });
-  const add = h('label', 'lib-round'); add.innerHTML = ICON.plus; add.title = T('libImport'); add.setAttribute('aria-label', T('libImport'));
-  add.append(importInput());
+  const add = h('button', 'lib-round'); add.type = 'button'; add.innerHTML = ICON.plus; add.title = T('cvAddT'); add.setAttribute('aria-label', T('cvAddT'));
+  add.addEventListener('click', openAddSheet);   // גל 3: ספר, מסמך, קומיקס או ספר מכמה מאמרים
   const learn = h('button', 'lib-round'); learn.type = 'button'; learn.innerHTML = ICON.notes; learn.setAttribute('aria-label', T('learnTitle')); learn.title = T('learnTitle');
   learn.addEventListener('click', () => goView({ notes: 1 }));
   const more = h('button', 'lib-round'); more.type = 'button'; more.innerHTML = ICON.more; more.setAttribute('aria-label', T('libMineMenu')); more.title = T('libMineMenu');
@@ -1407,7 +1407,7 @@ function mineCard() {
   const bkSub = st === 'ok' ? [T('bkRowOn'), fmtWhen(s.lastAt)].filter(Boolean).join(' · ') : st === 'busy' ? T('bkRowBusy') : st === 'err' ? T('bkRowErr') : (signedIn() ? T('bkRowConnect') : T('bkRowSignIn'));
   card.append(
     row('lib-set-bk', ICON.cloud, T('bkTitle'), bkSub, () => goView({ backup: 1 })),
-    row('adv-ic', ICON.plus, T('libImport'), null, addBookPick));
+    row('adv-ic', ICON.plus, T('cvAddT'), T('cvAddS'), openAddSheet));
   if ('webkitdirectory' in h('input')) card.append(row('adv-ic', ICON.folder, T('libAddFolder'), T('libAddFolderS'), () => addBookPick(true)));
   card.append(
     row('adv-ic', ICON.check, T('lcTitle'), T('lcSub'), () => polishKit().then((P) => P.openLibCheck())),
@@ -1432,8 +1432,9 @@ function openMineMenu() {                  // ⋯ בספרייה שלי: גיב�
     const bk = h('button', 'lib-row'); bk.type = 'button'; bk.append(h('span', null, T('bkTitle')));
     const bi = h('span', 'lib-rowic'); bi.innerHTML = ICON.cloud; bk.append(bi);
     bk.addEventListener('click', () => closeSheetThen(sh.parentNode, () => goView({ backup: 1 })));
-    const im = h('label', 'lib-row'); im.append(h('span', null, T('libImport')));
-    const ii = h('span', 'lib-rowic'); ii.innerHTML = ICON.plus; im.append(ii, importInput(close));
+    const im = h('button', 'lib-row'); im.type = 'button'; im.append(h('span', null, T('cvAddT')));
+    const ii = h('span', 'lib-rowic'); ii.innerHTML = ICON.plus; im.append(ii);
+    im.addEventListener('click', () => closeSheetThen(sh.parentNode, openAddSheet));
     const rs = h('button', 'lib-row danger'); rs.type = 'button'; rs.append(h('span', null, T('libResetMine')));
     const ri = h('span', 'lib-rowic'); ri.innerHTML = ICON.trash; rs.append(ri);
     rs.addEventListener('click', () => closeSheetThen(sh.parentNode, openResetSheet));
@@ -2312,6 +2313,25 @@ async function editKit() {
   }
   return BEK;
 }
+/* גל 3: המרות (libconvert.js) — נטען רק כשפותחים "הוספה", "ייצוא" או "המרה ל־EPUB" */
+let CVK = null;
+async function convertKit() {
+  if (!CVK) {
+    const m = await import('./libconvert.js');
+    CVK = m.createConvert({
+      h, T, sheet, closeSheetThen, swEl, chev: ICON.chev, makeBook, getFile,
+      flash: (m2) => { if (typeof flash === 'function') flash(m2); },
+      importFiles: (files) => importFiles(files),
+      afterImport: () => { if (ui.shelf !== 'mine') setShelf('mine'); else if (root && !rd) renderHome(); indexAll(); BK.schedule(); },
+      bookInput: (close) => importInput(close),
+      canFolder: 'webkitdirectory' in h('input'), addFolder: () => addBookPick(true),
+      annOf: (b) => liveAnn(b.ann).filter((a) => a && !a.d && !a.b && String(a.x || '').trim()),
+      replaceFile: async (id, file, prev, label) => { await saveEdited(id, file, prev, label); if (root && !rd) renderHome(); },
+    });
+  }
+  return CVK;
+}
+const openAddSheet = () => convertKit().then((K) => K.openAdd());
 async function undoPolish(id) {
   const prev = await getFile(PREV + id); if (!prev) throw new Error('noprev');
   await tx('files', 'readwrite', (st) => { st.put(prev, id); st.delete(PREV + id); });
@@ -2369,7 +2389,25 @@ function editExtras(home, b) {
   const ch2 = h('span', 'pl-chev'); ch2.setAttribute('aria-hidden', 'true'); ch2.innerHTML = ICON.chev || '';
   r2.append(l2, ch2);
   r2.addEventListener('click', () => editKit().then((K) => K.open(b)));
-  card.append(r, r2); slot.append(card);
+  const r3 = h('button', 'lib-row pl-open'); r3.type = 'button';   // גל 3: ייצוא (C7, C8)
+  const l3 = h('span', 'pl-rl'); l3.append(h('span', 'pl-rt', T('cvExpT')), h('span', 'pl-rs', T('cvExpRow')));
+  const ch3 = h('span', 'pl-chev'); ch3.setAttribute('aria-hidden', 'true'); ch3.innerHTML = ICON.chev || '';
+  r3.append(l3, ch3);
+  r3.addEventListener('click', () => convertKit().then((K) => K.openExport(b)));
+  card.append(r, r2, r3); slot.append(card);
+  getFile(b.id).then(async (f) => {                  // C1/C2: ספר MOBI/AZW3/FB2 — המרה ל־EPUB, כדי שהעורך והליטוש יעבדו עליו
+    if (!f || !card.isConnected) return;
+    const EK = await import('./epubkit.js');
+    if (await EK.classify(f).catch(() => 'epub') === 'epub' || !card.isConnected) return;
+    const r4 = h('button', 'lib-row pl-open'); r4.type = 'button';
+    const l4 = h('span', 'pl-rl'); l4.append(h('span', 'pl-rt', T('cvToEpub')), h('span', 'pl-rs', T('cvToEpubS')));
+    r4.append(l4);
+    r4.addEventListener('click', () => {
+      const go = () => { r4.disabled = true; l4.lastChild.textContent = T('cvWorking'); convertKit().then((K) => K.toEpub(b)).then(() => { r4.disabled = false; l4.lastChild.textContent = T('cvToEpubS'); }); };
+      if (liveAnn(b.ann).length && typeof askConfirm === 'function') askConfirm(T('cvToEpubHl'), go, { ok: T('cvToEpub') }); else go();
+    });
+    card.prepend(r4);
+  }).catch(() => {});
 }
 
 /* ס׳4–ס׳5: מנהל הספרייה (libadmin.js) — נטען רק כשהמנהל פותח "ניהול"; כל מה שהוא צריך מהספרייה מוזרק */
@@ -4665,7 +4703,7 @@ export async function openLibrary(opt) {
   ensureCss();
   if (root) return;
   SA = opt && opt.standalone ? opt.standalone : null;
-  if (SA) { SA.settings = openAcademySettings; SA.notes = () => goView({ notes: 1 }); SA.backup = () => goView({ backup: 1 }); SA.addBook = addBookPick; SA.home = SA.home || './'; }
+  if (SA) { SA.settings = openAcademySettings; SA.notes = () => goView({ notes: 1 }); SA.backup = () => goView({ backup: 1 }); SA.addBook = openAddSheet; SA.home = SA.home || './'; }
   const restore = opt && opt.restore && opt.restore.lib ? opt.restore : null;   // רענון בזמן שהספרייה הייתה פתוחה
   root = h('div', 'lib-root no-swipe');
   root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', T('libTitle'));

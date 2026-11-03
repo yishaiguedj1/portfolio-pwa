@@ -102,3 +102,14 @@
 - **סידור קוד**: מנתח HTML מעתיק תג עיצוב פתוח (`<b>` בלי סגירה) לכל הפסקאות שאחריו — קודם `closeInlines` (סוגר בגבול הבלוק, מוחק סוגר יתום), ורק אם עדיין לא XML תקין — המנתח.
 - **coregen אוסף רק מפתחות שכתובים בקוד** — לא `T(key + 'S')`; רשימה מפורשת של מפתחות מלאים.
 - **QA בדפדפן**: לחיצה ארוכה בקורא = מגע אמיתי (`Input.dispatchTouchEvent` ב־CDP, 600ms) — בחירה יזומה או עכבר לא פותחים את הכרטיס; הספר נכנס דרך `filechooser` של "הוספת ספר" אחרי "המשך בלי חשבון"; כרטיס העריכה — לחיצה ארוכה על הספר → "עריכה".
+
+## 20. המרות — Academy Pro גל 3 (2.122.0, 02/11/2026)
+- **המבנה**: `libconvert.js` (המסכים, נטען ב־`import()` רק בלחיצה) + `epubkit.js` סעיף 15 (`buildEpub`, ‏`textToChapters`, ‏`mdToHtml`, ‏`pdfToChapters`, ‏`htmlBlocks`/`blocksToMd`/`blocksToText`/`docxParts`). ‏`library.js` מזריק את הכלים דרך `convertKit()`. הספריות הכבדות (`vendor/pdfjs` legacy 4.10.38, ‏`vendor/mammoth` 1.8.0) לא ב־`LIB_SHELL` — נטענות מהרשת לפי דרישה.
+- **מודול חדש של Academy = שורה ב־`tools/coregen.js`** (רשימת `academy`). בלי זה המחרוזות שלו לא נכנסות ל־`strings-academy.js`, והמסך מציג מפתחות גולמיים (`cvBook`). הבדיקה ב־`academy-convert.test.js` אוכפת.
+- **כפתור "+" בהדר המשותף** = `SA.addBook` (מ־`academy-app.js`), לא כפתור ב־`lib-top`. QA שמחפש כפתור של הספרייה לא ימצא אותו.
+- **CSP חוסם `fetch` לכתובות `blob:`** (`connect-src`). ההמרה של MOBI/FB2 עוטפת את `URL.createObjectURL` בזמן ההמרה ושומרת מפה מכתובת ל־Blob, כדי לקרוא מהזיכרון.
+- **גרירה ברשימה**: הזזת שורה ב־DOM (`insertBefore`) משחררת את ה־pointer capture. לכן מאזינים ל־`pointermove`/`pointerup` על `window`, ולא על הידית. אחרת הפריט זז רק צעד אחד.
+- **החוגה (`lib-dial`, ‏z 910) מעל `lib-root` (‏900)** כיסתה את הכפתורים בתחתית של כל גיליון. עכשיו `html:has(.lib-veil) .lib-dial { visibility: hidden }`.
+- **`pl-foot` בגיליון**: הריפוד של הגיליון השאיר רצועה מתחת לסרגל הדביק, ובכהה הסרגל היה מלבן שחור. בגיליון הסרגל עכשיו לכל הרוחב ועד הקצה, באותו חומר (`--surface` + blur).
+- **`[hidden]` מול `display: flex`**: כל מחלקה עם `display` צריכה `.x[hidden] { display: none }`, אחרת `el.hidden = true` לא מסתיר.
+- **QA בדפדפן**: גיליון שנסגר נשאר ב־DOM 160ms עם `.out`. בוררים ב־`.lib-veil:not(.out) .lib-sheet`. ייצוא PDF = חלון ההדפסה (`srcdoc` + `print()`), ולא נבדק ב־headless. ייצוא לטקסט מדלג על תמונות.
