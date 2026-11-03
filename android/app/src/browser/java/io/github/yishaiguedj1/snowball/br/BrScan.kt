@@ -34,14 +34,14 @@ object BrScan {
 
     /** f = קובץ ישיר, s = זרם (HLS/DASH), e = נגן מאתר וידאו, p = דף עם נגן (yt-dlp בודק את הדף) */
     data class Media(val url: String, val kind: Char, val ext: String)
-    data class Link(val url: String, val text: String, val next: Boolean)
+    data class Link(val url: String, val text: String, val next: Boolean, val section: String = "")
     data class Page(val url: String, val title: String, val site: String, val media: List<Media>, val links: List<Link>, val player: Boolean)
     data class Num(val season: Int = -1, val ep: Int = -1, val part: Int = -1) { val has get() = ep >= 0 }
     data class Item(val media: Media, val page: String, val title: String, val num: Num, val seq: Int, val group: String, val groupName: String) {
         val id get() = media.url
         val yt get() = media.kind != 'f'
     }
-    data class Group(val key: String, val name: String, val season: Int, val items: List<Item>)
+    data class Group(val key: String, val name: String, val season: Int, val items: List<Item>, val course: String = "", val sec: Int = 0)
     data class Resp(val code: Int, val url: String, val html: String?, val retryAfter: Int = -1, val ms: Long = 0)
     class Robots(val allow: (String) -> Boolean, val delayMs: Long)
     enum class End { DONE, STOPPED, CAP, BUSY, DENIED, FAIL, LOGIN }
@@ -58,7 +58,8 @@ object BrScan {
         "log-?out|sign-?out|logoff|/wp-login|/wp-admin|/login|/signin|/sign-in|/register|/signup|/sign-up|/password|/reset|/auth/|/oauth|/sso" +
             "|/cart|/checkout|/basket|add[-_]to[-_]cart|/order|/payment|/billing|/subscribe|unsubscribe|/account|/my-account|/profile|/settings|/preferences" +
             "|/delete|/remove|/destroy|/edit|/admin|/cdn-cgi/|/wp-json|xmlrpc|/feed/?$|/rss|/comments?/|replytocom=|[?&](action|do|cmd|token|nonce|_wpnonce|delete|logout)=" +
-            "|[?&](s|q|search|query)=|/search|/print/|[?&]print=|[?&]share=|/share/|/download/?$|/like/|/vote/|/follow/|/report/",
+            "|[?&](s|q|search|query)=|/search|/print/|[?&]print=|[?&]share=|/share/|/download/?$|/like/|/vote/|/follow/|/report/" +
+            "|/(un)?watch(ed)?/?$|/setfree|/set_?free|/mark|/complete|/progress|/track|[/_-]attach|[/_-]upload|discussion|[/_-]quiz|/captcha|/cable|/bookmark|/favou?rite|/rate/|/enroll|/purchase|/payments?/|shoppingcart|/storage|/api/|/graphql|/ajax",
         RegexOption.IGNORE_CASE)
     private val LOW = Regex("/(tag|tags|author|authors|category|categories|archive|archives|date|about|contact|privacy|terms|faq|help|blog|news|press|careers|jobs)(/|$)|/20\\d\\d/\\d\\d(/|$)", RegexOption.IGNORE_CASE)
     private val HIGH = Regex("watch|video|episode|series|season|serie|lesson|lecture|course|chapter|play|vod|stream|פרק|עונה|סדרה|שיעור|הרצאה|קורס|צפי", RegexOption.IGNORE_CASE)
@@ -95,7 +96,7 @@ object BrScan {
     fun prefixOf(start: String): String {
         val p = runCatching { URL(start).path }.getOrDefault("/").ifEmpty { "/" }
         val last = p.substringAfterLast('/')
-        val dir = if ('.' in last) p.substringBeforeLast('/') else p
+        val dir = if ('.' in last || last.matches(Regex("\\d{1,5}"))) p.substringBeforeLast('/') else p
         return dir.trimEnd('/')
     }
 
@@ -148,7 +149,10 @@ object BrScan {
         val h = host(u); val l = u.lowercase(Locale.ROOT)
         Regex("(?:youtube(?:-nocookie)?\\.com/(?:embed/|shorts/|live/|v/|watch\\?(?:.*&)?v=)|youtu\\.be/)([A-Za-z0-9_-]{11})").find(u)
             ?.let { return "https://www.youtube.com/watch?v=" + it.groupValues[1] }
-        Regex("(?:player\\.vimeo\\.com/video/|//(?:www\\.)?vimeo\\.com/)(\\d{5,12})").find(u)?.let { return "https://vimeo.com/" + it.groupValues[1] }
+        Regex("(?:player\\.vimeo\\.com/video/|//(?:www\\.)?vimeo\\.com/)(\\d{5,12})(?:/([0-9a-f]{6,20}))?").find(u)?.let { m ->
+            val h = m.groupValues[2].ifEmpty { Regex("[?&]h=([0-9a-f]{6,20})").find(u)?.groupValues?.get(1) ?: "" }
+            return "https://player.vimeo.com/video/" + m.groupValues[1] + (if (h.isNotEmpty()) "?h=$h" else "")
+        }
         Regex("dailymotion\\.com/(?:embed/)?video/([A-Za-z0-9]+)|dai\\.ly/([A-Za-z0-9]+)").find(u)?.let { m ->
             return "https://www.dailymotion.com/video/" + m.groupValues[1].ifEmpty { m.groupValues[2] }
         }
@@ -215,7 +219,74 @@ object BrScan {
             if (old == null || (old.text.isEmpty() && text.isNotEmpty()) || (next && !old.next)) links[k] = Link(u, if (old != null && text.isEmpty()) old.text else text, next || old?.next == true)
             if (links.size > 5000) return@forEach
         }
+        // נתוני JSON בתוך הדף (React/Next/Nuxt, ld+json, data-*-props): קישורים לשיעורים (עם שם ופרק) וסרטונים לפי מזהה
+        val blobs = JSON_SCRIPT.findAll(src).map { it.groupValues[1] }.toMutableList()
+        DATA_PROPS.findAll(src).forEach { blobs.add(decode(it.groupValues[1])) }
+        var budget = 3 shl 20
+        blobs.forEach { b ->
+            if (b.length > budget) return@forEach
+            budget -= b.length
+            val v = runCatching { org.json.JSONTokener(b.trim()).nextValue() }.getOrNull() ?: return@forEach
+            JsonWalk(url, ::add) { l -> val k = key(l.url); if (links[k]?.text.isNullOrEmpty() || l.section.isNotEmpty()) links[k] = l }.walk(v, "", "", 0)
+        }
         return Page(url, title, site, media.values.toList(), links.values.toList(), PLAYER.containsMatchIn(src))
+    }
+
+    private val JSON_SCRIPT = Regex("<script\\b[^>]*(?:type\\s*=\\s*[\"'](?:application/(?:ld\\+)?json)[\"']|id\\s*=\\s*[\"']__(?:NEXT|NUXT)_DATA__[\"'])[^>]*>(.*?)</script\\s*>", OPT)
+    private val DATA_PROPS = Regex("\\sdata-(?:react-)?props\\s*=\\s*\"([^\"]{2,2000000})\"", OPT)
+    /** מפתחות שערכם כתובת של דף תוכן (לא פעולה) */
+    private val LINK_KEY = Regex("^(path|url|href|link|permalink|canonical_?url|(lesson|episode|page|watch|item|post|chapter|video_?page)_?(path|url|link)|next|prev(ious)?|next_?(lesson_?)?(path|url))$", RegexOption.IGNORE_CASE)
+    private val NAME_KEY = listOf("lesson_name", "lessonName", "episode_name", "title", "name", "label", "heading", "displayName", "display_name")
+    private val SECTION_KEY = listOf("section_name", "sectionName", "chapter_name", "chapterName", "module_name", "moduleName", "season_name", "unit_name")
+    private val VID_KEY = Regex("^(video_?id|vimeo_?id|youtube_?id|yt_?id|wistia_?id|hashed_?id|media_?id|external_?id)$", RegexOption.IGNORE_CASE)
+
+    /** הליכה על JSON: עד עומק 40 ו־60 אלף צמתים. לא מבקשת כלום — רק אוספת */
+    private class JsonWalk(val base: String, val media: (String?, Char) -> Unit, val link: (Link) -> Unit) {
+        var nodes = 0
+        fun walk(v: Any?, name: String, section: String, depth: Int) {
+            if (depth > 40 || ++nodes > 60_000) return
+            when (v) {
+                is org.json.JSONArray -> for (i in 0 until minOf(v.length(), 5000)) walk(v.opt(i), name, section, depth + 1)
+                is org.json.JSONObject -> obj(v, section, depth)
+            }
+        }
+        private fun str(o: org.json.JSONObject, ks: List<String>) = ks.firstNotNullOfOrNull { k -> o.optString(k).takeIf { it.isNotBlank() && it.length <= 300 } } ?: ""
+        private fun obj(o: org.json.JSONObject, section0: String, depth: Int) {
+            val nm = clean(str(o, NAME_KEY)).take(200)
+            val sec = clean(str(o, SECTION_KEY)).ifEmpty { section0 }.take(200)
+            // סרטון לפי מזהה וספק: {type: "vimeo", videoId: 123}
+            val prov = (o.optString("type") + " " + o.optString("provider") + " " + o.optString("source") + " " + o.optString("platform") + " " + o.optString("host")).lowercase(Locale.ROOT)
+            val keys = o.keys().asSequence().toList()
+            for (k in keys) {
+                val x = o.opt(k)
+                if (x is String || x is Number) {
+                    val s = x.toString().trim()
+                    if (VID_KEY.matches(k) && s.isNotEmpty()) {
+                        val kp = k.lowercase(Locale.ROOT) + " " + prov
+                        val u = when {
+                            "vimeo" in kp && s.matches(Regex("\\d{5,12}")) -> "https://player.vimeo.com/video/$s" + (o.optString("hash").ifEmpty { o.optString("h") }.takeIf { it.matches(Regex("[0-9a-f]{6,20}")) }?.let { "?h=$it" } ?: "")
+                            ("youtube" in kp || k.startsWith("yt", true)) && s.matches(Regex("[A-Za-z0-9_-]{11}")) -> "https://www.youtube.com/watch?v=$s"
+                            "wistia" in kp && s.matches(Regex("[a-z0-9]{6,20}")) -> "https://fast.wistia.net/embed/iframe/$s"
+                            "dailymotion" in kp && s.matches(Regex("[A-Za-z0-9]{5,12}")) -> "https://www.dailymotion.com/video/$s"
+                            else -> null
+                        }
+                        if (u != null) media(u, 'e')
+                        continue
+                    }
+                    if (x !is String || s.length > 2000) continue
+                    if (s.startsWith("http") || s.startsWith("//")) {
+                        val e = extOf(s)
+                        if (e in VIDEO_EXT || e in STREAM_EXT || embed(s) != null) { media(s, ' '); continue }
+                    }
+                    if (LINK_KEY.matches(k) && (s.startsWith("/") || s.startsWith("http")) && !s.startsWith("//")) {
+                        val u = norm(s, base) ?: continue
+                        // "הבא"/"הקודם" — השם שליד הוא של השיעור הנוכחי, לא של היעד
+                        val nav = k.lowercase(Locale.ROOT).let { it.startsWith("next") || it.startsWith("prev") }
+                        if (host(u) == host(base)) link(Link(u, if (nav) "" else nm, false, if (nav) "" else sec))
+                    }
+                } else if (x is org.json.JSONObject || x is org.json.JSONArray) walk(x, nm, if (x is org.json.JSONArray && nm.isNotEmpty() && sec == section0) nm.takeIf { depth > 0 } ?: sec else sec, depth + 1)
+            }
+        }
     }
 
     private fun attrs(s: String): Map<String, String> {
@@ -310,7 +381,7 @@ object BrScan {
 
     /* ---------------- סידור ---------------- */
 
-    data class Raw(val media: Media, val page: String, val pageTitle: String, val label: String, val seq: Int, val idx: Int, val n: Int)
+    data class Raw(val media: Media, val page: String, val pageTitle: String, val label: String, val seq: Int, val idx: Int, val n: Int, val section: String = "")
 
     /** הממצאים → פריטים מסודרים לפי קבוצה (סדרה+עונה) ומספור. סרטון שמופיע ב־3 דפים ומעלה = של כל האתר (טריילר/פרסומת) — לא נכנס */
     fun order(raw: List<Raw>, siteName: String = ""): List<Group> {
@@ -337,16 +408,22 @@ object BrScan {
                 else -> "" to ""
             }
             if (r.n > 1 && !n.has) n = Num(-1, r.idx + 1)
+            // האתר עצמו מחלק לפרקים/חלקים (נתוני הקורס) — זה הסדר הנכון
+            if (r.section.isNotEmpty() && r.n <= 1) return@map Item(r.media, r.page, title, n, r.seq, "s:" + r.section, r.section)
             Item(r.media, r.page, title, n, r.seq, g, gn)
         }
         // סדרה עם פריט אחד בלבד ושם שונה מכל השאר — כנראה כותרות בלי שם סדרה משותף: מאחדים לקבוצה לפי עונה
         val counts = items.groupingBy { it.group }.eachCount()
-        val singles = items.count { it.group.isNotEmpty() && !it.group.startsWith("p:") && counts[it.group] == 1 }
-        val merged = if (singles >= 3) items.map { if (it.group.isNotEmpty() && !it.group.startsWith("p:") && counts[it.group] == 1) it.copy(group = "|" + it.num.season, groupName = "") else it } else items
+        val heur = { g: String -> g.isNotEmpty() && !g.startsWith("p:") && !g.startsWith("s:") }
+        val singles = items.count { heur(it.group) && counts[it.group] == 1 }
+        val merged = if (singles >= 3) items.map { if (heur(it.group) && counts[it.group] == 1) it.copy(group = "|" + it.num.season, groupName = "") else it } else items
+        // שם הקורס: הכותרת שחוזרת בדפים (או האתר)
+        val course = shared.firstOrNull() ?: siteName
+        var sec = 0
         val groups = merged.groupBy { it.group }
         return groups.entries.sortedWith(compareBy<Map.Entry<String, List<Item>>>({ it.key.isEmpty() }, { e -> e.value.minOf { it.seq } })).map { (k, l) ->
-            val sorted = if (k.isEmpty()) l.sortedBy { it.seq } else l.sortedWith(compareBy({ it.num.season }, { it.num.ep }, { it.num.part }, { it.seq }))
-            Group(k, l.first().groupName.ifEmpty { siteName }, l.first().num.season, sorted)
+            val sorted = if (k.isEmpty() || k.startsWith("s:")) l.sortedBy { it.seq } else l.sortedWith(compareBy({ it.num.season }, { it.num.ep }, { it.num.part }, { it.seq }))
+            Group(k, l.first().groupName.ifEmpty { siteName }, l.first().num.season, sorted, course, if (k.startsWith("s:")) ++sec else 0)
         }
     }
 
@@ -355,6 +432,7 @@ object BrScan {
         val w = maxOf(2, (g.items.maxOfOrNull { x -> x.num.ep } ?: 0).toString().length)
         val pad = { n: Int -> n.toString().padStart(w, '0') }
         val pre = when {
+            g.key.startsWith("s:") -> (g.items.indexOf(i) + 1).toString().padStart(maxOf(2, g.items.size.toString().length), '0')
             !i.num.has || g.key.isEmpty() -> ""
             i.num.season >= 0 -> "S" + i.num.season.toString().padStart(2, '0') + "E" + pad(i.num.ep) + (if (i.num.part >= 0) "-" + i.num.part else "")
             else -> pad(i.num.ep) + (if (i.num.part >= 0) "." + i.num.part else "")
@@ -365,7 +443,12 @@ object BrScan {
     }
 
     /** תיקייה אחת לכל סריקה: שם הסדרה/האתר */
-    fun folder(g: Group, site: String): String = (g.name.ifEmpty { site }).replace(Regex("[\\\\/:*?\"<>|\\p{Cntrl}.]+"), " ").replace(Regex("\\s+"), " ").trim().take(60)
+    fun folder(g: Group, site: String): String {
+        val c = { x: String -> x.replace(Regex("[\\\\/:*?\"<>|\\p{Cntrl}.]+"), " ").replace(Regex("\\s+"), " ").trim().take(60) }
+        // קורס עם חלקים: "הקורס/01 חלק ראשון" (שתי רמות — DmFolders)
+        if (g.key.startsWith("s:")) return c(g.course.ifEmpty { site }) + "/" + g.sec.toString().padStart(2, '0') + " " + c(g.name).take(50)
+        return c(g.name.ifEmpty { site })
+    }
 
     /* ---------------- הקצב ---------------- */
 
@@ -422,7 +505,7 @@ object BrScan {
         val httpsOnly = s0.startsWith("https://")
         val prefix = if (mode.prefix) prefixOf(s0) else null
         val limit = cap.coerceIn(1, MAX_PAGES)
-        data class Q(val url: String, val depth: Int, val score: Int, val seq: Int, val text: String)
+        data class Q(val url: String, val depth: Int, val score: Int, val seq: Int, val text: String, val section: String = "")
         val q = PriorityQueue<Q>(compareBy<Q>({ it.depth }, { -it.score }, { it.seq }))
         val seen = HashSet<String>()
         var seq = 0
@@ -457,7 +540,7 @@ object BrScan {
                     res = fetch(cq.url); hits++
                 }
                 if (giveUp != null) { end = giveUp; break }
-                if (res == null) { if (pace.error()) { end = End.FAIL; break }; first = false; continue }
+                if (res == null) { if (pace.error()) { end = End.FAIL; break }; sleep(pace.gap() * 4); first = false; continue }
                 if (res.code == 401 || res.code == 403) { if (first || pace.denied()) { end = End.DENIED; break }; first = false; continue }
                 if (res.code !in 200..299 || res.html == null) { first = false; continue }
                 pace.ok(res.ms)
@@ -475,7 +558,10 @@ object BrScan {
                 // דף פרק עם נגן בלי כתובת גלויה — yt-dlp יבדוק את הדף עצמו
                 if (page.player && (num(cq.text).has || num(page.title).has || cq.depth == 1)) listOf(Media(page.url, 'p', "")) else emptyList()
             }
-            synchronized(st.raw) { ms.forEachIndexed { i, m -> st.raw.add(Raw(m, page.url, page.title, cq.text, seq++, i, ms.size)) } }
+            // השם והחלק של הדף עצמו — גם מהרשומה שלו ברשימת השיעורים שבדף (הדף הפתוח, או קישור בלי טקסט)
+            val self = page.links.firstOrNull { key(it.url) == key(page.url) }
+            val lbl = cq.text.ifEmpty { self?.text ?: "" }; val sct = cq.section.ifEmpty { self?.section ?: "" }
+            synchronized(st.raw) { ms.forEachIndexed { i, m -> st.raw.add(Raw(m, page.url, page.title, lbl, cq.seq * 1000 + i, i, ms.size, sct)) } }
             // הקישורים הבאים
             page.links.forEach { l ->
                 if (q.size >= QUEUE_MAX) return@forEach
@@ -485,7 +571,7 @@ object BrScan {
                 val d = if (pag) cq.depth else cq.depth + 1
                 if (d > mode.depth) return@forEach
                 seen.add(k)
-                q.add(Q(l.url, d, score(l), seq++, if (pag) cq.text else l.text))
+                q.add(Q(l.url, d, score(l), seq++, if (pag) cq.text else l.text, if (pag) cq.section else l.section))
             }
             onChange()
         }

@@ -407,4 +407,12 @@ ok(fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yis
   ok(/if \(t\.ck\) runCatching \{ DmSession\.pull\(/.test(eng), 'DM מושך את ההתחברות לפני כל התחלה של הורדה מהדפדפן');
 }
 
+// 03/11/2026: סריקה של אתרי קורסים ב־React — נתוני JSON, בלי כתובות פעולה
+{
+  const sc = R(B + 'BrScan.kt');
+  ok(/class JsonWalk/.test(sc) && /LINK_KEY = Regex\("\^\(path\|url\|href/.test(sc) && !/unwatch/.test(sc.slice(sc.indexOf('LINK_KEY'), sc.indexOf('NAME_KEY'))), 'JSON: קישור רק ממפתח של דף תוכן');
+  ok(/\/\(un\)\?watch\(ed\)\?\/\?\$\|\/setfree/.test(sc) && /shoppingcart/.test(sc) && /\/api\//.test(sc), 'כתובות פעולה (נצפה, תשלום, API) לא נסרקות');
+  ok(/cq\.seq \* 1000 \+ i/.test(sc), 'הסדר לפי האתר, לא לפי סדר הסריקה');
+}
+
 console.log('studio-browser: ' + n + ' בדיקות עברו');

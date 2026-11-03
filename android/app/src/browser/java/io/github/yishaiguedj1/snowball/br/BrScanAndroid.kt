@@ -30,7 +30,10 @@ object BrScanAndroid {
                 if (code !in 200..299) runCatching { c.errorStream?.close() }
                 BrScan.Resp(code, c.url.toString(), html, ra, System.currentTimeMillis() - t0)
             } finally { c.disconnect() }
-        }.getOrNull()
+        }.getOrElse { e ->
+            // יותר מדי הפניות (למשל שיעור נעול שמפנה בלולאה) = דף שלא נכנסים אליו, לא "אין חיבור"
+            if (e is io.github.yishaiguedj1.snowball.dm.DmHttpError) BrScan.Resp(e.status, url, null) else null
+        }
     }
 
     /** robots.txt — בקשה אחת לסריקה, בלי עוגיות */
