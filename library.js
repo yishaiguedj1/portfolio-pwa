@@ -2505,6 +2505,21 @@ async function connectKit() {
   }
   return CNK;
 }
+/* Academy Pro F6 (03/11/2026): תרגום ספר שלם — libtrans.js, דרך bilingual של bookAi (המכסה החינמית) */
+let TRK = null;
+async function trK() {
+  if (!TRK) {
+    const m = await import('./libtrans.js');
+    TRK = m.createTrans({
+      h, T, sheet, uiLang, langName, getFile, ai: aiCall,
+      kit: () => import('./epubkit.js'),
+      flash: (m2) => { if (typeof flash === 'function') flash(m2); },
+      importFiles: (files, extra) => importFiles(files, extra),
+      afterImport: () => afterImportMine(),
+    });
+  }
+  return TRK;
+}
 const cn = (fn) => connectKit().then(fn).catch(() => { if (typeof flash === 'function') flash(T('pxErr')); });
 function resolveQueued() { if (rd && rd.rec && Array.isArray(rd.rec.annQ) && rd.rec.annQ.length) { const v = rd.view, r = rd.rec; connectKit().then((C) => C.resolveAnn(v, r)).catch(() => {}); } }
 /* תיבת הדואר: בכניסה לספרייה (מחובר, לכל היותר פעם ב־10 דקות) — מה שנשלח מ־Studio או ממכשיר אחר נכנס לספרייה */
@@ -2609,7 +2624,12 @@ function editExtras(home, b) {
   const ch6 = h('span', 'pl-chev'); ch6.setAttribute('aria-hidden', 'true'); ch6.innerHTML = ICON.chev || '';
   r6.append(l6, ch6);
   r6.addEventListener('click', () => cn((C) => C.openSend(b)));
-  card.append(r, r2, r3, r5, r6); slot.append(card);
+  const r7 = h('button', 'lib-row pl-open'); r7.type = 'button';   // F6: תרגום ספר שלם
+  const l7 = h('span', 'pl-rl'); l7.append(h('span', 'pl-rt', T('tbBook')), h('span', 'pl-rs', T('tbRow')));
+  const ch7 = h('span', 'pl-chev'); ch7.setAttribute('aria-hidden', 'true'); ch7.innerHTML = ICON.chev || '';
+  r7.append(l7, ch7);
+  r7.addEventListener('click', () => trK().then((R) => R.openTranslate(b)).catch(() => { if (typeof flash === 'function') flash(T('aiErr')); }));
+  card.append(r, r2, r3, r5, r6, r7); slot.append(card);
   getFile(b.id).then(async (f) => {                  // C1/C2: ספר MOBI/AZW3/FB2 — המרה ל־EPUB, כדי שהעורך והליטוש יעבדו עליו
     if (!f || !card.isConnected) return;
     const EK = await import('./epubkit.js');
