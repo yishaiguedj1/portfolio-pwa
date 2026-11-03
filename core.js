@@ -341,8 +341,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.122.0';
-const APP_VERSION = 'v707';
+const APP_RELEASE = '2.122.1';
+const APP_VERSION = 'v708';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -1026,6 +1026,36 @@ function cubeRun(c, p1, v0, done) {
   if (!anims.length) return end();
   Promise.all(anims.map((a) => a.finished)).then(end, end);
 }
+/* 03/11/2026 (סבב קפיצות 10, הקלטת Studio 39.4 שנ׳: במעבר מהבית ל"פרויקט חדש" כרטיס העבודות בפאה היוצאת ריק לכל אורך
+   הסיבוב — הכרטיס עצמו והכפתור שמתחתיו כן). גלילה פנימית (‎.st-jobs, שורות שבבים) היא בטלפון שכבה משלה, והצילום/ההעתק של הדף
+   היוצא מציג אותה ריקה. בהעתק גם מקום הגלילה הפנימית אבד (cloneNode מתחיל מ־0) — הרשימה "קפצה" לראשה בתחילת המעבר.
+   scrollFlat: הגלילה הופכת לחיתוך (overflow: clip — לא מכל גלילה, אין שכבה משלו) והילדים זזים במקום הגלילה (translate דו־ממדי,
+   בלי שכבה) — אותם פיקסלים בדיוק, חלק מהשכבה של הדף. from = האלמנטים שמהם קוראים את מקום הגלילה (בהעתק — המקור).
+   מחזיר undo (הדף שנשאר — החלקה שבוטלה). el._flat — מאזיני הגלילה של הדף לא שומרים את ה־0 של החיתוך */
+const SCROLL_FLAT = '.st-jobs, .st-chips, .st-ky-schemes, .st-code, .lib-chips, .ac-tracks, .mg-strip';
+function scrollFlat(root, from) {
+  if (!root || !root.querySelectorAll) return () => {};
+  const els = [...root.querySelectorAll(SCROLL_FLAT)], src = from ? [...from.querySelectorAll(SCROLL_FLAT)] : els;
+  const done = [];
+  els.forEach((el, i) => {
+    const s = src[i] || el;
+    if (s.scrollHeight <= s.clientHeight + 1 && s.scrollWidth <= s.clientWidth + 1) return;   // בלי גלישה — אין גלילה ואין שכבה
+    const x = s.scrollLeft, y = s.scrollTop;
+    el._flat = true;
+    const ov = el.style.overflow;
+    el.style.overflow = 'clip';
+    const kids = [...el.children], tr = kids.map((k) => k.style.translate);
+    if (x || y) for (const k of kids) k.style.translate = (-x) + 'px ' + (-y) + 'px';
+    done.push(() => {
+      if (!el.isConnected) return;
+      kids.forEach((k, j) => { k.style.translate = tr[j]; });
+      el.style.overflow = ov;
+      el.scrollLeft = x; el.scrollTop = y;
+      requestAnimationFrame(() => { el._flat = false; });   // אירוע הגלילה של השחזור — כבר עם המקום הנכון
+    });
+  });
+  return () => { for (const u of done) u(); done.length = 0; };
+}
 /* Academy / Studio: השכבה נצבעת מחדש באותו אלמנט — הדף היוצא = העתק "מת" שלה (קנבסים, גלילה, שדות), מעליה */
 function cubeClone(el) {
   // מעבר קודם עוד רץ על אותה שכבה — מסיימים אותו קודם: אחרת ההעתק והפאה החדשה "שומרים" את הסגנון של אמצע הסיבוב,
@@ -1048,6 +1078,7 @@ function cubeClone(el) {
   c.querySelectorAll('img').forEach((x) => { try { x.decoding = 'sync'; } catch (e) {} });
   el.after(c);
   c.scrollTop = el.scrollTop;
+  scrollFlat(c, el);                     // סבב קפיצות 10: הגלילות הפנימיות — במקום שלהן, חלק מהשכבה של ההעתק
   animSync(el); animSync(c);             // הלוגו החי בהעתק — באותו רגע של המקור, לא מאפס
   return c;
 }
@@ -1103,6 +1134,7 @@ function cubeVTPre(root, go) {
     if (done) return;
     done = true; g.dead = true; g.faced();
     for (const f of g.faces) { f.off = true; if (f.hold) { try { f.hold.cancel(); } catch (e) {} f.hold = null; } }
+    unflat();
     root.classList.remove('cube-vt');
     if (root._cubeVT === g) root._cubeVT = null;
     if (_cubeVTOn === g) _cubeVTOn = null;
@@ -1119,6 +1151,7 @@ function cubeVTPre(root, go) {
       g.remove();
     },
   };
+  const unflat = scrollFlat(root);       // סבב קפיצות 10: הגלילות הפנימיות — בתוך הצילום של היוצא (בדף שנשאר — שחזור ב־clean)
   try {
     g.vt = root.startViewTransition(() => {
       if (called) return;

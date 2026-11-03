@@ -344,13 +344,37 @@ async function sweep(b, app) {
       await tap('home'); await settle(S.page);
       MOCK.delay = 0;
       const was = new Map(S.lt.last.filter((l) => l.drawsContent && l.width * l.height > 393 * 852 * 0.05).map((l) => [l.layerId, l.width + 'x' + l.height]));
-      const n0 = await S.page.evaluate(() => document.querySelectorAll('.st-root .st-page *').length);
+      const n0 = await S.page.evaluate(() => { const b = document.querySelector('.appbar-sub > *'); if (b) b.__qaMark = 1; return document.querySelectorAll('.st-root .st-page *').length; });
       await S.page.waitForTimeout(5200);
       const n1 = await S.page.evaluate(() => document.querySelectorAll('.st-root .st-page *').length);
       const now = new Set(S.lt.last.map((l) => l.layerId)), gone = [...was].filter(([id]) => !now.has(id)).map(([, sz]) => sz);
       if (n0 === n1) bad(app, 'רענון שקט (' + cnt + ' עבודות)', 'הרשימה לא התעדכנה — הצעד לא בדק כלום');
       else if (gone.length) bad(app, 'רענון שקט (' + cnt + ' עבודות)', 'ציור במקום הרס ' + gone.length + ' שכבות גדולות של הדף הגלוי (בטלפון — ריק עד שהן נצבעות): ' + gone.slice(0, 6).join(' '));
+      // 03/11/2026 (סבב קפיצות 10): הבועה בהדר — אותו צומת (בועה חדשה = שכבת זכוכית חדשה, בטלפון מלבן ריק)
+      if (n0 !== n1 && !(await S.page.evaluate(() => { const b = document.querySelector('.appbar-sub > *'); return !!(b && b.__qaMark); }))) bad(app, 'רענון שקט (' + cnt + ' עבודות)', 'הבועה בהדר נבנתה מחדש');
       await check(app, S, 'רענון שקט (' + cnt + ' עבודות)', 'home');
+    }
+    // 6. (סבב קפיצות 10) רענון שקט במגדל: הסרגל העליון (זכוכית ‎::before) והכרטיסים שלא השתנו — אותם צמתים, ואף שכבה גדולה לא נהרסת
+    for (const cnt of [5, 6]) {
+      const tap = (k) => S.page.evaluate((k) => { const t = [...document.querySelectorAll('nav.tabs .tab')].find((x) => x.dataset.tab === k && !x.hidden); if (t) t.click(); }, k);
+      await tap('tower'); await settle(S.page);
+      await tap('home'); await settle(S.page);
+      MOCK.jobs = cnt; MOCK.delay = 5000;
+      await tap('tower'); await settle(S.page);
+      MOCK.delay = 0;
+      const was = new Map(S.lt.last.filter((l) => l.drawsContent && l.width * l.height > 393 * 852 * 0.05).map((l) => [l.layerId, l.width + 'x' + l.height]));
+      const m0 = await S.page.evaluate(() => { const pg = document.querySelector('.st-root > .st-page'); [...pg.children].forEach((c) => { c.__qaMark = 1; }); return { n: pg.textContent, k: pg.children.length }; });
+      await S.page.waitForTimeout(5200);
+      const m1 = await S.page.evaluate(() => { const pg = document.querySelector('.st-root > .st-page'); const nav = pg.querySelector(':scope > .st-nav'); return { n: pg.textContent, kept: [...pg.children].filter((c) => c.__qaMark).length, nav: !!(nav && nav.__qaMark) }; });
+      const now = new Set(S.lt.last.map((l) => l.layerId)), gone = [...was].filter(([id]) => !now.has(id)).map(([, sz]) => sz);
+      const step = 'רענון שקט במגדל (' + cnt + ' עבודות)';
+      console.log('[' + app + '] ' + step + ': ' + (m0.n === m1.n ? 'אותו תוכן' : 'התוכן השתנה') + ', ילדים שנשארו ' + m1.kept + '/' + m0.k);
+      if (m1.kept === m0.k) bad(app, step, 'לא היה ציור במקום — הצעד לא בדק כלום');   // ציור = לפחות חלק אחד הוחלף (גם כשהתוכן זהה — הישן בנה הכל מחדש)
+      else {
+        if (!m1.nav) bad(app, step, 'הסרגל העליון נבנה מחדש (זכוכית חדשה — בטלפון הסרגל "נעלם" לפריימים)');
+        if (gone.length) bad(app, step, 'ציור במקום הרס ' + gone.length + ' שכבות גדולות: ' + gone.slice(0, 6).join(' '));
+      }
+      await check(app, S, step, 'tower');
     }
     MOCK.jobs = 0;
   }
