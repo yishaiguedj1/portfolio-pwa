@@ -4,13 +4,13 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v705';
+const CACHE_NAME = 'portfolio-pwa-v706';
 const HASHES = {
   "./": "6ab1986a1bc13b10b7405e36061fa8ba",
   "./index.html": "6ab1986a1bc13b10b7405e36061fa8ba",
   "./styles.css": "548ed276d76b5a06a8e4b527995ba650",
   "./glass-btn.css": "41f3d7dd7998a90ba47c89959ec8d3ce",
-  "./app.js": "1bb89a62d622ac78cbb5aa6103d5d00d",
+  "./app.js": "3bd388cd3db60026ab65506d31cf9aa2",
   "./returns.js": "3590562b0282025a8a79650ad6b3a49b",
   "./cloud.js": "2cf2e330bfcc2c9150ba47b8f355982d",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -34,9 +34,9 @@ const HASHES = {
   "./acclink.js": "419b035815109478a1f8f9780720af33",
   "./analysis.js": "29664af4106cee8a9edecf0beb6735c5",
   "./analysis.css": "4c957472dbc740b4694df29ccaeed328",
-  "./taxcenter.js": "95ee9d90cbfcf571afded9cb36ebabf2",
+  "./taxcenter.js": "0181206ed3d054d975dc5850a85086ac",
   "./taxcenter.css": "d71bcd40bd4dc97326468454195b887b",
-  "./taxil.js": "fd5bb126d5be2b3b9eb94cf4e8a590d5",
+  "./taxil.js": "0eb5a74f2d1942593ed97225f5cee3f8",
   "./chart.js": "f449f30b56da8452861aff9919ce0758",
   "./chartlib.js": "5c00c490dac1b09329fa1ce657350a9b",
   "./chart.css": "0e4e6260108563c3f329d204c1398a10",
@@ -71,7 +71,7 @@ const HASHES = {
   "./academy.html": "ff70b7cdf55a58896794457f6812abf4",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
   "./strings-academy.js": "41f2c93b0ad6975597e54360f3f17b48",
-  "./core.js": "b561a7fc160cee11ae0f4b175ebd7a03",
+  "./core.js": "135f205e1c271370cdb339ac29ca98dd",
   "./auth.js": "8ca95187044db7031367c49932e70efe",
   "./shell.js": "6b22a08dd74c16eefd740922596fb568",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",

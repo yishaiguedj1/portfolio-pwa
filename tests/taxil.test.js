@@ -199,6 +199,14 @@ ok(T.tiRateOn([['2024-01-01', 3.5], ['2024-01-03', 3.6]], '2024-01-02') === 3.5 
   const r3 = mkRes();
   await B.handle({ op: 'boifx', cur: 'XXX' }, r3);
   ok(r3.code === 400, 'boifx: מטבע לא מוכר — 400');
+  // 03/11/2026: מדד המחירים (cur:'CPI') — סדרה CP חודשית; כל חודש בתאריך שבו הוא ידוע (ה־15 בחודש הבא)
+  global.fetch = async (u) => { lastUrl = u; return { status: 200, text: async () => 'SERIES_CODE,TIME_PERIOD,OBS_VALUE\nCP,2025-11,104.1\nCP,2025-12,104.5\nCP,2026-01,104.2\n' }; };
+  B._cache.clear();
+  const rc = mkRes();
+  await B.handle({ op: 'boifx', cur: 'CPI', from: '2026-01-20' }, rc);
+  ok(/PRI\/1\.0\/CP\?startperiod=2025-11/.test(lastUrl), 'boifx CPI: הסדרה CP, חודשיים לפני');
+  ok(rc.code === 200 && rc.body.rows[0][0] === '2025-12-15' && rc.body.rows[1][0] === '2026-01-15' && rc.body.rows[2][0] === '2026-02-15', 'boifx CPI: יום הפרסום, כולל המדד הידוע ב־from');
+  ok(T.tiRateOn(rc.body.rows, '2026-01-20') === 104.5 && T.tiRateOn(rc.body.rows, '2026-01-14') === 104.1, 'boifx CPI: המדד הידוע ביום');
   global.fetch = async () => ({ status: 500, text: async () => '' });
   B._cache.clear();
   const r4 = mkRes();
