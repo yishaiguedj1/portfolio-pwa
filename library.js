@@ -106,7 +106,10 @@ export const bookVisible = (b, cur) => b.src === 'drive' || b.owner === cur;
    (הקוראים משנים רשומות לפני putBook) */
 let _booksMem = null, _booksGen = 0;
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('visibilitychange', () => { if (!document.hidden) { _booksGen++; _booksMem = null; } });
-const booksCopy = (a) => { try { return typeof structuredClone === 'function' ? structuredClone(a) : a.map((b) => Object.assign({}, b)); } catch (e) { return a.map((b) => Object.assign({}, b)); } };
+/* 03/11/2026 (סבב קפיצות 11): structuredClone יוצר Blob חדש לכל כריכה — coverUrl לא זיהה אותה, יצר כתובת חדשה ופענח async
+   בכל ציור (כריכות ריקות לפריים, כמו ב־29/10). Blob לא משתנה — העותק שומר את אותו אובייקט */
+const keepBlobs = (a, c) => { for (let i = 0; i < c.length; i++) if (a[i] && c[i]) for (const k of ['cover']) if (a[i][k] instanceof Blob) c[i][k] = a[i][k]; return c; };
+const booksCopy = (a) => { try { return typeof structuredClone === 'function' ? keepBlobs(a, structuredClone(a)) : a.map((b) => Object.assign({}, b)); } catch (e) { return a.map((b) => Object.assign({}, b)); } };
 const allBooksRaw = async () => {
   if (_booksMem && _booksMem.gen === _booksGen) return booksCopy(_booksMem.a);
   const g = _booksGen, a = await tx('books', 'readonly', (st) => reqP(st.getAll()));

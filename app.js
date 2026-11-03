@@ -7252,8 +7252,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.124.0';
-const APP_VERSION = 'v710';
+const APP_RELEASE = '2.124.1';
+const APP_VERSION = 'v711';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -8957,6 +8957,14 @@ function updateSourceLabel() {
   el._srcHtml = html;
   el.removeAttribute('data-i18n'); // מעכשיו רק כאן (לא textContent של החלפת שפה)
   el.classList.add('src-row');
+  /* 03/11/2026 (סבב קפיצות 11, כמו statusSet ב־shell.js): הבועה הקיימת נשארת — מחלקה ותוכן מהחדשה. בועה חדשה = שכבה חדשה,
+     ובטלפון היא מוצגת לפריים לפני שנצבעה (מלבן בלי טקסט, הקלטת Studio בסבב 10) */
+  const cur = el.firstElementChild;
+  if (cur && el.childElementCount === 1 && typeof document !== 'undefined') {
+    const tp = document.createElement('template'); tp.innerHTML = html;
+    const nx = tp.content.firstElementChild;
+    if (nx && tp.content.childElementCount === 1 && nx.tagName === cur.tagName) { if (cur.className !== nx.className) cur.className = nx.className; if (cur.innerHTML !== nx.innerHTML) cur.innerHTML = nx.innerHTML; return; }
+  }
   el.innerHTML = html;
 }
 
@@ -11719,6 +11727,14 @@ const CAL_ICON = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="var(--
 function renderPfTools() {
   const box = document.getElementById('pfTools');
   if (!box) return;
+  /* 03/11/2026 (סבב קפיצות 11, הקלטת Invest — "הלחצן תשואה מתאריך מתרענן כל רענון של העמוד"): כל ציור של הגרף (גם הרענון
+     המלא של המחירים) בנה את הכפתור מחדש — כפתור זכוכית חדש = שכבה חדשה, ובטלפון הוא מוצג פריים לפני שנצבע. אותו תוכן — נשאר */
+  const key = (state.pfCustomFrom || '') + '|' + t('pfFromBtn');
+  if (box._k === key && box.firstElementChild) {
+    if (!(state.pfMeasure && state.pfMeasure.pts.length >= 2)) { const c = document.getElementById('pfMeasureChip'); if (c) { c.classList.add('hidden'); c.innerHTML = ''; } }
+    return;
+  }
+  box._k = key;
   box.innerHTML = '';
   const wrap = el('div', 'pf-tools');
 
@@ -12164,7 +12180,9 @@ async function drawPfChart() {
     if (allRows.length < 2) allRows = portfolioSeriesILS();
     else srcKind = 'ibkr';
   } else {
-    if (loading) {
+    /* 03/11/2026 (סבב קפיצות 11, אותה הקלטה): בכל רענון מלא שכבת "טוען היסטוריה" כיסתה את הגרף הקיים לכמה פריימים (הכרטיס
+       "מתבהר" והגרף נמחק). גרף שכבר צויר נשאר עד שהחדש מוכן — השכבה רק כשאין עדיין גרף */
+    if (loading && !canvas._pfMap) {
       loading.textContent = t('loadingHist');
       loading.classList.remove('hidden');
     }
@@ -12175,7 +12193,7 @@ async function drawPfChart() {
     if (isYtdRange) warmFrom = todayISO().slice(0, 4) + '-01-01';
     else if (is1yRange) { const d = new Date(); d.setFullYear(d.getFullYear() - 1); warmFrom = d.toISOString().slice(0, 10); }
     await warmPfHistories((done, total) => {
-      if (loading && my === pfChartToken) loading.textContent = t('loadingHistN', { done, total });
+      if (loading && my === pfChartToken && !loading.classList.contains('hidden')) loading.textContent = t('loadingHistN', { done, total });
     }, warmFrom); // מהיר: מרוץ מקבילי + מטמון
     if (my !== pfChartToken) return;
     await ensureFxHist();
