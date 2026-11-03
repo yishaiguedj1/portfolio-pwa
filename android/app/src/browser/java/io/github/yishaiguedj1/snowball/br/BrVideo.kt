@@ -46,17 +46,27 @@ object BrVideo {
 
     /** המקורות של מסגרת יוטיוב מוטמעת — רק בהן רץ YT_FRAME, ורק מהן מתקבלות הודעות "snbYt" */
     val YT_ORIGINS = setOf("https://www.youtube.com", "https://www.youtube-nocookie.com")
+    const val FRAME_URL = "!u:"
 
     /**
      * 03/11/2026 (דיווח המשתמש: מהחיפוש של גוגל — התפריט על הנגן "מתחיל לטעון ולא נטען"): בדף של יוטיוב האיכויות נקראות
      * מהנגן שבדף (YtPage.JS) מיד; בנגן מוטמע הוא במסגרת של מקור אחר, ונשארה רק הבדיקה של yt-dlp (חצי דקה עד דקה ויותר).
      * לכן אותה קריאה רצה בתוך מסגרת ה־embed עצמה (סקריפט בתחילת המסמך, רק במקורות של יוטיוב, רק ב־/embed/, לא במסגרת
      * הראשית), כל שנייה וחצי עד שהנגן מחזיק את רשימת הפורמטים, ונשלחת לדפדפן (BrowserActivity.ytFrame → DmPre.seed)
+     * 03/11/2026 (דיווח שני בסרטון): (1) קודם כל המסגרת שולחת את הכתובת שלה ("!u:") — בקשת המסגרת עוברת לפעמים דרך
+     * ה־Service Worker של יוטיוב ולא נראתה, ובלי הנגן המוטמע הדף של גוגל נבדק, נכשל, והכפתור נעלם. (2) נגן שעוד לא ניגן
+     * לא מחזיק פורמטים — אחרי ~4 שניות המסגרת מבקשת אותם בעצמה מאותו שרת (‏/youtubei/v1/player, אותה בקשה של הנגן,
+     * עם המפתח וההקשר שבדף — ytcfg), פעם אחת, והתוצאה נקראת כמו ytInitialPlayerResponse
      */
     val YT_FRAME: String get() = "(function(){try{if(window.top===window||!/^\\/embed\\//.test(location.pathname))return;var ch=window.snbYt;" +
-        "if(!ch||window.__snbYt)return;window.__snbYt=1;var n=0,last='';" +
+        "if(!ch||window.__snbYt)return;window.__snbYt=1;var n=0,last='',asked=0;ch.postMessage('!u:'+String(location.href).slice(0,2048));" +
+        "function ask(){try{var c=window.ytcfg&&ytcfg.get?ytcfg:null,m=location.pathname.match(/\\/embed\\/([A-Za-z0-9_-]{11})/);if(!c||!m||!window.fetch)return;" +
+        "var k=c.get('INNERTUBE_API_KEY'),cx=c.get('INNERTUBE_CONTEXT');if(!cx)return;" +
+        "fetch('/youtubei/v1/player?prettyPrint=false'+(k?'&key='+encodeURIComponent(k):''),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'}," +
+        "body:JSON.stringify({context:cx,videoId:m[1]})}).then(function(r){return r.json();}).then(function(p){" +
+        "if(p&&p.streamingData&&p.videoDetails&&!(window.ytInitialPlayerResponse&&window.ytInitialPlayerResponse.streamingData))window.ytInitialPlayerResponse=p;},function(){});}catch(e){}}" +
         "function go(){var r=null;try{r=" + io.github.yishaiguedj1.snowball.YtPage.JS + ";}catch(e){}" +
-        "if(r&&r!==last&&r.length<200000){last=r;ch.postMessage(r);}if(++n<120)setTimeout(go,1500);}" +
+        "if(r&&r!==last&&r.length<200000){last=r;ch.postMessage(r);}else if(!r&&n>=2&&!asked){asked=1;ask();}if(++n<120)setTimeout(go,1500);}" +
         "setTimeout(go,600);}catch(e){}})();"
 
     private val YT_EMBED = Regex("^https?://(?:www\\.|m\\.)?youtube(?:-nocookie)?\\.com/embed/([A-Za-z0-9_-]{11})(?:[/?#]|$)", RegexOption.IGNORE_CASE)
