@@ -26,11 +26,12 @@ const THEMES = {
   green: { page: '#E8F0E3', ink: '#22301F', ink2: '#5B6B55', rule: 'rgba(34,48,31,.2)', link: '#1F6B33', dark: false },
   black: { page: '#000000', ink: '#D6D6D6', ink2: '#8A8A8E', rule: 'rgba(255,255,255,.18)', link: '#7EE2A0', dark: true },
 };
+const EINK = Object.assign({}, THEMES.white, { page: '#ffffff', ink: '#000000', ink2: '#000000', rule: '#000000', link: '#000000' });   // E13
 const COVER_COLORS = [['#23426B', '#142944'], ['#3D3D3D', '#1E1E1E'], ['#5B4636', '#3A2C22'], ['#2E5A4E', '#1B3A32'], ['#5A2E3D', '#3A1C27'], ['#3F4A6B', '#272F47']];
 
 // v330: ערכת ברירת המחדל = 'auto' — הקורא הולך אחרי האפליקציה (בהיר → דף לבן, כהה → דף שחור עם טקסט אפור־בהיר, כמו
 // מצב כהה של קינדל), ומתחלף מיד כשהאפליקציה מתחלפת. בחירה ידנית ב־Aa (themeSet) גוברת
-const defaults = { theme: 'auto', size: 19, weight: 0, spacing: 1, justify: false, font: 'snb', flow: 'paginated' };
+const defaults = { theme: 'auto', size: 19, weight: 0, spacing: 1, justify: false, font: 'snb', flow: 'paginated', study: false, eink: false };   // גל 4: מצב עיון (E6) ומצב דיו (E13)
 export function normSettings(o) {          // הגדרות ישנות: 'white' שנשמר כברירת מחדל (בלי בחירה ידנית) → 'auto'
   const r = Object.assign({}, defaults, o || {});
   if (!THEMES[r.theme] && r.theme !== 'auto') r.theme = 'auto';
@@ -40,7 +41,7 @@ export function normSettings(o) {          // הגדרות ישנות: 'white' �
 function loadSettings() { try { return normSettings(JSON.parse(localStorage.getItem(LS_READER) || '{}')); } catch (e) { return normSettings({}); } }
 const appDark = () => typeof document !== 'undefined' && !!document.documentElement && document.documentElement.getAttribute('data-theme') === 'dark';
 export function themeKey(st, dark) { return st.theme === 'auto' ? (dark ? 'black' : 'white') : st.theme; }
-const curTheme = () => THEMES[themeKey(S, appDark())] || THEMES.white;
+const curTheme = () => S.eink ? EINK : THEMES[themeKey(S, appDark())] || THEMES.white;   // E13: מסך דיו — שחור על לבן, בלי גוונים
 function saveSettings() { try { localStorage.setItem(LS_READER, JSON.stringify(S)); } catch (e) {} }
 let S = loadSettings();
 const ui = { sort: 'new', author: '\u0001shelf', view: null, q: '', admin: false };   // v321: נכנסים תמיד ל"מדף ספרים"   // view: null = בית, { book: id } = דף מכתב
@@ -247,6 +248,20 @@ const FOLD_RE = /[\u0591-\u05BD\u05BF-\u05C7]/g, FOLD_CH = /[םןץףך׳’‘�
 export function foldQuick(t) {          // אותו קיפול בלי המפה — מהיר (replace מקורי); לסינון מוקדם של פרקים
   return String(t).replace(FOLD_RE, '').replace(FOLD_CH, (c) => FOLD_MAP[c]).toLowerCase();
 }
+/* Academy Pro גל 4, H5 — כתיב מלא וחסר: ו/י שלא בתחילת מילה נמחקות משני הצדדים, כך ש"שולחן" מוצא "שלחן" ו"כתב" מוצא "כותב".
+   רק כשלב אחרון (כשאין התאמה רגילה), והתוצאה מסומנת loose */
+const PLENE_RE = /(?<=[א-ת])[וי]+/g;
+export function pleneKey(t) { return foldQuick(t).replace(PLENE_RE, ''); }
+export function pleneMap(text) {
+  const fm = foldMap(text); let f = ''; const map = [];
+  for (let i = 0; i < fm.f.length; i++) {
+    const c = fm.f[i];
+    if ((c === 'ו' || c === 'י') && i > 0 && /[א-ת]/.test(fm.f[i - 1])) continue;
+    f += c; map.push(fm.map[i]);
+  }
+  map.push(text.length);
+  return { f, map };
+}
 export function ftFind(text, q, max = 40, folded) {   // מיקומי התאמה בטקסט המקורי: [{ pos, len }]
   // בלי ניקוד הקיפול הוא תו־לתו (אורך זהה) → המיקומים זהים, בלי לבנות מפה (שלב 8 — הרבה יותר מהר)
   const quick = folded != null ? folded : foldQuick(text);
@@ -258,7 +273,7 @@ export function ftFind(text, q, max = 40, folded) {   // מיקומי התאמה
   for (let i = f.indexOf(fq); i >= 0 && out.length < max; i = f.indexOf(fq, i + fq.length)) out.push({ pos: at(i), len: at(i + fq.length) - at(i) });
   if (out.length) return out;
   const words = fq.split(' ').filter((w) => w.length >= 2);
-  if (words.length < 2) return [];
+  if (words.length < 2) return pleneFind(text, q, max);
   let start = 0;                         // כל המילים באותה פסקה
   for (const para of f.split('\n')) {
     if (words.every((w) => para.includes(w))) {
@@ -268,6 +283,13 @@ export function ftFind(text, q, max = 40, folded) {   // מיקומי התאמה
     }
     start += para.length + 1;
   }
+  return out.length ? out : pleneFind(text, q, max);
+}
+export function pleneFind(text, q, max = 40) {   // H5: שלב אחרון — כתיב מלא/חסר
+  const pq = pleneKey(String(q).trim().replace(/\s+/g, ' '));
+  if (pq.length < 2 || !/[\u05D0-\u05EA]/.test(pq) || pq === foldQuick(String(q).trim().replace(/\s+/g, ' '))) return [];
+  const pm = pleneMap(text), out = [];
+  for (let i = pm.f.indexOf(pq); i >= 0 && out.length < max; i = pm.f.indexOf(pq, i + pq.length)) out.push({ pos: pm.map[i], len: pm.map[i + pq.length - 1] + 1 - pm.map[i], loose: true });
   return out;
 }
 export function snippet(text, pos, len, around = 70) {   // { pre, hit, post } סביב ההתאמה, בגבולות מילים
@@ -278,8 +300,29 @@ export function snippet(text, pos, len, around = 70) {   // { pre, hit, post } �
   if (b < text.length) { const sp = text.lastIndexOf(' ', b); if (sp > pos + len) b = sp; }
   return { pre: (a > 0 ? '…' : '') + text.slice(a, pos), hit: text.slice(pos, pos + len), post: text.slice(pos + len, b) + (b < text.length ? '…' : '') };
 }
+/* Academy Pro גל 4, D7 — מיון נכון בעברית: כותר בלי ה׳ הידיעה (ו־The/A/An באנגלית), מחבר לפי שם משפחה, סדרה לפי המספר בסדרה */
+export function titleSortKey(t) {
+  let s = String(t || '').trim().replace(/^[\s"'“”„«»׳״(\[]+/, '');
+  s = s.replace(/^(the|a|an)\s+/i, '');
+  const m = s.match(/^ה([\u05D0-\u05EA]{3,})/);   // "הנסיך" → "נסיך"; מילה של שלוש אותיות ומטה ("הר") נשארת
+  if (m) s = m[1] + s.slice(m[0].length);
+  return s.toLowerCase();
+}
+export function authorSortKey(b) {
+  const as = String((b && b.authorSort) || '').trim();
+  if (as) return as.toLowerCase();
+  const first = String((b && b.author) || '').split(/\s*[,;&]\s*|\s+(?:ו|and)\s+(?=\S)/)[0].trim();
+  if (!first) return '\uffff';
+  const w = first.split(/\s+/);
+  return (w.length > 1 ? w[w.length - 1] + ' ' + w.slice(0, -1).join(' ') : first).toLowerCase();
+}
+const cmpHe = (x, y) => (x < y ? -1 : x > y ? 1 : 0) && String(x).localeCompare(String(y), 'he');
 export function sortBooks(list, sort) {
   const a = list.slice();
+  if (sort === 'title') return a.sort((x, y) => cmpHe(titleSortKey(x.title), titleSortKey(y.title)));
+  if (sort === 'author') return a.sort((x, y) => cmpHe(authorSortKey(x), authorSortKey(y)) || cmpHe(titleSortKey(x.title), titleSortKey(y.title)));
+  if (sort === 'series') return a.sort((x, y) => (!x.series - !y.series) || cmpHe(String(x.series || '').toLowerCase(), String(y.series || '').toLowerCase())
+    || ((parseFloat(x.seriesIdx) || 0) - (parseFloat(y.seriesIdx) || 0)) || cmpHe(titleSortKey(x.title), titleSortKey(y.title)));
   if (sort === 'recent') return a.sort((x, y) => (y.lastRead || 0) - (x.lastRead || 0) || (y.year || 0) - (x.year || 0));
   const dir = sort === 'old' ? 1 : -1;
   return a.sort((x, y) => dir * ((x.year || 0) - (y.year || 0)) || String(x.title).localeCompare(String(y.title), 'he'));
@@ -830,6 +873,7 @@ async function ftSearch(q) {
   const books = new Map((await allBooks()).map((b) => [b.id, b]));
   const fq = foldQuick(String(q).trim().replace(/\s+/g, ' '));
   const words = fq.split(' ').filter((w) => w.length >= 2);
+  const pq0 = pleneKey(String(q).trim().replace(/\s+/g, ' ')), pq = pq0.length >= 2 && pq0 !== fq && /[\u05D0-\u05EA]/.test(pq0) ? pq0 : '';   // H5
   const res = [];
   for (const rec of cache) {
     const b = books.get(rec.id); if (!b) continue;
@@ -837,7 +881,7 @@ async function ftSearch(q) {
     for (const sec of rec.secs) {
       // שלב 8: סינון מוקדם על טקסט מקופל שמור — המפה המלאה (foldMap) רק לפרק שבאמת מכיל את המילים
       const f = sec._f || (sec._f = foldQuick(sec.t));
-      if (!f.includes(fq) && !(words.length >= 2 && words.every((w) => f.includes(w)))) continue;
+      if (!f.includes(fq) && !(words.length >= 2 && words.every((w) => f.includes(w))) && !(pq && (sec._p || (sec._p = pleneKey(sec.t))).includes(pq))) continue;
       let low = null;
       for (const m of ftFind(sec.t, q, 40 - hits.length, f)) {
         const orig = sec.t.slice(m.pos, m.pos + m.len);
@@ -949,7 +993,7 @@ function cleanState(extra) { const st = Object.assign({}, history.state || {}, e
    (צ'יפים/מיון/רענון). הקורא נסגר באנימציית CSS משלו (closeReader). בלי התמיכה / reduced-motion — ציור רגיל.
    הגלילה נקבעת בתוך המעבר (אחרי הבנייה) — אין פריים שבו הדף הישן קופץ לראש לפני שהוחלף (נמצא ב־QA של v322). */
 const VT = { inside: false };
-const reduceMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+const reduceMotion = () => !!(S && S.eink) || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);   // E13: בדיו — בלי אנימציות (ריצוד)
 function libTransition(kind, update) {
   const run = async () => { VT.inside = true; try { await update(); } finally { VT.inside = false; } };
   if (VT.inside || !kind || kind === 'none' || !root || reduceMotion() || typeof document.startViewTransition !== 'function' || document.hidden) return run();
@@ -1145,6 +1189,12 @@ async function renderHomeNow() {
     si.addEventListener('input', () => { ui.q = si.value; applySearch(home); });
     si.addEventListener('keydown', (e) => { if (e.key === 'Enter') si.blur(); });
     sw.append(si);
+    // גל 4: שמירת חיפוש עם שדות (D2) + דפדפן התגיות (D4) — שני כפתורים קטנים בסוף השורה
+    const sv = h('button', 'lib-qbtn lib-qsave'); sv.type = 'button'; sv.hidden = true; sv.innerHTML = ICON.bookmark; sv.setAttribute('aria-label', T('pxSave'));
+    sv.addEventListener('click', () => { const q = (ui.q || '').trim(), a = qSaved(); qSavedSet(a.includes(q) ? a.filter((x) => x !== q) : [q].concat(a)); sv.classList.toggle('on', !a.includes(q)); if (typeof flash === 'function') flash(T(a.includes(q) ? 'pxUnsaved' : 'pxSavedOk')); });
+    const fb = h('button', 'lib-qbtn'); fb.type = 'button'; fb.innerHTML = ICON_TAG; fb.setAttribute('aria-label', T('pxBrowse')); fb.title = T('pxBrowse');
+    fb.addEventListener('click', () => pro((P) => P.openBrowser()));
+    sw.append(sv, fb);
     home.append(sw);
   }
   if (!books.length && !cloudOnly.length) {
@@ -1215,12 +1265,17 @@ async function renderHomeNow() {
   if (onShelf) shelvesView(home, listed);
   const sortRow = h('div', 'lib-sortrow' + (onShelf ? ' lib-only-q' : ''));
   const sortBtn = h('button', 'lib-sortbtn'); sortBtn.type = 'button'; sortBtn.innerHTML = ICON.sort;
-  sortBtn.append(h('span', null, T(ui.sort === 'old' ? 'libSortOld' : ui.sort === 'recent' ? 'libSortRecent' : 'libSortNew')));
+  sortBtn.append(h('span', null, T((SORTS.find((x) => x[0] === ui.sort) || SORTS[0])[1])));
   sortBtn.addEventListener('click', openSortSheet);
   const cnt = h('b', 'lib-count', T('libCount', { n: shown.length })); cnt.dataset.n = String(shown.length);
-  sortRow.append(cnt, sortBtn);
+  // D15: רשת או רשימה (עם מחבר, סדרה ומצב) — נזכר בטלפון
+  const lay = h('button', 'lib-qbtn lib-laybtn'); lay.type = 'button'; lay.innerHTML = libLayout() === 'list' ? ICON_GRID : ICON.list;
+  lay.setAttribute('aria-label', T(libLayout() === 'list' ? 'pxGridV' : 'pxListV'));
+  lay.addEventListener('click', () => { try { localStorage.setItem(LS_LAYOUT, libLayout() === 'list' ? 'grid' : 'list'); } catch (e) {} renderHome('fade'); });
+  const se = h('div', 'lib-sortend'); se.append(lay, sortBtn);
+  sortRow.append(cnt, se);
   home.append(sortRow);
-  const grid = h('div', 'lib-grid' + (onShelf ? ' lib-only-q' : ''));   // במדף — הרשת מופיעה רק בחיפוש
+  const grid = h('div', 'lib-grid' + (libLayout() === 'list' ? ' lib-list' : '') + (onShelf ? ' lib-only-q' : ''));   // במדף — הרשת מופיעה רק בחיפוש
   shown.forEach((b, i) => grid.append(bookItem(b, i)));
   home.append(grid);
   if (cloudOnly.length > 1 && !onShelf) {  // v319: כמה ספרים בגיבוי — הורדה של כולם בלחיצה אחת
@@ -1284,7 +1339,7 @@ function backupPill() {                    // בועת מצב הגיבוי (ענ
 }
 function cloudItem(b, idx) {
   const it = h('button', 'lib-item cloud'); it.type = 'button';
-  it.dataset.q = searchKey(b); it.dataset.i = String(idx);
+  it._b = b; it.dataset.q = searchKey(b); it.dataset.i = String(idx);
   const cv = cover(Object.assign({}, b, { cover: null }));
   const fill = (url) => {
     const im = coverImg(url);
@@ -1837,12 +1892,18 @@ function addToCollSheet(book) {          // לחיצה ארוכה על ספר �
 function bookItem(b, idx) {               // פריט ספר ברשת (בית / דף אסופה)
   if (b.cloud) return cloudItem(b, idx);
   const it = h('button', 'lib-item'); it.type = 'button';
-  it.dataset.q = searchKey(b); it.dataset.i = String(idx);
+  it._b = b; it.dataset.q = searchKey(b); it.dataset.i = String(idx);
   const cap = h('div', 'lib-cap');
   if (b.done) cap.append(h('span', 'lib-done', T('libRead')));
   else if (b.fraction > 0) { const m = h('span', 'lib-mini'); const f = h('i'); f.style.width = Math.round(b.fraction * 100) + '%'; m.append(f); cap.append(m, h('span', null, Math.round(b.fraction * 100) + '%')); }
   else cap.append(h('span', 'lib-badge', T('libNew')));
-  it.append(cover(b), cap);
+  if (libLayout() === 'list') {          // D15: ברשימה — שם, מחבר וסדרה ליד הכריכה
+    const m = h('div', 'lib-lm'); m.dir = 'auto';
+    m.append(h('b', null, b.title));
+    const sub = [b.author, b.series ? b.series + (b.seriesIdx ? ' #' + b.seriesIdx : '') : '', b.year].filter(Boolean).join(' · ');
+    if (sub) m.append(h('span', null, sub));
+    m.append(cap); it.append(cover(b, true), m);
+  } else it.append(cover(b), cap);
   // שלב 8 (נגישות): קורא מסך שומע שם + מצב, לא את כל הטקסט הדקורטיבי של הכריכה
   it.setAttribute('aria-label', b.title + ' · ' + (b.done ? T('libRead') : b.fraction > 0 ? Math.round(b.fraction * 100) + '% ' + T('bkReadPct') : T('libNew')));
   it.addEventListener('click', () => goView({ book: b.id }));
@@ -1929,15 +1990,28 @@ async function renderBook(id) {
   const cv = cover(b); cv.classList.add('bk-cover');
   d.append(cv, h('h2', 'bk-title', b.title));
   if (b.subtitle) { const st = h('div', 'bk-subtitle', b.subtitle); st.dir = 'auto'; d.append(st); }
-  if (b.series) { const se = h('div', 'bk-series', b.series + (b.seriesIdx ? ' · ' + b.seriesIdx : '')); se.dir = 'auto'; d.append(se); }
+  if (b.series) {                         // D12: הסדרה והמחבר — לחיצים, לדף שלהם
+    const se = h('button', 'bk-series bk-link', b.series + (b.seriesIdx ? ' · ' + b.seriesIdx : '')); se.type = 'button'; se.dir = 'auto';
+    se.addEventListener('click', () => pro((P) => P.seriesPage(b.series))); d.append(se);
+  }
   // שם המוציא רק כשהוא בשפת הממשק (מוציא באנגלית במכתב עברי שובר את כיוון השורה); כל חלק מבודד לכיוון שלו
   const heUi = !((typeof getLang === 'function' && getLang()) === 'en');
   const by = [b.pub, b.author].find((x) => x && /[\u0590-\u05FF]/.test(x) === heUi) || '';
   const parts = [by, fmtDate(b.date)].filter(Boolean);
   if (parts.length) {
     const sub = h('div', 'bk-sub');
-    parts.forEach((x, i) => { if (i) sub.append(' · '); const bd = document.createElement('bdi'); bd.textContent = x; sub.append(bd); });
+    parts.forEach((x, i) => {
+      if (i) sub.append(' · ');
+      const bd = document.createElement(x === b.author ? 'button' : 'bdi'); bd.textContent = x;
+      if (x === b.author) { bd.type = 'button'; bd.className = 'bk-link'; bd.dir = 'auto'; bd.addEventListener('click', () => pro((P) => P.authorPage(String(b.author).split(/\s*[,;&]\s*/)[0]))); }
+      sub.append(bd);
+    });
     d.append(sub);
+  }
+  if (b.author && by !== b.author && shelfOf(b) === 'mine') {   // D12: בספר שלי — המחבר תמיד מופיע, ולחיץ לדף שלו
+    const ab = h('button', 'bk-link bk-by', b.author); ab.type = 'button'; ab.dir = 'auto';
+    ab.addEventListener('click', () => pro((P) => P.authorPage(String(b.author).split(/\s*[,;&]\s*/)[0])));
+    const w = h('div', 'bk-sub'); w.append(ab); d.append(w);
   }
   const stats = h('div', 'bk-stats');
   const stat = (v, k) => { const x = h('div'); x.append(h('b', null, v), h('span', null, k)); stats.append(x); };
@@ -1976,7 +2050,9 @@ async function renderBook(id) {
     toc.append(list);
   });
   d.append(toc);
+  const sim = h('div', 'bk-sim'); d.append(sim);   // D9: ספרים דומים — מחבר, סדרה, תגיות ותוכן
   home.append(top, d);
+  setTimeout(() => { if (sim.isConnected) pro((P) => P.similarInto(sim, b)); }, 350);
 }
 
 /* ---------------- עריכת פרטי ספר + משיכה מהאינטרנט (v316) ----------------
@@ -2332,6 +2408,25 @@ async function convertKit() {
   return CVK;
 }
 const openAddSheet = () => convertKit().then((K) => K.openAdd());
+/* Academy Pro גל 4 (03/11/2026): דפדפן תגיות, ספרים דומים, דף מחבר/סדרה, סטטיסטיקות, ייצוא הדגשות, חיפוש בספר, מסך מלא — libpro.js, רק כשנכנסים */
+let PRK = null;
+async function proKit() {
+  if (!PRK) {
+    const m = await import('./libpro.js');
+    PRK = m.createPro({
+      h, T, sheet, closeSheetThen, chev: ICON.chev, cover, convertKit, wikiSummary, quoteVal, sort: sortBooks,
+      flash: (m2) => { if (typeof flash === 'function') flash(m2); },
+      liveHl: (b) => liveAnn(b.ann).filter((a) => a && !a.d && !a.b && String(a.x || '').trim()),
+      shelfBooks: async (b, all) => { const A = await allBooks(); if (all) return A; const sh = b ? shelfOf(b) : ui.shelf; return A.filter((x) => shelfOf(x) === sh); },
+      ftTexts: async () => new Map((ftCache || (ftCache = await tx('text', 'readonly', (st) => reqP(st.getAll())))).map((r) => [r.id, r.secs || []])),
+      openBook: (id) => { const v = document.querySelector('.lib-veil:not(.out)'); const go = () => goView({ book: id }); if (v) closeSheetThen(v, go); else go(); },
+      setQuery: (q) => { ui.q = q; ui.author = ''; renderHome('fade'); },
+      qSaved, qSavedSet, statsGet,
+    });
+  }
+  return PRK;
+}
+const pro = (fn) => proKit().then(fn).catch(() => { if (typeof flash === 'function') flash(T('pxErr')); });
 async function undoPolish(id) {
   const prev = await getFile(PREV + id); if (!prev) throw new Error('noprev');
   await tx('files', 'readwrite', (st) => { st.put(prev, id); st.delete(PREV + id); });
@@ -2351,6 +2446,27 @@ async function saveFields(id, vals, cv) {          // D14: שדות שאושרו
 }
 /* D13: מספר המילים — מאינדקס החיפוש (נבנה ברקע לכל ספר); הקצב — מהקורא (דפדוף קדימה רגיל בלבד) */
 const LS_PACE = 'pwa_libpace_v1';
+/* Academy Pro גל 4, E12 — סטטיסטיקות קריאה (מקומי, מפתח אישי): d = דקות לכל יום, h = 168 תאים (יום בשבוע × שעה), f = מתי נגמר כל ספר */
+const LS_STATS = 'pwa_libstats_v1';
+const dayKey = (t) => { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+export function statsAdd(st, ms, now) {   // טהורה (נבדקת)
+  st = st && typeof st === 'object' ? st : {};
+  const min = ms / 60000; if (!(min > 0)) return st;
+  const day = dayKey(now), d = new Date(now);
+  st.d = st.d && typeof st.d === 'object' ? st.d : {};
+  st.d[day] = Math.round(((st.d[day] || 0) + min) * 100) / 100;
+  st.h = Array.isArray(st.h) && st.h.length === 168 ? st.h : new Array(168).fill(0);
+  const k = d.getDay() * 24 + d.getHours(); st.h[k] = Math.round((st.h[k] + min) * 100) / 100;
+  const old = dayKey(now - 400 * 864e5); Object.keys(st.d).forEach((x) => { if (x < old) delete st.d[x]; });
+  return st;
+}
+export function statsFinish(st, id, now) { st = st && typeof st === 'object' ? st : {}; st.f = st.f || {}; if (id && !st.f[id]) st.f[id] = now; return st; }
+function statsGet() { try { return JSON.parse(localStorage.getItem(LS_STATS) || 'null') || {}; } catch (e) { return {}; } }
+function statsPut(fn) { try { localStorage.setItem(LS_STATS, JSON.stringify(fn(statsGet()))); } catch (e) {} }
+/* D2: חיפושים שמורים (מפתח אישי) */
+const LS_QSAVED = 'pwa_libq_v1';
+function qSaved() { try { const a = JSON.parse(localStorage.getItem(LS_QSAVED) || '[]'); return Array.isArray(a) ? a.filter((x) => typeof x === 'string') : []; } catch (e) { return []; } }
+function qSavedSet(a) { try { localStorage.setItem(LS_QSAVED, JSON.stringify(a.slice(0, 30))); } catch (e) {} }
 async function bookWords(id) {
   try { const x = await tx('text', 'readonly', (st) => reqP(st.get(id))); if (!x) return 0; const m = await import('./libpolish.js'); return m.countWords(x.secs); } catch (e) { return 0; }
 }
@@ -2359,6 +2475,7 @@ function paceTick(frac) {
   if (!rd) return;
   const now = Date.now(), p = rd.pace;
   rd.pace = { f: frac, t: now };
+  if (p && now - p.t >= 1000 && now - p.t <= 15 * 60000 && !document.hidden) statsPut((st) => statsAdd(st, Math.min(now - p.t, 120000), now));   // E12
   if (!p || !rd.words) return;
   const dw = (frac - p.f) * rd.words, dt = now - p.t;
   if (dw <= 0 || dw > 1200 || dt < 3000 || dt > 180000) return;   // לא קפיצה, לא אחורה, לא הפסקה
@@ -2497,7 +2614,7 @@ async function renderAdmin() {
 
 /* v326: "מה למדתי" = המחברת של קינדל בעיצוב Apple: סינון (הכל/הדגשות/הערות/סימניות + צבע), לכל פריט ⋯ / לחיצה ארוכה
    = גיליון פעולות (צבע, הערה, העתקה, ציטוט, מעבר למקום, הסרה), שיתוף כל ההדגשות של ספר, ובלי עותקים כפולים */
-const learnF = { t: 'all', k: null };
+const learnF = { t: 'all', k: null, q: '' };
 async function renderNotes() {
   const home = root.querySelector('.lib-home');
   const all = sortBooks((await allBooks()).filter((b) => (b.ann || []).some((a) => !a.d)), 'recent');
@@ -2508,9 +2625,16 @@ async function renderNotes() {
   const top = h('div', 'lib-top');
   const back = h('button', 'lib-back'); back.type = 'button'; back.innerHTML = ICON.back; back.append(h('span', null, T('libTitle')));
   back.addEventListener('click', () => history.back());
-  top.append(back);
+  // גל 4: סטטיסטיקות הקריאה (E12) וייצוא כל ההדגשות לפי הסינון (E5) — בשורת הכותרת
+  const tr = h('div', 'lib-tr');
+  const stB = h('button', 'lib-round'); stB.type = 'button'; stB.innerHTML = ICON_STATS; stB.setAttribute('aria-label', T('pxStats')); stB.title = T('pxStats');
+  stB.addEventListener('click', () => pro((P) => P.openStats()));
+  tr.append(stB);
+  const exB = h('button', 'lib-round'); exB.type = 'button'; exB.innerHTML = ICON.share; exB.setAttribute('aria-label', T('pxHlExp')); exB.title = T('pxHlExp');
+  tr.append(exB);
+  top.append(back, tr);
   home.append(top, h('h1', 'lib-large', T('learnTitle')));
-  if (!all.length) { home.append(h('p', 'lib-empty', T('learnEmpty'))); return; }
+  if (!all.length) { exB.hidden = true; home.append(h('p', 'lib-empty', T('learnEmpty'))); return; }
   // סינון: מקטעים + צבעים (צבע לא רלוונטי לסימניות)
   const filt = h('div', 'learn-filter');
   const seg = h('div', 'rd-seg learn-seg'); seg.setAttribute('role', 'tablist');
@@ -2530,12 +2654,22 @@ async function renderNotes() {
     });
     filt.append(cols);
   }
+  // E4: חיפוש בכל ההדגשות — בטקסט, בהערה, בפרק ובשם הספר / המחבר / התגיות
+  const sw = h('div', 'lib-search learn-q'); sw.innerHTML = ICON.search;
+  const si = h('input'); si.type = 'search'; si.dir = 'auto'; si.placeholder = T('pxHlFind'); si.setAttribute('aria-label', T('pxHlFind')); si.value = learnF.q || ''; si.enterKeyHint = 'search';
+  let qt = 0;
+  si.addEventListener('input', () => { clearTimeout(qt); qt = setTimeout(() => { learnF.q = si.value; const y = root.scrollTop; renderNotes().then(() => { navScroll(y); const n = root.querySelector('.learn-q input'); if (n) { n.focus({ preventScroll: true }); n.setSelectionRange(n.value.length, n.value.length); } }); }, 300); });
+  si.addEventListener('keydown', (e) => { if (e.key === 'Enter') si.blur(); });
+  sw.append(si); home.append(sw);
   home.append(filt);
   let shown = 0;
+  const fq = fold(learnF.q || ''), picked = [];
   all.forEach((b) => {
-    const list = annFilter(b.ann, learnF);
+    const bookHit = fq && fold([b.title, b.author, b.series, b.tags].join(' ')).includes(fq);
+    const list = annFilter(b.ann, learnF).filter((a) => !fq || bookHit || fold([a.x, a.n, a.ch].join(' ')).includes(fq));
     if (!list.length) return;
     shown++;
+    picked.push({ b, list: list.filter((a) => !a.b && String(a.x || '').trim()) });
     const sec = h('section', 'learn-sec');
     const head = h('div', 'learn-h');
     const hl = (b.ann || []).filter((a) => !a.d && !a.b);
@@ -2557,6 +2691,9 @@ async function renderNotes() {
     home.append(sec);
   });
   if (!shown) home.append(h('p', 'lib-empty', T('learnNoMatch')));
+  const items = picked.filter((x) => x.list.length);
+  exB.hidden = !items.length;
+  exB.addEventListener('click', () => pro((P) => P.openHlExport(items)));
 }
 const insFlight = new Map();
 function fetchInsight(b) {
@@ -2642,7 +2779,7 @@ export function editDist(a, b, max) {   // Damerau (OSA) עם עצירה מוק�
   return p1[n];
 }
 export function searchKey(b) {
-  let k = [b.title, b.author, b.pub, b.year || '', b.desc || '', b.ins && b.ins.summary || ''].join(' ');
+  let k = [b.title, b.subtitle || '', b.author, b.authorSort || '', b.pub, b.series || '', b.tags || '', b.year || '', b.desc || '', b.ins && b.ins.summary || ''].join(' ');
   ALIASES.forEach(([re, add]) => { if (re.test(k)) k += ' ' + add; });
   return fold(k);
 }
@@ -2678,6 +2815,57 @@ export function searchScore(key, q) {   // 0 = לא מתאים; כל מילה ב
   return Math.max(run(q), run(swapLayout(q)) * 0.9);
 }
 export function searchHit(key, q) { return searchScore(key, q) > 0; }
+/* Academy Pro גל 4, D2 — שפת חיפוש: מחבר:באפט תגית:"השקעות ערך" שנה:1990..2000 שנה:>2010 נקרא:לא הדגשות:כן -סדרה:x
+   מפתח לא מוכר נשאר כטקסט חופשי (מחפש בכותרים כרגיל). ערך עם רווחים — במירכאות. "-" לפני המפתח = שלילה */
+export const Q_KEYS = {
+  title: ['כותר', 'שם', 'title'], author: ['מחבר', 'כותב', 'author', 'by'], tag: ['תגית', 'תגיות', 'נושא', 'tag', 'tags'],
+  series: ['סדרה', 'series'], pub: ['הוצאה', 'מו"ל', 'מו״ל', 'publisher', 'pub'], lang: ['שפה', 'lang', 'language'],
+  year: ['שנה', 'year'], read: ['נקרא', 'קריאה', 'read'], hl: ['הדגשות', 'הדגשה', 'highlights', 'hl'],
+};
+const Q_ALIAS = Object.keys(Q_KEYS).reduce((m, k) => { Q_KEYS[k].forEach((w) => { m[w.toLowerCase()] = k; }); return m; }, {});
+export function parseQuery(q) {
+  const terms = [], text = [];
+  const re = /(-?)([^\s:"״]+)[:：]("([^"]*)"|“([^”]*)”|(\S+))|"([^"]*)"|(\S+)/g;
+  let m;
+  while ((m = re.exec(String(q || '')))) {
+    const key = m[2] && Q_ALIAS[m[2].toLowerCase()];
+    if (m[2] && key) {
+      const v = (m[4] != null ? m[4] : m[5] != null ? m[5] : m[6] || '').trim();
+      const t = { k: key, v, neg: !!m[1] };
+      if (key === 'year') {
+        const r = v.match(/^(\d{3,4})?\s*\.\.\s*(\d{3,4})?$/), c = v.match(/^([<>]=?)\s*(\d{3,4})$/);
+        if (r) { t.a = r[1] ? +r[1] : -Infinity; t.b = r[2] ? +r[2] : Infinity; }
+        else if (c) { const n = +c[2]; t.a = c[1] === '>' ? n + 1 : c[1] === '>=' ? n : -Infinity; t.b = c[1] === '<' ? n - 1 : c[1] === '<=' ? n : Infinity; }
+        else if (/^\d{3,4}$/.test(v)) { t.a = t.b = +v; }
+        else continue;
+      }
+      terms.push(t);
+    } else text.push(m[7] != null ? m[7] : m[0]);
+  }
+  return { terms, text: text.join(' ').trim() };
+}
+const YES = /^(כן|yes|y|1|true|מלא)$/i, NO = /^(לא|no|n|0|false)$/i;
+export function matchQuery(b, terms, liveAnnOf) {   // כל התנאים חייבים להתקיים (וגם השלילות)
+  const has = (val, v) => { const fv = fold(v); return !fv || fold(String(val || '')).includes(fv); };
+  for (const t of terms) {
+    let ok;
+    switch (t.k) {
+      case 'title': ok = has([b.title, b.subtitle].join(' '), t.v); break;
+      case 'author': ok = has([b.author, b.authorSort].join(' '), t.v); break;
+      case 'series': ok = t.v ? has(b.series, t.v) : !!b.series; break;
+      case 'pub': ok = has(b.pub, t.v); break;
+      case 'tag': { const tags = String(b.tags || '').split(/\s*[,;،]\s*/).filter(Boolean); ok = t.v ? tags.some((x) => has(x, t.v)) : tags.length > 0; break; }
+      case 'lang': ok = String(b.lang || '').toLowerCase().startsWith(String(t.v).toLowerCase().slice(0, 2)) || has(b.lang, t.v); break;
+      case 'year': ok = !!b.year && b.year >= t.a && b.year <= t.b; break;
+      case 'read': ok = YES.test(t.v) ? !!b.done : NO.test(t.v) ? !b.done && !(b.fraction > 0) : !b.done && b.fraction > 0; break;   // כל ערך אחר ("חלקית") = באמצע
+      case 'hl': { const n = (liveAnnOf ? liveAnnOf(b) : (b.ann || []).filter((x) => x && !x.d && !x.b)).length; ok = NO.test(t.v) ? !n : n > 0; break; }
+      default: ok = true;
+    }
+    if (t.neg ? ok : !ok) return false;
+  }
+  return true;
+}
+export function quoteVal(v) { v = String(v || '').trim(); return /[\s"]/.test(v) ? '"' + v.replace(/"/g, '') + '"' : v; }
 function applySearch(home) {
   const q = (ui.q || '').trim();
   // 28/10/2026 (QA מעברים): בית גלול + חיפוש = הרשימה מתקצרת, הדפדפן חותך את הגלילה ל־0 ושדה החיפוש קופץ באמצע ההקלדה.
@@ -2691,7 +2879,9 @@ function applySearch(home) {
   const grid = home.querySelector('.lib-grid');
   const items = Array.from(home.querySelectorAll('.lib-item'));
   let n = 0, exact = 0;
-  const scored = items.map((it, i) => ({ it, sc: q ? searchScore(it.dataset.q || '', q) : 1, i: +(it.dataset.i || i) }));
+  const P = /[:：]/.test(q) ? parseQuery(q) : null, tq = P && P.terms.length ? P.text : q;   // D2: שפת חיפוש
+  const scored = items.map((it, i) => ({ it, i: +(it.dataset.i || i),
+    sc: !q ? 1 : P && P.terms.length && !(it._b && matchQuery(it._b, P.terms, (b) => liveAnn(b.ann).filter((x) => !x.b))) ? 0 : tq ? searchScore(it.dataset.q || '', tq) : 3 }));
   exact = scored.filter((x) => x.sc >= 2.5).length;
   scored.forEach((x) => { const on = x.sc > 0 && (!exact || x.sc >= 2.5); x.it.hidden = !on; if (on) n++; });   // יש התאמה מדויקת — בלי "קרובים"
   if (grid) (q ? scored.slice().sort((a, b) => b.sc - a.sc || a.i - b.i) : scored.slice().sort((a, b) => a.i - b.i)).forEach((x) => grid.append(x.it));
@@ -2702,13 +2892,16 @@ function applySearch(home) {
   const sr = home.querySelector('.lib-sortrow'); if (sr) sr.hidden = !!(q && !n);   // אין התאמה בשמות — בלי "0 ספרים"
   clearTimeout(ftTimer);
   const ft = home.querySelector('.lib-ft');
-  if (ft) { if (!q || q.length < 2) { ft.hidden = true; ft.textContent = ''; } else ftTimer = setTimeout(() => renderFt(home, q), 280); }
+  if (ft) { if (!tq || tq.length < 2) { ft.hidden = true; ft.textContent = ''; } else ftTimer = setTimeout(() => renderFt(home, q), 280); }
+  const sv = home.querySelector('.lib-qsave'); if (sv) { sv.hidden = !(P && P.terms.length); sv.classList.toggle('on', qSaved().includes(q)); }
 }
 let ftTimer = 0, ftSeq = 0;
 async function renderFt(home, q) {
   const ft = home.querySelector('.lib-ft'); if (!ft) return;
   const seq = ++ftSeq;
-  const res = (await ftSearch(q)).filter((r) => shelfOf(r.b) === ui.shelf);   // v318: רק בספרייה שנבחרה
+  const P = /[:：]/.test(q) ? parseQuery(q) : null, tq = P && P.terms.length ? P.text : q;   // D2: התנאים מסננים גם את החיפוש בטקסט
+  if (tq.length < 2) { ft.hidden = true; ft.textContent = ''; return; }
+  const res = (await ftSearch(tq)).filter((r) => shelfOf(r.b) === ui.shelf && (!P || !P.terms.length || matchQuery(r.b, P.terms)));   // v318: רק בספרייה שנבחרה
   if (seq !== ftSeq || (ui.q || '').trim() !== q) return;
   ft.textContent = ''; ft.hidden = false;
   const total = res.reduce((a, r) => a + r.hits.length, 0);
@@ -2948,10 +3141,14 @@ function readerRearm() {                 // נגיעה בתוך הקורא אח�
   } catch (e) {}
 }
 
+const SORTS = [['new', 'libSortNew'], ['old', 'libSortOld'], ['recent', 'libSortRecent'], ['title', 'pxSortTitle'], ['author', 'pxSortAuthor'], ['series', 'pxSortSeries']];   // D7: גם לפי שם (בלי ה׳/The), מחבר (שם משפחה) וסדרה
+const LS_LAYOUT = 'pwa_liblayout_v1';
+const libLayout = () => { try { return localStorage.getItem(LS_LAYOUT) === 'list' ? 'list' : 'grid'; } catch (e) { return 'grid'; } };
+const ICON_GRID = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>';
 function openSortSheet() {
   sheet(T('libSortTitle'), (sh, close) => {
     const list = h('div', 'lib-ios');
-    [['new', 'libSortNew'], ['old', 'libSortOld'], ['recent', 'libSortRecent']].forEach(([v, k]) => {
+    SORTS.forEach(([v, k]) => {
       const r = h('button', 'lib-row'); r.type = 'button'; r.append(h('span', null, T(k)));
       if (ui.sort === v) r.append(h('span', 'lib-check', '✓'));
       r.addEventListener('click', () => { ui.sort = v; close(); renderHome('fade'); });
@@ -2992,6 +3189,9 @@ function bookCSS() {
        הסימון שלנו: צביעה (CSS Highlight) + ידיות גרירה משלנו, וההעתקה מהכרטיס */
     html, body { -webkit-user-select: none !important; user-select: none !important; -webkit-touch-callout: none !important; }
     ::highlight(snb-sel) { background-color: rgba(52, 199, 89, .34); }
+    ${S.study ? `body { counter-reset: snbp; } p { counter-increment: snbp; position: relative; }
+    p::before { content: counter(snbp); position: absolute; inset-inline-start: -3.4em; inset-block-start: .35em; inline-size: 2.6em; text-align: end; font-size: .6em; line-height: 1; color: ${th.ink2}; opacity: .8; font-variant-numeric: tabular-nums; text-indent: 0; }` : ''}
+    ${S.eink ? `html, body, body * { color: #000 !important; text-shadow: none !important; } a, a * { text-decoration: underline !important; }` : ''}
   `;
 }
 
@@ -3010,7 +3210,8 @@ function applyReaderStyle() {
   r.setAttribute('gap', '7%');
   r.setAttribute('max-inline-size', '720px');
   r.setAttribute('max-column-count', '2');
-  if (!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) r.setAttribute('animated', '');
+  if (!reduceMotion()) r.setAttribute('animated', ''); else r.removeAttribute('animated');
+  box.dataset.eink = S.eink ? '1' : '';
   if (r.setStyles) r.setStyles(bookCSS());
   curlStyleVer++; curlPrebuild();
 }
@@ -3127,6 +3328,7 @@ async function openReader(id, opt) {
     clearTimeout(rd.saveT);
     rd.saveT = setTimeout(() => {
       const r = rd && rd.rec; if (!r) return;
+      if (!r.done && frac >= 0.985) statsPut((st) => statsFinish(st, r.id, Date.now()));   // E12: ספר שנגמר
       Object.assign(r, { cfi: d.cfi || r.cfi, fraction: frac, lastRead: Date.now(), done: r.done || frac >= 0.985 });
       putBook(r).catch(() => {});
       pushProgress(r);
@@ -3150,23 +3352,26 @@ async function openReader(id, opt) {
     const startAt = opt && opt.cfi ? opt.cfi : opt && (opt.href || opt.fromStart) ? null : (rec.cfi || null);
     await view.init({ lastLocation: startAt, showTextStart: true });
     if (opt && opt.href) await view.goTo(opt.href).catch(() => {});
-    if (opt && opt.find) {                 // תוצאת חיפוש: ההתאמה ה־k בפרק, מודגשת במנוע
-      const cfis = [];
-      try {
-        for await (const r of view.search({ query: opt.find.q, index: opt.find.sec, draw: Overlayer.highlight, drawOptions: { color: accent() } })) {
-          if (r && r.cfi) cfis.push(r.cfi);
-          if (cfis.length > opt.find.k) break;
-        }
-      } catch (e) {}
-      const c = cfis[Math.min(opt.find.k, cfis.length - 1)];
-      if (c) await view.goTo(c).catch(() => {});
-    }
+    if (opt && opt.find) await findInView(view, opt.find);
+    setTimeout(() => { if (rd) proKit().catch(() => {}); }, 2500);   // גל 4: החיפוש בספר / המסך המלא — מוכנים כשצריך
   } catch (e) {
     if (typeof flash === 'function') flash(T('libOpenErr'));
     readerExit();
   }
 }
 
+async function findInView(view, f) {    // תוצאת חיפוש: ההתאמה ה־k בפרק, מודגשת במנוע
+  const cfis = [];
+  try {
+    for await (const r of view.search({ query: f.q, index: f.sec, matchWholeWords: !!f.word, draw: Overlayer.highlight, drawOptions: { color: accent() } })) {
+      if (r && r.cfi) cfis.push(r.cfi);
+      if (cfis.length > f.k) break;
+    }
+  } catch (e) {}
+  const c = cfis[Math.min(f.k, cfis.length - 1)];
+  if (c) await view.goTo(c).catch(() => {});
+}
+const chapterLabel = (i) => { try { const it = rd && rd.view.getProgressOf && rd.view.getProgressOf(i).tocItem; return it ? langText(it.label) : ''; } catch (e) { return ''; } };
 function closeReader(opt) {
   if (!rd) return;
   const instant = !!(opt && opt.instant);
@@ -3237,6 +3442,8 @@ function wireDoc(doc, setChrome, index) {
     const sel = doc.getSelection && doc.getSelection();
     if (sel && !sel.isCollapsed && String(sel).trim()) return;
     if (e.target && e.target.closest && e.target.closest('a[href]')) return;
+    const big = zoomTarget(e.target);           // E9: תמונה, או טבלה שלא נכנסת ברוחב — למסך מלא עם זום וסיבוב
+    if (big && PRK) { PRK.viewer(big); return; }
     setTimeout(() => {                         // נגיעה בהדגשה (show-annotation) — לא מחליפה סרגלים
       if (!rd || Date.now() - rd.annTap < 400) return;
       if (trCard) { hideTr(); return; }
@@ -3466,6 +3673,21 @@ const blockText = (n) => { const b = blockOf(n); return b ? b.textContent : ''; 
 let selPop = null;
 function hideSel() { if (selPop) { selPop.remove(); selPop = null; } }
 const BLOCK_RE = /^(P|LI|TD|TH|BLOCKQUOTE|H[1-6]|DD|DT|FIGCAPTION|CAPTION)$/i;   // i: בספר XHTML שמות התגים באותיות קטנות ("p")
+function zoomTarget(t) {
+  if (!t || !t.closest) return null;
+  const im = t.closest('img, svg image, image');
+  if (im) { const r = im.getBoundingClientRect(); return r.width >= 60 && r.height >= 60 ? im : null; }
+  const tb = t.closest('table');
+  if (tb && (tb.scrollWidth > tb.clientWidth + 4 || (tb.parentElement && tb.scrollWidth > tb.parentElement.clientWidth + 4) || tb.rows && tb.rows[0] && tb.rows[0].cells.length >= 4)) return tb;
+  return null;
+}
+function studySource(cur) {               // "כותר, מחבר · פרק · פסקה 12" — מספר הפסקה כמו שמוצג בשוליים במצב עיון
+  const r = rd && rd.rec; if (!r) return '';
+  let para = 0;
+  try { const b = cur && blockOf(cur.range.commonAncestorContainer), p = b && (b.closest ? b.closest('p') : null); if (p) para = [...p.ownerDocument.querySelectorAll('p')].indexOf(p) + 1; } catch (e) {}
+  const ch = rd.loc && rd.loc.tocItem ? langText(rd.loc.tocItem.label) : '';
+  return [[r.title, r.author].filter(Boolean).join(', '), ch, para ? T('pxPara', { n: para }) : ''].filter(Boolean).join(' · ');
+}
 function blockOf(node) {                    // הפסקה של הצומת; null כשאין (לא כל ה־html — זה היה ההקשר לתרגום, וב"ערוך כאן" כל הפרק)
   let el = node && (node.nodeType === 1 ? node : node.parentElement);
   while (el && !BLOCK_RE.test(el.tagName)) el = el.parentElement;
@@ -3519,6 +3741,9 @@ function annPopup(value, range, index) {    // נגיעה בהדגשה קיימ�
    צד אחד: עיגול צבע אחד (הצבע האחרון / של ההדגשה) שנפתח לבורר צבעים, הערה, ציטוט, מונח; הצד השני: השמעה, העתקה, Google */
 const HL_LAST = 'pwa_hlcolor_v1';
 function hlLast() { try { const k = localStorage.getItem(HL_LAST); return HL_COLORS[k] ? k : 'b'; } catch (e) { return 'b'; } }
+const ICON_STATS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 20V11M10 20V5M15 20v-7M20 20V9"/></svg>';
+const ICON_PRINT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/></svg>';
+const ICON_TAG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.3"/></svg>';
 const ICON_NOTE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>';
 const ICON_EDHERE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7V4h16v3"/><path d="M12 4v16"/><path d="M8 20h8"/></svg>';
 const ICON_TERM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/></svg>';
@@ -3567,6 +3792,15 @@ function selBar(c, sel, text) {
     }
     const gm = glossaryMatch(sel.text);
     if (gm) side.append(ib('tr-term', ICON_TERM, 'acTerm', () => sheet(T('acTerm'), (sh) => sh.append(termRow(gm)))));
+    // E6 מצב עיון: העתקה עם מקור (ספר, מחבר, פרק ומספר פסקה) + הדפסת הבחירה (E14)
+    if (S.study && rd && rd.rec) {
+      const src = studySource(selCur);
+      side.append(ib('tr-cite', ICON.copy, 'pxCite', async () => {
+        const txt = '"' + String(sel.text).trim() + '"\n— ' + src;
+        hideTr(true);
+        try { await navigator.clipboard.writeText(txt); flashSafe(T('rdCopied')); } catch (e) { flashSafe(T('pxErr')); }
+      }), ib('tr-print', ICON_PRINT, 'pxPrintSel', () => { const t = sel.text, ti = rd.rec.title, lang = rd.rec.lang; hideTr(true); pro((P) => P.printText(t, ti, src, lang)); }));
+    }
   }
   const acts = h('div', 'tr-acts');
   bar.append(side, acts);
@@ -4375,7 +4609,9 @@ function wireTrDrag(c) {
 }
 
 /* ---------------- תוכן עניינים + גיליון Aa ---------------- */
-function openToc() {
+async function openToc() {
+  if (!rd || !rd.book) return;
+  const P = PRK || await proKit().catch(() => null);   // בדרך כלל כבר נטען (2.5 שניות אחרי פתיחת הספר)
   if (!rd || !rd.book) return;
   sheet('', (sh, close) => {
     const tabs = h('div', 'rd-seg');
@@ -4387,6 +4623,7 @@ function openToc() {
       tabs.append(b);
     };
     tab('toc', T('tabToc')); tab('hl', T('tabHl')); tab('bm', T('tabBm'));
+    if (P) tab('find', T('pxFind'));      // E3: חיפוש מתקדם בספר
     const toc = h('div', 'lib-ios rd-toc rd-pane');
     const walk = (items, depth) => (items || []).forEach((it) => {
       const r = h('button', 'lib-row'); r.type = 'button'; r.style.paddingInlineStart = (14 + depth * 16) + 'px';
@@ -4406,6 +4643,16 @@ function openToc() {
     };
     panes.hl = annList('hl', 'noHl'); panes.bm = annList('bm', 'noBm');
     sh.append(tabs, panes.toc, panes.hl, panes.bm);
+    if (P) {
+      const secs = rd.book.sections || [];
+      panes.find = P.findPane({ secCount: secs.length, secText: (i) => (secs[i] && secs[i].linear !== 'no' ? secText(i) : ''),
+        secLabel: chapterLabel, go: (f) => { close(); if (rd) findInView(rd.view, f); } });
+      sh.append(panes.find);
+      tabs.lastChild.addEventListener('click', () => panes.find._focus());
+    }
+    const pc = h('button', 'lib-admin-link rd-printch', T('pxPrintCh')); pc.type = 'button';   // E14: הדפסת הפרק הנוכחי (ל־PDF או למדפסת)
+    pc.addEventListener('click', () => { const cs = rd && rd.view.renderer && rd.view.renderer.getContents ? rd.view.renderer.getContents() : []; const doc = cs && cs[0] && cs[0].doc; const ti = rd.rec.title + (rd.loc && rd.loc.tocItem ? ' — ' + langText(rd.loc.tocItem.label) : ''), lang = rd.rec.lang; close(); pro((P) => P.printChapter(doc, ti, lang)); });
+    toc.append(pc);
   });
 }
 function annRow(a, onOpen, onMore) {
@@ -4487,6 +4734,8 @@ function openAa() {
     seg(T('rdAlign'), [[false, T('rdAlignStart')], [true, T('rdAlignJustify')]], () => S.justify, (v) => { S.justify = v; });
     seg(T('rdSpacing'), [[0, T('rdSpacing1')], [1, T('rdSpacing2')], [2, T('rdSpacing3')]], () => S.spacing, (v) => { S.spacing = v; });
     seg(T('rdFlow'), [['paginated', T('rdPages')], ['scrolled', T('rdScroll')]], () => S.flow, (v) => { S.flow = v; });
+    seg(T('pxStudy'), [[false, T('pxOff')], [true, T('pxOn')]], () => !!S.study, (v) => { S.study = v; });   // E6: מספרי פסקאות + העתקה עם מקור
+    seg(T('pxEink'), [[false, T('pxOff')], [true, T('pxOn')]], () => !!S.eink, (v) => { S.eink = v; });     // E13: שחור על לבן, בלי אנימציות
     // ערכה
     const pt = h('div', 'rd-pane hidden'); panes.theme = pt;
     const themes = h('div', 'rd-themes');

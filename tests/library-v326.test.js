@@ -45,7 +45,7 @@ ok(/annRemove[\s\S]{0,300}askConfirm\(T\('hlRemoveNoteQ'\)/.test(lib), 'הדגש
 ok(/annCleanDupes\(rec\);/.test(lib) && /all\.forEach\(\(b\) => annCleanDupes\(b\)\)/.test(lib), 'ניקוי כפילויות קיימות — בפתיחת ספר ובמחברת');
 ok(/function annTouch\(rec, a, patch\)[\s\S]{0,500}pushAnn\(rec, a\)[\s\S]{0,400}deleteAnnotation/.test(lib), 'עדכון אחד לכל המקומות: שמירה, ענן, ציור מחדש בקורא');
 // המחברת: סינון, פעולות, ייצוא
-ok(/const learnF = \{ t: 'all', k: null \};/.test(lib) && /annFilter\(b\.ann, learnF\)/.test(lib), 'מחברת: סינון הכל/הדגשות/הערות/סימניות + צבע');
+ok(/const learnF = \{ t: 'all', k: null(, q: '')? \};/.test(lib) && /annFilter\(b\.ann, learnF\)/.test(lib), 'מחברת: סינון הכל/הדגשות/הערות/סימניות + צבע');
 ok(/function annActions\(rec, a, opt\)/.test(lib) && /T\('annOpen'\)/.test(lib) && /T\('annCopy'\)/.test(lib) && /T\('annShareQuote'\)/.test(lib) && /ann-colors/.test(lib), 'גיליון פעולות: צבע, הערה, העתקה, ציטוט, מעבר, הסרה');
 ok(/annRow\(a, \(\) => openReader\(b\.id, \{ cfi: a\.c \}\),\s*\(\) => annActions\(b, a/.test(lib), 'שורה במחברת: לחיצה = מעבר, ⋯ = פעולות');
 ok(/wireHold\(r, onMore\)/.test(lib), 'לחיצה ארוכה על שורה = פעולות');
