@@ -210,7 +210,7 @@ class DmBridge : Activity() {
                 val yt = o.optString("k") == "y"
                 DmTask(DmStore.newId(), u, o.optString("r").takeIf { http(it) && it.length < 4000 } ?: "", if (yt) DmKind.YTDL else DmKind.HTTP).apply {
                     name = DmName.clean(o.optString("n").take(150)); created = now + k; this.ua = ua; this.ck = ck
-                    dir = DmFolders.norm(DmFolders.SUB + o.optString("d").take(80))
+                    dir = DmFolders.norm(DmFolders.SUB + o.optString("d").take(130))
                     if (yt) {
                         title = name
                         val h = o.optInt("h", 1080).coerceIn(0, 4320)
