@@ -1304,7 +1304,7 @@ page('gold', { tab: 'imp', parent: 'imp', title: () => t('admGoldT'), render(p) 
 } });
 /* ---- "הרץ גל" (02/11/2026, תוכנית איכות התרגום 1.8): עד 3 זרועות (מצב + דגלי xf) × כל עבודות הזהב, בקריאת goldRun אחת
    משולבת; רק SRT. הניתוח (זוגות עיוורים, MQM) — tools/quality-bench.py מחוץ לטלפון. מנהל בלבד (השרתון אוכף) ---- */
-const XF_KEYS = ['smf', 'gq', 'qskip', 'rvs60'], GOLD_ARMS = 3;   // = S.XF_KEYS / S.GOLD_ARMS בשרתון ו־translator/xflags.py
+const XF_KEYS = ['smf', 'gq', 'qskip', 'rvs60'], GOLD_ARMS = 4;   // = S.XF_KEYS / S.GOLD_ARMS בשרתון ו־translator/xflags.py
 function paintWave(p, jobs, srcs) {
   if (!D.wArms) D.wArms = [{ m: 'haiku-medium', xf: [] }, { m: 'haiku-medium', xf: ['rvs60'] }];
   if (!D.wSrc) D.wSrc = new Set(srcs.map((j) => j.id));
@@ -1320,20 +1320,26 @@ function paintWave(p, jobs, srcs) {
     for (const k of XF_KEYS) rows.push(row({ c: a.xf.includes(k) ? 'purple' : 'gray', ic: a.xf.includes(k) ? '✓' : '', t: k,
       on: () => { a.xf = a.xf.includes(k) ? a.xf.filter((x) => x !== k) : a.xf.concat([k]).sort(); paint(); } }));
     rows.push(row({ c: a.bt ? 'green' : 'gray', ic: a.bt ? '✓' : '', t: t('admWaveBt'), on: () => { a.bt = !a.bt; paint(); } }));
+    // 02/11/2026 (M1): מקורות לזרוע — בלי בחירה = המקורות של הגל (למטה); עם בחירה — רק אלה (src בזרוע)
+    rows.push(row({ c: a.src ? 'orange' : 'gray', ic: a.src ? '✓' : '', t: t('admWaveArmAll'), s: a.src ? fmt(t('admWaveArmN'), { n: a.src.length }) : '', on: () => { a.src = null; paint(); } }));
+    for (const j of srcs) { const inA = a.src ? a.src.includes(j.id) : D.wSrc.has(j.id);
+      rows.push(row({ c: inA ? 'orange' : 'gray', ic: inA ? '✓' : '', t: (j.spec && j.spec.name) || j.id,
+        on: () => { const cur = a.src || ss.map((x) => x.id); a.src = cur.includes(j.id) ? cur.filter((x) => x !== j.id) : cur.concat([j.id]); paint(); } })); }
     if (arms.length > 1) rows.push(row({ c: 'red', ic: '×', t: t('admWaveDel'), on: () => { arms.splice(i, 1); D.wOpen = -1; paint(); } }));
   });
   if (arms.length < GOLD_ARMS) rows.push(row({ c: 'gray', ic: '+', t: t('admWaveAdd'), on: () => { arms.push({ m: arms[0].m, xf: [] }); D.wOpen = arms.length - 1; paint(); } }));
   p.append(grp(t('admWaveT')), h('p', 'adm-sub', t('admWaveS')), list(...rows));
   p.append(grp(t('admWaveSrcs')), list(...srcs.map((j) => row({ c: D.wSrc.has(j.id) ? 'orange' : 'gray', ic: D.wSrc.has(j.id) ? '✓' : '',
     t: (j.spec && j.spec.name) || j.id, on: () => { if (D.wSrc.has(j.id)) D.wSrc.delete(j.id); else D.wSrc.add(j.id); paint(); } }))));
-  const n = ss.length * arms.length, mins = Math.round(ss.reduce((x, j) => x + ((j.spec && +j.spec.dur) || 0), 0) * arms.length / 60);
-  const tot = arms.reduce((x, a) => x + (a.bt ? 0.5 : 1) * ss.reduce((y, j) => y + (goldEst(j, a.m) || 0), 0), 0);   // bt: בערך חצי (רק במנוע api)
+  const armSrc = (a) => (a.src ? srcs.filter((j) => a.src.includes(j.id)) : ss);
+  const n = arms.reduce((x, a) => x + armSrc(a).length, 0), mins = Math.round(arms.reduce((x, a) => x + armSrc(a).reduce((y, j) => y + ((j.spec && +j.spec.dur) || 0), 0), 0) / 60);
+  const tot = arms.reduce((x, a) => x + (a.bt ? 0.5 : 1) * armSrc(a).reduce((y, j) => y + (goldEst(j, a.m) || 0), 0), 0);   // bt: בערך חצי (רק במנוע api)
   const busy = jobs.some((j) => j.gs && ['new', 'queued', 'running'].includes(j.state));
-  const b = h('button', 'btn', fmt(t('admWaveRun'), { n, u: usd(tot) })); b.type = 'button'; b.disabled = !n || busy || n > GOLD_MAX * arms.length;
+  const b = h('button', 'btn', fmt(t('admWaveRun'), { n, u: usd(tot) })); b.type = 'button'; b.disabled = !n || busy || n > GOLD_MAX * arms.length || arms.some((a) => !armSrc(a).length);
   b.addEventListener('click', () => busyGuard(() => askConfirm(fmt(t('admWaveQ'), { n, m: mins, u: usd(tot) }), async () => {
     b.disabled = true;
-    const all = ss.length === srcs.length, ids = ss.map((j) => j.id);
-    const r = await api('goldRun', { ok: true, arms: arms.map((a) => Object.assign({ mode: a.m, xf: a.xf }, a.bt ? { bt: 1 } : {}, all ? {} : { src: ids })) });
+    const r = await api('goldRun', { ok: true, arms: arms.map((a) => { const x = armSrc(a);
+      return Object.assign({ mode: a.m, xf: a.xf }, a.bt ? { bt: 1 } : {}, x.length === srcs.length ? {} : { src: x.map((j) => j.id) }); }) });
     if (!r.ok) { flash(t('admErr') + ' · ' + (r.error || '')); b.disabled = false; return; }
     let bad = 0;
     for (const j of r.jobs || []) { const s2 = await api('start', { job: j.id, ow: true }); if (!s2.ok) bad++; }
@@ -1346,7 +1352,7 @@ function paintWave(p, jobs, srcs) {
   const wj = jobs.filter((j) => j.gs && j.wa >= 0), last = wj.reduce((x, j) => Math.max(x, j.created || 0), 0);
   const cur1 = wj.filter((j) => last - (j.created || 0) < 120000);
   if (cur1.length) {
-    const by = [0, 1, 2].map((i) => cur1.filter((j) => j.wa === i)).filter((x) => x.length);
+    const by = Array.from({ length: GOLD_ARMS }, (_, i) => i).map((i) => cur1.filter((j) => j.wa === i)).filter((x) => x.length);
     p.append(grp(t('admWaveRes'), [t('admGoldRefresh'), () => needGold(true)]), list(...by.map((x) => {
       const i = x[0].wa, d = x.filter((j) => j.state === 'done').length, f = x.some((j) => j.state === 'failed');
       return row({ c: f ? 'red' : d === x.length ? 'green' : 'blue', ic: String.fromCharCode(0x5d0 + i), t: fmt(t('admWaveArm'), { n: i + 1 }) + ' · ' + modeName(x[0].spec && x[0].spec.mode),

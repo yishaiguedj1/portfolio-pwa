@@ -895,6 +895,33 @@ button.st-fnd:active { background: var(--st-fill); }
 
 /* סבב 6: הציר בעורך הכתוביות (גל קול, כתוביות לפי דובר, חילופי שוטים) וצבע הדובר בשורה */
 .st-tl { display: block; width: 100%; height: 56px; background: #0b0b0d; touch-action: none; cursor: ew-resize; }
+/* סבב 4 של השדרוג (2/11/2026): הציר כעורך — זום, ידיות, פס המילים (C1 + H1) */
+.st-tlw { position: relative; }
+.st-tlw .st-tl { height: 72px; }
+.st-tlw.w .st-tl { height: 92px; }
+.st-tl-z { position: absolute; inset-block-start: 20px; inset-inline-end: 6px; display: flex; gap: 4px; direction: ltr; }
+.st-tl-zb { appearance: none; border: 0; width: 28px; height: 28px; border-radius: var(--pill); background: rgba(30, 30, 34, .72); color: #fff;
+  font: inherit; font-size: 17px; line-height: 1; cursor: pointer; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+/* B1: לוח הבדיקה · C3: הדוברים · C2: מילה לא בטוחה */
+.st-qc, .st-spk { display: grid; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--card-border); }
+.st-qc[hidden], .st-spk[hidden] { display: none; }
+.st-qc-h { display: flex; align-items: center; gap: 8px; font-size: 15px; min-height: 36px; }
+.st-qc-r { display: flex; align-items: center; gap: 6px; font-size: 14px; min-height: 38px; }
+.st-qc-k { flex: 1; min-width: 0; }
+.st-qc-n { font-weight: 600; font-variant-numeric: tabular-nums; min-width: 2ch; text-align: center; }
+.st-qc-ok { color: var(--on-surface-var); }
+.st-spk-r { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.st-spk-r .st-se-in { width: 0; padding-block: 6px; }
+.st-spk-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--spk); }
+.st-spk-sw { display: flex; gap: 4px; flex: none; }
+.st-spk-sw .st-se-b { --c: transparent; width: 24px; min-height: 24px; height: 24px; padding: 0; background: var(--c); border: 2px solid transparent; }
+.st-spk-sw .st-se-b.on { border-color: var(--on-surface); background: var(--c); }
+.st-se-who { display: block; font-size: 12.5px; font-weight: 600; color: var(--spk); }
+.st-se-spks { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.st-se-spks .st-se-b { min-height: 28px; font-size: 13px; box-shadow: inset 0 0 0 1.5px var(--spk); }
+.st-se-spks .st-se-b.on { background: var(--spk); color: #000; }
+.st-src-u { appearance: none; border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer;
+  text-decoration: underline dotted #FF9F0A 2px; text-underline-offset: 3px; }
 .st-se-row.spk { position: relative; --spk: transparent; }
 .st-se-row.spk::before { content: ''; position: absolute; inset-block: 10px; inset-inline-start: 0; width: 3px; border-radius: 2px; background: var(--spk, transparent); }
 
@@ -1211,3 +1238,10 @@ html.st-dock .toast { bottom: calc(var(--dock-h, 120px) + 12px + env(safe-area-i
 .st-ky-sg .st-l { flex: 1; }
 .st-ky-sg .st-ky-mk { font-size: 13px; min-width: 30px; height: 24px; border-radius: var(--radius-xs); }
 .st-ky-it .st-seg2 button { min-height: 36px; }
+/* C4 (סבב 4 של השדרוג): מה השתנה מגרסה קודמת */
+.st-ver-d { display: grid; gap: 8px; padding: 4px 16px 14px; }
+.st-ver-n { font-size: 13.5px; color: var(--on-surface-var); }
+.st-ver-i { display: grid; gap: 2px; font-size: 14.5px; line-height: 1.45; padding: 8px 10px; border-radius: var(--radius-xs); background: var(--search-fill); }
+.st-ver-t { font-size: 12px; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
+.st-ver-i del { color: #FF6961; text-decoration-thickness: 1.5px; }
+.st-ver-i ins { color: #30D158; text-decoration: none; }

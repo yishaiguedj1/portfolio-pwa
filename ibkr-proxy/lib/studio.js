@@ -841,7 +841,7 @@ function publicJob(job, now) {
     fired: job.fired || 0, claimed: job.claimed || 0, ended: job.ended || e.at || 0,
     spec: job.spec || null, files: { a: fileView(job.fa), v: fileView(job.fv), s: fileView(job.fsu), r: fileView(job.fsr), o: Array.isArray(job.fo) ? job.fo : [], c: fileView(job.fc), q: fileView(job.fq), m: fileView(job.fph), w: fileView(job.fpw) },
     folder: FILE_ID_RE.test(String(job.folder || '')) ? job.folder : '',
-    rp: job.rp || '', ev: job.ev || 0, vh: Array.isArray(job.vh) ? job.vh.map((x) => (x && x.at) || 0) : [],   // מ2: הפקה מחדש (העבודה המקורית), גרסת הכתוביות, מתי נשמרה כל גרסה קודמת
+    rp: job.rp || '', ev: job.ev || 0, vh: Array.isArray(job.vh) ? job.vh.map((x) => (x && x.at) || 0) : [], vc: Array.isArray(job.vh) ? job.vh.map((x) => (x && FILE_ID_RE.test(String(x.c || '')) ? x.c : '')) : [],   /* C4 (2/11/2026): קובץ הכתוביות של כל גרסה — להשוואה בטלפון */   // מ2: הפקה מחדש (העבודה המקורית), גרסת הכתוביות, מתי נשמרה כל גרסה קודמת
     sess: job.sess && job.sess.url ? { url: job.sess.url } : null,
     prog: job.prog || null, ed: job.ed || '',
     use: Array.isArray(job.use) ? job.use : Array.isArray(job.use0) ? job.use0 : null,   // v359: טוקנים ועלות (v361: כולל סשנים קודמים)
@@ -1015,7 +1015,7 @@ function normXf(x) {
   return o.length ? o : null;
 }
 /* "הרץ גל": עד GOLD_ARMS זרועות — לכל אחת מצב, דגלים, ואפשר גם רשימת מקורות (מזהי עבודות זהב). null = לא תקין */
-const GOLD_ARMS = 3;
+const GOLD_ARMS = 4;   // 02/11/2026: M1 — א/ב/ג + ד (חצי מחיר)
 function normArms(a, srcIds) {
   if (!Array.isArray(a) || !a.length || a.length > GOLD_ARMS) return null;
   const ids = new Set(srcIds || []), out = [];
@@ -1053,7 +1053,12 @@ function goldClone(src, id, uid, now, mode, xe) {
   const x = normXe(v.xe);
   if (x) spec.xe = x;
   if (v.xg === 1) spec.xg = 1;   // 24/10/2026: ניסוי "בלי מילון מונחים" — העובד כותב glossary.tsv בלי מונחים
-  return { id, uid, kind: 'tr', state: 'new', created: now, updated: now, spec, fa: src.fa || null, fv: src.fv || null, folder: src.folder, gs: src.id, gr: gd ? gd.r : '' };
+  // 02/11/2026: תרגום בטלפון (spec.ph) — אין סרטון בשרת, העובד מחכה למדידות (fph) ולמילים (fpw). בלי ההעתקה עבודת הבדיקה
+  // וכל עבודות הגל חיכו 12 שעות ונכשלו ב־upload_timeout (31/10–2/11, שלוש פעמים)
+  const ph = {};
+  if (src.fph) ph.fph = src.fph;
+  if (src.fpw) ph.fpw = src.fpw;
+  return Object.assign({ id, uid, kind: 'tr', state: 'new', created: now, updated: now, spec, fa: src.fa || null, fv: src.fv || null, folder: src.folder, gs: src.id, gr: gd ? gd.r : '' }, ph);
 }
 /* פריט 13 (21/10/2026): עבודת בדיקה אחרי עדכון של העובד — הדקה הראשונה של עבודת הזהב, רק SRT, במצב ברירת המחדל.
    sm = 1: לא בסט הזהב, לא במדדים (gs — כמו הרצה של סט הזהב), בלי ציון (בלי gr). רק עבודת זהב של השרת (eng api) ובלי חיתוך משלה */

@@ -469,4 +469,50 @@ const fx36 = fxFrom({ '2024-01-01': 3.5, '2025-01-01': 3.6, '2025-06-01': 3.7 })
   eq(P.due, 157.5, '205א(ב) — המאגר מול רווח זר');
 }
 
+/* ---------- 03/11/2026: נייר שקלי ריאלי (88) והצמדת עודף הזיכוי (205א) ---------- */
+/* נייר שקלי: קנייה 100 × 100 ₪ (2024-03-01, מדד 100), מכירה (2025-03-01, מדד 104).
+   עלות מתואמת 10,400. תמורה 11,000 → ריאלי 600 (נומינלי 1,000). תמורה 10,300 → נומינלי 300, ריאלי −100 → 0.
+   תמורה 9,000 → נומינלי −1,000, ריאלי −1,400 → ההפסד הנומינלי −1,000. בלי מדד → נומינלי ומסומן. */
+{
+  const cpi = (d) => (d < '2025-01-01' ? 100 : 104);
+  const ils = (px) => [
+    { symbol: 'TA1', date: '2024-03-01', qty: 100, price: 100, currency: 'ILS', side: 'BUY', tradeId: '1' },
+    { symbol: 'TA1', date: '2025-03-01', qty: -100, price: px, currency: 'ILS', side: 'SELL', tradeId: '2' },
+  ];
+  const a = T.tiFifo(ils(110), fx36, { cpi: cpi }).sales[0];
+  eq(a.taxable, 600, 'ILS ריאלי 600');
+  ok(a.cpiReal && !a.nominal, 'ILS מסומן ריאלי');
+  eq(T.tiFifo(ils(103), fx36, { cpi: cpi }).sales[0].taxable, 0, 'ILS אינפלציה בלבד → 0');
+  eq(T.tiFifo(ils(90), fx36, { cpi: cpi }).sales[0].taxable, -1000, 'ILS הפסד — הנומינלי');
+  const n = T.tiFifo(ils(110), fx36).sales[0];
+  ok(n.nominal && n.taxable === 1000, 'ILS בלי מדד — נומינלי ומסומן');
+  const u = T.tiUnrealized(T.tiFifo([ils(110)[0]], fx36, { cpi: cpi }).open, () => 110, () => 1, 0, cpi);
+  eq(u[0].taxable, 600, 'ILS "אם אמכור היום" — ריאלי');
+}
+
+/* 205א — הצמדה: G27 (מאגר 92.5 מ־2025) ומדד 100 בסוף 2025, 104 בסוף 2026 → 96.2 במאגר. דיבידנד 2026 של 400 ₪ בלי ניכוי:
+   מס 100 − 96.2 = 3.8 (בלי הצמדה: 7.5). */
+{
+  const cpi = (d) => (d < '2026-06-01' ? 100 : 104);
+  const sales = [{ sym: 'X', sellDate: '2025-07-01', taxable: -1000, cur: 'USD' }];
+  const divs = [
+    { date: '2025-07-01', kind: 'dividend', country: 'US', grossIls: 370, whIls: 92.5 },
+    { date: '2026-07-01', kind: 'dividend', country: 'IE', grossIls: 400, whIls: 0 },
+  ];
+  eq(T.tiYears(sales, divs, {})[1].extraInc, 7.5, '205א בלי מדד — 7.5');
+  eq(T.tiYears(sales, divs, { cpi: cpi })[1].extraInc, 3.8, '205א צמוד — 3.8');
+}
+
+/* ח2 — מימוש במזומן (אופציה על מדד): קנייה 1 × $5 × 100 = $500 בשער 3.5; מימוש (Ex) בתמורה $800 בשער 3.6.
+   N = 2,880 − 1,750 = 1,130; D = 300·3.6 = 1,080 → 1,080, כמכירה רגילה ובלי optOrphan. */
+{
+  const f = T.tiFifo([
+    { symbol: 'SPX   250620C05000000', date: '2024-06-01', qty: 1, price: 5, multiplier: 100, currency: 'USD', side: 'BUY', tradeId: '1', asset: 'OPT', openClose: 'O' },
+    { symbol: 'SPX   250620C05000000', date: '2025-03-01', qty: -1, price: 8, multiplier: 100, tradeMoney: -800, currency: 'USD', side: 'SELL', tradeId: '2', asset: 'OPT', openClose: 'C', notes: 'Ex' },
+  ], fx36);
+  eq(f.sales.length, 1, 'ח2 מזומן — מכירה');
+  eq(f.sales[0].taxable, 1080, 'ח2 מזומן — חייב 1,080');
+  ok(!f.issues.some((i) => i.type === 'optOrphan'), 'ח2 מזומן — בלי optOrphan');
+}
+
 console.log('# taxil-golden: ' + n + ' בדיקות עברו');

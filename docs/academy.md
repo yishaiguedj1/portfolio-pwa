@@ -103,7 +103,7 @@
 - **coregen אוסף רק מפתחות שכתובים בקוד** — לא `T(key + 'S')`; רשימה מפורשת של מפתחות מלאים.
 - **QA בדפדפן**: לחיצה ארוכה בקורא = מגע אמיתי (`Input.dispatchTouchEvent` ב־CDP, 600ms) — בחירה יזומה או עכבר לא פותחים את הכרטיס; הספר נכנס דרך `filechooser` של "הוספת ספר" אחרי "המשך בלי חשבון"; כרטיס העריכה — לחיצה ארוכה על הספר → "עריכה".
 
-## 20. המרות — Academy Pro גל 3 (2.120.0, 02/11/2026)
+## 20. המרות — Academy Pro גל 3 (2.122.0, 02/11/2026)
 - **המבנה**: `libconvert.js` (המסכים, נטען ב־`import()` רק בלחיצה) + `epubkit.js` סעיף 15 (`buildEpub`, ‏`textToChapters`, ‏`mdToHtml`, ‏`pdfToChapters`, ‏`htmlBlocks`/`blocksToMd`/`blocksToText`/`docxParts`). ‏`library.js` מזריק את הכלים דרך `convertKit()`. הספריות הכבדות (`vendor/pdfjs` legacy 4.10.38, ‏`vendor/mammoth` 1.8.0) לא ב־`LIB_SHELL` — נטענות מהרשת לפי דרישה.
 - **מודול חדש של Academy = שורה ב־`tools/coregen.js`** (רשימת `academy`). בלי זה המחרוזות שלו לא נכנסות ל־`strings-academy.js`, והמסך מציג מפתחות גולמיים (`cvBook`). הבדיקה ב־`academy-convert.test.js` אוכפת.
 - **כפתור "+" בהדר המשותף** = `SA.addBook` (מ־`academy-app.js`), לא כפתור ב־`lib-top`. QA שמחפש כפתור של הספרייה לא ימצא אותו.
