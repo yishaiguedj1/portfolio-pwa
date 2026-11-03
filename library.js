@@ -2427,6 +2427,28 @@ async function proKit() {
   return PRK;
 }
 const pro = (fn) => proKit().then(fn).catch(() => { if (typeof flash === 'function') flash(T('pxErr')); });
+/* Academy Pro גל 5 (03/11/2026): הקראה, X-Ray, שאל את הספר, דו־לשוני, תיוג ותקציר — libai.js, רק כשנכנסים */
+let AIK = null;
+async function aiKit() {
+  if (!AIK) {
+    const m = await import('./libai.js');
+    AIK = m.createAi({
+      h, T, sheet, closeSheetThen, chev: ICON.chev, findInView, chapterLabel, uiLang, langName, ftTexts: async () => new Map((ftCache || (ftCache = await tx('text', 'readonly', (st) => reqP(st.getAll())))).map((r) => [r.id, r.secs || []])),
+      flash: (m2) => { if (typeof flash === 'function') flash(m2); },
+      rd: () => (rd && rd.book ? Object.assign(rd, { secText }) : null),
+      ai: async (task, body) => {
+        const tk = await idToken(); if (!tk) throw new Error('signin');
+        const j = await libApi(Object.assign({ op: 'bookAi', task, idToken: tk }, body)).then((r) => r.json()).catch(() => ({ ok: false, error: 'net' }));
+        if (!j || !j.ok) throw new Error((j && j.error) || 'failed');
+        return j;
+      },
+      applyFields: async (id, vals) => { const ok = await saveFields(id, vals); if (root && !rd) renderHome(); return ok; },
+      investBase: () => { const a = typeof window !== 'undefined' && window.SNB_ENV && window.SNB_ENV.apps; return (a && a.invest) || 'https://invest.thesnowball.app/'; },
+    });
+  }
+  return AIK;
+}
+const ai = (fn) => aiKit().then(fn).catch(() => { if (typeof flash === 'function') flash(T('aiErr')); });
 async function undoPolish(id) {
   const prev = await getFile(PREV + id); if (!prev) throw new Error('noprev');
   await tx('files', 'readwrite', (st) => { st.put(prev, id); st.delete(PREV + id); });
@@ -2511,7 +2533,12 @@ function editExtras(home, b) {
   const ch3 = h('span', 'pl-chev'); ch3.setAttribute('aria-hidden', 'true'); ch3.innerHTML = ICON.chev || '';
   r3.append(l3, ch3);
   r3.addEventListener('click', () => convertKit().then((K) => K.openExport(b)));
-  card.append(r, r2, r3); slot.append(card);
+  const r5 = h('button', 'lib-row pl-open'); r5.type = 'button';   // גל 5: תיוג ותקציר (F5)
+  const l5 = h('span', 'pl-rl'); l5.append(h('span', 'pl-rt', T('aiTag')), h('span', 'pl-rs', T('aiTagS')));
+  const ch5 = h('span', 'pl-chev'); ch5.setAttribute('aria-hidden', 'true'); ch5.innerHTML = ICON.chev || '';
+  r5.append(l5, ch5);
+  r5.addEventListener('click', () => ai((A) => A.openTagSum(b)));
+  card.append(r, r2, r3, r5); slot.append(card);
   getFile(b.id).then(async (f) => {                  // C1/C2: ספר MOBI/AZW3/FB2 — המרה ל־EPUB, כדי שהעורך והליטוש יעבדו עליו
     if (!f || !card.isConnected) return;
     const EK = await import('./epubkit.js');
@@ -3252,8 +3279,10 @@ async function openReader(id, opt) {
   const ribbon = h('button', 'rd-ribbon'); ribbon.type = 'button'; ribbon.setAttribute('aria-label', T('bmAdd')); ribbon.setAttribute('aria-pressed', 'false');
   ribbon.innerHTML = RIBBON_SVG;
   ribbon.addEventListener('click', (e) => { e.stopPropagation(); toggleBookmark(); });
+  const aiBtn = h('button', 'rd-ic rd-ai'); aiBtn.type = 'button'; aiBtn.innerHTML = ICON_AI; aiBtn.setAttribute('aria-label', T('aiTools'));   // גל 5: כלים חכמים
+  aiBtn.addEventListener('click', () => ai((A) => A.openTools()));
   const aaBtn = h('button', 'rd-ic rd-aa'); aaBtn.type = 'button'; aaBtn.dir = 'ltr'; aaBtn.innerHTML = 'A<small>a</small>'; aaBtn.setAttribute('aria-label', T('rdSettings'));
-  acts.append(bmBtn, tocBtn, aaBtn); topBar.append(xBtn, ttl, acts);
+  acts.append(aiBtn, bmBtn, tocBtn, aaBtn); topBar.append(xBtn, ttl, acts);
   const botBar = h('div', 'rd-botbar');
   const chap = h('div', 'rd-chap'); const slider = h('input', 'rd-slider'); slider.type = 'range'; slider.min = '0'; slider.max = '1000'; slider.step = '1';
   slider.setAttribute('aria-label', T('rdProgress'));
@@ -3376,6 +3405,7 @@ function closeReader(opt) {
   if (!rd) return;
   const instant = !!(opt && opt.instant);
   const r = rd; rd = null;
+  if (AIK) AIK.stop();                       // גל 5: ההקראה נעצרת עם הקורא
   try { if (r.cw) r.cw.destroy(); } catch (e) {}   // v352
   libDialSync(true);
   if (r.rec) { clearTimeout(r.saveT); pushProgress(r.rec, true); }
@@ -3741,6 +3771,7 @@ function annPopup(value, range, index) {    // נגיעה בהדגשה קיימ�
    צד אחד: עיגול צבע אחד (הצבע האחרון / של ההדגשה) שנפתח לבורר צבעים, הערה, ציטוט, מונח; הצד השני: השמעה, העתקה, Google */
 const HL_LAST = 'pwa_hlcolor_v1';
 function hlLast() { try { const k = localStorage.getItem(HL_LAST); return HL_COLORS[k] ? k : 'b'; } catch (e) { return 'b'; } }
+const ICON_AI = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5l1.7 4.8 4.8 1.7-4.8 1.7L10 16.5l-1.7-4.8L3.5 10l4.8-1.7z"/><path d="M17.5 14l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9z"/></svg>';
 const ICON_STATS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 20V11M10 20V5M15 20v-7M20 20V9"/></svg>';
 const ICON_PRINT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/></svg>';
 const ICON_TAG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.3"/></svg>';

@@ -1105,6 +1105,74 @@ function stubFetch(text, status = 200) {
     api._reset();
   }
 
+  /* ---------- Academy Pro גל 5: op:'bookAi' — X-Ray, שאל את הספר, תיוג ותקציר, דו־לשוני (Gemini/Mistral מדומים, מטמון מדומה) ---------- */
+  {
+    const crypto = require('crypto');
+    const gauth = require('../lib/gauth');
+    const lib = require('../api/library');
+    const BAI = require('../lib/bookai');
+    const env = ['GEMINI_API_KEY', 'MISTRAL_API_KEY'].map((k) => [k, process.env[k]]);
+    const fb = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    gauth._reset();
+    const keys = { k1: fb.publicKey.export({ type: 'spki', format: 'pem' }) };
+    const b64u = (o) => Buffer.from(JSON.stringify(o)).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const tnow = Math.floor(Date.now() / 1000);
+    const tok = (sub, email) => { const hd = b64u({ alg: 'RS256', kid: 'k1' }), bd = b64u({ aud: 'yishaiguedj1-c786e', iss: 'https://securetoken.google.com/yishaiguedj1-c786e', sub, iat: tnow - 5, exp: tnow + 3000, email, email_verified: true });
+      return hd + '.' + bd + '.' + crypto.sign('RSA-SHA256', Buffer.from(hd + '.' + bd), fb.privateKey).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_'); };
+    const U = tok('aiUser000001', 'reader2@example.com');
+    const mem = new Map(); let allowOk = true, allowN = 0;
+    const store = { get: async (k, p) => mem.get(k + JSON.stringify(p)) || null, set: async (k, p, v) => { mem.set(k + JSON.stringify(p), v); }, allow: async () => { allowN++; return allowOk ? { ok: true } : { ok: false, why: 'user' }; } };
+    const calls = []; let reply = null;
+    const fake = async (url, opt) => { calls.push({ url: String(url), body: opt && opt.body }); const o = reply(String(url)); return { status: o.st || 200, json: async () => o.j }; };
+    const gem = (obj) => ({ j: { candidates: [{ content: { parts: [{ text: JSON.stringify(obj) }] } }] } });
+    const run = async (body) => { const r = mockRes(); await lib._handler(mockReq({ body: Object.assign({ op: 'bookAi' }, body) }), r, { verify: { keys }, fetch: fake, aiStore: store, models: ['gemini-test'] }); return r; };
+    const TXT = 'אליעזר נסע לירושלים עם רבקה. '.repeat(20) + 'בבנק הפועלים פתחו חשבון. Apple Inc. מוזכרת. ';
+    process.env.GEMINI_API_KEY = 'k-test'; delete process.env.MISTRAL_API_KEY;
+
+    let r = await run({ task: 'xray', text: TXT });
+    ok(r.statusCode === 401, 'bookAi: בלי התחברות — 401');
+    reply = () => gem({ items: [{ name: 'אליעזר', kind: 'person', desc: 'משרת שנוסע' }, { name: 'ירושלים', kind: 'place', desc: 'עיר', aliases: ['ירושלם'] }, { name: 'Apple Inc.', kind: 'company', desc: 'חברה', ticker: 'aapl' }, { name: 'דמות שלא בטקסט', kind: 'person', desc: 'x' }, { name: 'אליעזר', kind: 'person', desc: 'כפול' }] });
+    r = await run({ task: 'xray', text: TXT, title: 'ספר', idToken: U });
+    const sent = JSON.parse(calls[calls.length - 1].body);
+    ok(r.statusCode === 200 && r.payload.items.length === 3 && r.payload.items[2].ticker === 'AAPL' && !r.payload.items.some((i) => i.name === 'דמות שלא בטקסט'), 'bookAi xray: רק שמות שבאמת בטקסט, בלי כפילויות, טיקר רק לחברה');
+    ok(sent.contents[0].parts[0].text.includes('אליעזר נסע') && /never reveal later events/.test(sent.systemInstruction.parts[0].text) && calls[calls.length - 1].url.includes('gemini-test'), 'bookAi xray: הטקסט נשלח, הנחיה בלי ספוילרים');
+    const n0 = calls.length;
+    r = await run({ task: 'xray', text: TXT, title: 'ספר', idToken: U });
+    ok(r.payload.cached && calls.length === n0, 'bookAi: אותה בקשה — מהמטמון, בלי פנייה ל־AI');
+    ok([...mem.values()].every((v) => !JSON.stringify(v).includes('אליעזר נסע')), 'bookAi: במטמון רק התשובה, לא טקסט הספר');
+
+    reply = () => gem({ answer: 'הוא נסע לירושלים [2].', cites: [2, 9], found: true });
+    r = await run({ task: 'ask', q: 'לאן נסע?', passages: [{ t: 'קטע ראשון' }, { t: 'אליעזר נסע לירושלים', ch: 'פרק ב' }], idToken: U });
+    ok(r.payload.ok && r.payload.found && r.payload.cites.join() === '2', 'bookAi ask: תשובה עם מקורות (רק מספרים קיימים)');
+    ok(JSON.parse(calls[calls.length - 1].body).contents[0].parts[0].text.includes('[2] (פרק ב) אליעזר נסע לירושלים'), 'bookAi ask: הקטעים ממוספרים עם הפרק');
+
+    reply = () => gem({ summary: 'סיפור על מסע.', tags: ['מסע', 'מקרא', 'מסע', 'a,b'], genre: 'רומן' });
+    r = await run({ task: 'tagsum', text: TXT, desc: '', idToken: U });
+    ok(r.payload.summary === 'סיפור על מסע.' && r.payload.tags.join('|') === 'מסע|מקרא|a b', 'bookAi tagsum: תקציר ותגיות נקיות (בלי כפילות ופסיקים)');
+
+    reply = () => gem({ out: ['Hello', ''] });
+    r = await run({ task: 'bilingual', paras: ['שלום', ''], lang: 'en', idToken: U });
+    ok(r.payload.out.length === 2 && r.payload.out[0] === 'Hello', 'bookAi bilingual: תרגום לכל פסקה, באותו סדר');
+    reply = () => gem({ out: ['רק אחד'] });
+    r = await run({ task: 'bilingual', paras: ['one', 'two'], lang: 'he', idToken: U });
+    ok(r.statusCode === 502 && r.payload.error === 'ai_failed', 'bookAi bilingual: מספר פסקאות לא תואם — נפסל');
+
+    reply = () => ({ st: 429, j: {} });
+    r = await run({ task: 'tagsum', text: TXT + 'x', idToken: U });
+    ok(r.statusCode === 502 && r.payload.error === 'quota', 'bookAi: מכסת Gemini נגמרה (בלי Mistral) — "quota"');
+    allowOk = false;
+    r = await run({ task: 'tagsum', text: TXT + 'y', idToken: U });
+    ok(r.statusCode === 429 && r.payload.error === 'limit', 'bookAi: מעבר למכסה היומית של המשתמש — 429');
+    allowOk = true;
+    r = await run({ task: 'nope', idToken: U });
+    ok(r.statusCode === 400, 'bookAi: משימה לא מוכרת — 400');
+    r = await run({ task: 'xray', text: 'קצר', idToken: U });
+    ok(r.statusCode === 400 && r.payload.error === 'bad_params', 'bookAi: טקסט קצר מדי — 400');
+    ok(BAI.input('xray', { text: 'א'.repeat(200000) }).text.length === BAI.LIM.xray && BAI.input('ask', { q: 'ש', passages: [] }) === null, 'bookAi: חיתוך לגבולות');
+    env.forEach(([k, v]) => { if (v === undefined) delete process.env[k]; else process.env[k] = v; });
+    gauth._reset();
+  }
+
   /* ---------- v318: גיבוי הספרייה הפרטית ל־Google Drive — חיבור, גישה זמנית, ניתוק (Google ו־Firestore מדומים) ---------- */
   {
     const crypto = require('crypto');
