@@ -83,7 +83,14 @@ class BrTab(val id: Long, url: String, title: String, val private: Boolean, var 
      * לכן כתובת הצפייה של הנגן המוטמע (BrVideo.embedOf) נחשבת "הסרטון בדף". מתאפס בכל מסמך חדש
      */
     var embed by mutableStateOf("")
-    /** הסרטון שבדף: הדף עצמו כשהוא דף צפייה, אחרת הנגן המוטמע; null = אין */
-    fun vidPage(): String? = if (pageIsVideo()) page else embed.ifEmpty { null }
+    /**
+     * 03/11/2026 (בקשת המשתמש: "תמיד כשמוצג וידאו על המסך — אופציה להוריד, חוץ מפרסומות"): על המסך נגן אמיתי שאינו פרסומת
+     * (BrVideo — ‏"!k:1"). כשלא נמצא שום דבר אחר — הדף עצמו הוא המועמד, ו־yt-dlp (המחלץ הכללי) מחפש בו את הסרטון
+     */
+    var live by mutableStateOf(false)
+    /** רק הנגן שעל המסך — בלי דף צפייה, בלי נגן מוטמע מוכר ובלי זרם שנמצא */
+    fun liveOnly() = live && !pageIsVideo() && embed.isEmpty() && found.size == 0 && page.startsWith("http")
+    /** הסרטון שבדף: הדף עצמו כשהוא דף צפייה, אחרת הנגן המוטמע, אחרת הדף כשיש נגן על המסך; null = אין */
+    fun vidPage(): String? = if (pageIsVideo()) page else embed.ifEmpty { if (liveOnly()) page else null }
     fun recount() { foundN = found.size + (if (vidPage() != null) 1 else 0) }
 }

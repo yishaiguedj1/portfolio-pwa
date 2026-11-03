@@ -76,8 +76,17 @@ ok(/width:32px;height:32px;border-radius:50%/.test(vjs) && /setAttribute\('aria-
   ok(/YT_EMBED = Regex\("\^https\?:\/\/\(\?:www\\\\\.\|m\\\\\.\)\?youtube\(\?:-nocookie\)\?/.test(vjs) && /fun embedOf\(url: String\?\)/.test(vjs), 'אותם כללים בקוטלין');
   ok(/bf=el\.tagName==='IFRAME'/.test(vjs) && /ch\.postMessage\('!f:'\+bf/.test(vjs) && /d\?\.startsWith\(BrVideo\.FRAME\) == true/.test(act)
     && /if \(!req\.isForMainFrame\) BrVideo\.embedOf\(req\.url\.toString\(\)\)/.test(act), 'הנגן המוטמע — מהסקריפט ומהבקשות של המסגרות');
-  ok(/fun vidPage\(\): String\? = if \(pageIsVideo\(\)\) page else embed\.ifEmpty \{ null \}/.test(R(B + 'BrTab.kt')) && /t\.vidPage\(\)\?\.let \{ add\(Pick\(R\.string\.brPage/.test(act)
+  ok(/fun vidPage\(\): String\? = if \(pageIsVideo\(\)\) page else embed\.ifEmpty \{/.test(R(B + 'BrTab.kt')) && /t\.vidPage\(\)\?\.let \{ add\(Pick\(R\.string\.brPage/.test(act)
     && /t\.vid = null; t\.embed = ""/.test(act), 'הנגן המוטמע הוא "הסרטון בדף", ומתאפס בדף חדש'); }
+// 03/11/2026 (בקשת המשתמש: "תמיד כשמוצג וידאו על המסך — אופציה להוריד, חוץ מפרסומות")
+{ const AD = new Function('return ' + (vjs.match(/var AD=(\/[^\n]*\/i);/) || [])[1])(), AH = new Function('return ' + (vjs.match(/var AH=(\/[^\n]*\/i);/) || [])[1])();
+  ok(['html5-video-player ad-showing', 'ima-ad-container', 'video-js vjs-ad-playing', 'jwplayer jw-flag-ads', 'preroll-wrap', 'outstream'].every((c) => AD.test(c)), 'מכלי פרסומת מזוהים');
+  ok(!['html5-video-player playing-mode', 'download-container head', 'load-player', 'video-player', 'reading-mode'].some((c) => AD.test(c)), 'נגן רגיל לא נחשב פרסומת');
+  ok(AH.test('imasdk.googleapis.com') && AH.test('s0.2mdn.net') && !AH.test('rr3---sn.googlevideo.com') && !AH.test('vimeo.com'), 'רשתות פרסום לפי שם השרת');
+  ok(/\|\|isAd\(el\)\)continue;/.test(vjs) && /bk=el\.tagName==='VIDEO'\?!el\.mediaKeys:E\.test\(el\.src\|\|''\)/.test(vjs), 'פרסומת לא נחשבת נגן; מוגן (EME) — לא "נגן אמיתי"');
+  const tab = R(B + 'BrTab.kt');
+  ok(/fun liveOnly\(\) = live && !pageIsVideo\(\) && embed\.isEmpty\(\) && found\.size == 0/.test(tab) && /if \(liveOnly\(\)\) page else null/.test(tab), 'הדף הוא המועמד רק כשלא נמצא שום דבר אחר');
+  ok(/d\?\.startsWith\(BrVideo\.LIVE\) == true/.test(act) && /t\.live = false/.test(act) && /t\.liveOnly\(\) && DmPre\.state\(t\.page\) == 3\)\) 0/.test(act), 'נגן על המסך → בדיקה; yt-dlp לא מצא → בלי כפתור'); }
 ok(/if\(!box\|\|N<=0\)/.test(vjs) && /function up\(n,l,m,k\)\{N=\+n\|\|0/.test(vjs), 'מופיע רק כשיש נגן על המסך וגם הדפדפן מצא מה להוריד');
 // 26/10/2026: התפריט שנפתח מהכפתור — האיכויות מהבדיקה ברקע, הבחירה עם המפתח של הטאב, ההורדה בלי לצאת מהדף
 ok(/Object\.defineProperty\(window,'__snbUp',\{value:up,writable:false,configurable:false\}\)/.test(vjs), 'הדף לא יכול להחליף את __snbUp (ולגנוב את המפתח)');
@@ -91,7 +100,7 @@ ok(/if \(ps\.size == 1 && ps\[0\]\.file\) a\.download\(ps\[0\]\)/.test(ui), '⬇
 ok(/DmPre\.enqueue\(this, p\.url, info, q, audio/.test(act) && /DmPre\.enqueue\(this, v\.url, v\.info/.test(R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmActivity.kt')), 'אותה הוספה מהתפריט ומהגיליון');
 ok(/document\.fullscreenElement/.test(vjs), 'במסך מלא — בתוך האלמנט שבמסך מלא');
 ok(/ch\.postMessage\('!dl'\)/.test(vjs) && /BrVideo\.TAP -> if \(cur === t && screen == Screen\.PAGE\) bubbleTap\(\)/.test(act), 'נגיעה בכפתור = ⬇ בשורת הכתובת');
-ok(/ch\.postMessage\('!\?'\)/.test(vjs) && /BrVideo\.HELLO -> pushDl\(t\)/.test(act) && /if \(bubble\) t\.foundN else 0/.test(act), 'מסמך חדש מבקש את המצב; כבוי בהגדרות = בלי כפתור');
+ok(/ch\.postMessage\('!\?'\)/.test(vjs) && /BrVideo\.HELLO -> pushDl\(t\)/.test(act) && /val n = if \(!bubble \|\|/.test(act) && /BrVideo\.stateJs\(n, /.test(act), 'מסמך חדש מבקש את המצב; כבוי בהגדרות = בלי כפתור');
 ok(/\+\+beat>=3/.test(vjs), 'מיקום הנגן נשלח שוב גם בלי שינוי (דיווח שאבד בטעינת הדף)');
 ok(/web && \(t!!\.foundN > 0\) -> IBtn\(BrIcons\.Dl/.test(ui), '⬇ בשורת הכתובת כשיש מה להוריד');
 ok(/fun bubbleTap\(\)[\s\S]{0,200}if \(ps\.size == 1 && ps\[0\]\.file\) download\(ps\[0\]\) else if \(ps\.isNotEmpty\(\)\) pick = true/.test(act)

@@ -1162,7 +1162,7 @@ class BrowserActivity : ComponentActivity() {
                 if (url != t.page) { t.logs.clear(); t.net.add(BrPro.Net(System.currentTimeMillis(), "GET", url, true, false)) }
                 // הגל השלישי: עריכה ובחירת רכיב שייכות לדף — מסמך חדש מבטל אותן
                 if (url != t.page) { localLeave(t); t.editing = false; if (cur === t && pickMode != 0) { pickMode = 0; zappedNow.clear() } }
-                if (url != t.page) { t.page = url; t.vid = null; t.embed = ""; t.blocked = 0; t.playing = false; t.found.clear(); synchronized(t.headSeen) { t.headSeen.clear() }; t.recount(); autoPick(t) }
+                if (url != t.page) { t.page = url; t.vid = null; t.embed = ""; t.live = false; t.blocked = 0; t.playing = false; t.found.clear(); synchronized(t.headSeen) { t.headSeen.clear() }; t.recount(); autoPick(t) }
                 // 26/10/2026 (דיווח המשתמש: אחרי רענון של אותו דף הרשימה גדלה בכפילויות): מסמך חדש באותה כתובת (רענון) —
                 // הנגן מבקש את הכל מחדש, עם חתימות חדשות. מה שנמצא במסמך הקודם כבר לא רלוונטי
                 else { t.found.clear(); t.embed = ""; synchronized(t.headSeen) { t.headSeen.clear() }; t.recount() }
@@ -1249,6 +1249,8 @@ class BrowserActivity : ComponentActivity() {
                     BrVideo.HELLO -> pushDl(t)                                         // מסמך חדש — כמה נמצא והתווית
                     else -> if (d?.startsWith(BrVideo.FRAME) == true) {
                         BrVideo.embedOf(d.removePrefix(BrVideo.FRAME))?.let { setEmbed(t, it) }   // הנגן המוטמע שעל המסך
+                    } else if (d?.startsWith(BrVideo.LIVE) == true) {
+                        val v = d == BrVideo.LIVE + "1"; if (t.live != v) { t.live = v; t.recount() }   // נגן אמיתי (לא פרסומת) על המסך
                     } else {
                         val k = d?.let { BrVideo.pickOf(it, dlKey) }
                         if (k != null) menuPick(t, k)                                  // בחירה מהתפריט שעל הנגן
@@ -1432,7 +1434,9 @@ class BrowserActivity : ComponentActivity() {
     /** הכפתור שעל הנגן (BrVideo): המצב לדף — כמה נמצא (0 = בלי כפתור; גם כשכובה בהגדרות) והתווית */
     fun pushDl(t: BrTab) {
         val w = t.web ?: return
-        runCatching { w.evaluateJavascript(BrVideo.stateJs(if (bubble) t.foundN else 0, getString(R.string.brBubble), menuJson(t), dlKey), null) }
+        // רק הנגן שעל המסך, ו־yt-dlp לא מצא בדף סרטון — בלי כפתור (לא מבטיחים הורדה שלא תעבוד)
+        val n = if (!bubble || (t.liveOnly() && DmPre.state(t.page) == 3)) 0 else t.foundN
+        runCatching { w.evaluateJavascript(BrVideo.stateJs(n, getString(R.string.brBubble), menuJson(t), dlKey), null) }
     }
 
     /** מפתח אקראי לתפריט שעל הנגן (BrVideo.pickOf) — חדש בכל פתיחה של הדפדפן */

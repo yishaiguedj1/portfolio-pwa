@@ -20,6 +20,12 @@ package io.github.yishaiguedj1.snowball.br
  * 03/11/2026 (בקשת המשתמש: "רק סימן של הורדה וזהו, נקי, בצד הימני העליון של הוידאו, שלא יסתיר את הנגן"): במקום הגלולה
  * באמצע — עיגול קטן עם חץ בלבד בפינה הימנית העליונה של הנגן (התווית נשארת לקורא המסך), והתפריט נפתח מיושר לפינה.
  * ונגן מוטמע (מסגרת) — הסקריפט שולח גם את הכתובת שלו ("!f:<src>"), כי בחיפוש של גוגל הדף עצמו אינו סרטון (BrTab.embed).
+ * 03/11/2026 (בקשת המשתמש: "תמיד כשמוצג וידאו על המסך — אופציה להוריד אותו, חוץ מפרסומות"): הסקריפט אומר גם אם מה שעל
+ * המסך הוא נגן אמיתי ("!k:1" — ‏<video> או מסגרת של נגן מוכר; "!k:0" = אין), ואז הדף עצמו נבדק ב־yt-dlp (BrTab.live).
+ * פרסומת לא נחשבת נגן בכלל (גם לא למיקום — הכפתור נעלם בזמן פרסומת), לפי שלושה סימנים: (1) מחלקה/מזהה של מכל פרסומת
+ * אצל הנגן או אחד מעשרת ההורים שלו (`AD` — ‏ad-showing, ‏ima-ad-container, ‏vjs-ad-playing, ‏jw-flag-ads, ‏preroll, ‏outstream…);
+ * (2) מקור הווידאו / המסגרת מרשת פרסום (`AH`, כמו HuntMedia.NOISE ו־BrShield.ADS); (3) וידאו מוגן (EME, ‏mediaKeys) — לא נגן
+ * "אמיתי" כי אי אפשר להוריד אותו (עדיין ממוקם, אם נמצא בו משהו אחר).
  */
 object BrVideo {
     /** [x, y, רוחב, גובה] כחלקים מהאזור הנראה של הדף; null = אין נגן על המסך */
@@ -36,6 +42,7 @@ object BrVideo {
     const val HELLO = "!?"
     const val PICK = "!q:"
     const val FRAME = "!f:"
+    const val LIVE = "!k:"
 
     private val YT_EMBED = Regex("^https?://(?:www\\.|m\\.)?youtube(?:-nocookie)?\\.com/embed/([A-Za-z0-9_-]{11})(?:[/?#]|$)", RegexOption.IGNORE_CASE)
     private val VIMEO_EMBED = Regex("^https?://player\\.vimeo\\.com/video/(\\d{4,})(?:[/?#]|$)", RegexOption.IGNORE_CASE)
@@ -73,7 +80,12 @@ object BrVideo {
     const val JS = """(function(){try{
 if(window.top!==window||window.__snbVid)return;var ch=window.snbVid;if(!ch)return;window.__snbVid=1;
 var E=/youtube|youtu\.be|vimeo|dailymotion|wistia|jwplayer|brightcove|twitch|vidyard|kaltura|streamable|plugins\/video|player|embed|video/i;
-var last=null,lf='',q=0,beat=0,host=null,btn=null,box=null,N=0,L='',M=null,K='',menu=null,open=false;
+var AD=/\b(ad-showing|ad-interrupting|ima-ad-container|vjs-ad-playing|vjs-ad-loading|jw-flag-ads|pre-?roll|mid-?roll|outstream|video-?ads?|ad-?container|ad-?slot|ad-?player|adsbygoogle)\b/i;
+var AH=/(^|\.)(doubleclick\.net|googlesyndication\.com|googleadservices\.com|imasdk\.googleapis\.com|2mdn\.net|innovid\.com|teads\.tv|spotx\.tv|spotxchange\.com|springserve\.com|fwmrm\.net|adsrvr\.org|adnxs\.com|serving-sys\.com|tremorhub\.com|smartadserver\.com|moatads\.com|amazon-adsystem\.com)$/i;
+function hostOf(u){try{return /^https?:/i.test(u)?new URL(u,location.href).hostname:'';}catch(e){return '';}}
+function isAd(el){var s=el.tagName==='IFRAME'?(el.src||''):(el.currentSrc||el.src||'');if(AH.test(hostOf(s)))return true;
+for(var p=el,i=0;p&&p.nodeType===1&&i<11;p=p.parentNode,i++){if(AD.test((p.getAttribute('class')||'')+' '+(p.id||'')))return true;}return false;}
+var last=null,lf='',lk=null,q=0,beat=0,host=null,btn=null,box=null,N=0,L='',M=null,K='',menu=null,open=false;
 function vis(el){var s=getComputedStyle(el);return s.display!=='none'&&s.visibility!=='hidden'&&+s.opacity>0.05;}
 function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;}
 function mk(){
@@ -125,14 +137,15 @@ if(ub){menu.style.top='';menu.style.bottom=(innerHeight-top+8)+'px';}else{menu.s
 }catch(e){}}
 function pick(){q=0;try{
 var vv=window.visualViewport,ox=vv?vv.offsetLeft:0,oy=vv?vv.offsetTop:0,W=vv?vv.width:innerWidth,H=vv?vv.height:innerHeight;
-var best=null,ba=0,br=null,bf='',els=document.querySelectorAll('video,iframe');
+var best=null,ba=0,br=null,bf='',bk=false,els=document.querySelectorAll('video,iframe');
 for(var i=0;i<els.length&&i<80;i++){var el=els[i];
 if(el.tagName==='IFRAME'&&!(E.test(el.src||'')||el.hasAttribute('allowfullscreen')||/fullscreen/.test(el.getAttribute('allow')||'')))continue;
 var r=el.getBoundingClientRect();if(r.width<120||r.height<68)continue;
 var x=r.left-ox,y=r.top-oy,ix=Math.max(0,Math.min(x+r.width,W)-Math.max(x,0)),iy=Math.max(0,Math.min(y+r.height,H)-Math.max(y,0)),a=ix*iy;
-if(iy<40||a<Math.min(r.width*r.height*0.3,14400)||!vis(el))continue;
-if(a>ba){ba=a;br=r;bf=el.tagName==='IFRAME'?String(el.src||''):'';best=[x/W,y/H,r.width/W,r.height/H];}}
-box=br;if(bf&&bf!==lf&&/^https?:/.test(bf)){lf=bf;ch.postMessage('!f:'+bf.slice(0,2048));}place();
+if(iy<40||a<Math.min(r.width*r.height*0.3,14400)||!vis(el)||isAd(el))continue;
+if(a>ba){ba=a;br=r;bf=el.tagName==='IFRAME'?String(el.src||''):'';bk=el.tagName==='VIDEO'?!el.mediaKeys:E.test(el.src||'');best=[x/W,y/H,r.width/W,r.height/H];}}
+box=br;if(bf&&bf!==lf&&/^https?:/.test(bf)){lf=bf;ch.postMessage('!f:'+bf.slice(0,2048));}
+var k=best&&bk?'!k:1':'!k:0';if(k!==lk||beat>=2){lk=k;ch.postMessage(k);}place();
 var s=best?best.map(function(v){return v.toFixed(4);}).join(','):'';
 if(s!==last||++beat>=3){last=s;beat=0;ch.postMessage(s);}
 }catch(e){}}
