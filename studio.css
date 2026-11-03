@@ -39,6 +39,13 @@ html[data-app="studio"] .st-root:not(.leaving) { animation: none; }   /* 14/10/2
 .st-nav-s { justify-self: start; min-width: 0; max-width: 100%; display: flex; }
 .st-nav-e { justify-self: end; min-width: 0; max-width: 100%; display: flex; }
 .st-nav-t { justify-self: center; max-width: 100%; font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 03/11/2026 (סבב קפיצות 10, הקלטת Studio — במגדל "מגדל הפיקוח" פעמיים, בסרגל ובכותרת הגדולה): לפי ת־עיצוב — הכותרת הקטנה
+   מופיעה רק כשהגדולה נגללת מתחת לסרגל. מונע בגלילה (בלי JS), ועל הצבע בלבד — צביעה, בלי שכבה חדשה (opacity הייתה יוצרת שכבה).
+   בלי תמיכה — כמו קודם (שתיהן) */
+@supports (animation-timeline: scroll()) {
+  .st-nav-t.coll { animation: stNavT linear both; animation-timeline: scroll(nearest block); animation-range: 26px 52px; }
+}
+@keyframes stNavT { from { color: transparent; } to { color: var(--on-surface); } }
 .st-back, .st-txt { display: inline-flex; align-items: center; gap: 2px; min-height: 40px; max-width: 100%; padding: 6px 4px; color: var(--primary); font-size: 17px; font-weight: 600; white-space: nowrap; }
 .st-back svg { width: 22px; height: 22px; flex: none; stroke-width: 2.4; }
 [dir="ltr"] .st-back svg { transform: scaleX(-1); }

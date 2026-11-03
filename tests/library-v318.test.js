@@ -140,7 +140,7 @@ const { fakeDrive } = require('./_drivefake.js');
   ok(!/function shelfSeg\(/.test(lib) && !/\.lib-seg/.test(css) && /\{ k: 'mine', ico: LIB_DIAL_ICO\.mine, lbl: T\('libMine'\) \}/.test(lib), 'בין THE SNOWBALL לספרייה שלי — החוגה בתחתית (29/10/2026, במקום הבורר)');
   ok(/const shelfOf = \(b\) => \(b && b\.src === 'drive' \? 'snb' : 'mine'\)/.test(lib), 'ההפרדה: מכתב Drive = THE SNOWBALL, כל השאר = הספרייה שלי');
   ok(/if \(mine\) tr\.append\(more, add\)/.test(lib), 'הוספת ספר רק בספרייה שלי');
-  ok(/filter\(\(r\) => shelfOf\(r\.b\) === ui\.shelf\)/.test(lib), 'חיפוש בתוך הטקסט — רק בספרייה שנבחרה');
+  ok(/filter\(\(r\) => shelfOf\(r\.b\) === ui\.shelf[ )&]/.test(lib), 'חיפוש בתוך הטקסט — רק בספרייה שנבחרה');
   ok(/if \(rec\.src !== 'drive'\) rec\.bkD = Date\.now\(\)/.test(lib) && /if \(cur\.src !== 'drive'\) cur\.bkD = Date\.now\(\)/.test(lib), 'ייבוא ועריכה מסמנים את הספר לגיבוי');
   ok(/function openResetSheet\(/.test(lib) && /libResetKeep/.test(lib) && /BK\.deleteAll\(\)/.test(lib), 'איפוס הספרייה שלי — עם בחירה להשאיר או למחוק את הגיבוי');
   ok(/function askRemoveBacked\(/.test(lib), 'מחיקת ספר מגובה — מהטלפון בלבד או גם מהגיבוי');

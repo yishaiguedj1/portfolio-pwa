@@ -130,7 +130,9 @@ html[data-app="admin"] { --gb-force: #5E5CE6; --gb-ontx: #fff; }
      st-banner st-filecard st-fnd st-l st-lk-rec st-newcard st-proj st-row st-twcard st-tower stock-head kc-li kc-wr kc-tg kc-fly-i st-pl-mr st-qa-b mg-pc mg-sc
    מתגי הפעלה (מתג iOS): adm-sw ib-sw lib-sw pfbk-sw
    קישורי טקסט ופעולות טקסט: link-btn adm-link an-link lib-admin-link lib-textbtn st-link st-linkb st-txt wk-more ft-more mg-clear st-rate-chg st-pl-fundo es-cancel
-     mg-snack-b ac-retry st-dp-up st-nsb st-pl-chb kc-tfpick kc-symbtn mg-tb sf-clear tr-tog st-src-u
+     mg-snack-b ac-retry st-dp-up st-nsb st-pl-chb kc-tfpick kc-symbtn mg-tb sf-clear tr-tog st-src-u bk-link bk-series
+   סמלים בתוך שדה החיפוש: lib-qbtn
+   כלים חכמים (גל 5): px-chip ai-xr-main ai-srcrow ai-cite — שורה/מספר מקור; ai-tts-b ai-tts-pp ai-tts-rate ai-tts-sl — נגן ההקראה (גלולה משלו)
    דוגמיות צבע, תגיות ואזורי מגע: st-ky-sch tr-dot kc-col kc-swatch st-sty kc-ctag kc-star rd-ribbon an-grab st-vl-main
    כפתורים צפים מעל קנבס (הציר בעורך — זכוכית משלהם): st-tl-zb
    מעטפות שהכדור שלהן הוא ילד (.tab → .tab-disc, .adm-tab → i): tab adm-tab

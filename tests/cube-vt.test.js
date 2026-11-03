@@ -27,8 +27,8 @@ ok(/root\._cubeVT \|\|/.test(fn(st, 'render')) && /root\._cubeVT \|\|/.test(lib)
 
 // ---- זרימה ב־vm: שכבה מדומה עם startViewTransition
 {
-  const names = ['cubeFace', 'cubeFaceOff', 'cubeWarm', 'cubeWarmEnd', 'cubeSet', 'faceSet', 'cubeTransform', 'cubeVisible', 'cubeVTOk', 'cubeVTFace', 'cubeVTPre', 'cubeVTWire', 'cubeVTTouch', 'cubePre'];
-  const src = 'let _cubePre = null, _cubeVTOn = null, cubeNow = null; const _dial = { ride: null }; const CUBE_P = 2.4; const CUBE_RUB = 0.15; const CUBE_WARM_OP = "0.01";'
+  const names = ['cubeFace', 'cubeFaceOff', 'cubeWarm', 'cubeWarmEnd', 'cubeSet', 'faceSet', 'cubeTransform', 'cubeVisible', 'cubeVTOk', 'cubeVTFace', 'cubeVTPre', 'cubeVTWire', 'cubeVTTouch', 'cubePre', 'scrollFlat'];
+  const src = 'let _cubePre = null, _cubeVTOn = null, cubeNow = null; const _dial = { ride: null }; const CUBE_P = 2.4; const CUBE_RUB = 0.15; const CUBE_WARM_OP = "0.01"; const SCROLL_FLAT = ".st-jobs";'
     + 'const cubeReduce = () => false; const cubeClone = () => { throw new Error("clone"); };'
     + names.map((n) => fn(app, n)).join('\n') + '; this.T = { cubePre, cubeFace, cubeSet, cubeWarm, get on() { return _cubeVTOn; } };';
   const anims = [];

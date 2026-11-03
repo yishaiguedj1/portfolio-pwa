@@ -251,6 +251,19 @@ class BrowserActivity : ComponentActivity() {
 
     /* ---- הגל השישי (02/11/2026, BrOurs/BrOursAndroid): רק אצלנו — Studio, Academy ו־Invest ---- */
     var oursSheet by mutableStateOf(false)
+    // 03/11/2026 סריקת אתר (BrScan): המצב כאן ולא בגיליון — הסריקה ממשיכה כשהגיליון נסגר
+    var scanSheet by mutableStateOf(false)
+    var scanRun by mutableStateOf(false)
+    var scanPages by mutableStateOf(0)
+    var scanCur by mutableStateOf("")
+    var scanGroups by mutableStateOf<List<BrScan.Group>>(emptyList())
+    var scanEnd by mutableStateOf<BrScan.End?>(null)
+    var scanStart by mutableStateOf("")
+    var scanLogged by mutableStateOf(false)
+    var scanPriv by mutableStateOf(false)
+    private var scanUa = ""
+    private var scanSite = ""
+    @Volatile private var scanStop = false
     /** 73 הפרקים והסיכום: null = מחשבים */
     data class Chap(val cues: List<BrOurs.Cue>, val ch: List<BrOurs.Chapter>, val sum: List<BrOurs.Sentence>, val studio: Boolean)
     var chapSheet by mutableStateOf(false)
@@ -451,6 +464,7 @@ class BrowserActivity : ComponentActivity() {
         // הסבב ברקע ממשיך בלי המסך — לא מחזיקים אותו
         BrCloud.onChange = null; BrCloud.onApplied = null; BrCloud.onIncoming = null; BrCloud.tabsProvider = null
         BrMedia.onCmd = null
+        scanStop = true
         stopCaptions(); speaker?.shutdown(); speaker = null; printWeb?.let { kill(it) }; io4.shutdown()
         if (isFinishing) BrMedia.stop(this)
         tabs.forEach { t -> kill(t.web) }
@@ -1490,6 +1504,7 @@ class BrowserActivity : ComponentActivity() {
         val ref = if (p.page) "" else t.page
         // 01/11/2026: כש־Studio DM מותקן — ההורדה נכנסת לתור שלו (DmBridge), אחרת לתור של הדפדפן
         if (DmBridge.remote(this)) {
+            if (!t.private) io.github.yishaiguedj1.snowball.dm.DmSession.grant(this, listOf(p.url, t.page))   // 03/11: DM רשאי למשוך את ההתחברות העדכנית של האתר
             if (!DmBridge.sendTask(this, DmPre.build(this, p.url, info, q, audio, ref, ck = true, tr = tr, subs = subs), runCatching { t.web?.settings?.userAgentString }.getOrNull() ?: "", listOf(t.page))) {
                 Toast.makeText(this, R.string.dmErrFail, Toast.LENGTH_SHORT).show(); return
             }
@@ -1542,6 +1557,7 @@ class BrowserActivity : ComponentActivity() {
             if (!done) {
                 done = true
                 val urls = listOf(t.page, url) + t.found.list.map { it.url }
+                if (!t.private && DmBridge.remote(this)) io.github.yishaiguedj1.snowball.dm.DmSession.grant(this, listOf(t.page, url))
                 if (!DmBrowser.handOff(this, url, ref, file, title, w?.settings?.userAgentString ?: "", urls)) Toast.makeText(this, R.string.dmErrFail, Toast.LENGTH_SHORT).show()
             }
         }
@@ -2174,6 +2190,7 @@ class BrowserActivity : ComponentActivity() {
         if (l.isEmpty()) return
         val ua = runCatching { t.web?.settings?.userAgentString }.getOrNull() ?: ""
         if (DmBridge.remote(this)) {
+            if (!t.private) io.github.yishaiguedj1.snowball.dm.DmSession.grant(this, listOf(t.url) + l.map { it.url })
             if (!DmBridge.sendFiles(this, l.map { it.url to it.name }, t.url, ua, !t.private)) say(R.string.dmErrFail)
             return
         }
@@ -2188,6 +2205,83 @@ class BrowserActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             runCatching { requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 7) }
         Toast.makeText(this, getString(R.string.dmBridgeFiles, l.size), Toast.LENGTH_SHORT).show()
+    }
+
+    /* ---------------- 03/11/2026 סריקת אתר (BrScan, BrScanAndroid) ---------------- */
+
+    fun scanOpen() {
+        val t = cur ?: return
+        if (!scanRun && scanGroups.isEmpty()) { scanStart = t.url; scanPriv = t.private; scanEnd = null }
+        scanLogged = !t.private && t.url.startsWith("http") && BrScanAndroid.hasSession(t.url)
+        scanSheet = true
+    }
+
+    /** הסריקה: ה־DOM של הדף הפתוח הוא הדף הראשון (בלי בקשה נוספת), ומשם דף אחרי דף בתהליכון אחד */
+    fun scanGo(mode: BrScan.Mode, cap: Int) {
+        val t = cur ?: return
+        if (scanRun || !t.url.startsWith("http")) return
+        if (BrDev.sensitive(t.url)) { say(R.string.brScanSensitive); return }
+        val start = t.url
+        val priv = t.private
+        scanUa = runCatching { t.web?.settings?.userAgentString }.getOrNull() ?: ""
+        scanStart = start; scanPriv = priv; scanSite = BrScan.host(start)
+        scanGroups = emptyList(); scanEnd = null; scanPages = 0; scanCur = ""; scanStop = false; scanRun = true
+        scanLogged = !priv && BrScanAndroid.hasSession(start)
+        val ua = scanUa
+        js(t, BrScan.DOM_JS) { r ->
+            val seed = runCatching { BrDev.unquote(r) }.getOrNull()?.takeIf { it.length > 200 && cur === t && t.url == start }
+            Thread {
+                val st = BrScan.State()
+                val sleep = { ms: Long -> var left = ms; while (left > 0 && !scanStop) { Thread.sleep(minOf(250L, left)); left -= 250 } }
+                fun snap() = synchronized(st.raw) { BrScan.order(st.raw.toList(), st.site.ifEmpty { BrScan.host(start) }) }
+                val end = runCatching {
+                    BrScan.run(start, mode, cap, seed, BrScanAndroid.fetcher(ua, !priv), BrScanAndroid.robots(ua, start.startsWith("https://")), sleep, { scanStop }, st) {
+                        val g = snap(); val n = st.pages; val c = st.cur
+                        ui.post { if (scanStart == start) { scanGroups = g; scanPages = n; scanCur = c } }
+                    }
+                }.getOrElse { BrScan.End.FAIL }
+                val g = snap()
+                ui.post {
+                    if (scanStart == start) { scanGroups = g; scanPages = st.pages; scanCur = ""; scanEnd = end; scanRun = false; scanSite = st.site.ifEmpty { scanSite } }
+                }
+            }.apply { isDaemon = true; name = "br-scan"; priority = Thread.MIN_PRIORITY }.start()
+        }
+    }
+
+    fun scanHalt() { scanStop = true }
+
+    fun scanReset() { if (scanRun) return; scanGroups = emptyList(); scanEnd = null; scanPages = 0; cur?.let { scanStart = it.url; scanPriv = it.private } }
+
+    /** הנבחרים → DM (כשמותקן) או התור שבתוך הדפדפן. h = גובה, 0 = שמע בלבד */
+    fun scanSend(ids: Set<String>, h: Int) {
+        val arr = org.json.JSONArray()
+        scanGroups.forEach { g ->
+            val dir = BrScan.folder(g, scanSite)
+            g.items.filter { it.id in ids }.forEach { i ->
+                if (arr.length() < DmBridge.FILES_MAX) arr.put(org.json.JSONObject().put("u", i.media.url).put("n", BrScan.fileName(i, g)).put("k", if (i.yt) "y" else "h")
+                    .put("r", i.page).put("d", dir).put("h", h))
+            }
+        }
+        if (arr.length() == 0) return
+        val ck = !scanPriv
+        if (DmBridge.remote(this)) {
+            if (ck) io.github.yishaiguedj1.snowball.dm.DmSession.grant(this, listOf(scanStart) + (0 until arr.length()).flatMap { k -> listOf(arr.getJSONObject(k).optString("u"), arr.getJSONObject(k).optString("r")) }.distinctBy { BrScan.host(it) }.take(50))
+            if (DmBridge.sendScan(this, arr, scanStart, scanUa, ck)) scanSheet = false else say(R.string.dmErrFail)
+            return
+        }
+        DmStore.init(this)
+        if (ck) runCatching {
+            val cm = io.github.yishaiguedj1.snowball.dm.DmCookies.get()
+            val nets = io.github.yishaiguedj1.snowball.DlDeep.netscape(listOf(scanStart).map { it to cm.getCookie(it) }, System.currentTimeMillis() / 1000)
+            if (nets.isNotEmpty() && scanUa.isNotEmpty()) DlEngine.saveCookies(this, scanStart, nets, scanUa)
+        }
+        val l = DmBridge.scanTasks(arr, scanUa, ck).filter { !DmStore.has(it.url) }
+        l.forEach { DmStore.add(it) }
+        DmEngine.pump(this)
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+            runCatching { requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 7) }
+        Toast.makeText(this, getString(R.string.dmBridgeFiles, l.size), Toast.LENGTH_SHORT).show()
+        scanSheet = false
     }
 
     fun pickHeFix(b: Boolean) { heFix = b; prefs.heFix = b; if (b) cur?.web?.let { runCatching { it.evaluateJavascript(BrPro.HEBREW_JS, null) } } }
@@ -2375,6 +2469,7 @@ class BrowserActivity : ComponentActivity() {
         val subs = DmSubs.forTask(info.optJSONArray("sub"), true)
         val ref = if (p.page) "" else t.page
         if (DmBridge.remote(this)) {
+            if (!t.private) io.github.yishaiguedj1.snowball.dm.DmSession.grant(this, listOf(p.url, t.page))
             if (!DmBridge.sendTask(this, DmPre.build(this, p.url, info, q, false, ref, ck = true, tr = true, later = true, subs = subs),
                     runCatching { t.web?.settings?.userAgentString }.getOrNull() ?: "", listOf(t.page))) { say(R.string.dmErrFail); return }
         } else DmPre.enqueue(this, p.url, info, q, false, ref, ck = true, tr = true, later = true, subs = subs)
@@ -2713,6 +2808,7 @@ class BrowserActivity : ComponentActivity() {
         BrStore.clearHistory(); BrStore.clearStates(); clearDocs()
         val p = userProfile()
         runCatching { val cm = p?.cookieManager ?: CookieManager.getInstance(); cm.removeAllCookies(null); cm.flush() }
+        io.github.yishaiguedj1.snowball.dm.DmSession.revokeAll(this)   // 03/11: גם ההרשאה של DM למשוך התחברות
         runCatching { (p?.webStorage ?: WebStorage.getInstance()).deleteAllData() }
         tabs.forEach { t -> runCatching { t.web?.clearCache(true); t.web?.clearHistory() }; t.lastState = null; if (t.web == null) t.state = null; t.web?.let { navState(t, it) } }
         BrPics.clear()

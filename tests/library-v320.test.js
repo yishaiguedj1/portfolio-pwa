@@ -32,7 +32,7 @@ ok(key('au:וורן א. באפט') && !key('au:ג׳ף בזוס'), 'אוטומט�
 ok(!F.autoColls(books, 'mine', isL).some((c) => c.key === 'partnership'), 'שנות השותפות — רק בספריית THE SNOWBALL');
 // ממשק
 ok(/const shelfChip = chip\(T\('colShelf'\), SHELF\);[\s\S]{0,200}chip\(T\('libAll'\), ''\);/.test(lib), 'הצ\'יפ "מדף ספרים" — לפני "הכל", בשתי הספריות');
-ok(/if \(onShelf\) shelvesView\(home, listed\)/.test(lib) && /'lib-grid' \+ \(onShelf \? ' lib-only-q' : ''\)/.test(lib), 'במדף — כרטיסי אסופות; הרשת רק בחיפוש');
+ok(/if \(onShelf\) shelvesView\(home, listed\)/.test(lib) && /'lib-grid' \+ (\(libLayout\(\) === 'list' \? ' lib-list' : ''\) \+ )?\(onShelf \? ' lib-only-q' : ''\)/.test(lib), 'במדף — כרטיסי אסופות; הרשת רק בחיפוש');
 ok(/\.lib-home:not\(\.searching\) \.lib-only-q \{ display: none; \}/.test(css), 'חיפוש מתוך המדף מציג את הספרים שנמצאו');
 ok(/\.col-stack \.c1 \{ order: 2/.test(css) && /\.col-card \{/.test(css), 'כרטיס אסופה עם שלוש כריכות בערימה');
 ok(/function renderColl\(key\)/.test(lib) && /colAddBooks/.test(lib) && /function collNameSheet/.test(lib) && /function collDelete/.test(lib), 'דף אסופה: הוספת ספרים, שינוי שם ומחיקה');

@@ -406,4 +406,40 @@ ok(fs.existsSync(path.join(ROOT, 'android/app/src/testBrowser/java/io/github/yis
     'הגל השישי בתפריט ⋮ — פריט אחד בקבוצת הכלים');
 }
 
+// 03/11/2026: סריקת אתר (BrScan) — עדינות מול השרת ואבטחה בסריקה כמחובר
+{
+  const sc = R(B + 'BrScan.kt'), sa = R(B + 'BrScanAndroid.kt'), br = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmBridge.kt');
+  ok(!/HttpURLConnection|openConnection|CookieManager/.test(sc), 'BrScan טהור — בלי רשת ובלי עוגיות (הרשת רק ב־BrScanAndroid)');
+  ok(/MIN_GAP_MS = 1500L/.test(sc) && /crawlDelay/.test(sc) && /fun busy\(retryAfterSec/.test(sc) && /if \(hits > 0\) sleep\(pace\.gap\(\)\)/.test(sc), 'סריקה עדינה: מרווח מינימלי, Crawl-delay, Retry-After ומרווח לפני כל בקשה');
+  ok(/log-\?out\|sign-\?out/.test(sc) && /\[\?&\]\(action\|do\|cmd\|token\|nonce/.test(sc) && /httpsOnly && !u\.startsWith\("https:\/\/"\)/.test(sc), 'סריקה כמחובר: בלי התנתקות/פעולות, ובלי ירידה ל־http');
+  ok(/if \(u\.userInfo != null\) return null/.test(sc) && /host\(u\) != host0/.test(sc), 'רק אותו אתר, בלי סיסמה בכתובת');
+  ok(/BrScanAndroid\.fetcher\(ua, !priv\)/.test(act) && /cookies = if \(cookies\)/.test(sa) && !/Log\.|println/.test(sa), 'כרטיסייה פרטית בלי עוגיות; בלי לוג של כתובות');
+  ok(/if \(BrDev\.sensitive\(t\.url\)\) \{ say\(R\.string\.brScanSensitive\)/.test(act), 'דף רגיש לא נסרק');
+  ok(/X_SCAN\)\?\.let \{ scan\(i, it\); return \}/.test(br) && /DmFolders\.norm\(DmFolders\.SUB/.test(br), 'DM: הרשימה רק דרך הגשר בהרשאת חתימה, ותיקייה מנוקה');
+  ok(ui.indexOf('MItem(R.string.brScan') > ui.indexOf('MItem(R.string.brOurs') && ui.indexOf('MItem(R.string.brScan') < ui.lastIndexOf('MItem(R.string.brSettings'),
+    'סריקת אתר בתפריט ⋮ — פריט אחד בקבוצת הכלים');
+}
+
+// 03/11/2026: ההתחברות של הדפדפן ל־DM (DmSession + BrSessionProvider) — מקור אמת אחד, משיכה לפני כל הורדה
+{
+  const ses = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmSession.kt'), prov = R(B + 'BrSessionProvider.kt');
+  const man = R('android/app/src/browser/AndroidManifest.xml'), eng = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmEngine.kt');
+  const pm = man.slice(man.indexOf('.br.BrSessionProvider') - 80, man.indexOf('.br.BrSessionProvider') + 400);
+  ok(/android:readPermission="app\.thesnowball\.permission\.DM_HANDOFF"/.test(pm) && /android:writePermission="app\.thesnowball\.permission\.DM_HANDOFF"/.test(pm), 'הספק: קריאה וכתיבה רק בהרשאת חתימה');
+  ok(/caller != AppRoute\.DM_PKG \|\| pm\.checkSignatures\(caller, ctx\.packageName\) != PackageManager\.SIGNATURE_MATCH/.test(prov), 'הספק בודק את חבילת הפונה ואת החתימה שלה');
+  ok(/if \(!DmSession\.granted\(ctx, u\)\) return null/.test(prov) && /insert\(uri: Uri, values: ContentValues\?\): Uri\? = null/.test(prov), 'הספק עונה רק על אתר שאושר, ואין כתיבה');
+  ok(/info\.packageName == AppRoute\.BROWSER_PKG && pm\.checkSignatures/.test(ses) && /TTL_MS = 30L \* 24 \* 3600 \* 1000/.test(ses) && /PULL_GAP_MS = 30_000L/.test(ses), 'DM בודק שהספק הוא הדפדפן שלנו; הרשאה ל־30 יום; משיכה לכל היותר פעם בחצי דקה');
+  ok(/it == '\\r' \|\| it == '\\n'/.test(ses) && !/Log\.|println/.test(ses + prov), 'בלי הזרקת כותרות, בלי יומן');
+  ok((act.match(/if \(!t\.private\) io\.github\.yishaiguedj1\.snowball\.dm\.DmSession\.grant/g) || []).length >= 3 && /DmSession\.revokeAll\(this\)/.test(act), 'הרשאה רק ממסירה מכרטיסייה רגילה; "מחיקת נתונים" מבטלת');
+  ok(/if \(t\.ck\) runCatching \{ DmSession\.pull\(/.test(eng), 'DM מושך את ההתחברות לפני כל התחלה של הורדה מהדפדפן');
+}
+
+// 03/11/2026: סריקה של אתרי קורסים ב־React — נתוני JSON, בלי כתובות פעולה
+{
+  const sc = R(B + 'BrScan.kt');
+  ok(/class JsonWalk/.test(sc) && /LINK_KEY = Regex\("\^\(path\|url\|href/.test(sc) && !/unwatch/.test(sc.slice(sc.indexOf('LINK_KEY'), sc.indexOf('NAME_KEY'))), 'JSON: קישור רק ממפתח של דף תוכן');
+  ok(/\/\(un\)\?watch\(ed\)\?\/\?\$\|\/setfree/.test(sc) && /shoppingcart/.test(sc) && /\/api\//.test(sc), 'כתובות פעולה (נצפה, תשלום, API) לא נסרקות');
+  ok(/cq\.seq \* 1000 \+ i/.test(sc), 'הסדר לפי האתר, לא לפי סדר הסריקה');
+}
+
 console.log('studio-browser: ' + n + ' בדיקות עברו');
