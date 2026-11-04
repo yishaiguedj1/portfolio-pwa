@@ -96,7 +96,10 @@ ok(/fun ytFrame\(t: BrTab, raw: String\)[\s\S]{0,300}if \(t\.private \|\| e\.isE
 // 03/11/2026 (דיווח שני): המסגרת אומרת מה היא; בקשת המסגרת דרך ה־Service Worker; נגן שעוד לא ניגן — הפורמטים מאותו שרת
 ok(vjs.includes("ch.postMessage('!u:'+String(location.href)") && /if \(raw\.startsWith\(BrVideo\.FRAME_URL\)\) \{ BrVideo\.embedOf/.test(act), 'המסגרת שולחת את הכתובת שלה');
 ok(/ServiceWorkerClient\(\) \{[\s\S]{0,500}BrVideo\.embedOf\(req\.url\.toString\(\)\)/.test(act), 'גם בקשות שעוברות דרך ה־Service Worker');
-ok(vjs.includes("fetch('/youtubei/v1/player?prettyPrint=false'") && vjs.includes("!asked){asked=1;ask();}") && !/https?:\/\/[^'"\s]*youtubei/.test(vjs), 'הפורמטים מאותו מקור של המסגרת, פעם אחת');
+// 04/11/2026: בקשה משלנו ל־/youtubei/v1/player נדחית (חסר אסימון של הנגן) — במקומה, נגיעה בזמן ההמתנה מפעילה את הנגן בלי קול ועוצרת
+ok(!vjs.includes("fetch('/youtubei") && vjs.includes("if(open&&M.w)bc(window,0)") && vjs.includes("e.data==='snb-yt-prep'")
+  && vjs.includes("m.mute();m.playVideo();") && vjs.includes("m.pauseVideo();m.seekTo(0,true);if(!mu)m.unMute();"), 'נגיעה בכפתור → הנגן מופעל בלי קול עד שיש פורמטים, ונעצר');
+ok(/put\("hp", getString\(R\.string\.brPlayHint\)\)/.test(act) && vjs.includes("if(M.hp)menu.appendChild(el('div','h',String(M.hp)))"), 'בזמן ההמתנה — "הפעל את הסרטון"');
 ok(/if\(!box\|\|N<=0\)/.test(vjs) && /function up\(n,l,m,k\)\{N=\+n\|\|0/.test(vjs), 'מופיע רק כשיש נגן על המסך וגם הדפדפן מצא מה להוריד');
 // 26/10/2026: התפריט שנפתח מהכפתור — האיכויות מהבדיקה ברקע, הבחירה עם המפתח של הטאב, ההורדה בלי לצאת מהדף
 ok(/Object\.defineProperty\(window,'__snbUp',\{value:up,writable:false,configurable:false\}\)/.test(vjs), 'הדף לא יכול להחליף את __snbUp (ולגנוב את המפתח)');

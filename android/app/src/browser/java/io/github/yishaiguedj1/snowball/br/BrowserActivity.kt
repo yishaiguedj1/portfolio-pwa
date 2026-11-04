@@ -1506,7 +1506,9 @@ class BrowserActivity : ComponentActivity() {
     fun menuJson(t: BrTab): String {
         val m = mainOf(t)
         if (m.info != null) return DmPre.menu(this, m.info, AppRoute.studioInstalled(this)).toString()
-        return if (m.st == 1) org.json.JSONObject().put("w", 1).put("more", getString(R.string.dmMenuMore)).toString() else "null"
+        // נגן מוטמע שעוד לא ניגן — אין לו פורמטים עד ההפעלה (BrVideo.YT_FRAME); התפריט אומר את זה
+        return if (m.st == 1) org.json.JSONObject().put("w", 1).put("more", getString(R.string.dmMenuMore))
+            .apply { if (t.embed.isNotEmpty() && YtPage.isYt(t.embed)) put("hp", getString(R.string.brPlayHint)) }.toString() else "null"
     }
 
     /**

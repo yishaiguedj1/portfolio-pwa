@@ -55,19 +55,22 @@ object BrVideo {
      * הראשית), כל שנייה וחצי עד שהנגן מחזיק את רשימת הפורמטים, ונשלחת לדפדפן (BrowserActivity.ytFrame → DmPre.seed)
      * 03/11/2026 (דיווח שני בסרטון): (1) קודם כל המסגרת שולחת את הכתובת שלה ("!u:") — בקשת המסגרת עוברת לפעמים דרך
      * ה־Service Worker של יוטיוב ולא נראתה, ובלי הנגן המוטמע הדף של גוגל נבדק, נכשל, והכפתור נעלם. (2) נגן שעוד לא ניגן
-     * לא מחזיק פורמטים — אחרי ~4 שניות המסגרת מבקשת אותם בעצמה מאותו שרת (‏/youtubei/v1/player, אותה בקשה של הנגן,
-     * עם המפתח וההקשר שבדף — ytcfg), פעם אחת, והתוצאה נקראת כמו ytInitialPlayerResponse
+     * לא מחזיק פורמטים (נבדק 04/11/2026: הנגן המוטמע מבקש אותם רק בהפעלה, ובקשה משלנו ל־/youtubei/v1/player נדחית —
+     * "This video is unavailable", חסר אסימון של הנגן). לכן נגיעה בכפתור בזמן ההמתנה שולחת "snb-yt-prep" לכל המסגרות,
+     * והמסגרת מפעילה את הנגן בלי קול, וברגע שיש פורמטים — עוצרת, חוזרת להתחלה ומחזירה את הקול. דפדפן שדורש נגיעה
+     * לניגון יכול לחסום את זה — אז התפריט מבקש להפעיל את הסרטון (brPlayHint), והפורמטים מגיעים מיד בהפעלה
      */
     val YT_FRAME: String get() = "(function(){try{if(window.top===window||!/^\\/embed\\//.test(location.pathname))return;var ch=window.snbYt;" +
-        "if(!ch||window.__snbYt)return;window.__snbYt=1;var n=0,last='',asked=0;ch.postMessage('!u:'+String(location.href).slice(0,2048));" +
-        "function ask(){try{var c=window.ytcfg&&ytcfg.get?ytcfg:null,m=location.pathname.match(/\\/embed\\/([A-Za-z0-9_-]{11})/);if(!c||!m||!window.fetch)return;" +
-        "var k=c.get('INNERTUBE_API_KEY'),cx=c.get('INNERTUBE_CONTEXT');if(!cx)return;" +
-        "fetch('/youtubei/v1/player?prettyPrint=false'+(k?'&key='+encodeURIComponent(k):''),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'}," +
-        "body:JSON.stringify({context:cx,videoId:m[1]})}).then(function(r){return r.json();}).then(function(p){" +
-        "if(p&&p.streamingData&&p.videoDetails&&!(window.ytInitialPlayerResponse&&window.ytInitialPlayerResponse.streamingData))window.ytInitialPlayerResponse=p;},function(){});}catch(e){}}" +
-        "function go(){var r=null;try{r=" + io.github.yishaiguedj1.snowball.YtPage.JS + ";}catch(e){}" +
-        "if(r&&r!==last&&r.length<200000){last=r;ch.postMessage(r);}else if(!r&&n>=2&&!asked){asked=1;ask();}if(++n<120)setTimeout(go,1500);}" +
-        "setTimeout(go,600);}catch(e){}})();"
+        "if(!ch||window.__snbYt)return;window.__snbYt=1;var n=0,last='',prepd=0;ch.postMessage('!u:'+String(location.href).slice(0,2048));" +
+        "function snd(){var r=null;try{r=" + io.github.yishaiguedj1.snowball.YtPage.JS + ";}catch(e){}" +
+        "if(r&&r!==last&&r.length<200000){last=r;ch.postMessage(r);}}" +
+        "function go(){snd();if(++n<120)setTimeout(go,1500);}" +
+        "function prep(){try{var m=document.getElementById('movie_player'),p=null;if(!m||!m.playVideo||prepd)return;" +
+        "try{p=m.getPlayerResponse();}catch(e){}if(p&&p.streamingData)return;prepd=1;var mu=m.isMuted&&m.isMuted(),k=0;m.mute();m.playVideo();" +
+        "(function w(){var q=null;try{q=m.getPlayerResponse();}catch(e){}if(q&&q.streamingData){try{m.pauseVideo();m.seekTo(0,true);if(!mu)m.unMute();}catch(e){}snd();return;}" +
+        "if(++k<40)setTimeout(w,250);else{try{if(!mu)m.unMute();}catch(e){}}})();}catch(e){}}" +
+        "addEventListener('message',function(e){if(e.data==='snb-yt-prep')prep();});" +
+"setTimeout(go,600);}catch(e){}})();"
 
     private val YT_EMBED = Regex("^https?://(?:www\\.|m\\.)?youtube(?:-nocookie)?\\.com/embed/([A-Za-z0-9_-]{11})(?:[/?#]|$)", RegexOption.IGNORE_CASE)
     private val VIMEO_EMBED = Regex("^https?://player\\.vimeo\\.com/video/(\\d{4,})(?:[/?#]|$)", RegexOption.IGNORE_CASE)
@@ -129,14 +132,15 @@ sv.setAttribute('viewBox','0 0 24 24');pa.setAttribute('d','M12 3.5v11.5m-5-5 5 
 sv.appendChild(pa);btn.appendChild(sv);
 menu=el('div','m');menu.style.display='none';
 ['pointerdown','touchstart','mousedown'].forEach(function(e){btn.addEventListener(e,function(ev){ev.stopPropagation();},true);menu.addEventListener(e,function(ev){ev.stopPropagation();},true);});
-btn.addEventListener('click',function(ev){ev.preventDefault();ev.stopPropagation();if(!M){ch.postMessage('!dl');return;}open=!open;draw();place();},true);
+function bc(w,d){try{for(var i=0;i<w.frames.length&&i<30;i++){try{w.frames[i].postMessage('snb-yt-prep','*');}catch(e){}if(d<3)bc(w.frames[i],d+1);}}catch(e){}}
+btn.addEventListener('click',function(ev){ev.preventDefault();ev.stopPropagation();if(!M){ch.postMessage('!dl');return;}open=!open;if(open&&M.w)bc(window,0);draw();place();},true);
 menu.addEventListener('click',function(ev){ev.preventDefault();ev.stopPropagation();var r=ev.target.closest&&ev.target.closest('[data-k]');if(!r)return;var k=r.getAttribute('data-k');open=false;place();
 if(k==='+')ch.postMessage('!dl');else ch.postMessage('!q:'+K+':'+k);},true);
 document.addEventListener('pointerdown',function(ev){if(open&&ev.target!==host){open=false;place();}},true);
 root.appendChild(st);root.appendChild(btn);root.appendChild(menu);}
 function row(k,t,s,c){var r=el('div','r'+(c?' '+c:''));if(k)r.setAttribute('data-k',k);r.appendChild(el('span','t',t));if(s)r.appendChild(el('span','s',s));return r;}
 function draw(){if(!menu)return;menu.textContent='';if(!M)return;menu.dir=btn.dir;
-if(M.w){var w=el('div','r w');w.appendChild(el('span','sp'));menu.appendChild(w);}
+if(M.w){var w=el('div','r w');w.appendChild(el('span','sp'));menu.appendChild(w);if(M.hp)menu.appendChild(el('div','h',String(M.hp)));}
 else{var v=M.v||[];if(v.length){menu.appendChild(el('div','h',M.hv||''));for(var i=0;i<v.length;i++)menu.appendChild(row(String(v[i].k),String(v[i].t),String(v[i].s||'')));}
 if(M.a){menu.appendChild(el('div','h',M.ha||''));menu.appendChild(row(String(M.a.k),String(M.a.t),String(M.a.s||'')));}
 if(M.tr){menu.appendChild(el('div','sep'));menu.appendChild(row(String(M.tk),String(M.tr),'','st'));}}

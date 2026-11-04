@@ -77,6 +77,7 @@
     <string name="brVideos">Videos on this page</string>
     <string name="brOpenLabel">Open in Studio Browser</string>
     <string name="brBubble">Download video</string>
+    <string name="brPlayHint">Play the video to load the qualities</string>
     <string name="brSetBubble">Download bubble</string>
     <string name="brSetPw">Passwords</string>
     <string name="brPwFill">Password autofill</string>
