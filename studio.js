@@ -274,6 +274,7 @@ export function normJob(j) {
     bw: s.bw === 1,   // 01/11/2026 (סבב 3): מחכה לתשובה מתור החיסכון — השרת פנוי בינתיים
     // 2/11/2026: מצב הבקשות בתור (השרתון — bqView): g נאספות, s נשלחו ב־t, e השליחה נכשלת, n הסוכן לא מדווח
     bq: s.bq && ['g', 's', 'e', 'n'].includes(s.bq.s) && num(s.bq.t) > 0 ? { s: s.bq.s, t: num(s.bq.t) } : null,
+    btx: s.btx && num(s.btx.t) > 0 ? { t: num(s.btx.t), s: s.btx.s === 'job' ? 'job' : 'x' } : null,   // 4/11/2026: יצאה מתור החיסכון — מתי ומאיפה
     vw: s.vw === 1 || s.vw === true,   // 15/10/2026: מחכה לסרטון בתור — השרת פנוי בינתיים
     urt: normRate(s.urt),   // 25/10/2026: המשוב שלך על התרגום (👍/👎, סיבות, כתוביות שסימנת)
     sw: typeof s.sw === 'string' ? s.sw.slice(0, 40) : '',   // 25/10/2026: למה העבודה לא התחילה (קוד הסירוב בשרתון — גם ממכשיר אחר)
@@ -896,8 +897,8 @@ export function normUse(a) {
   for (const r of a) {
     if (!r || typeof r !== 'object' || !USE_KINDS.includes(r.k) || !/^claude-[a-z0-9-]{1,50}$/.test(String(r.m || ''))) return null;
     const row = { k: r.k, m: r.m };
-    for (const f of ['n', 'i', 'o', 'cr', 'c5', 'c1', 'op']) row[f] = num(r[f]);
-    for (const f of ['usd', 'oc']) row[f] = r[f] == null ? null : (Number.isFinite(+r[f]) && +r[f] >= 0 ? +r[f] : null);
+    for (const f of ['n', 'i', 'o', 'cr', 'c5', 'c1', 'op', 'bn']) row[f] = num(r[f]);   // 4/11/2026: bn/bu — שולם בתור החיסכון
+    for (const f of ['usd', 'oc', 'bu']) row[f] = r[f] == null ? null : (Number.isFinite(+r[f]) && +r[f] >= 0 ? +r[f] : null);
     out.push(row);
   }
   return out;
@@ -928,14 +929,16 @@ export function costView(use, modeId, meas) {
   if (!rows) return null;
   const fam = modeById(modeId).fam;
   const seen = {};
-  let total = 0, partial = false;
+  let total = 0, partial = false, saved = 0;
   const out = rows.map((r) => {
     seen[r.k] = (seen[r.k] || 0) + 1;
     if (r.usd == null) partial = true; else total += r.usd;
     const sub = r.k !== 'main';
     const tok = r.i + r.o + r.cr + r.c5 + r.c1;
     const off = (r.k === 'tl' || r.k === 'rv') && !new RegExp('^claude-' + fam + '-').test(r.m);
-    return { k: r.k, nth: seen[r.k], model: modelLabel(r.m), tok, usd: r.usd, open: sub && r.op ? { tok: r.op, usd: r.oc } : null, off };
+    // 4/11/2026 (המשתמש: "איך חצי מחיר עלה כמו רגיל?"): אילו שלבים באמת שולמו בתור החיסכון — ו"חסכת" (= מה ששולם שם)
+    if (r.bn > 0 && r.bu > 0) saved += r.bu;
+    return { k: r.k, nth: seen[r.k], model: modelLabel(r.m), tok, usd: r.usd, open: sub && r.op ? { tok: r.op, usd: r.oc } : null, off, bt: r.bn > 0 ? { b: Math.min(r.bn, r.n), n: r.n } : null };
   });
   for (const r of out) if (seen[r.k] < 2) r.nth = 0;   // מספור רק כשיש כמה מאותו סוג
   // 1/11/2026 (המשתמש: "התקציב מתעדכן והעלות לא"): בזמן ריצה יעד התקציב לוקח גם את מה שהמגדל מדד (tw.usd, לפני הפירוט של העובד).
@@ -945,7 +948,7 @@ export function costView(use, modeId, meas) {
     out.push({ k: 'run', nth: 0, model: '', tok: 0, usd: Math.round((m - total) * 100) / 100, open: null, off: false, meas: true });
     total = m;
   }
-  return { rows: out, total, partial, want: modelLabel('claude-' + fam + '-5-5'), warn: out.filter((r) => r.off) };
+  return { rows: out, total, partial, saved: Math.round(saved * 1e4) / 1e4, want: modelLabel('claude-' + fam + '-5-5'), warn: out.filter((r) => r.off) };
 }
 export function normStore(o) {
   const src = o && typeof o === 'object' ? o : {};
@@ -7900,7 +7903,7 @@ function costCard(cv, tr, id) {
   live(box, (el) => {
     const r = id ? jobRec(id) : null;
     const v = r && r.srv && r.srv.use ? costView(r.srv.use, r.spec.mode, costMeas(r)) || cv : cv;
-    const sig = JSON.stringify(v.rows) + v.total + (v.partial ? 1 : 0);
+    const sig = JSON.stringify(v.rows) + v.total + (v.partial ? 1 : 0) + '|' + v.saved;
     if (el.dataset.sig === sig) return;
     el.dataset.sig = sig;
     el.replaceChildren(...costBody(v, r && r.srv ? r.srv.tr : tr));
@@ -7927,6 +7930,7 @@ function costBody(cv, tr) {
     sm.append(h('bdi', null, r.model), ' · ' + T('studioCostTok', { n: fmtTok(r.tok) }));
     if (r.open) { sm.append(' · ' + T('studioCostOpen') + ' '); sm.append(r.open.usd == null ? T('studioCostTok', { n: fmtTok(r.open.tok) }) : usdEl(r.open.usd)); }
     if (r.usd == null) sm.append(' · ' + T('studioCostNoPrice'));
+    if (r.bt) sm.append(' · ' + (r.bt.b >= r.bt.n ? T('studioCostBt') : T('studioCostBtPart', r.bt)));
     const ta = tr && tr.a[r.k];   // v373: עקיבה — בשורה הראשונה של כל סוכן (לא כרטיס נפרד)
     if (ta && r.nth <= 1) sm.append(' · ' + T('studioTrActs', { n: ta.n }) + (ta.s >= 60 ? ' · ' + fmtShort(ta.s) : ''));
     l.append(sm);
@@ -7939,9 +7943,17 @@ function costBody(cv, tr) {
   const tv = h('span', 'st-v'); tv.append(usdEl(cv.total, cv.partial));
   tot.append(h('span', 'st-l', T('studioCostTotal')), tv);
   tot.dataset.k = 'cost:total';
+  const sv = [];
+  if (cv.saved >= 0.005) {
+    const r = h('div', 'st-row st-cost');
+    const v = h('span', 'st-v'); v.append(usdEl(cv.saved));
+    r.append(h('span', 'st-l', T('studioCostSaved')), v);
+    r.dataset.k = 'cost:saved';
+    sv.push(r);
+  }
   const out = [];
   for (const w of cv.warn) out.push(banner('warn', w.k === 'tl' ? T('studioCostWarnTl', { got: w.model, want: cv.want }) : T('studioCostWarnRv', { got: w.model, want: cv.want })));
-  out.push(list(...rows, tot));
+  out.push(list(...rows, tot, ...sv));
   return out;
 }
 function trDetails(tr) {
@@ -9270,6 +9282,7 @@ function pageJob(p) {
     kvRow(T('studioSecOut'), (rec.spec.ka ? rec.spec.out : rec.spec.out.concat('srt')).map(outShort).join(' + ')),
     rec.spec.ka ? null : kvRow(T('studioSecStyle'), styleName(rec.spec.style)),
     rec.spec.bt ? kvRow(T('studioSecWhen'), T('studioBtTag')) : null,   // 01/11/2026 (סבב 3)
+    rec.srv && rec.srv.btx ? kvRow(T('studioBtLeft'), fmtDate(rec.srv.btx.t) + ' · ' + (rec.srv.btx.s === 'job' ? T('studioBtLeftJob') : T('studioBtLeftX'))) : null,   // 4/11/2026
     rec.up.a.done ? kvRow(T('studioAudioK'), fmtSize(rec.up.a.size)) : rec.up.noAudio && rec.up.noAudio !== 'video_first' ? kvRow(T('studioAudioK'), T('studioNoAudio')) : null,
     kvRow(T('studioCreated'), fmtDate(rec.created)),
     kvRow(T('studioJobId'), rec.id, true),
@@ -9290,7 +9303,7 @@ function pageJob(p) {
   // 01/11/2026 (סבב 3, I3): בתור החיסכון — אפשר לצאת ולהמשיך עכשיו במחיר הרגיל (השרתון: op btNow)
   if (rec.spec.bt && rec.srv && !fin) p.append(h('div', 'st-gap'), list(rowNav({ tile: tile('spark', 'orange'), label: T('studioBtNow'), sub: T('studioBtNowS'), k: 'bt-now',
     onClick: () => askConfirm(T('studioBtNowQ'), async () => {
-      const j = await net.api('btNow', { job: id });
+      const j = await net.api('btNow', { job: id, src: 'job' });   // 4/11/2026: src — נרשם בעבודה (btx)
       if (!j.ok || !j.job) { flashSafe(errText(j.error)); return; }
       const r = jobRec(id);
       if (r) { const n = normJob({ id, spec: j.job.spec || r.spec, srv: j.job }); if (n) { r.srv = n.srv; delete r.spec.bt; } }
