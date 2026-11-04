@@ -1867,6 +1867,10 @@ async function server(req, res, body, deps) {
     const br = Array.isArray(body.br) ? body.br.filter((x) => typeof x === 'string' && x.length <= 64).slice(0, 20) : [];
     // 2/11/2026: מצב תור החיסכון לכל עבודה שחונה — נכתב רק כשהשתנה (נאספת → נשלחה: שתי כתיבות לסבב, בלי קריאות נוספות)
     const bq = S.normBq(body.bq);
+    // 4/11/2026 (עבודה חיכתה כמעט יממה ואז רצה במחיר מלא): הסוכן שהחנה אותה מדווח על התור שלו ולא מכיר אותה — הבקשות
+    // אבדו (למשל ניקוי בעדכון העובד). משחררים אותה ללקיחה: העובד ממשיך מנקודת השמירה ושולח אותן מחדש לתור, בחצי מחיר
+    const bqOn = !!body.bq && typeof body.bq === 'object' && !Array.isArray(body.bq);
+    const lost = bqOn ? qd.filter((j) => S.bwLost(j, p.sid, bq, br, now)).map((j) => j.id) : [];
     for (const job of qd) {
       const v = bq[job.id];
       // עבודה שהתשובות שלה חזרו (br) — לא כותבים: הכתיבה משנה את updateTime, ו־patchIf של הלקיחה למטה היה נכשל
@@ -1876,7 +1880,7 @@ async function server(req, res, body, deps) {
     for (const job of qd) {
       if (!apiJob(job) || S.effState(job, now).state !== 'queued') continue;
       if (ptJob(job)) continue;   // 25/10/2026: הטלפון לוקח אותה בעצמו (phClaim)
-      if (job.bw && !br.includes(job.id)) continue;   // 01/11/2026 (I3): מחכה לתור החיסכון — רק כשהסוכן אמר שהתשובות חזרו
+      if (job.bw && !br.includes(job.id) && !lost.includes(job.id)) continue;   // 01/11/2026 (I3): מחכה לתור החיסכון — רק כשהסוכן אמר שהתשובות חזרו (או שהתור שלה אבד)
       if (job.vw && !((job.spec && job.spec.ph === 1 ? job.fph : job.fv) || {}).id) continue;   // 15/10/2026: מחכה לסרטון — לא תופסים שרת עד שהוא נרשם (24/10: בתרגום בטלפון — לקובץ המדידות)
       if (fit && S.peakNeed(job, fit) > fit.mb) break;
       await capWarm(deps, now);
@@ -1890,7 +1894,7 @@ async function server(req, res, body, deps) {
       const key = S.newKey();
       // 21/10/2026: לצפי — הליבות של השרת וכמה עבודות כבר רצות עליו (חולקות את המעבד)
       const fx = Object.assign(hb.cpu > 0 ? { hc: Math.round(hb.cpu) } : {}, { cc: Math.max(0, Math.round(hb.nj || 0)) });
-      const got = await patchIf(deps, 'studioJobs', job.id, Object.assign({ sid: p.sid, pk: now, vw: 0, bw: 0, capc: Math.round(cap * 100), kh: S.keyHash(key), kx: now + S.KEY_TTL, updated: now }, fx), job._ut);
+      const got = await patchIf(deps, 'studioJobs', job.id, Object.assign(lost.includes(job.id) ? { bl: (Number(job.bl) || 0) + 1 } : {}, { sid: p.sid, pk: now, vw: 0, bw: 0, capc: Math.round(cap * 100), kh: S.keyHash(key), kx: now + S.KEY_TTL, updated: now }, fx), job._ut);
       if (!got) continue;
       await patchDoc(deps, 'studioServers', p.sid, Object.assign(seen, { job: job.id }));
       const dur = job.spec && job.spec.dur > 0 ? Math.round(job.spec.dur) : 0;
@@ -2706,7 +2710,7 @@ async function worker(req, res, body, deps) {
     if (body.park === true && body.bw === true) {
       // 01/11/2026 (I3): הבקשות של העבודה בתור החיסכון — חוזרת לתור עד שהסוכן מדווח שהתשובות חזרו (poll ‏br), והשרת פנוי
       if (!S.bwParkable(job)) return res.status(409).json({ ok: false, error: 'park_bad' });
-      Object.assign(up, { state: 'queued', sid: '', pk: 0, kh: '', kx: 0, bw: job.spec.bt === 1 ? now : 0, bq: null });   // bq: הסבב הקודם לא נגרר
+      Object.assign(up, { state: 'queued', sid: '', pk: 0, kh: '', kx: 0, bw: job.spec.bt === 1 ? now : 0, bq: null, bs: p.sid });   // bq: הסבב הקודם לא נגרר · bs: השרת שהבקשות אצלו (bwLost)
       delete up.ended; delete up.err;
       parked = true;
     } else if (body.park === true) {
@@ -3815,7 +3819,10 @@ async function handler(req, res, deps = {}) {
       if (job.kind !== 'tr' || !job.spec || job.spec.bt !== 1 || S.FINAL.includes(st)) return res.status(409).json({ ok: false, error: 'state' });
       const spec = Object.assign({}, job.spec);
       delete spec.bt;
-      const upd = Object.assign({ spec, updated: now }, job.bw && !job.pk ? { bw: 0 } : {});
+      // 4/11/2026 (המשתמש: "לא לחצתי להמשיך עכשיו"): מתי ומאיפה יצאה מהתור — בלי זה אי אפשר לדעת מה הוציא אותה.
+      // s: 'job' = הכפתור בדף העבודה (studio.js שולח src), 'x' = כל קורא אחר. מוצג בפרטי העבודה
+      const btx = { t: now, s: body.src === 'job' ? 'job' : 'x' };
+      const upd = Object.assign({ spec, btx, updated: now }, job.bw && !job.pk ? { bw: 0 } : {});
       await patchJob(deps, job.id, upd);
       Object.assign(job, upd);
       return res.status(200).json({ ok: true, job: view(job) });

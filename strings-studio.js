@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2258 מפתחות מתוך 6334) */
+/* המחרוזות של studio (2264 מפתחות מתוך 6340) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -327,6 +327,9 @@ he: {
   "studioBgSlow": "כשהמסך כבוי ההעלאה כמעט נעצרת ({v} לשנייה) — כדאי להשאיר את המסך דלוק עד שהסרטון עולה",
   "studioBgSlowIos": "בקובץ גדול — אפשר להעלות אותו ל־Google Drive ולבחור משם (\"מ־Google Drive\").",
   "studioBgTitle": "Studio — מעלה את הסרטון",
+  "studioBtLeft": "יצאה מתור החיסכון",
+  "studioBtLeftJob": "בכפתור בדף העבודה",
+  "studioBtLeftX": "לא מהכפתור בדף העבודה",
   "studioBtNow": "להמשיך עכשיו במחיר רגיל",
   "studioBtNowOk": "להמשיך עכשיו",
   "studioBtNowQ": "לצאת מתור החיסכון ולהמשיך עכשיו? השלבים שנשארו ירוצו במחיר הרגיל. מה שכבר חזר מהתור לא ישולם שוב.",
@@ -382,6 +385,8 @@ he: {
   "studioCopyHosts": "העתקת הכתובות לרשת",
   "studioCopyPrompt": "העתקת ההנחיה",
   "studioCopySetup": "העתקת סקריפט ההתקנה",
+  "studioCostBt": "חצי מחיר",
+  "studioCostBtPart": "חצי מחיר ב־{b} מתוך {n} קריאות",
   "studioCostJg": "שופט האיכות",
   "studioCostMain": "תיאום",
   "studioCostNoPrice": "אין מחירון למודל",
@@ -390,6 +395,7 @@ he: {
   "studioCostRun": "עוד בריצה",
   "studioCostRunS": "נמדד עכשיו · הפירוט מתעדכן תוך כדי",
   "studioCostRv": "ביקורת",
+  "studioCostSaved": "חסכת בתור החיסכון",
   "studioCostSub": "סוכן־משנה",
   "studioCostTl": "תרגום",
   "studioCostTok": "{n} טוקנים",
@@ -2587,6 +2593,9 @@ en: {
   "studioBgSlow": "With the screen off the upload nearly stops ({v}/s) — keep the screen on until the video is up",
   "studioBgSlowIos": "For a large file — upload it to Google Drive and pick it from there (\"From Google Drive\").",
   "studioBgTitle": "Studio — uploading the video",
+  "studioBtLeft": "Left the savings queue",
+  "studioBtLeftJob": "with the button on the job page",
+  "studioBtLeftX": "not from the job page button",
   "studioBtNow": "Continue now at the regular price",
   "studioBtNowOk": "Continue now",
   "studioBtNowQ": "Leave the savings queue and continue now? The remaining steps run at the regular price. Answers already back from the queue are not paid again.",
@@ -2642,6 +2651,8 @@ en: {
   "studioCopyHosts": "Copy the network addresses",
   "studioCopyPrompt": "Copy the instructions",
   "studioCopySetup": "Copy the setup script",
+  "studioCostBt": "Half price",
+  "studioCostBtPart": "Half price on {b} of {n} calls",
   "studioCostJg": "Quality judge",
   "studioCostMain": "Coordination",
   "studioCostNoPrice": "no price for this model",
@@ -2650,6 +2661,7 @@ en: {
   "studioCostRun": "Still running",
   "studioCostRunS": "Measured now · breakdown updates as it goes",
   "studioCostRv": "Review",
+  "studioCostSaved": "Saved in the savings queue",
   "studioCostSub": "Subagent",
   "studioCostTl": "Translation",
   "studioCostTok": "{n} tokens",

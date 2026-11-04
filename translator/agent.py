@@ -223,8 +223,10 @@ def poll(server: str, tok: str, op: str = 'poll', busy: str = '', fit: dict | No
         if op == 'poll' and BT_READY:
             body['br'] = BT_READY[:20]   # 01/11/2026 (I3): עבודות שהתשובות שלהן חזרו מתור החיסכון — השרתון משחרר אותן
         hb.update(bt_hb())               # 2/11/2026: מצב תור החיסכון למסך השרת (תקלה בשליחה, כמה ממתין, מתי נשלח)
-        if op == 'poll' and BT_JOBS:
-            body['bq'] = dict(list(BT_JOBS.items())[:20])   # 2/11/2026: לכל עבודה שחונה — נאספת / נשלחה / תקלה, ומתי
+        if op == 'poll' and (BT_JOBS or time.time() - _bt_live['t'] < BT_LIVE_S):
+            # 2/11/2026: לכל עבודה שחונה — נאספת / נשלחה / תקלה, ומתי. 4/11/2026: גם ריק, כל עוד חוט התור חי — השרתון
+            # מבחין כך בין "הסוכן לא מכיר את העבודה" (התור שלה אבד → משחררים אותה לשליחה מחדש) לבין גרסה ישנה
+            body['bq'] = dict(list(BT_JOBS.items())[:20])
         if op == 'poll' and _boot:
             body['boot'] = True      # 20/10/2026: הפנייה הראשונה אחרי העלייה — השרתון מסמן עבודה שנקטעה אצלנו (worker_lost)
         st, j, hd = J.http('POST', server + '/api/studio', body,
@@ -1360,6 +1362,8 @@ _bt_last: dict = {'poll': 0.0}
 # של הקונטיינר — העבודה חיכתה בשקט עד BW_MAX (36 שעות). עכשיו: לכל עבודה שחונה — ['g' נאספת | 's' נשלחה | 'e' תקלה, t],
 # ולשרת — קוד התקלה (קטלוג BT_ERRS, זהה ל־normHb בשרתון) ומספר הסבבים שנכשלו ברצף. מספרים וקודים בלבד.
 BT_JOBS: dict = {}
+_bt_live = {'t': 0.0}              # 4/11/2026: מתי bt_status רץ לאחרונה (החוט חי)
+BT_LIVE_S = 600.0
 BT_ERRS = ('auth', 'bad', 'rate', 'srv', 'net', 'other')
 BT_ERR_EV = 3                          # כמה סבבים שנכשלו ברצף = אירוע ביומן השרת ('bt') ותקלה בעבודות שמחכות
 _bt_err: dict = {'k': '', 'n': 0, 't': 0.0}
@@ -1413,6 +1417,7 @@ def bt_status(now: float) -> None:
             jobs[j] = [v[0], int(v[1])]
     BT_JOBS.clear()
     BT_JOBS.update(jobs)
+    _bt_live['t'] = now
     ts = [float(i.get('t') or 0) for i in sent.values() if i.get('t')]
     _bt_info.update(bp=len(pend), bf=len(sent), bo=int(min(ts)) if ts else 0)
 
