@@ -9282,7 +9282,7 @@ function pageJob(p) {
     kvRow(T('studioSecOut'), (rec.spec.ka ? rec.spec.out : rec.spec.out.concat('srt')).map(outShort).join(' + ')),
     rec.spec.ka ? null : kvRow(T('studioSecStyle'), styleName(rec.spec.style)),
     rec.spec.bt ? kvRow(T('studioSecWhen'), T('studioBtTag')) : null,   // 01/11/2026 (סבב 3)
-    rec.srv && rec.srv.btx ? kvRow(T('studioBtLeft'), fmtDate(rec.srv.btx.t) + ' · ' + T(rec.srv.btx.s === 'job' ? 'studioBtLeftJob' : 'studioBtLeftX')) : null,   // 4/11/2026
+    rec.srv && rec.srv.btx ? kvRow(T('studioBtLeft'), fmtDate(rec.srv.btx.t) + ' · ' + (rec.srv.btx.s === 'job' ? T('studioBtLeftJob') : T('studioBtLeftX'))) : null,   // 4/11/2026
     rec.up.a.done ? kvRow(T('studioAudioK'), fmtSize(rec.up.a.size)) : rec.up.noAudio && rec.up.noAudio !== 'video_first' ? kvRow(T('studioAudioK'), T('studioNoAudio')) : null,
     kvRow(T('studioCreated'), fmtDate(rec.created)),
     kvRow(T('studioJobId'), rec.id, true),

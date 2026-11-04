@@ -49,7 +49,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(!S.bwLost(Object.assign({}, pj, { bw: now - 5 * 60e3 }), sid, {}, [], now), 'bwLost: מוקדם מדי — לא');
   ok(!S.bwLost(Object.assign({}, pj, { bl: S.BL_MAX }), sid, {}, [], now), 'bwLost: אחרי BL_MAX — לא');
   ok(!S.bwLost(pj, sid, {}, [pj.id], now) && !S.bwLost(Object.assign({}, pj, { bs: undefined }), sid, {}, [], now), 'bwLost: התשובות חזרו / חנתה לפני השינוי — לא');
-  ok(/bs: p\.sid \}\);/.test(api) && /const bqOn = !!body\.bq && typeof body\.bq === 'object'/.test(api) && /!lost\.includes\(job\.id\)\) continue/.test(api), 'השרתון: חנייה רושמת bs, והלקיחה משחררת עבודה שאבדה');
+  ok(/bs: job\.sid \|\| '' \}\);/.test(api) && /const bqOn = !!body\.bq && typeof body\.bq === 'object'/.test(api) && /!lost\.includes\(job\.id\)\) continue/.test(api), 'השרתון: חנייה רושמת bs, והלקיחה משחררת עבודה שאבדה');
   const agent = read('translator/agent.py');
   ok(/if op == 'poll' and \(BT_JOBS or time\.time\(\) - _bt_live\['t'\] < BT_LIVE_S\):/.test(agent) && /_bt_live\['t'\] = now/.test(agent), 'הסוכן: bq נשלח גם ריק כשהחוט חי');
 

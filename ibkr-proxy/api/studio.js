@@ -1894,7 +1894,7 @@ async function server(req, res, body, deps) {
       const key = S.newKey();
       // 21/10/2026: לצפי — הליבות של השרת וכמה עבודות כבר רצות עליו (חולקות את המעבד)
       const fx = Object.assign(hb.cpu > 0 ? { hc: Math.round(hb.cpu) } : {}, { cc: Math.max(0, Math.round(hb.nj || 0)) });
-      const got = await patchIf(deps, 'studioJobs', job.id, Object.assign(lost.includes(job.id) ? { bl: (Number(job.bl) || 0) + 1 } : {}, { sid: p.sid, pk: now, vw: 0, bw: 0, capc: Math.round(cap * 100), kh: S.keyHash(key), kx: now + S.KEY_TTL, updated: now }, fx), job._ut);
+      const got = await patchIf(deps, 'studioJobs', job.id, Object.assign({ sid: p.sid, pk: now, vw: 0, bw: 0, capc: Math.round(cap * 100), kh: S.keyHash(key), kx: now + S.KEY_TTL, updated: now }, fx, lost.includes(job.id) ? { bl: (Number(job.bl) || 0) + 1 } : {}), job._ut);
       if (!got) continue;
       await patchDoc(deps, 'studioServers', p.sid, Object.assign(seen, { job: job.id }));
       const dur = job.spec && job.spec.dur > 0 ? Math.round(job.spec.dur) : 0;
@@ -2710,7 +2710,7 @@ async function worker(req, res, body, deps) {
     if (body.park === true && body.bw === true) {
       // 01/11/2026 (I3): הבקשות של העבודה בתור החיסכון — חוזרת לתור עד שהסוכן מדווח שהתשובות חזרו (poll ‏br), והשרת פנוי
       if (!S.bwParkable(job)) return res.status(409).json({ ok: false, error: 'park_bad' });
-      Object.assign(up, { state: 'queued', sid: '', pk: 0, kh: '', kx: 0, bw: job.spec.bt === 1 ? now : 0, bq: null, bs: p.sid });   // bq: הסבב הקודם לא נגרר · bs: השרת שהבקשות אצלו (bwLost)
+      Object.assign(up, { state: 'queued', sid: '', pk: 0, kh: '', kx: 0, bw: job.spec.bt === 1 ? now : 0, bq: null, bs: job.sid || '' });   // bq: הסבב הקודם לא נגרר · bs: השרת שהחנה — הבקשות אצלו (bwLost)
       delete up.ended; delete up.err;
       parked = true;
     } else if (body.park === true) {
