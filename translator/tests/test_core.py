@@ -349,6 +349,22 @@ class TestAdapters(unittest.TestCase):
             self.assertLessEqual(ce - cs, 171.0)
         self.assertEqual(clean_token("U.S.,"), "US")
 
+    def test_align_chunks_sparse_words(self):
+        # 05/11/2026: 59 מילים על פני 23 דק׳ (תמלול שנכשל) — חלקים של דקות הפילו את היישור בזיכרון
+        ws = [{"w": "word", "s": 20.0 * i + 5.0, "e": 20.0 * i + 5.4} for i in range(69)]
+        ch = plan_chunks(ws, 90.0, audio_len=1380.0)
+        self.assertEqual(ch[0][0], 0)
+        self.assertEqual(ch[-1][1], len(ws))
+        for i0, i1, cs, ce in ch:
+            self.assertLessEqual(ce - cs, 90.0 + 2 * 2.0)
+            self.assertGreaterEqual(cs, ws[i0]["s"] - 2.0 - 1e-9)
+            self.assertLessEqual(ce, ws[i1 - 1]["e"] + 2.0 + 1e-9)
+        ws = [{"w": "a", "s": 1.0, "e": 1.4}, {"w": "b", "s": 600.0, "e": 600.4}]
+        ch = plan_chunks(ws, 90.0, audio_len=700.0)
+        self.assertEqual([(c[0], c[1]) for c in ch], [(0, 1), (1, 2)])
+        self.assertLessEqual(ch[0][3] - ch[0][2], 5.0)
+        self.assertLessEqual(ch[1][3] - ch[1][2], 5.0)
+
 
 
 class TestMaxDurationHard(unittest.TestCase):

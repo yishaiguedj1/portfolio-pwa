@@ -2683,18 +2683,24 @@ def prepare(args):
         fetch_input(ctx, a['id'], src, int(a.get('size') or 0), lambda f: ctx.report('tr', 0.05 * f, 'מוריד את הקול'))
         src = edl_src(ctx, src, 'a')
     else:
-        v = wait_video(ctx, 'up', 'מחכה שהסרטון יסיים לעלות')
-        src = in_path(ctx, v, 'v')
-        ctx.report('tr', 0, 'מוריד את הסרטון', force=True)
-        fetch_input(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('tr', 0.1 * f, 'מוריד את הסרטון'))
-        ladder_start(ctx, src)                   # איכויות הצפייה — ברקע, במקביל לכל השאר
-        src = edl_src(ctx, src, 'v')
+        src = prepare_video_src(ctx)
     ensure_env(ctx)                              # ההורדה רצה בינתיים; ההתקנה (אם חסרה) כבר רצה ברקע מאז run
     title = os.path.splitext(str(ctx.st['spec'].get('name') or ctx.name))[0][:120]
     vt(ctx, ['new', ctx.name, '--source', str(src), '--title', title, '--force'])
     vt(ctx, ['ingest', ctx.name])
     ctx.report('tr', 0.15, 'כותבים כל מילה שנאמרת', force=True)
     vt(ctx, ['asr', ctx.name, '--engine', 'parakeet'], 'tr', 0.15, 0.95)
+    thin = asr_thin(ctx.pdir) if a else None
+    if thin:
+        # 05/11/2026: הקול שהטלפון העלה נתן 67 מילים לפרק של 23 דק׳ (2,500 מאותו פרק מהסרטון), והיישור על התמליל
+        # הריק נפל בזיכרון שוב ושוב. הסרטון מגיע בכל מקרה — מתמללים ממנו, ולא ממשיכים עם תמליל ריק
+        print('· התמלול מהקול שעלה מהטלפון כמעט ריק (%d מילים ב־%.1f דק׳) — הקול כנראה פגום. מתמללים מחדש מהסרטון' % thin)
+        a = None
+        src = prepare_video_src(ctx)
+        vt(ctx, ['new', ctx.name, '--source', str(src), '--title', title, '--force'])
+        vt(ctx, ['ingest', ctx.name])
+        ctx.report('tr', 0.15, 'כותבים כל מילה שנאמרת', force=True)
+        vt(ctx, ['asr', ctx.name, '--engine', 'parakeet'], 'tr', 0.15, 0.95)
     if not a:
         vt(ctx, ['shots', ctx.name])             # חילופי שוטים צריכים וידאו — מהקול זה קורה ב־attach_video
     lang_safe(ctx)                               # A12: קטעים שאינם באנגלית → foreign.json (לא משנה את התמליל)
@@ -2715,6 +2721,40 @@ def prepare(args):
         pass
     print('אחר כך (ברקע): python3 translator/job.py align')
     return 0
+
+
+def prepare_video_src(ctx):
+    """מחכים לסרטון, מורידים אותו ומתחילים את איכויות הצפייה — המקור לתמלול כשאין קול מהטלפון (או שהוא פגום)."""
+    v = wait_video(ctx, 'up', 'מחכה שהסרטון יסיים לעלות')
+    src = in_path(ctx, v, 'v')
+    ctx.report('tr', 0, 'מוריד את הסרטון', force=True)
+    fetch_input(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('tr', 0.1 * f, 'מוריד את הסרטון'))
+    ladder_start(ctx, src)                       # איכויות הצפייה — ברקע, במקביל לכל השאר
+    src = edl_src(ctx, src, 'v')
+    return src
+
+
+THIN_MIN_S = 180.0     # רק מ־3 דקות — בקטע קצר מעט מילים זה טבעי
+THIN_WPM = 15.0        # מילים לדקה מכל האורך; דיבור רגיל — 100 עד 150 (בפרקי הסדרות במאגר: 110–130)
+THIN_SP = 0.15         # Silero שמע דיבור לפחות ב־15% מהזמן — אחרת זה באמת סרטון כמעט בלי דיבור
+
+
+def asr_thin(pdir):
+    """(מילים, דקות) כשהתמלול כמעט ריק למרות שנשמע דיבור — סימן לקול פגום; אחרת None. כל תקלה בקריאה = None."""
+    import wave
+    try:
+        d = json.loads((Path(pdir) / 'asr' / 'parakeet.json').read_text(encoding='utf-8'))
+        with wave.open(str(Path(pdir) / 'audio16k.wav'), 'rb') as w:
+            dur = w.getnframes() / float(w.getframerate() or 16000)
+    except (OSError, ValueError, EOFError, wave.Error):
+        return None
+    n = len(d.get('words') or [])
+    sp = (d.get('audio') or {}).get('sp')
+    if dur < THIN_MIN_S or n / (dur / 60.0) >= THIN_WPM:
+        return None
+    if isinstance(sp, (int, float)) and sp < THIN_SP:
+        return None
+    return (n, dur / 60.0)
 
 
 def lang_safe(ctx):

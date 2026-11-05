@@ -27,6 +27,9 @@ MODEL_ID = "Qwen/Qwen3-ForcedAligner-0.6B"
 # (בשרת עם 8GB הקונטיינר מוגבל ל־~6.6GB, ו־vt align נהרג באמצע), אותם זמנים (חציון הפרש 4ms)
 # ופחות מילים "חשודות" (11 → 5). הזמן לא גדל (69 שנ׳ מול 82).
 MAX_CHUNK_S = 90.0
+# 05/11/2026 (פרק של 23 דק׳ עם 59 מילים בלבד — התמלול נכשל): החיתוך באמצע השתיקה נתן חלקים של דקות שלמות כשהמילים
+# דלילות, והיישור הפיל את הקונטיינר בזיכרון שלוש פעמים. כל חלק מתחיל ונגמר לכל היותר EDGE_S שניות מהמילים שבו
+EDGE_S = 2.0
 
 
 def clean_token(w: str) -> str:
@@ -41,7 +44,7 @@ def plan_chunks(words: list[dict], max_s: float = MAX_CHUNK_S, audio_len: float 
     while i0 < n:
         cs = max(0.0, words[i0]["s"] - 0.3)
         if i0 > 0:
-            cs = max(cs, (words[i0 - 1]["e"] + words[i0]["s"]) / 2)
+            cs = max(cs, (words[i0 - 1]["e"] + words[i0]["s"]) / 2, words[i0]["s"] - EDGE_S)
         j = i0
         while j + 1 < n and words[j + 1]["e"] - cs <= max_s:
             j += 1
@@ -58,7 +61,7 @@ def plan_chunks(words: list[dict], max_s: float = MAX_CHUNK_S, audio_len: float 
             gap = words[k + 1]["s"] - words[k]["e"] if k + 1 < n else 0.0
             if gap > best_gap:
                 best_k, best_gap = k, gap
-        ce = (words[best_k]["e"] + words[best_k + 1]["s"]) / 2
+        ce = min((words[best_k]["e"] + words[best_k + 1]["s"]) / 2, words[best_k]["e"] + EDGE_S)
         out.append((i0, best_k + 1, cs, ce))
         i0 = best_k + 1
     return out
