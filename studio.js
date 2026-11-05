@@ -3454,9 +3454,9 @@ function pageForm(p, editing) {
   const inp = h('input', 'st-file'); inp.type = 'file'; inp.hidden = true;
   inp.accept = f.ka ? 'audio/*,video/*,.mp3,.m4a,.flac,.wav,.ogg,.opus,.mkv,.mp4,.webm' : 'video/*,.mkv,.mov,.mp4,.m4v,.webm,.avi';
   const took = (file, handle) => {
-    f.fileObj = file; f.handle = handle || null; f.drive = null; f.file = { name: file.name, size: file.size, type: file.type || '' };
+    f.fileObj = file; f.handle = handle || null; f.drive = null; f.pv = null; f.file = { name: file.name, size: file.size, type: file.type || '' };
     fnlAdd('pick');   // 26/10/2026: המסלול שלפני העבודה
-    f.edl = null; f.pv = null; f.dur = 0; inspectFor(f, file);   // סבב 2: קובץ חדש — חיתוך ישן לא שייך לו; בדיקה ברקע (חינם)
+    f.edl = null; f.dur = 0; inspectFor(f, file);   // סבב 2: קובץ חדש — חיתוך ישן לא שייך לו; בדיקה ברקע (חינם)
     if (!f.ka) tracksFor(f, file);   // שלב 4: רצועות כתוביות בתוך הסרטון (30/10/2026: לא בשיר — שם מילים, לא כתוביות)
     render('none');
   };
