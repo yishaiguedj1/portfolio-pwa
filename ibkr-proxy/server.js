@@ -6,8 +6,8 @@
    הקרון היומי (crons ב־vercel.json). כך המעבר מ־Vercel הוא החלפת כתובת, לא שכתוב — ו־Vercel נשאר גיבוי.
 
    רץ בקונטיינר בלי הרשאות מאחורי השער (Caddy או Cloudflare Tunnel) — לא חשוף לאינטרנט ישירות:
-     PORT (3000) · SNB_CLIENT_IP_HEADER (למשל cf-connecting-ip — הכתובת האמיתית מהשער) · SNB_CRON=on (הקרון;
-     כבוי כברירת מחדל — בזמן המעבר Vercel עוד מריץ אותו) · CRON_SECRET (כמו ב־Vercel).
+     PORT (3000) · SNB_CLIENT_IP_HEADER (למשל cf-connecting-ip — הכתובת האמיתית מהשער) · SNB_CRON (הקרון — cronOn) ·
+     CRON_SECRET (כמו ב־Vercel).
 */
 const http = require('http');
 const fs = require('fs');
@@ -34,6 +34,17 @@ function unpackEnv(env) {
 
 const MAX_BODY = 4.5 * 1024 * 1024;           // כמו Vercel (4.5MB); כל פונקציה בודקת מגבלה משלה
 const DEF_DURATION = 10;                       // כמו Vercel Hobby כשלא הוגדר
+
+/* 5/11/2026 (ת3 שלב 4 — Vercel רק גיבוי): הקרונים ב־crons.json (הוצאו מ־vercel.json — Vercel כבר לא מריץ אותם).
+   רצים בשרת שהוקם עם הסודות (SNB_ENV_GZ נפתח) או עם SNB_CRON=on. SNB_CRON=off הישן (= "Vercel מריץ") כבר לא עוצר —
+   לכיבוי: SNB_CRON=none. כך השרת הקיים (compose עם off) מתחיל להריץ אותם בעדכון התמונה, בלי הקמה מחדש */
+function cronOn(env, unpacked) {
+  if (env.SNB_CRON === 'none') return false;
+  return env.SNB_CRON === 'on' || unpacked > 0;
+}
+function loadCrons(dir) {
+  try { return { crons: JSON.parse(fs.readFileSync(path.join(dir, 'crons.json'), 'utf8')).crons || [] }; } catch (e) { return { crons: [] }; }
+}
 
 function loadConfig(dir) {
   try { return JSON.parse(fs.readFileSync(path.join(dir, 'vercel.json'), 'utf8')); } catch (e) { return {}; }
@@ -247,21 +258,27 @@ function startFsWatch(server, opts = {}) {
   return { tick, stop: () => clearInterval(iv) };
 }
 
-module.exports = { createServer, startCron, startPx, startFsWatch, SERVER_ONLY, parseBody, parseCron, cronDue, maxDuration, decorate, unpackEnv };
+module.exports = { createServer, startCron, cronOn, loadCrons, startPx, startFsWatch, SERVER_ONLY, parseBody, parseCron, cronDue, maxDuration, decorate, unpackEnv };
 
 if (require.main === module) {
   const unpacked = unpackEnv(process.env);
   if (unpacked < 0) console.error('[snb-app] ✗ SNB_ENV_GZ לא נפתח — השרתון עולה בלי הסודות שבו');
   // 24/10/2026: תור ההעברה של "המנוי שלי" (lib/relay.js) — חי בזיכרון של התהליך הזה בלבד (ב־Vercel אין)
   if (process.env.SNB_RELAY_HUB_ON == null) process.env.SNB_RELAY_HUB_ON = '1';
-  globalThis.fetch = FSM.wrapFetch(globalThis.fetch);   // 28/10/2026: כל בקשה ל־Firestore נספרת (GET /api/session מציג את הפילוח)
+  const inner = FSM.wrapFetch(globalThis.fetch);   // 28/10/2026: כל בקשה ל־Firestore נספרת (GET /api/session מציג את הפילוח)
+  // 5/11/2026 (שלב 3 בתוכנית העצמאות מ־Firebase): האוספים של השרתון — מהמסד שלנו (lib/ldb.js), Firestore עותק במנות.
+  // בלי הנפח /data (infra/compose.yaml) או עם SNB_LDB=off — כבוי, והכל ל־Firestore כמו קודם
+  const LDB = require('./lib/ldbsync').forServer(inner);
+  globalThis.fetch = LDB.wrapFetch(inner);
+  LDB.start().then((ok) => console.log('[snb-app] מסד הנתונים שלנו:', ok ? 'פעיל' : 'כבוי (' + LDB.status().why + ')'));
   const server = createServer();
   const port = +process.env.PORT || 3000;
   server.listen(port, '0.0.0.0', () => console.log('[snb-app] מאזין על', port, '·', server.names.size, 'פונקציות'));
-  if (process.env.SNB_CRON === 'on') startCron(server, loadConfig(__dirname));
+  if (cronOn(process.env, unpacked)) startCron(server, loadCrons(__dirname));
   if (process.env.SNB_PXA !== 'off') startPx(server);
   if (process.env.SNB_FSW !== 'off') startFsWatch(server);
-  const stop = () => server.close(() => process.exit(0));
+  // לפני יציאה: מה שעוד לא נשלח לעותק ב־Firestore (עד 8 שנ׳)
+  const stop = () => Promise.race([LDB.flush(), new Promise((r) => setTimeout(r, 8000))]).finally(() => server.close(() => process.exit(0)));
   process.on('SIGTERM', stop);
   process.on('SIGINT', stop);
 }

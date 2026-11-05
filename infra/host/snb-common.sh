@@ -37,7 +37,10 @@ snb_limits() {
 	SNB_CPUS=$c SNB_MEM=${m}m SNB_MEMR=${m}m SNB_CPUS_STG=$c SNB_MEM_STG=${m}m SNB_MEMR_STG=${m}m
 	case ",$COMPOSE_PROFILES," in *,prod,*,stg-worker,*|*,prod,stg-worker,*)
 		r=$((m * 35 / 100)); [ "$r" -ge 4608 ] || r=4608; [ "$r" -le 8192 ] || r=8192; [ "$r" -le $((m / 2)) ] || r=$((m / 2))
-		SNB_MEM=$((m - r))m SNB_MEMR=${r}m SNB_MEM_STG=$((m - r))m SNB_MEMR_STG=${r}m ;;
+		# 05/11/2026: השריון של הניסוי = שיא של עבודה אחת (4.5GB), לא 35% — הוא רץ עבודות בדיקה, והייצור מקבל את ההפרש
+		#   (ב־CX53: תקרה 23.2GB במקום 19.75 — 3 עבודות של 87 דק׳ במקביל במקום 2). הכלל נשמר: תקרה של אחד + שריון של השני = הכל.
+		rs=4608; [ "$rs" -le "$r" ] || rs=$r
+		SNB_MEM=$((m - rs))m SNB_MEMR=${r}m SNB_MEM_STG=$((m - r))m SNB_MEMR_STG=${rs}m ;;
 	esac
 	export SNB_CPUS SNB_MEM SNB_MEMR SNB_CPUS_STG SNB_MEM_STG SNB_MEMR_STG
 }

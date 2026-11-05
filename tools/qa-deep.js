@@ -305,7 +305,8 @@ const INIT2 = `(() => {
   async function academyDial(round) {
     const R = ' #' + round;
     if (!/academy\.html/.test(page.url())) { await page.goto(BASE + '/academy.html', { waitUntil: 'load' }); await sleep(2500); }
-    for (const k of ['settings', 'snb', 'mine', 'notes', 'snb']) await step('Academy: חוגה — ' + k + R, () => click('.lib-dial .tab[data-tab="' + k + '"]'), { settle: 1500, lateAfter: 900, dialIs: ['.lib-dial', k] });
+    for (const k of ['notes', 'snb', 'mine', 'notes', 'snb'])   // 03/11/2026: ההגדרות כבר לא בחוגה (בתפריט ההדר)
+    await step('Academy: חוגה — ' + k + R, () => click('.lib-dial .tab[data-tab="' + k + '"]'), { settle: 1500, lateAfter: 900, dialIs: ['.lib-dial', k] });
     for (const dx of [-300, -300, -300, 300, 300, 300]) await step('Academy: החלקת עמוד ' + (dx < 0 ? '←' : '→') + ' (' + await dialCur('.lib-dial') + ')' + R, () => tswipe(dx, 560), { settle: 1600, lateAfter: 900 });
     await step('Academy: גרירת החוגה פריט אחד' + R, () => dialDrag('.lib-dial', -70, 120), { settle: 1700, lateAfter: 1000 });
     await step('Academy: גרירת החוגה בתנופה' + R, () => dialDrag('.lib-dial', 220), { settle: 1900, lateAfter: 1100 });

@@ -101,8 +101,8 @@ services:
     restart: unless-stopped
     environment:
       - SNB_CLIENT_IP_HEADER=cf-connecting-ip
-      # הקרון (הסנכרון של IBKR, הגיבוי, הניקוי) נשאר ב־Vercel עד שהמעבר יוכח — כך הוא לא רץ פעמיים
-      - SNB_CRON=off
+      # 5/11/2026: הקרון (הסנכרון של IBKR, הגיבוי, הניקוי) רץ כאן — ibkr-proxy/crons.json, Vercel רק גיבוי.
+      # SNB_CRON=off הישן כבר לא עוצר אותו (server.js — cronOn); לכיבוי: SNB_CRON=none
     env_file:
       - /etc/snb/app.env
     read_only: true
@@ -117,6 +117,9 @@ services:
     cpu_shares: 2048     # השרתון / ה־Tunnel קודמים לעבודת רקע — האפליקציה לא מאטה בזמן תרגום
     tmpfs:
       - /tmp:size=64m,mode=1777,noexec,nosuid,nodev
+    volumes:
+      # 5/11/2026: מסד הנתונים של השרתון (ibkr-proxy/lib/ldb.js — SQLite). בלי הנפח הזה המסד כבוי והכל ב־Firestore כמו קודם
+      - appdb:/data
     networks: [edge-prod]
     stop_grace_period: 30s
     logging:
@@ -173,6 +176,8 @@ services:
     cpu_shares: 2048     # השרתון / ה־Tunnel קודמים לעבודת רקע — האפליקציה לא מאטה בזמן תרגום
     tmpfs:
       - /tmp:size=64m,mode=1777,noexec,nosuid,nodev
+    volumes:
+      - appdb-stg:/data   # 5/11/2026: מסד הנתונים של השרתון (lib/ldb.js) — בניסוי קודם
     networks: [edge]
     stop_grace_period: 30s
     logging:
@@ -233,3 +238,5 @@ volumes:
   cache: {}    # מודלי התמלול (Hugging Face / torch) — נשמרים בין עבודות ועדכונים, בלי מידע של משתמשים
   work-stg: {}
   cache-stg: {}
+  appdb: {}       # 5/11/2026: מסד הנתונים של השרתון (SQLite, ibkr-proxy/lib/ldb.js). גיבוי: Firestore (עותק כל דקה) + תמונת מצב מוצפנת ב־R2
+  appdb-stg: {}

@@ -122,6 +122,22 @@ html[data-app="admin"] { --gb-force: #5E5CE6; --gb-ontx: #fff; }
   background: var(--gl-panel) !important; box-shadow: var(--gl-ring), var(--gl-shadow) !important;
   -webkit-backdrop-filter: var(--gl-fx) !important; backdrop-filter: var(--gl-fx) !important;
 }
+
+/* ---------- 7. הבועות בהדר — בלי טשטוש (03/11/2026, סבב קפיצות 11 — הקלטות Studio ו־Academy: "עדיין יש את הקפיצה בבועה") ----------
+   הטשטוש נכבה בתחילת כל סיבוב/גרירה של הקובייה (--gb-fx: none למעלה) ונדלק בסופה. כל החלפה כזו = שכבת GPU חדשה לבועה, ובטלפון
+   היא מוצגת פריים אחד לפני שנצבעה: מלבן בצבע הבועה, בלי טקסט ובלי פינות, גדול ממנה (גבולות אפקט הטשטוש). מאחורי הבועות רקע
+   ההדר האחיד, והטשטוש לא נראה (נמדד: הפרש של 4/255 לכל היותר, בהיר וכהה) — בלעדיו אין מה להחליף */
+:where(.appbar) :where(.appbar-sub > *, .fx-pill) { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+
+/* ---------- 8. Academy — זכוכית בתוך הדף בלי טשטוש (03/11/2026, סבב קפיצות 12) ----------
+   אותו שורש של סעיף 7, בכל כפתור שבתוך הדף: בכל מעבר (וגם בגרירה קצרה שחוזרת) הטשטוש נכבה בפאה ונדלק בסופה — שכבה חדשה לכל
+   צ'יפ מדף, "חזרה", "המשך קריאה" (נמדד: 7–10 בכל מעבר), ובטלפון כל אחת מוצגת פריים לפני שנצבעה. מאחורי כפתור שבתוך הדף רק רקע
+   הדף האחיד — הטשטוש לא נראה (נמדד בכל הדפים, בהיר וכהה: זהה לעין). נשאר רק במה שתוכן נגלל מתחתיו: ההדר הדביק, הסרגלים
+   התחתונים, החלונות, הקורא */
+:where(.lib-root) :not(:is(.appbar, .lib-selbar, .mg-fab, .mg-abar, .mg-cta, .mg-foot, .pl-foot, .be-foot, .mg-snack, .lib-veil, .lib-sheet, .rd, .px-view),
+    :is(.appbar, .lib-selbar, .mg-fab, .mg-abar, .mg-cta, .mg-foot, .pl-foot, .be-foot, .mg-snack, .lib-veil, .lib-sheet, .rd, .px-view) *) {
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+}
 }
 
 /* @glass-exempt — לא כפתורים במראה (נשארים כמו שהם):

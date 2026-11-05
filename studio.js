@@ -274,6 +274,7 @@ export function normJob(j) {
     bw: s.bw === 1,   // 01/11/2026 (סבב 3): מחכה לתשובה מתור החיסכון — השרת פנוי בינתיים
     // 2/11/2026: מצב הבקשות בתור (השרתון — bqView): g נאספות, s נשלחו ב־t, e השליחה נכשלת, n הסוכן לא מדווח
     bq: s.bq && ['g', 's', 'e', 'n'].includes(s.bq.s) && num(s.bq.t) > 0 ? { s: s.bq.s, t: num(s.bq.t) } : null,
+    btx: s.btx && num(s.btx.t) > 0 ? { t: num(s.btx.t), s: s.btx.s === 'job' ? 'job' : 'x' } : null,   // 4/11/2026: יצאה מתור החיסכון — מתי ומאיפה
     vw: s.vw === 1 || s.vw === true,   // 15/10/2026: מחכה לסרטון בתור — השרת פנוי בינתיים
     urt: normRate(s.urt),   // 25/10/2026: המשוב שלך על התרגום (👍/👎, סיבות, כתוביות שסימנת)
     sw: typeof s.sw === 'string' ? s.sw.slice(0, 40) : '',   // 25/10/2026: למה העבודה לא התחילה (קוד הסירוב בשרתון — גם ממכשיר אחר)
@@ -896,8 +897,8 @@ export function normUse(a) {
   for (const r of a) {
     if (!r || typeof r !== 'object' || !USE_KINDS.includes(r.k) || !/^claude-[a-z0-9-]{1,50}$/.test(String(r.m || ''))) return null;
     const row = { k: r.k, m: r.m };
-    for (const f of ['n', 'i', 'o', 'cr', 'c5', 'c1', 'op']) row[f] = num(r[f]);
-    for (const f of ['usd', 'oc']) row[f] = r[f] == null ? null : (Number.isFinite(+r[f]) && +r[f] >= 0 ? +r[f] : null);
+    for (const f of ['n', 'i', 'o', 'cr', 'c5', 'c1', 'op', 'bn']) row[f] = num(r[f]);   // 4/11/2026: bn/bu — שולם בתור החיסכון
+    for (const f of ['usd', 'oc', 'bu']) row[f] = r[f] == null ? null : (Number.isFinite(+r[f]) && +r[f] >= 0 ? +r[f] : null);
     out.push(row);
   }
   return out;
@@ -928,14 +929,16 @@ export function costView(use, modeId, meas) {
   if (!rows) return null;
   const fam = modeById(modeId).fam;
   const seen = {};
-  let total = 0, partial = false;
+  let total = 0, partial = false, saved = 0;
   const out = rows.map((r) => {
     seen[r.k] = (seen[r.k] || 0) + 1;
     if (r.usd == null) partial = true; else total += r.usd;
     const sub = r.k !== 'main';
     const tok = r.i + r.o + r.cr + r.c5 + r.c1;
     const off = (r.k === 'tl' || r.k === 'rv') && !new RegExp('^claude-' + fam + '-').test(r.m);
-    return { k: r.k, nth: seen[r.k], model: modelLabel(r.m), tok, usd: r.usd, open: sub && r.op ? { tok: r.op, usd: r.oc } : null, off };
+    // 4/11/2026 (המשתמש: "איך חצי מחיר עלה כמו רגיל?"): אילו שלבים באמת שולמו בתור החיסכון — ו"חסכת" (= מה ששולם שם)
+    if (r.bn > 0 && r.bu > 0) saved += r.bu;
+    return { k: r.k, nth: seen[r.k], model: modelLabel(r.m), tok, usd: r.usd, open: sub && r.op ? { tok: r.op, usd: r.oc } : null, off, bt: r.bn > 0 ? { b: Math.min(r.bn, r.n), n: r.n } : null };
   });
   for (const r of out) if (seen[r.k] < 2) r.nth = 0;   // מספור רק כשיש כמה מאותו סוג
   // 1/11/2026 (המשתמש: "התקציב מתעדכן והעלות לא"): בזמן ריצה יעד התקציב לוקח גם את מה שהמגדל מדד (tw.usd, לפני הפירוט של העובד).
@@ -945,7 +948,7 @@ export function costView(use, modeId, meas) {
     out.push({ k: 'run', nth: 0, model: '', tok: 0, usd: Math.round((m - total) * 100) / 100, open: null, off: false, meas: true });
     total = m;
   }
-  return { rows: out, total, partial, want: modelLabel('claude-' + fam + '-5-5'), warn: out.filter((r) => r.off) };
+  return { rows: out, total, partial, saved: Math.round(saved * 1e4) / 1e4, want: modelLabel('claude-' + fam + '-5-5'), warn: out.filter((r) => r.off) };
 }
 export function normStore(o) {
   const src = o && typeof o === 'object' ? o : {};
@@ -3451,7 +3454,7 @@ function pageForm(p, editing) {
   const inp = h('input', 'st-file'); inp.type = 'file'; inp.hidden = true;
   inp.accept = f.ka ? 'audio/*,video/*,.mp3,.m4a,.flac,.wav,.ogg,.opus,.mkv,.mp4,.webm' : 'video/*,.mkv,.mov,.mp4,.m4v,.webm,.avi';
   const took = (file, handle) => {
-    f.fileObj = file; f.handle = handle || null; f.drive = null; f.file = { name: file.name, size: file.size, type: file.type || '' };
+    f.fileObj = file; f.handle = handle || null; f.drive = null; f.pv = null; f.file = { name: file.name, size: file.size, type: file.type || '' };
     fnlAdd('pick');   // 26/10/2026: המסלול שלפני העבודה
     f.edl = null; f.dur = 0; inspectFor(f, file);   // סבב 2: קובץ חדש — חיתוך ישן לא שייך לו; בדיקה ברקע (חינם)
     if (!f.ka) tracksFor(f, file);   // שלב 4: רצועות כתוביות בתוך הסרטון (30/10/2026: לא בשיר — שם מילים, לא כתוביות)
@@ -3522,7 +3525,20 @@ function pageForm(p, editing) {
       hv && rowNav({ tile: tile('check', 'green'), label: T('studioNsHave', { l: langName(hv.l, uiLang()) }), sub: hv.ex ? T('studioNsHaveS', { n: fmtNum(hv.n), k: fmtNum(hv.ex) }) : T('studioNsHaveS0', { n: fmtNum(hv.n) }), onClick: () => go('tracks'), k: 'ns-have' })));
     const adv = f.ka ? null : advRows(f, pick);   // 30/10/2026: עצות של תרגום (שפה, צריבה) — לא לשיר
     if (adv) p.append(h('div', 'st-gap sm'), adv);
-    if (!f.ka && (f.fileObj || (f.drive && !f.drive.bx))) p.append(list(rowNav({ tile: tile('film', 'blue'), label: T('studioEdBefore'), value: f.edl ? edlSum(f.edl, f.dur || 0) : T('studioEdOptional'), onClick: () => { fnlAdd('cut'); go('cutsrc'); }, k: 'cutsrc' })));   // מ4
+    // 05/11/2026 (בקשת המשתמש): גם כשהסרטון נבחר דרך האפליקציה (nu) — הקובץ לא בדפדפן, אז לתצוגה בעורך בוחרים אותו שוב
+    // מהדפדפן (f.pv, רק בזיכרון; בודקים שזה אותו גודל). ההעלאה נשארת באפליקציה, והעובד חותך את הקול ואת הסרטון (edl_src)
+    const nuF = !!(f.ph && f.ph.nu);
+    if (!f.ka && (f.fileObj || nuF || (f.drive && !f.drive.bx))) {
+      const pvInp = h('input', 'st-file'); pvInp.type = 'file'; pvInp.hidden = true; pvInp.accept = inp.accept;
+      pvInp.addEventListener('change', () => {
+        const file = pvInp.files && pvInp.files[0];
+        if (!file || form !== f) return;
+        if (!f.file || file.size !== f.file.size) { flashSafe(T('studioEdPvNo')); return; }
+        f.pv = file; go('cutsrc');
+      });
+      p.append(pvInp, list(rowNav({ tile: tile('film', 'blue'), label: T('studioEdBefore'), value: f.edl ? edlSum(f.edl, f.dur || 0) : T('studioEdOptional'),
+        sub: nuF && !f.pv ? T('studioEdPvS') : null, onClick: () => { fnlAdd('cut'); if (nuF && !f.pv) pvInp.click(); else go('cutsrc'); }, k: 'cutsrc' })));   // מ4
+    }
     if (isIOS()) p.append(note(T('studioIosTip')));
   }
 
@@ -3886,7 +3902,7 @@ function pickSubs(f) {
     if (!imp.stats.n) { flashSafe(T('studioSubsBad')); return; }
     f.subs = { name: file.name, size: file.size, type: file.type || '', bytes, imp };
     f.file = { name: file.name, size: file.size, type: file.type || '' };
-    f.fileObj = null; f.handle = null; f.drive = null; f.edl = null; f.sa = null; f.trk = null;
+    f.fileObj = null; f.handle = null; f.drive = null; f.edl = null; f.pv = null; f.sa = null; f.trk = null;
     if (f.from === 'auto') f.from = 'en';
     render('none');
   });
@@ -4515,7 +4531,7 @@ function dpConnect() {
 function dpPick(f, x) {
   if (!x || x.folder || !(x.size > 0)) return;
   f.drive = { id: x.id, name: x.name, size: x.size, type: x.type, dur: x.dur, bx: true };
-  f.fileObj = null; f.handle = null; f.edl = null; f.sa = null; f.trk = null; f.link = null; f.linkOk = false;
+  f.fileObj = null; f.handle = null; f.edl = null; f.pv = null; f.sa = null; f.trk = null; f.link = null; f.linkOk = false;
   f.file = { name: x.name, size: x.size, type: x.type };
   if (x.w > 0 && x.h > 0) f.vm = { w: x.w, h: x.h };
   // רצועות הכתוביות שבתוך הסרטון — כמו מקובץ בטלפון, בקריאה חלקית מ־Drive (רק תחילת הקובץ / ה־moov)
@@ -5056,7 +5072,7 @@ export function studioPhPick(arg) {
   try { ask = sessionStorage.getItem(NU_ASK) === '1'; sessionStorage.removeItem(NU_ASK); } catch (e) {}
   f.ph = { pid: r.pid, w: r.w, h: r.h, dur: r.dur, cap: r.cap };   // 30/10/2026: cap נשמר — בלעדיו גם pt (שלב 3) לא הופעל אף פעם
   if (r.nu || ask) f.ph.nu = 1;   // 1/11/2026: תרגום רגיל בשרת — האפליקציה רק מעלה
-  f.fileObj = null; f.handle = null; f.drive = null; f.link = null; f.linkOk = false; f.edl = null;
+  f.fileObj = null; f.handle = null; f.drive = null; f.link = null; f.linkOk = false; f.edl = null; f.pv = null;   // pv — התצוגה בעורך שייכת לסרטון הקודם
   f.file = { name: r.name, size: r.size, type: 'video/*' }; f.dur = r.dur;
   phTracks(f, r);
   if (root) { if (ui.view !== 'new') go('new', null, 'none'); else render('none'); }
@@ -5089,10 +5105,12 @@ function startPhone(f) {
   ui.starting = true; render('none');
   (async () => {
     // 1/11/2026 (nu): תרגום רגיל בשרת — התוצרים, הסגנון והצריבה כמו בבחירה מהדפדפן; האפליקציה רק מעלה (vc נקבע בשרתון)
-    const spec = P.nu ? { name: f.file.name, size: f.file.size, type: 'video/*', dur: P.dur || 0, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
+    const ed = P.nu ? edlPre(normEdl(f.edl, P.dur || 0)) : null;   // 05/11/2026: חיתוך לפני התרגום גם דרך האפליקציה — האורך אחרי החיתוך
+    const spec = P.nu ? { name: f.file.name, size: f.file.size, type: 'video/*', dur: ed ? edlDur(ed, P.dur || 0) : P.dur || 0, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
       out: OUTS.filter((k) => f.out[k]), style: f.style, ...(f.sty ? { sty: f.sty } : {}), terms: f.terms, nu: 1, eng: 'api', cap: store.settings.cap }
       : { name: f.file.name, size: f.file.size, type: 'video/*', dur: P.dur || 0, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
         out: [], style: f.style, terms: f.terms, ph: 1, eng: 'api', cap: store.settings.cap };
+    if (ed) spec.edl = ed;
     if (!P.nu && f.pw === true) spec.pw = 1;   // שלב 2: הכל בטלפון — רק כשהופעל (30/10/2026: כבר לא ברירת המחדל)
     if (!P.nu) spec.vc = 1;   // 29/10/2026: האפליקציה מעלה גם את הסרטון לענן, ברקע (לנגן מכל מכשיר, לשמירה ולהפקה מחדש) — העבודה לא מחכה לו
     const pb = P.nu ? '' : phPb(f); if (pb) spec.pb = pb;
@@ -7900,7 +7918,7 @@ function costCard(cv, tr, id) {
   live(box, (el) => {
     const r = id ? jobRec(id) : null;
     const v = r && r.srv && r.srv.use ? costView(r.srv.use, r.spec.mode, costMeas(r)) || cv : cv;
-    const sig = JSON.stringify(v.rows) + v.total + (v.partial ? 1 : 0);
+    const sig = JSON.stringify(v.rows) + v.total + (v.partial ? 1 : 0) + '|' + v.saved;
     if (el.dataset.sig === sig) return;
     el.dataset.sig = sig;
     el.replaceChildren(...costBody(v, r && r.srv ? r.srv.tr : tr));
@@ -7927,6 +7945,7 @@ function costBody(cv, tr) {
     sm.append(h('bdi', null, r.model), ' · ' + T('studioCostTok', { n: fmtTok(r.tok) }));
     if (r.open) { sm.append(' · ' + T('studioCostOpen') + ' '); sm.append(r.open.usd == null ? T('studioCostTok', { n: fmtTok(r.open.tok) }) : usdEl(r.open.usd)); }
     if (r.usd == null) sm.append(' · ' + T('studioCostNoPrice'));
+    if (r.bt) sm.append(' · ' + (r.bt.b >= r.bt.n ? T('studioCostBt') : T('studioCostBtPart', r.bt)));
     const ta = tr && tr.a[r.k];   // v373: עקיבה — בשורה הראשונה של כל סוכן (לא כרטיס נפרד)
     if (ta && r.nth <= 1) sm.append(' · ' + T('studioTrActs', { n: ta.n }) + (ta.s >= 60 ? ' · ' + fmtShort(ta.s) : ''));
     l.append(sm);
@@ -7939,9 +7958,17 @@ function costBody(cv, tr) {
   const tv = h('span', 'st-v'); tv.append(usdEl(cv.total, cv.partial));
   tot.append(h('span', 'st-l', T('studioCostTotal')), tv);
   tot.dataset.k = 'cost:total';
+  const sv = [];
+  if (cv.saved >= 0.005) {
+    const r = h('div', 'st-row st-cost');
+    const v = h('span', 'st-v'); v.append(usdEl(cv.saved));
+    r.append(h('span', 'st-l', T('studioCostSaved')), v);
+    r.dataset.k = 'cost:saved';
+    sv.push(r);
+  }
   const out = [];
   for (const w of cv.warn) out.push(banner('warn', w.k === 'tl' ? T('studioCostWarnTl', { got: w.model, want: cv.want }) : T('studioCostWarnRv', { got: w.model, want: cv.want })));
-  out.push(list(...rows, tot));
+  out.push(list(...rows, tot, ...sv));
   return out;
 }
 function trDetails(tr) {
@@ -8381,7 +8408,7 @@ function edlSum(e, dur) {
    (אותו ציר זמן של הכתוביות). לפני התרגום (p = null): הקובץ מהטלפון, עוד לפני ההעלאה */
 function pageCut(p, before) {
   const rec = before ? null : jobRec(ui.param);
-  if (before ? !(form && (form.fileObj || form.drive)) : !rec || !canEdit(rec)) { back(); return; }
+  if (before ? !(form && (form.fileObj || form.pv || form.drive)) : !rec || !canEdit(rec)) { back(); return; }   // pv — הסרטון שבחרה האפליקציה, לתצוגה בלבד
   const key = before ? 'form' : rec.id;
   p.classList.add('st-dark');
   p.append(navBar({ back: before ? (form.id ? T('studioEditT') : T('studioNew')) : T('studioRrTitle'), title: T('studioEdTitle') }));
@@ -8389,7 +8416,7 @@ function pageCut(p, before) {
     ceStop();
     ce = { key, ctl: null, ed: null, url: '', cues: null };
     let src = '', fb = '', burned = false, cues = [], edl = null, dur = 0;
-    if (before) { if (form.fileObj) ce.url = src = URL.createObjectURL(form.fileObj); else { src = net.mediaUrl(form.drive.id); dur = form.drive.dur || 0; } edl = form.edl || null; burned = true; }   // עוד אין כתוביות — בלי כפתור CC
+    if (before) { if (form.fileObj || form.pv) ce.url = src = URL.createObjectURL(form.fileObj || form.pv); else { src = net.mediaUrl(form.drive.id); dur = form.drive.dur || 0; } edl = form.edl || null; burned = true; }   // עוד אין כתוביות — בלי כפתור CC
     else {
       const e0 = rec.spec.edl || null, bo = burnedOut(rec);
       if (!e0 && srcVid(rec)) { src = net.mediaUrl(srcVid(rec)); fb = bo ? net.mediaUrl(bo.id) : ''; cues = se && se.id === rec.id && se.ed ? se.ed.cues() : []; }
@@ -9271,6 +9298,7 @@ function pageJob(p) {
     kvRow(T('studioSecOut'), (rec.spec.ka ? rec.spec.out : rec.spec.out.concat('srt')).map(outShort).join(' + ')),
     rec.spec.ka ? null : kvRow(T('studioSecStyle'), styleName(rec.spec.style)),
     rec.spec.bt ? kvRow(T('studioSecWhen'), T('studioBtTag')) : null,   // 01/11/2026 (סבב 3)
+    rec.srv && rec.srv.btx ? kvRow(T('studioBtLeft'), fmtDate(rec.srv.btx.t) + ' · ' + (rec.srv.btx.s === 'job' ? T('studioBtLeftJob') : T('studioBtLeftX'))) : null,   // 4/11/2026
     rec.up.a.done ? kvRow(T('studioAudioK'), fmtSize(rec.up.a.size)) : rec.up.noAudio && rec.up.noAudio !== 'video_first' ? kvRow(T('studioAudioK'), T('studioNoAudio')) : null,
     kvRow(T('studioCreated'), fmtDate(rec.created)),
     kvRow(T('studioJobId'), rec.id, true),
@@ -9291,7 +9319,7 @@ function pageJob(p) {
   // 01/11/2026 (סבב 3, I3): בתור החיסכון — אפשר לצאת ולהמשיך עכשיו במחיר הרגיל (השרתון: op btNow)
   if (rec.spec.bt && rec.srv && !fin) p.append(h('div', 'st-gap'), list(rowNav({ tile: tile('spark', 'orange'), label: T('studioBtNow'), sub: T('studioBtNowS'), k: 'bt-now',
     onClick: () => askConfirm(T('studioBtNowQ'), async () => {
-      const j = await net.api('btNow', { job: id });
+      const j = await net.api('btNow', { job: id, src: 'job' });   // 4/11/2026: src — נרשם בעבודה (btx)
       if (!j.ok || !j.job) { flashSafe(errText(j.error)); return; }
       const r = jobRec(id);
       if (r) { const n = normJob({ id, spec: j.job.spec || r.spec, srv: j.job }); if (n) { r.srv = n.srv; delete r.spec.bt; } }

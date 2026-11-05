@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import math
+import os
 import re
 import time
 
@@ -16,6 +17,23 @@ import numpy as np
 from .util import log
 
 MODEL = "nemo-parakeet-tdt-0.6b-v2"   # אנגלית בלבד, הדיוק הגבוה ביותר במשפחה
+
+
+def _sess_options():
+    """05/11/2026: כמו ביישור (align_onnx.session) — כל הליבות שמותרות לתהליך, ובלי "סיבוב" של תהליכונים מחכים.
+    ברירת המחדל של onnxruntime מסובבת: כשעבודה שנייה רצה במקביל (יישור/צריבה), התהליכונים של התמלול שורפים את
+    הליבות שהיא צריכה. SNB_ASR_SPIN=1 מחזיר את ברירת המחדל (מדידה). שגיאה כלשהי — None = ברירת המחדל של onnx_asr."""
+    if os.environ.get("SNB_ASR_SPIN") == "1":
+        return None
+    try:
+        import onnxruntime as ort
+        so = ort.SessionOptions()
+        so.intra_op_num_threads = len(os.sched_getaffinity(0))
+        so.inter_op_num_threads = 1
+        so.add_session_config_entry("session.intra_op.allow_spinning", "0")
+        return so
+    except Exception:            # noqa: BLE001
+        return None
 
 
 def _chunks(segments: list[tuple[int, int]], n: int, sr: int, max_s: float = 40.0,
@@ -240,7 +258,11 @@ def transcribe(wav_path: str, quantization: str | None = "int8", batch: int = 4)
         audio = audio.mean(axis=1)
     if sr != 16000:
         raise ValueError("נדרש WAV ב־16kHz (vt ingest מייצר כזה)")
-    model = onnx_asr.load_model(MODEL, quantization=quantization).with_timestamps()
+    so = _sess_options()
+    try:
+        model = onnx_asr.load_model(MODEL, quantization=quantization, sess_options=so).with_timestamps()
+    except TypeError:                            # גרסה ישנה של onnx_asr בלי sess_options — ברירת המחדל
+        model = onnx_asr.load_model(MODEL, quantization=quantization).with_timestamps()
     vad = onnx_asr.load_vad("silero")
     segs = list(next(vad.segment_batch(audio[None, :], np.array([len(audio)]), 16000,
                                        min_silence_duration_ms=150, max_speech_duration_s=3600,

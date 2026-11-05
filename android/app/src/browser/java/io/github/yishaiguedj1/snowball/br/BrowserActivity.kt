@@ -1034,7 +1034,7 @@ class BrowserActivity : ComponentActivity() {
         w.loadUrl(url)
     }
 
-    fun goHome() { cur?.let { t -> kill(t.web); t.web = null; t.state = null; t.url = ""; t.title = ""; t.foundN = 0; t.found.clear() } ; editing = false }
+    fun goHome() { cur?.let { t -> kill(t.web); t.web = null; t.state = null; t.url = ""; t.title = ""; t.foundN = 0; t.embed = ""; t.found.clear() } ; editing = false }
 
     private fun back() {
         val t = cur
@@ -1166,6 +1166,8 @@ class BrowserActivity : ComponentActivity() {
                 // כלי המפתחים — מה ש־WebView מראה: הכתובת, השיטה והכותרות (בלי גוף ובלי התשובה)
                 t.net.add(BrPro.Net(System.currentTimeMillis(), req.method ?: "GET", req.url.toString(), req.isForMainFrame, blk, req.requestHeaders ?: emptyMap()))
                 if (blk) return EMPTY()
+                // נגן מוטמע (מסגרת יוטיוב/Vimeo בדף אחר — למשל בחיפוש של גוגל) = הסרטון בדף (BrTab.embed)
+                if (!req.isForMainFrame) BrVideo.embedOf(req.url.toString())?.let { e -> ui.post { setEmbed(t, e) } }
                 seen(t, req.url.toString(), headers = req.requestHeaders); return null
             }
             override fun onPageCommitVisible(view: WebView, url: String) { view.setBackgroundColor(android.graphics.Color.WHITE) }
@@ -1174,10 +1176,10 @@ class BrowserActivity : ComponentActivity() {
                 if (url != t.page) { t.logs.clear(); t.net.add(BrPro.Net(System.currentTimeMillis(), "GET", url, true, false)) }
                 // הגל השלישי: עריכה ובחירת רכיב שייכות לדף — מסמך חדש מבטל אותן
                 if (url != t.page) { localLeave(t); t.editing = false; if (cur === t && pickMode != 0) { pickMode = 0; zappedNow.clear() } }
-                if (url != t.page) { t.page = url; t.vid = null; t.blocked = 0; t.playing = false; t.found.clear(); synchronized(t.headSeen) { t.headSeen.clear() }; t.recount(); autoPick(t) }
+                if (url != t.page) { t.page = url; t.vid = null; t.embed = ""; t.live = false; t.blocked = 0; t.playing = false; t.found.clear(); synchronized(t.headSeen) { t.headSeen.clear() }; t.recount(); autoPick(t) }
                 // 26/10/2026 (דיווח המשתמש: אחרי רענון של אותו דף הרשימה גדלה בכפילויות): מסמך חדש באותה כתובת (רענון) —
                 // הנגן מבקש את הכל מחדש, עם חתימות חדשות. מה שנמצא במסמך הקודם כבר לא רלוונטי
-                else { t.found.clear(); synchronized(t.headSeen) { t.headSeen.clear() }; t.recount() }
+                else { t.found.clear(); t.embed = ""; synchronized(t.headSeen) { t.headSeen.clear() }; t.recount() }
                 if (BrStore.hostOf(url) != BrStore.hostOf(t.url)) t.icon = null
                 t.url = url; if (favicon != null) { t.icon = favicon; if (!t.private) BrPics.saveIcon(BrStore.hostOf(url), favicon) }
                 navState(t, view)
@@ -1259,7 +1261,11 @@ class BrowserActivity : ComponentActivity() {
                 if (main) when (val d = msg.data) {
                     BrVideo.TAP -> if (cur === t && screen == Screen.PAGE) bubbleTap()   // הכפתור שעל הנגן
                     BrVideo.HELLO -> pushDl(t)                                         // מסמך חדש — כמה נמצא והתווית
-                    else -> {
+                    else -> if (d?.startsWith(BrVideo.FRAME) == true) {
+                        BrVideo.embedOf(d.removePrefix(BrVideo.FRAME))?.let { setEmbed(t, it) }   // הנגן המוטמע שעל המסך
+                    } else if (d?.startsWith(BrVideo.LIVE) == true) {
+                        val v = d == BrVideo.LIVE + "1"; if (t.live != v) { t.live = v; t.recount() }   // נגן אמיתי (לא פרסומת) על המסך
+                    } else {
                         val k = d?.let { BrVideo.pickOf(it, dlKey) }
                         if (k != null) menuPick(t, k)                                  // בחירה מהתפריט שעל הנגן
                         else if (d?.startsWith(BrVideo.PICK) != true) t.vid = BrVideo.parse(d)
@@ -1267,6 +1273,9 @@ class BrowserActivity : ComponentActivity() {
                 }
             }
             if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) WebViewCompat.addDocumentStartJavaScript(w, BrVideo.JS, setOf("*"))
+            // נגן יוטיוב מוטמע (למשל בחיפוש של גוגל): רשימת האיכויות מתוך המסגרת שלו — רק ממקורות יוטיוב (BrVideo.YT_FRAME)
+            WebViewCompat.addWebMessageListener(w, "snbYt", BrVideo.YT_ORIGINS) { _, msg, _, main, _ -> if (!main) msg.data?.let { ytFrame(t, it) } }
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) WebViewCompat.addDocumentStartJavaScript(w, BrVideo.YT_FRAME, BrVideo.YT_ORIGINS)
             // מה מתנגן בדף (כל המסגרות) — לניגון ברקע; ובאותו סקריפט מהירות הווידאו של האתר
             WebViewCompat.addWebMessageListener(w, "snbPlay", setOf("*")) { _, msg, _, _, _ ->
                 val p = msg.data == "1"; t.playing = p
@@ -1371,7 +1380,14 @@ class BrowserActivity : ComponentActivity() {
     /** בקשות של Service Worker — לטאב הנוכחי (אין דרך לדעת מאיזה טאב) */
     private fun swClient() = runCatching {
         ServiceWorkerController.getInstance().setServiceWorkerClient(object : ServiceWorkerClient() {
-            override fun shouldInterceptRequest(req: WebResourceRequest): WebResourceResponse? { cur?.let { seen(it, req.url.toString(), headers = req.requestHeaders) }; return null }
+            override fun shouldInterceptRequest(req: WebResourceRequest): WebResourceResponse? {
+                cur?.let { t ->
+                    // 03/11/2026: מסגרת יוטיוב מוטמעת נטענת דרך ה־Service Worker של יוטיוב (מי שכבר ביקר בו) — לא דרך WebViewClient
+                    if (!req.isForMainFrame) BrVideo.embedOf(req.url.toString())?.let { e -> ui.post { setEmbed(t, e) } }
+                    seen(t, req.url.toString(), headers = req.requestHeaders)
+                }
+                return null
+            }
         })
     }
 
@@ -1436,10 +1452,25 @@ class BrowserActivity : ComponentActivity() {
         }
     }
 
+    /** הנגן המוטמע שבדף (BrTab.embed) — האחרון שנטען / שעל המסך */
+    fun setEmbed(t: BrTab, e: String) { if (t.embed != e) { t.embed = e; t.recount() } }
+
+    /** האיכויות מנגן יוטיוב מוטמע (BrVideo.YT_FRAME) — רק לנגן המוטמע של הטאב (toInfo בודק שזה אותו סרטון), לא בטאב פרטי */
+    fun ytFrame(t: BrTab, raw: String) {
+        // המסגרת אומרת מה היא ("!u:<כתובת>") — הנגן המוטמע ידוע גם כשהבקשה שלה לא נראתה (BrVideo.YT_FRAME)
+        if (raw.startsWith(BrVideo.FRAME_URL)) { BrVideo.embedOf(raw.removePrefix(BrVideo.FRAME_URL))?.let { setEmbed(t, it) }; return }
+        val e = t.embed
+        if (t.private || e.isEmpty() || raw.length > 200_000 || DmPre.state(e) == 2) return
+        val info = YtPage.toInfo(org.json.JSONObject.quote(raw), e) ?: return
+        if (DmPre.seed(e, info)) pushDl(t)
+    }
+
     /** הכפתור שעל הנגן (BrVideo): המצב לדף — כמה נמצא (0 = בלי כפתור; גם כשכובה בהגדרות) והתווית */
     fun pushDl(t: BrTab) {
         val w = t.web ?: return
-        runCatching { w.evaluateJavascript(BrVideo.stateJs(if (bubble) t.foundN else 0, getString(R.string.brBubble), menuJson(t), dlKey), null) }
+        // רק הנגן שעל המסך, ו־yt-dlp לא מצא בדף סרטון — בלי כפתור (לא מבטיחים הורדה שלא תעבוד)
+        val n = if (!bubble || (t.liveOnly() && DmPre.state(t.page) == 3)) 0 else t.foundN
+        runCatching { w.evaluateJavascript(BrVideo.stateJs(n, getString(R.string.brBubble), menuJson(t), dlKey), null) }
     }
 
     /** מפתח אקראי לתפריט שעל הנגן (BrVideo.pickOf) — חדש בכל פתיחה של הדפדפן */
@@ -1475,7 +1506,9 @@ class BrowserActivity : ComponentActivity() {
     fun menuJson(t: BrTab): String {
         val m = mainOf(t)
         if (m.info != null) return DmPre.menu(this, m.info, AppRoute.studioInstalled(this)).toString()
-        return if (m.st == 1) org.json.JSONObject().put("w", 1).put("more", getString(R.string.dmMenuMore)).toString() else "null"
+        // נגן מוטמע שעוד לא ניגן — אין לו פורמטים עד ההפעלה (BrVideo.YT_FRAME); התפריט אומר את זה
+        return if (m.st == 1) org.json.JSONObject().put("w", 1).put("more", getString(R.string.dmMenuMore))
+            .apply { if (t.embed.isNotEmpty() && YtPage.isYt(t.embed)) put("hp", getString(R.string.brPlayHint)) }.toString() else "null"
     }
 
     /**
@@ -1528,7 +1561,7 @@ class BrowserActivity : ComponentActivity() {
     data class Pick(val label: Int, val host: String, val url: String, val file: Boolean, val page: Boolean)
 
     fun picks(t: BrTab): List<Pick> = buildList {
-        if (t.pageIsVideo()) add(Pick(R.string.brPage, BrStore.hostOf(t.page), t.page, false, true))
+        t.vidPage()?.let { add(Pick(R.string.brPage, BrStore.hostOf(it), it, false, true)) }
         for (h in t.found.list) add(Pick(when (h.kind) { HuntMedia.Kind.HLS -> R.string.brHls; HuntMedia.Kind.DASH -> R.string.brDash; else -> R.string.brFile }, h.host, h.url, h.kind == HuntMedia.Kind.FILE, false))
     }
 
@@ -1550,7 +1583,7 @@ class BrowserActivity : ComponentActivity() {
                 if (!DmBrowser.handOff(this, url, ref, file, title, w?.settings?.userAgentString ?: "", urls)) Toast.makeText(this, R.string.dmErrFail, Toast.LENGTH_SHORT).show()
             }
         }
-        if (t.pageIsVideo() || w == null) { go(""); return }
+        if (t.pageIsVideo() || url == t.embed || w == null) { go(""); return }   // הנגן המוטמע — השם מ־yt-dlp, לא מהדף
         ui.postDelayed({ go("") }, 1200)
         try {
             w.evaluateJavascript(DmBrowser.TITLE_JS) { r -> go(if (r == null || !r.startsWith("\"")) "" else runCatching { org.json.JSONArray("[$r]").getString(0) }.getOrDefault("").trim().take(200)) }

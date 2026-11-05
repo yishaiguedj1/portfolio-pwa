@@ -125,6 +125,7 @@ function fcTok(job) {
   return use.reduce((a, r) => a + (r ? n0(r.i) + n0(r.o) + n0(r.cr) + n0(r.c5) + n0(r.c1) : 0), 0);
 }
 /* היעדים של עבודה אחת — לטלפון (null = אין יעד: אין אורך, עוד לא נלקחה, או לא עבודת תרגום) */
+const BT_U = 0.55;          // 4/11/2026: יעד התקציב בחצי מחיר (= BT_EST ב־studio.js)
 const BT_TG = 24 * 3600;   // חלון תור החיסכון (24 שעות — אחריו העובד ממשיך בזמן אמת)
 function slaView(job, now) {
   if (!job || job.kind !== 'tr' || !job.tg || !(job.tg.t > 0)) return null;
@@ -145,14 +146,17 @@ function slaView(job, now) {
   if (job.tg.u > 0) {
     // העלות: מהדיווח של העובד (בסוף / בעצירה), ובזמן הריצה — מה שהמגדל מדד
     const sp = Math.max(usdOf(job.use || job.use0), job.tw && typeof job.tw.usd === 'number' ? job.tw.usd : 0);
-    const fu = sp / job.tg.u;
-    out.u = { tg: job.tg.u, sp: Math.round(sp * 100) / 100, f: Math.round(fu * 100) / 100, lv: level(fu, pf, done) };
+    // 4/11/2026 (המשתמש: "חצי מחיר עלה כמו רגיל"): היעד נקבע במחיר מלא — בחצי מחיר "$0.08 מתוך $0.13" נראה תקין.
+    // היעד בחצי מחיר = BT_U (כמו BT_EST בטלפון: השופט וסוכן־המשנה בזמן אמת). יצאה מהתור (btNow) — שוב מלא
+    const ug = job.spec && job.spec.bt === 1 ? Math.round(job.tg.u * BT_U * 100) / 100 || 0.01 : job.tg.u;
+    const fu = sp / ug;
+    out.u = { tg: ug, sp: Math.round(sp * 100) / 100, f: Math.round(fu * 100) / 100, lv: level(fu, pf, done) };
     if (fcOn) {
-      out.fc.u = Math.max(Math.round(sp * 100) / 100, fcCost(job, sp, job.tg.u));
+      out.fc.u = Math.max(Math.round(sp * 100) / 100, fcCost(job, sp, ug));
       // הטוקנים: אותו יחס כמו העלות (מחיר לטוקן בעבודה כמעט קבוע — אותו מודל לכל הסוכנים)
       const tk = fcTok(job);
       if (tk > 0 && sp > 0) out.fc.k = Math.round(tk * Math.max(1, out.fc.u / sp));
-      if (pf >= 0.4 && out.fc.u > job.tg.u && out.u.lv !== 'over') out.u.lv = 'risk';
+      if (pf >= 0.4 && out.fc.u > ug && out.u.lv !== 'over') out.u.lv = 'risk';
     }
   }
   return out;

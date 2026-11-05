@@ -255,6 +255,32 @@ class CollectorTests(unittest.TestCase):
         self.assertFalse((work / 'video.mp4').exists())
         self.assertFalse((work / 's0').exists())
 
+    def test_bt_status_marks_thread_live(self):
+        # 4/11/2026: bq נשלח גם ריק כל עוד החוט חי — השרתון משחרר עבודה שהתור שלה אבד (bwLost)
+        A = self.A
+        A._bt_live['t'] = 0.0
+        A.bt_status(1793700000.0)
+        self.assertEqual(A._bt_live['t'], 1793700000.0)
+
+
+class LedgerBatchTests(unittest.TestCase):
+    def test_ledger_counts_queue_calls(self):
+        # 4/11/2026 (המשתמש: "חצי מחיר עלה כמו רגיל"): לכל שלב — כמה קריאות שולמו בתור ובכמה
+        L = llm.Ledger()
+        u = {'i': 10, 'o': 20, 'cr': 0, 'c5': 0, 'c1': 0}
+        L.add('tl', 'm', u, 0.01, True)
+        L.add('tl', 'm', u, 0.02)
+        L.add('tl', 'm', u, 0.0, True)          # כבר נספרה בהפעלה קודמת (used) — לא נספרת שוב
+        L.add('rv', 'm', u, 0.03)
+        r = {x['k']: x for x in L.list()}
+        self.assertEqual((r['tl']['n'], r['tl']['bn'], r['tl']['bu']), (3, 1, 0.01))
+        self.assertNotIn('bn', r['rv'])
+        self.assertNotIn('bu', r['rv'])
+
+    def test_engine_passes_bt_to_ledger(self):
+        src = (Path(__file__).resolve().parents[1] / 'llm.py').read_text(encoding='utf-8')
+        self.assertEqual(src.count('self.ledger.add(k, self.spec.model, res.usage, res.usd, res.bt)'), 3)
+
 
 if __name__ == '__main__':
     unittest.main()

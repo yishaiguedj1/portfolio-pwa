@@ -91,6 +91,11 @@ function listen(server) {
   c.stop();
   Date.now = realNow;
   ok(global.__cron === 1 && global.__cronAuth === 'Bearer sec', 'הקרון קורא לפונקציה עם CRON_SECRET (כמו Vercel)');
+  // 5/11/2026 (Vercel רק גיבוי): הקרונים מ־crons.json, ורצים בשרת שהוקם עם הסודות גם כש־compose אומר off
+  ok(S.cronOn({ SNB_CRON: 'off' }, 40) && S.cronOn({ SNB_CRON: 'on' }, 0) && !S.cronOn({}, 0) && !S.cronOn({ SNB_CRON: 'none' }, 40), 'cronOn: off הישן לא עוצר; none — כבוי; בלי סודות — רק on');
+  const lc = S.loadCrons(require('path').join(__dirname, '..', 'ibkr-proxy'));
+  ok(lc.crons.length === 2 && lc.crons.every((x) => S.parseCron(x.schedule)) && lc.crons.some((x) => x.path === '/api/ibkr-sync'), 'crons.json: שני הקרונים בצורה הנתמכת');
+  ok(/ibkr-proxy\/crons\.json/.test(require('fs').readFileSync(require('path').join(__dirname, '..', 'infra/app/Dockerfile'), 'utf8')), 'crons.json בתמונה');
   srv.close();
 
   // 3. הפונקציות האמיתיות — בלי רשת: CORS (OPTIONS) ו־405 על GET
@@ -124,5 +129,13 @@ function listen(server) {
   ok(!/(ANTHROPIC|GDRIVE|VAULT|SECRET)/.test(code), 'בלי סודות בתמונה');
   const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'ibkr-proxy', 'package.json'), 'utf8'));
   ok(!pkg.dependencies || !Object.keys(pkg.dependencies).length, 'השרתון בלי תלויות — מה שנבדק כאן הוא מה שרץ');
+  // 5/11/2026: #548 הוסיף את crons.json ל־COPY ולא ל־Dockerfile.dockerignore (רשימת היתר) — app-image נכשלה ב־#548 וב־#549,
+  // והשרת נשאר על התמונה הקודמת. כל קובץ/תיקייה ש־Dockerfile מעתיק — חייב להיות מותר בהקשר הבנייה
+  const dfApp = fs.readFileSync(path.join(__dirname, '..', 'infra/app/Dockerfile'), 'utf8');
+  const allow = fs.readFileSync(path.join(__dirname, '..', 'infra/app/Dockerfile.dockerignore'), 'utf8').split('\n').map((l) => l.trim()).filter((l) => l.startsWith('!')).map((l) => l.slice(1));
+  const srcs = [];
+  for (const m of dfApp.matchAll(/^COPY\s+(?:--\S+\s+)*(.+)$/gm)) { const parts = m[1].trim().split(/\s+/); srcs.push(...parts.slice(0, -1)); }
+  const missing = srcs.filter((x) => !allow.some((a) => a === x || a === x + '/' || (a.endsWith('/') && x.startsWith(a))));
+  ok(srcs.length >= 6 && !missing.length, 'כל מה ש־Dockerfile של השרתון מעתיק מותר ב־Dockerfile.dockerignore' + (missing.length ? ' — חסר: ' + missing.join(', ') : ''));
   console.log('# ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL - ' + e.message); process.exit(1); });

@@ -180,7 +180,7 @@ R("DB.wishlist.length = 0; DB.wishlist.push({ sym: 'TSLA', name: 'Tesla' }, { sy
   const main = (/<activity\s+android:name="\.MainActivity"[^>]*>/.exec(mf) || [''])[0];
   ok(main && !/launchMode/.test(main) && /alwaysRetainTaskState="true"/.test(main), 'v254: MainActivity בלי singleTask — singleTask סגר את ה־TWA והקישור אבד');
   const kt = fs.readFileSync(path.join(root, 'android/app/src/main/java/io/github/yishaiguedj1/snowball/MainActivity.kt'), 'utf8');
-  ok(/\{ launched = true; if \(!isTaskRoot\) finish\(\) \}/.test(kt) && /val l = launcher \?: TwaLauncher\(this, pkg\)/.test(kt) && !/launcher\?\.destroy\(\)\s*\n\s*\/\/ שורת/.test(kt), 'v254: המופע שמעל ה־TWA נסגר אחרי ההעברה; בלי השמדת המחבר באמצע פתיחה');
+  ok(/\{ launched = true; noAnim\(\); if \(!isTaskRoot\) \{ finish\(\); noAnim\(\) \} \}/.test(kt) && /val l = launcher \?: TwaLauncher\(this, pkg\)/.test(kt) && !/launcher\?\.destroy\(\)\s*\n\s*\/\/ שורת/.test(kt), 'v254: המופע שמעל ה־TWA נסגר אחרי ההעברה; בלי השמדת המחבר באמצע פתיחה');
   ok(/savedInstanceState\?\.getBoolean\(KEY_LAUNCHED\) == true/.test(kt) && /private fun restartInOwnTask\(\)/.test(kt) && /referrer\?\.host == packageName/.test(kt), 'v254: שחזור אחרי מוות תהליך לא פותח שוב; קישור מאפליקציה אחרת → למשימה שלנו');
   R("var __backs = 0; history.back = () => { __backs++; }; location.href = 'https://yishaiguedj1.github.io/portfolio-pwa/';");
   R("window.navigation = { canGoBack: true, currentEntry: { index: 1 }, entries: () => [{ url: 'https://yishaiguedj1.github.io/portfolio-pwa/', sameDocument: true }, { url: 'https://yishaiguedj1.github.io/portfolio-pwa/#stock=AMD&app=x', sameDocument: true }] };");

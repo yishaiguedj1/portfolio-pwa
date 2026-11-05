@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 03/11/2026 (סבב קפיצות 10, פתיחה מהתפריט: שלושה מסכי פתיחה, ובכל אחד הלוגו בגודל אחר — האייקון בעיגול של המערכת,
+         ‏180dp של המעטפת, ו־108dp של מסך הפתיחה שעובר ל־Chrome). מאנדרואיד 12 המערכת מציגה מסך פתיחה משלה עם אייקון
+         האפליקציה. כאן הוא רק הרקע (צבע הדף), והלוגו מופיע פעם אחת, באותו גודל ובאותו מקום עד הציור הראשון של האתר.
+         שאר הערכים — כמו ב־values/styles.xml (הסגנון כאן מחליף אותו בשלמותו) -->
+    <style name="SplashTheme" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/splash_bg</item>
+        <item name="android:colorBackground">@color/splash_bg</item>
+        <item name="android:statusBarColor">@color/bar</item>
+        <item name="android:navigationBarColor">@color/bar</item>
+        <item name="android:windowSplashScreenBackground">@color/splash_bg</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <item name="android:windowSplashScreenAnimationDuration">0</item>
+    </style>
+</resources>

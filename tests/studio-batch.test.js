@@ -21,7 +21,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const j2 = st.normJob({ id: 'jAAAAAAAAAAAAAAAAAAAA', spec: { bt: 2, wl: 'X!' }, srv: { id: 'jAAAAAAAAAAAAAAAAAAAA', bw: 0 } });
   ok(j2 && !j2.spec.bt && !j2.spec.wl && !j2.srv.bw, 'normJob: ערכים לא תקינים — נזרקים');
   const sj = read('studio.js');
-  ok(/net\.api\('btNow', \{ job: id \}\)/.test(sj) && /askConfirm\(T\('studioBtNowQ'\)/.test(sj), 'להמשיך עכשיו — רק אחרי אישור');
+  ok(/net\.api\('btNow', \{ job: id, src: 'job' \}\)/.test(sj) && /askConfirm\(T\('studioBtNowQ'\)/.test(sj), 'להמשיך עכשיו — רק אחרי אישור');
   ok(/est\.usd = Math\.round\(est\.usd \* BT_EST \* 100\) \/ 100/.test(sj), 'האומדן בחצי מחיר — לפני ההתחלה, עם הסכום');
   // 02/11/2026: גם דרך Studio לאנדרואיד (ph.nu) — "מתי" מוצג, והחצי מחיר נכנס למפרט ולאומדן
   ok(/\(f\.ph && f\.ph\.nu\)\) && !f\.link && !f\.ka && !\(f\.ph && !f\.ph\.nu\)/.test(sj) && /P\.nu && btOk\(f\) && f\.bt\) spec\.bt = 1/.test(sj)

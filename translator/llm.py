@@ -184,12 +184,17 @@ class Ledger:
     """צבירת השימוש לפי שלב (k) — הפורמט של usage בדיווח לשרתון."""
     rows: dict = field(default_factory=dict)
 
-    def add(self, k: str, model: str, u: dict, usd: float | None):
+    def add(self, k: str, model: str, u: dict, usd: float | None, bt: bool = False):
         r = self.rows.setdefault(k, {'k': k, 'm': model, 'n': 0, 'i': 0, 'o': 0, 'cr': 0, 'c5': 0, 'c1': 0, 'usd': 0.0})
         r['n'] += 1
         for f in ('i', 'o', 'cr', 'c5', 'c1'):
             r[f] += int(u.get(f) or 0)
         r['usd'] = None if usd is None or r['usd'] is None else round(r['usd'] + usd, 6)
+        if bt and usd:
+            # 4/11/2026 (המשתמש: "איך חצי מחיר עלה כמו רגיל?"): כמה קריאות בשלב שולמו בתור החיסכון (bn) ובכמה (bu).
+            # בטלפון: סימון "חצי מחיר" לשורה ו"חסכת" (= bu — המחיר הרגיל היה כפול). = USE_INTS/USE_USD בשרתון
+            r['bn'] = r.get('bn', 0) + 1
+            r['bu'] = round(r.get('bu', 0.0) + usd, 6)
 
     def total(self) -> float | None:
         vals = [r['usd'] for r in self.rows.values()]
@@ -404,7 +409,7 @@ class Engine:
             n_fixed = self._fixed_calls[fh] = self._fixed_calls.get(fh, 0) + 1
         res = self._call_retrying(system_fixed, system_extra, prompt, max_tokens, on_first_token)
         with self._lock:
-            self.ledger.add(k, self.spec.model, res.usage, res.usd)  # גם קריאה שנכשלה בסוף עלתה כסף — נרשמת קודם
+            self.ledger.add(k, self.spec.model, res.usage, res.usd, res.bt)  # גם קריאה שנכשלה בסוף עלתה כסף — נרשמת קודם
             self.think[k] = self.think.get(k, 0) + res.think_chars
         if res.stop == 'refusal':
             # ניסיון אחד בניסוח מחדש (אחרי נקודת המטמון) — באותו מודל. סירוב שני = כשל גלוי, כמו קודם.
@@ -412,7 +417,7 @@ class Engine:
             res = self._anthropic(system_fixed, (system_extra + '\n\n' if system_extra else '') + REFUSAL_REFRAME,
                                   prompt, max_tokens, None)
             with self._lock:
-                self.ledger.add(k, self.spec.model, res.usage, res.usd)
+                self.ledger.add(k, self.spec.model, res.usage, res.usd, res.bt)
                 self.think[k] = self.think.get(k, 0) + res.think_chars
                 if res.stop != 'refusal':
                     self.refusal_retries += 1
@@ -433,7 +438,7 @@ class Engine:
             self.trunc += 1
             res = self._call_retrying(system_fixed, system_extra, prompt, MAX_OUT)
             with self._lock:
-                self.ledger.add(k, self.spec.model, res.usage, res.usd)
+                self.ledger.add(k, self.spec.model, res.usage, res.usd, res.bt)
                 self.think[k] = self.think.get(k, 0) + res.think_chars
             if res.stop == 'refusal':
                 raise LLMError('model_refusal', 'המודל סירב לבקשה (בלי מעבר למודל אחר — מודל אחד לכל עבודה)')

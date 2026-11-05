@@ -3932,6 +3932,14 @@ function stubFetch(text, status = 200) {
       ok(JSON.stringify(SC.normFit(FIT)) === JSON.stringify(FIT) && SC.normFit({ mb: 'x' }) === null && SC.normFit(Object.assign({}, FIT, { a: 1e9 })) === null, 'fit: מספרים בלבד, בגבולות');
       ok(SC.peakNeed({ kind: 'tr', spec: { dur: 3600 } }, FIT) === 5060 + 24.2 * 60 && SC.peakNeed({ kind: 'ai', spec: { dur: 3600 } }, FIT) === 770
         && SC.peakNeed({ kind: 'rr', spec: { dur: 600 } }, FIT) === 2420 + 6.6 * 10, 'fit: השיא לפי סוג העבודה והאורך');
+      // 5/11/2026: קבלה חזויה — dm רשות; עבודה ארוכה מ־dm לא נלקחת (חוץ מגיליון AI / העתקה / כתוביות)
+      ok(SC.normFit(FIT).dm === undefined && SC.normFit({ ...FIT, dm: 32.5 }).dm === 32.5 && SC.normFit({ ...FIT, dm: -1 }).dm === undefined
+        && SC.normFit({ ...FIT, dm: 'x' }).mb === FIT.mb, 'fit: dm רשות, ערך לא תקין נזרק בלי לפסול את השאר');
+      const FD = SC.normFit({ ...FIT, dm: 30 });
+      ok(SC.perfBlock({ kind: 'tr', spec: { dur: 3600 } }, FD) && !SC.perfBlock({ kind: 'tr', spec: { dur: 1200 } }, FD)
+        && !SC.perfBlock({ kind: 'ai', spec: { dur: 7200 } }, FD) && !SC.perfBlock({ kind: 'tr', spec: { dur: 3600 } }, SC.normFit(FIT))
+        && SC.perfBlock({ kind: 'rr', spec: { dur: 3600 } }, FD) && !SC.perfBlock({ kind: 'tr', spec: { dur: 3600, src: 'subs' } }, FD)
+        && SC.perfBlock({ kind: 'tr', spec: {} }, FD), 'perfBlock: לפי האורך מול dm; בלי dm — בלי הגבלה');
       rr = await run({ op: 'create', idToken: OWNER, spec: Object.assign({}, SPECA, { px: 1 }) });
       const JF = rr.payload.job.id;
       await run({ op: 'file', idToken: OWNER, job: JF, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
@@ -3939,6 +3947,9 @@ function stubFetch(text, status = 200) {
       await run({ op: 'start', idToken: OWNER, job: JF });
       rr = await srvRun({ op: 'poll', hb: { nj: 1, cpu: 16 }, fit: FIT }, STOK);
       ok(rr.payload.ok && rr.payload.job === null && db.get('studioJobs/' + JF).fields.state.stringValue === 'queued', 'fit: לא נכנסת בזיכרון שנשאר — לא נלקחת (מחכה לשרת פנוי יותר)');
+      // 5/11/2026: הזיכרון מספיק, אבל הקבלה החזויה אומרת שעבודה של 77 דק׳ תאט את מה שרץ — לא נלקחת
+      rr = await srvRun({ op: 'poll', hb: { nj: 1, cpu: 16 }, fit: Object.assign({}, FIT, { mb: 9000, dm: 30 }) }, STOK);
+      ok(rr.payload.ok && rr.payload.job === null && db.get('studioJobs/' + JF).fields.state.stringValue === 'queued', 'fit.dm: ארוכה מהמותר עכשיו — מחכה לרגע הנכון');
       rr = await srvRun({ op: 'poll', hb: { nj: 1, cpu: 16 }, fit: Object.assign({}, FIT, { mb: 9000 }) }, STOK);
       ok(rr.payload.job && rr.payload.job.id === JF && rr.payload.job.dur === 4620, 'fit: נכנסת — נלקחת, עם האורך (להזמנת הזיכרון בסוכן)');
       const KF = rr.payload.job.key;

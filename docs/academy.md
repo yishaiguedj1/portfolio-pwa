@@ -155,7 +155,7 @@
 - **פרטיות**: הקטעים נשלחים ל־Gemini בשכבה החינמית, ו־Google רשאית להשתמש בנתוני השכבה החינמית. לכן בגיליון הכלים יש שורת גילוי (`aiPriv`). ההקראה נשארת במכשיר.
 - **QA בדפדפן**: `navigator.speechSynthesis` בדפדפן הבדיקה בלי קולות נכשל מיד. בבדיקה מדמים את מנוע הדיבור (`addInitScript`), ואת ההתחברות (`firebase.auth().currentUser` עם `defineProperty`), רק לבקשות ה־AI.
 
-## 23. חיבורים — Academy Pro גל 6 (2.125.0, 03/11/2026)
+## 23. חיבורים — Academy Pro גל 6 (2.126.0, 05/11/2026)
 - **המודול**: `libconnect.js` (`createConnect(E)`), נטען רק כשנכנסים (`connectKit()` / `cn(fn)` ב־`library.js`). הוא ב־coregen (`academy`) וב־`LIB_SHELL`.
 - **השרתון** (`ibkr-proxy/lib/libweb.js`, דרך `/api/library`, רק למחוברים):
   - `op:'webGet'` (60 לדקה): מביא דף או פיד בשביל המאמר והעיתון. מחזיר רק טקסט, והניתוח נעשה בטלפון עם `DOMParser`.
@@ -208,7 +208,7 @@
   - `hidden` על `bk-cta` לא מסתיר, כי ה־CSS קובע `display`. כפתור שנגמר תפקידו — `remove()`.
   - בבדיקת דפדפן, כתובת מדומה חייבת להיות במקור שה־CSP מתיר (`*.r2.cloudflarestorage.com`), אחרת הבקשה נחסמת לפני ש־`page.route` רואה אותה.
 
-## 24. תרגום ספר שלם — Academy Pro F6 (2.126.0, 03/11/2026)
+## 24. תרגום ספר שלם — Academy Pro F6 (2.126.0, 05/11/2026)
 - `libtrans.js` נטען רק כשנכנסים. הכניסה דרך שורה "תרגום הספר" ב־`editExtras`, כלומר רק בספר שלך. הבקשות עוברות ב־`aiCall('bilingual')`, כלומר `op:'bookAi'`. **אין שינוי בשרתון ואין עלות**: Gemini בשכבה החינמית, ו־Mistral כגיבוי, לפי המכסה הקיימת (150 למשתמש ביום).
 - **הזרימה**:
   1. `inspectEpub`, ואז כל מסמך בשדרה (בלי nav) עובר `DOMParser('application/xhtml+xml')`. מסמך עם `parsererror` נשאר כמו שהוא.

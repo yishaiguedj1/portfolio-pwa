@@ -13,6 +13,8 @@ ok(/snb-update\.timer\.d/.test(upd) && /OnUnitActiveSec=\\nOnUnitActiveSec=2min/
   'שרת קיים: snb-update כותב קובץ השלמה לטיימר (איפוס ואז 2 דקות) וטוען מחדש');
 const apply = fs.readFileSync(path.join(root, 'infra/worker/snb-host-apply'), 'utf8');
 ok(/snb-update:usr\/local\/sbin\/snb-update:755/.test(apply), 'snb-update מגיע לשרת קיים דרך snb-host-apply');
+ok(/^OnCalendar=\*:0\/2$/m.test(timer) && /OnCalendar=\*:0\/2/.test(upd) && /grep -qs '\^OnCalendar='/.test(upd),
+  'הטיימר גם לפי השעון (לא נתקע ב־elapsed כשהריצה שאחרי ההדלקה לא קרתה), ושרת קיים מקבל את זה');
 ok(upd.indexOf('snb-update.timer.d') < upd.indexOf('umask 022'), 'הטיימר מתעדכן לפני המשיכות (גם כשמשיכה נכשלת)');
 
 const A = require(path.join(root, 'ibkr-proxy/api/studio.js'));

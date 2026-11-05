@@ -86,7 +86,8 @@ data class WidgetModel(val header: WidgetHeader, val rows: List<WidgetRow>, val 
  */
 object WidgetStore {
     private const val PREFS = "snowball_widget"
-    const val PROXY = "https://ibkr-proxy-wine.vercel.app"
+    /** 5/11/2026: השרתון שלנו קודם, Vercel רק גיבוי (כמו installFailover באתר) — עד אז כל רענון (15 דק׳) הלך ל־Vercel */
+    val HOSTS = listOf("https://api.thesnowball.app", "https://ibkr-proxy-wine.vercel.app")
     private val ITEMS_RE = Regex("^[^<>\"]{1,3000}$")
 
     private fun p(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

@@ -367,7 +367,9 @@ class Rooms(unittest.TestCase):
                             mem_kb=32 * 1024 * 1024)
         m = re.search(r'mem=(\d+)m .* memr=(\d+)m memr_stg=(\d+)m', r['compose'])
         self.assertEqual(int(m.group(2)), 8192)
-        self.assertEqual(int(m.group(1)), 32 * 1024 - 1024 - 800 - 1100 - 8192)
+        # 05/11/2026: שריון הניסוי = שיא של עבודה אחת — הייצור מקבל את ההפרש (3 עבודות ארוכות במקביל)
+        self.assertEqual(int(m.group(3)), 4608)
+        self.assertEqual(int(m.group(1)), 32 * 1024 - 1024 - 800 - 1100 - 4608)
 
     def test_prod_app_room(self):
         # ת3: השרתון של הייצור — snb-app:prod (אחרי אישור), ו־Tunnel נפרד
@@ -421,7 +423,7 @@ class Rooms(unittest.TestCase):
             block = re.search(r'(?ms)^  ' + f + r':\n(.*?)(?=^  \S|^\S)', c).group(1)
             self.assertIn('networks: [edge-prod]', block)
         app = re.search(r'(?ms)^  app:\n(.*?)(?=^  \S|^\S)', c).group(1)
-        self.assertIn('SNB_CRON=off', app, 'הקרון נשאר ב־Vercel עד שהמעבר יוכח')
+        self.assertNotRegex(app, r'(?m)^\s*- SNB_CRON=(off|none)', 'הקרון רץ בשרתון שלנו (5/11/2026 — Vercel רק גיבוי)')
         self.assertIn('${SNB_APP:-snb-none}', app)
         # העובדים ב־bridge של Docker: ב־gVisor אין DNS ברשת של compose (שרת הניסוי, 12/10/2026)
         for w in ('worker', 'worker-stg'):
