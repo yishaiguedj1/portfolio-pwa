@@ -1043,7 +1043,7 @@ function normalizeSec(facts, splits = [], face = null) {
    חבויה) — תקופה אחרי ההשקעה ההונית האחרונה שדווחה, שבה "Other investing" עד 5% מהתזרים מפעילות = השקעה זניחה, 0 (נרשם cx0,
    מידע). רבעון אחרון בשנה שיש לה ערך שנתי — השנה פחות שלושת הרבעונים. בלי דוח מודפס, ב־IFRS, או כשהשורה האחרת גדולה — ריק */
 const CX_ROW = /capital expenditure|capital additions?|purchases? (of|for) (property|equipment|fixed assets|plant)|additions? (to|of) (property|equipment|plant|fixed assets)/i;
-const CX_NIL_MAX = 0.05;
+const CX_NIL_MAX = 0.05, CX_LAST_MAX = 0.02, CX_RECENT = 1100;
 function capexNil(A, Q, fyEnds, qEnds, face, tags, capRows, capFace, derived) {
   const rows = (face && face.cf && face.cf.rows) || [], out = [];
   if (!rows.length || capRows.length || capFace || !A.capex || !A.ocf || !A.oinv) return out;
@@ -1051,8 +1051,14 @@ function capexNil(A, Q, fyEnds, qEnds, face, tags, capRows, capFace, derived) {
   if (rows.some((r) => cxT.has(r.tag) || CX_ROW.test(r.label || ''))) return out;
   if (!rows.some((r) => r.tag === 'PaymentsForProceedsFromOtherInvestingActivities')) return out;
   if (!rows.some((r) => /^NetCashProvidedByUsedInInvestingActivities/.test(r.tag))) return out;
+  // ההשקעה ההונית האחרונה שדווחה — זניחה (עד 2% מהתזרים מפעילות של אותה שנה) ובשלוש השנים האחרונות. בלי זה הכלל נגע ב־20
+  // חברות: Dominion ‏(‏$4B ברבעון מ־Yahoo, השורה בתגית פרטית "Plant construction…") ‏ו־Cigna ‏(‏$322M) קיבלו 0, ובנקים ומבטחים
+  // שמעולם לא דיווחו השקעה הונית — 0 בכל ההיסטוריה
+  const ly = fyEnds.filter((e) => A.capex[e] != null).pop();
+  if (!ly || !(A.ocf[ly] > 0) || A.capex[ly] > CX_LAST_MAX * A.ocf[ly]) return out;
   const fill = (D, ends, q) => {
-    const last = ends.filter((e) => D.capex[e] != null).pop() || '';
+    const last = ends.filter((e) => D.capex[e] != null).pop();
+    if (!last || day(ends[ends.length - 1]) - day(last) > CX_RECENT) return;
     for (const e of ends) {
       if (e <= last || D.capex[e] != null) continue;
       const o = D.ocf[e], x = D.oinv[e];
