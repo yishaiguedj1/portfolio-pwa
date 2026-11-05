@@ -14,7 +14,9 @@ ok(/if \(\(op === 'status' \|\| op === 'jobs'\) && watchDue\(now\)\) await check
   'GitHub מדלג על ריצות מתוזמנות — גם פתיחת האפליקציה בודקת את השרתים (של מי ששואל)');
 ok(/const WATCH_EVERY = 5 \* 60e3/.test(api), 'לכל היותר פעם ב־5 דק׳');
 const vj = JSON.parse(read('ibkr-proxy/vercel.json'));
-ok(vj.crons.length === 2 && vj.crons.some((c) => c.path === '/api/studio' && /^\d+ \d+ \* \* \*$/.test(c.schedule)), 'קרון יומי של Vercel כרשת ביטחון (Hobby — פעם ביום)');
+const cj = JSON.parse(read('ibkr-proxy/crons.json'));
+ok(!vj.crons, '5/11/2026: Vercel רק גיבוי — בלי קרונים ב־vercel.json');
+ok(cj.crons.length === 2 && cj.crons.some((c) => c.path === '/api/studio' && /^\d+ \d+ \* \* \*$/.test(c.schedule)), 'קרון יומי בשרתון שלנו (crons.json) כרשת ביטחון');
 ok(/process\.env\.CRON_SECRET && auth === 'Bearer ' \+ process\.env\.CRON_SECRET/.test(api), 'הקרון של Vercel עובר גם כשמוגדר STUDIO_WATCH_SECRET');
 
 /* ---------- 2. שעת התקלה ---------- */

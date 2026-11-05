@@ -91,6 +91,11 @@ function listen(server) {
   c.stop();
   Date.now = realNow;
   ok(global.__cron === 1 && global.__cronAuth === 'Bearer sec', 'הקרון קורא לפונקציה עם CRON_SECRET (כמו Vercel)');
+  // 5/11/2026 (Vercel רק גיבוי): הקרונים מ־crons.json, ורצים בשרת שהוקם עם הסודות גם כש־compose אומר off
+  ok(S.cronOn({ SNB_CRON: 'off' }, 40) && S.cronOn({ SNB_CRON: 'on' }, 0) && !S.cronOn({}, 0) && !S.cronOn({ SNB_CRON: 'none' }, 40), 'cronOn: off הישן לא עוצר; none — כבוי; בלי סודות — רק on');
+  const lc = S.loadCrons(require('path').join(__dirname, '..', 'ibkr-proxy'));
+  ok(lc.crons.length === 2 && lc.crons.every((x) => S.parseCron(x.schedule)) && lc.crons.some((x) => x.path === '/api/ibkr-sync'), 'crons.json: שני הקרונים בצורה הנתמכת');
+  ok(/ibkr-proxy\/crons\.json/.test(require('fs').readFileSync(require('path').join(__dirname, '..', 'infra/app/Dockerfile'), 'utf8')), 'crons.json בתמונה');
   srv.close();
 
   // 3. הפונקציות האמיתיות — בלי רשת: CORS (OPTIONS) ו־405 על GET

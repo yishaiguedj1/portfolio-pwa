@@ -11,7 +11,7 @@ FROM ${NODE_IMAGE}
 
 COPY --chown=root:root ibkr-proxy/api /app/api
 COPY --chown=root:root ibkr-proxy/lib /app/lib
-COPY --chown=root:root ibkr-proxy/server.js ibkr-proxy/vercel.json ibkr-proxy/package.json /app/
+COPY --chown=root:root ibkr-proxy/server.js ibkr-proxy/vercel.json ibkr-proxy/crons.json ibkr-proxy/package.json /app/
 RUN find /app -type d -exec chmod 755 {} + && find /app -type f -exec chmod 644 {} + \
  && node --check /app/server.js && for f in /app/api/*.js; do node --check "$f"; done
 

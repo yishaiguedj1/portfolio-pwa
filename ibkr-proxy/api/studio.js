@@ -2571,6 +2571,8 @@ async function worker(req, res, body, deps) {
       return res.status(200).json({ ok: true, drive: await driveFor(), now });
     }
     if (body.op === 'smPut') return res.status(200).json({ ok: true, saved: await smPut(deps, job, body.sm, now), now });   // 28/10/2026: זיכרון הסדרה
+    // 5/11/2026: שרת בלי הדלי של מאגר הלמידה (SNB_LEARN_REMOTE) — 421 לפני כל שינוי, והעובד שולח את אותה בקשה לגיבוי (job.http)
+    if (/^learn(Put|Media|MediaDone)$/.test(body.op) && learnRemote()) return res.status(421).json({ ok: false, error: 'learn_remote' });
     if (body.op === 'learnPut') return res.status(200).json({ ok: true, saved: await learnPut(deps, job, body.lc, now), now });   // מ׳2
     if (body.op === 'learnMedia') return res.status(200).json(Object.assign({ ok: true, now }, (await learnMedia(deps, job, String(body.k || ''), now)) || { skip: true }));   // מ׳4
     if (body.op === 'learnMediaDone') return res.status(200).json({ ok: true, saved: await learnMediaDone(deps, job, String(body.k || '')), now });

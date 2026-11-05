@@ -140,7 +140,8 @@ object MonParse {
 
 /** הקריאה לשרתון. לא מדפיסה ולא מעבירה הודעות שגיאה חופשיות — הטוקן לא יכול להיכנס ללוג */
 object MonApi {
-    private const val PROXY = "https://ibkr-proxy-wine.vercel.app"   // כמו WidgetStore.PROXY ב־Invest
+    // 5/11/2026: השרתון שלנו קודם, Vercel רק גיבוי (כמו WidgetStore.HOSTS ב־Invest)
+    private val HOSTS = listOf("https://api.thesnowball.app", "https://ibkr-proxy-wine.vercel.app")
     private const val ORIGIN = "https://admin.thesnowball.app"       // השרתון מאשר רק Origin של אתרי האפליקציה
     private const val BODY = "{\"op\":\"adminMon\"}"
 
@@ -150,8 +151,18 @@ object MonApi {
         object Fail : Res()     // רשת נפלה / 5xx / תשובה לא תקינה
     }
 
+    /** הראשי קודם; הגיבוי רק על Fail (רשת / 5xx). 401 = הטוקן — לא מנסים שרת אחר */
     fun fetch(token: String): Res {
-        val conn = URL("$PROXY/api/studio").openConnection() as HttpURLConnection
+        var last: Res = Res.Fail
+        for (h in HOSTS) {
+            last = fetchFrom(h, token)
+            if (last !is Res.Fail) return last
+        }
+        return last
+    }
+
+    private fun fetchFrom(host: String, token: String): Res {
+        val conn = URL("$host/api/studio").openConnection() as HttpURLConnection
         return try {
             conn.requestMethod = "POST"
             conn.connectTimeout = 10_000

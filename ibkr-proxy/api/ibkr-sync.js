@@ -114,10 +114,17 @@ async function runOne(uid, doc, now, deadline, deps) {
   return got ? 'ok' : (err || 'nothing');
 }
 
+/* 5/11/2026: הקרון של השרת וה־Worker של Cloudflare קוראים באותה דקה (12:05 UTC) לאותו תהליך — ריצה אחת בכל פעם */
+let cronBusy = false;
 async function cron(req, res, deps) {
   const secret = process.env.CRON_SECRET;
   if (secret && String(req.headers.authorization || '') !== 'Bearer ' + secret) return res.status(401).json({ ok: false });
   if (!vault.configured()) return res.status(503).json({ ok: false, error: 'not_configured' });
+  if (cronBusy) return res.status(200).json({ ok: true, busy: true });
+  cronBusy = true;
+  try { return await cronRun(req, res, deps); } finally { cronBusy = false; }
+}
+async function cronRun(req, res, deps) {
   const now = deps.now || Date.now(), deadline = Date.now() + BUDGET_MS;
   const list = await fs(deps, 'GET', COL() + '?pageSize=50');
   if (list.status !== 200) return res.status(502).json({ ok: false, error: 'fs_http_' + list.status });
