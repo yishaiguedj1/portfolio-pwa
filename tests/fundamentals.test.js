@@ -282,6 +282,12 @@ dfx.A.rev[1] = 222e6;
   ok(amb.out.length === 2 && !amb.fill.length, 'אף שורה לא תואמת ויש כמה — פער מסומן, בלי החלפה');
   const neg = F.faceCheck(D([189e6, 222e6]), { is: page([['(222)', '(189)']]) });
   ok(neg.seen.ok === 2 && !neg.out.length && !neg.fill.length, 'Mettler: שורה שכולה הפוכה בסימן (תווית הפוכה) — לא פער ולא החלפה'); }
+// FMX ‏2025: שתי שורות ProfitLoss ועמודת המרה לדולר — הבחירה בין השורות רק לפי העמודות שמושוות (מטבע הדיווח)
+{ const S = { scale: { cur: 1e6, sh: 1e6 }, cols: [{ end: '2025-12-31', months: 12, cur: 'USD' }, { end: '2025-12-31', months: 12, cur: 'MXN' }, { end: '2024-12-31', months: 12, cur: 'MXN' }, { end: '2023-12-31', months: 12, cur: 'MXN' }],
+    rows: [{ tag: 'ProfitLoss', label: 'CONSOLIDATED NET INCOME', v: [1836, 33053, 40236, 76677] }, { tag: 'ProfitLoss', label: 'CONSOLIDATED NET INCOME', v: [null, 31479, 40121, 44439] }] };
+  const D = { tags: { ni: 'ProfitLoss' }, fy: ['2023-12-31', '2024-12-31', '2025-12-31'], A: { ni: [76677e6, 40236e6, 33053e6] }, cur: 'MXN' };
+  const r = F.faceCheck(D, { is: S });
+  ok(r.seen.n === 3 && r.seen.ok === 3 && !r.out.length && !r.fill.length, 'FMX: עמודת ההמרה לדולר לא בוחרת את השורה — נבחרת השורה שתואמת במטבע הדיווח'); }
 /* ---------- רווח גולמי, רווח תפעולי, רווח נקי והכנסות — מה שהדוח באמת מציג (26/10/2026) ---------- */
 {
   const page = (rows, title = 'Consolidated Statements of Operations') => SF.parseR(`<table><tr><th class="tl" colspan="1" rowspan="2"><div><strong>${title} - USD ($)<br> $ in Millions</strong></div></th><th class="th" colspan="2">12 Months Ended</th></tr>
@@ -966,6 +972,46 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
       [qq('2025-07-01', '2025-09-30', 40, '2025-11-01'), qq('2025-07-01', '2025-09-30', 20, '2026-11-01')]), []);
     ok(at(h2, 'cogs', '2025-09-30') === Mx(30) && at(h2, 'gp', '2025-09-30') === Mx(20) && at(h2, 'rev', '2025-09-30') === Mx(50), 'בסיס אחד: עלות מכר מהגשה ישנה → ההפרש; ההכנסות לא משתנות');
     ok((h1.fixes || []).some((f) => f.m === 'gp' && f.p === '2025-09-30') && (h2.fixes || []).some((f) => f.m === 'cogs' && f.p === '2025-09-30'), 'בסיס אחד: התיקון נרשם (fix — מידע)');
+  }
+  // השקעה הונית שלא מוצגת בשורה נפרדת (5/11/2026, AppLovin): התזרים החופשי היה ריק מ־2024
+  {
+    const qs = (y) => [[y + '-01-01', y + '-03-31'], [y + '-04-01', y + '-06-30'], [y + '-07-01', y + '-09-30'], [y + '-10-01', y + '-12-31']];
+    const per = (y, vals, form = '10-Q') => qs(y).slice(0, vals.length).map(([a, b], i) => [a, b, vals[i], i === 3 ? '10-K' : form, (+y + (i === 3 ? 1 : 0)) + '-' + ['05', '08', '11', '02'][i] + '-01']);
+    const yr = (y, v) => [...Y(y), v, '10-K', (+y + 1) + '-02-20'];
+    const mk = (oinv2026, cx2024 = 4) => facts([
+      ['Revenues', 'USD', [2023, 2024, 2025].flatMap((y) => per(y, [100, 100, 100])).concat(per(2026, [100, 100, 100]), [yr(2023, 400), yr(2024, 400), yr(2025, 400)])],
+      ['NetCashProvidedByUsedInOperatingActivities', 'USD', [2023, 2024, 2025].flatMap((y) => per(y, [50, 50, 50])).concat(per(2026, [50, 50, 50]), [yr(2023, 200), yr(2024, 200), yr(2025, 200)])],
+      // רכוש קבוע: 2023 ברבעונים ובשנה, 2024 רק בדוח השנתי, 2025 — כלום
+      ['PaymentsToAcquirePropertyPlantAndEquipment', 'USD', per(2023, [2, 2, 2]).concat([yr(2023, 8), yr(2024, cx2024)])],
+      ['PaymentsForProceedsFromOtherInvestingActivities', 'USD', [2024, 2025].flatMap((y) => per(y, [1, 1, 1])).concat(per(2026, [1, 1, oinv2026]), [yr(2024, 4), yr(2025, 4)])],
+    ]);
+    const cfRow = (tag, label) => ({ ns: 'us-gaap', tag, label, v: [] });
+    const face = (extra = []) => ({ cf: { rows: [cfRow('NetCashProvidedByUsedInOperatingActivities', 'Net cash provided by operating activities'), cfRow('PaymentsToAcquireIntangibleAssets', 'Purchase of intangible assets'),
+      cfRow('PaymentsForProceedsFromOtherInvestingActivities', 'Other investing activities'), cfRow('NetCashProvidedByUsedInInvestingActivities', 'Net cash used in investing activities'), ...extra], cols: [], scale: { cur: 1, sh: 1 } } });
+    const at = (d, P, e) => (P === 'A' ? d.A.capex[d.fy.indexOf(e)] : d.Q.capex[d.q.indexOf(e)]);
+    const c1 = F.normalizeSec(mk(1), [], face());
+    ok(at(c1, 'A', '2025-12-31') === 0 && at(c1, 'A', '2024-12-31') === 4 && at(c1, 'A', '2023-12-31') === 8, 'capex זניח: שנה בלי שורה = 0, שנה שדווחה נשארת');
+    ok(at(c1, 'Q', '2024-03-31') === 0 && at(c1, 'Q', '2026-09-30') === 0 && at(c1, 'Q', '2023-06-30') === 2, 'capex זניח: רבעונים אחרי האחרון שדווח = 0, הישנים נשארים');
+    ok(at(c1, 'Q', '2024-12-31') === 4 && c1.derived.capex.includes('2024-12-31'), 'capex זניח: רבעון רביעי של שנה שדווחה = השנה פחות שלושה רבעונים');
+    const ch1 = F.validate(c1).filter((c) => c.k === 'cx0');
+    ok(ch1.length > 0 && ch1.every((c) => c.m === 'capex') && !ch1.some((c) => c.p === '2024-12-31' && ch1.filter((x) => x.p === c.p).length > 1) && F.CHECK_INFO.has('cx0'), 'capex זניח: נרשם cx0 (מידע)');
+    ok(!('oinv' in c1.A) && !('oinv' in c1.Q) && !c1.tags.oinv, 'capex זניח: "השקעות אחרות" לא נשלח למסך');
+    // "השקעות אחרות" גדולות (מעל 5% מהתזרים מפעילות) — לא זניח, נשאר ריק
+    const c2 = F.normalizeSec(mk(10), [], face());
+    ok(at(c2, 'Q', '2026-09-30') == null && at(c2, 'Q', '2026-06-30') === 0, 'capex זניח: "השקעות אחרות" מעל 5% — ריק');
+    // יש שורת השקעה הונית בדוח (גם בתגית פרטית) / אין דוח מודפס — לא נוגעים
+    const c3 = F.normalizeSec(mk(1), [], face([{ ns: 'app', tag: 'PurchasesOfPpe', label: 'Purchases of property and equipment', v: [] }]));
+    const c4 = F.normalizeSec(mk(1), [], null);
+    ok(at(c3, 'Q', '2025-03-31') == null && at(c4, 'Q', '2025-03-31') == null && at(c4, 'A', '2025-12-31') == null, 'capex זניח: שורת השקעה הונית בדוח / בלי דוח — ריק');
+    // ההשקעה ההונית האחרונה שדווחה לא זניחה (20% מהתזרים — Dominion, Cigna) — לא 0
+    const c5 = F.normalizeSec(mk(1, 40), [], face());
+    ok(at(c5, 'A', '2025-12-31') == null && at(c5, 'Q', '2025-03-31') == null, 'capex זניח: האחרונה שדווחה מעל 2% מהתזרים — ריק');
+    // חור בסדרה: מדד שדווח ונעלם בארבעת הרבעונים האחרונים כשהבסיס ממשיך — "לבדוק"
+    const hq = Array.from({ length: 12 }, (_, i) => '20' + (24 + Math.floor(i / 4)) + '-' + ['03-31', '06-30', '09-30', '12-31'][i % 4]);
+    const hd = { q: hq, Q: { ocf: hq.map(() => 50), rev: hq.map(() => 100), capex: hq.map((_, i) => (i < 8 ? 2 : null)), sbc: hq.map((_, i) => (i < 9 ? 1 : null)) } };
+    const hs = F.holes(hd);
+    ok(hs.length === 1 && hs[0].k === 'hole' && hs[0].m === 'capex' && hs[0].p === hq[8] && !F.CHECK_INFO.has('hole'), 'חור בסדרה: ארבעה רבעונים אחרונים ריקים — hole (לא מידע); שלושה — לא');
+    ok(F.holes(Object.assign({}, hd, { Q: Object.assign({}, hd.Q, { ocf: hq.map((_, i) => (i === 11 ? null : 50)) }) })).length === 0, 'חור בסדרה: בלי בסיס ברבעון — לא');
   }
   // מניה שלא נסחרת (EQR → VMRK, 26/10/2026): יום המסחר האחרון מהמטא, ומעל 3 שבועות — gone
   const pg = F.parseMonthly({ chart: { result: [{ meta: { currency: 'USD', regularMarketTime: Date.parse('2026-08-17T20:00:00Z') / 1000 }, timestamp: [], indicators: { quote: [{ close: [] }] } }] } });
