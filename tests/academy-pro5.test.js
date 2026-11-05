@@ -61,7 +61,7 @@ const lib = read('library.js'), ai = read('libai.js'), css = read('library.css')
   ok(/'rd-ic rd-ai'/.test(lib) && /acts\.append\(aiBtn,/.test(lib), 'כפתור "כלים חכמים" בסרגל הקורא');
   ok(/if \(AIK\) AIK\.stop\(\)/.test(lib), 'ההקראה נעצרת כשהקורא נסגר');
   ok(/A\.openTagSum\(b\)/.test(lib), 'תקציר ותגיות בדף הספר (ספר שלך)');
-  ok(/op: 'bookAi', task, idToken: tk/.test(lib), 'הבקשה לשרתון — עם התחברות');
+  ok(/const aiCall = \(task, body\) => libOp\('bookAi'/.test(lib) && /const tk = await idToken\(\); if \(!tk\) throw new Error\('signin'\)/.test(lib), 'הבקשה לשרתון — עם התחברות');
   ok(/body\.op === 'bookAi'/.test(srv) && /verifyIdToken/.test(srv), 'השרתון: op bookAi רק למשתמש מחובר');
   ok(/'libai\.js'/.test(read('tools/coregen.js')) && /'\.\/libai\.js'/.test(read('sw.js')), 'libai.js ב־coregen וב־LIB_SHELL');
   ok(!/\b(confirm|alert|prompt)\(/.test(ai) && !/onclick=/.test(ai) && (ai.match(/innerHTML = [^;]*/g) || []).every((x) => /^innerHTML = (ICO\.|E\.chev|S\.playing \? ICO)/.test(x)), 'בלי confirm/alert/prompt, בלי onclick, innerHTML רק לסמלים קבועים');

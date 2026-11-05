@@ -1469,6 +1469,8 @@ function mineCard() {
   if ('webkitdirectory' in h('input')) card.append(row('adv-ic', ICON.folder, T('libAddFolder'), T('libAddFolderS'), () => addBookPick(true)));
   card.append(
     row('adv-ic', ICON.check, T('lcTitle'), T('lcSub'), () => polishKit().then((P) => P.openLibCheck())),
+    row('adv-ic', ICON.notes, T('cnClips'), T('cnClipsRow'), () => cn((C) => C.openClips())),   // גל 6: G2
+    row('adv-ic', ICON.folder, T('cnFull'), T('cnFullRow'), () => cn((C) => C.openFull())),     // גל 6: G6
     row('lib-set-rs', ICON.trash, T('libResetMine'), null, openResetSheet, 'lib-set-danger'));
   return card;
 }
@@ -2395,6 +2397,7 @@ async function editKit() {
 }
 /* גל 3: המרות (libconvert.js) — נטען רק כשפותחים "הוספה", "ייצוא" או "המרה ל־EPUB" */
 let CVK = null;
+function afterImportMine() { if (rd) { indexAll(); BK.schedule(); return; } if (ui.shelf !== 'mine') setShelf('mine'); else if (root) renderHome(); indexAll(); BK.schedule(); }
 async function convertKit() {
   if (!CVK) {
     const m = await import('./libconvert.js');
@@ -2402,11 +2405,13 @@ async function convertKit() {
       h, T, sheet, closeSheetThen, swEl, chev: ICON.chev, makeBook, getFile,
       flash: (m2) => { if (typeof flash === 'function') flash(m2); },
       importFiles: (files) => importFiles(files),
-      afterImport: () => { if (ui.shelf !== 'mine') setShelf('mine'); else if (root && !rd) renderHome(); indexAll(); BK.schedule(); },
+      afterImport: () => afterImportMine(),
       bookInput: (close) => importInput(close),
       canFolder: 'webkitdirectory' in h('input'), addFolder: () => addBookPick(true),
       annOf: (b) => liveAnn(b.ann).filter((a) => a && !a.d && !a.b && String(a.x || '').trim()),
       replaceFile: async (id, file, prev, label) => { await saveEdited(id, file, prev, label); if (root && !rd) renderHome(); },
+      ocr: (img, lang) => aiCall('ocr', { img, lang }),   // גל 6 (C5): עמוד סרוק מ־PDF → טקסט
+      openArticle: () => cn((C) => C.openArticle()), openPaper: () => cn((C) => C.openPaper()),
     });
   }
   return CVK;
@@ -2431,6 +2436,13 @@ async function proKit() {
   return PRK;
 }
 const pro = (fn) => proKit().then(fn).catch(() => { if (typeof flash === 'function') flash(T('pxErr')); });
+async function libOp(op, body) {                 // פעולה בשרתון שדורשת התחברות — זורקת את קוד השגיאה
+  const tk = await idToken(); if (!tk) throw new Error('signin');
+  const j = await libApi(Object.assign({ op, idToken: tk }, body)).then((r) => r.json()).catch(() => ({ ok: false, error: 'net' }));
+  if (!j || !j.ok) throw new Error((j && j.error) || 'failed');
+  return j;
+}
+const aiCall = (task, body) => libOp('bookAi', Object.assign({ task }, body));
 /* Academy Pro גל 5 (03/11/2026): הקראה, X-Ray, שאל את הספר, דו־לשוני, תיוג ותקציר — libai.js, רק כשנכנסים */
 let AIK = null;
 async function aiKit() {
@@ -2440,12 +2452,7 @@ async function aiKit() {
       h, T, sheet, closeSheetThen, chev: ICON.chev, findInView, chapterLabel, uiLang, langName, ftTexts: async () => new Map((ftCache || (ftCache = await tx('text', 'readonly', (st) => reqP(st.getAll())))).map((r) => [r.id, r.secs || []])),
       flash: (m2) => { if (typeof flash === 'function') flash(m2); },
       rd: () => (rd && rd.book ? Object.assign(rd, { secText }) : null),
-      ai: async (task, body) => {
-        const tk = await idToken(); if (!tk) throw new Error('signin');
-        const j = await libApi(Object.assign({ op: 'bookAi', task, idToken: tk }, body)).then((r) => r.json()).catch(() => ({ ok: false, error: 'net' }));
-        if (!j || !j.ok) throw new Error((j && j.error) || 'failed');
-        return j;
-      },
+      ai: aiCall,
       applyFields: async (id, vals) => { const ok = await saveFields(id, vals); if (root && !rd) renderHome(); return ok; },
       investBase: () => { const a = typeof window !== 'undefined' && window.SNB_ENV && window.SNB_ENV.apps; return (a && a.invest) || 'https://invest.thesnowball.app/'; },
     });
@@ -2453,6 +2460,80 @@ async function aiKit() {
   return AIK;
 }
 const ai = (fn) => aiKit().then(fn).catch(() => { if (typeof flash === 'function') flash(T('aiErr')); });
+/* Academy Pro גל 6 (03/11/2026): חיבורים — מאמר מקישור, עיתון בוקר, תיבת הדואר (Studio / מכשיר אחר), ייבוא הדגשות, גיבוי מלא — libconnect.js */
+let CNK = null;
+async function connectKit() {
+  if (!CNK) {
+    const m = await import('./libconnect.js');
+    CNK = m.createConnect({
+      h, T, sheet, uiLang, getFile, allBooks, allBooksRaw, importFiles,
+      flash: (m2) => { if (typeof flash === 'function') flash(m2); },
+      api: libOp,
+      kit: () => import('./epubkit.js'),
+      afterImport: () => afterImportMine(),
+      buildBook: async ({ title, author, chapters, tocPage }) => {
+        const K = await convertKit(), EK = await import('./epubkit.js');
+        const lang = EK.guessLang(chapters.map((c) => c.body.replace(/<[^>]*>/g, ' ')).join(' ').slice(0, 20000));
+        const n = await importFiles([await K.toEpubBlob({ title, author, lang, chapters, images: [] }, { tocPage, polish: true })]);
+        if (n) afterImportMine();
+        return n;
+      },
+      mdBook: async (text, name) => {               // הרצאה מ־Studio (Markdown) → ספר
+        const K = await convertKit();
+        const src = await K.srcOf(new File([text], name + '.md', { type: 'text/markdown' }), { headings: true });
+        return importFiles([await K.toEpubBlob(src, { polish: true })]);
+      },
+      fileName: (b) => String(b.title || 'book').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 80) + '.epub',
+      saveBlob: (blob, name) => convertKit().then((K) => K.saveBlob(blob, name)),
+      isMine: (b) => isMineBook(b),
+      putRec: (r) => putBook(r),
+      restoreBook: async (file, r) => {             // ספר מהגיבוי: הקובץ נכנס כרגיל, ומעליו ההתקדמות, הסימונים והעריכה
+        const keep = { id: r.id };
+        ['added', 'lastRead', 'fraction', 'cfi', 'done', 'ann', 'annQ', 'edit', 'hidden'].forEach((k) => { if (r[k] !== undefined) keep[k] = r[k]; });
+        if (r.coverCustom && r.cover) Object.assign(keep, { cover: r.cover, coverRatio: r.coverRatio, coverCustom: 1 });
+        const n = await importFiles([file], keep);
+        if (n && keep.edit) { const cur = (await allBooksRaw()).find((x) => x.id === r.id); if (cur) { applyEdit(cur, cur.edit); await putBook(cur); } }
+        return n;
+      },
+      queueAnns: async (id, fn) => {                // G2: הדגשות מיובאות — לתור של הספר; המיקום נמצא כשפותחים אותו
+        const rec = (await allBooksRaw()).find((x) => x.id === id); if (!rec) return 0;
+        const add = fn(rec); if (!add.length) return 0;
+        rec.annQ = (rec.annQ || []).concat(add).slice(-2000);
+        await putBook(rec);
+        if (rd && rd.rec && rd.rec.id === id) { rd.rec.annQ = rec.annQ; resolveQueued(); }
+        return add.length;
+      },
+      addHl: (rec, o) => { rec.ann = rec.ann || []; const a = Object.assign({ id: uid() }, o); rec.ann.push(a); annTouch(rec, a, {}); return a; },
+      stillOpen: (rec) => !!(rd && rd.rec === rec),
+    });
+  }
+  return CNK;
+}
+/* Academy Pro F6 (03/11/2026): תרגום ספר שלם — libtrans.js, דרך bilingual של bookAi (המכסה החינמית) */
+let TRK = null;
+async function trK() {
+  if (!TRK) {
+    const m = await import('./libtrans.js');
+    TRK = m.createTrans({
+      h, T, sheet, uiLang, langName, getFile, ai: aiCall,
+      kit: () => import('./epubkit.js'),
+      flash: (m2) => { if (typeof flash === 'function') flash(m2); },
+      importFiles: (files, extra) => importFiles(files, extra),
+      afterImport: () => afterImportMine(),
+    });
+  }
+  return TRK;
+}
+const cn = (fn) => connectKit().then(fn).catch(() => { if (typeof flash === 'function') flash(T('pxErr')); });
+function resolveQueued() { if (rd && rd.rec && Array.isArray(rd.rec.annQ) && rd.rec.annQ.length) { const v = rd.view, r = rd.rec; connectKit().then((C) => C.resolveAnn(v, r)).catch(() => {}); } }
+/* תיבת הדואר: בכניסה לספרייה (מחובר, לכל היותר פעם ב־10 דקות) — מה שנשלח מ־Studio או ממכשיר אחר נכנס לספרייה */
+let inboxAt = 0;
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('visibilitychange', () => { if (!document.hidden && root) checkInbox(); });
+async function checkInbox() {
+  if (!signedIn() || Date.now() - inboxAt < 600000) return;
+  inboxAt = Date.now();
+  try { const j = await libOp('inbox', { act: 'list' }); if (j.items && j.items.length) (await connectKit()).pullInbox(j.items); } catch (e) {}
+}
 async function undoPolish(id) {
   const prev = await getFile(PREV + id); if (!prev) throw new Error('noprev');
   await tx('files', 'readwrite', (st) => { st.put(prev, id); st.delete(PREV + id); });
@@ -2542,7 +2623,17 @@ function editExtras(home, b) {
   const ch5 = h('span', 'pl-chev'); ch5.setAttribute('aria-hidden', 'true'); ch5.innerHTML = ICON.chev || '';
   r5.append(l5, ch5);
   r5.addEventListener('click', () => ai((A) => A.openTagSum(b)));
-  card.append(r, r2, r3, r5); slot.append(card);
+  const r6 = h('button', 'lib-row pl-open'); r6.type = 'button';   // גל 6: שליחה למכשיר אחר (G4)
+  const l6 = h('span', 'pl-rl'); l6.append(h('span', 'pl-rt', T('cnSend')), h('span', 'pl-rs', T('cnSendRow')));
+  const ch6 = h('span', 'pl-chev'); ch6.setAttribute('aria-hidden', 'true'); ch6.innerHTML = ICON.chev || '';
+  r6.append(l6, ch6);
+  r6.addEventListener('click', () => cn((C) => C.openSend(b)));
+  const r7 = h('button', 'lib-row pl-open'); r7.type = 'button';   // F6: תרגום ספר שלם
+  const l7 = h('span', 'pl-rl'); l7.append(h('span', 'pl-rt', T('tbBook')), h('span', 'pl-rs', T('tbRow')));
+  const ch7 = h('span', 'pl-chev'); ch7.setAttribute('aria-hidden', 'true'); ch7.innerHTML = ICON.chev || '';
+  r7.append(l7, ch7);
+  r7.addEventListener('click', () => trK().then((R) => R.openTranslate(b)).catch(() => { if (typeof flash === 'function') flash(T('aiErr')); }));
+  card.append(r, r2, r3, r5, r6, r7); slot.append(card);
   getFile(b.id).then(async (f) => {                  // C1/C2: ספר MOBI/AZW3/FB2 — המרה ל־EPUB, כדי שהעורך והליטוש יעבדו עליו
     if (!f || !card.isConnected) return;
     const EK = await import('./epubkit.js');
@@ -3387,6 +3478,7 @@ async function openReader(id, opt) {
     if (opt && opt.href) await view.goTo(opt.href).catch(() => {});
     if (opt && opt.find) await findInView(view, opt.find);
     setTimeout(() => { if (rd) proKit().catch(() => {}); }, 2500);   // גל 4: החיפוש בספר / המסך המלא — מוכנים כשצריך
+    if (rec.annQ && rec.annQ.length) setTimeout(resolveQueued, 1500);   // גל 6 (G2): הדגשות שיובאו — מוצאות את מקומן
   } catch (e) {
     if (typeof flash === 'function') flash(T('libOpenErr'));
     readerExit();
@@ -5041,6 +5133,7 @@ export async function openLibrary(opt) {
   BK.schedule(8000);                       // v318: גיבוי אוטומטי של הספרייה הפרטית, אם הגיע הזמן
   refreshCloud(true);                      // v319: ספרים שבגיבוי ולא בטלפון
   await pullCloud();
+  checkInbox();                            // גל 6: הרצאה מ־Studio / ספר ממכשיר אחר
   try { const tk = await idToken(); if (tk) { const j = await libApi({ op: 'me', idToken: tk }).then((r) => r.json()); ui.admin = !!(j && j.admin); } } catch (e) {}
   renderHome();
   setTimeout(() => indexAll(), 600);

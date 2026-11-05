@@ -15,6 +15,7 @@ const { epubText } = require('../lib/epubtext');
 const { insight } = require('../lib/insight');
 const { createAiStore } = require('../lib/aicache');
 const BAI = require('../lib/bookai');
+const WEB = require('../lib/libweb');
 const aiStore = createAiStore();
 const gdrive = require('../lib/gdrive');
 const R2 = require('../lib/r2');
@@ -133,7 +134,7 @@ async function shelfGuest(req, body, deps, err) {
 
 async function handler(req, res, deps = {}) {
   const op0 = req.body && typeof req.body === 'object' ? String(req.body.op || '') : '';
-  if (guard(req, res, op0 === 'bookAi' ? 400000 : BIG_OPS.has(op0) ? 65536 : 4096)) return;   // גל 5: AI על ספר — הטקסט מגיע מהטלפון (עד ~120 אלף תווים)
+  if (guard(req, res, op0 === 'bookAi' ? 600000 : BIG_OPS.has(op0) ? 65536 : 4096)) return;   // גל 5: AI על ספר — הטקסט מגיע מהטלפון (עד ~120 אלף תווים); גל 6: תמונת עמוד סרוק ל־OCR (עד ~420 אלף)
   let body = req.body;
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } }
   body = body || {};
@@ -161,6 +162,17 @@ async function handler(req, res, deps = {}) {
     if (limited('ai|' + au.uid, 30)) return res.status(429).json({ ok: false, error: 'rate_limited' });
     const r = await BAI.run(body, au.uid, deps.aiStore || aiStore, deps);
     return res.status(r.status).json(r.j);
+  }
+  /* Academy Pro גל 6 (03/11/2026): מאמר/פיד מהרשת (webGet, עם הגנה מכתובות פנימיות) ותיבת הדואר הפרטית ב־R2 (inbox:
+     הרצאה מ־Studio, ספר ממכשיר אחר) — כל משתמש מחובר, רק התיבה שלו (lib/libweb.js) */
+  if (body.op === 'webGet' || body.op === 'inbox') {
+    let wu;
+    try { wu = await verifyIdToken(body.idToken, deps.verify || {}); } catch (e) { return res.status(401).json({ ok: false, error: 'no_auth' }); }
+    if (limited((body.op === 'webGet' ? 'web|' : 'ib|') + wu.uid, 60)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+    try {
+      const r = body.op === 'webGet' ? await WEB.webGet(body.url, deps) : await WEB.inbox(body, wu.uid, deps.r2 !== undefined ? deps.r2 : r2c(), deps.R2 || R2, deps);
+      return res.status(r.status).json(r.j);
+    } catch (e) { return res.status(502).json({ ok: false, error: 'failed' }); }
   }
   /* אבחון בלי לחשוף ערכים: איזה משתנה חסר / לא נקרא. תיקיית Drive נדרשת רק עד סיום המעבר לקטלוג ב־R2 (12/10/2026) */
   const notConfigured = () => {
