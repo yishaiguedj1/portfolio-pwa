@@ -8,6 +8,8 @@ const { AsyncLocalStorage } = require('async_hooks');
 const als = new AsyncLocalStorage();
 const TAG_MAX = 120;
 let day = '', t0 = 0, total = 0, by = new Map(), hours = new Map(), win = [], fired = new Set();
+/* 5/11/2026 (שלב 3 בתוכנית העצמאות מ־Firebase): קריאות שהוגשו מהמסד שלנו (lib/ldb.js) — היו עולות כך ב־Firestore. לא נספרות במכסה */
+let loc = 0, locBy = new Map();
 /* 28/10/2026 (בקשת המשתמש): התראה הרבה לפני החסימה. חלון נע של שעה (6 × 10 דק׳) לכל פעולה:
    פעולה אחת מעל TAG_HOUR בשעה = כנראה לולאה/ריענון שקורא אוסף שלם (כמו op:'jobs' כל 30 שנ׳ — 8,600 בשעה).
    ובנוסף קצב כולל: מה שכבר נקרא + קצב השעה האחרונה עד האיפוס > PACE × המכסה. כל התראה — פעם אחת ביום מכסה */
@@ -24,11 +26,22 @@ const tagOf = (name, req) => {
   const op = String((b && typeof b === 'object' && b.op) || q.op || q.job || req.method || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 24);
   return String(name || '').slice(0, 24) + (op ? ':' + op : '');
 };
+function newDay(d, now) { day = d; t0 = now; total = 0; by = new Map(); hours = new Map(); fired = new Set(); loc = 0; locBy = new Map(); }
+function addLoc(reads, now = Date.now()) {
+  if (!(reads > 0)) return;
+  const d = dayKey(now);
+  if (d !== day) newDay(d, now);
+  const st = als.getStore();
+  let t = (st && st.tag) || 'other';
+  if (!locBy.has(t) && locBy.size >= TAG_MAX) t = 'other';
+  locBy.set(t, (locBy.get(t) || 0) + reads);
+  loc += reads;
+}
 function run(tag, fn) { return als.run({ tag }, fn); }
 function add(reads, now = Date.now()) {
   if (!(reads > 0)) return;
   const d = dayKey(now);
-  if (d !== day) { day = d; t0 = now; total = 0; by = new Map(); hours = new Map(); fired = new Set(); }
+  if (d !== day) newDay(d, now);
   const st = als.getStore();
   let t = (st && st.tag) || 'other';
   if (!by.has(t) && by.size >= TAG_MAX) t = 'other';
@@ -103,13 +116,14 @@ function wrapFetch(f) {
   return w;
 }
 function view(now = Date.now()) {
-  if (dayKey(now) !== day) return { day: dayKey(now), total: 0, top: [], hours: [], h: 0, proj: 0, lim: DAY_LIM, tagHour: TAG_HOUR, hot: [] };
+  if (dayKey(now) !== day) return { day: dayKey(now), total: 0, top: [], hours: [], h: 0, proj: 0, lim: DAY_LIM, tagHour: TAG_HOUR, hot: [], loc: 0, locTop: [] };
   const P = pace(now);
   // top: [פעולה, היום, בשעה האחרונה]
   const top = [...by.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20).map(([k, v]) => [k, v, P.lh.get(k) || 0]);
   const hrs = [...hours.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).slice(-24);
-  return { day, total, top, hours: hrs, h: P.h, proj: P.proj, lim: DAY_LIM, tagHour: TAG_HOUR, hot: top.filter((x) => x[2] >= TAG_HOUR).map((x) => x[0]) };
+  const locTop = [...locBy.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+  return { day, total, top, hours: hrs, h: P.h, proj: P.proj, lim: DAY_LIM, tagHour: TAG_HOUR, hot: top.filter((x) => x[2] >= TAG_HOUR).map((x) => x[0]), loc, locTop };
 }
-const _reset = () => { day = ''; t0 = 0; total = 0; by = new Map(); hours = new Map(); win = []; fired = new Set(); };
+const _reset = () => { day = ''; t0 = 0; total = 0; by = new Map(); hours = new Map(); win = []; fired = new Set(); loc = 0; locBy = new Map(); };
 
-module.exports = { run, add, readsOf, wrapFetch, view, alarms, pace, hoursLeft, tagOf, dayKey, DAY_LIM, TAG_HOUR, PACE_MIN_H, _reset };
+module.exports = { run, add, addLoc, readsOf, wrapFetch, view, alarms, pace, hoursLeft, tagOf, dayKey, DAY_LIM, TAG_HOUR, PACE_MIN_H, _reset };

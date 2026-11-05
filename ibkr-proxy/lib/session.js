@@ -273,7 +273,7 @@ function makeHandler(over = {}) {
     if (req.method === 'GET') {
       res.setHeader('Cache-Control', 'no-store');
       // 28/10/2026: fr = קריאות Firestore היום לפי פעולה (lib/fsmeter.js) — לאבחון מכסה בלי גישה ל־Google Cloud; רק שמות פעולות ומספרים
-      return res.status(200).json({ ok: true, since: new Date(stats.since).toISOString(), n: stats.n, last: stats.last, fr: require('./fsmeter').view() });
+      return res.status(200).json({ ok: true, since: new Date(stats.since).toISOString(), n: stats.n, last: stats.last, fr: require('./fsmeter').view(), ldb: require('./ldbsync').status() });   // ldb — 5/11/2026: המסד שלנו (lib/ldbsync.js)
     }
     const app = appForOrigin(origin, sessEnv(deps.env));
     cors(res, origin, app);
