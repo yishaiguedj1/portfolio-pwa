@@ -20,7 +20,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 20
+          node-version: 22   # 5/11/2026: כמו השרת (infra/app/Dockerfile — 22.20); node:sqlite (lib/ldb.js) — מ־22.13
       - name: syntax check
         run: node --check app.js && node --check ibkr-proxy/api/flex-request.js
       - name: app test files

@@ -265,14 +265,20 @@ if (require.main === module) {
   if (unpacked < 0) console.error('[snb-app] ✗ SNB_ENV_GZ לא נפתח — השרתון עולה בלי הסודות שבו');
   // 24/10/2026: תור ההעברה של "המנוי שלי" (lib/relay.js) — חי בזיכרון של התהליך הזה בלבד (ב־Vercel אין)
   if (process.env.SNB_RELAY_HUB_ON == null) process.env.SNB_RELAY_HUB_ON = '1';
-  globalThis.fetch = FSM.wrapFetch(globalThis.fetch);   // 28/10/2026: כל בקשה ל־Firestore נספרת (GET /api/session מציג את הפילוח)
+  const inner = FSM.wrapFetch(globalThis.fetch);   // 28/10/2026: כל בקשה ל־Firestore נספרת (GET /api/session מציג את הפילוח)
+  // 5/11/2026 (שלב 3 בתוכנית העצמאות מ־Firebase): האוספים של השרתון — מהמסד שלנו (lib/ldb.js), Firestore עותק במנות.
+  // בלי הנפח /data (infra/compose.yaml) או עם SNB_LDB=off — כבוי, והכל ל־Firestore כמו קודם
+  const LDB = require('./lib/ldbsync').forServer(inner);
+  globalThis.fetch = LDB.wrapFetch(inner);
+  LDB.start().then((ok) => console.log('[snb-app] מסד הנתונים שלנו:', ok ? 'פעיל' : 'כבוי (' + LDB.status().why + ')'));
   const server = createServer();
   const port = +process.env.PORT || 3000;
   server.listen(port, '0.0.0.0', () => console.log('[snb-app] מאזין על', port, '·', server.names.size, 'פונקציות'));
   if (cronOn(process.env, unpacked)) startCron(server, loadCrons(__dirname));
   if (process.env.SNB_PXA !== 'off') startPx(server);
   if (process.env.SNB_FSW !== 'off') startFsWatch(server);
-  const stop = () => server.close(() => process.exit(0));
+  // לפני יציאה: מה שעוד לא נשלח לעותק ב־Firestore (עד 8 שנ׳)
+  const stop = () => Promise.race([LDB.flush(), new Promise((r) => setTimeout(r, 8000))]).finally(() => server.close(() => process.exit(0)));
   process.on('SIGTERM', stop);
   process.on('SIGINT', stop);
 }

@@ -169,5 +169,9 @@ function signList(list) {
   return crypto.createHmac('sha256', key).update(JSON.stringify(list)).digest('hex');
 }
 
+/* 5/11/2026 (שלב 3 בתוכנית העצמאות מ־Firebase): ב־Vercel בלבד — כל כתיבה לאוסף של השרתון נרשמת ביומן snbChg, כדי שהשרת
+   שלנו (שמחזיק את האוספים האלה במסד משלו) יאחד אותה. הקובץ הזה נטען בכל פונקציה שניגשת ל־Firestore (lib/ldbchg.js) */
+require('./ldbchg').installOnVercel();
+
 module.exports = { verifyIdToken, readerAllowed, driveToken, datastoreToken, cloudToken, serviceAccount, isAdmin, signList, emails, emailsOf, hasEmail,
   _reset: () => { certs = { at: 0, ttl: 0, keys: null }; linkCache.clear(); apiKeys.at = 0; apiKeys.map = null; Object.keys(toks).forEach((k) => delete toks[k]); } };
