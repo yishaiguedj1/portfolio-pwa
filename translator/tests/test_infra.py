@@ -367,7 +367,9 @@ class Rooms(unittest.TestCase):
                             mem_kb=32 * 1024 * 1024)
         m = re.search(r'mem=(\d+)m .* memr=(\d+)m memr_stg=(\d+)m', r['compose'])
         self.assertEqual(int(m.group(2)), 8192)
-        self.assertEqual(int(m.group(1)), 32 * 1024 - 1024 - 800 - 1100 - 8192)
+        # 05/11/2026: שריון הניסוי = שיא של עבודה אחת — הייצור מקבל את ההפרש (3 עבודות ארוכות במקביל)
+        self.assertEqual(int(m.group(3)), 4608)
+        self.assertEqual(int(m.group(1)), 32 * 1024 - 1024 - 800 - 1100 - 4608)
 
     def test_prod_app_room(self):
         # ת3: השרתון של הייצור — snb-app:prod (אחרי אישור), ו־Tunnel נפרד
