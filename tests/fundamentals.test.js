@@ -282,6 +282,12 @@ dfx.A.rev[1] = 222e6;
   ok(amb.out.length === 2 && !amb.fill.length, 'אף שורה לא תואמת ויש כמה — פער מסומן, בלי החלפה');
   const neg = F.faceCheck(D([189e6, 222e6]), { is: page([['(222)', '(189)']]) });
   ok(neg.seen.ok === 2 && !neg.out.length && !neg.fill.length, 'Mettler: שורה שכולה הפוכה בסימן (תווית הפוכה) — לא פער ולא החלפה'); }
+// FMX ‏2025: שתי שורות ProfitLoss ועמודת המרה לדולר — הבחירה בין השורות רק לפי העמודות שמושוות (מטבע הדיווח)
+{ const S = { scale: { cur: 1e6, sh: 1e6 }, cols: [{ end: '2025-12-31', months: 12, cur: 'USD' }, { end: '2025-12-31', months: 12, cur: 'MXN' }, { end: '2024-12-31', months: 12, cur: 'MXN' }, { end: '2023-12-31', months: 12, cur: 'MXN' }],
+    rows: [{ tag: 'ProfitLoss', label: 'CONSOLIDATED NET INCOME', v: [1836, 33053, 40236, 76677] }, { tag: 'ProfitLoss', label: 'CONSOLIDATED NET INCOME', v: [null, 31479, 40121, 44439] }] };
+  const D = { tags: { ni: 'ProfitLoss' }, fy: ['2023-12-31', '2024-12-31', '2025-12-31'], A: { ni: [76677e6, 40236e6, 33053e6] }, cur: 'MXN' };
+  const r = F.faceCheck(D, { is: S });
+  ok(r.seen.n === 3 && r.seen.ok === 3 && !r.out.length && !r.fill.length, 'FMX: עמודת ההמרה לדולר לא בוחרת את השורה — נבחרת השורה שתואמת במטבע הדיווח'); }
 /* ---------- רווח גולמי, רווח תפעולי, רווח נקי והכנסות — מה שהדוח באמת מציג (26/10/2026) ---------- */
 {
   const page = (rows, title = 'Consolidated Statements of Operations') => SF.parseR(`<table><tr><th class="tl" colspan="1" rowspan="2"><div><strong>${title} - USD ($)<br> $ in Millions</strong></div></th><th class="th" colspan="2">12 Months Ended</th></tr>

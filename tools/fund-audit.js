@@ -26,10 +26,9 @@ const AN = (() => {
   sb.A.setEnv({ t: (k) => k });
   return sb.A;
 })();
-const UA = { headers: { 'User-Agent': process.env.SEC_UA || 'TheSnowball/1.0 data@thesnowball.app' } };
 async function getFacts(r) {
   if (!r || !r.ok || r.src !== 'sec' || !r.cik) return null;
-  try { const x = await fetch('https://data.sec.gov/api/xbrl/companyfacts/CIK' + String(r.cik).padStart(10, '0') + '.json', UA); if (x.status === 200) return await x.json(); } catch (e) { /* בלי companyfacts — שכבות 7–8 מדלגות */ }
+  try { return await F.secFacts(r.cik); } catch (e) { /* בלי companyfacts — שכבות 7–8 מדלגות (כולל דוחות שהושלמו מה־XBRL של ההגשה) */ }
   return null;
 }
 function growthCheck(r, facts) {
