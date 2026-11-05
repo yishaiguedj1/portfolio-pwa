@@ -31,10 +31,16 @@ import urllib.parse
 import urllib.error
 import urllib.request
 
-SERVER = 'https://ibkr-proxy-wine.vercel.app'
-# שלב 2ב (12/10/2026): השרתונים המוכרים — הייצור, וזה של סביבת הניסוי (חדר על השרת, דרך Cloudflare Tunnel).
+# 5/11/2026 (ת3 שלב 4 — Vercel רק גיבוי): הראשי = השרתון שלנו (חדר האפליקציה, api.thesnowball.app). Vercel = גיבוי חם —
+# אותן פונקציות, אותם סודות ואותו Firestore. http() עובר אליו לבד כשהראשי לא עונה (רשת / 5xx / 52x של Cloudflare) או
+# מחזיר 421 (learn_remote — פעולה שהשרת שלנו לא יכול לבצע, למשל בלי R2L_*). עד אז העובד פנה ל־Vercel כל 20 שנ׳.
+SERVER = 'https://api.thesnowball.app'
+BACKUP = 'https://ibkr-proxy-wine.vercel.app'
+# שלב 2ב (12/10/2026): השרתונים המוכרים — הייצור, הגיבוי שלו, וזה של סביבת הניסוי (חדר על השרת, דרך Cloudflare Tunnel).
 # רשימה סגורה: כתובת אחרת = העובד מסרב (מפתח העבודה וקבצי המשתמש לא נשלחים לכתובת שלא אנחנו).
-SERVERS = (SERVER, 'https://api-staging.thesnowball.app', 'https://api.thesnowball.app')
+SERVERS = (SERVER, 'https://api-staging.thesnowball.app', BACKUP)
+FAILOVER_S = 300                     # אחרי נפילה של הראשי — 5 דק׳ ישר לגיבוי, ואז שוב הראשי קודם
+_fo = {'until': 0.0}
 DRIVE_API = 'https://www.googleapis.com/drive/v3'
 JOB_RE = re.compile(r'^j[A-Za-z0-9_-]{20}$')
 KEY_RE = re.compile(r'^[A-Za-z0-9_-]{43}$')
@@ -109,6 +115,29 @@ def vt_slug(name):
 
 
 def http(method, url, body=None, headers=None, timeout=30):
+    """בקשה אחת. בקשה לראשי של הייצור (SERVER) עוברת לגיבוי (BACKUP) כשהראשי לא עונה / 5xx / 421 — ראו SERVER"""
+    if not (isinstance(url, str) and url.startswith(SERVER + '/')):
+        return _http1(method, url, body, headers, timeout)
+    alt = BACKUP + url[len(SERVER):]
+    if time.time() < _fo['until']:
+        return _http1(method, alt, body, headers, timeout)
+    try:
+        r = _http1(method, url, body, headers, timeout)
+    except (urllib.error.URLError, TimeoutError, OSError):
+        r = None
+    if r is not None and r[0] < 500 and r[0] != 421:
+        return r
+    if r is None or r[0] != 421:
+        _fo['until'] = time.time() + FAILOVER_S     # 421 = רק הפעולה הזו (learn_remote); נפילה = כל הבקשות לגיבוי לזמן מה
+    try:
+        return _http1(method, alt, body, headers, timeout)
+    except (urllib.error.URLError, TimeoutError, OSError):
+        if r is None:
+            raise
+        return r
+
+
+def _http1(method, url, body=None, headers=None, timeout=30):
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(url, data=data, method=method, headers=dict({'User-Agent': UA}, **(headers or {})))
     if data is not None:
