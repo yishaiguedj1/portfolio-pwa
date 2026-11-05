@@ -18,6 +18,8 @@ RUN find /app -type d -exec chmod 755 {} + && find /app -type f -exec chmod 644 
 # 26/10/2026: ה־commit שממנו נבנתה התמונה — ב־/healthz?v=1 (app-image.yml מעביר אותו)
 ARG SNB_GIT_SHA=
 ENV NODE_ENV=production PORT=3000 SNB_GIT_SHA=${SNB_GIT_SHA}
+# 5/11/2026: נקודת העגינה של מסד הנתונים (נפח appdb ב־compose.yaml). נפח חדש מקבל את הבעלות מכאן — השרתון כותב בו בלי הרשאות
+RUN mkdir -p /data && chown 10001:10001 /data && chmod 700 /data
 USER 10001:10001
 WORKDIR /app
 EXPOSE 3000

@@ -52,7 +52,8 @@ const FSM = require(path.join(root, 'ibkr-proxy/lib/fsmeter.js'));
   ok(out && out.fr && Array.isArray(out.fr.top), 'GET /api/session מחזיר fr');
 
   const srv = fs.readFileSync(path.join(root, 'ibkr-proxy/server.js'), 'utf8');
-  ok(/globalThis\.fetch = FSM\.wrapFetch\(globalThis\.fetch\)/.test(srv) && /FSM\.run\(FSM\.tagOf\(name, req\)/.test(srv), 'server.js — העטיפה והתיוג מחוברים');
+  // 5/11/2026: המונה עוטף את ה־fetch האמיתי, והמסד שלנו (lib/ldbsync.js) עוטף את המונה — קריאה מקומית לא נספרת במכסה
+  ok(/const inner = FSM\.wrapFetch\(globalThis\.fetch\)/.test(srv) && /globalThis\.fetch = LDB\.wrapFetch\(inner\)/.test(srv) && /FSM\.run\(FSM\.tagOf\(name, req\)/.test(srv), 'server.js — העטיפה והתיוג מחוברים');
 
   // הסטודיו: הבית בזמן עבודה רצה — op:'job' לעבודות הרצות, הרשימה המלאה רק פעם ב־JOBS_FULL_MS
   const st = fs.readFileSync(path.join(root, 'studio.js'), 'utf8');

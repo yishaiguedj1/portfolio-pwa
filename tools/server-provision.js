@@ -398,13 +398,24 @@ async function register(e, env, name, deps) {
     body: JSON.stringify({ fields: S.toFields({ th: S.keyHash(token), name, created: now, seen: 0, paused: false, job: '', by, updated: now }) }),
   });
   if (r.status !== 200) fail('fs_http_' + r.status, 'הרישום ב־Firestore נכשל (' + r.status + ')');
+  await chg(env, tok, sid, false, deps);
   return { sid, token };
+}
+/* 5/11/2026 (שלב 3 בתוכנית העצמאות מ־Firebase): השרתון שלנו מחזיק את studioServers במסד משלו (ibkr-proxy/lib/ldb.js) —
+   רישום / הסרה שנכתבים כאן ישר ב־Firestore נרשמים ביומן snbChg, והשרתון קולט אותם באיחוד (עד 2 דק׳). תקלה ביומן לא מפילה */
+async function chg(env, tok, sid, del, deps) {
+  try {
+    const CH = require(path.join(ROOT, 'ibkr-proxy/lib/ldbchg.js'));
+    await deps.fetch(fsBase(env.project) + ':commit', { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ writes: [CH.chgWrite(env.project, { col: 'studioServers', id: sid, d: del, full: !del }, deps.now())] }) });
+  } catch (x) { /* בלי יומן — ייקלט בייבוא הבא */ }
 }
 
 async function unregister(e, env, sid, deps) {
   if (!S.SRV_ID_RE.test(String(sid || ''))) return false;
   const tok = await fsToken(e, env, deps);
   const r = await deps.fetch(fsBase(env.project) + '/studioServers/' + sid, { method: 'DELETE', headers: { Authorization: 'Bearer ' + tok } });
+  if (r.status === 200) await chg(env, tok, sid, true, deps);
   return r.status === 200 || r.status === 404;
 }
 
