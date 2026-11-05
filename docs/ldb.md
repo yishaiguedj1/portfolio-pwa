@@ -1,0 +1,38 @@
+# מסד הנתונים שלנו על השרת (ldb) — שלב 3 בתוכנית העצמאות מ־Firebase
+
+> נבנה 5/11/2026. התוכנית: `תוכנית-עצמאות-מ-Firebase.md`. הקוד: `ibkr-proxy/lib/ldb.js`, `ldbsync.js`, `ldbchg.js`. בדיקות: `tests/ldb.test.js` (+ `tests/_ldbwrap.js`).
+
+## העיקרון
+- **שכבה אחת, בלי לשנות את מי שקורא.** השרתון ממשיך לשלוח "Firestore REST" (fetch ל־`firestore.googleapis.com`). ב־`server.js` ה־fetch הגלובלי עטוף: `LDB.wrapFetch(FSM.wrapFetch(fetch))`. בקשה לאוסף שכבר במסד נענית מ־SQLite, ולכן היא לא מגיעה למונה ולא עולה מהמכסה. כל השאר ממשיך ל־Firestore.
+- **אילו אוספים**: כל מה שלא נפתח לטלפון בכללים. `CLIENT` = `users`, `academyUsers` (הבדיקה משווה ל־`firestore.rules`). `snbChg` (היומן) נשאר ב־Firestore. אוסף חדש נכנס לבד: הוא נלמד בבקשה הראשונה ומיובא.
+- **מה נתמך** (כל מה שהשרתון משתמש בו): GET מסמך/אוסף, PATCH עם `updateMask` ו־`currentDocument.exists/updateTime`, DELETE, `:runQuery` (כל סוגי הסינון, orderBy, limit, offset, select), ספירה, ו־`:commit` (update/delete/transform). **צורה שלא נתמכת** (startAt, טרנזקציה, batchGet) ממשיכה ל־Firestore ונספרת ב־`ldb.passWhy`. בזרימות האמיתיות של הסטודיו נמדדו 0 כאלה.
+- **הזיכרון**: כל המסמכים בזיכרון (Map לכל אוסף), ו־SQLite (WAL) הוא ההתמדה. ב־`ldb.mb` רואים את הגודל. הקונטיינר מוגבל ל־768MB.
+
+## העותק, האיחוד והגיבוי (`ldbsync.js`)
+- **העותק ב־Firestore**: כל דקה, `documents:batchWrite` במנות של 450, עם המצב האחרון של כל מסמך שהשתנה (מסמך מלא + `_mt` = מתי נכתב אצלנו). התקרה היומית היא 12 אלף כתיבות: מעל 8 אלף שולחים פעם ב־5 דק׳, ומעל 12 אלף מחכים למחר. בתקלה (429/5xx) יש המתנה הולכת וגדלה, והתור נשמר בדיסק.
+- **Vercel ממשיך מול Firestore.** `lib/gauth.js` מתקין ב־Vercel בלבד (`process.env.VERCEL`) את `stampFetch`. כל כתיבה מוצלחת לאוסף של השרתון כותבת גם `snbChg/<אוסף>~<מזהה>`, עם `t`, `d`, `m` (איחוד של השדות) ו־`f=1` (נכתב כולו). גם `tools/server-provision.js` (רישום/הסרה של שרת) כותב שם.
+- **האיחוד** — כל 2 דק׳ ובעלייה. קריאה אחת כשאין שינויים (~720 ביום). הכלל: **השינוי האחרון גובר**, לכל מסמך:
+  - המסמך לא השתנה אצלנו מאז העותק → מקבל את הגרסה של Firestore (שהיא שלנו + Vercel).
+  - השתנה אצלנו ועוד לא נשלח, ו־Vercel אחרון → נכנסים רק השדות ש־Vercel כתב (או כל המסמך, אם החליף אותו).
+  - אנחנו אחרונים → שלנו נשאר, והעותק דורס.
+  - מחיקה ב־Vercel → נמחק גם אצלנו.
+  - הרשומה ביומן נמחקת בתנאי `updateTime`, כדי לא למחוק כתיבה חדשה של Vercel.
+- **הייבוא הראשון**: `listCollectionIds`, ואז עמודים של 300, בתקציב של 8,000 קריאות ביום. הסדר: sysCfg, studioServers, studioStats, studioOps, studioUp, studioVault, studioJobs, ואחריהם הא״ב. עד שאוסף מיובא כולו הוא ממשיך ל־Firestore. כתיבה שעוברת לשם בזמן הזה נכנסת גם למסד, לפי `updateTime`, כך שלא הולך לאיבוד כלום.
+- **תמונת מצב ל־R2**: כל 10 דק׳ כשהיה שינוי. `VACUUM INTO`, דחיסה, ו־AES-256-GCM עם מפתח שנגזר מהכספת (`vault.derive('snb-ldb-snap/v1')`) ← `ldb/<פרויקט>/snap.bin`. שרת חדש (נפח ריק) משחזר ממנה, ואז מביא מ־Firestore כל מסמך עם `_mt` מאוחר מהתמונה (פחות 10 דק׳). **מה שלא מכוסה**: מחיקה מקומית שקרתה בין התמונה לנפילה עלולה לחזור.
+- **כיבוי**: ב־SIGTERM העותק נשלח לפני היציאה (עד 8 שנ׳).
+
+## הדלקה ומצב
+- המסד דולק רק כשיש תיקייה קבועה שאפשר לכתוב בה: `SNB_LDB_DIR`, ברירת מחדל `/data` (הנפחים `appdb` / `appdb-stg` ב־`infra/compose.yaml`, ו־`/data` שייך ל־10001 ב־`infra/app/Dockerfile`). בלי נפח — `why:'no_dir'`, והכל כמו קודם. כיבוי יזום: `SNB_LDB=off`. ביומן ב־Vercel: `SNB_LDB_CHG=off`.
+- **שרת קיים לא מקבל את `compose.yaml` לבד.** ההתקנה במסוף של Hetzner (`docs/studio-server.md`, "שינוי ב־snb-common.sh/compose.yaml — בלי שרת חדש"): `snb-host apply` מתוך תמונת העובד, ואז `snb-update`.
+- **מדידה**: `GET https://api.thesnowball.app/api/session`:
+  - `fr.total` — קריאות Firestore היום.
+  - `fr.loc` / `fr.locTop` — קריאות שהוגשו מהמסד שלנו.
+  - `fr.top` — כולל `ldb:mirror`/`ldb:merge`/`ldb:import`.
+  - `ldb` — `on`, `docs`, `mb`, `ready`/`cols`, `imp` (מה עוד מיובא), `q` (התור לעותק), `wDay`/`rDay`, `mirror`/`merge`/`snap` (מתי, ותקלה).
+- **לפני** (5/11/2026 07:00 בשעון ישראל, יום המכסה 4/11): `fr.total` = 4,913. בראש הרשימה `studio:GET` 1,965, `adminAct` 608, `learn` 521, `poll` 416, `jobs` 245, `adminOv` 233.
+
+## לקחים
+- `node:sqlite` קיים בלי דגל מ־Node 22.13. ה־CI של בדיקות node עבר מ־20 ל־22, כמו השרת (22.20). האזהרה `ExperimentalWarning` רגילה.
+- בדיקה של זרימה קיימת מול המסד: `node -r ./_ldbwrap.js <x>.test.js`. העוטף מנתב את `api/studio.js` למסד, שולח כל כתיבה גם ל־Firestore המדומה של הבדיקה (בלי תנאי הגרסה), וקולט הכנות ישירות (`db.set`, `Object.assign(doc(), …)`) כאילו יובאו.
+- `mkdirSync` על `/proc` נתקע תחת gVisor. בבדיקה של "תיקייה שאי אפשר לכתוב" משתמשים בנתיב שעובר דרך קובץ.
+- כתיבה ישירה ל־Firestore מכלי חיצוני (כמו server-provision) **חייבת** לרשום ביומן `snbChg`. אחרת השרתון לא יראה אותה עד שהאוסף ייובא מחדש.

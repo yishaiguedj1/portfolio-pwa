@@ -49,6 +49,7 @@
 | Studio — **העלאה מהירה ברקע ל־R2** (מחקר 1/11/2026: Background Fetch, UIDT, iOS, Local Uploads, גודל חלק; ההערות ב־`docs/research/studio-upload/`) | `docs/studio-upload-research.md` |
 | Studio — **הפרומפט לסבב הניתוח הבא** (מול התרגום האנושי, `tools/learn-vs-human.py`), מה נבדק ומה לא · **הוראות פתיחה לפרויקט שיפור** | `docs/studio-analysis-prompt.md`, `docs/studio-project-brief.md` |
 | Studio — **תוכנית איכות התרגום** (2/11/2026): הממצאים לפי שורש, הגלים וה־PRים, פרוטוקול המדידה וקריטריון ההפעלה, דגלי `xf` ו"הרץ גל" | `docs/studio-quality-plan.md` |
+| Studio — **מקביליות וביצועים מרביים ב־CX53** (5/11/2026): נקודות הזהב (3 עד ~16 דק׳, 4 עד ~9), "כניסה ברגע הנכון" (קבלה חזויה, S\* 1.35), מהירות עבודה בודדת, מבחן העומס, הגלים · הסימולציה: `tools/studio-parallel-sim.py` | `docs/studio-parallel-plan.md` |
 | Studio — **קריוקי בעברית**: השרשרת שנבדקה (ivrit + stable-ts + CTC עברי), כללי ההחלפה, לקחים | `docs/studio-karaoke-he.md` |
 | Studio — **קריוקי: מחקר עומק** (ספרות, מדדים וסט בדיקה, שיפורים לפי עדיפות, מלכודות רישיון, פורמטים ופיצ'רים) | `docs/studio-karaoke-research.md` |
 | Studio — **מקורות כתוביות מהרשת**: בדיקה חיה של כל המקורות (מפתח/CORS/כיסוי), המלצה, ושיפורי דיוק | `docs/studio-subs-sources.md` |
@@ -57,6 +58,7 @@
 | **Studio DM — תוכנית השדרוג "מקצועי"** (42 יכולות בארבע חבילות, ההמלצה לסבבים) | `docs/dm-upgrade-plan.md` |
 | **Studio Browser Pro — תוכנית הגלים** (55 היכולות שהמשתמש בחר, גלים 2–6, מה דורש אישור כסף) | `docs/browser-pro-plan.md` |
 | **Academy Pro — קטלוג היכולות ותוכנית הגלים** (94 יכולות: עורך הספר, ליטוש, המרות, ניהול, קורא, AI, חיבורים, עברית; הבחירה בקטלוג) | `docs/academy-pro-plan.md` |
+| **מסד הנתונים שלנו (ldb)** — SQLite בשרת לאוספים של השרתון, העותק ב־Firestore, האיחוד מול Vercel (`snbChg`), תמונת מצב ב־R2, ההדלקה (`/data`) והמדידה | `docs/ldb.md` |
 | צריכת טוקנים: המדידה, המחקר, ההגדרות ומה עוד אפשר | `docs/token-economy.md` |
 | **פרויקט "עמודים סטטיים"** — אפס קפיצות/רענונים במעברים: התוכנית, הגלאים (`qa-deep --landing`), הממצאים | `docs/smooth-plan.md` |
 | **ארכיטקטורה לחלקות (סבב 6)** — ששת השורשים המבניים של הקפיצות, המחקר, החלופות (מיזוג לפי מפתח, מעברים בלי העתק, commit אחד, APK אחד) וההמלצה | `docs/smooth-architecture.md` |
@@ -65,7 +67,7 @@
 | היסטורי: תיאום הסשנים הישן, פריטים פתוחים ישנים | `docs/sessions-history.md`, `docs/open-items-history.md` |
 | משימות פתוחות (הרשימה הפעילה) | `משימות-פתוחות.md` |
 
-קבצים מרכזיים בקצרה: `app.js` (Invest, הכל; `APP_VERSION`/`APP_RELEASE` באזור `<core>`), `sw.js` (המטמון — רק דרך `node tools/swgen.js`), `core.js`/`auth.js`/`strings-*.js` (נוצרים — `node tools/coregen.js`), `shell.js` (הדר Academy/Studio), `library.js`, `studio.js` + `studionet.js`, `admin-app.js`, `cloud.js`, `firebase-config.js` (`SNB_ENV`), `ibkr-proxy/api/*` (Vercel — **12 מתוך 12 פונקציות**; פעולה חדשה = `op` בקובץ קיים או `SERVER_ONLY`), `translator/` (העובד), `android/` (flavors).
+קבצים מרכזיים בקצרה: `app.js` (Invest, הכל; `APP_VERSION`/`APP_RELEASE` באזור `<core>`), `sw.js` (המטמון — רק דרך `node tools/swgen.js`), `core.js`/`auth.js`/`strings-*.js` (נוצרים — `node tools/coregen.js`), `shell.js` (הדר Academy/Studio), `library.js`, `studio.js` + `studionet.js`, `admin-app.js`, `cloud.js`, `firebase-config.js` (`SNB_ENV`), `ibkr-proxy/api/*` (Vercel — **12 מתוך 12 פונקציות**; פעולה חדשה = `op` בקובץ קיים או `SERVER_ONLY`), `ibkr-proxy/lib/ldb*.js` (המסד שלנו — כתיבה ישירה ל־Firestore מחוץ לשרתון חייבת יומן `snbChg`), `translator/` (העובד), `android/` (flavors).
 
 ## 3. פרטיות — קריטי, אין יוצאים מן הכלל (פירוט: `docs/privacy.md`)
 - **הריפו ציבורי.** אסור ב־git / צ'אט / לוגים / פיקסטורות / צילומים: טוקני Flex, Query ID, מספרי חשבון, אחזקות, יתרות, עסקאות, ביצועים, שמות קבצים של המשתמש, XML/CSV, מיילים, מפתחות. גם ביומן — מספרים מוסווים בלבד. `tests/privacy-guard.test.js` ו־`xss-guard` — לתקן את המקור, לא את הבדיקה.

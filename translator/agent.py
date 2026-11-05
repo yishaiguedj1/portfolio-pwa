@@ -917,13 +917,17 @@ def mem_note(kind: str, dur_s: float, peak_mb: float):
         pass
 
 
+MEM_LEARN_N = 3                     # 05/11/2026: מכמה מדידות של אותו סוג המודל יכול לרדת לקראת מה שנמדד
+MEM_FLOOR = 0.8                     # ולא מתחת ל־80% מהקבוע של ה־prior (תחת gVisor חריגה = כל הקונטיינר)
+
+
 def mem_model(kind: str) -> tuple[int, float]:
-    """[קבוע, לדקה] לסוג העבודה: ה־prior, ומעליו המעטפת של מה שנמדד בשרת הזה (לעולם לא מתחת ל־prior — שמרני).
-    השיפוע נשאר של ה־prior; הקבוע עולה כך שכל שיא שנמדד נכנס מתחת לקו."""
-    a, b = MEM_PRIOR.get(kind, MEM_PRIOR['tr'])
-    for k, d, pk in mem_samples():
-        if k == kind:
-            a = max(a, pk - b * (d / 60))
+    """[קבוע, לדקה] לסוג העבודה: המעטפת של מה שנמדד בשרת הזה — כל שיא שנמדד נכנס מתחת לקו. השיפוע נשאר של ה־prior.
+    עד MEM_LEARN_N מדידות — לא מתחת ל־prior (שמרני). מ־05/11/2026, מ־MEM_LEARN_N ומעלה — גם למטה, עד MEM_FLOOR
+    מהקבוע: ה־prior נקבע לפני ONNX (שיא אמיתי ~5.3GB לשעה ועשרים מול 7.2 שהוזמנו), והוא שהשאיר 2 עבודות ארוכות ב־CX53."""
+    a0, b = MEM_PRIOR.get(kind, MEM_PRIOR['tr'])
+    seen = [pk - b * (d / 60) for k, d, pk in mem_samples() if k == kind]
+    a = max(max(seen), a0 * MEM_FLOOR) if len(seen) >= MEM_LEARN_N else max([a0] + seen)
     return int(round(a)), b
 
 
@@ -1045,8 +1049,37 @@ def mem_fit(slots: dict) -> dict | None:
         return None
     a, b = mem_model('tr')
     ra, rb = mem_model('rr')
-    return {'mb': int(free), 'a': int(round(a * MEM_MARGIN)), 'b': round(b * MEM_MARGIN, 1), 'ra': int(round(ra * MEM_MARGIN)),
-            'rb': round(rb * MEM_MARGIN, 1), 'ai': mem_need('ai', 0)}
+    out = {'mb': int(free), 'a': int(round(a * MEM_MARGIN)), 'b': round(b * MEM_MARGIN, 1), 'ra': int(round(ra * MEM_MARGIN)),
+           'rb': round(rb * MEM_MARGIN, 1), 'ai': mem_need('ai', 0)}
+    dm = perf_dmax(slots)
+    if dm is not None:
+        out['dm'] = dm
+    global _last_dm
+    if dm != _last_dm:                               # ליומן הקונטיינר — לאימות מול מבחן העומס (רק כשמשתנה)
+        print('· קבלה חזויה: ' + ('בלי הגבלה' if dm is None else 'עד ' + str(dm) + ' דק׳ סרטון') + ' (' + str(len(slots)) + ' רצות)', flush=True)
+        _last_dm = dm
+    return out
+
+
+_last_dm = None
+
+
+def perf_running(slots: dict) -> list:
+    """05/11/2026 (קבלה חזויה, perf.py): לכל עבודה שרצה — סוג, אורך (דק׳), כמה זמן עברה (דק׳), השלב והאחוז (prog.json)"""
+    now, out = time.time(), []
+    for sl in slots.values():
+        pg = _prog(sl.state)
+        out.append((sl.kind, (sl.dur or 3600) / 60, max(0.0, now - sl.t0) / 60, pg.get('st'), pg.get('p')))
+    return out
+
+
+def perf_dmax(slots: dict) -> float | None:
+    """האורך המרבי (דק׳ סרטון) של עבודה שנכנסת עכשיו בלי שאף עבודה תאט מעבר ל־SNB_SLOW_MAX. None = בלי הגבלה."""
+    try:
+        import perf
+        return perf.dmax(perf_running(slots))
+    except Exception:     # noqa: BLE001 — ויסות בלבד: תקלה = רק הזיכרון קובע
+        return None
 
 
 def write_busy():
