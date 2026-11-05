@@ -3456,7 +3456,7 @@ function pageForm(p, editing) {
   const took = (file, handle) => {
     f.fileObj = file; f.handle = handle || null; f.drive = null; f.file = { name: file.name, size: file.size, type: file.type || '' };
     fnlAdd('pick');   // 26/10/2026: המסלול שלפני העבודה
-    f.edl = null; f.dur = 0; inspectFor(f, file);   // סבב 2: קובץ חדש — חיתוך ישן לא שייך לו; בדיקה ברקע (חינם)
+    f.edl = null; f.pv = null; f.dur = 0; inspectFor(f, file);   // סבב 2: קובץ חדש — חיתוך ישן לא שייך לו; בדיקה ברקע (חינם)
     if (!f.ka) tracksFor(f, file);   // שלב 4: רצועות כתוביות בתוך הסרטון (30/10/2026: לא בשיר — שם מילים, לא כתוביות)
     render('none');
   };
@@ -3525,7 +3525,20 @@ function pageForm(p, editing) {
       hv && rowNav({ tile: tile('check', 'green'), label: T('studioNsHave', { l: langName(hv.l, uiLang()) }), sub: hv.ex ? T('studioNsHaveS', { n: fmtNum(hv.n), k: fmtNum(hv.ex) }) : T('studioNsHaveS0', { n: fmtNum(hv.n) }), onClick: () => go('tracks'), k: 'ns-have' })));
     const adv = f.ka ? null : advRows(f, pick);   // 30/10/2026: עצות של תרגום (שפה, צריבה) — לא לשיר
     if (adv) p.append(h('div', 'st-gap sm'), adv);
-    if (!f.ka && (f.fileObj || (f.drive && !f.drive.bx))) p.append(list(rowNav({ tile: tile('film', 'blue'), label: T('studioEdBefore'), value: f.edl ? edlSum(f.edl, f.dur || 0) : T('studioEdOptional'), onClick: () => { fnlAdd('cut'); go('cutsrc'); }, k: 'cutsrc' })));   // מ4
+    // 05/11/2026 (בקשת המשתמש): גם כשהסרטון נבחר דרך האפליקציה (nu) — הקובץ לא בדפדפן, אז לתצוגה בעורך בוחרים אותו שוב
+    // מהדפדפן (f.pv, רק בזיכרון; בודקים שזה אותו גודל). ההעלאה נשארת באפליקציה, והעובד חותך את הקול ואת הסרטון (edl_src)
+    const nuF = !!(f.ph && f.ph.nu);
+    if (!f.ka && (f.fileObj || nuF || (f.drive && !f.drive.bx))) {
+      const pvInp = h('input', 'st-file'); pvInp.type = 'file'; pvInp.hidden = true; pvInp.accept = inp.accept;
+      pvInp.addEventListener('change', () => {
+        const file = pvInp.files && pvInp.files[0];
+        if (!file || form !== f) return;
+        if (!f.file || file.size !== f.file.size) { flashSafe(T('studioEdPvNo')); return; }
+        f.pv = file; go('cutsrc');
+      });
+      p.append(pvInp, list(rowNav({ tile: tile('film', 'blue'), label: T('studioEdBefore'), value: f.edl ? edlSum(f.edl, f.dur || 0) : T('studioEdOptional'),
+        sub: nuF && !f.pv ? T('studioEdPvS') : null, onClick: () => { fnlAdd('cut'); if (nuF && !f.pv) pvInp.click(); else go('cutsrc'); }, k: 'cutsrc' })));   // מ4
+    }
     if (isIOS()) p.append(note(T('studioIosTip')));
   }
 
@@ -3889,7 +3902,7 @@ function pickSubs(f) {
     if (!imp.stats.n) { flashSafe(T('studioSubsBad')); return; }
     f.subs = { name: file.name, size: file.size, type: file.type || '', bytes, imp };
     f.file = { name: file.name, size: file.size, type: file.type || '' };
-    f.fileObj = null; f.handle = null; f.drive = null; f.edl = null; f.sa = null; f.trk = null;
+    f.fileObj = null; f.handle = null; f.drive = null; f.edl = null; f.pv = null; f.sa = null; f.trk = null;
     if (f.from === 'auto') f.from = 'en';
     render('none');
   });
@@ -4518,7 +4531,7 @@ function dpConnect() {
 function dpPick(f, x) {
   if (!x || x.folder || !(x.size > 0)) return;
   f.drive = { id: x.id, name: x.name, size: x.size, type: x.type, dur: x.dur, bx: true };
-  f.fileObj = null; f.handle = null; f.edl = null; f.sa = null; f.trk = null; f.link = null; f.linkOk = false;
+  f.fileObj = null; f.handle = null; f.edl = null; f.pv = null; f.sa = null; f.trk = null; f.link = null; f.linkOk = false;
   f.file = { name: x.name, size: x.size, type: x.type };
   if (x.w > 0 && x.h > 0) f.vm = { w: x.w, h: x.h };
   // רצועות הכתוביות שבתוך הסרטון — כמו מקובץ בטלפון, בקריאה חלקית מ־Drive (רק תחילת הקובץ / ה־moov)
@@ -5059,7 +5072,7 @@ export function studioPhPick(arg) {
   try { ask = sessionStorage.getItem(NU_ASK) === '1'; sessionStorage.removeItem(NU_ASK); } catch (e) {}
   f.ph = { pid: r.pid, w: r.w, h: r.h, dur: r.dur, cap: r.cap };   // 30/10/2026: cap נשמר — בלעדיו גם pt (שלב 3) לא הופעל אף פעם
   if (r.nu || ask) f.ph.nu = 1;   // 1/11/2026: תרגום רגיל בשרת — האפליקציה רק מעלה
-  f.fileObj = null; f.handle = null; f.drive = null; f.link = null; f.linkOk = false; f.edl = null;
+  f.fileObj = null; f.handle = null; f.drive = null; f.link = null; f.linkOk = false; f.edl = null; f.pv = null;   // pv — התצוגה בעורך שייכת לסרטון הקודם
   f.file = { name: r.name, size: r.size, type: 'video/*' }; f.dur = r.dur;
   phTracks(f, r);
   if (root) { if (ui.view !== 'new') go('new', null, 'none'); else render('none'); }
@@ -5092,10 +5105,12 @@ function startPhone(f) {
   ui.starting = true; render('none');
   (async () => {
     // 1/11/2026 (nu): תרגום רגיל בשרת — התוצרים, הסגנון והצריבה כמו בבחירה מהדפדפן; האפליקציה רק מעלה (vc נקבע בשרתון)
-    const spec = P.nu ? { name: f.file.name, size: f.file.size, type: 'video/*', dur: P.dur || 0, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
+    const ed = P.nu ? edlPre(normEdl(f.edl, P.dur || 0)) : null;   // 05/11/2026: חיתוך לפני התרגום גם דרך האפליקציה — האורך אחרי החיתוך
+    const spec = P.nu ? { name: f.file.name, size: f.file.size, type: 'video/*', dur: ed ? edlDur(ed, P.dur || 0) : P.dur || 0, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
       out: OUTS.filter((k) => f.out[k]), style: f.style, ...(f.sty ? { sty: f.sty } : {}), terms: f.terms, nu: 1, eng: 'api', cap: store.settings.cap }
       : { name: f.file.name, size: f.file.size, type: 'video/*', dur: P.dur || 0, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
         out: [], style: f.style, terms: f.terms, ph: 1, eng: 'api', cap: store.settings.cap };
+    if (ed) spec.edl = ed;
     if (!P.nu && f.pw === true) spec.pw = 1;   // שלב 2: הכל בטלפון — רק כשהופעל (30/10/2026: כבר לא ברירת המחדל)
     if (!P.nu) spec.vc = 1;   // 29/10/2026: האפליקציה מעלה גם את הסרטון לענן, ברקע (לנגן מכל מכשיר, לשמירה ולהפקה מחדש) — העבודה לא מחכה לו
     const pb = P.nu ? '' : phPb(f); if (pb) spec.pb = pb;
@@ -8393,7 +8408,7 @@ function edlSum(e, dur) {
    (אותו ציר זמן של הכתוביות). לפני התרגום (p = null): הקובץ מהטלפון, עוד לפני ההעלאה */
 function pageCut(p, before) {
   const rec = before ? null : jobRec(ui.param);
-  if (before ? !(form && (form.fileObj || form.drive)) : !rec || !canEdit(rec)) { back(); return; }
+  if (before ? !(form && (form.fileObj || form.pv || form.drive)) : !rec || !canEdit(rec)) { back(); return; }   // pv — הסרטון שבחרה האפליקציה, לתצוגה בלבד
   const key = before ? 'form' : rec.id;
   p.classList.add('st-dark');
   p.append(navBar({ back: before ? (form.id ? T('studioEditT') : T('studioNew')) : T('studioRrTitle'), title: T('studioEdTitle') }));
@@ -8401,7 +8416,7 @@ function pageCut(p, before) {
     ceStop();
     ce = { key, ctl: null, ed: null, url: '', cues: null };
     let src = '', fb = '', burned = false, cues = [], edl = null, dur = 0;
-    if (before) { if (form.fileObj) ce.url = src = URL.createObjectURL(form.fileObj); else { src = net.mediaUrl(form.drive.id); dur = form.drive.dur || 0; } edl = form.edl || null; burned = true; }   // עוד אין כתוביות — בלי כפתור CC
+    if (before) { if (form.fileObj || form.pv) ce.url = src = URL.createObjectURL(form.fileObj || form.pv); else { src = net.mediaUrl(form.drive.id); dur = form.drive.dur || 0; } edl = form.edl || null; burned = true; }   // עוד אין כתוביות — בלי כפתור CC
     else {
       const e0 = rec.spec.edl || null, bo = burnedOut(rec);
       if (!e0 && srcVid(rec)) { src = net.mediaUrl(srcVid(rec)); fb = bo ? net.mediaUrl(bo.id) : ''; cues = se && se.id === rec.id && se.ed ? se.ed.cues() : []; }

@@ -80,7 +80,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   /* ---------- 1. הצורה ---------- */
   const base = { name: 'talk.mp4', size: 900e6, type: 'video/mp4', dur: 3600, from: 'en', to: ['he'], mode: 'haiku-high', eng: 'api', cap: 5 };
   const sp = S.normSpec(Object.assign({}, base, { nu: 1, out: ['same', 'mkv'], edl: { k: [[1, 20]], ar: '9:16' } }));
-  ok(sp && sp.nu === 1 && sp.vc === 1 && !('ph' in sp) && sp.out.join() === 'same,mkv' && !sp.edl, 'nu: עבודה רגילה עם התוצרים, הסרטון לענן (vc), בלי חיתוך ובלי ph');
+  ok(sp && sp.nu === 1 && sp.vc === 1 && !('ph' in sp) && sp.out.join() === 'same,mkv' && sp.edl && sp.edl.k.join() === '1,20' && sp.edl.ar === '9:16', 'nu: עבודה רגילה עם התוצרים, הסרטון לענן (vc), עם חיתוך לפני התרגום (5/11/2026) ובלי ph');
   ok(S.normSpec(Object.assign({}, base, { nu: 1, eng: undefined })) === null, 'nu רק במצב השרת');
   ok(S.normSpec(Object.assign({}, base, { nu: 1, ph: 1 })) === null, 'nu לא יחד עם תרגום בטלפון');
   ok(S.normSpec(Object.assign({}, base, { nu: 1, src: 'subs', size: 1000 })) === null, 'nu לא עם קובץ כתוביות');
@@ -155,6 +155,10 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(/phIntent\('phpick', \{ nu: 1 \}\)/.test(src) && /if \(r\.nu \|\| ask\) f\.ph\.nu = 1;/.test(src), 'nu=1 בבקשה; Studio ישן — לפי הבקשה ששמורה (NU_ASK)');
   ok(/const spec = P\.nu \? \{ name: f\.file\.name[^\n]*\n\s*out: OUTS\.filter\(\(k\) => f\.out\[k\]\)[^\n]*nu: 1, eng: 'api'/.test(src) && /if \(!P\.nu\) spec\.vc = 1;/.test(src) && /else if \(rec\.spec\.nu && /.test(src),
     'nu: התוצרים מהטופס, בלי ph, וכרטיס משלו בדף העבודה');
+  // 5/11/2026 (בקשת המשתמש): "חיתוך לפני התרגום" חזר גם כשהסרטון נבחר דרך האפליקציה — תצוגה מקובץ שנבחר שוב באותו גודל
+  ok(/if \(!f\.ka && \(f\.fileObj \|\| nuF \|\| \(f\.drive && !f\.drive\.bx\)\)\)/.test(src) && /file\.size !== f\.file\.size\) \{ flashSafe\(T\('studioEdPvNo'\)\)/.test(src)
+    && /URL\.createObjectURL\(form\.fileObj \|\| form\.pv\)/.test(src) && /dur: ed \? edlDur\(ed, P\.dur \|\| 0\) : P\.dur \|\| 0/.test(src) && /if \(ed\) spec\.edl = ed;\n\s*if \(!P\.nu && f\.pw/.test(src),
+    'nu: שורת החיתוך בטופס, תצוגה רק מאותו סרטון, והחיתוך והאורך שאחריו בבקשה');
   if (st && st.nuLine) {
     const t = st.nuLine({ p: 0.5, r: 2 * 1048576 }, 400 * 1048576);
     ok(t.split(' · ').length === 3 && st.nuLine({ p: 0.5 }, 400).split(' · ').length === 1 && st.nuLine({ p: 1, r: 9 }, 400).split(' · ').length === 2, 'nuLine: עלו/מתוך · מהירות · נשאר (בלי קצב — רק כמה עלו)');
