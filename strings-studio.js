@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2266 מפתחות מתוך 6342) */
+/* המחרוזות של studio (2266 מפתחות מתוך 6345) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",

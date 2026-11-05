@@ -67,8 +67,8 @@ function xSummary(res, max = XITEMS_MAX) {   // max — הסיכום ב־Release
 
 /* res = [{sym, r, x?, xo?}] (r = התשובה של fundamentals; x = שכבה 8; xo = רק לשכבה 8 — לא נספר בשכבות 1–7) → הסיכום שמתפרסם */
 /* = CHECK_INFO ב־fundamentals.js — תיקונים ומידע, לא חריג */
-const UO_INFO = new Set(['fix', 'ffill', 'ffix', 'rst', 'qeps', 'qmix', 'qfy', 'gpfin', 'qsh']);
-const KIND_W = { gold: 0, gr: 1, face: 1, fix: 2, bal: 3, neg: 4, scale: 5, eps: 6, gp: 7, part: 8, q4: 9, xy: 10 };
+const UO_INFO = new Set(['fix', 'ffill', 'ffix', 'rst', 'qeps', 'qmix', 'qfy', 'gpfin', 'qsh', 'cx0']);
+const KIND_W = { gold: 0, gr: 1, face: 1, fix: 2, bal: 3, neg: 4, scale: 5, eps: 6, gp: 7, part: 8, q4: 9, xy: 10, hole: 3 };
 function summarize(res, gold, now, ms) {
   const S = { v: 1, at: new Date(now).toISOString(), n: res.length, sec: 0, yahoo: 0, fail: 0,
     face: { n: 0, ok: 0, cos: 0, coOk: 0 }, kinds: {}, gold: { n: 0, bad: 0 }, gr: { n: 0 }, cos: [], items: [], ms: ms || 0, ys: [], fs: [] };
