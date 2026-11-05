@@ -1180,8 +1180,11 @@ function faceCheck(d, face, splits = []) {
         const rs = S.rows.filter((r) => r.tag === t).map((r) => SECFACE.rowVals(S, r));
         if (rs.length < 2 || parts.length > 1) return rs[0] || null;
         rs.push(S.cols.map((c, ci) => rs.reduce((x, v) => (x == null || v[ci] == null ? null : x + (ab ? Math.abs(v[ci]) : v[ci])), 0)));
+        // רק העמודות שמושוות למטה (שנה שלמה, מטבע הדיווח) — עמודת המרה לדולר לא בוחרת שורה
+        // (FMX ‏2025: שתי שורות ProfitLoss; עמודת ה־USD של הראשונה "הרחיקה" אותה, ונבחרה שורת הפעילות הנמשכת)
         const err = (vs) => vs.reduce((e, v, ci) => {
-          const i = d.fy.findIndex((x) => Math.abs(day(x) - day(S.cols[ci].end)) <= 8), o = i >= 0 ? d.A[k][i] : null;
+          const c = S.cols[ci]; if ((st !== 'bs' && c.months != null && c.months !== 12) || !SECFACE.colOk(c, d.cur)) return e;
+          const i = d.fy.findIndex((x) => Math.abs(day(x) - day(c.end)) <= 8), o = i >= 0 ? d.A[k][i] : null;
           return v == null || o == null ? e : e + Math.abs((ab ? Math.abs(v) : v) - (ab ? Math.abs(o) : o)) / Math.max(Math.abs(o), 1);
         }, 0);
         return rs.reduce((b, r) => (err(r) < err(b) ? r : b));

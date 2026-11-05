@@ -60,16 +60,16 @@ ok(Object.keys(XB.parseInstance('', META).facts).length === 0 && Object.keys(XB.
 /* ---------- 2. אילו הגשות חסרות ---------- */
 const facts = { facts: { 'us-gaap': { Revenues: { units: { USD: [{ start: '2026-01-01', end: '2026-03-31', val: 1, accn: 'A-Q1', form: '10-Q', filed: '2026-05-05' }] } } } } };
 const sub = { filings: { recent: {
-  form: ['8-K', '10-Q', 'S-8', '10-Q', '10-Q', '10-K', '10-Q'],
-  accessionNumber: ['A-8K', META.acc, 'A-S8', 'A-Q2', 'A-Q1', 'A-K', 'A-OLD'],
-  filingDate: ['2026-11-04', '2026-10-28', '2026-08-01', '2026-07-30', '2026-05-05', '2026-02-20', '2023-05-01'],
-  reportDate: ['2026-11-04', '2026-09-30', '', '2026-06-30', '2026-03-31', '2025-12-31', '2023-03-31'],
-  primaryDocument: ['x8k.htm', 'acme-20260930.htm', 's8.htm', 'acme-20260630.htm', 'acme-20260331.htm', 'acme-20251231.htm', 'old.htm'],
-  isXBRL: [1, 1, 0, 1, 1, 1, 1],
+  form: ['8-K', '10-Q', 'S-8', '10-Q', '10-K/A', '10-Q', '10-K', '10-Q'],
+  accessionNumber: ['A-8K', META.acc, 'A-S8', 'A-Q2', 'A-KA', 'A-Q1', 'A-K', 'A-OLD'],
+  filingDate: ['2026-11-04', '2026-10-28', '2026-08-01', '2026-07-30', '2026-06-01', '2026-05-05', '2026-02-20', '2023-05-01'],
+  reportDate: ['2026-11-04', '2026-09-30', '', '2026-06-30', '2025-12-31', '2026-03-31', '2025-12-31', '2023-03-31'],
+  primaryDocument: ['x8k.htm', 'acme-20260930.htm', 's8.htm', 'acme-20260630.htm', 'acme-20251231a.htm', 'acme-20260331.htm', 'acme-20251231.htm', 'old.htm'],
+  isXBRL: [1, 1, 0, 1, 1, 1, 1, 1],
 } } };
 const NOW = Date.parse('2026-11-05T08:00:00Z');
 const miss = XB.missingFilings(sub, facts, NOW);
-ok(miss.map((m) => m.acc).join() === [META.acc, 'A-Q2', 'A-K'].join(), 'רק דוחות תקופתיים שאין להם אף ערך ב־companyfacts, מהחדש לישן (לא 8-K/S-8, לא ישן מ־800 יום)');
+ok(miss.map((m) => m.acc).join() === [META.acc, 'A-Q2', 'A-K'].join(), 'רק דוחות תקופתיים מקוריים שאין להם אף ערך ב־companyfacts, מהחדש לישן (לא 8-K/S-8, לא תיקון ‎/A‎, לא ישן מ־800 יום)');
 ok(miss[0].doc === 'acme-20260930.htm' && miss[0].per === '2026-09-30', 'שם המסמך ותאריך התקופה');
 ok(XB.missingFilings(null, facts).length === 0 && XB.missingFilings({}, facts).length === 0, 'בלי submissions — אין מה להשלים');
 const many = { filings: { recent: { form: Array(9).fill('10-Q'), accessionNumber: [...Array(9).keys()].map((i) => 'M' + i),
