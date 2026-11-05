@@ -20,7 +20,7 @@ const C = require('./ldbchg');
 const L = require('./ldb');
 const FSM = require('./fsmeter');
 
-const MIRROR_MS = 60e3, MIRROR_SLOW_MS = 5 * 60e3, MERGE_MS = 120e3, IMPORT_MS = 4e3, SNAP_MS = 10 * 60e3;
+const MIRROR_MS = 60e3, MIRROR_SLOW_MS = 5 * 60e3, MERGE_MS = 120e3, IMPORT_MS = 4e3, SNAP_MS = 10 * 60e3, SNAP_MEM_MS = 3 * 60e3;
 const MIRROR_DAY = 12000, MIRROR_SLOW = 8000;    // כתיבות לעותק ביום (מכסת Firestore: 20 אלף)
 const IMPORT_DAY = 8000;                         // קריאות ביום לייבוא (מכסה: 50 אלף)
 const BATCH = 450, BATCH_BYTES = 6e6, CHG_PAGE = 200, OVERLAP_MS = 60e3, TOMB_KEEP_MS = 3 * 864e5;
@@ -33,11 +33,11 @@ const dayLA = (now) => new Date(now).toLocaleDateString('en-CA', { timeZone: 'Am
 const prio = (c) => { const i = PRIO.indexOf(c); return i < 0 ? PRIO.length : i; };
 
 /* ---------- תמונת מצב: הצפנה ---------- */
-function sealSnap(key, header, dbBuf) {
+function sealSnap(key, header, body) {
   const iv = crypto.randomBytes(12);
   const c = crypto.createCipheriv('aes-256-gcm', key, iv);
   c.setAAD(SNAP_MAGIC);
-  const pt = Buffer.concat([Buffer.from(JSON.stringify(header) + '\n'), zlib.gzipSync(dbBuf, { level: 6 })]);
+  const pt = Buffer.concat([Buffer.from(JSON.stringify(header) + '\n'), zlib.gzipSync(body, { level: 6 })]);
   const ct = Buffer.concat([c.update(pt), c.final()]);
   return Buffer.concat([SNAP_MAGIC, iv, c.getAuthTag(), ct]);
 }
@@ -49,7 +49,7 @@ function openSnap(key, buf) {
     d.setAuthTag(buf.subarray(19, 35));
     const pt = Buffer.concat([d.update(buf.subarray(35)), d.final()]);
     const nl = pt.indexOf(10);
-    return { header: JSON.parse(pt.subarray(0, nl).toString('utf8')), db: zlib.gunzipSync(pt.subarray(nl + 1)) };
+    return { header: JSON.parse(pt.subarray(0, nl).toString('utf8')), body: zlib.gunzipSync(pt.subarray(nl + 1)) };
   } catch (e) { return null; }
 }
 
@@ -84,19 +84,28 @@ function create(o = {}) {
   /* ---------- פתיחה (ושחזור, אם אין קובץ) ---------- */
   async function open() {
     if (env.SNB_LDB === 'off') { S.why = 'off'; return false; }
-    try { fs.mkdirSync(dir, { recursive: true }); fs.accessSync(dir, fs.constants.W_OK); } catch (e) { S.why = 'no_dir'; return false; }
+    /* קובץ בנפח קבוע (/data) — ואם אין (שרת שהנפח עוד לא הותקן בו, 5/11/2026): בזיכרון, ותמונת המצב ב־R2 היא ההתמדה —
+       בעלייה משחזרים ממנה ומשלימים מ־Firestore (_mt), תמונה כל 3 דק׳ ובכיבוי מסודר. בלי R2 — כבוי. SNB_LDB_MEM=off — רק קובץ */
+    S.mode = 'file';
+    try { fs.mkdirSync(dir, { recursive: true }); fs.accessSync(dir, fs.constants.W_OK); } catch (e) {
+      if (o.r2 && o.key && env.SNB_LDB_MEM !== 'off') S.mode = 'mem'; else { S.why = 'no_dir'; return false; }
+    }
     let sqlite;
     try { sqlite = o.sqlite || require('node:sqlite'); } catch (e) { S.why = 'no_sqlite'; return false; }
-    const fresh = !fs.existsSync(file);
+    const fresh = S.mode === 'mem' || !fs.existsSync(file);
+    store = L.createStore({ file: S.mode === 'mem' ? ':memory:' : file, project, sqlite, now });
     let snapAt = 0;
     if (fresh && o.r2 && o.key) {
-      try {
-        const buf = await o.r2.get(snapKey);
-        const s = buf && openSnap(o.key, buf);
-        if (s && s.header && s.header.project === project) { fs.writeFileSync(file + '.tmp', s.db); fs.renameSync(file + '.tmp', file); snapAt = +s.header.at || 0; S.restored = new Date(snapAt).toISOString(); }
-      } catch (e) { S.restored = 'err:' + String(e && e.message || e).slice(0, 60); }
+      let buf;
+      // תקלה בקריאה (לא "אין עדיין") — לא עולים ריק: תמונה ריקה הייתה דורסת את הטובה. ננסה שוב בעוד דקה (start)
+      try { buf = await o.r2.get(snapKey); } catch (e) { store.close(); store = null; S.why = 'restore_err'; S.restored = 'err:' + String(e && e.message || e).slice(0, 60); return false; }
+      const s = buf && openSnap(o.key, buf);
+      if (buf && !s) S.restored = 'bad_snap';
+      if (s && s.header && s.header.project === project && s.header.fmt === 'json') {
+        store.load(JSON.parse(s.body.toString('utf8')));
+        snapAt = +s.header.at || 0; S.restored = new Date(snapAt).toISOString(); S.snap.gen = store.stats.gen;
+      }
     }
-    store = L.createStore({ file, project, sqlite, now });
     const p = store.kv('project');
     if (p && p !== project) { store.close(); store = null; S.why = 'project_mismatch'; return false; }
     if (!p) store.kv('project', project);
@@ -290,16 +299,13 @@ function create(o = {}) {
     if (!store || !o.r2 || !o.key) return;
     const gen = store.stats.gen;
     if (!force && gen === S.snap.gen) return;
-    const tmp = file + '.snap';
-    try { fs.unlinkSync(tmp); } catch (e) {}
     try {
-      store.db.exec("VACUUM INTO '" + tmp.replace(/'/g, "''") + "'");
-      const buf = fs.readFileSync(tmp);
       const at = now();
-      await o.r2.put(snapKey, sealSnap(o.key, { v: 1, project, at }, buf));
-      S.snap = { at, err: '', gen, mb: Math.round(buf.length / 1e5) / 10 };
+      const buf = Buffer.from(JSON.stringify(store.dump()), 'utf8');
+      const blob = sealSnap(o.key, { v: 2, fmt: 'json', project, at }, buf);
+      await o.r2.put(snapKey, blob);
+      S.snap = { at, err: '', gen, mb: Math.round(blob.length / 1e5) / 10 };
     } catch (e) { S.snap.err = String(e && e.message || e).slice(0, 80); }
-    finally { try { fs.unlinkSync(tmp); } catch (e) {} }
   }
 
   const runMirror = once('mirror', mirror), runMerge = once('merge', () => merge().catch((e) => { S.merge.err = String(e && e.message || e).slice(0, 80); }));
@@ -307,7 +313,12 @@ function create(o = {}) {
   const runSnap = once('snap', () => snapshot());
   function start() {
     readyP = open().catch((e) => { S.why = 'open_err:' + String(e && e.message || e).slice(0, 80); store = null; return false; })
-      .then((ok) => { readyP = null; if (ok && o.timers !== false) schedule(); return ok; });
+      .then((ok) => {
+        readyP = null;
+        if (ok && o.timers !== false) schedule();
+        else if (S.why === 'restore_err' && o.timers !== false) { const t = setTimeout(start, 60e3); t.unref(); timers.push(t); }
+        return ok;
+      });
     return readyP;
   }
   function schedule() {
@@ -315,17 +326,18 @@ function create(o = {}) {
     every(runMirror, MIRROR_MS);
     every(runMerge, MERGE_MS);
     every(runImport, IMPORT_MS);
-    every(runSnap, SNAP_MS);
+    every(runSnap, S.mode === 'mem' ? SNAP_MEM_MS : SNAP_MS);
     every(async () => { if (store) store.purgeTombs(TOMB_KEEP_MS); }, 6 * 3600e3);
     setTimeout(() => runMerge().catch(() => {}), 5e3).unref();
   }
   /* כיבוי מסודר (SIGTERM): מה שעוד לא נשלח לעותק — עכשיו */
-  async function flush() { try { await mirror(); } catch (e) {} }
+  /* כיבוי מסודר (SIGTERM, כל פריסה): מה שעוד לא נשלח — לעותק, ואז תמונת מצב (במצב mem — זו ההתמדה) */
+  async function flush() { try { await mirror(); } catch (e) {} try { await snapshot(); } catch (e) {} }
   function status() {
     if (!store) return { on: false, why: S.why };
     const i = store.info(), s = store.stats;
     const imp = [...store.cols.entries()].filter(([, x]) => x.st !== 'ready').map(([c, x]) => c + ':' + x.n);
-    return { on: true, docs: i.docs, mb: i.mb, cols: i.cols, ready: i.ready, imp, impErr: S.imp.err || undefined, q: i.dirty,
+    return { on: true, mode: S.mode, docs: i.docs, mb: i.mb, cols: i.cols, ready: i.ready, imp, impErr: S.imp.err || undefined, q: i.dirty,
       loc: s.loc, locReads: s.locReads, w: s.w, pass: s.pass, passWhy: s.passWhy, day: S.day, wDay: S.wDay, rDay: S.rDay,
       mirror: { at: S.mirror.at ? new Date(S.mirror.at).toISOString() : '', n: S.mirror.n, err: S.mirror.err || undefined, bad: S.mirror.bad || undefined },
       merge: { at: S.merge.at ? new Date(S.merge.at).toISOString() : '', n: S.merge.n, err: S.merge.err || undefined },

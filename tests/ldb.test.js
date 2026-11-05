@@ -143,7 +143,8 @@ const sv = (s) => ({ stringValue: s }), iv = (x) => ({ integerValue: String(x) }
   const ctl = mk(dir);
   ok(await ctl.start() === true && ctl.status().on, 'נדלק כשיש תיקייה כתיבה');
   ok((await LS.create({ fetch: remoteFetch, env: { SNB_LDB: 'off' }, project: P, dir, timers: false }).start()) === false, 'SNB_LDB=off — כבוי');
-  ok((await LS.create({ fetch: remoteFetch, env: {}, project: P, dir: path.join(blocker, 'data'), timers: false }).start()) === false, 'בלי תיקייה כתיבה (אין נפח /data) — כבוי, הכל כמו קודם');
+  ok((await LS.create({ fetch: remoteFetch, env: {}, project: P, dir: path.join(blocker, 'data'), timers: false }).start()) === false, 'בלי תיקייה כתיבה ובלי R2 — כבוי, הכל כמו קודם');
+  ok((await LS.create({ fetch: remoteFetch, env: { SNB_LDB_MEM: 'off' }, project: P, dir: path.join(blocker, 'data'), r2: io, key, timers: false }).start()) === false, 'SNB_LDB_MEM=off — בלי נפח נשאר כבוי');
   const F = ctl.wrapFetch(remoteFetch);
   const get = async (u) => { const res = await F(BASE + u); return { status: res.status, j: await res.json() }; };
   calls = [];
@@ -242,6 +243,27 @@ const sv = (s) => ({ stringValue: s }), iv = (x) => ({ integerValue: String(x) }
   ok(ctl2.store.get('studioJobs', 'r5').f.b.stringValue === 'vercel' && ctl2.store.ready('studioJobs'), 'אחרי השחזור — המסמכים והמצב של האוספים');
   ok(ctl2.store.get('studioJobs', 'after') && ctl2.store.get('studioJobs', 'after').f.v.stringValue === 'אחרי התמונה', 'מה שנשלח לעותק אחרי התמונה — הושלם מ־Firestore (_mt)');
   ctl2.stop();
+
+  // מצב זיכרון: אין נפח /data (שרת שהנפח לא הותקן בו) — המסד בזיכרון, ותמונת המצב ב־R2 היא ההתמדה
+  const noDir = path.join(blocker, 'data');
+  const mkMem = () => LS.create({ fetch: remoteFetch, env: {}, project: P, dir: noDir, now, token: async () => 'T', r2: io, key, timers: false });
+  const m1 = mkMem();
+  ok(await m1.start() === true && m1.status().mode === 'mem' && /^\d{4}-/.test(m1.status().restored || ''), 'בלי נפח ועם R2 — נדלק בזיכרון ומשחזר מתמונת המצב');
+  ok(m1.store.get('studioJobs', 'r5').f.b.stringValue === 'vercel' && m1.store.ready('studioJobs'), 'מצב זיכרון — המסמכים והאוספים המוכנים');
+  clock += 60e3;
+  await m1.wrapFetch(remoteFetch)(BASE + '/studioJobs/mem1?updateMask.fieldPaths=v', { method: 'PATCH', body: JSON.stringify({ fields: { v: sv('בזיכרון') } }) });
+  await m1.flush();
+  ok(m1.status().q === 0 && remote.get('studioJobs', 'mem1'), 'כיבוי מסודר — העותק נשלח');
+  ok(m1.status().snap.at === new Date(clock).toISOString() && !m1.status().snap.err, 'כיבוי מסודר — תמונת מצב סופית ל־R2');
+  m1.stop();
+  remote._mem.get('studioJobs').delete('mem1');   // גם אם העותק לא היה מגיע — התמונה לבדה מספיקה
+  const m2 = mkMem();
+  ok(await m2.start() === true && m2.store.get('studioJobs', 'mem1') && m2.store.get('studioJobs', 'mem1').f.v.stringValue === 'בזיכרון', 'הפעלה מחדש (פריסה) — מה שנכתב בזיכרון חזר מהתמונה');
+  m2.stop();
+  const badIo = { put: io.put, get: async () => { throw new Error('r2_down'); } };
+  const m3 = LS.create({ fetch: remoteFetch, env: {}, project: P, dir: noDir, now, token: async () => 'T', r2: badIo, key, timers: false });
+  ok(await m3.start() === false && m3.status().why === 'restore_err', 'R2 לא זמין בעלייה — לא עולים ריק (תמונה ריקה הייתה דורסת את הטובה)');
+  ok(!r2.get('ldb/' + P + '/snap.bin').equals(Buffer.alloc(0)), 'התמונה ב־R2 נשארה');
 
   // ---------------------------------------------------------------- 3. היומן והחיבורים
   ok(C.changesOf('PATCH', BASE + '/studioJobs/a?updateMask.fieldPaths=a.b', null).list[0].m[0] === 'a.b' && C.topField('a.b') === 'a' && C.topField('`x-y`.z') === 'x-y', 'changesOf / topField');

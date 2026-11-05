@@ -278,7 +278,7 @@ if (require.main === module) {
   if (process.env.SNB_PXA !== 'off') startPx(server);
   if (process.env.SNB_FSW !== 'off') startFsWatch(server);
   // לפני יציאה: מה שעוד לא נשלח לעותק ב־Firestore (עד 8 שנ׳)
-  const stop = () => Promise.race([LDB.flush(), new Promise((r) => setTimeout(r, 8000))]).finally(() => server.close(() => process.exit(0)));
+  const stop = () => Promise.race([LDB.flush(), new Promise((r) => setTimeout(r, 15000))]).finally(() => server.close(() => process.exit(0)));
   process.on('SIGTERM', stop);
   process.on('SIGINT', stop);
 }
