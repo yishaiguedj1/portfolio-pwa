@@ -59,6 +59,8 @@ const FLOW = {
   buy: ['PaymentsForRepurchaseOfCommonStock'],
   divp: ['PaymentsOfDividendsCommonStock', 'PaymentsOfDividends'],
   dps: ['CommonStockDividendsPerShareDeclared', 'CommonStockDividendsPerShareCashPaid'],
+  // "Other investing activities" — רק כגבול עליון להשקעה הונית שלא מוצגת בשורה נפרדת (capexNil); לא נשלח למסך
+  oinv: ['PaymentsForProceedsFromOtherInvestingActivities'],
 };
 /* McKesson ‏"Redeemable noncontrolling interests" ‏$943M, ‏Omnicom ‏"Temporary Equity" ‏$363M — בלעדיהן נספרו בסך ההתחייבויות
    המחושב. רק כשהן שורה במאזן המודפס: NiSource מתייגת ‏$1.36B בביאור (זכויות המיעוט שלה בתוך ההון — חיסור כפול) */
@@ -101,7 +103,7 @@ const PER_SHARE = new Set(['eps', 'dps']);
 const QPOS = ['cogs', 'dep', 'sbc', 'int']; // הכנסות, מחקר והשקעות הוניות — יכולים להיות מרוכזים ברבעון אחד בצדק
 /* באיזה דוח מופיעה כל שורה (לבחירת התגית לפי הדוח שהחברה הגישה — lib/secface.js) */
 const STMT_OF = { rev: ['is'], cogs: ['is'], gp: ['is'], op: ['is'], ni: ['is', 'cf'], pretax: ['is'], tax: ['is'], rnd: ['is'], int: ['is'], eps: ['is'], sh: ['is'],
-  nic: ['is'], eqt: ['bs'], tmp: ['bs'], ocf: ['cf'], capex: ['cf'], sbc: ['cf'], dep: ['cf', 'is'], buy: ['cf'], divp: ['cf'],
+  nic: ['is'], eqt: ['bs'], tmp: ['bs'], ocf: ['cf'], capex: ['cf'], oinv: ['cf'], sbc: ['cf'], dep: ['cf', 'is'], buy: ['cf'], divp: ['cf'],
   cash: ['bs'], msec: ['bs'], debtNc: ['bs'], debtC: ['bs'], stb: ['bs'], eq: ['bs'], ta: ['bs'], tl: ['bs'], tle: ['bs'], ca: ['bs'], cl: ['bs'], re: ['bs'], ppe: ['bs'] };
 /* השקעות הוניות = כל השורות של רכישת נכסים קבועים שהחברה מציגה בתזרים (Mastercard: רכוש קבוע + תוכנה מהוונת;
    Caterpillar: + ציוד שמושכר ללקוחות). סכום רק כשיותר משורה אחת מופיעה בדוח, ורק בתקופות שבהן כל החלקים קיימים — אחרת קפיצה מדומה. */
@@ -1024,17 +1026,55 @@ function normalizeSec(facts, splits = [], face = null) {
       (GQ[k] = GQ[k] || {})[e0] = r ? Math.round(r * 1e6) / 1e6 : 0;
     }
   }
+  const cx0 = isIfrs ? [] : capexNil(A, Q, fyEnds, qEnds, face, tags, capRows, capFace, derived);
+  delete tags.oinv;
   const KEEP = ['rev', 'cogs', 'gp', 'op', 'ni', 'nic', 'eqt', 'tmp', 'tle', 'pretax', 'tax', 'rnd', 'int', 'eps', 'sh', 'ocf', 'capex', 'sbc', 'dep', 'buy', 'divp', 'dps',
     'cash', 'msec', 'debt', 'eq', 'ta', 'tl', 'ca', 'cl', 're', 'ppe'];
   const pack = (D, ends) => { const o = {}; for (const k of KEEP) { if (!D[k]) continue; const a = ends.map((e) => (D[k][e] != null ? D[k][e] : null)); if (a.some((v) => v != null)) o[k] = a; } return o; };
   const fy = fyEnds.filter((e) => A.rev[e] != null || A.ni[e] != null).slice(-20);
   const C = { A: pack(GA, fy), Q: pack(GQ, qEnds) };
-  return { fy, q: qEnds, shEst: shEst.filter((e) => Q.sh[e] != null), epsNum, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes, qmix, gpx, gpd, opx, splitsUsed, capFace };
+  return { fy, q: qEnds, shEst: shEst.filter((e) => Q.sh[e] != null), epsNum, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes, qmix, cx0, gpx, gpd, opx, splitsUsed, capFace };
+}
+
+/* השקעה הונית שהחברה לא מציגה בשורה נפרדת (5/11/2026, AppLovin). מ־2024 התזרים של AppLovin בלי "Purchase of property and
+   equipment" — הסכום בתוך "Other investing activities" (רבעון 3 2026: ‏$7.5M מתוך ‏$17.7M, מול ‏$1.43B מפעילות; בהודעה לעיתונות
+   התזרים החופשי ‏$1.42B). עד היום ההשקעות ההוניות נשארו ריקות → התזרים החופשי ריק בכל רבעון מ־2024 וב־2025 כולה, ו־Yahoo
+   (בלי רבעונים) לא השלים. כשבתזרים של הדוח השנתי האחרון אין שום שורת השקעה הונית, ויש בו שורת "Other investing" (שם היא
+   חבויה) — תקופה אחרי ההשקעה ההונית האחרונה שדווחה, שבה "Other investing" עד 5% מהתזרים מפעילות = השקעה זניחה, 0 (נרשם cx0,
+   מידע). רבעון אחרון בשנה שיש לה ערך שנתי — השנה פחות שלושת הרבעונים. בלי דוח מודפס, ב־IFRS, או כשהשורה האחרת גדולה — ריק */
+const CX_ROW = /capital expenditure|capital additions?|purchases? (of|for) (property|equipment|fixed assets|plant)|additions? (to|of) (property|equipment|plant|fixed assets)/i;
+const CX_NIL_MAX = 0.05;
+function capexNil(A, Q, fyEnds, qEnds, face, tags, capRows, capFace, derived) {
+  const rows = (face && face.cf && face.cf.rows) || [], out = [];
+  if (!rows.length || capRows.length || capFace || !A.capex || !A.ocf || !A.oinv) return out;
+  const cxT = new Set(CAPEX_PARTS.concat(FLOW.capex, tags.capex ? tags.capex.split('+') : []));
+  if (rows.some((r) => cxT.has(r.tag) || CX_ROW.test(r.label || ''))) return out;
+  if (!rows.some((r) => r.tag === 'PaymentsForProceedsFromOtherInvestingActivities')) return out;
+  if (!rows.some((r) => /^NetCashProvidedByUsedInInvestingActivities/.test(r.tag))) return out;
+  const fill = (D, ends, q) => {
+    const last = ends.filter((e) => D.capex[e] != null).pop() || '';
+    for (const e of ends) {
+      if (e <= last || D.capex[e] != null) continue;
+      const o = D.ocf[e], x = D.oinv[e];
+      if (o == null || !o || x == null || Math.abs(x) > CX_NIL_MAX * Math.abs(o)) continue;
+      D.capex[e] = 0; out.push({ k: 'cx0', m: 'capex', p: e, ...(q ? { q: 1 } : {}) });
+    }
+  };
+  fill(A, fyEnds, false); fill(Q, qEnds, true);
+  // רבעון אחרון בשנה עם ערך שנתי אמיתי (AppLovin ‏2024: ‏$4.8M בדוח השנתי, בלי 10-Q) — השנה פחות שלושת הרבעונים
+  for (const c of out.filter((x) => x.q && A.capex[x.p] != null && !out.some((y) => !y.q && y.p === x.p))) {
+    const i = fyEnds.indexOf(c.p), s0 = i > 0 ? fyEnds[i - 1] : null;
+    const qs = qEnds.filter((q) => (s0 ? q > s0 : true) && q < c.p && day(c.p) - day(q) < 300);
+    if (qs.length !== 3 || qs.some((q) => Q.capex[q] == null)) continue;
+    const v = A.capex[c.p] - qs.reduce((t, q) => t + Q.capex[q], 0);
+    if (v >= 0) { Q.capex[c.p] = v; (derived.capex = derived.capex || []).push(c.p); c.d = 1; }
+  }
+  return out.filter((c) => !c.d).map(({ q, ...c }) => c);
 }
 
 /* ---------- בדיקות אימות — תג, לא תיקון ---------- */
 function validate(d) {
-  const out = (d.fixes || []).map((f) => ({ k: 'fix', m: f.m, p: f.p, x: f.x })).concat(d.qmix || []), A = d.A, Q = d.Q;
+  const out = (d.fixes || []).map((f) => ({ k: 'fix', m: f.m, p: f.p, x: f.x })).concat(d.qmix || [], d.cx0 || []), A = d.A, Q = d.Q;
   const near = (a, b, tol) => a != null && b != null && Math.abs(a - b) <= tol * Math.max(Math.abs(a), Math.abs(b), 1);
   d.fy.forEach((e, i) => {
     const g = (k) => (A[k] ? A[k][i] : null);
@@ -1067,6 +1107,23 @@ function validate(d) {
   });
   // רבעון עם הכנסות שליליות — כמעט תמיד רבעון 4 מחושב (שנה פחות 9 חודשים) מדוחות בגרסאות שונות
   d.q.forEach((e, j) => { if (Q.rev && Q.rev[j] != null && Q.rev[j] < 0) out.push({ k: 'qneg', m: 'rev', p: e }); });
+  return out;
+}
+/* חור בסדרה (5/11/2026, AppLovin): מדד שדווח ברבעונים קודמים ונעלם בארבעת האחרונים, כשהבסיס שלו (הכנסות / תזרים מפעילות)
+   ממשיך. כל שכבות הבקרה משוות רק ערכים שקיימים — ערך חסר מול Yahoo חסר לא נראה כאי־התאמה, והתזרים החופשי של AppLovin היה
+   ריק שנתיים בלי סימון. אחרי כל ההשלמות (Yahoo); "לבדוק" — נרשם ומגיע לבקרה הלילית ולמרכז הניהול */
+const HOLE_BASE = { capex: 'ocf', sbc: 'ocf', dep: 'ocf', ocf: 'rev', op: 'rev', ni: 'rev', eps: 'rev' };
+function holes(d) {
+  const out = [], n = (d.q || []).length;
+  if (n < 8 || !d.Q) return out;
+  for (const [m, b] of Object.entries(HOLE_BASE)) {
+    const M = d.Q[m] || [], B = d.Q[b];
+    if (!B) continue;
+    const last = [n - 4, n - 3, n - 2, n - 1];
+    if (!last.every((i) => M[i] == null && B[i] != null)) continue;
+    if (M.slice(Math.max(0, n - 12), n - 4).filter((v) => v != null).length < 4) continue;
+    out.push({ k: 'hole', m, p: d.q[n - 4] });
+  }
   return out;
 }
 function crossCheck(d, y) { // מול Yahoo: הכנסות ורווח נקי בשתי השנים האחרונות, עד 2%
@@ -1579,6 +1636,7 @@ async function fundamentals(sym0) {
   // רק תאריך שכבר קיים אצלנו; נרשם qfy (מידע) ובתשובה qfill — כלי ההשוואה לא בודק אותו מול Yahoo
   const qfill = useSec ? yQuarterFill(sec, y, grossOnFace, checks) : {};
   if (useSec && sec.gpx === 'fin') checks.push({ k: 'gpfin', m: 'gp', p: sec.fy[sec.fy.length - 1] });
+  if (useSec) checks.push(...holes(sec));
   // מניות לשווי השוק: בדילול מהדוח האחרון (ב־Yahoo "sharesOutstanding" הוא לפעמים רק סוג מניות אחד — Meta: 2.2B מתוך 2.57B)
   const lastSh = (D) => (D && D.sh ? D.sh.filter((v) => v > 0).pop() : null);
   const sharesOut = useSec ? (lastSh(sec.Q) || lastSh(sec.A)) : ((y && y.sharesOut) || lastSh(y && y.Q) || (s && s.sharesOut));
@@ -1607,7 +1665,7 @@ const SYM_RE = /^[A-Z0-9][A-Z0-9.\-]{0,15}$/;
    מניה שנפתחה ויש בה סימון שאינו תיקון/מידע → קובץ קטן ב־R2 (רק הסימבול וסוגי הבדיקה — מידע ציבורי, בלי שום פרט על מי פתח),
    והבקרה הלילית (tools/fund-audit.js --seen) בודקת גם אותה. פעם ביום למניה במופע; תקלה ב־R2 לא נוגעת בתשובה.
    CHECK_INFO = FL_INFO ב־analysis.js (tests/analysis.test.js משווה). */
-const CHECK_INFO = new Set(['fix', 'ffill', 'ffix', 'rst', 'qeps', 'qmix', 'qfy', 'gpfin', 'qsh', 'xbrl']);
+const CHECK_INFO = new Set(['fix', 'ffill', 'ffix', 'rst', 'qeps', 'qmix', 'qfy', 'gpfin', 'qsh', 'xbrl', 'cx0']);
 const FLAG_PRE = 'fund/flag/';
 const _noted = new Map();
 const warnKinds = (v) => [...new Set((v.checks || []).map((c) => c.k).filter((k) => !CHECK_INFO.has(k)))].sort();
@@ -1648,7 +1706,7 @@ async function handle(body, res) {
   return res.status(200).json({ ...v, indData: industryData(v.ind) });
 }
 
-module.exports = { handle, fundamentals, secFacts, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
+module.exports = { handle, fundamentals, holes, capexNil, secFacts, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
   industryFor, industryData, _cache: cache,
   // התגיות המועמדות לכל שורה — לכלי ההשוואה (fundxcheck: SEC גולמי גם לתקופות שהושלמו מתגית משנית). נשמט ב־f9db4c74 — tools/fund-xcheck.js מצפה לו
   TAGS: { gaap: { ...FLOW, ...INST }, ifrs: IFRS } };
