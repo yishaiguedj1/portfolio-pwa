@@ -47,7 +47,7 @@ async function checkOne(sym, d, facts, face) {
   if (!d || !d.ok || d.src !== 'sec' || !d.cik) return [];
   // ישות קודמת (ExxonMobil 2026: חברת אחזקות חדשה) — אותו איחוד של fundamentals, אחרת לשנים הישנות אין SEC גולמי
   const ck = String(d.cik).padStart(10, '0'), prev = F.CIK_PREV && F.CIK_PREV[ck]; // גם כש־facts הגיע מבחוץ (fund-audit) — הוא של הישות הנוכחית בלבד
-  const cf = (c) => json('https://data.sec.gov/api/xbrl/companyfacts/CIK' + c + '.json', { 'User-Agent': UA });
+  const cf = (c) => F.secFacts(c).catch(() => null); // companyfacts + דוחות שחסרים בו (מה־XBRL של ההגשה)
   const [fc0, pf, y, nA, nQ] = await Promise.all([facts || cf(ck), prev ? cf(prev) : null, yahoo(sym), nasdaq(sym, 1), nasdaq(sym, 2)]);
   const fc = pf && fc0 ? F.mergeFacts(pf, fc0) : fc0;
   if (!fc) return [];

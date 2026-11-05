@@ -1438,6 +1438,15 @@ async function macro() {
 const CIK_PREV = {
   '0002115436': '0000034088', // ExxonMobil Holdings Corp (2026) ← Exxon Mobil Corp
 };
+/* companyfacts + הדוחות שחסרים בו (lib/secxbrl.js) — לכלי הבקרה (tools/fund-audit.js, tools/fund-xcheck.js), כדי ש"SEC גולמי" יכלול אותם */
+async function secFacts(cik) {
+  const ck = String(cik).padStart(10, '0'), SH = { headers: { 'User-Agent': SEC_UA() } };
+  const [facts, sub] = await Promise.all([getJson('https://data.sec.gov/api/xbrl/companyfacts/CIK' + ck + '.json', SH, 15000),
+    getJson('https://data.sec.gov/submissions/CIK' + ck + '.json', SH, 8000).catch(() => null)]);
+  if (!sub) return facts;
+  return (await require('./secxbrl').patchFacts(facts, sub, ck, { merge: mergeFacts,
+    getText: (u) => getText(u, SH, 12000), getJson: (u) => getJson(u, SH, 8000) }).catch(() => ({ facts }))).facts;
+}
 /* איחוד companyfacts של שתי ישויות: אותה תגית — כל הדיווחים יחד (האחרון שהוגש גובר בכל תקופה, כמו תמיד) */
 function mergeFacts(a, b) {
   const out = { facts: {} };
@@ -1485,7 +1494,7 @@ async function fundamentals(sym0) {
   const ysTs = safe(yahooTs(sym), 'yts');
   const nq = ta ? Promise.resolve(null) : safe(nasdaqForecast(sym), 'nq');
   const peersP = safe(yahooPeers(sym), 'peers');
-  let sec = null, cik = null, face = null;
+  let sec = null, cik = null, face = null, xbAdded = [];
   if (!ta) {
     try {
       cik = (await cikMap()).get(secSym(sym)) || null;
@@ -1497,7 +1506,11 @@ async function fundamentals(sym0) {
           .catch((e) => { errs.push('face:' + String((e && e.message) || 'x').slice(0, 24)); return null; });
         const factsP = getJson('https://data.sec.gov/api/xbrl/companyfacts/CIK' + cik + '.json', SH, 15000);
         const prevP = prev ? getJson('https://data.sec.gov/api/xbrl/companyfacts/CIK' + prev + '.json', SH, 15000).catch(() => null) : null;
-        const [facts0, sub, fc, pf] = await Promise.all([factsP, subP, faceP, prevP]);
+        const [facts1, sub, fc, pf] = await Promise.all([factsP, subP, faceP, prevP]);
+        // דוח שהוגש ואינו ב־companyfacts (5/11/2026: 56 דוחות של 42 חברות) — מקובץ ה־XBRL של ההגשה (lib/secxbrl.js)
+        const xb = await require('./secxbrl').patchFacts(facts1, sub, cik, { merge: mergeFacts,
+          getText: (u) => getText(u, SH, 12000), getJson: (u) => getJson(u, SH, 8000) }).catch(() => ({ facts: facts1, added: [] }));
+        const facts0 = xb.facts; xbAdded = xb.added;
         const facts = pf ? mergeFacts(pf, facts0) : facts0;
         face = fc;
         const m = await monthly;
@@ -1523,6 +1536,8 @@ async function fundamentals(sym0) {
   const qsh = useSec ? qShares(sec, y) : [];
   const qeps = useSec ? q4Eps(sec, y) : [];
   const checks = useSec ? validate(sec).concat(crossCheck(sec, y), fcRes.out, ffix, qsh, qeps) : [];
+  // מידע: דוח שהושלם מקובץ ה־XBRL של ההגשה (לא היה ב־companyfacts) — הבקרה הלילית סופרת אותם
+  if (useSec) for (const a of xbAdded) checks.push({ k: 'xbrl', m: a.form, p: a.per || a.filed });
   // שורה שחסרה ב־SEC לגמרי (תגית פרטית של החברה, למשל השקעות הוניות ב־IFRS) — משלימים מ־Yahoo לפי תאריך, ומסמנים
   const fill = [];
   // רווח גולמי ועלות מכר — לא מ־Yahoo כשהחברה לא מציגה אותם: לרכבות, חברות תעופה, נפט וגז, ביטוח ומנהלי השקעות אין
@@ -1589,7 +1604,7 @@ const SYM_RE = /^[A-Z0-9][A-Z0-9.\-]{0,15}$/;
    מניה שנפתחה ויש בה סימון שאינו תיקון/מידע → קובץ קטן ב־R2 (רק הסימבול וסוגי הבדיקה — מידע ציבורי, בלי שום פרט על מי פתח),
    והבקרה הלילית (tools/fund-audit.js --seen) בודקת גם אותה. פעם ביום למניה במופע; תקלה ב־R2 לא נוגעת בתשובה.
    CHECK_INFO = FL_INFO ב־analysis.js (tests/analysis.test.js משווה). */
-const CHECK_INFO = new Set(['fix', 'ffill', 'ffix', 'rst', 'qeps', 'qmix', 'qfy', 'gpfin', 'qsh']);
+const CHECK_INFO = new Set(['fix', 'ffill', 'ffix', 'rst', 'qeps', 'qmix', 'qfy', 'gpfin', 'qsh', 'xbrl']);
 const FLAG_PRE = 'fund/flag/';
 const _noted = new Map();
 const warnKinds = (v) => [...new Set((v.checks || []).map((c) => c.k).filter((k) => !CHECK_INFO.has(k)))].sort();
@@ -1630,7 +1645,7 @@ async function handle(body, res) {
   return res.status(200).json({ ...v, indData: industryData(v.ind) });
 }
 
-module.exports = { handle, fundamentals, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
+module.exports = { handle, fundamentals, secFacts, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
   industryFor, industryData, _cache: cache,
   // התגיות המועמדות לכל שורה — לכלי ההשוואה (fundxcheck: SEC גולמי גם לתקופות שהושלמו מתגית משנית). נשמט ב־f9db4c74 — tools/fund-xcheck.js מצפה לו
   TAGS: { gaap: { ...FLOW, ...INST }, ifrs: IFRS } };

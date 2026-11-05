@@ -1677,7 +1677,7 @@ function srcDef(co, k) {
 const OWN_TAG = { rev: 'rev', op: 'op', ni: 'ni', eps: 'eps', sh: 'sh', ocf: 'ocf', buy: 'buy', dps: 'dps', eq: 'eq', ta: 'ta', tl: 'tl', gp: 'gp', capexN: 'capex', sbcN: 'sbc', cashT: 'cash', debt: 'debt' };
 const flagMs = (f) => (f.m ? [f.m] : f.k === 'bal' ? ['ta', 'tl', 'eq'] : []);   // מאזן שלא מתאזן — שייך לשלושתם
 // תיקון אוטומטי והשלמה מהדוח עצמו — מידע, לא "לבדוק": הערך כמו שהודפס
-const FL_INFO = new Set(['fix', 'ffill', 'ffix', 'rst', 'qeps', 'qmix', 'qfy', 'gpfin', 'qsh']);
+const FL_INFO = new Set(['fix', 'ffill', 'ffix', 'rst', 'qeps', 'qmix', 'qfy', 'gpfin', 'qsh', 'xbrl']);
 const flagOn = (f, raw) => !FL_INFO.has(f.k) && flagMs(f).some((m) => raw.has(m));
 function flagsAt(co, keys, p) {
   if (!p || p.kind !== 'fy' || !co.flags.length) return null;
