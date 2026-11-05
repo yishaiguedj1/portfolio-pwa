@@ -1882,7 +1882,7 @@ async function server(req, res, body, deps) {
       if (ptJob(job)) continue;   // 25/10/2026: הטלפון לוקח אותה בעצמו (phClaim)
       if (job.bw && !br.includes(job.id) && !lost.includes(job.id)) continue;   // 01/11/2026 (I3): מחכה לתור החיסכון — רק כשהסוכן אמר שהתשובות חזרו (או שהתור שלה אבד)
       if (job.vw && !((job.spec && job.spec.ph === 1 ? job.fph : job.fv) || {}).id) continue;   // 15/10/2026: מחכה לסרטון — לא תופסים שרת עד שהוא נרשם (24/10: בתרגום בטלפון — לקובץ המדידות)
-      if (fit && S.peakNeed(job, fit) > fit.mb) break;
+      if (fit && (S.peakNeed(job, fit) > fit.mb || S.perfBlock(job, fit))) break;   // 5/11/2026: וגם הקבלה החזויה (perfBlock)
       await capWarm(deps, now);
       const st = await readStats(deps, job.uid);
       const cap = S.jobCap(job.spec, S.monthUsed(st.mu, now), userMonth(st), S.usdOf(job.use0));

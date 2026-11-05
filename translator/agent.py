@@ -1049,8 +1049,37 @@ def mem_fit(slots: dict) -> dict | None:
         return None
     a, b = mem_model('tr')
     ra, rb = mem_model('rr')
-    return {'mb': int(free), 'a': int(round(a * MEM_MARGIN)), 'b': round(b * MEM_MARGIN, 1), 'ra': int(round(ra * MEM_MARGIN)),
-            'rb': round(rb * MEM_MARGIN, 1), 'ai': mem_need('ai', 0)}
+    out = {'mb': int(free), 'a': int(round(a * MEM_MARGIN)), 'b': round(b * MEM_MARGIN, 1), 'ra': int(round(ra * MEM_MARGIN)),
+           'rb': round(rb * MEM_MARGIN, 1), 'ai': mem_need('ai', 0)}
+    dm = perf_dmax(slots)
+    if dm is not None:
+        out['dm'] = dm
+    global _last_dm
+    if dm != _last_dm:                               # ליומן הקונטיינר — לאימות מול מבחן העומס (רק כשמשתנה)
+        print('· קבלה חזויה: ' + ('בלי הגבלה' if dm is None else 'עד ' + str(dm) + ' דק׳ סרטון') + ' (' + str(len(slots)) + ' רצות)', flush=True)
+        _last_dm = dm
+    return out
+
+
+_last_dm = None
+
+
+def perf_running(slots: dict) -> list:
+    """05/11/2026 (קבלה חזויה, perf.py): לכל עבודה שרצה — סוג, אורך (דק׳), כמה זמן עברה (דק׳), השלב והאחוז (prog.json)"""
+    now, out = time.time(), []
+    for sl in slots.values():
+        pg = _prog(sl.state)
+        out.append((sl.kind, (sl.dur or 3600) / 60, max(0.0, now - sl.t0) / 60, pg.get('st'), pg.get('p')))
+    return out
+
+
+def perf_dmax(slots: dict) -> float | None:
+    """האורך המרבי (דק׳ סרטון) של עבודה שנכנסת עכשיו בלי שאף עבודה תאט מעבר ל־SNB_SLOW_MAX. None = בלי הגבלה."""
+    try:
+        import perf
+        return perf.dmax(perf_running(slots))
+    except Exception:     # noqa: BLE001 — ויסות בלבד: תקלה = רק הזיכרון קובע
+        return None
 
 
 def write_busy():
