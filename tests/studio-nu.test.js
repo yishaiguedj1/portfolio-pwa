@@ -136,8 +136,12 @@ const { fakeR2, ENV } = require('./_r2fake');
     'הבחירה ל־nu: הרשאה קבועה ל־URI');
   const pp = act.slice(act.indexOf('private fun pickPu'), act.indexOf('private fun copy'));
   ok(pp.length > 100 && !/outputStream|copyTo/.test(pp) && /\.put\("uri", u\.toString\(\)\)\.put\("pu", true\)/.test(pp) && /\.put\("nu", 1\)/.test(pp), 'pickPu: בלי עותק — הרשומה שומרת את ה־URI, והאתר מקבל nu:1');
-  const cap = +(/const val CAP = (\d+)/.exec(core) || [])[1], capW = +(/export const PH_CAP_NU = (\d+)/.exec(src) || [])[1];
-  ok(cap === capW && cap === 5, 'CAP של האפליקציה = PH_CAP_NU באתר (5)');
+  const cap = +(/const val CAP = (\d+)/.exec(core) || [])[1], capW = +(/export const PH_CAP_PV = (\d+)/.exec(src) || [])[1];
+  ok(cap === capW && cap === 6 && /export const PH_CAP_NU = 5;/.test(src), 'CAP של האפליקציה = PH_CAP_PV באתר (6), ו־nu מ־5');
+  // 5/11/2026: phpv — הסרטון של nu עובר לדף לתצוגה בעורך, כמו "שיתוף ← Studio" (Web Share Target), עם snbpv:<pid>
+  const pv = act.slice(act.indexOf('private fun preview'), act.indexOf('/* ---------------------------------------------------------------- בחירה */'));
+  ok(/"phpv" -> preview\(d\)/.test(act) && /r\.optBoolean\("pu"\)/.test(pv) && /setAction\(Intent\.ACTION_SEND\)\.setType\("video\/\*"\)/.test(pv)
+    && /EXTRA_TEXT, "snbpv:\$pid"/.test(pv) && /FLAG_GRANT_READ_URI_PERMISSION/.test(pv) && !/outputStream|copyTo/.test(pv), 'phpv: אותו URI ל־MainActivity (שיתוף), בלי עותק באפליקציה');
   ok(/if \(r\.optBoolean\("pu"\)\) return upPu\(ctx, pid, stopped\)/.test(work) && /PhPu\.audio\(/.test(work) && /if \(pu\) PhPu\.src\(ctx, r\) else PhNet\.FileSrc/.test(work), 'PhWork: pu — הקול ב־MediaMuxer, הסרטון מה־URI');
   ok(/MUXER_OUTPUT_MPEG_4/.test(pu) && /MUXER_OUTPUT_WEBM/.test(pu) && !/PhFf\./.test(pu), 'PhPu: הקול בלי ffmpeg ובלי קידוד (AAC → MP4, ‏Opus/Vorbis → WebM)');
   const upPu = work.slice(work.indexOf('private fun upPu'), work.indexOf('/* ---------------------------------------------------------------- burn */'));
@@ -156,9 +160,16 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(/const spec = P\.nu \? \{ name: f\.file\.name[^\n]*\n\s*out: OUTS\.filter\(\(k\) => f\.out\[k\]\)[^\n]*nu: 1, eng: 'api'/.test(src) && /if \(!P\.nu\) spec\.vc = 1;/.test(src) && /else if \(rec\.spec\.nu && /.test(src),
     'nu: התוצרים מהטופס, בלי ph, וכרטיס משלו בדף העבודה');
   // 5/11/2026 (בקשת המשתמש): "חיתוך לפני התרגום" חזר גם כשהסרטון נבחר דרך האפליקציה — תצוגה מקובץ שנבחר שוב באותו גודל
-  ok(/if \(!f\.ka && \(f\.fileObj \|\| nuF \|\| \(f\.drive && !f\.drive\.bx\)\)\)/.test(src) && /file\.size !== f\.file\.size\) \{ flashSafe\(T\('studioEdPvNo'\)\)/.test(src)
+  ok(/if \(!f\.ka && \(f\.fileObj \|\| nuF \|\| \(f\.drive && !f\.drive\.bx\)\)\)/.test(src) && /if \(nuF && !f\.pv\) pvOpen\(f\); else go\('cutsrc'\)/.test(src)
+    && /phIntent\('phpv', \{ pid: P\.pid \}\)/.test(src) && /if \(\/\^snbpv:\/\.test\(String\(e\.t \|\| ''\)\)\) return pvGot\(key, file, e\.t\);/.test(src)
+    && /file\.size !== f\.file\.size\) \{ inboxOp\('del', key\); flashSafe\(T\('studioEdPvNo'\)\)/.test(src) && !/pvInp/.test(src)
     && /URL\.createObjectURL\(form\.fileObj \|\| form\.pv\)/.test(src) && /dur: ed \? edlDur\(ed, P\.dur \|\| 0\) : P\.dur \|\| 0/.test(src) && /if \(ed\) spec\.edl = ed;\n\s*if \(!P\.nu && f\.pw/.test(src),
-    'nu: שורת החיתוך בטופס, תצוגה רק מאותו סרטון, והחיתוך והאורך שאחריו בבקשה');
+    'nu: שורת החיתוך בטופס → phpv (בלי בחירה שנייה) → pvGot, תצוגה רק מאותו סרטון, והחיתוך והאורך שאחריו בבקשה');
+  if (st && st.pvRestore) {
+    const pid = 'p0123456789abcdef', now = Date.now(), pd = { pid, at: now - 1000, arg: pid + '.eyJhIjoxfQxx' };
+    ok(st.pvRestore(pd, pid, now) && !st.pvRestore(pd, 'p0123456789abcdee', now) && !st.pvRestore(Object.assign({}, pd, { at: now - 7 * 3600e3 }), pid, now)
+      && !st.pvRestore(Object.assign({}, pd, { arg: 'pzzz.x' }), pid, now) && !st.pvRestore(null, pid, now), 'pvRestore: רק הטופס של אותו סרטון, מהשעות האחרונות');
+  }
   if (st && st.nuLine) {
     const t = st.nuLine({ p: 0.5, r: 2 * 1048576 }, 400 * 1048576);
     ok(t.split(' · ').length === 3 && st.nuLine({ p: 0.5 }, 400).split(' · ').length === 1 && st.nuLine({ p: 1, r: 9 }, 400).split(' · ').length === 2, 'nuLine: עלו/מתוך · מהירות · נשאר (בלי קצב — רק כמה עלו)');
