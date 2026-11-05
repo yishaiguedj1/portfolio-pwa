@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1531 מפתחות מתוך 6340) */
+/* המחרוזות של admin (1533 מפתחות מתוך 6343) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -366,6 +366,7 @@ he: {
   "admFaGoldS": "{n} חברות שנבדקו בעין",
   "admFaItems": "דוגמאות",
   "admFaK_bal": "המאזן לא מתאזן",
+  "admFaK_cx0": "השקעות הוניות זניחות (0)",
   "admFaK_eps": "רווח למניה לא מתאים לרווח ולמניות",
   "admFaK_face": "לא תואם לדוח",
   "admFaK_ffill": "הושלם מהדוח",
@@ -375,6 +376,7 @@ he: {
   "admFaK_gp": "רווח גולמי לא מתאים",
   "admFaK_gpfin": "רווח גולמי — זרוע מימון",
   "admFaK_gr": "צמיחה שלא תואמת לדוח",
+  "admFaK_hole": "מדד שנעלם ברבעונים האחרונים",
   "admFaK_neg": "ערך שלילי שלא אמור להיות",
   "admFaK_other": "בדיקה אחרת",
   "admFaK_part": "חלק גדול מהשלם",
@@ -1899,6 +1901,7 @@ en: {
   "admFaGoldS": "{n} hand-checked companies",
   "admFaItems": "Examples",
   "admFaK_bal": "Balance sheet doesn’t balance",
+  "admFaK_cx0": "Immaterial capex (0)",
   "admFaK_eps": "EPS doesn’t fit income and shares",
   "admFaK_face": "Doesn’t match the filing",
   "admFaK_ffill": "Filled from the report",
@@ -1908,6 +1911,7 @@ en: {
   "admFaK_gp": "Gross profit doesn’t fit",
   "admFaK_gpfin": "Gross profit — finance arm",
   "admFaK_gr": "Growth that doesn’t match the filing",
+  "admFaK_hole": "Metric missing in recent quarters",
   "admFaK_neg": "Negative where it can’t be",
   "admFaK_other": "Other check",
   "admFaK_part": "Part larger than the whole",
