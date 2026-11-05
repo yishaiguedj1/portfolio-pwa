@@ -1623,7 +1623,17 @@ function normFit(f) {
   if (!f || typeof f !== 'object') return null;
   const n = (x, lo, hi) => (Number.isFinite(+x) && +x >= lo && +x <= hi ? +x : null);
   const o = { mb: n(f.mb, 0, 4e6), a: n(f.a, 100, 1e5), b: n(f.b, 0, 1e4), ra: n(f.ra, 100, 1e5), rb: n(f.rb, 0, 1e4), ai: n(f.ai, 50, 1e5) };
-  return Object.values(o).every((v) => v != null) ? o : null;
+  if (!Object.values(o).every((v) => v != null)) return null;
+  const dm = n(f.dm, 0, 1e4);   // 5/11/2026: רשות — קבלה חזויה (translator/perf.py)
+  if (dm != null) o.dm = dm;
+  return o;
+}
+/* 5/11/2026 (קבלה חזויה, docs/studio-parallel-plan.md): fit.dm = האורך המרבי (דק׳ סרטון) של עבודה שנכנסת עכשיו בלי שאף
+   עבודה בשרת תאט מעבר לתקרה (הסוכן מריץ קדימה את מה שרץ). בלי dm — בלי הגבלה. גיליון AI / העתקה / קובץ כתוביות — בלי מעבד */
+function perfBlock(job, fit) {
+  if (!fit || fit.dm == null || !job) return false;
+  if (job.kind === 'ai' || job.kind === 'dx' || (job.spec && job.spec.src === 'subs')) return false;
+  return ((job.spec && job.spec.dur) || 3600) / 60 > fit.dm;
 }
 /* השיא הצפוי של עבודה (MB) לפי המודל של השרת: תרגום / הפקה מחדש לפי האורך, גיליון AI — קבוע */
 function peakNeed(job, fit) {
@@ -1726,7 +1736,7 @@ module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, 
   NORM_MIN, NORM_DEF, NORM_FIXED, NORM_DEF_API, NORM_FIXED_API, normDef, normFixed, engKey, normSample, addSample, learnedNorm, normsView,
   FB_MAX, FIX_MAX, normFixText, fbList, fbNumber, cheaperModes, COST_STOP, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide, fbRemove,
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, EARLY_FAIL_MS, EARLY_WAIT, recoverWait, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
-  effState, publicJob, workerJob, applyReport, resumeProg, stgSpent, excludeWait, toFields, fromFields, normFit, peakNeed,
+  effState, publicJob, workerJob, applyReport, resumeProg, stgSpent, excludeWait, toFields, fromFields, normFit, peakNeed, perfBlock,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, BAD_AUTH_GAP, badAuthDue, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
   serverMatches, normHb, normEv, SRV_EV, parkable, bwParkable, BW_MAX, BT_ERRS, normBq, bqView, BQ_SILENT_MS, bwLost, BQ_LOST_MS, BL_MAX, WL_RE, PARK_MAX, serverView, monthKey, monthUsed, addMonth, jobCap,
 };
