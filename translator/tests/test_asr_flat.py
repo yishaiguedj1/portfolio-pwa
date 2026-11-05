@@ -63,5 +63,31 @@ class Flat(unittest.TestCase):
         self.assertEqual(" ".join(w["w"] for w in parts[0]), FLAT)
 
 
+class SessOptions(unittest.TestCase):
+    """05/11/2026: התמלול בלי "סיבוב" של תהליכונים — לא שורף ליבות של עבודה שרצה במקביל"""
+
+    def test_no_spin_all_cores(self):
+        import os
+        os.environ.pop("SNB_ASR_SPIN", None)
+        so = P._sess_options()
+        try:
+            import onnxruntime  # noqa: F401
+        except ImportError:
+            self.assertIsNone(so, 'בלי onnxruntime — ברירת המחדל של onnx_asr')
+            return
+        self.assertEqual(so.get_session_config_entry("session.intra_op.allow_spinning"), "0")
+        self.assertEqual(so.intra_op_num_threads, len(os.sched_getaffinity(0)))
+        self.assertEqual(so.inter_op_num_threads, 1)
+
+    def test_spin_override(self):
+        import os
+        os.environ["SNB_ASR_SPIN"] = "1"
+        try:
+            self.assertIsNone(P._sess_options())
+        finally:
+            os.environ.pop("SNB_ASR_SPIN", None)
+
+
+
 if __name__ == "__main__":
     unittest.main()

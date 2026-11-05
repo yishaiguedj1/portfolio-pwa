@@ -917,13 +917,17 @@ def mem_note(kind: str, dur_s: float, peak_mb: float):
         pass
 
 
+MEM_LEARN_N = 3                     # 05/11/2026: מכמה מדידות של אותו סוג המודל יכול לרדת לקראת מה שנמדד
+MEM_FLOOR = 0.8                     # ולא מתחת ל־80% מהקבוע של ה־prior (תחת gVisor חריגה = כל הקונטיינר)
+
+
 def mem_model(kind: str) -> tuple[int, float]:
-    """[קבוע, לדקה] לסוג העבודה: ה־prior, ומעליו המעטפת של מה שנמדד בשרת הזה (לעולם לא מתחת ל־prior — שמרני).
-    השיפוע נשאר של ה־prior; הקבוע עולה כך שכל שיא שנמדד נכנס מתחת לקו."""
-    a, b = MEM_PRIOR.get(kind, MEM_PRIOR['tr'])
-    for k, d, pk in mem_samples():
-        if k == kind:
-            a = max(a, pk - b * (d / 60))
+    """[קבוע, לדקה] לסוג העבודה: המעטפת של מה שנמדד בשרת הזה — כל שיא שנמדד נכנס מתחת לקו. השיפוע נשאר של ה־prior.
+    עד MEM_LEARN_N מדידות — לא מתחת ל־prior (שמרני). מ־05/11/2026, מ־MEM_LEARN_N ומעלה — גם למטה, עד MEM_FLOOR
+    מהקבוע: ה־prior נקבע לפני ONNX (שיא אמיתי ~5.3GB לשעה ועשרים מול 7.2 שהוזמנו), והוא שהשאיר 2 עבודות ארוכות ב־CX53."""
+    a0, b = MEM_PRIOR.get(kind, MEM_PRIOR['tr'])
+    seen = [pk - b * (d / 60) for k, d, pk in mem_samples() if k == kind]
+    a = max(max(seen), a0 * MEM_FLOOR) if len(seen) >= MEM_LEARN_N else max([a0] + seen)
     return int(round(a)), b
 
 

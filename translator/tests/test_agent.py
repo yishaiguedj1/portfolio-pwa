@@ -461,6 +461,23 @@ class MemUnit(unittest.TestCase):
             self.assertEqual(A.mem_model('tr')[0], round(9000 - 22 * 10))
             self.assertEqual(A.mem_need('ai', 0), round(700 * 1.1))
 
+    def test_learning_lowers_after_enough_samples(self):
+        # 05/11/2026: מ־3 מדידות — המודל יורד לקראת השיא שנמדד, אבל לא מתחת ל־80% מה־prior; שיא גבוה תמיד מעלה
+        A = self.A
+        with tempfile.TemporaryDirectory() as d:
+            A.MEM_DB = Path(d) / 'm.json'
+            A.mem_note('tr', 4800, 5300)
+            A.mem_note('tr', 4800, 5200)
+            self.assertEqual(A.mem_model('tr')[0], 4600, 'פחות מ־3 מדידות — עוד ה־prior')
+            A.mem_note('tr', 600, 3900)
+            self.assertEqual(A.mem_model('tr')[0], round(4600 * 0.8), 'הרצפה: 80% מה־prior')
+            self.assertLess(A.mem_need('tr', 3600) * 3, 17800, '3 עבודות של שעה נכנסות בייצור של CX53 היום')
+            A.mem_note('tr', 600, 4400)                   # 4400 - 220 = 4180 — מעל הרצפה
+            self.assertEqual(A.mem_model('tr')[0], 4180)
+            A.mem_note('tr', 600, 9000)
+            self.assertEqual(A.mem_model('tr')[0], round(9000 - 22 * 10), 'שיא גבוה — המודל עולה מיד')
+            self.assertEqual(A.mem_model('rr')[0], 2200, 'סוג אחר — לא מושפע')
+
     def test_slots_by_cpu(self):
         A = self.A
         old = os.environ.pop('SNB_SLOTS', None)
