@@ -4,4 +4,5 @@
 !ibkr-proxy/lib/
 !ibkr-proxy/server.js
 !ibkr-proxy/vercel.json
+!ibkr-proxy/crons.json
 !ibkr-proxy/package.json
