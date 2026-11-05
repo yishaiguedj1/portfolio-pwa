@@ -1,0 +1,13 @@
+{
+  "//": "הקרונים היומיים (UTC). מ־5/11/2026 רצים בשרתון שלנו (server.js — startCron), לא ב־Vercel: Vercel רק גיבוי. גם ה־Worker של Cloudflare קורא לאותן כתובות (infra/cloudflare/watch).",
+  "crons": [
+    {
+      "path": "/api/ibkr-sync",
+      "schedule": "5 12 * * *"
+    },
+    {
+      "path": "/api/studio",
+      "schedule": "35 3 * * *"
+    }
+  ]
+}

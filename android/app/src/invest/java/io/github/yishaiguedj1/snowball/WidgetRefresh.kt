@@ -117,8 +117,11 @@ object WidgetRefresh {
         }
     }
 
-    private fun fetch(s: String, l: String): String? {
-        val url = WidgetStore.PROXY + "/api/widget?format=json&l=" + l + "&s=" + URLEncoder.encode(s, "UTF-8")
+    /** הראשי קודם; הגיבוי רק כשהראשי לא החזיר 200 (רשת / 5xx) */
+    private fun fetch(s: String, l: String): String? =
+        WidgetStore.HOSTS.firstNotNullOfOrNull { fetchFrom(it + "/api/widget?format=json&l=" + l + "&s=" + URLEncoder.encode(s, "UTF-8")) }
+
+    private fun fetchFrom(url: String): String? {
         val conn = URL(url).openConnection() as HttpURLConnection
         return try {
             conn.connectTimeout = 10_000

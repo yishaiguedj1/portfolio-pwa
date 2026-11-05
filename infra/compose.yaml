@@ -101,8 +101,8 @@ services:
     restart: unless-stopped
     environment:
       - SNB_CLIENT_IP_HEADER=cf-connecting-ip
-      # הקרון (הסנכרון של IBKR, הגיבוי, הניקוי) נשאר ב־Vercel עד שהמעבר יוכח — כך הוא לא רץ פעמיים
-      - SNB_CRON=off
+      # 5/11/2026: הקרון (הסנכרון של IBKR, הגיבוי, הניקוי) רץ כאן — ibkr-proxy/crons.json, Vercel רק גיבוי.
+      # SNB_CRON=off הישן כבר לא עוצר אותו (server.js — cronOn); לכיבוי: SNB_CRON=none
     env_file:
       - /etc/snb/app.env
     read_only: true
