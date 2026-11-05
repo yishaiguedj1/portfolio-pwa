@@ -492,6 +492,24 @@ function createStore(o = {}) {
     st.kvPut.run(k, JSON.stringify(v));
     return v;
   }
+  /* תמונת מצב: כל המסד כ־JSON — בלי קבצים, כך שהיא עובדת גם כשהמסד בזיכרון (lib/ldbsync.js, מצב mem) */
+  function dump() {
+    const docs = [];
+    for (const [c, m] of mem) for (const [id, r] of m) docs.push([c, id, r.del ? null : r.f, r.ct || null, r.ut || null, r.utu || 0, r.lw || 0, r.dirty ? 1 : 0, r.del ? 1 : 0]);
+    return { cols: [...cols.entries()].map(([c, x]) => [c, x.st, x.pt || '', x.n || 0, x.at || 0]), kv: db.prepare('SELECT k, v FROM kv').all().map((r) => [r.k, r.v]), docs };
+  }
+  function load(d) {
+    db.exec('BEGIN');
+    try {
+      for (const [c, cst, pt, n, at] of d.cols || []) setCol(c, { st: cst, pt, n, at });
+      for (const [k, v] of d.kv || []) st.kvPut.run(k, v);
+      for (const [c, id, f, ct, ut, utu, lw, dirty, del] of d.docs || []) {
+        persist(c, id, { f: del ? null : f, ct, ut, utu, lw, dirty: dirty ? 1 : 0, del: del ? 1 : 0 });
+        if (f && !del) bytes += JSON.stringify(f).length;
+      }
+      db.exec('COMMIT');
+    } catch (e) { db.exec('ROLLBACK'); throw e; }
+  }
   function info() {
     let docs = 0, dirty = 0;
     for (const m of mem.values()) for (const r of m.values()) { if (!r.del) docs++; if (r.dirty) dirty++; }
@@ -501,7 +519,7 @@ function createStore(o = {}) {
   const get = (c, id) => { const r = live(c, id); return r ? { f: clone(r.f), ut: r.ut, lw: r.lw, dirty: r.dirty } : null; };
   const rec = (c, id) => colMap(c).get(id) || null;
 
-  return { project, db, handle, ready, cols, setCol, kv, putRemote, putTomb, mergeFields, dirtyRows, markClean, purgeTombs, info, stats, get, rec,
+  return { project, db, handle, ready, cols, setCol, kv, dump, load, putRemote, putTomb, mergeFields, dirtyRows, markClean, purgeTombs, info, stats, get, rec,
     close: () => db.close(), _mem: mem };
 }
 
