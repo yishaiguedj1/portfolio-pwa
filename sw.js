@@ -8,7 +8,7 @@ const CACHE_NAME = 'portfolio-pwa-v721';
 const HASHES = {
   "./": "6ab1986a1bc13b10b7405e36061fa8ba",
   "./index.html": "6ab1986a1bc13b10b7405e36061fa8ba",
-  "./styles.css": "3eac906892551dcda334f5324dc2a906",
+  "./styles.css": "120c627955f9b2062704df67866e0f9d",
   "./glass-btn.css": "fc3022cd33dcb1241881566faf561f0c",
   "./app.js": "d3a259c47312fb329dff3f89af8e9a73",
   "./returns.js": "3590562b0282025a8a79650ad6b3a49b",
@@ -107,7 +107,7 @@ const HASHES = {
   "./cashflow.html": "d1f5e0d63d4755be006e1addedd42fc4",
   "./cashflow-app.js": "11ba648ca3c2057c9b2401d057b797fe",
   "./cashflow.js": "03434d54d733f5ea8639c38a96b5d667",
-  "./cashflow.css": "bf01863e33312face0fa0b4a3710fb4e",
+  "./cashflow.css": "6d697a67077c9631f7a849a55b9283cd",
   "./strings-cashflow.js": "fec77768a29b8e442839059e563aff3d",
   "./logo-cashflow.webp": "fdd001e0dc9d0a80c30961d58864ad96",
   "./logo-cashflow-lg.webp": "4988d060c48fbdf3f6de792f1237c710",

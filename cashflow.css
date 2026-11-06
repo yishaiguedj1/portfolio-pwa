@@ -77,7 +77,7 @@ html[data-app="cashflow"] body { background: var(--gl-ambient), var(--bg); backg
 /* פסים */
 .cf-bar { position: relative; height: 6px; border-radius: var(--pill); background: var(--gl-fill); margin-top: 7px; }
 .cf-bar i { position: absolute; inset-block: 0; inset-inline-start: 0; border-radius: var(--pill); background: var(--primary); }
-.cf-bar i.over { background: var(--sys-orange); }
+.cf-bar i.over { background: var(--loss); }   /* חריגה — אדום: כתום קרוב מדי לצהוב של Cashflow */
 .cf-bar b { position: absolute; top: -4px; bottom: -4px; width: 2px; border-radius: var(--pill); background: var(--on-surface); opacity: .55; }
 
 /* חודש */
