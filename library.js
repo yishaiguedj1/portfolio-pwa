@@ -777,6 +777,15 @@ function userRef() {
     return u ? firebase.firestore().collection(LIB_COL).doc(u.uid) : null;
   } catch (e) { return null; }
 }
+/* שלב 4 בתוכנית העצמאות מ־Firebase (6/11/2026): דרך השרת שלנו (window.SNBud, auth.js), ורק כשהוא לא זמין — ישירות
+   ל־Firestore כמו קודם, ורשומה ביומן כדי שהשרת יאחד כשיחזור. data = מה שנשלח ל־set(…, { merge: true }) */
+const udApi = () => (typeof window !== 'undefined' && window.SNBud) || null;
+async function libSet(ref, data) {
+  const ud = udApi();
+  if (ud && await ud.put('academy', data)) return;
+  await ref.set(data, { merge: true });
+  if (ud) ud.mark('academy');
+}
 let pendingP = {}, pendingA = {}, pushT = 0, settingsT = 0;
 function pushProgress(rec, now) {
   pendingP[cloudKey(rec.id)] = { c: rec.cfi || '', f: Math.round((rec.fraction || 0) * 1000) / 1000, d: !!rec.done, t: rec.lastRead || Date.now() };
@@ -791,7 +800,7 @@ function flushProgress() {
   if (!ref || (!Object.keys(p).length && !Object.keys(a).length)) return;
   pendingP = {}; pendingA = {};
   const lib = {}; if (Object.keys(p).length) lib.p = p; if (Object.keys(a).length) lib.a = a;
-  ref.set({ lib }, { merge: true }).catch(() => { pendingP = Object.assign(p, pendingP); pendingA = Object.assign(a, pendingA); });
+  libSet(ref, { lib }).catch(() => { pendingP = Object.assign(p, pendingP); pendingA = Object.assign(a, pendingA); });
 }
 function pushAnn(rec, ann) {
   const k = cloudKey(rec.id);
@@ -803,13 +812,18 @@ function pushAnn(rec, ann) {
 function pushSettings() {
   S.t = Date.now(); saveSettings();
   clearTimeout(settingsT);
-  settingsT = setTimeout(() => libMoved().then(() => { const ref = userRef(); if (ref) ref.set({ lib: { s: S } }, { merge: true }).catch(() => {}); }), 3000);
+  settingsT = setTimeout(() => libMoved().then(() => { const ref = userRef(); if (ref) libSet(ref, { lib: { s: S } }).catch(() => {}); }), 3000);
 }
 async function pullCloud() {
   if (!userRef()) return 0;
   await libMoved();
   const ref = userRef(); if (!ref) return 0;
-  let lib; try { const snap = await ref.get(); lib = snap.exists && snap.data().lib; } catch (e) { return 0; }
+  let lib;
+  try {
+    const ud = udApi(), v = ud ? await ud.get('academy') : null;   // שלב 4: קודם השרת שלנו
+    if (v) lib = v.doc && v.doc.lib;
+    else { const snap = await ref.get(); lib = snap.exists && snap.data().lib; }
+  } catch (e) { return 0; }
   if (!lib) return 0;
   let changed = 0;
   if (lib.s && lib.s.t > (S.t || 0)) { S = normSettings(lib.s); saveSettings(); }
@@ -1791,7 +1805,7 @@ function collSave(map) {
 }
 function collPut(id, c, push) {         // שמירה מקומית + לענן (merge של שדה אחד)
   const map = collAll(); map[id] = c; collSave(map);
-  if (push !== false) libMoved().then(() => { const ref = userRef(); if (ref) ref.set({ lib: { c: { [id]: c } } }, { merge: true }).catch(() => {}); });
+  if (push !== false) libMoved().then(() => { const ref = userRef(); if (ref) libSet(ref, { lib: { c: { [id]: c } } }).catch(() => {}); });
 }
 const myColls = (shelf) => Object.entries(collAll()).filter(([, c]) => c && !c.d && c.s === shelf).map(([id, c]) => ({ key: 'c:' + id, id, name: c.n, ids: c.b || [], u: c.u || 0 }))
   .sort((a, b) => String(a.name).localeCompare(String(b.name), 'he'));

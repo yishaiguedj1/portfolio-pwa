@@ -60,7 +60,7 @@
         let hasDoc = null;                                 // לא ידוע (בלי רשת) — accountSwitchTo נזהר
         // שלב 6 (15/10/2026): כללי Firestore לפי אפליקציה — Academy בודקת את המסמך שלה (academyUsers), Studio אין לה מסמך
         const app = (document.documentElement.dataset || {}).app || '';
-        if (app === 'academy') { try { const snap = await fs.collection('academyUsers').doc(u.uid).get(); hasDoc = !!(snap.exists && (snap.data() || {}).lib); } catch (e) {} }
+        if (app === 'academy') { try { const v = await udGet('academy'); if (v) hasDoc = !!(v.doc && v.doc.lib); else { const snap = await fs.collection('academyUsers').doc(u.uid).get(); hasDoc = !!(snap.exists && (snap.data() || {}).lib); } } catch (e) {} }
         const sw = switchOwner(u.uid, hasDoc);
         if (sw === true) return;                           // הדף נטען מחדש עם הנתונים של החשבון הזה בלבד
         set(sw === 'stuck' ? 'stuck' : 'in');

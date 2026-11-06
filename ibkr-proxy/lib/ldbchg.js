@@ -8,12 +8,22 @@
    עלות: כתיבה נוספת לכל כתיבה של Vercel, רק כש־Vercel עובד (כשהשרת שלנו נפל, או במעבר לגיבוי ב־5xx).
    נטען גם מ־tools/server-provision.js (רישום שרת חדש כותב ישר ל־studioServers). */
 
-/* האוספים שהטלפון ניגש אליהם ישירות (firestore/firestore.rules — tests/ldb.test.js משווה). הם נשארים ב־Firestore עד שלב 4 */
+/* האוספים שהטלפון ניגש אליהם ישירות (firestore/firestore.rules — tests/ldb.test.js משווה).
+   שלב 4 (6/11/2026, lib/udata.js): עם SNB_UDATA=on הם נכנסים למסד במצב "דרך" (thru) — קריאה מהמסד, וכתיבה ממשיכה מיד
+   ל־Firestore עם אותה מסכה (ומשם חוזרת למסד). כך Firestore תמיד שלם: גם הטלפון כותב בו ישירות כשהשרת לא זמין */
 const CLIENT = new Set(['users', 'academyUsers']);
 const CHG = 'snbChg';
 const COL_RE = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
-/* אוסף שעבר (או יעבור) למסד שלנו: לא של הטלפון, ולא יומן השינויים עצמו */
-const serverCol = (c) => COL_RE.test(String(c || '')) && !CLIENT.has(c) && c !== CHG;
+/* דולק: SNB_UDATA=on, או הדגל ud_srv במרכז הניהול (sysCfg/main.flOn — lib/sysflags.js; נקרא מהמסד, lib/ldbsync.js thruProbe) */
+let probe = () => false;
+const setThruProbe = (f) => { probe = typeof f === 'function' ? f : () => false; };
+const thruOn = (env = process.env) => env.SNB_UDATA === 'on' || !!probe();
+/* אוסף של הטלפון שעבר למסד (רק כש־SNB_UDATA=on) */
+const thru = (c) => CLIENT.has(c) && thruOn();
+/* אוסף שעבר (או יעבור) למסד שלנו: לא של הטלפון (אלא במצב "דרך"), ולא יומן השינויים עצמו */
+const serverCol = (c) => COL_RE.test(String(c || '')) && (!CLIENT.has(c) || thruOn()) && c !== CHG;
+/* מה שנרשם ביומן מכתיבה של Vercel: גם האוספים של הטלפון (תמיד — כך השרת יודע עליהם כשהמצב "דרך" נדלק) */
+const stampCol = (c) => COL_RE.test(String(c || '')) && c !== CHG;
 
 const FS_RE = /^https:\/\/firestore\.googleapis\.com\/v1\/projects\/([^/]+)\/databases\/(?:\(default\)|%28default%29)\/documents(.*)$/;
 /* פירוק כתובת של Firestore: { project, path:[מקטעים], verb ('' | 'runQuery' | 'commit' …), qs: URLSearchParams } או null */
@@ -61,7 +71,7 @@ function changesOf(method, url, body) {
   const u = parseUrl(url);
   if (!u) return { project: '', list: [] };
   const out = [];
-  if (!u.verb && u.path.length === 2 && serverCol(u.path[0])) {
+  if (!u.verb && u.path.length === 2 && stampCol(u.path[0])) {
     if (method === 'DELETE') out.push({ col: u.path[0], id: u.path[1], d: true });
     else if (method === 'PATCH') {
       const m = u.qs.getAll('updateMask.fieldPaths');
@@ -70,7 +80,7 @@ function changesOf(method, url, body) {
   } else if (u.verb === 'commit' && method === 'POST' && body && Array.isArray(body.writes)) {
     for (const w of body.writes) {
       const nm = parseName(w.delete || (w.update && w.update.name) || (w.transform && w.transform.document));
-      if (!nm || !serverCol(nm.col)) continue;
+      if (!nm || !stampCol(nm.col)) continue;
       if (w.delete) { out.push({ col: nm.col, id: nm.id, d: true }); continue; }
       const m = [];
       if (w.update) {
@@ -121,4 +131,4 @@ function installOnVercel(env = process.env) {
   return true;
 }
 
-module.exports = { CLIENT, CHG, serverCol, parseUrl, parseName, docName, chgId, topField, chgWrite, changesOf, stampFetch, installOnVercel };
+module.exports = { CLIENT, CHG, serverCol, stampCol, thru, thruOn, setThruProbe, parseUrl, parseName, docName, chgId, topField, chgWrite, changesOf, stampFetch, installOnVercel };

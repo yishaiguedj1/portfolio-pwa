@@ -116,8 +116,9 @@ function readBody(req) {
 
 /* פונקציות של השרת בלבד (לא ב־api/, ולכן Vercel לא רואה אותן — שם כבר 12 מתוך 12):
    session — החיבור המשותף (שלב 2 בתוכנית שלוש האפליקציות). העוגייה שלו עובדת רק תחת thesnowball.app,
-   כלומר רק בשרת שלנו — ב־Vercel (דומיין אחר) אין לה משמעות. */
-const SERVER_ONLY = { session: 'lib/session.js' };
+   כלומר רק בשרת שלנו — ב־Vercel (דומיין אחר) אין לה משמעות.
+   udata — התיק והספרייה דרך המסד שלנו (שלב 4 בתוכנית העצמאות מ־Firebase, 6/11/2026). ב־Vercel אין — הטלפון ממשיך ל־Firestore. */
+const SERVER_ONLY = { session: 'lib/session.js', udata: 'lib/udata.js' };
 
 function createServer(opts = {}) {
   const dir = opts.dir || __dirname;

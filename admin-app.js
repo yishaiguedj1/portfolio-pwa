@@ -311,7 +311,7 @@ page('sys', { tab: 'sys', title: () => t('admTabSys'), render(p) {
     row({ c: !D.push ? 'gray' : D.push.n && D.push.me ? 'green' : 'orange', ic: '◉', t: t('admPushT'), s: !D.push ? '' : !D.push.n ? t('admPushOffS') : !D.push.me ? t('admPushNotMe') : fmt(t('admPushOnS'), { n: D.push.n }), on: () => go('push') }),
     row({ c: dep ? 'orange' : 'green', ic: '⇪', t: t('admInfra'), s: dep ? t('admItDeploy') : prod && prod.v.b ? fmt(t('admRunBuild'), { b: prod.v.b }) + (stag && stag.v.ahead === 1 ? ' · ' + t('admRunAhead1') : stag && stag.v.ahead > 1 ? ' · ' + fmt(t('admRunAhead'), { n: stag.v.ahead }) : '') : '', badge: dep ? 1 : 0, on: () => go('infra') })));
   if (!D.cfg) needCfg();
-  const cf = D.cfg, mOn = !!(cf && cf.m), nOff = cf ? cf.flags.filter((f) => !f.on).length : 0;
+  const cf = D.cfg, mOn = !!(cf && cf.m), nOff = cf ? cf.flags.filter((f) => !f.on && f.def !== false).length : 0;   // דגל שכבוי כברירת מחדל (def:false) — לא "כבוי"
   p.append(grp(t('admSecCtl')), list(
     row({ c: mOn ? 'red' : 'gray', ic: '⏻', t: t('admMaint'), s: !cf ? t('admLoading') : mOn ? t('admMaintOn') + (cf.m.msg ? ' · ' + cf.m.msg : '') : t('admMaintOffS'), badge: mOn ? 1 : 0, on: () => go('maint') }),
     row({ c: nOff ? 'orange' : 'green', ic: '⚙', t: t('admCfg'), s: !cf ? t('admLoading') : nOff ? fmt(t('admFlagsOffN'), { n: nOff }) : t('admFlagsAll'), on: () => go('flags') }),
@@ -913,6 +913,7 @@ const FL = {
   st_url: [() => t('admFlStUrl'), () => t('admFlStUrlS')],
   st_auto: [() => t('admFlStAuto'), () => t('admFlStAutoS')], learn: [() => t('admFlLearn'), () => t('admFlLearnS')], learn_full: [() => t('admFlFull'), () => t('admFlFullS')],
   push: [() => t('admFlPush'), () => t('admFlPushS')], iv_live: [() => t('admFlLive'), () => t('admFlLiveS')],
+  ud_srv: [() => t('admFlUd'), () => t('admFlUdS')],   // 6/11/2026: שלב 4 — כבוי כברירת מחדל
 };
 const APPN = { studio: 'Studio', invest: 'Invest', all: () => t('admFlAll') };
 page('flags', { tab: 'sys', parent: 'sys', title: () => t('admCfg'), render(p) {

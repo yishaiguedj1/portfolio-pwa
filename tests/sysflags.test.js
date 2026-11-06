@@ -26,7 +26,8 @@ const { fakeR2, ACC } = require('./_r2fake');
   const studioSrc = require('fs').readFileSync(path.join(root, 'ibkr-proxy/api/studio.js'), 'utf8');
   const appSrc = require('fs').readFileSync(path.join(root, 'app.js'), 'utf8');
   for (const f of SF.FLAGS) {
-    const src = /^app\.js/.test(f.where) ? appSrc : studioSrc;
+    const wf = f.where.split(' ')[0];
+    const src = /^app\.js/.test(f.where) ? appSrc : /^lib\//.test(wf) ? require('fs').readFileSync(path.join(root, 'ibkr-proxy', wf), 'utf8') : studioSrc;
     ok(new RegExp("['\"]" + f.k + "['\"]").test(src), 'הדגל ' + f.k + ' באמת נבדק בקוד (' + f.where.split(' ')[0] + ')');
   }
 
@@ -188,6 +189,12 @@ const { fakeR2, ACC } = require('./_r2fake');
     ok(SF.applyAdmin({}, { an: { on: true, t: '', b: '', apps: ['studio'] } }, t0) === null && SF.applyAdmin({}, { an: { on: true, t: 'x', apps: [] } }, t0) === null, 'הודעה: בלי טקסט או בלי אפליקציה — נדחית');
     ok(SF.publicCfg(pa, t0).an.id === t0 && SF.publicCfg(Object.assign({}, pa, { anTil: t0 + 1 }), t0 + 2).an === null && SF.publicCfg({ anId: 0, anT: 'x', anApps: 'invest' }, t0).an === null, 'הודעה: יוצאת ב־cfg הציבורי, פגה בזמן, כבויה = null');
     ok(SF.applyAdmin(pa, { an: { on: false } }, t0).anId === 0 && SF.adminCfg(pa, t0).anD.apps.join() === 'studio', 'הודעה: כיבוי; למנהל — הטיוטה');
+  }
+  {   // 6/11/2026: דגל שכבוי כברירת מחדל (ud_srv — שלב 4, התיק והספרייה דרך השרת)
+    ok(SF.DEF_OFF.join() === 'ud_srv' && !SF.flagOn({}, 'ud_srv') && SF.flagOn({ flOn: 'ud_srv' }, 'ud_srv') && !SF.flagOn({ flOn: 'push' }, 'push') === false, 'ud_srv — כבוי עד שמדליקים (flOn); דגל רגיל לא מושפע מ־flOn');
+    ok(SF.applyAdmin({}, { flag: 'ud_srv', on: true }, 1).flOn === 'ud_srv' && SF.applyAdmin({ flOn: 'ud_srv' }, { flag: 'ud_srv', on: false }, 1).flOn === '', 'הדלקה וכיבוי — בשדה flOn');
+    ok(!SF.flagOn({ flOff: 'ud_srv' }, 'ud_srv') && SF.publicCfg({}, 1).f.ud_srv === false && SF.publicCfg({ flOn: 'ud_srv' }, 1).f.ud_srv === true, 'flOff לא מדליק אותו; publicCfg לפי flOn');
+    ok(SF.adminCfg({}, 1).flags.find((f) => f.k === 'ud_srv').def === false, 'למנהל — def:false (לא נספר כ"כבוי")');
   }
   console.log('\nכל ' + n + ' הבדיקות עברו ✓');
 })().catch((e) => { console.error(e); process.exit(1); });

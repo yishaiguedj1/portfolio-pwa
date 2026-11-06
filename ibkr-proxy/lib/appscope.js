@@ -16,6 +16,7 @@ const SCOPE = {
   translate: ['academy'],
   bookmeta: ['academy'],
   studio: ['studio'],
+  udata: ['invest', 'academy'],   // שלב 4 (6/11/2026): users רק ל־invest, academyUsers רק ל־academy — נבדק גם ב־lib/udata.js
 };
 /* חריגים לפי op: הגיבוי של Invest ל־Drive (pfbackup.js) עובר דרך פעולות gd* של /api/library;
    op:'cfg' של /api/studio = מצב התחזוקה והדגלים הציבוריים — כל שלוש האפליקציות טוענות אותו (core.js);

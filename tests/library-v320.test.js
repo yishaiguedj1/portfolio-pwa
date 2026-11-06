@@ -37,7 +37,7 @@ ok(/\.lib-home:not\(\.searching\) \.lib-only-q \{ display: none; \}/.test(css), 
 ok(/\.col-stack \.c1 \{ order: 2/.test(css) && /\.col-card \{/.test(css), 'כרטיס אסופה עם שלוש כריכות בערימה');
 ok(/function renderColl\(key\)/.test(lib) && /colAddBooks/.test(lib) && /function collNameSheet/.test(lib) && /function collDelete/.test(lib), 'דף אסופה: הוספת ספרים, שינוי שם ומחיקה');
 ok(/\{ kind: 'coll', fn: \(\) => addToCollSheet\(b\) \}/.test(lib) && /a\.kind === 'coll' \? ICON_COLL/.test(app), 'לחיצה ארוכה על ספר — "הוספה לאסופה" ליד עריכה ומחיקה');
-ok(/ref\.set\(\{ lib: \{ c: \{ \[id\]: c \} \} \}, \{ merge: true \}\)/.test(lib) && /mergeColls\(collAll\(\), lib\.c\)/.test(lib), 'האסופות נשמרות בענן ונמשכות במכשיר אחר');
+ok(/libSet\(ref, \{ lib: \{ c: \{ \[id\]: c \} \} \}\)/.test(lib) && /mergeColls\(collAll\(\), lib\.c\)/.test(lib), 'האסופות נשמרות בענן ונמשכות במכשיר אחר');
 ok(/'pwa_libcoll_v1'/.test(app.match(/const ACCOUNT_KEYS = \[[^\]]*\]/)[0]), 'מפתח האסופות ב־ACCOUNT_KEYS (הפרדת חשבונות)');
 const keys = ['colReading', 'colDone', 'colPartnership'];
 const he = app.slice(app.indexOf('he: {'), app.indexOf('en: {')), en = app.slice(app.indexOf('en: {'));
