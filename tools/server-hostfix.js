@@ -87,6 +87,23 @@ const DIAG = [
   '  journalctl -D "$J" --no-pager -o short-iso -b 0 -p warning -n 40 2>/dev/null | sed "s/^/SNBBOOT /" || true',
   'fi',
   'if [ -d "$R/etc/systemd/system/timers.target.wants" ]; then echo "SNBTMR wants: $(ls "$R/etc/systemd/system/timers.target.wants" | tr "\\n" " ")"; else echo "SNBTMR wants: none"; fi',
+  // 6/11/2026, אחרי ה־apply של #558: גם עם הטיימר החדש השירות לא התחיל. systemd לא כותב כלום על משימה שממתינה בתור —
+  // לכן: יחידות ש"התחילו ולא סיימו" באתחול (משימה תקועה מעכבת את כל מה שמסודר אחריה), האם האתחול הסתיים,
+  // מיסוך / קובצי השלמה / קישורים, קפיצות שעון, והגרסאות של systemd (המארח מול ה־Rescue שקורא את היומן)
+  'echo "SNBSYS rescue $(journalctl --version 2>/dev/null | head -n1)"',
+  'for f in "$R"/usr/lib/systemd/libsystemd-shared-*.so "$R"/lib/systemd/libsystemd-shared-*.so; do if [ -e "$f" ]; then echo "SNBSYS host $(basename "$f")"; fi; done',
+  'for d in "$R/etc/systemd/system" "$R"/etc/systemd/system/*.wants "$R/etc/systemd/system/snb-update.service.d" "$R/etc/systemd/system/snb-update.timer.d" "$R/usr/lib/systemd/system" "$R/var/lib/systemd/timers"; do',
+  '  if [ -d "$d" ]; then ls -la "$d" 2>/dev/null | grep -i "snb" | sed "s|^|SNBSYS ls $(basename "$d"): |" || true; fi',
+  'done',
+  'if [ -f "$R/etc/systemd/system/snb-update.service" ]; then sed "s/^/SNBSYS svc: /" "$R/etc/systemd/system/snb-update.service"; fi',
+  'for f in "$R"/etc/systemd/system/snb-update.service.d/*.conf; do if [ -f "$f" ]; then sed "s|^|SNBSYS svc.d $(basename "$f"): |" "$f"; fi; done',
+  'if [ -f "$R/etc/systemd/system.conf" ]; then grep -v "^#" "$R/etc/systemd/system.conf" | grep . | sed "s/^/SNBSYS system.conf: /" || true; fi',
+  'if command -v journalctl >/dev/null 2>&1 && [ -d "$J" ]; then',
+  '  for b in 0 -1; do',
+  '    journalctl -D "$J" --no-pager -o cat -b "$b" _PID=1 2>/dev/null | awk \'/^Starting /{s=$0; sub(/^Starting /,"",s); sub(/[.][.][.]$/,"",s); o[s]=1} /^(Started|Finished|Failed to start|Stopped) /{s=$0; sub(/^(Started|Finished|Failed to start|Stopped) /,"",s); sub(/[.]$/,"",s); delete o[s]} END{for(k in o) print k}\' | head -n 20 | sed "s/^/SNBSYS b$b open: /" || true',
+  '    journalctl -D "$J" --no-pager -o short-iso -b "$b" 2>/dev/null | grep -iE "snb-|ordering cycle|Refusing|Time has been changed|clock|Failed to|timed out|Dependency failed|job .* failed|Startup finished|Reached target.*(Multi-User|Timer|Network is Online)" | grep -v "dockerd\\[" | tail -n 60 | sed "s/^/SNBSYS b$b /" || true',
+  '  done',
+  'fi',
 ];
 /* טהורה: שורה מהשרת → בטוחה ליומן ציבורי */
 function redact(line) {
@@ -148,8 +165,8 @@ function parseOut(text) {
   const o = { put: [], same: [], du: {}, vol: {}, img: null, df: null, busy: [], err: '', ok: false, diag: null };
   for (const line of String(text || '').split('\n')) {
     let m;
-    if ((m = /^SNB(LOG|ENV|TMR|CT|SUM|BOOT) (.*)$/.exec(line))) {
-      o.diag = o.diag || { LOG: [], ENV: [], TMR: [], CT: [], SUM: [], BOOT: [] };
+    if ((m = /^SNB(LOG|ENV|TMR|CT|SUM|BOOT|SYS) (.*)$/.exec(line))) {
+      o.diag = o.diag || { LOG: [], ENV: [], TMR: [], CT: [], SUM: [], BOOT: [], SYS: [] };
       if (o.diag[m[1]].length < 220) o.diag[m[1]].push(redact(m[2]));
       continue;
     }
@@ -184,6 +201,7 @@ function report(o) {
     sec('compose.yaml בשרת', o.diag.SUM);
     sec('היומן של snb-update (האחרונות)', o.diag.LOG);
     sec('האתחול האחרון (הטיימר, השירות, docker, אזהרות)', o.diag.BOOT);
+    sec('systemd — יחידות שלא סיימו, האתחול, מיסוך וקובצי השלמה, השעון', o.diag.SYS);
   }
   return L.join('\n');
 }
