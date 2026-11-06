@@ -20,6 +20,8 @@ const C = require('./ldbchg');
 const L = require('./ldb');
 const FSM = require('./fsmeter');
 
+/* אבטחה: הסטטוס חשוף ב־/api/session בלי הרשאה — שגיאה רק כקוד קצר, בלי נתיבים, כתובות או תוכן */
+const errOf = (e) => String((e && (e.code || e.message)) || e).replace(/(https?:)?\/[^\s'"]*/g, '').replace(/[^A-Za-z0-9_:. -]/g, '').trim().slice(0, 60) || 'err';
 const MIRROR_MS = 60e3, MIRROR_SLOW_MS = 5 * 60e3, MERGE_MS = 120e3, IMPORT_MS = 4e3, SNAP_MS = 10 * 60e3, SNAP_MEM_MS = 3 * 60e3;
 const MIRROR_DAY = 12000, MIRROR_SLOW = 8000;    // כתיבות לעותק ביום (מכסת Firestore: 20 אלף)
 const IMPORT_DAY = 8000;                         // קריאות ביום לייבוא (מכסה: 50 אלף)
@@ -67,6 +69,13 @@ function create(o = {}) {
   const snapKey = 'ldb/' + project + '/snap.bin';
   const BASE = FS_HOST + 'v1/projects/' + project + '/databases/(default)/documents';
   const token = o.token || ((f) => require('./gauth').datastoreToken(f));
+  const own = o.own || ((t) => require('./gauth').ownToken(t));
+  const authOf = (init) => {
+    const h = (init && init.headers) || {};
+    const v = typeof h.get === 'function' ? h.get('authorization') : (h.Authorization || h.authorization);
+    const m = /^Bearer (\S+)$/.exec(String(v || ''));
+    return m ? m[1] : '';
+  };
   const S = { on: false, why: '', at: now(), mirror: { at: 0, n: 0, err: '', bad: 0, until: 0, fails: 0 }, merge: { at: 0, n: 0, err: '' },
     imp: { col: '', err: '' }, snap: { at: 0, err: '', gen: -1, mb: 0 }, restored: '', day: '', wDay: 0, rDay: 0 };
   let store = null, readyP = null, timers = [], refetch = new Set(), seenChg = new Map(), busy = {};
@@ -98,7 +107,7 @@ function create(o = {}) {
     if (fresh && o.r2 && o.key) {
       let buf;
       // תקלה בקריאה (לא "אין עדיין") — לא עולים ריק: תמונה ריקה הייתה דורסת את הטובה. ננסה שוב בעוד דקה (start)
-      try { buf = await o.r2.get(snapKey); } catch (e) { store.close(); store = null; S.why = 'restore_err'; S.restored = 'err:' + String(e && e.message || e).slice(0, 60); return false; }
+      try { buf = await o.r2.get(snapKey); } catch (e) { store.close(); store = null; S.why = 'restore_err'; S.restored = 'err:' + errOf(e); return false; }
       const s = buf && openSnap(o.key, buf);
       if (buf && !s) S.restored = 'bad_snap';
       if (s && s.header && s.header.project === project && s.header.fmt === 'json') {
@@ -112,7 +121,7 @@ function create(o = {}) {
     // מההתחלה: רשומות ש־Vercel כתב ביומן לפני ההדלקה (הקוד ב־Vercel נפרס לפני שהנפח הותקן) — מטופלות ונמחקות באיחוד הראשון
     if (store.kv('chgSince') == null) store.kv('chgSince', 0);
     S.on = true; S.why = '';
-    if (snapAt) await tagged('restore', () => catchUp(snapAt)).catch((e) => { S.restored += ' catchup_err:' + String(e && e.message || e).slice(0, 60); });
+    if (snapAt) await tagged('restore', () => catchUp(snapAt)).catch((e) => { S.restored += ' catchup_err:' + errOf(e); });
     return true;
   }
   /* אחרי שחזור: מה שנשלח לעותק אחרי תמונת המצב (_mt) — חוזר למסד */
@@ -138,6 +147,9 @@ function create(o = {}) {
       if (!url.startsWith(FS_HOST)) return f(input, init);
       if (readyP) await readyP;
       if (!store) return f(input, init);
+      // אבטחה: עונים רק לבקשה עם טוקן שהתהליך הנפיק (lib/gauth.js ownToken). בלי — ממשיכה ל־Firestore, שבודק אותה כמו תמיד:
+      // כך המסד לא נותן יותר ממה ש־Firestore היה נותן, גם אם כתובת של Firestore מגיעה מבחוץ
+      if (!own(authOf(init))) { store.stats.passWhy.auth = (store.stats.passWhy.auth || 0) + 1; return f(input, init); }
       const method = String((init && init.method) || 'GET').toUpperCase();
       let body = null;
       if (method !== 'GET' && init && typeof init.body === 'string') { try { body = JSON.parse(init.body); } catch (e) { return f(input, init); } }
@@ -305,14 +317,14 @@ function create(o = {}) {
       const blob = sealSnap(o.key, { v: 2, fmt: 'json', project, at }, buf);
       await o.r2.put(snapKey, blob);
       S.snap = { at, err: '', gen, mb: Math.round(blob.length / 1e5) / 10 };
-    } catch (e) { S.snap.err = String(e && e.message || e).slice(0, 80); }
+    } catch (e) { S.snap.err = errOf(e); }
   }
 
-  const runMirror = once('mirror', mirror), runMerge = once('merge', () => merge().catch((e) => { S.merge.err = String(e && e.message || e).slice(0, 80); }));
-  const runImport = once('import', () => importTick().catch((e) => { S.imp.err = String(e && e.message || e).slice(0, 80); }));
+  const runMirror = once('mirror', mirror), runMerge = once('merge', () => merge().catch((e) => { S.merge.err = errOf(e); }));
+  const runImport = once('import', () => importTick().catch((e) => { S.imp.err = errOf(e); }));
   const runSnap = once('snap', () => snapshot());
   function start() {
-    readyP = open().catch((e) => { S.why = 'open_err:' + String(e && e.message || e).slice(0, 80); store = null; return false; })
+    readyP = open().catch((e) => { S.why = 'open_err:' + errOf(e); store = null; return false; })
       .then((ok) => {
         readyP = null;
         if (ok && o.timers !== false) schedule();

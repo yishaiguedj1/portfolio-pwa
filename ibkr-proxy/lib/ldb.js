@@ -170,6 +170,8 @@ function createStore(o = {}) {
   const nowMs = o.now || (() => Date.now());
   const sqlite = o.sqlite || require('node:sqlite');
   const db = new sqlite.DatabaseSync(o.file || ':memory:');
+  // אבטחה: הקובץ (ו־-wal/-shm, שמקבלים את אותה הרשאה) — רק לבעלים
+  if (o.file && o.file !== ':memory:') { try { require('fs').chmodSync(o.file, 0o600); } catch (e) {} }
   for (const s of SCHEMA) db.exec(s);
   const st = {
     put: db.prepare('INSERT INTO docs (col, id, f, ct, ut, utu, lw, dirty, del) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(col, id) DO UPDATE SET f=excluded.f, ct=excluded.ct, ut=excluded.ut, utu=excluded.utu, lw=excluded.lw, dirty=excluded.dirty, del=excluded.del'),
@@ -501,9 +503,10 @@ function createStore(o = {}) {
   function load(d) {
     db.exec('BEGIN');
     try {
-      for (const [c, cst, pt, n, at] of d.cols || []) setCol(c, { st: cst, pt, n, at });
+      for (const [c, cst, pt, n, at] of d.cols || []) if (C.serverCol(c)) setCol(c, { st: cst, pt, n, at });
       for (const [k, v] of d.kv || []) st.kvPut.run(k, v);
       for (const [c, id, f, ct, ut, utu, lw, dirty, del] of d.docs || []) {
+        if (!C.serverCol(c) || typeof id !== 'string' || !id || id.includes('/')) continue;   // הגנה לעומק: רק אוספים של השרתון
         persist(c, id, { f: del ? null : f, ct, ut, utu, lw, dirty: dirty ? 1 : 0, del: del ? 1 : 0 });
         if (f && !del) bytes += JSON.stringify(f).length;
       }
