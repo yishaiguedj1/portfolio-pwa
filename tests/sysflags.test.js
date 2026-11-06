@@ -190,11 +190,9 @@ const { fakeR2, ACC } = require('./_r2fake');
     ok(SF.publicCfg(pa, t0).an.id === t0 && SF.publicCfg(Object.assign({}, pa, { anTil: t0 + 1 }), t0 + 2).an === null && SF.publicCfg({ anId: 0, anT: 'x', anApps: 'invest' }, t0).an === null, 'הודעה: יוצאת ב־cfg הציבורי, פגה בזמן, כבויה = null');
     ok(SF.applyAdmin(pa, { an: { on: false } }, t0).anId === 0 && SF.adminCfg(pa, t0).anD.apps.join() === 'studio', 'הודעה: כיבוי; למנהל — הטיוטה');
   }
-  {   // 6/11/2026: דגל שכבוי כברירת מחדל (ud_srv — שלב 4, התיק והספרייה דרך השרת)
-    ok(SF.DEF_OFF.join() === 'ud_srv' && !SF.flagOn({}, 'ud_srv') && SF.flagOn({ flOn: 'ud_srv' }, 'ud_srv') && !SF.flagOn({ flOn: 'push' }, 'push') === false, 'ud_srv — כבוי עד שמדליקים (flOn); דגל רגיל לא מושפע מ־flOn');
-    ok(SF.applyAdmin({}, { flag: 'ud_srv', on: true }, 1).flOn === 'ud_srv' && SF.applyAdmin({ flOn: 'ud_srv' }, { flag: 'ud_srv', on: false }, 1).flOn === '', 'הדלקה וכיבוי — בשדה flOn');
-    ok(!SF.flagOn({ flOff: 'ud_srv' }, 'ud_srv') && SF.publicCfg({}, 1).f.ud_srv === false && SF.publicCfg({ flOn: 'ud_srv' }, 1).f.ud_srv === true, 'flOff לא מדליק אותו; publicCfg לפי flOn');
-    ok(SF.adminCfg({}, 1).flags.find((f) => f.k === 'ud_srv').def === false, 'למנהל — def:false (לא נספר כ"כבוי")');
+  {   // 6/11/2026: ud_srv (שלב 4) — היה כבוי עד שמדליקים; מ־6/11 דולק כברירת מחדל, וכיבוי ב־flOff. המנגנון של def:false (flOn) נשאר
+    ok(!SF.DEF_OFF.includes('ud_srv') && SF.flagOn({}, 'ud_srv') && !SF.flagOn({ flOff: 'ud_srv' }, 'ud_srv'), 'ud_srv — דולק כברירת מחדל, flOff מכבה');
+    ok(SF.applyAdmin({}, { flag: 'ud_srv', on: false }, 1).flOff === 'ud_srv' && SF.publicCfg({}, 1).f.ud_srv === true, 'כיבוי במרכז הניהול — בשדה flOff; publicCfg דולק')
   }
   console.log('\nכל ' + n + ' הבדיקות עברו ✓');
 })().catch((e) => { console.error(e); process.exit(1); });
