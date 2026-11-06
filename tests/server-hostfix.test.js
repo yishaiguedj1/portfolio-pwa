@@ -192,6 +192,15 @@ function world(o = {}) {
   ok(H.redact('GDRIVE_SA_KEY=abc api_token: xyz') === 'GDRIVE_SA_KEY=<redacted> api_token: <redacted>', 'redact: מפתחות וטוקנים');
   ok(H.redact('from 203.0.113.9 by a.b@example.com x ' + 'Q'.repeat(40)) === 'from <ip> by <mail> x <long>', 'redact: IP, מייל, base64 ארוך');
   ok(H.parseOut('SNBLOG ../../etc 10.0.0.1').diag.LOG[0] === '../../etc <ip>', 'diag: שורות יומן נקלטות (גם עם ..) ומסוננות');
+  { // 6/11/2026: systemd — יחידות שהתחילו ולא סיימו (awk על היומן), מיסוך וקובצי השלמה; בשורש ריק לא נופל (set -eu)
+    const so = H.parseOut('SNBSYS b0 open: snb-update.service - X\nSNBSYS ls system: lrwxrwxrwx 1 root root 9 snb-update.service -> /dev/null');
+    ok(so.diag.SYS.length === 2 && /### systemd/.test(H.report(so)), 'diag: סעיף systemd נקלט ומופיע בדוח');
+    const awk = /awk '([^']+)'/.exec(H.rescueScript([], { diag: true }).split('\n').find((l) => l.includes('open: ')) || '');
+    const ar = awk && cp.spawnSync('awk', [awk[1]], { input: 'Starting a.service - A...\nStarting b.service - B...\nFinished a.service - A.\n', encoding: 'utf8' });
+    ok(ar && ar.stdout.trim() === 'b.service - B', 'diag: awk מוצא את היחידה שהתחילה ולא סיימה');
+    fs.mkdirSync(path.join(root, 'etc/systemd/system'), { recursive: true }); fs.writeFileSync(path.join(root, 'etc/systemd/system/snb-update.service'), '[Unit]\n');
+    ok(/SNBSYS ls system: .*snb-update\.service/.test(cp.spawnSync('sh', [], { input: H.rescueScript([], { diag: true }), encoding: 'utf8', env: Object.assign({}, process.env, { SNB_TEST_ROOT: root }) }).stdout), 'diag: רשימת היחידות בשורש הבדיקה');
+  }
   ok(/'diag'/.test(read('tools/server-hostfix.js')) && /\[check, apply, diag\]/.test(read('.github/workflows/hostfix.yml')), 'ה־workflow מציע diag');
 
   // ---------------- מקצה לקצה
