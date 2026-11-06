@@ -138,7 +138,7 @@ function world(o = {}) {
   const files = H.loadFiles(ROOT);
   const script = H.rescueScript(files);
   ok(cp.spawnSync('sh', ['-n'], { input: script }).status === 0, 'הסקריפט של ה־Rescue תקין תחבירית');
-  ok(JSON.stringify(H.FILES.map((f) => f[1])) === JSON.stringify(['usr/local/lib/snb/common.sh', 'opt/snb/compose.yaml', 'usr/local/sbin/snb-update']), 'אותם יעדים כמו snb-host-apply');
+  ok(JSON.stringify(H.FILES.map((f) => f[1])) === JSON.stringify(['usr/local/lib/snb/common.sh', 'opt/snb/compose.yaml', 'usr/local/sbin/snb-update', 'etc/systemd/system/snb-update.timer', 'etc/systemd/system/snb-update.service']), 'אותם יעדים כמו snb-host-apply');
   const ha = read('infra/worker/snb-host-apply');
   ok(H.FILES.every(([src, dst, mode]) => ha.includes(':' + dst + ':' + mode)), 'אותן הרשאות כמו snb-host-apply');
   let root = fakeRoot();
@@ -150,6 +150,13 @@ function world(o = {}) {
   ok(fs.readFileSync(path.join(root, 'opt/snb/compose.yaml'), 'utf8') === read('infra/compose.yaml'), 'compose.yaml הותקן');
   ok(o.put.includes('/usr/local/sbin/snb-update') && o.same.includes('/usr/local/lib/snb/common.sh'), 'מדווח מה הוחלף ומה היה זהה');
   ok(!fs.readdirSync(path.join(root, 'usr/local/sbin')).some((f) => f.endsWith('.snb-new')), 'בלי קבצים זמניים שנשארו');
+  ok(fs.readFileSync(path.join(root, 'etc/systemd/system/snb-update.timer'), 'utf8') === read('infra/host/snb-update.timer') && fs.readFileSync(path.join(root, 'etc/systemd/system/snb-update.service'), 'utf8') === read('infra/host/snb-update.service'), 'גם הטיימר והשירות מותקנים (בלי sh -n — הם לא סקריפטים)');
+  ok(fs.readlinkSync(path.join(root, 'etc/systemd/system/timers.target.wants/snb-update.timer')) === '/etc/systemd/system/snb-update.timer', 'הטיימר מופעל באתחול (הקישור ב־timers.target.wants)');
+  const unit = read('infra/host/snb-update.service'), tmr = read('infra/host/snb-update.timer');
+  ok(/^TimeoutStartSec=\d+min$/m.test(unit) && !/^(Wants|After)=.*network-online/m.test(unit) && /^Requires=docker\.service$/m.test(unit), 'השירות: מגבלת זמן (ריצה תקועה לא חוסמת את הטיימר), בלי תלות ב־network-online');
+  ok(/^OnCalendar=\*:0\/2$/m.test(tmr) && /^OnBootSec=/m.test(tmr), 'הטיימר: גם לפי השעון (OnCalendar)');
+  const wdf = read('infra/worker/Dockerfile');
+  ok(/infra\/host\/snb-update\.timer infra\/host\/snb-update\.service \/opt\/snb-host\//.test(wdf) && /timers\.target\.wants/.test(read('infra/worker/snb-host-apply')), 'snb-host-apply בתמונת העובד — אותם קבצים ואותו קישור');
   ok(o.du.images >= 300 && o.du.volumes != null && o.du.journal != null && o.img === 3 && o.vol.snb_work != null && o.df && o.df.total > 0, 'מודד: תמונות, תיקיות, יומן, מספר תמונות, הדיסק');
   ok(/תמונות Docker/.test(H.report(o)) && /מספר התמונות: 3/.test(H.report(o)), 'הדוח בעברית, מספרים בלבד');
   r = runScript(script, root);
@@ -191,6 +198,7 @@ function world(o = {}) {
   let w = world({ root: fakeRoot() });
   let res = await H.apply(E, w.deps, { root: ROOT });
   ok(res.out && res.out.ok && w.installed, 'הותקן דרך Rescue');
+  ok(res.out.diag && Array.isArray(res.out.diag.BOOT) && /### האתחול האחרון/.test(H.report(res.out)) && /הותקנו:/.test(H.report(res.out)), 'apply מריץ גם את האבחון (קריאה בלבד, לפני האתחול)');
   const nm = w.names();
   ok(nm.indexOf('enable_rescue') > -1 && nm.indexOf('set_rules') < nm.indexOf('enable_rescue'), 'הכלל בחומת האש לפני Rescue');
   ok(w.sshScripts.every((s) => s.rule && s.rule.source_ips[0] === '198.51.100.4/32' && s.rule.port === '22'), 'SSH רק כשהכלל קיים, ורק מהכתובת של ההרצה (/32)');

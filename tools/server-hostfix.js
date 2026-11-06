@@ -43,6 +43,9 @@ const FILES = [
   ['infra/host/snb-common.sh', 'usr/local/lib/snb/common.sh', '644'],
   ['infra/compose.yaml', 'opt/snb/compose.yaml', '644'],
   ['infra/host/snb-update', 'usr/local/sbin/snb-update', '755'],
+  // 6/11/2026: גם הטיימר והשירות — עד היום רק בהקמה, והשרת נשאר עם הטיימר של רבע שעה בלי OnCalendar
+  ['infra/host/snb-update.timer', 'etc/systemd/system/snb-update.timer', '644'],
+  ['infra/host/snb-update.service', 'etc/systemd/system/snb-update.service', '644'],
 ];
 /* מה מודדים בדיסק (du -sk). שמות קבועים — המפתחות בתשובה */
 const DU = [
@@ -77,6 +80,13 @@ const DIAG = [
   '  fi',
   'done',
   'if [ -f "$R/opt/snb/compose.yaml" ]; then echo "SNBSUM compose $(sha256sum "$R/opt/snb/compose.yaml" | cut -c1-12)"; fi',
+  // האתחול האחרון (לפני ה־Rescue): האם הטיימר הופעל, מה קרה לשירות, docker, ואזהרות של systemd
+  'if command -v journalctl >/dev/null 2>&1 && [ -d "$J" ]; then',
+  '  journalctl -D "$J" --no-pager --list-boots 2>/dev/null | tail -n 5 | sed "s/^/SNBBOOT /" || true',
+  '  journalctl -D "$J" --no-pager -o short-iso -b 0 -u snb-update.timer -u snb-update.service -u docker.service -n 40 2>/dev/null | sed "s/^/SNBBOOT /" || true',
+  '  journalctl -D "$J" --no-pager -o short-iso -b 0 -p warning -n 40 2>/dev/null | sed "s/^/SNBBOOT /" || true',
+  'fi',
+  'if [ -d "$R/etc/systemd/system/timers.target.wants" ]; then echo "SNBTMR wants: $(ls "$R/etc/systemd/system/timers.target.wants" | tr "\\n" " ")"; else echo "SNBTMR wants: none"; fi',
 ];
 /* טהורה: שורה מהשרת → בטוחה ליומן ציבורי */
 function redact(line) {
@@ -106,8 +116,9 @@ function rescueScript(files, o = {}) {
     '[ -d $R/opt/snb ] && [ -d $R/usr/local/lib/snb ] || { echo "SNBERR noroot"; exit 3; }',
     'for v in snb_work snb_work-stg; do [ -e "$R/var/lib/docker/volumes/$v/_data/.busy" ] && echo "SNBBUSY $v"; done',
     'put() {',
-    '  base64 -d > "$R/$1.snb-new"',
-    '  case "$1" in *.yaml) ;; *) sh -n "$R/$1.snb-new" || { rm -f "$R/$1.snb-new"; echo "SNBERR syntax $1"; exit 4; } ;; esac',
+    '  mkdir -p "$(dirname "$R/$1")"',
+  '  base64 -d > "$R/$1.snb-new"',
+    '  case "$1" in *.yaml|*.timer|*.service) ;; *) sh -n "$R/$1.snb-new" || { rm -f "$R/$1.snb-new"; echo "SNBERR syntax $1"; exit 4; } ;; esac',
     '  if cmp -s "$R/$1.snb-new" "$R/$1"; then rm -f "$R/$1.snb-new"; echo "SNBSAME /$1"; return 0; fi',
     '  chmod "$2" "$R/$1.snb-new"',
     '  mv -f "$R/$1.snb-new" "$R/$1"',
@@ -119,6 +130,8 @@ function rescueScript(files, o = {}) {
     L.push(...Buffer.from(f.body).toString('base64').match(/.{1,76}/g));
     L.push('SNBEOF');
   }
+  // הטיימר מופעל באתחול (כמו systemctl enable) — גם אם הקישור נמחק
+  if (files.some((f) => f.dst === 'etc/systemd/system/snb-update.timer')) L.push('mkdir -p "$R/etc/systemd/system/timers.target.wants" && ln -sfn /etc/systemd/system/snb-update.timer "$R/etc/systemd/system/timers.target.wants/snb-update.timer"');
   if (o.diag) L.push(...DIAG);
   for (const [k, p] of DU) L.push('[ -d "$R/' + p + '" ] && echo "SNBDU ' + k + ' $(du -sk "$R/' + p + '" 2>/dev/null | cut -f1)" || true');
   L.push('[ -d "$R/var/lib/docker/volumes" ] && for v in "$R"/var/lib/docker/volumes/*/; do n=$(basename "$v"); case "$n" in *[!A-Za-z0-9_.-]*) continue ;; esac; echo "SNBVOL $n $(du -sk "$v" 2>/dev/null | cut -f1)"; done || true');
@@ -135,8 +148,8 @@ function parseOut(text) {
   const o = { put: [], same: [], du: {}, vol: {}, img: null, df: null, busy: [], err: '', ok: false, diag: null };
   for (const line of String(text || '').split('\n')) {
     let m;
-    if ((m = /^SNB(LOG|ENV|TMR|CT|SUM) (.*)$/.exec(line))) {
-      o.diag = o.diag || { LOG: [], ENV: [], TMR: [], CT: [], SUM: [] };
+    if ((m = /^SNB(LOG|ENV|TMR|CT|SUM|BOOT) (.*)$/.exec(line))) {
+      o.diag = o.diag || { LOG: [], ENV: [], TMR: [], CT: [], SUM: [], BOOT: [] };
       if (o.diag[m[1]].length < 220) o.diag[m[1]].push(redact(m[2]));
       continue;
     }
@@ -162,7 +175,7 @@ function report(o) {
   for (const [k] of DU) if (o.du[k] != null) L.push('  ' + names[k] + ': ' + gb(o.du[k]));
   for (const [k, v] of Object.entries(o.vol)) L.push('    ' + k + ': ' + gb(v));
   if (o.img != null) L.push('  מספר התמונות: ' + o.img);
-  if (!o.diag) L.push('הותקנו: ' + (o.put.join(', ') || 'אין (כבר מעודכן)') + (o.same.length ? ' · זהים: ' + o.same.length : ''));
+  if (o.put.length || o.same.length) L.push('הותקנו: ' + (o.put.join(', ') || 'אין (כבר מעודכן)') + (o.same.length ? ' · זהים: ' + o.same.length : ''));
   if (o.diag) {
     const sec = (t, a) => { L.push('', '### ' + t, '```', ...(a.length ? a : ['(ריק)']), '```'); };
     sec('הקונטיינרים (שם · תמונה · רץ · עלה · יציאה · שגיאה)', o.diag.CT);
@@ -170,6 +183,7 @@ function report(o) {
     sec('הטיימר של snb-update', o.diag.TMR);
     sec('compose.yaml בשרת', o.diag.SUM);
     sec('היומן של snb-update (האחרונות)', o.diag.LOG);
+    sec('האתחול האחרון (הטיימר, השירות, docker, אזהרות)', o.diag.BOOT);
   }
   return L.join('\n');
 }
@@ -254,7 +268,7 @@ async function diskNow(e, deps) {
 
 async function apply(e, deps, opts = {}) {
   const files = opts.diag ? [] : loadFiles(opts.root || path.join(__dirname, '..'));
-  const script = rescueScript(files, { diag: !!opts.diag });
+  const script = rescueScript(files, { diag: true });   // האבחון — בכל הרצה (קריאה בלבד, לפני האתחול)
   deps.shCheck(script);                                     // תחביר — לפני שנוגעים בשרת
   const left = await clean(e, deps);                        // שאריות מריצה שנקטעה
   const srv = await U.theServer(e, deps);
@@ -318,7 +332,10 @@ async function apply(e, deps, opts = {}) {
     await deps.sleep(30e3);
   }
   await U.soft(deps, () => U.release(e, deps)).catch(() => {});   // נכשל — צעד always ב־workflow (clean)
-  return { out, disk0, disk1, left };
+  // 6/11/2026: "השרתון עונה" ≠ "הקונטיינרים נבנו מחדש" — מה רץ עכשיו, מול התגים (לבדוק בעין: prod/dev ב־GHCR)
+  const sha = {};
+  if (deps.healthSha) for (const [k, u] of [['prod', 'https://api.thesnowball.app/healthz?v=1'], ['stg', 'https://api-staging.thesnowball.app/healthz?v=1']]) sha[k] = await deps.healthSha(u).catch(() => '');
+  return { out, disk0, disk1, left, sha };
 }
 
 async function check(e, deps) {
@@ -356,6 +373,7 @@ function realDeps() {
       return { code: r.status == null ? -1 : r.status, out: r.stdout || '' };
     },
     shCheck(script) { cp.execFileSync('sh', ['-n'], { input: script }); },
+    async healthSha(u) { const j = await (await fetch(u, { signal: AbortSignal.timeout(15e3) })).json(); return /^[0-9a-f]{40}$/.test(String(j.sha || '')) ? j.sha.slice(0, 7) : ''; },
   };
 }
 
@@ -379,6 +397,7 @@ if (require.main === module) {
       console.log('✓ קובצי המארח הותקנו והשרת חזר לעבוד');
       console.log(report(r.out));
       console.log('הדיסק לפי העובד: ' + (r.disk0 == null ? '?' : r.disk0 + '%') + ' → ' + (r.disk1 == null ? '?' : r.disk1 + '%'));
+      console.log('רץ עכשיו (healthz): ייצור ' + (r.sha.prod || '?') + ' · ניסוי ' + (r.sha.stg || '?') + ' — אמור להיות ה־commit של התג prod / dev');
       return;
     }
     fail('cmd', 'פקודה לא מוכרת');

@@ -122,7 +122,7 @@ write_files:
     permissions: "0644"
     owner: root:root
     encoding: gz+b64
-    content: H4sIAAAAAAAC/23Mv0oDQRAG8H6fYkoFk3uCLSIGLIKCF0kRUlz2RrPkmD1n5/zT+QiaXBBRIlrpvdD0Pokr6cRuvt/3MdNz8jIzRxgd+1p8IDs+HkJ+cjo5HIxG8H3fgn7oWl90o2+gbQobfdQ16Kuu9FPftf3VrT4k/0rQwZ52uoKaQ3kA+pTCc6rTarfZJuj2zaQgiZZQbgIve4EqT9iXgi9RzOBCkP/voAxuidyPyNfeoTnDq8YzRvvHzTTfXTMzvqvRBsK4CGKGt+jy9Eps1kTOquCKKotzT1mkea+py0LQ/ACh7efZFQEAAA==
+    content: H4sIAAAAAAAC/13KsU7DMBgE4N1P4ZFKQFB3D0FUYqhAaoIYogyJ81dYbe3UdhBsPAK0iRACFcEEeaHbeRJMs7HdfXfZlVY+Z2fkpFW1V0aL9HzCk4vL69N4OuU/Dy3HJ7Z4RYd3jjaUDk/Ycrxhgy98oP3THR6Dfwfo+QF6bHhtTXXI8RzKS5jDa/jsAvQjFs89WVEZuSB77MjeKklsRutGWXL/nWXJkHKW3tckjCZ3YzxL1YpM4xNfWJ+QFOOTldJsckdyTyJqnI2WRhbLyJVKR06XR01dFZ7YL7/ZJan5AAAA
   # infra/host/snb-update.timer
   - path: /etc/systemd/system/snb-update.timer
     permissions: "0644"

@@ -220,14 +220,14 @@ COPY --from=karaokehe /opt/karaoke-he /opt/karaoke-he
 COPY --from=lid /opt/lid /opt/lid
 COPY --chown=root:root translator /app/translator
 # 16/10/2026: הגדרת השרת לעדכון ידני בלי שרת חדש — נתונים בלבד, שום דבר לא מריץ אותם לבד (infra/worker/snb-host-apply)
-COPY --chown=root:root infra/host/snb-common.sh infra/compose.yaml infra/host/snb-update /opt/snb-host/
+COPY --chown=root:root infra/host/snb-common.sh infra/compose.yaml infra/host/snb-update infra/host/snb-update.timer infra/host/snb-update.service /opt/snb-host/
 COPY --chown=root:root --chmod=755 infra/worker/snb-host-apply /opt/snb-host/apply
 RUN rm -rf /app/translator/tests /app/translator/research /app/translator/__pycache__ \
  && find /app /opt/aligner /opt/speaker -type d -exec chmod 755 {} + && find /app /opt/aligner /opt/speaker -type f -exec chmod 644 {} + \
  && find /opt/linebreak -type d -exec chmod 755 {} + && find /opt/linebreak -type f -exec chmod 644 {} + \
  && find /opt/burnin -type d -exec chmod 755 {} + && find /opt/burnin -type f -exec chmod 644 {} + \
  && find /opt/sepdeps /opt/separator /opt/karaoke-he /opt/lid -type d -exec chmod 755 {} + && find /opt/sepdeps /opt/separator /opt/karaoke-he /opt/lid -type f -exec chmod 644 {} + \
- && chmod 644 /opt/snb-host/snb-common.sh /opt/snb-host/compose.yaml /opt/snb-host/snb-update
+ && chmod 644 /opt/snb-host/snb-common.sh /opt/snb-host/compose.yaml /opt/snb-host/snb-update /opt/snb-host/snb-update.timer /opt/snb-host/snb-update.service
 # 20/10/2026: בדיקת עשן מול הספריות האמיתיות שבתמונה (הבדיקות ב־CI רצות בלי anthropic) — בניית הלקוח של Claude
 # בלי רשת. anthropic 1.x עבר ל־httpx2 ודחה httpx.Timeout ב־TypeError: כל עבודה בשרת קרסה בקריאה הראשונה, והבנייה עברה
 # 22/10/2026: הורדה מקישור — yt-dlp רואה את Deno (מנוע ה־JavaScript של יוטיוב) ואת ההתחזות לדפדפן, בלי רשת
