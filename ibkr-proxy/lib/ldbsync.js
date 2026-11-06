@@ -30,6 +30,7 @@ const BATCH = 450, BATCH_BYTES = 6e6, CHG_PAGE = 200, OVERLAP_MS = 6 * 60e3, TOM
 const PRIO = ['sysCfg', 'studioServers', 'studioStats', 'studioOps', 'studioUp', 'studioVault', 'studioJobs'];
 const SNAP_MAGIC = Buffer.from('SNBLDB1');
 const FS_HOST = 'https://firestore.googleapis.com/';
+const STG_PROJECT = 'snowball-staging-758f6';   // הניסוי — שלב 4 דולק בו כברירת מחדל
 
 const dayLA = (now) => new Date(now).toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
 const prio = (c) => { const i = PRIO.indexOf(c); return i < 0 ? PRIO.length : i; };
@@ -141,7 +142,8 @@ function create(o = {}) {
     probeAt = t;
     const d = store.get('sysCfg', 'main');
     const fl = d && d.f && d.f.flOn && d.f.flOn.stringValue;
-    const v = String(fl || '').split(',').includes('ud_srv');
+    // 6/11/2026: בניסוי דולק בלי דגל (בקשת המשתמש — כמה שפחות פעולות שלו); מכבים שם ב־SNB_UDATA=off
+    const v = String(fl || '').split(',').includes('ud_srv') || (project === STG_PROJECT && env.SNB_UDATA !== 'off');
     if (probeV && !v && env.SNB_UDATA !== 'on') for (const c of C.CLIENT) if (store.cols.has(c)) store.dropCol(c);
     if (v) for (const c of C.CLIENT) if (!store.cols.has(c)) store.setCol(c, { st: 'imp' });   // הודלק — לייבוא
     probeV = v;

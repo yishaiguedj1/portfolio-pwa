@@ -242,6 +242,15 @@ const INV = 'https://invest.thesnowball.app', ACA = 'https://academy.thesnowball
     ctl.stop();
     ok(!C.serverCol('users') && !C.thru('users'), 'בלי SNB_UDATA — האוספים של הטלפון נשארים ב־Firestore (כמו קודם)');
     ok(C.stampCol('users') && !C.stampCol('snbChg'), 'Vercel רושם ביומן גם את האוספים של הטלפון (לא את היומן עצמו)');
+    // 6/11/2026: בניסוי — דולק בלי הדגל; SNB_UDATA=off מכבה
+    const stgEnv = {};
+    const stg = LS.create({ own: () => true, fetch: remoteFetch, env: stgEnv, project: 'snowball-staging-758f6', dir: path.join(tmp, 's'), now, token: async () => 'T', timers: false });
+    ok(await stg.start(), 'מסד של הניסוי עולה');
+    clock += 6000;
+    ok(C.thruOn({}) && stg.store.cols.get('users').st === 'imp', 'בניסוי — שלב 4 דולק בלי הדגל, והאוספים של הטלפון לייבוא');
+    stgEnv.SNB_UDATA = 'off'; clock += 6000;
+    ok(!C.thruOn({}), 'בניסוי — SNB_UDATA=off מכבה');
+    stg.stop();
   }
 
   // ---------------------------------------------------------------- 3. הטלפון
