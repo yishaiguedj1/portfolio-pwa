@@ -8,7 +8,7 @@ const { mistralJSON } = require('./mistral');
 
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/';
 const LANGS = { he: 'Hebrew', en: 'English', ar: 'Arabic', ru: 'Russian', fr: 'French', es: 'Spanish', de: 'German' };
-const LIM = { xray: 120000, ask: 14000, tagsum: 14000, bilingual: 9000 };
+const LIM = { xray: 120000, ask: 14000, tagsum: 14000, bilingual: 9000, ocr: 420000 };   // ocr = תמונת עמוד סרוק (JPEG ב־base64, גל 6)
 const s = (v, max) => String(v == null ? '' : v).replace(/\r/g, '').slice(0, max);
 const one = (v, max) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, max);
 
@@ -24,6 +24,10 @@ function input(task, b) {
     return q.length >= 2 && ps.length ? { lang, title, author, q, passages: ps } : null;
   }
   if (task === 'tagsum') { const text = s(b.text, LIM.tagsum); return (text.trim().length >= 200 || one(b.desc, 10)) ? { lang, title, author, desc: one(b.desc, 1500), text } : null; }
+  if (task === 'ocr') {   // גל 6 (C5): עמוד סרוק מ־PDF → טקסט. רק JPEG, עד ~300KB
+    const img = String(b.img || '');
+    return img.length >= 400 && img.length <= LIM.ocr && /^[A-Za-z0-9+/]+=*$/.test(img) && img.startsWith('/9j/') ? { lang, img } : null;
+  }
   if (task === 'bilingual') {
     const paras = (Array.isArray(b.paras) ? b.paras : []).slice(0, 40).map((p) => one(p, 1500));
     let tot = 0; const ps = []; for (const p of paras) { if ((tot += p.length) > LIM.bilingual) break; ps.push(p); }
@@ -35,6 +39,7 @@ function cacheParts(task, x) {
   if (task === 'xray') return [x.lang, x.title, x.text];
   if (task === 'ask') return [x.lang, x.title, x.q, x.passages.map((p) => p.t).join('\u0002')];
   if (task === 'tagsum') return [x.lang, x.title, x.author, x.desc, x.text];
+  if (task === 'ocr') return [x.img];
   return [x.lang, x.paras.join('\u0002')];
 }
 
@@ -59,6 +64,15 @@ function prompt(task, x) {
     user: book + '\nQUESTION: ' + x.q + '\nPASSAGES:\n' + x.passages.map((p) => '[' + p.i + ']' + (p.ch ? ' (' + p.ch + ')' : '') + ' ' + p.t).join('\n'),
     schema: { type: 'OBJECT', properties: { answer: { type: 'STRING' }, cites: { type: 'ARRAY', items: { type: 'INTEGER' } }, found: { type: 'BOOLEAN' } }, required: ['answer', 'found'] },
     maxOut: 1500,
+  };
+  if (task === 'ocr') return {
+    sys: 'You are an OCR engine for a scanned book page. Transcribe ALL the running text on the page exactly as printed, in its original language and script ' +
+      '(the book is probably in ' + L + '). Keep the reading order; join lines that belong to the same paragraph, fix hyphenation at line ends, ' +
+      'and drop running headers, footers and page numbers. Do not translate, summarize or add anything. If the page starts a chapter, put its heading in "title". ' +
+      'Reply only with JSON {"paras": [paragraph strings], "title": string}.',
+    user: 'Transcribe this page.',
+    schema: { type: 'OBJECT', properties: { paras: { type: 'ARRAY', items: { type: 'STRING' } }, title: { type: 'STRING' } }, required: ['paras'] },
+    maxOut: 6000,
   };
   if (task === 'tagsum') return {
     sys: 'You catalogue a book for a personal library. From the DESCRIPTION and the opening TEXT, write in ' + L + ': "summary" (2-3 sentences, what the book is about, no spoilers), ' +
@@ -95,6 +109,10 @@ function shape(task, x, o) {
     const max = x.passages.length;
     return { answer, found: o.found !== false, cites: [...new Set((Array.isArray(o.cites) ? o.cites : []).map((n) => +n).filter((n) => n >= 1 && n <= max))].slice(0, 8) };
   }
+  if (task === 'ocr') {
+    const paras = (Array.isArray(o.paras) ? o.paras : []).map((t) => s(t, 4000).replace(/[ \t]+/g, ' ').trim()).filter(Boolean).slice(0, 80);
+    return { paras, title: one(o.title, 160) };   // עמוד בלי טקסט (תמונה, עמוד ריק) — תשובה תקינה ריקה
+  }
   if (task === 'tagsum') {
     const summary = one(o.summary, 700); if (!summary) return null;
     return { summary, genre: one(o.genre, 40), tags: [...new Set((Array.isArray(o.tags) ? o.tags : []).map((t) => one(t, 30).replace(/[,;]/g, ' ').trim()).filter(Boolean))].slice(0, 6) };
@@ -104,6 +122,7 @@ function shape(task, x, o) {
   return { out };
 }
 function scriptOk(task, x, v) {   // תשובה בכתב מעורב (אותיות ערביות בעברית וכו') — פסולה, כמו בתרגום בהקשר
+  if (task === 'ocr') return true;   // עמוד יכול להיות בכל שפה ובכל כתב
   const t = task === 'xray' ? v.items.map((i) => i.desc).join(' ') : task === 'ask' ? v.answer : task === 'tagsum' ? v.summary + ' ' + v.tags.join(' ') : v.out.join(' ');
   return !badScript(t, x.lang);
 }
@@ -112,14 +131,15 @@ async function gemini(task, x, diag, deps) {
   const key = process.env.GEMINI_API_KEY; diag.key = !!key;
   if (!key) return null;
   const P = prompt(task, x);
-  const body = JSON.stringify({ systemInstruction: { parts: [{ text: P.sys }] }, contents: [{ role: 'user', parts: [{ text: P.user }] }],
+  const uparts = task === 'ocr' ? [{ inlineData: { mimeType: 'image/jpeg', data: x.img } }, { text: P.user }] : [{ text: P.user }];
+  const body = JSON.stringify({ systemInstruction: { parts: [{ text: P.sys }] }, contents: [{ role: 'user', parts: uparts }],
     generationConfig: { temperature: 0.2, maxOutputTokens: P.maxOut + 2048, responseMimeType: 'application/json', responseSchema: P.schema } });
   let q429 = 0, tried = 0;
   const t0 = Date.now();
   for (const model of (deps.models || TRANSLATE_MODELS())) {
     if (Date.now() - t0 > 30000) break;               // הפונקציה מוגבלת ל־60 שניות; משאירים זמן לגיבוי
     tried++;
-    const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), task === 'xray' || task === 'bilingual' ? 26000 : 14000);
+    const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), task === 'xray' || task === 'bilingual' || task === 'ocr' ? 26000 : 14000);
     try {
       const r = await (deps.fetch || fetch)(GEMINI_URL + encodeURIComponent(model) + ':generateContent', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body, signal: ctl.signal });
       diag[model] = r.status;
@@ -157,7 +177,7 @@ async function run(body, uid, store, deps = {}) {
   if (!gate.ok) return { status: 429, j: { ok: false, error: 'limit', why: gate.why } };
   const diag = {};
   let out = await gemini(task, x, diag, deps), quota = !!(out && out.quota);
-  if (!out || out.quota) { const m = await mistral(task, x, diag, deps); out = m && !m.quota ? m : null; quota = quota && (!m || !!m.quota || !diag.mistralKey); }
+  if ((!out || out.quota) && task !== 'ocr') { const m = await mistral(task, x, diag, deps); out = m && !m.quota ? m : null; quota = quota && (!m || !!m.quota || !diag.mistralKey); }
   if (!out) return { status: 502, j: { ok: false, error: quota ? 'quota' : diag.key === false && !diag.mistralKey ? 'no_key' : 'ai_failed' } };
   const v = Object.assign({}, out); delete v.quota;
   await store.set('book_' + task, parts, v);

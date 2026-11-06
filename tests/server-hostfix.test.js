@@ -138,7 +138,7 @@ function world(o = {}) {
   const files = H.loadFiles(ROOT);
   const script = H.rescueScript(files);
   ok(cp.spawnSync('sh', ['-n'], { input: script }).status === 0, 'הסקריפט של ה־Rescue תקין תחבירית');
-  ok(JSON.stringify(H.FILES.map((f) => f[1])) === JSON.stringify(['usr/local/lib/snb/common.sh', 'opt/snb/compose.yaml', 'usr/local/sbin/snb-update']), 'אותם יעדים כמו snb-host-apply');
+  ok(JSON.stringify(H.FILES.map((f) => f[1])) === JSON.stringify(['usr/local/lib/snb/common.sh', 'opt/snb/compose.yaml', 'usr/local/sbin/snb-update', 'etc/systemd/system/snb-update.timer', 'etc/systemd/system/snb-update.service']), 'אותם יעדים כמו snb-host-apply');
   const ha = read('infra/worker/snb-host-apply');
   ok(H.FILES.every(([src, dst, mode]) => ha.includes(':' + dst + ':' + mode)), 'אותן הרשאות כמו snb-host-apply');
   let root = fakeRoot();
@@ -150,6 +150,21 @@ function world(o = {}) {
   ok(fs.readFileSync(path.join(root, 'opt/snb/compose.yaml'), 'utf8') === read('infra/compose.yaml'), 'compose.yaml הותקן');
   ok(o.put.includes('/usr/local/sbin/snb-update') && o.same.includes('/usr/local/lib/snb/common.sh'), 'מדווח מה הוחלף ומה היה זהה');
   ok(!fs.readdirSync(path.join(root, 'usr/local/sbin')).some((f) => f.endsWith('.snb-new')), 'בלי קבצים זמניים שנשארו');
+  ok(fs.readFileSync(path.join(root, 'etc/systemd/system/snb-update.timer'), 'utf8') === read('infra/host/snb-update.timer') && fs.readFileSync(path.join(root, 'etc/systemd/system/snb-update.service'), 'utf8') === read('infra/host/snb-update.service'), 'גם הטיימר והשירות מותקנים (בלי sh -n — הם לא סקריפטים)');
+  ok(fs.readlinkSync(path.join(root, 'etc/systemd/system/timers.target.wants/snb-update.timer')) === '/etc/systemd/system/snb-update.timer', 'הטיימר מופעל באתחול (הקישור ב־timers.target.wants)');
+  { // 6/11/2026: השלמה עם "OnUnitActiveSec=" ריק מאפסת את כל הטריגרים — נמחקת ומדווחת; השלמה בלי איפוס נשארת
+    const rt = fakeRoot(), dd = path.join(rt, 'etc/systemd/system/snb-update.timer.d');
+    fs.mkdirSync(dd, { recursive: true }); fs.writeFileSync(path.join(dd, '10-fast.conf'), '[Timer]\nOnUnitActiveSec=\nOnUnitActiveSec=2min\n');
+    const ro = H.parseOut(runScript(script, rt).out);
+    ok(!fs.existsSync(path.join(dd, '10-fast.conf')) && ro.del[0] === '/etc/systemd/system/snb-update.timer.d/10-fast.conf' && /נמחקו: /.test(H.report(ro)), 'השלמה עם איפוס נמחקת ומדווחת');
+    fs.writeFileSync(path.join(dd, '10-fast.conf'), '[Timer]\nOnCalendar=*:0/2\n');
+    ok(H.parseOut(runScript(script, rt).out).del.length === 0 && fs.existsSync(path.join(dd, '10-fast.conf')), 'השלמה בלי איפוס — נשארת');
+  }
+  const unit = read('infra/host/snb-update.service'), tmr = read('infra/host/snb-update.timer');
+  ok(/^TimeoutStartSec=\d+min$/m.test(unit) && !/^(Wants|After)=.*network-online/m.test(unit) && /^Requires=docker\.service$/m.test(unit), 'השירות: מגבלת זמן (ריצה תקועה לא חוסמת את הטיימר), בלי תלות ב־network-online');
+  ok(/^OnCalendar=\*:0\/2$/m.test(tmr) && /^OnBootSec=/m.test(tmr), 'הטיימר: גם לפי השעון (OnCalendar)');
+  const wdf = read('infra/worker/Dockerfile');
+  ok(/infra\/host\/snb-update\.timer infra\/host\/snb-update\.service \/opt\/snb-host\//.test(wdf) && /timers\.target\.wants/.test(read('infra/worker/snb-host-apply')), 'snb-host-apply בתמונת העובד — אותם קבצים ואותו קישור');
   ok(o.du.images >= 300 && o.du.volumes != null && o.du.journal != null && o.img === 3 && o.vol.snb_work != null && o.df && o.df.total > 0, 'מודד: תמונות, תיקיות, יומן, מספר תמונות, הדיסק');
   ok(/תמונות Docker/.test(H.report(o)) && /מספר התמונות: 3/.test(H.report(o)), 'הדוח בעברית, מספרים בלבד');
   r = runScript(script, root);
@@ -165,10 +180,42 @@ function world(o = {}) {
   ok(r.code === 3 && H.parseOut(r.out).err === 'noroot', 'לא נמצאה המחיצה של השרת — לא כותב כלום');
   ok(H.parseOut('SNBDU images 5\nSNBDU x y\nrm -rf /\nSNBPUT /etc/../x\nSNBVOL a;b 4').put.length === 0 && Object.keys(H.parseOut('SNBDU images 5\nSNBDU x y').du).length === 1, 'הפענוח מקבל רק שורות בצורה הקבועה');
 
+  // ---------------- diag (6/11/2026): קריאה בלבד — היומן, הגרסאות, הקונטיינרים; מסונן ליומן ציבורי
+  root = fakeRoot();
+  fs.writeFileSync(path.join(root, 'opt/snb/.env'), 'SNB_APP=ghcr.io/yishaiguedj1/snb-app@sha256:' + 'a'.repeat(64) + '\n');
+  const cdir = path.join(root, 'var/lib/docker/containers/c1'); fs.mkdirSync(cdir, { recursive: true });
+  fs.writeFileSync(path.join(cdir, 'config.v2.json'), JSON.stringify({ State: { Running: true, StartedAt: '2026-11-05T12:00:00Z', ExitCode: 0, Error: '' }, Image: 'sha256:' + 'b'.repeat(64), Name: '/snb-app-1', Config: { Image: 'ghcr.io/yishaiguedj1/snb-app@sha256:' + 'c'.repeat(64) } }));
+  fs.mkdirSync(path.join(root, 'etc/systemd/system/snb-update.timer.d'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'etc/systemd/system/snb-update.timer.d/10-fast.conf'), '[Timer]\nOnCalendar=*:0/2\n');
+  const before = fs.readFileSync(path.join(root, 'usr/local/sbin/snb-update'), 'utf8');
+  const ds = H.rescueScript([], { diag: true });
+  ok(cp.spawnSync('sh', ['-n'], { input: ds }).status === 0, 'diag: הסקריפט תקין תחבירית');
+  r = runScript(ds, root);
+  o = H.parseOut(r.out);
+  ok(r.code === 0 && o.ok && o.put.length === 0 && fs.readFileSync(path.join(root, 'usr/local/sbin/snb-update'), 'utf8') === before && fs.readFileSync(path.join(root, 'opt/snb/compose.yaml'), 'utf8') === 'old: 1\n', 'diag: לא מתקין ולא משנה כלום');
+  ok(o.diag && o.diag.CT.some((x) => x.includes('/snb-app-1') && x.includes('"Running":true') && x.includes('sha256:cccccccccccc~')), 'diag: מצב הקונטיינר — שם, תמונה (digest מקוצר), רץ');
+  ok(o.diag.ENV[0] === 'SNB_APP=ghcr.io/yishaiguedj1/snb-app@sha256:aaaaaaaaaaaa~' && o.diag.TMR.some((x) => /10-fast\.conf: OnCalendar/.test(x)) && /^compose [0-9a-f]{12}$/.test(o.diag.SUM[0]), 'diag: הגרסאות ב־.env, הטיימר ו־compose.yaml');
+  const rep = H.report(o);
+  ok(/### הקונטיינרים/.test(rep) && /### היומן של snb-update/.test(rep) && !/הותקנו:/.test(rep), 'diag: הדוח — בלי "הותקנו"');
+  ok(H.redact('GDRIVE_SA_KEY=abc api_token: xyz') === 'GDRIVE_SA_KEY=<redacted> api_token: <redacted>', 'redact: מפתחות וטוקנים');
+  ok(H.redact('from 203.0.113.9 by a.b@example.com x ' + 'Q'.repeat(40)) === 'from <ip> by <mail> x <long>', 'redact: IP, מייל, base64 ארוך');
+  ok(H.parseOut('SNBLOG ../../etc 10.0.0.1').diag.LOG[0] === '../../etc <ip>', 'diag: שורות יומן נקלטות (גם עם ..) ומסוננות');
+  { // 6/11/2026: systemd — יחידות שהתחילו ולא סיימו (awk על היומן), מיסוך וקובצי השלמה; בשורש ריק לא נופל (set -eu)
+    const so = H.parseOut('SNBSYS b0 open: snb-update.service - X\nSNBSYS ls system: lrwxrwxrwx 1 root root 9 snb-update.service -> /dev/null');
+    ok(so.diag.SYS.length === 2 && /### systemd/.test(H.report(so)), 'diag: סעיף systemd נקלט ומופיע בדוח');
+    const awk = /awk '([^']+)'/.exec(H.rescueScript([], { diag: true }).split('\n').find((l) => l.includes('open: ')) || '');
+    const ar = awk && cp.spawnSync('awk', [awk[1]], { input: 'Starting a.service - A...\nStarting b.service - B...\nFinished a.service - A.\n', encoding: 'utf8' });
+    ok(ar && ar.stdout.trim() === 'b.service - B', 'diag: awk מוצא את היחידה שהתחילה ולא סיימה');
+    fs.mkdirSync(path.join(root, 'etc/systemd/system'), { recursive: true }); fs.writeFileSync(path.join(root, 'etc/systemd/system/snb-update.service'), '[Unit]\n');
+    ok(/SNBSYS ls system: .*snb-update\.service/.test(cp.spawnSync('sh', [], { input: H.rescueScript([], { diag: true }), encoding: 'utf8', env: Object.assign({}, process.env, { SNB_TEST_ROOT: root }) }).stdout), 'diag: רשימת היחידות בשורש הבדיקה');
+  }
+  ok(/'diag'/.test(read('tools/server-hostfix.js')) && /\[check, apply, diag\]/.test(read('.github/workflows/hostfix.yml')), 'ה־workflow מציע diag');
+
   // ---------------- מקצה לקצה
   let w = world({ root: fakeRoot() });
   let res = await H.apply(E, w.deps, { root: ROOT });
   ok(res.out && res.out.ok && w.installed, 'הותקן דרך Rescue');
+  ok(res.out.diag && Array.isArray(res.out.diag.BOOT) && /### האתחול האחרון/.test(H.report(res.out)) && /הותקנו:/.test(H.report(res.out)), 'apply מריץ גם את האבחון (קריאה בלבד, לפני האתחול)');
   const nm = w.names();
   ok(nm.indexOf('enable_rescue') > -1 && nm.indexOf('set_rules') < nm.indexOf('enable_rescue'), 'הכלל בחומת האש לפני Rescue');
   ok(w.sshScripts.every((s) => s.rule && s.rule.source_ips[0] === '198.51.100.4/32' && s.rule.port === '22'), 'SSH רק כשהכלל קיים, ורק מהכתובת של ההרצה (/32)');

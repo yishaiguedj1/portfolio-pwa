@@ -151,6 +151,13 @@ async function saToken(scope, fetchImpl) {
   toks[key] = { v: j.access_token, exp: now + (j.expires_in || 3600) };
   return j.access_token;
 }
+/* 5/11/2026 (אבטחה, lib/ldbsync.js): האם זה טוקן שהתהליך הזה הנפיק ועוד בתוקף. המסד שלנו עונה רק לבקשה שנושאת טוקן כזה —
+   בקשה ל־Firestore בלי טוקן שלנו (למשל כתובת שהגיעה מבחוץ) ממשיכה ל־Firestore, שם היא נדחית כמו קודם */
+function ownToken(t) {
+  if (!t || typeof t !== 'string') return false;
+  const now = Math.floor(Date.now() / 1000);
+  return Object.values(toks).some((x) => x && x.v === t && x.exp > now);
+}
 const driveToken = (f) => saToken('https://www.googleapis.com/auth/drive.readonly', f);
 const datastoreToken = (f) => saToken('https://www.googleapis.com/auth/datastore', f);
 const cloudToken = (f) => saToken('https://www.googleapis.com/auth/cloud-platform', f);   // IAM Credentials (החיבור המשותף)
@@ -173,5 +180,5 @@ function signList(list) {
    שלנו (שמחזיק את האוספים האלה במסד משלו) יאחד אותה. הקובץ הזה נטען בכל פונקציה שניגשת ל־Firestore (lib/ldbchg.js) */
 require('./ldbchg').installOnVercel();
 
-module.exports = { verifyIdToken, readerAllowed, driveToken, datastoreToken, cloudToken, serviceAccount, isAdmin, signList, emails, emailsOf, hasEmail,
+module.exports = { verifyIdToken, readerAllowed, driveToken, datastoreToken, cloudToken, ownToken, serviceAccount, isAdmin, signList, emails, emailsOf, hasEmail,
   _reset: () => { certs = { at: 0, ttl: 0, keys: null }; linkCache.clear(); apiKeys.at = 0; apiKeys.map = null; Object.keys(toks).forEach((k) => delete toks[k]); } };

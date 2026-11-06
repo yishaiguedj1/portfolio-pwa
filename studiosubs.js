@@ -28,6 +28,25 @@ function srtTime(sec) {
 
 /* ---------- קבצים (כמו vt: write_srt עם RLM בתחילת כל שורה, cues.final.json) ---------- */
 export const clean = (s) => String(s == null ? '' : s).replace(CTRL, '').replace(BIDI, '');
+/* Academy Pro גל 6 (C12, 03/11/2026): הכתוביות → טקסט ההרצאה (Markdown) לקריאה ב־Academy. פסקה חדשה בשתיקה של 2.5 שניות
+   או אחרי ~90 שניות בסוף משפט; כותרת לכל פרק (מ"רעיונות" / מהאתר). טהורה */
+export function toLectureMd(cues, chap, title) {
+  const ch = (Array.isArray(chap) ? chap : []).filter((c) => c && c.title).slice().sort((a, b) => a.t - b.t);
+  const clean = (x) => String(x || '').replace(/<[^>]+>/g, '').replace(/\{[^}]*\}/g, '').replace(/^\s*[-–—]\s*/, '').replace(/^#+\s*/, '').trim();
+  const out = ['# ' + clean(title || 'Lecture'), ''];
+  let para = [], pStart = 0, last = -1, ci = 0;
+  const flush = () => { if (para.length) { out.push(para.join(' ').replace(/\s+/g, ' ').trim(), ''); para = []; } };
+  for (const c of cues || []) {
+    while (ci < ch.length && ch[ci].t <= c.start + 0.5) { flush(); out.push('## ' + clean(ch[ci].title), ''); ci++; }
+    const txt = (c.lines || []).map(clean).filter(Boolean).join(' ');
+    if (!txt) continue;
+    if (para.length && (c.start - last >= 2.5 || (c.start - pStart > 90 && /[.!?…]["”'׳]?$/.test(para[para.length - 1])))) flush();
+    if (!para.length) pStart = c.start;
+    para.push(txt); last = c.end;
+  }
+  flush();
+  return out.join('\n').trim() + '\n';
+}
 export function toSrt(cues) {
   return '﻿' + cues.map((c, n) => (n + 1) + '\n' + srtTime(c.s) + ' --> ' + srtTime(c.e) + '\n' + c.lines.map((x) => RLM + clean(x)).join('\n') + '\n').join('\n');
 }
