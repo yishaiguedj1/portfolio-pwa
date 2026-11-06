@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1535 מפתחות מתוך 6430) */
+/* המחרוזות של admin (1536 מפתחות מתוך 6558) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1473,6 +1473,7 @@ he: {
   "loginAria": "התחברות",
   "loginFailed": "ההתחברות נכשלה — נסו שוב",
   "loginSubAcademy": "מתחברים פעם אחת — הספרייה, ההתקדמות וההדגשות נשמרות בענן ומסונכרנות בכל מכשיר",
+  "loginSubCashflow": "התזרים שלך מרייזאפ — קריאה בלבד, הטוקן נשמר מוצפן בשרת",
   "loginSubStudio": "מתחברים פעם אחת — העבודות והתרגומים נשמרים בענן ומסונכרנים בכל מכשיר",
   "maintBar": "עבודות תחזוקה",
   "menuAria": "תפריט ראשי",
@@ -3010,6 +3011,7 @@ en: {
   "loginAria": "Sign in",
   "loginFailed": "Sign-in failed — try again",
   "loginSubAcademy": "Sign in once — your library, progress and highlights are saved in the cloud and synced on every device",
+  "loginSubCashflow": "Your cash flow from RiseUp — read only, the token is stored encrypted on the server",
   "loginSubStudio": "Sign in once — your jobs and translations are saved in the cloud and synced on every device",
   "maintBar": "Maintenance",
   "menuAria": "Main menu",

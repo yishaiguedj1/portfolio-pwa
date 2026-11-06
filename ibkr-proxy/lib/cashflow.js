@@ -6,7 +6,9 @@
    הקריאה לרייזאפ ישירה ב־HTTPS לאותן נקודות קצה של קריאה בלבד שהשרת הרשמי (@riseup-oss/mcp) קורא להן
    (RISEUP_TRANSPORT=http) — בלי npx ובלי הורדת חבילה בזמן ריצה (הקונטיינר read_only).
 
-   פעולות (op): status · connect { pat } · disconnect · report { name, args?, refresh? }
+   פעולות (op): status · connect { pat } · disconnect · report { name, args?, refresh? } · seen { key?, on? }
+   seen (גל 2, 6/11/2026): הסימון "בדקתי" במסך "לבדוק". נשמר רק hash של הממצא (16 תווי hex, מחושב בטלפון) —
+   בלי שם בית עסק ובלי סכום — מוצפן בכספת עם AAD נפרד (cashflow|seen|<uid>), באותה רשומה של הטוקן: ניתוק מוחק גם אותו.
 
    אבטחה (CLAUDE.md סעיף 3, "מערכות משלנו"):
    - כבוי כברירת מחדל: SNB_CASHFLOW=on מדליק. כבוי — 503 'off'.
@@ -33,6 +35,9 @@ const ORIGIN_RE = /^https:\/\/cashflow(-staging)?\.thesnowball\.app$/;
 
 const isMap = (v) => v && typeof v === 'object' && !Array.isArray(v);
 const aad = (uid) => 'cashflow|pat|' + uid;
+const aadSeen = (uid) => 'cashflow|seen|' + uid;
+const SEEN_RE = /^[a-f0-9]{16}$/;
+const SEEN_MAX = 400;
 
 /* אחסון: קובץ JSON אחד במסד, רק ערכים מוצפנים. כתיבה אטומית (קובץ זמני + rename), הרשאות 0600 */
 function fileStore(env) {
@@ -128,7 +133,8 @@ function makeHandler(over = {}) {
       if (!PAT_RE.test(pat)) return res.status(400).json({ ok: false, error: 'bad_pat' });
       let sealed;
       try { sealed = deps.seal({ pat }, aad(uid)); } catch (e) { return res.status(503).json({ ok: false, error: 'vault_not_configured' }); }
-      deps.store.put(uid, { v: sealed, at: now });
+      const prev = deps.store.get(uid);
+      deps.store.put(uid, Object.assign({ v: sealed, at: now }, prev && prev.s ? { s: prev.s } : {}));   // טוקן חדש — הסימונים נשארים
       clearCache();
       return res.status(200).json({ ok: true, connected: true });
     }
@@ -159,6 +165,22 @@ function makeHandler(over = {}) {
       cache.set(key, { at: now, report });
       if (cache.size > 500) cache.clear();
       return res.status(200).json({ ok: true, report, at: now, cached: false });
+    }
+    if (op === 'seen') {
+      const rec = deps.store.get(uid);
+      let keys = [];
+      try { const o = rec && rec.s ? deps.open(rec.s, aadSeen(uid)) : null; if (o && Array.isArray(o.k)) keys = o.k.filter((k) => SEEN_RE.test(String(k))); } catch (e) { keys = []; }
+      if (body.key === undefined) return res.status(200).json({ ok: true, keys });
+      const key = String(body.key);
+      if (!SEEN_RE.test(key)) return res.status(400).json({ ok: false, error: 'bad_key' });
+      if (!rec) return res.status(409).json({ ok: false, error: 'not_connected' });
+      keys = keys.filter((k) => k !== key);
+      if (body.on !== false) keys.push(key);
+      keys = keys.slice(-SEEN_MAX);
+      let sealed;
+      try { sealed = deps.seal({ k: keys }, aadSeen(uid)); } catch (e) { return res.status(503).json({ ok: false, error: 'vault_not_configured' }); }
+      deps.store.put(uid, Object.assign({}, rec, { s: sealed }));
+      return res.status(200).json({ ok: true, keys });
     }
     return res.status(400).json({ ok: false, error: 'bad_op' });
   };

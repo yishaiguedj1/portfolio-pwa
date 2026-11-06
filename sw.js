@@ -4,16 +4,16 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v720';
+const CACHE_NAME = 'portfolio-pwa-v721';
 const HASHES = {
   "./": "6ab1986a1bc13b10b7405e36061fa8ba",
   "./index.html": "6ab1986a1bc13b10b7405e36061fa8ba",
-  "./styles.css": "548ed276d76b5a06a8e4b527995ba650",
-  "./glass-btn.css": "1eef2f4b0c0e9f30401db139efd4b3d6",
-  "./app.js": "a30f2da69da9951f7cf755cad45dde2c",
+  "./styles.css": "3eac906892551dcda334f5324dc2a906",
+  "./glass-btn.css": "fc3022cd33dcb1241881566faf561f0c",
+  "./app.js": "d3a259c47312fb329dff3f89af8e9a73",
   "./returns.js": "3590562b0282025a8a79650ad6b3a49b",
   "./cloud.js": "a26cb95e57ab8083b1872a9e1d1a254f",
-  "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
+  "./firebase-config.js": "8507173a957371e15933229f5fd4dd3f",
   "./move.js": "421d442c53aa29fa1b1cbc3ef22fb174",
   "./manifest.webmanifest": "933cd57a01bc2c47f5e1904be166220b",
   "./icon-192.png": "cf3bed681a924e2fbecc04893a92f5bf",
@@ -75,10 +75,10 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "5f56f60e654738ec753d8039eeedc8cf",
   "./academy-app.js": "130b15379b74427d8f0071032894b5f0",
-  "./strings-academy.js": "caf2c03a3699af655174bd6ad925647d",
-  "./core.js": "6db9756336f2e0474daf90b33ad9e0f6",
+  "./strings-academy.js": "4680eb149359d6edc2c602f7a35c2ed9",
+  "./core.js": "b22a5dc9b2b22d6212bceb8812ff79d0",
   "./auth.js": "7146de5763202cdfee2073eed2f5e086",
-  "./shell.js": "3108c90ef333e70a80d4c6f0898f9a23",
+  "./shell.js": "c1cd087856bdc377b62bebf3e7a3c930",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
   "./logo-academy-lg.webp": "a116879278b6fa9d301f98fc24137cab",
   "./face-academy.webp": "9aea37be25db82a7a48a5343a8b351b2",
@@ -97,13 +97,23 @@ const HASHES = {
   "./studiobg.js": "9013d96cee956642e0735806ea1e60c3",
   "./studio.html": "6748141d96e70a259c8b7fa585d9bba1",
   "./studio-app.js": "6da5423c0adb04bb841765b5f1c567da",
-  "./strings-studio.js": "d3a4fa1b253246834dfc93b070075aab",
+  "./strings-studio.js": "ee5867ef55b986ae687c1c09ed8075c1",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
   "./icon-studio-192.png": "9b37d795c2aceac291c56b3ce425aaa3",
   "./apple-touch-studio.png": "2845bce92943f4c0a3a3d1309063f850",
-  "./favicon-studio-48.png": "3ee4d1aaaf6e22684603032cf358c704"
+  "./favicon-studio-48.png": "3ee4d1aaaf6e22684603032cf358c704",
+  "./cashflow.html": "d1f5e0d63d4755be006e1addedd42fc4",
+  "./cashflow-app.js": "11ba648ca3c2057c9b2401d057b797fe",
+  "./cashflow.js": "03434d54d733f5ea8639c38a96b5d667",
+  "./cashflow.css": "bf01863e33312face0fa0b4a3710fb4e",
+  "./strings-cashflow.js": "fec77768a29b8e442839059e563aff3d",
+  "./logo-cashflow.webp": "fdd001e0dc9d0a80c30961d58864ad96",
+  "./logo-cashflow-lg.webp": "4988d060c48fbdf3f6de792f1237c710",
+  "./icon-cashflow-192.png": "cf3bed681a924e2fbecc04893a92f5bf",
+  "./apple-touch-cashflow.png": "113a5dd87df18077a64196f3d533e3e9",
+  "./favicon-cashflow-48.png": "b06144704421831d745fd553558517a7"
 };
 /* </swgen> */
 
@@ -156,7 +166,7 @@ const STUDIO_SHELL = ['./studio.js', './studio.css', './studionet.js', './libbac
    (functions/index.js ב־Cloudflare Pages), ובשל studio — studio.html. לכן './' במטמון = הדף של הכתובת הזו,
    והטביעה שלו נבדקת מול הדף הזה (אחרת ההתקנה נכשלת: '/' שם הוא לא index.html). */
 const ROOT_PAGE = (() => {
-  const m = /^(academy|studio)(-staging)?\.thesnowball\.app$/.exec((self.location && self.location.hostname) || '');
+  const m = /^(academy|studio|cashflow)(-staging)?\.thesnowball\.app$/.exec((self.location && self.location.hostname) || '');
   return m ? './' + m[1] + '.html' : './index.html';
 })();
 /* 21/10/2026 (דיווח המשתמש: admin.thesnowball.app פתח את Invest): למרכז הניהול אין Service Worker — אבל בטלפון
@@ -202,6 +212,12 @@ function shellKey(url, request) {
   return k !== './' && k !== './index.html' && HASHES[k] ? k : null;
 }
 
+/* 6/11/2026 (Cashflow, גל 2): הדף העצמאי של Cashflow — רק הקוד והעיצוב. התשובות של /api/cashflow (נתונים פיננסיים)
+   לא נשמרות כאן לעולם: הן לשרתון (מקור אחר, no-store), וה־SW לא נוגע בבקשות POST */
+const FLOW_SHELL = ['./cashflow.html', './cashflow-app.js', './cashflow.js', './cashflow.css', './strings-cashflow.js', './core.js', './auth.js', './acclink.js', './shell.js',
+  './logo-cashflow.webp', './logo-cashflow-lg.webp', './snow-far-light.png', './snow-mid-light.png', './snow-near-light.png', './snow-far-dark.png', './snow-mid-dark.png', './snow-near-dark.png',
+  './icon-cashflow-192.png', './apple-touch-cashflow.png', './favicon-cashflow-48.png'];
+
 self.addEventListener('install', (event) => {
   if (NO_SW) { self.skipWaiting(); return; }
   event.waitUntil((async () => {
@@ -210,9 +226,10 @@ self.addEventListener('install', (event) => {
     const cache = await caches.open(CACHE_NAME);
     for (const [p, r] of got) await cache.put(p, r);
     // הספרייה והסטודיו — רק אצל מי שכבר נכנס אליהם; קובץ שלא אומת לא נשמר (יורד מהרשת בשימוש)
-    for (const [set, mark] of [[LIB_SHELL, './library.js'], [STUDIO_SHELL, './studio.js']]) {
-      // 13/10/2026: בכתובת של האפליקציה עצמה (academy / studio) — תמיד, גם אחרי ניקוי מטמון (עד היום רק אצל מי שכבר נכנס)
-      if (!(await caches.match(mark)) && ROOT_PAGE !== (set === LIB_SHELL ? './academy.html' : './studio.html')) continue;
+    for (const [set, mark] of [[LIB_SHELL, './library.js'], [STUDIO_SHELL, './studio.js'], [FLOW_SHELL, './cashflow.js']]) {
+      const page = { './library.js': './academy.html', './studio.js': './studio.html', './cashflow.js': './cashflow.html' }[mark];
+      // 13/10/2026: בכתובת של האפליקציה עצמה (academy / studio / cashflow) — תמיד, גם אחרי ניקוי מטמון (עד היום רק אצל מי שכבר נכנס)
+      if (!(await caches.match(mark)) && ROOT_PAGE !== page) continue;
       await Promise.all(set.map((p) => fetchVerified(p, true).then((r) => cache.put(p, r), () => {})));
     }
     await self.skipWaiting();

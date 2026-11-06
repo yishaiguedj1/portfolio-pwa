@@ -70,6 +70,18 @@ const CF = 'https://cashflow.thesnowball.app', INV = 'https://invest.thesnowball
   runImpl = async () => { throw new Error('get_budget: RiseUp PAT was rejected (401).'); };
   r = await call({ op: 'report', idToken: 'tOwner', name: 'forecast' });
   ok(r.j.error === 'riseup_token_rejected', '401 מרייזאפ — riseup_token_rejected');
+  // גל 2: "בדקתי" (op seen) — רק hash של 16 תווי hex, מוצפן, עם AAD נפרד; חיבור מחדש שומר את הסימונים
+  ok((await call({ op: 'seen', idToken: 'tOwner' })).j.keys.length === 0, 'seen — ריק בהתחלה');
+  ok((await call({ op: 'seen', idToken: 'tOwner', key: 'STREAMPLUS 49.90' })).j.error === 'bad_key', 'seen — רק hash, לא טקסט חופשי');
+  r = await call({ op: 'seen', idToken: 'tOwner', key: 'a1b2c3d4e5f60718' });
+  ok(r.j.ok && r.j.keys.join() === 'a1b2c3d4e5f60718', 'seen — נשמר');
+  ok(/^v1\./.test(mem.owner1.s) && !JSON.stringify(mem.owner1).includes('a1b2c3d4e5f60718'), 'seen — מוצפן ברשומה, לא בגלוי');
+  { const VV = require(root + '/ibkr-proxy/lib/vault.js'); let x = null; try { x = VV.open(mem.owner1.s, 'cashflow|pat|owner1'); } catch (e) { x = null; } ok(!x, 'seen — AAD נפרד מהטוקן'); }
+  await call({ op: 'seen', idToken: 'tOwner', key: '00000000000000ff' });
+  ok((await call({ op: 'seen', idToken: 'tOwner', key: 'a1b2c3d4e5f60718', on: false })).j.keys.join() === '00000000000000ff', 'seen — ביטול סימון');
+  await call({ op: 'connect', idToken: 'tOwner', pat: PAT });
+  ok((await call({ op: 'seen', idToken: 'tOwner' })).j.keys.join() === '00000000000000ff', 'seen — טוקן חדש שומר את הסימונים');
+  ok((await call({ op: 'seen', idToken: 'tOther', key: '00000000000000ff' })).c === 403, 'seen — רק הבעלים');
   ok((await call({ op: 'disconnect', idToken: 'tOwner' })).j.connected === false && !mem.owner1, 'ניתוק — נמחק');
   ok((await call({ op: 'nope', idToken: 'tOwner' })).j.error === 'bad_op', 'פעולה לא מוכרת — 400');
 

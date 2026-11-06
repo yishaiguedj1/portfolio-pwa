@@ -154,4 +154,7 @@ html[data-app="admin"] { --gb-force: #5E5CE6; --gb-ontx: #fff; }
    כפתורים צפים מעל קנבס (הציר בעורך — זכוכית משלהם): st-tl-zb
    מעטפות שהכדור שלהן הוא ילד (.tab → .tab-disc, .adm-tab → i): tab adm-tab
    פריטי סגמנט שאינם נבחרים (המסילה): adm-seg-b mg-seg-b st-seg-b kc-seg-b lang-opt theme-opt (וכל כפתור לא נבחר בתוך an-seg / kc-seg / mg-seg / st-seg2 / adm-seg / fb-seg / rd-seg)
+   Cashflow (גל 2) — פעולות טקסט: cf-more cf-undo cf-back
+   Cashflow — כפתור מתאר משני: cf-chk
+   Cashflow — הבועה בהדר (הזכוכית שלה מ־.appbar-sub > *): cf-upd
    (במלאי: tools/btn-inventory.js) */
