@@ -139,12 +139,12 @@ const sv = (s) => ({ stringValue: s }), iv = (x) => ({ integerValue: String(x) }
   const key = crypto.randomBytes(32);
   const dir = path.join(tmp, 'data');
   const blocker = path.join(tmp, 'a-file'); fs.writeFileSync(blocker, '');   // תיקייה שאי אפשר ליצור (ENOTDIR)
-  const mk = (d) => LS.create({ fetch: remoteFetch, env: {}, project: P, dir: d, now, token: async () => 'T', r2: io, key, timers: false });
+  const mk = (d) => LS.create({ own: () => true, fetch: remoteFetch, env: {}, project: P, dir: d, now, token: async () => 'T', r2: io, key, timers: false });
   const ctl = mk(dir);
   ok(await ctl.start() === true && ctl.status().on, 'נדלק כשיש תיקייה כתיבה');
-  ok((await LS.create({ fetch: remoteFetch, env: { SNB_LDB: 'off' }, project: P, dir, timers: false }).start()) === false, 'SNB_LDB=off — כבוי');
-  ok((await LS.create({ fetch: remoteFetch, env: {}, project: P, dir: path.join(blocker, 'data'), timers: false }).start()) === false, 'בלי תיקייה כתיבה ובלי R2 — כבוי, הכל כמו קודם');
-  ok((await LS.create({ fetch: remoteFetch, env: { SNB_LDB_MEM: 'off' }, project: P, dir: path.join(blocker, 'data'), r2: io, key, timers: false }).start()) === false, 'SNB_LDB_MEM=off — בלי נפח נשאר כבוי');
+  ok((await LS.create({ own: () => true, fetch: remoteFetch, env: { SNB_LDB: 'off' }, project: P, dir, timers: false }).start()) === false, 'SNB_LDB=off — כבוי');
+  ok((await LS.create({ own: () => true, fetch: remoteFetch, env: {}, project: P, dir: path.join(blocker, 'data'), timers: false }).start()) === false, 'בלי תיקייה כתיבה ובלי R2 — כבוי, הכל כמו קודם');
+  ok((await LS.create({ own: () => true, fetch: remoteFetch, env: { SNB_LDB_MEM: 'off' }, project: P, dir: path.join(blocker, 'data'), r2: io, key, timers: false }).start()) === false, 'SNB_LDB_MEM=off — בלי נפח נשאר כבוי');
   const F = ctl.wrapFetch(remoteFetch);
   const get = async (u) => { const res = await F(BASE + u); return { status: res.status, j: await res.json() }; };
   calls = [];
@@ -218,7 +218,7 @@ const sv = (s) => ({ stringValue: s }), iv = (x) => ({ integerValue: String(x) }
   // תקלה בעותק — המתנה, והתור נשמר
   let failW = true;
   const flaky = async (url, init) => (failW && url.endsWith(':batchWrite') ? J({ error: { code: 429 } }, 429) : remoteFetch(url, init));
-  const ctlF = LS.create({ fetch: flaky, env: {}, project: P, dir: path.join(tmp, 'f'), now, token: async () => 'T', timers: false });
+  const ctlF = LS.create({ own: () => true, fetch: flaky, env: {}, project: P, dir: path.join(tmp, 'f'), now, token: async () => 'T', timers: false });
   await ctlF.start(); ctlF.store.setCol('studioOps', { st: 'ready' });
   await ctlF.wrapFetch(flaky)(BASE + '/studioOps/z', { method: 'PATCH', body: JSON.stringify({ fields: { v: sv('1') } }) });
   await ctlF.mirror();
@@ -246,7 +246,7 @@ const sv = (s) => ({ stringValue: s }), iv = (x) => ({ integerValue: String(x) }
 
   // מצב זיכרון: אין נפח /data (שרת שהנפח לא הותקן בו) — המסד בזיכרון, ותמונת המצב ב־R2 היא ההתמדה
   const noDir = path.join(blocker, 'data');
-  const mkMem = () => LS.create({ fetch: remoteFetch, env: {}, project: P, dir: noDir, now, token: async () => 'T', r2: io, key, timers: false });
+  const mkMem = () => LS.create({ own: () => true, fetch: remoteFetch, env: {}, project: P, dir: noDir, now, token: async () => 'T', r2: io, key, timers: false });
   const m1 = mkMem();
   ok(await m1.start() === true && m1.status().mode === 'mem' && /^\d{4}-/.test(m1.status().restored || ''), 'בלי נפח ועם R2 — נדלק בזיכרון ומשחזר מתמונת המצב');
   ok(m1.store.get('studioJobs', 'r5').f.b.stringValue === 'vercel' && m1.store.ready('studioJobs'), 'מצב זיכרון — המסמכים והאוספים המוכנים');
@@ -261,9 +261,35 @@ const sv = (s) => ({ stringValue: s }), iv = (x) => ({ integerValue: String(x) }
   ok(await m2.start() === true && m2.store.get('studioJobs', 'mem1') && m2.store.get('studioJobs', 'mem1').f.v.stringValue === 'בזיכרון', 'הפעלה מחדש (פריסה) — מה שנכתב בזיכרון חזר מהתמונה');
   m2.stop();
   const badIo = { put: io.put, get: async () => { throw new Error('r2_down'); } };
-  const m3 = LS.create({ fetch: remoteFetch, env: {}, project: P, dir: noDir, now, token: async () => 'T', r2: badIo, key, timers: false });
+  const m3 = LS.create({ own: () => true, fetch: remoteFetch, env: {}, project: P, dir: noDir, now, token: async () => 'T', r2: badIo, key, timers: false });
   ok(await m3.start() === false && m3.status().why === 'restore_err', 'R2 לא זמין בעלייה — לא עולים ריק (תמונה ריקה הייתה דורסת את הטובה)');
   ok(!r2.get('ldb/' + P + '/snap.bin').equals(Buffer.alloc(0)), 'התמונה ב־R2 נשארה');
+
+  // אבטחה: המסד עונה רק לבקשה עם טוקן שהתהליך הנפיק. בלי — ממשיכה ל־Firestore (שבודק אותה), ולא נלמדת
+  let passed = 0;
+  const spy = async (url, init) => { passed++; return remoteFetch(url, init); };
+  const ca = LS.create({ own: (t) => t === 'OWN', fetch: spy, env: {}, project: P, dir: path.join(tmp, 'auth'), now, token: async () => 'T', timers: false });
+  await ca.start(); ca.store.setCol('studioJobs', { st: 'ready' });
+  ca.store.putRemote('studioJobs', 'sec', { name: 'x', fields: { s: sv('סוד') } });
+  const FA = ca.wrapFetch(spy);
+  passed = 0; await FA(BASE + '/studioJobs/sec');
+  ok(passed === 1 && ca.store.stats.passWhy.auth === 1, 'בלי טוקן — לא נענה מהמסד, ממשיך ל־Firestore (שם נדחה כמו תמיד)');
+  passed = 0; await FA(BASE + '/studioJobs/sec', { headers: { Authorization: 'Bearer זר' } });
+  ok(passed === 1 && ca.store.stats.passWhy.auth === 2, 'טוקן שלא אנחנו הנפקנו — ממשיך ל־Firestore');
+  passed = 0; const ra = await FA(BASE + '/studioJobs/sec', { headers: { Authorization: 'Bearer OWN' } });
+  ok(passed === 0 && ra.status === 200, 'טוקן שלנו — נענה מהמסד');
+  passed = 0; await FA(BASE + '/studioJobs/w1', { method: 'PATCH', headers: { Authorization: 'Bearer זר' }, body: JSON.stringify({ fields: { v: sv('x') } }) });
+  ok(passed === 1 && !ca.store.get('studioJobs', 'w1'), 'כתיבה עם טוקן זר — לא נכנסת למסד (גם לא דרך הלמידה)');
+  ca.stop();
+  const G = require('../ibkr-proxy/lib/gauth');
+  ok(G.ownToken('') === false && G.ownToken('לא-שלנו') === false && G.ownToken(null) === false, 'gauth.ownToken — רק טוקן שהתהליך הנפיק');
+  if (process.platform !== 'win32') ok((fs.statSync(path.join(tmp, 'auth', 'snb.db')).mode & 0o077) === 0, 'קובץ המסד — רק לבעלים (600)');
+  const ev = LS.create({ own: () => true, fetch: remoteFetch, env: {}, project: P, dir: path.join(tmp, 'ev'), now, token: async () => 'T', timers: false });
+  await ev.start();
+  ev.store.load({ cols: [['users', 'ready'], ['studioX', 'ready']], kv: [], docs: [['users', 'u1', { a: sv('1') }, null, null, 0, 0, 0, 0], ['studioX', 'a/b', { a: sv('1') }, null, null, 0, 0, 0, 0], ['studioX', 'ok', { a: sv('1') }, null, null, 0, 0, 0, 0]] });
+  ok(!ev.store.get('users', 'u1') && !ev.store.ready('users') && !ev.store.get('studioX', 'a/b') && ev.store.get('studioX', 'ok'), 'שחזור — רק אוספים של השרתון ומזהים תקינים (הגנה לעומק)');
+  ev.stop();
+  ok(/const errOf = /.test(read('ibkr-proxy/lib/ldbsync.js')) && !/e\.message \|\| e\)\.slice/.test(read('ibkr-proxy/lib/ldbsync.js')), 'הסטטוס הציבורי — שגיאות רק כקוד קצר (errOf), בלי הודעות גולמיות');
 
   // ---------------------------------------------------------------- 3. היומן והחיבורים
   ok(C.changesOf('PATCH', BASE + '/studioJobs/a?updateMask.fieldPaths=a.b', null).list[0].m[0] === 'a.b' && C.topField('a.b') === 'a' && C.topField('`x-y`.z') === 'x-y', 'changesOf / topField');
