@@ -472,6 +472,9 @@ class HostApply(unittest.TestCase):
         open(os.path.join(self.s, 'compose.yaml'), 'w').write(read('infra/compose.yaml'))
         open(os.path.join(self.s, 'snb-common.sh'), 'w').write(read('infra/host/snb-common.sh'))
         open(os.path.join(self.s, 'snb-update'), 'w').write(read('infra/host/snb-update'))
+        # 6/11/2026: גם הטיימר והשירות (הטיימר הישן של ההקמה נשאר בלי OnCalendar, ו־snb-update לא רץ אחרי אתחול)
+        open(os.path.join(self.s, 'snb-update.timer'), 'w').write(read('infra/host/snb-update.timer'))
+        open(os.path.join(self.s, 'snb-update.service'), 'w').write(read('infra/host/snb-update.service'))
 
     def tearDown(self):
         import shutil
@@ -491,7 +494,10 @@ class HostApply(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(os.stat(os.path.join(self.h, 'opt/snb/compose.yaml')).st_mode), 0o644)
         self.assertEqual(open(os.path.join(self.h, 'usr/local/sbin/snb-update')).read(), read('infra/host/snb-update'))
         self.assertEqual(stat.S_IMODE(os.stat(os.path.join(self.h, 'usr/local/sbin/snb-update')).st_mode), 0o755, 'snb-update רץ מה־timer')
-        self.assertIn('Done (3 updated)', r.stdout)
+        self.assertEqual(open(os.path.join(self.h, 'etc/systemd/system/snb-update.timer')).read(), read('infra/host/snb-update.timer'))
+        self.assertEqual(open(os.path.join(self.h, 'etc/systemd/system/snb-update.service')).read(), read('infra/host/snb-update.service'))
+        self.assertEqual(os.readlink(os.path.join(self.h, 'etc/systemd/system/timers.target.wants/snb-update.timer')), '/etc/systemd/system/snb-update.timer', 'הטיימר מופעל באתחול')
+        self.assertIn('Done (5 updated)', r.stdout)
         self.assertIn('Done (0 updated)', self.run_apply().stdout, 'הרצה שנייה — כלום')
 
     def test_refuses_while_job_runs(self):
@@ -511,7 +517,7 @@ class HostApply(unittest.TestCase):
 
     def test_packaged_as_data_only(self):
         d = read('infra/worker/Dockerfile')
-        self.assertIn('COPY --chown=root:root infra/host/snb-common.sh infra/compose.yaml infra/host/snb-update /opt/snb-host/', d)
+        self.assertIn('COPY --chown=root:root infra/host/snb-common.sh infra/compose.yaml infra/host/snb-update infra/host/snb-update.timer infra/host/snb-update.service /opt/snb-host/', d)
         self.assertIn('/opt/snb-host/apply', d)
         for f in ('infra/host/snb-update', 'infra/host/snb-common.sh', 'infra/compose.yaml'):
             self.assertNotIn('snb-host', read(f).replace('snb-host-apply', ''), 'שום דבר בשרת לא מריץ את הקבצים לבד: ' + f)

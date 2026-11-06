@@ -1,9 +1,12 @@
 [Unit]
 Description=THE SNOWBALL — עדכון העובד לגרסה המאושרת (תג prod, חתימה מאומתת)
-Wants=network-online.target
-After=network-online.target docker.service
+# 6/11/2026: בלי Wants/After=network-online.target — משיכה בלי רשת נכשלת בעדינות ("נשארים במה שיש") ומנסים בעוד 2 דק׳,
+# ותלות בסדר האתחול רק מוסיפה דרך לתקוע את הריצה שאחרי ההדלקה (מ־5/11 ‏10:51 snb-update לא רץ אף פעם, שלושה אתחולים)
+After=docker.service
 Requires=docker.service
 
 [Service]
 Type=oneshot
+# oneshot בלי מגבלה = ריצה תקועה (משיכה / cosign / compose) מחזיקה את השירות "activating" לתמיד, והטיימר לא מפעיל שוב
+TimeoutStartSec=20min
 ExecStart=/usr/local/sbin/snb-update
