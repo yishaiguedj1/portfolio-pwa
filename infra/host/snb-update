@@ -47,13 +47,20 @@ resolve() {
 # חיכתה "בתור לשרת" עד רבע שעה אחרי כל worker-image. שרת קיים מקבל את הקצב החדש מכאן (הטיימר נכתב רק בהקמה) —
 # קובץ השלמה לטיימר, פעם אחת. הבדיקה עצמה זולה: משיכה שלא השתנתה = רק ה־manifest
 TD=/etc/systemd/system/snb-update.timer.d
-# 4/11/2026: אחרי ה־Rescale ל־CX53 הטיימר נשאר "elapsed" בלי ריצה הבאה — OnUnitActiveSec נמדד מהריצה הקודמת של
-# השירות, וכשהריצה שאחרי ההדלקה לא קרתה אין ממה למדוד (הגבולות לא עודכנו לזיכרון החדש). OnCalendar = לפי השעון,
-# מתוזמן תמיד מחדש. שרת עם קובץ השלמה ישן (בלי OnCalendar) — נכתב מחדש פעם אחת.
-if ! grep -qs '^OnCalendar=' "$TD/10-fast.conf" && [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1 \
-	&& mkdir -p "$TD" 2>/dev/null \
-	&& printf '[Timer]\nOnUnitActiveSec=\nOnUnitActiveSec=2min\nOnCalendar=*:0/2\nRandomizedDelaySec=\nRandomizedDelaySec=20\n' 2>/dev/null >"$TD/10-fast.conf"; then
-	{ systemctl daemon-reload && systemctl restart snb-update.timer && snb_log "✓ בדיקת העדכון — כל 2 דקות"; } || true
+TF=/etc/systemd/system/snb-update.timer
+# 6/11/2026 — שורש התקלה מ־4/11 ומ־5/11: קובץ ההשלמה הישן התחיל ב־"OnUnitActiveSec=" ריק. ב־systemd השמה ריקה לאחת
+# מהגדרות ה־On… מאפסת את *כל* הטריגרים של הטיימר — גם OnBootSec ו־OnCalendar מהקובץ הראשי. נשאר רק OnUnitActiveSec,
+# שנמדד מהריצה הקודמת, ואחרי אתחול אין כזו — הטיימר לא יורה לעולם (ב־4/11 חזר רק אחרי הרצה ידנית; מ־5/11 — ארבעה
+# אתחולים בלי אף ריצה). לכן: קובץ השלמה עם השמה ריקה — נמחק (הקובץ הראשי, שמותקן ב־hostfix / snb-host-apply / הקמה,
+# כולל הכל). טיימר ראשי ישן בלי OnCalendar — מקבל השלמה שרק *מוסיפה* (בלי איפוס).
+if [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
+	ch=0
+	if grep -qs '^On[A-Za-z]*=$' "$TD/10-fast.conf"; then rm -f "$TD/10-fast.conf" && ch=1; fi
+	if ! grep -qs '^OnCalendar=' "$TF" && ! grep -qs '^OnCalendar=' "$TD/10-fast.conf" && mkdir -p "$TD" 2>/dev/null \
+		&& printf '[Timer]\nOnCalendar=*:0/2\n' 2>/dev/null >"$TD/10-fast.conf"; then ch=1; fi
+	if [ "$ch" = 1 ]; then
+		{ systemctl daemon-reload && systemctl restart snb-update.timer && snb_log "✓ בדיקת העדכון — כל 2 דקות (גם אחרי אתחול)"; } || true
+	fi
 fi
 
 umask 022

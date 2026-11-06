@@ -101,7 +101,7 @@ const DIAG = [
   'if command -v journalctl >/dev/null 2>&1 && [ -d "$J" ]; then',
   '  for b in 0 -1; do',
   '    journalctl -D "$J" --no-pager -o cat -b "$b" _PID=1 2>/dev/null | awk \'/^Starting /{s=$0; sub(/^Starting /,"",s); sub(/[.][.][.]$/,"",s); o[s]=1} /^(Started|Finished|Failed to start|Stopped) /{s=$0; sub(/^(Started|Finished|Failed to start|Stopped) /,"",s); sub(/[.]$/,"",s); delete o[s]} END{for(k in o) print k}\' | head -n 20 | sed "s/^/SNBSYS b$b open: /" || true',
-  '    journalctl -D "$J" --no-pager -o short-iso -b "$b" 2>/dev/null | grep -iE "snb-|ordering cycle|Refusing|Time has been changed|clock|Failed to|timed out|Dependency failed|job .* failed|Startup finished|Reached target.*(Multi-User|Timer|Network is Online)" | grep -v "dockerd\\[" | tail -n 60 | sed "s/^/SNBSYS b$b /" || true',
+  '    journalctl -D "$J" --no-pager -o short-iso -b "$b" 2>/dev/null | grep -iE "snb-update|snb-maint|ordering cycle|Refusing|Time has been changed|clock|Failed to|timed out|Dependency failed|job .* failed|Startup finished|Reached target.*(Multi-User|Timer|Network is Online)" | grep -v "dockerd\\[" | tail -n 60 | sed "s/^/SNBSYS b$b /" || true',
   '  done',
   'fi',
 ];
@@ -148,6 +148,9 @@ function rescueScript(files, o = {}) {
     L.push('SNBEOF');
   }
   // הטיימר מופעל באתחול (כמו systemctl enable) — גם אם הקישור נמחק
+  // 6/11/2026: קובץ השלמה עם "OnUnitActiveSec=" ריק מאפס את כל הטריגרים של הקובץ הראשי (OnBootSec, OnCalendar) —
+  // הטיימר לא יורה אחרי אתחול. הקובץ הראשי כולל הכל, ולכן ההשלמה כזו נמחקת
+  if (files.some((f) => f.dst === 'etc/systemd/system/snb-update.timer')) L.push('D="$R/etc/systemd/system/snb-update.timer.d/10-fast.conf"; if grep -qs "^On[A-Za-z]*=$" "$D"; then rm -f "$D"; echo "SNBDEL /etc/systemd/system/snb-update.timer.d/10-fast.conf"; fi');
   if (files.some((f) => f.dst === 'etc/systemd/system/snb-update.timer')) L.push('mkdir -p "$R/etc/systemd/system/timers.target.wants" && ln -sfn /etc/systemd/system/snb-update.timer "$R/etc/systemd/system/timers.target.wants/snb-update.timer"');
   if (o.diag) L.push(...DIAG);
   for (const [k, p] of DU) L.push('[ -d "$R/' + p + '" ] && echo "SNBDU ' + k + ' $(du -sk "$R/' + p + '" 2>/dev/null | cut -f1)" || true');
@@ -162,7 +165,7 @@ function rescueScript(files, o = {}) {
 
 /* טהורה: הפלט של הסקריפט → מספרים בלבד (שורה שלא בצורה — מתעלמים) */
 function parseOut(text) {
-  const o = { put: [], same: [], du: {}, vol: {}, img: null, df: null, busy: [], err: '', ok: false, diag: null };
+  const o = { put: [], same: [], del: [], du: {}, vol: {}, img: null, df: null, busy: [], err: '', ok: false, diag: null };
   for (const line of String(text || '').split('\n')) {
     let m;
     if ((m = /^SNB(LOG|ENV|TMR|CT|SUM|BOOT|SYS) (.*)$/.exec(line))) {
@@ -173,6 +176,7 @@ function parseOut(text) {
     if (line.includes('..')) continue;
     if ((m = /^SNBPUT (\/[a-z0-9/._-]+)$/.exec(line))) o.put.push(m[1]);
     else if ((m = /^SNBSAME (\/[a-z0-9/._-]+)$/.exec(line))) o.same.push(m[1]);
+    else if ((m = /^SNBDEL (\/[a-z0-9/._-]+)$/.exec(line))) o.del.push(m[1]);
     else if ((m = /^SNBDU ([a-z]+) (\d+)$/.exec(line))) o.du[m[1]] = +m[2];
     else if ((m = /^SNBVOL ([A-Za-z0-9_.-]{1,64}) (\d+)$/.exec(line))) o.vol[m[1]] = +m[2];
     else if ((m = /^SNBIMG (\d+)$/.exec(line))) o.img = +m[1];
@@ -192,6 +196,7 @@ function report(o) {
   for (const [k] of DU) if (o.du[k] != null) L.push('  ' + names[k] + ': ' + gb(o.du[k]));
   for (const [k, v] of Object.entries(o.vol)) L.push('    ' + k + ': ' + gb(v));
   if (o.img != null) L.push('  מספר התמונות: ' + o.img);
+  if (o.del.length) L.push('נמחקו: ' + o.del.join(', '));
   if (o.put.length || o.same.length) L.push('הותקנו: ' + (o.put.join(', ') || 'אין (כבר מעודכן)') + (o.same.length ? ' · זהים: ' + o.same.length : ''));
   if (o.diag) {
     const sec = (t, a) => { L.push('', '### ' + t, '```', ...(a.length ? a : ['(ריק)']), '```'); };

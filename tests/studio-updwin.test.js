@@ -9,11 +9,13 @@ const ok = (c, m) => { if (!c) { console.error('✗ ' + m); process.exit(1); } n
 const timer = fs.readFileSync(path.join(root, 'infra/host/snb-update.timer'), 'utf8');
 ok(/^OnUnitActiveSec=2min$/m.test(timer) && !/15min/.test(timer), 'הטיימר: כל 2 דקות (שרת חדש)');
 const upd = fs.readFileSync(path.join(root, 'infra/host/snb-update'), 'utf8');
-ok(/snb-update\.timer\.d/.test(upd) && /OnUnitActiveSec=\\nOnUnitActiveSec=2min/.test(upd) && /systemctl daemon-reload/.test(upd),
-  'שרת קיים: snb-update כותב קובץ השלמה לטיימר (איפוס ואז 2 דקות) וטוען מחדש');
+ok(/snb-update\.timer\.d/.test(upd) && /systemctl daemon-reload/.test(upd), 'שרת קיים: snb-update מתקן את קובץ ההשלמה של הטיימר וטוען מחדש');
+// 6/11/2026: השמה ריקה ל־On… מאפסת את כל הטריגרים (גם OnBootSec/OnCalendar של הקובץ הראשי) — הטיימר לא ירה אחרי אתחול
+ok(!/On[A-Za-z]*=\\n/.test(upd) && !/^On[A-Za-z]*=$/m.test(timer) && /grep -qs '\^On\[A-Za-z\]\*=\$'/.test(upd),
+  'בלי השמה ריקה לטריגרים (לא בטיימר ולא בהשלמה), והשלמה ישנה עם איפוס נמחקת');
 const apply = fs.readFileSync(path.join(root, 'infra/worker/snb-host-apply'), 'utf8');
 ok(/snb-update:usr\/local\/sbin\/snb-update:755/.test(apply), 'snb-update מגיע לשרת קיים דרך snb-host-apply');
-ok(/^OnCalendar=\*:0\/2$/m.test(timer) && /OnCalendar=\*:0\/2/.test(upd) && /grep -qs '\^OnCalendar='/.test(upd),
+ok(/^OnCalendar=\*:0\/2$/m.test(timer) && /^OnBootSec=2min$/m.test(timer) && /OnCalendar=\*:0\/2/.test(upd) && /grep -qs '\^OnCalendar='/.test(upd),
   'הטיימר גם לפי השעון (לא נתקע ב־elapsed כשהריצה שאחרי ההדלקה לא קרתה), ושרת קיים מקבל את זה');
 ok(upd.indexOf('snb-update.timer.d') < upd.indexOf('umask 022'), 'הטיימר מתעדכן לפני המשיכות (גם כשמשיכה נכשלת)');
 

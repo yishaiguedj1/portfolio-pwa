@@ -257,7 +257,7 @@ exit 0
 class Rooms(unittest.TestCase):
     """שלב 2ב: חדרים לפי קובצי הסודות — snb-update מריץ באמת, עם docker/cosign מדומים."""
 
-    def run_update(self, files, busy=(), fail_pull='', bad_app='', rev=None, now=False, mem_kb=None):
+    def run_update(self, files, busy=(), fail_pull='', bad_app='', rev=None, now=False, mem_kb=None, pre=None):
         import os, tempfile, stat
         d = tempfile.mkdtemp()
         etc, opt, lib, binp = (os.path.join(d, x) for x in ('etc', 'opt', 'lib', 'bin'))
@@ -269,6 +269,8 @@ class Rooms(unittest.TestCase):
             os.makedirs(os.path.join(d, 'vol', v)); open(os.path.join(d, 'vol', v, '.busy'), 'w').write('j')
         for tag, r in (rev or {}).items():
             open(os.path.join(d, 'rev-' + tag), 'w').write(r)
+        for f, body in (pre or {}).items():   # 6/11/2026: קבצים קיימים בשרת (הטיימר וההשלמה שלו)
+            os.makedirs(os.path.dirname(os.path.join(d, f)), exist_ok=True); open(os.path.join(d, f), 'w').write(body)
         def sub(t):
             t = t.replace('/etc/snb', etc).replace('/opt/snb', opt).replace('/var/lib/snb', d + '/var')
             t = t.replace('/etc/systemd/system', d + '/systemd').replace('/run/systemd/system', d + '/var')   # 25/10/2026: קובץ ההשלמה לטיימר
@@ -291,10 +293,23 @@ class Rooms(unittest.TestCase):
                 'timer': rd('systemd/snb-update.timer.d/10-fast.conf'), 'systemctl': rd('systemctl')}
 
     def test_timer_fast(self):
-        """25/10/2026: שרת קיים — snb-update כותב פעם אחת קובץ השלמה (בדיקה כל 2 דקות) וטוען מחדש את הטיימר"""
+        """שרת עם טיימר ראשי ישן (בלי OnCalendar) — snb-update מוסיף השלמה שרק מוסיפה (בלי איפוס) וטוען מחדש.
+        6/11/2026: השמה ריקה ("OnUnitActiveSec=") מאפסת את כל הטריגרים, גם OnBootSec — הטיימר לא ירה אחרי אתחול"""
         r = self.run_update(['worker.env'])
-        self.assertIn('OnUnitActiveSec=\nOnUnitActiveSec=2min', r['timer'])
+        self.assertEqual(r['timer'], '[Timer]\nOnCalendar=*:0/2\n')
         self.assertEqual(r['systemctl'].split('\n')[:2], ['daemon-reload', 'restart snb-update.timer'])
+
+    def test_timer_reset_dropin_removed(self):
+        """6/11/2026: השלמה ישנה עם איפוס נמחקת כשהטיימר הראשי כולל OnCalendar; ריצה שנייה — לא נוגעת"""
+        import os
+        pre = {'systemd/snb-update.timer.d/10-fast.conf': '[Timer]\nOnUnitActiveSec=\nOnUnitActiveSec=2min\n',
+               'systemd/snb-update.timer': read('infra/host/snb-update.timer')}
+        r = self.run_update(['worker.env'], pre=pre)
+        self.assertFalse(os.path.exists(os.path.join(r['dir'], 'systemd/snb-update.timer.d/10-fast.conf')))
+        self.assertEqual(r['systemctl'].split('\n')[:2], ['daemon-reload', 'restart snb-update.timer'])
+        r2 = self.run_update(['worker.env'], pre={'systemd/snb-update.timer': read('infra/host/snb-update.timer')})
+        self.assertEqual(r2['systemctl'], '')
+        self.assertEqual(r2['timer'], '')
 
     def test_prod_only_unchanged(self):
         r = self.run_update(['worker.env'])
@@ -498,6 +513,20 @@ class HostApply(unittest.TestCase):
         self.assertEqual(open(os.path.join(self.h, 'etc/systemd/system/snb-update.service')).read(), read('infra/host/snb-update.service'))
         self.assertEqual(os.readlink(os.path.join(self.h, 'etc/systemd/system/timers.target.wants/snb-update.timer')), '/etc/systemd/system/snb-update.timer', 'הטיימר מופעל באתחול')
         self.assertIn('Done (5 updated)', r.stdout)
+
+    def test_removes_reset_dropin(self):
+        """6/11/2026: השלמה עם "OnUnitActiveSec=" ריק מאפסת את כל הטריגרים של הטיימר — נמחקת; השלמה בלי איפוס נשארת"""
+        import os
+        dd = os.path.join(self.h, 'etc/systemd/system/snb-update.timer.d')
+        os.makedirs(dd)
+        open(os.path.join(dd, '10-fast.conf'), 'w').write('[Timer]\nOnUnitActiveSec=\nOnUnitActiveSec=2min\n')
+        r = self.run_apply()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertFalse(os.path.exists(os.path.join(dd, '10-fast.conf')))
+        self.assertIn('Removed: /etc/systemd/system/snb-update.timer.d/10-fast.conf', r.stdout)
+        open(os.path.join(dd, '10-fast.conf'), 'w').write('[Timer]\nOnCalendar=*:0/2\n')
+        r = self.run_apply()
+        self.assertTrue(os.path.exists(os.path.join(dd, '10-fast.conf')))
         self.assertIn('Done (0 updated)', self.run_apply().stdout, 'הרצה שנייה — כלום')
 
     def test_refuses_while_job_runs(self):
