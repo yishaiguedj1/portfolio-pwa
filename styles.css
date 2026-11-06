@@ -171,6 +171,19 @@ html[data-app="academy"] {
   --primary-container: rgba(70, 153, 255, .16); --on-primary-container: #0B57B5;
 }
 html[data-app="academy"][data-theme="dark"] { --on-primary-container: #A5CBFF; }
+/* Cashflow (6/11/2026, בחירת המשתמש — צהוב). הצהוב של המערכת שלנו (--sys-yellow), לא גוון שנלקח ממוצר אחר (בנייה נקייה).
+   הטקסט על הצהוב — כהה. הלוגו בינתיים — הלוגו הכללי, בלי "הפנים החיות" (הן מכוונות לציור של Invest) */
+html[data-app="cashflow"] {
+  --primary: #FFCC00; --primary-dark: #FFCC00; --on-primary: #3D2E00;
+  --primary-container: rgba(255, 204, 0, .2); --on-primary-container: #7A5C00;
+}
+html[data-app="cashflow"][data-theme="dark"] { --on-primary-container: #FFD84D; }
+/* צהוב על לבן לא קריא: בבהיר — האייקונים (הדר, חוגה) בזהב כהה; בבועה של החוגה — סמל כהה במקום לבן (בשני המצבים) */
+html[data-app="cashflow"]:not([data-theme="dark"]) :is(.appbar .icon-btn svg, .tab-ico) { stroke: var(--on-primary-container); }
+html[data-app="cashflow"] .tab-bub-ico { stroke: var(--on-primary); filter: none; }
+:root[data-app="cashflow"] { --gl-tint2: var(--sys-orange); --gl-tint3: var(--sys-mint); }
+html[data-app="cashflow"] .appbar .brand { --logo: url(logo-cashflow.webp); --face: none; }
+html[data-app="cashflow"] .appbar .brand-face { display: none; }
 
 * { box-sizing: border-box; }
 html, body { overflow-x: hidden; overflow-x: clip; }
@@ -1384,6 +1397,7 @@ footer.fine { text-align: center; }
 /* 13/10/2026: רקע הכניסה בצבע המערכת של כל אפליקציה — אותה עומק כמו הירוק של Invest */
 html[data-app="studio"] .login-overlay { background: linear-gradient(160deg, #C41E2E 0%, #5C0711 100%); }
 html[data-app="academy"] .login-overlay { background: linear-gradient(160deg, #1F63C4 0%, #0A2A5C 100%); }
+html[data-app="cashflow"] .login-overlay { background: linear-gradient(160deg, #B88A00 0%, #4A3500 100%); }
 
 /* ---- מתגי בחירה לפי ת־עיצוב (שפה / ערכת נושא) ---- */
 .lang-toggle, .theme-toggle {

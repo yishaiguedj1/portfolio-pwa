@@ -27,7 +27,7 @@ const LOGIN_FRESH = 5 * 60;              // עוגייה רק מהתחברות �
 const TOKEN_TTL = 3600;                  // טוקן מותאם — שעה (המקסימום)
 const VS_CACHE_MS = 30e3;
 const AUD = 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit';
-const APPS = ['invest', 'academy', 'studio', 'account'];
+const APPS = ['invest', 'academy', 'studio', 'account', 'cashflow'];   // cashflow — גל 2 של Cashflow (6/11/2026)
 /* מרכז הניהול (17/10/2026): admin[-staging].thesnowball.app — הפעולות שלו ב־/api/studio, ולכן מבחינת
    ההרשאות (appscope, הטענה app בטוקן) הוא Studio. לא אפליקציה חדשה: בלי מסמך משלו ובלי פעולות משלו */
 const ALIAS = { admin: 'studio' };

@@ -23,7 +23,7 @@ const fileOf = (p) => (p === './' ? 'index.html' : p.replace(/^\.\//, ''));
 // הנתיבים במעטפות — מהמערכים שב־sw.js, בסדר שלהם, בלי כפילות
 function shellPaths(sw) {
   const out = [];
-  for (const name of ['APP_SHELL', 'LIB_SHELL', 'STUDIO_SHELL']) {
+  for (const name of ['APP_SHELL', 'LIB_SHELL', 'STUDIO_SHELL', 'FLOW_SHELL']) {
     const m = String(sw).match(new RegExp('const ' + name + ' = \\[([\\s\\S]*?)\\];'));
     if (!m) throw new Error('swgen: חסר ' + name + ' ב־sw.js');
     for (const q of m[1].matchAll(/'(\.\/[^']*)'/g)) if (!out.includes(q[1])) out.push(q[1]);
@@ -92,8 +92,8 @@ async function live(base, fetchFn) {
 async function liveRoot(base, fetchFn) {
   base = base.replace(/\/?$/, '/');
   const host = new URL(base).hostname;
-  const page = /^academy/.test(host) ? './academy.html' : /^studio/.test(host) ? './studio.html' : '';
-  if (!page) return { ok: false, errs: ['לא כתובת של Academy/Studio: ' + host] };
+  const page = /^academy/.test(host) ? './academy.html' : /^studio/.test(host) ? './studio.html' : /^cashflow/.test(host) ? './cashflow.html' : '';
+  if (!page) return { ok: false, errs: ['לא כתובת של Academy/Studio/Cashflow: ' + host] };
   const get = async (rel) => {
     const r = await fetchFn(base + rel + '?n=' + Date.now(), { cache: 'no-store' });
     if (!r.ok) throw new Error((rel || '/') + ': HTTP ' + r.status);
