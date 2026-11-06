@@ -160,6 +160,18 @@ const sv = (s) => ({ stringValue: s }), iv = (x) => ({ integerValue: String(x) }
   ok((await get('/studioJobs/r1')).j.fields.n.integerValue === '1' && calls.length === 0, 'אחרי הייבוא — הקריאה מהמסד שלנו, בלי Firestore');
   ok(FSM.view().loc === before + 1, 'הקריאה המקומית נספרת ב־fr.loc (לא במכסה)');
   ok((await get('/users/u1')).j.fields.pf && calls.length === 1, 'users — עדיין Firestore');
+  // 6/11/2026: אוסף שנגיעים בו רק בשאילתה, וריק ב־Firestore (לא מופיע ב־listCollectionIds) — נלמד מהשאילתה ונכנס למסד
+  const pq = async () => { const res = await F(BASE + ':runQuery', { method: 'POST', body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'studioProbe' }], where: { fieldFilter: { field: { fieldPath: 'st' }, op: 'EQUAL', value: sv('q') } }, limit: 10 } }) }); return res.json(); };
+  calls = [];
+  await pq();
+  ok(calls.length === 1 && ctl.store.cols.has('studioProbe') && !ctl.store.ready('studioProbe'), 'שאילתה לאוסף שלא במסד — ל־Firestore, והאוסף נלמד (לייבוא)');
+  for (let i = 0; i < 5 && !ctl.store.ready('studioProbe'); i++) await ctl.importTick();
+  calls = [];
+  const pr = await pq();
+  ok(ctl.store.ready('studioProbe') && calls.length === 0 && Array.isArray(pr) && !pr[0].document, 'אחרי הייבוא — השאילתה לאוסף הריק מהמסד, בלי Firestore');
+  calls = [];
+  await F(BASE + ':runQuery', { method: 'POST', body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'users' }], limit: 1 } }) });
+  ok(!ctl.store.cols.has('users') && calls.length === 1, 'שאילתה לאוסף של הטלפון — לא נלמדת (users נשאר ב־Firestore)');
   // כתיבה מקומית → העותק
   clock += 1000;
   await F(BASE + '/studioJobs/r1?updateMask.fieldPaths=st', { method: 'PATCH', body: JSON.stringify({ fields: { st: sv('done') } }) });

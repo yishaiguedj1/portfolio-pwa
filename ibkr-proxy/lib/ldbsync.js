@@ -33,6 +33,12 @@ const FS_HOST = 'https://firestore.googleapis.com/';
 
 const dayLA = (now) => new Date(now).toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
 const prio = (c) => { const i = PRIO.indexOf(c); return i < 0 ? PRIO.length : i; };
+/* האוסף של שאילתה פשוטה (אוסף אחד, לא allDescendants) — '' אם אין */
+const queryCol = (b) => {
+  const sq = b && (b.structuredQuery || (b.structuredAggregationQuery && b.structuredAggregationQuery.structuredQuery));
+  const f = sq && Array.isArray(sq.from) && sq.from.length === 1 ? sq.from[0] : null;
+  return f && !f.allDescendants && typeof f.collectionId === 'string' ? f.collectionId : '';
+};
 
 /* ---------- תמונת מצב: הצפנה ---------- */
 function sealSnap(key, header, body) {
@@ -200,7 +206,9 @@ function create(o = {}) {
   async function learn(method, url, body, res) {
     const u = C.parseUrl(url);
     if (!u || u.project !== project) return;
-    const col = u.path.length ? u.path[0] : '';
+    // 6/11/2026: שאילתה (runQuery/runAggregationQuery) — הכתובת בלי אוסף, והאוסף ב־from. בלי זה אוסף שנגיעים בו רק
+    // בשאילתות ושריק ב־Firestore (listCollectionIds לא מחזיר אוסף ריק) לא נכנס למסד אף פעם — studioProbe בניסוי, כל 20 שנ׳
+    const col = u.path.length ? u.path[0] : queryCol(body);
     if (col && C.serverCol(col) && !store.cols.has(col)) store.setCol(col, { st: 'imp' });
     if (!res || res.status !== 200 || method === 'GET') return;
     const list = C.changesOf(method, url, body).list.filter((ch) => C.serverCol(ch.col));   // היומן רושם גם את אוספי הטלפון — כאן רק מה שבמסד

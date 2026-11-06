@@ -3,11 +3,13 @@
 # כל השכמה של סשן = קריאה מחדש של כל ההקשר שלו (מאות אלפי טוקנים). לולאת sleep ברקע לא עולה טוקנים בכלל.
 # להריץ תמיד עם run_in_background: true:
 #   bash tools/wait-ci.sh <sha|ענף>     — עד שכל הבדיקות על הקומיט הסתיימו; מדפיס רק מה שנכשל
-#   bash tools/wait-ci.sh --deploy      — עד שריצת deploy האחרונה על main מחכה לאישור / הסתיימה; מדפיס קישור
+#   bash tools/wait-ci.sh --deploy [sha] — עד שריצת deploy האחרונה על main מחכה לאישור / הסתיימה; מדפיס קישור.
+#     בלי sha — הקומיט האחרון של origin/main (אחרי מיזוג הריצה החדשה עוד לא קיימת, והקודמת כבר "הסתיימה", 6/11/2026)
 REPO="yishaiguedj1/portfolio-pwa"; API="https://api.github.com/repos/$REPO"
 EVERY="${SNB_WAIT_EVERY:-60}"; MAX="${SNB_WAIT_MAX:-3600}"; t=0
 j() { curl -fsS -H 'Accept: application/vnd.github+json' "$API/$1"; }
 if [ "$1" = "--deploy" ]; then
+  WANT="${2:-$(git fetch -q origin main 2>/dev/null; git rev-parse --short=7 origin/main 2>/dev/null)}"; WANT="${WANT:0:7}"
   while [ $t -lt $MAX ]; do
     out=$(j "actions/workflows/deploy.yml/runs?branch=main&per_page=1" | python3 -c '
 import json,sys
@@ -15,7 +17,7 @@ r=(json.load(sys.stdin).get("workflow_runs") or [None])[0]
 if not r: print("none"); sys.exit()
 print(r["status"], r["conclusion"] or "-", r["head_sha"][:7], r["html_url"])') || out="err"
     set -- $out
-    case "$1" in waiting|completed) echo "deploy: $*"; exit 0;; esac
+    if [ -z "$WANT" ] || [ "$3" = "$WANT" ]; then case "$1" in waiting|completed) echo "deploy: $*"; exit 0;; esac; fi
     sleep "$EVERY"; t=$((t+EVERY))
   done; echo "deploy: עדיין רץ אחרי $MAX שנ׳ — $out"; exit 1
 fi
