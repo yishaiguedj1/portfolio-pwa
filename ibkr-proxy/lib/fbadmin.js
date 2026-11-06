@@ -52,4 +52,27 @@ async function oobLink(deps, kind, email, url) {
   return { link, oobCode };
 }
 
-module.exports = { adminToken, oobLink, TYPES, _reset: () => { tokC = { at: 0, exp: 0, v: '' }; } };
+/* 6/11/2026 (שלב 2, lib/accounts.js): חיפוש חשבון ב־Firebase — לפי מייל או לפי מזהה Google. כך חשבון שעוד לא נרשם אצלנו
+   מקבל את ה־uid הקיים שלו ולא חשבון כפול. מחזיר { uid, emails (מאומתים בלבד), gsubs } או null כשאין. תקלה — זורק
+   (והקורא נכשל סגור: לא יוצר חשבון חדש כשאי אפשר לדעת) */
+async function lookup(deps, q) {
+  const tk = await adminToken(deps);
+  const body = q.gsub ? { federatedUserId: [{ providerId: 'google.com', rawId: String(q.gsub) }] } : { email: [String(q.email || '')] };
+  const r = await deps.fetch('https://identitytoolkit.googleapis.com/v1/projects/' + PROJECT() + '/accounts:lookup', {
+    method: 'POST', headers: { Authorization: 'Bearer ' + tk, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (r.status !== 200) {
+    const j = await r.json().catch(() => ({}));
+    if (/USER_NOT_FOUND|EMAIL_NOT_FOUND/.test(String((j && j.error && j.error.message) || '').toUpperCase())) return null;
+    throw new Error('lookup_http_' + r.status);
+  }
+  const j = await r.json();
+  const a = j && Array.isArray(j.users) && j.users.length === 1 ? j.users[0] : null;   // יותר מאחד — לא מנחשים
+  if (!a || !a.localId) { if (j && Array.isArray(j.users) && j.users.length > 1) throw new Error('lookup_many'); return null; }
+  const pi = Array.isArray(a.providerUserInfo) ? a.providerUserInfo : [];
+  const emails = [];
+  if (a.email && a.emailVerified) emails.push(String(a.email).toLowerCase());
+  for (const p of pi) if (p && p.providerId === 'google.com' && p.email) emails.push(String(p.email).toLowerCase());
+  return { uid: String(a.localId), emails: [...new Set(emails)], gsubs: pi.filter((p) => p && p.providerId === 'google.com' && p.rawId).map((p) => String(p.rawId)) };
+}
+
+module.exports = { adminToken, oobLink, lookup, TYPES, _reset: () => { tokC = { at: 0, exp: 0, v: '' }; } };

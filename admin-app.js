@@ -914,6 +914,7 @@ const FL = {
   st_auto: [() => t('admFlStAuto'), () => t('admFlStAutoS')], learn: [() => t('admFlLearn'), () => t('admFlLearnS')], learn_full: [() => t('admFlFull'), () => t('admFlFullS')],
   push: [() => t('admFlPush'), () => t('admFlPushS')], iv_live: [() => t('admFlLive'), () => t('admFlLiveS')],
   ud_srv: [() => t('admFlUd'), () => t('admFlUdS')],   // 6/11/2026: שלב 4 — כבוי כברירת מחדל
+  acc_srv: [() => t('admFlAcc'), () => t('admFlAccS')],   // 6/11/2026: שלב 2 — החשבונות אצלנו (lib/accounts.js), כבוי בייצור עד שמדליקים
 };
 const APPN = { studio: 'Studio', invest: 'Invest', all: () => t('admFlAll') };
 page('flags', { tab: 'sys', parent: 'sys', title: () => t('admCfg'), render(p) {

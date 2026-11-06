@@ -433,4 +433,13 @@ const status = () => (cur ? cur.status() : { on: false, why: 'not_started' });
 const ready = (c) => !!(cur && cur.store && cur.store.ready(c));
 const refresh = (c, id) => (cur ? cur.refresh(c, id) : Promise.resolve(false));
 
-module.exports = { create, forServer, status, ready, refresh, sealSnap, openSnap, MIRROR_DAY, IMPORT_DAY, PRIO };
+/* 6/11/2026 (שלב 2): דגל מהמסד עצמו (sysCfg/main) — בלי קריאה ל־Firestore. אין מסד (Vercel / לא עלה) = כבוי */
+function flag(k) {
+  const st = cur && cur.store;
+  if (!st) return false;
+  const d = st.get('sysCfg', 'main');
+  const sv = (x) => (d && d.f && d.f[x] && d.f[x].stringValue) || '';
+  return SF.flagOn({ flOn: sv('flOn'), flOff: sv('flOff') }, k);
+}
+
+module.exports = { flag, create, forServer, status, ready, refresh, sealSnap, openSnap, MIRROR_DAY, IMPORT_DAY, PRIO };

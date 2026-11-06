@@ -252,6 +252,49 @@ function cors(res, origin, app) {
   res.setHeader('Access-Control-Max-Age', '600');
 }
 
+/* ---------------------------------------------------------------- שלב 2: החשבונות אצלנו (6/11/2026, lib/accounts.js)
+   דולק: SNB_ACC=on; כבוי: SNB_ACC=off; אחרת — בניסוי תמיד, בייצור לפי הדגל acc_srv במרכז הניהול (מהמסד, בלי קריאה) */
+const ACC_OPS = ['accReg', 'gLogin', 'pwLogin', 'pwSet'];
+function accOn(env) {
+  if (env.SNB_ACC === 'off') return false;
+  if (env.SNB_ACC === 'on' || sessEnv(env) === 'staging') return true;
+  try { return require('./ldbsync').flag('acc_srv'); } catch (e) { return false; }
+}
+let accInst = null;
+function accStore(fetchImpl, token) {
+  if (accInst) return accInst;
+  const V = require('./vault'), FA = require('./fbadmin');
+  const d = V.derive('snb-acc-ix/v1');
+  if (!d) throw new Error('vault_not_configured');
+  accInst = require('./accounts').make({ fetch: fetchImpl, token, seal: V.seal, open: V.open, ixKey: d.key,
+    fb: { byEmail: (e) => FA.lookup({ fetch: fetchImpl }, { email: e }), byGoogle: (sub) => FA.lookup({ fetch: fetchImpl }, { gsub: sub }) } });
+  return accInst;
+}
+/* הרישום השקט — לא מפיל את הבקשה. מחזיר false רק בתקלה */
+async function observe(deps, u, app) {
+  if (!deps.accOn()) return null;
+  try { const r = await deps.acc().observe(Object.assign({}, u, { emails: G.emailsOf(u) })); if (r) tally('acc:reg', app); return true; }
+  catch (e) { tally('acc:reg:store', app); return false; }
+}
+/* הקוד מחלון ההסכמה → אסימון זהות של Google. הלקוח של Drive (GDRIVE_CLIENT_ID) — כתובות החזרה שלו כבר רשומות */
+const REDIRECT_OK = (r) => { try { return require('./gdrive').REDIRECT_RE.test(r); } catch (e) { return false; } };
+const NONCE_RE = /^[A-Za-z0-9_-]{16,128}$/, CV_RE = /^[A-Za-z0-9._~-]{43,128}$/;
+async function googleExchange(fetchImpl, code, redirect, cv) {
+  const id = String(process.env.GDRIVE_CLIENT_ID || '').trim(), secret = String(process.env.GDRIVE_CLIENT_SECRET || '').trim();
+  if (!id || !secret) throw new Error('not_configured');
+  const p = { code, client_id: id, client_secret: secret, redirect_uri: redirect, grant_type: 'authorization_code' };
+  if (cv) p.code_verifier = cv;
+  const r = await fetchImpl('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: Object.entries(p).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&') });
+  let j = {}; try { j = await r.json(); } catch (e) {}
+  if (r.status !== 200 || !j.id_token) throw new Error('exchange_' + r.status);
+  return { idToken: String(j.id_token), aud: id };   // את אסימון הגישה לא שומרים (openid email profile בלבד)
+}
+const PW_WIN = 15 * 60e3, PW_EMAIL_MAX = 5, PW_IP_MAX = 20;
+const pwFails = new Map();
+function pwFail(k, now) { const a = (pwFails.get(k) || []).filter((t) => now - t < PW_WIN); a.push(now); pwFails.set(k, a); if (pwFails.size > 20000) pwFails.clear(); }
+const pwLocked = (k, now, max) => (pwFails.get(k) || []).filter((t) => now - t < PW_WIN).length >= max;
+
 function makeHandler(over = {}) {
   return async function handler(req, res) {
     const deps = {
@@ -266,6 +309,9 @@ function makeHandler(over = {}) {
       oob: over.oob || ((kind, email, url) => require('./fbadmin').oobLink({ fetch: over.fetch || fetch }, kind, email, url)),
       render: over.render || ((kind, lang, o) => require('./mailer').render(kind, lang, o)),
       mailRe: require('./mailer').EMAIL_RE,
+      accOn: over.accOn || (() => accOn(over.env || process.env)),
+      acc: over.acc || (() => accStore(over.fetch || fetch, over.token || (() => G.datastoreToken(over.fetch)))),
+      gExchange: over.gExchange || ((code, redirect, cv) => googleExchange(over.fetch || fetch, code, redirect, cv)),
       merge: over.merge || ((from, to, keep) => require('./acmerge').mergeAccounts({ fetch: over.fetch || fetch, token: over.token || (() => G.datastoreToken(over.fetch)) }, from, to, keep)),
     };
     const h = req.headers || {};
@@ -297,6 +343,7 @@ function makeHandler(over = {}) {
       let u;
       try { u = await deps.verify(String(body.idToken || '')); } catch (e) { tally('login:' + ((e && e.message) || 'bad_token'), app); return res.status(401).json({ ok: false, error: 'bad_token' }); }
       if (!UID_RE.test(u.uid)) { tally('login:uid', app); return res.status(401).json({ ok: false, error: 'bad_token' }); }
+      await observe(deps, u, app);
       if (u.provider === 'custom' || !(u.authTime > 0)) { tally('login:not_fresh:' + (u.provider || 'none'), app); return res.status(403).json({ ok: false, error: 'not_fresh' }); }
       if (now - u.authTime > LOGIN_FRESH || u.authTime > now + 300) { tally('login:not_fresh:age', app); return res.status(403).json({ ok: false, error: 'not_fresh' }); }
       tally('login:ok', app);
@@ -305,6 +352,63 @@ function makeHandler(over = {}) {
     }
 
     const cur = openCookie(readCookie(req), key, now);
+    /* עוגייה + טוקן מותאם (כגיבוי — הגישה הישירה ל־Firestore). אין טוקן (IAM לא זמין) — העוגייה תקפה, והטלפון ישאל who */
+    const signIn = async (uid, tag) => {
+      res.setHeader('Set-Cookie', setCookieHeader(sealCookie({ u: uid, a: now, i: now, x: now + MAX_AGE, p: PROJECT() }, key), MAX_AGE));
+      let ct = '';
+      try { ct = await mintToken(uid, app, now, deps); } catch (e) { tally(tag + ':ct_off', app); }
+      tally(tag + ':ok', app);
+      return res.status(200).json({ ok: true, s: 1, u: uid, app, ct });
+    };
+
+    /* ---- שלב 2 (6/11/2026, lib/accounts.js): החשבונות אצלנו. כבוי — off, והטלפון ממשיך עם Firebase ---- */
+    if (ACC_OPS.includes(op) && !deps.accOn()) { tally('acc:off', app); return res.status(200).json({ ok: false, error: 'off' }); }
+    /* רישום שקט: טוקן Firebase מאומת → החשבון נרשם אצלנו (אותו uid). הטלפון שולח פעם ביום */
+    if (op === 'accReg') {
+      let u;
+      try { u = await deps.verify(String(body.idToken || '')); } catch (e) { tally('acc:reg:bad_token', app); return res.status(401).json({ ok: false, error: 'bad_token' }); }
+      if (!UID_RE.test(u.uid)) return res.status(401).json({ ok: false, error: 'bad_token' });
+      const r = await observe(deps, u, app);
+      return r === false ? res.status(503).json({ ok: false, error: 'store' }) : res.status(200).json({ ok: true });
+    }
+    /* כניסה עם Google ישירות: הקוד מחלון ההסכמה (oauth.html, הלקוח של Drive — כבר רשום, בלי הגדרה חדשה) → השרת מחליף
+       אותו מול Google, מאמת את האסימון (חתימה, aud, nonce) → החשבון שלנו → עוגייה + טוקן מותאם */
+    if (op === 'gLogin') {
+      const code = String(body.code || ''), redirect = String(body.redirect || ''), cv = String(body.cv || ''), nonce = String(body.nonce || '');
+      if (!code || code.length > 2048 || !REDIRECT_OK(redirect) || !NONCE_RE.test(nonce) || (cv && !CV_RE.test(cv))) return res.status(400).json({ ok: false, error: 'bad_params' });
+      let g;
+      try { g = await deps.gExchange(code, redirect, cv); } catch (e) { tally('acc:g:' + String((e && e.message) || 'x').slice(0, 24), app); return res.status(401).json({ ok: false, error: 'bad_code' }); }
+      let p;
+      try { p = await require('./accounts').verifyGoogle(g.idToken, { aud: g.aud, nonce, fetch: deps.fetch, now: nowMs, keys: over.gKeys }); }
+      catch (e) { tally('acc:g:' + String((e && e.message) || 'x').slice(0, 24), app); return res.status(401).json({ ok: false, error: 'bad_token' }); }
+      let r;
+      try { r = await deps.acc().loginGoogle(p); }
+      catch (e) { const m = String((e && e.message) || ''); tally('acc:g:' + (m === 'unverified' ? 'unverified' : 'store'), app);
+        return m === 'unverified' ? res.status(403).json({ ok: false, error: 'unverified' }) : res.status(503).json({ ok: false, error: 'store' }); }
+      return signIn(r.uid, r.made ? 'acc:g:new' : 'acc:g');
+    }
+    /* כניסה עם סיסמה (רק סיסמאות שכבר אצלנו — pwSet). נעילה: 5 כישלונות ב־15 דק׳ למייל, 20 לכתובת. תשובה אחידה */
+    if (op === 'pwLogin') {
+      const email = String(body.email || '').trim().toLowerCase(), pw = typeof body.password === 'string' ? body.password : '';
+      const eid = hmacHex(key, 'pw|' + email).slice(0, 24);
+      if (pwLocked('e|' + eid, nowMs, PW_EMAIL_MAX) || pwLocked('i|' + ip, nowMs, PW_IP_MAX)) { tally('acc:pw:locked', app); return res.status(429).json({ ok: false, error: 'rate' }); }
+      let uid = '';
+      try { uid = await deps.acc().loginPw(email, pw); } catch (e) { tally('acc:pw:store', app); return res.status(503).json({ ok: false, error: 'store' }); }
+      if (!uid) { pwFail('e|' + eid, nowMs); pwFail('i|' + ip, nowMs); tally('acc:pw:bad', app); return res.status(200).json({ ok: false, error: 'bad_login' }); }
+      pwFails.delete('e|' + eid);
+      return signIn(uid, 'acc:pw');
+    }
+    /* שמירת הסיסמה אצלנו — רק אחרי כניסה טרייה (עד 5 דק׳, לא טוקן מותאם), לחשבון של הטוקן בלבד */
+    if (op === 'pwSet') {
+      let u;
+      try { u = await deps.verify(String(body.idToken || '')); } catch (e) { return res.status(401).json({ ok: false, error: 'bad_token' }); }
+      if (!UID_RE.test(u.uid) || u.provider === 'custom' || !(u.authTime > 0) || now - u.authTime > LOGIN_FRESH || u.authTime > now + 300) { tally('acc:pwset:not_fresh', app); return res.status(403).json({ ok: false, error: 'not_fresh' }); }
+      const pw = typeof body.password === 'string' ? body.password : '';
+      if (!require('./accounts').pwValid(pw)) return res.status(400).json({ ok: false, error: 'bad_password' });
+      try { await observe(deps, u, app); await deps.acc().setPw(u.uid, u.verified ? u.email : '', pw); } catch (e) { tally('acc:pwset:store', app); return res.status(503).json({ ok: false, error: 'store' }); }
+      tally('acc:pwset:ok', app);
+      return res.status(200).json({ ok: true });
+    }
 
     /* "מי מחובר?" → טוקן מותאם לאפליקציה הזו (ct) */
     if (op === 'who') {
@@ -378,14 +482,17 @@ function makeHandler(over = {}) {
       try { L = await deps.oob(kind, email, origin + path); }
       catch (e) {
         if (String(e && e.message) === 'no_user' && kind === 'reset') { tally('mail:no_user', app); return res.status(200).json({ ok: true, sent: true }); }
-        tally('mail:oob:' + String((e && e.message) || 'x').slice(0, 30), app); return res.status(503).json({ ok: false, error: 'mail_off' });
+        tally('mail:oob:' + String((e && e.message) || 'x').slice(0, 30), app);
+        // שלב 2: Firebase לא הנפיק קישור — כניסה בקוד בלבד, והחשבון אצלנו (mailCode). אחרת — הטלפון שולח דרך Firebase
+        if (kind !== 'in' || !deps.accOn()) return res.status(503).json({ ok: false, error: 'mail_off' });
+        L = { link: '', oobCode: '' };
       }
       const code = kind === 'in' ? sixDigits() : '';
       const m = deps.render(kind, lang, { code, link: L.link });
       const sent = await deps.mail(Object.assign({ to: email }, m), nowMs).catch(() => ({ ok: false }));
       if (!sent.ok) { tally('mail:send:' + (sent.error || 'x'), app); return res.status(503).json({ ok: false, error: 'mail_off' }); }
       const next = { s: win ? (+rec.s || 0) + 1 : 1, sw: win ? +rec.sw : nowMs, at: nowMs };
-      if (code) Object.assign(next, { h: hmacHex(key, 'code|' + id + '|' + code), oc: sealOc(key, id, L.oobCode), x: nowMs + MAIL_CODE_MS, n: 0 });
+      if (code) Object.assign(next, { h: hmacHex(key, 'code|' + id + '|' + code), oc: L.oobCode ? sealOc(key, id, L.oobCode) : '', x: nowMs + MAIL_CODE_MS, n: 0 });
       try { await codePut(deps, id, next); } catch (e) {}
       tally('mail:ok:' + kind + ':' + sent.via, app);
       return res.status(200).json({ ok: true, sent: true, code: !!code });
@@ -406,6 +513,18 @@ function makeHandler(over = {}) {
       }
       const oc = openOc(key, id, rec.oc);
       try { await codePut(deps, id, { s: +rec.s || 0, sw: +rec.sw || 0, at: nowMs }); } catch (e) {}   // שימוש אחד: הקוד וה־oobCode נמחקים
+      /* שלב 2: הקוד הוכיח שהמייל שלו — החשבון אצלנו, עוגייה וטוקן מותאם. oc נשאר לגיבוי (הטלפון של היום נכנס איתו) */
+      if (deps.accOn()) {
+        let r = null;
+        try { r = await deps.acc().loginEmail(email); } catch (e) { tally('acc:mail:store', app); }
+        if (r && r.uid) {
+          res.setHeader('Set-Cookie', setCookieHeader(sealCookie({ u: r.uid, a: now, i: now, x: now + MAX_AGE, p: PROJECT() }, key), MAX_AGE));
+          let ct = '';
+          try { ct = await mintToken(r.uid, app, now, deps); } catch (e) { tally('acc:mail:ct_off', app); }
+          tally(r.made ? 'acc:mail:new' : 'acc:mail:ok', app);
+          return res.status(200).json(Object.assign({ ok: true, s: 1, u: r.uid, app, ct }, oc ? { oc } : {}));
+        }
+      }
       if (!oc) return res.status(200).json({ ok: false, error: 'expired' });
       tally('mailcode:ok', app);
       return res.status(200).json({ ok: true, oc });
@@ -425,5 +544,6 @@ module.exports = makeHandler();
 Object.assign(module.exports, {
   makeHandler, appForOrigin, sessEnv, sealCookie, openCookie, cookieKey, customToken, mintToken, readCookie, setCookieHeader,
   COOKIE, MAX_AGE, RENEW_AFTER, LOGIN_FRESH, TOKEN_TTL, APPS, AUD,
-  _reset: () => { vsCache.clear(); hits.clear(); },
+  accOn, ACC_OPS,
+  _reset: () => { vsCache.clear(); hits.clear(); pwFails.clear(); accInst = null; },
 });

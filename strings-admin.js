@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1535 מפתחות מתוך 6430) */
+/* המחרוזות של admin (1537 מפתחות מתוך 6432) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -424,6 +424,8 @@ he: {
   "admFbReply": "לענות במייל",
   "admFeedback": "משוב ופניות",
   "admFindPh": "חיפוש מסך…",
+  "admFlAcc": "החשבונות וההתחברות בשרת שלנו",
+  "admFlAccS": "Firebase רק גיבוי · בניסוי דולק תמיד",
   "admFlAll": "כל האפליקציות",
   "admFlFoot": "כל דגל נבדק בקוד במקום אחד. שינוי חל בשרת תוך חצי דקה, ובאפליקציות — בפתיחה הבאה או בחזרה אליהן.",
   "admFlFull": "איסוף מלא (תקופת הפיתוח)",
@@ -1961,6 +1963,8 @@ en: {
   "admFbReply": "Reply by email",
   "admFeedback": "Feedback",
   "admFindPh": "Find a screen…",
+  "admFlAcc": "Accounts and sign-in on our server",
+  "admFlAccS": "Firebase as backup only · always on in staging",
   "admFlAll": "All apps",
   "admFlFoot": "Each flag is checked in one place in the code. Changes apply on the server within half a minute, and in the apps on the next open or return.",
   "admFlFull": "Full collection (development period)",

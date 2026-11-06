@@ -21,6 +21,7 @@ const FLAGS = [
   { k: 'push', app: 'all', where: 'api/studio.js — notify' },                                       // התראות לטלפון
   { k: 'iv_live', app: 'invest', where: 'app.js — liveCanTick' },                                   // מחירים חיים ב־Invest
   { k: 'ud_srv', app: 'all', where: 'lib/ldbsync.js — thruProbe' },                                // 6/11/2026: התיק והספרייה דרך השרת שלנו (שלב 4, lib/udata.js) — דולק כברירת מחדל מ־6/11 (בקשת המשתמש); כיבוי במרכז הניהול (flOff)
+  { k: 'acc_srv', app: 'all', def: false, where: 'lib/session.js — accOn' },                       // 6/11/2026: שלב 2 — החשבונות וההתחברות בשרת שלנו (lib/accounts.js). כבוי בייצור עד שמדליקים; בניסוי דולק תמיד
 ];
 const KEYS = FLAGS.map((f) => f.k);
 const DEF_OFF = FLAGS.filter((f) => f.def === false).map((f) => f.k);
