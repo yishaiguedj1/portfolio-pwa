@@ -1,0 +1,155 @@
+/* Cashflow, גל 2 (6/11/2026): העיצוב של שלושת המסכים — לפי התצוגה המקדימה שאושרה. הבסיס (הדר, זכוכית, כרטיסים, חוגה) —
+   styles.css. כאן רק מה שייחודי ל־Cashflow. עיגולי פינות רק במשתנים, יישור רק לוגי (docs/ui.md). */
+html[data-app="cashflow"] body { background: var(--gl-ambient), var(--bg); background-attachment: fixed; min-height: 100vh; }
+.cf-root { padding: 0 16px calc(150px + env(safe-area-inset-bottom, 0px)); max-width: 640px; margin: 0 auto; }
+.cf-page { display: grid; gap: 12px; }
+.cf-page > .card, .cf-tiles > .card, .cf-skel > .card { margin: 0; }
+.cf-busy .cf-page { opacity: .6; transition: opacity .2s ease; }
+.cf-card { padding: 16px; border-radius: var(--radius); }
+.cf-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 10px; font-size: 15px; font-weight: 650; color: var(--on-surface-var); }
+.cf-h small { font-size: 13px; font-weight: 500; }
+.cf-ic { display: inline-grid; place-items: center; flex: none; }
+.cf-ic svg { width: 20px; height: 20px; }
+.cf-loss { color: var(--loss) !important; }
+.cf-note { font-size: 13px; color: var(--on-surface-var); margin: 8px 0 0; line-height: 1.45; }
+.cf-sub { font-size: 12.5px; color: var(--on-surface-var); margin-top: 5px; }
+.cf-src { text-align: center; font-size: 12.5px; color: var(--on-surface-var); margin-top: 4px; }
+
+/* הבועה בהדר: עודכן + שעה */
+.cf-upd { flex: none; display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; column-gap: 6px; border: 0; border-radius: var(--pill); font: 600 14.5px var(--font); cursor: pointer;
+  background: var(--primary-container) !important; color: var(--on-primary-container) !important; }
+.cf-upd i { width: 8px; height: 8px; border-radius: 50%; background: var(--gain); }
+.cf-upd.old i { background: var(--sys-orange); }
+.cf-upd small { flex-basis: 100%; text-align: center; font-size: 12px; }
+
+/* שורות ותגיות */
+.cf-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: .5px solid var(--separator); font-size: 16px; }
+.cf-row:first-child, .cf-h + .cf-row { border-top: 0; padding-top: 2px; }
+.cf-row .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cf-row .v { font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cf-row .s { font-size: 13px; color: var(--on-surface-var); }
+.cf-page > .cf-row { padding: 12px 16px; border: 0; border-radius: var(--radius); background: var(--gl-card); box-shadow: var(--gl-card-sh); }
+.cf-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: var(--pill); font-size: 12.5px; font-weight: 600; background: var(--gl-fill); color: var(--on-surface-var); white-space: nowrap; }
+.cf-tag.ok { background: rgba(48, 209, 88, .16); color: #0B6B2C; }
+.cf-tag.warn { background: var(--warn-bg); color: var(--warn-fg); }
+.cf-tag.pri { background: var(--primary-container); color: var(--on-primary-container); }
+[data-theme="dark"] .cf-tag.ok { color: #7EE29A; }
+[data-theme="dark"] .cf-tag.warn { color: #FFC56B; }
+
+/* בית: הכרטיס הראשי */
+.cf-hero { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; }
+.cf-hero .lbl { font-size: 15px; color: var(--on-surface-var); }
+.cf-hero .big { font-size: 40px; font-weight: 750; letter-spacing: -.5px; line-height: 1.1; margin: 4px 0; font-variant-numeric: tabular-nums; }
+.cf-hero .sub { font-size: 14px; color: var(--on-surface-var); }
+.cf-hero-bal { grid-column: 1 / -1; border-top: .5px solid var(--separator); padding-top: 4px; }
+.cf-hero-bal .cf-row:first-child { padding-top: 8px; }
+.cf-ring { position: relative; width: 92px; height: 92px; }
+.cf-ring svg { width: 92px; height: 92px; display: block; }
+.cf-ring circle { fill: none; stroke-width: 9; }
+.cf-ring .bg { stroke: var(--gl-fill); }
+.cf-ring .fg { stroke: var(--primary); stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; }
+.cf-ring .rl { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; line-height: 1.15; }
+.cf-ring .rl b { font-size: 17px; }
+.cf-ring .rl small { font-size: 11px; color: var(--on-surface-var); }
+
+/* נכנס מול צפוי · יצא מול צפוי */
+.cf-flow { display: grid; gap: 14px; }
+.cf-meter .lbl { font-size: 15px; font-weight: 650; color: var(--on-surface-var); margin-bottom: 4px; }
+.cf-meter .top { display: flex; justify-content: space-between; gap: 10px; }
+.cf-meter .top small { display: block; font-size: 12.5px; color: var(--on-surface-var); }
+.cf-meter .top b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.cf-meter .top .end { text-align: end; }
+.cf-meter.in .top > div:first-child b { color: var(--gain); }
+.cf-meter.in .cf-bar i { background: var(--gain); }
+
+.cf-low { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.cf-low .cf-ic { width: 38px; height: 38px; border-radius: 50%; background: var(--primary-container); color: var(--on-primary-container); }
+.cf-low .t { flex: 1; font-size: 15px; color: var(--on-surface-var); }
+.cf-low .t b { display: block; font-size: 18px; color: var(--on-surface); font-variant-numeric: tabular-nums; }
+.cf-low .cf-note { flex-basis: 100%; margin: 0; }
+
+.cf-go { display: flex; align-items: center; gap: 12px; width: 100%; border: 0; font: 600 16px var(--font); color: var(--on-surface); text-align: start; cursor: pointer; }
+.cf-go .cnt { min-width: 30px; height: 30px; padding: 0 8px; border-radius: var(--pill); display: grid; place-items: center; background: var(--primary); color: var(--on-primary); font-weight: 750; }
+.cf-go .cnt.zero { background: var(--gl-fill); color: var(--on-surface-var); }
+.cf-go .gt { flex: 1; }
+.cf-go .cf-ic { color: var(--on-surface-var); }
+
+/* פסים */
+.cf-bar { position: relative; height: 6px; border-radius: var(--pill); background: var(--gl-fill); margin-top: 7px; }
+.cf-bar i { position: absolute; inset-block: 0; inset-inline-start: 0; border-radius: var(--pill); background: var(--primary); }
+.cf-bar i.over { background: var(--loss); }   /* חריגה — אדום: כתום קרוב מדי לצהוב של Cashflow */
+.cf-bar b { position: absolute; top: -4px; bottom: -4px; width: 2px; border-radius: var(--pill); background: var(--on-surface); opacity: .55; }
+
+/* חודש */
+.cf-mpick { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.cf-mpick .m { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cf-mpick button { width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--gl-btn); box-shadow: var(--gl-btn-sh); color: var(--on-surface); display: grid; place-items: center; cursor: pointer; }
+.cf-mpick button svg { width: 20px; height: 20px; }
+.cf-mpick button[disabled] { opacity: .35; cursor: default; }
+.cf-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+.cf-tile { padding: 12px 10px; border-radius: var(--radius-sm); text-align: center; }
+.cf-tile .l { font-size: 13px; color: var(--on-surface-var); }
+.cf-tile .v { font-size: 18px; font-weight: 720; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.cf-tile .d { font-size: 12px; color: var(--on-surface-var); margin-top: 2px; }
+.cf-seg { display: grid; grid-template-columns: repeat(3, 1fr); padding: 3px; border-radius: var(--pill); background: var(--gl-fill); }
+.cf-seg button { border: 0; background: none; padding: 8px 0; border-radius: var(--pill); font: 600 14.5px var(--font); color: var(--on-surface); cursor: pointer; }
+.cf-seg button.on { background: var(--seg-active); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+[data-theme="dark"] .cf-seg button.on { background: rgba(255, 255, 255, .18); }
+.cf-cat { padding: 9px 0; border-top: .5px solid var(--separator); }
+.cf-h + .cf-cat { border-top: 0; padding-top: 0; }
+.cf-cat .top { display: flex; gap: 8px; align-items: baseline; font-size: 15.5px; }
+.cf-cat .top .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cf-cat .top .v { font-weight: 650; font-variant-numeric: tabular-nums; }
+.cf-cat .top .s { font-size: 13.5px; color: var(--on-surface-var); }
+.cf-more { margin-top: 8px; border: 0; background: none; padding: 4px 0; font: 600 14.5px var(--font); color: var(--on-primary-container); cursor: pointer; }
+.cf-legend { display: flex; gap: 14px; font-size: 12.5px; color: var(--on-surface-var); margin-top: 10px; }
+.cf-legend span::before { content: ''; display: inline-block; width: 10px; height: 6px; border-radius: var(--pill); background: var(--primary); margin-inline-end: 5px; vertical-align: middle; }
+.cf-legend span.avg::before { width: 2px; height: 12px; background: var(--on-surface); opacity: .55; }
+/* נטו מול החודשים הקודמים */
+.cf-bars { display: flex; justify-content: space-around; gap: 6px; height: 180px; }
+.cf-bars .col { flex: 1; max-width: 64px; display: grid; grid-template-rows: 1fr 1fr auto; justify-items: center; }
+.cf-bars .up, .cf-bars .dn { position: relative; width: 100%; display: flex; flex-direction: column; align-items: center; }
+.cf-bars .up { justify-content: flex-end; border-bottom: 1px solid var(--separator); }
+.cf-bars .dn { justify-content: flex-start; }
+.cf-bars i { width: 18px; border-radius: var(--pill); background: color-mix(in srgb, var(--gain) 40%, transparent); }
+.cf-bars .neg i { background: color-mix(in srgb, var(--loss) 35%, transparent); }
+.cf-bars .sel i { background: var(--gain); }
+.cf-bars .sel.neg i { background: var(--loss); }
+.cf-bars .val { font-size: 11.5px; color: var(--on-surface-var); font-variant-numeric: tabular-nums; margin: 2px 0; white-space: nowrap; }
+.cf-bars .sel .val, .cf-bars .sel .ml { color: var(--on-surface); font-weight: 700; }
+.cf-bars .ml { font-size: 12.5px; color: var(--on-surface-var); margin-top: 4px; }
+/* מה אם */
+.cf-wirow { display: flex; justify-content: space-between; gap: 10px; font-size: 15px; padding: 3px 0; }
+.cf-wirow .v { font-weight: 650; font-variant-numeric: tabular-nums; }
+.cf-wirow.res { font-size: 17px; font-weight: 750; }
+.cf-range { width: 100%; accent-color: var(--primary); margin: 10px 0 6px; }
+
+/* לבדוק */
+.cf-sum { font-size: 15px; color: var(--on-surface-var); text-align: center; }
+.cf-sum b { color: var(--on-surface); }
+.cf-find .hd { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.cf-find .hd .v { margin-inline-start: auto; font-size: 18px; font-weight: 720; font-variant-numeric: tabular-nums; }
+.cf-find .mer { font-size: 17px; font-weight: 650; margin-bottom: 4px; overflow-wrap: anywhere; }
+.cf-find .tx { font-size: 13.5px; color: var(--on-surface-var); margin-bottom: 10px; }
+.cf-find dl { margin: 0 0 12px; display: grid; gap: 6px; font-size: 14.5px; }
+.cf-find dt { font-weight: 650; display: inline; }
+.cf-find dd { display: inline; margin: 0; color: var(--on-surface-var); }
+.cf-find .acts { display: flex; justify-content: flex-end; }
+.cf-chk { display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 16px; border-radius: var(--pill); border: 1.5px solid var(--primary); background: none; color: var(--on-primary-container); font: 650 15px var(--font); cursor: pointer; }
+.cf-chk svg { width: 18px; height: 18px; }
+.cf-done .cf-row { opacity: .7; }
+.cf-undo { border: 0; background: none; padding: 4px 0; font: 600 13.5px var(--font); color: var(--on-primary-container); cursor: pointer; }
+.cf-err p { margin: 0 0 12px; font-size: 15px; line-height: 1.45; }
+
+/* שלד בזמן טעינה */
+.cf-skel { display: grid; gap: 12px; }
+.cf-sk { height: 120px; position: relative; overflow: hidden; }
+.cf-sk::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--on-surface) 6%, transparent), transparent); animation: cfShim 1.4s ease-in-out infinite; }
+@keyframes cfShim { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .cf-sk::after { animation: none; } }
+
+/* הגדרות */
+.cf-navbar { display: flex; align-items: center; min-height: 44px; }
+.cf-back { display: inline-flex; align-items: center; gap: 2px; border: 0; background: none; font: 500 17px var(--font); color: var(--on-primary-container); cursor: pointer; padding: 0; }
+.cf-back svg { width: 22px; height: 22px; }
+.cf-large { font-size: 30px; font-weight: 750; margin: 0 0 4px; }

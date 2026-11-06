@@ -32,7 +32,7 @@
      החיבור המשותף עוברת. Vercel = גיבוי חם: אותן פונקציות, אותם סודות ואותו Firestore (installFailover למטה).
      ב־github.io נשאר Vercel. כתובת חדשה = גם ב־connect-src של כל הדפים */
   var PROD_API = 'https://api.thesnowball.app';
-  var PROD_HOST_RE = /^((invest|academy|studio|account|admin)\.)?thesnowball\.app$/;
+  var PROD_HOST_RE = /^((invest|academy|studio|account|admin|cashflow)\.)?thesnowball\.app$/;
   // השרתון של הניסוי — חדר על שרת Hetzner מאחורי Cloudflare Tunnel (2ב, 12/10/2026): Firebase ודלי R2 של הניסוי.
   // כתובת חדשה = גם ב־connect-src של index.html.
   var STAGING_PROXY = 'https://api-staging.thesnowball.app';
@@ -40,7 +40,7 @@
   /* שלב 4 בתוכנית שלוש האפליקציות (13/10/2026): כתובת לכל אפליקציה — ייצור <אפליקציה>.thesnowball.app,
      ניסוי <אפליקציה>-staging.thesnowball.app. ברמה הראשונה בלבד (כמו api-staging): התעודה החינמית של Cloudflare
      (Universal SSL) לא מכסה a.b.thesnowball.app. אותה רשימה ב־ibkr-proxy/lib/session.js (APPS) וב־functions/index.js */
-  var APP_HOST_RE = /^(invest|academy|studio|account|admin)(-staging)?\.thesnowball\.app$/;   // admin = מרכז הניהול (17/10/2026)
+  var APP_HOST_RE = /^(invest|academy|studio|account|admin|cashflow)(-staging)?\.thesnowball\.app$/;   // admin = מרכז הניהול (17/10/2026)
   var APP_PAGES = { invest: './', academy: 'academy.html', studio: 'studio.html' };
 
   function envFor(host) {

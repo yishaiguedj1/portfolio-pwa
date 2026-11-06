@@ -235,7 +235,7 @@ const { fakeR2, ENV } = require('./_r2fake.js');
   ok(/accMethods/.test(read('cloud.js')) && /accMethods/.test(read('shell.js')), 'שורת "שיטות כניסה" בכרטיס החשבון בשלוש האפליקציות');
   ok(/emailLinkLanding\(\)/.test(read('auth.js')) && /window\.SnbAcct/.test(read('auth.js')), 'auth.js (Academy/Studio) — אותם אזורים <auth>: חזרה מקישור במייל + SnbAcct');
   const sw = read('sw.js');
-  ok((sw.match(/'\.\/acclink\.js'/g) || []).length === 3, 'acclink.js בשלוש המעטפות של sw.js');
+  ok((sw.match(/'\.\/acclink\.js'/g) || []).length === 4, 'acclink.js בארבע המעטפות של sw.js (כולל Cashflow, 6/11/2026)');
   ok(/'acclink\.js'\]/.test(read('tools/coregen.js')), 'coregen אוסף את המחרוזות של acclink.js');
 
   console.log('\nכל ' + n + ' הבדיקות עברו ✓');
