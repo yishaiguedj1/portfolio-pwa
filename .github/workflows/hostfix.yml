@@ -12,9 +12,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'check = מצב בלבד · apply = להתקין את קובצי המארח (אתחול של כ־5 דק׳ אחרי סוף העבודות)'
+        description: 'check = מצב בלבד · apply = להתקין את קובצי המארח · diag = לקרוא את היומן של snb-update ומצב הקונטיינרים, בלי לשנות (apply ו־diag: אתחול של כ־5 דק׳ אחרי סוף העבודות)'
         type: choice
-        options: [check, apply]
+        options: [check, apply, diag]
         default: check
 
 permissions: {}
@@ -41,10 +41,12 @@ jobs:
           persist-credentials: false
       - name: מצב — בלי שום שינוי
         run: node tools/server-hostfix.js check | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: התקנה דרך Rescue
+      - name: התקנה / אבחון דרך Rescue
         id: fix
-        if: inputs.mode == 'apply'
-        run: node tools/server-hostfix.js apply | tee -a "$GITHUB_STEP_SUMMARY"
+        if: inputs.mode == 'apply' || inputs.mode == 'diag'
+        env:
+          MODE: ${{ inputs.mode }}
+        run: node tools/server-hostfix.js "$MODE" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: ניקוי (תמיד — גם בכישלון או ביטול)
-        if: always() && inputs.mode == 'apply'
+        if: always() && (inputs.mode == 'apply' || inputs.mode == 'diag')
         run: node tools/server-hostfix.js clean | tee -a "$GITHUB_STEP_SUMMARY"

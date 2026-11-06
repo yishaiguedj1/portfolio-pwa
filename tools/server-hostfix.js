@@ -58,8 +58,40 @@ function fail(code, msg) { const e = new Error(msg || code); e.code = code; thro
 
 /* ---------------------------------------------------------------- הסקריפט שרץ ב־Rescue */
 
+/* 6/11/2026 — מצב diag (קריאה בלבד, בלי להתקין): למה snb-update לא מחליף קונטיינרים. מהדיסק של השרת — היומן של
+   snb-update (journalctl -D), ה־digests ב־/opt/snb/.env, הטיימר, ומצב כל קונטיינר (שם, תמונה, רץ, מתי עלה, שגיאה).
+   הפלט נכנס ליומן הציבורי של Actions — עובר redact() ב־parseOut: בלי מפתחות, מיילים, כתובות IP ו־base64 ארוך */
+const DIAG = [
+  'J="$R/var/log/journal"',
+  'if command -v journalctl >/dev/null 2>&1 && [ -d "$J" ]; then',
+  '  journalctl -D "$J" --no-pager -o short-iso -n 150 -u snb-update.service 2>/dev/null | sed "s/^/SNBLOG /" || true',
+  '  journalctl -D "$J" --no-pager -o short-iso -n 60 -t snb 2>/dev/null | sed "s/^/SNBLOG /" || true',
+  'else echo "SNBLOG no-journal"; fi',
+  'if [ -f "$R/opt/snb/.env" ]; then sed "s/^/SNBENV /" "$R/opt/snb/.env"; else echo "SNBENV none"; fi',
+  'for f in "$R"/etc/systemd/system/snb-update.timer "$R"/etc/systemd/system/snb-update.timer.d/*.conf; do',
+  '  if [ -f "$f" ]; then b=$(basename "$f"); sed "s|^|SNBTMR $b: |" "$f"; fi',
+  'done',
+  'for f in "$R"/var/lib/docker/containers/*/config.v2.json; do',
+  '  if [ -f "$f" ]; then',
+  '    echo "SNBCT $(grep -o \'"Name":"/[^"]*"\' "$f" | head -n1) $(grep -o \'"Image":"[^"]*"\' "$f" | tr "\\n" " ") $(grep -o \'"Running":[a-z]*\' "$f" | head -n1) $(grep -o \'"StartedAt":"[^"]*"\' "$f" | head -n1) $(grep -o \'"ExitCode":[0-9-]*\' "$f" | head -n1) $(grep -o \'"Error":"[^"]*"\' "$f" | head -n1)"',
+  '  fi',
+  'done',
+  'if [ -f "$R/opt/snb/compose.yaml" ]; then echo "SNBSUM compose $(sha256sum "$R/opt/snb/compose.yaml" | cut -c1-12)"; fi',
+];
+/* טהורה: שורה מהשרת → בטוחה ליומן ציבורי */
+function redact(line) {
+  return String(line || '').replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
+    .replace(/sha256:([a-f0-9]{12})[a-f0-9]{52}/g, 'sha256:$1~')
+    .replace(/((?:key|secret|token|pass(?:word)?|auth|cookie)[A-Za-z0-9_]*\s*[=:]\s*)\S+/gi, '$1<redacted>')
+    .replace(/[^\s@"']+@[^\s@"']+\.[a-z]{2,}/gi, '<mail>')
+    .replace(/\b\d{1,3}(\.\d{1,3}){3}\b/g, '<ip>')
+    .replace(/[A-Za-z0-9+/_=-]{32,}/g, '<long>')
+    .replace(/[\x00-\x1f\x7f]/g, ' ')
+    .slice(0, 220);
+}
+
 /* טהורה: הסקריפט (sh) עם הקבצים בתוכו (base64). SNB_TEST_ROOT = תיקייה במקום מחיצה (בדיקות) */
-function rescueScript(files) {
+function rescueScript(files, o = {}) {
   const L = [
     'set -eu',
     'R=/mnt/snbroot',
@@ -87,6 +119,7 @@ function rescueScript(files) {
     L.push(...Buffer.from(f.body).toString('base64').match(/.{1,76}/g));
     L.push('SNBEOF');
   }
+  if (o.diag) L.push(...DIAG);
   for (const [k, p] of DU) L.push('[ -d "$R/' + p + '" ] && echo "SNBDU ' + k + ' $(du -sk "$R/' + p + '" 2>/dev/null | cut -f1)" || true');
   L.push('[ -d "$R/var/lib/docker/volumes" ] && for v in "$R"/var/lib/docker/volumes/*/; do n=$(basename "$v"); case "$n" in *[!A-Za-z0-9_.-]*) continue ;; esac; echo "SNBVOL $n $(du -sk "$v" 2>/dev/null | cut -f1)"; done || true');
   L.push('[ -d "$R/var/lib/docker/image/overlay2/imagedb/content/sha256" ] && echo "SNBIMG $(ls "$R/var/lib/docker/image/overlay2/imagedb/content/sha256" | wc -l)" || true');
@@ -99,9 +132,14 @@ function rescueScript(files) {
 
 /* טהורה: הפלט של הסקריפט → מספרים בלבד (שורה שלא בצורה — מתעלמים) */
 function parseOut(text) {
-  const o = { put: [], same: [], du: {}, vol: {}, img: null, df: null, busy: [], err: '', ok: false };
+  const o = { put: [], same: [], du: {}, vol: {}, img: null, df: null, busy: [], err: '', ok: false, diag: null };
   for (const line of String(text || '').split('\n')) {
     let m;
+    if ((m = /^SNB(LOG|ENV|TMR|CT|SUM) (.*)$/.exec(line))) {
+      o.diag = o.diag || { LOG: [], ENV: [], TMR: [], CT: [], SUM: [] };
+      if (o.diag[m[1]].length < 220) o.diag[m[1]].push(redact(m[2]));
+      continue;
+    }
     if (line.includes('..')) continue;
     if ((m = /^SNBPUT (\/[a-z0-9/._-]+)$/.exec(line))) o.put.push(m[1]);
     else if ((m = /^SNBSAME (\/[a-z0-9/._-]+)$/.exec(line))) o.same.push(m[1]);
@@ -124,7 +162,15 @@ function report(o) {
   for (const [k] of DU) if (o.du[k] != null) L.push('  ' + names[k] + ': ' + gb(o.du[k]));
   for (const [k, v] of Object.entries(o.vol)) L.push('    ' + k + ': ' + gb(v));
   if (o.img != null) L.push('  מספר התמונות: ' + o.img);
-  L.push('הותקנו: ' + (o.put.join(', ') || 'אין (כבר מעודכן)') + (o.same.length ? ' · זהים: ' + o.same.length : ''));
+  if (!o.diag) L.push('הותקנו: ' + (o.put.join(', ') || 'אין (כבר מעודכן)') + (o.same.length ? ' · זהים: ' + o.same.length : ''));
+  if (o.diag) {
+    const sec = (t, a) => { L.push('', '### ' + t, '```', ...(a.length ? a : ['(ריק)']), '```'); };
+    sec('הקונטיינרים (שם · תמונה · רץ · עלה · יציאה · שגיאה)', o.diag.CT);
+    sec('הגרסאות המאושרות (/opt/snb/.env)', o.diag.ENV);
+    sec('הטיימר של snb-update', o.diag.TMR);
+    sec('compose.yaml בשרת', o.diag.SUM);
+    sec('היומן של snb-update (האחרונות)', o.diag.LOG);
+  }
   return L.join('\n');
 }
 
@@ -207,8 +253,8 @@ async function diskNow(e, deps) {
 }
 
 async function apply(e, deps, opts = {}) {
-  const files = loadFiles(opts.root || path.join(__dirname, '..'));
-  const script = rescueScript(files);
+  const files = opts.diag ? [] : loadFiles(opts.root || path.join(__dirname, '..'));
+  const script = rescueScript(files, { diag: !!opts.diag });
   deps.shCheck(script);                                     // תחביר — לפני שנוגעים בשרת
   const left = await clean(e, deps);                        // שאריות מריצה שנקטעה
   const srv = await U.theServer(e, deps);
@@ -320,6 +366,13 @@ if (require.main === module) {
   (async () => {
     if (cmd === 'check') { console.log(await check(process.env, deps)); return; }
     if (cmd === 'clean') { console.log('ניקוי: ' + ((await clean(process.env, deps)).join(', ') || 'לא נשאר כלום')); return; }
+    if (cmd === 'diag') {
+      const r = await apply(process.env, deps, { diag: true });
+      out('done', '1');
+      console.log('✓ האבחון הסתיים (בלי שינוי בקבצים) והשרת חזר לעבוד');
+      console.log(report(r.out));
+      return;
+    }
     if (cmd === 'apply') {
       const r = await apply(process.env, deps);
       out('done', '1');
@@ -336,4 +389,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { HF, FILES, DU, rescueScript, parseOut, report, clean, apply, check, loadFiles };
+module.exports = { HF, FILES, DU, DIAG, redact, rescueScript, parseOut, report, clean, apply, check, loadFiles };
