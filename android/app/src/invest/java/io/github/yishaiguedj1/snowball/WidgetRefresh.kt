@@ -90,15 +90,18 @@ object WidgetRefresh {
         if (hasWatch && lists.isNotEmpty()) {
             val lang = WidgetStore.lang(c)
             val res = coroutineScope { lists.map { l -> async(Dispatchers.IO) { l to fetch(l.items, lang) } }.awaitAll() }
+            var got = false
             for ((l, json) in res) {
                 val m = WidgetModel.parse(json)
                 if (json != null && m != null) {
                     WidgetStore.saveWatchModel(c, l.id, json)
                     LogoCache.warm(c, m.rows)
                     if (m.rows.any { it.active }) active = true
+                    got = true
                 } else ok = false
             }
-            WidgetStore.saveWatchTime(c, System.currentTimeMillis())
+            // 6/11/2026: "עודכן" רק כשבאמת הגיע משהו — אחרת הווידג'ט הציג שעה חדשה עם מחירים ישנים (השרת נפל, והגיבוי חסום)
+            if (got) WidgetStore.saveWatchTime(c, System.currentTimeMillis())
         }
         repaint(c)
         if (s.isNotEmpty() || lists.isNotEmpty()) scheduleNext(c, active)
