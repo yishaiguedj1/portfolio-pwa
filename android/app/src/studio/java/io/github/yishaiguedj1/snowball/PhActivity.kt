@@ -1,6 +1,7 @@
 package io.github.yishaiguedj1.snowball
 
 import android.app.Activity
+import android.content.ClipData
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
@@ -35,6 +36,8 @@ import java.io.File
  *                                            pt=1 — גם שלבי הטקסט בטלפון (שלב 3, PhPy — job.py בפייתון של האפליקציה)
  *   snbstudio://phburn?pid=…[&j&k&b]       → הצריבה כשהתרגום מוכן
  *   snbstudio://phgo?pid=…                 → להמשיך אחרי שנעצר
+ *   snbstudio://phpv?pid=…                 → 5/11/2026: חיתוך לפני התרגום (nu) — הסרטון שכבר נבחר עובר לדף לתצוגה בעורך
+ *                                            (Web Share Target: ‎/share-file עם "snbpv:<pid>" → ‎#got=), בלי בחירה שנייה
  */
 class PhActivity : Activity() {
     private val main = Handler(Looper.getMainLooper())
@@ -64,8 +67,23 @@ class PhActivity : Activity() {
             "ph" -> go(d)
             "phburn" -> burn(d)
             "phgo" -> resume(d)
+            "phpv" -> preview(d)
             else -> finish()
         }
+    }
+
+    /* ---------------------------------------------------------------- תצוגה בעורך (5/11/2026) */
+    /** הסרטון של בחירת nu (ה־URI עם ההרשאה הקבועה) נשלח ל־MainActivity כמו "שיתוף ← Studio" — Chrome שולח אותו ב־POST
+     *  ל־‎/share-file, ו־sw.js מעביר לדף (‎#got=). רק לתצוגה בעורך: ההעלאה נשארת כאן (PhUpJob), מאותו URI */
+    private fun preview(d: Uri) {
+        val pid = d.getQueryParameter("pid") ?: ""
+        val r = PhStore.get(this, pid)
+        val u = r?.optString("uri", "")?.takeIf { r.optBoolean("pu") && it.startsWith("content://") }?.let { Uri.parse(it) }
+        if (u == null) { back("#phpick=!probe"); return }
+        startActivity(Intent(this, MainActivity::class.java).setAction(Intent.ACTION_SEND).setType("video/*")
+            .putExtra(Intent.EXTRA_STREAM, u).putExtra(Intent.EXTRA_TEXT, "snbpv:$pid")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION).also { it.clipData = ClipData.newRawUri("", u) })
+        finish()
     }
 
     /* ---------------------------------------------------------------- בחירה */

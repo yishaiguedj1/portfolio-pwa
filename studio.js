@@ -219,6 +219,8 @@ export const PH_CAP_PT = 3;
 export const PH_CAP_VC = 4;   // 30/10/2026: Studio שמעלה גם את הסרטון לענן (spec.vc). ישן יותר מתעלם מ־vc — הסרטון נשאר רק בטלפון
 /* 1/11/2026: Studio שבוחר בלי עותק לתרגום רגיל בשרת (nu, PhPu). ישן יותר מעתיק ועושה גם מדידות — השרתון מתעלם מהן */
 export const PH_CAP_NU = 5;
+/* 5/11/2026: Studio שמעביר את הסרטון שבחר (nu) לדף לתצוגה בעורך — "חיתוך לפני התרגום" בלי בחירה שנייה (phpv) */
+export const PH_CAP_PV = 6;
 export function normJob(j) {
   if (!j || typeof j !== 'object' || !JOB_RE.test(String(j.id || ''))) return null;
   const sp = j.spec && typeof j.spec === 'object' ? j.spec : {};
@@ -3497,7 +3499,8 @@ function pageForm(p, editing) {
     const pickRow = card.classList.contains('st-row') ? card : null;   // 25/10/2026: בלי קובץ — הבורר והמקורות האחרים בקבוצה אחת
     if (!pickRow) p.append(card);
     if (!pickRow && listOk(f)) p.append(moreRows(f));   // 01/11/2026 (סבב 3, I3): רשימת עבודה
-    if (!pickRow && f.ph && (f.ph.cap || 0) < (f.ph.nu ? PH_CAP_NU : PH_CAP_VC)) {   // הקישור לעדכון — מחוץ לכפתור של הכרטיס
+    if (!pickRow && f.ph && (f.ph.cap || 0) < (f.ph.nu ? PH_CAP_PV : PH_CAP_VC)) {   // 5/11/2026: ב־nu — גם בשביל החיתוך (phpv)
+      // הקישור לעדכון — מחוץ לכפתור של הכרטיס
       const a = h('a', 'st-btn wide', T('studioLinkApk')); a.href = DL_APK; a.rel = 'noopener'; a.dataset.k = 'ph-apk';
       p.append(a);
     }
@@ -3525,20 +3528,12 @@ function pageForm(p, editing) {
       hv && rowNav({ tile: tile('check', 'green'), label: T('studioNsHave', { l: langName(hv.l, uiLang()) }), sub: hv.ex ? T('studioNsHaveS', { n: fmtNum(hv.n), k: fmtNum(hv.ex) }) : T('studioNsHaveS0', { n: fmtNum(hv.n) }), onClick: () => go('tracks'), k: 'ns-have' })));
     const adv = f.ka ? null : advRows(f, pick);   // 30/10/2026: עצות של תרגום (שפה, צריבה) — לא לשיר
     if (adv) p.append(h('div', 'st-gap sm'), adv);
-    // 05/11/2026 (בקשת המשתמש): גם כשהסרטון נבחר דרך האפליקציה (nu) — הקובץ לא בדפדפן, אז לתצוגה בעורך בוחרים אותו שוב
-    // מהדפדפן (f.pv, רק בזיכרון; בודקים שזה אותו גודל). ההעלאה נשארת באפליקציה, והעובד חותך את הקול ואת הסרטון (edl_src)
-    const nuF = !!(f.ph && f.ph.nu);
-    if (!f.ka && (f.fileObj || nuF || (f.drive && !f.drive.bx))) {
-      const pvInp = h('input', 'st-file'); pvInp.type = 'file'; pvInp.hidden = true; pvInp.accept = inp.accept;
-      pvInp.addEventListener('change', () => {
-        const file = pvInp.files && pvInp.files[0];
-        if (!file || form !== f) return;
-        if (!f.file || file.size !== f.file.size) { flashSafe(T('studioEdPvNo')); return; }
-        f.pv = file; go('cutsrc');
-      });
-      p.append(pvInp, list(rowNav({ tile: tile('film', 'blue'), label: T('studioEdBefore'), value: f.edl ? edlSum(f.edl, f.dur || 0) : T('studioEdOptional'),
-        sub: nuF && !f.pv ? T('studioEdPvS') : null, onClick: () => { fnlAdd('cut'); if (nuF && !f.pv) pvInp.click(); else go('cutsrc'); }, k: 'cutsrc' })));   // מ4
-    }
+    // 05/11/2026 (בקשת המשתמש): גם כשהסרטון נבחר דרך האפליקציה (nu) — הקובץ לא בדפדפן, אז האפליקציה מעבירה לדף את אותו
+    // סרטון (phpv → ‎/share-file → ‎#got= → pvGot, f.pv רק לתצוגה), בלי בחירה שנייה. ההעלאה נשארת באפליקציה, והעובד חותך (edl_src)
+    const nuF = !!(f.ph && f.ph.nu), pvOld = nuF && (f.ph.cap || 0) < PH_CAP_PV;
+    if (!f.ka && (f.fileObj || nuF || (f.drive && !f.drive.bx))) p.append(list(rowNav({ tile: tile('film', 'blue'), label: T('studioEdBefore'),
+      value: f.edl ? edlSum(f.edl, f.dur || 0) : T('studioEdOptional'), sub: pvOld ? T('studioEdPvOld') : null,
+      onClick: () => { if (pvOld) { flashSafe(T('studioEdPvOld')); return; } fnlAdd('cut'); if (nuF && !f.pv) pvOpen(f); else go('cutsrc'); }, k: 'cutsrc' })));   // מ4
     if (isIOS()) p.append(note(T('studioIosTip')));
   }
 
@@ -4983,6 +4978,7 @@ async function gotFile(key) {
   const e = await inboxOp('get', key);
   if (!e || !e.f || !(e.f instanceof Blob)) return false;
   const file = e.f.name ? e.f : new File([e.f], 'video.mp4', { type: e.f.type || 'video/mp4' });
+  if (/^snbpv:/.test(String(e.t || ''))) return pvGot(key, file, e.t);   // 5/11/2026: הסרטון של nu לתצוגה בעורך — לא בחירה חדשה
   let pend = null;
   try { pend = JSON.parse(sessionStorage.getItem(DLP_KEY) || 'null'); } catch (x) {}
   const mine = pend && /^snbdl:/.test(String(e.t || '')) && String(e.t).slice(6) === pend.n;
@@ -5072,10 +5068,45 @@ export function studioPhPick(arg) {
   try { ask = sessionStorage.getItem(NU_ASK) === '1'; sessionStorage.removeItem(NU_ASK); } catch (e) {}
   f.ph = { pid: r.pid, w: r.w, h: r.h, dur: r.dur, cap: r.cap };   // 30/10/2026: cap נשמר — בלעדיו גם pt (שלב 3) לא הופעל אף פעם
   if (r.nu || ask) f.ph.nu = 1;   // 1/11/2026: תרגום רגיל בשרת — האפליקציה רק מעלה
-  f.fileObj = null; f.handle = null; f.drive = null; f.link = null; f.linkOk = false; f.edl = null; f.pv = null;   // pv — התצוגה בעורך שייכת לסרטון הקודם
+  if (f.pvKey) inboxOp('del', f.pvKey);   // pv — התצוגה בעורך שייכת לסרטון הקודם
+  f.fileObj = null; f.handle = null; f.drive = null; f.link = null; f.linkOk = false; f.edl = null; f.pv = null; f.pvKey = null;
+  f.phArg = String(arg);   // 5/11/2026: לשחזור הטופס אחרי החזרה מ־phpv (הדף נטען מחדש — POST ל־/share-file)
   f.file = { name: r.name, size: r.size, type: 'video/*' }; f.dur = r.dur;
   phTracks(f, r);
   if (root) { if (ui.view !== 'new') go('new', null, 'none'); else render('none'); }
+  return true;
+}
+/* 5/11/2026 (בקשת המשתמש: "זה פותח בחירת סרטון חדש במקום עריכת הסרטון שכבר הוספתי"): "חיתוך לפני התרגום" ב־nu — האפליקציה
+   שולחת את אותו סרטון לדף (phpv, כמו "שיתוף ← Studio"), sw.js שומר אותו בתיבה (snb-inbox) ומחזיר ‎#got=. החזרה טוענת את הדף
+   מחדש — לכן הטופס נשמר ב־sessionStorage (PVP_KEY, כמו DLP_KEY בהורדה מקישור), ו־pvGot בונה אותו שוב מ־‎#phpick= השמור */
+const PVP_KEY = 'pwa_studio_pvp', PVP_MAX_MS = 6 * 3600e3;
+function pvOpen(f) {
+  const P = f.ph;
+  if (!P || !P.pid || !f.phArg || !phOk()) { flashSafe(T('studioLinkEApp')); return; }
+  const pend = { pid: P.pid, at: Date.now(), arg: f.phArg, id: f.id || null,
+    f: { from: f.from, to: f.to, mode: f.mode, out: f.out, style: f.style, sty: f.sty || null, terms: f.terms, bt: f.bt || 0, edl: f.edl || null } };
+  try { sessionStorage.setItem(PVP_KEY, JSON.stringify(pend)); } catch (e) { flashSafe(T('studioPhEGen')); return; }
+  flashSafe(T('studioEdPvWait'));
+  location.href = phIntent('phpv', { pid: P.pid });
+}
+export function pvRestore(pend, pid, now) {
+  return !!(pend && typeof pend === 'object' && pend.pid === pid && typeof pend.arg === 'string' && pend.arg.startsWith(pid + '.') && now - (Number(pend.at) || 0) < PVP_MAX_MS);
+}
+function pvGot(key, file, t) {
+  let pend = null;
+  try { pend = JSON.parse(sessionStorage.getItem(PVP_KEY) || 'null'); sessionStorage.removeItem(PVP_KEY); } catch (x) {}
+  const pid = String(t || '').slice(6);
+  if (!pvRestore(pend, pid, Date.now())) { inboxOp('del', key); return false; }
+  form = null;
+  if (!studioPhPick(pend.arg) || !form || !form.ph || form.ph.pid !== pid) { inboxOp('del', key); return false; }
+  const f = form, s = pend.f || {};
+  for (const k of ['from', 'to', 'mode', 'out', 'style', 'terms', 'bt']) if (s[k] != null) f[k] = s[k];
+  if (s.sty) f.sty = normSty(s.sty);
+  if (pend.id) f.id = pend.id;
+  f.edl = s.edl ? normEdl(s.edl, f.dur || 0) : null;
+  if (!f.file || file.size !== f.file.size) { inboxOp('del', key); flashSafe(T('studioEdPvNo')); render('none'); return true; }
+  f.pv = file; f.pvKey = key;
+  if (root) go('cutsrc', null, 'none');
   return true;
 }
 const PH_ERR_RE = /^(space|no_audio|no_video|probe|noapp|models_wifi|models_sha|models_net|models_io|no_speech)$/;
@@ -5142,6 +5173,7 @@ function startPhone(f) {
     store.jobs.unshift(rec);
     if (f.id) store.drafts = store.drafts.filter((d) => d.id !== f.id);
     save();
+    if (f.pvKey) { inboxOp('del', f.pvKey); f.pvKey = null; }   // 5/11/2026: העותק לתצוגה בעורך — ההעלאה מהאפליקציה, מה־URI
     const refText = trkRefSrt(f);   // רצועת ההשוואה — לתיקיית העבודה (סט הזהב בסוף)
     if (refText) refUpload(rec, refText);
     form = null;

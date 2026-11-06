@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2273 מפתחות מתוך 6429) */
+/* המחרוזות של studio (2274 מפתחות מתוך 6430) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -541,7 +541,8 @@ he: {
   "studioEdPos": "מיקום",
   "studioEdPosY": "גובה",
   "studioEdPvNo": "זה לא אותו סרטון — צריך לבחור את הסרטון של הפרויקט",
-  "studioEdPvS": "בוחרים שוב את אותו סרטון — רק לתצוגה בעורך. הוא ממשיך לעלות מהאפליקציה",
+  "studioEdPvOld": "כדי לחתוך כאן צריך לעדכן את Studio לאנדרואיד",
+  "studioEdPvWait": "פותח את הסרטון בעורך…",
   "studioEdRemove": "מחיקת הקטע",
   "studioEdRemoveNo": "אין קטע למחוק כאן (או שזה הקטע האחרון)",
   "studioEdRot": "סיבוב",
@@ -2816,7 +2817,8 @@ en: {
   "studioEdPos": "Position",
   "studioEdPosY": "Height",
   "studioEdPvNo": "That's not the same video — pick this project's video",
-  "studioEdPvS": "Pick the same video again — only to preview it in the editor. It still uploads from the app",
+  "studioEdPvOld": "Update Studio for Android to trim here",
+  "studioEdPvWait": "Opening the video in the editor…",
   "studioEdRemove": "Delete clip",
   "studioEdRemoveNo": "No clip to delete here (or it's the last one)",
   "studioEdRot": "Rotate",
