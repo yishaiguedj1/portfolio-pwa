@@ -222,11 +222,13 @@ const INV = 'https://invest.thesnowball.app', ACA = 'https://academy.thesnowball
     // הדגל ud_srv במרכז הניהול (sysCfg/main.flOn) — בלי משתנה סביבה
     for (let i = 0; i < 10 && !ctl.store.ready('sysCfg'); i++) await ctl.importTick();
     delete process.env.SNB_UDATA;
-    const setFl = (v) => { ctl.store.handle('PATCH', BASE + '/sysCfg/main?updateMask.fieldPaths=flOn', { fields: { flOn: { stringValue: v } } }); clock += 6000; };
+    // 6/11/2026: דולק כברירת מחדל — "כבוי" = flOff
+    const setFl = (v) => { ctl.store.handle('PATCH', BASE + '/sysCfg/main?updateMask.fieldPaths=flOff', { fields: { flOff: { stringValue: v ? '' : 'ud_srv' } } }); clock += 6000; };
+    setFl('');
     clock += 6000;
-    ok(!C.thruOn() && !C.serverCol('users'), 'בלי הדגל ובלי SNB_UDATA — כבוי');
+    ok(!C.thruOn() && !C.serverCol('users'), 'כבוי במרכז הניהול (flOff) ובלי SNB_UDATA — כבוי');
     setFl('ud_srv');
-    ok(C.thruOn() && C.serverCol('users'), 'ud_srv במרכז הניהול — דולק (נקרא מהמסד, בלי Firestore)');
+    ok(C.thruOn() && C.serverCol('users'), 'בלי flOff — דולק כברירת מחדל (נקרא מהמסד, בלי Firestore)');
     setFl('');
     ok(!C.thruOn() && !ctl.store.cols.has('users') && !ctl.store.rec('users', 'alice'), 'נכבה — האוספים של הטלפון יוצאים מהמסד (לא נשאר עותק ישן)');
     remote.handle('PATCH', BASE + '/users/alice?updateMask.fieldPaths=db', { fields: { db: { mapValue: { fields: { n: { integerValue: '9' } } } } } });
@@ -242,6 +244,15 @@ const INV = 'https://invest.thesnowball.app', ACA = 'https://academy.thesnowball
     ctl.stop();
     ok(!C.serverCol('users') && !C.thru('users'), 'בלי SNB_UDATA — האוספים של הטלפון נשארים ב־Firestore (כמו קודם)');
     ok(C.stampCol('users') && !C.stampCol('snbChg'), 'Vercel רושם ביומן גם את האוספים של הטלפון (לא את היומן עצמו)');
+    // 6/11/2026: מסד חדש בלי sysCfg/main — דולק כברירת מחדל; SNB_UDATA=off מכבה
+    const stgEnv = {};
+    const stg = LS.create({ own: () => true, fetch: remoteFetch, env: stgEnv, project: 'p2', dir: path.join(tmp, 's'), now, token: async () => 'T', timers: false });
+    ok(await stg.start(), 'מסד חדש עולה');
+    clock += 6000;
+    ok(C.thruOn({}) && stg.store.cols.get('users').st === 'imp', 'בלי הגדרה — שלב 4 דולק, והאוספים של הטלפון לייבוא');
+    stgEnv.SNB_UDATA = 'off'; clock += 6000;
+    ok(!C.thruOn({}), 'SNB_UDATA=off מכבה');
+    stg.stop();
   }
 
   // ---------------------------------------------------------------- 3. הטלפון
