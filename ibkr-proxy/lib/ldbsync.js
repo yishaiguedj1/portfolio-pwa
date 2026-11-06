@@ -19,6 +19,7 @@ const crypto = require('crypto');
 const C = require('./ldbchg');
 const L = require('./ldb');
 const FSM = require('./fsmeter');
+const SF = require('./sysflags');
 
 /* אבטחה: הסטטוס חשוף ב־/api/session בלי הרשאה — שגיאה רק כקוד קצר, בלי נתיבים, כתובות או תוכן */
 const errOf = (e) => String((e && (e.code || e.message)) || e).replace(/(https?:)?\/[^\s'"]*/g, '').replace(/[^A-Za-z0-9_:. -]/g, '').trim().slice(0, 60) || 'err';
@@ -140,8 +141,9 @@ function create(o = {}) {
     if (t - probeAt < 5000) return probeV;
     probeAt = t;
     const d = store.get('sysCfg', 'main');
-    const fl = d && d.f && d.f.flOn && d.f.flOn.stringValue;
-    const v = String(fl || '').split(',').includes('ud_srv');
+    const sv = (k) => (d && d.f && d.f[k] && d.f[k].stringValue) || '';
+    // 6/11/2026: דולק כברירת מחדל (בקשת המשתמש — כמה שפחות פעולות שלו); כיבוי: מרכז הניהול ← דגלים (flOff), או SNB_UDATA=off
+    const v = env.SNB_UDATA !== 'off' && SF.flagOn({ flOn: sv('flOn'), flOff: sv('flOff') }, 'ud_srv');
     if (probeV && !v && env.SNB_UDATA !== 'on') for (const c of C.CLIENT) if (store.cols.has(c)) store.dropCol(c);
     if (v) for (const c of C.CLIENT) if (!store.cols.has(c)) store.setCol(c, { st: 'imp' });   // הודלק — לייבוא
     probeV = v;

@@ -14,7 +14,7 @@
 const CLIENT = new Set(['users', 'academyUsers']);
 const CHG = 'snbChg';
 const COL_RE = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
-/* דולק: SNB_UDATA=on, או הדגל ud_srv במרכז הניהול (sysCfg/main.flOn — lib/sysflags.js; נקרא מהמסד, lib/ldbsync.js thruProbe) */
+/* דולק: SNB_UDATA=on, או הדגל ud_srv במרכז הניהול (דולק כברירת מחדל מ־6/11/2026, כיבוי ב־flOff) (sysCfg/main.flOn — lib/sysflags.js; נקרא מהמסד, lib/ldbsync.js thruProbe) */
 let probe = () => false;
 const setThruProbe = (f) => { probe = typeof f === 'function' ? f : () => false; };
 const thruOn = (env = process.env) => env.SNB_UDATA === 'on' || !!probe();
