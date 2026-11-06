@@ -30,6 +30,11 @@ for x in snb-common.sh:usr/local/lib/snb/common.sh:644 compose.yaml:opt/snb/comp
 	echo "Updated: /${rest%%:*}"
 	n=$((n + 1))
 done
+# 6/11/2026: an old drop-in starting with an empty "OnUnitActiveSec=" resets ALL timer triggers (OnBootSec, OnCalendar)
+# of the main file — the timer never fires after a reboot. The main file has everything, so the drop-in goes.
+if grep -qs '^On[A-Za-z]*=$' "$H/etc/systemd/system/snb-update.timer.d/10-fast.conf"; then
+	rm -f "$H/etc/systemd/system/snb-update.timer.d/10-fast.conf" && echo "Removed: /etc/systemd/system/snb-update.timer.d/10-fast.conf" && n=$((n + 1))
+fi
 # the timer starts at boot even if the enable link was removed (same as systemctl enable)
 mkdir -p "$H/etc/systemd/system/timers.target.wants" && ln -sfn /etc/systemd/system/snb-update.timer "$H/etc/systemd/system/timers.target.wants/snb-update.timer"
 echo "Done ($n updated). Now run, one per line: systemctl daemon-reload / systemctl restart snb-update.timer / snb-update"

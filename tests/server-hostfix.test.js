@@ -152,6 +152,14 @@ function world(o = {}) {
   ok(!fs.readdirSync(path.join(root, 'usr/local/sbin')).some((f) => f.endsWith('.snb-new')), 'בלי קבצים זמניים שנשארו');
   ok(fs.readFileSync(path.join(root, 'etc/systemd/system/snb-update.timer'), 'utf8') === read('infra/host/snb-update.timer') && fs.readFileSync(path.join(root, 'etc/systemd/system/snb-update.service'), 'utf8') === read('infra/host/snb-update.service'), 'גם הטיימר והשירות מותקנים (בלי sh -n — הם לא סקריפטים)');
   ok(fs.readlinkSync(path.join(root, 'etc/systemd/system/timers.target.wants/snb-update.timer')) === '/etc/systemd/system/snb-update.timer', 'הטיימר מופעל באתחול (הקישור ב־timers.target.wants)');
+  { // 6/11/2026: השלמה עם "OnUnitActiveSec=" ריק מאפסת את כל הטריגרים — נמחקת ומדווחת; השלמה בלי איפוס נשארת
+    const rt = fakeRoot(), dd = path.join(rt, 'etc/systemd/system/snb-update.timer.d');
+    fs.mkdirSync(dd, { recursive: true }); fs.writeFileSync(path.join(dd, '10-fast.conf'), '[Timer]\nOnUnitActiveSec=\nOnUnitActiveSec=2min\n');
+    const ro = H.parseOut(runScript(script, rt).out);
+    ok(!fs.existsSync(path.join(dd, '10-fast.conf')) && ro.del[0] === '/etc/systemd/system/snb-update.timer.d/10-fast.conf' && /נמחקו: /.test(H.report(ro)), 'השלמה עם איפוס נמחקת ומדווחת');
+    fs.writeFileSync(path.join(dd, '10-fast.conf'), '[Timer]\nOnCalendar=*:0/2\n');
+    ok(H.parseOut(runScript(script, rt).out).del.length === 0 && fs.existsSync(path.join(dd, '10-fast.conf')), 'השלמה בלי איפוס — נשארת');
+  }
   const unit = read('infra/host/snb-update.service'), tmr = read('infra/host/snb-update.timer');
   ok(/^TimeoutStartSec=\d+min$/m.test(unit) && !/^(Wants|After)=.*network-online/m.test(unit) && /^Requires=docker\.service$/m.test(unit), 'השירות: מגבלת זמן (ריצה תקועה לא חוסמת את הטיימר), בלי תלות ב־network-online');
   ok(/^OnCalendar=\*:0\/2$/m.test(tmr) && /^OnBootSec=/m.test(tmr), 'הטיימר: גם לפי השעון (OnCalendar)');
